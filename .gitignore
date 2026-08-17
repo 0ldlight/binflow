@@ -1,0 +1,22 @@
+# 依赖与构建
+node_modules/
+dist/
+build/
+.next/
+coverage/
+__pycache__/
+*.pyc
+.venv/
+
+# 环境与密钥
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# 本地数据与日志
+*.log
+.DS_Store
+data/*.db
+data/*.sqlite
