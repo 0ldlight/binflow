@@ -47,16 +47,20 @@
   AC: ① 单区间 206/非法 416 ② If-None-Match/If-Modified-Since→304 ③ curl -r/-z 断言；M2 前必须 done
 - **T-23** [P1] 补逆向规格 auth-model.md（R7） `role:reverse-engineer` `area:docs/reverse` `dep:T-3`
   AC: ① auth-model.md：用户/组/权限模型+token 行为（签发/验证/吊销/过期字段与错误码）② 置信度标注 ③ clean-room 铁律；供 T-15 token 端点校准
-  状态：22:3x 派发填宽（area 独立），在途。
 
 ## 🔨 进行中（doing）
 
-- **T-7** [P0] 工程脚手架：module+目录骨架+Makefile+lint/test+CI `role:devops-engineer` `area:仓库根` `dep:（无）`
-  AC: ① module github.com/lzwzzy/binflow；make build|test|lint 全绿；--help usage ② CI 三步+零 CGO 构建+GOPROXY 镜像注记 ③ internal/ 九包骨架（doc.go）+make dev/clean+data/ 入 gitignore
-  状态：在途（首波，全局前置）。
-- **T-7** [P0] 工程脚手架：module+目录骨架+Makefile+lint/test+CI `role:devops-engineer` `area:仓库根` `dep:（无）`
-  AC: ① module github.com/lzwzzy/binflow；make build|test|lint 全绿；--help usage ② CI 三步+零 CGO 构建+GOPROXY 镜像注记 ③ internal/ 九包骨架（doc.go）+make dev/clean+data/ 入 gitignore
-  状态：在途（代码骨架已成形：go.mod/Makefile/cmd/internal 九包已见磁盘；日志未落）。
+- **T-8** [P0] config 包：YAML+env 覆盖与 fail-fast 校验 `role:dev-go-core` `area:internal/config` `dep:T-7`
+  AC 摘要：① Load 架构 §8 全量字段+env（BINFLOW_ 前缀 __ 层级）；匿名读双键名等价+冲突报错 ② fail-fast；ADMIN_PASSWORD 只走 env ③ table-driven 单测
+  状态：22:4x 派发（第 2 波），在途。
+- **T-9** [P0] storage 引擎 `role:dev-go-storage` `area:internal/storage` `dep:T-7`
+  AC 摘要：① Engine/Session+blobs/<xx>/<sha256>+落盘顺序+singleflight+sentinel ② 启动清扫+GC dry-run 默认；-race 单测 ③ 1GB RSS<256MB；Open 返回 ReadSeekCloser
+  状态：22:4x 派发（第 2 波），在途。review 届时双 code-reviewer。
+- **T-10** [P0] metadata：SQLite Store+迁移器+001_init `role:dev-go-core` `area:internal/metadata` `dep:T-7`
+  AC 摘要：① Store+六子接口+embedded 迁移器+modernc.org/sqlite+WAL+零 CGO ② 9 表 DDL（permissions 按 E-24 两表形态，T-22 已回写架构 §6）+admin 种子 ③ -race 单测
+  状态：22:4x 派发（第 2 波），在途。review 届时双 code-reviewer。
+- **T-23** [P1] 补逆向规格 auth-model.md `role:reverse-engineer` `area:docs/reverse` `dep:T-3`
+  状态：在途。
 
 ## 👀 评审中（review）
 
@@ -87,6 +91,8 @@
   R1（checksum 不一致 409）/R2（建仓 200 纯文本）/§5.5 六项全部定案（改「校准记录」表）；增补两条规格（ETag/304/416、幂等重传注记）；token 字段标待 T-23。核验通过（旧口径无残留，对照表左列旧值为有意保留）。T-18 QA 依赖已解除。
 - **T-22** [P0] architecture.md 回写 R3~R6 `role:architect` `area:docs/design` `dep:T-6` — done 2026-08-17
   R3 匿名读主键名 security.anonymous_access（别名双键等价）；R4 permission_targets+permission_principals 两表替换扁平表；R5 repo key {1,62}；R6 错误信封 errors[] 数组形。核验通过（grep 四处落点 + 旧形态零残留）。ADR-0008/0009 仅追加回写注记。遗留：M4 可在 breaking 窗口移除旧键别名。
+- **T-7** [P0] 工程脚手架 `role:devops-engineer` `area:仓库根` — done 2026-08-17
+  go.mod（github.com/lzwzzy/binflow, go 1.26）/ Makefile（build/test/lint/dev/clean，GOPROXY 镜像）/ .golangci.yml v2 / CI 三步 / cmd 骨架 / internal 九包 doc.go。conductor 亲测复现：build 2.58MB、test PASS、lint 0 issues、gofmt 空、CGO_ENABLED=0 通过。遗留：CI 首跑绿待推送后确认；go.sum 待首依赖生成。
 
 ## 🚫 阻塞（blocked）
 

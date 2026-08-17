@@ -1,0 +1,44 @@
+# BinFlow CI (T-7). Runs the Makefile targets unchanged so local and CI share
+# one entrypoint. GOPROXY mirrors goproxy.cn because proxy.golang.org is
+# unreachable from this network (ADR-0005); the mirror is a fetch fallback only,
+# the dependency set itself is gated by the ADR-0005 whitelist.
+# Go version here must match the `go` directive in go.mod (kept in sync by T-7).
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  GOPROXY: https://goproxy.cn,direct
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache: true
+
+      - name: Show toolchain
+        run: |
+          go version
+          grep '^go ' go.mod
+
+      # lint + test + build all delegate to the Makefile (single entrypoint).
+      - name: Lint
+        run: make lint
+
+      - name: Test
+        run: make test
+
+      - name: Build (zero CGo, ADR-0005)
+        run: |
+          CGO_ENABLED=0 go build ./...
+          make build

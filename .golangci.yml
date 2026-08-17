@@ -1,0 +1,35 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - ineffassign
+    - copyloopvar
+    - errorlint
+    - gosec
+    - misspell
+    - nolintlint
+    - revive
+    - whitespace
+
+  exclusions:
+    # generated code and test fixtures stay out of the quality gate.
+    paths:
+      - internal/console/dist
+      - web/dist
+      - third_party
+
+formatters:
+  enable:
+    - gofmt
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
