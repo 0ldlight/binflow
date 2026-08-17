@@ -47,6 +47,7 @@
   AC: ① 单区间 206/非法 416 ② If-None-Match/If-Modified-Since→304 ③ curl -r/-z 断言；M2 前必须 done
 - **T-23** [P1] 补逆向规格 auth-model.md（R7） `role:reverse-engineer` `area:docs/reverse` `dep:T-3`
   AC: ① auth-model.md：用户/组/权限模型+token 行为（签发/验证/吊销/过期字段与错误码）② 置信度标注 ③ clean-room 铁律；供 T-15 token 端点校准
+  状态：22:3x 派发填宽（area 独立），在途。
 
 ## 🔨 进行中（doing）
 
