@@ -58,7 +58,7 @@ PUT /binflow/<repo-key>/<path>                        (httpapi: middleware 链)
   → auth.Authorizer:   Can(repo, path, "w", principal)
   → adapter/generic:   layout 解析（无布局，path 即相对路径）
   → repo.Local.Put:    storage.BeginSession → 流式写入 → Commit(sha256 必须 == 客户端 X-Checksum-Sha256，若有)
-                       metadata: upsert node + link blob（一个事务）
+                       metadata: blob link + upsert node（blob-first 两条语句，FK 兜底——§3.2 事务边界注）
   → audit:             append(action="deploy", ...)
   → 201 Created
 ```
@@ -129,6 +129,9 @@ type BlobRef struct {
 type Session interface {
     ID() string
     // Append 追加并返回当前累计 offset；r 由 adapter 提供（http body）。
+    // Append 一旦失败（含部分写），会话即被毒化：后续 Append/Commit 一律返回
+    // wrap ErrSessionPoisoned 的错误（错误链双 %w 同时携带原始因，T-9 修复新增），
+    // 调用方必须 Abort 丢弃——绝不允许把与摘要不符的部分写文件 rename 入库。
     Append(ctx context.Context, r io.Reader) (written int64, err error)
     // Commit 终结会话：校验期望摘要（非空则必须匹配）→ fsync → rename 入库。
     // 已存在同 sha256 blob 时：丢弃会话数据，返回已存在引用（幂等去重）。
@@ -138,23 +141,41 @@ type Session interface {
 }
 
 type Engine interface {
-    // BeginSession 创建会话；dirs 自动创建。
+    // BeginSession 创建会话；dirs 自动创建。Close 后返回 ErrEngineClosed。
     BeginSession(ctx context.Context) (Session, error)
-    // ResumeSession 按 id 恢复（chunked 上传 [M2] 需要）；M1 返回 ErrNoSuchSession 即可。
+    // ResumeSession 按 id 恢复（chunked 上传 [M2] 需要）；M1 返回 ErrSessionNotFound。
     ResumeSession(ctx context.Context, id string) (Session, error)
     // Open 打开 blob 读取；调用方负责 Close。不存在 → ErrBlobNotFound（wrap）。
+    // 返回的 BlobRef 只保证 Sha256+Size 有值；sha1/md5 的事实源是 metadata blobs 表
+    //（无 sidecar，ADR-0006）——需要三摘要全量时用 Stat。（T-9 review 回写项 D）
     Open(ctx context.Context, sha256 string) (io.ReadSeekCloser, BlobRef, error)
-    // Stat 轻量探测（GC/一致性检查用）。
+    // Stat 是完整性校验而非轻量探测（T-9 review 回写项 E）：全量读内容重算三摘要并
+    // 验证内容与路径名自洽，不自洽 → ErrBlobCorrupt。代价 O(size)，供 GC/一致性检查
+    // 与修复流程用；存在性探测请走 metadata（blob 行在即视为物理在，异常由 GC 兜底）。
     Stat(ctx context.Context, sha256 string) (BlobRef, error)
     // Delete 物理删除；只允许 GC 调用（运行时制品删除走 metadata 层删引用）。
-    // 引用计数检查由调用方（GC）先经 metadata 完成。
+    // 引用集检查由调用方（GC）先完成；Close 后返回 ErrEngineClosed。
     Delete(ctx context.Context, sha256 string) error
-    // GC 扫描：返回未被 nodes 引用且早于 grace 的 blob 摘要。dryRun 永远默认真。
-    GC(ctx context.Context, referenced func(ctx context.Context, sha256 string) (bool, error), grace time.Duration, apply bool) (removed []string, err error)
+    // GC 是 mark-sweep（T-9 review 回写项 A，集合形回调取代逐条形——逐条形 = blob 数次
+    // DB 往返，集合形一次查询；且磁盘驱动 sweep 更彻底，能发现 blobs 表缺行/DB 回退旧
+    // 备份产生的孤儿）：
+    //   mark：referenced 一次返回全部被 nodes 引用的 sha256 集合（调用方实现为
+    //         SELECT DISTINCT sha256 FROM nodes）；
+    //   sweep：storage 扫描 blobs/ 磁盘，未在集合中且文件 mtime 早于 now-grace 者为候选。
+    // apply=false 只返回候选清单（dry-run 为默认姿态）；apply=true 删除并返回实际删除清单。
+    // grace <= 0 视为 DefaultGCGrace(24h)——零值不是「立即回收」，要无宽限期须显式传亚秒
+    // 时长（回写项 J）。Close 后返回 ErrEngineClosed。
+    // 注：引用集全量驻内存（1M nodes ≈ 100MB 量级），M6+ 大库需流式接口变体（回写项 A 注记）。
+    GC(ctx context.Context, referenced func() (map[string]struct{}, error), grace time.Duration, apply bool) ([]string, error)
+    // Close 关闭引擎：排空并丢弃在途会话目录（残留由下次启动清扫兜底）、拒绝后续
+    // BeginSession/Delete/GC（ErrEngineClosed）；Open/Stat 继续服务已提交 blob（只读
+    // 不可变文件）。幂等。（T-9 review 回写项 B——§7.4 停机序列要求生命周期对称。）
+    Close() error
 }
 ```
 
-错误约定：`var ErrBlobNotFound`, `ErrSessionNotFound`, `ErrChecksumMismatch`（包级 sentinel，wrap 后仍 `errors.Is` 可判）。
+错误约定（包级 sentinel，wrap 后仍 `errors.Is` 可判；T-9 review 回写项 C/H 补全）：
+`var ErrBlobNotFound`（Open/Stat/Delete 未命中）、`ErrSessionNotFound`（ResumeSession；早期文档误写 ErrNoSuchSession，以本名为准）、`ErrChecksumMismatch`（Commit 期望摘要不符，不落盘）、`ErrBlobCorrupt`（Stat 完整性校验失败）、`ErrEngineClosed`（Close 后的变更操作）、`ErrSessionPoisoned`（Append 失败后的会话毒化，双 %w 错误链）。
 
 ### 3.2 metadata.Store（owner: dev-go-core）
 
@@ -169,18 +190,30 @@ type Store interface {
     Users() UserStore
     Tokens() TokenStore
     Audits() AuditStore
-    // Txn 只读透传：Repo.PutNode 必须与 blob link 在同一事务（见 §4.4）。
+    // Ping 供 /readyz 探活（T-10 实现扩展，合规——本文件声明「定稿以本文件 + 代码 api.go 为准」）。
+    Ping(ctx context.Context) error
     Close() error
 }
+
+// M1 事务边界（T-10 review M1 裁决，采纳 a 案）：Store 接口不设 Txn 方法；
+// Put 的「node + blob link」是两条语句、blob-first 顺序（BlobStore.Put DO NOTHING 幂等
+// 在前，NodeStore.Put 在后），崩溃窗口由 FK（nodes.sha256 → blobs.sha256）兜底强制该顺序。
+// 中间崩溃只残留无引用 blob 行（GC 可收，不损数据），语义等价于原「一个 SQL 事务」的意图，
+// 且避免为一条组合语句扩接口。原 §3.2「Txn 只读透传」注释行系文档残缺，作废（T-25 清理）。
 
 type NodeStore interface {
     // Get 返回 ErrNodeNotFound 若无。path 形如 "org/app/1.0/app-1.0.jar"（repo 内相对）。
     Get(ctx context.Context, repoKey, path string) (*Node, error)
     Put(ctx context.Context, n *Node) error        // upsert by (repo_key, path)
     Delete(ctx context.Context, repoKey, path string) error // 只删引用，不动物理 blob
+    // DeleteByPrefix 目录递归删（T-12 目录删基础）。前缀查询大小写敏感（case_sensitive_like=ON，
+    // 见 §6 前言），与制品 path 大小写敏感语义一致（T-10 review B1 裁决）。
+    DeleteByPrefix(ctx context.Context, repoKey, prefix string) error
     ListByPrefix(ctx context.Context, repoKey, prefix string) ([]*Node, error)
-    // FilterUnreferenced 供 GC mark 阶段：返回 blobs 表中不出现在任何 node 的 sha256。
-    // （为避免超大 IN 列表，实现可用反连接分页流式产出。）
+    // FilterUnreferenced 流式产出 blobs 表中不被任何 node 引用的 sha256（keyset 分页回调，
+    // 非 OFFSET——边删边流不跳行）。定位（T-9 review 回写项 I）：**对账/一致性检查用**
+    //（如 blobs 表与磁盘盘点）；GC mark 自 T-9 集合形回调后不再走它（mark =
+    // SELECT DISTINCT sha256 FROM nodes），原「供 GC mark」定位作废。
 }
 
 type Node struct {
@@ -215,7 +248,7 @@ type Service interface {
 func New(st storage.Engine, md metadata.Store, az auth.Authorizer, au audit.Logger) Service
 ```
 
-**Put 的事务边界**（正确性关键）：`storage.Session.Commit`（物理 blob 就位）成功之后、`metadata` 写 node+blob link（一个 SQL 事务）之前崩溃 → 产生一个无引用 blob，由 GC grace 过期回收，**不损数据**；反向（先写元数据后落盘）则会出现元数据指向不存在 blob 的致命态，**禁止**。
+**Put 的事务边界**（正确性关键）：`storage.Session.Commit`（物理 blob 就位）成功之后、metadata 写 blob link + node（两条语句、blob-first，见 §3.2 事务边界注）之前崩溃 → 产生一个无引用 blob，由 GC grace 过期回收，**不损数据**；反向（先写元数据后落盘）则会出现元数据指向不存在 blob 的致命态，**禁止**（FK 兜底强制）。
 
 ### 3.4 auth（owner: dev-go-core）
 
@@ -274,9 +307,20 @@ type Logger interface {
 ├── sessions/
 │   └── <uuid>/
 │       ├── data                     # 追加写目标
-│       └── state.json               # {"id","created_at","received","sha256":null}——摘要不落盘，恢复时重算或仅支持从 0 重传（M1 从 0，[M2] chunked 再议）
+│       └── state.json               # 形状见下方契约
 ├── binflow.db                       # SQLite（WAL 模式）；Postgres 形态下不存在
 └── binflow.db-wal / -shm
+```
+
+**state.json 契约**（T-9 review 回写项 F + 修复票定稿；session 属瞬态文件，非 ADR-0006 的兼容承诺面——兼容承诺仅 `blobs/`+`sessions/` 目录命名，备份面 = blobs/ + SQLite 文件）：
+
+```json
+{"version": 1, "id": "<uuid>", "created_at": "<RFC3339>", "received": 0, "sha256": null}
+```
+
+- `version`：形状版本号，**v1 = 上形状**；演进规则（architect 定稿）：字段新增必须 bump version，读侧遇到未知 version 视为不可恢复（按过期清扫处理，M1 从 0 重传语义不变）；字段不得删除与改名。
+- `sha256`：恒为 `null` 字面量——摘要不落盘（崩溃使运行中哈希链失效），M1 恢复即从 0 重传（ResumeSession 是 [M2] chunked 的缝）。
+- `received`：磁盘已落字节数，M1 每次 Append 后更新（文件永不撒谎）；M1 无读者，[M2] chunked 续传以其为 offset 基准。
 ```
 
 ### 4.2 checksum 与去重语义
@@ -298,8 +342,11 @@ created --Append(可多次)--> appending --Commit--> committed(终态, session �
 ### 4.4 引用与 GC（M1 最小实现）
 
 - 引用事实 = `nodes.sha256` 集合；`blobs` 行是「曾经存在」（node 全删后 blob 行保留，供 GC 反查附属摘要）。
-- 运行时 `Delete` 制品只删 `nodes` 行（软删语义在物理层）。物理回收唯一入口：`binflow-server gc [--apply]`，mark（`FilterUnreferenced` 反连接）→ sweep（`created_at < now-grace(默认24h)` 才删）→ 删除后同时清 `blobs` 行。默认 dry-run 打印清单，`--apply` 才真删（安全底线）。
-- 启动时清扫：`sessions/` 下 `created_at` 超 ttl（默认 24h）的会话目录直接删除。
+- 运行时 `Delete` 制品只删 `nodes` 行（软删语义在物理层）。物理回收唯一入口：`binflow-server gc [--apply]`，mark（**引用集合回调**，调用方实现 `SELECT DISTINCT sha256 FROM nodes`，一次查询——T-9 集合形，取代原 FilterUnreferenced 反连接逐条路线）→ sweep（storage 扫描 `blobs/` 磁盘，未引用且**文件 mtime** 早于 `now-grace` 才删；删除后同时清 `blobs` 行）。默认 dry-run 打印清单，`--apply` 才真删（安全底线）。
+- **grace 基准是 blob 文件 mtime，不是 `blobs.created_at` 列**（T-9 回写项 G；storage 不读 DB 的必然选择，方向安全——mtime 被推新只会多保留）。**硬约束：备份/恢复工具必须保留 mtime（`tar` / `rsync -a` 默认保留；勿用会重置时间戳的复制方式），否则宽限期时钟被重置**——M4 备份票与 ops 文档必须遵守。
+- grace 与 session ttl 的零值语义：`<= 0` 一律取默认 24h（T-9 回写项 J）——零值不是「立即回收」；要无宽限期须显式传亚秒时长。
+- 启动时清扫：`sessions/` 下会话目录按 state.json `created_at`（缺失回退目录 mtime）超 ttl（默认 24h）删除；活会话（近期 mtime）受保护。
+- `FilterUnreferenced`（metadata）自 GC 链路退役，转为对账/一致性检查用途（见 §3.2 注释，回写项 I）。
 
 ---
 
@@ -353,14 +400,16 @@ func All() []Handler
 
 ## 6. 元数据 Schema（SQLite DDL，ADR-0003/0007 展开）
 
-> 时间戳统一 RFC3339 UTC 文本；布尔用 INTEGER 0/1；两方言共同子集（无 AUTOINCREMENT/RETURNING 依赖）；迁移文件 `internal/metadata/migrations/{sqlite,postgres}/001_init.sql` 起步。
+> 时间戳统一 RFC3339 UTC 文本；布尔一律 **INTEGER 0/1**（T-10 review M10 勘误：原文「布尔用 INTEGER」与 remote_configs.unreachable_mask 的 BOOLEAN 声明自相矛盾——SQLite 中 BOOLEAN 仅是 NUMERIC 亲和、Postgres 中 BOOLEAN 又不吃 0/1 字面量，统一 INTEGER，Postgres 方言文件自行映射）；两方言共同子集（无 AUTOINCREMENT/RETURNING 依赖）；迁移文件 `internal/metadata/migrations/{sqlite,postgres}/001_init.sql` 起步，**文件体内禁止自带 BEGIN/COMMIT**（迁移器已包事务，嵌套即错——T-10 review M9）。
+>
+> SQLite 连接机制（T-10 review B2 修复后定稿，详见 ADR-0007 勘误）：`foreign_keys=ON`、`busy_timeout=5000`、`case_sensitive_like=ON` 三条 **per-connection PRAGMA 必须经 DSN `_pragma=...` 下发**（每连接生效；`db.ExecContext` 只打到池中第一条连接，扩池后 FK 会静默失效）；`journal_mode=WAL` 是库级、同样走 DSN 统一管理；池 `MaxOpenConns = NumCPU`。
+>
+> **前缀查询大小写敏感**：`case_sensitive_like=ON` 全局生效，`ListByPrefix`/`DeleteByPrefix` 的 LIKE 臂与 `=` 精确臂同为二进制比较——与 repo key（`[a-z0-9-]` 全小写字符集）和制品 path（大小写敏感，Maven groupId/Generic 任意路径）的语义一致（T-10 review B1 裁决；修复前 LIKE 跨大小写误匹配曾致前缀删除静默多删行）。
+>
+> `schema_migrations` 表由迁移器自建（鸡生蛋：记账表必须先于首个迁移文件存在），不在 001_init.sql 内——与代码实现对齐（T-10 review M10）。
 
 ```sql
--- 001_init.sql (sqlite dialect)
-CREATE TABLE schema_migrations (
-  version    INTEGER PRIMARY KEY,          -- 已应用的最高版本
-  applied_at TEXT NOT NULL
-);
+-- 001_init.sql (sqlite dialect)；schema_migrations 见上方注记，不在本文件
 
 CREATE TABLE repositories (
   repo_key  TEXT PRIMARY KEY,              -- 唯一标识，[a-z][a-z0-9-]{1,62}（PRD FR-3-AC4；原架构 {1,31} 作废，后经 T-22 回写）；保留字 api/v2 禁用（ADR-0008 路由分发依赖）
@@ -380,7 +429,7 @@ CREATE TABLE remote_configs (
   username   TEXT NOT NULL DEFAULT '',
   password   TEXT NOT NULL DEFAULT '',     -- 加密存储 [M3 定密钥方案]
   cache_ttl_seconds INTEGER NOT NULL DEFAULT 0,
-  unreachable_mask BOOLEAN NOT NULL DEFAULT 0
+  unreachable_mask INTEGER NOT NULL DEFAULT 0   -- 原 BOOLEAN 声明经 T-25 勘误为 INTEGER（§6 前言）
 );
 
 CREATE TABLE blobs (
@@ -519,13 +568,19 @@ Content-Type: application/json
 
 ### 7.4 生命周期
 
-优雅停机：SIGTERM → `server.Shutdown(ctx, 30s)`（等待在途上传 Commit 或超时丢弃 session）→ 关 metadata → 退出码 0。健康检查与停机语义是 ADR-0004 各部署形态的公共契约（§9）。
+优雅停机：SIGTERM → `server.Shutdown(ctx, 30s)`（等待在途上传 Commit 或超时丢弃 session）→ **关 storage.Engine（Close：排空在途会话，T-9 回写项 B）** → 关 metadata → 退出码 0。健康检查与停机语义是 ADR-0004 各部署形态的公共契约（§9）。
 
 ---
 
 ## 8. 配置模型（config 包）
 
-单 YAML `binflow.yaml` + env 覆盖（`BINFLOW_` 前进，`__` 表层级，如 `BINFLOW_STORAGE__DATA_DIR`；列表/复杂值仅 YAML）。原则：凡是路径/端口/外部端点皆可覆盖，行为参数有安全默认；秘密（口令类，如 `BINFLOW_ADMIN_PASSWORD`）**不入 YAML**，只走 env。
+单 YAML `binflow.yaml` + env 覆盖（`BINFLOW_` 前缀，`__` 表层级，如 `BINFLOW_STORAGE__DATA_DIR`；列表/复杂值仅 YAML）。原则：凡是路径/端口/外部端点皆可覆盖，行为参数有安全默认；秘密（口令类，如 `BINFLOW_ADMIN_PASSWORD`）**不入 YAML**，只走 env。
+
+**四个例外名**（不走 `__` 层级拼写；T-8 实现定稿，经 T-25 回写）：
+1. `BINFLOW_ADMIN_PASSWORD` — admin 引导口令（秘密，ADR-0009）；
+2. `BINFLOW_SECURITY_ANONYMOUS_ACCESS` — `security.anonymous_access` 的用户可见拼写（PRD/NFR-S8；`__` 规则拼写同样有效）；
+3. `BINFLOW_DATA_DIR` — `storage.data_dir` 的扁平便捷拼写（docker `-e` / compose 高频；`BINFLOW_STORAGE__DATA_DIR` 同样有效）；
+4. `BINFLOW_HOME` — **cmd 层（T-16）保留名**，config 包忽略。与 `BINFLOW_DATA_DIR` 的边界：HOME 是 config/data 默认值的**目录解析根**（未显式给路径时据此推导）；DATA_DIR 是 `storage.data_dir` 的**直配**，优先级高于 HOME 推导出的默认值。
 
 ```yaml
 # binflow.yaml —— 全量字段（M1）；未列字段一律不给默认值即零值
@@ -535,9 +590,9 @@ server:
   graceful_timeout_seconds: 30
   cors_origins: []               # 空=同源限制
 storage:
-  data_dir: "./data"             # 唯一必须人工确认的路径
-  session_ttl_hours: 24
-  gc_grace_hours: 24
+  data_dir: "./data"             # 唯一必须人工确认的路径；env 扁便捷拼写 BINFLOW_DATA_DIR（见四个例外名）
+  session_ttl_hours: 24          # 零值 = 默认 24h（T-9 回写项 J）
+  gc_grace_hours: 24             # 零值 = 默认 24h；grace 基准 = blob 文件 mtime（§4.4 硬约束）
 metadata:
   driver: "sqlite"               # 'sqlite' | 'postgres'(M1 只实现 sqlite)
   dsn: ""                        # sqlite: 文件路径（空=data_dir/binflow.db）；postgres: URL
@@ -590,12 +645,14 @@ logging:
 
 1. **Token 存 sha256 明文摘要**：高熵随机使可接受；若未来支持低熵 token 需换 argon2id。
 2. **SQLite 单写者**：1000 并发读靠 WAL；写热点若出现按 ADR-0007 升级双池，不推架构。
-3. **Session 崩溃恢复从 0 重传**：M1 无断点续传（Generic 单请求即可）；[M2] docker chunked 上传需要 offset 恢复，届时在 `state.json` 增加已收字节与固定块摘要——接口 `ResumeSession` 已留。
+3. **Session 崩溃恢复从 0 重传**：M1 无断点续传（Generic 单请求即可）；[M2] docker chunked 上传需要 offset 恢复，届时在 `state.json`（v1 形状，见 §4.1 契约）增加固定块摘要并 bump version——接口 `ResumeSession` 与 `received` 字段已留。
 4. **审计「尽力而为」**：Append 失败不阻断业务；严格审计（两阶段）[M4+] 再议。
 5. **remote_configs 密码列明文占位**：M3 接入前必须定静态加密方案（新 ADR）。
 6. **metrics 缺位**：[M5] Prometheus；M1 仅结构化日志。
 7. **单副本约束**：多副本 + 对象存储 [M6+]；此前 values/Helm 必须拦截多副本。
 8. **匿名读的缓存不可见性**：remote 仓库 [M3] 若命中匿名读，代理层拉取上游使用仓配置凭据、审计 actor 记 `anonymous`；不因此放宽上游私有仓的写侧安全。
+9. **GC 引用集全量驻内存**（T-9 review §1.1 代价注记）：集合形回调一次 `SELECT DISTINCT sha256 FROM nodes`，1M nodes ≈ 100MB 量级；M6+ 千万级 blob 需流式接口变体（届时新 ADR）。
+10. **清扫仅启动时执行**（T-9 review 范围外发现）：长驻进程中被遗弃会话目录要等重启才清；`sweepSessions` 已就绪，后续票接线周期 ticker 即可，M1 接受。
 
 ## 12. 待逆向规格确认清单（阻塞点挂 docs/reverse/）
 

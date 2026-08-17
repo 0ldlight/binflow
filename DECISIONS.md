@@ -85,6 +85,7 @@
   5. 引用与 GC：不设 ref_count 列；GC 为离线 CLI（`binflow-server gc`，默认 dry-run，`--apply` 才删），mark-sweep：未出现在 `nodes` 中且 `created_at < now - grace_period`（默认 24h，防与在途上传竞态）的 blob 才可删。
 - 理由: 分片布局消除单目录规模问题且推导简单；全局内容寻址让跨仓去重、零拷贝移动/重命名（只改 nodes 行）免费获得；会话留磁盘使存储引擎可独立于元数据库测试与恢复；mark-sweep + grace period 用时间换锁，避免为 M1 引入分布式锁或引用计数热点。
 - 后果: 备份 = `blobs/` 目录 + SQLite 文件的一致性快照（M4 交付工具）；blob 物理删除只有 GC 一个入口（运行时 DELETE 制品只删 node 引用，安全底线友好）；`sessions/` 与 `blobs/` 是版本兼容承诺，改名需新 ADR；「Artifactory 是否有 blob sidecar 属性文件」待逆向规格 docs/reverse/storage-layout.md 确认（若其有 properties 文件，BinFlow 也不跟进——以本决策为准，差异记入架构文档对齐表）。
+- 勘误（2026-08-17，T-25 依 T-9 review 落地，不推翻决策本体）: ① 决策 5 的 grace 基准明确为 **blob 文件 mtime**（非 `blobs.created_at` 列——storage 不读 DB 的必然选择，方向安全：mtime 被推新只会多保留）；mark 形态升级为**引用集合回调**（调用方一次 `SELECT DISTINCT sha256 FROM nodes`）取代逐条反连接；grace/ttl 零值 = 默认 24h。② **备份/恢复硬约束**：必须保留 blob 文件 mtime（`tar` / `rsync -a` 默认保留），否则恢复后宽限期时钟重置、全部历史 blob 立即可回收——M4 备份票与 ops 文档必须遵守。③ 会话瞬态文件 state.json 的形状由架构 §4.1 契约定稿（`version` 字段 + 演进规则）；session 目录命名仍是兼容承诺，state.json 内容不是。
 
 ## ADR-0007: 元数据迁移机制与 SQLite 并发策略
 - 状态: Accepted
@@ -97,6 +98,7 @@
 - 理由: 迁移需求就是「顺序执行 SQL 并记账」，三方库的迁移即代码/多驱动能力用不上；WAL 下现代c 驱动支持多读并发，写冲突是小事务 + busy_timeout 可吸收的；双池留作已识别的优化缝，不过早付费。
 - 后果: 迁移文件成为受 architect review 的工件（每次 schema 变更两方言同步提交）；1000 并发验收若出现 `SQLITE_BUSY` 热点，升级到读写双池属允许的实现内优化（不改本决策）；Postgres 接入前，任何 SQLite 专有特性（如 `AUTOINCREMENT`、`strftime`）不得进入迁移 SQL，两方言共同子集为准。
 - 附注（2026-08-17，用户定案 Q5 补充记录）: 元数据嵌入式选型时用户曾考虑 Derby / H2——两者均为 Java 系嵌入式库，无 Go 绑定、无法嵌入 Go 进程，**结构上不可行**，予以排除（非优劣权衡而是硬约束淘汰）。CGo 版 mattn/go-sqlite3 因破坏 goreleaser 六平台交叉编译（每种目标平台需本地 C 工具链）同样排除。最终维持本 ADR 决策：`modernc.org/sqlite` 纯 Go 转译实现，已实测解析 v1.56.0。
+- 勘误（2026-08-17，T-25 依 T-10 review B1/B2 落地，决策方向不变、机制表述升级）: ① 决策中「SQLite 连接统一 PRAGMA」的原表述不完备——`journal_mode=WAL` 是**库级**，而 `foreign_keys=ON`、`busy_timeout=5000` 是**每连接**设置；per-connection PRAGMA **必须经 DSN `_pragma=...` 形态下发**（modernc 驱动在池内每条新连接上重放），用 `db.ExecContext` 打 PRAGMA 只会配置池中第一条连接，扩池后 FK 约束在其余连接上**静默失效**（T-10 review 实测发现）。现行为：`file:...?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=case_sensitive_like(ON)`，池 `MaxOpenConns=NumCPU`。② 新增第三条 per-connection PRAGMA `case_sensitive_like=ON`（T-10 review B1）：SQLite `LIKE` 默认对 ASCII 大小写不敏感，曾致 `ListByPrefix`/`DeleteByPrefix` 跨大小写误匹配（前缀删除静默多删行，实测证据）；开启后 LIKE 臂与 `=` 精确臂同为二进制比较，与制品 path 大小写敏感语义一致。③ M1 事务边界裁定（review M1，采纳 a 案）：blob link 与 node 两语句、blob-first 顺序、FK 兜底，不设 Txn 接口方法。④ 迁移文件体内禁止自带 BEGIN/COMMIT（迁移器已包事务，嵌套即错）。
 
 ## ADR-0008: 统一 `/binflow` 路由前缀与 Go module 路径
 - 状态: Accepted（用户定案）

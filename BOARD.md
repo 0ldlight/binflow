@@ -52,8 +52,6 @@
 
 - **T-11** [P0] auth 与 audit `role:dev-go-core` `area:internal/auth、internal/audit` `dep:T-8,T-10`
   状态：编码中（00:0x 派发）。
-- **T-25** [P0] 架构文档回写：三基础包 review 裁决落地 `role:architect` `area:docs/design、DECISIONS.md` `dep:T-8,T-9,T-10`
-  状态：在途（00:2x 派发）。输入：T-9-review-arch.md §7 十条 + T-10 B2 的 ADR-0007 勘误 + T-8 BINFLOW_DATA_DIR。
 - **T-9** [P0] storage（二轮修复） `role:dev-go-storage` `area:internal/storage`
   状态：正确性 reviewer 深探实证 singleflight panic 死锁（leader panic → wg.Done 不执行 → 后续同 checksum 永久阻塞）→ 二轮修复在途（defer 补 Done/清理 + panic 注入测试 + rename 失败场景固化 + GC godoc + 跨引擎边界说明）。
   review 状态：架构 REQUEST_CHANGES 已修复复审通过；正确性 reviewer 被停止（context 耗尽，70+ 分钟未出报告，探针结论由 conductor 转交）；其探针四个疑点全部实证或排除。
@@ -99,6 +97,8 @@
 - **T-8** [P0] config 包 `role:dev-go-core` `area:internal/config` `dep:T-7` — done 2026-08-18（经一轮修复）
   7 文件：api/load/validate/config + 30 测试（覆盖率 91.9%）。review 3 blocker + 1 major 全修复并复审通过：B1 多文档 YAML（decode 后断言 io.EOF）、B2 sqlite DSN 白名单（拒绝 URI 形态）、B3 ADMIN_PASSWORD 大小写归一赋值、M1 redactDSN 脱敏。conductor 独立探针复验多文档秘密拦截。race 2.4s 绿 / lint 0。
   顺手：m2 TOCTOU 注释、m1 doc.go 例外清单补 DATA_DIR、m4/m5 测试补齐；n1 记录保留理由。
+- **T-25** [P0] 架构文档回写 `role:architect` `area:docs/design、DECISIONS.md` `dep:T-8,T-9,T-10` — done 2026-08-18
+  14 处回写（architecture.md 12 + ADR-0007 勘误 2）：GC 集合形签名/mark-sweep/mtime 硬约束（备份保留 mtime）、Engine.Close、sentinel 六全集、state.json 契约定稿与 version 演进规则、DSN per-connection PRAGMA 机制、case_sensitive_like 语义、事务边界 a 案裁定、DATA_DIR 四例外名。核验通过（旧措辞零残留，来源标注 18 处）。
 
 ## 🚫 阻塞（blocked）
 
