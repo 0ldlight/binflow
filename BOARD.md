@@ -52,13 +52,10 @@
 
 - **T-7** [P0] 工程脚手架：module+目录骨架+Makefile+lint/test+CI `role:devops-engineer` `area:仓库根` `dep:（无）`
   AC: ① module github.com/lzwzzy/binflow；make build|test|lint 全绿；--help usage ② CI 三步+零 CGO 构建+GOPROXY 镜像注记 ③ internal/ 九包骨架（doc.go）+make dev/clean+data/ 入 gitignore
-  状态：22:1x 派发，在途（首波，全局前置）。
-- **T-21** [P0] PRD v1.2：校准回写（R1/R2+§5.5 六项+R7 来源修订） `role:product-manager` `area:docs/prd` `dep:T-3,T-6`
-  AC: ① C14/FR-4-AC5/E-11 校验不一致 400→409（repo-semantics §5）② C03/FR-3-AC1/E-06 建仓 201→200 纯文本（rest-api §2）③ §5.5 六项以 docs/reverse/ 值定案；校准项 5 来源改「自有语义（auth-model.md 缺位）」或指向 T-23
-  状态：22:1x 派发，在途。
+  状态：在途（首波，全局前置）。
 - **T-22** [P0] architecture.md 回写 R3~R6 `role:architect` `area:docs/design` `dep:T-6`
   AC: ① R3 匿名读键名统一（建议以 PRD security.anonymous_access 为准）② R4 permissions 表按 PRD E-24 命名 target 修订 DDL ③ R5 repo key {1,62} 对齐 PRD；R6 错误信封改 errors[] 形态
-  状态：22:1x 派发，在途。
+  状态：在途。
 
 ## 👀 评审中（review）
 
@@ -85,6 +82,8 @@
   高价值发现：同 checksum 幂等重传免覆盖权限检查（官方未记载）、统一错误体 errors[] 形态、回收站 14 天。PRD §5.5 六项校准项可回写（PM 增量修订，随下轮或 T-6 一并处理）。
 - **T-6** [P0] M1 工程 ticket 拆解 `role:tech-lead` — done 2026-08-17
   14 张票（T-7~T-20）+ 分批表（最大波 3 张）+ R1~R9 风险清单，全文 reports/agents/T-6.md。核验通过（area 无重叠、宽度 ≤4、校准项固化进 AC、低置信度不作 AC）。R1/R2→T-21；R3~R6→T-22；R7→T-23；R8 处置合理照准。
+- **T-21** [P0] PRD v1.2 校准回写 `role:product-manager` `area:docs/prd` `dep:T-3,T-6` — done 2026-08-17
+  R1（checksum 不一致 409）/R2（建仓 200 纯文本）/§5.5 六项全部定案（改「校准记录」表）；增补两条规格（ETag/304/416、幂等重传注记）；token 字段标待 T-23。核验通过（旧口径无残留，对照表左列旧值为有意保留）。T-18 QA 依赖已解除。
 
 ## 🚫 阻塞（blocked）
 

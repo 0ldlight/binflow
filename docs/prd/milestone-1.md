@@ -4,7 +4,7 @@
 |---|---|
 | 文档 | `docs/prd/milestone-1.md` |
 | 里程碑 | M1 — 内核基座（对应 ROADMAP.md「M1 — 内核基座（当前）」全部条目） |
-| 状态 | **v1.1**（已纳入用户对 §9 全部 8 项开放问题的定案；逆向规格落地后按 §5.5 增量校准） |
+| 状态 | **v1.2**（已纳入用户对 §9 全部 8 项开放问题的定案 + 逆向规格对 §5.5 六项校准项的定案回写；token 字段一项待 auth-model.md（T-23）再校准） |
 | 上游依据 | PRODUCT.md（愿景/Non-goals/成功标准/技术约束）、ROADMAP.md、DECISIONS.md ADR-0002/0003、用户对 8 项开放问题的定案（§9） |
 | 下游消费者 | tech-lead（拆票）、architect（ADR/设计）、dev 各角色（实现）、qa-engineer（验收） |
 
@@ -16,6 +16,7 @@
 |---|---|---|
 | v1.0 | 2026-08-17 | 初版：M1 范围、FR-1~FR-6、兼容矩阵 26 端点、C01~C30 验收命令、8 项开放问题 |
 | v1.1 | 2026-08-17 | 纳入用户对 §9 全部 8 项问题的定案：① **Q1 统一 `/binflow` 前缀**（推翻 v1.0 暂行假设「仅 `/artifactory`」）——全文端点路径、C01~C30 命令、§5.1 兼容层级定义（改为「前缀重写后语义兼容」）、§3 场景 D 迁移表述同步更新；`/artifactory/**` 返回 404 并提示新前缀；Docker `/v2/` 协议固定路径例外记入 §5.4。② **Q2 匿名读默认开**（推翻 v1.0 暂行假设「默认关」）——FR-5 模型改写、新增 AC12/AC13、新增命令 C23/C27、新增 NFR-S8。③ **Q5 纯 Go SQLite 零 CGO**——新增 FR-1-AC7、FR-3 技术注记；FR-3-AC10 维持。④ **Q7** module 路径落定 `github.com/lzwzzy/binflow`。⑤ Q3/Q4/Q6/Q8 维持暂行假设转为定案。⑥ §9 改为「已决决策」表。§5.5 待逆向规格校准项不变 |
+| v1.2 | 2026-08-17 | 依据已落地的 `docs/reverse/`（rest-api.md / repo-semantics.md，T-21）对 §5.5 六项校准项定案回写 + 采纳 tech-lead 评审 R1/R2/R7：① **R1：客户端 checksum 不一致 → 409**（repo-semantics.md §5 `client-checksums` 策略，高置信度；推翻 v1.1 的 400）——FR-4-AC5、C14、E-11 更新，message 含 received/actual 双值。② **R2：建仓成功 → 200 纯文本**（rest-api.md §2，高置信度；推翻 v1.1 的 201）——FR-3-AC1、C03、E-06 更新；更新走 POST、body key 不一致 400/409 语义补记。③ §5.5 六项全部定案（①DELETE 204 无 body ②checksum deploy 未命中 404 ③409 同 R1 ④mkdir 尾斜杠 201 ⑤token 字段按 BinFlow 自有语义暂定、待 auth-model.md（T-23）⑥item info 字段全集按 rest-api.md §3：含 `lastUpdated`、`size` 为字符串、含 `originalChecksums`）；§5.5 由「待校准」改为「校准记录」，置信度列由「待校准」改「高（已定案）」。④ E-14/E-15 置信度升「高」；FR-4-AC7/E-11 的「待校准」标记移除。⑤ 新增两条增补规格（high-value，不扩 M1 范围）：下载头 `ETag=<sha1>`/`Last-Modified`/`Accept-Ranges: bytes` + 304/416 条件请求语义（FR-4 新增 AC15，P2，Range 416 补入 AC14）、同 checksum 幂等重传免覆盖权限检查（记 §4 FR-4 表后注，FR-5 实现必须保留该分支）。Q1~Q8 已决决策表保持 v1.1 原样 |
 
 ---
 
@@ -154,13 +155,13 @@ M1 的「真实用户」是**平台工程师的 CI 脚本**，不是终端人类
 
 | # | AC（可执行） | 优先级 |
 |---|---|---|
-| FR-3-AC1（建仓） | C03：`curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/generic-local -H 'Content-Type: application/json' -d '{"rclass":"local","packageType":"generic"}'` → HTTP 201（已存在则 200） | P0 |
+| FR-3-AC1（建仓） | C03：`curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/generic-local -H 'Content-Type: application/json' -d '{"rclass":"local","packageType":"generic"}'` → **HTTP 200**，body 纯文本 `Successfully created repository 'generic-local'`（依据 rest-api.md §2，高置信度；已存在则走更新语义，同为 200；BinFlow 不实现 body `key` 与路径不一致时的 400/409 区分，统一 400） | P0 |
 | FR-3-AC2（列仓） | C05：`GET /binflow/api/repositories` → 200，jq 能取出 `key=="generic-local"`，`type/packageType` 字段存在且值合法 | P0 |
 | FR-3-AC3（查仓） | C06：`GET /binflow/api/repositories/generic-local` → 200，`rclass=="local"`、`packageType=="generic"` | P0 |
 | FR-3-AC4（repo key 校验） | PUT 建仓 key 为 `Bad_Key!`（大写/特殊字符）→ **400** + §5.2 E-01 标准错误体；合法 key 规则：`[a-z][a-z0-9-]{1,62}` | P0 |
 | FR-3-AC5（删仓） | 空仓库 `DELETE /binflow/api/repositories/{key}` → 2xx；非空仓库不带参数 → **400**（message 含 `deleteContent` 提示）；带 `?deleteContent=true` → 2xx 且其下所有 node 之后 404 | P1 |
-| FR-3-AC6（node 元数据） | C10：item info JSON 至少含 `repo / path / children（目录时）/ size / created / createdBy / lastModified / modifiedBy / downloadUri / uri / checksums{sha1,md5,sha256} / mimeType`；`created` 为 ISO 8601 带时区偏移 | P0 |
-| FR-3-AC7（目录语义） | C16：`curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/generic-local/acme/`（结尾斜杠、空体）→ 2xx；`GET /binflow/api/storage/generic-local/acme` → 200 且 `children[]` 列出其下条目；对目录 DELETE → 2xx 且递归删除其下全部 node | P1 |
+| FR-3-AC6（node 元数据） | C10：item info JSON 至少含 `repo / path（/ 开头）/ children（目录时）/ size（**字符串**） / created / createdBy / lastModified / modifiedBy / lastUpdated / downloadUri / uri / mimeType / checksums{sha1,md5,sha256} / originalChecksums{sha1,md5,sha256}`（字段全集依据 rest-api.md §3，高置信度）；`created/lastModified/lastUpdated` 为 ISO 8601 带毫秒与时区（如 `2026-08-17T12:34:56.789+08:00`） | P0 |
+| FR-3-AC7（目录语义） | C16：`curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/generic-local/acme/`（结尾斜杠、空体）→ **201**（rest-api.md §1.1：MKDir 成功 201 + FolderInfo 形态，高置信度）；`GET /binflow/api/storage/generic-local/acme` → 200 且 `children[]` 列出其下条目；对目录 DELETE → 204 且递归删除其下全部 node | P1 |
 | FR-3-AC8（list 查询） | C17：`GET '/binflow/api/storage/generic-local?list&deep=1'` → 200，`fileList[]`/`files[]` 含全部文件相对路径；M1 只需 `list/deep/depth` 参数 | P2 |
 | FR-3-AC9（SQLite 嵌入） | `docker compose up -d` 后**不执行任何初始化 SQL**，C03 建仓即成功；重启实例（FR-6-AC3）后仓库与 node 全部仍在 | P0 |
 | FR-3-AC10（Postgres） | M1 仅 SQLite；若检测到 Postgres 配置，启动时明确报错退出（退出码非 0 + 日志说明「Postgres 支持未启用」；启用里程碑另议，不在本 PRD 承诺） | P2 |
@@ -172,19 +173,22 @@ M1 的「真实用户」是**平台工程师的 CI 脚本**，不是终端人类
 | # | AC（可执行） | 优先级 |
 |---|---|---|
 | FR-4-AC1（上传） | C07：`curl -su admin:$ADMIN_PW -T artifact.bin $BASE/binflow/generic-local/acme/artifact.bin` → **201**；响应体 JSON 的 `checksums.sha256 == $(sha256sum artifact.bin)`，`size` 等于文件字节数，`createdBy=="admin"` | P0 |
-| FR-4-AC2（下载） | C08：GET 同路径 → 200，落盘文件 `sha256sum` 与源一致；响应头含 `X-Checksum-Sha256 / X-Checksum-Sha1 / X-Checksum-Md5` 且值正确 | P0 |
+| FR-4-AC2（下载） | C08：GET 同路径 → 200，落盘文件 `sha256sum` 与源一致；响应头含 `X-Checksum-Sha256 / X-Checksum-Sha1 / X-Checksum-Md5` 且值正确；另含 `ETag: <sha1>`（无引号）、`Last-Modified`、`Accept-Ranges: bytes`（rest-api.md §1.4，高置信度） | P0 |
 | FR-4-AC3（HEAD） | C09：`curl -sI` → 200，`Content-Length == size`，`X-Checksum-Sha256` 正确 | P0 |
 | FR-4-AC4（客户端校验-一致） | C13：PUT 附带 `-H "X-Checksum-Sha256: $SHA"`（$SHA 为正确值）→ 201 | P0 |
-| FR-4-AC5（客户端校验-不一致） | C14：同样 PUT 但头值为 64 位错误十六进制 → **400**，标准错误体（E-01），落盘无该 node（GET 404） | P0 |
+| FR-4-AC5（客户端校验-不一致） | C14：同样 PUT 但头值为 64 位错误十六进制 → **409**，标准错误体（E-01），message 含 received 与 actual 两个 checksum 值（格式 `... received '<x>' but actual is '<y>'`，依据 repo-semantics.md §5 `client-checksums` 策略，高置信度）；落盘无该 node（GET 404） | P0 |
 | FR-4-AC6（checksum deploy 命中） | C15a：`curl -su admin:$ADMIN_PW -X PUT -H 'X-Checksum-Deploy: true' -H "X-Checksum-Sha256: $SHA" $BASE/binflow/generic-local/acme/copy.bin`（空体）→ **201**，新路径可 200 下载；未传输任何 body | P0 |
-| FR-4-AC7（checksum deploy 未命中） | C15b：同上但 $SHA 为不存在内容的 sha256 → **404**（精确码待逆向规格校准，§5.5） | P1 |
-| FR-4-AC8（删除文件） | C18：`curl -su admin:$ADMIN_PW -X DELETE .../acme/artifact.bin` → **2xx（BinFlow 定为 204，见 §5.5 校准项）**；随后 GET → 404；重复 DELETE → 404（幂等，不算错误） | P0 |
+| FR-4-AC7（checksum deploy 未命中） | C15b：同上但 $SHA 为不存在内容的 sha256 → **404**（rest-api.md §1.3：blob 不存在或 checksum 格式非法均 404，高置信度） | P1 |
+| FR-4-AC8（删除文件） | C18：`curl -su admin:$ADMIN_PW -X DELETE .../acme/artifact.bin` → **204 无 body**（rest-api.md §1.1 / repo-semantics.md §4，高置信度）；随后 GET → 404；重复 DELETE → 404（幂等，不算错误） | P0 |
 | FR-4-AC9（未认证写） | 不带认证 PUT → **401**，响应头含 `WWW-Authenticate: Basic realm=...`；错误体为标准 JSON（E-01）。Q2 定案：写操作永远需要认证，匿名读边界见 FR-5-AC12 | P0 |
 | FR-4-AC10（路径安全） | `curl -su admin:$ADMIN_PW -T f $BASE/binflow/generic-local/a/../../etc/passwd` 与含 `%2e%2e` 编码变体 → **400**，服务进程工作目录与数据目录外无新文件 | P0 |
 | FR-4-AC11（非法路径） | 双斜杠、空段（`//`）、超 512 字符路径 → 400 | P1 |
 | FR-4-AC12（404 格式） | GET 不存在路径 → 404，body 为 E-01 错误体而非 HTML 栈页 | P0 |
 | FR-4-AC13（Content-Type） | 下载响应必带 `Content-Type`，未知扩展名默认 `application/octet-stream`；按扩展名映射为 P2 | P2 |
-| FR-4-AC14（Range） | `curl -H 'Range: bytes=0-99'` → 206 且字节数正确；多区间 Range 与 `If-Range` 不做 → 忽略或 200 全量（不得 5xx）。优先级维持 P2（Q6 定案），M2 docker blob 拉取开工前必须补齐 | P2 |
+| FR-4-AC14（Range） | `curl -H 'Range: bytes=0-99'` → 206 且字节数正确；多区间 Range 与 `If-Range` 不做 → 忽略或 200 全量（不得 5xx）。优先级维持 P2（Q6 定案），M2 docker blob 拉取开工前必须补齐。增补规格（rest-api.md §1.4，高置信度）：单区间命中 206 + `Content-Range`；区间非法 → **416** + `Content-Range: bytes */<total>` | P2 |
+| FR-4-AC15（条件请求） | 增补规格（rest-api.md §1.4，高置信度）：下载响应头 `ETag: <sha1>`（无引号）、`Last-Modified`、`Accept-Ranges: bytes`；`curl -H "If-None-Match: <etag>"` → **304** 无 body。M1 定 P2（与 Range 同批，M2 前补齐） | P2 |
+
+> 注（repo-semantics.md §3 增补，M1 骨架应实现）：**同 checksum 幂等重传不触发覆盖权限检查**——路径已存在且客户端带 checksum 与既有值相同 → 视为幂等重传直接成功；checksum 不同（或未带）→ 视为覆盖，需对旧节点有删除权限。此语义对 CI 重试场景关键，FR-5 的权限骨架实现时必须保留该分支。
 
 ### FR-5 基础认证与权限骨架（dev-go-core）
 
@@ -253,16 +257,16 @@ M1 的「真实用户」是**平台工程师的 CI 脚本**，不是终端人类
 | E-03 | `GET /binflow/api/system/version` | 200 JSON：如实返回 BinFlow 自身 `version`（如 `1.0.0-m1`）+ `revision` + `product:"BinFlow"` 标识字段；**不伪装 Artifactory 版本号**（Q4 定案） | 兼容（子集） | P1 | 高 | C28b |
 | E-04 | `GET /binflow/api/repositories` | 200 数组：`key/description/type/packageType/url`；需认证（Q2） | 兼容 | P0 | 高 | C05 |
 | E-05 | `GET /binflow/api/repositories/{key}` | 200 仓库配置 JSON，`rclass/packageType` | 兼容（子集） | P0 | 高 | C06 |
-| E-06 | `PUT /binflow/api/repositories/{key}` | body `{"rclass":"local","packageType":"generic",...}`；201 新建 / 200 更新；`remote`/`virtual` → 400（M1 有意不支持） | 兼容（子集） | P0 | 高 | C03 / C04 / C26 |
+| E-06 | `PUT /binflow/api/repositories/{key}` | body `{"rclass":"local","packageType":"generic",...}`；新建成功 → **200 纯文本** `Successfully created repository '<key>'`（rest-api.md §2，高置信度）；更新走 `POST`（200 `Repository <key> update successfully.`，BinFlow M1 亦接受 PUT 重复执行按更新处理）；`remote`/`virtual` → 400（M1 有意不支持） | 兼容（子集） | P0 | 高 | C03 / C04 / C26 |
 | E-07 | `PUT /binflow/api/repositories/{key}` rclass=remote/virtual | Artifactory 支持；BinFlow M1 返回 400「supported from M3」 | 有意不兼容（阶段性） | P0 | — | C26 |
 | E-08 | `DELETE /binflow/api/repositories/{key}` | 空仓 2xx；非空需 `?deleteContent=true` 否则 400 | 兼容 | P1 | 高 | C19 |
 | E-09 | `GET /binflow/api/storage/{repo}/{path}` | item info：`children/checksums{sha1,md5,sha256}/size/created/createdBy/lastModified/modifiedBy/downloadUri/uri/mimeType`；匿名访问边界随 Q2 默认（内容元数据按匿名可读实现，管理 API 除外） | 兼容（子集） | P0 | 高 | C10 / C16 |
 | E-10 | `GET /binflow/api/storage/{repo}?list&deep=&depth=` | `fileList[]`（M1 子集：uri+size） | 兼容（子集） | P2 | 高 | C17 |
-| E-11 | `PUT /binflow/{repo}/{path}`（上传） | 201；响应 `checksums`；支持 `X-Checksum-Sha256` 预校验（不一致 400）；`X-Checksum-Deploy: true` 空体秒传（未命中 404/400 待校准）；需认证（Q2） | 兼容 | P0 | 高（400）/ 中（秒传未命中码） | C07/C13/C14/C15 |
+| E-11 | `PUT /binflow/{repo}/{path}`（上传） | 201 + `Location` 头 + FileInfo 形态 JSON（含 `checksums` 与 `originalChecksums`）；`X-Checksum-Sha256` 预校验不一致 → **409**（repo-semantics.md §5 client-checksums 策略，message 含 received/actual）；`X-Checksum-Deploy: true` 空体秒传，未命中或格式非法 → **404**；需认证（Q2） | 兼容 | P0 | 高 | C07/C13/C14/C15 |
 | E-12 | `GET /binflow/{repo}/{path}`（下载） | 200 流式；头 `X-Checksum-Sha256/X-Checksum-Sha1/X-Checksum-Md5`；匿名可读（Q2 默认开） | 兼容 | P0 | 高 | C08 / C23 |
 | E-13 | `HEAD /binflow/{repo}/{path}` | 200，`Content-Length` + checksum 头；匿名可读（Q2） | 兼容 | P0 | 高 | C09 |
-| E-14 | `DELETE /binflow/{repo}/{path}` | 2xx（BinFlow 定 204，校准项 §5.5）；目录递归删；重复删 404 幂等；需认证（Q2） | 兼容 | P0 | 中 | C18 |
-| E-15 | `PUT /binflow/{repo}/{dir}/`（结尾斜杠建目录） | 2xx 建空目录 | 兼容 | P1 | 中 | C16 |
+| E-14 | `DELETE /binflow/{repo}/{path}` | **204 无 body**（rest-api.md §1.1 / repo-semantics.md §4，高置信度）；目录递归删；重复删 404 幂等；需认证（Q2） | 兼容 | P0 | 高 | C18 |
+| E-15 | `PUT /binflow/{repo}/{dir}/`（结尾斜杠建目录） | **201** + FolderInfo 形态（rest-api.md §1.1，高置信度） | 兼容 | P1 | 高 | C16 |
 | E-16 | `PUT /binflow/api/security/password` | body `oldPassword/newPassword`，2xx | 兼容 | P1 | 高 | C20 |
 | E-17 | `POST /binflow/api/security/token` | 200 `access_token/token_id/expires_in`；M1 子集：不做 refresh_token/audience/scope 完整语义 | 兼容（子集） | P0 | 中 | C21a |
 | E-18 | `POST /binflow/api/security/token/revoke` | 2xx，吊销后 401 | 兼容 | P0 | 中 | C21c |
@@ -296,7 +300,7 @@ curl -s -o /dev/null -w '%{http_code}\n' $BASE/binflow/api/repositories   # 401
 curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/generic-local \
   -H 'Content-Type: application/json' \
   -d '{"rclass":"local","packageType":"generic","description":"M1 QA"}' \
-  -o /dev/null -w '%{http_code}\n'                   # 201（重复执行为 200）
+  -o /dev/null -w '%{http_code}\n'                   # 200（v1.2 定案：新建即 200 纯文本；重复执行同为 200）
 
 # C04 非法 repo key（E-06）
 curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/Bad_Key! \
@@ -337,23 +341,23 @@ curl -su admin:$ADMIN_PW -T artifact.bin -H "X-Checksum-Sha256: $SHA" \
 
 # C14 客户端 checksum 不一致（E-11）
 curl -su admin:$ADMIN_PW -T artifact.bin -H "X-Checksum-Sha256: $(printf '0%.0s' {1..64})" \
-  $BASE/binflow/generic-local/acme/bad.bin -o /dev/null -w '%{http_code}\n'         # 400
+  $BASE/binflow/generic-local/acme/bad.bin -o /dev/null -w '%{http_code}\n'         # 409（v1.2 定案：client-checksums 策略，message 含 received/actual）
 
 # C15 checksum deploy：命中 / 未命中（E-11）
 curl -su admin:$ADMIN_PW -X PUT -H 'X-Checksum-Deploy: true' -H "X-Checksum-Sha256: $SHA" \
   $BASE/binflow/generic-local/acme/copy.bin -o /dev/null -w '%{http_code}\n'        # 201
 curl -su admin:$ADMIN_PW -X PUT -H 'X-Checksum-Deploy: true' -H "X-Checksum-Sha256: $(printf 'f%.0s' {1..64})" \
-  $BASE/binflow/generic-local/acme/miss.bin -o /dev/null -w '%{http_code}\n'        # 404（§5.5 校准项）
+  $BASE/binflow/generic-local/acme/miss.bin -o /dev/null -w '%{http_code}\n'        # 404（v1.2 定案：blob 不存在或格式非法均 404）
 
 # C16 目录（E-15 / E-09）
-curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/generic-local/acme/ -o /dev/null -w '%{http_code}\n'  # 2xx
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/generic-local/acme/ -o /dev/null -w '%{http_code}\n'  # 201（v1.2 定案：MKDir 成功 201）
 curl -su admin:$ADMIN_PW $BASE/binflow/api/storage/generic-local/acme | jq '.children | length'    # > 0
 
 # C17 list（E-10，P2）
 curl -su admin:$ADMIN_PW "$BASE/binflow/api/storage/generic-local?list&deep=1" | jq -r '.files[].uri' # 列出全路径
 
 # C18 删除 + 幂等 404（E-14）
-curl -su admin:$ADMIN_PW -X DELETE $BASE/binflow/generic-local/acme/artifact.bin -o /dev/null -w '%{http_code}\n'  # 204（§5.5 校准项）
+curl -su admin:$ADMIN_PW -X DELETE $BASE/binflow/generic-local/acme/artifact.bin -o /dev/null -w '%{http_code}\n'  # 204 无 body（v1.2 定案）
 curl -su admin:$ADMIN_PW -X DELETE $BASE/binflow/generic-local/acme/artifact.bin -o /dev/null -w '%{http_code}\n'  # 404
 curl -su admin:$ADMIN_PW -o /dev/null -w '%{http_code}\n' $BASE/binflow/generic-local/acme/artifact.bin           # 404
 
@@ -434,16 +438,20 @@ M1 通过以下四条边界保证后续协议可以**追加**而非**返工**：
 3. **认证前向兼容**：M1 的 Basic/Token 中间件必须可按路径前缀挂载（M2 的 `/v2/` 匿名可探——与 Q2 匿名读默认开一致、`/v2/` 内容操作需 Bearer，M3 各协议匿名读开关独立、默认值遵循 Q2 先例）；M1 不做 Bearer/token-endpoint 本体。
 4. **明确不承诺**：M1 不包含任何 Docker manifest/blob 语义、Maven metadata 语义、npm tarball 语义、PyPI simple index 语义；QA 在 M1 只验证 E-26（这些路径 404）。
 
-### 5.5 待逆向规格校准项（不阻塞开发，规格落地后回写）
+### 5.5 校准记录（v1.2：逆向规格已落地，六项全部定案）
 
-| 项 | PRD 暂定值 | 校准来源 |
-|---|---|---|
-| DELETE 文件成功状态码 | 204 No Content | docs/reverse/rest-api.md（Artifactory 实际 200 vs 204） |
-| checksum deploy 未命中的状态码 | 404 | 同上 |
-| X-Checksum-Sha256 不匹配的状态码与 message 文案 | 400 | 同上 |
-| mkdir（结尾斜杠 PUT）行为 | 2xx 建目录 | 同上 |
-| token 响应字段名（`access_token`/`token_id`/`expires_in`） | 按 Artifactory 公开文档 | docs/reverse/auth-model.md |
-| item info 字段全集（M1 子集是否缺迁移工具依赖字段） | §FR-3-AC6 列表 | docs/reverse/rest-api.md |
+v1.0/v1.1 的六项待校准项，依据 `docs/reverse/rest-api.md` 与 `docs/reverse/repo-semantics.md` 定案如下；除 ⑤ 外均为高置信度（反编译 + 官方文档双证）。全文对应位置（FR-AC / E-xx / C 命令）已同步更新。
+
+| # | 项 | v1.1 暂定值 | **v1.2 定案** | 依据 |
+|---|---|---|---|---|
+| ① | DELETE 文件成功状态码 | 204（待校准） | **204 无 body**；重复删 404 幂等 | rest-api.md §1.1、repo-semantics.md §4（高） |
+| ② | checksum deploy 未命中状态码 | 404（待校准） | **404**（blob 不存在或 checksum 格式非法均 404；两专用 checksum 头都缺 → 400） | rest-api.md §1.3（高） |
+| ③ | X-Checksum 不一致状态码与文案 | 400（待校准） | **409**，message 含 received/actual 双值（`Checksum error for '<path>': received '<x>' but actual is '<y>'` 类文案；repo 默认策略 `client-checksums`）；若 repo 配置 `server-generated-checksums` 则容忍接受（M1 只实现默认策略） | repo-semantics.md §5（高） |
+| ④ | mkdir（尾斜杠 PUT）行为 | 2xx 建目录（待校准） | **201** + FolderInfo 形态 JSON | rest-api.md §1.1（高） |
+| ⑤ | token 响应字段名 | 按 Artifactory 公开文档（待校准） | **按 BinFlow 自有语义实现**（暂定 `access_token` / `token_id` / `expires_in`，E-17 不变）；`docs/reverse/auth-model.md` 缺位，已立 T-23 补规格，落地后按同一流程回写 | auth-model.md（缺位，T-23 进行中） |
+| ⑥ | item info 字段全集 | §FR-3-AC6 简表（待校准） | 按 rest-api.md §3 定案：含 `lastUpdated`；`size` 为**字符串**；含 `originalChecksums{sha1,md5,sha256}`；`path` 以 `/` 开头；目录 `children[]` 按名排序（FR-3-AC6 已更新） | rest-api.md §3（高） |
+
+另两条增补规格一并纳入（不扩大 M1 范围，均为 P2）：ETag=sha1（无引号）+ 304/416 条件请求语义（FR-4-AC15）、同 checksum 幂等重传免覆盖权限检查（§4 FR-4 注，FR-5 实现必须保留该分支）。
 
 ---
 
@@ -501,7 +509,7 @@ qa-engineer 按顺序执行，产出 `reports/agents/T-<qa票>-qa.md`，全绿 =
 
 1. §4 全部 P0/P1 AC 通过 qa-engineer 验证并附命令输出证据（P2 延后须在 BOARD 记录）；
 2. §7 剧本全绿；
-3. 逆向规格 4 份（rest-api / storage-layout / config-formats / repo-semantics M1 部分）已落地，且 §5.5 校准项已回写本 PRD；
+3. 逆向规格 4 份（rest-api / storage-layout / config-formats / repo-semantics M1 部分）已落地，§5.5 六项校准已回写本 PRD（v1.2 完成；⑤ token 字段以 T-23 产出的 auth-model.md 为准再校准）；
 4. README 快速开始可复跑；
 5. 主会话完成 `m1-done` tag。
 
