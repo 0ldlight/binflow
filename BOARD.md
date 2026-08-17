@@ -50,9 +50,9 @@
 
 ## 🔨 进行中（doing）
 
-- **T-13** [P0] Generic 适配器（修复轮） `role:dev-registry-adapter` `area:internal/adapter、internal/repo（授权扩）`
-  状态：review REQUEST_CHANGES（B1 BlobOpener 绕过 repo.Service 分层 + 孤儿 blob 台账降级）→ 修复在途：repo 扩 PutFromBlob（校验 blobs 表有行）+ generic 改调 + M1 404 文案 + m1/m2/m4 顺手。路径安全面已全部通过（30+ 变体实测 400）。
-  遗留四项裁决（reviewer 意见已到）：①sha1-only deploy 维持 404（M3 再评估）②BlobOpener→PutFromBlob（本修复落地）③originalChecksums 持久化 M1 不需要 ④TOCTOU 零调用确认无行动项。→ 待修复合入后记入架构文档一句（PutFromBlob 契约），并入下张 architect 票或 T-14 派单附注。
+- **T-14** [P0] httpapi 核心：Server/middleware/错误信封/路由 `role:dev-go-core` `area:internal/httpapi（核心）、internal/console（占位）` `dep:T-8,T-11,T-13`
+  AC 摘要：① 路由表：/healthz /readyz 无前缀；/binflow 剥离分发；ping/version/v1-health/v1-stats ② middleware 链固定顺序；结构化日志不记认证头；errors[] 信封；E-26 全矩阵 404 ③ 认证分层（匿名内容 GET/HEAD）；SIGTERM 优雅停机
+  状态：04:0x 派发，在途。
 
 ## 👀 评审中（review）
 
@@ -109,6 +109,9 @@
   §3.4 补 Can 尾斜杠=folder 三句契约（对齐 AuthorizationServiceBase）；gosec 五规则收窄：G301/G306 移除豁免、G204 限测试、G401 限 digest.go+测试、G115 限 password.go、G304 限两文件；隔离探针反向验证（新违规四条全中）；nolintlint require-explanation 启用。核验通过（lint 0）。
 - **T-20** [P2] Range 与条件请求 `role:dev-registry-adapter` `area:internal/adapter/generic` `dep:T-13` — done 2026-08-18
   conditional.go：单区间解析（闭/开/后缀/钳制）+ 条件求值（INM 弱比较三形态/IMS/优先级）；206 走 Seek+CopyN；416 + bytes */total；HEAD 同分支。32 区间矩阵 + ETag 12 形态 + 条件 15 形态单测 + curl 9 步（-r 四形态/999999999- 416/INM 三拼写/-z 双侧）。T-13 零回归。轻量核验（P2+黑盒覆盖）替代 review；conductor 复现 race 绿 lint 0。curl -z 对 ISO 日期静默不发头的客户端怪癖已实证并绕开。M2 If-Range 扩展点已留（seek 数据面就绪）。
+- **T-13** [P0] adapter SPI 与 Generic 适配器 `role:dev-registry-adapter` `area:internal/adapter、internal/adapter/generic` `dep:T-3,T-11,T-12` — done 2026-08-18（经一轮修复）
+  SPI（Layout 解码→校验链/Register panic 条件/ForRepoType 并发安全）+ generic 四动词 + 校验头语义 + errors[] 信封 + FileInfo（size 字符串）。review 修复：repo.PutFromBlob（判权先于 blob 打开、双维校验、ErrOrphanBlob 堵死孤儿实体化与 sha256-only 降级）、BlobOpener 缝删除、404 文案分动词、控制字节拒绝、originalChecksums 上下文区分。路径安全 30+ 变体真机实测全 400（reviewer 取证）。curl 黑盒 12 场景全 PASS。
+  遗留裁决归档：sha1-only deploy 维持 404（M3）；originalChecksums 持久化 M1 不需要；TOCTOU 零调用确认。PutFromBlob 契约待 architect 记入 §3.3（一句话）。
 
 ## 🚫 阻塞（blocked）
 
