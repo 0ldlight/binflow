@@ -50,9 +50,8 @@
 
 ## 🔨 进行中（doing）
 
-- **T-14** [P0] httpapi 核心（修复轮） `role:dev-go-core` `area:internal/httpapi`
-  状态：review REQUEST_CHANGES（B1 readyz 缺 storage 探测 / B2 不可达重复 case / B3 statusRecorder 200 失真 + M1 recover 流式注入 + M2 首段 unescape）→ 原 agent 修复在途。
-  探针面全绿：19 混合形态零泄漏、认证矩阵一致、日志无凭据、RepoLookup 缝判定可保留（PackageTypeOf 重构列 T-15/M2 非阻断）。范围外：C28a QA 剧本勘误转 PM。
+- **T-15** [P0] Artifactory 兼容 REST：repositories / storage / security + /api/v1 permissions `role:dev-registry-adapter` `area:internal/httpapi（兼容 handlers）` `dep:T-3,T-14`
+  状态：05:2x 派发，在途。派单附 v1.3 口径袋 + PackageTypeOf 非阻断重构 + C28a 已知勘误。
 
 ## 👀 评审中（review）
 
@@ -112,6 +111,9 @@
 - **T-13** [P0] adapter SPI 与 Generic 适配器 `role:dev-registry-adapter` `area:internal/adapter、internal/adapter/generic` `dep:T-3,T-11,T-12` — done 2026-08-18（经一轮修复）
   SPI（Layout 解码→校验链/Register panic 条件/ForRepoType 并发安全）+ generic 四动词 + 校验头语义 + errors[] 信封 + FileInfo（size 字符串）。review 修复：repo.PutFromBlob（判权先于 blob 打开、双维校验、ErrOrphanBlob 堵死孤儿实体化与 sha256-only 降级）、BlobOpener 缝删除、404 文案分动词、控制字节拒绝、originalChecksums 上下文区分。路径安全 30+ 变体真机实测全 400（reviewer 取证）。curl 黑盒 12 场景全 PASS。
   遗留裁决归档：sha1-only deploy 维持 404（M3）；originalChecksums 持久化 M1 不需要；TOCTOU 零调用确认。PutFromBlob 契约待 architect 记入 §3.3（一句话）。
+- **T-14** [P0] httpapi 核心 `role:dev-go-core` `area:internal/httpapi、internal/console` `dep:T-8,T-11,T-13` — done 2026-08-18（经一轮修复）
+  7 文件 + 真栈 harness 测试（覆盖率 84%）。EscapedPath 手写分发树（绕开 mux cleanPath 归一化）；middleware 固定链 + logFields；errors[] 信封；系统端点四件；SIGTERM 优雅停机。review 3 blocker + 2 major 全修复复审通过：readyz storage 探测（只读目录 503）、死 case 删除、statusRecorder 双标志、mid-stream panic 不嫁接信封、首段 unescape 三源同源（encoded key 可路由且无 ACL 旁路）。curl 冒烟 + 19 探针矩阵全绿。
+  遗留归档：minor 1-4/6-8 转 T-15/T-16/PM；RepoLookup 缝判定可保留（PackageTypeOf 列非阻断重构）；M2 架构措辞（路由解析位于授权门后 + ADR-0009 补句）交 architect。
 
 ## 🚫 阻塞（blocked）
 
