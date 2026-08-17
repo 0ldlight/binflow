@@ -50,20 +50,19 @@
 
 ## 🔨 进行中（doing）
 
-（空）
+- **T-10** [P0] metadata（修复轮） `role:dev-go-core` `area:internal/metadata`
+  状态：双 review 裁决 REQUEST_CHANGES → 回 doing 修两个 blocker：B1 LIKE 大小写误删（PRAGMA case_sensitive_like=ON + 测试）、B2 池开 NumCPU + PRAGMA 挪 DSN（除 WAL）。原 agent 续跑（上下文保留），在途。
+  正确性视角 APPROVE 在案；修复后只需针对性复审两 blocker。
 
 ## 👀 评审中（review）
 
 - **T-9** [P0] storage 引擎 `role:dev-go-storage` `area:internal/storage` `dep:T-7`
   状态：编码完成，conductor 复现通过（race 104s 全绿/全仓 lint 0/gofmt 净/全仓零 CGO/零内部依赖红线）。
-  review 安排：正确性 reviewer 已派；**架构一致性 reviewer 待出槽再补**（宽度封顶让位 T-8/T-10 reviewer）。两份齐后裁决。
+  review 安排：双 reviewer 在途（correctness + arch）。
   reviewer 关注点：① ADR-0006 落盘顺序不可换序 ② singleflight 收敛与崩溃窗口 ③ GC 宽限期与 dry-run ④ 契约偏离两点（GC 回调集合形 vs 架构逐条查询；Close() 补入 Engine 接口）→ 需 architect 回写。
 - **T-8** [P0] config 包 `role:dev-go-core` `area:internal/config` `dep:T-7`
   状态：编码完成，conductor 复现通过（race 3.1s 绿/零 CGO/gofmt 净/双键合并正确）→ 单 code-reviewer 在途。
   reviewer 关注点：① 全指针 raw schema 与 strict 解码的正确性 ② 秘密扫描路径（AdminPassword 不入 YAML/日志）③ env 名→路径映射的边界（嵌套/非法值）④ 覆盖率 90.5% 的薄弱分支。
-- **T-10** [P0] metadata：SQLite Store+迁移器+001_init `role:dev-go-core` `area:internal/metadata` `dep:T-7`
-  状态：编码完成，conductor 复现通过（race 13.2s 绿/零 CGO/gofmt 净/permission 两表正确）→ 双 code-reviewer 在途（正确性 + 架构一致性）。
-  reviewer 关注点：① MaxOpenConns=1 vs AC 字面 NumCPU（agent 声明语义等价，review 定夺）② 迁移器事务性与幂等 ③ keyset 分页正确性 ④ argon2id 常量时间比较。
 
 ## 🧪 测试中（qa）
 
