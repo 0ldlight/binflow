@@ -1,43 +1,69 @@
-# 产品愿景（PRODUCT）
+# 产品愿景（PRODUCT）— BinFlow
 
-> 本文件是整个团队的需求源头。product-manager 由此展开 PRD，architect 由此做技术选型。
-> 【示例内容——请替换为你的产品。替换后建议把 ROADMAP.md 一并重写。】
+> 本文件是整个团队的需求源头。product-manager 由此展开 PRD，architect 由此定架构，reverse-engineer 由此定逆向范围。
 
 ## 产品名称
 
-Kanban Lite —— 极简团队任务看板
+BinFlow
 
 ## 一句话定位
 
-给小团队用的零门槛看板：打开即用、拖拽管理任务、无需注册也能本地体验。
+用 Go 从零实现的云原生制品仓库（Artifact Repository Manager）：单二进制交付，兼容主流包生态协议，统一管理 Docker 镜像、Maven/npm/PyPI 构件与任意二进制制品。
+
+## 背景与对标
+
+- 对标 **JFrog Artifactory**：架构与概念模型与其保持一致（仓库模型、存储引擎、权限体系），让使用方可以平滑迁移、文档直接类推。
+- **行为参考**：`reverse-src/` 下存放 Artifactory 反编译代码（Java，不入库）。
+- **clean-room 原则**（详见 DECISIONS.md ADR-0001）：逆向只产出「行为规格」（接口表、存储布局、流程语义），禁止逐行翻译或复制反编译代码；有公开规范的能力（Docker Registry v2、Maven 2、npm、PyPI 协议）一律以官方规范为准，反编译只用来补文档没写的空白。
+- **差异化**：Go 单二进制（无 JVM、内嵌数据库零依赖）、云原生部署矩阵、启动与内存开销比 JVM 低一个数量级。
 
 ## 目标用户与场景
 
-- 3–10 人的小团队/小组作业/个人项目管理者
-- 嫌 Jira/Trello 重、又比白板需要多一点结构的人
-- 场景：周会过任务、拆解一个小项目、跟踪 who/what/when
+- 平台工程 / DevOps 团队：内网统一制品源，CI/CD 依赖收口
+- 离线与受限网络：air-gapped 集群的镜像与依赖分发
+- 从 Artifactory 迁移的团队：兼容的仓库语义与 REST 行为，降低迁移成本
 
-## 核心价值（按优先级）
+## 核心能力（按优先级）
 
-1. 任务卡片：标题、描述、负责人、截止日、优先级
-2. 看板列：todo / doing / done，拖拽移动，自动记录流转时间
-3. 过滤与搜索：按负责人、优先级、关键词
-4. 多看板：一个团队多个看板，看板内成员可见
+1. **存储引擎**：checksum（sha256/sha1/md5）寻址的文件存储与去重，制品不可变，上传强制校验
+2. **仓库模型（对齐 Artifactory）**：local / remote（代理缓存）/ virtual（聚合）
+3. **协议适配**：Generic(raw)、Docker Registry API v2（含 OCI）、Maven 2、npm、PyPI；后续 Helm OCI、Go modules
+4. **REST API**：兼容 Artifactory 常用端点子集 + 自有 `/api/v1`
+5. **Web 控制台**：仓库管理、制品浏览/上传/下载、搜索、用户与权限
+6. **治理**：用户/组/权限（仓库×路径）、API Token、审计日志、GC、配额、备份恢复
+7. **多元部署**：单二进制 / Docker / docker-compose / Helm(K8s) / 原生 K8s 清单 / systemd / 离线安装包
 
-## 明确不做（Non-goals，第一版）
+## 架构对齐原则
 
-- 不做注册登录体系（第一版本地数据 / 单工作区）
-- 不做实时协同与消息通知
-- 不做移动端 App、不做甘特图/报表
-- 不做多语言
+BinFlow 的概念模型必须与 Artifactory 一一对应（落地见 DECISIONS.md ADR-0003）：
+
+| Artifactory 概念 | BinFlow 对应 |
+|---|---|
+| Local / Remote / Virtual repository | 同名概念，语义一致 |
+| Checksum-based filestore | checksum 寻址的 blob 存储（去重） |
+| Metadata DB（Derby/Postgres） | 内嵌 SQLite（默认）/ Postgres（可选） |
+| Access（用户/组/权限） | auth 模块（users/groups/permissions/tokens） |
+| REST `/api/` | 兼容端点子集 + `/api/v1` |
+| Web UI | 内嵌 Web 控制台（go:embed） |
+
+## 明确不做（第一版）
+
+- 不做 HA 集群与联邦复制（active-active）
+- 不做 Xray 式漏洞扫描 / 许可证合规平台
+- 不做 LDAP / SAML / OIDC（第一版本地用户 + API Token）
+- 不做 UI 高级分析与洞察报表
+- 不做 Artifactory 全量 REST 兼容（只做高频子集，其余走 `/api/v1`）
 
 ## 成功标准
 
-- 新用户 30 秒内创建第一张卡片
-- 100 张卡片的看板交互无明显卡顿
-- 核心路径（建卡/拖拽/过滤）有自动化测试覆盖
+- 真实客户端全链路可用：`docker push/pull`、`mvn deploy/resolve`、`npm publish/install`、`pip install`（走代理）、raw 上传下载
+- 单二进制 < 40MB，冷启动 < 2s，空载内存 < 100MB
+- 部署矩阵每种方式按文档 15 分钟内从零跑通
+- 1000 并发拉取无错误；checksum 去重生效（相同 blob 只存一份）
 
-## 技术偏好（软约束，架构师可推翻但需给理由）
+## 技术约束
 
-- Web 应用；本地优先，数据落在 SQLite
-- 前端 React 系，后端 Node.js 系，类型安全优先
+- Go（当前稳定版），模块化单体，单二进制，Web 控制台 go:embed 打入
+- 元数据：内嵌 SQLite（默认，零依赖）/ Postgres（可选）
+- 协议兼容优先于功能数量：每个协议适配器必须用真实客户端验收
+- 配置：单 YAML + 环境变量覆盖（12-factor 友好）

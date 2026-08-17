@@ -1,11 +1,18 @@
+# 逆向参考代码（clean-room：永不提交，见 DECISIONS.md ADR-0001）
+reverse-src/
+
+# Go 构建产物
+bin/
+dist/
+*.exe
+coverage.out
+coverage.html
+
 # 依赖与构建
 node_modules/
-dist/
-build/
+web/dist/
 .next/
-coverage/
 __pycache__/
-*.pyc
 .venv/
 
 # 环境与密钥
@@ -15,8 +22,13 @@ __pycache__/
 *.pem
 *.key
 
+# 部署产物（Chart 打包、镜像导出）
+charts/*.tgz
+*.image.tar
+
 # 本地数据与日志
 *.log
 .DS_Store
-data/*.db
-data/*.sqlite
+data/
+*.db
+*.sqlite

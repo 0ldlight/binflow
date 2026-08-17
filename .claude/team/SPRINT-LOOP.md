@@ -26,15 +26,15 @@
 
 1. 派 1 个 `product-manager`：
    - 输入：PRODUCT.md + ROADMAP.md 当前里程碑 + 已有 PRD（如有）。
-   - 任务：核对/产出当前里程碑的 PRD（`docs/prd/milestone-<N>.md`），含每个功能的用户故事与**可验证的验收标准**。
+   - 任务：核对/产出当前里程碑的 PRD（`docs/prd/milestone-<N>.md`），含每个功能的用户故事、**可验证的验收标准**与**兼容性矩阵**（真实客户端命令级）。
    - 若 PRD 已存在且仍然有效，让其只输出增量修订。
-2. 派 1 个 `architect`（可与 product-manager 并行，各写各的目录）：
-   - 任务：若 `DECISIONS.md` 缺少本项目的技术选型 ADR，先产出 ADR（栈选型、目录结构、接口契约风格、数据模型草案）。
-   - 已有 ADR 时跳过。
-3. 二者完成后派 1 个 `tech-lead`：
-   - 输入：PRD + ADR/架构文档。
+2. 并行派 1 个 `architect` + 1 个 `reverse-engineer`（三个 agent 各写各的目录，无 area 冲突）：
+   - architect：若 `docs/design/architecture.md` 缺失或与当前里程碑脱节，产出/更新架构设计（包结构、存储设计、适配器 SPI、接口契约）；ADR 基线（0001–0004）已定，做细化不推翻。
+   - reverse-engineer：`docs/reverse/` 缺当前里程碑所需规格时，从 `reverse-src/` 产出对应行为规格（按 README 清单）；**`reverse-src/` 不存在则标 blocked**，conductor 记入报告并请用户放入。
+3. 三者完成后派 1 个 `tech-lead`：
+   - 输入：PRD + 架构文档 + 逆向规格。
    - 任务：把当前里程碑分解为工程 ticket 列表（id、标题、优先级 P0–P2、建议角色、area、依赖、每票 1–3 条可验证验收标准），
-     **必须显式规划 devops/脚手架类 ticket 排在最前**，宽度不超过 4。
+     **必须显式规划 devops/脚手架类 ticket 排在最前**，协议适配票必须依赖对应逆向规格票，宽度不超过 4。
    - 你审核后把 ticket 录入 `BOARD.md` todo 区。
 
 ## 阶段 2 — 收尾上轮（Close-out）
@@ -44,9 +44,9 @@
 1. **doing**：找到（或等待）对应 agent 的产出。
    - 后台 agent 仍在跑 → 本轮不干预，报告里注明在途。
    - 已完成 → 进入 3；已失败/超时 → 移入 blocked，记录原因，考虑换角色或拆小重发。
-2. **review**：派 1 个 `code-reviewer`（关键模块派 2 个：一个查正确性、一个查一致性/可测性）。
+2. **review**：派 1 个 `code-reviewer`（存储引擎、协议适配器等关键模块派 2 个：一个查并发/错误处理正确性、一个查架构一致性/测试覆盖）。
    - APPROVE → 票据移 qa；REQUEST_CHANGES → 生成修复 ticket（原票回到 doing，附评审意见），修复后重新 review。
-3. **qa**：派 1 个 `qa-engineer` 按票据验收标准逐条验证（跑测试、跑应用、走用户路径）。
+3. **qa**：派 1 个 `qa-engineer` 按票据验收标准逐条验证（自动化测试 + **真实客户端矩阵**：docker/mvn/npm/pip/curl；部署票复跑烟测）。
    - 全过 → 票据移 done，你做 conventional commit（commit body 引用票据号）。
    - 有缺陷 → qa 生成缺陷 ticket（P0/P1），原票视缺陷严重程度回 doing 或留 qa 待修。
 
@@ -97,9 +97,11 @@
 
 - **qa 反复打回同一票（≥3 次）**：暂停该票，请 tech-lead 评估是否设计问题，必要时回炉重做。
 - **agent 破坏了 area 约束**：revert 其改动，票据移 blocked，主会话在迭代报告记录。
-- **里程碑完成**：确认 DoD（见 ROADMAP.md）→ 打 tag → 让 tech-writer 跑一轮文档 ticket → 请用户决定是否进入下一里程碑。
+- **里程碑完成**：确认 DoD（见 ROADMAP.md）→ 打 tag → 让 tech-writer 补齐该里程碑文档 + release-engineer 更新部署产物 → 请用户决定是否进入下一里程碑。
 - **用户中途给新需求**：录入 todo（P 按判断），不打断在途 agent，下轮进入正常流程。
-- **每 10 轮或里程碑节点**：派 `security-auditor` 做一次安全扫描。
+- **每 10 轮或里程碑节点**：派 `security-auditor` 做一次安全扫描（制品仓库是供应链高价值目标）。
+- **clean-room 违规**：任何 agent 被发现复制/逐行翻译 `reverse-src/` → 立即 revert，票据 blocked，迭代报告记录并告知用户。
+- **发布动作**：push 镜像/Chart、发 release、对外分发任何制品 → 必须先经用户确认，release-engineer 只构建到本地。
 
 ## loop 集成
 
