@@ -50,12 +50,14 @@
 
 ## 🔨 进行中（doing）
 
-- **T-13** [P0] adapter SPI 与 Generic 适配器 `role:dev-registry-adapter` `area:internal/adapter、internal/adapter/generic` `dep:T-3,T-11,T-12`
-  AC 摘要：① SPI+路径归一化拒绝逃逸；PUT 201+Location+checksum 头+FileInfo（size 字符串）；GET/HEAD 三 checksum 头+ETag=sha1；DELETE 204 重复 404 ② X-Checksum 不一致→409；checksum-deploy 未命中→404；Explode→400 ③ httptest+curl 真实客户端断言
-  状态：02:3x 派发，在途。
+- **T-20** [P2] Range 与条件请求 `role:dev-registry-adapter` `area:internal/adapter/generic` `dep:T-13`
+  状态：03:1x 派发（提前填宽，M2 Docker 依赖），在途。AC：单区间 206/非法 416 + bytes */total；If-None-Match 三形态 304；If-Modified-Since；curl -r/-z 断言。
+
 ## 👀 评审中（review）
 
-（空）
+- **T-13** [P0] adapter SPI 与 Generic 适配器 `role:dev-registry-adapter` `area:internal/adapter、internal/adapter/generic` `dep:T-3,T-11,T-12`
+  状态：编码完成，conductor 复现通过（race 绿/lint 0/零 CGO；curl 黑盒 12 场景全 PASS：C07/C08/C09/C13/C14 409 文案原文/C15a/b/C16/C18/C23/穿越三变体/慢上传中断）→ 单 code-reviewer 在途（安全重点：路径逃逸变体探针/双重编码/校验头矩阵）。
+  遗留四项待 architect 裁决（reviewer 将给意见）：sha1-only deploy、BlobOpener 注入位置、originalChecksums 持久化、TOCTOU 零调用确认。
 
 ## 🧪 测试中（qa）
 
