@@ -182,6 +182,28 @@ func (h *harness) do(method, path, user, pass string, body []byte, hdr map[strin
 	return resp
 }
 
+// mutatedConfig aliases the config type for mutate callbacks in tests.
+type mutatedConfig = config.Config
+
+// rebuildWithDataDir returns a live server identical to the harness except
+// that the health/readiness storage probe targets dataDir (the B1 test's
+// read-only directory).
+func (h *harness) rebuildWithDataDir(t *testing.T, dataDir string) *rebuiltServer {
+	t.Helper()
+	s := httpapi.New(httpapi.Deps{
+		Config:   config.Defaults(),
+		Auth:     h.authSvc,
+		Authz:    h.authSvc,
+		Metadata: h.md,
+		Repos:    h.md.Repos(),
+		DataDir:  dataDir,
+		Console:  console.Handler(),
+	}, nil)
+	ts := httptest.NewServer(s.Handler())
+	t.Cleanup(ts.Close)
+	return &rebuiltServer{ts: ts}
+}
+
 // errNoRepo satisfies the repo-lookup seam of the minimal panic stack.
 var errNoRepo = errors.New("no repo")
 

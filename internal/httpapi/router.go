@@ -42,12 +42,20 @@ func (s *Server) rootHandler() http.Handler {
 // probeHandler serves /healthz and /readyz with the base chain only:
 // probes carry no credentials, and a K8s liveness check must not pay the
 // auth-round-trip cost or pollute auth failure metrics. /healthz answers
-// "process alive" unconditionally; /readyz additionally pings metadata.
+// "process alive" unconditionally. /readyz answers the section 7.1
+// contract in full — metadata ping AND a storage writability probe (T-14
+// review B1): an instance whose data directory went read-only (read-only
+// volume, full disk, bad permission) must stop receiving traffic,
+// uploads included.
 func (s *Server) probeHandler(ready bool) http.Handler {
 	terminal := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if ready {
 			if err := s.deps.Metadata.Ping(r.Context()); err != nil {
 				writeError(w, http.StatusServiceUnavailable, "metadata not ready")
+				return
+			}
+			if st := s.probeStorage(); st.Status != "ok" {
+				writeError(w, http.StatusServiceUnavailable, "storage not ready: "+st.Detail)
 				return
 			}
 		}
@@ -107,8 +115,6 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 // envelope 404 with "not implemented" wording (E-26②).
 func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string) {
 	switch {
-	case rest == "system/ping" && r.Method == http.MethodGet:
-		s.enforce(w, r, routeAuth{}, handlePing)
 	case rest == "system/ping" && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{}, handlePing)
 	case rest == "system/version" && r.Method == http.MethodGet:

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -41,11 +42,22 @@ func requestID(next http.Handler) http.Handler {
 }
 
 // statusRecorder captures the response status and byte counts for the
-// access log. WriteHeader is recorded once (later calls are no-ops, same as
-// net/http's own behavior).
+// access log.
+//
+// Status semantics (T-14 review B3): the FIRST WriteHeader call records
+// its code unconditionally, and a bare Write never overwrites a recorded
+// status. So a handler that streams body bytes and only then discovers
+// the failure (partial write followed by WriteHeader(5xx)) is logged with
+// the error code, not the 200 the wire already committed — the access
+// log must expose the failure, not mirror the transport.
 type statusRecorder struct {
 	http.ResponseWriter
-	status   int
+	status int
+	// headerWritten: an explicit WriteHeader ran (status line decided).
+	headerWritten bool
+	// wrote: body bytes have been written (response committed on the
+	// wire, implicitly as 200 unless WriteHeader ran first).
+	wrote    bool
 	bytesOut int64
 }
 
@@ -54,8 +66,9 @@ func newStatusRecorder(w http.ResponseWriter) *statusRecorder {
 }
 
 func (s *statusRecorder) WriteHeader(code int) {
-	if s.status == http.StatusOK && code != http.StatusOK {
+	if !s.headerWritten {
 		s.status = code
+		s.headerWritten = true
 	}
 	s.ResponseWriter.WriteHeader(code)
 }
@@ -63,8 +76,23 @@ func (s *statusRecorder) WriteHeader(code int) {
 func (s *statusRecorder) Write(b []byte) (int, error) {
 	n, err := s.ResponseWriter.Write(b)
 	s.bytesOut += int64(n)
+	if n > 0 {
+		s.wrote = true
+	}
 	return n, err
 }
+
+// committed reports whether the response has gone out on the wire —
+// explicitly (WriteHeader) or implicitly (body bytes). Once committed the
+// status line can no longer be rewritten; appending an error body would
+// only graft JSON onto a partial 200 (T-14 review M1).
+func (s *statusRecorder) committed() bool { return s.headerWritten || s.wrote }
+
+// markStatus overrides the recorded status for the access log WITHOUT
+// touching the wire. Used by recoverPanic when the response is already
+// committed: the error must be observable in the log even though the
+// bytes cannot be recalled.
+func (s *statusRecorder) markStatus(code int) { s.status = code }
 
 // Flush forwards to the wrapped writer when it supports flushing (streaming
 // downloads must not be buffered by the recorder).
@@ -139,6 +167,14 @@ func (f *logFields) userName() string {
 // recoverPanic converts handler panics into envelope 500s and an error log
 // line (architecture section 7.2). http.Server's own recover would abort
 // the connection without a response body — unacceptable for an API.
+//
+// Mid-stream panics (T-14 review M1): when the response is already
+// committed — a streaming download wrote body bytes before the panic —
+// the status line and part of the body have left the process. Writing the
+// 500 envelope then would APPEND JSON to a partial 200, handing the client
+// a silently corrupted artifact. In that state recover only logs (and
+// marks the status for the access log) and lets net/http truncate the
+// connection: a broken download is retryable, a corrupted one is not.
 func recoverPanic(logger *slog.Logger) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -156,6 +192,10 @@ func recoverPanic(logger *slog.Logger) Middleware {
 						slog.String("request_id", requestIDFrom(r.Context())),
 						slog.Any("panic", rec),
 					)
+					if rec2, ok := w.(*statusRecorder); ok && rec2.committed() {
+						rec2.markStatus(http.StatusInternalServerError)
+						return
+					}
 					writeError(w, http.StatusInternalServerError, "internal server error")
 				}
 			}()
@@ -295,10 +335,19 @@ func authorize(a auth.Authorizer, req routeAuth) Middleware {
 }
 
 // splitFirstSegment peels the first path segment (after /binflow) off the
-// ESCAPED path. Dot segments are deliberately not normalized here — the
-// adapter's layout is the authority that rejects them (FR-4-AC10); this
-// split only needs the leading segment to key the ACL, and a leading
-// segment cannot contain a dot-segment escape by construction.
+// request path and DECODES it. Decoding the keying segment is what keeps
+// the authorization check, the repository-row lookup and the adapter's
+// own layout addressing one and the same string (T-14 review M2): a
+// client spelling the key "generic%2Dlocal" would otherwise authorize and
+// look up the escaped spelling while the adapter addresses the decoded
+// one — two doors guarded against different names. Dot segments are
+// deliberately NOT normalized here — the adapter layout stays the
+// authority that rejects them (FR-4-AC10); the tail is returned in its
+// raw escaped form and only the ACL keys off the decoded first segment.
+//
+// A malformed percent-escape in the segment (e.g. "gen%zz") fails
+// PathUnescape: the segment is returned as-is so the adapter layout —
+// which re-decodes with the same strictness — answers the 400.
 func splitFirstSegment(r *http.Request) (repoKey, rel string) {
 	rest := strings.TrimPrefix(r.URL.EscapedPath(), "/binflow")
 	rest = strings.TrimPrefix(rest, "/")
@@ -306,5 +355,8 @@ func splitFirstSegment(r *http.Request) (repoKey, rel string) {
 		return "", ""
 	}
 	key, tail, _ := strings.Cut(rest, "/")
+	if decoded, err := url.PathUnescape(key); err == nil {
+		key = decoded
+	}
 	return key, tail
 }
