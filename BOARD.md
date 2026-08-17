@@ -50,16 +50,17 @@
 
 ## 🔨 进行中（doing）
 
-- **T-9** [P0] storage（修复轮） `role:dev-go-storage` `area:internal/storage`
-  状态：双 review 合并（correctness APPROVE 在途待收 + arch REQUEST_CHANGES）→ 修 B1 ErrEngineClosed 契约不符（Delete/GC 缺检查）+ M1 Append 部分写毒化会话 + M2 state.json 形状对齐 §4.1。原 agent 在途。
-  架构偏离两处（GC 集合形回调、Close() 入接口）被判合理 → 回写清单归 architect 票。
 - **T-11** [P0] auth 与 audit：认证/Token/路径 ACL `role:dev-go-core` `area:internal/auth、internal/audit` `dep:T-8,T-10`
   AC 摘要：① Authenticator（Basic/Token/X-JFrog-Art-Api/匿名）+argon2id+TokenRegistry（只存 sha256）② Authorizer.Can：admin 全过；命名 permission target；匿名仅内容 GET/HEAD ③ 权限矩阵/token 生命周期/改密单测
   状态：00:0x 派发（T-10 done 解锁 dep；T-8 修复不阻塞 auth 包编码），在途。
+- **T-25** [P0] 架构文档回写：三基础包 review 裁决落地 `role:architect` `area:docs/design、DECISIONS.md` `dep:T-8,T-9,T-10`
+  状态：00:2x 派发，在途。输入：T-9-review-arch.md §7 十条 + T-10 B2 的 ADR-0007 勘误 + T-8 BINFLOW_DATA_DIR。
 
 ## 👀 评审中（review）
 
-- **T-9-corr** 正确性 reviewer 结论未收（在途）。
+- **T-9** [P0] storage 引擎 `role:dev-go-storage` `area:internal/storage` `dep:T-7`
+  状态：架构 reviewer REQUEST_CHANGES 的 B1/M1/M2 已修复并经 conductor 针对性复审通过（Close 行为矩阵/毒化会话/state 形状）；**待正确性 reviewer 结论（探活中）**后合并终裁。
+- **T-9-corr** 正确性 reviewer 结论未收（探活中）。
 
 ## 🧪 测试中（qa）
 
