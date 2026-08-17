@@ -27,6 +27,12 @@ type call struct {
 // engine that is "blob already exists"). The returned error is fn's own
 // error, shared verbatim with waiters so errors.Is matching on wrapped
 // sentinels behaves identically for everyone.
+//
+// If fn panics, the panic propagates to the leader's caller after the
+// flight is torn down (map entry removed, waiters released): a panicking
+// commit must not wedge every future upload of the same checksum. Waiters
+// observe a zero error from a torn-down flight, which the engine treats as
+// "check the blob path again" — the same safe posture as a completed one.
 func (g *singleflight) do(key string, fn func() error) error {
 	g.mu.Lock()
 	if g.m == nil {
@@ -42,11 +48,15 @@ func (g *singleflight) do(key string, fn func() error) error {
 	g.m[key] = c
 	g.mu.Unlock()
 
+	// Tear the flight down no matter how fn exits — normal return, panic,
+	// or runtime.Goexit. Ordering matters: the map entry must be gone
+	// before waiters wake, or a follow-up caller could join the dying call.
+	defer func() {
+		g.mu.Lock()
+		delete(g.m, key)
+		g.mu.Unlock()
+		c.wg.Done()
+	}()
 	c.err = fn()
-
-	g.mu.Lock()
-	delete(g.m, key)
-	g.mu.Unlock()
-	c.wg.Done()
 	return c.err
 }

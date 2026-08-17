@@ -31,6 +31,13 @@ type gcResult struct {
 //     nothing and returns the candidate list; apply=true deletes and also
 //     returns what it deleted.
 //
+// Design note on grace: the mtime age check is what protects in-flight
+// uploads from the sweep — a blob committed seconds ago is young on disk
+// even though its metadata row has not landed yet (blob-first ordering,
+// architecture section 3.3). grace=0 therefore still only collects blobs
+// whose mtime is already past the (default) grace window; it is not a
+// "collect everything unreferenced right now" switch.
+//
 // The returned []string for the Engine interface is the candidate list in
 // dry-run and the deleted list in apply mode (ticket T-9 contract).
 func (e *engine) GC(ctx context.Context, referenced func() (map[string]struct{}, error), grace time.Duration, apply bool) ([]string, error) {

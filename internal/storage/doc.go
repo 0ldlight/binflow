@@ -18,4 +18,13 @@
 // This package never imports internal/metadata: reference facts live in the
 // metadata store and reach GC through the caller-supplied referenced-set
 // callback (architecture section 2, one-way dependency).
+//
+// Usage constraint: a data directory may be served by at most one Engine
+// instance at a time. The startup sweep assumes the sessions/ directory
+// belongs to this process — a second engine opening the same root would see
+// the first engine's live sessions as abandoned residue (their in-memory
+// liveness is invisible across processes) and could delete them mid-upload.
+// The single-process deployment model (one binary per data dir, ADR-0004)
+// satisfies this by construction; enforcing it cross-process needs a
+// lockfile, which is deliberately out of scope for M1.
 package storage
