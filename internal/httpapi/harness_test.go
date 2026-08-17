@@ -96,16 +96,19 @@ func newHarnessCfg(t *testing.T, mutate func(*config.Config), users [][2]string)
 
 	lines, logger, mu := newCapturingLogger()
 	s := httpapi.New(httpapi.Deps{
-		Config:   cfg,
-		Auth:     authSvc,
-		Authz:    authSvc,
-		Metadata: md,
-		Repos:    md.Repos(),
-		DataDir:  dataDir,
-		Console:  console.Handler(),
-		Adapters: []adapter.Handler{genericHandler},
-		Version:  "1.0.0-test",
-		Revision: "abc123",
+		Config:    cfg,
+		Auth:      authSvc,
+		Authz:     authSvc,
+		Metadata:  md,
+		Repos:     md.Repos(),
+		ReposSvc:  svc,
+		Passwords: authSvc,
+		Tokens:    authSvc,
+		DataDir:   dataDir,
+		Console:   console.Handler(),
+		Adapters:  []adapter.Handler{genericHandler},
+		Version:   "1.0.0-test",
+		Revision:  "abc123",
 	}, logger)
 
 	ts := httptest.NewServer(s.Handler())

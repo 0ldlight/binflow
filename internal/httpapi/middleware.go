@@ -257,6 +257,10 @@ type routeAuth struct {
 	// required: the request must carry a valid credential (management
 	// plane; content writes). Anonymous yields a 401 challenge.
 	required bool
+	// admin: the credential must belong to an administrator (repository
+	// mutation, user/token/permission management). A non-admin principal
+	// yields 403.
+	admin bool
 	// action is the Authorizer.Can action for content paths ("r", "w",
 	// "d"). Empty means "no content-path check" (management plane checks
 	// admin/permission inside its own handlers, T-15).
@@ -299,6 +303,7 @@ func authenticate(a auth.Authenticator) Middleware {
 // authorize enforces the route's requirement after authentication:
 //
 //   - required && anonymous         -> 401 challenge;
+//   - admin && non-admin principal  -> 403;
 //   - content action (r/w/d)        -> Authorizer.Can(principal, repo,
 //     path, action); denied anonymous -> 401 challenge, denied
 //     authenticated -> 403 (rest-api section 1.4 "403 -> 401 when
@@ -315,6 +320,10 @@ func authorize(a auth.Authorizer, req routeAuth) Middleware {
 			if req.required && p == nil {
 				w.Header().Set("WWW-Authenticate", basicChallenge)
 				writeError(w, http.StatusUnauthorized, "authentication required")
+				return
+			}
+			if req.admin && (p == nil || !p.Admin) {
+				writeError(w, http.StatusForbidden, "administrator privileges required")
 				return
 			}
 			if req.action != "" {

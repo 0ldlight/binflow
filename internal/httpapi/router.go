@@ -19,6 +19,7 @@ package httpapi
 import (
 	"errors"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/lzwzzy/binflow/internal/adapter"
@@ -110,9 +111,16 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 }
 
 // dispatchAPI routes /binflow/api/** after stripping /binflow/api. M1
-// implements the system pair (ping, version) and the /v1 pair (health,
-// storage stats); every other path is T-15's surface and answers the
-// envelope 404 with "not implemented" wording (E-26②).
+// implements the system pair (ping, version), the /v1 pair (health, storage
+// stats, permissions CRUD) and the compatible repository/storage/security
+// planes (T-15); every other path answers the envelope 404 with "not
+// implemented" wording (E-26②).
+//
+// Route gates (routeAuth.required) encode the management-plane rule of
+// ADR-0009: everything under /binflow/api/** demands authentication. Where
+// the operation is additionally admin-only, the terminal handler still
+// consults the principal (repo.Service's requireAdmin or an explicit check)
+// — the route gate alone would let any authenticated user through.
 func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string) {
 	switch {
 	case rest == "system/ping" && r.Method == http.MethodGet:
@@ -120,16 +128,145 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	case rest == "system/version" && r.Method == http.MethodGet:
 		// Artifactory can policy-restrict /api/system/version away from
 		// anonymous readers (rest-api.md section 5); BinFlow M1 keeps it
-		// open — it reveals only the product name and build id. T-15 may
-		// tighten it onto the permissions plane.
+		// open — it reveals only the product name and build id.
 		s.enforce(w, r, routeAuth{}, s.handleVersion)
 	case rest == "v1/health" && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{required: true}, s.handleV1Health)
 	case rest == "v1/storage/stats" && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{required: true}, s.handleV1StorageStats)
+
+	// ---- /api/v1/permissions (E-24; admin) ----
+	case rest == "v1/permissions" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handlePermissionCreate)
+	case rest == "v1/permissions" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handlePermissionList)
+	case strings.HasPrefix(rest, "v1/permissions/") && r.Method == http.MethodDelete:
+		s.enforce(w, r, routeAuth{required: true, admin: true},
+			s.withName(rest, "v1/permissions/", s.handlePermissionDelete))
+
+	// ---- /api/repositories (E-04..E-08; admin for mutations) ----
+	case rest == "repositories" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true}, s.handleRepoList)
+	case strings.HasPrefix(rest, "repositories/"):
+		key, tail := splitAPIName(rest, "repositories/")
+		switch {
+		case tail == "" && r.Method == http.MethodGet:
+			s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+				s.handleRepoGet(w, r, key)
+			})
+		case tail == "" && r.Method == http.MethodPut:
+			s.enforce(w, r, routeAuth{required: true, admin: true}, func(w http.ResponseWriter, r *http.Request) {
+				s.handleRepoPut(w, r, key)
+			})
+		case tail == "" && r.Method == http.MethodPost:
+			s.enforce(w, r, routeAuth{required: true, admin: true}, func(w http.ResponseWriter, r *http.Request) {
+				s.handleRepoPost(w, r, key)
+			})
+		case tail == "" && r.Method == http.MethodDelete:
+			s.enforce(w, r, routeAuth{required: true, admin: true}, func(w http.ResponseWriter, r *http.Request) {
+				s.handleRepoDelete(w, r, key)
+			})
+		default:
+			notImplemented(w, "/binflow/api/"+rest)
+		}
+
+	// ---- /api/storage (E-09/E-10; read = content plane semantics) ----
+	// The item-info and ?list read gates mirror the content plane rather
+	// than the management plane (PRD E-09: "内容元数据按匿名可读实现"):
+	// anonymous GET passes while anonymous_access is on. ?list is the
+	// documented exception — the handler itself answers the anonymous 403
+	// (rest-api.md section 3), which is why its route gate does NOT carry
+	// required: a 401 challenge would mask the spec's status.
+	case strings.HasPrefix(rest, "storage/"):
+		repoKey, rel := splitStoragePath(rest)
+		if repoKey == "" {
+			notImplemented(w, "/binflow/api/storage")
+			return
+		}
+		if _, ok := r.URL.Query()["list"]; ok && r.Method == http.MethodGet {
+			s.enforce(w, r, routeAuth{}, func(w http.ResponseWriter, r *http.Request) {
+				s.handleStorageList(w, r, repoKey, rel)
+			})
+			return
+		}
+		if r.Method == http.MethodGet {
+			s.enforce(w, r, routeAuth{}, func(w http.ResponseWriter, r *http.Request) {
+				s.handleStorageItem(w, r, repoKey, rel)
+			})
+			return
+		}
+		notImplemented(w, "/binflow/api/"+rest)
+
+	// ---- /api/security (E-16..E-19) ----
+	case rest == "security/password" && r.Method == http.MethodPut:
+		s.enforce(w, r, routeAuth{required: true}, s.handleChangePasswordOwn)
+	case rest == "security/users/authorization/changePassword" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true}, s.handleChangePasswordAlias)
+	case rest == "security/token" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true}, s.handleTokenCreate)
+	case rest == "security/token/revoke" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleTokenRevoke)
+	case rest == "security/users" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleUserList)
+	case rest == "security/users" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleUserCreatePost)
+	case strings.HasPrefix(rest, "security/users/") && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, admin: true},
+			s.withName(rest, "security/users/", s.handleUserGet))
+	case strings.HasPrefix(rest, "security/users/") && r.Method == http.MethodPut:
+		s.enforce(w, r, routeAuth{required: true, admin: true},
+			s.withName(rest, "security/users/", s.handleUserCreatePut))
+
 	default:
 		notImplemented(w, "/binflow/api/"+rest)
 	}
+}
+
+// withName adapts a (w, r, name) handler to an http.HandlerFunc by peeling
+// name off the route tail. An empty or multi-segment remainder falls to the
+// E-26 404 instead of routing a bogus name.
+func (s *Server) withName(rest, prefix string, h func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		name, tail := splitAPIName(rest, prefix)
+		if name == "" || tail != "" {
+			notImplemented(w, "/binflow/api/"+rest)
+			return
+		}
+		h(w, r, name)
+	}
+}
+
+// splitAPIName splits rest after prefix into (name, remainder): the first
+// segment is the name, everything after the following slash is the tail.
+// Both are returned still escaped — handlers unescape where the value is a
+// user-visible identifier.
+func splitAPIName(rest, prefix string) (name, tail string) {
+	seg := strings.TrimPrefix(rest, prefix)
+	name, tail, _ = strings.Cut(seg, "/")
+	return name, tail
+}
+
+// splitStoragePath splits /api/storage/{repo}/{path} into the repo key and
+// the decoded repo-relative remainder ("" when absent). Dot segments in the
+// remainder are left to the service layer's validators (same defense the
+// content plane relies on); a dot-segment or empty repo key yields "" so the
+// caller answers the E-26 404.
+func splitStoragePath(rest string) (repoKey, relPath string) {
+	seg := strings.TrimPrefix(rest, "storage/")
+	if seg == "" {
+		return "", ""
+	}
+	key, tail, _ := strings.Cut(seg, "/")
+	if key == "" || key == "." || key == ".." || strings.Contains(key, "/") {
+		return "", ""
+	}
+	decoded, err := url.PathUnescape(tail)
+	if err != nil {
+		// A malformed escape cannot name a node; hand back the raw tail and
+		// let the service's path validator reject it with 400.
+		decoded = tail
+	}
+	return key, strings.TrimPrefix(decoded, "/")
 }
 
 // contentAction maps a content verb onto (action, credential-required).

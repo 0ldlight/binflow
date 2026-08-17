@@ -13,6 +13,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/config"
 	"github.com/lzwzzy/binflow/internal/metadata"
+	"github.com/lzwzzy/binflow/internal/repo"
 )
 
 // RepoLookup is the consumer-side repository-metadata seam the router
@@ -36,6 +37,16 @@ type Deps struct {
 	Authz    auth.Authorizer
 	Metadata metadata.Store
 	Repos    RepoLookup
+	// ReposSvc is the repository use-case service behind the compatible
+	// /api/repositories and /api/storage planes (T-15). The router's own
+	// dispatch uses the lighter RepoLookup above; these handlers need the
+	// full service (permission-checked operations).
+	ReposSvc repo.Service
+	// Passwords rotates account passwords (PUT /api/security/password and
+	// its real-route alias).
+	Passwords auth.PasswordChanger
+	// Tokens issues and revokes API tokens (/api/security/token[/revoke]).
+	Tokens auth.TokenRegistry
 	// DataDir is storage.data_dir — the health probe writes there and the
 	// stats endpoint sizes blobs/ under it.
 	DataDir string
