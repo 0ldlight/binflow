@@ -38,7 +38,7 @@
 
 - **T-1** [P0] M1 里程碑 PRD `role:product-manager` `area:docs/prd` — done 2026-08-17
   产出 docs/prd/milestone-1.md（486 行）：FR-1~FR-6 全 AC、26 端点兼容矩阵、C01~C30 验收命令、8 项开放问题附暂行假设。核验通过。
-  备注：Q7（module 路径）已由用户定值 github.com/lzwzzy/binflow；其余开放问题（Q1/Q2/Q3/Q4/Q5/Q6/Q8）待用户决策，不阻塞开发（均有暂行假设）。
+  备注：8 项开放问题已全部定案（2026-08-17 用户决策）——Q1 统一 `/binflow` 前缀；Q2 匿名读默认开；Q3 环境变量口令缺省 password；Q4 如实返回 BinFlow 版本；Q5 纯 Go SQLite（modernc.org/sqlite，无 CGO；Derby/H2 系 Java 库已排除）；Q6 Range 维持 P2；Q7 module 路径 github.com/lzwzzy/binflow；Q8 README 归 devops 起草。PRD v1.1 回写中（PM 在途），已同步 architect。
 
 ## 🚫 阻塞（blocked）
 

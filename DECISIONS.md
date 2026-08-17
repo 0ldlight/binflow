@@ -56,3 +56,43 @@
 - 背景: 用户明确要求多元化部署方式；目标环境含 K8s、compose、裸机、离线网络。
 - 决策: GA（M5）必须交付：① 单二进制（linux/darwin/windows × amd64/arm64，goreleaser + 校验和）② Docker multi-arch 镜像（distroless / alpine）③ docker-compose ④ Helm Chart（PVC/ingress/HPA/values）⑤ 原生 K8s 清单 ⑥ systemd 单元 + 安装脚本；另产出离线安装包（镜像 tar + Chart + 脚本 + 校验和）。
 - 后果: release-engineer 常设；`deploy/` 与 `charts/` 目录纳管；M2 起每个里程碑包含部署烟测票；对外推送镜像/Chart/二进制必须经用户确认。
+
+## ADR-0005: 零 CGo 纯 Go 依赖基线（driver / YAML / 路由选型）
+- 状态: Accepted
+- 日期: 2026-08-17
+- 背景: ADR-0004 要求 6 平台交叉编译单二进制（linux/darwin/windows × amd64/arm64）。CGo 依赖（如 mattn/go-sqlite3）会让每种目标平台都需要本地 C 工具链，破坏 goreleaser 交叉编译与离线构建的可复制性。同时首个外部依赖需要确立「依赖准入原则」，避免依赖树失控。
+- 候选方案:
+  - SQLite 驱动：A) mattn/go-sqlite3（CGo，最快但破坏交叉编译）；B) modernc.org/sqlite（纯 Go 转译，无 CGo，写路径略慢）；C) ncruces/go-sqlite（WASM，性能介于两者但运行时更重）。
+  - YAML：A) gopkg.in/yaml.v3（**已归档不维护**，CVE-2022-28948 无上游修复）；B) go.yaml.in/yaml/v3（YAML 官方组织 fork，drop-in 继任，活跃维护）；C) goccy/go-yaml（重写实现，功能多但 API 面大）。
+  - HTTP 路由：A) Go 1.22+ stdlib `net/http.ServeMux`（方法匹配 + `{path}` 通配已内建）+ 自写约 30 行 middleware chain；B) go-chi/chi（仍维护，中间件/子路由更强）；C) gorilla/mux（历史包袱）。
+- 决策: 全部选纯 Go 路线——`modernc.org/sqlite`（已验证 `go get` 解析到 v1.56.0）、`go.yaml.in/yaml/v3`（已验证 v3.0.5）、stdlib ServeMux + httpapi 包内极简 middleware chain。**依赖准入原则**：默认 stdlib；引入任何新外部库必须由 architect 记录（追加到本 ADR 附属清单或新 ADR）；CGo 一律禁止。首批依赖白名单：`modernc.org/sqlite`、`go.yaml.in/yaml/v3`、`golang.org/x/crypto`（argon2id 密码哈希）。
+- 理由: 6 平台矩阵下无 CGo 是硬收益；BinFlow 元数据负载是小事务 OLTP 而非分析查询，modernc 的写性能折损可接受；YAML 选官方继任 fork 迁移成本最低且持续收安全修复；M1 路由需求是「前缀挂载 + 少量 REST 模式」，1.22+ ServeMux 足够，少一个依赖就少一分供应链风险。
+- 后果: 所有构建环境无 C 工具链要求；受限网络下需配置 `GOPROXY` 镜像（验证时 goproxy.cn 可用、proxy.golang.org 超时——devops-engineer 需在 CI 与文档中体现）；若 M3 npm/Maven 出现 ServeMux 表达不了的匹配需求，再评估引入路由库（届时新 ADR）；性能基准（M5）若显示 SQLite 写瓶颈再评估驱动替换。
+
+## ADR-0006: blob 存储磁盘布局与上传落盘协议（布局即兼容契约）
+- 状态: Accepted
+- 日期: 2026-08-17
+- 背景: checksum 寻址去重是 ADR-0003 定下的核心能力。磁盘布局一经发布就是事实兼容承诺——后续版本的升级、GC、备份/恢复工具（M4）都依赖它，M1 必须定稿。
+- 候选方案:
+  - blob 目录：A) 全平铺 `blobs/<sha256>`（单目录百万级文件，多数文件系统退化）；B) 二级分片 `blobs/<2-hex>/<sha256>`（256 目录，均衡）；C) 按仓库分目录 + 硬链接去重（Artifactory 旧式 filestore，跨仓去重依赖链接、备份语义复杂）。
+  - 会话状态：A) DB 表（每次 append 都写库，崩溃恢复依赖库可用）；B) 磁盘 `sessions/<id>/state.json`（存储自包含，重启即恢复）。
+  - 引用计数：A) `blobs.ref_count` 列实时维护（每次 node 增删都写同热行，锁竞争）；B) 无计数列，GC 时与 `nodes` 实时 JOIN（mark-sweep）。
+- 决策:
+  1. 布局：`<data>/blobs/<sha256[0:2]>/<sha256>`，blob 文件内容不可变、全局唯一、无 sidecar 属性文件（附属 sha1/md5/size 存元数据 `blobs` 表，元数据库是唯一事实源）。
+  2. 会话：`<data>/sessions/<uuid>/{data,state.json}`，纯磁盘状态，不入 DB；启动时扫描，过期（ttl，默认 24h）即清理。
+  3. 落盘协议：session 追加写 `data`（边写边算 sha256/sha1/md5）→ fsync(data) → 若目标 blob 不存在则 `rename` 到 blobs 路径 → fsync(目标目录) → 提交元数据。同一文件系统内 rename 原子，崩溃只会留下 session 残渣或已完整 blob，无半写文件。
+  4. 并发同一 blob：进程内 per-checksum singleflight 互斥；后到者发现目标已存在 → 丢弃自己的会话数据、返回已有 blob（幂等）。
+  5. 引用与 GC：不设 ref_count 列；GC 为离线 CLI（`binflow-server gc`，默认 dry-run，`--apply` 才删），mark-sweep：未出现在 `nodes` 中且 `created_at < now - grace_period`（默认 24h，防与在途上传竞态）的 blob 才可删。
+- 理由: 分片布局消除单目录规模问题且推导简单；全局内容寻址让跨仓去重、零拷贝移动/重命名（只改 nodes 行）免费获得；会话留磁盘使存储引擎可独立于元数据库测试与恢复；mark-sweep + grace period 用时间换锁，避免为 M1 引入分布式锁或引用计数热点。
+- 后果: 备份 = `blobs/` 目录 + SQLite 文件的一致性快照（M4 交付工具）；blob 物理删除只有 GC 一个入口（运行时 DELETE 制品只删 node 引用，安全底线友好）；`sessions/` 与 `blobs/` 是版本兼容承诺，改名需新 ADR；「Artifactory 是否有 blob sidecar 属性文件」待逆向规格 docs/reverse/storage-layout.md 确认（若其有 properties 文件，BinFlow 也不跟进——以本决策为准，差异记入架构文档对齐表）。
+
+## ADR-0007: 元数据迁移机制与 SQLite 并发策略
+- 状态: Accepted
+- 日期: 2026-08-17
+- 背景: ADR-0003 要求 SQLite（默认）/ Postgres（可选）双栈；schema 演进必须保证跨里程碑升级不丢数据。验收标准含 1000 并发拉取，SQLite 并发策略需先定。
+- 候选方案:
+  - 迁移工具：A) golang-migrate / B) goose（均为成熟库，但 embedded + 双方言场景下仍需自建约定，且引入 CLI 依赖）；C) 自写约 100 行：embedded SQL 按序号在事务中应用并记录版本。
+  - 并发：A) 单连接全串行（正确但读吞吐受限）；B) WAL + busy_timeout + 单连接池（读并发，写靠超时重试）；C) 读写双池（读池 N 连接 + 写池 1 连接，最优但 M1 复杂度不成比例）。
+- 决策: 自写迁移器：`internal/metadata/migrations/sqlite/NNN_*.sql` embedded FS，逐版本事务应用，记录进 `schema_migrations` 表；方言目录 `migrations/postgres/` 必须同版本号同步演进（M1 仅交付 sqlite 方言 + postgres 占位说明），逻辑 schema 以 docs/design/architecture.md 为契约。SQLite 连接统一 PRAGMA：`journal_mode=WAL`、`foreign_keys=ON`、`busy_timeout=5000`；连接池 `MaxOpenConns = NumCPU`（M1 不拆读写池）。时间戳一律 RFC3339 UTC 文本列（SQLite/Postgres 同构）。
+- 理由: 迁移需求就是「顺序执行 SQL 并记账」，三方库的迁移即代码/多驱动能力用不上；WAL 下现代c 驱动支持多读并发，写冲突是小事务 + busy_timeout 可吸收的；双池留作已识别的优化缝，不过早付费。
+- 后果: 迁移文件成为受 architect review 的工件（每次 schema 变更两方言同步提交）；1000 并发验收若出现 `SQLITE_BUSY` 热点，升级到读写双池属允许的实现内优化（不改本决策）；Postgres 接入前，任何 SQLite 专有特性（如 `AUTOINCREMENT`、`strftime`）不得进入迁移 SQL，两方言共同子集为准。
