@@ -51,8 +51,9 @@
 ## 🔨 进行中（doing）
 
 - **T-10** [P0] metadata（修复轮） `role:dev-go-core` `area:internal/metadata`
-  状态：双 review 裁决 REQUEST_CHANGES → 回 doing 修两个 blocker：B1 LIKE 大小写误删（PRAGMA case_sensitive_like=ON + 测试）、B2 池开 NumCPU + PRAGMA 挪 DSN（除 WAL）。原 agent 续跑（上下文保留），在途。
-  正确性视角 APPROVE 在案；修复后只需针对性复审两 blocker。
+  状态：双 review 裁决 REQUEST_CHANGES → 修 B1 LIKE 大小写误删 + B2 池/PRAGMA。原 agent 在途；磁盘已见 DSN PRAGMA + NumCPU 池成形。
+- **T-8** [P0] config（修复轮） `role:dev-go-core` `area:internal/config`
+  状态：review REQUEST_CHANGES（3 blocker + 1 major，探针实证）→ 修 B1 多文档 YAML 绕过扫描、B2 file::memory: 击穿、B3 ADMIN_PASSWORD 大小写静默失效、M1 DSN 回显口令。原 agent 在途。
 
 ## 👀 评审中（review）
 
@@ -60,9 +61,6 @@
   状态：编码完成，conductor 复现通过（race 104s 全绿/全仓 lint 0/gofmt 净/全仓零 CGO/零内部依赖红线）。
   review 安排：双 reviewer 在途（correctness + arch）。
   reviewer 关注点：① ADR-0006 落盘顺序不可换序 ② singleflight 收敛与崩溃窗口 ③ GC 宽限期与 dry-run ④ 契约偏离两点（GC 回调集合形 vs 架构逐条查询；Close() 补入 Engine 接口）→ 需 architect 回写。
-- **T-8** [P0] config 包 `role:dev-go-core` `area:internal/config` `dep:T-7`
-  状态：编码完成，conductor 复现通过（race 3.1s 绿/零 CGO/gofmt 净/双键合并正确）→ 单 code-reviewer 在途。
-  reviewer 关注点：① 全指针 raw schema 与 strict 解码的正确性 ② 秘密扫描路径（AdminPassword 不入 YAML/日志）③ env 名→路径映射的边界（嵌套/非法值）④ 覆盖率 90.5% 的薄弱分支。
 
 ## 🧪 测试中（qa）
 
