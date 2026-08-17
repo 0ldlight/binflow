@@ -241,6 +241,12 @@ type Service interface {
     Put(ctx context.Context, principal *auth.Principal, repoKey, path string, body io.Reader, expect storage.BlobRef, mime string) (*metadata.Node, error)
     Delete(ctx context.Context, principal *auth.Principal, repoKey, path string) error
     List(ctx context.Context, principal *auth.Principal, repoKey, prefix string) ([]*metadata.Node, error)
+    // PutFromBlob 从既有 blob 引用创建 node（秒传路径，T-13 修复新增契约）：
+    // ① 判权先于 blob 打开（无权者不消耗 IO）；② storage.Open 确认物理在 +
+    //    blobs 台账行在，双维校验；③ 孤儿 blob（物理在、台账缺行）→ ErrOrphanBlob
+    //    ——拒绝秒传把无主 blob 实体化成 node，避免该制品永久失去 sha1/md5 附属
+    //    摘要（sha256-only 降级不可逆）；④ sha1/md5 只从台账行取，不重算。
+    PutFromBlob(ctx context.Context, principal *auth.Principal, repoKey, path string, ref storage.BlobRef, mime string) (*metadata.Node, error)
     // CreateRepo/UpdateRepo/DeleteRepo：仓库配置 CRUD（校验 key 唯一、类型合法）。
 }
 
@@ -267,6 +273,8 @@ type Authorizer interface {
     //（exclude 优先）→ 按 principals 中该用户的 actions 授 r/w/d；无命中 = 拒绝。
     // 匿名（p == nil）：action=="r" 且 security.anonymous_access==true 时内容路径放行（ADR-0009）；
     // 写操作与管理面（/binflow/api/**）无论开关一律拒绝匿名。
+    // 路由解析位置（T-14 review 终判）：repo key → repo 行查询位于授权门之后；RepoLookup 用
+    // metadata.Get 是有意为之的匿名读前置缝（无权者在查询前即被拦），见 §7.1 注记。
     // folder 契约（T-11 review B-2 修复新增）：path 以尾斜杠标识 folder；Ant matchStart
     // 前缀规则仅对 folder 路径生效，文件路径必须与 pattern 全段匹配；调用方路由 folder
     // 请求时须保留尾斜杠（语义对齐 docs/reverse/auth-model.md AuthorizationServiceBase）。
@@ -552,6 +560,8 @@ CREATE TABLE virtual_members (
 ```
 
 **认证分层默认值（ADR-0009）**：内容路径 `GET/HEAD` 匿名放行（`security.anonymous_access: true` 默认）；内容路径写操作与 `/binflow/api/**` 全部要求认证，不受该开关豁免。`anonymous_access: false` 时所有端点一律认证。
+
+**路由解析位置（T-14 review RepoLookup 缝终判）**：repo key → repo 行查询位于**授权门之后**；RepoLookup 用 `metadata.Get` 是有意为之的匿名读前置缝——安全面成立（无权者在查询前即被拦截，repo 行不泄漏给未授权请求）。`PackageTypeOf(ctx, key)` 收回服务层列 T-15/M2 非阻断重构项。
 
 ### 7.2 middleware 链（顺序固定）
 
