@@ -19,7 +19,7 @@
 ┌───────▼────────┐  ┌───────────────────▼───────────┐  ┌─────────────────▼────────┐
 │   httpapi      │  │          adapter              │  │         console          │
 │ /binflow 前缀   │  │ generic[M1] docker[M2]        │  │ go:embed 静态前端 [M4]    │
-│ 路由/middleware │  │ maven/npm/pypi[M3]            │  │ M1: /api/v1 JSON only    │
+│ 路由/middleware │  │ maven/npm/pypi[M3]            │  │ M1: /binflow/api/v1 JSON │
 └───────┬────────┘  └───────┬───────────────────────┘  └──────────────────────────┘
         │                   │ Handler(http.Handler)
         │           ┌───────▼────────┐
@@ -98,7 +98,7 @@ binflow/                       # Go module: github.com/lzwzzy/binflow（ADR-0008
 | `storage` | blob 生命周期：上传会话、checksum 计算、原子落盘、打开读、删除、GC | `Engine`（见 §3.1） | S3 后端（只留 `Backend` 缝 [M6+]）、remote 缓存清理 [M3] |
 | `metadata` | 全部 SQL：repositories/nodes/blobs/users/tokens/audit_events 的 CRUD；迁移 | `Store`（见 §3.2）；`Migrate(ctx, dialect)` | 复杂查询优化、审计分库 |
 | `repo` | 仓库语义：Get/Put/Delete/List/Search 的用例编排；local 实现 | `Service`（见 §3.3）；`GetLocal(ctx, key)` | remote/virtual（接口占位，M3 实现） |
-| `adapter` | SPI：协议无关的 Handler 注册与路由挂载；`layout` 包 | `Handler`（见 §5.1）；`Mount(server)` | 各协议本体 |
+| `adapter` | SPI：协议无关的 Handler 注册与路由挂载；`layout` 包 | `Handler` + `Register/All`（见 §5.1） | 各协议本体 |
 | `adapter/generic` | Generic(raw) 语义：path 即 layout、上传校验、目录列表 | 实现 `Handler` | —— |
 | `auth` | 密码校验（argon2id）、Token 签发/校验、路径 ACL 决策 | `Authenticator` / `Authorizer` / `TokenRegistry`（§3.4） | 组/匿名/LDAP [M4+] |
 | `audit` | append-only 审计事件 + 查询 | `Logger`（§3.5） | UI、导出 [M4] |
@@ -314,9 +314,9 @@ type Handler interface {
     Protocol() string
     // RepoTypes 声明本协议可服务的仓库类型；httpapi 据此做 404/400 前置校验。
     RepoTypes() []string // 例: {"local"}；docker M2 为 {"local","remote","virtual"}
-    // Layout 把请求路径切为 (repoKey, repoRelPath)。
+    // Layout 把请求路径切为 (repoKey, repoRelPath)；httpapi 已剥离 /binflow 前缀。
     // generic: 首段=repoKey，余下=repoRelPath。
-    // docker: 按 registry 语义特判（/_catalog、/v2/<name>/blobs/…）；layout 错误返回 ErrBadRequestPath。
+    // docker [M2]: 全局段 v2 语义特判（_catalog、<name>/blobs/…），挂载形态 M2 定；解析失败返回 ErrBadRequestPath。
     Layout(r *http.Request) (repoKey, relPath string, err error)
     // ServeHTTP 业务本体：中间件已在 httpapi 完成 auth+audit 前置；handler 内调 repo.Service。
     http.Handler
@@ -453,7 +453,7 @@ CREATE TABLE virtual_members (
 );
 ```
 
-首启种子数据（迁移 001 内）：`INSERT INTO users(username, is_admin, ...)` 无 admin 用户——admin 初始密码由首次启动参数 `--bootstrap-admin-password`（或 env `BINFLOW_BOOTSTRAP_ADMIN_PASSWORD`）写入，避免默认弱口令。
+首启种子数据（迁移 001 内）：预置 `admin` 用户（is_admin=1）。口令引导（ADR-0009，用户定案）：env `BINFLOW_ADMIN_PASSWORD` 优先；未设置时使用**文档化缺省值 `password`**（仅限评估——文档与启动日志双重标注，检测到缺省值时启动打 WARN）；仅在 admin 用户不存在时生效，改密后不被后续启动覆盖。
 
 模块路径：go.mod `module github.com/lzwzzy/binflow`（ADR-0008），所有 import 以此为根。
 
@@ -508,7 +508,7 @@ Artifactory 兼容端点的错误体格式以 `docs/reverse/rest-api.md` 为准�
 
 ## 8. 配置模型（config 包）
 
-单 YAML `binflow.yaml` + env 覆盖（`BINFLOW_` 前进，`__` 表层级，如 `BINFLOW_STORAGE__DATA_DIR`；列表/复杂值仅 YAML）。原则：凡是路径/端口/外部端点皆可覆盖，行为参数有安全默认。
+单 YAML `binflow.yaml` + env 覆盖（`BINFLOW_` 前进，`__` 表层级，如 `BINFLOW_STORAGE__DATA_DIR`；列表/复杂值仅 YAML）。原则：凡是路径/端口/外部端点皆可覆盖，行为参数有安全默认；秘密（口令类，如 `BINFLOW_ADMIN_PASSWORD`）**不入 YAML**，只走 env。
 
 ```yaml
 # binflow.yaml —— 全量字段（M1）；未列字段一律不给默认值即零值
@@ -582,5 +582,5 @@ logging:
 | 2 | 兼容层错误体确切 JSON 形状 | rest-api.md | §7.3 |
 | 3 | Generic 仓库目录列表行为（HTML/JSON/有无） | rest-api.md | §5.2 |
 | 4 | `X-Checksum-*` 头不全给时的校验策略 | rest-api.md | §4.2 |
-| 5 | admin 密码引导流程是否对齐 Artifactory 首启行为 | config-formats.md | §6 种子数据 |
+| 5 | Artifactory 首启 admin 引导行为（BinFlow 已定案：env 优先/缺省 password，ADR-0009；逆向仅用于文档对齐描述） | config-formats.md | §6 种子数据 |
 | 6 | Artifactory 匿名读默认值与其「匿名仅 GET 内容」边界（用作 ADR-0009 的对齐佐证） | auth-model.md | §7.1 认证分层 |

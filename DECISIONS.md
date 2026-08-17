@@ -96,3 +96,26 @@
 - 决策: 自写迁移器：`internal/metadata/migrations/sqlite/NNN_*.sql` embedded FS，逐版本事务应用，记录进 `schema_migrations` 表；方言目录 `migrations/postgres/` 必须同版本号同步演进（M1 仅交付 sqlite 方言 + postgres 占位说明），逻辑 schema 以 docs/design/architecture.md 为契约。SQLite 连接统一 PRAGMA：`journal_mode=WAL`、`foreign_keys=ON`、`busy_timeout=5000`；连接池 `MaxOpenConns = NumCPU`（M1 不拆读写池）。时间戳一律 RFC3339 UTC 文本列（SQLite/Postgres 同构）。
 - 理由: 迁移需求就是「顺序执行 SQL 并记账」，三方库的迁移即代码/多驱动能力用不上；WAL 下现代c 驱动支持多读并发，写冲突是小事务 + busy_timeout 可吸收的；双池留作已识别的优化缝，不过早付费。
 - 后果: 迁移文件成为受 architect review 的工件（每次 schema 变更两方言同步提交）；1000 并发验收若出现 `SQLITE_BUSY` 热点，升级到读写双池属允许的实现内优化（不改本决策）；Postgres 接入前，任何 SQLite 专有特性（如 `AUTOINCREMENT`、`strftime`）不得进入迁移 SQL，两方言共同子集为准。
+- 附注（2026-08-17，用户定案 Q5 补充记录）: 元数据嵌入式选型时用户曾考虑 Derby / H2——两者均为 Java 系嵌入式库，无 Go 绑定、无法嵌入 Go 进程，**结构上不可行**，予以排除（非优劣权衡而是硬约束淘汰）。CGo 版 mattn/go-sqlite3 因破坏 goreleaser 六平台交叉编译（每种目标平台需本地 C 工具链）同样排除。最终维持本 ADR 决策：`modernc.org/sqlite` 纯 Go 转译实现，已实测解析 v1.56.0。
+
+## ADR-0008: 统一 `/binflow` 路由前缀与 Go module 路径
+- 状态: Accepted（用户定案）
+- 日期: 2026-08-17
+- 背景: 需要为「内容路径 + Artifactory 兼容层 + 自有 API」定顶层命名空间；Go module 路径须在脚手架票开工前定值，否则事后全局 rename。
+- 候选方案:
+  - 前缀: A) `/artifactory`（最大化与迁移方文档类推，但品牌错位且暗示全量兼容）；B) 自有前缀 `/binflow`（兼容端点 `/binflow/api/...`、内容 `/binflow/<repo>/<path>`、自有 `/binflow/api/v1/...`）；C) 无前缀挂根（`/api`、`/v2`、`/<repo>` 混布，与其他服务同域共存时路由冲突）。
+  - module 路径: A) `github.com/lzwzzy/binflow`；B) 自有域（如 `binflow.dev/binflow`，需购域维护）。
+- 决策: 前缀选 B，module 路径选 A（`go.mod: module github.com/lzwzzy/binflow`）。所有产品端点统一 `/binflow` 前缀；**不用 `/artifactory` 前缀，不做根路径镜像**。探针/抓取基础端点（`/healthz` `/readyz` `/metrics`）不带前缀。repo key 保留字：`api`、`v2`（建仓校验拒绝）。
+- 理由: 自有品牌命名空间在同域反代/子路径部署下无冲突；不做根镜像避免双份路由表与歧义；兼容性靠端点行为对齐（`/binflow/api/...` 上的兼容子集）而非前缀伪装。module 路径即刻定值，脚手架票直接使用。
+- 后果: 文档与客户端示例统一 `/binflow`（例 `curl http://host:8080/binflow/<repo>/path`）；`server.base_url` 非空时必须含 `/binflow`；**[M2 风险预告]** docker 客户端固定向 `/v2/...` 发请求、无法自定义前缀，届时二选一：反代 rewrite 到 `/binflow/v2` 或为 `/v2` 开根级例外——属实现层路由例外，不推翻本 ADR，M2 出细化票据时定；控制台相对路径以 `/binflow` 为基。
+
+## ADR-0009: 匿名读默认开启 + admin 首启口令引导
+- 状态: Accepted（用户定案）
+- 日期: 2026-08-17
+- 背景: 两件事：① 内网/迁移场景的默认访问姿态（Artifactory 传统匿名读开）；② admin 首启口令需兼顾「部署矩阵 15 分钟跑通」与不引入静默弱口令。
+- 候选方案:
+  - 匿名策略: A) 匿名读默认开——仅内容路径 GET/HEAD，管理 API 永远认证，配置可关；B) 默认全拒绝（最安全，迁移体验降级）；C) 全端点匿名（不可接受，直接排除）。
+  - admin 引导: A) 无缺省、env 未设则启动失败（最安全，评估/文档流程多一步）；B) env `BINFLOW_ADMIN_PASSWORD` 优先，未设置用**文档化缺省值 `password`**（文档标注仅限评估）；C) 首启随机口令打日志（K8s/compose 自动化不友好）。
+- 决策: 匿名选 A（`auth.anonymous_read` 默认 `true`，只放行内容路径 GET/HEAD；写操作与 `/binflow/api/**` 不受开关豁免，一律认证）；admin 引导选 B（env 优先 → 缺省 `password`；仅当 admin 用户不存在时生效；检测到缺省值时启动日志打 WARN）。
+- 理由: 匿名读默认对齐 Artifactory 迁移场景的主流姿态，且暴露面被精确限定在只读内容；缺省口令保住「按文档 15 分钟跑通」的产品成功标准，env 覆盖给生产，WARN + 文档标注兜底提醒。
+- 后果: qa 必须覆盖匿名矩阵（匿名 GET 内容 200 / 匿名 PUT 401 / 匿名调 API 401 / `anonymous_read:false` 后 401）；审计事件 actor 记 `anonymous`；tech-writer 安装文档必须标注缺省口令仅限评估；`BINFLOW_ADMIN_PASSWORD` 只走 env 不入 YAML（秘密不入配置文件原则，见 architecture.md §8）。
