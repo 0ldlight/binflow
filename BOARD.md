@@ -53,10 +53,6 @@
 - **T-13** [P0] adapter SPI 与 Generic 适配器 `role:dev-registry-adapter` `area:internal/adapter、internal/adapter/generic` `dep:T-3,T-11,T-12`
   AC 摘要：① SPI+路径归一化拒绝逃逸；PUT 201+Location+checksum 头+FileInfo（size 字符串）；GET/HEAD 三 checksum 头+ETag=sha1；DELETE 204 重复 404 ② X-Checksum 不一致→409；checksum-deploy 未命中→404；Explode→400 ③ httptest+curl 真实客户端断言
   状态：02:3x 派发，在途。
-- **T-26** [P1] architect 回写：Can folder 契约 + gosec 豁免复核 `role:architect` `area:docs/design、.golangci.yml` `dep:T-11`
-  AC: ① §3.4 补 Can 尾斜杠=folder 约定（matchStart 仅 folder、文件全段匹配）② .golangci.yml gosec 全局豁免复核（T-9 所加 G401 等，建议收窄 per-path 或确认保留理由）
-  状态：02:3x 派发，在途。
-
 ## 👀 评审中（review）
 
 （空）
@@ -108,6 +104,8 @@
   新契约待 architect 回写（§3.4）：Can 的 path 尾斜杠=folder；文件路径与 pattern 全段匹配。顺手：Redact camelCase/header、ChangePassword 顺序对齐规格、Touch 每分钟节流。
 - **T-12** [P0] repo.Service `role:dev-go-core` `area:internal/repo` `dep:T-9,T-10,T-11` — done 2026-08-18（经一轮修复）
   api/service/validate + 28 测试（真引擎基座 + hookStore 注入/journal 写序）。review 2 blocker 修复并复审通过（TrimSuffix 三处归一化：prune 保活目录行回归 + List 双形态一致）；事务边界被证实过硬（blob-first/FK 兜底/24 并发探针）。conductor 复现：race 19.5s 绿 / lint 0。修复 agent 被 429 击落于日志收尾，产出 100% 落盘。
+- **T-26** [P1] architect 回写：Can folder 契约 + gosec 豁免复核 `role:architect` `area:docs/design、.golangci.yml` `dep:T-11` — done 2026-08-18
+  §3.4 补 Can 尾斜杠=folder 三句契约（对齐 AuthorizationServiceBase）；gosec 五规则收窄：G301/G306 移除豁免、G204 限测试、G401 限 digest.go+测试、G115 限 password.go、G304 限两文件；隔离探针反向验证（新违规四条全中）；nolintlint require-explanation 启用。核验通过（lint 0）。
 
 ## 🚫 阻塞（blocked）
 

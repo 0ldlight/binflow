@@ -267,6 +267,9 @@ type Authorizer interface {
     //（exclude 优先）→ 按 principals 中该用户的 actions 授 r/w/d；无命中 = 拒绝。
     // 匿名（p == nil）：action=="r" 且 security.anonymous_access==true 时内容路径放行（ADR-0009）；
     // 写操作与管理面（/binflow/api/**）无论开关一律拒绝匿名。
+    // folder 契约（T-11 review B-2 修复新增）：path 以尾斜杠标识 folder；Ant matchStart
+    // 前缀规则仅对 folder 路径生效，文件路径必须与 pattern 全段匹配；调用方路由 folder
+    // 请求时须保留尾斜杠（语义对齐 docs/reverse/auth-model.md AuthorizationServiceBase）。
     Can(ctx context.Context, p *Principal, repoKey, path, action string) bool // action: r|w|d
 }
 type TokenRegistry interface {

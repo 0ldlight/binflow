@@ -15,6 +15,16 @@ import (
 // Argon2id parameters (ADR-0009 / PRD NFR-S1): t=1 iteration, m=64 MiB,
 // p=4 lanes, 32-byte tag, 16-byte random salt. Hashes are stored as PHC-style
 // strings so each hash carries the parameters it was produced with.
+//
+// Placement note (T-11): architecture section 3.4 assigns password hashing
+// to the auth package, but the dependency edge runs auth -> metadata (auth's
+// store adapters live in internal/auth/deps.go), so the implementation
+// cannot move up without an import cycle or a hook indirection. Both were
+// judged worse than this file's current home: the admin seed needs the
+// hasher at Open time, before any auth construction. The functions stay
+// exported here and internal/auth re-exports them as auth.HashPassword /
+// auth.VerifyPassword so callers see the auth-owned API surface. Deviation
+// recorded in reports/agents/T-11.md for the architect.
 const (
 	argon2Time    = 1
 	argon2Memory  = 64 * 1024 // KiB

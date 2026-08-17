@@ -25,6 +25,74 @@ linters:
       - internal/console/dist
       - web/dist
       - third_party
+    # Rule-level gosec exclusions are kept NARROW (T-26 ruling): each entry
+    # is scoped to the paths that actually trigger the rule, with the
+    # justification inline. Anything outside these paths fires normally.
+    #
+    # Rulings (2026-08-18, architect, T-11 review follow-up):
+    # - G401 (weak hash) fires on internal/storage/digest.go and on tests
+    #   computing md5/sha1 expectations. sha1/md5 are Artifactory
+    #   compatibility digests only; addressing and integrity decisions are
+    #   sha256-only (ADR-0003). New md5/sha1 use elsewhere must justify
+    #   itself or switch to sha256.
+    # - G115 (int conversion) fires on argon2 parameter passing in
+    #   internal/metadata/password.go; bounds are enforced by the argon2
+    #   spec floor check directly above the call.
+    # - G204 (subprocess) fires ONLY in tests shelling out to shasum/md5 on
+    #   files the test itself created under t.TempDir. No production code
+    #   runs subprocesses; the production surface stays fully covered.
+    # - G304 (variable path) fires on the operator-provided config path
+    #   (config/load.go: reading -c <path> is the feature) and on
+    #   storage/engine.go, where every path is engine-owned root + generated
+    #   UUID (sessions) or strictly validated 64-hex name (blobs, blobPath).
+    # - G301/G306 (dir/file permissions) are NOT excluded anywhere: the
+    #   production code passes with 0o700/0o750/0o600 modes; only test
+    #   fixtures (simulating crash residue under t.TempDir) trip them.
+    rules:
+      - path: internal/storage/digest\.go
+        linters:
+          - gosec
+        text: "G401"
+      - path: internal/metadata/password\.go
+        linters:
+          - gosec
+        text: "G115"
+      - path: internal/config/load\.go
+        linters:
+          - gosec
+        text: "G304"
+      - path: internal/storage/engine\.go
+        linters:
+          - gosec
+        text: "G304"
+      # Test files: gosec findings inherent to fixtures and cross-checks
+      # (G204 subprocess on t.TempDir artifacts, G401 digest expectations,
+      # G301/G306 loose fixture permissions simulating crash residue,
+      # G304 temp-dir paths, G115 test arithmetic). Tests do not ship in
+      # the binary; per-rule ceremony here has no security value.
+      - path: _test\.go
+        linters:
+          - gosec
+
+  settings:
+    nolintlint:
+      # T-26: the path-scoped test exclusion above makes the per-line
+      # //nolint:gosec directives in tests "unused" (they predate the
+      # exclusion and document why md5/sha1 or G302 obstacle injection
+      # appear in tests). In golangci-lint v2.12.2 the
+      # allow-unused-in-tests option does not suppress that report when an
+      # exclusion rule matches the same file, so allow-unused is enabled
+      # globally; require-explanation keeps every directive honest from
+      # now on. When the toolchain is upgraded, prefer tightening back to
+      # allow-unused: false + allow-unused-in-tests: true.
+      allow-unused: true
+      require-explanation: true
+    gosec:
+      # Kept empty on purpose (T-26): the former global rule excludes
+      # (G301/G304/G306/G401/G115/G204) were narrowed to the per-path
+      # exclusions above so the production security surface stays covered.
+      # Do not add global rule IDs here without an ADR-visible reason;
+      # prefer a path-scoped exclusion or a //nolint with justification.
 
 formatters:
   enable:

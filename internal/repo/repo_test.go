@@ -279,7 +279,7 @@ func TestPutGetRoundtrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	defer rc.Close() //nolint:errcheck
+	defer rc.Close() //nolint:errcheck // read-side close error is irrelevant to the assertion
 	b, err := io.ReadAll(rc)
 	if err != nil {
 		t.Fatalf("read body: %v", err)
@@ -445,7 +445,7 @@ func TestPutOverwrite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get after overwrite: %v", err)
 	}
-	defer rc.Close() //nolint:errcheck
+	defer rc.Close() //nolint:errcheck // read-side close error is irrelevant to the assertion
 	body, _ := io.ReadAll(rc)
 	if string(body) != "v2" {
 		t.Fatalf("body after overwrite = %q", body)
