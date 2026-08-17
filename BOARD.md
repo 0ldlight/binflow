@@ -56,13 +56,11 @@
 - **T-9** [P0] storage 引擎 `role:dev-go-storage` `area:internal/storage` `dep:T-7`
   AC 摘要：① Engine/Session+blobs/<xx>/<sha256>+落盘顺序+singleflight+sentinel ② 启动清扫+GC dry-run 默认；-race 单测 ③ 1GB RSS<256MB；Open 返回 ReadSeekCloser
   状态：在途（编码中，api/digest/engine/singleflight 已见）。review 届时双 code-reviewer。
-- **T-10** [P0] metadata：SQLite Store+迁移器+001_init `role:dev-go-core` `area:internal/metadata` `dep:T-7`
-  AC 摘要：① Store+六子接口+embedded 迁移器+modernc.org/sqlite+WAL+零 CGO ② 9 表 DDL（permissions 按 E-24 两表形态，T-22 已回写架构 §6）+admin 种子 ③ -race 单测
-  状态：在途（编码中，12 文件已见）。review 届时双 code-reviewer。
-
 ## 👀 评审中（review）
 
-（空）
+- **T-10** [P0] metadata：SQLite Store+迁移器+001_init `role:dev-go-core` `area:internal/metadata` `dep:T-7`
+  状态：编码完成，conductor 复现通过（race 13.2s 绿/零 CGO/gofmt 净/permission 两表正确）→ 双 code-reviewer 在途（正确性 + 架构一致性）。
+  reviewer 关注点：① MaxOpenConns=1 vs AC 字面 NumCPU（agent 声明语义等价，review 定夺）② 迁移器事务性与幂等 ③ keyset 分页正确性 ④ argon2id 常量时间比较。
 
 ## 🧪 测试中（qa）
 
