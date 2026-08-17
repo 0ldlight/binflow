@@ -23,13 +23,13 @@
 
 - **T-3** [P0] Artifactory M1 行为规格（clean-room） `role:reverse-engineer` `area:docs/reverse`
   AC: ① rest-api.md / storage-layout.md / config-formats.md / repo-semantics.md(local) 四份规格产出 ② 每条结论标注置信度 ③ 无代码复制/逐行翻译，引用只到类名/方法名级
-  状态：2026-08-17 agent 被 API 限流（429，额度 21:19 重置）击落于工作中途，无磁盘产出；待额度恢复重派。
+  状态：21:30 额度恢复后已重派（续用原 agent 上下文），在途。
 - **T-4** [P0] PRD v1.1 回写 8 项已定案决策 `role:product-manager` `area:docs/prd` `dep:T-1`
   AC: ① Q1 全文 URL 改 `/binflow` 前缀（C01~C30、E-xx 表、场景 D 表述）② Q2 匿名读默认开，FR-5/NFR 联动修订 ③ Q3~Q8 落定，§9 改「已决决策」表
-  状态：2026-08-17 PM 被 API 限流击落于回写开始前，无磁盘产出；待额度恢复重派。
-- **T-5** [P0] 架构文档对齐 4 项用户决策 `role:architect` `area:docs/design` `dep:T-2`
+  状态：21:30 额度恢复后已重派，在途。
+- **T-5** [P0] 架构文档对齐用户决策（含 Q3 修订） `role:architect` `area:docs/design` `dep:T-2`
   AC: ① §7.1 路由表改 `/binflow` 统一前缀 ② 匿名读默认开（auth 中间件与 ACL 决策）③ §6 种子数据改 BINFLOW_ADMIN_PASSWORD 优先、缺省 password ④ module 路径 github.com/lzwzzy/binflow 入文档（新决策追加 ADR-0008+）
-  状态：2026-08-17 architect 被 API 限流击落于修订开始前，无磁盘产出；待额度恢复重派。
+  状态：21:30 额度恢复后已重派，在途。
 
 ## 👀 评审中（review）
 
