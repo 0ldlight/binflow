@@ -50,13 +50,13 @@
 
 ## 🔨 进行中（doing）
 
-（空）
+- **T-13** [P0] Generic 适配器（修复轮） `role:dev-registry-adapter` `area:internal/adapter、internal/repo（授权扩）`
+  状态：review REQUEST_CHANGES（B1 BlobOpener 绕过 repo.Service 分层 + 孤儿 blob 台账降级）→ 修复在途：repo 扩 PutFromBlob（校验 blobs 表有行）+ generic 改调 + M1 404 文案 + m1/m2/m4 顺手。路径安全面已全部通过（30+ 变体实测 400）。
+  遗留四项裁决（reviewer 意见已到）：①sha1-only deploy 维持 404（M3 再评估）②BlobOpener→PutFromBlob（本修复落地）③originalChecksums 持久化 M1 不需要 ④TOCTOU 零调用确认无行动项。→ 待修复合入后记入架构文档一句（PutFromBlob 契约），并入下张 architect 票或 T-14 派单附注。
 
 ## 👀 评审中（review）
 
-- **T-13** [P0] adapter SPI 与 Generic 适配器 `role:dev-registry-adapter` `area:internal/adapter、internal/adapter/generic` `dep:T-3,T-11,T-12`
-  状态：编码完成，conductor 复现通过（race 绿/lint 0/零 CGO；curl 黑盒 12 场景全 PASS：C07/C08/C09/C13/C14 409 文案原文/C15a/b/C16/C18/C23/穿越三变体/慢上传中断）→ 单 code-reviewer 在途（安全重点：路径逃逸变体探针/双重编码/校验头矩阵）。
-  遗留四项待 architect 裁决（reviewer 将给意见）：sha1-only deploy、BlobOpener 注入位置、originalChecksums 持久化、TOCTOU 零调用确认。
+（空）
 
 ## 🧪 测试中（qa）
 
