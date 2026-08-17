@@ -54,9 +54,9 @@
 - **T-7** [P0] 工程脚手架：module+目录骨架+Makefile+lint/test+CI `role:devops-engineer` `area:仓库根` `dep:（无）`
   AC: ① module github.com/lzwzzy/binflow；make build|test|lint 全绿；--help usage ② CI 三步+零 CGO 构建+GOPROXY 镜像注记 ③ internal/ 九包骨架（doc.go）+make dev/clean+data/ 入 gitignore
   状态：在途（首波，全局前置）。
-- **T-22** [P0] architecture.md 回写 R3~R6 `role:architect` `area:docs/design` `dep:T-6`
-  AC: ① R3 匿名读键名统一（建议以 PRD security.anonymous_access 为准）② R4 permissions 表按 PRD E-24 命名 target 修订 DDL ③ R5 repo key {1,62} 对齐 PRD；R6 错误信封改 errors[] 形态
-  状态：在途。
+- **T-7** [P0] 工程脚手架：module+目录骨架+Makefile+lint/test+CI `role:devops-engineer` `area:仓库根` `dep:（无）`
+  AC: ① module github.com/lzwzzy/binflow；make build|test|lint 全绿；--help usage ② CI 三步+零 CGO 构建+GOPROXY 镜像注记 ③ internal/ 九包骨架（doc.go）+make dev/clean+data/ 入 gitignore
+  状态：在途（代码骨架已成形：go.mod/Makefile/cmd/internal 九包已见磁盘；日志未落）。
 
 ## 👀 评审中（review）
 
@@ -85,6 +85,8 @@
   14 张票（T-7~T-20）+ 分批表（最大波 3 张）+ R1~R9 风险清单，全文 reports/agents/T-6.md。核验通过（area 无重叠、宽度 ≤4、校准项固化进 AC、低置信度不作 AC）。R1/R2→T-21；R3~R6→T-22；R7→T-23；R8 处置合理照准。
 - **T-21** [P0] PRD v1.2 校准回写 `role:product-manager` `area:docs/prd` `dep:T-3,T-6` — done 2026-08-17
   R1（checksum 不一致 409）/R2（建仓 200 纯文本）/§5.5 六项全部定案（改「校准记录」表）；增补两条规格（ETag/304/416、幂等重传注记）；token 字段标待 T-23。核验通过（旧口径无残留，对照表左列旧值为有意保留）。T-18 QA 依赖已解除。
+- **T-22** [P0] architecture.md 回写 R3~R6 `role:architect` `area:docs/design` `dep:T-6` — done 2026-08-17
+  R3 匿名读主键名 security.anonymous_access（别名双键等价）；R4 permission_targets+permission_principals 两表替换扁平表；R5 repo key {1,62}；R6 错误信封 errors[] 数组形。核验通过（grep 四处落点 + 旧形态零残留）。ADR-0008/0009 仅追加回写注记。遗留：M4 可在 breaking 窗口移除旧键别名。
 
 ## 🚫 阻塞（blocked）
 

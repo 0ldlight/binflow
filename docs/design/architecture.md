@@ -193,7 +193,8 @@ type Node struct {
     CreatedAt string // RFC3339 UTC
     UpdatedAt string
 }
-// 其余子接口（RepoStore/BlobStore/UserStore/TokenStore/AuditStore）字段见 §6 DDL，方法为常规 CRUD，定稿以本文件 + 代码 api.go 为准。
+// 其余子接口（RepoStore/BlobStore/UserStore/TokenStore/AuditStore/PermissionStore——
+// 命名 permission target 的 CRUD 与判定查询，PRD E-24）字段见 §6 DDL，方法为常规 CRUD，定稿以本文件 + 代码 api.go 为准。
 ```
 
 ### 3.3 repo.Service（owner: dev-go-core；用例编排核心）
@@ -228,9 +229,10 @@ type Authenticator interface {
     Authenticate(ctx context.Context, r *http.Request) (*Principal, error) // nil,nil = 匿名
 }
 type Authorizer interface {
-    // M1 规则：admin 全通过；否则 permission 行 (repo, path_prefix, action) 命中才通过。
-    // deny 优先；无行 = 拒绝。
-    // 匿名（p == nil）：action=="r" 且 config.auth.anonymous_read==true 时内容路径放行（ADR-0009）；
+    // M1 规则：admin 全通过；否则按命名 permission target（见 §6 permission_targets 表，PRD E-24）
+    // 判定：repo 命中 repos[] 且 path 命中 includePatterns（**/* 两级通配）且不命中 excludePatterns
+    //（exclude 优先）→ 按 principals 中该用户的 actions 授 r/w/d；无命中 = 拒绝。
+    // 匿名（p == nil）：action=="r" 且 security.anonymous_access==true 时内容路径放行（ADR-0009）；
     // 写操作与管理面（/binflow/api/**）无论开关一律拒绝匿名。
     Can(ctx context.Context, p *Principal, repoKey, path, action string) bool // action: r|w|d
 }
@@ -361,7 +363,7 @@ CREATE TABLE schema_migrations (
 );
 
 CREATE TABLE repositories (
-  repo_key  TEXT PRIMARY KEY,              -- 唯一标识，[a-z][a-z0-9-]{1,31}；保留字 api/v2 禁用（ADR-0008 路由分发依赖）
+  repo_key  TEXT PRIMARY KEY,              -- 唯一标识，[a-z][a-z0-9-]{1,62}（PRD FR-3-AC4；原架构 {1,31} 作废，后经 T-22 回写）；保留字 api/v2 禁用（ADR-0008 路由分发依赖）
   type      TEXT NOT NULL,                 -- 'local' | 'remote' | 'virtual'
   package_type TEXT NOT NULL,              -- 'generic' | 'docker' | 'maven' | 'npm' | 'pypi'
   description TEXT NOT NULL DEFAULT '',
@@ -421,16 +423,30 @@ CREATE TABLE tokens (
 );
 CREATE INDEX idx_tokens_user ON tokens(username);
 
-CREATE TABLE permissions (                 -- M1: 单用户×repo×path 前缀；groups [M4]
+-- 权限模型：命名 permission target（PRD E-24，M1 定稿；后经 T-22 回写——原设计的扁平
+-- permissions 行（username×repo_key×path_prefix 单前缀）被 PRD 推翻，差异见下注释）。
+CREATE TABLE permission_targets (
+  name       TEXT PRIMARY KEY,             -- target 名，唯一（如 'ci-out-rw'）
+  repos      TEXT NOT NULL DEFAULT '[]',   -- JSON 数组：适用的 repo key 列表（'*' 不用，显式列举）
+  includes   TEXT NOT NULL DEFAULT '[]',   -- JSON 数组：includePatterns，'**'/'*' 两级通配
+  excludes   TEXT NOT NULL DEFAULT '[]',   -- JSON 数组：excludePatterns；exclude 命中优先于 include
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE TABLE permission_principals (       -- target × principal × actions（users；groups 列 [M4] 扩展）
   id          INTEGER PRIMARY KEY,
-  username    TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
-  repo_key    TEXT NOT NULL,               -- '*' 表全仓
-  path_prefix TEXT NOT NULL DEFAULT '',    -- 前缀匹配
-  can_read    INTEGER NOT NULL DEFAULT 0,
+  target_name TEXT NOT NULL REFERENCES permission_targets(name) ON DELETE CASCADE,
+  principal   TEXT NOT NULL,               -- 用户名（groups：principal_type 区分 [M4]）
+  principal_type TEXT NOT NULL DEFAULT 'user',
+  can_read    INTEGER NOT NULL DEFAULT 0,  -- actions ∈ read|write|delete；write 含上传不含删除
   can_write   INTEGER NOT NULL DEFAULT 0,
   can_delete  INTEGER NOT NULL DEFAULT 0,
-  UNIQUE (username, repo_key, path_prefix)
+  UNIQUE (target_name, principal, principal_type)
 );
+-- 与被作废的扁平行的差异（T-10 迁移文件同款注释）：
+-- ① target 有 name（可被 /binflow/api/v1/permissions CRUD 引用与整体删除，删除即授权失效）；
+-- ② 多 repo + include/exclude 双 pattern（原单 path_prefix 只有 include 语义）；
+-- ③ principals 独立成表（原 username 内联），groups 仅加行不加表结构。
 
 CREATE TABLE audit_events (
   id         INTEGER PRIMARY KEY,
@@ -483,22 +499,23 @@ CREATE TABLE virtual_members (
 /binflow/           GET    console（M1: 占位 JSON；M4: go:embed SPA）
 ```
 
-**认证分层默认值（ADR-0009）**：内容路径 `GET/HEAD` 匿名放行（`auth.anonymous_read: true` 默认）；内容路径写操作与 `/binflow/api/**` 全部要求认证，不受该开关豁免。`anonymous_read: false` 时所有端点一律认证。
+**认证分层默认值（ADR-0009）**：内容路径 `GET/HEAD` 匿名放行（`security.anonymous_access: true` 默认）；内容路径写操作与 `/binflow/api/**` 全部要求认证，不受该开关豁免。`anonymous_access: false` 时所有端点一律认证。
 
 ### 7.2 middleware 链（顺序固定）
 
 `requestID → accessLog(方法/路径/状态/耗时/principal) → recover(panic→500+log) → CORS(可配 origin) → authenticator → authorizer(按路由所需 action) → handler`
 
-authenticator 产出的 Principal 可为 nil（匿名）；authorizer 按 §3.4 规则结合 `anonymous_read` 决定放行或 401/403（管理面匿名一律 401）。
+authenticator 产出的 Principal 可为 nil（匿名）；authorizer 按 §3.4 规则结合 `security.anonymous_access` 决定放行或 401/403（管理面匿名一律 401）。
 
 ### 7.3 错误信封（所有非 2xx 统一）
 
 ```json
 HTTP/1.1 404 Not Found
-{ "error": { "status": 404, "message": "not found", "detail": "node libs/foo.jar not found in repo generic-local" } }
+Content-Type: application/json
+{ "errors": [ { "status": 404, "message": "node libs/foo.jar not found in repo generic-local" } ] }
 ```
 
-Artifactory 兼容端点的错误体格式以 `docs/reverse/rest-api.md` 为准（**待逆向规格确认**，占位用 `errors: [...]` 数组形）。
+数组形 `{"errors":[{status,message}]}` 为**全部端点**（含内容路径、/api/v1、探针除外的基础端点）统一格式，依据 docs/reverse/rest-api.md §0（高置信度定案，后经 T-22 回写，取代本节原占位单对象形）。
 
 ### 7.4 生命周期
 
@@ -527,7 +544,13 @@ metadata:
 auth:
   argon2_memory_mb: 64
   token_default_ttl_hours: 720   # 30d
-  anonymous_read: true           # 内容路径 GET/HEAD 匿名放行（ADR-0009）；false = 全端点认证
+
+security:
+  anonymous_access: true         # 内容路径 GET/HEAD 匿名放行（ADR-0009）；false = 全端点认证
+                                 # 用户可见主键名（PRD/NFR-S8）；env BINFLOW_SECURITY_ANONYMOUS_ACCESS
+                                 # 兼容别名 auth.anonymous_read（env BINFLOW_AUTH__ANONYMOUS_READ）：
+                                 # config 包双键等价读取，两键同给且不一致 → 启动报错（T-8 已实现，
+                                 # 键名冲突经 T-22 回写统一以 PRD 形态为准）
 audit:
   enabled: true
 logging:
@@ -560,7 +583,7 @@ logging:
 | filestore（checksum 路径） | `blobs/<xx>/<sha256>` | 内容寻址去重 | 不用硬链接多目录；无 blob sidecar 属性文件（属性进 SQLite）——**其 filestore 是否带 properties 文件待逆向规格确认** |
 | Derby/Postgres | SQLite(WAL)/Postgres | 双栈 | 嵌入默认零依赖 |
 | `artifactory.config.xml` | `repositories` 表 + YAML | — | 运行时可改仓配置，无 XML |
-| Access（用户/权限） | auth + users/tokens/permissions 表 | 本地用户+token+路径 ACL | M1 无组、无 SSO |
+| Access（用户/权限） | auth + users/tokens/permission_targets(+principals) 表 | 本地用户+token+命名 permission target ACL | M1 无组、无 SSO |
 | `/api/` REST | 兼容子集 + `/api/v1` | 高频端点 | 全量兼容明确不做（PRODUCT）；统一挂 `/binflow` 前缀，不用 `/artifactory` 前缀、不做根路径镜像（ADR-0008） |
 
 ## 11. 已知妥协（技术债台账）
