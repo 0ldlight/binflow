@@ -17,11 +17,16 @@
 
 ## 📥 待办（todo）
 
-（空——首轮迭代先并行派 reverse-engineer（行为规格）、product-manager（M1 PRD）、architect（架构细化），随后 tech-lead 拆票）
+（空——待 tech-lead 依据 PRD/架构/逆向规格拆票后录入）
 
 ## 🔨 进行中（doing）
 
-（空）
+- **T-1** [P0] M1 里程碑 PRD `role:product-manager` `area:docs/prd`
+  AC: ① docs/prd/milestone-1.md 覆盖 M1 全部条目，每功能有可验证 AC ② 兼容性矩阵到真实客户端命令级 ③ M1 边界（不做 remote/virtual/控制台/多协议）明确
+- **T-2** [P0] M1 架构设计与元数据 schema 定稿 `role:architect` `area:docs/design`
+  AC: ① docs/design/architecture.md 含包结构/存储引擎设计/SQLite schema DDL/适配器 SPI/配置模型 ② 新决策追加 ADR-0005+，不推翻既有 ADR ③ 未参考 reverse-src/
+- **T-3** [P0] Artifactory M1 行为规格（clean-room） `role:reverse-engineer` `area:docs/reverse`
+  AC: ① rest-api.md / storage-layout.md / config-formats.md / repo-semantics.md(local) 四份规格产出 ② 每条结论标注置信度 ③ 无代码复制/逐行翻译，引用只到类名/方法名级
 
 ## 👀 评审中（review）
 
