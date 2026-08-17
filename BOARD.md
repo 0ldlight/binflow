@@ -52,15 +52,16 @@
 
 - **T-8** [P0] config 包：YAML+env 覆盖与 fail-fast 校验 `role:dev-go-core` `area:internal/config` `dep:T-7`
   AC 摘要：① Load 架构 §8 全量字段+env（BINFLOW_ 前缀 __ 层级）；匿名读双键名等价+冲突报错 ② fail-fast；ADMIN_PASSWORD 只走 env ③ table-driven 单测
-  状态：22:4x 派发（第 2 波），在途。
+  状态：在途（编码中）。
 - **T-9** [P0] storage 引擎 `role:dev-go-storage` `area:internal/storage` `dep:T-7`
   AC 摘要：① Engine/Session+blobs/<xx>/<sha256>+落盘顺序+singleflight+sentinel ② 启动清扫+GC dry-run 默认；-race 单测 ③ 1GB RSS<256MB；Open 返回 ReadSeekCloser
-  状态：22:4x 派发（第 2 波），在途。review 届时双 code-reviewer。
+  状态：在途（编码中，api/digest/engine/singleflight 已见）。review 届时双 code-reviewer。
 - **T-10** [P0] metadata：SQLite Store+迁移器+001_init `role:dev-go-core` `area:internal/metadata` `dep:T-7`
   AC 摘要：① Store+六子接口+embedded 迁移器+modernc.org/sqlite+WAL+零 CGO ② 9 表 DDL（permissions 按 E-24 两表形态，T-22 已回写架构 §6）+admin 种子 ③ -race 单测
-  状态：22:4x 派发（第 2 波），在途。review 届时双 code-reviewer。
-- **T-23** [P1] 补逆向规格 auth-model.md `role:reverse-engineer` `area:docs/reverse` `dep:T-3`
-  状态：在途。
+  状态：在途（编码中，12 文件已见）。review 届时双 code-reviewer。
+- **T-24** [P1] PRD v1.3：auth-model 校准回写（E-16/E-17/E-18/E-19） `role:product-manager` `area:docs/prd` `dep:T-23`
+  AC: ① E-17 token 响应字段集按 auth-model.md §3 修订（access_token/token_type/expires_in/scope/refresh_token；token_id 作 BinFlow 超集；请求兼容 form-urlencoded）② E-18 revoke form 参数 XOR 语义+幂等 200 ③ E-16 改密补真实路径别名+旧口令错误 400 ④ E-19 建用户补 PUT /api/security/users/{name} 兼容路由；§0 修订记录追加 v1.3
+  状态：22:4x 派发，在途。
 
 ## 👀 评审中（review）
 
@@ -93,6 +94,8 @@
   R3 匿名读主键名 security.anonymous_access（别名双键等价）；R4 permission_targets+permission_principals 两表替换扁平表；R5 repo key {1,62}；R6 错误信封 errors[] 数组形。核验通过（grep 四处落点 + 旧形态零残留）。ADR-0008/0009 仅追加回写注记。遗留：M4 可在 breaking 窗口移除旧键别名。
 - **T-7** [P0] 工程脚手架 `role:devops-engineer` `area:仓库根` — done 2026-08-17
   go.mod（github.com/lzwzzy/binflow, go 1.26）/ Makefile（build/test/lint/dev/clean，GOPROXY 镜像）/ .golangci.yml v2 / CI 三步 / cmd 骨架 / internal 九包 doc.go。conductor 亲测复现：build 2.58MB、test PASS、lint 0 issues、gofmt 空、CGO_ENABLED=0 通过。遗留：CI 首跑绿待推送后确认；go.sum 待首依赖生成。
+- **T-23** [P1] 补逆向规格 auth-model.md `role:reverse-engineer` `area:docs/reverse` `dep:T-3` — done 2026-08-17
+  273 行六节：用户模型/改密/Token 生命周期/权限概览/M1 校准建议/待验证清单；置信度高 41/中 16/低 1。核验通过（clean-room 零违规）。关键校准：token 创建响应真实字段集（无 token_id）+form 编码；revoke 幂等 200；改密现行路径与 400 语义；建用户真实为 PUT {name}。→ 触发 T-24 PRD v1.3。
 
 ## 🚫 阻塞（blocked）
 
