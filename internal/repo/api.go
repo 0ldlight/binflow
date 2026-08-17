@@ -145,7 +145,9 @@ type Service interface {
 	// Missing path → ErrNodeNotFound (idempotent 404 semantics).
 	Delete(ctx context.Context, p *Principal, repoKey, path string) error
 	// List returns every node under prefix ("" = whole repository), ordered
-	// by path. Folder nodes (path ending in "/") are included.
+	// by path. Folder nodes (path ending in "/") are included. The prefix is
+	// normalized: "d" and "d/" are equivalent and both return the folder row
+	// plus everything beneath it (T-12 review B2).
 	List(ctx context.Context, p *Principal, repoKey, prefix string) ([]*metadata.Node, error)
 
 	// CreateRepo validates and persists a new repository configuration.

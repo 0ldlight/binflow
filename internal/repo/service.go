@@ -208,14 +208,19 @@ func (s *service) Put(ctx context.Context, p *Principal, repoKey, path string, b
 	}
 
 	// Folder deploy (trailing slash, rest-api section 1.1): an empty marker
-	// node with no blob of its own. The body must be empty — silently
-	// discarding bytes the client believes it uploaded would corrupt the
-	// caller's accounting.
-	if n, _ := countReader(body); n != 0 {
-		return nil, fmt.Errorf("folder deploy %s/%s: %w: body must be empty", repoKey, path, ErrInvalidPath)
-	}
+	// node with no blob of its own. The permission gate runs BEFORE the body
+	// is drained (T-12 review M3): an unauthorized principal must not make
+	// the server read and discard an arbitrary-length request. The body must
+	// be empty — silently discarding bytes the client believes it uploaded
+	// would corrupt the caller's accounting.
 	if !s.allow(ctx, p, repoKey, path, ActionWrite) {
 		return nil, fmt.Errorf("write %s/%s: %w", repoKey, path, ErrForbidden)
+	}
+	nRead, readErr := countReader(body)
+	if nRead != 0 || readErr != nil {
+		// A read error on a must-be-empty body is treated as a violation:
+		// "0 bytes then error" must not pass as an empty body.
+		return nil, fmt.Errorf("folder deploy %s/%s: %w: body must be empty", repoKey, path, ErrInvalidPath)
 	}
 	n, err := s.putNode(ctx, p, repoKey, path, true, storage.BlobRef{}, mime)
 	if err != nil {
@@ -359,6 +364,14 @@ func countReader(r io.Reader) (int64, error) {
 	return discarded, err
 }
 
+// isUniqueViolation reports whether err is a driver-level uniqueness
+// constraint failure (the modernc sqlite message spells it "UNIQUE
+// constraint failed"). Used to normalize the create-race path onto the
+// ErrRepoExists sentinel without leaking driver details upward.
+func isUniqueViolation(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed")
+}
+
 // Delete implements Service.Delete: node references only, never blobs.
 func (s *service) Delete(ctx context.Context, p *Principal, repoKey, path string) error {
 	if err := requireAuthenticated(p); err != nil {
@@ -376,11 +389,43 @@ func (s *service) Delete(ctx context.Context, p *Principal, repoKey, path string
 
 	nodes := s.md.Nodes()
 	if isFolderNode(path) {
-		// Directory delete (repo-semantics section 4): everything under the
-		// folder goes, then empty folder rows up the chain are pruned.
-		removed, err := nodes.DeleteByPrefix(ctx, repoKey, strings.TrimSuffix(path, "/"))
+		// Directory delete (repo-semantics section 4): the folder row and
+		// everything under it go, then empty folder rows up the chain are
+		// pruned. DeleteByPrefix("d") matches the exact row plus the "d/%"
+		// subtree (folder row itself and every child). The trailing-slash
+		// spelling must NOT be passed: likePrefix("d/") builds "d//%",
+		// matching nothing (same root cause as review B1/B2).
+		//
+		// M2 (review): a same-named FILE "d" legally coexisting with the
+		// folder "d/" must be spared — the delete targets the DIRECTORY, not
+		// an unrelated file whose name lacks the slash. The store's prefix
+		// query cannot express that distinction, so the rows are listed
+		// (slash-stripped prefix: "d/" would build the dead "d//%" arm) and
+		// filtered in process: the folder row itself and everything beneath
+		// it go, one exact delete per row (small N; SQLite serializes).
+		//
+		// Permission note (T-12 review M4): the delete grant is checked once
+		// for the folder path, not per descendant. M1's path-prefix ACLs
+		// make this equivalent for typical grants; a user authorized on d/
+		// but not on a nested d/sub/ target can delete d/sub/ content. M1
+		// accepts this simplification; per-node recursion is an M2+ option.
+		dir := strings.TrimSuffix(path, "/")
+		candidates, err := nodes.ListByPrefix(ctx, repoKey, dir)
 		if err != nil {
 			return fmt.Errorf("delete folder %s/%s: %w", repoKey, path, err)
+		}
+		var removed int64
+		for _, v := range candidates {
+			if v.Path != path && !strings.HasPrefix(v.Path, dir+"/") {
+				continue // exact-arm same-named FILE: not part of the directory
+			}
+			if err := nodes.Delete(ctx, repoKey, v.Path); err != nil {
+				if errors.Is(err, metadata.ErrNodeNotFound) {
+					continue // concurrent delete of the same row
+				}
+				return fmt.Errorf("delete folder %s/%s: %w", repoKey, path, err)
+			}
+			removed++
 		}
 		if removed == 0 {
 			return fmt.Errorf("node %s/%s: %w", repoKey, path, ErrNodeNotFound)
@@ -416,11 +461,18 @@ func (s *service) Delete(ctx context.Context, p *Principal, repoKey, path string
 // pruneEmptyParents walks from path's parent upward, deleting folder rows
 // that no longer have any child. The folder row itself is deleted last, so a
 // crash midway can only over-retain folders, never over-delete files.
+//
+// The live-child check queries with the slash-stripped form: folder rows are
+// stored with a trailing slash, but ListByPrefix("d/") would build a "d//%"
+// subtree arm that matches nothing (T-12 review B1 — the check was blind and
+// folders with surviving children were deleted). A same-named FILE under the
+// stripped prefix ("d" without slash) counts as a live child and stops the
+// prune, which is the safe direction.
 func (s *service) pruneEmptyParents(ctx context.Context, repoKey, path string) error {
 	folder := parentPrefix(path)
 	deleted := map[string]bool{}
 	for folder != "" {
-		children, err := s.md.Nodes().ListByPrefix(ctx, repoKey, folder)
+		children, err := s.md.Nodes().ListByPrefix(ctx, repoKey, strings.TrimSuffix(folder, "/"))
 		if err != nil {
 			return fmt.Errorf("prune %s/%s: %w", repoKey, folder, err)
 		}
@@ -456,9 +508,16 @@ func hasDeletedPrefix(p string, deleted map[string]bool) bool {
 	return false
 }
 
-// List implements Service.List.
+// List implements Service.List. The prefix is normalized before use, so
+// "d" and "d/" are equivalent (both return the folder row and every node
+// beneath it); without the strip, ListByPrefix("d/") would build a "d//%"
+// subtree arm matching nothing (T-12 review B2).
 func (s *service) List(ctx context.Context, p *Principal, repoKey, prefix string) ([]*metadata.Node, error) {
 	if prefix != "" {
+		prefix = strings.TrimSuffix(prefix, "/")
+		if prefix == "" { // was exactly "/"
+			return nil, fmt.Errorf("%w: the repository root is not a listable prefix", ErrInvalidPath)
+		}
 		if err := validateNodePath(prefix); err != nil {
 			return nil, err
 		}
@@ -510,6 +569,13 @@ func (s *service) CreateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 		Description: r.Description, Config: config, CreatedAt: now, UpdatedAt: now,
 	}
 	if err := s.md.Repos().Create(ctx, stored); err != nil {
+		// The pre-check Get above can race a concurrent create of the same
+		// key; the primary-key constraint then fails here. Map it onto the
+		// same sentinel so the HTTP layer always sees ErrRepoExists (T-12
+		// review nit).
+		if errors.Is(err, metadata.ErrDuplicate) || isUniqueViolation(err) {
+			return nil, fmt.Errorf("%w: %q", ErrRepoExists, r.RepoKey)
+		}
 		return nil, fmt.Errorf("create repo %q: %w", r.RepoKey, err)
 	}
 	s.audit(ctx, AuditEvent{

@@ -130,6 +130,12 @@ func isFolderNode(path string) bool {
 // parentPrefix returns the trailing-slash prefix of path's parent directory:
 // "a/b" → "a/", "a/b/" → "a/", "a" → "". Deleting folders prunes empty
 // parents by collecting exactly these prefixes.
+//
+// NOTE: the trailing slash is the *storage* spelling of a folder row. It must
+// never be handed to NodeStore.ListByPrefix/DeleteByPrefix as-is: metadata's
+// likePrefix builds the subtree arm as prefix+"/%", so "d/" would become
+// "d//%" — a pattern no path can match (double slashes are rejected by
+// validateNodePath). Strip the slash first (see T-12 review B1/B2).
 func parentPrefix(path string) string {
 	trimmed := strings.TrimSuffix(path, "/")
 	if i := strings.LastIndexByte(trimmed, '/'); i >= 0 {

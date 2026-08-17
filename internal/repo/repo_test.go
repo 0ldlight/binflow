@@ -549,6 +549,192 @@ func TestDeletePrunesEmptyParents(t *testing.T) {
 	}
 }
 
+// TestPruneKeepsFoldersWithLiveChildren: review B1 regression — an explicit
+// folder row must survive when any child lives, in both the leaf-delete and
+// subtree-delete forms. The pre-fix code queried with the trailing-slash
+// spelling, whose "d//%" subtree arm matched nothing, so the "is it empty?"
+// check was blind and folder rows with surviving children were deleted.
+func TestPruneKeepsFoldersWithLiveChildren(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("leaf delete keeps folder with live sibling", func(t *testing.T) {
+		e := newEnv(t)
+		mustCreateRepo(t, e, "generic-local")
+		put(t, e, admin(), "generic-local", "d/", "") // explicit folder row
+		put(t, e, admin(), "generic-local", "d/one.bin", "1")
+		put(t, e, admin(), "generic-local", "d/two.bin", "2")
+
+		if err := e.svc.Delete(ctx, admin(), "generic-local", "d/one.bin"); err != nil {
+			t.Fatalf("Delete leaf: %v", err)
+		}
+		// The folder row AND the surviving child must both be present.
+		if _, err := e.md.Nodes().Get(ctx, "generic-local", "d/"); err != nil {
+			t.Fatalf("B1 regression: folder row lost while d/two.bin lives: %v", err)
+		}
+		if _, err := e.md.Nodes().Get(ctx, "generic-local", "d/two.bin"); err != nil {
+			t.Fatalf("live child lost: %v", err)
+		}
+		// Folder remains addressable as a folder.
+		if _, n, err := e.svc.Get(ctx, admin(), "generic-local", "d/"); !errors.Is(err, repo.ErrIsFolder) || n == nil {
+			t.Fatalf("folder Get after sibling delete: %v, %v", err, n)
+		}
+	})
+
+	t.Run("subtree delete keeps shared parent folder", func(t *testing.T) {
+		e := newEnv(t)
+		mustCreateRepo(t, e, "generic-local")
+		put(t, e, admin(), "generic-local", "a/", "") // explicit shared parent
+		put(t, e, admin(), "generic-local", "a/keep.bin", "k")
+		put(t, e, admin(), "generic-local", "a/b/", "")
+		put(t, e, admin(), "generic-local", "a/b/c.bin", "c")
+
+		if err := e.svc.Delete(ctx, admin(), "generic-local", "a/b/"); err != nil {
+			t.Fatalf("Delete subtree: %v", err)
+		}
+		if _, err := e.md.Nodes().Get(ctx, "generic-local", "a/"); err != nil {
+			t.Fatalf("B1 regression: shared parent folder lost: %v", err)
+		}
+		if _, err := e.md.Nodes().Get(ctx, "generic-local", "a/keep.bin"); err != nil {
+			t.Fatalf("sibling file lost: %v", err)
+		}
+		for _, gone := range []string{"a/b/", "a/b/c.bin"} {
+			if _, err := e.md.Nodes().Get(ctx, "generic-local", gone); !errors.Is(err, metadata.ErrNodeNotFound) {
+				t.Fatalf("%q not deleted: %v", gone, err)
+			}
+		}
+	})
+
+	t.Run("fully empty chain still prunes to root", func(t *testing.T) {
+		e := newEnv(t)
+		mustCreateRepo(t, e, "generic-local")
+		put(t, e, admin(), "generic-local", "x/", "")
+		put(t, e, admin(), "generic-local", "x/y/", "")
+		put(t, e, admin(), "generic-local", "x/y/z.bin", "z")
+
+		if err := e.svc.Delete(ctx, admin(), "generic-local", "x/y/z.bin"); err != nil {
+			t.Fatalf("Delete leaf: %v", err)
+		}
+		for _, gone := range []string{"x/y/", "x/"} {
+			if _, err := e.md.Nodes().Get(ctx, "generic-local", gone); !errors.Is(err, metadata.ErrNodeNotFound) {
+				t.Fatalf("%q not pruned when truly empty: %v", gone, err)
+			}
+		}
+	})
+}
+
+// TestListPrefixFormsEquivalent: review B2 regression — "d" and "d/" must
+// return identical result sets (the folder row plus everything beneath).
+func TestListPrefixFormsEquivalent(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	mustCreateRepo(t, e, "generic-local")
+	put(t, e, admin(), "generic-local", "d/", "")
+	put(t, e, admin(), "generic-local", "d/one.bin", "1")
+	put(t, e, admin(), "generic-local", "d/sub/two.bin", "2")
+	put(t, e, admin(), "generic-local", "dx/other.bin", "3") // prefix sibling
+
+	a, err := e.svc.List(ctx, admin(), "generic-local", "d")
+	if err != nil {
+		t.Fatalf("List(d): %v", err)
+	}
+	b, err := e.svc.List(ctx, admin(), "generic-local", "d/")
+	if err != nil {
+		t.Fatalf("List(d/): %v", err)
+	}
+	if len(a) != 3 || len(b) != 3 {
+		t.Fatalf("B2: List(d)=%d List(d/)=%d rows, want 3 each", len(a), len(b))
+	}
+	amap := map[string]bool{}
+	for _, n := range a {
+		amap[n.Path] = true
+	}
+	for _, n := range b {
+		if !amap[n.Path] {
+			t.Fatalf("B2: forms disagree on %q", n.Path)
+		}
+	}
+	// Deep form equivalence too.
+	c, err := e.svc.List(ctx, admin(), "generic-local", "d/sub")
+	if err != nil || len(c) != 1 || c[0].Path != "d/sub/two.bin" {
+		t.Fatalf("List(d/sub) = %+v, %v", c, err)
+	}
+	// Root is not a listable prefix.
+	if _, err := e.svc.List(ctx, admin(), "generic-local", "/"); !errors.Is(err, repo.ErrInvalidPath) {
+		t.Fatalf("List(/) error = %v, want ErrInvalidPath", err)
+	}
+}
+
+// TestDeleteFolderSparesSameNamedFile: review M2 — a file "d" coexisting
+// with a folder "d/" survives a directory delete.
+func TestDeleteFolderSparesSameNamedFile(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	mustCreateRepo(t, e, "generic-local")
+	put(t, e, admin(), "generic-local", "d/", "")    // folder row
+	put(t, e, admin(), "generic-local", "d", "file") // same-named file row
+	put(t, e, admin(), "generic-local", "d/one.bin", "1")
+
+	if err := e.svc.Delete(ctx, admin(), "generic-local", "d/"); err != nil {
+		t.Fatalf("Delete folder: %v", err)
+	}
+	if _, err := e.md.Nodes().Get(ctx, "generic-local", "d"); err != nil {
+		t.Fatalf("M2: same-named file removed by folder delete: %v", err)
+	}
+	for _, gone := range []string{"d/", "d/one.bin"} {
+		if _, err := e.md.Nodes().Get(ctx, "generic-local", gone); !errors.Is(err, metadata.ErrNodeNotFound) {
+			t.Fatalf("%q not deleted: %v", gone, err)
+		}
+	}
+}
+
+// TestFolderDeployChecksWriteBeforeBody: review M3 — an unauthorized
+// principal's folder deploy must fail before the body is consumed.
+func TestFolderDeployChecksWriteBeforeBody(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	mustCreateRepo(t, e, "generic-local")
+
+	// alice has no write grant; the body would be read and discarded by the
+	// old code. A failing reader proves the body is never touched.
+	var bodyRead bool
+	boom := errReader{onRead: func() { bodyRead = true }}
+	if _, err := e.svc.Put(ctx, alice(), "generic-local", "d/", boom, storage.BlobRef{}, ""); !errors.Is(err, repo.ErrForbidden) {
+		t.Fatalf("folder deploy error = %v, want ErrForbidden", err)
+	}
+	if bodyRead {
+		t.Fatalf("M3: body consumed before the permission gate")
+	}
+
+	// With the grant, an empty body creates the folder; a non-empty body or
+	// a failing reader is rejected.
+	e.az.add("alice", repo.ActionWrite, "")
+	if _, err := e.svc.Put(ctx, alice(), "generic-local", "d/", strings.NewReader(""), storage.BlobRef{}, ""); err != nil {
+		t.Fatalf("folder deploy with grant: %v", err)
+	}
+	if _, err := e.svc.Put(ctx, alice(), "generic-local", "d2/", strings.NewReader("x"), storage.BlobRef{}, ""); !errors.Is(err, repo.ErrInvalidPath) {
+		t.Fatalf("non-empty folder body error = %v, want ErrInvalidPath", err)
+	}
+	if _, err := e.svc.Put(ctx, alice(), "generic-local", "d3/", errReader{err: errors.New("boom")}, storage.BlobRef{}, ""); !errors.Is(err, repo.ErrInvalidPath) {
+		t.Fatalf("failing-reader folder body error = %v, want ErrInvalidPath", err)
+	}
+}
+
+// errReader fails every Read, recording the call.
+type errReader struct {
+	err    error
+	onRead func()
+}
+
+func (r errReader) Read([]byte) (int, error) {
+	if r.onRead != nil {
+		r.onRead()
+	}
+	if r.err != nil {
+		return 0, r.err
+	}
+	return 0, errors.New("read error")
+}
+
 // TestDeleteFolderRecursive: trailing-slash delete removes the subtree.
 func TestDeleteFolderRecursive(t *testing.T) {
 	ctx := context.Background()
