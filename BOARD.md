@@ -50,13 +50,11 @@
 
 ## 🔨 进行中（doing）
 
-（空）
+- **T-11** [P0] auth/audit（修复轮） `role:dev-go-core` `area:internal/auth、internal/audit`
+  状态：review REQUEST_CHANGES（3 blocker 探针实证：哨兵契约破裂 / pathmatch 文件路径 over-grant fail-open / fail-closed 零覆盖）→ 原 agent 修复在途。B-2 修复将触及 Can 契约 → 需 architect 跟进一句话回写。
 
 ## 👀 评审中（review）
 
-- **T-11** [P0] auth 与 audit `role:dev-go-core` `area:internal/auth、internal/audit` `dep:T-8,T-10`
-  状态：编码完成，conductor 复现通过（auth race 20.3s 绿/audit 4.4s 绿/lint 0/22 测试/全模块回归 0 FAIL）→ 单 code-reviewer 在途（安全关键：认证双轨/fail-closed/token 全路径无明文）。
-  遗留对接点：revoke 哨兵导出（T-15）、匿名/管理面分层（T-14）、NewFromStore 装配（T-16）、argon2 归置（architect 已知悉）。
 - **T-12** [P0] repo.Service `role:dev-go-core` `area:internal/repo` `dep:T-9,T-10,T-11`
   状态：编码完成，conductor 复现通过（race 17.4s 绿/24 测试/lint 0/全仓零 CGO；T-11 类型别名合流干净）→ 正确性 code-reviewer 在途（Put 事务边界/并发同名/幂等重传真实性/目录 marker 安全性）。
   自定行为（日志标注）：目录行共享 marker sha256 + blobs 行满足 FK；UpdateRepo type/packageType 不可变；低置信度项（blackedOut/?atomic）未实现未猜测。
