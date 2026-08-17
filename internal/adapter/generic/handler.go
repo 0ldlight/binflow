@@ -104,10 +104,10 @@ func (h *Handler) handlePut(ctx context.Context, w http.ResponseWriter, r *http.
 
 	node, err := h.svc.Put(ctx, p, repoKey, relPath, r.Body, expect, mime)
 	if err != nil {
-		h.writeServiceError(w, err, repoKey, relPath)
+		h.writeServiceError(w, err, r.Method, repoKey, relPath)
 		return
 	}
-	h.writeCreated(w, r, repoKey, relPath, node, declaredSet(expect))
+	h.writeCreated(w, r, repoKey, relPath, node, uploadContext{declared: declaredSet(expect)})
 }
 
 // handleChecksumDeploy implements X-Checksum-Deploy (rest-api.md 1.3):
@@ -148,24 +148,22 @@ func (h *Handler) handleChecksumDeploy(ctx context.Context, w http.ResponseWrite
 			"Checksum deploy failed: X-Checksum-Sha1-only deploy requires a sha256-keyed lookup, which BinFlow does not provide; supply X-Checksum-Sha256.")
 		return
 	}
-	rc, ref, err := h.opener(ctx, sha)
+
+	// Zero-transfer deploy goes through repo.Service.PutFromBlob (T-13
+	// review B1: the section 5.1 exception clause is "extend the Service",
+	// not "open blobs from the adapter"). The ledger row — not the client's
+	// header claims — is the sha1/md5 source of truth inside the service.
+	ref := storage.BlobRef{Sha256: sha, Sha1: sha1, Md5: md5}
+	node, err := h.svc.PutFromBlob(ctx, p, repoKey, relPath, ref, mime)
 	if err != nil {
-		if errors.Is(err, storage.ErrBlobNotFound) {
+		if errors.Is(err, repo.ErrOrphanBlob) || errors.Is(err, repo.ErrNodeNotFound) {
 			writeError(w, http.StatusNotFound, "Checksum deploy failed: no content found for the given checksum.")
 			return
 		}
-		writeError(w, http.StatusInternalServerError, fmt.Sprintf("open blob for checksum deploy: %v", err))
+		h.writeServiceError(w, err, r.Method, repoKey, relPath)
 		return
 	}
-	defer rc.Close() //nolint:errcheck // read-only fd, best-effort cleanup
-
-	expect := storage.BlobRef{Sha256: sha, Sha1: sha1, Md5: md5, Size: ref.Size}
-	node, err := h.svc.Put(ctx, p, repoKey, relPath, rc, expect, mime)
-	if err != nil {
-		h.writeServiceError(w, err, repoKey, relPath)
-		return
-	}
-	h.writeCreated(w, r, repoKey, relPath, node, declaredSet(expect))
+	h.writeCreated(w, r, repoKey, relPath, node, uploadContext{declared: declaredSet(ref)})
 }
 
 // declaredDigests parses the X-Checksum-* headers into a BlobRef. Malformed
@@ -216,18 +214,33 @@ func declaredSet(expect storage.BlobRef) map[string]bool {
 	return m
 }
 
+// uploadContext marks that an ItemCreated body is being rendered for an
+// upload that just happened, carrying which algorithms the client declared.
+// A non-nil zero-algorithm context means "upload with no declared digests"
+// (originalChecksums renders empty, T-13 review m1); a nil context means
+// "no upload context at all" (downloads, storage-info renders), where the
+// stored triple is the best echo available.
+type uploadContext struct{ declared map[string]bool }
+
 // writeCreated renders the 201 response: Location, X-Checksum-Sha256 header
 // and the FileInfo/FolderInfo-shaped ItemCreated body (rest-api.md 1.2).
-func (h *Handler) writeCreated(w http.ResponseWriter, r *http.Request, repoKey, relPath string, node *metadata.Node, declared map[string]bool) {
+func (h *Handler) writeCreated(w http.ResponseWriter, r *http.Request, repoKey, relPath string, node *metadata.Node, up uploadContext) {
 	sums := h.digestsOf(r.Context(), node)
 	w.Header().Set("Location", requestBase(r)+"/"+repoKey+"/"+escapePath(relPath))
-	if sums.sha256 != "" {
+	if sums.sha256 != "" && !isFolderNode(node) {
 		w.Header().Set(hdrChecksumSha256, sums.sha256)
 	}
 	w.Header().Set("Content-Type", contentTypeFileInfo)
 	w.WriteHeader(http.StatusCreated)
-	body := h.itemInfo(requestBase(r), repoKey, relPath, node, sums, declared)
+	body := h.itemInfo(requestBase(r), repoKey, relPath, node, sums, up)
 	writeJSON(w, body)
+}
+
+// isFolderNode reports whether the node is a folder marker: the storage
+// layer's shared empty-content sentinel must never leak onto the protocol
+// surface (T-13 review m4) — Artifactory FolderInfo carries no checksums.
+func isFolderNode(n *metadata.Node) bool {
+	return n != nil && strings.HasSuffix(n.Path, "/")
 }
 
 // ---- GET / HEAD ----
@@ -244,10 +257,10 @@ func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.
 			// Folder nodes have no body; Artifactory's content path answers
 			// folder GETs through /api/storage, so on the raw path a plain
 			// 404-shaped "not a file" is the honest answer.
-			writeError(w, http.StatusNotFound, fmt.Sprintf("Failed to find the requested resource '%s/%s'.", repoKey, relPath))
+			writeError(w, http.StatusNotFound, notFoundMessage(repoKey, relPath))
 			return
 		}
-		h.writeServiceError(w, err, repoKey, relPath)
+		h.writeServiceError(w, err, r.Method, repoKey, relPath)
 		return
 	}
 	defer rc.Close() //nolint:errcheck // read-only fd
@@ -330,22 +343,36 @@ func (h *Handler) handleDelete(ctx context.Context, w http.ResponseWriter, p *re
 		return
 	}
 	if err := h.svc.Delete(ctx, p, repoKey, relPath); err != nil {
-		h.writeServiceError(w, err, repoKey, relPath)
+		h.writeServiceError(w, err, http.MethodDelete, repoKey, relPath)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// notFoundMessage is the download-side 404 wording (rest-api.md section
+// 1.4, high confidence) shared by the missing-file and folder-GET branches
+// so every GET/HEAD 404 reads the same.
+func notFoundMessage(repoKey, relPath string) string {
+	return fmt.Sprintf("Failed to find the requested resource '%s/%s'.", repoKey, relPath)
 }
 
 // ---- shared helpers ----
 
 // writeServiceError maps repo.Service sentinels onto protocol statuses with
 // the errors[] envelope. Checksum mismatches carry the spec's received/
-// actual wording (repo-semantics section 5, client-checksums policy).
-func (h *Handler) writeServiceError(w http.ResponseWriter, err error, repoKey, relPath string) {
+// actual wording (repo-semantics section 5, client-checksums policy). The
+// not-found wording is verb-specific (T-13 review M1): GET/HEAD use the
+// download-side message of rest-api.md section 1.4, DELETE keeps the
+// undeploy wording of repo-semantics section 4.
+func (h *Handler) writeServiceError(w http.ResponseWriter, err error, method, repoKey, relPath string) {
 	switch {
 	case errors.Is(err, storage.ErrChecksumMismatch):
 		writeError(w, http.StatusConflict, checksumMismatchMessage(err, repoKey, relPath))
 	case errors.Is(err, repo.ErrNodeNotFound):
+		if method == http.MethodGet || method == http.MethodHead {
+			writeError(w, http.StatusNotFound, notFoundMessage(repoKey, relPath))
+			return
+		}
 		writeError(w, http.StatusNotFound, fmt.Sprintf("Could not locate artifact. Path: '%s/%s'.", repoKey, relPath))
 	case errors.Is(err, repo.ErrRepoNotFound):
 		writeError(w, http.StatusNotFound, fmt.Sprintf("Failed to find the repository '%s' specified in the request.", repoKey))

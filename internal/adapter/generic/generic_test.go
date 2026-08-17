@@ -59,7 +59,7 @@ func newEnv(t *testing.T) *env {
 	clk := &clock{now: time.Date(2026, 8, 18, 12, 0, 0, 0, time.UTC)}
 	az := &allowAll{}
 	svc := repo.NewWithClock(st, md, az, nil, clk.Now)
-	h := generic.NewWithClock(svc, md.Blobs(), st.Open, clk.RFC3339)
+	h := generic.NewWithClock(svc, md.Blobs(), clk.RFC3339)
 	if _, err := svc.CreateRepo(ctx, admin(), &metadata.Repo{
 		RepoKey: "generic-local", Type: repo.TypeLocal, PackageType: repo.PackageGeneric,
 	}); err != nil {
@@ -241,8 +241,11 @@ func TestContentVerbsTable(t *testing.T) {
 			hdr: map[string]string{"X-Checksum-Sha1": strings.Repeat("0", 40)}, want: 409},
 		{name: "md5 mismatch 409", method: http.MethodPut, path: "/binflow/generic-local/acme/m5.bin", body: content,
 			hdr: map[string]string{"X-Checksum-Md5": strings.Repeat("0", 32)}, want: 409},
-		{name: "get missing 404 json", method: http.MethodGet, path: "/binflow/generic-local/acme/nope.bin", want: 404},
-		{name: "delete missing 404", method: http.MethodDelete, path: "/binflow/generic-local/acme/nope.bin", want: 404},
+		{name: "get missing 404 json", method: http.MethodGet, path: "/binflow/generic-local/acme/nope.bin", want: 404,
+			wantInMsg: "Failed to find the requested resource"},
+		{name: "head missing 404 json", method: http.MethodHead, path: "/binflow/generic-local/acme/nope.bin", want: 404}, // HEAD carries no body; envelope asserted via GET
+		{name: "delete missing 404", method: http.MethodDelete, path: "/binflow/generic-local/acme/nope.bin", want: 404,
+			wantInMsg: "Could not locate artifact"},
 		{name: "repo missing 404", method: http.MethodGet, path: "/binflow/no-such-repo/a.bin", want: 404},
 		{name: "mkdir trailing slash", method: http.MethodPut, path: "/binflow/generic-local/acme/", want: 201},
 		{name: "mkdir with body 400", method: http.MethodPut, path: "/binflow/generic-local/x/", body: "junk", want: 400},
@@ -282,6 +285,9 @@ func TestContentVerbsTable(t *testing.T) {
 				if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
 					t.Fatalf("error Content-Type = %q, want JSON envelope", ct)
 				}
+				if tt.method == http.MethodHead {
+					return // HEAD carries no body; envelope asserted via the GET twin
+				}
 				var envl struct {
 					Errors []struct {
 						Status  int    `json:"status"`
@@ -297,6 +303,82 @@ func TestContentVerbsTable(t *testing.T) {
 			}
 		})
 	}
+}
+
+// ---- upload-context originalChecksums + folder sentinel (T-13 review m1/m4) ----
+
+func TestUploadResponseShapes(t *testing.T) {
+	e := newEnv(t)
+
+	t.Run("zero declared digests renders empty originalChecksums", func(t *testing.T) {
+		resp := e.do(t, http.MethodPut, "/binflow/generic-local/acme/undecl.bin",
+			strings.NewReader("no headers at all"), nil)
+		raw := body(t, resp)
+		if resp.StatusCode != 201 {
+			t.Fatalf("put = %d: %s", resp.StatusCode, raw)
+		}
+		var fi struct {
+			Checksums struct {
+				Sha256 string `json:"sha256"`
+			} `json:"checksums"`
+			OriginalChecksums map[string]any `json:"originalChecksums"`
+		}
+		if err := json.Unmarshal([]byte(raw), &fi); err != nil {
+			t.Fatalf("json: %v (%s)", err, raw)
+		}
+		if fi.Checksums.Sha256 == "" {
+			t.Fatal("server-side checksums missing")
+		}
+		// Upload context with zero declarations: the echo must be an EMPTY
+		// object, not a fallback to the stored triple.
+		if len(fi.OriginalChecksums) != 0 {
+			t.Fatalf("originalChecksums = %v, want empty object on zero declarations", fi.OriginalChecksums)
+		}
+	})
+
+	t.Run("declared digests echo exactly those algorithms", func(t *testing.T) {
+		content := "declared subset"
+		sha, _, md5v := digestsOf(content)
+		resp := e.do(t, http.MethodPut, "/binflow/generic-local/acme/decl.bin",
+			strings.NewReader(content), map[string]string{
+				"X-Checksum-Sha256": sha,
+				"X-Checksum-Md5":    md5v,
+			})
+		raw := body(t, resp)
+		if resp.StatusCode != 201 {
+			t.Fatalf("put = %d: %s", resp.StatusCode, raw)
+		}
+		var fi struct {
+			OriginalChecksums struct {
+				Sha1   string `json:"sha1"`
+				Sha256 string `json:"sha256"`
+				Md5    string `json:"md5"`
+			} `json:"originalChecksums"`
+		}
+		if err := json.Unmarshal([]byte(raw), &fi); err != nil {
+			t.Fatalf("json: %v", err)
+		}
+		if fi.OriginalChecksums.Sha1 != "" {
+			t.Fatalf("sha1 echoed though not declared: %+v", fi.OriginalChecksums)
+		}
+		if fi.OriginalChecksums.Sha256 != sha || fi.OriginalChecksums.Md5 != md5v {
+			t.Fatalf("declared digests not echoed: %+v", fi.OriginalChecksums)
+		}
+	})
+
+	t.Run("folder item carries no checksum objects", func(t *testing.T) {
+		resp := e.do(t, http.MethodPut, "/binflow/generic-local/dir/", nil, nil)
+		raw := body(t, resp)
+		if resp.StatusCode != 201 {
+			t.Fatalf("mkdir = %d: %s", resp.StatusCode, raw)
+		}
+		if strings.Contains(raw, "checksums") {
+			t.Fatalf("folder body leaks checksum objects (emptyFolderSHA sentinel): %s", raw)
+		}
+		if strings.Contains(raw, strings.Repeat("0", 64)) {
+			t.Fatalf("folder body leaks the all-zero sentinel: %s", raw)
+		}
+	})
 }
 
 // ---- GET/HEAD headers ----

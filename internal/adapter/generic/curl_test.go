@@ -54,7 +54,7 @@ func curlServer(t *testing.T) (*httptest.Server, *storage.Engine) {
 	}); err != nil {
 		t.Fatalf("CreateRepo: %v", err)
 	}
-	h := generic.New(svc, md.Blobs(), st.Open)
+	h := generic.New(svc, md.Blobs())
 	// NOTE: no ServeMux — it normalizes dot-segments with a 3xx redirect
 	// before the handler ever sees them, which would hide the adapter's own
 	// 400 defense from this black-box test. A bare handler mount is exactly
@@ -468,7 +468,7 @@ func TestCurlAnonymousWriteChallenged(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("CreateRepo: %v", err)
 	}
-	h := generic.New(svc, md.Blobs(), st.Open)
+	h := generic.New(svc, md.Blobs())
 	mux := http.NewServeMux()
 	mux.HandleFunc("/binflow/", func(w http.ResponseWriter, r *http.Request) {
 		rel := strings.TrimPrefix(r.URL.Path, "/binflow")

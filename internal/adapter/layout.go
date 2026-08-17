@@ -87,6 +87,13 @@ func validateRelPath(rel string) error {
 	if strings.Contains(rel, "\\") {
 		return fmt.Errorf("%w: backslash is not a path separator", ErrBadRequestPath)
 	}
+	if strings.ContainsFunc(rel, isControlByte) {
+		// NUL/CR/LF/tab/DEL and every other control byte are rejected before
+		// the segment walk: this layer is the one place raw client input
+		// becomes a stored path, and later renderers (T-15 listings, HTML)
+		// must never inherit the job of sanitizing it (T-13 review m2).
+		return fmt.Errorf("%w: control characters are not allowed in artifact paths", ErrBadRequestPath)
+	}
 	// A trailing slash addresses a folder and is preserved; everything else
 	// must be a real segment.
 	body := strings.TrimSuffix(rel, "/")
@@ -103,6 +110,9 @@ func validateRelPath(rel string) error {
 	}
 	return nil
 }
+
+// isControlByte reports whether r is a control character (C0 range, DEL).
+func isControlByte(r rune) bool { return r < 0x20 || r == 0x7f }
 
 // NormalizeRelPath is the exported one-liner other protocol adapters (M2+
 // docker subpaths, M3 maven) can reuse for their own relPath validation

@@ -1163,3 +1163,152 @@ func TestAuditEvents(t *testing.T) {
 
 // timeUTC is the fixed clock for the injection tests.
 func timeUTC() time.Time { return time.Date(2026, 8, 18, 12, 0, 0, 0, time.UTC) }
+
+// ---- PutFromBlob (checksum deploy, T-13 review B1) ----
+
+// TestPutFromBlobDeploysExistingBlob: a healthy blob (filestore + ledger
+// both present) deploys to a new path with zero transfer, digests sourced
+// from the ledger.
+func TestPutFromBlobDeploysExistingBlob(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	mustCreateRepo(t, e, "generic-local")
+	src := put(t, e, admin(), "generic-local", "src/one.bin", "checksum deploy body")
+
+	n, err := e.svc.PutFromBlob(ctx, admin(), "generic-local", "dst/copy.bin",
+		storage.BlobRef{Sha256: src.Sha256}, "application/x-copy")
+	if err != nil {
+		t.Fatalf("PutFromBlob: %v", err)
+	}
+	if n.Sha256 != src.Sha256 || n.Size != src.Size {
+		t.Fatalf("deployed node = %+v, want sha %s size %d", n, src.Sha256, src.Size)
+	}
+	if n.CreatedBy != "admin" {
+		t.Fatalf("createdBy = %q", n.CreatedBy)
+	}
+	// Download path serves the same bytes (no transfer happened; the node
+	// points at the same blob).
+	rc, got, err := e.svc.Get(ctx, admin(), "generic-local", "dst/copy.bin")
+	if err != nil {
+		t.Fatalf("Get deployed copy: %v", err)
+	}
+	defer rc.Close() //nolint:errcheck // read-side close error is irrelevant
+	b, _ := io.ReadAll(rc)
+	if string(b) != "checksum deploy body" || got.Sha256 != src.Sha256 {
+		t.Fatalf("deployed copy content mismatch: %q", b)
+	}
+}
+
+// TestPutFromBlobRejectsOrphanBlob: a physical blob whose ledger row is
+// gone (crash-window residue) must be refused with ErrOrphanBlob instead of
+// materializing a node whose ancillary digests would be lost forever.
+func TestPutFromBlobRejectsOrphanBlob(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	mustCreateRepo(t, e, "generic-local")
+	src := put(t, e, admin(), "generic-local", "src/one.bin", "orphan candidate")
+
+	// Simulate the crash window: the physical blob survives (PutFromBlob's
+	// storage.Open will find it), the ledger row is removed. The nodes row
+	// that anchors the FK goes first — a real orphan producer, and the only
+	// state the FK rules permit here.
+	if err := e.md.Nodes().Delete(ctx, "generic-local", "src/one.bin"); err != nil {
+		t.Fatalf("remove node row: %v", err)
+	}
+	if err := e.md.Blobs().Delete(ctx, src.Sha256); err != nil {
+		t.Fatalf("remove ledger row: %v", err)
+	}
+
+	_, err := e.svc.PutFromBlob(ctx, admin(), "generic-local", "dst/orphan.bin",
+		storage.BlobRef{Sha256: src.Sha256}, "")
+	if !errors.Is(err, repo.ErrOrphanBlob) {
+		t.Fatalf("PutFromBlob(orphan) error = %v, want ErrOrphanBlob", err)
+	}
+	// And no node may exist for the refused deploy.
+	if _, _, err := e.svc.Get(ctx, admin(), "generic-local", "dst/orphan.bin"); !errors.Is(err, repo.ErrNodeNotFound) {
+		t.Fatalf("Get after refused deploy = %v, want ErrNodeNotFound", err)
+	}
+}
+
+// TestPutFromBlobUnknownBlob: a digest nothing ever uploaded maps to the
+// same not-found semantics as any other missing node (the HTTP layer
+// renders 404 for both).
+func TestPutFromBlobUnknownBlob(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	mustCreateRepo(t, e, "generic-local")
+	_, err := e.svc.PutFromBlob(ctx, admin(), "generic-local", "dst/none.bin",
+		storage.BlobRef{Sha256: shaOf("never uploaded anywhere")}, "")
+	if !errors.Is(err, repo.ErrNodeNotFound) {
+		t.Fatalf("PutFromBlob(unknown) error = %v, want ErrNodeNotFound", err)
+	}
+}
+
+// TestPutFromBlobPermissionMatrix: the deploy follows Put's permission
+// pair — plain write grant deploys to fresh paths, overwrite of a foreign
+// checksum needs delete, same-checksum redeploy is idempotent without any
+// grant, and anonymous is refused outright.
+func TestPutFromBlobPermissionMatrix(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	mustCreateRepo(t, e, "generic-local")
+	src := put(t, e, admin(), "generic-local", "src/one.bin", "perm matrix body")
+
+	// alice without grants: refused.
+	if _, err := e.svc.PutFromBlob(ctx, alice(), "generic-local", "out/x.bin",
+		storage.BlobRef{Sha256: src.Sha256}, ""); !errors.Is(err, repo.ErrForbidden) {
+		t.Fatalf("ungranted PutFromBlob = %v, want ErrForbidden", err)
+	}
+	// anonymous: refused as unauthorized.
+	if _, err := e.svc.PutFromBlob(ctx, nil, "generic-local", "out/x.bin",
+		storage.BlobRef{Sha256: src.Sha256}, ""); !errors.Is(err, repo.ErrUnauthorized) {
+		t.Fatalf("anonymous PutFromBlob = %v, want ErrUnauthorized", err)
+	}
+	// write grant deploys to a fresh path.
+	e.az.add("alice", repo.ActionWrite, "")
+	if _, err := e.svc.PutFromBlob(ctx, alice(), "generic-local", "out/x.bin",
+		storage.BlobRef{Sha256: src.Sha256}, ""); err != nil {
+		t.Fatalf("granted PutFromBlob: %v", err)
+	}
+	// Same-checksum redeploy over the fresh path is idempotent even without
+	// the write grant anymore (repo-semantics section 3).
+	e.az.byUser = nil
+	if _, err := e.svc.PutFromBlob(ctx, alice(), "generic-local", "out/x.bin",
+		storage.BlobRef{Sha256: src.Sha256}, ""); err != nil {
+		t.Fatalf("idempotent PutFromBlob redeploy: %v", err)
+	}
+	// A different blob over an existing node needs delete permission.
+	other := put(t, e, admin(), "generic-local", "src/two.bin", "different content")
+	if _, err := e.svc.PutFromBlob(ctx, alice(), "generic-local", "out/x.bin",
+		storage.BlobRef{Sha256: other.Sha256}, ""); !errors.Is(err, repo.ErrForbidden) {
+		t.Fatalf("overwrite without delete = %v, want ErrForbidden", err)
+	}
+	e.az.add("alice", repo.ActionDelete, "")
+	e.az.add("alice", repo.ActionWrite, "")
+	if _, err := e.svc.PutFromBlob(ctx, alice(), "generic-local", "out/x.bin",
+		storage.BlobRef{Sha256: other.Sha256}, ""); err != nil {
+		t.Fatalf("overwrite with delete: %v", err)
+	}
+}
+
+// TestPutFromBlobValidation: folder paths and a missing sha256 never reach
+// storage; missing repo keeps its own sentinel.
+func TestPutFromBlobValidation(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	mustCreateRepo(t, e, "generic-local")
+	src := put(t, e, admin(), "generic-local", "a.bin", "v")
+
+	if _, err := e.svc.PutFromBlob(ctx, admin(), "generic-local", "dir/",
+		storage.BlobRef{Sha256: src.Sha256}, ""); !errors.Is(err, repo.ErrInvalidPath) {
+		t.Fatalf("folder PutFromBlob = %v, want ErrInvalidPath", err)
+	}
+	if _, err := e.svc.PutFromBlob(ctx, admin(), "generic-local", "x.bin",
+		storage.BlobRef{}, ""); !errors.Is(err, repo.ErrInvalidPath) {
+		t.Fatalf("sha256-less PutFromBlob = %v, want ErrInvalidPath", err)
+	}
+	if _, err := e.svc.PutFromBlob(ctx, admin(), "no-such-repo", "x.bin",
+		storage.BlobRef{Sha256: src.Sha256}, ""); !errors.Is(err, repo.ErrRepoNotFound) {
+		t.Fatalf("missing repo PutFromBlob = %v, want ErrRepoNotFound", err)
+	}
+}

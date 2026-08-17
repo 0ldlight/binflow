@@ -233,6 +233,105 @@ func (s *service) Put(ctx context.Context, p *Principal, repoKey, path string, b
 	return n, nil
 }
 
+// PutFromBlob implements Service.PutFromBlob: the checksum-deploy use case
+// (zero-transfer deploy against an existing blob, rest-api.md section 1.3)
+// expressed as a Service method so adapters never open blobs themselves
+// (architecture section 5.1: the streaming-detail exception is "extend
+// repo.Service", not "bypass it").
+//
+// Validation order mirrors Put: authentication, path shape, repo/local
+// check, then the permission pair (idempotent retransmit vs overwrite) —
+// the blob is never even opened for an unauthorized caller. The blob is
+// then verified in BOTH dimensions before any metadata write:
+//
+//   - filestore (storage.Open): the physical content must exist and its
+//     size backs the node row;
+//   - blobs ledger (metadata.Blobs.Get): the digest record must exist.
+//
+// The ledger row is the digest source of truth: sha1/md5 (and the size of
+// record) come from it, never from the client's claim — a client cannot
+// smuggle ancillary digests into the ledger by declaring them here. A
+// physical blob without a ledger row (crash-window residue) is
+// ErrOrphanBlob: the node is refused rather than materialized with a
+// digest record that would stay incomplete forever (BlobStore.Put is
+// DO-NOTHING on conflict and never back-fills).
+func (s *service) PutFromBlob(ctx context.Context, p *Principal, repoKey, path string, ref storage.BlobRef, mime string) (*metadata.Node, error) {
+	if err := requireAuthenticated(p); err != nil {
+		return nil, err
+	}
+	if err := validateNodePath(path); err != nil {
+		return nil, err
+	}
+	if isFolderNode(path) {
+		return nil, fmt.Errorf("folder deploy %s/%s: %w: checksum deploy targets files only", repoKey, path, ErrInvalidPath)
+	}
+	if mime == "" {
+		mime = "application/octet-stream"
+	}
+	if _, err := s.loadLocalRepo(ctx, repoKey); err != nil {
+		return nil, err
+	}
+
+	// The same permission pair as Put, keyed on the client-declared sha256
+	// (which PutFromBlob requires to be set — it IS the addressing key here).
+	if ref.Sha256 == "" {
+		return nil, fmt.Errorf("checksum deploy %s/%s: %w: sha256 is required", repoKey, path, ErrInvalidPath)
+	}
+	idempotent, existing, err := s.isIdempotentRedeploy(ctx, repoKey, path, ref.Sha256)
+	if err != nil {
+		return nil, err
+	}
+	if !idempotent {
+		if existing != nil && !s.allow(ctx, p, repoKey, path, ActionDelete) {
+			return nil, fmt.Errorf(
+				"overwrite %s/%s: %w: user %q needs DELETE permission on the existing node",
+				repoKey, path, ErrForbidden, p.Name)
+		}
+		if !s.allow(ctx, p, repoKey, path, ActionWrite) {
+			return nil, fmt.Errorf("write %s/%s: %w", repoKey, path, ErrForbidden)
+		}
+	}
+
+	// Filestore check: the physical content must be present.
+	rc, physRef, err := s.st.Open(ctx, ref.Sha256)
+	if err != nil {
+		if errors.Is(err, storage.ErrBlobNotFound) {
+			return nil, fmt.Errorf("checksum deploy %s/%s: %w", repoKey, path, ErrNodeNotFound)
+		}
+		return nil, fmt.Errorf("open blob %s for checksum deploy %s/%s: %w", ref.Sha256, repoKey, path, err)
+	}
+	defer rc.Close() //nolint:errcheck // read-only fd, size already taken
+
+	// Ledger check: the digest record must be present; its sha1/md5/size are
+	// authoritative. An orphan physical blob refuses the deploy.
+	row, err := s.md.Blobs().Get(ctx, ref.Sha256)
+	if err != nil {
+		if errors.Is(err, metadata.ErrNotFound) {
+			return nil, fmt.Errorf("checksum deploy %s/%s: blob %s: %w", repoKey, path, ref.Sha256, ErrOrphanBlob)
+		}
+		return nil, fmt.Errorf("ledger blob %s: %w", ref.Sha256, err)
+	}
+	committed := storage.BlobRef{
+		Sha256: row.Sha256,
+		Sha1:   row.Sha1,
+		Md5:    row.Md5,
+		Size:   physRef.Size, // the file's own size; the ledger row agrees for healthy blobs
+	}
+	if row.Sha256 == "" {
+		committed.Sha256 = ref.Sha256
+	}
+
+	n, err := s.putNode(ctx, p, repoKey, path, false, committed, mime)
+	if err != nil {
+		return nil, err
+	}
+	s.audit(ctx, AuditEvent{
+		Actor: p.Name, Action: AuditActionDeploy, Repo: repoKey, Path: path,
+		Detail: fmt.Sprintf(`{"sha256":%q,"size":%d,"idempotent":%t,"checksumDeployed":true}`, n.Sha256, n.Size, idempotent),
+	})
+	return n, nil
+}
+
 // isIdempotentRedeploy reports whether the target node already holds the
 // client-declared sha256 (repo-semantics section 3: same checksum = an
 // idempotent retransmit that skips both the overwrite check and the deploy

@@ -44,6 +44,13 @@ var (
 	// node metadata is still returned; adapters use this to render
 	// FolderInfo instead of streaming a body.
 	ErrIsFolder = errors.New("node is a folder")
+	// ErrOrphanBlob: PutFromBlob was handed a blob that exists physically
+	// but has no blobs-ledger row (crash-window residue awaiting GC).
+	// Materializing a node from it would freeze an incomplete digest record
+	// (the ledger row is the sha1/md5 source of truth and is never
+	// back-filled), so the operation refuses; the caller maps this to a
+	// plain "content not found" (404), not a 500.
+	ErrOrphanBlob = errors.New("blob exists in the filestore but not in the ledger")
 	// ErrInvalidPath: malformed artifact path (empty segment, dot segment,
 	// absolute path, too long, ...).
 	ErrInvalidPath = errors.New("invalid artifact path")
@@ -140,6 +147,19 @@ type Service interface {
 	// permission on the old node. A path with a trailing slash creates a
 	// folder node (empty body required).
 	Put(ctx context.Context, p *Principal, repoKey, path string, body io.Reader, expect storage.BlobRef, mime string) (*metadata.Node, error)
+	// PutFromBlob creates (or idempotently re-creates) a node pointing at an
+	// already-committed blob — the checksum-deploy use case (X-Checksum-Deploy,
+	// rest-api.md section 1.3), reached through the Service so adapters never
+	// touch storage directly (architecture section 5.1's exception clause:
+	// "extend repo.Service, do not bypass"). ref.Sha256 must address a blob
+	// that exists in BOTH the filestore and the blobs ledger: an orphan blob
+	// (physical file present, ledger row missing — the crash-window residue
+	// GC eventually collects) yields ErrOrphanBlob instead of silently
+	// materializing a node whose ancillary digests would be lost forever.
+	// The ledger row is the digest source of truth: sha1/md5 are read from
+	// it, never re-derived from the client's claim. Permission, overwrite
+	// and idempotent-retransmit semantics are identical to Put.
+	PutFromBlob(ctx context.Context, p *Principal, repoKey, path string, ref storage.BlobRef, mime string) (*metadata.Node, error)
 	// Delete removes the node reference only (the blob is GC's business).
 	// A directory path deletes recursively and prunes folder rows left empty.
 	// Missing path → ErrNodeNotFound (idempotent 404 semantics).
