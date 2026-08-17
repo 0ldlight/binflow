@@ -50,8 +50,6 @@
 
 ## 🔨 进行中（doing）
 
-- **T-8** [P0] config（修复轮） `role:dev-go-core` `area:internal/config`
-  状态：review REQUEST_CHANGES（3 blocker + 1 major，探针实证）→ 修 B1 多文档 YAML 绕过扫描、B2 file::memory: 击穿、B3 ADMIN_PASSWORD 大小写静默失效、M1 DSN 回显口令。原 agent 在途。
 - **T-9** [P0] storage（修复轮） `role:dev-go-storage` `area:internal/storage`
   状态：双 review 合并（correctness APPROVE 在途待收 + arch REQUEST_CHANGES）→ 修 B1 ErrEngineClosed 契约不符（Delete/GC 缺检查）+ M1 Append 部分写毒化会话 + M2 state.json 形状对齐 §4.1。原 agent 在途。
   架构偏离两处（GC 集合形回调、Close() 入接口）被判合理 → 回写清单归 architect 票。
@@ -97,6 +95,9 @@
 - **T-10** [P0] metadata：SQLite Store+迁移器+001_init `role:dev-go-core` `area:internal/metadata` `dep:T-7` — done 2026-08-17（经一轮修复）
   14 文件：api/store/migrate/password/substores + 001_init.sql（9 表，permission 两表形态）+ 35 测试。双 review：正确性 APPROVE；架构 REQUEST_CHANGES 两 blocker 均已修复并复审通过——B1 LIKE 大小写误删（case_sensitive_like 入 DSN + 6 子用例破坏性断言）、B2 池 NumCPU + 三 PRAGMA 挪 DSN（四连接并发断言 + fail-fast）。conductor 复现：race 12.8s 绿 / lint 0。
   遗留（minor 不阻塞）：FilterUnreferenced TOCTOU 契约（T-13 派单附注）、tokenStore.Touch 上下文（T-11 顺车）、双进程首启竞态（M4 技术债）。
+- **T-8** [P0] config 包 `role:dev-go-core` `area:internal/config` `dep:T-7` — done 2026-08-18（经一轮修复）
+  7 文件：api/load/validate/config + 30 测试（覆盖率 91.9%）。review 3 blocker + 1 major 全修复并复审通过：B1 多文档 YAML（decode 后断言 io.EOF）、B2 sqlite DSN 白名单（拒绝 URI 形态）、B3 ADMIN_PASSWORD 大小写归一赋值、M1 redactDSN 脱敏。conductor 独立探针复验多文档秘密拦截。race 2.4s 绿 / lint 0。
+  顺手：m2 TOCTOU 注释、m1 doc.go 例外清单补 DATA_DIR、m4/m5 测试补齐；n1 记录保留理由。
 
 ## 🚫 阻塞（blocked）
 
