@@ -4,7 +4,7 @@
 |---|---|
 | 文档 | `docs/prd/milestone-1.md` |
 | 里程碑 | M1 — 内核基座（对应 ROADMAP.md「M1 — 内核基座（当前）」全部条目） |
-| 状态 | **v1.2**（已纳入用户对 §9 全部 8 项开放问题的定案 + 逆向规格对 §5.5 六项校准项的定案回写；token 字段一项待 auth-model.md（T-23）再校准） |
+| 状态 | **v1.3**（8 项用户定案 + §5.5 六项校准全部回写完毕：v1.2 依据 rest-api/repo-semantics，v1.3 依据 auth-model.md（T-23）收口 token/改密/建用户四处） |
 | 上游依据 | PRODUCT.md（愿景/Non-goals/成功标准/技术约束）、ROADMAP.md、DECISIONS.md ADR-0002/0003、用户对 8 项开放问题的定案（§9） |
 | 下游消费者 | tech-lead（拆票）、architect（ADR/设计）、dev 各角色（实现）、qa-engineer（验收） |
 
@@ -17,6 +17,7 @@
 | v1.0 | 2026-08-17 | 初版：M1 范围、FR-1~FR-6、兼容矩阵 26 端点、C01~C30 验收命令、8 项开放问题 |
 | v1.1 | 2026-08-17 | 纳入用户对 §9 全部 8 项问题的定案：① **Q1 统一 `/binflow` 前缀**（推翻 v1.0 暂行假设「仅 `/artifactory`」）——全文端点路径、C01~C30 命令、§5.1 兼容层级定义（改为「前缀重写后语义兼容」）、§3 场景 D 迁移表述同步更新；`/artifactory/**` 返回 404 并提示新前缀；Docker `/v2/` 协议固定路径例外记入 §5.4。② **Q2 匿名读默认开**（推翻 v1.0 暂行假设「默认关」）——FR-5 模型改写、新增 AC12/AC13、新增命令 C23/C27、新增 NFR-S8。③ **Q5 纯 Go SQLite 零 CGO**——新增 FR-1-AC7、FR-3 技术注记；FR-3-AC10 维持。④ **Q7** module 路径落定 `github.com/lzwzzy/binflow`。⑤ Q3/Q4/Q6/Q8 维持暂行假设转为定案。⑥ §9 改为「已决决策」表。§5.5 待逆向规格校准项不变 |
 | v1.2 | 2026-08-17 | 依据已落地的 `docs/reverse/`（rest-api.md / repo-semantics.md，T-21）对 §5.5 六项校准项定案回写 + 采纳 tech-lead 评审 R1/R2/R7：① **R1：客户端 checksum 不一致 → 409**（repo-semantics.md §5 `client-checksums` 策略，高置信度；推翻 v1.1 的 400）——FR-4-AC5、C14、E-11 更新，message 含 received/actual 双值。② **R2：建仓成功 → 200 纯文本**（rest-api.md §2，高置信度；推翻 v1.1 的 201）——FR-3-AC1、C03、E-06 更新；更新走 POST、body key 不一致 400/409 语义补记。③ §5.5 六项全部定案（①DELETE 204 无 body ②checksum deploy 未命中 404 ③409 同 R1 ④mkdir 尾斜杠 201 ⑤token 字段按 BinFlow 自有语义暂定、待 auth-model.md（T-23）⑥item info 字段全集按 rest-api.md §3：含 `lastUpdated`、`size` 为字符串、含 `originalChecksums`）；§5.5 由「待校准」改为「校准记录」，置信度列由「待校准」改「高（已定案）」。④ E-14/E-15 置信度升「高」；FR-4-AC7/E-11 的「待校准」标记移除。⑤ 新增两条增补规格（high-value，不扩 M1 范围）：下载头 `ETag=<sha1>`/`Last-Modified`/`Accept-Ranges: bytes` + 304/416 条件请求语义（FR-4 新增 AC15，P2，Range 416 补入 AC14）、同 checksum 幂等重传免覆盖权限检查（记 §4 FR-4 表后注，FR-5 实现必须保留该分支）。Q1~Q8 已决决策表保持 v1.1 原样 |
+| v1.3 | 2026-08-17 | 依据 T-23 产出的 `docs/reverse/auth-model.md`（§3/§5 校准建议，高置信度）收口 §5.5⑤ 并校准四处：① **E-17 token 创建**——请求改 **form-urlencoded**（真实端点只吃 form，JSON 作 BinFlow 扩展）；响应字段集改 `access_token / token_type("Bearer") / expires_in(永不过期时缺省) / scope / refresh_token(仅 refreshable)`，**无 token_id**（BinFlow 超集扩展附 token_id 便于按 id 吊销）；grant_type/scope/expires_in/refreshable/audience 参数语义按规格 §3 落表（M1 子集：username/expires_in/refreshable 可不做）；FR-5-AC4、C21a 更新。② **E-18 revoke**——form 参数 `token` XOR `token_id`（同传 400 `token and token_id are mutually exclusive` / 都缺 400 `token or token_id are required`）；成功 200 纯文本 `Token revoked`；不存在/已吊销仍 200 `Token not found`（幂等）；FR-5-AC6、C21c 更新。③ **E-16 改密**——7.x 无 `PUT /api/security/password`；BinFlow 保留自有路径 + **补真实路径别名** `POST /api/security/users/authorization/changePassword`（userName/oldPassword/newPassword1/newPassword2），**旧口令错误 400（非 401）**；FR-5-AC3、C20 更新。④ **E-19 建用户**——真实为 `PUT /api/security/users/{name}`（201 无 body）；BinFlow 保留自有 POST + 补该兼容路由；GET 列表元素 `{name,uri,realm}`；email/password blank → 400（自有 POST 路由同一条校验链）；FR-5-AC7/AC11、C22a 更新。⑤ §5.1 补**错误体三分层**注记（制品 `errors[]` / 用户管理纯文本 / token OAuth 风格 `{"error","error_description"}`），token 端点采用 OAuth 风格；§5.5⑤ 定案收口、置信度升高；E-16~E-19 置信度升「高」。顺手修复 QA 剧本一处既有缺陷：C20 改密后 `$ADMIN_PW` 未更新会导致 C21/C22 连续 401，补 `export ADMIN_PW` 行 |
 
 ---
 
@@ -203,15 +204,15 @@ M1 的「真实用户」是**平台工程师的 CI 脚本**，不是终端人类
 |---|---|---|
 | FR-5-AC1（首次引导） | Q3 定案：服务以 `BINFLOW_ADMIN_PASSWORD=$ADMIN_PW` 启动后，`curl -su admin:$ADMIN_PW $BASE/binflow/api/repositories` → 200；**未设置**该环境变量时使用缺省口令 `password`（`admin:password` 可用），文档必须标注缺省值**仅限评估环境**，生产必须显式设置 | P0 |
 | FR-5-AC2（口令错误） | `curl -su admin:wrong -o /dev/null -w '%{http_code}' $BASE/binflow/api/repositories` → **401** | P0 |
-| FR-5-AC3（改密） | C20：`PUT /binflow/api/security/password`，body `{"oldPassword":"...","newPassword":"..."}` → 2xx；旧口令随即 401，新口令 200 | P1 |
-| FR-5-AC4（发 Token） | C21a：`POST /binflow/api/security/token`（body 可空或 `{"username":"admin"}`）→ 200，返回 `access_token` 非空且 `token_id` 存在 | P0 |
+| FR-5-AC3（改密） | C20（双路由任一）：① 自有路径 `PUT /binflow/api/security/password` body `{"oldPassword":"...","newPassword":"..."}` → 200；② 真实路径别名 `POST /binflow/api/security/users/authorization/changePassword` body `{"userName":"admin","oldPassword":"...","newPassword1":"...","newPassword2":"..."}` → 200 纯文本 `Password has been successfully changed`；**旧口令错误 → 400（非 401）**纯文本 `Incorrect username/password`；成功后旧口令随即 401、新口令 200（auth-model.md §2） | P1 |
+| FR-5-AC4（发 Token） | C21a：`POST /binflow/api/security/token -d 'grant_type=client_credentials'`（**form**，Content-Type `application/x-www-form-urlencoded`；JSON body 作 BinFlow 扩展亦接受）→ 200，返回 `access_token` 非空、`token_type=="Bearer"`、`scope` 非空；BinFlow 超集扩展附 `token_id`（真实 Artifactory 创建响应无此字段，auth-model.md §3.1） | P0 |
 | FR-5-AC5（Token 可用） | C21b：`curl -su admin:$TOKEN ...` 与 `curl -su admin:$ADMIN_PW -H "X-JFrog-Art-Api: $TOKEN" ...` 均 200 | P0 |
-| FR-5-AC6（吊销） | C21c：`POST /binflow/api/security/token/revoke` body `{"token_id":"..."}`（或 `{"token":"..."}`）→ 2xx；随后用该 Token 的请求 **401** | P0 |
-| FR-5-AC7（建用户） | C22a：`POST /binflow/api/security/users` body `{"name":"ci-bot","password":"...","admin":false}` → 201；`ci-bot` 对仓库任意路径 PUT → **403**（未授权写；匿名读开启时 GET 本就可读，见下方注） | P0 |
+| FR-5-AC6（吊销） | C21c：`POST /binflow/api/security/token/revoke`（**form**）`-d "token=$TOKEN"` 或 `-d "token_id=$TID"`（两者 XOR）→ **200 纯文本 `Token revoked`**；随后用该 Token 的请求 **401**；重复吊销 → 仍 200 body `Token not found`；同传两者 → 400 `token and token_id are mutually exclusive`；都缺 → 400 `token or token_id is required`（auth-model.md §3.4） | P0 |
+| FR-5-AC7（建用户） | C22a（双路由任一）：真实路径 `PUT /binflow/api/security/users/ci-bot` body `{"name":"ci-bot","email":"ci@example.com","password":"...","admin":false}` → **201 无 body**；或自有路径 `POST /binflow/api/security/users` 同 body → 201；`email`/`password` 空 → 400；建好后 `ci-bot` 对仓库任意路径 PUT → **403**（未授权写；匿名读开启时 GET 本就可读，见下方注）（auth-model.md §1.2/§1.3） | P0 |
 | FR-5-AC8（授权路径写） | C22b：`POST /binflow/api/v1/permissions` body 授 `ci-bot` 在 repo `generic-local`、pattern `ci-out/**` 上 `read`+`write` → 2xx；随后 `ci-bot` PUT `generic-local/ci-out/y.bin` → 201；授 `read` 前PUT 同路径 → 403；`ci-bot` 访问管理 API（如 `GET /binflow/api/repositories`）→ 401/403（非 admin） | P0 |
 | FR-5-AC9（授权路径删） | C22c：`ci-bot` DELETE `generic-local/ci-out/y.bin` → 403（未授 `delete`）；`admin` 对同路径 DELETE → 2xx | P1 |
 | FR-5-AC10（权限对象管理） | `GET /binflow/api/v1/permissions` 列出已建对象；`DELETE /binflow/api/v1/permissions/{name}` 后 ci-bot 相关授权立即失效（403） | P1 |
-| FR-5-AC11（口令不回显） | `GET /binflow/api/security/users` 的响应不含任何口令/哈希字段 | P0 |
+| FR-5-AC11（口令不回显） | `GET /binflow/api/security/users` 的响应不含任何口令/哈希字段；列表元素为 `{"name","uri","realm"}`（auth-model.md §1.2），`GET /binflow/api/security/users/ci-bot` 单用户响应同样无口令字段 | P0 |
 | FR-5-AC12（匿名读默认开） | Q2 定案，C23：默认配置下，不带任何认证 `GET /binflow/generic-local/acme/artifact.bin` → **200**（内容与 C08 一致）；不带认证 `PUT` 同仓库任意路径 → **401**；不带认证 `GET /binflow/api/repositories` → **401**（管理 API 不匿名） | P0 |
 | FR-5-AC13（关闭匿名读） | C27：配置 `security.anonymous_access: false`（或环境变量 `BINFLOW_SECURITY_ANONYMOUS_ACCESS=false`）重启后，不带认证内容 GET → **401** + `WWW-Authenticate` 头；带认证 GET → 200；且在该模式下 `ci-bot` 的 read 权限可被验证：GET `ci-out/x.bin` → 200，GET 仓库外路径 → 403 | P1 |
 
@@ -247,9 +248,16 @@ M1 的「真实用户」是**平台工程师的 CI 脚本**，不是终端人类
 通用错误契约（E-01，全端点适用）：非 2xx 一律返回
 `{"errors":[{"status":<code>,"message":"<人类可读>"}]}`，`Content-Type: application/json`。未实现端点返回 404 + E-01（message 含 `not implemented in BinFlow` 类字样）；命中 `/artifactory/**` 的请求返回 404 + E-01，message 提示「BinFlow 统一前缀为 /binflow」。
 
+**错误体三分层（v1.3 补注，依据 auth-model.md §0）**：Artifactory 实际是三种错误格式并存，BinFlow 照此分层，E-01 只是制品/通用层的契约：
+| 层 | 端点域 | 错误体格式 |
+|---|---|---|
+| 制品与通用 | 仓储/存储/系统端点（`/binflow/api/repositories|storage|system/**`、`/binflow/<repo>/**`） | E-01：`{"errors":[{status,message}]}` JSON |
+| 用户/权限管理 | `/binflow/api/security/users|permissions/**`（含 changePassword） | **纯文本** body（`text/plain`），状态码即错误语义 |
+| Token（OAuth 风格） | `/binflow/api/security/token/**` | `{"error":"<code>","error_description":"<msg>"}` JSON（如 `invalid_request`/`invalid_scope`/`unsupported_grant_type` 400、`invalid_grant` 401） |
+
 ### 5.2 M1 端点矩阵
 
-「置信度」：高 = Artifactory 公开文档明确；中 = 公认行为/PRD 暂定，待 `docs/reverse/rest-api.md` 校准（见 §5.5）。表中路径均为最终路径（已含 `/binflow` 前缀）。
+「置信度」：高 = 逆向规格（反编译 + 官方文档双证）或用户定案；中 = PRD 暂定待后续规格校准（见 §5.5）。表中路径均为最终路径（已含 `/binflow` 前缀）。
 
 | # | 端点（方法 路径） | Artifactory 行为要点 | 层级 | 优先级 | 置信度 | 验收命令 |
 |---|---|---|---|---|---|---|
@@ -267,10 +275,10 @@ M1 的「真实用户」是**平台工程师的 CI 脚本**，不是终端人类
 | E-13 | `HEAD /binflow/{repo}/{path}` | 200，`Content-Length` + checksum 头；匿名可读（Q2） | 兼容 | P0 | 高 | C09 |
 | E-14 | `DELETE /binflow/{repo}/{path}` | **204 无 body**（rest-api.md §1.1 / repo-semantics.md §4，高置信度）；目录递归删；重复删 404 幂等；需认证（Q2） | 兼容 | P0 | 高 | C18 |
 | E-15 | `PUT /binflow/{repo}/{dir}/`（结尾斜杠建目录） | **201** + FolderInfo 形态（rest-api.md §1.1，高置信度） | 兼容 | P1 | 高 | C16 |
-| E-16 | `PUT /binflow/api/security/password` | body `oldPassword/newPassword`，2xx | 兼容 | P1 | 高 | C20 |
-| E-17 | `POST /binflow/api/security/token` | 200 `access_token/token_id/expires_in`；M1 子集：不做 refresh_token/audience/scope 完整语义 | 兼容（子集） | P0 | 中 | C21a |
-| E-18 | `POST /binflow/api/security/token/revoke` | 2xx，吊销后 401 | 兼容 | P0 | 中 | C21c |
-| E-19 | `POST/GET /binflow/api/security/users` | 建/列用户；响应永不含口令；M1 不做组管理（M4） | 兼容（子集） | P0 | 高 | C22a |
+| E-16 | 改密（双路由）：`PUT /binflow/api/security/password`（BinFlow 自有，body `oldPassword/newPassword`）+ **别名** `POST /binflow/api/security/users/authorization/changePassword`（真实 7.x 路径，body `userName/oldPassword/newPassword1/newPassword2`） | 成功 200 纯文本（`Password has been successfully changed`）；**旧口令错误 → 400（非 401）**，纯文本 `Incorrect username/password`；`newPassword1≠2`/新旧相同/新口令为空 → 400（文案见 auth-model.md §2.2）；错误体走「用户管理纯文本」层（auth-model.md §2，高置信度） | 兼容（changePassword 路径）/ 语义等同但路径不同（password 路径） | P1 | 高 | C20 |
+| E-17 | `POST /binflow/api/security/token` | 请求 **form-urlencoded**（真实端点只吃 form；BinFlow 同时接受 JSON 作扩展）；成功 200 JSON：`access_token`（必返）/ `token_type`（必返，固定 `"Bearer"`）/ `expires_in`（秒，**0=永不过期且该字段缺省**）/ `scope`（必返，空格串）/ `refresh_token`（仅 refreshable 时）；**创建响应无 `token_id`**，BinFlow 作**超集扩展**附加（便于按 id 吊销，无害）。参数：`grant_type`（缺省 `client_credentials`，未知值 400 `unsupported_grant_type`）/`scope`（malformed → 400 `invalid_scope`）/`expires_in`（负数 → 400 `invalid_request`）/`audience`（缺省本实例）/`refreshable`（true 须配有限 expires_in）。**M1 子集**：`username`/`expires_in`/`refreshable` 参数可不实现（admin 无参创建即可）；不做刷新流。错误体走「token OAuth」层（auth-model.md §3，高置信度） | 兼容（子集） | P0 | 高 | C21a |
+| E-18 | `POST /binflow/api/security/token/revoke` | 请求 **form-urlencoded**，参数 `token` **XOR** `token_id`：同传 → 400 `token and token_id are mutually exclusive`；都缺 → 400 `token or token_id is required`；成功 → **200 纯文本 `Token revoked`**；目标不存在/已吊销 → **仍 200，body `Token not found`**（幂等不报错）；吊销后该 token 任何请求 → 401。admin only。错误体走「token OAuth」层（auth-model.md §3.4，高置信度） | 兼容 | P0 | 高 | C21c |
+| E-19 | 建用户（双路由）：**`PUT /binflow/api/security/users/{name}`（真实路径，201 无 body）** + `POST /binflow/api/security/users`（BinFlow 自有，201）；`GET /binflow/api/security/users` → 200 数组，元素 `{"name","uri","realm"}`；`email`/`password` 空 → 400（真实校验链文案见 auth-model.md §1.3，BinFlow 自有 POST 路由执行同一条链：email blank → 400、password blank → 400、保留名 `_system_` → 400）；响应永不含口令；M1 不做组管理（M4） | 兼容（PUT 路由+GET 列表）/ 语义等同但路径不同（POST 路由） | P0 | 高 | C22a |
 | E-20 | 认证头：Basic（口令或 Token 充当口令）、`X-JFrog-Art-Api` | 失败 401 + `WWW-Authenticate: Basic realm=...` + E-01；匿名读默认开（Q2），写与管理 API 恒需认证 | 兼容 | P0 | 高 | C02/C21b/C23 |
 | E-21 | 错误体格式 E-01（所有非 2xx） | `{"errors":[{status,message}]}` | 兼容 | P0 | 高 | C12 |
 | E-22 | `GET /binflow/api/v1/health` | BinFlow 自有：`{"status":"ok"}` + 各子系统状态 | /api/v1 | P0 | — | C28a |
@@ -365,20 +373,33 @@ curl -su admin:$ADMIN_PW -o /dev/null -w '%{http_code}\n' $BASE/binflow/generic-
 curl -su admin:$ADMIN_PW -X DELETE $BASE/binflow/api/repositories/generic-local -o /dev/null -w '%{http_code}\n'            # 400（非空）
 curl -su admin:$ADMIN_PW -X DELETE "$BASE/binflow/api/repositories/generic-local?deleteContent=true" -o /dev/null -w '%{http_code}\n'  # 2xx
 
-# C20 改密（E-16）
+# C20 改密（E-16，双路由；v1.3：成功后导出新口令供后续命令使用）
 curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/security/password \
-  -H 'Content-Type: application/json' -d '{"oldPassword":"password","newPassword":"n3w!pw"}' -o /dev/null -w '%{http_code}\n' # 2xx
+  -H 'Content-Type: application/json' -d '{"oldPassword":"password","newPassword":"n3w!pw"}' -o /dev/null -w '%{http_code}\n' # 200
+curl -su admin:n3w!pw -X POST $BASE/binflow/api/security/users/authorization/changePassword \
+  -H 'Content-Type: application/json' \
+  -d '{"userName":"admin","oldPassword":"n3w!pw","newPassword1":"n3w!pw2","newPassword2":"n3w!pw2"}' -o /dev/null -w '%{http_code}\n'  # 200（真实路径别名）
+curl -su admin:n3w!pw -o /dev/null -w '%{http_code}\n' $BASE/binflow/api/repositories    # 401（旧口令随即失效）
+export ADMIN_PW=n3w!pw2                                                                 # 后续命令统一用新口令
 
-# C21 Token 发放/使用/吊销（E-17/E-18/E-20）
-TOKEN=$(curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/security/token -H 'Content-Type: application/json' -d '{}' | jq -r .access_token)
+# C21 Token 发放/使用/吊销（E-17/E-18/E-20；v1.3：form 形态）
+TOKEN=$(curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/security/token \
+  -d 'grant_type=client_credentials' | jq -r .access_token)          # form；响应必含 access_token/token_type=Bearer/scope（+BinFlow 扩展 token_id）
 curl -su admin:$TOKEN -o /dev/null -w '%{http_code}\n' $BASE/binflow/api/repositories   # 200
 curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/security/token/revoke \
-  -H 'Content-Type: application/json' -d "{\"token\":\"$TOKEN\"}" -o /dev/null -w '%{http_code}\n'                          # 2xx
+  -d "token=$TOKEN" -o /dev/null -w '%{http_code}\n'                # 200 纯文本 "Token revoked"
 curl -su admin:$TOKEN -o /dev/null -w '%{http_code}\n' $BASE/binflow/api/repositories   # 401
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/security/token/revoke \
+  -d "token=$TOKEN"                                                  # 200 纯文本 "Token not found"（幂等）
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/security/token/revoke \
+  -d "token=$TOKEN&token_id=x" -o /dev/null -w '%{http_code}\n'      # 400（token 与 token_id 互斥）
 
-# C22 用户与路径 ACL（E-19/E-24）
+# C22 用户与路径 ACL（E-19/E-24；v1.3：双路由建用户 + email 必填）
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/security/users/ci-bot -H 'Content-Type: application/json' \
+  -d '{"name":"ci-bot","email":"ci@example.com","password":"ci-pw","admin":false}' -o /dev/null -w '%{http_code}\n'  # 201 无 body（真实路径）
+curl -su admin:$ADMIN_PW $BASE/binflow/api/security/users | jq -r '.[].name' | grep -x ci-bot   # 退出码 0（列表元素 {name,uri,realm}）
 curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/security/users -H 'Content-Type: application/json' \
-  -d '{"name":"ci-bot","password":"ci-pw","admin":false}' -o /dev/null -w '%{http_code}\n'  # 201
+  -d '{"name":"ci-bot-2","password":"ci-pw2","admin":false}' -o /dev/null -w '%{http_code}\n'  # 400（email 缺失，自有路由同校验链）
 curl -su ci-bot:ci-pw -T artifact.bin $BASE/binflow/generic-local/other/z.bin -o /dev/null -w '%{http_code}\n'   # 403（未授权写）
 curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/permissions -H 'Content-Type: application/json' -d '{
   "name":"ci-out-rw","repos":["generic-local"],"includePatterns":["ci-out/**"],
@@ -438,17 +459,17 @@ M1 通过以下四条边界保证后续协议可以**追加**而非**返工**：
 3. **认证前向兼容**：M1 的 Basic/Token 中间件必须可按路径前缀挂载（M2 的 `/v2/` 匿名可探——与 Q2 匿名读默认开一致、`/v2/` 内容操作需 Bearer，M3 各协议匿名读开关独立、默认值遵循 Q2 先例）；M1 不做 Bearer/token-endpoint 本体。
 4. **明确不承诺**：M1 不包含任何 Docker manifest/blob 语义、Maven metadata 语义、npm tarball 语义、PyPI simple index 语义；QA 在 M1 只验证 E-26（这些路径 404）。
 
-### 5.5 校准记录（v1.2：逆向规格已落地，六项全部定案）
+### 5.5 校准记录（v1.2 依据 rest-api/repo-semantics 收口 ①~④⑥；v1.3 依据 auth-model.md 收口 ⑤，六项全部定案）
 
-v1.0/v1.1 的六项待校准项，依据 `docs/reverse/rest-api.md` 与 `docs/reverse/repo-semantics.md` 定案如下；除 ⑤ 外均为高置信度（反编译 + 官方文档双证）。全文对应位置（FR-AC / E-xx / C 命令）已同步更新。
+v1.0/v1.1 的六项待校准项，依据 `docs/reverse/` 逆向规格定案如下；全部为高置信度（反编译 + 官方文档双证）。全文对应位置（FR-AC / E-xx / C 命令）已同步更新。
 
-| # | 项 | v1.1 暂定值 | **v1.2 定案** | 依据 |
+| # | 项 | v1.1 暂定值 | **定案**（v1.2 收口 ①~④⑥，v1.3 收口 ⑤） | 依据 |
 |---|---|---|---|---|
 | ① | DELETE 文件成功状态码 | 204（待校准） | **204 无 body**；重复删 404 幂等 | rest-api.md §1.1、repo-semantics.md §4（高） |
 | ② | checksum deploy 未命中状态码 | 404（待校准） | **404**（blob 不存在或 checksum 格式非法均 404；两专用 checksum 头都缺 → 400） | rest-api.md §1.3（高） |
 | ③ | X-Checksum 不一致状态码与文案 | 400（待校准） | **409**，message 含 received/actual 双值（`Checksum error for '<path>': received '<x>' but actual is '<y>'` 类文案；repo 默认策略 `client-checksums`）；若 repo 配置 `server-generated-checksums` 则容忍接受（M1 只实现默认策略） | repo-semantics.md §5（高） |
 | ④ | mkdir（尾斜杠 PUT）行为 | 2xx 建目录（待校准） | **201** + FolderInfo 形态 JSON | rest-api.md §1.1（高） |
-| ⑤ | token 响应字段名 | 按 Artifactory 公开文档（待校准） | **按 BinFlow 自有语义实现**（暂定 `access_token` / `token_id` / `expires_in`，E-17 不变）；`docs/reverse/auth-model.md` 缺位，已立 T-23 补规格，落地后按同一流程回写 | auth-model.md（缺位，T-23 进行中） |
+| ⑤ | token 响应字段名 | 按 Artifactory 公开文档（待校准） | **已定案（v1.3，auth-model.md §3.1 高置信度）**：真实响应字段集 = `access_token`（必返）/ `token_type`（必返 `"Bearer"`）/ `expires_in`（秒，0=永不过期时缺省）/ `scope`（必返）/ `refresh_token`（仅 refreshable）；**创建响应无 `token_id`**。BinFlow 按真实字段集返回 + `token_id` 作超集扩展；请求 form-urlencoded（JSON 为 BinFlow 扩展）。revoke 语义同步定案（form、token XOR token_id、200 `Token revoked`/`Token not found` 幂等）。详见 E-17/E-18 与 auth-model.md §5.1/§5.2 | auth-model.md §3（高，T-23 已落地） |
 | ⑥ | item info 字段全集 | §FR-3-AC6 简表（待校准） | 按 rest-api.md §3 定案：含 `lastUpdated`；`size` 为**字符串**；含 `originalChecksums{sha1,md5,sha256}`；`path` 以 `/` 开头；目录 `children[]` 按名排序（FR-3-AC6 已更新） | rest-api.md §3（高） |
 
 另两条增补规格一并纳入（不扩大 M1 范围，均为 P2）：ETag=sha1（无引号）+ 304/416 条件请求语义（FR-4-AC15）、同 checksum 幂等重传免覆盖权限检查（§4 FR-4 注，FR-5 实现必须保留该分支）。
@@ -509,7 +530,7 @@ qa-engineer 按顺序执行，产出 `reports/agents/T-<qa票>-qa.md`，全绿 =
 
 1. §4 全部 P0/P1 AC 通过 qa-engineer 验证并附命令输出证据（P2 延后须在 BOARD 记录）；
 2. §7 剧本全绿；
-3. 逆向规格 4 份（rest-api / storage-layout / config-formats / repo-semantics M1 部分）已落地，§5.5 六项校准已回写本 PRD（v1.2 完成；⑤ token 字段以 T-23 产出的 auth-model.md 为准再校准）；
+3. 逆向规格 5 份（rest-api / storage-layout / config-formats / repo-semantics / auth-model）已落地，§5.5 六项校准已全部回写本 PRD（v1.2 + v1.3 完成，无遗留）；
 4. README 快速开始可复跑；
 5. 主会话完成 `m1-done` tag。
 

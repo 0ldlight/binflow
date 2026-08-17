@@ -59,9 +59,6 @@
 - **T-10** [P0] metadata：SQLite Store+迁移器+001_init `role:dev-go-core` `area:internal/metadata` `dep:T-7`
   AC 摘要：① Store+六子接口+embedded 迁移器+modernc.org/sqlite+WAL+零 CGO ② 9 表 DDL（permissions 按 E-24 两表形态，T-22 已回写架构 §6）+admin 种子 ③ -race 单测
   状态：在途（编码中，12 文件已见）。review 届时双 code-reviewer。
-- **T-24** [P1] PRD v1.3：auth-model 校准回写（E-16/E-17/E-18/E-19） `role:product-manager` `area:docs/prd` `dep:T-23`
-  AC: ① E-17 token 响应字段集按 auth-model.md §3 修订（access_token/token_type/expires_in/scope/refresh_token；token_id 作 BinFlow 超集；请求兼容 form-urlencoded）② E-18 revoke form 参数 XOR 语义+幂等 200 ③ E-16 改密补真实路径别名+旧口令错误 400 ④ E-19 建用户补 PUT /api/security/users/{name} 兼容路由；§0 修订记录追加 v1.3
-  状态：22:4x 派发，在途。
 
 ## 👀 评审中（review）
 
@@ -96,6 +93,8 @@
   go.mod（github.com/lzwzzy/binflow, go 1.26）/ Makefile（build/test/lint/dev/clean，GOPROXY 镜像）/ .golangci.yml v2 / CI 三步 / cmd 骨架 / internal 九包 doc.go。conductor 亲测复现：build 2.58MB、test PASS、lint 0 issues、gofmt 空、CGO_ENABLED=0 通过。遗留：CI 首跑绿待推送后确认；go.sum 待首依赖生成。
 - **T-23** [P1] 补逆向规格 auth-model.md `role:reverse-engineer` `area:docs/reverse` `dep:T-3` — done 2026-08-17
   273 行六节：用户模型/改密/Token 生命周期/权限概览/M1 校准建议/待验证清单；置信度高 41/中 16/低 1。核验通过（clean-room 零违规）。关键校准：token 创建响应真实字段集（无 token_id）+form 编码；revoke 幂等 200；改密现行路径与 400 语义；建用户真实为 PUT {name}。→ 触发 T-24 PRD v1.3。
+- **T-24** [P1] PRD v1.3 auth 校准回写 `role:product-manager` `area:docs/prd` `dep:T-23` — done 2026-08-17
+  E-17 form 编码+真实字段集（token_id 超集扩展）；E-18 revoke XOR+幂等 200；E-16 双路由+旧口令 400；E-19 PUT {name} 兼容路由；§5.1 错误体三分层（制品 errors[]/用户管理纯文本/token OAuth）；§5.5 六项校准全部收口；顺手修 C20 剧本 ADMIN_PW 连锁 401 缺陷。核验通过（旧口径零残留）。T-15 派发时附 v1.3 口径。
 
 ## 🚫 阻塞（blocked）
 
