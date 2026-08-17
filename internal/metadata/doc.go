@@ -8,7 +8,7 @@
 //	store.go          Open: driver dispatch, PRAGMAs, admin seed (sqliteStore)
 //	migrate.go        embedded migrator (transactions + schema_migrations ledger)
 //	migrations/       SQL per dialect; sqlite live, postgres placeholder
-//	password.go       argon2id hash/verify (t=1, m=64MiB, p=4, PHC strings)
+//	password.go       argon2id hash/verify (t=1, m=64MiB, p=4, PHC strings; auth re-exports)
 //	substores.go      RepoStore / NodeStore / BlobStore implementations
 //	substores_auth.go UserStore / TokenStore / PermissionStore / AuditStore
 //
@@ -17,7 +17,7 @@
 // database handle is pooled at one connection (SQLite single-writer) and the
 // sub-stores are safe for concurrent use.
 //
-// The argon2id helpers live here temporarily: the admin seed needs them and
-// the auth package (T-11) is expected to reuse them; once auth lands they may
-// move up to internal/auth if that keeps a cleaner boundary.
+// The argon2id helpers stay here (T-11): auth imports this package for its
+// store adapters, so the implementation cannot move up without a cycle;
+// internal/auth re-exports them as the auth-owned surface.
 package metadata

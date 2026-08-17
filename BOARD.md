@@ -50,14 +50,12 @@
 
 ## 🔨 进行中（doing）
 
-- **T-11** [P0] auth/audit（修复轮） `role:dev-go-core` `area:internal/auth、internal/audit`
-  状态：review REQUEST_CHANGES（3 blocker 探针实证：哨兵契约破裂 / pathmatch 文件路径 over-grant fail-open / fail-closed 零覆盖）→ 原 agent 修复在途。B-2 修复将触及 Can 契约 → 需 architect 跟进一句话回写。
+- **T-12** [P0] repo.Service（修复轮） `role:dev-go-core` `area:internal/repo`
+  状态：review REQUEST_CHANGES（2 blocker 同根因：尾斜杠前缀进 likePrefix 变 "d//%"——prune 误删目录行 + List 双形态不一致；事务边界被证实过硬）→ 原 agent 修复在途。
 
 ## 👀 评审中（review）
 
-- **T-12** [P0] repo.Service `role:dev-go-core` `area:internal/repo` `dep:T-9,T-10,T-11`
-  状态：编码完成，conductor 复现通过（race 17.4s 绿/24 测试/lint 0/全仓零 CGO；T-11 类型别名合流干净）→ 正确性 code-reviewer 在途（Put 事务边界/并发同名/幂等重传真实性/目录 marker 安全性）。
-  自定行为（日志标注）：目录行共享 marker sha256 + blobs 行满足 FK；UpdateRepo type/packageType 不可变；低置信度项（blackedOut/?atomic）未实现未猜测。
+（空）
 
 ## 🧪 测试中（qa）
 
@@ -101,6 +99,9 @@
 - **T-9** [P0] storage 引擎 `role:dev-go-storage` `area:internal/storage` `dep:T-7` — done 2026-08-18（经三轮收敛）
   11 文件 ~1200 行实现 + 40 测试。三轮评审收敛：架构 B1/M1/M2（Close 契约、会话毒化、state 形状）→ 正确性探针 singleflight panic 死锁（defer teardown 修复 + waiter 释放测试）→ rename 失败/GC 保护场景固化。conductor 复验：race 104s 全绿、lint 0、零 CGO、包边界红线（binflow 依赖=1）、512MB RSS 增量为负。
   契约偏离（经 T-25 回写架构）：GC 集合形回调、Close() 入接口、state.json version 字段。已知边界：单 data dir 单 Engine 实例（doc.go 约束）。
+- **T-11** [P0] auth 与 audit `role:dev-go-core` `area:internal/auth、internal/audit` `dep:T-8,T-10` — done 2026-08-18（经一轮修复）
+  auth 13 文件 + audit 2 文件，29 测试/94 子用例。review 3 blocker 全修复并复审通过：B-1 哨兵导出别名（errors.Is 双拼法钉死）；B-2 pathmatch folder 语义（尾斜杠=folder，matchStart 仅 folder 生效，over-grant 探针三行钉死）；B-3 fail-closed 三测试 + 日志卫生。conductor 复现：race 23s 绿 / lint 0。
+  新契约待 architect 回写（§3.4）：Can 的 path 尾斜杠=folder；文件路径与 pattern 全段匹配。顺手：Redact camelCase/header、ChangePassword 顺序对齐规格、Touch 每分钟节流。
 
 ## 🚫 阻塞（blocked）
 
