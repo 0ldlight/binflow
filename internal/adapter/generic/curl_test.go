@@ -101,6 +101,20 @@ func shasum(t *testing.T, dir, file string) string {
 	return strings.Fields(string(out))[0]
 }
 
+// sha1OfFile computes the sha1 of a fixture with the host tool. The ETag the
+// server emits is the artifact's sha1 (rest-api.md 1.4); recomputing it here
+// keeps the curl assertions independent of the Go digest code under test.
+func sha1OfFile(t *testing.T, dir, file string) string {
+	t.Helper()
+	cmd := exec.Command("shasum", "-a", "1", "--", file) //nolint:gosec // fixture digest expectation
+	cmd.Dir = dir
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("shasum -a 1: %v (%s)", err, out)
+	}
+	return strings.Fields(string(out))[0]
+}
+
 func TestCurlRoundtrip(t *testing.T) {
 	if _, err := exec.LookPath("curl"); err != nil {
 		t.Skip("curl not available")
@@ -277,6 +291,117 @@ func TestCurlRoundtrip(t *testing.T) {
 				"-o", "/dev/null", "-w", "%{http_code}", base+"/generic-local/"+long+".bin")
 			if out != "400" {
 				t.Fatalf("oversize = %s", out)
+			}
+		}},
+		{"Range 206 + first 100 bytes (FR-4-AC14)", func(t *testing.T) {
+			out, _ := curl(t, dir, "-s", "-u", "admin:pw", "-r", "0-99",
+				"-D", "r.headers", "-o", "r.part", "-w", "%{http_code}",
+				base+"/generic-local/acme/v2.bin")
+			if out != "206" {
+				t.Fatalf("range 0-99 = %s, want 206", out)
+			}
+			if info, err := os.Stat(filepath.Join(dir, "r.part")); err != nil || info.Size() != 100 {
+				t.Fatalf("range part size = %v (%v), want 100", info, err)
+			}
+			hdr, _ := os.ReadFile(filepath.Join(dir, "r.headers"))
+			hs := strings.ToLower(string(hdr))
+			if !strings.Contains(hs, "content-range: bytes 0-99/262144") {
+				t.Fatalf("Content-Range wrong:\n%s", hdr)
+			}
+			// Byte-exact: the first 100 bytes of the fixture, not just a count.
+			full, err := os.ReadFile(fixture)
+			if err != nil {
+				t.Fatal(err)
+			}
+			part, err := os.ReadFile(filepath.Join(dir, "r.part"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(part) != string(full[:100]) {
+				t.Fatal("range part is not the first 100 bytes of the artifact")
+			}
+		}},
+		{"Range mid-file slice", func(t *testing.T) {
+			out, _ := curl(t, dir, "-s", "-u", "admin:pw", "-r", "1000-1099",
+				"-o", "rmid.part", "-w", "%{http_code}", base+"/generic-local/acme/v2.bin")
+			if out != "206" {
+				t.Fatalf("range 1000-1099 = %s, want 206", out)
+			}
+			full, _ := os.ReadFile(fixture)
+			part, err := os.ReadFile(filepath.Join(dir, "rmid.part"))
+			if err != nil || string(part) != string(full[1000:1100]) {
+				t.Fatalf("mid-file slice wrong (%v)", err)
+			}
+		}},
+		{"Range suffix form", func(t *testing.T) {
+			out, _ := curl(t, dir, "-s", "-u", "admin:pw", "-r", "-100",
+				"-D", "rs.headers", "-o", "rs.part", "-w", "%{http_code}",
+				base+"/generic-local/acme/v2.bin")
+			if out != "206" {
+				t.Fatalf("range -100 = %s, want 206", out)
+			}
+			hdr, _ := os.ReadFile(filepath.Join(dir, "rs.headers"))
+			if !strings.Contains(strings.ToLower(string(hdr)), "content-range: bytes 262044-262143/262144") {
+				t.Fatalf("suffix Content-Range wrong:\n%s", hdr)
+			}
+		}},
+		{"Range open form", func(t *testing.T) {
+			out, _ := curl(t, dir, "-s", "-u", "admin:pw", "-r", "262044-",
+				"-o", "ro.part", "-w", "%{http_code}", base+"/generic-local/acme/v2.bin")
+			if out != "206" {
+				t.Fatalf("range 262044- = %s, want 206", out)
+			}
+			if info, err := os.Stat(filepath.Join(dir, "ro.part")); err != nil || info.Size() != 100 {
+				t.Fatalf("open range size = %v (%v), want 100", info, err)
+			}
+		}},
+		{"Range beyond EOF is 416 with bytes */total", func(t *testing.T) {
+			out, _ := curl(t, dir, "-s", "-u", "admin:pw", "-r", "999999999-",
+				"-D", "r416.headers", "-w", "%{http_code}", base+"/generic-local/acme/v2.bin")
+			if out != "416" {
+				t.Fatalf("range 999999999- = %s, want 416", out)
+			}
+			hdr, _ := os.ReadFile(filepath.Join(dir, "r416.headers"))
+			if !strings.Contains(strings.ToLower(string(hdr)), "content-range: bytes */262144") {
+				t.Fatalf("416 Content-Range wrong:\n%s", hdr)
+			}
+		}},
+		{"If-None-Match 304 (bare, quoted, weak)", func(t *testing.T) {
+			etag := sha1OfFile(t, dir, "artifact.bin")
+			for _, form := range []string{etag, `"` + etag + `"`, `W/"` + etag + `"`} {
+				out, _ := curl(t, dir, "-s", "-u", "admin:pw",
+					"-H", "If-None-Match: "+form, "-o", "/dev/null", "-w", "%{http_code}",
+					base+"/generic-local/acme/v2.bin")
+				if out != "304" {
+					t.Fatalf("If-None-Match %s = %s, want 304", form, out)
+				}
+			}
+		}},
+		{"If-None-Match mismatch serves 200", func(t *testing.T) {
+			out, _ := curl(t, dir, "-s", "-u", "admin:pw",
+				"-H", "If-None-Match: "+strings.Repeat("0", 40),
+				"-o", "/dev/null", "-w", "%{http_code}", base+"/generic-local/acme/v2.bin")
+			if out != "200" {
+				t.Fatalf("If-None-Match mismatch = %s, want 200", out)
+			}
+		}},
+		{"If-Modified-Since -z both sides", func(t *testing.T) {
+			// NOTE the date format: curl 8.7.1's -z parser silently drops the
+			// header for ISO-8601 input (only RFC 1123-ish forms reach the
+			// wire); the assertions use explicit IMF-fixdate so a curl upgrade
+			// that changes the parser fails loudly here instead of passing
+			// vacuously with no If-Modified-Since sent at all.
+			// Stale date: the resource changed afterwards -> 200.
+			out, _ := curl(t, dir, "-s", "-u", "admin:pw", "-z", "Mon, 01 Jan 2020 00:00:00 GMT",
+				"-o", "/dev/null", "-w", "%{http_code}", base+"/generic-local/acme/v2.bin")
+			if out != "200" {
+				t.Fatalf("-z stale = %s, want 200", out)
+			}
+			// Far-future date: nothing modified since -> 304.
+			out2, _ := curl(t, dir, "-s", "-u", "admin:pw", "-z", "Tue, 01 Jan 2030 00:00:00 GMT",
+				"-o", "/dev/null", "-w", "%{http_code}", base+"/generic-local/acme/v2.bin")
+			if out2 != "304" {
+				t.Fatalf("-z future = %s, want 304", out2)
 			}
 		}},
 	}

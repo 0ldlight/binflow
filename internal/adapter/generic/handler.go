@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -233,7 +234,9 @@ func (h *Handler) writeCreated(w http.ResponseWriter, r *http.Request, repoKey, 
 
 // handleGet streams the artifact body (GET) or just the metadata headers
 // (HEAD) per rest-api.md section 1.4: checksum headers, ETag = sha1
-// (unquoted), Last-Modified, Accept-Ranges, Content-Type.
+// (unquoted), Last-Modified, Accept-Ranges, Content-Type. Range and
+// conditional requests (FR-4-AC14/AC15) are honored on both verbs: a HEAD
+// answers 206/304/416 exactly like a GET, minus the body.
 func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, relPath string) {
 	rc, node, err := h.svc.Get(ctx, p, repoKey, relPath)
 	if err != nil {
@@ -273,13 +276,46 @@ func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.
 	}
 	hdr.Set("Accept-Ranges", "bytes")
 	hdr.Set("Content-Type", mimeOr(node.Mime))
-	hdr.Set("Content-Length", fmt.Sprintf("%d", node.Size))
 
-	if r.Method == http.MethodHead {
-		w.WriteHeader(http.StatusOK)
+	// Conditional requests first: a fresh store answers 304 with no body.
+	if evalConditional(r, sums.sha1, lastMod) {
+		w.WriteHeader(http.StatusNotModified)
 		return
 	}
+
+	// Then Range: one satisfiable byte range slices the stream (206); an
+	// unsatisfiable/malformed spec is a 416; anything BinFlow does not
+	// implement (multi-range, other units) is ignored and serves the full
+	// 200 body (FR-4-AC14: never 5xx).
+	parser := httpRangeParser{total: node.Size}
+	rng, malformed, ignore := parser.parseRange(r.Header.Get("Range"))
+	switch {
+	case malformed:
+		hdr.Set("Content-Range", "bytes */"+strconv.FormatInt(node.Size, 10))
+		hdr.Del("Content-Length") // an unsatisfiable range has no body length
+		w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
+		return
+	case !ignore && rng.length() > 0:
+		if _, err := rc.Seek(rng.start, io.SeekStart); err != nil {
+			writeError(w, http.StatusInternalServerError, fmt.Sprintf("seek blob for range: %v", err))
+			return
+		}
+		hdr.Set("Content-Range", rng.contentRange(node.Size))
+		hdr.Set("Content-Length", strconv.FormatInt(rng.length(), 10))
+		w.WriteHeader(http.StatusPartialContent)
+		if r.Method == http.MethodHead {
+			return
+		}
+		_, _ = io.CopyN(w, rc, rng.length())
+		return
+	}
+
+	// Full 200 body.
+	hdr.Set("Content-Length", strconv.FormatInt(node.Size, 10))
 	w.WriteHeader(http.StatusOK)
+	if r.Method == http.MethodHead {
+		return
+	}
 	_, _ = io.Copy(w, rc) // client aborts surface as short writes, not errors
 }
 
