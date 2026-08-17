@@ -21,8 +21,6 @@
 
 ## 🔨 进行中（doing）
 
-- **T-1** [P0] M1 里程碑 PRD `role:product-manager` `area:docs/prd`
-  AC: ① docs/prd/milestone-1.md 覆盖 M1 全部条目，每功能有可验证 AC ② 兼容性矩阵到真实客户端命令级 ③ M1 边界（不做 remote/virtual/控制台/多协议）明确
 - **T-2** [P0] M1 架构设计与元数据 schema 定稿 `role:architect` `area:docs/design`
   AC: ① docs/design/architecture.md 含包结构/存储引擎设计/SQLite schema DDL/适配器 SPI/配置模型 ② 新决策追加 ADR-0005+，不推翻既有 ADR ③ 未参考 reverse-src/
 - **T-3** [P0] Artifactory M1 行为规格（clean-room） `role:reverse-engineer` `area:docs/reverse`
@@ -38,7 +36,9 @@
 
 ## ✅ 已完成（done）
 
-（空）
+- **T-1** [P0] M1 里程碑 PRD `role:product-manager` `area:docs/prd` — done 2026-08-17
+  产出 docs/prd/milestone-1.md（486 行）：FR-1~FR-6 全 AC、26 端点兼容矩阵、C01~C30 验收命令、8 项开放问题附暂行假设。核验通过。
+  备注：Q7（module 路径）已由用户定值 github.com/lzwzzy/binflow；其余开放问题（Q1/Q2/Q3/Q4/Q5/Q6/Q8）待用户决策，不阻塞开发（均有暂行假设）。
 
 ## 🚫 阻塞（blocked）
 
