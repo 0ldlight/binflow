@@ -50,13 +50,14 @@
 
 ## 🔨 进行中（doing）
 
-- **T-10** [P0] metadata（修复轮） `role:dev-go-core` `area:internal/metadata`
-  状态：双 review 裁决 REQUEST_CHANGES → 修 B1 LIKE 大小写误删 + B2 池/PRAGMA。原 agent 在途；磁盘已见 DSN PRAGMA + NumCPU 池成形。
 - **T-8** [P0] config（修复轮） `role:dev-go-core` `area:internal/config`
   状态：review REQUEST_CHANGES（3 blocker + 1 major，探针实证）→ 修 B1 多文档 YAML 绕过扫描、B2 file::memory: 击穿、B3 ADMIN_PASSWORD 大小写静默失效、M1 DSN 回显口令。原 agent 在途。
 - **T-9** [P0] storage（修复轮） `role:dev-go-storage` `area:internal/storage`
   状态：双 review 合并（correctness APPROVE 在途待收 + arch REQUEST_CHANGES）→ 修 B1 ErrEngineClosed 契约不符（Delete/GC 缺检查）+ M1 Append 部分写毒化会话 + M2 state.json 形状对齐 §4.1。原 agent 在途。
   架构偏离两处（GC 集合形回调、Close() 入接口）被判合理 → 回写清单归 architect 票。
+- **T-11** [P0] auth 与 audit：认证/Token/路径 ACL `role:dev-go-core` `area:internal/auth、internal/audit` `dep:T-8,T-10`
+  AC 摘要：① Authenticator（Basic/Token/X-JFrog-Art-Api/匿名）+argon2id+TokenRegistry（只存 sha256）② Authorizer.Can：admin 全过；命名 permission target；匿名仅内容 GET/HEAD ③ 权限矩阵/token 生命周期/改密单测
+  状态：00:0x 派发（T-10 done 解锁 dep；T-8 修复不阻塞 auth 包编码），在途。
 
 ## 👀 评审中（review）
 
@@ -93,6 +94,9 @@
   273 行六节：用户模型/改密/Token 生命周期/权限概览/M1 校准建议/待验证清单；置信度高 41/中 16/低 1。核验通过（clean-room 零违规）。关键校准：token 创建响应真实字段集（无 token_id）+form 编码；revoke 幂等 200；改密现行路径与 400 语义；建用户真实为 PUT {name}。→ 触发 T-24 PRD v1.3。
 - **T-24** [P1] PRD v1.3 auth 校准回写 `role:product-manager` `area:docs/prd` `dep:T-23` — done 2026-08-17
   E-17 form 编码+真实字段集（token_id 超集扩展）；E-18 revoke XOR+幂等 200；E-16 双路由+旧口令 400；E-19 PUT {name} 兼容路由；§5.1 错误体三分层（制品 errors[]/用户管理纯文本/token OAuth）；§5.5 六项校准全部收口；顺手修 C20 剧本 ADMIN_PW 连锁 401 缺陷。核验通过（旧口径零残留）。T-15 派发时附 v1.3 口径。
+- **T-10** [P0] metadata：SQLite Store+迁移器+001_init `role:dev-go-core` `area:internal/metadata` `dep:T-7` — done 2026-08-17（经一轮修复）
+  14 文件：api/store/migrate/password/substores + 001_init.sql（9 表，permission 两表形态）+ 35 测试。双 review：正确性 APPROVE；架构 REQUEST_CHANGES 两 blocker 均已修复并复审通过——B1 LIKE 大小写误删（case_sensitive_like 入 DSN + 6 子用例破坏性断言）、B2 池 NumCPU + 三 PRAGMA 挪 DSN（四连接并发断言 + fail-fast）。conductor 复现：race 12.8s 绿 / lint 0。
+  遗留（minor 不阻塞）：FilterUnreferenced TOCTOU 契约（T-13 派单附注）、tokenStore.Touch 上下文（T-11 顺车）、双进程首启竞态（M4 技术债）。
 
 ## 🚫 阻塞（blocked）
 
