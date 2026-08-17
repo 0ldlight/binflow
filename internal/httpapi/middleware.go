@@ -1,0 +1,310 @@
+package httpapi
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+	"net/http"
+	"strings"
+	"sync/atomic"
+	"time"
+
+	"github.com/lzwzzy/binflow/internal/auth"
+)
+
+// Middleware wraps one HTTP handler layer (architecture section 7.2).
+type Middleware func(http.Handler) http.Handler
+
+// chain composes middlewares so the FIRST entry is the outermost layer:
+// chain(a, b, c)(h) runs a -> b -> c -> h. The order below is fixed by the
+// architecture and is asserted by TestMiddlewareOrder.
+func chain(ms ...Middleware) func(http.Handler) http.Handler {
+	return func(final http.Handler) http.Handler {
+		h := final
+		for i := len(ms) - 1; i >= 0; i-- {
+			h = ms[i](h)
+		}
+		return h
+	}
+}
+
+// requestID mints a per-request correlation id, echoes it on the response
+// and stores it for the access log. Runs FIRST so every later log line —
+// including the access log's own record of a panicking request — can refer
+// to it.
+func requestID(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := newRequestID()
+		w.Header().Set(HeaderRequestID, id)
+		next.ServeHTTP(w, r.WithContext(withRequestID(r.Context(), id)))
+	})
+}
+
+// statusRecorder captures the response status and byte counts for the
+// access log. WriteHeader is recorded once (later calls are no-ops, same as
+// net/http's own behavior).
+type statusRecorder struct {
+	http.ResponseWriter
+	status   int
+	bytesOut int64
+}
+
+func newStatusRecorder(w http.ResponseWriter) *statusRecorder {
+	return &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+}
+
+func (s *statusRecorder) WriteHeader(code int) {
+	if s.status == http.StatusOK && code != http.StatusOK {
+		s.status = code
+	}
+	s.ResponseWriter.WriteHeader(code)
+}
+
+func (s *statusRecorder) Write(b []byte) (int, error) {
+	n, err := s.ResponseWriter.Write(b)
+	s.bytesOut += int64(n)
+	return n, err
+}
+
+// Flush forwards to the wrapped writer when it supports flushing (streaming
+// downloads must not be buffered by the recorder).
+func (s *statusRecorder) Flush() {
+	if f, ok := s.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+// bytesIn counts the request body size for the access log.
+func bytesIn(r *http.Request) int64 {
+	if r.ContentLength > 0 {
+		return r.ContentLength
+	}
+	return 0
+}
+
+// accessLog writes one structured log line per request (NFR-S3): method,
+// path, status, duration_ms, remote_addr, user (anonymous when
+// unauthenticated), bytes_in, bytes_out and the request id. It NEVER logs
+// headers — the Authorization / X-JFrog-Art-Api values ride in them. The
+// path is logged from EscapedPath so the record matches what the client
+// sent (and dot-segment probes stay visible to operators).
+//
+// Position: second in the chain, OUTSIDE recover, so a panicking handler's
+// aborted request still gets its access-log line with the 500 recover
+// produced. The principal is threaded back OUT of the inner chain through
+// the mutable logFields holder below: the authenticator runs deeper in
+// the chain, so a plain context value could never propagate outward
+// (contexts only flow inward).
+func accessLog(logger *slog.Logger) Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			start := time.Now()
+			rec := newStatusRecorder(w)
+			fields := &logFields{}
+			r = r.WithContext(context.WithValue(r.Context(), ctxKeyLogFields, fields))
+			next.ServeHTTP(rec, r)
+			logger.LogAttrs(r.Context(), slog.LevelInfo, "access",
+				slog.String("method", r.Method),
+				slog.String("path", r.URL.EscapedPath()),
+				slog.Int("status", rec.status),
+				slog.Int64("duration_ms", time.Since(start).Milliseconds()),
+				slog.String("remote_addr", r.RemoteAddr),
+				slog.String("user", fields.userName()),
+				slog.Int64("bytes_in", bytesIn(r)),
+				slog.Int64("bytes_out", rec.bytesOut),
+				slog.String("request_id", requestIDFrom(r.Context())),
+			)
+		})
+	}
+}
+
+// logFields is the outward thread for values the inner chain computes.
+// It is written once by the authenticator (before any handler runs) and
+// read once by the access log after the inner chain returns, so the
+// single slot needs no lock; the atomic value keeps even a pathological
+// concurrent write honest.
+type logFields struct {
+	user atomic.Value // string
+}
+
+func (f *logFields) setUserName(name string) { f.user.Store(name) }
+
+func (f *logFields) userName() string {
+	if v, ok := f.user.Load().(string); ok {
+		return v
+	}
+	return "anonymous"
+}
+
+// recoverPanic converts handler panics into envelope 500s and an error log
+// line (architecture section 7.2). http.Server's own recover would abort
+// the connection without a response body — unacceptable for an API.
+func recoverPanic(logger *slog.Logger) Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			defer func() {
+				if rec := recover(); rec != nil {
+					if err, ok := rec.(error); ok && errors.Is(err, http.ErrAbortHandler) {
+						// The handler asked for a silent transport abort
+						// (client timeouts on streaming responses); re-panic
+						// so net/http tears the connection down quietly.
+						panic(rec)
+					}
+					logger.ErrorContext(r.Context(), "httpapi: panic recovered",
+						slog.String("method", r.Method),
+						slog.String("path", r.URL.EscapedPath()),
+						slog.String("request_id", requestIDFrom(r.Context())),
+						slog.Any("panic", rec),
+					)
+					writeError(w, http.StatusInternalServerError, "internal server error")
+				}
+			}()
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// cors adds configurable cross-origin headers (architecture section 7.2:
+// "CORS(可配)"). An empty origins list means same-origin policy: no headers
+// are emitted, browsers enforce their default. A "*"-free explicit list
+// echoes the requesting Origin only when listed; "*" (or an explicit list
+// containing it) answers any origin, and credentials are allowed because
+// BinFlow auth rides Authorization headers, not cookies.
+func cors(allowedOrigins []string) Middleware {
+	allowAny := false
+	set := make(map[string]bool, len(allowedOrigins))
+	for _, o := range allowedOrigins {
+		if o == "*" {
+			allowAny = true
+			continue
+		}
+		set[strings.ToLower(strings.TrimSpace(o))] = true
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			origin := r.Header.Get("Origin")
+			switch {
+			case origin == "":
+				// Same-origin / non-browser client: no CORS headers needed.
+			case allowAny:
+				h := w.Header()
+				h.Set("Access-Control-Allow-Origin", "*")
+				h.Set("Vary", "Origin")
+			case set[strings.ToLower(origin)]:
+				h := w.Header()
+				h.Set("Access-Control-Allow-Origin", origin)
+				h.Set("Vary", "Origin")
+				h.Set("Access-Control-Allow-Credentials", "true")
+			default:
+				w.Header().Add("Vary", "Origin")
+			}
+			if origin != "" && r.Method == http.MethodOptions {
+				h := w.Header()
+				h.Set("Access-Control-Allow-Methods", "GET, HEAD, PUT, POST, DELETE, OPTIONS")
+				h.Set("Access-Control-Allow-Headers",
+					"Authorization, Content-Type, X-Checksum-Sha1, X-Checksum-Sha256, X-Checksum-Md5, X-Checksum-Deploy, X-JFrog-Art-Api, X-Explode-Archive")
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// routeAuth is the per-route authorization requirement the authorizer
+// middleware enforces.
+type routeAuth struct {
+	// required: the request must carry a valid credential (management
+	// plane; content writes). Anonymous yields a 401 challenge.
+	required bool
+	// action is the Authorizer.Can action for content paths ("r", "w",
+	// "d"). Empty means "no content-path check" (management plane checks
+	// admin/permission inside its own handlers, T-15).
+	action string
+	// anonymous reads: the anonymous-open decision lives inside
+	// auth.Authorizer.Can (it owns Security.AnonymousAccess), so this
+	// struct needs no flag of its own — a nil principal with
+	// action=read consults the flag there (ADR-0009).
+}
+
+// basicChallenge is the WWW-Authenticate response for missing credentials
+// (FR-4-AC9/E-20). realm wording follows the generic adapter's deploy-time
+// challenge.
+const basicChallenge = `Basic realm="BinFlow Realm"`
+
+// authenticate resolves the credential and stores the principal. A
+// presented-but-rejected credential is a hard 401 (no downgrade to
+// anonymous: probing with a stale token must not silently succeed where no
+// token at all would fail); no credential at all stays anonymous and the
+// route's own gate decides.
+func authenticate(a auth.Authenticator) Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			p, err := a.Authenticate(r.Context(), r)
+			if err != nil {
+				w.Header().Set("WWW-Authenticate", basicChallenge)
+				writeError(w, http.StatusUnauthorized, "invalid credentials")
+				return
+			}
+			// Thread the resolved name outward to the access log (contexts
+			// only flow inward, hence the mutable holder).
+			if f, ok := r.Context().Value(ctxKeyLogFields).(*logFields); ok {
+				f.setUserName(userName(p))
+			}
+			next.ServeHTTP(w, r.WithContext(withPrincipal(r.Context(), p)))
+		})
+	}
+}
+
+// authorize enforces the route's requirement after authentication:
+//
+//   - required && anonymous         -> 401 challenge;
+//   - content action (r/w/d)        -> Authorizer.Can(principal, repo,
+//     path, action); denied anonymous -> 401 challenge, denied
+//     authenticated -> 403 (rest-api section 1.4 "403 -> 401 when
+//     anonymous").
+//
+// The repoKey/path for the content check are resolved through the layout
+// splitter — the same first-segment rule the dispatcher uses — so the
+// authorization decision and the routing decision can never disagree on
+// which repository a path addresses.
+func authorize(a auth.Authorizer, req routeAuth) Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			p := principalFrom(r.Context())
+			if req.required && p == nil {
+				w.Header().Set("WWW-Authenticate", basicChallenge)
+				writeError(w, http.StatusUnauthorized, "authentication required")
+				return
+			}
+			if req.action != "" {
+				repoKey, rel := splitFirstSegment(r)
+				if !a.Can(r.Context(), p, repoKey, rel, req.action) {
+					if p == nil {
+						w.Header().Set("WWW-Authenticate", basicChallenge)
+						writeError(w, http.StatusUnauthorized, "authentication required")
+						return
+					}
+					writeError(w, http.StatusForbidden, "permission denied")
+					return
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// splitFirstSegment peels the first path segment (after /binflow) off the
+// ESCAPED path. Dot segments are deliberately not normalized here — the
+// adapter's layout is the authority that rejects them (FR-4-AC10); this
+// split only needs the leading segment to key the ACL, and a leading
+// segment cannot contain a dot-segment escape by construction.
+func splitFirstSegment(r *http.Request) (repoKey, rel string) {
+	rest := strings.TrimPrefix(r.URL.EscapedPath(), "/binflow")
+	rest = strings.TrimPrefix(rest, "/")
+	if rest == "" {
+		return "", ""
+	}
+	key, tail, _ := strings.Cut(rest, "/")
+	return key, tail
+}

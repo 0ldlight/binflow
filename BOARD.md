@@ -50,13 +50,13 @@
 
 ## 🔨 进行中（doing）
 
-- **T-14** [P0] httpapi 核心：Server/middleware/错误信封/路由 `role:dev-go-core` `area:internal/httpapi（核心）、internal/console（占位）` `dep:T-8,T-11,T-13`
-  AC 摘要：① 路由表：/healthz /readyz 无前缀；/binflow 剥离分发；ping/version/v1-health/v1-stats ② middleware 链固定顺序；结构化日志不记认证头；errors[] 信封；E-26 全矩阵 404 ③ 认证分层（匿名内容 GET/HEAD）；SIGTERM 优雅停机
-  状态：04:0x 派发，在途。
+（空）
 
 ## 👀 评审中（review）
 
-（空）
+- **T-14** [P0] httpapi 核心 `role:dev-go-core` `area:internal/httpapi、internal/console` `dep:T-8,T-11,T-13`
+  状态：编码完成，conductor 复现通过（race 4.7s 绿/lint 0/零 CGO/覆盖率 83%/curl 冒烟含 SIGTERM exit 0；`..` 陷阱以「产品路径绕开 ServeMux 走 EscapedPath 分发树」根治）→ 单 code-reviewer 在途（认证分层/中间件顺序/停机/RepoLookup 缝裁决）。
+  遗留：①RepoLookup 用 metadata.Get 绕过已认证要求（匿名读需先解析 repo key）——reviewer 将给安全面意见；②T-16 装配要点已入日志；③bytes_in 记声明值。
 
 ## 🧪 测试中（qa）
 
