@@ -67,7 +67,7 @@ func (h *Handler) itemInfo(base, repoKey, relPath string, node *metadata.Node, s
 		Created:     created,
 		CreatedBy:   node.CreatedBy,
 		Size:        strconv.FormatInt(node.Size, 10),
-		MimeType:    mimeOr(node.Mime),
+		MimeType:    mimeForNode(relPath, node.Mime),
 	}
 	if !isFolderNode(node) {
 		info.Checksums = &checksums{

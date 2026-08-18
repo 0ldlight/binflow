@@ -272,6 +272,57 @@ func TestCurlRoundtrip(t *testing.T) {
 				t.Fatalf("C23 content mismatch: %s != %s", got, sha)
 			}
 		}},
+		{"T-36 Content-Type by extension (curl -TI x.json)", func(t *testing.T) {
+			// PRD milestone-2 section 6.4 acceptance command, verbatim shape:
+			// curl -T sends NO Content-Type header (verified against curl
+			// 8.7.1), so this exercises the extension inference end-to-end —
+			// the deploy stores application/json and HEAD answers with it.
+			if err := os.WriteFile(filepath.Join(dir, "x.json"), []byte(`{"k":"v"}`), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			out, _ := curl(t, dir, "-s", "-u", "admin:pw", "-T", "x.json",
+				"-o", "/dev/null", "-w", "%{http_code}", base+"/generic-local/acme/x.json")
+			if out != "201" {
+				t.Fatalf("x.json upload = %s", out)
+			}
+			head, _ := curl(t, dir, "-s", "-I", "-u", "admin:pw", base+"/generic-local/acme/x.json")
+			if !strings.Contains(head, "Content-Type: application/json") {
+				t.Fatalf("curl -TI x.json Content-Type wrong:\n%s", head)
+			}
+			// GET carries the same header; a declared Content-Type still
+			// wins verbatim; an unknown extension keeps octet-stream.
+			curl(t, dir, "-s", "-u", "admin:pw", "-D", "ct.headers", "-o", "ct.json",
+				base+"/generic-local/acme/x.json")
+			hdr, _ := os.ReadFile(filepath.Join(dir, "ct.headers"))
+			if !strings.Contains(strings.ToLower(string(hdr)), "content-type: application/json") {
+				t.Fatalf("GET x.json Content-Type wrong:\n%s", hdr)
+			}
+			if err := os.WriteFile(filepath.Join(dir, "y.bin"), []byte("bin"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			out2, _ := curl(t, dir, "-s", "-u", "admin:pw", "-T", "y.bin",
+				"-H", "Content-Type: application/x-custom", "-o", "/dev/null",
+				"-w", "%{http_code}", base+"/generic-local/acme/y.bin")
+			if out2 != "201" {
+				t.Fatalf("y.bin upload = %s", out2)
+			}
+			head2, _ := curl(t, dir, "-s", "-I", "-u", "admin:pw", base+"/generic-local/acme/y.bin")
+			if !strings.Contains(head2, "Content-Type: application/x-custom") {
+				t.Fatalf("declared Content-Type not honored:\n%s", head2)
+			}
+			if err := os.WriteFile(filepath.Join(dir, "z.zzz"), []byte("z"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			out3, _ := curl(t, dir, "-s", "-u", "admin:pw", "-T", "z.zzz",
+				"-o", "/dev/null", "-w", "%{http_code}", base+"/generic-local/acme/z.zzz")
+			if out3 != "201" {
+				t.Fatalf("z.zzz upload = %s", out3)
+			}
+			head3, _ := curl(t, dir, "-s", "-I", "-u", "admin:pw", base+"/generic-local/acme/z.zzz")
+			if !strings.Contains(head3, "Content-Type: application/octet-stream") {
+				t.Fatalf("unknown extension lost the octet-stream fallback:\n%s", head3)
+			}
+		}},
 		{"path traversal 400 (raw and %2e%2e)", func(t *testing.T) {
 			for _, p := range []string{
 				"/generic-local/a/../../etc/passwd",

@@ -402,6 +402,9 @@ func TestGetHeadHeaders(t *testing.T) {
 		checkHeader(t, resp, "X-Checksum-Md5", md5v)
 		checkHeader(t, resp, "ETag", sha1v)
 		checkHeader(t, resp, "Accept-Ranges", "bytes")
+		// h.bin keeps the octet-stream expectation (T-36): ".bin" is not in
+		// the extension table, so the unknown-extension fallback — unchanged
+		// by the mapping — is exactly what this fixture still asserts.
 		checkHeader(t, resp, "Content-Type", "application/octet-stream")
 		if resp.Header.Get("Last-Modified") == "" {
 			t.Fatal("Last-Modified missing")

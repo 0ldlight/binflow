@@ -85,9 +85,13 @@ func (h *Handler) handlePut(ctx context.Context, w http.ResponseWriter, r *http.
 		return
 	}
 
+	// A client that declares a Content-Type keeps it verbatim (Artifactory
+	// honors the header too); an absent declaration is where the extension
+	// mapping applies (T-36): curl -T sends no Content-Type at all, so
+	// PUT x.json stores application/json and HEAD answers with it.
 	mime := r.Header.Get("Content-Type")
 	if mime == "" {
-		mime = "application/octet-stream"
+		mime = mimeByPath(relPath)
 	}
 
 	// X-Checksum-Deploy: zero-transfer deploy against an existing blob.
@@ -288,7 +292,7 @@ func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.
 		hdr.Set("Last-Modified", lastMod.UTC().Format(http.TimeFormat))
 	}
 	hdr.Set("Accept-Ranges", "bytes")
-	hdr.Set("Content-Type", mimeOr(node.Mime))
+	hdr.Set("Content-Type", mimeForNode(relPath, node.Mime))
 
 	// Conditional requests first: a fresh store answers 304 with no body.
 	if evalConditional(r, sums.sha1, lastMod) {
@@ -458,13 +462,9 @@ func isHex(s string, n int) bool {
 	return true
 }
 
-// mimeOr defaults an absent stored mime to octet-stream (FR-4-AC13).
-func mimeOr(m string) string {
-	if strings.TrimSpace(m) == "" {
-		return "application/octet-stream"
-	}
-	return m
-}
+// mimeForNode (see mime.go) supersedes the old octet-stream-only default:
+// absent stored mime now infers from the path extension, unknown extensions
+// still fall through to application/octet-stream (FR-4-AC13 unchanged).
 
 // headerBool parses an optional boolean-ish header; ok=false means absent.
 func headerBool(hdr http.Header, name string) (val, ok bool) {
