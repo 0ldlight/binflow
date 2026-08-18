@@ -71,12 +71,11 @@
 
 ## 🔨 进行中（doing）
 
-- **T-39** [P0] manifest 链（批次 4，双 reviewer） `role:dev-registry-adapter` `area:internal/adapter/docker(manifest)` `dep:T-38(done),T-35(done)`
-  状态：在途（暂行口径袋：透传/4MB/tag 覆盖/schema1 400）。
+（空）
 
 ## 👀 评审中（review）
 
-（空）
+- **T-39** [P0] manifest 链 — 编码完成，conductor 复现通过（race 绿 docker 14.3s+httpapi 51.9s/lint 0/12 包；curl 41 断言 + 容器内 daemon 协商全序列 + docker manifest inspect 真客户端 exit 0；D08b 降级构造）→ **双 reviewer 在途**（正确性：校验链顺序/逐位一致/并发；架构：R3 消歧意见/§5.3 对照/分层）。
 
 ## 👀 评审中（review）
 
