@@ -71,12 +71,13 @@
 
 ## 🔨 进行中（doing）
 
-（空）
+- **T-38** [P0] blob 域（修复轮） `role:dev-registry-adapter`
+  状态：双 review 合并 REQUEST_CHANGES（B1 race 实证并发 / B2 会话+fd 无限泄漏 / B3 mount fd 泄漏双视角同根 / B4 挂账失败仍 201 数据丢失语义）→ 原 agent 修复在途。
+  WithStorage 缝终判：代码不越线（§5.3 已裁定例外）；§5.1 文档勘误 + N2 PutLandedBlob 债务 → architect 票（随 T-39 派单前落）。
 
 ## 👀 评审中（review）
 
-- **T-38** [P0] blob 域全链路 — 编码完成，conductor 复现通过（race 绿/lint 0/12 包；curl 黑盒 38 断言含 kill -9 重启链/AC7 跨协议去重/416 恢复）→ **双 reviewer 在途**（正确性：会话状态机/注册表生命周期/毒化映射；架构：§5.3 三裁定/WithStorage 缝裁决/错误码表对照）。
-  遗留转交：TestSingleflightExecutesOnce flake（M1）→ dev-go-core；D06/D13 示例 URL 勘误 → PM。
+（空）
 
 ## 👀 评审中（review）
 
