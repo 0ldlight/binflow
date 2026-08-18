@@ -71,7 +71,8 @@
 
 ## 🔨 进行中（doing）
 
-（空）
+- **T-46** [P1] docker 接入用户文档（M2 最后一票） `role:tech-writer` `area:docs/user`
+  状态：07:4x 派发，在途（Docusaurus 首批页面；insecure-registries 高频卡点置顶；T-44/T-45 实测命令直接引用）。
 
 ## 🧪 测试中（qa）
 
@@ -171,6 +172,8 @@
   statusRecorder 增 writeErr/panicDisconnect 槽位；断连（ctx.Canceled 主腿 + errno 兜底）≥500 降 WARN + client_disconnect 标注；recoverPanic 断连降级不注信封。进程外 e2e 实证（--limit-rate + kill -9：日志零 ERROR、真 500 反例保持 ERROR 三态表）。轻量核验（P1+e2e 证据）。提交 85df447。M5 升格 label 遗留登记。
 - **T-42** [P1] gc 旗标+GC mark 扩容 `role:dev-go-core` `area:cmd/binflow-server` — done 2026-08-18
   gc -c（复用 serve 配置链）+ --grace-hours（与 days 并存 hours 胜）；mark = nodes ∪ docker_refs（ListRefsByManifest 聚合——agent 论证了 RefsByBlob 会回到 T-9 废弃的反连接路线）；真栈冒烟（refs-held 存活/级联删后转候选）。净树核验（T-37 WIP 致主仓瞬断，隔离手法 agent 自报 conductor 复现）。提交 69a6039。遗留：lint 有网补跑；子命令 --help exit 1 小票登记。
+- **T-45** [P0] 部署烟测 `role:release-engineer` — done 2026-08-19（AC 4/4 + O2 全过）
+  compose 实例 D04/D05/D16 全过（v1.3 口径）+ D21 restart 持久化 + O2 全新 dind 默认端口零配置复跑（49 请求零 5xx）+ 反代直通示例（nginx/traefik）+ compose TTL 透传微调（注明理由）。两轮清理彻底；digest 清单录报告（发布动作待用户确认）。提交 923db2e。
 - **T-44** [P0] QA 五客户端 conformance `role:qa-engineer` — done 2026-08-19（首轮 FAIL→复验 PASS）
   首轮：podman/crane/oras/skopeo+buildx 等效+conformance 55/60+性能全绿；docker 三 P0 断（D44-1/2/3）。修复（2f505da）后复验：docker 行 10/10 全绿（错口令 exit1 恢复/buildx 双平台直推/匿名 token 链/挑战模式全链）+ helm push PASS（首轮归因修正：HELM_REGISTRY_CONFIG 亦是败因）+ conformance 无回归。**DoD §9 第 1/2 条满足**（P2 遗留按 PRD 不阻塞：D44-4/5/6 实现欠账归 T-35/T-40 域 T-45 后收口、helm plain-http login 文档转 T-46）。报告 reports/agents/T-44-qa.md。
 - **T-56** [P1] M2 PRD v1.3 勘误 `role:product-manager` `area:docs/prd` — done 2026-08-19
