@@ -1,0 +1,70 @@
+# BinFlow development compose (T-17, PRD FR-6-AC1..AC3).
+#
+# Start from the REPOSITORY ROOT (the build context is the repo, the
+# Dockerfile lives in deploy/dev/):
+#
+#	docker compose -f deploy/dev/docker-compose.yml up -d --build
+#
+# Or, shorter, with the project-name trick:
+#
+#	cd deploy/dev && docker compose up -d --build
+#
+# Persistence: a named volume is mounted at /var/lib/binflow (blobs +
+# sessions + SQLite). `docker compose down` keeps it; only `down -v`
+# destroys data (FR-6-AC3 / C29).
+#
+# Security notes (PRD NFR-S6/S8):
+#   - M1 serves plain HTTP only — bind to loopback by default and keep the
+#     instance on a trusted machine/network. Set BINFLOW_BIND_PORT below to
+#     expose it further afield only on networks you trust.
+#   - Anonymous read is ON by default (Q2/ADR-0009). Content-path GET/HEAD
+#     needs no credentials; writes and /binflow/api/** always require auth.
+#     Disable with BINFLOW_SECURITY_ANONYMOUS_ACCESS=false (.env or shell).
+#   - The default admin password is "password" (evaluation only). Set
+#     BINFLOW_ADMIN_PASSWORD in .env (see .env.example) for anything beyond
+#     a disposable local instance.
+
+name: binflow
+
+services:
+  binflow:
+    build:
+      context: ../..
+      dockerfile: deploy/dev/Dockerfile
+    image: binflow:dev
+    container_name: binflow-dev
+    restart: unless-stopped
+    environment:
+      # admin bootstrap password (env-only secret, ADR-0009; evaluation
+      # default "password" applies when unset — see .env.example).
+      BINFLOW_ADMIN_PASSWORD: ${BINFLOW_ADMIN_PASSWORD:?set BINFLOW_ADMIN_PASSWORD in deploy/dev/.env (cp .env.example .env) or export it before composing}
+      # anonymous content read, default true (Q2; set false in .env to harden)
+      BINFLOW_SECURITY_ANONYMOUS_ACCESS: ${BINFLOW_SECURITY_ANONYMOUS_ACCESS:-true}
+      # listen on every interface inside the container (the HOST binding is
+      # what controls exposure)
+      BINFLOW_SERVER__LISTEN: :8080
+      # data_dir comes from the image (BINFLOW_DATA_DIR=/var/lib/binflow)
+    ports:
+      - "${BINFLOW_BIND_ADDR:-127.0.0.1}:${BINFLOW_BIND_PORT:-8080}:8080"
+    volumes:
+      - binflow-data:/var/lib/binflow
+    healthcheck:
+      # /readyz = metadata ping + storage writable, unauthenticated by
+      # design (architecture 7.1). wget is busybox-built into alpine.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/readyz"]
+      interval: 10s
+      timeout: 3s
+      start_period: 5s
+      retries: 5
+    # Graceful drain window: the server drains in-flight requests for up to
+    # 30s on SIGTERM (architecture 7.4); give compose the same headroom
+    # before SIGKILL (PRD: stop_grace_period >= 30s).
+    stop_grace_period: 35s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  binflow-data:
