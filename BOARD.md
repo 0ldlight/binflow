@@ -71,8 +71,8 @@
 
 ## 🔨 进行中（doing）
 
-- **T-37** [P0] docker token 流（批次 2） `role:dev-registry-adapter` `area:internal/adapter/docker(token)`
-  状态：在途（编码中，主仓见其 WIP——build 瞬断属进行态）。
+- **T-38** [P0] blob 域全链路（批次 3 主票，双 reviewer） `role:dev-registry-adapter` `area:internal/adapter/docker(blob)` `dep:T-33,T-35,T-37(全done)`
+  状态：17:5x 派发，在途。附 T-37 教训（daemon 需 insecure-registries，curl 裸栈即可）。
 
 ## 👀 评审中（review）
 
@@ -164,6 +164,9 @@
   statusRecorder 增 writeErr/panicDisconnect 槽位；断连（ctx.Canceled 主腿 + errno 兜底）≥500 降 WARN + client_disconnect 标注；recoverPanic 断连降级不注信封。进程外 e2e 实证（--limit-rate + kill -9：日志零 ERROR、真 500 反例保持 ERROR 三态表）。轻量核验（P1+e2e 证据）。提交 85df447。M5 升格 label 遗留登记。
 - **T-42** [P1] gc 旗标+GC mark 扩容 `role:dev-go-core` `area:cmd/binflow-server` — done 2026-08-18
   gc -c（复用 serve 配置链）+ --grace-hours（与 days 并存 hours 胜）；mark = nodes ∪ docker_refs（ListRefsByManifest 聚合——agent 论证了 RefsByBlob 会回到 T-9 废弃的反连接路线）；真栈冒烟（refs-held 存活/级联删后转候选）。净树核验（T-37 WIP 致主仓瞬断，隔离手法 agent 自报 conductor 复现）。提交 69a6039。遗留：lint 有网补跑；子命令 --help exit 1 小票登记。
+- **T-37** [P0] docker token 流 `role:dev-registry-adapter` `area:internal/adapter/docker(token)` — done 2026-08-18（经 429 中断续完）
+  /v2/token（GET/POST form 双式/任意有效用户/匿名直发 _docker_anonymous 幂等 seed fail-closed/OAuth 错误体/offline_token 400）+ scope 三映射 + 挑战矩阵（真栈：PUT→pull,push / DELETE→pull,delete / read-only Bearer PUT→403 DENIED）+ D04 全系列 + D23 吊销链。docker login 本体受阻本机 daemon（VM+代理+无 insecure-registries）——容器内等效复现全协商；拒绝动用户配置（安全底线正确）。经第 5 次 429（代码全落盘）恢复收尾。提交 a89313f。
+  转交：insecure-registries 说明 → T-46 文档；D05 → T-44。authorizeRoute 共用推导表已就绪（T-38/39/40 无需重推导）。
 - **T-34** [P0] metadata 002_docker 迁移+DockerStore `role:dev-go-core` `area:internal/metadata` — done 2026-08-18（APPROVE 一轮过）
   review 0 blocker：DDL 对照固化为 pragma 测试（三索引=AC 笔误以定稿为准）；级联误删探针实证不可能（digest 即 manifest 身份 + image 谓词隔离）；2000 轮 DeleteManifest vs PutRefs 0 错误 0 残留；keyset BINARY collation 稳定。5 minor+2 nit 记录不阻塞。T-35 依此解锁。
 - **T-36** [P2] generic Content-Type 扩展名映射 `role:dev-registry-adapter` `area:internal/adapter/generic` — done 2026-08-18
