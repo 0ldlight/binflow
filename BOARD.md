@@ -71,8 +71,12 @@
 
 ## 🔨 进行中（doing）
 
-- **T-38** [P0] blob 域全链路（批次 3 主票，双 reviewer） `role:dev-registry-adapter` `area:internal/adapter/docker(blob)` `dep:T-33,T-35,T-37(全done)`
-  状态：17:5x 派发，在途。附 T-37 教训（daemon 需 insecure-registries，curl 裸栈即可）。
+（空）
+
+## 👀 评审中（review）
+
+- **T-38** [P0] blob 域全链路 — 编码完成，conductor 复现通过（race 绿/lint 0/12 包；curl 黑盒 38 断言含 kill -9 重启链/AC7 跨协议去重/416 恢复）→ **双 reviewer 在途**（正确性：会话状态机/注册表生命周期/毒化映射；架构：§5.3 三裁定/WithStorage 缝裁决/错误码表对照）。
+  遗留转交：TestSingleflightExecutesOnce flake（M1）→ dev-go-core；D06/D13 示例 URL 勘误 → PM。
 
 ## 👀 评审中（review）
 
