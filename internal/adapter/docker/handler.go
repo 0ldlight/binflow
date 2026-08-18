@@ -23,13 +23,16 @@ func (h *Handler) Protocol() string { return Protocol }
 // per-package-type namespace first (T-35's call).
 func (h *Handler) RepoTypes() []string { return []string{} }
 
-// ServeHTTP is the /v2 business body for M2's foundation scope:
+// ServeHTTP is the /v2 business body:
 //
 //   - GET/HEAD /v2 and /v2/ — the version-check ping (DE-01/D04);
-//   - every other route — name resolution and the repo gate (ADR-0010
-//     clause 3), with upload/manifest/catalog bodies landing in T-37
-//     through T-40 (their routes currently fall through to the spec-body
-//     404, which is the DE-16 posture for anything not implemented).
+//   - /v2/token — the token endpoint (T-37);
+//   - blob routes — uploads (three push styles, offset query, cancel) and
+//     the blob read plane (T-38);
+//   - every other name route — the repo gate (ADR-0010 clause 3) with the
+//     manifest/catalog bodies landing in T-39/T-40 (their routes currently
+//     fall through to the spec-body 404, the DE-16 posture for anything
+//     not implemented).
 //
 // The middleware chain (requestID/accessLog/recover/CORS/authenticate) has
 // already run upstream; the principal arrives through
@@ -196,15 +199,23 @@ func (h *Handler) serveNameRoute(w http.ResponseWriter, r *http.Request, path st
 	// only while the flag is on (Can's nil rule); an authenticated
 	// insufficient principal gets 403 DENIED, an anonymous write gets the
 	// scoped challenge. This gate is ahead of the content handlers so
-	// T-38..T-40 inherit it without re-deriving the mapping.
+	// T-39/T-40 inherit it without re-deriving the mapping.
 	if !h.authorizeRoute(w, r, ref) {
 		return
 	}
 
-	// Foundation scope: every content route (blobs/manifests/tags/uploads/
-	// referrers) lands in T-37..T-40. Until then they answer the DE-16
-	// spec-body 404 — including referrers (DE-15: deliberately not
-	// implemented in M2).
+	// Blob domain (T-38): the uploads route family and the blob read plane.
+	// Everything else (manifests, tags, catalog) remains T-39/T-40's and
+	// answers the DE-16 spec-body 404 — including referrers (DE-15:
+	// deliberately not implemented in M2).
+	if ref.tail == "blobs/uploads" || strings.HasPrefix(ref.tail, "blobs/uploads/") {
+		h.serveBlobUploads(w, r, ref, ref.tail)
+		return
+	}
+	if strings.HasPrefix(ref.tail, "blobs/") {
+		h.serveBlob(w, r, ref, ref.tail)
+		return
+	}
 	writeSpecError(w, http.StatusNotFound, ErrCodeUnsupported,
 		"registry route /v2/"+ref.repoKey+"/"+ref.image+"/"+ref.tail+
 			" is not implemented in BinFlow M2 yet", nil)
@@ -250,11 +261,6 @@ func (h *Handler) authorizeRoute(w http.ResponseWriter, r *http.Request, ref nam
 	return true
 }
 
-// sessionRegistry is the upload-session seam T-38 will drive: the map of
-// Docker-Upload-UUID -> live upload state (storage.Session plus the
-// protocol's received offset). T-33 registers it so the constructor
-// surface does not change when blob uploads land; the type is
-// intentionally empty until then (R6: plain UUIDs, relative Locations).
-type sessionRegistry struct{}
-
-func newSessionRegistry() *sessionRegistry { return &sessionRegistry{} }
+// sessionRegistry's implementation lives in uploads.go (T-38): the UUID ->
+// live-upload table carrying the protocol's received offset alongside the
+// storage session.

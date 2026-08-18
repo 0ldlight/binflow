@@ -13,6 +13,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/repo"
+	"github.com/lzwzzy/binflow/internal/storage"
 )
 
 // Compile-time wiring checks.
@@ -26,8 +27,8 @@ const Protocol = "docker"
 const ServiceID = "binflow"
 
 // TokenPath is the adapter's own token endpoint (ADR-0010 clause 4), the
-// target of the challenge's realm. T-33 mounts only the route seam; the
-// issuing logic itself is T-37.
+// target of the challenge's realm. T-33 mounted the route seam; T-37
+// implemented the issuing logic.
 const TokenPath = "/v2/token"
 
 // catalogPath is the registry-level catalog route (architecture section
@@ -64,6 +65,24 @@ type Handler struct {
 	opts   Options
 	log    *slog.Logger
 	sess   *sessionRegistry
+	// store drives the blob-upload sessions (T-38). The architecture's
+	// "adapters talk to repo.Service only" rule bends exactly once here —
+	// the section 5.3 session-docking ruling: the upload endpoints own the
+	// protocol state (received offset, UUID pairing) around
+	// storage.Session's Append/Commit/Abort; repo.Service's Put consumes a
+	// whole body in one call and cannot express chunked offset alignment.
+	// The seam is an interface so tests stub it without an engine.
+	store storage.Engine
+	// ledger is the read-only blob digest ledger (sha1/md5 of a landed
+	// blob; ADR-0006 keeps no sidecar files). Same consumer-side convention
+	// as generic.BlobLedger.
+	ledger BlobLedger
+}
+
+// BlobLedger is the digest-lookup seam for download headers and mount
+// responses (satisfied by metadata.Store.Blobs()).
+type BlobLedger interface {
+	Get(ctx context.Context, sha256 string) (*metadata.Blob, error)
 }
 
 // RepoRow is the consumer-side shape of the repository row the docker
@@ -91,6 +110,11 @@ type RepoLookup interface {
 // token endpoint answer 503 rather than panic. users seeds the synthetic
 // anonymous-token subject (nil only in tests; the anonymous token path then
 // 500s honestly). log may be nil (slog.Default()).
+//
+// store (blob-upload sessions, T-38) and ledger (blob digest rows) may be
+// nil: without store the upload endpoints answer the store-failure 500/503
+// (no test assembly needs a fake there that does not wire one), without
+// ledger the checksum headers degrade to sha256-only.
 func New(svc repo.Service, repos RepoLookup, authz auth.Authorizer, tokens auth.TokenRegistry,
 	users metadata.UserStore, opts Options, log *slog.Logger) *Handler {
 	if log == nil {
@@ -108,6 +132,16 @@ func New(svc repo.Service, repos RepoLookup, authz auth.Authorizer, tokens auth.
 	if users != nil {
 		h.users = userSeed{store: users}
 	}
+	return h
+}
+
+// WithStorage attaches the blob-upload session engine and the digest ledger
+// (T-38). A separate setter keeps the T-37 constructor signature stable —
+// the assembly sites that predate the blob domain keep compiling, and the
+// two production wiring points (cmd/main, httpapi harness) call this once.
+func (h *Handler) WithStorage(store storage.Engine, ledger BlobLedger) *Handler {
+	h.store = store
+	h.ledger = ledger
 	return h
 }
 

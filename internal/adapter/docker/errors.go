@@ -14,8 +14,8 @@ const HeaderAPIVersion = "Docker-Distribution-Api-Version"
 const APIVersionValue = "registry/2.0"
 
 // Error codes of the registry error schema ([DIST-API] section Errors);
-// only the ones the M2 foundation can emit are declared here. T-38/T-39
-// extend the table (BLOB_UNKNOWN, DIGEST_INVALID, ...).
+// only the ones the M2 surface can emit are declared here. T-39/T-40 extend
+// the table (MANIFEST_*, PAGINATION_*).
 const (
 	// ErrCodeUnsupported: the operation is not supported by this registry.
 	ErrCodeUnsupported = "UNSUPPORTED"
@@ -30,6 +30,22 @@ const (
 	// ErrCodeUnknown: an unknown/unexpected server-side error ([DIST-API]
 	// reserves UNKNOWN for exactly this).
 	ErrCodeUnknown = "UNKNOWN"
+	// ErrCodeBlobUnknown: the blob addressed by the digest is not known to
+	// the registry (DE-06's 404 body).
+	ErrCodeBlobUnknown = "BLOB_UNKNOWN"
+	// ErrCodeBlobUploadInvalid: the blob upload encountered an error (the
+	// interrupted-session refusal of a poisoned finalize).
+	ErrCodeBlobUploadInvalid = "BLOB_UPLOAD_INVALID"
+	// ErrCodeBlobUploadUnknown: the upload session addressed by the UUID is
+	// not known (unknown or pre-restart sessions).
+	ErrCodeBlobUploadUnknown = "BLOB_UPLOAD_UNKNOWN"
+	// ErrCodeDigestInvalid: the digest parameter is malformed or does not
+	// match the content (D12/DE-05; the official code — Artifactory's
+	// BLOB_UPLOAD_INVALID wording for mismatches is NOT adopted).
+	ErrCodeDigestInvalid = "DIGEST_INVALID"
+	// ErrCodeUnavailable: the registry is temporarily unavailable (storage
+	// engine shutting down).
+	ErrCodeUnavailable = "UNAVAILABLE"
 )
 
 // specError is one entry of the registry error body.
@@ -64,4 +80,10 @@ func writeSpecError(w http.ResponseWriter, status int, code, message string, det
 // through writeSpecError).
 func writeAPIVersion(w http.ResponseWriter) {
 	w.Header().Set(HeaderAPIVersion, APIVersionValue)
+}
+
+// writeAPIVersionHdr is the Header-map form for streaming paths that
+// already hold hdr.
+func writeAPIVersionHdr(hdr http.Header) {
+	hdr.Set(HeaderAPIVersion, APIVersionValue)
 }

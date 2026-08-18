@@ -215,7 +215,8 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 			AnonymousAccess: cfg.Security.AnonymousAccess,
 			BaseURL:         cfg.Server.BaseURL,
 			TokenTTL:        cfg.Auth.TokenDefaultTTL,
-		}, logger)
+		}, logger).
+		WithStorage(stack.st, stack.md.Blobs())
 	return httpapi.New(httpapi.Deps{
 		Config:    cfg,
 		Auth:      stack.authSvc,

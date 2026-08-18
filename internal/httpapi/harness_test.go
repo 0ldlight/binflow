@@ -101,7 +101,8 @@ func newHarnessCfg(t *testing.T, mutate func(*config.Config), users [][2]string)
 			AnonymousAccess: cfg.Security.AnonymousAccess,
 			BaseURL:         cfg.Server.BaseURL,
 			TokenTTL:        cfg.Auth.TokenDefaultTTL,
-		}, logger)
+		}, logger).
+		WithStorage(st, md.Blobs())
 	s := httpapi.New(httpapi.Deps{
 		Config:    cfg,
 		Auth:      authSvc,
