@@ -71,10 +71,8 @@
 
 ## 🔨 进行中（doing）
 
-- **T-38-D1** [P2] mount action 域一行修 + D2 验证 `role:dev-registry-adapter` `area:internal/adapter/docker`
-  状态：收尾中（D1 修复在盘已绿，回归用例+D2 验证段）。
 - **T-54** [P1] F1 压测定位 `role:dev-go-core` `area:internal/adapter/docker、internal/metadata`
-  状态：续跑中（诊断测试已写，复现与三假设排除段）。
+  状态：续跑中（busy carve-out 修复面已在盘：503+Retry-After/WARN/IsStoreBusy + busy_test/errors_test——待其定论回报）。
 
 ## 👀 评审中（review）
 
@@ -170,6 +168,8 @@
   statusRecorder 增 writeErr/panicDisconnect 槽位；断连（ctx.Canceled 主腿 + errno 兜底）≥500 降 WARN + client_disconnect 标注；recoverPanic 断连降级不注信封。进程外 e2e 实证（--limit-rate + kill -9：日志零 ERROR、真 500 反例保持 ERROR 三态表）。轻量核验（P1+e2e 证据）。提交 85df447。M5 升格 label 遗留登记。
 - **T-42** [P1] gc 旗标+GC mark 扩容 `role:dev-go-core` `area:cmd/binflow-server` — done 2026-08-18
   gc -c（复用 serve 配置链）+ --grace-hours（与 days 并存 hours 胜）；mark = nodes ∪ docker_refs（ListRefsByManifest 聚合——agent 论证了 RefsByBlob 会回到 T-9 废弃的反连接路线）；真栈冒烟（refs-held 存活/级联删后转候选）。净树核验（T-37 WIP 致主仓瞬断，隔离手法 agent 自报 conductor 复现）。提交 69a6039。遗留：lint 有网补跑；子命令 --help exit 1 小票登记。
+- **T-38-D1** [P2] mount action 域修 + D2 降级修复 `role:dev-registry-adapter` — done 2026-08-19
+  D1：canMountFrom 改 canActions 映射 + 双臂回归（红→绿证明：stash 复现 QA 现象）；D2：T-52 未使其消失（ListImages 需 repo 根读，休眠分支对真未知镜像照跑）→ imageListed ERROR→Debug 降级 + 真栈复现整日志零 ERROR。顺手：IdleSessionEviction 去墙钟竞态（注入时钟）。提交 e906f4e（与 T-55 同批）。
 - **T-55** [P1] /v2/token 401 错误体 OAuth 形一行修 `role:dev-registry-adapter` `area:internal/adapter/docker(token)` — done 2026-08-19
   RenderAuthFailure 路径感知：token 路由族 OAuth 形（invalid_client）+ 挑战头逐字节不变；资源端点 spec 体不动；writeOAuthError 去 401 附 Basic 副作用（归属调用方）。4 行表双向断言 + 真栈三组错误凭据复验。conductor 复现：build ok + 两包针对性测试绿。提交待与 T-38-D1 同批（同包在途隔离）。
 - **T-53** [P1] M2 PRD v1.2 勘误收口 `role:product-manager` `area:docs/prd` — done 2026-08-19
