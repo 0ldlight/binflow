@@ -139,3 +139,17 @@
   6. 反代部署（b 的部署层形态）**不禁止但非必需**：用户已有 nginx 前置时可 `proxy_pass` 直通 `/v2/`（不 rewrite），compose 产物默认不加反代组件（见 §9 影响）。
 - 理由: docker 生态是 M2 的旗舰验收面（真实客户端 conformance 全过），可用性必须在**裸单二进制**形态下成立——b 会让「单二进制直接 docker push」不可用，直接违背产品核心场景；c 的双路由面在 Location 头、Www-Authenticate realm、catalog 分页链接三处都要双份生成与双份测试，纯成本。a 的「例外」有精确边界（仅 `/v2` 首段、仅 docker adapter、进同一 middleware 链），不侵蚀统一前缀的其余承诺。
 - 后果: httpapi 路由表新增根级例外段（实现层）；`server.base_url` 语义不变（realm 生成用它）；文档（tech-writer）需写明 docker 客户端用 `docker login <host>` 直连、curl 用户统一 `/binflow`；QA conformance 面只测 `/v2`（无 `/binflow/v2` 面）；ADR-0008 的统一前缀表述以本 ADR 为准修订（不推翻，例外化）。
+
+## ADR-0011: 帮助文档中心采用 Docusaurus
+- 状态: Accepted（用户定案）
+- 日期: 2026-08-19
+- 背景: M5 GA 要求交付帮助文档中心（docs/user/，PRODUCT 核心能力 7 的文档维度：安装指南、协议接入、管理、API 参考、FAQ）。文档从 M1 起就以 Markdown 累积（docs/user/ 已有导航结构与篇目规划），M5 需要把它变成可导航、可搜索、随版本演进的站点；同时要裁决文档站的架构接点（交付形态与源文件工作流），避免与「单二进制差异化」冲突。
+- 候选方案:
+  - 静态站点生成器：A) **Docusaurus**（React/MDX、内建版本化文档与 i18n、文档站事实标准）；B) Hugo/Jekyll（更轻、构建快，但无 React 生态、版本化文档要自建、MDX 组件不可用）；C) 纯 Markdown 目录（零构建，GitHub/GitLab 直接渲染，但无侧边栏导航/全文搜索/版本切换，非产品级形态）。
+  - 交付形态：a) 独立静态站点部署（docs.example.com，Vercel/Netlify/nginx 静态托管）；b) **build 产物 go:embed 进 binflow-server，服务自带 `/docs` 路由**；c) 双轨（embed + 独立站）。
+  - 源文件位置：a) docs/user/ 保持纯 Markdown 源 + Docusaurus 配置目录分离；b) 源整体迁入 Docusaurus 站点目录。
+- 决策: 生成器选 A（Docusaurus）；交付形态选 **b（go:embed 自带 `/docs`）为主，独立站点部署为可选输出**（同一份 build 产物，用户要对外挂独立域名时自行托管，BinFlow 不承诺维护双轨）；源文件选 a（docs/user/ 保持 Markdown 源，站点配置在 `docs-site/` 聚合构建）。
+  - **交付形态细则**：`docs-site/` build 产出静态资产 → 构建步骤复制进 `internal/docs/`（与 console 的 web/dist → internal/console 同构）→ `go:embed` 打入 binflow-server → httpapi 挂 `/binflow/docs/**`（统一前缀内，不占根级；控制台「帮助」入口链到它）。二进制体积预算影响：文档站 build 产物典型 5~15MB（gzip 后 embed 更小），相对 40MB 上限可控；若 M5 实测超预算，fallback 是 docs 站产物走独立 tar 附带而非 embed——以 M5 check-size 实测为准，不预先复杂化。
+  - **工作流细则**：tech-writer 继续按文件地图只写 `docs/user/*.md`（frontmatter 仅用 Docusaurus 兼容子集：title/description/sidebar_position），不碰 `docs-site/`（docusaurus.config.js、sidebars、i18n 配置归 architect/release-engineer）；`docs-site/` 以 docs/user 为内容源聚合。CI（或 Makefile 目标）负责 build + 复制进 embed 目录，writer 的 DoD 不含「构建站点」。
+- 理由: 与 M4 控制台同栈 React（组件/构建链/技能复用，i18n 方案可共享）；Artifactory 官方文档站即同类形态（迁移用户心智连续）；**版本化文档（随 BinFlow 版本切 docs/v1.x）与 i18n（中英双语）是产品级需求**，Hugo/Jekyll 要自建、纯 Markdown 没有——Docusaurus 内建。交付形态选 embed：PRODUCT 成功标准「部署矩阵每种方式 15 分钟跑通」——离线安装包/air-gapped 场景下文档随二进制走是差异化（出问题当场可查），独立站点在受限网络恰恰不可达；「单二进制含文档」与「单二进制含控制台」是同一哲学。
+- 后果: `docs-site/` 目录纳管（属 architect/release-engineer，非 tech-writer area）；M5 部署矩阵新增一项「docs 站点产物」（embed 形态下即二进制本身，独立托管为可选自办）；Makefile 增 `docs` 目标（build + embed 复制）；**M4/M5 票面影响**：T-46（docker 接入文档）等已产出的 docs/user Markdown 即 Docusaurus 首批页面（frontmatter 兼容子集需回查一遍）；M5 文档矩阵票前必须先有 **Docusaurus 脚手架票**（类似 T-7 工程脚手架先行：node 依赖、build 链、embed 复制、/binflow/docs 路由、check-size 实测）；`internal/docs` 包（embed + Handler）进入包结构；40MB 二进制预算在 M5 check-size 对 docs 增量实测，超限走 fallback（独立 tar）。

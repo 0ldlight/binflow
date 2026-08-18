@@ -1,6 +1,6 @@
 # BinFlow 架构设计（M1 定稿）
 
-> architect 维护。本文件在 ADR-0001~0010 基线上给出可并行开发的实现蓝图：包边界 = 并行开发 area 边界。
+> architect 维护。本文件在 ADR-0001~0011 基线上给出可并行开发的实现蓝图：包边界 = 并行开发 area 边界。
 > 标注 **[M2+]** / **[M3+]** 的内容当期不实现，只保证接口缝存在；标注「待逆向规格确认」的行为以 `docs/reverse/` 规格为准，规格冲突时先回 ADR。
 > 文档中文，标识符/表名/字段英文。代码规范：错误 wrap 带上下文、显式 context、table-driven 测试、依赖注入。
 
@@ -82,6 +82,9 @@ binflow/                       # Go module: github.com/lzwzzy/binflow（ADR-0008
 │   ├── httpapi/               # Server、路由表、middleware、错误信封
 │   └── console/               # go:embed 前端资产 [M4]，M1 仅 JSON API
 ├── web/                       # 控制台前端源码（构建产物进 internal/console）
+├── docs/user/                 # 帮助文档 Markdown 源（tech-writer，按文件地图写入）
+├── docs-site/                 # Docusaurus 站点配置与聚合构建（ADR-0011；内容源=docs/user，
+│                              # writer 不碰本目录；build 产物复制进 internal/docs go:embed）
 └── deploy/ charts/            # release-engineer 领地，架构只约定 §9
 ```
 
@@ -104,6 +107,7 @@ binflow/                       # Go module: github.com/lzwzzy/binflow（ADR-0008
 | `audit` | append-only 审计事件 + 查询 | `Logger`（§3.5） | UI、导出 [M4] |
 | `httpapi` | 监听、路由表、middleware 链、统一错误信封、健康检查、优雅停机 | `Run(ctx, deps)`（§7） | —— |
 | `console` | `//go:embed dist`；`Handler() http.Handler` | M1 返回占位页 | 前端本体 [M4] |
+| `docs`（internal/docs） | `//go:embed` Docusaurus build 产物；`Handler() http.Handler`（ADR-0011） | M1~M4 不存在（M5 脚手架票引入） | 独立站点双轨托管（不承诺） |
 
 ---
 
@@ -650,6 +654,8 @@ CREATE INDEX idx_docker_refs_blob ON docker_refs(blob_digest);  -- 删 blob 前�
   GET    /binflow/api/v1/audit                     审计查询（admin, ?repo=&actor=&since=）
 /binflow/api/...    *     Artifactory 兼容子集 [按 docs/reverse/rest-api.md 逐步]（注意：兼容层路径不带 /artifactory 前缀，直接映射 /binflow/api/...）
 /binflow/<repo>/... *     内容路径：按 repo.package_type 分发到 adapter（M1 = generic）
+/binflow/docs/...   *     帮助文档站 [M5]（Docusaurus build 产物 go:embed，ADR-0011；
+                          进 middleware 链但匿名可读——文档不设认证）
 /binflow/           GET    console（M1: 占位 JSON；M4: go:embed SPA）
 ```
 
@@ -734,6 +740,8 @@ logging:
 | 离线包 | 镜像 tar + chart + 脚本 | 同上 | 同上 | 校验和齐全 |
 
 **M2 增补（ADR-0010 裁决第 6 条）**：docker 可用性**不依赖反代**——单二进制/compose/Helm 形态下 `/v2/**` 由应用直接服务，`docker login <host>` 直连即可。已有 nginx/traefik 前置的用户可对 `/v2/` **直通不 rewrite**（`proxy_pass` 原样）；compose 产物（T-17 产物演进）默认**不加**反代组件，文档给「前置反代直通 `/v2/`」示例片段即可。
+
+**M5 增补（ADR-0011）**：帮助文档中心 = Docusaurus 站点，build 产物 **go:embed 进 binflow-server**、挂 `/binflow/docs/**`（统一前缀内）——每种部署形态自带文档（离线/air-gapped 场景可查，对齐「15 分钟跑通」成功标准）；独立域名托管为用户可选自办（同一份静态产物），BinFlow 不维护双轨。源文件工作流：tech-writer 只写 `docs/user/*.md`（frontmatter 用 Docusaurus 兼容子集），`docs-site/` 聚合构建（配置归 architect/release-engineer，writer 不碰）。Makefile 增 `docs` 目标；二进制 40MB 预算对 docs 增量（典型 5~15MB）在 M5 check-size 实测，超限 fallback 独立 tar。
 
 公共约定：配置挂载点 `/etc/binflow/binflow.yaml`（env 优先级更高）；日志 stdout（12-factor）；优雅停机期 ≥ 30s（terminationGracePeriodSeconds 对齐 §7.4）。
 
