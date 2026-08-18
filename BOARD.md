@@ -54,8 +54,8 @@
 
 ## 🧪 测试中（qa）
 
-- **T-18** [P0] QA 功能矩阵验收 `role:qa-engineer` `dep:T-16,T-17` — 回归轮在途（仅场景 6）
-  首轮 FAIL（D2/D3 两 P1）→ T-28 修复已合入（1a11cd2）→ 场景 6 回归执行中。
+- **T-19** [P0] QA 存储完整性/性能/持久化+README 复跑 `role:qa-engineer` `dep:T-18` — 在途
+  产出 M1 QA 总报告（DoD 第 1/2 条结论）。场景 2/5/8/9/10 + NFR-P1~P4。
 
 ## 👀 评审中（review）
 
@@ -128,6 +128,10 @@
   遗留：gc 无 -c 旗标（票面未要求）；二次信号强退未构造观察窗口（排空毫秒级）。
 - **T-17** [P0] 开发环境 `role:devops-engineer` `area:deploy/dev、README.md` `dep:T-16` — done 2026-08-18
   多阶段 Dockerfile（非 root 10001/HEALTHCHECK /readyz/CGO 零）+ compose（命名卷持久化/35s grace/:? 强制口令）+ README（五步双路径+安全须知三件）。Docker 真机全跑：AC1 up→ping 2.35s 冷链、AC2 health ok、AC3/C29 restart+down&up 两轮 sha256 不变；容器 healthy、db 无明文、日志无凭据。conductor 复核 compose 语法（:? 触发符合预期）。遗留：版本 stamping/distroless/CI docker build 归 M5。
+- **T-28** [P0] 修复 D2/D3：管理面 admin 分级 `role:dev-registry-adapter` `area:internal/httpapi` `dep:T-18` — done 2026-08-18
+  routeAuth 补 admin-only：四读面（repositories 列表/单查、v1-stats、v1-health）+ token 签发；routeAuth 新增 oauth 位（token 族错误体统一 OAuth 形，顺手修 revoke 403 不一致）；ping/version/探针不误伤。矩阵测试 + 自跑 22/22 + QA 回归 23/23 关闭两缺陷。
+- **T-18** [P0] QA 功能矩阵验收 `role:qa-engineer` `dep:T-16,T-17` — done 2026-08-18（首轮 FAIL→回归 ALL GREEN）
+  两轮验收：round 1 FAIL（D2/D3 两 P1 同源）→ T-28 修复 → 回归 23/23 ALL GREEN、D2/D3 关闭、round 1 FAIL 撤回。最终：场景 1/3/4/6/7 + NFR-S1/S2/S3 + C28 全 PASS。方法学亮点：二轮净instance 自纠两误报 + A/B 对照构建证伪一个疑似回归（观察项 O4 供 M2 复核）。报告 reports/agents/T-18-qa.md。
 
 ## 🚫 阻塞（blocked）
 
