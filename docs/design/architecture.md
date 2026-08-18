@@ -451,7 +451,10 @@ func All() []Handler
 2. **digest 算法**：Registry digest 形如 `sha256:<hex>`；BinFlow blob 主键就是裸 hex sha256——adapter 只剥 `sha256:` 前缀，无算法转换（spec 允许其他算法，M2 只实现 sha256，收到 `sha512:` 等 → 400 Unsupported）。
 3. **cross-repo blob mount**（`?mount=<digest>&from=<repo>`）：POST uploads 带 mount 参数且目标 blob 已被 from-repo 引用 → 直接走 `repo.Service.PutFromBlob` 零拷贝挂账（M1 已备该契约）；mount 失败按 spec 降级为普通上传会话（202 + Location，不报错）。
 
-**manifest 引用完整性（mediaType 校验链）**：PUT manifest 时逐条校验——① manifest 自身 mediaType ∈ {`application/vnd.docker.distribution.manifest.v2+json`, `...manifest.list.v2+json`, `application/vnd.oci.image.manifest.v1+json`, `application/vnd.oci.image.index.v1+json`}（M2 四种，其余 415/400）；② 逐 config/layer digest 查 `nodes`（本 repo 内）已存在，缺一即拒（防悬空引用——manifest blob 落盘先于校验失败则成为无引用 blob，GC 兜底，不损数据）；③ list/index 的嵌套 manifest digest 递归同校验（只查在场性，不递归解析其内部——spec 允许 lazy）。
+**manifest 引用完整性（mediaType 校验链；链①经 T-51 正式消歧——R3 终审口径，取代本节初版白名单）**：PUT manifest 时逐条校验——
+① **Content-Type 透传存储（非白名单）+ 结构性验证**：四种已知类型（docker manifest v2 / manifest list v2 / OCI image manifest / OCI index）走专形解析；**未知 CT 不拒收**，按 body 自身形状判读——`manifests[]` → index 语义、`config` → image 语义、**两者兼有时按 index 判读**（判读优先序，manifest.go:544 现状钉死；OCI 1.1 无此合法形态，属 edge case 防御）、皆无 → 400 MANIFEST_INVALID。透传对象 = 裸 media type（剥 `;` 参数后存储，参数非 media type 语义）。**唯一显式拒收的 CT 家族 = schema1 两种**（`application/vnd.docker.distribution.manifest.v1+json` / `+prettyjws`）→ 400；缺 CT 拒收（无值可透传）。不裁回白名单的理由（精简）：cosign 签名 manifest（`application/vnd.dev.cosign.simplesigning.v1+json`）、旧版 oras artifact manifest 等生态类型今天就真实在推，白名单直接挡掉（Helm 本体 manifest CT 是标准 OCI，吃透传的是 cosign/oras 一类）；结构判读已接管白名单的防「任意 JSON 假 manifest」职责，白名单无增量安全收益（T-39 review §五）。
+② 逐 config/layer digest 查 `nodes`（本 repo 内）已存在，缺一即拒（防悬空引用——manifest blob 落盘先于校验失败则成为无引用 blob，GC 兜底，不损数据）；未知 CT 透传类型同样走②③（结构判读使校验链对透传类型全部生效）。
+③ list/index 的嵌套 manifest digest 递归同校验（只查在场性，不递归解析其内部——spec 允许 lazy）。
 
 **token 认证流（ADR-0010 第 4/5 条，复用 TokenRegistry 不平行一套）**：
 ```
@@ -586,15 +589,19 @@ CREATE TABLE virtual_members (
 );
 
 -- ===== 002_docker.sql（M2 增量，ADR-0010；架构定稿，dev-go-core 落迁移文件）=====
--- docker 制品的 node 布局约定（不加表，复用 nodes）：
+-- docker 制品的 node 布局约定（不加表，复用 nodes；**双 node 布局**经 T-39 裁定、T-51 追认为正式契约）：
 --   manifest blob 的 node path = "<image>/manifests/<digest-hex>"；
 --   layer/config blob 的 node path = "<image>/blobs/<digest-hex>"（image = name 去掉 repo key 首段后的相对名，
 --   可含 '/'）。digest 寻址直达 nodes 主键，无需 JOIN。
+--   双 node 布局语义（T-39 review non-blocking #2）：同一 manifest digest 同时落 manifests 行与
+--   （经引用链）blobs 行族——index 子 manifest 即使 descriptor mediaType 未知/拼错也能在 blobs 路径
+--   探测成功（mediaType 选路失误被双行兜住）；DELETE manifest 后 blob node 存活、manifest GET 404
+--   而 blob GET 仍 200 是**既定语义**（blob 物理回收归 GC）。此布局已是探测锚点与 FR-7-AC4 测试钉死面。
 CREATE TABLE docker_manifests (           -- manifest 元数据（manifest 本体是普通 blob/node）
   repo_key  TEXT NOT NULL REFERENCES repositories(repo_key) ON DELETE CASCADE,
   image     TEXT NOT NULL,                -- 镜像相对名（不含 repo key 首段）
   digest    TEXT NOT NULL,                -- 裸 hex sha256（blob 主键同源）
-  media_type TEXT NOT NULL,               -- §5.3 四种之一
+  media_type TEXT NOT NULL,               -- 客户端透传的裸 media type（剥 ; 参数，非白名单——§5.3 校验链①，T-51 消歧）
   size      INTEGER NOT NULL,
   created_by TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL,

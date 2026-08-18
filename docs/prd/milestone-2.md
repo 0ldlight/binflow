@@ -263,7 +263,7 @@ M2 在 M1 地基上**追加**而非返工：
 | DE-12 | `GET /v2/<name>/tags/list` | 200 `{"name","tags"}`；分页同上（last exclusive）；`NAME_UNKNOWN` 404；空仓 `"tags":null`（**非空数组**，QA 断言 `jq '.tags == null'`；Artifactory 偏离 404 NO_TAGS_FOUND 不跟进） | 兼容（spec） | P0 | 高 | D09 |
 | DE-13 | token 流：`Www-Authenticate` 挑战 + `GET/POST /v2/token`（adapter 自有端点，ADR-0010） | 401 挑战头（realm=`<BASE>/v2/token`、`service="binflow"`、scope 按端点推导：GET→pull / 写→pull,push / catalog→`registry:catalog:*`）；token 端点 200 `{"token","access_token","expires_in","issued_at"}`；`offline_token=true` → 400；scope 权限判定在资源端点（FR-11 双入口说明） | 兼容（spec）+ **新增自有端点**（docker-registry.md §5.1「realm 指向自身 token 端点」同构；与 M1 管理面 `POST /binflow/api/security/token` 并存，授权模型不同——见 FR-11） | P0 | 高（挑战形态，docker-registry.md §5.1）/ 中（scope 收窄策略） | D04b/D04c/D05 |
 | DE-14 | `DELETE /v2/<name>/blobs/<digest>` | spec 允许 blob 删除；BinFlow **有意不兼容**：405 `UNSUPPORTED`（blob 物理删除唯一入口是 GC，ADR-0006 安全底线；spec 允许 registry 不支持） | 有意不兼容 | P1 | 高 | D13d |
-| DE-15 | `/v2/<name>/referrers/`（OCI referrers API） | M2 不做 → 404 + spec 错误体（E-26 联动） | 有意不兼容 | — | — | D24 |
+| DE-15 | `/v2/<name>/referrers/`（OCI referrers API） | M2 不做 → 404 + spec 错误体（E-26 联动）。注记（T-51，架构终审）：manifest PUT 的 `OCI-Subject` 响应头**无条件返回**（subject digest 良构即回），与 OCI spec「repo 开 referrers API 才回」的条件不符——有意为之：oras 等客户端凭该头探测 referrers、得 404 后安全回退 tag 模式，无条件返回不伤推送体验；头信号与端点能力的不一致以本注记显式归档，referrers 端点本体仍 M2 不做 | 有意不兼容（OCI-Subject 头为有意偏差，见注记） | — | — | D24 |
 | DE-16 | `/v2/` 下 spec 未定义路径 | 404 + spec 错误体（不返回 E-01，保持域内一致性） | 有意不兼容 | P0 | — | D24 |
 | DE-17 | docker 域的 `Link`/`Range`/`Docker-Upload-UUID`/`Docker-Content-Digest`/`Content-Type` 头集 | 头语义与名按 spec 逐字对齐（客户端硬依赖） | 兼容（spec） | P0 | 高 | 全 D 序列 |
 
