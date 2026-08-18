@@ -61,11 +61,14 @@ func parseV2Name(path string) (nameRef, error) {
 		// not serve top-level bare names (ADR-0010 clause 3).
 		return nameRef{}, errNotAName(fmt.Sprintf("name %q has no repository prefix", decoded))
 	}
-	// Dot-segment / empty-segment defense runs BEFORE any shape analysis:
-	// a traversal spelling like /v2/team1/../etc/passwd happens to carry
-	// no registry route, and judging shape first would answer a benign
-	// 404 for what is an attack probe — the 400 must win (NFR-S11).
-	if err := adapter.NormalizeRelPath(strings.Join(segments[1:], "/")); err != nil {
+	// Dot-segment / empty-segment defense runs BEFORE any shape analysis,
+	// and covers EVERY segment including the repository key (T-33 review
+	// B2): a traversal spelling like /v2/team1/../etc/passwd happens to
+	// carry no registry route, and judging shape first would answer a
+	// benign 404 for what is an attack probe — the 400 must win
+	// (NFR-S11). Judging only the image half left /v2/../x reachable as
+	// a 404 with ".." sitting in the repo-key slot.
+	if err := adapter.NormalizeRelPath(strings.Join(segments, "/")); err != nil {
 		return nameRef{}, err
 	}
 	repoKey := segments[0]
@@ -96,9 +99,6 @@ func parseV2Name(path string) (nameRef, error) {
 		return nameRef{}, errNotAName(fmt.Sprintf("path %q carries no registry route", decoded))
 	}
 	image := strings.Join(rest[:tailIdx], "/")
-	if err := adapter.NormalizeRelPath(image); err != nil {
-		return nameRef{}, err
-	}
 	tail := strings.Join(rest[tailIdx:], "/")
 	return nameRef{repoKey: repoKey, image: image, tail: tail}, nil
 }

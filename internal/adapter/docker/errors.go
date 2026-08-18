@@ -23,6 +23,9 @@ const (
 	ErrCodeUnauthorized = "UNAUTHORIZED"
 	// ErrCodeNameUnknown: the repository name is not known to the registry.
 	ErrCodeNameUnknown = "NAME_UNKNOWN"
+	// ErrCodeUnknown: an unknown/unexpected server-side error ([DIST-API]
+	// reserves UNKNOWN for exactly this).
+	ErrCodeUnknown = "UNKNOWN"
 )
 
 // specError is one entry of the registry error body.

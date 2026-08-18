@@ -164,9 +164,12 @@ func (f *logFields) userName() string {
 	return "anonymous"
 }
 
-// recoverPanic converts handler panics into envelope 500s and an error log
-// line (architecture section 7.2). http.Server's own recover would abort
-// the connection without a response body — unacceptable for an API.
+// recoverPanic converts handler panics into 500s and an error log line
+// (architecture section 7.2). http.Server's own recover would abort
+// the connection without a response body — unacceptable for an API. The
+// body's shape follows the request's plane (T-33 review B1, same family
+// as the authenticator's rejection split): /v2 answers the registry spec
+// body with the api-version header, every other path the errors[] envelope.
 //
 // Mid-stream panics (T-14 review M1): when the response is already
 // committed — a streaming download wrote body bytes before the panic —
@@ -196,12 +199,35 @@ func recoverPanic(logger *slog.Logger) Middleware {
 						rec2.markStatus(http.StatusInternalServerError)
 						return
 					}
+					if isV2Plane(r.URL.EscapedPath()) {
+						writeV2InternalError(w)
+						return
+					}
 					writeError(w, http.StatusInternalServerError, "internal server error")
 				}
 			}()
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// isV2Plane reports whether the path belongs to the /v2 registry plane
+// (ADR-0010 clause 1). Used by the failure-rendering middlewares to pick
+// the response contract; the path is the raw escaped spelling — the same
+// value dispatch branches on, so the two can never disagree.
+func isV2Plane(path string) bool {
+	return path == "/v2" || strings.HasPrefix(path, "/v2/")
+}
+
+// writeV2InternalError renders the registry-plane 500 (spec body plus the
+// api-version header). Kept next to the envelope writer so the two
+// contracts stay visibly parallel.
+func writeV2InternalError(w http.ResponseWriter) {
+	hdr := w.Header()
+	hdr.Set("Content-Type", "application/json")
+	hdr.Set("Docker-Distribution-Api-Version", "registry/2.0")
+	w.WriteHeader(http.StatusInternalServerError)
+	_, _ = w.Write([]byte(`{"errors":[{"code":"UNKNOWN","message":"internal server error","detail":null}]}` + "\n"))
 }
 
 // cors adds configurable cross-origin headers (architecture section 7.2:
@@ -282,17 +308,26 @@ type routeAuth struct {
 const basicChallenge = `Basic realm="BinFlow Realm"`
 
 // authenticate resolves the credential and stores the principal. A
-// presented-but-rejected credential is a hard 401 (no downgrade to
-// anonymous: probing with a stale token must not silently succeed where no
-// token at all would fail); no credential at all stays anonymous and the
-// route's own gate decides.
+// presented-but-rejected credential is NEVER downgraded to anonymous
+// (probing with a stale token must not silently succeed where no token at
+// all would fail); since T-33 review B1 the rejection is carried in the
+// context as a signal and the ROUTING PLANE renders it — /binflow routes
+// answer the errors[] envelope plus the Basic challenge (unchanged
+// behavior), the /v2 registry plane answers the spec body plus the Bearer
+// challenge (docker clients must not meet a Basic challenge mid-negotiation).
+// A request with no credential at all stays anonymous and the route's own
+// gate decides.
 func authenticate(a auth.Authenticator) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			p, err := a.Authenticate(r.Context(), r)
 			if err != nil {
-				w.Header().Set("WWW-Authenticate", basicChallenge)
-				writeError(w, http.StatusUnauthorized, "invalid credentials")
+				// Log the refusal for operators (the reason never reaches
+				// the client), then hand the plane a decision to make.
+				slog.WarnContext(r.Context(), "httpapi: credential rejected",
+					slog.String("path", r.URL.EscapedPath()),
+					slog.String("reason", err.Error()))
+				next.ServeHTTP(w, r.WithContext(withAuthRejected(r.Context(), err.Error())))
 				return
 			}
 			// Thread the resolved name outward to the access log (contexts

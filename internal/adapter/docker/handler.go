@@ -42,6 +42,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.serveNameRoute(w, r, path)
 }
 
+// RenderAuthFailure shapes a refused credential for the /v2 plane
+// (T-33 review B1): 401 + Bearer challenge + spec body, identical to the
+// closed-instance anonymous challenge. httpapi's router reaches it through
+// the narrow v2AuthFailure interface so neither package imports the other.
+func (h *Handler) RenderAuthFailure(w http.ResponseWriter, r *http.Request) {
+	h.challenge(w, r, "")
+}
+
 // servePing implements DE-01/D04: anonymous access open -> 200 {} with the
 // api-version header; closed or an unauthenticated non-GET -> 401 with the
 // Bearer challenge (realm = <base>/v2/token, service="binflow", ADR-0010
@@ -52,7 +60,9 @@ func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
 	if h.opts.AnonymousAccess || p != nil {
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			// The ping endpoint is a GET resource; other verbs answer the
-			// spec body's method posture (405 + UNSUPPORTED).
+			// spec body's method posture (405 + UNSUPPORTED) with the
+			// mandatory Allow header (RFC 9110 MUST).
+			w.Header().Set("Allow", "GET, HEAD")
 			writeSpecError(w, http.StatusMethodNotAllowed, ErrCodeUnsupported,
 				fmt.Sprintf("method %s is not supported on /v2/", r.Method), nil)
 			return
@@ -123,6 +133,15 @@ func (h *Handler) serveNameRoute(w http.ResponseWriter, r *http.Request, path st
 		writeSpecError(w, http.StatusNotFound, ErrCodeUnsupported,
 			"token endpoint is not implemented yet (T-37)", nil)
 		return
+	case path == catalogPath || strings.HasPrefix(path, catalogPath+"/"):
+		// The catalog endpoint (architecture section 5.3, GET
+		// /v2/_catalog) is T-40's; the explicit placeholder keeps the
+		// registry-level "_-"prefixed route OUT of the name parser's
+		// repo-key slot (spec reserves that prefix for registry endpoints —
+		// a user repository named "_catalog" must never hijack it).
+		writeSpecError(w, http.StatusNotFound, ErrCodeUnsupported,
+			"catalog endpoint is not implemented yet (T-40)", nil)
+		return
 	case !strings.HasPrefix(path, "/v2/"):
 		writeSpecError(w, http.StatusNotFound, ErrCodeUnsupported,
 			"unknown /v2 route "+path, nil)
@@ -149,11 +168,24 @@ func (h *Handler) serveNameRoute(w http.ResponseWriter, r *http.Request, path st
 		return
 	}
 
-	row, err := h.repos.Get(ref.repoKey)
-	if err != nil || row == nil || row.PackageType() != Protocol {
-		// One 404 for all three causes (NAME_UNKNOWN, spec wording):
-		// "repo does not exist" and "repo is not a docker repo" must not
-		// be distinguishable to an unauthenticated caller.
+	row, err := h.repos.Get(r.Context(), ref.repoKey)
+	if err != nil {
+		// A genuine lookup failure is NOT a missing repository (T-33
+		// review B2): swallowing it as NAME_UNKNOWN would render a DB
+		// outage as "image missing" — docker clients would loop on
+		// re-push. Log the failure and answer the spec-body 500; the
+		// indistinguishability security posture is unaffected (a DB
+		// fault reveals nothing about repository existence).
+		h.log.ErrorContext(r.Context(), "docker: repository lookup failed",
+			"repo", ref.repoKey, "error", err.Error())
+		writeSpecError(w, http.StatusInternalServerError, ErrCodeUnknown,
+			"repository lookup failed", nil)
+		return
+	}
+	if row == nil || row.PackageType() != Protocol {
+		// One 404 for both causes (NAME_UNKNOWN, spec wording): "repo does
+		// not exist" and "repo is not a docker repo" must not be
+		// distinguishable to an unauthenticated caller.
 		writeSpecError(w, http.StatusNotFound, ErrCodeNameUnknown,
 			fmt.Sprintf("repository name not known to registry: %q", ref.repoKey), nil)
 		return
@@ -168,9 +200,11 @@ func (h *Handler) serveNameRoute(w http.ResponseWriter, r *http.Request, path st
 			" is not implemented in BinFlow M2 yet", nil)
 }
 
-// SessionRegistry exposes the upload-session seam T-38 will drive. It is
-// created once per handler here so the constructor surface does not change
-// when blob uploads land.
+// sessionRegistry is the upload-session seam T-38 will drive: the map of
+// Docker-Upload-UUID -> live upload state (storage.Session plus the
+// protocol's received offset). T-33 registers it so the constructor
+// surface does not change when blob uploads land; the type is
+// intentionally empty until then (R6: plain UUIDs, relative Locations).
 type sessionRegistry struct{}
 
 func newSessionRegistry() *sessionRegistry { return &sessionRegistry{} }

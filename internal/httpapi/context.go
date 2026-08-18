@@ -16,6 +16,7 @@ const (
 	ctxKeyRequestID ctxKey = iota
 	ctxKeyPrincipal
 	ctxKeyLogFields
+	ctxKeyAuthRejected
 )
 
 // HeaderRequestID is the response/request header carrying the per-request
@@ -77,4 +78,28 @@ func userName(p *auth.Principal) string {
 		return "anonymous"
 	}
 	return p.Name
+}
+
+// authRejected carries the reason a presented credential was refused.
+// T-33 review B1: the authenticator no longer renders the 401 itself —
+// a rejection's wire form depends on the route's plane (/v2 answers the
+// registry spec body plus the Bearer challenge, /binflow answers the
+// errors[] envelope plus the Basic challenge), so the signal travels
+// downstream in the context and the routing plane shapes it. The reason
+// string is operator-facing log wording, never client-visible.
+type authRejected struct{ reason string }
+
+// withAuthRejected stores the rejection signal.
+func withAuthRejected(ctx context.Context, reason string) context.Context {
+	return context.WithValue(ctx, ctxKeyAuthRejected, authRejected{reason: reason})
+}
+
+// authRejectedFrom returns the stored rejection ("", false when the
+// request carried no refused credential — i.e. genuinely anonymous).
+func authRejectedFrom(ctx context.Context) (string, bool) {
+	r, ok := ctx.Value(ctxKeyAuthRejected).(authRejected)
+	if !ok {
+		return "", false
+	}
+	return r.reason, true
 }

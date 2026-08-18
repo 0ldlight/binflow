@@ -82,10 +82,6 @@ func newHarnessCfg(t *testing.T, mutate func(*config.Config), users [][2]string)
 	authSvc := auth.NewFromStore(md, cfg.Security.AnonymousAccess)
 	svc := repo.New(st, md, authSvc, nil)
 	genericHandler := generic.New(svc, md.Blobs())
-	dockerHandler := docker.New(svc, docker.NewRepoLookup(md.Repos()), docker.Options{
-		AnonymousAccess: cfg.Security.AnonymousAccess,
-		BaseURL:         cfg.Server.BaseURL,
-	})
 
 	for _, u := range users {
 		hash, err := auth.HashPassword(u[1])
@@ -100,6 +96,10 @@ func newHarnessCfg(t *testing.T, mutate func(*config.Config), users [][2]string)
 	}
 
 	lines, logger, mu := newCapturingLogger()
+	dockerHandler := docker.New(svc, docker.NewRepoLookup(md.Repos()), docker.Options{
+		AnonymousAccess: cfg.Security.AnonymousAccess,
+		BaseURL:         cfg.Server.BaseURL,
+	}, logger)
 	s := httpapi.New(httpapi.Deps{
 		Config:    cfg,
 		Auth:      authSvc,

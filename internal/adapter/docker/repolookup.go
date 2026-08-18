@@ -3,6 +3,7 @@ package docker
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/repo"
@@ -21,14 +22,16 @@ func NewRepoLookup(store metadata.RepoStore) RepoLookup {
 
 // Get resolves the key, mapping not-found onto (nil, nil) — the docker
 // plane treats a missing row and a wrong package type identically
-// (NAME_UNKNOWN), so the caller does not need the distinction.
-func (l storeRepoLookup) Get(key string) (RepoRow, error) {
-	row, err := l.store.Get(context.Background(), key)
+// (NAME_UNKNOWN), so the caller does not need the distinction. Every
+// other error propagates: the caller (T-33 review B2) logs it and answers
+// a spec-body 500, never a disguised NAME_UNKNOWN.
+func (l storeRepoLookup) Get(ctx context.Context, key string) (RepoRow, error) {
+	row, err := l.store.Get(ctx, key)
 	if err != nil {
 		if errors.Is(err, metadata.ErrRepoNotFound) || errors.Is(err, repo.ErrRepoNotFound) {
 			return nil, nil
 		}
-		return nil, err
+		return nil, fmt.Errorf("docker: repo row lookup for %q: %w", key, err)
 	}
 	if row == nil {
 		return nil, nil
@@ -48,7 +51,7 @@ type staticRepoLookup map[string]string
 func NewStaticRepoLookup(table map[string]string) RepoLookup { return staticRepoLookup(table) }
 
 // Get resolves the key or yields (nil, nil) for unknown keys.
-func (l staticRepoLookup) Get(key string) (RepoRow, error) {
+func (l staticRepoLookup) Get(_ context.Context, key string) (RepoRow, error) {
 	pkg, ok := l[key]
 	if !ok {
 		return nil, nil

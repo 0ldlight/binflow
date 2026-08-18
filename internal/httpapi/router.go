@@ -85,7 +85,11 @@ func (s *Server) baseChain(next http.Handler) http.Handler {
 }
 
 // dispatch branches on the raw escaped path (no normalization — see the
-// package comment).
+// package comment). It is also the single point where a rejected
+// credential (T-33 review B1) is shaped per plane: /v2 answers the
+// registry spec body plus the Bearer challenge (a docker client must
+// never meet a Basic challenge mid-negotiation), /binflow keeps the
+// errors[] envelope plus the Basic challenge.
 func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.EscapedPath()
 
@@ -95,6 +99,14 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 	// through the shared adapter seam. The prefix test MUST run before the
 	// /binflow branch below — /v2 is not under the product prefix at all.
 	if path == "/v2" || strings.HasPrefix(path, "/v2/") {
+		if reason, rejected := authRejectedFrom(r.Context()); rejected {
+			// Presented-but-refused credential: same wire form as an
+			// anonymous request on a closed instance — 401 + Bearer
+			// challenge + spec body (docker-registry.md section 5.1).
+			// The refusal reason stays in the log, not the body.
+			s.writeV2AuthFailure(w, r, reason)
+			return
+		}
 		if h, ok := s.adapters["docker"]; ok {
 			h.ServeHTTP(w, withRootPrincipal(r, principalFrom(r.Context())))
 			return
@@ -102,6 +114,15 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 		// No docker adapter mounted (assembly without one): honest spec-body
 		// 404, keeping the /v2 plane's response contract even degraded.
 		s.writeV2Unavailable(w)
+		return
+	}
+
+	if reason, rejected := authRejectedFrom(r.Context()); rejected {
+		// /binflow plane (and everything else): the historical hard-401
+		// behavior, rendered here instead of inside the authenticator.
+		w.Header().Set("WWW-Authenticate", basicChallenge)
+		writeError(w, http.StatusUnauthorized, "invalid credentials")
+		_ = reason // logged by the authenticator; the body wording is fixed
 		return
 	}
 
@@ -132,6 +153,47 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 	default:
 		s.dispatchContent(w, r, rest)
 	}
+}
+
+// v2AuthFailure is the docker adapter's seam for rendering an
+// authentication failure on the /v2 plane (T-33 review B1): the spec error
+// body plus the Bearer challenge whose realm points at /v2/token. The
+// router holds only this narrow interface so httpapi never imports the
+// docker package (adapter packages are leaves; the dependency direction
+// in architecture section 2 forbids httpapi -> adapter/docker).
+type v2AuthFailure interface {
+	RenderAuthFailure(w http.ResponseWriter, r *http.Request)
+}
+
+// writeV2AuthFailure shapes a rejected credential for the /v2 plane. When
+// the docker adapter is mounted it owns the rendering (realm derivation
+// lives there); otherwise the static fallback keeps the same contract
+// with a request-derived realm.
+func (s *Server) writeV2AuthFailure(w http.ResponseWriter, r *http.Request, reason string) {
+	s.log.Warn("httpapi: rejected credential on /v2",
+		"path", r.URL.EscapedPath(), "reason", reason)
+	if h, ok := s.adapters["docker"].(v2AuthFailure); ok {
+		h.RenderAuthFailure(w, r)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Docker-Distribution-Api-Version", "registry/2.0")
+	w.Header().Set("WWW-Authenticate",
+		`Bearer realm="`+requestScheme(r)+"://"+r.Host+`/v2/token",service="binflow"`)
+	w.WriteHeader(http.StatusUnauthorized)
+	_, _ = w.Write([]byte(`{"errors":[{"code":"UNAUTHORIZED","message":"authentication required","detail":null}]}` + "\n"))
+}
+
+// requestScheme resolves http vs https from the request (X-Forwarded-Proto
+// honored) — the fallback realm builder only.
+func requestScheme(r *http.Request) string {
+	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+		return strings.TrimSpace(strings.Split(proto, ",")[0])
+	}
+	if r.TLS != nil {
+		return "https"
+	}
+	return "http"
 }
 
 // writeV2Unavailable answers /v2 when no docker adapter is mounted. The

@@ -6,6 +6,9 @@
 package docker
 
 import (
+	"context"
+	"log/slog"
+
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/repo"
 )
@@ -25,6 +28,12 @@ const ServiceID = "binflow"
 // issuing logic itself is T-37.
 const TokenPath = "/v2/token"
 
+// catalogPath is the registry-level catalog route (architecture section
+// 5.3, GET /v2/_catalog). T-40 implements it; the placeholder branch here
+// exists so the "_-"prefixed registry endpoint can never be captured by a
+// repository key (spec reserves that prefix).
+const catalogPath = "/v2/_catalog"
+
 // Options carries the deployment facts the docker plane needs at assembly.
 type Options struct {
 	// AnonymousAccess is security.anonymous_access (ADR-0009): the ping
@@ -42,6 +51,7 @@ type Handler struct {
 	svc   repo.Service
 	repos RepoLookup
 	opts  Options
+	log   *slog.Logger
 	sess  *sessionRegistry
 }
 
@@ -56,16 +66,20 @@ type RepoRow interface {
 // consulted — the same routing-data-only posture as httpapi's seam (the
 // row's config never crosses here). The docker route reaches the adapter
 // WITHOUT the /binflow dispatch that normally performs this lookup, so the
-// adapter holds its own.
+// adapter holds its own. ctx flows from the request so a slow query dies
+// with the connection (T-33 review B2).
 type RepoLookup interface {
-	Get(key string) (RepoRow, error)
+	Get(ctx context.Context, key string) (RepoRow, error)
 }
 
 // New wires the handler. svc may be nil in the foundation state (content
 // endpoints arrive with T-38/T-39); repos must be non-nil so name
-// resolution answers today.
-func New(svc repo.Service, repos RepoLookup, opts Options) *Handler {
-	return &Handler{svc: svc, repos: repos, opts: opts, sess: newSessionRegistry()}
+// resolution answers today. log may be nil (slog.Default()).
+func New(svc repo.Service, repos RepoLookup, opts Options, log *slog.Logger) *Handler {
+	if log == nil {
+		log = slog.Default()
+	}
+	return &Handler{svc: svc, repos: repos, opts: opts, log: log, sess: newSessionRegistry()}
 }
 
 // Principal is the caller identity, aliased like every adapter does.
