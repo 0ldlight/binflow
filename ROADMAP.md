@@ -21,7 +21,7 @@
 - [x] QA：generic roundtrip + 存储完整性；文档：README 快速开始
 
 ### M2 — 云原生旗舰：Docker Registry v2（当前）
-需求基线：docs/prd/milestone-2.md（PRD v1.0；`/v2` 路由方案待 ADR 定案，见 PRD §7 Q1）
+需求基线：docs/prd/milestone-2.md（PRD v1.1；`/v2` 路由已定案（ADR-0010 根级例外））
 - [ ] 逆向规格：docker-registry.md（补 spec 外空白，reverse-engineer）
 - [ ] ADR-0010：`/v2` 挂载形态（根级例外 vs `/binflow/v2`+反代 rewrite，architect，依赖 PRD Q1 用户定案）
 - [ ] blob upload 协议（POST/PATCH/PUT，monolithic + chunked）
