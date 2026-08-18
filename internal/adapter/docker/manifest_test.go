@@ -517,6 +517,16 @@ func TestManifestValidationChain(t *testing.T) {
 			wantCode: "MANIFEST_INVALID",
 		},
 		{
+			name:        "schemaVersion not an integer (review #8 wording)",
+			reference:   "v1",
+			contentType: mediaTypeDockerManifest,
+			build: func(_ *testing.T, _ *blobHarness, _ *manifestFixture) []byte {
+				return []byte(`{"schemaVersion":2.5,"config":{"digest":"sha256:` +
+					strings.Repeat("a", 64) + `"},"layers":[]}`)
+			},
+			wantCode: "MANIFEST_INVALID",
+		},
+		{
 			name:        "missing schemaVersion",
 			reference:   "v1",
 			contentType: mediaTypeDockerManifest,
@@ -743,6 +753,127 @@ func mustJSON(t *testing.T, v any) []byte {
 		t.Fatalf("marshal: %v", err)
 	}
 	return b
+}
+
+// ---- review B1: duplicate descriptor digests publish exactly once ----
+
+// TestManifestDuplicateDescriptorDigests (review B1): a manifest naming the
+// SAME digest twice — the same layer twice, config==layer, an index listing
+// one child twice, even the empty layer twice — is a LEGAL body that must
+// publish 201 with the ref ledger holding one row per referenced blob.
+// Before the fix the duplicate hit docker_refs's four-column PK, PutRefs
+// (the LAST write of PutManifest) failed, and the client saw a 500 for a
+// push that had in fact landed — a ghost manifest.
+func TestManifestDuplicateDescriptorDigests(t *testing.T) {
+	t.Run("same layer twice", func(t *testing.T) {
+		bh := newBlobHarness(t)
+		f := newManifestFixture(t, bh)
+		layerDgst := "sha256:" + sha256Hex(f.layerBytes)
+		body := []byte(fmt.Sprintf(
+			`{"schemaVersion":2,"mediaType":"`+mediaTypeDockerManifest+`",`+
+				`"config":{"mediaType":"application/vnd.docker.container.image.v1+json","digest":"sha256:`+sha256Hex(f.configBytes)+`","size":1},`+
+				`"layers":[{"mediaType":"x","digest":"%s","size":1},{"mediaType":"x","digest":"%s","size":1}]}`,
+			layerDgst, layerDgst))
+		resp := bh.putManifest(t, "duplayer", body, mediaTypeDockerManifest)
+		out := readBody(t, resp)
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("dup-layer push = %d body=%s", resp.StatusCode, out)
+		}
+		assertRefRows(t, bh, 2) // config + ONE layer row
+		assertTagServesBody(t, bh, "duplayer", body)
+	})
+
+	t.Run("config digest equals layer digest", func(t *testing.T) {
+		bh := newBlobHarness(t)
+		cfg := []byte("same-bytes-for-config-and-layer")
+		dgst := "sha256:" + sha256Hex(cfg)
+		resp := bh.serve(http.MethodPost, "/v2/team1/app/blobs/uploads/?digest="+dgst,
+			bytes.NewReader(cfg), nil)
+		readBody(t, resp)
+		body := []byte(fmt.Sprintf(
+			`{"schemaVersion":2,"mediaType":"`+mediaTypeDockerManifest+`",`+
+				`"config":{"mediaType":"application/vnd.docker.container.image.v1+json","digest":"%s","size":1},`+
+				`"layers":[{"mediaType":"x","digest":"%s","size":1}]}`,
+			dgst, dgst))
+		resp = bh.putManifest(t, "dupcfg", body, mediaTypeDockerManifest)
+		out := readBody(t, resp)
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("config==layer push = %d body=%s", resp.StatusCode, out)
+		}
+		assertRefRows(t, bh, 1) // ONE blob, one row
+		assertTagServesBody(t, bh, "dupcfg", body)
+	})
+
+	t.Run("index lists the same child twice", func(t *testing.T) {
+		bh := newBlobHarness(t)
+		f := newManifestFixture(t, bh)
+		child := "sha256:" + f.manifestDgst[strings.Index(f.manifestDgst, ":")+1:]
+		// The child must exist at the manifest layout path: push the
+		// fixture's manifest body by digest first (its own blobs are
+		// already present).
+		resp := bh.putManifest(t, child, f.manifest, mediaTypeDockerManifest)
+		readBody(t, resp)
+		body := []byte(fmt.Sprintf(
+			`{"schemaVersion":2,"mediaType":"`+mediaTypeDockerList+`",`+
+				`"manifests":[{"mediaType":"`+mediaTypeDockerManifest+`","digest":"%s","size":1},`+
+				`{"mediaType":"`+mediaTypeDockerManifest+`","digest":"%s","size":1}]}`,
+			child, child))
+		resp = bh.putManifest(t, "dupchild", body, mediaTypeDockerList)
+		out := readBody(t, resp)
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("dup-child index push = %d body=%s", resp.StatusCode, out)
+		}
+		assertRefRows(t, bh, 1) // ONE child, one row
+		assertTagServesBody(t, bh, "dupchild", body)
+	})
+
+	t.Run("empty layer twice", func(t *testing.T) {
+		bh := newBlobHarness(t)
+		cfg := []byte("empty-twice-config")
+		resp := bh.serve(http.MethodPost, "/v2/team1/app/blobs/uploads/?digest=sha256:"+sha256Hex(cfg),
+			bytes.NewReader(cfg), nil)
+		readBody(t, resp)
+		body := []byte(fmt.Sprintf(
+			`{"schemaVersion":2,"mediaType":"`+mediaTypeOCIManifest+`",`+
+				`"config":{"mediaType":"application/vnd.oci.image.config.v1+json","digest":"sha256:`+sha256Hex(cfg)+`","size":1},`+
+				`"layers":[{"mediaType":"x","digest":"sha256:%s","size":32},{"mediaType":"x","digest":"sha256:%s","size":32}]}`,
+			emptyLayerDigestHex, emptyLayerDigestHex))
+		resp = bh.putManifest(t, "dupempty", body, mediaTypeOCIManifest)
+		out := readBody(t, resp)
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("dup-empty push = %d body=%s", resp.StatusCode, out)
+		}
+		assertRefRows(t, bh, 2) // config + one empty-layer row
+		assertTagServesBody(t, bh, "dupempty", body)
+	})
+}
+
+// assertRefRows fails unless the fake's ref ledger for the last manifest
+// holds exactly n rows.
+func assertRefRows(t *testing.T, bh *blobHarness, n int) {
+	t.Helper()
+	bh.svc.mu.Lock()
+	got := len(bh.svc.refs)
+	rows := fmt.Sprint(bh.svc.refs)
+	bh.svc.mu.Unlock()
+	if got != n {
+		t.Fatalf("ref ledger rows = %d want %d; rows=%s", got, n, rows)
+	}
+}
+
+// assertTagServesBody fails unless the tag's GET answers 200 with exactly
+// body (the "no ghost manifest" invariant: what the 201 confirmed is what
+// the registry serves).
+func assertTagServesBody(t *testing.T, bh *blobHarness, tag string, body []byte) {
+	t.Helper()
+	resp := bh.getManifest(t, http.MethodGet, tag, mediaTypeDockerManifest, mediaTypeOCIManifest, mediaTypeDockerList)
+	got := readBody(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET %s after publish = %d body=%s", tag, resp.StatusCode, got)
+	}
+	if !bytes.Equal(got, body) {
+		t.Fatalf("GET %s body drifted from the pushed bytes", tag)
+	}
 }
 
 // ---- service-error branches ----

@@ -3,8 +3,10 @@ package httpapi_test
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/lzwzzy/binflow/internal/storage"
@@ -681,4 +683,159 @@ func openEngineOrFail(t *testing.T, dataDir string) storage.Engine {
 		t.Fatalf("storage.OpenEngine: %v", err)
 	}
 	return st
+}
+
+// TestV2ManifestDuplicateDescriptorDigests (review B1): duplicate digests
+// inside one manifest are legal bodies that must publish on the real stack
+// — the ref ledger keeps one row per referenced blob and the tag serves
+// the pushed bytes (no ghost manifest behind a 500).
+func TestV2ManifestDuplicateDescriptorDigests(t *testing.T) {
+	h := newHarness(t)
+	seedDockerRepo(t, h, "docker-local")
+	name := "docker-local/acme/dup"
+	cfg := v2SeedBlob(t, h, name, []byte("dup-config"))
+	layer := v2SeedBlob(t, h, name, []byte("dup-layer"))
+
+	// Same layer twice.
+	dupLayer := []byte(`{"schemaVersion":2,"mediaType":"` + ctDockerManifest +
+		`","config":{"mediaType":"x","digest":"` + cfg + `","size":10},` +
+		`"layers":[{"mediaType":"x","digest":"` + layer + `","size":9},` +
+		`{"mediaType":"x","digest":"` + layer + `","size":9}]}`)
+	resp := h.do(http.MethodPut, "/v2/"+name+"/manifests/duplayer", adminUser, adminPass,
+		dupLayer, map[string]string{"Content-Type": ctDockerManifest})
+	out := mustGet(t, resp)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("dup-layer push = %d body=%s", resp.StatusCode, out)
+	}
+	dgst := resp.Header.Get("Docker-Content-Digest")
+	resp = h.do(http.MethodGet, "/v2/"+name+"/manifests/duplayer", adminUser, adminPass, nil,
+		map[string]string{"Accept": ctDockerManifest})
+	if got := mustGet(t, resp); resp.StatusCode != http.StatusOK || got != string(dupLayer) {
+		t.Fatalf("dup-layer GET = %d identical=%v", resp.StatusCode, got == string(dupLayer))
+	}
+	hex := strings.TrimPrefix(dgst, "sha256:")
+	refs, err := h.md.Docker().ListRefsByManifest(t.Context(), "docker-local", "acme/dup", hex)
+	if err != nil || len(refs) != 2 { // config + ONE layer row
+		t.Fatalf("dup-layer refs = %d err=%v want 2", len(refs), err)
+	}
+
+	// Empty layer twice (the synthesized digest, never uploaded).
+	twiceEmpty := []byte(`{"schemaVersion":2,"mediaType":"` + ctOCIManifest +
+		`","config":{"mediaType":"x","digest":"` + cfg + `","size":10},` +
+		`"layers":[{"mediaType":"x","digest":"sha256:` + emptyLayerHex + `","size":32},` +
+		`{"mediaType":"x","digest":"sha256:` + emptyLayerHex + `","size":32}]}`)
+	resp = h.do(http.MethodPut, "/v2/"+name+"/manifests/dupempty", adminUser, adminPass,
+		twiceEmpty, map[string]string{"Content-Type": ctOCIManifest})
+	out = mustGet(t, resp)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("dup-empty push = %d body=%s", resp.StatusCode, out)
+	}
+	resp = h.do(http.MethodGet, "/v2/"+name+"/manifests/dupempty", adminUser, adminPass, nil,
+		map[string]string{"Accept": ctOCIManifest})
+	if got := mustGet(t, resp); resp.StatusCode != http.StatusOK || got != string(twiceEmpty) {
+		t.Fatalf("dup-empty GET = %d identical=%v", resp.StatusCode, got == string(twiceEmpty))
+	}
+	hex = strings.TrimPrefix(resp.Header.Get("Docker-Content-Digest"), "sha256:")
+	refs, err = h.md.Docker().ListRefsByManifest(t.Context(), "docker-local", "acme/dup", hex)
+	if err != nil || len(refs) != 2 { // config + ONE empty-layer row
+		t.Fatalf("dup-empty refs = %d err=%v want 2", len(refs), err)
+	}
+}
+
+// emptyLayerHex is the canonical empty-layer digest (T-38's constant, the
+// client never uploads it; spelled locally for the integration suite).
+const emptyLayerHex = "a3ed95caeb02ffe68cdd9fd84406680ae93d633cb16422d00e8a7c22955b46d4"
+
+// TestV2ManifestConcurrentTagOverwrite (review N6): N writers racing the
+// SAME tag must all land 201 and the terminal state must be consistent —
+// by-tag serves exactly one of the pushed bodies, and that body's digest
+// is what the response headers say it is. The property held by accident
+// under SQLite's single writer before this test pinned it; it must survive
+// a store with real concurrency (the Postgres line, T-34).
+func TestV2ManifestConcurrentTagOverwrite(t *testing.T) {
+	h := newHarness(t)
+	seedDockerRepo(t, h, "docker-local")
+	name := "docker-local/acme/race"
+	cfg := v2SeedBlob(t, h, name, []byte("race-config"))
+
+	const writers = 20
+	type result struct {
+		dgst string
+		body []byte
+		err  string
+	}
+	results := make(chan result, writers)
+	var wg sync.WaitGroup
+	for i := 0; i < writers; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			layer := []byte(fmt.Sprintf("race-layer-%02d-%s", i, strings.Repeat("x", i)))
+			layerDgst := "sha256:" + sha256Of(layer)
+			resp := h.do(http.MethodPost, "/v2/"+name+"/blobs/uploads/?digest="+layerDgst,
+				adminUser, adminPass, layer, nil)
+			if resp.StatusCode != http.StatusCreated {
+				drain(resp)
+				results <- result{err: fmt.Sprintf("layer %d", resp.StatusCode)}
+				return
+			}
+			body := []byte(fmt.Sprintf(
+				`{"schemaVersion":2,"mediaType":"`+ctDockerManifest+`",`+
+					`"config":{"mediaType":"x","digest":"`+cfg+`","size":11},`+
+					`"layers":[{"mediaType":"x","digest":"`+layerDgst+`","size":%d}]}`, len(layer)))
+			resp = h.do(http.MethodPut, "/v2/"+name+"/manifests/racer", adminUser, adminPass,
+				body, map[string]string{"Content-Type": ctDockerManifest})
+			out, _ := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			if resp.StatusCode != http.StatusCreated {
+				results <- result{err: fmt.Sprintf("manifest %d: %s", resp.StatusCode, out)}
+				return
+			}
+			results <- result{dgst: resp.Header.Get("Docker-Content-Digest"), body: body}
+		}(i)
+	}
+	wg.Wait()
+	close(results)
+	pushed := make(map[string][]byte, writers)
+	for r := range results {
+		if r.err != "" {
+			t.Fatalf("writer failed: %s", r.err)
+		}
+		pushed[r.dgst] = r.body
+	}
+	if len(pushed) != writers {
+		t.Fatalf("distinct digests pushed = %d want %d", len(pushed), writers)
+	}
+
+	// The terminal by-tag state: exactly one winner, internally consistent.
+	resp := h.do(http.MethodGet, "/v2/"+name+"/manifests/racer", adminUser, adminPass, nil,
+		map[string]string{"Accept": ctDockerManifest})
+	got := mustGet(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("terminal by-tag GET = %d", resp.StatusCode)
+	}
+	servedDgst := resp.Header.Get("Docker-Content-Digest")
+	want, ok := pushed[servedDgst]
+	if !ok {
+		t.Fatalf("served digest %s is not one of the %d pushed", servedDgst, writers)
+	}
+	if got != string(want) {
+		t.Fatal("terminal by-tag body does not match its own Docker-Content-Digest")
+	}
+	// Every digest is still addressable (all 20 manifests coexist).
+	for dgst, body := range pushed {
+		resp := h.do(http.MethodGet, "/v2/"+name+"/manifests/"+dgst, adminUser, adminPass, nil,
+			map[string]string{"Accept": ctDockerManifest})
+		if g := mustGet(t, resp); resp.StatusCode != http.StatusOK || g != string(body) {
+			t.Fatalf("by-digest %s after the race = %d", dgst, resp.StatusCode)
+		}
+	}
+	// The tag row points at the winner and only at it.
+	tag, err := h.md.Docker().GetTag(t.Context(), "docker-local", "acme/race", "racer")
+	if err != nil {
+		t.Fatalf("tag row after the race: %v", err)
+	}
+	if strings.TrimPrefix(servedDgst, "sha256:") != tag.Digest {
+		t.Fatalf("tag row digest %s != served digest %s", tag.Digest, servedDgst)
+	}
 }

@@ -176,7 +176,11 @@ func (s *dockerStore) ListTagsByImage(ctx context.Context, repoKey, image string
 
 // PutRefs replaces the ref set of one manifest atomically. The DELETE +
 // batched INSERT pair runs in a single transaction: a failure midway leaves
-// the previous ledger intact.
+// the previous ledger intact. The insert is conflict-tolerant on purpose
+// (T-39 review B1): the table keys one row per REFERENCED BLOB (the DDL's
+// own comment), so a caller handing a set with duplicate blob digests
+// collapses onto one row instead of tripping the PK and 500ing a legal
+// publish — the adapter dedups too; this is the second layer.
 func (s *dockerStore) PutRefs(ctx context.Context, repoKey, image, manifestDigest string, refs []*DockerRef) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -189,7 +193,7 @@ func (s *dockerStore) PutRefs(ctx context.Context, repoKey, image, manifestDiges
 		repoKey, image, manifestDigest); err != nil {
 		return wrapExec("docker refs put clear", repoKey+"/"+image, err)
 	}
-	const insert = `INSERT INTO docker_refs
+	const insert = `INSERT OR IGNORE INTO docker_refs
 		(repo_key, image, manifest_digest, blob_digest, child_media_type)
 		VALUES (?, ?, ?, ?, ?)`
 	for _, r := range refs {

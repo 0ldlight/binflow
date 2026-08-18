@@ -231,10 +231,23 @@ func (h *Handler) putManifest(w http.ResponseWriter, r *http.Request, ref nameRe
 	if !isDigestRef {
 		tag = reference
 	}
-	refs := make([]*metadata.DockerRef, len(parsed.refs))
-	for i, mr := range parsed.refs {
+	// The ref ledger is one row per REFERENCED BLOB (the DDL's own
+	// comment), and docker_refs keys it (repo, image, manifest, blob) — so
+	// duplicate descriptors inside one manifest (the same layer twice,
+	// config==layer, an index naming one child twice, even the empty layer
+	// listed twice) collapse onto a single row. Deduping HERE keeps
+	// PutRefs's INSERT set duplicate-free; the store's insert is
+	// conflict-tolerant too (defense in depth, review B1) so a second
+	// writer racing the same conclusion cannot 500 a legal push.
+	refs := make([]*metadata.DockerRef, 0, len(parsed.refs))
+	seen := make(map[string]struct{}, len(parsed.refs))
+	for _, mr := range parsed.refs {
 		hexPart, _ := parseDigestParam(mr.Digest)
-		refs[i] = &metadata.DockerRef{BlobDigest: hexPart, ChildMediaType: mr.MediaType}
+		if _, dup := seen[hexPart]; dup {
+			continue
+		}
+		seen[hexPart] = struct{}{}
+		refs = append(refs, &metadata.DockerRef{BlobDigest: hexPart, ChildMediaType: mr.MediaType})
 	}
 	if _, err := h.svc.PutManifest(r.Context(), p, ref.repoKey, ref.image, dgst, tag,
 		contentType, int64(len(payload)), refs); err != nil {
@@ -526,6 +539,13 @@ func parseManifest(contentType string, body []byte) (*parsedManifest, error) {
 		Subject       *manifestRef     `json:"subject"`
 	}
 	if err := json.Unmarshal(body, &probe); err != nil {
+		// A schemaVersion of the wrong JSON type (2.5, "2") fails the
+		// *int unmarshal before anything else; name it for what it is
+		// rather than blaming the whole body (review non-blocking #8).
+		var tse *json.UnmarshalTypeError
+		if errors.As(err, &tse) && tse.Field == "schemaVersion" {
+			return nil, fmt.Errorf("manifest schemaVersion is not an integer: %w", err)
+		}
 		return nil, fmt.Errorf("manifest is not valid JSON: %w", err)
 	}
 
@@ -659,6 +679,11 @@ func isTagAlphaNum(c byte) bool {
 // Accept set accepts everything (the spec's default posture — curl and
 // plain HTTP tooling rely on it); a set of nothing but malformed tokens is
 // treated as no constraint rather than failing every pull.
+//
+// NOTE (review non-blocking #1): q weights do not participate — a value
+// with `;q=0` counts as accepted after the parameter is stripped. No
+// docker-family client sends q=0 for manifest types; revisit only if a
+// conformance run ever demands it.
 func acceptAllows(acceptHeaders []string, mediaType string) bool {
 	if len(acceptHeaders) == 0 {
 		return true

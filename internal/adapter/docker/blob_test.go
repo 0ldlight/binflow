@@ -248,13 +248,24 @@ func (f *fakeService) PutManifest(_ context.Context, _ *Principal, repoKey, imag
 			f.tags = append(f.tags, &metadata.DockerTag{RepoKey: repoKey, Image: image, Tag: tag, Digest: digest})
 		}
 	}
+	// The ref ledger mirrors the real store's PK semantics (T-39 review
+	// B1): one row per (repo, image, manifest, blob) — duplicate blob
+	// digests in the caller's set collapse onto the first, they never
+	// multiply. The fake was previously weaker than the store here, which
+	// is exactly how B1 escaped the unit suite.
 	kept := refs[:0:0]
+	seenRef := make(map[string]struct{}, len(refs))
 	for _, r := range refs {
-		if r != nil {
-			kept = append(kept, &metadata.DockerRef{
-				RepoKey: repoKey, Image: image, ManifestDigest: digest,
-				BlobDigest: r.BlobDigest, ChildMediaType: r.ChildMediaType})
+		if r == nil {
+			continue
 		}
+		if _, dup := seenRef[r.BlobDigest]; dup {
+			continue
+		}
+		seenRef[r.BlobDigest] = struct{}{}
+		kept = append(kept, &metadata.DockerRef{
+			RepoKey: repoKey, Image: image, ManifestDigest: digest,
+			BlobDigest: r.BlobDigest, ChildMediaType: r.ChildMediaType})
 	}
 	f.refs = kept
 	return &repo.PutManifestResult{Manifest: reported}, nil
