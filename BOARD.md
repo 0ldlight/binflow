@@ -50,8 +50,8 @@
 
 ## 🔨 进行中（doing）
 
-- **T-17** [P0] 开发环境：Dockerfile/compose+README `role:devops-engineer` `area:deploy/dev、README.md` `dep:T-16`
-  状态：07:5x 派发，在途。
+- **T-18** [P0] QA：M1 功能矩阵验收 `role:qa-engineer` `area:验收` `dep:T-16,T-17`
+  状态：08:1x 派发，在途（v1.3.1 口径：C03 200/C14 409/C28a sfu/幂等重传/Range 面）。
 
 ## 👀 评审中（review）
 
@@ -122,6 +122,8 @@
 - **T-16** [P0] cmd 装配与生命周期 `role:dev-go-core` `area:cmd/binflow-server、scripts` `dep:T-14,T-15` — done 2026-08-18（经 429 中断续跑）
   main.go 573 行装配链（无全局单例）+ 15 测试（覆盖率 77.1%）+ scripts/smoke.sh。serve/gc 双 subcommand；冷启动实测 0.15s（NFR-P1 <2s 达标 13 倍余量）；SIGTERM 排空 0.038s exit 0；postgres e2e 拒启零残留；gc dry-run/--apply/幸存断言；admin 缺省 WARN（argon2 真探测）。conductor 实跑 smoke.sh 全绿（C01/C03/C07/C08/匿名/停机）。曾被 429 击落，额度恢复后续跑完成，生产代码零损失。
   遗留：gc 无 -c 旗标（票面未要求）；二次信号强退未构造观察窗口（排空毫秒级）。
+- **T-17** [P0] 开发环境 `role:devops-engineer` `area:deploy/dev、README.md` `dep:T-16` — done 2026-08-18
+  多阶段 Dockerfile（非 root 10001/HEALTHCHECK /readyz/CGO 零）+ compose（命名卷持久化/35s grace/:? 强制口令）+ README（五步双路径+安全须知三件）。Docker 真机全跑：AC1 up→ping 2.35s 冷链、AC2 health ok、AC3/C29 restart+down&up 两轮 sha256 不变；容器 healthy、db 无明文、日志无凭据。conductor 复核 compose 语法（:? 触发符合预期）。遗留：版本 stamping/distroless/CI docker build 归 M5。
 
 ## 🚫 阻塞（blocked）
 
