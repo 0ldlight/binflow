@@ -4,7 +4,7 @@
 |---|---|
 | 文档 | `docs/prd/milestone-2.md` |
 | 里程碑 | M2 — Docker Registry v2（对应 ROADMAP.md「M2 — 云原生旗舰」全部条目） |
-| 状态 | **v1.1**（Q1 已定案 → ADR-0010 根级 `/v2`；`docker-registry.md` 规格已落地，R1/R2/R4/R5 回写完毕，§6.5 四项全部定案，无遗留校准项） |
+| 状态 | **v1.2**（Q1 已定案 → ADR-0010 根级 `/v2`；§6.5 四项定案无遗留；T-43 QA 勘误三项收口：token 错误体裁 OAuth 形（C3/D3）、D 序列 name 全名形态（C1）、DE-13 scope 推导注记（C2）） |
 | 上游依据 | PRODUCT.md、ROADMAP.md M2 节、M1 交付基线（T-18-qa/T-19-qa 全绿 + 观察项 O1~O4）、ADR-0005/0006/0008/0009、docs/design/architecture.md（M1 定稿） |
 | 下游消费者 | tech-lead（拆票）、architect（ADR-0010 路由细化 / 设计更新）、dev 各角色、qa-engineer（D 序列验收）、release-engineer（部署烟测） |
 
@@ -16,6 +16,7 @@
 |---|---|---|
 | v1.0 | 2026-08-18 | 初版：M2 范围、FR-7~FR-13、兼容矩阵（Registry v2 spec 对齐 + 层级归属）、D01~D24 验收命令、五客户端分级矩阵、M1 观察项 O1~O4 处置、Q1 路由方案两案对比（待定） |
 | v1.1 | 2026-08-18 | 采纳 tech-lead T-32 风险清单 R1/R2/R4/R5 + Q1 用户定案（ADR-0010），依据 `docs/reverse/docker-registry.md`（已落地）：① **R1（硬时序，赶 T-37 token 票派发前）**——token realm 由 `/binflow/api/security/token` 改为 **`/v2/token`**（adapter 自有端点，ADR-0010 定案；`Docker-Distribution-Api-Version: registry/2.0` 头随附）；DE-13/FR-11/D04/D04b/NFR-S9 同步更新；新增「双 token 入口并存」说明（M1 端点 admin-only 管理面 vs `/v2/token` 任意有效用户 docker login 语义入口——设计而非矛盾）；Q1 定案标注：根级 `/v2`（ADR-0010），§7 两案对比表转为决策记录、D 序列 `REG=localhost:8080` 口径坐实。② **R2**——FR-9-AC7 by-tag 删除由 202 改为 **405 UNSUPPORTED**（docker-registry.md §8 高置信度：官方 spec 禁止 by-tag；§10 建议栏 3）；D13c 的 by-tag 断言删除。③ **R4**——FR-10 空仓 `tags:null` 口径维持，补 QA 断言注记（`jq '.tags == null'`，防 T-43 脚本误写空数组）。④ **R5**——§6.5 四项按规格定案：manifest 上限 4MB、`offline_token=true` → 400 `invalid_request`、`service` 值固定 `"binflow"`、catalog `last` 游标 exclusive；§6.5 由「待校准」改「校准记录」，相应暂定值在 FR-11/DE-11/DE-12 落地 |
+| v1.2 | 2026-08-19 | T-43 QA 勘误三项收口（C1/C2/C3，见 reports/agents/T-43-qa.md「PRD 口径勘误」节）：① **C3+D3（PM 裁定）**——`/v2/token` 端点的错误响应**统一 OAuth 形** `{"error","error_description"}`（含 400 参数错与 401 凭据错），资源端点仍用 spec 错误体；v1.1 三处打架表述（FR-11-AC7=spec / §5.2 注=OAuth / NFR-S10=/v2 全 spec）对齐，裁定理由：与 T-37 主实现 400 路径及 M1 管理面 token 端点（E-17 OAuth 形）同族、docker 客户端不解析 401 body 无兼容性损失；实现侧 401=spec 的一行修由 conductor 另派（T-37）。② **C1**——D06/D07/D10/D12/D13/D13d 的 name 由单段（`/v2/<repoKey>/...`）改为全名 `<repoKey>/<image>`（单段 name 实测 404，T-33 评审 AC；mount `from=` 要求全名）；D01/D06 补 name 模型注记与单段 404 断言；两处联动一并收敛：FR-8-AC6 的 mount AC 示例改全名、D04b/D04c 手工协商的 scope 值（`repository:<repoKey>/<image>:...`）改全名。③ **C2**——DE-13/FR-11 补 scope 推导注记：`/v2/` ping 挑战无 scope，scope 仅 repository/catalog 资源端点推导（四形态：GET→pull / 写→pull,push / DELETE→pull,delete / catalog→registry:catalog:*，T-43 全数实测） |
 
 ---
 
@@ -131,7 +132,7 @@ M2 在 M1 地基上**追加**而非返工：
 | FR-8-AC3 | D10（chunked）：≥3 段 PATCH（如 1MB+1MB+8MB）全部 202，`Range` 头递增正确；终结 PUT 201；GET 回逐位一致（`cmp`） | P0 |
 | FR-8-AC4 | D10b（中断恢复）：PATCH 2 段后 `GET <upload-url>` → 204 + `Range: 0-<received>`（spec 的 offset 查询），续传第 3 段成功终结 | P1 |
 | FR-8-AC5 | D12（digest 校验失败）：PUT `?digest=` 值与内容不符 → 400，spec 错误体 `DIGEST_INVALID`；该 session 不产生 blob | P0 |
-| FR-8-AC6 | D13（mount）：`POST /v2/docker-local/blobs/uploads/?mount=<已有digest>&from=<另一repo>` → 201，零 body 传输，新 repo 可 GET 该 blob | P0 |
+| FR-8-AC6 | D13（mount）：`POST /v2/charts/myapp/blobs/uploads/?mount=<已有digest>&from=docker-local/acme/app` → 201，零 body 传输（**目标 name 与 `from` 均为全名 `<repoKey>/<image>`**，v1.2/C1；单段 name → 404） | P0 |
 | FR-8-AC7 | blob 与 generic 同池去重：`curl -T` 经 generic 仓库上传内容 X，再经 docker blobs 接口推相同内容 → `/binflow/api/v1/storage/stats` 的 blob 计数不变（D11 变体，跨协议去重） | P1 |
 | FR-8-AC8 | `Range` 拉取：`curl -H 'Range: bytes=0-99' <blob-url>` → 206（复用 M1 实现，docker 客户端偶发断点续拉依赖） | P1 |
 | FR-8-AC9 | 会话落盘：chunked 上传中断（kill -9）后重启，未终结 session 的 blob 不可见（GET 404），`sessions/` 残渣由既有 ttl 清理——M1 FR-2-AC4 语义在 docker 路径的延续（D14） | P0 |
@@ -176,12 +177,12 @@ M2 在 M1 地基上**追加**而非返工：
 **用户故事**：作为 docker 客户端用户，我执行 `docker login $REG` 输入用户名口令后，后续 push/pull 自动携带 Bearer token——我不想也无法手工管理每个请求的认证头。
 
 行为规格（对齐 distribution spec token 鉴权 + M1 token 基建；realm 端点形态依 ADR-0010 与 docker-registry.md §5 定案）：
-- 未认证请求 `/v2/**` → 401 + `Www-Authenticate: Bearer realm="<BASE>/v2/token",service="binflow",scope="<repository>:<name>:pull"`（negotiate 挑战，docker/podman/skopeo 均按此协商）；响应体为 spec 错误体（`UNAUTHORIZED`）。
-- **`GET/POST /v2/token`（adapter 自有端点，ADR-0010 定案）**：`GET /v2/token?service=binflow&scope=<scope>` + Basic 凭据（docker 新版本用 GET with Basic，旧客户端可能 POST form——两种都接受）→ 200 `{"token":"<jwt/opaque>","access_token":"<同 token>","expires_in":<秒>,"issued_at":"<RFC3339>"}`；两字段并存（部分客户端只认其一）。参数：`account`（缺省 anonymous）、`client_id`（接受不校验）；`offline_token=true` → **400 `invalid_request`**（docker-registry.md §6.5 校准：Artifactory 私有扩展，BinFlow 不接受）。所有 `/v2/**` 响应（含 token 端点）带 `Docker-Distribution-Api-Version: registry/2.0` 头（spec SHOULD，Artifactory 全端点强制——docker-registry.md §0）。
+- 未认证请求 `/v2/**` **资源端点** → 401 + `Www-Authenticate: Bearer realm="<BASE>/v2/token",service="binflow",scope="<repository>:<name>:pull"`（negotiate 挑战，docker/podman/skopeo 均按此协商）；响应体为 spec 错误体（`UNAUTHORIZED`）。**scope 推导仅 repository/catalog 资源端点发生**（v1.2/C2 注记）：GET→`pull`、写→`pull,push`、DELETE→`pull,delete`、catalog→`registry:catalog:*`（T-43 全数实测）；**`/v2/` ping 的挑战无 scope 参数**（与 docker-registry.md §5.1 挑战样例同形）。
+- **`GET/POST /v2/token`（adapter 自有端点，ADR-0010 定案）**：`GET /v2/token?service=binflow&scope=<scope>` + Basic 凭据（docker 新版本用 GET with Basic，旧客户端可能 POST form——两种都接受）→ 200 `{"token":"<jwt/opaque>","access_token":"<同 token>","expires_in":<秒>,"issued_at":"<RFC3339>"}`；两字段并存（部分客户端只认其一）。参数：`account`（缺省 anonymous）、`client_id`（接受不校验）；`offline_token=true` → **400 `invalid_request`**（docker-registry.md §6.5 校准：Artifactory 私有扩展，BinFlow 不接受）。**错误体（v1.2/C3+D3 裁定）：本端点所有非 2xx 一律 OAuth 形 `{"error":"<code>","error_description":"<msg>"}`**（400 参数错与 401 凭据错同形；docker 客户端不解析 401 body，无兼容性损失；与 M1 管理面 token 端点 E-17 的 OAuth 形同族）。所有 `/v2/**` 响应（含 token 端点）带 `Docker-Distribution-Api-Version: registry/2.0` 头（spec SHOULD，Artifactory 全端点强制——docker-registry.md §0）。
 - **双 token 入口并存（设计而非矛盾）**：
   - `POST /binflow/api/security/token` = **管理面入口**（M1 E-17）：**admin-only**（T-15/D3 裁决：非 admin 签发 → 403），OAuth 风格错误体，返回 `token_id` 便于按 id 吊销——面向运维/脚本管理 token 生命周期；
   - `GET/POST /v2/token` = **docker login 语义入口**（本 FR）：**任意有效用户**（含非 admin）均可凭 Basic 换取自身 pull/push scope 的 Bearer token——docker 客户端协商行为所必需（挑战头 realm 指向它，客户端无法被要求先取得 admin 权限）；
-  - 两入口签发的 token 落同一 token 表、共用 M1 的吊销端点与验签链（FR-11-AC6 联动）；差异仅在授权模型（admin 管理全量 vs 用户换自身 scope）与错误体格式（OAuth 形 vs spec 错误体）。
+  - 两入口签发的 token 落同一 token 表、共用 M1 的吊销端点与验签链（FR-11-AC6 联动）；差异在授权模型（admin 管理全量 vs 用户换自身 scope）与错误码语义（管理面非 admin → 403；`/v2/token` 参数错 → 400 / 凭据错 → 401）——**错误体格式两入口统一为 OAuth 形**（v1.2/C3）。
 - scope 授权映射：`pull` → M1 read、`push`/`pull,push` → write；scope 对应仓库/路径无授权 → 该 scope 被剔除或整体 403（spec 宽松，BinFlow 取**返回 token 但 scope 收窄**——与 M1「已认证按 ACL 判定」一致，O4 定界同理）；匿名 + `anonymous_access=true` 时 pull scope 免认证直发。权限判定在**资源端点**执行（token 端点不做 scope 逐项预校验，docker-registry.md §5.2 同构）。
 - `/v2/` 探针（`GET /v2/`）：已认证或匿名开 → 200 `{}`；匿名关且无凭据 → 401 挑战（**这是 docker login 的第一步**）。
 - token 复用 M1 的存储/吊销（token 表、revoke 端点）；`docker logout` 无服务端动作。
@@ -194,7 +195,7 @@ M2 在 M1 地基上**追加**而非返工：
 | FR-11-AC4 | 错误凭据 `docker login` → 非 0 退出码，输出含 `unauthorized`/`401`；服务端 401（不泄露用户是否存在） | P0 |
 | FR-11-AC5 | 无 push 权限用户（仅 read）`docker push` → 宕户端报 `denied`/403，服务端日志无 5xx | P1 |
 | FR-11-AC6 | 吊销联动：revoke 该 token 后 Bearer 请求 → 401（M1 E-18 行为对 Bearer 入口生效；`/v2/token` 与管理面入口签发的 token 同受管辖） | P1 |
-| FR-11-AC7 | offline_token 拒绝：`GET /v2/token?...&offline_token=true` → 400 `invalid_request`（spec 错误体，docker-registry.md §6.5 定案） | P1 |
+| FR-11-AC7 | offline_token 拒绝：`GET /v2/token?...&offline_token=true` → 400 `invalid_request`，**错误体 OAuth 形** `{"error":"invalid_request","error_description":...}`（v1.2/C3 定案：/v2/token 端点域内不用 spec 错误体；docker-registry.md §6.5 定案拒绝行为本身） | P1 |
 
 ### FR-12 Helm OCI 承载（dev-registry-adapter）
 
@@ -243,7 +244,7 @@ M2 在 M1 地基上**追加**而非返工：
 
 ### 5.2 M2 端点矩阵
 
-错误契约：`/v2/**` 的错误体用 **distribution spec 格式** `{"errors":[{"code":"<CODE>","message":"<msg>","detail":<opt>}]}`（如 `BLOB_UNKNOWN`/`DIGEST_INVALID`/`MANIFEST_UNKNOWN`/`NAME_UNKNOWN`/`UNAUTHORIZED`/`DENIED`/`UNSUPPORTED`）——与 BinFlow E-01（`status/message`）与 OAuth 格式（token 端点）**三格式并存**，按端点域分层（延续 M1 §5.1 三分层注，docker 域是第四层：spec 错误体）。
+错误契约（v1.2/C3 收敛）：`/v2/**` **资源端点**的错误体用 **distribution spec 格式** `{"errors":[{"code":"<CODE>","message":"<msg>","detail":<opt>}]}`（如 `BLOB_UNKNOWN`/`DIGEST_INVALID`/`MANIFEST_UNKNOWN`/`NAME_UNKNOWN`/`UNAUTHORIZED`/`DENIED`/`UNSUPPORTED`）；**例外：`/v2/token` 端点的错误（400 参数错、401 凭据错）一律 OAuth 形 `{"error":"<code>","error_description":"<msg>"}`**——与 M1 管理面 token 端点（`/binflow/api/security/token`，E-17）同族，token 端点族全 OAuth、其余按域分层（延续 M1 §5.1 三分层注，docker 域内再分资源层=spec、token 层=OAuth）。
 
 「置信度」：高 = distribution/OCI spec 明文；中 = 参考实现行为/PRD 暂定，待 `docs/reverse/docker-registry.md` 校准（§6.4）。
 
@@ -261,7 +262,7 @@ M2 在 M1 地基上**追加**而非返工：
 | DE-10 | `DELETE /v2/<name>/manifests/<digest>` | **仅 by-digest**：202；级联 tag；404 `MANIFEST_UNKNOWN`；by-tag → **405 `UNSUPPORTED`**（v1.1 定案，官方 spec 禁止 by-tag，docker-registry.md §8/§10-3；FR-9-AC7） | 兼容（spec，by-digest）/ 有意不兼容（by-tag 分支） | P0 | 高 | D13c |
 | DE-11 | `GET /v2/_catalog` | 200 `{"repositories":[...]}` 字典序；`?n=`+`Link` 分页（`last` 游标 exclusive；`n` 缺省 100，非法 400 `PAGINATION_NUMBER_INVALID`） | 兼容（spec） | P0 | 高 | D09 |
 | DE-12 | `GET /v2/<name>/tags/list` | 200 `{"name","tags"}`；分页同上（last exclusive）；`NAME_UNKNOWN` 404；空仓 `"tags":null`（**非空数组**，QA 断言 `jq '.tags == null'`；Artifactory 偏离 404 NO_TAGS_FOUND 不跟进） | 兼容（spec） | P0 | 高 | D09 |
-| DE-13 | token 流：`Www-Authenticate` 挑战 + `GET/POST /v2/token`（adapter 自有端点，ADR-0010） | 401 挑战头（realm=`<BASE>/v2/token`、`service="binflow"`、scope 按端点推导：GET→pull / 写→pull,push / catalog→`registry:catalog:*`）；token 端点 200 `{"token","access_token","expires_in","issued_at"}`；`offline_token=true` → 400；scope 权限判定在资源端点（FR-11 双入口说明） | 兼容（spec）+ **新增自有端点**（docker-registry.md §5.1「realm 指向自身 token 端点」同构；与 M1 管理面 `POST /binflow/api/security/token` 并存，授权模型不同——见 FR-11） | P0 | 高（挑战形态，docker-registry.md §5.1）/ 中（scope 收窄策略） | D04b/D04c/D05 |
+| DE-13 | token 流：`Www-Authenticate` 挑战 + `GET/POST /v2/token`（adapter 自有端点，ADR-0010） | 401 挑战头（realm=`<BASE>/v2/token`、`service="binflow"`；**v1.2/C2 注记：`/v2/` ping 的挑战无 scope 参数，scope 仅 repository/catalog 资源端点推导**——GET→pull、写→pull,push、DELETE→pull,delete、catalog→`registry:catalog:*`，T-43 全数实测）；token 端点 200 `{"token","access_token","expires_in","issued_at"}`；`offline_token=true` → 400（OAuth 形，v1.2/C3）；scope 权限判定在资源端点（FR-11 双入口说明） | 兼容（spec）+ **新增自有端点**（docker-registry.md §5.1「realm 指向自身 token 端点」同构；与 M1 管理面 `POST /binflow/api/security/token` 并存，授权模型不同——见 FR-11） | P0 | 高（挑战形态，docker-registry.md §5.1；scope 四形态 T-43 实测）/ 中（scope 收窄策略） | D04b/D04c/D05 |
 | DE-14 | `DELETE /v2/<name>/blobs/<digest>` | spec 允许 blob 删除；BinFlow **有意不兼容**：405 `UNSUPPORTED`（blob 物理删除唯一入口是 GC，ADR-0006 安全底线；spec 允许 registry 不支持） | 有意不兼容 | P1 | 高 | D13d |
 | DE-15 | `/v2/<name>/referrers/`（OCI referrers API） | M2 不做 → 404 + spec 错误体（E-26 联动）。注记（T-51，架构终审）：manifest PUT 的 `OCI-Subject` 响应头**无条件返回**（subject digest 良构即回），与 OCI spec「repo 开 referrers API 才回」的条件不符——有意为之：oras 等客户端凭该头探测 referrers、得 404 后安全回退 tag 模式，无条件返回不伤推送体验；头信号与端点能力的不一致以本注记显式归档，referrers 端点本体仍 M2 不做 | 有意不兼容（OCI-Subject 头为有意偏差，见注记） | — | — | D24 |
 | DE-16 | `/v2/` 下 spec 未定义路径 | 404 + spec 错误体（不返回 E-01，保持域内一致性） | 有意不兼容 | P0 | — | D24 |
@@ -300,6 +301,9 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/docker-local \
 curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/charts \
   -H 'Content-Type: application/json' -d '{"rclass":"local","packageType":"docker"}' \
   -o /dev/null -w '%{http_code}\n'                   # 200（helm OCI 用同型仓库）
+# name 模型注记（v1.2/C1）：/v2/<name> 中 name = <repoKey>/<image>——首段是仓库 key（如 docker-local），
+# 其余段是镜像名（如 acme/app）；仓库名与镜像名是两个概念，URL 里拼成全名 docker-local/acme/app。
+# 单段 name（只有 repoKey、无镜像段，如 /v2/docker-local/blobs/...）→ 404（T-33 评审 AC，实测确认）。
 
 # D04 /v2/ 探针（FR-11-AC2，匿名默认开）
 curl -s -o /dev/null -w '%{http_code}\n' $REG/v2/    # 200
@@ -309,19 +313,19 @@ curl -s -o /dev/null -w '%{http_code}\n' $REG/v2/    # 401
 curl -sI $REG/v2/ | grep -i www-authenticate         # Bearer realm=".../v2/token",service="binflow"...（v1.1：realm=/v2/token）
 curl -sI $REG/v2/ | grep -i docker-distribution-api-version   # registry/2.0
 
-# D04b 手工 token 协商（FR-11-AC3，v1.1：走 /v2/token）
-TOKEN=$(curl -su admin:$ADMIN_PW "$BASE/v2/token?service=binflow&scope=repository:acme/app:pull,push" | jq -r .token)
+# D04b 手工 token 协商（FR-11-AC3，v1.1：走 /v2/token；v1.2/C1：scope 的 repository 名同用全名 <repoKey>/<image>）
+TOKEN=$(curl -su admin:$ADMIN_PW "$BASE/v2/token?service=binflow&scope=repository:docker-local/acme/app:pull,push" | jq -r .token)
 echo -n "$TOKEN" | wc -c                             # > 0
 curl -s -H "Authorization: Bearer $TOKEN" -o /dev/null -w '%{http_code}\n' $REG/v2/_catalog   # 200
 
-# D04c 双入口语义（v1.1 新增）：非 admin 用户走 /v2/token（FR-11-AC3）
-TOKEN2=$(curl -su ci-bot:ci-pw "$BASE/v2/token?service=binflow&scope=repository:docker-local/ci-out/*:pull" | jq -r .token)
-echo -n "$TOKEN2" | wc -c                            # > 0（任意有效用户可换 token）
+# D04c 双入口语义（v1.1 新增）：非 admin 用户走 /v2/token（FR-11-AC3；v1.2/C1：scope 全名）
+TOKEN2=$(curl -su ci-bot:ci-pw "$BASE/v2/token?service=binflow&scope=repository:docker-local/acme/app:pull" | jq -r .token)
+echo -n "$TOKEN2" | wc -c                            # > 0（任意有效用户可换 token；token 端点不预校验 scope，权限在资源端点判）
 # 对照：同一非 admin 用户走管理面入口 → 403（T-15/D3 裁决）
 curl -su ci-bot:ci-pw -X POST $BASE/binflow/api/security/token -d 'grant_type=client_credentials' \
   -o /dev/null -w '%{http_code}\n'                   # 403
 # offline_token 拒绝（FR-11-AC7）
-curl -su admin:$ADMIN_PW -o /dev/null -w '%{http_code}\n' "$BASE/v2/token?service=binflow&offline_token=true"  # 400（spec 错误体）
+curl -su admin:$ADMIN_PW -o /dev/null -w '%{http_code}\n' "$BASE/v2/token?service=binflow&offline_token=true"  # 400（OAuth 形 error=invalid_request，v1.2/C3）
 
 # D05 docker login（FR-11-AC1）
 echo "$ADMIN_PW" | docker login $REG -u admin --password-stdin   # Login Succeeded，退出码 0
@@ -329,18 +333,20 @@ echo "$ADMIN_PW" | docker login $REG -u admin --password-stdin   # Login Succeed
 # D06 monolithic blob 上传 + 回取（FR-8-AC1，纯 curl 走 spec）
 dd if=/dev/urandom of=blob.bin bs=1m count=10
 DGST="sha256:$(sha256sum blob.bin | cut -d' ' -f1)"
-LOC=$(curl -su admin:$ADMIN_PW -si -X POST $REG/v2/docker-local/blobs/uploads/ \
+# v1.2/C1：name 用全名 docker-local/acme/app（repoKey=docker-local + image=acme/app，与 D08 一致）
+LOC=$(curl -su admin:$ADMIN_PW -si -X POST $REG/v2/docker-local/acme/app/blobs/uploads/ \
   | awk -F': ' 'tolower($1)=="location"{gsub("\r","");print $2}')
 curl -su admin:$ADMIN_PW -X PUT --data-binary @blob.bin -H 'Content-Type: application/octet-stream' \
   "$LOC?digest=$DGST" -o /dev/null -w '%{http_code}\n'           # 201
-curl -su admin:$ADMIN_PW -o dl.bin $REG/v2/docker-local/blobs/$DGST
+curl -su admin:$ADMIN_PW -o /dev/null -w '%{http_code}\n' -X POST $REG/v2/docker-local/blobs/uploads/   # 404（单段 name，C1 断言）
+curl -su admin:$ADMIN_PW -o dl.bin $REG/v2/docker-local/acme/app/blobs/$DGST
 sha256sum blob.bin dl.bin                                          # 两行相同
-curl -su admin:$ADMIN_PW -sI $REG/v2/docker-local/blobs/$DGST | \
+curl -su admin:$ADMIN_PW -sI $REG/v2/docker-local/acme/app/blobs/$DGST | \
   awk -F': ' 'tolower($1)=="docker-content-digest"{gsub("\r","");print $2}'   # == $DGST
 
 # D07 单请求上传 + manifest（FR-8-AC2 / FR-9-AC1，docker CLI 全流程隐式覆盖，此处 curl 抽查）
 curl -su admin:$ADMIN_PW -X POST --data-binary @blob.bin \
-  "$REG/v2/docker-local/blobs/uploads/?digest=$DGST" -o /dev/null -w '%{http_code}\n'  # 201
+  "$REG/v2/docker-local/acme/app/blobs/uploads/?digest=$DGST" -o /dev/null -w '%{http_code}\n'  # 201
 
 # D08 docker 全链路（FR-13-AC1 / 1.2 目标）
 docker tag alpine:3.20 $REG/docker-local/acme/app:v1
@@ -362,16 +368,16 @@ curl -su admin:$ADMIN_PW "$REG/v2/docker-local/acme/app/tags/list?n=1" -i | grep
 # last 游标 exclusive：?n=1 两次（第二次带 last=<第一次返回的 tag>）不重复、可枚举完
 # n 非法：?n=abc → 400 PAGINATION_NUMBER_INVALID
 
-# D10 chunked 上传（FR-8-AC3）
+# D10 chunked 上传（FR-8-AC3；v1.2/C1：全名）
 split -b 1m blob.bin part_                                            # 10 段
-LOC=$(curl -su admin:$ADMIN_PW -si -X POST $REG/v2/docker-local/blobs/uploads/ \
+LOC=$(curl -su admin:$ADMIN_PW -si -X POST $REG/v2/docker-local/acme/app/blobs/uploads/ \
   | awk -F': ' 'tolower($1)=="location"{gsub("\r","");print $2}')
 for f in part_*; do
   LOC=$(curl -su admin:$ADMIN_PW -si -X PATCH --data-binary @$f "$LOC" \
     | awk -F': ' 'tolower($1)=="location"{gsub("\r","");print $2}')
 done
 curl -su admin:$ADMIN_PW -X PUT "$LOC?digest=$DGST" -o /dev/null -w '%{http_code}\n'   # 201
-curl -su admin:$ADMIN_PW -o dl2.bin $REG/v2/docker-local/blobs/$DGST && cmp blob.bin dl2.bin && echo IDENTICAL
+curl -su admin:$ADMIN_PW -o dl2.bin $REG/v2/docker-local/acme/app/blobs/$DGST && cmp blob.bin dl2.bin && echo IDENTICAL
 
 # D10b 中断恢复（FR-8-AC4，P1）：PATCH 2 段后查询 offset 再续传
 curl -su admin:$ADMIN_PW -si $LOC | awk -F': ' 'tolower($1)=="range"{gsub("\r","");print $2}'  # 0-<received>
@@ -382,15 +388,15 @@ docker tag alpine:3.20 $REG/docker-local/acme/app:v1-copy && docker push $REG/do
 B2=$(curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/storage/stats | jq .blobs)
 echo "$B1 -> $B2"    # 同内容再 push：blob 计数不变（仅 node/tag 变化）
 
-# D12 digest 校验失败（FR-8-AC5）
+# D12 digest 校验失败（FR-8-AC5；v1.2/C1：全名）
 curl -su admin:$ADMIN_PW -X POST --data-binary @blob.bin \
-  "$REG/v2/docker-local/blobs/uploads/?digest=sha256:$(printf '0%.0s' {1..64})" \
+  "$REG/v2/docker-local/acme/app/blobs/uploads/?digest=sha256:$(printf '0%.0s' {1..64})" \
   | jq -r '.errors[0].code'                       # DIGEST_INVALID（HTTP 400）
 
-# D13 cross-repo mount（FR-8-AC6）
-curl -su admin:$ADMIN_PW -X POST "$REG/v2/charts/blobs/uploads/?mount=$DGST&from=docker-local" \
+# D13 cross-repo mount（FR-8-AC6；v1.2/C1：目标与 from 均全名——from=<repoKey>/<image>，与 D15 的 charts/myapp 一致）
+curl -su admin:$ADMIN_PW -X POST "$REG/v2/charts/myapp/blobs/uploads/?mount=$DGST&from=docker-local/acme/app" \
   -o /dev/null -w '%{http_code}\n'                # 201
-curl -su admin:$ADMIN_PW -o /dev/null -w '%{http_code}\n' $REG/v2/charts/blobs/$DGST   # 200
+curl -su admin:$ADMIN_PW -o /dev/null -w '%{http_code}\n' $REG/v2/charts/myapp/blobs/$DGST   # 200
 
 # D13b manifest 引用缺失 blob（FR-9-AC3）
 curl -su admin:$ADMIN_PW -X PUT -H 'Content-Type: application/vnd.oci.image.manifest.v1+json' \
@@ -404,8 +410,8 @@ curl -su admin:$ADMIN_PW -o /dev/null -w '%{http_code}\n' "$REG/v2/docker-local/
 # by-tag 删除拒绝（FR-9-AC7，v1.1 定案）：
 curl -su admin:$ADMIN_PW -X DELETE "$REG/v2/docker-local/acme/app/manifests/some-tag" | jq -r '.errors[0].code'    # UNSUPPORTED（HTTP 405）
 
-# D13d blob DELETE 拒绝（DE-14）
-curl -su admin:$ADMIN_PW -X DELETE "$REG/v2/docker-local/blobs/$DGST" | jq -r '.errors[0].code'  # UNSUPPORTED（405）
+# D13d blob DELETE 拒绝（DE-14；v1.2/C1：全名）
+curl -su admin:$ADMIN_PW -X DELETE "$REG/v2/docker-local/acme/app/blobs/$DGST" | jq -r '.errors[0].code'  # UNSUPPORTED（405）
 
 # D14 kill -9 会话一致性（FR-8-AC9）：chunked 进行中 kill 服务 → 重启 → blob 404 / 历史 200 / health 200（同 M1 C30 手法）
 
@@ -454,7 +460,7 @@ skopeo copy docker://$REG/docker-local/acme/app:v1 docker-archive:app.tar # 退�
 | NFR | 要求 | 验收 |
 |---|---|---|
 | NFR-S9 | token 挑战头不泄露内部路径细节：`realm` 指向 `/v2/token`（公开端点，ADR-0010），`service` 为固定值 `"binflow"`；401 挑战不带堆栈/内部 ID | D04 抓头 |
-| NFR-S10 | docker 域错误体不混用格式：`/v2/**` 全部 spec 错误体（DE-16 边界内不出现 E-01） | D12/D24 |
+| NFR-S10 | docker 域错误体不混用格式（v1.2/C3 收敛口径）：`/v2/**` 资源端点全部 spec 错误体、`/v2/token` 端点全部 OAuth 形（400/401 同形）——同一端点内不出现双格式，DE-16 边界内不出现 E-01 | D12/D24/D04c |
 | NFR-S11 | `<name>` 路径安全：`/v2/../../etc/passwd/blobs/...` 类穿越 → 400/404，数据目录外无文件（M1 NFR-S4 的 docker 版） | qa 变体用例 |
 | NFR-S12 | blob/manifest 写操作一律需认证（匿名读开也不豁免 push）；`mount` 参数跨 repo 需对源 repo 有 read | 代码评审 + D22 |
 
@@ -479,7 +485,7 @@ skopeo copy docker://$REG/docker-local/acme/app:v1 docker-archive:app.tar # 退�
 | # | 项 | v1.0 暂定值 | **v1.1 定案** | 依据 |
 |---|---|---|---|---|
 | ① | `_catalog`/tags 分页 `last` 游标语义 | 按 spec（`n`+`Link`） | **exclusive**（`last` 之后不含本身，docker-registry.md §6 与官方一致）；`n` 缺省 **100**（官方默认；Artifactory 偏离为全量——BinFlow 按官方，不跟进偏离） | docker-registry.md §6（高） |
-| ② | `offline_token=true`（Artifactory 私有扩展） | 不接受（400 invalid_request） | **维持定案**：400；错误体为 spec 形（`/v2/**` 域）。规格 §5.2 标注 Artifactory「接受但走同一 provider，未见专门分支」（低置信度）——BinFlow 从严拒绝，避免实现无语义的参数 | docker-registry.md §5.2（低）+ PRD 决策 |
+| ② | `offline_token=true`（Artifactory 私有扩展） | 不接受（400 invalid_request） | **维持定案**：400；错误体为 **OAuth 形**（v1.2/C3：`/v2/token` 端点族全 OAuth）。规格 §5.2 标注 Artifactory「接受但走同一 provider，未见专门分支」（低置信度）——BinFlow 从严拒绝，避免实现无语义的参数 | docker-registry.md §5.2（低）+ PRD 决策 |
 | ③ | manifest 大小上限 | 暂定 4MB（待证） | **4MB 定案**：PUT manifest body > 4MB → 400 `MANIFEST_INVALID`（detail 说明超限）；DE-08 已落地。规格未见 Artifactory 显式上限值，4MB 为业界通行量级（4MB 足够容纳超大 index），从严防滥用 | PRD 定案（规格无值） |
 | ④ | `/v2/` 挑战头 `service` 值 | BinFlow service-id（首启生成） | **固定 `"binflow"`**（可配置覆盖 `registry.service_id`）；不采用 Artifactory 的「service=host」推导（docker-registry.md §5.1——其值绑定部署形态，反代后不稳；固定值对客户端无语义约束，spec 仅要求挑战与签发两侧一致） | docker-registry.md §5.1（高）+ PRD 决策 |
 
@@ -501,7 +507,7 @@ skopeo copy docker://$REG/docker-local/acme/app:v1 docker-archive:app.tar # 退�
 | 同域共存（其它服务共享域名） | 无冲突（前缀隔离） | `/v2` 被占用时冲突（需换端口或反代）——docker 客户端本就推荐独立 host:port |
 | 行业先例 | — | distribution/Harbor/Artifactory 均根级 `/v2`（spec 生态事实标准） |
 
-**落地影响（随定案生效）**：① M1 E-26 对 `/v2/` 的 404 断言在 M2 起失效，回归基线以 DE-01（200 `{}`）为准；② `/v2/**` 全域（含 `/v2/token`）是 docker adapter 的路由领地，错误体用 spec 格式（NFR-S10）；③ `Docker-Distribution-Api-Version: registry/2.0` 头全端点带上（docker-registry.md §0/§10-7）。
+**落地影响（随定案生效）**：① M1 E-26 对 `/v2/` 的 404 断言在 M2 起失效，回归基线以 DE-01（200 `{}`）为准；② `/v2/**` 全域是 docker adapter 的路由领地，资源端点错误用 spec 格式、`/v2/token` 用 OAuth 形（NFR-S10，v1.2 收敛）；③ `Docker-Distribution-Api-Version: registry/2.0` 头全端点带上（docker-registry.md §0/§10-7）。
 
 ### 其余开放问题
 
