@@ -185,7 +185,7 @@ func TestRepositoriesCRUD(t *testing.T) {
 }
 
 // TestRepositoriesAuthMatrix: the management plane demands authentication,
-// and mutations additionally demand admin.
+// and the whole repository surface (reads included, D2) demands admin.
 func TestRepositoriesAuthMatrix(t *testing.T) {
 	h := newHarness(t)
 	seedRepo(t, h, "generic-local")
@@ -199,7 +199,14 @@ func TestRepositoriesAuthMatrix(t *testing.T) {
 	}{
 		{"anonymous list is 401", http.MethodGet, "/binflow/api/repositories", "", "", http.StatusUnauthorized},
 		{"anonymous create is 401", http.MethodPut, "/binflow/api/repositories/new-repo", "", "", http.StatusUnauthorized},
-		{"non-admin list is 200", http.MethodGet, "/binflow/api/repositories", "ci-bot", "ci-pw", http.StatusOK},
+		{"non-admin list is 403 (D2, FR-5-AC8)", http.MethodGet, "/binflow/api/repositories", "ci-bot", "ci-pw", http.StatusForbidden},
+		{"admin list is 200", http.MethodGet, "/binflow/api/repositories", adminUser, adminPass, http.StatusOK},
+		{"non-admin single-repo get is 403 (D2)", http.MethodGet, "/binflow/api/repositories/generic-local", "ci-bot", "ci-pw", http.StatusForbidden},
+		{"non-admin storage stats is 403 (D2)", http.MethodGet, "/binflow/api/v1/storage/stats", "ci-bot", "ci-pw", http.StatusForbidden},
+		{"non-admin v1 health is 403 (D2)", http.MethodGet, "/binflow/api/v1/health", "ci-bot", "ci-pw", http.StatusForbidden},
+		{"admin v1 health is 200", http.MethodGet, "/binflow/api/v1/health", adminUser, adminPass, http.StatusOK},
+		{"ping stays anonymous (E-02)", http.MethodGet, "/binflow/api/system/ping", "", "", http.StatusOK},
+		{"version stays anonymous (E-03)", http.MethodGet, "/binflow/api/system/version", "", "", http.StatusOK},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

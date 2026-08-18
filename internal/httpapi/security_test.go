@@ -226,15 +226,18 @@ func TestTokenCreate(t *testing.T) {
 		_ = mustGet(t, resp)
 	})
 
-	t.Run("non-admin cannot mint for another subject", func(t *testing.T) {
+	t.Run("non-admin cannot mint (D3: admin-only, aligned with revoke)", func(t *testing.T) {
 		h2 := newHarnessCfg(t, nil, [][2]string{{"ci-bot", "ci-pw"}})
 		resp := h2.do(http.MethodPost, "/binflow/api/security/token", "ci-bot", "ci-pw",
-			[]byte("grant_type=client_credentials&username=admin"),
+			[]byte("grant_type=client_credentials"),
 			map[string]string{"Content-Type": "application/x-www-form-urlencoded"})
-		if resp.StatusCode != http.StatusUnauthorized {
-			t.Fatalf("status = %d", resp.StatusCode)
+		body := mustGet(t, resp)
+		if resp.StatusCode != http.StatusForbidden {
+			t.Fatalf("status = %d, want 403; body=%s", resp.StatusCode, body)
 		}
-		assertOAuthError(t, mustGet(t, resp), "invalid_request")
+		// The token plane keeps its OAuth error shape even on the 403 so
+		// token clients can parse it uniformly.
+		assertOAuthError(t, body, "invalid_request")
 	})
 }
 
@@ -336,14 +339,15 @@ func TestTokenRevoke(t *testing.T) {
 		}
 	})
 
-	t.Run("non-admin is 403", func(t *testing.T) {
+	t.Run("non-admin is 403 in the OAuth error shape", func(t *testing.T) {
 		h2 := newHarnessCfg(t, nil, [][2]string{{"ci-bot", "ci-pw"}})
 		resp := h2.do(http.MethodPost, "/binflow/api/security/token/revoke", "ci-bot", "ci-pw",
 			[]byte("token=whatever"), map[string]string{"Content-Type": "application/x-www-form-urlencoded"})
+		body := mustGet(t, resp)
 		if resp.StatusCode != http.StatusForbidden {
 			t.Fatalf("status = %d", resp.StatusCode)
 		}
-		_ = mustGet(t, resp)
+		assertOAuthError(t, body, "invalid_request")
 	})
 }
 
@@ -376,8 +380,10 @@ func TestUsersRoutes(t *testing.T) {
 		if body != "" {
 			t.Fatalf("body = %q, want empty", body)
 		}
-		// The new account authenticates.
-		resp = h.do(http.MethodGet, "/binflow/api/repositories", "ci-bot", "ci-pw", nil, nil)
+		// The new account authenticates (version is the unauthenticated
+		// probe used here — the repository list went admin-only in D2, so a
+		// 200 there is no longer proof of a working credential).
+		resp = h.do(http.MethodGet, "/binflow/api/system/version", "ci-bot", "ci-pw", nil, nil)
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("new user auth status = %d", resp.StatusCode)
 		}

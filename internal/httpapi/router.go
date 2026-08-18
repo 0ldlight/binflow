@@ -131,9 +131,15 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		// open — it reveals only the product name and build id.
 		s.enforce(w, r, routeAuth{}, s.handleVersion)
 	case rest == "v1/health" && r.Method == http.MethodGet:
-		s.enforce(w, r, routeAuth{required: true}, s.handleV1Health)
+		// Management plane (C28a is `-sfu admin` for a reason): the health
+		// dashboard exposes instance internals, so it sits behind the admin
+		// gate like the rest of /api/v1. Deployers' liveness/readiness
+		// probes use the unauthenticated /healthz and /readyz instead.
+		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleV1Health)
 	case rest == "v1/storage/stats" && r.Method == http.MethodGet:
-		s.enforce(w, r, routeAuth{required: true}, s.handleV1StorageStats)
+		// Whole-instance blob/byte statistics (D2): operator data, admin
+		// only — a non-admin reader must not learn repository volume.
+		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleV1StorageStats)
 
 	// ---- /api/v1/permissions (E-24; admin) ----
 	case rest == "v1/permissions" && r.Method == http.MethodPost:
@@ -144,14 +150,19 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		s.enforce(w, r, routeAuth{required: true, admin: true},
 			s.withName(rest, "v1/permissions/", s.handlePermissionDelete))
 
-	// ---- /api/repositories (E-04..E-08; admin for mutations) ----
+	// ---- /api/repositories (E-04..E-08; admin) ----
+	// The list is admin-gated too (D2): M1 has no per-repository read-ACL
+	// data plane to filter the listing by caller (the permission model is
+	// path-keyed), so an authenticated non-admin would otherwise see every
+	// repository's configuration — FR-5-AC8's C22b assertion. A filtered
+	// listing needs the M4 repository-ACL model.
 	case rest == "repositories" && r.Method == http.MethodGet:
-		s.enforce(w, r, routeAuth{required: true}, s.handleRepoList)
+		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleRepoList)
 	case strings.HasPrefix(rest, "repositories/"):
 		key, tail := splitAPIName(rest, "repositories/")
 		switch {
 		case tail == "" && r.Method == http.MethodGet:
-			s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+			s.enforce(w, r, routeAuth{required: true, admin: true}, func(w http.ResponseWriter, r *http.Request) {
 				s.handleRepoGet(w, r, key)
 			})
 		case tail == "" && r.Method == http.MethodPut:
@@ -203,9 +214,17 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	case rest == "security/users/authorization/changePassword" && r.Method == http.MethodPost:
 		s.enforce(w, r, routeAuth{required: true}, s.handleChangePasswordAlias)
 	case rest == "security/token" && r.Method == http.MethodPost:
-		s.enforce(w, r, routeAuth{required: true}, s.handleTokenCreate)
+		// D3: minting is admin-only, aligned with /revoke (auth-model.md
+		// sections 3.3/3.4 mark the token management family admin-only).
+		// M1 has no scope model to honor the spec's "non-admin may mint for
+		// themselves" branch — an api:* token would carry full subject
+		// privileges, so the branch stays closed until scopes exist.
+		s.enforce(w, r, routeAuth{required: true, admin: true, oauth: true}, s.handleTokenCreate)
 	case rest == "security/token/revoke" && r.Method == http.MethodPost:
-		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleTokenRevoke)
+		// oauth: every non-2xx on the token family renders the OAuth error
+		// body, authorization denials included (D3 follow-up: revoke's 403
+		// previously leaked the errors[] envelope).
+		s.enforce(w, r, routeAuth{required: true, admin: true, oauth: true}, s.handleTokenRevoke)
 	case rest == "security/users" && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleUserList)
 	case rest == "security/users" && r.Method == http.MethodPost:

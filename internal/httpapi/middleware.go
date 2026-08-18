@@ -261,6 +261,11 @@ type routeAuth struct {
 	// mutation, user/token/permission management). A non-admin principal
 	// yields 403.
 	admin bool
+	// oauth: failures on this route render the token plane's OAuth error
+	// body ({"error","error_description"}) instead of the errors[]
+	// envelope, per the PRD section 5.1 three-format split. Used by the
+	// /api/security/token family, including its authorization denials.
+	oauth bool
 	// action is the Authorizer.Can action for content paths ("r", "w",
 	// "d"). Empty means "no content-path check" (management plane checks
 	// admin/permission inside its own handlers, T-15).
@@ -309,6 +314,11 @@ func authenticate(a auth.Authenticator) Middleware {
 //     authenticated -> 403 (rest-api section 1.4 "403 -> 401 when
 //     anonymous").
 //
+// Failure bodies follow the route's plane (PRD section 5.1 three-format
+// split): the errors[] envelope by default, the OAuth shape on routes
+// flagged oauth (the token family — its clients must be able to parse every
+// non-2xx uniformly, auth-model.md section 3.1).
+//
 // The repoKey/path for the content check are resolved through the layout
 // splitter — the same first-segment rule the dispatcher uses — so the
 // authorization decision and the routing decision can never disagree on
@@ -319,10 +329,18 @@ func authorize(a auth.Authorizer, req routeAuth) Middleware {
 			p := principalFrom(r.Context())
 			if req.required && p == nil {
 				w.Header().Set("WWW-Authenticate", basicChallenge)
+				if req.oauth {
+					writeOAuthError(w, http.StatusUnauthorized, "invalid_request", "authentication required")
+					return
+				}
 				writeError(w, http.StatusUnauthorized, "authentication required")
 				return
 			}
 			if req.admin && (p == nil || !p.Admin) {
+				if req.oauth {
+					writeOAuthError(w, http.StatusForbidden, "invalid_request", "administrator privileges required")
+					return
+				}
 				writeError(w, http.StatusForbidden, "administrator privileges required")
 				return
 			}
