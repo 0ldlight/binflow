@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/repo"
@@ -36,12 +37,31 @@ func (l storeRepoLookup) Get(ctx context.Context, key string) (RepoRow, error) {
 	if row == nil {
 		return nil, nil
 	}
-	return repoRow{pkg: row.PackageType}, nil
+	return repoRow{key: row.RepoKey, pkg: row.PackageType}, nil
+}
+
+// List enumerates every repository row in key order (the catalog's
+// repository set, T-40). Unlike Get there is no not-found mapping — the
+// caller treats any error as a listing fault.
+func (l storeRepoLookup) List(ctx context.Context) ([]RepoRow, error) {
+	rows, err := l.store.List(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("docker: repo row listing: %w", err)
+	}
+	out := make([]RepoRow, len(rows))
+	for i, row := range rows {
+		out[i] = repoRow{key: row.RepoKey, pkg: row.PackageType}
+	}
+	return out, nil
 }
 
 // repoRow is the adapter-private view of one repository row.
-type repoRow struct{ pkg string }
+type repoRow struct {
+	key string
+	pkg string
+}
 
+func (r repoRow) Key() string         { return r.key }
 func (r repoRow) PackageType() string { return r.pkg }
 
 // staticRepoLookup is a fixed table (assembly shims and tests).
@@ -56,5 +76,19 @@ func (l staticRepoLookup) Get(_ context.Context, key string) (RepoRow, error) {
 	if !ok {
 		return nil, nil
 	}
-	return repoRow{pkg: pkg}, nil
+	return repoRow{key: key, pkg: pkg}, nil
+}
+
+// List enumerates the table's rows in key order.
+func (l staticRepoLookup) List(_ context.Context) ([]RepoRow, error) {
+	keys := make([]string, 0, len(l))
+	for k := range l {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	out := make([]RepoRow, len(keys))
+	for i, k := range keys {
+		out[i] = repoRow{key: k, pkg: l[k]}
+	}
+	return out, nil
 }

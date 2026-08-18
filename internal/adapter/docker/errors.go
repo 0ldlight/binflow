@@ -58,6 +58,13 @@ const (
 	// into MANIFEST_INVALID's wording, docker-registry.md section 10
 	// recommendation 1; D13b).
 	ErrCodeManifestBlobUnknown = "MANIFEST_BLOB_UNKNOWN"
+	// ErrCodePaginationNumberInvalid: the pagination parameters are invalid
+	// (T-40: n=0 or non-numeric — the official code distribution itself
+	// registers; Artifactory has none, docker-registry.md section 6).
+	ErrCodePaginationNumberInvalid = "PAGINATION_NUMBER_INVALID"
+	// ErrCodeNameInvalid: the repository name is invalid (a tags/list name
+	// the service layer refuses; the official code NAME_INVALID).
+	ErrCodeNameInvalid = "NAME_INVALID"
 )
 
 // specError is one entry of the registry error body.

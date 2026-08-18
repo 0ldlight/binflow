@@ -61,18 +61,18 @@ func TestV2TokenNegotiation(t *testing.T) {
 		t.Fatalf("scope = %q, want the admin-wide grant", tok.Scope)
 	}
 
-	// D04b: the token drives a Bearer request — the catalog endpoint is
-	// T-40's, so its placeholder 404 is the accepted outcome; the point is
-	// that the Bearer AUTHENTICATES (401 would mean the token failed).
+	// D04b: the token drives a Bearer request — since T-40 the catalog is
+	// implemented, so the bearer-authenticated admin gets the (empty)
+	// listing; the point of the assertion is that the Bearer AUTHENTICATES
+	// (401 would mean the token failed).
 	bearer := h.do(http.MethodGet, "/v2/_catalog", "", "", nil,
 		map[string]string{"Authorization": "Bearer " + tok.Token})
 	bbody := mustGet(t, bearer)
 	if bearer.StatusCode == http.StatusUnauthorized {
 		t.Fatalf("Bearer token rejected on _catalog: %d %s", bearer.StatusCode, bbody)
 	}
-	if bearer.StatusCode != http.StatusNotFound {
-		t.Fatalf("_catalog status = %d, want the T-40 placeholder 404; body=%s",
-			bearer.StatusCode, bbody)
+	if bearer.StatusCode != http.StatusOK {
+		t.Fatalf("_catalog status = %d, want 200 (T-40); body=%s", bearer.StatusCode, bbody)
 	}
 	if got := bearer.Header.Get("Docker-Distribution-Api-Version"); got != "registry/2.0" {
 		t.Fatalf("api-version = %q", got)

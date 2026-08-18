@@ -678,9 +678,16 @@ func (failingRepoLookup) Get(context.Context, string) (docker.RepoRow, error) {
 	return nil, errors.New("database is locked")
 }
 
-// TestV2CatalogPlaceholder (review B3): /v2/_catalog and its query variants
-// answer the explicit placeholder 404, and a repository row named
-// "_catalog" can never capture the registry-level route.
+// List fails the same way (T-40 added the catalog's enumeration seam).
+func (failingRepoLookup) List(context.Context) ([]docker.RepoRow, error) {
+	return nil, errors.New("database is locked")
+}
+
+// TestV2CatalogPlaceholder (review B3, updated for T-40): the catalog is
+// implemented now, so /v2/_catalog and its query variants answer the real
+// listing — and the original property holds: a repository row named
+// "_catalog" can never capture the registry-level route (the seeded repo
+// has no manifests, so it appears in nobody's catalog either).
 func TestV2CatalogPlaceholder(t *testing.T) {
 	h := newHarness(t)
 	if err := h.md.Repos().Create(t.Context(), &metadata.Repo{
@@ -691,12 +698,11 @@ func TestV2CatalogPlaceholder(t *testing.T) {
 	for _, path := range []string{"/v2/_catalog", "/v2/_catalog?n=10"} {
 		resp := h.do(http.MethodGet, path, "", "", nil, nil)
 		body := mustGet(t, resp)
-		if resp.StatusCode != http.StatusNotFound {
+		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("%s status = %d; body=%s", path, resp.StatusCode, body)
 		}
-		eb := decodeSpecError(t, body)
-		if !strings.Contains(eb.Errors[0].Message, "catalog endpoint is not implemented") {
-			t.Fatalf("%s message = %q", path, eb.Errors[0].Message)
+		if !strings.Contains(body, `"repositories":[]`) {
+			t.Fatalf("%s body = %q, want the empty catalog listing", path, body)
 		}
 	}
 }

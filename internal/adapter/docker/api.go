@@ -32,9 +32,10 @@ const ServiceID = "binflow"
 const TokenPath = "/v2/token"
 
 // catalogPath is the registry-level catalog route (architecture section
-// 5.3, GET /v2/_catalog). T-40 implements it; the placeholder branch here
-// exists so the "_-"prefixed registry endpoint can never be captured by a
-// repository key (spec reserves that prefix).
+// 5.3, GET /v2/_catalog). T-40 implements it; the route branch keeps the
+// "_-"prefixed registry endpoint out of the name parser's repo-key slot
+// (spec reserves that prefix — a repository named "_catalog" can never
+// hijack it).
 const catalogPath = "/v2/_catalog"
 
 // Options carries the deployment facts the docker plane needs at assembly.
@@ -89,17 +90,23 @@ type BlobLedger interface {
 // plane reads. An interface, not metadata.Repo, so tests stub the lookup
 // without opening a store.
 type RepoRow interface {
+	// Key is the repository key — the catalog's repository enumeration
+	// (T-40) needs it alongside the routing data Get already carried.
+	Key() string
 	PackageType() string
 }
 
-// RepoLookup resolves a repository key to its row. Only PackageType is
-// consulted — the same routing-data-only posture as httpapi's seam (the
-// row's config never crosses here). The docker route reaches the adapter
-// WITHOUT the /binflow dispatch that normally performs this lookup, so the
-// adapter holds its own. ctx flows from the request so a slow query dies
-// with the connection (T-33 review B2).
+// RepoLookup resolves repository rows for the docker plane. Only routing
+// data is consulted — the same posture as httpapi's seam (the row's config
+// never crosses here). The docker route reaches the adapter WITHOUT the
+// /binflow dispatch that normally performs this lookup, so the adapter
+// holds its own. ctx flows from the request so a slow query dies with the
+// connection (T-33 review B2). List (T-40) enumerates every repository row
+// for the catalog — the caller filters by package type and visibility; the
+// rows arrive ordered by key.
 type RepoLookup interface {
 	Get(ctx context.Context, key string) (RepoRow, error)
+	List(ctx context.Context) ([]RepoRow, error)
 }
 
 // New wires the handler. svc may be nil in the foundation state (content

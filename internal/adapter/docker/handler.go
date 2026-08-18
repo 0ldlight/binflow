@@ -30,10 +30,11 @@ func (h *Handler) RepoTypes() []string { return []string{} }
 //   - blob routes — uploads (three push styles, offset query, cancel) and
 //     the blob read plane (T-38);
 //   - manifest routes — PUT/GET/HEAD/DELETE over tags and digests (T-39);
-//   - every other name route — the repo gate (ADR-0010 clause 3) with the
-//     catalog body landing in T-40 (its route, like tags/list and
-//     referrers, currently falls through to the spec-body 404, the DE-16
-//     posture for anything not implemented).
+//   - the registry-level catalog route /v2/_catalog and the per-image
+//     tags/list listing with the official pagination (T-40);
+//   - every other name route — the repo gate (ADR-0010 clause 3); the
+//     unimplemented remainder (referrers above all) falls through to the
+//     spec-body 404, the DE-16 posture for anything not implemented.
 //
 // The middleware chain (requestID/accessLog/recover/CORS/authenticate) has
 // already run upstream; the principal arrives through
@@ -134,14 +135,17 @@ func (h *Handler) serveNameRoute(w http.ResponseWriter, r *http.Request, path st
 	case path == TokenPath || strings.HasPrefix(path, TokenPath+"/"):
 		h.serveToken(w, r)
 		return
-	case path == catalogPath || strings.HasPrefix(path, catalogPath+"/"):
-		// The catalog endpoint (architecture section 5.3, GET
-		// /v2/_catalog) is T-40's; the explicit placeholder keeps the
-		// registry-level "_-"prefixed route OUT of the name parser's
-		// repo-key slot (spec reserves that prefix for registry endpoints —
-		// a user repository named "_catalog" must never hijack it).
+	case path == catalogPath:
+		// The catalog endpoint (architecture section 5.3, GET /v2/_catalog)
+		// — T-40. The dedicated branch keeps the registry-level
+		// "_-"prefixed route OUT of the name parser's repo-key slot (spec
+		// reserves that prefix — a user repository named "_catalog" can
+		// never hijack it).
+		h.serveCatalog(w, r)
+		return
+	case strings.HasPrefix(path, catalogPath+"/"):
 		writeSpecError(w, http.StatusNotFound, ErrCodeUnsupported,
-			"catalog endpoint is not implemented yet (T-40)", nil)
+			"unknown registry route "+path, nil)
 		return
 	case !strings.HasPrefix(path, "/v2/"):
 		writeSpecError(w, http.StatusNotFound, ErrCodeUnsupported,
@@ -206,9 +210,9 @@ func (h *Handler) serveNameRoute(w http.ResponseWriter, r *http.Request, path st
 	}
 
 	// Blob domain (T-38): the uploads route family and the blob read plane.
-	// Everything else (manifests, tags, catalog) remains T-39/T-40's and
-	// answers the DE-16 spec-body 404 — including referrers (DE-15:
-	// deliberately not implemented in M2).
+	// The manifest domain follows (T-39), then the tag listing (T-40).
+	// Everything else answers the DE-16 spec-body 404 — including
+	// referrers (DE-15: deliberately not implemented in M2).
 	if ref.tail == "blobs/uploads" || strings.HasPrefix(ref.tail, "blobs/uploads/") {
 		h.serveBlobUploads(w, r, ref, ref.tail)
 		return
@@ -219,6 +223,10 @@ func (h *Handler) serveNameRoute(w http.ResponseWriter, r *http.Request, path st
 	}
 	if strings.HasPrefix(ref.tail, "manifests/") {
 		h.serveManifest(w, r, ref, ref.tail)
+		return
+	}
+	if ref.tail == tagsListTail {
+		h.serveTagsList(w, r, ref)
 		return
 	}
 	writeSpecError(w, http.StatusNotFound, ErrCodeUnsupported,

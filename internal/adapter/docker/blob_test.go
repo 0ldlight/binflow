@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -301,12 +302,71 @@ func (f *fakeService) ResolveTag(_ context.Context, _ *Principal, repoKey, image
 	return nil, fmt.Errorf("tag: %w", repo.ErrTagNotFound)
 }
 
-func (f *fakeService) ListTags(context.Context, *Principal, string, string, int, string) ([]*metadata.DockerTag, error) {
-	return nil, errUnimplementedFake
+// ListTags (fake, T-40): mirrors the real service's listing contract — tag
+// order, the exclusive last cursor over the tag charset (ErrInvalidCursor),
+// ErrImageNotFound for an image without manifest rows, and the n<=0=all cap.
+func (f *fakeService) ListTags(_ context.Context, _ *Principal, repoKey, image string, n int, last string) ([]*metadata.DockerTag, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if last != "" {
+		if err := validateManifestTag(last); err != nil {
+			return nil, fmt.Errorf("tags/list cursor %q: %w", last, repo.ErrInvalidCursor)
+		}
+	}
+	var tags []*metadata.DockerTag
+	for _, t := range f.tags {
+		if t.RepoKey == repoKey && t.Image == image {
+			tags = append(tags, t)
+		}
+	}
+	if len(tags) == 0 {
+		for _, m := range f.manifests {
+			if m.RepoKey == repoKey && m.Image == image {
+				return nil, nil // image exists, zero tags
+			}
+		}
+		return nil, fmt.Errorf("image %s/%s: %w", repoKey, image, repo.ErrImageNotFound)
+	}
+	sort.Slice(tags, func(i, j int) bool { return tags[i].Tag < tags[j].Tag })
+	if last != "" {
+		idx := sort.Search(len(tags), func(i int) bool { return tags[i].Tag > last })
+		tags = tags[idx:]
+	}
+	if n > 0 && len(tags) > n {
+		tags = tags[:n]
+	}
+	return tags, nil
 }
 
-func (f *fakeService) ListImages(context.Context, *Principal, string, int, string) ([]string, error) {
-	return nil, errUnimplementedFake
+// ListImages (fake, T-40): distinct "<repoKey>/<image>" names carrying at
+// least one manifest row, lexicographic, exclusive cursor, n<=0=all.
+func (f *fakeService) ListImages(_ context.Context, _ *Principal, repoKey string, n int, last string) ([]string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	seen := map[string]bool{}
+	var names []string
+	for _, m := range f.manifests {
+		if m.RepoKey != repoKey || seen[m.Image] {
+			continue
+		}
+		seen[m.Image] = true
+		names = append(names, repoKey+"/"+m.Image)
+	}
+	sort.Strings(names)
+	if last != "" {
+		if !strings.HasPrefix(last, repoKey+"/") {
+			return nil, fmt.Errorf("catalog cursor %q: %w", last, repo.ErrInvalidCursor)
+		}
+		idx := sort.SearchStrings(names, last)
+		if idx < len(names) && names[idx] == last {
+			idx++
+		}
+		names = names[idx:]
+	}
+	if n > 0 && len(names) > n {
+		names = names[:n]
+	}
+	return names, nil
 }
 
 // DeleteManifest (fake): drops the manifest row and cascades its tags and
