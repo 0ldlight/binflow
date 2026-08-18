@@ -74,11 +74,12 @@
 - **T-33** [P0] /v2 挂载+docker 基座（修复轮） `role:dev-registry-adapter`
   状态：双 review 合并 REQUEST_CHANGES（5 blocker：B1 域信封泄漏双视角交叉确认 / B2 repoKey 段防线 / B3 _catalog 占位 / B4 repo 门错误分离+ctx）→ 原 agent 修复在途。
   RepoTypes 裁定：本票放行（空切片唯一不破 generic 的选择），§5.1 勘误四点 M3 前关闭——挂 architect 债务。
+- **T-35** [P0] repo docker 用例编排（修复轮） `role:dev-go-core`
+  状态：review REQUEST_CHANGES（3 blocker 探针实证：B1 DeleteRepo 拆库顺序致 refs 永久泄漏+GC pin / B2 同 digest 幂等重推改写不可变列+TagRepointed 三方矛盾 / B3 哨兵错位）→ 原 agent 修复在途。
 
 ## 👀 评审中（review）
 
-- **T-35** [P0] repo docker 用例编排 — 编码完成，conductor 复现通过（race 18.3s 绿/12 包全 ok/lint 0/69 子用例）→ 单 code-reviewer 在途（跨存储面写序/自愈机制/删仓原子性）。
-  提交 ccd4577。经一轮 429 中断，代码零损失。
+（空）
 
 ## 🧪 测试中（qa）
 
