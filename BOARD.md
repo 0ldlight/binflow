@@ -71,11 +71,12 @@
 
 ## 🔨 进行中（doing）
 
-（空）
+- **T-49** [P1] OSS 工程结构参考规格 `role:reverse-engineer` `area:docs/reverse` `dep:—`
+  状态：00:0x 派发（用户提供官方 OSS 源码 /Users/lzw/Downloads/jfrog-artifactory-7.161.16），在途。产出 oss-structure.md：48 模块地图↔BinFlow 包映射、分层思想、M3 高价值导航。clean-room 边界延伸至 OSS（结构参考禁翻译）。
 
 ## 👀 评审中（review）
 
-- **T-39** [P0] manifest 链 — 编码完成，conductor 复现通过（race 绿 docker 14.3s+httpapi 51.9s/lint 0/12 包；curl 41 断言 + 容器内 daemon 协商全序列 + docker manifest inspect 真客户端 exit 0；D08b 降级构造）→ **双 reviewer 在途**（正确性：校验链顺序/逐位一致/并发；架构：R3 消歧意见/§5.3 对照/分层）。
+- **T-39** [P0] manifest 链 — 编码完成，conductor 复现通过（race 绿 docker 14.3s+httpapi 51.9s/lint 0/12 包；curl 41 断言 + 容器内 daemon 协商全序列 + docker manifest inspect 真客户端 exit 0；D08b 降级构造）→ **双 reviewer**：架构已 APPROVE（0 blocker + R3 终审意见：透传+结构判读）；正确性在途。
 
 ## 👀 评审中（review）
 
