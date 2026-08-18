@@ -30,8 +30,6 @@ var (
 	// ErrRepoTypeNotSupported: remote/virtual repositories land in M3; M2
 	// implements local only. httpapi translates this to a 400-shaped response.
 	ErrRepoTypeNotSupported = errors.New("repository type not supported")
-	// ErrPackageTypeNotSupported: M1 repositories are generic only.
-	ErrPackageTypeNotSupported = errors.New("package type not supported in M1")
 	// ErrInvalidRepoConfig: the config blob is not valid JSON.
 	ErrInvalidRepoConfig = errors.New("invalid repository config")
 	// ErrRepoNotEmpty: DeleteRepo on a non-empty repository without
@@ -83,6 +81,17 @@ var (
 	// manifest rows (docker-registry.md section 6: tags/list on an unknown
 	// image is NAME_UNKNOWN, not an empty list).
 	ErrImageNotFound = errors.New("docker image not found")
+	// ErrInvalidManifest: a manifest parameter that is not a name/digest/tag
+	// shape problem but a bad manifest descriptor — an empty media type, a
+	// negative size, a nil ref row. The adapter maps this to the spec body's
+	// MANIFEST_INVALID (400); keeping it apart from ErrInvalidImage/ErrTag
+	// lets the /v2 plane pick the right error code instead of guessing.
+	ErrInvalidManifest = errors.New("invalid docker manifest parameter")
+	// ErrInvalidCursor: a pagination cursor (last) that cannot address this
+	// page's key space — a malformed tag on tags/list, or a "<repoKey>/..."
+	// name from another repository on the catalog. The adapter maps this to
+	// a 400 (the official family PAGINATION_NUMBER_INVALID lives in).
+	ErrInvalidCursor = errors.New("invalid pagination cursor")
 )
 
 // Repository types and package types (architecture section 6 DDL).
@@ -146,15 +155,18 @@ type Authorizer interface {
 type AuditEvent = audit.Event
 
 // PutManifestResult reports what a manifest publish did. TagRepointed is the
-// digest the tag moved FROM (empty when the tag is new or already pointed at
-// this digest) — the adapter answers 201 either way (docker-registry.md
-// section 10: the official protocol has no conflict semantics on tag
-// repointing, Q4 ruling keeps overwriting legal).
+// digest the tag pointed at immediately BEFORE this call, and non-empty only
+// when the tag actually moved (a fresh tag, or a same-digest republish that
+// left it in place, reports ""). The adapter answers 201 either way
+// (docker-registry.md section 10: the official protocol has no conflict
+// semantics on tag repointing, Q4 ruling keeps overwriting legal).
 type PutManifestResult struct {
 	Manifest *metadata.DockerManifest
 	// Node is the manifest blob's node at the docker layout path.
 	Node *metadata.Node
-	// TagRepointed is the tag's previous digest, or "" when unchanged/new.
+	// TagRepointed is the tag's previous digest when this publish moved the
+	// tag to a different digest; "" when the tag is new or already pointed
+	// here.
 	TagRepointed string
 }
 
@@ -240,13 +252,20 @@ type Service interface {
 	// blob (the adapter uploads the body through the normal blob path first).
 	// It writes the node at the docker layout path (<image>/manifests/<hex>,
 	// architecture section 6) plus the manifests index row, the requested
-	// tag's pointer (a re-push with the same tag REPOINTS it — Q4 ruling —
-	// with created/createdBy of the manifest preserved) and the ref ledger of
-	// the config/layer digests m cites (PutRefs replaces the set atomically).
-	// tag may be empty for a digest-only push. Delete permission on the
-	// previous node is required when another manifest occupies the tag's node
-	// path or overwrites a different digest's node (manifest bodies are
-	// immutable, so a same-digest re-push is an idempotent republish).
+	// tag's pointer (a re-push with the same tag REPOINTS it — Q4 ruling;
+	// TagRepointed reports the move) and the ref ledger of the config/layer
+	// digests m cites (PutRefs replaces the set atomically). tag may be empty
+	// for a digest-only push.
+	//
+	// Manifest bodies are immutable (digest = sha256 of the body), so a
+	// same-digest re-push is an idempotent republish: it skips the write
+	// gate (the docker twin of Put's retransmit rule), leaves the manifest
+	// row untouched (no created_by/media_type/size drift — a caller cannot
+	// move a served Content-Type by re-announcing a digest it does not own)
+	// and only re-runs the tag/refs upserts. A node at the layout path whose
+	// sha256 is a DIFFERENT digest (only reachable by a forged internal call
+	// or a hash collision) additionally requires delete permission on the
+	// image, mirroring Put's overwrite pair.
 	PutManifest(ctx context.Context, p *Principal, repoKey, image, digest, tag, mediaType string, size int64, refs []*metadata.DockerRef) (*PutManifestResult, error)
 	// ResolveManifest maps ref (a bare digest hex) to the manifest row.
 	// Missing manifest → ErrManifestNotFound; the adapter derives the node
@@ -257,13 +276,14 @@ type Service interface {
 	ResolveTag(ctx context.Context, p *Principal, repoKey, image, tag string) (*metadata.DockerTag, error)
 	// ListTags returns the image's tags lexicographically ordered, sliced by
 	// the official pagination contract: at most n entries (n<=0 = all) after
-	// the exclusive last cursor. An image without any manifest row is
-	// ErrImageNotFound (NAME_UNKNOWN); an existing image with zero tags
-	// returns an empty slice — the "tags":null vs [] rendering is the
-	// adapter's call (PRD R4).
+	// the exclusive last cursor (a malformed cursor is ErrInvalidCursor). An
+	// image without any manifest row is ErrImageNotFound (NAME_UNKNOWN); an
+	// existing image with zero tags returns an empty slice — the "tags":null
+	// vs [] rendering is the adapter's call (PRD R4).
 	ListTags(ctx context.Context, p *Principal, repoKey, image string, n int, last string) ([]*metadata.DockerTag, error)
 	// ListImages returns "<repoKey>/<image>" names with at least one manifest
-	// row, lexicographically ordered and sliced like ListTags. It is the
+	// row, lexicographically ordered and sliced like ListTags; a cursor from
+	// another repository's key space is ErrInvalidCursor. It is the
 	// /v2/_catalog source (T-40 renders the wire form).
 	ListImages(ctx context.Context, p *Principal, repoKey string, n int, last string) ([]string, error)
 	// DeleteManifest removes the manifest's node plus its index row, and the
@@ -274,10 +294,13 @@ type Service interface {
 	// on). Referenced blobs are NOT touched — reclamation is GC's business
 	// (FR-9-AC7 semantics).
 	DeleteManifest(ctx context.Context, p *Principal, repoKey, image, digest string) error
-	// DeleteRepoDocker drops the docker index rows of a repository before the
-	// repositories row goes. DeleteRepo drives it; it is exported because the
-	// teardown ordering (docker_refs has no DB-level FK, architecture section
-	// 11.12) is a cross-ticket contract T-38+ tests against.
+	// DeleteRepoDocker drops the docker index rows of a repository as part of
+	// its teardown: manifests/tags first (DeleteImage, one transaction per
+	// image), then — driven by DeleteRepo AFTER the repositories row is gone
+	// — the FK-less docker_refs rows (DeleteRepoRefs, architecture section
+	// 11.12). DeleteRepo calls the two halves around Repos().Delete; this
+	// method is the exported seam for the manifests/tags half so T-38+ can
+	// test the teardown ordering contract.
 	DeleteRepoDocker(ctx context.Context, repoKey string) (int64, error)
 }
 

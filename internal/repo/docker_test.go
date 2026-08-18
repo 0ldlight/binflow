@@ -428,17 +428,47 @@ func TestDockerPutManifest(t *testing.T) {
 		e.clk.Advance(5 * time.Minute)
 		// alice holds no grants at all: the same-digest repush is an
 		// idempotent republish that (like the generic Put's retransmit)
-		// skips the write gate, and the immutable node keeps its provenance.
-		res := putManifest(t, e, alice(), "docker-local", "app", d, "v1", digestOf("cfg"))
-		if res.TagRepointed != d {
+		// skips the write gate, and BOTH the node and the manifest index row
+		// keep their provenance — re-announcing a digest must not be able to
+		// drift created_by/media_type/size (review B2).
+		res, err := e.svc.PutManifest(ctx, alice(), "docker-local", "app", d, "v1",
+			"application/vnd.oci.image.manifest.v1+json", 999,
+			mkRefs("docker-local", "app", d, digestOf("cfg")))
+		if err != nil {
+			t.Fatalf("idempotent repush by unprivileged user: %v", err)
+		}
+		if res.TagRepointed != "" {
 			t.Fatalf("same-digest repush reported a repoint: %q", res.TagRepointed)
 		}
-		n, err := e.md.Nodes().Get(ctx, "docker-local", "app/manifests/"+d)
-		if err != nil {
-			t.Fatalf("node: %v", err)
+		n, nodeErr := e.md.Nodes().Get(ctx, "docker-local", "app/manifests/"+d)
+		if nodeErr != nil {
+			t.Fatalf("node: %v", nodeErr)
 		}
 		if n.CreatedBy != "admin" {
-			t.Fatalf("repush rewrote provenance: %+v", n)
+			t.Fatalf("repush rewrote node provenance: %+v", n)
+		}
+		// The manifest row is untouched: provenance AND serving columns.
+		m, mErr := e.md.Docker().GetManifest(ctx, "docker-local", "app", d)
+		if mErr != nil {
+			t.Fatalf("manifest row: %v", mErr)
+		}
+		if m.CreatedBy != "admin" {
+			t.Fatalf("repush rewrote manifest provenance: %+v", m)
+		}
+		if m.MediaType != "application/vnd.docker.distribution.manifest.v2+json" || m.Size != 100 {
+			t.Fatalf("repush drifted serving columns: %+v", m)
+		}
+		// The result reports the STORED row, not the caller's claim.
+		if res.Manifest.CreatedBy != "admin" ||
+			res.Manifest.MediaType != "application/vnd.docker.distribution.manifest.v2+json" ||
+			res.Manifest.Size != 100 {
+			t.Fatalf("result reports the re-announcement, not the stored row: %+v", res.Manifest)
+		}
+		// Tag freshness still moves (the tag upsert is the one write that
+		// re-runs: repointing is legal and so is refreshing the pointer).
+		tag, tErr := e.md.Docker().GetTag(ctx, "docker-local", "app", "v1")
+		if tErr != nil || tag.UpdatedBy != "alice" {
+			t.Fatalf("tag row after repush = %+v, %v", tag, tErr)
 		}
 	})
 
@@ -518,12 +548,13 @@ func TestDockerPutManifest(t *testing.T) {
 				}
 			})
 		}
-		// mediaType and size have their own guards.
-		if _, err := e.svc.PutManifest(ctx, admin(), "docker-local", "app", digestOf("x"), "v1", "", 1, nil); !errors.Is(err, repo.ErrInvalidImage) {
-			t.Fatalf("empty mediaType error = %v", err)
+		// mediaType and size have their own guards (manifest-descriptor
+		// sentinels, not image-name ones — review B3).
+		if _, err := e.svc.PutManifest(ctx, admin(), "docker-local", "app", digestOf("x"), "v1", "", 1, nil); !errors.Is(err, repo.ErrInvalidManifest) {
+			t.Fatalf("empty mediaType error = %v, want ErrInvalidManifest", err)
 		}
-		if _, err := e.svc.PutManifest(ctx, admin(), "docker-local", "app", digestOf("x"), "v1", "m", -1, nil); !errors.Is(err, repo.ErrInvalidImage) {
-			t.Fatalf("negative size error = %v", err)
+		if _, err := e.svc.PutManifest(ctx, admin(), "docker-local", "app", digestOf("x"), "v1", "m", -1, nil); !errors.Is(err, repo.ErrInvalidManifest) {
+			t.Fatalf("negative size error = %v, want ErrInvalidManifest", err)
 		}
 		if _, err := e.svc.PutManifest(ctx, admin(), "docker-local", "app", digestOf("x"), "v1", "m", 1,
 			[]*metadata.DockerRef{{RepoKey: "docker-local", BlobDigest: "short"}}); !errors.Is(err, repo.ErrInvalidDigest) {
@@ -674,9 +705,9 @@ func TestDockerListTags(t *testing.T) {
 		if _, err := e.svc.ListTags(context.Background(), alice(), "docker-local", "app", 0, ""); !errors.Is(err, repo.ErrForbidden) {
 			t.Fatalf("alice ListTags error = %v", err)
 		}
-		// last is validated like a tag.
-		if _, err := e.svc.ListTags(context.Background(), admin(), "docker-local", "app", 0, "not a cursor"); !errors.Is(err, repo.ErrInvalidTag) {
-			t.Fatalf("bad cursor error = %v", err)
+		// last is validated like a tag but reported as a cursor error.
+		if _, err := e.svc.ListTags(context.Background(), admin(), "docker-local", "app", 0, "not a cursor"); !errors.Is(err, repo.ErrInvalidCursor) {
+			t.Fatalf("bad cursor error = %v, want ErrInvalidCursor", err)
 		}
 	})
 }
@@ -719,8 +750,8 @@ func TestDockerListImages(t *testing.T) {
 	})
 
 	t.Run("a cursor from another repo is refused", func(t *testing.T) {
-		if _, err := e.svc.ListImages(ctx, admin(), "docker-local", 2, "docker-two/other"); !errors.Is(err, repo.ErrInvalidImage) {
-			t.Fatalf("foreign cursor error = %v, want ErrInvalidImage", err)
+		if _, err := e.svc.ListImages(ctx, admin(), "docker-local", 2, "docker-two/other"); !errors.Is(err, repo.ErrInvalidCursor) {
+			t.Fatalf("foreign cursor error = %v, want ErrInvalidCursor", err)
 		}
 	})
 
@@ -938,10 +969,18 @@ func TestDockerDeleteRepoCascades(t *testing.T) {
 	t.Run("delete failure leaves the repo row behind", func(t *testing.T) {
 		e := newEnv(t)
 		mustCreateDockerRepo(t, e, "docker-local")
-		putManifest(t, e, admin(), "docker-local", "app", digestOf("a"), "v1", digestOf("l"))
+		layer := digestOf("l")
+		putManifest(t, e, admin(), "docker-local", "app", digestOf("a"), "v1", layer)
 
-		// Fail the repositories delete: the docker teardown must have run
-		// (its tables are gone) but the repo survives for a retry.
+		// Fail the repositories delete. The manifests/tags teardown ran
+		// (first half, before the row) and swept that half's refs with it
+		// (DeleteImage clears an image's three row kinds together) — but the
+		// final repo-wide refs sweep must NOT have run: it only fires after
+		// the repositories row is gone (review B1 — sweeping early would
+		// strand the refs of any publish racing the delete). Observable
+		// here: a ref written into the still-living repo after the failed
+		// delete survives alongside the repo row, i.e. the state is
+		// consistent and retryable rather than half-deleted.
 		e.svc = newServiceWithClock(e.st, failRepoDeleteStore{e.md}, nil, nil, e.clk.Now)
 		if err := e.svc.DeleteRepo(ctx, admin(), "docker-local", true); err == nil {
 			t.Fatalf("DeleteRepo unexpectedly survived the injected failure")
@@ -949,7 +988,56 @@ func TestDockerDeleteRepoCascades(t *testing.T) {
 		if _, err := e.svc.GetRepo(ctx, admin(), "docker-local"); err != nil {
 			t.Fatalf("repo row lost on a failed delete: %v", err)
 		}
-		assertDockerTablesEmpty(ctx, t, e, "docker-local")
+		// The repo row surviving means the service-level contract held: a
+		// publish against the still-existing repository still works and its
+		// refs are visible (nothing was swept out from under the repo).
+		d := digestOf("post-failure")
+		if _, err := e.svc.PutManifest(ctx, admin(), "docker-local", "app", d, "v2",
+			"application/vnd.docker.distribution.manifest.v2+json", 1,
+			mkRefs("docker-local", "app", d, layer)); err != nil {
+			t.Fatalf("publish after failed delete: %v", err)
+		}
+		if ok, err := e.md.Docker().RefsByBlob(ctx, "docker-local", layer); err != nil || !ok {
+			t.Fatalf("refs invisible in the surviving repo (half-deleted state): %v, %v", ok, err)
+		}
+		// And the retry completes: row gone, refs swept after it.
+		e.svc = newServiceWithClock(e.st, e.md, nil, nil, e.clk.Now)
+		if err := e.svc.DeleteRepo(ctx, admin(), "docker-local", true); err != nil {
+			t.Fatalf("retry DeleteRepo: %v", err)
+		}
+		if ok, err := e.md.Docker().RefsByBlob(ctx, "docker-local", layer); err != nil || ok {
+			t.Fatalf("refs outlived the completed delete: %v, %v", ok, err)
+		}
+	})
+
+	t.Run("refs of a racing publish do not outlive the repo (B1)", func(t *testing.T) {
+		// The B1 window: a PutRefs landing between the manifests/tags
+		// teardown and the repositories delete. The refs sweep runs AFTER
+		// the row is gone, so the straggler is collected — not stranded as
+		// a permanent GC pin / ghost reference for a recreated repo.
+		e := newEnv(t)
+		mustCreateDockerRepo(t, e, "docker-local")
+		d := digestOf("race")
+		putManifest(t, e, admin(), "docker-local", "app", d, "v1", digestOf("l"))
+
+		// Drive the two halves manually with the racing write injected
+		// exactly between them: DeleteRepoDocker (first half, manifests/
+		// tags gone, repository row still present) → straggler PutRefs →
+		// the DeleteRepo that completes the teardown.
+		if _, err := e.svc.DeleteRepoDocker(ctx, "docker-local"); err != nil {
+			t.Fatalf("first half: %v", err)
+		}
+		straggler := digestOf("straggler")
+		if err := e.md.Docker().PutRefs(ctx, "docker-local", "app", d,
+			[]*metadata.DockerRef{{RepoKey: "docker-local", Image: "app", ManifestDigest: d, BlobDigest: straggler}}); err != nil {
+			t.Fatalf("racing PutRefs: %v", err)
+		}
+		if err := e.svc.DeleteRepo(context.Background(), admin(), "docker-local", true); err != nil {
+			t.Fatalf("DeleteRepo with straggler refs: %v", err)
+		}
+		if ok, err := e.md.Docker().RefsByBlob(ctx, "docker-local", straggler); err != nil || ok {
+			t.Fatalf("racing publish's refs outlived the repository: %v, %v", ok, err)
+		}
 	})
 }
 
@@ -1034,8 +1122,6 @@ func TestDockerWritePathFailures(t *testing.T) {
 				}
 			}
 			// Re-push heals every partial state (all writes are upserts).
-			healed := newEnvAt(t, dataDir, dbDir, base)
-			_ = healed
 			hooked.fail = nil
 			if _, err := e.svc.PutManifest(ctx, admin(), "docker-local", "app", d, "v1", "m", 1,
 				mkRefs("docker-local", "app", d, digestOf("cfg"))); err != nil {

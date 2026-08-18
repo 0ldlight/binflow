@@ -700,14 +700,14 @@ func (s *service) PutManifest(ctx context.Context, p *Principal, repoKey, image,
 		}
 	}
 	if mediaType == "" {
-		return nil, fmt.Errorf("manifest %s/%s@%s: %w: media type is empty", repoKey, image, digest, ErrInvalidImage)
+		return nil, fmt.Errorf("manifest %s/%s@%s: %w: media type is empty", repoKey, image, digest, ErrInvalidManifest)
 	}
 	if size < 0 {
-		return nil, fmt.Errorf("manifest %s/%s@%s: %w: negative size", repoKey, image, digest, ErrInvalidImage)
+		return nil, fmt.Errorf("manifest %s/%s@%s: %w: negative size", repoKey, image, digest, ErrInvalidManifest)
 	}
 	for i, r := range refs {
 		if r == nil {
-			return nil, fmt.Errorf("manifest %s/%s@%s: %w: ref %d is nil", repoKey, image, digest, ErrInvalidImage, i)
+			return nil, fmt.Errorf("manifest %s/%s@%s: %w: ref %d is nil", repoKey, image, digest, ErrInvalidManifest, i)
 		}
 		if err := validateDigest(r.BlobDigest); err != nil {
 			return nil, fmt.Errorf("manifest %s/%s@%s ref %d: %w", repoKey, image, digest, i, err)
@@ -719,6 +719,10 @@ func (s *service) PutManifest(ctx context.Context, p *Principal, repoKey, image,
 
 	permPath := dockerPermPath(image)
 	nodePath := dockerImageManifestPath(image, digest)
+
+	// stored holds the existing manifest row on an idempotent republish (the
+	// result must report the serving truth, not the caller's re-announcement).
+	var stored *metadata.DockerManifest
 
 	// Idempotent republish probe: the immutable body at the same digest.
 	// A same-digest re-push re-runs the tag/refs writes (both upserts) and
@@ -755,11 +759,15 @@ func (s *service) PutManifest(ctx context.Context, p *Principal, repoKey, image,
 
 	// The tag's previous pointer, for the result's TagRepointed report. Read
 	// BEFORE any write so the value reflects the pre-call state even when the
-	// writes below refresh it.
+	// writes below refresh it. The contract: non-empty only when this call
+	// actually MOVES the tag (a fresh tag or a same-digest republish that
+	// leaves it in place reports "").
 	var repointedFrom string
 	if tag != "" {
 		if prev, err := s.md.Docker().GetTag(ctx, repoKey, image, tag); err == nil {
-			repointedFrom = prev.Digest
+			if prev.Digest != digest {
+				repointedFrom = prev.Digest
+			}
 		} else if !errors.Is(err, metadata.ErrTagNotFound) {
 			return nil, fmt.Errorf("tag %s/%s:%s: %w", repoKey, image, tag, err)
 		}
@@ -776,10 +784,26 @@ func (s *service) PutManifest(ctx context.Context, p *Principal, repoKey, image,
 
 	dk := s.md.Docker()
 	now := s.now()
-	if err := dk.PutManifest(ctx, &metadata.DockerManifest{
-		RepoKey: repoKey, Image: image, Digest: digest,
-		MediaType: mediaType, Size: size, CreatedBy: p.Name, CreatedAt: now,
-	}); err != nil {
+	if !idempotent {
+		// Fresh publish: the index row lands. On an idempotent republish the
+		// row is deliberately LEFT ALONE — the manifest body is immutable
+		// (same digest = same bytes), so re-announcing it must not move
+		// created_by/media_type/size: a zero-grant caller re-announcing a
+		// digest must not be able to drift the served Content-Type of an
+		// existing manifest (T-35 review B2 — the upsert would have rewritten
+		// all four columns; the node path already kept provenance, this
+		// closes the index side of the asymmetry).
+		if err := dk.PutManifest(ctx, &metadata.DockerManifest{
+			RepoKey: repoKey, Image: image, Digest: digest,
+			MediaType: mediaType, Size: size, CreatedBy: p.Name, CreatedAt: now,
+		}); err != nil {
+			return nil, fmt.Errorf("manifest row %s/%s@%s: %w", repoKey, image, digest, err)
+		}
+	} else if m, err := dk.GetManifest(ctx, repoKey, image, digest); err == nil {
+		// The result reports the STORED manifest, not the caller's claim —
+		// the row is the /v2 plane's serving truth.
+		stored = m
+	} else if !errors.Is(err, metadata.ErrManifestNotFound) {
 		return nil, fmt.Errorf("manifest row %s/%s@%s: %w", repoKey, image, digest, err)
 	}
 	if tag != "" {
@@ -804,13 +828,20 @@ func (s *service) PutManifest(ctx context.Context, p *Principal, repoKey, image,
 
 	s.audit(ctx, AuditEvent{
 		Actor: p.Name, Action: AuditActionDeploy, Repo: repoKey, Path: nodePath,
-		Detail: fmt.Sprintf(`{"digest":%q,"tag":%q,"size":%d,"refs":%d}`,
-			digest, tag, size, len(rows)),
+		Detail: fmt.Sprintf(`{"digest":%q,"tag":%q,"size":%d,"refs":%d,"idempotent":%t}`,
+			digest, tag, size, len(rows), idempotent),
 	})
-	return &PutManifestResult{Manifest: &metadata.DockerManifest{
-		RepoKey: repoKey, Image: image, Digest: digest,
-		MediaType: mediaType, Size: size, CreatedBy: p.Name, CreatedAt: now,
-	}, Node: n, TagRepointed: repointedFrom}, nil
+	// On an idempotent republish the result carries the STORED manifest row
+	// (unchanged provenance and serving columns); on a fresh publish the row
+	// just written. `stored` is only ever set on the idempotent path.
+	reported := stored
+	if reported == nil {
+		reported = &metadata.DockerManifest{
+			RepoKey: repoKey, Image: image, Digest: digest,
+			MediaType: mediaType, Size: size, CreatedBy: p.Name, CreatedAt: now,
+		}
+	}
+	return &PutManifestResult{Manifest: reported, Node: n, TagRepointed: repointedFrom}, nil
 }
 
 // ResolveManifest implements Service.ResolveManifest: the index row of one
@@ -883,7 +914,10 @@ func (s *service) ListTags(ctx context.Context, p *Principal, repoKey, image str
 	}
 	if last != "" {
 		if err := validateTag(last); err != nil {
-			return nil, err
+			// The cursor shares the tag charset; the sentinel says what the
+			// caller got wrong (a cursor, not a tag) so the /v2 plane picks
+			// the pagination-400 family, not a tag-shaped error.
+			return nil, fmt.Errorf("tags/list cursor %q: %w", last, ErrInvalidCursor)
 		}
 	}
 	if _, err := s.loadLocalDockerRepo(ctx, repoKey); err != nil {
@@ -929,7 +963,8 @@ func (s *service) ListImages(ctx context.Context, p *Principal, repoKey string, 
 	after := ""
 	if last != "" {
 		if !strings.HasPrefix(last, repoKey+"/") {
-			return nil, fmt.Errorf("catalog cursor %q: %w: must start with %q", last, ErrInvalidImage, repoKey+"/")
+			return nil, fmt.Errorf("catalog cursor %q: %w: must start with %q",
+				last, ErrInvalidCursor, repoKey+"/")
 		}
 		after = strings.TrimPrefix(last, repoKey+"/")
 	}
@@ -1044,30 +1079,33 @@ func (s *service) DeleteManifest(ctx context.Context, p *Principal, repoKey, ima
 	return nil
 }
 
-// DeleteRepoDocker implements Service.DeleteRepoDocker: the docker index
-// teardown of a repository. docker_manifests and docker_tags cascade through
-// their FKs when the repositories row goes; docker_refs deliberately has no
-// FK (architecture section 11.12), so this drops it explicitly — BEFORE the
-// repositories delete (afterwards the repo_key would still match rows it can
-// no longer be identified by, and they would pin blobs in GC's mark set
-// forever). The manifests/tags drop here keeps the three tables moving
-// together even if a later step fails.
+// DeleteRepoDocker implements Service.DeleteRepoDocker: the FIRST half of a
+// docker repository's index teardown. It deletes each image's manifest and
+// tag rows one image at a time (docker_manifests and docker_tags move
+// together per image; the repositories-row FK cascade is only a backstop).
+// The store's DeleteImage also clears that image's ref rows in the same
+// transaction, so this half alone already handles every publish that
+// happened BEFORE it. What it cannot guarantee — and why the refs sweep in
+// DeleteRepo runs AFTER the repositories row is gone — is a PutRefs landing
+// between this half and the row delete: that straggler has no FK, and only
+// the post-delete DeleteRepoRefs collects it (T-35 review B1 — swept early,
+// it would outlive the repository, pin its blob in GC's mark set forever,
+// and leak into a same-named repository recreated later).
 func (s *service) DeleteRepoDocker(ctx context.Context, repoKey string) (int64, error) {
 	dk := s.md.Docker()
 	images, err := dk.ListImages(ctx, repoKey, "", 0)
 	if err != nil {
 		return 0, fmt.Errorf("catalog of %q: %w", repoKey, err)
 	}
+	var removed int64
 	for _, image := range images {
-		if _, err := dk.DeleteImage(ctx, repoKey, image); err != nil {
+		n, err := dk.DeleteImage(ctx, repoKey, image)
+		if err != nil {
 			return 0, fmt.Errorf("docker teardown %q image %q: %w", repoKey, image, err)
 		}
+		removed += n
 	}
-	refs, err := dk.DeleteRepoRefs(ctx, repoKey)
-	if err != nil {
-		return 0, fmt.Errorf("docker teardown %q refs: %w", repoKey, err)
-	}
-	return refs, nil
+	return removed, nil
 }
 
 // ---- Repository CRUD ----
@@ -1244,12 +1282,10 @@ func (s *service) DeleteRepo(ctx context.Context, p *Principal, repoKey string, 
 			return fmt.Errorf("repo %q delete content: %w", repoKey, err)
 		}
 	}
-	// Docker index teardown (FR-7-AC5): the three docker tables follow the
-	// repository out. docker_refs has no DB-level FK (architecture section
-	// 11.12), so skipping this would leave rows pinning blobs in GC's mark
-	// set forever; manifests/tags go here too so the tables move together
-	// even when deleteContent=false (an empty docker repo may still hold
-	// index rows — a repo with only by-digest manifests has no nodes).
+	// Docker index teardown, first half (FR-7-AC5): manifests/tags per image.
+	// This runs while the repositories row still exists, so a concurrent
+	// publish racing this delete fails its node/manifest writes on the FK
+	// the moment the row goes below.
 	if _, err := s.DeleteRepoDocker(ctx, repoKey); err != nil {
 		return fmt.Errorf("repo %q docker teardown: %w", repoKey, err)
 	}
@@ -1258,6 +1294,21 @@ func (s *service) DeleteRepo(ctx context.Context, p *Principal, repoKey string, 
 			return fmt.Errorf("repo %q: %w", repoKey, ErrRepoNotFound)
 		}
 		return fmt.Errorf("delete repo %q: %w", repoKey, err)
+	}
+	// Second half, strictly AFTER the row is gone: docker_refs carries no
+	// FK (architecture section 11.12), so its sweep must close the door the
+	// FKs otherwise would — a concurrent PutManifest whose PutRefs landed
+	// between the manifests/tags teardown and the repositories delete would
+	// otherwise leave ref rows that no FK cascade can ever reach (permanent
+	// GC pin + ghost references for a same-named recreate; T-35 review B1).
+	// Running it last also means a failed repositories delete leaves refs
+	// intact alongside the surviving row — a consistent, retryable state.
+	// The sweep is a plain per-repo_key DELETE, so rows of a recreated
+	// same-name repository cannot be hit: nothing can write through this
+	// Service into that name until CreateRepo re-seeds it, which happens
+	// strictly after this call returns.
+	if _, err := s.md.Docker().DeleteRepoRefs(ctx, repoKey); err != nil {
+		return fmt.Errorf("repo %q docker refs teardown: %w", repoKey, err)
 	}
 	s.audit(ctx, AuditEvent{
 		Actor: p.Name, Action: AuditActionRepoDelete, Repo: repoKey,
