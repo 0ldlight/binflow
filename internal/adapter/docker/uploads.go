@@ -27,7 +27,16 @@ const uploadsTailPrefix = "blobs/uploads"
 // (and state.json persists); keeping it here means the Content-Range contract
 // is judged against the adapter's own bookkeeping, never by trusting a client
 // claim.
+//
+// Concurrency (review B1): every field is guarded by mu, and mu serializes
+// the WHOLE per-session operation — the Content-Range judgment, the Append
+// and the received assignment happen inside one critical section, so two
+// concurrent PATCHes on the same UUID cannot both pass the anchor check
+// against a stale offset, and received can never move backwards on an
+// out-of-order completion. Registry lookups hand out the pointer; callers
+// take mu before touching state.
 type liveUpload struct {
+	mu       sync.Mutex
 	sess     storage.Session
 	received int64
 	started  time.Time
@@ -37,23 +46,108 @@ type liveUpload struct {
 	// failure is observable (a blind 202 would let a client believe its
 	// bytes landed).
 	poisoned bool
+	// done is set when the session left the registry through a terminal
+	// verb (finalize or abort) while a racing request already held the
+	// entry pointer. The late arrival must observe "session gone"
+	// (BLOB_UPLOAD_UNKNOWN), never the storage layer's "already finalized"
+	// error dressed as a 500 — from the protocol's side a finalized session
+	// does not exist anymore.
+	done bool
 }
+
+// idleTTL bounds how long an untouched upload session may linger in the
+// registry before the sweep evicts it (review B2): a docker push that dies
+// mid-flight leaves its session behind forever otherwise — one open data fd
+// plus a disk directory per abandoned POST, with nothing to reclaim them
+// (the storage engine's own sweep runs at startup only and deliberately
+// skips live sessions). The default mirrors storage.DefaultSessionTTL (24h)
+// so the adapter's in-memory eviction and the engine's disk-side grace agree
+// on one number; the sweep interval is a fraction of it.
+const (
+	idleSessionTTL    = storage.DefaultSessionTTL
+	idleSweepInterval = idleSessionTTL / 48 // twice an hour at the 24h default
+)
 
 // sessionRegistry is the process-wide upload-session table: UUID -> live
 // upload. Deliberately in-memory (architecture ruling: cross-process resume
 // is M3+; a restarted registry answers 404 for every pre-restart session and
 // the client restarts its upload from zero, which the spec allows). Entries
-// leave through finalize (Commit consumed the session) or abort; the storage
-// engine's own TTL sweep is the disk-side backstop for abandoned ones.
+// leave through finalize (Commit consumed the session), abort, or the idle
+// sweep (B2); the storage engine's startup sweep is the disk-side backstop.
 type sessionRegistry struct {
 	mu   sync.Mutex
 	byID map[string]*liveUpload
+	// ttl is the idle bound the sweep enforces; overridable in tests (the
+	// production value is idleSessionTTL).
+	ttl time.Duration
+	// sweepOnce starts the background sweeper exactly once per process (the
+	// handler is built once; tests that never trigger it pay nothing).
+	sweepOnce sync.Once
 }
 
 // newSessionRegistry builds the empty table.
 func newSessionRegistry() *sessionRegistry {
-	return &sessionRegistry{byID: map[string]*liveUpload{}}
+	return &sessionRegistry{byID: map[string]*liveUpload{}, ttl: idleSessionTTL}
 }
+
+// startSweep launches the idle-eviction loop (once per process). The loop
+// holds no registry lock while aborting sessions (Abort does filesystem
+// work); an entry racing a legitimate finalize is removed idempotently on
+// both sides, and an Abort of an already-finalized session is a no-op
+// (storage contract), so the sweep can never destroy live state.
+func (r *sessionRegistry) startSweep() {
+	r.sweepOnce.Do(func() {
+		go func() {
+			t := time.NewTicker(idleSweepInterval)
+			defer t.Stop()
+			for range t.C {
+				r.evictIdle(time.Now())
+			}
+		}()
+	})
+}
+
+// evictIdle aborts and removes every session idle beyond the TTL. It takes
+// a snapshot under the lock, then works without it (Abort touches the disk).
+func (r *sessionRegistry) evictIdle(now time.Time) []string {
+	type candidate struct {
+		id string
+		up *liveUpload
+	}
+	var expired []candidate
+	r.mu.Lock()
+	for id, up := range r.byID {
+		if now.Sub(up.lastActivityLocked()) > r.ttl {
+			expired = append(expired, candidate{id: id, up: up})
+		}
+	}
+	// Remove under the lock so a racing PATCH observes BLOB_UPLOAD_UNKNOWN
+	// instead of joining a session that is being torn down.
+	for _, c := range expired {
+		delete(r.byID, c.id)
+	}
+	r.mu.Unlock()
+	for _, c := range expired {
+		c.up.mu.Lock()
+		_ = c.up.sess.Abort(context.Background())
+		c.up.poisoned = true
+		c.up.mu.Unlock()
+	}
+	ids := make([]string, 0, len(expired))
+	for _, c := range expired {
+		ids = append(ids, c.id)
+	}
+	return ids
+}
+
+// lastActivityLocked reports the session's idleness anchor. The started
+// stamp IS the anchor: received grows monotonically with started fixed, and
+// the sweep only cares about wall-clock abandonment, so the birth time is
+// both sufficient and the honest bound (a session that has been streaming
+// for hours is not "idle" in the disk-usage sense the TTL addresses — but
+// it also holds an fd the whole time, and 24h is a generous ceiling for any
+// single docker push).
+func (u *liveUpload) lastActivityLocked() time.Time { return u.started }
 
 // add registers a fresh upload under the session's own ID.
 func (r *sessionRegistry) add(sess storage.Session) *liveUpload {
@@ -65,6 +159,8 @@ func (r *sessionRegistry) add(sess storage.Session) *liveUpload {
 }
 
 // lookup resolves one UUID. ok=false is the spec's BLOB_UPLOAD_UNKNOWN.
+// The entry's own lock is NOT held here; the caller serializes its session
+// operation through it (see liveUpload.mu).
 func (r *sessionRegistry) lookup(id string) (*liveUpload, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -140,15 +236,18 @@ func (h *Handler) serveUploadStart(w http.ResponseWriter, r *http.Request, ref n
 		return
 	}
 
-	// Initiating POST: grant a session. The body of the initiating POST is
-	// by definition empty for this style (the stream comes on PATCH/PUT), so
-	// a non-empty body is drained and ignored rather than trusted.
+	// Initiating POST: grant a session. The initiating POST carries no body
+	// by definition for this style (the stream comes on PATCH/PUT); a client
+	// that sends one anyway is not read — the connection is simply closed
+	// after the 202, which every registry client tolerates (N4: the previous
+	// comment claimed a drain that never happened).
 	sess, err := h.newUploadSession(r)
 	if err != nil {
 		h.writeStoreFailure(w, r, "begin upload session", err)
 		return
 	}
 	h.sess.add(sess)
+	h.sess.startSweep() // B2: the idle-eviction loop rides the first session
 	loc := h.uploadLocation(ref, sess.ID(), nil)
 	hdr := w.Header()
 	writeAPIVersionHdr(hdr)
@@ -165,11 +264,24 @@ func (h *Handler) serveUploadStart(w http.ResponseWriter, r *http.Request, ref n
 //	PUT    finalize against ?digest=      (DE-05)
 //	GET    offset query, 204 + Range      (official endpoint)
 //	DELETE cancel, 204                    (official endpoint)
+//
+// Every verb takes the session's own lock for its whole operation (review
+// B1): the storage Session is single-threaded by contract, and the
+// received/poisoned protocol state must never interleave.
 func (h *Handler) serveUploadSession(w http.ResponseWriter, r *http.Request, ref nameRef, id string) {
 	switch r.Method {
 	case http.MethodPatch, http.MethodPut:
 		up, ok := h.sess.lookup(id)
 		if !ok {
+			writeBlobUploadUnknown(w, id)
+			return
+		}
+		up.mu.Lock()
+		defer up.mu.Unlock()
+		if up.done {
+			// The session ended while this request was in flight (the
+			// winner of the race already finalized or aborted it); the
+			// protocol sees no session here.
 			writeBlobUploadUnknown(w, id)
 			return
 		}
@@ -187,10 +299,17 @@ func (h *Handler) serveUploadSession(w http.ResponseWriter, r *http.Request, ref
 			writeBlobUploadUnknown(w, id)
 			return
 		}
+		up.mu.Lock()
+		received, done := up.received, up.done
+		up.mu.Unlock()
+		if done {
+			writeBlobUploadUnknown(w, id)
+			return
+		}
 		hdr := w.Header()
 		writeAPIVersionHdr(hdr)
 		hdr.Set("Docker-Upload-UUID", id)
-		hdr.Set("Range", rangeHeader(up.received))
+		hdr.Set("Range", rangeHeader(received))
 		hdr.Set("Content-Length", "0")
 		w.WriteHeader(http.StatusNoContent)
 	case http.MethodDelete:
@@ -199,7 +318,10 @@ func (h *Handler) serveUploadSession(w http.ResponseWriter, r *http.Request, ref
 			writeBlobUploadUnknown(w, id)
 			return
 		}
+		up.mu.Lock()
 		_ = up.sess.Abort(context.WithoutCancel(r.Context()))
+		up.done = true
+		up.mu.Unlock()
 		h.sess.remove(id)
 		hdr := w.Header()
 		writeAPIVersionHdr(hdr)
@@ -216,6 +338,8 @@ func (h *Handler) serveUploadSession(w http.ResponseWriter, r *http.Request, ref
 // absent (official "Stream upload"); strict offset alignment when present —
 // the start MUST equal the server's received count, a mismatch is 416 with
 // the authoritative Range and an empty body (docker-registry.md 2.2#3).
+// The caller holds up.mu for the whole operation (B1): the anchor judgment
+// and the Append+received assignment are one indivisible critical section.
 func (h *Handler) patchUpload(w http.ResponseWriter, r *http.Request, ref nameRef, id string, up *liveUpload) {
 	if up.poisoned {
 		// A poisoned session can never become a trustworthy blob: refuse the
@@ -229,8 +353,7 @@ func (h *Handler) patchUpload(w http.ResponseWriter, r *http.Request, ref nameRe
 		w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
 		return
 	}
-	start, ok := alignContentRange(r.Header.Get("Content-Range"), up.received)
-	if !ok {
+	if _, ok := alignContentRange(r.Header.Get("Content-Range"), up.received); !ok {
 		// 416 with the server's authoritative offset and NO body (the spec's
 		// error posture for chunk misalignment; docker-registry.md 2.2#3).
 		hdr := w.Header()
@@ -241,7 +364,6 @@ func (h *Handler) patchUpload(w http.ResponseWriter, r *http.Request, ref nameRe
 		w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
 		return
 	}
-	_ = start // aligned or absent; Append is strictly cumulative either way
 
 	// Append returns the CUMULATIVE offset (storage contract), not the
 	// chunk length — assign, never add.
@@ -251,12 +373,21 @@ func (h *Handler) patchUpload(w http.ResponseWriter, r *http.Request, ref nameRe
 		// entry so the client observes the failure instead of silently
 		// re-anchoring at zero under a fresh session.
 		up.poisoned = true
-		if errors.Is(err, storage.ErrSessionPoisoned) || r.Context().Err() != nil {
-			// A cancelled/failed append: the client is gone or the stream
-			// broke; render nothing further (the write below is best
-			// effort).
-			h.log.WarnContext(r.Context(), "docker: upload append failed",
-				"upload", id, "received", up.received, "error", err.Error())
+		h.log.WarnContext(r.Context(), "docker: upload append failed",
+			"upload", id, "received", up.received, "error", err.Error())
+		if r.Context().Err() != nil {
+			// The stream died with the connection: render the poisoned
+			// session's restart cue explicitly rather than falling off the
+			// handler into net/http's implicit 200-with-empty-body (review
+			// non-blocking #1). A still-connected client reads the same
+			// 416-with-authoritative-offset it would get from any later
+			// PATCH; a disconnected one never sees either.
+			hdr := w.Header()
+			writeAPIVersionHdr(hdr)
+			hdr.Set("Location", h.uploadLocation(ref, id, nil))
+			hdr.Set("Range", rangeHeader(up.received))
+			hdr.Set("Content-Length", "0")
+			w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
 			return
 		}
 		h.writeStoreFailure(w, r, "append upload "+id, err)
@@ -283,6 +414,7 @@ func (h *Handler) finalizeUpload(w http.ResponseWriter, r *http.Request, ref nam
 		// No digest or malformed: the finalize cannot even be attempted.
 		// Abort so no half-received session lingers as residue.
 		_ = up.sess.Abort(context.WithoutCancel(r.Context()))
+		up.done = true
 		h.sess.remove(id)
 		writeSpecError(w, http.StatusBadRequest, ErrCodeDigestInvalid,
 			fmt.Sprintf("digest %q is not a valid sha256 digest", digest),
@@ -293,6 +425,7 @@ func (h *Handler) finalizeUpload(w http.ResponseWriter, r *http.Request, ref nam
 		// A poisoned session must never be committed (its digests cannot be
 		// trusted); refuse and consume it so nothing leaks.
 		_ = up.sess.Abort(context.WithoutCancel(r.Context()))
+		up.done = true
 		h.sess.remove(id)
 		writeSpecError(w, http.StatusBadRequest, ErrCodeBlobUploadInvalid,
 			"upload session was interrupted and cannot be finalized; restart the upload", nil)
@@ -305,6 +438,7 @@ func (h *Handler) finalizeUpload(w http.ResponseWriter, r *http.Request, ref nam
 			_ = up.sess.Abort(context.WithoutCancel(r.Context()))
 			h.sess.remove(id)
 			up.poisoned = true
+			up.done = true
 			h.writeStoreFailure(w, r, "append final chunk of upload "+id, err)
 			return
 		}
@@ -315,6 +449,7 @@ func (h *Handler) finalizeUpload(w http.ResponseWriter, r *http.Request, ref nam
 		// Commit has already finalized the session either way (storage
 		// contract); the registry entry goes too. A checksum disagreement is
 		// the client's DIGEST_INVALID; anything else is a store failure.
+		up.done = true
 		h.sess.remove(id)
 		if isChecksumMismatch(err) {
 			writeSpecError(w, http.StatusBadRequest, ErrCodeDigestInvalid,
@@ -325,6 +460,7 @@ func (h *Handler) finalizeUpload(w http.ResponseWriter, r *http.Request, ref nam
 		h.writeStoreFailure(w, r, "commit upload "+id, err)
 		return
 	}
+	up.done = true
 	h.sess.remove(id)
 	h.writeBlobCreated(w, r, ref, ref0)
 }
@@ -449,13 +585,33 @@ func (h *Handler) newUploadSession(r *http.Request) (storage.Session, error) {
 // plus the node in the mandated order. PutFromBlob alone cannot serve
 // here: it requires the ledger row to pre-exist and only Put's path
 // creates it — a fresh docker push has no earlier generic deploy to lean
-// on. A registration failure after a successful Commit is
-// unreferenced-blob residue by design (GC's grace window); the failure is
-// logged loudly but the 201 still stands because the blob IS durable.
+// on.
+//
+// Failure semantics (review B4): a registration failure after a successful
+// Commit renders 5xx, NOT 201. The blob itself is durable (Commit
+// published it) but no node row exists — answering 201 would confirm a
+// push whose blob is invisible to reads and whose manifest would fail
+// reference validation, with nothing telling the client to retry. A 5xx is
+// the retry signal, and the retry is safe end to end: the re-push's Commit
+// dedups onto the existing physical blob and Put's idempotent-retransmit
+// rule completes the ledger+node rows. The orphaned physical blob of the
+// failed attempt is GC's by-design recovery path. A permission-shaped
+// refusal (denied) stays 403 — retrying cannot fix that.
 func (h *Handler) writeBlobCreated(w http.ResponseWriter, r *http.Request, ref nameRef, blob storage.BlobRef) {
-	if err := h.registerBlobNode(r, ref, blob); err != nil && !isDenied(err) {
+	if err := h.registerBlobNode(r, ref, blob); err != nil {
+		// Both outcomes log at ERROR (N3): the denied branch is a security
+		// signal worth its line just as much as the failure branch.
 		h.log.ErrorContext(r.Context(), "docker: blob node registration failed",
-			"repo", ref.repoKey, "digest", blob.Sha256, "error", err.Error())
+			"repo", ref.repoKey, "digest", blob.Sha256, "denied", isDenied(err), "error", err.Error())
+		if isDenied(err) {
+			writeSpecError(w, http.StatusForbidden, ErrCodeDenied,
+				"requested access to the resource is denied", nil)
+			return
+		}
+		writeSpecError(w, http.StatusInternalServerError, ErrCodeUnknown,
+			"blob stored but its repository record could not be written; the push is safe to retry",
+			map[string]string{"digest": digestPrefixHex(blob.Sha256)})
+		return
 	}
 	h.writeMountCreated(w, r, ref, blob)
 }

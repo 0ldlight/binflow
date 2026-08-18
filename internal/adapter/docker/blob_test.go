@@ -143,6 +143,12 @@ var errNodeNotFoundFake = fmt.Errorf("node: %w", repo.ErrNodeNotFound)
 // the body is stored at the path (the adapter re-feeds the committed blob;
 // the engine's Commit dedups, so no second copy appears).
 func (f *fakeService) Put(_ context.Context, _ *Principal, repoKey, path string, body io.Reader, _ storage.BlobRef, _ string) (*metadata.Node, error) {
+	f.mu.Lock()
+	putErr := f.putErr
+	f.mu.Unlock()
+	if putErr != nil {
+		return nil, putErr
+	}
 	content, err := io.ReadAll(body)
 	if err != nil {
 		return nil, err

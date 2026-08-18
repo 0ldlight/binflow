@@ -316,9 +316,19 @@ func (h *Handler) ledgerRow(ctx context.Context, hex string) *storage.BlobRef {
 // blobPresent reports whether the source repository exposes the blob at the
 // docker layout path for THIS principal (the mount reads it there, NFR-S12:
 // a mount must not bypass the source's read ACL).
+//
+// The successful Get returns an OPEN reader over the blob (the real service
+// hands back *os.File) — it must be closed here or every successful mount
+// probe leaks one fd (review B3, both reviewers). A Close failure does not
+// un-make the presence: the read-only fd's lifecycle, not the content, is
+// what Close reports on.
 func (h *Handler) blobPresent(ctx context.Context, p *Principal, repoKey, path string) bool {
-	_, _, err := h.svc.Get(ctx, p, repoKey, path)
-	return err == nil
+	rc, _, err := h.svc.Get(ctx, p, repoKey, path)
+	if err != nil {
+		return false
+	}
+	_ = rc.Close() //nolint:errcheck // read-only fd; presence is already decided
+	return true
 }
 
 // canMountFrom answers the source-read question of the mount: read on the
