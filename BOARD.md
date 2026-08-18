@@ -71,8 +71,7 @@
 
 ## 🔨 进行中（doing）
 
-- **T-49** [P1] OSS 工程结构参考规格 `role:reverse-engineer` `area:docs/reverse` `dep:—`
-  状态：00:0x 派发（用户提供官方 OSS 源码 /Users/lzw/Downloads/jfrog-artifactory-7.161.16），在途。产出 oss-structure.md：48 模块地图↔BinFlow 包映射、分层思想、M3 高价值导航。clean-room 边界延伸至 OSS（结构参考禁翻译）。
+（空）
 
 ## 👀 评审中（review）
 
@@ -168,6 +167,8 @@
   statusRecorder 增 writeErr/panicDisconnect 槽位；断连（ctx.Canceled 主腿 + errno 兜底）≥500 降 WARN + client_disconnect 标注；recoverPanic 断连降级不注信封。进程外 e2e 实证（--limit-rate + kill -9：日志零 ERROR、真 500 反例保持 ERROR 三态表）。轻量核验（P1+e2e 证据）。提交 85df447。M5 升格 label 遗留登记。
 - **T-42** [P1] gc 旗标+GC mark 扩容 `role:dev-go-core` `area:cmd/binflow-server` — done 2026-08-18
   gc -c（复用 serve 配置链）+ --grace-hours（与 days 并存 hours 胜）；mark = nodes ∪ docker_refs（ListRefsByManifest 聚合——agent 论证了 RefsByBlob 会回到 T-9 废弃的反连接路线）；真栈冒烟（refs-held 存活/级联删后转候选）。净树核验（T-37 WIP 致主仓瞬断，隔离手法 agent 自报 conductor 复现）。提交 69a6039。遗留：lint 有网补跑；子命令 --help exit 1 小票登记。
+- **T-49** [P1] OSS 工程结构参考规格 `role:reverse-engineer` `area:docs/reverse` — done 2026-08-18
+  oss-structure.md（242 行）：51 pom 全量解析（37 实体+14 聚合）五域归类 ↔ internal/* 双向映射；L0-L5 单向依赖 + 四 SPI 接缝（JerseyApplication 双源扫描证据/CoreAddonsImpl 60+ 桩）；M3 导航三要点（协议全在 pro 但 OSS 有 50 个 *MetadataProvider 统一注册表同构点——M3 最有价值；addon 无 npm/pypi 接口→拆票按「OSS 接口面+pro 实现」双源；repo 类层次补强 repo-semantics）；结构启示 6 条。参考强度三级标注 [OSS]/[pro]/[双源]。M3 拆票输入就位。
 - **T-48** [P1] architect 勘误 `role:architect` `area:docs/design` — done 2026-08-18
   §5.1 两例外（上传会话直持 Engine 限定上传端点族读路径仍走 Service；BlobLedger READ-only 同构先例）；§11 债务 13 行（PutLandedBlob M3 前小票）；RepoTypes 四点勘误正式落（声明性元数据/分发键约束/空 panic 保留/Layout 两态化）。遗留：httpapi New() 删 class 键写入的代码侧跟进（实现票）。
 - **T-38** [P0] blob 域全链路 `role:dev-registry-adapter` `area:internal/adapter/docker(blob)` — done 2026-08-18（经双 review 一轮修复 + 2 次 429）
