@@ -71,11 +71,12 @@
 
 ## 🔨 进行中（doing）
 
-- **T-35** [P0] repo docker 用例编排（批次 2） `role:dev-go-core` `area:internal/repo` `dep:T-34(done)`
-  状态：在途。附 T-34 遗留提示：级联在存储层已完成，Service 只做编排+权限。
+（空）
 
 ## 👀 评审中（review）
 
+- **T-35** [P0] repo docker 用例编排 — 编码完成，conductor 复现通过（race 18.3s 绿/12 包全 ok/lint 0/69 子用例）→ 单 code-reviewer 在途（跨存储面写序/自愈机制/删仓原子性）。
+  提交 ccd4577。经一轮 429 中断，代码零损失。
 - **T-33** [P0] /v2 挂载+docker 基座 — 编码完成，conductor 复现通过（docker+httpapi race 绿/lint 0/TestV2 全过/R10 注释落位/stash 隔离验证严谨）→ **双 reviewer 在途**（正确性：混合编码探针/信封隔离；架构：ADR-0010 逐条对照/RepoTypes 空 class 键裁定）。
   实现者报备裁定：docker.RepoTypes() 返回空切片规避 adapters map class 键全局覆盖冲突（实证过 generic 会被顶掉）——架构 reviewer 将裁决补 §5.1 缺口或认可过渡。
 
