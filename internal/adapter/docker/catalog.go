@@ -208,6 +208,12 @@ func (h *Handler) serveTagsList(w http.ResponseWriter, r *http.Request, ref name
 			// (docker_manifests' distinct images, via ListImages). The probe
 			// rides only this rare error path; once the service honors its
 			// contract, the branch simply stops firing.
+			//
+			// Update (T-52, 2026-08-19): the service contract was fixed in
+			// repo/service.go — zero-tag images now return an empty slice,
+			// not ErrImageNotFound. This branch is therefore dormant defense
+			// in depth; keep it (it costs one ListImages probe on a rare
+			// error path) but expect it not to fire.
 			hdr := w.Header()
 			writeAPIVersionHdr(hdr)
 			hdr.Set("Content-Type", "application/json")

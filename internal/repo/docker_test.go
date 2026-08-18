@@ -480,8 +480,10 @@ func TestDockerPutManifest(t *testing.T) {
 		if _, err := e.md.Docker().GetTag(ctx, "docker-local", "app", ""); !errors.Is(err, metadata.ErrTagNotFound) {
 			t.Fatalf("empty tag row visible: %v", err)
 		}
-		if _, err := e.svc.ListTags(ctx, admin(), "docker-local", "app", 0, ""); !errors.Is(err, repo.ErrImageNotFound) {
-			t.Fatalf("image without tags error = %v, want ErrImageNotFound", err)
+		// The image exists (one manifest row) with zero tags: the contract's
+		// empty page, not NAME_UNKNOWN (T-52).
+		if tags, err := e.svc.ListTags(ctx, admin(), "docker-local", "app", 0, ""); err != nil || len(tags) != 0 {
+			t.Fatalf("digest-only image tags = %v, %v; want empty page, nil error", tags, err)
 		}
 	})
 
@@ -687,14 +689,24 @@ func TestDockerListTags(t *testing.T) {
 
 	t.Run("unknown image vs image without tags", func(t *testing.T) {
 		ctx := context.Background()
+		// No manifest rows at all: NAME_UNKNOWN.
 		if _, err := e.svc.ListTags(ctx, admin(), "docker-local", "ghost", 0, ""); !errors.Is(err, repo.ErrImageNotFound) {
 			t.Fatalf("unknown image error = %v, want ErrImageNotFound", err)
 		}
-		// untagged has a manifest but no tags: NAME_UNKNOWN per the spec row
-		// (the catalog still lists it).
+		// Manifests exist but no tag points at any: the contract's EMPTY
+		// PAGE, not an error (T-52 — the T-35 code checked only the probe's
+		// error and 404'd both states; the row count is the discriminator).
 		putManifest(t, e, admin(), "docker-local", "untagged", digestOf("u"), "")
-		if _, err := e.svc.ListTags(ctx, admin(), "docker-local", "untagged", 0, ""); !errors.Is(err, repo.ErrImageNotFound) {
-			t.Fatalf("untagged image error = %v, want ErrImageNotFound", err)
+		got, err := e.svc.ListTags(ctx, admin(), "docker-local", "untagged", 0, "")
+		if err != nil {
+			t.Fatalf("image without tags error = %v, want nil (empty page)", err)
+		}
+		if len(got) != 0 {
+			t.Fatalf("tags of untagged image = %v, want empty", tagNames(got))
+		}
+		// The empty page holds under pagination parameters too.
+		if got, err := e.svc.ListTags(ctx, admin(), "docker-local", "untagged", 2, "v1"); err != nil || len(got) != 0 {
+			t.Fatalf("paged tags of untagged image = %v, %v; want empty page", got, err)
 		}
 	})
 

@@ -936,11 +936,20 @@ func (s *service) ListTags(ctx context.Context, p *Principal, repoKey, image str
 	if len(tags) == 0 {
 		// Distinguish "image unknown" from "image without tags": the former
 		// is NAME_UNKNOWN, the latter an empty page (docker-registry.md
-		// section 6, the two official shapes).
-		if _, err := s.md.Docker().ListManifestsByImage(ctx, repoKey, image); err != nil {
+		// section 6, the two official shapes). The manifest row COUNT is the
+		// discriminator — checking the error alone sent both states to 404
+		// (T-52 fix, a T-35 defect T-40's implementer surfaced).
+		rows, err := s.md.Docker().ListManifestsByImage(ctx, repoKey, image)
+		if err != nil {
 			return nil, fmt.Errorf("manifests of %s/%s: %w", repoKey, image, err)
 		}
-		return nil, fmt.Errorf("image %s/%s: %w", repoKey, image, ErrImageNotFound)
+		if len(rows) == 0 {
+			return nil, fmt.Errorf("image %s/%s: %w", repoKey, image, ErrImageNotFound)
+		}
+		// Manifests exist but no tag points at any of them: the api contract's
+		// empty page. tags is the store's nil slice — len 0 — which is the
+		// shape the adapter renders as "tags":null (PRD R4).
+		return tags, nil
 	}
 	tags = sliceAfterCursor(tags, n, last, func(t *metadata.DockerTag) string { return t.Tag })
 	return tags, nil
