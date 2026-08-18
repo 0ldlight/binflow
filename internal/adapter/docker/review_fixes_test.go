@@ -167,6 +167,13 @@ func TestIdleSessionEviction(t *testing.T) {
 	bh.h.sess.ttl = 50 * time.Millisecond
 	bh.h.sess.mu.Unlock()
 
+	// Deterministic clock: evictIdle takes the sweep time as a parameter,
+	// so the boundary is driven by synthetic timestamps — no sleeps (a
+	// wall-clock sleep raced the scheduler under parallel -race load: a
+	// stall between the assertions flipped the fresh-session arm). t0 is
+	// sampled BEFORE the session exists, so the session's own started is
+	// t0+delta with delta = the two in-memory round trips (<< margins).
+	t0 := time.Now()
 	loc, _ := bh.startUpload("team1/app")
 	resp := bh.serve(http.MethodPatch, loc, strings.NewReader("half a blob"), nil)
 	drainBody(t, resp)
@@ -174,10 +181,12 @@ func TestIdleSessionEviction(t *testing.T) {
 		t.Fatalf("PATCH status = %d", resp.StatusCode)
 	}
 
-	time.Sleep(80 * time.Millisecond) // past the TTL
-	evicted := bh.h.sess.evictIdle(time.Now())
+	if evicted := bh.h.sess.evictIdle(t0.Add(10 * time.Millisecond)); len(evicted) != 0 {
+		t.Fatalf("session evicted well INSIDE the 50ms TTL: %v", evicted)
+	}
+	evicted := bh.h.sess.evictIdle(t0.Add(200 * time.Millisecond))
 	if len(evicted) != 1 {
-		t.Fatalf("evicted = %v, want the one idle session", evicted)
+		t.Fatalf("evicted = %v, want the one idle session (sweep far past the TTL)", evicted)
 	}
 	if bh.h.sess.count() != 0 {
 		t.Fatalf("registry still holds the idle session")
@@ -202,7 +211,7 @@ func TestIdleSessionEviction(t *testing.T) {
 		t.Fatalf("session directory survived eviction: %v", err)
 	}
 
-	// A fresh session inside the TTL survives an immediate sweep.
+	// A fresh session survives a sweep at its own birth time.
 	loc2, _ := bh.startUpload("team1/app")
 	if evicted := bh.h.sess.evictIdle(time.Now()); len(evicted) != 0 {
 		t.Fatalf("fresh session evicted: %v", evicted)
@@ -467,6 +476,110 @@ func TestRealStackMountNoFdAccumulation(t *testing.T) {
 	}
 }
 
+// ---- T-43 QA D1: non-admin mount honors a granted read ----
+
+// TestNonAdminMountSucceeds (T-43 QA D1): a NON-admin principal with read
+// on the source image must get the zero-copy 201, not the degraded 202.
+// canMountFrom used to pass the scope spelling ("pull") into
+// Authorizer.Can, whose action domain is "r"/"w"/"d" — rowAllows answers
+// default:false to unknown actions, so every non-admin mount silently
+// degraded (admins were masked by Can's p.Admin short-circuit). Both the
+// unit fake (exact-prefix read grant) and the real auth.Service stack are
+// covered; the real one is the regression that matters (it is the exact
+// surface QA reproduced against).
+func TestNonAdminMountSucceeds(t *testing.T) {
+	t.Run("unit fake: granted reader mounts 201", func(t *testing.T) {
+		bh := newBlobHarness(t)
+		content := []byte("d1 non-admin mount")
+		dgst := "sha256:" + sha256Hex(content)
+
+		resp := bh.serve(http.MethodPost,
+			"/v2/team1/app/blobs/uploads/?digest="+dgst, strings.NewReader(string(content)), nil)
+		drainBody(t, resp)
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("seed status = %d", resp.StatusCode)
+		}
+
+		// A non-admin with read+write on team2 AND read on the source
+		// image's repo — precisely QA's reproduction shape.
+		bh.h.authz = allowListAuthorizer{"mover": {"team1": true, "team2": true}}
+		bh.adminName = "mover"
+		bh.admin = false
+
+		resp = bh.serve(http.MethodPost,
+			"/v2/team2/copy/blobs/uploads/?mount="+dgst+"&from=team1/app", nil, nil)
+		drainBody(t, resp)
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("non-admin mount status = %d, want 201 (got the degraded 202 — D1 regression)", resp.StatusCode)
+		}
+		resp = bh.serve(http.MethodGet, "/v2/team2/copy/blobs/"+dgst, nil, nil)
+		got, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK || string(got) != string(content) {
+			t.Fatalf("mounted GET status = %d", resp.StatusCode)
+		}
+
+		// The negative holds: a non-admin WITHOUT the source read still
+		// degrades (fail-closed direction unchanged by the fix).
+		bh.h.authz = allowListAuthorizer{"blind": {"team2": true}}
+		bh.adminName = "blind"
+		resp = bh.serve(http.MethodPost,
+			"/v2/team2/copy2/blobs/uploads/?mount="+dgst+"&from=team1/app", nil, nil)
+		drainBody(t, resp)
+		if resp.StatusCode != http.StatusAccepted {
+			t.Fatalf("unreadable-source mount status = %d, want the degraded 202", resp.StatusCode)
+		}
+	})
+
+	t.Run("real authorizer: granted non-admin mounts 201", func(t *testing.T) {
+		bh := blobHarnessRealStack(t)
+		ctx := context.Background()
+		md := bh.realMeta(t)
+		content := []byte("d1 real-stack non-admin mount")
+		dgst := "sha256:" + sha256Hex(content)
+
+		// Seed a non-admin user with read on the source repo's image path
+		// and read+write on the destination repo — through the REAL
+		// permission store, so the exact rowAllows path runs.
+		if err := md.Users().Create(ctx, &metadata.User{
+			Username: "mover", PasswordHash: hashForTest("mover-pw"), Enabled: true,
+		}); err != nil {
+			t.Fatalf("seed user: %v", err)
+		}
+		if err := md.Permissions().PutTarget(ctx, &metadata.PermissionTarget{
+			Name: "d1-mover", Repos: `["team1","team2"]`,
+			Includes: `["app/**","copy/**"]`, Excludes: "[]",
+		}, []*metadata.PermissionPrincipal{{
+			TargetName: "d1-mover", Principal: "mover", PrincipalType: "user",
+			CanRead: true, CanWrite: true, CanDelete: false,
+		}}); err != nil {
+			t.Fatalf("seed permission: %v", err)
+		}
+
+		resp := bh.serve(http.MethodPost,
+			"/v2/team1/app/blobs/uploads/?digest="+dgst, strings.NewReader(string(content)), nil)
+		drainBody(t, resp)
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("seed status = %d", resp.StatusCode)
+		}
+
+		bh.adminName = "mover"
+		bh.admin = false
+		resp = bh.serve(http.MethodPost,
+			"/v2/team2/copy/blobs/uploads/?mount="+dgst+"&from=team1/app", nil, nil)
+		drainBody(t, resp)
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("non-admin mount status = %d, want 201 (D1 regression on the real authorizer)", resp.StatusCode)
+		}
+		resp = bh.serve(http.MethodGet, "/v2/team2/copy/blobs/"+dgst, nil, nil)
+		got, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK || string(got) != string(content) {
+			t.Fatalf("mounted GET status = %d", resp.StatusCode)
+		}
+	})
+}
+
 // blobHarnessRealStack builds the blob harness against a REAL repo.Service
 // (real storage engine + real metadata store), the leak surface B3 named.
 func blobHarnessRealStack(t *testing.T) *blobHarness {
@@ -508,5 +621,26 @@ func blobHarnessRealStack(t *testing.T) *blobHarness {
 		Options{AnonymousAccess: true}, nil).
 		WithStorage(st, md.Blobs())
 	h.svc = svc
-	return &blobHarness{t: t, h: h, svc: nil, store: st, root: root, adminName: "admin", admin: true}
+	bh := &blobHarness{t: t, h: h, svc: nil, store: st, root: root, adminName: "admin", admin: true}
+	bh.realMD = md
+	return bh
+}
+
+// realMeta returns the real metadata store behind a real-stack harness (the
+// D1 test seeds its user/permission rows through it).
+func (bh *blobHarness) realMeta(t *testing.T) metadata.Store {
+	t.Helper()
+	if bh.realMD == nil {
+		t.Fatal("harness was not built on a real metadata store")
+	}
+	return bh.realMD
+}
+
+// hashForTest hashes a password the way the real auth service does.
+func hashForTest(pw string) string {
+	h, err := auth.HashPassword(pw)
+	if err != nil {
+		panic("hashForTest: " + err.Error())
+	}
+	return h
 }

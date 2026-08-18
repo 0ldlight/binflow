@@ -2,6 +2,7 @@ package docker
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -105,7 +106,7 @@ func isTruthy(v string) bool {
 func (h *Handler) serveToken(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet && r.Method != http.MethodPost {
 		w.Header().Set("Allow", "GET, POST")
-		h.writeOAuthError(w, r, http.StatusMethodNotAllowed, oauthErrUnsupportedResponse,
+		h.writeOAuthError(w, http.StatusMethodNotAllowed, oauthErrUnsupportedResponse,
 			"token endpoint accepts GET and POST only")
 		return
 	}
@@ -118,19 +119,19 @@ func (h *Handler) serveToken(w http.ResponseWriter, r *http.Request) {
 	}
 	if h.tokens == nil {
 		// Assembly without a token registry: honest 503 rather than a panic.
-		h.writeOAuthError(w, r, http.StatusServiceUnavailable, oauthErrInvalidRequest,
+		h.writeOAuthError(w, http.StatusServiceUnavailable, oauthErrInvalidRequest,
 			"token issuance is not configured on this instance")
 		return
 	}
 	req := parseTokenRequest(r)
 
 	if req.offlineToken {
-		h.writeOAuthError(w, r, http.StatusBadRequest, oauthErrInvalidRequest,
+		h.writeOAuthError(w, http.StatusBadRequest, oauthErrInvalidRequest,
 			"offline_token is not supported")
 		return
 	}
 	if req.grantType == "refresh_token" {
-		h.writeOAuthError(w, r, http.StatusBadRequest, oauthErrUnsupportedGrant,
+		h.writeOAuthError(w, http.StatusBadRequest, oauthErrUnsupportedGrant,
 			"refresh_token grant is not supported (re-login instead)")
 		return
 	}
@@ -138,9 +139,12 @@ func (h *Handler) serveToken(w http.ResponseWriter, r *http.Request) {
 	p := adapter.PrincipalFrom(r.Context())
 	if p == nil && !h.opts.AnonymousAccess {
 		// No credential (and anonymous closed): OAuth-form 401 with the
-		// Basic challenge — the spec-body Bearer challenge on THIS endpoint
-		// would send the client back into the loop it is trying to exit.
-		h.writeOAuthError(w, r, http.StatusUnauthorized, oauthErrInvalidClient,
+		// Basic challenge — this is the one 401 whose client has nothing to
+		// retry, so the challenge solicits credentials instead of pointing
+		// back at the token endpoint it just came from (T-55 kept this
+		// header untouched while the bodies unified).
+		w.Header().Set("WWW-Authenticate", `Basic realm="BinFlow Registry"`)
+		h.writeOAuthError(w, http.StatusUnauthorized, oauthErrInvalidClient,
 			"authentication required")
 		return
 	}
@@ -158,7 +162,7 @@ func (h *Handler) serveToken(w http.ResponseWriter, r *http.Request) {
 	} else if err := seedAnonymousOnce(r.Context(), h.users); err != nil {
 		h.log.ErrorContext(r.Context(), "docker: anonymous token subject unavailable",
 			"error", err.Error())
-		h.writeOAuthError(w, r, http.StatusInternalServerError, oauthErrInvalidRequest,
+		h.writeOAuthError(w, http.StatusInternalServerError, oauthErrInvalidRequest,
 			"token issuance failed")
 		return
 	}
@@ -167,7 +171,7 @@ func (h *Handler) serveToken(w http.ResponseWriter, r *http.Request) {
 	tok, err := h.tokens.Issue(r.Context(), subject, ttl)
 	if err != nil {
 		h.log.ErrorContext(r.Context(), "docker: token issue failed", "error", err.Error())
-		h.writeOAuthError(w, r, http.StatusInternalServerError, oauthErrInvalidRequest,
+		h.writeOAuthError(w, http.StatusInternalServerError, oauthErrInvalidRequest,
 			"token issuance failed")
 		return
 	}
@@ -187,16 +191,34 @@ func (h *Handler) serveToken(w http.ResponseWriter, r *http.Request) {
 }
 
 // writeOAuthError renders the token endpoint's OAuth-form error body with
-// the api-version header (every /v2 response carries it, DE-17).
-func (h *Handler) writeOAuthError(w http.ResponseWriter, _ *http.Request, status int, code, description string) {
+// the api-version header (every /v2 response carries it, DE-17). The
+// WWW-Authenticate header — when a 401 wants one — is the CALLER's call:
+// the two 401 flavors speak different challenges (T-55 kept both headers
+// byte-identical while unifying the bodies).
+func (h *Handler) writeOAuthError(w http.ResponseWriter, status int, code, description string) {
 	hdr := w.Header()
 	hdr.Set("Content-Type", "application/json")
 	hdr.Set(HeaderAPIVersion, APIVersionValue)
-	if status == http.StatusUnauthorized {
-		hdr.Set("WWW-Authenticate", `Basic realm="BinFlow Registry"`)
-	}
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(oauthErrorBody{Error: code, ErrorDescription: description})
+}
+
+// renderTokenAuthFailure shapes a REFUSED credential (wrong password,
+// unknown user, stale/revoked Bearer) that reached /v2/token: the Bearer
+// challenge header stays byte-identical to the plane's default (the client
+// still needs realm/service to retry, ADR-0010 clause 4), while the body is
+// the PRD v1.2/C3 ruling's unified OAuth form — /v2/token's clients speak
+// OAuth, not the registry error schema, and its 400s were already OAuth.
+func (h *Handler) renderTokenAuthFailure(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("WWW-Authenticate",
+		fmt.Sprintf(`Bearer realm="%s",service="%s"`, h.realmBase(r)+TokenPath, ServiceID))
+	h.writeOAuthError(w, http.StatusUnauthorized, oauthErrInvalidClient, "authentication required")
+}
+
+// isTokenRoute reports whether path belongs to the token endpoint's route
+// family (the same set serveNameRoute dispatches into serveToken).
+func isTokenRoute(path string) bool {
+	return path == TokenPath || strings.HasPrefix(path, TokenPath+"/")
 }
 
 // oauthErrorBody is the OAuth error shape of the token plane.

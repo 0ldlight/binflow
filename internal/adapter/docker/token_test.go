@@ -532,3 +532,56 @@ func TestEnsureAnonymousSubjectFailure(t *testing.T) {
 		t.Fatal("seed failure swallowed")
 	}
 }
+
+// TestRenderAuthFailureTokenPathIsOAuth (T-55, PRD v1.2/C3): a refused
+// credential on the token endpoint's route renders the OAUTH-form body with
+// the Bearer challenge header unchanged; every other /v2 route keeps the
+// registry spec body. The router reaches RenderAuthFailure through the
+// v2AuthFailure seam, so this pins the adapter-side split both ways.
+func TestRenderAuthFailureTokenPathIsOAuth(t *testing.T) {
+	h := newTokenHandler(nil, nil, &fakeUsers{}, Options{AnonymousAccess: true, BaseURL: "http://reg.example"})
+
+	cases := []struct {
+		path  string
+		oauth bool
+	}{
+		{TokenPath, true},
+		{TokenPath + "/sub", true},
+		{"/v2/", false},
+		{"/v2/team1/app/manifests/latest", false},
+	}
+	for _, tc := range cases {
+		w := &captureWriter{hdr: http.Header{}}
+		req := &http.Request{Method: http.MethodGet, URL: &url.URL{Path: tc.path}}
+		h.RenderAuthFailure(w, req)
+
+		if w.status != http.StatusUnauthorized {
+			t.Fatalf("%s status = %d", tc.path, w.status)
+		}
+		body := w.body.String()
+		if strings.Contains(body, `"status"`) {
+			t.Fatalf("%s body carries the /binflow envelope: %s", tc.path, body)
+		}
+		if tc.oauth {
+			if !strings.Contains(body, `"error":"invalid_client"`) {
+				t.Fatalf("%s body is not the OAuth form: %s", tc.path, body)
+			}
+			if strings.Contains(body, `"errors"`) {
+				t.Fatalf("%s body carries the registry spec envelope: %s", tc.path, body)
+			}
+		} else {
+			if !strings.Contains(body, `"code":"UNAUTHORIZED"`) {
+				t.Fatalf("%s body is not the registry spec form: %s", tc.path, body)
+			}
+		}
+		// The challenge header keeps the ADR-0010 clause 4 shape on BOTH
+		// branches (realm=<base>/v2/token, service=binflow).
+		want := `Bearer realm="http://reg.example/v2/token",service="binflow"`
+		if got := w.hdr.Get("WWW-Authenticate"); got != want {
+			t.Fatalf("%s challenge = %q, want %q", tc.path, got, want)
+		}
+		if got := w.hdr.Get(HeaderAPIVersion); got != "registry/2.0" {
+			t.Fatalf("%s api-version = %q", tc.path, got)
+		}
+	}
+}

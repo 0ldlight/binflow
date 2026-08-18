@@ -254,7 +254,15 @@ func (h *Handler) imageListed(ctx context.Context, p *Principal, ref nameRef) bo
 	}
 	images, err := h.svc.ListImages(ctx, p, ref.repoKey, 0, "")
 	if err != nil {
-		h.log.ErrorContext(ctx, "docker: tagless-image probe failed",
+		// DEBUG, not ERROR (T-43 QA D2): ListImages needs repo-ROOT read,
+		// so a prefix-scoped principal (granted on the image but not the
+		// repo) makes this probe fail with permission denied on the
+		// legitimate "unknown image" path — an expected non-answer, not a
+		// fault. ERROR here polluted the O1 "ERROR count = real failures"
+		// signal (QA reproduced: unknown image + prefix grant -> 404 +
+		// ERROR line). The caller falls back to the service's own error
+		// either way; the log only records why the probe could not run.
+		h.log.DebugContext(ctx, "docker: tagless-image probe unavailable",
 			"repo", ref.repoKey, "image", ref.image, "error", err.Error())
 		return false
 	}

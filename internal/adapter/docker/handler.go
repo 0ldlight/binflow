@@ -52,7 +52,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // (T-33 review B1): 401 + Bearer challenge + spec body, identical to the
 // closed-instance anonymous challenge. httpapi's router reaches it through
 // the narrow v2AuthFailure interface so neither package imports the other.
+// T-55 exception: the token endpoint's refused credential keeps the same
+// Bearer challenge header but renders the OAuth error body (PRD v1.2/C3 —
+// every /v2/token non-2xx is OAuth form; the 400s already were).
 func (h *Handler) RenderAuthFailure(w http.ResponseWriter, r *http.Request) {
+	if r.URL != nil && isTokenRoute(r.URL.EscapedPath()) {
+		h.renderTokenAuthFailure(w, r)
+		return
+	}
 	h.challenge(w, r, "")
 }
 

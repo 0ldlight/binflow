@@ -171,16 +171,16 @@ func TestV2TokenNonAdmin(t *testing.T) {
 	}
 }
 
-// TestV2TokenWrongCredentials (FR-11-AC4): wrong credentials on /v2/token
-// render the OAuth-form 401 and leak nothing about which part failed.
-// A rejected credential is shaped by the ROUTER plane (T-33 review B1's
-// context signal), so this test asserts the full production path's shape:
-// the spec-body Bearer challenge with the token-endpoint realm — the OAuth
-// form is unreachable there by design (the docker client must see the
-// registry-plane challenge it can parse).
+// TestV2TokenWrongCredentials (FR-11-AC4 + T-55/PRD v1.2-C3): wrong
+// credentials on /v2/token render the OAUTH-form 401 — same body family as
+// the endpoint's 400s — with the Bearer challenge header unchanged, and
+// leak nothing about which part of the credential failed. The rejected
+// credential is shaped by the ROUTER plane (T-33 review B1's context
+// signal) reaching the adapter's RenderAuthFailure, so this asserts the
+// full production path.
 func TestV2TokenWrongCredentials(t *testing.T) {
 	h := newHarness(t)
-	for _, cred := range [][2]string{{"admin", "wrong"}, {"no-such-user", "x"}} {
+	for _, cred := range [][2]string{{"admin", "wrong"}, {"no-such-user", "x"}, {"ci-bot", "wrong"}} {
 		resp, body := getV2Token(h, cred[0], cred[1], "?service=binflow")
 		if resp.StatusCode != http.StatusUnauthorized {
 			t.Fatalf("%s status = %d; body=%s", cred[0], resp.StatusCode, body)
@@ -188,11 +188,25 @@ func TestV2TokenWrongCredentials(t *testing.T) {
 		if strings.Contains(body, "no such user") || strings.Contains(body, cred[0]) {
 			t.Fatalf("401 body leaks the username: %s", body)
 		}
+		// T-55: the body is the unified OAuth form on EVERY /v2/token
+		// non-2xx — never the registry spec envelope, never /binflow's.
+		var oe struct {
+			Error            string `json:"error"`
+			ErrorDescription string `json:"error_description"`
+		}
+		if err := json.Unmarshal([]byte(body), &oe); err != nil || oe.Error == "" {
+			t.Fatalf("401 body is not the OAuth form: %s", body)
+		}
+		if strings.Contains(body, `"errors"`) {
+			t.Fatalf("401 body carries the registry spec envelope: %s", body)
+		}
 		if strings.Contains(body, `"status"`) {
 			t.Fatalf("401 body carries the /binflow envelope: %s", body)
 		}
-		if ch := resp.Header.Get("WWW-Authenticate"); !strings.Contains(ch, `/v2/token`) {
-			t.Fatalf("401 challenge = %q, want the token-endpoint realm", ch)
+		// The challenge header is unchanged: Bearer, token-endpoint realm.
+		want := fmt.Sprintf(`Bearer realm="%s/v2/token",service="binflow"`, h.srv.URL)
+		if ch := resp.Header.Get("WWW-Authenticate"); ch != want {
+			t.Fatalf("401 challenge = %q, want %q", ch, want)
 		}
 		if got := resp.Header.Get("Docker-Distribution-Api-Version"); got != "registry/2.0" {
 			t.Fatalf("api-version = %q", got)

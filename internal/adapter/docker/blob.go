@@ -334,11 +334,19 @@ func (h *Handler) blobPresent(ctx context.Context, p *Principal, repoKey, path s
 // canMountFrom answers the source-read question of the mount: read on the
 // source repo's image path. The route gate has already settled the
 // destination; this is the NFR-S12 second question.
+//
+// The action MUST go through the scope->Can table (T-43 QA D1): passing the
+// scope spelling ("pull") reaches Authorizer.Can, whose action domain is
+// the single-letter r/w/d — rowAllows answers default:false to anything
+// else, so every NON-admin mount silently degraded to a 202 upload grant
+// (admins never noticed: Can short-circuits on p.Admin). canActions is the
+// same table the route gate uses (handler.go), keeping the two read
+// questions literally one question.
 func (h *Handler) canMountFrom(ctx context.Context, p *Principal, repoKey, image string) bool {
 	if h.authz == nil {
 		return p == nil && h.opts.AnonymousAccess
 	}
-	return h.authz.Can(ctx, p, repoKey, image, scopeActionPull)
+	return h.authz.Can(ctx, p, repoKey, image, canActions[scopeActionPull][0])
 }
 
 // emptyLayerSums carries the synthesized layer's ancillary digests.

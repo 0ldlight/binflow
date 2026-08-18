@@ -48,6 +48,7 @@ type blobHarness struct {
 	root      string
 	adminName string
 	admin     bool
+	realMD    metadata.Store // set by blobHarnessRealStack only
 }
 
 // fakeService is a table-backed repo.Service for the blob read/mount paths
