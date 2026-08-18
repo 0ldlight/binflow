@@ -75,8 +75,7 @@
 
 ## 🧪 测试中（qa）
 
-- **T-44 复验轮** — D44-1/2/3 修复已合入（2f505da）+ PRD v1.3；复验面：docker 双实例全链（含 buildx --push 与匿名 token 链）+ conformance 三组 + helm push。在途。
-  D44-4/5/6（P2）未修维持挂，如实记录不阻塞 DoD（收口归 T-45 后）。
+（空）
 
 ## 👀 评审中（review）
 
@@ -172,6 +171,8 @@
   statusRecorder 增 writeErr/panicDisconnect 槽位；断连（ctx.Canceled 主腿 + errno 兜底）≥500 降 WARN + client_disconnect 标注；recoverPanic 断连降级不注信封。进程外 e2e 实证（--limit-rate + kill -9：日志零 ERROR、真 500 反例保持 ERROR 三态表）。轻量核验（P1+e2e 证据）。提交 85df447。M5 升格 label 遗留登记。
 - **T-42** [P1] gc 旗标+GC mark 扩容 `role:dev-go-core` `area:cmd/binflow-server` — done 2026-08-18
   gc -c（复用 serve 配置链）+ --grace-hours（与 days 并存 hours 胜）；mark = nodes ∪ docker_refs（ListRefsByManifest 聚合——agent 论证了 RefsByBlob 会回到 T-9 废弃的反连接路线）；真栈冒烟（refs-held 存活/级联删后转候选）。净树核验（T-37 WIP 致主仓瞬断，隔离手法 agent 自报 conductor 复现）。提交 69a6039。遗留：lint 有网补跑；子命令 --help exit 1 小票登记。
+- **T-44** [P0] QA 五客户端 conformance `role:qa-engineer` — done 2026-08-19（首轮 FAIL→复验 PASS）
+  首轮：podman/crane/oras/skopeo+buildx 等效+conformance 55/60+性能全绿；docker 三 P0 断（D44-1/2/3）。修复（2f505da）后复验：docker 行 10/10 全绿（错口令 exit1 恢复/buildx 双平台直推/匿名 token 链/挑战模式全链）+ helm push PASS（首轮归因修正：HELM_REGISTRY_CONFIG 亦是败因）+ conformance 无回归。**DoD §9 第 1/2 条满足**（P2 遗留按 PRD 不阻塞：D44-4/5/6 实现欠账归 T-35/T-40 域 T-45 后收口、helm plain-http login 文档转 T-46）。报告 reports/agents/T-44-qa.md。
 - **T-56** [P1] M2 PRD v1.3 勘误 `role:product-manager` `area:docs/prd` — done 2026-08-19
   C6 ping 无条件 401 挑战定案（ping-缓存型客户端根因 + 匿名 token 路径 + 真实世界同构佐证）；C5 offline_token 接受忽略（MAY ignore）；C4 POST 表单凭据同权 + D15 oras/helm 双类型形态修正；C7 tags/list 删光后 200 tags:null。约 22 处，自检零残留。提交 4d3aebd。
 - **T-54** [P1] F1 压测定论 `role:dev-go-core` `area:internal/metadata、internal/adapter/docker` — done 2026-08-19
