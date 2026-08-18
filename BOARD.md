@@ -72,9 +72,7 @@
 ## 🔨 进行中（doing）
 
 - **T-44-D44** [P0] 修 D44-1/2/3（ping 无条件挑战 / offline_token 接受忽略 / POST 表单凭据） `role:dev-registry-adapter` `area:internal/adapter/docker`
-  状态：07:2x 派发（T-37 agent 回炉），在途。修后 T-44 仅复验 docker 行 + conformance 三组。
-- **T-56** [P1] M2 PRD v1.3：T-44 勘误 C4~C7 `role:product-manager` `area:docs/prd`
-  状态：07:2x 派发，在途。
+  状态：在途（T-37 agent）。修后 T-44 仅复验 docker 行 + conformance 三组。
 
 ## 🧪 测试中（qa）
 
@@ -175,6 +173,8 @@
   statusRecorder 增 writeErr/panicDisconnect 槽位；断连（ctx.Canceled 主腿 + errno 兜底）≥500 降 WARN + client_disconnect 标注；recoverPanic 断连降级不注信封。进程外 e2e 实证（--limit-rate + kill -9：日志零 ERROR、真 500 反例保持 ERROR 三态表）。轻量核验（P1+e2e 证据）。提交 85df447。M5 升格 label 遗留登记。
 - **T-42** [P1] gc 旗标+GC mark 扩容 `role:dev-go-core` `area:cmd/binflow-server` — done 2026-08-18
   gc -c（复用 serve 配置链）+ --grace-hours（与 days 并存 hours 胜）；mark = nodes ∪ docker_refs（ListRefsByManifest 聚合——agent 论证了 RefsByBlob 会回到 T-9 废弃的反连接路线）；真栈冒烟（refs-held 存活/级联删后转候选）。净树核验（T-37 WIP 致主仓瞬断，隔离手法 agent 自报 conductor 复现）。提交 69a6039。遗留：lint 有网补跑；子命令 --help exit 1 小票登记。
+- **T-56** [P1] M2 PRD v1.3 勘误 `role:product-manager` `area:docs/prd` — done 2026-08-19
+  C6 ping 无条件 401 挑战定案（ping-缓存型客户端根因 + 匿名 token 路径 + 真实世界同构佐证）；C5 offline_token 接受忽略（MAY ignore）；C4 POST 表单凭据同权 + D15 oras/helm 双类型形态修正；C7 tags/list 删光后 200 tags:null。约 22 处，自检零残留。提交 4d3aebd。
 - **T-54** [P1] F1 压测定论 `role:dev-go-core` `area:internal/metadata、internal/adapter/docker` — done 2026-08-19
   根因确凿：SQLITE_BUSY 全仓 race 负载下烧穿 5s busy_timeout（8 轮复现 5 中 + 服务端 ERROR 原文 + duration 13.7s）+ busy 误映射 500 + 第二根因 anonSeedOnce 跨迭代污染（-count>1 确定性缺陷）。修复：IsStoreBusy 分类 + 503+Retry-After+WARN（T-38/T-41 先例）+ per-handler 隔离 + harness 取证盲区补齐；修复后 8/8 压测全绿 + 两轮 count=5。conductor 复现 4 新测试 PASS/12 包/lint 0。遗留：token 面 busy 映射（T-37 后续）；WAL synchronous=NORMAL 评估（architect ADR-0007 后票）；count>1 需显式 -timeout（40m 定论口径）。提交 f21904b。
 - **T-38-D1** [P2] mount action 域修 + D2 降级修复 `role:dev-registry-adapter` — done 2026-08-19
