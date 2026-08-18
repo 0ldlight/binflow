@@ -49,9 +49,7 @@
 - **T-36** [P2] generic Content-Type 扩展名映射（M1 遗留） `role:dev-registry-adapter` `area:internal/adapter/generic`
   AC 摘要：① ~15 高频扩展名→mime/未知回退 octet-stream ② docker 域不受影响+M1 零回归。
   状态：11:3x 派发（批次 1 填宽），在途。
-- **T-47** [P1] PRD v1.1 回写：R1/R2/R4/R5 `role:product-manager` `area:docs/prd` `dep:T-30,T-32`
-  AC：① R1 realm=/v2/token+双 token 入口说明（赶在 T-37 前）② R2 by-tag DELETE 405 ③ R4 tags:null 断言口径 ④ R5 §6.5 四项定案。
-  状态：11:3x 派发，在途。
+- **T-47** [P1] PRD v1.1 回写 — done 2026-08-18，见 done 区。原 doing 条目移除。
 - **T-11** [P0] auth 与 audit：认证/Token/路径 ACL `role:dev-go-core` `area:internal/auth、internal/audit` `dep:T-8,T-10`
   AC: ① Authenticator（Basic/Token/X-JFrog-Art-Api/匿名）+argon2id+TokenRegistry（只存 sha256）② Authorizer.Can：admin 全过；命名 permission target（include/exclude 两级通配）；匿名仅内容 GET/HEAD ③ 权限矩阵/token 生命周期/改密单测
 - **T-12** [P0] repo.Service：local 用例编排与仓库 CRUD `role:dev-go-core` `area:internal/repo` `dep:T-9,T-10,T-11`（review 加正确性 reviewer）
@@ -77,7 +75,8 @@
 
 ## 🔨 进行中（doing）
 
-（M2 批次 1 票见上方 doing 区——T-33/T-34/T-36/T-47）
+- **T-33** [P0] /v2 根级挂载（批次 1） `role:dev-registry-adapter` — 在途（曾遇 1302 速率限制击落起步，已重启）。
+- **T-36** [P2] Content-Type 映射（批次 1 填宽） `role:dev-registry-adapter` — 在途（generic 包改动磁盘可见）。
 
 ## 🧪 测试中（qa）
 
@@ -85,7 +84,8 @@
 
 ## 👀 评审中（review）
 
-（空）
+- **T-34** [P0] metadata 002_docker 迁移+DockerStore — 编码完成，conductor 复现通过（race 6.7s 绿/三索引按架构定稿/lint 0/全模块 11 包 ok 零回归）→ 单 code-reviewer 在途（DDL 对照/级联误删面/keyset collation/并发窗口）。
+  实现者报备：AC 写两索引实为定稿三条（按定稿落），reviewer 裁决中。
 
 ## ✅ 已完成（done）
 
@@ -161,6 +161,10 @@
 
 ## M2 票据（2026-08-18 起）
 
+- **T-47** [P1] M2 PRD v1.1 回写（R1/R2/R4/R5） `role:product-manager` `area:docs/prd` — done 2026-08-18
+  R1 realm=/v2/token + 双 token 入口说明（赶在 T-37 前完成）+ D04c 新增；R2 by-tag 405；R4 tags:null 断言注记；R5 四项定案（4MB/offline_token 400/service=binflow/last exclusive）。核验通过；ROADMAP 版本引用顺手修正。
+- **T-34** [P0] metadata 002_docker 迁移+DockerStore（待 review 终裁） `role:dev-go-core` `area:internal/metadata` — 编码 done 2026-08-18
+  002_docker.sql 三表三索引按架构定稿（零事务语句+守卫测试）；DockerStore 全 CRUD/级联单事务/keyset catalog；老库升级路径+并发用例；M1 零回归。conductor 复现全绿。提交 6df3b96。
 - **T-32** [P0] M2 工程 ticket 拆解 `role:tech-lead` — done 2026-08-18
   14 票（T-33~T-46）+ 8 批次表 + R1~R12 风险清单，全文 reports/agents/T-32.md。核验通过（area 分区/M1 复用面/双 reviewer 标注合理）。R1/R2/R4/R5→T-47（PM）；R3→architect 消歧票（赶在 T-39 前）；R6/R7/R8/R9/R10 进对应票派单要点。
 - **T-29** [P0] M2 PRD `role:product-manager` `area:docs/prd、ROADMAP.md` — done 2026-08-18
