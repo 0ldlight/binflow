@@ -191,3 +191,76 @@
 ## 环境与清理
 
 - 全程使用 `mktemp -d` 临时数据目录与随机端口，两轮实例（第一轮主测、第二轮边界精确定界）均已停止，临时目录与凭据文件已删除；仓库自带 `data/` 目录未动（测试前后均为空）；无 Docker 资源、无残留进程。测试口令均为一次性随机值，未写入任何提交文件。
+
+---
+
+# 回归轮（T-28 修复验证，commit 1a11cd2）
+
+- 日期: 2026-08-18（round 1 同日）
+- 被测: `make build` 重建二进制（16.32 MB，含 1a11cd2 `fix: T-28 D2/D3 admin tiering on management read plane + token issuance`）
+- 范围: 仅场景 6（conductor 指令：代码变更严格限于 routeAuth 分级表与错误体格式选择，不触内容面，其余场景不重跑）
+- 修复面代码走查: router.go 对 `v1/health`、`v1/storage/stats`、`repositories`（列表+单查）加 `admin:true`；`security/token` 与 `security/token/revoke` 加 `admin:true,oauth:true`；middleware.go authorize 对 oauth 路由的 401/403 渲染 OAuth 形错误体
+- **结论: ALL GREEN — D2/D3 关闭，23/23 回归用例 PASS，无新缺陷、无误伤**
+
+## R1. D2 四端点矩阵（3×4 = 12 用例全过）
+
+| 端点 | 非 admin（ci-bot） | admin | 匿名 | 非 admin 错误体 |
+|---|---|---|---|---|
+| `GET /binflow/api/repositories` | 403 ✅ | 200 ✅ | 401 ✅ | errors[] `administrator privileges required` ✅ |
+| `GET /binflow/api/repositories/generic-local` | 403 ✅ | 200 ✅ | 401 ✅ | errors[] 同上 ✅ |
+| `GET /binflow/api/v1/storage/stats` | 403 ✅ | 200 ✅ | 401 ✅ | errors[] 同上 ✅ |
+| `GET /binflow/api/v1/health` | 403 ✅ | 200 ✅ | 401 ✅ | errors[] 同上 ✅ |
+
+round 1 的 200 泄露全部收敛为 403；匿名仍 401（C02/C28a 口径不变）。
+
+## R2. D3 token 签发授权（2 用例 + admin 链 7 用例）
+
+| 检查 | 期望 | 实际 | 结果 |
+|---|---|---|---|
+| 非 admin `POST /api/security/token` | 403 OAuth 形 | `403` `{"error":"invalid_request","error_description":"administrator privileges required"}`（CT application/json） | ✅ |
+| 非 admin `POST /api/security/token/revoke` | 403 OAuth 形（修复前为 errors[] 信封） | 同上 OAuth 形 | ✅ |
+| admin C21a 签发（form） | 200 字段集 | `{token_type:"Bearer",scope:"api:*",token_id:1}`，access_token 64 字符 | ✅ |
+| C21b token 作 Basic 口令 | 200 | `200` | ✅ |
+| C21b X-JFrog-Art-Api 头 | 200 | `200` | ✅ |
+| C21c revoke by token | 200 `Token revoked`；token 即 401 | `200` 纯文本；`401` | ✅ |
+| C21c 重复吊销 | 200 `Token not found` | `200` | ✅ |
+| C21c XOR 同传 | 400 `token and token_id are mutually exclusive` | 逐字一致 | ✅ |
+| C21c 都缺 | 400 `token or token_id is required` | 逐字一致 | ✅ |
+
+## R3. 不误伤面（12 用例）
+
+| 检查 | 期望 | 实际 | 结果 |
+|---|---|---|---|
+| ping / version 匿名 | 200 / 200 | `200`/`200`，`{version:dev,revision:dev,product:BinFlow}` | ✅ |
+| C20① 自有路由改密 | 200 | `200` `Password has been successfully changed` | ✅ |
+| C20② 别名路由改密 | 200 | `200` 同文案 | ✅ |
+| C20 旧口令错（认证对+body 错，干净口令状态） | 400 非 401 | 双路由均 `400` 纯文本 `Incorrect username/password` | ✅ |
+| C20 旧口令随即失效 | 401 / 200 | `401`/`200` | ✅ |
+| C22a PUT 建用户 | 201 | `201` | ✅ |
+| C22a email 缺失 | 400 | `400` `Please provide a valid user email.` | ✅ |
+| C22a GET users 列表 | 元素 {name,uri,realm} 无口令 | 三件套精确 | ✅ |
+| C22b 未授权 PUT / 管理 API | 403 / 401-403 | `403` / `403` | ✅ |
+| C22b 授权后 PUT | 201 | `201` | ✅ |
+| C22c 无 delete 删 / admin 删 | 403 / 2xx | `403` / `204` | ✅ |
+| C23 匿名双模式 + C27 | 见下两条 | 全过 | ✅ |
+
+C23（匿名读默认开）: 匿名内容 GET 200 且 sha256 一致、匿名 HEAD 200、匿名 item info 200、匿名 PUT 401、匿名管理 API 401。
+C27（关匿名读重启）: 匿名 401 + `WWW-Authenticate: Basic realm="BinFlow Realm"`；admin 200；ci-bot（有 read）200；reg-bot（无 read）403；匿名 item info 401。
+
+## R4. 回归中发现的既有语义定界（非缺陷、非 T-28 回归）
+
+匿名读开启时，**已认证**但无 read 权限的用户读内容 GET 与 item info 均得 403（ci-bot: acme 内容 GET 403、item info 403；ci-out 各 200；匿名两者均 200）。为排除 T-28 引入回归，用修复前源码（a2674da）独立构建二进制做 A/B 对照：**修复前后行为逐位一致**（内容 GET 403 / item info 403），且该 A/B 实例同时复现了 D2/D3 修复前基线（repositories 200、mint token 200），证明对照有效。定界：这是「已认证用户走自身 ACL、匿名走 anonymous_read 放行」的既有实现语义（内容 GET 与 /api/storage item 同一 read 判定），与 PRD E-09「内容元数据按匿名可读实现」不冲突（匿名确实可读），已认证用户按 FR-5 权限矩阵拒绝属保守正确方向。记录为观察项 O4，供 M2 复核「匿名开 + 已认证零权限用户是否应回落匿名通道」的产品语义。
+
+## R5. 日志与安全复查
+
+- 三份服务日志（匿名开第一轮 / 匿名关 / 匿名开重启）: 0 条 5xx、0 条 ERROR、0 panic。
+- 回归窗口全部口令（Reg-Pw-1/2/3、ci-pw、reg-pw-1）grep 三份日志 0 命中（NFR-S3 维持）。
+- C20 期间一次「认证口令过期后 401」为我方脚本时序（第二次改密已生效），非实现缺陷——干净口令状态下复测 400 通过。
+
+## 回归轮总结
+
+**ALL GREEN。** D2（四端点非 admin 200→403 errors[]）、D3（非 admin 签发 200→403 OAuth 形，revoke 错误体同步收敛）全部修复且无回归面损伤：ping/version 免认证不动、C20/C21/C22/C23/C27 全链保持 round 1 全绿状态。round 1 的 FAIL 结论撤销，T-18 场景 6 由红转绿。
+
+**T-18 最终判定（round 1 + 回归轮合并）: 场景 1/3/4/6/7 + NFR-S1/S2/S3 + C28 = 全部 PASS。** M1 DoD 第 2 条在本票覆盖范围（§7 场景 1/3/4/6/7）满足；场景 2/5/8/9/10 归 T-19。
+
+回归环境清理: 实例已停、临时目录与一次性凭据已删；A/B 对照的修复前源码树与二进制已删。另观测到一个 08:38 启动的他票烟测残留进程（数据目录已被其 owner 删除），非 T-18 资源，未予处置。
