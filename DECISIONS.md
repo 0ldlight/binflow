@@ -121,3 +121,21 @@
 - 决策: 匿名选 A（`auth.anonymous_read` 默认 `true`，只放行内容路径 GET/HEAD；写操作与 `/binflow/api/**` 不受开关豁免，一律认证）；admin 引导选 B（env 优先 → 缺省 `password`；仅当 admin 用户不存在时生效；检测到缺省值时启动日志打 WARN）。
 - 理由: 匿名读默认对齐 Artifactory 迁移场景的主流姿态，且暴露面被精确限定在只读内容；缺省口令保住「按文档 15 分钟跑通」的产品成功标准，env 覆盖给生产，WARN + 文档标注兜底提醒。
 - 后果: qa 必须覆盖匿名矩阵（匿名 GET 内容 200 / 匿名 PUT 401 / 匿名调 API 401 / `anonymous_read:false` 后 401）；审计事件 actor 记 `anonymous`；tech-writer 安装文档必须标注缺省口令仅限评估；`BINFLOW_ADMIN_PASSWORD` 只走 env 不入 YAML（秘密不入配置文件原则，见 architecture.md §8）。（后经 T-22 回写：配置键用户可见形态统一为 `security.anonymous_access` / env `BINFLOW_SECURITY_ANONYMOUS_ACCESS`，`auth.anonymous_read` 降为兼容别名，config 包双键等价且两键同给不一致时启动报错。）（T-14 review 终判补充：repo 行查询位于授权门之后，RepoLookup 用 metadata.Get 是有意为之的匿名读前置缝——无权者在查询前即被拦截，安全面成立。）
+
+## ADR-0010: docker /v2 根级例外挂载与 token 认证流（ADR-0008 风险预告定案）
+- 状态: Accepted
+- 日期: 2026-08-18
+- 背景: ADR-0008 预告的 M2 风险到期定案。docker 客户端（及 podman/crane/skopeo/oras）按 Registry spec 硬编码向 `/v2/...` 发请求且无法配置前缀；BinFlow 全部产品端点统一 `/binflow` 前缀。两者必须调和，且 `docker login` 的 Bearer 协商地址取自 `Www-Authenticate` 响应头（realm=...），任何路径改写都必须同步考虑该头。
+- 候选方案:
+  - a) 根级例外：httpapi 为 `/v2/**` 开一条不剥前缀的路由特例，docker handler 直接挂根。
+  - b) 反代 rewrite：部署层（nginx/traefik）把 `/v2/` 转 `/binflow/v2/`，应用内只有统一前缀；裸部署（无反代）时 docker 不可用。
+  - c) 双挂载：应用内同时挂 `/v2/**` 与 `/binflow/v2/**` 两套路由。
+- 决策: 选 **a) 根级例外**（应用内实现，非部署层依赖）。具体：
+  1. `/v2/**` 在 httpapi 是与 `/binflow` 平行的**根级例外路由**（与 `/healthz` 同类，属「客户端协议硬编码」豁免类），进入同一 middleware 链（logging/recover/auth），但**不剥 `/binflow` 前缀**。路由表层面：`/v2/` 首段即 docker adapter 专属，repo key 保留字 `v2` 维持（ADR-0008 不变）。
+  2. `/binflow/v2/**` **不再提供**（不选 c：双挂载 = 双份 Location/Www-Authenticate 头生成逻辑与双份 QA 面，且 `/binflow/v2` 本就无客户端会走——docker 不认、curl 用户走 `/binflow/api`）。ADR-0008 的「统一前缀」表述由本 ADR 修订为「统一前缀 + `/v2` 协议硬编码例外」，性质同 `/healthz`。
+  3. **repository name 即 repo key（默认）**：docker 镜像名 `<host>/<repo-key>/<image...>` 的**首段**映射 BinFlow repo key（如 `registry.example.com/binflow-dev/ubuntu` → repo `binflow-dev`）。Layout 解析：`/v2/<name>/manifests/<ref>` 与 `/v2/<name>/blobs/<digest>` 的 name 按 `/` 切分，首段为 repoKey，余段为镜像相对名；name 为单段（无 `/`）时 M2 返回 404（不支持顶层裸名， Artifactory 亦要求 repo 前缀；待逆向规格 T-31 校准）。
+  4. **token 端点 `/v2/token`（Adapter 自有，非 RFC 标准）**：docker login 流为——客户端匿名打 `/v2/` → 401 + `Www-Authenticate: Bearer realm="<base_url>/v2/token",service="binflow",scope="<repo>:pull,push"` → 客户端携 Basic 凭据 GET realm（带 service/scope 参数）→ 返回 `{"token":"...","expires_in":..}`（兼容字段 `access_token` 同值）→ 后续请求 `Authorization: Bearer <token>`。BinFlow 的 token 签发**复用 auth.TokenRegistry**（不平行一套）：docker token = 有限时 TTL 的 BinFlow token + scope 声明，Verify 时解出 scope 参与授权。因 realm 指向的是 BinFlow 自身路径 `/v2/token`（无 rewrite），`Www-Authenticate` 头**无需重写**——这是选 a 而非 b 的决定性附带收益。
+  5. scope → Authorizer.Can 映射：`pull` → action `r`、`push` → action `w`（manifest DELETE → `d`）。scope 的 subject 是 `<repoKey>/<image>`，映射时 repoKey 段交给 Authorizer 的 repoKey 参数、余段并入 path。无 scope 的 token（纯 `docker login`）只证明身份，授权仍逐请求判定。
+  6. 反代部署（b 的部署层形态）**不禁止但非必需**：用户已有 nginx 前置时可 `proxy_pass` 直通 `/v2/`（不 rewrite），compose 产物默认不加反代组件（见 §9 影响）。
+- 理由: docker 生态是 M2 的旗舰验收面（真实客户端 conformance 全过），可用性必须在**裸单二进制**形态下成立——b 会让「单二进制直接 docker push」不可用，直接违背产品核心场景；c 的双路由面在 Location 头、Www-Authenticate realm、catalog 分页链接三处都要双份生成与双份测试，纯成本。a 的「例外」有精确边界（仅 `/v2` 首段、仅 docker adapter、进同一 middleware 链），不侵蚀统一前缀的其余承诺。
+- 后果: httpapi 路由表新增根级例外段（实现层）；`server.base_url` 语义不变（realm 生成用它）；文档（tech-writer）需写明 docker 客户端用 `docker login <host>` 直连、curl 用户统一 `/binflow`；QA conformance 面只测 `/v2`（无 `/binflow/v2` 面）；ADR-0008 的统一前缀表述以本 ADR 为准修订（不推翻，例外化）。

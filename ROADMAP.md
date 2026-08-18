@@ -2,30 +2,34 @@
 
 > 由 product-manager 维护；tech-lead 据此把当前里程碑分解为 ticket。
 
-## 当前里程碑：M1
+## 当前里程碑：M2
 
 ### M0 — 团队启动（已完成）
 - [x] 产品愿景 PRODUCT.md（BinFlow）
 - [x] 团队工作流与看板建立
 
-### M1 — 内核基座（当前）
+### M1 — 内核基座（已完成，`m1-done`；QA 全绿见 T-18/T-19）
 目标：存储引擎 + 仓库模型 + Generic 本地仓库的最小闭环，Go 脚手架与工程化就绪。
-- [ ] 逆向规格：REST 表面 / 存储布局 / 配置格式 / 仓库语义（reverse-engineer → docs/reverse/）
-- [ ] ADR 与架构设计：模块划分、存储设计、适配器接口、部署架构（architect）
-- [ ] 脚手架：go module、cmd/internal 布局、Makefile、lint/test/CI（devops-engineer）
-- [ ] 存储引擎：checksum 寻址、去重、上传会话、原子落盘（dev-go-storage）
-- [ ] 元数据与仓库模型：repo 配置、node 元数据、SQLite 嵌入（dev-go-core）
-- [ ] Generic 本地仓库：上传/下载/删除/校验（dev-registry-adapter）
-- [ ] 基础认证与权限骨架：admin 用户、API Token、路径 ACL（dev-go-core）
-- [ ] 开发环境：docker-compose 起本地实例（devops-engineer）
-- [ ] QA：generic roundtrip + 存储完整性；文档：README 快速开始
+- [x] 逆向规格：REST 表面 / 存储布局 / 配置格式 / 仓库语义（reverse-engineer → docs/reverse/）
+- [x] ADR 与架构设计：模块划分、存储设计、适配器接口、部署架构（architect）
+- [x] 脚手架：go module、cmd/internal 布局、Makefile、lint/test/CI（devops-engineer）
+- [x] 存储引擎：checksum 寻址、去重、上传会话、原子落盘（dev-go-storage）
+- [x] 元数据与仓库模型：repo 配置、node 元数据、SQLite 嵌入（dev-go-core）
+- [x] Generic 本地仓库：上传/下载/删除/校验（dev-registry-adapter）
+- [x] 基础认证与权限骨架：admin 用户、API Token、路径 ACL（dev-go-core）
+- [x] 开发环境：docker-compose 起本地实例（devops-engineer）
+- [x] QA：generic roundtrip + 存储完整性；文档：README 快速开始
 
-### M2 — 云原生旗舰：Docker Registry v2
+### M2 — 云原生旗舰：Docker Registry v2（当前）
+需求基线：docs/prd/milestone-2.md（PRD v1.0；`/v2` 路由方案待 ADR 定案，见 PRD §7 Q1）
+- [ ] 逆向规格：docker-registry.md（补 spec 外空白，reverse-engineer）
+- [ ] ADR-0010：`/v2` 挂载形态（根级例外 vs `/binflow/v2`+反代 rewrite，architect，依赖 PRD Q1 用户定案）
 - [ ] blob upload 协议（POST/PATCH/PUT，monolithic + chunked）
 - [ ] manifest schema2 / OCI 存取（by-digest / by-tag）
 - [ ] `/v2/_catalog`、tags/list；docker login 的 token 认证流
 - [ ] Helm OCI 承载（oras 客户端可用）
-- [ ] conformance：docker / podman / crane / skopeo / oras 全过
+- [ ] conformance：docker / podman / crane / skopeo / oras 全过（分级见 PRD §5.3）
+- [ ] M1 遗留收编：O1 断开日志定界、O3 gc 旗标、Content-Type 映射（PRD §6.4）
 - [ ] 部署烟测：Docker 镜像 + compose（release-engineer）
 
 ### M3 — 多生态与代理

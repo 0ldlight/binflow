@@ -1,6 +1,6 @@
 # BinFlow 架构设计（M1 定稿）
 
-> architect 维护。本文件在 ADR-0001~0009 基线上给出可并行开发的实现蓝图：包边界 = 并行开发 area 边界。
+> architect 维护。本文件在 ADR-0001~0010 基线上给出可并行开发的实现蓝图：包边界 = 并行开发 area 边界。
 > 标注 **[M2+]** / **[M3+]** 的内容当期不实现，只保证接口缝存在；标注「待逆向规格确认」的行为以 `docs/reverse/` 规格为准，规格冲突时先回 ADR。
 > 文档中文，标识符/表名/字段英文。代码规范：错误 wrap 带上下文、显式 context、table-driven 测试、依赖注入。
 
@@ -43,7 +43,7 @@
 ```
 /binflow/api/v1/...        自有管理 API（需认证）
 /binflow/api/...           Artifactory 兼容子集（需认证）
-/binflow/v2/...            docker registry [M2]
+/binflow/v2/...            docker registry [M2]（已由 ADR-0010 改为 /v2 根级例外，见下）
 /binflow/<repo>/<path...>  内容路径（GET/HEAD 默认匿名可读，ADR-0009）
 /healthz /readyz /metrics  基础端点（不带前缀，探针/抓取用）
 ```
@@ -376,7 +376,7 @@ type Handler interface {
     RepoTypes() []string // 例: {"local"}；docker M2 为 {"local","remote","virtual"}
     // Layout 把请求路径切为 (repoKey, repoRelPath)；httpapi 已剥离 /binflow 前缀。
     // generic: 首段=repoKey，余下=repoRelPath。
-    // docker [M2]: 全局段 v2 语义特判（_catalog、<name>/blobs/…），挂载形态 M2 定；解析失败返回 ErrBadRequestPath。
+    // docker [M2]: 见 §5.3——挂根级例外 /v2（ADR-0010），name 首段=repoKey；解析失败返回 ErrBadRequestPath。
     Layout(r *http.Request) (repoKey, relPath string, err error)
     // ServeHTTP 业务本体：中间件已在 httpapi 完成 auth+audit 前置；handler 内调 repo.Service。
     http.Handler
@@ -387,11 +387,12 @@ func Register(h Handler)          // 重名 panic（启动期暴露）
 func All() []Handler
 ```
 
-**挂载与分发（ADR-0008）**：所有产品端点统一挂 `/binflow` 前缀。httpapi 剥离前缀后按首段分发：
-- 首段 ∈ 保留段（`api`；`v2` 为 [M2] docker 预留）→ REST / 协议专有路由；
-- 否则首段视为 repo key → 查 repositories 表 → 按 `package_type` 分发到对应 adapter.Handler（M1 只有 generic）。
+**挂载与分发（ADR-0008 + ADR-0010）**：所有产品端点统一挂 `/binflow` 前缀；**例外：`/v2/**` 为 docker 协议硬编码根级例外**（客户端不可配置前缀，性质同 `/healthz` 的「客户端协议豁免类」，进同一 middleware 链但不剥前缀）。httpapi 剥离前缀后按首段分发：
+- `/v2/**` → docker adapter（根级例外路由，不剥前缀，见 §5.3）；
+- 首段 ∈ 保留段（`api`）→ REST 路由；
+- 否则首段视为 repo key → 查 repositories 表 → 按 `package_type` 分发到对应 adapter.Handler（M1 generic，M2 增 docker）。
 
-因此 repo key 保留名校验：建仓时拒绝 `api`、`v2`（repo.Service 校验）。docker v2 的具体挂载形态（全局 `/binflow/v2` vs `/binflow/<repo>/v2`）[M2] 定。
+因此 repo key 保留名校验：建仓时拒绝 `api`、`v2`（repo.Service 校验，`/binflow/v2` 双挂载**不提供**——ADR-0010 裁决）。
 
 **依赖方向**：`adapter/*` → `repo.Service` + `auth`（读 Principal）；**禁止**直接 import `storage`/`metadata`（唯一例外：需要流式细节时经 `repo.Service` 扩方法，不得绕过）。新协议接入 = 新增子包 + Register，**零改动** httpapi/repo 核心。
 
@@ -406,6 +407,46 @@ func All() []Handler
 | `GET /binflow/api/v1/repositories/<repo>/_list?prefix=` | 前缀列表（自有 API，控制台/CLI 用） |
 
 目录语义：Generic 无 layout 解析，`path` 原样存储（Artifactory 兼容）。「是否提供 `.../list` 目录 HTML」**待逆向规格确认**，M1 只给 JSON 列表。
+
+### 5.3 Docker Registry v2 adapter（M2 增量，ADR-0010；依官方 Docker Registry HTTP API V2 规范设计，行为细节待 docs/reverse/docker-registry.md（T-31）校准）
+
+**路由与 name 映射**：挂根级例外 `/v2/**`（不剥 `/binflow`）。name（`/v2/<name>/...`）按 `/` 切分：首段 = repo key，余段 = 镜像相对名（如 `/v2/team1/app/manifests/latest` → repoKey=`team1`、image=`app`）。单段 name（无 `/`）→ 404（待 T-31 校准 Artifactory 行为）。
+
+**端点 → 内部面映射表**：
+
+| Registry 端点 | 方法 | 内部映射 |
+|---|---|---|
+| `/v2/` | GET | ping：认证模式探测（匿名 → 401 + `Www-Authenticate: Bearer realm=<base_url>/v2/token,service=binflow`，见 token 流） |
+| `/v2/<name>/blobs/uploads/` | POST | `storage.BeginSession` → 202 + `Location: /v2/<name>/blobs/uploads/<session-id>`（Location 用根级路径，docker 客户端按响应头回访）；`Docker-Upload-UUID` 头 = session ID |
+| 同上 `?_method=HEAD` 或 PATCH/PUT 前探测 | HEAD | `Session` 当前 offset（`received`）→ 204 + `Range: 0-<received-1>` |
+| `/v2/<name>/blobs/uploads/<id>` | PATCH | **流式 Append**：`Content-Range` 若给出必须 == 当前 `received`（失配 416 + `Range` 头；这是 chunked offset 语义与 Append 流式语义的对接点——Append 只接受严格追加，Range 校验由 adapter 做，storage 不感知协议头）→ 202 + `Location` + `Range` |
+| 同上 | PUT | finalize：query `digest=<sha256:...>` 必须与 Append 累计摘要一致（`Session.Commit(expect)`，失配 → 400 Blob Invalid）→ blob 落盘 + `blobs` 台账行 + **manifest/layer 挂账（见 mediaType 链）**；monolithic 单发 PUT（body 直接带内容）= BeginSession + Append + Commit 一气呵成；`?digest` 缺失 → 400 |
+| `/v2/<name>/blobs/<digest>` | GET/HEAD | digest → `repo.Service.Get`（path 为 image 相对名下的 blob 寻址由 adapter 翻译：digest 直查 `nodes` 的 docker 布局行）；支持 Range（M1 T-20 已备 `ReadSeekCloser`） |
+| 同上 | DELETE | blob 删引用（仅当无 manifest 引用时物理回收交 GC） |
+| `/v2/<name>/manifests/<ref>` | PUT | manifest = **JSON blob**：按普通 blob 走 BeginSession/Commit（digest = sha256 of body）+ `manifests` 表行（mediaType、size、digest）；引用的 config/layer digest 必须**先已存在**（mount 或已上传），否则 404/400（Manifest Invalid）——引用完整性前置校验，防悬空 manifest |
+| 同上 | GET/HEAD | 按 ref 解析：`sha256:` 前缀 → digest 直查；否则 tag → `docker_tags` 查 digest → manifest blob；响应 `Content-Type` = manifest 的 mediaType；`Docker-Content-Digest` 头必带 |
+| 同上 | DELETE | tag 删除（ref 是 tag）或 manifest 删除（ref 是 digest，连带其 tags） |
+| `/v2/<name>/tags/list` | GET | `docker_tags` 按 repo+name 前缀查询；分页 `n`/`last`（name 排序，官方分页语义） |
+| `/v2/_catalog` | GET | `repositories` 表 package_type='docker' 的 key 列表 + `n`/`last` 分页；**管理面语义**（需认证，匿名 401——对齐 spec 与安全直觉，待 T-31 校准 Artifactory 是否放宽） |
+| `/v2/token` | GET | Bearer 签发（ADR-0010 第 4 条），Basic 凭据 + `service`/`scope` 参数 → `{"token","expires_in"}`（附 `access_token` 同值兼容字段） |
+
+**blob upload 与 storage.Session 的语义对接**（三条关键裁定）：
+1. **offset 语义 vs 流式**：Registry chunked 协议是「断点对齐追加」（客户端持 offset、服务端必须可查询与续传），storage.Session 是「黑盒流式追加」。对接法：adapter 持有协议状态（`received` 由 state.json 持久化），PATCH 时先校验 `Content-Range` 与 `received` 对齐再调 `Append`；PUT finalize 用 `Commit(expect)` 一次性收口。**M1 的 ResumeSession 仍恒 ErrSessionNotFound**：M2 续传实现 = 磁盘 `received` 已持久（state.json），新会话不复用——客户端重发从其对齐点开始（docker 客户端 PATCH 失败会从头重传 uploads 会话，spec 允许；真正的跨进程断点续传 [M3+] 再启用 ResumeSession）。
+2. **digest 算法**：Registry digest 形如 `sha256:<hex>`；BinFlow blob 主键就是裸 hex sha256——adapter 只剥 `sha256:` 前缀，无算法转换（spec 允许其他算法，M2 只实现 sha256，收到 `sha512:` 等 → 400 Unsupported）。
+3. **cross-repo blob mount**（`?mount=<digest>&from=<repo>`）：POST uploads 带 mount 参数且目标 blob 已被 from-repo 引用 → 直接走 `repo.Service.PutFromBlob` 零拷贝挂账（M1 已备该契约）；mount 失败按 spec 降级为普通上传会话（202 + Location，不报错）。
+
+**manifest 引用完整性（mediaType 校验链）**：PUT manifest 时逐条校验——① manifest 自身 mediaType ∈ {`application/vnd.docker.distribution.manifest.v2+json`, `...manifest.list.v2+json`, `application/vnd.oci.image.manifest.v1+json`, `application/vnd.oci.image.index.v1+json`}（M2 四种，其余 415/400）；② 逐 config/layer digest 查 `nodes`（本 repo 内）已存在，缺一即拒（防悬空引用——manifest blob 落盘先于校验失败则成为无引用 blob，GC 兜底，不损数据）；③ list/index 的嵌套 manifest digest 递归同校验（只查在场性，不递归解析其内部——spec 允许 lazy）。
+
+**token 认证流（ADR-0010 第 4/5 条，复用 TokenRegistry 不平行一套）**：
+```
+docker login <host>
+  → GET /v2/                                   (匿名)
+  ← 401 + Www-Authenticate: Bearer realm="https://<host>/v2/token",service="binflow"
+  → GET /v2/token?service=binflow&scope=...    (Basic 凭据)
+  ← 200 {"token":"<jwt>","expires_in":3600}
+  → 后续请求 Authorization: Bearer <jwt>
+```
+签发 = `TokenRegistry.Issue`（有限 TTL）+ scope 编码进 token 声明；Verify 解出 Principal + scope，`pull`→`r`、`push`→`w`、manifest DELETE→`d` 映射进 `Authorizer.Can`。无 Bearer 头时回退 Basic 直连（匿名读开启时 pull 匿名放行——与 §7.1 认证分层一致）。
 
 ---
 
@@ -527,7 +568,47 @@ CREATE TABLE virtual_members (
   position     INTEGER NOT NULL,
   PRIMARY KEY (virtual_repo, member_repo)
 );
-```
+
+-- ===== 002_docker.sql（M2 增量，ADR-0010；架构定稿，dev-go-core 落迁移文件）=====
+-- docker 制品的 node 布局约定（不加表，复用 nodes）：
+--   manifest blob 的 node path = "<image>/manifests/<digest-hex>"；
+--   layer/config blob 的 node path = "<image>/blobs/<digest-hex>"（image = name 去掉 repo key 首段后的相对名，
+--   可含 '/'）。digest 寻址直达 nodes 主键，无需 JOIN。
+CREATE TABLE docker_manifests (           -- manifest 元数据（manifest 本体是普通 blob/node）
+  repo_key  TEXT NOT NULL REFERENCES repositories(repo_key) ON DELETE CASCADE,
+  image     TEXT NOT NULL,                -- 镜像相对名（不含 repo key 首段）
+  digest    TEXT NOT NULL,                -- 裸 hex sha256（blob 主键同源）
+  media_type TEXT NOT NULL,               -- §5.3 四种之一
+  size      INTEGER NOT NULL,
+  created_by TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (repo_key, image, digest)
+);
+CREATE INDEX idx_docker_manifests_image ON docker_manifests(repo_key, image);
+
+CREATE TABLE docker_tags (                -- tag → digest 指针（ mutable，可重指）
+  repo_key  TEXT NOT NULL REFERENCES repositories(repo_key) ON DELETE CASCADE,
+  image     TEXT NOT NULL,
+  tag       TEXT NOT NULL,                -- 'latest' 等；tag 字符集按 spec（[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}）
+  digest    TEXT NOT NULL,                -- → docker_manifests.digest（逻辑外键；跨表 FK 到复合主键的部分列不做，校验在服务层）
+  updated_by TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL,
+  PRIMARY KEY (repo_key, image, tag)
+);
+CREATE INDEX idx_docker_tags_image ON docker_tags(repo_key, image);
+
+CREATE TABLE docker_refs (                -- manifest ↔ blob 引用账（config/layer；GC 引用事实的第二来源）
+  repo_key  TEXT NOT NULL,
+  image     TEXT NOT NULL,
+  manifest_digest TEXT NOT NULL,          -- 引用方
+  blob_digest     TEXT NOT NULL,          -- 被引用（config 或 layer，child_media_type 记角色）
+  child_media_type TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (repo_key, image, manifest_digest, blob_digest)
+);
+CREATE INDEX idx_docker_refs_blob ON docker_refs(blob_digest);  -- 删 blob 前查引用（对齐 idx_nodes_blob 的用途）
+-- GC 影响（§4.4 增补）：mark 阶段的引用集合从「SELECT DISTINCT sha256 FROM nodes」扩为
+-- 「UNION SELECT DISTINCT blob_digest FROM docker_refs」——manifest 引用的 layer/config 即使
+-- 无独立 node 行也不可回收。docker_manifests/docker_tags 行随 nodes 级联语义由服务层维护。
 
 首启种子数据（迁移 001 内）：预置 `admin` 用户（is_admin=1）。口令引导（ADR-0009，用户定案）：env `BINFLOW_ADMIN_PASSWORD` 优先；未设置时使用**文档化缺省值 `password`**（仅限评估——文档与启动日志双重标注，检测到缺省值时启动打 WARN）；仅在 admin 用户不存在时生效，改密后不被后续启动覆盖。
 
@@ -543,7 +624,8 @@ CREATE TABLE virtual_members (
 /healthz            GET   存活（恒 200，无依赖检查）          → K8s liveness（基础端点，不带前缀）
 /readyz             GET   就绪（metadata ping + storage 可写） → K8s readiness（同上）
 /metrics            GET   [M5] Prometheus（同上）
-/binflow/v2/...     *     docker adapter [M2]（挂载形态 M2 定，见 §5.2）
+/v2/...             *     docker adapter [M2]（**根级例外**，ADR-0010：不剥 /binflow 前缀，进同一
+                          middleware 链；含 /v2/token 自有 token 端点；详见 §5.3）
 /binflow/api/v1/... *     自有 API（稳定契约，全部需认证——匿名只作用于内容路径）：
   POST   /binflow/api/v1/tokens                    签发 token
   GET    /binflow/api/v1/users                     列用户（admin）
@@ -639,6 +721,8 @@ logging:
 | Helm/K8s | Deployment(1 副本，**M1 无 HA**) | PVC(RWO) → `/var/lib/binflow` | liveness=/healthz, readiness=/readyz | 多副本挂同 PVC 为**禁止**配置（values 校验拦截） |
 | 离线包 | 镜像 tar + chart + 脚本 | 同上 | 同上 | 校验和齐全 |
 
+**M2 增补（ADR-0010 裁决第 6 条）**：docker 可用性**不依赖反代**——单二进制/compose/Helm 形态下 `/v2/**` 由应用直接服务，`docker login <host>` 直连即可。已有 nginx/traefik 前置的用户可对 `/v2/` **直通不 rewrite**（`proxy_pass` 原样）；compose 产物（T-17 产物演进）默认**不加**反代组件，文档给「前置反代直通 `/v2/`」示例片段即可。
+
 公共约定：配置挂载点 `/etc/binflow/binflow.yaml`（env 优先级更高）；日志 stdout（12-factor）；优雅停机期 ≥ 30s（terminationGracePeriodSeconds 对齐 §7.4）。
 
 ---
@@ -666,6 +750,8 @@ logging:
 8. **匿名读的缓存不可见性**：remote 仓库 [M3] 若命中匿名读，代理层拉取上游使用仓配置凭据、审计 actor 记 `anonymous`；不因此放宽上游私有仓的写侧安全。
 9. **GC 引用集全量驻内存**（T-9 review §1.1 代价注记）：集合形回调一次 `SELECT DISTINCT sha256 FROM nodes`，1M nodes ≈ 100MB 量级；M6+ 千万级 blob 需流式接口变体（届时新 ADR）。
 10. **清扫仅启动时执行**（T-9 review 范围外发现）：长驻进程中被遗弃会话目录要等重启才清；`sweepSessions` 已就绪，后续票接线周期 ticker 即可，M1 接受。
+11. **M2 chunked 断点续传降级**（ADR-0010/§5.3 裁定）：docker 分块上传的跨进程真续传（ResumeSession）暂不启用——offset 对齐由 state.json 的 `received` 支撑单会话内续传，客户端 PATCH 失败重传走 uploads 会话重建；跨进程续传 [M3+] 再启用（T-20 Range 已备 ReadSeekCloser 基础）。
+12. **docker_gc 的 mark 集合扩容**：M2 起 GC 引用集合 = nodes ∪ docker_refs（§6 迁移 002 注记）；docker_manifests/docker_tags 行的级联清理由服务层维护（无 DB 级 FK 到复合主键部分列），一致性靠「manifest 删除同事务清 refs/tags」约定，QA 需覆盖孤儿 tag 用例。
 
 ## 12. 待逆向规格确认清单（阻塞点挂 docs/reverse/）
 
@@ -677,3 +763,4 @@ logging:
 | 4 | `X-Checksum-*` 头不全给时的校验策略 | rest-api.md | §4.2 |
 | 5 | Artifactory 首启 admin 引导行为（BinFlow 已定案：env 优先/缺省 password，ADR-0009；逆向仅用于文档对齐描述） | config-formats.md | §6 种子数据 |
 | 6 | Artifactory 匿名读默认值与其「匿名仅 GET 内容」边界（用作 ADR-0009 的对齐佐证） | auth-model.md | §7.1 认证分层 |
+| 7 [M2] | 单段 name（无 repo 前缀）的 404 行为、`/v2/_catalog` 匿名是否放宽、Www-Authenticate realm/service 参数确切形态 | docker-registry.md（T-31 产出后） | §5.3 路由与 token 流 |
