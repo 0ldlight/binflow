@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strconv"
 	"sync"
 	"testing"
 
@@ -213,8 +214,8 @@ func TestPRAGMAsHoldOnEveryPooledConnection(t *testing.T) {
 				if likeCaseInsensitive {
 					return fmt.Errorf("LIKE is case-insensitive on a pooled connection; case_sensitive_like is not in force")
 				}
-				if busy != "5000" {
-					return fmt.Errorf("busy_timeout = %q on a pooled connection, want 5000", busy)
+				if busy != strconv.Itoa(metadata.BusyTimeoutMs) {
+					return fmt.Errorf("busy_timeout = %q on a pooled connection, want %d", busy, metadata.BusyTimeoutMs)
 				}
 				return nil
 			})

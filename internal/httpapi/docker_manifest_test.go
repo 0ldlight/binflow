@@ -775,10 +775,15 @@ func TestV2ManifestConcurrentTagOverwrite(t *testing.T) {
 			resp := h.do(http.MethodPost, "/v2/"+name+"/blobs/uploads/?digest="+layerDgst,
 				adminUser, adminPass, layer, nil)
 			if resp.StatusCode != http.StatusCreated {
-				drain(resp)
-				results <- result{err: fmt.Sprintf("layer %d", resp.StatusCode)}
+				// T-54: read the body — a flake here must be self-diagnosing
+				// (the spec error body names the failing operation), not a
+				// bare "layer 500" that QA then cannot attribute.
+				out, _ := io.ReadAll(resp.Body)
+				_ = resp.Body.Close()
+				results <- result{err: fmt.Sprintf("layer %d: %s", resp.StatusCode, out)}
 				return
 			}
+			drain(resp)
 			body := []byte(fmt.Sprintf(
 				`{"schemaVersion":2,"mediaType":"`+ctDockerManifest+`",`+
 					`"config":{"mediaType":"x","digest":"`+cfg+`","size":11},`+

@@ -9,14 +9,29 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
-	_ "modernc.org/sqlite" // registers database/sql driver "sqlite" (pure Go, ADR-0005)
+	moderncsqlite "modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 )
 
 // sqliteDriverName is the database/sql driver registered by modernc.org/sqlite.
 const sqliteDriverName = "sqlite"
+
+// BusyTimeoutMs is the per-connection busy_timeout budget (T-54, up from
+// T-10's 5000). WAL serializes writers; a waiter retries inside this budget
+// before SQLITE_BUSY escapes. The budget must exceed the worst WALL-CLOCK
+// span a lock holder can stay scheduled-away or fsync-blocked: under a
+// whole-repo `go test -race` fan-out (or a production fsync storm) observed
+// request spans reached ~14s with the old 5s budget, i.e. the holder was
+// descheduled well past 5s and the waiter's busy wait expired (the T-54
+// reproduction: blobs put → SQLITE_BUSY → push 500). 15s covers the observed
+// worst case with margin. Waiting cannot deadlock here: no store
+// transaction upgrades a read to a write (every tx opens ON a write
+// statement), so a waiter only ever waits for a finite holder.
+const BusyTimeoutMs = 15000
 
 // Options configures Open.
 type Options struct {
@@ -117,9 +132,22 @@ func dsn(path string) string {
 	// itself (busy_timeout first).
 	return base + sep +
 		"_pragma=foreign_keys(1)" +
-		"&_pragma=busy_timeout(5000)" +
+		"&_pragma=busy_timeout(" + strconv.Itoa(BusyTimeoutMs) + ")" +
 		"&_pragma=case_sensitive_like(1)" +
 		"&_pragma=journal_mode(WAL)"
+}
+
+// isSQLiteBusy classifies a driver-level error as busy-class contention
+// (SQLITE_BUSY: another connection holds the write lock past our
+// busy_timeout; SQLITE_LOCKED: table-level contention with shared-cache
+// style access). Typed against *sqlite.Error — the driver's Code() carries
+// the real result code, which string matching could only guess at.
+func isSQLiteBusy(err error) bool {
+	var se *moderncsqlite.Error
+	if !errors.As(err, &se) {
+		return false
+	}
+	return se.Code() == sqlite3.SQLITE_BUSY || se.Code() == sqlite3.SQLITE_LOCKED
 }
 
 // setupSQLite verifies connectivity and asserts that the DSN PRAGMAs are
@@ -133,7 +161,7 @@ func setupSQLite(ctx context.Context, db *sql.DB) error {
 	pragmas := []struct{ name, want string }{
 		{"journal_mode", "wal"},
 		{"foreign_keys", "1"},
-		{"busy_timeout", "5000"},
+		{"busy_timeout", strconv.Itoa(BusyTimeoutMs)},
 	}
 	for _, p := range pragmas {
 		var got string

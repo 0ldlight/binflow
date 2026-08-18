@@ -8,6 +8,7 @@ package docker
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/lzwzzy/binflow/internal/auth"
@@ -78,6 +79,17 @@ type Handler struct {
 	// blob; ADR-0006 keeps no sidecar files). Same consumer-side convention
 	// as generic.BlobLedger.
 	ledger BlobLedger
+	// anonSeedMu/anonSeeded dedupe the anonymous-token subject seeding PER
+	// HANDLER (= per assembled store). The state was process-wide until
+	// T-54: a `go test -count>1` iteration rebuilds the stack on a fresh
+	// database while the process-wide cache kept answering "seeded" from
+	// the first iteration's now-discarded store — every later harness's
+	// anonymous token issuance 500'd on the missing subject row. Per-handler
+	// restores the production invariant (one handler, one store, one seed)
+	// without cross-assembly leakage. Failures are NOT cached: a transient
+	// store error self-heals on the next request.
+	anonSeedMu sync.Mutex
+	anonSeeded bool
 }
 
 // BlobLedger is the digest-lookup seam for download headers and mount

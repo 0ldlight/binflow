@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -176,7 +177,7 @@ func TestOpenPRAGMAsApplied(t *testing.T) {
 	tests := []struct{ pragma, want string }{
 		{"journal_mode", "wal"},
 		{"foreign_keys", "1"},
-		{"busy_timeout", "5000"},
+		{"busy_timeout", strconv.Itoa(BusyTimeoutMs)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.pragma, func(t *testing.T) {

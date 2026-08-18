@@ -34,6 +34,19 @@ var ErrManifestNotFound = errors.New("metadata: docker manifest not found")
 // rows.
 var ErrTagNotFound = errors.New("metadata: docker tag not found")
 
+// ErrStoreBusy marks TRANSIENT write contention (SQLITE_BUSY/SQLITE_LOCKED
+// surfacing past the busy_timeout budget — T-54's F1 flake: a whole-repo
+// parallel test load or an fsync storm can starve the WAL writer longer than
+// the timeout, and the waiter's error is "locked", not "broken"). Every
+// store error passes wrapExec, which attaches this sentinel when the driver
+// error is busy-class; upper layers answer retryable (HTTP 503), never
+// permanent-failure.
+var ErrStoreBusy = errors.New("metadata: store busy")
+
+// IsStoreBusy reports whether err (or anything it wraps) is busy-class store
+// contention — the retryable signal of ErrStoreBusy.
+func IsStoreBusy(err error) bool { return errors.Is(err, ErrStoreBusy) }
+
 // Node is one artifact row (a repo-relative path pointing at a blob).
 // Timestamps are RFC3339 UTC text (ADR-0007).
 type Node struct {

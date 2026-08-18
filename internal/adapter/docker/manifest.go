@@ -421,7 +421,14 @@ func (h *Handler) writeManifestPutError(w http.ResponseWriter, r *http.Request, 
 		writeSpecError(w, http.StatusBadRequest, ErrCodeManifestInvalid, err.Error(), nil)
 	case errors.Is(err, repo.ErrInvalidDigest):
 		writeSpecError(w, http.StatusBadRequest, ErrCodeDigestInvalid, err.Error(), nil)
-	case errors.Is(err, storage.ErrEngineClosed):
+	case errors.Is(err, storage.ErrEngineClosed), metadata.IsStoreBusy(err):
+		// Engine shutdown and busy-class metadata contention (T-54) share the
+		// retryable class: 503 UNAVAILABLE; the busy arm adds Retry-After.
+		if metadata.IsStoreBusy(err) {
+			w.Header().Set("Retry-After", "1")
+			h.log.WarnContext(r.Context(), "docker: manifest publish busy (transient, retry)",
+				"repo", ref.repoKey, "digest", dgst, "error", err.Error())
+		}
 		writeSpecError(w, http.StatusServiceUnavailable, ErrCodeUnavailable, err.Error(), nil)
 	default:
 		h.log.ErrorContext(r.Context(), "docker: manifest publish failed",

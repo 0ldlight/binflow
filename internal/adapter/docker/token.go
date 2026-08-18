@@ -159,7 +159,7 @@ func (h *Handler) serveToken(w http.ResponseWriter, r *http.Request) {
 	subject := anonymousSubject
 	if p != nil {
 		subject = p.Name
-	} else if err := seedAnonymousOnce(r.Context(), h.users); err != nil {
+	} else if err := h.seedAnonymousOnce(r.Context(), h.users); err != nil {
 		h.log.ErrorContext(r.Context(), "docker: anonymous token subject unavailable",
 			"error", err.Error())
 		h.writeOAuthError(w, http.StatusInternalServerError, oauthErrInvalidRequest,

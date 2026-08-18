@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/storage"
 )
 
@@ -597,8 +598,21 @@ func (h *Handler) newUploadSession(r *http.Request) (storage.Session, error) {
 // rule completes the ledger+node rows. The orphaned physical blob of the
 // failed attempt is GC's by-design recovery path. A permission-shaped
 // refusal (denied) stays 403 — retrying cannot fix that.
+//
+// The busy carve-out (T-54): metadata contention that outlived busy_timeout
+// is TRANSIENT — 503 UNAVAILABLE + Retry-After (the same code the closed
+// engine gets), WARN not ERROR, message still says the retry is safe.
 func (h *Handler) writeBlobCreated(w http.ResponseWriter, r *http.Request, ref nameRef, blob storage.BlobRef) {
 	if err := h.registerBlobNode(r, ref, blob); err != nil {
+		if metadata.IsStoreBusy(err) {
+			h.log.WarnContext(r.Context(), "docker: blob node registration busy (transient, retry)",
+				"repo", ref.repoKey, "digest", blob.Sha256, "error", err.Error())
+			w.Header().Set("Retry-After", "1")
+			writeSpecError(w, http.StatusServiceUnavailable, ErrCodeUnavailable,
+				"blob stored but its repository record could not be written (store busy); the push is safe to retry",
+				map[string]string{"digest": digestPrefixHex(blob.Sha256)})
+			return
+		}
 		// Both outcomes log at ERROR (N3): the denied branch is a security
 		// signal worth its line just as much as the failure branch.
 		h.log.ErrorContext(r.Context(), "docker: blob node registration failed",
@@ -664,8 +678,19 @@ func (h *Handler) uploadLocation(ref nameRef, id string, _ []string) string {
 
 // writeStoreFailure renders a storage-layer failure: logged once here, then
 // the spec-body 500. A closed engine (shutdown race) is a 503 so clients
-// retry rather than treat the registry as broken.
+// retry rather than treat the registry as broken. Transient metadata
+// contention (SQLITE_BUSY past busy_timeout — T-54's F1 flake) is the same
+// retryable class: 503 UNAVAILABLE with Retry-After, logged at WARN (T-41's
+// ERROR-count hygiene: load shedding is not a fault).
 func (h *Handler) writeStoreFailure(w http.ResponseWriter, r *http.Request, what string, err error) {
+	if metadata.IsStoreBusy(err) {
+		w.Header().Set("Retry-After", "1")
+		h.log.WarnContext(r.Context(), "docker: "+what+" (transient, retry)",
+			"error", err.Error())
+		writeSpecError(w, http.StatusServiceUnavailable, ErrCodeUnavailable,
+			what+": "+err.Error(), nil)
+		return
+	}
 	status := http.StatusInternalServerError
 	code := ErrCodeUnknown
 	if errors.Is(err, storage.ErrEngineClosed) {

@@ -10,7 +10,8 @@ import (
 )
 
 // Concurrent readers plus writers must not trip SQLITE_BUSY or the race
-// detector: WAL + busy_timeout=5000 + a one-connection pool serialize access.
+// detector: WAL + busy_timeout (BusyTimeoutMs) + a one-connection pool
+// serialize access.
 func TestConcurrentMixedWorkload(t *testing.T) {
 	st := open(t)
 	ctx := context.Background()

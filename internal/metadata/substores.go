@@ -293,6 +293,16 @@ func wrapExec(label, key string, err error) error {
 	if err == nil {
 		return nil
 	}
+	if isSQLiteBusy(err) {
+		// Attach the retryable signal (T-54): busy-class contention that
+		// outlived busy_timeout is transient by nature — upper layers must
+		// answer 503-retry, not 500-broken. The driver error stays wrapped
+		// for the log line.
+		if key == "" {
+			return fmt.Errorf("metadata: %s: %w: %w", label, ErrStoreBusy, err)
+		}
+		return fmt.Errorf("metadata: %s (%s): %w: %w", label, key, ErrStoreBusy, err)
+	}
 	if key == "" {
 		return fmt.Errorf("metadata: %s: %w", label, err)
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/lzwzzy/binflow/internal/metadata"
@@ -75,20 +74,26 @@ func ensureAnonymousSubject(ctx context.Context, seed anonymousSubjectSeed) erro
 	return fmt.Errorf("docker: seeding anonymous token subject: %w", err)
 }
 
-// anonSeedOnce guards the per-process seeding attempt: the token endpoint
-// can be hit concurrently on a fresh instance, and even though the seeding
-// is idempotent, paying the lookup once per process is the whole point.
-var anonSeedOnce sync.Once
-var anonSeedErr error
-
-// seedAnonymousOnce runs ensureAnonymousSubject once per process against
-// seed. The sync.Once holds the FIRST seed seen: assemblies swap stores in
-// tests, so a handler built after a failed seed retries with its own store
-// through the direct call — this wrapper is the production path's dedupe.
-func seedAnonymousOnce(ctx context.Context, seed anonymousSubjectSeed) error {
+// seedAnonymousOnce runs ensureAnonymousSubject once per HANDLER against
+// seed (per-handler dedupe state lives on Handler — see its field comment;
+// the process-wide sync.Once this replaces leaked the first assembly's
+// success into every later one, T-54). Concurrent first requests serialize
+// on the handler mutex; ensureAnonymousSubject itself stays idempotent for
+// the assemblies that race anyway. A failure is returned uncached so the
+// next request retries — a transient store error must not poison anonymous
+// pulls for the process lifetime.
+func (h *Handler) seedAnonymousOnce(ctx context.Context, seed anonymousSubjectSeed) error {
 	if seed == nil {
 		return errors.New("docker: no user store wired for the anonymous token subject")
 	}
-	anonSeedOnce.Do(func() { anonSeedErr = ensureAnonymousSubject(ctx, seed) })
-	return anonSeedErr
+	h.anonSeedMu.Lock()
+	defer h.anonSeedMu.Unlock()
+	if h.anonSeeded {
+		return nil
+	}
+	if err := ensureAnonymousSubject(ctx, seed); err != nil {
+		return err
+	}
+	h.anonSeeded = true
+	return nil
 }
