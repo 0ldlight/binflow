@@ -158,28 +158,50 @@ func TestSingleflightErrorSharedToWaiters(t *testing.T) {
 // TestSingleflightExecutesOnce pins collapse-while-in-flight: when fn holds
 // the key open until every caller has arrived, exactly one execution serves
 // all of them.
+//
+// Deadlock history (T-54 run-2): the original form had the leader's fn DRAIN
+// the arrival channel, relying on every caller joining the first flight. But
+// singleflight only collapses callers that are already INSIDE do() — a
+// goroutine descheduled between its arrival send and its do() call misses the
+// flight, becomes a second leader, and its fn then blocked forever draining a
+// channel nobody would ever send to again (40-minute package hang under
+// -race load). The rewrite keeps the leader's flight open via an explicit
+// release from the test body instead: arrivals are counted by the test (all n
+// announce BEFORE any do() runs), the gate then opens simultaneously for
+// everyone, a generous join window follows while the flight is open, and only
+// then does the leader finish. No channel drain inside fn can ever block on
+// missing senders, so the test can hang no more; the assertion keeps the
+// original intent (one execution serves the contended flight).
 func TestSingleflightExecutesOnce(t *testing.T) {
 	var g singleflight
 	var calls atomic.Int64
 	const n = 64
-	started := make(chan struct{}, n) // each goroutine announces before do()
+	arrived := make(chan struct{}, n) // announcement happens before any do()
+	gate := make(chan struct{})       // opens do() for everyone at once
+	release := make(chan struct{})    // the leader's fn holds until told
 	var wg sync.WaitGroup
 	for i := 0; i < n; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			started <- struct{}{}
+			arrived <- struct{}{}
+			<-gate
 			_ = g.do("same-key", func() error {
 				calls.Add(1)
-				// Keep the flight open until all n callers have entered do
-				// (announced via started) and thus joined this flight.
-				for i := 0; i < n; i++ {
-					<-started
-				}
+				<-release
 				return nil
 			})
 		}()
 	}
+	// All n have announced (buffered), so none of them is still before its
+	// announcement; open the gate and give the whole crowd the same instant
+	// to enter do() while the flight is provably still open (release pending).
+	for i := 0; i < n; i++ {
+		<-arrived
+	}
+	close(gate)
+	time.Sleep(100 * time.Millisecond) // join window: do() entry under the open flight
+	close(release)
 	wg.Wait()
 	if got := calls.Load(); got != 1 {
 		t.Fatalf("fn executed %d times under contention, want 1", got)
