@@ -36,6 +36,12 @@ const prefix = "/binflow"
 // authenticator, then dispatch branches per route and attaches the route's
 // authorizer gate in front of the terminal handler (architecture section
 // 7.2 order: authenticator precedes authorizer precedes handler).
+//
+// The /v2 root-level exception (ADR-0010 clause 1) rides the SAME chain:
+// requestID/accessLog/recover/CORS/authenticate all apply, but the prefix
+// is not stripped and the route gate is the docker adapter's own — a 401
+// on /v2 must render the registry spec body plus the Bearer challenge
+// (realm=/v2/token), never the /binflow errors[] envelope (NFR-S10).
 func (s *Server) rootHandler() http.Handler {
 	return s.baseChain(chain(authenticate(s.deps.Auth))(http.HandlerFunc(s.dispatch)))
 }
@@ -83,6 +89,22 @@ func (s *Server) baseChain(next http.Handler) http.Handler {
 func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.EscapedPath()
 
+	// /v2/** root-level exception (ADR-0010 clause 1): the docker registry
+	// plane. Same middleware chain (the request reached this point through
+	// it), no /binflow prefix to strip, principal handed to the adapter
+	// through the shared adapter seam. The prefix test MUST run before the
+	// /binflow branch below — /v2 is not under the product prefix at all.
+	if path == "/v2" || strings.HasPrefix(path, "/v2/") {
+		if h, ok := s.adapters["docker"]; ok {
+			h.ServeHTTP(w, withRootPrincipal(r, principalFrom(r.Context())))
+			return
+		}
+		// No docker adapter mounted (assembly without one): honest spec-body
+		// 404, keeping the /v2 plane's response contract even degraded.
+		s.writeV2Unavailable(w)
+		return
+	}
+
 	if !strings.HasPrefix(path, prefix) {
 		// E-26①: no root mirror. Everything outside /binflow is a 404; the
 		// message carries the /binflow prefix hint so /artifactory
@@ -102,12 +124,34 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 	case strings.HasPrefix(rest, "/api/"):
 		s.dispatchAPI(w, r, strings.TrimPrefix(rest, "/api/"))
 	case rest == "/v2" || strings.HasPrefix(rest, "/v2/"):
-		// M2 docker mount point; a plain E-26 404 until then (never a
-		// redirect, never an empty 200).
+		// /binflow/v2 is NOT a mirror of the root-level exception
+		// (ADR-0010 clause 2: no double mount — the Location/realm/catalog
+		// surfaces would need twin generators, and no docker client can
+		// reach this spelling anyway). The E-26 envelope 404 stands.
 		notImplemented(w, "docker registry v2 (/binflow/v2)")
 	default:
 		s.dispatchContent(w, r, rest)
 	}
+}
+
+// writeV2Unavailable answers /v2 when no docker adapter is mounted. The
+// body keeps the registry error schema (the client on this route is a
+// registry client, not a BinFlow client); the status is the spec's
+// UNSUPPORTED posture.
+func (s *Server) writeV2Unavailable(w http.ResponseWriter) {
+	s.log.Error("httpapi: /v2 request but no docker adapter mounted")
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Docker-Distribution-Api-Version", "registry/2.0")
+	w.WriteHeader(http.StatusNotFound)
+	_, _ = w.Write([]byte(`{"errors":[{"code":"UNSUPPORTED","message":"docker registry is not enabled on this instance","detail":null}]}` + "\n"))
+}
+
+// withRootPrincipal boxes the principal into the adapter seam without
+// touching the URL — the /v2 route receives the request VERBATIM (path,
+// query, headers, body), because the registry protocol is addressed from
+// the root, not under /binflow.
+func withRootPrincipal(r *http.Request, p *auth.Principal) *http.Request {
+	return r.WithContext(adapter.WithPrincipal(r.Context(), p))
 }
 
 // dispatchAPI routes /binflow/api/** after stripping /binflow/api. M1

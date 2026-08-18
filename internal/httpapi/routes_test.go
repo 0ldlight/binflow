@@ -16,6 +16,12 @@ import (
 // /binflow/api endpoint answers 404 + the errors[] envelope with "not
 // implemented" wording — never a 500, never an empty 200 (PRD E-26,
 // C24).
+//
+// M2 reversal (PRD section 8.1 baseline item 1 / T-32 risk R10): /v2/**
+// is the docker root-level exception (ADR-0010) and is NO LONGER part of
+// this 404 matrix — TestV2RootException owns its assertions now. The
+// /binflow/v2/** spelling stays in the matrix: ADR-0010 clause 2 declined
+// the double mount, so it keeps answering the E-26 envelope 404.
 func TestE26FullMatrix(t *testing.T) {
 	h := newHarness(t)
 
@@ -23,8 +29,6 @@ func TestE26FullMatrix(t *testing.T) {
 		path string
 		hint bool // message must mention /binflow
 	}{
-		{"/v2/", false},
-		{"/v2/_catalog", false},
 		{"/artifactory/api/system/ping", true},
 		{"/artifactory/libs-release-local/x.jar", true},
 		{"/api/system/info", true},

@@ -23,11 +23,13 @@ const DefaultVersion = "dev"
 // healthResponse is the /binflow/api/v1/health body (E-22/FR-6-AC2):
 // a top-level status plus one nested object per subsystem. Every
 // subsystem reports {status, detail} so a degraded component is
-// self-describing.
+// self-describing. The registry field is the M2 addition (PRD section
+// 6.3): add-only, never a rename — older dashboards keep parsing.
 type healthResponse struct {
 	Status   string          `json:"status"`
 	Storage  subsystemStatus `json:"storage"`
 	Metadata subsystemStatus `json:"metadata"`
+	Registry subsystemStatus `json:"registry"`
 }
 
 // subsystemStatus is one subsystem's health verdict: "ok" or "error",
@@ -86,6 +88,10 @@ func (s *Server) handleV1Health(w http.ResponseWriter, r *http.Request) {
 	} else {
 		resp.Metadata = subsystemStatus{Status: "ok"}
 	}
+	resp.Registry = s.probeRegistry()
+	if resp.Registry.Status != "ok" {
+		resp.Status = "error"
+	}
 	if resp.Storage.Status != "ok" {
 		resp.Status = "error"
 	}
@@ -111,6 +117,19 @@ func (s *Server) probeStorage() subsystemStatus {
 	}
 	if err := os.Remove(probe); err != nil {
 		return subsystemStatus{Status: "error", Detail: fmt.Sprintf("probe cleanup: %v", err)}
+	}
+	return subsystemStatus{Status: "ok"}
+}
+
+// probeRegistry reports the docker registry plane's availability (M2,
+// PRD section 6.3): "ok" when the /v2 route has a mounted docker adapter,
+// "error" with the honest reason when assembly ran without one. The probe
+// answers FROM routing data only — a live /v2 round-trip would belong to
+// readiness semantics, and this endpoint is the operator's dashboard, not
+// a probe target.
+func (s *Server) probeRegistry() subsystemStatus {
+	if _, ok := s.adapters["docker"]; !ok {
+		return subsystemStatus{Status: "error", Detail: "no docker adapter mounted: /v2 answers 404"}
 	}
 	return subsystemStatus{Status: "ok"}
 }

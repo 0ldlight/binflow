@@ -82,7 +82,12 @@ func New(deps Deps, log *slog.Logger) *Server {
 	// Dispatch keys on the repository's package type (architecture section
 	// 5.1): the registry maps a handler under both its protocol name and
 	// each repo class it serves; the injected slice mirrors that contract
-	// without the process-global singleton.
+	// without the process-global singleton. Later entries claiming the
+	// same key REPLACE earlier ones — assembly order is therefore part of
+	// the contract: protocols claiming repo classes (generic: local) must
+	// not be preceded by another handler claiming the same class. M2's
+	// docker handler registers its protocol key only for exactly this
+	// reason (see docker.Handler.RepoTypes).
 	adapters := make(map[string]adapter.Handler, len(deps.Adapters))
 	for _, h := range deps.Adapters {
 		adapters[h.Protocol()] = h

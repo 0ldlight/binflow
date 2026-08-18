@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/lzwzzy/binflow/internal/adapter"
+	"github.com/lzwzzy/binflow/internal/adapter/docker"
 	"github.com/lzwzzy/binflow/internal/adapter/generic"
 	"github.com/lzwzzy/binflow/internal/audit"
 	"github.com/lzwzzy/binflow/internal/auth"
@@ -206,6 +207,10 @@ func runServe(args []string, stderr io.Writer) error {
 // and the tests share this one composition so the tested server is the
 // served server (T-15's Deps seam list: ReposSvc / Passwords / Tokens).
 func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *httpapi.Server {
+	dockerHandler := docker.New(stack.svc, docker.NewRepoLookup(stack.md.Repos()), docker.Options{
+		AnonymousAccess: cfg.Security.AnonymousAccess,
+		BaseURL:         cfg.Server.BaseURL,
+	})
 	return httpapi.New(httpapi.Deps{
 		Config:    cfg,
 		Auth:      stack.authSvc,
@@ -217,7 +222,7 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 		Tokens:    stack.authSvc,
 		DataDir:   cfg.Storage.DataDir,
 		Console:   console.Handler(),
-		Adapters:  []adapter.Handler{stack.genericHandler},
+		Adapters:  []adapter.Handler{stack.genericHandler, dockerHandler},
 		Version:   version,
 		Revision:  revision,
 	}, logger)

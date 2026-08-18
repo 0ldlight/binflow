@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/lzwzzy/binflow/internal/adapter"
+	"github.com/lzwzzy/binflow/internal/adapter/docker"
 	"github.com/lzwzzy/binflow/internal/adapter/generic"
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/config"
@@ -81,6 +82,10 @@ func newHarnessCfg(t *testing.T, mutate func(*config.Config), users [][2]string)
 	authSvc := auth.NewFromStore(md, cfg.Security.AnonymousAccess)
 	svc := repo.New(st, md, authSvc, nil)
 	genericHandler := generic.New(svc, md.Blobs())
+	dockerHandler := docker.New(svc, docker.NewRepoLookup(md.Repos()), docker.Options{
+		AnonymousAccess: cfg.Security.AnonymousAccess,
+		BaseURL:         cfg.Server.BaseURL,
+	})
 
 	for _, u := range users {
 		hash, err := auth.HashPassword(u[1])
@@ -106,7 +111,7 @@ func newHarnessCfg(t *testing.T, mutate func(*config.Config), users [][2]string)
 		Tokens:    authSvc,
 		DataDir:   dataDir,
 		Console:   console.Handler(),
-		Adapters:  []adapter.Handler{genericHandler},
+		Adapters:  []adapter.Handler{genericHandler, dockerHandler},
 		Version:   "1.0.0-test",
 		Revision:  "abc123",
 	}, logger)
