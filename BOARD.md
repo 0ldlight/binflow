@@ -71,8 +71,15 @@
 
 ## 🔨 进行中（doing）
 
-- **T-44** [P0] QA：五客户端 conformance+性能 `role:qa-engineer` `area:验收` `dep:T-43(done)`
-  状态：06:1x 派发，在途（v1.2 全名口径 + 容器内 daemon 路径 + 环境盘点先行）。
+- **T-44-D44** [P0] 修 D44-1/2/3（ping 无条件挑战 / offline_token 接受忽略 / POST 表单凭据） `role:dev-registry-adapter` `area:internal/adapter/docker`
+  状态：07:2x 派发（T-37 agent 回炉），在途。修后 T-44 仅复验 docker 行 + conformance 三组。
+- **T-56** [P1] M2 PRD v1.3：T-44 勘误 C4~C7 `role:product-manager` `area:docs/prd`
+  状态：07:2x 派发，在途。
+
+## 🧪 测试中（qa）
+
+- **T-44** [P0] 五客户端 conformance — 首轮 FAIL（docker P0 三缺陷），修复后复验
+  podman/crane/oras/skopeo PASS + buildx 等效 + conformance 55/60（5 挂均 P2）+ 性能全绿（冷启动 0.039s/100 并发零 5xx）；docker 的 build/rmi/pull/run/inspect 绿、login+push 断于 D44-1/2/3。报告 reports/agents/T-44-qa.md。
 
 ## 👀 评审中（review）
 
