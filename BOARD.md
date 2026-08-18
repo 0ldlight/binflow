@@ -170,6 +170,8 @@
   statusRecorder 增 writeErr/panicDisconnect 槽位；断连（ctx.Canceled 主腿 + errno 兜底）≥500 降 WARN + client_disconnect 标注；recoverPanic 断连降级不注信封。进程外 e2e 实证（--limit-rate + kill -9：日志零 ERROR、真 500 反例保持 ERROR 三态表）。轻量核验（P1+e2e 证据）。提交 85df447。M5 升格 label 遗留登记。
 - **T-42** [P1] gc 旗标+GC mark 扩容 `role:dev-go-core` `area:cmd/binflow-server` — done 2026-08-18
   gc -c（复用 serve 配置链）+ --grace-hours（与 days 并存 hours 胜）；mark = nodes ∪ docker_refs（ListRefsByManifest 聚合——agent 论证了 RefsByBlob 会回到 T-9 废弃的反连接路线）；真栈冒烟（refs-held 存活/级联删后转候选）。净树核验（T-37 WIP 致主仓瞬断，隔离手法 agent 自报 conductor 复现）。提交 69a6039。遗留：lint 有网补跑；子命令 --help exit 1 小票登记。
+- **T-55** [P1] /v2/token 401 错误体 OAuth 形一行修 `role:dev-registry-adapter` `area:internal/adapter/docker(token)` — done 2026-08-19
+  RenderAuthFailure 路径感知：token 路由族 OAuth 形（invalid_client）+ 挑战头逐字节不变；资源端点 spec 体不动；writeOAuthError 去 401 附 Basic 副作用（归属调用方）。4 行表双向断言 + 真栈三组错误凭据复验。conductor 复现：build ok + 两包针对性测试绿。提交待与 T-38-D1 同批（同包在途隔离）。
 - **T-53** [P1] M2 PRD v1.2 勘误收口 `role:product-manager` `area:docs/prd` — done 2026-08-19
   C3+D3 裁定 token 端点族全 OAuth（三处对齐+跨里程碑口径）；C1 name 全名模型（D 序列+FR-8-AC6+D04b/c scope 联动）；C2 ping 无 scope 注记+四形态；v1.2 修订行完整；三轮自检零残留。经 429 中断（改动在盘）恢复收尾。遗留：T-37 401=spec 一行修（conductor 待派）。提交 4034b14。
 - **T-43** [P0] QA 协议矩阵+M1 回归基线 `role:qa-engineer` — done 2026-08-19（PASS 80/82）
