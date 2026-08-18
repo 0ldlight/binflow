@@ -71,8 +71,10 @@
 
 ## 🔨 进行中（doing）
 
-- **T-40** [P0] catalog 与 tags/list+分页（批次 5，最后一个功能票） `role:dev-registry-adapter` `area:internal/adapter/docker(catalog)` `dep:T-39(done)`
-  状态：在途（占位分支替换 + D09 + Q5 矩阵）。
+- **T-43** [P0] QA：M2 协议矩阵+M1 回归基线 `role:qa-engineer` `area:验收` `dep:T-40,T-41,T-42,T-36(全done)`
+  状态：01:1x 派发，在途（v1.1 口径 + 防误报要点袋：blob 200 既定语义/断连日志口径/端口注意）。
+- **T-52** [P1] repo.ListTags 零 tag 契约修复 `role:dev-go-core` `area:internal/repo` `dep:T-40`
+  状态：01:1x 派发（T-40 实现者发现的 T-35 遗留缺陷，两行修法+测试），在途。
 
 ## 👀 评审中（review）
 
@@ -168,6 +170,8 @@
   statusRecorder 增 writeErr/panicDisconnect 槽位；断连（ctx.Canceled 主腿 + errno 兜底）≥500 降 WARN + client_disconnect 标注；recoverPanic 断连降级不注信封。进程外 e2e 实证（--limit-rate + kill -9：日志零 ERROR、真 500 反例保持 ERROR 三态表）。轻量核验（P1+e2e 证据）。提交 85df447。M5 升格 label 遗留登记。
 - **T-42** [P1] gc 旗标+GC mark 扩容 `role:dev-go-core` `area:cmd/binflow-server` — done 2026-08-18
   gc -c（复用 serve 配置链）+ --grace-hours（与 days 并存 hours 胜）；mark = nodes ∪ docker_refs（ListRefsByManifest 聚合——agent 论证了 RefsByBlob 会回到 T-9 废弃的反连接路线）；真栈冒烟（refs-held 存活/级联删后转候选）。净树核验（T-37 WIP 致主仓瞬断，隔离手法 agent 自报 conductor 复现）。提交 69a6039。遗留：lint 有网补跑；子命令 --help exit 1 小票登记。
+- **T-40** [P0] catalog 与 tags/list+分页 `role:dev-registry-adapter` `area:internal/adapter/docker(catalog)` — done 2026-08-19
+  catalog/tags/list 字典序（跨仓全局重排实测）+ Link 分页（last exclusive/n 缺省 100/无效 n 400）+ tags:null + Q5 过滤矩阵 + 删仓消失 + 占位分支替换。D09 全序列 curl 实证 + 14 测试 race 绿。轻量核验（对定案矩阵编码+黑盒），T-43 全量复验。发现 T-35 缺陷（ListTags 零 tag）→ T-52。提交 2cb5b9b。**M2 功能开发全部完成**。
 - **T-51** [P1] R3 消歧回写 `role:architect` `area:docs/design、docs/prd` — done 2026-08-19
   §5.3 校验链①终审口径（透传+结构判读/判读优先序/裸 media type 语义/schema1 拒收/不裁回白名单理由）；DDL 注释同步；双 node 布局升格正式契约（manifest+blob 双落、DELETE 后 blob 200 为既定语义）；PRD DE-15 OCI-Subject 注记。旧措辞零残留。遗留转 conductor：repo 导出 shutdown 哨兵小票。
 - **T-39** [P0] manifest 链 `role:dev-registry-adapter` `area:internal/adapter/docker(manifest)` — done 2026-08-19（经双 review 一轮修复）
