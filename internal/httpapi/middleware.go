@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strings"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/lzwzzy/binflow/internal/auth"
@@ -57,8 +58,19 @@ type statusRecorder struct {
 	headerWritten bool
 	// wrote: body bytes have been written (response committed on the
 	// wire, implicitly as 200 unless WriteHeader ran first).
-	wrote    bool
-	bytesOut int64
+	wrote bool
+	// writeErr holds the FIRST error the write path returned. A client
+	// that vanished mid-response shows up here as a broken pipe; the
+	// access log reads it after the handler returns (T-41) as the
+	// fallback leg of client-disconnect classification (the primary leg
+	// is the request context — see isClientDisconnect).
+	writeErr error
+	// panicDisconnect carries a disconnect-class panic value from
+	// recoverPanic outward to the access log (contexts only flow inward,
+	// and the recorder is the one mutable seam both layers share). It is
+	// consumed and cleared by the access log on the same request.
+	panicDisconnect error
+	bytesOut        int64
 }
 
 func newStatusRecorder(w http.ResponseWriter) *statusRecorder {
@@ -78,6 +90,9 @@ func (s *statusRecorder) Write(b []byte) (int, error) {
 	s.bytesOut += int64(n)
 	if n > 0 {
 		s.wrote = true
+	}
+	if err != nil && s.writeErr == nil {
+		s.writeErr = err
 	}
 	return n, err
 }
@@ -117,6 +132,18 @@ func bytesIn(r *http.Request) int64 {
 // path is logged from EscapedPath so the record matches what the client
 // sent (and dot-segment probes stay visible to operators).
 //
+// Levels: a ≥500 status logs at ERROR — the access line IS the 5xx
+// counter M1 has (no metrics plane until M5), which is why the level
+// choice is load-bearing. Client-disconnect demotion (T-41, PRD §6.4 O1
+// / NFR-OBS-1) carves out exactly one exception: when the client vanished
+// mid-request — the request context is canceled at handler-return time,
+// or the write path failed with a broken-pipe-class error — the ≥500 is
+// transport, not a server fault. The line drops to WARN with
+// client_disconnect=true so operators triaging real 500s are not fed a
+// metric dominated by aborted uploads. The wire contract is untouched
+// (no 499 status; the annotation is log-side only — the ticket's
+// "日志标注" option over the 499 alternative).
+//
 // Position: second in the chain, OUTSIDE recover, so a panicking handler's
 // aborted request still gets its access-log line with the 500 recover
 // produced. The principal is threaded back OUT of the inner chain through
@@ -131,7 +158,7 @@ func accessLog(logger *slog.Logger) Middleware {
 			fields := &logFields{}
 			r = r.WithContext(context.WithValue(r.Context(), ctxKeyLogFields, fields))
 			next.ServeHTTP(rec, r)
-			logger.LogAttrs(r.Context(), slog.LevelInfo, "access",
+			attrs := []slog.Attr{
 				slog.String("method", r.Method),
 				slog.String("path", r.URL.EscapedPath()),
 				slog.Int("status", rec.status),
@@ -141,9 +168,97 @@ func accessLog(logger *slog.Logger) Middleware {
 				slog.Int64("bytes_in", bytesIn(r)),
 				slog.Int64("bytes_out", rec.bytesOut),
 				slog.String("request_id", requestIDFrom(r.Context())),
-			)
+			}
+			level := slog.LevelInfo
+			if rec.status >= 500 {
+				level = slog.LevelError
+			}
+			// The classifier must also see the panic-path mark: recover's
+			// disconnect branch stashes the transport error on the
+			// recorder (contexts only flow inward), which is the one
+			// mutable seam both layers share.
+			discoErr := firstErr(rec.writeErr, rec.panicDisconnect)
+			if rec.status >= 500 && isClientDisconnect(r.Context().Err(), discoErr) {
+				// The client is gone; a truncated 5xx is transport, not a
+				// server fault. Demote and annotate (T-41 AC1).
+				level = slog.LevelWarn
+				attrs = append(attrs,
+					slog.String("client_disconnect", "true"),
+					slog.String("disconnect_reason", disconnectReason(r.Context().Err(), discoErr)),
+				)
+			}
+			logger.LogAttrs(r.Context(), level, "access", attrs...)
 		})
 	}
+}
+
+// isClientDisconnect reports whether a request ended because the CLIENT
+// went away, judged at access-log time (after the handler returned). Two
+// legs (T-41, empirically probed on this codebase's stack):
+//
+//   - primary: r.Context().Err() == context.Canceled. net/http cancels
+//     the request context as soon as the connection closes, and the
+//     cancellation is observable at handler-return for BOTH close styles
+//     (graceful FIN and RST). A fully-served request still has a nil
+//     context error at this point, so the leg does not misfire on normal
+//     traffic. context.DeadlineExceeded is deliberately NOT a disconnect:
+//     it is a server-side timeout while the client may still be there —
+//     those stay ERROR (T-41 AC3 "deadline" tri-state).
+//   - fallback: the write path failed with a broken-pipe-class error
+//     (write to a closed socket). On some platforms the kernel buffers
+//     the first write after a close, so this leg fires only sometimes —
+//     it exists for the cases the context leg misses (e.g. a panic-path
+//     render racing the cancel propagation).
+func isClientDisconnect(ctxErr, writeErr error) bool {
+	if errors.Is(ctxErr, context.Canceled) {
+		return true
+	}
+	return isBrokenPipe(writeErr)
+}
+
+// isBrokenPipe reports whether err is a write-to-closed-socket class
+// failure. Matching is by sentinel/errno, never by message text.
+func isBrokenPipe(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET) {
+		return true
+	}
+	// http.ErrAbortHandler is a handler-requested transport abort; net/http
+	// treats it as "connection is unusable" and so do we.
+	return errors.Is(err, http.ErrAbortHandler)
+}
+
+// disconnectReason renders a short operator-facing classifier for the
+// annotated access line: which leg fired ("context_canceled" vs the errno
+// text). Empty cannot happen — callers only invoke it after
+// isClientDisconnect returned true.
+func disconnectReason(ctxErr, writeErr error) string {
+	if errors.Is(ctxErr, context.Canceled) {
+		return "context_canceled"
+	}
+	switch {
+	case errors.Is(writeErr, syscall.EPIPE):
+		return "broken_pipe"
+	case errors.Is(writeErr, syscall.ECONNRESET):
+		return "connection_reset"
+	case errors.Is(writeErr, http.ErrAbortHandler):
+		return "handler_abort"
+	}
+	return "write_failed"
+}
+
+// firstErr picks the first non-nil of its arguments — the reason string
+// should name the error that drove the classification (a live write
+// error outranks the stashed panic mark).
+func firstErr(errs ...error) error {
+	for _, e := range errs {
+		if e != nil {
+			return e
+		}
+	}
+	return nil
 }
 
 // logFields is the outward thread for values the inner chain computes.
@@ -178,6 +293,20 @@ func (f *logFields) userName() string {
 // a silently corrupted artifact. In that state recover only logs (and
 // marks the status for the access log) and lets net/http truncate the
 // connection: a broken download is retryable, a corrupted one is not.
+//
+// Write-path disconnect demotion (T-41): a panic whose value is a
+// broken-pipe-class error — the common shape when a streaming handler
+// hits a vanished reader and its writes fail — is a client disconnect,
+// not a server fault. It logs at WARN with the client_disconnect
+// annotation and does NOT inject an envelope: the bytes could not be
+// delivered anyway, and the access log demotes the same request through
+// the recorder's panicDisconnect mark (contexts only flow inward; the
+// recorder is the one mutable seam shared by both layers). The
+// committed-response branch above already covers the non-panic flavor of
+// this scenario (T-14's markStatus path — confirmed in T-41: the
+// disconnect case has, by definition, bytes on the wire, so it always
+// takes that branch's log-and-truncate posture); this extends the
+// demotion to panic values.
 func recoverPanic(logger *slog.Logger) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -189,13 +318,38 @@ func recoverPanic(logger *slog.Logger) Middleware {
 						// so net/http tears the connection down quietly.
 						panic(rec)
 					}
-					logger.ErrorContext(r.Context(), "httpapi: panic recovered",
-						slog.String("method", r.Method),
-						slog.String("path", r.URL.EscapedPath()),
-						slog.String("request_id", requestIDFrom(r.Context())),
-						slog.Any("panic", rec),
-					)
-					if rec2, ok := w.(*statusRecorder); ok && rec2.committed() {
+					recErr, _ := rec.(error)
+					rec2, _ := w.(*statusRecorder)
+					var recWriteErr error
+					if rec2 != nil {
+						recWriteErr = rec2.writeErr
+					}
+					discoErr := firstErr(recErr, recWriteErr)
+					disconnect := isClientDisconnect(r.Context().Err(), discoErr)
+					logAttrs := []any{
+						"method", r.Method,
+						"path", r.URL.EscapedPath(),
+						"request_id", requestIDFrom(r.Context()),
+						"panic", rec,
+					}
+					if disconnect {
+						// The reader is gone: WARN + annotation, and the
+						// access log's classifier sees the same request
+						// demoted (T-41 AC1's recover clause — the mark
+						// rides the recorder outward).
+						logAttrs = append(logAttrs,
+							"client_disconnect", "true",
+							"disconnect_reason", disconnectReason(r.Context().Err(), discoErr),
+						)
+						logger.WarnContext(r.Context(), "httpapi: panic recovered", logAttrs...)
+						if rec2 != nil {
+							rec2.markStatus(http.StatusInternalServerError)
+							rec2.panicDisconnect = discoErr
+						}
+						return
+					}
+					logger.ErrorContext(r.Context(), "httpapi: panic recovered", logAttrs...)
+					if rec2 != nil && rec2.committed() {
 						rec2.markStatus(http.StatusInternalServerError)
 						return
 					}
