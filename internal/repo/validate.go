@@ -21,12 +21,14 @@ var knownPackageTypes = map[string]bool{
 	PackageGeneric: true, "docker": true, "maven": true, "npm": true, "pypi": true,
 }
 
-// supportedPackageTypes is the M1 support matrix: which (type, packageType)
-// pairs the service can actually serve. Everything valid-but-future is
-// rejected with ErrRepoTypeNotSupported (message "supported from M3") —
-// httpapi translates the shape (400), the semantics stay here.
+// supportedPackageTypes is the M2 support matrix: which (type, packageType)
+// pairs the service can actually serve. M2 turns local+docker on (FR-7-AC1,
+// T-35); remote and virtual repositories stay empty until M3. Everything
+// valid-but-future is rejected with ErrRepoTypeNotSupported (message
+// "supported from M3") — httpapi translates the shape (400), the semantics
+// stay here.
 var supportedPackageTypes = map[string]map[string]bool{
-	TypeLocal:   {PackageGeneric: true},
+	TypeLocal:   {PackageGeneric: true, PackageDocker: true},
 	TypeRemote:  {},
 	TypeVirtual: {},
 }
@@ -125,6 +127,65 @@ func validateNodePath(path string) error {
 // folder node.
 func isFolderNode(path string) bool {
 	return strings.HasSuffix(path, "/")
+}
+
+// ---- docker shapes (architecture section 5.3 / 6 layout) ----
+
+// hexDigits bounds validateDigest's character walk.
+var hexDigits = map[byte]bool{
+	'0': true, '1': true, '2': true, '3': true, '4': true, '5': true, '6': true, '7': true,
+	'8': true, '9': true, 'a': true, 'b': true, 'c': true, 'd': true, 'e': true, 'f': true,
+}
+
+// validateDigest checks the bare-hex sha256 shape the docker plane keys on:
+// exactly 64 lowercase hex characters (architecture section 5.3 ruling 2 —
+// M2 serves sha256 only; adapters strip the "sha256:" prefix at the edge, so
+// an uppercase or prefixed value reaching here is an adapter bug or a forged
+// internal call and is refused).
+func validateDigest(digest string) error {
+	if len(digest) != 64 {
+		return fmt.Errorf("%w %q: must be 64 lowercase hex characters (bare sha256, no algorithm prefix)",
+			ErrInvalidDigest, digest)
+	}
+	for i := 0; i < len(digest); i++ {
+		if !hexDigits[digest[i]] {
+			return fmt.Errorf("%w %q: illegal character %q at offset %d (lowercase hex only)",
+				ErrInvalidDigest, digest, digest[i], i)
+		}
+	}
+	return nil
+}
+
+// validateTag checks the docker tag charset the schema comment carries
+// ([a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}) — 128 characters at most. docker_tags
+// has no DB-level constraint for it, so this layer is the rule's only home.
+func validateTag(tag string) error {
+	if tag == "" {
+		return fmt.Errorf("%w: tag is empty", ErrInvalidTag)
+	}
+	if len(tag) > 128 {
+		return fmt.Errorf("%w %q: %d characters exceeds the 128 limit", ErrInvalidTag, tag, len(tag))
+	}
+	c := tag[0]
+	isAlnum := (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
+	if !isAlnum && c != '_' {
+		return fmt.Errorf("%w %q: first character must be [a-zA-Z0-9_]", ErrInvalidTag, tag)
+	}
+	for i := 1; i < len(tag); i++ {
+		c := tag[i]
+		isAlnum = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
+		if !isAlnum && c != '_' && c != '.' && c != '-' {
+			return fmt.Errorf("%w %q: illegal character %q at offset %d", ErrInvalidTag, tag, c, i)
+		}
+	}
+	return nil
+}
+
+// dockerImageManifestPath is the node path of one manifest under the docker
+// layout convention (architecture section 6, 002_docker comment):
+// "<image>/manifests/<digest-hex>".
+func dockerImageManifestPath(image, digest string) string {
+	return image + "/manifests/" + digest
 }
 
 // parentPrefix returns the trailing-slash prefix of path's parent directory:

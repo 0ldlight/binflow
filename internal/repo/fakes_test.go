@@ -58,6 +58,19 @@ func newEnv(t TB) *env {
 // error-injection decorator wraps one).
 func newEnvAt(t TB, dataDir, dbDir string, mdOverride metadata.Store) *env {
 	t.Helper()
+	return newEnvOpt(t, dataDir, dbDir, mdOverride, nil)
+}
+
+// newEnvCustom opens a fresh environment whose metadata store passes through
+// mount before wiring (docker tests decorate the Docker() sub-store).
+func newEnvCustom(t TB, mount func(md metadata.Store) metadata.Store) *env {
+	t.Helper()
+	return newEnvOpt(t, t.TempDir(), t.TempDir(), nil, mount)
+}
+
+// newEnvOpt is the shared constructor behind newEnvAt/newEnvCustom.
+func newEnvOpt(t TB, dataDir, dbDir string, mdOverride metadata.Store, mount func(md metadata.Store) metadata.Store) *env {
+	t.Helper()
 	ctx := context.Background()
 	eng, err := storage.OpenEngine(dataDir, storage.Options{})
 	if err != nil {
@@ -67,9 +80,19 @@ func newEnvAt(t TB, dataDir, dbDir string, mdOverride metadata.Store) *env {
 	if err != nil {
 		t.Fatalf("metadata.Open: %v", err)
 	}
-	if mdOverride != nil {
+	ownsMD := true
+	switch {
+	case mdOverride != nil:
 		_ = md.Close()
 		md = mdOverride
+		ownsMD = false
+	case mount != nil:
+		decorated := mount(md)
+		if decorated != md {
+			ownsMD = false // the decorator closes through its own path; the
+			// underlying handle stays open for direct inspection
+		}
+		md = decorated
 	}
 	clk := &clock{now: time.Date(2026, 8, 18, 12, 0, 0, 0, time.UTC)}
 	az := &policyAuthz{}
@@ -77,7 +100,7 @@ func newEnvAt(t TB, dataDir, dbDir string, mdOverride metadata.Store) *env {
 	svc := newServiceWithClock(eng, md, az, au, clk.Now)
 	t.Cleanup(func() {
 		_ = eng.Close()
-		if mdOverride == nil {
+		if ownsMD {
 			_ = md.Close()
 		}
 	})
@@ -298,6 +321,136 @@ func (s *hookBlob) Put(ctx context.Context, b *metadata.Blob) error {
 		return err
 	}
 	return s.BlobStore.Put(ctx, b)
+}
+
+// ---- docker hook decorator (T-35) ----
+
+// hookDocker wraps a metadata.Store to journal and selectively fail the
+// docker sub-store's write path — the fake stack of the docker table-driven
+// tests. Reads pass through untouched. The Nodes sub-store is decorated too
+// (the docker use cases' node writes), with its own "nodes.*" op names so
+// injection cases can target either plane.
+type hookDocker struct {
+	metadata.Store
+	fail func(op string) error
+}
+
+// wrapDockerHooks builds the decorator around an already-open store.
+func wrapDockerHooks(inner metadata.Store, fail func(op string) error) *hookDocker {
+	return &hookDocker{Store: inner, fail: fail}
+}
+
+// Docker overrides the inner store with the hooked variant.
+func (h *hookDocker) Docker() metadata.DockerStore {
+	return &hookDockerStore{DockerStore: h.Store.Docker(), h: h}
+}
+
+// Nodes overrides the inner store with the hooked variant.
+func (h *hookDocker) Nodes() metadata.NodeStore {
+	return &hookDockerNodes{NodeStore: h.Store.Nodes(), h: h}
+}
+
+type hookDockerNodes struct {
+	metadata.NodeStore
+	h *hookDocker
+}
+
+func (s *hookDockerNodes) Put(ctx context.Context, n *metadata.Node) error {
+	if err := s.h.check("nodes.put"); err != nil {
+		return err
+	}
+	return s.NodeStore.Put(ctx, n)
+}
+
+func (s *hookDockerNodes) Delete(ctx context.Context, repoKey, path string) error {
+	if err := s.h.check("nodes.delete"); err != nil {
+		return err
+	}
+	return s.NodeStore.Delete(ctx, repoKey, path)
+}
+
+func (s *hookDockerNodes) DeleteByPrefix(ctx context.Context, repoKey, prefix string) (int64, error) {
+	if err := s.h.check("nodes.delete-by-prefix"); err != nil {
+		return 0, err
+	}
+	return s.NodeStore.DeleteByPrefix(ctx, repoKey, prefix)
+}
+
+type hookDockerStore struct {
+	metadata.DockerStore
+	h *hookDocker
+}
+
+func (s *hookDockerStore) check(op string) error { return s.h.check(op) }
+
+// check runs the shared fail hook.
+func (h *hookDocker) check(op string) error {
+	if h.fail != nil {
+		if err := h.fail(op); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *hookDockerStore) PutManifest(ctx context.Context, m *metadata.DockerManifest) error {
+	if err := s.check("docker.manifests.put"); err != nil {
+		return err
+	}
+	return s.DockerStore.PutManifest(ctx, m)
+}
+
+func (s *hookDockerStore) PutTag(ctx context.Context, t *metadata.DockerTag) error {
+	if err := s.check("docker.tags.put"); err != nil {
+		return err
+	}
+	return s.DockerStore.PutTag(ctx, t)
+}
+
+func (s *hookDockerStore) PutRefs(ctx context.Context, repoKey, image, digest string, refs []*metadata.DockerRef) error {
+	if err := s.check("docker.refs.put"); err != nil {
+		return err
+	}
+	return s.DockerStore.PutRefs(ctx, repoKey, image, digest, refs)
+}
+
+func (s *hookDockerStore) DeleteManifest(ctx context.Context, repoKey, image, digest string) error {
+	if err := s.check("docker.manifests.delete"); err != nil {
+		return err
+	}
+	return s.DockerStore.DeleteManifest(ctx, repoKey, image, digest)
+}
+
+func (s *hookDockerStore) DeleteImage(ctx context.Context, repoKey, image string) (int64, error) {
+	if err := s.check("docker.image.delete"); err != nil {
+		return 0, err
+	}
+	return s.DockerStore.DeleteImage(ctx, repoKey, image)
+}
+
+func (s *hookDockerStore) DeleteRepoRefs(ctx context.Context, repoKey string) (int64, error) {
+	if err := s.check("docker.repo-refs.delete"); err != nil {
+		return 0, err
+	}
+	return s.DockerStore.DeleteRepoRefs(ctx, repoKey)
+}
+
+// failRepoDeleteStore fails ONLY the repositories delete (the docker
+// teardown-failure case: everything before it must have run).
+type failRepoDeleteStore struct {
+	metadata.Store
+}
+
+func (s failRepoDeleteStore) Repos() metadata.RepoStore {
+	return failRepoDeleteRepo{RepoStore: s.Store.Repos()}
+}
+
+type failRepoDeleteRepo struct {
+	metadata.RepoStore
+}
+
+func (s failRepoDeleteRepo) Delete(_ context.Context, _ string) error {
+	return fmt.Errorf("injected repositories delete failure")
 }
 
 // entries returns a copy of the write journal.

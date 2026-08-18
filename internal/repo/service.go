@@ -107,6 +107,35 @@ func (s *service) loadLocalRepo(ctx context.Context, repoKey string) (*metadata.
 	return r, nil
 }
 
+// loadLocalDockerRepo resolves repoKey and asserts it is a local DOCKER
+// repository — the docker use cases refuse to serve any other package type,
+// even another local one (the /v2 plane would otherwise index generic
+// content under a registry name).
+func (s *service) loadLocalDockerRepo(ctx context.Context, repoKey string) (*metadata.Repo, error) {
+	r, err := s.loadLocalRepo(ctx, repoKey)
+	if err != nil {
+		return nil, err
+	}
+	if r.PackageType != PackageDocker {
+		return nil, fmt.Errorf("repo %q: %w: package type is %q, not %q",
+			repoKey, ErrRepoTypeNotSupported, r.PackageType, PackageDocker)
+	}
+	return r, nil
+}
+
+// validateDockerImage checks the image relative name: it becomes the leading
+// segments of every docker node path, so the generic node-path rules apply
+// verbatim (empty/dot segments, slashes, length). "" is not an image.
+func validateDockerImage(image string) error {
+	if image == "" {
+		return fmt.Errorf("%w: image name is empty", ErrInvalidImage)
+	}
+	if err := validateNodePath(image); err != nil {
+		return fmt.Errorf("image %q: %w", image, ErrInvalidImage)
+	}
+	return nil
+}
+
 // ---- Content use cases ----
 
 // Get implements Service.Get. Addressing a folder node yields
@@ -637,6 +666,410 @@ func (s *service) List(ctx context.Context, p *Principal, repoKey, prefix string
 	return nodes, nil
 }
 
+// ---- Docker use cases (M2, FR-7 through FR-9) ----
+
+// dockerPermPath is the ACL path of an image: the trailing-slash folder form
+// M1's path-prefix grants key on ("acme/team/app" -> "acme/team/app/"), so a
+// grant on the folder covers every manifest/blob/tag beneath it — the same
+// shape ADR-0010 clause 5 derives from the scope subject <repoKey>/<image>.
+func dockerPermPath(image string) string { return image + "/" }
+
+// PutManifest implements Service.PutManifest. Ordering follows the content
+// Put contract: the manifest body's blob is already committed by the adapter
+// (blobs row included — same checksums as the body), so this method's first
+// metadata write is the NODE at the layout path; the index rows follow. A
+// crash midway leaves an indexed-but-unwalkable manifest at worst, never a
+// node without its blob.
+//
+// Permission pair: write on the image grants a publish; overwriting the node
+// path of a DIFFERENT digest (impossible for a compliant push, possible for
+// a forged internal call) additionally requires delete, mirroring Put.
+func (s *service) PutManifest(ctx context.Context, p *Principal, repoKey, image, digest, tag, mediaType string, size int64, refs []*metadata.DockerRef) (*PutManifestResult, error) {
+	if err := requireAuthenticated(p); err != nil {
+		return nil, err
+	}
+	if err := validateDockerImage(image); err != nil {
+		return nil, err
+	}
+	if err := validateDigest(digest); err != nil {
+		return nil, err
+	}
+	if tag != "" {
+		if err := validateTag(tag); err != nil {
+			return nil, err
+		}
+	}
+	if mediaType == "" {
+		return nil, fmt.Errorf("manifest %s/%s@%s: %w: media type is empty", repoKey, image, digest, ErrInvalidImage)
+	}
+	if size < 0 {
+		return nil, fmt.Errorf("manifest %s/%s@%s: %w: negative size", repoKey, image, digest, ErrInvalidImage)
+	}
+	for i, r := range refs {
+		if r == nil {
+			return nil, fmt.Errorf("manifest %s/%s@%s: %w: ref %d is nil", repoKey, image, digest, ErrInvalidImage, i)
+		}
+		if err := validateDigest(r.BlobDigest); err != nil {
+			return nil, fmt.Errorf("manifest %s/%s@%s ref %d: %w", repoKey, image, digest, i, err)
+		}
+	}
+	if _, err := s.loadLocalDockerRepo(ctx, repoKey); err != nil {
+		return nil, err
+	}
+
+	permPath := dockerPermPath(image)
+	nodePath := dockerImageManifestPath(image, digest)
+
+	// Idempotent republish probe: the immutable body at the same digest.
+	// A same-digest re-push re-runs the tag/refs writes (both upserts) and
+	// refreshes the modified-side columns — and, like the generic Put's
+	// retransmit row (repo-semantics section 3), it skips the write gate:
+	// nothing observable changes except freshness.
+	existing, err := s.md.Nodes().Get(ctx, repoKey, nodePath)
+	idempotent := false
+	switch {
+	case err == nil:
+		if existing.Sha256 == digest {
+			idempotent = true
+		} else {
+			// The layout path is digest-keyed, so this can only be a forged
+			// call or a hash collision; both refuse unless the caller also
+			// holds delete on the image.
+			if !s.allow(ctx, p, repoKey, permPath, ActionDelete) {
+				return nil, fmt.Errorf(
+					"overwrite %s/%s: %w: user %q needs DELETE permission on the existing manifest node",
+					repoKey, nodePath, ErrForbidden, p.Name)
+			}
+		}
+	case errors.Is(err, metadata.ErrNodeNotFound):
+		// fresh publish
+	default:
+		return nil, fmt.Errorf("node %s/%s: %w", repoKey, nodePath, err)
+	}
+
+	if !idempotent {
+		if !s.allow(ctx, p, repoKey, permPath, ActionWrite) {
+			return nil, fmt.Errorf("write %s/%s: %w", repoKey, permPath, ErrForbidden)
+		}
+	}
+
+	// The tag's previous pointer, for the result's TagRepointed report. Read
+	// BEFORE any write so the value reflects the pre-call state even when the
+	// writes below refresh it.
+	var repointedFrom string
+	if tag != "" {
+		if prev, err := s.md.Docker().GetTag(ctx, repoKey, image, tag); err == nil {
+			repointedFrom = prev.Digest
+		} else if !errors.Is(err, metadata.ErrTagNotFound) {
+			return nil, fmt.Errorf("tag %s/%s:%s: %w", repoKey, image, tag, err)
+		}
+	}
+
+	// Node first: every index row below is derivable from the store's blobs
+	// plus this node (the crash-recovery order mirrors Put's blob-first
+	// rule with the blob already committed).
+	n, err := s.putNode(ctx, p, repoKey, nodePath, false,
+		storage.BlobRef{Sha256: digest, Size: size}, mediaType)
+	if err != nil {
+		return nil, err
+	}
+
+	dk := s.md.Docker()
+	now := s.now()
+	if err := dk.PutManifest(ctx, &metadata.DockerManifest{
+		RepoKey: repoKey, Image: image, Digest: digest,
+		MediaType: mediaType, Size: size, CreatedBy: p.Name, CreatedAt: now,
+	}); err != nil {
+		return nil, fmt.Errorf("manifest row %s/%s@%s: %w", repoKey, image, digest, err)
+	}
+	if tag != "" {
+		if err := dk.PutTag(ctx, &metadata.DockerTag{
+			RepoKey: repoKey, Image: image, Tag: tag, Digest: digest,
+			UpdatedBy: p.Name, UpdatedAt: now,
+		}); err != nil {
+			return nil, fmt.Errorf("tag row %s/%s:%s: %w", repoKey, image, tag, err)
+		}
+	}
+	// Refs replace the manifest's whole set atomically (an empty set clears).
+	rows := make([]*metadata.DockerRef, len(refs))
+	for i, r := range refs {
+		rows[i] = &metadata.DockerRef{
+			RepoKey: repoKey, Image: image, ManifestDigest: digest,
+			BlobDigest: r.BlobDigest, ChildMediaType: r.ChildMediaType,
+		}
+	}
+	if err := dk.PutRefs(ctx, repoKey, image, digest, rows); err != nil {
+		return nil, fmt.Errorf("refs of %s/%s@%s: %w", repoKey, image, digest, err)
+	}
+
+	s.audit(ctx, AuditEvent{
+		Actor: p.Name, Action: AuditActionDeploy, Repo: repoKey, Path: nodePath,
+		Detail: fmt.Sprintf(`{"digest":%q,"tag":%q,"size":%d,"refs":%d}`,
+			digest, tag, size, len(rows)),
+	})
+	return &PutManifestResult{Manifest: &metadata.DockerManifest{
+		RepoKey: repoKey, Image: image, Digest: digest,
+		MediaType: mediaType, Size: size, CreatedBy: p.Name, CreatedAt: now,
+	}, Node: n, TagRepointed: repointedFrom}, nil
+}
+
+// ResolveManifest implements Service.ResolveManifest: the index row of one
+// digest. The read gate is the image folder (r).
+func (s *service) ResolveManifest(ctx context.Context, p *Principal, repoKey, image, digest string) (*metadata.DockerManifest, error) {
+	if err := validateDockerImage(image); err != nil {
+		return nil, err
+	}
+	if err := validateDigest(digest); err != nil {
+		return nil, err
+	}
+	if _, err := s.loadLocalDockerRepo(ctx, repoKey); err != nil {
+		return nil, err
+	}
+	if !s.allow(ctx, p, repoKey, dockerPermPath(image), ActionRead) {
+		if p == nil {
+			return nil, fmt.Errorf("read %s/%s: %w", repoKey, image, ErrUnauthorized)
+		}
+		return nil, fmt.Errorf("read %s/%s: %w", repoKey, image, ErrForbidden)
+	}
+	m, err := s.md.Docker().GetManifest(ctx, repoKey, image, digest)
+	if err != nil {
+		if errors.Is(err, metadata.ErrManifestNotFound) {
+			return nil, fmt.Errorf("manifest %s/%s@%s: %w", repoKey, image, digest, ErrManifestNotFound)
+		}
+		return nil, fmt.Errorf("manifest %s/%s@%s: %w", repoKey, image, digest, err)
+	}
+	s.audit(ctx, AuditEvent{Actor: actor(p), Action: AuditActionDownload, Repo: repoKey, Path: nodePathFor(image, digest)})
+	return m, nil
+}
+
+// nodePathFor is the layout-path spelling used by audit records.
+func nodePathFor(image, digest string) string { return dockerImageManifestPath(image, digest) }
+
+// ResolveTag implements Service.ResolveTag.
+func (s *service) ResolveTag(ctx context.Context, p *Principal, repoKey, image, tag string) (*metadata.DockerTag, error) {
+	if err := validateDockerImage(image); err != nil {
+		return nil, err
+	}
+	if err := validateTag(tag); err != nil {
+		return nil, err
+	}
+	if _, err := s.loadLocalDockerRepo(ctx, repoKey); err != nil {
+		return nil, err
+	}
+	if !s.allow(ctx, p, repoKey, dockerPermPath(image), ActionRead) {
+		if p == nil {
+			return nil, fmt.Errorf("read %s/%s: %w", repoKey, image, ErrUnauthorized)
+		}
+		return nil, fmt.Errorf("read %s/%s: %w", repoKey, image, ErrForbidden)
+	}
+	t, err := s.md.Docker().GetTag(ctx, repoKey, image, tag)
+	if err != nil {
+		if errors.Is(err, metadata.ErrTagNotFound) {
+			return nil, fmt.Errorf("tag %s/%s:%s: %w", repoKey, image, tag, ErrTagNotFound)
+		}
+		return nil, fmt.Errorf("tag %s/%s:%s: %w", repoKey, image, tag, err)
+	}
+	s.audit(ctx, AuditEvent{Actor: actor(p), Action: AuditActionDownload, Repo: repoKey, Path: dockerImageManifestPath(image, t.Digest)})
+	return t, nil
+}
+
+// ListTags implements Service.ListTags. The store returns the image's tags
+// in tag order; the n/last slice applies the official pagination contract on
+// top (docker-registry.md section 6: exclusive last cursor, n as the page
+// size, n<=0 = full list).
+func (s *service) ListTags(ctx context.Context, p *Principal, repoKey, image string, n int, last string) ([]*metadata.DockerTag, error) {
+	if err := validateDockerImage(image); err != nil {
+		return nil, err
+	}
+	if last != "" {
+		if err := validateTag(last); err != nil {
+			return nil, err
+		}
+	}
+	if _, err := s.loadLocalDockerRepo(ctx, repoKey); err != nil {
+		return nil, err
+	}
+	if !s.allow(ctx, p, repoKey, dockerPermPath(image), ActionRead) {
+		if p == nil {
+			return nil, fmt.Errorf("read %s/%s: %w", repoKey, image, ErrUnauthorized)
+		}
+		return nil, fmt.Errorf("read %s/%s: %w", repoKey, image, ErrForbidden)
+	}
+	tags, err := s.md.Docker().ListTagsByImage(ctx, repoKey, image)
+	if err != nil {
+		return nil, fmt.Errorf("tags of %s/%s: %w", repoKey, image, err)
+	}
+	if len(tags) == 0 {
+		// Distinguish "image unknown" from "image without tags": the former
+		// is NAME_UNKNOWN, the latter an empty page (docker-registry.md
+		// section 6, the two official shapes).
+		if _, err := s.md.Docker().ListManifestsByImage(ctx, repoKey, image); err != nil {
+			return nil, fmt.Errorf("manifests of %s/%s: %w", repoKey, image, err)
+		}
+		return nil, fmt.Errorf("image %s/%s: %w", repoKey, image, ErrImageNotFound)
+	}
+	tags = sliceAfterCursor(tags, n, last, func(t *metadata.DockerTag) string { return t.Tag })
+	return tags, nil
+}
+
+// ListImages implements Service.ListImages (the _catalog source): image
+// names prefixed with the repository key, lexicographic, n/last sliced.
+func (s *service) ListImages(ctx context.Context, p *Principal, repoKey string, n int, last string) ([]string, error) {
+	if _, err := s.loadLocalDockerRepo(ctx, repoKey); err != nil {
+		return nil, err
+	}
+	if !s.allow(ctx, p, repoKey, "", ActionRead) {
+		if p == nil {
+			return nil, fmt.Errorf("read %s: %w", repoKey, ErrUnauthorized)
+		}
+		return nil, fmt.Errorf("read %s: %w", repoKey, ErrForbidden)
+	}
+	// The exclusive cursor compares against the FULL "<repoKey>/<image>"
+	// name: the caller's last came from a previous page of the same shape.
+	after := ""
+	if last != "" {
+		if !strings.HasPrefix(last, repoKey+"/") {
+			return nil, fmt.Errorf("catalog cursor %q: %w: must start with %q", last, ErrInvalidImage, repoKey+"/")
+		}
+		after = strings.TrimPrefix(last, repoKey+"/")
+	}
+	images, err := s.md.Docker().ListImages(ctx, repoKey, after, n)
+	if err != nil {
+		return nil, fmt.Errorf("catalog of %s: %w", repoKey, err)
+	}
+	out := make([]string, len(images))
+	for i, img := range images {
+		out[i] = repoKey + "/" + img
+	}
+	return out, nil
+}
+
+// sliceAfterCursor applies the official pagination slice to an ordered page:
+// drop everything through the exclusive last cursor, then cap at n (n<=0 =
+// no cap). Not finding the cursor is NOT an error — the official semantics
+// are undefined there and an empty tail is the least surprising answer (a
+// page edge that moved since the caller fetched it).
+func sliceAfterCursor[T any](page []T, n int, last string, key func(T) string) []T {
+	if last != "" {
+		i := indexAfterCursor(page, last, key)
+		if i < 0 {
+			return nil // cursor beyond the tail: nothing follows it
+		}
+		page = page[i:]
+	}
+	if n > 0 && len(page) > n {
+		page = page[:n]
+	}
+	return page
+}
+
+// indexAfterCursor returns the position just past the cursor's entry, or -1
+// when the cursor is not on the page.
+func indexAfterCursor[T any](page []T, last string, key func(T) string) int {
+	for i, v := range page {
+		if key(v) == last {
+			return i + 1
+		}
+	}
+	return -1
+}
+
+// DeleteManifest implements Service.DeleteManifest: permission plus node
+// drop here, index row and its tag/ref cascade in the store's one
+// transaction (architecture section 11.12 — reimplementing the cascade at
+// this layer would break the same-transaction guarantee FR-9-AC6 tests).
+// The referenced blobs are never touched; GC owns the bytes.
+func (s *service) DeleteManifest(ctx context.Context, p *Principal, repoKey, image, digest string) error {
+	if err := requireAuthenticated(p); err != nil {
+		return err
+	}
+	if err := validateDockerImage(image); err != nil {
+		return err
+	}
+	if err := validateDigest(digest); err != nil {
+		return err
+	}
+	if _, err := s.loadLocalDockerRepo(ctx, repoKey); err != nil {
+		return err
+	}
+	permPath := dockerPermPath(image)
+	if !s.allow(ctx, p, repoKey, permPath, ActionDelete) {
+		return fmt.Errorf("delete %s/%s: %w", repoKey, permPath, ErrForbidden)
+	}
+
+	// Resolve first: not-found must surface BEFORE the store's cascade runs.
+	// The not-found branch also heals the one crash window this use case
+	// has: if the store's transaction committed but the node delete below
+	// never ran (process death between the two), the manifest row is gone
+	// while its layout node lingers — a retry would otherwise answer 404
+	// forever without ever cleaning the residue. A node whose sha256 IS the
+	// digest is that residue by construction (the layout path is
+	// digest-keyed and the index is the registry's authority); anything
+	// else at the path is not ours to touch.
+	if _, err := s.md.Docker().GetManifest(ctx, repoKey, image, digest); err != nil {
+		if !errors.Is(err, metadata.ErrManifestNotFound) {
+			return fmt.Errorf("manifest %s/%s@%s: %w", repoKey, image, digest, err)
+		}
+		nodePath := dockerImageManifestPath(image, digest)
+		if n, nerr := s.md.Nodes().Get(ctx, repoKey, nodePath); nerr == nil && n.Sha256 == digest {
+			if err := s.md.Nodes().Delete(ctx, repoKey, nodePath); err != nil && !errors.Is(err, metadata.ErrNodeNotFound) {
+				return fmt.Errorf("heal node %s/%s: %w", repoKey, nodePath, err)
+			}
+			if err := s.pruneEmptyParents(ctx, repoKey, nodePath); err != nil {
+				return err
+			}
+		}
+		return fmt.Errorf("manifest %s/%s@%s: %w", repoKey, image, digest, ErrManifestNotFound)
+	}
+
+	// Index first, node second: the store's transaction is the atomic unit;
+	// a node delete that follows can only orphan a blob (GC territory),
+	// never leave a live node with no index row to walk back from.
+	if err := s.md.Docker().DeleteManifest(ctx, repoKey, image, digest); err != nil {
+		return fmt.Errorf("delete manifest %s/%s@%s: %w", repoKey, image, digest, err)
+	}
+	nodePath := dockerImageManifestPath(image, digest)
+	if err := s.md.Nodes().Delete(ctx, repoKey, nodePath); err != nil {
+		if !errors.Is(err, metadata.ErrNodeNotFound) {
+			return fmt.Errorf("delete node %s/%s: %w", repoKey, nodePath, err)
+		}
+	}
+	if err := s.pruneEmptyParents(ctx, repoKey, nodePath); err != nil {
+		return err
+	}
+	s.audit(ctx, AuditEvent{
+		Actor: p.Name, Action: AuditActionDelete, Repo: repoKey, Path: nodePath,
+		Detail: fmt.Sprintf(`{"digest":%q}`, digest),
+	})
+	return nil
+}
+
+// DeleteRepoDocker implements Service.DeleteRepoDocker: the docker index
+// teardown of a repository. docker_manifests and docker_tags cascade through
+// their FKs when the repositories row goes; docker_refs deliberately has no
+// FK (architecture section 11.12), so this drops it explicitly — BEFORE the
+// repositories delete (afterwards the repo_key would still match rows it can
+// no longer be identified by, and they would pin blobs in GC's mark set
+// forever). The manifests/tags drop here keeps the three tables moving
+// together even if a later step fails.
+func (s *service) DeleteRepoDocker(ctx context.Context, repoKey string) (int64, error) {
+	dk := s.md.Docker()
+	images, err := dk.ListImages(ctx, repoKey, "", 0)
+	if err != nil {
+		return 0, fmt.Errorf("catalog of %q: %w", repoKey, err)
+	}
+	for _, image := range images {
+		if _, err := dk.DeleteImage(ctx, repoKey, image); err != nil {
+			return 0, fmt.Errorf("docker teardown %q image %q: %w", repoKey, image, err)
+		}
+	}
+	refs, err := dk.DeleteRepoRefs(ctx, repoKey)
+	if err != nil {
+		return 0, fmt.Errorf("docker teardown %q refs: %w", repoKey, err)
+	}
+	return refs, nil
+}
+
 // ---- Repository CRUD ----
 
 // CreateRepo implements Service.CreateRepo.
@@ -763,12 +1196,15 @@ func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 // deleteContent fails with an error whose message names the flag
 // (FR-3-AC5); with deleteContent every node goes first, then the row
 // itself (the FK cascades nodes as a backstop; deleting them explicitly
-// keeps the operation's blast radius observable).
+// keeps the operation's blast radius observable). Docker repositories
+// additionally count their manifest index as content and tear the three
+// docker tables down before the row goes (FR-7-AC5).
 func (s *service) DeleteRepo(ctx context.Context, p *Principal, repoKey string, deleteContent bool) error {
 	if err := requireAdmin(p); err != nil {
 		return err
 	}
-	if _, err := s.md.Repos().Get(ctx, repoKey); err != nil {
+	repoRow, err := s.md.Repos().Get(ctx, repoKey)
+	if err != nil {
 		if errors.Is(err, metadata.ErrRepoNotFound) {
 			return fmt.Errorf("repo %q: %w", repoKey, ErrRepoNotFound)
 		}
@@ -778,15 +1214,44 @@ func (s *service) DeleteRepo(ctx context.Context, p *Principal, repoKey string, 
 	if err != nil {
 		return fmt.Errorf("repo %q nodes: %w", repoKey, err)
 	}
+	// A docker repository also "holds content" through its manifest index —
+	// a repo whose nodes were pruned but whose manifests remain (digest-only
+	// pushes leave no folder rows, tags go under the image name) is not
+	// empty either. Counting the catalog is the cheap sufficient probe.
+	// (Tag rows cannot outlive their manifest: PutManifest writes the
+	// manifest row before the tag, and the store's delete cascade removes
+	// both in one transaction.)
+	images := 0
+	if repoRow.PackageType == PackageDocker {
+		rows, err := s.md.Docker().ListImages(ctx, repoKey, "", 0)
+		if err != nil {
+			return fmt.Errorf("repo %q docker catalog: %w", repoKey, err)
+		}
+		images = len(rows)
+	}
 	if len(nodes) > 0 && !deleteContent {
 		return fmt.Errorf(
 			"%w: %q holds %d node(s); retry with deleteContent=true to remove them",
 			ErrRepoNotEmpty, repoKey, len(nodes))
 	}
+	if images > 0 && !deleteContent {
+		return fmt.Errorf(
+			"%w: %q holds %d docker image(s); retry with deleteContent=true to remove them",
+			ErrRepoNotEmpty, repoKey, images)
+	}
 	if len(nodes) > 0 {
 		if _, err := s.md.Nodes().DeleteByPrefix(ctx, repoKey, ""); err != nil {
 			return fmt.Errorf("repo %q delete content: %w", repoKey, err)
 		}
+	}
+	// Docker index teardown (FR-7-AC5): the three docker tables follow the
+	// repository out. docker_refs has no DB-level FK (architecture section
+	// 11.12), so skipping this would leave rows pinning blobs in GC's mark
+	// set forever; manifests/tags go here too so the tables move together
+	// even when deleteContent=false (an empty docker repo may still hold
+	// index rows — a repo with only by-digest manifests has no nodes).
+	if _, err := s.DeleteRepoDocker(ctx, repoKey); err != nil {
+		return fmt.Errorf("repo %q docker teardown: %w", repoKey, err)
 	}
 	if err := s.md.Repos().Delete(ctx, repoKey); err != nil {
 		if errors.Is(err, metadata.ErrRepoNotFound) {
