@@ -1,10 +1,14 @@
 # 迭代报告 116 — Sprint 116
 
-- 日期：2026-08-19 00:40（T-39 正确性 review 回报触发的裁决轮）
+- 日期：2026-08-19 00:40（T-39 review 裁决轮 + 用户决策「文档服务使用 Docusaurus」处理）
 - 里程碑：M2
 - conductor：主会话
 
-## 本轮动作摘要
+## 用户新决策（追加）
+
+**文档中心（docs/user/，M5 交付）采用 Docusaurus**——已派 T-50（architect）：ADR-0011 选型（候选对比 + 与 M4 控制台同栈 React 的理由）；两个架构接点裁决（交付形态：独立静态站 vs go:embed 自带 /docs 路由——倾向后者符合单二进制差异化，待 architect 权衡；源文件与站点配置分离——writer 继续只写 Markdown）。影响面：T-46 docker 文档将成为 Docusaurus 首批页面；M5 需加脚手架票。
+
+## 原动作摘要（T-39 裁决）
 
 1. **T-39 正确性 review：REQUEST_CHANGES（1 blocker）**→ 修复单已派：
    - B1「假失败真发布」：重复 descriptor digest 撞 docker_refs PK → 500 但 manifest 已生效（GET by-tag 200 逐位一致）——违反「任何失败先于状态变更」不变量；修法两层（adapter 去重主修 + store INSERT OR IGNORE 纵深）+ fake PK 语义对齐（逃逸根因）+ 4 行重复态测试。

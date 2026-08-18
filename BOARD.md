@@ -73,6 +73,8 @@
 
 - **T-39** [P0] manifest 链（修复轮） `role:dev-registry-adapter`
   状态：双 review 合并（架构 APPROVE + 正确性 REQUEST_CHANGES 1 blocker：重复 digest 撞 refs PK → 假失败真发布）→ 修复在途：adapter 去重 + store INSERT OR IGNORE 纵深 + fake PK 语义对齐 + 4 行测试。
+- **T-50** [P0] ADR-0011：文档中心 Docusaurus 选型 `role:architect` `area:DECISIONS.md、docs/design`
+  状态：00:5x 派发（用户定案），在途。两接点裁决：交付形态（独立站 vs go:embed 自带 /docs）；源/站点配置分离（writer 不碰 Docusaurus）。
 
 ## 👀 评审中（review）
 
