@@ -346,11 +346,16 @@ func TestV2RouteGate(t *testing.T) {
 		t.Fatalf("403 body = %s, want DENIED", body)
 	}
 
-	// Authorized writer passes the gate (foundation 404 from T-38's stub).
+	// Authorized writer passes the gate: the manifest route answers the
+	// protocol's own validation (T-39), not a permission refusal — an
+	// empty body without a Content-Type is MANIFEST_INVALID.
 	resp = h.do(http.MethodPut, "/v2/team1/app/manifests/latest", "writer", "writer-pw", nil, nil)
 	body = mustGet(t, resp)
-	if resp.StatusCode != http.StatusNotFound {
+	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("authorized write status = %d; body=%s", resp.StatusCode, body)
+	}
+	if !strings.Contains(body, `"MANIFEST_INVALID"`) {
+		t.Fatalf("authorized write body = %s, want MANIFEST_INVALID (past the gate)", body)
 	}
 
 	// Read-only principal reading passes the gate too.

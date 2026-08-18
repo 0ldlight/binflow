@@ -29,10 +29,11 @@ func (h *Handler) RepoTypes() []string { return []string{} }
 //   - /v2/token — the token endpoint (T-37);
 //   - blob routes — uploads (three push styles, offset query, cancel) and
 //     the blob read plane (T-38);
+//   - manifest routes — PUT/GET/HEAD/DELETE over tags and digests (T-39);
 //   - every other name route — the repo gate (ADR-0010 clause 3) with the
-//     manifest/catalog bodies landing in T-39/T-40 (their routes currently
-//     fall through to the spec-body 404, the DE-16 posture for anything
-//     not implemented).
+//     catalog body landing in T-40 (its route, like tags/list and
+//     referrers, currently falls through to the spec-body 404, the DE-16
+//     posture for anything not implemented).
 //
 // The middleware chain (requestID/accessLog/recover/CORS/authenticate) has
 // already run upstream; the principal arrives through
@@ -214,6 +215,10 @@ func (h *Handler) serveNameRoute(w http.ResponseWriter, r *http.Request, path st
 	}
 	if strings.HasPrefix(ref.tail, "blobs/") {
 		h.serveBlob(w, r, ref, ref.tail)
+		return
+	}
+	if strings.HasPrefix(ref.tail, "manifests/") {
+		h.serveManifest(w, r, ref, ref.tail)
 		return
 	}
 	writeSpecError(w, http.StatusNotFound, ErrCodeUnsupported,

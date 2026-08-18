@@ -171,18 +171,23 @@ func TestV2NameResolution(t *testing.T) {
 		message string // substring asserted when non-empty
 	}{
 		{
-			name:    "repo with image falls through to the foundation 404",
-			method:  http.MethodGet,
-			path:    "/v2/team1/app/manifests/latest",
-			status:  http.StatusNotFound,
-			message: "not implemented",
+			// T-39: the manifest route serves its protocol answer now — an
+			// unknown tag is MANIFEST_UNKNOWN (the name resolved fine).
+			name:   "repo with image resolves onto the manifest plane",
+			method: http.MethodGet,
+			path:   "/v2/team1/app/manifests/latest",
+			status: http.StatusNotFound,
+			code:   "MANIFEST_UNKNOWN",
 		},
 		{
+			// Same resolution with a nested image name; the malformed digest
+			// reference answers the protocol's DIGEST_INVALID.
 			name:    "nested image name resolves the same repo key",
 			method:  http.MethodGet,
 			path:    "/v2/team1/acme/app/manifests/sha256:abc",
-			status:  http.StatusNotFound,
-			message: "not implemented",
+			status:  http.StatusBadRequest,
+			code:    "DIGEST_INVALID",
+			message: "invalid docker digest",
 		},
 		{
 			name:   "single-segment name has no repository split",

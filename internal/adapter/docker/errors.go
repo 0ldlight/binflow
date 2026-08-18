@@ -46,6 +46,18 @@ const (
 	// ErrCodeUnavailable: the registry is temporarily unavailable (storage
 	// engine shutting down).
 	ErrCodeUnavailable = "UNAVAILABLE"
+	// ErrCodeManifestUnknown: the manifest addressed by the tag/digest is
+	// not known to the registry (DE-09's 404 body; also the Accept
+	// negotiation miss — the requested representation does not exist).
+	ErrCodeManifestUnknown = "MANIFEST_UNKNOWN"
+	// ErrCodeManifestInvalid: the manifest body/descriptors failed
+	// structural parsing (schema1 refusal included, PRD section 6.5).
+	ErrCodeManifestInvalid = "MANIFEST_INVALID"
+	// ErrCodeManifestBlobUnknown: a manifest references a blob the
+	// repository does not serve (the official code — Artifactory folds this
+	// into MANIFEST_INVALID's wording, docker-registry.md section 10
+	// recommendation 1; D13b).
+	ErrCodeManifestBlobUnknown = "MANIFEST_BLOB_UNKNOWN"
 )
 
 // specError is one entry of the registry error body.

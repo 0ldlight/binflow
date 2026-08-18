@@ -49,16 +49,27 @@ type blobHarness struct {
 	admin     bool
 }
 
-// fakeService is a table-backed repo.Service for the blob read/mount paths:
-// Get serves in-memory blobs registered by path; PutFromBlob records calls.
-// The docker-only methods are stubs (T-39's tests drive them).
+// fakeService is a table-backed repo.Service for the blob read/mount paths
+// and (T-39) the manifest plane: Get serves in-memory blobs registered by
+// path; Put/PutFromBlob record calls; the manifest index is a slice pair
+// seeded through PutManifest itself (so the adapter's own writes drive the
+// reads back).
 type fakeService struct {
 	mu     sync.Mutex
 	blobs  map[string][]byte // "<repoKey>/<path>" -> content
+	mimes  map[string]string // "<repoKey>/<path>" -> mime of the last Put
 	puts   []mountCall
 	getErr map[string]error
 	putErr error
 	engine storage.Engine // committed-blob source for PutFromBlob
+
+	// manifest-plane tables (T-39).
+	manifests      []*metadata.DockerManifest
+	tags           []*metadata.DockerTag
+	refs           []*metadata.DockerRef
+	putManifestErr error // injected publish failure
+	resolveErr     error // injected ResolveManifest/ResolveTag failure
+	deleteErr      error // injected DeleteManifest failure
 }
 
 type mountCall struct {
@@ -66,7 +77,7 @@ type mountCall struct {
 }
 
 func newFakeService() *fakeService {
-	return &fakeService{blobs: map[string][]byte{}, getErr: map[string]error{}}
+	return &fakeService{blobs: map[string][]byte{}, mimes: map[string]string{}, getErr: map[string]error{}}
 }
 
 func (f *fakeService) put(repoKey, path string, content []byte) {
@@ -142,7 +153,7 @@ var errNodeNotFoundFake = fmt.Errorf("node: %w", repo.ErrNodeNotFound)
 // Put mirrors the real service's landing path for the registration flow:
 // the body is stored at the path (the adapter re-feeds the committed blob;
 // the engine's Commit dedups, so no second copy appears).
-func (f *fakeService) Put(_ context.Context, _ *Principal, repoKey, path string, body io.Reader, _ storage.BlobRef, _ string) (*metadata.Node, error) {
+func (f *fakeService) Put(_ context.Context, _ *Principal, repoKey, path string, body io.Reader, _ storage.BlobRef, mime string) (*metadata.Node, error) {
 	f.mu.Lock()
 	putErr := f.putErr
 	f.mu.Unlock()
@@ -155,6 +166,7 @@ func (f *fakeService) Put(_ context.Context, _ *Principal, repoKey, path string,
 	}
 	f.mu.Lock()
 	f.puts = append(f.puts, mountCall{repoKey: repoKey, path: path, hex: sha256Hex(content)})
+	f.mimes[repoKey+"/"+path] = mime
 	f.mu.Unlock()
 	f.put(repoKey, path, content)
 	return &metadata.Node{RepoKey: repoKey, Path: path, Sha256: sha256Hex(content), Size: int64(len(content))}, nil
@@ -188,16 +200,94 @@ func (f *fakeService) DeleteRepo(context.Context, *Principal, string, bool) erro
 	return errUnimplementedFake
 }
 
-func (f *fakeService) PutManifest(context.Context, *Principal, string, string, string, string, string, int64, []*metadata.DockerRef) (*repo.PutManifestResult, error) {
-	return nil, errUnimplementedFake
+// PutManifest (fake): records the manifest row, the tag pointer and the
+// ref ledger exactly once per digest (idempotent republish refreshes tags
+// and refs only, mirroring the real service), and writes the manifest node
+// at the layout path with the media type as its mime (the real service's
+// putNode step — the adapter's read path streams from that node).
+func (f *fakeService) PutManifest(_ context.Context, _ *Principal, repoKey, image, digest, tag, mediaType string, size int64, refs []*metadata.DockerRef) (*repo.PutManifestResult, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.putManifestErr != nil {
+		return nil, f.putManifestErr
+	}
+	var existing *metadata.DockerManifest
+	for _, m := range f.manifests {
+		if m.RepoKey == repoKey && m.Image == image && m.Digest == digest {
+			existing = m
+			break
+		}
+	}
+	reported := existing
+	if reported == nil {
+		reported = &metadata.DockerManifest{
+			RepoKey: repoKey, Image: image, Digest: digest, MediaType: mediaType, Size: size}
+		f.manifests = append(f.manifests, reported)
+	}
+	// The manifest node (mirrors the real service's putNode at
+	// <image>/manifests/<hex>): the body was already stored by the adapter
+	// through the blob plane, so the node streams the same bytes with the
+	// manifest's media type.
+	nodePath := manifestNodePath(image, digest)
+	if _, ok := f.blobs[repoKey+"/"+nodePath]; !ok {
+		if body, ok := f.blobs[repoKey+"/"+blobNodePath(image, digest)]; ok {
+			f.blobs[repoKey+"/"+nodePath] = body
+			f.mimes[repoKey+"/"+nodePath] = mediaType
+		}
+	}
+	if tag != "" {
+		found := false
+		for _, t := range f.tags {
+			if t.RepoKey == repoKey && t.Image == image && t.Tag == tag {
+				t.Digest = digest
+				found = true
+				break
+			}
+		}
+		if !found {
+			f.tags = append(f.tags, &metadata.DockerTag{RepoKey: repoKey, Image: image, Tag: tag, Digest: digest})
+		}
+	}
+	kept := refs[:0:0]
+	for _, r := range refs {
+		if r != nil {
+			kept = append(kept, &metadata.DockerRef{
+				RepoKey: repoKey, Image: image, ManifestDigest: digest,
+				BlobDigest: r.BlobDigest, ChildMediaType: r.ChildMediaType})
+		}
+	}
+	f.refs = kept
+	return &repo.PutManifestResult{Manifest: reported}, nil
 }
 
-func (f *fakeService) ResolveManifest(context.Context, *Principal, string, string, string) (*metadata.DockerManifest, error) {
-	return nil, errUnimplementedFake
+// ResolveManifest (fake): the index row or ErrManifestNotFound.
+func (f *fakeService) ResolveManifest(_ context.Context, _ *Principal, repoKey, image, digest string) (*metadata.DockerManifest, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.resolveErr != nil {
+		return nil, f.resolveErr
+	}
+	for _, m := range f.manifests {
+		if m.RepoKey == repoKey && m.Image == image && m.Digest == digest {
+			return m, nil
+		}
+	}
+	return nil, fmt.Errorf("manifest: %w", repo.ErrManifestNotFound)
 }
 
-func (f *fakeService) ResolveTag(context.Context, *Principal, string, string, string) (*metadata.DockerTag, error) {
-	return nil, errUnimplementedFake
+// ResolveTag (fake): the tag's current digest or ErrTagNotFound.
+func (f *fakeService) ResolveTag(_ context.Context, _ *Principal, repoKey, image, tag string) (*metadata.DockerTag, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.resolveErr != nil {
+		return nil, f.resolveErr
+	}
+	for _, t := range f.tags {
+		if t.RepoKey == repoKey && t.Image == image && t.Tag == tag {
+			return t, nil
+		}
+	}
+	return nil, fmt.Errorf("tag: %w", repo.ErrTagNotFound)
 }
 
 func (f *fakeService) ListTags(context.Context, *Principal, string, string, int, string) ([]*metadata.DockerTag, error) {
@@ -208,8 +298,45 @@ func (f *fakeService) ListImages(context.Context, *Principal, string, int, strin
 	return nil, errUnimplementedFake
 }
 
-func (f *fakeService) DeleteManifest(context.Context, *Principal, string, string, string) error {
-	return errUnimplementedFake
+// DeleteManifest (fake): drops the manifest row and cascades its tags and
+// refs (the real store's same-transaction contract, mirrored for the
+// adapter's by-tag/by-digest assertions).
+func (f *fakeService) DeleteManifest(_ context.Context, _ *Principal, repoKey, image, digest string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.deleteErr != nil {
+		return f.deleteErr
+	}
+	found := false
+	kept := f.manifests[:0]
+	for _, m := range f.manifests {
+		if m.RepoKey == repoKey && m.Image == image && m.Digest == digest {
+			found = true
+			continue
+		}
+		kept = append(kept, m)
+	}
+	f.manifests = kept
+	if !found {
+		return fmt.Errorf("manifest: %w", repo.ErrManifestNotFound)
+	}
+	tags := f.tags[:0]
+	for _, t := range f.tags {
+		if t.RepoKey == repoKey && t.Image == image && t.Digest == digest {
+			continue
+		}
+		tags = append(tags, t)
+	}
+	f.tags = tags
+	refs := f.refs[:0]
+	for _, r := range f.refs {
+		if r.RepoKey == repoKey && r.Image == image && r.ManifestDigest == digest {
+			continue
+		}
+		refs = append(refs, r)
+	}
+	f.refs = refs
+	return nil
 }
 
 func (f *fakeService) DeleteRepoDocker(context.Context, string) (int64, error) {
