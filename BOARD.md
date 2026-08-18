@@ -71,11 +71,12 @@
 
 ## 🔨 进行中（doing）
 
-（空）
+- **T-39** [P0] manifest 链（修复轮） `role:dev-registry-adapter`
+  状态：双 review 合并（架构 APPROVE + 正确性 REQUEST_CHANGES 1 blocker：重复 digest 撞 refs PK → 假失败真发布）→ 修复在途：adapter 去重 + store INSERT OR IGNORE 纵深 + fake PK 语义对齐 + 4 行测试。
 
 ## 👀 评审中（review）
 
-- **T-39** [P0] manifest 链 — 编码完成，conductor 复现通过（race 绿 docker 14.3s+httpapi 51.9s/lint 0/12 包；curl 41 断言 + 容器内 daemon 协商全序列 + docker manifest inspect 真客户端 exit 0；D08b 降级构造）→ **双 reviewer**：架构已 APPROVE（0 blocker + R3 终审意见：透传+结构判读）；正确性在途。
+（空）
 
 ## 👀 评审中（review）
 
