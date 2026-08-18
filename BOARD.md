@@ -50,8 +50,9 @@
 
 ## 🔨 进行中（doing）
 
-- **T-31** [P0] 补逆向规格 docker-registry.md `role:reverse-engineer` `area:docs/reverse` `dep:m1-done`
-  状态：在途（双源 spec 分析中）。
+- **T-32** [P0] M2 工程 ticket 拆解 `role:tech-lead`
+  输入：M2 PRD v1.0 + 架构 M2 增量（ADR-0010）+ docker-registry 规格。AC：12~16 票、首批含 /v2 挂载与 002 迁移、docker 核心票双 reviewer、M1 遗留纳入。
+  状态：11:1x 派发，在途。
 
 ## 🧪 测试中（qa）
 
