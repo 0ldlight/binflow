@@ -17,14 +17,41 @@
 
 ## 📥 待办（todo）
 
-> 完整 AC 见 reports/agents/T-6.md（唯一全文）；此处为录入摘要。分批：1:T-7 → 2:{T-8,T-9,T-10} → 3:T-11 → 4:T-12 → 5:T-13 → 6:{T-14,T-20} → 7:T-15 → 8:T-16 → 9:T-17 → 10:{T-18,T-19 串行}。
+> M1 票全部 done（见下方）。M2 票 AC 全文见 reports/agents/T-32.md；分批：1:{T-33,T-34,T-36} → 2:{T-35,T-37,T-41} → 3:{T-38,T-42} → 4:{T-39} → 5:{T-40,T-46起} → 6:{T-43} → 7:{T-44,T-46终} → 8:{T-45}。双 reviewer：T-33/T-38/T-39。
 
-- **T-8** [P0] config 包：YAML+env 覆盖与 fail-fast 校验 `role:dev-go-core` `area:internal/config` `dep:T-7`
-  AC: ① Load 架构 §8 全量字段+env（BINFLOW_ 前缀 __ 层级）；匿名读双键名等价+冲突报错 ② fail-fast 校验；ADMIN_PASSWORD 只走 env ③ table-driven 覆盖校验与 env 矩阵
-- **T-9** [P0] storage 引擎：会话/checksum 寻址/原子落盘/GC `role:dev-go-storage` `area:internal/storage` `dep:T-7`（review 双 reviewer）
-  AC: ① Engine/Session + blobs/<xx>/<sha256> 布局 + write→fsync→rename→fsync(dir) + singleflight + sentinel ② 启动清扫 + GC dry-run 默认；-race 单测：去重/摘要不匹配/Abort 零残留/并发收敛/崩溃窗口 ③ 1GB RSS<256MB；三摘要与 sha256sum 一致；Open 返回 ReadSeekCloser
-- **T-10** [P0] metadata：SQLite Store+迁移器+001_init `role:dev-go-core` `area:internal/metadata` `dep:T-7`（review 双 reviewer）
-  AC: ① Store+六子接口+embedded 迁移器+modernc.org/sqlite+WAL+零 CGO ② 9 表 DDL+admin 种子（env 优先/缺省 password/argon2id）；permissions 按 PRD E-24 命名 target 扩展 ③ -race 单测：幂等迁移/upsert/ListByPrefix/Token 只存摘要/级联删
+- **T-35** [P0] repo：docker 仓库类型启用+docker 用例编排（FR-7） `role:dev-go-core` `area:internal/repo` `dep:T-34`
+  AC 摘要：① supportedPackageTypes[local][docker]+D01/C06 ② Service 扩 docker 用例（PutManifest/解析/ListTags/DeleteManifest 级联清 tags+refs 同批）③ 删仓级联三表
+- **T-37** [P0] docker token 流（FR-11） `role:dev-registry-adapter` `area:internal/adapter/docker(token)` `dep:T-33,T-47`
+  AC 摘要：① /v2/token 任意有效用户+匿名 pull 直发+OAuth 错误体 ② 挑战 scope 推导+Can 映射 ③ D04/D04b/docker login 冒烟。R7 边界：仅动 adapter/docker/。
+- **T-38** [P0] blob 域全链路（FR-8） `role:dev-registry-adapter` `area:internal/adapter/docker(blob)` `dep:T-33,T-35,T-37`
+  AC 摘要：① upload 三式+会话注册表+400 DIGEST_INVALID+毒化拒绝 ② mount 走 PutFromBlob+GET Range+HEAD+DELETE 405+空层特例 ③ D06~D14+Content-Range 矩阵。双 reviewer。
+- **T-39** [P0] manifest 链（FR-9） `role:dev-registry-adapter` `area:internal/adapter/docker(manifest)` `dep:T-38,T-35`
+  AC 摘要：① PUT 201+digest 校验+结构性解析透传+引用完整性+OCI-Subject ② GET/HEAD 原文一致+Accept 协商+DELETE by-digest 202 级联/by-tag 405 ③ D08/D08b+校验链失败全测。双 reviewer。R3 消歧前按透传【暂行】。
+- **T-40** [P0] catalog+tags/list+分页（FR-10） `role:dev-registry-adapter` `area:internal/adapter/docker(catalog)` `dep:T-39`
+  AC 摘要：① 字典序+空仓 tags:null ② n+Link 分页/n 缺省 100/n=0 400 ③ 删仓后不出现+Q5 过滤矩阵
+- **T-41** [P1] O1 断连日志定界 `role:dev-go-core` `area:internal/httpapi(middleware)` `dep:T-33`
+  AC 摘要：① Canceled+5xx→client_disconnect WARN 不进 5xx 计数 ② 慢中断无 ERROR ③ 三态测试。R7 边界：仅动 middleware.go/accessLog。
+- **T-42** [P1] gc 旗标+GC mark 扩容 `role:dev-go-core` `area:cmd/binflow-server` `dep:T-34`
+  AC 摘要：① gc -c/--grace-hours ② GC=nodes∪docker_refs ③ M1 gc 零回归
+- **T-43** [P0] QA：M2 协议矩阵+M1 回归基线 `role:qa-engineer` `area:验收` `dep:T-40,T-41,T-42,T-36`
+- **T-44** [P0] QA：五客户端 conformance+性能 `role:qa-engineer` `area:验收` `dep:T-43`
+- **T-45** [P0] 部署烟测（FR-14） `role:release-engineer` `area:deploy/dev、README` `dep:T-44`
+- **T-46** [P1] docker 接入用户文档 `role:tech-writer` `area:docs/user` `dep:T-43`
+
+## 🔨 进行中（doing）
+
+- **T-33** [P0] /v2 根级挂载、name 解析与 docker adapter 基座（ADR-0010） `role:dev-registry-adapter` `area:internal/httpapi(/v2 例外)、internal/adapter/docker(基座)` `dep:T-31`
+  AC 摘要：① /v2 根级例外+name 切分+NAME_UNKNOWN+D04 ② spec 错误信封+Api-Version 头+health registry 字段 ③ M1 零回归+R10（既有 /v2 404 测试同步改）。双 reviewer。
+  状态：11:3x 派发（批次 1），在途。R6：纯 UUID/相对 Location。
+- **T-34** [P0] metadata：002_docker 迁移三表+DockerStore `role:dev-go-core` `area:internal/metadata`
+  AC 摘要：① 002_docker.sql 按架构 §6 DDL/无 BEGIN-COMMIT/幂等/老库升级 ② Docker() 子接口 CRUD+前缀查询+按 digest 级联 ③ M1 零回归+一致性契约 doc。单 reviewer。
+  状态：11:3x 派发（批次 1），在途。
+- **T-36** [P2] generic Content-Type 扩展名映射（M1 遗留） `role:dev-registry-adapter` `area:internal/adapter/generic`
+  AC 摘要：① ~15 高频扩展名→mime/未知回退 octet-stream ② docker 域不受影响+M1 零回归。
+  状态：11:3x 派发（批次 1 填宽），在途。
+- **T-47** [P1] PRD v1.1 回写：R1/R2/R4/R5 `role:product-manager` `area:docs/prd` `dep:T-30,T-32`
+  AC：① R1 realm=/v2/token+双 token 入口说明（赶在 T-37 前）② R2 by-tag DELETE 405 ③ R4 tags:null 断言口径 ④ R5 §6.5 四项定案。
+  状态：11:3x 派发，在途。
 - **T-11** [P0] auth 与 audit：认证/Token/路径 ACL `role:dev-go-core` `area:internal/auth、internal/audit` `dep:T-8,T-10`
   AC: ① Authenticator（Basic/Token/X-JFrog-Art-Api/匿名）+argon2id+TokenRegistry（只存 sha256）② Authorizer.Can：admin 全过；命名 permission target（include/exclude 两级通配）；匿名仅内容 GET/HEAD ③ 权限矩阵/token 生命周期/改密单测
 - **T-12** [P0] repo.Service：local 用例编排与仓库 CRUD `role:dev-go-core` `area:internal/repo` `dep:T-9,T-10,T-11`（review 加正确性 reviewer）
@@ -50,19 +77,13 @@
 
 ## 🔨 进行中（doing）
 
-- **T-32** [P0] M2 工程 ticket 拆解 `role:tech-lead`
-  输入：M2 PRD v1.0 + 架构 M2 增量（ADR-0010）+ docker-registry 规格。AC：12~16 票、首批含 /v2 挂载与 002 迁移、docker 核心票双 reviewer、M1 遗留纳入。
-  状态：11:1x 派发，在途。
+（M2 批次 1 票见上方 doing 区——T-33/T-34/T-36/T-47）
 
 ## 🧪 测试中（qa）
 
 （空）
 
 ## 👀 评审中（review）
-
-（空）
-
-## 🧪 测试中（qa）
 
 （空）
 
@@ -140,6 +161,8 @@
 
 ## M2 票据（2026-08-18 起）
 
+- **T-32** [P0] M2 工程 ticket 拆解 `role:tech-lead` — done 2026-08-18
+  14 票（T-33~T-46）+ 8 批次表 + R1~R12 风险清单，全文 reports/agents/T-32.md。核验通过（area 分区/M1 复用面/双 reviewer 标注合理）。R1/R2/R4/R5→T-47（PM）；R3→architect 消歧票（赶在 T-39 前）；R6/R7/R8/R9/R10 进对应票派单要点。
 - **T-29** [P0] M2 PRD `role:product-manager` `area:docs/prd、ROADMAP.md` — done 2026-08-18
   milestone-2.md v1.0（515 行）：FR-7~FR-14（docker repo 类型/blob 三式/manifest schema2+OCI/catalog+tags/token 流/Helm OCI/五客户端矩阵/部署烟测）；DE-01~DE-17 兼容矩阵 + D01~D24 验收命令；M1 观察项 O1~O4 逐条定界；Q1 路由两案对比（待定）。核验通过。
 - **T-30** [P0] M2 架构增量 `role:architect` `area:docs/design、DECISIONS.md` — done 2026-08-18
