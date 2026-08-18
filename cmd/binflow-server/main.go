@@ -89,8 +89,11 @@ Flags for serve:
 
 Flags for gc:
 
-	--apply        Actually delete blobs (default is a dry-run listing)
-	--grace-days   Override storage.gc_grace for this run (positive integer)
+	-c string       Path to binflow.yaml, same resolution as serve (PRD 6.4 O3)
+	--apply         Actually delete blobs (default is a dry-run listing)
+	--grace-days    Override storage.gc_grace for this run (positive integer)
+	--grace-hours   Override storage.gc_grace with sub-day precision
+	                (positive integer; wins over --grace-days)
 
 Common flags:
 
@@ -439,15 +442,25 @@ func warnDefaultAdminPassword(ctx context.Context, s *stack, logger *slog.Logger
 }
 
 // runGC implements the gc subcommand (ADR-0006): mark (the set of sha256
-// values referenced by nodes, one SELECT DISTINCT) then sweep (storage
-// scans blobs/ and keeps blobs inside the grace window). Default is a
-// dry-run listing; --apply deletes for real, and after a successful sweep
-// the blobs ledger rows of the deleted checksums are dropped too.
+// values referenced by nodes ∪ docker_refs, architecture sections 4.4 and
+// 11.12) then sweep (storage scans blobs/ and keeps blobs inside the grace
+// window). Default is a dry-run listing; --apply deletes for real, and after
+// a successful sweep the blobs ledger rows of the deleted checksums are
+// dropped too.
+//
+// Flags (PRD 6.4 O3): -c resolves the config exactly like serve (explicit
+// path must exist, otherwise the ./binflow.yaml → $BINFLOW_HOME/binflow.yaml
+// → defaults cascade); --grace-hours overrides the configured grace with
+// sub-day precision and, when both are given, wins over --grace-days —
+// "hours" is the strictly more precise spelling of the same override, so
+// there is no ambiguity to reject.
 func runGC(args []string, stderr io.Writer) error {
 	fs := flag.NewFlagSet("gc", flag.ContinueOnError)
 	fs.SetOutput(stderr)
+	configPath := fs.String("c", "", "path to binflow.yaml (same resolution as serve)")
 	apply := fs.Bool("apply", false, "delete blobs instead of dry-run listing")
-	graceDays := fs.Int("grace-days", 0, "override storage.gc_grace for this run (positive integer, 0 = use config)")
+	graceDays := fs.Int("grace-days", 0, "override storage.gc_grace for this run in days (positive integer, 0 = use config)")
+	graceHours := fs.Int("grace-hours", 0, "override storage.gc_grace for this run in hours, sub-day precision (positive integer, 0 = use config; wins over --grace-days)")
 	if err := fs.Parse(args); err != nil {
 		return fmt.Errorf("parsing gc flags: %w", err)
 	}
@@ -457,16 +470,22 @@ func runGC(args []string, stderr io.Writer) error {
 	if *graceDays < 0 {
 		return fmt.Errorf("gc: --grace-days must be a positive integer, got %d", *graceDays)
 	}
+	if *graceHours < 0 {
+		return fmt.Errorf("gc: --grace-hours must be a positive integer, got %d", *graceHours)
+	}
 
 	ctx := context.Background()
 
-	cfg, err := loadServeConfig("")
+	cfg, err := loadServeConfig(*configPath)
 	if err != nil {
 		return err
 	}
 	grace := cfg.Storage.GCGrace
 	if *graceDays > 0 {
 		grace = time.Duration(*graceDays) * 24 * time.Hour
+	}
+	if *graceHours > 0 {
+		grace = time.Duration(*graceHours) * time.Hour
 	}
 
 	logger := slog.New(slog.NewTextHandler(stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
@@ -487,13 +506,9 @@ func runGC(args []string, stderr io.Writer) error {
 	defer func() { _ = md.Close() }()
 
 	referenced := func() (map[string]struct{}, error) {
-		rows, err := distinctNodeChecksums(ctx, md)
+		set, err := liveChecksumSet(ctx, md)
 		if err != nil {
 			return nil, fmt.Errorf("gc: referenced set: %w", err)
-		}
-		set := make(map[string]struct{}, len(rows))
-		for _, sha := range rows {
-			set[sha] = struct{}{}
 		}
 		return set, nil
 	}
@@ -526,37 +541,68 @@ func runGC(args []string, stderr io.Writer) error {
 	return nil
 }
 
-// distinctNodeChecksums returns the GC mark set: every sha256 referenced by
-// any node row (SELECT DISTINCT sha256 FROM nodes, architecture section
-// 4.4). It walks the NodeStore's public prefix listing per repository
-// (repo-key scoped, path-ordered), which is the same rows without giving
-// cmd a SQL handle; FilterUnreferenced is deliberately NOT used — since the
-// T-9 set-form callback it is the reconciliation path, not the GC mark
-// (architecture section 3.2 note).
-func distinctNodeChecksums(ctx context.Context, md metadata.Store) ([]string, error) {
+// liveChecksumSet returns the GC mark set: every sha256 referenced by any
+// node row UNION every blob_digest referenced by any docker_refs row
+// (architecture sections 4.4 and 11.12 — the SQL shape is "SELECT DISTINCT
+// sha256 FROM nodes UNION SELECT DISTINCT blob_digest FROM docker_refs").
+// docker_refs keys blobs by bare hex in the same keyspace, so the union is
+// direct.
+//
+// cmd has no SQL handle by design, so both sides go through public store
+// surfaces: the nodes half walks the NodeStore prefix listing per repository
+// (repo-key scoped, path-ordered — the same rows a SELECT DISTINCT would
+// yield); the refs half walks the DockerStore manifest index per (repo,
+// image) and each manifest's ref rows, aggregated here because the Docker
+// sub-store exposes no all-refs listing (by design: nothing else needs one).
+// RefsByBlob is per (repoKey, blobDigest); using it for the mark set would
+// need one EXISTS query per on-disk blob, which is the anti-join round the
+// T-9 set-form callback retired.
+//
+// BlobStore.FilterUnreferenced is deliberately NOT used — since the T-9
+// set-form callback it is the reconciliation path, not the GC mark
+// (architecture section 3.2 note), and it anti-joins against nodes only and
+// so would ignore docker_refs liveness anyway.
+func liveChecksumSet(ctx context.Context, md metadata.Store) (map[string]struct{}, error) {
+	set := map[string]struct{}{}
+
 	repos, err := md.Repos().List(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("listing repositories: %w", err)
 	}
-	seen := map[string]struct{}{}
-	var out []string
 	for _, r := range repos {
 		nodes, err := md.Nodes().ListByPrefix(ctx, r.RepoKey, "")
 		if err != nil {
 			return nil, fmt.Errorf("listing nodes of %s: %w", r.RepoKey, err)
 		}
 		for _, n := range nodes {
-			if n.Sha256 == "" {
-				continue
+			if n.Sha256 != "" {
+				set[n.Sha256] = struct{}{}
 			}
-			if _, dup := seen[n.Sha256]; dup {
-				continue
+		}
+
+		images, err := md.Docker().ListImages(ctx, r.RepoKey, "", 0)
+		if err != nil {
+			return nil, fmt.Errorf("listing docker images of %s: %w", r.RepoKey, err)
+		}
+		for _, image := range images {
+			manifests, err := md.Docker().ListManifestsByImage(ctx, r.RepoKey, image)
+			if err != nil {
+				return nil, fmt.Errorf("listing manifests of %s/%s: %w", r.RepoKey, image, err)
 			}
-			seen[n.Sha256] = struct{}{}
-			out = append(out, n.Sha256)
+			for _, m := range manifests {
+				refs, err := md.Docker().ListRefsByManifest(ctx, r.RepoKey, image, m.Digest)
+				if err != nil {
+					return nil, fmt.Errorf("listing refs of %s/%s@%s: %w", r.RepoKey, image, m.Digest, err)
+				}
+				for _, ref := range refs {
+					if ref.BlobDigest != "" {
+						set[ref.BlobDigest] = struct{}{}
+					}
+				}
+			}
 		}
 	}
-	return out, nil
+	return set, nil
 }
 
 // newLogger builds the process logger from logging.level / logging.format

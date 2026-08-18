@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"flag"
 	"io"
 	"log/slog"
 	"net/http"
@@ -137,8 +138,23 @@ func TestGCFlagMatrix(t *testing.T) {
 			wantOut: []string{"mode=dry-run", "grace=48h0m0s"},
 		},
 		{
+			name:    "grace-hours override is accepted (O3: sub-day precision)",
+			args:    []string{"gc", "--grace-hours", "1"},
+			wantOut: []string{"mode=dry-run", "grace=1h0m0s"},
+		},
+		{
+			name:    "grace-hours wins over grace-days when both given",
+			args:    []string{"gc", "--grace-days", "2", "--grace-hours", "3"},
+			wantOut: []string{"mode=dry-run", "grace=3h0m0s"},
+		},
+		{
 			name:    "negative grace is rejected",
 			args:    []string{"gc", "--grace-days", "-1"},
+			wantErr: "must be a positive integer",
+		},
+		{
+			name:    "negative grace-hours is rejected",
+			args:    []string{"gc", "--grace-hours", "-1"},
 			wantErr: "must be a positive integer",
 		},
 		{
@@ -164,6 +180,83 @@ func TestGCFlagMatrix(t *testing.T) {
 				t.Fatalf("run(%v) error = %v, want it to contain %q", tt.args, err, tt.wantErr)
 			}
 		})
+	}
+}
+
+// TestGCConfigFlagResolvesLikeServe (O3): gc -c accepts the same config
+// artifacts serve accepts. An alternate YAML's data_dir drives the run and
+// its gc_grace applies (no env override in play — config.Load gives env
+// keys precedence over YAML values, so a DATA_DIR env would mask the file's
+// data_dir and prove nothing about -c); an explicitly missing -c path is an
+// operator error, not a silent fallback to defaults — the serve contract.
+func TestGCConfigFlagResolvesLikeServe(t *testing.T) {
+	dir := t.TempDir()
+	dataDir := filepath.Join(dir, "alt-data")
+	cfgBody := "storage:\n  data_dir: " + dataDir + "\n  gc_grace_hours: 5\n"
+	altCfg := filepath.Join(dir, "other.yaml")
+	if err := os.WriteFile(altCfg, []byte(cfgBody), 0o600); err != nil {
+		t.Fatalf("write alt config: %v", err)
+	}
+	withEnv(t, map[string]string{
+		"BINFLOW_HOME":           "",
+		"BINFLOW_ADMIN_PASSWORD": "test-admin-pw",
+	})
+	restore := chdirTemp(t)
+	defer restore()
+
+	// The alternate config's data_dir and grace (not ./binflow.yaml, not
+	// the defaults) must win: the report names both.
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"gc", "-c", altCfg}, &stdout, &stderr); err != nil {
+		t.Fatalf("gc -c alt: %v\noutput:\n%s", err, stderr.String())
+	}
+	out := stderr.String()
+	if !strings.Contains(out, "data_dir="+dataDir) || !strings.Contains(out, "grace=5h0m0s") {
+		t.Fatalf("gc -c output = %q, want the alternate config's data_dir %s and grace 5h0m0s", out, dataDir)
+	}
+
+	// -c <missing> fails fast naming the file (same as serve).
+	stdout.Reset()
+	stderr.Reset()
+	missing := filepath.Join(dir, "no-such.yaml")
+	err := run([]string{"gc", "-c", missing}, &stdout, &stderr)
+	if err == nil || !strings.Contains(err.Error(), missing) {
+		t.Fatalf("gc -c <missing> error = %v, want it to name the missing path %s", err, missing)
+	}
+
+	// Sanity: without -c and without env, the run boots on defaults into
+	// ./data — so the assertion above really isolated the -c effect.
+	stdout.Reset()
+	stderr.Reset()
+	if err := run([]string{"gc"}, &stdout, &stderr); err != nil {
+		t.Fatalf("gc (defaults): %v\noutput:\n%s", err, stderr.String())
+	}
+	if got := stderr.String(); !strings.Contains(got, "data_dir=./data") || !strings.Contains(got, "grace=24h0m0s") {
+		t.Fatalf("gc without -c output = %q, want the default ./data and 24h grace", got)
+	}
+}
+
+// TestGCHelpWithFlagsO3 pins the PRD 6.4 O3 acceptance line verbatim:
+// "gc -c other.yaml --help" parses and prints usage. The flag package stops
+// at -h/--help before it would ever touch other.yaml, which is exactly why
+// a nonexistent path is the honest fixture here. The subcommand's flag-set
+// help goes to stderr and surfaces as flag.ErrHelp (the run dispatcher
+// prints nothing extra for it), so success here = the ErrHelp sentinel and
+// the flag listing naming -c and --grace-hours.
+func TestGCHelpWithFlagsO3(t *testing.T) {
+	restore := chdirTemp(t)
+	defer restore()
+	var stdout, stderr bytes.Buffer
+	// The path deliberately does not exist: --help short-circuits parsing.
+	err := run([]string{"gc", "-c", "other.yaml", "--help"}, &stdout, &stderr)
+	if !errors.Is(err, flag.ErrHelp) {
+		t.Fatalf("gc -c other.yaml --help error = %v, want flag.ErrHelp", err)
+	}
+	got := stderr.String()
+	for _, want := range []string{"-c string", "-grace-hours", "-grace-days", "-apply"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("gc flag help = %q, want it to list %q", got, want)
+		}
 	}
 }
 
@@ -278,6 +371,139 @@ func TestGCTwoModesOnRealStore(t *testing.T) {
 	}
 	if _, err := md2.Blobs().Get(ctx, unref); !errors.Is(err, metadata.ErrNotFound) {
 		t.Fatalf("unreferenced ledger row after --apply: %v, want ErrNotFound", err)
+	}
+}
+
+// TestGCDockerRefsExtendMarkSet (AC ②, architecture 11.12): the GC mark set
+// is nodes ∪ docker_refs. A blob with a docker_refs edge but NO node row is
+// NOT a dry-run candidate and survives --apply, while an equally old
+// unreferenced blob is collected. Everything is seeded through the stores'
+// public surface: the manifest/refs pair is written the way T-35's
+// PutManifest writes it, minus every node row — so only the union can save
+// the layer.
+func TestGCDockerRefsExtendMarkSet(t *testing.T) {
+	dir := t.TempDir()
+	dataDir := filepath.Join(dir, "data")
+	withEnv(t, map[string]string{
+		"BINFLOW_HOME":                    "",
+		"BINFLOW_ADMIN_PASSWORD":          "test-admin-pw",
+		"BINFLOW_STORAGE__DATA_DIR":       dataDir,
+		"BINFLOW_STORAGE__GC_GRACE_HOURS": "24",
+	})
+	restore := chdirTemp(t)
+	defer restore()
+
+	ctx := context.Background()
+	md, err := metadata.Open(ctx, metadata.Options{
+		Driver:        "sqlite",
+		DSN:           filepath.Join(dataDir, "binflow.db"),
+		AdminPassword: "test-admin-pw",
+	})
+	if err != nil {
+		t.Fatalf("metadata.Open: %v", err)
+	}
+
+	seedAgedBlob := func(body string) string {
+		t.Helper()
+		sum := sha256.Sum256([]byte(body))
+		sha := hex.EncodeToString(sum[:])
+		blobPath := filepath.Join(dataDir, "blobs", sha[:2], sha)
+		if err := os.MkdirAll(filepath.Dir(blobPath), 0o700); err != nil {
+			t.Fatalf("mkdir blob shard: %v", err)
+		}
+		if err := os.WriteFile(blobPath, []byte(body), 0o600); err != nil {
+			t.Fatalf("write blob: %v", err)
+		}
+		past := time.Now().Add(-72 * time.Hour)
+		if err := os.Chtimes(blobPath, past, past); err != nil {
+			t.Fatalf("backdate blob mtime: %v", err)
+		}
+		now := metadata.Now()
+		if err := md.Blobs().Put(ctx, &metadata.Blob{Sha256: sha, Size: int64(len(body)), CreatedAt: now}); err != nil {
+			t.Fatalf("blobs put: %v", err)
+		}
+		return sha
+	}
+
+	now := metadata.Now()
+	if err := md.Repos().Create(ctx, &metadata.Repo{
+		RepoKey: "docker-local", Type: "local", PackageType: "docker", CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("repo create: %v", err)
+	}
+
+	// A manifest plus its ref edge covering the layer blob, written the way
+	// the service layer writes them (T-35 PutManifest: manifests row + refs
+	// rows). The manifest's own body is deliberately given NO blob and NO
+	// node row — only the layer is on disk — so whatever keeps the layer
+	// alive can only be the docker_refs half of the union.
+	manifestDigest := hex.EncodeToString(make([]byte, 32))
+	if err := md.Docker().PutManifest(ctx, &metadata.DockerManifest{
+		RepoKey: "docker-local", Image: "app", Digest: manifestDigest,
+		MediaType: "application/vnd.docker.distribution.manifest.v2+json",
+		CreatedAt: now, CreatedBy: "admin",
+	}); err != nil {
+		t.Fatalf("put manifest: %v", err)
+	}
+	layerSha := seedAgedBlob("docker-layer-body-held-by-refs-only")
+	if err := md.Docker().PutRefs(ctx, "docker-local", "app", manifestDigest, []*metadata.DockerRef{
+		{RepoKey: "docker-local", Image: "app", ManifestDigest: manifestDigest, BlobDigest: layerSha, ChildMediaType: "application/vnd.docker.image.rootfs.diff.tar.gzip"},
+	}); err != nil {
+		t.Fatalf("put refs: %v", err)
+	}
+	orphanSha := seedAgedBlob("plain-unreferenced-body")
+
+	if err := md.Close(); err != nil {
+		t.Fatalf("metadata close: %v", err)
+	}
+
+	// Dry run: the refs-held blob must not be a candidate; the plain
+	// orphan must be.
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"gc"}, &stdout, &stderr); err != nil {
+		t.Fatalf("gc dry-run: %v\noutput:\n%s", err, stderr.String())
+	}
+	out := stderr.String()
+	if strings.Contains(out, layerSha) {
+		t.Fatalf("gc dry-run listed the docker_refs-held blob %s — mark set is not nodes ∪ docker_refs", layerSha)
+	}
+	if !strings.Contains(out, orphanSha) {
+		t.Fatalf("gc dry-run output = %q, want the plain orphan %s as a candidate", out, orphanSha)
+	}
+
+	// --apply: the refs-held blob physically survives, the orphan goes.
+	stdout.Reset()
+	stderr.Reset()
+	if err := run([]string{"gc", "--apply"}, &stdout, &stderr); err != nil {
+		t.Fatalf("gc --apply: %v\noutput:\n%s", err, stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(dataDir, "blobs", layerSha[:2], layerSha)); err != nil {
+		t.Fatalf("docker_refs-held blob must survive --apply: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dataDir, "blobs", orphanSha[:2], orphanSha)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("orphan blob after --apply: %v, want not exist", err)
+	}
+
+	// Drop the ref edge through the real cascade (manifest delete removes
+	// the refs in the same transaction) and the same blob becomes
+	// collectable — the union tracks the refs ledger, not history.
+	md2, err := metadata.Open(ctx, metadata.Options{Driver: "sqlite", DSN: filepath.Join(dataDir, "binflow.db")})
+	if err != nil {
+		t.Fatalf("reopen metadata: %v", err)
+	}
+	if err := md2.Docker().DeleteManifest(ctx, "docker-local", "app", manifestDigest); err != nil {
+		t.Fatalf("delete manifest (refs cascade): %v", err)
+	}
+	if err := md2.Close(); err != nil {
+		t.Fatalf("metadata close: %v", err)
+	}
+	stdout.Reset()
+	stderr.Reset()
+	if err := run([]string{"gc"}, &stdout, &stderr); err != nil {
+		t.Fatalf("gc dry-run after ref drop: %v\noutput:\n%s", err, stderr.String())
+	}
+	if out := stderr.String(); !strings.Contains(out, layerSha) {
+		t.Fatalf("gc after ref drop output = %q, want the now-unreferenced blob %s as a candidate", out, layerSha)
 	}
 }
 
