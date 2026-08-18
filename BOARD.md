@@ -43,12 +43,8 @@
 - **T-33** [P0] /v2 根级挂载、name 解析与 docker adapter 基座（ADR-0010） `role:dev-registry-adapter` `area:internal/httpapi(/v2 例外)、internal/adapter/docker(基座)` `dep:T-31`
   AC 摘要：① /v2 根级例外+name 切分+NAME_UNKNOWN+D04 ② spec 错误信封+Api-Version 头+health registry 字段 ③ M1 零回归+R10（既有 /v2 404 测试同步改）。双 reviewer。
   状态：11:3x 派发（批次 1），在途。R6：纯 UUID/相对 Location。
-- **T-34** [P0] metadata：002_docker 迁移三表+DockerStore `role:dev-go-core` `area:internal/metadata`
-  AC 摘要：① 002_docker.sql 按架构 §6 DDL/无 BEGIN-COMMIT/幂等/老库升级 ② Docker() 子接口 CRUD+前缀查询+按 digest 级联 ③ M1 零回归+一致性契约 doc。单 reviewer。
-  状态：11:3x 派发（批次 1），在途。
-- **T-36** [P2] generic Content-Type 扩展名映射（M1 遗留） `role:dev-registry-adapter` `area:internal/adapter/generic`
-  AC 摘要：① ~15 高频扩展名→mime/未知回退 octet-stream ② docker 域不受影响+M1 零回归。
-  状态：11:3x 派发（批次 1 填宽），在途。
+- **T-34** [P0] metadata：002_docker 迁移三表+DockerStore — 已提交 6df3b96，review 在途（条目移至 review 区）。
+- **T-36** [P2] generic Content-Type 扩展名映射 — done 2026-08-18，见 M2 done 区。
 - **T-47** [P1] PRD v1.1 回写 — done 2026-08-18，见 done 区。原 doing 条目移除。
 - **T-11** [P0] auth 与 audit：认证/Token/路径 ACL `role:dev-go-core` `area:internal/auth、internal/audit` `dep:T-8,T-10`
   AC: ① Authenticator（Basic/Token/X-JFrog-Art-Api/匿名）+argon2id+TokenRegistry（只存 sha256）② Authorizer.Can：admin 全过；命名 permission target（include/exclude 两级通配）；匿名仅内容 GET/HEAD ③ 权限矩阵/token 生命周期/改密单测
@@ -161,6 +157,8 @@
 
 ## M2 票据（2026-08-18 起）
 
+- **T-36** [P2] generic Content-Type 扩展名映射 `role:dev-registry-adapter` `area:internal/adapter/generic` — done 2026-08-18
+  mime.go 18 项映射（自有表→标准库分层，跨主机确定性）；PUT 端推断写 node.Mime（单一事实源：FileInfo/GET/HEAD/api/storage 自动一致）；客户端声明逐字优先；未知回退 octet-stream 不变。14 扩展名 curl 实测+大小写/复合扩展名/checksum-deploy 继承用例。轻量核验（P2+黑盒），T-43 全量复验。提交 0073358。
 - **T-47** [P1] M2 PRD v1.1 回写（R1/R2/R4/R5） `role:product-manager` `area:docs/prd` — done 2026-08-18
   R1 realm=/v2/token + 双 token 入口说明（赶在 T-37 前完成）+ D04c 新增；R2 by-tag 405；R4 tags:null 断言注记；R5 四项定案（4MB/offline_token 400/service=binflow/last exclusive）。核验通过；ROADMAP 版本引用顺手修正。
 - **T-34** [P0] metadata 002_docker 迁移+DockerStore（待 review 终裁） `role:dev-go-core` `area:internal/metadata` — 编码 done 2026-08-18
