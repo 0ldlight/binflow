@@ -71,13 +71,12 @@
 
 ## 🔨 进行中（doing）
 
-- **T-44-D44** [P0] 修 D44-1/2/3（ping 无条件挑战 / offline_token 接受忽略 / POST 表单凭据） `role:dev-registry-adapter` `area:internal/adapter/docker`
-  状态：在途（T-37 agent）。修后 T-44 仅复验 docker 行 + conformance 三组。
+（空）
 
 ## 🧪 测试中（qa）
 
-- **T-44** [P0] 五客户端 conformance — 首轮 FAIL（docker P0 三缺陷），修复后复验
-  podman/crane/oras/skopeo PASS + buildx 等效 + conformance 55/60（5 挂均 P2）+ 性能全绿（冷启动 0.039s/100 并发零 5xx）；docker 的 build/rmi/pull/run/inspect 绿、login+push 断于 D44-1/2/3。报告 reports/agents/T-44-qa.md。
+- **T-44 复验轮** — D44-1/2/3 修复已合入（2f505da）+ PRD v1.3；复验面：docker 双实例全链（含 buildx --push 与匿名 token 链）+ conformance 三组 + helm push。在途。
+  D44-4/5/6（P2）未修维持挂，如实记录不阻塞 DoD（收口归 T-45 后）。
 
 ## 👀 评审中（review）
 
