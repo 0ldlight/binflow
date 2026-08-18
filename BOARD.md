@@ -1,7 +1,7 @@
 # 任务看板（BOARD）
 
 > 唯一事实来源。**只有主会话（conductor）可以写本文件**，所有 subagent 只读。
-> ticket 由 tech-lead 生成、主会话录入。当前里程碑：M1 内核基座（见 ROADMAP.md）。
+> ticket 由 tech-lead 生成、主会话录入。当前里程碑：**M2 云原生旗舰 Docker Registry v2**（M1 已完成，tag m1-done，2026-08-18）。
 
 ## 票据格式
 
@@ -50,7 +50,15 @@
 
 ## 🔨 进行中（doing）
 
-（空）
+- **T-29** [P0] M2 PRD：Docker Registry v2 需求与验收 `role:product-manager` `area:docs/prd、ROADMAP.md` `dep:m1-done`
+  AC: ① docs/prd/milestone-2.md：blob upload 协议（monolithic+chunked）/manifest schema2+OCI/catalog+tags/token 认证流/Helm OCI 的用户故事+可验证 AC+兼容矩阵（docker/podman/crane/skopeo/oras 真实客户端命令级）② ROADMAP.md M2 状态更新 ③ M1 遗留观察项（O1~O4、Content-Type 映射）纳入或显式归档
+  状态：09:3x 派发，在途。
+- **T-30** [P0] M2 架构增量：docker adapter 与 /v2 挂载 `role:architect` `area:docs/design、DECISIONS.md` `dep:m1-done`
+  AC: ① §5.1 扩 docker adapter（blob upload session 映射到 storage.Session 的设计、manifest 存储、tag 指针、/v2 路由例外——ADR-0008 预告的 docker /v2 硬编码 vs /binflow 前缀冲突在此定案）② token 认证流（/v2/token JWT 还是自签结构）与现有 auth.TokenRegistry 关系 ③ 部署矩阵影响（反代 rewrite 或根级例外）
+  状态：09:3x 派发，在途。
+- **T-31** [P0] 补逆向规格 docker-registry.md `role:reverse-engineer` `area:docs/reverse` `dep:m1-done`
+  AC: ① docs/reverse/docker-registry.md：Registry v2 端点行为细节（补官方规范空白：错误码形态/上传会话语义/manifest 校验链/ acceptheader 协商），以 reverse-src/ + Docker 官方 spec 双证 ② 置信度标注 ③ clean-room 铁律
+  状态：09:3x 派发，在途。
 
 ## 🧪 测试中（qa）
 
