@@ -1,15 +1,18 @@
 # QA 报告 T-44 — 五客户端 conformance + 性能（PRD §8 剧本 6/8，FR-13）
 
 - role: qa-engineer
-- 日期: 2026-08-19
+- 日期: 2026-08-19（首轮）/ 2026-08-19（复验轮，见 §12）
 - 票据: T-44 [P0]（AC 全文见 reports/agents/T-32.md T-44 节）
-- 验收口径: docs/prd/milestone-2.md **v1.2**（D 序列 name 全名 `<repoKey>/<image>` 形态，C1 已遵守）
-- 被测对象: commit **c397d46**（`chore: sprint 136 - T-54 done`），独立 git worktree 构建，`binflow-server` 16.75 MB
+- 验收口径: 首轮 docs/prd/milestone-2.md **v1.2** / 复验轮 **v1.3**（D 序列 name 全名 `<repoKey>/<image>` 形态，C1 已遵守）
+- 被测对象: 首轮 commit **c397d46** / 复验轮 commit **2f505da**（`fix: T-44 D44-1/2/3`），均独立 git worktree 构建，`binflow-server` 16.75 MB
 - 环境: darwin/amd64；Docker Desktop daemon 29.7.2（x86_64 VM，经代理可拉公网镜像）；**全部客户端以容器形态执行**（宿主二进制全缺，见 §1）
 - 实例: A=`:64750` 匿名开（默认配置）/ B=`:64751` 匿名关（挑战模式）——双实例贯穿全票，用于分离两种认证形态下的客户端行为
 - 容器到宿主: LAN `192.168.1.70` 与 `host.docker.internal` 双路径均通
 
-## 总结论: **FAIL（AC① docker P0 未全过——三个 P0 缺陷 D44-1/2/3 互相咬合，阻断默认配置下的 docker push / buildx push / helm push；性能与其余客户端全绿）**
+## 总结论: **PASS（复验轮后；首轮 FAIL 的三个 P0 缺陷 D44-1/2/3 已于 2f505da 修复并双级验证，docker 行全绿；遗留全部 P2 级按 PRD「P2 延后 BOARD 记录」不阻塞）**
+
+> 首轮结论（FAIL，c397d46 + PRD v1.2）保留如下，证据见正文；复验轮（2f505da + PRD v1.3）见 §12：
+> 首轮 FAIL 原因——AC① docker P0 未全过：三个 P0 缺陷互相咬合，阻断默认配置下的 docker push / buildx push / helm push；性能与其余客户端全绿。
 
 - §5.3 P0 成员: **3/4 过**（podman/crane/oras 过，docker 挂）；P1 skopeo 过；P2 helm push 挂（记录不阻塞）；conformance suite 三组 55/60。
 - 性能三项全绿：D20 冷启动 0.039s（<2s）；NFR-P7 100 并发 100×exit0 零 5xx；NFR-P6 已记录。
@@ -191,3 +194,64 @@ buildx:           platform linux/amd64,linux/arm64 → OCI layout → crane push
 - dind 启动有 TLS 弃用警告减速（~15s），就绪探测别只等 5s。
 - buildkit 对 plain-HTTP 上游需 builder 级 `buildkitd.toml`（`[registry."host:port"] http=true`），daemon 的 insecure-registry 不覆盖 builder 容器。
 - conformance suite 必须显式给 `OCI_CROSSMOUNT_NAMESPACE`，否则 cross-mount 组假挂（本票三轮对照后确认）。
+- helm 的凭据文件路径是 `$HOME/.config/helm/registry/config.json`（`helm env` 的 HELM_REGISTRY_CONFIG），不是 `registry.json`（§12 复验轮踩坑收正）。
+
+---
+
+## 12. 复验轮（commit 2f505da + PRD v1.3，2026-08-19）
+
+- 范围（按收敛面）: docker 双实例行 + conformance 三组 + helm push；首轮已绿的其余客户端/性能不重跑。
+- 环境: 同首轮（dind 27.5.1、`--insecure-registry` 双端口、LAN 192.168.1.70）；实例 A/B 重建于空数据目录。
+
+### 12.1 修复面协议级确认（v1.3 口径）
+
+| 项 | v1.2（首轮） | v1.3（本轮实测） |
+|---|---|---|
+| `/v2/` 未认证 ping（A 匿名开） | 200 `{}`（无挑战） | **401 + `Www-Authenticate: Bearer realm=…/v2/token,service="binflow"`** |
+| `/v2/` 已认证 ping | 200 | 200 |
+| `GET /v2/token?…&offline_token=true`（D44-2） | 400 invalid_request | **200 正常 token** |
+| `POST /v2/token` 表单凭据（D44-3，curl） | 200 但匿名 scope（用之 push 401） | **200 真 push scope**（POST uploads → 202） |
+
+### 12.2 docker 行（10/10 全绿）
+
+| # | 场景 | 结果 | 证据 |
+|---|---|---|---|
+| 1 | D05 login 正确口令（A） | ✅ | `Login Succeeded`；服务端 `GET /v2/token user=admin → 200` |
+| 2 | D05 login **错误口令**（A，首轮空洞点） | ✅ | `Error response from daemon: … unauthorized: authentication required`，**exit 1**（FR-11-AC4 恢复；服务端 `basic credential rejected → 401`） |
+| 3 | D08 build（A） | ✅ | `docker build` exit 0 |
+| 4 | D08 **push（A 默认配置，D44-1 断点）** | ✅ | `08bc4e534116: Pushed`，`v1: digest: sha256:59e4e880…`，exit 0 |
+| 5 | D08 rmi→pull→run（A） | ✅ | 全 exit 0，`docker run --rm … echo ok` → **`ok`** |
+| 6 | logout 后匿名 pull→run（匿名 token 链） | ✅ | 拉取成功 + run `ok`；服务端 `GET /v2/token user=anonymous → 200`（anonseed 放行后匿名 token 可作 Bearer pull） |
+| 7 | B 挑战模式 login（offline_token 路径，D44-2 断点） | ✅ | `Login Succeeded`；token GET 全 200（首轮此处 400） |
+| 8 | B push/pull/run | ✅ | push 同 digest `59e4e880…`、pull、run `ok` 全 exit 0 |
+| 9 | buildx `--push` 登录态（D44-3 断点） | ✅ | `--platform linux/amd64,linux/arm64 --push` **直推成功**（`pushing manifest …@sha256:981efc9c… done`，exit 0）；index 含 amd64/arm64(+2 attestation)；daemon pull 选 amd64 → run `ok` |
+| 10 | D11 docker 级去重（首轮被 D44-1 阻的变体）+ digest 一致 | ✅ | 同镜像换 tag 重推：blobs **28→28**；push 输出 digest == 服务端 `Docker-Content-Digest` == `59e4e880…` |
+
+### 12.3 helm push（D44-3 断点之二）
+
+- `helm push --plain-http myapp-1.0.0.tgz oci://…/charts` → **`Pushed: …/charts/myapp:1.0.0`（digest sha256:0a7ffc0f…）**；`helm pull` 产物 `cmp` **逐位一致**。
+- 归因修正：首轮把 helm push 失败全归 D44-3 不完全——**helm 凭据文件路径**（`HELM_REGISTRY_CONFIG=$HOME/.config/helm/registry/config.json`，非 `registry.json`）也是一环；路径修正 + D44-3 修复后通过。helm 客户端 plain-HTTP 仍无 `registry login --plain-http`（3.17 客户端侧缺口，文档宜给凭据文件方案——转 T-46）。
+
+### 12.4 conformance suite 三组重跑
+
+- **55 过 / 5 挂**——与首轮**完全相同**的 5 挂（D44-4 ×3、D44-5 ×1、D44-6 ×1），无回归、无新增。
+- **D44-6 直验未修**：删光最后一个 manifest 后 `tags/list` 仍 **404 NAME_UNKNOWN**——而 **PRD v1.3 §④（C7）已把口径定为 200 + `"tags":null`**：PRD 文本已改、代码未跟，**实现欠账**（P2，收口归 T-45 后窗口，归属 T-35/T-40 ListTags 域）。
+- D44-4（GET/HEAD 超长 tag 400 vs 404）与 D44-5（上传状态 GET 缺 Location）维持未修（P2）。
+
+### 12.5 服务端健康
+
+- 双实例复验全程 **5xx = 0**。
+
+### 12.6 DoD §9 终判（合并 T-43 + T-44 两轮）
+
+| 条 | 判定 | 依据 |
+|---|---|---|
+| DoD-1（§4 全部 P0/P1 AC 经 qa 全绿） | **满足** | 首轮挂点全转绿：FR-11-AC1/AC4（D05 对错口令分离）、FR-13-AC1（docker D16 全链双实例）、FR-13-AC5/FR-12（helm push 增绿）；其余 P0/P1 由 T-43 + 本票首轮覆盖全绿。P2 遗留：D44-4/5/6（本轮）+ T-43 D1/D2/D3（D2 预期随 T-52 消失）+ F1 flake（m2-done 前需 dev 定论）——按 PRD「P2 延后 BOARD 记录」不阻塞 |
+| DoD-2（§8 剧本全绿 + §5.3 P0 全过 + skopeo） | **满足** | 剧本 1-5/7/10（T-43）+ 剧本 6 五客户端（docker/podman/crane/oras P0 全过、skopeo P1 过、helm P2 push 增绿）+ 剧本 8 性能（首轮：D20 0.039s、P7 100×0、P6 已记录）；conformance 三组 55/60 的 5 挂均 P2 已登记 |
+
+- 观察 O-1（docker PUT 吞吐 ~33 MB/s vs generic ~65 MB/s）维持记录不设门（M5 基准排查项）。
+- **T-44 票据结论: PASS。** M2 QA 面（DoD 第 1/2 条）就绪，可进 T-45 部署烟测。
+
+### 12.7 复验轮清理
+
+- t44r-dind 已删；实例 A/B 已停；worktree /tmp/t44r 已移除；本轮拉取的 docker:27-dind / conformance / helm:3.17.2 镜像已删（现存 `docker:dind` 为非本票拉取的既有镜像，未动）；宿主配置零改动；口令一次性随机未落盘。
