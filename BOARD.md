@@ -71,8 +71,10 @@
 
 ## 🔨 进行中（doing）
 
-- **T-39** [P0] manifest 链（修复轮） `role:dev-registry-adapter`
-  状态：双 review 合并（架构 APPROVE + 正确性 REQUEST_CHANGES 1 blocker：重复 digest 撞 refs PK → 假失败真发布）→ 修复在途：adapter 去重 + store INSERT OR IGNORE 纵深 + fake PK 语义对齐 + 4 行测试。
+- **T-40** [P0] catalog 与 tags/list+分页（批次 5，最后一个功能票） `role:dev-registry-adapter` `area:internal/adapter/docker(catalog)` `dep:T-39(done)`
+  状态：00:4x 派发，在途（占位分支替换 + D09 + Q5 矩阵）。
+- **T-51** [P1] R3 消歧回写 + 双 node 布局追认 `role:architect` `area:docs/design、docs/prd(一行)` `dep:T-39`
+  状态：00:4x 派发，在途（§5.3 校验链①重写/判读优先序/DDL 注释/布局草图/PRD OCI-Subject 注记）。
 
 ## 👀 评审中（review）
 
@@ -168,6 +170,8 @@
   statusRecorder 增 writeErr/panicDisconnect 槽位；断连（ctx.Canceled 主腿 + errno 兜底）≥500 降 WARN + client_disconnect 标注；recoverPanic 断连降级不注信封。进程外 e2e 实证（--limit-rate + kill -9：日志零 ERROR、真 500 反例保持 ERROR 三态表）。轻量核验（P1+e2e 证据）。提交 85df447。M5 升格 label 遗留登记。
 - **T-42** [P1] gc 旗标+GC mark 扩容 `role:dev-go-core` `area:cmd/binflow-server` — done 2026-08-18
   gc -c（复用 serve 配置链）+ --grace-hours（与 days 并存 hours 胜）；mark = nodes ∪ docker_refs（ListRefsByManifest 聚合——agent 论证了 RefsByBlob 会回到 T-9 废弃的反连接路线）；真栈冒烟（refs-held 存活/级联删后转候选）。净树核验（T-37 WIP 致主仓瞬断，隔离手法 agent 自报 conductor 复现）。提交 69a6039。遗留：lint 有网补跑；子命令 --help exit 1 小票登记。
+- **T-39** [P0] manifest 链 `role:dev-registry-adapter` `area:internal/adapter/docker(manifest)` — done 2026-08-19（经双 review 一轮修复）
+  校验链（结构/digest/引用在场/嵌套 lazy）+ GET·HEAD 逐位一致 + Accept 协商 + tag 覆盖 + DELETE 级联/405。curl 41 断言 + 容器内 daemon 协商全序列 + docker manifest inspect 真客户端 exit 0。架构 APPROVE（R3 终审意见：透传+结构判读）；正确性 1 blocker（重复 digest 假失败真发布）修复复审通过：adapter 去重 + INSERT OR IGNORE 纵深 + fake PK 对齐 + 四形态 201 无幽灵测试 + 20 路并发钉住回归。提交 eef0d3f+fd3d68a。**M2 docker 域功能面全部闭环**。
 - **T-50** [P0] ADR-0011 文档中心 Docusaurus `role:architect` `area:DECISIONS.md、docs/design` — done 2026-08-19
   用户定案落地：Docusaurus 选型（同栈 React/版本化/i18n）；**交付形态=go:embed 挂 /binflow/docs（统一前缀、匿名可读）**——离线自带文档对齐 15 分钟标准，独立托管用户自办不双轨；docs/user 纯 Markdown 源与 docs-site 配置分离（writer 不碰构建）；体积 5~15MB 预算 M5 check-size 把关超限 fallback tar。架构四处增量（包树/职责表/路由/部署段）。M5 需 Docusaurus 脚手架票先行（类 T-7）。
 - **T-49** [P1] OSS 工程结构参考规格 `role:reverse-engineer` `area:docs/reverse` — done 2026-08-18
