@@ -71,8 +71,9 @@
 
 ## 🔨 进行中（doing）
 
-- **T-33** [P0] /v2 根级挂载（批次 1） `role:dev-registry-adapter` — 在途（曾遇 1302 速率限制击落起步，已重启）。
-- **T-36** [P2] Content-Type 映射（批次 1 填宽） `role:dev-registry-adapter` — 在途（generic 包改动磁盘可见）。
+- **T-33** [P0] /v2 根级挂载（批次 1） `role:dev-registry-adapter` — 在途（曾遇 1302 速率限制击落起步，已重启；adapter/docker 半成品在盘）。
+- **T-35** [P0] repo docker 用例编排（批次 2） `role:dev-go-core` `area:internal/repo` `dep:T-34(done)`
+  状态：12:4x 派发，在途。附 T-34 遗留提示：级联在存储层已完成，Service 只做编排+权限。
 
 ## 🧪 测试中（qa）
 
@@ -80,8 +81,7 @@
 
 ## 👀 评审中（review）
 
-- **T-34** [P0] metadata 002_docker 迁移+DockerStore — 编码完成，conductor 复现通过（race 6.7s 绿/三索引按架构定稿/lint 0/全模块 11 包 ok 零回归）→ 单 code-reviewer 在途（DDL 对照/级联误删面/keyset collation/并发窗口）。
-  实现者报备：AC 写两索引实为定稿三条（按定稿落），reviewer 裁决中。
+（空）
 
 ## ✅ 已完成（done）
 
@@ -157,6 +157,8 @@
 
 ## M2 票据（2026-08-18 起）
 
+- **T-34** [P0] metadata 002_docker 迁移+DockerStore `role:dev-go-core` `area:internal/metadata` — done 2026-08-18（APPROVE 一轮过）
+  review 0 blocker：DDL 对照固化为 pragma 测试（三索引=AC 笔误以定稿为准）；级联误删探针实证不可能（digest 即 manifest 身份 + image 谓词隔离）；2000 轮 DeleteManifest vs PutRefs 0 错误 0 残留；keyset BINARY collation 稳定。5 minor+2 nit 记录不阻塞。T-35 依此解锁。
 - **T-36** [P2] generic Content-Type 扩展名映射 `role:dev-registry-adapter` `area:internal/adapter/generic` — done 2026-08-18
   mime.go 18 项映射（自有表→标准库分层，跨主机确定性）；PUT 端推断写 node.Mime（单一事实源：FileInfo/GET/HEAD/api/storage 自动一致）；客户端声明逐字优先；未知回退 octet-stream 不变。14 扩展名 curl 实测+大小写/复合扩展名/checksum-deploy 继承用例。轻量核验（P2+黑盒），T-43 全量复验。提交 0073358。
 - **T-47** [P1] M2 PRD v1.1 回写（R1/R2/R4/R5） `role:product-manager` `area:docs/prd` — done 2026-08-18
