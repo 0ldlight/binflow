@@ -50,8 +50,13 @@
 
 ## 🔨 进行中（doing）
 
-- **T-18** [P0] QA：M1 功能矩阵验收 `role:qa-engineer` `area:验收` `dep:T-16,T-17`
-  状态：08:1x 派发，在途（v1.3.1 口径：C03 200/C14 409/C28a sfu/幂等重传/Range 面）。
+- **T-28** [P0] 修复 D2/D3：管理面 admin 分级缺失 `role:dev-registry-adapter` `area:internal/httpapi` `dep:T-18`
+  状态：08:3x 派发（T-15 agent 回炉），在途。D2 读面三端点（repositories 列表/v1-stats/v1-health）+ D3 token 签发补 admin-only；ping/version 勿误伤。
+
+## 🧪 测试中（qa）
+
+- **T-18** [P0] QA 功能矩阵验收 `role:qa-engineer` `dep:T-16,T-17` — 首轮 FAIL（2 P1 同源缺陷）
+  功能面全绿（场景 1/3/4/7 + NFR-S1/S2/S3 + C28）；场景 6 两缺陷（D2/D3）→ T-28 修复；修复后仅回归场景 6。初测两疑似缺陷经二轮净instance 定界为脚本时序污染已撤回。报告：reports/agents/T-18-qa.md。
 
 ## 👀 评审中（review）
 
