@@ -210,7 +210,7 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	dockerHandler := docker.New(stack.svc, docker.NewRepoLookup(stack.md.Repos()), docker.Options{
 		AnonymousAccess: cfg.Security.AnonymousAccess,
 		BaseURL:         cfg.Server.BaseURL,
-	})
+	}, logger)
 	return httpapi.New(httpapi.Deps{
 		Config:    cfg,
 		Auth:      stack.authSvc,
