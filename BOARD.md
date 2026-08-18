@@ -54,8 +54,7 @@
 
 ## 🧪 测试中（qa）
 
-- **T-19** [P0] QA 存储完整性/性能/持久化+README 复跑 `role:qa-engineer` `dep:T-18` — 在途
-  产出 M1 QA 总报告（DoD 第 1/2 条结论）。场景 2/5/8/9/10 + NFR-P1~P4。
+（空）
 
 ## 👀 评审中（review）
 
@@ -132,6 +131,8 @@
   routeAuth 补 admin-only：四读面（repositories 列表/单查、v1-stats、v1-health）+ token 签发；routeAuth 新增 oauth 位（token 族错误体统一 OAuth 形，顺手修 revoke 403 不一致）；ping/version/探针不误伤。矩阵测试 + 自跑 22/22 + QA 回归 23/23 关闭两缺陷。
 - **T-18** [P0] QA 功能矩阵验收 `role:qa-engineer` `dep:T-16,T-17` — done 2026-08-18（首轮 FAIL→回归 ALL GREEN）
   两轮验收：round 1 FAIL（D2/D3 两 P1 同源）→ T-28 修复 → 回归 23/23 ALL GREEN、D2/D3 关闭、round 1 FAIL 撤回。最终：场景 1/3/4/6/7 + NFR-S1/S2/S3 + C28 全 PASS。方法学亮点：二轮净instance 自纠两误报 + A/B 对照构建证伪一个疑似回归（观察项 O4 供 M2 复核）。报告 reports/agents/T-18-qa.md。
+- **T-19** [P0] QA 存储完整性/性能/持久化+README 复跑 `role:qa-engineer` `dep:T-18` — done 2026-08-18（ALL GREEN 零缺陷）
+  场景 2/5/8/9/10 全绿：去重（blob 1 物理份）、慢上传中断零残留、kill -9 双轮+容器路径一致、1GB 流式 RSS 增量仅 56KB（限 256MB）、冷启动 0.065s（限 2s）、100 并发零 5xx、C29 两轮持久化、gc dry-run/apply/幸存、README worktree 干净复跑全 0。**DoD 第 1/2 条判定：满足**（P2 未做仅 Content-Type 映射，合规延后 M2）。报告 reports/agents/T-19-qa.md（M1 QA 总报告）。
 
 ## 🚫 阻塞（blocked）
 
