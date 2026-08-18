@@ -71,11 +71,12 @@
 
 ## 🔨 进行中（doing）
 
-- **T-33** [P0] /v2 挂载+docker 基座（修复轮） `role:dev-registry-adapter`
-  状态：双 review 合并 REQUEST_CHANGES（5 blocker：B1 域信封泄漏双视角交叉确认 / B2 repoKey 段防线 / B3 _catalog 占位 / B4 repo 门错误分离+ctx）→ 原 agent 修复在途。
-  RepoTypes 裁定：本票放行（空切片唯一不破 generic 的选择），§5.1 勘误四点 M3 前关闭——挂 architect 债务。
 - **T-35** [P0] repo docker 用例编排（修复轮） `role:dev-go-core`
-  状态：review REQUEST_CHANGES（3 blocker 探针实证：B1 DeleteRepo 拆库顺序致 refs 永久泄漏+GC pin / B2 同 digest 幂等重推改写不可变列+TagRepointed 三方矛盾 / B3 哨兵错位）→ 原 agent 修复在途。
+  状态：review REQUEST_CHANGES（3 blocker 探针实证）→ 原 agent 修复在途。
+- **T-37** [P0] docker token 流（批次 2） `role:dev-registry-adapter` `area:internal/adapter/docker(token)` `dep:T-33(done),T-47(done)`
+  状态：14:0x 派发，在途（v1.1 口径袋 + R7 边界：仅 adapter/docker/）。
+- **T-41** [P1] O1 断连日志定界（批次 2） `role:dev-go-core` `area:internal/httpapi(middleware)`
+  状态：14:0x 派发，在途（R7 边界：仅 middleware.go/accessLog；兼容 v2AuthFailure 分流勿重构）。
 
 ## 👀 评审中（review）
 
@@ -159,6 +160,8 @@
 
 ## M2 票据（2026-08-18 起）
 
+- **T-33** [P0] /v2 挂载+docker 基座 `role:dev-registry-adapter` — done 2026-08-18（经双 review 一轮修复）
+  /v2 根级例外路由（ADR-0010）+ name 解析 + spec 信封 + Api-Version 头 + health registry 字段 + R10 测试反转。双 review 5 blocker 全修复复审通过：B1 平面感知认证挑战（context 信号下传，/v2 spec 体+Bearer、/binflow 不变——真栈 curl 双面验证）；B2 全段 dot-segment 防线（400 实证）；B3 _catalog 占位；B4 repo 门三因拆两分支（500+ERROR 日志）。RepoTypes 空 class 键放行（§5.1 勘误挂 M3）。提交 e15e87a+e62eb78。
 - **T-34** [P0] metadata 002_docker 迁移+DockerStore `role:dev-go-core` `area:internal/metadata` — done 2026-08-18（APPROVE 一轮过）
   review 0 blocker：DDL 对照固化为 pragma 测试（三索引=AC 笔误以定稿为准）；级联误删探针实证不可能（digest 即 manifest 身份 + image 谓词隔离）；2000 轮 DeleteManifest vs PutRefs 0 错误 0 残留；keyset BINARY collation 稳定。5 minor+2 nit 记录不阻塞。T-35 依此解锁。
 - **T-36** [P2] generic Content-Type 扩展名映射 `role:dev-registry-adapter` `area:internal/adapter/generic` — done 2026-08-18
