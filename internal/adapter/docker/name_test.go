@@ -89,7 +89,7 @@ func TestParseV2Name(t *testing.T) {
 // TestLayoutImplementsSPI: Layout satisfies the adapter contract, keyed on
 // the request's EscapedPath so raw spellings survive verbatim.
 func TestLayoutImplementsSPI(t *testing.T) {
-	h := New(nil, NewStaticRepoLookup(nil), Options{}, nil)
+	h := New(nil, NewStaticRepoLookup(nil), nil, nil, nil, Options{}, nil)
 	r := &http.Request{URL: &url.URL{Path: "/v2/team1/app/manifests/latest", RawPath: ""}}
 	key, rel, err := h.Layout(r)
 	if err != nil || key != "team1" || rel != "app" {
@@ -101,7 +101,7 @@ func TestLayoutImplementsSPI(t *testing.T) {
 // registers its protocol key and does NOT claim repo classes (a "local"
 // claim would shadow generic's content dispatch in the httpapi map).
 func TestRepoTypesProtocolKeyOnly(t *testing.T) {
-	h := New(nil, NewStaticRepoLookup(nil), Options{}, nil)
+	h := New(nil, NewStaticRepoLookup(nil), nil, nil, nil, Options{}, nil)
 	if h.Protocol() != "docker" {
 		t.Fatalf("Protocol = %q", h.Protocol())
 	}
@@ -113,7 +113,7 @@ func TestRepoTypesProtocolKeyOnly(t *testing.T) {
 // TestSpecErrorEnvelopeShape: the error body is exactly the registry
 // schema with the api-version header.
 func TestSpecErrorEnvelopeShape(t *testing.T) {
-	h := New(nil, NewStaticRepoLookup(nil), Options{AnonymousAccess: true}, nil)
+	h := New(nil, NewStaticRepoLookup(nil), nil, nil, nil, Options{AnonymousAccess: true}, nil)
 	w := &captureWriter{hdr: http.Header{}}
 	r := &http.Request{Method: http.MethodPost, URL: &url.URL{Path: "/v2/"}}
 	h.ServeHTTP(w, r)

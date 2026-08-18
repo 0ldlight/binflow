@@ -552,7 +552,8 @@ func TestV2RevokedBearerRendersSpecBody(t *testing.T) {
 // rides the full production chain through the same Deps seam.
 func TestV2PanicRendersSpecBody(t *testing.T) {
 	h := newHarness(t)
-	inner := docker.New(h.svc, docker.NewStaticRepoLookup(nil), docker.Options{AnonymousAccess: true}, nil)
+	inner := docker.New(h.svc, docker.NewStaticRepoLookup(nil), nil, nil, nil,
+		docker.Options{AnonymousAccess: true}, nil)
 	s := httpapi.New(httpapi.Deps{
 		Config:   config.Defaults(),
 		Auth:     h.authSvc,
@@ -627,7 +628,8 @@ func (p panicV2Adapter) ServeHTTP(http.ResponseWriter, *http.Request) { panic("v
 func TestV2RepoLookupFailureIs500(t *testing.T) {
 	h := newHarness(t)
 	lines, logger, mu := newCapturingLogger()
-	handler := docker.New(h.svc, failingRepoLookup{}, docker.Options{AnonymousAccess: true}, logger)
+	handler := docker.New(h.svc, failingRepoLookup{}, h.authSvc, h.authSvc, h.md.Users(),
+		docker.Options{AnonymousAccess: true}, logger)
 	s := httpapi.New(httpapi.Deps{
 		Config:   config.Defaults(),
 		Auth:     h.authSvc,

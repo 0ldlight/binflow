@@ -210,10 +210,12 @@ func runServe(args []string, stderr io.Writer) error {
 // and the tests share this one composition so the tested server is the
 // served server (T-15's Deps seam list: ReposSvc / Passwords / Tokens).
 func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *httpapi.Server {
-	dockerHandler := docker.New(stack.svc, docker.NewRepoLookup(stack.md.Repos()), docker.Options{
-		AnonymousAccess: cfg.Security.AnonymousAccess,
-		BaseURL:         cfg.Server.BaseURL,
-	}, logger)
+	dockerHandler := docker.New(stack.svc, docker.NewRepoLookup(stack.md.Repos()),
+		stack.authSvc, stack.authSvc, stack.md.Users(), docker.Options{
+			AnonymousAccess: cfg.Security.AnonymousAccess,
+			BaseURL:         cfg.Server.BaseURL,
+			TokenTTL:        cfg.Auth.TokenDefaultTTL,
+		}, logger)
 	return httpapi.New(httpapi.Deps{
 		Config:    cfg,
 		Auth:      stack.authSvc,

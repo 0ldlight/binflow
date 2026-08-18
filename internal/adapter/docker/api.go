@@ -8,8 +8,10 @@ package docker
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/lzwzzy/binflow/internal/auth"
+	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/repo"
 )
 
@@ -44,15 +46,24 @@ type Options struct {
 	// challenge realm is built from when set; empty means derive from the
 	// request (X-Forwarded-* honored, ADR-0010 clause 4).
 	BaseURL string
+	// TokenTTL is auth.token_default_ttl — the docker token lifetime
+	// (Q3 interim ruling: default 720h, no refresh). Non-positive values
+	// are floored to 1h by the handler: this endpoint's posture is
+	// "limited TTL" (AC1), so a misconfigured zero must not mint
+	// non-expiring tokens.
+	TokenTTL time.Duration
 }
 
 // Handler is the docker v2 protocol adapter (architecture section 5.3).
 type Handler struct {
-	svc   repo.Service
-	repos RepoLookup
-	opts  Options
-	log   *slog.Logger
-	sess  *sessionRegistry
+	svc    repo.Service
+	repos  RepoLookup
+	authz  auth.Authorizer
+	tokens auth.TokenRegistry
+	users  anonymousSubjectSeed
+	opts   Options
+	log    *slog.Logger
+	sess   *sessionRegistry
 }
 
 // RepoRow is the consumer-side shape of the repository row the docker
@@ -74,12 +85,42 @@ type RepoLookup interface {
 
 // New wires the handler. svc may be nil in the foundation state (content
 // endpoints arrive with T-38/T-39); repos must be non-nil so name
-// resolution answers today. log may be nil (slog.Default()).
-func New(svc repo.Service, repos RepoLookup, opts Options, log *slog.Logger) *Handler {
+// resolution answers today. authz/tokens drive the token flow (T-37): they
+// may be nil in tests that do not exercise /v2/token — a nil authz only
+// empties the response's narrowed scope field, and a nil tokens makes the
+// token endpoint answer 503 rather than panic. users seeds the synthetic
+// anonymous-token subject (nil only in tests; the anonymous token path then
+// 500s honestly). log may be nil (slog.Default()).
+func New(svc repo.Service, repos RepoLookup, authz auth.Authorizer, tokens auth.TokenRegistry,
+	users metadata.UserStore, opts Options, log *slog.Logger) *Handler {
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Handler{svc: svc, repos: repos, opts: opts, log: log, sess: newSessionRegistry()}
+	h := &Handler{
+		svc:    svc,
+		repos:  repos,
+		authz:  authz,
+		tokens: tokens,
+		opts:   opts,
+		log:    log,
+		sess:   newSessionRegistry(),
+	}
+	if users != nil {
+		h.users = userSeed{store: users}
+	}
+	return h
+}
+
+// userSeed adapts metadata.UserStore onto the anonymous-subject seeding
+// seam (consumer-side interface, same convention as RepoLookup).
+type userSeed struct{ store metadata.UserStore }
+
+func (s userSeed) Get(ctx context.Context, username string) (*metadata.User, error) {
+	return s.store.Get(ctx, username)
+}
+
+func (s userSeed) Create(ctx context.Context, u *metadata.User) error {
+	return s.store.Create(ctx, u)
 }
 
 // Principal is the caller identity, aliased like every adapter does.

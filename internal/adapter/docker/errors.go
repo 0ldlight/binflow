@@ -21,6 +21,10 @@ const (
 	ErrCodeUnsupported = "UNSUPPORTED"
 	// ErrCodeUnauthorized: authentication is required (anonymous denied).
 	ErrCodeUnauthorized = "UNAUTHORIZED"
+	// ErrCodeDenied: the authenticated client does not have the required
+	// authorization ([DIST-API] section Errors: "The access controller
+	// denied access for the operation on a resource").
+	ErrCodeDenied = "DENIED"
 	// ErrCodeNameUnknown: the repository name is not known to the registry.
 	ErrCodeNameUnknown = "NAME_UNKNOWN"
 	// ErrCodeUnknown: an unknown/unexpected server-side error ([DIST-API]

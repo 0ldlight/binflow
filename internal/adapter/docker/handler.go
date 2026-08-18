@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/lzwzzy/binflow/internal/adapter"
+	"github.com/lzwzzy/binflow/internal/auth"
 )
 
 // Protocol implements adapter.Handler.
@@ -127,11 +128,7 @@ func (h *Handler) realmBase(r *http.Request) string {
 func (h *Handler) serveNameRoute(w http.ResponseWriter, r *http.Request, path string) {
 	switch {
 	case path == TokenPath || strings.HasPrefix(path, TokenPath+"/"):
-		// The token endpoint's issuing logic is T-37; the route is part of
-		// the /v2 namespace, so until then it answers the DE-16 404 rather
-		// than the root-path envelope.
-		writeSpecError(w, http.StatusNotFound, ErrCodeUnsupported,
-			"token endpoint is not implemented yet (T-37)", nil)
+		h.serveToken(w, r)
 		return
 	case path == catalogPath || strings.HasPrefix(path, catalogPath+"/"):
 		// The catalog endpoint (architecture section 5.3, GET
@@ -163,8 +160,10 @@ func (h *Handler) serveNameRoute(w http.ResponseWriter, r *http.Request, path st
 		// Closed instance: the name routes challenge before the repo gate
 		// (identical to the reference registries — a 404 here would leak
 		// repository existence to unauthenticated probes, and NAME_UNKNOWN
-		// would be indistinguishable from the real thing).
-		h.challenge(w, r, "")
+		// would be indistinguishable from the real thing). The challenge
+		// carries the endpoint-derived scope (AC2): the client negotiates a
+		// token that matches the operation it was denied.
+		h.challenge(w, r, deriveChallengeScope(r.Method, ref))
 		return
 	}
 
@@ -191,6 +190,17 @@ func (h *Handler) serveNameRoute(w http.ResponseWriter, r *http.Request, path st
 		return
 	}
 
+	// Authorization gate (T-37 AC2/D22): the scope the endpoint derives
+	// doubles as its permission question — pull maps onto read, push onto
+	// write, delete onto delete (ADR-0010 clause 5). Anonymous reads pass
+	// only while the flag is on (Can's nil rule); an authenticated
+	// insufficient principal gets 403 DENIED, an anonymous write gets the
+	// scoped challenge. This gate is ahead of the content handlers so
+	// T-38..T-40 inherit it without re-deriving the mapping.
+	if !h.authorizeRoute(w, r, ref) {
+		return
+	}
+
 	// Foundation scope: every content route (blobs/manifests/tags/uploads/
 	// referrers) lands in T-37..T-40. Until then they answer the DE-16
 	// spec-body 404 — including referrers (DE-15: deliberately not
@@ -198,6 +208,46 @@ func (h *Handler) serveNameRoute(w http.ResponseWriter, r *http.Request, path st
 	writeSpecError(w, http.StatusNotFound, ErrCodeUnsupported,
 		"registry route /v2/"+ref.repoKey+"/"+ref.image+"/"+ref.tail+
 			" is not implemented in BinFlow M2 yet", nil)
+}
+
+// authorizeRoute enforces the endpoint-derived scope as the permission
+// question (AC2/AC4: the challenge scope and the gate share one mapping —
+// pull->r, push->w, delete->d over the <repoKey>/<image> subject). It
+// returns false when it already rendered the failure. A nil Authorizer
+// (bare test assemblies) fails closed for writes and open for reads.
+func (h *Handler) authorizeRoute(w http.ResponseWriter, r *http.Request, ref nameRef) bool {
+	p := adapter.PrincipalFrom(r.Context())
+	scope := deriveChallengeScope(r.Method, ref)
+	_, _, actions, ok := splitScopeToken(scope)
+	if !ok {
+		// Unreachable (deriveChallengeScope only builds valid tokens); the
+		// guard keeps the gate total without granting on a parse miss.
+		writeSpecError(w, http.StatusForbidden, ErrCodeDenied,
+			"requested access to the resource is denied", nil)
+		return false
+	}
+	for _, action := range actions {
+		mapped := canActions[action]
+		if len(mapped) == 0 {
+			continue
+		}
+		allowed := false
+		if h.authz != nil {
+			allowed = h.authz.Can(r.Context(), p, ref.repoKey, ref.image, mapped[0])
+		} else {
+			allowed = p == nil && h.opts.AnonymousAccess && mapped[0] == auth.ActionRead
+		}
+		if !allowed {
+			if p == nil {
+				h.challenge(w, r, scope)
+			} else {
+				writeSpecError(w, http.StatusForbidden, ErrCodeDenied,
+					fmt.Sprintf("requested access to the resource is denied: %s", scope), nil)
+			}
+			return false
+		}
+	}
+	return true
 }
 
 // sessionRegistry is the upload-session seam T-38 will drive: the map of
