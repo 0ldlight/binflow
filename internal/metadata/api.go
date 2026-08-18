@@ -26,6 +26,14 @@ var ErrTokenNotFound = errors.New("metadata: token not found")
 // layer maps them to HTTP 400/409).
 var ErrDuplicate = errors.New("metadata: duplicate")
 
+// ErrManifestNotFound is returned by DockerStore methods for missing
+// docker_manifests rows.
+var ErrManifestNotFound = errors.New("metadata: docker manifest not found")
+
+// ErrTagNotFound is returned by DockerStore methods for missing docker_tags
+// rows.
+var ErrTagNotFound = errors.New("metadata: docker tag not found")
+
 // Node is one artifact row (a repo-relative path pointing at a blob).
 // Timestamps are RFC3339 UTC text (ADR-0007).
 type Node struct {
@@ -114,12 +122,48 @@ type AuditEvent struct {
 	Detail  string // JSON
 }
 
+// DockerManifest is one row of the manifest metadata table (002_docker). The
+// manifest body itself is a plain blob plus a node in the docker layout
+// ("<image>/manifests/<digest-hex>"); this row is the registry index.
+type DockerManifest struct {
+	RepoKey   string
+	Image     string // repository-relative name, no repo key first segment, may contain '/'
+	Digest    string // bare hex sha256, same keyspace as Blob.Sha256
+	MediaType string
+	Size      int64
+	CreatedBy string
+	CreatedAt string // RFC3339 UTC
+}
+
+// DockerTag is a tag-to-digest pointer. Tags are mutable: repointing is an
+// update, not a conflict. Digests are logical references to
+// DockerManifest.Digest — there is no DB-level FK (architecture 11.12).
+type DockerTag struct {
+	RepoKey   string
+	Image     string
+	Tag       string // charset [a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}, validated by the service layer
+	Digest    string
+	UpdatedBy string
+	UpdatedAt string // RFC3339 UTC
+}
+
+// DockerRef is one (manifest, blob) reference edge: config and layer blobs a
+// manifest uses. It is the second source of GC reference facts: blobs listed
+// here must never be reclaimed even when no node row points at them.
+type DockerRef struct {
+	RepoKey        string
+	Image          string
+	ManifestDigest string // referencing side
+	BlobDigest     string // referenced side
+	ChildMediaType string // role: config vs layer media type, '' allowed
+}
+
 // Store is the dialect-neutral entry to all metadata state. Migrations run
 // automatically inside Open (ADR-0007); they are not part of this interface.
 // Implementations must be safe for concurrent use (SQLite relies on WAL plus
 // database/sql pool serialization, see store.go).
 type Store interface {
-	// Repos/Nodes/Blobs/Users/Tokens/Permissions/Audits return the
+	// Repos/Nodes/Blobs/Users/Tokens/Permissions/Audits/Docker return the
 	// sub-stores sharing the same underlying handle.
 	Repos() RepoStore
 	Nodes() NodeStore
@@ -128,6 +172,7 @@ type Store interface {
 	Tokens() TokenStore
 	Permissions() PermissionStore
 	Audits() AuditStore
+	Docker() DockerStore
 	// Ping verifies liveness for health endpoints.
 	Ping(ctx context.Context) error
 	// Close releases the underlying handle.
@@ -216,4 +261,71 @@ type AuditStore interface {
 	// List returns events newest-first, at most limit rows, optionally
 	// filtered by repo and actor.
 	List(ctx context.Context, repoKey, actor string, limit int) ([]*AuditEvent, error)
+}
+
+// DockerStore is the registry index behind the docker adapter /v2 surface
+// (architecture 5.3 mapping table, schema 002_docker). The manifest body and
+// its blobs remain ordinary blobs/nodes; this store tracks only the
+// manifests/tags/refs index rows and the repository-level _catalog facts.
+//
+// Callers that must mutate several tables atomically (manifest delete with
+// its cascade, a full image teardown) use DeleteImage and DeleteManifest —
+// multi-statement operations are single transactions inside this store. The
+// fine-grained methods trade atomicity for composability and are meant for
+// single-row operations.
+type DockerStore interface {
+	// PutManifest upserts by (repo_key, image, digest): re-pushing the same
+	// manifest refreshes metadata columns and never conflicts.
+	PutManifest(ctx context.Context, m *DockerManifest) error
+	// GetManifest returns ErrManifestNotFound when absent.
+	GetManifest(ctx context.Context, repoKey, image, digest string) (*DockerManifest, error)
+	// DeleteManifest removes the manifest row and cascades: every tag
+	// pointing at it and every ref it issued is dropped in the same
+	// transaction (architecture 11.12 consistency contract). Returns
+	// ErrManifestNotFound when the manifest row is absent; the cascade is
+	// idempotent when rows are already gone.
+	DeleteManifest(ctx context.Context, repoKey, image, digest string) error
+	// ListManifestsByImage returns manifests of one image ordered by digest.
+	ListManifestsByImage(ctx context.Context, repoKey, image string) ([]*DockerManifest, error)
+
+	// PutTag upserts by (repo_key, image, tag): re-pushing a tag repoints it
+	// at the new digest (updated_by/updated_at refresh).
+	PutTag(ctx context.Context, t *DockerTag) error
+	// GetTag returns ErrTagNotFound when absent.
+	GetTag(ctx context.Context, repoKey, image, tag string) (*DockerTag, error)
+	// DeleteTag removes one tag row; ErrTagNotFound when absent.
+	DeleteTag(ctx context.Context, repoKey, image, tag string) error
+	// ListTagsByImage returns the image's tags ordered by tag.
+	ListTagsByImage(ctx context.Context, repoKey, image string) ([]*DockerTag, error)
+
+	// PutRefs inserts the ref rows of one manifest, replacing any previous
+	// set for that (repo_key, image, manifest_digest) atomically (a manifest
+	// body is immutable, so re-push writes the same edges; replace keeps the
+	// ledger exact without diffing). An empty refs slice clears the set.
+	PutRefs(ctx context.Context, repoKey, image, manifestDigest string, refs []*DockerRef) error
+	// ListRefsByManifest returns the ref rows of one manifest ordered by
+	// blob_digest.
+	ListRefsByManifest(ctx context.Context, repoKey, image, manifestDigest string) ([]*DockerRef, error)
+	// RefsByBlob reports whether any manifest still references the blob
+	// (repo-key scoped — the blob-delete precheck that idx_docker_refs_blob
+	// serves, mirroring idx_nodes_blob).
+	RefsByBlob(ctx context.Context, repoKey, blobDigest string) (bool, error)
+
+	// ListImages returns repository image names ("<image>") that have at
+	// least one manifest row, lexicographically ordered (the /v2/_catalog
+	// source: docker_manifests DISTINCT). Pagination is keyset-based with an
+	// exclusive cursor, limit<=0 meaning "all".
+	ListImages(ctx context.Context, repoKey, after string, limit int) ([]string, error)
+
+	// DeleteImage drops every manifest/tag/ref row of (repo_key, image) in
+	// one transaction. Row removal is idempotent; it reports how many
+	// manifest rows were removed. Deleting an image that never existed is
+	// not an error (it returns 0) — the caller owns the 404 decision.
+	DeleteImage(ctx context.Context, repoKey, image string) (manifestsRemoved int64, err error)
+
+	// DeleteRepoRefs drops every docker_refs row of a repository. Repository
+	// deletion cascades docker_manifests/docker_tags through their FKs, but
+	// docker_refs has no DB-level FK (architecture 11.12): the caller must
+	// invoke this in the same logical teardown before the repo row goes.
+	DeleteRepoRefs(ctx context.Context, repoKey string) (int64, error)
 }

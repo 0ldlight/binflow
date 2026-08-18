@@ -234,6 +234,7 @@ func (s *sqliteStore) Users() UserStore             { return &userStore{db: s.db
 func (s *sqliteStore) Tokens() TokenStore           { return &tokenStore{db: s.db} }
 func (s *sqliteStore) Permissions() PermissionStore { return &permissionStore{db: s.db} }
 func (s *sqliteStore) Audits() AuditStore           { return &auditStore{db: s.db} }
+func (s *sqliteStore) Docker() DockerStore          { return &dockerStore{db: s.db} }
 
 func (s *sqliteStore) Ping(ctx context.Context) error {
 	if err := s.db.PingContext(ctx); err != nil {

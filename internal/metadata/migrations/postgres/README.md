@@ -16,5 +16,14 @@ docs/design/architecture.md section 6). Rules for migration SQL:
 - `id` columns: SQLite uses the ROWID alias `INTEGER PRIMARY KEY`, Postgres
   uses `SERIAL`/`GENERATED` (dialect-local choice recorded in the SQL files).
 
+Version history of the sqlite dialect (postgres files must mirror these
+one-to-one when the dialect lands):
+
+- 001_init: M1 schema (repositories, remote_configs, blobs, nodes, users,
+  tokens, permission_targets, permission_principals, audit_events,
+  virtual_members).
+- 002_docker: docker domain tables (docker_manifests, docker_tags,
+  docker_refs; architecture section 6 final DDL).
+
 The migrator currently embeds `migrations/sqlite/*.sql` only
 (see ../migrate.go).

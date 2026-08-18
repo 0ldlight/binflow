@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -88,13 +89,15 @@ func TestCurrentVersionFreshDatabase(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CurrentVersion: %v", err)
 	}
-	if v != 1 {
-		t.Fatalf("fresh database version = %d, want 1", v)
+	migs := loadMigrations(migrationsFS)
+	want := migs[len(migs)-1].version
+	if v != want {
+		t.Fatalf("fresh database version = %d, want %d (latest migration)", v, want)
 	}
 }
 
 // AC: Open idempotent migration — running twice yields no error and exactly
-// one schema_migrations row.
+// one schema_migrations row per migration file.
 func TestOpenIdempotentMigration(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "binflow.db")
@@ -114,20 +117,21 @@ func TestOpenIdempotentMigration(t *testing.T) {
 	}
 	defer func() { _ = st2.Close() }()
 
+	migs := loadMigrations(migrationsFS)
 	db := st2.(*sqliteStore).db
 	var n int
 	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM schema_migrations`).Scan(&n); err != nil {
 		t.Fatalf("counting schema_migrations: %v", err)
 	}
-	if n != 1 {
-		t.Fatalf("schema_migrations rows = %d, want 1", n)
+	if n != len(migs) {
+		t.Fatalf("schema_migrations rows = %d, want %d (one per migration, reopen adds none)", n, len(migs))
 	}
 	var maxVersion int
 	if err := db.QueryRowContext(ctx, `SELECT MAX(version) FROM schema_migrations`).Scan(&maxVersion); err != nil {
 		t.Fatalf("reading max version: %v", err)
 	}
-	if maxVersion != 1 {
-		t.Fatalf("max migration version = %d, want 1", maxVersion)
+	if maxVersion != migs[len(migs)-1].version {
+		t.Fatalf("max migration version = %d, want %d", maxVersion, migs[len(migs)-1].version)
 	}
 	// The second Open with a different password must not have rewritten the
 	// seed (admin never overwritten).
@@ -198,7 +202,7 @@ func TestOpenPRAGMAsApplied(t *testing.T) {
 	})
 }
 
-// AC: 001_init.sql covers every architecture section 6 table.
+// AC: 001_init.sql + 002_docker.sql cover every architecture section 6 table.
 func TestSchemaTablesExist(t *testing.T) {
 	st := openTest(t)
 	db := st.(*sqliteStore).db
@@ -206,6 +210,7 @@ func TestSchemaTablesExist(t *testing.T) {
 		"schema_migrations",
 		"repositories", "remote_configs", "blobs", "nodes", "users", "tokens",
 		"permission_targets", "permission_principals", "audit_events", "virtual_members",
+		"docker_manifests", "docker_tags", "docker_refs",
 	}
 	rows, err := db.Query(`SELECT name FROM sqlite_master WHERE type = 'table'`)
 	if err != nil {
@@ -236,6 +241,316 @@ func keysOf(m map[string]bool) []string {
 		out = append(out, k)
 	}
 	return out
+}
+
+// T-34 AC ①: no migration file may carry its own BEGIN/COMMIT — the
+// migrator wraps each migration in one transaction and nesting one is an
+// error (T-10 review M9). Table-driven over every embedded file so 003+
+// inherits the guard.
+func TestMigrationsHaveNoTransactionStatements(t *testing.T) {
+	for _, m := range loadMigrations(migrationsFS) {
+		name := fmt.Sprintf("%03d_%s", m.version, m.name)
+		t.Run(name, func(t *testing.T) {
+			upper := strings.ToUpper(m.body)
+			for _, stmt := range []string{"BEGIN", "COMMIT", "ROLLBACK", "START TRANSACTION"} {
+				if strings.Contains(upper, stmt) {
+					t.Fatalf("%s.sql contains %q — the migrator owns the transaction boundary", name, stmt)
+				}
+			}
+		})
+	}
+}
+
+// T-34 AC ①: the 002_docker migration is idempotent — a database that
+// already sits at version 2 reopens without re-running it and without error.
+func TestDockerMigrationIdempotent(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "binflow.db")
+	ctx := context.Background()
+
+	for i := 0; i < 2; i++ {
+		st, err := Open(ctx, Options{Path: path, AdminPassword: "pw-002"})
+		if err != nil {
+			t.Fatalf("Open #%d: %v", i+1, err)
+		}
+		v, err := CurrentVersion(ctx, st.(*sqliteStore).db)
+		if err != nil {
+			t.Fatalf("CurrentVersion #%d: %v", i+1, err)
+		}
+		if v != 2 {
+			t.Fatalf("Open #%d left version at %d, want 2 (002 must not re-run)", i+1, v)
+		}
+		if err := st.Close(); err != nil {
+			t.Fatalf("Close #%d: %v", i+1, err)
+		}
+	}
+}
+
+// T-34 AC ①: old-database upgrade path — a database last opened by the M1
+// binary (only 001 applied, with live M1 data) upgrades in place to 002
+// without touching the existing rows.
+func TestDockerUpgradeFromM1Database(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "binflow.db")
+	ctx := context.Background()
+
+	// Build the M1-shaped database: apply migrations, then roll the ledger
+	// back to version 1 and drop the 002 tables, imitating a database written
+	// by the M1 build.
+	st1, err := Open(ctx, Options{Path: path, AdminPassword: "m1-pw"})
+	if err != nil {
+		t.Fatalf("Open (M1 shape): %v", err)
+	}
+	putRepo(t, st1, "legacy")
+	now := Now()
+	if err := st1.Blobs().Put(ctx, &Blob{Sha256: "legacy-blob", Size: 7, CreatedAt: now}); err != nil {
+		t.Fatalf("legacy blob put: %v", err)
+	}
+	if err := st1.Nodes().Put(ctx, &Node{
+		RepoKey: "legacy", Path: "a.jar", Sha256: "legacy-blob", Size: 7,
+		CreatedBy: "admin", CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("legacy node put: %v", err)
+	}
+	if err := st1.Close(); err != nil {
+		t.Fatalf("Close (M1 shape): %v", err)
+	}
+
+	db2, err := sql.Open("sqlite", "file:"+path+"?_pragma=foreign_keys(1)")
+	if err != nil {
+		t.Fatalf("reopen raw: %v", err)
+	}
+	for _, stmt := range []string{
+		`DROP TABLE docker_refs`,
+		`DROP INDEX IF EXISTS idx_docker_tags_image`,
+		`DROP TABLE docker_tags`,
+		`DROP INDEX IF EXISTS idx_docker_manifests_image`,
+		`DROP TABLE docker_manifests`,
+		`DELETE FROM schema_migrations WHERE version = 2`,
+	} {
+		if _, err := db2.ExecContext(ctx, stmt); err != nil {
+			t.Fatalf("rewinding to M1 shape (%s): %v", stmt, err)
+		}
+	}
+	if err := db2.Close(); err != nil {
+		t.Fatalf("close raw: %v", err)
+	}
+
+	// The upgrade: opening with the current build applies only 002.
+	st2, err := Open(ctx, Options{Path: path, AdminPassword: "m1-pw"})
+	if err != nil {
+		t.Fatalf("Open (upgrade): %v", err)
+	}
+	defer func() { _ = st2.Close() }()
+
+	v, err := CurrentVersion(ctx, st2.(*sqliteStore).db)
+	if err != nil {
+		t.Fatalf("CurrentVersion: %v", err)
+	}
+	if v != 2 {
+		t.Fatalf("upgraded version = %d, want 2", v)
+	}
+	// M1 data intact, admin seed not rewritten.
+	node, err := st2.Nodes().Get(ctx, "legacy", "a.jar")
+	if err != nil || node.Sha256 != "legacy-blob" {
+		t.Fatalf("legacy node after upgrade = %+v (err %v)", node, err)
+	}
+	u, err := st2.Users().Get(ctx, "admin")
+	if err != nil || !VerifyPassword("m1-pw", u.PasswordHash) {
+		t.Fatalf("admin password changed by upgrade: %+v (err %v)", u, err)
+	}
+	// The 002 tables are usable right away.
+	if err := st2.Docker().PutManifest(ctx, &DockerManifest{
+		RepoKey: "legacy", Image: "app", Digest: "d1", MediaType: "application/vnd.oci.image.manifest.v1+json",
+		Size: 1, CreatedBy: "admin", CreatedAt: now,
+	}); err != nil {
+		t.Fatalf("docker put after upgrade: %v", err)
+	}
+}
+
+// T-34 AC ①: the 002 sqlite DDL matches the architecture section 6 final
+// block — three tables, the two (repo_key, image) indexes plus
+// idx_docker_refs_blob, the composite primary keys, and the FK declarations
+// of docker_manifests/docker_tags (docker_refs has none by design).
+func TestDockerSchemaShapeMatchesArchitecture(t *testing.T) {
+	st := openTest(t)
+	db := st.(*sqliteStore).db
+
+	wantTables := map[string]bool{
+		"docker_manifests": false, "docker_tags": false, "docker_refs": false,
+	}
+	// Column sets and composite PK columns exactly as the architecture
+	// section 6 "002_docker.sql" block defines them (order significant for
+	// the PK tuples, sets for columns).
+	wantColumns := map[string][]string{
+		"docker_manifests": {"repo_key", "image", "digest", "media_type", "size", "created_by", "created_at"},
+		"docker_tags":      {"repo_key", "image", "tag", "digest", "updated_by", "updated_at"},
+		"docker_refs":      {"repo_key", "image", "manifest_digest", "blob_digest", "child_media_type"},
+	}
+	wantPK := map[string][]string{
+		"docker_manifests": {"repo_key", "image", "digest"},
+		"docker_tags":      {"repo_key", "image", "tag"},
+		"docker_refs":      {"repo_key", "image", "manifest_digest", "blob_digest"},
+	}
+	rows, err := db.Query(`SELECT name FROM sqlite_master WHERE type = 'table'`)
+	if err != nil {
+		t.Fatalf("listing tables: %v", err)
+	}
+	defer func() { _ = rows.Close() }()
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		if _, ok := wantTables[name]; ok {
+			wantTables[name] = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterating tables: %v", err)
+	}
+	for name, seen := range wantTables {
+		if !seen {
+			t.Errorf("table %s missing", name)
+			continue
+		}
+		cols, err := tableColumns(db, name)
+		if err != nil {
+			t.Errorf("columns of %s: %v", name, err)
+			continue
+		}
+		if !sameSet(cols, wantColumns[name]) {
+			t.Errorf("%s columns = %v, want %v", name, cols, wantColumns[name])
+		}
+		pk, err := tablePrimaryKey(db, name)
+		if err != nil {
+			t.Errorf("pk of %s: %v", name, err)
+			continue
+		}
+		if !sameOrder(pk, wantPK[name]) {
+			t.Errorf("%s primary key = %v, want %v", name, pk, wantPK[name])
+		}
+	}
+
+	// Indexes exactly as the architecture block defines them.
+	wantIndexes := map[string]bool{
+		"idx_docker_manifests_image": false,
+		"idx_docker_tags_image":      false,
+		"idx_docker_refs_blob":       false,
+	}
+	irows, err := db.Query(`SELECT name FROM sqlite_master WHERE type = 'index'`)
+	if err != nil {
+		t.Fatalf("listing indexes: %v", err)
+	}
+	defer func() { _ = irows.Close() }()
+	for irows.Next() {
+		var name string
+		if err := irows.Scan(&name); err != nil {
+			t.Fatalf("scan index: %v", err)
+		}
+		if _, ok := wantIndexes[name]; ok {
+			wantIndexes[name] = true
+		}
+	}
+	if err := irows.Err(); err != nil {
+		t.Fatalf("iterating indexes: %v", err)
+	}
+	for name, seen := range wantIndexes {
+		if !seen {
+			t.Errorf("index %s missing (architecture section 6 defines it)", name)
+		}
+	}
+
+	// FK surface: manifests/tags reference repositories; docker_refs has no FK.
+	fkRows, err := db.Query(`PRAGMA foreign_key_list(docker_refs)`)
+	if err != nil {
+		t.Fatalf("foreign_key_list(docker_refs): %v", err)
+	}
+	defer func() { _ = fkRows.Close() }()
+	var n int
+	for fkRows.Next() {
+		n++
+	}
+	if err := fkRows.Err(); err != nil {
+		t.Fatalf("iterating fk list: %v", err)
+	}
+	if n != 0 {
+		t.Fatalf("docker_refs declares %d foreign keys, want 0 (architecture 11.12: no DB-level FK)", n)
+	}
+	for _, table := range []string{"docker_manifests", "docker_tags"} {
+		var refs int
+		if err := db.QueryRow(`SELECT COUNT(*) FROM pragma_foreign_key_list(?)`, table).Scan(&refs); err != nil {
+			t.Fatalf("foreign_key_list(%s): %v", table, err)
+		}
+		if refs == 0 {
+			t.Errorf("%s declares no FK to repositories", table)
+		}
+	}
+}
+
+// tableColumns returns the declared column names of one table via
+// pragma_table_info (table-valued pragma form keeps it a plain query).
+func tableColumns(db *sql.DB, table string) ([]string, error) {
+	rows, err := db.Query(`SELECT name FROM pragma_table_info(?) ORDER BY cid`, table)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		out = append(out, name)
+	}
+	return out, rows.Err()
+}
+
+// tablePrimaryKey returns the PK column names in declaration order.
+func tablePrimaryKey(db *sql.DB, table string) ([]string, error) {
+	rows, err := db.Query(`SELECT name FROM pragma_table_info(?) WHERE pk > 0 ORDER BY pk`, table)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+	var out []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		out = append(out, name)
+	}
+	return out, rows.Err()
+}
+
+func sameSet(got, want []string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	set := map[string]bool{}
+	for _, g := range got {
+		set[g] = true
+	}
+	for _, w := range want {
+		if !set[w] {
+			return false
+		}
+	}
+	return true
+}
+
+func sameOrder(got, want []string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // AC: deleting a repository cascades to its nodes (FK).
