@@ -16,4 +16,5 @@ release-engineer 维护（基线见 DECISIONS.md ADR-0004）。目标：GA 时�
 
 - 目录布局细节由 architect 在 `docs/design/architecture.md` 定稿后落地。
 - M2 起每个里程碑包含对本阶段已有部署方式的烟测票。
+  - M2（2026-08-19）：`deploy/dev`（compose + 镜像）烟测全过（FR-14-AC1~AC4 + O2），报告 `reports/agents/T-45-smoke.md`；M2 docker 接入口径与前置反代直通示例见 `deploy/dev/README.md`。
 - 对外推送镜像 / Chart / 发布二进制 = 对外发布，必须先经用户确认。

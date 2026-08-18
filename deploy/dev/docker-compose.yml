@@ -40,6 +40,11 @@ services:
       BINFLOW_ADMIN_PASSWORD: ${BINFLOW_ADMIN_PASSWORD:?set BINFLOW_ADMIN_PASSWORD in deploy/dev/.env (cp .env.example .env) or export it before composing}
       # anonymous content read, default true (Q2; set false in .env to harden)
       BINFLOW_SECURITY_ANONYMOUS_ACCESS: ${BINFLOW_SECURITY_ANONYMOUS_ACCESS:-true}
+      # token lifetime (M2): every token — management API AND the docker
+      # /v2/token flow (`expires_in`) — is cut from this TTL. 720h mirrors
+      # config.DefaultTokenTTL (the server default); an empty passthrough
+      # would be rejected by the positive-int env parser, hence the fallback.
+      BINFLOW_AUTH__TOKEN_DEFAULT_TTL_HOURS: ${BINFLOW_AUTH__TOKEN_DEFAULT_TTL_HOURS:-720}
       # listen on every interface inside the container (the HOST binding is
       # what controls exposure)
       BINFLOW_SERVER__LISTEN: :8080
