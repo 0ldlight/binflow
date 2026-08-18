@@ -283,8 +283,19 @@ func splitMountSource(from string) (repoKey, image string) {
 	return key, rest
 }
 
-// principalOf is the context principal (nil = anonymous).
-func principalOf(r *http.Request) *Principal { return adapter.PrincipalFrom(r.Context()) }
+// principalOf is the context principal (nil = anonymous). The synthetic
+// anonymous-token subject maps onto the anonymous identity (D44-1): its
+// Bearer tokens carry exactly the anonymous rights — reads while
+// anonymous_access is on, writes never — and grants made to the account are
+// ignored on /v2, so a publicly-obtainable token can never be upgraded by a
+// permission row.
+func principalOf(r *http.Request) *Principal {
+	p := adapter.PrincipalFrom(r.Context())
+	if p != nil && p.Name == anonymousSubject {
+		return nil
+	}
+	return p
+}
 
 // isDenied reports whether err is an authorization refusal.
 func isDenied(err error) bool {

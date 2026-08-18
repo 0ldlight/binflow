@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/lzwzzy/binflow/internal/adapter"
 	"github.com/lzwzzy/binflow/internal/auth"
 )
 
@@ -63,32 +62,37 @@ func (h *Handler) RenderAuthFailure(w http.ResponseWriter, r *http.Request) {
 	h.challenge(w, r, "")
 }
 
-// servePing implements DE-01/D04: anonymous access open -> 200 {} with the
-// api-version header; closed or an unauthenticated non-GET -> 401 with the
-// Bearer challenge (realm = <base>/v2/token, service="binflow", ADR-0010
-// clause 4 — NOT the PRD v1.0 wording, which ADR-0010 superseded and PRD
-// v1.1 wrote back).
+// servePing implements DE-01 (D44-1/C6 errata form): an AUTHENTICATED
+// ping answers 200 {} with the api-version header; every unauthenticated
+// ping — on an anonymous-open instance too — answers 401 with the Bearer
+// challenge (realm = <base>/v2/token, service="binflow", ADR-0010
+// clause 4). The unconditional challenge is what ping-caching clients
+// (docker daemon, containers/image: they authenticate only against the
+// challenge the ping cached) need to ever negotiate; anonymous access
+// flows through the anonymous token instead of a challenge-free ping, and
+// a wrong-password login now fails at the token exchange instead of being
+// waved through by a 200 ping (FR-11-AC4). The v1.0/v1.1 "anonymous open
+// -> 200" posture is superseded by the same ruling.
 func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
-	p := adapter.PrincipalFrom(r.Context())
-	if h.opts.AnonymousAccess || p != nil {
-		if r.Method != http.MethodGet && r.Method != http.MethodHead {
-			// The ping endpoint is a GET resource; other verbs answer the
-			// spec body's method posture (405 + UNSUPPORTED) with the
-			// mandatory Allow header (RFC 9110 MUST).
-			w.Header().Set("Allow", "GET, HEAD")
-			writeSpecError(w, http.StatusMethodNotAllowed, ErrCodeUnsupported,
-				fmt.Sprintf("method %s is not supported on /v2/", r.Method), nil)
-			return
-		}
-		writeAPIVersion(w)
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		if r.Method == http.MethodGet {
-			_, _ = w.Write([]byte("{}"))
-		}
+	if principalOf(r) == nil {
+		h.challenge(w, r, "")
 		return
 	}
-	h.challenge(w, r, "")
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		// The ping endpoint is a GET resource; other verbs answer the
+		// spec body's method posture (405 + UNSUPPORTED) with the
+		// mandatory Allow header (RFC 9110 MUST).
+		w.Header().Set("Allow", "GET, HEAD")
+		writeSpecError(w, http.StatusMethodNotAllowed, ErrCodeUnsupported,
+			fmt.Sprintf("method %s is not supported on /v2/", r.Method), nil)
+		return
+	}
+	writeAPIVersion(w)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if r.Method == http.MethodGet {
+		_, _ = w.Write([]byte("{}"))
+	}
 }
 
 // challenge renders the 401 + Bearer challenge (ADR-0010 clause 4). scope
@@ -171,7 +175,7 @@ func (h *Handler) serveNameRoute(w http.ResponseWriter, r *http.Request, path st
 		return
 	}
 
-	if !h.opts.AnonymousAccess && adapter.PrincipalFrom(r.Context()) == nil {
+	if !h.opts.AnonymousAccess && principalOf(r) == nil {
 		// Closed instance: the name routes challenge before the repo gate
 		// (identical to the reference registries — a 404 here would leak
 		// repository existence to unauthenticated probes, and NAME_UNKNOWN
@@ -247,7 +251,7 @@ func (h *Handler) serveNameRoute(w http.ResponseWriter, r *http.Request, path st
 // returns false when it already rendered the failure. A nil Authorizer
 // (bare test assemblies) fails closed for writes and open for reads.
 func (h *Handler) authorizeRoute(w http.ResponseWriter, r *http.Request, ref nameRef) bool {
-	p := adapter.PrincipalFrom(r.Context())
+	p := principalOf(r)
 	scope := deriveChallengeScope(r.Method, ref)
 	_, _, actions, ok := splitScopeToken(scope)
 	if !ok {

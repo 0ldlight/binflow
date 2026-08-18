@@ -89,22 +89,37 @@ func assertV2Headers(t *testing.T, resp *http.Response) {
 	}
 }
 
-// TestV2PingAnonymousOpen (D04, DE-01): with anonymous access on (the
-// default), /v2 and /v2/ answer 200 {} to anonymous GET — the probe docker
-// login performs before anything else.
-func TestV2PingAnonymousOpen(t *testing.T) {
+// TestV2PingChallengesUnauthenticated (DE-01, D44-1/PRD C6 errata): every
+// UNAUTHENTICATED ping — on an anonymous-open instance too — answers 401 +
+// the Bearer challenge. Ping-caching clients (docker daemon,
+// containers/image) authenticate only against the challenge the ping
+// cached, so a challenge-free 200 made them skip credentials forever (push
+// 401 loops with zero token requests; a wrong-password login "succeeded"
+// without the server seeing a single authenticated request). Anonymous
+// access now flows through the anonymous token; an authenticated principal
+// still gets the 200 {} probe.
+func TestV2PingChallengesUnauthenticated(t *testing.T) {
 	h := newHarness(t)
 	for _, path := range []string{"/v2", "/v2/"} {
 		resp := h.do(http.MethodGet, path, "", "", nil, nil)
 		body := mustGet(t, resp)
-		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("%s status = %d; body=%s", path, resp.StatusCode, body)
-		}
-		if body != "{}" {
-			t.Fatalf("%s body = %q, want {}", path, body)
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("%s anonymous status = %d; body=%s", path, resp.StatusCode, body)
 		}
 		assertV2Headers(t, resp)
+		ch := resp.Header.Get("WWW-Authenticate")
+		want := fmt.Sprintf(`Bearer realm="%s/v2/token",service="binflow"`, h.srv.URL)
+		if ch != want {
+			t.Fatalf("%s WWW-Authenticate =\n  %q\nwant\n  %q", path, ch, want)
+		}
 	}
+	// Authenticated probe: 200 {} (the success the daemon caches).
+	resp := h.do(http.MethodGet, "/v2/", adminUser, adminPass, nil, nil)
+	body := mustGet(t, resp)
+	if resp.StatusCode != http.StatusOK || body != "{}" {
+		t.Fatalf("authenticated ping = %d %q", resp.StatusCode, body)
+	}
+	assertV2Headers(t, resp)
 }
 
 // TestV2PingAnonymousClosed (D04 second half, ADR-0010 clause 4): with
@@ -246,12 +261,14 @@ func TestV2NameResolution(t *testing.T) {
 
 // TestV2ErrorEnvelopeIsolation (NFR-S10): /v2 failures render the registry
 // schema, never the /binflow errors[] envelope — including the ping
-// endpoint's method failure. The status field of the /binflow envelope is
-// the discriminator: the registry schema has no "status" member.
+// endpoint's method failure (reached with credentials: an unauthenticated
+// ping challenges first since D44-1). The status field of the /binflow
+// envelope is the discriminator: the registry schema has no "status"
+// member.
 func TestV2ErrorEnvelopeIsolation(t *testing.T) {
 	h := newHarness(t)
 
-	resp := h.do(http.MethodPost, "/v2/", "", "", nil, nil)
+	resp := h.do(http.MethodPost, "/v2/", adminUser, adminPass, nil, nil)
 	body := mustGet(t, resp)
 	if resp.StatusCode != http.StatusMethodNotAllowed {
 		t.Fatalf("POST /v2/ status = %d; body=%s", resp.StatusCode, body)
@@ -708,10 +725,11 @@ func TestV2CatalogPlaceholder(t *testing.T) {
 }
 
 // TestV2MethodNotAllowedHasAllow (review N5): the 405 carries RFC 9110's
-// mandatory Allow header.
+// mandatory Allow header (authenticated: the unauthenticated ping
+// challenges before the method check since D44-1).
 func TestV2MethodNotAllowedHasAllow(t *testing.T) {
 	h := newHarness(t)
-	resp := h.do(http.MethodPost, "/v2/", "", "", nil, nil)
+	resp := h.do(http.MethodPost, "/v2/", adminUser, adminPass, nil, nil)
 	mustGet(t, resp)
 	if resp.StatusCode != http.StatusMethodNotAllowed {
 		t.Fatalf("status = %d", resp.StatusCode)

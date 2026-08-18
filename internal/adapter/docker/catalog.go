@@ -10,7 +10,6 @@ import (
 	"sort"
 	"strconv"
 
-	"github.com/lzwzzy/binflow/internal/adapter"
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/repo"
 )
@@ -66,7 +65,7 @@ func (h *Handler) serveCatalog(w http.ResponseWriter, r *http.Request) {
 			fmt.Sprintf("method %s is not supported on the catalog", r.Method), nil)
 		return
 	}
-	p := adapter.PrincipalFrom(r.Context())
+	p := principalOf(r)
 	if p == nil && !h.opts.AnonymousAccess {
 		// The catalog is a management-flavored listing: without a credential
 		// on a closed instance it challenges with the registry-level catalog

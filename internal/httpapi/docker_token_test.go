@@ -16,11 +16,12 @@ import (
 
 // tokenBody mirrors the /v2/token success payload.
 type tokenBody struct {
-	Token       string `json:"token"`
-	AccessToken string `json:"access_token"`
-	ExpiresIn   int64  `json:"expires_in"`
-	IssuedAt    string `json:"issued_at"`
-	Scope       string `json:"scope"`
+	Token        string `json:"token"`
+	AccessToken  string `json:"access_token"`
+	ExpiresIn    int64  `json:"expires_in"`
+	IssuedAt     string `json:"issued_at"`
+	Scope        string `json:"scope"`
+	RefreshToken string `json:"refresh_token"`
 }
 
 // getV2Token negotiates one token through the real endpoint.
@@ -152,17 +153,25 @@ func TestV2TokenNonAdmin(t *testing.T) {
 		t.Fatalf("management plane for non-admin = %d, want 403", mgmt.StatusCode)
 	}
 
-	// offline_token rejection (FR-11-AC7).
-	off := h.do(http.MethodGet, "/v2/token?service=binflow&offline_token=true",
+	// offline_token accepted and ignored (D44-2/C5: docker 29's
+	// challenge-mode login sends it on every token GET; the spec's
+	// "MAY ignore" is the ruling). A plain token comes back, never a
+	// refresh_token.
+	off := h.do(http.MethodGet,
+		"/v2/token?service=binflow&offline_token=true&scope=repository:docker-local/ci-out/**:pull",
 		adminUser, adminPass, nil, nil)
 	obody := mustGet(t, off)
-	if off.StatusCode != http.StatusBadRequest {
+	if off.StatusCode != http.StatusOK {
 		t.Fatalf("offline_token status = %d; body=%s", off.StatusCode, obody)
 	}
-	if !strings.Contains(obody, `"invalid_request"`) {
-		t.Fatalf("offline_token body = %s, want the OAuth invalid_request form", obody)
+	var offTok tokenBody
+	if err := json.Unmarshal([]byte(obody), &offTok); err != nil {
+		t.Fatalf("offline_token body %q: %v", obody, err)
 	}
-	// refresh grant rejection.
+	if offTok.Token == "" || offTok.RefreshToken != "" {
+		t.Fatalf("offline_token exchange = %+v, want a token and no refresh", offTok)
+	}
+	// refresh grant rejection stays (Q3: no refresh).
 	rg := h.do(http.MethodPost, "/v2/token", adminUser, adminPass,
 		[]byte("grant_type=refresh_token"),
 		map[string]string{"Content-Type": "application/x-www-form-urlencoded"})
@@ -228,10 +237,12 @@ func TestV2TokenWrongCredentials(t *testing.T) {
 }
 
 // TestV2TokenAnonymousBothModes (D04 + FR-11-AC1's anonymous branch):
-// anonymous open -> a token is issued (pull-only posture, empty narrowed
-// scope); anonymous closed -> OAuth 401.
+// anonymous open -> a token is issued and WORKS as an anonymous Bearer
+// (D44-1: the ping always challenges, so anonymous access flows through
+// this token); anonymous closed -> OAuth 401.
 func TestV2TokenAnonymousBothModes(t *testing.T) {
 	h := newHarness(t)
+	seedDockerRepo(t, h, "team1")
 	resp, body := getV2Token(h, "", "", "?service=binflow&scope=repository:team1/app:pull")
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("anonymous open status = %d; body=%s", resp.StatusCode, body)
@@ -243,18 +254,92 @@ func TestV2TokenAnonymousBothModes(t *testing.T) {
 	if tok.Token == "" {
 		t.Fatal("anonymous token empty")
 	}
-	// The synthetic subject owns it; the verifier refuses disabled owners,
-	// so the anonymous token authenticates as a REJECTED credential — the
-	// pull still works through the anonymous-open rule, never through the
-	// token. That is the intended closed posture (see anonseed.go).
-	if _, err := h.md.Users().Get(t.Context(), "_docker_anonymous"); err != nil {
-		t.Fatalf("synthetic subject not seeded: %v", err)
+	// The synthetic subject owns the row and is ENABLED (D44-1) — the
+	// token verifies, and the /v2 plane maps its principal onto the
+	// anonymous identity: reads pass while anonymous access is on...
+	read := h.do(http.MethodGet, "/v2/team1/app/manifests/latest", "", "", nil,
+		map[string]string{"Authorization": "Bearer " + tok.Token})
+	rbody := mustGet(t, read)
+	if read.StatusCode == http.StatusUnauthorized || read.StatusCode == http.StatusForbidden {
+		t.Fatalf("anonymous bearer read denied: %d %s", read.StatusCode, rbody)
+	}
+	// ...and writes are challenged like any anonymous write.
+	write := h.do(http.MethodPost, "/v2/team1/app/blobs/uploads/", "", "", nil,
+		map[string]string{"Authorization": "Bearer " + tok.Token})
+	if write.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("anonymous bearer write = %d, want the scoped 401 challenge", write.StatusCode)
+	}
+	if ch := write.Header.Get("WWW-Authenticate"); !strings.Contains(ch, `scope="repository:team1/app:pull,push"`) {
+		t.Fatalf("anonymous bearer write challenge = %q", ch)
 	}
 
 	h2 := newHarnessCfg(t, func(c *mutatedConfig) { c.Security.AnonymousAccess = false }, nil)
 	resp2, body2 := getV2Token(h2, "", "", "?service=binflow")
 	if resp2.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("anonymous closed status = %d; body=%s", resp2.StatusCode, body2)
+	}
+}
+
+// TestV2TokenFormCredentials (D44-3): the OAuth POST form carries the
+// credential pair (grant_type=password — buildkit/helm spelling). The form
+// pair has the same standing as the Basic header: a valid pair mints a
+// token that WORKS as Bearer, a wrong pair is a 401 (never a silent
+// anonymous token), and the header still wins when both spellings arrive.
+func TestV2TokenFormCredentials(t *testing.T) {
+	h := newHarnessCfg(t, nil, [][2]string{{"ci-bot", "ci-pw"}})
+	seedDockerRepo(t, h, "team1")
+	grant(t, h, "ci-rw", "team1", "app/**", "ci-bot", true, true, false)
+
+	form := "grant_type=password&username=ci-bot&password=ci-pw&service=binflow" +
+		"&scope=repository:team1/app:pull,push&client_id=docker&access_type=online"
+	resp := h.do(http.MethodPost, "/v2/token", "", "", []byte(form),
+		map[string]string{"Content-Type": "application/x-www-form-urlencoded"})
+	body := mustGet(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("form credential exchange = %d; body=%s", resp.StatusCode, body)
+	}
+	var tok tokenBody
+	if err := json.Unmarshal([]byte(body), &tok); err != nil {
+		t.Fatalf("body %q: %v", body, err)
+	}
+	if tok.Token == "" {
+		t.Fatal("form credential token empty")
+	}
+	if tok.Scope != "repository:team1/app:pull,push" {
+		t.Fatalf("scope = %q, want the granted pair", tok.Scope)
+	}
+	// The minted token carries the FORM user's rights (a push passes the
+	// route gate — this is exactly the buildx/helm failure mode).
+	push := h.do(http.MethodPost, "/v2/team1/app/blobs/uploads/", "", "", nil,
+		map[string]string{"Authorization": "Bearer " + tok.Token})
+	if push.StatusCode == http.StatusUnauthorized || push.StatusCode == http.StatusForbidden {
+		t.Fatalf("form credential bearer push denied: %d %s", push.StatusCode, mustGet(t, push))
+	}
+
+	// client_id/client_secret pair (the other OAuth spelling).
+	pair := "grant_type=client_credentials&client_id=ci-bot&client_secret=ci-pw&service=binflow"
+	resp2 := h.do(http.MethodPost, "/v2/token", "", "", []byte(pair),
+		map[string]string{"Content-Type": "application/x-www-form-urlencoded"})
+	body2 := mustGet(t, resp2)
+	if resp2.StatusCode != http.StatusOK {
+		t.Fatalf("client pair exchange = %d; body=%s", resp2.StatusCode, body2)
+	}
+	var tok2 tokenBody
+	_ = json.Unmarshal([]byte(body2), &tok2)
+	if tok2.Token == "" {
+		t.Fatal("client pair token empty")
+	}
+
+	// Wrong form password: 401, and the body leaks nothing.
+	bad := "grant_type=password&username=ci-bot&password=wrong&service=binflow"
+	resp3 := h.do(http.MethodPost, "/v2/token", "", "", []byte(bad),
+		map[string]string{"Content-Type": "application/x-www-form-urlencoded"})
+	body3 := mustGet(t, resp3)
+	if resp3.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("wrong form password = %d; body=%s", resp3.StatusCode, body3)
+	}
+	if !strings.Contains(body3, `"error"`) || strings.Contains(body3, "ci-bot") {
+		t.Fatalf("wrong form password body = %s", body3)
 	}
 }
 
@@ -412,11 +497,14 @@ func TestV2TokenCleanupRows(t *testing.T) {
 }
 
 // TestV2TokenOAuthErrorPlane: every non-2xx on /v2/token renders the OAuth
-// form — never the registry spec body, never the /binflow envelope.
+// form — never the registry spec body, never the /binflow envelope. (The
+// probe is the refresh-grant 400; offline_token no longer errors since
+// D44-2/C5.)
 func TestV2TokenOAuthErrorPlane(t *testing.T) {
 	h := newHarness(t)
-	resp := h.do(http.MethodGet, "/v2/token?offline_token=1&service=binflow",
-		adminUser, adminPass, nil, nil)
+	resp := h.do(http.MethodPost, "/v2/token", adminUser, adminPass,
+		[]byte("grant_type=refresh_token"),
+		map[string]string{"Content-Type": "application/x-www-form-urlencoded"})
 	body := mustGet(t, resp)
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("status = %d; body=%s", resp.StatusCode, body)

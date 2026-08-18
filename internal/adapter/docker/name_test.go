@@ -111,11 +111,14 @@ func TestRepoTypesProtocolKeyOnly(t *testing.T) {
 }
 
 // TestSpecErrorEnvelopeShape: the error body is exactly the registry
-// schema with the api-version header.
+// schema with the api-version header (the wrong-verb ping needs an
+// authenticated principal — unauthenticated pings challenge first since
+// D44-1).
 func TestSpecErrorEnvelopeShape(t *testing.T) {
 	h := New(nil, NewStaticRepoLookup(nil), nil, nil, nil, Options{AnonymousAccess: true}, nil)
 	w := &captureWriter{hdr: http.Header{}}
 	r := &http.Request{Method: http.MethodPost, URL: &url.URL{Path: "/v2/"}}
+	r = r.WithContext(adapter.WithPrincipal(r.Context(), &Principal{Name: "admin", Admin: true}))
 	h.ServeHTTP(w, r)
 
 	if w.status != http.StatusMethodNotAllowed {

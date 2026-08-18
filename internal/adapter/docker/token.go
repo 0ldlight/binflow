@@ -1,13 +1,15 @@
 package docker
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/lzwzzy/binflow/internal/adapter"
+	"github.com/lzwzzy/binflow/internal/auth"
 )
 
 // OAuth-form error codes for the token endpoint (the /v2/token plane renders
@@ -39,12 +41,11 @@ type tokenResponse struct {
 // tokenRequest is the normalized token-endpoint request: query parameters
 // for GET, form body (or query) for POST.
 type tokenRequest struct {
-	service      string
-	account      string
-	clientID     string
-	scopes       []string
-	offlineToken bool
-	grantType    string
+	service   string
+	account   string
+	clientID  string
+	scopes    []string
+	grantType string
 }
 
 // parseTokenRequest reads the parameters from the query string and, for
@@ -52,6 +53,12 @@ type tokenRequest struct {
 // query values when both spell a parameter (RFC 6749 section 3.1 keeps the
 // query for the authorization-code family; docker clients put everything in
 // the query on GET and the body on POST — either way one spelling arrives).
+//
+// offline_token (D44-2): the official distribution token spec defines the
+// parameter and lets the server "MAY ignore" it; docker 29's challenge-mode
+// login sends offline_token=true on every GET. Accepted and IGNORED — no
+// refresh_token is ever returned (Q3: no refresh), so the flag costs
+// nothing to honor.
 func parseTokenRequest(r *http.Request) tokenRequest {
 	var req tokenRequest
 	get := func(key string) string {
@@ -63,7 +70,6 @@ func parseTokenRequest(r *http.Request) tokenRequest {
 	req.service = get("service")
 	req.account = get("account")
 	req.clientID = get("client_id")
-	req.offlineToken = isTruthy(get("offline_token"))
 	req.grantType = get("grant_type")
 	if v := r.URL.Query()["scope"]; len(v) > 0 {
 		req.scopes = append(req.scopes, v...)
@@ -72,15 +78,6 @@ func parseTokenRequest(r *http.Request) tokenRequest {
 		req.scopes = append(req.scopes, v...)
 	}
 	return req
-}
-
-// isTruthy interprets a form boolean (offline_token=true/1/yes/on).
-func isTruthy(v string) bool {
-	switch strings.ToLower(strings.TrimSpace(v)) {
-	case "true", "1", "yes", "on":
-		return true
-	}
-	return false
 }
 
 // serveToken implements GET/POST /v2/token (DE-13, ADR-0010 clause 4).
@@ -125,18 +122,31 @@ func (h *Handler) serveToken(w http.ResponseWriter, r *http.Request) {
 	}
 	req := parseTokenRequest(r)
 
-	if req.offlineToken {
-		h.writeOAuthError(w, http.StatusBadRequest, oauthErrInvalidRequest,
-			"offline_token is not supported")
-		return
-	}
 	if req.grantType == "refresh_token" {
 		h.writeOAuthError(w, http.StatusBadRequest, oauthErrUnsupportedGrant,
 			"refresh_token grant is not supported (re-login instead)")
 		return
 	}
 
-	p := adapter.PrincipalFrom(r.Context())
+	// Credential resolution (D44-3): the middleware already settled the
+	// Authorization HEADER (Basic/Bearer). When it settled nothing and the
+	// POST body carries the OAuth form credential pair, that pair carries
+	// the same weight as Basic — buildkit/helm push through this spelling
+	// (grant_type=password), and ignoring it minted them a useless
+	// anonymous token. A PRESENT-but-wrong form credential is a 401, never
+	// a silent fallback to anonymous issuance.
+	p := principalOf(r)
+	if p == nil {
+		if user, pass, ok := formCredentials(r); ok {
+			fp, err := h.authenticateForm(r.Context(), user, pass)
+			if err != nil {
+				h.writeOAuthError(w, http.StatusUnauthorized, oauthErrInvalidClient,
+					"authentication required")
+				return
+			}
+			p = fp
+		}
+	}
 	if p == nil && !h.opts.AnonymousAccess {
 		// No credential (and anonymous closed): OAuth-form 401 with the
 		// Basic challenge — this is the one 401 whose client has nothing to
@@ -188,6 +198,48 @@ func (h *Handler) serveToken(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(resp) //nolint:gosec // G117: the token IS the response payload (DE-13); a secret that never crosses the wire is not a token
+}
+
+// formCredentials extracts the OAuth form-body credential pair of a POST
+// token request: username+password (the grant_type=password spelling docker
+// login, buildkit and helm use), or client_id+client_secret. Only FORM
+// values qualify — the same secrets in the query string are ignored (they
+// leak into logs and proxies; the spec carries them in the body).
+func formCredentials(r *http.Request) (user, pass string, ok bool) {
+	if r.Method != http.MethodPost {
+		return "", "", false
+	}
+	if u, p := r.PostFormValue("username"), r.PostFormValue("password"); u != "" && p != "" {
+		return u, p, true
+	}
+	if u, p := r.PostFormValue("client_id"), r.PostFormValue("client_secret"); u != "" && p != "" {
+		return u, p, true
+	}
+	return "", "", false
+}
+
+// errFormCredential is the single failure of the form-credential path —
+// unknown user, wrong password and disabled account all map onto it so the
+// 401 body cannot distinguish them (FR-11-AC4's no-existence-leak rule,
+// same as the Basic path).
+var errFormCredential = errors.New("docker: form credential rejected")
+
+// authenticateForm verifies one form credential pair against the user
+// store. This is the token endpoint's own exchange — the ONE place an
+// adapter handles credentials — because the middleware settles headers
+// long before a form body is parseable. Password semantics follow the
+// platform's argon2id verification; the Basic path's password-as-API-token
+// duality is deliberately not duplicated here (docker/buildkit/helm send
+// real passwords; token-authenticated automation uses the header).
+func (h *Handler) authenticateForm(ctx context.Context, user, pass string) (*Principal, error) {
+	if h.users == nil {
+		return nil, errFormCredential
+	}
+	u, err := h.users.Get(ctx, user)
+	if err != nil || !u.Enabled || !auth.VerifyPassword(pass, u.PasswordHash) {
+		return nil, errFormCredential
+	}
+	return &Principal{Name: u.Username, Admin: u.IsAdmin}, nil
 }
 
 // writeOAuthError renders the token endpoint's OAuth-form error body with

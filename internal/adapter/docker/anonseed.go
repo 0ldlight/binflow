@@ -2,10 +2,13 @@ package docker
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
 
+	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/metadata"
 )
 
@@ -19,47 +22,52 @@ type anonymousSubjectSeed interface {
 }
 
 // anonymousSubject is the token row subject for anonymous docker tokens.
-// TokenRegistry rows carry a NOT NULL username, and a real account must
-// never own a token the anonymous public can obtain (privilege injection:
-// any grant that account has would leak into every anonymous pull).
-// "_docker_anonymous" is a synthetic disabled account seeded by the
-// adapter; it can never log in (disabled, no usable password hash) and
-// carries no grants, so the token it owns authenticates as anonymous.
+// TokenRegistry rows carry a NOT NULL username (FK to users), and a REAL
+// account must never own the tokens anonymous pulls obtain — any grant of
+// that account would leak into every anonymous Bearer. "_docker_anonymous"
+// is the synthetic alias: the /v2 plane maps its principal onto the
+// anonymous identity (principalOf), so the tokens it owns carry exactly the
+// anonymous rights (read-only while anonymous_access=true) and nothing
+// else. D44-1: the account is ENABLED — since the ping always challenges,
+// anonymous pulls flow through this token as a real Bearer, and the
+// verifier refuses nothing. Grants to this account are IGNORED on /v2 (the
+// mapping wins); operators must not confuse it with a service account.
 const anonymousSubject = "_docker_anonymous"
 
-// anonymousPasswordHash is the synthetic account's stored hash: an argon2id
-// PHC string of random bytes no one knows. The account is ALSO disabled
-// (enabled=0), which is the actual "can never log in" guarantee — the hash
-// only keeps the row shape valid for VerifyPassword even if someone flips
-// the flag in the database.
-const anonymousPasswordHash = "$argon2id$v=19$m=65536,t=2,p=1$" +
-	"YW5vbnltb3VzLWRvY2tlci10b2tlbi1zZWVk$" +
-	"YW5vbnltb3VzLWRvY2tlci10b2tlbi1zZWVk"
+// anonymousSecretLen is the entropy of the synthetic account's one-time
+// password secret (256 bits, NFR-S2 class); the plaintext is discarded at
+// seed time, so the stored argon2id hash is un-loginable by construction.
+const anonymousSecretLen = 32
 
 // ensureAnonymousSubject makes the synthetic "_docker_anonymous" account
-// exist. TokenRegistry rows need a username (NOT NULL, FK to users), and a
-// real account must never own the tokens anonymous pulls obtain — any grant
-// of that account would leak into every anonymous Bearer. The account is
-// disabled and carries no grants, so its tokens authenticate as anonymous
-// (the verifier refuses disabled owners — an anonymous docker token
-// therefore 401s the moment an operator enables it, which is the correct
-// failure direction: closed, not open).
-//
-// Idempotent and race-safe: a concurrent/prior insert surfaces as
-// ErrDuplicate or a UNIQUE constraint wrap, and the row's presence is
-// re-verified before any error is reported.
+// exist: enabled (its tokens must verify, D44-1), non-admin, grant-less,
+// with the password hash of a random secret nobody kept. Idempotent and
+// race-safe: a concurrent/prior insert surfaces as ErrDuplicate or a UNIQUE
+// constraint wrap, and the row's presence is re-verified before any error
+// is reported.
 func ensureAnonymousSubject(ctx context.Context, seed anonymousSubjectSeed) error {
 	if _, err := seed.Get(ctx, anonymousSubject); err == nil {
 		return nil
 	} else if !errors.Is(err, metadata.ErrUserNotFound) {
 		return fmt.Errorf("docker: anonymous token subject lookup: %w", err)
 	}
+	secret := make([]byte, anonymousSecretLen)
+	if _, err := rand.Read(secret); err != nil {
+		return fmt.Errorf("docker: anonymous token subject entropy: %w", err)
+	}
+	// Hash a random hex secret and drop it: the account can never be logged
+	// into via password (a valid PHC keeps VerifyPassword's parse honest),
+	// which is what makes "enabled" safe.
+	hash, err := auth.HashPassword(hex.EncodeToString(secret))
+	if err != nil {
+		return fmt.Errorf("docker: hashing anonymous token subject secret: %w", err)
+	}
 	now := time.Now().UTC().Format(time.RFC3339)
-	err := seed.Create(ctx, &metadata.User{
+	err = seed.Create(ctx, &metadata.User{
 		Username:     anonymousSubject,
-		PasswordHash: anonymousPasswordHash,
+		PasswordHash: hash,
 		IsAdmin:      false,
-		Enabled:      false,
+		Enabled:      true,
 		CreatedAt:    now,
 		UpdatedAt:    now,
 	})

@@ -388,17 +388,26 @@ func TestTokenEndpointSuite(t *testing.T) {
 			},
 		},
 		{
-			name:       "offline_token is rejected",
+			// D44-2: docker 29's challenge-mode login sends offline_token=true
+			// on every token GET; the spec lets the server ignore it, so the
+			// request now succeeds and the response never carries a
+			// refresh_token (Q3: no refresh).
+			name:       "offline_token accepted and ignored",
 			anonOpen:   true,
 			method:     http.MethodGet,
-			query:      "service=binflow&offline_token=true",
+			query:      "service=binflow&offline_token=true&scope=repository:team1/app:pull",
 			principal:  &auth.Principal{Name: "admin", Admin: true},
-			wantStatus: http.StatusBadRequest,
+			wantStatus: http.StatusOK,
 			wantBody: func(t *testing.T, body string, _ *Handler) {
-				var oe oauthErrorBody
-				_ = json.Unmarshal([]byte(body), &oe)
-				if oe.Error != oauthErrInvalidRequest {
-					t.Fatalf("error = %q, want invalid_request", oe.Error)
+				var tr tokenResponse
+				if err := json.Unmarshal([]byte(body), &tr); err != nil {
+					t.Fatalf("body %q: %v", body, err)
+				}
+				if tr.Token == "" {
+					t.Fatal("token empty with offline_token=true")
+				}
+				if tr.RefreshToken != "" {
+					t.Fatalf("refresh_token = %q, want never set", tr.RefreshToken)
 				}
 			},
 		},
@@ -503,7 +512,9 @@ func TestTokenTTLFloor(t *testing.T) {
 }
 
 // TestEnsureAnonymousSubject: the synthetic account is created once,
-// idempotently, and never admin/enabled.
+// idempotently, enabled (its tokens must verify as Bearer — D44-1) and
+// never admin; the password hash is a REAL argon2id hash of a random
+// secret, so no password can ever verify against it.
 func TestEnsureAnonymousSubject(t *testing.T) {
 	users := &fakeUsers{}
 	if err := ensureAnonymousSubject(context.Background(), users); err != nil {
@@ -513,11 +524,14 @@ func TestEnsureAnonymousSubject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get after seed: %v", err)
 	}
-	if u.Enabled || u.IsAdmin {
-		t.Fatalf("synthetic account enabled=%v admin=%v, want false/false", u.Enabled, u.IsAdmin)
+	if !u.Enabled || u.IsAdmin {
+		t.Fatalf("synthetic account enabled=%v admin=%v, want true/false", u.Enabled, u.IsAdmin)
 	}
-	if u.PasswordHash == "" {
-		t.Fatal("synthetic account has no password hash")
+	if u.PasswordHash == "" || !strings.HasPrefix(u.PasswordHash, "$argon2id$") {
+		t.Fatalf("synthetic account hash = %q, want a real argon2id PHC", u.PasswordHash)
+	}
+	if auth.VerifyPassword("password", u.PasswordHash) || auth.VerifyPassword("", u.PasswordHash) {
+		t.Fatal("synthetic account hash verifies a guessable password")
 	}
 	if err := ensureAnonymousSubject(context.Background(), users); err != nil {
 		t.Fatalf("second seed must be a no-op: %v", err)
