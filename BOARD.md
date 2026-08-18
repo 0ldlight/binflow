@@ -50,15 +50,8 @@
 
 ## 🔨 进行中（doing）
 
-- **T-29** [P0] M2 PRD：Docker Registry v2 需求与验收 `role:product-manager` `area:docs/prd、ROADMAP.md` `dep:m1-done`
-  AC: ① docs/prd/milestone-2.md：blob upload 协议（monolithic+chunked）/manifest schema2+OCI/catalog+tags/token 认证流/Helm OCI 的用户故事+可验证 AC+兼容矩阵（docker/podman/crane/skopeo/oras 真实客户端命令级）② ROADMAP.md M2 状态更新 ③ M1 遗留观察项（O1~O4、Content-Type 映射）纳入或显式归档
-  状态：09:3x 派发，在途。
-- **T-30** [P0] M2 架构增量：docker adapter 与 /v2 挂载 `role:architect` `area:docs/design、DECISIONS.md` `dep:m1-done`
-  AC: ① §5.1 扩 docker adapter（blob upload session 映射到 storage.Session 的设计、manifest 存储、tag 指针、/v2 路由例外——ADR-0008 预告的 docker /v2 硬编码 vs /binflow 前缀冲突在此定案）② token 认证流（/v2/token JWT 还是自签结构）与现有 auth.TokenRegistry 关系 ③ 部署矩阵影响（反代 rewrite 或根级例外）
-  状态：09:3x 派发，在途。
 - **T-31** [P0] 补逆向规格 docker-registry.md `role:reverse-engineer` `area:docs/reverse` `dep:m1-done`
-  AC: ① docs/reverse/docker-registry.md：Registry v2 端点行为细节（补官方规范空白：错误码形态/上传会话语义/manifest 校验链/ acceptheader 协商），以 reverse-src/ + Docker 官方 spec 双证 ② 置信度标注 ③ clean-room 铁律
-  状态：09:3x 派发，在途。
+  状态：在途（双源 spec 分析中）。
 
 ## 🧪 测试中（qa）
 
@@ -141,6 +134,15 @@
   两轮验收：round 1 FAIL（D2/D3 两 P1 同源）→ T-28 修复 → 回归 23/23 ALL GREEN、D2/D3 关闭、round 1 FAIL 撤回。最终：场景 1/3/4/6/7 + NFR-S1/S2/S3 + C28 全 PASS。方法学亮点：二轮净instance 自纠两误报 + A/B 对照构建证伪一个疑似回归（观察项 O4 供 M2 复核）。报告 reports/agents/T-18-qa.md。
 - **T-19** [P0] QA 存储完整性/性能/持久化+README 复跑 `role:qa-engineer` `dep:T-18` — done 2026-08-18（ALL GREEN 零缺陷）
   场景 2/5/8/9/10 全绿：去重（blob 1 物理份）、慢上传中断零残留、kill -9 双轮+容器路径一致、1GB 流式 RSS 增量仅 56KB（限 256MB）、冷启动 0.065s（限 2s）、100 并发零 5xx、C29 两轮持久化、gc dry-run/apply/幸存、README worktree 干净复跑全 0。**DoD 第 1/2 条判定：满足**（P2 未做仅 Content-Type 映射，合规延后 M2）。报告 reports/agents/T-19-qa.md（M1 QA 总报告）。
+
+---
+
+## M2 票据（2026-08-18 起）
+
+- **T-29** [P0] M2 PRD `role:product-manager` `area:docs/prd、ROADMAP.md` — done 2026-08-18
+  milestone-2.md v1.0（515 行）：FR-7~FR-14（docker repo 类型/blob 三式/manifest schema2+OCI/catalog+tags/token 流/Helm OCI/五客户端矩阵/部署烟测）；DE-01~DE-17 兼容矩阵 + D01~D24 验收命令；M1 观察项 O1~O4 逐条定界；Q1 路由两案对比（待定）。核验通过。
+- **T-30** [P0] M2 架构增量 `role:architect` `area:docs/design、DECISIONS.md` — done 2026-08-18
+  **ADR-0010：/v2 根级例外**（三案评估：反代 rewrite 出局因裸机 docker 不可用、双挂载出局因三处双份生成；根级例外与 /healthz 同类豁免，token realm 免重写）。§5.3 docker adapter 13 行端点映射（offset 由 adapter 持协议态/cross-repo mount 走 PutFromBlob/mediaType 白名单+在场校验）；token 复用 TokenRegistry（scope pull→r push→w）；002 迁移三表（docker_manifests/tags/refs）。核验通过。三处待 T-31 校准点已入 §12。
 
 ## 🚫 阻塞（blocked）
 
