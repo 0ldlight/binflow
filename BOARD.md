@@ -71,14 +71,14 @@
 
 ## 🔨 进行中（doing）
 
-（空）
+- **T-33** [P0] /v2 挂载+docker 基座（修复轮） `role:dev-registry-adapter`
+  状态：双 review 合并 REQUEST_CHANGES（5 blocker：B1 域信封泄漏双视角交叉确认 / B2 repoKey 段防线 / B3 _catalog 占位 / B4 repo 门错误分离+ctx）→ 原 agent 修复在途。
+  RepoTypes 裁定：本票放行（空切片唯一不破 generic 的选择），§5.1 勘误四点 M3 前关闭——挂 architect 债务。
 
 ## 👀 评审中（review）
 
 - **T-35** [P0] repo docker 用例编排 — 编码完成，conductor 复现通过（race 18.3s 绿/12 包全 ok/lint 0/69 子用例）→ 单 code-reviewer 在途（跨存储面写序/自愈机制/删仓原子性）。
   提交 ccd4577。经一轮 429 中断，代码零损失。
-- **T-33** [P0] /v2 挂载+docker 基座 — 编码完成，conductor 复现通过（docker+httpapi race 绿/lint 0/TestV2 全过/R10 注释落位/stash 隔离验证严谨）→ **双 reviewer 在途**（正确性：混合编码探针/信封隔离；架构：ADR-0010 逐条对照/RepoTypes 空 class 键裁定）。
-  实现者报备裁定：docker.RepoTypes() 返回空切片规避 adapters map class 键全局覆盖冲突（实证过 generic 会被顶掉）——架构 reviewer 将裁决补 §5.1 缺口或认可过渡。
 
 ## 🧪 测试中（qa）
 
