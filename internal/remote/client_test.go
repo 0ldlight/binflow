@@ -107,6 +107,14 @@ func TestClientBlockedIPMatrix(t *testing.T) {
 		{"multicast", "http://224.0.0.5/x", CategoryMulticast},
 		{"broadcast", "http://255.255.255.255/x", CategoryBroadcast},
 		{"reserved", "http://240.0.0.9/x", CategoryReserved},
+		// Review B1/B2: transition formats and zones are denied at the
+		// client door as well, not only inside the guard.
+		{"nat64 wraps metadata service", "http://[64:ff9b::a9fe:a9fe]/x", CategoryLinkLocal},
+		{"nat64 wraps loopback", "http://[64:ff9b::7f00:1]/x", CategoryLoopback},
+		{"6to4 wraps loopback", "http://[2002:7f00:1::]/x", CategoryLoopback},
+		{"teredo", "http://[2001:0::7f00:1]/x", CategoryTeredo},
+		{"ipv4-compatible wraps loopback", "http://[::7f00:1]/x", CategoryLoopback},
+		{"zone wraps link-local", "http://[fe80::1%25en0]/x", CategoryLinkLocal},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			c := newClient(t, "", func(o *Options) {
@@ -236,6 +244,8 @@ func TestFollowRedirectScreensEveryHop(t *testing.T) {
 		{name: "302 to loopback", location: "http://127.0.0.1:9099/x", cat: CategoryLoopback},
 		{name: "302 to ::1", location: "http://[::1]/x", cat: CategoryLoopback},
 		{name: "302 to 0.0.0.0", location: "http://0.0.0.0/x", cat: CategoryUnspecified},
+		{name: "302 to nat64-wrapped metadata service", location: "http://[64:ff9b::a9fe:a9fe]/latest/", cat: CategoryLinkLocal},
+		{name: "302 to 6to4-wrapped loopback", location: "http://[2002:7f00:1::]/x", cat: CategoryLoopback},
 		{
 			name:     "302 to hostname resolving private",
 			location: "http://internal-upstream.test/latest",
@@ -448,6 +458,26 @@ func TestClientBufferedBodyLimit(t *testing.T) {
 			t.Errorf("body length = %d, want 1024", len(res.Body))
 		}
 	})
+	// Review B4: the cap governs buffered BODIES. A HEAD declares the size
+	// of the artifact being probed without carrying a body, so probing an
+	// artifact larger than the cap must not fail (the fetcher's
+	// revalidation path would otherwise see phantom 502s).
+	t.Run("head with large declared content length passes", func(t *testing.T) {
+		up := newHitServer(t, func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Length", "8589934592") // 8GB artifact
+		})
+		c := newClient(t, up.URL, func(o *Options) { o.MaxBufferedBody = 1024 })
+		res, err := c.Fetch(context.Background(), Request{Method: "HEAD", Path: "huge.jar"})
+		if err != nil {
+			t.Fatalf("HEAD probe of oversized artifact: %v", err)
+		}
+		if len(res.Body) != 0 {
+			t.Errorf("HEAD body = %d bytes, want 0", len(res.Body))
+		}
+		if got := res.Header.Get("Content-Length"); got != "8589934592" {
+			t.Errorf("declared length = %q, want passthrough", got)
+		}
+	})
 }
 
 // TestClientDefaults pins the T-79 errata parameter face: 15s socket
@@ -539,6 +569,35 @@ func TestClientRedirectCrossHostDropsCredentials(t *testing.T) {
 	}
 	if got, _ := targetAuth.Load().(string); got != "" {
 		t.Errorf("cross-host hop received Authorization %q, want none", got)
+	}
+}
+
+// TestClientRedirectLocationUserinfoStripped: net/http turns URL userinfo
+// into a Basic Authorization header on the next hop, so an upstream that
+// controls a Location could inject credentials into the following request.
+// The loop strips userinfo from every redirect target (review follow-up
+// #4); this anonymous client must arrive at the sink with no Authorization
+// header at all.
+func TestClientRedirectLocationUserinfoStripped(t *testing.T) {
+	var sinkAuth atomic.Value
+	up := newHitServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/start" {
+			http.Redirect(w, r, "http://injected:secret@"+r.Host+"/sink", http.StatusFound)
+			return
+		}
+		sinkAuth.Store(r.Header.Get("Authorization"))
+		_, _ = w.Write([]byte("sink"))
+	})
+	c := newClient(t, up.URL, nil) // anonymous: no credentials configured
+	res, err := c.Fetch(context.Background(), Request{Path: "start"})
+	if err != nil {
+		t.Fatalf("fetch: %v", err)
+	}
+	if res.StatusCode != http.StatusOK || string(res.Body) != "sink" {
+		t.Fatalf("status/body = %d/%q, want 200/sink", res.StatusCode, res.Body)
+	}
+	if got, _ := sinkAuth.Load().(string); got != "" {
+		t.Errorf("Location userinfo leaked as Authorization %q, want none", got)
 	}
 }
 

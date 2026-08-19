@@ -75,10 +75,15 @@ type Options struct {
 	AllowPrivateUpstream bool
 	// SocketTimeout <= 0 means DefaultSocketTimeout.
 	SocketTimeout time.Duration
-	// MaxRedirects <= 0 means DefaultMaxRedirects.
+	// MaxRedirects: 0 means DefaultMaxRedirects; a negative value clamps
+	// to 0 — redirects are then never followed and the first 30x response
+	// is final.
 	MaxRedirects int
-	// MaxBufferedBody <= 0 means DefaultMaxBufferedBody. Negative values
-	// may be used by tests to lift the cap entirely (clamped to 0).
+	// MaxBufferedBody: 0 means DefaultMaxBufferedBody; a negative value
+	// clamps to 0, which REMOVES the cap entirely. That is a test seam
+	// only — production callers must always leave a positive value, since
+	// the 502 contract for oversized metadata responses (NFR-S13 point 5)
+	// is enforced here.
 	MaxBufferedBody int64
 	// Retries: extra attempts for idempotent requests. 0 means
 	// DefaultRetries; negative clamps to 0 (no retries).
@@ -289,7 +294,12 @@ func (c *Client) Fetch(ctx context.Context, req Request) (*Result, error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 	limit := c.opts.MaxBufferedBody
-	if limit > 0 && resp.ContentLength > limit {
+	// NFR-S13 point 5 caps buffered BODIES, and a HEAD carries no body:
+	// its declared Content-Length describes the artifact being probed
+	// (the fetcher's revalidation path), so probing an artifact larger
+	// than the cap must not fail the probe (review B4).
+	isHead := requestMethod(req) == http.MethodHead
+	if limit > 0 && !isHead && resp.ContentLength > limit {
 		// Fail fast on a declared size without moving the excess bytes.
 		return nil, fmt.Errorf("%w: declared %d exceeds %d bytes",
 			ErrBodyTooLarge, resp.ContentLength, limit)
@@ -334,14 +344,21 @@ func (c *Client) Stream(ctx context.Context, req Request) (*StreamResult, error)
 	}, nil
 }
 
+// requestMethod resolves the outbound verb: GET by default, upper-cased
+// and trimmed.
+func requestMethod(req Request) string {
+	method := strings.ToUpper(strings.TrimSpace(req.Method))
+	if method == "" {
+		return http.MethodGet
+	}
+	return method
+}
+
 // send runs the request through the manual redirect loop. Chain points 1
 // and 2 re-run for every hop before any connection is attempted (NFR-S13
 // point 4); chain point 3 runs inside the transport's guarded dial.
 func (c *Client) send(ctx context.Context, req Request) (*http.Response, error) {
-	method := strings.ToUpper(strings.TrimSpace(req.Method))
-	if method == "" {
-		method = http.MethodGet
-	}
+	method := requestMethod(req)
 	if method != http.MethodGet && method != http.MethodHead {
 		return nil, fmt.Errorf("remote %s: method %s: %w", c.opts.RepoKey, method, ErrMethodNotSupported)
 	}
@@ -403,6 +420,11 @@ func (c *Client) follow(ctx context.Context, method string, start *url.URL, head
 			// behavior; the spec is silent — BinFlow security default).
 			header.Del("Authorization")
 		}
+		// A Location URL must never smuggle userinfo either: net/http
+		// turns URL userinfo into a Basic Authorization header on the next
+		// hop, handing an upstream-controlled "credential" to whatever
+		// host the chain lands on (review follow-up #4).
+		next.User = nil
 		// The outbound surface is GET/HEAD only, so the RFC's 301/302/303
 		// POST-to-GET rewrite rules never apply: the method is carried
 		// across hops unchanged (307/308 semantics for every hop).

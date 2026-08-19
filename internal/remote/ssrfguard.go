@@ -40,6 +40,10 @@ const (
 	CategoryBroadcast = "broadcast"
 	// CategoryReserved: the IPv4 reserved band 240.0.0.0/4.
 	CategoryReserved = "reserved"
+	// CategoryTeredo: 2001:0::/32, denied outright — the embedded
+	// addresses are obfuscated (XORed), so there is nothing trustworthy
+	// to unwrap (review B1; BinFlow extension to the PRD category list).
+	CategoryTeredo = "teredo"
 	// CategoryInvalidAddress: an address that could not be parsed at all —
 	// defensive only, inputs are pre-parsed on every other path.
 	CategoryInvalidAddress = "invalid_address"
@@ -68,20 +72,77 @@ var blockedRanges = []struct {
 	{netip.MustParsePrefix("240.0.0.0/4"), CategoryReserved},
 }
 
+// IPv6 transition-format prefixes (review B1): NAT64 and 6to4 addresses
+// carry a real IPv4 address inside; the wrapper is unwrapped and the
+// embedded address is screened recursively. The prefixes themselves are NOT
+// blocked wholesale — a NAT64-wrapped public address is a legitimate DNS64
+// upstream.
+var (
+	nat64Prefix  = netip.MustParsePrefix("64:ff9b::/96") // RFC 6052 well-known prefix: v4 in the low 32 bits
+	sixTo4Prefix = netip.MustParsePrefix("2002::/16")    // RFC 3056 6to4: v4 in bits 16..47
+	teredoPrefix = netip.MustParsePrefix("2001:0::/32")  // RFC 4380 Teredo: v4 obfuscated
+)
+
 // classifyIP maps one address to its NFR-S13 rejection category, or "" when
-// the address is allowed. IPv4-mapped IPv6 addresses are collapsed first so
-// ::ffff:10.0.0.1 cannot launder a private v4 address.
+// the address is allowed. Three laundering attempts are closed off around
+// the table scan (review B1/B2):
+//   - IPv4-mapped IPv6 (::ffff:10.0.0.1) is collapsed to its v4 form;
+//   - zones are stripped so scoped literals (fe80::1%en0) cannot dodge
+//     prefix matching — netip's Prefix.Contains refuses zoned addresses,
+//     which used to make them fall through as allowed;
+//   - the IPv6 transition formats that embed a plain IPv4 address — NAT64
+//     (low 32 bits), 6to4 (bits 16..47) and IPv4-compatible (::a.b.c.d,
+//     deprecated) — are unwrapped and the embedded address is screened
+//     recursively: a wrapper around 169.254.169.254 or 127.0.0.1 is denied
+//     with the embedded address's category, while wrappers around public
+//     addresses stay allowed (DNS64/6to4 legal upstreams).
+//
+// Teredo (2001:0::/32) is denied outright: its embedded addresses are
+// obfuscated, so there is nothing trustworthy to unwrap.
 func classifyIP(ip netip.Addr) string {
-	ip = ip.Unmap()
+	ip = ip.Unmap().WithZone("")
 	if !ip.IsValid() {
 		return CategoryInvalidAddress
 	}
+	if category := lookupRanges(ip); category != "" {
+		return category
+	}
+	if ip.Is4() {
+		return ""
+	}
+	b := ip.As16()
+	switch {
+	case nat64Prefix.Contains(ip):
+		return classifyIP(netip.AddrFrom4([4]byte(b[12:16])))
+	case sixTo4Prefix.Contains(ip):
+		return classifyIP(netip.AddrFrom4([4]byte(b[2:6])))
+	case teredoPrefix.Contains(ip):
+		return CategoryTeredo
+	case allZero(b[:12]):
+		// IPv4-compatible form ::a.b.c.d; :: and ::1 were already
+		// classified by the table above (unspecified/loopback).
+		return classifyIP(netip.AddrFrom4([4]byte(b[12:16])))
+	}
+	return ""
+}
+
+// lookupRanges screens one address against the NFR-S13 blocked list.
+func lookupRanges(ip netip.Addr) string {
 	for _, r := range blockedRanges {
 		if r.prefix.Contains(ip) {
 			return r.category
 		}
 	}
 	return ""
+}
+
+func allZero(b []byte) bool {
+	for _, x := range b {
+		if x != 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // RejectionError reports an NFR-S13 chain denial. The fetcher (T-66) maps it

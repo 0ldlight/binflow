@@ -70,6 +70,26 @@ func TestCheckURLMatrix(t *testing.T) {
 		{name: "broadcast 255.255.255.255", url: "http://255.255.255.255/x", wantErr: true, wantCat: CategoryBroadcast, wantPhase: "check"},
 		{name: "reserved 240.0.0.0/4", url: "http://240.0.0.1/x", wantErr: true, wantCat: CategoryReserved, wantPhase: "check"},
 
+		// Review B1: IPv6 transition formats must not launder a forbidden
+		// IPv4 address past the chain — the wrapper is unwrapped and the
+		// embedded address is screened recursively; wrappers around public
+		// addresses stay allowed (DNS64/6to4 legal upstreams).
+		{name: "nat64 wraps cloud metadata", url: "http://[64:ff9b::a9fe:a9fe]/latest/", wantErr: true, wantCat: CategoryLinkLocal, wantPhase: "check"},
+		{name: "nat64 wraps loopback", url: "http://[64:ff9b::7f00:1]/x", wantErr: true, wantCat: CategoryLoopback, wantPhase: "check"},
+		{name: "nat64 wraps rfc1918", url: "http://[64:ff9b::a00:1]/x", wantErr: true, wantCat: CategoryPrivateV4, wantPhase: "check"},
+		{name: "nat64 wraps public v4 allowed (dns64)", url: "http://[64:ff9b::5db8:d822]/x"},
+		{name: "6to4 wraps loopback", url: "http://[2002:7f00:1::]/x", wantErr: true, wantCat: CategoryLoopback, wantPhase: "check"},
+		{name: "6to4 wraps cloud metadata", url: "http://[2002:a9fe:a9fe::]/x", wantErr: true, wantCat: CategoryLinkLocal, wantPhase: "check"},
+		{name: "6to4 wraps public v4 allowed", url: "http://[2002:5db8:d822::]/x"},
+		{name: "teredo denied outright", url: "http://[2001:0::7f00:1]/x", wantErr: true, wantCat: CategoryTeredo, wantPhase: "check"},
+		{name: "ipv4-compatible wraps loopback", url: "http://[::7f00:1]/x", wantErr: true, wantCat: CategoryLoopback, wantPhase: "check"},
+		{name: "ipv4-compatible wraps cloud metadata", url: "http://[::a9fe:a9fe]/x", wantErr: true, wantCat: CategoryLinkLocal, wantPhase: "check"},
+
+		// Review B2: a scoped literal must not dodge prefix matching
+		// (netip's Prefix.Contains refuses zoned addresses; the guard
+		// strips zones before screening).
+		{name: "zone cannot dodge link-local", url: "http://[fe80::1%25en0]/x", wantErr: true, wantCat: CategoryLinkLocal, wantPhase: "check"},
+
 		{name: "scheme file", url: "file:///etc/passwd", wantErr: true, wantCat: CategoryScheme, wantPhase: "check"},
 		{name: "scheme gopher", url: "gopher://127.0.0.1:70/x", wantErr: true, wantCat: CategoryScheme, wantPhase: "check"},
 		{name: "scheme ftp", url: "ftp://example.com/x", wantErr: true, wantCat: CategoryScheme, wantPhase: "check"},
@@ -224,11 +244,21 @@ func TestGuardDialRebinding(t *testing.T) {
 }
 
 // TestGuardDialPrivateLiteralRejected: the dial path screens literal IPs
-// too, so even a client that bypassed CheckURL cannot connect inward.
+// too, so even a client that bypassed CheckURL cannot connect inward —
+// including the zoned and transition-format literals of reviews B1/B2.
 func TestGuardDialPrivateLiteralRejected(t *testing.T) {
 	logger, _ := testLogger()
 	g := NewGuard(GuardOptions{RepoKey: "r", Logger: logger})
-	for _, addr := range []string{"10.0.0.1:80", "169.254.169.254:80", "192.168.0.1:8080"} {
+	for _, addr := range []string{
+		"10.0.0.1:80",
+		"169.254.169.254:80",
+		"192.168.0.1:8080",
+		"[fe80::1%en0]:80",        // B2: zone must not dodge the prefix table
+		"[64:ff9b::7f00:1]:80",    // B1: NAT64 wrapping 127.0.0.1
+		"[64:ff9b::a9fe:a9fe]:80", // B1: NAT64 wrapping 169.254.169.254
+		"[2002:7f00:1::]:80",      // B1: 6to4 wrapping 127.0.0.1
+		"[2001:0::7f00:1]:80",     // B1: Teredo denied outright
+	} {
 		conn, err := g.Dialer(time.Second)(context.Background(), "tcp", addr)
 		if err == nil {
 			_ = conn.Close()
