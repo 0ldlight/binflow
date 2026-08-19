@@ -2,14 +2,28 @@ package httpapi_test
 
 import (
 	"bufio"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/lzwzzy/binflow/internal/adapter"
+	"github.com/lzwzzy/binflow/internal/adapter/generic"
+	"github.com/lzwzzy/binflow/internal/adapter/npm"
+	"github.com/lzwzzy/binflow/internal/adapter/pypi"
+	"github.com/lzwzzy/binflow/internal/auth"
+	"github.com/lzwzzy/binflow/internal/config"
+	"github.com/lzwzzy/binflow/internal/console"
+	"github.com/lzwzzy/binflow/internal/httpapi"
+	"github.com/lzwzzy/binflow/internal/metadata"
+	"github.com/lzwzzy/binflow/internal/repo"
+	"github.com/lzwzzy/binflow/internal/storage"
 )
 
 // TestE26FullMatrix: every unmapped root path and every unimplemented
@@ -35,8 +49,20 @@ func TestE26FullMatrix(t *testing.T) {
 		{"/whatever", true},
 		{"/binflow/v2/", false},
 		{"/binflow/v2/blobs/uploads", false},
+		// T-69 R5 flip source: /binflow/api/npm/** ROUTES once the npm
+		// handler is mounted (the T-63 seam + the npm adapter). This row
+		// keeps asserting the UNMOUNTED posture — the default harness never
+		// mounts protocol handlers — and TestE26NpmMountRouting (added by
+		// T-69) pins the mounted behavior that supersedes it.
 		{"/binflow/api/npm/xx", false},
+		// T-70 R5 flip source: /binflow/api/pypi/** ROUTES once the pypi
+		// handler is mounted (the T-63 seam + the pypi adapter). This row
+		// keeps asserting the UNMOUNTED posture — the default harness never
+		// mounts protocol handlers — and TestE26PyPIMountRouting (added by
+		// T-70) pins the mounted behavior that supersedes it.
 		{"/binflow/api/pypi/simple", false},
+		// pypi-ui is a permanent E-26 resident (PRD PE-06/M58): the look-
+		// alike prefix never mounts, mounted pypi handler or not.
 		{"/binflow/api/pypi-ui/packages", false},
 		{"/binflow/api/search/artifact", false},
 		{"/binflow/api/replication", false},
@@ -223,4 +249,206 @@ func TestUnknownRepoIs404Envelope(t *testing.T) {
 	if !strings.Contains(eb.Errors[0].Message, "Failed to find the repository 'no-such-repo'") {
 		t.Fatalf("message = %q", eb.Errors[0].Message)
 	}
+}
+
+// TestE26PyPIMountRouting pins the MOUNTED half of the E-26 pypi rows
+// (T-70, R5 flip): once the pypi adapter is registered, /binflow/api/pypi/**
+// routes through the T-63 seam onto the content plane — the bare
+// not-implemented 404 is superseded by the ROUTED responses (an unknown
+// repository keeps the spec's repo-not-found 404; a live pypi repository
+// answers the adapter's own protocol semantics). The unmounted posture
+// stays pinned by TestE26FullMatrix's rows on the default harness.
+func TestE26PyPIMountRouting(t *testing.T) {
+	s := newPyPiStack(t)
+
+	tests := []struct {
+		name       string
+		path       string
+		wantStatus int
+		wantBody   string // substring of the envelope message ("" = unchecked)
+	}{
+		{
+			"unknown repo under the mount routes to the content-plane 404",
+			"/binflow/api/pypi/simple", http.StatusNotFound,
+			"Failed to find the repository 'simple'",
+		},
+		{
+			"live pypi repository answers protocol semantics, not E-26",
+			"/binflow/api/pypi/pypi-local/simple/demo-pkg/", http.StatusNotFound,
+			"project 'demo-pkg' not found",
+		},
+		{
+			"pypi-ui never mounts even with the handler present (PE-06/M58)",
+			"/binflow/api/pypi-ui/packages", http.StatusNotFound,
+			"not implemented",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := s.do(http.MethodGet, tc.path, "", "", nil, nil)
+			defer func() { _ = resp.Body.Close() }()
+			if resp.StatusCode != tc.wantStatus {
+				t.Fatalf("status = %d, want %d", resp.StatusCode, tc.wantStatus)
+			}
+			eb := decodeError(t, resp)
+			if tc.wantBody != "" && !strings.Contains(eb.Errors[0].Message, tc.wantBody) {
+				t.Fatalf("message %q does not contain %q", eb.Errors[0].Message, tc.wantBody)
+			}
+		})
+	}
+}
+
+// newPyPiStack builds a full real stack with the REAL pypi adapter mounted
+// beside the generic one (the default harness cannot inject it: the pypi
+// handler needs the repo.Service the harness assembles internally, so this
+// mini-stack mirrors the harness composition).
+func newPyPiStack(t *testing.T) *harness {
+	t.Helper()
+	ctx := context.Background()
+	dataDir := t.TempDir()
+
+	st, err := storage.OpenEngine(dataDir, storage.Options{})
+	if err != nil {
+		t.Fatalf("storage.OpenEngine: %v", err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+
+	md, err := metadata.Open(ctx, metadata.Options{Driver: "sqlite", Path: dataDir + "/binflow.db"})
+	if err != nil {
+		t.Fatalf("metadata.Open: %v", err)
+	}
+	t.Cleanup(func() { _ = md.Close() })
+
+	cfg := config.Defaults()
+	cfg.Storage.DataDir = dataDir
+	authSvc := auth.NewFromStore(md, cfg.Security.AnonymousAccess)
+	svc := repo.New(st, md, authSvc, nil)
+	pypiHandler := pypi.New(svc, md.Repos(), md.Blobs(), st)
+	if err := md.Repos().Create(ctx, &metadata.Repo{
+		RepoKey: "pypi-local", Type: repo.TypeLocal, PackageType: repo.PackagePypi,
+	}); err != nil {
+		t.Fatalf("seed pypi-local: %v", err)
+	}
+
+	ts := httptest.NewServer(httpapi.New(httpapi.Deps{
+		Config:    cfg,
+		Auth:      authSvc,
+		Authz:     authSvc,
+		Metadata:  md,
+		Repos:     md.Repos(),
+		ReposSvc:  svc,
+		Passwords: authSvc,
+		Tokens:    authSvc,
+		DataDir:   dataDir,
+		Console:   console.Handler(),
+		Adapters:  []adapter.Handler{generic.New(svc, md.Blobs()), pypiHandler},
+		Version:   "1.0.0-test",
+	}, nil).Handler())
+	t.Cleanup(ts.Close)
+
+	return &harness{t: t, srv: ts, st: st, md: md, svc: svc, authSvc: authSvc}
+}
+
+// TestE26NpmMountRouting pins the MOUNTED half of the E-26 npm row
+// (T-69, R5 flip): once the npm adapter is registered, /binflow/api/npm/**
+// routes through the T-63 seam onto the content plane — the bare
+// not-implemented 404 is superseded by the ROUTED responses (an unknown
+// repository keeps the spec's repo-not-found 404; a live npm repository
+// answers the adapter's own protocol semantics, and the NE-08 endpoints
+// answer the adapter's strict 404). The unmounted posture stays pinned by
+// TestE26FullMatrix's row on the default harness.
+func TestE26NpmMountRouting(t *testing.T) {
+	s := newNpmStack(t)
+
+	tests := []struct {
+		name       string
+		path       string
+		wantStatus int
+		wantBody   string // substring of the envelope message ("" = unchecked)
+	}{
+		{
+			"unknown repo under the mount routes to the content-plane 404",
+			"/binflow/api/npm/xx", http.StatusNotFound,
+			"Failed to find the repository 'xx'",
+		},
+		{
+			"live npm repository answers protocol semantics, not E-26",
+			"/binflow/api/npm/npm-local/-/ping", http.StatusOK,
+			"",
+		},
+		{
+			"NE-08 endpoints answer the adapter's strict 404 (M58)",
+			"/binflow/api/npm/npm-local/-/v1/search?text=x", http.StatusNotFound,
+			"not implemented",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := s.do(http.MethodGet, tc.path, "", "", nil, nil)
+			defer func() { _ = resp.Body.Close() }()
+			if resp.StatusCode != tc.wantStatus {
+				t.Fatalf("status = %d, want %d", resp.StatusCode, tc.wantStatus)
+			}
+			if tc.wantStatus == http.StatusOK {
+				return
+			}
+			eb := decodeError(t, resp)
+			if tc.wantBody != "" && !strings.Contains(eb.Errors[0].Message, tc.wantBody) {
+				t.Fatalf("message %q does not contain %q", eb.Errors[0].Message, tc.wantBody)
+			}
+		})
+	}
+}
+
+// newNpmStack builds a full real stack with the REAL npm adapter mounted
+// beside the generic one (the T-70 mini-stack pattern: the default harness
+// cannot inject the handler, which needs the repo.Service the harness
+// assembles internally, so this mirrors the harness composition).
+func newNpmStack(t *testing.T) *harness {
+	t.Helper()
+	ctx := context.Background()
+	dataDir := t.TempDir()
+
+	st, err := storage.OpenEngine(dataDir, storage.Options{})
+	if err != nil {
+		t.Fatalf("storage.OpenEngine: %v", err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+
+	md, err := metadata.Open(ctx, metadata.Options{Driver: "sqlite", Path: dataDir + "/binflow.db"})
+	if err != nil {
+		t.Fatalf("metadata.Open: %v", err)
+	}
+	t.Cleanup(func() { _ = md.Close() })
+
+	cfg := config.Defaults()
+	cfg.Storage.DataDir = dataDir
+	authSvc := auth.NewFromStore(md, cfg.Security.AnonymousAccess)
+	svc := repo.New(st, md, authSvc, nil)
+	npmHandler := npm.New(svc, md.Repos(), npm.Options{}).
+		WithAuth(authSvc, md.Users(), authSvc).
+		WithLedger(md.Blobs())
+	if err := md.Repos().Create(ctx, &metadata.Repo{
+		RepoKey: "npm-local", Type: repo.TypeLocal, PackageType: repo.PackageNpm,
+	}); err != nil {
+		t.Fatalf("seed npm-local: %v", err)
+	}
+
+	ts := httptest.NewServer(httpapi.New(httpapi.Deps{
+		Config:    cfg,
+		Auth:      authSvc,
+		Authz:     authSvc,
+		Metadata:  md,
+		Repos:     md.Repos(),
+		ReposSvc:  svc,
+		Passwords: authSvc,
+		Tokens:    authSvc,
+		DataDir:   dataDir,
+		Console:   console.Handler(),
+		Adapters:  []adapter.Handler{generic.New(svc, md.Blobs()), npmHandler},
+		Version:   "1.0.0-test",
+	}, nil).Handler())
+	t.Cleanup(ts.Close)
+
+	return &harness{t: t, srv: ts, st: st, md: md, svc: svc, authSvc: authSvc}
 }
