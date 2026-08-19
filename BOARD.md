@@ -227,7 +227,8 @@
   六步全矩阵 + AES-GCM 凭据链 + 分流接线；真二进制 M41~M48/FR-15-AC9/1GiB<200MB。双 review 4 blocker 修复复审通过：B1 单飞等待者重入全量重查（16 并发同 404 上游恰 1 次钉板）；B2 超时回发旧副本；B3 RepoTypes 升 {local,remote}；B4 契约 godoc。提交 05acd91+71e6c93。
 - **T-67** [P0] Maven adapter `role:dev-registry-adapter` `area:internal/adapter/maven` — done 2026-08-20
   layout 六字段/checksum 三态/旁车/snapshot 语义/穿越防御 + cmd 装配 + REST local 字段透传。wire 序列全过 + **mvn 3.9.9 真客户端 M11/M12/M13/M16 布局腿**（BUILD SUCCESS/sha256 对账/全新 repo resolve/timestamped 落盘）。SPI 豁免遗留→T-68 实施/T-83 定约。提交 91bb261+71e6c93。
-- **T-71** [P0] virtual 两桶解析+写路由 `role:dev-go-core` `area:internal/repo` — done 2026-08-20
+- **T-71** [P0] virtual 两桶解析+写路由 `role:dev-go-core` `area:internal/repo` — done 2026-08-20（APPROVE 一轮过）
+  review 0 blocker：stale/miss 语义引擎侧核实（成功必 HasCopy/true miss 只以 Unfound）；非 Unfound 透传确认为 AC7 严格读法（安全面更优）；C5 文案逐字节相等；pre-read guard 顺序面正确。6 non-blocking（QA 钉板 hardFail 透传防顺手修复等）。提交 eab4363+f6e1017。
   virtual.go 两桶序（逐请求现算）/Get 三型分派/stale 命中即成员结果（HasCopy 消费）/探索性 miss pre-read guard/写路由（405+C5 文案/配置后换址 local）/ExtraHeaders 双头合并。17 测试群+真二进制 M50/M52/M53。遗留①②（协议面 StatusError+ExtraHeaders 两缝）→ T-82。提交 eab4363。
 （T-82 done → done 区）
 - **T-68** [P0] Maven maven-metadata.xml 计算器（批 4） `role:dev-registry-adapter` `area:internal/adapter/maven(metadata)、internal/repo/api.go(豁免口)` — 在途（双 reviewer 票；附 SPI 豁免实施授权）
