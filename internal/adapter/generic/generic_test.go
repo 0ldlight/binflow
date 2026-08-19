@@ -512,3 +512,49 @@ func TestFolderGetOnContentPath(t *testing.T) {
 		t.Fatal("inner file survived folder delete")
 	}
 }
+
+// TestChecksumDeploySha1Only: the T-73 form — X-Checksum-Deploy with ONLY a
+// sha1 resolves through the ledger's sha1 index: hit is the C15a zero-transfer
+// 201, miss the C15b 404, both-empty the C15c 400.
+func TestChecksumDeploySha1Only(t *testing.T) {
+	e := newEnv(t)
+	content := "sha1-deployable"
+	sha, sha1v, _ := digestsOf(content)
+	_, missSha1, _ := digestsOf("never uploaded anywhere")
+	if resp := e.do(t, http.MethodPut, "/binflow/generic-local/src/one.bin", strings.NewReader(content), nil); resp.StatusCode != 201 {
+		t.Fatalf("put: %d", resp.StatusCode)
+	}
+
+	resp := e.do(t, http.MethodPut, "/binflow/generic-local/dst/sha1-copy.bin", nil,
+		map[string]string{"X-Checksum-Deploy": "true", "X-Checksum-Sha1": sha1v})
+	if resp.StatusCode != 201 {
+		t.Fatalf("sha1-only checksum deploy = %d, body=%s", resp.StatusCode, body(t, resp))
+	}
+	got := e.do(t, http.MethodGet, "/binflow/generic-local/dst/sha1-copy.bin", nil, nil)
+	if b := body(t, got); got.StatusCode != 200 || b != content {
+		t.Fatalf("sha1-deployed copy = %d %q", got.StatusCode, b)
+	}
+	// The landed node is the SAME blob the sha256 form addresses.
+	if v := got.Header.Get("X-Checksum-Sha256"); v != sha {
+		t.Fatalf("deployed node sha256 = %q, want %q", v, sha)
+	}
+
+	// Miss (sha1 nothing ever had): the C15b 404 and wording.
+	miss := e.do(t, http.MethodPut, "/binflow/generic-local/dst/none.bin", nil,
+		map[string]string{"X-Checksum-Deploy": "true", "X-Checksum-Sha1": missSha1})
+	if miss.StatusCode != 404 || !strings.Contains(body(t, miss), "no content found for the given checksum") {
+		t.Fatalf("sha1 miss = %d %s", miss.StatusCode, body(t, miss))
+	}
+	// Both keys empty: the C15c 400 stands.
+	empty := e.do(t, http.MethodPut, "/binflow/generic-local/dst/none.bin", nil,
+		map[string]string{"X-Checksum-Deploy": "true"})
+	if empty.StatusCode != 400 || !strings.Contains(body(t, empty), "no checksum header") {
+		t.Fatalf("both-empty = %d %s", empty.StatusCode, body(t, empty))
+	}
+	// Malformed sha1: the C15d 404 stands.
+	bad := e.do(t, http.MethodPut, "/binflow/generic-local/dst/none.bin", nil,
+		map[string]string{"X-Checksum-Deploy": "true", "X-Checksum-Sha1": "notachecksum"})
+	if bad.StatusCode != 404 || !strings.Contains(body(t, bad), "malformed sha1 value") {
+		t.Fatalf("malformed sha1 = %d %s", bad.StatusCode, body(t, bad))
+	}
+}

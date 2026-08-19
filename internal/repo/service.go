@@ -390,7 +390,10 @@ func (s *service) PutWithOptions(ctx context.Context, p *Principal, repoKey, pat
 // Validation order mirrors Put: authentication, path shape, repo/local
 // check, then the permission pair (idempotent retransmit vs overwrite) —
 // the blob is never even opened for an unauthorized caller. The blob is
-// then verified in BOTH dimensions before any metadata write:
+// addressed by sha256, or since T-73 by a sha1-only declaration resolved
+// through the ledger's sha1 index before the permission pair (see the
+// inline comment). The blob is then verified in BOTH dimensions before any
+// metadata write:
 //
 //   - filestore (storage.Open): the physical content must exist and its
 //     size backs the node row;
@@ -424,10 +427,26 @@ func (s *service) PutFromBlob(ctx context.Context, p *Principal, repoKey, path s
 		return nil, err
 	}
 
-	// The same permission pair as Put, keyed on the client-declared sha256
-	// (which PutFromBlob requires to be set — it IS the addressing key here).
+	// The same permission pair as Put, keyed on the addressing digest. The
+	// primary key is the client-declared sha256; since T-73 a sha1-ONLY
+	// declaration addresses the blob through the ledger's sha1 index
+	// (idx_blobs_sha1 — the maven ecosystem's dominant algorithm: mvn/wagon
+	// CI callers exist whose only declared digest is the sha1). Resolution
+	// runs BEFORE the permission pair so the idempotent-redeploy probe and
+	// every step below key on the RESOLVED sha256; a sha1 miss is the C15b
+	// miss (404), indistinguishable from an unknown sha256 by design.
 	if ref.Sha256 == "" {
-		return nil, fmt.Errorf("checksum deploy %s/%s: %w: sha256 is required", repoKey, path, ErrInvalidPath)
+		if ref.Sha1 == "" {
+			return nil, fmt.Errorf("checksum deploy %s/%s: %w: sha256 or sha1 is required", repoKey, path, ErrInvalidPath)
+		}
+		row, err := s.md.Blobs().GetBySha1(ctx, ref.Sha1)
+		if err != nil {
+			if errors.Is(err, metadata.ErrNotFound) {
+				return nil, fmt.Errorf("checksum deploy %s/%s: %w", repoKey, path, ErrNodeNotFound)
+			}
+			return nil, fmt.Errorf("ledger blob by sha1 %s: %w", ref.Sha1, err)
+		}
+		ref.Sha256 = row.Sha256
 	}
 	idempotent, err := s.authorizeContentPut(ctx, p, repoKey, path, ref.Sha256, false)
 	if err != nil {

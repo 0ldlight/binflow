@@ -34,13 +34,12 @@ func (h *Handler) handlePut(ctx context.Context, w http.ResponseWriter, r *http.
 		writeError(w, http.StatusBadRequest, "X-Explode-Archive is not supported in BinFlow")
 		return
 	}
-	// Checksum deploy (zero-transfer) is the generic plane's M1 feature;
-	// the maven slice lands with T-73. Refuse it explicitly — silently
-	// landing an empty node would corrupt the caller's accounting.
+	// Checksum deploy (zero-transfer, T-73): detected here, SERVED after the
+	// policy gates below — it is an artifact deploy like any other, only
+	// without the bytes.
+	checksumDeploy := false
 	if v := r.Header.Get(hdrChecksumDeploy); v != "" && !strings.EqualFold(v, "false") {
-		writeError(w, http.StatusBadRequest,
-			"X-Checksum-Deploy on maven repositories is not implemented in BinFlow yet")
-		return
+		checksumDeploy = true
 	}
 
 	row, err := h.svc.GetRepo(ctx, p, repoKey)
@@ -55,7 +54,8 @@ func (h *Handler) handlePut(ctx context.Context, w http.ResponseWriter, r *http.
 	// uploads plus their checksum sidecars — the sidecar of a refused
 	// artifact must not land. Metadata documents are bookkeeping, not a
 	// deploy of a version: the gate does not apply (ME-06 keeps client
-	// metadata PUTs acceptable).
+	// metadata PUTs acceptable). A checksum deploy of an artifact is bound
+	// by the same gates: zero bytes is still a deploy of that version.
 	if l.Kind != KindMetadata {
 		snapshotDeploy := l.Snapshot || l.Timestamped
 		if snapshotDeploy && !cfg.AcceptsSnapshot() {
@@ -72,11 +72,75 @@ func (h *Handler) handlePut(ctx context.Context, w http.ResponseWriter, r *http.
 		}
 	}
 
+	if checksumDeploy {
+		h.putChecksumDeploy(ctx, w, r, p, repoKey, relPath, l)
+		return
+	}
+
 	if l.Kind == KindSidecar {
 		h.putSidecar(ctx, w, r, p, repoKey, relPath, l, cfg)
 		return
 	}
 	h.putFile(ctx, w, r, p, repoKey, relPath, l, cfg)
+}
+
+// putChecksumDeploy implements X-Checksum-Deploy on the maven plane (T-73,
+// PRD §6.4-1): a zero-transfer artifact deploy addressed by sha256 — or by
+// sha1 alone, the maven ecosystem's dominant algorithm (the ledger's sha1
+// index resolves it inside the service). The header shapes and the miss
+// rendering follow the generic plane's M1 C15 family: no checksum header →
+// 400, malformed value → 404, miss → 404 "no content found". Artifacts only:
+// sidecars are registration data with their own chain, metadata documents
+// are regenerated bookkeeping — checksum-deploying either is refused rather
+// than landing a node those chains would never have written.
+func (h *Handler) putChecksumDeploy(ctx context.Context, w http.ResponseWriter, r *http.Request,
+	p *repo.Principal, repoKey, relPath string, l Layout) {
+	if l.Kind != KindArtifact {
+		writeError(w, http.StatusBadRequest,
+			fmt.Sprintf("X-Checksum-Deploy supports artifact paths only on maven repositories; %q is a %s path",
+				relPath, l.Kind))
+		return
+	}
+	sha256 := strings.ToLower(strings.TrimSpace(r.Header.Get(hdrChecksumSha256)))
+	sha1v := strings.ToLower(strings.TrimSpace(r.Header.Get(hdrChecksumSha1)))
+	md5v := strings.ToLower(strings.TrimSpace(r.Header.Get(hdrChecksumMd5)))
+	if sha256 == "" && sha1v == "" {
+		writeError(w, http.StatusBadRequest,
+			"Checksum deploy failed. no checksum header 'X-Checksum-Sha1/X-Checksum-Sha256' was found.")
+		return
+	}
+	if sha256 != "" && !isHex(sha256, 64) {
+		writeError(w, http.StatusNotFound, fmt.Sprintf("Checksum deploy failed: malformed sha256 value %q.", sha256))
+		return
+	}
+	if sha1v != "" && !isHex(sha1v, 40) {
+		writeError(w, http.StatusNotFound, fmt.Sprintf("Checksum deploy failed: malformed sha1 value %q.", sha1v))
+		return
+	}
+	if md5v != "" && !isHex(md5v, 32) {
+		writeError(w, http.StatusNotFound, fmt.Sprintf("Checksum deploy failed: malformed md5 value %q.", md5v))
+		return
+	}
+
+	mime := r.Header.Get("Content-Type")
+	if mime == "" {
+		mime = mimeForPath(relPath, "")
+	}
+	ref := storage.BlobRef{Sha256: sha256, Sha1: sha1v, Md5: md5v}
+	node, err := h.svc.PutFromBlob(ctx, p, repoKey, relPath, ref, mime)
+	if err != nil {
+		if errors.Is(err, repo.ErrOrphanBlob) || errors.Is(err, repo.ErrNodeNotFound) {
+			writeError(w, http.StatusNotFound, "Checksum deploy failed: no content found for the given checksum.")
+			return
+		}
+		h.writeServiceError(w, err, http.MethodPut, repoKey, relPath)
+		return
+	}
+	// A landed artifact feeds FR-17's metadata calculator exactly like a
+	// byte-carrying deploy (the facts and the metadata belong to where the
+	// bytes — here the referenced blob — live).
+	h.calc.afterArtifactDeploy(ctx, p, node.RepoKey, l)
+	h.writeCreated(w, r, repoKey, relPath, node, declaredSetOf(ref))
 }
 
 // putFile lands an artifact or a client maven-metadata.xml document

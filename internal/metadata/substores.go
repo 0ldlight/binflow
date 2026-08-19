@@ -219,6 +219,28 @@ func (s *blobStore) Get(ctx context.Context, sha256 string) (*Blob, error) {
 	return b, nil
 }
 
+// GetBySha1 is the sha1-keyed twin of Get, backed by idx_blobs_sha1 (the
+// T-62 seam T-73 consumes). LIMIT 1 keeps the answer deterministic should
+// the column ever hold duplicates (see the interface comment). The empty
+// string is refused outright: the shared folder-marker row carries an empty
+// sha1, and a caller that failed its both-empty guard must not resolve it.
+func (s *blobStore) GetBySha1(ctx context.Context, sha1 string) (*Blob, error) {
+	if sha1 == "" {
+		return nil, fmt.Errorf("blobs get by sha1: %w", ErrNotFound)
+	}
+	const stmt = `SELECT sha256, sha1, md5, size, created_at FROM blobs WHERE sha1 = ? LIMIT 1`
+	row := s.db.QueryRowContext(ctx, stmt, sha1)
+	b := &Blob{}
+	err := row.Scan(&b.Sha256, &b.Sha1, &b.Md5, &b.Size, &b.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("blobs get by sha1 %s: %w", sha1, ErrNotFound)
+	}
+	if err != nil {
+		return nil, wrapExec("blobs get by sha1", sha1, err)
+	}
+	return b, nil
+}
+
 func (s *blobStore) Delete(ctx context.Context, sha256 string) error {
 	res, err := s.db.ExecContext(ctx, `DELETE FROM blobs WHERE sha256 = ?`, sha256)
 	if err != nil {

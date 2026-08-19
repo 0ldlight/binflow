@@ -145,24 +145,17 @@ func (h *Handler) handleChecksumDeploy(ctx context.Context, w http.ResponseWrite
 		return
 	}
 
-	// Resolve the target digest to a sha256-keyed blob. BinFlow addresses
-	// blobs by sha256 only; a sha1-only declaration has no reverse index in
-	// M1 (the ledger is sha256-keyed), so it cannot be resolved and lands
-	// on the same 404 as an unknown sha256 — the client cannot distinguish
-	// "never uploaded" from "wrong checksum", which is the spec's posture.
-	// The dominant client form (X-Checksum-Sha256) is fully served.
-	sha := sha256
-	if sha == "" {
-		writeError(w, http.StatusNotFound,
-			"Checksum deploy failed: X-Checksum-Sha1-only deploy requires a sha256-keyed lookup, which BinFlow does not provide; supply X-Checksum-Sha256.")
-		return
-	}
-
+	// The declared checksum addresses the blob: sha256 directly, or — since
+	// T-73 (PRD §6.4-1) — a sha1-only declaration, which the service
+	// resolves through the ledger's sha1 index. A miss (either key) answers
+	// the same 404 below: the client cannot distinguish "never uploaded"
+	// from "wrong checksum", which is the spec's posture.
+	//
 	// Zero-transfer deploy goes through repo.Service.PutFromBlob (T-13
 	// review B1: the section 5.1 exception clause is "extend the Service",
 	// not "open blobs from the adapter"). The ledger row — not the client's
 	// header claims — is the sha1/md5 source of truth inside the service.
-	ref := storage.BlobRef{Sha256: sha, Sha1: sha1, Md5: md5}
+	ref := storage.BlobRef{Sha256: sha256, Sha1: sha1, Md5: md5}
 	node, err := h.svc.PutFromBlob(ctx, p, repoKey, relPath, ref, mime)
 	if err != nil {
 		if errors.Is(err, repo.ErrOrphanBlob) || errors.Is(err, repo.ErrNodeNotFound) {

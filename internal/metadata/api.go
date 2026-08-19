@@ -287,6 +287,14 @@ type BlobStore interface {
 	// first; see architecture 3.3 for the ordering invariant).
 	Put(ctx context.Context, b *Blob) error
 	Get(ctx context.Context, sha256 string) (*Blob, error)
+	// GetBySha1 resolves a blob row through its sha1 (idx_blobs_sha1, the
+	// T-73 seam): the sha1-keyed checksum-deploy lookup the maven ecosystem
+	// needs (mvn/wagon callers whose only declared digest is the sha1).
+	// sha1 carries no schema uniqueness; the first row wins — two DIFFERENT
+	// contents sharing a sha1 is cryptographically absurd, and identical
+	// bytes are one row keyed by their common sha256. ErrNotFound when no
+	// row carries the sha1 (the caller's miss, not a shape error).
+	GetBySha1(ctx context.Context, sha1 string) (*Blob, error)
 	// Delete removes the row; only the GC calls this after sweep.
 	Delete(ctx context.Context, sha256 string) error
 	// Count returns the total number of blob rows.

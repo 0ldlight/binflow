@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -1330,5 +1331,115 @@ func TestPutFromBlobValidation(t *testing.T) {
 	if _, err := e.svc.PutFromBlob(ctx, admin(), "no-such-repo", "x.bin",
 		storage.BlobRef{Sha256: src.Sha256}, ""); !errors.Is(err, repo.ErrRepoNotFound) {
 		t.Fatalf("missing repo PutFromBlob = %v, want ErrRepoNotFound", err)
+	}
+}
+
+// ---- PutFromBlob sha1 addressing (T-73, PRD §6.4-1) ----
+
+// sha1Of lives in landed_blob_test.go (same digest helper family).
+
+// TestPutFromBlobSha1Addressing: the three-state matrix of the sha1-only
+// checksum deploy — hit resolves through the ledger's sha1 index and lands
+// the SAME blob the sha256 form addresses; miss is the C15b miss; both keys
+// empty stays the 400-shaped validation error.
+func TestPutFromBlobSha1Addressing(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	mustCreateRepo(t, e, "generic-local")
+	src := put(t, e, admin(), "generic-local", "src/one.bin", "sha1 deploy body")
+	// The ledger row carries the session-computed sha1 (Commit returns the
+	// triple; putNode lands it blob-first).
+	row, err := e.md.Blobs().Get(ctx, src.Sha256)
+	if err != nil {
+		t.Fatalf("ledger row: %v", err)
+	}
+	if row.Sha1 != sha1Of("sha1 deploy body") {
+		t.Fatalf("ledger sha1 = %s, want the computed %s", row.Sha1, sha1Of("sha1 deploy body"))
+	}
+
+	tests := []struct {
+		name string
+		ref  storage.BlobRef
+		want error
+	}{
+		{"sha1-only hit", storage.BlobRef{Sha1: row.Sha1}, nil},
+		{"sha256-only hit unchanged", storage.BlobRef{Sha256: src.Sha256}, nil},
+		{"sha1 and sha256 both declared", storage.BlobRef{Sha256: src.Sha256, Sha1: row.Sha1}, nil},
+		{"sha1 miss", storage.BlobRef{Sha1: sha1Of("never uploaded anywhere")}, repo.ErrNodeNotFound},
+		{"both empty", storage.BlobRef{}, repo.ErrInvalidPath},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := "dst/" + strings.ReplaceAll(strings.ReplaceAll(tt.name, " ", "-"), "(", "") + ".bin"
+			n, err := e.svc.PutFromBlob(ctx, admin(), "generic-local", path, tt.ref, "application/x-copy")
+			if tt.want != nil {
+				if !errors.Is(err, tt.want) {
+					t.Fatalf("error = %v, want %v", err, tt.want)
+				}
+				return
+			}
+			// Hit: the resolution landed the SAME blob, digests from the
+			// ledger row (never the client's claims — the T-13 contract).
+			if n.Sha256 != src.Sha256 || n.Size != src.Size {
+				t.Fatalf("node = sha %s size %d, want sha %s size %d", n.Sha256, n.Size, src.Sha256, src.Size)
+			}
+			rc, _, err := e.svc.Get(ctx, admin(), "generic-local", path)
+			if err != nil {
+				t.Fatalf("Get deployed copy: %v", err)
+			}
+			defer rc.Close() //nolint:errcheck // read-side close is irrelevant
+			b, _ := io.ReadAll(rc)
+			if string(b) != "sha1 deploy body" {
+				t.Fatalf("deployed copy body = %q", b)
+			}
+		})
+	}
+}
+
+// TestPutFromBlobSha1Concurrent: parallel sha1-addressed deploys of the SAME
+// digest all resolve to the one blob — no duplicate rows, no lost nodes
+// (run under -race by the package suite).
+func TestPutFromBlobSha1Concurrent(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	mustCreateRepo(t, e, "generic-local")
+	src := put(t, e, admin(), "generic-local", "src/one.bin", "concurrent sha1 body")
+	row, err := e.md.Blobs().Get(ctx, src.Sha256)
+	if err != nil {
+		t.Fatalf("ledger row: %v", err)
+	}
+
+	const writers = 8
+	var wg sync.WaitGroup
+	errs := make([]error, writers)
+	for i := 0; i < writers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			// Half target distinct paths, half hammer the SAME path: the
+			// putNode upsert race and the resolution dedupe both get
+			// exercised.
+			path := fmt.Sprintf("dst/c%d.bin", i%4)
+			_, errs[i] = e.svc.PutFromBlob(context.Background(), admin(), "generic-local",
+				path, storage.BlobRef{Sha1: row.Sha1}, "")
+		}()
+	}
+	wg.Wait()
+	for i, err := range errs {
+		if err != nil {
+			t.Fatalf("writer %d: %v", i, err)
+		}
+	}
+	if n, err := e.md.Blobs().Count(ctx); err != nil || n != 1 {
+		t.Fatalf("blob count = %d, %v; want 1 (dedupe held)", n, err)
+	}
+	for i := 0; i < 4; i++ {
+		node, err := e.md.Nodes().Get(ctx, "generic-local", fmt.Sprintf("dst/c%d.bin", i))
+		if err != nil {
+			t.Fatalf("node c%d: %v", i, err)
+		}
+		if node.Sha256 != src.Sha256 {
+			t.Fatalf("node c%d sha = %s, want %s", i, node.Sha256, src.Sha256)
+		}
 	}
 }

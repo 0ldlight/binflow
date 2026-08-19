@@ -245,8 +245,13 @@ type Service interface {
 	// already-committed blob — the checksum-deploy use case (X-Checksum-Deploy,
 	// rest-api.md section 1.3), reached through the Service so adapters never
 	// touch storage directly (architecture section 5.1's exception clause:
-	// "extend repo.Service, do not bypass"). ref.Sha256 must address a blob
-	// that exists in BOTH the filestore and the blobs ledger: an orphan blob
+	// "extend repo.Service, do not bypass"). The blob is addressed by
+	// ref.Sha256, or — since T-73 (PRD §6.4-1, the maven ecosystem's sha1
+	// dominance) — by ref.Sha1 alone when no sha256 is declared: the ledger's
+	// sha1 index (idx_blobs_sha1) resolves it to the sha256-keyed row before
+	// any other step runs, so a sha1 miss is the same ErrNodeNotFound the
+	// sha256 miss answers (C15b's indistinguishable 404). The addressed blob
+	// must exist in BOTH the filestore and the blobs ledger: an orphan blob
 	// (physical file present, ledger row missing — the crash-window residue
 	// GC eventually collects) yields ErrOrphanBlob instead of silently
 	// materializing a node whose ancillary digests would be lost forever.
