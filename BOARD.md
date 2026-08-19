@@ -21,7 +21,7 @@
 
 - **T-68** [P0] Maven maven-metadata.xml 计算器 `role:dev-registry-adapter` `area:internal/adapter/maven(metadata)` `dep:T-67` — 双 reviewer
 （T-84 done → done 区）
-- **T-73** [P2] sha1-only 秒传 `role:dev-go-core` `area:internal/repo、adapter/{maven,generic}` — 在途
+（T-73 done → done 区）
 - **T-73** [P2] sha1-only checksum deploy `role:dev-go-core` `area:internal/repo、adapter/maven` `dep:T-64,T-67`
 - **T-74** [P0] QA 三协议功能矩阵 `role:qa-engineer` `dep:T-68,T-69,T-70,T-71`
 - **T-75** [P0] QA remote/virtual+SSRF 安全 `role:qa-engineer` `dep:T-74,T-72`
@@ -249,6 +249,9 @@
 
 - **T-84** [P0] cmd 三协议装配 `role:dev-go-core` `area:cmd/binflow-server` — done 2026-08-20（经 429 续完）
   npm（New+WithAuth+WithLedger+Register）/pypi（Register 一次调用）入 Deps.Adapters；真二进制三协议 smoke 全 exit 0（npm publish+install/pip twine+download/mvn deploy+dependency:get）+ 读面全 200 零 ERROR。QA 真客户端前置就绪。提交 59855b1。
+
+- **T-73** [P2] sha1-only checksum deploy `role:dev-go-core` `area:internal/metadata(增量)、internal/repo、adapter/{maven,generic}` — done 2026-08-20
+  GetBySha1（idx_blobs_sha1 消费者，纯增量三文件）+ PutFromBlob sha1 寻址（权限对前解析）+ generic 删旧拒绝分支 + maven putChecksumDeploy（ME-08 gate 后/artifact-only/calc 触发）。四触及包 race 绿 + 16 包 ok。area 偏离已申报（T-62 只留索引缝，接口面无查询——无法仅在 area 内实现）。npm/pypi 未启用（PRD 未点名）。提交 f1323ff。
 
 ## 🚫 阻塞（blocked）
 
