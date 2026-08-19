@@ -14,15 +14,28 @@ import (
 type registry struct {
 	mu      sync.RWMutex
 	byProto map[string]Handler
-	byType  map[string]Handler // package type ("generic") -> handler
-	ordered []string           // registration order, for stable All()
+	byType  map[string]Handler // package type ("generic") -> handler; the ONLY key
+	byMeta  map[string]MetadataProvider
+	ordered []string // registration order, for stable All()
 }
 
-var reg = &registry{byProto: map[string]Handler{}, byType: map[string]Handler{}}
+var reg = &registry{
+	byProto: map[string]Handler{},
+	byType:  map[string]Handler{},
+	byMeta:  map[string]MetadataProvider{},
+}
 
-// Register adds h. A duplicate Protocol name or a duplicate claim on an
-// already-served package type panics: both are assembly bugs that must
-// surface at startup, never at request time.
+// Register adds h. Registration keys on the handler's package type —
+// Protocol() ≡ the repositories.package_type value httpapi dispatches on —
+// and a duplicate key panics: an assembly bug that must surface at startup,
+// never at request time. A duplicate package type is the one collision a
+// registry can actually catch: dispatch is by row.PackageType, so two
+// handlers on one type would be a routing coin flip.
+//
+// RepoTypes is declarative metadata only (T-33 ruling, T-48 errata,
+// collected by T-63): the repository CLASS is not and must never become a
+// key — generic, docker, maven, npm and pypi all serve class=local, which a
+// class-keyed map could not tell apart.
 func Register(h Handler) {
 	if h == nil {
 		panic("adapter: Register(nil handler)")
@@ -31,8 +44,7 @@ func Register(h Handler) {
 	if proto == "" {
 		panic("adapter: Register: handler has an empty Protocol")
 	}
-	types := h.RepoTypes()
-	if len(types) == 0 {
+	if len(h.RepoTypes()) == 0 {
 		panic(fmt.Sprintf("adapter: Register(%s): RepoTypes is empty", proto))
 	}
 	reg.mu.Lock()
@@ -40,21 +52,7 @@ func Register(h Handler) {
 	if _, dup := reg.byProto[proto]; dup {
 		panic(fmt.Sprintf("adapter: Register: duplicate protocol %q", proto))
 	}
-	for _, t := range types {
-		if _, dup := reg.byType[t]; dup {
-			panic(fmt.Sprintf("adapter: Register(%s): repo type %q already served by %s", proto, t, reg.byType[t].Protocol()))
-		}
-	}
 	reg.byProto[proto] = h
-	// byType keys on the REPOSITORY CLASS for classes it serves AND on the
-	// protocol's own package type (the dispatch key httpapi uses: a repo row
-	// with package_type "generic" routes to the generic handler). Claiming a
-	// class the protocol does not serve (docker on "remote") still reserves
-	// it: two handlers both serving remote repos would be a routing coin
-	// flip, which is exactly the startup bug this panic exists to catch.
-	for _, t := range types {
-		reg.byType[t] = h
-	}
 	reg.byType[proto] = h
 	reg.ordered = append(reg.ordered, proto)
 }
@@ -73,7 +71,10 @@ func All() []Handler {
 
 // ForRepoType resolves the handler serving repositories of that package
 // type (architecture section 5.1 dispatch: repo row -> package_type ->
-// adapter). ok is false when no handler serves the type.
+// adapter). ok is false when no handler serves the type. The lookup keys
+// ONLY on the package type: a repository class ("local", "remote",
+// "virtual") is not a lookup key (T-33/T-48 errata, collected by T-63) —
+// several protocols legally share one class.
 func ForRepoType(packageType string) (h Handler, ok bool) {
 	reg.mu.RLock()
 	defer reg.mu.RUnlock()

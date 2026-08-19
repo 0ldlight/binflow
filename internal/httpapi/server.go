@@ -79,21 +79,19 @@ func New(deps Deps, log *slog.Logger) *Server {
 			writeError(w, http.StatusNotFound, "console is not configured")
 		})
 	}
-	// Dispatch keys on the repository's package type (architecture section
-	// 5.1): the registry maps a handler under both its protocol name and
-	// each repo class it serves; the injected slice mirrors that contract
-	// without the process-global singleton. Later entries claiming the
-	// same key REPLACE earlier ones — assembly order is therefore part of
-	// the contract: protocols claiming repo classes (generic: local) must
-	// not be preceded by another handler claiming the same class. M2's
-	// docker handler registers its protocol key only for exactly this
-	// reason (see docker.Handler.RepoTypes).
+	// Dispatch keys on the repository's package type ONLY (architecture
+	// section 5.1, T-33/T-48 errata collected by T-63): a handler's key is
+	// its Protocol() — the repositories.package_type value the router
+	// dispatches on. The class keys ("local"/"remote"/"virtual") this map
+	// used to carry were zero-read dead writes and the only collision
+	// source: generic, docker, maven, npm and pypi all serve class=local
+	// from M3, which a class key could not tell apart. Do not reintroduce
+	// them. Later entries on the (unique) package-type key still REPLACE
+	// earlier ones — a package type served twice is an assembly bug the
+	// adapter registry's own Register panic catches first.
 	adapters := make(map[string]adapter.Handler, len(deps.Adapters))
 	for _, h := range deps.Adapters {
 		adapters[h.Protocol()] = h
-		for _, t := range h.RepoTypes() {
-			adapters[t] = h
-		}
 	}
 	s := &Server{deps: deps, log: log, adapters: adapters}
 

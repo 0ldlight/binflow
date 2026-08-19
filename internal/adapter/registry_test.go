@@ -30,14 +30,18 @@ func (s *stubHandler) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 func withFreshRegistry(t *testing.T) {
 	t.Helper()
 	saved := reg
-	reg = &registry{byProto: map[string]Handler{}, byType: map[string]Handler{}}
+	reg = &registry{
+		byProto: map[string]Handler{},
+		byType:  map[string]Handler{},
+		byMeta:  map[string]MetadataProvider{},
+	}
 	t.Cleanup(func() { reg = saved })
 }
 
 func TestRegisterAndAll(t *testing.T) {
 	withFreshRegistry(t)
 	a := &stubHandler{proto: "generic", secret: 1}
-	b := &stubHandler{proto: "docker", types: []string{"remote", "virtual"}, secret: 2}
+	b := &stubHandler{proto: "docker", types: []string{"local"}, secret: 2}
 	Register(a)
 	Register(b)
 
@@ -51,8 +55,14 @@ func TestRegisterAndAll(t *testing.T) {
 	if h, ok := ForRepoType("generic"); !ok || h.Protocol() != "generic" {
 		t.Fatalf("ForRepoType(generic) = %v %v", h, ok)
 	}
-	if h, ok := ForRepoType("remote"); !ok || h.Protocol() != "docker" {
-		t.Fatalf("ForRepoType(remote) = %v %v", h, ok)
+	if h, ok := ForRepoType("docker"); !ok || h.Protocol() != "docker" {
+		t.Fatalf("ForRepoType(docker) = %v %v", h, ok)
+	}
+	// The repository CLASS is not a lookup key (T-33/T-48 errata,
+	// collected by T-63): both stubs above serve class=local, and the
+	// class lookup must miss rather than coin-flip between them.
+	if _, ok := ForRepoType("local"); ok {
+		t.Fatal("ForRepoType(local) must miss: the class is not a key")
 	}
 	if _, ok := ForRepoType("maven"); ok {
 		t.Fatal("ForRepoType(maven) should miss in this test's registry")
@@ -70,15 +80,22 @@ func TestRegisterDuplicateProtocolPanics(t *testing.T) {
 	Register(&stubHandler{proto: "generic", secret: 2})
 }
 
-func TestRegisterDuplicateRepoTypePanics(t *testing.T) {
+// TestRegisterSharedRepoClassIsLegal pins the T-33/T-48 errata (collected
+// by T-63): the M3 protocol family — maven, npm, pypi — all serve
+// class=local alongside generic and docker, and sharing a class is a legal
+// state, not an assembly bug. The registry keys on the package type alone.
+func TestRegisterSharedRepoClassIsLegal(t *testing.T) {
 	withFreshRegistry(t)
-	Register(&stubHandler{proto: "generic", types: []string{"local"}})
-	defer func() {
-		if recover() == nil {
-			t.Fatal("two handlers claiming the same repo type must panic")
-		}
-	}()
-	Register(&stubHandler{proto: "other", types: []string{"local", "remote"}})
+	for _, proto := range []string{"generic", "docker", "maven", "npm", "pypi"} {
+		Register(&stubHandler{proto: proto, types: []string{"local"}})
+	}
+	all := All()
+	if len(all) != 5 {
+		t.Fatalf("All() = %d handlers, want 5 (all classes may be shared)", len(all))
+	}
+	if h, ok := ForRepoType("npm"); !ok || h.Protocol() != "npm" {
+		t.Fatalf("ForRepoType(npm) = %v %v", h, ok)
+	}
 }
 
 func TestRegisterNilAndEmptyPanics(t *testing.T) {

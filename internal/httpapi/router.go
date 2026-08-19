@@ -343,8 +343,81 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 			s.withName(rest, "security/users/", s.handleUserCreatePut))
 
 	default:
+		// /binflow/api/<proto>/** protocol mounts (npm, pypi — the §5.4
+		// reserved slot M1 promised): dispatched only when the protocol is
+		// registered; otherwise the E-26 404 below stands, and the E-26
+		// route assertions flip in the protocol tickets (T-69/T-70), never
+		// ahead of them (T-61 risk R5).
+		if s.dispatchAPIProtocolMount(w, r, rest) {
+			return
+		}
 		notImplemented(w, "/binflow/api/"+rest)
 	}
+}
+
+// apiProtocolMounts lists the protocols that also mount under the reserved
+// /binflow/api segment (architecture sections 5.4.2/5.4.3): npm and pypi
+// clients address the registry API prefix (…/api/npm/<repo>/<pkg>,
+// …/api/pypi/<repo>/simple/…) rather than bare content paths. The list is
+// CLOSED by design: the api segment primarily hosts REST routes, so a
+// protocol earns a mount only through its own ticket — maven mounts content
+// paths with zero httpapi changes, and look-alikes (…/api/pypi-ui/**) stay
+// on the E-26 404 permanently.
+var apiProtocolMounts = []string{"npm", "pypi"}
+
+// dispatchAPIProtocolMount serves /binflow/api/<proto>/** by REWRITING the
+// request onto the content plane — /binflow/api/npm/<repo>/<rest> becomes
+// /binflow/<repo>/<rest> — and handing it to the standard content dispatch.
+// The rewrite is the whole seam: authorization keys off the same first
+// segment (splitFirstSegment sees the rewritten path), the repository row
+// resolves once, and the adapter receives exactly the request shape the
+// content plane gives it — /binflow stripped, escaped spelling verbatim.
+// The api mount and the bare content mount therefore address one node
+// namespace (PRD M3: the content path is the same node's second entrance),
+// and dispatch still follows the repo row's package type, never the URL's
+// protocol spelling alone.
+//
+// It reports whether a mounted protocol consumed the request; false leaves
+// the E-26 envelope 404 to the caller (unregistered protocol, or a prefix
+// outside apiProtocolMounts).
+func (s *Server) dispatchAPIProtocolMount(w http.ResponseWriter, r *http.Request, rest string) bool {
+	for _, proto := range apiProtocolMounts {
+		if !strings.HasPrefix(rest, proto+"/") {
+			continue
+		}
+		if _, ok := s.adapters[proto]; !ok {
+			// Protocol not mounted on this instance: keep the historical
+			// E-01/E-26 envelope 404. The route's assertions flip in the
+			// protocol ticket that registers the handler (R5), not here.
+			return false
+		}
+		tail := strings.TrimPrefix(rest, proto+"/")
+		s.dispatchContent(w, withAPIProtocolPrefix(r, proto, tail), "")
+		return true
+	}
+	return false
+}
+
+// withAPIProtocolPrefix rewrites the request URL from
+// /binflow/api/<proto>/<tail> to /binflow/<tail>, preserving the ESCAPED
+// spelling verbatim: RawPath carries the raw bytes so %2f vs %2F keep their
+// client case and dot segments survive untouched to adapter.Layout — the
+// same contract withStrippedPrefix upholds for the content plane. The
+// decoded Path is trimmed mechanically (the same literal on both spellings;
+// the leading /binflow never contains an escape), and the request context
+// flows through unmodified — dispatchContent re-boxes the principal into
+// the adapter seam itself.
+func withAPIProtocolPrefix(r *http.Request, proto, tail string) *http.Request {
+	escaped := prefix + "/" + tail
+	decoded := prefix + strings.TrimPrefix(r.URL.Path, prefix+"/api/"+proto)
+	u := *r.URL
+	u.Path = decoded
+	u.RawPath = escaped
+	r2 := new(http.Request)
+	*r2 = *r
+	r2.URL = &u
+	r2.RequestURI = r.RequestURI
+	return r2
 }
 
 // withName adapts a (w, r, name) handler to an http.HandlerFunc by peeling

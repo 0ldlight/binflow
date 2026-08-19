@@ -55,8 +55,10 @@ func newHarness(t *testing.T) *harness { return newHarnessCfg(t, nil, nil) }
 
 // newHarnessCfg builds the stack. mutate adjusts the config before
 // assembly (anonymous-access off, CORS on, ...); users seeds extra local
-// non-admin accounts (name/password pairs).
-func newHarnessCfg(t *testing.T, mutate func(*config.Config), users [][2]string) *harness {
+// non-admin accounts (name/password pairs). extra mounts additional
+// protocol handlers behind the standard two (M3 seam tests inject fake
+// npm/pypi handlers this way; the default stack stays at M2's surface).
+func newHarnessCfg(t *testing.T, mutate func(*config.Config), users [][2]string, extra ...adapter.Handler) *harness {
 	t.Helper()
 	ctx := context.Background()
 	dataDir := t.TempDir()
@@ -103,6 +105,7 @@ func newHarnessCfg(t *testing.T, mutate func(*config.Config), users [][2]string)
 			TokenTTL:        cfg.Auth.TokenDefaultTTL,
 		}, logger).
 		WithStorage(st, md.Blobs())
+	mounted := append([]adapter.Handler{genericHandler, dockerHandler}, extra...)
 	s := httpapi.New(httpapi.Deps{
 		Config:    cfg,
 		Auth:      authSvc,
@@ -114,7 +117,7 @@ func newHarnessCfg(t *testing.T, mutate func(*config.Config), users [][2]string)
 		Tokens:    authSvc,
 		DataDir:   dataDir,
 		Console:   console.Handler(),
-		Adapters:  []adapter.Handler{genericHandler, dockerHandler},
+		Adapters:  mounted,
 		Version:   "1.0.0-test",
 		Revision:  "abc123",
 	}, logger)

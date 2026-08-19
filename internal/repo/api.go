@@ -183,12 +183,27 @@ type AuditLogger interface {
 // M1 implements the local branch only; content operations on remote/virtual
 // rows yield ErrRepoTypeNotSupported.
 //
+// The interface is organized in two contract segments (architecture section
+// 5.4, M3/T-63): the public use-case face (content + repository management)
+// and, at the tail, the adapter SPI face protocol adapters extend. See the
+// segment banners inside.
+//
 // Put's transaction boundary is the correctness core: storage Commit puts the
 // physical blob in place first, then the metadata writes land blob-first
 // (blobs row, then node row). A crash in between leaves an unreferenced blob
 // for GC's grace period — never metadata pointing at a missing blob
 // (architecture sections 3.2/3.3; the nodes.sha256 FK enforces the order).
 type Service interface {
+	// ---- Public use-case face (architecture section 3.3) ----
+	//
+	// The product-stable use cases: the content plane and repository
+	// management. Every upper layer may program against this segment — the
+	// REST planes (httpapi /api/storage and /api/repositories), the console,
+	// a future CLI — and so may protocol adapters. The segment split is a
+	// CONTRACT marker (oss-structure section 6 insight 2: OSS papi/capi
+	// separation keeps addon code from reaching around the stable face),
+	// not two Go types: adapters additionally consume the SPI segment below.
+
 	// Get opens the node's blob for reading (caller closes) and returns its
 	// metadata. Missing node → ErrNodeNotFound; missing repo → ErrRepoNotFound.
 	Get(ctx context.Context, p *Principal, repoKey, path string) (io.ReadSeekCloser, *metadata.Node, error)
@@ -238,6 +253,17 @@ type Service interface {
 	// deleteContent=true (ErrRepoNotEmpty names the flag otherwise); with it,
 	// every node is removed first. Admin only.
 	DeleteRepo(ctx context.Context, p *Principal, repoKey string, deleteContent bool) error
+
+	// ---- Adapter SPI face (architecture section 5.4) ----
+	//
+	// The seams protocol adapters program against, beyond the public
+	// use-case face above (oss-structure section 6 insight 2: separating
+	// the "stable external face" from the "module SPI" is what keeps addon
+	// code from reaching around the service into storage/metadata
+	// internals). M3's protocol tickets add their orchestration methods in
+	// THIS segment and nowhere else (maven T-67, npm T-69, pypi T-70); the
+	// class-lookup half of this face is the ClassReader seam declared
+	// below the interface.
 
 	// ---- Docker use cases (M2, FR-7 through FR-9) ----
 	//
@@ -303,6 +329,31 @@ type Service interface {
 	// test the teardown ordering contract.
 	DeleteRepoDocker(ctx context.Context, repoKey string) (int64, error)
 }
+
+// ClassReader is the adapter SPI face's read-only repository-class seam
+// (architecture section 5.4): a protocol adapter must know the CLASS of the
+// repository it is serving — maven's checksum sidecar passes a remote
+// repository's engine 404 through (M3 PRD RE/04) instead of masking it with
+// a local lookup — without a principal (anonymous content reads reach
+// adapters before any management-plane gate; GetRepo's authentication
+// demand does not fit) and without the row's protected fields: only the
+// class is routing data, the same posture as httpapi's RepoLookup seam.
+//
+// Structurally satisfied by metadata.RepoStore; assembly wires it exactly
+// like the routing seam (cmd passes md.Repos() — the docker package's
+// NewRepoLookup is the same precedent). Callers map
+// metadata.ErrRepoNotFound onto their protocol's not-found wording.
+type ClassReader interface {
+	// Get returns the repository row for repoKey; only Type (the class)
+	// crosses this seam by contract. ErrRepoNotFound (the metadata sentinel)
+	// when the key has no row.
+	Get(ctx context.Context, repoKey string) (*metadata.Repo, error)
+}
+
+// The metadata store's Repos sub-store satisfies the class seam without an
+// adapter type (compile-time pin of that claim, same convention as the
+// docker package's seam assertions).
+var _ ClassReader = metadata.RepoStore(nil)
 
 // New builds the Service from its collaborator contracts (architecture
 // section 3.3). st and md are required; az may be nil (admin-only mode); au
