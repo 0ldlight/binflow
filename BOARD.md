@@ -19,8 +19,6 @@
 
 > M3 票 AC 全文见 reports/agents/T-61.md。分批：1:{T-62,T-63} → 2:{T-64,T-65} → 3:{T-66,T-67,T-69,T-70} → 4:{T-68,T-71} → 5:{T-73,T-77起} → 6:{T-72} → 7:{T-74} → 8:{T-75} → 9:{T-76,T-77终}。双 reviewer：T-65(SSRF 安全+架构)/T-66/T-67/T-68。
 
-- **T-64** [P0] repo.Service 三型仓库模型+PutLandedBlob `role:dev-go-core` `area:internal/repo、adapter/docker(小改)` `dep:T-62,T-63`
-- **T-65** [P0] internal/remote：SSRF 防护链+stdlib client `role:dev-go-core` `area:internal/remote(ssrf/client)` `dep:T-62` — 双 reviewer（安全+架构）
 - **T-66** [P0] remote pull-through fetcher+凭据加密+分流 `role:dev-go-core` `area:internal/remote、internal/repo` `dep:T-63,T-64,T-65` — 双 reviewer
 - **T-67** [P0] Maven adapter：layout+传输+checksum 三态 `role:dev-registry-adapter` `area:internal/adapter/maven` `dep:T-63,T-64` — 双 reviewer
 - **T-68** [P0] Maven maven-metadata.xml 计算器 `role:dev-registry-adapter` `area:internal/adapter/maven(metadata)` `dep:T-67` — 双 reviewer
@@ -37,7 +35,8 @@
 ## 🔨 进行中（doing）
 
 （T-62 编码完成 → review 区；单 reviewer 在途）
-（T-63 编码完成 → review 区）
+- **T-64** [P0] repo 三型模型+PutLandedBlob（批 2） `role:dev-go-core` `area:internal/repo、adapter/docker(小改)` — 在途（附 T-62 review 提示：Password 恒空防明文窗口）
+- **T-65** [P0] SSRF 防护链+stdlib client（批 2） `role:dev-go-core` `area:internal/remote` — 在途（双 reviewer 票；T-79 勘误口径袋）
 （T-79 done → done 区）
 
 ## 👀 评审中（review）
