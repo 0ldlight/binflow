@@ -20,7 +20,6 @@
 > M3 票 AC 全文见 reports/agents/T-61.md。分批：1:{T-62,T-63} → 2:{T-64,T-65} → 3:{T-66,T-67,T-69,T-70} → 4:{T-68,T-71} → 5:{T-73,T-77起} → 6:{T-72} → 7:{T-74} → 8:{T-75} → 9:{T-76,T-77终}。双 reviewer：T-65(SSRF 安全+架构)/T-66/T-67/T-68。
 
 - **T-68** [P0] Maven maven-metadata.xml 计算器 `role:dev-registry-adapter` `area:internal/adapter/maven(metadata)` `dep:T-67` — 双 reviewer
-- **T-71** [P0] virtual 两桶解析+写路由 `role:dev-go-core` `area:internal/repo(virtual)` `dep:T-66`
 - **T-72** [P1] virtual metadata 聚合（三协议） `role:dev-registry-adapter` `area:adapter/{maven,npm,pypi}` `dep:T-68,T-69,T-70,T-71`
 - **T-73** [P2] sha1-only checksum deploy `role:dev-go-core` `area:internal/repo、adapter/maven` `dep:T-64,T-67`
 - **T-74** [P0] QA 三协议功能矩阵 `role:qa-engineer` `dep:T-68,T-69,T-70,T-71`
@@ -31,10 +30,10 @@
 ## 🔨 进行中（doing）
 
 （T-62 编码完成 → review 区；单 reviewer 在途）
-- **T-66** [P0] remote pull-through fetcher+凭据加密+分流（批 3） `role:dev-go-core` `area:internal/remote、internal/repo` — 在途（双 reviewer 票）
+（T-66 编码完成 → review 区；双 reviewer 排队等槽）
 - **T-67** [P0] Maven adapter layout+传输+checksum（批 3） `role:dev-registry-adapter` `area:internal/adapter/maven` — 在途（双 reviewer 票；metadata 归 T-68）
 - **T-69** [P0] npm adapter（批 3） `role:dev-registry-adapter` `area:internal/adapter/npm` — 在途（E-26 翻转 R5 + N4 严格 404 决策）
-（T-70 编码完成 → review 区）
+- **T-71** [P0] virtual 两桶解析+写路由（批 4 提前） `role:dev-go-core` `area:internal/repo(virtual)` — 在途（T-66 done 解锁；FetchResult.HasCopy 消费）
 （T-79 done → done 区）
 
 ## 👀 评审中（review）
