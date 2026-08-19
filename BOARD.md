@@ -38,7 +38,7 @@
 
 - **T-62** [P0] metadata 003_remote_virtual 迁移+Remote/Virtual 子接口 `role:dev-go-core` `area:internal/metadata` — 批 1 在途
 - **T-63** [P0] adapter SPI 扩展+三协议挂载基座（MetadataProvider 注册表+api/npm|pypi 分发缝） `role:dev-go-core` `area:internal/adapter(SPI)、internal/httpapi、internal/repo/api.go` — 批 1 在途
-- **T-79** [P1] ADR-0012/0013 勘误（三处与 PRD v1.2 冲突对齐） `role:architect` `area:DECISIONS.md` — 在途（赶在 T-66/T-71 派发前）
+（T-79 done → done 区）
 
 ## 👀 评审中（review）
 
@@ -199,6 +199,9 @@
 
 - **T-78** [P1] PRD v1.2 凭据回写 `role:product-manager` `area:docs/prd` — done 2026-08-19
   Q1 按 ADR-0012 关闭（AES-GCM/enc:v1:/env BINFLOW_REMOTE_CREDENTIALS_KEY/fail-fast/003 一次性加密）；新增 FR-15-AC9 四断言；C2 注记顺手。R1 达成——T-66 派发解锁。范围外三冲突转 T-79（ADR 勘误）。提交 2cacee1。
+
+- **T-79** [P1] ADR-0012/0013 勘误 `role:architect` `area:DECISIONS.md` — done 2026-08-19
+  勘误一：故障降级 404+assumed-offline+X-Binflow-Upstream-Error（Warning:111 作废）+负缓存定案；ADR-0013 联动：两桶序+可选写路由（决策骨架不变）；勘误二：SSRF 五参数以 PRD v1.2 为准+建仓只校验 scheme（IP 校验全在请求时——清单外新发现分歧）。T-62 已补发对齐提示；§4.5/§5.4/003 注释三处同步债挂 T-66/T-71 派单注明。提交 14ba31e。
 
 ## 🚫 阻塞（blocked）
 
