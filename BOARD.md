@@ -42,7 +42,7 @@
 
 ## 👀 评审中（review）
 
-- **T-62** [P0] metadata 003 迁移+Remote/Virtual — 编码完成，conductor 复现通过（race 11.7s 绿/lint 0/DDL 对齐勘误/11 包回归），提交 54ed293。单 code-reviewer 在途（DDL 对照/迁移安全/upsert 并发/两桶序注释）。
+（空）
 
 ## 🧪 测试中（qa）
 
@@ -202,6 +202,9 @@
 
 - **T-79** [P1] ADR-0012/0013 勘误 `role:architect` `area:DECISIONS.md` — done 2026-08-19
   勘误一：故障降级 404+assumed-offline+X-Binflow-Upstream-Error（Warning:111 作废）+负缓存定案；ADR-0013 联动：两桶序+可选写路由（决策骨架不变）；勘误二：SSRF 五参数以 PRD v1.2 为准+建仓只校验 scheme（IP 校验全在请求时——清单外新发现分歧）。T-62 已补发对齐提示；§4.5/§5.4/003 注释三处同步债挂 T-66/T-71 派单注明。提交 14ba31e。
+
+- **T-62** [P0] metadata 003 迁移+Remote/Virtual `role:dev-go-core` `area:internal/metadata` — done 2026-08-19（APPROVE 一轮过）
+  review 0 blocker：DDL 逐列一致+pragma 钉死；老库升级真原生 apply；400 次并发 upsert + 4×40 SetMembers 探针无 busy 逃逸；两桶序注释勘误后口径完整；clean-room 无嫌疑。5 non-blocking 记录（T-64 防明文窗口提示已转批 2 派单要点）。提交 54ed293+4bcd536。
 
 ## 🚫 阻塞（blocked）
 
