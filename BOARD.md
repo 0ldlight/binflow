@@ -17,71 +17,13 @@
 
 ## 📥 待办（todo）
 
-> M1 票全部 done（见下方）。M2 票 AC 全文见 reports/agents/T-32.md；分批：1:{T-33,T-34,T-36} → 2:{T-35,T-37,T-41} → 3:{T-38,T-42} → 4:{T-39} → 5:{T-40,T-46起} → 6:{T-43} → 7:{T-44,T-46终} → 8:{T-45}。双 reviewer：T-33/T-38/T-39。
-
-- **T-35** [P0] repo：docker 仓库类型启用+docker 用例编排（FR-7） `role:dev-go-core` `area:internal/repo` `dep:T-34`
-  AC 摘要：① supportedPackageTypes[local][docker]+D01/C06 ② Service 扩 docker 用例（PutManifest/解析/ListTags/DeleteManifest 级联清 tags+refs 同批）③ 删仓级联三表
-- **T-37** [P0] docker token 流（FR-11） `role:dev-registry-adapter` `area:internal/adapter/docker(token)` `dep:T-33,T-47`
-  AC 摘要：① /v2/token 任意有效用户+匿名 pull 直发+OAuth 错误体 ② 挑战 scope 推导+Can 映射 ③ D04/D04b/docker login 冒烟。R7 边界：仅动 adapter/docker/。
-- **T-38** [P0] blob 域全链路（FR-8） `role:dev-registry-adapter` `area:internal/adapter/docker(blob)` `dep:T-33,T-35,T-37`
-  AC 摘要：① upload 三式+会话注册表+400 DIGEST_INVALID+毒化拒绝 ② mount 走 PutFromBlob+GET Range+HEAD+DELETE 405+空层特例 ③ D06~D14+Content-Range 矩阵。双 reviewer。
-- **T-39** [P0] manifest 链（FR-9） `role:dev-registry-adapter` `area:internal/adapter/docker(manifest)` `dep:T-38,T-35`
-  AC 摘要：① PUT 201+digest 校验+结构性解析透传+引用完整性+OCI-Subject ② GET/HEAD 原文一致+Accept 协商+DELETE by-digest 202 级联/by-tag 405 ③ D08/D08b+校验链失败全测。双 reviewer。R3 消歧前按透传【暂行】。
-- **T-40** [P0] catalog+tags/list+分页（FR-10） `role:dev-registry-adapter` `area:internal/adapter/docker(catalog)` `dep:T-39`
-  AC 摘要：① 字典序+空仓 tags:null ② n+Link 分页/n 缺省 100/n=0 400 ③ 删仓后不出现+Q5 过滤矩阵
-- **T-41** [P1] O1 断连日志定界 `role:dev-go-core` `area:internal/httpapi(middleware)` `dep:T-33`
-  AC 摘要：① Canceled+5xx→client_disconnect WARN 不进 5xx 计数 ② 慢中断无 ERROR ③ 三态测试。R7 边界：仅动 middleware.go/accessLog。
-- **T-42** [P1] gc 旗标+GC mark 扩容 `role:dev-go-core` `area:cmd/binflow-server` `dep:T-34`
-  AC 摘要：① gc -c/--grace-hours ② GC=nodes∪docker_refs ③ M1 gc 零回归
-- **T-43** [P0] QA：M2 协议矩阵+M1 回归基线 `role:qa-engineer` `area:验收` `dep:T-40,T-41,T-42,T-36`
-- **T-44** [P0] QA：五客户端 conformance+性能 `role:qa-engineer` `area:验收` `dep:T-43`
-- **T-45** [P0] 部署烟测（FR-14） `role:release-engineer` `area:deploy/dev、README` `dep:T-44`
-- **T-46** [P1] docker 接入用户文档 `role:tech-writer` `area:docs/user` `dep:T-43`
-
-## 🔨 进行中（doing）
-
-- **T-33** [P0] /v2 根级挂载、name 解析与 docker adapter 基座（ADR-0010） `role:dev-registry-adapter` `area:internal/httpapi(/v2 例外)、internal/adapter/docker(基座)` `dep:T-31`
-  AC 摘要：① /v2 根级例外+name 切分+NAME_UNKNOWN+D04 ② spec 错误信封+Api-Version 头+health registry 字段 ③ M1 零回归+R10（既有 /v2 404 测试同步改）。双 reviewer。
-  状态：11:3x 派发（批次 1），在途。R6：纯 UUID/相对 Location。
-- **T-34** [P0] metadata：002_docker 迁移三表+DockerStore — 已提交 6df3b96，review 在途（条目移至 review 区）。
-- **T-36** [P2] generic Content-Type 扩展名映射 — done 2026-08-18，见 M2 done 区。
-- **T-47** [P1] PRD v1.1 回写 — done 2026-08-18，见 done 区。原 doing 条目移除。
-- **T-11** [P0] auth 与 audit：认证/Token/路径 ACL `role:dev-go-core` `area:internal/auth、internal/audit` `dep:T-8,T-10`
-  AC: ① Authenticator（Basic/Token/X-JFrog-Art-Api/匿名）+argon2id+TokenRegistry（只存 sha256）② Authorizer.Can：admin 全过；命名 permission target（include/exclude 两级通配）；匿名仅内容 GET/HEAD ③ 权限矩阵/token 生命周期/改密单测
-- **T-12** [P0] repo.Service：local 用例编排与仓库 CRUD `role:dev-go-core` `area:internal/repo` `dep:T-9,T-10,T-11`（review 加正确性 reviewer）
-  AC: ① repo key [a-z][a-z0-9-]{1,62}+保留字 api/v2+rclass 仅 local ② 同 checksum 幂等重传免覆盖检查（T-3 规格吸收）；Delete 只删引用+幂等 404；删仓 deleteContent 语义 ③ fake 驱动全分支单测含事务回滚
-- **T-13** [P0] adapter SPI 与 Generic 适配器 `role:dev-registry-adapter` `area:internal/adapter、internal/adapter/generic` `dep:T-3,T-11,T-12`
-  AC: ① SPI+路径归一化拒绝逃逸（../%2e%2e→400）；PUT 201+Location+checksum 头+FileInfo（size 字符串）；GET/HEAD 三 checksum 头+ETag=sha1；DELETE 204 重复 404 ② X-Checksum 不一致→409；checksum-deploy 未命中→404；Explode→400 ③ httptest+curl 真实客户端断言 C07~C23 等价
-- **T-14** [P0] httpapi 核心：Server/middleware/错误信封/路由 `role:dev-go-core` `area:internal/httpapi（核心）、internal/console（占位）` `dep:T-8,T-11,T-13`
-  AC: ① 路由表：/healthz /readyz 无前缀；/binflow 剥离分发；ping/version/v1-health/v1-stats ② middleware 链固定顺序；结构化日志不记认证头；错误信封 errors[]（含内容路径）；E-26 全矩阵 404 ③ 认证分层（匿名内容 GET/HEAD）；SIGTERM 优雅停机
-- **T-15** [P0] Artifactory 兼容 REST `role:dev-registry-adapter` `area:internal/httpapi（兼容 handlers，与 T-14 串行）` `dep:T-3,T-14`
-  AC: ① 仓库 CRUD（PUT 建仓 200 纯文本；remote/virtual 400）② /api/storage FileInfo/FolderInfo 字段全集（rest-api §3）；?list 匿名 403/根 400 ③ security：password/token（自有语义，auth-model.md 缺位）/users；/api/v1/permissions CRUD；C 序列 curl 断言
-- **T-16** [P0] cmd 装配与生命周期 `role:dev-go-core` `area:cmd/binflow-server` `dep:T-14,T-15`
-  AC: ① 构造注入装配链；serve/gc subcommand ② 缺省口令 WARN；postgres 报错退出；启动清扫；冷启动<2s ③ scripts/smoke.sh 冒烟（C01/C03/C07/C08）
-- **T-17** [P0] 开发环境：Dockerfile/compose+README `role:devops-engineer` `area:deploy/dev、README.md` `dep:T-16`
-  AC: ① compose up 30s ping OK；restart/down+up 持久化（C29）② README 五步快速开始（URL /binflow）；匿名读/缺省口令/明文 HTTP 提示 ③ 健康检查+stop_grace_period≥30s；全新环境复跑全 0
-- **T-18** [P0] QA：M1 功能矩阵验收（§7 场景 1/3/4/6/7） `role:qa-engineer` `area:验收` `dep:T-16,T-17,T-21`（v1.2 先行，R9b）
-  AC: ① 工程基线+仓库生命周期（C03 期望 200）+roundtrip（C14 期望 409）+边界拒绝 ② 认证 ACL 双模式（C02~C23/C27）；校准项复核（DELETE 204/幂等重传/mkdir 201/size 字符串）③ NFR-S1/S2/S3 抽查（无明文凭据）；5xx 打回附票号
-- **T-19** [P0] QA：存储完整性/性能/持久化+README 复跑（§7 场景 2/5/8/9/10） `role:qa-engineer` `area:验收` `dep:T-18`
-  AC: ① C12 去重/慢上传中断/kill -9 重启/覆盖幂等/1GB RSS ② 冷启动<2s 双路径；100 并发 0 错误；C29 两轮；gc dry-run/--apply ③ README 全新复跑；产出 T-19-qa.md DoD 结论
-- **T-20** [P2] Range 与条件请求 `role:dev-registry-adapter` `area:internal/adapter/generic` `dep:T-13`
-  AC: ① 单区间 206/非法 416 ② If-None-Match/If-Modified-Since→304 ③ curl -r/-z 断言；M2 前必须 done
-- **T-23** [P1] 补逆向规格 auth-model.md（R7） `role:reverse-engineer` `area:docs/reverse` `dep:T-3`
-  AC: ① auth-model.md：用户/组/权限模型+token 行为（签发/验证/吊销/过期字段与错误码）② 置信度标注 ③ clean-room 铁律；供 T-15 token 端点校准
+> M1（T-1~T-28）与 M2（T-29~T-56）全部 done，详见下方 done 区。M3 票待 tech-lead 拆解（规划三件套 T-57/T-58/T-59 在途）。
 
 ## 🔨 进行中（doing）
 
 - **T-57** [P0] M3 PRD：多生态与代理 `role:product-manager` `area:docs/prd、ROADMAP.md` `dep:m2-done` — 在途
 - **T-58** [P0] M3 架构增量：remote/virtual + 三协议适配器 `role:architect` `area:docs/design、DECISIONS.md` `dep:m2-done` — 在途
 - **T-59** [P0] M3 逆向规格：三协议 + remote/virtual 语义 `role:reverse-engineer` `area:docs/reverse` `dep:m2-done` — 在途
-
-## 🧪 测试中（qa）
-
-（空）
-
-## 👀 评审中（review）
-
-（空）
 
 ## 👀 评审中（review）
 
