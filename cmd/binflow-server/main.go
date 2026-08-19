@@ -221,8 +221,9 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// Maven (M3/T-67): same content namespace as generic — httpapi
 	// dispatches on the repository row's package type, so mounting is the
 	// whole wiring. The metadata-provider registration feeds the registry
-	// T-66/T-68/T-72 consume (T-63 seam).
-	mavenHandler := maven.New(stack.svc, stack.md.Repos(), stack.md.Blobs())
+	// T-66/T-68/T-72 consume (T-63 seam); the nodes seam feeds the
+	// maven-metadata.xml calculator (T-68/FR-17).
+	mavenHandler := maven.New(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.md.Nodes())
 	maven.RegisterMetadata()
 	return httpapi.New(httpapi.Deps{
 		Config:    cfg,

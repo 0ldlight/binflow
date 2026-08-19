@@ -295,13 +295,20 @@ func (s *service) getRemote(ctx context.Context, p *Principal, repoKey, path str
 	return res.Body, res.Node, nil
 }
 
-// Put implements Service.Put. Ordering is the correctness core (architecture
-// sections 3.2/3.3): the physical blob commits FIRST, then the metadata
-// writes land blob-first (blobs row, then node row) so the
-// nodes.sha256 → blobs.sha256 FK backs the invariant. A failure after Commit
-// leaves an unreferenced blob — GC's grace period is the designed recovery
-// path — and never a node without its blob.
+// Put implements Service.Put: the zero-options PutWithOptions (the
+// exemption is the maven metadata family's, nothing else's).
 func (s *service) Put(ctx context.Context, p *Principal, repoKey, path string, body io.Reader, expect storage.BlobRef, mime string) (*metadata.Node, error) {
+	return s.PutWithOptions(ctx, p, repoKey, path, body, expect, mime, PutOptions{})
+}
+
+// PutWithOptions implements Service.PutWithOptions: Put plus the
+// regenerable-content exemption (see PutOptions). Ordering is the
+// correctness core (architecture sections 3.2/3.3): the physical blob
+// commits FIRST, then the metadata writes land blob-first (blobs row, then
+// node row) so the nodes.sha256 → blobs.sha256 FK backs the invariant. A
+// failure after Commit leaves an unreferenced blob — GC's grace period is
+// the designed recovery path — and never a node without its blob.
+func (s *service) PutWithOptions(ctx context.Context, p *Principal, repoKey, path string, body io.Reader, expect storage.BlobRef, mime string, opts PutOptions) (*metadata.Node, error) {
 	if err := requireAuthenticated(p); err != nil {
 		return nil, err
 	}
@@ -327,8 +334,9 @@ func (s *service) Put(ctx context.Context, p *Principal, repoKey, path string, b
 		// body is committed: an existing node whose checksum equals the
 		// client-declared sha256 is an idempotent retransmit — it succeeds
 		// with neither the deploy nor the overwrite check; a different
-		// checksum requires delete permission on the old node.
-		idempotent, err := s.authorizeContentPut(ctx, p, repoKey, path, expect.Sha256)
+		// checksum requires delete permission on the old node (unless the
+		// freely-rewritable exemption lifts it, PutOptions).
+		idempotent, err := s.authorizeContentPut(ctx, p, repoKey, path, expect.Sha256, opts.SkipOverwriteCheck)
 		if err != nil {
 			return nil, err
 		}
@@ -421,7 +429,7 @@ func (s *service) PutFromBlob(ctx context.Context, p *Principal, repoKey, path s
 	if ref.Sha256 == "" {
 		return nil, fmt.Errorf("checksum deploy %s/%s: %w: sha256 is required", repoKey, path, ErrInvalidPath)
 	}
-	idempotent, err := s.authorizeContentPut(ctx, p, repoKey, path, ref.Sha256)
+	idempotent, err := s.authorizeContentPut(ctx, p, repoKey, path, ref.Sha256, false)
 	if err != nil {
 		return nil, err
 	}
@@ -508,7 +516,7 @@ func (s *service) PutLandedBlob(ctx context.Context, p *Principal, repoKey, path
 	if ref.Sha256 == "" {
 		return nil, fmt.Errorf("landed blob %s/%s: %w: sha256 is required", repoKey, path, ErrInvalidPath)
 	}
-	idempotent, err := s.authorizeContentPut(ctx, p, repoKey, path, ref.Sha256)
+	idempotent, err := s.authorizeContentPut(ctx, p, repoKey, path, ref.Sha256, false)
 	if err != nil {
 		return nil, err
 	}
@@ -557,11 +565,13 @@ func (s *service) isIdempotentRedeploy(ctx context.Context, repoKey, path, decla
 // runs BEFORE touching bytes or rows (repo-semantics section 3): a node
 // already holding the declared sha256 is an idempotent retransmit that skips
 // both gates; otherwise overwriting an existing node additionally requires
-// delete on it, and every landing requires write. The pair lives in one
-// place so Put, PutFromBlob and PutLandedBlob can never drift apart on the
-// ordering — the security-relevant part is that the gates run before the
-// body is drained or the blob is opened.
-func (s *service) authorizeContentPut(ctx context.Context, p *Principal, repoKey, path, declaredSha256 string) (idempotent bool, err error) {
+// delete on it, and every landing requires write. skipOverwrite lifts the
+// delete half for the freely-rewritable family (PutOptions, repo-semantics
+// section 3's sidecar/metadata exemption) — the write grant stays. The pair
+// lives in one place so Put, PutFromBlob and PutLandedBlob can never drift
+// apart on the ordering — the security-relevant part is that the gates run
+// before the body is drained or the blob is opened.
+func (s *service) authorizeContentPut(ctx context.Context, p *Principal, repoKey, path, declaredSha256 string, skipOverwrite bool) (idempotent bool, err error) {
 	idempotent, existing, err := s.isIdempotentRedeploy(ctx, repoKey, path, declaredSha256)
 	if err != nil {
 		return false, err
@@ -569,7 +579,7 @@ func (s *service) authorizeContentPut(ctx context.Context, p *Principal, repoKey
 	if idempotent {
 		return true, nil
 	}
-	if existing != nil && !s.allow(ctx, p, repoKey, path, ActionDelete) {
+	if existing != nil && !skipOverwrite && !s.allow(ctx, p, repoKey, path, ActionDelete) {
 		return false, fmt.Errorf(
 			"overwrite %s/%s: %w: user %q needs DELETE permission on the existing node",
 			repoKey, path, ErrForbidden, p.Name)

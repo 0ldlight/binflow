@@ -319,6 +319,16 @@ type Service interface {
 	// class-lookup half of this face is the ClassReader seam declared
 	// below the interface.
 
+	// PutWithOptions is Put with the adapter SPI's regenerable-content
+	// exemption knob (T-68, closing the T-67 leftover). Every gate but the
+	// exempted one is byte-for-byte Put's; Put itself is PutWithOptions
+	// with the zero options (see PutOptions), so the two can never drift.
+	// Consumers are the maven plane's metadata family — client re-PUTs of
+	// checksum sidecars / maven-metadata.xml and the server-side metadata
+	// calculator's writes (FR-17) — which rewrites those nodes on every
+	// deploy; every other content caller keeps using Put.
+	PutWithOptions(ctx context.Context, p *Principal, repoKey, path string, body io.Reader, expect storage.BlobRef, mime string, opts PutOptions) (*metadata.Node, error)
+
 	// ---- Docker use cases (M2, FR-7 through FR-9) ----
 	//
 	// The docker adapter owns the wire protocol; these methods own the
@@ -382,6 +392,21 @@ type Service interface {
 	// method is the exported seam for the manifests/tags half so T-38+ can
 	// test the teardown ordering contract.
 	DeleteRepoDocker(ctx context.Context, repoKey string) (int64, error)
+}
+
+// PutOptions tunes PutWithOptions for the regenerable-content family
+// (T-68's adapter SPI exemption, repo-semantics section 3's high-confidence
+// rule: "checksum sidecar files (.sha1 etc.) and maven-metadata.xml never
+// trigger the overwrite check — freely rewritable").
+type PutOptions struct {
+	// SkipOverwriteCheck exempts the write from the OVERWRITE half of the
+	// permission pair: a pre-existing node at the path with a DIFFERENT
+	// checksum no longer additionally requires DELETE permission on it.
+	// The write grant itself still applies, and the idempotent-retransmit
+	// shortcut (same declared sha256) keeps its meaning — only the
+	// delete-permission demand is lifted, exactly the freedom the spec
+	// grants the freely-rewritable family.
+	SkipOverwriteCheck bool
 }
 
 // StatusError is a service-level failure that already knows its exact

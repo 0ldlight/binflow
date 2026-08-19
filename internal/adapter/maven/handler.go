@@ -93,7 +93,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet, http.MethodHead:
 		h.handleGet(ctx, w, r, p, repoKey, relPath, l)
 	case http.MethodDelete:
-		h.handleDelete(ctx, w, p, repoKey, relPath)
+		h.handleDelete(ctx, w, p, repoKey, relPath, l)
 	default:
 		w.Header().Set("Allow", "GET, HEAD, PUT, DELETE")
 		writeError(w, http.StatusMethodNotAllowed,
@@ -256,13 +256,22 @@ func (h *Handler) serveFile(ctx context.Context, w http.ResponseWriter, r *http.
 // ---- DELETE ----
 
 // handleDelete is the M1 idempotent delete (204; repeat delete the same
-// 404 as any unknown path). The maven-metadata recalculation cascade is
-// T-68's; until it lands a delete removes the node reference only.
+// 404 as any unknown path) plus ME-07's asynchronous recalculation of the
+// affected directory tree: an artifact delete touches its version
+// directory and the module version list, a metadata delete the document's
+// own directory (which the recalculation regenerates while the facts
+// warrant one).
 func (h *Handler) handleDelete(ctx context.Context, w http.ResponseWriter,
-	p *repo.Principal, repoKey, relPath string) {
+	p *repo.Principal, repoKey, relPath string, l Layout) {
 	if err := h.svc.Delete(ctx, p, repoKey, relPath); err != nil {
 		h.writeServiceError(w, err, http.MethodDelete, repoKey, relPath)
 		return
+	}
+	// Only a LOCAL repository's facts drive recalculation: a remote
+	// delete dropped a cache copy (its metadata is upstream's business)
+	// and a virtual delete never reached here (RE-08's 405).
+	if row, err := h.class.Get(ctx, repoKey); err == nil && row.Type == repo.TypeLocal {
+		h.calc.afterDelete(p, repoKey, l)
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

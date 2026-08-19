@@ -124,11 +124,32 @@ func (h *Handler) putFile(ctx context.Context, w http.ResponseWriter, r *http.Re
 		}
 	}
 
-	node, err := h.svc.Put(ctx, p, repoKey, relPath, body, declared, mime)
+	// The metadata family never triggers the overwrite check
+	// (repo-semantics section 3, high confidence): sidecar and metadata
+	// documents are freely rewritable — every mvn deploy re-PUTs them with
+	// changed bytes, which must not demand DELETE on the old node (the
+	// T-67 leftover this closes). The write grant still applies.
+	var node *metadata.Node
+	if l.Kind == KindMetadata {
+		node, err = h.svc.PutWithOptions(ctx, p, repoKey, relPath, body, declared, mime,
+			repo.PutOptions{SkipOverwriteCheck: true})
+	} else {
+		node, err = h.svc.Put(ctx, p, repoKey, relPath, body, declared, mime)
+	}
 	if err != nil {
 		h.writeServiceError(w, err, http.MethodPut, repoKey, relPath)
 		return
 	}
+
+	// FR-17's trigger taxonomy fires on the LANDED node's repository (a
+	// routed virtual write lands in the deployment member — the facts and
+	// the metadata belong to where the bytes are).
+	if l.Kind == KindArtifact {
+		h.calc.afterArtifactDeploy(ctx, p, node.RepoKey, l)
+	} else {
+		h.calc.afterMetadataDeploy(ctx, p, node.RepoKey, l)
+	}
+
 	declaredSet := map[string]bool{}
 	if cfg.ChecksumPolicy != ChecksumPolicyServerGenerated {
 		declaredSet = declaredSetOf(declared)
@@ -175,10 +196,15 @@ func (h *Handler) putSidecar(ctx context.Context, w http.ResponseWriter, r *http
 
 	// What lands: the server-measured digest under server-generated policy
 	// (the client's claim never becomes stored bytes), the client's own
-	// bytes otherwise.
+	// bytes otherwise — EXCEPT for the metadata family: its target is
+	// server-authoritative and regenerated at any deploy (FR-17), so a
+	// value the client checksummed against the pre-recalculation bytes may
+	// legitimately disagree already. A metadata sidecar mismatch is never
+	// a client error; the measured value lands, keeping the stored bytes
+	// equal to the live-computed answer (checksum consistency, M14).
 	land := raw
 	if measured, ok := h.digestOf(ctx, node, l.Algo); ok && measured != declared {
-		if cfg.ChecksumPolicy == ChecksumPolicyClient {
+		if cfg.ChecksumPolicy == ChecksumPolicyClient && l.TargetKind != KindMetadata {
 			writeError(w, http.StatusConflict, fmt.Sprintf(
 				"Checksum error for '%s/%s': received '%s' but actual is '%s'",
 				repoKey, relPath, declared, measured))
@@ -191,7 +217,10 @@ func (h *Handler) putSidecar(ctx context.Context, w http.ResponseWriter, r *http
 	if sum := sha256Hex(land); sum != "" {
 		ref.Sha256 = sum
 	}
-	mavenNode, err := h.svc.Put(ctx, p, repoKey, relPath, bytes.NewReader(land), ref, sidecarContentType)
+	// Sidecars never trigger the overwrite check (repo-semantics section
+	// 3): a checksum file is freely rewritable registration data.
+	mavenNode, err := h.svc.PutWithOptions(ctx, p, repoKey, relPath, bytes.NewReader(land), ref,
+		sidecarContentType, repo.PutOptions{SkipOverwriteCheck: true})
 	if err != nil {
 		h.writeServiceError(w, err, http.MethodPut, repoKey, relPath)
 		return

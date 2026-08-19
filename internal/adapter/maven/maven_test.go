@@ -52,7 +52,7 @@ func newHarness(t *testing.T) *harness {
 
 	authz := auth.NewFromStore(md, true) // anonymous reads on
 	svc := repo.New(st, md, authz, nil)
-	h := New(svc, md.Repos(), md.Blobs())
+	h := New(svc, md.Repos(), md.Blobs(), md.Nodes())
 	return &harness{t: t, h: h, md: md, svc: svc}
 }
 
@@ -85,6 +85,16 @@ func seedRepos(ctx context.Context, t *testing.T, md metadata.Store) {
 // admin=false sends the request anonymous.
 func (hs *harness) serve(method, target string, body []byte, hdr map[string]string, admin bool) *http.Response {
 	hs.t.Helper()
+	var p *auth.Principal
+	if admin {
+		p = &auth.Principal{Name: "admin", Admin: true}
+	}
+	return hs.serveAs(method, target, body, hdr, p)
+}
+
+// serveAs runs one request with an explicit principal (nil = anonymous).
+func (hs *harness) serveAs(method, target string, body []byte, hdr map[string]string, p *auth.Principal) *http.Response {
+	hs.t.Helper()
 	var rdr io.Reader
 	if body != nil {
 		rdr = bytes.NewReader(body)
@@ -93,14 +103,22 @@ func (hs *harness) serve(method, target string, body []byte, hdr map[string]stri
 	for k, v := range hdr {
 		req.Header.Set(k, v)
 	}
-	if admin {
-		p := &auth.Principal{Name: "admin", Admin: true}
+	if p != nil {
 		req = req.WithContext(adapter.WithPrincipal(req.Context(), p))
 	}
 	rec := httptest.NewRecorder()
 	hs.h.ServeHTTP(rec, req)
-	resp := rec.Result()
-	return resp
+	return rec.Result()
+}
+
+// waitCalc drains the calculator's asynchronous recalculation backlog —
+// the deterministic way to read metadata the taxonomy computes off the
+// request path (ME-04's async rows).
+func (hs *harness) waitCalc() {
+	hs.t.Helper()
+	if hs.h.calc != nil {
+		hs.h.calc.wg.Wait()
+	}
 }
 
 // drain reads and closes a response body.
@@ -230,10 +248,19 @@ func TestDeployResolveRoundtrip(t *testing.T) {
 		}
 	}
 
-	// stored metadata serves as-is until T-68's calculator lands
+	// The metadata PUT triggered the calculator (T-68): the module
+	// document is server-computed from the pom facts (the client bytes
+	// registered, the version list is authoritative) — M14's shape.
 	resp = hs.serve(http.MethodGet, "/maven-local/com/acme/demo-app/maven-metadata.xml", nil, nil, true)
-	if resp.StatusCode != http.StatusOK || !bytes.Equal(drain(t, resp), metaXML) {
+	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("metadata GET = %d", resp.StatusCode)
+	}
+	meta := string(drain(t, resp))
+	if !strings.Contains(meta, "<groupId>com.acme</groupId>") ||
+		!strings.Contains(meta, "<version>1.0.0</version>") ||
+		!strings.Contains(meta, "<latest>1.0.0</latest>") ||
+		!strings.Contains(meta, "<release>1.0.0</release>") {
+		t.Fatalf("server-computed metadata = %s", meta)
 	}
 
 	// HEAD answers the same headers minus the body
@@ -567,27 +594,61 @@ func TestAnonymousAndMethodGates(t *testing.T) {
 	}
 }
 
-// TestMetadataOverwriteFreedom pins the exemption's practical half: an
-// identical metadata re-send is the idempotent retransmit (no gates), and
-// a CHANGED re-send succeeds for the credential the M-sequences use
-// (admin). The write-without-delete divergence for delete-less principals
-// is the documented repo.Service SPI gap (see the ticket log).
+// TestMetadataOverwriteFreedom pins the exemption's two halves (T-68
+// closed the T-67 SPI gap): the metadata family never triggers the
+// overwrite check — a CHANGED-byte re-send succeeds even for a principal
+// with write but NO delete grant (repo-semantics section 3) — and the
+// stored document is always the server-computed one afterwards (FR-17's
+// authoritative-content rule): the client's XML registers, it never
+// becomes the version list.
 func TestMetadataOverwriteFreedom(t *testing.T) {
 	hs := newHarness(t)
-	target := "/maven-local/com/acme/demo-app/maven-metadata.xml"
-	v1 := []byte("<metadata><versioning><versions><version>1.0.0</version></versions></versioning></metadata>")
-	v2 := []byte("<metadata><versioning><versions><version>1.0.0</version><version>1.1.0</version></versions></versioning></metadata>")
+	ctx := context.Background()
 
-	if resp := hs.serve(http.MethodPut, target, v1, nil, true); resp.StatusCode != http.StatusCreated {
-		t.Fatalf("metadata v1 = %d", resp.StatusCode)
+	// A write-without-delete principal: the exact shape the pre-T-68
+	// overwrite chain rejected on changed-byte metadata re-sends.
+	dev := &auth.Principal{Name: "developer"}
+	if err := hs.md.Permissions().PutTarget(ctx, &metadata.PermissionTarget{
+		Name: "dev-local", Repos: `["maven-local"]`, Includes: "[]", Excludes: "[]",
+	}, []*metadata.PermissionPrincipal{{
+		TargetName: "dev-local", Principal: "developer", PrincipalType: "user",
+		CanRead: true, CanWrite: true, CanDelete: false,
+	}}); err != nil {
+		t.Fatalf("seed permission: %v", err)
 	}
-	if resp := hs.serve(http.MethodPut, target, v1, nil, true); resp.StatusCode != http.StatusCreated {
-		t.Fatalf("metadata v1 re-send = %d, want idempotent 201", resp.StatusCode)
+
+	// A pom fact so the module document has something to compute.
+	if resp := hs.serve(http.MethodPut, pomPath, []byte("<project/>"), nil, true); resp.StatusCode != http.StatusCreated {
+		t.Fatalf("pom seed = %d", resp.StatusCode)
 	}
-	if resp := hs.serve(http.MethodPut, target, v2, nil, true); resp.StatusCode != http.StatusCreated {
-		t.Fatalf("metadata v2 = %d, want 201 (admin overwrite)", resp.StatusCode)
+	hs.waitCalc()
+
+	target := "/maven-local/com/acme/demo-app/maven-metadata.xml"
+	v1 := []byte("<metadata><versioning><versions><version>9.9.9</version></versions></versioning></metadata>")
+	v2 := []byte("<metadata><versioning><versions><version>8.8.8</version></versions></versioning></metadata>")
+
+	// Changed-byte re-sends under the write-only grant: 201 both times
+	// (the exemption; pre-T-68 the second was a 403).
+	if resp := hs.serveAs(http.MethodPut, target, v1, nil, dev); resp.StatusCode != http.StatusCreated {
+		t.Fatalf("metadata v1 as developer = %d (%s)", resp.StatusCode, drain(t, resp))
 	}
-	if got := drain(t, hs.serve(http.MethodGet, target, nil, nil, true)); !bytes.Equal(got, v2) {
-		t.Errorf("metadata after overwrite = %s", got)
+	if resp := hs.serveAs(http.MethodPut, target, v2, nil, dev); resp.StatusCode != http.StatusCreated {
+		t.Fatalf("metadata v2 (changed bytes, no delete grant) = %d, want 201 via the exemption", resp.StatusCode)
+	}
+
+	// The served document is the server-computed one: the client's 9.9.9
+	// and 8.8.8 never leak into the version list.
+	got := string(drain(t, hs.serve(http.MethodGet, target, nil, nil, true)))
+	if strings.Contains(got, "9.9.9") || strings.Contains(got, "8.8.8") {
+		t.Errorf("client versions leaked into metadata: %s", got)
+	}
+	if !strings.Contains(got, "<version>1.0.0</version>") {
+		t.Errorf("server-computed version missing: %s", got)
+	}
+
+	// The developer may NOT overwrite the pom itself: artifacts keep the
+	// full pair (the exemption is the regenerable family's only).
+	if resp := hs.serveAs(http.MethodPut, pomPath, []byte("<project-changed/>"), nil, dev); resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("artifact overwrite without delete grant = %d, want 403", resp.StatusCode)
 	}
 }

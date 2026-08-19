@@ -178,6 +178,13 @@ func (f *fakeService) Delete(context.Context, *Principal, string, string) error 
 	return errUnimplementedFake
 }
 
+// PutWithOptions satisfies the Service SPI addition (T-68's regenerable
+// exemption knob) on the docker fake: docker never exercises it, so it
+// simply routes to Put (zero options are Put's exact contract).
+func (f *fakeService) PutWithOptions(ctx context.Context, p *Principal, repoKey, path string, body io.Reader, expect storage.BlobRef, mime string, _ repo.PutOptions) (*metadata.Node, error) {
+	return f.Put(ctx, p, repoKey, path, body, expect, mime)
+}
+
 // PutLandedBlob mirrors the real service's finalize registration (T-64): the
 // blob is already committed in the engine, the ref carries the session's
 // digests, and the fake records the call and materializes the node over the

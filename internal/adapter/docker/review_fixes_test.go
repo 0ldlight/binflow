@@ -305,6 +305,9 @@ func (s *countingGetService) Put(ctx context.Context, p *Principal, rk, path str
 func (s *countingGetService) PutFromBlob(ctx context.Context, p *Principal, rk, path string, ref storage.BlobRef, mime string) (*metadata.Node, error) {
 	return s.inner.PutFromBlob(ctx, p, rk, path, ref, mime)
 }
+func (s *countingGetService) PutWithOptions(ctx context.Context, p *Principal, rk, path string, body io.Reader, expect storage.BlobRef, mime string, opts repo.PutOptions) (*metadata.Node, error) {
+	return s.inner.PutWithOptions(ctx, p, rk, path, body, expect, mime, opts)
+}
 func (s *countingGetService) PutLandedBlob(ctx context.Context, p *Principal, rk, path string, ref storage.BlobRef, mime string) (*metadata.Node, error) {
 	return s.inner.PutLandedBlob(ctx, p, rk, path, ref, mime)
 }
