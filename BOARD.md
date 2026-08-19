@@ -229,12 +229,15 @@
   layout 六字段/checksum 三态/旁车/snapshot 语义/穿越防御 + cmd 装配 + REST local 字段透传。wire 序列全过 + **mvn 3.9.9 真客户端 M11/M12/M13/M16 布局腿**（BUILD SUCCESS/sha256 对账/全新 repo resolve/timestamped 落盘）。SPI 豁免遗留→T-68 实施/T-83 定约。提交 91bb261+71e6c93。
 - **T-71** [P0] virtual 两桶解析+写路由 `role:dev-go-core` `area:internal/repo` — done 2026-08-20
   virtual.go 两桶序（逐请求现算）/Get 三型分派/stale 命中即成员结果（HasCopy 消费）/探索性 miss pre-read guard/写路由（405+C5 文案/配置后换址 local）/ExtraHeaders 双头合并。17 测试群+真二进制 M50/M52/M53。遗留①②（协议面 StatusError+ExtraHeaders 两缝）→ T-82。提交 eab4363。
-- **T-82** [P0] 三协议 adapter 双缝修复（T-71 遗留） `role:dev-registry-adapter` `area:internal/adapter/{maven,npm,pypi}` — 在途
+（T-82 done → done 区）
 - **T-68** [P0] Maven maven-metadata.xml 计算器（批 4） `role:dev-registry-adapter` `area:internal/adapter/maven(metadata)、internal/repo/api.go(豁免口)` — 在途（双 reviewer 票；附 SPI 豁免实施授权）
 （T-83 done → done 区）
 
 - **T-83** [P1] architect 回写 `role:architect` `area:docs/design` — done 2026-08-20
   §4.5 两处（checksum 登记不拒定案/故障语义勘误一收口）+ §5.4 渲染缝（StatusError+ExtraHeaders 复用勿另开缝）+ RepoTypes + **SPI SkipOverwriteCheck 最终契约**（收窄：仅服务端自有写入/写门不豁免/只跳 d 检查）+ T-79 三处遗留债顺带收口。提交 d983753。
+
+- **T-82** [P0] 三协议双缝修复 `role:dev-registry-adapter` `area:internal/adapter/{maven,npm,pypi}` — done 2026-08-20
+  StatusError 直渲染（npm 此前完全缺失→一律 500）+ ExtraHeaders 探测三协议；红绿验证（还原至 HEAD 三测试 FAIL 行号级）；virtual DELETE 405+C5 逐字/双头输出/上游计数冻结。遗留①pypi 上传早闸不感知路由（挂 architect）②npm RepoTypes 口径③maven PUT 文案对齐（已顺手做）。提交 5b13a1e。
 
 ## 🚫 阻塞（blocked）
 
