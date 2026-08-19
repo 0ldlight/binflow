@@ -37,12 +37,12 @@
 ## 🔨 进行中（doing）
 
 （T-62 编码完成 → review 区；单 reviewer 在途）
-- **T-63** [P0] adapter SPI 扩展+三协议挂载基座（MetadataProvider 注册表+api/npm|pypi 分发缝） `role:dev-go-core` `area:internal/adapter(SPI)、internal/httpapi、internal/repo/api.go` — 批 1 在途
+（T-63 编码完成 → review 区）
 （T-79 done → done 区）
 
 ## 👀 评审中（review）
 
-（空）
+- **T-63** [P0] SPI 基座 — 编码完成，conductor 复现通过（12 包 race 绿/lint 0/E-26 未反转；MetadataProvider 注册表/npm-pypi 分发缝 escaped 保留/class 键清理/两段拆分零方法改动），提交 5b79a52。单 code-reviewer 在途（契约面从严：接口形态/分发缝探针/契约三决定确认）。
 
 ## 🧪 测试中（qa）
 
