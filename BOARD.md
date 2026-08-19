@@ -253,6 +253,9 @@
 - **T-73** [P2] sha1-only checksum deploy `role:dev-go-core` `area:internal/metadata(增量)、internal/repo、adapter/{maven,generic}` — done 2026-08-20
   GetBySha1（idx_blobs_sha1 消费者，纯增量三文件）+ PutFromBlob sha1 寻址（权限对前解析）+ generic 删旧拒绝分支 + maven putChecksumDeploy（ME-08 gate 后/artifact-only/calc 触发）。四触及包 race 绿 + 16 包 ok。area 偏离已申报（T-62 只留索引缝，接口面无查询——无法仅在 area 内实现）。npm/pypi 未启用（PRD 未点名）。提交 f1323ff。
 
+- **T-74** [P0] QA 三协议功能矩阵 `role:qa-engineer` — done 2026-08-20（PASS 49/49）
+  mvn/npm/pip/twine 真客户端全矩阵（M01~M05/M10~M21/M22~M28/M30~M35b 勘误口径全对）；边界+穿越 12 变体+NFR-S16/17/18+四协议去重全过；5xx=0；5 条 PRD 勘误建议（E1~E5 均不阻塞）。被测 f597c86 独立 worktree。报告 reports/agents/T-74-qa.md。
+
 ## 🚫 阻塞（blocked）
 
 （空）
