@@ -23,7 +23,7 @@
 
 - **T-57** [P0] M3 PRD：多生态与代理 `role:product-manager` `area:docs/prd、ROADMAP.md` `dep:m2-done` — 在途
 （T-58 done 2026-08-19 → done 区）
-- **T-59** [P0] M3 逆向规格：三协议 + remote/virtual 语义 `role:reverse-engineer` `area:docs/reverse` `dep:m2-done` — 在途
+（T-59 done → done 区）
 
 ## 👀 评审中（review）
 
@@ -169,6 +169,9 @@
 
 - **T-58** [P0] M3 架构增量 `role:architect` — done 2026-08-19
   ADR-0012 remote 代理基线（TTL+条件再验证/artifact-metadata 分流/stale-while-error/SSRF 双检防 DNS rebinding/AES-GCM 凭据/stdlib-only）；ADR-0013 virtual（local-first+position 序/X-BinFlow-Resolved-From 头/M3 只读 405/探索 miss 不落盘）；§4.5 remote 缓存面（无影子仓）；MetadataProvider 注册表对齐 OSS；003 迁移（remote_configs 加密+remote_cache 表）。提交 82c973e。
+
+- **T-59** [P0] M3 逆向规格 `role:reverse-engineer` `area:docs/reverse` — done 2026-08-19
+  maven-npm-pypi.md（306 行：5 端点表/12 流程/6 布局组——npm publish 十步校验链、Maven metadata 两套规则、PyPI upload multipart、remote 六步 pull-through、virtual 四桶序）+ repo-semantics.md §7/§8 扩编（+158 行）。置信度高 ~102/中 ~24/低 0（不确定不入文降级待验证 8 条）。顺带关闭 M1 待验证 #4 + 勘误 2 处。提交 7042dae。
 
 ## 🚫 阻塞（blocked）
 
