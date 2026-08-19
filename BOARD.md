@@ -19,11 +19,7 @@
 
 > M3 票 AC 全文见 reports/agents/T-61.md。分批：1:{T-62,T-63} → 2:{T-64,T-65} → 3:{T-66,T-67,T-69,T-70} → 4:{T-68,T-71} → 5:{T-73,T-77起} → 6:{T-72} → 7:{T-74} → 8:{T-75} → 9:{T-76,T-77终}。双 reviewer：T-65(SSRF 安全+架构)/T-66/T-67/T-68。
 
-- **T-66** [P0] remote pull-through fetcher+凭据加密+分流 `role:dev-go-core` `area:internal/remote、internal/repo` `dep:T-63,T-64,T-65` — 双 reviewer
-- **T-67** [P0] Maven adapter：layout+传输+checksum 三态 `role:dev-registry-adapter` `area:internal/adapter/maven` `dep:T-63,T-64` — 双 reviewer
 - **T-68** [P0] Maven maven-metadata.xml 计算器 `role:dev-registry-adapter` `area:internal/adapter/maven(metadata)` `dep:T-67` — 双 reviewer
-- **T-69** [P0] npm adapter `role:dev-registry-adapter` `area:internal/adapter/npm` `dep:T-63,T-64`
-- **T-70** [P0] PyPI adapter `role:dev-registry-adapter` `area:internal/adapter/pypi` `dep:T-63,T-64`
 - **T-71** [P0] virtual 两桶解析+写路由 `role:dev-go-core` `area:internal/repo(virtual)` `dep:T-66`
 - **T-72** [P1] virtual metadata 聚合（三协议） `role:dev-registry-adapter` `area:adapter/{maven,npm,pypi}` `dep:T-68,T-69,T-70,T-71`
 - **T-73** [P2] sha1-only checksum deploy `role:dev-go-core` `area:internal/repo、adapter/maven` `dep:T-64,T-67`
@@ -35,7 +31,10 @@
 ## 🔨 进行中（doing）
 
 （T-62 编码完成 → review 区；单 reviewer 在途）
-- **T-81** [P1] NFR-S13/ADR-0012 NAT64 勘误 `role:product-manager` `area:docs/prd、DECISIONS.md` — 在途
+- **T-66** [P0] remote pull-through fetcher+凭据加密+分流（批 3） `role:dev-go-core` `area:internal/remote、internal/repo` — 在途（双 reviewer 票）
+- **T-67** [P0] Maven adapter layout+传输+checksum（批 3） `role:dev-registry-adapter` `area:internal/adapter/maven` — 在途（双 reviewer 票；metadata 归 T-68）
+- **T-69** [P0] npm adapter（批 3） `role:dev-registry-adapter` `area:internal/adapter/npm` — 在途（E-26 翻转 R5 + N4 严格 404 决策）
+- **T-70** [P0] PyPI adapter（批 3） `role:dev-registry-adapter` `area:internal/adapter/pypi` — 在途（同上）
 （T-79 done → done 区）
 
 ## 👀 评审中（review）
@@ -212,6 +211,11 @@
   NFR-S13 七点全实现（48→94 断言/coverage 87%/零新依赖/注入 Resolver 零外网）。双 review 4 blocker 修复复审通过：B1 NAT64/6to4/Teredo 内嵌 IPv4 拆解递归过表（保 DNS64 放行侧）+ 重定向跟随面钉死；B2 zone 剥离；B3 godoc 契约修正；B4 HEAD 豁免 64MB 快速失败。顺手 Location userinfo 堵注入。安全 review 探针实证（go test -overlay 零树改动）。提交 f9fb2c9+0dc17a2。T-66 消费面接口七项已备。
 - **T-80** [P0] httpapi REST 三型接线 `role:dev-go-core` `area:internal/httpapi/repositories.go` — done 2026-08-19（经 429 中断续完）
   repoConfig 扩 M3 字段+configJSON 组装（keep-current 信号）+ListReposFiltered 接线+configuration 回显+C26 翻转（docker 组合维持 400）。M01~M05 真二进制 curl 全过（M02b 三态/M03 成员校验/M04 过滤矩阵/M05 组合边界）+8 REST 测试+13 包零回归。T-66 fixture 前置就绪。
+
+- **T-64** [P0] repo 三型模型+PutLandedBlob `role:dev-go-core` — done 2026-08-19（APPROVE 一轮过）
+  review 0 blocker：finalize 切换 git diff 核实（O(size) 回读真删/busy 注入迁移/T-54 断言保留）；PutLandedBlob 并发同摘要+无重读钉板 -count=2 绿；C26 声明在快照验证。4 non-blocking（掩码大小写敏感→T-66 改/crash 窗口口径/审计置空/PutLandedBlob 段位）。提交 63135de+5662b22。
+- **T-81** [P1] NAT64 勘误 `role:product-manager` — done 2026-08-19
+  PRD NFR-S13② + ADR-0012 决策 3 各一句（拆解递归/DNS64 保留/Teredo 直拒/v4-compatible 收编/zone 剥离），溯源 T-65+0dc17a2。M42 测试向量扩充建议记日志。
 
 ## 🚫 阻塞（blocked）
 
