@@ -36,12 +36,12 @@
 
 （T-62 编码完成 → review 区；单 reviewer 在途）
 - **T-64** [P0] repo 三型模型+PutLandedBlob（批 2） `role:dev-go-core` `area:internal/repo、adapter/docker(小改)` — 在途（附 T-62 review 提示：Password 恒空防明文窗口）
-- **T-65** [P0] SSRF 防护链+stdlib client（批 2） `role:dev-go-core` `area:internal/remote` — 在途（双 reviewer 票；T-79 勘误口径袋）
+（T-65 编码完成 → review 区）
 （T-79 done → done 区）
 
 ## 👀 评审中（review）
 
-（空）
+- **T-65** [P0] SSRF 防护链 — 编码完成，conductor 复现通过（48 用例/coverage 86%/零新依赖/注入 Resolver 零外网），提交 f9fb2c9。**双 reviewer 在途**（安全：IPv6 特殊形态/DNS rebinding TOCTOU/绕过矩阵探针；架构：ADR 对照/T-66 消费面/包边界）。
 
 ## 🧪 测试中（qa）
 
