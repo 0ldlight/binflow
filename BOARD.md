@@ -20,7 +20,8 @@
 > M3 票 AC 全文见 reports/agents/T-61.md。分批：1:{T-62,T-63} → 2:{T-64,T-65} → 3:{T-66,T-67,T-69,T-70} → 4:{T-68,T-71} → 5:{T-73,T-77起} → 6:{T-72} → 7:{T-74} → 8:{T-75} → 9:{T-76,T-77终}。双 reviewer：T-65(SSRF 安全+架构)/T-66/T-67/T-68。
 
 - **T-68** [P0] Maven maven-metadata.xml 计算器 `role:dev-registry-adapter` `area:internal/adapter/maven(metadata)` `dep:T-67` — 双 reviewer
-- **T-72** [P1] virtual metadata 聚合（最后功能票） `role:dev-registry-adapter` `area:adapter/{maven,npm,pypi}` — 在途
+- **T-84** [P0] cmd 三协议装配补齐 `role:dev-go-core` `area:cmd/binflow-server` — 在途（QA 前置）
+- **T-73** [P2] sha1-only 秒传 `role:dev-go-core` `area:internal/repo、adapter/{maven,generic}` — 在途
 - **T-73** [P2] sha1-only checksum deploy `role:dev-go-core` `area:internal/repo、adapter/maven` `dep:T-64,T-67`
 - **T-74** [P0] QA 三协议功能矩阵 `role:qa-engineer` `dep:T-68,T-69,T-70,T-71`
 - **T-75** [P0] QA remote/virtual+SSRF 安全 `role:qa-engineer` `dep:T-74,T-72`
@@ -242,6 +243,9 @@
 
 - **T-68** [P0] maven metadata 计算器 `role:dev-registry-adapter` `area:internal/adapter/maven、internal/repo(SPI)` — done 2026-08-20（APPROVE 一轮过）
   计算器 ~700 行（触发四类/两组生成器/进程锁合并）+ SPI PutWithOptions（T-83 契约）。review 0 blocker：4-worker 并发探针终态收敛零 5xx；AC6 旁车现算对账；三沉默裁决全确认。7 non-blocking（T-83 godoc 措辞偏差转 architect/dotted 段守卫建议/async 超时排队面）。提交 dad9458+e61e580。
+
+- **T-72** [P1] virtual metadata 聚合 `role:dev-registry-adapter` `area:adapter/{maven,npm,pypi}` — done 2026-08-20
+  三协议聚合面：maven 桶序合并（MNG-5180/优先短路/block 透传）/npm putIfAbsent+并集/pypi 条目并集+JSON 回退。15 矩阵群全真栈；**npm/pip 真客户端 M54/M55 全过**；mvn 环境阻塞走 curl 等价（归 T-74/76）。跨 area 补缝（repo SPI 三方法 ~150 行，成员资格守卫）已 flagged 待 architect 复核。上游计数 2→3 校准点转 T-75。提交 09f833c。
 
 ## 🚫 阻塞（blocked）
 
