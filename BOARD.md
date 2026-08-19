@@ -261,6 +261,9 @@
 - **T-76** [P0] QA 客户端矩阵+回归+性能 `role:qa-engineer` — done 2026-08-20（PASS）
   mvn 五链/npm 7/pip 6/curl 4/Gradle P2 观察 1 = 25/25；M50/M54 三协议收口断言成立；M1 C 序列 23 + M2 D 序列 14 回归全绿（E-07/C26/E-26 反转成立）；docker D16 全链五域去重闭环；性能（冷启动 0.118s/50 并发 3.39s 零 5xx/M60c 182ms 分解为 M1 fsync 固定成本非 M3 引入——O1 转 PM）。**DoD §9 第 1/2 条终判：满足**。报告 reports/agents/T-76-qa.md（M3 QA 总报告）。
 
+- **T-77** [P1] M3 用户文档 `role:tech-writer` `area:docs/user` — done 2026-08-20
+  四篇指南 723 行（maven/npm/pypi 接入 + remote/virtual 管理）：建仓字段表 v1.2 默认值/SSRF 放行指引/凭据 env 与 fail-fast/14 行定案报错码逐字/不兼容全表；五个客户端坑收编；T-76 基线产物抽样复跑五链 exit 0（含 enc:v1: 有/明文无、405 C5 逐字）。提交 e7d2336。
+
 ## 🚫 阻塞（blocked）
 
 （空）
