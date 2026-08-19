@@ -16,8 +16,8 @@ import (
 	"github.com/lzwzzy/binflow/internal/storage"
 )
 
-// service is the local + remote implementation of Service (virtual member
-// resolution lands with T-71 and keeps the M2 refusal until then).
+// service is the local + remote + virtual implementation of Service (the
+// virtual resolver lives in virtual.go — T-71).
 type service struct {
 	st    storage.Engine
 	md    metadata.Store
@@ -133,16 +133,20 @@ func (s *service) loadRepoRow(ctx context.Context, repoKey string) (*metadata.Re
 // loadLocalRepo resolves repoKey and asserts it is a local repository the
 // service can operate on. Remote repositories are NO LONGER refused here —
 // Get/Delete dispatch to the remote engine (T-66) and the write plane
-// refuses them with RE-05's 405 — so only virtual keeps the interim refusal
-// (the resolver lands with T-71).
+// refuses them with RE-05's 405 — and virtual repositories resolve through
+// their members on the read plane (T-71); only the aggregate LIST keeps the
+// refusal (FR-21-AC8 is P2).
 func (s *service) loadLocalRepo(ctx context.Context, repoKey string) (*metadata.Repo, error) {
 	r, err := s.loadRepoRow(ctx, repoKey)
 	if err != nil {
 		return nil, err
 	}
 	if r.Type != TypeLocal {
-		return nil, fmt.Errorf("%w: %s repositories are not served by the local content plane (the virtual resolver lands with T-71)",
-			ErrRepoTypeNotSupported, r.Type)
+		if r.Type == TypeVirtual {
+			return nil, fmt.Errorf("%w: virtual repositories resolve through their members on the read plane; aggregate listing is deferred (FR-21-AC8, P2)",
+				ErrRepoTypeNotSupported)
+		}
+		return nil, fmt.Errorf("%w: %s repositories are not served by the local content plane", ErrRepoTypeNotSupported, r.Type)
 	}
 	return r, nil
 }
@@ -150,8 +154,11 @@ func (s *service) loadLocalRepo(ctx context.Context, repoKey string) (*metadata.
 // refuseNonLocalWrite answers the write plane's refusal for non-local
 // classes BEFORE any body is drained or permission pair is evaluated: the
 // method itself is invalid on these targets, whatever the caller's grants.
-// remote is read-only — 405 + Allow: GET (RE-05, FR-20-AC9) — and virtual
-// keeps the interim refusal until T-71's write routing.
+// remote is read-only — 405 + Allow: GET (RE-05, FR-20-AC9). Virtual is
+// normally routed BEFORE this gate (routeVirtualWrite — un-routed virtuals
+// answer the C5 405 there); the arm below is the safety net for a caller
+// that forgets the routing step, so a virtual can never silently fall into
+// the local write plane.
 func refuseNonLocalWrite(row *metadata.Repo) error {
 	switch row.Type {
 	case TypeRemote:
@@ -163,8 +170,7 @@ func refuseNonLocalWrite(row *metadata.Repo) error {
 			cause:  fmt.Errorf("%w: remote repositories are read-only", ErrRepoTypeNotSupported),
 		}
 	case TypeVirtual:
-		return fmt.Errorf("%w: %s repositories are not served by the local content plane (the virtual resolver lands with T-71)",
-			ErrRepoTypeNotSupported, row.Type)
+		return refuseVirtualWrite(row.RepoKey)
 	}
 	return nil
 }
@@ -210,6 +216,11 @@ func validateDockerImage(image string) error {
 // the fetch's response hints (X-BinFlow-Cache, X-Binflow-Upstream-Error)
 // for the serving adapter's structural probe; a *remote.FetchError renders
 // verbatim as a *StatusError.
+//
+// M3 (T-71, ADR-0013): a VIRTUAL repository dispatches to the two-bucket
+// member resolver (virtual.go) behind the same read gate; the winning
+// member's reader is wrapped with X-BinFlow-Resolved-From on top of
+// whatever hints it already carried.
 func (s *service) Get(ctx context.Context, p *Principal, repoKey, path string) (io.ReadSeekCloser, *metadata.Node, error) {
 	if err := validateNodePath(path); err != nil {
 		return nil, nil, err
@@ -226,11 +237,14 @@ func (s *service) Get(ctx context.Context, p *Principal, repoKey, path string) (
 		}
 		return nil, nil, fmt.Errorf("read %s/%s: %w", repoKey, path, ErrForbidden)
 	}
-	if row.Type == TypeRemote {
+	switch row.Type {
+	case TypeRemote:
 		return s.getRemote(ctx, p, repoKey, path)
-	}
-	if row.Type != TypeLocal {
-		return nil, nil, fmt.Errorf("%w: %s repositories are not served by the local content plane (the virtual resolver lands with T-71)",
+	case TypeVirtual:
+		return s.getVirtual(ctx, p, repoKey, path)
+	case TypeLocal:
+	default:
+		return nil, nil, fmt.Errorf("%w: %s repositories are not served by the local content plane",
 			ErrRepoTypeNotSupported, row.Type)
 	}
 	n, err := s.md.Nodes().Get(ctx, repoKey, path)
@@ -297,9 +311,13 @@ func (s *service) Put(ctx context.Context, p *Principal, repoKey, path string, b
 	if mime == "" {
 		mime = "application/octet-stream"
 	}
-	if row, err := s.loadRepoRow(ctx, repoKey); err != nil {
-		return nil, err
-	} else if err := refuseNonLocalWrite(row); err != nil {
+	// The write plane's repository resolution (T-71): a virtual repository
+	// swaps its addressing onto the configured local deployment member BEFORE
+	// the body is drained or any permission is evaluated — the 405 of an
+	// un-routed virtual answers here, and a routed write runs the target
+	// member's semantics from this point on.
+	repoKey, _, err := s.resolveWriteRepo(ctx, repoKey)
+	if err != nil {
 		return nil, err
 	}
 
@@ -390,9 +408,11 @@ func (s *service) PutFromBlob(ctx context.Context, p *Principal, repoKey, path s
 	if mime == "" {
 		mime = "application/octet-stream"
 	}
-	if row, err := s.loadRepoRow(ctx, repoKey); err != nil {
-		return nil, err
-	} else if err := refuseNonLocalWrite(row); err != nil {
+	// The write plane's repository resolution (T-71) — same contract as Put:
+	// un-routed virtuals answer the C5 405 here, routed ones land in the
+	// target member.
+	repoKey, _, err := s.resolveWriteRepo(ctx, repoKey)
+	if err != nil {
 		return nil, err
 	}
 
@@ -478,9 +498,11 @@ func (s *service) PutLandedBlob(ctx context.Context, p *Principal, repoKey, path
 	if mime == "" {
 		mime = "application/octet-stream"
 	}
-	if row, err := s.loadRepoRow(ctx, repoKey); err != nil {
-		return nil, err
-	} else if err := refuseNonLocalWrite(row); err != nil {
+	// The write plane's repository resolution (T-71) — same contract as Put:
+	// un-routed virtuals answer the C5 405 here, routed ones land in the
+	// target member.
+	repoKey, _, err := s.resolveWriteRepo(ctx, repoKey)
+	if err != nil {
 		return nil, err
 	}
 	if ref.Sha256 == "" {
@@ -687,6 +709,9 @@ func isUniqueViolation(err error) bool {
 // six-step order makes the next GET refetch). The permission gate is the
 // same delete grant as local; a path with nothing cached answers the
 // idempotent 404.
+//
+// M3 (T-71): a VIRTUAL repository delete is ALWAYS the 405 — deletes do not
+// propagate through the member resolution (see refuseVirtualDelete).
 func (s *service) Delete(ctx context.Context, p *Principal, repoKey, path string) error {
 	if err := requireAuthenticated(p); err != nil {
 		return err
@@ -701,9 +726,13 @@ func (s *service) Delete(ctx context.Context, p *Principal, repoKey, path string
 	if row.Type == TypeRemote {
 		return s.deleteRemoteCache(ctx, p, repoKey, path)
 	}
-	if row.Type != TypeLocal {
-		return fmt.Errorf("%w: %s repositories are not served by the local content plane (the virtual resolver lands with T-71)",
-			ErrRepoTypeNotSupported, row.Type)
+	if row.Type == TypeVirtual {
+		// T-71: deletes never propagate through a virtual repository —
+		// cache deletes belong to the remote member itself (RE-06), artifact
+		// deletes to the member that holds them. Even a configured write
+		// route does not change this (BinFlow's deliberate incompatibility,
+		// PRD section 2.2 / RE-08).
+		return refuseVirtualDelete(row.RepoKey, virtualWriteRouted(row.Config))
 	}
 	if !s.allow(ctx, p, repoKey, path, ActionDelete) {
 		return fmt.Errorf("delete %s/%s: %w", repoKey, path, ErrForbidden)

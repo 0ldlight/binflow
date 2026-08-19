@@ -191,8 +191,10 @@ type AuditLogger interface {
 
 // Service orchestrates the repository use cases (architecture section 3.3):
 // artifact Get/Put/Delete/List for local repositories plus repository CRUD.
-// M1 implements the local branch only; content operations on remote/virtual
-// rows yield ErrRepoTypeNotSupported.
+// M3 dispatches per repository class: remote reads pull through the proxy
+// engine (T-66), virtual reads resolve over the member two-bucket order and
+// virtual writes route onto the configured local deployment member or
+// answer the C5 405 (T-71); aggregate virtual LIST is deferred (P2).
 //
 // The interface is organized in two contract segments (architecture section
 // 5.4, M3/T-63): the public use-case face (content + repository management)
@@ -217,6 +219,19 @@ type Service interface {
 
 	// Get opens the node's blob for reading (caller closes) and returns its
 	// metadata. Missing node → ErrNodeNotFound; missing repo → ErrRepoNotFound.
+	//
+	// REMOTE repositories (M3, T-66, architecture section 5.4): the read is
+	// authorized first, then dispatched to the pull-through engine — the
+	// RE-04 six-step flow (negative cache, TTL-classed copy, guarded upstream
+	// fetch, stale-while-error downgrade). Two contract points for callers:
+	//   - failures may be a *StatusError carrying the exact client-facing
+	//     status, message and headers (RE-04's 404/502/400 wordings, RE-05's
+	//     405+Allow); the unfound family still wraps ErrNodeNotFound, so
+	//     pre-M3 mappings keep answering 404;
+	//   - the returned reader may implement ExtraHeaders() http.Header — the
+	//     engine's response hints (X-BinFlow-Cache, X-Binflow-Upstream-Error)
+	//     which serving layers merge onto the response structurally, without
+	//     learning the repository class.
 	Get(ctx context.Context, p *Principal, repoKey, path string) (io.ReadSeekCloser, *metadata.Node, error)
 	// Put streams body into a storage session, commits it against the
 	// client-declared digests in expect and persists the node. Overwrite
@@ -454,13 +469,23 @@ var _ RemoteFetcher = (*remote.Engine)(nil)
 // New builds the Service from its collaborator contracts (architecture
 // section 3.3). st and md are required; az may be nil (admin-only mode); au
 // may be nil (auditing disabled).
+//
+// PANIC CLAUSE (M3, T-66): the constructor also assembles the remote proxy
+// engine and runs the ADR-0012 startup credential pass — a store holding
+// remote credentials with no BINFLOW_REMOTE_CREDENTIALS_KEY (or a value the
+// stored ciphertext does not open under) is an unusable configuration, and
+// the constructor PANICS with a message naming the environment variable
+// (FR-15-AC9-2's fail-fast: process startup fails, exit code non-zero).
+// Callers that must pre-flight this without the panic can run
+// remote.NewEngine(st, md, remote.EngineOptions{}) for the same check as an
+// error.
 func New(st storage.Engine, md metadata.Store, az Authorizer, au AuditLogger) Service {
 	return NewWithClock(st, md, az, au, func() time.Time { return time.Now().UTC() })
 }
 
 // NewWithClock is New with an injected clock (RFC3339 UTC timestamps come
 // from it). Exported for integration tests that must advance time
-// deterministically.
+// deterministically. The same PANIC CLAUSE as New applies (see its godoc).
 func NewWithClock(st storage.Engine, md metadata.Store, az Authorizer, au AuditLogger, now func() time.Time) Service {
 	return newService(st, md, az, au, now)
 }
