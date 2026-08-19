@@ -33,7 +33,7 @@
 （T-66 编码完成 → review 区；双 reviewer 排队等槽）
 - **T-67** [P0] Maven adapter layout+传输+checksum（批 3） `role:dev-registry-adapter` `area:internal/adapter/maven` — 在途（双 reviewer 票；metadata 归 T-68）
 - **T-69** [P0] npm adapter（批 3） `role:dev-registry-adapter` `area:internal/adapter/npm` — 在途（E-26 翻转 R5 + N4 严格 404 决策）
-- **T-71** [P0] virtual 两桶解析+写路由（批 4 提前） `role:dev-go-core` `area:internal/repo(virtual)` — 在途（经 429 中断唤醒续跑）
+（T-71 编码完成 → review 区；遗留①②转 T-82）
 （T-79 done → done 区）
 
 ## 👀 评审中（review）
@@ -222,6 +222,10 @@
   23 文件 4336 行：十步校验链/packument（tarball 重写/ETag-304/SLIM）/dist-tags 两形态/unpublish 联动/login 复用 TokenRegistry/N4 守卫。npm 10.9.8 真实客户端 M22~M28 全过（M26 403 勘误口径/M27 -rev 占位显式断言）。E-26 npm 翻转。-rev 对 packument 形 body 的有意偏离建议规格回写。cmd 装配 3 行待集成票。提交 91bb261。
 - **T-67** [P0] Maven adapter（传输面） `role:dev-registry-adapter` `area:internal/adapter/maven` — 主体 done（91bb261），mvn 真客户端腿续跑中
   layout 六字段解析/checksum 三态/旁车/snapshot 语义/穿越防御；M11~M21 wire 序列+curl 等价全过。遗留②：Service SPI 缺 metadata 覆盖豁免入口（~10 行，T-68 依赖，挂 architect）。
+
+- **T-71** [P0] virtual 两桶解析+写路由 `role:dev-go-core` `area:internal/repo` — done 2026-08-20
+  virtual.go 两桶序（逐请求现算）/Get 三型分派/stale 命中即成员结果（HasCopy 消费）/探索性 miss pre-read guard/写路由（405+C5 文案/配置后换址 local）/ExtraHeaders 双头合并。17 测试群+真二进制 M50/M52/M53。遗留①②（协议面 StatusError+ExtraHeaders 两缝）→ T-82。提交 eab4363。
+- **T-82** [P0] 三协议 adapter 双缝修复（T-71 遗留） `role:dev-registry-adapter` `area:internal/adapter/{maven,npm,pypi}` — 在途
 
 ## 🚫 阻塞（blocked）
 
