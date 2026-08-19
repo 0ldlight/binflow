@@ -17,13 +17,28 @@
 
 ## 📥 待办（todo）
 
-> M1（T-1~T-28）与 M2（T-29~T-56）全部 done，详见下方 done 区。M3 票待 tech-lead 拆解（规划三件套 T-57/T-58/T-59 在途）。
+> M3 票 AC 全文见 reports/agents/T-61.md。分批：1:{T-62,T-63} → 2:{T-64,T-65} → 3:{T-66,T-67,T-69,T-70} → 4:{T-68,T-71} → 5:{T-73,T-77起} → 6:{T-72} → 7:{T-74} → 8:{T-75} → 9:{T-76,T-77终}。双 reviewer：T-65(SSRF 安全+架构)/T-66/T-67/T-68。
+
+- **T-64** [P0] repo.Service 三型仓库模型+PutLandedBlob `role:dev-go-core` `area:internal/repo、adapter/docker(小改)` `dep:T-62,T-63`
+- **T-65** [P0] internal/remote：SSRF 防护链+stdlib client `role:dev-go-core` `area:internal/remote(ssrf/client)` `dep:T-62` — 双 reviewer（安全+架构）
+- **T-66** [P0] remote pull-through fetcher+凭据加密+分流 `role:dev-go-core` `area:internal/remote、internal/repo` `dep:T-63,T-64,T-65` — 双 reviewer
+- **T-67** [P0] Maven adapter：layout+传输+checksum 三态 `role:dev-registry-adapter` `area:internal/adapter/maven` `dep:T-63,T-64` — 双 reviewer
+- **T-68** [P0] Maven maven-metadata.xml 计算器 `role:dev-registry-adapter` `area:internal/adapter/maven(metadata)` `dep:T-67` — 双 reviewer
+- **T-69** [P0] npm adapter `role:dev-registry-adapter` `area:internal/adapter/npm` `dep:T-63,T-64`
+- **T-70** [P0] PyPI adapter `role:dev-registry-adapter` `area:internal/adapter/pypi` `dep:T-63,T-64`
+- **T-71** [P0] virtual 两桶解析+写路由 `role:dev-go-core` `area:internal/repo(virtual)` `dep:T-66`
+- **T-72** [P1] virtual metadata 聚合（三协议） `role:dev-registry-adapter` `area:adapter/{maven,npm,pypi}` `dep:T-68,T-69,T-70,T-71`
+- **T-73** [P2] sha1-only checksum deploy `role:dev-go-core` `area:internal/repo、adapter/maven` `dep:T-64,T-67`
+- **T-74** [P0] QA 三协议功能矩阵 `role:qa-engineer` `dep:T-68,T-69,T-70,T-71`
+- **T-75** [P0] QA remote/virtual+SSRF 安全 `role:qa-engineer` `dep:T-74,T-72`
+- **T-76** [P0] QA 客户端矩阵+回归+性能 `role:qa-engineer` `dep:T-75`
+- **T-77** [P1] M3 用户文档 `role:tech-writer` `area:docs/user` `dep:T-75`
 
 ## 🔨 进行中（doing）
 
-- **T-61** [P0] M3 工程 ticket 拆解 `role:tech-lead` — 在途（输入四件套：PRD v1.1/ADR-0012+0013/T-59 规格/OSS 结构启示；要求 16~20 票、SSRF 双 reviewer、003 迁移先行）
-（T-58 done 2026-08-19 → done 区）
-（T-59 done → done 区）
+- **T-62** [P0] metadata 003_remote_virtual 迁移+Remote/Virtual 子接口 `role:dev-go-core` `area:internal/metadata` — 批 1 在途
+- **T-63** [P0] adapter SPI 扩展+三协议挂载基座（MetadataProvider 注册表+api/npm|pypi 分发缝） `role:dev-go-core` `area:internal/adapter(SPI)、internal/httpapi、internal/repo/api.go` — 批 1 在途
+- **T-78** [P1] PRD v1.2：R1 凭据回写（Q1 按 ADR-0012 定案） `role:product-manager` `area:docs/prd` — 在途（赶在 T-66 派发前）
 
 ## 👀 评审中（review）
 
@@ -178,6 +193,9 @@
 
 - **T-60** [P0] M3 PRD v1.1 校准 `role:product-manager` `area:docs/prd` — done 2026-08-19
   C1~C8 全定案（maven-metadata 服务端计算/layout 六字段/virtual 两桶简化/TTL 定案/写路由字段/PyPI 布局兼容子集/npm tarball）；M1 勘误吸收（snapshot policy 409）；Q3/Q7 定案（npm 403/重复 publish、PyPI sha256-only）；连带定案（remote checksum 不回源 404、上游故障默认 404+hardFail 502——推翻 v1.0 五处）；计数 29/1/0/5+1。自检零残留。遗留：Q1/Q2 待用户；M1 PRD 两处勘误小票建议。提交 0f48164。
+
+- **T-61** [P0] M3 工程 ticket 拆解 `role:tech-lead` — done 2026-08-19
+  16 票（T-62~T-77，P0×13）+9 批次+R1~R10；复用清单 8 面（storage.Session/迁移器/Service 覆盖链/SPI/权限/GC/QA 脚本）零重做；遗留 5 项处置（2 无票归档/T-73/T-63 收编/1 归 M4）；Q1 按 ADR 写死（R1 回写）、Q2 暂行入 T-71。全文 reports/agents/T-61.md。提交 8500821。
 
 ## 🚫 阻塞（blocked）
 
