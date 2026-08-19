@@ -256,6 +256,9 @@
 - **T-74** [P0] QA 三协议功能矩阵 `role:qa-engineer` — done 2026-08-20（PASS 49/49）
   mvn/npm/pip/twine 真客户端全矩阵（M01~M05/M10~M21/M22~M28/M30~M35b 勘误口径全对）；边界+穿越 12 变体+NFR-S16/17/18+四协议去重全过；5xx=0；5 条 PRD 勘误建议（E1~E5 均不阻塞）。被测 f597c86 独立 worktree。报告 reports/agents/T-74-qa.md。
 
+- **T-75** [P0] QA remote/virtual+SSRF `role:qa-engineer` — done 2026-08-20（PASS）
+  M41~M48 全序（16 直连变体全 400 + NAT64 拆解/Teredo 直拒/DNS64 保留侧不拦 + 19 WARN 全录 + 300s 真静默窗）；virtual M50~M55b（C5 逐字/优先桶/聚合/hardFail 透传钉板/T-72 校准点实证）；NFR-S13~S15+S14（enc:v1: 明文 0）+P14（1GB RSS +28KB）。3 条 502 全设计内。PRD 勘误 E1/E2 + 观察 O1~O3 转交。报告 reports/agents/T-75-qa.md。
+
 ## 🚫 阻塞（blocked）
 
 （空）
