@@ -2,7 +2,7 @@
 
 > 由 product-manager 维护；tech-lead 据此把当前里程碑分解为 ticket。
 
-## 当前里程碑：M2
+## 当前里程碑：M3
 
 ### M0 — 团队启动（已完成）
 - [x] 产品愿景 PRODUCT.md（BinFlow）
@@ -32,11 +32,13 @@
 - [x] M1 遗留收编：O1 断开日志定界、O3 gc 旗标、Content-Type 映射（PRD §6.4）
 - [x] 部署烟测：Docker 镜像 + compose（release-engineer）
 
-### M3 — 多生态与代理
-- [ ] Maven 2：layout 解析、deploy/resolve、maven-metadata.xml、checksum 策略
-- [ ] npm：publish / tarball / metadata；PyPI：simple index / upload
-- [ ] remote 仓库代理缓存（pull-through，含 SSRF 防护）
-- [ ] virtual 仓库聚合与解析顺序
+### M3 — 多生态与代理（当前，进行中）
+需求基线：docs/prd/milestone-3.md（PRD v1.0，T-57；docker remote pull-through 经裁决定为 M4+ 评估，见 PRD §2.2/Q4）
+- [ ] Maven 2：layout 解析、deploy/resolve、maven-metadata.xml、checksum 策略（FR-16/FR-17，mvn 3.9 真实客户端）
+- [ ] npm：publish / tarball / metadata（FR-18）；PyPI：simple index / upload（FR-19）；npm 10 + pip/twine 真实客户端
+- [ ] remote 仓库代理缓存（pull-through，含 SSRF 防护与上游故障降级）（FR-20 + NFR-S13）
+- [ ] virtual 仓库聚合与解析顺序（成员顺序优先 + 可选写路由）（FR-21）
+- [ ] （支撑）rclass remote/virtual 与 packageType maven/npm/pypi 启用（FR-15，M1 E-07 断言反转见 PRD §5.6）
 
 ### M4 — 控制台与治理
 - [ ] Web 控制台：登录、仓库管理、制品树浏览、上传、搜索
