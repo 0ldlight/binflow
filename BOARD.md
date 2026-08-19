@@ -38,7 +38,7 @@
 
 - **T-62** [P0] metadata 003_remote_virtual 迁移+Remote/Virtual 子接口 `role:dev-go-core` `area:internal/metadata` — 批 1 在途
 - **T-63** [P0] adapter SPI 扩展+三协议挂载基座（MetadataProvider 注册表+api/npm|pypi 分发缝） `role:dev-go-core` `area:internal/adapter(SPI)、internal/httpapi、internal/repo/api.go` — 批 1 在途
-- **T-78** [P1] PRD v1.2：R1 凭据回写（Q1 按 ADR-0012 定案） `role:product-manager` `area:docs/prd` — 在途（赶在 T-66 派发前）
+- **T-79** [P1] ADR-0012/0013 勘误（三处与 PRD v1.2 冲突对齐） `role:architect` `area:DECISIONS.md` — 在途（赶在 T-66/T-71 派发前）
 
 ## 👀 评审中（review）
 
@@ -196,6 +196,9 @@
 
 - **T-61** [P0] M3 工程 ticket 拆解 `role:tech-lead` — done 2026-08-19
   16 票（T-62~T-77，P0×13）+9 批次+R1~R10；复用清单 8 面（storage.Session/迁移器/Service 覆盖链/SPI/权限/GC/QA 脚本）零重做；遗留 5 项处置（2 无票归档/T-73/T-63 收编/1 归 M4）；Q1 按 ADR 写死（R1 回写）、Q2 暂行入 T-71。全文 reports/agents/T-61.md。提交 8500821。
+
+- **T-78** [P1] PRD v1.2 凭据回写 `role:product-manager` `area:docs/prd` — done 2026-08-19
+  Q1 按 ADR-0012 关闭（AES-GCM/enc:v1:/env BINFLOW_REMOTE_CREDENTIALS_KEY/fail-fast/003 一次性加密）；新增 FR-15-AC9 四断言；C2 注记顺手。R1 达成——T-66 派发解锁。范围外三冲突转 T-79（ADR 勘误）。提交 2cacee1。
 
 ## 🚫 阻塞（blocked）
 
