@@ -13,6 +13,8 @@
 //	substores.go      RepoStore / NodeStore / BlobStore implementations
 //	substores_auth.go UserStore / TokenStore / PermissionStore / AuditStore
 //	substores_docker.go DockerStore: docker_manifests / docker_tags / docker_refs
+//	substores_remote_virtual.go RemoteStore / VirtualStore:
+//	                   remote_configs / remote_cache / virtual_members
 //
 // Conventions (ADR-0007): timestamps are RFC3339 UTC text; booleans are
 // INTEGER 0/1; SQL stays inside the SQLite/Postgres common subset; the

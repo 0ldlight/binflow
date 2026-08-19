@@ -34,6 +34,14 @@ var ErrManifestNotFound = errors.New("metadata: docker manifest not found")
 // rows.
 var ErrTagNotFound = errors.New("metadata: docker tag not found")
 
+// ErrRemoteConfigNotFound is returned by RemoteStore methods for missing
+// remote_configs rows.
+var ErrRemoteConfigNotFound = errors.New("metadata: remote config not found")
+
+// ErrRemoteCacheNotFound is returned by RemoteStore cache methods for
+// missing remote_cache rows.
+var ErrRemoteCacheNotFound = errors.New("metadata: remote cache entry not found")
+
 // ErrStoreBusy marks TRANSIENT write contention (SQLITE_BUSY/SQLITE_LOCKED
 // surfacing past the busy_timeout budget — T-54's F1 flake: a whole-repo
 // parallel test load or an fsync storm can starve the WAL writer longer than
@@ -171,13 +179,68 @@ type DockerRef struct {
 	ChildMediaType string // role: config vs layer media type, '' allowed
 }
 
+// RemoteConfig is one remote proxy repository configuration row (001 table,
+// widened by 003: dual cache TTL, SSRF exemption flag, blocked_out rename).
+// The 001 cache_ttl_seconds column is legacy, superseded by the dual TTL and
+// intentionally not surfaced.
+//
+// Password is opaque to this store: from T-66 on it carries
+// 'enc:v1:<b64(nonce+ciphertext)>' AES-256-GCM text under env
+// BINFLOW_REMOTE_CREDENTIALS_KEY (ADR-0012); the store neither inspects nor
+// transforms it, and callers must never log it.
+type RemoteConfig struct {
+	RepoKey              string
+	URL                  string
+	Username             string
+	Password             string
+	ContentTTLSeconds    int64 // artifact cache TTL (DDL default 86400)
+	MetadataTTLSeconds   int64 // metadata cache TTL (DDL default 600)
+	AllowPrivateUpstream bool  // SSRF chain exemption (admin-set, audited; ADR-0012)
+	BlockedOut           bool  // manual mask (ADR-0012 decision 2)
+}
+
+// Remote cache entry kinds (ADR-0012 TTL split): artifacts carry the long
+// content TTL; regenerable metadata (maven-metadata.xml, npm packument, PyPI
+// simple pages) carries the short metadata TTL.
+const (
+	RemoteCacheKindContent  = "content"
+	RemoteCacheKindMetadata = "metadata"
+)
+
+// RemoteCacheEntry is one row of remote_cache (003): the conditional
+// revalidation state (ETag / Last-Modified) and TTL clocks of one cached
+// (repo, path) pair. The cached bytes themselves are an ordinary blob plus
+// node in the remote repo's namespace — this table only tracks validators so
+// the local artifact surface (nodes/blobs) stays untouched.
+type RemoteCacheEntry struct {
+	RepoKey      string
+	Path         string
+	ETag         string
+	LastModified string
+	FetchedAt    string // RFC3339 UTC
+	ExpiresAt    string // RFC3339 UTC; lexicographic order == chronological order for Now()-style values
+	Kind         string // RemoteCacheKindContent | RemoteCacheKindMetadata
+}
+
+// VirtualMember is one row of virtual_members (001 table). The position
+// semantics are ADR-0013's as amended by the T-79 linkage record (PRD C3):
+// resolution is two-bucket — priorityResolution-marked members first, then
+// the rest — and position records declaration order within each bucket
+// (local is no longer unconditionally first). Member-level flags such as
+// priorityResolution live in the repositories.config JSON, not in this table.
+type VirtualMember struct {
+	VirtualRepo string
+	MemberRepo  string
+	Position    int64
+}
+
 // Store is the dialect-neutral entry to all metadata state. Migrations run
 // automatically inside Open (ADR-0007); they are not part of this interface.
 // Implementations must be safe for concurrent use (SQLite relies on WAL plus
 // database/sql pool serialization, see store.go).
 type Store interface {
-	// Repos/Nodes/Blobs/Users/Tokens/Permissions/Audits/Docker return the
-	// sub-stores sharing the same underlying handle.
+	// Repos/Nodes/Blobs/Users/Tokens/Permissions/Audits/Docker/Remote/Virtual
+	// return the sub-stores sharing the same underlying handle.
 	Repos() RepoStore
 	Nodes() NodeStore
 	Blobs() BlobStore
@@ -186,6 +249,8 @@ type Store interface {
 	Permissions() PermissionStore
 	Audits() AuditStore
 	Docker() DockerStore
+	Remote() RemoteStore
+	Virtual() VirtualStore
 	// Ping verifies liveness for health endpoints.
 	Ping(ctx context.Context) error
 	// Close releases the underlying handle.
@@ -341,4 +406,63 @@ type DockerStore interface {
 	// docker_refs has no DB-level FK (architecture 11.12): the caller must
 	// invoke this in the same logical teardown before the repo row goes.
 	DeleteRepoRefs(ctx context.Context, repoKey string) (int64, error)
+}
+
+// RemoteStore is the remote proxy configuration and cache-validator state
+// behind the pull-through fetcher (schema 001 remote_configs widened by 003,
+// remote_cache new in 003; architecture section 6 final DDL).
+//
+// The config methods are CRUD over remote_configs rows; the repo row itself
+// (type "remote") lives in RepoStore and both sides share the repo_key. The
+// cache methods track one validator row per cached (repo, path) — the cached
+// bytes are ordinary blobs/nodes and never pass through here.
+type RemoteStore interface {
+	// CreateConfig inserts one config row; the repo row must already exist
+	// (FK to repositories.repo_key).
+	CreateConfig(ctx context.Context, c *RemoteConfig) error
+	// UpdateConfig refreshes every non-key column of an existing row;
+	// ErrRemoteConfigNotFound when the repo has no config row.
+	UpdateConfig(ctx context.Context, c *RemoteConfig) error
+	// GetConfig returns ErrRemoteConfigNotFound when absent.
+	GetConfig(ctx context.Context, repoKey string) (*RemoteConfig, error)
+	// DeleteConfig removes the row; ErrRemoteConfigNotFound when absent.
+	DeleteConfig(ctx context.Context, repoKey string) error
+
+	// PutCache upserts by (repo_key, path): a re-fetch of the same path
+	// refreshes validators and clocks, never conflicts.
+	PutCache(ctx context.Context, e *RemoteCacheEntry) error
+	// GetCache returns ErrRemoteCacheNotFound when absent.
+	GetCache(ctx context.Context, repoKey, path string) (*RemoteCacheEntry, error)
+	// DeleteCache drops one cached path's validator row (the RE-06
+	// force-refresh move: delete the cache, the next GET re-fetches);
+	// ErrRemoteCacheNotFound when absent.
+	DeleteCache(ctx context.Context, repoKey, path string) error
+	// DeleteCacheByRepo drops every validator row of one repository
+	// (teardown and ?deleteContent=true cascades). Returns the number of
+	// rows removed; deleting a repo with no cache rows returns 0.
+	DeleteCacheByRepo(ctx context.Context, repoKey string) (int64, error)
+	// ListExpiredCache returns entries with expires_at <= now, ordered by
+	// expires_at (then repo_key, path for determinism) — the periodic sweep
+	// candidates that idx_remote_cache_expiry serves. limit<=0 means all.
+	ListExpiredCache(ctx context.Context, now string, limit int) ([]*RemoteCacheEntry, error)
+}
+
+// VirtualStore is the virtual repository member ledger (virtual_members,
+// 001 table; position semantics per ADR-0013). Member-list CRUD is
+// replace-shaped: SetMembers is the create/update operation (slice order
+// becomes the position sequence) and SetMembers with an empty slice is the
+// delete; ListMembers is the read. Deleting either repository row cascades
+// the member rows through their FKs, so no separate teardown call exists.
+type VirtualStore interface {
+	// SetMembers atomically replaces the member list of one virtual repo:
+	// positions are assigned 0..n-1 in slice order (declaration order). An
+	// empty or nil slice clears the member set. The virtual repo and every
+	// member repo must exist (FKs); duplicate members surface the primary
+	// key constraint as an error — caller-side validation owns the 400.
+	SetMembers(ctx context.Context, virtualRepo string, members []string) error
+	// ListMembers returns the members of one virtual repo ordered by
+	// position (ties, which hand-written rows could carry, break on
+	// member_repo for determinism). An unknown or member-less repo returns
+	// an empty slice, not an error.
+	ListMembers(ctx context.Context, virtualRepo string) ([]*VirtualMember, error)
 }

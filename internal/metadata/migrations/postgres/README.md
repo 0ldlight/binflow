@@ -24,6 +24,12 @@ one-to-one when the dialect lands):
   virtual_members).
 - 002_docker: docker domain tables (docker_manifests, docker_tags,
   docker_refs; architecture section 6 final DDL).
+- 003_remote_virtual: remote domain widening — remote_configs gains
+  content_ttl_seconds/metadata_ttl_seconds/allow_private_upstream and renames
+  unreachable_mask to blocked_out (the password column carries 'enc:v1:'
+  AES-256-GCM ciphertext from T-66 on); new remote_cache validator table plus
+  idx_remote_cache_expiry; virtual_members gains no DDL (ADR-0013 position
+  semantics, comments only); idx_blobs_sha1 seam for T-73's sha1 fast-path.
 
 The migrator currently embeds `migrations/sqlite/*.sql` only
 (see ../migrate.go).

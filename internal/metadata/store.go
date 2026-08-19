@@ -263,6 +263,8 @@ func (s *sqliteStore) Tokens() TokenStore           { return &tokenStore{db: s.d
 func (s *sqliteStore) Permissions() PermissionStore { return &permissionStore{db: s.db} }
 func (s *sqliteStore) Audits() AuditStore           { return &auditStore{db: s.db} }
 func (s *sqliteStore) Docker() DockerStore          { return &dockerStore{db: s.db} }
+func (s *sqliteStore) Remote() RemoteStore          { return &remoteStore{db: s.db} }
+func (s *sqliteStore) Virtual() VirtualStore        { return &virtualStore{db: s.db} }
 
 func (s *sqliteStore) Ping(ctx context.Context) error {
 	if err := s.db.PingContext(ctx); err != nil {

@@ -203,7 +203,8 @@ func TestOpenPRAGMAsApplied(t *testing.T) {
 	})
 }
 
-// AC: 001_init.sql + 002_docker.sql cover every architecture section 6 table.
+// AC: 001_init.sql + 002_docker.sql + 003_remote_virtual.sql cover every
+// architecture section 6 table.
 func TestSchemaTablesExist(t *testing.T) {
 	st := openTest(t)
 	db := st.(*sqliteStore).db
@@ -212,6 +213,7 @@ func TestSchemaTablesExist(t *testing.T) {
 		"repositories", "remote_configs", "blobs", "nodes", "users", "tokens",
 		"permission_targets", "permission_principals", "audit_events", "virtual_members",
 		"docker_manifests", "docker_tags", "docker_refs",
+		"remote_cache",
 	}
 	rows, err := db.Query(`SELECT name FROM sqlite_master WHERE type = 'table'`)
 	if err != nil {
@@ -263,7 +265,9 @@ func TestMigrationsHaveNoTransactionStatements(t *testing.T) {
 }
 
 // T-34 AC ①: the 002_docker migration is idempotent — a database that
-// already sits at version 2 reopens without re-running it and without error.
+// already sits at the latest version reopens without re-running anything and
+// without error. (T-62: generalized from the literal 2 to the latest embedded
+// migration so 003+ inherits the guard without editing this test again.)
 func TestDockerMigrationIdempotent(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "binflow.db")
@@ -278,8 +282,8 @@ func TestDockerMigrationIdempotent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CurrentVersion #%d: %v", i+1, err)
 		}
-		if v != 2 {
-			t.Fatalf("Open #%d left version at %d, want 2 (002 must not re-run)", i+1, v)
+		if want := latestMigrationVersion(); v != want {
+			t.Fatalf("Open #%d left version at %d, want %d (applied migrations must not re-run)", i+1, v, want)
 		}
 		if err := st.Close(); err != nil {
 			t.Fatalf("Close #%d: %v", i+1, err)
@@ -288,16 +292,16 @@ func TestDockerMigrationIdempotent(t *testing.T) {
 }
 
 // T-34 AC ①: old-database upgrade path — a database last opened by the M1
-// binary (only 001 applied, with live M1 data) upgrades in place to 002
-// without touching the existing rows.
+// binary (only 001 applied, with live M1 data) upgrades in place to the
+// current schema without touching the existing rows.
 func TestDockerUpgradeFromM1Database(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "binflow.db")
 	ctx := context.Background()
 
 	// Build the M1-shaped database: apply migrations, then roll the ledger
-	// back to version 1 and drop the 002 tables, imitating a database written
-	// by the M1 build.
+	// back to version 1 and drop the 002/003 schema, imitating a database
+	// written by the M1 build.
 	st1, err := Open(ctx, Options{Path: path, AdminPassword: "m1-pw"})
 	if err != nil {
 		t.Fatalf("Open (M1 shape): %v", err)
@@ -321,13 +325,23 @@ func TestDockerUpgradeFromM1Database(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reopen raw: %v", err)
 	}
+	// The 003 rewind (T-62): drop the remote_cache table (its index goes with
+	// it) and idx_blobs_sha1, undo the remote_configs widening — the rename
+	// back matters, 003 re-application renames the column again — and clear
+	// every ledger row past version 1.
 	for _, stmt := range []string{
+		`DROP TABLE remote_cache`,
+		`DROP INDEX IF EXISTS idx_blobs_sha1`,
 		`DROP TABLE docker_refs`,
 		`DROP INDEX IF EXISTS idx_docker_tags_image`,
 		`DROP TABLE docker_tags`,
 		`DROP INDEX IF EXISTS idx_docker_manifests_image`,
 		`DROP TABLE docker_manifests`,
-		`DELETE FROM schema_migrations WHERE version = 2`,
+		`ALTER TABLE remote_configs RENAME COLUMN blocked_out TO unreachable_mask`,
+		`ALTER TABLE remote_configs DROP COLUMN allow_private_upstream`,
+		`ALTER TABLE remote_configs DROP COLUMN metadata_ttl_seconds`,
+		`ALTER TABLE remote_configs DROP COLUMN content_ttl_seconds`,
+		`DELETE FROM schema_migrations WHERE version > 1`,
 	} {
 		if _, err := db2.ExecContext(ctx, stmt); err != nil {
 			t.Fatalf("rewinding to M1 shape (%s): %v", stmt, err)
@@ -348,8 +362,8 @@ func TestDockerUpgradeFromM1Database(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CurrentVersion: %v", err)
 	}
-	if v != 2 {
-		t.Fatalf("upgraded version = %d, want 2", v)
+	if want := latestMigrationVersion(); v != want {
+		t.Fatalf("upgraded version = %d, want %d (latest)", v, want)
 	}
 	// M1 data intact, admin seed not rewritten.
 	node, err := st2.Nodes().Get(ctx, "legacy", "a.jar")
