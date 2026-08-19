@@ -21,7 +21,7 @@
 
 ## 🔨 进行中（doing）
 
-- **T-57** [P0] M3 PRD：多生态与代理 `role:product-manager` `area:docs/prd、ROADMAP.md` `dep:m2-done` — 在途
+- **T-60** [P0] M3 PRD v1.1 校准回写（C1~C8 对照 T-59 规格） `role:product-manager` `area:docs/prd` — 在途
 （T-58 done 2026-08-19 → done 区）
 （T-59 done → done 区）
 
@@ -172,6 +172,9 @@
 
 - **T-59** [P0] M3 逆向规格 `role:reverse-engineer` `area:docs/reverse` — done 2026-08-19
   maven-npm-pypi.md（306 行：5 端点表/12 流程/6 布局组——npm publish 十步校验链、Maven metadata 两套规则、PyPI upload multipart、remote 六步 pull-through、virtual 四桶序）+ repo-semantics.md §7/§8 扩编（+158 行）。置信度高 ~102/中 ~24/低 0（不确定不入文降级待验证 8 条）。顺带关闭 M1 待验证 #4 + 勘误 2 处。提交 7042dae。
+
+- **T-57** [P0] M3 PRD v1.0 `role:product-manager` `area:docs/prd、ROADMAP.md` — done 2026-08-19
+  milestone-3.md（817 行）：FR-15~FR-22 共 66 AC（Maven layout/checksum 三态/metadata 合并+snapshot、npm、PyPI、remote pull-through+SSRF、virtual、conformance）；35 端点矩阵 + M01~M61 验收命令（mvn/npm/pip P0）；Q1~Q8 附暂行；ROADMAP 切 M3。Q4（docker remote 推迟 M4+）已转用户知悉。提交 e456f1b。
 
 ## 🚫 阻塞（blocked）
 
