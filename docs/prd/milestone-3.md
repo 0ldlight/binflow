@@ -4,8 +4,8 @@
 |---|---|
 | 文档 | `docs/prd/milestone-3.md` |
 | 里程碑 | M3 — 多生态与代理（对应 ROADMAP.md「M3 — 多生态与代理」全部条目） |
-| 状态 | **v1.0**（初版；Maven/npm/PyPI 行为以官方规范为准，remote/virtual 语义对齐 Artifactory——逆向规格 `docs/reverse/maven-npm-pypi.md` 与 repo-semantics §7 补全落地后按 §1.3 流程校准回写，版本号 +0.1） |
-| 上游依据 | PRODUCT.md、ROADMAP.md M3 节、M1 交付基线（milestone-1.md v1.3.1）、M2 交付基线（milestone-2.md v1.3，T-43/T-44 QA 全绿）、docs/reverse/repo-semantics.md（local 语义/checksum 策略/覆盖检查，高置信度部分）、docs/reverse/oss-structure.md（M3 拆票结构参考）、docs/reverse/rest-api.md §1.5（旁车 checksum） |
+| 状态 | **v1.1**（T-60 校准回写：§5.5 C1~C8 逐条定案（依据 T-59 规格高置信 ~102 条）；吸收 M1 两处勘误（snapshot policy **409**、includes/excludes 双值码——后者不触 M3 AC 仅归档）；Q3/Q7 定案、Q5 半定案；Q4 维持） |
+| 上游依据 | PRODUCT.md、ROADMAP.md M3 节、M1 交付基线（milestone-1.md v1.3.1）、M2 交付基线（milestone-2.md v1.3，T-43/T-44 QA 全绿）、**docs/reverse/maven-npm-pypi.md（T-59 已落地，v1.1 行为依据）**、**docs/repo-semantics.md §7/§8（T-59 扩编，remote/virtual 语义）**、docs/reverse/repo-semantics.md §1~§6（local 语义/checksum 策略/覆盖检查）、docs/reverse/oss-structure.md（M3 拆票结构参考）、docs/reverse/rest-api.md §1.5（旁车 checksum） |
 | 下游消费者 | tech-lead（拆票）、architect（remote/virtual ADR、adapter SPI 扩展）、dev 各角色、qa-engineer（M 序列验收）、tech-writer（M3 接入文档） |
 
 ---
@@ -14,7 +14,8 @@
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
-| v1.0 | 2026-08-19 | 初版：M3 范围、FR-15~FR-22、端点矩阵 RE/ME/NE/PE 四域 37 条、M01~M54 验收命令（mvn/npm/pip/twine 真实客户端 + curl 抽查）、SSRF 防护专节（NFR-S13）、M1/M2 遗留收编、8 项开放问题（含暂行假设） |
+| v1.0 | 2026-08-19 | 初版：M3 范围、FR-15~FR-22、端点矩阵 RE/ME/NE/PE 四域 35 条、M01~M54 验收命令（mvn/npm/pip/twine 真实客户端 + curl 抽查）、SSRF 防护专节（NFR-S13）、M1/M2 遗留收编、8 项开放问题（含暂行假设） |
+| v1.1 | 2026-08-19 | T-60 校准回写（依据 `maven-npm-pypi.md` + repo-semantics §7/§8，T-59，置信度高 ~102/中 ~24）：① §5.5 C1~C8 八项定案（C1 maven-metadata 服务端计算触发时机/版本组与 SNAPSHOT 目录规则/RTFACT-6242 保护性不删；C2 maven-2-default 六字段 layout 模型定案、400 码维持暂行；C3 virtual 四桶搜索序定案（BinFlow 简化两桶）+ stale/下一成员优先关系定案；C4 TTL 7200/1800 定案 + 过期 HEAD 协商列 P1；C5 写路由字段名 + 405 文案定案；C6 remote 缓存删除不同步上游升高置信；C7 PyPI 落盘 `{name}/{version}/{filename}` 定案、PE-03 升兼容（子集）；C8 npm tarball 布局与 scoped 形态定案、`_attachments` 保留维持暂行）。② **M1 勘误吸收**：Maven snapshot policy 拒绝码 **404→409**（SnapshotPolicyException 显式 409，maven-npm-pypi.md §1.4 高置信度；ME-08/FR-16-AC7/M19 同步）；includes/excludes 双值码（下载 404/上传 409）不触 M3 AC，仅归档 §6.4。③ **Q7 定案**：npm 重复 publish **409→403**（`Cannot modify pre-existing version`，规格 §2.3-④ 高置信度；NE-01/FR-18-AC6/M26 更新）；npm 域错误体 **E-01 定案**（三协议共用 `errors[]` 信封，规格 §0 高置信度）；新增 npm 十步校验链要点、`-rev` PUT 恒 200 假成功（unpublish 前置）、dist-tags 201 `{"ok":"created new tag"}`、ETag=包文档 sha1+304、SLIM Accept 协商（P1）。④ **Q3 定案**：PyPI 哈希仅 sha256 定案（规格 §3.4：索引输出必须优先 sha256、Artifactory 同）；补充 `md5_digest` 可缺失（twine ≥6.2）与 `:action` 严格校验 400。⑤ 新增定案行为：remote **checksum 后缀请求不回源 404** `"Checksums are not downloadable."`（FR-20-AC13/M45 探针）；remote 上游故障默认 **404**（assumed-offline 5min 静默）+ `hardFail:true` → 502（推翻 v1.0 的默认 502，FR-20-AC5/M44 更新）；remote 字段默认值对齐（socketTimeout 15s/assumedOfflinePeriodSecs 300/hardFail false）；`snapshotVersionBehavior` 三值（BinFlow 默认 `deployer`，服务端 unique 改写列 P2）；PyPI simple `api-version=2` 头/无尾斜杠 302/ETag-304。⑥ Q4 维持（conductor 已转用户知悉） |
 
 ---
 
@@ -50,8 +51,8 @@ M3 在 M1/M2 地基上追加而非返工：三协议构件全部落同一 checks
 
 ### 1.3 上游依赖与校准流程
 
-- **协议规范**：Maven 2 布局/`maven-metadata.xml`（Maven 官方仓库布局惯例 + Maven Deploy/Resolver 行为）、npm registry HTTP API（npm 官方 registry 规范）、PyPI PEP 503（simple index）/PEP 566/legacy upload（warehouse `:action=file_upload`）**均有公开规范，以官方为准**（ADR-0001 clean-room 铁律）。
-- **Artifactory 行为规格**：`docs/reverse/maven-npm-pypi.md`（计划）与 repo-semantics §7（remote/virtual 占位）**尚未落地**。本文对 Artifactory 特有行为（maven-metadata 合并细节、remote 缓存参数默认值、virtual 解析顺序细节）的描述以公开文档与公认行为为暂定依据，标注置信度（§5.2 表）；规格落地后若与本文有出入，**以规格为准回写本 PRD**（增量修订 +0.1，同 M1 §5.5 流程）。
+- **协议规范**：Maven 2 布局/`maven-metadata.xml`（Maven 官方 Repository Metadata 惯例 + Maven Deploy/Resolver 行为）、npm registry HTTP API（npm 官方 registry 规范）、PyPI PEP 503/592/691 + warehouse upload API **均有公开规范，以官方为准**（ADR-0001 clean-room 铁律）。
+- **Artifactory 行为规格**：`docs/reverse/maven-npm-pypi.md` 与 repo-semantics §7/§8 **已落地（T-59）**，v1.1 已据此完成 §5.5 C1~C8 校准回写，本文与规格现处一致状态；规格「待验证」项（maven-npm-pypi.md §5、repo-semantics 待验证 #5~#7）维持暂行并注明来源，后续勘误按同流程回写（+0.1）。
 - **架构依赖**：adapter SPI 的 packageType 分发点（M1 §5.4 需求 1）、remote 出站 HTTP 客户端的 SSRF 校验链、virtual 解析器在 `internal/repo` 的落位——归 architect 的 ADR 与设计文档，本 PRD 只约束可观察行为。
 
 ---
@@ -118,14 +119,17 @@ M3 在 M1/M2 地基上追加而非返工：三协议构件全部落同一 checks
 - **remote 仓配置字段（兼容子集）**：
   - `url`（**必填**，http/https；缺失或 scheme 非法 → 400）——上游 base URL，请求路径直接拼接；
   - `username` / `password`（可选，上游 Basic 认证；GET 回显时 `password` 掩码，见 NFR-S14；存储形态见开放问题 Q1）；
-  - `retrievalCachePeriodSecs`（缓存命中期，默认 7200s，暂行值见 Q5）——命中期内 GET 不回源；
-  - `missedRetrievalCachePeriodSecs`（404 负缓存期，默认 1800s）——期内同路径 404 不回源（防穿透）；
-  - `socketTimeoutSecs`（上游读超时，默认 60s）；
+  - `retrievalCachePeriodSecs`（缓存命中期，默认 **7200s**，v1.1 定案：repo-semantics §7.1 高置信度）——命中期内 GET 不回源，过期后下次请求触发回源校验（C4）；
+  - `missedRetrievalCachePeriodSecs`（404 负缓存期，默认 **1800s**，v1.1 定案同上）——期内同路径 404 不回源（防穿透）；
+  - `socketTimeoutSecs`（上游 IO 超时，默认 **15s**——v1.1 对齐 Artifactory `socketTimeoutMillis=15000`，repo-semantics §7.1）；
+  - `assumedOfflinePeriodSecs`（上游故障静默期，默认 **300s**，v1.1 新增定案：故障后标记 assumed-offline，期内请求绕过上游，repo-semantics §7.1/§7.6）；
+  - `hardFail`（默认 `false`；`true` 时上游错误向上抛 **502** 而非 404——v1.1 对齐 Artifactory `hardFail` 字段语义（其抛 500，BinFlow 取网关语义 502，NFR 可观测性更优且客户端等价感知），repo-semantics §7.1/§7.6）；
   - **BinFlow 扩展** `allowPrivateUpstream`（默认 `false`）：是否允许上游解析到私网/环回地址（NFR-S13；场景 E 的内网上游放行开关）。
+  - （Artifactory 另有 `offline`/`storeArtifactsLocally`/`shareConfiguration`/`bypassHeadRequests` 等，M3 不暴露，M4+ 按需；`includesPattern/excludesPattern` remote 语义同 local，M3 不暴露——勘误归档见 §6.4）
 - **virtual 仓配置字段（兼容子集）**：
   - `repositories`（**必填**，成员 repo key 数组，非空；成员不存在 → 400；成员不得为 virtual——**嵌套 virtual 不做**，M3 有意不兼容，400）；
-  - `defaultDeploymentRepo`（可选，成员中的 local 仓 key；配置后 virtual 可写并路由写入，未配置 → 写操作 405，见 FR-21；别名 `deploymentRepository` 亦接受）；
-  - `priorityResolution`？——M3 不做优先解析标记字段，解析顺序即成员列表顺序（FR-21）， Artifactory 的优先解析仓语义简化归档于开放问题 Q2 备注。
+  - 成员级标记 `priorityResolution`（v1.1 定案启用：Artifactory 为 per-repo 字段默认 false，repo-semantics §7.1/§8.1；BinFlow 取**两桶简化**——优先桶（标记成员，按声明序）在前、其余在后，因 BinFlow 无独立 `<key>-cache` 仓投影故四桶退化为两桶，见 FR-21）；
+  - `defaultDeploymentRepo`（可选，成员中的 local 仓 key；配置后 virtual 可写并路由写入，未配置 → 写操作 405，见 FR-21；v1.1 别名对齐：`defaultDeploymentRepoRef`（repo-semantics §8.2 规格名）与 `deploymentRepository` 亦接受）；
 - **packageType 新增**：`maven` | `npm` | `pypi`（合法组合：三类 rclass × {generic, docker, maven, npm, pypi}，docker 仅 local 可用见 §2.2；`remote+docker`/`virtual+docker`？virtual+docker 聚合本实例 docker local 仓——**M3 不开**，400，docker 域 virtual 归 M4 评估）。
 - virtual 成员变更（增删成员/改顺序）即时生效，已缓存解析无残留（无解析缓存，逐请求现算——实现归 architect）。
 
@@ -146,19 +150,24 @@ M3 在 M1/M2 地基上追加而非返工：三协议构件全部落同一 checks
 
 行为规格（Maven 2 layout 为公开规范惯例；checksum 策略依 repo-semantics.md §5 高置信度）：
 
-- **layout**：`<groupId 点转斜杠>/<artifactId>/<version>/<artifactId>-<version>[-<classifier>].<ext>`；version 段含 `-SNAPSHOT` 即 snapshot。maven 仓的 PUT/GET 按 layout 严格解析：
+- **layout**：`<groupId 点转斜杠>/<artifactId>/<version>/<artifactId>-<version>[-<classifier>].<ext>`；version 段含 `-SNAPSHOT` 即 snapshot。**v1.1 定案（maven-npm-pypi.md §1.2，一手 config 模板，高置信度）**：对齐 `maven-2-default` 布局六字段模型——`artifactPathPattern = [orgPath]/[module]/[baseRev](-[folderItegRev])/[module]-[baseRev](-[fileItegRev])(-[classifier]).[ext]`，`folderIntegrationRevisionRegExp = SNAPSHOT`、`fileIntegrationRevisionRegExp = SNAPSHOT|(?:(?:[0-9]{8}.[0-9]{6})-(?:[0-9]+))`（即 unique snapshot 文件名 = `{module}-{baseRev}-{yyyyMMdd.HHmmss}-{N}[-classifier].{ext}`，目录仍为 `{baseRev}-SNAPSHOT`）；判定顺序 = 先剥 checksum 后缀与 metadata 前缀（`maven-metadata.xml`，含 plugin 群的 `metadata-maven-metadata.xml` 变体）再匹配模板。maven 仓的 PUT/GET 按该 layout 严格解析：
   - 目录层数 ≥ 3（groupId 至少一段 + artifactId + version + 文件）；
-  - 文件名必须以 `<artifactId>-<version>` 开头（classifier/扩展任意）；
+  - 文件名必须以 `<artifactId>-<version>` 开头（classifier/扩展任意；version 段允许 `-SNAPSHOT` 或 timestamped 形态）；
   - `maven-metadata.xml` 允许出现在 artifactId 级（release 版本列表）与 version 级（snapshot 信息）；
-  - 不合规路径（如 `PUT /binflow/maven-local/foo.jar`）→ **400**（BinFlow 决策：maven packageType 仓启用严格 layout 校验，防 generic 化误用；置信度中——Artifactory 对 repoLayoutRef 不匹配的拒绝行为待 `maven-npm-pypi.md` 校准，见 §5.5 校准项 C2）。
+  - 不合规路径（如 `PUT /binflow/maven-local/foo.jar`）→ **400**（BinFlow 决策：maven packageType 仓启用严格 layout 校验，防 generic 化误用；**400 状态码维持暂行**——规格已定案 layout 模型本身（高置信度），但拒绝状态码规格未见明确值，C2 半定案）。
 - **deploy**：`mvn deploy` 经 HTTP PUT 上传 pom/jar 及**旁车 checksum**（`.md5`/`.sha1`，wagon 行为）与 X-Checksum 头（按 deploy 插件版本二者其一或并存）。BinFlow 校验链：
   1. X-Checksum-Sha1/Sha256/Md5 头 → M1 既有链（client-checksums 策略不一致 → 409）；
   2. 旁车文件（`.sha1`/`.md5`/`.sha256`）内容与制品实测**不一致** → 按 repo checksum 策略处理：`client-checksums`（默认）→ **409**（message 含 received/actual）；`server-generated-checksums` → 静默接受、落盘侧车以服务端实测为准（rest-api.md §1.5 / repo-semantics.md §5，高置信度）；
   3. 均未提供 → 服务端计算并接受。
 - **checksum 策略三态（repo 配置 `checksumPolicyType`）**：`client-checksums`（默认，严格）| `server-generated-checksums`（宽容）| **未配置**（等价 client-checksums）。三态的第三种输入形态即「客户端一个 checksum 都没给」——服务端生成并接受，永不拒绝（M1 已有雏形在此按 repo 字段暴露为配置）。
 - **resolve**：GET/HEAD `/binflow/<repo>/<layout path>` → 200 流式 + M1 头集（`X-Checksum-Sha1/Md5/Sha256`、`ETag=<sha1>`、Range 206/416、条件请求 304）；mvn 的 checksum 校验依赖旁车文件 GET（`<file>.sha1|.md5` → 服务端以**实测值**返回纯文本内容，无尾随换行容忍：内容为裸 hex，尾部 `\n` 允许——BinFlow 返回不带换行，解析时容忍客户端形态）。
-- **snapshot**：支持 unique（timestamped：`-<timestamp>-<buildNumber>` 文件名，deploy 后原始 `-SNAPSHOT` 名**不**另存副本——按客户端上传为准）与 non-unique（`-SNAPSHOT` 文件名，允许覆盖，repo-semantics §3「不同 checksum 视为覆盖」链路适用）两种上传；version 级 `maven-metadata.xml` 的合并见 FR-17。maxUniqueSnapshots 保留策略 M4。
-- **handleReleases/handleSnapshots**（repo 配置，默认 true/true）：false 时对应版本类型的 PUT → 拒绝（repo-semantics §2 走 RepoRejectException 默认 **404**，置信度中；GET 侧不受影响）。
+- **snapshot**（v1.1 定案，maven-npm-pypi.md §1.3 高置信度）：repo 配置 `snapshotVersionBehavior` 三值——
+  - `deployer`（**BinFlow M3 默认**）：客户端传什么文件名落什么盘（mvn 的 unique deploy 自产 timestamped 名、`uniqueVersion=false` 时传 `-SNAPSHOT` 名，均按上传名落盘）；
+  - `non-unique`：`-SNAPSHOT` 文件名原样落盘，允许覆盖（repo-semantics §3「不同 checksum 视为覆盖」链路适用）；
+  - `unique`（服务端改写）：`-SNAPSHOT` PUT → 服务端改写为 `<ts>-<N>`（N = version 目录 metadata 的 buildNumber+1，同趟 classifier/pom 复用同一 N，伴随 checksum 改写指向同 buildNumber 主文件）——**P2**（buildNumber 连续性依赖 metadata 计算器，规格 §4.2 建议后置，BinFlow 采纳）；
+  - 已是 unique（timestamped）文件名的上传在任何 behavior 下都不改写（高置信度）。
+  - version 级 `maven-metadata.xml` 的计算见 FR-17。maxUniqueSnapshots 保留策略 M4。
+- **handleReleases/handleSnapshots**（repo 配置，默认 true/true）：false 时对应版本类型的 PUT → **409** 拒绝（**v1.1 定案推翻 v1.0 的 404**：`SnapshotPolicyException#getErrorCode` 显式 409，maven-npm-pypi.md §1.4 高置信度——M1 规格的 404 推断已被勘误）；下载侧开关只影响可服务性，不影响 GET 已有缓存。
 - **覆盖检查**：沿用 repo-semantics §3——同 checksum 幂等重传免覆盖检查；`maven-metadata.xml` 与旁车 checksum 文件**永不触发覆盖检查**（高置信度，客户端重发是常态）。
 
 | # | AC（可执行） | 优先级 |
@@ -169,24 +178,30 @@ M3 在 M1/M2 地基上追加而非返工：三协议构件全部落同一 checks
 | FR-16-AC4 | M14：`GET .../com/acme/demo-app/maven-metadata.xml` → 200 XML（`<versioning>` 含已 deploy 版本、`<lastUpdated>` 非空）；`GET ....xml.sha1|.md5` 内容 == 服务端对该 XML 实测的 sha1/md5 | P0 |
 | FR-16-AC5 | M17：client-checksums 仓 PUT 带错误 `X-Checksum-Sha1` → 409（M1 C14 等价链路）；`checksumPolicyType=server-generated-checksums` 仓（M16c 建）同请求 → 2xx 接受，落盘与响应以服务端实测为准 | P0 |
 | FR-16-AC6 | M18：旁车两态——`curl -T app.jar.sha1`（内容正确）→ 201 且随后 GET 旁车返回实测值；内容错误（在 client-checksums 仓）→ 409；server-generated 仓 → 接受但 GET 旁车返回**实测值**（客户端声明不落盘） | P0 |
-| FR-16-AC7 | M19：`handleSnapshots:false` 仓 deploy `1.0.1-SNAPSHOT` → 404（拒绝）；`handleReleases:false` 仓 deploy release → 404；开关不影响 GET | P1 |
+| FR-16-AC7 | M19：`handleSnapshots:false` 仓 deploy `1.0.1-SNAPSHOT` → **409**（v1.1 勘误：SnapshotPolicyException 显式 409）；`handleReleases:false` 仓 deploy release → 409；开关不影响 GET | P1 |
 | FR-16-AC8 | M20：layout 校验——`PUT /binflow/maven-local/foo.jar`（无 groupId/version 段）→ 400；`PUT .../com/acme/demo/1.0.0/other-name-1.0.0.jar`（文件名不以 artifactId-version 开头）→ 400 | P0 |
 | FR-16-AC9 | M21：Range/条件请求继承——`curl -r 0-99` 拉构件 → 206；`If-None-Match` → 304（M1 FR-4-AC14/AC15 在 maven 路径复验） | P1 |
 | FR-16-AC10 | 跨协议去重：与 generic/docker 同内容单份 blob（/api/v1/storage/stats 计数不增，M12 附带断言） | P1 |
 | FR-16-AC11 | 删除：`DELETE /binflow/maven-local/com/acme/demo-app/1.0.0/demo-app-1.0.0.jar` → 204；随后 maven-metadata.xml 中该版本**仍可列出**（版本事实由 metadata 服务端维护，FR-17-AC4 定清理语义） | P1 |
+| FR-16-AC12 | `snapshotVersionBehavior=unique` 服务端改写（P2）：PUT `-SNAPSHOT` 名 → 落盘 timestamped 名、buildNumber 连续、伴随 checksum 指向同 buildNumber 主文件；对拍 mvn deploy（maven-npm-pypi.md §1.3/§5-5 待验证项，实现后对拍收口） | P2 |
 
 ### FR-17 Maven maven-metadata.xml：生成、合并与 snapshot 语义（dev-registry-adapter）
 
 **用户故事**：作为 CI 与 IDE 用户，我依赖 `maven-metadata.xml` 的 `latest/versions/snapshotVersions` 做版本发现——并发 deploy 不丢版本、`-U` 强刷拿到最新 SNAPSHOT 是构建可复现的底线。
 
-行为规格（metadata 结构为 Maven 公开惯例；合并语义对齐 Artifactory 等价行为，置信度中待 §5.5 C1 校准）：
+行为规格（**v1.1 全量定案**，maven-npm-pypi.md §1.4 + repo-semantics §8.3，高置信度——服务端计算行为是 Artifactory 对 [MVN-MD] 的实现补充，官方未规定）：
 
-- **artifact 级 metadata**（`<artifactId>/maven-metadata.xml`）：服务端从存储事实计算 `groupId/artifactId/versioning{latest, release, versions[], lastUpdated}`；release deploy 成功后自动纳入 `<versions>`，**无需客户端 PUT metadata**。
-- **version 级 metadata**（`<artifactId>/<version>/maven-metadata.xml`，snapshot 场景）：`versioning/snapshot{timestamp, buildNumber}` + `snapshotVersions[]`（含非 unique 本地副本条目）；unique snapshot deploy（timestamped 文件）成功后自动登记。
-- **客户端 PUT metadata = 合并而非覆盖**（mvn deploy 的伴随上传、`mvn deploy:deploy-file` 的 metadata 上传）：versions/snapshotVersions 取并集、`lastUpdated`/`buildNumber`/timestamp 取最大、`latest` 取字典序最大版本；合并后的 XML、其 `.md5/.sha1` 旁车、item info checksum 三者一致。**并发合并不丢数据**（同 repo 两版本交错 deploy 后两次 GET 均含全部版本）。
-- **checksum 一致性**：metadata 每次内容变化后旁车与响应头同步重算（客户端缓存 sha1 与 GET 所得不一致会造成 mvn `Could not transfer metadata` 类错误——绝不允许陈旧 checksum）。
-- **删除联动**（P1 语义）：删除某版本全部构件 → metadata 的 `<versions>` 该条目移除（服务端事实驱动）；无版本剩余时 artifact 级 metadata 本体可保留空壳或删除，BinFlow 取**删除**（404）。
-- `GET metadata` 对 virtual 仓的聚合语义见 FR-21（P1 合并）。
+- **触发时机**（deploy 拦截器链，BinFlow 按 OSS 同构实现）：
+  - 上传 unique snapshot 文件 / non-unique pom → 计算父目录（version 目录）metadata，**同步**（阻塞 deploy 响应——后续 snapshot 编号依赖它）；
+  - 上传其它文件（release jar 等）→ 父目录 metadata，异步；
+  - 上传 pom → 祖父目录（group/module 版本清单，非递归），异步；
+  - move/copy/delete → 源与目标两侧受影响目录树，异步。
+- **版本组目录**（`{orgPath}/{module}/maven-metadata.xml`，即 v1.0 的 artifact 级）：`<versions>` = 子版本目录中含 `*.pom` 的目录集合（同版本多行取 created 最新去重）；排序用 Maven 版本比较器；`<latest>` = 排序后最后一个（SNAPSHOT 也算）、`<release>` = 最后一个非 SNAPSHOT、`<lastUpdated>` = 计算时刻（`yyyyMMddHHmmss`，UTC）；**子目录无 pom → 删除已存在的 metadata 及伴随 checksum**（Artifactory 连 `.sha512` 一并清，BinFlow P2 跟进 sha512 伴随），例外：现存内容是 snapshot 型 metadata 而路径非 snapshot 目录时**不删**（RTFACT-6242，兼容 Maven 2 客户端手工部署 bug，BinFlow 照做）。
+- **SNAPSHOT 版本目录**（`.../{baseRev}-SNAPSHOT/maven-metadata.xml`）：`groupId/artifactId` 取自同目录 pom 解析、`<version>` = `{baseRev}-SNAPSHOT`；`<snapshot><buildNumber>/<timestamp>`：repo behavior=non-unique（或 deployer 且无 unique 文件）→ buildNumber 固定 1、无 timestamp；存在 unique 文件 → 取**最新 unique snapshot pom** 的 buildNumber/timestamp（v1.0 的「取最大」表述据此精化）；`<snapshotVersions>`（Maven 3 客户端需要）默认开启，每 (extension × classifier) 取最新一条，`<updated>` = 时间戳去点号。
+- **客户端 PUT maven-metadata.xml = 上传事件，权威内容以服务端计算为准**（v1.1 精化，修正 v1.0 的「XML 级 union/max 合并」表述）：PUT 被接受（201，走通用上传链——metadata 永不触发覆盖检查），随后触发受影响目录重算；客户端上传的 XML 不直接成为版本清单来源，服务端从存储事实重算——对外语义等效于合并（并发 deploy 后 GET 必含全部实际存在版本，M15/并发 AC 断言不变）。
+- **checksum 一致性**：metadata 每次内容变化后旁车（`.md5/.sha1`）与响应头同步重算（客户端缓存 sha1 陈旧会造成 mvn `Could not transfer metadata` 类错误——绝不允许）。
+- **删除联动**：定案并入版本组目录规则（无 pom → 删 metadata 及伴随 checksum）。
+- `GET metadata` 对 virtual 仓的聚合语义见 FR-21（v1.1 升定案：内存合并、每次现算不缓存）。
 
 | # | AC（可执行） | 优先级 |
 |---|---|---|
@@ -203,17 +218,27 @@ M3 在 M1/M2 地基上追加而非返工：三协议构件全部落同一 checks
 
 行为规格（npm registry HTTP API 有公开规范，以官方为准；路由挂 `/binflow/api/npm/<repo>/**`，M1 §5.4 预留位兑现）：
 
-- **publish**：`PUT /binflow/api/npm/<repo>/<package>`，body = packument + `_attachments`（base64 tarball，npm ≥ 5 单请求两段式：先 `PUT .../-rev` 探测? 否——npm ≥ 5 为单 PUT；npm ≤ 4 两请求 PUT——BinFlow 支持单 PUT 即可，npm 8/9/10 矩阵）→ **201** `{"success":true}`；scoped 包 URL 形态 `<repo>/@scope%2Fname`（URL 编码斜杠），必须支持。
-  - tarball 落内容路径 `/binflow/<repo>/<scope path>/<name>/-/<name>-<version>.tgz`（BinFlow 布局，见开放问题 Q8 备注）；
-  - 同名同版本重复 publish → **409**（BinFlow 取冲突码；npmjs 惯例为 403——npm 客户端只判非 2xx，无兼容性损失；有意偏离归档于 NE-08）；
-  - `_attachments` 的 tarball sha1（`shasum` 字段）与解出内容不一致 → 400。
-- **packument**：`GET /binflow/api/npm/<repo>/<package>` → 200 JSON：`name/dist-tags/versions/<v>/{dist{tarball,shasum,integrity}}/_rev/_id`；`dist.tarball` 为指回 BinFlow 的绝对/相对 URL（含凭据场景不带——匿名读默认开；关闭时 npm 需 `.npmrc` 带 `_auth`，QA 双模式覆盖）；包不存在 → 404（E-01）。
+- **publish**（`PUT /binflow/api/npm/<repo>/<package>`，body = packument + `_attachments` base64 tarball；npm ≥ 5 单 PUT，npm 8/9/10 矩阵）→ **201** `{"success":true}`；scoped 包 URL 形态 `<repo>/@scope%2Fname`（URL 编码斜杠；**`%2f` 与 `%2F` 两种编码等价接受**——v1.1 定案，规格 §2.1/§5-3，高置信度），必须支持。**校验顺序即错误顺序（v1.1 定案，规格 §2.3 十步链，高置信度）**：
+  1. body JSON 解析失败 → 400；
+  2. `_attachments` 非空但 `versions` 空 → 400 `Missing versions in npm package...`；
+  3. 对 tarball 目标路径无写权限 → 403 `Cannot deploy to '<tarballPath>'`；
+  4. **tarball 路径已存在（同版本重复 publish）→ 403** `Cannot modify pre-existing version '<v>', aborting upload for: '<name>'`（**v1.1 定案推翻 v1.0 的 409**：Artifactory 定 403、npmjs 官方错误族同；npm 客户端只判非 2xx，无兼容性损失）；
+  5. name/version 非法（semver 与 leading zeros 规则）→ 400 `Invalid Version: '<v>'...`；
+  6. `_attachments` 空但含 `versions[-].deprecated` → deprecate 流程，**201** `{"ok":"updated package"}`；
+  7. `_attachments` 空且非 deprecate → 400 `Missing attachments with tarball data...`；
+  8. integrity（`sha512-<base64>`）与 tarball 实测不一致 → 400 `Conflict between integrity from metadata and tarball`（Artifactory 默认不强制、仅记属性；**BinFlow 决策：默认强制校验拒 400**——与 client-checksums 策略同向，存储不可变性优先，有意从严归档于 NE-01 注）；
+  9. `dist.shasum`（sha1 hex）不一致 → 400 `Conflict between sha1 from metadata and tarball`；
+  10. 成功 → 201。
+  - tarball 落内容路径 `/binflow/<repo>/<name>/-/<name>-<version>.tgz`；scoped 为 `/binflow/<repo>/@<scope>/<name>/-/@<scope>/<name>-<version>.tgz`（**v1.1 定案**：与 Artifactory 同布局，规格 §2.2 高置信度；packument GET 面不返回 `_attachments`——[NPM-API] 惯例；publish 后物理清空与否维持暂行 C8）。
+- **packument**：`GET /binflow/api/npm/<repo>/<package>` → 200 JSON：`name/dist-tags/versions/<v>/{dist{tarball,shasum,integrity}}/_rev/_id/time`；`dist.tarball` **一律重写为指回 BinFlow 的 URL**（含凭据场景不带——匿名读默认开；关闭时 npm 需 `.npmrc` 带 `_auth`，QA 双模式覆盖）；包不存在 → 404（E-01）。**响应头 `X-Checksum-Sha1` 与 `ETag` = 包文档 JSON（非 tarball）的 sha1；`If-None-Match` 命中 → 304**（v1.1 定案，规格 §2.4 高置信度——官方未规定元数据 ETag）。**SLIM 协商（P1）**：`Accept: application/vnd.npm.install-v1+json`（npm ci 场景）→ 瘦身文档（去 README 等重字段），Content-Type 原样回（规格 §2.2 高置信度）。
 - **tarball 下载**：`GET /binflow/api/npm/<repo>/<pkg path>/-/<file>.tgz` → 200 流式 + M1 头集；`dist.integrity`（sha512）与 `shasum`（sha1）由服务端实测生成。
-- **dist-tags**：`GET|PUT|POST|DELETE /binflow/api/npm/<repo>/-/package/<name>/dist-tags`（npm ≥ 8 形态）与旧形态 `PUT /binflow/api/npm/<repo>/<package>/<tag>`（PUT body 为版本字符串）均支持；`npm dist-tag add/rm/ls` 全走通。
-- **unpublish**：`DELETE /binflow/api/npm/<repo>/<package>/-rev/<rev>` → 200；删除该版本（`_attachments` 与 `versions` 条目移除，dist-tags 引用联动清理）；整包 unpublish（`npm unpublish pkg --force`）→ 包不存在 404。P1。
-- **`npm login`/`npm whoami`**：`PUT /-/user/org.couchdb.user:username`（npm ≥ 9 需 `--auth-type=legacy`）→ 201 token（BinFlow 签发 API Token 复用 M1 token 表）；`GET /-/whoami` → 200 `{"username":...}`。QA 允许以 `.npmrc _auth`（Basic）替代 login 流（等效凭据）。
-- **错误体**：npm 域统一 E-01（制品层三分层沿用，开放问题 Q7）；npm 客户端不解析错误体结构，仅展示。
-- **`npm ping`**：`GET /-/ping` → 200 `{} `（P2）。
+- **dist-tags**：`GET|PUT|POST|DELETE /binflow/api/npm/<repo>/-/package/<name>/dist-tags`（npm ≥ 8 形态）与旧形态 `PUT /binflow/api/npm/<repo>/<package>/<tag>`（PUT body 为版本字符串）均支持；**PUT 成功 → 201 `{"ok":"created new tag"}`、DELETE → 200 空、目标缺失 → 404 `npm package not found with name:<n>, and tag:<t>`**（v1.1 定案，规格 §2.1 高置信度）；`npm dist-tag add/rm/ls` 全走通。
+- **unpublish**（P1）：npm 客户端两步——① `PUT /binflow/api/npm/<repo>/<package>/-rev/<rev>` → **200 `{"ok":"updated package"}` 恒定假成功**（占位步骤，服务端不做事；**v1.1 新增定案**，规格 §2.1/§2.7-1 高置信度——缺此步 npm unpublish 直接失败，必须实现）；② `DELETE .../<package>/-rev/<rev>`（整包）或 `DELETE .../<package>/-/<filename>/-rev/<rev>`（单版本）→ 200，`versions` 条目移除、dist-tags 引用联动清理。
+- **`npm login`/`npm whoami`**：`PUT /-/user/org.couchdb.user:username`（npm ≥ 9 需 `--auth-type=legacy`）→ 201 token（BinFlow 签发 API Token 复用 M1 token 表）；`GET /-/whoami` → 200 `{"username":...}`（未认证 401）。QA 允许以 `.npmrc _auth`（Basic）替代 login 流（等效凭据）。
+- **错误体**：npm 域统一 E-01（**v1.1 定案**：三协议共用 `{"errors":[{status,message}]}` 信封，规格 §0 高置信度，开放问题 Q7 收口）；npm 客户端不解析错误体结构，仅展示。
+- **域根探针**：`GET /binflow/api/npm/<repo>/` → 200 空 body（连通性探测，规格 §0；P2）。
+- **隐藏索引目录**（v1.1 定案，规格 §2.2/§4.5）：Artifactory 以 `.npm/{name}/package.json`、`.pypi/{norm}/...` 隐藏文件维护包索引——BinFlow 以 metadata 表属性为中心重建索引（规格 §4.5 建议），**不落隐藏目录**；若实现侧采用隐藏目录形态，则 REST/浏览层必须不可见（Artifactory 以 `.npm`/`.pypi` 前缀过滤）。
+- **`npm ping`**：`GET /-/ping` → 200 `{}`（P2）。
 
 | # | AC（可执行） | 优先级 |
 |---|---|---|
@@ -222,10 +247,12 @@ M3 在 M1/M2 地基上追加而非返工：三协议构件全部落同一 checks
 | FR-18-AC3 | M23：全新目录 `npm install demo-pkg --registry <url>` → exit 0，`node_modules/demo-pkg/package.json` version 正确；缓存清空（`npm cache clean --force`）后重复仍 exit 0 | P0 |
 | FR-18-AC4 | M24：`npm dist-tag add demo-pkg@1.0.0 beta` exit 0；packument `dist-tags.beta=="1.0.0"`；`npm install demo-pkg@beta` exit 0；`npm dist-tag rm demo-pkg beta` 后 packument 无 beta | P0 |
 | FR-18-AC5 | M25：scoped 包 `@acme/util` publish → install 全链 exit 0（URL 编码 `@acme%2Futil` 形态往返一致） | P0 |
-| FR-18-AC6 | M26：重复 publish 同版本 → npm CLI 报错非 0；curl 直打 → 409 E-01 | P0 |
+| FR-18-AC6 | M26：重复 publish 同版本 → npm CLI 报错非 0；curl 直打 → **403** E-01（message 含 `Cannot modify pre-existing version`；v1.1 勘误：409→403） | P0 |
 | FR-18-AC7 | M27：`npm unpublish demo-pkg@1.0.1 --force`（先发 1.0.1）→ exit 0；packument 无 1.0.1；`npm install demo-pkg@1.0.1` 失败（预期）而 `@1.0.0` 仍可装 | P1 |
 | FR-18-AC8 | M28：匿名读边界——默认匿名 GET packument/tarball 200、PUT 401；`anonymous_access:false` 后 GET 需 `_auth`（M1 C27 的 npm 版） | P1 |
 | FR-18-AC9 | tarball 完整性：`npm install` 后 `node_modules/.package-lock.json` 的 integrity（sha512）与服务端 `X-Checksum-Sha256` 同源一致 | P1 |
+| FR-18-AC10 | packument 条件请求（v1.1 定案，P1）：`curl -I` 的 `ETag` == 包文档 JSON 的 sha1；`If-None-Match` 同值重发 → 304 无 body |
+| FR-18-AC11 | unpublish 前置占位（v1.1 定案，P1）：`PUT .../demo-pkg/-rev/<任意rev>` → 200 `{"ok":"updated package"}` 且包内容无变化（M27 第一步隐式覆盖，curl 显式断言） |
 
 ### FR-19 PyPI：simple index / upload / 下载（dev-registry-adapter）
 
@@ -233,11 +260,12 @@ M3 在 M1/M2 地基上追加而非返工：三协议构件全部落同一 checks
 
 行为规格（PEP 503 公开规范 + warehouse legacy upload 公开惯例；路由挂 `/binflow/api/pypi/<repo>/**`）：
 
-- **simple index**：`GET /binflow/api/pypi/<repo>/simple/` → 200 HTML（项目名锚点列表，P2）；`GET .../simple/<normalized-name>/` → 200 HTML，每文件一个 `<a href="<url>#sha256=<hex>">file</a>`；**name normalization 按 PEP 503**（`[-_.]+` → `-`，小写）：`Demo_Pkg.1` 与 `demo-pkg-1` 同一 index 页；未知名 → 404。`Accept: application/vnd.pypi.simple.v1+json`（PEP 691）→ JSON 形态（P2）。
-- **上传**：`POST /binflow/api/pypi/<repo>`，multipart form（`:action=file_upload`），字段 `name/version/filename/filetype/pyversion/content` 等 → 200（warehouse 成功惯例 body 无严格断言，twine 判 2xx）。校验：`name`/`version`/`content` 缺失 → 400；**同 filename 重复上传 → 400**（warehouse「file already exists」语义，防覆盖）；文件落内容路径 `/binflow/<repo>/<normalized-name>/<filename>`（BinFlow 布局，Q8）。sdist（`.tar.gz`）与 wheel（`.whl`）都支持。
-- **下载**：simple index 的 href 指向内容路径（`/binflow/<repo>/...`）→ 复用 M1 下载链（checksum 头/Range/304）；pip 经 `#sha256=` fragment 自校验。
-- **哈希算法**：index 主用 **sha256**（PEP 503 现代标准）；是否附 `#md5=`（极老工具）见开放问题 Q3。
-- **pip 侧**：`pip install --index-url <url>/simple <pkg>` / `pip download` / `pip index versions`（P2）走通；pip 的 JSON API（`/pypi/<pkg>/json`）不做（§2.2）。
+- **simple index**：`GET /binflow/api/pypi/<repo>/simple/` → 200 HTML（项目名锚点列表，P2）；`GET .../simple/<normalized-name>/` → 200 HTML，每文件一个 `<a href="<url>#sha256=<hex>">file</a>`，条目按文件名排序、值经 HTML 转义；**文档头带 `<meta name="api-version" value="2" />`（PEP 629，v1.1 定案，规格 §3.2 高置信度）**；**name normalization 按 PEP 503**（lower + `[-_.]+`→`-`）：`Demo_Pkg.1` 与 `demo-pkg-1` 同一 index 页；未知名 → 404；**无尾斜杠 `GET .../simple/<name>` → 302 重定向到补尾斜杠 URL**（v1.1 定案，规格 §3.1 高置信度）；**ETag + `If-None-Match` → 304**（ETag 为条目稳定哈希的不透明串——Artifactory 用私有的 31-折迭哈希，BinFlow 用任意稳定内容哈希即可，客户端不透明，规格 §3.2）；`Accept: application/vnd.pypi.simple.v1+json`（PEP 691）→ JSON 形态（P2；Artifactory 该开关默认关，BinFlow 亦默认 HTML）。BinFlow 不输出 Artifactory 私有的 `rel="internal|external"` 属性（pip 忽略未知属性，PEP 503 无此定义——有意不补充）。
+- **上传**：`POST /binflow/api/pypi/<repo>`，multipart form；**`:action` 必须为 `file_upload`，否则 400 `unknown action '<action>'`**（v1.1 定案，规格 §3.3 高置信度）；`content` 为文件体（文件名取该 part 的 Content-Disposition filename）；**`md5_digest` 为可选客户端 checksum——twine ≥ 6.2 不再发送，缺失时服务端自算并接受**（v1.1 定案，规格 §3.3/§3.4 高置信度；提供且不一致时走 client-checksums 校验链 409）；其余字段（name/version/summary/requires_python/yanked/...）收下作为元数据属性。**响应统一 200**（warehouse 同；twine 判 2xx）。校验：`name`/`version`/`content` 缺失 → 400；**同 filename 重复上传 → 400**（warehouse「file already exists」语义，防覆盖；Artifactory 分支未在规格明示，维持暂行）；**存储路径 `<repo>/<name>/<version>/<filename>`（name 用元数据原始名、不 normalize——v1.1 定案，规格 §3.5 高置信度，C7 收口）**，normalize 仅用于索引查找（`normalizePackageName`）与文件名侧（`normalizeDistributionName`，PEP 427 惯例）。sdist（`.tar.gz`）与 wheel（`.whl`）都支持。
+- **下载**：simple index 的 href 指向 `/binflow/api/pypi/<repo>/packages/<name>/<version>/<filename>`（对齐 Artifactory `packages/` 形态，v1.1 定案；内容路径 `/binflow/<repo>/<name>/<version>/<filename>` 为同一 node 的第二入口）→ 复用 M1 下载链（checksum 头/Range/304）；pip 经 `#sha256=` fragment 自校验。
+- **哈希算法**：**仅 sha256，v1.1 定案（Q3 收口）**——规格 §3.4：上传侧客户端只可能提供 md5（且可缺失），pip 校验依赖 `#sha256=`，索引输出必须优先 sha256；Artifactory 的 `#md5=` 仅在制品无 sha256 时兜底，BinFlow 服务端必算 sha256 故该分支永不触发，不提供 md5 fragment。
+- **域根探针**：`GET /binflow/api/pypi/<repo>/` → 200 空 body（规格 §0；P2）。
+- **pip 侧**：`pip install --index-url <url>/simple <pkg>` / `pip download` / `pip index versions`（P2）走通；pip 的 JSON API（`/pypi/<pkg>/json`，warehouse legacy 形态）不做（§2.2）。
 
 | # | AC（可执行） | 优先级 |
 |---|---|---|
@@ -249,6 +277,7 @@ M3 在 M1/M2 地基上追加而非返工：三协议构件全部落同一 checks
 | FR-19-AC6 | M35：wheel + sdist 同版本并存 → index 页两文件都在，pip 按 `--only-binary`/`--no-binary` 各取所需 | P1 |
 | FR-19-AC7 | 匿名边界同 FR-18-AC8 的 pip 版（匿名 install 默认可、upload 401） | P1 |
 | FR-19-AC8 | PEP 691 JSON simple（P2）：`curl -H 'Accept: application/vnd.pypi.simple.v1+json' .../simple/demo-pkg/` → JSON `files[]` 与 HTML 等价 | P2 |
+| FR-19-AC9 | 上传协议细节（v1.1 定案，P1）：`POST` 携带 `:action=submit` → 400 `unknown action 'submit'`；twine ≥ 6.2（不发送 `md5_digest`）上传 → 200 成功（服务端自算）；无尾斜杠 `curl -I .../simple/demo-pkg`（不带 `/`）→ 302 且 Location 为补尾斜杠 URL；`GET .../simple/demo-pkg/ -I` 的 `ETag` 存在且 `If-None-Match` 重发 → 304 | P1 |
 
 ### FR-20 remote 仓库：代理缓存 pull-through（dev-registry-adapter + dev-go-core）
 
@@ -256,13 +285,15 @@ M3 在 M1/M2 地基上追加而非返工：三协议构件全部落同一 checks
 
 行为规格（pull-through 语义对齐 Artifactory remote；SSRF 为 BinFlow 安全底线，NFR-S13）：
 
-- **请求流（GET/HEAD `/binflow/<remote>/<path>`）**：
-  1. 缓存命中且未过 `retrievalCachePeriodSecs` → 直接服务（零上游流量，M1 头集齐全）；
-  2. miss → 拼接 `<url><path>` 回源（Basic 凭据按 repo 配置）；上游 200 → 流式落盘（复用上传会话/checksum 计算，落 remote repo 命名空间的 node）→ 响应客户端（**落盘与响应内容逐位一致**，item info `checksums` 即实测值）；
-  3. 上游 404 → BinFlow **404**（E-01）+ 写负缓存（`missedRetrievalCachePeriodSecs` 内同路径不再回源）；
-  4. 上游 5xx/超时/连接失败 → BinFlow **502**（E-01，message 含上游状态/错误摘要与 `upstream` 标识；不吞错误细节也不泄露内部路径）；**若缓存中已有旧内容**：返回旧内容 + 响应头 `X-BinFlow-Upstream-Error: <摘要>`（stale 服务，P1，降级不掉可用性——上游故障期内已有缓存可继续构建）；
-  5. remote 仓**不可写**：PUT/DELETE（对 remote 路径本体）→ **405 + `Allow: GET`**；`DELETE /binflow/<remote>/<path>` 语义 = **仅删本地缓存**（删除后再 GET 触发回源，见 §2.2 边界）。
-- **缓存键与隔离**：node 落 remote repo 自身命名空间；同 path 不同 repo 各自独立缓存；**上游响应的 `ETag/Last-Modified` 不用于回源协商**（M3 简化：TTL 制，不做 conditional revalidate——归档为校准项 §5.5 C4）。
+- **请求流（GET/HEAD `/binflow/<remote>/<path>`，v1.1 按 repo-semantics §7.2 六步定案重写）**：
+  1. 前置拒绝：blacked-out / handle* 开关与 include/exclude 不匹配 → 404/409（同 local §2 语义）；
+  2. **checksum 后缀请求（`.sha1`/`.md5`/`.sha256` 等）一律不回源 → 404** `"Checksums are not downloadable."`（**v1.1 新增定案**，规格 §1.5/§7.2 高置信度，Artifactory 私有补充——checksum 只经缓存条目或服务端计算（响应头）提供；mvn 客户端对缺失 checksum 文件容忍告警不失败，M45 断言）；
+  3. 查**负缓存**（miss cache）：期内已知 miss → 直接 404，零上游流量；
+  4. 查**本地缓存**（node 落 remote repo 命名空间）：命中且未过 `retrievalCachePeriodSecs` → 直接服务（零上游流量，M1 头集齐全）；
+  5. 缓存过期或缺失 → 回源（Basic 凭据按 repo 配置）：上游 200 → 流式落盘（复用上传会话/checksum 计算，**落盘与响应内容逐位一致**，item info `checksums` 即实测值；上游响应的 `X-Checksum-*` 头读为 original checksum 与实测比对——M3 只登记不拒，四值策略 M4）；上游 404 → 写负缓存 + **若本地有过期副本则仍回发过期副本**（"expired but serving"，v1.1 定案）；上游 5xx/超时/连接失败 → 仓标记 **assumed-offline**（静默 `assumedOfflinePeriodSecs`，期内零上游流量）+ 有缓存（含过期）服务缓存、无缓存 → **404**（E-01，message 含 offline/assumed offline 状态提示——**v1.1 定案推翻 v1.0 的默认 502**，repo-semantics §7.6 高置信度；`hardFail:true` 时改 **502**）；BinFlow 扩展：服务缓存时附 `X-Binflow-Upstream-Error: <摘要>` 头（可观测性扩展，无害）；
+  6. remote 仓**不可写**：PUT/POST → **405 + `Allow: GET`**；`DELETE /binflow/<remote>/<path>` 语义 = **仅删本地缓存**（删除后再 GET 触发回源，见 §2.2 边界）。
+- **上游凭据 401/403**：视为资源 unfound（404 透传，repo-semantics §7.6 中置信度）；BinFlow message 附 upstream 状态摘要便于排障。
+- **缓存键与隔离**：同 path 不同 repo 各自独立缓存；**过期后的回源校验（HEAD 探测 + Last-Modified 比较，较新则撤销过期不重下）为 P1**（v1.1 定案其存在——repo-semantics §7.3/§7.4 高置信度；M3 P0 允许「到期直接 GET 重取」的简化实现，M41 的上游计数断言不受影响）；同 path 并发 miss 单飞（singleflight，P1——等待者直接复用获胜者结果）。
 - **npm/PyPI/Maven remote 特化**：
   - maven remote：layout 路径直拼（上游即 Maven Central 形态）；`maven-metadata.xml` 请求按普通缓存对象处理（TTL 到期才回源——`mvn -U` 场景由 TTL 缩短或 `DELETE` 缓存触发刷新，P1 提供 `GET ...?refresh=true` 强刷参数? **不做**——保持 URL 语义与 Artifactory 一致，强刷走 DELETE 缓存路径）；
   - npm remote：packument 与 tarball 均按路径代理；packument 内的 `dist.tarball` 指向上游 URL 时**重写为 BinFlow URL**（否则 `npm install` 会绕过 BinFlow 直连上游——重写是代理语义的一部分，P0）；
@@ -275,26 +306,31 @@ M3 在 M1/M2 地基上追加而非返工：三协议构件全部落同一 checks
 | FR-20-AC2 | M41b：缓存命中速度——二次 GET 为本地盘速（QA 计时对比首次，≥2x 提速或上游零访问即可判过）；item info（E-09）可查该缓存 node 的 checksums | P1 |
 | FR-20-AC3 | M42：SSRF 默认拒绝——不带 `allowPrivateUpstream` 的 remote 指向 `127.0.0.1:9099`：建仓 200 但 GET → **400**（E-01，message 含 `private/suppressed upstream` 类字样）+ 服务日志 WARN（含 repo key、目标 IP）；`file://`/`ftp://` scheme 建仓即 400（FR-15-AC3） | P0 |
 | FR-20-AC4 | M43：上游 404 → BinFlow 404；负缓存期内二次 GET 上游 log 零新增 | P0 |
-| FR-20-AC5 | M44：上游停机（kill http.server）→ GET 已缓存路径 → 200 旧内容 + `X-Binflow-Upstream-Error` 头；GET 未缓存路径 → 502 E-01；`/binflow/api/v1/health` 仍 200（故障隔离） | P0 |
+| FR-20-AC5 | M44（v1.1 改写）：上游停机（kill http.server）→ ① GET 已缓存路径 → **200 旧内容** + `X-Binflow-Upstream-Error` 头；② GET 未缓存路径 → **404** E-01（message 含 assumed offline/offline 状态——v1.1 定案，默认 `hardFail:false`）；③ 配 `hardFail:true` 的对照仓同请求 → **502**；④ 停机静默期内（assumedOfflinePeriodSecs=300）恢复上游，静默期结束前请求**不打上游**（上游 log 零新增）、期后自动恢复；⑤ `/binflow/api/v1/health` 全程 200（故障隔离） | P0 |
 | FR-20-AC6 | M45：maven remote 代理 Maven Central（公网可用时；离线用 mock 上游摆 junit 布局）——`mvn dependency:get -Dartifact=junit:junit:4.13.2 -DremoteRepositories=central::default::$BASE/binflow/maven-remote` → 成功；仓内 item info 可见 `junit/junit/4.13.2/*.jar`；二次 dependency:get（清本地 repo）零上游 | P0 |
 | FR-20-AC7 | M46：npm remote 代理 npmjs（公网可用时；离线用 mock）——`npm install lodash --registry $BASE/binflow/api/npm/npm-remote/` exit 0；抓包/日志证明 tarball 与 packument 均经 BinFlow（`dist.tarball` 已重写） | P1 |
 | FR-20-AC8 | M47：pip 代理 pypi.org（公网可用时；离线 mock）——`pip install --index-url .../simple six` exit 0，二次零上游 | P1 |
 | FR-20-AC9 | M48：remote 写拒绝——`PUT /binflow/generic-remote/x.bin` → 405 + `Allow: GET`；`DELETE /binflow/generic-remote/dir/up.bin` → 204（删缓存）后 GET 再次回源（上游 log +1，内容一致） | P0 |
-| FR-20-AC10 | 上游凭据：mock 上游开 Basic（h / tpasswd）→ remote 配 username/password 后 GET 成功；错误凭据 → 502（上游 401 归为上游故障分支，message 含 401）；GET repo config 不回显明文密码 | P1 |
+| FR-20-AC10 | 上游凭据：mock 上游开 Basic（h / tpasswd）→ remote 配 username/password 后 GET 成功；错误凭据 → **404**（上游 401 视为资源 unfound，v1.1 定案 repo-semantics §7.6；message 附 upstream 401 摘要）；GET repo config 不回显明文密码 | P1 |
 | FR-20-AC11 | 大文件流式：上游 1GB 文件代理下载，服务进程 RSS 增量 < 256MB（M1 NFR-P3 的 remote 版） | P1 |
 | FR-20-AC12 | 上游重定向：302 → http://169.254.169.254/（云 metadata）→ 拒绝（400 + WARN，重定向每跳重过校验链）；302 → 公网同源路径 → 跟随成功（≤5 跳） | P0 |
+| FR-20-AC13 | checksum 后缀不回源（v1.1 定案，P0）：`GET /binflow/generic-remote/dir/up.bin.sha1`（含已缓存制品）→ 404，body message == `Checksums are not downloadable.`；上游 log 零新增（M45 对 maven-remote 的 `.jar.sha1` 同断言；mvn 经 M45 全链不受此影响） | P0 |
 
 ### FR-21 virtual 仓库：聚合与解析顺序（dev-go-core + dev-registry-adapter）
 
-**用户故事**：作为平台工程师，我把 local 与若干 remote 缝进一个 virtual 仓，成员列表顺序即优先级——内部制品优先、公共依赖兜底，开发者只配一个 URL。
+**用户故事**：作为平台工程师，我把 local 与若干 remote 缝进一个 virtual 仓，成员声明序即默认优先级、可按成员标记 `priorityResolution` 提权——内部制品优先、公共依赖兜底，开发者只配一个 URL。
 
-行为规格（virtual 概念对齐 Artifactory；解析顺序按成员列表顺序的简化语义——Artifactory 的 `priorityResolution` 标记简化归档 Q2）：
+行为规格（**v1.1 按 repo-semantics §8 定案重写**：virtual 概念对齐 Artifactory，搜索序为「四桶」而非纯列表序——BinFlow 因无独立 `<key>-cache` 仓投影（§6.4）简化为两桶）：
 
-- **GET/HEAD `/binflow/<virtual>/<path>`**：按**成员列表顺序**逐个解析——local 成员查本地 node；remote 成员走 FR-20 代理链（含自身缓存）；**首个命中者胜出**（透传其内容与头集）。全 miss → 404（E-01）。
-- **写路由**：未配 `defaultDeploymentRepo` → PUT/POST/DELETE → **405 + `Allow: GET`**（repo-semantics §2 / rest-api.md §1.2 高置信度，Artifactory 同语义）；配置后 → 写操作路由到该 local 成员执行（权限、覆盖检查、checksum 链均按目标仓语义），virtual GET 立即可见（P1）。npm 的 publish PUT 与 PyPI 的 upload POST 同样走路由（FR-18/19 端点含 `<virtual-repo>` 形态）。
-- **metadata 聚合（P1）**：包名/GAV 命中多个成员时合并——maven：artifact 级 maven-metadata.xml 的 `versions` 取并集（`latest` 取字典序最大）；npm：packument `versions/dist-tags` 合并（同名版本以**顺序靠前成员**为准）；PyPI：simple index 页文件并集（同 filename 以靠前成员为准）。P0 语义 = 首个命中成员透传（同名包分散多成员时只见到首个——文档明示，P1 升级合并）。
-- **删除**：virtual 不可直接删（405）；`DELETE /binflow/<virtual>/<path>` 不提供「穿透删除」语义（防误删上游缓存——删缓存请对 remote 成员操作；BinFlow 有意不兼容 Artifactory 的 virtual 删除透传行为，归档 VE-06）。
-- **virtual 嵌套 virtual**：不支持（FR-15-AC4，400）。
+- **GET/HEAD `/binflow/<virtual>/<path>`**：成员按**两桶序**解析——优先桶（`priorityResolution=true` 的成员，桶内按声明序）在前，其余成员（桶内按声明序）在后；local 成员查本地 node，remote 成员走 FR-20 代理链（含其缓存与 stale 语义）；**下载类解析首命中即停**（透传其内容与头集）。全 miss → 404（E-01）。Artifactory 四桶的精确语义（cache 仓与 remote 本体同进退、同优先级内声明序）为规格 §8.1 高置信度定案，BinFlow 两桶为其在「缓存 node 直落 remote 仓」模型下的语义等价简化（差异仅在 cache 命中与 remote 回源的次序，对客户端不可观察）。
+- **写路由**：未配 `defaultDeploymentRepo` → PUT/POST/DELETE → **405 + `Allow: GET`**，body `No local repository was configured as local deployment repository for the (<key>) virtual repository.`（**v1.1 定案文案**，repo-semantics §8.2 高置信度）；配置后 → 写操作路由到该 local 成员执行（权限、覆盖检查、checksum 链均按目标仓语义），virtual GET 立即可见（P1）；`defaultDeploymentRepo` 指向非 local 成员 → 400（建仓校验）。npm 的 publish PUT 与 PyPI 的 upload POST 同样走路由（FR-18/19 端点含 `<virtual-repo>` 形态）。
+- **metadata 聚合（P1，v1.1 定案 per-protocol 语义——并非统一机制，规格 §8.3 高置信度）**：
+  - **Maven**：`maven-metadata.xml` GET 拦截——按桶序逐仓取同名 metadata，**内存合并**：versions 去重按 Maven 版本序重排、latest/release 重算、snapshot 取 buildNumber 更大者、v3 开关下并 `snapshotVersions`（绕开 Maven 官方 merge 不含 snapshotVersions 的缺陷 MNG-5180）；优先成员已产出即停止非优先成员（foundByPriority 短路）；**结果不缓存、每次现算**；任一成员被 block → 整体透传 block；
+  - **npm**：首成员为基底、后续成员版本 `putIfAbsent`（先到先得，同版本不覆盖——v1.0 的「靠前成员为准」表述定案）、`dist-tags`/`time` 并集、通用字段取先到者、latest 重算；合并结果**可缓存**（Artifactory 存 virtual cache 仓 TTL 600s 且 <600 视为禁用——BinFlow M3 按规格 §4.3 建议实现「每次现算」版，语义等价，缓存优化 M4）；
+  - **PyPI**：simple 索引逐仓收集后条目合并；格式不一致（请求 JSON 而成员只出 HTML）→ 整体回退 HTML；任一成员失败不阻塞其它；remote 成员的「包不存在」走独立负缓存（Artifactory 8h/5 万条——BinFlow 复用 FR-20 负缓存参数，不单列）。
+  - P0 语义 = 首个命中成员透传（同名包分散多成员时只见到首个——文档明示，P1 升级合并）。
+- **删除**：virtual 不可直接删（405）；`DELETE /binflow/<virtual>/<path>` 不提供「穿透删除」语义（BinFlow 有意不兼容——**v1.1 更正背景**：Artifactory 实为逐成员查找持有者删除（repo-semantics §8.2 中置信度、待验证 #5），非「不做」；BinFlow M3 仍不做，防误删上游缓存，删缓存请对 remote 成员操作，M4 治理时再评估跟进）。
+- **virtual 嵌套 virtual**：不支持（FR-15-AC4，400；Artifactory 支持递归展开，BinFlow M3 有意收窄）。
 - **浏览**：`GET /binflow/api/storage/<virtual>/<path>` 聚合 children（同名去重，标注来源成员——`props`/字段形态归实现；P1）；`GET /binflow/<virtual>/` 目录列表（匿名可读语义随全局开关）。
 
 | # | AC（可执行） | 优先级 |
@@ -305,8 +341,9 @@ M3 在 M1/M2 地基上追加而非返工：三协议构件全部落同一 checks
 | FR-21-AC4 | M53：写路由（P1）——配 `defaultDeploymentRepo: maven-local` 后 `mvn deploy` 经 virtual → BUILD SUCCESS；`GET /binflow/maven-virtual/<新 GAV>` 200；node 实际落 maven-local（`/binflow/maven-local/<GAV>` 亦 200） | P1 |
 | FR-21-AC5 | M54：npm virtual——`npm install demo-pkg lodash --registry $BASE/binflow/api/npm/npm-virtual/` exit 0（本地包与代理包一次装齐）；PyPI virtual 等价（pip install 本地包 + 上游包） | P1 |
 | FR-21-AC6 | M55：metadata 合并（P1）——maven：成员1 有 1.0.0、成员2 有 1.1.0 → `GET /binflow/maven-virtual/<GAV>/maven-metadata.xml` versions 含两者；npm packument 合并断言同理 | P1 |
-| FR-21-AC7 | virtual 全 miss → 404 E-01；成员 remote 的上游故障按 FR-20-AC5 降级（stale 优先于跳到下一成员? **顺序优先**：stale 命中即返回，见 §5.5 C3 校准项） | P1 |
+| FR-21-AC7 | virtual 全 miss → 404 E-01；**stale/下一成员优先关系定案（v1.1，C3 收口）**：成员 remote 命中 stale 缓存（含过期副本）即作为该成员的解析结果返回、不跳下一成员；仅成员真正 404（负缓存/无副本/assumed-offline 无缓存）才继续桶序下一成员 | P1 |
 | FR-21-AC8 | 聚合浏览：`GET /binflow/api/storage/maven-virtual/com/acme` → 200，children 覆盖两成员的 artifactId 并集 | P2 |
+| FR-21-AC9 | priorityResolution 两桶序（v1.1 定案，P1）：M51 变体——把**声明序在后**的成员2 标记 `priorityResolution=true` → 同 GAV GET 得成员2 内容（优先桶整体前置于声明序）；无标记时回归 M51 的声明序行为 | P1 |
 
 ### FR-22 conformance：真实客户端矩阵与回归基线（qa + 全 dev 角色）
 
@@ -333,47 +370,47 @@ M3 在 M1/M2 地基上追加而非返工：三协议构件全部落同一 checks
 
 ### 5.2 M3 端点矩阵
 
-「置信度」：高 = 官方规范明文或既有逆向规格（repo-semantics/rest-api）+ 定案；中 = PRD 暂定，待 `maven-npm-pypi.md` 与 repo-semantics §7 校准（§5.5）。编号前缀：RE = 仓库模型/remote/virtual 行为，ME = Maven，NE = npm，PE = PyPI。
+「置信度」（v1.1 起基线更新）：高 = 官方规范明文或逆向规格（`maven-npm-pypi.md` + repo-semantics §1~§8，T-59 已落地）；中 = PRD 暂定（规格标「待验证」或未见明确值，§5.5 注明来源）。编号前缀：RE = 仓库模型/remote/virtual 行为，ME = Maven，NE = npm，PE = PyPI。
 
 | # | 端点（方法 路径） | 行为要点 | 层级 | 优先级 | 置信度 | 验收 |
 |---|---|---|---|---|---|---|
-| RE-01 | `PUT /binflow/api/repositories/{key}` rclass=remote | 字段子集 url（必填）/username/password/retrievalCachePeriodSecs/missedRetrievalCachePeriodSecs/socketTimeoutSecs + BinFlow 扩展 allowPrivateUpstream；200 纯文本（M1 E-06 语义） | 兼容（子集） | P0 | 高（url/凭据）/ 中（TTL 默认值，§5.5 C4） | M02/M02b |
-| RE-02 | `PUT .../{key}` rclass=virtual | `repositories[]` 必填；`defaultDeploymentRepo` 可选（写路由）；嵌套 virtual 400 | 兼容（子集） | P0 | 高（字段）/ 中（defaultDeploymentRepo 字段名，§5.5 C5） | M03/M52/M53 |
+| RE-01 | `PUT /binflow/api/repositories/{key}` rclass=remote | 字段子集 url（必填）/username/password/retrievalCachePeriodSecs（默认 7200）/missedRetrievalCachePeriodSecs（1800）/socketTimeoutSecs（15）/assumedOfflinePeriodSecs（300）/hardFail（false）+ BinFlow 扩展 allowPrivateUpstream；200 纯文本（M1 E-06 语义） | 兼容（子集） | P0 | 高（v1.1：字段与默认值定案，repo-semantics §7.1） | M02/M02b |
+| RE-02 | `PUT .../{key}` rclass=virtual | `repositories[]` 必填；成员级 `priorityResolution`（两桶序）；`defaultDeploymentRepo` 可选（别名 `defaultDeploymentRepoRef`）；嵌套 virtual 400 | 兼容（子集） | P0 | 高（v1.1 定案，repo-semantics §8.1/§8.2） | M03/M52/M53 |
 | RE-03 | `GET /binflow/api/repositories`（type/packageType 过滤） | `type=remote|virtual` 取值启用；列表元素含 url（remote）/repositories（virtual）摘要 | 兼容（子集） | P1 | 高 | M04 |
-| RE-04 | `GET/HEAD /binflow/<remote>/<path>` | pull-through：hit 直接服务 / miss 回源落盘；404 负缓存；502 上游故障（stale 降级 P1）；M1 头集齐全 | 兼容（语义对齐 Artifactory remote 下载） | P0 | 高（语义）/ 中（TTL 与 stale 细节） | M41/M43/M44 |
+| RE-04 | `GET/HEAD /binflow/<remote>/<path>` | pull-through 六步（§7.2）：checksum 后缀不回源 404 / 负缓存 / 缓存命中直发 / 过期回源（HEAD 协商 P1）/ 上游 404 负缓存+过期副本回发 / 上游故障 assumed-offline 静默——有缓存服务缓存、无缓存 **404**（`hardFail:true` → 502）；M1 头集齐全 | 兼容（语义对齐 Artifactory remote 下载） | P0 | 高（v1.1 定案，repo-semantics §7.2/§7.6；上游 5xx 分支细节标中） | M41/M43/M44 |
 | RE-05 | `PUT/POST /binflow/<remote>/<path>` | remote 不可写：405 + `Allow: GET` | 兼容 | P0 | 高 | M48 |
-| RE-06 | `DELETE /binflow/<remote>/<path>` | **仅删本地缓存**（幂等 204/404 语义同 M1 E-14），再 GET 触发回源；不触达上游 | 兼容（Artifactory 同语义） | P1 | 中（§5.5 C6：Artifactory 删 remote 缓存是否同步 upstream delete——BinFlow 定案**绝不同步**） | M48 |
-| RE-07 | `GET/HEAD /binflow/<virtual>/<path>` | 成员顺序解析、首命中透传；全 miss 404 | 兼容 | P0 | 高（顺序语义中置信度待 §7.2 补强） | M50/M51 |
-| RE-08 | `PUT/DELETE /binflow/<virtual>/<path>` | 未配写路由 → 405 + `Allow: GET`；DELETE 永不透传删除（有意不兼容归档） | 兼容（PUT）/ 有意不兼容（DELETE 透传） | P0/P1 | 高（repo-semantics §2/rest-api §1.2） | M52 |
+| RE-06 | `DELETE /binflow/<remote>/<path>` | **仅删本地缓存**（幂等 204/404 语义同 M1 E-14），再 GET 触发回源；不触达上游（Artifactory 另有 Zapping 清缓存端点族，BinFlow 不实现该 REST 形态——DELETE 即等价操作） | 兼容（Artifactory 同语义） | P1 | 高（v1.1 升格：repo-semantics §7.4 无上游删除同步语义，C6 收口） | M48 |
+| RE-07 | `GET/HEAD /binflow/<virtual>/<path>` | 两桶序（priorityResolution 优先桶 → 其余，桶内声明序）、下载首命中即停；全 miss 404 | 兼容 | P0 | 高（v1.1 定案：Artifactory 四桶序 §8.1，BinFlow 两桶为无 cache 仓投影下的等价简化） | M50/M51 |
+| RE-08 | `PUT/DELETE /binflow/<virtual>/<path>` | 未配写路由 → 405 + `Allow: GET` + 定案文案（repo-semantics §8.2）；DELETE 不透传（BinFlow 有意不兼容——Artifactory 实为逐成员删除，中置信度待验证 #5，M4 评估跟进） | 兼容（PUT）/ 有意不兼容（DELETE 透传） | P0/P1 | 高（PUT 分支）/ 中（DELETE 分支背景） | M52 |
 | RE-09 | `GET /binflow/api/storage/<virtual>/<path>` | 聚合 children/item info（来源标注 P2） | 兼容（子集） | P1 | 中 | M55b |
 | RE-10 | `{"rclass":"remote","packageType":"docker"}` 等 docker 组合 | 400「not supported in M3」（§2.2 + Q4） | 有意不兼容（阶段性） | P0 | — | M05 |
 | RE-11 | `GET /binflow/api/v1/remote/stats` | BinFlow 自有：每 remote 仓缓存 node 数/字节数/命中率（hit/miss 计数） | /api/v1 | P2 | — | M59 |
-| ME-01 | `PUT /binflow/<maven-repo>/<layout path>` | 构件/pom/旁车 checksum；严格 layout 校验（400）；checksum 策略三态；metadata/sidecar 永不触发覆盖检查 | 兼容 | P0 | 高（checksum 链）/ 中（layout 严格性与 400，§5.5 C2） | M11/M17/M18/M20 |
+| ME-01 | `PUT /binflow/<maven-repo>/<layout path>` | 构件/pom/旁车 checksum；严格 layout 校验（400）按 maven-2-default 六字段 pattern（v1.1 定案模型）；checksum 策略三态；metadata/sidecar 永不触发覆盖检查；snapshot policy 拒绝 **409** | 兼容 | P0 | 高（checksum 链/layout 模型/409，v1.1 定案）/ 中（400 码值，C2） | M11/M17/M18/M19/M20 |
 | ME-02 | `GET/HEAD /binflow/<maven-repo>/<layout path>` | 200 流式 + `X-Checksum-*`/`ETag=<sha1>`/Range/304（M1 链继承） | 兼容 | P0 | 高 | M12/M13/M21 |
-| ME-03 | `GET /binflow/<maven-repo>/<file>.{md5,sha1,sha256}` | 旁车内容 = 服务端实测裸 hex（无换行）；PUT 旁车走校验链（ME-01） | 兼容 | P0 | 高（rest-api §1.5） | M14/M18 |
-| ME-04 | `GET .../maven-metadata.xml`（artifact 级） | 服务端计算生成；versions/latest/lastUpdated；`.md5/.sha1` 旁车一致 | 兼容 | P0 | 高（结构）/ 中（合并细节 C1） | M14/M15 |
-| ME-05 | `GET .../<version>/maven-metadata.xml`（snapshot） | snapshotVersions/timestamp/buildNumber；`-U` 刷新可用 | 兼容 | P0 | 高 | M16/M16b |
-| ME-06 | `PUT .../maven-metadata.xml` | 客户端上传 = **合并**（union/max），不覆盖；并发安全 | 兼容 | P0 | 中（合并语义对齐 Artifactory 待逆向，§5.5 C1） | M15 变体 |
-| ME-07 | snapshot 布局（unique timestamped / non-unique） | 两种上传皆可；non-unique 覆盖走覆盖检查链 | 兼容 | P0 | 高（Maven 公开惯例） | M16 |
-| ME-08 | `handleReleases/handleSnapshots` 开关 | false 时对应 deploy 拒绝 **404**；GET 不受影响 | 兼容 | P1 | 中（404 vs 409，repo-semantics §2 中置信度） | M19 |
+| ME-03 | `GET /binflow/<maven-repo>/<file>.{md5,sha1,sha256}` | local：旁车内容 = 服务端实测裸 hex（无换行）；PUT 旁车走校验链；**remote 仓：不回源 → 404 `Checksums are not downloadable.`**（v1.1 定案，规格 §1.5/§7.2） | 兼容 | P0 | 高 | M14/M18/M45 |
+| ME-04 | `GET .../maven-metadata.xml`（版本组目录） | 服务端计算生成：versions=含 pom 子目录集、latest/release 重算、lastUpdated=计算时刻；无 pom 子目录 → 删 metadata（RTFACT-6242 例外）；`.md5/.sha1` 旁车一致 | 兼容 | P0 | 高（v1.1 定案，规格 §1.4） | M14/M15 |
+| ME-05 | `GET .../<version>/maven-metadata.xml`（snapshot） | snapshotVersions 每 (ext×classifier) 最新、buildNumber/timestamp 取自最新 unique pom（non-unique 固定 1）；`-U` 刷新可用 | 兼容 | P0 | 高（v1.1 定案，规格 §1.4） | M16/M16b |
+| ME-06 | `PUT .../maven-metadata.xml` | 客户端上传被接受（201）并触发重算；**权威内容以服务端存储事实计算为准**（等效合并，并发不丢版本） | 兼容 | P0 | 高（v1.1 定案，规格 §1.4——v1.0「XML union/max」表述修正） | M15 变体 |
+| ME-07 | snapshot 上传（repo 字段 `snapshotVersionBehavior`：deployer 默认/non-unique/unique） | 三值语义见 FR-16；已是 unique 文件名不改写；服务端 unique 改写（buildNumber 连续）P2 | 兼容 | P0 | 高（v1.1 定案，规格 §1.3） | M16 |
+| ME-08 | `handleReleases/handleSnapshots` 开关 | false 时对应 deploy 拒绝 **409**（v1.1 勘误：SnapshotPolicyException 显式 409）；GET 不受影响 | 兼容 | P1 | 高（v1.1 定案，规格 §1.4） | M19 |
 | ME-09 | repo 配置 `checksumPolicyType` | `client-checksums`（默认）/`server-generated-checksums` 两值 | 兼容 | P0 | 高（repo-semantics §5） | M17 |
 | ME-10 | `GET /binflow/<maven-repo>/.index/**` | Maven 索引不做 → 404 + E-01 | 有意不兼容 | — | — | M58 |
-| NE-01 | `PUT /binflow/api/npm/<repo>/<package>` | publish（packument + `_attachments`）；201 `{"success":true}`；scoped `@scope%2Fname`；tarball sha1 校验 400；同版本重复 → **409**（npmjs 为 403，客户端只判非 2xx，有意偏离） | 兼容 | P0 | 高（npm registry API） | M22/M26 |
-| NE-02 | `GET /binflow/api/npm/<repo>/<package>` | packument：name/dist-tags/versions/dist{tarball,shasum,integrity}/_rev；tarball URL 指回 BinFlow；remote/virtual 仓重写上游 tarball URL | 兼容 | P0 | 高 | M22b/M46 |
-| NE-03 | `GET /binflow/api/npm/<repo>/<pkg path>/-/<file>.tgz` | tarball 流式 + checksum 头；内容路径 `/binflow/<repo>/...` 亦可 GET（同 node 两入口） | 兼容 | P0 | 高 | M23 |
-| NE-04 | dist-tags：`GET|PUT|POST|DELETE /binflow/api/npm/<repo>/-/package/<name>/dist-tags` + 旧式 `PUT .../<package>/<tag>` | npm ≥ 8 与旧客户端两形态；版本引用联动 | 兼容 | P0 | 高 | M24 |
-| NE-05 | `DELETE /binflow/api/npm/<repo>/<package>/-rev/<rev>` | unpublish 单版本/整包；dist-tags 联动 | 兼容 | P1 | 高 | M27 |
+| NE-01 | `PUT /binflow/api/npm/<repo>/<package>` | publish 走十步校验链（§4 FR-18，v1.1 定案）；201 `{"success":true}`；scoped `@scope%2Fname`（`%2f`/`%2F` 等价）；**同版本重复 → 403** `Cannot modify pre-existing version`（v1.1 定案推翻 409）；integrity/shasum 不一致 → 400 | 兼容 | P0 | 高（v1.1 定案，规格 §2.3） | M22/M26 |
+| NE-02 | `GET /binflow/api/npm/<repo>/<package>` | packument：name/dist-tags/versions/dist{tarball,shasum,integrity}/_rev/time；tarball URL 一律重写指回 BinFlow；**`ETag`/`X-Checksum-Sha1` = 包文档 JSON 的 sha1 + If-None-Match 304**；SLIM Accept 协商（P1） | 兼容 | P0 | 高（v1.1 增补定案，规格 §2.4） | M22b/M46 |
+| NE-03 | `GET /binflow/api/npm/<repo>/<pkg path>/-/<file>.tgz` | tarball 流式 + checksum 头；内容路径 `/binflow/<repo>/...` 亦可 GET（同 node 两入口；布局 v1.1 定案 = `<name>/-/<name>-<version>.tgz`，scoped 含 `@<scope>/` 前缀） | 兼容 | P0 | 高 | M23 |
+| NE-04 | dist-tags：`GET|PUT|POST|DELETE /binflow/api/npm/<repo>/-/package/<name>/dist-tags` + 旧式 `PUT .../<package>/<tag>` | npm ≥ 8 与旧客户端两形态；PUT → 201 `{"ok":"created new tag"}`、DELETE → 200 空、缺失 404 定案文案；版本引用联动 | 兼容 | P0 | 高（v1.1 定案，规格 §2.1） | M24 |
+| NE-05 | unpublish：`PUT .../-rev/<rev>` + `DELETE .../-rev/<rev>` / `DELETE .../-/<filename>/-rev/<rev>` | **`-rev` PUT 恒 200 `{"ok":"updated package"}` 假成功**（npm unpublish 前置占位，v1.1 新增定案）；DELETE 单版本/整包 → 200；dist-tags 联动 | 兼容 | P1 | 高（v1.1 定案，规格 §2.1/§2.7-1） | M27 |
 | NE-06 | `PUT /binflow/api/npm/<repo>/-/user/org.couchdb.user:<name>` + `GET /-/whoami` | npm login（legacy auth-type）/whoami；签发 M1 token 表 token | 兼容 | P1 | 高（npm 行为） | M22c |
 | NE-07 | `GET /binflow/api/npm/<repo>/-/ping` | `{}` | 兼容 | P2 | 高 | M57 |
 | NE-08 | `GET /binflow/api/npm/<repo>/-/v1/search`、`/-/npm/v1/security/*` | 不做 → 404 + E-01 | 有意不兼容 | — | — | M58 |
-| PE-01 | `GET /binflow/api/pypi/<repo>/simple/<name>/` | PEP 503 HTML + `#sha256=`；name 归一化三态同页；未知名 404 | 兼容 | P0 | 高（PEP 503 规范） | M31 |
-| PE-02 | `POST /binflow/api/pypi/<repo>` | twine/warehouse `:action=file_upload` multipart；缺字段 400；重复 filename 400 | 兼容 | P0 | 高（warehouse 公开惯例） | M30/M33 |
-| PE-03 | 文件下载（simple href → `/binflow/<repo>/<norm-name>/<filename>`） | 复用 M1 内容下载链（checksum 头/Range/304）；pip 经 fragment 自校验 | 语义等同但路径不同（布局为 BinFlow 自有，Artifactory 的 packages 路径形态不跟进，§5.5 C7） | P0 | 中（C7） | M32 |
+| PE-01 | `GET /binflow/api/pypi/<repo>/simple/<name>/` | PEP 503 HTML + `#sha256=` + **api-version=2 头（PEP 629）**；name 归一化三态同页；未知名 404；**无尾斜杠 → 302 补尾斜杠**；ETag + 304（不透明稳定哈希）；条目按文件名排序；gzip 预压缩 P2 | 兼容 | P0 | 高（PEP 503 规范 + v1.1 定案细节，规格 §3.2） | M31 |
+| PE-02 | `POST /binflow/api/pypi/<repo>` | twine/warehouse multipart；**`:action` 严格 `file_upload` 否则 400 `unknown action`**；`md5_digest` 可缺失（twine ≥ 6.2，服务端自算）；缺 name/version/content 400；重复 filename 400（维持暂行）；**响应统一 200** | 兼容 | P0 | 高（v1.1 定案，规格 §3.3；重复 filename 分支规格未明示） | M30/M33 |
+| PE-03 | 文件下载（simple href → `/binflow/api/pypi/<repo>/packages/<name>/<version>/<filename>`；存储布局 `<repo>/<name>/<version>/<filename>` 原始名） | 复用 M1 内容下载链（checksum 头/Range/304）；pip 经 fragment 自校验；内容路径 `/binflow/<repo>/...` 为同 node 第二入口 | 兼容（子集）（v1.1 升格：布局对齐 Artifactory，C7 收口） | P0 | 高（v1.1 定案，规格 §3.5） | M32 |
 | PE-04 | `GET /binflow/api/pypi/<repo>/pypi/<name>/json` | PyPI JSON API 不做 → 404 | 有意不兼容 | — | — | M58 |
 | PE-05 | PEP 691：`Accept: application/vnd.pypi.simple.v1+json` | JSON simple 等价形态 | 兼容（子集） | P2 | 高（PEP 691 规范） | M35b |
 | PE-06 | `/binflow/api/pypi-ui/**` | 维持 404（M1 E-26） | 有意不兼容 | — | — | M58 |
 
-> 计数：**35 条**。兼容/兼容（子集）**28**；`/binflow/api/v1` **1**（RE-11）；语义等同但路径不同 **1**（PE-03）；有意不兼容 **5**（RE-10、ME-10、NE-08、PE-04、PE-06）——另有 2 个行内有意不兼容分支：RE-08 的 DELETE 透传分支、NE-01 的重复 publish 409 偏离（npmjs 为 403）。
+> 计数：**35 条**。兼容/兼容（子集）**29**（v1.1：PE-03 由「语义等同」升格）；`/binflow/api/v1` **1**（RE-11）；语义等同但路径不同 **0**；有意不兼容 **5**（RE-10、ME-10、NE-08、PE-04、PE-06）——另有 1 个行内有意不兼容分支：RE-08 的 DELETE 透传分支（v1.0 的 NE-01 重复 publish 409 偏离分支已随 403 定案消除）。
 
 ### 5.3 真实客户端分级矩阵（conformance 判定标准）
 
@@ -517,10 +554,10 @@ curl -su admin:$ADMIN_PW $BASE/binflow/maven-local/com/acme/demo-app/1.1.0/demo-
 printf 'deadbeef' > bad2.sha1
 curl -su admin:$ADMIN_PW -T bad2.sha1 $BASE/binflow/maven-local/com/acme/demo-app/1.1.0/demo-app-1.1.0.jar.sha1 -o /dev/null -w '%{http_code}\n'   # 409（client-checksums 仓）
 
-# M19 开关拒绝（FR-16-AC7，P1；ME-08 状态码 404 为中置信度，QA 以本 PRD 口径为准）
+# M19 开关拒绝（FR-16-AC7，P1；v1.1 勘误：409——SnapshotPolicyException 显式值，maven-npm-pypi.md §1.4）
 curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/maven-relonly -H 'Content-Type: application/json' \
   -d '{"rclass":"local","packageType":"maven","handleSnapshots":false}' -o /dev/null -w '%{http_code}\n'  # 200
-curl -su admin:$ADMIN_PW -T $JAR $BASE/binflow/maven-relonly/com/acme/x/2.0-SNAPSHOT/x-2.0-SNAPSHOT.jar -o /dev/null -w '%{http_code}\n'  # 404（拒绝）
+curl -su admin:$ADMIN_PW -T $JAR $BASE/binflow/maven-relonly/com/acme/x/2.0-SNAPSHOT/x-2.0-SNAPSHOT.jar -o /dev/null -w '%{http_code}\n'  # 409（拒绝，v1.1：404→409）
 
 # M20 layout 校验（FR-16-AC8）
 curl -su admin:$ADMIN_PW -T $JAR $BASE/binflow/maven-local/foo.jar -o /dev/null -w '%{http_code}\n'   # 400
@@ -571,14 +608,16 @@ cat > package.json <<EOF
 EOF
 npm publish && cd .. && npm install @acme/util --registry $NPM_REG && echo SCOPED_OK
 
-# M26 重复 publish（FR-18-AC6）
+# M26 重复 publish（FR-18-AC6；v1.1 勘误：409→403，Artifactory 定 403 `Cannot modify pre-existing version`）
 cd npm-demo && npm version --no-git-tag-version 1.0.0 >/dev/null 2>&1 || true
 curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/npm/npm-local/demo-pkg \
   -H 'Content-Type: application/json' -d "$(curl -su admin:$ADMIN_PW $BASE/binflow/api/npm/npm-local/demo-pkg)" \
-  -o /dev/null -w '%{http_code}\n'    # 409（同版本重复；客户端 npm publish 同效报错）
+  -o /dev/null -w '%{http_code}\n'    # 403（同版本重复；客户端 npm publish 同效报错）
 
-# M27 unpublish（FR-18-AC7，P1）
+# M27 unpublish（FR-18-AC7/AC11，P1；v1.1：-rev PUT 恒 200 假成功为流程前置）
 cd npm-demo && npm version --no-git-tag-version 1.0.1 >/dev/null && npm publish
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/npm/npm-local/demo-pkg/-rev/00000000000000000000000000000000 \
+  -H 'Content-Type: application/json' -d '"0-0000000000000000000000000000000"' | jq -r .ok   # updated package（恒假成功，包内容无变化）
 npm unpublish demo-pkg@1.0.1 --force --registry $NPM_REG
 curl -su admin:$ADMIN_PW $BASE/binflow/api/npm/npm-local/demo-pkg | jq -r '.versions | keys | join(",")'  # 无 1.0.1
 
@@ -596,11 +635,17 @@ EOF
 pip wheel . -w dist/ >/dev/null && ls dist/*.whl
 twine upload --repository-url $BASE/binflow/api/pypi/pypi-local -u admin -p $ADMIN_PW dist/* && echo TWINE_OK
 
-# M31 simple index + 归一化（FR-19-AC2）
+# M31 simple index + 归一化（FR-19-AC2；v1.1 补：api-version 头 / 无尾斜杠 302 / ETag-304 / :action 400）
 curl -su admin:$ADMIN_PW $BASE/binflow/api/pypi/pypi-local/simple/demo-pkg/ | grep -c '#sha256='   # ≥1
+curl -su admin:$ADMIN_PW $BASE/binflow/api/pypi/pypi-local/simple/demo-pkg/ | grep -c 'api-version" value="2"'  # 1（PEP 629）
 for n in Demo_Pkg demo_pkg demo-pkg; do
   curl -su admin:$ADMIN_PW -o /dev/null -w "%{http_code} $n\n" $BASE/binflow/api/pypi/pypi-local/simple/$n/   # 200 x3
 done
+curl -su admin:$ADMIN_PW -o /dev/null -w '%{http_code} %{redirect_url}\n' $BASE/binflow/api/pypi/pypi-local/simple/demo-pkg  # 302 + Location 补尾斜杠
+ET=$(curl -su admin:$ADMIN_PW -I $BASE/binflow/api/pypi/pypi-local/simple/demo-pkg/ | awk -F': ' 'tolower($1)=="etag"{gsub("\r","");print $2}')
+curl -su admin:$ADMIN_PW -o /dev/null -w '%{http_code}\n' -H "If-None-Match: $ET" $BASE/binflow/api/pypi/pypi-local/simple/demo-pkg/  # 304
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/pypi/pypi-local -F ':action=submit' -F 'name=x' \
+  | jq -r '.errors[0].message'    # unknown action 'submit'（HTTP 400）
 
 # M32 pip install + hash 对账（FR-19-AC3）
 python3 -m venv v && ./v/bin/pip install --index-url $PIP_IDX demo-pkg && ./v/bin/pip show demo-pkg | grep -x 'Version: 0.1.0'
@@ -637,19 +682,27 @@ curl -su admin:$ADMIN_PW -o /dev/null -w '%{http_code}\n' $BASE/binflow/generic-
 curl -su admin:$ADMIN_PW -o /dev/null -w '%{http_code}\n' $BASE/binflow/generic-remote/no-such.bin   # 404
 UPb=$(wc -l < /tmp/upstream.log); echo "$UPa -> $UPb"    # 上游访问只 +1（第二次命中负缓存）
 
-# M44 上游故障降级（FR-20-AC5）
+# M44 上游故障降级（FR-20-AC5；v1.1 改写：默认 404 + assumed-offline 静默，hardFail 仓 502）
+printf 'up2' > upstream-dir/dir/up2.bin   # 预置一个未缓存路径的内容（供恢复后验证）
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/generic-remote-hardfail -H 'Content-Type: application/json' \
+  -d '{"rclass":"remote","packageType":"generic","url":"http://127.0.0.1:9099","allowPrivateUpstream":true,"hardFail":true}' \
+  -o /dev/null -w '%{http_code}\n'        # 200（hardFail 对照仓）
 pkill -f 'http.server 9099'; sleep 1
-curl -su admin:$ADMIN_PW -i $BASE/binflow/generic-remote/dir/up.bin | grep -i '^x-binflow-upstream-error'   # 有该头 + 200（stale）
-curl -su admin:$ADMIN_PW -o /dev/null -w '%{http_code}\n' $BASE/binflow/generic-remote/dir/up2.bin          # 502（未缓存）
+UPa=$(wc -l < /tmp/upstream.log 2>/dev/null || echo 0)
+curl -su admin:$ADMIN_PW -i $BASE/binflow/generic-remote/dir/up.bin | grep -i '^x-binflow-upstream-error'   # 有该头 + 200（stale 服务）
+curl -su admin:$ADMIN_PW -o /dev/null -w '%{http_code}\n' $BASE/binflow/generic-remote/dir/up2.bin          # 404（未缓存，默认 hardFail:false；message 含 offline 状态）
+curl -su admin:$ADMIN_PW -o /dev/null -w '%{http_code}\n' $BASE/binflow/generic-remote-hardfail/dir/up.bin  # 502（hardFail:true 仓）
+UPb=$(wc -l < /tmp/upstream.log 2>/dev/null || echo 0); [ "$UPa" = "$UPb" ] && echo SILENCE_OK   # 静默期（300s）零上游流量
 curl -sfu admin:$ADMIN_PW $BASE/binflow/api/v1/health | jq -r .status                                       # ok
-(cd upstream-dir && python3 -m http.server 9099 >/tmp/upstream.log 2>&1 &)   # 恢复上游供后续用例
+(cd upstream-dir && python3 -m http.server 9099 >/tmp/upstream2.log 2>&1 &)   # 恢复上游（静默期结束后自动可用；QA 可缩短 assumedOfflinePeriodSecs 加速）
 
-# M45 maven 代理（FR-20-AC6；公网可用走 Central，离线 mock 摆 junit/junit/4.13.2 布局）
+# M45 maven 代理（FR-20-AC6/AC13；公网可用走 Central，离线 mock 摆 junit/junit/4.13.2 布局）
 curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/maven-remote -H 'Content-Type: application/json' \
   -d '{"rclass":"remote","packageType":"maven","url":"https://repo.maven.apache.org/maven2"}' -o /dev/null -w '%{http_code}\n'  # 200（公网上游无需 allowPrivate）
 mvn -B dependency:get -Dartifact=junit:junit:4.13.2 -DremoteRepositories=central::default::$BASE/binflow/maven-remote \
   -Dmaven.repo.local=$(pwd)/junit-repo && echo PROXY_MAVEN_OK
 curl -su admin:$ADMIN_PW -o /dev/null -w '%{http_code}\n' $BASE/binflow/maven-remote/junit/junit/4.13.2/junit-4.13.2.jar   # 200（已缓存）
+curl -su admin:$ADMIN_PW $BASE/binflow/maven-remote/junit/junit/4.13.2/junit-4.13.2.jar.sha1 | jq -r '.errors[0].message'  # Checksums are not downloadable.（HTTP 404，v1.1 定案：checksum 后缀不回源）
 
 # M46/M47 npm/pypi 代理（FR-20-AC7/AC8，P1；公网或 mock）
 curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/npm-remote -H 'Content-Type: application/json' \
@@ -704,18 +757,20 @@ curl -s $BASE/binflow/api/pypi-ui/x -o /dev/null -w '%{http_code}\n'            
 # M61 回归基线（FR-22-AC5 / §5.6）：M1 C 序列 P0 + M2 D 序列 P0 + C26/D-Basis 断言反转复跑
 ```
 
-### 5.5 待校准项（逆向规格落地后回写，流程同 M1 §5.5 / M2 §6.5）
+### 5.5 校准记录（v1.1：`maven-npm-pypi.md` + repo-semantics §7/§8 已落地（T-59），C1~C8 逐条定案）
 
-| # | 项 | 本文暂定值 | 校准来源（计划） |
-|---|---|---|---|
-| C1 | maven-metadata.xml 合并细节（PUT metadata 的合并优先序、lastUpdated 粒度、 Artifactory 是否直接采纳客户端 metadata 主体） | versions 并集 + 数值取最大 | `maven-npm-pypi.md` Maven 节 + repo-semantics §7 |
-| C2 | maven 仓 layout 不合规的拒绝行为与状态码（Artifactory repoLayoutRef 校验） | 400，严格校验 | `maven-npm-pypi.md` |
-| C3 | virtual 解析顺序细节（成员顺序即优先级是否为 Artifactory 实际行为；priorityResolution 的精确语义；remote stale 与「跳到下一成员」的优先关系） | 列表顺序、stale 优先于继续 | repo-semantics §7.2 |
-| C4 | remote 缓存参数默认值与回源协商（retrieval/missed 默认秒数；ETag/Last-Modified 条件回源） | 7200s/1800s；不做协商（纯 TTL） | repo-semantics §7.1 |
-| C5 | virtual 写路由字段名（`defaultDeploymentRepo` vs `deploymentRepository`） | 双名并收 | repo-semantics §7.2 / rest-api.md |
-| C6 | remote 缓存删除是否同步上游 delete | 绝不同步（本地删除） | repo-semantics §7.1 |
-| C7 | PyPI 文件落盘布局（Artifactory 的 pypi 路径形态）与 simple href 形态 | BinFlow 自有 `/binflow/<repo>/<norm-name>/<filename>` | `maven-npm-pypi.md` PyPI 节 |
-| C8 | npm tarball 落盘布局与 packument `_rev`/`_attachments` 保留策略 | `<pkg>/-/<name>-<version>.tgz`；publish 后 `_attachments` 清空（惯例） | `maven-npm-pypi.md` npm 节 |
+| # | 项 | v1.0 暂定值 | **v1.1 定案** | 依据（置信度） |
+|---|---|---|---|---|
+| C1 | maven-metadata.xml 服务端计算与「合并」细节 | versions 并集 + 数值取最大（XML 级合并） | **服务端计算为准**：触发时机四类（unique snapshot/non-unique pom 同步，其余异步；pom 额外算祖父目录）；版本组 versions=含 pom 子目录集、latest/release/lastUpdated 重算、无 pom → 删 metadata（RTFACT-6242 保护例外）；SNAPSHOT 目录 buildNumber/timestamp 取最新 unique pom（non-unique 固定 1）、snapshotVersions 每 (ext×classifier) 最新；客户端 PUT metadata 触发重算而非直接采纳；virtual 合并内存现算不缓存（含 MNG-5180 规避） | maven-npm-pypi.md §1.4/§1.6 + repo-semantics §8.3（高） |
+| C2 | maven 仓 layout 不合规的拒绝行为与状态码 | 400，严格校验 | **layout 模型定案**：maven-2-default 六字段 pattern（一手 config 模板）；token 语义与 unique snapshot 文件名正则定案；**400 状态码维持暂行**（规格定案了模型、未见明确拒绝码值） | maven-npm-pypi.md §1.2（高，模型）/ 拒绝码维持暂定 |
+| C3 | virtual 解析顺序（列表序是否实情；priorityResolution 精确语义；stale 与下一成员优先关系） | 列表顺序、stale 优先于继续 | **四桶序定案**（优先 local+cache → 优先 remote 本体 → 非优先 local+cache → 非优先 remote，桶内声明序、下载首命中即停）；BinFlow 因无 `<key>-cache` 仓投影简化为**两桶**（语义等价）；**stale 命中即返回、仅真 404 才继续下一成员**；嵌套 virtual 递归展开（BinFlow 有意收窄不做） | repo-semantics §8.1（高）；BinFlow 两桶简化为 PRD 决策 |
+| C4 | remote 缓存参数默认值与回源协商 | 7200s/1800s；不做协商（纯 TTL） | **默认值定案 7200/1800**（另 socketTimeout 15s、assumed-offline 300s、metadata 刷新锁 60s）；**协商确证存在**：过期后 HEAD 探测 + Last-Modified 比较（较新则撤销过期不重下）——BinFlow **P0 简化为到期重取、HEAD 协商列 P1**（AC 断言不受影响）；并发 miss 单飞定案（P1） | repo-semantics §7.1/§7.3/§7.4（高）；P0 简化为 BinFlow 决策 |
+| C5 | virtual 写路由字段名 | `defaultDeploymentRepo` + `deploymentRepository` 别名 | **双名并收维持 + 增补规格名别名 `defaultDeploymentRepoRef`**；405 文案定案 `No local repository was configured as local deployment repository for the (<key>) virtual repository.`；`defaultDeploymentRepo` 指向非 local → 404 `Could not find a local repository named <key> to deploy to.`（BinFlow 建仓时前置 400，语义更早更严，有意从严） | repo-semantics §8.2（高）/ 前置 400 为 BinFlow 决策 |
+| C6 | remote 缓存删除是否同步上游 delete | 绝不同步（本地删除） | **维持定案、置信度升高**：Artifactory 的缓存清理（Zapping 端点族）均为本地操作，无上游删除同步语义 | repo-semantics §7.4（高） |
+| C7 | PyPI 文件落盘布局与 simple href 形态 | BinFlow 自有 `/binflow/<repo>/<norm-name>/<filename>` | **对齐 Artifactory**：制品路径 `<name>/<version>/<filename>`（name 用元数据原始名不 normalize；normalize 仅用于索引查找与 wheel 文件名侧）；simple href 指向 `/binflow/api/pypi/<repo>/packages/<name>/<version>/<filename>`；PE-03 升格兼容（子集） | maven-npm-pypi.md §3.5/§3.2（高） |
+| C8 | npm tarball 落盘布局与 `_attachments` 保留策略 | `<pkg>/-/<name>-<version>.tgz`；publish 后 `_attachments` 清空（惯例） | **布局定案**：`<name>/-/<name>-<version>.tgz`，scoped `@<scope>/<name>/-/@<scope>/<name>-<version>.tgz`；GET 面不返回 `_attachments`（[NPM-API]）；**物理清空与否维持暂行**（规格未明示，对外不可观察） | maven-npm-pypi.md §2.2（高，布局）/ 清空维持暂定 |
+
+> 附带收口（v1.1）：M1 待验证 #4（remote-cache 仓命名 `<key>-cache`）已由规格 §8.4 关闭（virtual cache 同规则）——BinFlow 不模拟该内部投影（缓存 node 直落 remote 仓命名空间，语义等价、对外不可观察差异仅 C3 两桶简化），归档维持 §6.4；规格 §5 的待验证项（`-rev` 隐式副作用、`%2f`/`%2F` 等价、PEP 691 仓库级开关、unique 改写对拍）相应落为 FR-18-AC11/NE-01/PE-05/FR-16-AC12 的断言或 P2 备注。
 
 ### 5.6 回归基线反转表（M3 起生效，qa 更新既有断言）
 
@@ -745,9 +800,9 @@ curl -s $BASE/binflow/api/pypi-ui/x -o /dev/null -w '%{http_code}\n'            
 
 | NFR | 要求 | 验收 |
 |---|---|---|
-| **NFR-S13（SSRF 防护，M3 安全核心）** | 服务进程的一切**出站** HTTP 请求仅能由 remote 仓触发，且逐请求过校验链：① scheme ∈ {http, https}（建仓时校验 + 请求时断言）；② 目标 host 解析后的**全部 IP** 均不得属于：回环（127/8、::1）、私网（RFC1918、IPv6 ULA fc00::/7）、链路本地（169.254/16、fe80::/10，含云 metadata 169.254.169.254）、未指定/保留（0.0.0.0/8、组播、广播）——除非该仓显式 `allowPrivateUpstream:true`（仅 admin 建仓/改仓可设，写审计日志）；③ **DNS rebinding 防护**：校验通过后拨号必须使用已校验的 IP（dialer Control 回调二次校验实际连接地址），不得重新走系统解析；④ 重定向：跟随但**每一跳完整重过 ①②③**，上限 5 跳，拒绝即 400；⑤ 非 streaming 的上游响应（packument/simple/metadata 等缓冲型）大小上限 64MB，超限截断报 502；⑥ 连接/读超时按仓配置（默认连接 10s/读 60s）；⑦ 任何拒绝留 **WARN 级结构化日志**（repo key、被拒目标、原因类别），不打堆栈 | M42 全变体：127.0.0.1 / 10.x / 192.168.x / 169.254.169.254（重定向与直连两式）/ ::1 / 0.0.0.0 / file:// / gopher://（建仓 400）；QA 出示日志取证 |
+| **NFR-S13（SSRF 防护，M3 安全核心）** | 服务进程的一切**出站** HTTP 请求仅能由 remote 仓触发，且逐请求过校验链：① scheme ∈ {http, https}（建仓时校验 + 请求时断言）；② 目标 host 解析后的**全部 IP** 均不得属于：回环（127/8、::1）、私网（RFC1918、IPv6 ULA fc00::/7）、链路本地（169.254/16、fe80::/10，含云 metadata 169.254.169.254）、未指定/保留（0.0.0.0/8、组播、广播）——除非该仓显式 `allowPrivateUpstream:true`（仅 admin 建仓/改仓可设，写审计日志）；③ **DNS rebinding 防护**：校验通过后拨号必须使用已校验的 IP（dialer Control 回调二次校验实际连接地址），不得重新走系统解析；④ 重定向：跟随但**每一跳完整重过 ①②③**，上限 5 跳，拒绝即 400；⑤ 非 streaming 的上游响应（packument/simple/metadata 等缓冲型）大小上限 64MB，超限截断报 502；⑥ 连接/读超时按仓配置（`socketTimeoutSecs` 默认 **15s**，v1.1 对齐 repo-semantics §7.1 的 15000ms）；⑦ 任何拒绝留 **WARN 级结构化日志**（repo key、被拒目标、原因类别），不打堆栈 | M42 全变体：127.0.0.1 / 10.x / 192.168.x / 169.254.169.254（重定向与直连两式）/ ::1 / 0.0.0.0 / file:// / gopher://（建仓 400）；QA 出示日志取证 |
 | NFR-S14 上游凭据不泄露 | `GET .../repositories/{key}` 的 `password` 永不回显明文（掩码或缺省）；服务日志、结构化日志不含上游 Authorization 头或明文凭据；`allowPrivateUpstream` 变更留审计记录 | M02 变体 + 日志 grep |
-| NFR-S15 上游故障隔离 | 上游 5xx/超时对客户端为 502 快速返回；上游慢（挂起连接）不占用无限期资源（超时上限生效）；服务 health 始终 200 | M44 |
+| NFR-S15 上游故障隔离（v1.1 口径） | 上游 5xx/超时不拖垮服务：仓进 assumed-offline 静默期（默认 300s，期内零上游流量），客户端侧——有缓存（含过期）服务缓存、无缓存快速 404（`hardFail:true` 仓 502）；上游慢（挂起连接）不占用无限期资源（socketTimeout 生效）；服务 health 始终 200 | M44 |
 | NFR-S16 错误体分层延续 | maven/npm/pypi/remote/virtual 域非 2xx 一律 E-01（制品层）；不出现 HTML 栈页/空 200；npm 搜索等未实现端点 404 + E-01 | M58 + 各失败用例 |
 | NFR-S17 写操作认证不豁免 | 三协议 publish/upload（npm PUT、pypi POST、maven PUT）匿名一律 401（匿名读默认开只覆盖 GET/HEAD）；remote 仓不可写（405） | M28 变体 |
 | NFR-S18 路径安全延续 | 三协议与 remote/virtual 域路径穿越变体（`../`、`%2e%2e`、编码斜杠、`@scope%2F..`）→ 400/404，数据目录外无文件（M1 NFR-S4 的 M3 版）；npm/pypi 的包名只允许 `[A-Za-z0-9@/._-]` 有限集 | QA 变体用例 |
@@ -767,21 +822,22 @@ curl -s $BASE/binflow/api/pypi-ui/x -o /dev/null -w '%{http_code}\n'            
 | remote-cache 仓命名（`<key>-cache` 推断） | repo-semantics §7.3 待验证 | M3 逆向票校准；BinFlow 实现取「缓存 node 直落 remote repo 命名空间」的简化模型（对外不可见差异——Artifactory 的 `-cache` 仓是内部投影，BinFlow 不模拟该投影，语义等同；归档 C4） |
 | O4（匿名读开时已认证零权限用户 403） | M1/M2 定界维持 | virtual/remote 域同理：已认证走自身 ACL、匿名走匿名通道；语义不变，M4 权限完整版统一评审 |
 | Email 不落盘（users 表无列） | T-15 遗留（M2 评估） | **不收编**（与 M3 无交集，归 M4 权限/用户模型票） |
+| **M1 勘误 ×2（T-59，repo-semantics §9）** | ① snapshot policy 拒绝码 409（显式值，推翻 M1 的 404 推断）；② includes/excludes 拒绝码为下载 404/上传 409 双值（推翻 M1 的统一 404） | ① **已吸收进本文**（ME-08/FR-16-AC7/M19 改 409）；② M3 未暴露 includes/excludes 字段、无 AC 受影响，仅归档——local/remote 仓按此模式实现时（M4）以双值码为准；M1 PRD 的对应标注由 PM 另行走 M1 勘误票（非本票边界） |
 
 ---
 
-## 7. 开放问题（需用户决策；暂行假设已按「可被 QA 直接执行」落定）
+## 7. 开放问题（需用户决策；暂行假设已按「可被 QA 直接执行」落定。**v1.1 状态**：Q3/Q7 已依 T-59 规格定案、Q4 维持（conductor 已转用户知悉）、Q5/Q6/Q8 关联部分随 C4/C1/C7/C8 定案；待用户拍板的仅余 Q1/Q2 及 Q5 的 refresh 参数形态、Q6 的保留策略时机）
 
 | # | 问题 | 影响面 | 暂行假设（v1.0 按 此执行，用户定案后回写） |
 |---|---|---|---|
 | Q1 | **remote 上游认证凭据的存储形态**：明文存 SQLite（Artifactory OSS 实况）vs 引入主密钥（env 注入）加密 at rest | FR-15/FR-20、部署文档、安全审计 | 明文存 SQLite（文件权限 0600 + GET 永不回显 + 日志脱敏，NFR-S14）；文档明示风险与「数据目录防泄露靠文件系统权限」。主密钥加密（`BINFLOW_SECRET_KEY` 派生 AES-GCM）为 M4 加固候选——若用户要求提前，M3 加一张小票 |
 | Q2 | **virtual 写路由默认策略**：M3 是否默认可写（配 `defaultDeploymentRepo` 才可写 vs 有 local 成员即可写） | FR-21/RE-08、迁移脚本行为 | 默认 **405 不可写**；仅显式配置 `defaultDeploymentRepo`（成员中的 local 仓）后按 P1 路由写入——显式优于隐式，防「以为发到 local 实际进了 virtual 缓存」类事故；Artifactory 语义即「未配则 405」，对齐 |
-| Q3 | **PyPI simple index 哈希算法**：仅 `#sha256=`（PEP 503 现代标准）还是同时附 `#md5=`（兼容极老 pip/部分私有工具） | FR-19/PE-01 | 仅 **sha256**（pip ≥ 20 全支持且 sha256 是供应链校验正解）；md5 不提供。若用户有 md5-only 工具链再评估追加 |
-| Q4 | **docker remote pull-through 是否提前进 M3**（M2 PRD §2.2 曾预告 M3 交付） | ROADMAP M3 边界、工作量 | **不做**（M4+ 评估）：上游 token 协商 + manifest/blob 重写是独立工程量；替代路径 `skopeo copy`（M2 场景 C）已可用。用户若定案提前，M3 增补 FR-23 并重排里程碑 |
-| Q5 | remote 缓存 TTL 默认值（retrieval/missed）与是否暴露 per-path 刷新参数 | FR-20/RE-01 | retrieval 7200s / missed 1800s（对齐 Artifactory 公开默认的暂行值，C4 校准）；不提供 `?refresh` 类参数（URL 语义纯净），强刷走 DELETE 缓存（RE-06） |
-| Q6 | Maven snapshot 策略：maxUniqueSnapshots 保留数、non-unique 覆盖是否需要 per-repo 开关 | FR-16/FR-17 | M3 全部接受（unique 与 non-unique 均可传），无保留策略（maxUniqueSnapshots 归 M4 治理）；non-unique 覆盖走 M1 覆盖检查链 |
-| Q7 | npm 域错误体格式：E-01 `errors[]` vs npm 生态惯用 `{"error":"..."}`；同版本重复 publish 409 vs npmjs 的 403 | FR-18/NE-01/NFR-S16 | E-01 统一（M1 三分层不破）；重复 publish **409**（npm 客户端只判非 2xx，无兼容性损失） |
-| Q8 | 三协议文件落盘布局对 Artifactory 的对齐深度（npm tarball/pypi 文件路径形态，C7/C8） | FR-18/FR-19、内容路径直打用户 | BinFlow 自有布局（npm `<pkg>/-/<name>-<version>.tgz`；pypi `<norm-name>/<filename>`）；对外语义经协议端点等价（客户端不感知内部布局），内容路径直打按 BinFlow 文档为准——**不承诺 Artifactory 内部布局兼容**（对齐 PRODUCT「不做全量兼容」） |
+| Q3 | ~~**PyPI simple index 哈希算法**~~ **已定案（v1.1）** | FR-19/PE-01 | **仅 sha256 定案**：规格 §3.4（高置信度）——上传侧客户端只可能提供 md5（且 twine ≥ 6.2 可缺失、服务端自算）；pip 校验依赖 `#sha256=`，索引输出必须优先 sha256；Artifactory 的 `#md5=` 仅在制品无 sha256 时兜底，BinFlow 服务端必算 sha256 故该分支永不触发。上传侧 `md5_digest` 作为可选客户端 checksum 纳入校验链（FR-19 规格） |
+| Q4 | **docker remote pull-through 是否提前进 M3**（M2 PRD §2.2 曾预告 M3 交付） | ROADMAP M3 边界、工作量 | **维持不做**（M4+ 评估）：上游 token 协商 + manifest/blob 重写是独立工程量；替代路径 `skopeo copy`（M2 场景 C）已可用。**conductor 已转用户知悉（T-60 派单口径），不动**。用户若定案提前，M3 增补 FR-23 并重排里程碑 |
+| Q5 | remote 缓存 TTL 默认值（retrieval/missed）与是否暴露 per-path 刷新参数 | FR-20/RE-01 | **半定案（v1.1，C4）**：TTL 默认值 **7200s/1800s 定案**（repo-semantics §7.1 高置信度，另 socketTimeout 15s、assumed-offline 300s、hardFail false 一并对齐）；**维持不做** per-path `?refresh` 参数（URL 语义纯净），强刷走 DELETE 缓存（RE-06）；HEAD+Last-Modified 回源协商确证存在、BinFlow 列 P1 |
+| Q6 | Maven snapshot 策略：maxUniqueSnapshots 保留数、non-unique 覆盖是否需要 per-repo 开关 | FR-16/FR-17 | **部分定案（v1.1）**：`snapshotVersionBehavior` 三值定案（deployer 默认/non-unique/unique——服务端改写 P2）；maxUniqueSnapshots 无保留策略（归 M4 治理）维持；non-unique 覆盖走 M1 覆盖检查链维持 |
+| Q7 | ~~npm 域错误体格式与重复 publish 码~~ **已定案（v1.1）** | FR-18/NE-01/NFR-S16 | **E-01 `errors[]` 定案**：三协议共用该信封（maven-npm-pypi.md §0 高置信度，M1 三分层不破）；**重复 publish 409→403**（规格 §2.3-④：Artifactory 定 403 `Cannot modify pre-existing version`，npmjs 官方错误族同）；npm 十步校验链与错误文案全量纳入 FR-18 规格 |
+| Q8 | 三协议文件落盘布局对 Artifactory 的对齐深度（npm tarball/pypi 文件路径形态，C7/C8） | FR-18/FR-19、内容路径直打用户 | **部分定案（v1.1，C7/C8 收口）**：npm tarball `<name>/-/<name>-<version>.tgz`（scoped `@<scope>/` 前缀）与 pypi `<name>/<version>/<filename>`（原始名）**均对齐 Artifactory**；simple href 走 `/api/pypi/<repo>/packages/...` 形态；`_attachments` 物理清空维持暂行（对外不可观察）——「不承诺全量内部布局兼容」的总原则维持，但这两处已实证对齐 |
 
 ---
 
@@ -802,7 +858,7 @@ curl -s $BASE/binflow/api/pypi-ui/x -o /dev/null -w '%{http_code}\n'            
 
 1. §4 全部 P0/P1 AC 经 qa 验证全绿（P2 延后在 BOARD 记录）；
 2. §8 剧本全绿，§5.3 客户端矩阵 P0 成员（mvn/npm/pip+twine/curl）全过；
-3. `docs/reverse/maven-npm-pypi.md` 与 repo-semantics §7 落地，§5.5 八项校准（C1~C8）逐条定案回写（版本 +0.1）；开放问题 Q1~Q8 用户定案回写；
+3. `docs/reverse/maven-npm-pypi.md` 与 repo-semantics §7/§8 已落地，§5.5 八项校准（C1~C8）逐条定案回写（**v1.1 完成**）；开放问题 Q3/Q7 已定案、Q4 维持，余项（Q1/Q2 等）用户定案后回写；
 4. tech-writer 产出 Maven/npm/PyPI 接入指南与 remote/virtual 管理指南（含 SSRF 放行操作指引）；
 5. 主会话完成 `m3-done` tag。
 
