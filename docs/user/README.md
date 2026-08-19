@@ -15,8 +15,8 @@
   - [原生 K8s 清单](install/k8s.md)
   - [systemd 服务（裸机）](install/systemd.md)
   - [离线安装（air-gapped）](install/offline.md)
-- **客户端接入**（`integrations/`，每协议一篇）
-  - [Docker / OCI 镜像](integrations/docker.md)（含 podman/crane/skopeo/oras）
+- **客户端接入**（每协议一篇）
+  - [Docker / OCI 镜像](docker-registry.md)（login/push/pull、oras/Helm 承载、podman/crane/skopeo、差异清单）— M2
   - [Maven](integrations/maven.md)（settings.xml 配置 + deploy/resolve）
   - [npm](integrations/npm.md)（.npmrc + publish/install）
   - [PyPI](integrations/pypi.md)（pip index-url + twine）
