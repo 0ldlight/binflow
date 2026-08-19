@@ -83,7 +83,7 @@ func (h *Handler) serveRevPut(ctx context.Context, w http.ResponseWriter, r *htt
 // a no-op, not a failure.
 func (h *Handler) applyRevDocumentLocked(ctx context.Context, p *Principal,
 	repoKey, name string, body map[string]any) error {
-	doc, _, _, err := h.loadPackument(ctx, p, repoKey, name)
+	doc, _, _, err := h.loadPackumentForWrite(ctx, p, repoKey, name)
 	if err != nil {
 		return err
 	}
@@ -99,7 +99,7 @@ func (h *Handler) applyRevDocumentLocked(ctx context.Context, p *Principal,
 // then the packument node. Missing package = 404.
 func (h *Handler) unpublishWhole(ctx context.Context, w http.ResponseWriter,
 	p *Principal, repoKey, name string) {
-	if _, _, _, err := h.loadPackument(ctx, p, repoKey, name); err != nil {
+	if _, _, _, err := h.loadPackumentForWrite(ctx, p, repoKey, name); err != nil {
 		if errors.Is(err, repo.ErrNodeNotFound) {
 			writeError(w, http.StatusNotFound, "package not found: "+name)
 			return
@@ -135,7 +135,7 @@ func (h *Handler) serveTarballRev(ctx context.Context, w http.ResponseWriter, r 
 
 	h.docMu.Lock()
 	defer h.docMu.Unlock()
-	doc, _, _, err := h.loadPackument(ctx, p, repoKey, name)
+	doc, _, _, err := h.loadPackumentForWrite(ctx, p, repoKey, name)
 	switch {
 	case err == nil:
 		// Find the version owning this tarball path (matching the stored

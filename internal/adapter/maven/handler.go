@@ -105,10 +105,18 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // handleGet serves downloads with the inherited M1 header set (X-Checksum-*,
 // ETag=sha1, Last-Modified, Accept-Ranges, Content-Type; Range 206/416 and
-// conditional 304 — ME-02), plus the two maven-specific reads: the computed
-// checksum sidecar body and the remote-repository sidecar pass-through 404.
+// conditional 304 — ME-02), plus the maven-specific reads: the computed
+// checksum sidecar body, the remote-repository sidecar pass-through 404 and
+// the virtual-repository metadata merge (T-72: maven-metadata.xml and its
+// sidecars answer from the in-memory merge of the members' documents, never
+// a single member's first-hit copy).
 func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	p *repo.Principal, repoKey, relPath string, l Layout) {
+	if row, err := h.class.Get(ctx, repoKey); err == nil && row.Type == repo.TypeVirtual {
+		if h.serveVirtualMetadata(ctx, w, r, repoKey, relPath, l) {
+			return
+		}
+	}
 	if l.Kind == KindSidecar {
 		// A REMOTE repository never serves checksum files, cached or
 		// upstream (maven-npm-pypi.md section 1.5, high confidence; FR-20

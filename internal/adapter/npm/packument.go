@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/lzwzzy/binflow/internal/metadata"
+	"github.com/lzwzzy/binflow/internal/repo"
 	"github.com/lzwzzy/binflow/internal/storage"
 )
 
@@ -39,7 +40,16 @@ type nowClock func() string
 // set carries the resolution hints of the stream the document was read from
 // (nil for a plain local blob) — the GET faces apply them to their responses,
 // the write faces ignore them.
+//
+// A VIRTUAL repository answers the MERGE of every member's document (T-72,
+// virtual_packument.go) — this is the read plane's view. Write faces use
+// loadPackumentForWrite instead: they must never persist a merged document.
 func (h *Handler) loadPackument(ctx context.Context, p *Principal, repoKey, name string) (map[string]any, *metadata.Node, http.Header, error) {
+	if h.repos != nil {
+		if row, err := h.repos.Get(ctx, repoKey); err == nil && row.Type == repo.TypeVirtual {
+			return h.loadVirtualPackument(ctx, repoKey, name)
+		}
+	}
 	rc, node, err := h.svc.Get(ctx, p, repoKey, packumentPath(name))
 	if err != nil {
 		return nil, nil, nil, err

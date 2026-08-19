@@ -329,6 +329,46 @@ type Service interface {
 	// deploy; every other content caller keeps using Put.
 	PutWithOptions(ctx context.Context, p *Principal, repoKey, path string, body io.Reader, expect storage.BlobRef, mime string, opts PutOptions) (*metadata.Node, error)
 
+	// ---- Virtual aggregation face (T-72, FR-21-AC5/AC6) ----
+	//
+	// The per-protocol metadata aggregations (maven maven-metadata.xml
+	// in-memory merge, npm packument merge, PyPI simple-index collection)
+	// walk the members THEMSELVES — a merge cannot stop at the first hit
+	// the way the download resolver does. The three methods below expose
+	// exactly the T-71 resolution machinery the aggregations need, in the
+	// two-bucket order, with the caller's read gate already satisfied on
+	// the VIRTUAL key: members are resolution internals (getVirtual's own
+	// posture), so these reads do NOT re-gate the principal per member —
+	// a caller authorized on the virtual sees the merged member state even
+	// when it holds no grant on a member. The membership guard inside each
+	// method (the member must sit in the virtual's current order) is what
+	// keeps the ungated reads from ever addressing an arbitrary repository.
+
+	// VirtualMemberOrder returns the two-bucket resolution order of one
+	// virtual repository, computed fresh off the member ledger on every
+	// call (member changes are immediately effective, FR-15-AC6). Each
+	// entry carries the member's class and its priority-bucket mark (the
+	// maven foundByPriority short-circuit keys on it). A non-virtual or
+	// unknown key answers ErrRepoNotFound / ErrInvalidRepoType.
+	VirtualMemberOrder(ctx context.Context, virtualKey string) ([]VirtualMember, error)
+	// ReadVirtualMember reads one member's copy of ONE metadata document
+	// path (the maven metadata node, an npm packument node, a remote
+	// member's simple-index page): a local member answers from its nodes,
+	// a remote member through the full FR-20 chain — cache, stale
+	// downgrade included. ErrNodeNotFound is the member's "no such
+	// document" (upstream unfound, negative cache, offline without a
+	// copy); a *StatusError is a classified member failure whose exact
+	// rendering the caller propagates (maven: the block pass-through) or
+	// tolerates (npm/pypi: the "one member failing must not block the
+	// others" rule) per its protocol's aggregation spec. The returned
+	// reader may carry the remote engine's response hints.
+	ReadVirtualMember(ctx context.Context, virtualKey, member, path string) (io.ReadSeekCloser, *metadata.Node, error)
+	// ListVirtualMember lists the node facts of one LOCAL member under a
+	// prefix — the input the regenerated-from-facts metadata (the PyPI
+	// simple index) merges on. Remote members refuse (their aggregated
+	// state is an upstream document, ReadVirtualMember's business).
+	ListVirtualMember(ctx context.Context, virtualKey, member, prefix string) ([]*metadata.Node, error)
+
 	// ---- Docker use cases (M2, FR-7 through FR-9) ----
 	//
 	// The docker adapter owns the wire protocol; these methods own the

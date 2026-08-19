@@ -27,6 +27,8 @@ func (h *Handler) serveDistTags(ctx context.Context, w http.ResponseWriter, r *h
 	p *Principal, repoKey, name string) {
 	switch r.Method {
 	case http.MethodGet, http.MethodHead:
+		// The read face sees the MERGED tag union (T-72); only the mutating
+		// branches below read the deployment target's own document.
 		doc, _, _, err := h.loadPackument(ctx, p, repoKey, name)
 		if err != nil {
 			h.writeTagsLookupError(w, err, name)
@@ -92,7 +94,7 @@ func (h *Handler) setDistTags(ctx context.Context, w http.ResponseWriter, p *Pri
 	repoKey, name string, tags map[string]string) {
 	h.docMu.Lock()
 	defer h.docMu.Unlock()
-	doc, _, _, err := h.loadPackument(ctx, p, repoKey, name)
+	doc, _, _, err := h.loadPackumentForWrite(ctx, p, repoKey, name)
 	if err != nil {
 		h.writeTagsLookupError(w, err, name)
 		return
@@ -130,7 +132,7 @@ func (h *Handler) deleteDistTag(ctx context.Context, w http.ResponseWriter, p *P
 	repoKey, name, tag string) {
 	h.docMu.Lock()
 	defer h.docMu.Unlock()
-	doc, _, _, err := h.loadPackument(ctx, p, repoKey, name)
+	doc, _, _, err := h.loadPackumentForWrite(ctx, p, repoKey, name)
 	if err != nil {
 		h.writeTagsLookupError(w, err, name)
 		return

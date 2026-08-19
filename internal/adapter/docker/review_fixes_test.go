@@ -356,6 +356,15 @@ func (s *countingGetService) DeleteManifest(ctx context.Context, p *Principal, r
 func (s *countingGetService) DeleteRepoDocker(ctx context.Context, rk string) (int64, error) {
 	return s.inner.DeleteRepoDocker(ctx, rk)
 }
+func (s *countingGetService) VirtualMemberOrder(ctx context.Context, virtualKey string) ([]repo.VirtualMember, error) {
+	return s.inner.VirtualMemberOrder(ctx, virtualKey)
+}
+func (s *countingGetService) ReadVirtualMember(ctx context.Context, virtualKey, member, path string) (io.ReadSeekCloser, *metadata.Node, error) {
+	return s.inner.ReadVirtualMember(ctx, virtualKey, member, path)
+}
+func (s *countingGetService) ListVirtualMember(ctx context.Context, virtualKey, member, prefix string) ([]*metadata.Node, error) {
+	return s.inner.ListVirtualMember(ctx, virtualKey, member, prefix)
+}
 
 // ---- B4: registration failure renders 5xx, retry heals ----
 

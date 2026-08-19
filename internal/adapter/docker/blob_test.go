@@ -1219,3 +1219,18 @@ func assertSpecCode(t *testing.T, body []byte, code string) {
 		t.Fatalf("body %q: want exactly one %q entry", body, code)
 	}
 }
+
+// The T-72 virtual aggregation face: the blob plane never walks members,
+// so the fake answers the honest refusals (the real service's own contract
+// for a member that is not part of the addressed virtual).
+func (f *fakeService) VirtualMemberOrder(_ context.Context, virtualKey string) ([]repo.VirtualMember, error) {
+	return nil, fmt.Errorf("virtual %s: %w: no members in the blob-plane fake", virtualKey, repo.ErrRepoNotFound)
+}
+
+func (f *fakeService) ReadVirtualMember(_ context.Context, virtualKey, member, _ string) (io.ReadSeekCloser, *metadata.Node, error) {
+	return nil, nil, fmt.Errorf("read member %s of virtual %s: %w: not a current member", member, virtualKey, repo.ErrRepoNotFound)
+}
+
+func (f *fakeService) ListVirtualMember(_ context.Context, virtualKey, member, _ string) ([]*metadata.Node, error) {
+	return nil, fmt.Errorf("list member %s of virtual %s: %w: not a current member", member, virtualKey, repo.ErrRepoNotFound)
+}

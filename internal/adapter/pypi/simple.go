@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/lzwzzy/binflow/internal/adapter"
+	"github.com/lzwzzy/binflow/internal/repo"
 )
 
 // PEP media types (PEP 691): the JSON simple form is negotiated ONLY by an
@@ -123,7 +124,22 @@ func (h *Handler) serveSimpleRoot(w http.ResponseWriter, r *http.Request, repoKe
 // Demo_Pkg, demo_pkg and demo-pkg share this page), entries sorted by
 // filename, each anchored to the packages/ download URL with the sha256
 // fragment pip self-verifies against. An unknown name is 404.
+//
+// Repository classes split the collection (T-72): a VIRTUAL repository
+// merges every member's entries, a REMOTE repository serves its upstream
+// page remapped onto this repository's packages/ mount (the M46/M47 face),
+// only a LOCAL repository reads its own node facts.
 func (h *Handler) serveProjectPage(w http.ResponseWriter, r *http.Request, repoKey, name string) {
+	if h.repos != nil {
+		switch row, err := h.repos.Get(r.Context(), repoKey); {
+		case err == nil && row.Type == repo.TypeVirtual:
+			h.serveVirtualProjectPage(w, r, repoKey, name)
+			return
+		case err == nil && row.Type == repo.TypeRemote:
+			h.serveRemoteProjectPage(w, r, repoKey, name)
+			return
+		}
+	}
 	entries, err := h.projectEntries(r.Context(), r, repoKey, name)
 	if err != nil {
 		h.writeServiceError(w, err, r.Method, repoKey, segSimple+"/"+name+"/")

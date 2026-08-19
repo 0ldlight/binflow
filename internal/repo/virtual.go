@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/lzwzzy/binflow/internal/metadata"
@@ -303,6 +304,167 @@ func (s *service) clearProbedNegative(ctx context.Context, virtualKey, member, p
 		slog.WarnContext(ctx, "repo: could not clear the negative row of an exploratory virtual miss",
 			"virtual", virtualKey, "member", member, "path", path, "error", err.Error())
 	}
+}
+
+// ---- the T-72 aggregation seam ----
+
+// VirtualMember is one step of a virtual repository's two-bucket order in
+// the shape the protocol metadata aggregations consume (T-72): the member
+// key, its class (local members answer from their nodes, remote members
+// through the FR-20 pull-through chain) and the priority-bucket mark the
+// maven foundByPriority short-circuit keys on.
+type VirtualMember struct {
+	Key      string
+	Type     string // TypeLocal | TypeRemote
+	Priority bool
+}
+
+// VirtualMemberOrder implements Service.VirtualMemberOrder.
+func (s *service) VirtualMemberOrder(ctx context.Context, virtualKey string) ([]VirtualMember, error) {
+	order, err := s.virtualMemberOrder(ctx, virtualKey)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]VirtualMember, 0, len(order))
+	for _, m := range order {
+		out = append(out, VirtualMember{Key: m.key, Type: m.typ, Priority: s.memberIsPriority(ctx, m.key)})
+	}
+	return out, nil
+}
+
+// memberIsPriority re-reads one member's priority mark for the exported
+// order. virtualMemberOrder consumed the same probe internally but does not
+// carry the flag; a member whose row vanished between the two reads answers
+// false (the unmarked bucket), which only reorders a member that is about to
+// disappear from the ledger anyway.
+func (s *service) memberIsPriority(ctx context.Context, member string) bool {
+	row, err := s.md.Repos().Get(ctx, member)
+	if err != nil {
+		return false
+	}
+	return memberPriorityResolution(row.Config)
+}
+
+// ReadVirtualMember implements Service.ReadVirtualMember: one member's copy
+// of a metadata document, read WITHOUT re-gating the caller — the virtual
+// read gate has already run on the VIRTUAL key (the same posture as
+// getVirtual: members are resolution internals, not addressed surfaces).
+//
+// The membership guard is what makes the ungated read safe by construction:
+// the member must currently sit in the virtual's order, so the call can
+// never be steered at an arbitrary repository.
+//
+// Negative caching deliberately STAYS (the difference against T-71's
+// exploratory artifact probes): an aggregation member read IS a real member
+// read of a metadata path — the exact case FR-20's miss cache exists for —
+// and the pypi aggregation's PRD line explicitly reuses it ("remote 成员的
+// 包不存在走独立负缓存，复用 FR-20 参数"). ADR-0013's "exploratory miss
+// leaves no residue" governs download-resolution scans, not this face.
+func (s *service) ReadVirtualMember(ctx context.Context, virtualKey, member, path string) (io.ReadSeekCloser, *metadata.Node, error) {
+	if err := validateNodePath(path); err != nil {
+		return nil, nil, err
+	}
+	order, err := s.virtualMemberOrder(ctx, virtualKey)
+	if err != nil {
+		return nil, nil, err
+	}
+	var step *virtualMember
+	for i := range order {
+		if order[i].key == member {
+			step = &order[i]
+			break
+		}
+	}
+	if step == nil {
+		return nil, nil, fmt.Errorf("read member %s of virtual %s: %w: not a current member",
+			member, virtualKey, ErrRepoNotFound)
+	}
+	if step.typ == TypeRemote {
+		return s.readRemoteMemberDoc(ctx, virtualKey, member, path)
+	}
+	rc, node, hit, err := s.probeLocalMember(ctx, member, path)
+	if err != nil {
+		return nil, nil, err
+	}
+	if !hit {
+		return nil, nil, fmt.Errorf("node %s/%s: %w", member, path, ErrNodeNotFound)
+	}
+	s.audit(ctx, AuditEvent{
+		Action: AuditActionDownload, Repo: virtualKey, Path: path,
+		Detail: fmt.Sprintf(`{"resolvedFrom":%q,"aggregate":true}`, member),
+	})
+	return rc, node, nil
+}
+
+// readRemoteMemberDoc walks one remote member through the FR-20 chain for a
+// metadata read: a result is the member's answer (fresh, landed or
+// stale-serving — HasCopy is always true there), an UNFOUND miss maps onto
+// ErrNodeNotFound so aggregations treat it as "member has no such document",
+// and a classified non-unfound failure keeps its exact rendering for the
+// caller to propagate or tolerate per its protocol's rule.
+func (s *service) readRemoteMemberDoc(ctx context.Context, virtualKey, member, path string) (io.ReadSeekCloser, *metadata.Node, error) {
+	if s.remoteEng == nil {
+		return nil, nil, fmt.Errorf("%w: remote repositories have no engine wired", ErrRepoTypeNotSupported)
+	}
+	res, err := s.remoteEng.Fetch(ctx, member, path)
+	if err != nil {
+		var fe *remote.FetchError
+		if errors.As(err, &fe) {
+			if fe.Unfound {
+				return nil, nil, fmt.Errorf("node %s/%s: %w", member, path, ErrNodeNotFound)
+			}
+			return nil, nil, &StatusError{Code: fe.Status, Message: fe.Message}
+		}
+		return nil, nil, fmt.Errorf("virtual %s remote member %s fetch %s: %w", virtualKey, member, path, err)
+	}
+	if !res.HasCopy {
+		slog.WarnContext(ctx, "repo: virtual remote member returned a copyless result — treated as a miss",
+			"virtual", virtualKey, "member", member, "path", path)
+		return nil, nil, fmt.Errorf("node %s/%s: %w", member, path, ErrNodeNotFound)
+	}
+	s.audit(ctx, AuditEvent{
+		Action: AuditActionDownload, Repo: virtualKey, Path: path,
+		Detail: fmt.Sprintf(`{"resolvedFrom":%q,"aggregate":true}`, member),
+	})
+	return res.Body, res.Node, nil
+}
+
+// ListVirtualMember implements Service.ListVirtualMember: the ungated node
+// facts of one LOCAL member under a prefix — the input the protocols whose
+// metadata is REGENERATED from storage facts (the PyPI simple index) merge
+// on. Remote members answer an honest refusal: their aggregated state is an
+// upstream document, not a node listing (ReadVirtualMember is that face).
+func (s *service) ListVirtualMember(ctx context.Context, virtualKey, member, prefix string) ([]*metadata.Node, error) {
+	if prefix != "" {
+		prefix = strings.TrimSuffix(prefix, "/")
+		if err := validateNodePath(prefix); err != nil {
+			return nil, err
+		}
+	}
+	order, err := s.virtualMemberOrder(ctx, virtualKey)
+	if err != nil {
+		return nil, err
+	}
+	var step *virtualMember
+	for i := range order {
+		if order[i].key == member {
+			step = &order[i]
+			break
+		}
+	}
+	if step == nil {
+		return nil, fmt.Errorf("list member %s of virtual %s: %w: not a current member",
+			member, virtualKey, ErrRepoNotFound)
+	}
+	if step.typ != TypeLocal {
+		return nil, fmt.Errorf("list member %s of virtual %s: %w: remote members are read as documents, not listings",
+			member, virtualKey, ErrRepoTypeNotSupported)
+	}
+	nodes, err := s.md.Nodes().ListByPrefix(ctx, member, prefix)
+	if err != nil {
+		return nil, fmt.Errorf("list %s/%s: %w", member, prefix, err)
+	}
+	return nodes, nil
 }
 
 // ---- the resolution hint wrapper ----

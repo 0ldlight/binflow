@@ -119,8 +119,11 @@ func TestVirtualRenderSeams(t *testing.T) {
 	if got := rr.Header().Get("X-BinFlow-Cache"); got != "HIT" {
 		t.Errorf("repeat tarball X-BinFlow-Cache = %q, want HIT", got)
 	}
-	if got := hits.Load(); got != 2 { // the packument + the first tarball; the repeat served from cache
-		t.Errorf("upstream hits = %d, want 2", got)
+	if got := hits.Load(); got != 3 { // T-72: the local-pkg packument now MERGES, so its
+		// walk also probes the remote member (a miss, +1 upstream request whose
+		// negative-cache row quiets the next one); then the remote-pkg packument
+		// and the first tarball. The repeat served from cache.
+		t.Errorf("upstream hits = %d, want 3", got)
 	}
 
 	// Publish THROUGH the un-routed virtual: the C5 405 renders verbatim
