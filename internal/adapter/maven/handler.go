@@ -142,6 +142,11 @@ func (h *Handler) serveSidecar(ctx context.Context, w http.ResponseWriter, r *ht
 		h.writeServiceError(w, err, r.Method, repoKey, relPath)
 		return
 	}
+	// The resolution hints ride the target's stream even though the sidecar
+	// body is server-computed: an operator asking "which member served this
+	// checksum's target" gets the same X-BinFlow-Resolved-From answer the
+	// artifact GET carries.
+	applyReaderHints(w, rc)
 	_ = rc.Close() //nolint:errcheck // read-only fd; only the node metadata is needed
 
 	digest, ok := h.digestOf(ctx, node, l.Algo)
@@ -184,6 +189,13 @@ func (h *Handler) serveFile(ctx context.Context, w http.ResponseWriter, r *http.
 		return
 	}
 	defer rc.Close() //nolint:errcheck // read-only fd
+
+	// Service-level engines may attach response hints to the body stream —
+	// a remote member's X-BinFlow-Cache / X-Binflow-Upstream-Error (T-66), a
+	// virtual resolution's X-BinFlow-Resolved-From on top of those (T-71).
+	// The probe is structural: this handler never imports the engine or
+	// learns the repository class (architecture section 5.4).
+	applyReaderHints(w, rc)
 
 	sums := h.digestTriple(ctx, node)
 	lastMod := nodeTime(node)
@@ -262,7 +274,25 @@ func (h *Handler) handleDelete(ctx context.Context, w http.ResponseWriter,
 // shared) and adds the class refusals: PUT on a remote repository is the
 // RE-05 405, PUT on an un-routed virtual repository the Q2/C5 405 with the
 // errata's fixed wording.
+//
+// A *repo.StatusError renders VERBATIM first (T-82, the generic adapter's
+// T-66 seam): the repository-class engines — the remote pull-through's RE-04
+// fault matrix and RE-05 read-only 405, the virtual resolver's RE-08 delete
+// refusal and C5 write refusal — own their exact client rendering in the
+// service layer while this handler stays class-agnostic (architecture
+// section 5.4). Before this branch the DELETE-on-virtual refusal fell into
+// the ErrRepoTypeNotSupported arm's non-PUT 400 shape instead of its 405.
 func (h *Handler) writeServiceError(w http.ResponseWriter, err error, method, repoKey, relPath string) {
+	var se *repo.StatusError
+	if errors.As(err, &se) {
+		for k, vv := range se.Header {
+			for _, v := range vv {
+				w.Header().Add(k, v)
+			}
+		}
+		writeError(w, se.Code, se.Message)
+		return
+	}
 	switch {
 	case errors.Is(err, storage.ErrChecksumMismatch):
 		writeError(w, http.StatusConflict, checksumMismatchMessage(err, repoKey, relPath))
@@ -285,12 +315,13 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error, method, re
 		writeError(w, http.StatusConflict, err.Error())
 	case errors.Is(err, repo.ErrRepoTypeNotSupported):
 		// A non-local repository on a WRITE path: the class refusals the
-		// remote/virtual engines own (RE-05/Q2). The 405 shape is emitted
-		// here rather than pre-empted before svc.Put so a future
+		// remote/virtual engines own (RE-05/Q2). Since T-66/T-71 those
+		// refusals arrive as *repo.StatusError and render verbatim in the
+		// branch above; this arm is the fallback for plain sentinel wraps
+		// (the engines being unwired, docker-class refusals leaking through)
+		// and keeps the 405 shape rather than pre-empting svc.Put, so a
 		// service-side write ROUTE (T-71's defaultDeploymentRepo) passes
-		// through untouched — the adapter only shapes the refusal. Read
-		// paths keep the generic 400 shape until their engines land
-		// (T-66/T-71 make svc.Get stop refusing these classes).
+		// through untouched — the adapter only shapes the refusal.
 		if method != http.MethodPut && method != http.MethodPost {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
@@ -344,6 +375,20 @@ func checksumMismatchMessage(err error, repoKey, relPath string) string {
 // notFoundMessage is the download-side 404 wording (rest-api.md 1.4).
 func notFoundMessage(repoKey, relPath string) string {
 	return fmt.Sprintf("Failed to find the requested resource '%s/%s'.", repoKey, relPath)
+}
+
+// applyReaderHints copies a body stream's structural response hints onto the
+// response (the generic adapter's T-66 seam, restated locally because adapter
+// packages share no unexported code — the area rule). A plain local blob
+// carries none, so the probe is a no-op for the M1 paths.
+func applyReaderHints(w http.ResponseWriter, body io.ReadSeekCloser) {
+	if extra, ok := body.(interface{ ExtraHeaders() http.Header }); ok {
+		for k, vv := range extra.ExtraHeaders() {
+			for _, v := range vv {
+				w.Header().Add(k, v)
+			}
+		}
+	}
 }
 
 // ---- digest helpers ----

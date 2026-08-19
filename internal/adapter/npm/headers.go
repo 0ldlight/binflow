@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/sha1" //nolint:gosec // G401: npm ETag/X-Checksum-Sha1 protocol digest, never a security primitive
 	"encoding/hex"
+	"io"
+	"net/http"
 	"strconv"
 	"strings"
 
@@ -21,6 +23,33 @@ const (
 	hdrChecksumSha1   = "X-Checksum-Sha1"
 	hdrChecksumMd5    = "X-Checksum-Md5"
 )
+
+// readerHints copies the structural ExtraHeaders() hints off a body stream
+// (the generic adapter's T-66 seam, restated locally — adapter packages share
+// no unexported code, the area rule): a remote member's fetch carries
+// X-BinFlow-Cache / X-Binflow-Upstream-Error, a virtual resolution's reader
+// adds X-BinFlow-Resolved-From on top of those (T-71). A plain local blob
+// carries none; nil means "nothing to say".
+func readerHints(body io.Reader) http.Header {
+	extra, ok := body.(interface{ ExtraHeaders() http.Header })
+	if !ok {
+		return nil
+	}
+	h := http.Header{}
+	for k, vv := range extra.ExtraHeaders() {
+		h[k] = append([]string(nil), vv...)
+	}
+	return h
+}
+
+// applyHints merges collected reader hints into the response headers.
+func applyHints(dst http.Header, hints http.Header) {
+	for k, vv := range hints {
+		for _, v := range vv {
+			dst.Add(k, v)
+		}
+	}
+}
 
 // digestTripleLedger is the sha256-keyed triple of one blob (sha256 from the
 // node, sha1/md5 from the blobs ledger — ADR-0006 keeps no sidecar files).

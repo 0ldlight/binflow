@@ -199,7 +199,7 @@ func (h *Handler) servePublish(ctx context.Context, w http.ResponseWriter, r *ht
 // already-stored version, answering the pinned 403 when it does.
 func (h *Handler) publishConflict(ctx context.Context, w http.ResponseWriter, p *Principal,
 	repoKey, name string, body *publishBody) bool {
-	doc, _, err := h.loadPackument(ctx, p, repoKey, name)
+	doc, _, _, err := h.loadPackument(ctx, p, repoKey, name)
 	if err != nil {
 		return false // no stored packument: nothing can conflict
 	}
@@ -281,7 +281,7 @@ func (h *Handler) publishWithTarball(ctx context.Context, w http.ResponseWriter,
 	// instead of racing one away.
 	h.docMu.Lock()
 	defer h.docMu.Unlock()
-	doc, _, err := h.loadPackument(ctx, p, repoKey, name)
+	doc, _, _, err := h.loadPackument(ctx, p, repoKey, name)
 	if err != nil && !errors.Is(err, repo.ErrNodeNotFound) {
 		h.writeServiceError(w, err)
 		return
@@ -304,7 +304,7 @@ func (h *Handler) deprecate(ctx context.Context, w http.ResponseWriter, p *Princ
 	body *publishBody) {
 	h.docMu.Lock()
 	defer h.docMu.Unlock()
-	doc, _, err := h.loadPackument(ctx, p, repoKey, name)
+	doc, _, _, err := h.loadPackument(ctx, p, repoKey, name)
 	if err != nil {
 		h.writeServiceError(w, err)
 		return

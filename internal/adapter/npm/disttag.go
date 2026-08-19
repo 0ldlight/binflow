@@ -27,7 +27,7 @@ func (h *Handler) serveDistTags(ctx context.Context, w http.ResponseWriter, r *h
 	p *Principal, repoKey, name string) {
 	switch r.Method {
 	case http.MethodGet, http.MethodHead:
-		doc, _, err := h.loadPackument(ctx, p, repoKey, name)
+		doc, _, _, err := h.loadPackument(ctx, p, repoKey, name)
 		if err != nil {
 			h.writeTagsLookupError(w, err, name)
 			return
@@ -92,7 +92,7 @@ func (h *Handler) setDistTags(ctx context.Context, w http.ResponseWriter, p *Pri
 	repoKey, name string, tags map[string]string) {
 	h.docMu.Lock()
 	defer h.docMu.Unlock()
-	doc, _, err := h.loadPackument(ctx, p, repoKey, name)
+	doc, _, _, err := h.loadPackument(ctx, p, repoKey, name)
 	if err != nil {
 		h.writeTagsLookupError(w, err, name)
 		return
@@ -130,7 +130,7 @@ func (h *Handler) deleteDistTag(ctx context.Context, w http.ResponseWriter, p *P
 	repoKey, name, tag string) {
 	h.docMu.Lock()
 	defer h.docMu.Unlock()
-	doc, _, err := h.loadPackument(ctx, p, repoKey, name)
+	doc, _, _, err := h.loadPackument(ctx, p, repoKey, name)
 	if err != nil {
 		h.writeTagsLookupError(w, err, name)
 		return

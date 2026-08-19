@@ -57,7 +57,7 @@ func (h *Handler) servePackument(ctx context.Context, w http.ResponseWriter, r *
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	doc, node, err := h.loadPackument(ctx, p, repoKey, name)
+	doc, node, hints, err := h.loadPackument(ctx, p, repoKey, name)
 	if err != nil {
 		if errors.Is(err, repo.ErrNodeNotFound) {
 			writeError(w, http.StatusNotFound, fmt.Sprintf(msgPackNotFound, name))
@@ -83,6 +83,11 @@ func (h *Handler) servePackument(ctx context.Context, w http.ResponseWriter, r *
 	hdr.Set("ETag", etag)
 	hdr.Set(hdrChecksumSha1, etag)
 	hdr.Set("Content-Type", ct)
+	// The resolution hints of the member that served the document
+	// (X-BinFlow-Resolved-From on a virtual repository, the remote engine's
+	// cache hints beneath it) — the packument's own header block carries
+	// them too, not only streamed tarballs.
+	applyHints(hdr, hints)
 	if !lastMod.IsZero() {
 		hdr.Set("Last-Modified", lastMod.UTC().Format(http.TimeFormat))
 	}
@@ -117,7 +122,7 @@ func (h *Handler) serveTagOrVersion(ctx context.Context, w http.ResponseWriter, 
 // serveVersion returns one version's manifest with its tarball rewritten.
 func (h *Handler) serveVersion(ctx context.Context, w http.ResponseWriter, r *http.Request,
 	p *Principal, repoKey, name, version string) {
-	doc, _, err := h.loadPackument(ctx, p, repoKey, name)
+	doc, _, hints, err := h.loadPackument(ctx, p, repoKey, name)
 	if err != nil {
 		if errors.Is(err, repo.ErrNodeNotFound) {
 			writeError(w, http.StatusNotFound, fmt.Sprintf(msgPackNotFound, name))
@@ -142,6 +147,7 @@ func (h *Handler) serveVersion(ctx context.Context, w http.ResponseWriter, r *ht
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
+	applyHints(w.Header(), hints)
 	w.Header().Set("Content-Length", strconv.Itoa(len(body)))
 	w.WriteHeader(http.StatusOK)
 	if r.Method == http.MethodHead {
@@ -175,8 +181,13 @@ func (h *Handler) serveTarball(ctx context.Context, w http.ResponseWriter, r *ht
 // streamNode renders a node download: checksum headers from the ledger,
 // ETag = sha1 unquoted, Last-Modified, conditional 304, single Range 206 /
 // unsatisfiable 416. Shared by tarballs (the packument renders its own
-// body, so it does not stream through here).
+// body, so it does not stream through here — its hints ride loadPackument).
 func (h *Handler) streamNode(w http.ResponseWriter, r *http.Request, rc io.ReadSeekCloser, node *metadata.Node) {
+	// Service-level engines attach response hints to the stream (a remote
+	// member's X-BinFlow-Cache, a virtual resolution's
+	// X-BinFlow-Resolved-From on top) — structural probe, the handler never
+	// learns the repository class (architecture section 5.4).
+	applyHints(w.Header(), readerHints(rc))
 	sums := h.digestsOf(r.Context(), node.Sha256)
 	lastMod := parseNodeTime(node.UpdatedAt)
 	if lastMod.IsZero() {

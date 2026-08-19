@@ -50,6 +50,19 @@ func (h *Handler) serveDownload(w http.ResponseWriter, r *http.Request, repoKey,
 	}
 	defer rc.Close() //nolint:errcheck // read-only fd
 
+	// Service-level engines may attach response hints to the body stream —
+	// a remote member's X-BinFlow-Cache / X-Binflow-Upstream-Error (T-66), a
+	// virtual resolution's X-BinFlow-Resolved-From on top of those (T-71).
+	// The probe is structural: this handler never imports the engine or
+	// learns the repository class (architecture section 5.4).
+	if extra, ok := rc.(interface{ ExtraHeaders() http.Header }); ok {
+		for k, vv := range extra.ExtraHeaders() {
+			for _, v := range vv {
+				w.Header().Add(k, v)
+			}
+		}
+	}
+
 	sums := h.digestsOf(ctx, node)
 	lastMod := parseRFC3339(node.UpdatedAt)
 	if lastMod.IsZero() {

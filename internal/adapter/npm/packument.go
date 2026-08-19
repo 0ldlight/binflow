@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -34,22 +35,26 @@ import (
 type nowClock func() string
 
 // loadPackument reads the stored document node. Missing node maps to
-// repo.ErrNodeNotFound; the caller decides 404-vs-fresh.
-func (h *Handler) loadPackument(ctx context.Context, p *Principal, repoKey, name string) (map[string]any, *metadata.Node, error) {
+// repo.ErrNodeNotFound; the caller decides 404-vs-fresh. The returned header
+// set carries the resolution hints of the stream the document was read from
+// (nil for a plain local blob) — the GET faces apply them to their responses,
+// the write faces ignore them.
+func (h *Handler) loadPackument(ctx context.Context, p *Principal, repoKey, name string) (map[string]any, *metadata.Node, http.Header, error) {
 	rc, node, err := h.svc.Get(ctx, p, repoKey, packumentPath(name))
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
+	hints := readerHints(rc)
 	defer rc.Close() //nolint:errcheck // read-only fd
 	raw, err := io.ReadAll(rc)
 	if err != nil {
-		return nil, nil, fmt.Errorf("read packument %s/%s: %w", repoKey, name, err)
+		return nil, nil, nil, fmt.Errorf("read packument %s/%s: %w", repoKey, name, err)
 	}
 	doc, err := decodeDoc(raw)
 	if err != nil {
-		return nil, nil, fmt.Errorf("parse packument %s/%s: %w", repoKey, name, err)
+		return nil, nil, nil, fmt.Errorf("parse packument %s/%s: %w", repoKey, name, err)
 	}
-	return doc, node, nil
+	return doc, node, hints, nil
 }
 
 // savePackument marshals and stores the document node.

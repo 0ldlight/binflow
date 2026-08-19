@@ -202,7 +202,25 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // writeServiceError maps repo.Service sentinels onto the errors[] envelope
 // with the same statuses the generic adapter uses (the /binflow plane's
 // unified error family, NFR-S16); only the wordings are PyPI-specific.
+//
+// A *repo.StatusError renders VERBATIM first (T-82, the generic adapter's
+// T-66 seam): the repository-class engines — the remote pull-through's RE-04
+// fault matrix (an SSRF refusal 400, a hard-fail 502) and the virtual
+// resolver's member-fault propagation — own their exact client rendering in
+// the service layer while this handler stays class-agnostic (architecture
+// section 5.4). Before this branch every non-unfound StatusError fell into
+// the default arm's 500, masking the engine's verdicts.
 func (h *Handler) writeServiceError(w http.ResponseWriter, err error, method, repoKey, path string) {
+	var se *repo.StatusError
+	if errors.As(err, &se) {
+		for k, vv := range se.Header {
+			for _, v := range vv {
+				w.Header().Add(k, v)
+			}
+		}
+		writeError(w, se.Code, se.Message)
+		return
+	}
 	switch {
 	case errors.Is(err, storage.ErrChecksumMismatch):
 		writeError(w, http.StatusConflict, checksumMismatchMessage(err, repoKey, path))
@@ -223,6 +241,10 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error, method, re
 	case errors.Is(err, repo.ErrForbidden):
 		writeError(w, http.StatusForbidden, err.Error())
 	case errors.Is(err, repo.ErrRepoTypeNotSupported):
+		// Fallback for plain sentinel wraps: the class engines speak
+		// *repo.StatusError (rendered verbatim above); this arm catches the
+		// unwired-engine and List-refusal shapes (virtual aggregation is
+		// FR-21-AC8 P2).
 		writeError(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, repo.ErrIsFolder):
 		writeError(w, http.StatusConflict, err.Error())

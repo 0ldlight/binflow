@@ -62,7 +62,25 @@ const (
 // writeServiceError maps repo.Service sentinels onto the npm plane. The
 // checksum-mismatch arm is the publish chain's step 9 (storage's
 // client-checksums 409 surfaces as npm's 400, spec section 2.3 step 9).
+//
+// A *repo.StatusError renders VERBATIM first (T-82, the generic adapter's
+// T-66 seam): the repository-class engines — the remote pull-through's RE-04
+// fault matrix, the virtual resolver's C5 write refusal and RE-08 delete
+// refusal — own their exact client rendering in the service layer while this
+// handler stays class-agnostic (architecture section 5.4). Before this
+// branch npm had no ErrRepoTypeNotSupported arm at all, so those verdicts
+// fell into the default 500.
 func (h *Handler) writeServiceError(w http.ResponseWriter, err error) {
+	var se *repo.StatusError
+	if errors.As(err, &se) {
+		for k, vv := range se.Header {
+			for _, v := range vv {
+				w.Header().Add(k, v)
+			}
+		}
+		writeError(w, se.Code, se.Message)
+		return
+	}
 	switch {
 	case errors.Is(err, storage.ErrChecksumMismatch):
 		writeError(w, http.StatusBadRequest, msgSha1Conflict)
