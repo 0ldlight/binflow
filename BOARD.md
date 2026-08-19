@@ -240,6 +240,9 @@
 - **T-82** [P0] 三协议双缝修复 `role:dev-registry-adapter` `area:internal/adapter/{maven,npm,pypi}` — done 2026-08-20
   StatusError 直渲染（npm 此前完全缺失→一律 500）+ ExtraHeaders 探测三协议；红绿验证（还原至 HEAD 三测试 FAIL 行号级）；virtual DELETE 405+C5 逐字/双头输出/上游计数冻结。遗留①pypi 上传早闸不感知路由（挂 architect）②npm RepoTypes 口径③maven PUT 文案对齐（已顺手做）。提交 5b13a1e。
 
+- **T-68** [P0] maven metadata 计算器 `role:dev-registry-adapter` `area:internal/adapter/maven、internal/repo(SPI)` — done 2026-08-20（APPROVE 一轮过）
+  计算器 ~700 行（触发四类/两组生成器/进程锁合并）+ SPI PutWithOptions（T-83 契约）。review 0 blocker：4-worker 并发探针终态收敛零 5xx；AC6 旁车现算对账；三沉默裁决全确认。7 non-blocking（T-83 godoc 措辞偏差转 architect/dotted 段守卫建议/async 超时排队面）。提交 dad9458+e61e580。
+
 ## 🚫 阻塞（blocked）
 
 （空）
