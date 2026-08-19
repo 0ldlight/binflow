@@ -34,7 +34,7 @@
 - **T-66** [P0] remote pull-through fetcher+凭据加密+分流（批 3） `role:dev-go-core` `area:internal/remote、internal/repo` — 在途（双 reviewer 票）
 - **T-67** [P0] Maven adapter layout+传输+checksum（批 3） `role:dev-registry-adapter` `area:internal/adapter/maven` — 在途（双 reviewer 票；metadata 归 T-68）
 - **T-69** [P0] npm adapter（批 3） `role:dev-registry-adapter` `area:internal/adapter/npm` — 在途（E-26 翻转 R5 + N4 严格 404 决策）
-- **T-70** [P0] PyPI adapter（批 3） `role:dev-registry-adapter` `area:internal/adapter/pypi` — 在途（同上）
+（T-70 编码完成 → review 区）
 （T-79 done → done 区）
 
 ## 👀 评审中（review）
