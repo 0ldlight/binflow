@@ -21,7 +21,7 @@
 
 ## 🔨 进行中（doing）
 
-- **T-60** [P0] M3 PRD v1.1 校准回写（C1~C8 对照 T-59 规格） `role:product-manager` `area:docs/prd` — 在途
+- **T-61** [P0] M3 工程 ticket 拆解 `role:tech-lead` — 在途（输入四件套：PRD v1.1/ADR-0012+0013/T-59 规格/OSS 结构启示；要求 16~20 票、SSRF 双 reviewer、003 迁移先行）
 （T-58 done 2026-08-19 → done 区）
 （T-59 done → done 区）
 
@@ -175,6 +175,9 @@
 
 - **T-57** [P0] M3 PRD v1.0 `role:product-manager` `area:docs/prd、ROADMAP.md` — done 2026-08-19
   milestone-3.md（817 行）：FR-15~FR-22 共 66 AC（Maven layout/checksum 三态/metadata 合并+snapshot、npm、PyPI、remote pull-through+SSRF、virtual、conformance）；35 端点矩阵 + M01~M61 验收命令（mvn/npm/pip P0）；Q1~Q8 附暂行；ROADMAP 切 M3。Q4（docker remote 推迟 M4+）已转用户知悉。提交 e456f1b。
+
+- **T-60** [P0] M3 PRD v1.1 校准 `role:product-manager` `area:docs/prd` — done 2026-08-19
+  C1~C8 全定案（maven-metadata 服务端计算/layout 六字段/virtual 两桶简化/TTL 定案/写路由字段/PyPI 布局兼容子集/npm tarball）；M1 勘误吸收（snapshot policy 409）；Q3/Q7 定案（npm 403/重复 publish、PyPI sha256-only）；连带定案（remote checksum 不回源 404、上游故障默认 404+hardFail 502——推翻 v1.0 五处）；计数 29/1/0/5+1。自检零残留。遗留：Q1/Q2 待用户；M1 PRD 两处勘误小票建议。提交 0f48164。
 
 ## 🚫 阻塞（blocked）
 
