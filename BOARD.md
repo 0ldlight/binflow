@@ -35,13 +35,13 @@
 ## 🔨 进行中（doing）
 
 （T-62 编码完成 → review 区；单 reviewer 在途）
-- **T-64** [P0] repo 三型模型+PutLandedBlob（批 2） `role:dev-go-core` `area:internal/repo、adapter/docker(小改)` — 在途（附 T-62 review 提示：Password 恒空防明文窗口）
-（T-65 编码完成 → review 区）
+- **T-80** [P0] httpapi 仓库 REST 三型接线（T-64 遗留①小票） `role:dev-go-core` `area:internal/httpapi/repositories.go` — 在途（批 3 的 T-66 fixture 前置）
 （T-79 done → done 区）
 
 ## 👀 评审中（review）
 
-- **T-65** [P0] SSRF 防护链 — 编码完成，conductor 复现通过（48 用例/coverage 86%/零新依赖/注入 Resolver 零外网），提交 f9fb2c9。**双 reviewer 在途**（安全：IPv6 特殊形态/DNS rebinding TOCTOU/绕过矩阵探针；架构：ADR 对照/T-66 消费面/包边界）。
+- **T-64** [P0] repo 三型模型+PutLandedBlob — 编码完成，conductor 复现通过（13 包 race 两轮绿/M01/M05 curl 端到端），提交 63135de。单 reviewer 在途（PutLandedBlob 事务边界/校验矩阵/掩码）。
+- **T-65** [P0] SSRF 防护链 — 架构视角已回 REQUEST_CHANGES（2 小改 blocker：Options godoc 反向/HEAD 未豁免 64MB）；安全视角在途。修复单待双视角收齐合并派。
 
 ## 🧪 测试中（qa）
 
