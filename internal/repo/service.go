@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -102,7 +103,11 @@ func (s *service) loadLocalRepo(ctx context.Context, repoKey string) (*metadata.
 		return nil, fmt.Errorf("repo %q: %w", repoKey, err)
 	}
 	if r.Type != TypeLocal {
-		return nil, fmt.Errorf("%w: %s repositories are supported from M3", ErrRepoTypeNotSupported, r.Type)
+		// M3 interim: the remote/virtual content engines land with T-66/T-71;
+		// until they do, the local content plane refuses the class outright
+		// rather than serving a remote namespace as if it were local.
+		return nil, fmt.Errorf("%w: %s repositories are not served by the local content plane (the remote/virtual engines land with T-66/T-71)",
+			ErrRepoTypeNotSupported, r.Type)
 	}
 	return r, nil
 }
@@ -200,26 +205,14 @@ func (s *service) Put(ctx context.Context, p *Principal, repoKey, path string, b
 
 	folder := isFolderNode(path)
 	if !folder {
-		// repo-semantics section 3: an existing node whose checksum equals
-		// the client-declared sha256 is an idempotent retransmit — it must
-		// succeed with neither the deploy nor the overwrite check.
-		idempotent, existing, err := s.isIdempotentRedeploy(ctx, repoKey, path, expect.Sha256)
+		// The permission pair (repo-semantics section 3) runs before the
+		// body is committed: an existing node whose checksum equals the
+		// client-declared sha256 is an idempotent retransmit — it succeeds
+		// with neither the deploy nor the overwrite check; a different
+		// checksum requires delete permission on the old node.
+		idempotent, err := s.authorizeContentPut(ctx, p, repoKey, path, expect.Sha256)
 		if err != nil {
 			return nil, err
-		}
-		if !idempotent {
-			// Overwrite check FIRST (repo-semantics section 3): a different
-			// checksum (or none declared) requires delete permission on the
-			// old node, with the spec's wording. The plain write gate covers
-			// brand-new paths.
-			if existing != nil && !s.allow(ctx, p, repoKey, path, ActionDelete) {
-				return nil, fmt.Errorf(
-					"overwrite %s/%s: %w: user %q needs DELETE permission on the existing node",
-					repoKey, path, ErrForbidden, p.Name)
-			}
-			if !s.allow(ctx, p, repoKey, path, ActionWrite) {
-				return nil, fmt.Errorf("write %s/%s: %w", repoKey, path, ErrForbidden)
-			}
 		}
 		committed, err := s.commitBlob(ctx, body, expect)
 		if err != nil {
@@ -306,19 +299,9 @@ func (s *service) PutFromBlob(ctx context.Context, p *Principal, repoKey, path s
 	if ref.Sha256 == "" {
 		return nil, fmt.Errorf("checksum deploy %s/%s: %w: sha256 is required", repoKey, path, ErrInvalidPath)
 	}
-	idempotent, existing, err := s.isIdempotentRedeploy(ctx, repoKey, path, ref.Sha256)
+	idempotent, err := s.authorizeContentPut(ctx, p, repoKey, path, ref.Sha256)
 	if err != nil {
 		return nil, err
-	}
-	if !idempotent {
-		if existing != nil && !s.allow(ctx, p, repoKey, path, ActionDelete) {
-			return nil, fmt.Errorf(
-				"overwrite %s/%s: %w: user %q needs DELETE permission on the existing node",
-				repoKey, path, ErrForbidden, p.Name)
-		}
-		if !s.allow(ctx, p, repoKey, path, ActionWrite) {
-			return nil, fmt.Errorf("write %s/%s: %w", repoKey, path, ErrForbidden)
-		}
 	}
 
 	// Filestore check: the physical content must be present.
@@ -361,6 +344,72 @@ func (s *service) PutFromBlob(ctx context.Context, p *Principal, repoKey, path s
 	return n, nil
 }
 
+// PutLandedBlob implements Service.PutLandedBlob (architecture section
+// 11.13, the M3 debt closure): the blob is already committed in the
+// filestore, the caller holds the storage session's digest triple, and this
+// method lands the metadata — blobs row first, then the node — with ONE O(1)
+// Open as the presence/size probe and zero re-reading of the bytes. The
+// docker finalize path used to stream the landed blob back through Put (an
+// O(size) re-read plus a second digest pass per push); this variant is the
+// use case that delete-the-workaround was waiting for (the future
+// maven/npm chunked uploads share it).
+//
+// The contract difference against PutFromBlob: the ledger row does NOT need
+// to pre-exist — this method WRITES it (blob-first, per architecture section
+// 3.2; Blobs.Put's ON CONFLICT DO NOTHING keeps any pre-existing row the
+// sha1/md5 authority, which is exactly right: identical bytes cannot
+// disagree on digests). ref should therefore carry the session-computed
+// sha1/md5; a ref without them materializes a row they will never be
+// back-filled into (the permanence PutFromBlob's ErrOrphanBlob guard exists
+// to prevent on ITS path — here the caller owns a completed Commit, not a
+// scavenged orphan).
+func (s *service) PutLandedBlob(ctx context.Context, p *Principal, repoKey, path string, ref storage.BlobRef, mime string) (*metadata.Node, error) {
+	if err := requireAuthenticated(p); err != nil {
+		return nil, err
+	}
+	if err := validateNodePath(path); err != nil {
+		return nil, err
+	}
+	if isFolderNode(path) {
+		return nil, fmt.Errorf("landed blob %s/%s: %w: folder paths have no blob of their own", repoKey, path, ErrInvalidPath)
+	}
+	if mime == "" {
+		mime = "application/octet-stream"
+	}
+	if _, err := s.loadLocalRepo(ctx, repoKey); err != nil {
+		return nil, err
+	}
+	if ref.Sha256 == "" {
+		return nil, fmt.Errorf("landed blob %s/%s: %w: sha256 is required", repoKey, path, ErrInvalidPath)
+	}
+	idempotent, err := s.authorizeContentPut(ctx, p, repoKey, path, ref.Sha256)
+	if err != nil {
+		return nil, err
+	}
+
+	// O(1) presence probe: the OPEN (never a read) proves the physical blob
+	// exists and yields the file's own size for the node row. A miss here is
+	// a caller-or-store inconsistency — the contract hands over a COMMITTED
+	// ref — so it surfaces as a plain error, not ErrNodeNotFound (which
+	// would mask an internal fault as a client-addressable 404).
+	rc, phys, err := s.st.Open(ctx, ref.Sha256)
+	if err != nil {
+		return nil, fmt.Errorf("open landed blob %s for %s/%s: %w", ref.Sha256, repoKey, path, err)
+	}
+	_ = rc.Close() //nolint:errcheck // read-only fd; presence and size are already taken
+
+	committed := storage.BlobRef{Sha256: ref.Sha256, Sha1: ref.Sha1, Md5: ref.Md5, Size: phys.Size}
+	n, err := s.putNode(ctx, p, repoKey, path, false, committed, mime)
+	if err != nil {
+		return nil, err
+	}
+	s.audit(ctx, AuditEvent{
+		Actor: p.Name, Action: AuditActionDeploy, Repo: repoKey, Path: path,
+		Detail: fmt.Sprintf(`{"sha256":%q,"size":%d,"idempotent":%t,"landedBlob":true}`, n.Sha256, n.Size, idempotent),
+	})
+	return n, nil
+}
+
 // isIdempotentRedeploy reports whether the target node already holds the
 // client-declared sha256 (repo-semantics section 3: same checksum = an
 // idempotent retransmit that skips both the overwrite check and the deploy
@@ -376,6 +425,33 @@ func (s *service) isIdempotentRedeploy(ctx context.Context, repoKey, path, decla
 		return false, nil, fmt.Errorf("node %s/%s: %w", repoKey, path, err)
 	}
 	return existing.Sha256 != "" && existing.Sha256 == declaredSha256, existing, nil
+}
+
+// authorizeContentPut is the permission pair every content-landing use case
+// runs BEFORE touching bytes or rows (repo-semantics section 3): a node
+// already holding the declared sha256 is an idempotent retransmit that skips
+// both gates; otherwise overwriting an existing node additionally requires
+// delete on it, and every landing requires write. The pair lives in one
+// place so Put, PutFromBlob and PutLandedBlob can never drift apart on the
+// ordering — the security-relevant part is that the gates run before the
+// body is drained or the blob is opened.
+func (s *service) authorizeContentPut(ctx context.Context, p *Principal, repoKey, path, declaredSha256 string) (idempotent bool, err error) {
+	idempotent, existing, err := s.isIdempotentRedeploy(ctx, repoKey, path, declaredSha256)
+	if err != nil {
+		return false, err
+	}
+	if idempotent {
+		return true, nil
+	}
+	if existing != nil && !s.allow(ctx, p, repoKey, path, ActionDelete) {
+		return false, fmt.Errorf(
+			"overwrite %s/%s: %w: user %q needs DELETE permission on the existing node",
+			repoKey, path, ErrForbidden, p.Name)
+	}
+	if !s.allow(ctx, p, repoKey, path, ActionWrite) {
+		return false, fmt.Errorf("write %s/%s: %w", repoKey, path, ErrForbidden)
+	}
+	return false, nil
 }
 
 // putNode persists blob + node in the mandated order (architecture sections
@@ -1119,7 +1195,15 @@ func (s *service) DeleteRepoDocker(ctx context.Context, repoKey string) (int64, 
 
 // ---- Repository CRUD ----
 
-// CreateRepo implements Service.CreateRepo.
+// CreateRepo implements Service.CreateRepo. The M3 model (FR-15): the config
+// blob is typed per rclass — local keeps the M1 passthrough contract, remote
+// and virtual are validated, defaulted and canonicalized here — and the
+// type-owned state lands right after the repositories row: the
+// remote_configs row for remote (the fetcher's store; password EMPTY until
+// the crypto chain of T-66, per the T-62 review's no-plaintext-window
+// ruling) and the virtual_members list for virtual (positions = declaration
+// order). Every validation runs BEFORE the first write so a refused create
+// leaves no partial state.
 func (s *service) CreateRepo(ctx context.Context, p *Principal, r *metadata.Repo) (*metadata.Repo, error) {
 	if err := requireAdmin(p); err != nil {
 		return nil, err
@@ -1133,10 +1217,51 @@ func (s *service) CreateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 	if err := validateRepoType(r.Type, r.PackageType); err != nil {
 		return nil, err
 	}
-	config, err := normalizeConfig(r.Config)
-	if err != nil {
-		return nil, err
+
+	// Type-specific config: parse + validate + canonicalize. A blank config
+	// parses as "{}" for remote/virtual so the "url is required" /
+	// "repositories is required" refusals name the FIELD (M02b/M03) instead
+	// of a JSON EOF.
+	var (
+		remote  *remoteConfig
+		members []string
+	)
+	config := r.Config
+	if strings.TrimSpace(config) == "" {
+		config = "{}"
 	}
+	var err error
+	switch r.Type {
+	case TypeLocal:
+		if config, err = normalizeConfig(config); err != nil {
+			return nil, err
+		}
+		if err := validateLocalConfig(config); err != nil {
+			return nil, err
+		}
+	case TypeRemote:
+		rc, perr := parseRemoteConfig(config)
+		if perr != nil {
+			return nil, perr
+		}
+		remote = &rc
+		if config, err = marshalConfig(rc); err != nil {
+			return nil, err
+		}
+	case TypeVirtual:
+		vc, perr := parseVirtualConfig(config)
+		if perr != nil {
+			return nil, perr
+		}
+		if verr := s.validateVirtualMembers(ctx, r.RepoKey, vc); verr != nil {
+			return nil, verr
+		}
+		members = vc.Repositories
+		if config, err = marshalConfig(vc); err != nil {
+			return nil, err
+		}
+	}
+
 	if _, err := s.md.Repos().Get(ctx, r.RepoKey); err == nil {
 		return nil, fmt.Errorf("%w: %q", ErrRepoExists, r.RepoKey)
 	} else if !errors.Is(err, metadata.ErrRepoNotFound) {
@@ -1157,14 +1282,103 @@ func (s *service) CreateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 		}
 		return nil, fmt.Errorf("create repo %q: %w", r.RepoKey, err)
 	}
+
+	// Type-owned state, strictly after the repositories row (both tables FK
+	// it). A failure here leaves the row without its config/members — the
+	// retry heals through UpdateRepo (the config re-parse falls back to
+	// CreateConfig when the row is missing), and nothing else can reference
+	// the half-created repository meanwhile.
+	switch {
+	case remote != nil:
+		if err := s.md.Remote().CreateConfig(ctx, &metadata.RemoteConfig{
+			RepoKey:  r.RepoKey,
+			URL:      remote.URL,
+			Username: remote.Username,
+			// Password stays empty until T-66's AES-256-GCM chain: writing
+			// the accepted credential here would store unprotected plaintext
+			// (T-62 review, ADR-0012 decision 4). parseRemoteConfig already
+			// dropped it from the canonical form, so no echo path can leak
+			// it either (NFR-S14).
+			Password: "",
+			// The product default (7200, PRD C4/ADR-0012 errata two) — the
+			// DDL's 86400 is a schema-level fallback for rows created
+			// outside this service.
+			ContentTTLSeconds:    remote.RetrievalCachePeriodSecs,
+			MetadataTTLSeconds:   defaultMetadataTTLSeconds,
+			AllowPrivateUpstream: remote.AllowPrivateUpstream,
+		}); err != nil {
+			return nil, fmt.Errorf("remote config %q: %w", r.RepoKey, err)
+		}
+	case members != nil:
+		if err := s.md.Virtual().SetMembers(ctx, r.RepoKey, members); err != nil {
+			return nil, fmt.Errorf("virtual members %q: %w", r.RepoKey, err)
+		}
+	}
+
+	detail := fmt.Sprintf(`{"type":%q,"packageType":%q}`, r.Type, r.PackageType)
+	if remote != nil {
+		// The SSRF exemption is security-relevant state: the create/update
+		// audit trail always records its value (NFR-S14 point 5).
+		detail = fmt.Sprintf(`{"type":%q,"packageType":%q,"allowPrivateUpstream":%t}`,
+			r.Type, r.PackageType, remote.AllowPrivateUpstream)
+	}
 	s.audit(ctx, AuditEvent{
 		Actor: p.Name, Action: AuditActionRepoCreate, Repo: r.RepoKey,
-		Detail: fmt.Sprintf(`{"type":%q,"packageType":%q}`, r.Type, r.PackageType),
+		Detail: detail,
 	})
 	return stored, nil
 }
 
-// GetRepo implements Service.GetRepo.
+// validateVirtualMembers enforces the FR-15-AC4 member rules: every member
+// exists, none is virtual (nested virtuals are a deliberate M3
+// incompatibility, PRD section 2.2), none repeats, and the repository does
+// not list itself (reachable on update — create runs before the row exists,
+// but one shape serves both). defaultDeploymentRepo, when set, must be one
+// of the members AND that member must be a LOCAL repository
+// (repo-semantics section 8.2: the write route targets a local deployment
+// repository; a remote member cannot accept deploys).
+func (s *service) validateVirtualMembers(ctx context.Context, virtualKey string, cfg virtualConfig) error {
+	seen := make(map[string]bool, len(cfg.Repositories))
+	for _, m := range cfg.Repositories {
+		if m == virtualKey {
+			return fmt.Errorf("%w: virtual repository %q cannot list itself as a member", ErrInvalidRepoConfig, virtualKey)
+		}
+		if seen[m] {
+			return fmt.Errorf("%w: virtual repository members list %q more than once", ErrInvalidRepoConfig, m)
+		}
+		seen[m] = true
+	}
+	for _, m := range cfg.Repositories {
+		row, err := s.md.Repos().Get(ctx, m)
+		if err != nil {
+			if errors.Is(err, metadata.ErrRepoNotFound) {
+				return fmt.Errorf("%w: virtual repository member %q does not exist", ErrInvalidRepoConfig, m)
+			}
+			return fmt.Errorf("virtual member %q: %w", m, err)
+		}
+		if row.Type == TypeVirtual {
+			return fmt.Errorf(
+				"%w: virtual repository member %q is itself virtual (nested virtual repositories are not supported)",
+				ErrInvalidRepoConfig, m)
+		}
+		if cfg.DefaultDeploymentRepo != "" && m == cfg.DefaultDeploymentRepo && row.Type != TypeLocal {
+			return fmt.Errorf(
+				"%w: defaultDeploymentRepo %q must be a local repository member, not %s",
+				ErrInvalidRepoConfig, cfg.DefaultDeploymentRepo, row.Type)
+		}
+	}
+	if cfg.DefaultDeploymentRepo != "" && !seen[cfg.DefaultDeploymentRepo] {
+		return fmt.Errorf(
+			"%w: defaultDeploymentRepo %q is not a member of the virtual repository",
+			ErrInvalidRepoConfig, cfg.DefaultDeploymentRepo)
+	}
+	return nil
+}
+
+// GetRepo implements Service.GetRepo. Remote rows get their config echoed
+// through maskRemoteConfig — the canonical form never carries a password,
+// but the read boundary enforces NFR-S14 against rows written by any other
+// means too.
 func (s *service) GetRepo(ctx context.Context, p *Principal, repoKey string) (*metadata.Repo, error) {
 	if err := requireAuthenticated(p); err != nil {
 		return nil, err
@@ -1176,11 +1390,23 @@ func (s *service) GetRepo(ctx context.Context, p *Principal, repoKey string) (*m
 		}
 		return nil, fmt.Errorf("repo %q: %w", repoKey, err)
 	}
+	if r.Type == TypeRemote {
+		r.Config = maskRemoteConfig(r.Config)
+	}
 	return r, nil
 }
 
 // ListRepos implements Service.ListRepos.
 func (s *service) ListRepos(ctx context.Context, p *Principal) ([]*metadata.Repo, error) {
+	return s.ListReposFiltered(ctx, p, "", "")
+}
+
+// ListReposFiltered implements Service.ListReposFiltered (M04, FR-15-AC5):
+// exact column matches, "" meaning "no filter on this axis", and unknown
+// values matching nothing (rest-api.md section 2's empty-array-not-error
+// contract). The repository count is small and the filtering is trivial;
+// in-memory keeps one read path instead of a second query shape.
+func (s *service) ListReposFiltered(ctx context.Context, p *Principal, repoType, packageType string) ([]*metadata.Repo, error) {
 	if err := requireAuthenticated(p); err != nil {
 		return nil, err
 	}
@@ -1188,12 +1414,29 @@ func (s *service) ListRepos(ctx context.Context, p *Principal) ([]*metadata.Repo
 	if err != nil {
 		return nil, fmt.Errorf("list repos: %w", err)
 	}
-	return repos, nil
+	out := make([]*metadata.Repo, 0, len(repos))
+	for _, row := range repos {
+		if repoType != "" && row.Type != repoType {
+			continue
+		}
+		if packageType != "" && row.PackageType != packageType {
+			continue
+		}
+		if row.Type == TypeRemote {
+			row.Config = maskRemoteConfig(row.Config)
+		}
+		out = append(out, row)
+	}
+	return out, nil
 }
 
 // UpdateRepo implements Service.UpdateRepo: description and config only,
 // type and package type are immutable (changing them would silently change
-// every adapter routing decision).
+// every adapter routing decision). A PROVIDED config re-validates and
+// rewrites the type-owned state (the remote_configs row / the virtual member
+// list — full-replace semantics, the Artifactory PUT model); an absent
+// config keeps it, so description-only updates never touch members or
+// credentials.
 func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo) (*metadata.Repo, error) {
 	if err := requireAdmin(p); err != nil {
 		return nil, err
@@ -1219,11 +1462,55 @@ func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 		return nil, fmt.Errorf("%w: package type is immutable (%q → %q)",
 			ErrInvalidRepoType, current.PackageType, r.PackageType)
 	}
+
+	var (
+		remote      *remoteConfig
+		members     []string
+		configSet   bool
+		privateFrom *bool
+	)
 	config := current.Config
 	if r.Config != "" {
-		config, err = normalizeConfig(r.Config)
-		if err != nil {
-			return nil, err
+		configSet = true
+		switch current.Type {
+		case TypeLocal:
+			if config, err = normalizeConfig(r.Config); err != nil {
+				return nil, err
+			}
+			if err := validateLocalConfig(config); err != nil {
+				return nil, err
+			}
+		case TypeRemote:
+			rc, perr := parseRemoteConfig(r.Config)
+			if perr != nil {
+				return nil, perr
+			}
+			remote = &rc
+			if config, err = marshalConfig(rc); err != nil {
+				return nil, err
+			}
+			// The audit trail records the EXEMPTION'S transition, not just
+			// its new value (NFR-S14 point 5: "变更留审计记录"). The old
+			// value comes from the stored canonical form; a row that
+			// somehow carries none counts as false.
+			var old remoteConfig
+			_ = json.Unmarshal([]byte(current.Config), &old)
+			if old.AllowPrivateUpstream != rc.AllowPrivateUpstream {
+				from := old.AllowPrivateUpstream
+				privateFrom = &from
+			}
+		case TypeVirtual:
+			vc, perr := parseVirtualConfig(r.Config)
+			if perr != nil {
+				return nil, perr
+			}
+			if verr := s.validateVirtualMembers(ctx, current.RepoKey, vc); verr != nil {
+				return nil, verr
+			}
+			members = vc.Repositories
+			if config, err = marshalConfig(vc); err != nil {
+				return nil, err
+			}
 		}
 	}
 	current.Description = r.Description
@@ -1232,9 +1519,44 @@ func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 	if err := s.md.Repos().Update(ctx, current); err != nil {
 		return nil, fmt.Errorf("update repo %q: %w", r.RepoKey, err)
 	}
+
+	// Type-owned state, after the repositories row: the remote config row is
+	// UPDATED in place (falling back to CreateConfig for a row lost to the
+	// create-crash window — the update is the documented healer), the member
+	// list replaced atomically by SetMembers.
+	if remote != nil {
+		row := &metadata.RemoteConfig{
+			RepoKey: r.RepoKey,
+			URL:     remote.URL, Username: remote.Username,
+			// Same no-plaintext-window rule as create (T-66 owns credentials).
+			Password:             "",
+			ContentTTLSeconds:    remote.RetrievalCachePeriodSecs,
+			MetadataTTLSeconds:   defaultMetadataTTLSeconds,
+			AllowPrivateUpstream: remote.AllowPrivateUpstream,
+		}
+		if err := s.md.Remote().UpdateConfig(ctx, row); err != nil {
+			if !errors.Is(err, metadata.ErrRemoteConfigNotFound) {
+				return nil, fmt.Errorf("remote config %q: %w", r.RepoKey, err)
+			}
+			if err := s.md.Remote().CreateConfig(ctx, row); err != nil {
+				return nil, fmt.Errorf("remote config %q: %w", r.RepoKey, err)
+			}
+		}
+	}
+	if members != nil {
+		if err := s.md.Virtual().SetMembers(ctx, r.RepoKey, members); err != nil {
+			return nil, fmt.Errorf("virtual members %q: %w", r.RepoKey, err)
+		}
+	}
+
+	detail := fmt.Sprintf(`{"descriptionSet":%t,"configSet":%t}`, r.Description != "", configSet && config != "{}")
+	if privateFrom != nil {
+		detail = fmt.Sprintf(`{"descriptionSet":%t,"configSet":%t,"allowPrivateUpstream":{"from":%t,"to":%t}}`,
+			r.Description != "", configSet && config != "{}", *privateFrom, remote.AllowPrivateUpstream)
+	}
 	s.audit(ctx, AuditEvent{
 		Actor: p.Name, Action: AuditActionRepoUpdate, Repo: r.RepoKey,
-		Detail: fmt.Sprintf(`{"descriptionSet":%t,"configSet":%t}`, r.Description != "", config != "{}"),
+		Detail: detail,
 	})
 	return current, nil
 }
@@ -1298,6 +1620,22 @@ func (s *service) DeleteRepo(ctx context.Context, p *Principal, repoKey string, 
 	if _, err := s.DeleteRepoDocker(ctx, repoKey); err != nil {
 		return fmt.Errorf("repo %q docker teardown: %w", repoKey, err)
 	}
+	// Remote repositories drop their cache-validator rows (FR-15-AC6):
+	// remote_cache is DERIVED state, so unlike content nodes it never blocks
+	// the delete — the purge runs on both the deleteContent and the
+	// plain-empty path, and the count lands in the audit detail (the row FK
+	// would cascade them anyway; the explicit call keeps the blast radius
+	// observable, the same posture as the node deletes above). The
+	// remote_configs row itself and virtual_members rows cascade through
+	// their FKs (T-62's no-separate-teardown contract).
+	cacheRows := int64(0)
+	if repoRow.Type == TypeRemote {
+		n, err := s.md.Remote().DeleteCacheByRepo(ctx, repoKey)
+		if err != nil {
+			return fmt.Errorf("repo %q remote cache teardown: %w", repoKey, err)
+		}
+		cacheRows = n
+	}
 	if err := s.md.Repos().Delete(ctx, repoKey); err != nil {
 		if errors.Is(err, metadata.ErrRepoNotFound) {
 			return fmt.Errorf("repo %q: %w", repoKey, ErrRepoNotFound)
@@ -1319,9 +1657,14 @@ func (s *service) DeleteRepo(ctx context.Context, p *Principal, repoKey string, 
 	if _, err := s.md.Docker().DeleteRepoRefs(ctx, repoKey); err != nil {
 		return fmt.Errorf("repo %q docker refs teardown: %w", repoKey, err)
 	}
+	detail := fmt.Sprintf(`{"deleteContent":%t,"removedNodes":%d}`, deleteContent, len(nodes))
+	if repoRow.Type == TypeRemote {
+		detail = fmt.Sprintf(`{"deleteContent":%t,"removedNodes":%d,"removedCacheRows":%d}`,
+			deleteContent, len(nodes), cacheRows)
+	}
 	s.audit(ctx, AuditEvent{
 		Actor: p.Name, Action: AuditActionRepoDelete, Repo: repoKey,
-		Detail: fmt.Sprintf(`{"deleteContent":%t,"removedNodes":%d}`, deleteContent, len(nodes)),
+		Detail: detail,
 	})
 	return nil
 }

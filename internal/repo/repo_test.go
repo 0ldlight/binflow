@@ -62,33 +62,51 @@ func TestCreateRepoKeyValidation(t *testing.T) {
 	}
 }
 
-// TestCreateRepoTypeValidation: rclass/packageType gating (AC 2).
+// TestCreateRepoTypeValidation: the M3 rclass/packageType matrix (FR-15-AC1/
+// AC7): all three classes x {generic, maven, npm, pypi} open, docker stays
+// local-only. Remote rows need a valid url config, virtual rows a member —
+// the config-level rules are the FR-15 field tests further down; this table
+// pins the MATRIX (what combinations the service accepts at all).
 func TestCreateRepoTypeValidation(t *testing.T) {
 	tests := []struct {
 		name        string
 		rclass      string
 		packageType string
+		config      string
 		want        error
 	}{
-		{"local generic", "local", "generic", nil},
-		{"remote generic → M3", "remote", "generic", repo.ErrRepoTypeNotSupported},
-		{"virtual generic → M3", "virtual", "generic", repo.ErrRepoTypeNotSupported},
-		{"local docker → M2 on", "local", "docker", nil},
-		{"remote docker → M3", "remote", "docker", repo.ErrRepoTypeNotSupported},
-		{"virtual docker → M3", "virtual", "docker", repo.ErrRepoTypeNotSupported},
-		{"local maven → M3", "local", "maven", repo.ErrRepoTypeNotSupported},
-		{"local npm → M3", "local", "npm", repo.ErrRepoTypeNotSupported},
-		{"local pypi → M3", "local", "pypi", repo.ErrRepoTypeNotSupported},
-		{"unknown rclass", "federated", "generic", repo.ErrInvalidRepoType},
-		{"unknown package", "local", "conda", repo.ErrInvalidRepoType},
-		{"empty rclass", "", "generic", repo.ErrInvalidRepoType},
-		{"empty package", "local", "", repo.ErrInvalidRepoType},
+		{"local generic", "local", "generic", "", nil},
+		{"local docker (M2, no regression)", "local", "docker", "", nil},
+		{"local maven (FR-15-AC1)", "local", "maven", "", nil},
+		{"local npm (FR-15-AC1)", "local", "npm", "", nil},
+		{"local pypi (FR-15-AC1)", "local", "pypi", "", nil},
+		{"remote generic", "remote", "generic", `{"url":"http://127.0.0.1:9099"}`, nil},
+		{"remote maven", "remote", "maven", `{"url":"http://127.0.0.1:9099/m2"}`, nil},
+		{"remote npm", "remote", "npm", `{"url":"https://registry.npmjs.org"}`, nil},
+		{"remote pypi", "remote", "pypi", `{"url":"https://pypi.org/simple"}`, nil},
+		{"remote docker → not supported in M3", "remote", "docker", `{"url":"https://registry-1.docker.io"}`, repo.ErrRepoTypeNotSupported},
+		{"virtual generic", "virtual", "generic", "", nil}, // members seeded by the test body
+		{"virtual maven", "virtual", "maven", "", nil},
+		{"virtual npm", "virtual", "npm", "", nil},
+		{"virtual pypi", "virtual", "pypi", "", nil},
+		{"virtual docker → not supported in M3", "virtual", "docker", "", repo.ErrRepoTypeNotSupported},
+		{"unknown rclass", "federated", "generic", "", repo.ErrInvalidRepoType},
+		{"unknown package", "local", "conda", "", repo.ErrInvalidRepoType},
+		{"empty rclass", "", "generic", "", repo.ErrInvalidRepoType},
+		{"empty package", "local", "", "", repo.ErrInvalidRepoType},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			e := newEnv(t)
+			config := tt.config
+			if tt.rclass == "virtual" && tt.want == nil {
+				// The member must pre-exist (FR-15-AC4); the matrix success
+				// rows seed one local member, exactly like the M03 QA flow.
+				mustCreateRepo(t, e, "member-local")
+				config = `{"repositories":["member-local"]}`
+			}
 			_, err := e.svc.CreateRepo(context.Background(), admin(), &metadata.Repo{
-				RepoKey: "generic-local", Type: tt.rclass, PackageType: tt.packageType,
+				RepoKey: "generic-local", Type: tt.rclass, PackageType: tt.packageType, Config: config,
 			})
 			if tt.want == nil {
 				if err != nil {
@@ -99,11 +117,11 @@ func TestCreateRepoTypeValidation(t *testing.T) {
 			if !errors.Is(err, tt.want) {
 				t.Fatalf("error = %v, want %v", err, tt.want)
 			}
-			// The M3 wording must reach the API surface (AC 2: "supported
-			// from M3" semantics live in the message; httpapi maps the
+			// The docker-combination refusal must reach the API surface with
+			// its "not supported in M3" wording (FR-15-AC7; httpapi maps the
 			// sentinel to a 400-shaped response).
-			if errors.Is(tt.want, repo.ErrRepoTypeNotSupported) && !strings.Contains(err.Error(), "M3") {
-				t.Fatalf("error %q does not mention M3", err)
+			if errors.Is(tt.want, repo.ErrRepoTypeNotSupported) && !strings.Contains(err.Error(), "not supported in M3") {
+				t.Fatalf("error %q does not carry the not-supported-in-M3 wording", err)
 			}
 		})
 	}

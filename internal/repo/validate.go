@@ -15,22 +15,23 @@ const maxRepoKeyLen = 63
 const maxNodePathLen = 512
 
 // knownPackageTypes is the DDL enum of package_type (architecture section
-// 6). Anything outside it is a plain ErrInvalidRepoType; future-but-valid
+// 6). Anything outside it is a plain ErrInvalidRepoType; valid-but-unserved
 // combinations are rejected one step later with ErrRepoTypeNotSupported.
 var knownPackageTypes = map[string]bool{
-	PackageGeneric: true, "docker": true, "maven": true, "npm": true, "pypi": true,
+	PackageGeneric: true, PackageDocker: true, PackageMaven: true, PackageNpm: true, PackagePypi: true,
 }
 
-// supportedPackageTypes is the M2 support matrix: which (type, packageType)
-// pairs the service can actually serve. M2 turns local+docker on (FR-7-AC1,
-// T-35); remote and virtual repositories stay empty until M3. Everything
-// valid-but-future is rejected with ErrRepoTypeNotSupported (message
-// "supported from M3") — httpapi translates the shape (400), the semantics
-// stay here.
+// supportedPackageTypes is the M3 support matrix (FR-15, T-64): all three
+// repository classes × {generic, maven, npm, pypi}, docker on LOCAL only
+// (FR-15-AC7 / PRD Q4: remote and virtual docker stay out of M3 — the
+// registry proxy/aggregation semantics are unverified spec ground,
+// docker-registry.md section 9; re-evaluation is M4). The one rejected
+// combination answers ErrRepoTypeNotSupported with "not supported in M3"
+// wording; httpapi translates the shape (400), the semantics stay here.
 var supportedPackageTypes = map[string]map[string]bool{
-	TypeLocal:   {PackageGeneric: true, PackageDocker: true},
-	TypeRemote:  {},
-	TypeVirtual: {},
+	TypeLocal:   {PackageGeneric: true, PackageDocker: true, PackageMaven: true, PackageNpm: true, PackagePypi: true},
+	TypeRemote:  {PackageGeneric: true, PackageMaven: true, PackageNpm: true, PackagePypi: true},
+	TypeVirtual: {PackageGeneric: true, PackageMaven: true, PackageNpm: true, PackagePypi: true},
 }
 
 // validateRepoKey checks one repository key against the charset rule and the
@@ -55,10 +56,10 @@ func validateRepoKey(key string) error {
 }
 
 // validateRepoType checks rclass and package type. A syntactically unknown
-// value is ErrInvalidRepoType; a known-but-future combination (remote or
-// virtual repositories, or any non-generic package) is
-// ErrRepoTypeNotSupported with "supported from M3" wording so httpapi can
-// surface the reason.
+// value is ErrInvalidRepoType; the M3 matrix leaves exactly one
+// valid-but-unserved combination — docker on remote or virtual — which is
+// ErrRepoTypeNotSupported with "not supported in M3" wording (FR-15-AC7) so
+// httpapi can surface the reason.
 func validateRepoType(rclass, packageType string) error {
 	if rclass != TypeLocal && rclass != TypeRemote && rclass != TypeVirtual {
 		return fmt.Errorf("%w %q: must be one of local, remote, virtual", ErrInvalidRepoType, rclass)
@@ -68,7 +69,7 @@ func validateRepoType(rclass, packageType string) error {
 			ErrInvalidRepoType, packageType)
 	}
 	if !supportedPackageTypes[rclass][packageType] {
-		return fmt.Errorf("%w: %s %s repositories are supported from M3",
+		return fmt.Errorf("%w: %s %s repositories are not supported in M3 (docker is local-only; PRD Q4)",
 			ErrRepoTypeNotSupported, rclass, packageType)
 	}
 	return nil

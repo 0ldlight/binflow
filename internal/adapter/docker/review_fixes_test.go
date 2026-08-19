@@ -297,12 +297,16 @@ func (s *countingGetService) Get(ctx context.Context, p *Principal, repoKey, pat
 }
 
 // The remaining Service methods delegate verbatim (the blob domain only
-// calls Get/Put/PutFromBlob; the rest keep the wrapped behavior).
+// calls Get/Put/PutFromBlob/PutLandedBlob; the rest keep the wrapped
+// behavior).
 func (s *countingGetService) Put(ctx context.Context, p *Principal, rk, path string, body io.Reader, expect storage.BlobRef, mime string) (*metadata.Node, error) {
 	return s.inner.Put(ctx, p, rk, path, body, expect, mime)
 }
 func (s *countingGetService) PutFromBlob(ctx context.Context, p *Principal, rk, path string, ref storage.BlobRef, mime string) (*metadata.Node, error) {
 	return s.inner.PutFromBlob(ctx, p, rk, path, ref, mime)
+}
+func (s *countingGetService) PutLandedBlob(ctx context.Context, p *Principal, rk, path string, ref storage.BlobRef, mime string) (*metadata.Node, error) {
+	return s.inner.PutLandedBlob(ctx, p, rk, path, ref, mime)
 }
 func (s *countingGetService) Delete(ctx context.Context, p *Principal, rk, path string) error {
 	return s.inner.Delete(ctx, p, rk, path)
@@ -318,6 +322,9 @@ func (s *countingGetService) GetRepo(ctx context.Context, p *Principal, rk strin
 }
 func (s *countingGetService) ListRepos(ctx context.Context, p *Principal) ([]*metadata.Repo, error) {
 	return s.inner.ListRepos(ctx, p)
+}
+func (s *countingGetService) ListReposFiltered(ctx context.Context, p *Principal, repoType, packageType string) ([]*metadata.Repo, error) {
+	return s.inner.ListReposFiltered(ctx, p, repoType, packageType)
 }
 func (s *countingGetService) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo) (*metadata.Repo, error) {
 	return s.inner.UpdateRepo(ctx, p, r)

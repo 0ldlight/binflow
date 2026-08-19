@@ -27,8 +27,10 @@ var (
 	ErrReservedRepoKey = errors.New("repository key is reserved")
 	// ErrInvalidRepoType: unknown rclass, or an attempt to change it.
 	ErrInvalidRepoType = errors.New("invalid repository type")
-	// ErrRepoTypeNotSupported: remote/virtual repositories land in M3; M2
-	// implements local only. httpapi translates this to a 400-shaped response.
+	// ErrRepoTypeNotSupported: a (rclass, packageType) pair the M3 matrix
+	// does not serve — docker on remote/virtual repositories (FR-15-AC7) —
+	// or a content operation on a class whose engine has not landed yet.
+	// httpapi translates this to a 400-shaped response.
 	ErrRepoTypeNotSupported = errors.New("repository type not supported")
 	// ErrInvalidRepoConfig: the config blob is not valid JSON.
 	ErrInvalidRepoConfig = errors.New("invalid repository config")
@@ -101,10 +103,17 @@ const (
 	TypeVirtual = "virtual"
 
 	PackageGeneric = "generic"
-	// PackageDocker turns on for local repositories in M2 (FR-7-AC1);
-	// remote/virtual docker stays M3 (docker-registry.md section 9:
-	// remote/v2 differences are unverified spec ground).
+	// PackageDocker is local-only across M2/M3 (FR-7-AC1, FR-15-AC7): the
+	// registry proxy and aggregation semantics of remote/v2 are unverified
+	// spec ground (docker-registry.md section 9, PRD Q4) — M4 re-evaluates.
 	PackageDocker = "docker"
+	// PackageMaven/PackageNpm/PackagePypi open for all three classes in M3
+	// (FR-15-AC1): local is served by the protocol adapters (T-67/T-69/T-70),
+	// remote by the pull-through fetcher (T-66), virtual by the two-bucket
+	// resolver (T-71).
+	PackageMaven = "maven"
+	PackageNpm   = "npm"
+	PackagePypi  = "pypi"
 )
 
 // Reserved repo keys (ADR-0008): they collide with /binflow routing segments.
@@ -228,6 +237,27 @@ type Service interface {
 	// it, never re-derived from the client's claim. Permission, overwrite
 	// and idempotent-retransmit semantics are identical to Put.
 	PutFromBlob(ctx context.Context, p *Principal, repoKey, path string, ref storage.BlobRef, mime string) (*metadata.Node, error)
+	// PutLandedBlob creates (or idempotently re-creates) a blobs-ledger row
+	// PLUS the node for a blob that is ALREADY committed in the filestore —
+	// the PutFromBlob variant for callers that own a completed storage
+	// session and hold the session's own digest triple (architecture section
+	// 11.13, the M3 debt closure). docker's upload finalize (T-38) and the
+	// future maven/npm chunked uploads call it right after Session.Commit so
+	// the ledger+node rows land without re-reading the bytes: the previous
+	// workaround streamed the landed blob back through Put, an O(size)
+	// read-and-rehash per finalize that PutLandedBlob deletes.
+	//
+	// The contract difference against PutFromBlob: the ledger row does NOT
+	// need to pre-exist — this method WRITES it (blob-first, Blobs.Put's
+	// ON CONFLICT DO NOTHING keeps any existing row authoritative for
+	// sha1/md5), so ref should carry the session-computed digests; a ref
+	// lacking them materializes a row they will never be back-filled into
+	// (the same permanence PutFromBlob's ErrOrphanBlob guard protects
+	// against, which is why THAT method keeps refusing orphans). Only the
+	// physical blob must exist (verified with an O(1) Open, never a
+	// re-read). Permission, overwrite and idempotent-retransmit semantics
+	// are identical to Put/PutFromBlob.
+	PutLandedBlob(ctx context.Context, p *Principal, repoKey, path string, ref storage.BlobRef, mime string) (*metadata.Node, error)
 	// Delete removes the node reference only (the blob is GC's business).
 	// A directory path deletes recursively and prunes folder rows left empty.
 	// Missing path → ErrNodeNotFound (idempotent 404 semantics).
@@ -246,6 +276,13 @@ type Service interface {
 	GetRepo(ctx context.Context, p *Principal, repoKey string) (*metadata.Repo, error)
 	// ListRepos returns every repository ordered by key.
 	ListRepos(ctx context.Context, p *Principal) ([]*metadata.Repo, error)
+	// ListReposFiltered is ListRepos with the E-04 query filters (M04,
+	// FR-15-AC5): repoType and packageType are EXACT-match column filters,
+	// "" meaning "no filter on this axis". Unknown or misspelled values are
+	// not errors — they match nothing and the result is an empty slice
+	// (rest-api.md section 2: "invalid type/packageType -> empty array, no
+	// error"), the semantics M1's E-04 already promised.
+	ListReposFiltered(ctx context.Context, p *Principal, repoType, packageType string) ([]*metadata.Repo, error)
 	// UpdateRepo updates description/config; type and package type are
 	// immutable. Admin only.
 	UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo) (*metadata.Repo, error)

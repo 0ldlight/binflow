@@ -10,7 +10,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +17,7 @@ import (
 	"testing"
 
 	"github.com/lzwzzy/binflow/internal/metadata"
+	"github.com/lzwzzy/binflow/internal/repo"
 	"github.com/lzwzzy/binflow/internal/storage"
 )
 
@@ -83,21 +83,24 @@ func TestWriteStoreFailureBusyMaps503(t *testing.T) {
 	}
 }
 
-// busyOpenStore fails Open with the busy error, driving registerBlobNode —
-// writeBlobCreated's real failure seam — into the T-54 arm.
-type busyOpenStore struct {
-	storage.Engine
+// busyLandedService fails PutLandedBlob with the busy error, driving
+// registerBlobNode — writeBlobCreated's real failure seam since T-64 (the
+// registration no longer opens the blob; the service call is the whole
+// metadata landing) — into the T-54 arm.
+type busyLandedService struct {
+	repo.Service
 }
 
-func (busyOpenStore) Open(_ context.Context, _ string) (io.ReadSeekCloser, storage.BlobRef, error) {
-	return nil, storage.BlobRef{}, fmt.Errorf("open committed blob for registration: %w", busyErr())
+func (busyLandedService) PutLandedBlob(context.Context, *Principal, string, string, storage.BlobRef, string) (*metadata.Node, error) {
+	return nil, fmt.Errorf("land blob row: %w", busyErr())
 }
 
 // TestWriteBlobCreatedBusyMaps503 pins the F1 failure site itself: the blob
 // committed, the registration hit busy — the client gets 503 + retry cue with
 // the digest detail, not 500 UNKNOWN.
 func TestWriteBlobCreatedBusyMaps503(t *testing.T) {
-	h := newMappingHandler(t).WithStorage(busyOpenStore{}, nil)
+	h := New(busyLandedService{}, NewStaticRepoLookup(nil), nil, nil, nil, Options{},
+		slog.New(slog.NewTextHandler(&strings.Builder{}, nil)))
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/v2/docker-local/acme/app/blobs/uploads/", nil)
 	ref := nameRef{repoKey: "docker-local", image: "acme/app"}

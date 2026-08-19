@@ -292,17 +292,21 @@ func TestCreateDockerRepoEnabled(t *testing.T) {
 		}
 	})
 
-	t.Run("remote and virtual docker remain M3", func(t *testing.T) {
+	t.Run("remote and virtual docker stay refused (FR-15-AC7)", func(t *testing.T) {
+		// The M3 inversion (PRD section 5.6) opened every class for the
+		// protocol package types; docker is the ONE combination that stays
+		// 400 (PRD Q4 — registry proxy/aggregation semantics unverified).
 		e := newEnv(t)
 		for _, rclass := range []string{repo.TypeRemote, repo.TypeVirtual} {
 			_, err := e.svc.CreateRepo(ctx, admin(), &metadata.Repo{
 				RepoKey: "d-" + rclass, Type: rclass, PackageType: repo.PackageDocker,
+				Config: `{"url":"https://registry-1.docker.io"}`,
 			})
 			if !errors.Is(err, repo.ErrRepoTypeNotSupported) {
 				t.Fatalf("CreateRepo(%s docker) error = %v, want ErrRepoTypeNotSupported", rclass, err)
 			}
-			if !strings.Contains(err.Error(), "M3") {
-				t.Fatalf("error does not mention M3: %v", err)
+			if !strings.Contains(err.Error(), "not supported in M3") {
+				t.Fatalf("error does not carry the not-supported-in-M3 wording: %v", err)
 			}
 		}
 	})
@@ -326,10 +330,19 @@ func TestCreateDockerRepoEnabled(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("local generic: %v", err)
 		}
+		// M3 inversion (FR-15 / PRD section 5.6): remote generic now creates
+		// — with a URL it succeeds, without one the config refusal names the
+		// field (docker stays the only refused class, see the subtest above).
 		if _, err := e.svc.CreateRepo(ctx, admin(), &metadata.Repo{
 			RepoKey: "g-two", Type: repo.TypeRemote, PackageType: repo.PackageGeneric,
-		}); !errors.Is(err, repo.ErrRepoTypeNotSupported) {
-			t.Fatalf("remote generic error = %v", err)
+			Config: `{"url":"http://127.0.0.1:9099"}`,
+		}); err != nil {
+			t.Fatalf("remote generic: %v", err)
+		}
+		if _, err := e.svc.CreateRepo(ctx, admin(), &metadata.Repo{
+			RepoKey: "g-three", Type: repo.TypeRemote, PackageType: repo.PackageGeneric,
+		}); !errors.Is(err, repo.ErrInvalidRepoConfig) {
+			t.Fatalf("remote generic without url error = %v, want ErrInvalidRepoConfig", err)
 		}
 	})
 

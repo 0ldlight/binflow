@@ -178,6 +178,31 @@ func (f *fakeService) Delete(context.Context, *Principal, string, string) error 
 	return errUnimplementedFake
 }
 
+// PutLandedBlob mirrors the real service's finalize registration (T-64): the
+// blob is already committed in the engine, the ref carries the session's
+// digests, and the fake records the call and materializes the node over the
+// engine's bytes so subsequent Gets serve the store's content (no re-read
+// drive — the real method's O(1) contract is the production property, the
+// fake only keeps the observable landing shape).
+func (f *fakeService) PutLandedBlob(ctx context.Context, p *Principal, repoKey, path string, ref storage.BlobRef, mime string) (*metadata.Node, error) {
+	f.mu.Lock()
+	if f.putErr != nil {
+		err := f.putErr
+		f.mu.Unlock()
+		return nil, err
+	}
+	f.puts = append(f.puts, mountCall{repoKey: repoKey, path: path, hex: ref.Sha256})
+	f.mimes[repoKey+"/"+path] = mime
+	f.mu.Unlock()
+	content, err := f.readBlob(ctx, ref.Sha256)
+	if err != nil {
+		return nil, err
+	}
+	f.put(repoKey, path, content)
+	_ = p
+	return &metadata.Node{RepoKey: repoKey, Path: path, Sha256: ref.Sha256, Size: int64(len(content))}, nil
+}
+
 func (f *fakeService) List(context.Context, *Principal, string, string) ([]*metadata.Node, error) {
 	return nil, errUnimplementedFake
 }
@@ -191,6 +216,10 @@ func (f *fakeService) GetRepo(context.Context, *Principal, string) (*metadata.Re
 }
 
 func (f *fakeService) ListRepos(context.Context, *Principal) ([]*metadata.Repo, error) {
+	return nil, errUnimplementedFake
+}
+
+func (f *fakeService) ListReposFiltered(context.Context, *Principal, string, string) ([]*metadata.Repo, error) {
 	return nil, errUnimplementedFake
 }
 

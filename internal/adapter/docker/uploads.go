@@ -578,15 +578,16 @@ func (h *Handler) newUploadSession(r *http.Request) (storage.Session, error) {
 // the addressing digest, and the checksum family is served whole
 // (X-Checksum-Sha256/Sha1/Md5, "规格照抄" 6).
 //
-// The metadata side lands here too. The registration deliberately rides
-// repo.Service.Put — the SAME path a generic upload takes — by streaming
-// the just-committed blob back through it: the service's own session
-// Commit is an idempotent dedup hit on the already-present physical blob
-// (no second copy ever lands), and its putNode writes the blobs-ledger row
-// plus the node in the mandated order. PutFromBlob alone cannot serve
-// here: it requires the ledger row to pre-exist and only Put's path
-// creates it — a fresh docker push has no earlier generic deploy to lean
-// on.
+// The metadata side lands here too, through repo.Service.PutLandedBlob
+// (T-64, architecture section 11.13's debt closure): the just-committed
+// BlobRef — carrying the session's own streamed digest triple — goes
+// straight to the service, which writes the blobs-ledger row plus the node
+// in the mandated order with ONE O(1) Open and no re-reading of the bytes.
+// The T-38 workaround this replaces streamed the landed blob back through
+// svc.Put, an O(size) re-read plus a second digest pass on every finalize
+// (10GB layers paid it visibly); PutFromBlob could not serve here because
+// it requires the ledger row to pre-exist, which is exactly the gap
+// PutLandedBlob closes.
 //
 // Failure semantics (review B4): a registration failure after a successful
 // Commit renders 5xx, NOT 201. The blob itself is durable (Commit
@@ -594,7 +595,7 @@ func (h *Handler) newUploadSession(r *http.Request) (storage.Session, error) {
 // push whose blob is invisible to reads and whose manifest would fail
 // reference validation, with nothing telling the client to retry. A 5xx is
 // the retry signal, and the retry is safe end to end: the re-push's Commit
-// dedups onto the existing physical blob and Put's idempotent-retransmit
+// dedups onto the existing physical blob and the idempotent-retransmit
 // rule completes the ledger+node rows. The orphaned physical blob of the
 // failed attempt is GC's by-design recovery path. A permission-shaped
 // refusal (denied) stays 403 — retrying cannot fix that.
@@ -630,16 +631,12 @@ func (h *Handler) writeBlobCreated(w http.ResponseWriter, r *http.Request, ref n
 	h.writeMountCreated(w, r, ref, blob)
 }
 
-// registerBlobNode drives the landed blob through repo.Service.Put so the
-// ledger + node rows appear exactly as on a generic deploy.
+// registerBlobNode hands the landed blob's ref to repo.Service.PutLandedBlob
+// so the ledger + node rows appear exactly as on a generic deploy — no
+// O(size) read-back of the committed bytes (T-64).
 func (h *Handler) registerBlobNode(r *http.Request, ref nameRef, blob storage.BlobRef) error {
-	rc, _, err := h.store.Open(r.Context(), blob.Sha256)
-	if err != nil {
-		return fmt.Errorf("open committed blob for registration: %w", err)
-	}
-	defer rc.Close() //nolint:errcheck // read-only fd
-	_, err = h.svc.Put(r.Context(), principalOf(r), ref.repoKey,
-		blobNodePath(ref.image, blob.Sha256), rc, blob, mimeOctetStream)
+	_, err := h.svc.PutLandedBlob(r.Context(), principalOf(r), ref.repoKey,
+		blobNodePath(ref.image, blob.Sha256), blob, mimeOctetStream)
 	return err
 }
 
