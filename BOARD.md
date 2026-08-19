@@ -35,13 +35,13 @@
 ## 🔨 进行中（doing）
 
 （T-62 编码完成 → review 区；单 reviewer 在途）
-- **T-80** [P0] httpapi 仓库 REST 三型接线（T-64 遗留①小票） `role:dev-go-core` `area:internal/httpapi/repositories.go` — 在途（批 3 的 T-66 fixture 前置）
+- **T-81** [P1] NFR-S13/ADR-0012 NAT64 勘误 `role:product-manager` `area:docs/prd、DECISIONS.md` — 在途
 （T-79 done → done 区）
 
 ## 👀 评审中（review）
 
-- **T-64** [P0] repo 三型模型+PutLandedBlob — 编码完成，conductor 复现通过（13 包 race 两轮绿/M01/M05 curl 端到端），提交 63135de。单 reviewer 在途（PutLandedBlob 事务边界/校验矩阵/掩码）。
-- **T-65** [P0] SSRF 防护链 — 架构视角已回 REQUEST_CHANGES（2 小改 blocker：Options godoc 反向/HEAD 未豁免 64MB）；安全视角在途。修复单待双视角收齐合并派。
+- **T-64** [P0] repo 三型模型+PutLandedBlob — 编码完成，conductor 复现通过（13 包 race 两轮绿/M01/M05 curl 端到端），提交 63135de。单 reviewer 在途（reviewer 曾被 429 击落于报告前，已唤醒续跑）。
+（T-65 修复完成 → done 区；T-81 NAT64 勘误小票在途）
 
 ## 🧪 测试中（qa）
 
@@ -207,6 +207,11 @@
 
 - **T-63** [P0] adapter SPI 基座 `role:dev-go-core` — done 2026-08-19（APPROVE 一轮过）
   MetadataProvider 注册表 + npm/pypi 分发缝（escaped 逐字保留）+ class 键清理（§5.1 勘误收编）+ repo/api.go 两段拆分。review 0 blocker：6 项 seam 探针真栈全过；契约三决定全确认（路径重写/ClassReader 纪律/Versions 回落）；E-26 未反转。N4（协议票严格拒绝决策）已转 T-69/T-70 派单要点。提交 5b79a52+91c1f67。**批 1 全部闭环**。
+
+- **T-65** [P0] SSRF 防护链+stdlib client `role:dev-go-core` `area:internal/remote` — done 2026-08-19（经双 review 一轮修复 + 429 中断续完）
+  NFR-S13 七点全实现（48→94 断言/coverage 87%/零新依赖/注入 Resolver 零外网）。双 review 4 blocker 修复复审通过：B1 NAT64/6to4/Teredo 内嵌 IPv4 拆解递归过表（保 DNS64 放行侧）+ 重定向跟随面钉死；B2 zone 剥离；B3 godoc 契约修正；B4 HEAD 豁免 64MB 快速失败。顺手 Location userinfo 堵注入。安全 review 探针实证（go test -overlay 零树改动）。提交 f9fb2c9+0dc17a2。T-66 消费面接口七项已备。
+- **T-80** [P0] httpapi REST 三型接线 `role:dev-go-core` `area:internal/httpapi/repositories.go` — done 2026-08-19（经 429 中断续完）
+  repoConfig 扩 M3 字段+configJSON 组装（keep-current 信号）+ListReposFiltered 接线+configuration 回显+C26 翻转（docker 组合维持 400）。M01~M05 真二进制 curl 全过（M02b 三态/M03 成员校验/M04 过滤矩阵/M05 组合边界）+8 REST 测试+13 包零回归。T-66 fixture 前置就绪。
 
 ## 🚫 阻塞（blocked）
 
