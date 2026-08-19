@@ -1,6 +1,6 @@
 # BinFlow 架构设计（M1 定稿）
 
-> architect 维护。本文件在 ADR-0001~0011 基线上给出可并行开发的实现蓝图：包边界 = 并行开发 area 边界。
+> architect 维护。本文件在 ADR-0001~0013 基线上给出可并行开发的实现蓝图：包边界 = 并行开发 area 边界。
 > 标注 **[M2+]** / **[M3+]** 的内容当期不实现，只保证接口缝存在；标注「待逆向规格确认」的行为以 `docs/reverse/` 规格为准，规格冲突时先回 ADR。
 > 文档中文，标识符/表名/字段英文。代码规范：错误 wrap 带上下文、显式 context、table-driven 测试、依赖注入。
 
@@ -75,6 +75,7 @@ binflow/                       # Go module: github.com/lzwzzy/binflow（ADR-0008
 │   ├── storage/               # blob 引擎：会话、checksum、原子落盘、GC
 │   ├── metadata/              # Store 接口 + sqlite 实现 + 迁移器
 │   ├── repo/                  # 仓库模型与解析顺序；服务层核心
+│   ├── remote/                # [M3] remote 代理引擎：fetcher/缓存状态/SSRF 防护/凭据解密
 │   ├── adapter/               # 协议 SPI：Handler 挂载 + layout
 │   │   └── generic/           # M1 唯一实现
 │   ├── auth/                  # Principal / Authorizer / TokenRegistry
@@ -100,7 +101,8 @@ binflow/                       # Go module: github.com/lzwzzy/binflow（ADR-0008
 | `config` | 加载 `binflow.yaml`、env 覆盖（`BINFLOW_` 前缀）、校验、默认值 | `Load(path string) (*Config, error)`；`Config` 值树 | 热重载 [M4+] |
 | `storage` | blob 生命周期：上传会话、checksum 计算、原子落盘、打开读、删除、GC | `Engine`（见 §3.1） | S3 后端（只留 `Backend` 缝 [M6+]）、remote 缓存清理 [M3] |
 | `metadata` | 全部 SQL：repositories/nodes/blobs/users/tokens/audit_events 的 CRUD；迁移 | `Store`（见 §3.2）；`Migrate(ctx, dialect)` | 复杂查询优化、审计分库 |
-| `repo` | 仓库语义：Get/Put/Delete/List/Search 的用例编排；local 实现 | `Service`（见 §3.3）；`GetLocal(ctx, key)` | remote/virtual（接口占位，M3 实现） |
+| `repo` | 仓库语义：Get/Put/Delete/List/Search 的用例编排；local + virtual 解析（ADR-0013） | `Service`（见 §3.3）；`GetLocal(ctx, key)` | remote fetch 本体（归 internal/remote） |
+| `remote` [M3] | 上游代理：pull-through fetch、TTL/条件再验证缓存状态、SSRF 双检、AES-GCM 凭据解密、stale-while-error | `remote.Fetch(ctx, repoKey, path) (FetchResult, error)`（fetcher 门面） | 重试库/熔断（stdlib-only，ADR-0012）、手动失效 UI |
 | `adapter` | SPI：协议无关的 Handler 注册与路由挂载；`layout` 包 | `Handler` + `Register/All`（见 §5.1） | 各协议本体 |
 | `adapter/generic` | Generic(raw) 语义：path 即 layout、上传校验、目录列表 | 实现 `Handler` | —— |
 | `auth` | 密码校验（argon2id）、Token 签发/校验、路径 ACL 决策 | `Authenticator` / `Authorizer` / `TokenRegistry`（§3.4） | 组/匿名/LDAP [M4+] |
@@ -240,7 +242,8 @@ type Node struct {
 package repo
 
 type Service interface {
-    // 三型统一入口；M1 只实现 local 分支，remote/virtual 返回 ErrNotImplemented。
+    // 三型统一入口；M1 只实现 local 分支；M3 起 remote 分流 internal/remote.Fetch、
+    // virtual 走成员序解析（ADR-0012/0013，接线见 §5.4 首段）。
     Get(ctx context.Context, principal *auth.Principal, repoKey, path string) (io.ReadSeekCloser, *metadata.Node, error)
     Put(ctx context.Context, principal *auth.Principal, repoKey, path string, body io.Reader, expect storage.BlobRef, mime string) (*metadata.Node, error)
     Delete(ctx context.Context, principal *auth.Principal, repoKey, path string) error
@@ -363,6 +366,15 @@ created --Append(可多次)--> appending --Commit--> committed(终态, session �
 - 启动时清扫：`sessions/` 下会话目录按 state.json `created_at`（缺失回退目录 mtime）超 ttl（默认 24h）删除；活会话（近期 mtime）受保护。
 - `FilterUnreferenced`（metadata）自 GC 链路退役，转为对账/一致性检查用途（见 §3.2 注释，回写项 I）。
 
+### 4.5 remote 代理缓存存储面（M3 增量，ADR-0012）
+
+- **落盘协议与本地完全同源**：上游 miss 响应体流式走 `storage.BeginSession → Append → Commit`（sha256 由服务端自算记账；上游若给 digest/校验头则 `Commit(expect)` 强校验，不符即弃——上游投毒防线）。缓存 node 落在 remote 仓自身的 repo_key 下（BinFlow 不采用 Artifactory 的 `<remoteKey>-cache` 影子仓——那是其存储分片的历史包袱，我们的 nodes 表直接承载，语义等价、少一层间接；差异记 §10 对齐表）。
+- **缓存状态 = 003 新表 `remote_cache`**（验证器元数据 etag/last_modified/fetched_at/expires_at，per repo_key+path），nodes/blobs 不加列（保持本地制品面零污染）。
+- **分流**：artifact（制品路径，layout 判定）默认长 TTL、checksum 命中永不再验（不可变原则）；metadata（maven-metadata.xml / npm packument / simple index HTML）默认短 TTL（独立列 content_ttl vs metadata_ttl），过期走条件再验证，304 刷新时钟。
+- **stale-while-error**：上游不可达且有过期副本 → 回吐 + `Warning: 111` 头；无副本 → 502。
+- **`X-BinFlow-Cache: HIT|MISS|REVALIDATED|STALE` 响应头**（QA 断言锚点，内容路径响应统一附加）。
+- **GC**：缓存 node 与本地 node 同为引用事实，无特判——删 remote 仓级联删 nodes，blob 由 GC 统一回收。virtual 探索性 miss **不落盘**（ADR-0013，防成员扫描污染缓存）。
+
 ---
 
 ## 5. 适配器 SPI（owner: dev-registry-adapter，M1 = Generic）
@@ -466,6 +478,44 @@ docker login <host>
   → 后续请求 Authorization: Bearer <jwt>
 ```
 签发 = `TokenRegistry.Issue`（有限 TTL）+ scope 编码进 token 声明；Verify 解出 Principal + scope，`pull`→`r`、`push`→`w`、manifest DELETE→`d` 映射进 `Authorizer.Can`。无 Bearer 头时回退 Basic 直连（匿名读开启时 pull 匿名放行——与 §7.1 认证分层一致）。
+
+### 5.4 M3 协议适配器与 remote/virtual（三节增量；行为细节以 M3 PRD（T-57）为准，本文定结构）
+
+**remote/virtual 的服务层接线**：`repo.Service.Get` 内分流——repo.type=remote → 调 `internal/remote.Fetch`（缓存判定→命中直出/过期再验证/miss 回源，ADR-0012）；repo.type=virtual → 成员序解析（ADR-0013：local-first + 同类内 position 序，首命中返回 + `X-BinFlow-Resolved-From` 头，探索性 miss 不落盘）。adapter 对三型仓库无感知差异——协议差异全部在 adapter、仓库类型差异全部在 service 层（docker 的 remote/virtual 同样走此缝，M2 的 `RepoTypes() {"local"}` 升级为 `{"local","remote","virtual"}`）。
+
+**元数据抽取注册表（对齐 OSS MetadataProvider 骨架，oss-structure §4）**：`internal/adapter/<proto>` 各自带一个 `MetadataProvider`（layout 解析 + 该协议的 metadata/artifact 分流判定 + 版本比较器接口），在 adapter 包注册——service 层的 remote 缓存 TTL 分流与 virtual 版本择优（M4+）消费它。M3 落地时 `repo/api.go` 拆「公开用例面 / adapter SPI 面」两段（OSS papi/capi 同构，防 adapter 摸内部）。
+
+#### 5.4.1 Maven（`internal/adapter/maven`，挂 `/binflow/<repo>/<path>` 内容路径）
+
+| 端点形态（Maven 2 布局） | 映射 |
+|---|---|
+| `GET/PUT/HEAD <repo>/<groupPath>/<artifact>/<version>/<artifactId>-<version>.<ext>` | artifact：直通 node（GET 走 remote 缓存分流）；PUT 落盘 + 触发 metadata 更新（下条） |
+| `GET/PUT .../maven-metadata.xml`（+ `.sha1/.md5/.sha256` 校验文件） | **生成合并**：不存储主文档——按 `MetadataProvider` 解析 GAV，聚合本仓 versions（nodes 查询）∪ remote 成员缓存版本（virtual），**按需生成** XML + 摘要文件；remote 仓的 maven-metadata.xml 本身按 metadata TTL 缓存。PUT maven-metadata.xml（客户端 deploy 时的本地版本）接受并合并入生成源（Artifactory 语义：mvn deploy 只推 version 文件，metadata 服务端算） |
+| layout 解析 | Maven2 默认布局正则（oss-structure §4 RepoLayout 骨架）：`{orgPath}/{module}/{baseRev}/{module}-{baseRev}.{ext}` + classifier/目录 marker；M3 只实现 maven-2-default，自定义 RepoLayout 不做 |
+
+存储面：无专属表——version 事实 = nodes 的 artifact 路径族（GAV 解析后聚合查询）；checksum 文件（`.sha1` 等）按需生成或随 PUT 存储（PRD 定，倾向按需生成——不可变制品的摘要可重算）。
+
+#### 5.4.2 npm（`internal/adapter/npm`，挂 `/binflow/<repo>/...`，registry 协议路径）
+
+| 端点形态 | 映射 |
+|---|---|
+| `GET <repo>/<pkg>` | packument（完整 metadata JSON document，含 `versions{}`、`dist-tags`）：**存储为主 + 增量合并**——packument 本体作为 node 存储（path = `<pkg>/packument.json`，不暴露直读），publish 时合并新 version、unpublish 删 version、dist-tag 原子更新 |
+| `GET <repo>/<pkg>/-/<file>.tgz` | tarball：普通 blob node（sha256/sha1 由 npm dist.integrity 用 base64 sha512？——M3 只接 sha256/sha1 tarball，sha512 tarball 落盘记账但 integrity 校验按 PRD 定） |
+| `PUT <repo>/<pkg>` | publish（document + 内嵌 data 为 tarball base64）：解析→tarball 走 storage 落盘→packument 合并（单事务）；重复 version → 403/409（npm 语义 forbids overwrite，PRD 定码） |
+| dist-tags 端点族（`/-/package/<pkg>/dist-tags` 等） | 操作 packument 的 dist-tags 段 |
+
+schema 面：npm document 字段（name/versions[].dist.tarball+integrity/dist-tags）按 npm registry 官方 schema；BinFlow 不做全文校验，只解析 publish 必需字段（name/version/dist），其余透传存储（未知字段保留——客户端兼容）。
+
+#### 5.4.3 PyPI（`internal/adapter/pypi`，PEP 503 simple + twine upload）
+
+| 端点形态 | 映射 |
+|---|---|
+| `GET <repo>/simple/` | 根 index（项目名列表 HTML）：按需生成（nodes 的 pypi 布局前缀聚合 + PEP 503 名归一化 `-_.` 折叠） |
+| `GET <repo>/simple/<normalized-name>/` | 项目页 HTML（文件列表 + `#sha256=` fragment + `data-requires-python`）：**按需生成**，不存储——文件事实 = nodes（`<norm-name>/<filename>` 布局） |
+| `POST <repo>/`（twine multipart upload） | 解析 form（`:action=file_upload` / name/version/filename/content）→ storage 落盘 + node 建行；重复 filename → 400（PyPI 禁止重传，PRD 定码） |
+| pip 客户端解析流 | `pip install --index-url https://host/binflow/<repo>/simple`（PRD 文档面） |
+
+实现形态：simple index 是**生成器**（HTML 模板 + nodes 聚合查询），remote 缓存按 metadata TTL 分流（上游 simple 页过期再验证）；twine 的 hash 算法段（sha256/blake2b 等）按 PRD 收敛到 sha256 主键（客户端给非 sha256 摘要时服务端自算 sha256 记账、不强校验其算法——与 §4.2 附属校验语义一致）。
 
 ---
 
@@ -633,6 +683,33 @@ CREATE INDEX idx_docker_refs_blob ON docker_refs(blob_digest);  -- 删 blob 前�
 -- 「UNION SELECT DISTINCT blob_digest FROM docker_refs」——manifest 引用的 layer/config 即使
 -- 无独立 node 行也不可回收。docker_manifests/docker_tags 行随 nodes 级联语义由服务层维护。
 
+-- ===== 003_remote_virtual.sql（M3 增量，ADR-0012/0013；架构定稿，dev-go-core 落迁移文件）=====
+
+-- remote_configs 扩列（M1 占位表转正）：
+--   ALTER TABLE remote_configs ADD COLUMN content_ttl_seconds INTEGER NOT NULL DEFAULT 86400;   -- artifact 长 TTL（默认 24h 后可再验证；checksum 命中永不再验）
+--   ALTER TABLE remote_configs ADD COLUMN metadata_ttl_seconds INTEGER NOT NULL DEFAULT 600;    -- metadata 短 TTL（maven-metadata/packument/simple 页）
+--   ALTER TABLE remote_configs ADD COLUMN allow_private_upstream INTEGER NOT NULL DEFAULT 0;    -- SSRF 豁免（显式，审计事件记录）
+--   ALTER TABLE remote_configs RENAME COLUMN unreachable_mask TO blocked_out;                   -- 手动遮蔽（ADR-0012 决策 2）
+--   password 列语义变更：明文 → 'enc:v1:<b64(nonce+ciphertext)>'（AES-256-GCM，密钥 env
+--   BINFLOW_REMOTE_CREDENTIALS_KEY；迁移内完成存量加密，无密钥且有存量行 → 启动 fail-fast）。
+CREATE TABLE remote_cache (               -- 缓存验证器元数据（per repo+path；nodes 不加列，本地制品面零污染）
+  repo_key  TEXT NOT NULL REFERENCES repositories(repo_key) ON DELETE CASCADE,
+  path      TEXT NOT NULL,
+  etag      TEXT NOT NULL DEFAULT '',
+  last_modified TEXT NOT NULL DEFAULT '',
+  fetched_at TEXT NOT NULL,               -- RFC3339
+  expires_at TEXT NOT NULL,
+  kind      TEXT NOT NULL DEFAULT 'content', -- 'content' | 'metadata'（TTL 分流，ADR-0012）
+  PRIMARY KEY (repo_key, path)
+);
+CREATE INDEX idx_remote_cache_expiry ON remote_cache(expires_at);  -- 周期清扫候选（M3 顺手可做，非必须）
+
+-- virtual_members（001 已建）position 列语义升级：'同类内次序'（ADR-0013：跨类排序 local-first
+-- 固定，position 只决定同类成员之间的尝试顺序）——无 DDL 变更，仅注释与文档语义。
+
+-- npm/PyPI 无专属表：npm packument 是 node（<pkg>/packument.json，§5.4.2）；pypi simple 页
+-- 按需生成（§5.4.3）；maven maven-metadata.xml 按需生成（§5.4.1）。三协议共用 nodes+blobs。
+
 首启种子数据（迁移 001 内）：预置 `admin` 用户（is_admin=1）。口令引导（ADR-0009，用户定案）：env `BINFLOW_ADMIN_PASSWORD` 优先；未设置时使用**文档化缺省值 `password`**（仅限评估——文档与启动日志双重标注，检测到缺省值时启动打 WARN）；仅在 admin 用户不存在时生效，改密后不被后续启动覆盖。
 
 模块路径：go.mod `module github.com/lzwzzy/binflow`（ADR-0008），所有 import 以此为根。
@@ -746,6 +823,8 @@ logging:
 | Helm/K8s | Deployment(1 副本，**M1 无 HA**) | PVC(RWO) → `/var/lib/binflow` | liveness=/healthz, readiness=/readyz | 多副本挂同 PVC 为**禁止**配置（values 校验拦截） |
 | 离线包 | 镜像 tar + chart + 脚本 | 同上 | 同上 | 校验和齐全 |
 
+**M3 网络增补（ADR-0012）**：remote 仓库使 BinFlow 由纯内网服务变为**出网客户端**——部署文档（tech-writer）需给出方向性出网要求（上游 443/80 出站放行）；compose/Helm 产物不内置 egress 代理，网络策略归用户。SSRF 防护在应用层（配置校验 + 连接时双检），不依赖部署层网络策略。
+
 **M2 增补（ADR-0010 裁决第 6 条）**：docker 可用性**不依赖反代**——单二进制/compose/Helm 形态下 `/v2/**` 由应用直接服务，`docker login <host>` 直连即可。已有 nginx/traefik 前置的用户可对 `/v2/` **直通不 rewrite**（`proxy_pass` 原样）；compose 产物（T-17 产物演进）默认**不加**反代组件，文档给「前置反代直通 `/v2/`」示例片段即可。
 
 **M5 增补（ADR-0011）**：帮助文档中心 = Docusaurus 站点，build 产物 **go:embed 进 binflow-server**、挂 `/binflow/docs/**`（统一前缀内）——每种部署形态自带文档（离线/air-gapped 场景可查，对齐「15 分钟跑通」成功标准）；独立域名托管为用户可选自办（同一份静态产物），BinFlow 不维护双轨。源文件工作流：tech-writer 只写 `docs/user/*.md`（frontmatter 用 Docusaurus 兼容子集），`docs-site/` 聚合构建（配置归 architect/release-engineer，writer 不碰）。Makefile 增 `docs` 目标；二进制 40MB 预算对 docs 增量（典型 5~15MB）在 M5 check-size 实测，超限 fallback 独立 tar。
@@ -762,6 +841,8 @@ logging:
 | filestore（checksum 路径） | `blobs/<xx>/<sha256>` | 内容寻址去重 | 不用硬链接多目录；无 blob sidecar 属性文件（属性进 SQLite）——**其 filestore 是否带 properties 文件待逆向规格确认** |
 | Derby/Postgres | SQLite(WAL)/Postgres | 双栈 | 嵌入默认零依赖 |
 | `artifactory.config.xml` | `repositories` 表 + YAML | — | 运行时可改仓配置，无 XML |
+| remote 影子缓存仓（`<remoteKey>-cache`） | 缓存 node 直接落 remote 仓自身 repo_key + `remote_cache` 验证器表 | pull-through 语义等价 | 不做影子仓间接层（Artifactory 是其存储分片历史包袱，ADR-0012）；待 repo-semantics §7.3 M3 逆向印证后如有行为差异再评估 |
+| virtual priorityResolution | M3：local-first + 同类 position 序（ADR-0013） | 聚合解析 | 逐成员 priority M3 不做；Artifactory 精确语义待 repo-semantics §7.2 补齐 |
 | Access（用户/权限） | auth + users/tokens/permission_targets(+principals) 表 | 本地用户+token+命名 permission target ACL | M1 无组、无 SSO |
 | `/api/` REST | 兼容子集 + `/api/v1` | 高频端点 | 全量兼容明确不做（PRODUCT）；统一挂 `/binflow` 前缀，不用 `/artifactory` 前缀、不做根路径镜像（ADR-0008） |
 
@@ -780,6 +861,9 @@ logging:
 11. **M2 chunked 断点续传降级**（ADR-0010/§5.3 裁定）：docker 分块上传的跨进程真续传（ResumeSession）暂不启用——offset 对齐由 state.json 的 `received` 支撑单会话内续传，客户端 PATCH 失败重传走 uploads 会话重建；跨进程续传 [M3+] 再启用（T-20 Range 已备 ReadSeekCloser 基础）。
 12. **docker_gc 的 mark 集合扩容**：M2 起 GC 引用集合 = nodes ∪ docker_refs（§6 迁移 002 注记）；docker_manifests/docker_tags 行的级联清理由服务层维护（无 DB 级 FK 到复合主键部分列），一致性靠「manifest 删除同事务清 refs/tags」约定，QA 需覆盖孤儿 tag 用例。
 13. **PutLandedBlob 用例缺口（T-38 review N2，T-48 登记）**：docker finalize 后 adapter 用 `store.Open` 把已落盘 blob 回读成流喂 `svc.Put`（uploads.go registerBlobNode）——绕过 §5.1「扩方法不绕过」条款，且每次 finalize 多一轮 O(size) 回读 + 三摘要重算（singleflight 免二份磁盘副本但 CPU/IO 不免；10GB 层推送是可感知延迟）。根因是 repo.Service 缺「从已提交 BlobRef 建 blobs 台账行 + node」的用例（PutFromBlob 拒孤儿台账、Put 只吃 body）。处置：**M3 前为 repo.Service 增 `PutLandedBlob(ctx, p, repoKey, path, ref, mime)`**（创建台账行的 PutFromBlob 变体），docker finalize 与未来 maven/npm chunked 上传共用，届时删除 adapter 回读（独立 dev-go-core 小票，不塞进 T-39）。
+14. **remote 缓存无主动失效（ADR-0012 边界）**：M3 只有 TTL + 条件再验证 + blocked_out 手动遮蔽；`DELETE /api/v1/repositories/{key}` 外的「按路径强制失效」端点不做（M4 治理面）。idx_remote_cache_expiry 已留周期清扫缝。
+15. **virtual 多源归并择优不做（ADR-0013 边界）**：首命中即返回，无 per-layout 版本比较器；`X-BinFlow-Resolved-From` 头让用户可诊断「拿到旧版本」问题。M4+ 若有需求（latest 择优）再引入 MetadataProvider 的版本比较器接口。
+16. **npm packument 整档存储**：合并写放大（大包多 version 时每次 publish 重写整份 packument JSON）；M3 规模可接受，M6+ 若有巨型包性能问题再拆 per-version 行。
 
 ## 12. 待逆向规格确认清单（阻塞点挂 docs/reverse/）
 
@@ -792,3 +876,5 @@ logging:
 | 5 | Artifactory 首启 admin 引导行为（BinFlow 已定案：env 优先/缺省 password，ADR-0009；逆向仅用于文档对齐描述） | config-formats.md | §6 种子数据 |
 | 6 | Artifactory 匿名读默认值与其「匿名仅 GET 内容」边界（用作 ADR-0009 的对齐佐证） | auth-model.md | §7.1 认证分层 |
 | 7 [M2] | 单段 name（无 repo 前缀）的 404 行为、`/v2/_catalog` 匿名是否放宽、Www-Authenticate realm/service 参数确切形态 | docker-registry.md（T-31 产出后） | §5.3 路由与 token 流 |
+| 8 [M3] | virtual priorityResolution 精确语义（local-first 是否绝对）、remote 影子缓存仓行为（`<key>-cache` 在 Artifactory 的可见性/清理语义）、maven-metadata.xml 合并算法细节（version 去重/排序/placement） | repo-semantics.md §7.2/§7.3（M3 逆向补齐票） | §5.4 remote/virtual 接线、ADR-0013 校准 |
+| 9 [M3] | npm publish 重复 version 状态码（npm 官方语义 403 vs Artifactory）、twine 重复 filename 码、sha512 integrity 的校验策略 | maven-npm-pypi 规格票（M3）+ M3 PRD | §5.4.2/§5.4.3 |

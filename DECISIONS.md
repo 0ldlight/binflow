@@ -153,3 +153,32 @@
   - **工作流细则**：tech-writer 继续按文件地图只写 `docs/user/*.md`（frontmatter 仅用 Docusaurus 兼容子集：title/description/sidebar_position），不碰 `docs-site/`（docusaurus.config.js、sidebars、i18n 配置归 architect/release-engineer）；`docs-site/` 以 docs/user 为内容源聚合。CI（或 Makefile 目标）负责 build + 复制进 embed 目录，writer 的 DoD 不含「构建站点」。
 - 理由: 与 M4 控制台同栈 React（组件/构建链/技能复用，i18n 方案可共享）；Artifactory 官方文档站即同类形态（迁移用户心智连续）；**版本化文档（随 BinFlow 版本切 docs/v1.x）与 i18n（中英双语）是产品级需求**，Hugo/Jekyll 要自建、纯 Markdown 没有——Docusaurus 内建。交付形态选 embed：PRODUCT 成功标准「部署矩阵每种方式 15 分钟跑通」——离线安装包/air-gapped 场景下文档随二进制走是差异化（出问题当场可查），独立站点在受限网络恰恰不可达；「单二进制含文档」与「单二进制含控制台」是同一哲学。
 - 后果: `docs-site/` 目录纳管（属 architect/release-engineer，非 tech-writer area）；M5 部署矩阵新增一项「docs 站点产物」（embed 形态下即二进制本身，独立托管为可选自办）；Makefile 增 `docs` 目标（build + embed 复制）；**M4/M5 票面影响**：T-46（docker 接入文档）等已产出的 docs/user Markdown 即 Docusaurus 首批页面（frontmatter 兼容子集需回查一遍）；M5 文档矩阵票前必须先有 **Docusaurus 脚手架票**（类似 T-7 工程脚手架先行：node 依赖、build 链、embed 复制、/binflow/docs 路由、check-size 实测）；`internal/docs` 包（embed + Handler）进入包结构；40MB 二进制预算在 M5 check-size 对 docs 增量实测，超限走 fallback（独立 tar）。
+
+## ADR-0012: remote 仓库代理基线——pull-through 缓存、SSRF 防护、凭据加密、stdlib-only HTTP
+- 状态: Accepted
+- 日期: 2026-08-19
+- 背景: M3 最大架构增量是 remote 仓库（pull-through 代理缓存）。三个必须先定的面：缓存/失效/降级语义；SSRF 防护（上游 URL 是管理员配置的，但 BinFlow 部署在内网——被攻陷的 admin 配置恶意 URL 可打元数据服务/内网，安全底线要求设计期就防）；上游凭据静态加密（ADR-0003 遗留：remote_configs.password M1 起明文占位，技术债 #5 承诺 M3 前定案）。
+- 候选方案:
+  - 缓存失效: A) 纯 TTL（miss 才回源，命中期内永不再验）；B) TTL + 条件再验证（ETag/Last-Modified，304 刷新时钟零 body）；C) 永久缓存 + 手动失效。
+  - 上游故障: A) 硬失败（上游 5xx/超时 → 客户端直接 502）；B) stale-while-error（缓存过期但上游不可达时回吐过期副本 + Warning 头）；C) 黑名单自动熔断。
+  - 凭据: A) 明文列（现状占位）；B) AES-256-GCM + env 主键；C) 外部 secret manager（vault）。
+  - HTTP client: A) net/http + 自写 transport 装饰（超时/重试/限速）；B) hashicorp/go-retryablehttp；C) resty 等框架。
+- 决策:
+  1. **缓存语义 = B（TTL + 条件再验证）**：miss → 回源 fetch → 流式落盘 local blob + node（与本地上传同一落盘协议，checksum 一致性同源）→ 响应；命中且未过期 → 直接回；命中已过期 → 条件请求（If-None-Match/If-Modified-Since，验证器元数据存 003 新表 remote_cache），304 刷新时钟、200 全量替换（同 sha256 幂等覆盖）。**metadata 类响应（maven-metadata.xml、npm packument、simple index）与 artifact 分流**：前者默认短 TTL 且可按 Content-Type 重新生成，后者默认长 TTL（制品不可变原则，checksum 命中即永不再验）。
+  2. **降级 = B（stale-while-error）+ 手动 blacked_out 开关**（复用 remote_configs.unreachable_mask 列语义改名）：上游 5xx/超时/连接拒绝且本地有过期副本 → 回吐副本 + `Warning: 111 binflow "revalidation failed, stale content"`；无副本 → 502 spec 信封。不自动熔断（M3 复杂度不成比例；blacked_out 手动遮蔽走已有列）。
+  3. **SSRF 防护（配置时校验 + 请求时双检）**：建/改 remote 仓时解析 URL——scheme 仅 https/http；host 解析出的全部 IP（含 CNAME 展开）不得落入回环/私网（RFC1918）/链路本地（169.254/64:ff9b::/fc00::/7）/唯一本地（fd00::/8）/组播/0.0.0.0，违者 400（可配 `allow_private_upstream: true` 显式豁免，审计记事件）；**请求时重验**（IP 可能随 DNS 漂移，自定义 net.Dialer 的 Control 钩子在连接前对实际 IP 复查同一清单——防 DNS rebinding）；重定向不自动跟随（registry/maven 上游重定向罕见，手动跟随且每跳重过 SSRF 校验，最多 3 跳）；超时（连接 10s/响应头 30s 可配）与响应体上限（默认 8GB，防解压炸弹——Content-Length 预检 + 流式计数双保险）。
+  4. **凭据 = B**：AES-256-GCM，随机 12B nonce，密文 `enc:v1:<base64(nonce+ciphertext)>` 前缀标识；密钥经 env `BINFLOW_REMOTE_CREDENTIALS_KEY`（base64 32B）注入，不入 YAML；有 remote_configs 行而无密钥 → 启动 fail-fast；无前缀的旧明文值在 003 迁移中一次性加密（需 env 密钥在场）。密钥轮换不做（M3 单密钥，轮换 = 重新录入凭据）。
+  5. **HTTP client = A（stdlib-only）**：net/http + 自写 `internal/remote` 的 transport 装饰（超时/重试仅幂等 GET、指数退避 2 次）。不引 retryablehttp/resty——重试逻辑约 40 行，不值得为此破 ADR-0005 白名单（准入原则：默认 stdlib，引入须 architect 记录）。
+- 理由: 代理缓存的正确性核心是「制品不可变 + metadata 可变」二分，B 案精确表达且条件再验证是上游友好标准做法；stale-while-error 换取内网 CI 在上游抖动时的可用性（这是 pull-through 代理的存在意义）；SSRF 双检（配置时 + 连接时）是因为单点校验挡不住 DNS rebinding——这是安全底线的设计期义务；凭据加密选对称 + env 密钥是「单二进制零外部依赖」约束下唯一务实解；stdlib client 符合依赖准入与供应链最小面。
+- 后果: 新增 `internal/remote` 包（fetcher/cache-state/ssrf-guard/credentials，依赖 config+storage+metadata）；003 迁移：remote_configs 加列（content_ttl_seconds/metadata_ttl_seconds/allow_private_upstream/blocked_out 改名）、新表 remote_cache（验证器元数据）、旧明文凭据一次性加密；`X-BinFlow-Cache: HIT/MISS/STALE/REVALIDATED` 响应头供 QA 断言与用户排障；SSRF 清单与豁免逻辑属安全面，变更须 security 意识 review；上游响应的 checksum 校验：上游给 digest 头（Docker-Content-Digest/X-Checksum-*）则强校验，否则信任 TLS + 落盘时自算摘要记账。
+
+## ADR-0013: virtual 仓库解析顺序与 M3 写路由边界
+- 状态: Accepted
+- 日期: 2026-08-19
+- 背景: M3 落地 virtual 仓库（聚合 local + remote 成员）。两个必须定的行为：解析顺序（Artifactory 对齐——repo-semantics §7.2 的 `priorityResolution` 与成员序语义待逆向补齐，M3 先定 BinFlow 默认）；virtual 是否可写（Artifactory 语义：virtual 可指定 local deployment repo 承接写，M1 的 §5.1 已按 repo-semantics §1「virtual 未配 local deployment → 405」埋了钩子）。
+- 候选方案:
+  - 解析顺序: A) 纯成员列表序（配置顺序即解析顺序）；B) local-first + 列表序（先全部 local、再按列表序 remote）；C) 每成员可标 priority（Artifactory priorityResolution 形态）。
+  - 写路由: A) M3 virtual 完全只读（405 + Allow: GET）；B) 支持指定 local deployment 成员承接写（Artifactory 完整语义）。
+- 决策: 解析选 **B（local-first + 列表序）**为 M3 默认，C 的逐成员 priority 列**留缝不实现**（virtual_members 表 M1 已带 position 列，语义升级为「同类内的次序」，跨类排序 local<remote 固定；Artifactory priorityResolution 精确语义待 repo-semantics §7.2 M3 逆向产出后校准，冲突时新 ADR）；**去重语义：命中即返回**（首个命中成员的副本，不做多成员归并——同一 artifact 不同成员副本不一致时以先命中者为准，`X-BinFlow-Resolved-From: <repoKey>` 响应头暴露来源）。写路由选 **A（M3 只读）**：PUT/DELETE 到 virtual → 405 + `Allow: GET, HEAD`（repo-semantics §1 已钉，M1 的 generic 实现已如此）；local deployment 承接写推迟到需求出现（PM 联动：M3 PRD 若立 FR 再议，届时不改本 ADR 的解析顺序面）。
+- 理由: local-first 是「本地永远比代理新鲜可信」的保守默认，与 Artifactory 实践主流一致；命中即返回避免 M3 就背上「多源归并/择优」的复杂度（那需要 per-layout 的版本比较器，M4+ 的需求形态才清楚）；virtual 只读把 M3 范围收敛在「读聚合」，写路径继续单仓语义，权限模型不用动。
+- 后果: virtual 解析在 `repo.Service.Get/List` 内实现（成员序读取 → 逐成员尝试 → 首命中返回），remote 成员的未命中**不产生缓存副作用**（miss 不落盘，只有直接 GET remote 仓才 pull-through 落盘——virtual miss 透传探索，防成员扫描污染缓存）；列表（List）聚合语义 = 各成员 path 前缀并集（目录树合并，不合并文件实体）；`virtual_members.position` 语义文档化为「同类内次序」；QA 需覆盖 local/remote 交叉命中矩阵 + Resolved-From 头断言。
