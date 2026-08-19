@@ -371,7 +371,8 @@ created --Append(可多次)--> appending --Commit--> committed(终态, session �
 - **落盘协议与本地完全同源**：上游 miss 响应体流式走 `storage.BeginSession → Append → Commit`（sha256 由服务端自算记账；上游若给 digest/校验头则 `Commit(expect)` 强校验，不符即弃——上游投毒防线）。缓存 node 落在 remote 仓自身的 repo_key 下（BinFlow 不采用 Artifactory 的 `<remoteKey>-cache` 影子仓——那是其存储分片的历史包袱，我们的 nodes 表直接承载，语义等价、少一层间接；差异记 §10 对齐表）。
 - **缓存状态 = 003 新表 `remote_cache`**（验证器元数据 etag/last_modified/fetched_at/expires_at，per repo_key+path），nodes/blobs 不加列（保持本地制品面零污染）。
 - **分流**：artifact（制品路径，layout 判定）默认长 TTL、checksum 命中永不再验（不可变原则）；metadata（maven-metadata.xml / npm packument / simple index HTML）默认短 TTL（独立列 content_ttl vs metadata_ttl），过期走条件再验证，304 刷新时钟。
-- **stale-while-error**：上游不可达且有过期副本 → 回吐 + `Warning: 111` 头；无副本 → 502。
+- **上游 original checksum「登记不拒」（PRD v1.2 定案，T-66 review 裁决 4 回写）**：上游响应的 `X-Checksum-*` 头读为 original checksum，与实测值比对后 **M3 只 WARN 登记、不拒收**（PRD「四值策略 M4」优先于架构草案的「强校验不符即弃」）。M4 落地注记：repo-semantics §7.5 高置信度默认策略 `generate-if-absent` 是**拒收**语义，四值策略票必须实现拒收分支，当前 WARN 分支即挂接点；M3 的 WARN 未把 original 值入库，M4 的 original 登记无 M3 历史数据（可接受，M4 票补）。
+- **上游故障降级（T-79 勘误一定案口径，取代本节初版 stale-while-error 措辞）**：上游 5xx/超时/连接失败 → 仓标记 **assumed-offline**（静默 `assumedOfflinePeriodSecs` 默认 300s，期内零上游流量）+ 有缓存（**含过期**）→ 服务缓存附 `X-Binflow-Upstream-Error: <摘要>` 头；无缓存 → **404**（E-01，message 含 offline/assumed offline 状态）；仅 `hardFail: true`（默认 false）→ 502。上游 404 → 写负缓存（missedRetrievalCachePeriodSecs 1800）+ 有过期副本仍回发（"expired but serving"）。
 - **`X-BinFlow-Cache: HIT|MISS|REVALIDATED|STALE` 响应头**（QA 断言锚点，内容路径响应统一附加）。
 - **GC**：缓存 node 与本地 node 同为引用事实，无特判——删 remote 仓级联删 nodes，blob 由 GC 统一回收。virtual 探索性 miss **不落盘**（ADR-0013，防成员扫描污染缓存）。
 
@@ -390,7 +391,9 @@ type Handler interface {
     Protocol() string
     // RepoTypes 是声明性元数据（T-33 review 裁定，T-48 落）：声明本协议可服务的仓库 class，
     // 供校验/文档/未来 class 维度能力使用；不得作为任何分发 map 的键。
-    // generic {"local"}；docker M2 {"local"}（remote/virtual docker 顺延 M3）。
+    // 声明与行为必须一致（T-66 review blocking-1：generic 服务 remote 仓后 RepoTypes 须同步升级，
+    // 否则元数据说谎）：generic {"local","remote"}（virtual 待 T-71）；docker {"local"}；
+    // maven/npm/pypi M3 起按各自内容面实际服务的 class 声明。
     RepoTypes() []string
     // Layout 把请求路径切为 (repoKey, repoRelPath)；httpapi 已剥离 /binflow 前缀。
     // generic: 首段=repoKey，余下=repoRelPath。
@@ -481,7 +484,14 @@ docker login <host>
 
 ### 5.4 M3 协议适配器与 remote/virtual（三节增量；行为细节以 M3 PRD（T-57）为准，本文定结构）
 
-**remote/virtual 的服务层接线**：`repo.Service.Get` 内分流——repo.type=remote → 调 `internal/remote.Fetch`（缓存判定→命中直出/过期再验证/miss 回源，ADR-0012）；repo.type=virtual → 成员序解析（ADR-0013：local-first + 同类内 position 序，首命中返回 + `X-BinFlow-Resolved-From` 头，探索性 miss 不落盘）。adapter 对三型仓库无感知差异——协议差异全部在 adapter、仓库类型差异全部在 service 层（docker 的 remote/virtual 同样走此缝，M2 的 `RepoTypes() {"local"}` 升级为 `{"local","remote","virtual"}`）。
+**remote/virtual 的服务层接线**：`repo.Service.Get` 内分流——repo.type=remote → 调 `internal/remote.Fetch`（缓存判定→命中直出/过期再验证/miss 回源，ADR-0012 勘误一/二口径）；repo.type=virtual → 成员序解析（ADR-0013 联动记录：**两桶序**——priorityResolution 优先桶在前、桶内声明序；stale 命中即成员结果、真 404 续桶；首命中返回 + `X-BinFlow-Resolved-From` 头，探索性 miss 不落盘）。adapter 对三型仓库无感知差异——协议差异全部在 adapter、仓库类型差异全部在 service 层（docker 的 remote/virtual 同样走此缝）。
+
+**服务层渲染缝（T-66 落地、T-83 补记，T-67/69/70/71/72 复用勿另开缝）**：
+- `repo.StatusError`（包级，api.go SPI 段）：承载仓库类语义的精确客户端渲染——`Code/Message/Header` + `Unwrap` 哨兵（如 405 + `Allow: GET`、virtual C5 定案文案）；内容 adapter 的错误渲染入口对其**原样渲染**（状态码、message、头随之）。解决「冻结的 Service 签名无法把渲染语义送达 HTTP 面」——不改签名、不在 httpapi 拦截（后者破坏 adapter 错误信封归属）。
+- `ExtraHeaders() http.Header`（结构化探测，零 import、零仓库类知识）：`Service.Get` 返回的 reader 可实现该接口，adapter 以类型断言探测并把头并进响应（remote 的 `X-BinFlow-Cache` / `X-Binflow-Upstream-Error`、T-71 的 `X-BinFlow-Resolved-From` 同缝）。建议（T-66 review non-blocking）：四协议复制断言+拷贝处提升为 `internal/adapter` 基座助手 `CopyExtraHeaders(w, rc)`，防漂移。
+- httpapi 的 `writeServiceError`/`writeStorageError` 需含同一 `*StatusError` 分支（T-66 review 范围外缺口：REST 面 PUT/DELETE remote 仓的 405+Allow / 204 映射，与 generic 内容面同构）——归 T-80 或小票补齐。
+
+**SPI 豁免入口（T-67 遗留②最终契约，T-68 已授权方向，T-83 定稿措辞）**：`repo.Service` 的 SPI 面新增可选写参数——`PutOptions{ SkipOverwriteCheck bool }`，经 `PutOpts(ctx, p, repoKey, path, body, expect, mime, opts)` 进入（既有 `Put` 签名不变、等价 `opts{}` 零值）。语义：**只跳过「覆盖写需对旧 node 有 delete 权限」的检查**，读门（r 权限）、路径校验、checksum 链、幂等同字节豁免全部不变；豁免判定**仅限服务端自有写入**——maven-metadata.xml 计算器（T-68）与旁车落盘（repo-semantics §3「metadata/旁车永不触发覆盖检查」高置信度）两类调用方，adapter 直传的客户端 PUT **不得**置位（godoc 明示「for server-side computed artifacts only; client puts must not set」）。安全边界：豁免仍要求 principal 有该仓 `w` 权限（写门不豁免），仅绕过对既有内容的 `d` 权限要求——服务端计算的 metadata 是写操作的伴生产物，其可写性由触发它的主制品写权限担保。
 
 **元数据抽取注册表（对齐 OSS MetadataProvider 骨架，oss-structure §4）**：`internal/adapter/<proto>` 各自带一个 `MetadataProvider`（layout 解析 + 该协议的 metadata/artifact 分流判定 + 版本比较器接口），在 adapter 包注册——service 层的 remote 缓存 TTL 分流与 virtual 版本择优（M4+）消费它。M3 落地时 `repo/api.go` 拆「公开用例面 / adapter SPI 面」两段（OSS papi/capi 同构，防 adapter 摸内部）。
 
@@ -704,8 +714,8 @@ CREATE TABLE remote_cache (               -- 缓存验证器元数据（per repo
 );
 CREATE INDEX idx_remote_cache_expiry ON remote_cache(expires_at);  -- 周期清扫候选（M3 顺手可做，非必须）
 
--- virtual_members（001 已建）position 列语义升级：'同类内次序'（ADR-0013：跨类排序 local-first
--- 固定，position 只决定同类成员之间的尝试顺序）——无 DDL 变更，仅注释与文档语义。
+-- virtual_members（001 已建）position 列语义：'桶内声明序'（ADR-0013 联动记录：两桶序——
+-- priorityResolution 优先桶在前、其余成员桶内声明序；T-79 定案取代初版 local-first）——无 DDL 变更，仅注释与文档语义。
 
 -- npm/PyPI 无专属表：npm packument 是 node（<pkg>/packument.json，§5.4.2）；pypi simple 页
 -- 按需生成（§5.4.3）；maven maven-metadata.xml 按需生成（§5.4.1）。三协议共用 nodes+blobs。
@@ -842,7 +852,7 @@ logging:
 | Derby/Postgres | SQLite(WAL)/Postgres | 双栈 | 嵌入默认零依赖 |
 | `artifactory.config.xml` | `repositories` 表 + YAML | — | 运行时可改仓配置，无 XML |
 | remote 影子缓存仓（`<remoteKey>-cache`） | 缓存 node 直接落 remote 仓自身 repo_key + `remote_cache` 验证器表 | pull-through 语义等价 | 不做影子仓间接层（Artifactory 是其存储分片历史包袱，ADR-0012）；待 repo-semantics §7.3 M3 逆向印证后如有行为差异再评估 |
-| virtual priorityResolution | M3：local-first + 同类 position 序（ADR-0013） | 聚合解析 | 逐成员 priority M3 不做；Artifactory 精确语义待 repo-semantics §7.2 补齐 |
+| virtual priorityResolution | 两桶序：priorityResolution 优先桶（桶内声明序）→ 其余成员（桶内声明序）（ADR-0013 联动记录，T-79 定案） | 聚合解析（Artifactory 四桶的两桶简化，客户端不可观察差异） | stale 命中即成员结果、真 404 续桶；写路由 defaultDeploymentRepo 见 PRD FR-21 |
 | Access（用户/权限） | auth + users/tokens/permission_targets(+principals) 表 | 本地用户+token+命名 permission target ACL | M1 无组、无 SSO |
 | `/api/` REST | 兼容子集 + `/api/v1` | 高频端点 | 全量兼容明确不做（PRODUCT）；统一挂 `/binflow` 前缀，不用 `/artifactory` 前缀、不做根路径镜像（ADR-0008） |
 
@@ -876,5 +886,5 @@ logging:
 | 5 | Artifactory 首启 admin 引导行为（BinFlow 已定案：env 优先/缺省 password，ADR-0009；逆向仅用于文档对齐描述） | config-formats.md | §6 种子数据 |
 | 6 | Artifactory 匿名读默认值与其「匿名仅 GET 内容」边界（用作 ADR-0009 的对齐佐证） | auth-model.md | §7.1 认证分层 |
 | 7 [M2] | 单段 name（无 repo 前缀）的 404 行为、`/v2/_catalog` 匿名是否放宽、Www-Authenticate realm/service 参数确切形态 | docker-registry.md（T-31 产出后） | §5.3 路由与 token 流 |
-| 8 [M3] | virtual priorityResolution 精确语义（local-first 是否绝对）、remote 影子缓存仓行为（`<key>-cache` 在 Artifactory 的可见性/清理语义）、maven-metadata.xml 合并算法细节（version 去重/排序/placement） | repo-semantics.md §7.2/§7.3（M3 逆向补齐票） | §5.4 remote/virtual 接线、ADR-0013 校准 |
+| 8 [M3] | ~~virtual priorityResolution 精确语义~~（已由 repo-semantics §8.1 定案：两桶序，ADR-0013 联动记录收口）、remote 影子缓存仓行为（`<key>-cache` 在 Artifactory 的可见性/清理语义）、maven-metadata.xml 合并算法细节（version 去重/排序/placement——C1 已定案大部分） | repo-semantics.md §7.3/§8（余项） | §5.4 接线、§6 003 注释 |
 | 9 [M3] | npm publish 重复 version 状态码（npm 官方语义 403 vs Artifactory）、twine 重复 filename 码、sha512 integrity 的校验策略 | maven-npm-pypi 规格票（M3）+ M3 PRD | §5.4.2/§5.4.3 |
