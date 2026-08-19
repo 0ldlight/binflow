@@ -22,7 +22,7 @@
 ## 🔨 进行中（doing）
 
 - **T-57** [P0] M3 PRD：多生态与代理 `role:product-manager` `area:docs/prd、ROADMAP.md` `dep:m2-done` — 在途
-- **T-58** [P0] M3 架构增量：remote/virtual + 三协议适配器 `role:architect` `area:docs/design、DECISIONS.md` `dep:m2-done` — 在途
+（T-58 done 2026-08-19 → done 区）
 - **T-59** [P0] M3 逆向规格：三协议 + remote/virtual 语义 `role:reverse-engineer` `area:docs/reverse` `dep:m2-done` — 在途
 
 ## 👀 评审中（review）
@@ -166,6 +166,9 @@
   milestone-2.md v1.0（515 行）：FR-7~FR-14（docker repo 类型/blob 三式/manifest schema2+OCI/catalog+tags/token 流/Helm OCI/五客户端矩阵/部署烟测）；DE-01~DE-17 兼容矩阵 + D01~D24 验收命令；M1 观察项 O1~O4 逐条定界；Q1 路由两案对比（待定）。核验通过。
 - **T-30** [P0] M2 架构增量 `role:architect` `area:docs/design、DECISIONS.md` — done 2026-08-18
   **ADR-0010：/v2 根级例外**（三案评估：反代 rewrite 出局因裸机 docker 不可用、双挂载出局因三处双份生成；根级例外与 /healthz 同类豁免，token realm 免重写）。§5.3 docker adapter 13 行端点映射（offset 由 adapter 持协议态/cross-repo mount 走 PutFromBlob/mediaType 白名单+在场校验）；token 复用 TokenRegistry（scope pull→r push→w）；002 迁移三表（docker_manifests/tags/refs）。核验通过。三处待 T-31 校准点已入 §12。
+
+- **T-58** [P0] M3 架构增量 `role:architect` — done 2026-08-19
+  ADR-0012 remote 代理基线（TTL+条件再验证/artifact-metadata 分流/stale-while-error/SSRF 双检防 DNS rebinding/AES-GCM 凭据/stdlib-only）；ADR-0013 virtual（local-first+position 序/X-BinFlow-Resolved-From 头/M3 只读 405/探索 miss 不落盘）；§4.5 remote 缓存面（无影子仓）；MetadataProvider 注册表对齐 OSS；003 迁移（remote_configs 加密+remote_cache 表）。提交 82c973e。
 
 ## 🚫 阻塞（blocked）
 
