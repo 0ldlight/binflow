@@ -166,7 +166,22 @@ func (h *Handler) handleUpload(w http.ResponseWriter, r *http.Request, repoKey s
 	// spec, the 400 is BinFlow's decided posture). The wording must carry
 	// "already exists": twine surfaces the response body verbatim and the
 	// M33 probe greps for it.
-	switch _, _, err := h.svc.Get(ctx, p, repoKey, path); {
+	//
+	// The probe is a Get solely because the Service face offers no
+	// metadata-only existence check (T-70 review B1 + out-of-scope note 2):
+	// the ReadSeekCloser MUST be closed immediately — the local hit path
+	// really opens the blob's fd (caller-closes contract). Get also stamps
+	// a download audit event per probe — accepted noise until the service
+	// face grows a Stat/Head. Known TOCTOU with the finalize below: two
+	// concurrent same-filename uploads can both pass the miss and fall
+	// into PutLandedBlob's overwrite chain (review N4, no AC covers the
+	// concurrent shape; the strict fix needs a "reject-if-exists" Service
+	// parameter).
+	probeRC, _, err := h.svc.Get(ctx, p, repoKey, path)
+	if probeRC != nil {
+		_ = probeRC.Close()
+	}
+	switch {
 	case err == nil, errors.Is(err, repo.ErrIsFolder):
 		writeError(w, http.StatusBadRequest,
 			fmt.Sprintf("file '%s' already exists in repository '%s'; overwriting is not allowed (path %s/%s)",

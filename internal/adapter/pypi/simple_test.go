@@ -388,3 +388,36 @@ func TestSimpleIndexEtagQuoted(t *testing.T) {
 		t.Fatalf("HEAD ETag %q != GET ETag %q", resp.Header.Get("ETag"), hdr.Get("ETag"))
 	}
 }
+
+// TestSimpleVaryAccept pins the negotiation-correctness header (T-70
+// review N2): the project page serves two Accept-chosen representations on
+// one URL, so EVERY response — HTML, JSON and the 304 short-circuit —
+// must declare Vary: Accept or an intermediary cache could cross-serve
+// the forms.
+func TestSimpleVaryAccept(t *testing.T) {
+	s := newStack(t)
+	s.uploadOK(t, "demo-pkg", "1.0.0", "demo_pkg-1.0.0.tar.gz", []byte("x"))
+	page := "/binflow/api/pypi/pypi-local/simple/demo-pkg/"
+
+	_, _, hdr := s.get(page)
+	if got := hdr.Get("Vary"); got != "Accept" {
+		t.Fatalf("HTML form Vary = %q, want Accept", got)
+	}
+
+	resp := s.do(http.MethodGet, page, "", "", nil, map[string]string{"Accept": simpleJSONMediaType})
+	if got := resp.Header.Get("Vary"); got != "Accept" {
+		t.Fatalf("JSON form Vary = %q, want Accept", got)
+	}
+	etag := resp.Header.Get("ETag")
+	_ = resp.Body.Close()
+
+	resp = s.do(http.MethodGet, page, "", "", nil,
+		map[string]string{"If-None-Match": etag, "Accept": simpleJSONMediaType})
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusNotModified {
+		t.Fatalf("304 status = %d", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Vary"); got != "Accept" {
+		t.Fatalf("304 Vary = %q, want Accept (the short-circuit keeps the variance declaration)", got)
+	}
+}

@@ -90,7 +90,6 @@ func (h *Handler) serveDownload(w http.ResponseWriter, r *http.Request, repoKey,
 	switch {
 	case malformed:
 		hdr.Set("Content-Range", "bytes */"+strconv.FormatInt(node.Size, 10))
-		hdr.Del("Content-Length") // an unsatisfiable range has no body length
 		w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
 		return
 	case !ignore && rng.length() > 0:

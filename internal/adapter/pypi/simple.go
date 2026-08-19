@@ -135,6 +135,12 @@ func (h *Handler) serveProjectPage(w http.ResponseWriter, r *http.Request, repoK
 		return
 	}
 
+	// One URL, two representations chosen by Accept: every response from
+	// this page (both forms, 200 and 304 alike) must declare Vary: Accept
+	// so no intermediary cache ever cross-serves the HTML and JSON forms
+	// (T-70 review N2).
+	w.Header().Set("Vary", "Accept")
+
 	if wantsSimpleJSON(r) {
 		writeSimpleJSON(w, r, name, entries)
 		return
