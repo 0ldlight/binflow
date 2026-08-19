@@ -41,7 +41,7 @@
 
 ## 👀 评审中（review）
 
-- **T-63** [P0] SPI 基座 — 编码完成，conductor 复现通过（12 包 race 绿/lint 0/E-26 未反转；MetadataProvider 注册表/npm-pypi 分发缝 escaped 保留/class 键清理/两段拆分零方法改动），提交 5b79a52。单 code-reviewer 在途（契约面从严：接口形态/分发缝探针/契约三决定确认）。
+（空）
 
 ## 🧪 测试中（qa）
 
@@ -204,6 +204,9 @@
 
 - **T-62** [P0] metadata 003 迁移+Remote/Virtual `role:dev-go-core` `area:internal/metadata` — done 2026-08-19（APPROVE 一轮过）
   review 0 blocker：DDL 逐列一致+pragma 钉死；老库升级真原生 apply；400 次并发 upsert + 4×40 SetMembers 探针无 busy 逃逸；两桶序注释勘误后口径完整；clean-room 无嫌疑。5 non-blocking 记录（T-64 防明文窗口提示已转批 2 派单要点）。提交 54ed293+4bcd536。
+
+- **T-63** [P0] adapter SPI 基座 `role:dev-go-core` — done 2026-08-19（APPROVE 一轮过）
+  MetadataProvider 注册表 + npm/pypi 分发缝（escaped 逐字保留）+ class 键清理（§5.1 勘误收编）+ repo/api.go 两段拆分。review 0 blocker：6 项 seam 探针真栈全过；契约三决定全确认（路径重写/ClassReader 纪律/Versions 回落）；E-26 未反转。N4（协议票严格拒绝决策）已转 T-69/T-70 派单要点。提交 5b79a52+91c1f67。**批 1 全部闭环**。
 
 ## 🚫 阻塞（blocked）
 
