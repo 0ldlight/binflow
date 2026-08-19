@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net/http"
 	"time"
 
 	"github.com/lzwzzy/binflow/internal/audit"
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/metadata"
+	"github.com/lzwzzy/binflow/internal/remote"
 	"github.com/lzwzzy/binflow/internal/storage"
 )
 
@@ -367,6 +369,39 @@ type Service interface {
 	DeleteRepoDocker(ctx context.Context, repoKey string) (int64, error)
 }
 
+// StatusError is a service-level failure that already knows its exact
+// client-facing rendering: HTTP status, body message and optional response
+// headers (Allow on a 405, ...). It exists so repository-CLASS semantics can
+// stay entirely in the service layer (architecture section 5.4: adapters are
+// unaware of the three classes) while the remote engine's outcomes — the
+// RE-04 fault matrix, RE-05's read-only refusal — still reach the wire
+// verbatim. Adapters render it as-is; Unwrap carries an optional sentinel
+// (ErrNodeNotFound for the unfound family) so older mappings that predate
+// this type keep their status.
+type StatusError struct {
+	// Code is the HTTP status.
+	Code int
+	// Message is the exact response body message.
+	Message string
+	// Header carries extra response headers (may be nil).
+	Header http.Header
+
+	cause error
+}
+
+// Error implements error with the exact client message — the adapter writes
+// it into the errors[] envelope verbatim.
+func (e *StatusError) Error() string { return e.Message }
+
+// Unwrap keeps sentinel-based mappings (ErrNodeNotFound and friends) working
+// through the typed rendering.
+func (e *StatusError) Unwrap() error { return e.cause }
+
+// NewStatusError builds a StatusError wrapping the given sentinel cause.
+func NewStatusError(code int, message string, header http.Header, cause error) *StatusError {
+	return &StatusError{Code: code, Message: message, Header: header, cause: cause}
+}
+
 // ClassReader is the adapter SPI face's read-only repository-class seam
 // (architecture section 5.4): a protocol adapter must know the CLASS of the
 // repository it is serving — maven's checksum sidecar passes a remote
@@ -391,6 +426,30 @@ type ClassReader interface {
 // adapter type (compile-time pin of that claim, same convention as the
 // docker package's seam assertions).
 var _ ClassReader = metadata.RepoStore(nil)
+
+// RemoteFetcher is the consumer-side seam of the M3 remote proxy engine
+// (architecture section 5.4: repo.Service.Get dispatches type=remote to
+// internal/remote.Fetch; the engine is assembled inside repo.New so neither
+// cmd nor the adapters ever see it). nil inside the service means "no remote
+// engine" (only reachable in tests that build the struct directly): Get on a
+// remote repository then answers ErrRepoTypeNotSupported.
+type RemoteFetcher interface {
+	// Fetch pulls one path through the RE-04 six-step flow. The caller has
+	// already validated the path, resolved the repository and authorized the
+	// read; a *remote.FetchError renders verbatim (StatusError mapping) and
+	// anything else is a plain 500.
+	Fetch(ctx context.Context, repoKey, path string) (*remote.FetchResult, error)
+	// Invalidate drops the local cache of one path (RE-06: DELETE on a
+	// remote repository deletes the cached copy only, never upstream); it
+	// reports whether anything was cached (204 vs 404).
+	Invalidate(ctx context.Context, repoKey, path string) (bool, error)
+	// Forget drops the repository's in-process state (client pool, offline
+	// window) — the DeleteRepo teardown hook.
+	Forget(repoKey string)
+}
+
+// The concrete engine satisfies the seam (compile-time pin).
+var _ RemoteFetcher = (*remote.Engine)(nil)
 
 // New builds the Service from its collaborator contracts (architecture
 // section 3.3). st and md are required; az may be nil (admin-only mode); au

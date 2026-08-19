@@ -269,6 +269,19 @@ func (h *Handler) handleGet(ctx context.Context, w http.ResponseWriter, r *http.
 	}
 	defer rc.Close() //nolint:errcheck // read-only fd
 
+	// Service-level engines may attach response hints to the body stream —
+	// the remote proxy's X-BinFlow-Cache / X-Binflow-Upstream-Error (T-66).
+	// The probe is structural: this handler never imports the engine or
+	// learns the repository class (architecture section 5.4).
+	if extra, ok := rc.(interface{ ExtraHeaders() http.Header }); ok {
+		hdrHint := w.Header()
+		for k, vv := range extra.ExtraHeaders() {
+			for _, v := range vv {
+				hdrHint.Add(k, v)
+			}
+		}
+	}
+
 	sums := h.digestsOf(ctx, node)
 	lastMod := parseRFC3339(node.UpdatedAt)
 	if lastMod.IsZero() {
@@ -368,7 +381,24 @@ func notFoundMessage(repoKey, relPath string) string {
 // not-found wording is verb-specific (T-13 review M1): GET/HEAD use the
 // download-side message of rest-api.md section 1.4, DELETE keeps the
 // undeploy wording of repo-semantics section 4.
+//
+// A *repo.StatusError renders VERBATIM first (T-66): repository-class
+// semantics — the remote engine's RE-04 fault matrix, RE-05's read-only
+// 405 — stay entirely in the service layer while their exact client
+// rendering still reaches the wire. The case is class-agnostic: any service
+// arm may speak it (T-71's virtual 405 will reuse it), so this handler
+// never learns what a "remote" repository is (architecture section 5.4).
 func (h *Handler) writeServiceError(w http.ResponseWriter, err error, method, repoKey, relPath string) {
+	var se *repo.StatusError
+	if errors.As(err, &se) {
+		for k, vv := range se.Header {
+			for _, v := range vv {
+				w.Header().Add(k, v)
+			}
+		}
+		writeError(w, se.Code, se.Message)
+		return
+	}
 	switch {
 	case errors.Is(err, storage.ErrChecksumMismatch):
 		writeError(w, http.StatusConflict, checksumMismatchMessage(err, repoKey, relPath))

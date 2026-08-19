@@ -318,6 +318,14 @@ func applyEnv(c *Config, env map[string]string) error {
 		if upper == "BINFLOW_HOME" {
 			continue // reserved for cmd (T-16): config/data dir resolution
 		}
+		if upper == "BINFLOW_REMOTE_CREDENTIALS_KEY" {
+			// Reserved for internal/remote (ADR-0012 decision 4 / T-66):
+			// the env-only master key of the credential AES-256-GCM chain.
+			// Like the admin password it is never a config field — secrets
+			// do not live in the YAML tree — so the loader only tolerates
+			// the name; internal/remote reads the value itself.
+			continue
+		}
 		path, kind, ok := splitEnvKey(strings.TrimPrefix(upper, "BINFLOW_"))
 		if !ok {
 			unknown = append(unknown, name)

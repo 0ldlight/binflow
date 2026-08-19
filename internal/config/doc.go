@@ -20,6 +20,10 @@
 //     different knob from BINFLOW_DATA_DIR: HOME is the directory-resolution
 //     root for config/data defaults, DATA_DIR points storage at an explicit
 //     path and wins over the HOME-derived default.
+//   - BINFLOW_REMOTE_CREDENTIALS_KEY is reserved for internal/remote (T-66,
+//     ADR-0012 decision 4): the base64 32-byte master key of the remote
+//     repository credential AES-256-GCM chain, ignored here for the same
+//     env-only-secret reason as the admin password.
 //
 // The alias auth.anonymous_read (env BINFLOW_AUTH__ANONYMOUS_READ) is
 // equivalent to security.anonymous_access; providing both with different

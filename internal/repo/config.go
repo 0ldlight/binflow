@@ -73,10 +73,12 @@ type remoteConfigInput struct {
 }
 
 // parseRemoteConfig validates one remote repository config blob and returns
-// its canonical form plus the parsed input (CreateConfig needs fields the
-// canonical JSON no longer carries — the dropped password shape is identical,
-// but keeping both makes the "input accepted, output canonical" contract
-// explicit at the call site).
+// its canonical form plus the input password (the encryption chain of T-66:
+// the password never persists in the canonical JSON, but the service stores
+// its AES-256-GCM sealed form in the remote_configs row — ADR-0012 decision
+// 4). With no master key configured the password is dropped with a WARN
+// (fetching then goes anonymous), which keeps the T-64 no-plaintext-window
+// contract exactly: nothing unprotected ever reaches the store.
 //
 // Validation is scheme/format only (FR-15-AC3): a private-address URL is
 // LEGAL at create time — the SSRF chain runs per request because DNS and
@@ -87,27 +89,27 @@ type remoteConfigInput struct {
 // Artifactory's (PRD scenario D — migration scripts keep their full config
 // bodies and only swap the URL prefix), so tolerance is the compatible
 // posture while the canonical form stays exactly what M3 serves.
-func parseRemoteConfig(config string) (remoteConfig, error) {
+func parseRemoteConfig(config string) (remoteConfig, string, error) {
 	var in remoteConfigInput
 	dec := json.NewDecoder(strings.NewReader(config))
 	if err := dec.Decode(&in); err != nil {
-		return remoteConfig{}, fmt.Errorf("%w: remote repository config: %w", ErrInvalidRepoConfig, err)
+		return remoteConfig{}, "", fmt.Errorf("%w: remote repository config: %w", ErrInvalidRepoConfig, err)
 	}
 	if in.URL == nil || strings.TrimSpace(*in.URL) == "" {
-		return remoteConfig{}, fmt.Errorf(
+		return remoteConfig{}, "", fmt.Errorf(
 			"%w: remote repository config: url is required (http/https upstream base URL)", ErrInvalidRepoConfig)
 	}
 	rawURL := strings.TrimSpace(*in.URL)
 	u, err := url.Parse(rawURL)
 	if err != nil {
-		return remoteConfig{}, fmt.Errorf("%w: remote repository config: url %q: %w", ErrInvalidRepoConfig, rawURL, err)
+		return remoteConfig{}, "", fmt.Errorf("%w: remote repository config: url %q: %w", ErrInvalidRepoConfig, rawURL, err)
 	}
 	if u.Scheme != "http" && u.Scheme != "https" {
-		return remoteConfig{}, fmt.Errorf(
+		return remoteConfig{}, "", fmt.Errorf(
 			"%w: remote repository config: url %q: scheme must be http or https", ErrInvalidRepoConfig, rawURL)
 	}
 	if u.Host == "" {
-		return remoteConfig{}, fmt.Errorf(
+		return remoteConfig{}, "", fmt.Errorf(
 			"%w: remote repository config: url %q: host is required", ErrInvalidRepoConfig, rawURL)
 	}
 
@@ -136,7 +138,7 @@ func parseRemoteConfig(config string) (remoteConfig, error) {
 			continue // absent or explicit zero: keep the product default
 		}
 		if f.value < 0 {
-			return remoteConfig{}, fmt.Errorf(
+			return remoteConfig{}, "", fmt.Errorf(
 				"%w: remote repository config: %s must not be negative (got %d)", ErrInvalidRepoConfig, f.name, f.value)
 		}
 		switch f.name {
@@ -159,7 +161,7 @@ func parseRemoteConfig(config string) (remoteConfig, error) {
 	if in.PriorityResolution != nil {
 		out.PriorityResolution = *in.PriorityResolution
 	}
-	return out, nil
+	return out, in.Password, nil
 }
 
 // derefInt64 returns *v or 0 for nil.

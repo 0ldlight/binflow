@@ -7,26 +7,51 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"strings"
 	"time"
 
 	"github.com/lzwzzy/binflow/internal/metadata"
+	"github.com/lzwzzy/binflow/internal/remote"
 	"github.com/lzwzzy/binflow/internal/storage"
 )
 
-// service is the M1 local-repository implementation of Service.
+// service is the local + remote implementation of Service (virtual member
+// resolution lands with T-71 and keeps the M2 refusal until then).
 type service struct {
 	st    storage.Engine
 	md    metadata.Store
 	az    Authorizer
 	au    AuditLogger
 	nowFn func() time.Time
+	// remoteEng is the M3 pull-through engine (architecture section 5.4);
+	// Get/Delete on a remote repository dispatch to it.
+	remoteEng RemoteFetcher
+	// cipher seals remote repository passwords (nil when no master key is
+	// configured — passwords are then dropped at write time, never stored
+	// unprotected; ADR-0012 decision 4).
+	cipher *remote.Cipher
 }
 
 // newService wires the collaborators; New is the public constructor with the
 // default clock (tests inject a controllable one).
+//
+// The remote engine is assembled HERE (architecture section 5.4: the
+// dispatch lives inside repo.Service.Get, so neither cmd nor the adapters
+// ever see the engine). Its constructor error is the ADR-0012 startup
+// invariant — at-rest credentials without a master key — which must fail the
+// PROCESS, not the first request: the panic surfaces through cmd assembly as
+// a non-zero exit naming BINFLOW_REMOTE_CREDENTIALS_KEY (FR-15-AC9-2), the
+// same startup-invariant posture as adapter.Register's panics. The
+// alternative (an error-returning constructor variant that only cmd calls)
+// was rejected because it leaves every other repo.New caller silently
+// without remote support; flagged in the T-66 report for review.
 func newService(st storage.Engine, md metadata.Store, az Authorizer, au AuditLogger, now func() time.Time) *service {
-	return &service{st: st, md: md, az: az, au: au, nowFn: now}
+	eng, err := remote.NewEngine(st, md, remote.EngineOptions{Now: now, Logger: slog.Default()})
+	if err != nil {
+		panic(fmt.Sprintf("repo: remote engine startup check failed: %v", err))
+	}
+	return &service{st: st, md: md, az: az, au: au, nowFn: now, remoteEng: eng, cipher: eng.Cipher()}
 }
 
 var _ Service = (*service)(nil)
@@ -91,10 +116,10 @@ func (s *service) audit(ctx context.Context, e AuditEvent) {
 	}
 }
 
-// loadLocalRepo resolves repoKey and asserts it is a local repository the
-// service can operate on. Unknown keys map to ErrRepoNotFound so the
-// metadata-layer sentinel never leaks to HTTP callers.
-func (s *service) loadLocalRepo(ctx context.Context, repoKey string) (*metadata.Repo, error) {
+// loadRepoRow resolves repoKey into its repository row of ANY class; the
+// class-specific branches decide what to do with it. Unknown keys map to
+// ErrRepoNotFound so the metadata-layer sentinel never leaks to HTTP callers.
+func (s *service) loadRepoRow(ctx context.Context, repoKey string) (*metadata.Repo, error) {
 	r, err := s.md.Repos().Get(ctx, repoKey)
 	if err != nil {
 		if errors.Is(err, metadata.ErrRepoNotFound) {
@@ -102,14 +127,46 @@ func (s *service) loadLocalRepo(ctx context.Context, repoKey string) (*metadata.
 		}
 		return nil, fmt.Errorf("repo %q: %w", repoKey, err)
 	}
+	return r, nil
+}
+
+// loadLocalRepo resolves repoKey and asserts it is a local repository the
+// service can operate on. Remote repositories are NO LONGER refused here —
+// Get/Delete dispatch to the remote engine (T-66) and the write plane
+// refuses them with RE-05's 405 — so only virtual keeps the interim refusal
+// (the resolver lands with T-71).
+func (s *service) loadLocalRepo(ctx context.Context, repoKey string) (*metadata.Repo, error) {
+	r, err := s.loadRepoRow(ctx, repoKey)
+	if err != nil {
+		return nil, err
+	}
 	if r.Type != TypeLocal {
-		// M3 interim: the remote/virtual content engines land with T-66/T-71;
-		// until they do, the local content plane refuses the class outright
-		// rather than serving a remote namespace as if it were local.
-		return nil, fmt.Errorf("%w: %s repositories are not served by the local content plane (the remote/virtual engines land with T-66/T-71)",
+		return nil, fmt.Errorf("%w: %s repositories are not served by the local content plane (the virtual resolver lands with T-71)",
 			ErrRepoTypeNotSupported, r.Type)
 	}
 	return r, nil
+}
+
+// refuseNonLocalWrite answers the write plane's refusal for non-local
+// classes BEFORE any body is drained or permission pair is evaluated: the
+// method itself is invalid on these targets, whatever the caller's grants.
+// remote is read-only — 405 + Allow: GET (RE-05, FR-20-AC9) — and virtual
+// keeps the interim refusal until T-71's write routing.
+func refuseNonLocalWrite(row *metadata.Repo) error {
+	switch row.Type {
+	case TypeRemote:
+		return &StatusError{
+			Code: http.StatusMethodNotAllowed,
+			Message: fmt.Sprintf(
+				"Remote repository '%s' is a read-only proxy cache; deployments to remote repositories are not accepted.", row.RepoKey),
+			Header: http.Header{"Allow": []string{http.MethodGet}},
+			cause:  fmt.Errorf("%w: remote repositories are read-only", ErrRepoTypeNotSupported),
+		}
+	case TypeVirtual:
+		return fmt.Errorf("%w: %s repositories are not served by the local content plane (the virtual resolver lands with T-71)",
+			ErrRepoTypeNotSupported, row.Type)
+	}
+	return nil
 }
 
 // loadLocalDockerRepo resolves repoKey and asserts it is a local DOCKER
@@ -146,11 +203,19 @@ func validateDockerImage(image string) error {
 // Get implements Service.Get. Addressing a folder node yields
 // (nil, node, ErrIsFolder): folder rows carry metadata but no streamable
 // body (their sha256 is the shared empty-marker sentinel).
+//
+// M3 (T-66, architecture section 5.4): a REMOTE repository dispatches to the
+// pull-through engine AFTER the read gate — an unauthorized principal must
+// not be able to aim BinFlow at upstream URLs. The returned reader carries
+// the fetch's response hints (X-BinFlow-Cache, X-Binflow-Upstream-Error)
+// for the serving adapter's structural probe; a *remote.FetchError renders
+// verbatim as a *StatusError.
 func (s *service) Get(ctx context.Context, p *Principal, repoKey, path string) (io.ReadSeekCloser, *metadata.Node, error) {
 	if err := validateNodePath(path); err != nil {
 		return nil, nil, err
 	}
-	if _, err := s.loadLocalRepo(ctx, repoKey); err != nil {
+	row, err := s.loadRepoRow(ctx, repoKey)
+	if err != nil {
 		return nil, nil, err
 	}
 	if !s.allow(ctx, p, repoKey, path, ActionRead) {
@@ -160,6 +225,13 @@ func (s *service) Get(ctx context.Context, p *Principal, repoKey, path string) (
 			return nil, nil, fmt.Errorf("read %s/%s: %w", repoKey, path, ErrUnauthorized)
 		}
 		return nil, nil, fmt.Errorf("read %s/%s: %w", repoKey, path, ErrForbidden)
+	}
+	if row.Type == TypeRemote {
+		return s.getRemote(ctx, p, repoKey, path)
+	}
+	if row.Type != TypeLocal {
+		return nil, nil, fmt.Errorf("%w: %s repositories are not served by the local content plane (the virtual resolver lands with T-71)",
+			ErrRepoTypeNotSupported, row.Type)
 	}
 	n, err := s.md.Nodes().Get(ctx, repoKey, path)
 	if err != nil {
@@ -183,6 +255,32 @@ func (s *service) Get(ctx context.Context, p *Principal, repoKey, path string) (
 	return rc, n, nil
 }
 
+// getRemote is the remote branch of Get: the RE-04 six-step pull-through
+// (negative cache, TTL-classed local copy, guarded upstream fetch with the
+// stale-while-error downgrade). The engine's *FetchError maps verbatim onto
+// a *StatusError — the unfound family wraps ErrNodeNotFound so every older
+// mapping (httpapi's /api/storage included) keeps answering 404 — and
+// anything else is an honest 500.
+func (s *service) getRemote(ctx context.Context, p *Principal, repoKey, path string) (io.ReadSeekCloser, *metadata.Node, error) {
+	if s.remoteEng == nil {
+		return nil, nil, fmt.Errorf("%w: remote repositories have no engine wired", ErrRepoTypeNotSupported)
+	}
+	res, err := s.remoteEng.Fetch(ctx, repoKey, path)
+	if err != nil {
+		var fe *remote.FetchError
+		if errors.As(err, &fe) {
+			var cause error
+			if fe.Unfound {
+				cause = fmt.Errorf("node %s/%s: %w", repoKey, path, ErrNodeNotFound)
+			}
+			return nil, nil, &StatusError{Code: fe.Status, Message: fe.Message, cause: cause}
+		}
+		return nil, nil, fmt.Errorf("remote fetch %s/%s: %w", repoKey, path, err)
+	}
+	s.audit(ctx, AuditEvent{Actor: actor(p), Action: AuditActionDownload, Repo: repoKey, Path: path})
+	return res.Body, res.Node, nil
+}
+
 // Put implements Service.Put. Ordering is the correctness core (architecture
 // sections 3.2/3.3): the physical blob commits FIRST, then the metadata
 // writes land blob-first (blobs row, then node row) so the
@@ -199,7 +297,9 @@ func (s *service) Put(ctx context.Context, p *Principal, repoKey, path string, b
 	if mime == "" {
 		mime = "application/octet-stream"
 	}
-	if _, err := s.loadLocalRepo(ctx, repoKey); err != nil {
+	if row, err := s.loadRepoRow(ctx, repoKey); err != nil {
+		return nil, err
+	} else if err := refuseNonLocalWrite(row); err != nil {
 		return nil, err
 	}
 
@@ -290,7 +390,9 @@ func (s *service) PutFromBlob(ctx context.Context, p *Principal, repoKey, path s
 	if mime == "" {
 		mime = "application/octet-stream"
 	}
-	if _, err := s.loadLocalRepo(ctx, repoKey); err != nil {
+	if row, err := s.loadRepoRow(ctx, repoKey); err != nil {
+		return nil, err
+	} else if err := refuseNonLocalWrite(row); err != nil {
 		return nil, err
 	}
 
@@ -376,7 +478,9 @@ func (s *service) PutLandedBlob(ctx context.Context, p *Principal, repoKey, path
 	if mime == "" {
 		mime = "application/octet-stream"
 	}
-	if _, err := s.loadLocalRepo(ctx, repoKey); err != nil {
+	if row, err := s.loadRepoRow(ctx, repoKey); err != nil {
+		return nil, err
+	} else if err := refuseNonLocalWrite(row); err != nil {
 		return nil, err
 	}
 	if ref.Sha256 == "" {
@@ -577,6 +681,12 @@ func isUniqueViolation(err error) bool {
 }
 
 // Delete implements Service.Delete: node references only, never blobs.
+//
+// M3 (T-66, RE-06): a REMOTE repository delete drops the LOCAL cache only —
+// the node row(s) and the remote_cache entry, never anything upstream (the
+// six-step order makes the next GET refetch). The permission gate is the
+// same delete grant as local; a path with nothing cached answers the
+// idempotent 404.
 func (s *service) Delete(ctx context.Context, p *Principal, repoKey, path string) error {
 	if err := requireAuthenticated(p); err != nil {
 		return err
@@ -584,8 +694,16 @@ func (s *service) Delete(ctx context.Context, p *Principal, repoKey, path string
 	if err := validateNodePath(path); err != nil {
 		return err
 	}
-	if _, err := s.loadLocalRepo(ctx, repoKey); err != nil {
+	row, err := s.loadRepoRow(ctx, repoKey)
+	if err != nil {
 		return err
+	}
+	if row.Type == TypeRemote {
+		return s.deleteRemoteCache(ctx, p, repoKey, path)
+	}
+	if row.Type != TypeLocal {
+		return fmt.Errorf("%w: %s repositories are not served by the local content plane (the virtual resolver lands with T-71)",
+			ErrRepoTypeNotSupported, row.Type)
 	}
 	if !s.allow(ctx, p, repoKey, path, ActionDelete) {
 		return fmt.Errorf("delete %s/%s: %w", repoKey, path, ErrForbidden)
@@ -659,6 +777,31 @@ func (s *service) Delete(ctx context.Context, p *Principal, repoKey, path string
 		return err
 	}
 	s.audit(ctx, AuditEvent{Actor: p.Name, Action: AuditActionDelete, Repo: repoKey, Path: path})
+	return nil
+}
+
+// deleteRemoteCache is the remote branch of Delete (RE-06): permission,
+// then the engine's local-cache invalidation. The engine drops node rows
+// and cache entries without any upstream contact; "nothing was cached"
+// maps onto the same idempotent ErrNodeNotFound the local plane answers.
+func (s *service) deleteRemoteCache(ctx context.Context, p *Principal, repoKey, path string) error {
+	if !s.allow(ctx, p, repoKey, path, ActionDelete) {
+		return fmt.Errorf("delete %s/%s: %w", repoKey, path, ErrForbidden)
+	}
+	if s.remoteEng == nil {
+		return fmt.Errorf("%w: remote repositories have no engine wired", ErrRepoTypeNotSupported)
+	}
+	existed, err := s.remoteEng.Invalidate(ctx, repoKey, path)
+	if err != nil {
+		return err
+	}
+	if !existed {
+		return fmt.Errorf("node %s/%s: %w", repoKey, path, ErrNodeNotFound)
+	}
+	s.audit(ctx, AuditEvent{
+		Actor: p.Name, Action: AuditActionDelete, Repo: repoKey, Path: path,
+		Detail: `{"remoteCache":true}`,
+	})
 	return nil
 }
 
@@ -1223,8 +1366,9 @@ func (s *service) CreateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 	// "repositories is required" refusals name the FIELD (M02b/M03) instead
 	// of a JSON EOF.
 	var (
-		remote  *remoteConfig
-		members []string
+		remote         *remoteConfig
+		remotePassword string
+		members        []string
 	)
 	config := r.Config
 	if strings.TrimSpace(config) == "" {
@@ -1240,11 +1384,12 @@ func (s *service) CreateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 			return nil, err
 		}
 	case TypeRemote:
-		rc, perr := parseRemoteConfig(config)
+		rc, password, perr := parseRemoteConfig(config)
 		if perr != nil {
 			return nil, perr
 		}
 		remote = &rc
+		remotePassword = password
 		if config, err = marshalConfig(rc); err != nil {
 			return nil, err
 		}
@@ -1294,12 +1439,13 @@ func (s *service) CreateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 			RepoKey:  r.RepoKey,
 			URL:      remote.URL,
 			Username: remote.Username,
-			// Password stays empty until T-66's AES-256-GCM chain: writing
-			// the accepted credential here would store unprotected plaintext
-			// (T-62 review, ADR-0012 decision 4). parseRemoteConfig already
-			// dropped it from the canonical form, so no echo path can leak
-			// it either (NFR-S14).
-			Password: "",
+			// The T-66 encryption chain: the accepted password lands as its
+			// enc:v1 AES-256-GCM sealed form (ADR-0012 decision 4); with no
+			// master key it is dropped with a WARN instead of stored
+			// unprotected — the plaintext window the T-62 review closed
+			// stays closed. The canonical config JSON never carries it, so
+			// no echo path can leak it either (NFR-S14).
+			Password: s.sealPassword(ctx, r.RepoKey, remotePassword),
 			// The product default (7200, PRD C4/ADR-0012 errata two) — the
 			// DDL's 86400 is a schema-level fallback for rows created
 			// outside this service.
@@ -1464,10 +1610,11 @@ func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 	}
 
 	var (
-		remote      *remoteConfig
-		members     []string
-		configSet   bool
-		privateFrom *bool
+		remote         *remoteConfig
+		remotePassword string
+		members        []string
+		configSet      bool
+		privateFrom    *bool
 	)
 	config := current.Config
 	if r.Config != "" {
@@ -1481,11 +1628,12 @@ func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 				return nil, err
 			}
 		case TypeRemote:
-			rc, perr := parseRemoteConfig(r.Config)
+			rc, password, perr := parseRemoteConfig(r.Config)
 			if perr != nil {
 				return nil, perr
 			}
 			remote = &rc
+			remotePassword = password
 			if config, err = marshalConfig(rc); err != nil {
 				return nil, err
 			}
@@ -1528,8 +1676,11 @@ func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 		row := &metadata.RemoteConfig{
 			RepoKey: r.RepoKey,
 			URL:     remote.URL, Username: remote.Username,
-			// Same no-plaintext-window rule as create (T-66 owns credentials).
-			Password:             "",
+			// Full-replace semantics (the Artifactory PUT model, T-80's
+			// ruling): the new body's password — sealed, or dropped with a
+			// WARN when no master key is configured — replaces the stored
+			// one; a body without a password clears it.
+			Password:             s.sealPassword(ctx, r.RepoKey, remotePassword),
 			ContentTTLSeconds:    remote.RetrievalCachePeriodSecs,
 			MetadataTTLSeconds:   defaultMetadataTTLSeconds,
 			AllowPrivateUpstream: remote.AllowPrivateUpstream,
@@ -1559,6 +1710,33 @@ func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 		Detail: detail,
 	})
 	return current, nil
+}
+
+// sealPassword encrypts one upstream credential for at-rest storage
+// (ADR-0012 decision 4, NFR-S14): with a master key configured the enc:v1
+// AES-256-GCM form lands in the remote_configs row; without one the
+// password is DROPPED with a WARN rather than stored unprotected — the
+// plaintext window the T-62 review ordered closed stays closed, and the
+// fetch then simply goes anonymous (every FR-15-AC9 scenario runs with the
+// key present; the no-key create is a misconfiguration, not a contract).
+func (s *service) sealPassword(ctx context.Context, repoKey, password string) string {
+	if password == "" {
+		return ""
+	}
+	if s.cipher == nil {
+		slog.WarnContext(ctx, "repo: remote repository password dropped — no credentials master key configured",
+			"repo", repoKey, "env", remote.CredentialsEnvVar)
+		return ""
+	}
+	sealed, err := s.cipher.Encrypt(password)
+	if err != nil {
+		// A fresh random nonce and a validated key cannot fail here; if the
+		// impossible happens, dropping is still the only safe answer.
+		slog.WarnContext(ctx, "repo: remote repository password could not be sealed — dropped",
+			"repo", repoKey, "error", err.Error())
+		return ""
+	}
+	return sealed
 }
 
 // DeleteRepo implements Service.DeleteRepo. A non-empty repository without
@@ -1635,6 +1813,11 @@ func (s *service) DeleteRepo(ctx context.Context, p *Principal, repoKey string, 
 			return fmt.Errorf("repo %q remote cache teardown: %w", repoKey, err)
 		}
 		cacheRows = n
+		// The engine's in-process state (outbound client pool, assumed
+		// offline window) goes with the repository (T-66).
+		if s.remoteEng != nil {
+			s.remoteEng.Forget(repoKey)
+		}
 	}
 	if err := s.md.Repos().Delete(ctx, repoKey); err != nil {
 		if errors.Is(err, metadata.ErrRepoNotFound) {
