@@ -17,12 +17,14 @@
   - [离线安装（air-gapped）](install/offline.md)
 - **客户端接入**（每协议一篇）
   - [Docker / OCI 镜像](docker-registry.md)（login/push/pull、oras/Helm 承载、podman/crane/skopeo、差异清单）— M2
-  - [Maven](integrations/maven.md)（settings.xml 配置 + deploy/resolve）
-  - [npm](integrations/npm.md)（.npmrc + publish/install）
-  - [PyPI](integrations/pypi.md)（pip index-url + twine）
+  - [Maven](integrations/maven.md)（settings.xml + deploy/resolve、snapshot/-U、checksum 策略、mirror 收口）— M3
+  - [npm](integrations/npm.md)（.npmrc + _auth、publish/install、dist-tag/unpublish、上游边界）— M3
+  - [PyPI](integrations/pypi.md)（pip.conf + twine、hash 对账、PEP 691）— M3
   - [Generic / 任意文件](integrations/generic.md)（curl roundtrip）
   - CI 集成：GitHub Actions / GitLab CI / Jenkins 用作依赖源与镜像源
-- **管理指南**（`admin/`）：仓库配置（local/remote/virtual）· 用户组与权限 · API Token · 备份恢复 · GC 与配额 · 监控
+- **管理指南**（`admin/`）
+  - [remote / virtual 仓库管理](admin/remote-virtual.md)（建仓字段表、缓存/负缓存/assumed-offline、强刷、SSRF 放行指引、凭据密钥部署、M3 不兼容清单与报错码汇总）— M3
+  - 用户组与权限 · API Token · 备份恢复 · GC 与配额 · 监控（随里程碑补齐）
 - **API 参考**（`api/`）：Artifactory 兼容子集 + `/api/v1`
 - [FAQ 与故障排查](faq.md)（含 Artifactory 迁移对照表）
 

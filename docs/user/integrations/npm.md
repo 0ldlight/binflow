@@ -1,0 +1,152 @@
+---
+title: npm 接入
+sidebar_position: 21
+---
+
+# npm 接入
+
+> 适用版本：M3（publish/packument/dist-tags/unpublish/login + remote/virtual；PRD milestone-3 v1.2）。
+> 本文核心链在 M3 QA 基线（commit `0f86229`，T-74/T-76 验收产物）上复跑：`.npmrc`（registry 限定 `_auth` 形态）publish、缓存清空重装、whoami 均退出码 0（复跑记录见 `reports/agents/T-77.md`）；scoped/dist-tag/unpublish/remote 代理/virtual 聚合取自 T-74/T-76 验收记录。客户端锚定 npm 10.x（10.9.8 实测，node 22）。
+
+把 BinFlow 当作私有 npm registry：`.npmrc` 一处配置，`npm publish` 发内部包、`npm install` 装内部与上游包——registry 协议按 npm 官方规范实现，scoped 包、dist-tag、unpublish 开箱可用。
+
+## 前置条件
+
+- 运行中的 BinFlow 实例（`BASE=http://localhost:8080`）。
+- 管理员凭据 `admin` / `$ADMIN_PW`。
+- 一个 `packageType=npm` 的仓库（第 1 步创建）。
+
+## registry URL 形态
+
+npm 域挂在 `/binflow/api/npm/` 前缀下（与 docker 的根级 `/v2` 不同）：
+
+```
+$BASE/binflow/api/npm/<repoKey>/
+```
+
+**尾部斜杠不能省**。tarball 的内容路径 `/binflow/<repoKey>/<name>/-/<name>-<version>.tgz` 是同一文件的第二入口（curl 直取可用）。
+
+```bash
+export BASE=http://localhost:8080
+export ADMIN_PW=<你的管理员口令>
+export NPM_REG=$BASE/binflow/api/npm/npm-local/
+```
+
+## 接入步骤
+
+### 1. 创建 npm 仓库
+
+```bash
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/npm-local \
+  -H 'Content-Type: application/json' \
+  -d '{"rclass":"local","packageType":"npm"}' \
+  -o /dev/null -w '%{http_code}\n'        # 200
+```
+
+### 2. 写 `.npmrc`（即拷即用）
+
+项目根目录 `.npmrc`（或用户级 `~/.npmrc`）。凭据行必须**按 registry 限定**：
+
+```ini
+registry=http://localhost:8080/binflow/api/npm/npm-local/
+//localhost:8080/binflow/api/npm/npm-local/:_auth=<base64 of admin:口令>
+always-auth=true
+```
+
+`_auth` 的生成：
+
+```bash
+printf 'admin:%s' "$ADMIN_PW" | base64
+```
+
+> 高频卡点（npm 10 实测）：项目级 `.npmrc` 里写裸 `_auth=` 会被 npm 直接拒绝——
+> `npm error Invalid auth configuration found: '_auth' must be renamed to '//<host>/<path>/:_auth'`。
+> 凭据行必须带 `//<host>/<registry 路径>/:_auth` 前缀；registry 换仓时该行要同步改。
+> 只读场景（匿名读默认开）可以只写 `registry=` 一行，不配 `_auth`。
+
+### 3. 发布与验证
+
+```bash
+cd my-pkg && npm publish
+# + demo-pkg@1.0.0（退出码 0；服务端 201 {"success":true}）
+npm whoami          # admin
+npm view demo-pkg version    # 1.0.0
+```
+
+scoped 包：
+
+```bash
+npm publish --access public          # + @acme/util@1.0.0
+npm install @acme/util               # URL 编码 @acme%2Futil，BinFlow 双编码等价接受
+```
+
+`dist.tarball` 一律重写为指回 BinFlow 的 URL（上游原地址不回显），`dist.shasum`/`dist.integrity` 由服务端实测生成——`npm install` 的锁文件校验三方一致（tarball 实测 / packument / package-lock integrity）。
+
+### 4. 安装（含缓存清空重装）
+
+```bash
+mkdir consumer && cd consumer && echo '{}' > package.json
+# consumer 目录也需要 .npmrc（registry 配置不继承，缺省时 npm 走公网 registry——实测坑）
+npm install demo-pkg
+npm cache clean --force && rm -rf node_modules package-lock.json
+npm install demo-pkg && node -e 'console.log(require("demo-pkg"))'
+```
+
+### 5. dist-tag / unpublish
+
+```bash
+npm dist-tag add demo-pkg@1.0.0 beta
+npm install demo-pkg@beta
+npm dist-tag ls && npm dist-tag rm demo-pkg beta
+npm unpublish demo-pkg@1.0.1 --force   # 版本从 packument 移除，dist-tags 引用联动清理
+```
+
+unpublish 内部的 `PUT .../-rev/<rev>` 步骤 BinFlow 恒回 `200 {"ok":"updated package"}`（npm 客户端协议前置占位，包内容不动——npm CLI 行为依赖它）。
+
+`npm login`（npm ≥ 9 需 legacy 形态）：`npm login --auth-type=legacy`，签发的 token 与管理面 token 同表可吊销；日常用 `.npmrc _auth`（Basic）等效。
+
+## remote / virtual 仓的用法
+
+- **remote 仓**（代理上游）：`.npmrc` 的 registry 指向 `$BASE/binflow/api/npm/npm-remote/`，packument 与 tarball 经 BinFlow 回源缓存；上游不回显、二次安装零上游流量。
+- **virtual 仓**（聚合）：registry 指向 `$BASE/binflow/api/npm/npm-virtual/`，本地包与上游包一次 `npm install demo-pkg up-pkg` 装齐。
+- **重要边界（M3）**：`registry.npmjs.org` 的 packument 不在 BinFlow/Artifactory 的 `<name>/packument.json` 布局路径上，**npmjs 真上游暂不可代理**（`npm install lodash` → 404 `Package 'lodash' not found`，T-75 真机复核）。remote 仓适用于布局兼容的上游（内网 Nexus/Artifactory 等）；npmjs 代理归 M4。Maven Central 与 pypi.org 的真上游代理均已可用，见[管理指南](../admin/remote-virtual.md#上游兼容性速查)。
+- 代理仓的上游日志里会看到 npm 客户端对 `npm` 自身 packument 的自检探测（版本检查），属正常噪音，上游 miss 后进负缓存。
+
+## 匿名与凭据
+
+| 场景 | 行为 |
+|---|---|
+| 匿名 GET（默认 `anonymous_access: true`） | packument/tarball 200——安装、CI 拉包免凭据 |
+| 匿名 publish（PUT） | **401** `authentication required` |
+| 全局关匿名 | GET 也需 `_auth`（`npm install` 无凭据直接失败，带 `_auth` 正常） |
+
+连通性探测：`curl $BASE/binflow/api/npm/npm-local/-/ping` → `200 {}`。
+
+## 有意不兼容与差异（npm 域）
+
+| 行为 | BinFlow | 依据 |
+|---|---|---|
+| 同版本重复 publish | **403** `Cannot modify pre-existing version '<v>', aborting upload for: '<name>'`（npm CLI 报 E403） | PRD v1.2 定案（409→403） |
+| `integrity`（sha512）与 tarball 实测不一致 | **400** 拒绝（Artifactory 默认不强制；BinFlow 有意从严） | NE-01 决策 |
+| `npm search`（`/-/v1/search`）、audit（`/-/npm/v1/security`） | **404**——搜索/审计端点不做 | §2.2 |
+| tarball 裸 PUT（内容路径直传） | **405**——npm 域发布仅认 packument PUT 十步链 | T-76 注记 |
+| packument `_attachments` | GET 面不返回 | NPM-API 惯例 |
+| 包索引隐藏目录 | 不落 `.npm/` 隐藏目录（探针 404） | 规格 §4.5 |
+
+## 常见报错对照
+
+| 症状 | 原因 | 处置 |
+|---|---|---|
+| `npm error Invalid auth configuration found: '_auth' must be renamed to ...` | 项目级 `.npmrc` 用了裸 `_auth` | 凭据行改 `//<host>/<路径>/:_auth` 限定形态（上文第 2 步） |
+| publish E403 `Cannot modify pre-existing version '1.0.0'` | 同版本已发布（不允许覆盖） | `npm version` 升版本后重发；或先 `npm unpublish` |
+| publish E400 `Conflict between integrity from metadata and tarball` | packument integrity 与 tarball 内容不符（BinFlow 强制校验） | 重新 `npm pack` 生成一致的元数据 |
+| install 报 404 / 装到了公网同名包 | 当前目录没有 `.npmrc`，registry 缺省走 npmjs | 每个项目目录都放 `.npmrc`（或写用户级） |
+| 401 `authentication required` | 匿名 publish，或全局关匿名后未配 `_auth` | 配置 `_auth` |
+| dist-tag 操作 404 `npm package not found with name:<n>, and tag:<t>` | 包名或 tag 不存在 | 核对 `npm dist-tag ls` |
+| `npm whoami` 报错 | 未配凭据（whoami 需要认证） | 补 `_auth` 或 `npm login --auth-type=legacy` |
+
+## 下一步
+
+- remote/virtual 仓的创建与缓存管理：[remote/virtual 管理指南](../admin/remote-virtual.md)
+- Maven / PyPI 接入：[maven](maven.md) · [pypi](pypi.md)
+- 从 Artifactory 迁移的概念对照：[faq.md](../faq.md)
