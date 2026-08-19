@@ -33,7 +33,7 @@
 （T-66 编码完成 → review 区；双 reviewer 排队等槽）
 - **T-67** [P0] Maven adapter layout+传输+checksum（批 3） `role:dev-registry-adapter` `area:internal/adapter/maven` — 在途（双 reviewer 票；metadata 归 T-68）
 - **T-69** [P0] npm adapter（批 3） `role:dev-registry-adapter` `area:internal/adapter/npm` — 在途（E-26 翻转 R5 + N4 严格 404 决策）
-- **T-71** [P0] virtual 两桶解析+写路由（批 4 提前） `role:dev-go-core` `area:internal/repo(virtual)` — 在途（T-66 done 解锁；FetchResult.HasCopy 消费）
+- **T-71** [P0] virtual 两桶解析+写路由（批 4 提前） `role:dev-go-core` `area:internal/repo(virtual)` — 在途（经 429 中断唤醒续跑）
 （T-79 done → done 区）
 
 ## 👀 评审中（review）
@@ -215,6 +215,13 @@
   review 0 blocker：finalize 切换 git diff 核实（O(size) 回读真删/busy 注入迁移/T-54 断言保留）；PutLandedBlob 并发同摘要+无重读钉板 -count=2 绿；C26 声明在快照验证。4 non-blocking（掩码大小写敏感→T-66 改/crash 窗口口径/审计置空/PutLandedBlob 段位）。提交 63135de+5662b22。
 - **T-81** [P1] NAT64 勘误 `role:product-manager` — done 2026-08-19
   PRD NFR-S13② + ADR-0012 决策 3 各一句（拆解递归/DNS64 保留/Teredo 直拒/v4-compatible 收编/zone 剥离），溯源 T-65+0dc17a2。M42 测试向量扩充建议记日志。
+
+- **T-70** [P0] PyPI adapter `role:dev-registry-adapter` `area:internal/adapter/pypi` — done 2026-08-20（经一轮修复）
+  simple（PEP 503 三态/691 JSON/Vary）/upload（md5 三态/:action 400）/下载双入口；twine 7+pip 26 真实客户端 M30~M35b 全过；归一化矩阵+恶意文件名九变体探针全过。review 1 blocker（探针 fd 泄漏+审计伪造）+Vary+死 Del 修复复审通过。遗留：N4 缝层强制与 service Stat 面转 conductor；remote/virtual simple 400 过渡（T-71/72）。提交 c59bd6b+258aae1。
+- **T-69** [P0] npm adapter `role:dev-registry-adapter` `area:internal/adapter/npm` — done 2026-08-20
+  23 文件 4336 行：十步校验链/packument（tarball 重写/ETag-304/SLIM）/dist-tags 两形态/unpublish 联动/login 复用 TokenRegistry/N4 守卫。npm 10.9.8 真实客户端 M22~M28 全过（M26 403 勘误口径/M27 -rev 占位显式断言）。E-26 npm 翻转。-rev 对 packument 形 body 的有意偏离建议规格回写。cmd 装配 3 行待集成票。提交 91bb261。
+- **T-67** [P0] Maven adapter（传输面） `role:dev-registry-adapter` `area:internal/adapter/maven` — 主体 done（91bb261），mvn 真客户端腿续跑中
+  layout 六字段解析/checksum 三态/旁车/snapshot 语义/穿越防御；M11~M21 wire 序列+curl 等价全过。遗留②：Service SPI 缺 metadata 覆盖豁免入口（~10 行，T-68 依赖，挂 architect）。
 
 ## 🚫 阻塞（blocked）
 
