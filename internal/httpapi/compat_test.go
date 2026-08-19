@@ -19,9 +19,11 @@ func putRepo(t *testing.T, h *harness, key, body string) *http.Response {
 		[]byte(body), map[string]string{"Content-Type": "application/json"})
 }
 
-// TestRepositoriesCRUD walks C03 -> C04 -> C05 -> C06 -> C19 plus the
-// remote/virtual rejection (C26): create 200 plain text, invalid key 400,
-// list fields/ordering/no-store, single-repo config, delete semantics.
+// TestRepositoriesCRUD walks C03 -> C04 -> C05 -> C06 -> C19 plus the C26
+// family as flipped for M3 (FR-15/PRD section 5.6: remote and virtual
+// classes create; the docker combinations stay refused): create 200 plain
+// text, invalid key 400, list fields/ordering/no-store, single-repo config,
+// delete semantics.
 func TestRepositoriesCRUD(t *testing.T) {
 	h := newHarness(t)
 
@@ -62,28 +64,48 @@ func TestRepositoriesCRUD(t *testing.T) {
 		}
 	})
 
-	t.Run("C26 remote rclass is 400", func(t *testing.T) {
+	t.Run("C26 flipped: remote rclass creates (E-07 reversal, FR-15)", func(t *testing.T) {
+		resp := putRepo(t, h, "generic-remote",
+			`{"rclass":"remote","packageType":"generic","url":"http://127.0.0.1:9099","allowPrivateUpstream":true}`)
+		body := mustGet(t, resp)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d; body=%s", resp.StatusCode, body)
+		}
+		if !strings.Contains(body, "Successfully created repository 'generic-remote'") {
+			t.Fatalf("body = %q, want the created wording", body)
+		}
+	})
+
+	t.Run("C26 flipped: virtual rclass creates (E-07 reversal, FR-15)", func(t *testing.T) {
+		// generic-local exists from C03; a virtual over it is the smallest
+		// legal member set (FR-15-AC4).
+		resp := putRepo(t, h, "aggregated",
+			`{"rclass":"virtual","packageType":"generic","repositories":["generic-local"]}`)
+		body := mustGet(t, resp)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d; body=%s", resp.StatusCode, body)
+		}
+		if !strings.Contains(body, "Successfully created repository 'aggregated'") {
+			t.Fatalf("body = %q, want the created wording", body)
+		}
+	})
+
+	t.Run("docker combinations stay 400 (FR-15-AC7)", func(t *testing.T) {
 		resp := putRepo(t, h, "docker-remote",
 			`{"rclass":"remote","packageType":"docker","url":"https://registry-1.docker.io"}`)
 		eb := decodeError(t, resp)
 		if resp.StatusCode != http.StatusBadRequest {
 			t.Fatalf("status = %d; body=%s", resp.StatusCode, eb.Errors[0].Message)
 		}
-		if !strings.Contains(eb.Errors[0].Message, "M3") {
-			t.Fatalf("message = %q, want the supported-from-M3 wording", eb.Errors[0].Message)
+		if !strings.Contains(eb.Errors[0].Message, "not supported in M3") {
+			t.Fatalf("message = %q, want the not-supported-in-M3 wording", eb.Errors[0].Message)
 		}
-	})
-
-	t.Run("C26 virtual rclass is 400", func(t *testing.T) {
-		resp := putRepo(t, h, "aggregated", `{"rclass":"virtual","packageType":"generic"}`)
-		if resp.StatusCode != http.StatusBadRequest {
-			t.Fatalf("status = %d", resp.StatusCode)
-		}
-		decodeError(t, resp)
 	})
 
 	t.Run("C05 list fields and ordering", func(t *testing.T) {
-		// A second repo sorts after the first by key.
+		// A second repo sorts after the first by key; the C26-flipped
+		// remote/virtual creates above join the page and exercise the full
+		// type ordering (local < remote < virtual, then key ascending).
 		if resp := putRepo(t, h, "another-local", `{"rclass":"local","packageType":"generic"}`); resp.StatusCode != http.StatusOK {
 			t.Fatalf("seed second repo: %d", resp.StatusCode)
 		} else {
@@ -107,16 +129,24 @@ func TestRepositoriesCRUD(t *testing.T) {
 		if err := json.Unmarshal([]byte(body), &items); err != nil {
 			t.Fatalf("list body %q: %v", body, err)
 		}
-		if len(items) != 2 {
-			t.Fatalf("len = %d, want 2; body=%s", len(items), body)
+		if len(items) != 4 {
+			t.Fatalf("len = %d, want 4 (two locals, the remote, the virtual); body=%s", len(items), body)
 		}
-		if items[0].Key != "another-local" || items[1].Key != "generic-local" {
-			t.Fatalf("order = [%s %s], want key-ascending", items[0].Key, items[1].Key)
+		want := []string{"another-local", "generic-local", "generic-remote", "aggregated"}
+		for i, k := range want {
+			if items[i].Key != k {
+				t.Fatalf("order = [%s %s %s %s], want %v (type-then-key)",
+					items[0].Key, items[1].Key, items[2].Key, items[3].Key, want)
+			}
 		}
 		for _, it := range items {
-			if it.Type != "local" || it.PackageType != "generic" || it.URL == "" {
-				t.Fatalf("entry %+v missing type/packageType/url", it)
+			if it.PackageType != "generic" || it.URL == "" {
+				t.Fatalf("entry %+v missing packageType/url", it)
 			}
+		}
+		if items[0].Type != "local" || items[2].Type != "remote" || items[3].Type != "virtual" {
+			t.Fatalf("types = [%s %s %s %s], want local local remote virtual",
+				items[0].Type, items[1].Type, items[2].Type, items[3].Type)
 		}
 	})
 

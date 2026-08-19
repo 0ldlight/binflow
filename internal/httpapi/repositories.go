@@ -33,7 +33,11 @@ type repoListItem struct {
 }
 
 // repoConfig is the single-repository configuration body (GET and PUT share
-// the shape; rclass echoes the BinFlow row's type).
+// the shape; rclass echoes the BinFlow row's type). M3 (T-80, FR-15) carries
+// the remote/virtual field subset THROUGH to the service layer's typed
+// config (internal/repo/config.go): the REST plane is field transport only —
+// validation, defaults, canonicalization and credential masking all live in
+// repo.Service.
 type repoConfig struct {
 	Key                     string `json:"key"`
 	RClass                  string `json:"rclass"`
@@ -51,6 +55,94 @@ type repoConfig struct {
 	MaxUniqueSnapshots      int    `json:"maxUniqueSnapshots,omitempty"`
 	ChecksumPolicyType      string `json:"checksumPolicyType,omitempty"`
 	ArchiveBrowsingEnabled  *bool  `json:"archiveBrowsingEnabled,omitempty"`
+
+	// ---- M3 remote transport (FR-15; repo-semantics section 7.1 spellings) ----
+
+	Username                       string `json:"username,omitempty"`
+	Password                       string `json:"password,omitempty"` // transport only; repo.Service never persists it (NFR-S14)
+	RetrievalCachePeriodSecs       *int64 `json:"retrievalCachePeriodSecs,omitempty"`
+	MissedRetrievalCachePeriodSecs *int64 `json:"missedRetrievalCachePeriodSecs,omitempty"`
+	SocketTimeoutSecs              *int64 `json:"socketTimeoutSecs,omitempty"`
+	AssumedOfflinePeriodSecs       *int64 `json:"assumedOfflinePeriodSecs,omitempty"`
+	HardFail                       *bool  `json:"hardFail,omitempty"`
+	AllowPrivateUpstream           *bool  `json:"allowPrivateUpstream,omitempty"`
+	// PriorityResolution is the per-repository virtual-resolution mark
+	// (PRD C3's two-bucket order); legal on local and remote members.
+	PriorityResolution *bool `json:"priorityResolution,omitempty"`
+
+	// ---- M3 virtual transport (FR-15; repo-semantics section 8.2) ----
+
+	Repositories             []string `json:"repositories,omitempty"`
+	DefaultDeploymentRepo    string   `json:"defaultDeploymentRepo,omitempty"`
+	DefaultDeploymentRepoRef string   `json:"defaultDeploymentRepoRef,omitempty"`
+	DeploymentRepository     string   `json:"deploymentRepository,omitempty"`
+
+	// Configuration is the GET-only echo of the stored canonical config (the
+	// service hands it back already masked, NFR-S14); it is never an input.
+	Configuration any `json:"configuration,omitempty"`
+}
+
+// setStr/setI64/setBool collect one set transport field into the config map.
+func setStr(m map[string]any, key, v string) {
+	if v != "" {
+		m[key] = v
+	}
+}
+
+func setI64(m map[string]any, key string, v *int64) {
+	if v != nil {
+		m[key] = *v
+	}
+}
+
+func setBool(m map[string]any, key string, v *bool) {
+	if v != nil {
+		m[key] = *v
+	}
+}
+
+// configJSON renders the request body's type-relevant fields into the config
+// blob repo.Service parses. rclass is the EFFECTIVE class (the body's value,
+// defaulted from the stored row by the caller); the map keeps only the
+// fields the caller actually set, so "" — the "nothing type-relevant was in
+// the body" result — reaches the service as the keep-current-config signal
+// on update. repo.Service owns everything beyond this point: url required,
+// the member rules, the docker-combination matrix, the defaults, the
+// credential drop.
+func (c repoConfig) configJSON(rclass string) (string, error) {
+	m := map[string]any{}
+	switch rclass {
+	case repo.TypeRemote:
+		setStr(m, "url", c.URL)
+		setStr(m, "username", c.Username)
+		setStr(m, "password", c.Password)
+		setI64(m, "retrievalCachePeriodSecs", c.RetrievalCachePeriodSecs)
+		setI64(m, "missedRetrievalCachePeriodSecs", c.MissedRetrievalCachePeriodSecs)
+		setI64(m, "socketTimeoutSecs", c.SocketTimeoutSecs)
+		setI64(m, "assumedOfflinePeriodSecs", c.AssumedOfflinePeriodSecs)
+		setBool(m, "hardFail", c.HardFail)
+		setBool(m, "allowPrivateUpstream", c.AllowPrivateUpstream)
+		setBool(m, "priorityResolution", c.PriorityResolution)
+	case repo.TypeVirtual:
+		if c.Repositories != nil {
+			m["repositories"] = c.Repositories
+		}
+		setStr(m, "defaultDeploymentRepo", c.DefaultDeploymentRepo)
+		setStr(m, "defaultDeploymentRepoRef", c.DefaultDeploymentRepoRef)
+		setStr(m, "deploymentRepository", c.DeploymentRepository)
+	default:
+		// local: only the cross-cutting member mark rides through in M3
+		// (the checksum-policy family lands with its consumers, T-67+).
+		setBool(m, "priorityResolution", c.PriorityResolution)
+	}
+	if len(m) == 0 {
+		return "", nil
+	}
+	b, err := json.Marshal(m)
+	if err != nil {
+		return "", fmt.Errorf("render repository config transport: %w", err)
+	}
+	return string(b), nil
 }
 
 // repoTypeOrder ranks types for the list ordering: type ascending, then key
@@ -102,8 +194,13 @@ func writePlainError(w http.ResponseWriter, status int, message string) {
 // caller can see (M1: all of them — the read filter needs per-repo ACL data
 // M1 does not carry; the route itself already requires authentication),
 // ordered type-then-key, Cache-Control: no-store (rest-api.md section 2).
+// M3 (M04, FR-15-AC5) turns the ?type= and ?packageType= filters on: exact
+// column matches through ListReposFiltered, invalid values matching nothing
+// with an empty array rather than an error (rest-api.md section 2).
 func (s *Server) handleRepoList(w http.ResponseWriter, r *http.Request) {
-	repos, err := s.deps.ReposSvc.ListRepos(r.Context(), principalFrom(r.Context()))
+	q := r.URL.Query()
+	repos, err := s.deps.ReposSvc.ListReposFiltered(r.Context(), principalFrom(r.Context()),
+		strings.TrimSpace(q.Get("type")), strings.TrimSpace(q.Get("packageType")))
 	if err != nil {
 		s.writeRepoSvcError(w, err)
 		return
@@ -123,15 +220,24 @@ func (s *Server) handleRepoList(w http.ResponseWriter, r *http.Request) {
 	writeJSONBody(w, http.StatusOK, items)
 }
 
-// repoListItemOf projects one metadata row onto the wire shape.
+// repoListItemOf projects one metadata row onto the wire shape. Remote and
+// virtual entries carry their (masked, canonical) configuration like the
+// single-repo GET does; local rows keep the bare M1 shape.
 func (s *Server) repoListItemOf(r *http.Request, row *metadata.Repo) repoListItem {
-	return repoListItem{
+	item := repoListItem{
 		Key:         row.RepoKey,
 		Description: row.Description,
 		Type:        row.Type,
 		PackageType: row.PackageType,
 		URL:         requestBase(r) + "/" + row.RepoKey,
 	}
+	if row.Config != "" && row.Config != "{}" {
+		var m map[string]any
+		if err := json.Unmarshal([]byte(row.Config), &m); err == nil && len(m) > 0 {
+			item.Configuration = m
+		}
+	}
+	return item
 }
 
 // requestBase is scheme://host as the request presented it (URLs inside
@@ -157,21 +263,34 @@ func (s *Server) handleRepoGet(w http.ResponseWriter, r *http.Request, key strin
 	writeJSONBody(w, http.StatusOK, s.repoConfigOf(r, row))
 }
 
-// repoConfigOf projects one row onto the configuration body.
+// repoConfigOf projects one row onto the configuration body. M3 (T-80):
+// remote/virtual rows echo their canonical config under "configuration" —
+// the service already handed back the masked form (NFR-S14: no password
+// ever crosses this boundary); local rows keep the M1 shape ({} is omitted).
 func (s *Server) repoConfigOf(r *http.Request, row *metadata.Repo) repoConfig {
-	return repoConfig{
+	cfg := repoConfig{
 		Key:         row.RepoKey,
 		RClass:      row.Type,
 		PackageType: row.PackageType,
 		Description: row.Description,
 		URL:         requestBase(r) + "/" + row.RepoKey,
 	}
+	if row.Config != "" && row.Config != "{}" {
+		var m map[string]any
+		if err := json.Unmarshal([]byte(row.Config), &m); err == nil && len(m) > 0 {
+			cfg.Configuration = m
+		}
+	}
+	return cfg
 }
 
 // handleRepoPut serves PUT /api/repositories/{key} (E-06/E-07): create, or
 // update when the key exists — both answer 200 plain text (PRD v1.3
 // calibration R2; the create-vs-update wording distinction is kept so
-// scripts can log accurately). remote/virtual rclass -> 400 (E-07, M1).
+// scripts can log accurately). M3 (T-80) opens the remote/virtual classes:
+// the type-relevant body fields ride through to repo.Service's typed config
+// (E-07's M1 refusal is inverted per PRD section 5.6; the docker
+// combinations stay refused — that rule is the service's).
 func (s *Server) handleRepoPut(w http.ResponseWriter, r *http.Request, key string) {
 	var body repoConfig
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
@@ -204,6 +323,12 @@ func (s *Server) handleRepoPut(w http.ResponseWriter, r *http.Request, key strin
 		if stored.PackageType == "" {
 			stored.PackageType = current.PackageType
 		}
+		config, err := body.configJSON(stored.Type)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		stored.Config = config
 		if _, err := s.deps.ReposSvc.UpdateRepo(r.Context(), p, stored); err != nil {
 			s.writeRepoSvcError(w, err)
 			return
@@ -215,6 +340,12 @@ func (s *Server) handleRepoPut(w http.ResponseWriter, r *http.Request, key strin
 		return
 	}
 
+	config, err := body.configJSON(stored.Type)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	stored.Config = config
 	created, err := s.deps.ReposSvc.CreateRepo(r.Context(), p, stored)
 	if err != nil {
 		s.writeRepoSvcError(w, err)
@@ -246,9 +377,14 @@ func (s *Server) handleRepoPost(w http.ResponseWriter, r *http.Request, key stri
 	if packageType == "" {
 		packageType = current.PackageType
 	}
+	config, err := body.configJSON(rclass)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	if _, err := s.deps.ReposSvc.UpdateRepo(r.Context(), p, &metadata.Repo{
 		RepoKey: key, Type: rclass, PackageType: packageType,
-		Description: body.Description,
+		Description: body.Description, Config: config,
 	}); err != nil {
 		s.writeRepoSvcError(w, err)
 		return
