@@ -34,6 +34,8 @@ import (
 	"github.com/lzwzzy/binflow/internal/adapter/docker"
 	"github.com/lzwzzy/binflow/internal/adapter/generic"
 	"github.com/lzwzzy/binflow/internal/adapter/maven"
+	"github.com/lzwzzy/binflow/internal/adapter/npm"
+	"github.com/lzwzzy/binflow/internal/adapter/pypi"
 	"github.com/lzwzzy/binflow/internal/audit"
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/config"
@@ -225,6 +227,19 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// maven-metadata.xml calculator (T-68/FR-17).
 	mavenHandler := maven.New(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.md.Nodes())
 	maven.RegisterMetadata()
+	// npm (M3/T-69): the /binflow/api/npm mount rewrites onto the content
+	// plane, so mounting is the Deps.Adapters entry; Register is the
+	// one-call hook that also feeds the metadata registry T-66/T-72 consume.
+	// WithAuth wires login (NE-06: TokenRegistry + user directory + the
+	// early write gate — the /v2/token dual-entry precedent).
+	npmHandler := npm.New(stack.svc, stack.md.Repos(), npm.Options{BaseURL: cfg.Server.BaseURL}).
+		WithAuth(stack.authSvc, stack.md.Users(), stack.authSvc).
+		WithLedger(stack.md.Blobs())
+	npm.Register(npmHandler)
+	// pypi (M3/T-70): Register builds the handler and enters both
+	// registries under one literal; the upload plane rides the storage
+	// engine seam (PutLandedBlob's late-path-binding shape, T-64).
+	pypiHandler := pypi.Register(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.st)
 	return httpapi.New(httpapi.Deps{
 		Config:    cfg,
 		Auth:      stack.authSvc,
@@ -236,7 +251,7 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 		Tokens:    stack.authSvc,
 		DataDir:   cfg.Storage.DataDir,
 		Console:   console.Handler(),
-		Adapters:  []adapter.Handler{stack.genericHandler, dockerHandler, mavenHandler},
+		Adapters:  []adapter.Handler{stack.genericHandler, dockerHandler, mavenHandler, npmHandler, pypiHandler},
 		Version:   version,
 		Revision:  revision,
 	}, logger)
