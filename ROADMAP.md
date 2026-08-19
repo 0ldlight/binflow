@@ -20,17 +20,17 @@
 - [x] 开发环境：docker-compose 起本地实例（devops-engineer）
 - [x] QA：generic roundtrip + 存储完整性；文档：README 快速开始
 
-### M2 — 云原生旗舰：Docker Registry v2（当前）
+### M2 — 云原生旗舰：Docker Registry v2（已完成，`m2-done`；QA 全绿见 T-43/T-44，烟测 T-45，文档 T-46）
 需求基线：docs/prd/milestone-2.md（PRD v1.1；`/v2` 路由已定案（ADR-0010 根级例外））
-- [ ] 逆向规格：docker-registry.md（补 spec 外空白，reverse-engineer）
-- [ ] ADR-0010：`/v2` 挂载形态（根级例外 vs `/binflow/v2`+反代 rewrite，architect，依赖 PRD Q1 用户定案）
-- [ ] blob upload 协议（POST/PATCH/PUT，monolithic + chunked）
-- [ ] manifest schema2 / OCI 存取（by-digest / by-tag）
-- [ ] `/v2/_catalog`、tags/list；docker login 的 token 认证流
-- [ ] Helm OCI 承载（oras 客户端可用）
-- [ ] conformance：docker / podman / crane / skopeo / oras 全过（分级见 PRD §5.3）
-- [ ] M1 遗留收编：O1 断开日志定界、O3 gc 旗标、Content-Type 映射（PRD §6.4）
-- [ ] 部署烟测：Docker 镜像 + compose（release-engineer）
+- [x] 逆向规格：docker-registry.md（补 spec 外空白，reverse-engineer）
+- [x] ADR-0010：`/v2` 挂载形态（根级例外 vs `/binflow/v2`+反代 rewrite，architect，依赖 PRD Q1 用户定案）
+- [x] blob upload 协议（POST/PATCH/PUT，monolithic + chunked）
+- [x] manifest schema2 / OCI 存取（by-digest / by-tag）
+- [x] `/v2/_catalog`、tags/list；docker login 的 token 认证流
+- [x] Helm OCI 承载（oras 客户端可用）
+- [x] conformance：docker / podman / crane / skopeo / oras 全过（分级见 PRD §5.3）
+- [x] M1 遗留收编：O1 断开日志定界、O3 gc 旗标、Content-Type 映射（PRD §6.4）
+- [x] 部署烟测：Docker 镜像 + compose（release-engineer）
 
 ### M3 — 多生态与代理
 - [ ] Maven 2：layout 解析、deploy/resolve、maven-metadata.xml、checksum 策略

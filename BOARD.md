@@ -71,8 +71,7 @@
 
 ## 🔨 进行中（doing）
 
-- **T-46** [P1] docker 接入用户文档（M2 最后一票） `role:tech-writer` `area:docs/user`
-  状态：07:4x 派发，在途（Docusaurus 首批页面；insecure-registries 高频卡点置顶；T-44/T-45 实测命令直接引用）。
+（空——M2 全票闭环）
 
 ## 🧪 测试中（qa）
 
@@ -172,6 +171,8 @@
   statusRecorder 增 writeErr/panicDisconnect 槽位；断连（ctx.Canceled 主腿 + errno 兜底）≥500 降 WARN + client_disconnect 标注；recoverPanic 断连降级不注信封。进程外 e2e 实证（--limit-rate + kill -9：日志零 ERROR、真 500 反例保持 ERROR 三态表）。轻量核验（P1+e2e 证据）。提交 85df447。M5 升格 label 遗留登记。
 - **T-42** [P1] gc 旗标+GC mark 扩容 `role:dev-go-core` `area:cmd/binflow-server` — done 2026-08-18
   gc -c（复用 serve 配置链）+ --grace-hours（与 days 并存 hours 胜）；mark = nodes ∪ docker_refs（ListRefsByManifest 聚合——agent 论证了 RefsByBlob 会回到 T-9 废弃的反连接路线）；真栈冒烟（refs-held 存活/级联删后转候选）。净树核验（T-37 WIP 致主仓瞬断，隔离手法 agent 自报 conductor 复现）。提交 69a6039。遗留：lint 有网补跑；子命令 --help exit 1 小票登记。
+- **T-46** [P1] docker 接入用户文档 `role:tech-writer` `area:docs/user` — done 2026-08-19（M2 最后一票，经 429 中断续完）
+  docs/user/docker-registry.md（306 行，Docusaurus 首批页面）：insecure-registries 三形态置顶/全名 tag 模型/buildx 两坑/Helm OCI 凭据文件方案/oras 双类型/五客户端命令表/有意不兼容清单+反代片段/常见报错对照。13 组命令复跑全过（两轮，T-45 基线产物）。观察项 O-1（crane 取消 token 的 client_disconnect 500 日志）转 T-41/T-37 域评估。提交 c230b10。
 - **T-45** [P0] 部署烟测 `role:release-engineer` — done 2026-08-19（AC 4/4 + O2 全过）
   compose 实例 D04/D05/D16 全过（v1.3 口径）+ D21 restart 持久化 + O2 全新 dind 默认端口零配置复跑（49 请求零 5xx）+ 反代直通示例（nginx/traefik）+ compose TTL 透传微调（注明理由）。两轮清理彻底；digest 清单录报告（发布动作待用户确认）。提交 923db2e。
 - **T-44** [P0] QA 五客户端 conformance `role:qa-engineer` — done 2026-08-19（首轮 FAIL→复验 PASS）
