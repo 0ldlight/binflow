@@ -131,9 +131,15 @@ func (c repoConfig) configJSON(rclass string) (string, error) {
 		setStr(m, "defaultDeploymentRepoRef", c.DefaultDeploymentRepoRef)
 		setStr(m, "deploymentRepository", c.DeploymentRepository)
 	default:
-		// local: only the cross-cutting member mark rides through in M3
-		// (the checksum-policy family lands with its consumers, T-67+).
+		// local: the cross-cutting member mark plus the maven policy
+		// family (T-67's consumers read them verbatim out of the config
+		// blob — the T-64 passthrough contract; the transport addition is
+		// the piece T-80 deferred to this ticket).
 		setBool(m, "priorityResolution", c.PriorityResolution)
+		setBool(m, "handleReleases", c.HandleReleases)
+		setBool(m, "handleSnapshots", c.HandleSnapshots)
+		setStr(m, "snapshotVersionBehavior", c.SnapshotVersionBehavior)
+		setStr(m, "checksumPolicyType", c.ChecksumPolicyType)
 	}
 	if len(m) == 0 {
 		return "", nil

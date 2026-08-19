@@ -691,6 +691,113 @@ func TestFetchConcurrentMissSingleFlight(t *testing.T) {
 	}
 }
 
+// ---- review B1/B2 probes: the singleflight contract on miss paths ----
+
+// The reviewer's probe: sixteen concurrent fetches of a path the upstream
+// 404s must cost EXACTLY one upstream contact — the winner writes the
+// negative-cache row and every waitor's re-run answers at step 3.
+func TestFetchConcurrent404SingleUpstreamContact(t *testing.T) {
+	e := newFetchEnv(t, nil)
+	e.state.mu.Lock()
+	e.state.delay = 100 * time.Millisecond // let the stampede pile up behind the winner
+	e.state.mu.Unlock()
+
+	const n = 16
+	var wg sync.WaitGroup
+	unfounds := &atomic.Int64{}
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			res, err := e.eng.Fetch(context.Background(), "generic-remote", "stampede-miss.bin")
+			if err == nil {
+				if res != nil {
+					_ = res.Body.Close()
+				}
+				t.Error("a miss must surface as a FetchError, not a result")
+				return
+			}
+			var fe *FetchError
+			if !errors.As(err, &fe) || fe.Status != http.StatusNotFound {
+				t.Errorf("stampede miss = %v, want 404 FetchError", err)
+				return
+			}
+			unfounds.Add(1)
+		}()
+	}
+	wg.Wait()
+	if got := unfounds.Load(); got != n {
+		t.Fatalf("unfound answers = %d, want %d", got, n)
+	}
+	if got := e.hits.Load(); got != 1 {
+		t.Fatalf("upstream contacts under a miss stampede = %d, want exactly 1 (review B1)", got)
+	}
+
+	// And the window holds afterwards: another request still costs nothing.
+	if _, err := e.eng.Fetch(context.Background(), "generic-remote", "stampede-miss.bin"); err == nil {
+		t.Fatalf("negative window must hold")
+	}
+	if got := e.hits.Load(); got != 1 {
+		t.Fatalf("upstream contacts after the window = %d, want 1", got)
+	}
+}
+
+// A metadata-class waitor whose wait cap elapses serves the OLD copy
+// (repo-semantics 7.1 metadataRetrievalTimeoutSecs / 7.3 "timeout, return
+// the old cache copy") instead of queueing behind the winner.
+func TestFetchMetadataWaitTimeoutServesOldCopy(t *testing.T) {
+	registerTestProvider.Do(func() { adapter.RegisterMetadata(t66Provider{}) })
+	e := newFetchEnv(t, func(row *metadata.Repo, _ *metadata.RemoteConfig) {
+		row.PackageType = "npm" // ".json" classifies as metadata
+	})
+	e.eng.metaWait = 80 * time.Millisecond
+	e.state.files["/pack.json"] = "old-copy"
+	if body := readAll(t, mustFetch(t, e, "pack.json")); body != "old-copy" {
+		t.Fatalf("prefetch body = %q", body)
+	}
+	e.clk.Advance(601 * time.Second) // past the 600s metadata TTL
+
+	// The winner holds the flight behind a slow upstream; the waitor times
+	// out and falls back to the expired copy.
+	e.state.mu.Lock()
+	e.state.delay = 800 * time.Millisecond
+	e.state.mu.Unlock()
+	winnerDone := make(chan struct{})
+	go func() {
+		defer close(winnerDone)
+		res, err := e.eng.Fetch(context.Background(), "generic-remote", "pack.json")
+		if err != nil {
+			t.Errorf("winner fetch: %v", err)
+			return
+		}
+		_ = res.Body.Close()
+	}()
+	time.Sleep(150 * time.Millisecond) // the winner is inside its slow upstream call
+	res, err := e.eng.Fetch(context.Background(), "generic-remote", "pack.json")
+	if err != nil {
+		t.Fatalf("waitor after timeout: %v", err)
+	}
+	if body := readAll(t, res); body != "old-copy" {
+		t.Fatalf("timeout fallback body = %q, want the old copy", body)
+	}
+	if res.CacheState != CacheStale {
+		t.Fatalf("timeout fallback state = %q, want STALE", res.CacheState)
+	}
+	if res.UpstreamError != "" {
+		t.Fatalf("a lock timeout is not an upstream error: %q", res.UpstreamError)
+	}
+	<-winnerDone
+	if got := e.hits.Load(); got != 2 { // prefetch + the winner's refresh
+		t.Fatalf("upstream hits = %d, want 2 (the waitor must not contact)", got)
+	}
+	// The winner's landing refreshed the entry: the next read is a plain HIT.
+	res2 := mustFetch(t, e, "pack.json")
+	if res2.CacheState != CacheHit {
+		t.Fatalf("post-winner state = %q, want HIT", res2.CacheState)
+	}
+	readAll(t, res2)
+}
+
 // ---- RE-06: invalidation ----
 
 func TestInvalidateRefetches(t *testing.T) {

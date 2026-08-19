@@ -33,8 +33,13 @@ const contentTypeFileInfo = "application/vnd.org.jfrog.artifactory.storage.ItemC
 // Protocol implements adapter.Handler.
 func (h *Handler) Protocol() string { return Protocol }
 
-// RepoTypes implements adapter.Handler: M1 generic serves local repos.
-func (h *Handler) RepoTypes() []string { return []string{repo.TypeLocal} }
+// RepoTypes implements adapter.Handler: M1 generic served local repos; M3
+// (T-66) adds REMOTE — the content plane dispatches remote GET/HEAD to the
+// pull-through engine inside repo.Service and refuses writes with RE-05's
+// 405, all of it invisible at this layer (architecture section 5.4:
+// repository-class differences live in the service). virtual joins with
+// T-71's resolver.
+func (h *Handler) RepoTypes() []string { return []string{repo.TypeLocal, repo.TypeRemote} }
 
 // Layout implements adapter.Handler via the shared generic layout parser.
 func (h *Handler) Layout(r *http.Request) (string, string, error) {

@@ -128,6 +128,22 @@ var defaultPolicy = repoPolicy{
 // queueing behind a stuck winner.
 const defaultMetadataWait = 60 * time.Second
 
+// waitReason names what ended a singleflight wait.
+type waitReason int
+
+const (
+	waitDone waitReason = iota
+	waitCanceled
+	waitTimeout
+)
+
+// errUpstreamBody marks a failure that happened while READING the upstream
+// body (the session's Append) — the upstream's fault, eligible for the
+// assumed-offline downgrade. Local write failures (Commit, metadata rows)
+// carry no marker: they surface as plain 500s and are never blamed on the
+// upstream (review side-fix).
+var errUpstreamBody = errors.New("upstream body read")
+
 // EngineOptions configures the Engine.
 type EngineOptions struct {
 	// Now is the TTL/offline clock; nil means UTC time.Now. Tests inject a
@@ -339,43 +355,48 @@ func (e *Engine) Fetch(ctx context.Context, repoKey, path string) (*FetchResult,
 			Unfound: true,
 		}
 	}
-	// Step 3: the negative cache — a known miss inside its window answers
-	// 404 without a single upstream packet.
-	if entry, err := e.md.Remote().GetCache(ctx, repoKey, path); err == nil &&
-		entry.Kind == cacheKindNegative && entryFresh(entry.ExpiresAt, e.now()) {
-		e.counters(repoKey).negatives.Add(1)
-		e.logResult(repoKey, path, CacheStale, "", 0, time.Time{}, 0, "negative-cache hit")
-		return nil, unfoundMissing(repoKey, path)
-	}
 
-	// Steps 4 and 5, singleflight loop: a waitor whose wait ended re-runs
-	// the lookup (the double-check) and contacts the upstream itself at most
-	// once.
-	for pass := 0; ; pass++ {
-		res, again, err := e.attempt(ctx, row, cfg, pol, repoKey, path, pass)
-		if !again {
-			return res, err
+	// Steps 3 through 5, retry loop (review B1/B2): EVERY pass re-runs the
+	// negative-cache check and the local-copy lookup, so a waitor released
+	// by a winner's miss record answers 404 without an upstream contact of
+	// its own, and one released by a winner's landing serves the fresh copy
+	// (the double-check of repo-semantics 7.3). The upstream is contacted
+	// ONLY with the flight held — attempt returns (nil, nil) to mean "a
+	// concurrent flight settled, re-run the lookup".
+	for {
+		// Step 3: the negative cache — a known miss inside its window
+		// answers 404 without a single upstream packet.
+		if entry, err := e.md.Remote().GetCache(ctx, repoKey, path); err == nil &&
+			entry.Kind == cacheKindNegative && entryFresh(entry.ExpiresAt, e.now()) {
+			e.counters(repoKey).negatives.Add(1)
+			e.logResult(repoKey, path, cacheStateNegative, "", 0, time.Time{}, 0, "negative-cache hit")
+			return nil, unfoundMissing(repoKey, path)
+		}
+		res, aerr := e.attempt(ctx, row, cfg, pol, repoKey, path)
+		if res != nil || aerr != nil {
+			return res, aerr
 		}
 	}
 }
 
-// attempt runs one pass of steps 4 and 5. again=true means "a concurrent
-// fetch finished — re-run the lookup"; pass bounds the loop so a waitor
-// performs at most one upstream contact of its own.
-func (e *Engine) attempt(ctx context.Context, row *metadata.Repo, cfg *metadata.RemoteConfig, pol repoPolicy, repoKey, path string, pass int) (*FetchResult, bool, error) {
+// attempt runs one pass of steps 4 and 5. A (nil, nil) return means "a
+// concurrent flight settled — re-run the full lookup"; every terminal
+// outcome — including the waiter's OWN upstream contact, which always
+// happens under a held flight — returns a result or an error.
+func (e *Engine) attempt(ctx context.Context, row *metadata.Repo, cfg *metadata.RemoteConfig, pol repoPolicy, repoKey, path string) (*FetchResult, error) {
 	now := e.now()
 
 	// Step 4: the local copy inside its TTL window.
 	node, err := e.md.Nodes().Get(ctx, repoKey, path)
 	if err != nil && !errors.Is(err, metadata.ErrNodeNotFound) {
-		return nil, false, fmt.Errorf("remote %s: cache node %s: %w", repoKey, path, err)
+		return nil, fmt.Errorf("remote %s: cache node %s: %w", repoKey, path, err)
 	}
 	if err == nil && node != nil && node.Sha256 != "" {
 		if entry, cerr := e.md.Remote().GetCache(ctx, repoKey, path); cerr == nil && entryFresh(entry.ExpiresAt, now) {
 			e.counters(repoKey).hits.Add(1)
 			res, serr := e.serveCopy(ctx, node, CacheHit, "")
 			e.logResult(repoKey, path, CacheHit, e.upstreamHost(cfg), 0, time.Time{}, 0, "")
-			return res, false, serr
+			return res, serr
 		}
 	}
 
@@ -384,7 +405,7 @@ func (e *Engine) attempt(ctx context.Context, row *metadata.Repo, cfg *metadata.
 	if until, off := e.offlineWindow(repoKey, now); off {
 		summary := fmt.Sprintf("assumed offline for another %.0fs", until.Sub(now).Seconds())
 		res, derr := e.downgrade(ctx, node, repoKey, path, cfg, pol, summary)
-		return res, false, derr
+		return res, derr
 	}
 
 	// Step 5b: singleflight — one in-flight fetch per (repo, path).
@@ -394,14 +415,28 @@ func (e *Engine) attempt(ctx context.Context, row *metadata.Repo, cfg *metadata.
 		if classifyPath(row.PackageType, path) == metadata.RemoteCacheKindMetadata {
 			limit = e.metaWait
 		}
-		e.waitFlight(ctx, done, limit)
-		if pass >= 1 {
-			// A wait completed without anything usable landing: stop
-			// queueing and take the contact ourselves.
-			res, cerr := e.contactUpstream(ctx, row, cfg, pol, repoKey, path, node)
-			return res, false, cerr
+		switch e.waitFlight(ctx, done, limit) {
+		case waitDone:
+			return nil, nil // re-run the lookup (repo-semantics 7.3)
+		case waitTimeout:
+			// metadataRetrievalTimeoutSecs (repo-semantics 7.1): the waiter
+			// stops queueing behind a stuck winner. With an old copy
+			// standing it is served as-is ("回发旧缓存副本", 7.3); without
+			// one there is nothing to fall back to and the miss stands.
+			if node != nil && node.Sha256 != "" {
+				e.counters(repoKey).stales.Add(1)
+				e.logResult(repoKey, path, CacheStale, e.upstreamHost(cfg), 0, time.Time{}, 0,
+					"singleflight wait timeout — serving the expired copy")
+				return e.serveCopy(ctx, node, CacheStale, "")
+			}
+			e.logResult(repoKey, path, "", e.upstreamHost(cfg), 0, time.Time{}, 0,
+				"singleflight wait timeout without a cached copy")
+			return nil, unfoundMissing(repoKey, path)
+		default: // the context ended mid-wait
+			return nil, fmt.Errorf(
+				"remote %s: fetch of %s canceled while waiting for a concurrent fetch: %w",
+				repoKey, path, ctx.Err())
 		}
-		return nil, true, nil // re-run the lookup (repo-semantics 7.3)
 	}
 	defer e.releaseFlight(flightKey)
 
@@ -412,13 +447,12 @@ func (e *Engine) attempt(ctx context.Context, row *metadata.Repo, cfg *metadata.
 			e.counters(repoKey).hits.Add(1)
 			res, serr := e.serveCopy(ctx, node2, CacheHit, "")
 			e.logResult(repoKey, path, CacheHit, e.upstreamHost(cfg), 0, time.Time{}, 0, "after flight")
-			return res, false, serr
+			return res, serr
 		}
 		node = node2 // the freshest copy reference for the stale arms below
 	}
 
-	res, cerr := e.contactUpstream(ctx, row, cfg, pol, repoKey, path, node)
-	return res, false, cerr
+	return e.contactUpstream(ctx, row, cfg, pol, repoKey, path, node)
 }
 
 // contactUpstream performs the upstream request and maps its outcome onto
@@ -470,14 +504,20 @@ func (e *Engine) contactUpstream(ctx context.Context, row *metadata.Repo, cfg *m
 	}
 	out, landErr := e.land(ctx, repoKey, path, kind, cfg, pol, res.Body, res.Header)
 	if landErr != nil {
-		// Mid-body transport failure: the session is aborted inside land;
-		// it is an upstream fault like any other.
 		_ = res.Body.Close()
-		out2, merr := e.mapTransportFault(ctx, repoKey, path, cfg, pol, staleNode, landErr)
-		if out2 != nil {
-			return out2, nil
+		if errors.Is(landErr, errUpstreamBody) {
+			// Mid-body transport failure: the session is aborted inside
+			// land; it is an upstream fault like any other.
+			out2, merr := e.mapTransportFault(ctx, repoKey, path, cfg, pol, staleNode, landErr)
+			if out2 != nil {
+				return out2, nil
+			}
+			return nil, merr
 		}
-		return nil, merr
+		// A LOCAL write failure (commit, ledger/node/cache rows): never
+		// blamed on the upstream — no offline mark, no stale downgrade, an
+		// honest 500 (review side-fix).
+		return nil, landErr
 	}
 	_ = res.Body.Close()
 	e.logResult(repoKey, path, CacheMiss, host, res.StatusCode, start, out.Node.Size, "")
@@ -497,7 +537,10 @@ func (e *Engine) land(ctx context.Context, repoKey, path, kind string, cfg *meta
 	written, err := sess.Append(ctx, body)
 	if err != nil {
 		_ = sess.Abort(context.Background())
-		return nil, fmt.Errorf("remote %s: stream upstream body: %w", repoKey, err)
+		// The marker routes this into the upstream-fault arm (offline mark,
+		// stale service); without it a local failure would poison the
+		// repository's upstream state (review side-fix).
+		return nil, fmt.Errorf("remote %s: stream upstream body: %w: %w", repoKey, err, errUpstreamBody)
 	}
 	// M3 registers upstream X-Checksum-* without enforcing (PRD v1.2: the
 	// four-value policy is M4; architecture section 4.5's strict
@@ -610,15 +653,17 @@ func (e *Engine) mapUpstreamStatus(ctx context.Context, repoKey, path string, cf
 		// it simply refreshes the clock; without one it is upstream
 		// nonsense and a 502, never an offline mark.
 		if staleNode != nil {
-			// Keep the entry's own kind (the class of the copy being
-			// confirmed) and slide its expiry forward one full TTL.
-			kind := metadata.RemoteCacheKindContent
+			// Keep the standing entry's kind AND validators (the P1
+			// conditional negotiation will need the ETag/Last-Modified —
+			// a 304 carries no new ones) and slide the expiry forward one
+			// full TTL (review side-fix: validators were being dropped).
+			kind, etag, lastMod := metadata.RemoteCacheKindContent, "", ""
 			if entry, gerr := e.md.Remote().GetCache(ctx, repoKey, path); gerr == nil && entry.Kind != "" {
-				kind = entry.Kind
+				kind, etag, lastMod = entry.Kind, entry.ETag, entry.LastModified
 			}
 			ttl := ttlFor(kind, cfg.ContentTTLSeconds, cfg.MetadataTTLSeconds, pol.MissedRetrievalCachePeriodSecs)
 			if err := e.md.Remote().PutCache(ctx, contentEntry(repoKey, path,
-				"", "", kind, now, ttl)); err != nil {
+				etag, lastMod, kind, now, ttl)); err != nil {
 				return nil, fmt.Errorf("remote %s: refresh cache state %s: %w", repoKey, path, err)
 			}
 			e.counters(repoKey).hits.Add(1)
@@ -932,9 +977,10 @@ func (e *Engine) releaseFlight(key string) {
 }
 
 // waitFlight blocks until the winner finishes, the context ends or the
-// metadata wait cap elapses (repo-semantics 7.1's 60s lock timeout — the
-// waitor then falls back through the lookup: stale copy or unfound).
-func (e *Engine) waitFlight(ctx context.Context, done chan struct{}, limit time.Duration) {
+// metadata wait cap elapses (repo-semantics 7.1's 60s lock timeout). The
+// return names WHICH event ended the wait: the caller serves the fallback
+// copy on a timeout and re-runs the lookup when the winner settled.
+func (e *Engine) waitFlight(ctx context.Context, done chan struct{}, limit time.Duration) waitReason {
 	var timer <-chan time.Time
 	if limit > 0 {
 		t := time.NewTimer(limit)
@@ -943,8 +989,11 @@ func (e *Engine) waitFlight(ctx context.Context, done chan struct{}, limit time.
 	}
 	select {
 	case <-done:
+		return waitDone
 	case <-ctx.Done():
+		return waitCanceled
 	case <-timer:
+		return waitTimeout
 	}
 }
 

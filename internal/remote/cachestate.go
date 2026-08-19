@@ -51,6 +51,12 @@ const (
 // without widening the metadata API.
 const cacheKindNegative = "negative"
 
+// cacheStateNegative is the LOG token of a negative-cache serve (review
+// side-fix: it was logged as STALE, which reads like an expired-copy serve
+// on the QA dashboards). It is not a response-header value — clients keep
+// seeing a plain 404.
+const cacheStateNegative = "NEGATIVE"
+
 // checksumSuffixes are the sidecar spellings RE-04 step 2 refuses to proxy:
 // checksums are only ever served from cache entries or server computation,
 // never fetched from the upstream.

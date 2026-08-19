@@ -33,6 +33,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/adapter"
 	"github.com/lzwzzy/binflow/internal/adapter/docker"
 	"github.com/lzwzzy/binflow/internal/adapter/generic"
+	"github.com/lzwzzy/binflow/internal/adapter/maven"
 	"github.com/lzwzzy/binflow/internal/audit"
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/config"
@@ -217,6 +218,12 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 			TokenTTL:        cfg.Auth.TokenDefaultTTL,
 		}, logger).
 		WithStorage(stack.st, stack.md.Blobs())
+	// Maven (M3/T-67): same content namespace as generic — httpapi
+	// dispatches on the repository row's package type, so mounting is the
+	// whole wiring. The metadata-provider registration feeds the registry
+	// T-66/T-68/T-72 consume (T-63 seam).
+	mavenHandler := maven.New(stack.svc, stack.md.Repos(), stack.md.Blobs())
+	maven.RegisterMetadata()
 	return httpapi.New(httpapi.Deps{
 		Config:    cfg,
 		Auth:      stack.authSvc,
@@ -228,7 +235,7 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 		Tokens:    stack.authSvc,
 		DataDir:   cfg.Storage.DataDir,
 		Console:   console.Handler(),
-		Adapters:  []adapter.Handler{stack.genericHandler, dockerHandler},
+		Adapters:  []adapter.Handler{stack.genericHandler, dockerHandler, mavenHandler},
 		Version:   version,
 		Revision:  revision,
 	}, logger)
