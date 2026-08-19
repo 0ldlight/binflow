@@ -20,7 +20,7 @@
 > M3 票 AC 全文见 reports/agents/T-61.md。分批：1:{T-62,T-63} → 2:{T-64,T-65} → 3:{T-66,T-67,T-69,T-70} → 4:{T-68,T-71} → 5:{T-73,T-77起} → 6:{T-72} → 7:{T-74} → 8:{T-75} → 9:{T-76,T-77终}。双 reviewer：T-65(SSRF 安全+架构)/T-66/T-67/T-68。
 
 - **T-68** [P0] Maven maven-metadata.xml 计算器 `role:dev-registry-adapter` `area:internal/adapter/maven(metadata)` `dep:T-67` — 双 reviewer
-- **T-72** [P1] virtual metadata 聚合（三协议） `role:dev-registry-adapter` `area:adapter/{maven,npm,pypi}` `dep:T-68,T-69,T-70,T-71`
+- **T-72** [P1] virtual metadata 聚合（最后功能票） `role:dev-registry-adapter` `area:adapter/{maven,npm,pypi}` — 在途
 - **T-73** [P2] sha1-only checksum deploy `role:dev-go-core` `area:internal/repo、adapter/maven` `dep:T-64,T-67`
 - **T-74** [P0] QA 三协议功能矩阵 `role:qa-engineer` `dep:T-68,T-69,T-70,T-71`
 - **T-75** [P0] QA remote/virtual+SSRF 安全 `role:qa-engineer` `dep:T-74,T-72`
@@ -231,7 +231,7 @@
   review 0 blocker：stale/miss 语义引擎侧核实（成功必 HasCopy/true miss 只以 Unfound）；非 Unfound 透传确认为 AC7 严格读法（安全面更优）；C5 文案逐字节相等；pre-read guard 顺序面正确。6 non-blocking（QA 钉板 hardFail 透传防顺手修复等）。提交 eab4363+f6e1017。
   virtual.go 两桶序（逐请求现算）/Get 三型分派/stale 命中即成员结果（HasCopy 消费）/探索性 miss pre-read guard/写路由（405+C5 文案/配置后换址 local）/ExtraHeaders 双头合并。17 测试群+真二进制 M50/M52/M53。遗留①②（协议面 StatusError+ExtraHeaders 两缝）→ T-82。提交 eab4363。
 （T-82 done → done 区）
-- **T-68** [P0] Maven maven-metadata.xml 计算器（批 4） `role:dev-registry-adapter` `area:internal/adapter/maven(metadata)、internal/repo/api.go(豁免口)` — 在途（双 reviewer 票；附 SPI 豁免实施授权）
+（T-68 编码完成 → review 区）
 （T-83 done → done 区）
 
 - **T-83** [P1] architect 回写 `role:architect` `area:docs/design` — done 2026-08-20
