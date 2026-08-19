@@ -36,13 +36,13 @@
 
 ## 🔨 进行中（doing）
 
-- **T-62** [P0] metadata 003_remote_virtual 迁移+Remote/Virtual 子接口 `role:dev-go-core` `area:internal/metadata` — 批 1 在途
+（T-62 编码完成 → review 区；单 reviewer 在途）
 - **T-63** [P0] adapter SPI 扩展+三协议挂载基座（MetadataProvider 注册表+api/npm|pypi 分发缝） `role:dev-go-core` `area:internal/adapter(SPI)、internal/httpapi、internal/repo/api.go` — 批 1 在途
 （T-79 done → done 区）
 
 ## 👀 评审中（review）
 
-（空）
+- **T-62** [P0] metadata 003 迁移+Remote/Virtual — 编码完成，conductor 复现通过（race 11.7s 绿/lint 0/DDL 对齐勘误/11 包回归），提交 54ed293。单 code-reviewer 在途（DDL 对照/迁移安全/upsert 并发/两桶序注释）。
 
 ## 🧪 测试中（qa）
 
