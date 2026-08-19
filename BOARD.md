@@ -1,7 +1,7 @@
 # 任务看板（BOARD）
 
 > 唯一事实来源。**只有主会话（conductor）可以写本文件**，所有 subagent 只读。
-> ticket 由 tech-lead 生成、主会话录入。当前里程碑：**M2 云原生旗舰 Docker Registry v2**（M1 已完成，tag m1-done，2026-08-18）。
+> ticket 由 tech-lead 生成、主会话录入。当前里程碑：**M3 多生态与代理**（M1/M2 已完成，tag m1-done / m2-done）。
 
 ## 票据格式
 
@@ -71,7 +71,9 @@
 
 ## 🔨 进行中（doing）
 
-（空——M2 全票闭环）
+- **T-57** [P0] M3 PRD：多生态与代理 `role:product-manager` `area:docs/prd、ROADMAP.md` `dep:m2-done` — 在途
+- **T-58** [P0] M3 架构增量：remote/virtual + 三协议适配器 `role:architect` `area:docs/design、DECISIONS.md` `dep:m2-done` — 在途
+- **T-59** [P0] M3 逆向规格：三协议 + remote/virtual 语义 `role:reverse-engineer` `area:docs/reverse` `dep:m2-done` — 在途
 
 ## 🧪 测试中（qa）
 
