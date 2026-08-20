@@ -19,7 +19,6 @@
 
 > M4 票 AC 全文见 reports/agents/T-88.md。分批：1:{T-89,T-90,T-92}✓ → 2:{T-91,T-110}✓ → 3:{T-93,T-95,T-96}✓ → 4:{T-94,T-97,T-98,T-111}（在途） → 5:{T-99,T-103} → 6:{T-100,T-101,T-102} → 7:{T-104} → 8:{T-105} → 9:{T-106,T-107}。双 reviewer：T-96、T-97。
 
-- **T-113** [P1] ?permissions 形态勘误 `role:reverse-engineer` `area:docs/reverse/rest-api.md、docs/prd/milestone-4.md` `dep:T-97` — §3 括注与 FR-27「r/w/d 位映射」句为误读（正确：key=主体名、value=权限字母集合，RestAddonImpl.java#appendPrincipalsAndPermissions 取证已由 T-97 正确性 review 给出）；顺带核实非 local 仓 404-vs-400 疑点
 - T-99~T-102 FE 页面组 / T-103~T-105 QA 三段 / T-106 部署烟测 / T-107 M4 文档 — AC 见 reports/agents/T-88.md
 
 ## 🔨 进行中（doing）
@@ -34,6 +33,9 @@
 
 - **T-111** [P1] docker 413 verbatim 渲染臂 `role:dev-registry-adapter` `area:internal/adapter/docker` — done 2026-08-21（单 review 一轮修复）
   writeVerbatimStatusError + specCodeOfVerbatim（413/409→DENIED、405→UNSUPPORTED、TOOMANYREQUESTS 弃用）落 manifest PUT 与 blob 注册支路；review B1（tryMount 治理拒绝降级 202 与 FR-31-AC5 P0 字面冲突）修复：isDenied 前加 errors.As verbatim 臂——mount 面即出 413/409，机械性失败仍降级。真机实证（旧进程占端口的 stale-202 已 root-cause）：quota mount 413 verbatim 断到 used/needs 级、pattern 409、未配置 201 回归、零残留、WARN「mount refused」×2/「degraded」×0。conductor 复核：build/lint 0/mount 测试+全包 ok。提交 8ed20f7+2ee01d2。遗留：remote docker FetchError 500 归 M5+、docker CLI 侧显示归 T-103。
+
+- **T-113** [P1] ?permissions 形态勘误 `role:reverse-engineer` `area:docs/reverse/rest-api.md、docs/prd/milestone-4.md` — done 2026-08-21
+  §3 键值方向翻转勘误（RestAddonImpl#getItemPermissions 双证）+ annotate 字母 a→n 顺带修正（全集 r/w/n/d/m）+ PRD FR-27/SE-08 v1.2 + NB6 定案（非 local 仓 400 正确、无需改码）。grep 零活体旧表述。提交 f102fef。
 
 - **T-98** [P1] FE 基座：登录页+框架壳+仪表盘 `role:dev-frontend` `area:web/src` — done 2026-08-21（单 review 一轮修复，**复核 APPROVE**）
   统一请求层（E-01/纯文本/OAuth 三格式+401 全局监听）/useAsync 四态容器/AuthContext（whoami·login·logout、TTL 塌缩无保活）/AppShell（224px 导航 9 占位+⌘K+主题）/五页+四态基元+--bf-* 双主题 tokens/E2E 7 例真后端。review B1 401 风暴（同步 statusRef 哨兵——结构性修复，探针单 toast）/B2 useAsync 闭包旗标（StrictMode+deps 切换均正确）/B3 改密 e2e/N2 ⌘K 让位——复核确认全部到位（gzip 89,402B 一致、embed 产物含修复、树对 5f1a10a 干净）。提交 d51dcce+5f1a10a。遗留：N1 admin 硬编码→随漂移① ux 裁决、N3 OAuth 解析→T-101 前、vitest 框架小票建议、data-testid 清单回写（T-104 锚）、侧栏折叠态（无图标资产）。
