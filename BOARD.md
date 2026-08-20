@@ -30,7 +30,7 @@
 ## 🔨 进行中（doing）
 
 - **T-89** [P0] web 前端工程脚手架（批 1，关键路径头票） `role:devops-engineer` `area:web/、internal/console、Makefile、CI` — 在途（R1 已清：vite base=/binflow/ui/）
-- **T-90** [P0] metadata 004_console_governance 迁移+Groups/WebSessions/审计扩展（批 1） `role:dev-go-core` `area:internal/metadata` — 在途
+（T-90 编码完成 → review 区）
 - **T-92** [P0] 搜索域 artifact+checksum（批 1） `role:dev-go-core` `area:httpapi(search)+repo(Search)+metadata(只读查询)` — 在途
 （T-62 编码完成 → review 区；单 reviewer 在途）
 （T-66 编码完成 → review 区；双 reviewer 排队等槽）
