@@ -30,7 +30,7 @@
 
 ## 👀 评审中（review）
 
-- **T-96** [P0] 备份/恢复 CLI（批 3，双 reviewer 票） — 双 review 回：**架构 APPROVE（0 blocker/8 NB，T-112 勘误票已收口）**；**正确性 REQUEST_CHANGES（B1 import 不持锁+clearDirContents unlink 活锁文件；B2 非 sqlite driver/越界 dsn 无守卫——postgres 配置写垃圾路径探针实证）**，B1/B2 修复中（agent 已唤醒）。其余六区全过（顺序硬规则/mtime/VACUUM INTO/web_sessions purge/enc:v1）。
+- **T-96** [P0] 备份/恢复 CLI（批 3，双 reviewer 票） — 双 review 回：架构 APPROVE（0 blocker/8 NB，T-112 勘误已收口）；正确性 REQUEST_CHANGES B1/B2 → **修复完成提交 f1795b0**（import 整程持锁先于空目录检查/clearDirContents 跳锁文件/拒非 sqlite driver/越界 dsn 守卫+失败清理；4 新测含活锁幸存与 gc 对打），conductor 复跑全绿（lint 0/四测 PASS/race ok）。修复复核中（原 reviewer）。
 - **T-98** [P1] FE 基座（批 4） — 编码完成提交 d51dcce；review REQUEST_CHANGES（B1 过期 401 风暴竞态/B2 useAsync 陈旧响应竞态——T-99 基座必踩/B3 改密面零验证覆盖）+ 7 NB，修复中（agent 已唤醒，含顺手 N2 ⌘K 让位）。契约比对/TTL 塌缩/开放跳转/纪律面全过。契约漂移①（console-ux §3.3 非 admin 健康可见 vs /api/v1/health admin-only）待 ux/PM 定案。
 - **T-111** [P1] docker 413 verbatim 渲染臂（批 4） — 编码完成，conductor 核验通过（build/vet/lint 0、定向测试 ok、curl /v2 真机：413 DENIED 带 quota 文案/409 pattern/未配置仓 201 回归/W26c 零残留断言可过），提交 8ed20f7。单 reviewer 在途。遗留：remote docker FetchError 500 归 M5+ 代理票。
 - **T-96** [P0] 备份/恢复 CLI（批 3，双 reviewer 票） — 编码完成，conductor 核验通过（build/vet ✓、storage+metadata+cmd 三包测试绿 25.3/19.7/18.2s、lint 0、真机抽查：fresh import --verify full 6/6 rehash、manifest sha 一致、恢复实例 GET sha 逐字对账 2b0ecdd6/7d0f10bc、blob 清单 bk≡fresh4、无钥 serve fail-fast 实证），提交 75c6d95。**双 reviewer 在途**（正确性+架构）。
