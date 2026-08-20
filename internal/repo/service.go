@@ -254,6 +254,15 @@ func (s *service) Get(ctx context.Context, p *Principal, repoKey, path string) (
 		return nil, nil, fmt.Errorf("%w: %s repositories are not served by the local content plane",
 			ErrRepoTypeNotSupported, row.Type)
 	}
+	// Governance pattern gate, download arm (T-95/W12a, FR-24-AC4): a path
+	// the repository's patterns refuse answers the SAME error as a missing
+	// node — the converged dual-value ruling (download 404 / upload 409) —
+	// so the refusal is indistinguishable from "never was here". The default
+	// configuration short-circuits; remote/virtual reads stay ungated in M4
+	// (spec-pending, see the T-95 report).
+	if gov := parseGovernance(row.Config); !gov.allowsPath(path) {
+		return nil, nil, fmt.Errorf("node %s/%s: %w", repoKey, path, ErrNodeNotFound)
+	}
 	n, err := s.md.Nodes().Get(ctx, repoKey, path)
 	if err != nil {
 		if errors.Is(err, metadata.ErrNodeNotFound) {
@@ -330,9 +339,20 @@ func (s *service) PutWithOptions(ctx context.Context, p *Principal, repoKey, pat
 	// the body is drained or any permission is evaluated — the 405 of an
 	// un-routed virtual answers here, and a routed write runs the target
 	// member's semantics from this point on.
-	repoKey, _, err := s.resolveWriteRepo(ctx, repoKey)
+	repoKey, row, err := s.resolveWriteRepo(ctx, repoKey)
 	if err != nil {
 		return nil, err
+	}
+
+	// Governance pattern gate (T-95/W12a, FR-24-AC4): runs on the TARGET
+	// repository (a routed virtual write is the member's write — the same
+	// repository the quota meters) and before the body is drained, so a
+	// refused pattern never costs a transfer. The default configuration
+	// short-circuits inside the gate; unconfigured repositories are on the
+	// M1~M3 path verbatim.
+	gov := parseGovernance(row.Config)
+	if !gov.allowsPath(path) {
+		return nil, gov.rejectPut(repoKey, path)
 	}
 
 	folder := isFolderNode(path)
@@ -343,12 +363,23 @@ func (s *service) PutWithOptions(ctx context.Context, p *Principal, repoKey, pat
 		// with neither the deploy nor the overwrite check; a different
 		// checksum requires delete permission on the old node (unless the
 		// freely-rewritable exemption lifts it, PutOptions).
-		idempotent, err := s.authorizeContentPut(ctx, p, repoKey, path, expect.Sha256, opts.SkipOverwriteCheck)
+		idempotent, existing, err := s.authorizeContentPut(ctx, p, repoKey, path, expect.Sha256, opts.SkipOverwriteCheck)
 		if err != nil {
 			return nil, err
 		}
 		committed, err := s.commitBlob(ctx, body, expect)
 		if err != nil {
+			return nil, err
+		}
+		// Quota gate, streaming arm (GE-05/W26): the size is only known once
+		// the session committed, so the check runs post-landing — a refusal
+		// never writes the node (the blob stays unreferenced for GC, the
+		// designed residue), which is the atomic-rejection contract.
+		replaced := int64(0)
+		if !idempotent && existing != nil {
+			replaced = existing.Size
+		}
+		if err := s.checkQuota(ctx, p, gov, repoKey, path, committed.Size, replaced); err != nil {
 			return nil, err
 		}
 		n, err := s.putNode(ctx, p, repoKey, path, false, committed, mime)
@@ -429,9 +460,17 @@ func (s *service) PutFromBlob(ctx context.Context, p *Principal, repoKey, path s
 	// The write plane's repository resolution (T-71) — same contract as Put:
 	// un-routed virtuals answer the C5 405 here, routed ones land in the
 	// target member.
-	repoKey, _, err := s.resolveWriteRepo(ctx, repoKey)
+	repoKey, repoRow, err := s.resolveWriteRepo(ctx, repoKey)
 	if err != nil {
 		return nil, err
+	}
+	// Governance gates (T-95): the pattern refusal before anything is
+	// opened; the quota pre-check below runs once the size is known (the
+	// filestore probe), so a refused checksum-deploy writes nothing at all —
+	// the same atomic-rejection contract as Put's streaming arm.
+	gov := parseGovernance(repoRow.Config)
+	if !gov.allowsPath(path) {
+		return nil, gov.rejectPut(repoKey, path)
 	}
 
 	// The same permission pair as Put, keyed on the addressing digest. The
@@ -446,16 +485,16 @@ func (s *service) PutFromBlob(ctx context.Context, p *Principal, repoKey, path s
 		if ref.Sha1 == "" {
 			return nil, fmt.Errorf("checksum deploy %s/%s: %w: sha256 or sha1 is required", repoKey, path, ErrInvalidPath)
 		}
-		row, err := s.md.Blobs().GetBySha1(ctx, ref.Sha1)
+		blobRow, err := s.md.Blobs().GetBySha1(ctx, ref.Sha1)
 		if err != nil {
 			if errors.Is(err, metadata.ErrNotFound) {
 				return nil, fmt.Errorf("checksum deploy %s/%s: %w", repoKey, path, ErrNodeNotFound)
 			}
 			return nil, fmt.Errorf("ledger blob by sha1 %s: %w", ref.Sha1, err)
 		}
-		ref.Sha256 = row.Sha256
+		ref.Sha256 = blobRow.Sha256
 	}
-	idempotent, err := s.authorizeContentPut(ctx, p, repoKey, path, ref.Sha256, false)
+	idempotent, existing, err := s.authorizeContentPut(ctx, p, repoKey, path, ref.Sha256, false)
 	if err != nil {
 		return nil, err
 	}
@@ -487,6 +526,17 @@ func (s *service) PutFromBlob(ctx context.Context, p *Principal, repoKey, path s
 	}
 	if row.Sha256 == "" {
 		committed.Sha256 = ref.Sha256
+	}
+
+	// Quota pre-check (GE-05): the size is known BEFORE any metadata write,
+	// so this arm refuses with zero writes — a checksum-deploy ("秒传") is
+	// quota-bound like any other landing (NFR-S23).
+	replaced := int64(0)
+	if !idempotent && existing != nil {
+		replaced = existing.Size
+	}
+	if err := s.checkQuota(ctx, p, gov, repoKey, path, committed.Size, replaced); err != nil {
+		return nil, err
 	}
 
 	n, err := s.putNode(ctx, p, repoKey, path, false, committed, mime)
@@ -535,14 +585,23 @@ func (s *service) PutLandedBlob(ctx context.Context, p *Principal, repoKey, path
 	// The write plane's repository resolution (T-71) — same contract as Put:
 	// un-routed virtuals answer the C5 405 here, routed ones land in the
 	// target member.
-	repoKey, _, err := s.resolveWriteRepo(ctx, repoKey)
+	repoKey, repoRow, err := s.resolveWriteRepo(ctx, repoKey)
 	if err != nil {
 		return nil, err
+	}
+	// Governance gates (T-95): pattern refusal up front; the quota pre-check
+	// runs once the O(1) size probe below has the number. This is the arm
+	// docker's upload finalize and mount ride (W26c/W26-AC5): a refused
+	// finalize writes neither the ledger row nor the node, so the registry
+	// surface keeps zero residue of the refused push.
+	gov := parseGovernance(repoRow.Config)
+	if !gov.allowsPath(path) {
+		return nil, gov.rejectPut(repoKey, path)
 	}
 	if ref.Sha256 == "" {
 		return nil, fmt.Errorf("landed blob %s/%s: %w: sha256 is required", repoKey, path, ErrInvalidPath)
 	}
-	idempotent, err := s.authorizeContentPut(ctx, p, repoKey, path, ref.Sha256, false)
+	idempotent, existing, err := s.authorizeContentPut(ctx, p, repoKey, path, ref.Sha256, false)
 	if err != nil {
 		return nil, err
 	}
@@ -557,6 +616,15 @@ func (s *service) PutLandedBlob(ctx context.Context, p *Principal, repoKey, path
 		return nil, fmt.Errorf("open landed blob %s for %s/%s: %w", ref.Sha256, repoKey, path, err)
 	}
 	_ = rc.Close() //nolint:errcheck // read-only fd; presence and size are already taken
+
+	// Quota pre-check (GE-05), size known before any metadata write.
+	replaced := int64(0)
+	if !idempotent && existing != nil {
+		replaced = existing.Size
+	}
+	if err := s.checkQuota(ctx, p, gov, repoKey, path, phys.Size, replaced); err != nil {
+		return nil, err
+	}
 
 	committed := storage.BlobRef{Sha256: ref.Sha256, Sha1: ref.Sha1, Md5: ref.Md5, Size: phys.Size}
 	n, err := s.putNode(ctx, p, repoKey, path, false, committed, mime)
@@ -597,29 +665,38 @@ func (s *service) isIdempotentRedeploy(ctx context.Context, repoKey, path, decla
 // lives in one place so Put, PutFromBlob and PutLandedBlob can never drift
 // apart on the ordering — the security-relevant part is that the gates run
 // before the body is drained or the blob is opened.
-func (s *service) authorizeContentPut(ctx context.Context, p *Principal, repoKey, path, declaredSha256 string, skipOverwrite bool) (idempotent bool, err error) {
-	idempotent, existing, err := s.isIdempotentRedeploy(ctx, repoKey, path, declaredSha256)
+//
+// The existing node (nil when the path is fresh) rides along since T-95: the
+// quota gate needs the size of the row this write REPLACES, and the probe
+// already read it.
+func (s *service) authorizeContentPut(ctx context.Context, p *Principal, repoKey, path, declaredSha256 string, skipOverwrite bool) (idempotent bool, existing *metadata.Node, err error) {
+	idempotent, existing, err = s.isIdempotentRedeploy(ctx, repoKey, path, declaredSha256)
 	if err != nil {
-		return false, err
+		return false, nil, err
 	}
 	if idempotent {
-		return true, nil
+		return true, existing, nil
 	}
 	if existing != nil && !skipOverwrite && !s.allow(ctx, p, repoKey, path, ActionDelete) {
-		return false, fmt.Errorf(
+		return false, nil, fmt.Errorf(
 			"overwrite %s/%s: %w: user %q needs DELETE permission on the existing node",
 			repoKey, path, ErrForbidden, p.Name)
 	}
 	if !s.allow(ctx, p, repoKey, path, ActionWrite) {
-		return false, fmt.Errorf("write %s/%s: %w", repoKey, path, ErrForbidden)
+		return false, nil, fmt.Errorf("write %s/%s: %w", repoKey, path, ErrForbidden)
 	}
-	return false, nil
+	return false, existing, nil
 }
 
 // putNode persists blob + node in the mandated order (architecture sections
 // 3.2/3.3): the blobs row first, then the node row that references it; the
 // nodes.sha256 FK is the crash backstop. Both writes happen only after the
 // physical blob exists.
+//
+// Since T-95 the node write rides Usage().PutNodeWithUsage — the node row
+// and the repo_usage logical-bytes counter land in ONE transaction
+// (GE-05/W26b's exact accounting); the call is otherwise NodeStore.Put
+// verbatim.
 //
 // Folder nodes (path with trailing slash) have no content of their own. The
 // emptyFolderSHA sentinel satisfies the NOT NULL + FK pair on nodes.sha256
@@ -653,7 +730,7 @@ func (s *service) putNode(ctx context.Context, p *Principal, repoKey, path strin
 			// section 3).
 			existing.Mime = mime
 			existing.UpdatedAt = s.now()
-			if err := s.md.Nodes().Put(ctx, existing); err != nil {
+			if err := s.md.Usage().PutNodeWithUsage(ctx, existing, s.now()); err != nil {
 				return nil, fmt.Errorf("idempotent redeploy %s/%s: %w", repoKey, path, err)
 			}
 			return existing, nil
@@ -691,7 +768,7 @@ func (s *service) putNode(ctx context.Context, p *Principal, repoKey, path strin
 		n.CreatedBy = existing.CreatedBy
 		n.CreatedAt = existing.CreatedAt
 	}
-	if err := s.md.Nodes().Put(ctx, n); err != nil {
+	if err := s.md.Usage().PutNodeWithUsage(ctx, n, s.now()); err != nil {
 		return nil, fmt.Errorf("node %s/%s: %w", repoKey, path, err)
 	}
 	return n, nil
@@ -806,7 +883,7 @@ func (s *service) Delete(ctx context.Context, p *Principal, repoKey, path string
 			if v.Path != path && !strings.HasPrefix(v.Path, dir+"/") {
 				continue // exact-arm same-named FILE: not part of the directory
 			}
-			if err := nodes.Delete(ctx, repoKey, v.Path); err != nil {
+			if err := s.md.Usage().DeleteNodeWithUsage(ctx, repoKey, v.Path, s.now()); err != nil {
 				if errors.Is(err, metadata.ErrNodeNotFound) {
 					continue // concurrent delete of the same row
 				}
@@ -833,7 +910,9 @@ func (s *service) Delete(ctx context.Context, p *Principal, repoKey, path string
 		}
 		return fmt.Errorf("node %s/%s: %w", repoKey, path, err)
 	}
-	if err := nodes.Delete(ctx, repoKey, path); err != nil {
+	// Usage-aware delete (T-95/W27): the counter falls back with the node —
+	// deleting under a full quota frees room for the next write.
+	if err := s.md.Usage().DeleteNodeWithUsage(ctx, repoKey, path, s.now()); err != nil {
 		return fmt.Errorf("delete node %s/%s: %w", repoKey, path, err)
 	}
 	// Deleting a leaf may empty its parent folders; prune them so listings
@@ -997,12 +1076,32 @@ func (s *service) PutManifest(ctx context.Context, p *Principal, repoKey, image,
 			return nil, fmt.Errorf("manifest %s/%s@%s ref %d: %w", repoKey, image, digest, i, err)
 		}
 	}
-	if _, err := s.loadLocalDockerRepo(ctx, repoKey); err != nil {
+	dockerRow, err := s.loadLocalDockerRepo(ctx, repoKey)
+	if err != nil {
 		return nil, err
 	}
 
 	permPath := dockerPermPath(image)
 	nodePath := dockerImageManifestPath(image, digest)
+
+	// Governance gates (T-95): the pattern refusal on the manifest's LAYOUT
+	// path (docker patterns are P2-observation ground — no W assertion
+	// either way).
+	//
+	// NO quota check here, deliberately: the docker data model gives one
+	// manifest body TWO node rows (<image>/blobs/<hex> landed by the
+	// adapter's step-1 svc.Put, <image>/manifests/<hex> written by this
+	// method), and the step-1 upload has ALREADY run the quota gate on
+	// exactly these bytes. Re-checking here would demand the ceiling cover
+	// the manifest twice — a push that fits would 413. The wire stays
+	// bounded at every blob upload (layers through PutLandedBlob, the
+	// manifest body through Put); the counter, counting node references,
+	// does carry the manifest twice (a documented modeling artifact of the
+	// two-node layout, see the T-95 report).
+	gov := parseGovernance(dockerRow.Config)
+	if !gov.allowsPath(nodePath) {
+		return nil, gov.rejectPut(repoKey, nodePath)
+	}
 
 	// stored holds the existing manifest row on an idempotent republish (the
 	// result must report the serving truth, not the caller's re-announcement).
@@ -1340,7 +1439,7 @@ func (s *service) DeleteManifest(ctx context.Context, p *Principal, repoKey, ima
 		}
 		nodePath := dockerImageManifestPath(image, digest)
 		if n, nerr := s.md.Nodes().Get(ctx, repoKey, nodePath); nerr == nil && n.Sha256 == digest {
-			if err := s.md.Nodes().Delete(ctx, repoKey, nodePath); err != nil && !errors.Is(err, metadata.ErrNodeNotFound) {
+			if err := s.md.Usage().DeleteNodeWithUsage(ctx, repoKey, nodePath, s.now()); err != nil && !errors.Is(err, metadata.ErrNodeNotFound) {
 				return fmt.Errorf("heal node %s/%s: %w", repoKey, nodePath, err)
 			}
 			if err := s.pruneEmptyParents(ctx, repoKey, nodePath); err != nil {
@@ -1357,7 +1456,7 @@ func (s *service) DeleteManifest(ctx context.Context, p *Principal, repoKey, ima
 		return fmt.Errorf("delete manifest %s/%s@%s: %w", repoKey, image, digest, err)
 	}
 	nodePath := dockerImageManifestPath(image, digest)
-	if err := s.md.Nodes().Delete(ctx, repoKey, nodePath); err != nil {
+	if err := s.md.Usage().DeleteNodeWithUsage(ctx, repoKey, nodePath, s.now()); err != nil {
 		if !errors.Is(err, metadata.ErrNodeNotFound) {
 			return fmt.Errorf("delete node %s/%s: %w", repoKey, nodePath, err)
 		}
@@ -1915,4 +2014,34 @@ func (s *service) DeleteRepo(ctx context.Context, p *Principal, repoKey string, 
 		Detail: detail,
 	})
 	return nil
+}
+
+// Usage implements Service.Usage (GE-06/W26b, FR-31): the repository's
+// metered total against its configured ceiling, for the observability
+// endpoint /api/v1/storage/usage/{repo}. The read gate is "admin or a read
+// grant on the repository" (PRD GE-06): repository volume is operational
+// data, but a reader of the repository may see how much of it there is.
+func (s *service) Usage(ctx context.Context, p *Principal, repoKey string) (*UsageReport, error) {
+	if err := requireAuthenticated(p); err != nil {
+		return nil, err
+	}
+	row, err := s.loadRepoRow(ctx, repoKey)
+	if err != nil {
+		return nil, err
+	}
+	if !s.allow(ctx, p, repoKey, "", ActionRead) {
+		return nil, fmt.Errorf("read %s: %w", repoKey, ErrForbidden)
+	}
+	u, err := s.md.Usage().Get(ctx, repoKey)
+	if err != nil {
+		return nil, fmt.Errorf("usage %s: %w", repoKey, err)
+	}
+	quota := int64(0)
+	if row.Type == TypeLocal {
+		// quotaBytes is a local-repository field (the write plane's ceiling;
+		// remote/virtual configs never carry it), but the probe is tolerant
+		// for every class: a hand-seeded row answers its value, the rest 0.
+		quota = parseGovernance(row.Config).quotaBytes
+	}
+	return &UsageReport{RepoKey: repoKey, UsedBytes: u.LogicalBytes, QuotaBytes: quota}, nil
 }

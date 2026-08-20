@@ -462,6 +462,12 @@ func (f *fakeService) SearchChecksum(_ context.Context, _ *Principal, _ repo.Che
 	return nil, errUnimplementedFake
 }
 
+// Usage is the GE-06 stub the T-95 interface addition forced onto every
+// repo.Service fake (test-only ripple; the blob domain never reads usage).
+func (f *fakeService) Usage(_ context.Context, _ *Principal, _ string) (*repo.UsageReport, error) {
+	return nil, errUnimplementedFake
+}
+
 var errUnimplementedFake = fmt.Errorf("unimplemented in the blob-domain fake")
 
 // newBlobHarness assembles the handler with the real storage engine (the

@@ -104,6 +104,17 @@ var (
 	// search seam (metadata.NodeSearcher). Unreachable with the production
 	// sqlite store; the HTTP layer maps this to 500.
 	ErrSearchUnavailable = errors.New("search is not available on this store")
+	// ErrPatternRejected: a repository's includesPattern/excludesPattern
+	// governance refused the path (FR-24-AC4/W12a, repo-semantics section 6
+	// erratum two: upload 409 / download 404 — the unfound download arm wraps
+	// ErrNodeNotFound instead, this sentinel is the UPLOAD refusal's cause).
+	ErrPatternRejected = errors.New("path rejected by repository include/exclude patterns")
+	// ErrQuotaExceeded: the repository's quotaBytes ceiling refused the write
+	// (GE-05/W26, FR-31). The concrete refusal is a *StatusError carrying the
+	// exact 413 body (message with "quota exceeded" plus the used/quota
+	// values); this sentinel is its cause so callers can branch without
+	// string matching.
+	ErrQuotaExceeded = errors.New("quota exceeded")
 )
 
 // Repository types and package types (architecture section 6 DDL).
@@ -154,7 +165,10 @@ const (
 )
 
 // Audit actions emitted by this package (architecture section 3.5),
-// aliased from the audit package's vocabulary.
+// aliased from the audit package's vocabulary. The quota action is part of
+// the M4 vocabulary (PRD FR-29) but lives here as a local constant: the
+// audit package's own vocabulary is T-93's area, and Event.Action is a plain
+// string — the values must simply agree.
 const (
 	AuditActionDeploy     = audit.ActionDeploy
 	AuditActionDownload   = audit.ActionDownload
@@ -162,6 +176,10 @@ const (
 	AuditActionRepoCreate = audit.ActionRepoCreate
 	AuditActionRepoUpdate = audit.ActionRepoUpdate
 	AuditActionRepoDelete = audit.ActionRepoDelete
+
+	// AuditActionQuotaExceeded is appended (with a WARN log) every time a
+	// write is refused by the repository's quotaBytes ceiling (GE-05/W26).
+	AuditActionQuotaExceeded = "quota.exceeded"
 )
 
 // Principal is the caller identity (architecture section 3.4). It is the
@@ -334,6 +352,17 @@ type Service interface {
 	// every node is removed first. Admin only.
 	DeleteRepo(ctx context.Context, p *Principal, repoKey string, deleteContent bool) error
 
+	// Usage reports one repository's quota observability state (GE-06/W26b,
+	// FR-31): UsedBytes is the repo_usage logical total (the same number the
+	// quota gate enforces against), QuotaBytes the configured ceiling (0 =
+	// unlimited, the default). Admin principals and authenticated principals
+	// holding a read grant on the repository pass; everyone else answers
+	// ErrForbidden (ErrUnauthorized anonymous). Works for every repository
+	// class: a remote answers its (unmetered, Q2) counter state — typically
+	// the 005 migration snapshot — and a virtual zero, since virtual writes
+	// route onto a local member and are metered there.
+	Usage(ctx context.Context, p *Principal, repoKey string) (*UsageReport, error)
+
 	// ---- Adapter SPI face (architecture section 5.4) ----
 	//
 	// The seams protocol adapters program against, beyond the public
@@ -481,6 +510,16 @@ type Service interface {
 	// bare hex, case-normalized; sha1/md5 resolve through the blobs ledger.
 	// An all-empty or malformed query answers ErrInvalidSearchQuery.
 	SearchChecksum(ctx context.Context, p *Principal, q ChecksumQuery, repos []string) ([]*metadata.Node, error)
+}
+
+// UsageReport is the GE-06 usage view: the repository's metered total and
+// its configured ceiling, projected straight onto /api/v1/storage/usage/{repo}.
+// (The name avoids both the repo.RepoUsage stutter revive flags and the
+// method/type homonymy of a bare Usage.)
+type UsageReport struct {
+	RepoKey    string
+	UsedBytes  int64
+	QuotaBytes int64 // 0 = unlimited (the default)
 }
 
 // PutOptions tunes PutWithOptions for the regenerable-content family

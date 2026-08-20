@@ -376,6 +376,12 @@ func (s *countingGetService) SearchChecksum(ctx context.Context, p *Principal, q
 	return s.inner.SearchChecksum(ctx, p, q, repos)
 }
 
+// Usage delegates like the rest (the T-95 interface addition's test-only
+// ripple on this wrapper).
+func (s *countingGetService) Usage(ctx context.Context, p *Principal, repoKey string) (*repo.UsageReport, error) {
+	return s.inner.Usage(ctx, p, repoKey)
+}
+
 // ---- B4: registration failure renders 5xx, retry heals ----
 
 // TestRegistrationFailureIs5xx (review B4): when Commit succeeds but the

@@ -16,6 +16,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/adapter"
 	"github.com/lzwzzy/binflow/internal/adapter/docker"
 	"github.com/lzwzzy/binflow/internal/adapter/generic"
+	"github.com/lzwzzy/binflow/internal/audit"
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/config"
 	"github.com/lzwzzy/binflow/internal/console"
@@ -82,7 +83,10 @@ func newHarnessCfg(t *testing.T, mutate func(*config.Config), users [][2]string,
 	}
 
 	authSvc := auth.NewFromStore(md, cfg.Security.AnonymousAccess)
-	svc := repo.New(st, md, authSvc, nil)
+	// The real audit logger, matching cmd assembly (T-95): governance
+	// assertions (quota.exceeded et al.) read the events the REST path
+	// actually records, instead of the nil the harness used to wire.
+	svc := repo.New(st, md, authSvc, audit.New(md, true))
 	genericHandler := generic.New(svc, md.Blobs())
 
 	for _, u := range users {

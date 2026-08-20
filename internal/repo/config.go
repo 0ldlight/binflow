@@ -264,16 +264,23 @@ func parseVirtualConfig(config string) (virtualConfig, error) {
 // only the fields this package's own consumers read are validated).
 // priorityResolution is the virtual-resolution member mark (PRD C3 two-bucket
 // order); it must be a boolean when present so T-71's reader never trips over
-// a hand-mangled blob.
+// a hand-mangled blob. The M4 governance fields (T-95/W12a/W26) validate the
+// same way: quotaBytes must be a non-negative integer (0 = unlimited, the
+// default); a type error anywhere is refused at CONFIG time (the decode error
+// names the offending field), never discovered mid-upload.
 func validateLocalConfig(config string) error {
-	if !strings.Contains(config, "priorityResolution") {
-		return nil
-	}
 	var probe struct {
-		PriorityResolution *bool `json:"priorityResolution"`
+		PriorityResolution *bool   `json:"priorityResolution"`
+		QuotaBytes         *int64  `json:"quotaBytes"`
+		IncludesPattern    *string `json:"includesPattern"`
+		ExcludesPattern    *string `json:"excludesPattern"`
 	}
 	if err := json.Unmarshal([]byte(config), &probe); err != nil {
-		return fmt.Errorf("%w: priorityResolution must be a boolean: %w", ErrInvalidRepoConfig, err)
+		return fmt.Errorf("%w: local repository config: %w", ErrInvalidRepoConfig, err)
+	}
+	if probe.QuotaBytes != nil && *probe.QuotaBytes < 0 {
+		return fmt.Errorf("%w: quotaBytes must not be negative (got %d; 0 means unlimited)",
+			ErrInvalidRepoConfig, *probe.QuotaBytes)
 	}
 	return nil
 }

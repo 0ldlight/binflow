@@ -254,6 +254,34 @@ func (h *hookStore) Nodes() metadata.NodeStore { return &hookNode{NodeStore: h.S
 // Blobs overrides the inner store with the hooked variant.
 func (h *hookStore) Blobs() metadata.BlobStore { return &hookBlob{BlobStore: h.Store.Blobs(), h: h} }
 
+// Usage overrides the inner store with the hooked variant. Since T-95 the
+// service's metered writes ride Usage().PutNodeWithUsage/DeleteNodeWithUsage
+// instead of the plain node ops, so the combined methods keep firing the
+// same "nodes.put"/"nodes.delete" op names — the injection points the
+// transaction-boundary tests target stay stable.
+func (h *hookStore) Usage() metadata.UsageStore {
+	return &hookUsage{UsageStore: h.Store.Usage(), h: h}
+}
+
+type hookUsage struct {
+	metadata.UsageStore
+	h *hookStore
+}
+
+func (s *hookUsage) PutNodeWithUsage(ctx context.Context, n *metadata.Node, updatedAt string) error {
+	if err := s.h.check("nodes.put"); err != nil {
+		return err
+	}
+	return s.UsageStore.PutNodeWithUsage(ctx, n, updatedAt)
+}
+
+func (s *hookUsage) DeleteNodeWithUsage(ctx context.Context, repoKey, path, updatedAt string) error {
+	if err := s.h.check("nodes.delete"); err != nil {
+		return err
+	}
+	return s.UsageStore.DeleteNodeWithUsage(ctx, repoKey, path, updatedAt)
+}
+
 func (h *hookStore) note(op string) { h.mu.Lock(); h.journal = append(h.journal, op); h.mu.Unlock() }
 
 func (h *hookStore) check(op string) error {
@@ -348,6 +376,33 @@ func (h *hookDocker) Docker() metadata.DockerStore {
 // Nodes overrides the inner store with the hooked variant.
 func (h *hookDocker) Nodes() metadata.NodeStore {
 	return &hookDockerNodes{NodeStore: h.Store.Nodes(), h: h}
+}
+
+// Usage overrides the inner store with the hooked variant (T-95): the
+// service's metered node writes/deletes ride the combined usage ops, which
+// keep firing the "nodes.put"/"nodes.delete" op names the docker injection
+// cases target.
+func (h *hookDocker) Usage() metadata.UsageStore {
+	return &hookDockerUsage{UsageStore: h.Store.Usage(), h: h}
+}
+
+type hookDockerUsage struct {
+	metadata.UsageStore
+	h *hookDocker
+}
+
+func (s *hookDockerUsage) PutNodeWithUsage(ctx context.Context, n *metadata.Node, updatedAt string) error {
+	if err := s.h.check("nodes.put"); err != nil {
+		return err
+	}
+	return s.UsageStore.PutNodeWithUsage(ctx, n, updatedAt)
+}
+
+func (s *hookDockerUsage) DeleteNodeWithUsage(ctx context.Context, repoKey, path, updatedAt string) error {
+	if err := s.h.check("nodes.delete"); err != nil {
+		return err
+	}
+	return s.UsageStore.DeleteNodeWithUsage(ctx, repoKey, path, updatedAt)
 }
 
 type hookDockerNodes struct {

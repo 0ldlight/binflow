@@ -269,6 +269,16 @@ type WebSession struct {
 	RevokedAt  string // '' while live; logout sets it (replayed cookies must fail)
 }
 
+// RepoUsage is one repo_usage row (004, ADR-0015 decision 2): the logical
+// byte total of a repository's node references, maintained in the same
+// transaction as node insert/delete (T-95/GE-05). A repository without a row
+// (freshly created, never written to) has a zero total, not an error.
+type RepoUsage struct {
+	RepoKey      string
+	LogicalBytes int64
+	UpdatedAt    string
+}
+
 // AuditQuery is the full-parameter audit filter (GE-01, M4). Every field is
 // optional; the zero query returns the newest events. Since and Until are
 // RFC3339 UTC text forming a closed-open interval on the event time
@@ -307,6 +317,7 @@ type Store interface {
 	Virtual() VirtualStore
 	Groups() GroupStore
 	WebSessions() WebSessionStore
+	Usage() UsageStore
 	// Ping verifies liveness for health endpoints.
 	Ping(ctx context.Context) error
 	// Close releases the underlying handle.
@@ -605,4 +616,28 @@ type WebSessionStore interface {
 	ListSweepable(ctx context.Context, now string, limit int) ([]*WebSession, error)
 	// Delete removes one row; ErrWebSessionNotFound when absent.
 	Delete(ctx context.Context, idHash string) error
+}
+
+// UsageStore is the quota accounting seam over repo_usage (004; ADR-0015
+// decision 2, consumed by repo.Service's write gates — T-95/GE-05). The two
+// write methods are the SAME-TRANSACTION variants of the node operations:
+// the node row and the logical_bytes counter land or vanish together, which
+// is the invariant a quota number may be enforced against. Plain
+// NodeStore.Put/Delete (the remote proxy cache path among others) never
+// touch the counter — pull-through landing is deliberately unmetered (PRD
+// section 7 Q2).
+type UsageStore interface {
+	// Get returns the repository's usage row; a repository without a row
+	// answers a zero total, not an error (an empty repository uses 0 bytes).
+	Get(ctx context.Context, repoKey string) (*RepoUsage, error)
+	// PutNodeWithUsage upserts the node exactly like NodeStore.Put and, in
+	// the SAME transaction, adjusts repo_usage by the size difference against
+	// the row the upsert replaces (new node: +size; overwrite: +new-old;
+	// idempotent same-content redeploy: +0 — same sha256 implies same size).
+	PutNodeWithUsage(ctx context.Context, n *Node, updatedAt string) error
+	// DeleteNodeWithUsage drops one node row exactly like NodeStore.Delete
+	// (ErrNodeNotFound when absent) and, in the SAME transaction, subtracts
+	// its size from repo_usage. Folder rows contribute their stored size
+	// (always 0 for the folder marker).
+	DeleteNodeWithUsage(ctx context.Context, repoKey, path, updatedAt string) error
 }

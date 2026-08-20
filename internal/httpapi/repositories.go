@@ -77,6 +77,14 @@ type repoConfig struct {
 	DefaultDeploymentRepoRef string   `json:"defaultDeploymentRepoRef,omitempty"`
 	DeploymentRepository     string   `json:"deploymentRepository,omitempty"`
 
+	// QuotaBytes is the M4 governance ceiling (FR-31/GE-05, T-95): 0 =
+	// unlimited, the default. A POINTER so an explicit 0 round-trips through
+	// the stored config (the FE's "0 = 不限" spelling stays stable) — the
+	// value rides the LOCAL arm of configJSON only; remote/virtual configs
+	// are canonicalized by repo.Service and would drop it anyway, and the
+	// write plane it governs is the local one.
+	QuotaBytes *int64 `json:"quotaBytes,omitempty"`
+
 	// Configuration is the GET-only echo of the stored canonical config (the
 	// service hands it back already masked, NFR-S14); it is never an input.
 	Configuration any `json:"configuration,omitempty"`
@@ -134,12 +142,18 @@ func (c repoConfig) configJSON(rclass string) (string, error) {
 		// local: the cross-cutting member mark plus the maven policy
 		// family (T-67's consumers read them verbatim out of the config
 		// blob — the T-64 passthrough contract; the transport addition is
-		// the piece T-80 deferred to this ticket).
+		// the piece T-80 deferred to this ticket). The M4 governance fields
+		// (T-95) ride the same passthrough: includesPattern/excludesPattern
+		// (the struct's long-standing transport fields, finally forwarded)
+		// and quotaBytes — repo.Service validates and the gates enforce.
 		setBool(m, "priorityResolution", c.PriorityResolution)
 		setBool(m, "handleReleases", c.HandleReleases)
 		setBool(m, "handleSnapshots", c.HandleSnapshots)
 		setStr(m, "snapshotVersionBehavior", c.SnapshotVersionBehavior)
 		setStr(m, "checksumPolicyType", c.ChecksumPolicyType)
+		setStr(m, "includesPattern", c.IncludesPattern)
+		setStr(m, "excludesPattern", c.ExcludesPattern)
+		setI64(m, "quotaBytes", c.QuotaBytes)
 	}
 	if len(m) == 0 {
 		return "", nil
