@@ -289,6 +289,9 @@
 - **T-90** [P0] 004 迁移+Groups/WebSessions/审计扩展 `role:dev-go-core` `area:internal/metadata` — done 2026-08-20（APPROVE 一轮过）
   review 0 blocker：DDL 逐列一致；同毫秒 keyset 翻页独立探针（50 行/带全页无跳重）；EXPLAIN 独立复核（sqlite 3.43.2 复合索引倒扫免 SORT）；幂等语义实测（changes() 同值 UPDATE）。6 non-blocking（cursor 形状校验/EXPLAIN SQL 漂移/索引列序断言/nil-vs-empty/哨兵同名——转 T-93/T-97 派单注意）。范围外：T-92 在制文件混入提交（粒度问题无缺陷）。提交 595e090+bf3f804。
 
+- **T-92** [P0] 搜索域 `role:dev-go-core` `area:httpapi+repo+metadata` — done 2026-08-20（APPROVE 一轮过）
+  review 0 blocker：ACL 零泄漏（与内容面同一 allow() 路径 + 双引用探针实测）；LIKE 转义/参数化/索引真实；fileInfoOf 纯提取。4 non-blocking（宽结果 limit 门→T-105 探针/零授权 200 空 vs 403 姿态→PRD 半句）。提交 358b3c1+0390958。
+
 ## 🚫 阻塞（blocked）
 
 （空）
