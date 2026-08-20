@@ -124,12 +124,25 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if reason, rejected := authRejectedFrom(r.Context()); rejected {
-		// /binflow plane (and everything else): the historical hard-401
-		// behavior, rendered here instead of inside the authenticator.
-		w.Header().Set("WWW-Authenticate", basicChallenge)
-		writeError(w, http.StatusUnauthorized, "invalid credentials")
-		_ = reason // logged by the authenticator; the body wording is fixed
-		return
+		// B1 (T-91 security review): the login endpoint is EXEMPT from the
+		// hard-401 — it is precisely where stale cookies belong (expired,
+		// revoked, swept or tossed by a hostile sibling subdomain), and the
+		// browser attaches them automatically (Path=/binflow). Without the
+		// exemption, a tossed garbage cookie turns every correct-credential
+		// login into an indefinite 401 (cookie-tossing DoS). The handler
+		// verifies the body's username/password itself; the
+		// presented-but-rejected-never-downgrades posture is untouched for
+		// every other route.
+		if r.Method == http.MethodPost && path == prefix+"/api/v1/session" {
+			s.log.DebugContext(r.Context(), "httpapi: rejected credential exempted on the login endpoint",
+				"path", path, "reason", reason)
+		} else {
+			// /binflow plane (and everything else): the historical hard-401
+			// behavior, rendered here instead of inside the authenticator.
+			w.Header().Set("WWW-Authenticate", basicChallenge)
+			writeError(w, http.StatusUnauthorized, "invalid credentials")
+			return
+		}
 	}
 
 	if !strings.HasPrefix(path, prefix) {

@@ -115,8 +115,12 @@ func New(deps Deps, log *slog.Logger) *Server {
 	}
 	// The audit recorder for the login plane: same store, same enabled
 	// toggle and the same redaction chain every other audited surface uses.
+	// Assemblies without a metadata store (unit-test stacks) get the no-op
+	// fallback — a nil Recorder would panic on the first login event.
 	if deps.Metadata != nil {
 		s.audit = audit.BestEffort(audit.New(deps.Metadata, deps.Config.Audit.Enabled))
+	} else {
+		s.audit = noopRecorder{}
 	}
 
 	s.srv = &http.Server{

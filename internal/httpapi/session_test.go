@@ -213,7 +213,7 @@ func TestConsoleSegmentDoesNotSwallowTraversals(t *testing.T) {
 func TestReservedRepoKeysHTTP(t *testing.T) {
 	h := newHarness(t)
 	body := `{"rclass":"local","packageType":"generic"}`
-	for _, key := range []string{"ui", "docs", "console", "api", "v2"} {
+	for _, key := range []string{"ui", "docs", "console", "api", "v2", "assets"} {
 		resp := h.do(http.MethodPut, "/binflow/api/repositories/"+key, adminUser, adminPass,
 			[]byte(body), map[string]string{"Content-Type": "application/json"})
 		got := mustGet(t, resp)
@@ -728,6 +728,192 @@ func TestCSRFOriginMatrix(t *testing.T) {
 		hdr := map[string]string{"X-BinFlow-Console": "1"}
 		if got := contentPUT(cookieArm, hdr); got != http.StatusCreated {
 			t.Fatalf("X-BinFlow-Console PUT = %d, want 201 (layer 3 is a habit, not a gate)", got)
+		}
+	})
+}
+
+// ---- review fixes: B1 (stale-cookie login DoS) + B2 (login-CSRF) ----
+
+// seedStaleSessionCookie plants a session row directly through the store so
+// a test can carry a cookie whose row is expired ("" = no row at all — the
+// tossed-cookie shape).
+func seedStaleSessionCookie(t *testing.T, h *harness, id, expiresAt string) {
+	t.Helper()
+	if expiresAt == "" {
+		return // no row: an unknown/tossed cookie value
+	}
+	err := h.md.WebSessions().Create(context.Background(), &metadata.WebSession{
+		IDHash:     sha256Hex([]byte(id)),
+		Username:   adminUser,
+		CreatedAt:  time.Now().UTC().Add(-time.Hour).Format(time.RFC3339),
+		ExpiresAt:  expiresAt,
+		LastUsedAt: time.Now().UTC().Add(-time.Hour).Format(time.RFC3339),
+	})
+	if err != nil {
+		t.Fatalf("seed stale session row: %v", err)
+	}
+}
+
+// TestLoginEndpointResistsStaleCookies (B1, security review): the login
+// endpoint is the expected destination of stale cookies — unknown (tossed
+// by a sibling subdomain), expired, revoked — and must judge the request on
+// its OWN credentials, never on the ambient cookie. Without the dispatch
+// exemption, a tossed garbage cookie turned every correct login into an
+// indefinite 401.
+func TestLoginEndpointResistsStaleCookies(t *testing.T) {
+	past := time.Now().UTC().Add(-time.Minute).Format(time.RFC3339)
+	cases := []struct {
+		name string
+		id   string
+		row  string // "" = no row; otherwise the expires_at stamp to seed
+	}{
+		{"tossed unknown cookie", "attacker-chosen-garbage", ""},
+		{"expired row cookie", "expired-fixture-id", past},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name+" + correct credentials -> 200", func(t *testing.T) {
+			h := newHarness(t)
+			seedStaleSessionCookie(t, h, tc.id, tc.row)
+			body, _ := json.Marshal(map[string]string{"username": adminUser, "password": adminPass})
+			resp := h.do(http.MethodPost, "/binflow/api/v1/session", "", "", body,
+				map[string]string{
+					"Content-Type": "application/json",
+					"Cookie":       "binflow_session=" + tc.id,
+				})
+			got := mustGet(t, resp)
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("login with stale cookie = %d, want 200 (B1); body=%s", resp.StatusCode, got)
+			}
+			if resp.Header.Get("Set-Cookie") == "" {
+				t.Fatal("login issued no fresh Set-Cookie")
+			}
+		})
+	}
+
+	t.Run("revoked-row cookie + correct credentials -> 200", func(t *testing.T) {
+		h := newHarness(t)
+		resp0, c0 := loginJSON(t, h, adminUser, adminPass)
+		if resp0.StatusCode != http.StatusOK {
+			t.Fatalf("setup login = %d", resp0.StatusCode)
+		}
+		out := h.do(http.MethodDelete, "/binflow/api/v1/session", "", "", nil, c0.cookieHdr())
+		if out.StatusCode != http.StatusNoContent {
+			t.Fatalf("setup logout = %d", out.StatusCode)
+		}
+		body, _ := json.Marshal(map[string]string{"username": adminUser, "password": adminPass})
+		resp := h.do(http.MethodPost, "/binflow/api/v1/session", "", "", body,
+			map[string]string{
+				"Content-Type": "application/json",
+				"Cookie":       "binflow_session=" + c0.value,
+			})
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("relogin with revoked cookie = %d, want 200 (B1); body=%s",
+				resp.StatusCode, mustGet(t, resp))
+		}
+	})
+
+	t.Run("stale cookie + WRONG credentials still 401, uniform", func(t *testing.T) {
+		h := newHarness(t)
+		stale := map[string]string{
+			"Content-Type": "application/json",
+			"Cookie":       "binflow_session=attacker-chosen-garbage",
+		}
+		wrongPw, _ := login(t, h, `{"username":"admin","password":"wrong"}`, "application/json")
+		// The uniform-wording comparison needs the same header shape minus
+		// the cookie: re-issue without it.
+		noCookie, _ := login(t, h, `{"username":"admin","password":"wrong"}`, "application/json")
+		_ = wrongPw
+		withCookie := h.do(http.MethodPost, "/binflow/api/v1/session", "", "",
+			[]byte(`{"username":"admin","password":"wrong"}`), stale)
+		b1, b2 := mustGet(t, withCookie), mustGet(t, noCookie)
+		if withCookie.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("stale cookie + wrong password = %d, want 401", withCookie.StatusCode)
+		}
+		if b1 != b2 {
+			t.Fatalf("401 wording changed under a stale cookie:\n%s\n%s", b1, b2)
+		}
+	})
+
+	t.Run("exemption is login-only: stale cookie still 401 elsewhere", func(t *testing.T) {
+		h := newHarness(t)
+		resp := h.do(http.MethodGet, "/binflow/api/v1/session", "", "", nil,
+			map[string]string{"Cookie": "binflow_session=attacker-chosen-garbage"})
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("whoami with stale cookie = %d, want 401 (exemption must not leak)", resp.StatusCode)
+		}
+	})
+}
+
+// TestLoginOriginGuard (B2, security review): cross-origin login posts are
+// refused — login-CSRF needs no victim cookie (the response's Set-Cookie
+// writes into the victim's browser regardless of SameSite), so the entry
+// carries its own Origin verdict. No Origin / same-origin pass (curl, CI
+// and the SPA are untouched).
+func TestLoginOriginGuard(t *testing.T) {
+	h := newHarness(t)
+	cross := map[string]string{"Origin": "http://evil.example"}
+
+	t.Run("cross-origin JSON login -> 403, no Set-Cookie", func(t *testing.T) {
+		body, _ := json.Marshal(map[string]string{"username": adminUser, "password": adminPass})
+		resp := h.do(http.MethodPost, "/binflow/api/v1/session", "", "", body,
+			mergeHdr(map[string]string{"Content-Type": "application/json"}, cross))
+		if resp.StatusCode != http.StatusForbidden {
+			t.Fatalf("cross-origin JSON login = %d, want 403 (B2)", resp.StatusCode)
+		}
+		if sc := resp.Header.Get("Set-Cookie"); sc != "" {
+			t.Fatalf("cross-origin login issued a cookie: %s", sc)
+		}
+	})
+
+	t.Run("cross-origin form login -> 403 (the browser attack shape)", func(t *testing.T) {
+		form := url.Values{"username": {adminUser}, "password": {adminPass}}.Encode()
+		resp := h.do(http.MethodPost, "/binflow/api/v1/session", "", "", []byte(form),
+			mergeHdr(map[string]string{"Content-Type": "application/x-www-form-urlencoded"}, cross))
+		if resp.StatusCode != http.StatusForbidden {
+			t.Fatalf("cross-origin form login = %d, want 403 (B2)", resp.StatusCode)
+		}
+	})
+
+	t.Run("no Origin passes (CI posture)", func(t *testing.T) {
+		resp, _ := loginJSON(t, h, adminUser, adminPass)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("no-Origin login = %d, want 200", resp.StatusCode)
+		}
+	})
+
+	t.Run("same-origin Origin passes", func(t *testing.T) {
+		body, _ := json.Marshal(map[string]string{"username": adminUser, "password": adminPass})
+		resp := h.do(http.MethodPost, "/binflow/api/v1/session", "", "", body,
+			mergeHdr(map[string]string{"Content-Type": "application/json"},
+				map[string]string{"Origin": h.srv.URL}))
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("same-origin login = %d, want 200", resp.StatusCode)
+		}
+	})
+
+	t.Run("stale cookie + cross-origin Origin -> 403 (B1 and B2 interlock)", func(t *testing.T) {
+		// After B1 exempts the route from the hard-401, the Origin verdict
+		// is what stops the combined probe.
+		body, _ := json.Marshal(map[string]string{"username": adminUser, "password": adminPass})
+		resp := h.do(http.MethodPost, "/binflow/api/v1/session", "", "", body,
+			mergeHdr(map[string]string{
+				"Content-Type": "application/json",
+				"Cookie":       "binflow_session=attacker-chosen-garbage",
+			}, cross))
+		if resp.StatusCode != http.StatusForbidden {
+			t.Fatalf("stale cookie + cross-origin login = %d, want 403 (B2 after B1)", resp.StatusCode)
+		}
+	})
+
+	t.Run("live session + cross-origin re-login -> 403 via csrfGuard", func(t *testing.T) {
+		// Already authenticated: the write guard (not the login entry)
+		// owns the verdict.
+		c := mustLogin(t, h)
+		body, _ := json.Marshal(map[string]string{"username": adminUser, "password": adminPass})
+		resp := h.do(http.MethodPost, "/binflow/api/v1/session", "", "", body,
+			mergeHdr(map[string]string{"Content-Type": "application/json"}, c.cookieHdr(), cross))
+		if resp.StatusCode != http.StatusForbidden {
+			t.Fatalf("authenticated cross-origin re-login = %d, want 403", resp.StatusCode)
 		}
 	})
 }

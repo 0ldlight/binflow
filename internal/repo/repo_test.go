@@ -45,6 +45,7 @@ func TestCreateRepoKeyValidation(t *testing.T) {
 		{"reserved ui", "ui", repo.ErrReservedRepoKey},           // T-91/W01b (PRD FR-23-AC2)
 		{"reserved docs", "docs", repo.ErrReservedRepoKey},       // ADR-0008 T-108 union
 		{"reserved console", "console", repo.ErrReservedRepoKey}, // ADR-0008 T-108 union
+		{"reserved assets", "assets", repo.ErrReservedRepoKey},   // T-91 review: asset-mount shadowing
 		{"reserved embedded", "api-local", nil},                  // only exact matches reserve
 		{"reserved embedded ui", "ui-local", nil},                // ditto for the new keys
 	}

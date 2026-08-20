@@ -14,6 +14,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -87,7 +88,24 @@ func parseSessionBody(r *http.Request) (sessionBody, error) {
 // {"username","admin"} plus the Set-Cookie. Wrong credentials are a uniform
 // 401 whose wording reveals nothing about WHICH half was wrong (FR-23-AC5);
 // both outcomes land in the audit log.
+//
+// B2 (T-91 security review): the entry carries its own Origin verdict.
+// csrfGuard cannot cover this route — a login request is anonymous (the
+// credential is the body, not a cookie), and login-CSRF needs no victim
+// cookie: a cross-site form posts the ATTACKER's credentials and the
+// response's Set-Cookie lands in the victim's browser (SameSite governs
+// sending, never writing). Same-origin/no-Origin requests pass — curl and
+// CI are untouched.
 func (s *Server) handleSessionCreate(w http.ResponseWriter, r *http.Request) {
+	if origin := strings.TrimSpace(r.Header.Get("Origin")); origin != "" && !sameOrigin(r, origin) {
+		s.log.WarnContext(r.Context(), "httpapi: cross-origin login rejected",
+			slog.String("path", r.URL.EscapedPath()),
+			slog.String("origin", origin),
+		)
+		writeError(w, http.StatusForbidden,
+			"cross-origin request rejected: session-cookie authentication requires a same-origin Origin")
+		return
+	}
 	if s.sessions == nil {
 		writeError(w, http.StatusServiceUnavailable, "console sessions are not available on this instance")
 		return
@@ -210,3 +228,11 @@ func sessionCookieSecure(r *http.Request, baseURL string) bool {
 	}
 	return requestScheme(r) == "https"
 }
+
+// noopRecorder is the audit fallback for assemblies without a metadata
+// store (unit-test stacks): login events drop rather than panic. Production
+// always injects Metadata, so this recorder never runs in the served
+// binary.
+type noopRecorder struct{}
+
+func (noopRecorder) Record(context.Context, audit.Event) {}
