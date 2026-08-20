@@ -343,7 +343,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
     if (j < 0 || j >= next.length) return
     ;[next[idx], next[j]] = [next[j], next[idx]]
     set('members', next)
-    if (f.defaultDeploymentRepo && !next.includes(f.defaultDeploymentRepo)) set('defaultDeploymentRepo', '')
   }
 
   const localMembers = f.members.filter((m) => memberOptions.find((o) => o.key === m)?.type === 'local')
@@ -519,12 +518,17 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                         <input
                           type="checkbox"
                           checked={f.members.includes(o.key)}
-                          onChange={(e) =>
-                            set(
-                              'members',
-                              e.target.checked ? [...f.members, o.key] : f.members.filter((m) => m !== o.key),
-                            )
-                          }
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              set('members', [...f.members, o.key])
+                            } else {
+                              set('members', f.members.filter((m) => m !== o.key))
+                              // review B2：被取消的成员恰是默认部署仓时联动清空，
+                              // 否则 state 残留旧值、select 显示空白，提交吃服务端
+                              // 400 "not a member"（service.go validateVirtualMembers）
+                              if (f.defaultDeploymentRepo === o.key) set('defaultDeploymentRepo', '')
+                            }
+                          }}
                           data-testid={`form-member-${o.key}`}
                         />
                         <span className="mono" lang="en">

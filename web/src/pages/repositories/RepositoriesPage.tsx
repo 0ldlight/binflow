@@ -64,8 +64,9 @@ function UpstreamCell({ repo }: { repo: RepoListItem }) {
   if (repo.type === 'virtual') {
     const members = cfgStrList(repo.configuration, 'repositories')
     if (members.length === 0) return <span className="text-muted">—</span>
+    // review B1：details 点击不得冒泡到 tr 的行导航——否则浮层刚开即被换页
     return (
-      <details className="member-pop">
+      <details className="member-pop" onClick={(e) => e.stopPropagation()}>
         <summary>
           {members.length} 成员
         </summary>
@@ -223,7 +224,11 @@ export default function RepositoriesPage() {
                     >
                       {repo.key}
                     </Link>{' '}
-                    <CopyButton value={repo.key} label={`仓库 key ${repo.key}`} />
+                    {/* review B1：拷贝按钮包隔离层（页面级，不动共享 CopyButton——
+                        T-101/T-102 并行在途），点击/键盘触发都不再触发行导航 */}
+                    <span onClick={(e) => e.stopPropagation()}>
+                      <CopyButton value={repo.key} label={`仓库 key ${repo.key}`} />
+                    </span>
                   </td>
                   <td>
                     <span className="badge neutral">{TYPE_LABEL[repo.type] ?? repo.type}</span>

@@ -90,6 +90,14 @@ test('local generic full lifecycle: create with governance -> list -> edit round
   // 列表：行可见 + 过滤
   await page.goto('/binflow/ui/repositories')
   await expect(page.locator(`[data-testid="repos-row-${key}"]`)).toBeVisible()
+
+  // review B1：行内拷贝不触发行导航（隔离层），且剪贴板拿到完整 key
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+  await page.click(`[data-testid="repos-row-${key}"] .copy-btn`)
+  await expect(page).toHaveURL(/\/binflow\/ui\/repositories$/)
+  const clip = await page.evaluate(() => navigator.clipboard.readText())
+  expect(clip).toBe(key)
+
   await page.selectOption('[data-testid="repos-filter-type"]', 'local')
   await expect(page.locator(`[data-testid="repos-row-${key}"]`)).toBeVisible()
   await page.fill('[data-testid="repos-filter-key"]', key)
@@ -264,17 +272,41 @@ test('virtual: member order roundtrip, defaultDeploymentRepo, server 400 inline'
   expect(json.configuration.repositories).toEqual([m2, m1])
   expect(json.configuration.defaultDeploymentRepo).toBe(m1)
 
-  // 服务端 400 行内回显：编辑态成员在表单打开后被外部删除 → 保存被服务端拒
+  // review B1：列表成员浮层可开、内容可读，且点击不触发行导航
+  await page.goto('/binflow/ui/repositories')
+  await page.click(`[data-testid="repos-row-${vkey}"] .member-pop summary`)
+  const pop = page.locator(`[data-testid="repos-row-${vkey}"] .member-pop .pop`)
+  await expect(pop).toBeVisible()
+  await expect(pop).toContainText(m2)
+  await expect(pop).toContainText(m1)
+  await expect(page).toHaveURL(/\/binflow\/ui\/repositories$/)
+
+  // review B2：取消 defaultDeploymentRepo 所指成员 → select 联动回「（未配置）」，提交不再吃 400
   await page.goto(`/binflow/ui/repositories/${vkey}/settings`)
   await page.click('[data-testid="form-next"]') // 步骤 2（成员所在）
   await expect(page.locator(`[data-testid="form-member-${m1}"]`)).toBeChecked()
-  await api(page, 'DELETE', `/api/repositories/${m1}?deleteContent=true`)
+  await expect(page.locator('[data-testid="form-default-deploy"]')).toHaveValue(m1)
+  await page.uncheck(`[data-testid="form-member-${m1}"]`)
+  await expect(page.locator('[data-testid="form-default-deploy"]')).toHaveValue('')
+  await page.click('[data-testid="form-next"]') // 步骤 3
+  await page.click('[data-testid="form-submit"]')
+  await expect(page.locator('[data-testid="toast"]')).toContainText('update successfully')
+  const after = await api(page, 'GET', `/api/repositories/${vkey}`)
+  const afterJson = JSON.parse(after.text)
+  expect(afterJson.configuration.repositories).toEqual([m2])
+  expect(afterJson.configuration.defaultDeploymentRepo).toBeUndefined()
+
+  // 服务端 400 行内回显：编辑态成员在表单打开后被外部删除 → 保存被服务端拒
+  await page.goto(`/binflow/ui/repositories/${vkey}/settings`)
+  await page.click('[data-testid="form-next"]') // 步骤 2（成员所在）
+  await expect(page.locator(`[data-testid="form-member-${m2}"]`)).toBeChecked()
+  await api(page, 'DELETE', `/api/repositories/${m2}`)
   await page.click('[data-testid="form-next"]') // 步骤 3
   await page.click('[data-testid="form-submit"]')
   await expect(page.locator('[data-testid="form-error"]')).toBeVisible()
-  await expect(page.locator('[data-testid="form-error"]')).toContainText(m1)
+  await expect(page.locator('[data-testid="form-error"]')).toContainText(m2)
 
   // 收尾
   await api(page, 'DELETE', `/api/repositories/${vkey}`)
-  await api(page, 'DELETE', `/api/repositories/${m2}`)
+  await api(page, 'DELETE', `/api/repositories/${m1}`)
 })
