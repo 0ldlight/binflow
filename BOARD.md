@@ -30,7 +30,7 @@
 ## 🔨 进行中（doing）
 
 （T-90 编码完成 → review 区）
-- **T-91** [P0] session 三臂+console 挂载+CSRF（批 2，双 reviewer 票） `role:dev-go-core` `area:auth(Cookie 臂)+httpapi(session/console)+config` — 在途
+（T-91 编码完成 → review 区；双 reviewer 在途）
 （T-62 编码完成 → review 区；单 reviewer 在途）
 （T-66 编码完成 → review 区；双 reviewer 排队等槽）
 - **T-67** [P0] Maven adapter layout+传输+checksum（批 3） `role:dev-registry-adapter` `area:internal/adapter/maven` — 在途（双 reviewer 票；metadata 归 T-68）
