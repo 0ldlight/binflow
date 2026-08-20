@@ -19,6 +19,7 @@
 
 > M4 票 AC 全文见 reports/agents/T-88.md。分批：1:{T-89,T-90,T-92}✓ → 2:{T-91,T-110}✓ → 3:{T-93,T-95,T-96}✓ → 4:{T-94,T-97,T-98,T-111}（在途） → 5:{T-99,T-103} → 6:{T-100,T-101,T-102} → 7:{T-104} → 8:{T-105} → 9:{T-106,T-107}。双 reviewer：T-96、T-97。
 
+- **T-113** [P1] ?permissions 形态勘误 `role:reverse-engineer` `area:docs/reverse/rest-api.md、docs/prd/milestone-4.md` `dep:T-97` — §3 括注与 FR-27「r/w/d 位映射」句为误读（正确：key=主体名、value=权限字母集合，RestAddonImpl.java#appendPrincipalsAndPermissions 取证已由 T-97 正确性 review 给出）；顺带核实非 local 仓 404-vs-400 疑点
 - T-99~T-102 FE 页面组 / T-103~T-105 QA 三段 / T-106 部署烟测 / T-107 M4 文档 — AC 见 reports/agents/T-88.md
 
 ## 🔨 进行中（doing）
@@ -28,7 +29,7 @@
 ## 👀 评审中（review）
 
 - **T-94** [P0] GC 管理化（批 4） — 编码完成，conductor 核验通过（build/vet/lint 0、定向 TestT94/TestDataLock/TestGC 三包 ok、auth 回归 ok；真机 curl 序列见 T-94.md），**与 T-97 合并提交 86f879b**（router.go/server.go 双票分支不可拆，message 分列）。单 reviewer 被 429 击落（刚起步）——额度重置后唤醒重派。REST 0=无宽限 vs CLI 0=config 双口径已专测钉死。
-- **T-97** [P0] groups 域+权限继承（批 4，双 reviewer 票） — 编码完成，conductor 核验通过（build/lint 0 全仓、四包测试 ok、真机 curl W17~W21/W40+AC9+门矩阵），**与 T-94 合并提交 86f879b**。**双 reviewer 均被 429 击落**（正确性侧在读 auth 层改动、架构侧在查第三方客户端类型定遗留①映射方向——官方文档已确认匿名语义「can be anonymous」）——额度重置后双双唤醒续跑。裁定点：遗留①?permissions 映射方向、遗留②匿名可达性。
+- **T-97** [P0] groups 域+权限继承（批 4，双 reviewer 票） — 编码完成，conductor 核验通过，**与 T-94 合并提交 86f879b**。正确性+安全 review 回：**REQUEST_CHANGES 2 blocking**（核心权限链全过：并集/fail-closed/三臂等价/审计/clean-room 无嫌疑）——B1 遗留①裁定**翻转**（bitsToNames 方向反：正确形态 key=主体名 value=权限字母集合，RestAddonImpl 取证；rest-api §3/PRD FR-27 为误读→T-113 勘误）；B2 遗留②裁定**收紧**（?permissions routeAuth{} 空门→匿名枚举用户名/权限分布洞穿存在性不泄露，改 required+admin）。修复中。6 NB 登记（user_groups 索引热路径/TOCTOU 守卫等）。架构 review 在途。
 （T-64/T-67/T-69 等 M3 残留行 2026-08-20 清理，done 记录见 done 区）
 
 - **T-111** [P1] docker 413 verbatim 渲染臂 `role:dev-registry-adapter` `area:internal/adapter/docker` — done 2026-08-21（单 review 一轮修复）
