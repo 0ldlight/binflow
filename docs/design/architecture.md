@@ -1,6 +1,6 @@
 # BinFlow 架构设计（M1 定稿）
 
-> architect 维护。本文件在 ADR-0001~0013 基线上给出可并行开发的实现蓝图：包边界 = 并行开发 area 边界。
+> architect 维护。本文件在 ADR-0001~0015 基线上给出可并行开发的实现蓝图：包边界 = 并行开发 area 边界。
 > 标注 **[M2+]** / **[M3+]** 的内容当期不实现，只保证接口缝存在；标注「待逆向规格确认」的行为以 `docs/reverse/` 规格为准，规格冲突时先回 ADR。
 > 文档中文，标识符/表名/字段英文。代码规范：错误 wrap 带上下文、显式 context、table-driven 测试、依赖注入。
 
@@ -108,7 +108,7 @@ binflow/                       # Go module: github.com/lzwzzy/binflow（ADR-0008
 | `auth` | 密码校验（argon2id）、Token 签发/校验、路径 ACL 决策 | `Authenticator` / `Authorizer` / `TokenRegistry`（§3.4） | 组/匿名/LDAP [M4+] |
 | `audit` | append-only 审计事件 + 查询 | `Logger`（§3.5） | UI、导出 [M4] |
 | `httpapi` | 监听、路由表、middleware 链、统一错误信封、健康检查、优雅停机 | `Run(ctx, deps)`（§7） | —— |
-| `console` | `//go:embed dist`；`Handler() http.Handler` | M1 返回占位页 | 前端本体 [M4] |
+| `console` | `//go:embed dist`（web/ 构建产物）；`Handler() http.Handler` 挂 `/binflow/console/**`（ADR-0014） | M1~M3 返回占位页 | 前端本体源码（在 `web/`，ux-designer + 前端票） |
 | `docs`（internal/docs） | `//go:embed` Docusaurus build 产物；`Handler() http.Handler`（ADR-0011） | M1~M4 不存在（M5 脚手架票引入） | 独立站点双轨托管（不承诺） |
 
 ---
@@ -268,16 +268,19 @@ func New(st storage.Engine, md metadata.Store, az auth.Authorizer, au audit.Logg
 ```go
 package auth
 
-type Principal struct { Name string; Admin bool; TokenID int64 } // TokenID>0 表示 token 认证
+type Principal struct { Name string; Admin bool; TokenID int64; Groups []string } // TokenID>0 表示 token 认证；Groups M4 起认证时填充（permission_principals 的 group 行消费源）
 
 type Authenticator interface {
-    // 支持：Basic（user:password 或 user:token）、Bearer <token> [M2 docker]。
+    // 支持三臂：Basic（user:password 或 user:token）、Bearer <token> [M2 docker]、
+    // Cookie bf_session（web_sessions 表，M4，ADR-0014——HttpOnly/Secure/SameSite=Lax，
+    // 绝对 TTL 12h + last_used 滑动续期，登出 revoke）。
     Authenticate(ctx context.Context, r *http.Request) (*Principal, error) // nil,nil = 匿名
 }
 type Authorizer interface {
     // M1 规则：admin 全通过；否则按命名 permission target（见 §6 permission_targets 表，PRD E-24）
     // 判定：repo 命中 repos[] 且 path 命中 includePatterns（**/* 两级通配）且不命中 excludePatterns
-    //（exclude 优先）→ 按 principals 中该用户的 actions 授 r/w/d；无命中 = 拒绝。
+    //（exclude 优先）→ 按 principals 中命中该用户 **或其 Groups 任一**（M4：principal_type='group' 行，
+    // membership 在认证时解析进 Principal.Groups）的 actions 授 r/w/d；无命中 = 拒绝。
     // 匿名（p == nil）：action=="r" 且 security.anonymous_access==true 时内容路径放行（ADR-0009）；
     // 写操作与管理面（/binflow/api/**）无论开关一律拒绝匿名。
     // 路由解析位置（T-14 review 终判）：repo key → repo 行查询位于授权门之后；RepoLookup 用
@@ -376,6 +379,12 @@ created --Append(可多次)--> appending --Commit--> committed(终态, session �
 - **`X-BinFlow-Cache: HIT|MISS|REVALIDATED|STALE` 响应头**（QA 断言锚点，内容路径响应统一附加）。
 - **GC**：缓存 node 与本地 node 同为引用事实，无特判——删 remote 仓级联删 nodes，blob 由 GC 统一回收。virtual 探索性 miss **不落盘**（ADR-0013，防成员扫描污染缓存）。
 
+### 4.6 配额 enforcement（M4 增量，ADR-0015）
+
+- **enforcement 点在 `repo.Service.Put` 链**（PutFromBlob/PutLandedBlob/PutOpts 同链）：`repositories.config` 的 `quota_bytes`（0=不限，默认）+ `repo_usage` 计数行（logical_bytes，与 node 增删**同一事务**维护——SQLite 单写者无热行竞争放大）。
+- 预检时序：expect.Size 已知（秒传/mount/docker finalize）→ Commit 前直判；流式 size 未知 → 落盘后判，超限**回滚 node 登记但 blob 留待 GC**（不拒已落盘字节，只拒登记），响应 413 + QUOTA_EXCEEDED（码值 PRD 定）。
+- **口径 = 逻辑字节**（nodes.size 之和）：配额按仓计量，跨仓共享 blob 的物理归属无法公平切分；物理占用走既有 `/api/v1/storage/stats`。remote 缓存 node 计入（`quota_include_cache` 豁免位 [M5+]）。
+
 ---
 
 ## 5. 适配器 SPI（owner: dev-registry-adapter，M1 = Generic）
@@ -417,7 +426,7 @@ func All() []Handler
 - 首段 ∈ 保留段（`api`）→ REST 路由；
 - 否则首段视为 repo key → 查 repositories 表 → 按 `package_type` 分发到对应 adapter.Handler（M1 generic，M2 增 docker）。
 
-因此 repo key 保留名校验：建仓时拒绝 `api`、`v2`（repo.Service 校验，`/binflow/v2` 双挂载**不提供**——ADR-0010 裁决）。
+因此 repo key 保留名校验：建仓时拒绝 `api`、`v2`（repo.Service 校验，`/binflow/v2` 双挂载**不提供**——ADR-0010 裁决）；M4 起增拒 `docs`、`console`（ADR-0014 保留段，见 §7.1）。
 
 **依赖方向（T-48 依 T-38 review N1 勘误）**：`adapter/*` → `repo.Service` + `auth`（读 Principal）；**禁止**直接 import `storage`/`metadata`，例外两条（其余「需要流式细节时经 `repo.Service` 扩方法，不得绕过」维持）：
 - **例外一（§5.3 裁定第 1 条，docker blob upload）**：上传端点族（POST/PATCH/PUT/GET/DELETE `/v2/<name>/blobs/uploads*`）直持 `storage.Engine` 驱动 Session 生命周期（BeginSession/Append/Commit/Abort）——协议态（received、UUID 配对）在 adapter，storage 不感知协议头；该例外仅限上传会话对接，blob 读路径仍经 `repo.Service.Get`。metadata 触点同构先例：路由数据只读查询（RepoLookup 用 `metadata.Get`，T-14 终判的匿名读前置缝，docker 包 repolookup 同构）。
@@ -543,7 +552,7 @@ schema 面：npm document 字段（name/versions[].dist.tarball+integrity/dist-t
 -- 001_init.sql (sqlite dialect)；schema_migrations 见上方注记，不在本文件
 
 CREATE TABLE repositories (
-  repo_key  TEXT PRIMARY KEY,              -- 唯一标识，[a-z][a-z0-9-]{1,62}（PRD FR-3-AC4；原架构 {1,31} 作废，后经 T-22 回写）；保留字 api/v2 禁用（ADR-0008 路由分发依赖）
+  repo_key  TEXT PRIMARY KEY,              -- 唯一标识，[a-z][a-z0-9-]{1,62}（PRD FR-3-AC4；原架构 {1,31} 作废，后经 T-22 回写）；保留字 api/v2/docs/console 禁用（api/v2=ADR-0008 路由分发，docs/console=ADR-0011/0014 保留段）
   type      TEXT NOT NULL,                 -- 'local' | 'remote' | 'virtual'
   package_type TEXT NOT NULL,              -- 'generic' | 'docker' | 'maven' | 'npm' | 'pypi'
   description TEXT NOT NULL DEFAULT '',
@@ -720,6 +729,40 @@ CREATE INDEX idx_remote_cache_expiry ON remote_cache(expires_at);  -- 周期清�
 -- npm/PyPI 无专属表：npm packument 是 node（<pkg>/packument.json，§5.4.2）；pypi simple 页
 -- 按需生成（§5.4.3）；maven maven-metadata.xml 按需生成（§5.4.1）。三协议共用 nodes+blobs。
 
+-- ===== 004_console_governance.sql（M4 增量，ADR-0014/0015；架构定稿，dev-go-core 落迁移文件）=====
+
+CREATE TABLE groups (                     -- 用户组（permission_principals.principal_type='group' 的消费面，M1 预留兑现）
+  id          INTEGER PRIMARY KEY,        -- sqlite: ROWID；postgres: SERIAL（方言内允许）
+  name        TEXT NOT NULL UNIQUE,
+  description TEXT NOT NULL DEFAULT '',
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL
+);
+
+CREATE TABLE group_members (
+  group_id  INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+  username  TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+  PRIMARY KEY (group_id, username)
+);
+-- Authorizer 消费路径：认证时 JOIN 解析进 Principal.Groups（§3.4）；permission_principals 的
+-- group 行在 Can 判定时与用户组名单匹配——无 DDL 变更（principal_type 列 M1 已备）。
+
+CREATE TABLE web_sessions (               -- 浏览器会话（ADR-0014 决策 2；存形态与 tokens 同规）
+  id_hash      TEXT PRIMARY KEY,          -- sha256(session id plaintext)，明文只出现在 Cookie
+  username     TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
+  created_at   TEXT NOT NULL,
+  expires_at   TEXT NOT NULL,             -- 绝对 TTL 12h；last_used 滑动续期
+  last_used_at TEXT NOT NULL DEFAULT '',
+  revoked_at   TEXT NOT NULL DEFAULT ''   -- 登出 = revoke；过期/吊销行由启动清扫（同 sessions/ 目录模式）
+);
+CREATE INDEX idx_web_sessions_user ON web_sessions(username);
+
+CREATE TABLE repo_usage (                 -- 配额计数（ADR-0015 决策 2）：与 node 增删同事务维护
+  repo_key      TEXT PRIMARY KEY REFERENCES repositories(repo_key) ON DELETE CASCADE,
+  logical_bytes INTEGER NOT NULL DEFAULT 0,
+  updated_at    TEXT NOT NULL
+);
+
 首启种子数据（迁移 001 内）：预置 `admin` 用户（is_admin=1）。口令引导（ADR-0009，用户定案）：env `BINFLOW_ADMIN_PASSWORD` 优先；未设置时使用**文档化缺省值 `password`**（仅限评估——文档与启动日志双重标注，检测到缺省值时启动打 WARN）；仅在 admin 用户不存在时生效，改密后不被后续启动覆盖。
 
 模块路径：go.mod `module github.com/lzwzzy/binflow`（ADR-0008），所有 import 以此为根。
@@ -745,12 +788,19 @@ CREATE INDEX idx_remote_cache_expiry ON remote_cache(expires_at);  -- 周期清�
   PUT    /binflow/api/v1/repositories/{key}        改仓
   DELETE /binflow/api/v1/repositories/{key}        删仓（级联删引用）
   GET    /binflow/api/v1/repositories/{key}/_list  制品列表（?prefix=）
-  GET    /binflow/api/v1/audit                     审计查询（admin, ?repo=&actor=&since=）
+  GET    /binflow/api/v1/audit                     审计查询（admin, ?repo=&actor=&since=&until=&cursor= [M4 参数化]）
+  POST   /binflow/api/v1/system/gc                 GC 触发（admin, 默认 dry_run；apply 需 confirm 双字段，ADR-0015）
+  GET    /binflow/api/v1/system/gc                 GC 作业状态（admin）
+  GET/PUT/DELETE /binflow/api/v1/users[/{name}]     用户 CRUD（admin）+ POST /login /logout（session，ADR-0014）
+  GET/POST/DELETE /binflow/api/v1/groups[/{name}]   组 CRUD + 成员管理（admin）
+  GET/PUT /binflow/api/v1/repositories/{key}/quota  配额读/设（quota_bytes，config JSON 面，ADR-0015）
 /binflow/api/...    *     Artifactory 兼容子集 [按 docs/reverse/rest-api.md 逐步]（注意：兼容层路径不带 /artifactory 前缀，直接映射 /binflow/api/...）
 /binflow/<repo>/... *     内容路径：按 repo.package_type 分发到 adapter（M1 = generic）
+/binflow/console/** *     Web 控制台 SPA [M4]（go:embed，ADR-0014；保留段，repo key 禁用
+                          docs/console；段内任意路径回 index.html，不越段吞内容路径）
 /binflow/docs/...   *     帮助文档站 [M5]（Docusaurus build 产物 go:embed，ADR-0011；
                           进 middleware 链但匿名可读——文档不设认证）
-/binflow/           GET    console（M1: 占位 JSON；M4: go:embed SPA）
+/binflow/           GET    302 → /binflow/console/（M4 起；M1~M3 为占位 JSON）
 ```
 
 **认证分层默认值（ADR-0009）**：内容路径 `GET/HEAD` 匿名放行（`security.anonymous_access: true` 默认）；内容路径写操作与 `/binflow/api/**` 全部要求认证，不受该开关豁免。`anonymous_access: false` 时所有端点一律认证。
@@ -773,7 +823,16 @@ Content-Type: application/json
 
 数组形 `{"errors":[{status,message}]}` 为**全部端点**（含内容路径、/api/v1、探针除外的基础端点）统一格式，依据 docs/reverse/rest-api.md §0（高置信度定案，后经 T-22 回写，取代本节原占位单对象形）。
 
-### 7.4 生命周期
+### 7.5 Console 与浏览器 session（M4 增量，ADR-0014）
+
+- **登录流**：`POST /binflow/api/v1/login`（Basic 或 JSON body 凭据）→ 签发 `web_sessions` 行 + Set-Cookie `bf_session`（HttpOnly + Secure + SameSite=Lax + Path=/binflow）；`POST /logout` → revoke + Cookie 清除。绝对 TTL 12h + 滑动续期。
+- **CSRF 三层**（§3.4 三臂认证的 Cookie 面防线）：SameSite=Lax；console 前端变更请求携 `X-BinFlow-Console: 1` 自定义头；服务端对「Cookie 认证 + 变更方法 + 无该头」拒绝 403。Bearer/Basic 天然免疫。
+- **SPA/REST 边界**：前端直接消费通用 `/api/v1/**`（无 console 专属 API 树——CLI/curl/前端同一面，权限语义单源，ADR-0014 决策 3）；前端工程 = `web/`（vite + React + TS，base=/binflow/console/），构建产物复制进 `internal/console/dist`（Makefile `console` 目标，与 docs-site 同构）。ADR-0005 白名单管辖 Go 依赖树；前端 devDependencies 不进二进制，政策见 ADR-0014 决策 4（lockfile 锁定、零运行时 CDN、CI npm audit、直接依赖变更过 architect）。
+
+### 7.6 备份/恢复（M4 增量，ADR-0015）
+
+- **export（在线）**：① `VACUUM INTO` SQLite 一致性快照 → ② tar `blobs/`（保 mtime，ADR-0006 硬约束）——**顺序不可换**：先 DB 后 blobs，多余 blob 无害（import 后 GC 收）；反向会产生悬空引用。产物 = db + blobs.tar + manifest。入口：CLI `binflow-server export --out <dir>` + admin REST 异步触发（产物落 data_dir/exports/）。
+- **import（仅 CLI，高危写面不走 REST——安全底线）**：目标须空实例（非空 409）；恢复 db → 解 tar 保 mtime → 启动 GC dry-run 报差异（预期仅多余 blob）；幂等 = 同备份重复导入等价；跨版本需迁移链可达（schema_migrations ≤ 当前）。
 
 优雅停机：SIGTERM → `server.Shutdown(ctx, 30s)`（等待在途上传 Commit 或超时丢弃 session）→ **关 storage.Engine（Close：排空在途会话，T-9 回写项 B）** → 关 metadata → 退出码 0。健康检查与停机语义是 ADR-0004 各部署形态的公共契约（§9）。
 
@@ -874,6 +933,9 @@ logging:
 14. **remote 缓存无主动失效（ADR-0012 边界）**：M3 只有 TTL + 条件再验证 + blocked_out 手动遮蔽；`DELETE /api/v1/repositories/{key}` 外的「按路径强制失效」端点不做（M4 治理面）。idx_remote_cache_expiry 已留周期清扫缝。
 15. **virtual 多源归并择优不做（ADR-0013 边界）**：首命中即返回，无 per-layout 版本比较器；`X-BinFlow-Resolved-From` 头让用户可诊断「拿到旧版本」问题。M4+ 若有需求（latest 择优）再引入 MetadataProvider 的版本比较器接口。
 16. **npm packument 整档存储**：合并写放大（大包多 version 时每次 publish 重写整份 packument JSON）；M3 规模可接受，M6+ 若有巨型包性能问题再拆 per-version 行。
+17. **配额计数与 docker/maven 服务端写不同链**（ADR-0015 落地注记）：PutFromBlob/PutLandedBlob/PutOpts 全族必须都过配额预检，实现票须覆盖 docker finalize 与 maven metadata 计算器两条服务端写路径，防旁路。
+18. **web_sessions 清扫复用启动清扫模式**（与 storage sessions/ 同构但不同表）：长驻进程的过期会话行要等重启才清；量大前（M4 会话量低）接受，M5+ 可与 storage 周期清扫同票接线。
+19. **备份不含 remote_cache/web_sessions**：导出面 = db（含 remote_cache 表）+ blobs——即 remote 缓存元数据随 db 走、缓存 blob 随 blobs/ 走，语义自洽；web_sessions 属运行态不入备份（恢复后用户重登）。
 
 ## 12. 待逆向规格确认清单（阻塞点挂 docs/reverse/）
 

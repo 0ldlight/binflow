@@ -187,3 +187,38 @@
 - 联动记录（2026-08-19，T-79 依 PRD v1.1/v1.2 定案回写，触发本 ADR 自带的 PM 联动条款）：**两处语义按 PRD 升级，决策骨架（成员序、首命中即返、只读默认）不变。**
   ① **解析顺序：local-first 升级为两桶序（PRD C3/FR-21-AC7）**——Artifactory 为四桶序（repo-semantics §8.1 高置信度），BinFlow 因无独立 `<key>-cache` 影子仓投影（ADR-0012）简化为**两桶**：优先桶（`priorityResolution: true` 的成员，桶内声明序）在前，其余成员（桶内声明序）在后——local 不再绝对优先，被 priorityResolution 标记可越位（对齐 Artifactory per-repo 字段语义）。本文「跨类排序 local<remote 固定」表述作废，`virtual_members.position` 语义修订为「桶内声明序」。**stale/下一成员优先关系（PRD 定案）**：成员 remote 命中 stale 缓存（含过期副本，含 assumed-offline 期）即作为该成员解析结果返回、不跳下一成员；仅成员真正 404（负缓存/无副本/offline 无缓存）才继续桶序。
   ② **写路由：M3 只读升级为可选写路由（PRD FR-21-AC4，P1）**——virtual 配置 `defaultDeploymentRepo`（成员中的 local 仓 key；别名 `defaultDeploymentRepoRef`/`deploymentRepository` 亦接受）后可写：PUT/POST/DELETE 路由到该 local 成员执行（权限/覆盖检查/checksum 链按目标仓语义），virtual GET 立即可见；未配置 → 405 + `Allow: GET`（定案文案 `No local repository was configured as local deployment repository for the (<key>) virtual repository.`）；指向非 local 成员 → 400 建仓校验。npm publish 与 PyPI upload 同走路由。
+
+## ADR-0014: console 包基线——挂载路由、server-side session + CSRF、SPA/REST 边界、前端构建链
+- 状态: Accepted
+- 日期: 2026-08-20
+- 背景: M4 兑现 `internal/console` 占位（ADR-0002）。需定四件事：SPA 挂哪（与 ADR-0011 `/binflow/docs` 的关系、repo key 空间侵蚀）；浏览器认证形态（已有 Basic/API token/Bearer(docker)——浏览器面缺登录态）；前端调什么 API；前端构建链与 ADR-0005 依赖白名单的关系（node devDependencies 是否受管）。
+- 候选方案:
+  - 挂载: A) SPA 占 `/binflow/` 根（M1 占位处）——SPA 前端路由与 repo key/保留段空间互相侵蚀，深链与刷新的 fallback 规则复杂；B) SPA 挂 `/binflow/console/**` 保留段（与 `/binflow/docs` 同模式），`/binflow/` 根 302 → console。
+  - 浏览器认证: A) server-side session（SQLite 表 + HttpOnly Cookie）；B) JWT（无状态，但登出/吊销需黑名单=又回到服务端状态，且 localStorage 存token 有 XSS 面）；C) 复用 API token 当 Cookie（token 永久性与浏览器会话语义错配，登出即吊销会杀死 CI token）。
+  - 前端 API 面: A) console 专属 `/api/v1/console/**` 聚合面（OSS web/rest-ui 模式）；B) 前端直接消费既有/新增的通用 `/api/v1/**` 管理端点，不设 console 专属树。
+  - 前端构建链: vite vs webpack；devDependencies 管辖。
+- 决策:
+  1. **挂载选 B**：SPA 挂 `/binflow/console/**`（保留段清单从 {api,v2} 扩为 {api,v2,docs,console}，repo key 建仓校验同步拒绝）；`GET /binflow/` → 302 → `/binflow/console/`。静态资产 `go:embed internal/console/dist`（web/ 源码构建产物复制进入，与 docs-site 同构，ADR-0011 模式复用）；SPA 前端路由 base=`/binflow/console/`，深链 fallback = 段内任意路径回 index.html（不越出 console 段，绝不吞内容路径）。
+  2. **认证选 A（server-side session）**：004 新表 `web_sessions`（id 存 sha256 摘要、username、created/expires/last_used/revoked_at——存形态与 tokens 同规）；Cookie `bf_session`：HttpOnly + Secure(https) + SameSite=Lax + Path=/binflow；绝对 TTL 12h + 滑动续期（last_used 刷新，单次延长不超 12h）；登出 = revoke + Cookie 清除。`auth.Authenticator` 增第三臂（Basic/Bearer/Session），session 认出的 Principal 与 Basic 等权（无 TokenID、带 Groups）。**CSRF 三层**：① SameSite=Lax 挡跨站 POST（现代浏览器）；② console 前端所有变更请求带自定义头 `X-BinFlow-Console: 1`（跨站简单请求无法携带自定义头，会触发 CORS 预检而默认 CORS 不放行 → 攻击链断）；③ 变更端点对「Cookie 认证 + 无该头」的请求拒绝 403（服务端强制，不依赖浏览器行为）。Bearer/Basic 请求天然免疫 CSRF（非 Cookie 携带）。
+  3. **API 面选 B（不设 console 专属树）**：前端消费通用 `/api/v1/**`（dogfooding——CLI/curl/前端同一 API 面，权限语义单源）；缺的管理端点按通用语义补（users/groups CRUD、system/gc、quota、audit 查询参数化），不造 `/api/v1/console/**`。OSS web/rest-ui 的「console 专属后端」模式不采纳——那是其 UI 版本与后端解耦的历史结构，BinFlow 单二进制同版本交付无此需求。
+  4. **构建链 = vite + React + TypeScript**（React 与 ADR-0011 Docusaurus 同栈技能复用；vite 为当前生态默认，webpack 无增量收益）。**ADR-0005 边界澄清：其白名单管辖 Go module 依赖树（进二进制的面）；前端 devDependencies 属构建期工具链，不进二进制**——政策放宽但守三条：直接依赖最小化并 lockfile 锁定（pnpm/npm ci）；产物零运行时 CDN 依赖（全量打包，断网可用——对齐单二进制哲学）；CI 跑 `npm audit --production=false` 高危拦截 + 直接依赖清单变更走 architect 过目（与 Go 面同规的准入习惯）。Makefile 增 `console` 目标（build + 复制进 internal/console/dist）。
+- 理由: 挂载 B 与 docs 同构、空间不侵蚀（A 的 SPA fallback 与内容路径 404 语义会打架）；session 方案在「可登出可吊销 + 无 XSS token 暴露面 + 与既有 sha256-token 存储形态同构」三点上全胜 JWT，代价仅一张表；CSRF 三层使 Cookie 面与 Bearer 面安全等价；API 面 B 让权限模型与文档只维护一份。
+- 后果: 004 迁移含 web_sessions/groups/group_members/repo_usage（§6）；repo key 保留字 +2（docs/console——docs 伴随 ADR-0011 已事实占用，此处正式化）；auth 包加 session 臂与 `Principal.Groups`；httpapi 加 Cookie 解析、CSRF 头强制、`/binflow/console/**` 静态 + SPA fallback、`/binflow/` 302；前端工程进 `web/`（ux-designer 信息架构 + 前端实现票消费）；CI 需 node 工具链（构建期，部署产物不含）；审计记 console 登录/登出事件。
+
+## ADR-0015: M4 治理面基线——GC 在线触发、配额模型、备份/恢复
+- 状态: Accepted
+- 日期: 2026-08-20
+- 背景: M4 治理四件（审计/GC/配额/备份）需要安全边界定案：GC 从 CLI-only 变为可在线触发（删数据面）；配额的 enforcement 点与计数口径；备份的一致性顺序（ADR-0006 已定 mtime 硬约束，此处定 export 顺序与 import 幂等）。
+- 候选方案:
+  - GC 触发: A) 仅 CLI（M1 现状，console 无法治理）；B) admin REST 在线触发（POST /api/v1/system/gc）+ 作业状态查询；C) 定时自动 GC。
+  - 配额计数: A) PUT 时 SUM(nodes.size) 实时算（O(n) 每次写）；B) `repo_usage` 计数器行，与 node 增删同事务维护；C) 配额只统计不做（推迟）。
+  - 备份导出: A) 停服冷备（最简单，违背可用性）；B) 在线 export：SQLite backup API（VACUUM INTO，在线一致性快照）+ blobs tar；顺序待定；C) 增量/快照卷依赖（LVM 等，部署形态耦合）。
+  - import: A) 任意实例可导入（merge 语义，冲突规则复杂）；B) 仅空实例（fresh install），全量替换。
+- 决策:
+  1. **GC = B（admin REST 触发）+ 保留 CLI**：`POST /binflow/api/v1/system/gc`（body `{"dry_run":true}` 默认真；`apply` 必须 `{"dry_run":false,"confirm":true}` 双字段显式）→ 后台 goroutine 执行（storage.GC 既有契约，grace 不变），进程内互斥（并发触发 409 GC_IN_PROGRESS），`GET /binflow/api/v1/system/gc` 返回上次/当前作业状态（started/finished/removed 清单摘要）。**安全边界**：admin-only + 审计事件（gc.trigger 含 dry_run 标志）+ 默认 dry-run + grace 兜底不变（在线触发不缩短 grace——它不是紧急删除通道）。**不做 C（定时）**：M4 不引入调度器，周期执行留缝（配置项占位 [M5+]）。
+  2. **配额 = B（计数器）+ config JSON 承载配额值**：配额值存 `repositories.config` 的 `quota_bytes`（0=不限，默认）；`repo_usage(repo_key, logical_bytes, updated_at)` 计数行与 node 增删**同一事务**维护（SQLite 单写者下无热行竞争放大）；enforcement 点在 `repo.Service.Put` 链——blob Commit 之前预检（`expect.Size` 已知时直判；流式未知 size 时写入后超限**回滚 node 但 blob 留待 GC**——不拒已落盘字节，只拒登记，超限响应码 PRD 定（建议 413 + QUOTA_EXCEEDED）。**口径 = 逻辑字节**（nodes.size 之和，非去重物理字节——配额按仓计量，跨仓共享 blob 的物理归属无法公平切分；物理占用另走 /api/v1/storage/stats 已有面）。remote 缓存 node 计入（可配 `quota_include_cache` 豁免 [M5+]）。
+  3. **备份 = B（在线 export，顺序：先 DB 快照后 blobs tar）**：① `VACUUM INTO` 产出 SQLite 一致性快照（在线安全，WAL 兼容）；② tar `blobs/` 目录（**必须保 mtime**，ADR-0006 硬约束——tar 默认保留）；顺序裁定理由：DB 快照先定时，之后落盘的新 blob 只会成为 tar 里的**多余**未引用文件（import 后 GC 收），反之（tar 先、DB 后）DB 可能引用 tar 里不存在的新 blob → 恢复出悬空引用，不可接受。sessions/ 不进备份面（瞬态）。产物 = `<out>/binflow.db` + `<out>/blobs.tar` + manifest（版本、时间、blob 数、sha256 清单）。
+  4. **import = B（仅空实例）**：目标实例必须零 repositories（校验后执行，非空 → 409/退出非 0）；流程 = 恢复 db → 解 tar 保 mtime → 启动时 GC dry-run 报告差异（预期只有多余 blob，无缺失）。**幂等** = 对同一备份重复 import 等价（db 覆盖 + tar 解压覆盖同 sha256 文件幂等）；跨版本 import 需迁移链可达（schema_migrations 版本号 ≤ 当前）。
+  5. **入口形态**：export 走 CLI `binflow-server export --out <dir>`（读面，低危）+ admin REST 可选触发（异步作业，产物落 data_dir/exports/）；import 仅 CLI（写面高危，不做 REST——安全底线：危险操作走带外通道）。
+- 理由: GC 在线化补齐 console 治理闭环，双字段显式确认 + 审计 + grace 不变把删数据风险压回 CLI 等价面；配额计数器避免每写 O(n)；先 DB 后 blobs 的顺序把「在线备份一致性」化为一条不可违反的简单规则；import 限定空实例免去 merge 语义的全部复杂度（备份恢复的正确心智本就是重建而非合并）。
+- 后果: 004 迁移含 repo_usage；`repo.Service.Put` 链增配额预检（PutOpts 缝顺势承载豁免位——服务端计算的 metadata 是否计入配额随实现定，默认计入）；storage 无改动（GC 契约复用）；`binflow-server` 子命令 +2（export/import）；审计事件族扩展（gc.trigger/export/import）；M5 文档（tech-writer）必须写 mtime 保真与顺序两条 ops 硬约束。
