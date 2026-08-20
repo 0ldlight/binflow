@@ -29,7 +29,7 @@
 
 ## 👀 评审中（review）
 
-- **T-99** [P1] FE 仓库管理页（批 5a） — 编码完成，conductor 核验通过（typecheck/lint/build 绿、SPA gzip 105.8KB +16.4KB/2.1% 预算、console embed 复绿、Playwright 11/11 真后端含 governance 往返/409 门/删除双段流），提交 0f391ea。单 reviewer 在途。漂移①（/api/repositories admin-only vs ux 规范）→ T-116 集中定案。
+- **T-99** [P1] FE 仓库管理页（批 5a） — 编码完成提交 0f391ea；review REQUEST_CHANGES 2 blocking（B1 行级 onClick 未隔离行内控件——CopyButton/成员浮层点击触发换页；B2 virtual 取消勾选 defaultDeploymentRepo 成员不联动清空→提交 400 "not a member"）——修复中（agent 已唤醒）。契约面全过（repos.ts 逐字段吻合/全量替换保全/删除双段流/403 收敛）。9 NB 登记；ErrorBoundary 基座缺口建议小票。漂移①已由 T-116 定案（维持 admin-only）。
 （T-64/T-67/T-69 等 M3 残留行 2026-08-20 清理，done 记录见 done 区）
 
 - **T-111** [P1] docker 413 verbatim 渲染臂 `role:dev-registry-adapter` `area:internal/adapter/docker` — done 2026-08-21（单 review 一轮修复）
