@@ -49,3 +49,42 @@
 ## 结论
 
 主线（默认配置、规范操作序列）正确且测试扎实：顺序硬规则、mtime 保真、快照一致性、损坏矩阵、锁互斥证据都成立。两个 blocker 都在边缘配置/并发操作员序列上：B1 是锁生命周期自洽性（代码自身注释点名的反模式被清理路径实现），B2 是恢复写面的越界守卫缺失。均为小改动，修完即可转 APPROVE。
+
+---
+
+## 复核（fix `f1795b0`，2026-08-20）
+
+结论: **APPROVE**（B1/B2 关闭；新增 non-blocking 建议 2 条）
+
+### 复验命令与结果
+
+- `go test -count=1 -run "TestImportHoldsDataLockAgainstGC|TestClearDirContentsPreservesLockFile|TestImportRefusesNonSQLiteDriver|TestImportGuardsOutOfDataDirDSN" -v ./cmd/binflow-server/` → 4/4 PASS（含 rollback 子测）。
+- `go vet ./cmd/binflow-server/ ./internal/storage/` ✅；`go test -count=1 ./internal/storage/ ./cmd/binflow-server/ ./internal/metadata/` 全 ok；`-race -run "TestImport|TestExport|TestClearDir|TestDataLock" ./cmd/binflow-server/` ok。
+
+### B1 关闭确认
+
+- `runImport` 取锁（`DataLockOpImport`）在 `requireEmptyDataDir` **之前**（backup.go:315-319 → :324），defer Release 贯穿函数作用域、`restored` 旗标保护成功路径——空目录检查+验证+写阶段对 gc 构成一个不可分割区间。我方 B1 的两个失败场景（gc 交叠写、失败清理 unlink 活锁）都被封死。
+- `clearDirContents` 跳过 `storage.MaintenanceLockName`（常量别名 `dataLockResidue` 单一事实源），与 datalock.go 自身的生命周期注释对齐。
+- `TestClearDirContentsPreservesLockFile` 的强断言在位：清空后目录**恰好只剩锁文件**，且第二获取者仍被 `ErrDataLockHeld` 拒（证明幸存的是同一 inode 上的活锁，不是新文件），原持有者 Release 正常。这正是我要求的验收断言。
+- `TestImportHoldsDataLockAgainstGC`：gc 持锁 → import 拒（ErrDataLockHeld）→ 释放后同命令成功且库就位——证明 import 真在争锁。「全程持锁」无法无竞态直接断言，但函数作用域单 defer 的代码形态 + 该测已足。
+
+### B2 关闭确认
+
+- driver 守卫（backup.go:303-305）先于一切路径运算；postgres URL 不再进 MkdirAll/copyFile（我上轮 /tmp 探针场景已被 `TestImportRefusesNonSQLiteDriver` 钉死：报错文案 + CWD 无 `postgres:` 垃圾树 + 目标目录干净）。**无误拒风险**：config 恒将 Driver 默认为 `"sqlite"`（Defaults→yaml/env 叠加，validate 白名单），空串到不了这里。
+- `pathOutside` 语义正确（`rel==".."` 或 `../` 前缀为外；base 自身与其内为内）；data 目录内的 dsn 由空目录检查天然保证不存在，越界 dsn 单独要求不存在（:380-386）——既有外部 db 被拒且 `TestImportGuardsOutOfDataDirDSN` 断言**逐字节未动**（回读原文）。
+- `cleanupFailedImport` 契约：清 data 目录（保锁文件）+ 移除越界 partial db；失败清理在写阶段任何失败点统一触发（defer 注册于外部存在性守卫之后、首个写动作之前，次序正确）。
+
+### 覆盖足额性评估（conductor 提问）
+
+「写阶段中途失败」端到端确实缺一条（现有损坏矩阵全是验证阶段失败，先于 defer 注册）。判定：**足额可用**——契约已被单测钉住（含锁幸存），defer 接线为三行、参数就地计算，回归面小。若愿补强，存在无竞态确定性配方（见 R1），非阻断。
+
+### 残留（non-blocking，不挡 APPROVE）
+
+- R1（建议）：补一条端到端写阶段失败：复用 TestSpotVersusFullVerification 的 101-blob 机制，对**样本之外**（sha 排序第 101 个）的备份 blob `chmod 0000`——spot 只 stat（可过），CopyBlobsTree 的 os.Open EACCES 确定性失败；配外部 dsn 即同时覆盖「data 目录 partial blobs + 越界已拷 db」双残留清理与 defer 接线。注：仅靠 rollback 子测不足以钉锁幸存（assertDirEffectivelyEmpty 豁免锁名、unlink 后 Release 仍成功），该性质已由 TestClearDirContentsPreservesLockFile 在正确的层面钉住，配方测试不必重复断言。
+- R2（记录）：`LockHolder`/`HolderOp`/`DataLockOp*` 为随车 T-94 新增导出面，本 commit 未带测试（按并行协同约定归 T-94）；提醒 T-94 的 reviewer 核对其测试与 `lockHolder`（私有 fd 版）的双形态收敛。另：import 取锁会 MkdirAll 目标 data 目录，验证阶段失败的目录现会留下 `.maintenance.lock` 残迹——与锁文件「永不删除」的残迹哲学一致，无碍。
+
+### 核对点答复（conductor 三问）
+
+1. **锁区间划分封死 gc 交叠场景**：是——取锁先于空目录检查，区间覆盖到 `restored=true`；gc 方向的拒绝由同一原语保证（op 名不影响 flock 争用）。
+2. **MaintenanceLockName 导出面**：常量别名是最小且正确的收敛（单一拼写、文档言明「skip, never unlink」与消费方）；更大收敛（把清理逻辑挪进 storage）反而扩面，不必。
+3. **四测断言强度**：足额，尤其活锁幸存后的第二获取者拒绝断言在位且是同 inode 证明；既有外部 db 的逐字节回读断言也强于我预期。

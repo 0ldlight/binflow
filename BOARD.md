@@ -23,19 +23,18 @@
 
 ## 🔨 进行中（doing）
 
-- **T-94** [P0] GC 管理化（批 4） `role:dev-go-core` `area:internal/httpapi(gc)、internal/storage(gc)` — 在途（消费 T-96 锁原语 `storage.AcquireDataLock`，勿重写）
-（T-97 编码完成 → review 区；双 reviewer 在途）
-（T-98 编码完成 → review 区）
-（T-111 编码完成 → review 区）
+（空——批 4 编码面全部完成，M4 剩余 FE 页面组/QA/文档票待批 5+）
 
 ## 👀 评审中（review）
 
-- **T-96** [P0] 备份/恢复 CLI（批 3，双 reviewer 票） — 双 review 回：架构 APPROVE（0 blocker/8 NB，T-112 勘误已收口）；正确性 REQUEST_CHANGES B1/B2 → **修复完成提交 f1795b0**（import 整程持锁先于空目录检查/clearDirContents 跳锁文件/拒非 sqlite driver/越界 dsn 守卫+失败清理；4 新测含活锁幸存与 gc 对打），conductor 复跑全绿（lint 0/四测 PASS/race ok）。修复复核中（原 reviewer）。
-- **T-98** [P1] FE 基座（批 4） — 编码完成提交 d51dcce；review REQUEST_CHANGES（B1 过期 401 风暴竞态/B2 useAsync 陈旧响应竞态——T-99 基座必踩/B3 改密面零验证覆盖）+ 7 NB，修复中（agent 已唤醒，含顺手 N2 ⌘K 让位）。契约比对/TTL 塌缩/开放跳转/纪律面全过。契约漂移①（console-ux §3.3 非 admin 健康可见 vs /api/v1/health admin-only）待 ux/PM 定案。
-- **T-111** [P1] docker 413 verbatim 渲染臂（批 4） — 编码完成，conductor 核验通过（build/vet/lint 0、定向测试 ok、curl /v2 真机：413 DENIED 带 quota 文案/409 pattern/未配置仓 201 回归/W26c 零残留断言可过），提交 8ed20f7。单 reviewer 在途。遗留：remote docker FetchError 500 归 M5+ 代理票。
-- **T-97** [P0] groups 域+权限继承（批 4，双 reviewer 票） — 编码完成（未提交——router.go/server.go 与在途 T-94 共文件，待 T-94 完成后分票提交），conductor 核验通过（build/lint 0 全仓、auth 6.8s/metadata 5.7s/audit 1.6s/httpapi 55.9s、race 聚焦 ok、真机 curl W17~W21/W40+AC9+门矩阵+cookie 臂等价+CSRF）。**双 reviewer 在途**（正确性+安全 / 架构）。裁定点：遗留①?permissions 映射方向、遗留②匿名可达性。
-- **T-96** [P0] 备份/恢复 CLI（批 3，双 reviewer 票） — 编码完成，conductor 核验通过（build/vet ✓、storage+metadata+cmd 三包测试绿 25.3/19.7/18.2s、lint 0、真机抽查：fresh import --verify full 6/6 rehash、manifest sha 一致、恢复实例 GET sha 逐字对账 2b0ecdd6/7d0f10bc、blob 清单 bk≡fresh4、无钥 serve fail-fast 实证），提交 75c6d95。**双 reviewer 在途**（正确性+架构）。
+- **T-94** [P0] GC 管理化（批 4） — 编码完成，conductor 核验通过（build/vet/lint 0、定向 TestT94/TestDataLock/TestGC 三包 ok、auth 回归 ok；真机 curl 序列见 T-94.md），**与 T-97 合并提交 86f879b**（router.go/server.go 双票分支不可拆，message 分列）。单 reviewer 被 429 击落（刚起步）——额度重置后唤醒重派。REST 0=无宽限 vs CLI 0=config 双口径已专测钉死。
+- **T-97** [P0] groups 域+权限继承（批 4，双 reviewer 票） — 编码完成，conductor 核验通过（build/lint 0 全仓、四包测试 ok、真机 curl W17~W21/W40+AC9+门矩阵），**与 T-94 合并提交 86f879b**。**双 reviewer 均被 429 击落**（正确性侧在读 auth 层改动、架构侧在查第三方客户端类型定遗留①映射方向——官方文档已确认匿名语义「can be anonymous」）——额度重置后双双唤醒续跑。裁定点：遗留①?permissions 映射方向、遗留②匿名可达性。
+- **T-98** [P1] FE 基座（批 4） — review B1/B2/B3+N2 **修复完成提交 5f1a10a**（401 监听器同步置 statusRef+风暴探针单 toast 实测/useAsync 闭包旗标/改密 e2e 新例/⌘K 让位；7 e2e 全绿、SPA +50B），原 reviewer 复核被 429 击落（临终结论「修复差异与提出问题完全吻合」，独立验证段中断）——额度重置后唤醒续跑。契约漂移①（非 admin 健康可见）待 ux/PM 定案。
+- **T-111** [P1] docker 413 verbatim 渲染臂（批 4） — review REQUEST_CHANGES 1 blocking：**B1 tryMount 治理拒绝保持 202 降级与 FR-31-AC5（P0）「mount 超限 → 413」字面冲突**且零测试；裁决采方案一，修复被 429 击落——**WIP 在盘编译过**（errors.go/uploads.go/governance_render_test.go +91 行），**新疑点未解：真机 mount 仍 202 而单测真栈 413，生产行为不一致，需查日志定位支路**。其余全过（DENIED 拟合/臂序/Header/证明力）。remote docker FetchError 500 归 M5+。
 （T-64/T-67/T-69 等 M3 残留行 2026-08-20 清理，done 记录见 done 区）
+
+- **T-96** [P0] 备份/恢复 CLI `role:dev-go-core` `area:cmd(export/import)、internal/storage、internal/metadata(快照)` — done 2026-08-20（双 review 一轮修复）
+  export/import CLI + storage.AcquireDataLock 跨进程锁原语（flock/LockFileEx kernel32 直调，x/sys 不升 direct）。架构 review APPROVE（0 blocker；锁粒度/生命周期/分层全过；T-112 勘误收口）；正确性 review B1（import 不持锁+clearDirContents unlink 活锁）+ B2（非 sqlite driver/越界 dsn 无守卫）修复：import 整程持锁先于空目录检查/MaintenanceLockName 单一事实源/越界清理，**复核 APPROVE**。conductor 真机抽查：fresh import --verify full 6/6 rehash、GET sha 逐字对账、无钥 fail-fast 实证。提交 75c6d95+f1795b0。遗留：windows 锁运行时未验（M5）、docker/mvn/twine 保真链归 T-103、NB1~N7 台账（NB4/NB7 建议 M4 收尾小票）。
 
 - **T-112** [P1] architecture §7.6/ADR-0015 备份面勘误 `role:architect` `area:docs/design/architecture.md、DECISIONS.md` — done 2026-08-20
   9 条勘误（§7.6 四处：目录形态/--output/无 REST 面/CLI 退出码；ADR-0015 勘误二纯追加 5 行；§11.19 标题；§3.1/§3.2 公共面两行；§4.6 顺手收口 quotaBytes 键名 + remote 计量口径）。conductor grep 抽查：旧表述仅存于 quote-then-revoke 勘误注记内，零活体残留。技术债三条转 T-94 注记（N1/N2 已转发）/T-107（metadata.db 命名展开）。
