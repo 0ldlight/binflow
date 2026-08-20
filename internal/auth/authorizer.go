@@ -5,14 +5,16 @@ import (
 	"encoding/json"
 	"log/slog"
 	"slices"
-	"strings"
 )
 
 // Can implements Authorizer (architecture section 3.4). Decision order:
 // admin bypass; named permission targets (repo listed + include hit + no
 // exclude hit + principal row carries the action); no grant denies; the
-// anonymous rule only applies to nil principals. Store errors deny and are
-// logged (fail closed) — a broken permission table must never open access.
+// anonymous rule only applies to nil principals. Since T-97 (SE-07) a
+// principal row covers the user either through its own user row or through
+// a group row naming one of Principal.Groups — a union, never an
+// intersection. Store errors deny and are logged (fail closed) — a broken
+// permission table must never open access.
 func (s *Service) Can(ctx context.Context, p *Principal, repoKey, path, action string) bool {
 	if p != nil && p.Admin {
 		return true
@@ -48,7 +50,7 @@ func (s *Service) Can(ctx context.Context, p *Principal, repoKey, path, action s
 	}
 
 	for _, row := range rows {
-		if !strings.EqualFold(row.Principal, p.Name) || row.PrincipalType != "user" {
+		if !rowCoversPrincipal(row, p) {
 			continue
 		}
 		if !rowAllows(row, action) {
@@ -58,26 +60,41 @@ func (s *Service) Can(ctx context.Context, p *Principal, repoKey, path, action s
 		if !ok {
 			continue
 		}
-		repos, includes, excludes, err := decodeTarget(t)
+		covers, err := targetCovers(t, repoKey, path)
 		if err != nil {
 			slog.ErrorContext(ctx, "auth: malformed permission target, skipping",
 				slog.String("target", t.Name), slog.String("error", err.Error()))
 			continue
 		}
-		if !slices.Contains(repos, repoKey) {
-			continue
-		}
-		// include/exclude: empty includes means "everything" (auth-model.md
-		// section 4); any exclude hit wins over includes.
-		if len(includes) > 0 && !matchesAny(includes, path) {
-			continue
-		}
-		if matchesAny(excludes, path) {
+		if !covers {
 			continue
 		}
 		return true
 	}
 	return false
+}
+
+// targetCovers reports whether one permission target's scope covers
+// (repoKey, path): the repo is listed, the path matches an include pattern
+// (empty includes means "everything", auth-model.md section 4) and no
+// exclude pattern (any exclude hit wins over includes). The shared
+// predicate of Can and ItemPrincipals — the ?permissions view (SE-08) must
+// never disagree with the authorization decision on what a target covers.
+func targetCovers(t Target, repoKey, path string) (bool, error) {
+	repos, includes, excludes, err := decodeTarget(t)
+	if err != nil {
+		return false, err
+	}
+	if !slices.Contains(repos, repoKey) {
+		return false, nil
+	}
+	if len(includes) > 0 && !matchesAny(includes, path) {
+		return false, nil
+	}
+	if matchesAny(excludes, path) {
+		return false, nil
+	}
+	return true, nil
 }
 
 // rowAllows reports whether the principal row grants the action.

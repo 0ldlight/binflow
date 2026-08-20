@@ -139,9 +139,16 @@ func (s *Service) Issue(ctx context.Context, username string, ttl time.Duration)
 }
 
 // Verify on Service delegates to the shared verifier (single implementation
-// of the token rules).
+// of the token rules) and fills the group memberships on the resolved
+// principal — the same enrichment Authenticate applies, so direct Verify
+// consumers (docker token exchange) see the identical Principal shape.
 func (s *Service) Verify(ctx context.Context, plaintext string) (*Principal, error) {
-	return s.verifier.Verify(ctx, plaintext)
+	p, err := s.verifier.Verify(ctx, plaintext)
+	if err != nil {
+		return nil, err
+	}
+	s.fillGroups(ctx, p)
+	return p, nil
 }
 
 // Revoke deletes the token row matching the plaintext. Unknown tokens

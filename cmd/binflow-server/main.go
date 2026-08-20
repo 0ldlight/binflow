@@ -278,11 +278,15 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 		ReposSvc:  stack.svc,
 		Passwords: stack.authSvc,
 		Tokens:    stack.authSvc,
-		DataDir:   cfg.Storage.DataDir,
-		Console:   console.Handler(),
-		Adapters:  []adapter.Handler{stack.genericHandler, dockerHandler, mavenHandler, npmHandler, pypiHandler},
-		Version:   version,
-		Revision:  revision,
+		// The engine's mark-sweep face backs POST /api/v1/system/gc (T-94);
+		// the same opened engine serve writes through, so the REST gc and
+		// the CLI gc sweep one identical blob tree.
+		GC:       stack.st,
+		DataDir:  cfg.Storage.DataDir,
+		Console:  console.Handler(),
+		Adapters: []adapter.Handler{stack.genericHandler, dockerHandler, mavenHandler, npmHandler, pypiHandler},
+		Version:  version,
+		Revision: revision,
 	}, logger)
 }
 
@@ -544,7 +548,7 @@ func runGC(args []string, stderr io.Writer) error {
 
 	// Data-directory maintenance lock: held for the whole run (mark, sweep,
 	// ledger cleanup) — export is refused while gc works and vice versa.
-	lock, err := storage.AcquireDataLock(cfg.Storage.DataDir, "gc")
+	lock, err := storage.AcquireDataLock(cfg.Storage.DataDir, storage.DataLockOpGC)
 	if err != nil {
 		return fmt.Errorf("gc: %w", err)
 	}

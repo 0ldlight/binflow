@@ -30,6 +30,9 @@ type Service struct {
 	verifier      *TokenVerifier
 	// sessions backs the cookie arm (nil = arm inert; see WithSessions).
 	sessions webSessionSource
+	// groups backs the membership fill of Principal.Groups (nil = fill
+	// inert; see WithGroups, T-97).
+	groups groupSource
 }
 
 // userSource is the consumer-side slice of metadata.UserStore the
@@ -125,8 +128,21 @@ var (
 // Authenticate resolves the request credential (architecture section 3.4;
 // auth-model.md section 3.6; the session arm is ADR-0014/T-91). See the
 // Authenticator interface doc for the entry-point precedence. No credential
-// at all yields (nil, nil).
+// at all yields (nil, nil). Whichever arm resolved the principal, the group
+// membership fill runs once on the way out (T-97): every request re-reads
+// the membership, which is what makes group changes effective immediately
+// (NFR-S25 — no cache, no window).
 func (s *Service) Authenticate(ctx context.Context, r *http.Request) (*Principal, error) {
+	p, err := s.authenticate(ctx, r)
+	if err != nil {
+		return nil, err
+	}
+	s.fillGroups(ctx, p)
+	return p, nil
+}
+
+// authenticate is the arm dispatch behind Authenticate.
+func (s *Service) authenticate(ctx context.Context, r *http.Request) (*Principal, error) {
 	user, pass, hasBasic, err := basicAuth(r)
 	if err != nil {
 		return nil, err

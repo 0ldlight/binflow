@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/lzwzzy/binflow/internal/audit"
 	"github.com/lzwzzy/binflow/internal/metadata"
 )
 
@@ -30,9 +32,12 @@ type permissionBody struct {
 	Principals      permissionPrincipalsBody `json:"principals"`
 }
 
-// permissionPrincipalsBody carries per-user action lists; groups are M4.
+// permissionPrincipalsBody carries the two principal columns: per-user and
+// per-group action lists (T-97 / SE-07: groups ride the same target, the
+// authorizer unions both sides). Both maps render as {} when empty.
 type permissionPrincipalsBody struct {
-	Users map[string][]string `json:"users"`
+	Users  map[string][]string `json:"users"`
+	Groups map[string][]string `json:"groups"`
 }
 
 // handlePermissionCreate serves POST /api/v1/permissions (create or wholly
@@ -72,27 +77,50 @@ func (s *Server) handlePermissionCreate(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 	}
+	groups, err := s.deps.Metadata.Groups().List(r.Context())
+	if err != nil {
+		writePlainError(w, http.StatusInternalServerError, "list groups for validation: "+err.Error())
+		return
+	}
+	knownGroups := make(map[string]bool, len(groups))
+	for _, g := range groups {
+		knownGroups[g.Name] = true
+	}
+	for name := range body.Principals.Groups {
+		if !knownGroups[name] {
+			// Same family wording as the users arm (auth-model.md section 4:
+			// a principal referencing an unknown user/group is a 400).
+			writePlainError(w, http.StatusBadRequest, fmt.Sprintf("Unable to find group by name '%s'.", name))
+			return
+		}
+	}
 
-	principals := make([]*metadata.PermissionPrincipal, 0, len(body.Principals.Users))
-	for name, actions := range body.Principals.Users {
-		row := &metadata.PermissionPrincipal{
-			TargetName: body.Name, Principal: name, PrincipalType: "user",
-		}
-		for _, a := range actions {
-			switch strings.ToLower(strings.TrimSpace(a)) {
-			case "read":
-				row.CanRead = true
-			case "write":
-				row.CanWrite = true
-			case "delete":
-				row.CanDelete = true
-			default:
-				writePlainError(w, http.StatusBadRequest, fmt.Sprintf(
-					"unknown permission action %q (supported: read, write, delete)", a))
-				return
+	principals := make([]*metadata.PermissionPrincipal, 0, len(body.Principals.Users)+len(body.Principals.Groups))
+	appendRows := func(entries map[string][]string, principalType string) bool {
+		for name, actions := range entries {
+			row := &metadata.PermissionPrincipal{
+				TargetName: body.Name, Principal: name, PrincipalType: principalType,
 			}
+			for _, a := range actions {
+				switch strings.ToLower(strings.TrimSpace(a)) {
+				case "read":
+					row.CanRead = true
+				case "write":
+					row.CanWrite = true
+				case "delete":
+					row.CanDelete = true
+				default:
+					writePlainError(w, http.StatusBadRequest, fmt.Sprintf(
+						"unknown permission action %q (supported: read, write, delete)", a))
+					return false
+				}
+			}
+			principals = append(principals, row)
 		}
-		principals = append(principals, row)
+		return true
+	}
+	if !appendRows(body.Principals.Users, "user") || !appendRows(body.Principals.Groups, "group") {
+		return
 	}
 
 	now := time.Now().UTC().Format(time.RFC3339)
@@ -117,7 +145,28 @@ func (s *Server) handlePermissionCreate(w http.ResponseWriter, r *http.Request) 
 		writePlainError(w, http.StatusInternalServerError, "store permission target: "+err.Error())
 		return
 	}
+	// Authorization-change audit (NFR-S25: every grant change leaves a
+	// trail): the vocabulary distinguishes a fresh target from a replace.
+	action := audit.ActionPermissionUpdate
+	if existing == nil {
+		action = audit.ActionPermissionCreate
+	}
+	s.audit.Record(r.Context(), audit.Event{
+		Actor:  actorName(r),
+		Action: action,
+		Detail: auditDetail("name", body.Name, "principals", strconv.Itoa(len(principals))),
+	})
 	w.WriteHeader(http.StatusCreated)
+}
+
+// actorName resolves the audit actor from the request principal ("" lets
+// audit's Append stamp "anonymous"; the management routes are authenticated
+// so this is the admin's name in practice).
+func actorName(r *http.Request) string {
+	if p := principalFrom(r.Context()); p != nil {
+		return p.Name
+	}
+	return ""
 }
 
 // marshalStrings renders a string slice as a JSON array column value
@@ -148,7 +197,10 @@ func (s *Server) handlePermissionList(w http.ResponseWriter, r *http.Request) {
 			Repos:           unmarshalStrings(t.Repos),
 			IncludePatterns: unmarshalStrings(t.Includes),
 			ExcludePatterns: unmarshalStrings(t.Excludes),
-			Principals:      permissionPrincipalsBody{Users: map[string][]string{}},
+			Principals: permissionPrincipalsBody{
+				Users:  map[string][]string{},
+				Groups: map[string][]string{},
+			},
 		}
 		_, principalRows, err := s.deps.Metadata.Permissions().GetTarget(r.Context(), t.Name)
 		if err == nil {
@@ -162,6 +214,10 @@ func (s *Server) handlePermissionList(w http.ResponseWriter, r *http.Request) {
 				}
 				if row.CanDelete {
 					actions = append(actions, "delete")
+				}
+				if row.PrincipalType == "group" {
+					body.Principals.Groups[row.Principal] = actions
+					continue
 				}
 				body.Principals.Users[row.Principal] = actions
 			}
@@ -196,5 +252,10 @@ func (s *Server) handlePermissionDelete(w http.ResponseWriter, r *http.Request, 
 		writePlainError(w, http.StatusInternalServerError, "delete permission target: "+err.Error())
 		return
 	}
+	s.audit.Record(r.Context(), audit.Event{
+		Actor:  actorName(r),
+		Action: audit.ActionPermissionDelete,
+		Detail: auditDetail("name", name),
+	})
 	w.WriteHeader(http.StatusNoContent)
 }

@@ -48,6 +48,10 @@ type Deps struct {
 	Passwords auth.PasswordChanger
 	// Tokens issues and revokes API tokens (/api/security/token[/revoke]).
 	Tokens auth.TokenRegistry
+	// GC is the storage engine's mark-sweep face (POST /api/v1/system/gc,
+	// T-94). Nil on stacks assembled without an engine — the endpoint
+	// answers 503 rather than pretending a run happened.
+	GC GarbageCollector
 	// DataDir is storage.data_dir — the health probe writes there and the
 	// stats endpoint sizes blobs/ under it.
 	DataDir string
@@ -82,6 +86,11 @@ type Server struct {
 	// T-93). nil on metadata-less unit stacks — the endpoint answers 503
 	// rather than panicking there.
 	auditLog audit.Logger
+	// permView is the effective-permission facet of Deps.Authz (GET
+	// /api/storage/**?permissions, T-97/SE-08); nil when the injected
+	// authorizer is not the full auth.Service (unit fakes) — the endpoint
+	// answers 503 there instead of panicking.
+	permView permissionViewer
 	srv      *http.Server
 }
 
@@ -116,6 +125,12 @@ func New(deps Deps, log *slog.Logger) *Server {
 	// answer 503 rather than crashing on a missing collaborator.
 	if sr, ok := deps.Auth.(sessionRegistry); ok {
 		s.sessions = sr
+	}
+	// Effective-permission facet discovery (T-97): the real auth.Service
+	// computes the ?permissions view; a bare Authorizer fake stays
+	// view-less and the endpoint answers 503 instead of panicking.
+	if pv, ok := deps.Authz.(permissionViewer); ok {
+		s.permView = pv
 	}
 	// The audit recorder for the login plane: same store, same enabled
 	// toggle and the same redaction chain every other audited surface uses.

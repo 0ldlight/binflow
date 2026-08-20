@@ -48,6 +48,7 @@ type harness struct {
 	md       metadata.Store
 	svc      repo.Service
 	authSvc  *auth.Service
+	dataDir  string
 	logLines *[]string
 	mu       *sync.Mutex
 }
@@ -119,6 +120,7 @@ func newHarnessCfg(t *testing.T, mutate func(*config.Config), users [][2]string,
 		ReposSvc:  svc,
 		Passwords: authSvc,
 		Tokens:    authSvc,
+		GC:        st,
 		DataDir:   dataDir,
 		Console:   console.Handler(),
 		Adapters:  mounted,
@@ -130,7 +132,7 @@ func newHarnessCfg(t *testing.T, mutate func(*config.Config), users [][2]string,
 	t.Cleanup(ts.Close)
 
 	return &harness{
-		t: t, srv: ts, st: st, md: md, svc: svc, authSvc: authSvc,
+		t: t, srv: ts, st: st, md: md, svc: svc, authSvc: authSvc, dataDir: dataDir,
 		logLines: lines, mu: mu,
 	}
 }

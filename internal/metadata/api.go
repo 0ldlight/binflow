@@ -382,6 +382,13 @@ type UserStore interface {
 	// UpdateEmail sets the 004 email column (FR-27-AC8); ErrUserNotFound when
 	// the user does not exist.
 	UpdateEmail(ctx context.Context, username, email string) error
+	// UpdateProfile refreshes the mutable non-credential columns (email,
+	// admin flag) of one account in a single statement; ErrUserNotFound when
+	// the user does not exist. The password hash keeps its own seam
+	// (UpdatePassword) because it carries a freshly derived argon2id value
+	// while this method serves the create-or-replace and partial-update
+	// bodies of /api/security/users/{name} (T-97 SE-05/06).
+	UpdateProfile(ctx context.Context, username, email string, isAdmin bool) error
 	Delete(ctx context.Context, username string) error
 	List(ctx context.Context) ([]*User, error)
 }
@@ -408,6 +415,12 @@ type PermissionStore interface {
 	// PrincipalsFor returns every principal row of every target whose repos
 	// JSON array lists repoKey (auth evaluates patterns in memory).
 	PrincipalsFor(ctx context.Context, repoKey string) ([]*PermissionPrincipal, error)
+	// GroupReferences returns the names of every permission target carrying
+	// a group principal row for the named group (T-97, SE-04's delete
+	// guard): deleting a referenced group would silently strip its members
+	// of every grant, so the service layer answers 409 listing these names.
+	// User-typed rows naming the same string are irrelevant and excluded.
+	GroupReferences(ctx context.Context, group string) ([]string, error)
 }
 
 // AuditStore appends and queries audit events. Append is best-effort upstream

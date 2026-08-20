@@ -18,8 +18,9 @@ import (
 // Artifactory-compatible item info and file listing (rest-api.md section 3;
 // PRD E-09/E-10). GET /api/storage/{repo}/{path} answers FileInfo for files
 // and FolderInfo for directories; the ?list family returns a flat file
-// listing. Everything else under ?properties/?stats/?lastModified/
-// ?permissions is deliberately unimplemented and falls to the E-26 404.
+// listing; ?permissions answers the effective-permission view (SE-08, T-97).
+// Everything else under ?properties/?stats/?lastModified is deliberately
+// unimplemented and falls to the E-26 404.
 //
 // Read authorization follows the content plane (the endpoint exposes exactly
 // what a content GET exposes, metadata flavor): anonymous reads pass when
@@ -83,10 +84,11 @@ func isoMillisUTC(stored string) string {
 // its direct children sorted by name (rest-api.md section 3). relPath is the
 // decoded repo-relative path ("" = the repository root).
 func (s *Server) handleStorageItem(w http.ResponseWriter, r *http.Request, repoKey, relPath string) {
-	// Unimplemented query arms (E-09 scope): properties/stats/lastModified/
-	// permissions answer the E-26 404 rather than silently returning the
-	// plain item body.
-	for _, q := range []string{"properties", "propertiesXml", "stats", "lastModified", "permissions"} {
+	// Unimplemented query arms (E-09 scope): properties/stats/lastModified
+	// answer the E-26 404 rather than silently returning the plain item
+	// body. (?permissions left this list in T-97 — SE-08 routes it to
+	// handleStoragePermissions before this handler runs.)
+	for _, q := range []string{"properties", "propertiesXml", "stats", "lastModified"} {
 		if _, ok := r.URL.Query()[q]; ok {
 			notImplemented(w, "/binflow/api/storage item query '"+q+"'")
 			return
@@ -109,6 +111,113 @@ func (s *Server) handleStorageItem(w http.ResponseWriter, r *http.Request, repoK
 		return
 	}
 	s.writeFileInfo(w, r, repoKey, node)
+}
+
+// ---- ?permissions (SE-08, T-97) ----
+
+// permissionViewer is the effective-permission facet of the authorizer the
+// ?permissions view consumes (defined here at the consumer, per project
+// convention): auth.Service implements it, discovered by assertion on
+// Deps.Authz in New so the cmd wiring stays untouched.
+type permissionViewer interface {
+	// ItemPrincipals returns the user and group grants covering one repo
+	// path through the permission targets that scope it (SE-08).
+	ItemPrincipals(ctx context.Context, repoKey, path string) (users, groups map[string]auth.PrincipalBits, err error)
+}
+
+// permissionsView is the GET /api/storage/{repo}/{path}?permissions body
+// (rest-api.md section 3, high confidence): the item uri plus the effective
+// principal view, users and groups, each a map from the permission bit
+// (r/w/d) to the principal names holding it through the targets covering
+// the path. A bit with no principals renders no key; an item no target
+// covers answers empty objects.
+type permissionsView struct {
+	URI        string `json:"uri"`
+	Principals struct {
+		Users  map[string][]string `json:"users"`
+		Groups map[string][]string `json:"groups"`
+	} `json:"principals"`
+}
+
+// handleStoragePermissions serves GET /api/storage/{repo}/{path}?permissions
+// (SE-08): which users and groups hold r/w/d on one item through the
+// permission targets covering it — computed by the SAME predicate the
+// Authorizer applies (auth.ItemPrincipals), so the view can never disagree
+// with an actual authorization decision.
+//
+// Gates, in order: unknown repository 404 (envelope, the storage plane's
+// wording); non-local repository 400 (rest-api.md section 3: "non
+// local/cached -> 400"; BinFlow has no shadow-cache repos, so remote and
+// virtual both answer 400 — checked BEFORE any node resolution so a remote
+// query never triggers an upstream fetch); then the item's read gate rides
+// the content-plane service call (anonymous policy and 403/404 wording
+// exactly as a plain item GET). The repository root ("") has no node row
+// and takes the List call serveRootFolder uses as its read gate.
+func (s *Server) handleStoragePermissions(w http.ResponseWriter, r *http.Request, repoKey, relPath string) {
+	if s.permView == nil {
+		writeError(w, http.StatusServiceUnavailable, "permission view is not available on this instance")
+		return
+	}
+	row, err := s.deps.Repos.Get(r.Context(), repoKey)
+	if err != nil {
+		s.writeRepoLookupError(w, repoKey, err)
+		return
+	}
+	if row.Type != repo.TypeLocal {
+		writeError(w, http.StatusBadRequest,
+			"permission view is only supported on local repositories (requested repository type: "+row.Type+")")
+		return
+	}
+
+	p := principalFrom(r.Context())
+	path := relPath
+	if relPath == "" {
+		if _, err := s.deps.ReposSvc.List(r.Context(), p, repoKey, ""); err != nil {
+			s.writeStorageError(w, err)
+			return
+		}
+	} else {
+		node, nerr := s.storageNode(r, p, repoKey, relPath)
+		if nerr != nil {
+			s.writeStorageError(w, nerr)
+			return
+		}
+		// The node row's canonical spelling keeps the folder/file distinction
+		// ("devs/" vs "devs/w.bin") the path matcher keys on.
+		path = node.Path
+	}
+
+	users, groups, err := s.permView.ItemPrincipals(r.Context(), repoKey, path)
+	if err != nil {
+		s.log.Error("httpapi: permission view failed", "repo", repoKey, "error", err.Error())
+		writeError(w, http.StatusInternalServerError, "permission view failed")
+		return
+	}
+	view := permissionsView{URI: storageURI(requestBase(r), repoKey, "api/storage/"+path)}
+	view.Principals.Users = bitsToNames(users)
+	view.Principals.Groups = bitsToNames(groups)
+	writeJSONBody(w, http.StatusOK, view)
+}
+
+// bitsToNames inverts a per-principal bit map into the wire orientation of
+// rest-api.md section 3 (bit -> principal name set), names sorted.
+func bitsToNames(m map[string]auth.PrincipalBits) map[string][]string {
+	out := map[string][]string{}
+	for name, bits := range m {
+		if bits.Read {
+			out["r"] = append(out["r"], name)
+		}
+		if bits.Write {
+			out["w"] = append(out["w"], name)
+		}
+		if bits.Delete {
+			out["d"] = append(out["d"], name)
+		}
+	}
+	for _, names := range out {
+		sort.Strings(names)
+	}
+	return out
 }
 
 // storageNode resolves one node row through the content-plane service call

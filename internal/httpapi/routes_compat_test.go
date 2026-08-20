@@ -153,7 +153,9 @@ func TestCompatPlaneE26(t *testing.T) {
 		{http.MethodPost, "/binflow/api/repositories/generic-local/something"},
 		{http.MethodPost, "/binflow/api/storage/generic-local/x"},
 		{http.MethodDelete, "/binflow/api/storage/generic-local"},
-		{http.MethodPost, "/binflow/api/security/users/someone"},
+		// T-97 R5 flip: POST /api/security/users/{name} ROUTES now (SE-06
+		// partial update — pinned in t97_groups_test.go); the row that used
+		// to assert its 404 moved there.
 		{http.MethodDelete, "/binflow/api/security/users"},
 		{http.MethodGet, "/binflow/api/security/token"},        // GET on a POST route
 		{http.MethodGet, "/binflow/api/security/token/revoke"}, // GET on a POST route

@@ -390,13 +390,30 @@ func TestUsersRoutes(t *testing.T) {
 		_ = resp.Body.Close()
 	})
 
-	t.Run("duplicate is 409 plain text", func(t *testing.T) {
+	t.Run("PUT on an existing user replaces it with 201 (T-97 flip)", func(t *testing.T) {
+		// M1 answered 409 "The user already exists" here. T-97 retired that
+		// posture: auth-model.md section 1.3 item 11 (high confidence) makes
+		// PUT create-or-replace — both outcomes 201 no body — and the M4
+		// membership flow (W19b: PUT an existing user's groups) depends on
+		// it. The collection POST route keeps the 409 (create-only).
 		resp := h.do(http.MethodPut, "/binflow/api/security/users/ci-bot", adminUser, adminPass,
 			[]byte(`{"name":"ci-bot","email":"ci@example.com","password":"other"}`),
 			map[string]string{"Content-Type": "application/json"})
-		if resp.StatusCode != http.StatusConflict {
+		if resp.StatusCode != http.StatusCreated {
 			t.Fatalf("status = %d body=%s", resp.StatusCode, mustGet(t, resp))
 		}
+		_ = resp.Body.Close()
+		// The replacement password is the live credential; the old one died.
+		resp = h.do(http.MethodGet, "/binflow/api/system/version", "ci-bot", "other", nil, nil)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("replaced password auth status = %d", resp.StatusCode)
+		}
+		_ = resp.Body.Close()
+		resp = h.do(http.MethodGet, "/binflow/api/system/version", "ci-bot", "ci-pw", nil, nil)
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("old password must be dead, status = %d", resp.StatusCode)
+		}
+		_ = resp.Body.Close()
 	})
 
 	t.Run("POST collection route with the same chain", func(t *testing.T) {

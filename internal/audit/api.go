@@ -108,6 +108,12 @@ const (
 	ActionExportRun        = "export.run"
 	ActionImportRun        = "import.run"
 	ActionQuotaExceeded    = "quota.exceeded"
+	// ActionGroupMember records one membership-set change of a user (the
+	// groups[] field of PUT/POST /api/security/users/{name}). Defined by
+	// T-97 per its dispatch note (the T-93 vocabulary covers group CRUD but
+	// no member-change action; NFR-S25 requires membership changes to leave
+	// an audit trail). Detail carries {"user", "groups"}.
+	ActionGroupMember = "group.member"
 )
 
 // Actions returns the full M1~M4 action vocabulary (GE-02): every action
@@ -122,6 +128,7 @@ func Actions() []string {
 		ActionTokenIssue, ActionTokenRevoke,
 		ActionPasswordChange,
 		ActionGroupCreate, ActionGroupUpdate, ActionGroupDelete,
+		ActionGroupMember,
 		ActionPermissionCreate, ActionPermissionUpdate, ActionPermissionDelete,
 		ActionGCRun, ActionExportRun, ActionImportRun,
 		ActionQuotaExceeded,

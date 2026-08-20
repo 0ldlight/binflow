@@ -423,10 +423,13 @@ type userListItem struct {
 }
 
 // userDetail is the single-user body: the observable account facts, never a
-// password or hash (FR-5-AC11).
+// password or hash (FR-5-AC11). Email always renders ("" when unset — SE-05
+// round-trips the stored value); groups is the membership set ([] when the
+// user belongs to none); lastLoggedIn stays absent until login times are
+// tracked.
 type userDetail struct {
 	Name                     string   `json:"name"`
-	Email                    string   `json:"email,omitempty"`
+	Email                    string   `json:"email"`
 	Admin                    bool     `json:"admin"`
 	Groups                   []string `json:"groups"`
 	LastLoggedIn             string   `json:"lastLoggedIn,omitempty"`
@@ -436,12 +439,15 @@ type userDetail struct {
 	DisableUIAccess          bool     `json:"disableUIAccess"`
 }
 
-// userCreateBody is the create/replace body of both routes.
+// userCreateBody is the create/replace body of both routes. Groups is the
+// M4 membership field (SE-06): nil means "not addressed" on partial update
+// and "no groups" on create/replace.
 type userCreateBody struct {
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
-	Admin    bool   `json:"admin"`
+	Name     string   `json:"name"`
+	Email    string   `json:"email"`
+	Password string   `json:"password"`
+	Admin    bool     `json:"admin"`
+	Groups   []string `json:"groups"`
 }
 
 // handleUserList serves GET /api/security/users (admin): the name/uri/realm
@@ -463,7 +469,8 @@ func (s *Server) handleUserList(w http.ResponseWriter, r *http.Request) {
 	writeJSONBody(w, http.StatusOK, items)
 }
 
-// handleUserGet serves GET /api/security/users/{name} (admin).
+// handleUserGet serves GET /api/security/users/{name} (admin): the single
+// user with the 004 email round-trip (W40) and the M4 groups echo (SE-05).
 func (s *Server) handleUserGet(w http.ResponseWriter, r *http.Request, name string) {
 	u, err := s.deps.Metadata.Users().Get(r.Context(), name)
 	if err != nil {
@@ -474,33 +481,48 @@ func (s *Server) handleUserGet(w http.ResponseWriter, r *http.Request, name stri
 		writePlainError(w, http.StatusInternalServerError, "get user: "+err.Error())
 		return
 	}
+	groupRows, err := s.deps.Metadata.Groups().GroupsOfUser(r.Context(), name)
+	if err != nil {
+		writePlainError(w, http.StatusInternalServerError, "resolve user groups: "+err.Error())
+		return
+	}
+	groups := make([]string, 0, len(groupRows))
+	for _, g := range groupRows {
+		groups = append(groups, g.Name)
+	}
 	writeJSONBody(w, http.StatusOK, userDetail{
 		Name:             u.Username,
+		Email:            u.Email,
 		Admin:            u.IsAdmin,
-		Groups:           []string{},
+		Groups:           groups,
 		Realm:            "internal",
 		ProfileUpdatable: true,
 	})
 }
 
 // handleUserCreatePut serves PUT /api/security/users/{name} (the real
-// Artifactory create/replace route): 201 with no body. Validation chain per
-// auth-model.md 1.3 — reserved name, body/path name mismatch, blank email,
-// blank password all 400 plain text.
+// Artifactory create-or-replace route): 201 with no body in BOTH outcomes —
+// create and replace (auth-model.md 1.3 item 11; the M1 409-on-existing
+// posture was a simplification retired by T-97, whose membership flow
+// W19b re-PUTs an existing user). Validation chain per auth-model.md 1.3 —
+// reserved name, body/path name mismatch (409), blank email, blank
+// password, unknown group all 400 plain text.
 func (s *Server) handleUserCreatePut(w http.ResponseWriter, r *http.Request, name string) {
-	s.userCreate(w, r, name)
+	s.userCreate(w, r, name, true /*replace*/)
 }
 
 // handleUserCreatePost serves POST /api/security/users (BinFlow's own
-// collection route): the same validation chain and the same 201.
+// collection route): create-only — an existing name is the M1 409 (the
+// collection has no path to key a replace on; partial update lives on
+// POST /api/security/users/{name}).
 func (s *Server) handleUserCreatePost(w http.ResponseWriter, r *http.Request) {
-	s.userCreate(w, r, "")
+	s.userCreate(w, r, "", false /*replace*/)
 }
 
 // userCreate is the shared create/replace implementation. pathName is the
 // {name} route segment (empty for the collection route, which then requires
-// body.name).
-func (s *Server) userCreate(w http.ResponseWriter, r *http.Request, pathName string) {
+// body.name); replace allows updating an existing account in place.
+func (s *Server) userCreate(w http.ResponseWriter, r *http.Request, pathName string, replace bool) {
 	var body userCreateBody
 	if err := decodeJSONBodyOf(r, &body); err != nil {
 		writePlainError(w, http.StatusBadRequest, err.Error())
@@ -539,28 +561,148 @@ func (s *Server) userCreate(w http.ResponseWriter, r *http.Request, pathName str
 			"user names must be lowercase (Artifactory lower-cases on create; BinFlow rejects the mixed-case spelling instead of silently renaming)")
 		return
 	}
-
-	if _, err := s.deps.Metadata.Users().Get(r.Context(), name); err == nil {
-		writePlainError(w, http.StatusConflict, "The user already exists: "+name)
+	if !s.validateGroupNames(w, r, body.Groups) {
 		return
-	} else if !errors.Is(err, metadata.ErrUserNotFound) {
+	}
+
+	existing, err := s.deps.Metadata.Users().Get(r.Context(), name)
+	switch {
+	case err == nil:
+		if !replace {
+			writePlainError(w, http.StatusConflict, "The user already exists: "+name)
+			return
+		}
+	case errors.Is(err, metadata.ErrUserNotFound):
+		// create below
+	default:
 		writePlainError(w, http.StatusInternalServerError, "get user: "+err.Error())
 		return
 	}
-	hash, err := auth.HashPassword(body.Password)
+
+	if existing == nil {
+		hash, herr := auth.HashPassword(body.Password)
+		if herr != nil {
+			writePlainError(w, http.StatusInternalServerError, "hash password: "+herr.Error())
+			return
+		}
+		now := nowRFC3339UTC()
+		if err := s.deps.Metadata.Users().Create(r.Context(), &metadata.User{
+			Username: name, PasswordHash: hash, IsAdmin: body.Admin, Enabled: true,
+			Email:     strings.TrimSpace(body.Email),
+			CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			writePlainError(w, http.StatusInternalServerError, "create user: "+err.Error())
+			return
+		}
+	} else {
+		// Replace (create-or-replace semantics): password, email and the
+		// admin flag take the body's values; the enabled flag is not part
+		// of the wire body and keeps its stored value.
+		hash, herr := auth.HashPassword(body.Password)
+		if herr != nil {
+			writePlainError(w, http.StatusInternalServerError, "hash password: "+herr.Error())
+			return
+		}
+		if err := s.deps.Metadata.Users().UpdatePassword(r.Context(), name, hash); err != nil {
+			writePlainError(w, http.StatusInternalServerError, "replace password: "+err.Error())
+			return
+		}
+		if err := s.deps.Metadata.Users().UpdateProfile(r.Context(), name,
+			strings.TrimSpace(body.Email), body.Admin); err != nil {
+			writePlainError(w, http.StatusInternalServerError, "replace profile: "+err.Error())
+			return
+		}
+	}
+	if err := s.setUserGroups(r, name, body.Groups); err != nil {
+		writePlainError(w, http.StatusInternalServerError, "set user groups: "+err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusCreated) // 201, no body (auth-model.md 1.2/1.3-11)
+}
+
+// userUpdateBody is the partial-update body of POST /api/security/users/
+// {name} (SE-06, auth-model.md 1.4: unprovided fields keep their stored
+// values). Every mutable field is a pointer so "absent" and "explicitly
+// empty" stay distinguishable — clearing the membership is groups:[], not
+// an omitted groups field.
+type userUpdateBody struct {
+	Name     string    `json:"name"`
+	Email    *string   `json:"email"`
+	Password *string   `json:"password"`
+	Admin    *bool     `json:"admin"`
+	Groups   *[]string `json:"groups"`
+}
+
+// handleUserUpdatePost serves POST /api/security/users/{name} (SE-06): the
+// partial update — name mismatch 409, unknown user 404, provided-but-blank
+// email/password 400, groups[] replaced wholesale (unknown group 400).
+func (s *Server) handleUserUpdatePost(w http.ResponseWriter, r *http.Request, name string) {
+	var body userUpdateBody
+	if err := decodeJSONBodyOf(r, &body); err != nil {
+		writePlainError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if body.Name != "" && body.Name != name {
+		writePlainError(w, http.StatusConflict,
+			"The username that was provided in the request path does not match the username in the provided user configuration object.")
+		return
+	}
+	u, err := s.deps.Metadata.Users().Get(r.Context(), name)
 	if err != nil {
-		writePlainError(w, http.StatusInternalServerError, "hash password: "+err.Error())
+		if errors.Is(err, metadata.ErrUserNotFound) {
+			writePlainError(w, http.StatusNotFound, "User not found")
+			return
+		}
+		writePlainError(w, http.StatusInternalServerError, "get user: "+err.Error())
 		return
 	}
-	now := nowRFC3339UTC()
-	if err := s.deps.Metadata.Users().Create(r.Context(), &metadata.User{
-		Username: name, PasswordHash: hash, IsAdmin: body.Admin, Enabled: true,
-		CreatedAt: now, UpdatedAt: now,
-	}); err != nil {
-		writePlainError(w, http.StatusInternalServerError, "create user: "+err.Error())
+	if body.Email != nil && strings.TrimSpace(*body.Email) == "" {
+		writePlainError(w, http.StatusBadRequest, "Please provide a valid user email.")
 		return
 	}
-	w.WriteHeader(http.StatusCreated) // 201, no body (auth-model.md 1.2)
+	if body.Password != nil && *body.Password == "" {
+		writePlainError(w, http.StatusBadRequest, "Please provide a valid user password.")
+		return
+	}
+	var groups []string
+	if body.Groups != nil {
+		groups = *body.Groups
+		if !s.validateGroupNames(w, r, groups) {
+			return
+		}
+	}
+
+	if body.Password != nil {
+		hash, herr := auth.HashPassword(*body.Password)
+		if herr != nil {
+			writePlainError(w, http.StatusInternalServerError, "hash password: "+herr.Error())
+			return
+		}
+		if err := s.deps.Metadata.Users().UpdatePassword(r.Context(), name, hash); err != nil {
+			writePlainError(w, http.StatusInternalServerError, "update password: "+err.Error())
+			return
+		}
+	}
+	if body.Email != nil || body.Admin != nil {
+		email, isAdmin := u.Email, u.IsAdmin
+		if body.Email != nil {
+			email = strings.TrimSpace(*body.Email)
+		}
+		if body.Admin != nil {
+			isAdmin = *body.Admin
+		}
+		if err := s.deps.Metadata.Users().UpdateProfile(r.Context(), name, email, isAdmin); err != nil {
+			writePlainError(w, http.StatusInternalServerError, "update profile: "+err.Error())
+			return
+		}
+	}
+	if body.Groups != nil {
+		if err := s.setUserGroups(r, name, groups); err != nil {
+			writePlainError(w, http.StatusInternalServerError, "set user groups: "+err.Error())
+			return
+		}
+	}
+	w.WriteHeader(http.StatusOK) // 200, no body (auth-model.md 1.2)
 }
 
 // nowRFC3339UTC stamps a metadata timestamp.

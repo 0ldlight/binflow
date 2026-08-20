@@ -102,18 +102,35 @@ func (a permissionStoreAdapter) PrincipalsFor(ctx context.Context, repoKey strin
 // isNotFound reports whether err wraps want (sentinel from metadata).
 func isNotFound(err, want error) bool { return errors.Is(err, want) }
 
+// groupStoreAdapter adapts metadata.GroupStore onto the name-oriented
+// groupSource (T-97): rows become names, order preserved.
+type groupStoreAdapter struct{ s metadata.GroupStore }
+
+func (a groupStoreAdapter) GroupsOfUser(ctx context.Context, username string) ([]string, error) {
+	groups, err := a.s.GroupsOfUser(ctx, username)
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(groups))
+	for _, g := range groups {
+		names = append(names, g.Name)
+	}
+	return names, nil
+}
+
 // NewFromStore wires Service over a metadata.Store. anonymousRead is
 // config.Security.AnonymousAccess. The browser-session arm (M4, ADR-0014)
-// is wired unconditionally: metadata.Open always carries the 004
-// web_sessions table, so every store-backed service is also the console's
-// SessionRegistry.
+// and the group-membership fill (M4, T-97) are wired unconditionally:
+// metadata.Open always carries the 004 web_sessions/groups tables, so every
+// store-backed service is also the console's SessionRegistry and carries
+// SE-07's union semantics.
 func NewFromStore(st metadata.Store, anonymousRead bool) *Service {
 	return New(
 		userStoreAdapter{s: st.Users()},
 		tokenStoreAdapter{s: st.Tokens()},
 		permissionStoreAdapter{s: st.Permissions()},
 		anonymousRead,
-	).WithSessions(st.WebSessions())
+	).WithSessions(st.WebSessions()).WithGroups(groupStoreAdapter{s: st.Groups()})
 }
 
 // PermissionSource is the exported permission-plane seam of Service: the

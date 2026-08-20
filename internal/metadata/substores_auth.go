@@ -82,6 +82,24 @@ func (s *userStore) UpdateEmail(ctx context.Context, username, email string) err
 	return nil
 }
 
+// UpdateProfile refreshes the mutable non-credential columns (email, admin
+// flag) in one statement (T-97: the replace/partial-update bodies of
+// /api/security/users/{name}).
+func (s *userStore) UpdateProfile(ctx context.Context, username, email string, isAdmin bool) error {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE users SET email = ?, is_admin = ?, updated_at = ? WHERE username = ?`,
+		email, boolToInt(isAdmin), Now(), username)
+	if err != nil {
+		return wrapExec("users update-profile", username, err)
+	}
+	if n, err := res.RowsAffected(); err != nil {
+		return wrapExec("users update-profile rows", username, err)
+	} else if n == 0 {
+		return fmt.Errorf("users update-profile %s: %w", username, ErrUserNotFound)
+	}
+	return nil
+}
+
 func (s *userStore) Delete(ctx context.Context, username string) error {
 	res, err := s.db.ExecContext(ctx, `DELETE FROM users WHERE username = ?`, username)
 	if err != nil {
@@ -365,6 +383,34 @@ func (s *permissionStore) PrincipalsFor(ctx context.Context, repoKey string) ([]
 func escapeLike(s string) string {
 	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 	return r.Replace(s)
+}
+
+// GroupReferences returns the names of every permission target carrying a
+// group principal row for the named group (T-97, SE-04's delete guard),
+// ordered by target name. Only principal_type='group' rows match: a user
+// row spelling the same name references no group.
+func (s *permissionStore) GroupReferences(ctx context.Context, group string) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT t.name FROM permission_targets t
+		JOIN permission_principals p ON p.target_name = t.name
+		WHERE p.principal_type = 'group' AND p.principal = ?
+		ORDER BY t.name`, group)
+	if err != nil {
+		return nil, wrapExec("permission group-references", group, err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, wrapExec("permission group-references scan", group, err)
+		}
+		out = append(out, name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, wrapExec("permission group-references rows", group, err)
+	}
+	return out, nil
 }
 
 // ---- AuditStore ----

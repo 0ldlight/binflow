@@ -198,18 +198,21 @@ func TestCanPatternSemantics(t *testing.T) {
 		}
 	})
 
-	t.Run("groups ignored in M1", func(t *testing.T) {
+	t.Run("group rows apply only through Principal.Groups", func(t *testing.T) {
 		f := newFixture(t, false)
-		// A group-typed principal row for a name must not authorize a user
-		// of that name (M1 has no groups; non-user rows are skipped rather
-		// than misapplied).
+		// Since T-97 (SE-07) a group-typed principal row authorizes the
+		// members of that group — but ONLY them: a principal carrying no
+		// groups is never covered by a group row, not even one spelling the
+		// user's own name (the pre-M4 posture survives for group-less
+		// principals). The membership-covered side is pinned in
+		// groups_test.go (TestCanGroupUnion and friends).
 		if err := f.st.Permissions().PutTarget(f.ctx,
 			targetOf("grp", []string{"r"}, []string{"**"}, nil),
 			groupRow("grp", "ci-bot")); err != nil {
 			t.Fatalf("put group row: %v", err)
 		}
 		if f.svc.Can(f.ctx, &auth.Principal{Name: "ci-bot"}, "r", "a", auth.ActionRead) {
-			t.Fatal("group-typed row must not authorize a user principal in M1")
+			t.Fatal("group-typed row must not authorize a principal that is not a member")
 		}
 	})
 }

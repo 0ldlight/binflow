@@ -299,6 +299,14 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	case rest == "v1/audit" && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleAuditQuery)
 
+	// ---- /api/v1/system/gc (GE-03, T-94; admin, sync, lock-guarded) ----
+	// POST is the only verb with a route: the job-status endpoint (GET) is
+	// a recorded P2 debt (ADR-0015 erratum ②) — the last run is queried
+	// through the audit trail's gc.run events, not a live status surface.
+	// Every other spelling falls to the E-26 404.
+	case rest == "v1/system/gc" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleSystemGC)
+
 	// ---- /api/v1/session (CE-03..05, T-91; ADR-0014 erratum 2) ----
 	// POST is deliberately un-gated (it IS the credential presentation);
 	// GET/DELETE demand an authenticated principal of any arm — whoami is
@@ -371,6 +379,16 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 			})
 			return
 		}
+		if _, ok := r.URL.Query()["permissions"]; ok && r.Method == http.MethodGet {
+			// SE-08 (T-97): the effective-permission view rides the same read
+			// posture as the plain item body (the handler resolves the item
+			// through the content-plane service call, so the anonymous policy
+			// and the 403/404 wording stay those of an item GET).
+			s.enforce(w, r, routeAuth{}, func(w http.ResponseWriter, r *http.Request) {
+				s.handleStoragePermissions(w, r, repoKey, rel)
+			})
+			return
+		}
 		if r.Method == http.MethodGet {
 			s.enforce(w, r, routeAuth{}, func(w http.ResponseWriter, r *http.Request) {
 				s.handleStorageItem(w, r, repoKey, rel)
@@ -419,6 +437,31 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	case strings.HasPrefix(rest, "security/users/") && r.Method == http.MethodPut:
 		s.enforce(w, r, routeAuth{required: true, admin: true},
 			s.withName(rest, "security/users/", s.handleUserCreatePut))
+	case strings.HasPrefix(rest, "security/users/") && r.Method == http.MethodPost:
+		// SE-06 partial update (T-97): email/password/admin and the groups[]
+		// membership set. The changePassword alias above wins by order — its
+		// exact-match case precedes this prefix case.
+		s.enforce(w, r, routeAuth{required: true, admin: true},
+			s.withName(rest, "security/users/", s.handleUserUpdatePost))
+
+	// ---- /api/security/groups (SE-01..04, T-97; admin) ----
+	// Errors inside the handlers are the user-management plain-text layer;
+	// the admin gate itself renders the plane's envelope like every other
+	// /api/security route.
+	case rest == "security/groups" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleGroupList)
+	case strings.HasPrefix(rest, "security/groups/") && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, admin: true},
+			s.withName(rest, "security/groups/", s.handleGroupGet))
+	case strings.HasPrefix(rest, "security/groups/") && r.Method == http.MethodPut:
+		s.enforce(w, r, routeAuth{required: true, admin: true},
+			s.withName(rest, "security/groups/", s.handleGroupPut))
+	case strings.HasPrefix(rest, "security/groups/") && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, admin: true},
+			s.withName(rest, "security/groups/", s.handleGroupPost))
+	case strings.HasPrefix(rest, "security/groups/") && r.Method == http.MethodDelete:
+		s.enforce(w, r, routeAuth{required: true, admin: true},
+			s.withName(rest, "security/groups/", s.handleGroupDelete))
 
 	default:
 		// /binflow/api/<proto>/** protocol mounts (npm, pypi — the §5.4

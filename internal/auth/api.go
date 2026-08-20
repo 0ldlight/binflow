@@ -14,6 +14,13 @@ type Principal struct {
 	Name    string
 	Admin   bool
 	TokenID int64 // > 0 when the request authenticated via API token
+	// Groups holds the group names the user belonged to at authentication
+	// time (T-97 / SE-07, architecture 3.4: the user_groups JOIN filled on
+	// every Authenticate call — per-request resolution is what makes
+	// membership changes effective on the next request, NFR-S25). Nil or
+	// empty for anonymous principals and for services built without a group
+	// source; the Authorizer unions these names' grants with the user's own.
+	Groups []string
 	// ViaSession marks the third authentication arm (M4, ADR-0014): the
 	// credential was the binflow_session cookie, not a header. Session and
 	// header credentials are EQUIVALENT for every authorization decision —
