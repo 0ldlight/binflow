@@ -3,11 +3,20 @@
 | 项 | 值 |
 |---|---|
 | 文档 | `docs/design/console-ux.md` |
-| 票据 | T-87（M4 Web 控制台信息架构与线框） |
-| 状态 | v1.0（2026-08-20） |
+| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单） |
+| 状态 | v1.1（2026-08-21） |
 | 维护者 | ux-designer |
-| 上游依据 | PRODUCT.md（Web 控制台/治理/Non-goals）、ROADMAP.md M4 节、docs/prd/milestone-1/2/3.md（端点矩阵与已定案行为）、docs/user/docker-registry.md（用户面口径）、docs/design/architecture.md §7（路由/console 挂载点）、BOARD.md（T-85 M4 PRD / T-86 架构并行票） |
+| 上游依据 | PRODUCT.md（Web 控制台/治理/Non-goals）、ROADMAP.md M4 节、docs/prd/milestone-1/2/3/4.md（端点矩阵与已定案行为）、docs/user/docker-registry.md（用户面口径）、docs/design/architecture.md §7（路由/console 挂载点）、internal/httpapi/router.go（路由门事实——§3.6.2 矩阵逐一核对）、reports/agents/T-98.md · T-99.md（漂移登记与 testid 素材）、reports/agents/T-98-review.md（N1 收敛建议）、BOARD.md（T-85 PRD / T-97 存在性不泄露裁决） |
 | 下游消费者 | T-86（架构：console 包/session/前端工程结构）、tech-lead（M4 拆票）、前端 dev（页面组票）、qa-engineer（控制台验收） |
+
+---
+
+## 0. 修订记录
+
+| 版本 | 日期 | 变更 |
+|---|---|---|
+| v1.0 | 2026-08-20 | T-87 初版：IA（导航树 + 18 路由 + 五协议×三仓型矩阵）、11 页线框（登录/仪表盘/仓库列表/建仓/仓库详情/制品树/上传/搜索/权限编辑器/审计/治理）、交互四态（通用原则 + 骨架屏策略 + 每页矩阵）、大目录策略、设计 token（暗色优先）、可达性、API 需求清单 R1~R10 |
+| v1.1 | 2026-08-21 | T-116 权限可见性漂移集中定案：① §3.3 按路由门事实修订角色可见性——健康、仓库列表、Tokens 三处 v1.0 设想与实现的漂移定案，**均维持实现（admin-only）**，理由与放宽前置条件见 §3.6.1；② 新增 §3.6 权限可见性矩阵（403 收敛四层主姿态 + 端点×门矩阵 + 页面×角色呈现矩阵 + admin 硬编码裁定，收敛 T-98 review N1）；③ §3.1 治理分组补「审计日志」条目（v1.0 导航漏列而 §3.2 已有路由；`GET /api/v1/audit` 为 admin 门，归治理组）；④ §5.1 的 403 分流改挂 §3.6.3 分层规则（消除「403 一律无权限卡」与卡片级隐藏的矛盾）；⑤ 新增 §10 data-testid 命名清单（T-98/T-99 已落锚全量核对自源码 + 命名规则 + T-100~T-102 预定锚——T-104 断言锚源）；⑥ 修订记录自文末移至 §0 |
 
 ---
 
@@ -78,6 +87,8 @@ BinFlow ◆                    ← 产品名 + 版本号（/api/system/version�
    └ Access Tokens           ← /security/tokens
 ────────────────────────────  ← 「治理」分组（admin 可见）
 ▣ 治理
+   ├ 审计日志                ← /audit（v1.1 补列：v1.0 导航漏列而 §3.2 已有路由；
+   │                           GET /api/v1/audit 为 admin 门，归治理组）
    ├ 存储 & GC               ← /governance/gc
    ├ 备份 / 恢复             ← /governance/backup
    └ 配额                    ← /governance/quotas
@@ -88,7 +99,7 @@ BinFlow ◆                    ← 产品名 + 版本号（/api/system/version�
 ```
 
 - **导航层级不超过两级**；制品树深度由仓库详情页内的面包屑承载（§4.6），不塞进全局导航。
-- 分组标题（安全 / 治理）是标签不是可折叠项——条目总量 10 个，折叠反而增加点击。
+- 分组标题（安全 / 治理）是标签不是可折叠项——条目总量 12 个（v1.1 补审计日志后），折叠反而增加点击。
 - 非 admin 用户按 §3.3 收窄可见性。
 
 ### 3.2 路由表（SPA 路由；`/binflow/` 为应用根，下表路径为应用内路径）
@@ -116,17 +127,20 @@ BinFlow ◆                    ← 产品名 + 版本号（/api/system/version�
 
 未匹配路由 → 404 页（保留导航壳，给出返回仪表盘链接）。
 
-### 3.3 角色可见性（收敛规则）
+### 3.3 角色可见性（v1.1 定案口径）
 
-M1~M3 管理面 API 基本为 admin-only；M4 权限完整模型的最终口径在 T-85。UX 按以下收敛规则设计，API 放宽时 UI 自动多显示，无需改版：
+可见性基线是**路由门事实**（§3.6.2 端点×门矩阵，逐一核对自 `internal/httpapi/router.go`）：管理面（健康 / 存储统计 / 审计 / 仓库配置 CRUD / 权限 / 用户 / 组 / token / GC）一律 admin-only；内容面（storage children / 搜索 / 树浏览）按调用者路径 ACL；`system/version` 开放。v1.0 的「非 admin 可见只读健康 / 仅列出有 read 权限的 repo / 仅自己的 token」三项设想与实现漂移，v1.1 定案**维持实现**（理由与放宽前置条件见 §3.6.1）。
 
-| 角色 | 可见导航 | 说明 |
+| 角色 | 可见面 | 说明 |
 |---|---|---|
-| admin | 全部 | 10 个入口全开 |
-| 非 admin 已登录 | 仪表盘（只读健康/版本）、仓库（仅列出有 read 权限的 repo）、搜索、安全→Access Tokens（仅自己的 token）、设置→改密 | 「安全」分组只保留 Tokens 一项；治理整个隐藏 |
+| admin | 全部入口与数据面 | 12 个导航入口全开 |
+| 非 admin 已登录 | 仪表盘（实例卡 + 一段收敛说明）、仓库入口（列表页呈现无权限卡 + 搜索/直链引导——**制品面经树路由与搜索仍按自身 ACL 可达**）、搜索（结果按调用者 ACL 过滤）、设置（实例信息 + 改密） | 「安全」「治理」分组整体隐藏——**含 Tokens**（token 签发 admin-only：D3 定案，M4 无 scope 模型，非 admin 自签分支关闭）；仪表盘健康/存储/仓库/审计四卡隐藏（§3.6.3 L3） |
 | 未登录 | 无（重定向 `/login?return=<原路由>`） | 登录成功后回跳 return |
 
-判定依据：导航渲染以「API 403 即隐藏对应入口」为兜底（前端不硬编码角色枚举）；首登可用 `GET /api/system/version`（探活）+ 一次仓库列表探测完成收敛。
+判定信号（两个，各司其职、必须同向）：
+
+- **whoami**（`GET /api/v1/session`，CE-04）的 `{username, admin}` —— 导航分组与写入口的**预收敛**信号（一次请求、零额外探测；v1.0 的「仓库列表探测」已不可用——该端点 admin-only）。
+- **各请求自身 403**（useAsync `forbidden` 态）—— 数据面的**终裁**（§3.6.3 分层规则）。
 
 ### 3.4 五协议 × 三仓型呈现差异（本规范的核心矩阵）
 
@@ -163,6 +177,88 @@ M1~M3 管理面 API 基本为 admin-only；M4 权限完整模型的最终口径�
 - **顶栏版本号**：来自 `/api/system/version`（如实返回 BinFlow 版本，不伪装——Q4 定案的 UI 侧延续）。
 - **toast**：右下角堆叠，成功 5s 自动消失、错误常驻直至手动关闭；toast 内可带一个动作链接（如「查看审计」）。
 - **危险确认对话框**：居中 modal，焦点圈进对话框，Esc 关闭，确认按钮需满足前置（如输入 repo key）才可用。
+
+### 3.6 权限可见性矩阵（v1.1 新增，T-116 定案）
+
+#### 3.6.1 两条契约漂移的定案（供 PM/architect 会签）
+
+**漂移 A：健康可见性——维持 admin-only，规范向实现对齐。** `/api/v1/health` 的路由门 `routeAuth{required, admin}`（router.go 注释明示 D2 决策）是正确姿态，不放宽：
+
+1. 健康端点暴露实例内部状态（storage/metadata/registry 子系统细节与失败原因），与 `/api/v1/storage/stats` 同属运维面数据——D2 已定「非 admin 不得得知实例体量」，健康放宽等于在同一 stance 上开旁门。
+2. BinFlow 安全立场一贯**存在性与内部状态不泄露**（登录失败不泄露用户存在性、`?permissions` 收 admin 门、T-97 conductor 裁决同款）；健康是典型的内部状态。
+3. 需要健康信号的角色（运维/排障者）就是 admin 本身；部署侧探活有免认证的 `/healthz` / `/readyz`，不依赖此端点——放宽没有真实受益者。
+4. 非 admin 的实际工作（CI push/pull、浏览制品）不需要实例健康就能完成。
+
+→ **无需后端改动票**。UI 侧：仪表盘健康卡、设置页健康行对非 admin 隐藏（L3）。
+
+**漂移 B：仓库列表可见性——维持路由门 admin-only。** service 层（`ListReposFiltered`）虽只要求 authenticated 并支持过滤，但路由门收紧是对的，不改：
+
+1. 权限模型是 **path-keyed**（permission target 的 include/exclude pattern），没有 repo-keyed ACL。「列出调用者可读的 repo」需把全部 target 的 pattern 对全部 repo key 求值——语义不正交（`**` 授予的是「将来一切路径」，不是「某个仓的存在」）、无索引、结果不可判定为精确集合。
+2. 列表即**存在性枚举**：非 admin 看到全量列表即得知其无权访问的仓库存在，违背存在性不泄露立场（router.go 注释引用的 FR-5-AC8 / C22b 断言同款）。
+3. 非 admin 的**制品可达性已由内容面承担**：`GET /api/storage/{repo}/{path}`（authenticated + 路径 ACL）、`GET /api/search/artifact`（T-92：与内容面同一 `allow()` 路径、按调用者过滤、零泄漏）——管理面列表不是必需路径。
+4. M4 控制台的非 admin 主场景（按权限浏览/上传制品）不依赖仓库管理列表；管理动作（建/改/删仓）本就 admin。
+
+→ **无需后端改动票**。若未来产品确需「非 admin 可见自己可读的仓库」，前置条件是一张后端票（**本轮不派，仅登记模板**）：repo-keyed 读授权枚举模型 + `GET /api/repositories` 路由门放宽 + 按 ACL 过滤 + C22b 断言更新。届时前端零改版——403 消失，列表自动出现（§3.6.3 L2 的「放宽跟随」列）。
+
+**附带定案（矩阵核对中浮出的第三处 §3.3 旧设想）**：Tokens 收回 admin-only。`POST /api/security/token` 及 `/revoke` 均为 admin+OAuth 门（D3：M1 无 scope 模型，非 admin 自签 `api:*` token 会携带完整主体权限，分支保持关闭）。v1.0 §3.3「安全→Access Tokens（仅自己的 token）」作废；非 admin 的「安全」分组整组隐藏。
+
+#### 3.6.2 端点 × 门矩阵（事实来源：`internal/httpapi/router.go`，T-116 逐一核对）
+
+| 端点 | 门 | console 消费面 |
+|---|---|---|
+| `GET /api/system/ping` · `GET /api/system/version` | 开放 | 实例卡（恒可见，含非 admin） |
+| `GET /healthz` · `GET /readyz`（根级，非 /binflow 下） | 开放（探针专用） | console 不消费 |
+| `POST /api/v1/session` | 开放（本身即凭据呈现；CSRF Origin 校验另置） | 登录 |
+| `GET` / `DELETE /api/v1/session` | authenticated | whoami（预收敛信号）/ 登出 |
+| `GET /api/v1/health` | **admin**（D2） | 仪表盘健康卡、设置页健康行 |
+| `GET /api/v1/storage/stats` | **admin**（D2） | 仪表盘存储卡、GC 页概况 |
+| `GET /api/v1/storage/usage/{key}` | authenticated（use case 裁 admin 或 read 授权；拒者 403） | 仓库详情统计卡（页面本身 admin，实际仅 admin 可达） |
+| `GET /api/v1/audit` | **admin** | 仪表盘最近审计、审计页 |
+| `POST /api/v1/system/gc` | **admin** | GC 页 |
+| `GET/PUT/POST/DELETE /api/repositories[/{key}]` | **admin**（D2，**含列表**——漂移 B 定案维持） | 仓库列表/详情/建仓/设置/危险区 |
+| `GET /api/storage/{repo}/{path}`（item info） | 内容面语义（匿名读开时匿名可读；路径 ACL 在 use case） | 制品树（T-100） |
+| `GET /api/storage/{repo}/{path}?list` | 门空，handler 自答匿名 403 / 200 | `_list` 兜底 |
+| `GET /api/storage/{repo}/{path}?permissions` | **admin**（SE-08，T-97 review B2） | 树视图权限列（T-100） |
+| `GET /api/search/artifact` · `/api/search/checksum` | 门空（use case 裁匿名通道；**结果按调用者 ACL 过滤**，T-92） | 搜索页（T-100） |
+| `PUT /api/security/password`（及 changePassword alias） | authenticated | 设置页改密（非 admin 可用） |
+| `POST /api/security/token` · `POST /api/security/token/revoke` | **admin**（D3，OAuth 错误体） | Tokens 页 |
+| `GET/POST/PUT /api/security/users[/{name}]` | **admin** | 用户页（T-101） |
+| `GET/PUT/POST/DELETE /api/security/groups[/{name}]` | **admin** | 组页（T-101） |
+| `GET/POST/DELETE /api/v1/permissions[/{name}]` | **admin** | 权限 target 编辑器（T-101） |
+| 内容面 `/binflow/{repo}/{path}`（GET/PUT/DELETE） | 读 = 匿名可（开关开时）；写/删 = authenticated + action ACL | 树浏览 / 上传 / 删除（T-100） |
+| `/binflow/api/npm/**` · `/binflow/api/pypi/**`（协议挂载，重写至内容面） | 同内容面 | console 不直接消费（R10） |
+| `/v2/**`（docker 平面，根级例外） | adapter 自持（token scope） | console 不直接消费 |
+
+> 矩阵是**快照**：后端任何路由门变更须同步本表（改门=改契约）。UI 的可见性不自行猜测，一律以本表 + 运行时 403 为准。
+
+#### 3.6.3 403 收敛规则（统一主姿态）
+
+**主姿态：数据面 403 → 隐藏。** 分四层，每层一种姿态、不得混用：
+
+| 层 | 对象 | 403 姿态 | 放宽跟随 |
+|---|---|---|---|
+| L1 导航入口/分组 | 左导航条目、「安全/治理」分组 | **不渲染**（whoami `admin` 位预收敛；直链仍渲染页面壳） | 需一次性前端微调（见下方裁定） |
+| L2 页面主数据面 | 页面的主数据请求整体 403（如仓库列表对非 admin） | **单张无权限卡**：页面壳保留，卡内说明（管理面需管理员 / 需要什么权限）+ 引导（搜索、直链、权限文档）——整页数据全 403 时不得留空白壳 | **自动**（403 消失，内容自现） |
+| L3 卡片/行级数据 | 仪表盘健康/存储/仓库/审计卡、设置页健康行、详情页次级卡 | **隐藏该卡/行**（对非 admin 渲染一排无权限卡是噪音） | **自动** |
+| L4 动作按钮 | 建仓 / 删除 / GC apply 等写入口 | **不渲染**（隐藏而非置灰——P6 同款纪律） | 随 L1（whoami 位） |
+
+- **只读降级不是 403 姿态**：能力收窄（docker 仓无 UI 上传、virtual 未配写路由 405 等）由 §3.4 协议×仓型矩阵与端点能力表达，用「说明 + 替代接入命令」呈现；403 只表达权限，绝不用于表达功能有无。
+- **401 ≠ 403**：401 一律「登录已过期」toast + 重定向登录（§5.1），不进本矩阵。
+- **admin 硬编码裁定（T-98 review N1 的收敛）**：数据呈现（L2/L3）一律 403 驱动，**禁止**用 whoami admin 位硬编码数据卡/行的显隐——后端放宽端点门时 UI 自动跟随；whoami `admin` 位仅用于 L1 导航分组与 L4 写入口的预收敛（省掉明知必 403 的请求噪音），且必须与 403 收敛**同向**（admin 位收紧面 ⊆ 403 收紧面，永不允许出现「admin 位放行而端点 403」的破窗）。存量偏离一处：设置页健康行（T-98 `{admin && …}`）应改为与仪表盘健康卡相同的 403 驱动——一行前端修正，随 T-100~T-102 任一批次或 T-104 前顺手收口，并补 `settings-health` 锚（§10.3）。
+
+#### 3.6.4 页面 × 角色呈现姿态矩阵
+
+| 页面/区块 | admin | 非 admin 已登录 | 未登录 |
+|---|---|---|---|
+| 登录 | — | — | 登录表单 |
+| 仪表盘 | 五卡全量（实例/健康/存储/仓库/审计） | 实例卡 + 一段收敛说明（四张管理卡 L3 隐藏） | 重定向登录 |
+| 仓库列表 | 表格 + 过滤 + 建仓 CTA | **无权限卡 + 搜索/直链引导**（L2）；建仓按钮不渲染（L4） | 重定向登录 |
+| 仓库详情/设置/危险区 | 全量 | 无权限卡（L2，管理面端点族 admin） | 重定向登录 |
+| 制品树（T-100） | 全量 | 按路径 ACL 浏览；无权子树 403 → 该子树无权限卡；上传/删除按写权限呈现，操作中 403 错误行内呈现并指向权限模型（§4.7） | 重定向登录 |
+| 搜索（T-100） | 全量结果 | 结果按自身 ACL 过滤（可为空——空态按「无结果」呈现，不解释「被过滤」） | 重定向登录 |
+| 安全全部页面（用户/组/权限/Tokens） | 全量 | 导航组隐藏（L1）；直链 → 页面级无权限卡（L2） | 重定向登录 |
+| 治理全部页面（审计/GC/备份/配额） | 全量 | 导航组隐藏（L1）；直链 → 页面级无权限卡（L2） | 重定向登录 |
+| 设置 | 实例信息（含健康行）+ 改密 | 实例信息（版本/修订/用户）+ 改密；健康行 L3 隐藏（改 403 驱动后） | 重定向登录 |
 
 ---
 
@@ -512,7 +608,7 @@ permission target = `{name, repos[], includePatterns[], excludePatterns[], princ
 **Error（错误）**
 
 - 统一呈现：区块内错误卡（图标 + 一句人话 + 原始 message 折叠区 mono + [重试]）。原始 message 默认折叠——工程师需要它排障，但不该淹没页面。
-- 状态码分流：401 → toast「登录已过期」+ 重定向登录（带 return）；403 → 「无权限」卡（说明需要什么权限，链接权限页）；404 → 与空态区分（「仓库不存在」vs「还没有仓库」）；400 → 表单行内错误（建仓/上传）；5xx/网络 → 错误卡 + 重试 + 「查看健康状态」链接。
+- 状态码分流：401 → toast「登录已过期」+ 重定向登录（带 return）；403 → 按 §3.6.3 分层收敛（L3 卡片/行级隐藏、L2 页面主数据面单张无权限卡——说明需要什么权限或「管理面需管理员」并给搜索/直链引导、L4 动作不渲染；表单/上传等**操作中** 403 仍走行内错误并指向权限模型，§4.7）；404 → 与空态区分（「仓库不存在」vs「还没有仓库」）；400 → 表单行内错误（建仓/上传）；5xx/网络 → 错误卡 + 重试 + 「查看健康状态」链接。
 - **绝不**把三种错误体格式（errors[] / 纯文本 / OAuth 形）的差异暴露给用户；前端统一解析出 message。
 
 **Success（成功）**
@@ -658,8 +754,105 @@ mono 栈：`ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, "Liberati
 
 ---
 
-## 10. 修订记录
+## 10. data-testid 命名清单（QA 断言锚；v1.1 新增）
 
-| 版本 | 日期 | 变更 |
-|---|---|---|
-| v1.0 | 2026-08-20 | T-87 初版：IA（导航树 + 18 路由 + 五协议×三仓型矩阵）、11 页线框（登录/仪表盘/仓库列表/建仓/仓库详情/制品树/上传/搜索/权限编辑器/审计/治理）、交互四态（通用原则 + 骨架屏策略 + 每页矩阵）、大目录策略、设计 token（暗色优先）、可达性、API 需求清单 R1~R10 |
+本节是 T-104 Playwright 断言的**唯一锚源**。§10.2 与 `web/src` 实际落码逐一核对（T-116 全量 grep，含 `testid` 以 prop 形态传入 Card/EmptyState 的情形）；T-100~T-102 新增锚**必须先入 §10.3 再落码**（派单引用本节），已落地锚改名视同破坏性变更，需过 conductor。
+
+### 10.1 命名规则
+
+- 一律 kebab-case；页面根 = `<page>` 或 `<page>-page`，页面内元素 = `<页面前缀>-<element>`。
+- 动态段：实体标识用原值（`repos-row-<repoKey>`、`form-member-<memberKey>`）；序列用下标 `<i>`（`member-up-<i>`、`repo-cmd-<pkg>-<i>`）。
+- 表单字段共享 `form-` 前缀（建仓/编辑复用同一表单组件）。
+- 四态基元有缺省锚：`skeleton` / `error-card` + `error-retry` / `empty-state`（实例可用 `testid` prop 覆盖）/ `toast` + `toast-stack`。**403 收敛不产生新锚**：L3 隐藏 = 锚随卡片消失（断言用 `toHaveCount(0)` 类反断言），L2 复用 `empty-state` 缺省锚。
+- 锚唯一性按**当前视图**计，不全局唯一（`repos-empty` 同时用于仪表盘仓库卡与仓库页空态——断言须 scope 到页面根锚内，如 `repos-page >> repos-empty`）。
+- 可拷贝标识（P2）的拷贝按钮以 `aria-label` 标注被拷对象（§8），不强制 testid；需要断言拷贝行为时用 `copy-<field>` 命名。
+
+### 10.2 已落地锚（T-98 基座 + T-99 仓库组；核对自源码）
+
+**壳与全局基元（T-98）**
+
+```
+app-boot  app-nav  nav-version
+session-toggle  session-user  logout-button
+topbar-search  topbar-theme-toggle
+confirm-dialog  confirm-accept  confirm-cancel
+toast-stack  toast  skeleton  error-card  error-retry  empty-state（缺省）
+```
+
+**登录 / 404 / 占位（T-98）**
+
+```
+login-page  login-username  login-password  login-error  login-submit
+not-found  placeholder-page
+```
+
+**仪表盘（T-98）**
+
+```
+dashboard（页面根）
+dashboard-instance-card（恒可见——version 开放端点）
+dashboard-health-card  dashboard-storage-card  dashboard-repos-card  dashboard-audit-card（admin 数据卡，403 隐藏）
+dashboard-audit-table
+repos-empty（空实例「创建第一个仓库」CTA——与仓库页共用锚名，注意 scope）
+```
+
+**设置（T-98）**
+
+```
+settings（页面根）  settings-instance  settings-password
+password-old  password-new  password-confirm  password-error  password-submit
+```
+
+**仓库列表（T-99）**
+
+```
+repos-page  repos-create  repos-filter-key  repos-filter-type  repos-filter-package
+repos-count  repos-table  repos-row-<repoKey>
+repos-empty  repos-empty-filtered（403 分支复用 empty-state 缺省锚——「无权限查看仓库列表」）
+```
+
+**建仓/编辑表单（T-99）**
+
+```
+repo-form-page  form-summary  form-error  form-prev  form-next  form-submit
+form-rclass-{local|remote|virtual}  form-package-{generic|docker|maven|npm|pypi}
+form-key  form-key-error  form-key-ok  form-description
+form-url  form-url-error  form-username  form-password
+form-allow-private  form-private-warn
+form-member-pick  form-member-<memberKey>  form-member-order  member-up-<i>  member-down-<i>
+form-default-deploy
+form-quota  form-includes  form-excludes
+form-handle-releases  form-handle-snapshots  form-checksum-policy  form-snapshot-behavior
+form-retrievalCachePeriodSecs  form-missedRetrievalCachePeriodSecs
+form-socketTimeoutSecs  form-assumedOfflinePeriodSecs  form-hard-fail  form-priority
+```
+
+**仓库详情（T-99）**
+
+```
+repo-detail-page  repo-commands  repo-cmd-<packageType>-<i>
+repo-usage-card  repo-usage-bar  repo-governance-card  repo-remote-card  repo-virtual-card
+repo-danger-zone  repo-delete-button  repo-delete-content  repo-delete-confirm-key  repo-delete-reason
+```
+
+### 10.3 预定锚（T-100~T-102 派单即生效的命名契约；未落地前 T-104 不得断言）
+
+```
+树页（T-100）：tree-page  tree-node-<path>  tree-list  tree-row-<name>
+  node-detail  node-copy-<field>  tree-load-more
+  upload-dialog  upload-target  upload-drop  upload-file-<i>  upload-retry-<i>
+  delete-node-button
+搜索页（T-100）：search-page  search-input  search-filter-{repo|package|type}
+  search-result-<i>  search-more
+安全组（T-101）：users-page  user-row-<name>  user-form
+  groups-page  group-row-<name>  group-form
+  perms-page  perm-row-<name>  perm-editor-page
+  perm-matrix-cell-<principal>-<action>  perm-pattern-test  perm-pattern-result  perm-diff
+  tokens-page  token-create  token-plaintext  token-revoke-<id>
+治理组（T-102）：audit-page  audit-filter-{actor|repo|action|path}  audit-row-<i>  audit-more  audit-export
+  gc-page  gc-stats  gc-dryrun  gc-result  gc-apply
+  quotas-page  quota-row-<repoKey>  quota-edit-<repoKey>
+设置补锚（随 §3.6.3 裁定落地）：settings-health（健康行改 403 驱动时补）
+```
+
+预定锚是命名契约而非实现承诺：T-100~T-102 可按页面实际增删，落码后回写本节并升 v1.2（小版本，conductor 提交时顺手）。
