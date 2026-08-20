@@ -183,6 +183,8 @@ type Engine interface {
 错误约定（包级 sentinel，wrap 后仍 `errors.Is` 可判；T-9 review 回写项 C/H 补全）：
 `var ErrBlobNotFound`（Open/Stat/Delete 未命中）、`ErrSessionNotFound`（ResumeSession；早期文档误写 ErrNoSuchSession，以本名为准）、`ErrChecksumMismatch`（Commit 期望摘要不符，不落盘）、`ErrBlobCorrupt`（Stat 完整性校验失败）、`ErrEngineClosed`（Close 后的变更操作）、`ErrSessionPoisoned`（Append 失败后的会话毒化，双 %w 错误链）。
 
+备份/锁公共面（M4 增量，T-96 落地、T-112 补记——跨包消费契约；REST gc 面（T-94）与 CLI gc/export 同原语，勿重写）：`AcquireDataLock(dataDir, op) (*DataLock, error)`（争用 wrap `ErrDataLockHeld`，fail-fast 不排队——排队的 export 会无限期扣押输出目录）+ `(*DataLock).Release()`（幂等、nil 安全）——data 目录级跨进程互斥锁（`<data>/.maintenance.lock` 0600 常驻不删，flock/LockFileEx），GC↔export 双向互斥（ADR-0015 勘误③）；锁文件首行 `pid=<n> op=<op>` 为跨包诊断契约（op 值域 {gc, export}）。manifest 族 `Manifest/ManifestMetadata/ManifestBlob` + `Validate`（哨兵 `ErrManifestInvalid`）/`WriteManifest`/`LoadManifest`（容忍未知字段，前向兼容）+ `CopyBlobsTree`/`HashFile`/`BlobPath`（engine.blobPath 委托之——§4.1 blob 路径形态的唯一定义点，engine/export/import 三消费方同源）。
+
 ### 3.2 metadata.Store（owner: dev-go-core）
 
 ```go
@@ -206,6 +208,10 @@ type Store interface {
 // 在前，NodeStore.Put 在后），崩溃窗口由 FK（nodes.sha256 → blobs.sha256）兜底强制该顺序。
 // 中间崩溃只残留无引用 blob 行（GC 可收，不损数据），语义等价于原「一个 SQL 事务」的意图，
 // 且避免为一条组合语句扩接口。原 §3.2「Txn 只读透传」注释行系文档残缺，作废（T-25 清理）。
+// 快照检查面（M4 备份，T-96；T-112 补记）：SnapshotChecksums/SnapshotSchemaVersion/
+// LatestSchemaVersion/PurgeTransientFromSnapshot 为包级函数而非 Store 方法——快照是
+// 制品不是活库（不经 Open，防对制品跑迁移+种子）；(*sqliteStore).VacuumInto 经 cmd 侧
+// 消费接口（metadataSnapshotter，定义在消费侧）类型断言使用，不污染本接口。
 
 type NodeStore interface {
     // Get 返回 ErrNodeNotFound 若无。path 形如 "org/app/1.0/app-1.0.jar"（repo 内相对）。
@@ -379,11 +385,11 @@ created --Append(可多次)--> appending --Commit--> committed(终态, session �
 - **`X-BinFlow-Cache: HIT|MISS|REVALIDATED|STALE` 响应头**（QA 断言锚点，内容路径响应统一附加）。
 - **GC**：缓存 node 与本地 node 同为引用事实，无特判——删 remote 仓级联删 nodes，blob 由 GC 统一回收。virtual 探索性 miss **不落盘**（ADR-0013，防成员扫描污染缓存）。
 
-### 4.6 配额 enforcement（M4 增量，ADR-0015）
+### 4.6 配额 enforcement（M4 增量，ADR-0015；T-112 勘误：键名与 remote 计量口径对齐 PRD §7 Q2/实现）
 
-- **enforcement 点在 `repo.Service.Put` 链**（PutFromBlob/PutLandedBlob/PutOpts 同链）：`repositories.config` 的 `quota_bytes`（0=不限，默认）+ `repo_usage` 计数行（logical_bytes，与 node 增删**同一事务**维护——SQLite 单写者无热行竞争放大）。
+- **enforcement 点在 `repo.Service.Put` 链**（PutFromBlob/PutLandedBlob/PutOpts 同链）：`repositories.config` 的 **`quotaBytes`**（0=不限，默认；键名勘误 T-112：原误写 `quota_bytes`——实现/PRD/REST 均为 camelCase，T-95 review NB4）+ `repo_usage` 计数行（logical_bytes，与 node 增删**同一事务**维护——SQLite 单写者无热行竞争放大）。
 - 预检时序：expect.Size 已知（秒传/mount/docker finalize）→ Commit 前直判；流式 size 未知 → 落盘后判，超限**回滚 node 登记但 blob 留待 GC**（不拒已落盘字节，只拒登记），响应 413 + QUOTA_EXCEEDED（码值 PRD 定）。
-- **口径 = 逻辑字节**（nodes.size 之和）：配额按仓计量，跨仓共享 blob 的物理归属无法公平切分；物理占用走既有 `/api/v1/storage/stats`。remote 缓存 node 计入（`quota_include_cache` 豁免位 [M5+]）。
+- **口径 = 逻辑字节**（nodes.size 之和）：配额按仓计量，跨仓共享 blob 的物理归属无法公平切分；物理占用走既有 `/api/v1/storage/stats`。**remote 缓存 node 不计量**（口径勘误 T-112：原「计入 + `quota_include_cache` 豁免位 [M5+]」与 PRD §7 Q2「pull-through 落盘不计量」相抵，按 Q2 执行——engine 的 cache node 写不走计量，T-95；既有 remote nodes 已由 005 回填一次性计入，快照语义不回滚；M5+ 若需计量再按「计入开关」重开）。
 
 ---
 
@@ -839,10 +845,12 @@ Content-Type: application/json
 - **CSRF（勘误后两层 + 习惯层）**：① SameSite=Lax；② **Origin 同源校验**（服务端强制：session cookie 认证的写请求携带非同源 `Origin` → 403，同源/无 Origin 放行——PRD FR-23-AC9）；③ SPA 自身附 `X-BinFlow-Console` 头作为习惯层（服务端不校验——撤销原「强制头」设计，它使 Cookie 面与 Basic/Token 面行为分叉，违背「前端消费通用 API」原则）。Bearer/Basic 天然免疫 CSRF。
 - **SPA/REST 边界**：前端直接消费通用 `/api/v1/**` 与兼容层 `/api/security/**`（无 console 专属 API 树——CLI/curl/前端同一面，权限语义单源）；前端工程 = `web/`（vite + React + TS，base=/binflow/ui/），构建产物复制进 `internal/console/dist`（Makefile `console` 目标，与 docs-site 同构）。ADR-0005 白名单管辖 Go 依赖树；前端 devDependencies 不进二进制，政策见 ADR-0014 决策 4（lockfile 锁定、零运行时 CDN、CI npm audit、直接依赖变更过 architect）。
 
-### 7.6 备份/恢复（M4 增量，ADR-0015）
+### 7.6 备份/恢复（M4 增量，ADR-0015 + T-112 勘误：形态对齐 M4 PRD FR-32/GE-09 与 T-96 实现）
 
-- **export（在线）**：① `VACUUM INTO` SQLite 一致性快照 → ② tar `blobs/`（保 mtime，ADR-0006 硬约束）——**顺序不可换**：先 DB 后 blobs，多余 blob 无害（import 后 GC 收）；反向会产生悬空引用。产物 = db + blobs.tar + manifest。入口：CLI `binflow-server export --out <dir>` + admin REST 异步触发（产物落 data_dir/exports/）。
-- **import（仅 CLI，高危写面不走 REST——安全底线）**：目标须空实例（非空 409）；恢复 db → 解 tar 保 mtime → 启动 GC dry-run 报差异（预期仅多余 blob）；幂等 = 同备份重复导入等价；跨版本需迁移链可达（schema_migrations ≤ 当前）。
+> **勘误（2026-08-20，T-112 依 T-96 架构 review N6/N7；产物形态以 M4 PRD FR-32/GE-09 为准——PRD 后出且为 W 序列验收锚，按 T-88 R1 先例「PRD 命名面 + ADR 机制内核」；顺序硬规则、空实例、mtime、互斥锁内核均不变，ADR-0015 勘误二同口径）**：① 产物由「db + blobs.tar + manifest」修订为**目录形态**（tar 系 ADR 草案期措辞；`--tar` 单文件产物 P2 债务，flag 已定义、显式报未实现）；② CLI flag `--out` → **`--output`**；③ 「admin REST 异步触发（产物落 data_dir/exports/）」删除——**无 REST 面**（`/api/export/**` 404，GE-09）；④ import「非空 409」为 REST 语态，收敛为 CLI 退出码非 0；「启动 GC dry-run 报差异」降格为运维建议，非 CLI 内置步骤。
+
+- **export（在线，仅 CLI：`binflow-server export -c <cfg> --output <dir> [--tar]`）**：① 取 data 目录维护锁（`storage.AcquireDataLock`，锁文件 `<data>/.maintenance.lock` 0600，flock/LockFileEx——GC↔export 双向互斥，ADR-0015 勘误③；REST gc 面与 CLI 同原语，T-94）→ ② `VACUUM INTO` SQLite 一致性快照，落 `<out>/metadata.db`（快照内 purge `web_sessions` 后再计 manifest 哈希，§11.19）→ ③ 拷贝 `blobs/<2hex>/` **目录树**（保 mtime + 权限位，ADR-0006 勘误②硬约束）→ ④ `manifest.json`（引用集 = **快照自身** nodes ∪ docker_refs，非磁盘现状；窗口内多余 blob 允许、import 后为普通 GC 候选；导出侧引用缺失 = fail-fast——源实例悬空引用堵在源头）。**顺序不可换**：先 DB 后 blobs，多余 blob 无害（恢复后常规 GC 收敛）；反向产生悬空引用。产物 = `<out>/metadata.db` + `<out>/blobs/` + `<out>/manifest.json`（**目录形态**；产物目录 0700、metadata.db/manifest.json 0600，NFR-S22）。**无 REST 面**（`/api/export/**` 404——GE-09；ADR-0015 决策 5「admin REST 异步触发」M4 不做）。审计 `export.run` 写**源实例**活库（快照已封存，事件属源实例历史——恢复侧不含它；actor=admin，CLI 无可命名 principal 的既有口径）。
+- **import（仅 CLI：`binflow-server import -c <cfg> --input <dir> [--verify spot|full]`；停机 + 空 data dir，高危写面不走 REST——安全底线；不取维护锁：目标空 + 停机，无争用对象）**：目标 data dir 必须空（唯一豁免 `.maintenance.lock` 锁残留；非空 → **CLI 退出码非 0**，import 无 REST 面）。**先验证后写盘**：manifest 结构校验（formatVersion ≤ 1、blobCount/totalBytes 自洽、metadata.file 裸文件名防穿越）+ `metadata.db` sha256 实测 + blob **size 全验 + sha256 spot 前 100**（sha 排序确定性抽样；`--verify full` 全量重哈希 P1）+ schema 版本天花板（快照 schema > 本 build 最新 → 拒；旧快照恢复首开自动升迁）；写序 **db 先 blobs 后**（保 mtime；备份内名 `metadata.db` 固定供 manifest 引用，落位尊重目标机 config 命名——默认 `binflow.db`/显式 dsn）；任何失败清回空（**无半恢复**）；幂等 = **清空目标后**对同一备份重复导入等价（ADR-0015 勘误二释义）；跨版本需迁移链可达（schema_migrations ≤ 当前）。审计 `import.run` 落恢复库。「启动 GC dry-run 报差异」为运维建议（文档面），不在 CLI 内强制——多余 blob 由常规 GC 收敛。
 
 优雅停机：SIGTERM → `server.Shutdown(ctx, 30s)`（等待在途上传 Commit 或超时丢弃 session）→ **关 storage.Engine（Close：排空在途会话，T-9 回写项 B）** → 关 metadata → 退出码 0。健康检查与停机语义是 ADR-0004 各部署形态的公共契约（§9）。
 
@@ -945,7 +953,7 @@ logging:
 16. **npm packument 整档存储**：合并写放大（大包多 version 时每次 publish 重写整份 packument JSON）；M3 规模可接受，M6+ 若有巨型包性能问题再拆 per-version 行。
 17. **配额计数与 docker/maven 服务端写不同链**（ADR-0015 落地注记）：PutFromBlob/PutLandedBlob/PutOpts 全族必须都过配额预检，实现票须覆盖 docker finalize 与 maven metadata 计算器两条服务端写路径，防旁路。
 18. **web_sessions 清扫复用启动清扫模式**（与 storage sessions/ 同构但不同表）：长驻进程的过期会话行要等重启才清；量大前（M4 会话量低）接受，M5+ 可与 storage 周期清扫同票接线。
-19. **备份不含 remote_cache/web_sessions**：导出面 = db（含 remote_cache 表）+ blobs——即 remote 缓存元数据随 db 走、缓存 blob 随 blobs/ 走，语义自洽；web_sessions 属运行态不入备份（恢复后用户重登）。
+19. **备份不含 web_sessions（remote_cache 随 db 走）**：导出面 = db（含 remote_cache 表）+ blobs——即 remote 缓存元数据随 db 走、缓存 blob 随 blobs/ 走，语义自洽；web_sessions 属运行态不入备份（export 时从快照 purge，恢复后用户重登）。（标题勘误 T-112：原「不含 remote_cache/web_sessions」与正文「db 含 remote_cache 表」自相矛盾——实现按正文语义，T-96 review N7。）
 
 ## 12. 待逆向规格确认清单（阻塞点挂 docs/reverse/）
 
