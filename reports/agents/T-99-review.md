@@ -67,3 +67,28 @@ cd web && npm run typecheck   # 通过（0 错误）
 cd web && npm run lint        # 通过（0 告警）
 go test -count=1 ./internal/console/   # ok 0.281s
 ```
+
+---
+
+## 复核轮（commit 6223e74，2026-08-21）— B1/B2 修复验证
+
+- 结论升级: **APPROVE**（原 blocking 1/2 均已正确关闭）
+- 核验对象: `git diff 6223e74 -- web/` 中本票四文件（RepositoriesPage / RepositoryFormPage / repositories.spec.ts / T-99.md）与工作树逐字节一致；当前树其余改动为 T-100 在途文件，与本票无关
+- 复跑: typecheck 0 错误、lint 0 告警、`go test -count=1 ./internal/console/` ok——与开发者自测声明一致
+
+### B1 关闭验证（页面级隔离 vs 共享组件 stopPropagation）
+
+- key 列 CopyButton 外 `<span onClick={stopPropagation}>`（RepositoriesPage.tsx:227-231）+ virtual 成员 `<details onClick={stopPropagation}>`（:68）：鼠标与键盘触发的 click 均冒泡至隔离层即止，tr 级行导航不再被误触；details 上的 stopPropagation 同时覆盖 summary 与浮层内容区的点击。
+- **等效性判定：语义等价**。CopyButton 其余消费点（详情页 header/命令块/治理卡）容器均无 onClick，页面级隔离与共享组件改法在现存全部场景行为零差异；且页面级收窄符合 T-88 R6（共享组件为 T-98 基座面，T-101/T-102 并行在途不应中途继承语义变化）——选型合理。
+- e2e 断言强度足够：① 拷贝后 URL 不变 **且** `navigator.clipboard.readText() === key`（全值拷贝，§7.3「拷贝不许截断」姿态一并钉死）；② 浮层点开两成员可见 + URL 不变。
+- 遗留登记（non-blocking）：T-101/T-102 若把 CopyButton 放进可点行需复刻同一包装——并行波收口后建议在共享组件统一 stopPropagation 作终态（届时是一次纯收敛改法，无行为面变化）。
+
+### B2 关闭验证（联动清空覆盖面）
+
+- uncheck 分支在被取消成员恰为 defaultDeploymentRepo 时联动清空（RepositoryFormPage.tsx:525-528）；moveMember 死代码已删（重排不删成员，原本不可达）。
+- **「uncheck 是唯一入口吗」——是**：`set('members', ...)` 全部三处 = 345（moveMember，仅重排不可删）/ 523（勾选，只增）/ 525（取消，已覆盖）；唯一其余赋值点是编辑态 prefillFromDetail——members 与 defaultDeploymentRepo 取自同一存储 config，服务端 validateVirtualMembers 在每次写入时拒绝不一致组合，存储面自洽 ⇒ prefill 不可能制造失配（手改库的越界行会走既有 inline-400 优雅路径，且被 e2e 的外部删除腿覆盖同型场景）。
+- e2e 腿完整：select 值 m1 → uncheck → select 值 ''（正是 B2 的 UI 断言）→ 提交成功 → API 对账 `repositories==[m2]`、`defaultDeploymentRepo` undefined；原 400-inline 腿正确迁移至 m2，收尾清理同步修正。
+
+### 复核后遗留
+
+原 non-blocking 1~9 与范围外发现维持原判（均已在报告正文登记，交 conductor 分流）；新增一条：CopyButton 隔离包装的终态收敛（见上）。

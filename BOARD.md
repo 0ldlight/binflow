@@ -30,7 +30,7 @@
 
 ## 👀 评审中（review）
 
-- **T-99** [P1] FE 仓库管理页（批 5a） — 编码提交 0f391ea；review 2 blocking（B1 行级 onClick 未隔离/B2 defaultDeploymentRepo 联动缺失）→ **修复完成提交 6223e74**（stopPropagation 隔离+联动清空+三腿 e2e：剪贴板 readText 对账/浮层 URL 不变/API 字段消失对账；lint 0/Playwright 6/6/零 5xx），复核中（原 reviewer）。契约面全过。9 NB 登记。
+（T-99 复核 APPROVE → done 区；批 6 四线在途：T-100/T-101/T-102/T-103）
 （T-64/T-67/T-69 等 M3 残留行 2026-08-20 清理，done 记录见 done 区）
 
 - **T-111** [P1] docker 413 verbatim 渲染臂 `role:dev-registry-adapter` `area:internal/adapter/docker` — done 2026-08-21（单 review 一轮修复）
@@ -49,6 +49,9 @@
 
 - **T-115** [P1] 认证热路径索引 + 架构勘误 `role:dev-go-core` `area:internal/metadata(006)、docs/design` — done 2026-08-21（conductor 核验直收）
   006 迁移 idx_user_groups_username：EXPLAIN 对账 SCAN→SEARCH（pin 断言）；§6 注记 + §7.1 users 行修正。提交 fec7fe2。遗留：§7.1 ?permissions 行 + E-16 行 → T-107。
+
+- **T-99** [P1] FE 仓库管理页 `role:dev-frontend` `area:web/src/pages/repositories` — done 2026-08-21（单 review 一轮修复，**复核 APPROVE**）
+  列表（过滤/双空态/逐仓 usage）+三步表单（governance 字段 local-only）+详情（五协议命令块/usage 水位条/删除双段流）。review B1（行级 onClick 未隔离）修复：页面级 stopPropagation（与共享组件方案语义等价、符合 R6 不中途继承）+ B2（defaultDeploymentRepo 联动清空，uncheck 唯一入口闭合）；三腿 e2e 断言到剪贴板 readText/API 字段对账级。契约面逐字段吻合。提交 0f391ea+6223e74。登记：并行波收口后共享 CopyButton 统一 stopPropagation 作终态；9 NB 与「最近事件卡未交付」交 conductor 分流；ErrorBoundary 基座缺口候选小票。
 
 - **T-116** [P1] 控制台权限可见性漂移集中定案 + console-ux v1.1 `role:ux-designer` `area:docs/design/console-ux.md` — done 2026-08-21
   定案 A（健康）+ B（仓库列表）**均维持 admin-only**（存在性/内部状态不泄露立场；path-keyed 模型下列表即普查）+ Tokens 收回 admin-only（D3）——**零后端票**。v1.1：§3.3 重写、§3.6 权限可见性矩阵（403 收敛四层主姿态+端点×门 22 行+页面×角色）、§10 data-testid 清单（~99 已落锚核对+T-100~102 预定锚契约——T-104 断言锚源）、N1 裁定（数据呈现一律 403 驱动禁 admin 硬编码；存量偏离一处：设置页健康行→随 T-100~102 修正）。提交 4bdcfd6。
