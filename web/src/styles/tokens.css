@@ -1,0 +1,81 @@
+/*
+ * BinFlow 控制台设计 token（console-ux §7）。
+ *
+ * 一套语义变量 × 两套主题取值：暗色为默认（:root），亮色经
+ * [data-theme="light"] 整组覆盖——两主题零样式分叉（组件层只引用
+ * --bf-* 语义名，禁止引用具体色值）。ThemeContext 切换的是
+ * document.documentElement 上的 data-theme 属性。
+ */
+
+:root {
+  /* 色彩（§7.1，暗色默认） */
+  --bf-bg: #0d1117;
+  --bf-surface-1: #161b22;
+  --bf-surface-2: #1c2129;
+  --bf-surface-3: #222831;
+  --bf-border: #2d333b;
+  --bf-border-strong: #444c56;
+  --bf-text: #e6edf3;
+  --bf-text-2: #9198a1;
+  --bf-text-muted: #6e7681;
+  --bf-accent: #4493f8;
+  --bf-accent-fg: #0d1117;
+  --bf-success: #3fb950;
+  --bf-warning: #d29922;
+  --bf-danger: #f85149;
+  --bf-info: #58a6ff;
+
+  /* 间距（4px 基数，§7.2） */
+  --bf-sp-1: 4px;
+  --bf-sp-2: 8px;
+  --bf-sp-3: 12px;
+  --bf-sp-4: 16px;
+  --bf-sp-5: 24px;
+  --bf-sp-6: 32px;
+  --bf-sp-7: 48px;
+
+  /* 字号 */
+  --bf-fs-aux: 12px;
+  --bf-fs-body: 13px;
+  --bf-fs-form: 14px;
+  --bf-fs-h3: 16px;
+  --bf-fs-h2: 20px;
+  --bf-fs-h1: 24px;
+
+  /* 圆角 */
+  --bf-r-sm: 4px;
+  --bf-r-md: 6px;
+  --bf-r-lg: 8px;
+
+  /* 层级（§7.2） */
+  --bf-z-nav-sticky: 70;
+  --bf-z-dropdown: 80;
+  --bf-z-modal: 90;
+  --bf-z-toast: 100;
+
+  /* 等宽字体栈（§7.3） */
+  --bf-mono: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas,
+    'Liberation Mono', monospace;
+
+  color-scheme: dark;
+}
+
+[data-theme='light'] {
+  --bf-bg: #ffffff;
+  --bf-surface-1: #f6f8fa;
+  --bf-surface-2: #eff2f5;
+  --bf-surface-3: #e4e8ed;
+  --bf-border: #d0d7de;
+  --bf-border-strong: #8c959f;
+  --bf-text: #1f2328;
+  --bf-text-2: #57606a;
+  --bf-text-muted: #6e7681;
+  --bf-accent: #0969da;
+  --bf-accent-fg: #ffffff;
+  --bf-success: #1a7f37;
+  --bf-warning: #9a6700;
+  --bf-danger: #cf222e;
+  --bf-info: #0969da;
+
+  color-scheme: light;
+}
