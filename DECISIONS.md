@@ -109,7 +109,7 @@
   - module 路径: A) `github.com/lzwzzy/binflow`；B) 自有域（如 `binflow.dev/binflow`，需购域维护）。
 - 决策: 前缀选 B，module 路径选 A（`go.mod: module github.com/lzwzzy/binflow`）。所有产品端点统一 `/binflow` 前缀；**不用 `/artifactory` 前缀，不做根路径镜像**。探针/抓取基础端点（`/healthz` `/readyz` `/metrics`）不带前缀。repo key 保留字：`api`、`v2`（建仓校验拒绝）。
 - 理由: 自有品牌命名空间在同域反代/子路径部署下无冲突；不做根镜像避免双份路由表与歧义；兼容性靠端点行为对齐（`/binflow/api/...` 上的兼容子集）而非前缀伪装。module 路径即刻定值，脚手架票直接使用。
-- 后果: 文档与客户端示例统一 `/binflow`（例 `curl http://host:8080/binflow/<repo>/path`）；`server.base_url` 非空时必须含 `/binflow`；**[M2 风险预告]** docker 客户端固定向 `/v2/...` 发请求、无法自定义前缀，届时二选一：反代 rewrite 到 `/binflow/v2` 或为 `/v2` 开根级例外——属实现层路由例外，不推翻本 ADR，M2 出细化票据时定；控制台相对路径以 `/binflow` 为基。（repo key 长度上限后经 T-22 回写为 `{1,62}`，见 PRD FR-3-AC4。）
+- 后果: 文档与客户端示例统一 `/binflow`（例 `curl http://host:8080/binflow/<repo>/path`）；`server.base_url` 非空时必须含 `/binflow`；**[M2 风险预告]** docker 客户端固定向 `/v2/...` 发请求、无法自定义前缀，届时二选一：反代 rewrite 到 `/binflow/v2` 或为 `/v2` 开根级例外——属实现层路由例外，不推翻本 ADR，M2 出细化票据时定；控制台相对路径以 `/binflow` 为基。（repo key 长度上限后经 T-22 回写为 `{1,62}`，见 PRD FR-3-AC4。）（增补 2026-08-20，T-108：repo key 保留字并集定稿为 **{api, v2, docs, console, ui}**——api/v2 本 ADR、docs 为 ADR-0011、console/ui 为 ADR-0014 勘误后挂载段；存量库已有保留字同名仓时启动 WARN、路由仍占用，详见 M4 PRD §3。）
 
 ## ADR-0009: 匿名读默认开启 + admin 首启口令引导
 - 状态: Accepted（用户定案）
@@ -204,6 +204,11 @@
   4. **构建链 = vite + React + TypeScript**（React 与 ADR-0011 Docusaurus 同栈技能复用；vite 为当前生态默认，webpack 无增量收益）。**ADR-0005 边界澄清：其白名单管辖 Go module 依赖树（进二进制的面）；前端 devDependencies 属构建期工具链，不进二进制**——政策放宽但守三条：直接依赖最小化并 lockfile 锁定（pnpm/npm ci）；产物零运行时 CDN 依赖（全量打包，断网可用——对齐单二进制哲学）；CI 跑 `npm audit --production=false` 高危拦截 + 直接依赖清单变更走 architect 过目（与 Go 面同规的准入习惯）。Makefile 增 `console` 目标（build + 复制进 internal/console/dist）。
 - 理由: 挂载 B 与 docs 同构、空间不侵蚀（A 的 SPA fallback 与内容路径 404 语义会打架）；session 方案在「可登出可吊销 + 无 XSS token 暴露面 + 与既有 sha256-token 存储形态同构」三点上全胜 JWT，代价仅一张表；CSRF 三层使 Cookie 面与 Bearer 面安全等价；API 面 B 让权限模型与文档只维护一份。
 - 后果: 004 迁移含 web_sessions/groups/group_members/repo_usage（§6）；repo key 保留字 +2（docs/console——docs 伴随 ADR-0011 已事实占用，此处正式化）；auth 包加 session 臂与 `Principal.Groups`；httpapi 加 Cookie 解析、CSRF 头强制、`/binflow/console/**` 静态 + SPA fallback、`/binflow/` 302；前端工程进 `web/`（ux-designer 信息架构 + 前端实现票消费）；CI 需 node 工具链（构建期，部署产物不含）；审计记 console 登录/登出事件。
+- 勘误（2026-08-20，T-108 依 tech-lead T-88 R1 裁决「PRD 命名面 + ADR 机制内核」；M4 PRD v1.0 后出且为 W 序列验收锚，命名以 PRD 为准，机制内核维持决策 2 不变）:
+  ① **挂载**：`/binflow/console/**` → **`/binflow/ui/**`**，`/binflow/` 根 **301**（原 302）；保留字增 `ui`（ADR-0008 增补并集 {api,v2,docs,console,ui}）；静态资产指纹路径与缓存策略（`/binflow/assets/<hash>` immutable、SPA shell no-cache）按 PRD §3。
+  ② **session 端点族**：login/logout 两端点 → **`/api/v1/session` 三动词**（POST 登录 / GET whoami——前端路由守卫必需，W 序列锚 / DELETE 登出）；cookie 名 `bf_session` → **`binflow_session`**（属性集 HttpOnly + Path=/binflow + SameSite=Lax 按 PRD CE-03；HTTPS 部署时加 Secure 属实现细节）。
+  ③ **TTL**：固定 12h → **`console.session_ttl_hours` 默认 24（PRD Q1）+ `console.session_ttl_seconds` 覆盖键**（测试粒度，R4：两键并存 seconds 优先）；滑动续期受绝对 TTL 封顶的内核不变。
+  ④ **CSRF**：第三层「服务端强制 X-BinFlow-Console 头」**撤销**（与决策 3「前端消费通用 /api/v1」自冲突——强制头使 Cookie 认证面与 Basic/Token 面行为分叉，CLI 零感知被破坏）；主防线改为 **Origin 同源校验**（session cookie 认证的写请求携带非同源 `Origin` → 403，同源/无 Origin 放行，PRD FR-23-AC9/W38）；SameSite=Lax 保留为第一层；SPA 附 X-BinFlow-Console 头降级为前端自身第二层习惯（服务端不校验）。
 
 ## ADR-0015: M4 治理面基线——GC 在线触发、配额模型、备份/恢复
 - 状态: Accepted
@@ -222,3 +227,4 @@
   5. **入口形态**：export 走 CLI `binflow-server export --out <dir>`（读面，低危）+ admin REST 可选触发（异步作业，产物落 data_dir/exports/）；import 仅 CLI（写面高危，不做 REST——安全底线：危险操作走带外通道）。
 - 理由: GC 在线化补齐 console 治理闭环，双字段显式确认 + 审计 + grace 不变把删数据风险压回 CLI 等价面；配额计数器避免每写 O(n)；先 DB 后 blobs 的顺序把「在线备份一致性」化为一条不可违反的简单规则；import 限定空实例免去 merge 语义的全部复杂度（备份恢复的正确心智本就是重建而非合并）。
 - 后果: 004 迁移含 repo_usage；`repo.Service.Put` 链增配额预检（PutOpts 缝顺势承载豁免位——服务端计算的 metadata 是否计入配额随实现定，默认计入）；storage 无改动（GC 契约复用）；`binflow-server` 子命令 +2（export/import）；审计事件族扩展（gc.trigger/export/import）；M5 文档（tech-writer）必须写 mtime 保真与顺序两条 ops 硬约束。
+- 勘误（2026-08-20，T-108，GC 触发面对齐 M4 PRD GE-03/FR-30，机制内核不变）：① 触发体由「dry_run 默认 + confirm 双字段」改为 **`{"apply": bool, "graceHours": int?}`**（apply=false 即 dry-run；graceHours 缺省用 `storage.gc_grace_hours`，grace 基准 = blob mtime 的 ADR-0006 内核不变）；② 执行模型由后台 goroutine + 状态查询改为 **M4 同步执行**（PRD Q6 暂行），`GET /api/v1/system/gc` 状态端点**不做**（P2 债务）；③ 互斥新增 **GC ↔ export 共用 data 目录级锁**（export 运行中 POST gc → 409 `export in progress`；反向 export CLI 退出码非 0——锁形态文件锁/进程内归实现票）；④ admin-only + 审计 + dry-run 默认姿态不变。配额面：专用 quota 端点不做，配置走 repositories 字段（quotaBytes）、用量观测走 `GET /api/v1/storage/usage/{repo}`（GE-06）——本 ADR 决策 2 的「config JSON 承载」内核不变。
