@@ -45,3 +45,25 @@ build 产物/deps：c00130a 未触碰 package.json/lockfile（deps 零变更属�
 ## 结论
 
 斜杠契约、隐式目录回退、流式哈希、错误原样呈现、四态矩阵、构建纪律均过关，契约漂移登记诚实且与代码一致。唯一 blocker 是上传队列取消语义缺陷（一行旗标可修），修掉即可转 APPROVE；建议 conductor 将修复并入本票或派 T-104 前置小票。
+
+## 复核 B1 修复（commit e1e35e8，2026-08-21）
+
+已核验通过的部分：
+
+- `close()` 先置 `closedRef.current = true` 再 abort 全部 XHR（顺序正确）；
+- 泵循环每轮开头 `if (closedRef.current) break`——abort rejection 回 catch 后不再 find 下一行；
+- catch 分支 `if (closedRef.current) break`——关闭触发的 abort 不标行错误（取消≠失败）；
+- 成功回调 `!closedRef.current` 门——关闭后不 patch / 不 onUploaded；
+- 闸是组件实例级 ref，`{uploadOpen && <UploadDialog/>}` 重开即新实例，闸重建 ✓；
+- 头注释已同步。
+- 回归第 7 例判别力良好：route 挂起首条 PUT → 关闭 → PUT 计数恒 1 + 排队文件内容面 404 + `usedBytes ≤ 8`（服务端侧零配额泄漏复核），正面锁死「close 于 uploading 相」的 B1 主路径。
+- 复跑验证：`cd web && npx tsc --noEmit` exit 0（HEAD a2f6b7b 含 e1e35e8）。
+
+### 仍需修改（blocking，B1 残余一臂）
+
+- **`web/src/pages/repositories/tree/UploadDialog.tsx:123-136` — 关闭落在当前行 hashing 相时，该行的 PUT 仍会在关闭后发起**。
+  追踪：泵选中 phase='hashing' 的行 → `await blobSha256(row.file)`（125 行，纯本地计算、无 XHR 可 abort）期间用户关闭（闸已落、无 XHR 可 abort、组件卸载）→ 哈希 resolve → 132 行 patch uploading → **136 行 `putArtifact` 照常执行，新 PUT 在关闭后发出**；成功路径又被 `!closedRef.current` 压掉 patch/onUploaded → 完全静默落库（树不刷新都不显示）。排队中的后续行会正确停（回到循环顶断泵），但「关闭后不再发起新 PUT」这一 B1 不变量在本臂不成立。
+  窗口随文件大小放大：按 sha256.ts 自述 30~80MB/s，1GB 文件哈希 13~33s——恰是 T-104 FR-25-AC6 大文件腿最容易撞上的相；第 7 例的关闭时点在 'uploading' 相，盖不到本臂。
+  建议改法（一行）：hashing 分支结束后、`patch(row.id, { phase: 'uploading', … })`（132 行）之前补 `if (closedRef.current) break`。可选增强：给 `blobSha256` 传 AbortSignal 顺便停掉本地哈希（不必要——写路径保证只需循环守卫）。
+
+其余 non-blocking 1~8 维持原判，不阻。修掉这一行即可转 APPROVE。
