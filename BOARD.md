@@ -28,7 +28,7 @@
 （T-102 编码完成 → review 区；单 reviewer 在途）
 - **T-103** [P0] QA 后端面全量矩阵（批 6 提前段——后端已冻结） `role:qa-engineer` `area:验收` — done 2026-08-21（**PASS 217/217**，零 P0/P1）
   三 AC 全过：基座全周期（session/CSRF 六变体/搜索 ACL 零泄漏/W36 十端点 404）+ 权限治理（组继承即时/词表 11 动作/GC 三方锁互斥全向/五协议 413 真客户端 docker dind 全链+T-95 B1 幂等面）+ 备份往返（四协议 sha 逐位/mtime 35/35/无钥 fail-fast）。被测 3c3cd36 冻结基线独立 worktree+真二进制。缺陷 D-1/D-2（P2：docker/maven 配额 push config 层残留 usage 可见 API 不可达）+ O-3~O-5 观察。**勘误 E1~E5 → T-117**（E4 cookie Path 结构性排除 /v2 已知会在途 T-100）。报告 reports/agents/T-103-qa.md。
-- **T-100** [P0] FE 制品树+搜索（批 6 第四线） — 编码完成随三票合并提交 c00130a，conductor 核验通过（本票 17/17 + 探针 11 复绿 + 全树 tsc exit 0 + embed 复绿）。**单 reviewer 在途**。契约漂移 8 项（隐式目录无 folder 行→architect 裁决）。
+- **T-100** [P0] FE 制品树+搜索（批 6 第四线） — 提交 c00130a；review REQUEST_CHANGES 1 blocking（**B1 关闭对话框不停上传队列**——泵循环继续对剩余行发 PUT，烧配额、错误无人可见）→ **修复中**（closedRef 旗标+泵循环 break）。通过面：斜杠契约逐项吻合/sha256 独立对账/隐式目录兜底闭环/锚全落。8 NB 登记。
 
 ## 👀 评审中（review）
 
