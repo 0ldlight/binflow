@@ -29,7 +29,7 @@
 ## 👀 评审中（review）
 
 - **T-94** [P0] GC 管理化（批 4） — 编码完成，conductor 核验通过（build/vet/lint 0、定向 TestT94/TestDataLock/TestGC 三包 ok、auth 回归 ok；真机 curl 序列见 T-94.md），**与 T-97 合并提交 86f879b**（router.go/server.go 双票分支不可拆，message 分列）。单 reviewer 被 429 击落（刚起步）——额度重置后唤醒重派。REST 0=无宽限 vs CLI 0=config 双口径已专测钉死。
-- **T-97** [P0] groups 域+权限继承（批 4，双 reviewer 票） — 编码完成，conductor 核验通过，**与 T-94 合并提交 86f879b**。正确性+安全 review 回：**REQUEST_CHANGES 2 blocking**（核心权限链全过：并集/fail-closed/三臂等价/审计/clean-room 无嫌疑）——B1 遗留①裁定**翻转**（bitsToNames 方向反：正确形态 key=主体名 value=权限字母集合，RestAddonImpl 取证；rest-api §3/PRD FR-27 为误读→T-113 勘误）；B2 遗留②裁定**收紧**（?permissions routeAuth{} 空门→匿名枚举用户名/权限分布洞穿存在性不泄露，改 required+admin）。修复中。6 NB 登记（user_groups 索引热路径/TOCTOU 守卫等）。架构 review 在途。
+- **T-97** [P0] groups 域+权限继承（批 4，双 reviewer 票） — 编码完成 86f879b；正确性 review 2 blocking（B1 映射翻转/B2 空门）→ **修复完成提交 120eb09**（principalLetters 新形态：key=主体名 value=r/w/d 字母、零权限主体不渲染；routeAuth required+admin——匿名读实例不再泄露用户/组普查；真机矩阵 401/403/200 + W21 精确形态实证），conductor 复核全绿（lint 0/httpapi 49.5s/auth 7.8s）。**架构 review 在途**（闭环后 done）。6 NB 登记。
 （T-64/T-67/T-69 等 M3 残留行 2026-08-20 清理，done 记录见 done 区）
 
 - **T-111** [P1] docker 413 verbatim 渲染臂 `role:dev-registry-adapter` `area:internal/adapter/docker` — done 2026-08-21（单 review 一轮修复）
