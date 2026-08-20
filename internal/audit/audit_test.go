@@ -52,15 +52,15 @@ func TestAppendAndQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Query: %v", err)
 	}
-	if len(events) != 2 {
-		t.Fatalf("events = %d, want 2", len(events))
+	if len(events.Events) != 2 {
+		t.Fatalf("events = %d, want 2", len(events.Events))
 	}
 	// newest-first
-	if events[0].Action != audit.ActionDownload {
-		t.Fatalf("first event = %q, want %q (newest first)", events[0].Action, audit.ActionDownload)
+	if events.Events[0].Action != audit.ActionDownload {
+		t.Fatalf("first event = %q, want %q (newest first)", events.Events[0].Action, audit.ActionDownload)
 	}
 
-	first := events[1] // the deploy event
+	first := events.Events[1] // the deploy event
 	if first.Actor != "ci-bot" || first.Repo != "generic-local" || first.Path != "ci-out/y.bin" {
 		t.Fatalf("deploy event fields = %+v", first)
 	}
@@ -75,22 +75,22 @@ func TestAppendAndQuery(t *testing.T) {
 	}
 
 	// Anonymous default actor was applied.
-	if events[0].Actor != audit.ActorAnonymous {
-		t.Fatalf("anonymous event actor = %q", events[0].Actor)
+	if events.Events[0].Actor != audit.ActorAnonymous {
+		t.Fatalf("anonymous event actor = %q", events.Events[0].Actor)
 	}
 
 	// Filters narrow.
 	byRepo, err := lg.Query(ctx, audit.Filter{Repo: "nope"})
-	if err != nil || len(byRepo) != 0 {
-		t.Fatalf("repo filter: %v %d", err, len(byRepo))
+	if err != nil || len(byRepo.Events) != 0 {
+		t.Fatalf("repo filter: %v %d", err, len(byRepo.Events))
 	}
 	byActor, err := lg.Query(ctx, audit.Filter{Actor: "ci-bot"})
-	if err != nil || len(byActor) != 1 {
-		t.Fatalf("actor filter: %v %d", err, len(byActor))
+	if err != nil || len(byActor.Events) != 1 {
+		t.Fatalf("actor filter: %v %d", err, len(byActor.Events))
 	}
 	limited, err := lg.Query(ctx, audit.Filter{Limit: 1})
-	if err != nil || len(limited) != 1 {
-		t.Fatalf("limit: %v %d", err, len(limited))
+	if err != nil || len(limited.Events) != 1 {
+		t.Fatalf("limit: %v %d", err, len(limited.Events))
 	}
 }
 
@@ -105,8 +105,8 @@ func TestAppendDisabled(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Query: %v", err)
 	}
-	if len(events) != 0 {
-		t.Fatalf("disabled logger stored %d events", len(events))
+	if len(events.Events) != 0 {
+		t.Fatalf("disabled logger stored %d events", len(events.Events))
 	}
 	_ = st
 }
@@ -129,7 +129,7 @@ func (f *failingAudits) Append(_ context.Context, _ *metadata.AuditEvent) error 
 	return errors.New("disk on fire")
 }
 
-func (f *failingAudits) List(_ context.Context, _, _ string, _ int) ([]*metadata.AuditEvent, error) {
+func (f *failingAudits) Query(_ context.Context, _ metadata.AuditQuery) ([]*metadata.AuditEvent, error) {
 	return nil, errors.New("disk on fire")
 }
 
@@ -212,11 +212,11 @@ func TestAppendRedactsBeforeStorage(t *testing.T) {
 		t.Fatalf("Append: %v", err)
 	}
 	events, err := lg.Query(ctx, audit.Filter{})
-	if err != nil || len(events) != 1 {
-		t.Fatalf("query: %v %d", err, len(events))
+	if err != nil || len(events.Events) != 1 {
+		t.Fatalf("query: %v %d", err, len(events.Events))
 	}
-	if strings.Contains(events[0].Detail, "s3cret-pw") {
-		t.Fatalf("credential persisted: %q", events[0].Detail)
+	if strings.Contains(events.Events[0].Detail, "s3cret-pw") {
+		t.Fatalf("credential persisted: %q", events.Events[0].Detail)
 	}
 	_ = st
 }

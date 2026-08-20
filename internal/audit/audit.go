@@ -16,6 +16,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"strconv"
 
 	"github.com/lzwzzy/binflow/internal/metadata"
 )
@@ -26,14 +27,18 @@ type Logger interface {
 	// callers that want it; production paths treat the call as best-effort
 	// (Append itself never panics and the recommended wrapper is Record).
 	Append(ctx context.Context, e Event) error
-	// Query returns events newest-first matching the filter.
-	Query(ctx context.Context, f Filter) ([]Event, error)
+	// Query returns one page of events newest-first matching the filter
+	// (full-parameter keyset form, GE-01/T-93).
+	Query(ctx context.Context, f Filter) (*Page, error)
 }
 
-// store is the consumer-side slice of metadata.AuditStore.
+// store is the consumer-side slice of metadata.AuditStore. The legacy List
+// seam was retired when T-93 moved the query plane onto the
+// full-parameter keyset Query; metadata keeps serving List for its own
+// compatibility, this package no longer consumes it.
 type store interface {
 	Append(ctx context.Context, e *metadata.AuditEvent) error
-	List(ctx context.Context, repoKey, actor string, limit int) ([]*metadata.AuditEvent, error)
+	Query(ctx context.Context, q metadata.AuditQuery) ([]*metadata.AuditEvent, error)
 }
 
 // logger implements Logger over the metadata audit store.
@@ -105,25 +110,59 @@ func (l *logger) Record(ctx context.Context, e Event) {
 	}
 }
 
-// Query returns events newest-first, at most f.Limit rows (default 100),
-// optionally narrowed by repo and actor.
-func (l *logger) Query(ctx context.Context, f Filter) ([]Event, error) {
+// defaultQueryLimit mirrors metadata.AuditQuery's default and the GE-01
+// HTTP contract: a page holds 100 events unless the caller says otherwise.
+const defaultQueryLimit = 100
+
+// auditCursorSeparator joins the cursor tuple "<time>|<id>" — the format
+// metadata.AuditQuery documents (RFC3339 UTC timestamps never contain
+// '|'). Building it here reads that documented contract from the consumer
+// side; TestQueryCursorFollowPages round-trips through the real store and
+// fails the moment the two sides drift apart.
+const auditCursorSeparator = "|"
+
+// cursorOf renders e's keyset position as the opaque cursor the next page
+// passes back through Filter.Cursor.
+func cursorOf(e Event) string {
+	return e.Time + auditCursorSeparator + strconv.FormatInt(e.ID, 10)
+}
+
+// Query returns one page of events newest-first (time DESC, id DESC)
+// matching the filter (GE-01). The page holds at most f.Limit rows
+// (default 100). NextCursor carries the position of the following page
+// and is empty on the last page — detected by fetching one row beyond the
+// limit, so a page that exactly fills the limit is still distinguishable
+// from a terminal one.
+func (l *logger) Query(ctx context.Context, f Filter) (*Page, error) {
 	limit := f.Limit
 	if limit <= 0 {
-		limit = 100
+		limit = defaultQueryLimit
 	}
-	rows, err := l.st.List(ctx, f.Repo, f.Actor, limit)
+	fetch := limit + 1
+	if fetch <= 0 {
+		// An absurd limit overflowed the increment: ask for it verbatim;
+		// the has-more probe degrades to "full page implies a cursor".
+		fetch = limit
+	}
+	rows, err := l.st.Query(ctx, metadata.AuditQuery{
+		RepoKey: f.Repo, Actor: f.Actor, Action: f.Action,
+		Since: f.Since, Until: f.Until, Cursor: f.Cursor, Limit: fetch,
+	})
 	if err != nil {
 		return nil, err
 	}
-	out := make([]Event, len(rows))
-	for i, r := range rows {
-		out[i] = Event{
-			Time: r.Time, Actor: r.Actor, Action: r.Action,
+	page := &Page{Events: make([]Event, 0, len(rows))}
+	for _, r := range rows {
+		page.Events = append(page.Events, Event{
+			ID: r.ID, Time: r.Time, Actor: r.Actor, Action: r.Action,
 			Repo: r.RepoKey, Path: r.Path, Detail: r.Detail,
-		}
+		})
 	}
-	return out, nil
+	if len(page.Events) > limit {
+		page.Events = page.Events[:limit]
+		page.NextCursor = cursorOf(page.Events[limit-1])
+	}
+	return page, nil
 }
 
 // BestEffort returns a Recorder around any Logger, so callers depending on

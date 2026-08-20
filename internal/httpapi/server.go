@@ -78,7 +78,11 @@ type Server struct {
 	// audit records login events on the /api/v1/session plane (best-effort
 	// Recorder; the same contract repo.Service consumes).
 	audit audit.Recorder
-	srv   *http.Server
+	// auditLog is the query facet of the same logger (GET /api/v1/audit,
+	// T-93). nil on metadata-less unit stacks — the endpoint answers 503
+	// rather than panicking there.
+	auditLog audit.Logger
+	srv      *http.Server
 }
 
 // New assembles the server. deps.Console may be nil (a bare console
@@ -116,9 +120,13 @@ func New(deps Deps, log *slog.Logger) *Server {
 	// The audit recorder for the login plane: same store, same enabled
 	// toggle and the same redaction chain every other audited surface uses.
 	// Assemblies without a metadata store (unit-test stacks) get the no-op
-	// fallback — a nil Recorder would panic on the first login event.
+	// fallback — a nil Recorder would panic on the first login event. The
+	// query facet (T-93) shares the same logger so the read plane sees
+	// exactly what the write plane stored.
 	if deps.Metadata != nil {
-		s.audit = audit.BestEffort(audit.New(deps.Metadata, deps.Config.Audit.Enabled))
+		lg := audit.New(deps.Metadata, deps.Config.Audit.Enabled)
+		s.audit = audit.BestEffort(lg)
+		s.auditLog = lg
 	} else {
 		s.audit = noopRecorder{}
 	}

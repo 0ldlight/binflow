@@ -2,7 +2,9 @@ package audit
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
+	"time"
 )
 
 // Event is one audit record (architecture section 3.5, extended with
@@ -16,6 +18,7 @@ import (
 // Detail is a JSON object string. Never put credentials in it (NFR-S3):
 // pass events through Redact to strip the standard slip-ups.
 type Event struct {
+	ID         int64  // row id; zero on the append path, set by Query (GE-01)
 	Time       string // RFC3339 UTC; stamped by the Logger when empty
 	Actor      string // principal name, or ActorAnonymous
 	Action     string // deploy|delete|download|login.success|login.failed|repo.create|...
@@ -25,11 +28,48 @@ type Event struct {
 	Detail     string // JSON object string
 }
 
-// Filter narrows a Query.
+// Filter narrows a Query (full-parameter form, GE-01/T-93). Every field is
+// optional; the zero filter returns the newest events. Since and Until must
+// be canonical RFC3339 UTC text — pass caller input through
+// NormalizeTimestamp first — and form a closed-open window on Time:
+// Since inclusive, Until exclusive. Cursor is the opaque keyset cursor of
+// the previous page's last event (Page.NextCursor); Limit <= 0 means 100.
 type Filter struct {
-	Repo  string
-	Actor string
-	Limit int // <= 0 means 100
+	Repo   string
+	Actor  string
+	Action string
+	Since  string // RFC3339 UTC, inclusive lower bound
+	Until  string // RFC3339 UTC, exclusive upper bound
+	Limit  int    // <= 0 means 100
+	Cursor string // "" means first page
+}
+
+// Page is one Query result: the matched events newest-first (time DESC,
+// id DESC) plus the opaque cursor of the following page. NextCursor is ""
+// on the last page — a full page is terminal exactly when NextCursor is
+// empty, which is why Query probes one row beyond the limit.
+type Page struct {
+	Events     []Event
+	NextCursor string
+}
+
+// NormalizeTimestamp validates one Since/Until parameter and returns it in
+// the canonical form the store compares textually: RFC3339 in UTC, second
+// precision. Offsets are honored (+02:00 becomes Z) and sub-second digits
+// are floored — audit rows carry second-granularity times (metadata.Now),
+// so canonical whole seconds are exactly the domain where lexicographic
+// text order equals chronological order. The empty value passes through
+// (the bound is absent); anything that does not parse as RFC3339 is an
+// error the HTTP plane answers with 400.
+func NormalizeTimestamp(v string) (string, error) {
+	if v == "" {
+		return "", nil
+	}
+	ts, err := time.Parse(time.RFC3339, v)
+	if err != nil {
+		return "", fmt.Errorf("audit: timestamp %q is not RFC3339: %w", v, err)
+	}
+	return ts.UTC().Format(time.RFC3339), nil
 }
 
 // ActorAnonymous is the actor recorded for unauthenticated access
@@ -50,6 +90,43 @@ const (
 	ActionTokenRevoke    = "token.revoke"
 	ActionPasswordChange = "password.change"
 )
+
+// M4 governance vocabulary (PRD FR-29 / GE-02). The emitting surfaces land
+// with their own tickets — T-94 gc.run, T-95 quota.exceeded, T-96
+// export.run/import.run, T-97 group.*/permission.* — while this ticket
+// ships the shared query face: append sites spell actions through these
+// constants, and Actions is the list the audit query plane and the console
+// action picker settle on.
+const (
+	ActionGroupCreate      = "group.create"
+	ActionGroupUpdate      = "group.update"
+	ActionGroupDelete      = "group.delete"
+	ActionPermissionCreate = "permission.create"
+	ActionPermissionUpdate = "permission.update"
+	ActionPermissionDelete = "permission.delete"
+	ActionGCRun            = "gc.run"
+	ActionExportRun        = "export.run"
+	ActionImportRun        = "import.run"
+	ActionQuotaExceeded    = "quota.exceeded"
+)
+
+// Actions returns the full M1~M4 action vocabulary (GE-02): every action
+// the audit query plane can filter on. It is the picker and assertion
+// source, not a gate — filtering on an unknown action simply matches
+// nothing (forward compatibility with future vocabulary).
+func Actions() []string {
+	return []string{
+		ActionDeploy, ActionDelete, ActionDownload,
+		ActionLoginOK, ActionLoginFail,
+		ActionRepoCreate, ActionRepoUpdate, ActionRepoDelete,
+		ActionTokenIssue, ActionTokenRevoke,
+		ActionPasswordChange,
+		ActionGroupCreate, ActionGroupUpdate, ActionGroupDelete,
+		ActionPermissionCreate, ActionPermissionUpdate, ActionPermissionDelete,
+		ActionGCRun, ActionExportRun, ActionImportRun,
+		ActionQuotaExceeded,
+	}
+}
 
 // credentialKeys are Detail keys (normalized to lowercase) that must never
 // persist (NFR-S3). Redact replaces their values with "[REDACTED]";

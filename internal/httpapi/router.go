@@ -276,6 +276,28 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		// Whole-instance blob/byte statistics (D2): operator data, admin
 		// only — a non-admin reader must not learn repository volume.
 		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleV1StorageStats)
+	case strings.HasPrefix(rest, "v1/storage/usage/"):
+		// Per-repository quota usage (GE-06/W26b, T-95): one segment after
+		// the prefix is the repo key. The route demands authentication; the
+		// admin-OR-read-grant decision is the use case's (a denied reader
+		// must see 403, not a 401 challenge).
+		key, tail := splitAPIName(rest, "v1/storage/usage/")
+		if tail == "" && r.Method == http.MethodGet {
+			s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+				s.handleStorageUsage(w, r, key)
+			})
+			return
+		}
+		notImplemented(w, "/binflow/api/"+rest)
+
+	// ---- /api/v1/audit (GE-01, T-93; admin, append-only) ----
+	// GET is the only verb with a route: every other spelling — PUT/DELETE
+	// /api/v1/audit, /api/v1/audit/1, POST anything — falls to the E-26
+	// 404, and that absence IS the append-only rule (W39: there is no
+	// write surface to reach; the metadata layer has no UPDATE/DELETE
+	// audit path either, NFR-S21).
+	case rest == "v1/audit" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleAuditQuery)
 
 	// ---- /api/v1/session (CE-03..05, T-91; ADR-0014 erratum 2) ----
 	// POST is deliberately un-gated (it IS the credential presentation);
