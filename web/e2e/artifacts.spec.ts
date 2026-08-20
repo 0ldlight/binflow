@@ -308,6 +308,59 @@ test('W14b search: empty-keyword guide, debounced results, semantic subline, row
   await expect(page.locator('[data-testid="node-detail"]')).toContainText(`acme/${fileName}`)
 })
 
+test('upload dialog close stops the queue: remaining files never PUT (review B1)', async ({ page }) => {
+  const key = uniq('t100h')
+  await page.goto('/binflow/ui/')
+  await login(page)
+  await api(page, 'PUT', `/api/repositories/${key}`, {
+    rclass: 'local',
+    packageType: 'generic',
+    quotaBytes: 1048576, // 配额仓：泄漏的排队上传会真实烧配额
+  })
+
+  // 第一条 PUT 在 route 处挂起——保证「关闭」发生在 1 行在飞 + 2 行排队
+  let puts = 0
+  let releaseFirst: () => void = () => {}
+  await page.route(`**/binflow/${key}/**`, async (route) => {
+    if (route.request().method() === 'PUT') {
+      puts++
+      if (puts === 1) {
+        await new Promise<void>((resolve) => {
+          releaseFirst = resolve
+        })
+      }
+    }
+    // 行 0 被abort 后 continue 对已取消请求是 no-op/拒绝——都不影响计数断言
+    await route.continue().catch(() => {})
+  })
+
+  await page.goto(`/binflow/ui/repositories/${key}/tree`)
+  await page.click('[data-testid="tree-upload"]')
+  await page.fill('[data-testid="upload-target"]', 'q/')
+  await page.setInputFiles('[data-testid="upload-file-input"]', [
+    { name: 'f0.bin', mimeType: 'application/octet-stream', buffer: Buffer.alloc(8, 1) },
+    { name: 'f1.bin', mimeType: 'application/octet-stream', buffer: Buffer.alloc(8, 2) },
+    { name: 'f2.bin', mimeType: 'application/octet-stream', buffer: Buffer.alloc(8, 3) },
+  ])
+  // 行 0 进入上传中（其 PUT 停在 route 闸上）后关闭对话框
+  await expect(page.locator('[data-testid="upload-file-0"]')).toContainText('上传中', { timeout: 15_000 })
+  await page.click('[data-testid="upload-dialog"] .modal-actions .btn:not(.primary)') // 关闭
+  await expect(page.locator('[data-testid="upload-dialog"]')).toHaveCount(0)
+  releaseFirst()
+
+  // 断言：关闭后不再有新 PUT（唯一一条是行 0），排队两文件从未落库
+  await page.waitForTimeout(1200)
+  expect(puts).toBe(1)
+  expect((await api(page, 'GET', `/${key}/q/f1.bin`)).status).toBe(404)
+  expect((await api(page, 'GET', `/${key}/q/f2.bin`)).status).toBe(404)
+  // 配额面复核：usage 仅可能含行 0 的 8 字节（abort 与 route 放行的竞态下
+  // 行 0 可达可不到），绝无 24 字节（三条全落）形态
+  const usage = await api(page, 'GET', `/api/v1/storage/usage/${key}`)
+  expect(usage.status).toBe(200)
+  const used = JSON.parse(usage.text).usedBytes as number
+  expect(used).toBeLessThanOrEqual(8)
+})
+
 test('large directory: client-side load-more pagination (ux R1 fallback)', async ({ page }) => {
   test.setTimeout(120_000)
   const key = uniq('t100g')

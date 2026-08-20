@@ -16,7 +16,8 @@ import { blobSha256 } from './sha256'
 // 「至少 3 层目录 + 文件名 = module-version[-classifier].ext」同口径）。
 //
 // 队列模型：行一次只跑一个（hash → PUT 串行；逐文件进度清晰、不打爆
-// 服务端配额预检）。关闭对话框 abort 全部在飞 XHR。
+// 服务端配额预检）。关闭对话框 = 落闸（closedRef，泵循环断）+ abort 全部
+// 在飞 XHR——排队中的剩余文件不再上传（review B1）。
 
 export interface UploadDialogProps {
   repoKey: string
@@ -91,6 +92,9 @@ export default function UploadDialog({ repoKey, mode, dir, onClose, onUploaded }
   const nextId = useRef(1)
   const xhrs = useRef(new Set<XMLHttpRequest>())
   const pumping = useRef(false)
+  // B1（review）：关闭闸——close() 置位后泵不再发起新 PUT（对白框重开是
+  // 新组件实例，闸随实例重建）
+  const closedRef = useRef(false)
   const fileInput = useRef<HTMLInputElement>(null)
   const mavenInput = useRef<HTMLInputElement>(null)
   // checkbox 的读取时点：入队那一刻的值决定是否携带 header（hint 已注明）
@@ -109,6 +113,10 @@ export default function UploadDialog({ repoKey, mode, dir, onClose, onUploaded }
     pumping.current = true
     try {
       for (;;) {
+        // B1（review）：关闭即停队列——abort 的 rejection 回到 catch 后这里
+        // 直接断泵，不再 find 下一行发起新 PUT（否则剩余排队文件在无 UI
+        // 反馈下继续落库、烧配额）
+        if (closedRef.current) break
         const row = rowsRef.current.find((r) => r.phase === 'hashing' || r.phase === 'queued')
         if (!row) break
         let sha = row.localSha
@@ -144,9 +152,13 @@ export default function UploadDialog({ repoKey, mode, dir, onClose, onUploaded }
             },
             registerXhr: (xhr) => xhrs.current.add(xhr),
           })
-          patch(row.id, { phase: 'done', serverSha: out.serverSha256, loaded: row.file.size })
-          onUploaded()
+          if (!closedRef.current) {
+            patch(row.id, { phase: 'done', serverSha: out.serverSha256, loaded: row.file.size })
+            onUploaded()
+          }
         } catch (err) {
+          // 关闭触发的 abort（'已取消'）不是上传错误：不标错、不续泵
+          if (closedRef.current) break
           const apiErr = err instanceof ApiError ? err : new ApiError(0, String(err))
           patch(row.id, { phase: 'error', error: apiErr })
         }
@@ -189,6 +201,9 @@ export default function UploadDialog({ repoKey, mode, dir, onClose, onUploaded }
   const maven = useMemo(() => mavenTarget(gav), [gav])
   const allSettled = rows.length > 0 && rows.every((r) => r.phase === 'done' || r.phase === 'error')
   const close = () => {
+    // 先落闸再 abort：泵循环每轮开头检查 closedRef（B1）——abort 只能打断
+    // 在飞的那一个 XHR，若不落闸，catch 会继续取下一行排队文件发新 PUT
+    closedRef.current = true
     for (const xhr of xhrs.current) xhr.abort()
     xhrs.current.clear()
     onClose()
