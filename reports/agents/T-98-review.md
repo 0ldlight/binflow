@@ -93,3 +93,18 @@ test('settings password change surfaces server plain-text wording inline', async
 ## 结论复述
 
 REQUEST_CHANGES：B1（过期 401 风暴重复 toast，一行修）、B2（useAsync 陈旧响应竞态，基座 hook 三行修）、B3（改密面零验证证据，补一例 e2e）。三者修复成本合计 < 30 行 + 1 个测试用例；修完即可approve，无需二轮全量评审（仅复核三处 diff + e2e 绿）。
+
+## 复核（2026-08-21，commit 5f1a10a）——APPROVE
+
+B1/B2/B3 + N2 修复全部确认，blocking 清零：
+
+- **B1 ✓**（AuthContext.tsx:68-71）：监听器内同步置 `statusRef.current='anonymous'`，渲染提交窗口关闭。并发 401（同任务或提交前）读到新值即早退；渲染期镜像（line 43）提交后回写同值，窗口不会重开；login() 经提交后重新武装。探针覆盖面核对：本批 UI 无轮询，唯一的 401 突发面就是挂载态过期后跳转仪表盘（4 卡并发）——已实测 toast=1 + 重定向；修复是结构性哨兵而非场景补丁，T-99+ 多请求页自动继承。冷加载路径 whoami silent401 → 直接 anonymous 重定向、无 toast，属守卫探针的正确语义（fresh 访问不该报「过期」）。
+- **B2 ✓**（useAsync.ts:35-57）：旗标改为每次 effect 运行的闭包变量——run N 的 cleanup 只翻转 run N 的绑定，StrictMode 双挂载（run1 cleanup → run2）与 deps 变化（A→B 切换）下晚到响应均被正确丢弃；共享可变状态清零（useRef import 一并移除）。`fn` 恒等性 caveat 维持原有文档化契约（deps 刻画输入），无回归。结论：闭包形态彻底。
+- **B3 ✓**（auth-shell.spec.ts 新用例）：守卫→login 回退 /settings→错旧口令→断言行内含「Incorrect username/password」（与 security.go changePasswordMessage 文案一致）+ 零 toast + 不跳转，三条语义齐全。
+- **N2 ✓**（AppShell.tsx:85）：`[role="dialog"], .modal-backdrop` 打开时快捷键整体让位；登出用例加「按 / 背景路由不变 + 对话框仍在」断言腿。
+
+独立验证（本机当前树执行）：`npm run typecheck` 0 错误；`npm run lint` 0 告警；`npm run build` 绿（主 chunk 241.30KB raw / 77.59KB gzip，relink-assets 正常）；`go test -count=1 ./internal/console/`（仓库根）ok 0.304s——此前一次 FAIL 系在 web/ 目录下跑 go 的相对路径解析问题，非测试失败；js+css gzip 合计 **89,402B** 与声称一致；`internal/console/dist` 与 `web/dist` 资产哈希一致（AppShell-*.js / index-DewNALEU.js 同名），且 B1 哨兵与 N2 guard 均已在 embed 产物中确认——make console 已重跑、embed 新鲜。web/ 工作树对 5f1a10a 干净。
+
+Non-blocking N1/N3~N7 维持原判，归 conductor 分派（N1 随漂移①交 ux/architect；N3 建议 T-101 前收口）。
+
+**最终结论: APPROVE**
