@@ -1,4 +1,7 @@
-// Package console serves the embedded web console; in M1 it exposes a JSON
-// placeholder until the SPA ships in M4 (architecture section 2;
-// implemented by T-14). The M4 mount will embed the built SPA from dist.
+// Package console serves the embedded web console (ADR-0014 as amended by
+// the T-108 errata): the SPA mount redirect (/binflow -> /binflow/ui/), the
+// /binflow/ui/** segment (shell + history fallback, no-cache) and the shared
+// /binflow/assets/** fingerprinted-asset mount (immutable). The bundle is
+// built from web/ by `make console` and go:embed-ed here; the committed
+// dist/placeholder.html keeps a node-less checkout buildable.
 package console

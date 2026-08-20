@@ -21,9 +21,12 @@ linters:
 
   exclusions:
     # generated code and test fixtures stay out of the quality gate.
+    # web/ entirely: it is the console's OWN build domain (npm toolchain,
+    # eslint/tsc gates in CI) — and node_modules vendors stray .go files
+    # (e.g. flatted's Go port) that would otherwise enter the Go gate.
     paths:
       - internal/console/dist
-      - web/dist
+      - web
       - third_party
     # Rule-level gosec exclusions are kept NARROW (T-26 ruling): each entry
     # is scoped to the paths that actually trigger the rule, with the

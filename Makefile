@@ -3,8 +3,13 @@
 # humans and CI (.github/workflows/ci.yml invokes these same targets).
 
 BINARY      := bin/binflow-server
-PKG         := ./...
 GO          ?= go
+# The Go package list excludes web/: it is the console's own build domain
+# (npm toolchain, eslint/tsc gates) and node_modules vendors third-party Go
+# files (e.g. flatted's Go port) that must never enter the Go gate —
+# `make console` recreates them on every machine including CI. Defined after
+# GO so the shell expansion sees the toolchain variable.
+PKG         := $(shell $(GO) list ./... | grep -v '/binflow/web/')
 GOPROXY     ?= https://goproxy.cn,direct
 GOTOOLCHAIN ?= local
 # Version-pinned lint toolchain (CI installs the same one, see ci.yml).
@@ -15,14 +20,38 @@ GOLANGCI := $(or $(shell command -v golangci-lint 2>/dev/null),$(shell $(GO) env
 export GOPROXY
 export GOTOOLCHAIN
 
-.PHONY: all build test lint fmt vet tidy run dev clean tools check-size help
+.PHONY: all build test lint fmt vet tidy run dev clean tools check-size console console-size help
 
 all: build
 
 ## build: compile bin/binflow-server with CGO disabled (ADR-0005 zero-CGo baseline).
+## Node-free by design: the console rides the committed placeholder shell until
+## `make console` has run in this checkout (T-89 placeholder strategy).
 build:
 	CGO_ENABLED=0 $(GO) build -trimpath -o $(BINARY) ./cmd/binflow-server
 	@$(MAKE) --no-print-directory check-size
+
+## console: build the web console (npm ci — lockfile-pinned, ADR-0014
+## decision 4) and copy it into internal/console/dist for go:embed. Requires
+## node >= 20; reports the gzip'd SPA payload against the 5MB budget (W37).
+## Rebuild the binary afterwards to embed the fresh bundle.
+console:
+	cd web && npm ci && npm run build
+	rm -rf internal/console/dist/assets
+	cp -R web/dist/. internal/console/dist/
+	@$(MAKE) --no-print-directory console-size
+
+## console-size: report the embedded SPA's gzipped js+css payload (the wire
+## cost a cold browser pays; PRD W37 target <= 5MB).
+console-size:
+	@total=0; for f in internal/console/dist/assets/*.js internal/console/dist/assets/*.css; do \
+		[ -e "$$f" ] || continue; \
+		sz=$$(gzip -c "$$f" | wc -c); total=$$((total+sz)); \
+	done; \
+	echo "console SPA payload (gzip, js+css): $$total bytes"; \
+	if [ "$$total" -gt 5242880 ]; then \
+		echo "WARNING: SPA payload exceeds the 5MB budget (PRD W37)"; \
+	fi
 
 ## test: run all tests with the race detector (default test target).
 test:
@@ -47,7 +76,7 @@ fmt:
 
 ## vet: go vet, kept as a separate escape hatch from golangci-lint.
 vet:
-	$(GO) vet ./...
+	$(GO) vet $(PKG)
 
 ## tidy: sync go.mod/go.sum; run alongside `git diff --stat go.mod go.sum` to verify no drift.
 tidy:

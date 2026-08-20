@@ -26,6 +26,31 @@ jobs:
           go-version: "1.26"
           cache: true
 
+      # Console toolchain (T-89, ADR-0014 decision 4): node is a BUILD-time
+      # dependency only — `make build` alone stays node-free on the committed
+      # placeholder shell; CI builds the real SPA first so the tested and
+      # shipped binary embeds it.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Console lint + typecheck
+        working-directory: web
+        run: |
+          npm ci
+          npm run lint
+          npm run typecheck
+
+      - name: Console audit (high-severity gate, ADR-0014 D4)
+        working-directory: web
+        run: npm audit --audit-level=high
+
+      - name: Build console into internal/console/dist
+        run: make console
+
       - name: Show toolchain
         run: |
           go version

@@ -31,6 +31,11 @@ type service struct {
 	// configured — passwords are then dropped at write time, never stored
 	// unprotected; ADR-0012 decision 4).
 	cipher *remote.Cipher
+	// search is the metadata store's NodeSearcher seam (T-92), resolved once
+	// at assembly: the production sqlite store always provides it, and nil
+	// (a store without the seam) makes the search use cases answer
+	// ErrSearchUnavailable instead of touching a nil interface.
+	search metadata.NodeSearcher
 }
 
 // newService wires the collaborators; New is the public constructor with the
@@ -51,7 +56,9 @@ func newService(st storage.Engine, md metadata.Store, az Authorizer, au AuditLog
 	if err != nil {
 		panic(fmt.Sprintf("repo: remote engine startup check failed: %v", err))
 	}
-	return &service{st: st, md: md, az: az, au: au, nowFn: now, remoteEng: eng, cipher: eng.Cipher()}
+	// The search seam rides the same store handle; see the struct field.
+	search, _ := md.Nodes().(metadata.NodeSearcher)
+	return &service{st: st, md: md, az: az, au: au, nowFn: now, remoteEng: eng, cipher: eng.Cipher(), search: search}
 }
 
 var _ Service = (*service)(nil)

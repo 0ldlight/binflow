@@ -64,7 +64,19 @@ func TestE26FullMatrix(t *testing.T) {
 		// pypi-ui is a permanent E-26 resident (PRD PE-06/M58): the look-
 		// alike prefix never mounts, mounted pypi handler or not.
 		{"/binflow/api/pypi-ui/packages", false},
-		{"/binflow/api/search/artifact", false},
+		// T-92 R5 flip (PRD section 5.6: "/binflow/api/search/** -> 404" is
+		// superseded): /api/search/artifact and /api/search/checksum now
+		// ROUTE (SR-01/SR-02), so the old matrix row for the artifact
+		// entrance moved to TestSearchArtifactW14 (its parameterless
+		// anonymous GET now answers the 400 of the missing name). The
+		// UNIMPLEMENTED search family stays here forever (SR-04, W36) —
+		// TestSearchUnimplementedFamilyW36 pins the authenticated posture.
+		{"/binflow/api/search/props", false},
+		{"/binflow/api/search/users", false},
+		{"/binflow/api/search/artifactory", false},
+		{"/binflow/api/search/pattern", false},
+		{"/binflow/api/search/badge", false},
+		{"/binflow/api/search/gavc", false},
 		{"/binflow/api/replication", false},
 		{"/binflow/api/system/info", false},
 		{"/binflow/api/system/configuration", false},

@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BinFlow Console</title>
+  </head>
+  <body>
+    <!-- This file is COMMITTED: it keeps go:embed complete on a fresh clone
+         so `make build` needs no node toolchain (T-89's placeholder
+         strategy). `make console` overwrites the embed set with the real
+         build (index.html + assets/); until then this shell is what the
+         /binflow/ui/ segment serves. Same mount point, same title — the e2e
+         smoke spec passes against either shell. -->
+    <div id="root">
+      <main style="font-family: system-ui, sans-serif; padding: 2rem">
+        <h1>BinFlow Console</h1>
+        <p data-testid="console-scaffold">
+          The web console bundle is not part of this build. Build it with
+          <code>make console</code> (requires node &gt;= 20) and rebuild the
+          binary.
+        </p>
+      </main>
+    </div>
+  </body>
+</html>

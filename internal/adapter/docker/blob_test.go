@@ -451,6 +451,17 @@ func (f *fakeService) DeleteRepoDocker(context.Context, string) (int64, error) {
 	return 0, errUnimplementedFake
 }
 
+// SearchArtifacts/SearchChecksum satisfy the Service search face (T-92) on
+// the blob-domain fake: the docker plane never exercises search, so the
+// stubs keep the interface honest (same posture as Delete/DeleteRepoDocker).
+func (f *fakeService) SearchArtifacts(context.Context, *Principal, string, []string) ([]*metadata.Node, error) {
+	return nil, errUnimplementedFake
+}
+
+func (f *fakeService) SearchChecksum(_ context.Context, _ *Principal, _ repo.ChecksumQuery, _ []string) ([]*metadata.Node, error) {
+	return nil, errUnimplementedFake
+}
+
 var errUnimplementedFake = fmt.Errorf("unimplemented in the blob-domain fake")
 
 // newBlobHarness assembles the handler with the real storage engine (the

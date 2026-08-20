@@ -130,21 +130,29 @@ func TestProbes(t *testing.T) {
 	}
 }
 
-// TestConsolePlaceholder: /binflow and /binflow/ serve the console JSON.
-func TestConsolePlaceholder(t *testing.T) {
+// TestConsoleRootRedirect: /binflow and /binflow/ redirect to the console's
+// ui segment (CE-01, PRD FR-23-AC1). The M1 placeholder JSON semantics are
+// terminated by T-89's embedded console (the inversion table: "GET /binflow/
+// 返回占位 JSON" -> 301); the SPA segment itself is served through the same
+// handler once T-91 mounts /binflow/ui/** in this router — so this probe
+// must NOT follow the redirect (the harness client would land on the
+// pre-T-91 content-plane 404).
+func TestConsoleRootRedirect(t *testing.T) {
 	h := newHarness(t)
+	noFollow := &http.Client{
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
 	for _, path := range []string{"/binflow", "/binflow/"} {
-		resp := h.do(http.MethodGet, path, "", "", nil, nil)
-		body := mustGet(t, resp)
-		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("%s status = %d", path, resp.StatusCode)
+		resp, err := noFollow.Get(h.srv.URL + path)
+		if err != nil {
+			t.Fatalf("GET %s: %v", path, err)
 		}
-		var c struct {
-			Service string `json:"service"`
-			Console string `json:"console"`
+		defer func() { _ = resp.Body.Close() }()
+		if resp.StatusCode != http.StatusMovedPermanently {
+			t.Fatalf("%s status = %d, want 301", path, resp.StatusCode)
 		}
-		if err := json.Unmarshal([]byte(body), &c); err != nil || c.Service != "binflow" || c.Console != "M4" {
-			t.Fatalf("%s body = %q", path, body)
+		if loc := resp.Header.Get("Location"); loc != "/binflow/ui/" {
+			t.Fatalf("%s Location = %q, want /binflow/ui/", path, loc)
 		}
 	}
 }

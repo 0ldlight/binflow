@@ -366,6 +366,16 @@ func (s *countingGetService) ListVirtualMember(ctx context.Context, virtualKey, 
 	return s.inner.ListVirtualMember(ctx, virtualKey, member, prefix)
 }
 
+// SearchArtifacts/SearchChecksum delegate the T-92 search face through the
+// wrapper (the counted call sites are the Get family; search is pass-through
+// boilerplate the interface demands).
+func (s *countingGetService) SearchArtifacts(ctx context.Context, p *Principal, name string, repos []string) ([]*metadata.Node, error) {
+	return s.inner.SearchArtifacts(ctx, p, name, repos)
+}
+func (s *countingGetService) SearchChecksum(ctx context.Context, p *Principal, q repo.ChecksumQuery, repos []string) ([]*metadata.Node, error) {
+	return s.inner.SearchChecksum(ctx, p, q, repos)
+}
+
 // ---- B4: registration failure renders 5xx, retry heals ----
 
 // TestRegistrationFailureIs5xx (review B4): when Commit succeeds but the

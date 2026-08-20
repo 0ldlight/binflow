@@ -146,18 +146,19 @@ func (s *Server) serveRootFolder(w http.ResponseWriter, r *http.Request, p *auth
 	s.writeFolderInfoBody(w, r, repoKey, "/", nil, childInfos(nodes, ""))
 }
 
-// writeFileInfo renders the file body: the full field set with digests from
-// the node plus the blob ledger (sha256 on the node, sha1/md5 keyed by the
-// blob, ADR-0006).
-func (s *Server) writeFileInfo(w http.ResponseWriter, r *http.Request, repoKey string, node *metadata.Node) {
-	sums := s.digestTripleOf(r.Context(), node)
+// fileInfoOf builds the FileInfo wire shape (E-09 field set) of one file
+// node: digests come from the node plus the blob ledger (sha256 on the node,
+// sha1/md5 keyed by the blob, ADR-0006). Extracted from writeFileInfo so the
+// search planes (T-92) render the exact same field set without duplication.
+func (s *Server) fileInfoOf(ctx context.Context, base, repoKey string, node *metadata.Node) fileInfoBody {
+	sums := s.digestTripleOf(ctx, node)
 	modified := node.UpdatedAt
 	if modified == "" {
 		modified = node.CreatedAt
 	}
-	writeJSONBody(w, http.StatusOK, fileInfoBody{
-		URI:          storageURI(requestBase(r), repoKey, node.Path),
-		DownloadURI:  storageURI(requestBase(r), repoKey, node.Path),
+	return fileInfoBody{
+		URI:          storageURI(base, repoKey, node.Path),
+		DownloadURI:  storageURI(base, repoKey, node.Path),
 		Repo:         repoKey,
 		Path:         "/" + node.Path,
 		Created:      isoMillisUTC(node.CreatedAt),
@@ -172,7 +173,14 @@ func (s *Server) writeFileInfo(w http.ResponseWriter, r *http.Request, repoKey s
 		// best echo available for originalChecksums (the same rule the
 		// generic adapter applies on download-side renders).
 		OriginalChecksums: sums,
-	})
+	}
+}
+
+// writeFileInfo renders the file body: the full field set with digests from
+// the node plus the blob ledger (sha256 on the node, sha1/md5 keyed by the
+// blob, ADR-0006).
+func (s *Server) writeFileInfo(w http.ResponseWriter, r *http.Request, repoKey string, node *metadata.Node) {
+	writeJSONBody(w, http.StatusOK, s.fileInfoOf(r.Context(), requestBase(r), repoKey, node))
 }
 
 // mimeOrDefault defaults an absent stored mime (FR-4-AC13 posture).

@@ -11,9 +11,19 @@ coverage.html
 # 依赖与构建
 node_modules/
 web/dist/
+web/playwright-report/
+web/test-results/
 .next/
 __pycache__/
 .venv/
+
+# 控制台构建产物（make console 复制进 internal/console/dist）：
+# 全局 dist/ 规则会连这个目录一起忽略，这里先解除目录本身、再忽略其
+# 内容、最后放回占位 shell —— 占位文件保证 go:embed 在无 node 的
+# checkout 上仍然匹配（T-89 占位策略：make build 不依赖 node）。
+!internal/console/dist/
+internal/console/dist/*
+!internal/console/dist/placeholder.html
 
 # 环境与密钥
 .env

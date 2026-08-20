@@ -59,8 +59,10 @@ func TestMiddlewareOrder(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/binflow/", nil)
 	rec := httptest.NewRecorder()
 	h.srv.Config.Handler.ServeHTTP(rec, req) //nolint:errcheck // probing the assembled handler directly
-	if rec.Code != http.StatusOK {
-		t.Fatalf("console placeholder status = %d, want 200", rec.Code)
+	// The console seam is T-89's embedded console: /binflow/ answers the
+	// CE-01 301 to /binflow/ui/ (the M1 placeholder 200 is terminated).
+	if rec.Code != http.StatusMovedPermanently {
+		t.Fatalf("console redirect status = %d, want 301", rec.Code)
 	}
 	if got := rec.Header().Get("X-Request-Id"); got == "" {
 		t.Fatal("X-Request-Id header missing on the response")

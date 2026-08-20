@@ -314,6 +314,19 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		}
 		notImplemented(w, "/binflow/api/"+rest)
 
+	// ---- /api/search (SR-01/SR-02, T-92) ----
+	// Exactly two entrances open the M1 E-26 search domain (PRD M4: the
+	// domain opens artifact + checksum only); every other family member —
+	// props/users/artifactory/pattern/badge, and any other verb on these
+	// two paths — falls through to the E-26 404 (SR-04, intentional
+	// incompatibility). The gates mirror /api/storage's read posture: the
+	// use case owns the anonymous-channel decision, so a closed instance
+	// answers the spec's 403 rather than a route-level 401 challenge.
+	case rest == "search/artifact" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{}, s.handleSearchArtifact)
+	case rest == "search/checksum" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{}, s.handleSearchChecksum)
+
 	// ---- /api/security (E-16..E-19) ----
 	case rest == "security/password" && r.Method == http.MethodPut:
 		s.enforce(w, r, routeAuth{required: true}, s.handleChangePasswordOwn)

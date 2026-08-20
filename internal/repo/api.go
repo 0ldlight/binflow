@@ -96,6 +96,14 @@ var (
 	// name from another repository on the catalog. The adapter maps this to
 	// a 400 (the official family PAGINATION_NUMBER_INVALID lives in).
 	ErrInvalidCursor = errors.New("invalid pagination cursor")
+	// ErrInvalidSearchQuery: a search use case rejected its parameters — a
+	// missing name, no checksum at all, a malformed digest or an oversized
+	// repos filter (T-92, SR-01/SR-02). The HTTP layer maps this to 400.
+	ErrInvalidSearchQuery = errors.New("invalid search query")
+	// ErrSearchUnavailable: the configured metadata store does not carry the
+	// search seam (metadata.NodeSearcher). Unreachable with the production
+	// sqlite store; the HTTP layer maps this to 500.
+	ErrSearchUnavailable = errors.New("search is not available on this store")
 )
 
 // Repository types and package types (architecture section 6 DDL).
@@ -437,6 +445,29 @@ type Service interface {
 	// method is the exported seam for the manifests/tags half so T-38+ can
 	// test the teardown ordering contract.
 	DeleteRepoDocker(ctx context.Context, repoKey string) (int64, error)
+
+	// ---- Search use cases (T-92, FR-26 / SR-01/SR-02) ----
+	//
+	// The M4 search face. Both methods return FILE nodes only (folder rows
+	// never surface), ordered by (repo, path), and both run the same
+	// visibility rule: a node appears exactly when the caller could GET it
+	// (NFR-S24 — admin sees everything, everyone else is filtered through
+	// the content-plane read ACL; anonymous follows the anonymous_access
+	// channel and a closed instance denies with ErrForbidden before any
+	// store access). Malformed parameters answer ErrInvalidSearchQuery.
+
+	// SearchArtifacts returns every file node whose repo-relative path
+	// contains name as a literal, case-sensitive substring (K2's provisional
+	// semantics — SQL LIKE; the `*` wildcard family and gavc are P2). repos
+	// narrows the candidate repositories (nil/empty = all); unknown keys
+	// simply match nothing. An empty name answers ErrInvalidSearchQuery.
+	SearchArtifacts(ctx context.Context, p *Principal, name string, repos []string) ([]*metadata.Node, error)
+	// SearchChecksum returns every file node referencing a blob addressed by
+	// any of the query's digests (union; cross-repository references are all
+	// reported — the "which paths hold this content" question). Digests are
+	// bare hex, case-normalized; sha1/md5 resolve through the blobs ledger.
+	// An all-empty or malformed query answers ErrInvalidSearchQuery.
+	SearchChecksum(ctx context.Context, p *Principal, q ChecksumQuery, repos []string) ([]*metadata.Node, error)
 }
 
 // PutOptions tunes PutWithOptions for the regenerable-content family
