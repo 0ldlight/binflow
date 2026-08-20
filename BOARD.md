@@ -20,7 +20,8 @@
 > M4 票 AC 全文见 reports/agents/T-88.md。分批：1:{T-89,T-90,T-92}✓ → 2:{T-91,T-110}✓ → 3:{T-93,T-95,T-96}✓ → 4:{T-94,T-97,T-98,T-111}✓（补 T-112/T-113 勘误） → 5a:{T-99,T-114,T-115}（在途） → 5b:{T-103} → 6:{T-100,T-101,T-102} → 7:{T-104} → 8:{T-105} → 9:{T-106,T-107}。双 reviewer：T-96、T-97（均闭环）。
 
 - **T-99** [P1] FE 仓库管理页 `role:dev-frontend` `area:web/src` — 仓库列表/创建/编辑（含 governance 字段表单：quotaBytes/patterns 仅 local 呈现，virtual/remote 只读「—」）；AC 见 T-88.md T-99 节
-- **T-114** [P1] GC 尾巴：CLI gc.run 审计 + apply 断连防幻影 `role:dev-go-core` `area:cmd(gc)、internal/httpapi(gc)、internal/storage(gc)` — ①FR-30-AC5 CLI 腿闭合（cmd runGC 补 gc.run 审计，cliAuditActor 常量现成，T-94 review 范围外①）；②apply 腿 context.WithoutCancel（T-94 review N1：客户端断连在 sweep 中途取消 → 已删 blob 留幻影 ledger 行且不落审计）
+- **T-114** [P1] GC 尾巴 `role:dev-go-core` `area:cmd(gc)、internal/httpapi(gc)` — done 2026-08-21（conductor 核验直收）
+  CLI gc.run 审计（detail 对齐 REST、被锁拒绝不落痕）+ apply WithoutCancel 贯穿锁内全程（断连不再留幻影 ledger）。判别性实验：还原缺陷 → TestT114 0.17s 红 + access 日志 client_disconnect=true；真机双路径对账 3 行 gc.run——**FR-30-AC5 闭合**。定案：遗留② dry-run 统一挂 WithoutCancel（管理操作留痕完整性，无破坏性）；CLI apply 双遍 mark 耗时翻倍登记备查（M5 性能面）。conductor 复核：build/lint 0/两测 PASS/cmd 10.4s。提交 bcf317f。review N2/N6 维持登记。
 - **T-115** [P1] 认证热路径索引 + 架构勘误 `role:dev-go-core` `area:internal/metadata(006)、docs/design` — done 2026-08-21（conductor 核验直收）
   006 迁移 idx_user_groups_username：EXPLAIN 对账 SCAN→SEARCH（前后 pin 断言）；005 回放测试适配版本抬升（清 ≥5 台账+DROP INDEX）；§6 索引注记 + §7.1 users 行修正（/api/security/users + POST + DELETE 债务，草案①③取用）。conductor 复核：build/lint 0/metadata 4.4s。提交 fec7fe2。遗留：§7.1 ?permissions 行回写（草案②）+ E-16 changePassword 行缺口 → T-107 文档票一并收口。
 - T-100~T-102 FE 页面组 / T-103~T-105 QA 三段 / T-106 部署烟测 / T-107 M4 文档 — AC 见 reports/agents/T-88.md
