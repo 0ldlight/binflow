@@ -32,7 +32,8 @@
 
 ## 🔨 进行中（doing）
 
-- **T-120** [P1] 懒 chunk 运行时资产路径修复（T-104 D-104-1，P1） `role:devops-engineer` `area:web/scripts、vite.config、Makefile` — 在途（relink 只重写 index.html→运行时 chunk 死引用；WebKit/Firefox 整路由空白根因；修后跨引擎三链转绿）
+- **T-120** [P1] 懒 chunk 资产路径修复 `role:devops-engineer` `area:web/scripts` — done 2026-08-21（conductor 核验直收）
+  根因精一层：vite 6.3 烧进 JS 的运行时拼接 `"/binflow/ui/"+dep`（非字面量）——relink 扩展盖第三面 + 自检门禁（残留→build exit 1，负测有牙）。**三引擎 9/9**（webkit/firefox 修前各 1/3）+ Chromium 47/47 复绿；死命中 0（修前树页 40 次）；树页 CSS 0→54 规则；SPA -2B。**D-104-1 闭合**。提交 170cf38。遗留：dind seed 收进 spec beforeAll（后续票）。
 - **T-105** [P0] QA 回归基线（M1~M3 全序列）+性能收尾（批 8） `role:qa-engineer` `area:验收` — 在途（端口段 18140+；matrix overlay 转常驻抽查——T-104 E4 采纳；回归面与 T-120 正交并行）
 
 （以下为已 done 票归档行——批 6 收口遗留位置，待全量整理）
