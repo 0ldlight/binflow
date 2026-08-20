@@ -26,10 +26,11 @@
 - **T-101** [P0] FE 安全组：用户/组/权限 target 编辑器（批 6） `role:dev-frontend` `area:web/src/pages/security` — 在途（按 console-ux v1.1 §3.6/§10 契约）
 - **T-102** [P1] FE 治理组：审计+GC+配额页（批 6） `role:dev-frontend` `area:web/src/pages/governance、web/src/pages/audit` — 在途
 - **T-103** [P0] QA 后端面全量矩阵（批 6 提前段——后端已冻结） `role:qa-engineer` `area:验收` — 在途（T-116 定案口径已注入派单）
+- **T-100** [P0] FE 制品树+上传/下载/删除+搜索页（批 6 第四线，T-99 收口后串行解除） `role:dev-frontend` `area:web/src/pages/repositories/tree、web/src/pages/search` — 在途
 
 ## 👀 评审中（review）
 
-- **T-99** [P1] FE 仓库管理页（批 5a） — 编码完成提交 0f391ea；review REQUEST_CHANGES 2 blocking（B1 行级 onClick 未隔离行内控件——CopyButton/成员浮层点击触发换页；B2 virtual 取消勾选 defaultDeploymentRepo 成员不联动清空→提交 400 "not a member"）——修复中（agent 已唤醒）。契约面全过（repos.ts 逐字段吻合/全量替换保全/删除双段流/403 收敛）。9 NB 登记；ErrorBoundary 基座缺口建议小票。漂移①已由 T-116 定案（维持 admin-only）。
+- **T-99** [P1] FE 仓库管理页（批 5a） — 编码提交 0f391ea；review 2 blocking（B1 行级 onClick 未隔离/B2 defaultDeploymentRepo 联动缺失）→ **修复完成提交 6223e74**（stopPropagation 隔离+联动清空+三腿 e2e：剪贴板 readText 对账/浮层 URL 不变/API 字段消失对账；lint 0/Playwright 6/6/零 5xx），复核中（原 reviewer）。契约面全过。9 NB 登记。
 （T-64/T-67/T-69 等 M3 残留行 2026-08-20 清理，done 记录见 done 区）
 
 - **T-111** [P1] docker 413 verbatim 渲染臂 `role:dev-registry-adapter` `area:internal/adapter/docker` — done 2026-08-21（单 review 一轮修复）
