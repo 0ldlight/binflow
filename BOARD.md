@@ -17,21 +17,21 @@
 
 ## 📥 待办（todo）
 
-> M4 票 AC 全文见 reports/agents/T-88.md。分批：1:{T-89,T-90,T-92}✓ → 2:{T-91,T-110}✓ → 3:{T-93,T-95,T-96} → 4:{T-94,T-97,T-98,T-111} → 5:{T-99,T-103} → 6:{T-100,T-101,T-102} → 7:{T-104} → 8:{T-105} → 9:{T-106,T-107}。双 reviewer：T-96、T-97。
+> M4 票 AC 全文见 reports/agents/T-88.md。分批：1:{T-89,T-90,T-92}✓ → 2:{T-91,T-110}✓ → 3:{T-93,T-95,T-96}✓ → 4:{T-94,T-97,T-98,T-111}（在途） → 5:{T-99,T-103} → 6:{T-100,T-101,T-102} → 7:{T-104} → 8:{T-105} → 9:{T-106,T-107}。双 reviewer：T-96、T-97。
 
-- **T-94** [P0] GC 管理化（dry-run 默认/apply 双确认/flock 互斥 409/审计） `role:dev-go-core` `area:internal/storage(gc)、cmd(gc)` `dep:T-96`（消费 `storage.AcquireDataLock` 锁原语，勿重写——T-96 已申报）
-- **T-97** [P0] groups 域+权限继承（批 4，双 reviewer 票） `role:dev-go-core` `area:internal/auth、internal/metadata(groups)、internal/httpapi(groups)`
-- **T-98** [P1] FE 基座：登录页+框架壳+仪表盘 `role:dev-frontend` `area:web/src`
-- **T-111** [P1] docker adapter StatusError-verbatim 渲染臂 `role:dev-registry-adapter` `area:internal/adapter/docker` `dep:T-95` — writeManifestPutError 与 blob 注册失败支路补 verbatim 臂，使配额/pattern 拒绝在 /v2 面渲染 413/409（现为 500 UNKNOWN；T-95 遗留①；W26c 前置）
 - T-99~T-102 FE 页面组 / T-103~T-105 QA 三段 / T-106 部署烟测 / T-107 M4 文档 — AC 见 reports/agents/T-88.md
 
 ## 🔨 进行中（doing）
 
-- **T-96** [P0] 备份/恢复 CLI（批 3，双 reviewer 票） `role:dev-go-core` `area:cmd(export/import)、internal/storage、internal/metadata(快照)` — 在途（cmd 命令级测试段；锁原语已先行落地待申报）
+- **T-94** [P0] GC 管理化（批 4） `role:dev-go-core` `area:internal/httpapi(gc)、internal/storage(gc)` — 在途（消费 T-96 锁原语 `storage.AcquireDataLock`，勿重写）
+- **T-97** [P0] groups 域+权限继承（批 4，双 reviewer 票） `role:dev-go-core` `area:internal/auth、internal/metadata(groups)、internal/httpapi(groups)` — 在途
+- **T-98** [P1] FE 基座：登录页+框架壳+仪表盘（批 4） `role:dev-frontend` `area:web/src` — 在途
+- **T-111** [P1] docker adapter StatusError-verbatim 渲染臂（批 4） `role:dev-registry-adapter` `area:internal/adapter/docker` — 在途（T-95 遗留①；W26c 前置）
 
 ## 👀 评审中（review）
 
 - **T-95** [P0] 治理字段+配额 enforcement+usage（批 3） — 编码完成，conductor 核验通过（build/vet ✓、repo+metadata+httpapi 三包测试绿、lint 0 issues、真机 W12a/W26/W26b/W27 curl 矩阵见 T-95.md），提交 13bc7f3。单 reviewer 在途。遗留①（docker /v2 面 413 渲染为 500 UNKNOWN）→ 新票 T-111。
+- **T-96** [P0] 备份/恢复 CLI（批 3，双 reviewer 票） — 编码完成，conductor 核验通过（build/vet ✓、storage+metadata+cmd 三包测试绿 25.3/19.7/18.2s、lint 0、真机抽查：fresh import --verify full 6/6 rehash、manifest sha 一致、恢复实例 GET sha 逐字对账 2b0ecdd6/7d0f10bc、blob 清单 bk≡fresh4、无钥 serve fail-fast 实证），提交 75c6d95。**双 reviewer 在途**（正确性+架构）。
 （T-64/T-67/T-69 等 M3 残留行 2026-08-20 清理，done 记录见 done 区）
 
 ## 🧪 测试中（qa）
