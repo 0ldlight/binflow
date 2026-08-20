@@ -95,6 +95,13 @@ func (f *fakeUsers) UpdatePassword(_ context.Context, _ string, _ string) error 
 // email, so the fake accepts and forgets.
 func (f *fakeUsers) UpdateEmail(_ context.Context, _, _ string) error { return nil }
 
+// UpdateProfile is the profile-ticket SPI stub (mechanical wave through the
+// package's UserStore fake, T-111 compile fix): the token flow never mutates
+// profile columns, so the fake accepts and forgets.
+func (f *fakeUsers) UpdateProfile(_ context.Context, _ string, _ string, _ bool) error {
+	return nil
+}
+
 func (f *fakeUsers) List(_ context.Context) ([]*metadata.User, error) { return nil, nil }
 
 func (f *fakeUsers) GetByPasswordHash(_ context.Context, _ string) (*metadata.User, error) {

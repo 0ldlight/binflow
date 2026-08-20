@@ -409,7 +409,23 @@ func isManifestFamilyMediaType(mediaType string) bool {
 // ---- error mapping ----
 
 // writeManifestPutError maps the service failures of the publish path.
+//
+// A *repo.StatusError renders VERBATIM first (T-111, the four-adapter
+// seam): the governance verdicts that live inside svc.Put (step 1 of the
+// two-step landing) and svc.PutManifest (step 2) — quota 413, pattern 409 —
+// plus the virtual/remote write 405s reach the wire with their own status
+// instead of the 500 UNKNOWN this mapper answered before. Auth-class
+// refusals never arrive as a StatusError on this plane (they are plain
+// sentinels, and the arms below keep the token challenge), so placing the
+// verbatim arm ahead of the switch is safe.
 func (h *Handler) writeManifestPutError(w http.ResponseWriter, r *http.Request, err error, ref nameRef, dgst string) {
+	var se *repo.StatusError
+	if errors.As(err, &se) {
+		h.log.WarnContext(r.Context(), "docker: manifest publish refused",
+			"repo", ref.repoKey, "digest", dgst, "status", se.Code, "error", se.Message)
+		writeVerbatimStatusError(w, se)
+		return
+	}
 	switch {
 	case errors.Is(err, repo.ErrUnauthorized):
 		h.challenge(w, r, deriveChallengeScope(r.Method, ref))

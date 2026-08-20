@@ -3,6 +3,8 @@ package docker
 import (
 	"encoding/json"
 	"net/http"
+
+	"github.com/lzwzzy/binflow/internal/repo"
 )
 
 // HeaderAPIVersion is the registry advertisement header every /v2 response
@@ -92,6 +94,60 @@ func writeSpecError(w http.ResponseWriter, status int, code, message string, det
 	_ = enc.Encode(specErrorBody{Errors: []specError{{
 		Code: code, Message: message, Detail: detail,
 	}}})
+}
+
+// writeVerbatimStatusError renders a *repo.StatusError on the /v2 plane with
+// the error's OWN status code and message (T-111 — the docker arm of the
+// verbatim seam the generic adapter opened in T-66 and maven/npm/pypi joined
+// in T-82): a repository-class verdict that already knows its exact client
+// rendering — the quota 413 and pattern 409 of T-95's governance gates, the
+// virtual/remote write 405s — reaches the wire verbatim instead of
+// collapsing into the 500 UNKNOWN the default error arms used to answer
+// with. The envelope's code field is re-derived from the status
+// (specCodeOfVerbatim below); any header the StatusError itself carries
+// (the 405 Allow) rides along.
+func writeVerbatimStatusError(w http.ResponseWriter, se *repo.StatusError) {
+	for k, vv := range se.Header {
+		for _, v := range vv {
+			w.Header().Add(k, v)
+		}
+	}
+	writeSpecError(w, se.Code, specCodeOfVerbatim(se.Code), se.Message, nil)
+}
+
+// specCodeOfVerbatim maps a verbatim StatusError's HTTP status onto the
+// registry envelope's code field. Decision (T-111, documented for review):
+//
+//   - the governance refusals — quota 413 (ErrQuotaExceeded), pattern 409
+//     (ErrPatternRejected) — carry DENIED, the official [DIST-API] code
+//     whose wording ("the access controller denied access for the operation
+//     on a resource") is the closest official fit for a policy refusal of
+//     an operation on a resource. TOOMANYREQUESTS was considered and
+//     rejected: the spec binds it to 429 rate limiting, so pairing it with
+//     413 is a status/code mismatch. A custom code (QUOTA_EXCEEDED et al.)
+//     would add non-standard surface no client consumes — the reverse spec
+//     already shows registries diverging freely here (docker-registry.md
+//     section 1 row 3: Artifactory's SIZE_INVALID / NO_TAGS_FOUND) — so the
+//     official code wins on adapter-internal consistency: DENIED is this
+//     adapter's refusal code everywhere else.
+//   - the other statuses keep their canonical envelope codes where one
+//     exists (405 UNSUPPORTED, 401 UNAUTHORIZED, 403 DENIED); anything
+//     unmapped stays UNKNOWN.
+//
+// The verbatim contract itself (status + message) is untouched by this
+// mapping: a 413 renders as 413 with the service layer's exact quota
+// wording whichever code the envelope carries.
+func specCodeOfVerbatim(status int) string {
+	switch status {
+	case http.StatusUnauthorized:
+		return ErrCodeUnauthorized
+	case http.StatusForbidden, http.StatusConflict, http.StatusRequestEntityTooLarge:
+		return ErrCodeDenied
+	case http.StatusMethodNotAllowed:
+		return ErrCodeUnsupported
+	default:
+		return ErrCodeUnknown
+	}
 }
 
 // writeAPIVersion sets the advertisement header on a response the handler

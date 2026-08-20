@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/lzwzzy/binflow/internal/metadata"
+	"github.com/lzwzzy/binflow/internal/repo"
 	"github.com/lzwzzy/binflow/internal/storage"
 )
 
@@ -543,8 +544,12 @@ func (h *Handler) tryMount(w http.ResponseWriter, r *http.Request, dest nameRef,
 		ref0, mimeOctetStream); err != nil {
 		// A permission-shaped refusal on the DESTINATION is a real denial
 		// (the route gate already passed, but PutFromBlob re-checks the
-		// node-level pair); render it. Anything else degrades to 202 — a
-		// mount is an optimization, the plain upload is always correct.
+		// node-level pair); render it. A governance refusal (quota 413 /
+		// pattern 409, T-95) deliberately stays a DEGRADATION like every
+		// other failure: a mount is an optimization, the plain upload is
+		// always correct, and the fallback upload itself answers the honest
+		// verbatim refusal at its own registration (T-111). Everything else
+		// degrades to 202 too.
 		if isDenied(err) {
 			writeSpecError(w, http.StatusForbidden, ErrCodeDenied,
 				"requested access to the resource is denied: mount into "+dest.repoKey, nil)
@@ -614,8 +619,24 @@ func (h *Handler) writeBlobCreated(w http.ResponseWriter, r *http.Request, ref n
 				map[string]string{"digest": digestPrefixHex(blob.Sha256)})
 			return
 		}
-		// Both outcomes log at ERROR (N3): the denied branch is a security
-		// signal worth its line just as much as the failure branch.
+		// T-111: a registration refused by repository governance — the
+		// quota 413, the pattern 409 — renders VERBATIM. The blob itself
+		// is durable (Commit published it) but no node row exists, and
+		// the refusal's own status now tells the client the push did not
+		// land (W26c: 413 on the /v2 plane, not the 500 UNKNOWN this
+		// branch used to answer). The retry is safe once the refusal is
+		// lifted: Commit dedups onto the physical blob and the
+		// idempotent-retransmit rule completes the rows. WARN, not ERROR
+		// — a policy refusal is not a fault (T-41's hygiene).
+		var se *repo.StatusError
+		if errors.As(err, &se) {
+			h.log.WarnContext(r.Context(), "docker: blob node registration refused",
+				"repo", ref.repoKey, "digest", blob.Sha256, "status", se.Code, "error", se.Message)
+			writeVerbatimStatusError(w, se)
+			return
+		}
+		// Both remaining outcomes log at ERROR (N3): the denied branch is a
+		// security signal worth its line just as much as the failure branch.
 		h.log.ErrorContext(r.Context(), "docker: blob node registration failed",
 			"repo", ref.repoKey, "digest", blob.Sha256, "denied", isDenied(err), "error", err.Error())
 		if isDenied(err) {
