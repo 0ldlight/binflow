@@ -90,3 +90,25 @@
 
 1. §3.6.3 指出的存量偏离「设置页健康行 `{admin && …}`」未随本批收口（规范原话「随 T-100~T-102 任一批次或 T-104 前顺手收口」+ `settings-health` 锚）——三票均未做，T-104 前需安排归属。
 2. console-ux §10.3 v1.2 回写（增补锚 + audit-export 不渲染注记）与 GE-01「精确匹配」注记均待 conductor 统一落笔（工作日志漂移①②④已备好素材）。
+
+---
+
+## 六、复核（2026-08-21，B1 修复后第二轮）
+
+### 已确认修复
+
+- **B1 守卫**：`AuditPage.tsx:100-105` 按 review 建议落地——`await` 返回后 `if (stateRef.current.key !== k) return`，events 与 nextCursor 两个 setState 均在守卫之后，`finally` 复位 loadingMore。时序上守卫是密闭的：`stateRef.current.key` 在 render pass 内更新，而 stale 网络回调只能在其后的宏任务里运行，不存在竞窗。
+- **回归腿可判别**（`e2e/governance.spec.ts:124-152`）：route 拦截挂起带 cursor 的第 2 页 → 切 action=deploy 过滤并等新首页落地 → 放行旧页 → 断言 100（污染判据）+ 新过滤续页恰好 105（游标链覆写判据；旧链会到 106）。负控口径（移除守卫 → Expected 100 / Received 106）与算术一致（新首页 100 + 旧第 2 页 6 = 106），负控结论采信。拦截器只挂 cursor 请求、unroute 在合法续页之前撤除——不误伤后续腿。
+- 本域 eslint 0 复现通过；`go test ./internal/console/` 面未涉 Go 改动。
+
+### 新增 blocking（修复本身引入）
+
+- **B2** `web/e2e/governance.spec.ts:142`——`releaseP2?.()` 触发 `error TS2349: Type 'never' has no call signatures`，`tsc --noEmit` **exit 2**（本机复现，唯一错）。成因：`let releaseP2: (() => void) | null = null` 的赋值发生在 route 闭包内，TS CFA 不追踪闭包赋值，142 行处收窄为 `null` → 可选调用分支成 `never`。**T-89 AC② 的 CI 门（tsc --noEmit + eslint）会红**；修复人自测声称「本域 tsc 0」与现树不符（可能跑在终稿之前的中间态）。运行时语义本身无恙（Playwright 侧 JS 合法）。
+  **建议改法**（三选一，均为局部 1~3 行，不动腿语义）：
+  1. 收窄逃逸：`const release = releaseP2 as (() => void) | null; expect(release).toBeTruthy(); release?.()`
+  2. holder 对象（属性收窄在调用间会被 TS 重置，天然合法）：`const held: { resolve: (() => void) | null } = { resolve: null }`，闭包内 `held.resolve = resolve`，断言后 `held.resolve?.()`
+  3. 非空断言：`;(releaseP2 as () => void)()`
+
+### 复核结论
+
+**仍需修改（REQUEST_CHANGES）**：仅剩 B2 一条（e2e 一处类型收窄，修复量分钟级）。B1 修复本体通过；B2 落地 + `tsc --noEmit` 复绿 + governance spec 复跑即可 APPROVE，无需第三轮全量复核（可由 conductor 以命令输出验收）。
