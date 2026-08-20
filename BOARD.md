@@ -29,9 +29,8 @@
 
 ## 🔨 进行中（doing）
 
-- **T-89** [P0] web 前端工程脚手架（批 1，关键路径头票） `role:devops-engineer` `area:web/、internal/console、Makefile、CI` — 在途（R1 已清：vite base=/binflow/ui/）
 （T-90 编码完成 → review 区）
-- **T-92** [P0] 搜索域 artifact+checksum（批 1） `role:dev-go-core` `area:httpapi(search)+repo(Search)+metadata(只读查询)` — 在途
+- **T-91** [P0] session 三臂+console 挂载+CSRF（批 2，双 reviewer 票） `role:dev-go-core` `area:auth(Cookie 臂)+httpapi(session/console)+config` — 在途
 （T-62 编码完成 → review 区；单 reviewer 在途）
 （T-66 编码完成 → review 区；双 reviewer 排队等槽）
 - **T-67** [P0] Maven adapter layout+传输+checksum（批 3） `role:dev-registry-adapter` `area:internal/adapter/maven` — 在途（双 reviewer 票；metadata 归 T-68）
@@ -283,6 +282,9 @@
 
 - **T-108** [P0] M4 勘误收口 `role:architect` `area:DECISIONS.md、docs/design` — done 2026-08-20
   ADR-0014 勘误（命名对齐 PRD 面：/binflow/ui 301/session 三动词含 whoami/binflow_session/TTL 双键/CSRF 改 Origin 校验）+ ADR-0008 保留字并集 {api,v2,docs,console,ui} + R2 架构勘误（gc 同步+互斥/usage 端点/groups 兼容层/004 email 列+audit 索引+user_groups 表名）+ ADR-0015 顺带勘误（报备）。R1 门槛清除，T-89 解锁。提交 ad418c5。
+
+- **T-89** [P0] web 前端工程脚手架 `role:devops-engineer` `area:web/、internal/console、Makefile、CI` — done 2026-08-20
+  vite6+React19+TS（base=/binflow/ui/）+ go:embed 三形态 Handler + relink-assets + CI node20 步（npm audit/tsc/eslint）+ Playwright 基建。conductor 复现：make console 75KB SPA（1.4% 预算）/console 测试绿/占位态 build 18.75MB。/binflow/ 301 live 证据；真 Chromium 2 spec 过。router 挂载归 T-91。提交 358b3c1。
 
 ## 🚫 阻塞（blocked）
 
