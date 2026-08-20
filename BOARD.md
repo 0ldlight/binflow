@@ -30,7 +30,7 @@
 
 ## 👀 评审中（review）
 
-- **T-95** [P0] 治理字段+配额 enforcement+usage（批 3） — 编码完成，conductor 核验通过（build/vet ✓、repo+metadata+httpapi 三包测试绿、lint 0 issues、真机 W12a/W26/W26b/W27 curl 矩阵见 T-95.md），提交 13bc7f3。单 reviewer 在途。遗留①（docker /v2 面 413 渲染为 500 UNKNOWN）→ 新票 T-111。
+- **T-96** [P0] 备份/恢复 CLI（批 3，双 reviewer 票） — 双 review 回：**架构 APPROVE（0 blocker/8 NB，T-112 勘误票已收口）**；**正确性 REQUEST_CHANGES（B1 import 不持锁+clearDirContents unlink 活锁文件；B2 非 sqlite driver/越界 dsn 无守卫——postgres 配置写垃圾路径探针实证）**，B1/B2 修复中（agent 已唤醒）。其余六区全过（顺序硬规则/mtime/VACUUM INTO/web_sessions purge/enc:v1）。
 - **T-98** [P1] FE 基座（批 4） — 编码完成，conductor 核验通过（typecheck/lint/build 绿、SPA gzip 89KB +14KB、console embed 复绿、Playwright 6/6 真后端 + TTL 塌缩/jane 授权/首屏探针），提交 d51dcce。单 reviewer 在途。契约漂移①（console-ux §3.3 非 admin 健康可见 vs /api/v1/health admin-only，前端按 403 隐藏收敛）待 ux/PM 定案。
 - **T-96** [P0] 备份/恢复 CLI（批 3，双 reviewer 票） — 编码完成，conductor 核验通过（build/vet ✓、storage+metadata+cmd 三包测试绿 25.3/19.7/18.2s、lint 0、真机抽查：fresh import --verify full 6/6 rehash、manifest sha 一致、恢复实例 GET sha 逐字对账 2b0ecdd6/7d0f10bc、blob 清单 bk≡fresh4、无钥 serve fail-fast 实证），提交 75c6d95。**双 reviewer 在途**（正确性+架构）。
 （T-64/T-67/T-69 等 M3 残留行 2026-08-20 清理，done 记录见 done 区）
@@ -290,6 +290,9 @@
 
 - **T-93** [P0] 审计查询面+词表 `role:dev-go-core` `area:internal/audit、internal/httpapi(audit)` — done 2026-08-20
   Filter 全参数+消费侧 keyset+NormalizeTimestamp；GET /api/v1/audit（limit 1..1000/cursor/403 矩阵）；W22 窗口/W23b 脱敏 grep 0/W39 append-only 全 404；NFR-S21 源码扫描测试；M4 十动作常量。conductor 复现：audit race 3.0s 绿/lint 0/4 HTTP 测试 PASS。提交 ccc1862（t93_audit_test.go 随 13bc7f3 补齐——依赖 T-95 的 harness 真 audit 接线）。
+
+- **T-95** [P0] 治理字段+配额 enforcement+usage `role:dev-go-core` `area:internal/repo、internal/metadata(usage)、internal/httpapi(usage)` — done 2026-08-20（单 review 一轮修复）
+  includes/excludes 双值（excludes 优先、默认 **/* 零开销短路）+ quotaBytes enforcement（Put 四族挂门、413 零残留、virtual 按目标 local）+ UsageStore 同事务 delta 标量子查询（无读→写升级）+ 005 回填 + usage 端点。review 取证：匹配器同构零漂移/挂点完备（docker finalize·mount·manifest step-1 无绕过）/413 原子性成立。B1（声明 checksum 幂等重传在配额顶误拒 413——三处 replaced 条件方向反）修复：existing != nil + 注释重写 + TestQuotaIdempotentRetransmitAtCeiling 三臂回退法验证 + 弱用例修正；NB2 action alias。conductor 复核：build/lint 0/定向测试 PASS。提交 13bc7f3+0a80ed0。遗留：docker /v2 渲染→T-111、manifest 双计数显示口径、预检非预留、透传清空局限、NB1/NB3/NB5/NB6 登记。
 
 - **T-110** [P1] assets 保留字 + TTL 塌缩句 `role:architect` `area:DECISIONS.md、docs/design` — done 2026-08-20（经 429 续完）
   ADR-0008 增补 assets（六字集并集）+ ADR-0014/§7.5 塌缩句（会话必死于 created_at+TTL 与活跃度无关——防前端/QA 误读）+ §6 DDL 注释同步。T-108 遗留①闭合。提交 8f26a0a。
