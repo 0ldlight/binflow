@@ -128,6 +128,11 @@ export default function UploadDialog({ repoKey, mode, dir, onClose, onUploaded }
             patch(row.id, { phase: 'error', error: new ApiError(0, '本地 sha256 计算失败') })
             continue
           }
+          // B1 残余臂（复核）：blobSha256 是纯本地计算、无 XHR 可 abort——
+          // 关闭发生在哈希期间时，resolve 后同一迭代会直接落到下方的
+          // putArtifact（循环顶的闸只拦下一迭代）。这里补一道闸，保证
+          // 「关闭后不再发起新 PUT」在哈希相也成立
+          if (closedRef.current) break
         }
         patch(row.id, { phase: 'uploading', loaded: 0, total: row.file.size, speed: 0 })
         let lastAt = performance.now()
