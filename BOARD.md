@@ -20,7 +20,8 @@
 > M4 票 AC 全文见 reports/agents/T-88.md。分批：1:{T-89,T-90,T-92}✓ → 2:{T-91,T-110}✓ → 3:{T-93,T-95,T-96}✓ → 4:{T-94,T-97,T-98,T-111}✓（补 T-112/T-113 勘误） → 5a:{T-99,T-114,T-115}（在途） → 5b:{T-103} → 6:{T-100,T-101,T-102} → 7:{T-104} → 8:{T-105} → 9:{T-106,T-107}。双 reviewer：T-96、T-97（均闭环）。
 
 - **T-117** [P1] PRD v1.2→v1.3 勘误（E1~E5 + createdBy 口径） `role:product-manager` `area:docs/prd/milestone-4.md` — 在途（批 7）
-- **T-118** [P1] console-ux §10.3 testid 清单 v1.2 回写 `role:ux-designer` `area:docs/design/console-ux.md` — 在途（批 7；T-104 断言锚冻结前置）
+- **T-118** [P1] console-ux §10.3 testid 清单 v1.2 回写 `role:ux-designer` `area:docs/design/console-ux.md` — done 2026-08-21（conductor 核验直收）
+  §10 v1.2：预定锚转正（242 处/27 文件对码核实、动态实参域逐一取证）；perm-matrix-cell 细化 {user|group}-<principal>-<action> 防碰撞升命名规则；search-filter-{package|type} 删除；token 族+audit-export 入 §10.4 禁区。T-104 断言锚唯一来源（§10.2+§10.3）。提交 01d7710。
 - **T-119** [P1] 隐式目录 folder 行架构裁决 `role:architect` `area:docs/design` — 在途（批 7；三选项 A service 落父目录行 / B storage 前缀列举 / C 维持 FE 兜底）
 - T-105 回归+性能 / T-106 部署烟测 / T-107 M4 文档 — AC 见 reports/agents/T-88.md
 
