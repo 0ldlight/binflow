@@ -31,7 +31,6 @@
 
 （T-90 编码完成 → review 区）
 - **T-91** [P0] session（修复轮） `role:dev-go-core` — B1 登录端点豁免（cookie-tossing DoS）+ B2 login-CSRF Origin 校验 + assets 保留字。在途。
-- **T-110** [P1] architect 小票：assets 保留字 ADR-0008 增补 + §7.5 TTL 塌缩句 `role:architect` `area:DECISIONS.md、docs/design` — 在途（T-91 双 review 裁决意见）
 （T-62 编码完成 → review 区；单 reviewer 在途）
 （T-66 编码完成 → review 区；双 reviewer 排队等槽）
 - **T-67** [P0] Maven adapter layout+传输+checksum（批 3） `role:dev-registry-adapter` `area:internal/adapter/maven` — 在途（双 reviewer 票；metadata 归 T-68）
@@ -292,6 +291,9 @@
 
 - **T-92** [P0] 搜索域 `role:dev-go-core` `area:httpapi+repo+metadata` — done 2026-08-20（APPROVE 一轮过）
   review 0 blocker：ACL 零泄漏（与内容面同一 allow() 路径 + 双引用探针实测）；LIKE 转义/参数化/索引真实；fileInfoOf 纯提取。4 non-blocking（宽结果 limit 门→T-105 探针/零授权 200 空 vs 403 姿态→PRD 半句）。提交 358b3c1+0390958。
+
+- **T-110** [P1] assets 保留字 + TTL 塌缩句 `role:architect` `area:DECISIONS.md、docs/design` — done 2026-08-20（经 429 续完）
+  ADR-0008 增补 assets（六字集并集）+ ADR-0014/§7.5 塌缩句（会话必死于 created_at+TTL 与活跃度无关——防前端/QA 误读）+ §6 DDL 注释同步。T-108 遗留①闭合。提交 8f26a0a。
 
 ## 🚫 阻塞（blocked）
 
