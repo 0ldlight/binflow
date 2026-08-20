@@ -264,6 +264,9 @@
 - **T-77** [P1] M3 用户文档 `role:tech-writer` `area:docs/user` — done 2026-08-20
   四篇指南 723 行（maven/npm/pypi 接入 + remote/virtual 管理）：建仓字段表 v1.2 默认值/SSRF 放行指引/凭据 env 与 fail-fast/14 行定案报错码逐字/不兼容全表；五个客户端坑收编；T-76 基线产物抽样复跑五链 exit 0（含 enc:v1: 有/明文无、405 C5 逐字）。提交 e7d2336。
 
+- **T-86** [P0] M4 架构增量 `role:architect` `area:docs/design、DECISIONS.md` — done 2026-08-20
+  ADR-0014（console 挂 /binflow/console 保留段 + server-side session 三层 CSRF + 无专属 API 树 + vite 构建链与 ADR-0005 边界澄清）；ADR-0015（GC 在线四安全边界 + repo_usage 同事务配额 + 备份先 DB 后 blobs 硬规则 + import 仅 CLI）；004 四表设计；保留字扩 {docs,console}。提交 d0ff1fb。
+
 ## 🚫 阻塞（blocked）
 
 （空）
