@@ -4,7 +4,7 @@
 |---|---|
 | 文档 | `docs/prd/milestone-4.md` |
 | 里程碑 | M4 — 控制台与治理（对应 ROADMAP.md「M4 — 控制台与治理」全部条目） |
-| 状态 | **v1.0**（初版；§7 六项开放问题附暂行假设，用户定案后回写 +0.1） |
+| 状态 | **v1.1**（T-109：R1 命名面与 ADR-0014 对齐标注——「PRD 面 + ADR 内核」裁决；R4 session TTL 双键收口；K1~K3 回写注记。v1.0 初版：§7 六项开放问题附暂行假设，用户定案后回写） |
 | 上游依据 | PRODUCT.md（核心能力 5/6：Web 控制台、治理）、ROADMAP.md M4 节、M1 交付基线（milestone-1.md v1.3.1，`m1-done`）、M2 交付基线（milestone-2.md v1.3，`m2-done`）、M3 交付基线（milestone-3.md v1.2，`m3-done`）、ADR-0002（go:embed 单二进制）、ADR-0006（blob 布局与备份硬约束：mtime 保留、mark-sweep、grace=blob mtime）、ADR-0008（`/binflow` 前缀与 repo key 保留字）、ADR-0011（Docusaurus 同栈 React，M4 控制台同栈复用）、ADR-0012（remote 凭据 `enc:v1:` 密文——export/import 的敏感数据面）、docs/design/architecture.md §7.1（`/api/v1/audit` 预留、console 挂载位）、docs/reverse/auth-model.md（§1 用户/组字段与校验链、§4 权限概览，高置信度）、docs/reverse/rest-api.md（§3 `?permissions`、§4 搜索、§5 prune 端点） |
 | 下游消费者 | tech-lead（拆票）、architect（console 路由 / 004 迁移 / session 定案 ADR）、ux-designer（信息架构并行票 `docs/design/console-ui.md`）、dev 各角色（httpapi / web 前端 / metadata）、qa-engineer（W 序列验收）、release-engineer（烟测）、tech-writer（M4 用户文档） |
 
@@ -15,6 +15,7 @@
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | v1.0 | 2026-08-20 | 初版：M4 范围、FR-23~FR-33、端点矩阵 CE/SE/SR/GE 四域 29 条、W01~W40 验收命令（curl + Playwright 浏览器面）、回归基线反转表（search 404 → 分派、console 占位 → SPA、groups 404 → 实现）、M1~M3 遗留收编 8 条、六项开放问题附暂行（session 机制 / 配额粒度 / 搜索范围 / 备份一致性窗口 / GC 执行形态 / docker remote 是否提前） |
+| v1.1 | 2026-08-20 | T-109（tech-lead T-88 转交）三点收口：① **R1 命名面对齐**——控制台命名面（`/binflow/ui/**` 挂载、保留字 `ui`、`/binflow/` 301、cookie `binflow_session`）与 ADR-0014 原文的 `/binflow/console/**` 冲突，经 tech-lead 裁决「**PRD 面 + ADR 内核**」：本 PRD 命名面为胜出面（正文不改），ADR-0014 的机制内核（server-side session 落库、CSRF 分层、Authenticator 增 Session 臂、无 console 专属 API 树、vite+React 构建链）照常生效，其命名面由 T-108 勘误对齐到本文——FR-23 与 §5.2 补对齐注记。② **R4 TTL 双键收口**——`console.session_ttl_hours`（主键，默认 24）+ `console.session_ttl_seconds`（覆盖键，同给时以 seconds 为准，测试粒度用）；W08 维持 seconds 形态，FR-23 补覆盖键说明，Q1 暂行同步。③ §5.5 K1~K3 补注「待逆向扩编票回写」（暂行值已由 tech-lead 写死进 T-97/T-92 派单口径） |
 
 ---
 
@@ -116,10 +117,12 @@ M4 在 M1~M3 地基上**追加**而非返工：控制台是既有 REST 之上的
 
 **用户故事**：作为管理员，我打开一个 URL 就能登录进 BinFlow 的管理界面——会话安全（HttpOnly、可登出、有 TTL）、SPA 深链可刷新、静态资产强缓存——这是我判断「这是个产品而不是一堆 API」的第一眼。
 
+> **对齐注记（v1.1，R1）**：本 FR 与 **ADR-0014（T-108 勘误后）对齐**——**命名面以本 PRD 为准**（`/binflow/ui/**` 挂载、repo key 保留字 `ui`、`GET /binflow/` 301、cookie 名 `binflow_session`；tech-lead 裁决「PRD 面 + ADR 内核」，ADR-0014 原文的 `/binflow/console/**` 命名由 T-108 勘误对齐到本文）；**机制内核以 ADR-0014 为准**（server-side session 落库形态、CSRF 分层防御、`auth.Authenticator` 增 Session 第三臂、前端消费通用 `/api/v1/**` 不设 console 专属树、vite+React+TS 构建链）。两文冲突处以本注记的分界为准。
+
 行为规格：
 
 - **挂载与保留字**：控制台挂 `/binflow/ui/**`（SPA 专属前缀，避免与内容路径 `/binflow/<repo>/<path>` 冲突）；`GET /binflow/` → **301** 到 `/binflow/ui/`；深链（如 `/binflow/ui/repositories`）刷新返回 SPA shell（history fallback）。**repo key 保留字新增 `ui`**（建仓 400，ADR-0008 增补；存量库已有 `ui` 仓时启动 WARN 提示改名，路由仍占用——P2 注记）。资产带内容指纹（`/binflow/assets/<hash>.js|css`），`Cache-Control: public, max-age=31536000, immutable`；SPA shell 本体 `no-cache`。
-- **登录会话（Q1 暂行：server-side session）**：`POST /binflow/api/v1/session`（JSON `{"username","password"}`，form 亦接受）→ 200 `{"username","admin":bool}` + `Set-Cookie: binflow_session=<opaque>; HttpOnly; Path=/binflow; SameSite=Lax`；session 落 SQLite（服务重启不掉线，P1 验证）、TTL 由 `console.session_ttl_hours`（默认 24）控制；到期待遇同未认证（401）。session cookie 与 Basic/Token 是**等价认证凭据**（内容路径与管理面同用——控制台的上传/删除就靠它）。
+- **登录会话（Q1 暂行：server-side session）**：`POST /binflow/api/v1/session`（JSON `{"username","password"}`，form 亦接受）→ 200 `{"username","admin":bool}` + `Set-Cookie: binflow_session=<opaque>; HttpOnly; Path=/binflow; SameSite=Lax`；session 落 SQLite（服务重启不掉线，P1 验证）、TTL 由 `console.session_ttl_hours`（**主键**，默认 24）控制；**覆盖键 `console.session_ttl_seconds`**（v1.1 双键收口：同给时以 seconds 为准，供测试/短期会话粒度——W08 用例依赖此键）；到期待遇同未认证（401）。session cookie 与 Basic/Token 是**等价认证凭据**（内容路径与管理面同用——控制台的上传/删除就靠它）。
 - **登出**：`DELETE /binflow/api/v1/session` → 204，服务端吊销（cookie 重放 401）；`GET /binflow/api/v1/session` = whoami（200 当前主体 / 401）。
 - **错误与防泄露**：错误凭据 401 E-01（`/api/v1` 族信封），文案不区分「用户不存在」与「口令错误」；登录成败均落审计（复用既有 `login.success`/`login.failed`）。登录爆破锁定 **P2 不做**（M4 只留审计与日志）。
 - **CSRF 防线（暂行）**：SameSite=Lax 之外，凡以 session cookie 认证的**写操作**（非 GET/HEAD），若请求带 `Origin` 头且非同源 → 403（不携带 cookie 认证的 Basic/Token 请求不受影响——CLI 与 CI 零感知）。
@@ -362,6 +365,8 @@ M4 在 M1~M3 地基上**追加**而非返工：控制台是既有 REST 之上的
 
 「置信度」：高 = 逆向规格明文（auth-model/rest-api）或用户定案；中 = PRD 暂行（待 §5.5 校准）。编号前缀：CE = 控制台/会话，SE = 安全（groups/用户/权限视图），SR = 搜索，GE = 治理（审计/GC/配额/备份）。
 
+> **对齐注记（v1.1，R1）**：CE 域（CE-01~07）与 **ADR-0014（T-108 勘误后）对齐**——命名面以本表为准（`/binflow/ui/**`、保留字 `ui`、301、cookie `binflow_session`；tech-lead 裁决「PRD 面 + ADR 内核」，ADR-0014 的 `/binflow/console/**` 命名由 T-108 勘误对齐），机制内核以 ADR-0014 为准（server-side session、CSRF 分层、无 console 专属 API 树、vite+React 构建链）。
+
 | # | 端点（方法 路径） | 行为要点 | 层级 | 优先级 | 置信度 | 验收 |
 |---|---|---|---|---|---|---|
 | CE-01 | `GET /binflow/` | 301 → `/binflow/ui/`（console 挂载入口；M1 占位 JSON 语义终结） | 自有 | P0 | — | W01 |
@@ -445,7 +450,7 @@ curl -sb $JAR $BASE/binflow/api/v1/session | jq -r .username             # admin
 # W07 登出与吊销（CE-05）
 curl -sb $JAR -X DELETE $BASE/binflow/api/v1/session -o /dev/null -w '%{http_code}\n'   # 204
 curl -sb $JAR -o /dev/null -w '%{http_code}\n' $BASE/binflow/api/v1/session              # 401
-# W08 TTL 过期（console.session_ttl_seconds=5 重启后）：重新登录 → sleep 6 → W06 同命令 401
+# W08 TTL 过期（覆盖键 console.session_ttl_seconds=5 重启后；主键 hours 见 FR-23）：重新登录 → sleep 6 → W06 同命令 401
 # W37a 重启不掉线：登录 → restart 服务 → W06 同命令 200（P1）
 
 # ---- 浏览器面（FR-23/24/25/28；Playwright Chromium） ----
@@ -624,6 +629,8 @@ curl -sb $JAR -X PUT --data-binary 'csrf' $BASE/binflow/generic-local/acme/csrf.
 | K2 | `/api/search/artifact` 的 name 匹配语义（子串 vs 前缀 vs 通配）与 results 字段形态 | 子串（SQL LIKE）；FileInfo 形态复用 | 同上 + rest-api.md 扩编 |
 | K3 | 组删除被 permission target 引用的语义 | 409 拒绝（BinFlow 从严：显式优于静默失权） | Artifactory 行为若为级联删引用则评估是否跟进（P2） |
 
+> （v1.1 注）K1~K3 暂行值已由 tech-lead 按 v1.0 **写死进 T-97/T-92 派单口径**（实现按暂行推进）；**待逆向扩编票落地后按本表流程回写**——校准值若与暂行冲突，以校准值为准并同步勘误 T-97/T-92 的对应断言。
+
 ### 5.6 回归基线反转表（M4 起生效，qa 更新既有断言）
 
 | 既有断言 | 来源 | M4 起的期望 |
@@ -689,7 +696,7 @@ curl -sb $JAR -X PUT --data-binary 'csrf' $BASE/binflow/generic-local/acme/csrf.
 
 | # | 问题 | 影响面 | 暂行假设 |
 |---|---|---|---|
-| Q1 | **控制台会话机制**：server-side session（SQLite sessions 表 + opaque cookie，可吊销/可审计/重启不掉线）vs JWT（无状态、签名密钥管理与吊销难题） | FR-23/CE-03~05、004 迁移、安全审计 | **server-side session**：HttpOnly + SameSite=Lax + TTL 24h（`console.session_ttl_hours`）+ 登出即吊销 + 落库（重启不掉线）。理由：BinFlow 无多实例（单二进制），无状态 JWT 的唯一优势（水平扩展/跨服务）不存在，而吊销与审计是治理里程碑的题中之义 |
+| Q1 | **控制台会话机制**：server-side session（SQLite sessions 表 + opaque cookie，可吊销/可审计/重启不掉线）vs JWT（无状态、签名密钥管理与吊销难题） | FR-23/CE-03~05、004 迁移、安全审计 | **server-side session**：HttpOnly + SameSite=Lax + TTL 24h（`console.session_ttl_hours` 主键 + `console.session_ttl_seconds` 覆盖键，v1.1 双键收口）+ 登出即吊销 + 落库（重启不掉线）。理由：BinFlow 无多实例（单二进制），无状态 JWT 的唯一优势（水平扩展/跨服务）不存在，而吊销与审计是治理里程碑的题中之义 |
 | Q2 | **配额粒度**：仅 repo 级 bytes？是否要全局配额/文件数/用户级？超限行为拒绝（413）还是告警放行 | FR-31/GE-05、部署文档 | **仅 repo 级 `quotaBytes`（0=不限），超限原子拒绝 413**；全局/文件数/用户级不做（§2.2）。企业诉求出现再扩 |
 | Q3 | **搜索范围**：P0 是否只搜 node 名/路径（SQL LIKE），properties/元数据（npm packument 字段、maven GAV、props）是否进 M4 | FR-26/SR 域、性能预算 | **P0 = name 子串 + checksum 精确；gavc P2；properties/元数据搜索 M5+**（props 体系 M1~M3 未建，属新地基非搜索面缺口） |
 | Q4 | **备份一致性窗口**：在线 export（GC 互斥 + manifest 边界，接受窗口内多余 blob）vs 维护窗口停机 export（强一致、操作重） | FR-32/GE-07、运维手册 | **在线 export**：锁互斥（GC/export）+ SQLite backup API 快照先行 + manifest 引用完整性断言；停机 export 作为可选操作说明写入文档（同一 CLI，用户自行停服执行即得强一致） |
