@@ -273,6 +273,11 @@
 - **T-85** [P0] M4 PRD v1.0 `role:product-manager` `area:docs/prd、ROADMAP.md` — done 2026-08-20
   milestone-4.md 725 行：FR-23~FR-33 共 60+ AC（控制台/权限完整模型/治理四件）；29 端点矩阵 + W01~W40（curl+Playwright+CLI）；Q1~Q6 附暂行（session/配额粒度/搜索范围/备份窗口/docker remote 推迟/GC 形态）；M1~M3 遗留收编 9 条；ROADMAP 切 M4。与 ADR-0014/0015 裁决对齐（Q1 session 与 ADR 一致）。提交 3d1cfbf。
 
+- **T-88** [P0] M4 工程 ticket 拆解 `role:tech-lead` — done 2026-08-20
+  19 票（T-89~T-107）+9 批次+R1~R10；R1 裁决「PRD 面 + ADR 内核」；复用清单 10 面；ux R1~R10 映射；P2 债务十条。全文 reports/agents/T-88.md。提交 6f99900。
+- **T-109** [P1] PRD v1.1 对齐收口 `role:product-manager` `area:docs/prd` — done 2026-08-20
+  R1 对齐注记（PRD 面胜出+ADR 内核生效+T-108 勘误归属）；R4 TTL 双键（hours 主键+seconds 覆盖键）；K1~K3 回写注记。提交 18fe44c。
+
 ## 🚫 阻塞（blocked）
 
 （空）
