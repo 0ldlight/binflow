@@ -24,7 +24,7 @@
 
 ## 🔨 进行中（doing）
 
-- **T-101** [P0] FE 安全组：用户/组/权限 target 编辑器（批 6） `role:dev-frontend` `area:web/src/pages/security` — 在途（按 console-ux v1.1 §3.6/§10 契约）
+（T-101 编码完成 → review 区；单 reviewer 在途）
 - **T-102** [P1] FE 治理组：审计+GC+配额页（批 6） `role:dev-frontend` `area:web/src/pages/governance、web/src/pages/audit` — 在途
 - **T-103** [P0] QA 后端面全量矩阵（批 6 提前段——后端已冻结） `role:qa-engineer` `area:验收` — done 2026-08-21（**PASS 217/217**，零 P0/P1）
   三 AC 全过：基座全周期（session/CSRF 六变体/搜索 ACL 零泄漏/W36 十端点 404）+ 权限治理（组继承即时/词表 11 动作/GC 三方锁互斥全向/五协议 413 真客户端 docker dind 全链+T-95 B1 幂等面）+ 备份往返（四协议 sha 逐位/mtime 35/35/无钥 fail-fast）。被测 3c3cd36 冻结基线独立 worktree+真二进制。缺陷 D-1/D-2（P2：docker/maven 配额 push config 层残留 usage 可见 API 不可达）+ O-3~O-5 观察。**勘误 E1~E5 → T-117**（E4 cookie Path 结构性排除 /v2 已知会在途 T-100）。报告 reports/agents/T-103-qa.md。
@@ -33,6 +33,8 @@
 ## 👀 评审中（review）
 
 （T-99 复核 APPROVE → done 区；批 6 四线在途：T-100/T-101/T-102/T-103）
+
+- **T-101** [P0] FE 安全组（批 6） — 编码完成（未提交——main.tsx/AppShell 与在途 T-102 路由接线交织，待合并提交），conductor 核验通过（typecheck/lint/build 绿、fixtures --check 同步、console embed ok、本票 e2e 8/8 含 parity 三例+W33b 第二上下文即时失效；全量 3 失败归属 T-102 在途 spec 非回归）。**单 reviewer 在途**（重点：pathmatch 同源移植逐行比对）。亮点：36 条 fixtures 从 Go 测试生成的前端 parity 闸；SettingsPage N1 收口（健康行 403 驱动）。漂移⑤（导航取消→后端 500+ERROR，建议 499/WARN）登记候选后端小票。
 （T-64/T-67/T-69 等 M3 残留行 2026-08-20 清理，done 记录见 done 区）
 
 - **T-111** [P1] docker 413 verbatim 渲染臂 `role:dev-registry-adapter` `area:internal/adapter/docker` — done 2026-08-21（单 review 一轮修复）
