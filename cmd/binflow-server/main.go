@@ -14,6 +14,8 @@
 //	         given, PRD FR-6-AC5; SIGINT/SIGTERM stop it gracefully)
 //	gc       garbage-collect unreferenced blobs (dry-run by default,
 //	         ADR-0006)
+//	export   write an online backup of the running instance (FR-32)
+//	import   restore a backup into an empty data directory (FR-32)
 package main
 
 import (
@@ -84,6 +86,8 @@ Commands:
 
 	serve    Run the HTTP server (default when no command is given)
 	gc       Garbage-collect unreferenced blobs (dry-run by default)
+	export   Write an online backup (runs while the server is up)
+	import   Restore a backup into an empty data directory (server stopped)
 
 Flags for serve:
 
@@ -97,6 +101,27 @@ Flags for gc:
 	--grace-days    Override storage.gc_grace for this run (positive integer)
 	--grace-hours   Override storage.gc_grace with sub-day precision
 	                (positive integer; wins over --grace-days)
+
+Flags for export:
+
+	-c string     Path to binflow.yaml, same resolution as serve
+	--output      Directory to write the backup into (must not exist, or
+	              exist empty; created with 0700 — the artifact carries
+	              password hashes and encrypted credentials, NFR-S22)
+	--tar         Not implemented in M4 (P2 backlog); directory artifact only
+
+Flags for import:
+
+	-c string     Path to binflow.yaml, same resolution as serve
+	--input       Backup directory produced by export
+	--verify      Integrity mode: "spot" (default; size for every blob,
+	              sha256 for the first 100) or "full" (rehash every blob)
+
+Notes on backup/restore (FR-32): export holds the data-directory maintenance
+lock, so it never overlaps a GC run; the SQLite snapshot is taken BEFORE the
+blob copy and blob mtimes are preserved (the GC grace clock never resets).
+import restores into an empty data directory only, verifies the whole backup
+before writing, and on any failure clears the target back to empty.
 
 Common flags:
 
@@ -143,6 +168,10 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return runServe(args[1:], stderr)
 	case "gc":
 		return runGC(args[1:], stderr)
+	case "export":
+		return runExport(args[1:], stderr)
+	case "import":
+		return runImport(args[1:], stderr)
 	default:
 		return fmt.Errorf("unknown command %q, see --help for usage", args[0])
 	}
@@ -474,6 +503,12 @@ func warnDefaultAdminPassword(ctx context.Context, s *stack, logger *slog.Logger
 // a successful sweep the blobs ledger rows of the deleted checksums are
 // dropped too.
 //
+// The whole run holds the data-directory maintenance lock (ADR-0015 erratum
+// 3): GC deletes blobs while an online export copies them, so the two are
+// mutually exclusive — gc refuses (non-zero exit) while an export runs, and
+// export refuses while gc runs. The REST gc face (T-94) holds the SAME lock
+// through the same primitive.
+//
 // Flags (PRD 6.4 O3): -c resolves the config exactly like serve (explicit
 // path must exist, otherwise the ./binflow.yaml → $BINFLOW_HOME/binflow.yaml
 // → defaults cascade); --grace-hours overrides the configured grace with
@@ -506,6 +541,15 @@ func runGC(args []string, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
+
+	// Data-directory maintenance lock: held for the whole run (mark, sweep,
+	// ledger cleanup) — export is refused while gc works and vice versa.
+	lock, err := storage.AcquireDataLock(cfg.Storage.DataDir, "gc")
+	if err != nil {
+		return fmt.Errorf("gc: %w", err)
+	}
+	defer func() { _ = lock.Release() }()
+
 	grace := cfg.Storage.GCGrace
 	if *graceDays > 0 {
 		grace = time.Duration(*graceDays) * 24 * time.Hour

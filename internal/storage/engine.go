@@ -111,12 +111,9 @@ func OpenEngine(root string, opts Options) (Engine, error) {
 
 // blobPath maps a sha256 to its content-addressed path. The digest check is
 // a path-traversal guard: a malformed value must never reach the filesystem.
-func (e *engine) blobPath(sha256 string) (string, error) {
-	if !validSha256(sha256) {
-		return "", fmt.Errorf("storage: invalid sha256 %q", sha256)
-	}
-	return filepath.Join(e.root, blobsDirName, sha256[:2], sha256), nil
-}
+// The path shape is shared with the backup helpers (BlobPath), which address
+// blobs outside any engine instance.
+func (e *engine) blobPath(sha256 string) (string, error) { return BlobPath(e.root, sha256) }
 
 func validSha256(s string) bool {
 	if len(s) != sha256HexLen {
