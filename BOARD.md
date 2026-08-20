@@ -29,6 +29,7 @@
 
 ## 🔨 进行中（doing）
 
+- **T-89** [P0] web 前端工程脚手架（批 1，关键路径头票） `role:devops-engineer` `area:web/、internal/console、Makefile、CI` — 在途（R1 已清：vite base=/binflow/ui/）
 - **T-90** [P0] metadata 004_console_governance 迁移+Groups/WebSessions/审计扩展（批 1） `role:dev-go-core` `area:internal/metadata` — 在途
 - **T-92** [P0] 搜索域 artifact+checksum（批 1） `role:dev-go-core` `area:httpapi(search)+repo(Search)+metadata(只读查询)` — 在途
 （T-62 编码完成 → review 区；单 reviewer 在途）
@@ -279,6 +280,9 @@
   19 票（T-89~T-107）+9 批次+R1~R10；R1 裁决「PRD 面 + ADR 内核」；复用清单 10 面；ux R1~R10 映射；P2 债务十条。全文 reports/agents/T-88.md。提交 6f99900。
 - **T-109** [P1] PRD v1.1 对齐收口 `role:product-manager` `area:docs/prd` — done 2026-08-20
   R1 对齐注记（PRD 面胜出+ADR 内核生效+T-108 勘误归属）；R4 TTL 双键（hours 主键+seconds 覆盖键）；K1~K3 回写注记。提交 18fe44c。
+
+- **T-108** [P0] M4 勘误收口 `role:architect` `area:DECISIONS.md、docs/design` — done 2026-08-20
+  ADR-0014 勘误（命名对齐 PRD 面：/binflow/ui 301/session 三动词含 whoami/binflow_session/TTL 双键/CSRF 改 Origin 校验）+ ADR-0008 保留字并集 {api,v2,docs,console,ui} + R2 架构勘误（gc 同步+互斥/usage 端点/groups 兼容层/004 email 列+audit 索引+user_groups 表名）+ ADR-0015 顺带勘误（报备）。R1 门槛清除，T-89 解锁。提交 ad418c5。
 
 ## 🚫 阻塞（blocked）
 
