@@ -10,10 +10,13 @@ package httpapi
 //
 // Execution is synchronous (PRD Q6 interim): one POST runs mark+sweep to
 // completion and answers with the counts; very large stores stay on the
-// CLI gc face (same semantics, out of band). Grace keeps its ADR-0006
-// meaning untouched — the mtime-based window is what makes an online run
-// safe next to serve's writers, and the online trigger is not an emergency
-// delete channel (it cannot shorten grace below what the request states).
+// CLI gc face (same semantics, out of band). The run is bound to the
+// maintenance lock, not the connection — a client hang-up mid-apply must
+// not strand half-deleted state (see sweepCtx in the handler). Grace keeps
+// its ADR-0006 meaning untouched — the mtime-based window is what makes an
+// online run safe next to serve's writers, and the online trigger is not an
+// emergency delete channel (it cannot shorten grace below what the request
+// states).
 
 import (
 	"context"
@@ -140,8 +143,22 @@ func (s *Server) handleSystemGC(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { _ = lock.Release() }()
 
+	// The run executes detached from the connection's lifetime (T-94 review
+	// N1): a client hang-up, a proxy timeout or a drain overrun would cancel
+	// r.Context() mid-sweep, and an apply canceled between deletions leaves
+	// the already-swept blobs behind as permanent phantom blobs-ledger rows
+	// (the sweep only looks at disk — a row without a file has no
+	// self-healing path) with no gc.run row for the partially-effective
+	// deletion. WithoutCancel keeps every value (principal et al.) and drops
+	// only the cancellation: one HTTP connection's lifespan must not bound a
+	// maintenance run that already holds the data-directory lock. If the
+	// client is gone the response write fails silently, which is the honest
+	// outcome — the run itself completed and was audited. The storage.GC
+	// kernel is untouched.
+	sweepCtx := context.WithoutCancel(r.Context())
+
 	referenced := func() (map[string]struct{}, error) {
-		set, err := liveChecksumSet(r.Context(), s.deps.Metadata)
+		set, err := liveChecksumSet(sweepCtx, s.deps.Metadata)
 		if err != nil {
 			return nil, fmt.Errorf("gc: referenced set: %w", err)
 		}
@@ -153,9 +170,9 @@ func (s *Server) handleSystemGC(w http.ResponseWriter, r *http.Request) {
 	// second sweep that deletes — the counts then describe what the
 	// pre-pass saw vs what the sweep freed.
 	started := time.Now()
-	candidates, err := s.deps.GC.GC(r.Context(), referenced, grace, false)
+	candidates, err := s.deps.GC.GC(sweepCtx, referenced, grace, false)
 	if err != nil {
-		s.log.ErrorContext(r.Context(), "httpapi: gc sweep failed", "error", err.Error())
+		s.log.ErrorContext(sweepCtx, "httpapi: gc sweep failed", "error", err.Error())
 		writeError(w, http.StatusInternalServerError, "gc: "+err.Error())
 		return
 	}
@@ -164,14 +181,14 @@ func (s *Server) handleSystemGC(w http.ResponseWriter, r *http.Request) {
 		// The sweep listed these files a moment ago; a stat failure means
 		// something foreign raced the tree. The count stays honest (the
 		// blob counts, its bytes do not) and the log carries the cause.
-		s.log.WarnContext(r.Context(), "httpapi: gc candidate sizing incomplete", "error", statErr.Error())
+		s.log.WarnContext(sweepCtx, "httpapi: gc candidate sizing incomplete", "error", statErr.Error())
 	}
 
 	var deleted []string
 	if body.Apply {
-		deleted, err = s.deps.GC.GC(r.Context(), referenced, grace, true)
+		deleted, err = s.deps.GC.GC(sweepCtx, referenced, grace, true)
 		if err != nil {
-			s.log.ErrorContext(r.Context(), "httpapi: gc apply pass failed", "error", err.Error())
+			s.log.ErrorContext(sweepCtx, "httpapi: gc apply pass failed", "error", err.Error())
 			writeError(w, http.StatusInternalServerError, "gc: "+err.Error())
 			return
 		}
@@ -180,8 +197,8 @@ func (s *Server) handleSystemGC(w http.ResponseWriter, r *http.Request) {
 		// existed" record (ADR-0006) and a row whose physical file is
 		// gone must not survive as a phantom.
 		for _, sha := range deleted {
-			if err := s.deps.Metadata.Blobs().Delete(r.Context(), sha); err != nil && !errors.Is(err, metadata.ErrNotFound) {
-				s.log.WarnContext(r.Context(), "httpapi: dropping blobs ledger row failed",
+			if err := s.deps.Metadata.Blobs().Delete(sweepCtx, sha); err != nil && !errors.Is(err, metadata.ErrNotFound) {
+				s.log.WarnContext(sweepCtx, "httpapi: dropping blobs ledger row failed",
 					"sha256", sha, "error", err.Error())
 			}
 		}
@@ -201,10 +218,10 @@ func (s *Server) handleSystemGC(w http.ResponseWriter, r *http.Request) {
 		DeletedCount:   resp.DeletedCount,
 	})
 	if derr != nil {
-		s.log.WarnContext(r.Context(), "httpapi: gc audit detail marshal failed", "error", derr.Error())
+		s.log.WarnContext(sweepCtx, "httpapi: gc audit detail marshal failed", "error", derr.Error())
 		detail = []byte("{}")
 	}
-	s.audit.Record(r.Context(), audit.Event{
+	s.audit.Record(sweepCtx, audit.Event{
 		Actor:      p.Name,
 		Action:     audit.ActionGCRun,
 		RemoteAddr: r.RemoteAddr,
@@ -214,7 +231,7 @@ func (s *Server) handleSystemGC(w http.ResponseWriter, r *http.Request) {
 	if body.Apply {
 		mode = "apply"
 	}
-	s.log.InfoContext(r.Context(), "httpapi: gc run complete",
+	s.log.InfoContext(sweepCtx, "httpapi: gc run complete",
 		"mode", mode,
 		"grace", grace.String(),
 		"candidates", resp.CandidateCount,

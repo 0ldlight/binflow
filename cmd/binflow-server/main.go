@@ -20,6 +20,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -505,7 +506,9 @@ func warnDefaultAdminPassword(ctx context.Context, s *stack, logger *slog.Logger
 // 11.12) then sweep (storage scans blobs/ and keeps blobs inside the grace
 // window). Default is a dry-run listing; --apply deletes for real, and after
 // a successful sweep the blobs ledger rows of the deleted checksums are
-// dropped too.
+// dropped too. Every successful run — dry-run and apply alike — records a
+// gc.run audit event (FR-30-AC5: the CLI leg of the two-path ruling; actor
+// is the CLI's admin convention, detail shaped like the REST face's).
 //
 // The whole run holds the data-directory maintenance lock (ADR-0015 erratum
 // 3): GC deletes blobs while an online export copies them, so the two are
@@ -554,12 +557,19 @@ func runGC(args []string, stderr io.Writer) error {
 	}
 	defer func() { _ = lock.Release() }()
 
+	// graceOverride remembers whether an explicit flag overrode the
+	// configured grace: the gc.run audit detail carries graceHours as null
+	// exactly when the run used storage.gc_grace (the same absent-vs-explicit
+	// distinction the REST face's pointer field makes).
 	grace := cfg.Storage.GCGrace
+	graceOverride := false
 	if *graceDays > 0 {
 		grace = time.Duration(*graceDays) * 24 * time.Hour
+		graceOverride = true
 	}
 	if *graceHours > 0 {
 		grace = time.Duration(*graceHours) * time.Hour
+		graceOverride = true
 	}
 
 	logger := slog.New(slog.NewTextHandler(stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
@@ -587,9 +597,25 @@ func runGC(args []string, stderr io.Writer) error {
 		return set, nil
 	}
 
-	candidates, err := st.GC(ctx, referenced, grace, *apply)
+	// Pass 1 is always the dry pass — the same two-pass shape the REST face
+	// runs (T-94): it yields the candidate list and, while every file still
+	// exists, their on-disk bytes for the report and the gc.run audit.
+	// --apply sweeps for real as pass 2 over a freshly recomputed mark set.
+	candidates, err := st.GC(ctx, referenced, grace, false)
 	if err != nil {
 		return fmt.Errorf("gc: %w", err)
+	}
+	candidateBytes, statErr := sumBlobFileSizes(cfg.Storage.DataDir, candidates)
+	if statErr != nil {
+		logger.Warn("gc: candidate sizing incomplete", "error", statErr.Error())
+	}
+
+	var deleted []string
+	if *apply {
+		deleted, err = st.GC(ctx, referenced, grace, true)
+		if err != nil {
+			return fmt.Errorf("gc: %w", err)
+		}
 	}
 
 	mode := "dry-run"
@@ -598,7 +624,14 @@ func runGC(args []string, stderr io.Writer) error {
 	}
 	writeCLIReport(stderr, "gc: mode=%s grace=%s data_dir=%s candidates=%d\n",
 		mode, grace, cfg.Storage.DataDir, len(candidates))
-	for _, sha := range candidates {
+	listing := candidates
+	if *apply {
+		// The apply listing stays the DELETED set (the M2 shape): a serve
+		// writer racing the two passes can keep a pre-pass candidate alive.
+		listing = deleted
+		writeCLIReport(stderr, "gc: deleted=%d\n", len(deleted))
+	}
+	for _, sha := range listing {
 		writeCLIReport(stderr, "%s\n", sha)
 	}
 
@@ -606,12 +639,40 @@ func runGC(args []string, stderr io.Writer) error {
 	// the "ever existed" record (ADR-0006), and a row whose physical file
 	// is gone must not survive as a phantom.
 	if *apply {
-		for _, sha := range candidates {
+		for _, sha := range deleted {
 			if err := md.Blobs().Delete(ctx, sha); err != nil && !errors.Is(err, metadata.ErrNotFound) {
 				logger.Warn("gc: dropping blobs ledger row failed", "sha256", sha, "error", err.Error())
 			}
 		}
 	}
+
+	// gc.run audit (FR-30-AC5: the CLI leg of the two-path ruling — REST and
+	// CLI both record, actor=admin because a CLI carries no authenticated
+	// principal to name). The detail mirrors the REST face's shape field for
+	// field: graceHours null = the configured grace, candidateBytes the
+	// pre-pass physical bytes, deletedCount the sweep's real deletions. The
+	// best-effort wiring follows the export.run precedent (T-96).
+	var graceHoursAudit *int
+	if graceOverride {
+		hours := int(grace / time.Hour)
+		graceHoursAudit = &hours
+	}
+	detail, derr := json.Marshal(struct {
+		Apply          bool  `json:"apply"`
+		GraceHours     *int  `json:"graceHours"`
+		CandidateCount int   `json:"candidateCount"`
+		CandidateBytes int64 `json:"candidateBytes"`
+		DeletedCount   int   `json:"deletedCount"`
+	}{*apply, graceHoursAudit, len(candidates), candidateBytes, len(deleted)})
+	if derr != nil {
+		logger.Warn("gc: audit detail marshal failed", "error", derr.Error())
+		detail = []byte("{}")
+	}
+	audit.BestEffort(audit.New(md, cfg.Audit.Enabled)).Record(ctx, audit.Event{
+		Actor:  cliAuditActor,
+		Action: audit.ActionGCRun,
+		Detail: string(detail),
+	})
 	return nil
 }
 
@@ -677,6 +738,36 @@ func liveChecksumSet(ctx context.Context, md metadata.Store) (map[string]struct{
 		}
 	}
 	return set, nil
+}
+
+// sumBlobFileSizes totals the on-disk size of the given blobs through the
+// exported BlobPath helper (the engine's own path shape) — the CLI twin of
+// httpapi's same-named walk: the two GC faces size the gc.run audit's
+// candidateBytes independently and identically (physical bytes, never the
+// blobs ledger, so crash-residue orphans count too; keep the walks in sync).
+// A blob that vanished between sweep and stat contributes zero and surfaces
+// through the error. It must run BEFORE the apply pass deletes the files.
+func sumBlobFileSizes(dataDir string, shas []string) (int64, error) {
+	var total int64
+	var firstErr error
+	for _, sha := range shas {
+		path, err := storage.BlobPath(dataDir, sha)
+		if err != nil {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("blob path %s: %w", sha, err)
+			}
+			continue
+		}
+		info, err := os.Stat(path)
+		if err != nil {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("stat %s: %w", path, err)
+			}
+			continue
+		}
+		total += info.Size()
+	}
+	return total, firstErr
 }
 
 // newLogger builds the process logger from logging.level / logging.format

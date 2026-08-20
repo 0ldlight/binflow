@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"flag"
 	"io"
@@ -17,8 +18,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lzwzzy/binflow/internal/audit"
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/metadata"
+	"github.com/lzwzzy/binflow/internal/storage"
 )
 
 // TestRunHelpMatrix covers the argument-dispatch surface (AC 5): no
@@ -504,6 +507,152 @@ func TestGCDockerRefsExtendMarkSet(t *testing.T) {
 	}
 	if out := stderr.String(); !strings.Contains(out, layerSha) {
 		t.Fatalf("gc after ref drop output = %q, want the now-unreferenced blob %s as a candidate", out, layerSha)
+	}
+}
+
+// TestGCAuditTrailCLI (FR-30-AC5, the CLI leg of the two-path ruling): every
+// successful gc run — dry-run and apply alike — records a gc.run event with
+// actor=admin (a CLI carries no authenticated principal) and the REST face's
+// detail shape {apply, graceHours, candidateCount, candidateBytes,
+// deletedCount}, graceHours null exactly when the run used the configured
+// grace. The refused run (lock held by a foreign holder) records nothing:
+// like the REST face, only runs that actually executed leave a trail.
+func TestGCAuditTrailCLI(t *testing.T) {
+	dir := t.TempDir()
+	dataDir := filepath.Join(dir, "data")
+	dbPath := filepath.Join(dataDir, "binflow.db")
+	withEnv(t, map[string]string{
+		"BINFLOW_HOME":                    "",
+		"BINFLOW_ADMIN_PASSWORD":          "test-admin-pw",
+		"BINFLOW_STORAGE__DATA_DIR":       dataDir,
+		"BINFLOW_STORAGE__GC_GRACE_HOURS": "24",
+	})
+	restore := chdirTemp(t)
+	defer restore()
+
+	ctx := context.Background()
+	md, err := metadata.Open(ctx, metadata.Options{
+		Driver:        "sqlite",
+		DSN:           dbPath,
+		AdminPassword: "test-admin-pw",
+	})
+	if err != nil {
+		t.Fatalf("metadata.Open: %v", err)
+	}
+
+	body := "t114 cli gc audit orphan"
+	sum := sha256.Sum256([]byte(body))
+	orphan := hex.EncodeToString(sum[:])
+	blobPath := filepath.Join(dataDir, "blobs", orphan[:2], orphan)
+	if err := os.MkdirAll(filepath.Dir(blobPath), 0o700); err != nil {
+		t.Fatalf("mkdir blob shard: %v", err)
+	}
+	if err := os.WriteFile(blobPath, []byte(body), 0o600); err != nil {
+		t.Fatalf("write blob: %v", err)
+	}
+	past := time.Now().Add(-72 * time.Hour)
+	if err := os.Chtimes(blobPath, past, past); err != nil {
+		t.Fatalf("backdate blob mtime: %v", err)
+	}
+	now := metadata.Now()
+	if err := md.Blobs().Put(ctx, &metadata.Blob{Sha256: orphan, Size: int64(len(body)), CreatedAt: now}); err != nil {
+		t.Fatalf("blobs put: %v", err)
+	}
+	if err := md.Close(); err != nil {
+		t.Fatalf("metadata close: %v", err)
+	}
+
+	for _, args := range [][]string{
+		{"gc"},                       // default dry-run, configured grace -> graceHours null
+		{"gc", "--grace-hours", "2"}, // explicit override -> graceHours 2
+		{"gc", "--apply"},            // real deletion
+	} {
+		var stdout, stderr bytes.Buffer
+		if err := run(args, &stdout, &stderr); err != nil {
+			t.Fatalf("run(%v): %v\noutput:\n%s", args, err, stderr.String())
+		}
+	}
+
+	// A refused run must not record: hold the maintenance lock as a foreign
+	// holder and fire one more dry-run.
+	lock, err := storage.AcquireDataLock(dataDir, storage.DataLockOpExport)
+	if err != nil {
+		t.Fatalf("hold lock: %v", err)
+	}
+	var stdout, stderr bytes.Buffer
+	if err := run([]string{"gc"}, &stdout, &stderr); err == nil {
+		t.Fatal("gc under a held lock unexpectedly succeeded")
+	}
+	if err := lock.Release(); err != nil {
+		t.Fatalf("release lock: %v", err)
+	}
+
+	md2, err := metadata.Open(ctx, metadata.Options{Driver: "sqlite", DSN: dbPath, AdminPassword: "test-admin-pw"})
+	if err != nil {
+		t.Fatalf("reopen metadata: %v", err)
+	}
+	defer func() { _ = md2.Close() }()
+
+	events, err := md2.Audits().List(ctx, "", cliAuditActor, 100)
+	if err != nil {
+		t.Fatalf("audit list: %v", err)
+	}
+	type gcDetail struct {
+		Apply          bool  `json:"apply"`
+		GraceHours     *int  `json:"graceHours"`
+		CandidateCount int   `json:"candidateCount"`
+		CandidateBytes int64 `json:"candidateBytes"`
+		DeletedCount   int   `json:"deletedCount"`
+	}
+	var details []gcDetail
+	for _, e := range events {
+		if e.Action != audit.ActionGCRun {
+			continue
+		}
+		if e.Actor != cliAuditActor {
+			t.Fatalf("gc.run actor = %q, want %q", e.Actor, cliAuditActor)
+		}
+		var d gcDetail
+		if err := json.Unmarshal([]byte(e.Detail), &d); err != nil {
+			t.Fatalf("gc.run detail is not the REST shape: %v\n%s", err, e.Detail)
+		}
+		details = append(details, d)
+	}
+	if len(details) != 3 {
+		t.Fatalf("gc.run events: %d, want 3 (the refused run must not record)", len(details))
+	}
+
+	var sawDefaultDry, sawOverrideDry, sawApply bool
+	for _, d := range details {
+		if d.CandidateCount != 1 || d.CandidateBytes != int64(len(body)) {
+			t.Fatalf("detail %+v: want candidateCount=1 candidateBytes=%d", d, len(body))
+		}
+		switch {
+		case !d.Apply && d.GraceHours == nil:
+			sawDefaultDry = true
+			if d.DeletedCount != 0 {
+				t.Fatalf("dry-run detail %+v: deletedCount must be 0", d)
+			}
+		case !d.Apply && d.GraceHours != nil && *d.GraceHours == 2:
+			sawOverrideDry = true
+		case d.Apply:
+			sawApply = true
+			if d.GraceHours != nil {
+				t.Fatalf("apply detail %+v: graceHours must be null (no override given)", d)
+			}
+			if d.DeletedCount != 1 {
+				t.Fatalf("apply detail %+v: want deletedCount=1", d)
+			}
+		}
+	}
+	if !sawDefaultDry || !sawOverrideDry || !sawApply {
+		t.Fatalf("gc.run detail matrix incomplete: defaultDry=%v overrideDry=%v apply=%v (%+v)",
+			sawDefaultDry, sawOverrideDry, sawApply, details)
+	}
+
+	// The apply run really deleted (no phantom ledger row for a gone file).
+	if _, err := md2.Blobs().Get(ctx, orphan); !errors.Is(err, metadata.ErrNotFound) {
+		t.Fatalf("orphan ledger row after audited apply: %v, want ErrNotFound", err)
 	}
 }
 
