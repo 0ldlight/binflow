@@ -542,14 +542,25 @@ func (h *Handler) tryMount(w http.ResponseWriter, r *http.Request, dest nameRef,
 	}
 	if _, err := h.svc.PutFromBlob(r.Context(), p, dest.repoKey, blobNodePath(dest.image, hex),
 		ref0, mimeOctetStream); err != nil {
+		// A repository-governance refusal on the DESTINATION — quota 413,
+		// pattern 409 (T-95) — is a TERMINAL verdict, same class as the
+		// permission denial below: FR-31-AC5/NFR-S23 assert the mount call
+		// itself answers the refusal's status, and the fallback upload
+		// would only make the client stream the whole layer to collect the
+		// identical refusal at registration (T-111 review B1). Renders
+		// verbatim (T-111).
+		var se *repo.StatusError
+		if errors.As(err, &se) {
+			h.log.WarnContext(r.Context(), "docker: cross-repo mount refused",
+				"to", dest.repoKey, "digest", hex, "status", se.Code, "error", se.Message)
+			writeVerbatimStatusError(w, se)
+			return true
+		}
 		// A permission-shaped refusal on the DESTINATION is a real denial
 		// (the route gate already passed, but PutFromBlob re-checks the
-		// node-level pair); render it. A governance refusal (quota 413 /
-		// pattern 409, T-95) deliberately stays a DEGRADATION like every
-		// other failure: a mount is an optimization, the plain upload is
-		// always correct, and the fallback upload itself answers the honest
-		// verbatim refusal at its own registration (T-111). Everything else
-		// degrades to 202 too.
+		// node-level pair); render it. Anything else degrades to 202 — a
+		// mount is an optimization, the plain upload is always correct
+		// (missing source, store faults, ...).
 		if isDenied(err) {
 			writeSpecError(w, http.StatusForbidden, ErrCodeDenied,
 				"requested access to the resource is denied: mount into "+dest.repoKey, nil)

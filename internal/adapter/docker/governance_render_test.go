@@ -453,3 +453,69 @@ func TestGovernanceRefusedReadsServe404(t *testing.T) {
 		t.Fatalf("read-plane 404 body = %s, want the plain BLOB_UNKNOWN miss shape", body)
 	}
 }
+
+// TestGovernanceMountRefusedVerbatim (T-111 review B1, FR-31-AC5/NFR-S23):
+// a cross-repo mount whose DESTINATION repository refuses the write by
+// governance answers the refusal's own status ON THE MOUNT CALL — 413 for a
+// quota ceiling, 409 for a pattern — not the 202 degradation that would
+// make the client stream the whole layer only to collect the identical
+// verdict at the fallback upload's registration. An unconfigured
+// destination keeps mounting 201.
+func TestGovernanceMountRefusedVerbatim(t *testing.T) {
+	bh := newGovernanceHarness(t, map[string]string{
+		"src":   `{}`,                 // source: holds the blob
+		"tiny":  `{"quotaBytes":100}`, // 300-byte layer cannot fit
+		"picky": `{"excludesPattern":"**/blobs/**"}`,
+		"roomy": `{}`, // unconfigured: the happy regression leg
+	})
+	layer := []byte(strings.Repeat("M", 300))
+	layerDgst := "sha256:" + sha256Hex(layer)
+	resp := bh.serve(http.MethodPost, "/v2/src/app/blobs/uploads/?digest="+layerDgst,
+		strings.NewReader(string(layer)), nil)
+	if body := readBody(t, resp); resp.StatusCode != http.StatusCreated {
+		t.Fatalf("source blob push status = %d, want 201 (body %s)", resp.StatusCode, body)
+	}
+	mount := func(dest string) *http.Response {
+		return bh.serve(http.MethodPost,
+			"/v2/"+dest+"/img/blobs/uploads/?mount="+layerDgst+"&from=src/app", nil, nil)
+	}
+
+	t.Run("quota destination answers 413 on the mount itself", func(t *testing.T) {
+		resp := mount("tiny")
+		body := readBody(t, resp)
+		if resp.StatusCode != http.StatusRequestEntityTooLarge {
+			t.Fatalf("mount status = %d, want 413 (body %s)", resp.StatusCode, body)
+		}
+		assertSpecEnvelope(t, resp, body, ErrCodeDenied, fmt.Sprintf(
+			"Repository 'tiny' quota exceeded: used 0 of 100 bytes; the write to 'img/blobs/%s' needs 300 more bytes.",
+			strings.TrimPrefix(layerDgst, "sha256:")))
+		// Zero residue: the refused mount wrote nothing into the destination.
+		resp = bh.serve(http.MethodGet, "/v2/tiny/img/blobs/"+layerDgst, nil, nil)
+		readBody(t, resp)
+		if resp.StatusCode != http.StatusNotFound {
+			t.Fatalf("refused mount blob GET status = %d, want 404", resp.StatusCode)
+		}
+	})
+
+	t.Run("pattern destination answers 409 on the mount itself", func(t *testing.T) {
+		resp := mount("picky")
+		body := readBody(t, resp)
+		if resp.StatusCode != http.StatusConflict {
+			t.Fatalf("mount status = %d, want 409 (body %s)", resp.StatusCode, body)
+		}
+		assertSpecEnvelope(t, resp, body, ErrCodeDenied, fmt.Sprintf(
+			"Repository 'picky' rejected deployment of 'img/blobs/%s': the path matches excludesPattern '**/blobs/**' (includesPattern '**/*').",
+			strings.TrimPrefix(layerDgst, "sha256:")))
+	})
+
+	t.Run("unconfigured destination still mounts 201 (regression)", func(t *testing.T) {
+		resp := mount("roomy")
+		body := readBody(t, resp)
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("mount status = %d, want 201 (body %s)", resp.StatusCode, body)
+		}
+		if got := resp.Header.Get("Location"); got != "/v2/roomy/img/blobs/"+layerDgst {
+			t.Fatalf("Location = %q, want the mounted blob URL", got)
+		}
+	})
+}

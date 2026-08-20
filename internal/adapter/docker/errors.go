@@ -132,7 +132,14 @@ func writeVerbatimStatusError(w http.ResponseWriter, se *repo.StatusError) {
 //     adapter's refusal code everywhere else.
 //   - the other statuses keep their canonical envelope codes where one
 //     exists (405 UNSUPPORTED, 401 UNAUTHORIZED, 403 DENIED); anything
-//     unmapped stays UNKNOWN.
+//     unmapped stays UNKNOWN. The 401 arm is dead-path defense held by a
+//     service-layer constraint, not a type: every repo.StatusError
+//     constructor speaks a governance/plane verdict (409/413/405/...) —
+//     auth refusals are plain wrapped sentinels, so the challenge arms
+//     keep the docker token flow. Should a StatusError ever carry 401,
+//     this arm's verbatim render would lack the WWW-Authenticate
+//     challenge and the arm must route through the challenge instead
+//     (review non-blocking 1).
 //
 // The verbatim contract itself (status + message) is untouched by this
 // mapping: a 413 renders as 413 with the service layer's exact quota
