@@ -28,13 +28,17 @@
 （T-102 编码完成 → review 区；单 reviewer 在途）
 - **T-103** [P0] QA 后端面全量矩阵（批 6 提前段——后端已冻结） `role:qa-engineer` `area:验收` — done 2026-08-21（**PASS 217/217**，零 P0/P1）
   三 AC 全过：基座全周期（session/CSRF 六变体/搜索 ACL 零泄漏/W36 十端点 404）+ 权限治理（组继承即时/词表 11 动作/GC 三方锁互斥全向/五协议 413 真客户端 docker dind 全链+T-95 B1 幂等面）+ 备份往返（四协议 sha 逐位/mtime 35/35/无钥 fail-fast）。被测 3c3cd36 冻结基线独立 worktree+真二进制。缺陷 D-1/D-2（P2：docker/maven 配额 push config 层残留 usage 可见 API 不可达）+ O-3~O-5 观察。**勘误 E1~E5 → T-117**（E4 cookie Path 结构性排除 /v2 已知会在途 T-100）。报告 reports/agents/T-103-qa.md。
-（T-100 编码完成 → review 待派；三票合并提交等 T-102 B2 一行修复）
+- **T-100** [P0] FE 制品树+搜索（批 6 第四线） — 编码完成随三票合并提交 c00130a，conductor 核验通过（本票 17/17 + 探针 11 复绿 + 全树 tsc exit 0 + embed 复绿）。**单 reviewer 在途**。契约漂移 8 项（隐式目录无 folder 行→architect 裁决）。
 
 ## 👀 评审中（review）
 
 （T-99 复核 APPROVE → done 区；批 6 四线在途：T-100/T-101/T-102/T-103）
 
-- **T-101** [P0] FE 安全组（批 6） — review **APPROVE 闭环**（B1 修复经对抗向量实测：含点名三组完整、病态内嵌后缀回溯正确、真后端腿可判别；NB② sameSet 代码正确——e2e 腿不可判别登记 T-104 前补纯 Node 断言）。**代码待 T-100 完成后三票合并提交再转 done**。**NB④ testid §10.3 v1.2 回写 T-104 冻结锚前 conductor 硬动作**；含逗号 target 名歧义（后端 strings.Join 根因）备案；漂移⑤候选后端小票；漂移①待产品裁决。
+- **T-101** [P0] FE 安全组 `role:dev-frontend` `area:web/src/pages/security` — done 2026-08-21（单 review 两轮修复，**复核 APPROVE**）
+  pathmatch 前端同源移植（36 fixtures 从 Go 测试生成 + --check 漂移闸 + parity spec）+ 权限 target 编辑器（模式测试器/主体×r/w/d 矩阵/保存前 diff 确认）+ users/groups 页 + 409 面板（含点名尾锚定解析）+ SettingsPage N1 收口（403 驱动）。review B1（句点截断）经对抗向量实测闭合；NB② sameSet 集合语义。e2e 10/10。提交 c00130a（三票合并）。登记：NB④ testid v1.2 回写 T-104 前 conductor 硬动作、含逗号 target 名歧义备案、漂移⑤候选后端小票（导航取消 499/WARN）、漂移①待产品裁决。
+
+- **T-102** [P1] FE 治理组 `role:dev-frontend` `area:web/src/pages/governance、audit` — done 2026-08-21（单 review 两轮修复，**输出门放行**）
+  审计页（过滤+keyset 加载更多+**晚到响应守卫**——负控可判别）+ GC 页（typed-confirm apply/409 holder 诊断/graceHours）+ 配额页（水位三态/行内编辑/413）+ 备份 R5 兜底。B1 竞态修复复核通过；B2（spec TS never-call）输出门闭合（tsc exit 0 未过滤 + governance 4 passed）。契约面全过（Filter 无 path 属实/词表/字段集）。提交 c00130a。8 NB 登记；漂移①（path 服务端过滤）需后端增量票。
 - **T-100** [P0] FE 制品树+搜索（批 6 第四线） — 编码完成，conductor 核验通过（本票 17/17：W12 全链 sha 对账/W12d 403 行内/W12a 409/413 原样/maven 表单零写/W14b 搜索/220 节点分页 + T-98/T-99 探针 11 复绿；SPA 151.2KB delta+15.5KB；embed 复绿；E4 口径已按 /v2/token）。review 待派（三票合并提交后）。**契约漂移 8 项**——最重要：**隐式目录无 folder 行**（转 architect 裁决：service 落父目录行 vs storage.go 前缀列举）；children 无 keyset 游标；folder DELETE 尾斜杠 404。遗留：五协议特化视图 P1、虚拟化窗口、dev 代理缝票等。
 - **T-102** [P1] FE 治理组（批 6） — review B1（竞态）修复**复核通过**（守卫时序密闭/回归腿可判别/负控采信）；新引入 B2（spec:142 releaseP2 TS never-call——CI 类型门红，一行断言修）**修复中，输出门放行**（tsc exit 0 + governance 4 passed 原始输出）。契约面全过。8 NB 登记。代码待三票合并提交。
 （T-64/T-67/T-69 等 M3 残留行 2026-08-20 清理，done 记录见 done 区）
