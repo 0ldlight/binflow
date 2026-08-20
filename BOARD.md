@@ -17,13 +17,14 @@
 
 ## 📥 待办（todo）
 
-> M4 票 AC 全文见 reports/agents/T-88.md。分批：1:{T-89,T-90,T-92}✓ → 2:{T-91,T-110}✓ → 3:{T-93,T-95,T-96}✓ → 4:{T-94,T-97,T-98,T-111}✓（补 T-112/T-113 勘误） → 5a:{T-99,T-114,T-115}（在途） → 5b:{T-103} → 6:{T-100,T-101,T-102} → 7:{T-104} → 8:{T-105} → 9:{T-106,T-107}。双 reviewer：T-96、T-97（均闭环）。
+> M4 票 AC 全文见 reports/agents/T-88.md。分批：1~4✓ → 5a✓ → 6✓（T-100~T-103） → 7:{T-104,T-117,T-118,T-119}（T-117/T-118/T-119 done，T-104 在途） → 8:{T-105} → 9:{T-106,T-107}。M5 首票：ADR-0016 实现（草案 T-119.md）。
 
 - **T-117** [P1] PRD v1.2→v1.3 勘误 `role:product-manager` `area:docs/prd/milestone-4.md` — done 2026-08-21（conductor 核验直收）
   六项勘误（E1 grep -q/E2 **裁决钉 403 驳回 401 建议——现状即正确零改码**/E3 零残留按每写原子（D-1/D-2 P2 接受）/E4 cookie 排除 /v2/E5 锁文件放行/createdBy 改详情面板口径）。16 处 v1.3 标记、grep 零活体残留。移交登记：console-ux §9 R10 行与 E4 相悖（随下版 ux 勘误）；docker blob node 纳 GC 候选（M5+ 评估）。提交 e86967c。
 - **T-118** [P1] console-ux §10.3 testid 清单 v1.2 回写 `role:ux-designer` `area:docs/design/console-ux.md` — done 2026-08-21（conductor 核验直收）
   §10 v1.2：预定锚转正（242 处/27 文件对码核实、动态实参域逐一取证）；perm-matrix-cell 细化 {user|group}-<principal>-<action> 防碰撞升命名规则；search-filter-{package|type} 删除；token 族+audit-export 入 §10.4 禁区。T-104 断言锚唯一来源（§10.2+§10.3）。提交 01d7710。
-- **T-119** [P1] 隐式目录 folder 行架构裁决 `role:architect` `area:docs/design` — 在途（批 7；三选项 A service 落父目录行 / B storage 前缀列举 / C 维持 FE 兜底）
+- **T-119** [P1] 隐式目录 folder 行架构裁决 `role:architect` `area:docs/design、DECISIONS.md` — done 2026-08-21（conductor 核验直收）
+  **裁决选 A（ADR-0016）**：putNode 单缝材料化祖先 folder 行（祖先先落/派生状态免三门/007 回填先落哨兵 blob 满足 FK——最大实现坑）。理由：模型不变量优于读补丁（pruneEmptyParents 在纯隐式树是死代码=症状）、clean-room 取证（nodes DDL+prune 语义）、B 性力量化否决、C 实测证伪。**实现排 M5**（两票草案在 T-119.md：BE 材料化+007 回填 → FE 删回退；行为变更隐式目录 404→200、债务 20 remote 不跟随）。提交 7986784。
 - T-105 回归+性能 / T-106 部署烟测 / T-107 M4 文档 — AC 见 reports/agents/T-88.md
 
 ## 🔨 进行中（doing）
