@@ -1,7 +1,7 @@
 # 任务看板（BOARD）
 
 > 唯一事实来源。**只有主会话（conductor）可以写本文件**，所有 subagent 只读。
-> ticket 由 tech-lead 生成、主会话录入。当前里程碑：**M3 多生态与代理**（M1/M2 已完成，tag m1-done / m2-done）。
+> ticket 由 tech-lead 生成、主会话录入。当前里程碑：**M4 控制台与治理**（M1/M2/M3 已完成，tag m1-done / m2-done / m3-done）。
 
 ## 票据格式
 
