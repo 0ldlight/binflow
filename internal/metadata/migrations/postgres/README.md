@@ -30,6 +30,11 @@ one-to-one when the dialect lands):
   AES-256-GCM ciphertext from T-66 on); new remote_cache validator table plus
   idx_remote_cache_expiry; virtual_members gains no DDL (ADR-0013 position
   semantics, comments only); idx_blobs_sha1 seam for T-73's sha1 fast-path.
+- 004_console_governance: console/governance domain — users gains email; audit
+  query indexes idx_audit_actor/idx_audit_action; new groups, user_groups
+  (membership; the T-108 errata name, draft was group_members), web_sessions
+  (id_hash=sha256 primary key, idx_web_sessions_user) and repo_usage tables
+  (architecture section 6 final DDL, ADR-0014/0015).
 
 The migrator currently embeds `migrations/sqlite/*.sql` only
 (see ../migrate.go).

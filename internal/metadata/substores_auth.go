@@ -13,23 +13,23 @@ import (
 type userStore struct{ db *sql.DB }
 
 func (s *userStore) Create(ctx context.Context, u *User) error {
-	const stmt = `INSERT INTO users (username, password_hash, is_admin, enabled, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)`
+	const stmt = `INSERT INTO users (username, password_hash, is_admin, enabled, email, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`
 	if _, err := s.db.ExecContext(ctx, stmt,
-		u.Username, u.PasswordHash, boolToInt(u.IsAdmin), boolToInt(u.Enabled), u.CreatedAt, u.UpdatedAt); err != nil {
+		u.Username, u.PasswordHash, boolToInt(u.IsAdmin), boolToInt(u.Enabled), u.Email, u.CreatedAt, u.UpdatedAt); err != nil {
 		return wrapExec("users create", u.Username, err)
 	}
 	return nil
 }
 
 func (s *userStore) Get(ctx context.Context, username string) (*User, error) {
-	const stmt = `SELECT username, password_hash, is_admin, enabled, created_at, updated_at
+	const stmt = `SELECT username, password_hash, is_admin, enabled, email, created_at, updated_at
 		FROM users WHERE username = ?`
 	return scanUser(s.db.QueryRowContext(ctx, stmt, username), username)
 }
 
 func (s *userStore) GetByPasswordHash(ctx context.Context, passwordHash string) (*User, error) {
-	const stmt = `SELECT username, password_hash, is_admin, enabled, created_at, updated_at
+	const stmt = `SELECT username, password_hash, is_admin, enabled, email, created_at, updated_at
 		FROM users WHERE password_hash = ? LIMIT 1`
 	return scanUser(s.db.QueryRowContext(ctx, stmt, passwordHash), passwordHash)
 }
@@ -37,7 +37,7 @@ func (s *userStore) GetByPasswordHash(ctx context.Context, passwordHash string) 
 func scanUser(row *sql.Row, key string) (*User, error) {
 	u := &User{}
 	var isAdmin, enabled int
-	err := row.Scan(&u.Username, &u.PasswordHash, &isAdmin, &enabled, &u.CreatedAt, &u.UpdatedAt)
+	err := row.Scan(&u.Username, &u.PasswordHash, &isAdmin, &enabled, &u.Email, &u.CreatedAt, &u.UpdatedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("users get %s: %w", key, ErrUserNotFound)
 	}
@@ -64,6 +64,24 @@ func (s *userStore) UpdatePassword(ctx context.Context, username, passwordHash s
 	return nil
 }
 
+// UpdateEmail sets the 004 email column (FR-27-AC8). Same shape as
+// UpdatePassword; blank stays a valid stored value (the blank->400 rule is a
+// service-layer validation, T-97 SE-05).
+func (s *userStore) UpdateEmail(ctx context.Context, username, email string) error {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE users SET email = ?, updated_at = ? WHERE username = ?`,
+		email, Now(), username)
+	if err != nil {
+		return wrapExec("users update-email", username, err)
+	}
+	if n, err := res.RowsAffected(); err != nil {
+		return wrapExec("users update-email rows", username, err)
+	} else if n == 0 {
+		return fmt.Errorf("users update-email %s: %w", username, ErrUserNotFound)
+	}
+	return nil
+}
+
 func (s *userStore) Delete(ctx context.Context, username string) error {
 	res, err := s.db.ExecContext(ctx, `DELETE FROM users WHERE username = ?`, username)
 	if err != nil {
@@ -78,7 +96,7 @@ func (s *userStore) Delete(ctx context.Context, username string) error {
 }
 
 func (s *userStore) List(ctx context.Context) ([]*User, error) {
-	const stmt = `SELECT username, password_hash, is_admin, enabled, created_at, updated_at
+	const stmt = `SELECT username, password_hash, is_admin, enabled, email, created_at, updated_at
 		FROM users ORDER BY username`
 	rows, err := s.db.QueryContext(ctx, stmt)
 	if err != nil {
@@ -89,7 +107,7 @@ func (s *userStore) List(ctx context.Context) ([]*User, error) {
 	for rows.Next() {
 		u := &User{}
 		var isAdmin, enabled int
-		if err := rows.Scan(&u.Username, &u.PasswordHash, &isAdmin, &enabled, &u.CreatedAt, &u.UpdatedAt); err != nil {
+		if err := rows.Scan(&u.Username, &u.PasswordHash, &isAdmin, &enabled, &u.Email, &u.CreatedAt, &u.UpdatedAt); err != nil {
 			return nil, wrapExec("users list scan", "", err)
 		}
 		u.IsAdmin = isAdmin != 0
@@ -386,19 +404,7 @@ func (s *auditStore) List(ctx context.Context, repoKey, actor string, limit int)
 	if err != nil {
 		return nil, wrapExec("audit list", "", err)
 	}
-	defer func() { _ = rows.Close() }()
-	var out []*AuditEvent
-	for rows.Next() {
-		e := &AuditEvent{}
-		if err := rows.Scan(&e.ID, &e.Time, &e.Actor, &e.Action, &e.RepoKey, &e.Path, &e.Detail); err != nil {
-			return nil, wrapExec("audit list scan", "", err)
-		}
-		out = append(out, e)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, wrapExec("audit list rows", "", err)
-	}
-	return out, nil
+	return scanAuditEvents(rows, "audit list")
 }
 
 func boolToInt(b bool) int {

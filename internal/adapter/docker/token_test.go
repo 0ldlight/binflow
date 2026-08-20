@@ -91,6 +91,10 @@ func (f *fakeUsers) Delete(_ context.Context, name string) error {
 
 func (f *fakeUsers) UpdatePassword(_ context.Context, _ string, _ string) error { return nil }
 
+// UpdateEmail is the 004 widening stub (T-90): the token flow never mutates
+// email, so the fake accepts and forgets.
+func (f *fakeUsers) UpdateEmail(_ context.Context, _, _ string) error { return nil }
+
 func (f *fakeUsers) List(_ context.Context) ([]*metadata.User, error) { return nil, nil }
 
 func (f *fakeUsers) GetByPasswordHash(_ context.Context, _ string) (*metadata.User, error) {

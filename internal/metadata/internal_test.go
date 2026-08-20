@@ -214,6 +214,7 @@ func TestSchemaTablesExist(t *testing.T) {
 		"permission_targets", "permission_principals", "audit_events", "virtual_members",
 		"docker_manifests", "docker_tags", "docker_refs",
 		"remote_cache",
+		"groups", "user_groups", "web_sessions", "repo_usage",
 	}
 	rows, err := db.Query(`SELECT name FROM sqlite_master WHERE type = 'table'`)
 	if err != nil {
@@ -328,8 +329,18 @@ func TestDockerUpgradeFromM1Database(t *testing.T) {
 	// The 003 rewind (T-62): drop the remote_cache table (its index goes with
 	// it) and idx_blobs_sha1, undo the remote_configs widening — the rename
 	// back matters, 003 re-application renames the column again — and clear
-	// every ledger row past version 1.
+	// every ledger row past version 1. The 004 rewind (T-90): drop the
+	// governance tables and the audit query indexes, and take users.email
+	// back out (ADD COLUMN re-adds it).
 	for _, stmt := range []string{
+		`DROP TABLE repo_usage`,
+		`DROP TABLE web_sessions`,
+		`DROP INDEX IF EXISTS idx_web_sessions_user`,
+		`DROP TABLE user_groups`,
+		`DROP TABLE groups`,
+		`DROP INDEX IF EXISTS idx_audit_action`,
+		`DROP INDEX IF EXISTS idx_audit_actor`,
+		`ALTER TABLE users DROP COLUMN email`,
 		`DROP TABLE remote_cache`,
 		`DROP INDEX IF EXISTS idx_blobs_sha1`,
 		`DROP TABLE docker_refs`,

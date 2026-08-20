@@ -42,6 +42,17 @@ var ErrRemoteConfigNotFound = errors.New("metadata: remote config not found")
 // missing remote_cache rows.
 var ErrRemoteCacheNotFound = errors.New("metadata: remote cache entry not found")
 
+// ErrGroupNotFound is returned by GroupStore methods for missing groups.
+var ErrGroupNotFound = errors.New("metadata: group not found")
+
+// ErrWebSessionNotFound is returned by WebSessionStore methods for missing
+// web_sessions rows.
+var ErrWebSessionNotFound = errors.New("metadata: web session not found")
+
+// ErrInvalidCursor is returned by AuditStore.Query when the cursor parameter
+// cannot be decoded; the HTTP layer maps it to 400 (GE-01).
+var ErrInvalidCursor = errors.New("metadata: invalid cursor")
+
 // ErrStoreBusy marks TRANSIENT write contention (SQLITE_BUSY/SQLITE_LOCKED
 // surfacing past the busy_timeout budget — T-54's F1 flake: a whole-repo
 // parallel test load or an fsync storm can starve the WAL writer longer than
@@ -96,6 +107,7 @@ type User struct {
 	Enabled      bool
 	CreatedAt    string
 	UpdatedAt    string
+	Email        string // 004 widening (FR-27-AC8): '' when unset; blank-vs-shape validation is a service-layer concern
 }
 
 // Token stores only sha256(plaintext); the plaintext is shown once at issue
@@ -234,13 +246,55 @@ type VirtualMember struct {
 	Position    int64
 }
 
+// Group is one user group row (004, groups table). Groups are the
+// principal_type='group' side of permission_principals: authorization unions
+// the user's group grants with the user's own grants (T-97).
+type Group struct {
+	ID          int64
+	Name        string // unique; validated by the service layer (charset/reserved words)
+	Description string
+	CreatedAt   string
+	UpdatedAt   string
+}
+
+// WebSession is one browser session row (004, web_sessions; ADR-0014). The
+// session id plaintext only ever travels in the binflow_session cookie —
+// this row stores sha256(plaintext), the same rule as tokens.
+type WebSession struct {
+	IDHash     string // sha256(session id plaintext), primary key
+	Username   string
+	CreatedAt  string
+	ExpiresAt  string // absolute TTL cap; the sliding window never extends past it
+	LastUsedAt string // '' when never used
+	RevokedAt  string // '' while live; logout sets it (replayed cookies must fail)
+}
+
+// AuditQuery is the full-parameter audit filter (GE-01, M4). Every field is
+// optional; the zero query returns the newest events. Since and Until are
+// RFC3339 UTC text forming a closed-open interval on the event time
+// (Since <= time < Until — text comparison is chronological for RFC3339 UTC
+// values). Cursor is the opaque keyset cursor of the previous page's last
+// row; results are newest-first ordered (time DESC, id DESC) so every filter
+// shape is served by the (column, time) composite indexes without a full
+// table scan.
+type AuditQuery struct {
+	RepoKey string
+	Actor   string
+	Action  string
+	Since   string // RFC3339; inclusive lower bound
+	Until   string // RFC3339; exclusive upper bound
+	Limit   int    // <=0 means 100 (mirrors List)
+	Cursor  string // "" means first page; "<RFC3339>|<id>" afterwards
+}
+
 // Store is the dialect-neutral entry to all metadata state. Migrations run
 // automatically inside Open (ADR-0007); they are not part of this interface.
 // Implementations must be safe for concurrent use (SQLite relies on WAL plus
 // database/sql pool serialization, see store.go).
 type Store interface {
-	// Repos/Nodes/Blobs/Users/Tokens/Permissions/Audits/Docker/Remote/Virtual
-	// return the sub-stores sharing the same underlying handle.
+	// Repos/Nodes/Blobs/Users/Tokens/Permissions/Audits/Docker/Remote/Virtual/
+	// Groups/WebSessions return the sub-stores sharing the same underlying
+	// handle.
 	Repos() RepoStore
 	Nodes() NodeStore
 	Blobs() BlobStore
@@ -251,6 +305,8 @@ type Store interface {
 	Docker() DockerStore
 	Remote() RemoteStore
 	Virtual() VirtualStore
+	Groups() GroupStore
+	WebSessions() WebSessionStore
 	// Ping verifies liveness for health endpoints.
 	Ping(ctx context.Context) error
 	// Close releases the underlying handle.
@@ -312,6 +368,9 @@ type UserStore interface {
 	Get(ctx context.Context, username string) (*User, error)
 	GetByPasswordHash(ctx context.Context, passwordHash string) (*User, error)
 	UpdatePassword(ctx context.Context, username, passwordHash string) error
+	// UpdateEmail sets the 004 email column (FR-27-AC8); ErrUserNotFound when
+	// the user does not exist.
+	UpdateEmail(ctx context.Context, username, email string) error
 	Delete(ctx context.Context, username string) error
 	List(ctx context.Context) ([]*User, error)
 }
@@ -347,6 +406,15 @@ type AuditStore interface {
 	// List returns events newest-first, at most limit rows, optionally
 	// filtered by repo and actor.
 	List(ctx context.Context, repoKey, actor string, limit int) ([]*AuditEvent, error)
+	// Query is the full-parameter face (GE-01, M4): repo/actor/action
+	// equality filters, a closed-open Since/Until time window and keyset
+	// cursor pagination, newest-first (time DESC, id DESC). The next cursor
+	// after a page is derived from the last returned row
+	// ("<time>|<id>"); a malformed cursor returns an error wrapping
+	// ErrInvalidCursor. Every filter shape is served by the 004 composite
+	// indexes (actor,time)/(action,time) or the 001 (repo_key,time)/time
+	// indexes — never a full table scan.
+	Query(ctx context.Context, q AuditQuery) ([]*AuditEvent, error)
 }
 
 // DockerStore is the registry index behind the docker adapter /v2 surface
@@ -473,4 +541,68 @@ type VirtualStore interface {
 	// member_repo for determinism). An unknown or member-less repo returns
 	// an empty slice, not an error.
 	ListMembers(ctx context.Context, virtualRepo string) ([]*VirtualMember, error)
+}
+
+// GroupStore is user-group CRUD and membership (schema 004; architecture
+// section 6 final DDL). Groups carry no admin bit by design (FR-27-AC9): an
+// admin-flagged member grants nothing — the authorization effect of a group
+// is exactly the union of its permission_principals grants (T-97).
+//
+// Membership rows live in user_groups and are maintained per user:
+// SetUserGroups is the single write path (the groups[] field of
+// PUT/POST /api/security/users/{name}). Deleting a group row cascades its
+// memberships; deleting a user cascades theirs — both via FKs.
+type GroupStore interface {
+	// Create inserts a group; the name is the caller-visible key (charset
+	// and reserved-word rules are validated by the service layer, T-97).
+	Create(ctx context.Context, g *Group) error
+	// Update refreshes description/updated_at of the named group;
+	// ErrGroupNotFound when absent.
+	Update(ctx context.Context, g *Group) error
+	// Get returns ErrGroupNotFound when absent.
+	Get(ctx context.Context, name string) (*Group, error)
+	// Delete removes the group and cascades its user_groups rows (FK).
+	// Whether a group referenced by a permission target may be deleted is a
+	// service-layer decision (409, PRD K3) — the store itself carries no
+	// target reference.
+	Delete(ctx context.Context, name string) error
+	// List returns every group ordered by name.
+	List(ctx context.Context) ([]*Group, error)
+	// SetUserGroups atomically replaces the user's memberships with the
+	// named groups: existing rows not in the list are released, new ones are
+	// upserted (re-applying the same list is a no-op). An empty list clears
+	// the membership. Every named group must exist and so must the user
+	// (FKs); a missing group surfaces as ErrGroupNotFound wrapped with its
+	// name so the caller can answer the 400 wording.
+	SetUserGroups(ctx context.Context, username string, groupNames []string) error
+	// GroupsOfUser resolves the groups the user belongs to, ordered by name
+	// — the authentication-time fill of Principal.Groups (architecture 3.4).
+	// An unknown or group-less user returns an empty slice, not an error.
+	GroupsOfUser(ctx context.Context, username string) ([]*Group, error)
+}
+
+// WebSessionStore is browser-session persistence (schema 004, ADR-0014:
+// server-side sessions keyed by sha256(id); storage mirrors the tokens rule).
+// Expiry and revocation are row facts the caller evaluates — GetBySHA256
+// returns expired and revoked rows alike so the caller can distinguish
+// "unknown cookie" from "logged out" and rate answers accordingly.
+type WebSessionStore interface {
+	// Create inserts one session row; id_hash is unique by primary key.
+	Create(ctx context.Context, s *WebSession) error
+	// GetBySHA256 resolves a session by its id hash; ErrWebSessionNotFound
+	// when no row carries it.
+	GetBySHA256(ctx context.Context, idHash string) (*WebSession, error)
+	// Touch records last_used_at (the sliding-window heartbeat);
+	// ErrWebSessionNotFound when absent.
+	Touch(ctx context.Context, idHash, lastUsedAt string) error
+	// Revoke marks the session logged out (idempotent — re-revoking a
+	// revoked row just refreshes the timestamp); ErrWebSessionNotFound when
+	// absent.
+	Revoke(ctx context.Context, idHash, revokedAt string) error
+	// ListSweepable returns expired (expires_at <= now) or revoked rows —
+	// the startup sweep candidates (architecture 11 item 18), ordered by
+	// expires_at then id_hash for determinism. limit<=0 means all.
+	ListSweepable(ctx context.Context, now string, limit int) ([]*WebSession, error)
+	// Delete removes one row; ErrWebSessionNotFound when absent.
+	Delete(ctx context.Context, idHash string) error
 }

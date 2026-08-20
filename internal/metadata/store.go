@@ -265,6 +265,8 @@ func (s *sqliteStore) Audits() AuditStore           { return &auditStore{db: s.d
 func (s *sqliteStore) Docker() DockerStore          { return &dockerStore{db: s.db} }
 func (s *sqliteStore) Remote() RemoteStore          { return &remoteStore{db: s.db} }
 func (s *sqliteStore) Virtual() VirtualStore        { return &virtualStore{db: s.db} }
+func (s *sqliteStore) Groups() GroupStore           { return &groupStore{db: s.db} }
+func (s *sqliteStore) WebSessions() WebSessionStore { return &webSessionStore{db: s.db} }
 
 func (s *sqliteStore) Ping(ctx context.Context) error {
 	if err := s.db.PingContext(ctx); err != nil {
