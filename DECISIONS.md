@@ -109,7 +109,7 @@
   - module 路径: A) `github.com/lzwzzy/binflow`；B) 自有域（如 `binflow.dev/binflow`，需购域维护）。
 - 决策: 前缀选 B，module 路径选 A（`go.mod: module github.com/lzwzzy/binflow`）。所有产品端点统一 `/binflow` 前缀；**不用 `/artifactory` 前缀，不做根路径镜像**。探针/抓取基础端点（`/healthz` `/readyz` `/metrics`）不带前缀。repo key 保留字：`api`、`v2`（建仓校验拒绝）。
 - 理由: 自有品牌命名空间在同域反代/子路径部署下无冲突；不做根镜像避免双份路由表与歧义；兼容性靠端点行为对齐（`/binflow/api/...` 上的兼容子集）而非前缀伪装。module 路径即刻定值，脚手架票直接使用。
-- 后果: 文档与客户端示例统一 `/binflow`（例 `curl http://host:8080/binflow/<repo>/path`）；`server.base_url` 非空时必须含 `/binflow`；**[M2 风险预告]** docker 客户端固定向 `/v2/...` 发请求、无法自定义前缀，届时二选一：反代 rewrite 到 `/binflow/v2` 或为 `/v2` 开根级例外——属实现层路由例外，不推翻本 ADR，M2 出细化票据时定；控制台相对路径以 `/binflow` 为基。（repo key 长度上限后经 T-22 回写为 `{1,62}`，见 PRD FR-3-AC4。）（增补 2026-08-20，T-108：repo key 保留字并集定稿为 **{api, v2, docs, console, ui}**——api/v2 本 ADR、docs 为 ADR-0011、console/ui 为 ADR-0014 勘误后挂载段；存量库已有保留字同名仓时启动 WARN、路由仍占用，详见 M4 PRD §3。）
+- 后果: 文档与客户端示例统一 `/binflow`（例 `curl http://host:8080/binflow/<repo>/path`）；`server.base_url` 非空时必须含 `/binflow`；**[M2 风险预告]** docker 客户端固定向 `/v2/...` 发请求、无法自定义前缀，届时二选一：反代 rewrite 到 `/binflow/v2` 或为 `/v2` 开根级例外——属实现层路由例外，不推翻本 ADR，M2 出细化票据时定；控制台相对路径以 `/binflow` 为基。（repo key 长度上限后经 T-22 回写为 `{1,62}`，见 PRD FR-3-AC4。）（增补 2026-08-20，T-108：repo key 保留字并集定稿为 **{api, v2, docs, console, ui}**——api/v2 本 ADR、docs 为 ADR-0011、console/ui 为 ADR-0014 勘误后挂载段；存量库已有保留字同名仓时启动 WARN、路由仍占用，详见 M4 PRD §3。）（再增补 2026-08-20，T-110：并集增 **`assets`** → {api, v2, docs, console, ui, assets}——`assets` 与 `ui` 同构被 `/binflow/assets/**` SPA 指纹资产前缀遮蔽，不保留则建仓成功但内容永不可达（T-91 架构 review 遗留①，安全 review 同判）；代码侧 reservedRepoKeys 由 T-91 修复轮同步。）
 
 ## ADR-0009: 匿名读默认开启 + admin 首启口令引导
 - 状态: Accepted（用户定案）
@@ -207,7 +207,7 @@
 - 勘误（2026-08-20，T-108 依 tech-lead T-88 R1 裁决「PRD 命名面 + ADR 机制内核」；M4 PRD v1.0 后出且为 W 序列验收锚，命名以 PRD 为准，机制内核维持决策 2 不变）:
   ① **挂载**：`/binflow/console/**` → **`/binflow/ui/**`**，`/binflow/` 根 **301**（原 302）；保留字增 `ui`（ADR-0008 增补并集 {api,v2,docs,console,ui}）；静态资产指纹路径与缓存策略（`/binflow/assets/<hash>` immutable、SPA shell no-cache）按 PRD §3。
   ② **session 端点族**：login/logout 两端点 → **`/api/v1/session` 三动词**（POST 登录 / GET whoami——前端路由守卫必需，W 序列锚 / DELETE 登出）；cookie 名 `bf_session` → **`binflow_session`**（属性集 HttpOnly + Path=/binflow + SameSite=Lax 按 PRD CE-03；HTTPS 部署时加 Secure 属实现细节）。
-  ③ **TTL**：固定 12h → **`console.session_ttl_hours` 默认 24（PRD Q1）+ `console.session_ttl_seconds` 覆盖键**（测试粒度，R4：两键并存 seconds 优先）；滑动续期受绝对 TTL 封顶的内核不变。
+  ③ **TTL**：固定 12h → **`console.session_ttl_hours` 默认 24（PRD Q1）+ `console.session_ttl_seconds` 覆盖键**（测试粒度，R4：两键并存 seconds 优先）；滑动续期受绝对 TTL 封顶的内核不变。（T-110 塌缩句：双键共用一键后，滑动续期被绝对封顶**吞没**——会话必死于 `created_at + TTL`，与活跃度无关；默认配置下活跃用户 24h 必掉线重登，前端/QA 不得按「滑动续期」字面理解为「活跃可续命」。）
   ④ **CSRF**：第三层「服务端强制 X-BinFlow-Console 头」**撤销**（与决策 3「前端消费通用 /api/v1」自冲突——强制头使 Cookie 认证面与 Basic/Token 面行为分叉，CLI 零感知被破坏）；主防线改为 **Origin 同源校验**（session cookie 认证的写请求携带非同源 `Origin` → 403，同源/无 Origin 放行，PRD FR-23-AC9/W38）；SameSite=Lax 保留为第一层；SPA 附 X-BinFlow-Console 头降级为前端自身第二层习惯（服务端不校验）。
 
 ## ADR-0015: M4 治理面基线——GC 在线触发、配额模型、备份/恢复

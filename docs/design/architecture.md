@@ -426,7 +426,7 @@ func All() []Handler
 - 首段 ∈ 保留段（`api`）→ REST 路由；
 - 否则首段视为 repo key → 查 repositories 表 → 按 `package_type` 分发到对应 adapter.Handler（M1 generic，M2 增 docker）。
 
-因此 repo key 保留名校验：建仓时拒绝 `api`、`v2`（repo.Service 校验，`/binflow/v2` 双挂载**不提供**——ADR-0010 裁决）；M4 起并集为 **{api, v2, docs, console, ui}**（ADR-0008 增补/T-108；docs/console/ui=ADR-0011/0014 挂载段，见 §7.1；存量同名仓启动 WARN、路由仍占用）。
+因此 repo key 保留名校验：建仓时拒绝 `api`、`v2`（repo.Service 校验，`/binflow/v2` 双挂载**不提供**——ADR-0010 裁决）；M4 起并集为 **{api, v2, docs, console, ui, assets}**（ADR-0008 增补/T-108+T-110；docs/console/ui=ADR-0011/0014 挂载段、assets=SPA 指纹资产前缀遮蔽，见 §7.1；存量同名仓启动 WARN、路由仍占用）。
 
 **依赖方向（T-48 依 T-38 review N1 勘误）**：`adapter/*` → `repo.Service` + `auth`（读 Principal）；**禁止**直接 import `storage`/`metadata`，例外两条（其余「需要流式细节时经 `repo.Service` 扩方法，不得绕过」维持）：
 - **例外一（§5.3 裁定第 1 条，docker blob upload）**：上传端点族（POST/PATCH/PUT/GET/DELETE `/v2/<name>/blobs/uploads*`）直持 `storage.Engine` 驱动 Session 生命周期（BeginSession/Append/Commit/Abort）——协议态（received、UUID 配对）在 adapter，storage 不感知协议头；该例外仅限上传会话对接，blob 读路径仍经 `repo.Service.Get`。metadata 触点同构先例：路由数据只读查询（RepoLookup 用 `metadata.Get`，T-14 终判的匿名读前置缝，docker 包 repolookup 同构）。
@@ -552,7 +552,7 @@ schema 面：npm document 字段（name/versions[].dist.tarball+integrity/dist-t
 -- 001_init.sql (sqlite dialect)；schema_migrations 见上方注记，不在本文件
 
 CREATE TABLE repositories (
-  repo_key  TEXT PRIMARY KEY,              -- 唯一标识，[a-z][a-z0-9-]{1,62}（PRD FR-3-AC4；原架构 {1,31} 作废，后经 T-22 回写）；保留字 api/v2/docs/console/ui 禁用（并集定案 ADR-0008 增补，T-108；api/v2=路由分发，docs/console/ui=ADR-0011/0014 挂载段）
+  repo_key  TEXT PRIMARY KEY,              -- 唯一标识，[a-z][a-z0-9-]{1,62}（PRD FR-3-AC4；原架构 {1,31} 作废，后经 T-22 回写）；保留字 api/v2/docs/console/ui/assets 禁用（并集定案 ADR-0008 增补，T-108+T-110；api/v2=路由分发，docs/console/ui/assets=ADR-0011/0014 挂载与资产段）
   type      TEXT NOT NULL,                 -- 'local' | 'remote' | 'virtual'
   package_type TEXT NOT NULL,              -- 'generic' | 'docker' | 'maven' | 'npm' | 'pypi'
   description TEXT NOT NULL DEFAULT '',
@@ -835,7 +835,7 @@ Content-Type: application/json
 
 ### 7.5 Console 与浏览器 session（M4 增量，ADR-0014 + T-108 勘误）
 
-- **登录流**：`POST /binflow/api/v1/session`（JSON `{"username","password"}`，form 亦接受）→ 签发 `web_sessions` 行 + `Set-Cookie: binflow_session`（HttpOnly + Path=/binflow + SameSite=Lax；HTTPS 部署加 Secure）；`GET /api/v1/session` = whoami（前端路由守卫）；`DELETE` = 登出（revoke + cookie 重放 401）。session cookie 与 Basic/Token 为**等价认证凭据**（内容路径与管理面同用）。TTL = `console.session_ttl_hours`（默认 24）+ `console.session_ttl_seconds` 覆盖键（测试粒度，seconds 优先）；滑动续期受绝对 TTL 封顶（ADR-0014 内核）。
+- **登录流**：`POST /binflow/api/v1/session`（JSON `{"username","password"}`，form 亦接受）→ 签发 `web_sessions` 行 + `Set-Cookie: binflow_session`（HttpOnly + Path=/binflow + SameSite=Lax；HTTPS 部署加 Secure）；`GET /api/v1/session` = whoami（前端路由守卫）；`DELETE` = 登出（revoke + cookie 重放 401）。session cookie 与 Basic/Token 为**等价认证凭据**（内容路径与管理面同用）。TTL = `console.session_ttl_hours`（默认 24）+ `console.session_ttl_seconds` 覆盖键（测试粒度，seconds 优先）；滑动续期受绝对 TTL 封顶（ADR-0014 内核）——**T-110 塌缩句：双键共用一键后滑动被绝对封顶吞没，会话必死于 `created_at + TTL`、与活跃度无关**（默认 24h 活跃用户也掉线重登；前端/QA 勿按「滑动续期」字面写成「活跃可续命」）。
 - **CSRF（勘误后两层 + 习惯层）**：① SameSite=Lax；② **Origin 同源校验**（服务端强制：session cookie 认证的写请求携带非同源 `Origin` → 403，同源/无 Origin 放行——PRD FR-23-AC9）；③ SPA 自身附 `X-BinFlow-Console` 头作为习惯层（服务端不校验——撤销原「强制头」设计，它使 Cookie 面与 Basic/Token 面行为分叉，违背「前端消费通用 API」原则）。Bearer/Basic 天然免疫 CSRF。
 - **SPA/REST 边界**：前端直接消费通用 `/api/v1/**` 与兼容层 `/api/security/**`（无 console 专属 API 树——CLI/curl/前端同一面，权限语义单源）；前端工程 = `web/`（vite + React + TS，base=/binflow/ui/），构建产物复制进 `internal/console/dist`（Makefile `console` 目标，与 docs-site 同构）。ADR-0005 白名单管辖 Go 依赖树；前端 devDependencies 不进二进制，政策见 ADR-0014 决策 4（lockfile 锁定、零运行时 CDN、CI npm audit、直接依赖变更过 architect）。
 
