@@ -126,11 +126,18 @@ type permissionViewer interface {
 }
 
 // permissionsView is the GET /api/storage/{repo}/{path}?permissions body
-// (rest-api.md section 3, high confidence): the item uri plus the effective
-// principal view, users and groups, each a map from the permission bit
-// (r/w/d) to the principal names holding it through the targets covering
-// the path. A bit with no principals renders no key; an item no target
-// covers answers empty objects.
+// (SE-08): the item uri plus the effective principal view, users and groups,
+// each a map from the PRINCIPAL NAME to the permission letters (r/w/d) it
+// holds on the item through the targets covering the path:
+//
+//	{"uri":..., "principals":{"users":{"jane":["r"]},"groups":{"devs":["r","w"]}}}
+//
+// Orientation (T-97 review B1, fixed): key = principal name, value = the
+// sorted permission-letter set — the shape of the reference implementation
+// (principal-keyed maps, empty collections skipped). The rest-api.md
+// section 3 parenthetical reads the other way and is being errata'd by the
+// conductor; a principal holding no action renders no entry, and an item no
+// target covers answers empty objects.
 type permissionsView struct {
 	URI        string `json:"uri"`
 	Principals struct {
@@ -145,14 +152,20 @@ type permissionsView struct {
 // Authorizer applies (auth.ItemPrincipals), so the view can never disagree
 // with an actual authorization decision.
 //
-// Gates, in order: unknown repository 404 (envelope, the storage plane's
-// wording); non-local repository 400 (rest-api.md section 3: "non
-// local/cached -> 400"; BinFlow has no shadow-cache repos, so remote and
-// virtual both answer 400 — checked BEFORE any node resolution so a remote
-// query never triggers an upstream fetch); then the item's read gate rides
-// the content-plane service call (anonymous policy and 403/404 wording
-// exactly as a plain item GET). The repository root ("") has no node row
-// and takes the List call serveRootFolder uses as its read gate.
+// Gates, in order: the route's admin gate comes FIRST (T-97 review B2: the
+// view enumerates every principal name and its r/w/d distribution —
+// security-configuration data — so it sits behind canManage like the rest
+// of the management plane; BinFlow has no manage action and admin is the
+// nearest mapping. A read-gated anonymous opening would let any visitor of
+// an anonymous-read instance enumerate usernames/group names, defeating the
+// login plane's existence-hiding). Then: unknown repository 404 (envelope,
+// the storage plane's wording); non-local repository 400 (rest-api.md
+// section 3: "non local/cached -> 400"; BinFlow has no shadow-cache repos,
+// so remote and virtual both answer 400 — checked BEFORE any node
+// resolution so a remote query never triggers an upstream fetch); then the
+// item resolves through the content-plane service call (404 wording exactly
+// as a plain item GET). The repository root ("") has no node row and takes
+// the List call serveRootFolder uses.
 func (s *Server) handleStoragePermissions(w http.ResponseWriter, r *http.Request, repoKey, relPath string) {
 	if s.permView == nil {
 		writeError(w, http.StatusServiceUnavailable, "permission view is not available on this instance")
@@ -194,28 +207,31 @@ func (s *Server) handleStoragePermissions(w http.ResponseWriter, r *http.Request
 		return
 	}
 	view := permissionsView{URI: storageURI(requestBase(r), repoKey, "api/storage/"+path)}
-	view.Principals.Users = bitsToNames(users)
-	view.Principals.Groups = bitsToNames(groups)
+	view.Principals.Users = principalLetters(users)
+	view.Principals.Groups = principalLetters(groups)
 	writeJSONBody(w, http.StatusOK, view)
 }
 
-// bitsToNames inverts a per-principal bit map into the wire orientation of
-// rest-api.md section 3 (bit -> principal name set), names sorted.
-func bitsToNames(m map[string]auth.PrincipalBits) map[string][]string {
+// principalLetters renders the per-principal bit map in the wire orientation
+// of the reference implementation: key = principal name, value = its
+// permission letters in r/w/d order; a principal holding no action through
+// the covering targets renders no entry (empty collections are skipped).
+func principalLetters(m map[string]auth.PrincipalBits) map[string][]string {
 	out := map[string][]string{}
 	for name, bits := range m {
+		letters := make([]string, 0, 3)
 		if bits.Read {
-			out["r"] = append(out["r"], name)
+			letters = append(letters, "r")
 		}
 		if bits.Write {
-			out["w"] = append(out["w"], name)
+			letters = append(letters, "w")
 		}
 		if bits.Delete {
-			out["d"] = append(out["d"], name)
+			letters = append(letters, "d")
 		}
-	}
-	for _, names := range out {
-		sort.Strings(names)
+		if len(letters) > 0 {
+			out[name] = letters
+		}
 	}
 	return out
 }

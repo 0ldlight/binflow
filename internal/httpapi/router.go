@@ -380,11 +380,15 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 			return
 		}
 		if _, ok := r.URL.Query()["permissions"]; ok && r.Method == http.MethodGet {
-			// SE-08 (T-97): the effective-permission view rides the same read
-			// posture as the plain item body (the handler resolves the item
-			// through the content-plane service call, so the anonymous policy
-			// and the 403/404 wording stay those of an item GET).
-			s.enforce(w, r, routeAuth{}, func(w http.ResponseWriter, r *http.Request) {
+			// SE-08 (T-97 review B2): the effective-permission view is
+			// MANAGEMENT-plane data — it enumerates principal names and their
+			// r/w/d distribution, so it sits behind the admin gate exactly
+			// like the rest of the security configuration (upstream's first
+			// door on this arm is canManage; BinFlow has no manage action,
+			// admin is the nearest mapping). An empty gate here would let any
+			// visitor of an anonymous-read instance enumerate users and
+			// groups, defeating the login plane's existence-hiding.
+			s.enforce(w, r, routeAuth{required: true, admin: true}, func(w http.ResponseWriter, r *http.Request) {
 				s.handleStoragePermissions(w, r, repoKey, rel)
 			})
 			return

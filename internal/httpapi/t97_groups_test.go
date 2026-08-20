@@ -549,17 +549,19 @@ func TestStoragePermissionsView(t *testing.T) {
 		if !strings.Contains(view.URI, "generic-local") {
 			t.Fatalf("uri = %q", view.URI)
 		}
-		if got := view.Principals.Users["r"]; len(got) != 1 || got[0] != "jane" {
-			t.Fatalf("users[r] = %v, want [jane]", got)
+		// Orientation (T-97 review B1): key = principal name, value = its
+		// permission letters — {"users":{"jane":["r"]},"groups":{"devs":["r","w"]}}.
+		if got := view.Principals.Users["jane"]; len(got) != 1 || got[0] != "r" {
+			t.Fatalf("users[jane] = %v, want [r]", got)
 		}
-		if got := view.Principals.Users["w"]; len(got) != 0 {
-			t.Fatalf("users[w] = %v, want none", got)
+		if len(view.Principals.Users) != 1 {
+			t.Fatalf("users = %v, want exactly jane", view.Principals.Users)
 		}
-		if got := view.Principals.Groups["r"]; len(got) != 1 || got[0] != "devs" {
-			t.Fatalf("groups[r] = %v, want [devs]", got)
+		if got := view.Principals.Groups["devs"]; len(got) != 2 || got[0] != "r" || got[1] != "w" {
+			t.Fatalf("groups[devs] = %v, want [r w]", got)
 		}
-		if got := view.Principals.Groups["w"]; len(got) != 1 || got[0] != "devs" {
-			t.Fatalf("groups[w] = %v, want [devs]", got)
+		if len(view.Principals.Groups) != 1 {
+			t.Fatalf("groups = %v, want exactly devs", view.Principals.Groups)
 		}
 	})
 
@@ -587,13 +589,21 @@ func TestStoragePermissionsView(t *testing.T) {
 		}
 	})
 
-	t.Run("unprivileged caller is refused by the item read gate", func(t *testing.T) {
+	t.Run("gate matrix: anonymous 401, non-admin 403 (review B2)", func(t *testing.T) {
 		h2 := newHarnessCfg(t, nil, [][2]string{{"ci-bot", "ci-pw"}})
 		seedRepo(t, h2, "generic-local")
-		resp := h2.do(http.MethodGet, "/binflow/api/storage/generic-local/anything.bin?permissions", "ci-bot", "ci-pw", nil, nil)
+		// The view enumerates principal names and their bits — security
+		// configuration — so it sits behind the admin gate even on an
+		// anonymous-read instance (403/404 envelopes of the route plane).
+		resp := h2.do(http.MethodGet, "/binflow/api/storage/generic-local/anything.bin?permissions", "", "", nil, nil)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("anonymous status = %d, want 401", resp.StatusCode)
+		}
+		resp = h2.do(http.MethodGet, "/binflow/api/storage/generic-local/anything.bin?permissions", "ci-bot", "ci-pw", nil, nil)
 		_ = resp.Body.Close()
 		if resp.StatusCode != http.StatusForbidden {
-			t.Fatalf("status = %d, want 403", resp.StatusCode)
+			t.Fatalf("non-admin status = %d, want 403", resp.StatusCode)
 		}
 	})
 }
