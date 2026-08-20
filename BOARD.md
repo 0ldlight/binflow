@@ -270,6 +270,9 @@
 - **T-87** [P1] 控制台信息架构与线框 `role:ux-designer` `area:docs/design` — done 2026-08-20
   console-ux.md 665 行十节：导航树+18 路由表 / 11 页线框（权限编辑器模式测试器+diff 确认为核心）/ 四态矩阵+大 repo 骨架屏 / keyset 增量加载策略 / 暗色双主题 --bf-* token / 五协议×三仓型呈现差异矩阵 / R1~R10 API 需求清单。三大决策：协议能力收窄不伪装（UI 上传仅 generic/maven）、大目录 keyset+懒加载、权限编辑器防 ACL 漂移。提交 a6f0d77。
 
+- **T-85** [P0] M4 PRD v1.0 `role:product-manager` `area:docs/prd、ROADMAP.md` — done 2026-08-20
+  milestone-4.md 725 行：FR-23~FR-33 共 60+ AC（控制台/权限完整模型/治理四件）；29 端点矩阵 + W01~W40（curl+Playwright+CLI）；Q1~Q6 附暂行（session/配额粒度/搜索范围/备份窗口/docker remote 推迟/GC 形态）；M1~M3 遗留收编 9 条；ROADMAP 切 M4。与 ADR-0014/0015 裁决对齐（Q1 session 与 ADR 一致）。提交 3d1cfbf。
+
 ## 🚫 阻塞（blocked）
 
 （空）
