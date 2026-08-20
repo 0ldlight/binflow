@@ -1,0 +1,283 @@
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
+
+import { useToast } from '../../app/ToastContext'
+import { CopyButton } from '../../components/CopyButton'
+import { EmptyState } from '../../components/EmptyState'
+import { ErrorCard } from '../../components/ErrorCard'
+import { Skeleton } from '../../components/Skeleton'
+import { getRepositories } from '../../lib/api'
+import type { RepoListItem } from '../../lib/api'
+import { errText } from '../../lib/api'
+import { formatBytes } from '../../lib/format'
+import { cfgBool, cfgNum, cfgStr, getRepoDetail, getRepoUsage, updateRepo } from '../../lib/repos'
+import type { PackageType, RepoConfigBody, RepoDetail, RepoUsage } from '../../lib/repos'
+import { useAsync } from '../../lib/useAsync'
+
+// 配额页（console-ux §4.11 配额行 / §5.3；T-102 AC③）：
+// - 每仓一行：key（mono 链接）/ 类型 / 已用 / 配额 / 水位条（≥80% 黄、
+//   ≥100% 红——water-bar 样式与仓库详情页同源）/ 行内编辑 + 跳转仓库设置。
+// - usage 逐仓独立拉取（virtual 无自身内容不请求，显示 —）。
+// - 行内编辑**仅 local 仓**（governance 字段只在 local 的 config 透传链上
+//   有效，remote/virtual 的规范化会丢弃）；保存走 POST 全量替换语义——
+//   先 GET 详情再按 RepositoryFormPage 的 local 分支同款字段集重组 body，
+//   防止「改配额丢其它字段」。
+// - 非 admin：仓库列表 403 → 单张无权限卡（§3.6.3 L2）。
+
+/** 与 RepositoryFormPage buildBody 的 local 分支同款字段集（全量替换保全） */
+function buildLocalQuotaBody(d: RepoDetail, quotaBytes: number): RepoConfigBody {
+  const cfg = d.configuration
+  const body: RepoConfigBody = {
+    rclass: 'local',
+    packageType: (d.packageType as PackageType) ?? 'generic',
+    description: d.description ?? '',
+    priorityResolution: cfgBool(cfg, 'priorityResolution'),
+    includesPattern: cfgStr(cfg, 'includesPattern'),
+    excludesPattern: cfgStr(cfg, 'excludesPattern'),
+    quotaBytes,
+  }
+  if (d.packageType === 'maven') {
+    body.handleReleases = cfgBool(cfg, 'handleReleases', true)
+    body.handleSnapshots = cfgBool(cfg, 'handleSnapshots', true)
+    body.checksumPolicyType = cfgStr(cfg, 'checksumPolicyType') || 'client-checksums'
+    body.snapshotVersionBehavior = cfgStr(cfg, 'snapshotVersionBehavior') || 'deployer'
+  }
+  return body
+}
+
+function WaterBar({ usage }: { usage: RepoUsage }) {
+  const quota = usage.quotaBytes
+  if (quota <= 0) {
+    return (
+      <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>
+        不限（quotaBytes 0）
+      </span>
+    )
+  }
+  const pct = Math.min(100, (usage.usedBytes / quota) * 100)
+  const cls = usage.usedBytes >= quota ? 'full' : pct >= 80 ? 'warn' : ''
+  return (
+    <div data-testid={`quota-bar-${usage.repo}`} className="quota-bar">
+      <div
+        className={`water-bar${cls ? ` ${cls}` : ''}`}
+        role="progressbar"
+        aria-label={`${usage.repo} 配额水位`}
+        aria-valuenow={Math.round(pct)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      >
+        <div className="fill" style={{ width: `${Math.max(usage.usedBytes > 0 ? 2 : 0, pct)}%` }} />
+      </div>
+      <span className={`pct${cls ? ` ${cls}` : ''}`}>
+        {pct.toFixed(0)}%{usage.usedBytes >= quota ? ' 满' : pct >= 80 ? ' 高' : ''}
+      </span>
+    </div>
+  )
+}
+
+function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => void }) {
+  const toast = useToast()
+  // virtual 不持有自身内容：不请求 usage（不伪造 0）
+  const usage = useAsync(
+    () => (repo.type === 'virtual' ? Promise.resolve(null) : getRepoUsage(repo.key)),
+    [repo.key, repo.type],
+  )
+
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [editErr, setEditErr] = useState<string | null>(null)
+
+  const local = repo.type === 'local'
+  const u = usage.data
+
+  const startEdit = () => {
+    setDraft(String(u?.quotaBytes ?? cfgNum(repo.configuration, 'quotaBytes') ?? 0))
+    setEditErr(null)
+    setEditing(true)
+  }
+
+  const save = async (): Promise<void> => {
+    const t = draft.trim()
+    if (!/^\d+$/.test(t) || Number(t) > Number.MAX_SAFE_INTEGER) {
+      setEditErr('需为非负整数（字节）；0 = 不限')
+      return
+    }
+    setSaving(true)
+    setEditErr(null)
+    try {
+      // 全量替换语义：先取详情再重组完整 body（只覆写 quotaBytes）
+      const detail = await getRepoDetail(repo.key)
+      const text = await updateRepo(repo.key, buildLocalQuotaBody(detail, Number(t)))
+      toast.success(text)
+      setEditing(false)
+      usage.reload()
+      onChanged()
+    } catch (err) {
+      setEditErr(errText(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <tr data-testid={`quota-row-${repo.key}`}>
+      <td>
+        <Link className="row-link mono" to={`/repositories/${repo.key}`} lang="en">
+          {repo.key}
+        </Link>{' '}
+        <CopyButton value={repo.key} label={`仓库 key ${repo.key}`} />
+      </td>
+      <td>
+        <span className="badge neutral">{repo.type}</span>
+      </td>
+      <td>
+        {repo.type === 'virtual' ? (
+          <span className="text-muted">—（聚合视图，无自身内容）</span>
+        ) : usage.status === 'loading' ? (
+          <span className="cell-pending" role="progressbar" aria-label="用量加载中" />
+        ) : usage.status === 'ok' && u ? (
+          <span className="mono">{formatBytes(u.usedBytes)}</span>
+        ) : (
+          <span className="text-muted" title={usage.error?.message ?? '用量不可用'}>
+            —
+          </span>
+        )}
+      </td>
+      <td>
+        {editing ? (
+          <>
+            <input
+              className="mono quota-input"
+              inputMode="numeric"
+              autoComplete="off"
+              aria-label={`${repo.key} 的新配额（字节）`}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              data-testid={`quota-input-${repo.key}`}
+              lang="en"
+            />{' '}
+            <span className="text-muted" style={{ fontSize: 'var(--bf-fs-aux)' }}>
+              {/^\d+$/.test(draft.trim()) && Number(draft) > 0 ? `≈ ${formatBytes(Number(draft))}` : '0 = 不限'}
+            </span>
+          </>
+        ) : local ? (
+          <span className="mono">{u ? (u.quotaBytes > 0 ? formatBytes(u.quotaBytes) : '0（不限）') : '—'}</span>
+        ) : (
+          <span className="text-muted">—（仅 local 仓支持）</span>
+        )}
+      </td>
+      <td className="quota-bar-cell">
+        {usage.status === 'ok' && u ? <WaterBar usage={u} /> : <span className="text-muted">—</span>}
+      </td>
+      <td>
+        {editing ? (
+          <>
+            <button
+              type="button"
+              className="btn"
+              disabled={saving}
+              onClick={() => void save()}
+              data-testid={`quota-save-${repo.key}`}
+            >
+              {saving ? '保存中…' : '保存'}
+            </button>{' '}
+            <button
+              type="button"
+              className="btn"
+              disabled={saving}
+              onClick={() => setEditing(false)}
+              data-testid={`quota-cancel-${repo.key}`}
+            >
+              取消
+            </button>
+            {editErr && (
+              <div className="field-error" role="alert" data-testid={`quota-error-${repo.key}`}>
+                {editErr}
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            {local &&
+              usage.status === 'ok' &&
+              u && (
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={startEdit}
+                  data-testid={`quota-edit-${repo.key}`}
+                >
+                  编辑上限
+                </button>
+              )}{' '}
+            <Link className="text-2" to={`/repositories/${repo.key}/settings`} style={{ fontSize: 'var(--bf-fs-aux)' }}>
+              仓库设置 →
+            </Link>
+          </>
+        )}
+      </td>
+    </tr>
+  )
+}
+
+export default function QuotasPage() {
+  // L2 收敛走 repos 403（整页主数据面），无需 whoami 预收敛
+  const repos = useAsync(getRepositories, [])
+  const list = repos.data ?? []
+
+  return (
+    <div data-testid="quotas-page">
+      <div className="page-header">
+        <h2>配额</h2>
+        <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>
+          水位 ≥80% 黄 · ≥100% 红（此后写入 413）
+        </span>
+      </div>
+
+      {repos.status === 'loading' && <Skeleton lines={8} />}
+      {repos.status === 'error' && repos.error && <ErrorCard error={repos.error} onRetry={repos.reload} />}
+      {repos.status === 'forbidden' && repos.error && (
+        <EmptyState
+          message="无权限查看配额"
+          hint="仓库列表与用量端点为管理员视图（GET /api/repositories 仅 admin）。"
+        />
+      )}
+      {repos.status === 'ok' &&
+        (list.length === 0 ? (
+          <EmptyState
+            message="还没有仓库"
+            hint="配额在创建 local 仓库时或仓库设置页配置（quotaBytes，0 = 不限）"
+            action={
+              <Link className="btn primary" to="/repositories/new">
+                创建第一个仓库
+              </Link>
+            }
+            testid="quotas-empty"
+          />
+        ) : (
+          <table className="table" data-testid="quotas-table">
+            <thead>
+              <tr>
+                <th scope="col">仓库</th>
+                <th scope="col">类型</th>
+                <th scope="col">已用</th>
+                <th scope="col">配额</th>
+                <th scope="col">水位</th>
+                <th scope="col">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {list.map((r) => (
+                <QuotaRow key={r.key} repo={r} onChanged={repos.reload} />
+              ))}
+            </tbody>
+          </table>
+        ))}
+      <p className="field-hint" style={{ marginTop: 12 }}>
+        计量为 repo_usage.logical_bytes（与节点写入同事务）；quotaBytes 仅 local 仓生效，
+        超限写入原子拒绝（413 + quota.exceeded 审计）。
+      </p>
+    </div>
+  )
+}

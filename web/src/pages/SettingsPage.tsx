@@ -8,9 +8,10 @@ import type { HealthInfo } from '../lib/api'
 import { useAsync } from '../lib/useAsync'
 import { useVersion } from '../lib/useVersion'
 
-// 设置页（console-ux §3.2 /settings）：实例信息（版本开放端点 + 健康
-// 概要 admin-only）+ 修改口令（PUT /api/security/password——错误体走
-// 用户管理纯文本层，统一由 api 层解析成 message 行内呈现）。
+// 设置页（console-ux §3.2 /settings）：实例信息（版本开放端点 + 健康行
+// ——v1.1 §3.6.3 N1 收口：403 驱动而非 whoami admin 位硬编码，后端放宽
+// 门时自动跟随，锚 settings-health）+ 修改口令（PUT /api/security/password
+// ——错误体走用户管理纯文本层，统一由 api 层解析成 message 行内呈现）。
 // 匿名读开关状态：后端无查询端点（M4 缺口），不伪造数据，见工作日志。
 
 function InstanceSection() {
@@ -47,8 +48,8 @@ function InstanceSection() {
           {admin ? '（admin）' : ''}
         </span>
       </div>
-      {admin && (
-        <div className="kv">
+      {health.status !== 'forbidden' && (
+        <div className="kv" data-testid="settings-health">
           <span className="k">健康</span>
           {health.status === 'loading' && <span className="text-2">检查中…</span>}
           {health.status === 'error' && health.error && <span style={{ color: 'var(--bf-danger)' }}>{health.error.message}</span>}

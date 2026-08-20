@@ -1,0 +1,196 @@
+/*
+ * 治理页面组样式（T-102；area: pages/governance + pages/audit）。只消费
+ * --bf-* token 与既有基元类（water-bar / cmd-block / danger-zone 等，
+ * base.css 与 pages.css 的公共面），按 T-99 的同模式落自己的文件。
+ */
+
+/* ---------- 审计页（§4.10） ---------- */
+
+/* 时间列固定宽：HH:mm:ss 跨天补日期，mono 防列抖动 */
+.audit-time {
+  white-space: nowrap;
+}
+
+/* 时间过滤输入（datetime-local 跟随 label 排布） */
+.filter-bar .time-field {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--bf-sp-1);
+  font-size: var(--bf-fs-aux);
+  color: var(--bf-text-2);
+  white-space: nowrap;
+}
+
+.filter-bar .time-field input {
+  min-height: 32px;
+  padding: 0 var(--bf-sp-2);
+  background: var(--bf-surface-3);
+  border: 1px solid var(--bf-border);
+  border-radius: var(--bf-r-sm);
+  color: var(--bf-text);
+  font-family: var(--bf-mono);
+  font-size: var(--bf-fs-aux);
+}
+
+/* 行内 detail JSON 折叠（mono，限高）——浮层锚定在自身 */
+.detail-pop {
+  position: relative;
+  display: inline-block;
+}
+
+.detail-pop summary {
+  cursor: pointer;
+  color: var(--bf-accent);
+  font-size: var(--bf-fs-aux);
+  white-space: nowrap;
+}
+
+.detail-pop pre {
+  position: absolute;
+  z-index: var(--bf-z-dropdown);
+  right: 0;
+  min-width: 260px;
+  max-width: 420px;
+  max-height: 220px;
+  overflow: auto;
+  margin: 4px 0 0;
+  padding: var(--bf-sp-2) var(--bf-sp-3);
+  background: var(--bf-surface-1);
+  border: 1px solid var(--bf-border);
+  border-radius: var(--bf-r-md);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+  font-family: var(--bf-mono);
+  font-size: var(--bf-fs-aux);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* 「加载更多」行 */
+.more-row {
+  display: flex;
+  align-items: center;
+  gap: var(--bf-sp-3);
+  padding: var(--bf-sp-3) 0;
+}
+
+/* ---------- GC 页（§4.11 危险区） ---------- */
+
+.gc-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--bf-sp-3);
+  flex-wrap: wrap;
+  margin: var(--bf-sp-3) 0;
+}
+
+.grace-details summary {
+  cursor: pointer;
+  color: var(--bf-accent);
+  font-size: var(--bf-fs-aux);
+}
+
+.grace-details .field {
+  max-width: 320px;
+}
+
+/* 运行失败面板（409 互斥 / 5xx）：一句人话 + 原始 message mono */
+.gc-error {
+  border: 1px solid color-mix(in srgb, var(--bf-danger) 45%, transparent);
+  border-radius: var(--bf-r-md);
+  background: color-mix(in srgb, var(--bf-danger) 7%, transparent);
+  padding: var(--bf-sp-3);
+  margin: var(--bf-sp-3) 0;
+}
+
+.gc-error .headline {
+  display: flex;
+  align-items: center;
+  gap: var(--bf-sp-2);
+  color: var(--bf-danger);
+  font-weight: 600;
+}
+
+.gc-error pre {
+  margin: var(--bf-sp-2) 0 0;
+  padding: var(--bf-sp-2);
+  background: var(--bf-bg);
+  border-radius: var(--bf-r-sm);
+  font-family: var(--bf-mono);
+  font-size: var(--bf-fs-aux);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* 结果面板（dry-run / apply） */
+.gc-result {
+  border: 1px solid var(--bf-border);
+  border-radius: var(--bf-r-md);
+  background: var(--bf-surface-1);
+  padding: var(--bf-sp-3) var(--bf-sp-4);
+}
+
+.gc-result h4 {
+  margin: 0 0 var(--bf-sp-2);
+  font-size: var(--bf-fs-form);
+}
+
+/* 无候选 = 好消息：绿色空态（§5.3） */
+.gc-empty-ok {
+  display: flex;
+  align-items: center;
+  gap: var(--bf-sp-2);
+  color: var(--bf-success);
+}
+
+/* ---------- 配额页（§4.11 配额行） ---------- */
+
+.quota-bar-cell {
+  width: 240px;
+}
+
+.quota-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--bf-sp-2);
+}
+
+.quota-bar .pct {
+  min-width: 44px;
+  font-family: var(--bf-mono);
+  font-size: var(--bf-fs-aux);
+  color: var(--bf-text-2);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.quota-bar .pct.warn {
+  color: var(--bf-warning);
+}
+
+.quota-bar .pct.full {
+  color: var(--bf-danger);
+}
+
+/* 行内编辑输入（字节） */
+.quota-input {
+  width: 130px;
+  min-height: 28px;
+  padding: 0 var(--bf-sp-2);
+  background: var(--bf-surface-3);
+  border: 1px solid var(--bf-border);
+  border-radius: var(--bf-r-sm);
+  color: var(--bf-text);
+  font-size: var(--bf-fs-body);
+}
+
+.quota-input:focus {
+  border-color: var(--bf-accent);
+}
+
+/* 操作列里的错误行独占一行，不撑坏行高 */
+td .field-error {
+  display: block;
+  margin-top: var(--bf-sp-1);
+  max-width: 280px;
+  white-space: normal;
+}

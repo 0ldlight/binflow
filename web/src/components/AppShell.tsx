@@ -9,10 +9,11 @@ import { useVersion } from '../lib/useVersion'
 import { errText } from '../lib/api'
 
 // 框架壳（console-ux §3.1/§3.5）：左侧固定导航（224px）+ 顶栏（48px）
-// + 内容区。本批（T-98）呈现的入口：仪表盘、设置；后续批次入口
-// （仓库/搜索/安全/治理）按派单要求以占位禁用态呈现——禁用项不可点，
-// title 说明交付票号。admin/非 admin 收敛：whoami 的 admin 位为主
-// 信号（CE-04），「API 403 即隐藏」为兜底（仪表盘卡片层）。
+// + 内容区。已启用入口：仪表盘、设置（T-98）、仓库（T-99）、搜索
+// （T-100）、安全组（T-101）、治理组（T-102）；仅 Access Tokens（ux R6
+// P2）保持占位禁用态——title 说明票号。
+// admin/非 admin 收敛：whoami 的 admin 位为主信号（CE-04），
+// 「API 403 即隐藏」为兜底（仪表盘卡片层）。
 
 interface NavGroup {
   title?: string
@@ -25,16 +26,16 @@ const NAV: NavGroup[] = [
     entries: [
       { label: '仪表盘', to: '/' },
       { label: '仓库', to: '/repositories' },
-      { label: '搜索', to: '/search', ticket: 'T-100' },
+      { label: '搜索', to: '/search' },
     ],
   },
   {
     title: '安全',
     adminOnly: true,
     entries: [
-      { label: '用户', to: '/security/users', ticket: 'T-101' },
-      { label: '组', to: '/security/groups', ticket: 'T-101' },
-      { label: '权限', to: '/security/permissions', ticket: 'T-101' },
+      { label: '用户', to: '/security/users' },
+      { label: '组', to: '/security/groups' },
+      { label: '权限', to: '/security/permissions' },
       { label: 'Access Tokens', to: '/security/tokens', ticket: 'P2' },
     ],
   },
@@ -42,9 +43,12 @@ const NAV: NavGroup[] = [
     title: '治理',
     adminOnly: true,
     entries: [
-      { label: '存储 & GC', to: '/governance/gc', ticket: 'T-102' },
-      { label: '备份 / 恢复', to: '/governance/backup', ticket: 'R5' },
-      { label: '配额', to: '/governance/quotas', ticket: 'T-102' },
+      // 审计日志条目为 console-ux v1.1 补列（§3.1：治理组含审计——
+      // GET /api/v1/audit 是 admin 门，归治理组）
+      { label: '审计日志', to: '/audit' },
+      { label: '存储 & GC', to: '/governance/gc' },
+      { label: '备份 / 恢复', to: '/governance/backup' },
+      { label: '配额', to: '/governance/quotas' },
     ],
   },
   {

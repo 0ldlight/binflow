@@ -44,9 +44,10 @@ test('login lands on shell; dashboard cards arrive; theme toggles; 404 keeps she
   await expect(page.locator('[data-testid="session-user"]')).toHaveText(ADMIN)
   await expect(page.locator('[data-testid="nav-version"]')).toContainText(/v.+/)
 
-  // 导航占位：T-99 仓库入口已启用；搜索/安全/治理仍为禁用态占位
+  // 导航占位：T-99 仓库、T-100 搜索、T-101 安全组（用户/组/权限）、
+  // T-102 治理组（审计/GC/备份/配额）已启用；仅 Access Tokens（P2）仍为禁用态占位
   await expect(page.locator('.app-nav .nav-item.disabled').first()).toBeVisible()
-  await expect(page.locator('.app-nav .nav-item.disabled')).toHaveCount(8)
+  await expect(page.locator('.app-nav .nav-item.disabled')).toHaveCount(1)
 
   // 仪表盘卡片独立到达（admin 登录下四张管理面卡都在）
   await expect(page.locator('[data-testid="dashboard-instance-card"]')).toBeVisible()
@@ -57,12 +58,14 @@ test('login lands on shell; dashboard cards arrive; theme toggles; 404 keeps she
   // 健康卡内容到达（而非骨架/错误态；registry 探针依装配可能 error）
   await expect(page.locator('[data-testid="dashboard-health-card"] .stat-row .v')).toHaveText(/^(ok|error)$/)
 
-  // 仓库页深链（T-99 已交付）：真实列表页挂载且壳保留；占位断言移到 /search
+  // 仓库页深链（T-99 已交付）：真实列表页挂载且壳保留
   await page.goto('/binflow/ui/repositories')
   await expect(page.locator('[data-testid="repos-page"]')).toBeVisible()
   await expect(page.locator('[data-testid="app-nav"]')).toBeVisible()
+  // 搜索页深链（T-100 已交付）：真实搜索页挂载（空关键词引导态）
   await page.goto('/binflow/ui/search')
-  await expect(page.locator('[data-testid="placeholder-page"]')).toContainText('T-100')
+  await expect(page.locator('[data-testid="search-page"]')).toBeVisible()
+  await expect(page.locator('[data-testid="search-input"]')).toBeFocused()
 
   // 主题切换：暗 → 亮 → 暗（token 零分叉，data-theme 属性切换）
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')

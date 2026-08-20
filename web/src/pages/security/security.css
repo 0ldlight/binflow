@@ -1,0 +1,331 @@
+/*
+ * 安全页面组样式（T-101；area: pages/security）。只消费 --bf-* token
+ * （console-ux §7），不回改 base.css / pages.css（T-98/T-99 面——R6 边界）。
+ */
+
+/* ---------- 行内创建/编辑表单卡（用户/组；§5.3 权限编辑器「新建态」同款） ---------- */
+
+.inline-form {
+  margin-bottom: var(--bf-sp-4);
+}
+
+.inline-form h3 {
+  margin-top: 0;
+}
+
+/* 组员维护 / 主体选择：多选列表（复用 pages.css .member-pick 视觉，自持副本防跨组依赖） */
+
+.sec-pick {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bf-sp-1);
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--bf-border);
+  border-radius: var(--bf-r-sm);
+  padding: var(--bf-sp-2);
+}
+
+.sec-pick label {
+  display: flex;
+  align-items: center;
+  gap: var(--bf-sp-2);
+  min-height: 28px;
+  font-size: var(--bf-fs-body);
+  cursor: pointer;
+}
+
+.sec-pick .empty {
+  color: var(--bf-text-muted);
+  font-size: var(--bf-fs-aux);
+}
+
+/* 组 chips（用户详情/列表行内） */
+
+.sec-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* ---------- 409 冲突面板（组被 permission target 引用，W33c） ---------- */
+
+.conflict-panel {
+  border: 1px solid color-mix(in srgb, var(--bf-warning) 45%, transparent);
+  border-radius: var(--bf-r-md);
+  background: color-mix(in srgb, var(--bf-warning) 8%, transparent);
+  padding: var(--bf-sp-3) var(--bf-sp-4);
+  margin-bottom: var(--bf-sp-4);
+}
+
+.conflict-panel .headline {
+  color: var(--bf-warning);
+  font-weight: 600;
+  margin-bottom: var(--bf-sp-1);
+}
+
+.conflict-panel .raw {
+  font-family: var(--bf-mono);
+  font-size: var(--bf-fs-aux);
+  color: var(--bf-text-2);
+  overflow-wrap: anywhere;
+  margin-bottom: var(--bf-sp-2);
+}
+
+.conflict-panel .targets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bf-sp-2);
+  align-items: center;
+}
+
+/* ---------- 权限 target 编辑器（§4.9） ---------- */
+
+.perm-section {
+  margin-bottom: var(--bf-sp-5);
+}
+
+.perm-section > h3 {
+  font-size: var(--bf-fs-h3);
+  margin: 0 0 var(--bf-sp-2);
+  padding-bottom: var(--bf-sp-1);
+  border-bottom: 1px solid var(--bf-border);
+}
+
+/* pattern 双栏（include / exclude chips + 添加框） */
+
+.pattern-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--bf-sp-4);
+}
+
+.pattern-col {
+  border: 1px solid var(--bf-border);
+  border-radius: var(--bf-r-md);
+  padding: var(--bf-sp-3);
+  background: var(--bf-surface-1);
+}
+
+.pattern-col h4 {
+  margin: 0 0 var(--bf-sp-2);
+  font-size: var(--bf-fs-aux);
+  color: var(--bf-text-2);
+  font-weight: 600;
+}
+
+.pattern-col .empty {
+  color: var(--bf-text-muted);
+  font-size: var(--bf-fs-aux);
+  margin-bottom: var(--bf-sp-1);
+}
+
+.pattern-add {
+  display: flex;
+  gap: var(--bf-sp-2);
+  margin-top: var(--bf-sp-2);
+}
+
+.pattern-add input {
+  flex: 1;
+  min-height: 32px;
+  padding: 0 var(--bf-sp-2);
+  background: var(--bf-surface-3);
+  border: 1px solid var(--bf-border);
+  border-radius: var(--bf-r-sm);
+  color: var(--bf-text);
+  font-family: var(--bf-mono);
+  font-size: var(--bf-fs-body);
+}
+
+.pattern-add input:focus {
+  border-color: var(--bf-accent);
+}
+
+.pattern-chip {
+  display: flex;
+  align-items: center;
+  gap: var(--bf-sp-2);
+  padding: 2px var(--bf-sp-2);
+  margin-bottom: 4px;
+  border: 1px solid var(--bf-border);
+  border-radius: var(--bf-r-sm);
+  background: var(--bf-surface-2);
+}
+
+.pattern-chip .val {
+  font-family: var(--bf-mono);
+  font-size: var(--bf-fs-body);
+  overflow-wrap: anywhere;
+}
+
+.pattern-chip button,
+.principal-remove {
+  margin-left: auto;
+  min-width: 24px;
+  min-height: 24px;
+  background: transparent;
+  border: 1px solid var(--bf-border);
+  border-radius: var(--bf-r-sm);
+  color: var(--bf-text-2);
+  cursor: pointer;
+  font-size: var(--bf-fs-aux);
+}
+
+.pattern-chip button:hover,
+.principal-remove:hover {
+  border-color: var(--bf-border-strong);
+  color: var(--bf-text);
+}
+
+/* 模式测试器（§4.9[2]——本页灵魂件） */
+
+.tester {
+  margin-top: var(--bf-sp-3);
+  border: 1px dashed var(--bf-border-strong);
+  border-radius: var(--bf-r-md);
+  padding: var(--bf-sp-3);
+}
+
+.tester .row {
+  display: flex;
+  gap: var(--bf-sp-2);
+  align-items: center;
+}
+
+.tester input {
+  flex: 1;
+  min-height: 32px;
+  padding: 0 var(--bf-sp-2);
+  background: var(--bf-surface-3);
+  border: 1px solid var(--bf-border);
+  border-radius: var(--bf-r-sm);
+  color: var(--bf-text);
+  font-family: var(--bf-mono);
+  font-size: var(--bf-fs-body);
+}
+
+.tester input:focus {
+  border-color: var(--bf-accent);
+}
+
+.tester-result {
+  margin-top: var(--bf-sp-3);
+  padding-top: var(--bf-sp-2);
+  border-top: 1px solid var(--bf-border);
+  font-size: var(--bf-fs-body);
+}
+
+.tester-result .line {
+  display: flex;
+  gap: var(--bf-sp-2);
+  align-items: baseline;
+  padding: 1px 0;
+  color: var(--bf-text-2);
+  font-size: var(--bf-fs-aux);
+}
+
+.tester-result .line .pat {
+  font-family: var(--bf-mono);
+  color: var(--bf-text);
+}
+
+.tester-result .line.hit {
+  color: var(--bf-text);
+}
+
+.tester-result .verdict {
+  display: flex;
+  gap: var(--bf-sp-2);
+  align-items: center;
+  margin-top: var(--bf-sp-2);
+  padding-top: var(--bf-sp-2);
+  border-top: 1px dashed var(--bf-border);
+  font-weight: 600;
+}
+
+/* 主体 × 动作矩阵（§4.9[3]） */
+
+.matrix-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  min-height: 24px;
+  cursor: pointer;
+}
+
+.matrix-user-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--bf-sp-2);
+}
+
+.matrix-add {
+  display: flex;
+  gap: var(--bf-sp-2);
+  flex-wrap: wrap;
+  margin-top: var(--bf-sp-2);
+}
+
+.matrix-add select {
+  min-height: 32px;
+  min-width: 200px;
+  padding: 0 var(--bf-sp-2);
+  background: var(--bf-surface-3);
+  border: 1px solid var(--bf-border);
+  border-radius: var(--bf-r-sm);
+  color: var(--bf-text);
+  font-size: var(--bf-fs-body);
+}
+
+.admin-note {
+  color: var(--bf-text-muted);
+  font-size: var(--bf-fs-aux);
+  margin-top: var(--bf-sp-2);
+}
+
+/* 变更摘要 diff（§4.9[4]：保存前确认） */
+
+.diff-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 300px;
+  overflow-y: auto;
+  font-size: var(--bf-fs-body);
+}
+
+.diff-list .d {
+  display: flex;
+  gap: var(--bf-sp-2);
+  align-items: baseline;
+}
+
+.diff-list .d .sign {
+  font-family: var(--bf-mono);
+  font-weight: 700;
+  width: 12px;
+  flex-shrink: 0;
+}
+
+.diff-list .d.add .sign,
+.diff-list .d.add {
+  color: var(--bf-success);
+}
+
+.diff-list .d.del .sign,
+.diff-list .d.del {
+  color: var(--bf-danger);
+}
+
+.diff-list .d .mono-v {
+  font-family: var(--bf-mono);
+  color: var(--bf-text);
+  overflow-wrap: anywhere;
+}
+
+.diff-list .none {
+  color: var(--bf-text-muted);
+  font-size: var(--bf-fs-aux);
+}

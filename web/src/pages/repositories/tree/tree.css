@@ -1,0 +1,345 @@
+/*
+ * 制品树 + 上传 + 搜索页样式（T-100；area: pages/repositories/tree +
+ * pages/search）。只消费 --bf-* token（console-ux §7），不改 base.css /
+ * pages.css（T-98/T-99 面）。
+ */
+
+/* ---------- 树页布局（§4.6：左树 280px + 右表） ---------- */
+
+.tree-layout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: var(--bf-sp-4);
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .tree-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.tree-pane {
+  border: 1px solid var(--bf-border);
+  border-radius: var(--bf-r-md);
+  background: var(--bf-surface-1);
+  padding: var(--bf-sp-2);
+  max-height: calc(100vh - 220px);
+  overflow-y: auto;
+  font-size: var(--bf-fs-body);
+}
+
+.tree-node {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding-right: var(--bf-sp-2);
+  border-radius: var(--bf-r-sm);
+  cursor: pointer;
+  color: var(--bf-text);
+  white-space: nowrap;
+}
+
+.tree-node:hover {
+  background: var(--bf-surface-2);
+}
+
+.tree-node.on-chain {
+  background: var(--bf-surface-2);
+  color: var(--bf-accent);
+}
+
+.tree-node:focus-visible {
+  outline: 2px solid var(--bf-accent);
+  outline-offset: -2px;
+}
+
+.tree-node .twisty {
+  width: 14px;
+  text-align: center;
+  color: var(--bf-text-2);
+  flex: none;
+}
+
+.tree-node .ico {
+  color: var(--bf-text-2);
+  flex: none;
+}
+
+.tree-node .mono {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tree-skel {
+  padding: var(--bf-sp-1) var(--bf-sp-2);
+}
+
+.tree-denied,
+.tree-empty-level {
+  padding: 2px var(--bf-sp-2);
+  color: var(--bf-text-muted);
+  font-size: var(--bf-fs-aux);
+}
+
+/* ---------- 面包屑 + 工具行 ---------- */
+
+.tree-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: var(--bf-sp-1);
+  flex-wrap: wrap;
+  padding: var(--bf-sp-2) 0;
+}
+
+.tree-breadcrumb .spacer {
+  flex: 1;
+}
+
+.tree-breadcrumb .crumb {
+  background: transparent;
+  border: none;
+  padding: 2px 6px;
+  border-radius: var(--bf-r-sm);
+  color: var(--bf-accent);
+  cursor: pointer;
+  font-size: var(--bf-fs-form);
+}
+
+.tree-breadcrumb .crumb:hover {
+  background: var(--bf-surface-2);
+  text-decoration: underline;
+}
+
+.tree-breadcrumb .crumb.cur {
+  color: var(--bf-text);
+  font-weight: 600;
+  cursor: default;
+  text-decoration: none;
+}
+
+.tree-breadcrumb .crumb-seg {
+  display: inline-flex;
+  align-items: center;
+}
+
+.tree-breadcrumb .sep {
+  color: var(--bf-text-muted);
+}
+
+/* 大目录渲染成本：行级 content-visibility（§6.4 的轻量窗口化） */
+.tree-table tbody tr {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 32px;
+}
+
+.tree-table tr.selected {
+  background: var(--bf-surface-2);
+}
+
+/* ---------- 详情面板 ---------- */
+
+.node-detail {
+  margin-top: var(--bf-sp-4);
+}
+
+.node-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--bf-sp-3);
+  flex-wrap: wrap;
+}
+
+.node-detail-head h3 {
+  margin: 0;
+  font-size: var(--bf-fs-h3);
+  word-break: break-all;
+}
+
+.node-detail-actions {
+  display: flex;
+  gap: var(--bf-sp-2);
+  flex-wrap: wrap;
+}
+
+.node-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(220px, 2fr);
+  gap: var(--bf-sp-4);
+}
+
+@media (max-width: 960px) {
+  .node-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.node-verify {
+  border: 1px solid var(--bf-border);
+  border-radius: var(--bf-r-md);
+  padding: var(--bf-sp-3);
+  margin-bottom: var(--bf-sp-3);
+  font-size: var(--bf-fs-form);
+}
+
+.node-verify.ok {
+  border-color: color-mix(in srgb, var(--bf-success) 45%, transparent);
+  background: color-mix(in srgb, var(--bf-success) 7%, transparent);
+  color: var(--bf-success);
+}
+
+.node-verify.bad {
+  border-color: color-mix(in srgb, var(--bf-danger) 45%, transparent);
+  background: color-mix(in srgb, var(--bf-danger) 7%, transparent);
+  color: var(--bf-danger);
+}
+
+.node-verify .sub {
+  margin-top: var(--bf-sp-1);
+  font-size: var(--bf-fs-aux);
+  color: var(--bf-text-2);
+  word-break: break-all;
+}
+
+.node-perms h4 {
+  margin: 0 0 var(--bf-sp-2);
+  font-size: var(--bf-fs-form);
+}
+
+.perm-chips {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bf-sp-1);
+  align-items: flex-start;
+}
+
+.perm-chips .chip-item .mono {
+  margin-left: auto;
+  color: var(--bf-accent);
+}
+
+/* ---------- 上传对话框（§4.7） ---------- */
+
+.upload-modal {
+  width: min(760px, calc(100vw - 48px));
+  max-height: calc(100vh - 64px);
+  overflow-y: auto;
+}
+
+.upload-modal h2 .mono {
+  font-size: var(--bf-fs-h3);
+  word-break: break-all;
+}
+
+.drop-zone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--bf-sp-1);
+  margin: var(--bf-sp-4) 0;
+  padding: var(--bf-sp-5);
+  border: 1px dashed var(--bf-border-strong);
+  border-radius: var(--bf-r-lg);
+  background: var(--bf-surface-3);
+  color: var(--bf-text-2);
+  cursor: pointer;
+  text-align: center;
+}
+
+.drop-zone:hover,
+.drop-zone.over {
+  border-color: var(--bf-accent);
+  color: var(--bf-text);
+}
+
+.drop-zone > div:first-child {
+  font-size: 22px;
+}
+
+.upload-table {
+  margin: var(--bf-sp-3) 0;
+}
+
+.upload-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--bf-sp-2);
+  margin-top: 4px;
+}
+
+.upload-progress .bar {
+  flex: 1;
+  min-width: 80px;
+  height: 6px;
+  border-radius: var(--bf-r-sm);
+  background: var(--bf-surface-3);
+  overflow: hidden;
+}
+
+.upload-progress .fill {
+  height: 100%;
+  background: var(--bf-accent);
+  transition: width 0.15s ease;
+}
+
+.upload-error .raw {
+  font-size: var(--bf-fs-aux);
+  color: var(--bf-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 4px 0;
+}
+
+.upload-error .hint {
+  color: var(--bf-text-2);
+  font-size: var(--bf-fs-aux);
+}
+
+.upload-table td {
+  vertical-align: top;
+}
+
+.gav-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--bf-sp-2) var(--bf-sp-3);
+}
+
+.preview-path {
+  border: 1px solid var(--bf-border);
+  border-radius: var(--bf-r-sm);
+  background: var(--bf-surface-3);
+  padding: var(--bf-sp-2) var(--bf-sp-3);
+  font-size: var(--bf-fs-body);
+  word-break: break-all;
+}
+
+.upload-invalid {
+  color: var(--bf-danger);
+}
+
+/* ---------- 搜索页 ---------- */
+
+.search-headline {
+  margin: 0 0 var(--bf-sp-2);
+  font-size: var(--bf-fs-h2);
+}
+
+.search-sub {
+  max-width: 640px;
+}
+
+.search-count {
+  margin-left: auto;
+}
+
+.search-result-sub {
+  color: var(--bf-text-2);
+  font-size: var(--bf-fs-aux);
+}
+
+.search-result-sub .mono {
+  color: var(--bf-text-2);
+}
