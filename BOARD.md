@@ -34,7 +34,7 @@
 
 （T-99 复核 APPROVE → done 区；批 6 四线在途：T-100/T-101/T-102/T-103）
 
-- **T-101** [P0] FE 安全组（批 6） — 编码完成（未提交——main.tsx/AppShell 与在途 T-102 交织，待合并提交）；review REQUEST_CHANGES 1 blocking（B1 parseReferencedTargets 句点截断——含点 target 名 409 面板 404）+ 6 NB——**修复中**（agent 已唤醒，含顺手 NB② sameSnapshot 集合语义）。核心面全过（pathmatch 逐语义一致/36 fixtures 核对/parity 3/3/契约逐项/N1 收口对裁定原文）。**NB④ testid §10.3 v1.2 回写必须 T-104 冻结锚前完成（conductor 已登记）**。漂移⑤登记候选后端小票；漂移①（用户禁用/删无 API 面）交 conductor 逼裁决。
+- **T-101** [P0] FE 安全组（批 6） — 编码完成（未提交——与在途 T-102 交织待合并）；review B1（句点截断）+NB② 修复完成（尾锚定完整后缀+回退/sameSet 集合语义；e2e 10/10 含点名真后端闭环+复归 11/11 零 5xx），**复核中**（原 reviewer）。核心面全过。**NB④ testid §10.3 v1.2 回写 T-104 冻结锚前必须完成（conductor 待办）**；漂移⑤候选后端小票；漂移①（用户禁用/删无 API 面）待产品裁决。
 （T-64/T-67/T-69 等 M3 残留行 2026-08-20 清理，done 记录见 done 区）
 
 - **T-111** [P1] docker 413 verbatim 渲染臂 `role:dev-registry-adapter` `area:internal/adapter/docker` — done 2026-08-21（单 review 一轮修复）
