@@ -24,7 +24,7 @@ const NAV: NavGroup[] = [
   {
     entries: [
       { label: '仪表盘', to: '/' },
-      { label: '仓库', to: '/repositories', ticket: 'T-99' },
+      { label: '仓库', to: '/repositories' },
       { label: '搜索', to: '/search', ticket: 'T-100' },
     ],
   },

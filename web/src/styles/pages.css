@@ -1,0 +1,535 @@
+/*
+ * 仓库页面组样式（T-99；area: pages/repositories）。只消费 --bf-* token
+ * （console-ux §7），不回头改 base.css（T-98 面）。后续页面组票按同模式
+ * 追加自己的段落或文件，避免互改公共面。
+ */
+
+/* ---------- 过滤栏（§4.3） ---------- */
+
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--bf-sp-3);
+  flex-wrap: wrap;
+  padding: var(--bf-sp-3) 0;
+}
+
+.filter-bar .count {
+  margin-left: auto;
+  color: var(--bf-text-2);
+  font-size: var(--bf-fs-aux);
+  white-space: nowrap;
+}
+
+.filter-bar input[type='search'],
+.filter-bar select {
+  min-height: 32px;
+  padding: 0 var(--bf-sp-2);
+  background: var(--bf-surface-3);
+  border: 1px solid var(--bf-border);
+  border-radius: var(--bf-r-sm);
+  color: var(--bf-text);
+  font-size: var(--bf-fs-body);
+}
+
+.filter-bar input[type='search'] {
+  min-width: 200px;
+  font-family: var(--bf-mono);
+}
+
+/* ---------- 表格行内元素 ---------- */
+
+.row-link {
+  color: var(--bf-text);
+  font-weight: 600;
+}
+
+.row-link:hover {
+  color: var(--bf-accent);
+  text-decoration: underline;
+}
+
+/* virtual 成员浮层（details/summary：键盘可达，零 JS） */
+.member-pop {
+  position: relative;
+  display: inline-block;
+}
+
+.member-pop summary {
+  cursor: pointer;
+  color: var(--bf-accent);
+  list-style: none;
+  white-space: nowrap;
+}
+
+.member-pop summary::-webkit-details-marker {
+  display: none;
+}
+
+.member-pop summary::after {
+  content: ' ▾';
+  font-size: 10px;
+}
+
+.member-pop .pop {
+  position: absolute;
+  z-index: var(--bf-z-dropdown);
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 220px;
+  padding: var(--bf-sp-2) var(--bf-sp-3);
+  background: var(--bf-surface-1);
+  border: 1px solid var(--bf-border);
+  border-radius: var(--bf-r-md);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+  white-space: normal;
+}
+
+.member-pop .pop ol {
+  margin: 0;
+  padding-left: 20px;
+}
+
+/* 行内用量（骨架小块 + 到值） */
+.cell-pending {
+  display: inline-block;
+  min-width: 48px;
+  height: 10px;
+  border-radius: var(--bf-r-sm);
+  background: var(--bf-surface-2);
+  animation: bf-pulse 1.2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cell-pending {
+    animation: none;
+  }
+}
+
+/* ---------- 用量 / 配额水位条（§4.11：80% 黄 / 100% 红） ---------- */
+
+.water-bar {
+  height: 8px;
+  border-radius: var(--bf-r-sm);
+  background: var(--bf-surface-3);
+  overflow: hidden;
+  flex: 1;
+}
+
+.water-bar .fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--bf-success);
+  transition: width 0.2s ease;
+}
+
+.water-bar.warn .fill {
+  background: var(--bf-warning);
+}
+
+.water-bar.full .fill {
+  background: var(--bf-danger);
+}
+
+.water-line {
+  display: flex;
+  align-items: center;
+  gap: var(--bf-sp-3);
+}
+
+.water-line .label {
+  font-size: var(--bf-fs-aux);
+  color: var(--bf-text-2);
+  white-space: nowrap;
+}
+
+/* ---------- 接入命令块（P3，§4.5[1]） ---------- */
+
+.cmd-block {
+  border: 1px solid var(--bf-border);
+  border-radius: var(--bf-r-md);
+  margin-bottom: var(--bf-sp-3);
+  background: var(--bf-surface-1);
+}
+
+.cmd-block header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--bf-sp-2);
+  padding: var(--bf-sp-2) var(--bf-sp-3);
+  border-bottom: 1px solid var(--bf-border);
+  font-size: var(--bf-fs-aux);
+  color: var(--bf-text-2);
+}
+
+.cmd-block pre {
+  margin: 0;
+  padding: var(--bf-sp-3);
+  overflow-x: auto;
+  font-family: var(--bf-mono);
+  font-size: var(--bf-fs-aux);
+  line-height: 1.6;
+  color: var(--bf-text);
+}
+
+.cmd-block .note {
+  padding: var(--bf-sp-2) var(--bf-sp-3);
+  border-top: 1px solid var(--bf-border);
+  color: var(--bf-text-2);
+  font-size: var(--bf-fs-aux);
+}
+
+/* ---------- 危险区（P5，§4.5[7]） ---------- */
+
+.danger-zone {
+  border: 1px solid var(--bf-danger);
+  border-radius: var(--bf-r-md);
+  padding: var(--bf-sp-4);
+}
+
+.danger-zone h3 {
+  margin: 0 0 var(--bf-sp-2);
+  color: var(--bf-danger);
+  font-size: var(--bf-fs-h3);
+}
+
+.danger-zone p {
+  margin: 0 0 var(--bf-sp-3);
+  color: var(--bf-text-2);
+  font-size: var(--bf-fs-aux);
+}
+
+/* ---------- tab（§4.5） ---------- */
+
+.tabs {
+  display: flex;
+  gap: var(--bf-sp-1);
+  border-bottom: 1px solid var(--bf-border);
+  margin-bottom: var(--bf-sp-4);
+}
+
+.tabs a {
+  padding: var(--bf-sp-2) var(--bf-sp-3);
+  border-bottom: 2px solid transparent;
+  color: var(--bf-text-2);
+  font-size: var(--bf-fs-body);
+}
+
+.tabs a:hover {
+  color: var(--bf-text);
+  text-decoration: none;
+}
+
+.tabs a.active {
+  color: var(--bf-text);
+  border-bottom-color: var(--bf-accent);
+  font-weight: 600;
+}
+
+/* ---------- 详情头部 ---------- */
+
+.detail-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--bf-sp-3);
+  flex-wrap: wrap;
+  margin-bottom: var(--bf-sp-1);
+}
+
+.detail-head .key {
+  font-family: var(--bf-mono);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.detail-desc {
+  color: var(--bf-text-2);
+  margin: 0 0 var(--bf-sp-4);
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(240px, 1fr);
+  gap: var(--bf-sp-4);
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- 分步表单（§4.4） ---------- */
+
+.form-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(240px, 1fr);
+  gap: var(--bf-sp-5);
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .form-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.stepper {
+  display: flex;
+  gap: var(--bf-sp-2);
+  align-items: center;
+  margin-bottom: var(--bf-sp-4);
+  color: var(--bf-text-2);
+  font-size: var(--bf-fs-aux);
+}
+
+.stepper .dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--bf-surface-3);
+  border: 1px solid var(--bf-border-strong);
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.stepper .step-label.done .dot,
+.stepper .step-label.now .dot {
+  background: var(--bf-accent);
+  border-color: var(--bf-accent);
+}
+
+.stepper .step-label.now {
+  color: var(--bf-text);
+  font-weight: 600;
+}
+
+.stepper .sep {
+  flex: 1;
+  height: 1px;
+  background: var(--bf-border);
+  min-width: 12px;
+}
+
+.radio-row {
+  display: flex;
+  gap: var(--bf-sp-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--bf-sp-4);
+}
+
+.radio-row label,
+.check-row {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--bf-sp-2);
+  min-height: 32px;
+  font-size: var(--bf-fs-form);
+  cursor: pointer;
+}
+
+.radio-row label.disabled {
+  color: var(--bf-text-muted);
+  cursor: not-allowed;
+}
+
+.form-actions {
+  display: flex;
+  gap: var(--bf-sp-2);
+  justify-content: flex-end;
+  margin-top: var(--bf-sp-5);
+}
+
+.form-error {
+  border: 1px solid color-mix(in srgb, var(--bf-danger) 45%, transparent);
+  border-radius: var(--bf-r-md);
+  background: color-mix(in srgb, var(--bf-danger) 7%, transparent);
+  padding: var(--bf-sp-3);
+  margin-top: var(--bf-sp-4);
+  color: var(--bf-danger);
+  overflow-wrap: anywhere;
+}
+
+.form-error .headline {
+  font-weight: 600;
+  margin-bottom: var(--bf-sp-1);
+}
+
+.form-error .raw {
+  font-family: var(--bf-mono);
+  font-size: var(--bf-fs-aux);
+  color: var(--bf-text);
+  white-space: pre-wrap;
+}
+
+.warn-box {
+  border: 1px solid color-mix(in srgb, var(--bf-warning) 45%, transparent);
+  border-radius: var(--bf-r-md);
+  background: color-mix(in srgb, var(--bf-warning) 8%, transparent);
+  padding: var(--bf-sp-2) var(--bf-sp-3);
+  margin-bottom: var(--bf-sp-4);
+  color: var(--bf-warning);
+  font-size: var(--bf-fs-aux);
+}
+
+.summary-box {
+  position: sticky;
+  top: calc(48px + var(--bf-sp-4));
+}
+
+.summary-box dl {
+  margin: 0;
+}
+
+.summary-box .kv {
+  border-bottom: 1px dashed var(--bf-border);
+}
+
+/* 成员选择（virtual）：可选列表 + 已选序（§4.4 步骤 2） */
+.member-pick {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bf-sp-1);
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--bf-border);
+  border-radius: var(--bf-r-sm);
+  padding: var(--bf-sp-2);
+}
+
+.member-pick label {
+  display: flex;
+  align-items: center;
+  gap: var(--bf-sp-2);
+  min-height: 28px;
+  font-size: var(--bf-fs-body);
+  cursor: pointer;
+}
+
+.chip-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bf-sp-1);
+}
+
+.chip-item {
+  display: flex;
+  align-items: center;
+  gap: var(--bf-sp-2);
+  border: 1px solid var(--bf-border);
+  border-radius: var(--bf-r-sm);
+  padding: 2px var(--bf-sp-2);
+  background: var(--bf-surface-2);
+}
+
+.chip-item .idx {
+  color: var(--bf-text-muted);
+  font-size: var(--bf-fs-aux);
+  min-width: 18px;
+}
+
+.chip-item .chip-btns {
+  margin-left: auto;
+  display: flex;
+  gap: 2px;
+}
+
+.chip-item button {
+  min-width: 24px;
+  min-height: 24px;
+  background: transparent;
+  border: 1px solid var(--bf-border);
+  border-radius: var(--bf-r-sm);
+  color: var(--bf-text-2);
+  cursor: pointer;
+}
+
+.chip-item button:hover:not(:disabled) {
+  border-color: var(--bf-border-strong);
+  color: var(--bf-text);
+}
+
+.chip-item button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* 表单里的说明性小字 */
+.field-note {
+  color: var(--bf-text-muted);
+  font-size: var(--bf-fs-aux);
+  margin-top: calc(var(--bf-sp-1) * -1);
+}
+
+/* mono 输入（key/url/pattern/quota） */
+.field input.mono-input,
+.field textarea.mono-input {
+  font-family: var(--bf-mono);
+  font-size: var(--bf-fs-body);
+}
+
+/* 分步表单内的分区标题与 fieldset 复位 */
+fieldset {
+  border: none;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+legend.field-label {
+  padding: 0;
+  margin-bottom: var(--bf-sp-2);
+  font-size: var(--bf-fs-aux);
+  color: var(--bf-text-2);
+}
+
+.section-title {
+  margin: var(--bf-sp-3) 0 var(--bf-sp-2);
+  font-size: var(--bf-fs-form);
+  font-weight: 600;
+}
+
+.form-layout .field {
+  max-width: 560px;
+}
+
+.field textarea {
+  min-height: 64px;
+  padding: var(--bf-sp-2) var(--bf-sp-3);
+  background: var(--bf-surface-3);
+  border: 1px solid var(--bf-border);
+  border-radius: var(--bf-r-sm);
+  color: var(--bf-text);
+  font-size: var(--bf-fs-form);
+  resize: vertical;
+}
+
+/* 删除对话框内的确认输入 */
+.confirm-input {
+  width: 100%;
+  min-height: 32px;
+  padding: 0 var(--bf-sp-3);
+  background: var(--bf-surface-3);
+  border: 1px solid var(--bf-border);
+  border-radius: var(--bf-r-sm);
+  color: var(--bf-text);
+  font-family: var(--bf-mono);
+}
+
+.confirm-input:focus {
+  border-color: var(--bf-accent);
+}
+
+.modal .server-reason {
+  margin-top: var(--bf-sp-2);
+  padding: var(--bf-sp-2);
+  border: 1px solid color-mix(in srgb, var(--bf-danger) 45%, transparent);
+  border-radius: var(--bf-r-sm);
+  background: color-mix(in srgb, var(--bf-danger) 7%, transparent);
+  font-family: var(--bf-mono);
+  font-size: var(--bf-fs-aux);
+  overflow-wrap: anywhere;
+}

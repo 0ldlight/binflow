@@ -127,7 +127,7 @@ function ReposCard() {
               创建第一个仓库
             </Link>
           }
-          hint="仓库管理页将在下一批交付（T-99），届时可用表单建仓"
+          hint="建议从 local + generic 起步（任意文件）；协议仓选型见 docs/user 接入文档"
           testid="repos-empty"
         />
       ) : (

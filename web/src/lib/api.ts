@@ -157,6 +157,9 @@ export interface RepoListItem {
   type: string
   packageType: string
   url: string
+  /** remote/virtual 行回带的规范化配置（local 行 M1 裸形态；T-98 加字段，
+   *  T-99 起列表消费 url/成员/priorityResolution——契约面实存） */
+  configuration?: Record<string, unknown>
 }
 
 export interface AuditEvent {

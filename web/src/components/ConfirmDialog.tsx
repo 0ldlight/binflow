@@ -13,6 +13,13 @@ export interface ConfirmOptions {
   cancelLabel?: string
   /** danger 时确认按钮红变体 + modal 红边（P5 危险区语义） */
   danger?: boolean
+  /**
+   * 确认按钮的前置条件（P5：如「输入 repo key 才可用」，§3.5）。body 里
+   * 的输入事件会让对话框重渲染并重新求值（T-99 加的缝：调用方把可变
+   * 状态收在闭包/holder 里，onInput/onKeyDown 时在这里读）。可选、向后
+   * 兼容——不传即恒可用。
+   */
+  confirmDisabled?: () => boolean
 }
 
 const ConfirmContext = createContext<(opts: ConfirmOptions) => Promise<boolean>>(
@@ -65,6 +72,9 @@ function ConfirmDialog({
 }) {
   const rootRef = useRef<HTMLDivElement>(null)
   const cancelRef = useRef<HTMLButtonElement>(null)
+  // body 内输入（输入 key 确认等前置）触发重渲染，让 confirmDisabled
+  // 重新求值（T-99 缝：body 是静态 ReactNode，靠事件冒泡刷新按钮态）。
+  const [, bump] = useState(0)
 
   // 焦点陷阱：打开即聚焦取消按钮（安全默认）；Tab 在对话框内循环；
   // Esc = 取消（§3.5/§8）。
@@ -107,6 +117,8 @@ function ConfirmDialog({
         aria-modal="true"
         aria-label={opts.title}
         data-testid="confirm-dialog"
+        onInput={() => bump((t) => t + 1)}
+        onClick={() => bump((t) => t + 1)}
       >
         <h2>{opts.title}</h2>
         {opts.body && <div className="modal-body">{opts.body}</div>}
@@ -119,6 +131,7 @@ function ConfirmDialog({
             autoFocus={false}
             className={`btn${opts.danger ? ' danger' : ' primary'}`}
             data-testid="confirm-accept"
+            disabled={opts.confirmDisabled ? opts.confirmDisabled() : false}
             onClick={() => onSettle(true)}
           >
             {opts.confirmLabel ?? '确认'}
