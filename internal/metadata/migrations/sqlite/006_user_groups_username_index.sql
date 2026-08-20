@@ -1,0 +1,24 @@
+-- 006_user_groups_username_index.sql (sqlite dialect) — username-leading
+-- index on user_groups (M4, T-115 / T-97 architecture review NB1).
+--
+-- GroupsOfUser (substores_console.go) runs WHERE ug.username = ? on every
+-- authentication: fillGroups resolves Principal.Groups per request
+-- (architecture 3.4), from both the authenticator and the token path. 004
+-- gave the table only PRIMARY KEY (group_id, username) — group_id-leading,
+-- so it cannot serve a username-only lookup — leaving the membership join a
+-- full table scan on the hottest read in the system. The index follows the
+-- section 6 house practice of indexing the hot lookup column
+-- (idx_tokens_user 001, idx_web_sessions_user 004).
+--
+-- Idempotence is the migrator's ledger, not statement shape: applied
+-- versions are skipped on reopen (ADR-0007), so a bare CREATE INDEX matches
+-- every earlier migration, and a re-run would fail loudly ("index ...
+-- already exists") — the wanted failure mode. Conventions inherit from
+-- 001_init.sql: no transaction statements in the file body (the migrator
+-- wraps each migration in one).
+--
+-- The architecture section 6 004 block documents this index as its T-97
+-- NB1 errata line: the block is the final-shape contract, but migrations
+-- are append-only — 004 already shipped, so the file that carries the
+-- index is this one.
+CREATE INDEX idx_user_groups_username ON user_groups(username);

@@ -6,6 +6,9 @@
 -- it; only comments are allowed to differ). Two column-level additions come
 -- from the PRD as registered by T-108 (R2): users.email (FR-27-AC8) and the
 -- audit query indexes (GE-01/NFR-P17).
+-- One later addition to that block lives elsewhere on purpose:
+-- idx_user_groups_username (the T-97 NB1 authentication hot-path errata)
+-- ships in 006 — migrations are append-only, so it is NOT backfilled here.
 -- Conventions inherit from 001_init.sql (ADR-0007): RFC3339 UTC text
 -- timestamps, booleans as INTEGER 0/1, statements inside the SQLite/Postgres
 -- common subset, and no transaction statements in the file body — the

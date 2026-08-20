@@ -754,6 +754,9 @@ CREATE TABLE user_groups (                -- 成员关系（表名对齐 PRD §0
   username  TEXT NOT NULL REFERENCES users(username) ON DELETE CASCADE,
   PRIMARY KEY (group_id, username)
 );
+CREATE INDEX idx_user_groups_username ON user_groups(username);   -- 认证热路径（fillGroups 逐请求）
+                                                                  -- 补索引（T-97 review NB1 勘误，T-115 落地）；实现侧走
+                                                                  -- 新迁移文件 006（迁移只追加，不回写 004）
 -- Authorizer 消费路径：认证时 JOIN 解析进 Principal.Groups（§3.4）；permission_principals 的
 -- group 行在 Can 判定时与用户组名单匹配——无 DDL 变更（principal_type 列 M1 已备）。
 -- 管理端点：组 CRUD 走兼容层 /api/security/groups（SE-01~04）；成员关系经 PUT/POST /api/security/users/{name}
@@ -793,7 +796,6 @@ CREATE TABLE repo_usage (                 -- 配额计数（ADR-0015 决策 2）
                           middleware 链；含 /v2/token 自有 token 端点；详见 §5.3）
 /binflow/api/v1/... *     自有 API（稳定契约，全部需认证——匿名只作用于内容路径）：
   POST   /binflow/api/v1/tokens                    签发 token
-  GET    /binflow/api/v1/users                     列用户（admin）
   POST   /binflow/api/v1/repositories              建仓
   GET    /binflow/api/v1/repositories              列仓
   GET    /binflow/api/v1/repositories/{key}        仓详情
@@ -804,7 +806,13 @@ CREATE TABLE repo_usage (                 -- 配额计数（ADR-0015 决策 2）
   POST   /binflow/api/v1/system/gc                 GC 触发（admin, {"apply":bool,"graceHours"?}，同步执行，
                                                  GC↔export 互斥 409——ADR-0015 勘误；GET 状态端点 P2 债务不做）
   POST/GET/DELETE /binflow/api/v1/session          session 三动词（登录 / whoami / 登出——ADR-0014 勘误②）
-  GET/PUT/DELETE /binflow/api/v1/users[/{name}]     用户 CRUD（admin，groups[] 经 users 端点维护）
+  GET/POST /binflow/api/security/users、GET/PUT/POST /binflow/api/security/users/{name}
+                                                 用户面（admin；兼容层路径非 /api/v1——E-16~E-19 既有事实，
+                                                 M1 实现即落 security 段，原行 /api/v1/users 系笔误）；PUT /{name}
+                                                 = create-or-replace，两态皆 201 无 body（auth-model §1.3-⑪，
+                                                 T-97 R5 翻转）；POST /{name} = 部分更新（指针字段区分缺省/显式空，
+                                                 groups[] 维护成员，200 无 body）；集合 POST = create-only 409；
+                                                 DELETE /{name} 未做（FR-28 UI 需求补票 + user.delete 审计，P2 登记）
   GET/PUT/POST/DELETE /binflow/api/security/groups[/{name}]  组 CRUD（兼容层路径，非 /api/v1——PRD SE-01；
                                                  成员关系经 users 端点；被 permission target 引用删除 → 409）
   GET    /binflow/api/v1/storage/usage/{repo}       配额用量观测（{repo,usedBytes,quotaBytes}——GE-06；

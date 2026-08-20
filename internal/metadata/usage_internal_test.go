@@ -56,13 +56,22 @@ func TestUsageBackfillMigration(t *testing.T) {
 
 	// Rewind to the M1~M3 upgrade shape: nodes exist, 005 has not happened.
 	// A real upgrade differs only in WHICH binary wrote the rows; the
-	// migrator's re-run path is identical.
+	// migrator's re-run path is identical. Since 006 shipped, the rewind
+	// must also clear its ledger row and its index: the migrator applies
+	// every version above the ledger's MAX, so leaving 006 recorded (MAX=6)
+	// would suppress the 005 re-run entirely — and re-applying 006 over a
+	// surviving index would fail its CREATE. The version ceiling tracks
+	// latestMigrationVersion() everywhere else; this rewind is the one
+	// place that must name the pre-005 cut explicitly.
 	db := st.(*sqliteStore).db
-	if _, err := db.Exec(`DELETE FROM schema_migrations WHERE version = 5`); err != nil {
-		t.Fatalf("rewind schema_migrations: %v", err)
-	}
-	if _, err := db.Exec(`DELETE FROM repo_usage`); err != nil {
-		t.Fatalf("clear repo_usage: %v", err)
+	for _, stmt := range []string{
+		`DELETE FROM schema_migrations WHERE version >= 5`,
+		`DROP INDEX IF EXISTS idx_user_groups_username`,
+		`DELETE FROM repo_usage`,
+	} {
+		if _, err := db.Exec(stmt); err != nil {
+			t.Fatalf("rewind (%q): %v", stmt, err)
+		}
 	}
 	if err := st.Close(); err != nil {
 		t.Fatalf("close seeded store: %v", err)
