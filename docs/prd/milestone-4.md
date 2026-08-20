@@ -4,7 +4,7 @@
 |---|---|
 | 文档 | `docs/prd/milestone-4.md` |
 | 里程碑 | M4 — 控制台与治理（对应 ROADMAP.md「M4 — 控制台与治理」全部条目） |
-| 状态 | **v1.2**（T-113：FR-27/SE-08 ?permissions 视图键值方向勘误——key=主体名、value=权限字母集合；非 local 仓 400 疑点经 reverse-src 核实成立，BinFlow 现行实现无需改码）。v1.1（T-109：R1 命名面与 ADR-0014 对齐标注——「PRD 面 + ADR 内核」裁决；R4 session TTL 双键收口；K1~K3 回写注记。v1.0 初版：§7 六项开放问题附暂行假设，用户定案后回写） |
+| 状态 | **v1.3**（T-117：T-103 QA 勘误 E1~E5 + T-100 review ④ AC 口径回写，共六项——E1 W01 挂载点断言 `grep -c`→`grep -q`；E2 未认证（匿名关）search 姿态钉死 **403**（实现现状与 rest-api.md §4 高置信度一致，QA「401+挑战」建议不采纳）；E3 FR-31 配额「零残留」定案为**按每写原子**（D-1/D-2 语境注记）；E4 cookie `Path=/binflow` 作用域结构性排除根级 /v2 注记；E5 W31「为空」放行 `.maintenance.lock` 锁文件残留；树表 createdBy 列改「详情面板呈现」）。v1.2（T-113：FR-27/SE-08 ?permissions 视图键值方向勘误——key=主体名、value=权限字母集合；非 local 仓 400 疑点经 reverse-src 核实成立，BinFlow 现行实现无需改码）。v1.1（T-109：R1 命名面与 ADR-0014 对齐标注——「PRD 面 + ADR 内核」裁决；R4 session TTL 双键收口；K1~K3 回写注记。v1.0 初版：§7 六项开放问题附暂行假设，用户定案后回写） |
 | 上游依据 | PRODUCT.md（核心能力 5/6：Web 控制台、治理）、ROADMAP.md M4 节、M1 交付基线（milestone-1.md v1.3.1，`m1-done`）、M2 交付基线（milestone-2.md v1.3，`m2-done`）、M3 交付基线（milestone-3.md v1.2，`m3-done`）、ADR-0002（go:embed 单二进制）、ADR-0006（blob 布局与备份硬约束：mtime 保留、mark-sweep、grace=blob mtime）、ADR-0008（`/binflow` 前缀与 repo key 保留字）、ADR-0011（Docusaurus 同栈 React，M4 控制台同栈复用）、ADR-0012（remote 凭据 `enc:v1:` 密文——export/import 的敏感数据面）、docs/design/architecture.md §7.1（`/api/v1/audit` 预留、console 挂载位）、docs/reverse/auth-model.md（§1 用户/组字段与校验链、§4 权限概览，高置信度）、docs/reverse/rest-api.md（§3 `?permissions`、§4 搜索、§5 prune 端点） |
 | 下游消费者 | tech-lead（拆票）、architect（console 路由 / 004 迁移 / session 定案 ADR）、ux-designer（信息架构并行票 `docs/design/console-ui.md`）、dev 各角色（httpapi / web 前端 / metadata）、qa-engineer（W 序列验收）、release-engineer（烟测）、tech-writer（M4 用户文档） |
 
@@ -17,6 +17,7 @@
 | v1.0 | 2026-08-20 | 初版：M4 范围、FR-23~FR-33、端点矩阵 CE/SE/SR/GE 四域 29 条、W01~W40 验收命令（curl + Playwright 浏览器面）、回归基线反转表（search 404 → 分派、console 占位 → SPA、groups 404 → 实现）、M1~M3 遗留收编 8 条、六项开放问题附暂行（session 机制 / 配额粒度 / 搜索范围 / 备份一致性窗口 / GC 执行形态 / docker remote 是否提前） |
 | v1.1 | 2026-08-20 | T-109（tech-lead T-88 转交）三点收口：① **R1 命名面对齐**——控制台命名面（`/binflow/ui/**` 挂载、保留字 `ui`、`/binflow/` 301、cookie `binflow_session`）与 ADR-0014 原文的 `/binflow/console/**` 冲突，经 tech-lead 裁决「**PRD 面 + ADR 内核**」：本 PRD 命名面为胜出面（正文不改），ADR-0014 的机制内核（server-side session 落库、CSRF 分层、Authenticator 增 Session 臂、无 console 专属 API 树、vite+React 构建链）照常生效，其命名面由 T-108 勘误对齐到本文——FR-23 与 §5.2 补对齐注记。② **R4 TTL 双键收口**——`console.session_ttl_hours`（主键，默认 24）+ `console.session_ttl_seconds`（覆盖键，同给时以 seconds 为准，测试粒度用）；W08 维持 seconds 形态，FR-23 补覆盖键说明，Q1 暂行同步。③ §5.5 K1~K3 补注「待逆向扩编票回写」（暂行值已由 tech-lead 写死进 T-97/T-92 派单口径） |
 | v1.2 | 2026-08-21 | T-113 勘误（T-97 正确性 review B1 裁定回写；reverse-src 复核 + 官方文档双证）：FR-27「有效权限视图」与 SE-08 的「r/w/d 位映射」为键值方向相反的误读——正确形态 **key=主体名、value=权限字母集合**（字母全集 r/w/n/d/m，BinFlow 用 r/w/d 子集；无任何权限的主体不出现；依据 `RestAddonImpl#getItemPermissions` / `#appendPrincipalsAndPermissions` 空集合跳过 + 官方 Get Item Permissions 文档同形示例）。同批核实「非 local 仓 ?permissions」为 **400**（资源层前置，文案 `This method can only be invoked on local/cached repositories.`；404 抛点为二道门、正常不可达，正常可达 404 仅「local 仓+路径不存在」）——BinFlow 现行 400 实现与规格一致，无需改码（review NB6「疑 404」不成立）。W21 剧本注释方向中立无需改；T-103 若有方向性断言需按新形态校准 |
+| v1.3 | 2026-08-21 | T-117 勘误（T-103 QA 建议 E1~E5 + T-100 review ④ AC 口径回写，六项）：**E1** W01 挂载点断言 `grep -c 'id="root"' # 1` → `grep -q`（真 SPA 构建 shell 含 2 处 `id="root"`，占位 shell 为 1——计数非断言意图，存在性才是）。**E2** 未认证（匿名关）search 姿态钉死 **403 E-01 信封、无挑战头**——核实实现现状（router.go search 路由门开放 + service searchGate 拒绝 403，t92 测试钉死）与 rest-api.md §4 高置信度（「未认证 → 403」，官方文档同口径；§3 `?list` 匿名 403 同族）一致，**QA「统一 401+挑战」建议不采纳**（401 挑战保留给管理面与内容面下载的 403→401 匿名升级规则）；已认证零 read 授权 → 200 空结果集（T-92 NB4「PRD 半句」收口）——SR-01/02 矩阵行与 W16 剧本同步补断言。**E3** FR-31 配额拒绝语义定案**按每写原子**：被拒的那一次写原子（路径 404/stats 不变/manifest 不落/被拒 blob 零残留）；docker 多层 push 先落层（含 mount config）与 maven 先落 pom/metadata 属每写语义保留（T-103 D-1/D-2，P2 接受；「无 manifest 引用 docker blob node 纳 GC 候选」列 M5+ 评估）——AC3/W26c/GE-05/§1.2 四处同步。**E4** FR-23 补 cookie `Path=/binflow` 作用域注记：结构性排除根级 /v2（ADR-0010）——docker 登录道 `/v2/token`，控制台 docker 视图取数须 Bearer（ux R10 等价性示例改道 npm packument/pypi simple）；机制等价 QA 已实证（强制携带 Cookie 访问 /v2/tags/list → 200）。**E5** W31「/tmp/fresh2 为空」放行锁文件：fail-fast 后残留 0 字节 `.maintenance.lock` 属锁协议常态（import 整程持锁先于空目录检查），无半恢复 = 数据零残留（O-5）——FR-32 规格与 AC4 同步。**AC①（T-100 review ④）** 树表 createdBy 列改「详情面板呈现」口径：children 与 ?list 契约均无主体字段，树表列集不含 createdBy/modifiedBy——防 T-104 按字面断言树表列误判（FR-25 规格与 AC1 同步） |
 
 ---
 
@@ -47,7 +48,7 @@ M4 在 M1~M3 地基上**追加**而非返工：控制台是既有 REST 之上的
 | 权限完整 | groups CRUD + 组成员授权即时生效：jane 经 `devs` 组获得 write、移出组后 403（W19，无需重启） | ROADMAP M4 第二条 |
 | 审计可查 | `/api/v1/audit` 按 actor/action/repo/时间窗过滤，M1~M4 全动作词表可查且 append-only（W22/W23/W39） | ROADMAP M4 第三条 |
 | GC 管理化 | REST dry-run 报告 + apply 后被引用 blob 幸存、孤儿消失（W24/W25） | ROADMAP M4 第三条 |
-| 配额 | repo 级 quotaBytes 超限上传 413 且无部分写入；五协议上传路径全覆盖（W26/W27） | ROADMAP M4 第三条 |
+| 配额 | repo 级 quotaBytes 超限上传 413 且被拒写零部分写入（按每写原子——v1.3 E3）；五协议上传路径全覆盖（W26/W27） | ROADMAP M4 第三条 |
 | 备份恢复 | 在线 export → 空 data dir import → 四协议制品 + 用户/组/权限/token 全部可验证，mtime 保留（W28~W32） | ROADMAP M4 第四条 + ADR-0006 |
 | 既有零回归 | M1 C 序列 P0 + M2 D 序列 P0 + M3 M 序列 P0 复跑全绿（断言按 §5.6 反转表更新） | M2 FR-7-AC2 先例 |
 | 冷启动不回退 | 空库冷启动 < 2s（含 go:embed SPA 资产后） | M1 NFR-P1 传递 |
@@ -123,7 +124,7 @@ M4 在 M1~M3 地基上**追加**而非返工：控制台是既有 REST 之上的
 行为规格：
 
 - **挂载与保留字**：控制台挂 `/binflow/ui/**`（SPA 专属前缀，避免与内容路径 `/binflow/<repo>/<path>` 冲突）；`GET /binflow/` → **301** 到 `/binflow/ui/`；深链（如 `/binflow/ui/repositories`）刷新返回 SPA shell（history fallback）。**repo key 保留字新增 `ui`**（建仓 400，ADR-0008 增补；存量库已有 `ui` 仓时启动 WARN 提示改名，路由仍占用——P2 注记）。资产带内容指纹（`/binflow/assets/<hash>.js|css`），`Cache-Control: public, max-age=31536000, immutable`；SPA shell 本体 `no-cache`。
-- **登录会话（Q1 暂行：server-side session）**：`POST /binflow/api/v1/session`（JSON `{"username","password"}`，form 亦接受）→ 200 `{"username","admin":bool}` + `Set-Cookie: binflow_session=<opaque>; HttpOnly; Path=/binflow; SameSite=Lax`；session 落 SQLite（服务重启不掉线，P1 验证）、TTL 由 `console.session_ttl_hours`（**主键**，默认 24）控制；**覆盖键 `console.session_ttl_seconds`**（v1.1 双键收口：同给时以 seconds 为准，供测试/短期会话粒度——W08 用例依赖此键）；到期待遇同未认证（401）。session cookie 与 Basic/Token 是**等价认证凭据**（内容路径与管理面同用——控制台的上传/删除就靠它）。
+- **登录会话（Q1 暂行：server-side session）**：`POST /binflow/api/v1/session`（JSON `{"username","password"}`，form 亦接受）→ 200 `{"username","admin":bool}` + `Set-Cookie: binflow_session=<opaque>; HttpOnly; Path=/binflow; SameSite=Lax`；session 落 SQLite（服务重启不掉线，P1 验证）、TTL 由 `console.session_ttl_hours`（**主键**，默认 24）控制；**覆盖键 `console.session_ttl_seconds`**（v1.1 双键收口：同给时以 seconds 为准，供测试/短期会话粒度——W08 用例依赖此键）；到期待遇同未认证（401）。session cookie 与 Basic/Token 是**等价认证凭据**（内容路径与管理面同用——控制台的上传/删除就靠它）。**作用域注记（E4，v1.3）**：cookie `Path=/binflow` **结构性排除根级 `/v2`**（ADR-0010 例外路由）——docker 域（`/v2/token`、manifest/blob）不消费 session cookie，docker 客户端登录走 `/v2/token` 换取 Bearer；控制台 docker 视图取数同须 Bearer（ux R10 的 cookie 等价性示例已改道 npm packument / pypi simple）。机制等价性 QA 已实证：强制携带 Cookie 头访问 `/v2/tags/list` → 200（session 主体在 /v2 面同样生效）。
 - **登出**：`DELETE /binflow/api/v1/session` → 204，服务端吊销（cookie 重放 401）；`GET /binflow/api/v1/session` = whoami（200 当前主体 / 401）。
 - **错误与防泄露**：错误凭据 401 E-01（`/api/v1` 族信封），文案不区分「用户不存在」与「口令错误」；登录成败均落审计（复用既有 `login.success`/`login.failed`）。登录爆破锁定 **P2 不做**（M4 只留审计与日志）。
 - **CSRF 防线（暂行）**：SameSite=Lax 之外，凡以 session cookie 认证的**写操作**（非 GET/HEAD），若请求带 `Origin` 头且非同源 → 403（不携带 cookie 认证的 Basic/Token 请求不受影响——CLI 与 CI 零感知）。
@@ -169,7 +170,7 @@ M4 在 M1~M3 地基上**追加**而非返工：控制台是既有 REST 之上的
 
 行为规格：
 
-- **树浏览**：逐层展开走既有 `GET /binflow/api/storage/{repo}/{path}`（E-09 children，按名排序）；virtual 仓走聚合视图（RE-09）；目录/文件图标区分、size/lastModified 列；**权限过滤自然生效**（无 read 权限的仓/路径不在树上，UI 不得绕过——与服务端同源判定）。
+- **树浏览**：逐层展开走既有 `GET /binflow/api/storage/{repo}/{path}`（E-09 children，按名排序）；virtual 仓走聚合视图（RE-09）；目录/文件图标区分、size/lastModified 列；**树表列集不含 `createdBy`/`modifiedBy`**（children 列表与 `?list` 契约均无主体字段，契约上不可得）——主体元数据归**详情面板**呈现（item info 单查 E-09 含 `createdBy`；T-100 review ④ 口径回写，v1.3，T-104 不得按树表列断言 createdBy）；**权限过滤自然生效**（无 read 权限的仓/路径不在树上，UI 不得绕过——与服务端同源判定）。
 - **上传**：UI 上传 = `PUT /binflow/<repo>/<path>`（E-11 语义：201/409/403/413 原样呈现，含 quota 413 与 checksum 409 的原因文案）；上传目录可先建（尾斜杠 mkdir 语义 E-15）。
 - **下载**：UI 触发 `GET /binflow/<repo>/<path>`（E-12），落盘内容与服务端 checksum 一致。
 - **删除**：UI 删除走 E-14（204/404 幂等呈现）；无 delete 权限 → 403 原因呈现。
@@ -177,7 +178,7 @@ M4 在 M1~M3 地基上**追加**而非返工：控制台是既有 REST 之上的
 
 | # | AC（可执行） | 优先级 |
 |---|---|---|
-| FR-25-AC1 | W12：Playwright 展开 `generic-local` → `acme` → 行 `artifact.bin` 可见（size/时间列非空） | P0 |
+| FR-25-AC1 | W12：Playwright 展开 `generic-local` → `acme` → 行 `artifact.bin` 可见（size/时间列非空；树表无 createdBy 列——主体字段归详情面板呈现，T-100 ④ / v1.3） | P0 |
 | FR-25-AC2 | W12b：UI 下载 `artifact.bin` → 落盘文件 sha256 == curl 侧 item info 的 `checksums.sha256`（对账） | P0 |
 | FR-25-AC3 | W13：UI 上传新文件到 `acme/` → 完成后树出现新行；curl item info 的 sha256 == 本地 `sha256sum` | P0 |
 | FR-25-AC4 | W12c：docker 仓树可见 manifest/tag node；maven 仓树可见 GAV 目录（P1，抽查两协议各一） | P1 |
@@ -193,6 +194,7 @@ M4 在 M1~M3 地基上**追加**而非返工：控制台是既有 REST 之上的
 - **`GET /binflow/api/search/artifact?name=<frag>&repos=<csv>`（M1 E-26 的 search 域在 M4 打开）**：200 `{"results":[FileInfo...]}`（FileInfo 形态复用 E-09 字段集）；`name` 必填（缺 → 400 E-01）；`repos` 可选限定；**匹配语义暂行 = 路径/文件名子串（SQL LIKE），`*` 通配 P2**（Artifactory 语义待逆向校准，§5.5 K2）。
 - **`GET /binflow/api/search/checksum?sha256=&sha1=&md5=&repos=`**：至少一个 checksum（全缺 → 400；格式非法 → 400）；精确命中返回全部引用该 blob 的 node（跨仓去重可见）；rest-api.md §4 高置信度。
 - **权限过滤**：结果按调用者 ACL 过滤（无 read 的 repo 不出现；匿名按匿名通道语义——O4 定界维持）；admin 全见。
+- **未认证与零授权姿态（E2 定案，v1.3）**：`anonymous_access=false` 实例上无凭据访问 artifact/checksum 搜索 → **403**（E-01 信封，无 WWW-Authenticate 挑战头）——对齐 Artifactory 未认证搜索 403（rest-api.md §4 高置信度、官方文档同口径；item-info `?list` 匿名 403 同族，rest-api.md §3）。**401+挑战保留给管理面与内容面下载**（`/api/v1/**`、`/api/repositories`、`/api/security/**` 及内容面 403→401 匿名升级规则的面）；QA E2「统一 401+挑战」建议**不采纳**——那将偏离规格明文，且现行 403 为 T-92 已钉行为（router 路由门开放 + service 拒绝映射）。已认证但零 read 授权用户 → **200 空结果集**（`results:[]`，逐 node ACL 过滤的自然结果；T-92 review NB4「PRD 半句」收口）。
 - **gavc（P2）**：`GET /api/search/gavc?g=&a=` 走 maven node 的路径结构匹配，兼容子集。
 - **UI 搜索框（P1）**：name 搜索 → 结果表（repo/path/size）可跳转树视图。
 - **未实现搜索族**：`/api/search/props|users|artifactory|pattern` 等 → 404 E-01（SR-04）。
@@ -299,14 +301,14 @@ M4 在 M1~M3 地基上**追加**而非返工：控制台是既有 REST 之上的
 行为规格：
 
 - **配置**：repo 配置扩展字段 `quotaBytes`（int64，**0 = 不限**，默认 0；BinFlow 扩展字段，同 `allowPrivateUpstream` 先例）。计量 = 该仓全部 node 引用 blob 的逻辑字节和（`SUM` 口径归实现；去重 blob 跨仓共享不重复计——**按本仓引用计**）。
-- **执行点（P0 全覆盖）**：generic PUT / checksum-deploy 秒传、maven deploy（含旁车）、npm publish、pypi upload、docker blob PUT + manifest PUT、virtual 写路由（按目标 local 仓计量）。超限 → **413**（E-01，message 含 `quota exceeded` + used/quota 双值），**原子拒绝**（无部分写入：路径 404、stats 不变、docker 上传会话可弃）。**remote pull-through 落盘不计量**（Non-goal，§2.2）。
+- **执行点（P0 全覆盖）**：generic PUT / checksum-deploy 秒传、maven deploy（含旁车）、npm publish、pypi upload、docker blob PUT + manifest PUT、virtual 写路由（按目标 local 仓计量）。超限 → **413**（E-01，message 含 `quota exceeded` + used/quota 双值），**按每写原子拒绝（E3 定案，v1.3）**：被拒的那一次写本身原子——被拒路径 404、stats 不变、docker 上传会话可弃、manifest 不落；多部件客户端会话中**先成功且配额内的写按每写语义保留**——docker 多层 push 的先落层（含经 cross-repo mount 的 config 层）与 maven deploy 先落的 pom/maven-metadata 即此形态（T-103 D-1/D-2，P2 接受：无 manifest/jar 引用、内容 API 面不可达，仅 usage 计量可见；「无 manifest 引用的 docker blob node 纳入 GC 候选」列 M5+ 评估项）。**remote pull-through 落盘不计量**（Non-goal，§2.2）。
 - **观测**：`GET /binflow/api/v1/storage/usage/{repo}`（GE-06）→ 200 `{"repo","usedBytes","quotaBytes"}`；quota 不影响读/删；`quota.exceeded` 落审计（FR-29）。
 
 | # | AC（可执行） | 优先级 |
 |---|---|---|
 | FR-31-AC1 | W26：`quotaBytes:1024` 仓——PUT 800B → 201；再 PUT 800B → **413**（message 含 used/quota） | P0 |
 | FR-31-AC2 | W26b：413 原子性——被拒路径 GET 404、stats blob 数不变、usage `usedBytes==800`（精确对账） | P0 |
-| FR-31-AC3 | W26c：协议覆盖——docker push 超限 → 客户端报错且 manifest/blob 零残留；npm publish 超限 → CLI 报错 + 服务端 413（maven/pypi 各一 curl 抽验） | P0 |
+| FR-31-AC3 | W26c：协议覆盖——docker push 超限 → 客户端报错 + 服务端 413，**被拒写原子**：manifest 不落、被拒 blob 零残留、catalog/tags 不可见（先落且配额内的层按每写语义保留——E3 注记/D-1/D-2）；npm publish 超限 → CLI 报错 + 服务端 413 + 零残留（maven/pypi 各一 curl 抽验；maven pom/metadata 先落同 E3 口径） | P0 |
 | FR-31-AC4 | W27：读/删不受限——超限后 GET 已有制品 200、DELETE 204；删后空间释放，再传 → 201（used 回落正确） | P0 |
 | FR-31-AC5 | 秒传与 mount 同受限（NFR-S23）：quota 仓内 `X-Checksum-Deploy` 秒传超限 → 413；docker mount 到 quota 仓超限 → 413 | P0 |
 | FR-31-AC6 | `quotaBytes:0`（默认）行为与 M1~M3 完全一致（回归）；UI 仓详情显示 used/quota 进度（P1） | P0/P1 |
@@ -323,7 +325,7 @@ M4 在 M1~M3 地基上**追加**而非返工：控制台是既有 REST 之上的
   3. 拷贝 `blobs/<2hex>/...`（**保留 mtime**：ADR-0006 勘误②硬约束——tar/rsync -a 默认满足）；
   4. 写 `manifest.json`：`{formatVersion, createdAt, binflowVersion, blobCount, totalBytes, metadata:{file, sha256}, graceNote}`。窗口内新增 blob 允许多拷（manifest 不引用 → import 后成 GC 候选）；**manifest 引用的 blob 缺失 = 导出损坏**（W28b 断言全存在）；
   5. 产物目录权限 0700（含凭据密文与口令哈希，NFR-S22）。
-- **`binflow-server import -c <cfg> --input <dir> [--verify full]`（GE-08，停机执行）**：目标 data dir 必须为空（非空 → 退出码非 0 fail-fast）；校验 manifest（formatVersion 兼容、metadata sha256）；blob 完整性 **size 全验 + sha256 抽验（默认抽验前 100 个；`--verify full` 全量重哈希 P1）**；**缺失被引用 blob → fail-fast 退出码非 0**，目标目录清回空（无半恢复）；恢复 blobs（保留 mtime）+ metadata 文件就位；成功后正常 `serve` 启动。
+- **`binflow-server import -c <cfg> --input <dir> [--verify full]`（GE-08，停机执行）**：目标 data dir 必须为空（非空 → 退出码非 0 fail-fast）；校验 manifest（formatVersion 兼容、metadata sha256）；blob 完整性 **size 全验 + sha256 抽验（默认抽验前 100 个；`--verify full` 全量重哈希 P1）**；**缺失被引用 blob → fail-fast 退出码非 0**，目标目录清回空（无半恢复 = **数据零残留**；`.maintenance.lock` 锁文件残留属锁协议常态——import 整程持锁先于空目录检查，非恢复态，E5/v1.3）；恢复 blobs（保留 mtime）+ metadata 文件就位；成功后正常 `serve` 启动。
 - **恢复内容 = 全量状态**：repo 配置（含 quotaBytes/includes）、nodes/blobs、users/groups/permissions/tokens、audit_events、remote 凭据密文（`enc:v1:` 原样——import 侧未设 `BINFLOW_REMOTE_CREDENTIALS_KEY` 时启动 fail-fast，ADR-0012 既有行为在恢复链同样成立）。
 - **不做**：增量/定时/不停机 import（§2.2）；Artifactory `/api/export|/api/import` REST 形态（GE-09）。
 
@@ -332,7 +334,7 @@ M4 在 M1~M3 地基上**追加**而非返工：控制台是既有 REST 之上的
 | FR-32-AC1 | W28：服务运行中 export → 退出码 0；输出含 `manifest.json`/`blobs/`/metadata 快照；manifest 字段齐全且 `metadata.sha256` 与文件实测一致 | P0 |
 | FR-32-AC2 | W28b：manifest 引用的每个 blob 在输出目录存在（脚本遍历断言）；export 后新上传文件的 sha256 不在 manifest（窗口语义） | P0 |
 | FR-32-AC3 | W30：往返保真——导出前构造：四协议各 ≥1 制品 + jane/devs/permission target + 一枚有效 token + quota 仓；import 到空 data dir 后：四协议 GET 200 且 sha256 一致、jane 登录 200、组授权矩阵成立（W19 复验）、token 仍可用、审计历史可查 | P0 |
-| FR-32-AC4 | W31：完整性——抽删一个被引用 blob → import 退出码非 0 且明确报错、目标目录无半恢复；篡改 manifest blobCount → 同 fail-fast | P0 |
+| FR-32-AC4 | W31：完整性——抽删一个被引用 blob → import 退出码非 0 且明确报错、目标目录无半恢复（= 数据零残留；`.maintenance.lock` 锁文件残留属设计内非恢复态——E5 注记/v1.3）；篡改 manifest blobCount → 同 fail-fast | P0 |
 | FR-32-AC5 | W32：mtime 保留——导出源与 import 后同 blob 的 mtime 相等（`stat` 对比；grace 时钟不重置） | P0 |
 | FR-32-AC6 | W30b：remote 凭据密文随行——export 含带凭据 remote 仓，import 侧无 env 密钥启动 → fail-fast（ADR-0012 行为恢复链成立）；设密钥后该仓代理链可用 | P1 |
 | FR-32-AC7 | `--verify full` 全量 sha256 重哈希（P1）；`--tar` 单文件产物（P2） | P1/P2 |
@@ -372,7 +374,7 @@ M4 在 M1~M3 地基上**追加**而非返工：控制台是既有 REST 之上的
 |---|---|---|---|---|---|---|
 | CE-01 | `GET /binflow/` | 301 → `/binflow/ui/`（console 挂载入口；M1 占位 JSON 语义终结） | 自有 | P0 | — | W01 |
 | CE-02 | `GET /binflow/ui/**` | SPA shell + 深链 history fallback；指纹资产 `Cache-Control: immutable`、shell `no-cache`；React 同栈（ADR-0011） | 自有 | P0 | — | W01/W02 |
-| CE-03 | `POST /binflow/api/v1/session` | JSON/form 双形态；200 `{username,admin}` + `Set-Cookie binflow_session; HttpOnly; Path=/binflow; SameSite=Lax`；错凭据 401 E-01（不泄露存在性）；`login.success/login.failed` 落审计 | 自有（Q1 暂行 server-side） | P0 | — | W04/W05 |
+| CE-03 | `POST /binflow/api/v1/session` | JSON/form 双形态；200 `{username,admin}` + `Set-Cookie binflow_session; HttpOnly; Path=/binflow; SameSite=Lax`；错凭据 401 E-01（不泄露存在性）；`login.success/login.failed` 落审计；cookie `Path=/binflow` 不覆盖根级 /v2（docker 域走 /v2/token——E4 注记，详见 FR-23） | 自有（Q1 暂行 server-side） | P0 | — | W04/W05 |
 | CE-04 | `GET /binflow/api/v1/session` | whoami：200 当前主体 / 401；TTL 到期 401 | 自有 | P0 | — | W06/W08 |
 | CE-05 | `DELETE /binflow/api/v1/session` | 204；session 服务端吊销（cookie 重放 401）；重启不掉线（落库） | 自有 | P0 | — | W07/W37a |
 | CE-06 | session 认证的写操作 Origin 校验 | 非同源 Origin + cookie 认证的写请求 → 403（CSRF 暂行防线）；Basic/Token 请求不受影响 | 自有 | P0 | — | W38 |
@@ -386,15 +388,15 @@ M4 在 M1~M3 地基上**追加**而非返工：控制台是既有 REST 之上的
 | SE-07 | 权限继承判定 | 有效权限 = user principals ∪ 所属 groups principals（并集、即时生效）；**组无 admin 位**（有效 admin 维持 per-user——Artifactory 组 admin 有意不兼容） | 兼容（判定语义）/ 有意不兼容（组 admin） | P0 | 高（并集）/ 中（即时性为实现要求） | W19/W19b/W19c |
 | SE-08 | `GET /binflow/api/storage/{repo}/{path}?permissions` | 200 `{"uri","principals":{"users","groups"}}`（**key=主体名、value=权限字母数组**，r/w/d 子集——T-113 勘误，原「r/w/d 位」方向相反）；virtual/remote → 400（P2，T-113 核实成立） | 兼容（子集） | P1 | 高（rest-api §3） | W21 |
 | SE-09 | `/api/v2/security/permissions/**` | 不做 → 404（M1 E-24 评估收口：维持 `/api/v1/permissions`） | 有意不兼容 | P0 | — | W36 |
-| SR-01 | `GET /binflow/api/search/artifact?name=&repos=` | 200 `{"results":[FileInfo]}`；name 必填（缺 400）；**匹配语义暂行子串**（K2）；结果按 ACL 过滤 | 兼容（子集） | P0 | 中（K2） | W14/W16 |
-| SR-02 | `GET /binflow/api/search/checksum?sha256=&sha1=&md5=&repos=` | 至少一值（全缺/非法 → 400）；返回全部引用 node（跨仓去重可见） | 兼容 | P0 | 高（rest-api §4） | W15 |
+| SR-01 | `GET /binflow/api/search/artifact?name=&repos=` | 200 `{"results":[FileInfo]}`；name 必填（缺 400）；**匹配语义暂行子串**（K2）；结果按 ACL 过滤；未认证（匿名关）→ 403 无挑战、已认证零授权 → 200 空集（E2 定案，v1.3） | 兼容（子集） | P0 | 中（K2） | W14/W16 |
+| SR-02 | `GET /binflow/api/search/checksum?sha256=&sha1=&md5=&repos=` | 至少一值（全缺/非法 → 400）；返回全部引用 node（跨仓去重可见）；未认证姿态同 SR-01（E2） | 兼容 | P0 | 高（rest-api §4） | W15 |
 | SR-03 | `GET /binflow/api/search/gavc?g=&a=&v?=&repos=` | maven GAV 结构匹配 | 兼容（子集） | P2 | 中 | W14c |
 | SR-04 | `/api/search/props|users|artifactory|pattern|badge...` | 不做 → 404 + E-01（M1 E-26 的 search 域仅打开 artifact/checksum/(gavc P2) 三口） | 有意不兼容 | P0 | — | W36 |
 | GE-01 | `GET /binflow/api/v1/audit?repo=&actor=&action=&since=&until=&limit=&cursor=` | architecture §7.1 预留兑现；倒序 + cursor 分页（limit 默认 100/上限 1000，超限 400）；admin only；append-only（无修改端点） | /api/v1 | P0 | — | W22/W39 |
 | GE-02 | 审计动作词表扩展 | 新增 group.\*/permission.\*/gc.run/export.run/import.run/quota.exceeded（全表见 FR-29） | 自有（词表） | P0 | — | W23 |
 | GE-03 | `POST /binflow/api/v1/system/gc` | `{"apply","graceHours"?}`；dry-run 报告 / apply 执行；同步（Q6 暂行）；与 export 互斥（409）；admin only | 语义等同但路径不同（Artifactory prune 不做，GE-04） | P0 | — | W24/W25/W25b |
 | GE-04 | `POST /api/system/storage/prune/start`、`GET .../prune/status` | 不做 → 404（Artifactory 异步 prune 语义与 BinFlow mark-sweep 不同，改道 GE-03） | 有意不兼容 | P0 | 中（rest-api §5） | W36 |
-| GE-05 | repo 配置 `quotaBytes` + 超限 413 | BinFlow 扩展字段（0=不限）；五协议上传全覆盖；原子拒绝；remote pull-through 不计量 | 自有（扩展字段） | P0 | — | W26/W27 |
+| GE-05 | repo 配置 `quotaBytes` + 超限 413 | BinFlow 扩展字段（0=不限）；五协议上传全覆盖；按每写原子拒绝（E3）；remote pull-through 不计量 | 自有（扩展字段） | P0 | — | W26/W27 |
 | GE-06 | `GET /binflow/api/v1/storage/usage/{repo}` | `{repo,usedBytes,quotaBytes}`；admin or 有 read 权限用户 | /api/v1 | P0 | — | W26b |
 | GE-07 | `binflow-server export`（CLI） | 在线导出：锁互斥 → SQLite backup 快照 → blobs 拷贝（保 mtime）→ manifest.json（含 metadata.sha256）；产物 0700 | 自有（CLI；Artifactory export REST 不承诺） | P0 | — | W28 |
 | GE-08 | `binflow-server import`（CLI） | 停机恢复到空 data dir；size 全验 + sha256 抽验（`--verify full` P1）；缺失引用 fail-fast 无半恢复；保 mtime | 自有（CLI） | P0 | — | W30/W31/W32 |
@@ -428,7 +430,7 @@ JAR=/tmp/bf-cookie.jar; rm -f $JAR
 # ---- 控制台基座（FR-23） ----
 # W01 SPA 承载与深链（CE-01/02）
 curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' $BASE/binflow/    # 301 http://localhost:8080/binflow/ui/
-curl -s $UI/ | grep -c 'id="root"'                                        # 1（SPA 挂载点）
+curl -s $UI/ | grep -q 'id="root"' && echo MOUNT_OK                       # 挂载点存在（真构建 shell 含 2 处 id="root"，计数断言不作口径——E1/v1.3）
 curl -s -o /dev/null -w '%{http_code}\n' $UI/repositories                 # 200（深链 fallback）
 # W01b 保留字 ui（CE-07）
 curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/ui -H 'Content-Type: application/json' \
@@ -506,6 +508,7 @@ curl -su admin:$ADMIN_PW "$BASE/binflow/api/search/checksum?sha256=$SHA" | jq '.
 # W16 过滤与 ACL（SR-01/SR-02；anonymous_access=false 实例）
 curl -su admin:$ADMIN_PW "$BASE/binflow/api/search/artifact?name=artifact&repos=other-local" | jq '.results | length'  # 0
 curl -su ci-bot:ci-pw   "$BASE/binflow/api/search/artifact?name=artifact" | jq -r '.results[].repo' | sort -u  # 仅其有 read 的 repo
+curl -s  "$BASE/binflow/api/search/artifact?name=artifact" -o /dev/null -w '%{http_code}\n'                   # 403（未认证·匿名关——E2 定案 v1.3，rest-api.md §4；无挑战头）
 # W14c gavc（P2）：curl -su admin:$ADMIN_PW "$BASE/binflow/api/search/gavc?g=com.acme&a=demo-app"
 
 # ---- groups 与权限继承（FR-27） ----
@@ -589,7 +592,10 @@ curl -su admin:$ADMIN_PW -T a800.bin $BASE/binflow/tiny/b.bin -o /dev/null -w '%
 # W26b 原子性与 usage（GE-06）
 curl -su admin:$ADMIN_PW -o /dev/null -w '%{http_code}\n' $BASE/binflow/tiny/b.bin                # 404
 curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/storage/usage/tiny | jq '.usedBytes'                # 800
-# W26c 协议覆盖：docker push/npm publish 到 tiny 超限 → 客户端报错 + 服务端 413 + 零残留（maven/pypi curl 抽验）
+# W26c 协议覆盖：docker push/npm publish 到 tiny 超限 → 客户端报错 + 服务端 413；
+#   断言口径（E3 每写原子，v1.3）：manifest 不落 + 被拒 blob 零残留 + catalog/tags 不可见；
+#   docker 先落层（config 经 mount）与 maven 先落 pom/metadata 属每写语义保留（D-1/D-2，P2 接受）；
+#   npm/pypi 零残留（maven/pypi curl 抽验）
 # W27 读删不受限与回落（FR-31-AC4）：GET a.bin 200；DELETE 204；再传 800B → 201；usage 回落后再验证
 
 # ---- 备份/恢复（FR-32） ----
@@ -604,7 +610,8 @@ BINFLOW_DATA_DIR=/tmp/fresh-data ./bin/binflow-server import -c binflow.yaml --i
 BINFLOW_DATA_DIR=/tmp/fresh-data BINFLOW_ADMIN_PASSWORD=$ADMIN_PW ./bin/binflow-server serve -c binflow.yaml &
 #   断言：四协议 GET 200 sha256 一致；jane 登录 200；W19 组授权矩阵复验；token Bearer 可用；/api/v1/audit 历史可查
 # W30b remote 凭据密文随行（FR-32-AC6）：带凭据 remote 仓导出→无 env 密钥启动 fail-fast；设密钥后代理链通
-# W31 完整性 fail-fast：rm /tmp/bk42/blobs/<2hex>/<被引用 sha256> → import 退出码非 0 且 /tmp/fresh2 为空；
+# W31 完整性 fail-fast：rm /tmp/bk42/blobs/<2hex>/<被引用 sha256> → import 退出码非 0 且 /tmp/fresh2 无数据残留
+#   （0 字节 .maintenance.lock 锁文件残留属 fail-fast 设计内——import 整程持锁先于空目录检查，非恢复态——E5/v1.3，O-5）；
 #   jq '.blobCount += 1' 篡改 manifest → import 退出码非 0
 # W32 mtime 保留：导出源与 import 后同 blob 的 stat mtime 相等（grace 时钟不重置）
 
