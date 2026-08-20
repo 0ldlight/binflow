@@ -19,20 +19,16 @@
 
 > M4 票 AC 全文见 reports/agents/T-88.md。分批：1:{T-89,T-90,T-92}✓ → 2:{T-91,T-110}✓ → 3:{T-93,T-95,T-96}✓ → 4:{T-94,T-97,T-98,T-111}✓（补 T-112/T-113 勘误） → 5a:{T-99,T-114,T-115}（在途） → 5b:{T-103} → 6:{T-100,T-101,T-102} → 7:{T-104} → 8:{T-105} → 9:{T-106,T-107}。双 reviewer：T-96、T-97（均闭环）。
 
-- **T-99** [P1] FE 仓库管理页 `role:dev-frontend` `area:web/src` — 仓库列表/创建/编辑（含 governance 字段表单：quotaBytes/patterns 仅 local 呈现，virtual/remote 只读「—」）；AC 见 T-88.md T-99 节
-- **T-114** [P1] GC 尾巴 `role:dev-go-core` `area:cmd(gc)、internal/httpapi(gc)` — done 2026-08-21（conductor 核验直收）
-  CLI gc.run 审计（detail 对齐 REST、被锁拒绝不落痕）+ apply WithoutCancel 贯穿锁内全程（断连不再留幻影 ledger）。判别性实验：还原缺陷 → TestT114 0.17s 红 + access 日志 client_disconnect=true；真机双路径对账 3 行 gc.run——**FR-30-AC5 闭合**。定案：遗留② dry-run 统一挂 WithoutCancel（管理操作留痕完整性，无破坏性）；CLI apply 双遍 mark 耗时翻倍登记备查（M5 性能面）。conductor 复核：build/lint 0/两测 PASS/cmd 10.4s。提交 bcf317f。review N2/N6 维持登记。
-- **T-115** [P1] 认证热路径索引 + 架构勘误 `role:dev-go-core` `area:internal/metadata(006)、docs/design` — done 2026-08-21（conductor 核验直收）
-  006 迁移 idx_user_groups_username：EXPLAIN 对账 SCAN→SEARCH（前后 pin 断言）；005 回放测试适配版本抬升（清 ≥5 台账+DROP INDEX）；§6 索引注记 + §7.1 users 行修正（/api/security/users + POST + DELETE 债务，草案①③取用）。conductor 复核：build/lint 0/metadata 4.4s。提交 fec7fe2。遗留：§7.1 ?permissions 行回写（草案②）+ E-16 changePassword 行缺口 → T-107 文档票一并收口。
+- **T-116** [P1] 控制台权限可见性漂移集中定案 + console-ux v1.1 `role:ux-designer` `area:docs/design/console-ux.md` — 漂移 A（健康 admin-only vs §3.3）+ 漂移 B（仓库列表 admin-only vs 规范）定案 + 权限可见性矩阵 + data-testid 清单（T-104 锚）；在途
 - T-100~T-102 FE 页面组 / T-103~T-105 QA 三段 / T-106 部署烟测 / T-107 M4 文档 — AC 见 reports/agents/T-88.md
 
 ## 🔨 进行中（doing）
 
-（空——批 4 编码面全部完成，M4 剩余 FE 页面组/QA/文档票待批 5+）
+（空——批 5a 编码面全部完成）
 
 ## 👀 评审中（review）
 
-（空——批 4 全部闭环，**M4 后端面收口**；批 5a 派发中）
+- **T-99** [P1] FE 仓库管理页（批 5a） — 编码完成，conductor 核验通过（typecheck/lint/build 绿、SPA gzip 105.8KB +16.4KB/2.1% 预算、console embed 复绿、Playwright 11/11 真后端含 governance 往返/409 门/删除双段流），提交 0f391ea。单 reviewer 在途。漂移①（/api/repositories admin-only vs ux 规范）→ T-116 集中定案。
 （T-64/T-67/T-69 等 M3 残留行 2026-08-20 清理，done 记录见 done 区）
 
 - **T-111** [P1] docker 413 verbatim 渲染臂 `role:dev-registry-adapter` `area:internal/adapter/docker` — done 2026-08-21（单 review 一轮修复）
@@ -45,6 +41,12 @@
   groups CRUD+组并集权限+fail-closed 组侧+三臂等价+users create-or-replace 201（R5）+?permissions 视图。正确性 review B1（映射方向反）+B2（空门泄露普查）修复 `120eb09`（principalLetters 新形态+required admin）；架构 review B1 同款已闭合、遗留②与正确性侧分歧——**conductor 裁决维持收紧**（代码级取证 RestAddonImpl canManage 前置 > 文档 can-be-anonymous；BinFlow 存在性不泄露立场；T-103 真机对照后可一行放宽）。真机矩阵 401/403/200+W21 精确形态实证。提交 86f879b+120eb09。NB：user_groups 索引→T-115、TOCTOU/审计 detail/PUT 事务性登记、users DELETE 缺口（FR-28 UI 需后续票）。
 
 - **T-113** [P1] ?permissions 形态勘误 `role:reverse-engineer` `area:docs/reverse/rest-api.md、docs/prd/milestone-4.md` — done 2026-08-21
+
+- **T-114** [P1] GC 尾巴 `role:dev-go-core` `area:cmd(gc)、internal/httpapi(gc)` — done 2026-08-21（conductor 核验直收）
+  CLI gc.run 审计（detail 对齐 REST、被锁拒绝不落痕）+ apply WithoutCancel 贯穿锁内全程（断连不再留幻影 ledger）。判别性实验：还原缺陷 → TestT114 0.17s 红；真机双路径对账 3 行 gc.run——**FR-30-AC5 闭合**。定案：dry-run 统一挂 WithoutCancel；CLI 双遍 mark 登记备查（M5）。提交 bcf317f。
+
+- **T-115** [P1] 认证热路径索引 + 架构勘误 `role:dev-go-core` `area:internal/metadata(006)、docs/design` — done 2026-08-21（conductor 核验直收）
+  006 迁移 idx_user_groups_username：EXPLAIN 对账 SCAN→SEARCH（pin 断言）；§6 注记 + §7.1 users 行修正。提交 fec7fe2。遗留：§7.1 ?permissions 行 + E-16 行 → T-107。
   §3 键值方向翻转勘误（RestAddonImpl#getItemPermissions 双证）+ annotate 字母 a→n 顺带修正（全集 r/w/n/d/m）+ PRD FR-27/SE-08 v1.2 + NB6 定案（非 local 仓 400 正确、无需改码）。grep 零活体旧表述。提交 f102fef。
 
 - **T-98** [P1] FE 基座：登录页+框架壳+仪表盘 `role:dev-frontend` `area:web/src` — done 2026-08-21（单 review 一轮修复，**复核 APPROVE**）
