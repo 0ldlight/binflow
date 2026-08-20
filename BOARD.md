@@ -35,7 +35,7 @@
 （T-99 复核 APPROVE → done 区；批 6 四线在途：T-100/T-101/T-102/T-103）
 
 - **T-101** [P0] FE 安全组（批 6） — review **APPROVE 闭环**（B1 修复经对抗向量实测：含点名三组完整、病态内嵌后缀回溯正确、真后端腿可判别；NB② sameSet 代码正确——e2e 腿不可判别登记 T-104 前补纯 Node 断言）。**代码待 T-100 完成后三票合并提交再转 done**。**NB④ testid §10.3 v1.2 回写 T-104 冻结锚前 conductor 硬动作**；含逗号 target 名歧义（后端 strings.Join 根因）备案；漂移⑤候选后端小票；漂移①待产品裁决。
-- **T-102** [P1] FE 治理组（批 6） — review REQUEST_CHANGES 1 blocking（**B1 useAuditPages.loadMore 晚到响应竞态**——旧过滤第 2 页追加进新列表+游标覆写，T-99 B2 同款）→ **修复中**（agent 已唤醒，~3 行守卫）。契约面全过（Filter 无 path 属实/keyset/词表/字段集/L1L2L4）。8 NB 登记。代码待三票合并提交。
+- **T-102** [P1] FE 治理组（批 6） — review B1（loadMore 竞态）修复完成：守卫+可判别回归腿（挂起旧页→切过滤→断言 100 不污染/105 续页正确）+**负控验证**（移除守卫→红 106→恢复绿）；governance 4/4、embed 复绿、零 5xx——**复核中**（原 reviewer）。契约面全过。8 NB 登记。代码待三票合并提交。
 （T-64/T-67/T-69 等 M3 残留行 2026-08-20 清理，done 记录见 done 区）
 
 - **T-111** [P1] docker 413 verbatim 渲染臂 `role:dev-registry-adapter` `area:internal/adapter/docker` — done 2026-08-21（单 review 一轮修复）
