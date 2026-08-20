@@ -17,16 +17,19 @@ const (
 	headerAPIKeyLO = "X-Api-Key"       //nolint:gosec // header name, not a credential
 )
 
-// Service implements Authenticator, Authorizer, TokenRegistry and
-// PasswordChanger over the metadata sub-stores (architecture section 3.4).
-// It is stateless apart from the injected stores and config flag, so one
-// instance serves the whole process; all methods take ctx explicitly.
+// Service implements Authenticator, Authorizer, TokenRegistry,
+// PasswordChanger and SessionRegistry over the metadata sub-stores
+// (architecture section 3.4). It is stateless apart from the injected stores
+// and config flag, so one instance serves the whole process; all methods
+// take ctx explicitly.
 type Service struct {
 	users         userSource
 	tokens        tokenSource
 	permissions   permissionSource
 	anonymousRead bool
 	verifier      *TokenVerifier
+	// sessions backs the cookie arm (nil = arm inert; see WithSessions).
+	sessions webSessionSource
 }
 
 // userSource is the consumer-side slice of metadata.UserStore the
@@ -116,11 +119,13 @@ var (
 	_ Authorizer      = (*Service)(nil)
 	_ TokenRegistry   = (*Service)(nil)
 	_ PasswordChanger = (*Service)(nil)
+	_ SessionRegistry = (*Service)(nil)
 )
 
 // Authenticate resolves the request credential (architecture section 3.4;
-// auth-model.md section 3.6). See the Authenticator interface doc for the
-// entry-point precedence. No credential at all yields (nil, nil).
+// auth-model.md section 3.6; the session arm is ADR-0014/T-91). See the
+// Authenticator interface doc for the entry-point precedence. No credential
+// at all yields (nil, nil).
 func (s *Service) Authenticate(ctx context.Context, r *http.Request) (*Principal, error) {
 	user, pass, hasBasic, err := basicAuth(r)
 	if err != nil {
@@ -134,6 +139,17 @@ func (s *Service) Authenticate(ctx context.Context, r *http.Request) (*Principal
 	}
 	if tok := bearerHeader(r); tok != "" {
 		return s.verifier.Verify(ctx, tok)
+	}
+	// Third arm, last in precedence: the binflow_session cookie. Only when
+	// the arm is wired — an unwired service treats the cookie as a non-
+	// credential (anonymous), matching pre-M4 behavior. A wired arm treats
+	// a presented-but-invalid cookie as a REJECTED credential (never a
+	// silent downgrade to anonymous), so an expired or logged-out browser
+	// session sees 401 and can re-authenticate.
+	if s.sessions != nil {
+		if id, ok := sessionCookie(r); ok {
+			return s.authenticateSession(ctx, id)
+		}
 	}
 	return nil, nil // anonymous
 }

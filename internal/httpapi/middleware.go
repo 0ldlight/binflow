@@ -494,6 +494,68 @@ func authenticate(a auth.Authenticator) Middleware {
 	}
 }
 
+// csrfGuard is the Origin-same-origin check for cookie-authenticated writes
+// (PRD FR-23-AC9 / CE-06, ADR-0014 layer 2 as amended by erratum 4). It runs
+// AFTER the authenticator (it needs the principal) and BEFORE routing, so
+// every plane — content paths, protocol adapters, the management surface —
+// is covered by one decision point, and a cross-origin write is refused
+// before any handler (including 404 routes: W39's DELETE must meet the CSRF
+// verdict first).
+//
+// Rules:
+//
+//	session-authenticated (Principal.ViaSession) AND method not GET/HEAD
+//	AND an Origin header is present AND it is not same-origin -> 403.
+//
+// Everything else passes: no Origin (curl, CI, same-origin classic forms),
+// same-origin Origin (the SPA), and every Basic/Token/Bearer request — those
+// credentials are not ambient, so CSRF does not apply to them and CLI/CI
+// traffic is untouched (W38's second leg, "curl+CI 零感知").
+//
+// The SPA's X-BinFlow-Console header is the third layer's habit form only:
+// the server neither requires nor rejects it (ADR-0014 erratum 4 withdrew
+// the mandatory-header design — it would fork the cookie plane's behavior
+// from the Basic/Token plane on the same endpoints).
+func csrfGuard(logger *slog.Logger) Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			p := principalFrom(r.Context())
+			if p == nil || !p.ViaSession || r.Method == http.MethodGet || r.Method == http.MethodHead {
+				next.ServeHTTP(w, r)
+				return
+			}
+			origin := strings.TrimSpace(r.Header.Get("Origin"))
+			if origin == "" || sameOrigin(r, origin) {
+				next.ServeHTTP(w, r)
+				return
+			}
+			logger.WarnContext(r.Context(), "httpapi: cross-origin session write rejected",
+				slog.String("method", r.Method),
+				slog.String("path", r.URL.EscapedPath()),
+				slog.String("origin", origin),
+				slog.String("user", p.Name),
+			)
+			writeError(w, http.StatusForbidden,
+				"cross-origin request rejected: session-cookie authentication requires a same-origin Origin")
+		})
+	}
+}
+
+// sameOrigin reports whether origin (an Origin header value,
+// "scheme://host[:port]") addresses this server: same scheme and same
+// host:port as the request. The scheme honors X-Forwarded-Proto (TLS
+// termination upstream), matching the realm-derivation posture in
+// requestScheme. An unparseable or "null" Origin is NOT same-origin —
+// browsers always send a well-formed Origin on cross-site writes, so the
+// defensive reading only ever rejects.
+func sameOrigin(r *http.Request, origin string) bool {
+	u, err := url.Parse(origin)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return false
+	}
+	return strings.EqualFold(u.Scheme, requestScheme(r)) && strings.EqualFold(u.Host, r.Host)
+}
+
 // authorize enforces the route's requirement after authentication:
 //
 //   - required && anonymous         -> 401 challenge;

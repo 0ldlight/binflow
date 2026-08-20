@@ -52,6 +52,10 @@ type raw struct {
 		Level  *string `yaml:"level"`
 		Format *string `yaml:"format"`
 	} `yaml:"logging"`
+	Console *struct {
+		SessionTTLHours   *int `yaml:"session_ttl_hours"`
+		SessionTTLSeconds *int `yaml:"session_ttl_seconds"`
+	} `yaml:"console"`
 }
 
 // Load reads the YAML file at path, applies BINFLOW_-prefixed environment
@@ -209,6 +213,19 @@ func build(r *raw, env map[string]string) (*Config, error) {
 			c.Logging.Format = *r.Logging.Format
 		}
 	}
+	if r.Console != nil {
+		// Dual-key resolution (PRD v1.1 R4): hours is the primary operator
+		// spelling, seconds the override for test/short-session granularity.
+		// Unlike the anonymous-access alias pair, a both-set conflict is NOT
+		// an error — seconds simply wins, because the keys are two precisions
+		// of one value, not two spellings of two features.
+		if r.Console.SessionTTLHours != nil {
+			c.Console.SessionTTL = time.Duration(*r.Console.SessionTTLHours) * time.Hour
+		}
+		if r.Console.SessionTTLSeconds != nil {
+			c.Console.SessionTTL = time.Duration(*r.Console.SessionTTLSeconds) * time.Second
+		}
+	}
 
 	// The anonymous toggle has two equivalent keys; resolve them with a
 	// conflict check before env overrides apply on top of the merged value.
@@ -258,6 +275,7 @@ func defaults() *Config {
 		Security: SecurityConfig{AnonymousAccess: DefaultAnonymousAccess},
 		Audit:    AuditConfig{Enabled: DefaultAuditEnabled},
 		Logging:  LoggingConfig{Level: DefaultLogLevel, Format: DefaultLogFormat},
+		Console:  ConsoleConfig{SessionTTL: DefaultConsoleSessionTTL},
 	}
 }
 
@@ -422,6 +440,10 @@ func setEnvValue(c *Config, path []string, kind envKind, value, name string) err
 			c.Auth.Argon2MemoryMB = n
 		case "auth.token_default_ttl_hours":
 			c.Auth.TokenDefaultTTL = time.Duration(n) * time.Hour
+		case "console.session_ttl_hours":
+			c.Console.SessionTTL = time.Duration(n) * time.Hour
+		case "console.session_ttl_seconds":
+			c.Console.SessionTTL = time.Duration(n) * time.Second
 		default:
 			return fmt.Errorf("config: internal: int path %q not wired", where)
 		}

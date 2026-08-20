@@ -103,14 +103,17 @@ func (a permissionStoreAdapter) PrincipalsFor(ctx context.Context, repoKey strin
 func isNotFound(err, want error) bool { return errors.Is(err, want) }
 
 // NewFromStore wires Service over a metadata.Store. anonymousRead is
-// config.Security.AnonymousAccess.
+// config.Security.AnonymousAccess. The browser-session arm (M4, ADR-0014)
+// is wired unconditionally: metadata.Open always carries the 004
+// web_sessions table, so every store-backed service is also the console's
+// SessionRegistry.
 func NewFromStore(st metadata.Store, anonymousRead bool) *Service {
 	return New(
 		userStoreAdapter{s: st.Users()},
 		tokenStoreAdapter{s: st.Tokens()},
 		permissionStoreAdapter{s: st.Permissions()},
 		anonymousRead,
-	)
+	).WithSessions(st.WebSessions())
 }
 
 // PermissionSource is the exported permission-plane seam of Service: the

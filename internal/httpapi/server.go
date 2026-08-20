@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/lzwzzy/binflow/internal/adapter"
+	"github.com/lzwzzy/binflow/internal/audit"
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/config"
 	"github.com/lzwzzy/binflow/internal/metadata"
@@ -50,7 +51,11 @@ type Deps struct {
 	// DataDir is storage.data_dir — the health probe writes there and the
 	// stats endpoint sizes blobs/ under it.
 	DataDir string
-	// Console serves "/" and "/binflow/" (M1 placeholder JSON, M4 SPA).
+	// Console serves the console's three shapes: /binflow and /binflow/
+	// (301 to the ui segment), /binflow/ui/** (SPA shell, history
+	// fallback) and /binflow/assets/<hash> (immutable fingerprinted
+	// output). T-89 delivers the handler; the router binds it to every
+	// console segment (T-91).
 	Console http.Handler
 	// Adapters are the mounted protocol handlers (architecture section
 	// 5.1: cmd passes adapter.All(); tests inject per-stack instances so
@@ -65,7 +70,15 @@ type Server struct {
 	deps     Deps
 	log      *slog.Logger
 	adapters map[string]adapter.Handler // package type -> handler
-	srv      *http.Server
+	// sessions is the console-session facet of Deps.Auth (nil when the
+	// injected authenticator is not a full auth.Service — unit-test fakes).
+	// Discovered by assertion so cmd's Deps wiring stays untouched: the
+	// session cookie VERIFIES through the shared Authenticator either way.
+	sessions sessionRegistry
+	// audit records login events on the /api/v1/session plane (best-effort
+	// Recorder; the same contract repo.Service consumes).
+	audit audit.Recorder
+	srv   *http.Server
 }
 
 // New assembles the server. deps.Console may be nil (a bare console
@@ -94,6 +107,17 @@ func New(deps Deps, log *slog.Logger) *Server {
 		adapters[h.Protocol()] = h
 	}
 	s := &Server{deps: deps, log: log, adapters: adapters}
+	// Console-session facet discovery (T-91): the real auth.Service carries
+	// it; an injected fake stays session-less and the login endpoints
+	// answer 503 rather than crashing on a missing collaborator.
+	if sr, ok := deps.Auth.(sessionRegistry); ok {
+		s.sessions = sr
+	}
+	// The audit recorder for the login plane: same store, same enabled
+	// toggle and the same redaction chain every other audited surface uses.
+	if deps.Metadata != nil {
+		s.audit = audit.BestEffort(audit.New(deps.Metadata, deps.Config.Audit.Enabled))
+	}
 
 	s.srv = &http.Server{
 		Handler:           s.route(),

@@ -52,6 +52,9 @@ func (c *Config) Validate() error {
 	if c.Auth.TokenDefaultTTL <= 0 {
 		return fmt.Errorf("config: auth.token_default_ttl_hours must be positive, got %s", c.Auth.TokenDefaultTTL)
 	}
+	if c.Console.SessionTTL <= 0 {
+		return fmt.Errorf("config: console.session_ttl_hours must be positive, got %s", c.Console.SessionTTL)
+	}
 	if !allowedLogLevels()[c.Logging.Level] {
 		return fmt.Errorf("config: logging.level: unknown level %q (want debug, info, warn or error)", c.Logging.Level)
 	}

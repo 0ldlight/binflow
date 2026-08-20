@@ -14,6 +14,7 @@ type Config struct {
 	Security SecurityConfig
 	Audit    AuditConfig
 	Logging  LoggingConfig
+	Console  ConsoleConfig
 
 	// AdminPassword carries BINFLOW_ADMIN_PASSWORD (empty when unset). It is
 	// env-only: the YAML schema rejects any key that looks like a secret.
@@ -65,4 +66,18 @@ type AuditConfig struct {
 type LoggingConfig struct {
 	Level  string // debug|info|warn|error
 	Format string // json|console
+}
+
+// ConsoleConfig shapes the web console session plane (PRD FR-23, ADR-0014 as
+// amended by the T-108 errata). The console itself is embedded static output
+// with no knobs; the only behavior parameter is the browser session lifetime.
+type ConsoleConfig struct {
+	// SessionTTL is the lifetime of one web_sessions row: the absolute cap
+	// stamped into expires_at at login AND the idle window that the
+	// last_used heartbeat refreshes — the sliding renewal never extends a
+	// session past the cap (ADR-0014 decision 2, erratum 3). Resolved from
+	// console.session_ttl_hours (primary key, default 24) with
+	// console.session_ttl_seconds as an override key for test granularity;
+	// when both are set, seconds wins (PRD v1.1 R4 dual-key resolution).
+	SessionTTL time.Duration
 }

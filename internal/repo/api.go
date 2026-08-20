@@ -126,10 +126,20 @@ const (
 	PackagePypi  = "pypi"
 )
 
-// Reserved repo keys (ADR-0008): they collide with /binflow routing segments.
+// Reserved repo keys (ADR-0008, union finalized by the T-108 errata at the
+// M4 PRD v1.1 baseline): they collide with /binflow routing segments —
+// api/v2 (ADR-0008), docs (ADR-0011), console/ui (ADR-0014 as amended to the
+// ui mount; the console spelling stays reserved against M5 collisions). A
+// repository under any of these keys would be unreachable behind its
+// segment, so creation is refused (PRD FR-23-AC2/W01b; existing rows in
+// legacy databases start up with a WARN — a P2 debt item, route stays
+// occupied).
 var reservedRepoKeys = map[string]bool{
-	"api": true,
-	"v2":  true,
+	"api":     true,
+	"v2":      true,
+	"docs":    true,
+	"console": true,
+	"ui":      true,
 }
 
 // Authorization actions (architecture section 3.4). Aliased from auth so

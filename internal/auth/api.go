@@ -14,6 +14,13 @@ type Principal struct {
 	Name    string
 	Admin   bool
 	TokenID int64 // > 0 when the request authenticated via API token
+	// ViaSession marks the third authentication arm (M4, ADR-0014): the
+	// credential was the binflow_session cookie, not a header. Session and
+	// header credentials are EQUIVALENT for every authorization decision —
+	// the flag exists so the CSRF plane can police cookie-borne writes
+	// (Origin check) without touching Basic/Token traffic. Sessions carry no
+	// TokenID (there is no token row).
+	ViaSession bool
 }
 
 // Actions accepted by Authorizer.Can (architecture section 3.4 uses the
@@ -47,7 +54,8 @@ var (
 )
 
 // Authenticator resolves a request to a Principal (architecture section 3.4).
-// Supported entry points (auth-model.md section 3.6, high confidence):
+// Supported entry points (auth-model.md section 3.6, high confidence; the
+// third arm is M4, ADR-0014 as amended by the T-108 errata):
 //
 //	Authorization: Basic <user:password>   password check (argon2id), with a
 //	                                      fallback that treats the password
@@ -58,9 +66,16 @@ var (
 //	Authorization: Bearer <token>         token check
 //	X-JFrog-Art-Api: <token>              token check (legacy X-Api-Key is
 //	                                      accepted as its synonym)
+//	Cookie: binflow_session=<opaque>       web session check (web_sessions
+//	                                      row: sha256(id) keyed, revocable,
+//	                                      absolute TTL cap) — the LAST arm:
+//	                                      header credentials win over it, and
+//	                                      a presented-but-invalid cookie is a
+//	                                      rejected credential, never anonymous
 //
 // (nil, nil) means anonymous. Any non-nil error is a rejected credential.
-// The Authorization header wins when both it and X-JFrog-Art-Api are present.
+// The Authorization header wins when both it and X-JFrog-Art-Api are present;
+// every header arm wins over the session cookie.
 type Authenticator interface {
 	Authenticate(ctx context.Context, r *http.Request) (*Principal, error)
 }
@@ -150,4 +165,40 @@ type TokenRegistry interface {
 // password -> ErrEmptyPassword, unchanged password -> ErrSamePassword.
 type PasswordChanger interface {
 	ChangePassword(ctx context.Context, username, oldPassword, newPassword string) error
+}
+
+// CookieSessionName is the browser session cookie (PRD FR-23 / ADR-0014
+// erratum 2): HttpOnly, Path=/binflow, SameSite=Lax; the value is the
+// plaintext session id, stored server-side only as sha256 (NFR-S19: ≥128
+// bits of entropy, never logged).
+const CookieSessionName = "binflow_session" //nolint:gosec // cookie name, not a credential
+
+// IssuedSession is what SessionRegistry.IssueSession returns: the cookie
+// value (plaintext, visible exactly once — the same rule as API tokens,
+// NFR-S2) plus the absolute expiry stamped into the row. The id is 32 bytes
+// of crypto/rand, hex-encoded (256 bits).
+type IssuedSession struct {
+	ID        string
+	ExpiresAt time.Time
+}
+
+// SessionRegistry is the console-login facet of the auth service (ADR-0014
+// decision 2): mint, check and revoke server-side browser sessions. The
+// HTTP layer consumes this seam for POST/DELETE /api/v1/session; the verify
+// side is not part of it — cookie verification rides Authenticator itself
+// so every plane (content, protocol adapters, management) shares one
+// authentication path.
+type SessionRegistry interface {
+	// AuthenticateCredentials checks one username/password pair with the
+	// SAME rules as the Basic arm (argon2id password first, API-token
+	// duality fallback included) — the login endpoint must not grow a
+	// second, drifting password implementation.
+	AuthenticateCredentials(ctx context.Context, username, password string) (*Principal, error)
+	// IssueSession creates a fresh session row for an existing enabled
+	// user; ttl is the absolute cap (PRD R4 dual key resolved by config).
+	IssueSession(ctx context.Context, username string, ttl time.Duration) (*IssuedSession, error)
+	// RevokeSession marks the session behind the plaintext id logged out
+	// (idempotent). Unknown ids return an error wrapping
+	// metadata.ErrWebSessionNotFound.
+	RevokeSession(ctx context.Context, plaintext string) error
 }

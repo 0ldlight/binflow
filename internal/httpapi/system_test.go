@@ -133,10 +133,10 @@ func TestProbes(t *testing.T) {
 // TestConsoleRootRedirect: /binflow and /binflow/ redirect to the console's
 // ui segment (CE-01, PRD FR-23-AC1). The M1 placeholder JSON semantics are
 // terminated by T-89's embedded console (the inversion table: "GET /binflow/
-// 返回占位 JSON" -> 301); the SPA segment itself is served through the same
-// handler once T-91 mounts /binflow/ui/** in this router — so this probe
-// must NOT follow the redirect (the harness client would land on the
-// pre-T-91 content-plane 404).
+// 返回占位 JSON" -> 301); since T-91 the same handler also serves the ui and
+// assets segments from this router (see TestConsoleSegmentMount). The probe
+// still refuses to follow redirects so the assertion stays about the 301
+// itself.
 func TestConsoleRootRedirect(t *testing.T) {
 	h := newHarness(t)
 	noFollow := &http.Client{

@@ -30,6 +30,9 @@ const (
 	// DefaultLogLevel and DefaultLogFormat shape structured logging.
 	DefaultLogLevel  = "info"
 	DefaultLogFormat = "json"
+	// DefaultConsoleSessionTTL is the web console session lifetime
+	// (console.session_ttl_hours, PRD FR-23 / ADR-0014 erratum 3).
+	DefaultConsoleSessionTTL = 24 * time.Hour
 )
 
 // Metadata driver enum (architecture section 8; postgres M1 enum-only).
@@ -122,6 +125,8 @@ func splitEnvKey(upper string) (path []string, kind envKind, ok bool) {
 	case "auth.argon2_memory_mb":
 		return parts, envIntPos, true
 	case "auth.token_default_ttl_hours":
+		return parts, envIntPos, true
+	case "console.session_ttl_hours", "console.session_ttl_seconds":
 		return parts, envIntPos, true
 	case "security.anonymous_access", "auth.anonymous_read":
 		return parts, envBool, true

@@ -42,8 +42,14 @@ const prefix = "/binflow"
 // is not stripped and the route gate is the docker adapter's own — a 401
 // on /v2 must render the registry spec body plus the Bearer challenge
 // (realm=/v2/token), never the /binflow errors[] envelope (NFR-S10).
+//
+// csrfGuard sits between the authenticator and dispatch (T-91): it needs
+// the resolved principal and must precede every route decision.
 func (s *Server) rootHandler() http.Handler {
-	return s.baseChain(chain(authenticate(s.deps.Auth))(http.HandlerFunc(s.dispatch)))
+	return s.baseChain(chain(
+		authenticate(s.deps.Auth),
+		csrfGuard(s.log),
+	)(http.HandlerFunc(s.dispatch)))
 }
 
 // probeHandler serves /healthz and /readyz with the base chain only:
@@ -137,7 +143,18 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 	rest := strings.TrimPrefix(path, prefix)
 	switch {
 	case rest == "" || rest == "/":
-		// /binflow and /binflow/ -> console placeholder (M1 JSON, M4 SPA).
+		// /binflow and /binflow/ -> 301 /binflow/ui/ (CE-01, T-89's
+		// console handler; the M1 placeholder JSON is terminated).
+		s.deps.Console.ServeHTTP(w, r)
+	case rest == "/ui" || rest == "/ui/" || strings.HasPrefix(rest, "/ui/"),
+		rest == "/assets" || rest == "/assets/" || strings.HasPrefix(rest, "/assets/"):
+		// Console segments (T-91, PRD FR-23/CE-01/CE-02): the SPA's ui
+		// segment (shell + history fallback) and the fingerprinted asset
+		// mount. The console handler owns every spelling INSIDE these
+		// segments — including out-of-segment 404s for dot-segment probes
+		// (path.Clean backstop) — so it can never shadow a repository's
+		// content plane: /binflow/<repo>/<path> keeps routing to
+		// dispatchContent below.
 		s.deps.Console.ServeHTTP(w, r)
 	case rest == "/api" || rest == "/api/":
 		// Bare /binflow/api: no endpoint at this address.
@@ -246,6 +263,19 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		// Whole-instance blob/byte statistics (D2): operator data, admin
 		// only — a non-admin reader must not learn repository volume.
 		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleV1StorageStats)
+
+	// ---- /api/v1/session (CE-03..05, T-91; ADR-0014 erratum 2) ----
+	// POST is deliberately un-gated (it IS the credential presentation);
+	// GET/DELETE demand an authenticated principal of any arm — whoami is
+	// the SPA's route guard, DELETE revokes the presented session. Login
+	// failures render inside the handler so the uniform 401 wording and the
+	// login.failed audit event stay in one place.
+	case rest == "v1/session" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{}, s.handleSessionCreate)
+	case rest == "v1/session" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true}, s.handleSessionWhoami)
+	case rest == "v1/session" && r.Method == http.MethodDelete:
+		s.enforce(w, r, routeAuth{required: true}, s.handleSessionDelete)
 
 	// ---- /api/v1/permissions (E-24; admin) ----
 	case rest == "v1/permissions" && r.Method == http.MethodPost:
