@@ -286,6 +286,9 @@
 - **T-89** [P0] web 前端工程脚手架 `role:devops-engineer` `area:web/、internal/console、Makefile、CI` — done 2026-08-20
   vite6+React19+TS（base=/binflow/ui/）+ go:embed 三形态 Handler + relink-assets + CI node20 步（npm audit/tsc/eslint）+ Playwright 基建。conductor 复现：make console 75KB SPA（1.4% 预算）/console 测试绿/占位态 build 18.75MB。/binflow/ 301 live 证据；真 Chromium 2 spec 过。router 挂载归 T-91。提交 358b3c1。
 
+- **T-90** [P0] 004 迁移+Groups/WebSessions/审计扩展 `role:dev-go-core` `area:internal/metadata` — done 2026-08-20（APPROVE 一轮过）
+  review 0 blocker：DDL 逐列一致；同毫秒 keyset 翻页独立探针（50 行/带全页无跳重）；EXPLAIN 独立复核（sqlite 3.43.2 复合索引倒扫免 SORT）；幂等语义实测（changes() 同值 UPDATE）。6 non-blocking（cursor 形状校验/EXPLAIN SQL 漂移/索引列序断言/nil-vs-empty/哨兵同名——转 T-93/T-97 派单注意）。范围外：T-92 在制文件混入提交（粒度问题无缺陷）。提交 595e090+bf3f804。
+
 ## 🚫 阻塞（blocked）
 
 （空）
