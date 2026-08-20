@@ -82,6 +82,10 @@ test('logout revokes the session server-side and re-entry requires login', async
   await page.click('[data-testid="logout-button"]')
   // 危险确认对话框（焦点陷阱 + Esc 可取消）：先 Esc 取消，再真正登出
   await expect(page.locator('[data-testid="confirm-dialog"]')).toBeVisible()
+  // N2：modal 打开时全局快捷键让位——背景路由不得被换走
+  await page.keyboard.press('/')
+  await expect(page).not.toHaveURL(/search/)
+  await expect(page.locator('[data-testid="confirm-dialog"]')).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(page.locator('[data-testid="confirm-dialog"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="app-nav"]')).toBeVisible()
@@ -94,4 +98,21 @@ test('logout revokes the session server-side and re-entry requires login', async
   // 会话已吊销：回退受保护路由再次被守卫拦下
   await page.goto('/binflow/ui/settings')
   await expect(page).toHaveURL(/\/login\?return=/)
+})
+
+test('settings password change surfaces server plain-text wording inline', async ({ page }) => {
+  // B3：改密错误分支——服务端纯文本层文案（错旧口令 = 400 非信封）
+  // 必须行内原样呈现，不进 toast、不触发 401 全局处理
+  await page.goto('/binflow/ui/settings')
+  await login(page) // 守卫先拦到 /login?return=%2Fsettings，登录后回设置页
+  await page.waitForSelector('[data-testid="password-old"]')
+
+  await page.fill('[data-testid="password-old"]', 'definitely-wrong')
+  await page.fill('[data-testid="password-new"]', 'new-password-1')
+  await page.fill('[data-testid="password-confirm"]', 'new-password-1')
+  await page.click('[data-testid="password-submit"]')
+
+  await expect(page.locator('[data-testid="password-error"]')).toContainText('Incorrect username/password')
+  await expect(page.locator('[data-testid="toast"]')).toHaveCount(0)
+  await expect(page).toHaveURL(/settings/) // 行内错误，不跳转
 })

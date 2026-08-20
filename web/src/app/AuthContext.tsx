@@ -65,6 +65,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setUnauthorizedListener(() => {
       if (statusRef.current !== 'authenticated') return
+      // 同步置哨兵（review B1）：React 渲染提交是异步调度，同一轮并发
+      // 到达的多个 401（如仪表盘四卡同挂载）在重渲染前都会读到旧值，
+      // 否则「登录已过期」常驻 toast 会重复弹 N 条。
+      statusRef.current = 'anonymous'
       setSession(null)
       setStatus('anonymous')
       toast.error('登录已过期，请重新登录')

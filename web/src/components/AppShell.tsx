@@ -77,8 +77,12 @@ export default function AppShell() {
   const menuRef = useRef<HTMLDivElement>(null)
 
   // 全局搜索快捷键（§3.5）：⌘K / Ctrl+K / 「/」（输入框内不劫持）。
+  // modal（危险确认框等）打开时让位（review N2）：确认框开着时背景页
+  // 被换走，会让确认结果落在无关页面上——T-99 删仓/T-102 GC apply 的
+  // 前置。
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (document.querySelector('[role="dialog"], .modal-backdrop')) return
       const el = e.target as HTMLElement | null
       const inField = !!el?.closest('input, textarea, select, [contenteditable="true"]')
       if ((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) {
