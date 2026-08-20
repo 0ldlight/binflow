@@ -25,12 +25,13 @@
 
 - **T-94** [P0] GC 管理化（批 4） `role:dev-go-core` `area:internal/httpapi(gc)、internal/storage(gc)` — 在途（消费 T-96 锁原语 `storage.AcquireDataLock`，勿重写）
 - **T-97** [P0] groups 域+权限继承（批 4，双 reviewer 票） `role:dev-go-core` `area:internal/auth、internal/metadata(groups)、internal/httpapi(groups)` — 在途
-- **T-98** [P1] FE 基座：登录页+框架壳+仪表盘（批 4） `role:dev-frontend` `area:web/src` — 在途
+（T-98 编码完成 → review 区）
 - **T-111** [P1] docker adapter StatusError-verbatim 渲染臂（批 4） `role:dev-registry-adapter` `area:internal/adapter/docker` — 在途（T-95 遗留①；W26c 前置）
 
 ## 👀 评审中（review）
 
 - **T-95** [P0] 治理字段+配额 enforcement+usage（批 3） — 编码完成，conductor 核验通过（build/vet ✓、repo+metadata+httpapi 三包测试绿、lint 0 issues、真机 W12a/W26/W26b/W27 curl 矩阵见 T-95.md），提交 13bc7f3。单 reviewer 在途。遗留①（docker /v2 面 413 渲染为 500 UNKNOWN）→ 新票 T-111。
+- **T-98** [P1] FE 基座（批 4） — 编码完成，conductor 核验通过（typecheck/lint/build 绿、SPA gzip 89KB +14KB、console embed 复绿、Playwright 6/6 真后端 + TTL 塌缩/jane 授权/首屏探针），提交 d51dcce。单 reviewer 在途。契约漂移①（console-ux §3.3 非 admin 健康可见 vs /api/v1/health admin-only，前端按 403 隐藏收敛）待 ux/PM 定案。
 - **T-96** [P0] 备份/恢复 CLI（批 3，双 reviewer 票） — 编码完成，conductor 核验通过（build/vet ✓、storage+metadata+cmd 三包测试绿 25.3/19.7/18.2s、lint 0、真机抽查：fresh import --verify full 6/6 rehash、manifest sha 一致、恢复实例 GET sha 逐字对账 2b0ecdd6/7d0f10bc、blob 清单 bk≡fresh4、无钥 serve fail-fast 实证），提交 75c6d95。**双 reviewer 在途**（正确性+架构）。
 （T-64/T-67/T-69 等 M3 残留行 2026-08-20 清理，done 记录见 done 区）
 
