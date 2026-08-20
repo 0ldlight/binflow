@@ -17,7 +17,7 @@
 
 ## 📥 待办（todo）
 
-> M4 票 AC 全文见 reports/agents/T-88.md。分批：1~4✓ → 5a✓ → 6✓（T-100~T-103） → 7:{T-104,T-117,T-118,T-119}（T-117/T-118/T-119 done，T-104 在途） → 8:{T-105} → 9:{T-106,T-107}。M5 首票：ADR-0016 实现（草案 T-119.md）。
+> M4 票 AC 全文见 reports/agents/T-88.md。分批：1~7✓（批 7：T-104 PASS + T-117/T-118/T-119 微票） → 8:{T-105,T-120}（在途） → 9:{T-106,T-107}。M5 首票：ADR-0016 实现（草案 T-119.md）。
 
 - **T-117** [P1] PRD v1.2→v1.3 勘误 `role:product-manager` `area:docs/prd/milestone-4.md` — done 2026-08-21（conductor 核验直收）
   六项勘误（E1 grep -q/E2 **裁决钉 403 驳回 401 建议——现状即正确零改码**/E3 零残留按每写原子（D-1/D-2 P2 接受）/E4 cookie 排除 /v2/E5 锁文件放行/createdBy 改详情面板口径）。16 处 v1.3 标记、grep 零活体残留。移交登记：console-ux §9 R10 行与 E4 相悖（随下版 ux 勘误）；docker blob node 纳 GC 候选（M5+ 评估）。提交 e86967c。
@@ -25,11 +25,15 @@
   §10 v1.2：预定锚转正（242 处/27 文件对码核实、动态实参域逐一取证）；perm-matrix-cell 细化 {user|group}-<principal>-<action> 防碰撞升命名规则；search-filter-{package|type} 删除；token 族+audit-export 入 §10.4 禁区。T-104 断言锚唯一来源（§10.2+§10.3）。提交 01d7710。
 - **T-119** [P1] 隐式目录 folder 行架构裁决 `role:architect` `area:docs/design、DECISIONS.md` — done 2026-08-21（conductor 核验直收）
   **裁决选 A（ADR-0016）**：putNode 单缝材料化祖先 folder 行（祖先先落/派生状态免三门/007 回填先落哨兵 blob 满足 FK——最大实现坑）。理由：模型不变量优于读补丁（pruneEmptyParents 在纯隐式树是死代码=症状）、clean-room 取证（nodes DDL+prune 语义）、B 性力量化否决、C 实测证伪。**实现排 M5**（两票草案在 T-119.md：BE 材料化+007 回填 → FE 删回退；行为变更隐式目录 404→200、债务 20 remote 不跟随）。提交 7986784。
-- T-105 回归+性能 / T-106 部署烟测 / T-107 M4 文档 — AC 见 reports/agents/T-88.md
+- **T-104** [P0] QA Playwright 浏览器矩阵 `role:qa-engineer` `area:验收` — done 2026-08-21（**PASS**）
+  Chromium CFT151 **47/47 全绿**（W09→W35 全链 + 注入三断言：403 腿/哈希相零 PUT 128MB route 计数/sameSnapshot 逆序）+ 1GB RSS 0~28KB + 50 并发 session 互异；WebKit/Firefox 三链败于 **D-104-1**（P1：relink-assets 只重写 index.html，懒 chunk 运行时死引用→整路由空白）→ **T-120 派修**；D-104-2（P2：token 签发/吊销不落审计——词表「M1 既有」前提不实）登记 M4 收尾评估。E1/E2 勘误登记；E3 与 T-118 v1.2 无冲突；E4 matrix overlay 转常驻已注入 T-105。spec 提交 62d92f1；报告 reports/agents/T-104-qa.md。
+
+- T-106 部署烟测 / T-107 M4 文档 — AC 见 reports/agents/T-88.md
 
 ## 🔨 进行中（doing）
 
-- **T-104** [P0] QA Playwright 浏览器矩阵（批 7——FE 全冻结 HEAD 77718cc） `role:qa-engineer` `area:验收` — 在途（注入：上传 403 腿/哈希相关闭断言/sameSnapshot 重排断言；唯一端口段 18120+；testid 锚以代码实落为准防与在途 T-118 冲突）
+- **T-120** [P1] 懒 chunk 运行时资产路径修复（T-104 D-104-1，P1） `role:devops-engineer` `area:web/scripts、vite.config、Makefile` — 在途（relink 只重写 index.html→运行时 chunk 死引用；WebKit/Firefox 整路由空白根因；修后跨引擎三链转绿）
+- **T-105** [P0] QA 回归基线（M1~M3 全序列）+性能收尾（批 8） `role:qa-engineer` `area:验收` — 在途（端口段 18140+；matrix overlay 转常驻抽查——T-104 E4 采纳；回归面与 T-120 正交并行）
 
 （以下为已 done 票归档行——批 6 收口遗留位置，待全量整理）
 - **T-103** [P0] QA 后端面全量矩阵（批 6 提前段——后端已冻结） `role:qa-engineer` `area:验收` — done 2026-08-21（**PASS 217/217**，零 P0/P1）
