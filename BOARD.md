@@ -25,7 +25,7 @@
 ## 🔨 进行中（doing）
 
 （T-101 编码完成 → review 区；单 reviewer 在途）
-- **T-102** [P1] FE 治理组：审计+GC+配额页（批 6） `role:dev-frontend` `area:web/src/pages/governance、web/src/pages/audit` — 在途
+（T-102 编码完成 → review 区；单 reviewer 在途）
 - **T-103** [P0] QA 后端面全量矩阵（批 6 提前段——后端已冻结） `role:qa-engineer` `area:验收` — done 2026-08-21（**PASS 217/217**，零 P0/P1）
   三 AC 全过：基座全周期（session/CSRF 六变体/搜索 ACL 零泄漏/W36 十端点 404）+ 权限治理（组继承即时/词表 11 动作/GC 三方锁互斥全向/五协议 413 真客户端 docker dind 全链+T-95 B1 幂等面）+ 备份往返（四协议 sha 逐位/mtime 35/35/无钥 fail-fast）。被测 3c3cd36 冻结基线独立 worktree+真二进制。缺陷 D-1/D-2（P2：docker/maven 配额 push config 层残留 usage 可见 API 不可达）+ O-3~O-5 观察。**勘误 E1~E5 → T-117**（E4 cookie Path 结构性排除 /v2 已知会在途 T-100）。报告 reports/agents/T-103-qa.md。
 - **T-100** [P0] FE 制品树+上传/下载/删除+搜索页（批 6 第四线，T-99 收口后串行解除） `role:dev-frontend` `area:web/src/pages/repositories/tree、web/src/pages/search` — 在途
@@ -35,6 +35,7 @@
 （T-99 复核 APPROVE → done 区；批 6 四线在途：T-100/T-101/T-102/T-103）
 
 - **T-101** [P0] FE 安全组（批 6） — 编码完成（未提交——与在途 T-102 交织待合并）；review B1（句点截断）+NB② 修复完成（尾锚定完整后缀+回退/sameSet 集合语义；e2e 10/10 含点名真后端闭环+复归 11/11 零 5xx），**复核中**（原 reviewer）。核心面全过。**NB④ testid §10.3 v1.2 回写 T-104 冻结锚前必须完成（conductor 待办）**；漂移⑤候选后端小票；漂移①（用户禁用/删无 API 面）待产品裁决。
+- **T-102** [P1] FE 治理组（批 6） — 编码完成（未提交——main.tsx 三票交织，T-100 完成后整体合并），conductor 核验通过（governance e2e 4/4：审计过滤/keyset/REST 对账、GC typed-confirm+gc.run 审计对账、配额三态+413+行内编辑、非 admin L1L2L4；全套件 23 passed 零 5xx；SPA 150.9KB；embed 复绿）。**单 reviewer 在途**。漂移①（audit 无 path 参数→需后端增量票）③（GC dry-run 无候选清单——回执仅聚合计数）登记。
 （T-64/T-67/T-69 等 M3 残留行 2026-08-20 清理，done 记录见 done 区）
 
 - **T-111** [P1] docker 413 verbatim 渲染臂 `role:dev-registry-adapter` `area:internal/adapter/docker` — done 2026-08-21（单 review 一轮修复）
