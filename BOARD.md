@@ -17,9 +17,12 @@
 
 ## 📥 待办（todo）
 
-> M4 票 AC 全文见 reports/agents/T-88.md。分批：1:{T-89,T-90,T-92}✓ → 2:{T-91,T-110}✓ → 3:{T-93,T-95,T-96}✓ → 4:{T-94,T-97,T-98,T-111}（在途） → 5:{T-99,T-103} → 6:{T-100,T-101,T-102} → 7:{T-104} → 8:{T-105} → 9:{T-106,T-107}。双 reviewer：T-96、T-97。
+> M4 票 AC 全文见 reports/agents/T-88.md。分批：1:{T-89,T-90,T-92}✓ → 2:{T-91,T-110}✓ → 3:{T-93,T-95,T-96}✓ → 4:{T-94,T-97,T-98,T-111}✓（补 T-112/T-113 勘误） → 5a:{T-99,T-114,T-115}（在途） → 5b:{T-103} → 6:{T-100,T-101,T-102} → 7:{T-104} → 8:{T-105} → 9:{T-106,T-107}。双 reviewer：T-96、T-97（均闭环）。
 
-- T-99~T-102 FE 页面组 / T-103~T-105 QA 三段 / T-106 部署烟测 / T-107 M4 文档 — AC 见 reports/agents/T-88.md
+- **T-99** [P1] FE 仓库管理页 `role:dev-frontend` `area:web/src` — 仓库列表/创建/编辑（含 governance 字段表单：quotaBytes/patterns 仅 local 呈现，virtual/remote 只读「—」）；AC 见 T-88.md T-99 节
+- **T-114** [P1] GC 尾巴：CLI gc.run 审计 + apply 断连防幻影 `role:dev-go-core` `area:cmd(gc)、internal/httpapi(gc)、internal/storage(gc)` — ①FR-30-AC5 CLI 腿闭合（cmd runGC 补 gc.run 审计，cliAuditActor 常量现成，T-94 review 范围外①）；②apply 腿 context.WithoutCancel（T-94 review N1：客户端断连在 sweep 中途取消 → 已删 blob 留幻影 ledger 行且不落审计）
+- **T-115** [P1] 认证热路径索引 + 架构勘误 `role:dev-go-core` `area:internal/metadata(006)、docs/design` — 006 迁移补 user_groups(username) 前缀索引（认证每请求必读热路径全表扫，T-97 架构 review NB1）+ architecture §6 勘误 + §7.1 users 行路径勘误（/api/v1/users→/api/security/users + POST + DELETE 债务，草案在 T-97-review-architecture.md 尾）
+- T-100~T-102 FE 页面组 / T-103~T-105 QA 三段 / T-106 部署烟测 / T-107 M4 文档 — AC 见 reports/agents/T-88.md
 
 ## 🔨 进行中（doing）
 
@@ -27,12 +30,17 @@
 
 ## 👀 评审中（review）
 
-- **T-94** [P0] GC 管理化（批 4） — 编码完成，conductor 核验通过（build/vet/lint 0、定向 TestT94/TestDataLock/TestGC 三包 ok、auth 回归 ok；真机 curl 序列见 T-94.md），**与 T-97 合并提交 86f879b**（router.go/server.go 双票分支不可拆，message 分列）。单 reviewer 被 429 击落（刚起步）——额度重置后唤醒重派。REST 0=无宽限 vs CLI 0=config 双口径已专测钉死。
-- **T-97** [P0] groups 域+权限继承（批 4，双 reviewer 票） — 编码完成 86f879b；正确性 review 2 blocking（B1 映射翻转/B2 空门）→ **修复完成提交 120eb09**（principalLetters 新形态：key=主体名 value=r/w/d 字母、零权限主体不渲染；routeAuth required+admin——匿名读实例不再泄露用户/组普查；真机矩阵 401/403/200 + W21 精确形态实证），conductor 复核全绿（lint 0/httpapi 49.5s/auth 7.8s）。**架构 review 在途**（闭环后 done）。6 NB 登记。
+（空——批 4 全部闭环，**M4 后端面收口**；批 5a 派发中）
 （T-64/T-67/T-69 等 M3 残留行 2026-08-20 清理，done 记录见 done 区）
 
 - **T-111** [P1] docker 413 verbatim 渲染臂 `role:dev-registry-adapter` `area:internal/adapter/docker` — done 2026-08-21（单 review 一轮修复）
   writeVerbatimStatusError + specCodeOfVerbatim（413/409→DENIED、405→UNSUPPORTED、TOOMANYREQUESTS 弃用）落 manifest PUT 与 blob 注册支路；review B1（tryMount 治理拒绝降级 202 与 FR-31-AC5 P0 字面冲突）修复：isDenied 前加 errors.As verbatim 臂——mount 面即出 413/409，机械性失败仍降级。真机实证（旧进程占端口的 stale-202 已 root-cause）：quota mount 413 verbatim 断到 used/needs 级、pattern 409、未配置 201 回归、零残留、WARN「mount refused」×2/「degraded」×0。conductor 复核：build/lint 0/mount 测试+全包 ok。提交 8ed20f7+2ee01d2。遗留：remote docker FetchError 500 归 M5+、docker CLI 侧显示归 T-103。
+
+- **T-94** [P0] GC 管理化 `role:dev-go-core` `area:internal/httpapi(gc)、internal/storage(gc)` — done 2026-08-21（**review APPROVE 一轮过**，0 blocker/6 NB）
+  POST /api/v1/system/gc：dry-run 默认/apply 双扫/409 锁映射带 holder pid/op/gc.run 审计/liveChecksumSet（nodes∪docker_refs）。review 实证：三态 grace（缺省 config/显式 0=1ns/越界 400）专测钉死；mark 集完备（manifest 本体疑点排除——经 PutManifest 落 node 行由 nodes 半边保护）；锁互斥真实（flock 跨 fd 排他+defer panic 安全）；clean-room 无嫌疑。范围外①（CLI gc.run 审计缺口）→ T-114；N1（apply 断连幻影）→ T-114；cmd 一行接线越界**conductor 追认**。提交 86f879b（与 T-97 合并）。
+
+- **T-97** [P0] groups 域+权限继承 `role:dev-go-core` `area:internal/auth、internal/metadata(groups)、internal/httpapi(groups)` — done 2026-08-21（双 review 一轮修复）
+  groups CRUD+组并集权限+fail-closed 组侧+三臂等价+users create-or-replace 201（R5）+?permissions 视图。正确性 review B1（映射方向反）+B2（空门泄露普查）修复 `120eb09`（principalLetters 新形态+required admin）；架构 review B1 同款已闭合、遗留②与正确性侧分歧——**conductor 裁决维持收紧**（代码级取证 RestAddonImpl canManage 前置 > 文档 can-be-anonymous；BinFlow 存在性不泄露立场；T-103 真机对照后可一行放宽）。真机矩阵 401/403/200+W21 精确形态实证。提交 86f879b+120eb09。NB：user_groups 索引→T-115、TOCTOU/审计 detail/PUT 事务性登记、users DELETE 缺口（FR-28 UI 需后续票）。
 
 - **T-113** [P1] ?permissions 形态勘误 `role:reverse-engineer` `area:docs/reverse/rest-api.md、docs/prd/milestone-4.md` — done 2026-08-21
   §3 键值方向翻转勘误（RestAddonImpl#getItemPermissions 双证）+ annotate 字母 a→n 顺带修正（全集 r/w/n/d/m）+ PRD FR-27/SE-08 v1.2 + NB6 定案（非 local 仓 400 正确、无需改码）。grep 零活体旧表述。提交 f102fef。
