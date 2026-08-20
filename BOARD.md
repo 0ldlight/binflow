@@ -17,33 +17,22 @@
 
 ## 📥 待办（todo）
 
-> M3 票 AC 全文见 reports/agents/T-61.md。分批：1:{T-62,T-63} → 2:{T-64,T-65} → 3:{T-66,T-67,T-69,T-70} → 4:{T-68,T-71} → 5:{T-73,T-77起} → 6:{T-72} → 7:{T-74} → 8:{T-75} → 9:{T-76,T-77终}。双 reviewer：T-65(SSRF 安全+架构)/T-66/T-67/T-68。
+> M4 票 AC 全文见 reports/agents/T-88.md。分批：1:{T-89,T-90,T-92}✓ → 2:{T-91,T-110}✓ → 3:{T-93,T-95,T-96} → 4:{T-94,T-97,T-98,T-111} → 5:{T-99,T-103} → 6:{T-100,T-101,T-102} → 7:{T-104} → 8:{T-105} → 9:{T-106,T-107}。双 reviewer：T-96、T-97。
 
-- **T-68** [P0] Maven maven-metadata.xml 计算器 `role:dev-registry-adapter` `area:internal/adapter/maven(metadata)` `dep:T-67` — 双 reviewer
-（T-84 done → done 区）
-（T-73 done → done 区）
-- **T-73** [P2] sha1-only checksum deploy `role:dev-go-core` `area:internal/repo、adapter/maven` `dep:T-64,T-67`
-- **T-74** [P0] QA 三协议功能矩阵 `role:qa-engineer` `dep:T-68,T-69,T-70,T-71`
-- **T-75** [P0] QA remote/virtual+SSRF 安全 `role:qa-engineer` `dep:T-74,T-72`
-- **T-76** [P0] QA 客户端矩阵+回归+性能 `role:qa-engineer` `dep:T-75`
+- **T-94** [P0] GC 管理化（dry-run 默认/apply 双确认/flock 互斥 409/审计） `role:dev-go-core` `area:internal/storage(gc)、cmd(gc)` `dep:T-96`（消费 `storage.AcquireDataLock` 锁原语，勿重写——T-96 已申报）
+- **T-97** [P0] groups 域+权限继承（批 4，双 reviewer 票） `role:dev-go-core` `area:internal/auth、internal/metadata(groups)、internal/httpapi(groups)`
+- **T-98** [P1] FE 基座：登录页+框架壳+仪表盘 `role:dev-frontend` `area:web/src`
+- **T-111** [P1] docker adapter StatusError-verbatim 渲染臂 `role:dev-registry-adapter` `area:internal/adapter/docker` `dep:T-95` — writeManifestPutError 与 blob 注册失败支路补 verbatim 臂，使配额/pattern 拒绝在 /v2 面渲染 413/409（现为 500 UNKNOWN；T-95 遗留①；W26c 前置）
+- T-99~T-102 FE 页面组 / T-103~T-105 QA 三段 / T-106 部署烟测 / T-107 M4 文档 — AC 见 reports/agents/T-88.md
 
 ## 🔨 进行中（doing）
 
-- **T-93** [P0] 审计查询面+词表（批 3） `role:dev-go-core` `area:internal/audit、internal/httpapi(audit)` — 在途
-- **T-95** [P0] 治理字段+配额 enforcement+usage（批 3） `role:dev-go-core` `area:internal/repo、internal/metadata(usage)、internal/httpapi(usage)` — 在途
-- **T-96** [P0] 备份/恢复 CLI（批 3，双 reviewer 票） `role:dev-go-core` `area:cmd(export/import)、internal/storage、internal/metadata(快照)` — 在途（锁原语若 T-94 未落可先实现并申报）
-（T-90 编码完成 → review 区）
-（T-62 编码完成 → review 区；单 reviewer 在途）
-（T-66 编码完成 → review 区；双 reviewer 排队等槽）
-- **T-67** [P0] Maven adapter layout+传输+checksum（批 3） `role:dev-registry-adapter` `area:internal/adapter/maven` — 在途（双 reviewer 票；metadata 归 T-68）
-- **T-69** [P0] npm adapter（批 3） `role:dev-registry-adapter` `area:internal/adapter/npm` — 在途（E-26 翻转 R5 + N4 严格 404 决策）
-（T-71 编码完成 → review 区；遗留①②转 T-82）
-（T-79 done → done 区）
+- **T-96** [P0] 备份/恢复 CLI（批 3，双 reviewer 票） `role:dev-go-core` `area:cmd(export/import)、internal/storage、internal/metadata(快照)` — 在途（cmd 命令级测试段；锁原语已先行落地待申报）
 
 ## 👀 评审中（review）
 
-- **T-64** [P0] repo 三型模型+PutLandedBlob — 编码完成，conductor 复现通过（13 包 race 两轮绿/M01/M05 curl 端到端），提交 63135de。单 reviewer 在途（reviewer 曾被 429 击落于报告前，已唤醒续跑）。
-（T-65 修复完成 → done 区；T-81 NAT64 勘误小票在途）
+- **T-95** [P0] 治理字段+配额 enforcement+usage（批 3） — 编码完成，conductor 核验通过（build/vet ✓、repo+metadata+httpapi 三包测试绿、lint 0 issues、真机 W12a/W26/W26b/W27 curl 矩阵见 T-95.md），提交 13bc7f3。单 reviewer 在途。遗留①（docker /v2 面 413 渲染为 500 UNKNOWN）→ 新票 T-111。
+（T-64/T-67/T-69 等 M3 残留行 2026-08-20 清理，done 记录见 done 区）
 
 ## 🧪 测试中（qa）
 
@@ -293,6 +282,9 @@
 
 - **T-92** [P0] 搜索域 `role:dev-go-core` `area:httpapi+repo+metadata` — done 2026-08-20（APPROVE 一轮过）
   review 0 blocker：ACL 零泄漏（与内容面同一 allow() 路径 + 双引用探针实测）；LIKE 转义/参数化/索引真实；fileInfoOf 纯提取。4 non-blocking（宽结果 limit 门→T-105 探针/零授权 200 空 vs 403 姿态→PRD 半句）。提交 358b3c1+0390958。
+
+- **T-93** [P0] 审计查询面+词表 `role:dev-go-core` `area:internal/audit、internal/httpapi(audit)` — done 2026-08-20
+  Filter 全参数+消费侧 keyset+NormalizeTimestamp；GET /api/v1/audit（limit 1..1000/cursor/403 矩阵）；W22 窗口/W23b 脱敏 grep 0/W39 append-only 全 404；NFR-S21 源码扫描测试；M4 十动作常量。conductor 复现：audit race 3.0s 绿/lint 0/4 HTTP 测试 PASS。提交 ccc1862（t93_audit_test.go 随 13bc7f3 补齐——依赖 T-95 的 harness 真 audit 接线）。
 
 - **T-110** [P1] assets 保留字 + TTL 塌缩句 `role:architect` `area:DECISIONS.md、docs/design` — done 2026-08-20（经 429 续完）
   ADR-0008 增补 assets（六字集并集）+ ADR-0014/§7.5 塌缩句（会话必死于 created_at+TTL 与活跃度无关——防前端/QA 误读）+ §6 DDL 注释同步。T-108 遗留①闭合。提交 8f26a0a。
