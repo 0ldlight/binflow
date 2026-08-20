@@ -375,8 +375,15 @@ func (s *service) PutWithOptions(ctx context.Context, p *Principal, repoKey, pat
 		// the session committed, so the check runs post-landing — a refusal
 		// never writes the node (the blob stays unreferenced for GC, the
 		// designed residue), which is the atomic-rejection contract.
+		//
+		// replaced keys on ANY existing row, idempotent or not (review B1):
+		// a declared-checksum retransmit holds existing.Size == incoming
+		// (same sha256 = same bytes), so its delta is 0 and checkQuota's
+		// delta<=0 arm exempts it — gating `replaced` on !idempotent turned
+		// the exemption into a full-size pre-check delta and 413'd every
+		// checksum-declared retransmit at the ceiling.
 		replaced := int64(0)
-		if !idempotent && existing != nil {
+		if existing != nil {
 			replaced = existing.Size
 		}
 		if err := s.checkQuota(ctx, p, gov, repoKey, path, committed.Size, replaced); err != nil {
@@ -530,9 +537,11 @@ func (s *service) PutFromBlob(ctx context.Context, p *Principal, repoKey, path s
 
 	// Quota pre-check (GE-05): the size is known BEFORE any metadata write,
 	// so this arm refuses with zero writes — a checksum-deploy ("秒传") is
-	// quota-bound like any other landing (NFR-S23).
+	// quota-bound like any other landing (NFR-S23). replaced keys on any
+	// existing row (review B1): a re-announcement of the same blob at the
+	// same path is delta 0 and exempt, exactly like the streaming arm.
 	replaced := int64(0)
-	if !idempotent && existing != nil {
+	if existing != nil {
 		replaced = existing.Size
 	}
 	if err := s.checkQuota(ctx, p, gov, repoKey, path, committed.Size, replaced); err != nil {
@@ -618,8 +627,10 @@ func (s *service) PutLandedBlob(ctx context.Context, p *Principal, repoKey, path
 	_ = rc.Close() //nolint:errcheck // read-only fd; presence and size are already taken
 
 	// Quota pre-check (GE-05), size known before any metadata write.
+	// replaced keys on any existing row (review B1): a same-digest
+	// re-finalize is delta 0 and exempt, exactly like the streaming arm.
 	replaced := int64(0)
-	if !idempotent && existing != nil {
+	if existing != nil {
 		replaced = existing.Size
 	}
 	if err := s.checkQuota(ctx, p, gov, repoKey, path, phys.Size, replaced); err != nil {

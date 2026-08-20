@@ -320,11 +320,93 @@ func TestQuotaPutFamily(t *testing.T) {
 		t.Fatalf("refused tag visible: %v", nerr)
 	}
 
-	// The idempotent retransmit exemption: re-announcing bytes the
-	// repository already holds changes nothing and never 413s.
+	// The retransmit exemptions at the ceiling (review B1): re-announcing
+	// bytes the repository already holds changes nothing and never 413s —
+	// with the checksum DECLARED (the arm the old, empty-BlobRef form of
+	// this case missed: an undeclared re-PUT takes the overwrite path) and
+	// through both zero-transfer faces. The dedicated
+	// TestQuotaIdempotentRetransmitAtCeiling covers the full three-arm
+	// matrix; this leg keeps the family test's tail coverage.
 	if _, err := e.svc.Put(ctx, admin(), "tiny", "a.bin",
-		strings.NewReader(body), storage.BlobRef{}, ""); err != nil {
-		t.Fatalf("idempotent retransmit at the ceiling: %v", err)
+		strings.NewReader(body), storage.BlobRef{Sha256: shaOf(body)}, ""); err != nil {
+		t.Fatalf("declared-checksum retransmit at the ceiling: %v", err)
+	}
+}
+
+// TestQuotaIdempotentRetransmitAtCeiling is review B1's regression: with the
+// repository exactly AT its ceiling, every shape of same-content re-announce
+// must pass — the pre-check's delta and the metered write's delta agree at
+// 0. The pre-fix code keyed `replaced` on !idempotent, turned a declared
+// retransmit into a full-size delta and 413'd all three arms below (plus one
+// quota.exceeded audit row each — the noise assertion pins that too).
+func TestQuotaIdempotentRetransmitAtCeiling(t *testing.T) {
+	ctx := context.Background()
+	e := newEnv(t)
+	govRepo(t, e, "full", `{"quotaBytes":1600}`)
+	body := strings.Repeat("a", 800)
+	sha := shaOf(body)
+
+	// 800 via the streaming arm (declared) + 800 via a landed session: the
+	// counter sits exactly at 1600/1600.
+	if _, err := e.svc.Put(ctx, admin(), "full", "a.bin",
+		strings.NewReader(body), storage.BlobRef{Sha256: sha}, ""); err != nil {
+		t.Fatalf("seed a.bin: %v", err)
+	}
+	sess, err := e.st.BeginSession(ctx)
+	if err != nil {
+		t.Fatalf("BeginSession: %v", err)
+	}
+	if _, err := sess.Append(ctx, strings.NewReader(body)); err != nil {
+		t.Fatalf("session append: %v", err)
+	}
+	ref, err := sess.Commit(ctx, storage.BlobRef{})
+	if err != nil {
+		t.Fatalf("session commit: %v", err)
+	}
+	if _, err := e.svc.PutLandedBlob(ctx, admin(), "full", "b.bin", ref, ""); err != nil {
+		t.Fatalf("seed b.bin: %v", err)
+	}
+	if u := usageOf(t, e, "full"); u.UsedBytes != 1600 {
+		t.Fatalf("seed usage = %d, want 1600 (at the ceiling)", u.UsedBytes)
+	}
+
+	// Arm 1 — streaming retransmit with the checksum DECLARED (the
+	// X-Checksum-Sha256 shape; the pre-fix 413).
+	if _, err := e.svc.Put(ctx, admin(), "full", "a.bin",
+		strings.NewReader(body), storage.BlobRef{Sha256: sha}, ""); err != nil {
+		t.Fatalf("arm 1 declared retransmit: %v", err)
+	}
+	// Arm 2 — X-Checksum-Deploy re-announcement of the same blob at the
+	// same path (PutFromBlob always declares).
+	if _, err := e.svc.PutFromBlob(ctx, admin(), "full", "a.bin",
+		storage.BlobRef{Sha256: sha}, ""); err != nil {
+		t.Fatalf("arm 2 checksum-deploy re-announcement: %v", err)
+	}
+	// Arm 3 — same-digest re-finalize (the docker push retry shape).
+	if _, err := e.svc.PutLandedBlob(ctx, admin(), "full", "b.bin", ref, ""); err != nil {
+		t.Fatalf("arm 3 same-digest re-finalize: %v", err)
+	}
+
+	// Nothing moved and nothing was logged as exceeded: a retransmit is a
+	// no-op, not a refusal.
+	if u := usageOf(t, e, "full"); u.UsedBytes != 1600 {
+		t.Fatalf("usage after the three retransmit arms = %d, want 1600", u.UsedBytes)
+	}
+	for _, ev := range e.au.events {
+		if ev.Action == repo.AuditActionQuotaExceeded {
+			t.Fatalf("spurious %s audit event on a retransmit: %+v", ev.Action, ev)
+		}
+	}
+
+	// The bounded side still holds at the same ceiling: a NEW 800B path is
+	// genuinely over and refuses 413 (the arms above did not loosen the
+	// gate for real growth).
+	other := strings.Repeat("b", 800)
+	if _, err := e.svc.Put(ctx, admin(), "full", "c.bin",
+		strings.NewReader(other), storage.BlobRef{Sha256: shaOf(other)}, ""); err == nil {
+		t.Fatal("new over-ceiling upload passed after the retransmit arms")
+	} else {
+		_ = statusOf(t, err, 413)
 	}
 }
 

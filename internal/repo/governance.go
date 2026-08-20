@@ -303,10 +303,16 @@ func quotaRefusal(repoKey, path string, used, quota, incoming int64) *StatusErro
 
 // checkQuota is the quota pre-check every content-landing use case runs once
 // the incoming size is known (GE-05): incoming is the size about to land,
-// replaced the size of the node row this write REPLACES (0 when the path is
-// new or the write is a same-content retransmit, which changes nothing and
-// is exempt — re-announcing bytes the repository already holds must not
-// 413). quotaBytes 0 (the default) short-circuits before any store read.
+// replaced the size of the node row this write REPLACES, whatever the write
+// shape — 0 only when the path is genuinely new. A same-content retransmit
+// (declared checksum, X-Checksum-Deploy re-announcement, docker's
+// digest-keyed re-finalize) carries replaced == incoming — same sha256 means
+// identical bytes means identical size — so its delta is 0 and the arm below
+// exempts it WITHOUT a usage read: re-announcing bytes the repository
+// already holds must not 413 (review B1; repo-semantics section 3's
+// retransmit contract). An overwrite with different content carries the OLD
+// row's size and is charged the difference. quotaBytes 0 (the default)
+// short-circuits before any store read.
 //
 // The check is a pre-check, not a reservation: between the read here and the
 // metered write another concurrent upload may land (SQLite serializes the

@@ -165,10 +165,9 @@ const (
 )
 
 // Audit actions emitted by this package (architecture section 3.5),
-// aliased from the audit package's vocabulary. The quota action is part of
-// the M4 vocabulary (PRD FR-29) but lives here as a local constant: the
-// audit package's own vocabulary is T-93's area, and Event.Action is a plain
-// string — the values must simply agree.
+// aliased from the audit package's vocabulary. The quota action joined that
+// vocabulary with T-93 (PRD FR-29's M4 set) and is aliased like the rest —
+// one spelling, no drift (review NB2).
 const (
 	AuditActionDeploy     = audit.ActionDeploy
 	AuditActionDownload   = audit.ActionDownload
@@ -179,7 +178,7 @@ const (
 
 	// AuditActionQuotaExceeded is appended (with a WARN log) every time a
 	// write is refused by the repository's quotaBytes ceiling (GE-05/W26).
-	AuditActionQuotaExceeded = "quota.exceeded"
+	AuditActionQuotaExceeded = audit.ActionQuotaExceeded
 )
 
 // Principal is the caller identity (architecture section 3.4). It is the
