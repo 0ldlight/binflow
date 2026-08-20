@@ -29,8 +29,10 @@
 
 ## 🔨 进行中（doing）
 
+- **T-93** [P0] 审计查询面+词表（批 3） `role:dev-go-core` `area:internal/audit、internal/httpapi(audit)` — 在途
+- **T-95** [P0] 治理字段+配额 enforcement+usage（批 3） `role:dev-go-core` `area:internal/repo、internal/metadata(usage)、internal/httpapi(usage)` — 在途
+- **T-96** [P0] 备份/恢复 CLI（批 3，双 reviewer 票） `role:dev-go-core` `area:cmd(export/import)、internal/storage、internal/metadata(快照)` — 在途（锁原语若 T-94 未落可先实现并申报）
 （T-90 编码完成 → review 区）
-- **T-91** [P0] session（修复轮） `role:dev-go-core` — B1 登录端点豁免（cookie-tossing DoS）+ B2 login-CSRF Origin 校验 + assets 保留字。在途。
 （T-62 编码完成 → review 区；单 reviewer 在途）
 （T-66 编码完成 → review 区；双 reviewer 排队等槽）
 - **T-67** [P0] Maven adapter layout+传输+checksum（批 3） `role:dev-registry-adapter` `area:internal/adapter/maven` — 在途（双 reviewer 票；metadata 归 T-68）
@@ -294,6 +296,9 @@
 
 - **T-110** [P1] assets 保留字 + TTL 塌缩句 `role:architect` `area:DECISIONS.md、docs/design` — done 2026-08-20（经 429 续完）
   ADR-0008 增补 assets（六字集并集）+ ADR-0014/§7.5 塌缩句（会话必死于 created_at+TTL 与活跃度无关——防前端/QA 误读）+ §6 DDL 注释同步。T-108 遗留①闭合。提交 8f26a0a。
+
+- **T-91** [P0] session 三臂+console 挂载+CSRF `role:dev-go-core` — done 2026-08-20（经双 review 一轮修复 + 2 次 429）
+  Cookie 第三臂（256bit/失效即拒/Touch 封顶）+ session 三动词 + csrfGuard（Origin + XFP）+ console 挂载 + TTL 双键。curl 全周期 24 PASS + Playwright 探针转绿。双 review 修复复审通过：B1 登录端点豁免（stale cookie 5 子例 + B1B2 咬合）；B2 login-CSRF Origin 守卫（6 子例）；assets 保留字；N6 audit nil 兜底。16 包 race 绿。提交 906d82a+67c3380。**批 2 闭环**。
 
 ## 🚫 阻塞（blocked）
 
