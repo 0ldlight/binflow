@@ -19,12 +19,13 @@
 
 > M4 票 AC 全文见 reports/agents/T-88.md。分批：1:{T-89,T-90,T-92}✓ → 2:{T-91,T-110}✓ → 3:{T-93,T-95,T-96}✓ → 4:{T-94,T-97,T-98,T-111}✓（补 T-112/T-113 勘误） → 5a:{T-99,T-114,T-115}（在途） → 5b:{T-103} → 6:{T-100,T-101,T-102} → 7:{T-104} → 8:{T-105} → 9:{T-106,T-107}。双 reviewer：T-96、T-97（均闭环）。
 
-- **T-116** [P1] 控制台权限可见性漂移集中定案 + console-ux v1.1 `role:ux-designer` `area:docs/design/console-ux.md` — 漂移 A（健康 admin-only vs §3.3）+ 漂移 B（仓库列表 admin-only vs 规范）定案 + 权限可见性矩阵 + data-testid 清单（T-104 锚）；在途
-- T-100~T-102 FE 页面组 / T-103~T-105 QA 三段 / T-106 部署烟测 / T-107 M4 文档 — AC 见 reports/agents/T-88.md
+- T-100~T-102 FE 页面组（T-101/T-102 在途） / T-103（在途）~T-105 QA 三段 / T-106 部署烟测 / T-107 M4 文档 — AC 见 reports/agents/T-88.md
 
 ## 🔨 进行中（doing）
 
-（空——批 5a 编码面全部完成）
+- **T-101** [P0] FE 安全组：用户/组/权限 target 编辑器（批 6） `role:dev-frontend` `area:web/src/pages/security` — 在途（按 console-ux v1.1 §3.6/§10 契约）
+- **T-102** [P1] FE 治理组：审计+GC+配额页（批 6） `role:dev-frontend` `area:web/src/pages/governance、web/src/pages/audit` — 在途
+- **T-103** [P0] QA 后端面全量矩阵（批 6 提前段——后端已冻结） `role:qa-engineer` `area:验收` — 在途（T-116 定案口径已注入派单）
 
 ## 👀 评审中（review）
 
@@ -47,6 +48,9 @@
 
 - **T-115** [P1] 认证热路径索引 + 架构勘误 `role:dev-go-core` `area:internal/metadata(006)、docs/design` — done 2026-08-21（conductor 核验直收）
   006 迁移 idx_user_groups_username：EXPLAIN 对账 SCAN→SEARCH（pin 断言）；§6 注记 + §7.1 users 行修正。提交 fec7fe2。遗留：§7.1 ?permissions 行 + E-16 行 → T-107。
+
+- **T-116** [P1] 控制台权限可见性漂移集中定案 + console-ux v1.1 `role:ux-designer` `area:docs/design/console-ux.md` — done 2026-08-21
+  定案 A（健康）+ B（仓库列表）**均维持 admin-only**（存在性/内部状态不泄露立场；path-keyed 模型下列表即普查）+ Tokens 收回 admin-only（D3）——**零后端票**。v1.1：§3.3 重写、§3.6 权限可见性矩阵（403 收敛四层主姿态+端点×门 22 行+页面×角色）、§10 data-testid 清单（~99 已落锚核对+T-100~102 预定锚契约——T-104 断言锚源）、N1 裁定（数据呈现一律 403 驱动禁 admin 硬编码；存量偏离一处：设置页健康行→随 T-100~102 修正）。提交 4bdcfd6。
   §3 键值方向翻转勘误（RestAddonImpl#getItemPermissions 双证）+ annotate 字母 a→n 顺带修正（全集 r/w/n/d/m）+ PRD FR-27/SE-08 v1.2 + NB6 定案（非 local 仓 400 正确、无需改码）。grep 零活体旧表述。提交 f102fef。
 
 - **T-98** [P1] FE 基座：登录页+框架壳+仪表盘 `role:dev-frontend` `area:web/src` — done 2026-08-21（单 review 一轮修复，**复核 APPROVE**）
