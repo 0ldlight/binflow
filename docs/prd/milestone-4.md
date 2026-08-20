@@ -4,7 +4,7 @@
 |---|---|
 | 文档 | `docs/prd/milestone-4.md` |
 | 里程碑 | M4 — 控制台与治理（对应 ROADMAP.md「M4 — 控制台与治理」全部条目） |
-| 状态 | **v1.1**（T-109：R1 命名面与 ADR-0014 对齐标注——「PRD 面 + ADR 内核」裁决；R4 session TTL 双键收口；K1~K3 回写注记。v1.0 初版：§7 六项开放问题附暂行假设，用户定案后回写） |
+| 状态 | **v1.2**（T-113：FR-27/SE-08 ?permissions 视图键值方向勘误——key=主体名、value=权限字母集合；非 local 仓 400 疑点经 reverse-src 核实成立，BinFlow 现行实现无需改码）。v1.1（T-109：R1 命名面与 ADR-0014 对齐标注——「PRD 面 + ADR 内核」裁决；R4 session TTL 双键收口；K1~K3 回写注记。v1.0 初版：§7 六项开放问题附暂行假设，用户定案后回写） |
 | 上游依据 | PRODUCT.md（核心能力 5/6：Web 控制台、治理）、ROADMAP.md M4 节、M1 交付基线（milestone-1.md v1.3.1，`m1-done`）、M2 交付基线（milestone-2.md v1.3，`m2-done`）、M3 交付基线（milestone-3.md v1.2，`m3-done`）、ADR-0002（go:embed 单二进制）、ADR-0006（blob 布局与备份硬约束：mtime 保留、mark-sweep、grace=blob mtime）、ADR-0008（`/binflow` 前缀与 repo key 保留字）、ADR-0011（Docusaurus 同栈 React，M4 控制台同栈复用）、ADR-0012（remote 凭据 `enc:v1:` 密文——export/import 的敏感数据面）、docs/design/architecture.md §7.1（`/api/v1/audit` 预留、console 挂载位）、docs/reverse/auth-model.md（§1 用户/组字段与校验链、§4 权限概览，高置信度）、docs/reverse/rest-api.md（§3 `?permissions`、§4 搜索、§5 prune 端点） |
 | 下游消费者 | tech-lead（拆票）、architect（console 路由 / 004 迁移 / session 定案 ADR）、ux-designer（信息架构并行票 `docs/design/console-ui.md`）、dev 各角色（httpapi / web 前端 / metadata）、qa-engineer（W 序列验收）、release-engineer（烟测）、tech-writer（M4 用户文档） |
 
@@ -16,6 +16,7 @@
 |---|---|---|
 | v1.0 | 2026-08-20 | 初版：M4 范围、FR-23~FR-33、端点矩阵 CE/SE/SR/GE 四域 29 条、W01~W40 验收命令（curl + Playwright 浏览器面）、回归基线反转表（search 404 → 分派、console 占位 → SPA、groups 404 → 实现）、M1~M3 遗留收编 8 条、六项开放问题附暂行（session 机制 / 配额粒度 / 搜索范围 / 备份一致性窗口 / GC 执行形态 / docker remote 是否提前） |
 | v1.1 | 2026-08-20 | T-109（tech-lead T-88 转交）三点收口：① **R1 命名面对齐**——控制台命名面（`/binflow/ui/**` 挂载、保留字 `ui`、`/binflow/` 301、cookie `binflow_session`）与 ADR-0014 原文的 `/binflow/console/**` 冲突，经 tech-lead 裁决「**PRD 面 + ADR 内核**」：本 PRD 命名面为胜出面（正文不改），ADR-0014 的机制内核（server-side session 落库、CSRF 分层、Authenticator 增 Session 臂、无 console 专属 API 树、vite+React 构建链）照常生效，其命名面由 T-108 勘误对齐到本文——FR-23 与 §5.2 补对齐注记。② **R4 TTL 双键收口**——`console.session_ttl_hours`（主键，默认 24）+ `console.session_ttl_seconds`（覆盖键，同给时以 seconds 为准，测试粒度用）；W08 维持 seconds 形态，FR-23 补覆盖键说明，Q1 暂行同步。③ §5.5 K1~K3 补注「待逆向扩编票回写」（暂行值已由 tech-lead 写死进 T-97/T-92 派单口径） |
+| v1.2 | 2026-08-21 | T-113 勘误（T-97 正确性 review B1 裁定回写；reverse-src 复核 + 官方文档双证）：FR-27「有效权限视图」与 SE-08 的「r/w/d 位映射」为键值方向相反的误读——正确形态 **key=主体名、value=权限字母集合**（字母全集 r/w/n/d/m，BinFlow 用 r/w/d 子集；无任何权限的主体不出现；依据 `RestAddonImpl#getItemPermissions` / `#appendPrincipalsAndPermissions` 空集合跳过 + 官方 Get Item Permissions 文档同形示例）。同批核实「非 local 仓 ?permissions」为 **400**（资源层前置，文案 `This method can only be invoked on local/cached repositories.`；404 抛点为二道门、正常不可达，正常可达 404 仅「local 仓+路径不存在」）——BinFlow 现行 400 实现与规格一致，无需改码（review NB6「疑 404」不成立）。W21 剧本注释方向中立无需改；T-103 若有方向性断言需按新形态校准 |
 
 ---
 
@@ -220,7 +221,7 @@ M4 在 M1~M3 地基上**追加**而非返工：控制台是既有 REST 之上的
   - 错误体走「用户管理纯文本」层（M1 §5.1 三分层沿用）。
 - **成员关系**：用户的 `groups[]` 经 `PUT/POST /api/security/users/{name}` 维护（body 加 `groups:["devs"]`）；**组不存在 → 400**（文案对齐 auth-model §1.3-⑧：`Unable to find group by name '<g>'.`，高置信度）；GET 单用户回显 `groups`（SE-05 扩展回显：`{name, email, admin, groups[], realm, lastLoggedIn?}`）。
 - **继承判定（核心语义）**：`Authorizer.Can(user, repo, path, action)` = Σ(permission targets 命中路径) 中 **user principals ∪ 所属 groups principals** 的动作并集；admin 用户隐式全权（M1 既有）；**组成员变动即时生效**（逐请求现算或缓存失效，实现归 architect）。M1 的 folder 尾斜杠契约、excludes 优先、同 checksum 幂等重传免覆盖检查等语义零变更。
-- **有效权限视图**：`GET /api/storage/{repo}/{path}?permissions` → 200 `{"uri":..., "principals":{"users":{...},"groups":{...}}}`（r/w/d 位映射，rest-api.md §3 高置信度）；virtual/remote 仓 → 400（spec 同款限定，P2）。
+- **有效权限视图**：`GET /api/storage/{repo}/{path}?permissions` → 200 `{"uri":..., "principals":{"users":{"<主体名>":["r","w",...]},"groups":{"<组名>":[...]}}}`——**key=主体名、value=权限字母集合**（字母全集 r/w/n/d/m，BinFlow 用 r/w/d 子集；无任何权限的主体不出现；rest-api.md §3 高置信度）。**勘误（T-113）**：原「r/w/d 位映射」为键值方向相反的误读，正确形态以本句为准；virtual/remote 仓 → 400（spec 同款限定，经 T-113 reverse-src 核实成立——资源层前置校验先于 addon，可达分支即 400，P2）。
 - **email 落盘收编（M1 遗留）**：004 迁移给 users 加 email 列；PUT/POST 校验链不变（blank → 400），GET 回显。
 - **审计**：组/权限变更落审计（FR-29 词表）。
 
@@ -383,7 +384,7 @@ M4 在 M1~M3 地基上**追加**而非返工：控制台是既有 REST 之上的
 | SE-05 | `GET /binflow/api/security/users/{name}`（M4 补齐单查） | 200 `{name,email,admin,groups[],realm,lastLoggedIn?}`；无口令字段；404 无 body（auth-model §1.2） | 兼容（子集） | P0 | 高 | W18/W40 |
 | SE-06 | `PUT/POST users` 的 `groups[]` 字段 | 组不存在 → 400 `Unable to find group by name '<g>'.`（§1.3-⑧ 高置信度）；email 落盘回显（M1 遗留收编） | 兼容 | P0 | 高 | W18/W40 |
 | SE-07 | 权限继承判定 | 有效权限 = user principals ∪ 所属 groups principals（并集、即时生效）；**组无 admin 位**（有效 admin 维持 per-user——Artifactory 组 admin 有意不兼容） | 兼容（判定语义）/ 有意不兼容（组 admin） | P0 | 高（并集）/ 中（即时性为实现要求） | W19/W19b/W19c |
-| SE-08 | `GET /binflow/api/storage/{repo}/{path}?permissions` | 200 `{"uri","principals":{"users","groups"}}`（r/w/d 位）；virtual/remote → 400（P2） | 兼容（子集） | P1 | 高（rest-api §3） | W21 |
+| SE-08 | `GET /binflow/api/storage/{repo}/{path}?permissions` | 200 `{"uri","principals":{"users","groups"}}`（**key=主体名、value=权限字母数组**，r/w/d 子集——T-113 勘误，原「r/w/d 位」方向相反）；virtual/remote → 400（P2，T-113 核实成立） | 兼容（子集） | P1 | 高（rest-api §3） | W21 |
 | SE-09 | `/api/v2/security/permissions/**` | 不做 → 404（M1 E-24 评估收口：维持 `/api/v1/permissions`） | 有意不兼容 | P0 | — | W36 |
 | SR-01 | `GET /binflow/api/search/artifact?name=&repos=` | 200 `{"results":[FileInfo]}`；name 必填（缺 400）；**匹配语义暂行子串**（K2）；结果按 ACL 过滤 | 兼容（子集） | P0 | 中（K2） | W14/W16 |
 | SR-02 | `GET /binflow/api/search/checksum?sha256=&sha1=&md5=&repos=` | 至少一值（全缺/非法 → 400）；返回全部引用 node（跨仓去重可见） | 兼容 | P0 | 高（rest-api §4） | W15 |

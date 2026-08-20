@@ -115,11 +115,15 @@ propertySets([])
 | GET `...?properties=K1,K2*` | 取属性（可过滤 key，`*` 通配） | 200 `{"uri": "...", "properties": {"k": ["v"]}}` | 无任何属性 → 404 `No properties could be found.` | 高 |
 | GET `...?stats` | 下载统计 | 200 StatsInfo：`uri, downloadCount, lastDownloaded, lastDownloadedBy, remoteDownloadCount, remoteLastDownloaded, remoteLastDownloadedBy` | 404 | 高 |
 | GET `...?lastModified` | 目录内最新修改项 | 200 `{"uri":..., "lastModified": "yyyy-MM-dd'T'HH:mm:ss.SSSZ"}` + `Last-Modified` 头 | 非 local/cached repo → 400 | 高 |
-| GET `...?permissions` | 有效权限 | 200 `{"uri":..., "principals":{"users":{...},"groups":{...}}}`（key 为 r/w/d/a 权限位，value 为主体名集合） | 非 local/cached → 400 | 高 |
+| GET `...?permissions` | 有效权限（manage 位持有者专属） | 200 `{"uri":..., "principals":{"users":{"<主体名>":["r","w",...]},"groups":{"<组名>":[...]}}}`——**key=主体名、value=权限字母集合**；字母全集 r/w/n/d/m（read/deploy/annotate/delete/manage；BinFlow 子集 r/w/d）；无任何权限的主体不出现 | 非 local/cached 仓 → 400 `This method can only be invoked on local/cached repositories.`；local 仓但 item 不存在 → 404 `Unable to find item '<repoPath>'.`；无 manage 权限 → 403 | 高 |
 | GET `...?list&deep=&depth=&listFolders=&mdTimestamps=&statsTimestamps=&includeRootPath=&includePropertiesMd5=` | 流式文件清单（**仅认证用户**） | 200 `{"uri":..., "created":..., "files":[{uri,size,lastModified,folder,sha1,sha2?,mdTimestamps?,propertiesMd5?}]}`，`uri` 为相对查询目录的路径 | 匿名 → 403；根目录 → 400 `Cannot list files of root.`；目标是文件 → 400；repo 不存在 → 404 | 高 |
 | PUT `/api/storage/{repoKey}/{path}?properties=k=v,k2=v1;v2&recursive=&atomic=` | 设属性 | 204 无 body | 属性名为空 → 400 `Properties value cannot be empty.`；属性名非法字符 → 400 | 高 |
 | DELETE `/api/storage/{repoKey}/{path}?properties=k1,k2&recursive=` | 删属性 | 204 | 未指定属性 → 400 `Unspecified properties to delete.` | 高 |
 | POST `/api/storage/{repoKey}/{path}?recursive=&atomic=`（PATCH 语义 v2） | 增量改属性 | 204 | 同上 | 中 |
+
+> **勘误（T-113）**：本表 `?permissions` 行原记「key 为 r/w/d/a 权限位，value 为主体名集合」——键值方向相反，且字母集笔误（annotate 的字母是 `n` 非 `a`，另有 manage=`m`）。正确形态以修正后行为准。依据：`RestAddonImpl#getItemPermissions` 构造 主体名 → 权限字母集合 的映射，逐主体调 `#appendPrincipalsAndPermissions`（**空集合跳过**——无任何权限的主体不出现）；字母集见 `ArtifactoryPermission` 枚举（r/w/n/d/m）；官方 REST 文档 Get Item Permissions 示例同形（`"users":{"bob":["r","w","n"]}`）——代码与官方文档双证。
+>
+> **非 local 仓 404-vs-400 疑点核实（T-113 同批）——结论 400**（置信度：中，两层调用链代码直读；动态复现可选留 T-103）：资源层前置校验先于 addon——`ArtifactResource#preparePermissionsResponse` 对非 local/cached 仓（virtual、remote 本体、不存在的仓）抛 400；`RestAddonImpl#getItemPermissions` 内 `ItemNotFoundRuntimeException("Unable to find local repository '<key>'.")` → 404 为**二道门**（判定与资源层同源，正常请求面不可达，仅并发删仓等分叉窗口可触）。正常可达的 404 是「local 仓 + 路径不存在」（`Unable to find item '<repoPath>'.`，显式 catch 转 `NotFoundException`，全局 `ItemNotFoundExceptionMapper` 亦 404）。校验次序：Accept 不兼容 406 → 非 local 仓 400 → 无 manage 权限 403 → item 不存在 404 → 200。BinFlow 现行「非 local → 400」与规格一致，无需改码（T-97 review NB6「疑 404」不成立）。
 
 FileInfo JSON 字段（`o.a.a.api.rest.artifact.RestFileInfo` + `RestBaseStorageInfo`）：`uri`、`downloadUri`、`remoteUrl`（仅 remote-cache 有）、`repo`、`path`（`/` 前缀）、`created`、`createdBy`、`lastModified`、`modifiedBy`、`lastUpdated`、`size`（字符串）、`mimeType`、`checksums{sha1,md5,sha256}`、`originalChecksums{sha1,md5,sha256}`、`properties`（有则带）。FolderInfo：同基础字段 + `children:[{uri:"/<name>", folder:bool}]`（按名排序）。**高**
 
