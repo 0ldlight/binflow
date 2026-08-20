@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // maintenanceLockName is the advisory lock file every data-directory-wide
@@ -76,6 +77,64 @@ func AcquireDataLock(dataDir, op string) (*DataLock, error) {
 	_, _ = f.WriteAt(record, 0)        //nolint:errcheck // diagnostics only, see above
 	_ = f.Truncate(int64(len(record))) //nolint:errcheck // a stale tail is harmless (one line is read)
 	return &DataLock{f: f}, nil
+}
+
+// Data-lock operation vocabulary (architecture review N2, T-96 review):
+// pinned so the 409 diagnostics face (T-94) and the holder records can
+// never drift apart. op stays free-form diagnostics in AcquireDataLock,
+// but every in-tree caller passes exactly one of these; a new maintenance
+// operation extends this list first.
+const (
+	// DataLockOpGC is the op of both gc entrances (REST and CLI).
+	DataLockOpGC = "gc"
+	// DataLockOpExport is the op of the export CLI.
+	DataLockOpExport = "export"
+	// DataLockOpImport is the op of the import CLI (T-96 correctness
+	// review B1: import is a data-directory-wide maintenance operation too —
+	// it holds the lock for its whole run so a concurrent gc can never
+	// build a database inside a target import is restoring into).
+	DataLockOpImport = "import"
+)
+
+// MaintenanceLockName exposes the lock file's name to co-located maintenance
+// tooling: an operation that clears a data directory back to empty (import's
+// no-half-restore cleanup) must SKIP this file, never unlink it — removing a
+// lock file another holder is holding is exactly the unlink-while-held race
+// the type comment above forbids (T-96 correctness review B1).
+const MaintenanceLockName = maintenanceLockName
+
+// LockHolder reads the holder record of dataDir's maintenance lock file —
+// the first line the current holder wrote ("pid=<n> op=<gc|export>") — for
+// a contender that just lost the race (the 409 diagnostics face, T-94;
+// architecture review N1). It returns "" when the file is missing,
+// unreadable or carries no record: on Windows the exclusive byte-range
+// lock makes the record unreadable while held, so "" is the documented
+// degradation, not an error (N3). A record does NOT imply its holder is
+// alive — a crashed process leaves its line behind; present it as "last
+// holder", never a guarantee.
+func LockHolder(dataDir string) string {
+	if dataDir == "" {
+		return ""
+	}
+	buf, err := os.ReadFile(filepath.Join(dataDir, maintenanceLockName)) //nolint:gosec // constant name inside the engine-owned data dir, same posture as AcquireDataLock
+	if err != nil {
+		return ""
+	}
+	line, _, _ := strings.Cut(string(buf), "\n")
+	return strings.TrimSpace(line)
+}
+
+// HolderOp extracts the op token of a holder record ("pid=123 op=export"
+// -> "export"; one of the DataLockOp* vocabulary). "" when the record is
+// absent or carries no op token — callers word their generic branch on
+// exactly that (N3's unknown fallback).
+func HolderOp(holder string) string {
+	for _, field := range strings.Fields(holder) {
+		if op, ok := strings.CutPrefix(field, "op="); ok {
+			return op
+		}
+	}
+	return ""
 }
 
 // lockHolder reads the holder record of a lock file we failed to acquire.

@@ -889,3 +889,214 @@ func blobTreeFingerprint(t *testing.T, root string) string {
 	}
 	return strings.Join(lines, "\n")
 }
+
+// ---- correctness review fixes (B1/B2) ----
+
+// TestImportHoldsDataLockAgainstGC (B1): import is a data-directory-wide
+// maintenance operation — a concurrent gc holding the lock must refuse it
+// entry, which is only possible if import itself acquires the lock.
+func TestImportHoldsDataLockAgainstGC(t *testing.T) {
+	root, dataDir := backupEnv(t)
+	seedInstance(t, dataDir)
+	backup := filepath.Join(root, "bk")
+	if err := runCLI(t, "export", "--output", backup); err != nil {
+		t.Fatalf("export: %v", err)
+	}
+
+	fresh := filepath.Join(root, "fresh")
+	t.Setenv("BINFLOW_STORAGE__DATA_DIR", fresh)
+
+	// A gc (or any maintenance operation) holding the lock refuses import.
+	lock, err := storage.AcquireDataLock(fresh, storage.DataLockOpGC)
+	if err != nil {
+		t.Fatalf("hold lock as gc: %v", err)
+	}
+	err = runCLI(t, "import", "--input", backup)
+	if !errors.Is(err, storage.ErrDataLockHeld) {
+		t.Fatalf("import under gc error = %v, want ErrDataLockHeld", err)
+	}
+	if err := lock.Release(); err != nil {
+		t.Fatalf("release: %v", err)
+	}
+
+	// With the lock free, the same import succeeds — the guard is the lock,
+	// not a broken command.
+	if err := runCLI(t, "import", "--input", backup); err != nil {
+		t.Fatalf("import after release: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(fresh, "binflow.db")); err != nil {
+		t.Fatalf("restored db missing: %v", err)
+	}
+}
+
+// TestClearDirContentsPreservesLockFile (B1): the no-half-restore cleanup
+// must skip the maintenance lock file — it runs while import HOLDS the lock,
+// and unlinking a held lock file lets the next acquirer lock a fresh inode.
+func TestClearDirContentsPreservesLockFile(t *testing.T) {
+	dir := t.TempDir()
+	lock, err := storage.AcquireDataLock(dir, storage.DataLockOpImport)
+	if err != nil {
+		t.Fatalf("acquire: %v", err)
+	}
+	defer func() { _ = lock.Release() }()
+
+	// Half-restored residue of every kind, plus the live lock file.
+	for _, name := range []string{
+		"binflow.db", "blobs", "sessions", "stray.txt",
+		filepath.Join("blobs", "ab"),
+	} {
+		if err := os.MkdirAll(filepath.Join(filepath.Dir(filepath.Join(dir, name))), 0o700); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(dir, "binflow.db"), []byte("x"), 0o600); err != nil {
+		t.Fatalf("write db: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "blobs", "ab"), 0o700); err != nil {
+		t.Fatalf("mkdir blobs: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "blobs", "ab", strings.Repeat("a", 64)), []byte("x"), 0o600); err != nil {
+		t.Fatalf("write blob: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "stray.txt"), []byte("x"), 0o600); err != nil {
+		t.Fatalf("write stray: %v", err)
+	}
+
+	clearDirContents(dir)
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read dir: %v", err)
+	}
+	if len(entries) != 1 || entries[0].Name() != storage.MaintenanceLockName {
+		var names []string
+		for _, e := range entries {
+			names = append(names, e.Name())
+		}
+		t.Fatalf("dir holds %v after clearDirContents, want only %q (the held lock file must survive)", names, storage.MaintenanceLockName)
+	}
+	// The surviving lock is still held and still functional: a contender
+	// keeps being refused, release still works.
+	if _, err := storage.AcquireDataLock(dir, storage.DataLockOpGC); !errors.Is(err, storage.ErrDataLockHeld) {
+		t.Fatalf("second acquire under surviving lock = %v, want ErrDataLockHeld", err)
+	}
+	if err := lock.Release(); err != nil {
+		t.Fatalf("release after clear: %v", err)
+	}
+}
+
+// TestImportRefusesNonSQLiteDriver (B2a): a postgres config must be refused
+// before any path math — otherwise the URL-shaped dsn is treated as a file
+// path and garbage directories appear outside the data directory.
+func TestImportRefusesNonSQLiteDriver(t *testing.T) {
+	root, dataDir := backupEnv(t)
+	seedInstance(t, dataDir)
+	backup := filepath.Join(root, "bk")
+	if err := runCLI(t, "export", "--output", backup); err != nil {
+		t.Fatalf("export: %v", err)
+	}
+
+	fresh := filepath.Join(root, "fresh")
+	t.Setenv("BINFLOW_STORAGE__DATA_DIR", fresh)
+	t.Setenv("BINFLOW_METADATA__DRIVER", "postgres")
+	t.Setenv("BINFLOW_METADATA__DSN", "postgres://user:pw@localhost:5431/binflow")
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	err = runCLI(t, "import", "--input", backup)
+	if err == nil || !strings.Contains(err.Error(), "metadata.driver") || !strings.Contains(err.Error(), "sqlite") {
+		t.Fatalf("import with postgres driver error = %v, want a driver refusal naming sqlite", err)
+	}
+	// Nothing anywhere: no fresh target, no garbage path tree under the CWD.
+	assertDirEffectivelyEmpty(t, fresh)
+	if _, err := os.Stat(filepath.Join(cwd, "postgres:")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("postgres URL leaked a path tree into the working directory: %v", err)
+	}
+}
+
+// TestImportGuardsOutOfDataDirDSN (B2b): an explicit metadata dsn outside
+// the data directory is allowed only when it does not exist (no silent
+// truncation of another database), and a failed write phase removes what it
+// wrote there (no residue outside the data directory).
+func TestImportGuardsOutOfDataDirDSN(t *testing.T) {
+	root, dataDir := backupEnv(t)
+	seedInstance(t, dataDir)
+	backup := filepath.Join(root, "bk")
+	if err := runCLI(t, "export", "--output", backup); err != nil {
+		t.Fatalf("export: %v", err)
+	}
+
+	fresh := filepath.Join(root, "fresh")
+	externalDB := filepath.Join(root, "elsewhere", "restored.db")
+	t.Setenv("BINFLOW_STORAGE__DATA_DIR", fresh)
+	t.Setenv("BINFLOW_METADATA__DSN", externalDB)
+
+	// An EXISTING external database is refused (ADR-0015 decision 4: empty
+	// instance only; no O_TRUNC of an operator file).
+	if err := os.MkdirAll(filepath.Dir(externalDB), 0o700); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(externalDB, []byte("precious existing database"), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	err := runCLI(t, "import", "--input", backup)
+	if err == nil || !strings.Contains(err.Error(), "already exists") {
+		t.Fatalf("import over existing external db error = %v, want refusal", err)
+	}
+	if got, err := os.ReadFile(externalDB); err != nil || string(got) != "precious existing database" {
+		t.Fatalf("existing external db was touched: %q, %v", got, err)
+	}
+
+	// The write-phase rollback contract (residue never escapes the data
+	// dir, the held lock survives) is pinned at unit level — an end-to-end
+	// write failure mid-copy cannot be forced deterministically without a
+	// race, and the unit form tests exactly the B2 concern.
+	t.Run("rollback removes out-of-bounds residue and keeps the live lock", func(t *testing.T) {
+		target := filepath.Join(root, "fresh-rollback")
+		if err := os.MkdirAll(filepath.Join(target, "blobs", "ab"), 0o700); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(target, "blobs", "ab", strings.Repeat("a", 64)), []byte("x"), 0o600); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(target, "binflow.db"), []byte("partial"), 0o600); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+		lock, err := storage.AcquireDataLock(target, storage.DataLockOpImport)
+		if err != nil {
+			t.Fatalf("acquire (writes the lock residue): %v", err)
+		}
+		ext := filepath.Join(root, "elsewhere", "partial-restored.db")
+		if err := os.WriteFile(ext, []byte("partial external"), 0o600); err != nil {
+			t.Fatalf("write external: %v", err)
+		}
+
+		cleanupFailedImport(target, ext, true)
+
+		assertDirEffectivelyEmpty(t, target)
+		if _, err := os.Stat(ext); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("out-of-bounds db survived the rollback: %v", err)
+		}
+		if err := lock.Release(); err != nil {
+			t.Fatalf("release: %v", err)
+		}
+	})
+
+	// And the happy path with an external dsn: db lands at the configured
+	// point, blobs in the data dir (the operator file having been moved
+	// away, the landing point is free again).
+	if err := os.Remove(externalDB); err != nil {
+		t.Fatalf("remove the operator file: %v", err)
+	}
+	if err := runCLI(t, "import", "--input", backup); err != nil {
+		t.Fatalf("import with external dsn: %v", err)
+	}
+	if _, err := os.Stat(externalDB); err != nil {
+		t.Fatalf("restored external db missing: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(fresh, "blobs")); err != nil {
+		t.Fatalf("restored blobs missing in data dir: %v", err)
+	}
+}

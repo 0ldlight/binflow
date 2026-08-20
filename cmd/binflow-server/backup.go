@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/lzwzzy/binflow/internal/audit"
+	"github.com/lzwzzy/binflow/internal/config"
 	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/storage"
 )
@@ -52,6 +53,15 @@ const (
 	// under (mirrors the T-94 gc.run ruling: REST and CLI paths both record
 	// actor=admin — a CLI has no authenticated principal to name).
 	cliAuditActor = "admin"
+
+	// dataLockResidue is the maintenance lock file's name inside the data
+	// directory — aliased to storage's single source of truth (exported for
+	// exactly this consumer, T-96 review B1) so the two spellings can never
+	// drift. Every "is this directory empty / make it empty" helper here
+	// must exempt it: the file is advisory-lock runtime residue, never
+	// restored state, and unlinking a HELD lock file is the classic flock
+	// lifecycle bug (datalock.go's own comment names it).
+	dataLockResidue = storage.MaintenanceLockName
 )
 
 // metadataSnapshotter is the snapshot capability the SQLite store carries
@@ -110,7 +120,7 @@ func runExport(args []string, stderr io.Writer) error {
 	// Mutual exclusion with GC (ADR-0015 erratum 3; the primitive is
 	// storage.AcquireDataLock, landed here ahead of T-94's REST face —
 	// both faces must hold the same lock).
-	lock, err := storage.AcquireDataLock(cfg.Storage.DataDir, "export")
+	lock, err := storage.AcquireDataLock(cfg.Storage.DataDir, storage.DataLockOpExport)
 	if err != nil {
 		return err
 	}
@@ -252,6 +262,13 @@ func runExport(args []string, stderr io.Writer) error {
 // directory empty. Everything the backup claims is verified BEFORE the first
 // byte is written, and a write-phase failure clears the target back to
 // empty — a half-restored data directory must never exist.
+//
+// The whole run holds the data-directory maintenance lock (correctness
+// review B1): import is as much a data-directory-wide maintenance operation
+// as gc or export, and a concurrent `gc --apply` against the (lock-residue
+// only, hence "empty") target would build a binflow.db under a restore in
+// progress. requireEmptyDataDir and the failure cleanup both treat the lock
+// file as runtime residue, so the lock composes with every existing check.
 func runImport(args []string, stderr io.Writer) error {
 	fs := flag.NewFlagSet("import", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -280,10 +297,26 @@ func runImport(args []string, stderr io.Writer) error {
 	}
 	logger := slog.New(slog.NewTextHandler(stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
+	// B2: import restores a file-level SQLite snapshot; any other driver
+	// has no file to restore (and a postgres URL would otherwise be treated
+	// as a path and littered with a garbage tree outside the data dir).
+	if cfg.Metadata.Driver != config.DriverSQLite {
+		return fmt.Errorf("import: metadata.driver %q is not supported: import restores a SQLite snapshot file (set metadata.driver: sqlite)", cfg.Metadata.Driver)
+	}
+
 	in, err := filepath.Abs(*input)
 	if err != nil {
 		return fmt.Errorf("import: resolving --input %s: %w", *input, err)
 	}
+
+	// B1: hold the maintenance lock for the whole run — the empty check
+	// below and the write phase must be one indivisible interval against
+	// gc (which takes the same lock on the same directory).
+	lock, err := storage.AcquireDataLock(cfg.Storage.DataDir, storage.DataLockOpImport)
+	if err != nil {
+		return fmt.Errorf("import: %w", err)
+	}
+	defer func() { _ = lock.Release() }()
 
 	// Fail fast on a non-empty target BEFORE reading the backup: no matter
 	// how broken the backup is, the target directory is left exactly as the
@@ -323,22 +356,49 @@ func runImport(args []string, stderr io.Writer) error {
 
 	// ---- write phase (db first, then blobs — ADR-0015 decision 4) ----
 
+	// B2: an explicit metadata.dsn may point outside the data directory.
+	// The empty-target guarantee only covers the data directory, so the
+	// out-of-bounds landing point gets its own guards: it must not already
+	// exist (import restores into an empty instance only — no silent
+	// O_TRUNC of some other database), and it joins the failure cleanup
+	// below so a mid-write failure cannot leave residue outside the data
+	// directory either.
+	started := time.Now()
+	dbDst := sqlitePath(cfg)
+	dbAbs, err := filepath.Abs(dbDst)
+	if err != nil {
+		return fmt.Errorf("import: resolving metadata target %s: %w", dbDst, err)
+	}
+	dataAbs, err := filepath.Abs(cfg.Storage.DataDir)
+	if err != nil {
+		return fmt.Errorf("import: resolving data dir %s: %w", cfg.Storage.DataDir, err)
+	}
+	dbOutsideDataDir, err := pathOutside(dataAbs, dbAbs)
+	if err != nil {
+		return fmt.Errorf("import: %w", err)
+	}
+	if dbOutsideDataDir {
+		if _, err := os.Stat(dbAbs); err == nil {
+			return fmt.Errorf("import: metadata target %s already exists — import restores into an empty instance only and refuses to overwrite a database outside the data directory", dbAbs)
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("import: checking metadata target %s: %w", dbAbs, err)
+		}
+	}
+
 	restored := false
 	defer func() {
 		if !restored {
-			clearDirContents(cfg.Storage.DataDir)
+			cleanupFailedImport(cfg.Storage.DataDir, dbAbs, dbOutsideDataDir)
 			writeCLIReport(stderr, "import: target %s cleared back to empty (no half-restore)\n", cfg.Storage.DataDir)
 		}
 	}()
 
-	started := time.Now()
-	dbDst := sqlitePath(cfg)
-	if dir := filepath.Dir(dbDst); dir != "" && dir != "." {
+	if dir := filepath.Dir(dbAbs); dir != "" && dir != "." {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return fmt.Errorf("import: creating %s: %w", dir, err)
 		}
 	}
-	if err := copyFile(metaSrc, dbDst, 0o600); err != nil {
+	if err := copyFile(metaSrc, dbAbs, 0o600); err != nil {
 		return fmt.Errorf("import: %w", err)
 	}
 	if _, _, err := storage.CopyBlobsTree(in, cfg.Storage.DataDir); err != nil {
@@ -355,7 +415,7 @@ func runImport(args []string, stderr io.Writer) error {
 	// failure and clears the target like any other.
 	md, err := metadata.Open(ctx, metadata.Options{
 		Driver:        cfg.Metadata.Driver,
-		DSN:           dbDst,
+		DSN:           dbAbs,
 		AdminPassword: cfg.AdminPassword,
 	})
 	if err != nil {
@@ -498,7 +558,7 @@ func requireEmptyDataDir(dataDir string) error {
 		return fmt.Errorf("reading data dir %s: %w", dataDir, err)
 	}
 	for _, e := range entries {
-		if e.Name() == ".maintenance.lock" {
+		if e.Name() == dataLockResidue {
 			continue
 		}
 		return fmt.Errorf("data dir %s is not empty (found %q) — import restores into an empty directory only; move the existing data away first", dataDir, e.Name())
@@ -506,17 +566,45 @@ func requireEmptyDataDir(dataDir string) error {
 	return nil
 }
 
-// clearDirContents removes every entry under dir (the no-half-restore
-// guarantee for a failed import write phase), leaving the directory itself
-// in place.
+// clearDirContents removes every entry under dir except the maintenance
+// lock file (the no-half-restore guarantee for a failed import write phase),
+// leaving the directory itself in place. Skipping the lock file is not
+// cosmetic: this runs while import HOLDS the lock (B1), and unlinking a
+// held lock file lets the next acquirer lock a fresh inode — the classic
+// unlink-while-held race the datalock type comment forbids.
 func clearDirContents(dir string) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return // nothing created or already gone
 	}
 	for _, e := range entries {
+		if e.Name() == dataLockResidue {
+			continue
+		}
 		_ = os.RemoveAll(filepath.Join(dir, e.Name()))
 	}
+}
+
+// cleanupFailedImport is the no-half-restore rollback of a failed import
+// write phase: the data directory goes back to empty (the held maintenance
+// lock file excepted) and the out-of-bounds metadata target is removed —
+// it was verified absent before the write phase began, so whatever sits
+// there now is this run's partial database, never an operator file.
+func cleanupFailedImport(dataDir, externalDB string, hadExternal bool) {
+	clearDirContents(dataDir)
+	if hadExternal {
+		_ = os.Remove(externalDB) //nolint:errcheck // best-effort residue rollback on an already-failing path
+	}
+}
+
+// pathOutside reports whether target is NOT inside base (base itself
+// counts as inside). Both must be absolute, cleaned paths.
+func pathOutside(base, target string) (bool, error) {
+	rel, err := filepath.Rel(base, target)
+	if err != nil {
+		return false, fmt.Errorf("relating %s to %s: %w", target, base, err)
+	}
+	return rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)), nil
 }
 
 // copyFile copies src to dst with a fixed mode (plain byte copy — the db
