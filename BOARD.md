@@ -19,6 +19,7 @@
 
 > M4 票 AC 全文见 reports/agents/T-88.md。分批：1:{T-89,T-90,T-92}✓ → 2:{T-91,T-110}✓ → 3:{T-93,T-95,T-96}✓ → 4:{T-94,T-97,T-98,T-111}（在途） → 5:{T-99,T-103} → 6:{T-100,T-101,T-102} → 7:{T-104} → 8:{T-105} → 9:{T-106,T-107}。双 reviewer：T-96、T-97。
 
+- **T-112** [P1] architecture §7.6/ADR-0015 备份面勘误 `role:architect` `area:docs/design/architecture.md、DECISIONS.md` `dep:T-96` — 四处过时表述（tar 形态 vs 目录形态实现、`--out`→`--output`、GE-09「admin REST 异步 export」与 404 裁定相抵、import REST 409 语态+「启动 GC dry-run 报差异」）+ ADR-0015 形态勘误一行 + §11.19 标题自相矛盾 + §3 补公共面一行；勘误句草案见 reports/agents/T-96-review-architecture.md 第三节
 - T-99~T-102 FE 页面组 / T-103~T-105 QA 三段 / T-106 部署烟测 / T-107 M4 文档 — AC 见 reports/agents/T-88.md
 
 ## 🔨 进行中（doing）
