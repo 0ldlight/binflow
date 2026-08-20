@@ -2,7 +2,7 @@
 
 > 由 product-manager 维护；tech-lead 据此把当前里程碑分解为 ticket。
 
-## 当前里程碑：M3
+## 当前里程碑：M4
 
 ### M0 — 团队启动（已完成）
 - [x] 产品愿景 PRODUCT.md（BinFlow）
@@ -41,10 +41,12 @@
 - [x] （支撑）rclass remote/virtual 与 packageType maven/npm/pypi 启用（FR-15，M1 E-07 断言反转见 PRD §5.6）
 
 ### M4 — 控制台与治理
-- [ ] Web 控制台：登录、仓库管理、制品树浏览、上传、搜索
-- [ ] 权限模型完整实现（users/groups × repo × path）+ UI
-- [ ] 审计日志、GC、配额
-- [ ] 备份/恢复（export/import）
+需求基线：docs/prd/milestone-4.md（PRD v1.0，T-85；session 机制/配额粒度/搜索范围/备份一致性窗口等六项开放问题待用户定案，见 PRD §7；信息架构归 ux-designer 并行票）
+- [ ] Web 控制台：登录（session，Q1 暂行 server-side）、仓库管理 CRUD 页、制品树浏览/上传/下载、搜索（FR-23~FR-26，含 repo 治理字段 includes/excludes 启用）
+- [ ] 权限模型完整实现：groups 实体与成员、授权继承（users/groups × repo × path 并集、即时生效）+ 用户/组/权限管理 UI（FR-27/FR-28；email 落盘收编）
+- [ ] 治理：审计日志查询面（audit_events 已有，`/api/v1/audit`）、GC 管理化（dry-run/apply + export 互斥）、repo 级配额 quotaBytes（FR-29~FR-31）
+- [ ] 备份/恢复：export/import CLI（ADR-0006 blobs+SQLite 快照，mtime 保留，Q4 暂行在线导出）（FR-32）
+- [ ] （验收面）Playwright + curl W 序列与 M1~M3 回归基线反转（FR-33，PRD §5.6）
 
 ### M5 — 发布矩阵与文档中心（GA）
 - [ ] goreleaser 多平台二进制（linux/darwin/windows × amd64/arm64）+ 校验和
