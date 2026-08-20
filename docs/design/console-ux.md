@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 文档 | `docs/design/console-ux.md` |
-| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单） |
-| 状态 | v1.1（2026-08-21） |
+| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正） |
+| 状态 | v1.2（2026-08-21） |
 | 维护者 | ux-designer |
 | 上游依据 | PRODUCT.md（Web 控制台/治理/Non-goals）、ROADMAP.md M4 节、docs/prd/milestone-1/2/3/4.md（端点矩阵与已定案行为）、docs/user/docker-registry.md（用户面口径）、docs/design/architecture.md §7（路由/console 挂载点）、internal/httpapi/router.go（路由门事实——§3.6.2 矩阵逐一核对）、reports/agents/T-98.md · T-99.md（漂移登记与 testid 素材）、reports/agents/T-98-review.md（N1 收敛建议）、BOARD.md（T-85 PRD / T-97 存在性不泄露裁决） |
 | 下游消费者 | T-86（架构：console 包/session/前端工程结构）、tech-lead（M4 拆票）、前端 dev（页面组票）、qa-engineer（控制台验收） |
@@ -17,6 +17,7 @@
 |---|---|---|
 | v1.0 | 2026-08-20 | T-87 初版：IA（导航树 + 18 路由 + 五协议×三仓型矩阵）、11 页线框（登录/仪表盘/仓库列表/建仓/仓库详情/制品树/上传/搜索/权限编辑器/审计/治理）、交互四态（通用原则 + 骨架屏策略 + 每页矩阵）、大目录策略、设计 token（暗色优先）、可达性、API 需求清单 R1~R10 |
 | v1.1 | 2026-08-21 | T-116 权限可见性漂移集中定案：① §3.3 按路由门事实修订角色可见性——健康、仓库列表、Tokens 三处 v1.0 设想与实现的漂移定案，**均维持实现（admin-only）**，理由与放宽前置条件见 §3.6.1；② 新增 §3.6 权限可见性矩阵（403 收敛四层主姿态 + 端点×门矩阵 + 页面×角色呈现矩阵 + admin 硬编码裁定，收敛 T-98 review N1）；③ §3.1 治理分组补「审计日志」条目（v1.0 导航漏列而 §3.2 已有路由；`GET /api/v1/audit` 为 admin 门，归治理组）；④ §5.1 的 403 分流改挂 §3.6.3 分层规则（消除「403 一律无权限卡」与卡片级隐藏的矛盾）；⑤ 新增 §10 data-testid 命名清单（T-98/T-99 已落锚全量核对自源码 + 命名规则 + T-100~T-102 预定锚——T-104 断言锚源）；⑥ 修订记录自文末移至 §0 |
+| v1.2 | 2026-08-21 | T-118 §10 testid 清单回写（T-104 断言锚冻结的前置）：① §10.3 预定锚**转正为已落地清单**——T-100~T-102 全部落码，逐一对码核对（差异注记随各组）；② `perm-matrix-cell-<principal>-<action>` 细化为 `perm-matrix-cell-{user|group}-<principal>-<action>`（防用户/组同名碰撞，T-101 遗留 2 定案），类段防碰撞原则升入 §10.1 命名规则；③ 搜索页 `search-filter-{package|type}` **删除**（实现仅 repo 过滤；R2 类型化过滤落地时回填）；④ 未落/裁剪锚（token 族 / `audit-export` / `copy-<field>`）新设 §10.4 承载，T-104 不得断言；⑤ grep 补记两处三票日志未列锚（`search-results` 结果表容器、`perm-pattern-{include|exclude}-<i>` chip 本体）；锚总量 **242 落点 / 27 文件**（`grep -rn "data-testid" web/src/`，动态族计一名约 230 锚） |
 
 ---
 
@@ -754,20 +755,21 @@ mono 栈：`ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, "Liberati
 
 ---
 
-## 10. data-testid 命名清单（QA 断言锚；v1.1 新增）
+## 10. data-testid 命名清单（QA 断言锚；v1.1 新增，v1.2 转正）
 
-本节是 T-104 Playwright 断言的**唯一锚源**。§10.2 与 `web/src` 实际落码逐一核对（T-116 全量 grep，含 `testid` 以 prop 形态传入 Card/EmptyState 的情形）；T-100~T-102 新增锚**必须先入 §10.3 再落码**（派单引用本节），已落地锚改名视同破坏性变更，需过 conductor。
+本节是 T-104 Playwright 断言的**唯一锚源**。§10.2/§10.3 与 `web/src` 实际落码逐一核对（T-116 首核 + **T-118 v1.2 全量 grep 复核**，含 `testid` 以 prop 形态传入 Card/EmptyState 的情形）。T-100~T-102 已全部落码，其 v1.1 预定锚于 v1.2 **转正为已落地清单**（与实现的差异注记见 §10.3 各组；未落/裁剪锚移入 §10.4，T-104 不得断言）。已落地锚改名视同破坏性变更，需过 conductor；后续新页面组恢复「先入本清单再落码」流程。
 
 ### 10.1 命名规则
 
 - 一律 kebab-case；页面根 = `<page>` 或 `<page>-page`，页面内元素 = `<页面前缀>-<element>`。
 - 动态段：实体标识用原值（`repos-row-<repoKey>`、`form-member-<memberKey>`）；序列用下标 `<i>`（`member-up-<i>`、`repo-cmd-<pkg>-<i>`）。
+- **类段防碰撞（v1.2）**：动态段含主体名且主体有多类（用户/组）时，名段前先给类段——`perm-matrix-cell-{user|group}-<principal>-<action>`、`perm-matrix-remove-{user|group}-<name>`。用户 `ci-bot` 与组 `ci-bot` 同名时锚不得合并（T-101 遗留 2 定案）。
 - 表单字段共享 `form-` 前缀（建仓/编辑复用同一表单组件）。
 - 四态基元有缺省锚：`skeleton` / `error-card` + `error-retry` / `empty-state`（实例可用 `testid` prop 覆盖）/ `toast` + `toast-stack`。**403 收敛不产生新锚**：L3 隐藏 = 锚随卡片消失（断言用 `toHaveCount(0)` 类反断言），L2 复用 `empty-state` 缺省锚。
 - 锚唯一性按**当前视图**计，不全局唯一（`repos-empty` 同时用于仪表盘仓库卡与仓库页空态——断言须 scope 到页面根锚内，如 `repos-page >> repos-empty`）。
 - 可拷贝标识（P2）的拷贝按钮以 `aria-label` 标注被拷对象（§8），不强制 testid；需要断言拷贝行为时用 `copy-<field>` 命名。
 
-### 10.2 已落地锚（T-98 基座 + T-99 仓库组；核对自源码）
+### 10.2 已落地锚（T-98 基座 + T-99 仓库组；核对自源码，v1.2 复核通过）
 
 **壳与全局基元（T-98）**
 
@@ -835,24 +837,62 @@ repo-usage-card  repo-usage-bar  repo-governance-card  repo-remote-card  repo-vi
 repo-danger-zone  repo-delete-button  repo-delete-content  repo-delete-confirm-key  repo-delete-reason
 ```
 
-### 10.3 预定锚（T-100~T-102 派单即生效的命名契约；未落地前 T-104 不得断言）
+### 10.3 已落地锚·T-100~T-102 批次（v1.1 预定 → v1.2 转正；T-118 逐一对码）
 
 ```
-树页（T-100）：tree-page  tree-node-<path>  tree-list  tree-row-<name>
-  node-detail  node-copy-<field>  tree-load-more
-  upload-dialog  upload-target  upload-drop  upload-file-<i>  upload-retry-<i>
-  delete-node-button
-搜索页（T-100）：search-page  search-input  search-filter-{repo|package|type}
-  search-result-<i>  search-more
-安全组（T-101）：users-page  user-row-<name>  user-form
-  groups-page  group-row-<name>  group-form
-  perms-page  perm-row-<name>  perm-editor-page
-  perm-matrix-cell-<principal>-<action>  perm-pattern-test  perm-pattern-result  perm-diff
-  tokens-page  token-create  token-plaintext  token-revoke-<id>
-治理组（T-102）：audit-page  audit-filter-{actor|repo|action|path}  audit-row-<i>  audit-more  audit-export
-  gc-page  gc-stats  gc-dryrun  gc-result  gc-apply
-  quotas-page  quota-row-<repoKey>  quota-edit-<repoKey>
-设置补锚（随 §3.6.3 裁定落地）：settings-health（健康行改 403 驱动时补）
+树页（T-100）：tree-page  tree-breadcrumb  tree-node-<path>  tree-list  tree-row-<name>
+  tree-filter  tree-refresh  tree-mkdir  tree-mkdir-input  tree-upload  tree-commands
+  tree-empty-dir  tree-load-more
+  node-detail  node-copy-<sha256|sha1|md5>  node-download  node-download-verify  node-perms
+  delete-node-button  delete-error
+上传（T-100）：upload-dialog  upload-target  upload-drop  upload-file-input  upload-file-<i>
+  upload-retry-<i>  upload-verify-<i>
+  upload-gav-<groupId|artifactId|version|classifier|packaging>  upload-maven-preview  upload-maven-input
+搜索页（T-100）：search-page  search-input  search-filter-repo  search-count  search-results
+  search-result-<i>  search-more（空态复用缺省 empty-state）
+安全组（T-101）：
+  用户：users-page  users-create  users-table  user-row-<name>
+        user-form（创建/编辑共用）  user-form-{name,email,password,admin,groups,submit,error}
+        user-form-group-<name>  user-detail-page  user-facts
+  组：  groups-page  groups-create  groups-table  group-row-<name>  group-form
+        group-form-{name,description,submit,error}  group-edit-<name>  group-delete-<name>
+        group-delete-reason（409 冲突面板）  group-delete-dismiss
+  权限：perms-page  perms-create  perms-table  perm-row-<name>  perm-editor-page
+        perm-form-name  perm-repos  perm-repo-add  perm-repo-remove-<key>
+        perm-pattern-{include|exclude}-<i>（chip 本体）
+        perm-pattern-input-{include|exclude}  perm-pattern-add-{include|exclude}
+        perm-pattern-remove-{include|exclude}-<i>
+        perm-pattern-test  perm-pattern-result  perm-pattern-verdict
+        perm-matrix  perm-matrix-cell-{user|group}-<principal>-<action>
+        perm-matrix-remove-{user|group}-<name>  perm-add-user  perm-add-group
+        perm-diff  perm-save  perm-danger-zone  perm-delete-button（行内错误复用 form-error）
+治理组（T-102）：
+  审计：audit-page  audit-filter-{repo|actor|action|since|until|path}  audit-count
+        audit-table  audit-row-<i>  audit-more  audit-empty  audit-empty-filtered
+  GC：  gc-page  gc-stats  gc-danger-zone  gc-grace-hours  gc-confirm-text
+        gc-dryrun  gc-apply  gc-error  gc-result  gc-empty-ok
+  配额：quotas-page  quotas-table  quotas-empty  quota-row-<repoKey>  quota-bar-<repoKey>
+        quota-edit-<repoKey>  quota-input-<repoKey>  quota-save-<repoKey>
+        quota-cancel-<repoKey>  quota-error-<repoKey>
+  备份：backup-page  backup-cmd-{export|import}
+设置补锚：settings-health（§3.6.3 N1 收口已兑现——健康行 403 驱动 + 锚，T-101 落地）
 ```
 
-预定锚是命名契约而非实现承诺：T-100~T-102 可按页面实际增删，落码后回写本节并升 v1.2（小版本，conductor 提交时顺手）。
+v1.1 → v1.2 差异注记（核对基准 = v1.1 §10.3 预定清单 vs 源码）：
+
+- **树页/上传**：预定锚全落。增补 `tree-breadcrumb` / `tree-filter` / `tree-refresh` / `tree-mkdir` / `tree-mkdir-input` / `tree-upload` / `tree-commands` / `tree-empty-dir` / `delete-error` / `node-download` / `node-download-verify` / `node-perms` / `upload-file-input` / `upload-verify-<i>` 与 maven 表单族（`upload-gav-*` / `upload-maven-preview` / `upload-maven-input`）。`node-copy-<field>` 的 field 域实证为 sha256|sha1|md5。
+- **树页命令卡复用 `repo-cmd-<packageType>-<i>`**（§10.2 锚名，不带 tree 前缀）——断言须 scope 到 `tree-page`，防与仓库详情页同名碰撞（§10.1 视图内唯一规则）。
+- **搜索页**：**`search-filter-{package|type}` 删除**——R2 类型化过滤未落地，实现仅 repo 过滤（csv 传参）；R2 落地时回填本节。增补 `search-count`、`search-results`（结果表容器，grep 补记——T-100 日志未列）。
+- **安全组**：**`perm-matrix-cell` 细化**——`<principal>-<action>` 前插 `{user|group}` 类段（T-101 遗留 2，用户/组同名碰撞），同族 `perm-matrix-remove-{user|group}-<name>` 一致。token 族锚未落（P2 占位页，§10.4）。`perm-pattern-{input,add}-{include,exclude}` 无 `<i>` 下标（每栏一个输入/添加位），仅 `perm-pattern-remove` 与 chip 本体带 `<i>`——对码实证，勿按 v1.1 手写体例臆造下标。`perm-pattern-{include|exclude}-<i>`（chip 本体）为 grep 补记（T-101 日志 shorthand 未单列）。
+- **治理组**：预定锚全落（`audit-export` 除外，P2，§10.4）。时间窗过滤落为 `audit-filter-since` / `audit-filter-until` 两个独立锚（v1.1 预定清单未含时间窗）；其余增补见上（`gc-danger-zone` / `gc-grace-hours` / `gc-confirm-text` / `gc-error` / `gc-empty-ok` / `audit-count` / `audit-table` / `audit-empty{,-filtered}` / `quota-bar|input|save|cancel|error-<repoKey>` / `quotas-table` / `quotas-empty` / `backup-page` / `backup-cmd-{export|import}`）。
+
+### 10.4 未落地锚（T-104 不得断言；落地时回写本节并升版本）
+
+| 锚 | 归属 | 状态 |
+|---|---|---|
+| `tokens-page` `token-create` `token-plaintext` `token-revoke-<id>` | 安全组 Tokens 页 | P2 兜底占位（`placeholder-page` 承载；auth-shell 以 `nav-item.disabled` 计数 1 断言占位态） |
+| `audit-export` | 审计 CSV 导出（ux R3） | P2 债务，不渲染 |
+| `search-filter-package` `search-filter-type` | 搜索页类型过滤 | v1.1 预定、v1.2 删除——R2 类型化过滤落地时回填 §10.3 |
+| `copy-<field>` | 拷贝按钮（§10.1 可选约定） | 现仅 `aria-label` 标注被拷对象（§8），无 testid；需要断言拷贝行为时再加 |
+
+**锚总量（v1.2 核对基准）**：`grep -rn "data-testid" web/src/` = **242 处落点 / 27 文件**；动态族计一名约 **230 锚**（§10.2 + §10.3 合计）。v1.1 预定锚转正流程至此闭环（v1.1 文末「落码后回写本节并升 v1.2」约定兑现）。
