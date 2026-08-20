@@ -267,6 +267,9 @@
 - **T-86** [P0] M4 架构增量 `role:architect` `area:docs/design、DECISIONS.md` — done 2026-08-20
   ADR-0014（console 挂 /binflow/console 保留段 + server-side session 三层 CSRF + 无专属 API 树 + vite 构建链与 ADR-0005 边界澄清）；ADR-0015（GC 在线四安全边界 + repo_usage 同事务配额 + 备份先 DB 后 blobs 硬规则 + import 仅 CLI）；004 四表设计；保留字扩 {docs,console}。提交 d0ff1fb。
 
+- **T-87** [P1] 控制台信息架构与线框 `role:ux-designer` `area:docs/design` — done 2026-08-20
+  console-ux.md 665 行十节：导航树+18 路由表 / 11 页线框（权限编辑器模式测试器+diff 确认为核心）/ 四态矩阵+大 repo 骨架屏 / keyset 增量加载策略 / 暗色双主题 --bf-* token / 五协议×三仓型呈现差异矩阵 / R1~R10 API 需求清单。三大决策：协议能力收窄不伪装（UI 上传仅 generic/maven）、大目录 keyset+懒加载、权限编辑器防 ACL 漂移。提交 a6f0d77。
+
 ## 🚫 阻塞（blocked）
 
 （空）
