@@ -233,3 +233,20 @@
   ② **入口形态**：决策 5 的「CLI `--out` + admin REST 可选触发（异步作业，产物落 data_dir/exports/）」修订为 **export/import 均仅 CLI**——`binflow-server export -c <cfg> --output <dir>` / `import -c <cfg> --input <dir>`（`--out` 措辞作废）；REST 面 M4 不做：`/api/export/**`、`/api/import/**` → 404 + E-01（PRD GE-09 有意不兼容，export 读面亦不豁免）。
   ③ **幂等释义与 import 语态**：决策 4 的「db 覆盖 + tar 解压覆盖」系 tar 形态时代措辞，修订为 = **清空目标 data dir 后**对同一备份重复导入等价（无半恢复：任何失败清回空）；「非空 → 409/退出非 0」收敛为 **CLI 退出码非 0**（import 无 REST 面）；「启动时 GC dry-run 报差异」降格为运维建议（文档面），不在 CLI 内强制——多余 blob 由常规 GC 收敛。
   ④ **配额键名与 remote 口径**（顺手收口 T-95 review NB4 + T-95 规格依据段登记的 §4.6 相抵项）：决策 2 的 `quota_bytes` 键名以上方勘误（T-108）行「repositories 字段（quotaBytes）」与 PRD §7 Q2 为准（camelCase）；「remote 缓存 node 计入（可配 `quota_include_cache` 豁免 [M5+]）」修订为 **pull-through 落盘不计量**（PRD Q2 暂行；005 回填一次性含既有 remote nodes，快照语义不回滚；M5+ 若需计量再按「计入开关」重开）——「config JSON 承载 + repo_usage 同事务计数」内核不变。architecture §3/§4.6/§7.6/§11.19 已同口径回写（T-112）。
+
+## ADR-0016: 目录实体化不变量——putNode 材料化祖先 folder 行（隐式目录 404 定案）
+- 状态: Accepted
+- 日期: 2026-08-21
+- 背景: T-100 发现的最大契约漂移：`repo.putNode` 只落文件行不落父目录行，`GET /api/storage/{repo}/{dir}` 对「制品路径推断出的隐式目录」404（storageNode 只认显式 folder 行，`?list` 同）。FE 以「搜索面前缀重构回退 + mkdir 逐段材料化祖先」两处兜底消化，代价已登记：review NB① 非根 404 语义被回退吞掉（空搜索结果渲染「空目录」而非「路径不存在」）、搜索面返回全后代（R1 同族代价）、mkdir N 次 PUT 且窄授权下祖先段静默失败；REST 兼容面（ADR-0003 对标面）对隐式目录仍 404。T-119 裁决定案。
+- 候选方案:
+  - A) **service 写路径材料化**：putNode 写目标节点前将路径每个祖先目录段以 folder 行落库（mkdir 语义内聚到写路径）；需 007 迁移回填历史库；remote 引擎语义需裁定。
+  - B) **httpapi 读路径前缀聚合**：storageNode 目录 miss 时按前缀列举合成 FolderInfo（storageNode 是 item-info/?list/?permissions 三面共用汇点，一处缝盖三处）；零写放大、零迁移。
+  - C) 维持 FE 兜底 + 架构注记。
+- 决策: **选 A**。要点五条：
+  1. **缝 = putNode**（Put/PutFromBlob/PutLandedBlob/PutManifest/folder-deploy 五条落库路径的唯一汇点）：写目标行前，对目标路径的每个祖先段执行 folder 臂写——即现有 putNode folder 语义原样复用（新行 or 幂等重放刷 UpdatedAt，与显式 mkdir/E-15 完全同一路径）。file 与 folder 目标均材料化（空仓 mkdir 链 `a/b/c/` 的 `a/`、`a/b/` 由服务端建，FE 逐段循环可删）。
+  2. **顺序 = 祖先先于目标行**（与 blob-first「依赖行先落」同构）：崩溃窗口至多残留空 folder 行——良性、可删、pruneEmptyParents 可收——绝不出现「文件行存在而父目录行缺失」。
+  3. **祖先是派生状态，不单独过门**：不判权、不过 governance pattern 门、不记审计事件（合法性继承自已通过全部门的目标写；folder 行 size 0 无内容，无提权面；quota/usage 计数 delta 0）。
+  4. **007 迁移一次性回填**（双方言，INSERT OR IGNORE 幂等）：先落哨兵 blob 行（nodes.sha256 FK 前置），再递归 CTE 从既有 node path 推祖先集落 folder 行。
+  5. **remote 引擎不跟随、不加读 fallback**：engine 直写 Nodes().Put 维持现状（M4 无 remote 目录浏览面，不可观察——§11.20 登记）；B 案的读路径合成**否决为常设机制**——双机制并存会掩盖不变量破坏（读 fallback 让「忘了材料化」的缺陷测试静默通过）。
+- 理由: **模型不变量优于读路径补丁**——BinFlow 已全面承诺 folder 行为目录模型（哨兵 blob、mkdir 建行、prune 删行、Delete folder 分支、§3.4 ACL folder 契约），隐式目录洞是写路径未维持不变量而非模型二义；A 一次修复全部消费方（httpapi 三面、?list、?permissions、docker image 目录、export/备份、未来 REST/CLI），B 则要求每个目录解析点永久维护第二套投影语义（合成节点无 created/createdBy，FolderInfo 时间戳降级为零值）。**clean-room 取证支持 A 的语义**：storage-layout §3（高）参考实现 nodes DDL 有 node_type=0=folder——目录是实体行；repo-semantics §4（高）「删除后自动 prune 空父目录」只有当上传曾材料化父目录行才成立——BinFlow 的 pruneEmptyParents 在纯隐式树上今天是事实死代码，恰是不变量缺失的症状。**B 的性能优势经量化不成立**：显式 folder 的 FolderInfo 今天就已付全子树 List（writeFolderInfo → List → childInfos 首段投影），B 只是省写，且给每个真实 404（typo/深链探测）加一次前缀扫；A 稳态每写 = 深度次 PK 读 + 仅新目录 insert，对比 blob 落盘与摘要计算可忽略。**C 已被证实有缺陷**（NB①/R1 族/静默失败三登记），且不服务 REST 兼容面。
+- 后果: 行为变更——`GET /api/storage/{repo}/{dir}` 与 `?list` 对任何有后代的目录 200（向参考实现行为靠拢，rest-api.md §3 的 FolderInfo 语义补全）；pruneEmptyParents 生效（删文件后空祖先链自动清除，repo-semantics §4 高置信行为）；docker 仓 image 目录成为可浏览实体（实现票须跑全套件确认无断言依赖现状）；FE 删 searchListing + mkdir 祖先循环两兜底（NB① 随之结构性关闭，非根 404 态恢复可达）；007 迁移进双方言链；export 快照自然含 folder 行与哨兵 blob（引用集 = nodes ∪ docker_refs 已覆盖）。回写 architecture §3.3（Put 契约注记）/§6（nodes.path 注释）/§11.20（remote 边界债）。

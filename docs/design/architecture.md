@@ -269,6 +269,8 @@ func New(st storage.Engine, md metadata.Store, az auth.Authorizer, au audit.Logg
 
 **Put 的事务边界**（正确性关键）：`storage.Session.Commit`（物理 blob 就位）成功之后、metadata 写 blob link + node（两条语句、blob-first，见 §3.2 事务边界注）之前崩溃 → 产生一个无引用 blob，由 GC grace 过期回收，**不损数据**；反向（先写元数据后落盘）则会出现元数据指向不存在 blob 的致命态，**禁止**（FK 兜底强制）。
 
+**目录实体化不变量**（ADR-0016，T-119 裁决——隐式目录 404 定案）：`putNode` 写目标节点（file 或 folder）之前，先将目标路径的**每个祖先目录段**以 folder 行材料化（走 putNode 的 folder 臂 = 服务端 mkdir，与 E-15 显式 mkdir 同一路径：新行，或幂等重放刷 UpdatedAt）。三条硬规则：① 顺序 = 祖先先于目标行（与 blob-first 同构——崩溃窗口至多残留**空 folder 行**（良性，pruneEmptyParents 可收），绝不出现「文件行存在而父目录行缺失」）；② 祖先行是**派生状态**——不单独判权、不过 governance 门、不记审计（合法性继承自已通过全部门的目标写；size 0 → quota/usage delta 0）；③ 历史库由 007 迁移一次性回填（先落哨兵 blob 行满足 FK，再递归 CTE 推祖先集，INSERT OR IGNORE 幂等）。效果：`GET /api/storage/{repo}/{dir}` 与 `?list` 对任何有后代的目录 200 FolderInfo（隐式目录 404 消除），`pruneEmptyParents`（repo-semantics §4 的删除后空祖先链清除）随之从事实死代码变为活语义。remote 引擎直写 `Nodes().Put` 不材料化祖先（M4 无 remote 目录浏览面，不可观察——§11.20）。**不加读路径前缀合成 fallback**：双机制会掩盖不变量破坏（ADR-0016 决策 5）。
+
 ### 3.4 auth（owner: dev-go-core）
 
 ```go
@@ -588,7 +590,7 @@ CREATE TABLE blobs (
 
 CREATE TABLE nodes (
   repo_key  TEXT NOT NULL REFERENCES repositories(repo_key) ON DELETE CASCADE,
-  path      TEXT NOT NULL,                 -- repo 内相对路径，'/' 分隔，无前导 '/'
+  path      TEXT NOT NULL,                 -- repo 内相对路径，'/' 分隔，无前导 '/'；尾斜杠 = folder 行（目录实体化不变量：任何 node 写前其全部祖先目录段已有 folder 行，ADR-0016 + 007 回填；folder 行引用共享空哨兵 blob、size 0，删除空链由 pruneEmptyParents 收）
   sha256    TEXT NOT NULL REFERENCES blobs(sha256),
   size      INTEGER NOT NULL,
   mime      TEXT NOT NULL DEFAULT 'application/octet-stream',
@@ -962,6 +964,7 @@ logging:
 17. **配额计数与 docker/maven 服务端写不同链**（ADR-0015 落地注记）：PutFromBlob/PutLandedBlob/PutOpts 全族必须都过配额预检，实现票须覆盖 docker finalize 与 maven metadata 计算器两条服务端写路径，防旁路。
 18. **web_sessions 清扫复用启动清扫模式**（与 storage sessions/ 同构但不同表）：长驻进程的过期会话行要等重启才清；量大前（M4 会话量低）接受，M5+ 可与 storage 周期清扫同票接线。
 19. **备份不含 web_sessions（remote_cache 随 db 走）**：导出面 = db（含 remote_cache 表）+ blobs——即 remote 缓存元数据随 db 走、缓存 blob 随 blobs/ 走，语义自洽；web_sessions 属运行态不入备份（export 时从快照 purge，恢复后用户重登）。（标题勘误 T-112：原「不含 remote_cache/web_sessions」与正文「db 含 remote_cache 表」自相矛盾——实现按正文语义，T-96 review N7。）
+20. **remote 缓存落节点不材料化祖先 folder 行（ADR-0016 边界）**：remote engine 直写 `Nodes().Put` 不经 putNode，缓存树的目录无 folder 行——M4 无 remote 目录浏览面（repo-semantics §7.1 listRemoteFolderItems 默认 false、console 树只浏览 local 仓），不可观察；M5+ 若开 remote 目录浏览/聚合（repo-semantics §8.5），engine 落节点须改经 repo.Service 或共享材料化助手（届时与 §4.5 增量票合并评估）。
 
 ## 12. 待逆向规格确认清单（阻塞点挂 docs/reverse/）
 
