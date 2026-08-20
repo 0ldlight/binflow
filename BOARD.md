@@ -30,7 +30,8 @@
 ## 🔨 进行中（doing）
 
 （T-90 编码完成 → review 区）
-（T-91 编码完成 → review 区；双 reviewer 在途）
+- **T-91** [P0] session（修复轮） `role:dev-go-core` — B1 登录端点豁免（cookie-tossing DoS）+ B2 login-CSRF Origin 校验 + assets 保留字。在途。
+- **T-110** [P1] architect 小票：assets 保留字 ADR-0008 增补 + §7.5 TTL 塌缩句 `role:architect` `area:DECISIONS.md、docs/design` — 在途（T-91 双 review 裁决意见）
 （T-62 编码完成 → review 区；单 reviewer 在途）
 （T-66 编码完成 → review 区；双 reviewer 排队等槽）
 - **T-67** [P0] Maven adapter layout+传输+checksum（批 3） `role:dev-registry-adapter` `area:internal/adapter/maven` — 在途（双 reviewer 票；metadata 归 T-68）
