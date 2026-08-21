@@ -17,7 +17,7 @@
 
 ## 📥 待办（todo）
 
-> **M6 正在开发**（2026-08-22）。装配缺口三处全部闭环（T-178/179/180 ✅）；**batch 3 已提交**（含 .gitignore 修复与被吞测试文件）；**T-163/T-184 收口（done 区 31 票，batch 4 已提交）——非重派票全部清零**；剩余 T-165~T-175 主链全部待 T-165/T-168 重派决策。
+> **M6 正在开发**（2026-08-22）。装配缺口三处全部闭环（T-178/179/180 ✅）；**batch 3 已提交**（含 .gitignore 修复与被吞测试文件）；**done 区 31 票，四个批次已提交（ed9de87/9593bb7/1d27288/cca3ade）**；**T-174 QA 收口（PASS 有保留，9/14 全绿，done 区 33 票）**；**T-168 收口（红测试根治，make test 全绿无 skip；done 区 36 票，batch 5 已提交）→ T-172 QA 已派**；在途 T-190/T-172；T-185/T-189 待组队。
 
 ### Batch 3（全部完成）：T-151/T-152/T-154/T-155 已完成 ✅
 
@@ -25,21 +25,10 @@
 
 ### Batch 6: CLI 与迁移工具（devops-engineer + release-engineer）
 
-- **T-165** [P2] internal/client 包（HTTP 客户端封装） `role:devops-engineer` `area:internal/client` `dep:T-149`
-  AC: ① `internal/client/client.go`：`Client` 结构体（Base URL 拼接、auth 头注入、错误信封解析、重试、进度条回调）。不得 import `internal/storage`/`internal/metadata`/`internal/httpapi`。② `internal/client/repo.go`/`artifact.go`/`user.go`/`token.go`：CRUD 方法。③ table-driven 单测：`client_test.go` — 使用 `httptest` 模拟 BinFlow server。
-  ▶ 2026-08-22：agent 中途被取消（瞬时 API 错误），**部分产出在盘**——conductor 复核 `go test ./internal/client/` 已 ok（101.9s），重派时先盘点半成品再续做（工作日志未写）。
-
-- **T-166** [P2] bf CLI 四个子命令（cmd/bf/） `role:devops-engineer` `area:cmd/bf/` `dep:T-165`
-  AC: ① `cmd/bf/main.go`：`flag` 包实现的子命令分发（非 cobra）。四个子命令：`bf repo create` / `bf artifact upload` / `bf user create` / `bf token create`。② 配置管理：`~/.bf/config.yaml`（YAML 格式，`profiles` 多 profile）。③ table-driven 单测：`main_test.go` 验证四个子命令 HTTP 调用链。
-
 - **T-167** [P2] bf-migrate 迁移工具（Artifactory → BinFlow） `role:release-engineer` `area:cmd/bf-migrate/ / internal/migrate` `dep:T-165`
   AC: ① `cmd/bf-migrate/main.go`：`bf-migrate migrate` 子命令。三阶段迁移：repos → users → tokens。`--dry-run` 模式只统计不迁移。`--resume` 断点续传。② `internal/migrate/reader.go`/`converter.go`/`writer.go`：通过 Artifactory REST API 读取 → 转换 → 通过 `internal/client` 写入 BinFlow。③ table-driven 单测：`migrate_test.go` — 使用 mock Artifactory server + mock BinFlow server 验证。**Q9（待用户定案）**：验收环境。
 
 ### Batch 7: 部署与文档（devops-engineer + release-engineer + tech-writer）
-
-- **T-168** [P2] M5 债务收编 — Go 1.26.6 + 优雅停机 + nginx SSL `role:devops-engineer` `area:go.mod / cmd/binflow-server / deploy/`
-  AC: ① `go.mod` 升级到 Go 1.26.6（`go mod tidy` + 全量测试 race 绿）。`cmd/binflow-server` 优雅停机：SIGINT/SIGTERM 收到后 → 排空在途请求（graceful period 30s）→ 关闭 HTTP server → 关闭 Engine → 关闭 metadata Store。② `deploy/nginx/` 新增 SSL 配置模板。③ 验证：`make test` 全量 race 绿；`binflow-server` 收到 SIGTERM 后日志含 "shutting down gracefully"。
-  ▶ 2026-08-22：agent 中途被取消（瞬时 API 错误），**部分产出在盘**——Go 工具链已升 1.26.6、优雅停机已实现（自有测试单跑通过）、`deploy/nginx/` 模板已建。**遗留红**：`cmd/binflow-server` 全量套件 `TestServeGracefulShutdownLog` 失败 + adapter 重复注册 panic。重派时先修这两处再走 AC③（工作日志未写）。
 
 - **T-169** [P2] M5 债务收编 — G05 Windows 锁 + G15b systemd 裸机部署 `role:release-engineer` `area:internal/storage / deploy/systemd/`
   AC: ① `internal/storage/lock.go`：`AcquireDataLock` 在 Windows 上使用 `LockFileEx`。`deploy/systemd/` 新增 `binflow.service`。② `deploy/systemd/install.sh`：安装脚本。③ 验证：`make test` 全量 race 绿；Windows 交叉编译通过；`install.sh` 在 Linux 上执行无错误。
@@ -55,9 +44,6 @@
 - **T-173** [P0] S3 后端下 M1~M5 全部 P0 序列复跑 + 兼容性验证 `role:qa-engineer` `area:QA 全量（S3 后端：MinIO）` `dep:T-164,T-172,T-178`
   AC: ① MinIO 容器上 M1~M5 全部 P0 序列复跑全绿。② S3 配置与健康检查（H07~H11）。③ 本地→S3 迁移（H12~H15）。④ S3 下 GC 与去重（H16~H18）。⑤ S3 下性能基线（H19~H21）。**Q8（待用户定案）**：AWS S3 验收为条件腿。（dep 增 T-178：S3 数据面接线是硬前置，2026-08-22）
 
-- **T-174** [P0] OIDC + LDAP 集成验收（含认证臂优先级） `role:qa-engineer` `area:QA 认证（Keycloak + OpenLDAP）` `dep:T-157,T-158,T-179`
-  AC: ① OIDC 登录流（H24~H29）：Keycloak SSO 登录 → 控制台 session 可用。② LDAP 登录流（H30~H35）：OpenLDAP 用户名密码登录 → session 创建。③ 认证臂优先级（H36~H38）：三种用户同时登录 → 各返回正确 source。④ 产出：QA 报告，含 IdP 版本与配置。
-
 - **T-175** [P1] 复制多协议 + Prometheus 指标 + bf CLI + bf-migrate 集成验收 `role:qa-engineer` `area:QA 集成（两实例 + Prometheus + CLI + 迁移）` `dep:T-162,T-163,T-166,T-167,T-159,T-160`
   AC: ① 复制验收（H39~H51）：push 单向复制、replica 仓库只读、幂等等。② Prometheus 指标验收（H52~H55）：`/metrics` 端点 200 + 含 TYPE/HELP 行。③ bf CLI 验收（H56~H61）：四个子命令成功。④ bf-migrate 验收（H62~H67）：1 个 generic 仓库 100+ 制品迁移 → sha256 一致。⑤ 产出：QA 报告，含全部 H 序列结果。
 
@@ -66,9 +52,28 @@
 - **T-184** [P2] replication CRUD 面 docs 回写（T-180 遗留④） `role:architect` `area:docs/design`
   AC: ① architecture.md §7.1 路由表补 replications CRUD 四端点 + /replication/status（形状按 T-180 日志裁定表：bare array/201/204/409/target_password 只写不读/默认值）。② console-ux.md 治理组「复制」页补 CRUD 面说明（当前只读面板，CRUD UI 另票）。③ 同款「回写记录」题头。
 
+- **T-185** [P1] 认证缺陷修复包 A（T-174 D1/D4/D2：IdP 组落库 + session 臂组保留 + users/whoami source·groups 字段） `role:dev-go-core` `area:internal/auth / internal/httpapi`
+  AC: ① IdP（OIDC groups_claim / LDAP 组搜索）组写 user_groups（增删同步，is_admin 不再首登定死）。② session 认证臂（AuthenticateCredentials）Claims 组保留至 Principal。③ `GET /api/security/users` 列表含 source；whoami 含 groups。④ 复跑 T-174 的 H25/H28/H31 相关断言。
+
+- **T-186** [P1] LDAP TLS 修复（T-174 D5/D6：start_tls 接线 + skip_tls_verify/group_base_dn 键） `role:dev-go-core` `area:internal/auth / internal/config`
+  AC: ① auth.ldap.start_tls 真实接线（不再静默明文）。② skip_tls_verify/group_base_dn 配置键落地（T-179 遗留的规格待验证项收口）。③ TLS 三态测试（ldaps 信 CA/start_tls/明文拒绝）。
+
+- **T-187** [P2] 审计词汇与可诊断性（T-174 D7/D8） `role:dev-go-core` `area:internal/auth / internal/audit`
+  AC: ① 认证失败审计动作名对齐 PRD（auth.failed）或 PRD 改口径（二选一，报告注明）。② 审计补 method（local/oidc/ldap）与 reason 字段。
+
+- **T-189** [P1] internal/client 解码面对齐真实服务端（T-166 发现） `role:devops-engineer` `area:internal/client`
+  AC: ① `CreateRepo` 适配真服务端 200 纯文本响应（internal/httpapi/repositories.go:374 现状）——按 content-type 或端点语义分支解析。② `CreateToken` 对齐 `access_token`/int64 `token_id`（internal/httpapi/security.go:133-138）。③ 测试改造：假后端按**真实服务端**行为应答（非 client 自说自话契约），加真行为快照用例。④ 交叉验证：`bin/bf repo create`/`token create` 对 httptest 起的真 httpapi 栈全链冒烟。
+  ▶ 2026-08-22 建票（T-166 收口发现；T-175 QA H57/H60 前置）。
+
+- **T-172** [P0] M6 回归基线 QA — 2026-08-22 已派发（T-168 收口解锁；本地 filestore 全 P0 序列复跑；详见 Batch 8 条目）。
+
+- **T-190** [P0] token 端点权限开放实现（T-188 裁决 A 路径） `role:dev-go-core` `area:internal/httpapi / internal/auth`
+  AC（PRD v1.2 Q11 草案）：① `POST /api/security/token` 权限模型：admin 全量；非 admin 已认证（local/OIDC/LDAP 三臂）仅可为本人（username 填他人 → 403）。② 非 admin 强制有限 TTL（默认 365d 上限，K9 键 `auth.token_nonadmin_max_ttl` 落 config）。③ 验证期校验用户行状态（禁用 → 401）。④ `token.issue` 审计含主体/来源。⑤ 列表/吊销维持 admin-only。⑥ table-driven：三臂各发本人/他人/匿名/TTL 边界/禁用用户。
+  ▶ 2026-08-22 建票并派发（限额窗口 ≤2 并行内）。
+
 ## 🔨 进行中（doing）
 
-（空——全部可派票已收口，待 T-165/T-168 重派决策）
+
 
 ## 🧪 测试中（qa）
 
@@ -447,6 +452,21 @@
 
 - **T-163** [P1] Prometheus /metrics 端点 `role:dev-go-core` — done 2026-08-22（conductor 核验直收）
   新增 internal/metrics（sync.Map Registry + Counter/Gauge/Histogram + Format() text 0.0.4）+ httpapi metrics.go（四类 family/请求计数中间件/根级 /metrics 匿名+require_auth 门/scrape 快照/路径归一防高基数）+ config metrics.require_auth 段（偏离已申报）+ cmd 注入。真二进制 curl 冒烟（200+CT+7 TYPE 行+counter/histogram+401 门+env 覆盖）。conductor 复核：metrics 1.3s + scoped httpapi 3.7s + cmd 3.0s race 绿。遗留：replication 延迟埋点（另票）/promtool 归 T-175/`/metrics/json` 未实现（§7.1 已列）。日志 reports/agents/T-163.md。
+
+- **T-165** [P2] internal/client 包 `role:devops-engineer` — done 2026-08-22（重派收口，conductor 核验直收）
+  重派 agent 盘点半成品后修复：**真缺陷**——`err == context.Canceled` 对 `*url.Error` 恒 false 改 `errors.Is`；**假测试**——TestClientAbsURL 表字段从未参与断言，重写为服务端捕获绝对 URL 精确比对；RetryMax=0 语义修正（曾被解释为默认 5 次重试各烧 31s 退避——套件 101.9s→8.9s 降 92%）；lint 14→0；gofmt 7 文件清零；补全工作日志（前 agent 未写）。conductor 复核：race 9.0s 绿 + lint 0 issues + build OK；coverage 78.5%。遗留：DownloadArtifact 不重试（流式语义已注明）；DefaultTimeout/NewWithClient 留给 T-166。日志 reports/agents/T-165.md。
+
+- **T-174** [P0] OIDC + LDAP 集成验收 `role:qa-engineer` — done 2026-08-22（PASS 有保留；conductor 核验收口）
+  真 Keycloak + 真 OpenLDAP（TLS）容器全序列：**9/14 序列全绿**（H24 登录流/H27 admin 映射/H29 disabled/H30 LDAP 流/H32 错口令/H33 admin_group_dn/H34 目录断机 45ms 401/H36 三臂优先级/H37 不串臂），H25/26/31/35/38 部分过，**H28 FAIL**（组同步根因 D4）。Playwright 真浏览器 2/2。缺陷 8 项分级：D3[P0 规格冲突] token 端点 admin-only vs FR-54-AC3 → **T-188 PM 裁决**；D1/D4[P1] 组不落库+session 丢组+users 无 source → **T-185 修复包**；D5[P1] start_tls 静默明文+D6 键缺失 → **T-186**；D2/D7/D8[P2] → **T-187**。环境排障结论（osixia ACL/olcTLSVerifyClient）收录报告供文档复用。日志 reports/agents/T-174.md。
+
+- **T-166** [P2] bf CLI 四个子命令 `role:devops-engineer` — done 2026-08-22（429 续跑收口，conductor 核验直收）
+  main.go 重写（flag 两级分发 + 四子命令 + usage 面）；config.go 新增（~/.bf/config.yaml 多 profile，密钥只存 env 引用零明文字段，覆盖序 --server>BF_BASE_URL>BINFLOW_SERVER_URL>profile>默认，basic 臂自定义 RoundTripper）；50 子用例 table-driven。真二进制×假后端四链全通（sha256 逐字一致/Bearer 全带/help 0.01s）；make build 门禁过（bf 9.43MB/15）。conductor 复核：race 4.7s 绿 + lint 0 + build OK。**跨包缺陷 → T-189**：internal/client CreateRepo（按 JSON 解码但真服务端回 200 纯文本）与 CreateToken（期望 token/token_id string，实为 access_token/int64）两处解码面不匹配——假后端按 client 契约给 JSON 故本票全绿，真服务端链会挂（影响 T-175 H57/H60）。遗留：`bf config set` 未实现（AC 外）。日志 reports/agents/T-166.md。
+
+- **T-188** [P0] 规格裁决：token 端点权限 vs FR-54-AC3 `role:product-manager` — done 2026-08-22（conductor 核验直收）
+  **裁决 A（开放）**：admin 全量 + 非 admin 已认证用户（三臂同权）可为本人发 Token——决定性依据：逆向规格 auth-model.md §3.1（高置信双证）Artifactory 本就如此，B 选项事实前提不成立；四护栏（仅本人主体/非 admin 强制 TTL≤365d/验证期查用户行状态/token.issue 审计）。PRD 升 v1.2（Q11 裁决记录 + 实现票草案七条 AC + 推翻出口）。T-174 H26 定格部分过（D3 降 P1 实现差距）。conductor 复核：diff 仅 milestone-6.md。后续票：**T-190 实现** + K9 键名（ADR-0020 附带）+ M1/M2 历史注记（P2）。日志 reports/agents/T-188.md。
+
+- **T-168** [P2] M5 债务收编 — Go 1.26.6 + 优雅停机 + nginx SSL `role:devops-engineer` — done 2026-08-22（重派+429 续跑收口，conductor 核验直收）
+  **两处红根治**：根因=同包两个全量装配调用方撞「仅装配一次」adapter 注册表契约；TestServeGracefulShutdownLog 重写为真 runServe+真 SIGTERM（五条日志断言全来自真实输出，Windows skip）；Ping 测试切轻量 Deps 形态；顺手修 2 errcheck。nginx 模板修 3 真实缺陷（http2 on 语法/Connection map/stapling resolver）+ 真容器 nginx -t + 端到端 TLSv1.3+HTTP/2 反代实测。conductor 复核：`go test -race ./cmd/binflow-server/` **无 skip 26.4s 绿** + lint 0；agent 自跑 make test 全量 21 包 exit 0。遗留：auth TTL 测试并行负载 flake（chore 票候选）。日志 reports/agents/T-168.md。
 
 ## 🚫 阻塞（blocked）
 

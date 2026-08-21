@@ -10,6 +10,7 @@ import (
 	"flag"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -18,8 +19,13 @@ import (
 	"testing"
 	"time"
 
+	"runtime"
+	"sync"
+	"syscall"
+
 	"github.com/lzwzzy/binflow/internal/audit"
 	"github.com/lzwzzy/binflow/internal/auth"
+	"github.com/lzwzzy/binflow/internal/httpapi"
 	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/storage"
 )
@@ -747,9 +753,19 @@ func TestServePostgresRefusedToBoot(t *testing.T) {
 }
 
 // TestServeAssembledStackPing (AC 5): the serve assembly chain (config ->
-// metadata -> storage -> auth/audit -> repo.Service -> generic adapter ->
-// httpapi) answers /binflow/api/system/ping over a real listener, and the
-// default-password WARN fires on a default boot (ADR-0009).
+// metadata -> storage -> auth/audit -> repo.Service -> httpapi) answers
+// /binflow/api/system/ping over a real listener, and the default-password
+// WARN fires on a default boot (ADR-0009).
+//
+// The full newAssembledServer may run only ONCE per test process: it enters
+// the npm/pypi handlers into the process-wide adapter registry, whose
+// duplicate registration panics by contract ("cmd assembly calls it exactly
+// once", npm/api.go). That single slot is spent by
+// TestServeGracefulShutdownLog's real runServe drive, so this test assembles
+// the light Deps shape metrics_wiring_test.go established — the same
+// openStack collaborators with httpapi.New mounted directly, no global
+// registration. The full chain (adapters included) is still exercised, by
+// that one runServe test per process.
 func TestServeAssembledStackPing(t *testing.T) {
 	dir := t.TempDir()
 	dataDir := filepath.Join(dir, "data")
@@ -779,7 +795,14 @@ func TestServeAssembledStackPing(t *testing.T) {
 		t.Errorf("startup log = %q, want the ADR-0009 default-password WARN", logBuf.String())
 	}
 
-	srv := newAssembledServer(cfg, stack, logger)
+	srv := httpapi.New(httpapi.Deps{
+		Config:   cfg,
+		Auth:     stack.authSvc,
+		Authz:    stack.authSvc,
+		Metadata: stack.md,
+		Repos:    stack.md.Repos(),
+		DataDir:  cfg.Storage.DataDir,
+	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	ts := httptest.NewServer(srv.Handler())
 	defer ts.Close()
 
@@ -999,6 +1022,131 @@ func withEnv(t *testing.T, kv map[string]string) {
 			_ = os.Setenv(k, old)
 		})
 	}
+}
+
+// TestServeGracefulShutdownLog (T-168 AC ③) drives the REAL runServe path:
+// boot the full server assembly on a free port, wait until it answers ping,
+// then deliver an actual SIGTERM to the test process — the same delivery
+// signal.NotifyContext receives in production. runServe must drain the HTTP
+// server within the graceful period, log "shutting down gracefully" between
+// the drain and the teardown, close the engine and the metadata store in the
+// section 7.4 order, and return nil. Every assertion reads runServe's own
+// logger output; nothing is simulated on the test side.
+//
+// This test is the package's ONE full-assembly caller: newAssembledServer
+// enters the npm/pypi handlers into the process-wide adapter registry, whose
+// duplicate registration panics by contract ("cmd assembly calls it exactly
+// once", npm/api.go) — the T-168 red this shape replaces had a second caller.
+// The other wiring tests (metrics/auth/replication) assemble light Deps
+// shapes for the same reason.
+func TestServeGracefulShutdownLog(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("delivering SIGTERM to the own process is unsupported on windows; the drain mechanics stay covered by internal/httpapi shutdown tests")
+	}
+	dir := t.TempDir()
+	dataDir := filepath.Join(dir, "data")
+
+	// Pick a free port up front: runServe resolves the listen address from
+	// the environment (BINFLOW_SERVER__LISTEN → server.listen), and :0
+	// would leave the chosen port unknowable from the test side.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	addr := ln.Addr().String()
+	_ = ln.Close()
+
+	withEnv(t, map[string]string{
+		"BINFLOW_HOME":              "",
+		"BINFLOW_ADMIN_PASSWORD":    "test-admin-pw",
+		"BINFLOW_STORAGE__DATA_DIR": dataDir,
+		"BINFLOW_SERVER__LISTEN":    addr,
+	})
+	restore := chdirTemp(t)
+	defer restore()
+
+	// runServe's logger receives writes from serve goroutines while the
+	// test polls ping, so the capture buffer must be lock-protected.
+	logs := &lockedBuffer{}
+
+	done := make(chan error, 1)
+	go func() { done <- runServe([]string{}, logs) }()
+
+	// Ping proves the listener is up — which also proves signal.NotifyContext
+	// is armed (runServe arms it before srv.Run), so the SIGTERM below can
+	// only land in the notify channel, never at the process default
+	// disposition that would kill the test binary.
+	if !waitForPing(t, addr, 15*time.Second) {
+		t.Fatalf("server at %s did not answer ping within 15s; serve log:\n%s", addr, logs.String())
+	}
+
+	proc, err := os.FindProcess(os.Getpid())
+	if err != nil {
+		t.Fatalf("find own process: %v", err)
+	}
+	if err := proc.Signal(syscall.SIGTERM); err != nil {
+		t.Fatalf("send SIGTERM: %v", err)
+	}
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("runServe after SIGTERM: %v\nserve log:\n%s", err, logs.String())
+		}
+	case <-time.After(45 * time.Second):
+		t.Fatalf("runServe did not return within 45s of SIGTERM (graceful drain is 30s); serve log:\n%s", logs.String())
+	}
+
+	out := logs.String()
+	for _, want := range []string{
+		"binflow starting",           // the boot reached assembly
+		"binflow listening",          // the HTTP server really served
+		"shutting down gracefully",   // AC ③: drain done, teardown beginning
+		"replication engine drained", // T-180: the worker drained before the engine closed
+		"binflow stopped",            // clean exit
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("serve log missing %q\nserve log:\n%s", want, out)
+		}
+	}
+}
+
+// lockedBuffer is a sync-safe io.Writer: runServe's logger writes from serve
+// goroutines while the test reads the capture for assertions, so the buffer
+// must serialize both sides (race-detector clean).
+type lockedBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *lockedBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.Write(p)
+}
+
+func (b *lockedBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return b.buf.String()
+}
+
+// waitForPing polls the given address until /binflow/api/system/ping returns
+// 200, or the deadline expires.
+func waitForPing(t *testing.T, addr string, timeout time.Duration) bool {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		resp, err := http.Get("http://" + addr + "/binflow/api/system/ping")
+		if err == nil {
+			_ = resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				return true
+			}
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	return false
 }
 
 // chdirTemp moves into a fresh empty directory (so the ./binflow.yaml and

@@ -4,7 +4,7 @@
 |---|---|
 | 文档 | `docs/prd/milestone-6.md` |
 | 里程碑 | M6 — 企业就绪与生态扩展（对应 ROADMAP.md「M6+ — 展望」全部条目） |
-| 状态 | **v1.1**（v1.0 初版：FR-48~FR-63 六域 16 条功能需求，端点矩阵 S3/OD/LD/RE/PM/CL/MG 七域 28 条，九项开放问题 Q1~Q9；v1.1 勘误：FR-50 迁移端点契约对齐实现 + Q6/Q7 暂行口径回写 + Q10 增补，T-181） |
+| 状态 | **v1.2**（v1.0 初版：FR-48~FR-63 六域 16 条功能需求，端点矩阵 S3/OD/LD/RE/PM/CL/MG 七域 28 条，九项开放问题 Q1~Q9；v1.1 勘误：FR-50 迁移端点契约对齐实现 + Q6/Q7 暂行口径回写 + Q10 增补，T-181；v1.2 规格裁决：Q11 定案 token 端点权限走 A 路径开放，FR-54-AC3 维持原文，T-188） |
 | 上游依据 | PRODUCT.md（愿景与 Non-goals：M6 起 OIDC/LDAP 解禁——PRODUCT 只标注「第一版不做」，M6 起进入企业就绪期）、ROADMAP.md M6+ 展望（S3 存储后端 / 复制联邦 / OIDC+LDAP / Prometheus 指标 / `bf` CLI / 迁移工具）、DECISIONS.md 全部 ADR（ADR-0004 部署矩阵六产物、ADR-0005 零 CGO 依赖基线、ADR-0006 blob 存储布局与存量兼容升级、ADR-0007 元数据迁移机制、ADR-0008 路由前缀 `/binflow`、ADR-0009 匿名读默认开、ADR-0010 docker /v2 根级例外、ADR-0012 remote 代理基线、ADR-0013 virtual 解析顺序、ADR-0014 console 基线与 session 认证、ADR-0015 治理面、ADR-0016 目录实体化、ADR-0017 镜像供应链）、M5 交付基线（milestone-5.md v1.2 @m5-done）、docs/reverse/rest-api.md / auth-model.md / repo-semantics.md（行为参考） |
 | 下游消费者 | tech-lead（拆票）、architect（ADR-0018~ADR-0023 新决策面）、dev-go-core（S3 adapter / replication / OIDC/LDAP 认证臂）、dev-go-storage（S3 后端）、devops-engineer（Prometheus / bf CLI scaffold）、release-engineer（迁移工具与 bf CLI 发布）、qa-engineer（H 序列验收）、tech-writer（OIDC/LDAP 接入指南、bf CLI 手册、迁移指南） |
 
@@ -16,6 +16,7 @@
 |---|---|---|
 | v1.0 | 2026-08-21 | 初版：M6 范围、FR-48~FR-63（S3 六条 / OIDC-LDAP 三条 / 复制联邦四条 / Prometheus 一条 / bf CLI 一条 / 迁移工具一条）、端点矩阵 28 条、H01~H42 验收命令草案、九项开放问题 Q1~Q9、与既有 ADR 的冲突/补充标注 |
 | v1.1 | 2026-08-22 | 勘误（T-181）：① migration 契约对齐实现——FR-50 迁移进度端点响应字段改为 `running/done/total/migrated/skipped/failed`（+`error`/`started_at`/`finished_at` 三者 omitempty），未配置/未启用双写时迁移两端点 501（以 architecture.md §7.1 T-176 回写版与 `internal/storage/migration.go` json tag 为准；旧拟名 `total_blobs`/`in_progress`/`completed` 作废——配置键 `migration.completed` 不受影响）；② Q6/Q7 暂行口径按 T-162 报告回写，标注「暂行已实现，待终裁」并注明切换位；增补 Q10（私有复制目标默认放行） |
+| v1.2 | 2026-08-22 | 规格裁决（T-188，§7 Q11）：T-174 D3 冲突裁定走 **A 路径（开放）**——`POST /api/security/token` 权限模型对齐 Artifactory（auth-model.md §3.1）：admin 全量；**非 admin 已认证用户（本地/OIDC/LDAP 三臂同权）可为本人发 Token**。FR-54-AC3 **维持原文不勘误**；T-174 D3 定性从「PRD 冲突」改判「实现未达 PRD」（H26 维持部分过定格，普通 OIDC 用户腿转实现票）。四条护栏：① 非 admin 主体仅限本人（指定他人 → 403）；② 非 admin 强制有限 TTL（`expires_in>0` 且 ≤ 上限，默认 365d，K9）；③ 验证期校验主体用户行存在且未禁用（禁用 → Token 401）；④ 非 admin 铸 Token 记 `token.issue` 审计（M5 G31a 既有面）。列表/吊销维持 admin-only。FR-54 Token 兼容条、FR-54-AC3、FR-55 映射条、OD-04、H26、K9 同步回写；实现票草案 AC 见 Q11 |
 
 ---
 
@@ -275,14 +276,14 @@ M5 的行为面冻结标志着 BinFlow 从「可用」进入「可运营」阶�
   - `admin_group` 成员：自动加入 `admins` 组（或直接标记 admin——Q4 定案）
   - `groups_claim` 成员：自动同步到 BinFlow 组（`source=oidc`），每次登录刷新组成员；被移除的组在刷新后权限即时失效
 - **授权**：OIDC 用户使用 BinFlow 既有权限模型（permission targets × repos × patterns）——与本地用户同权。
-- **Token 兼容**：OIDC 用户仍可创建 BinFlow API Token（`POST /api/security/token`），用于 CI 脚本——Token 不依赖 OIDC session。
+- **Token 兼容**：OIDC 用户仍可创建 BinFlow API Token（`POST /api/security/token`），用于 CI 脚本——Token 不依赖 OIDC session。（v1.2 Q11 裁决定案：端点权限模型对齐 Artifactory auth-model.md §3.1——admin 全量 / 非 admin 已认证仅限本人主体 + 强制有限 TTL；实现现状 admin-only 属未达 PRD，见 §7 Q11）
 - **控制台 UI**：登录页新增「使用 SSO 登录」按钮（仅 `oidc.enabled=true` 时显示）；现有用户名/口令登录保留并存。
 
 | # | AC（可执行） | 优先级 |
 |---|---|---|
 | FR-54-AC1 | H24：Keycloak（或兼容 OIDC provider）配置 BinFlow client → 设置 `oidc.enabled=true` → 控制台「SSO 登录」按钮可见 → 点击跳转 Keycloak 登录页 → 成功后回调 → 获得 BinFlow session（Playwright 断言：`/binflow/ui/` 200 + whoami 返回 username） | P0 |
 | FR-54-AC2 | H25：OIDC 用户首次登录后 `GET /api/security/users` 可见该用户（`source=oidc`）；`GET /api/v1/session` whoami 返回 username 与 groups | P0 |
-| FR-54-AC3 | H26：OIDC 用户创建 API Token（`POST /api/security/token`）→ 200 → curl 用 Token 访问仓库成功 | P0 |
+| FR-54-AC3 | H26：OIDC 用户（非 admin）创建 API Token（`POST /api/security/token`，主体=本人）→ 200 → curl 用 Token 访问有权限仓库成功；负面腿：`username` 指定他人 → 403、`expires_in=0`（永不过期）→ 401 `invalid_request`（Q11 裁决护栏，非 admin 强制有限 TTL） | P0 |
 | FR-54-AC4 | H27：`admin_group` 成员登录后自动获得 admin 权限（`GET /api/repositories` 200）；非 admin 成员的 OIDC 用户访问管理 API → 401/403 | P0 |
 | FR-54-AC5 | H28：`groups_claim` 成员同步——IdP 侧把用户从组移除 → 用户重新登录后权限即时失效（原组授权的仓库 403） | P1 |
 | FR-54-AC6 | H29：`oidc.enabled=false` 时控制台无 SSO 按钮，OIDC 回调端点 404 | P1 |
@@ -314,7 +315,7 @@ M5 的行为面冻结标志着 BinFlow 从「可用」进入「可运营」阶�
   5. 搜索组：`group_base_dn` + `group_filter`（替换 `{0}` → 用户 DN）→ 列出所有 `group_name_attr` 值
   6. 创建或更新 BinFlow 本地用户映射（`ldap_user_mappings` 表：`ldap_dn` → `username` + `groups`）
   7. 生成 BinFlow session（同 OIDC 流）
-- **LDAP 用户映射**：同 OIDC 模型——首次登录自动创建本地用户（`source=ldap`，无本地口令）；每次登录刷新组成员；`admin_group_dn` 成员自动获得 admin 角色。
+- **LDAP 用户映射**：同 OIDC 模型——首次登录自动创建本地用户（`source=ldap`，无本地口令）；每次登录刷新组成员；`admin_group_dn` 成员自动获得 admin 角色。（v1.2 Q11：Token 自助面三臂同权——非 admin LDAP 用户同样可为本人铸 Token，同 FR-54「Token 兼容」条）
 - **LDAP 连接池**：长连接池（默认 5 连接），避免每次登录重新 bind；连接健康检查（定期 search 基 DN）。
 - **控制台 UI**：用户名/密码登录框对 LDAP 用户透明——用户输入 AD 账号密码即可登录（与本地用户同一表单，后端自动路由：先本地、后 LDAP）。
 
@@ -569,7 +570,7 @@ M5 的行为面冻结标志着 BinFlow 从「可用」进入「可运营」阶�
 | OD-01 | `GET /binflow/api/v1/oidc/login`（302 → IdP） | Authorization Code Grant + PKCE（S256）；scope=openid+profile+email | 自有（OIDC Core 1.0 公开协议） | P0 | 高（OIDC 规范） | H24~H25 |
 | OD-02 | `GET /binflow/api/v1/oidc/callback`（code→token→session） | 验证 ID token（签名/iss/aud/exp/nonce）→ 提取 username+groups → 创建/更新映射 → 生成 session → 302 `/binflow/ui/` | 自有 | P0 | 高 | H24 |
 | OD-03 | OIDC 用户映射（`oidc_user_mappings` 表） | `oidc_sub` → `username`+`groups`；首次登录自动创建本地用户（`source=oidc`）；`admin_group` 映射 | 自有 | P0 | — | H25/H27 |
-| OD-04 | OIDC 用户创建 API Token | `POST /api/security/token` 可用（与本地用户同权） | 自有 | P0 | — | H26 |
+| OD-04 | OIDC 用户创建 API Token | `POST /api/security/token` 可用（与本地用户同权）；v1.2 Q11 裁决：权限模型对齐 Artifactory §3.1——admin 全量 / 非 admin 已认证仅限本人主体 + 强制有限 TTL（`expires_in>0` 且 ≤ 上限，K9），匿名拒绝；列表（GET）与吊销（revoke）维持 admin-only（§3.3/§3.4） | 自有 | P0 | 高（auth-model.md §3.1） | H26 |
 | OD-05 | OIDC groups 同步（`groups_claim`） | 每次登录刷新组成员；被移除的组权限即时失效 | 自有 | P1 | 中（待 OIDC provider 行为验证） | H28 |
 | LD-01 | LDAP 认证（Basic → LDAP bind） | 本地用户优先 → 未命中 → LDAP 搜索用户 DN → 用户 DN bind 验证密码 → 搜索组 → 创建/更新映射 → session | 自有（RFC 4511 公开协议） | P0 | 高（LDAP RFC） | H30~H32 |
 | LD-02 | LDAP 用户映射（`ldap_user_mappings` 表） | `ldap_dn` → `username`+`groups`；`admin_group_dn` 映射；`source=ldap` | 自有 | P0 | — | H31/H33 |
@@ -663,8 +664,10 @@ curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/storage/stats | jq '.blobs'   # �
 #   控制台 SSO 登录 → Playwright 断言：/binflow/ui/ 200 + whoami 返回 username
 # H25 OIDC 用户映射（OD-03）
 curl -su admin:$ADMIN_PW $BASE/binflow/api/security/users | jq '.[] | select(.name=="<oidc_user>") | .source'   # "oidc"
-# H26 OIDC 用户创建 Token（OD-04）
-#   控制台登录 OIDC 用户 → 发 Token → curl -H "X-JFrog-Art-Api: <token>" 可用
+# H26 OIDC 用户创建 Token（OD-04；v1.2 Q11 裁决：非 admin 仅限本人 + 有限 TTL）
+#   控制台登录 OIDC 用户（非 admin）→ POST /api/security/token（无 username 或 username=本人）→ 200
+#   → curl -H "X-JFrog-Art-Api: <token>" 访问有权限仓库可用；无权限路径 → 403
+#   负面腿：username=<他人> → 403 OAuth 形；expires_in=0 → 401 invalid_request；匿名 POST → 401
 # H27 admin_group 映射（OD-03）
 #   OIDC admin_group 成员登录 → GET /api/repositories 200
 # H28 groups_claim 同步（OD-05）
@@ -762,6 +765,7 @@ bf-migrate migrate --dry-run ...  # 退出码 0，migration_report.json 统计�
 | K6 | Prometheus 指标命名与标签规范（`binflow_*` 前缀、path 归一化、histogram buckets） | 见 FR-61；path 归一化 = 动态段替换为 `:param` 占位符 | ADR-0023（architect） |
 | K7 | `bf` CLI 配置文件格式（`~/.bf/config.yaml`）与 profile 切换 | 见 FR-62；YAML 格式 + `--profile` flag + 环境变量覆盖 | 实现票细化 |
 | K8 | `bf-migrate` 迁移范围（M6 子集：generic 仓库 + 用户 + token）与断点续传 | 见 FR-63；`--resume` 从 migration_report.json 恢复 | 实现票细化 |
+| K9 | 非 admin 发 Token 的 TTL 上限默认值与配置键形态；非 admin 指定他人 `username` 的错误语义 | 暂行：上限默认 365d（31536000s，对齐 Artifactory `access.token.non.admin.max.expires.in`）；配置键建议 `auth.token_nonadmin_max_ttl`（env `BINFLOW_AUTH_TOKEN_NONADMIN_MAX_TTL`，秘密不入 YAML 原则不适用——非秘密）；指定他人 → 403 OAuth 形（沿用现有 `administrator privileges required` 文案） | Q11 裁决（T-188）+ ADR-0020 附带确认（architect 定键名） |
 
 ### 5.6 回归基线反转表（M6 起生效，qa 更新既有断言）
 
@@ -847,6 +851,7 @@ bf-migrate migrate --dry-run ...  # 退出码 0，migration_report.json 统计�
 | Q8 | **AWS S3 验收环境**：QA 需要 AWS 账号与 S3 bucket 用于验收——由谁提供？ | FR-53；QA 条件腿 | **优先 MinIO 本地容器**（P0 可自足）；AWS S3 验收为条件腿（用户提供 bucket 与凭据——拆票标注 `dep:用户环境`），到位前 MinIO 全序列 PASS 视为等价。与 M5 Q3 同口径 |
 | Q9 | **Artifactory 迁移工具验收环境**：QA 需要 Artifactory 实例（含制品）用于验收——由谁提供？ | FR-63；QA 条件腿 | **用户提供 Artifactory 实例**（或 QA 用 Docker 自建 Artifactory OSS 容器 + 脚本填充 100+ 制品）。Docker 自建可覆盖 P2 验收；若需真实企业版 Artifactory 实例，拆票标注 `dep:用户环境`。与 M5 Q3 同口径 |
 | Q10 | **复制目标私网地址默认放行**：复制目标几乎必然是内网/同主机 BinFlow 实例——`DenyPrivateTargets` 默认拒绝会使功能在所有现实部署不可用；但「默认放行私网目标」是否需要 config 显式开关与文档警示？ | FR-57；SSRF 面（NFR-S13） | **暂行已实现，待终裁**（T-162 口径，2026-08-22 增补）：`DenyPrivateTargets` 默认 `false`（私网目标放行，等价 Guard 的 AllowPrivateUpstream=true）——scheme/host 校验、逐跳重检、DNS-rebinding pinning 仍然生效。建议 config 桥接票增 `replication.allow_private_target`（默认 `true`）落到该选项（T-162 建议，未实施） |
+| Q11 | **Token 端点权限 vs FR-54-AC3**（T-174 D3）：`POST /api/security/token` 实现现状 admin-only（router.go routeAuth，M1 子集决策的延续），普通 OIDC/LDAP 映射用户发 Token → 403，与 FR-54-AC3「OIDC 用户创建 Token → 200」（P0）冲突。裁决 A（开放，非 admin 可为本人发）还是 B（维持 admin-only + FR-54-AC3 勘误）？ | FR-54-AC3/OD-04/H26；internal/httpapi security 面 + 审计；M2 FR-11 双入口注记与 M1 E-17 子集注记（历史文档，随实现票收口） | **已裁决：A（开放），T-188，2026-08-22，PM 规格裁决**（FR-54-AC3 为已定 PRD 基线，A = 维持基线原文、纠正实现偏差，属 PM 权限内；用户明示推翻则转 B 路径勘误）。**依据链**：① Artifactory 对标（决定性）——auth-model.md §3.1（高置信度，代码+官方文档双证）：真实权限模型 = 「admin 全量；**非 admin 已认证用户可为自己发 token**；匿名拒绝」，且非 admin 受「只能填自己 username」与 TTL 上限（365d，`access.token.non.admin.max.expires.in`）双约束；B 路径前提「Artifactory 同样限制」与逆向规格事实相反，走 B 须把 M1 E-17 该端点改标「有意不兼容」，违背 PRODUCT.md 架构对齐原则与场景 F 迁移平移。② 威胁模型——开放不构成提权：非 admin Token 主体=本人、权限=本人动态权限（identity token 语义，与 ADR-0010 第 4/5 条 docker token 同构），能过 session 做的事才能过 Token 做，新增仅是既有能力的持久化；真实风险为「IdP 侧停用用户后 Token 存活至过期」与「session 被盗 → 铸 Token 持久化立足点」，以护栏 ②③④ 对冲；M7+ 可选加固（SSO session 铸 Token 需二次认证）不入 M6。③ M1/M2 既有决策——admin-only 非安全红线而是 M1「username 参数未实现」的子集简化（M1 E-17 明文「admin 无参创建即可」：无 username 参数即无法区分为自己/为他人，admin-only 是当时唯一安全落点）；且 M2 起 `/v2/token` 已允许任意有效用户铸有限 TTL Token（FR-11 v1.1 双入口设计，T-43 QA 2.12 PASS）——「SSO 用户不应持有 Token」在本产品从非不变量，管理面收紧并不缩小凭据面，只砍掉自助服务与统一审计入口。④ 产品场景——§3 场景 B 明文「CI 用 LDAP 服务账号绑 Token」（服务账号通常非 admin），B 路径下每个 CI Token 须 admin 代铸，违背 M6「企业就绪/SSO 免维护」目标。**裁决细则（A 落地口径）**：admin 全量（可代任何主体、可永不过期，现状不变）；非 admin 已认证（本地/OIDC/LDAP 三臂同权）可为**本人**铸 Token——缺省 `username`=本人，指定他人 → 403 OAuth 形；`expires_in` 必须 >0 且 ≤ 上限（K9，默认 365d），0/负值/超限 → 401 `invalid_request`（文案对齐 Artifactory「can only create user token with expires in larger than 0 and smaller than <max> seconds」）；匿名拒绝（现状不变）；列表 `GET /api/security/token` 与 `revoke` 维持 admin-only（§3.3/§3.4，现状不变）；**验证期护栏**——Token 验证须校验主体用户行存在且未禁用，否则 401；审计——非 admin 铸 Token 同样记 `token.issue`（M5 G31a 既有 actor/fingerprint/TTL 面）。**实现票草案 AC**（conductor 分配编号；建议 `role:dev-go-core` `area:internal/httpapi + internal/auth`，改 router.go token 路由 routeAuth + security.go 主体判定 + 验证链用户行检查）：(1) ssouser（OIDC session，非 admin）`POST $BASE/binflow/api/security/token -d 'grant_type=client_credentials'` → 200（access_token/token_type/scope/token_id，与 T-174 H26 admin 腿同构）→ `curl -H "X-JFrog-Art-Api: $T" -X PUT $BASE/binflow/<有权repo>/t.bin` 201、GET 200、无权限路径 403；(2) jdoe（LDAP，非 admin）同 (1) 全链；(3) 本地非 admin（ci-bot）同 (1)——三臂同权 + M1 C21a/C21c admin 腿回归不破；(4) 负面腿：非 admin 带 `username=<他人>` → 403、`expires_in=0` → 401 invalid_request、`expires_in` 超上限 → 401、匿名 POST → 401；(5) 禁用即失效：admin 禁用该 OIDC 用户行后其既有 Token 全部 → 401；(6) 审计：非 admin 铸 Token 后 `GET /api/v1/audit?action=token.issue` 可见该事件（actor=用户名，含 TTL/fingerprint）；(7) revoke 回归：admin 吊销任意 Token 幂等语义不变（C21c）。**T-174 H26 定格**：维持「部分过」——admin_group 腿 ✅，普通 OIDC 用户腿按本裁决从「规格冲突悬置」转「实现票待修 FAIL 项」；D3 分级从 P0(规格冲突) 降为 P1(实现差距)。**推翻出口**：用户如明示选 B，本条转勘误记录——FR-54-AC3 改为「admin_group 映射用户可发 Token（H26 已验证），普通 OIDC/LDAP 用户 403 属预期」，OD-04 补「有意不兼容（权限模型收紧于 Artifactory）」标注，M1 E-17 兼容层级同步加注 |
 
 ---
 
@@ -878,4 +883,4 @@ bf-migrate migrate --dry-run ...  # 退出码 0，migration_report.json 统计�
 
 ---
 
-*本 PRD v1.0 由 product-manager（T-148）依据 PRODUCT.md、ROADMAP.md M6+ 展望、M1~M5 交付基线、DECISIONS.md 全部 ADR 撰写；开放问题 Q1~Q9（v1.1 增补 Q10）待用户定案后回写。与既有 ADR 的冲突/补充点见 §6.1 标注表。v1.1 勘误由 product-manager（T-181）回写：FR-50 迁移端点契约对齐实现（architecture.md §7.1 T-176 回写版）+ Q6/Q7/Q10 暂行口径（reports/agents/T-162.md）。*
+*本 PRD v1.0 由 product-manager（T-148）依据 PRODUCT.md、ROADMAP.md M6+ 展望、M1~M5 交付基线、DECISIONS.md 全部 ADR 撰写；开放问题 Q1~Q9（v1.1 增补 Q10）待用户定案后回写。与既有 ADR 的冲突/补充点见 §6.1 标注表。v1.1 勘误由 product-manager（T-181）回写：FR-50 迁移端点契约对齐实现（architecture.md §7.1 T-176 回写版）+ Q6/Q7/Q10 暂行口径（reports/agents/T-162.md）。v1.2 规格裁决由 product-manager（T-188）回写：Q11（token 端点权限 vs FR-54-AC3，T-174 D3）裁 A 路径开放 + 四条护栏 + 实现票草案 AC，依据 reports/agents/T-174.md §3 与 docs/reverse/auth-model.md §3.1。*

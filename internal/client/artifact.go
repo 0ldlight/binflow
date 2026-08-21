@@ -1,0 +1,111 @@
+package client
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"strings"
+)
+
+// ArtifactInfo describes a single artifact node (file or folder) in a
+// repository. Mirrors the server's /api/storage/{repo}/{path} item-info
+// response (E-09).
+type ArtifactInfo struct {
+	URI          string `json:"uri"`
+	Size         string `json:"size"`
+	LastModified string `json:"lastModified"`
+	Folder       bool   `json:"folder"`
+	Sha1         string `json:"sha1,omitempty"`
+	Sha256       string `json:"sha256,omitempty"`
+	MD5          string `json:"md5,omitempty"`
+	MimeType     string `json:"mimeType,omitempty"`
+}
+
+// ArtifactListEntry is one entry in the ?list response (E-10).
+type ArtifactListEntry struct {
+	URI    string `json:"uri"`
+	Folder bool   `json:"folder"`
+	Size   string `json:"size,omitempty"`
+}
+
+// ArtifactListResponse is the server response for a storage listing.
+type ArtifactListResponse struct {
+	URI     string              `json:"uri"`
+	Created string              `json:"created"`
+	Files   []ArtifactListEntry `json:"files"`
+}
+
+// GetArtifactInfo gets metadata for a single artifact (GET /binflow/api/storage/{repo}/{path}).
+func (c *Client) GetArtifactInfo(ctx context.Context, repo, nodePath string) (*ArtifactInfo, error) {
+	path := "/binflow/api/storage/" + pathEscape(repo) + "/" + trimPrefix(nodePath, "/")
+	var out ArtifactInfo
+	if err := c.getJSON(ctx, path, &out); err != nil {
+		return nil, fmt.Errorf("get artifact info %s/%s: %w", repo, nodePath, err)
+	}
+	return &out, nil
+}
+
+// ListArtifacts lists artifacts under a repo path (GET /binflow/api/storage/{repo}/{path}?list).
+func (c *Client) ListArtifacts(ctx context.Context, repo, nodePath string) (*ArtifactListResponse, error) {
+	p := "/binflow/api/storage/" + pathEscape(repo) + "/" + trimPrefix(nodePath, "/")
+	p = strings.TrimSuffix(p, "/")
+	p += "?list"
+	var out ArtifactListResponse
+	if err := c.getJSON(ctx, p, &out); err != nil {
+		return nil, fmt.Errorf("list artifacts %s/%s: %w", repo, nodePath, err)
+	}
+	return &out, nil
+}
+
+// UploadArtifact uploads a file to a repository path (PUT /binflow/{repo}/{path}).
+// The content is read from the provided reader. Size is the total byte count
+// (used for Content-Length and progress reporting). contentType defaults to
+// "application/octet-stream" when empty.
+func (c *Client) UploadArtifact(ctx context.Context, repo, nodePath string, body io.Reader, size int64, contentType string) error {
+	path := "/binflow/" + pathEscape(repo) + "/" + trimPrefix(nodePath, "/")
+	if err := c.uploadFile(ctx, path, body, size, contentType); err != nil {
+		return fmt.Errorf("upload artifact %s/%s: %w", repo, nodePath, err)
+	}
+	return nil
+}
+
+// DownloadArtifact downloads a file from a repository path (GET /binflow/{repo}/{path}).
+// The caller must close the returned ReadCloser.
+func (c *Client) DownloadArtifact(ctx context.Context, repo, nodePath string) (io.ReadCloser, error) {
+	path := "/binflow/" + pathEscape(repo) + "/" + trimPrefix(nodePath, "/")
+	req, err := c.newRequest(ctx, "GET", path, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.httpClient().Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("download artifact %s/%s: %w", repo, nodePath, err)
+	}
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		return resp.Body, nil
+	}
+	defer func() { _ = resp.Body.Close() }()
+	body, _ := io.ReadAll(resp.Body)
+	return nil, parseStatusError(resp.StatusCode, body)
+}
+
+// DeleteArtifact deletes a file from a repository path (DELETE /binflow/{repo}/{path}).
+func (c *Client) DeleteArtifact(ctx context.Context, repo, nodePath string) error {
+	path := "/binflow/" + pathEscape(repo) + "/" + trimPrefix(nodePath, "/")
+	req, err := c.newRequest(ctx, "DELETE", path, nil)
+	if err != nil {
+		return err
+	}
+	if err := c.do(req, nil); err != nil {
+		return fmt.Errorf("delete artifact %s/%s: %w", repo, nodePath, err)
+	}
+	return nil
+}
+
+// trimPrefix removes a leading "/" from s, if present.
+func trimPrefix(s, prefix string) string {
+	if strings.HasPrefix(s, prefix) {
+		return s[len(prefix):]
+	}
+	return s
+}
