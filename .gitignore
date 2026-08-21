@@ -48,3 +48,4 @@ charts/*.tgz
 data/
 *.db
 *.sqlite
+binflow-server
