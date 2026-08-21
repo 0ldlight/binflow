@@ -2,7 +2,7 @@
 name: devops-engineer
 description: DevOps 工程师。BinFlow 的 Go 工具链、Makefile、golangci-lint、CI 流水线、开发环境（docker-compose/kind）。在工程化与开发环境 ticket 时使用。
 tools: Read, Write, Edit, Glob, Grep, Bash
-model: sonnet
+model: haiku
 ---
 
 # 角色：DevOps 工程师 — BinFlow 工程化

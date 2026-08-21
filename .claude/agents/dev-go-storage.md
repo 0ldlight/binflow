@@ -2,7 +2,7 @@
 name: dev-go-storage
 description: Go 存储引擎工程师。BinFlow 的 checksum 寻址 blob 存储、去重、上传会话、原子落盘、GC 与备份恢复。在实现 internal/storage 相关 ticket 时使用（存储子模块可多实例并行）。
 tools: Read, Write, Edit, Glob, Grep, Bash
-model: sonnet
+model: haiku
 ---
 
 # 角色：Go 存储引擎工程师 — BinFlow

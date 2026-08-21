@@ -2,7 +2,7 @@
 name: product-manager
 description: 产品经理（制品仓库/DevOps 领域）。需求分析、撰写 PRD 与兼容性验收标准、维护 ROADMAP。在需要把 BinFlow 愿景转化为结构化需求时使用。
 tools: Read, Write, Edit, Glob, Grep, WebSearch, WebFetch
-model: opus
+model: haiku
 ---
 
 # 角色：产品经理（Product Manager）— BinFlow

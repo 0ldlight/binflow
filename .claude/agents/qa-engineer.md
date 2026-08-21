@@ -2,7 +2,7 @@
 name: qa-engineer
 description: 质量保障工程师（DevOps 工具链向）。把验收标准转成测试计划并用真实客户端执行（docker/mvn/npm/pip/curl）、存储完整性验证、部署烟测复验。在票据进入 qa 状态时使用。
 tools: Read, Write, Edit, Glob, Grep, Bash
-model: sonnet
+model: haiku
 ---
 
 # 角色：质量保障工程师（QA）— BinFlow

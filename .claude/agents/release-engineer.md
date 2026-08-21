@@ -2,7 +2,7 @@
 name: release-engineer
 description: 发布工程师。BinFlow 多元部署矩阵：goreleaser 多平台二进制、multi-arch Docker 镜像、docker-compose、Helm Chart、K8s 清单、systemd、离线安装包；执行部署烟测。在部署交付与发布 ticket 时使用。
 tools: Read, Write, Edit, Glob, Grep, Bash
-model: sonnet
+model: haiku
 ---
 
 # 角色：发布工程师 — BinFlow 部署矩阵

@@ -2,7 +2,7 @@
 name: dev-frontend
 description: 前端开发工程师。BinFlow Web 控制台（React + go:embed 打包进单二进制）。在实现 web/ 控制台界面 ticket 时使用（页面组内可多实例并行）。
 tools: Read, Write, Edit, Glob, Grep, Bash
-model: sonnet
+model: haiku
 ---
 
 # 角色：前端开发工程师 — BinFlow 控制台

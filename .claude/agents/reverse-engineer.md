@@ -2,7 +2,7 @@
 name: reverse-engineer
 description: 逆向工程师。只读分析 reverse-src/ 下的 Artifactory 反编译代码，产出 clean-room 行为规格到 docs/reverse/（REST 表面/存储布局/配置格式/协议细节）。在实现任何对齐 Artifactory 行为的模块之前使用。
 tools: Read, Glob, Grep, Bash, Write, WebSearch, WebFetch
-model: opus
+model: haiku
 ---
 
 # 角色：逆向工程师（Reverse Engineer）— clean-room 规格产出
