@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 文档 | `docs/design/console-ux.md` |
-| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正） |
-| 状态 | v1.2（2026-08-21） |
+| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道） |
+| 状态 | v1.3（2026-08-21） |
 | 维护者 | ux-designer |
 | 上游依据 | PRODUCT.md（Web 控制台/治理/Non-goals）、ROADMAP.md M4 节、docs/prd/milestone-1/2/3/4.md（端点矩阵与已定案行为）、docs/user/docker-registry.md（用户面口径）、docs/design/architecture.md §7（路由/console 挂载点）、internal/httpapi/router.go（路由门事实——§3.6.2 矩阵逐一核对）、reports/agents/T-98.md · T-99.md（漂移登记与 testid 素材）、reports/agents/T-98-review.md（N1 收敛建议）、BOARD.md（T-85 PRD / T-97 存在性不泄露裁决） |
 | 下游消费者 | T-86（架构：console 包/session/前端工程结构）、tech-lead（M4 拆票）、前端 dev（页面组票）、qa-engineer（控制台验收） |
@@ -18,6 +18,7 @@
 | v1.0 | 2026-08-20 | T-87 初版：IA（导航树 + 18 路由 + 五协议×三仓型矩阵）、11 页线框（登录/仪表盘/仓库列表/建仓/仓库详情/制品树/上传/搜索/权限编辑器/审计/治理）、交互四态（通用原则 + 骨架屏策略 + 每页矩阵）、大目录策略、设计 token（暗色优先）、可达性、API 需求清单 R1~R10 |
 | v1.1 | 2026-08-21 | T-116 权限可见性漂移集中定案：① §3.3 按路由门事实修订角色可见性——健康、仓库列表、Tokens 三处 v1.0 设想与实现的漂移定案，**均维持实现（admin-only）**，理由与放宽前置条件见 §3.6.1；② 新增 §3.6 权限可见性矩阵（403 收敛四层主姿态 + 端点×门矩阵 + 页面×角色呈现矩阵 + admin 硬编码裁定，收敛 T-98 review N1）；③ §3.1 治理分组补「审计日志」条目（v1.0 导航漏列而 §3.2 已有路由；`GET /api/v1/audit` 为 admin 门，归治理组）；④ §5.1 的 403 分流改挂 §3.6.3 分层规则（消除「403 一律无权限卡」与卡片级隐藏的矛盾）；⑤ 新增 §10 data-testid 命名清单（T-98/T-99 已落锚全量核对自源码 + 命名规则 + T-100~T-102 预定锚——T-104 断言锚源）；⑥ 修订记录自文末移至 §0 |
 | v1.2 | 2026-08-21 | T-118 §10 testid 清单回写（T-104 断言锚冻结的前置）：① §10.3 预定锚**转正为已落地清单**——T-100~T-102 全部落码，逐一对码核对（差异注记随各组）；② `perm-matrix-cell-<principal>-<action>` 细化为 `perm-matrix-cell-{user|group}-<principal>-<action>`（防用户/组同名碰撞，T-101 遗留 2 定案），类段防碰撞原则升入 §10.1 命名规则；③ 搜索页 `search-filter-{package|type}` **删除**（实现仅 repo 过滤；R2 类型化过滤落地时回填）；④ 未落/裁剪锚（token 族 / `audit-export` / `copy-<field>`）新设 §10.4 承载，T-104 不得断言；⑤ grep 补记两处三票日志未列锚（`search-results` 结果表容器、`perm-pattern-{include|exclude}-<i>` chip 本体）；锚总量 **242 落点 / 27 文件**（`grep -rn "data-testid" web/src/`，动态族计一名约 230 锚） |
+| v1.3 | 2026-08-21 | T-123 §9 R10 例改道（E4 定案一致性收口，T-107 移交 H-3 / T-103 同建议）：session 凭据等价性示例由「docker tags/list」改为「npm packument / pypi simple」——二者挂在 `/binflow` 前缀下，cookie `Path=/binflow` 可携 session；docker tags 因 cookie 结构性不达根级 `/v2`（docker 客户端走 `/v2/token` Basic 面）不再作例。依据：PRD M4 v1.3 CE-03 E4 注记、docs/user/faq.md |
 
 ---
 
@@ -751,7 +752,7 @@ mono 栈：`ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, "Liberati
 | R7 | 配额：per-repo 上限设置与用量查询 | 配额页隐藏（M4 若裁掉则本页整体移除，不影响 IA 其余部分） |
 | R8 | 权限 pattern 判定的同源保证：前端测试器与服务端 `auth.pathmatch` 一致（提供判定规则测试向量或一次性判定端点） | 测试器标注「仅供参考，以保存后实际生效为准」（体验降级，不阻塞） |
 | R9 | remote 缓存统计（`/api/v1/remote/stats`，M3 P2）实装 + assumed-offline 状态查询 | remote 详情页统计块显示 `—` |
-| R10 | npm packument / docker tags 的浏览器可读代理已具备（packument GET、tags/list GET 均可带 session 凭据）——确认 session 对这些路径可用（T-86） | 走 `/api/storage/{repo}/{path}` 兜底（信息少：无 dist-tags 摘要） |
+| R10 | `/binflow` 前缀下的浏览器可读代理已具备且可携 session 凭据——npm packument GET `/binflow/api/npm/{repo}/{pkg}`、pypi simple GET `/binflow/api/pypi/{repo}/simple/{project}/`（cookie `Path=/binflow` 覆盖；GET 无 CSRF 面）——确认 session 对这些路径等价可用（T-86）。docker tags/list **不作例**（E4 定案：cookie 结构性不达根级 `/v2`，docker 客户端走 `/v2/token` Basic 面——PRD M4 v1.3 CE-03 注记、docs/user/faq.md） | 走 `/api/storage/{repo}/{path}` 兜底（信息少：无 dist-tags 摘要 / 无 simple 归一文件行）；docker tag 面无 session 可携代理（E4），树数据源挂另票 |
 
 ---
 
