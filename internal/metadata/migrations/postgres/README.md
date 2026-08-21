@@ -35,6 +35,20 @@ one-to-one when the dialect lands):
   (membership; the T-108 errata name, draft was group_members), web_sessions
   (id_hash=sha256 primary key, idx_web_sessions_user) and repo_usage tables
   (architecture section 6 final DDL, ADR-0014/0015).
+- 005_quota_usage_backfill: seeds one repo_usage row per repository from the
+  SUM of its node sizes (ON CONFLICT DO NOTHING); timestamp via the dialect's
+  UTC-RFC3339 expression (sqlite strftime, postgres to_char(now() AT TIME
+  ZONE 'utc', ...) — dialect-local choice).
+- 006_user_groups_username_index: idx_user_groups_username on
+  user_groups(username) — the GroupsOfUser hot lookup (T-97 review NB1).
+- 007_folder_rows_backfill (ADR-0016): sentinel blobs row (sha256 = 64 x '0',
+  size 0) FIRST — the nodes.sha256 FK makes it a hard prerequisite — then one
+  folder node row per ancestor directory of every stored node. Porting notes
+  for the postgres file: ON CONFLICT DO NOTHING replaces INSERT OR IGNORE;
+  the recursive CTE ports with strpos(path, '/') for instr() and
+  substr/length unchanged; created_by='' and created_at = updated_at = the
+  youngest descendant's created_at (MAX) keep the value deterministic across
+  replays.
 
 The migrator currently embeds `migrations/sqlite/*.sql` only
 (see ../migrate.go).

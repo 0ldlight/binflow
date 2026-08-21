@@ -372,13 +372,18 @@ func TestUploadFilenameNeutralized(t *testing.T) {
 		t.Fatalf("node under the literal name: %v", err)
 	}
 
-	// Nothing outside <name>/<version>/ ever landed: every node has exactly
-	// three segments.
+	// Nothing outside <name>/<version>/ ever landed: every FILE node has
+	// exactly three segments. Folder rows are excluded — since T-128
+	// (ADR-0016) every upload materializes its ancestor directories as
+	// trailing-slash rows, which is the invariant working as designed.
 	nodes, err := s.svc.List(context.Background(), nil, "pypi-local", "")
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
 	for _, n := range nodes {
+		if strings.HasSuffix(n.Path, "/") {
+			continue
+		}
 		if strings.Count(n.Path, "/") != 2 {
 			t.Fatalf("node %q escaped the <name>/<version>/<filename> shape", n.Path)
 		}

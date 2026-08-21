@@ -108,8 +108,11 @@ func TestT94GCDryRunAndApply(t *testing.T) {
 	t94Delete(t, h, "generic-local", "gc/b.jar")
 
 	before := t94Stats(t, h)
-	if before != 2 {
-		t.Fatalf("stats before gc: %d blobs, want 2 (dedup collapsed a.jar/keep.jar)", before)
+	// T-128 (ADR-0016): the folder marker blob (sha256=64×'0', size=0)
+	// is also counted — 2 content blobs (dedup collapsed a.jar/keep.jar)
+	// + 1 folder marker = 3. GC must never touch the folder marker.
+	if before != 3 {
+		t.Fatalf("stats before gc: %d blobs, want 3 (2 content + folder marker)", before)
 	}
 
 	// W24: dry-run reports the orphan, touches nothing.
@@ -140,8 +143,8 @@ func TestT94GCDryRunAndApply(t *testing.T) {
 
 	// The blobs ledger row died with the physical file (the CLI run's
 	// teardown; a phantom row would survive as a "blob" in stats).
-	if rows, err := h.md.Blobs().Count(context.Background()); err != nil || rows != 1 {
-		t.Fatalf("blobs ledger after apply: %d rows (err %v), want 1", rows, err)
+	if rows, err := h.md.Blobs().Count(context.Background()); err != nil || rows != 2 {
+		t.Fatalf("blobs ledger after apply: %d rows (err %v), want 2 (keeper content + folder marker)", rows, err)
 	}
 
 	// Post-apply dry-run: zero candidates.

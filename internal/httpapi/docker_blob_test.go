@@ -561,18 +561,31 @@ func TestV2BlobCrossProtocolDedup(t *testing.T) {
 		t.Fatalf("docker read-back status = %d", resp.StatusCode)
 	}
 
-	// The node rows are two distinct references to one blob.
-	nodes, err := h.md.Nodes().ListByPrefix(t.Context(), "generic-local", "")
-	if err != nil || len(nodes) != 1 {
-		t.Fatalf("generic nodes = %d err=%v", len(nodes), err)
+	// The node rows are two distinct references to one blob. T-128
+	// (ADR-0016): each protocol also materialized its ancestor folder rows
+	// (x/, app/, app/blobs/), so the comparison keys on FILE rows.
+	fileSha := func(repoKey string) string {
+		nodes, err := h.md.Nodes().ListByPrefix(t.Context(), repoKey, "")
+		if err != nil {
+			t.Fatalf("list %s nodes: %v", repoKey, err)
+		}
+		sha := ""
+		for _, n := range nodes {
+			if n.Sha256 == metadata.FolderMarkerSHA {
+				continue // materialized ancestor folder row
+			}
+			if sha != "" {
+				t.Fatalf("%s holds more than one file node: %+v", repoKey, nodes)
+			}
+			sha = n.Sha256
+		}
+		if sha == "" {
+			t.Fatalf("%s holds no file node: %+v", repoKey, nodes)
+		}
+		return sha
 	}
-	dnodes, err := h.md.Nodes().ListByPrefix(t.Context(), "docker-local", "")
-	if err != nil || len(dnodes) != 1 {
-		t.Fatalf("docker nodes = %d err=%v", len(dnodes), err)
-	}
-	if nodes[0].Sha256 != dnodes[0].Sha256 {
-		t.Fatalf("the two nodes do not share the blob: %s vs %s",
-			nodes[0].Sha256, dnodes[0].Sha256)
+	if fileSha("generic-local") != fileSha("docker-local") {
+		t.Fatal("the two file nodes do not share the blob")
 	}
 }
 
@@ -683,9 +696,10 @@ func TestV2BlobConcurrentUploads(t *testing.T) {
 		resp := h.do(http.MethodGet, "/v2/docker-local/conc0/blobs/"+r.dgst, adminUser, adminPass, nil, nil)
 		_ = resp
 	}
-	// All six blobs exist in the ledger.
-	if n, err := h.md.Blobs().Count(t.Context()); err != nil || n != 6 {
-		t.Fatalf("blob count = %d err=%v, want 6", n, err)
+	// All six content blobs exist in the ledger, plus the folder marker
+	// blob (T-128, ADR-0016: putNode materializes ancestor directories).
+	if n, err := h.md.Blobs().Count(t.Context()); err != nil || n != 7 {
+		t.Fatalf("blob count = %d err=%v, want 7 (6 content + folder marker)", n, err)
 	}
 }
 

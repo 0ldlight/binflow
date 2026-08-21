@@ -561,9 +561,9 @@ func TestDeletePrunesEmptyParents(t *testing.T) {
 			t.Fatalf("folder %q not pruned: %v", p, err)
 		}
 	}
-	// A sibling anywhere in the chain stops the prune at that level. Here
-	// the folder rows were never explicitly created (implicit directories),
-	// so only the file nodes exist and the prune stops at p/q's surviving
+	// A sibling anywhere in the chain stops the prune at that level. Since
+	// T-128 (ADR-0016) the implicit directories are materialized as folder
+	// rows too, so the prune now walks real rows and stops at p/q's surviving
 	// child.
 	put(t, e, admin(), "generic-local", "p/q/one.bin", "1")
 	put(t, e, admin(), "generic-local", "p/q/r/two.bin", "2")
@@ -667,8 +667,10 @@ func TestListPrefixFormsEquivalent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("List(d/): %v", err)
 	}
-	if len(a) != 3 || len(b) != 3 {
-		t.Fatalf("B2: List(d)=%d List(d/)=%d rows, want 3 each", len(a), len(b))
+	// T-128 reversal (ADR-0016): uploading d/sub/two.bin materializes the
+	// d/sub/ folder row, so the prefix holds four rows now.
+	if len(a) != 4 || len(b) != 4 {
+		t.Fatalf("B2: List(d)=%d List(d/)=%d rows, want 4 each", len(a), len(b))
 	}
 	amap := map[string]bool{}
 	for _, n := range a {
@@ -679,10 +681,17 @@ func TestListPrefixFormsEquivalent(t *testing.T) {
 			t.Fatalf("B2: forms disagree on %q", n.Path)
 		}
 	}
-	// Deep form equivalence too.
+	// Deep form equivalence too: the folder row plus the file beneath it.
 	c, err := e.svc.List(ctx, admin(), "generic-local", "d/sub")
-	if err != nil || len(c) != 1 || c[0].Path != "d/sub/two.bin" {
+	if err != nil || len(c) != 2 {
 		t.Fatalf("List(d/sub) = %+v, %v", c, err)
+	}
+	cmap := map[string]bool{}
+	for _, n := range c {
+		cmap[n.Path] = true
+	}
+	if !cmap["d/sub/"] || !cmap["d/sub/two.bin"] {
+		t.Fatalf("List(d/sub) rows = %v, want the folder row and the file", cmap)
 	}
 	// Root is not a listable prefix.
 	if _, err := e.svc.List(ctx, admin(), "generic-local", "/"); !errors.Is(err, repo.ErrInvalidPath) {
@@ -785,7 +794,9 @@ func TestDeleteFolderRecursive(t *testing.T) {
 	for _, n := range nodes {
 		paths[n.Path] = true
 	}
-	if len(paths) != 2 || !paths["keeper.bin"] || !paths["dx/sibling.bin"] {
+	// T-128 reversal (ADR-0016): dx/sibling.bin's upload materialized the
+	// dx/ folder row, which survives the d/ subtree delete with its child.
+	if len(paths) != 3 || !paths["keeper.bin"] || !paths["dx/sibling.bin"] || !paths["dx/"] {
 		t.Fatalf("recursive delete residue: %v", paths)
 	}
 	// Deleting a folder that does not exist (no row, no subtree) is 404.
@@ -830,18 +841,27 @@ func TestGetListPaths(t *testing.T) {
 	if _, err := e.svc.List(ctx, admin(), "ghost", ""); !errors.Is(err, repo.ErrRepoNotFound) {
 		t.Fatalf("List(ghost) error = %v", err)
 	}
+	// T-128 reversal (ADR-0016): each upload materializes its ancestor
+	// folder rows, so the root listing holds a/, a/one.bin, b/, b/two.bin.
 	all, err := e.svc.List(ctx, admin(), "generic-local", "")
-	if err != nil || len(all) != 2 {
+	if err != nil || len(all) != 4 {
 		t.Fatalf("List all = %d, %v", len(all), err)
 	}
 	sub, err := e.svc.List(ctx, admin(), "generic-local", "a")
-	if err != nil || len(sub) != 1 || sub[0].Path != "a/one.bin" {
+	if err != nil || len(sub) != 2 {
 		t.Fatalf("List a = %+v, %v", sub, err)
+	}
+	smap := map[string]bool{}
+	for _, n := range sub {
+		smap[n.Path] = true
+	}
+	if !smap["a/"] || !smap["a/one.bin"] {
+		t.Fatalf("List a rows = %v, want the folder row and the file", smap)
 	}
 	// Prefix "a" must not match "ab/…"-style paths (case-sensitive LIKE,
 	// T-10 review B1 semantics).
 	put(t, e, admin(), "generic-local", "abx/three.bin", "3")
-	if got, _ := e.svc.List(ctx, admin(), "generic-local", "a"); len(got) != 1 {
+	if got, _ := e.svc.List(ctx, admin(), "generic-local", "a"); len(got) != 2 {
 		t.Fatalf("prefix overmatch: %+v", got)
 	}
 }
@@ -1435,8 +1455,12 @@ func TestPutFromBlobSha1Concurrent(t *testing.T) {
 			t.Fatalf("writer %d: %v", i, err)
 		}
 	}
-	if n, err := e.md.Blobs().Count(ctx); err != nil || n != 1 {
-		t.Fatalf("blob count = %d, %v; want 1 (dedupe held)", n, err)
+	// T-128 reversal (ADR-0016): the shared FolderMarkerSHA sentinel is a
+	// legit ledger row now that folder rows are materialized, so the count
+	// is the content blob plus the marker; dedupe is keyed on the content
+	// blob alone.
+	if n, err := e.md.Blobs().Count(ctx); err != nil || n != 2 {
+		t.Fatalf("blob count = %d, %v; want 2 (content + folder marker)", n, err)
 	}
 	for i := 0; i < 4; i++ {
 		node, err := e.md.Nodes().Get(ctx, "generic-local", fmt.Sprintf("dst/c%d.bin", i))

@@ -502,6 +502,12 @@ func TestStorageList(t *testing.T) {
 		}
 		got := map[string]int64{}
 		for _, f := range lr.Files {
+			// T-128 (ADR-0016): materialized ancestor folder rows appear in
+			// deep listings as trailing-slash entries with size 0. Skip them
+			// so the assertion stays on the original file nodes.
+			if strings.HasSuffix(f.URI, "/") {
+				continue
+			}
 			got[f.URI] = f.Size
 		}
 		if len(got) != 2 || got["a.bin"] != int64(len("acme/a.bin")) || got["sub/deep.bin"] != int64(len("acme/sub/deep.bin")) {

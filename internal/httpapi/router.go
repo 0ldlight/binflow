@@ -169,6 +169,15 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 		// content plane: /binflow/<repo>/<path> keeps routing to
 		// dispatchContent below.
 		s.deps.Console.ServeHTTP(w, r)
+	case rest == "/docs" || rest == "/docs/" || strings.HasPrefix(rest, "/docs/"):
+		// Docs segment (T-129, PRD FR-41/DC-01, ADR-0011): the embedded
+		// help center. Anonymous and read-only — product self-description
+		// in the /healthz posture, deliberately outside every auth gate (an
+		// anonymous_access=false instance still serves it). The repo key
+		// "docs" is reserved (ADR-0008 T-108 union), so the segment can
+		// never shadow a repository; the handler owns only spellings INSIDE
+		// the segment.
+		s.deps.Docs.ServeHTTP(w, r)
 	case rest == "/api" || rest == "/api/":
 		// Bare /binflow/api: no endpoint at this address.
 		notImplemented(w, "/binflow/api")

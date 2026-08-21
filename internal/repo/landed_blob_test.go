@@ -405,7 +405,20 @@ func TestPutLandedBlobConcurrentSameDigest(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListByPrefix: %v", err)
 	}
-	if len(nodes) != 1 || nodes[0].Sha256 != ref.Sha256 {
-		t.Fatalf("nodes after race = %+v, want exactly one at the digest", nodes)
+	// T-128 reversal (ADR-0016): the prefix now also holds the materialized
+	// ancestor folder rows ("acme/app/", marker sha, size 0), so the
+	// race-count keys on FILE rows only.
+	atDigest := 0
+	for _, n := range nodes {
+		if n.Sha256 == metadata.FolderMarkerSHA {
+			continue
+		}
+		if n.Sha256 != ref.Sha256 {
+			t.Fatalf("unexpected file node after race: %+v", n)
+		}
+		atDigest++
+	}
+	if atDigest != 1 {
+		t.Fatalf("file nodes after race = %d, want exactly one at the digest (all rows: %+v)", atDigest, nodes)
 	}
 }

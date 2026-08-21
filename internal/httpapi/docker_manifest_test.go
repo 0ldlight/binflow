@@ -426,8 +426,21 @@ func TestV2ManifestItemInfo(t *testing.T) {
 	// A blob node answers FileInfo too (octet-stream, the blob plane's
 	// stored mime). The prefix carries no trailing slash (likePrefix's
 	// subtree arm is prefix+"/%" — a trailing slash would double it).
-	blobNodes, err := h.md.Nodes().ListByPrefix(t.Context(), "docker-local", "app/blobs")
-	if err != nil || len(blobNodes) != 3 { // manifest body + config + layer
+	allNodes, err := h.md.Nodes().ListByPrefix(t.Context(), "docker-local", "app/blobs")
+	if err != nil {
+		t.Fatalf("blob nodes: %v", err)
+	}
+	// T-128 (ADR-0016): the materialized ancestor folder row app/blobs/
+	// appears in the prefix listing. Exclude it so the count stays at
+	// the three file nodes (manifest body + config + layer).
+	blobNodes := allNodes[:0]
+	for _, n := range allNodes {
+		if strings.HasSuffix(n.Path, "/") {
+			continue
+		}
+		blobNodes = append(blobNodes, n)
+	}
+	if len(blobNodes) != 3 { // manifest body + config + layer
 		t.Fatalf("blob nodes = %d err=%v", len(blobNodes), err)
 	}
 	for _, n := range blobNodes {

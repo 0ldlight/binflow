@@ -205,3 +205,17 @@ func parentPrefix(path string) string {
 	}
 	return ""
 }
+
+// ancestorDirs enumerates the trailing-slash folder paths of every ancestor
+// directory of path, outermost first, EXCLUDING path itself — a folder
+// target is written by putNode's own folder arm, never as its own ancestor
+// (ADR-0016: "a/b/c/" materializes "a/" and "a/b/", then writes "a/b/c/").
+// Root-level paths ("f", "a/") have no ancestors and answer nil.
+func ancestorDirs(path string) []string {
+	segs := strings.Split(strings.TrimSuffix(path, "/"), "/")
+	var dirs []string
+	for i := 1; i < len(segs); i++ {
+		dirs = append(dirs, strings.Join(segs[:i], "/")+"/")
+	}
+	return dirs
+}

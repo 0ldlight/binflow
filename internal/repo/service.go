@@ -728,17 +728,21 @@ func (s *service) ensureFolderLedger(ctx context.Context) error {
 }
 
 func (s *service) putNode(ctx context.Context, p *Principal, repoKey, path string, folder bool, ref storage.BlobRef, mime string) (*metadata.Node, error) {
-	sha256 := ref.Sha256
-	size := ref.Size
+	// Ancestors first (ADR-0016): every ancestor directory row lands BEFORE
+	// the target row, for file and folder targets alike. A crash past this
+	// point can only leave benign empty folder rows behind — never a file
+	// row whose parent directory row is missing.
+	if err := s.materializeAncestors(ctx, p, repoKey, path); err != nil {
+		return nil, err
+	}
 	if folder {
-		sha256 = emptyFolderSHA
-		size = 0
+		return s.putFolderRow(ctx, p, repoKey, path, mime)
 	}
 
 	existing, err := s.md.Nodes().Get(ctx, repoKey, path)
 	switch {
 	case err == nil:
-		if existing.Sha256 == sha256 {
+		if existing.Sha256 == ref.Sha256 {
 			// Same content (or the same folder marker): refresh the
 			// modified-side fields, keep created/createdBy (repo-semantics
 			// section 3).
@@ -759,21 +763,15 @@ func (s *service) putNode(ctx context.Context, p *Principal, repoKey, path strin
 	// row (idempotent, ON CONFLICT DO NOTHING) lands before the node row
 	// that references it; the FK is the crash backstop. A failure here
 	// leaves at most an unreferenced blob — no node, nothing dangling.
-	if folder {
-		if err := s.ensureFolderLedger(ctx); err != nil {
-			return nil, fmt.Errorf("folder ledger row: %w", err)
-		}
-	} else {
-		if err := s.md.Blobs().Put(ctx, &metadata.Blob{
-			Sha256: ref.Sha256, Sha1: ref.Sha1, Md5: ref.Md5, Size: ref.Size, CreatedAt: s.now(),
-		}); err != nil {
-			return nil, fmt.Errorf("blob row %s: %w", ref.Sha256, err)
-		}
+	if err := s.md.Blobs().Put(ctx, &metadata.Blob{
+		Sha256: ref.Sha256, Sha1: ref.Sha1, Md5: ref.Md5, Size: ref.Size, CreatedAt: s.now(),
+	}); err != nil {
+		return nil, fmt.Errorf("blob row %s: %w", ref.Sha256, err)
 	}
 
 	now := s.now()
 	n := &metadata.Node{
-		RepoKey: repoKey, Path: path, Sha256: sha256, Size: size, Mime: mime,
+		RepoKey: repoKey, Path: path, Sha256: ref.Sha256, Size: ref.Size, Mime: mime,
 		CreatedBy: p.Name, CreatedAt: now, UpdatedAt: now,
 	}
 	if existing != nil {
@@ -784,6 +782,85 @@ func (s *service) putNode(ctx context.Context, p *Principal, repoKey, path strin
 	}
 	if err := s.md.Usage().PutNodeWithUsage(ctx, n, s.now()); err != nil {
 		return nil, fmt.Errorf("node %s/%s: %w", repoKey, path, err)
+	}
+	return n, nil
+}
+
+// folderMime is the mime column materialized ancestor folder rows carry. The
+// FolderInfo render never reads a folder's mime (folders have no content
+// type); the fixed default keeps ancestor rows uniform whatever the target
+// write's declared type happens to be.
+const folderMime = "application/octet-stream"
+
+// materializeAncestors lands one folder row per ancestor directory of path,
+// outermost first (ADR-0016, the directory-materialization invariant; the
+// 007 migration backfills databases written before it). Each write reuses
+// the folder arm verbatim — the same semantics an explicit mkdir gets — so
+// an already-materialized ancestor is an idempotent refresh (updated_at
+// follows its descendants, created/created_by preserved) and a fresh one is
+// a new size-0 row keyed by the shared FolderMarkerSHA sentinel.
+//
+// Ancestors are DERIVED state and pass none of the target write's gates: no
+// permission check, no governance pattern, no audit event, quota/usage delta
+// 0 (folder size is 0). Legality is inherited from the target write, which
+// every caller has already fully gated by the time putNode runs.
+//
+// The remote pull-through engine does NOT come through here — it writes
+// Nodes().Put directly and materializes nothing (architecture section 11
+// debt 20; M4 has no remote directory-browsing surface, so the gap is
+// unobservable).
+func (s *service) materializeAncestors(ctx context.Context, p *Principal, repoKey, path string) error {
+	for _, dir := range ancestorDirs(path) {
+		if _, err := s.putFolderRow(ctx, p, repoKey, dir, folderMime); err != nil {
+			return fmt.Errorf("materialize ancestor %s/%s: %w", repoKey, dir, err)
+		}
+	}
+	return nil
+}
+
+// putFolderRow is putNode's folder arm, extracted so the target write and
+// materializeAncestors share one spelling: probe the row, then either the
+// idempotent refresh (same marker sha: update mime + updated_at, keep
+// created/created_by) or the blob-first fresh write (sentinel ledger row,
+// then the size-0 node row through Usage().PutNodeWithUsage). A pre-existing
+// non-marker row at a folder path cannot be produced by any writer; should
+// one appear, it is treated exactly like an overwrite (provenance kept,
+// marker written), mirroring the file arm.
+func (s *service) putFolderRow(ctx context.Context, p *Principal, repoKey, folderPath, mime string) (*metadata.Node, error) {
+	existing, err := s.md.Nodes().Get(ctx, repoKey, folderPath)
+	switch {
+	case err == nil:
+		if existing.Sha256 == emptyFolderSHA {
+			existing.Mime = mime
+			existing.UpdatedAt = s.now()
+			if err := s.md.Usage().PutNodeWithUsage(ctx, existing, s.now()); err != nil {
+				return nil, fmt.Errorf("idempotent folder redeploy %s/%s: %w", repoKey, folderPath, err)
+			}
+			return existing, nil
+		}
+	case errors.Is(err, metadata.ErrNodeNotFound):
+		// new row below
+	default:
+		return nil, fmt.Errorf("node %s/%s: %w", repoKey, folderPath, err)
+	}
+
+	// The shared empty-folder blob row must precede any folder node write
+	// (same blob-first reason as content uploads; the nodes.sha256 FK is the
+	// crash backstop).
+	if err := s.ensureFolderLedger(ctx); err != nil {
+		return nil, fmt.Errorf("folder ledger row: %w", err)
+	}
+	now := s.now()
+	n := &metadata.Node{
+		RepoKey: repoKey, Path: folderPath, Sha256: emptyFolderSHA, Size: 0, Mime: mime,
+		CreatedBy: p.Name, CreatedAt: now, UpdatedAt: now,
+	}
+	if existing != nil {
+		n.CreatedBy = existing.CreatedBy
+		n.CreatedAt = existing.CreatedAt
+	}
+	if err := s.md.Usage().PutNodeWithUsage(ctx, n, s.now()); err != nil {
+		return nil, fmt.Errorf("node %s/%s: %w", repoKey, folderPath, err)
 	}
 	return n, nil
 }
