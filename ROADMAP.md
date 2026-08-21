@@ -49,11 +49,13 @@
 - [ ] （验收面）Playwright + curl W 序列与 M1~M3 回归基线反转（FR-33，PRD §5.6）
 
 ### M5 — 发布矩阵与文档中心（GA）
+需求基线：docs/prd/milestone-5.md（PRD v1.0，T-125；FR-34~FR-47；M4 债务归置入 M5 8 / M6+ 2 见 PRD §6.4；四项开放问题附暂行——发布渠道 / HPA 呈现 / 烟测环境可得性 / GA 版本号）
 - [ ] goreleaser 多平台二进制（linux/darwin/windows × amd64/arm64）+ 校验和
 - [ ] Docker multi-arch 镜像（distroless / alpine 双变体）
 - [ ] docker-compose 产物、Helm Chart（persistence/ingress/HPA）、原生 K8s 清单、systemd + 安装脚本、离线安装包
 - [ ] 帮助文档中心：每种部署方式的安装指南、每协议客户端接入指南、管理指南、API 参考、FAQ
 - [ ] 安全审计（security-auditor）+ 性能基准
+- [ ] （T-125 增补，待 conductor 确认范围差异）M4 债务收编：ADR-0016 目录实体化（BE+FE）、token 签发/吊销审计、docker 树数据源定案与特化视图、windows 锁运行时验证（条件腿）、storage uri 基址族修正（P2）
 
 ### M6+ — 展望
 S3 存储后端、复制/联邦、OIDC/LDAP、Prometheus 指标、`bf` CLI、Artifactory 迁移工具。
