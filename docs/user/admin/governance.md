@@ -171,6 +171,154 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/tiny/b.bin --data-binary @800b.bin
 
 审计页（过滤 + 游标加载更多）、GC 页（stats + dry-run 面板 + 输入实例名确认 apply）、配额页（每仓水位条 80% 黄/100% 红 + 行内编辑）均消费与本文相同的 REST 面——脚本与界面行为可互证（页面测试即 API 测试）。
 
+## 用户管理
+
+### 用户 CRUD
+
+```bash
+# 创建用户（PUT = create-or-replace，两态 201）
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/security/users/jane \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"jane","password":"<口令>","email":"jane@example.com","admin":false}' \
+  -o /dev/null -w '%{http_code}\n'                     # 201
+
+# 查询用户（返回不含口令字段）
+curl -su admin:$ADMIN_PW $BASE/binflow/api/security/users/jane
+# {"name":"jane","email":"jane@example.com","admin":false,"groups":[],"realm":"internal",...}
+
+# 用户列表
+curl -su admin:$ADMIN_PW $BASE/binflow/api/security/users
+# [{"name":"admin","uri":"...","realm":"internal"},{"name":"jane",...}]
+
+# 部分更新（POST；指针区分缺省与显式空）
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/security/users/jane \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"jane@new.example.com","groups":["devs"]}' \
+  -o /dev/null -w '%{http_code}\n'                     # 200
+```
+
+| 操作 | 注意 |
+|---|---|
+| 创建 | `email` **必填**（缺省 400）；`groups` 引用未知组 → 400 |
+| 替换 | `PUT users` 已存在 → 201（create-or-replace），覆盖所有字段；未提供的字段不保留旧值 |
+| 列表 | 简形态 `[{name, uri, realm}]`——email/groups 仅在单查端点出现 |
+| 删除 | **M4 未提供**（DELETE 端点未做，登记 P2） |
+| 改密 | 自己改：`PUT /api/security/password`；admin 改别人：`POST /api/security/users/{name}` 带 `password` 字段 |
+
+> **重要**：用户详情响应**不含口令字段**（明文或哈希均不出现）。不存在 `hashedPassword` 字段。
+
+### 组管理
+
+组是权限模型的核心组织载体——admin 可以建组、入组、授权，但不能把组授予 admin 位（admin 是用户属性，不是可授予权限）。
+
+```bash
+# 建组（PUT 创建或更新）
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/security/groups/devs \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"devs","description":"开发组"}' -o /dev/null -w '%{http_code}\n'      # 201
+
+# 创建与更新分态
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/security/groups/devs \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"devs","description":"new desc"}' -o /dev/null -w '%{http_code}\n'   # 200（已存在，更新）
+
+# 组列表
+curl -su admin:$ADMIN_PW $BASE/binflow/api/security/groups
+# [{"name":"devs","uri":"...","description":"new desc"}]
+
+# 删除组
+curl -su admin:$ADMIN_PW -X DELETE $BASE/binflow/api/security/groups/devs \
+  -w '\n%{http_code}\n'
+# 被权限引用 → 409: Cannot delete group 'devs': it is referenced by permission target(s): ...
+# 无引用 → 200: The group: 'devs' has been removed successfully.
+```
+
+组名规则：`[a-z][a-z0-9._-]*`（小写字母开头）；保留字 `anonymous` / `_system_` → 400。
+
+### 权限模型
+
+权限 target 定义**谁（principals）能对哪些仓库的哪些路径（patterns）执行哪些操作（actions）**：
+
+```json
+{
+  "name": "devs-rw",
+  "repos": ["generic-local"],
+  "includePatterns": ["devs/**"],
+  "excludePatterns": [],
+  "principals": {
+    "users": {},
+    "groups": {
+      "devs": ["read", "write"]
+    }
+  }
+}
+```
+
+有效权限 = 用户直接授予 ∪ 所属各组授予（并集）。**逐请求现算**——移出组下一次请求即生效，无缓存窗口。
+
+| 动作 | 说明 |
+|---|---|
+| `read` | 下载/查看/解析 |
+| `write` | 上传/发布/部署 |
+| `delete` | 删除/覆盖 |
+
+> **组不能授予 admin 位**：admin 是用户属性（账户级），不是可授予的权限动作。admin 组成员中的非 admin 用户访问管理面仍是 403——这是有意设计，防止「建个组把自己提权」。
+
+三步授权流：建组 → 建用户入组 → 建 permission target 引用组。完整操作与 curl 对账见[用户组与权限管理](groups-permissions.md)。
+
+### 有效权限视图
+
+`?permissions` 参数返回逐主体在指定路径上的有效权限（admin only，仅 local 仓）：
+
+```bash
+curl -su admin:$ADMIN_PW "$BASE/binflow/api/storage/generic-local/devs/w.bin?permissions"
+# {"uri":"...","principals":{"users":{},"groups":{"devs":["r","w"]}}}
+```
+
+key 为主体名，value 为权限字母集合（r/w/d）。无任何权限的主体不出现。virtual/remote 仓 → 400。
+
+## Token 审计
+
+### Token 管理
+
+```bash
+# 签发 token（admin only，可指名替目标用户签发）
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/security/token \
+  -d 'grant_type=client_credentials&username=ci-bot'
+# 200: {"access_token":"<64hex>","token_id":"<id>","expires_in":2592000,"scope":"api:*"}
+
+# 吊销 token（admin only）
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/security/token/revoke \
+  -d "token_id=<上面的 token_id>"
+# 200: {"message":"token revoked"}
+```
+
+| 属性 | 说明 |
+|---|---|
+| Token 格式 | 64 位 hex（256-bit），仅签发时明文返回一次 |
+| 默认 TTL | 2592000 秒（30 天），`auth__token_default_ttl_hours` 可调 |
+| Token 作用域 | M1 无 scope 模型——`api:*` 表示全量权限 |
+| 吊销 | admin only，吊销后即时生效 |
+| OAuth 错误体 | Token 端点的所有非 2xx 响应均为 OAuth 风格（`{"error":"...","error_description":"..."}`），非 E-01 errors[] 信封 |
+
+### Token 审计现状
+
+**M4 已知缺口**：
+- `token.issue` 动作在审计词表中定义，但签发**不落审计事件**（无留痕）
+- `token.revoke` 有日志输出，但同样不落审计表
+- 排障时以服务端结构化日志为准（WARN 级 `token revoked` 事件）
+
+令牌的签发与吊销是高风险操作，M4 登记为 P2 债务，后续将补齐审计事件。过渡期排障发布：
+
+```bash
+# 查看服务端日志中 token 操作
+grep -E 'token.issue|token.revoke' /var/log/binflow/*.log
+```
+
+### Docker Token 与 Token 同表
+
+Docker 客户端经 `docker login` 换取的 distribution token 与管理面 `POST /api/security/token` 签发的 Access Token **同表存储**——管理面吊销对所有 token 即时生效（包括 docker 客户端的 Bearer token）。
+
 ## 下一步
 
 - 备份与恢复（export/import 与 GC 的锁互斥关系）：[备份与恢复手册](backup-restore.md)

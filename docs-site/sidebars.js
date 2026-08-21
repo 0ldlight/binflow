@@ -64,8 +64,7 @@ const sidebars = {
     //           'install/offline', 'install/upgrade'],
     // },
 
-    // --- API 参考 lands with T-142 ---
-    // { type: 'doc', id: 'api-reference', label: 'API 参考' },
+    { type: 'doc', id: 'api-reference', label: 'API 参考' },
   ],
 }
 

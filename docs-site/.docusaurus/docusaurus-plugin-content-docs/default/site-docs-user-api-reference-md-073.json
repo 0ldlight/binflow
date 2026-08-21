@@ -1,0 +1,23 @@
+{
+  "id": "api-reference",
+  "title": "API 参考",
+  "description": "适用版本：M1~M4（端点引入里程碑标注于各表）。Artifactory 兼容端点基于 REST 逆向规格 docs/reverse/rest-api.md（置信度高）。",
+  "source": "@site/../docs/user/api-reference.md",
+  "sourceDirName": ".",
+  "slug": "/api-reference",
+  "permalink": "/binflow/docs/api-reference",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 70,
+  "frontMatter": {
+    "title": "API 参考",
+    "sidebar_position": 70
+  },
+  "sidebar": "main",
+  "previous": {
+    "title": "FAQ 与故障排查",
+    "permalink": "/binflow/docs/faq"
+  }
+}

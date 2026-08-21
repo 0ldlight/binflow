@@ -19,5 +19,9 @@
   "previous": {
     "title": "备份与恢复手册",
     "permalink": "/binflow/docs/admin/backup-restore"
+  },
+  "next": {
+    "title": "API 参考",
+    "permalink": "/binflow/docs/api-reference"
   }
 }

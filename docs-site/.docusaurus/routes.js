@@ -9,15 +9,15 @@ export default [
   },
   {
     path: '/binflow/docs/',
-    component: ComponentCreator('/binflow/docs/', '3b1'),
+    component: ComponentCreator('/binflow/docs/', 'd97'),
     routes: [
       {
         path: '/binflow/docs/',
-        component: ComponentCreator('/binflow/docs/', '24a'),
+        component: ComponentCreator('/binflow/docs/', '5da'),
         routes: [
           {
             path: '/binflow/docs/',
-            component: ComponentCreator('/binflow/docs/', '3b4'),
+            component: ComponentCreator('/binflow/docs/', '3bb'),
             routes: [
               {
                 path: '/binflow/docs/admin',
@@ -46,6 +46,12 @@ export default [
               {
                 path: '/binflow/docs/admin/remote-virtual',
                 component: ComponentCreator('/binflow/docs/admin/remote-virtual', '925'),
+                exact: true,
+                sidebar: "main"
+              },
+              {
+                path: '/binflow/docs/api-reference',
+                component: ComponentCreator('/binflow/docs/api-reference', 'f00'),
                 exact: true,
                 sidebar: "main"
               },

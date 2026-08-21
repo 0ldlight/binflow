@@ -256,7 +256,7 @@ func (s *Server) handleStoragePermissions(w http.ResponseWriter, r *http.Request
 		writeError(w, http.StatusInternalServerError, "permission view failed")
 		return
 	}
-	view := permissionsView{URI: storageURI(requestBase(r), repoKey, "api/storage/"+path)}
+	view := permissionsView{URI: storageURI(requestBase(r), repoKey, path)}
 	view.Principals.Users = principalLetters(users)
 	view.Principals.Groups = principalLetters(groups)
 	writeJSONBody(w, http.StatusOK, view)
@@ -455,10 +455,13 @@ func firstSegment(rel string) (head string, isFolder bool) {
 	return rel, false
 }
 
-// storageURI builds the uri/downloadUri fields: <base>/<repo>/<path>. A
-// trailing slash on relPath is preserved (folder addressing).
+// storageURI builds the uri/downloadUri fields: <base>/binflow/api/storage/<repo>/<path>.
+// The repo key appears exactly ONCE in the resulting URI (G33a: URI base family
+// unification — prior to T-140, some callers prepended "api/storage/" to relPath
+// which caused a wrong path shape; the family now shares the single definition).
+// A trailing slash on relPath is preserved (folder addressing).
 func storageURI(base, repoKey, relPath string) string {
-	return base + "/" + repoKey + "/" + relPath
+	return base + "/binflow/api/storage/" + repoKey + "/" + relPath
 }
 
 // digestTripleOf resolves the node's three digests (sha256 from the node,
@@ -543,7 +546,7 @@ func (s *Server) handleStorageList(w http.ResponseWriter, r *http.Request, repoK
 
 	prefix := dir + "/"
 	resp := listResponse{
-		URI:     storageURI(requestBase(r), repoKey, "api/storage/"+node.Path),
+		URI:     storageURI(requestBase(r), repoKey, node.Path),
 		Created: isoMillisUTC(node.CreatedAt),
 		Files:   []listFile{},
 	}

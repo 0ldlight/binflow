@@ -1,0 +1,76 @@
+# BinFlow systemd service unit (T-138, FR-39, PB-07).
+#
+# Installation:
+#   sudo cp contrib/systemd/binflow.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now binflow
+#
+# Or use the bundled install script:
+#   sudo bash contrib/systemd/install.sh
+#
+# The service runs as the system user "binflow" (non-root). The install script
+# creates this user and the required directory layout.  If you are installing
+# manually, create the user and directories first:
+#
+#   sudo useradd -r -s /usr/sbin/nologin -M -d /var/lib/binflow binflow
+#   sudo mkdir -p /etc/binflow /var/lib/binflow
+#   sudo chown -R binflow:binflow /etc/binflow /var/lib/binflow
+#
+# Config file:
+#   The server reads /etc/binflow/binflow.yaml on startup.  Copy and edit
+#   dist/config.yaml (or the sample shipped with the binary) as a starting
+#   point.  Environment overrides can be placed in /etc/binflow/env (optional).
+#
+# Security:
+#   - Runs as non-root (User=binflow)
+#   - NoNewPrivileges=yes (no setuid / capability escalation)
+#   - ProtectSystem=strict (read-only /usr, /boot, /etc; exceptions below)
+#   - ProtectHome=yes (no access to /home, /root, /run/user)
+#   - Data is written only to /var/lib/binflow (ReadWritePaths)
+
+[Unit]
+Description=BinFlow artifact repository
+Documentation=https://github.com/example/binflow
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=binflow
+Group=binflow
+WorkingDirectory=/var/lib/binflow
+ExecStart=/usr/local/bin/binflow-server serve -c /etc/binflow/binflow.yaml
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/binflow
+# Allow reading the config and env file from /etc/binflow
+ReadOnlyPaths=/etc/binflow
+
+# Optional environment file (not mandatory — no error if missing)
+EnvironmentFile=-/etc/binflow/env
+
+# Limit file descriptors
+LimitNOFILE=65536
+
+# Allowed capabilities: none beyond default
+CapabilityBoundingSet=
+
+# Private /tmp and /dev
+PrivateTmp=yes
+PrivateDevices=yes
+
+# Network only (no raw sockets, no tun/tap)
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+# System call filter
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target

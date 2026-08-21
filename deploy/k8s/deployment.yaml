@@ -24,6 +24,11 @@ spec:
         app.kubernetes.io/name: binflow
         app.kubernetes.io/component: server
     spec:
+      # Disable automatic injection of K8s service environment variables
+      # (BINFLOW_SERVICE_HOST, BINFLOW_PORT, etc.) which would collide with
+      # BinFlow's BINFLOW_ config namespace.
+      enableServiceLinks: false
+
       # ── Security context ─────────────────────────────────────────────
       securityContext:
         runAsNonRoot: true

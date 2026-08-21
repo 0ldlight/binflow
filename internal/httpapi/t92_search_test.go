@@ -107,7 +107,7 @@ func TestSearchArtifactW14(t *testing.T) {
 	if got.Repo != "generic-local" || got.Path != "/acme/artifact.bin" {
 		t.Fatalf("hit = %s%s, want generic-local/acme/artifact.bin", got.Repo, got.Path)
 	}
-	if got.URI != h.srv.URL+"/generic-local/acme/artifact.bin" || got.DownloadURI != got.URI {
+	if got.URI != h.srv.URL+"/binflow/api/storage/generic-local/acme/artifact.bin" || got.DownloadURI != got.URI {
 		t.Fatalf("uri/downloadUri = %q / %q", got.URI, got.DownloadURI)
 	}
 	if got.Size != "14" { // len("artifact-bytes")

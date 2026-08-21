@@ -127,3 +127,335 @@ curl -s -D - -o /dev/null $BASE/binflow/<repo>/<path>        # 完整响应头�
 ```
 
 服务端日志为结构化 JSON（level/msg/字段），无堆栈噪音；升级与已知边界见各指南「有意不兼容」小节。
+
+## Docker 快速通道
+
+### 如何推送镜像
+
+```bash
+# 1. 建仓（admin 操作）
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/docker-local \
+  -H 'Content-Type: application/json' \
+  -d '{"rclass":"local","packageType":"docker"}' \
+  -o /dev/null -w '%{http_code}\n'      # 200
+
+# 2. 登录
+echo "$ADMIN_PW" | docker login $REG -u admin --password-stdin
+
+# 3. 推送（全名格式：<host>/<repoKey>/<image>:<tag>）
+docker build -t $REG/docker-local/acme/app:v1 .
+docker push $REG/docker-local/acme/app:v1
+```
+
+### 如何拉取
+
+```bash
+docker pull $REG/docker-local/acme/app:v1
+docker run --rm $REG/docker-local/acme/app:v1
+```
+
+匿名拉取默认开启（`anonymous_access: true`）；`docker logout` 后 `docker pull` 仍可用（匿名 token 通道）。push **永远需要认证**。
+
+### 认证问题
+
+- `docker login` 成功后 credential store 记录凭据，push/pull 自动使用。
+- 登录失败（口令错）→ `unauthorized: authentication required`，退出码 1。
+- Docker 面认证走 `/v2/token` 分发 Bearer token（distribution token 协议），与 `/binflow` 管理面的 Basic/token 认证是不同的认证入口——同一用户、同一权限模型，但 token 形态不同。
+
+### Tag 管理
+
+```bash
+# 查看所有 tag
+curl -su admin:$ADMIN_PW $REG/v2/docker-local/acme/app/tags/list
+# {"name":"docker-local/acme/app","tags":["v1","latest"]}
+
+# 由 manifest 摘要删除 tag
+DIGEST=$(docker manifest inspect --insecure $REG/docker-local/acme/app:v1 | jq -r '.config.digest')
+# 通过 manifest digest 删除
+curl -su admin:$ADMIN_PW -X DELETE $REG/v2/docker-local/acme/app/manifests/$DIGEST
+```
+
+> Tag 删除不支持 `DELETE /v2/<name>/manifests/<tag>`（spec 禁止），只能通过 manifest digest 删除。
+
+### 明文 HTTP 问题
+
+Docker daemon 对非 localhost 地址默认强制 HTTPS。遇到 `http: server gave HTTP response to HTTPS client`：
+
+- `localhost:8080` 目标：**零配置**，daemon 默认把 `127.0.0.0/8` 视为 insecure
+- 远程主机：配置 daemon 的 insecure-registries 列表（Docker Desktop → Settings → Docker Engine；Linux → `/etc/docker/daemon.json`）
+- 或在前面加 TLS 反代（nginx/traefik），见 [Docker 接入指南](docker-registry.md#前置反向代理可选)
+
+## 通用制品的上传与下载
+
+### 上传（curl 单行）
+
+```bash
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/generic-local/a/b/w.bin \
+  --data-binary @w.bin -o /dev/null -w '%{http_code}\n'
+# 201
+
+# 带 checksum 声明
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/generic-local/x/ok.bin \
+  --data-binary @ok.bin -H "X-Checksum-Sha256: $(shasum -a 256 ok.bin | cut -d' ' -f1)" \
+  -o /dev/null -w '%{http_code}\n'
+```
+
+### 下载
+
+```bash
+curl -s -o dl.bin $BASE/binflow/generic-local/a/b/w.bin
+# 匿名可读（默认 anonymous_access: true）
+
+# 校验和头查看
+curl -s -D - -o /dev/null $BASE/binflow/generic-local/a/b/w.bin | grep -i checksum
+```
+
+### 校验和验证
+
+下载后对账：
+
+```bash
+curl -s -D headers.txt -o dl.bin $BASE/binflow/generic-local/a/b/w.bin
+grep -i 'x-checksum-sha256' headers.txt | tail -c 65   # 服务端实测摘要
+shasum -a 256 dl.bin | cut -d' ' -f1                    # 本地实测摘要
+```
+
+## Maven 客户端接入速查
+
+### settings.xml 最小配置
+
+```xml
+<settings>
+  <servers>
+    <server>
+      <id>binflow</id>                            <!-- 必须与 altDeploymentRepository 首段一致 -->
+      <username>admin</username>
+      <password>$ADMIN_PW</password>
+    </server>
+  </servers>
+</settings>
+```
+
+### 发布
+
+```bash
+mvn -B -DskipTests deploy \
+  -DaltDeploymentRepository=binflow::default::http://localhost:8080/binflow/maven-local
+```
+
+### 解析
+
+```xml
+<!-- 在项目的 pom.xml 中 -->
+<repositories>
+  <repository>
+    <id>bf</id>
+    <url>http://localhost:8080/binflow/maven-local</url>
+  </repository>
+</repositories>
+```
+
+### 全量收口（mirror 形态）
+
+```xml
+<settings>
+  <mirrors>
+    <mirror>
+      <id>binflow</id>
+      <mirrorOf>*</mirrorOf>
+      <url>http://localhost:8080/binflow/maven-virtual</url>
+    </mirror>
+  </mirrors>
+</settings>
+```
+
+`mirrorOf: *` 接管一切流量（含插件解析），virtual 必须含一个代理 Maven Central 的 remote 成员。详见 [Maven 接入](integrations/maven.md)。
+
+## npm 客户端接入速查
+
+### .npmrc 最小配置
+
+```ini
+registry=http://localhost:8080/binflow/api/npm/npm-local/
+//localhost:8080/binflow/api/npm/npm-local/:_auth=<base64 of admin:口令>
+always-auth=true
+```
+
+`_auth` 生成：`printf 'admin:%s' "$ADMIN_PW" | base64`。
+
+> npm 10 必知：项目级 `.npmrc` 里裸 `_auth=` 会被 npm 拒绝，必须 `//<host>/<路径>/:_auth` 限定形态。
+
+### 发布
+
+```bash
+npm publish        # 退出码 0；服务端 201 {"success":true}
+npm whoami         # 期望 admin
+```
+
+### 安装
+
+```bash
+npm install demo-pkg
+npm install @acme/util
+```
+
+匿名读默认开（`npm install` 免凭据）。每个项目目录都需要自己的 `.npmrc`（registry 配置不继承，缺省走 npmjs）。
+
+详见 [npm 接入](integrations/npm.md)。
+
+## PyPI 客户端接入速查
+
+### pip.conf 安装侧
+
+```ini
+[global]
+index-url = http://localhost:8080/binflow/api/pypi/pypi-local/simple
+```
+
+```bash
+pip install demo-pkg
+```
+
+### .pypirc 发布侧
+
+```ini
+[distutils]
+index-servers = binflow
+
+[binflow]
+repository = http://localhost:8080/binflow/api/pypi/pypi-local
+username = admin
+password = <你的管理员口令>
+```
+
+```bash
+pip wheel . -w dist/
+twine upload --repository binflow dist/*
+```
+
+`simple/` 尾斜杠不能省；包名大小写无关（PEP 503 归一化）。详见 [PyPI 接入](integrations/pypi.md)。
+
+## 部署方式选择指南
+
+| 场景 | 推荐方式 | 说明 |
+|---|---|---|
+| 本地开发/评估 | 单二进制 | `binflow-server -c binflow.yaml`，零依赖，3 秒启动 |
+| 集成环境（单机） | docker-compose | 声明式编排，伴随 postgres 等配套服务 |
+| 离线 / air-gapped | 离线安装包 | 预先打包二进制 + 配置模板 + 安装脚本 |
+| 小组内网 | Docker 镜像 | distroless/alpine 双变体，各镜像仓库均可用 |
+| Kubernetes 生产 | Helm Chart | 持久化、ingress、配置管理声明式 |
+| 裸机 / 长期运行 | systemd | 服务守护、日志重定向、自动重启 |
+| 无 K8s 的机群 | 原生 K8s 清单 | 不上 Helm 时直接用 Deployment + Service + PVC |
+
+**选择关键**：
+- 需要持久化、配置管理 → docker-compose 或 Helm
+- 需要最大可移植性 → 单二进制
+- 需要离线场景 → 离线安装包
+- 需要服务守护 → systemd
+
+所有部署方式共享同一份 `binflow.yaml` 配置模型，切换方式只需改部署面，应用层配置不变。
+
+## 常见报错速查
+
+### 401 认证类
+
+| 错误 | 原因 | 解决 |
+|---|---|---|
+| `invalid credentials`（制品域） | 口令错或用户不存在 | 核对凭据；连续失败落 `login.failed` 审计 |
+| `authentication required`（docker 面） | 未登录或口令错 | `docker login` 重试 |
+| docker push 401 | 未登录或 token 过期 | `docker login`；token 过期无法续期，重新登录 |
+| 脚本 401 但浏览器正常 | 浏览器用会话 cookie，脚本用 Basic/token | 确认脚本用 Basic/token 而非混用 cookie |
+| 已吊销 token 401 | token 已被管理面吊销 | 签发新 token |
+| 会话 cookie 401 | 会话过期或已登出 | 重新登录控制台 |
+
+### 403 权限类
+
+| 错误 | 原因 | 解决 |
+|---|---|---|
+| `permission denied`（制品上传） | 无 write 权限 | 找 admin 加 permission target |
+| 覆盖已有制品 403 | 覆盖 = 删除旧文件，需 delete 权限 | 加 delete 权限 |
+| 管理面 403（非 admin 用户） | 管理面恒为 admin-only | 组授予不能提权到 admin；换 admin 账号 |
+| 控制台 + 跨站 Origin 写 403 | CSRF Origin 防线 | 同源页面操作；curl/CI 不受影响 |
+| npm 同版本重复 publish 403 | `Cannot modify pre-existing version` | 升版本或先 unpublish |
+| 全局关匿名后的匿名读 | 403 或 401 + 挑战 | 提供凭据 |
+
+### 404 不存在类
+
+| 错误 | 原因 | 解决 |
+|---|---|---|
+| docker push/pull 404 + `NAME_UNKNOWN` | 单段 name（只有 repo key 无镜像名）或仓库未建 | 用 `<repoKey>/<image>:<tag>` 全名 |
+| 制品路径 404 | 路径不存在或命中 excludesPattern | 先查仓库 `excludesPattern` 再怀疑网络 |
+| 未实现的端点 404 | 搜索族 `/api/search/props` 等 | 有意不做，非路由故障 |
+| docker 面 `GET /v2/<name>/referrers/` 404 | OCI referrers API 不做 | 使用 oras 自动回退 |
+
+### 409 冲突类
+
+| 错误 | 原因 | 解决 |
+|---|---|---|
+| 路径不匹配 includesPattern 或命中 excludesPattern | 仓库模式拒绝了该路径 | 改路径或改仓库模式配置 |
+| `Checksum error ... received '<x>' but actual is '<y>'` | 客户端声明摘要与内容不符 | 重传一致的构件；或改仓配 `server-generated-checksums` |
+| 删除组 409 `referenced by permission target(s)` | 组仍被权限引用 | 先删/改引用方 target |
+| GC 与 export 撞车 409 | 维护锁互斥 | 等当前操作完成重试 |
+| maven snapshot/release 禁写 409 | `handleSnapshots` / `handleReleases` 为 false | 改仓配置或换仓 |
+
+### 413 配额
+
+| 错误 | 原因 | 解决 |
+|---|---|---|
+| `Repository '...' quota exceeded` | 仓库配额超限 | 删旧腾空间或调高上限 |
+| docker push 被拒 `exit 1` + `denied:` | 同上 | 同上 |
+| npm E413 | 同上 | 同上 |
+
+### 网络/基础设施
+
+| 错误 | 原因 | 解决 |
+|---|---|---|
+| `http: server gave HTTP response to HTTPS client`（docker） | daemon 未把目标地址列入 insecure-registries | 配置 daemon 的 insecure-registries 或加 TLS 反代 |
+| docker buildx push `unauthorized` | builder 容器缺登录态或缺 `http = true` 配置 | 宿主先 `docker login`；buildkitd.toml 配 `[registry."<REG>"] http = true` |
+| helm push 401 | 明文 HTTP 下 `helm registry login` 不可用 | 写 `HELM_REGISTRY_CONFIG` 凭据文件 |
+| maven `Could not find artifact`（修好配置后仍报） | 本地仓 `.lastUpdated` 负缓存 | 清 `maven.repo.local` 或 `mvn -U` |
+| mirror 形态下默认插件解析失败 | virtual 无 Central 成员 | virtual 加代理 Maven Central 的 remote 成员 |
+| npm install 报 404 / 装到了公网同名包 | 当前目录缺 `.npmrc` | 每个项目目录放 `.npmrc` |
+| PyPI upload 400 `unknown action 'submit'` | multipart `:action` 不是 `file_upload` | 用 twine（自动携带正确 action） |
+| `pip install` 404（包明明存在） | index-url 少了 `/simple` 后缀 | 核对 URL 形态 |
+
+## 性能与资源
+
+### 高 QPS 请用 Access Token
+
+BinFlow 的口令哈希是 **argon2id（memory-hard）**——每请求 Basic 认证都要付出约 **64MB 瞬态内存**的工作集。100 并发 Basic GET 可让 RSS 显著抬升到数 GB（事后回落，非泄漏）。匿名/Token 路径同负载零增长。
+
+**建议**：CI、脚本、监控探针等高频客户端一律使用 **API Token（Bearer）**——token 校验不触发 argon2 计算，且天然免疫 CSRF。
+
+### 存储空间
+
+- 去重生效：相同内容的 blob 只存一份，多个仓库/路径引用同一 blob 不增加存储。
+- 删除制品后 blob 可能仍被其它路径引用——不被引用的孤儿 blob 由 GC 回收。
+- 查看用量：`GET /binflow/api/v1/storage/usage/{repo}` → `{usedBytes, quotaBytes}`。
+
+### 备份
+
+- 在线 export：`binflow-server export -c binflow.yaml --output /backup/date`
+- 恢复：`binflow-server import -c binflow.yaml --input /backup/date --verify full`
+- 导出与 GC 互斥（同一 data 目录维护锁），建议排程错开。
+
+## 日志与诊断
+
+服务端日志为结构化 JSON（level/msg/字段），无堆栈噪音。快速诊断三件套：
+
+```bash
+# 1. 版本信息
+curl -s $BASE/binflow/api/system/version
+
+# 2. 最近审计（谁在何时动了什么）
+curl -su admin:$ADMIN_PW "$BASE/binflow/api/v1/audit?limit=20"
+
+# 3. 完整响应头（缓存/来源/校验和头都在）
+curl -s -D - -o /dev/null $BASE/binflow/<repo>/<path>
+```
+
+## 从 Artifactory 迁移三步走
+
+1. **概念对齐**：仓库模型（local/remote/virtual）、权限模型（permission target × path × principal）、checksum 去重——概念一一对应，术语不变。
+2. **URL 映射**：`/artifactory/api/...` → `/binflow/api/...`；`/artifactory/<repo>/<path>` → `/binflow/<repo>/<path>`；docker 端 `/v2/` 地址不变。
+3. **差异复核**：见上文「M4 有意不兼容清单」与各协议指南的「有意不兼容」小节——404 的搜索端点、404 的 REST export/import、组无 admin 位是三件最高频的差异点。

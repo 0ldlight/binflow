@@ -103,6 +103,74 @@ set BINFLOW_REMOTE_CREDENTIALS_KEY (base64 of exactly 32 bytes) and restart
 | export 退出码非 0 + `data directory is locked` | GC/import 正持锁 | 等待后重试 |
 | `--tar` 报 `not implemented in M4` | 单文件产物为 P2 债务 | 用目录形态 |
 
+## 灾难恢复（DR）流程
+
+### 标准恢复（日常备份 → 恢复）
+
+1. 准备新实例的 `binflow.yaml`（指向新 `data` 目录）
+2. 停机新实例（如已启动）
+3. 清空新 `data` 目录
+4. 执行 import：`binflow-server import -c binflow.yaml --input /backup/${date} --verify full`
+5. 启动服务：`binflow-server serve -c binflow.yaml`
+6. 验证：登录、抽查制品 sha256、确认审计历史可见
+
+### 恢复后验证清单
+
+| 检查项 | 验证命令 | 预期 |
+|---|---|---|
+| 服务启动 | `curl $BASE/binflow/api/system/ping` | 200 OK |
+| 版本信息 | `curl $BASE/binflow/api/system/version` | 返回 version + revision |
+| 仓库列表 | `curl -su admin:$PWD $BASE/binflow/api/repositories` | 所有仓库恢复 |
+| 制品抽样 | `curl -s -o /dev/null -w '%{http_code}' $BASE/binflow/<repo>/<path>` | 200 |
+| 制品 sha256 | `curl -s $BASE/binflow/<repo>/<path> \| shasum -a 256` | 与备份前一致 |
+| 用户登录 | `curl -su jane:$PWD $BASE/binflow/api/v1/session -X POST` | 200 |
+| 权限生效 | 用非 admin 用户验证其读取范围 | 行为一致 |
+| 审计历史 | `curl -su admin:$PWD "$BASE/binflow/api/v1/audit?limit=5"` | events[] 非空 |
+| 配额状态 | `curl -su admin:$PWD $BASE/binflow/api/v1/storage/usage/<repo>` | usedBytes 一致 |
+
+### 恢复前的排查
+
+如果恢复实例启动失败：
+
+1. **检查 `BINFLOW_REMOTE_CREDENTIALS_KEY`**：备份含 remote 凭据密文，无密钥 → 启动退出码 2。日志点名缺失密钥的仓库名。
+2. **检查 schema 版本**：备份 DB 的 schema 版本必须 ≤ 当前二进制。版本过高 → import 拒绝（不会自动降级）。
+3. **检查 data 目录为空**：import 仅接受空目录。已有数据的实例不能合并恢复。
+4. **检查备份完整性**：`manifest.json` 的 `blobCount` 与 `blobs/` 目录实际文件数是否一致。
+
+### 备份策略建议
+
+| 频率 | 说明 |
+|---|---|
+| 每日 | 低峰时段 cron 执行 export（锁与 GC 互斥，409/退出码非 0 时下轮重试） |
+| 每周 | 保留 7 天分日备份，`--verify full` 全量校验 |
+| 每版 | 升级前停服 `export`（强一致快照），升级完成验证后再开服 |
+| 异地 | 产物目录 `0700`，转存 NAS/对象存储时保持最小权限或先行加密 |
+
+### 恢复演练
+
+备份的价值取决于可恢复性。建议每季度执行一次完整演练：
+
+```bash
+# 1. 在空机器上创建演练目录
+mkdir -p /recovery-test/data
+
+# 2. 用最新备份恢复
+binflow-server import -c recovery.yaml --input /backup/latest --verify full
+
+# 3. 启动演练实例
+binflow-server serve -c recovery.yaml &
+
+# 4. 执行验证清单（见上表）
+# 5. 停止演练实例
+# 6. 清理演练目录
+```
+
+### 一致性窗口的含义
+
+在线 export 的产物不是「某一时刻的精确快照」——先 SQLite 快照、后拷贝 blobs。快照之后新上传的 blob 可能出现在产物里但不在 manifest 引用集中（多余文件无害，恢复后由常规 GC 收敛）。这个顺序不可换（反过来会出现 DB 引用不存在 blob 的悬空引用）。
+
+如需精确停机快照，在 export 前停服（`binflow-server serve` 进程停止），产物与停机时刻完全一致。代价是备份期间实例不可用。
+
 ## 下一步
 
 - 维护锁与 GC 的完整语义：[治理指南](governance.md#gc垃圾回收)

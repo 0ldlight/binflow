@@ -219,5 +219,113 @@ release-verify:
 	(cd dist && shasum -a 256 -c binflow_$(RELVER)_checksums.txt); \
 	$(MAKE) --no-print-directory check-size
 
+# ---- offline bundle (T-139, FR-40 / PB-08) ----------------------------------
+# Builds the offline installation bundle: binflow_offline_<VER>.tar.gz in
+# deploy/offline/.  Pre-requisites:
+#   - make release (or release-snapshot) — dist/ has the platform binaries
+#   - Docker images tagged binflow:<VER>-alpine and binflow:<VER>-distroless
+#     (run deploy/release/build-release.sh)
+#   - helm chart packaged at charts/binflow/binflow-<VER>.tgz
+#     (run `helm package charts/binflow` from repo root)
+OFFLINE_DIR := deploy/offline
+OFFLINE_BUNDLE := $(OFFLINE_DIR)/binflow_offline_$(VER).tar.gz
+
+## offline-bundle: build the offline installation bundle (binflow_offline_<VER>.tar.gz).
+offline-bundle: ensure-offline-prereqs
+	@set -e; \
+	REPO_ROOT=$$(pwd); \
+	BUNDLE="$(OFFLINE_BUNDLE)"; \
+	WORK="$$(mktemp -d)"; \
+	mkdir -p "$$WORK/images" "$$WORK/charts" "$$WORK/k8s" "$$WORK/binaries" "$$WORK/compose"; \
+	echo "=== Offline bundle: $(VER) ==="; \
+	\
+	# 1. Docker image tars (alpine + distroless). \
+	echo "--- Saving Docker images…"; \
+	docker save "binflow:$(VER)-alpine"    -o "$$WORK/images/binflow-$(VER)-alpine.tar"; \
+	docker save "binflow:$(VER)-distroless" -o "$$WORK/images/binflow-$(VER)-distroless.tar"; \
+	\
+	# 2. Helm chart. \
+	echo "--- Packaging Helm chart…"; \
+	cd charts/binflow && helm package -d "$$WORK/charts" . > /dev/null; \
+	cd "$$REPO_ROOT"; \
+	\
+	# 3. K8s manifests. \
+	echo "--- Copying K8s manifests…"; \
+	cp deploy/k8s/*.yaml "$$WORK/k8s/"; \
+	\
+	# 4. Compose files (needed by install-offline.sh --compose mode). \
+	echo "--- Copying compose files…"; \
+	cp deploy/compose/docker-compose.yml "$$WORK/compose/"; \
+	cp deploy/compose/.env.example "$$WORK/compose/"; \
+	cp deploy/compose/nginx.conf "$$WORK/compose/"; \
+	\
+	# 5. Linux binaries. \
+	echo "--- Copying linux binaries…"; \
+	cp "dist/binflow_$(VER)_linux_amd64/binflow-server" "$$WORK/binaries/binflow-$(VER)-linux-amd64"; \
+	cp "dist/binflow_$(VER)_linux_arm64/binflow-server" "$$WORK/binaries/binflow-$(VER)-linux-arm64"; \
+	echo "--- Computing binary checksums…"; \
+	(cd "$$WORK/binaries" && shasum -a 256 binflow-$(VER)-linux-* > checksums.txt); \
+	\
+	# 5. Copy install script, README. \
+	cp "$(OFFLINE_DIR)/install-offline.sh" "$$WORK/"; \
+	chmod +x "$$WORK/install-offline.sh"; \
+	cp "$(OFFLINE_DIR)/README-offline.md" "$$WORK/"; \
+	\
+	# 6. Generate SHA256SUMS for the bundle contents. \
+	echo "--- Computing bundle SHA256SUMS…"; \
+	(cd "$$WORK" && find . -type f | sort | xargs shasum -a 256 > SHA256SUMS); \
+	\
+	# 7. Create tar. \
+	echo "--- Creating bundle: $$BUNDLE"; \
+	mkdir -p "$(OFFLINE_DIR)"; \
+	tar -czf "$$BUNDLE" -C "$$WORK" .; \
+	\
+	# 8. Record outer tar checksum. \
+	(cd "$(OFFLINE_DIR)" && shasum -a 256 "binflow_offline_$(VER).tar.gz" > "binflow_offline_$(VER).tar.gz.sha256"); \
+	\
+	# 9. Report. \
+	echo ""; \
+	echo "=== Offline bundle complete ==="; \
+	echo "  Bundle: $$BUNDLE"; \
+	echo "  Size:   $$(wc -c < "$$BUNDLE" | tr -d ' ') bytes"; \
+	echo "  SHA256: $$(cat "$(OFFLINE_DIR)/binflow_offline_$(VER).tar.gz.sha256")"; \
+	\
+	rm -rf "$$WORK"; \
+	echo ""
+
+## ensure-offline-prereqs: verify pre-requisites for offline-bundle target.
+ensure-offline-prereqs:
+	@set -e; \
+	errors=0; \
+	\
+	if ! docker image inspect "binflow:$(VER)-alpine" &>/dev/null; then \
+		echo "ERROR: Docker image 'binflow:$(VER)-alpine' not found. Run deploy/release/build-release.sh first."; \
+		errors=$$((errors+1)); \
+	fi; \
+	if ! docker image inspect "binflow:$(VER)-distroless" &>/dev/null; then \
+		echo "ERROR: Docker image 'binflow:$(VER)-distroless' not found. Run deploy/release/build-release.sh first."; \
+		errors=$$((errors+1)); \
+	fi; \
+	if [ ! -f "dist/binflow_$(VER)_linux_amd64/binflow-server" ]; then \
+		echo "ERROR: linux/amd64 binary not found at dist/binflow_$(VER)_linux_amd64/binflow-server. Run 'make release' first."; \
+		errors=$$((errors+1)); \
+	fi; \
+	if [ ! -f "dist/binflow_$(VER)_linux_arm64/binflow-server" ]; then \
+		echo "ERROR: linux/arm64 binary not found at dist/binflow_$(VER)_linux_arm64/binflow-server. Run 'make release' first."; \
+		errors=$$((errors+1)); \
+	fi; \
+	if ! command -v helm &>/dev/null; then \
+		echo "ERROR: helm is required but not found."; \
+		errors=$$((errors+1)); \
+	fi; \
+	if [ "$$errors" -gt 0 ]; then \
+		echo ""; \
+		echo "Run these steps first:"; \
+		echo "  1. make release      # build platform archives (dist/)"; \
+		echo "  2. deploy/release/build-release.sh  # build Docker images"; \
+		echo ""; \
+		exit 1; \
+	fi
+
 help:
 	@grep -E '^## ' $(MAKEFILE_LIST) | sed 's/^## //' | sed 's/:/ ::/'

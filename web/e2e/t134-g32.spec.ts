@@ -49,6 +49,28 @@ async function api(
   )
 }
 
+/**
+ * Docker registry v2 API (root-level, NOT under /binflow). The docker adapter
+ * uses the same session cookie for auth — the browser sends it automatically.
+ */
+async function apiV2(
+  page: Page,
+  method: string,
+  path: string,
+  body?: string,
+  contentType?: string,
+): Promise<{ status: number; text: string }> {
+  return page.evaluate(
+    async ({ method, path, body, contentType }) => {
+      const headers: Record<string, string> = {}
+      if (contentType !== undefined) headers['Content-Type'] = contentType
+      const res = await fetch(path, { method, headers, body })
+      return { status: res.status, text: await res.text() }
+    },
+    { method, path, body, contentType },
+  )
+}
+
 function uniq(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
 }
@@ -95,13 +117,20 @@ test('G32a-1: zero /v2/* requests during docker tree browsing', async ({ page })
   })
   const manifestDigest = simpleSha256(manifestBody)
 
-  // Upload the manifest body as a blob (the docker adapter's step-1 PUT)
-  const blobResp = await api(page, 'PUT', `/v2/${key}/${image}/blobs/${manifestDigest}`, manifestBody)
+  // Upload the manifest body as a blob (the docker adapter's step-1 PUT).
+  // The docker v2 blob endpoint expects sha256:<hex> in the URL path.
+  const digestParam = `sha256:${manifestDigest}`
+  const blobResp = await apiV2(page, 'PUT', `/v2/${key}/${image}/blobs/${digestParam}`, manifestBody)
   expect(blobResp.status).toBe(201)
 
   // Put the manifest (tag: latest)
-  const manifestResp = await api(page, 'PUT', `/v2/${key}/${image}/manifests/latest`, manifestBody)
+  const manifestResp = await apiV2(page, 'PUT', `/v2/${key}/${image}/manifests/latest`, manifestBody)
   expect(manifestResp.status).toBe(201)
+
+  // Snapshot /v2/ and /api/search request counts before tree browsing.
+  // Pushes above used /v2/ (expected), but tree browsing must not trigger any.
+  const v2BeforeTree = v2Reqs.count()
+  const searchBeforeTree = searchReqs.count()
 
   // Browse to the docker repo tree
   await page.goto(`/binflow/ui/repositories/${key}/tree`)
@@ -118,14 +147,9 @@ test('G32a-1: zero /v2/* requests during docker tree browsing', async ({ page })
   // Manifest digest row should be visible
   await expect(page.locator(`[data-testid="tree-row-${manifestDigest}"]`)).toBeVisible({ timeout: 10_000 })
 
-  // Assert zero /v2/* requests during tree browsing (after initial setup)
-  // Reset counters after repo setup
-  const treeV2Reqs = v2Reqs.urls.filter(u => u.includes('/tree') || u.includes('/api/storage'))
-  expect(treeV2Reqs.length).toBe(0)
-
-  // Assert zero /api/search requests during tree browsing
-  const treeSearchReqs = searchReqs.urls.filter(u => u.includes('/tree') || u.includes('/api/storage'))
-  expect(treeSearchReqs.length).toBe(0)
+  // Assert zero /v2/* requests during tree browsing: count must not have changed.
+  expect(v2Reqs.count()).toBe(v2BeforeTree)
+  expect(searchReqs.count()).toBe(searchBeforeTree)
 
   expect(errors).toEqual([])
 
@@ -152,8 +176,8 @@ test('G32a-2: tag badges rendered on manifest digest rows', async ({ page }) => 
   const manifestDigest = simpleSha256(manifestBody)
 
   // Push manifest with tag "latest"
-  await api(page, 'PUT', `/v2/${key}/${image}/blobs/${manifestDigest}`, manifestBody)
-  await api(page, 'PUT', `/v2/${key}/${image}/manifests/latest`, manifestBody)
+  await apiV2(page, 'PUT', `/v2/${key}/${image}/blobs/sha256:${manifestDigest}`, manifestBody)
+  await apiV2(page, 'PUT', `/v2/${key}/${image}/manifests/latest`, manifestBody)
 
   // Push another manifest with tag "v1"
   const manifestBody2 = JSON.stringify({
@@ -163,8 +187,8 @@ test('G32a-2: tag badges rendered on manifest digest rows', async ({ page }) => 
     layers: [],
   })
   const manifestDigest2 = simpleSha256(manifestBody2)
-  await api(page, 'PUT', `/v2/${key}/${image}/blobs/${manifestDigest2}`, manifestBody2)
-  await api(page, 'PUT', `/v2/${key}/${image}/manifests/v1`, manifestBody2)
+  await apiV2(page, 'PUT', `/v2/${key}/${image}/blobs/sha256:${manifestDigest2}`, manifestBody2)
+  await apiV2(page, 'PUT', `/v2/${key}/${image}/manifests/v1`, manifestBody2)
 
   // Browse to manifests/
   await page.goto(`/binflow/ui/repositories/${key}/tree/app/manifests`)
@@ -203,11 +227,11 @@ test('G32a-3: data consistency — tree tag set matches crane tags/list', async 
   })
   const manifestDigest = simpleSha256(manifestBody)
 
-  await api(page, 'PUT', `/v2/${key}/${image}/blobs/${manifestDigest}`, manifestBody)
-  await api(page, 'PUT', `/v2/${key}/${image}/manifests/latest`, manifestBody)
+  await apiV2(page, 'PUT', `/v2/${key}/${image}/blobs/sha256:${manifestDigest}`, manifestBody)
+  await apiV2(page, 'PUT', `/v2/${key}/${image}/manifests/latest`, manifestBody)
 
   // Query tags/list via the v2 API for data consistency check
-  const tagsResp = await api(page, 'GET', `/v2/${key}/${image}/tags/list`)
+  const tagsResp = await apiV2(page, 'GET', `/v2/${key}/${image}/tags/list`)
   expect(tagsResp.status).toBe(200)
   const tagsList = JSON.parse(tagsResp.text) as { tags: string[] }
   const expectedTags = tagsList.tags ?? []
@@ -247,8 +271,8 @@ test('G32b-1: docker tree columns — digest column header "摘要"', async ({ p
   })
   const manifestDigest = simpleSha256(manifestBody)
 
-  await api(page, 'PUT', `/v2/${key}/${image}/blobs/${manifestDigest}`, manifestBody)
-  await api(page, 'PUT', `/v2/${key}/${image}/manifests/latest`, manifestBody)
+  await apiV2(page, 'PUT', `/v2/${key}/${image}/blobs/sha256:${manifestDigest}`, manifestBody)
+  await apiV2(page, 'PUT', `/v2/${key}/${image}/manifests/latest`, manifestBody)
 
   // Browse to manifests/
   await page.goto(`/binflow/ui/repositories/${key}/tree/app/manifests`)
@@ -287,8 +311,8 @@ test('G32b-2: docker root level — image directory listing with zero regression
     layers: [],
   })
   const m1 = simpleSha256(manifestBody)
-  await api(page, 'PUT', `/v2/${key}/app1/blobs/${m1}`, manifestBody)
-  await api(page, 'PUT', `/v2/${key}/app1/manifests/latest`, manifestBody)
+  await apiV2(page, 'PUT', `/v2/${key}/app1/blobs/sha256:${m1}`, manifestBody)
+  await apiV2(page, 'PUT', `/v2/${key}/app1/manifests/latest`, manifestBody)
 
   const manifestBody2 = JSON.stringify({
     schemaVersion: 2,
@@ -297,8 +321,8 @@ test('G32b-2: docker root level — image directory listing with zero regression
     layers: [],
   })
   const m2 = simpleSha256(manifestBody2)
-  await api(page, 'PUT', `/v2/${key}/app2/blobs/${m2}`, manifestBody2)
-  await api(page, 'PUT', `/v2/${key}/app2/manifests/v1`, manifestBody2)
+  await apiV2(page, 'PUT', `/v2/${key}/app2/blobs/sha256:${m2}`, manifestBody2)
+  await apiV2(page, 'PUT', `/v2/${key}/app2/manifests/v1`, manifestBody2)
 
   // Browse to root
   await page.goto(`/binflow/ui/repositories/${key}/tree`)

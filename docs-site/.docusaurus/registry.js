@@ -1,5 +1,6 @@
 export default {
   "05bda79c": [() => import(/* webpackChunkName: "05bda79c" */ "@generated/docusaurus-plugin-content-docs/default/p/binflow-docs-5ea.json"), "@generated/docusaurus-plugin-content-docs/default/p/binflow-docs-5ea.json", require.resolveWeak("@generated/docusaurus-plugin-content-docs/default/p/binflow-docs-5ea.json")],
+  "073b4d85": [() => import(/* webpackChunkName: "073b4d85" */ "@site/../docs/user/api-reference.md"), "@site/../docs/user/api-reference.md", require.resolveWeak("@site/../docs/user/api-reference.md")],
   "12321dfc": [() => import(/* webpackChunkName: "12321dfc" */ "@site/../docs/user/admin/backup-restore.md"), "@site/../docs/user/admin/backup-restore.md", require.resolveWeak("@site/../docs/user/admin/backup-restore.md")],
   "138e0e15": [() => import(/* webpackChunkName: "138e0e15" */ "@generated/@easyops-cn/docusaurus-search-local/default/__plugin.json"), "@generated/@easyops-cn/docusaurus-search-local/default/__plugin.json", require.resolveWeak("@generated/@easyops-cn/docusaurus-search-local/default/__plugin.json")],
   "14eb3368": [() => import(/* webpackChunkName: "14eb3368" */ "@theme/DocCategoryGeneratedIndexPage"), "@theme/DocCategoryGeneratedIndexPage", require.resolveWeak("@theme/DocCategoryGeneratedIndexPage")],

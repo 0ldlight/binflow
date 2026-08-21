@@ -5,17 +5,17 @@
       "plugin": "138e0e15"
     }
   },
-  "/binflow/docs/-3b1": {
+  "/binflow/docs/-d97": {
     "__comp": "5e95c892",
     "__context": {
       "plugin": "aba21aa0"
     }
   },
-  "/binflow/docs/-24a": {
+  "/binflow/docs/-5da": {
     "__comp": "a7bd4aaa",
     "__props": "05bda79c"
   },
-  "/binflow/docs/-3b4": {
+  "/binflow/docs/-3bb": {
     "__comp": "a94703ab"
   },
   "/binflow/docs/admin-d45": {
@@ -37,6 +37,10 @@
   "/binflow/docs/admin/remote-virtual-925": {
     "__comp": "17896441",
     "content": "f857aed3"
+  },
+  "/binflow/docs/api-reference-f00": {
+    "__comp": "17896441",
+    "content": "073b4d85"
   },
   "/binflow/docs/console-ebc": {
     "__comp": "17896441",
