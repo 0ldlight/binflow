@@ -28,13 +28,19 @@
 - **T-104** [P0] QA Playwright 浏览器矩阵 `role:qa-engineer` `area:验收` — done 2026-08-21（**PASS**）
   Chromium CFT151 **47/47 全绿**（W09→W35 全链 + 注入三断言：403 腿/哈希相零 PUT 128MB route 计数/sameSnapshot 逆序）+ 1GB RSS 0~28KB + 50 并发 session 互异；WebKit/Firefox 三链败于 **D-104-1**（P1：relink-assets 只重写 index.html，懒 chunk 运行时死引用→整路由空白）→ **T-120 派修**；D-104-2（P2：token 签发/吊销不落审计——词表「M1 既有」前提不实）登记 M4 收尾评估。E1/E2 勘误登记；E3 与 T-118 v1.2 无冲突；E4 matrix overlay 转常驻已注入 T-105。spec 提交 62d92f1；报告 reports/agents/T-104-qa.md。
 
+- **T-120** [P1] 懒 chunk 资产路径修复 `role:devops-engineer` `area:web/scripts` — done 2026-08-21（conductor 核验直收）
+  根因精一层：vite 6.3 运行时拼接 `"/binflow/ui/"+dep`（非字面量）——relink 扩展+自检门禁（残留→build exit 1）。**三引擎 9/9** + Chromium 47/47 复绿；死命中 0；树页 CSS 0→54 规则。D-104-1 闭合。提交 170cf38。
+
+- **T-105** [P0] QA 回归基线+性能 `role:qa-engineer` `area:验收` — done 2026-08-21（**PASS 279/279**，零 P0/P1）
+  M1~M3 全序列（C01~C30/D01~D24/M01~M59 distinct 279 PASS、首试 79 FAIL 全为 QA 构造修正归档）+ 性能门槛全达（冷启动 120ms/首屏 393ms/P95 搜索 72ms/1GB 194MB/s RSS 52KB）+ 客户端矩阵扩 podman/crane/oras/skopeo。**非预期 5xx=0 panic=0**。O-MEM1（argon2id 瞬态、m1 同形非回归）→T-107 文档引导；E1~E5→T-121。报告 T-105-qa.md，提交 c4a9db3。
+
 - T-106 部署烟测 / T-107 M4 文档 — AC 见 reports/agents/T-88.md
 
 ## 🔨 进行中（doing）
 
-- **T-120** [P1] 懒 chunk 资产路径修复 `role:devops-engineer` `area:web/scripts` — done 2026-08-21（conductor 核验直收）
-  根因精一层：vite 6.3 烧进 JS 的运行时拼接 `"/binflow/ui/"+dep`（非字面量）——relink 扩展盖第三面 + 自检门禁（残留→build exit 1，负测有牙）。**三引擎 9/9**（webkit/firefox 修前各 1/3）+ Chromium 47/47 复绿；死命中 0（修前树页 40 次）；树页 CSS 0→54 规则；SPA -2B。**D-104-1 闭合**。提交 170cf38。遗留：dind seed 收进 spec beforeAll（后续票）。
-- **T-105** [P0] QA 回归基线（M1~M3 全序列）+性能收尾（批 8） `role:qa-engineer` `area:验收` — 在途（端口段 18140+；matrix overlay 转常驻抽查——T-104 E4 采纳；回归面与 T-120 正交并行）
+- **T-106** [P0] 部署烟测（批 9） `role:release-engineer` `area:deploy、验收` — 在途（二进制直跑+compose 形态；M4 新面：console embed 反代下/session 路径/GC·备份 CLI；端口段 18160+）
+- **T-107** [P1] M4 用户文档（批 9） `role:tech-writer` `area:docs/user` — 在途（控制台指南/管理增补/FAQ 含 O-MEM1 token 引导与 E4 /v2/token；收编回写遗留移交清单）
+- **T-121** [P1] PRD v1.3→v1.4 勘误（T-105 E1~E5） `role:product-manager` `area:docs/prd` — 在途
 
 （以下为已 done 票归档行——批 6 收口遗留位置，待全量整理）
 - **T-103** [P0] QA 后端面全量矩阵（批 6 提前段——后端已冻结） `role:qa-engineer` `area:验收` — done 2026-08-21（**PASS 217/217**，零 P0/P1）
