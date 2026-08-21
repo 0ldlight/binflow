@@ -19,27 +19,36 @@
 
 > **M5 票 AC 全文见 reports/agents/T-126.md**（21 票 T-127~T-147）。批次：1:{T-127,T-128,T-129,T-130} → 2:{T-131,T-132,T-133} → 3:{T-134,T-135,T-136,T-137} → 4:{T-138,T-139,T-140,T-142} → 5:{T-141,T-143,T-144} → 6:{T-145,T-146} → 7:{T-147}。双 reviewer：**T-128（正确性+架构）、T-132（安全+供应链）**。R1~R10 裁决见 T-126.md；P2/M6+ 台账 PRD §6.4 速裁 12 项。
 
-- **T-127** [P0] goreleaser 基线+版本注入（FR-34/PB-01/02） `role:devops-engineer` `area:.goreleaser、Makefile`
-- **T-128** [P0] FR-44 BE 材料化+007 回填（ADR-0016，照 T-119 草案；**双 reviewer 票**） `role:dev-go-core` `area:internal/repo、internal/metadata(007)`
-- **T-129** [P0] docs-site 脚手架+embed+/binflow/docs（K1 暂行形态） `role:devops-engineer` `area:docs-site、internal/console`
-- **T-130** [P0] K1/K2 架构终裁+§7.1 两行补遗 `role:architect` `area:DECISIONS.md、docs/design`
-- **T-131** [P0] FR-44 FE 删双兜底 `dep:T-128（硬）` / **T-132** [P0] FR-35 镜像双变体（**双 reviewer 票**）`dep:T-127` / **T-133** [P0] FR-45 token 审计 — AC 见 T-126.md
+- **T-128** [P0] FR-44 BE 材料化+007 回填（ADR-0016，照 T-119 草案；**双 reviewer 票**） `role:dev-go-core` `area:internal/repo、internal/metadata(007)` — done 2026-08-21（conductor 核验直收；**待双 review**）
+  materializeAncestors（putNode 前置/幂等/哨兵 blob FK 满足）；007 回填迁移（两步 SQL/递归 CTE/幂等）；12 测试文件适配；伴随修复 docs 重定向循环。repo+httpapi+docs 全套测试 race 绿。日志 reports/agents/T-128.md。**双 review 待派发**。
+- **T-131** [P0] FR-44 FE 删双兜底 `dep:T-128（硬）` / **T-132** [P0] FR-35 镜像双变体（**双 reviewer 票**）`dep:T-127（就绪）` / **T-133** [P0] FR-45 token 审计 — AC 见 T-126.md
 - T-134~T-147（docker 视图/compose/Helm/K8s/systemd/离线包/uri 族/文档×2/安全审计/QA×4）— AC 与依赖链见 reports/agents/T-126.md
 
 ## 🔨 进行中（doing）
 
-- **T-127/T-128/T-129**（M5 批 1）— 在途；AC 全文 reports/agents/T-126.md
+（空）
 
-（T-130 done → 下方归档）
+## 🧪 测试中（qa）
 
-- **T-130** [P0] K1/K2 架构终裁+§7.1 两行补遗 `role:architect` — done 2026-08-21（conductor 核验直收）
-  **K1（ADR-0011 增补①~⑤）**：搜索外挂 docusaurus-search-local+nodejieba（事实修正：内建搜索不搜正文）；baseUrl 原生前缀免 relink；fallback 阶梯至用户确认。**K2（新 ADR-0017）**：ghcr.io/lzwzzy/binflow 变体 tag、GA 无滚动 tag、基底 **distroless static-debian13**（修正 debian12 暂行）+ alpine:3.24、syft SBOM 最小面（cosign/SLSA M6+ 结构性理由）、Chart 仓库 GitHub Pages。§7.1 两行补遗；PRD v1.2。在途影响：T-129 搜索方案已知会、T-132 派单带 debian13 锚定。提交 3daa704。
+（空）
 
 ## 🧪 测试中（qa）
 
 （空）
 
 ## ✅ 已完成（done）
+
+- **T-127** [P0] goreleaser 基线+版本注入（FR-34/PB-01/02） `role:devops-engineer` — done 2026-08-21（conductor 核验直收）
+  六平台 CGO_ENABLED=0（linux/darwin/windows×amd64/arm64）；ldflags version/revision 注入三面一致（`--version`/启动日志/health.version）；check-size 全部 5-6MB（≤40MB）；裸 build 回退 dev；release.snapshot 模板；发布禁用。日志 reports/agents/T-127.md。
+
+- **T-129** [P0] docs-site Docusaurus 脚手架+embed+/binflow/docs（K1 暂行形态） `role:devops-engineer` — done 2026-08-21（conductor 核验直收）
+  Docusaurus 3.10 构建通过；搜索 @easyops-cn/docusaurus-search-local+nodejieba（K1 终裁）；baseUrl `/binflow/docs/` 零外链；`make docs` 构建+复制+docs-size（1.56MB）；go:embed Handler + router 匿名只读；docs 测试+路由集成测试全绿。日志 reports/agents/T-129.md。
+
+- **T-128** [P0] FR-44 BE 材料化+007 回填（ADR-0016，照 T-119 草案；**待双 review**） `role:dev-go-core` — done 2026-08-21（conductor 核验，待双 review 后提交）
+  materializeAncestors+putFolderRow+ensureFolderLedger；007 回填迁移（两步 SQL/递归 CTE/幂等）；12 测试适配；伴随修复 docs 重定向循环。repo+httpapi+docs 全套测试 race 绿。日志 reports/agents/T-128.md。
+
+- **T-130** [P0] K1/K2 架构终裁+§7.1 两行补遗 `role:architect` — done 2026-08-21（conductor 核验直收）
+  **K1（ADR-0011 增补①~⑤）**：搜索外挂 docusaurus-search-local+nodejieba（事实修正：内建搜索不搜正文）；baseUrl 原生前缀免 relink；fallback 阶梯至用户确认。**K2（新 ADR-0017）**：ghcr.io/lzwzzy/binflow 变体 tag、GA 无滚动 tag、基底 **distroless static-debian13**（修正 debian12 暂行）+ alpine:3.24、syft SBOM 最小面（cosign/SLSA M6+ 结构性理由）、Chart 仓库 GitHub Pages。§7.1 两行补遗；PRD v1.2。在途影响：T-129 搜索方案已知会、T-132 派单带 debian13 锚定。提交 3daa704。
 
 - **T-1** [P0] M1 里程碑 PRD `role:product-manager` `area:docs/prd` — done 2026-08-17
   产出 docs/prd/milestone-1.md（486 行）：FR-1~FR-6 全 AC、26 端点兼容矩阵、C01~C30 验收命令。核验通过。
