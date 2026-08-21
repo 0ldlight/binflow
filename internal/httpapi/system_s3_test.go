@@ -27,7 +27,8 @@ import (
 
 // TestSecureFromEndpoint pins the scheme→Secure decision table-driven: the
 // flag must AGREE with an endpoint's scheme for minio.New to accept it, and
-// a scheme-less endpoint keeps minio-go's TLS default.
+// a scheme-less endpoint keeps minio-go's TLS default. Since T-180 the
+// helper is the one exported spelling cmd's S3 assembly also consumes.
 func TestSecureFromEndpoint(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -48,8 +49,8 @@ func TestSecureFromEndpoint(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := secureFromEndpoint(tc.endpoint); got != tc.want {
-				t.Fatalf("secureFromEndpoint(%q) = %v, want %v", tc.endpoint, got, tc.want)
+			if got := SecureFromEndpoint(tc.endpoint); got != tc.want {
+				t.Fatalf("SecureFromEndpoint(%q) = %v, want %v", tc.endpoint, got, tc.want)
 			}
 		})
 	}

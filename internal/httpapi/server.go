@@ -15,6 +15,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/config"
 	"github.com/lzwzzy/binflow/internal/docs"
 	"github.com/lzwzzy/binflow/internal/metadata"
+	"github.com/lzwzzy/binflow/internal/replication"
 	"github.com/lzwzzy/binflow/internal/repo"
 )
 
@@ -56,6 +57,16 @@ type Deps struct {
 	// Migration is the optional S3 migration engine (T-164). Nil when
 	// migration is not configured — the endpoints answer 501.
 	Migration MigrationStarter
+	// Replication is the push-replication store seam (T-180, ADR-0021):
+	// the /api/v1/replications CRUD and /api/v1/replication/status ride it.
+	// Nil leaves those endpoints at 501 — the console panel's "replication
+	// not enabled" degradation (T-159 contract ruling 6).
+	Replication replication.Store
+	// ReplicationCipher seals target passwords at config-create time
+	// (ADR-0012 enc:v1 at-rest form; the same master key the engine
+	// decrypts with). Nil refuses password-carrying creates with a 400
+	// naming BINFLOW_REMOTE_CREDENTIALS_KEY — plaintext is never stored.
+	ReplicationCipher CredentialEncryptor
 	// OIDC is the optional OIDC login-flow collaborator (T-157, ADR-0020,
 	// OD-01/OD-02): cmd wires auth.OIDCProvider here when oidc.enabled=true
 	// AND hands the same provider to the auth service via WithOIDC (the

@@ -20,6 +20,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -27,10 +28,12 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
+	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
@@ -46,10 +49,13 @@ import (
 	"github.com/lzwzzy/binflow/internal/console"
 	"github.com/lzwzzy/binflow/internal/httpapi"
 	"github.com/lzwzzy/binflow/internal/metadata"
+	"github.com/lzwzzy/binflow/internal/remote"
+	"github.com/lzwzzy/binflow/internal/replication"
 	"github.com/lzwzzy/binflow/internal/repo"
 	"github.com/lzwzzy/binflow/internal/storage"
 	minio "github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
+	_ "modernc.org/sqlite" // driver for the replication store's own connection
 )
 
 // version and revision are stamped at build time by the release faces
@@ -239,8 +245,17 @@ func runServe(args []string, stderr io.Writer) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	// The push-replication worker (T-180, ADR-0021) runs for the server's
+	// lifetime: an initial drain recovers tasks a previous process left
+	// pending, then wake signals and the sweep ticker keep the ledger
+	// flowing. drainReplication cancels the engine context and WAITS for
+	// Run to return — every task is reverted to pending and the blob reads
+	// stop — before the storage engine closes underneath it.
+	drainReplication := stack.startReplication(ctx, logger)
+
 	err = srv.Run(ctx)
 	if err != nil {
+		drainReplication()
 		return fmt.Errorf("serve: %w", err)
 	}
 
@@ -249,6 +264,7 @@ func runServe(args []string, stderr io.Writer) error {
 	// message is the operator-facing signal that the drain has completed and
 	// the final teardown is beginning.
 	logger.Info("shutting down gracefully")
+	drainReplication()
 	stack.close(logger)
 	logger.Info("binflow stopped")
 	return nil
@@ -307,13 +323,18 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// The migration REST endpoints (GET/POST /api/v1/storage/migration,
 	// T-164) ride the engine exactly when the assembly runs dual-write;
 	// every other boot leaves Migration nil and the endpoints answer 501
-	// (T-178 wiring). The engine cannot implement the seam directly — its
-	// StatusView returns the concrete *MigrationStatusView while the seam
-	// declares any, and Go demands exact signatures — so the composition
-	// root bridges it (migrationStarter below).
+	// (T-178 wiring). Since T-180 the seam's signatures are the engine's
+	// own method set, so the asserted engine plugs in directly — no
+	// method-set adapter (the T-178 leftover this collapsed).
 	if mig, ok := stack.st.(*storage.MigrationEngine); ok {
-		deps.Migration = migrationStarter{eng: mig}
+		deps.Migration = mig
 	}
+	// The push-replication plane (T-180, ADR-0021): the store the REST
+	// handlers and the engine share, and the cipher that seals target
+	// passwords at create time. openStack owns both; a stack that failed to
+	// open them never reaches assembly.
+	deps.Replication = stack.replStore
+	deps.ReplicationCipher = replicationCipherSeam(stack.replCipher)
 	// The OIDC login seam (T-157/T-179) rides the SAME provider instance the
 	// auth service's Bearer arm verifies against; a nil Deps.OIDC keeps both
 	// browser routes at the E-26 404 (FR-54-AC6/H29).
@@ -321,21 +342,18 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	return httpapi.New(deps, logger)
 }
 
-// migrationStarter adapts *storage.MigrationEngine to the httpapi seam. The
-// method-set bridge is cmd's to own: changing the engine's signature is a
-// storage-package decision, changing the seam an httpapi one, and the
-// adapter is behavior-free (both methods forward verbatim).
-type migrationStarter struct {
-	eng *storage.MigrationEngine
+// replicationCipherSeam decides the httpapi Deps.ReplicationCipher injection
+// (T-180): a nil *remote.Cipher must produce a NIL interface, never a typed
+// nil — the create handler tests `Deps.ReplicationCipher == nil` to refuse
+// password-carrying configs with a 400 naming the environment variable, and
+// assigning the nil pointer directly would make the interface non-nil. The
+// same single-point guard oidcLoginSeam established (T-179).
+func replicationCipherSeam(c *remote.Cipher) httpapi.CredentialEncryptor {
+	if c == nil {
+		return nil
+	}
+	return c
 }
-
-// StartMigration implements httpapi.MigrationStarter.
-func (a migrationStarter) StartMigration(ctx context.Context) error {
-	return a.eng.StartMigration(ctx)
-}
-
-// StatusView implements httpapi.MigrationStarter.
-func (a migrationStarter) StatusView() any { return a.eng.StatusView() }
 
 // oidcLoginSeam decides the httpapi Deps.OIDC injection (T-179): a nil
 // provider must produce a NIL interface, never a typed nil — the login
@@ -466,6 +484,18 @@ type stack struct {
 	// ldapProv owns a connection pool closed in close().
 	oidcProv *auth.OIDCProvider
 	ldapProv *auth.LDAPProvider
+	// The push-replication collaborators (T-180, ADR-0021): replStore is
+	// the REST plane's seam (never nil on an opened stack), replDB its own
+	// pooled connection (closed after the storage engine in close), and
+	// replEngine the worker attached to the repo service's enqueue seam.
+	// replCipher seals target passwords on the REST create path and unseals
+	// them in the engine — nil when no master key is configured, in which
+	// case password-carrying configs are refused at create time. Run is a
+	// LIFECYCLE concern, not an open one: startReplication launches it.
+	replStore  replication.Store
+	replDB     *sql.DB
+	replEngine *replication.Engine
+	replCipher *remote.Cipher
 
 	dataDir string
 	closed  bool
@@ -544,6 +574,39 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 	auditLog := audit.New(md, cfg.Audit.Enabled)
 	svc := repo.New(st, md, authSvc, auditLog)
 
+	// Push replication (T-180, ADR-0021): the store opens its own pooled
+	// connection to the metadata database (the 009 tables; metadata.Open
+	// applied the migration), the cipher reuses the remote-credential master
+	// key, and the engine reads blobs through the same storage engine serve
+	// writes to. AttachReplicator hooks the Put tail so landed artifacts
+	// enqueue tasks; startReplication (runServe) owns the Run loop.
+	replDB, err := openReplicationDB(ctx, sqlitePath(cfg))
+	if err != nil {
+		_ = st.Close()
+		_ = md.Close()
+		return nil, err
+	}
+	replStore := replication.NewSQLiteStore(replDB)
+	replCipher, err := replicationCipher()
+	if err != nil {
+		_ = replDB.Close()
+		_ = st.Close()
+		_ = md.Close()
+		return nil, err
+	}
+	replEngine, err := replication.NewEngine(replStore, st, replication.EngineOptions{
+		Logger: logger,
+		Cipher: replCipher,
+		Audit:  auditLog,
+	})
+	if err != nil {
+		_ = replDB.Close()
+		_ = st.Close()
+		_ = md.Close()
+		return nil, fmt.Errorf("wiring replication engine: %w", err)
+	}
+	repo.AttachReplicator(svc, replEngine)
+
 	return &stack{
 		md:             md,
 		st:             st,
@@ -553,8 +616,93 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 		genericHandler: generic.New(svc, md.Blobs()),
 		oidcProv:       oidcProv,
 		ldapProv:       ldapProv,
+		replStore:      replStore,
+		replDB:         replDB,
+		replEngine:     replEngine,
+		replCipher:     replCipher,
 		dataDir:        cfg.Storage.DataDir,
 	}, nil
+}
+
+// openReplicationDB opens the replication store's own connection pool on
+// the metadata database (T-180). The metadata package keeps its *sql.DB to
+// itself (sub-stores only) and the replication store speaks SQL directly,
+// so the second connection is the designed posture — the T-162 integration
+// harness already validated it ("the same posture the cmd wiring will
+// have"). The DSN carries the per-connection pragmas the replication SQL
+// depends on: foreign_keys (the 009 task cascade rides it) and the shared
+// busy_timeout budget (this pool contends with the metadata pool on one
+// WAL writer; metadata.BusyTimeoutMs is the single spelling of that
+// number). journal_mode is a database-file property metadata.Open already
+// set, and the store issues no LIKE queries, so the rest of metadata's DSN
+// stays metadata-internal.
+func openReplicationDB(ctx context.Context, path string) (*sql.DB, error) {
+	dsn := "file:" + url.PathEscape(path) +
+		"?_pragma=foreign_keys(1)&_pragma=busy_timeout(" + strconv.Itoa(metadata.BusyTimeoutMs) + ")"
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("opening replication store %s: %w", path, err)
+	}
+	db.SetMaxOpenConns(metadata.NumCPUConcurrency())
+	db.SetMaxIdleConns(metadata.NumCPUConcurrency())
+	pingCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	if err := db.PingContext(pingCtx); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("pinging replication store %s: %w", path, err)
+	}
+	return db, nil
+}
+
+// replicationCipher builds the credential cipher from the same
+// BINFLOW_REMOTE_CREDENTIALS_KEY the remote-repository plane uses
+// (ADR-0012 decision 4; replication reuses the scheme and the key,
+// ADR-0021). Unset key answers (nil, nil) — the engine then fails
+// encrypted-password tasks as not-retryable and the REST create path
+// refuses new passwords; a malformed key is always fatal.
+func replicationCipher() (*remote.Cipher, error) {
+	key, err := remote.LoadKey()
+	if err != nil {
+		return nil, fmt.Errorf("replication credentials: %w", err)
+	}
+	if key == nil {
+		return nil, nil
+	}
+	c, err := remote.NewCipher(key)
+	if err != nil {
+		return nil, fmt.Errorf("replication credentials: %w", err)
+	}
+	return c, nil
+}
+
+// startReplication launches the engine's Run loop on a context derived from
+// ctx and returns the drain function the shutdown path MUST call before
+// closing the storage engine: it cancels the loop (Run then reverts any
+// in-flight task to pending and returns), waits for that to happen, and
+// releases the pooled target connections. The drain is idempotent and safe
+// to call even when ctx was never canceled (an early serve failure) — the
+// dedicated cancel closes the loop regardless.
+func (s *stack) startReplication(ctx context.Context, logger *slog.Logger) (drain func()) {
+	if s.replEngine == nil {
+		return func() {}
+	}
+	engCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		if err := s.replEngine.Run(engCtx); err != nil {
+			logger.Warn("replication engine stopped", "error", err.Error())
+		}
+	}()
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			cancel()
+			<-done
+			s.replEngine.CloseIdleConnections()
+			logger.Info("replication engine drained")
+		})
+	}
 }
 
 // wireAuthProviders constructs the external identity providers the config
@@ -717,7 +865,7 @@ func openS3Engine(ctx context.Context, cfg *config.Config) (storage.Engine, erro
 	}
 	client, err := minio.New(sc.Endpoint, &minio.Options{
 		Creds:        credentials.NewStaticV4(sc.AccessKeyID, secret, ""),
-		Secure:       secureFromEndpoint(sc.Endpoint),
+		Secure:       httpapi.SecureFromEndpoint(sc.Endpoint),
 		Region:       sc.Region,
 		BucketLookup: lookup,
 	})
@@ -742,20 +890,6 @@ func openS3Engine(ctx context.Context, cfg *config.Config) (storage.Engine, erro
 	}), nil
 }
 
-// secureFromEndpoint reports whether the S3 endpoint should be dialed over
-// TLS: minio-go requires the Secure option to AGREE with an endpoint's URL
-// scheme (an "http://host" endpoint plus Secure:true is rejected at client
-// construction), so the flag is derived from the scheme — https:// dials
-// TLS, http:// does not, and a scheme-less endpoint keeps minio-go's TLS
-// default. httpapi's probeS3Storage carries an identical helper; keep the
-// two in sync (T-178).
-func secureFromEndpoint(endpoint string) bool {
-	if i := strings.Index(endpoint, "://"); i > 0 {
-		return strings.EqualFold(endpoint[:i], "https")
-	}
-	return true
-}
-
 // close tears the stack down in the section 7.4 order. It is safe to call
 // twice (every closer is idempotent).
 func (s *stack) close(logger *slog.Logger) {
@@ -771,6 +905,16 @@ func (s *stack) close(logger *slog.Logger) {
 	if s.st != nil {
 		if err := s.st.Close(); err != nil {
 			logger.Error("closing storage engine", "error", err.Error())
+		}
+	}
+	// The replication store's own pool closes after the storage engine: the
+	// engine loop only reads blobs through storage, and a caller that
+	// skipped drainReplication (an error path) tolerates the pool's closure
+	// — the loop's next store call fails, is logged, and the process is
+	// exiting anyway.
+	if s.replDB != nil {
+		if err := s.replDB.Close(); err != nil {
+			logger.Error("closing replication store", "error", err.Error())
 		}
 	}
 	if s.md != nil {

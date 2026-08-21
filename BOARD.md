@@ -17,7 +17,7 @@
 
 ## 📥 待办（todo）
 
-> **M6 正在开发**（2026-08-22）。**20/26**（batch 1 已提交 ed9de87）：T-159 收口；在途 T-177/T-181/T-182/T-179（4/4）；T-180 待 T-179；T-165/T-168 待用户明示重派。
+> **M6 正在开发**（2026-08-22）。装配缺口三处全部闭环（T-178/179/180 ✅）；**batch 3 已提交**（含 .gitignore 修复与被吞测试文件）；在途 T-163/T-184；T-165/T-168 待用户明示重派（卡主链五票）。
 
 ### Batch 3（全部完成）：T-151/T-152/T-154/T-155 已完成 ✅
 
@@ -66,17 +66,14 @@
 
 ### Batch 9: 核验发现的收尾债（conductor 建票，2026-08-22）
 
-- **T-180** [P1] 复制面桥接收编（replications REST + cmd 装配 + 签名缝收编 + 单点化） `role:dev-go-core` `area:internal/httpapi / cmd/binflow-server / internal/storage` `dep:T-179`
-  AC: ① `internal/httpapi` 新增 replications CRUD REST（`GET/POST/DELETE /api/v1/replications`）+ `GET /api/v1/replication/status`（数据形状对齐 T-159 前端契约假设，见 reports/agents/T-159.md）。② `cmd/binflow-server` 复制引擎装配：AttachReplicator 挂钩 + engine Run 生命周期（启停排空）。③ MigrationStarter 签名缝上游收编：`storage.MigrationEngine.StatusView()` 与 `httpapi.MigrationStarter` 接口对齐，删 cmd 侧 migrationStarter 适配器（T-178 遗留①）。④ `secureFromEndpoint` 单点化（httpapi/cmd 双份 5 行收敛，T-178 遗留③）。⑤ 测试：端点 table-driven + cmd 装配 smoke。⑥ `internal/storage/migration.go` MigrationStatus.Total godoc 口径修正（"blobs on disk" vs len(missing)，T-176 遗留②）。
-  ▶ 2026-08-22 建票（T-162/T-178 遗留合并；dep T-179 串行避让 cmd 冲突；完成后 T-159 前端可对真实端点复验、T-175 复制验收解锁）。
-
-- **T-183** [P1] charts oidc enabled 渲染补丁（T-179 发现） `role:release-engineer` `area:charts/binflow`
-  AC: ① `charts/binflow/templates/configmap.yaml` oidc 块补 `enabled: true` 渲染行（对齐 ldap 块现状；外层 if 门保持）。② 验证：`helm template --set config.oidc.enabled=true` 产出 config 含 `auth.oidc.enabled: true` + `helm lint` 0 failed + 临时渲染回灌真实 config.Load 严格解码器放行（T-179 探针法）。
-  ▶ 2026-08-22 建票（conductor 代码实锤：oidc 块漏 enabled 行，Helm 启用 OIDC 静默失效）。
+- **T-184** [P2] replication CRUD 面 docs 回写（T-180 遗留④） `role:architect` `area:docs/design`
+  AC: ① architecture.md §7.1 路由表补 replications CRUD 四端点 + /replication/status（形状按 T-180 日志裁定表：bare array/201/204/409/target_password 只写不读/默认值）。② console-ux.md 治理组「复制」页补 CRUD 面说明（当前只读面板，CRUD UI 另票）。③ 同款「回写记录」题头。
 
 ## 🔨 进行中（doing）
 
-（空——本轮四张收口，新派发见下轮）
+- **T-163** [P1] Prometheus /metrics 端点 — 2026-08-22 已派发（T-180 收口释放 httpapi；详见 Batch 5 条目）。
+
+- **T-184** [P2] replication CRUD 面 docs 回写 — 2026-08-22 已派发（新建票，见 Batch 9）。
 
 ## 🧪 测试中（qa）
 
@@ -443,6 +440,12 @@
 
 - **T-177** [P2] 迁移启动按钮 UI `role:dev-frontend` — done 2026-08-22（conductor 核验直收）
   MigrationPanel 启动按钮（数据态+!running 渲染/403 隐藏/501 无按钮）+ useConfirm 复用（danger+YES 门+四条影响说明按实际语义）+ 202 即刻并入 + 409 行内提示；pct 基数改 (migrated+failed)/total（AC④）。conductor 复核：Playwright **8 passed** + build 1.3s + typecheck/lint 0。遗留：console-ux 三处回写与 T-182 同族（migration-start 等三锚）→ 并入后续文档票；无停止迁移 REST 面（另立票候选）。日志 reports/agents/T-177.md。
+
+- **T-183** [P1] charts oidc enabled 渲染补丁 `role:release-engineer` — done 2026-08-22（conductor 核验直收）
+  configmap.yaml oidc 块 +1 行 `enabled: {{ .Values.config.oidc.enabled }}`（逐字对齐 ldap 块）。conductor 复核：helm lint 0 failed + template grep `enabled: true` 在位 + diff 恰 1 行。agent 附负面对照（删行复现静默失效链）。验证中确认 T-170 的 existingSecret required 门为有意防呆。日志 reports/agents/T-183.md。
+
+- **T-180** [P1] 复制面桥接收编 `role:dev-go-core` — done 2026-08-22（conductor 核验直收）
+  httpapi replication.go（CRUD 四端点 + status 聚合，T-159 契约**零差异**落地：凭据不下发/''哨兵/[]非 null/newest-first/默认 limit 50）+ Deps 两 seam + MigrationStarter 签名收编（storage 强类型直插，删 cmd 适配器）+ SecureFromEndpoint 导出单点化（删 cmd 副本）+ storage godoc 口径修正；cmd 复制引擎全装配（第二 store 连接池/同钥 cipher/AttachReplicator/start+drain 生命周期）。**真二进制 smoke**：空 200/匿名 401/校验 400/重复 409/上传后 pending 任务行/DELETE 204 FK 级联/SIGTERM→drained→exit。conductor 复核：replication 10.7s + scoped httpapi 5.7s + cmd skip 25.1s race 绿（agent 自跑 httpapi 全量 119.6s 零回归）。**遗留②重大**：`.gitignore:51` 裸名吞掉 cmd/ 下未跟踪测试文件——conductor 已修为 `/binflow-server` 并入 batch 3。遗留：audit 词汇/CRUD UI 票/sub-store DSN 收编。日志 reports/agents/T-180.md。
 
 ## 🚫 阻塞（blocked）
 

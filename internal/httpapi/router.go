@@ -340,6 +340,27 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	case rest == "v1/storage/migration/start" && r.Method == http.MethodPost:
 		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleMigrationStart)
 
+	// ---- /api/v1/replications (T-180, ADR-0021; admin) ----
+	// The push-replication configuration plane. GET lists (secrets
+	// excluded), POST creates, DELETE /{name} drops one config — its task
+	// rows cascade via the 009 FK. No PUT yet: the ticket scoped the CRUD to
+	// create/delete, and an update surface needs an enable/disable
+	// semantics ruling first. The sibling /api/v1/replication/status below
+	// is the console panel's aggregated read face (T-159).
+	case rest == "v1/replications" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleReplicationList)
+	case rest == "v1/replications" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleReplicationCreate)
+	case strings.HasPrefix(rest, "v1/replications/") && r.Method == http.MethodDelete:
+		s.enforce(w, r, routeAuth{required: true, admin: true},
+			s.withName(rest, "v1/replications/", s.handleReplicationDelete))
+
+	// ---- /api/v1/replication/status (T-159/T-180; admin) ----
+	// The panel polls this every 10s; the data shape is pinned to the T-159
+	// contract assumptions (see replication.go's header).
+	case rest == "v1/replication/status" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleReplicationStatus)
+
 	// ---- /api/v1/oidc (OD-01/OD-02, T-157; anonymous browser entry) ----
 	// GET is the only verb with a route on either path: the flow is two
 	// top-level browser navigations. The gate is empty because the

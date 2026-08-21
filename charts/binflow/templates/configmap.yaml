@@ -52,6 +52,7 @@ data:
       # the auth wiring. client_secret is env-only
       # (BINFLOW_AUTH_OIDC_CLIENT_SECRET via config.oidc.existingSecret).
       oidc:
+        enabled: {{ .Values.config.oidc.enabled }}
         issuer_url: {{ .Values.config.oidc.issuerUrl | quote }}
         client_id: {{ .Values.config.oidc.clientId | quote }}
         redirect_url: {{ .Values.config.oidc.redirectUrl | quote }}

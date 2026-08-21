@@ -48,4 +48,6 @@ charts/*.tgz
 data/
 *.db
 *.sqlite
-binflow-server
+# 仅忽略仓库根的构建产物二进制；无斜杠裸名会连带忽略 cmd/binflow-server/
+# 下所有未跟踪源文件（T-178/T-179/T-180 测试文件曾被吞，2026-08-22 修正）
+/binflow-server

@@ -4,13 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+
+	"github.com/lzwzzy/binflow/internal/storage"
 )
 
 // MigrationStarter is the seam the storage migration engine plugs into HTTP
-// handlers. It is defined here so httpapi does not import storage.
+// handlers. The signatures are the engine's own method set verbatim — since
+// T-180 the StatusView return is the concrete *storage.MigrationStatusView
+// (httpapi already depends on storage for the GC seam and the data lock),
+// so *storage.MigrationEngine satisfies this interface directly and cmd no
+// longer bridges it through an adapter (the T-178 leftover this collapsed).
 type MigrationStarter interface {
 	StartMigration(ctx context.Context) error
-	StatusView() any
+	StatusView() *storage.MigrationStatusView
 }
 
 // handleMigrationStatus answers GET /binflow/api/v1/storage/migration with the

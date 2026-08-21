@@ -145,16 +145,19 @@ func (s *Server) probeDiskStorage() subsystemStatus {
 	return subsystemStatus{Status: "ok"}
 }
 
-// secureFromEndpoint reports whether the S3 endpoint should be dialed over
+// SecureFromEndpoint reports whether the S3 endpoint should be dialed over
 // TLS. minio-go's Secure option and the endpoint URL scheme must AGREE:
 // v7 rejects an "http://host:port" endpoint built with Secure:true outright
 // ("Endpoint url scheme ... conflicts with the secure option"), so a
 // hardcoded Secure:true made every plain-HTTP MinIO endpoint fail the
 // probe at client construction — /readyz permanently 503 (T-170 smoke
 // finding, fixed in T-178). An endpoint without an explicit scheme keeps
-// minio-go's TLS default. cmd's S3 assembly carries an identical helper
-// (secureFromEndpoint in cmd/binflow-server); keep the two in sync.
-func secureFromEndpoint(endpoint string) bool {
+// minio-go's TLS default.
+//
+// Exported as the single spelling (T-180): the /readyz probe here and cmd's
+// S3 engine assembly used to carry two identical private copies — the
+// drift risk the T-178 report flagged. cmd imports this one.
+func SecureFromEndpoint(endpoint string) bool {
 	if i := strings.Index(endpoint, "://"); i > 0 {
 		return strings.EqualFold(endpoint[:i], "https")
 	}
@@ -169,7 +172,7 @@ func (s *Server) probeS3Storage() subsystemStatus {
 
 	client, err := minio.New(cfg.Endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(cfg.AccessKeyID, cfg.SecretAccessKey, ""),
-		Secure: secureFromEndpoint(cfg.Endpoint),
+		Secure: SecureFromEndpoint(cfg.Endpoint),
 		Region: cfg.Region,
 	})
 	if err != nil {

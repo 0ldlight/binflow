@@ -57,8 +57,11 @@ type MigrationConfig struct {
 // MigrationStatusView is the JSON-serializable summary of migration progress.
 // It is a snapshot of MigrationStatus with error and times converted to strings.
 type MigrationStatusView struct {
-	Running    bool   `json:"running"`
-	Done       bool   `json:"done"`
+	Running bool `json:"running"`
+	Done    bool `json:"done"`
+	// Total mirrors MigrationStatus.Total: the blobs this run must copy
+	// (on disk, not yet on S3) — the denominator of the console progress
+	// bar, not the instance's whole blob count.
 	Total      int64  `json:"total"`
 	Migrated   int64  `json:"migrated"`
 	Skipped    int64  `json:"skipped"`
@@ -72,7 +75,11 @@ type MigrationStatusView struct {
 type MigrationStatus struct {
 	// Running is true while a migration is in progress.
 	Running bool
-	// Total is the number of blobs on disk when the migration started.
+	// Total is the number of blobs THIS RUN must still copy: those found on
+	// disk but not yet on S3 when the run's scan finished (len(missing)). It
+	// is not the whole on-disk blob count — blobs already present on S3
+	// count toward Skipped instead, and Total shrinks to 0 across restarts
+	// as the idempotent re-scan skips what earlier runs copied.
 	Total int64
 	// Migrated is the number of blobs successfully copied to S3 so far.
 	Migrated int64

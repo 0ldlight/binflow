@@ -140,12 +140,9 @@ func (s *Server) dockerTagsForFolder(r *http.Request, repoKey, relPath string) m
 	} else if strings.HasSuffix(trimmed, "/blobs") {
 		image = strings.TrimSuffix(trimmed, "/blobs")
 	}
-	// For bare image name (no sub-directory), use it directly.
-	if strings.Contains(image, "/") {
-		// Multi-level image name: "a/b" or "a/b/manifests" — image is "a/b".
-		// Already handled by the suffix stripping above.
-		// For a single-component image like "app", image is fine.
-	}
+	// For bare image name (no sub-directory), use it directly. A multi-level
+	// name's manifest/blobs suffix was already stripped above; a single-
+	// component image like "app" needs no adjustment.
 	// If the stripped path still has a "/" without being manifests/blobs, it's
 	// something else — skip.
 	tags, err := s.deps.ReposSvc.ListTags(r.Context(), p, repoKey, image, 0, "")
