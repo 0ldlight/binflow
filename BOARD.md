@@ -35,7 +35,10 @@
 
 ## 🔨 进行中（doing）
 
-（空）
+- **T-134** [P1] FR-46 docker 视图（批 3） — doing 2026-08-21（重派，上轮会话 agent 丢失）
+- **T-135** [P0] FR-36 docker-compose GA（批 3） — doing 2026-08-21（重派，上轮会话 agent 丢失）
+- **T-136** [P0] FR-37 Helm Chart（批 3） — doing 2026-08-21（重派，上轮会话 agent 丢失）
+- **T-137** [P0] FR-38 原生 K8s 清单（批 3） — doing 2026-08-21（重派，上轮会话 agent 丢失）
 
 ## 🧪 测试中（qa）
 
