@@ -27,6 +27,15 @@
 #   - ProtectSystem=strict (read-only /usr, /boot, /etc; exceptions below)
 #   - ProtectHome=yes (no access to /home, /root, /run/user)
 #   - Data is written only to /var/lib/binflow (ReadWritePaths)
+#
+# Graceful stop (T-168):
+#   systemctl stop sends SIGTERM (KillSignal pinned below for clarity — it is
+#   systemd's default). The server then drains in-flight requests for up to
+#   server.graceful_timeout_seconds (30s default) before closing the HTTP
+#   server, the storage Engine and the metadata Store; journalctl -u binflow
+#   shows "shutting down gracefully" once the drain has completed. 45s of
+#   TimeoutStopSec gives that full 30s drain window plus teardown margin
+#   before systemd's SIGKILL, so a loaded instance is never killed mid-drain.
 
 [Unit]
 Description=BinFlow artifact repository
@@ -42,7 +51,8 @@ WorkingDirectory=/var/lib/binflow
 ExecStart=/usr/local/bin/binflow-server serve -c /etc/binflow/binflow.yaml
 Restart=on-failure
 RestartSec=5s
-TimeoutStopSec=30
+KillSignal=SIGTERM
+TimeoutStopSec=45
 
 # Security hardening
 NoNewPrivileges=yes
@@ -57,6 +67,11 @@ EnvironmentFile=-/etc/binflow/env
 
 # Limit file descriptors
 LimitNOFILE=65536
+
+# Service-created files group-readable at most (the data dir itself is 0700;
+# this tightens everything the process creates with default modes, e.g. the
+# sqlite database file)
+UMask=0027
 
 # Allowed capabilities: none beyond default
 CapabilityBoundingSet=

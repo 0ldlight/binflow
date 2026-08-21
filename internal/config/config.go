@@ -41,6 +41,9 @@ const (
 	DefaultS3UploadConcurrency = 4
 	// DefaultMigrationConcurrency is the default number of background migration goroutines.
 	DefaultMigrationConcurrency = 5
+	// DefaultLDAPPoolSize is the default idle LDAP connection pool size
+	// (auth.ldap.pool_size; mirrors internal/auth LDAPConfig.defaults).
+	DefaultLDAPPoolSize = 5
 )
 
 // Metadata driver enum (architecture section 8; postgres M1 enum-only).
@@ -57,6 +60,14 @@ const SecretEnvVar = "BINFLOW_ADMIN_PASSWORD" //nolint:gosec // identifier of an
 // S3SecretEnvVar is the name of the S3 secret access key environment variable.
 // Like the admin password, it is env-only and never appears in YAML.
 const S3SecretEnvVar = "BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY" //nolint:gosec // identifier of an env variable, not a credential value
+
+// OIDCClientSecretEnvVar is the name of the OIDC client secret environment
+// variable (auth.oidc, M6/ADR-0020). Env-only, never in YAML.
+const OIDCClientSecretEnvVar = "BINFLOW_AUTH_OIDC_CLIENT_SECRET" //nolint:gosec // identifier of an env variable, not a credential value
+
+// LDAPBindPasswordEnvVar is the name of the LDAP bind password environment
+// variable (auth.ldap, M6/ADR-0020). Env-only, never in YAML.
+const LDAPBindPasswordEnvVar = "BINFLOW_AUTH_LDAP_BIND_PASSWORD" //nolint:gosec // identifier of an env variable, not a credential value
 
 // allowedDrivers is the accepted metadata.driver enum.
 func allowedDrivers() map[string]bool {
@@ -82,7 +93,8 @@ func allowedLogFormats() map[string]bool {
 func isSecretYAMLKey(section, key string) bool {
 	switch key {
 	case "admin_password", "adminpassword", "password", "secret",
-		"master_key", "masterkey", "admin_token", "admintoken":
+		"master_key", "masterkey", "admin_token", "admintoken",
+		"client_secret", "clientsecret", "bind_password", "bindpassword":
 		return true
 	case "dsn":
 		// A DSN may embed credentials; only reject the obvious misspelling at
@@ -111,6 +123,10 @@ func splitEnvKey(upper string) (path []string, kind envKind, ok bool) {
 	case "ADMIN_PASSWORD":
 		return nil, envSecret, true
 	case "STORAGE_S3_SECRET_ACCESS_KEY":
+		return nil, envSecret, true
+	case "AUTH_OIDC_CLIENT_SECRET":
+		return nil, envSecret, true
+	case "AUTH_LDAP_BIND_PASSWORD":
 		return nil, envSecret, true
 	case "SECURITY_ANONYMOUS_ACCESS":
 		return []string{"security", "anonymous_access"}, envBool, true

@@ -111,6 +111,18 @@ type IdentityProvider interface {
 // Bearer arm treats this as a trigger to auto-create a user row.
 var ErrProviderUserNotFound = errors.New("auth: provider user not found")
 
+// OIDCWired reports whether the OIDC Bearer arm is active on this service
+// (WithOIDC was called with a provider). It is the capability facet the
+// public auth-methods endpoint consumes (T-179): the HTTP layer discovers it
+// by type assertion on the injected Authenticator, the same consumer-side
+// pattern as the session and permission facets.
+func (s *Service) OIDCWired() bool { return s.oidcProvider != nil }
+
+// LDAPWired reports whether the LDAP login fallback arm is active on this
+// service (WithLDAP was called with a provider). See OIDCWired for the facet
+// contract.
+func (s *Service) LDAPWired() bool { return s.ldapProvider != nil }
+
 // errProviderUserNotFound wraps a provider-specific error as
 // ErrProviderUserNotFound for internal use.
 func errProviderUserNotFound(provider Provider, providerID string) error {

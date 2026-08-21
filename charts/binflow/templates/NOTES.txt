@@ -70,6 +70,42 @@ BinFlow {{ .Chart.AppVersion }} has been deployed!
      -u admin -p $BINFLOW_ADMIN_PASSWORD
 {{- end }}
 
+{{- if .Values.config.s3.enabled }}
+-------------------------------------------------------------------------------
+  S3 backend (T-170)
+-------------------------------------------------------------------------------
+
+The server boots with storage.backend=s3 pointing at:
+
+  endpoint: {{ .Values.config.s3.endpoint }}
+  bucket:   {{ .Values.config.s3.bucket }}
+
+The secret access key is read from Secret "{{ .Values.config.s3.existingSecret }}"
+(key BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY). The bucket must already exist —
+/healthz reports storage=error until it does (HeadBucket round-trip).
+{{- end }}
+
+{{- if or .Values.config.oidc.enabled .Values.config.ldap.enabled }}
+-------------------------------------------------------------------------------
+  Federated identity (M6 / ADR-0020)
+-------------------------------------------------------------------------------
+
+{{- if .Values.config.oidc.enabled }}
+OIDC issuer: {{ .Values.config.oidc.issuerUrl }}
+Client secret from Secret "{{ .Values.config.oidc.existingSecret }}"
+(key BINFLOW_AUTH_OIDC_CLIENT_SECRET).
+{{- end }}
+{{- if .Values.config.ldap.enabled }}
+LDAP server: {{ .Values.config.ldap.url }}
+Bind password from Secret "{{ .Values.config.ldap.existingSecret }}"
+(key BINFLOW_AUTH_LDAP_BIND_PASSWORD).
+{{- end }}
+
+NOTE: these sections require a server build with the M6 auth wiring
+(T-157). Older builds fail-fast on the auth.oidc/auth.ldap config keys —
+by design.
+{{- end }}
+
 -------------------------------------------------------------------------------
   Notes
 -------------------------------------------------------------------------------
@@ -81,3 +117,6 @@ BinFlow {{ .Chart.AppVersion }} has been deployed!
 - Blob data is persisted via PVC ({{ include "binflow.pvcName" . }}).
 - For production, set config.baseUrl to your external URL for correct
   redirect and realm generation.
+- S3 / OIDC / LDAP (config.s3 / config.oidc / config.ldap) are opt-in;
+  secrets for them are env-only and referenced via existingSecret — never
+  chart values (ADR-0009).

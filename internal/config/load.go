@@ -43,11 +43,11 @@ type raw struct {
 			UploadConcurrency *int    `yaml:"upload_concurrency"`
 			BucketPrefix      *string `yaml:"bucket_prefix"`
 		} `yaml:"s3"`
-			Migration *struct {
-				Enabled     *bool `yaml:"enabled"`
-				Completed   *bool `yaml:"completed"`
-				Concurrency *int  `yaml:"concurrency"`
-			} `yaml:"migration"`
+		Migration *struct {
+			Enabled     *bool `yaml:"enabled"`
+			Completed   *bool `yaml:"completed"`
+			Concurrency *int  `yaml:"concurrency"`
+		} `yaml:"migration"`
 	} `yaml:"storage"`
 	Metadata *struct {
 		Driver *string `yaml:"driver"`
@@ -57,6 +57,29 @@ type raw struct {
 		Argon2MemoryMB       *int  `yaml:"argon2_memory_mb"`
 		TokenDefaultTTLHours *int  `yaml:"token_default_ttl_hours"`
 		AnonymousRead        *bool `yaml:"anonymous_read"`
+		OIDC                 *struct {
+			Enabled     *bool    `yaml:"enabled"`
+			IssuerURL   *string  `yaml:"issuer_url"`
+			ClientID    *string  `yaml:"client_id"`
+			RedirectURL *string  `yaml:"redirect_url"`
+			Scopes      []string `yaml:"scopes"`
+			UserClaim   *string  `yaml:"user_claim"`
+			GroupClaim  *string  `yaml:"group_claim"`
+			AdminGroup  *string  `yaml:"admin_group"`
+		} `yaml:"oidc"`
+		LDAP *struct {
+			Enabled       *bool   `yaml:"enabled"`
+			URL           *string `yaml:"url"`
+			BaseDN        *string `yaml:"base_dn"`
+			BindDN        *string `yaml:"bind_dn"`
+			UserFilter    *string `yaml:"user_filter"`
+			UserIDAttr    *string `yaml:"user_id_attr"`
+			GroupFilter   *string `yaml:"group_filter"`
+			GroupNameAttr *string `yaml:"group_name_attr"`
+			AdminGroup    *string `yaml:"admin_group"`
+			PoolSize      *int    `yaml:"pool_size"`
+			StartTLS      *bool   `yaml:"start_tls"`
+		} `yaml:"ldap"`
 	} `yaml:"auth"`
 	Security *struct {
 		AnonymousAccess *bool `yaml:"anonymous_access"`
@@ -162,7 +185,10 @@ func rejectSecrets(m *yaml.Node) error {
 			if isSecretYAMLKey(section, key) {
 				return secretYAMLErr(section + "." + nested.Value)
 			}
-			// Recurse into storage.s3 for secret_access_key.
+			// Recurse into storage.s3 for secret_access_key, and into
+			// auth.oidc / auth.ldap for client_secret / bind_password (the
+			// env-only secrets of the M6 identity-provider sections,
+			// ADR-0009's blanket rule applies at every nesting depth).
 			if section == "storage" && key == "s3" && valNode.Content[j+1].Kind == yaml.MappingNode {
 				s3map := valNode.Content[j+1]
 				for k := 0; k+1 < len(s3map.Content); k += 2 {
@@ -175,16 +201,43 @@ func rejectSecrets(m *yaml.Node) error {
 					}
 				}
 			}
+			if section == "auth" && (key == "oidc" || key == "ldap") &&
+				valNode.Content[j+1].Kind == yaml.MappingNode {
+				provMap := valNode.Content[j+1]
+				for k := 0; k+1 < len(provMap.Content); k += 2 {
+					provKey := provMap.Content[k]
+					if provKey.Kind != yaml.ScalarNode {
+						continue
+					}
+					if isSecretYAMLKey("auth."+key, strings.ToLower(provKey.Value)) {
+						return secretYAMLErr("auth." + key + "." + provKey.Value)
+					}
+				}
+			}
 		}
 	}
 	return nil
 }
 
 // secretYAMLErr formats the "secret in YAML" error with the env escape hatch.
+// The hint names the env variable that matches the rejected secret — by the
+// section it was found in (storage.s3 / auth.oidc / auth.ldap) or by its
+// spelling when mis-nested (client_secret is only ever OIDC's,
+// bind_password only ever LDAP's, secret_access_key only ever S3's).
+// Everything else falls back to the admin-password spelling.
 func secretYAMLErr(path string) error {
+	hint := SecretEnvVar
+	switch {
+	case strings.Contains(path, "oidc"), strings.Contains(path, "client_secret"), strings.Contains(path, "clientsecret"):
+		hint = OIDCClientSecretEnvVar
+	case strings.Contains(path, "ldap"), strings.Contains(path, "bind_password"), strings.Contains(path, "bindpassword"):
+		hint = LDAPBindPasswordEnvVar
+	case strings.Contains(path, "s3"), strings.Contains(path, "secret_access_key"):
+		hint = S3SecretEnvVar
+	}
 	return fmt.Errorf(
 		"config: key %q looks like a secret; secrets must not be written into the YAML file — use the environment variable %s instead",
-		path, SecretEnvVar)
+		path, hint)
 }
 
 // build resolves raw YAML plus environment into a Config with defaults
@@ -272,6 +325,69 @@ func build(r *raw, env map[string]string) (*Config, error) {
 		if r.Auth.TokenDefaultTTLHours != nil {
 			c.Auth.TokenDefaultTTL = time.Duration(*r.Auth.TokenDefaultTTLHours) * time.Hour
 		}
+		if r.Auth.OIDC != nil {
+			o := r.Auth.OIDC
+			if o.Enabled != nil {
+				c.Auth.OIDC.Enabled = *o.Enabled
+			}
+			if o.IssuerURL != nil {
+				c.Auth.OIDC.IssuerURL = *o.IssuerURL
+			}
+			if o.ClientID != nil {
+				c.Auth.OIDC.ClientID = *o.ClientID
+			}
+			if o.RedirectURL != nil {
+				c.Auth.OIDC.RedirectURL = *o.RedirectURL
+			}
+			if o.Scopes != nil {
+				c.Auth.OIDC.Scopes = o.Scopes
+			}
+			if o.UserClaim != nil {
+				c.Auth.OIDC.UserClaim = *o.UserClaim
+			}
+			if o.GroupClaim != nil {
+				c.Auth.OIDC.GroupClaim = *o.GroupClaim
+			}
+			if o.AdminGroup != nil {
+				c.Auth.OIDC.AdminGroup = *o.AdminGroup
+			}
+		}
+		if r.Auth.LDAP != nil {
+			l := r.Auth.LDAP
+			if l.Enabled != nil {
+				c.Auth.LDAP.Enabled = *l.Enabled
+			}
+			if l.URL != nil {
+				c.Auth.LDAP.URL = *l.URL
+			}
+			if l.BaseDN != nil {
+				c.Auth.LDAP.BaseDN = *l.BaseDN
+			}
+			if l.BindDN != nil {
+				c.Auth.LDAP.BindDN = *l.BindDN
+			}
+			if l.UserFilter != nil {
+				c.Auth.LDAP.UserFilter = *l.UserFilter
+			}
+			if l.UserIDAttr != nil {
+				c.Auth.LDAP.UserIDAttr = *l.UserIDAttr
+			}
+			if l.GroupFilter != nil {
+				c.Auth.LDAP.GroupFilter = *l.GroupFilter
+			}
+			if l.GroupNameAttr != nil {
+				c.Auth.LDAP.GroupNameAttr = *l.GroupNameAttr
+			}
+			if l.AdminGroup != nil {
+				c.Auth.LDAP.AdminGroup = *l.AdminGroup
+			}
+			if l.PoolSize != nil {
+				c.Auth.LDAP.PoolSize = *l.PoolSize
+			}
+			if l.StartTLS != nil {
+				c.Auth.LDAP.StartTLS = *l.StartTLS
+			}
+		}
 	}
 	if r.Audit != nil && r.Audit.Enabled != nil {
 		c.Audit.Enabled = *r.Audit.Enabled
@@ -350,6 +466,10 @@ func defaults() *Config {
 		Auth: AuthConfig{
 			Argon2MemoryMB:  DefaultArgon2MemoryMB,
 			TokenDefaultTTL: DefaultTokenTTL,
+			// M6 identity providers default to disabled: an unconfigured boot
+			// keeps the pre-M6 local-only posture (zero behavior change).
+			OIDC: OIDCConfig{},
+			LDAP: LDAPConfig{PoolSize: DefaultLDAPPoolSize},
 		},
 		Security: SecurityConfig{AnonymousAccess: DefaultAnonymousAccess},
 		Audit:    AuditConfig{Enabled: DefaultAuditEnabled},
@@ -451,11 +571,17 @@ func setEnvValue(c *Config, path []string, kind envKind, value, name string) err
 		// coexist in the environment, applyEnv's sorted (C-locale) walk makes
 		// the lexicographically-last variant win deterministically.
 		if value != "" {
-			if name == "BINFLOW_ADMIN_PASSWORD" || strings.EqualFold(name, "BINFLOW_ADMIN_PASSWORD") {
+			switch {
+			case strings.EqualFold(name, SecretEnvVar):
 				c.AdminPassword = value
-			} else {
-				// BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY (case-insensitive)
+			case strings.EqualFold(name, S3SecretEnvVar):
 				c.Storage.S3.SecretAccessKey = value
+			case strings.EqualFold(name, OIDCClientSecretEnvVar):
+				c.Auth.OIDC.ClientSecret = value
+			case strings.EqualFold(name, LDAPBindPasswordEnvVar):
+				c.Auth.LDAP.BindPassword = value
+			default:
+				return fmt.Errorf("config: internal: unhandled secret env %s", name)
 			}
 		}
 		return nil

@@ -10,8 +10,8 @@ import { errText } from '../lib/api'
 
 // 框架壳（console-ux §3.1/§3.5）：左侧固定导航（224px）+ 顶栏（48px）
 // + 内容区。已启用入口：仪表盘、设置（T-98）、仓库（T-99）、搜索
-// （T-100）、安全组（T-101）、治理组（T-102）；仅 Access Tokens（ux R6
-// P2）保持占位禁用态——title 说明票号。
+// （T-100）、安全组（T-101）、治理组（T-102；复制面板 T-159）；仅
+// Access Tokens（ux R6 P2）保持占位禁用态——title 说明票号。
 // admin/非 admin 收敛：whoami 的 admin 位为主信号（CE-04），
 // 「API 403 即隐藏」为兜底（仪表盘卡片层）。
 
@@ -47,6 +47,8 @@ const NAV: NavGroup[] = [
       // GET /api/v1/audit 是 admin 门，归治理组）
       { label: '审计日志', to: '/audit' },
       { label: '存储 & GC', to: '/governance/gc' },
+      // 复制（T-159）：push 复制状态 + 事件列表（GET /api/v1/replication/status）
+      { label: '复制', to: '/governance/replication' },
       { label: '备份 / 恢复', to: '/governance/backup' },
       { label: '配额', to: '/governance/quotas' },
     ],

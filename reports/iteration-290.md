@@ -50,8 +50,10 @@
 
 ### git commit（M6 batch 1）
 
+- 提交：`ed9de87 feat: M6 batch 1 — S3 storage+migration, OIDC/LDAP auth, replication model`（134 文件 +19113/-289）
 - **纳入**：T-148~T-156、T-161、T-164 全部产出（internal/{auth,metadata,storage,httpapi,config,replication,repo,remote…}、migrations 008/009、cmd/{bf,bf-migrate}、docs/prd|design|reverse|user、Makefile/.goreleaser/ci/go.mod/go.sum、BOARD/DECISIONS/ROADMAP、reports/）
 - **排除**（保持工作树脏、随其票走）：`cmd/binflow-server/`（T-168 半成品含红测试）、`deploy/nginx/`（T-168）、`internal/client/`（T-165 未闭票）、`docs-site/build`（重建噪音）、`.claude/agents/*`（非票据改动，来源未明）
+- **amend 修正**：首次提交混入 `test_minio`（6.7MB 编译二进制，agent 草稿产物）——已从提交剔除并删除本地文件；全提交扫描确认其余可执行文件均为合法脚本
 - 提交快照自洽性论证：排除路径均不被纳入代码 import；除 binflow-server（保留 HEAD 绿版）外所有包 race 实测绿
 
 ## 阶段 5 — 战报

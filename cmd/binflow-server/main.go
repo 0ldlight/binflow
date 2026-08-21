@@ -30,6 +30,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -47,6 +48,8 @@ import (
 	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/repo"
 	"github.com/lzwzzy/binflow/internal/storage"
+	minio "github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
 // version and revision are stamped at build time by the release faces
@@ -185,7 +188,8 @@ func run(args []string, stdout, stderr io.Writer) error {
 // SIGTERM arrives. Startup order follows architecture section 7.4 read
 // backwards: config, logger, metadata (migrations + admin seed), storage
 // (startup session sweep), services, HTTP. Shutdown runs the same list in
-// reverse: HTTP drain, storage, metadata, exit 0.
+// reverse: HTTP drain (graceful period 30s), close Engine, close metadata
+// Store, exit 0.
 func runServe(args []string, stderr io.Writer) error {
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -221,10 +225,11 @@ func runServe(args []string, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
-	// closeStack inverts the open order (HTTP -> storage -> metadata,
-	// architecture section 7.4). It is registered once here so every
-	// failure path after openStack shares one teardown sequence; serve's
-	// regular shutdown reaches it through the deferred call below.
+	// closeStack inverts the open order (Engine -> metadata, architecture
+	// section 7.4). It is registered as a deferred safety net so every
+	// failure path after openStack shares one teardown sequence; the regular
+	// graceful path reaches it through the explicit call below, and the
+	// closed flag makes the double call harmless.
 	defer stack.close(logger)
 
 	warnDefaultAdminPassword(context.Background(), stack, logger)
@@ -238,6 +243,13 @@ func runServe(args []string, stderr io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("serve: %w", err)
 	}
+
+	// Signal received and HTTP server drained; now close the remaining
+	// collaborators in the section 7.4 order. The "shutting down gracefully"
+	// message is the operator-facing signal that the drain has completed and
+	// the final teardown is beginning.
+	logger.Info("shutting down gracefully")
+	stack.close(logger)
 	logger.Info("binflow stopped")
 	return nil
 }
@@ -273,7 +285,7 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// registries under one literal; the upload plane rides the storage
 	// engine seam (PutLandedBlob's late-path-binding shape, T-64).
 	pypiHandler := pypi.Register(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.st)
-	return httpapi.New(httpapi.Deps{
+	deps := httpapi.Deps{
 		Config:    cfg,
 		Auth:      stack.authSvc,
 		Authz:     stack.authSvc,
@@ -291,7 +303,51 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 		Adapters: []adapter.Handler{stack.genericHandler, dockerHandler, mavenHandler, npmHandler, pypiHandler},
 		Version:  version,
 		Revision: revision,
-	}, logger)
+	}
+	// The migration REST endpoints (GET/POST /api/v1/storage/migration,
+	// T-164) ride the engine exactly when the assembly runs dual-write;
+	// every other boot leaves Migration nil and the endpoints answer 501
+	// (T-178 wiring). The engine cannot implement the seam directly — its
+	// StatusView returns the concrete *MigrationStatusView while the seam
+	// declares any, and Go demands exact signatures — so the composition
+	// root bridges it (migrationStarter below).
+	if mig, ok := stack.st.(*storage.MigrationEngine); ok {
+		deps.Migration = migrationStarter{eng: mig}
+	}
+	// The OIDC login seam (T-157/T-179) rides the SAME provider instance the
+	// auth service's Bearer arm verifies against; a nil Deps.OIDC keeps both
+	// browser routes at the E-26 404 (FR-54-AC6/H29).
+	deps.OIDC = oidcLoginSeam(stack.oidcProv)
+	return httpapi.New(deps, logger)
+}
+
+// migrationStarter adapts *storage.MigrationEngine to the httpapi seam. The
+// method-set bridge is cmd's to own: changing the engine's signature is a
+// storage-package decision, changing the seam an httpapi one, and the
+// adapter is behavior-free (both methods forward verbatim).
+type migrationStarter struct {
+	eng *storage.MigrationEngine
+}
+
+// StartMigration implements httpapi.MigrationStarter.
+func (a migrationStarter) StartMigration(ctx context.Context) error {
+	return a.eng.StartMigration(ctx)
+}
+
+// StatusView implements httpapi.MigrationStarter.
+func (a migrationStarter) StatusView() any { return a.eng.StatusView() }
+
+// oidcLoginSeam decides the httpapi Deps.OIDC injection (T-179): a nil
+// provider must produce a NIL interface, never a typed nil — the login
+// handlers test `Deps.OIDC == nil` to keep the two browser routes at the
+// E-26 404 (FR-54-AC6/H29), and assigning a nil *auth.OIDCProvider directly
+// would make the interface non-nil and flip those routes to a 500 handler.
+// The helper is the single point that owns the guard.
+func oidcLoginSeam(p *auth.OIDCProvider) httpapi.OIDCLoginFlow {
+	if p == nil {
+		return nil
+	}
+	return p
 }
 
 // loadServeConfig resolves the config path and loads it. An explicitly
@@ -404,6 +460,12 @@ type stack struct {
 	auditLog       audit.Logger
 	svc            repo.Service
 	genericHandler *generic.Handler
+	// oidcProv/ldapProv are the config-driven identity providers (T-179,
+	// ADR-0020): nil when the section is disabled. oidcProv feeds BOTH the
+	// auth service's OIDC Bearer arm and httpapi's login-flow seam;
+	// ldapProv owns a connection pool closed in close().
+	oidcProv *auth.OIDCProvider
+	ldapProv *auth.LDAPProvider
 
 	dataDir string
 	closed  bool
@@ -432,17 +494,53 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 		return nil, fmt.Errorf("opening metadata: %w", err)
 	}
 
-	st, err := storage.OpenEngine(cfg.Storage.DataDir, storage.Options{
-		SessionTTL: cfg.Storage.SessionTTL,
-	})
+	// Identity providers (T-179, ADR-0020) construct between metadata and
+	// storage: they need md's user store for their resolve seams, and an
+	// early failure (unreachable OIDC issuer) tears down only metadata.
+	oidcProv, ldapProv, err := wireAuthProviders(ctx, cfg, md)
 	if err != nil {
 		_ = md.Close()
-		return nil, fmt.Errorf("opening storage engine at %s: %w", cfg.Storage.DataDir, err)
+		return nil, err
 	}
-	logger.Info("startup session sweep complete",
-		"data_dir", cfg.Storage.DataDir, "session_ttl", cfg.Storage.SessionTTL.String())
+	if oidcProv != nil {
+		logger.Info("oidc authentication active", "issuer", cfg.Auth.OIDC.IssuerURL)
+	}
+	if ldapProv != nil {
+		logger.Info("ldap authentication active",
+			"url", cfg.Auth.LDAP.URL, "base_dn", cfg.Auth.LDAP.BaseDN)
+	}
+
+	st, err := openStorageEngine(ctx, cfg, logger)
+	if err != nil {
+		_ = md.Close()
+		return nil, err
+	}
+	if cfg.Storage.Backend == config.StorageBackendS3 {
+		logger.Info("s3 storage backend active",
+			"bucket", cfg.Storage.S3.Bucket,
+			"endpoint", cfg.Storage.S3.Endpoint,
+			"bucket_prefix", cfg.Storage.S3.BucketPrefix)
+		// Dual-write opens a disk engine too, so its startup sweep also ran.
+		if cfg.Storage.Migration.Enabled && !cfg.Storage.Migration.Completed {
+			logger.Info("startup session sweep complete",
+				"data_dir", cfg.Storage.DataDir, "session_ttl", cfg.Storage.SessionTTL.String())
+		}
+	} else {
+		logger.Info("startup session sweep complete",
+			"data_dir", cfg.Storage.DataDir, "session_ttl", cfg.Storage.SessionTTL.String())
+	}
 
 	authSvc := auth.NewFromStore(md, cfg.Security.AnonymousAccess)
+	// Arm the external providers. WithOIDC's creator parameter REPLACES the
+	// creator NewFromStore wired, so cmd passes the exported store-backed
+	// constructor — the T-157 leftover-2 fix; passing nil here would silently
+	// disable first-login auto-create. WithLDAP keeps the existing creator.
+	if oidcProv != nil {
+		authSvc = authSvc.WithOIDC(oidcProv, auth.NewUserCreator(md.Users()))
+	}
+	if ldapProv != nil {
+		authSvc = authSvc.WithLDAP(ldapProv)
+	}
 	auditLog := audit.New(md, cfg.Audit.Enabled)
 	svc := repo.New(st, md, authSvc, auditLog)
 
@@ -453,8 +551,72 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 		auditLog:       auditLog,
 		svc:            svc,
 		genericHandler: generic.New(svc, md.Blobs()),
+		oidcProv:       oidcProv,
+		ldapProv:       ldapProv,
 		dataDir:        cfg.Storage.DataDir,
 	}, nil
+}
+
+// wireAuthProviders constructs the external identity providers the config
+// asks for (T-179, ADR-0020): auth.oidc.enabled builds an OIDCProvider (its
+// construction performs OIDC discovery, so an unreachable issuer fails the
+// boot with a pointed error instead of 500-ing on the first login);
+// auth.ldap.enabled builds an LDAPProvider (its pool dials lazily — no
+// directory round trip at boot; a broken directory surfaces at login per
+// FR-55-AC5). Disabled sections yield nil providers, the pre-M6 posture.
+//
+// The secrets are belt-and-braces reads: config.Load already resolves the
+// env names into the config fields, the direct os.Getenv covers hand-built
+// configs (the same posture openS3Engine keeps for its secret).
+func wireAuthProviders(ctx context.Context, cfg *config.Config, md metadata.Store) (*auth.OIDCProvider, *auth.LDAPProvider, error) {
+	var oidcProv *auth.OIDCProvider
+	if oc := cfg.Auth.OIDC; oc.Enabled {
+		secret := oc.ClientSecret
+		if secret == "" {
+			secret = os.Getenv(config.OIDCClientSecretEnvVar)
+		}
+		p, err := auth.NewOIDCProvider(ctx, &auth.OIDCConfig{
+			IssuerURL:    oc.IssuerURL,
+			ClientID:     oc.ClientID,
+			ClientSecret: secret,
+			RedirectURL:  oc.RedirectURL,
+			Scopes:       oc.Scopes,
+			UserClaim:    oc.UserClaim,
+			GroupClaim:   oc.GroupClaim,
+			AdminGroup:   oc.AdminGroup,
+		}, auth.NewOIDCResolver(md.Users()))
+		if err != nil {
+			return nil, nil, fmt.Errorf("wiring auth.oidc: %w", err)
+		}
+		oidcProv = p
+	}
+
+	var ldapProv *auth.LDAPProvider
+	if lc := cfg.Auth.LDAP; lc.Enabled {
+		bindPassword := lc.BindPassword
+		if bindPassword == "" {
+			bindPassword = os.Getenv(config.LDAPBindPasswordEnvVar)
+		}
+		p, err := auth.NewLDAPProvider(&auth.LDAPConfig{
+			Enabled:       true,
+			URL:           lc.URL,
+			BaseDN:        lc.BaseDN,
+			BindDN:        lc.BindDN,
+			BindPassword:  bindPassword,
+			UserFilter:    lc.UserFilter,
+			UserIDAttr:    lc.UserIDAttr,
+			GroupFilter:   lc.GroupFilter,
+			GroupNameAttr: lc.GroupNameAttr,
+			AdminGroup:    lc.AdminGroup,
+			PoolSize:      lc.PoolSize,
+			StartTLS:      lc.StartTLS,
+		}, auth.NewLDAPResolver(md.Users()), nil)
+		if err != nil {
+			return nil, nil, fmt.Errorf("wiring auth.ldap: %w", err)
+		}
+		ldapProv = p
+	}
+	return oidcProv, ldapProv, nil
 }
 
 // sqlitePath resolves the sqlite DSN: an explicit metadata.dsn wins;
@@ -467,13 +629,145 @@ func sqlitePath(cfg *config.Config) string {
 	return filepath.Join(cfg.Storage.DataDir, "binflow.db")
 }
 
+// openStorageEngine assembles the blob engine per storage.backend (T-178):
+//
+//	disk (default)  OpenEngine at data_dir — the M1 behavior, unchanged
+//	               (startup sweep of expired upload sessions included).
+//	s3              minio client from cfg.Storage.S3 (the secret arrives
+//	               through BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY, resolved
+//	               into the config by config.Load), bucket existence
+//	               verified, then storage.OpenS3EngineWithClient.
+//
+// storage.migration layers the T-164 MigrationEngine semantics on the s3
+// backend: enabled && !completed boots dual-write (disk AND s3 engines
+// wrapped, exposed to the REST migration endpoints through the
+// httpapi.MigrationStarter seam); completed — like unconfigured — runs S3
+// alone, because a completed migration's source of truth IS S3 (the
+// MigrationEngine's completed mode would only delegate to it again).
+//
+// migration.enabled under backend=disk is refused: dual-write writes to S3,
+// whose endpoint and credentials the config only validates under
+// backend=s3 — silently skipping half of every write is not an acceptable
+// reading of the flag.
+func openStorageEngine(ctx context.Context, cfg *config.Config, logger *slog.Logger) (storage.Engine, error) {
+	if cfg.Storage.Backend != config.StorageBackendS3 {
+		if cfg.Storage.Migration.Enabled && !cfg.Storage.Migration.Completed {
+			return nil, fmt.Errorf("opening storage engine: storage.migration.enabled requires storage.backend=s3 (dual-write targets the S3 backend)")
+		}
+		st, err := storage.OpenEngine(cfg.Storage.DataDir, storage.Options{
+			SessionTTL: cfg.Storage.SessionTTL,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("opening storage engine at %s: %w", cfg.Storage.DataDir, err)
+		}
+		return st, nil
+	}
+
+	s3Engine, err := openS3Engine(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	mig := cfg.Storage.Migration
+	if mig.Enabled && !mig.Completed {
+		diskEngine, derr := storage.OpenEngine(cfg.Storage.DataDir, storage.Options{
+			SessionTTL: cfg.Storage.SessionTTL,
+		})
+		if derr != nil {
+			_ = s3Engine.Close()
+			return nil, fmt.Errorf("opening disk engine for migration at %s: %w", cfg.Storage.DataDir, derr)
+		}
+		logger.Info("storage migration dual-write mode",
+			"data_dir", cfg.Storage.DataDir,
+			"bucket", cfg.Storage.S3.Bucket,
+			"concurrency", mig.Concurrency)
+		return storage.NewMigrationEngine(diskEngine, s3Engine, storage.MigrationConfig{
+			Enabled:     true,
+			Completed:   false,
+			Concurrency: mig.Concurrency,
+		}), nil
+	}
+	if mig.Completed {
+		logger.Info("storage migration completed; s3 is the source of truth",
+			"bucket", cfg.Storage.S3.Bucket)
+	}
+	return s3Engine, nil
+}
+
+// openS3Engine builds the minio client from cfg.Storage.S3 and returns the
+// S3 engine behind it. The secret never appears in YAML: config.Load
+// resolves BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY into
+// S3Config.SecretAccessKey; the direct os.Getenv here is the belt-and-braces
+// read for hand-built configs (config.S3SecretEnvVar is the one spelling of
+// the name, case per the config package's env mapping).
+func openS3Engine(ctx context.Context, cfg *config.Config) (storage.Engine, error) {
+	sc := cfg.Storage.S3
+	secret := sc.SecretAccessKey
+	if secret == "" {
+		secret = os.Getenv(config.S3SecretEnvVar)
+	}
+	if secret == "" {
+		return nil, fmt.Errorf("opening s3 engine: %s is not set (backend=s3 needs the secret access key)", config.S3SecretEnvVar)
+	}
+
+	lookup := minio.BucketLookupAuto
+	if sc.UsePathStyle {
+		// MinIO and IP endpoints do not support virtual-host style.
+		lookup = minio.BucketLookupPath
+	}
+	client, err := minio.New(sc.Endpoint, &minio.Options{
+		Creds:        credentials.NewStaticV4(sc.AccessKeyID, secret, ""),
+		Secure:       secureFromEndpoint(sc.Endpoint),
+		Region:       sc.Region,
+		BucketLookup: lookup,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("opening s3 engine: minio client for %s: %w", sc.Endpoint, err)
+	}
+
+	// OpenS3Engine's contract requires the bucket to exist; verify at boot
+	// with a pointed refusal instead of failing on the first upload.
+	probeCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	exists, err := client.BucketExists(probeCtx, sc.Bucket)
+	if err != nil {
+		return nil, fmt.Errorf("opening s3 engine: probing bucket %s at %s: %w", sc.Bucket, sc.Endpoint, err)
+	}
+	if !exists {
+		return nil, fmt.Errorf("opening s3 engine: bucket %s does not exist at %s (create the bucket or point storage.s3.bucket at the right one)", sc.Bucket, sc.Endpoint)
+	}
+
+	return storage.OpenS3EngineWithClient(client, sc.Bucket, &storage.S3EngineOptions{
+		BucketPrefix: sc.BucketPrefix,
+	}), nil
+}
+
+// secureFromEndpoint reports whether the S3 endpoint should be dialed over
+// TLS: minio-go requires the Secure option to AGREE with an endpoint's URL
+// scheme (an "http://host" endpoint plus Secure:true is rejected at client
+// construction), so the flag is derived from the scheme — https:// dials
+// TLS, http:// does not, and a scheme-less endpoint keeps minio-go's TLS
+// default. httpapi's probeS3Storage carries an identical helper; keep the
+// two in sync (T-178).
+func secureFromEndpoint(endpoint string) bool {
+	if i := strings.Index(endpoint, "://"); i > 0 {
+		return strings.EqualFold(endpoint[:i], "https")
+	}
+	return true
+}
+
 // close tears the stack down in the section 7.4 order. It is safe to call
-// twice (both closers are idempotent).
+// twice (every closer is idempotent).
 func (s *stack) close(logger *slog.Logger) {
 	if s == nil || s.closed {
 		return
 	}
 	s.closed = true
+	// The LDAP provider's connection pool dials outside both engines, so it
+	// drains first (the auth plane closes before the data plane).
+	if s.ldapProv != nil {
+		s.ldapProv.Close()
+	}
 	if s.st != nil {
 		if err := s.st.Close(); err != nil {
 			logger.Error("closing storage engine", "error", err.Error())

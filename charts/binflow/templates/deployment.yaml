@@ -45,13 +45,41 @@ spec:
                 secretKeyRef:
                   name: {{ include "binflow.fullname" . }}-secret
                   key: BINFLOW_ADMIN_PASSWORD
-          {{- if .Values.config.baseUrl }}
-            - name: BINFLOW_BASE_URL
-              value: {{ .Values.config.baseUrl | quote }}
-          {{- end }}
+            # Load the mounted config: with BINFLOW_HOME set and no
+            # ./binflow.yaml in the workdir, serve resolves the config to
+            # /etc/binflow/binflow.yaml (the ConfigMap below). Without this
+            # the mount was inert decoration.
+            - name: BINFLOW_HOME
+              value: /etc/binflow
+            {{- if .Values.config.s3.enabled }}
+            # S3 secret key — env-only (ADR-0009), never in the ConfigMap.
+            - name: BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "config.s3.existingSecret is required when config.s3.enabled=true — create it with: kubectl create secret generic binflow-s3 --from-literal=BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY=<key>" .Values.config.s3.existingSecret }}
+                  key: BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY
+            {{- end }}
+            {{- if .Values.config.oidc.enabled }}
+            # OIDC client secret — env-only (ADR-0020).
+            - name: BINFLOW_AUTH_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "config.oidc.existingSecret is required when config.oidc.enabled=true — create it with: kubectl create secret generic binflow-oidc --from-literal=BINFLOW_AUTH_OIDC_CLIENT_SECRET=<secret>" .Values.config.oidc.existingSecret }}
+                  key: BINFLOW_AUTH_OIDC_CLIENT_SECRET
+            {{- end }}
+            {{- if .Values.config.ldap.enabled }}
+            # LDAP bind password — env-only (ADR-0020).
+            - name: BINFLOW_AUTH_LDAP_BIND_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "config.ldap.existingSecret is required when config.ldap.enabled=true — create it with: kubectl create secret generic binflow-ldap --from-literal=BINFLOW_AUTH_LDAP_BIND_PASSWORD=<password>" .Values.config.ldap.existingSecret }}
+                  key: BINFLOW_AUTH_LDAP_BIND_PASSWORD
+            {{- end }}
           {{- /*
-            ADR-0009: admin password via env only, never in ConfigMap.
-            ConfigMap (binflow.yaml) is mounted at /etc/binflow/binflow.yaml.
+            ADR-0009: secrets (admin password, S3 secret key, OIDC client
+            secret, LDAP bind password) ride env vars sourced from Secrets;
+            the ConfigMap (binflow.yaml) mounted at /etc/binflow carries only
+            non-secret configuration (T-170: storage.s3 + auth.oidc/ldap).
           */}}
           livenessProbe:
             httpGet:

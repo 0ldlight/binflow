@@ -21,6 +21,20 @@
 # sessions + SQLite).  docker compose down keeps it; only down -v destroys
 # data (AC FR-36-AC1).
 #
+# S3 object-storage backend (--profile s3, T-170): adds a bundled MinIO
+# server plus a one-shot bucket-init job, and switches BinFlow to
+# storage.backend=s3 when the BINFLOW_STORAGE__* block in .env is enabled.
+#
+#   docker compose -f deploy/compose/docker-compose.yml --profile s3 up -d --build
+#
+# (--build on first run: an image built before the S3 config wiring landed
+# rejects the BINFLOW_STORAGE__* variables with an unknown-env fail-fast.)
+#
+# MinIO root password and the S3 secret key are env-only (ADR-0009): they
+# live in .env, never in this file.  BinFlow waits for MinIO's readiness
+# probe (/minio/health/ready) AND the bucket-init job before starting, so
+# the /healthz S3 round-trip (HeadBucket/Put/Delete) cannot race the bucket.
+#
 # Security notes (PRD NFR-S6/S8):
 #   - M1 serves plain HTTP only — bind to loopback by default and keep the
 #     instance on a trusted machine/network. Set BINFLOW_BIND_PORT below to
@@ -76,6 +90,35 @@ services:
       BINFLOW_STORAGE__SESSION_TTL_HOURS: ${BINFLOW_STORAGE__SESSION_TTL_HOURS:-24}
       BINFLOW_STORAGE__GC_GRACE_HOURS: ${BINFLOW_STORAGE__GC_GRACE_HOURS:-24}
 
+      # ---- S3 object-storage backend (--profile s3, T-170) ---------------------
+      # Keys map to the storage.s3 config section via the BINFLOW_<SECTION>__<KEY>
+      # double-underscore spelling (see internal/config). Defaults target the
+      # bundled MinIO service; with the s3 profile off (or with
+      # BINFLOW_STORAGE__BACKEND left at "disk") every S3 field is inert — the
+      # config loader treats an empty value as unset.
+      BINFLOW_STORAGE__BACKEND: ${BINFLOW_STORAGE__BACKEND:-disk}
+      BINFLOW_STORAGE__S3__BUCKET: ${BINFLOW_STORAGE__S3__BUCKET:-binflow}
+      BINFLOW_STORAGE__S3__REGION: ${BINFLOW_STORAGE__S3__REGION:-us-east-1}
+      # in-network address of the bundled MinIO; override in .env for real S3
+      # (e.g. https://s3.amazonaws.com) or another S3-compatible endpoint.
+      BINFLOW_STORAGE__S3__ENDPOINT: ${BINFLOW_STORAGE__S3__ENDPOINT:-http://minio:9000}
+      BINFLOW_STORAGE__S3__ACCESS_KEY_ID: ${BINFLOW_STORAGE__S3__ACCESS_KEY_ID:-binflow}
+      # path-style addressing: true for MinIO, false for AWS virtual-host style
+      BINFLOW_STORAGE__S3__USE_PATH_STYLE: ${BINFLOW_STORAGE__S3__USE_PATH_STYLE:-true}
+      # secret_access_key is env-only and never enters a YAML config file
+      # (ADR-0009).  The loader special-cases this single-underscore spelling;
+      # an empty value counts as unset — set it in .env together with
+      # BINFLOW_STORAGE__BACKEND=s3 when enabling --profile s3.  For the
+      # bundled MinIO it must equal MINIO_ROOT_PASSWORD.
+      BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY: ${BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY:-}
+
+      # ---- OIDC / LDAP (M6, ADR-0020) -------------------------------------------
+      # Example env-only spellings are kept in .env.example (commented out).
+      # They are NOT repeated here: the config loader fail-fasts on unknown
+      # BINFLOW_* variables, and the auth wiring (T-157) has not shipped in a
+      # server build yet — uncommenting them in .env before that release
+      # would refuse to boot, which is the intended fail-fast posture.
+
       # argon2id memory parameter (MB)
       BINFLOW_AUTH__ARGON2_MEMORY_MB: ${BINFLOW_AUTH__ARGON2_MEMORY_MB:-64}
 
@@ -85,6 +128,17 @@ services:
       # console session TTL (hours)
       BINFLOW_CONSOLE__SESSION_TTL_HOURS: ${BINFLOW_CONSOLE__SESSION_TTL_HOURS:-24}
 
+    # --profile s3: wait for the bundled MinIO to pass its readiness probe and
+    # for the bucket-init job to exit successfully before starting.  With the
+    # profile off both dependencies are skipped (required: false), so the
+    # plain disk-backend boot path is unchanged.
+    depends_on:
+      minio:
+        condition: service_healthy
+        required: false
+      minio-init:
+        condition: service_completed_successfully
+        required: false
     ports:
       - "${BINFLOW_BIND_ADDR:-127.0.0.1}:${BINFLOW_BIND_PORT:-8080}:8080"
     volumes:
@@ -153,5 +207,79 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # ---- MinIO S3 backend (optional, --profile s3, T-170) -------------------------
+  # A single-node MinIO bound to the compose network.  Objects live in the
+  # minio-data named volume; `down` keeps it, only `down -v` destroys it.
+  minio:
+    profiles: ["s3"]
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z  # version-anchored, no :latest
+    container_name: binflow-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      # Root credentials for the bundled MinIO.  MINIO_ROOT_PASSWORD is
+      # env-only (set in .env, never committed); MinIO refuses to boot on an
+      # empty/short password, so a forgotten .env entry fails visibly here.
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-binflow}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-}
+    ports:
+      # MinIO admin console (https://127.0.0.1:9001) on loopback only — an
+      # ops convenience; BinFlow itself talks to port 9000 over the compose
+      # network and needs no published port.
+      - "${MINIO_CONSOLE_BIND_ADDR:-127.0.0.1}:${MINIO_CONSOLE_BIND_PORT:-9001}:9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      # /minio/health/ready answers 200 only once MinIO can serve I/O —
+      # the same gate BinFlow's /healthz S3 round-trip depends on.
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:9000/minio/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---- one-shot bucket bootstrap for the bundled MinIO (--profile s3) -----------
+  # BinFlow does not create buckets (internal/storage: "callers must ensure
+  # the bucket exists"), and /healthz's HeadBucket probe reports unhealthy on
+  # a missing bucket.  This job runs `mc mb` once after MinIO is healthy;
+  # BinFlow starts only after it exits 0 (see depends_on above).
+  minio-init:
+    profiles: ["s3"]
+    image: minio/mc:RELEASE.2025-04-08T15-39-49Z  # version-anchored, no :latest
+    container_name: binflow-minio-init
+    restart: "no"
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-binflow}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-}
+      # keep in sync with BINFLOW_STORAGE__S3__BUCKET above
+      BINFLOW_STORAGE__S3__BUCKET: ${BINFLOW_STORAGE__S3__BUCKET:-binflow}
+    entrypoint: |
+      /bin/sh -c '
+        if [ -z "$$MINIO_ROOT_PASSWORD" ]; then
+          echo "MINIO_ROOT_PASSWORD is required with --profile s3 — set it in deploy/compose/.env (min 8 chars)" >&2
+          exit 1
+        fi
+        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD"
+        n=0
+        until mc mb --ignore-existing "local/$$BINFLOW_STORAGE__S3__BUCKET"; do
+          n=$$((n+1))
+          if [ "$$n" -ge 10 ]; then
+            echo "bucket init failed after $$n attempts" >&2
+            exit 1
+          fi
+          sleep 2
+        done
+        echo "bucket $$BINFLOW_STORAGE__S3__BUCKET ready"
+      '
+
 volumes:
   binflow-data:
+  minio-data:

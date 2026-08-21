@@ -27,6 +27,15 @@ func TestDataLockHolderHelpers(t *testing.T) {
 		}
 	})
 
+	// The empty-path guard is platform-neutral input validation ahead of any
+	// locking; pin it once for every OS the lock builds on (unix flock and
+	// windows LockFileEx share AcquireDataLock's front matter).
+	t.Run("empty data dir is rejected", func(t *testing.T) {
+		if _, err := AcquireDataLock("", DataLockOpGC); err == nil {
+			t.Fatal("AcquireDataLock(\"\") succeeded, want the empty-path error")
+		}
+	})
+
 	cases := []struct {
 		name   string
 		holder string

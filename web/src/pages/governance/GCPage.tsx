@@ -13,6 +13,7 @@ import { dedupRatio, formatBytes, formatCount } from '../../lib/format'
 import { GC_MAX_GRACE_HOURS, runGC } from '../../lib/governance'
 import type { GCRunResult } from '../../lib/governance'
 import { useAsync } from '../../lib/useAsync'
+import MigrationPanel from './MigrationPanel'
 
 // 存储 & GC（console-ux §4.11 / §5.3；T-102 AC②）：
 // - 概况卡与仪表盘同源（GET /api/v1/storage/stats，admin）。
@@ -191,6 +192,10 @@ export default function GCPage() {
           </>
         )}
       </section>
+
+      {/* 存储迁移面板（T-160）：只读进度 + 5s 轮询；自身收敛 403 隐藏 /
+          501 未配置降级，与非 admin 的 stats 无权限卡互不干扰 */}
+      <MigrationPanel />
 
       {admin && (
         <div className="danger-zone" data-testid="gc-danger-zone">

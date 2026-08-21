@@ -189,6 +189,29 @@ func NewLDAPResolver(store metadata.UserStore) LDAPUserResolver {
 	return userStoreAdapter{s: store}
 }
 
+// NewOIDCResolver wraps a metadata.UserStore into an OIDCUserResolver (the
+// same store-backed lookup NewLDAPResolver exposes, named for the OIDC
+// provider's seam so cmd assembly reads symmetrically).
+func NewOIDCResolver(store metadata.UserStore) OIDCUserResolver {
+	return userStoreAdapter{s: store}
+}
+
+// UserCreator re-exports the auto-create seam (ADR-0020 decision 4) so
+// callers outside the package can name and pass it. cmd assembly needs it:
+// WithOIDC's creator parameter REPLACES whatever NewFromStore wired, and
+// passing nil there silently disables auto-create — the exported constructor
+// hands the caller the same store-backed implementation NewFromStore uses
+// (T-157 leftover 2).
+type UserCreator = userCreator
+
+// NewUserCreator wraps a metadata.UserStore into the auto-create seam. The
+// created row mirrors NewFromStore's wiring: provider/provider_id carried,
+// CreatedAt/UpdatedAt stamped, PasswordHash exactly as given (empty for
+// OIDC/LDAP users).
+func NewUserCreator(store metadata.UserStore) UserCreator {
+	return userCreatorAdapter{s: store}
+}
+
 // NewFromStore wires Service over a metadata.Store. anonymousRead is
 // config.Security.AnonymousAccess. The browser-session arm (M4, ADR-0014)
 // and the group-membership fill (M4, T-97) are wired unconditionally:

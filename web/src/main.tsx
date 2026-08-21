@@ -37,6 +37,8 @@ const PlaceholderPage = lazy(() => import('./pages/PlaceholderPage'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
 const AuditPage = lazy(() => import('./pages/audit/AuditPage'))
 const GCPage = lazy(() => import('./pages/governance/GCPage'))
+// 复制面板（T-159）：push 复制状态 + 事件列表（10s 轮询）
+const ReplicationPage = lazy(() => import('./pages/governance/ReplicationPage'))
 const QuotasPage = lazy(() => import('./pages/governance/QuotasPage'))
 const BackupPage = lazy(() => import('./pages/governance/BackupPage'))
 const AppShell = lazy(() => import('./components/AppShell'))
@@ -79,9 +81,11 @@ createRoot(document.getElementById('root')!).render(
                       path="security/*"
                       element={<PlaceholderPage title="Access Tokens" ticket="P2" adminOnly />}
                     />
-                    {/* 治理组（T-102）：审计 / GC / 配额 / 备份（备份为 R5 兜底引导页） */}
+                    {/* 治理组（T-102）：审计 / GC / 配额 / 备份（备份为 R5 兜底引导页）；
+                        复制面板（T-159）：push 复制状态 + 事件列表 */}
                     <Route path="audit" element={<AuditPage />} />
                     <Route path="governance/gc" element={<GCPage />} />
+                    <Route path="governance/replication" element={<ReplicationPage />} />
                     <Route path="governance/quotas" element={<QuotasPage />} />
                     <Route path="governance/backup" element={<BackupPage />} />
                     <Route path="*" element={<NotFoundPage />} />

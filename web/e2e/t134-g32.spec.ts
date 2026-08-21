@@ -308,7 +308,7 @@ test('G32b-2: docker root level — image directory listing with zero regression
 
   // Push two images with tags using the pushManifest helper
   const { manifestDigest: m1 } = await pushManifest(page, key, 'app1', 'latest')
-  const { manifestDigest: m2 } = await pushManifest(page, key, 'app2', 'v1')
+  await pushManifest(page, key, 'app2', 'v1')
 
   // Browse to root
   await page.goto(`/binflow/ui/repositories/${key}/tree`)

@@ -56,6 +56,13 @@ type Deps struct {
 	// Migration is the optional S3 migration engine (T-164). Nil when
 	// migration is not configured — the endpoints answer 501.
 	Migration MigrationStarter
+	// OIDC is the optional OIDC login-flow collaborator (T-157, ADR-0020,
+	// OD-01/OD-02): cmd wires auth.OIDCProvider here when oidc.enabled=true
+	// AND hands the same provider to the auth service via WithOIDC (the
+	// Bearer arm the callback's token verification rides). Nil when OIDC is
+	// disabled — both /api/v1/oidc routes then answer the E-26 404 so the
+	// endpoint does not exist at all (FR-54-AC6/H29).
+	OIDC OIDCLoginFlow
 	// DataDir is storage.data_dir — the health probe writes there and the
 	// stats endpoint sizes blobs/ under it.
 	DataDir string

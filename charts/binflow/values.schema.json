@@ -111,6 +111,55 @@
           "properties": {
             "anonymousAccess": { "type": "boolean" }
           }
+        },
+        "s3": {
+          "type": "object",
+          "description": "S3 object-storage backend (M6, T-170). secret_access_key is env-only via existingSecret (ADR-0009).",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "bucket": { "type": "string" },
+            "region": { "type": "string" },
+            "endpoint": { "type": "string" },
+            "accessKeyId": { "type": "string" },
+            "usePathStyle": { "type": "boolean" },
+            "bucketPrefix": { "type": "string" },
+            "uploadPartSize": { "type": "integer", "minimum": 1 },
+            "uploadConcurrency": { "type": "integer", "minimum": 1 },
+            "existingSecret": { "type": "string" }
+          }
+        },
+        "oidc": {
+          "type": "object",
+          "description": "OIDC identity provider (M6, ADR-0020). client_secret is env-only via existingSecret.",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "issuerUrl": { "type": "string" },
+            "clientId": { "type": "string" },
+            "redirectUrl": { "type": "string" },
+            "scopes": { "type": "array", "items": { "type": "string" } },
+            "userClaim": { "type": "string" },
+            "groupClaim": { "type": "string" },
+            "adminGroup": { "type": "string" },
+            "existingSecret": { "type": "string" }
+          }
+        },
+        "ldap": {
+          "type": "object",
+          "description": "LDAP identity provider (M6, ADR-0020). bind_password is env-only via existingSecret.",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "url": { "type": "string" },
+            "baseDn": { "type": "string" },
+            "bindDn": { "type": "string" },
+            "userFilter": { "type": "string" },
+            "userIdAttr": { "type": "string" },
+            "groupFilter": { "type": "string" },
+            "groupNameAttr": { "type": "string" },
+            "adminGroup": { "type": "string" },
+            "poolSize": { "type": "integer", "minimum": 1 },
+            "startTls": { "type": "boolean" },
+            "existingSecret": { "type": "string" }
+          }
         }
       }
     },

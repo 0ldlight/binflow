@@ -36,6 +36,11 @@ type service struct {
 	// (a store without the seam) makes the search use cases answer
 	// ErrSearchUnavailable instead of touching a nil interface.
 	search metadata.NodeSearcher
+	// repl is the push-replication enqueue seam (M6, ADR-0021): wired by
+	// AttachReplicator after New, before the first request is served. nil
+	// (replication not configured, the M1~M5 default) makes the Put-tail
+	// hook a no-op.
+	repl Replicator
 }
 
 // newService wires the collaborators; New is the public constructor with the
@@ -405,6 +410,11 @@ func (s *service) PutWithOptions(ctx context.Context, p *Principal, repoKey, pat
 			Actor: p.Name, Action: AuditActionDeploy, Repo: repoKey, Path: path,
 			Detail: fmt.Sprintf(`{"sha256":%q,"size":%d,"idempotent":%t}`, n.Sha256, n.Size, idempotent),
 		})
+		// Push-replication hook (M6, ADR-0021 decision 2): the artifact is
+		// landed and audited, the chain is complete — enqueue the event on a
+		// detached context and move on. Folder deploys take the branch below
+		// and carry no blob, so only file nodes replicate.
+		s.notifyReplicator(ctx, repoKey, path, n.Sha256)
 		return n, nil
 	}
 
@@ -432,6 +442,29 @@ func (s *service) PutWithOptions(ctx context.Context, p *Principal, repoKey, pat
 		Detail: `{"folder":true}`,
 	})
 	return n, nil
+}
+
+// notifyReplicator fires the push-replication enqueue seam off the request
+// path (AC ①: 非阻塞 — an upload must never fail or slow because of
+// replication). The goroutine runs Enqueue on a context detached from the
+// request's cancellation (the response may be written and the request ctx
+// dropped before the task row lands) but inheriting its values, and the
+// recover shield keeps a replication panic from taking the process down.
+func (s *service) notifyReplicator(ctx context.Context, repoKey, path, sha256 string) {
+	if s.repl == nil || sha256 == "" {
+		return
+	}
+	repl := s.repl // snapshot: the hook owns its own reference from here on
+	detached := context.WithoutCancel(ctx)
+	go func() {
+		defer func() {
+			if v := recover(); v != nil {
+				slog.WarnContext(detached, "repo: replication enqueue panicked",
+					"repo", repoKey, "path", path, "panic", v)
+			}
+		}()
+		repl.Enqueue(detached, repoKey, path, sha256)
+	}()
 }
 
 // PutFromBlob implements Service.PutFromBlob: the checksum-deploy use case

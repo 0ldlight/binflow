@@ -63,6 +63,79 @@ spec:
                   key: BINFLOW_REMOTE_CREDENTIALS_KEY
                   optional: true
 
+            # ── S3 object-storage backend (T-170) ────────────────────────
+            # Uncomment to move blobs from the PVC to S3/MinIO.  Key spellings
+            # are the BINFLOW_<SECTION>__<KEY> double-underscore form (see
+            # internal/config); the secret access key is env-only and rides
+            # binflow-secret (add the key shown in secret.yaml — never inline
+            # it here).  The bucket must already exist: /healthz does a
+            # HeadBucket→Put→Delete round-trip and reports storage=error on a
+            # missing bucket.
+            # - name: BINFLOW_STORAGE__BACKEND
+            #   value: s3
+            # - name: BINFLOW_STORAGE__S3__BUCKET
+            #   value: binflow
+            # - name: BINFLOW_STORAGE__S3__REGION
+            #   value: us-east-1
+            # - name: BINFLOW_STORAGE__S3__ENDPOINT
+            #   value: http://minio.minio.svc.cluster.local:9000
+            # - name: BINFLOW_STORAGE__S3__ACCESS_KEY_ID
+            #   value: binflow
+            # - name: BINFLOW_STORAGE__S3__USE_PATH_STYLE   # true for MinIO
+            #   value: "true"
+            # - name: BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY   # env-only secret
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: binflow-secret
+            #       key: BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY
+
+            # ── OIDC identity provider (M6, ADR-0020) ────────────────────
+            # Requires a server build with the auth wiring (T-157); older
+            # builds fail-fast on unknown BINFLOW_AUTH__OIDC__* variables —
+            # keep commented until then.  client_secret is env-only.
+            # - name: BINFLOW_AUTH_OIDC_CLIENT_SECRET
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: binflow-secret
+            #       key: BINFLOW_AUTH_OIDC_CLIENT_SECRET
+            # - name: BINFLOW_AUTH__OIDC__ISSUER_URL
+            #   value: https://accounts.example.com
+            # - name: BINFLOW_AUTH__OIDC__CLIENT_ID
+            #   value: binflow
+            # - name: BINFLOW_AUTH__OIDC__REDIRECT_URL
+            #   value: https://binflow.example.com/binflow/api/v1/oidc/callback
+            # - name: BINFLOW_AUTH__OIDC__USER_CLAIM
+            #   value: preferred_username
+            # - name: BINFLOW_AUTH__OIDC__GROUP_CLAIM
+            #   value: groups
+            # - name: BINFLOW_AUTH__OIDC__ADMIN_GROUP
+            #   value: binflow-admins
+
+            # ── LDAP identity provider (M6, ADR-0020) ─────────────────────
+            # Same wiring caveat as OIDC.  bind_password is env-only; LDAP
+            # users authenticate at POST /api/v1/session (no Bearer arm).
+            # - name: BINFLOW_AUTH_LDAP_BIND_PASSWORD
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: binflow-secret
+            #       key: BINFLOW_AUTH_LDAP_BIND_PASSWORD
+            # - name: BINFLOW_AUTH__LDAP__ENABLED
+            #   value: "true"
+            # - name: BINFLOW_AUTH__LDAP__URL
+            #   value: ldap://ldap.example.com:389
+            # - name: BINFLOW_AUTH__LDAP__BASE_DN
+            #   value: dc=example,dc=com
+            # - name: BINFLOW_AUTH__LDAP__BIND_DN
+            #   value: cn=binflow,ou=services,dc=example,dc=com
+            # - name: BINFLOW_AUTH__LDAP__USER_FILTER
+            #   value: (&(objectClass=posixAccount)(uid=%s))
+            # - name: BINFLOW_AUTH__LDAP__GROUP_FILTER
+            #   value: (&(objectClass=posixGroup)(memberUid=%s))
+            # - name: BINFLOW_AUTH__LDAP__ADMIN_GROUP
+            #   value: cn=binflow-admins,ou=groups,dc=example,dc=com
+            # - name: BINFLOW_AUTH__LDAP__START_TLS
+            #   value: "true"
+
           ports:
             - name: http
               containerPort: 8080

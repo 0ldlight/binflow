@@ -4,7 +4,7 @@
 |---|---|
 | 文档 | `docs/prd/milestone-6.md` |
 | 里程碑 | M6 — 企业就绪与生态扩展（对应 ROADMAP.md「M6+ — 展望」全部条目） |
-| 状态 | **v1.0**（初版：FR-48~FR-63 六域 16 条功能需求，端点矩阵 S3/OD/LD/RE/PM/CL/MG 七域 28 条，九项开放问题 Q1~Q9） |
+| 状态 | **v1.1**（v1.0 初版：FR-48~FR-63 六域 16 条功能需求，端点矩阵 S3/OD/LD/RE/PM/CL/MG 七域 28 条，九项开放问题 Q1~Q9；v1.1 勘误：FR-50 迁移端点契约对齐实现 + Q6/Q7 暂行口径回写 + Q10 增补，T-181） |
 | 上游依据 | PRODUCT.md（愿景与 Non-goals：M6 起 OIDC/LDAP 解禁——PRODUCT 只标注「第一版不做」，M6 起进入企业就绪期）、ROADMAP.md M6+ 展望（S3 存储后端 / 复制联邦 / OIDC+LDAP / Prometheus 指标 / `bf` CLI / 迁移工具）、DECISIONS.md 全部 ADR（ADR-0004 部署矩阵六产物、ADR-0005 零 CGO 依赖基线、ADR-0006 blob 存储布局与存量兼容升级、ADR-0007 元数据迁移机制、ADR-0008 路由前缀 `/binflow`、ADR-0009 匿名读默认开、ADR-0010 docker /v2 根级例外、ADR-0012 remote 代理基线、ADR-0013 virtual 解析顺序、ADR-0014 console 基线与 session 认证、ADR-0015 治理面、ADR-0016 目录实体化、ADR-0017 镜像供应链）、M5 交付基线（milestone-5.md v1.2 @m5-done）、docs/reverse/rest-api.md / auth-model.md / repo-semantics.md（行为参考） |
 | 下游消费者 | tech-lead（拆票）、architect（ADR-0018~ADR-0023 新决策面）、dev-go-core（S3 adapter / replication / OIDC/LDAP 认证臂）、dev-go-storage（S3 后端）、devops-engineer（Prometheus / bf CLI scaffold）、release-engineer（迁移工具与 bf CLI 发布）、qa-engineer（H 序列验收）、tech-writer（OIDC/LDAP 接入指南、bf CLI 手册、迁移指南） |
 
@@ -15,6 +15,7 @@
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | v1.0 | 2026-08-21 | 初版：M6 范围、FR-48~FR-63（S3 六条 / OIDC-LDAP 三条 / 复制联邦四条 / Prometheus 一条 / bf CLI 一条 / 迁移工具一条）、端点矩阵 28 条、H01~H42 验收命令草案、九项开放问题 Q1~Q9、与既有 ADR 的冲突/补充标注 |
+| v1.1 | 2026-08-22 | 勘误（T-181）：① migration 契约对齐实现——FR-50 迁移进度端点响应字段改为 `running/done/total/migrated/skipped/failed`（+`error`/`started_at`/`finished_at` 三者 omitempty），未配置/未启用双写时迁移两端点 501（以 architecture.md §7.1 T-176 回写版与 `internal/storage/migration.go` json tag 为准；旧拟名 `total_blobs`/`in_progress`/`completed` 作废——配置键 `migration.completed` 不受影响）；② Q6/Q7 暂行口径按 T-162 报告回写，标注「暂行已实现，待终裁」并注明切换位；增补 Q10（私有复制目标默认放行） |
 
 ---
 
@@ -175,13 +176,15 @@ M5 的行为面冻结标志着 BinFlow 从「可用」进入「可运营」阶�
   - 写：新上传同时写本地 + S3（双写），本地成功后异步写 S3（S3 写失败不阻塞请求，仅记录错误日志 + 重试队列）
   - 后台迁移：启动后扫描本地 `blobs/` 目录，逐 blob 上传 S3（SkipIfExists），迁移进度可查询
 - **迁移完成**：全部本地 blob 已在 S3 后，`storage.migration.completed` 标记为 `true`——后续可切为纯 S3 模式（`backend=s3` + `migration.enabled=false`），本地 blob 可删除（由运维手动执行，BinFlow 不自动删本地文件）。
-- **迁移进度查询**：`GET /binflow/api/v1/storage/migration` → 200 JSON：`{"total_blobs": N, "migrated": N, "in_progress": bool, "completed": bool}`。
+- **迁移进度查询**（v1.1 契约，以实现为准）：`GET /binflow/api/v1/storage/migration`（admin）→ 200 JSON：`{"running": bool, "done": bool, "total": N, "migrated": N, "skipped": N, "failed": N, "error"?: string, "started_at"?: RFC3339, "finished_at"?: RFC3339}`——`total` = 启动盘点时待迁移 blob 数（在本地盘且不在 S3 的）；`skipped` = 盘点时 S3 已有（幂等跳过不重拷）；`migrated`/`failed` = 已拷贝/拷贝失败计数；`error`（首错文本）/`started_at`/`finished_at` 三者 omitempty（未发生即不出键）；从未启动过迁移时返回全 0 基线快照。旧拟名 `total_blobs`/`in_progress`/`completed` 作废（v1.0 拟名未按实现落地，T-160 核验发现，T-176 回写）。
+- **迁移触发**：`POST /binflow/api/v1/storage/migration/start`（admin）——幂等：迁移已运行中时重复调用返回 202 + 上述状态体；启动被拒（如已完成）→ 409。
+- **501 语义（v1.1）**：未处于双写装配（`backend≠s3`、或 `migration.enabled≠true`、或已置 `migration.completed=true`——端点仅在 dual-write 启动时接线）时，上述两端点返回 **501**「migration is not configured」（非 404）。
 - **迁移中断恢复**：重启后从断点继续（已存在的 S3 object 跳过，SkipIfExists 幂等）；迁移期间 `storage.migration.enabled=true` 不可逆（设为 false 后不再读本地）。
 
 | # | AC（可执行） | 优先级 |
 |---|---|---|
-| FR-50-AC1 | H12：本地 filestore 存有 100+ blob → 配置 `backend=s3` + `migration.enabled=true` → 起服 → `GET /api/v1/storage/migration` 显示进度 → 迁移完成后 `completed=true`；所有制品 GET 200（经 S3 返回） | P0 |
-| FR-50-AC2 | H13：迁移期间上传新制品 → 201 成功 → 本地 + S3 均有 blob；迁移完成后 `completed=true` + 新制品 S3 上可达 | P0 |
+| FR-50-AC1 | H12：本地 filestore 存有 100+ blob → 配置 `backend=s3` + `migration.enabled=true` → 起服 → `GET /api/v1/storage/migration` 显示进度 → 迁移完成后 `done=true`（`running=false`）；所有制品 GET 200（经 S3 返回） | P0 |
+| FR-50-AC2 | H13：迁移期间上传新制品 → 201 成功 → 本地 + S3 均有 blob；迁移完成后 `done=true` + 新制品 S3 上可达 | P0 |
 | FR-50-AC3 | H14：迁移期间重启 → 继续从断点迁移（已完成 blob 不重复上传）；日志无重复上传错误 | P1 |
 | FR-50-AC4 | H15：`migration.enabled=false` 后切换纯 S3 模式 → 本地 blob 目录可删（运维手动）→ 所有制品仍可达（S3 only） | P1 |
 
@@ -367,7 +370,7 @@ M5 的行为面冻结标志着 BinFlow 从「可用」进入「可运营」阶�
 - **push 语义**：源实例上的制品上传事件（PUT 成功）→ 异步推送到目标实例（非阻塞，源上传先返回 201 给客户端）→ 目标实例接收后本地落盘。
 - **事件驱动复制**：本地上传成功后，将事件写入 `replication_events` 表（repo_key + path + sha256 + timestamp + status=pending）→ 后台 worker 消费事件 → 对目标执行：checksum 存在性检查（HEAD 或 Stat）→ 若目标已存在（幂等），标记 done；若不存在，传输 blob + node 元数据 → 标记 done。
 - **定时增量复制**（可选）：cron 触发时，扫描 `replication_events` 表中上次 cron 之后的所有上传事件——兜底事件丢失（进程 crash 时未持久化的事件）。
-- **目标端行为**：replica 仓库标记为 `rclass=local` + `replica=true`（或 `rclass=replica` 新类型——Q6 定案），**只读**（PUT/DELETE → 405 + Allow: GET, HEAD）。BinFlow B 的本地用户不能直接上传到 replica 仓库。
+- **目标端行为**：replica 仓库标记为 `rclass=local` + `replica=true`（或 `rclass=replica` 新类型——Q6 定案），**只读**（PUT/DELETE → 405 + Allow: GET, HEAD）。BinFlow B 的本地用户不能直接上传到 replica 仓库。（v1.1 注：Q6 暂行按「local backing + virtual 只读门面」实现，backing local 仍可被目标实例直写——终裁前本条为目标态，见 §7 Q6）
 
 | # | AC（可执行） | 优先级 |
 |---|---|---|
@@ -400,7 +403,7 @@ M5 的行为面冻结标志着 BinFlow 从「可用」进入「可运营」阶�
 
 - **复制状态查询**：`GET /binflow/api/v1/replication/status` → 200 JSON：`{"targets": [{"url": "...", "repos": [...], "last_success": "ISO8601", "last_error": "ISO8601", "pending_events": N, "error_events": N}]}`。
 - **控制台 UI**：管理页新增「复制」面板（P1）——显示目标列表、仓库、状态、上次成功时间；失败事件列表（最近 10 条）。
-- **冲突处理**：push 复制是单向的——源是唯一事实来源。目标端若存在同路径但不同 sha256 的制品（手误上传到 replica），复制时**跳过**该路径并记录 `conflict` 事件（不覆盖目标端数据——Q7 定案是否覆盖）。
+- **冲突处理**：push 复制是单向的——源是唯一事实来源。目标端若存在同路径但不同 sha256 的制品（手误上传到 replica），复制时**跳过**该路径并记录 `conflict` 事件（不覆盖目标端数据——Q7 定案是否覆盖）。（v1.1 注：Q7 暂行实现为「checksum 一致 → 幂等成功；不一致 → 任务终态 failed、不动目标」，009 任务状态闭集暂无 conflict——见 §7 Q7）
 - **审计**：复制事件记审计（`replication.push` + `replication.error`）。
 
 | # | AC（可执行） | 优先级 |
@@ -560,7 +563,7 @@ M5 的行为面冻结标志着 BinFlow 从「可用」进入「可运营」阶�
 |---|---|---|---|---|---|---|
 | S3-01 | `storage.backend=s3` 配置 + 全量行为等价 | 本地 filestore 与 S3 后端下 M1~M5 全部 P0 序列全绿；blob 布局同构（`blobs/<sha256[0:2]>/<sha256>`→ S3 object key）；上传会话入 DB（`upload_sessions` 表） | 自有（BinFlow 基础设施） | P0 | 中（待 ADR-0018 定案） | H01~H06 |
 | S3-02 | `/health` storage 子系统 S3 连通性 | HeadBucket + PutObject(哨兵) + DeleteObject 三步检测；不可达 → `"degraded"` 或 `"unhealthy"` | 自有 | P0 | — | H07~H08 |
-| S3-03 | `storage.migration.enabled=true` 本地→S3 迁移 | 双写+后台迁移；读 S3 miss→ 本地；迁移进度查询 `GET /api/v1/storage/migration`；中断恢复幂等 | 自有 | P0 | 中（待 ADR-0018 定案） | H12~H15 |
+| S3-03 | `storage.migration.enabled=true` 本地→S3 迁移 | 双写+后台迁移；读 S3 miss→ 本地；迁移进度查询 `GET /api/v1/storage/migration`（running/done/total/migrated/skipped/failed，v1.1）；未配双写时迁移两端点 501（非 404）；中断恢复幂等 | 自有 | P0 | 中（待 ADR-0018 定案） | H12~H15 |
 | S3-04 | S3 下 GC mark-sweep（`blob-created-at` 元数据） | grace 基准 = S3 object 自定义元数据 `blob-created-at`（非 S3 LastModified）；sweep = DeleteObject；GC 安全确认标志（Q3） | 自有（ADR-0006 补充） | P0 | 中（待 ADR-0019 定案） | H16~H18 |
 | S3-05 | S3 兼容性列表（AWS S3 / MinIO） | 两个 S3 实现上 M1~M5 全序列全绿；文档含配置示例 | 自有 | P0 | — | H22~H23 |
 | OD-01 | `GET /binflow/api/v1/oidc/login`（302 → IdP） | Authorization Code Grant + PKCE（S256）；scope=openid+profile+email | 自有（OIDC Core 1.0 公开协议） | P0 | 高（OIDC 规范） | H24~H25 |
@@ -632,8 +635,9 @@ curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/health | jq -r .storage   # "ok"
 # H11 MinIO + use_path_style=true → 起服成功
 
 # H12~H15 本地→S3 迁移（S3-03）
-# H12 本地 100+ blob + migration.enabled=true → 起服 → 查进度
-curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/storage/migration | jq -r '.completed'   # true（迁移完成后）
+# H12 本地 100+ blob + migration.enabled=true → 起服 → 查进度（v1.1 契约：running/done/total/migrated/skipped/failed）
+curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/storage/migration | jq -r '.done'   # true（迁移完成后）
+curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/storage/migration -o /dev/null -w '%{http_code}\n'   # 501（对照腿：未配置双写——backend=local 或 migration.enabled≠true 时，非 404）
 # H13 迁移期间上传新制品 → 本地+S3 均有
 # H14 迁移期间重启 → 断点续传
 # H15 纯 S3 模式（migration.enabled=false）→ 本地 blob 可删
@@ -697,7 +701,7 @@ curl -su admin:$ADMIN_PW "$BASE/binflow/api/v1/replication/events?status=pending
 # H45 复制状态（RE-02）
 curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/replication/status | jq '.targets'
 # H46 控制台复制面板（Playwright 断言）
-# H47 冲突处理（目标端同路径不同 sha256 → 跳过 + conflict）
+# H47 冲突处理（目标端同路径不同 sha256 → 跳过 + conflict；v1.1 暂行口径：任务 status=failed + conflict 文案，见 §7 Q7）
 # H48~H51 多协议复制（docker/maven/npm/pypi 各一腿）
 
 # ========== Prometheus 指标（FR-61） ==========
@@ -831,17 +835,18 @@ bf-migrate migrate --dry-run ...  # 退出码 0，migration_report.json 统计�
 
 ## 7. 开放问题（待用户定案）
 
-| # | 问题 | 影响面 | 暂行假设（v1.0） |
+| # | 问题 | 影响面 | 暂行假设（v1.0；v1.1 起标注实现状态） |
 |---|---|---|---|
 | Q1 | **S3 后端热切换 vs 冷切换**：运行时切换 `storage.backend` 需要重启？还是支持热切换（SIGHUP 重载配置）？ | FR-48/FR-50；运维体验 | **冷切换**（需重启）——M6 暂不引入 SIGHUP 重载，降低复杂度。重启后 `migration.enabled=true` 自动进入双写+迁移模式 |
 | Q2 | **本地 filestore 的 sessions 是否统一为 DB 会话**：ADR-0006 决策 2 定为磁盘会话，S3 后端下必须入 DB。是否趁 M6 统一为 DB 会话？ | FR-48；ADR-0006 修订；双路径维护成本 | **建议统一为 DB 会话**（`upload_sessions` 表），本地 filestore 下也入 DB——降低双路径维护成本，状态恢复更可靠。需用户确认——**这是对 ADR-0006 的修订**
 | Q3 | **S3 下 GC `--apply` 的安全确认**：S3 后端下 DeleteObject 不可逆（无回收站），是否需额外确认标志？ | FR-51；S3 数据安全 | **复用 `--apply` 标志**（与本地 filestore 一致），但 S3 后端下日志额外 WARN「S3 backend: blob deletion is irreversible」。不加 `--confirm-s3` 新标志，保持运维界面一致
 | Q4 | **OIDC `admin_group` 映射的角色粒度**：`admin_group` 成员是获得完整 admin 权限，还是可配「只读 admin」？ | FR-54；权限模型 | **完整 admin 权限**（与本地 admin 用户同权）。更细粒度的角色（read-only admin / repo admin）归 M7+ 的 RBAC 里程碑
 | Q5 | **OIDC 与 LDAP 用户名冲突处理**：同一 username 同时存在于 OIDC 和 LDAP 时，哪个优先？ | FR-56；用户映射 | **不允许冲突**——`username` 全局唯一。若 OIDC 用户与 LDAP 用户 username 相同，第二个登录的返回 409「username already exists with different source」。用户需在 IdP 侧或 LDAP 侧调整 username 避免冲突
-| Q6 | **replica 仓库的仓库类型**：目标端 replica 仓库是 `rclass=local` + `replica=true` 标记，还是新增 `rclass=replica`？ | FR-57；仓库模型 | **`rclass=local` + `replica=true` 标记**——不新增 rclass 枚举值，降低仓库模型变更面。`replica=true` 的 local 仓库行为：只读（PUT/DELETE → 405）、不可作为 virtual 成员、不可被复制到其他目标
-| Q7 | **复制冲突策略**：目标端存在同路径但不同 sha256 的制品时，覆盖还是跳过？ | FR-59；复制语义 | **跳过**（不覆盖目标端数据）——源是唯一事实来源，但目标端的手动修改不容静默覆盖。冲突事件记录 `replication_events` 表（status=conflict），管理员在控制台可见
+| Q6 | **replica 仓库的仓库类型**：目标端 replica 仓库是 `rclass=local` + `replica=true` 标记，还是新增 `rclass=replica`？ | FR-57；仓库模型 | **暂行已实现，待终裁**（T-162 口径，2026-08-22 回写）：落法 = `target_repo` 指向**可写 local 仓**（backing，如 `replica-local`）+ 未配置写路由的 **virtual 只读门面**（members=[backing]）——「replica 只读 PUT/DELETE 405」复用 M3 virtual 既有行为，零仓库模型改动。**注意**：暂行下 backing local 本身仍可被目标实例上的用户直写（只有门面只读）。v1.0 暂行假设（`rclass=local` + `replica=true` 标记，不新增 rclass 枚举）**未实施**；终裁若选标记/新 rclass 路线，切换位在 `pushOnce` 的推送落点寻址（`PUT /binflow/{targetRepo}/{path}`，internal/replication/engine.go），引擎骨架不动 |
+| Q7 | **复制冲突策略**：目标端存在同路径但不同 sha256 的制品时，覆盖还是跳过？ | FR-59；复制语义 | **暂行已实现，待终裁**（T-162 口径，2026-08-22 回写）：目标同路径已存在且 **checksum 一致 → 幂等成功**（零传输、不打开源 blob）；**不一致 → 任务终态 `status=failed`**（attempts 记满防 cron 复活、completed_at 置位）且**不动目标**。与 ADR-0021 决策 4 字面（比较 updated_at、first-write-wins、记 `skipped`）及本 PRD H47 的 `status=conflict` 词汇不一致——009 任务状态闭集（T-161）无 `conflict`，暂行取 failed + conflict 文案。终裁若选 skipped/覆盖，切换位在 `pushOnce` 的 HEAD 分支（internal/replication/engine.go），引擎骨架不动 |
 | Q8 | **AWS S3 验收环境**：QA 需要 AWS 账号与 S3 bucket 用于验收——由谁提供？ | FR-53；QA 条件腿 | **优先 MinIO 本地容器**（P0 可自足）；AWS S3 验收为条件腿（用户提供 bucket 与凭据——拆票标注 `dep:用户环境`），到位前 MinIO 全序列 PASS 视为等价。与 M5 Q3 同口径 |
 | Q9 | **Artifactory 迁移工具验收环境**：QA 需要 Artifactory 实例（含制品）用于验收——由谁提供？ | FR-63；QA 条件腿 | **用户提供 Artifactory 实例**（或 QA 用 Docker 自建 Artifactory OSS 容器 + 脚本填充 100+ 制品）。Docker 自建可覆盖 P2 验收；若需真实企业版 Artifactory 实例，拆票标注 `dep:用户环境`。与 M5 Q3 同口径 |
+| Q10 | **复制目标私网地址默认放行**：复制目标几乎必然是内网/同主机 BinFlow 实例——`DenyPrivateTargets` 默认拒绝会使功能在所有现实部署不可用；但「默认放行私网目标」是否需要 config 显式开关与文档警示？ | FR-57；SSRF 面（NFR-S13） | **暂行已实现，待终裁**（T-162 口径，2026-08-22 增补）：`DenyPrivateTargets` 默认 `false`（私网目标放行，等价 Guard 的 AllowPrivateUpstream=true）——scheme/host 校验、逐跳重检、DNS-rebinding pinning 仍然生效。建议 config 桥接票增 `replication.allow_private_target`（默认 `true`）落到该选项（T-162 建议，未实施） |
 
 ---
 
@@ -873,4 +878,4 @@ bf-migrate migrate --dry-run ...  # 退出码 0，migration_report.json 统计�
 
 ---
 
-*本 PRD v1.0 由 product-manager（T-148）依据 PRODUCT.md、ROADMAP.md M6+ 展望、M1~M5 交付基线、DECISIONS.md 全部 ADR 撰写；九项开放问题 Q1~Q9 待用户定案后回写（v1.1）。与既有 ADR 的冲突/补充点见 §6.1 标注表。*
+*本 PRD v1.0 由 product-manager（T-148）依据 PRODUCT.md、ROADMAP.md M6+ 展望、M1~M5 交付基线、DECISIONS.md 全部 ADR 撰写；开放问题 Q1~Q9（v1.1 增补 Q10）待用户定案后回写。与既有 ADR 的冲突/补充点见 §6.1 标注表。v1.1 勘误由 product-manager（T-181）回写：FR-50 迁移端点契约对齐实现（architecture.md §7.1 T-176 回写版）+ Q6/Q7/Q10 暂行口径（reports/agents/T-162.md）。*

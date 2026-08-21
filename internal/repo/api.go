@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -618,6 +619,24 @@ type RemoteFetcher interface {
 // The concrete engine satisfies the seam (compile-time pin).
 var _ RemoteFetcher = (*remote.Engine)(nil)
 
+// Replicator is the push-replication enqueue seam (M6, ADR-0021 decision 2:
+// "repo.Service.Put 链末增加 replication.Enqueue 调用（异步，非阻塞）").
+// The internal/replication engine satisfies it structurally; the seam lives
+// here, on the consumer side, so repo never imports the replication package
+// (the engine reads blobs through storage, not through this package — no
+// cycle either direction).
+//
+// Enqueue is fire-and-forget: implementations never return an error, must be
+// safe to call from any goroutine, and must complete quickly (persisting a
+// pending task row and waking a worker). The Put tail invokes it on a
+// detached context in its own goroutine, so an upload never waits on — and
+// never fails because of — replication.
+type Replicator interface {
+	// Enqueue records that (repoKey, path) landed with sha256 (hex, the
+	// node's blob digest; empty for folder nodes, which the hook skips).
+	Enqueue(ctx context.Context, repoKey, path, sha256 string)
+}
+
 // New builds the Service from its collaborator contracts (architecture
 // section 3.3). st and md are required; az may be nil (admin-only mode); au
 // may be nil (auditing disabled).
@@ -640,4 +659,21 @@ func New(st storage.Engine, md metadata.Store, az Authorizer, au AuditLogger) Se
 // deterministically. The same PANIC CLAUSE as New applies (see its godoc).
 func NewWithClock(st storage.Engine, md metadata.Store, az Authorizer, au AuditLogger, now func() time.Time) Service {
 	return newService(st, md, az, au, now)
+}
+
+// AttachReplicator wires the push-replication enqueue seam (M6, ADR-0021)
+// onto a Service built by New/NewWithClock: after this call, every
+// successful file Put on a repository with an enabled replication config
+// enqueues a pending replication task. Call it during assembly, BEFORE the
+// first request is served (the field is plain; concurrent attach-while-
+// serving is not part of the contract). A non-concrete Service (a test
+// fake) is skipped with a WARN — the seam is best-effort at the wiring
+// layer, never a startup hazard.
+func AttachReplicator(s Service, r Replicator) {
+	impl, ok := s.(*service)
+	if !ok {
+		slog.Warn("repo: AttachReplicator: service is not the concrete implementation; replication hook not wired")
+		return
+	}
+	impl.repl = r
 }

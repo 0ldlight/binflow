@@ -124,17 +124,19 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if reason, rejected := authRejectedFrom(r.Context()); rejected {
-		// B1 (T-91 security review): the login endpoint is EXEMPT from the
-		// hard-401 — it is precisely where stale cookies belong (expired,
-		// revoked, swept or tossed by a hostile sibling subdomain), and the
-		// browser attaches them automatically (Path=/binflow). Without the
-		// exemption, a tossed garbage cookie turns every correct-credential
-		// login into an indefinite 401 (cookie-tossing DoS). The handler
-		// verifies the body's username/password itself; the
+		// B1 (T-91 security review): the login ENTRY POINTS are EXEMPT from
+		// the hard-401 — they are precisely where stale cookies belong
+		// (expired, revoked, swept or tossed by a hostile sibling subdomain),
+		// and the browser attaches them automatically (Path=/binflow).
+		// Without the exemption, a tossed garbage cookie turns every
+		// correct-credential login into an indefinite 401 (cookie-tossing
+		// DoS). POST /api/v1/session verifies the body's username/password
+		// itself; the two /api/v1/oidc routes are browser navigations that
+		// never consume the presented credential (T-157). The
 		// presented-but-rejected-never-downgrades posture is untouched for
 		// every other route.
-		if r.Method == http.MethodPost && path == prefix+"/api/v1/session" {
-			s.log.DebugContext(r.Context(), "httpapi: rejected credential exempted on the login endpoint",
+		if isLoginEntryPoint(r.Method, path) {
+			s.log.DebugContext(r.Context(), "httpapi: rejected credential exempted on a login entry point",
 				"path", path, "reason", reason)
 		} else {
 			// /binflow plane (and everything else): the historical hard-401
@@ -192,6 +194,22 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 	default:
 		s.dispatchContent(w, r, rest)
 	}
+}
+
+// isLoginEntryPoint reports whether (method, path) is one of the anonymous
+// credential-presentation routes that must survive a presented-but-rejected
+// cookie (the dispatch exemption above): the password login verifies its own
+// body, and the two OIDC routes are browser navigations whose credential
+// arrives later, inside the authorization code. Everything else keeps the
+// hard-401 posture.
+func isLoginEntryPoint(method, path string) bool {
+	switch path {
+	case prefix + "/api/v1/session":
+		return method == http.MethodPost
+	case prefix + "/api/v1/oidc/login", prefix + "/api/v1/oidc/callback":
+		return method == http.MethodGet
+	}
+	return false
 }
 
 // v2AuthFailure is the docker adapter's seam for rendering an
@@ -321,6 +339,25 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleMigrationStatus)
 	case rest == "v1/storage/migration/start" && r.Method == http.MethodPost:
 		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleMigrationStart)
+
+	// ---- /api/v1/oidc (OD-01/OD-02, T-157; anonymous browser entry) ----
+	// GET is the only verb with a route on either path: the flow is two
+	// top-level browser navigations. The gate is empty because the
+	// credential arrives INSIDE the flow (the authorization code), not with
+	// the request; the handlers refuse to run when Deps.OIDC is unwired, so
+	// a disabled instance answers the E-26 404 and the endpoints do not
+	// exist (FR-54-AC6/H29).
+	case rest == "v1/oidc/login" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{}, s.handleOIDCLogin)
+	case rest == "v1/oidc/callback" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{}, s.handleOIDCCallback)
+
+	// ---- /api/v1/auth/methods (T-179; anonymous capability discovery) ----
+	// The login page's entry-point map: which of password/oidc/ldap this
+	// instance offers. Anonymous by design (see auth_methods.go); every
+	// other verb on the path falls to the E-26 404 below.
+	case rest == "v1/auth/methods" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{}, s.handleAuthMethods)
 
 	// ---- /api/v1/session (CE-03..05, T-91; ADR-0014 erratum 2) ----
 	// POST is deliberately un-gated (it IS the credential presentation);

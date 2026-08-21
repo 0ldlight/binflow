@@ -104,7 +104,12 @@ func (s *Service) authenticateSession(ctx context.Context, id string) (*Principa
 	if shouldTouch(row.LastUsedAt) {
 		_ = s.sessions.Touch(ctx, idHash, nowRFC3339()) //nolint:errcheck // heartbeat, best-effort by design
 	}
-	return &Principal{Name: u.Username, Admin: u.IsAdmin, ViaSession: true, Source: ProviderLocal}, nil
+	// Source reflects the OWNING provider of the user row (T-157 leftover 3):
+	// a session minted by an OIDC or LDAP login keeps reporting that source
+	// on every request — whoami's source is the user row's provider, not the
+	// arm that verified the cookie. adaptUser normalizes unknown providers
+	// to local, so hand-built rows cannot smuggle an arbitrary value.
+	return &Principal{Name: u.Username, Admin: u.IsAdmin, ViaSession: true, Source: u.Provider}, nil
 }
 
 // IssueSession implements SessionRegistry.IssueSession: 32 random bytes,

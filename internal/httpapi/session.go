@@ -48,9 +48,12 @@ type sessionBody struct {
 }
 
 // sessionWhoami is the 200 body of GET /api/v1/session and POST login.
+// Source is the identity provider that owns the credential (local/oidc/ldap,
+// FR-56-AC1/H36; T-157 leftover 3 closed by T-179).
 type sessionWhoami struct {
 	Username string `json:"username"`
 	Admin    bool   `json:"admin"`
+	Source   string `json:"source"`
 }
 
 // parseSessionBody accepts JSON and form login bodies (CE-03: "JSON/form
@@ -163,12 +166,13 @@ func (s *Server) handleSessionCreate(w http.ResponseWriter, r *http.Request) {
 		Secure:   sessionCookieSecure(r, s.deps.Config.Server.BaseURL),
 		MaxAge:   int(ttl.Seconds()),
 	})
-	writeJSONBody(w, http.StatusOK, sessionWhoami{Username: p.Name, Admin: p.Admin})
+	writeJSONBody(w, http.StatusOK, sessionWhoami{Username: p.Name, Admin: p.Admin, Source: principalSource(p)})
 }
 
 // handleSessionWhoami serves GET /api/v1/session (CE-04): the current
 // principal of ANY arm (session, Basic, token — the route gate already
-// demanded a credential). The SPA's route guard reads this.
+// demanded a credential). The SPA's route guard reads this; Source reports
+// the owning provider (H36).
 func (s *Server) handleSessionWhoami(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r.Context())
 	if p == nil {
@@ -177,7 +181,7 @@ func (s *Server) handleSessionWhoami(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
-	writeJSONBody(w, http.StatusOK, sessionWhoami{Username: p.Name, Admin: p.Admin})
+	writeJSONBody(w, http.StatusOK, sessionWhoami{Username: p.Name, Admin: p.Admin, Source: principalSource(p)})
 }
 
 // handleSessionDelete serves DELETE /api/v1/session (CE-05): revoke the

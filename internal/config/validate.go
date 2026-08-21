@@ -98,6 +98,44 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("config: storage.migration.concurrency must be positive when migration is enabled, got %d", c.Storage.Migration.Concurrency)
 		}
 	}
+	// auth.oidc (M6, ADR-0020): when enabled, the three wiring fields are
+	// required and the two URLs must be absolute http(s). The client secret
+	// is deliberately NOT required here — public (PKCE-only) clients are
+	// legal, and the provider constructor is the deeper authority.
+	if c.Auth.OIDC.Enabled {
+		if c.Auth.OIDC.IssuerURL == "" {
+			return fmt.Errorf("config: auth.oidc.issuer_url is required when auth.oidc.enabled=true")
+		}
+		if c.Auth.OIDC.ClientID == "" {
+			return fmt.Errorf("config: auth.oidc.client_id is required when auth.oidc.enabled=true")
+		}
+		if c.Auth.OIDC.RedirectURL == "" {
+			return fmt.Errorf("config: auth.oidc.redirect_url is required when auth.oidc.enabled=true")
+		}
+		if err := validateHTTPURL("auth.oidc.issuer_url", c.Auth.OIDC.IssuerURL); err != nil {
+			return err
+		}
+		if err := validateHTTPURL("auth.oidc.redirect_url", c.Auth.OIDC.RedirectURL); err != nil {
+			return err
+		}
+	}
+	// auth.ldap (M6, ADR-0020): when enabled, url and base_dn are required,
+	// the URL must carry the ldap/ldaps scheme, and the pool size must be
+	// positive.
+	if c.Auth.LDAP.Enabled {
+		if c.Auth.LDAP.URL == "" {
+			return fmt.Errorf("config: auth.ldap.url is required when auth.ldap.enabled=true")
+		}
+		if c.Auth.LDAP.BaseDN == "" {
+			return fmt.Errorf("config: auth.ldap.base_dn is required when auth.ldap.enabled=true")
+		}
+		if err := validateLDAPURL(c.Auth.LDAP.URL); err != nil {
+			return err
+		}
+		if c.Auth.LDAP.PoolSize <= 0 {
+			return fmt.Errorf("config: auth.ldap.pool_size must be positive when auth.ldap.enabled=true, got %d", c.Auth.LDAP.PoolSize)
+		}
+	}
 	// Filesystem probe last: everything above is pure, this creates the dir.
 	// Only probe the data_dir when using disk backend; S3 backends do not need
 	// a local data directory.
@@ -113,6 +151,33 @@ func (c *Config) Validate() error {
 // the same value Load falls back to and doubles as living documentation of
 // the default set (architecture section 8).
 func Defaults() *Config { return defaults() }
+
+// validateHTTPURL checks that a config URL field is an absolute http(s) URL
+// (the shape OIDC discovery and the login redirect demand).
+func validateHTTPURL(key, raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return fmt.Errorf("config: %s: must be an absolute http(s) URL, got %q", key, raw)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("config: %s: scheme must be http or https, got %q", key, u.Scheme)
+	}
+	return nil
+}
+
+// validateLDAPURL checks that auth.ldap.url carries the ldap/ldaps scheme
+// with a host (go-ldap's DialURL contract; a bare hostname would silently
+// default to port 389 and the wrong TLS posture).
+func validateLDAPURL(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return fmt.Errorf("config: auth.ldap.url: must be an ldap(s) URL like ldap://host:389, got %q", raw)
+	}
+	if u.Scheme != "ldap" && u.Scheme != "ldaps" {
+		return fmt.Errorf("config: auth.ldap.url: scheme must be ldap or ldaps, got %q", u.Scheme)
+	}
+	return nil
+}
 
 // validateBaseURL: empty means "derive from request" and is fine; otherwise
 // it must be an absolute http(s) URL without query or fragment.

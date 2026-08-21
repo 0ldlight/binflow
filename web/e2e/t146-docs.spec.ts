@@ -52,8 +52,6 @@ test('G18-4: search bar is present and functional', async ({ page }) => {
   await page.locator('input.navbar__search-input').fill('docker')
   // Wait for search results to appear
   await page.waitForTimeout(1000)
-  // The search dropdown should show results
-  const searchResults = page.locator('.searchQueryInput_AF6J')
   // If search works, we should see the query in the interface
   expect(await page.locator('input.navbar__search-input').inputValue()).toBe('docker')
 })

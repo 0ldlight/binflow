@@ -73,7 +73,7 @@ test.describe.configure({ mode: 'serial' })
 test('G30e-1: zero /api/search requests during tree browse (upload + mkdir + navigate)', async ({ page }) => {
   const errors = watchServerErrors(page)
   const key = uniq('t131g30e')
-  const { urls, count } = watchRequests(page, '/api/search')
+  const { count } = watchRequests(page, '/api/search')
   await page.goto('/binflow/ui/')
   await login(page)
   await api(page, 'PUT', `/api/repositories/${key}`, { rclass: 'local', packageType: 'generic' })

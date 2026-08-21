@@ -1012,6 +1012,23 @@ CREATE INDEX idx_replication_tasks_pending ON replication_tasks(status, created_
                                                  changePassword 真实路径别名并存）
   GET    /binflow/api/v1/storage/usage/{repo}       配额用量观测（{repo,usedBytes,quotaBytes}——GE-06；
                                                  quota 配置走 repositories 字段 quotaBytes，无专用设置端点）
+  GET    /binflow/api/v1/storage/migration          存储迁移进度快照（admin；磁盘 filestore→S3 后台迁移，
+                                                 T-164）。响应 {running,done,total,migrated,skipped,failed,
+                                                 error?,started_at?,finished_at?}——total=启动盘点时待迁移
+                                                 blob 数（在本地盘而不在 S3 的），skipped=盘点时 S3 已有
+                                                 （幂等跳过不重拷），migrated/failed=已拷贝/拷贝失败计数；
+                                                 error=首错文本、started_at/finished_at=RFC3339，三者
+                                                 omitempty（未发生即不出键；从未启动过迁移时返回全 0
+                                                 基线快照）。**未处于双写装配（backend≠s3，或 migration.
+                                                 enabled≠true，或已完成置 completed——端点仅在 dual-write
+                                                 启动时接线，T-178）→ 501「migration is not configured」，
+                                                 非 404**。回写记录：实现先于契约，T-160 核验发现（PRD M6
+                                                 FR-50 原记 {total_blobs,in_progress,completed} 拟名未按
+                                                 实现落地，本行以 internal/storage/migration.go 的 json tag
+                                                 为准；PRD 面勘误归 product-manager 另行处理）
+  POST   /binflow/api/v1/storage/migration/start    触发后台迁移（admin；幂等——已在运行中时重复调用即返回
+                                                 当前状态，202 + 上述状态体；启动被拒 409。盘点 +
+                                                 SkipIfExists 拷贝、中断重启续跑——T-164 语义）
   POST   /binflow/api/v1/auth/oidc/init              [M6] OIDC 登录初始化（接受 JSON {"provider"} 或 URL query
                                                  ?provider=，返回 {"redirect_url"}——前端/CLI 重定向到 OIDC
                                                  Provider 的授权端点；state 参数由服务端生成并存入临时
@@ -1127,6 +1144,12 @@ storage:
     max_retries: 3
     upload_part_size_mb: 64      # multipart upload 单 part 大小（MB）
     incomplete_upload_cleanup_hours: 24  # 未完成的 multipart upload 自动清理周期
+  migration:                     # [M6] 磁盘→S3 在线迁移（T-164；回写记录：实现先于契约，T-160 核验
+                                 # 发现后随 T-176 补录——键名核对自 internal/config）
+    enabled: false               # true = 双写模式（写双发 disk+S3、读 S3 优先 miss 回退磁盘）；
+                                 # 此时 §7.1 迁移端点接线，否则两端点 501
+    completed: false             # 迁移全部完成后置 true：纯 S3 模式（本地 blob 由运维手动清理）
+    concurrency: 5               # 后台拷贝 goroutine 数（enabled 时必须为正；零值默认 5）
 metadata:
   driver: "sqlite"               # 'sqlite' | 'postgres'
   dsn: ""                        # sqlite: 文件路径（空=data_dir/binflow.db）；postgres: URL
@@ -1179,7 +1202,7 @@ logging:
   format: "json"                 # json|console
 ```
 
-校验规则（`Load` 内，fail-fast）：port 可解析；`data_dir` 可创建/可写（disk 后端）；`storage.backend` ∈ {disk, s3}；`metadata.driver` ∈ {sqlite, postgres}；s3 后端时 `bucket`/`region` 必填；OIDC provider 的 `name`/`issuer` 必填且 `name` 唯一；LDAP enabled 时 `host`/`base_dn` 必填；未知顶层键报错（防拼写静默失效）。`Config` 结构带 `Validate()` 与 `Defaults()`，表驱动测试覆盖每条规则。
+校验规则（`Load` 内，fail-fast）：port 可解析；`data_dir` 可创建/可写（disk 后端）；`storage.backend` ∈ {disk, s3}；`metadata.driver` ∈ {sqlite, postgres}；s3 后端时 `bucket`/`region` 必填；`storage.migration.enabled=true` 时 `concurrency` 必须为正（零值经 `Defaults()` 填 5，显式 ≤0 报错；`enabled=true` 且 `backend≠s3` 由 cmd 装配层拒绝启动——双写的 S3 写目标缺失，T-164）；OIDC provider 的 `name`/`issuer` 必填且 `name` 唯一；LDAP enabled 时 `host`/`base_dn` 必填；未知顶层键报错（防拼写静默失效）。`Config` 结构带 `Validate()` 与 `Defaults()`，表驱动测试覆盖每条规则。
 
 ---
 

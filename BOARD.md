@@ -17,17 +17,9 @@
 
 ## 📥 待办（todo）
 
-> **M6 正在开发**（2026-08-22）。T-156/T-161/T-164 已收口（**11/26**，首批已提交）；Batch 4/5 铺开：T-157/T-162/T-160/T-170 四张在途；T-165/T-168 待用户明示重派（半成品在盘）。
+> **M6 正在开发**（2026-08-22）。**20/26**（batch 1 已提交 ed9de87）：T-159 收口；在途 T-177/T-181/T-182/T-179（4/4）；T-180 待 T-179；T-165/T-168 待用户明示重派。
 
 ### Batch 3（全部完成）：T-151/T-152/T-154/T-155 已完成 ✅
-
-### Batch 4: 适配器与控制台（dev-go-core + dev-frontend）
-
-- **T-158** [P1] 控制台 SSO 登录 UI（OIDC + LDAP 登录页面） `role:dev-frontend` `area:web/src/pages / web/src/components` `dep:T-157`
-  AC: ① 登录页新增「使用 SSO 登录」按钮（仅 `oidc.enabled=true` 时显示）。② 用户名/密码登录表单对 LDAP 用户透明。③ Playwright 测试：`login.spec.ts` 新增 OIDC 登录流和 LDAP 登录流。
-
-- **T-159** [P1] 控制台复制面板 UI（复制状态 + 事件列表） `role:dev-frontend` `area:web/src/pages / web/src/components` `dep:T-162`
-  AC: ① 管理页新增「复制」面板：显示目标列表（URL、仓库、状态、上次成功时间、pending/error 事件数）。② 面板数据通过 `GET /binflow/api/v1/replication/status` 获取，每 10s 自动刷新。③ Playwright 测试：`replication.spec.ts` 验证面板渲染。
 
 ### Batch 5: 复制与指标（dev-go-core）
 
@@ -63,32 +55,28 @@
 - **T-172** [P0] M6 回归基线 — 本地 filestore 下 M1~M5 全部 P0 序列复跑 `role:qa-engineer` `area:QA 全量（本地 filestore）` `dep:T-168`
   AC: ① M1 C 序列 P0 全绿。② M2 D 序列 P0 全绿。③ M3 M 序列 P0 全绿。④ M4 W 序列 P0 全绿。⑤ M5 G 序列 P0 全绿。⑥ 产出：QA 报告（H68），零失败零 5xx。
 
-- **T-173** [P0] S3 后端下 M1~M5 全部 P0 序列复跑 + 兼容性验证 `role:qa-engineer` `area:QA 全量（S3 后端：MinIO）` `dep:T-164,T-172`
-  AC: ① MinIO 容器上 M1~M5 全部 P0 序列复跑全绿。② S3 配置与健康检查（H07~H11）。③ 本地→S3 迁移（H12~H15）。④ S3 下 GC 与去重（H16~H18）。⑤ S3 下性能基线（H19~H21）。**Q8（待用户定案）**：AWS S3 验收为条件腿。
+- **T-173** [P0] S3 后端下 M1~M5 全部 P0 序列复跑 + 兼容性验证 `role:qa-engineer` `area:QA 全量（S3 后端：MinIO）` `dep:T-164,T-172,T-178`
+  AC: ① MinIO 容器上 M1~M5 全部 P0 序列复跑全绿。② S3 配置与健康检查（H07~H11）。③ 本地→S3 迁移（H12~H15）。④ S3 下 GC 与去重（H16~H18）。⑤ S3 下性能基线（H19~H21）。**Q8（待用户定案）**：AWS S3 验收为条件腿。（dep 增 T-178：S3 数据面接线是硬前置，2026-08-22）
 
-- **T-174** [P0] OIDC + LDAP 集成验收（含认证臂优先级） `role:qa-engineer` `area:QA 认证（Keycloak + OpenLDAP）` `dep:T-157,T-158`
+- **T-174** [P0] OIDC + LDAP 集成验收（含认证臂优先级） `role:qa-engineer` `area:QA 认证（Keycloak + OpenLDAP）` `dep:T-157,T-158,T-179`
   AC: ① OIDC 登录流（H24~H29）：Keycloak SSO 登录 → 控制台 session 可用。② LDAP 登录流（H30~H35）：OpenLDAP 用户名密码登录 → session 创建。③ 认证臂优先级（H36~H38）：三种用户同时登录 → 各返回正确 source。④ 产出：QA 报告，含 IdP 版本与配置。
 
 - **T-175** [P1] 复制多协议 + Prometheus 指标 + bf CLI + bf-migrate 集成验收 `role:qa-engineer` `area:QA 集成（两实例 + Prometheus + CLI + 迁移）` `dep:T-162,T-163,T-166,T-167,T-159,T-160`
   AC: ① 复制验收（H39~H51）：push 单向复制、replica 仓库只读、幂等等。② Prometheus 指标验收（H52~H55）：`/metrics` 端点 200 + 含 TYPE/HELP 行。③ bf CLI 验收（H56~H61）：四个子命令成功。④ bf-migrate 验收（H62~H67）：1 个 generic 仓库 100+ 制品迁移 → sha256 一致。⑤ 产出：QA 报告，含全部 H 序列结果。
 
+### Batch 9: 核验发现的收尾债（conductor 建票，2026-08-22）
+
+- **T-180** [P1] 复制面桥接收编（replications REST + cmd 装配 + 签名缝收编 + 单点化） `role:dev-go-core` `area:internal/httpapi / cmd/binflow-server / internal/storage` `dep:T-179`
+  AC: ① `internal/httpapi` 新增 replications CRUD REST（`GET/POST/DELETE /api/v1/replications`）+ `GET /api/v1/replication/status`（数据形状对齐 T-159 前端契约假设，见 reports/agents/T-159.md）。② `cmd/binflow-server` 复制引擎装配：AttachReplicator 挂钩 + engine Run 生命周期（启停排空）。③ MigrationStarter 签名缝上游收编：`storage.MigrationEngine.StatusView()` 与 `httpapi.MigrationStarter` 接口对齐，删 cmd 侧 migrationStarter 适配器（T-178 遗留①）。④ `secureFromEndpoint` 单点化（httpapi/cmd 双份 5 行收敛，T-178 遗留③）。⑤ 测试：端点 table-driven + cmd 装配 smoke。⑥ `internal/storage/migration.go` MigrationStatus.Total godoc 口径修正（"blobs on disk" vs len(missing)，T-176 遗留②）。
+  ▶ 2026-08-22 建票（T-162/T-178 遗留合并；dep T-179 串行避让 cmd 冲突；完成后 T-159 前端可对真实端点复验、T-175 复制验收解锁）。
+
+- **T-183** [P1] charts oidc enabled 渲染补丁（T-179 发现） `role:release-engineer` `area:charts/binflow`
+  AC: ① `charts/binflow/templates/configmap.yaml` oidc 块补 `enabled: true` 渲染行（对齐 ldap 块现状；外层 if 门保持）。② 验证：`helm template --set config.oidc.enabled=true` 产出 config 含 `auth.oidc.enabled: true` + `helm lint` 0 failed + 临时渲染回灌真实 config.Load 严格解码器放行（T-179 探针法）。
+  ▶ 2026-08-22 建票（conductor 代码实锤：oidc 块漏 enabled 行，Helm 启用 OIDC 静默失效）。
+
 ## 🔨 进行中（doing）
 
-- **T-157** [P0] OIDC/LDAP HTTP 端点挂载（httpapi + route） `role:dev-go-core` `area:internal/httpapi` `dep:T-156`
-  AC: ① 路由表新增：`GET /binflow/api/v1/oidc/login`（302 → IdP）、`GET /binflow/api/v1/oidc/callback`。② `POST /binflow/api/v1/session` 认证逻辑扩展为先本地后 LDAP。③ 集成测试：`httpapi` 测试新增 `oidc_routes_test.go` + `ldap_session_test.go`。
-  ▶ 2026-08-22 已派发（T-156 done + T-164 收口释放 httpapi 区）。
-
-- **T-162** [P1] push 复制引擎（事件驱动 + cron 兜底） `role:dev-go-core` `area:internal/replication` `dep:T-161`
-  AC: ① `repo.Service.Put` 链末增加 `replication.Enqueue` 调用（异步 goroutine，非阻塞）。② 失败重试：指数退避（1s→2s→4s→8s→16s，最多 5 次）。③ 集成测试（需两个 BinFlow 实例）：源 A 上传制品 → 目标 B GET 同路径 200（sha256 一致）；目标 B replica 仓库 PUT/DELETE → 405。**Q6/Q7（待用户定案）**：replica 仓库类型、冲突策略。
-  ▶ 2026-08-22 已派发（T-161 done；Q6/Q7 按 architecture.md ADR-0021 暂行口径实现并在报告标注）。
-
-- **T-160** [P1] S3 迁移进度控制台 UI（迁移状态 + 进度条） `role:dev-frontend` `area:web/src/pages / web/src/components` `dep:T-164`
-  AC: ① 管理页新增「存储迁移」面板：显示迁移进度（total_blobs / migrated / in_progress / completed）。② 面板数据通过 `GET /binflow/api/v1/storage/migration` 获取，每 5s 自动刷新。③ Playwright 测试：`storage_migration.spec.ts` 验证面板渲染。
-  ▶ 2026-08-22 已派发（T-164 done 解锁）。
-
-- **T-170** [P2] 部署矩阵更新（compose/k8s/helm 含 S3 + OIDC + LDAP 配置示例） `role:release-engineer` `area:deploy/ / charts/` `dep:T-152,T-156`
-  AC: ① `deploy/compose/docker-compose.yml` 新增 MinIO 服务（可选）+ S3 配置示例。② `charts/binflow/values.yaml` 新增 S3 配置段 + OIDC 配置段 + LDAP 配置段。③ 验证：`docker compose up` 含 MinIO 服务 → BinFlow 起服成功；`helm template` 产出含 S3/OIDC/LDAP 配置段。
-  ▶ 2026-08-22 已派发（并行度达上限 4）。注意：`deploy/nginx/` 有 T-168 取消遗留的半成品，只读绕行不要动。
+（空——本轮四张收口，新派发见下轮）
 
 ## 🧪 测试中（qa）
 
@@ -416,6 +404,45 @@
 
 - **T-164** [P1] 本地→S3 在线迁移（双写+后台迁移） `role:dev-go-storage` — done 2026-08-22（conductor 核验直收）
   新增 `internal/storage/migration.go`（MigrationEngine 三模式 bypass/dual-write/completed；migrationSession TeeReader+Pipe 流式双写、Commit 侧失败回滚；statusGuard 原子快照含 defer 覆盖 bug 修复）+ `migration_test.go`（14 测试，含 927 blob 全量迁移 S3 端硬断言）+ `internal/httpapi/migration.go`（状态/启动端点）+ server/router 接线。agent 一度因 API 400 中断后原地续跑收尾。conductor 复核：storage 196.3s + httpapi 203.9s race 绿。越区发现：binflow-server 红测试属 T-168 遗留（已记录）。日志 reports/agents/T-164.md。
+
+- **T-160** [P1] S3 迁移进度控制台 UI `role:dev-frontend` — done 2026-08-22（conductor 核验直收）
+  新增 `web/src/pages/governance/MigrationPanel.tsx`（5s 轮询 hook + 四态：Skeleton/403 整面板隐藏/501 未配置降级/ErrorCard 重试且瞬断保留旧值）+ GCPage 接线 + `web/e2e/storage_migration.spec.ts`（5 用例 hermetic 全 mock）。conductor 复核：build 1.34s + Playwright **5/5 passed (7.2s)**。**契约漂移记录**：票面字段 total_blobs/in_progress/completed 不存在，实存契约为 total/running/done（以 internal/storage/migration.go json tag 为准），前端按实际实现——待 architect 回写契约；未配置实返 501（非 AC 写的 404）。遗留：迁移启动按钮（危险面）建议单独出票；console-ux.md 路由表待补录；web 全量 lint 存量 3 错（他人 spec）建议 chore 票。日志 reports/agents/T-160.md。
+
+- **T-170** [P2] 部署矩阵更新（compose/k8s/helm 含 S3 + OIDC + LDAP 配置示例） `role:release-engineer` — done 2026-08-22（conductor 核验直收）
+  compose：minio（--profile s3 锚定版本+healthcheck）+ minio-init 建桶 + S3 env 段（密钥纯 env 引用）+ depends_on 门控（默认路径零改动）；charts/binflow：values config.s3/oidc/ldap 三段 + configmap 透传（顺带修正 2 处既有渲染缺陷）+ secretKeyRef + schema/NOTES 同步；k8s 清单注释示例段。conductor 复核：helm lint 0 failed + compose config 默认/s3 双路 OK + kustomize OK。烟测：默认盘路径全绿（无回归）；--profile s3 建桶→healthy→起服→roundtrip sha256 一致。**发现两处上游缺口（已建 T-178）**：probeS3Storage Secure:true 写死（http MinIO /readyz 永久 503）；cmd 装配无 backend 分支（S3 数据面未激活）。遗留：上游修复后补一次 --profile s3 全绿复测（归 T-178 验收）。日志 reports/agents/T-170.md。
+
+- **T-157** [P0] OIDC/LDAP HTTP 端点挂载 `role:dev-go-core` — done 2026-08-22（conductor 核验直收）
+  新增 `internal/httpapi/oidc.go`（OIDCLoginFlow seam + login 302 state+PKCE S256 + callback code→token→Bearer 臂验证→自动建用户→签发 session；事务 cookie 全退出路径清除）+ server Deps.OIDC（nil→disabled 404 不暴露端点）+ router 挂载 + T-91 登录豁免重构 isLoginEntryPoint 覆盖 OIDC 路由（陈旧 cookie 不锁死 SSO）+ `oidc_routes_test.go`（mock IdP 7 组）+ `ldap_session_test.go`（真 LDAPProvider+mock 目录 7 例「先本地后 LDAP」全栈验证）。conductor 复核：scoped OIDC/LDAP race 绿（6.4s）+ build/vet 干净；agent 自跑全量 httpapi 117.8s 绿。**第三处装配缺口 → 已建 T-179**：config 无 auth.oidc/ldap 段、cmd 未构造 provider、auth 缺 userCreator 导出（阻塞 T-174）。遗留：whoami source 硬编码 local（并入 T-179）；本地/LDAP 同名用户冲突行为待 Q5 定案（现状 500）。日志 reports/agents/T-157.md。
+
+- **T-162** [P1] push 复制引擎（事件驱动 + cron 兜底） `role:dev-go-core` — done 2026-08-22（conductor 核验直收）
+  新增 `internal/replication/engine.go`（Enqueue panic 护罩非阻塞 / Run drain+wake+cron 兜底 / 退避 1s→16s 共 6 次尝试 / pushOnce HEAD 幂等探测+PUT 走目标 REST 带 X-Checksum-Sha256 / 复用 remote 的 SSRF Guard 与 AES-GCM Cipher / 全量测试注入缝）+ engine_test.go（15 测试）+ engine_integration_test.go（**两真实实例**：A 上传 201→推送→B GET 200 sha256 一致、replica PUT/DELETE 405、目标宕机上传不受影响）+ repo 侧 Replicator 接口最小接线（PutWithOptions 链末 notifyReplicator，goroutine+WithoutCancel+recover）+ 挂钩 5 测试。conductor 复核：replication 18.7s + repo 104.6s race 绿，build/vet/lint 干净。**Q6/Q7 暂行假设（待定案，已标注单点切换位 pushOnce HEAD 分支）**：Q6=可写 local backing+未路由 virtual 只读门面；Q7=checksum 一致幂等成功/不一致 failed 不动目标（与 ADR-0021 字面有出入）；私有目标默认放行（DenyPrivateTargets 保留收紧位）。遗留：cmd 装配+replications REST 端点待桥接票；审计词汇/限速项未消费。日志 reports/agents/T-162.md。
+
+- **T-169** [P2] M5 债务收编 — G05 Windows 锁 + G15b systemd 裸机部署 `role:release-engineer` — done 2026-08-22（conductor 核验直收）
+  发现 AC① 实质已被 T-96 满足（datalock_windows.go LockFileEx 已落）——补 windows 真机腿测试文件 + 修 backup_test 中 Windows 必红断言（GOOS 感知）+ 空路径守卫子测试，不动 go.mod。G15b：contrib/systemd 扩展——binflow.service（SIGTERM+TimeoutStopSec=45 优雅停机锚点+UMask=0027）+ install.sh 修 3 个真机 bug（sha256 CWD 解析/重装 ETXTBSY/全新安装 restart 循环）+ dry-run 全链路 + is-active 硬门。**真机烟测**：Ubuntu22.04+systemd251 容器（PID1）install→active→readyz 200→建仓/上传/下载 sha256 一致→restart 存活→优雅停机日志→幂等重装→systemd-analyze verify→purge 全绿。conductor 复核：scoped DataLock/Backup race 绿 + bash -n + windows/linux×amd64/arm64 交叉编译 OK。遗留：make test 全量绿被 T-168 遗留红阻断（非本票区）；docs/user/install/systemd.md 对齐待他人票。日志 reports/agents/T-169.md。
+
+- **T-158** [P1] 控制台 SSO 登录 UI `role:dev-frontend` — done 2026-08-22（conductor 核验直收）
+  LoginPage 增 SSO 按钮（探测 `GET oidc/login` redirect:manual——302=启用/404=禁用，浏览器不触达 IdP；点击复核+行内错误态+503 保留重试）；密码表单零分支（LDAP 同表单 401→200 落地壳用例）；styles 仅登录页小节追加纯 token。conductor 复核：build 2.65s + Playwright **5 passed**（--repeat-each=2 → 10 passed）+ 既有 storage_migration spec 无回归。**后端需求提议（未越权实现）**：公开 `GET /api/v1/auth/methods`——已并入 T-179 AC⑥。遗留：真实启用态验证归 T-174（T-179 接线前置）；make console 嵌入重编归主会话集成步骤。日志 reports/agents/T-158.md。
+
+- **T-178** [P0] S3 后端服务端装配接线 + /readyz Secure bug `role:dev-go-core` — done 2026-08-22（conductor 核验直收）
+  `system.go` 新增 secureFromEndpoint（https→true/http→false/无 scheme→TLS 默认），probeS3Storage 不再写死——根因实证：minio-go v7.3.0 要求 scheme 与 Secure 一致否则 minio.New 直接报错。`main.go` openStorageEngine 按 backend 分支（disk 逐字保留；s3 构造 minio 客户端 env secret fail-fast + BucketExists 缺桶拒起 + OpenS3EngineWithClient；migration 按 T-164 语义接线双写/纯 S3/拒绝非法组合）。**附带发现上游签名缝**：`*MigrationEngine.StatusView()` 不满足 `httpapi.MigrationStarter.StatusView() any` 签名（REST 迁移端点将恒 501）——cmd 侧 migrationStarter 适配器桥接，收编归 T-180。conductor 复核：scoped readyz/S3 装配 race 绿（httpapi 7.9s + cmd 2.7s）+ **全量 httpapi 统一复跑 114.5s 绿**（T-157+T-178 合流）+ build/vet 干净。红绿证明：还原 Secure:true 旧 bug 签名复现 FAIL。遗留：T-180 收编两项；bucket 不自动创建（按必须预存在）。日志 reports/agents/T-178.md。
+
+- **T-176** [P2] 契约回写与杂项 chore `role:architect` — done 2026-08-22（conductor 核验直收）
+  architecture.md §7.1 补 migration 两端点契约（字段以实现 json tag 为准 + 501 非 404 语义 + 回写记录标注）+ §8 配置段与校验规则；console-ux.md 三处补录（路由表/线框/14 testid 锚）；web/e2e 三 spec 存量 no-unused-vars 最小修复。conductor 复核：`npx eslint e2e/` exit=0 两轮一致 + diff 恰为申报 5 文件。遗留分流：PRD 旧字段勘误 → T-181；migration.go godoc 口径 → T-180 AC⑥；前端 pct 基数口径 → T-177 AC④。日志 reports/agents/T-176.md。
+
+- **T-159** [P1] 控制台复制面板 UI `role:dev-frontend` — done 2026-08-22（conductor 核验直收）
+  新增治理组「复制」页 ReplicationPage.tsx（目标表+事件表、10s 轮询、四态收敛）+ AppShell 导航 + lazy 路由（2 行既定装配缝）+ hermetic 7 用例 spec。落位裁决：票面「管理页」无对应页，按信息架构归治理组新开页。**契约假设清单**（端点尚未桥接）：按 internal/replication/model.go 推定 `{targets[], events[]}` 聚合形状，字段名/空值/降级语义全量标注在 T-159.md 与组件头注释——**T-180 桥接票的对齐基准**。conductor 复核：build 1.49s + Playwright **7/7 passed** + 全量 lint/typecheck exit 0。回归对照：全量 e2e 73/3（2 例基线同败为既有、1 例隔离重跑过=顺序性 flake）——**watch 项：基线 2 败待溯源**。遗留：console-ux 回写 → T-182；事件 keyset 分页待真实端点。日志 reports/agents/T-159.md。
+
+- **T-179** [P0] OIDC/LDAP 认证面服务端装配 `role:dev-go-core` — done 2026-08-22（conductor 核验直收）
+  config 三文件加 auth.oidc/ldap 段（键名逐字对齐 T-170 charts snake_case；rejectSecrets 递归；validate 必填+URL 形状）；auth 导出 NewUserCreator/NewOIDCResolver + OIDCWired/LDAPWired facet + authenticateSession Source=u.Provider（不再硬编码）；httpapi auth_methods.go `GET /api/v1/auth/methods`（匿名三态）；cmd wireAuthProviders（OIDC discovery fail-fast/LDAP 懒池/typed-nil 守卫/close 排空）。**范围偏离已接受**：whoami 序列化点物理在 httpapi/session.go，最小增量加 source 字段。conductor 复核：config 1.9s + auth 29.1s（一次并行负载 flake 复跑绿）+ scoped httpapi 6.9s + cmd 3.0s race 绿；cmd 全量仅剩 T-168 两已知红。**发现 charts 缺陷 → T-183**：configmap oidc 块漏渲染 enabled 行（Helm 启用 OIDC 静默失效）。遗留：PRD skip_tls_verify/group_base_dn 无对应字段未实现（规格待验证）；users 列表 source 字段归属 T-174 前确认。日志 reports/agents/T-179.md。
+
+- **T-182** [P2] console-ux 复制页回写 `role:architect` — done 2026-08-22（conductor 核验直收）
+  console-ux.md 五处补录（导航/路由表/线框 23 行/11 个 repl-* 锚/三处一致性修正），全部以 ReplicationPage.tsx 实际形态为准；同款回写题头 + 假设契约标注（T-180 对齐锚）。conductor 复核：diff 单文件。日志 reports/agents/T-182.md。
+
+- **T-181** [P2] PRD M6 勘误 `role:product-manager` — done 2026-08-22（conductor 核验直收）
+  PRD v1.0→v1.1：§4.1 FR-50 实际契约+501 语义+start 端点；§5.2/§5.4 矩阵同步；§7 Q6/Q7「暂行已实现待终裁」+新增 Q10（私有目标放行）+交叉指针。三方依据链核对（architecture≡migration.go≡httpapi 501 文案）后落笔。conductor 复核：旧字段名仅剩 2 处有意保留（勘误记载）。遗留：ROADMAP「PRD v1.0」字样待改（区外）；ADR 拟编号与 DECISIONS.md 错位记录在案。日志 reports/agents/T-181.md。
+
+- **T-177** [P2] 迁移启动按钮 UI `role:dev-frontend` — done 2026-08-22（conductor 核验直收）
+  MigrationPanel 启动按钮（数据态+!running 渲染/403 隐藏/501 无按钮）+ useConfirm 复用（danger+YES 门+四条影响说明按实际语义）+ 202 即刻并入 + 409 行内提示；pct 基数改 (migrated+failed)/total（AC④）。conductor 复核：Playwright **8 passed** + build 1.3s + typecheck/lint 0。遗留：console-ux 三处回写与 T-182 同族（migration-start 等三锚）→ 并入后续文档票；无停止迁移 REST 面（另立票候选）。日志 reports/agents/T-177.md。
 
 ## 🚫 阻塞（blocked）
 

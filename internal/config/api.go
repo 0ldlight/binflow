@@ -80,10 +80,52 @@ type MetadataConfig struct {
 	DSN    string // sqlite: file path (empty = data_dir/binflow.db); postgres: URL
 }
 
-// AuthConfig carries password hashing and token lifetime parameters.
+// AuthConfig carries password hashing and token lifetime parameters, plus
+// the two external identity-provider sections (M6, ADR-0020): auth.oidc and
+// auth.ldap. Both default to disabled — an unconfigured boot keeps the
+// pre-M6 local-only posture byte-for-byte.
 type AuthConfig struct {
 	Argon2MemoryMB  int           // argon2id m parameter (64 = 64MB)
 	TokenDefaultTTL time.Duration // default token lifetime
+	OIDC            OIDCConfig    // auth.oidc (disabled by default)
+	LDAP            LDAPConfig    // auth.ldap (disabled by default)
+}
+
+// OIDCConfig is the auth.oidc section (M6, ADR-0020). Key names mirror
+// internal/auth's OIDCConfig and the Helm chart's config.oidc block (T-170).
+// client_secret is env-only (BINFLOW_AUTH_OIDC_CLIENT_SECRET) and never
+// appears in the YAML file; the strict schema and the secret scan both
+// reject it there.
+type OIDCConfig struct {
+	Enabled      bool     // arm the OIDC Bearer/login flow (default false)
+	IssuerURL    string   // issuer URL for .well-known/openid-configuration discovery
+	ClientID     string   // OAuth2 client ID registered at the provider
+	ClientSecret string   // env-only secret, resolved from BINFLOW_AUTH_OIDC_CLIENT_SECRET
+	RedirectURL  string   // callback URL (…/binflow/api/v1/oidc/callback)
+	Scopes       []string // requested scopes; empty = provider default [openid, profile, email]
+	UserClaim    string   // username claim; empty = preferred_username
+	GroupClaim   string   // group claim; empty = groups
+	AdminGroup   string   // group whose members are granted admin; empty = no mapping
+}
+
+// LDAPConfig is the auth.ldap section (M6, ADR-0020). Key names mirror
+// internal/auth's LDAPConfig and the Helm chart's config.ldap block (T-170).
+// bind_password is env-only (BINFLOW_AUTH_LDAP_BIND_PASSWORD) and never
+// appears in the YAML file. LDAP authenticates only at the login endpoint
+// (no Bearer arm, ADR-0020).
+type LDAPConfig struct {
+	Enabled       bool   // arm the LDAP login fallback (default false)
+	URL           string // ldap://host:389 or ldaps://host:636
+	BaseDN        string // search base DN (e.g. dc=example,dc=com)
+	BindDN        string // service-account DN for user search; empty = direct user bind
+	BindPassword  string // env-only secret, resolved from BINFLOW_AUTH_LDAP_BIND_PASSWORD
+	UserFilter    string // user search filter template (%s = username); empty = (uid=%s)
+	UserIDAttr    string // attribute mapping to the BinFlow username; empty = uid
+	GroupFilter   string // group search filter template; empty = no group search
+	GroupNameAttr string // attribute holding the group name; empty = cn
+	AdminGroup    string // DN of a group whose members are granted admin; empty = no mapping
+	PoolSize      int    // idle connection pool size (default 5)
+	StartTLS      bool   // StartTLS on ldap:// connections (ignored for ldaps://)
 }
 
 // SecurityConfig is the access posture. AnonymousAccess only ever opens

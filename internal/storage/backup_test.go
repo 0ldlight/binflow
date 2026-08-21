@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -244,8 +245,18 @@ func TestDataLockMutualExclusion(t *testing.T) {
 	if !errors.Is(err, ErrDataLockHeld) {
 		t.Fatalf("second acquire error = %v, want ErrDataLockHeld in the chain", err)
 	}
-	if want := "op=gc"; !strings.Contains(err.Error(), want) {
-		t.Fatalf("contention error = %q, want the holder record %q for diagnostics", err.Error(), want)
+	// The holder record rides the contention error on unix (flock leaves the
+	// file readable for contenders). On windows the exclusive byte-range
+	// lock makes the record unreadable while held, so the message degrades
+	// to the "unknown" last holder (LockHolder doc, N3). Pin each
+	// platform's documented shape — the G05 windows leg (T-169) runs this
+	// same test on a real windows host.
+	wantHolder := "op=gc"
+	if runtime.GOOS == "windows" {
+		wantHolder = "last holder: unknown"
+	}
+	if !strings.Contains(err.Error(), wantHolder) {
+		t.Fatalf("contention error = %q, want holder diagnostics %q", err.Error(), wantHolder)
 	}
 	if err := first.Release(); err != nil {
 		t.Fatalf("release: %v", err)

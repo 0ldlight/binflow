@@ -92,6 +92,8 @@ BinFlow ◆                    ← 产品名 + 版本号（/api/system/version�
    ├ 审计日志                ← /audit（v1.1 补列：v1.0 导航漏列而 §3.2 已有路由；
    │                           GET /api/v1/audit 为 admin 门，归治理组）
    ├ 存储 & GC               ← /governance/gc
+   ├ 复制                    ← /governance/replication（v1.3 补列，T-182 回写：
+   │                           单向 push 复制目标与事件状态页，实现先于契约——见 §4.11）
    ├ 备份 / 恢复             ← /governance/backup
    └ 配额                    ← /governance/quotas
 ────────────────────────────
@@ -101,7 +103,7 @@ BinFlow ◆                    ← 产品名 + 版本号（/api/system/version�
 ```
 
 - **导航层级不超过两级**；制品树深度由仓库详情页内的面包屑承载（§4.6），不塞进全局导航。
-- 分组标题（安全 / 治理）是标签不是可折叠项——条目总量 12 个（v1.1 补审计日志后），折叠反而增加点击。
+- 分组标题（安全 / 治理）是标签不是可折叠项——条目总量 13 个（v1.1 补审计日志、v1.3 补复制后），折叠反而增加点击。
 - 非 admin 用户按 §3.3 收窄可见性。
 
 ### 3.2 路由表（SPA 路由；`/binflow/` 为应用根，下表路径为应用内路径）
@@ -122,7 +124,8 @@ BinFlow ◆                    ← 产品名 + 版本号（/api/system/version�
 | `/security/permissions`、`/security/permissions/:name` | 权限 target 列表/编辑器 | §4.9 | `/api/v1/permissions` CRUD |
 | `/security/tokens` | Token 管理 | 签发（仅创建时展示明文）/吊销 | `/api/security/token` + §9-R6 |
 | `/audit` | 审计日志 | 过滤 + 表格 | `GET /api/v1/audit?repo=&actor=&since=` |
-| `/governance/gc` | 存储 & GC | stats、dry-run、apply | `/api/v1/storage/stats` + GC 端点（§9-R4） |
+| `/governance/gc` | 存储 & GC | stats、dry-run、apply、存储迁移面板（T-160 回写：本地→S3 迁移只读进度，5s 轮询、501 未配置降级为一句提示、403 整面板隐藏——实际形态见 §4.11 迁移面板框） | `/api/v1/storage/stats` + GC 端点（§9-R4）+ `GET /api/v1/storage/migration`（迁移面板数据源，契约见 architecture.md §7.1） |
+| `/governance/replication` | 复制 | 单向 push 复制目标表 + 最近事件表（T-159 回写：实现先于契约，T-159 核验发现——10s 轮询、四态收敛，实际形态见 §4.11 复制页框） | `GET /api/v1/replication/status`（**前端假设契约**——端点未桥接，形状按 internal/replication/model.go 推定；假设清单见 reports/agents/T-159.md 与组件头注释，**T-180 桥接票对齐基准**） |
 | `/governance/backup` | 备份/恢复 | export / import | M4 新端点（§9-R5） |
 | `/governance/quotas` | 配额 | per-repo 配额条 | M4 新端点（§9-R7） |
 | `/settings` | 设置 | 实例信息（version/健康/匿名读开关/数据目录）/ 管理员改密 | `/api/system/version`、`/api/v1/health` |
@@ -135,7 +138,7 @@ BinFlow ◆                    ← 产品名 + 版本号（/api/system/version�
 
 | 角色 | 可见面 | 说明 |
 |---|---|---|
-| admin | 全部入口与数据面 | 12 个导航入口全开 |
+| admin | 全部入口与数据面 | 13 个导航入口全开 |
 | 非 admin 已登录 | 仪表盘（实例卡 + 一段收敛说明）、仓库入口（列表页呈现无权限卡 + 搜索/直链引导——**制品面经树路由与搜索仍按自身 ACL 可达**）、搜索（结果按调用者 ACL 过滤）、设置（实例信息 + 改密） | 「安全」「治理」分组整体隐藏——**含 Tokens**（token 签发 admin-only：D3 定案，M4 无 scope 模型，非 admin 自签分支关闭）；仪表盘健康/存储/仓库/审计四卡隐藏（§3.6.3 L3） |
 | 未登录 | 无（重定向 `/login?return=<原路由>`） | 登录成功后回跳 return |
 
@@ -259,7 +262,7 @@ BinFlow ◆                    ← 产品名 + 版本号（/api/system/version�
 | 制品树（T-100） | 全量 | 按路径 ACL 浏览；无权子树 403 → 该子树无权限卡；上传/删除按写权限呈现，操作中 403 错误行内呈现并指向权限模型（§4.7） | 重定向登录 |
 | 搜索（T-100） | 全量结果 | 结果按自身 ACL 过滤（可为空——空态按「无结果」呈现，不解释「被过滤」） | 重定向登录 |
 | 安全全部页面（用户/组/权限/Tokens） | 全量 | 导航组隐藏（L1）；直链 → 页面级无权限卡（L2） | 重定向登录 |
-| 治理全部页面（审计/GC/备份/配额） | 全量 | 导航组隐藏（L1）；直链 → 页面级无权限卡（L2） | 重定向登录 |
+| 治理全部页面（审计/GC/复制/备份/配额） | 全量 | 导航组隐藏（L1）；直链 → 页面级无权限卡（L2） | 重定向登录 |
 | 设置 | 实例信息（含健康行）+ 改密 | 实例信息（版本/修订/用户）+ 改密；健康行 L3 隐藏（改 403 驱动后） | 重定向登录 |
 
 ---
@@ -582,6 +585,39 @@ permission target = `{name, repos[], includePatterns[], excludePatterns[], princ
 │                     摘要「预计回收 N 项 / X GB；grace 期内不回收」              │
 │ [执行 GC] → 确认对话框（输入仓库实例名或 YES 确认）→ 进度 → 结果（实际回收数）   │
 └──────────────────────────────────────────────────────────────────────────────┘
+┌ 存储迁移（本地 → S3）───────── T-160 回写：实现形态（MigrationPanel）──────────┐
+│ 只读进度卡，位于概况卡与危险区之间：状态点（未开始/迁移中/已完成/已完成（有    │
+│ 失败））+ 进度水位条 + 百分比 + blob 总数 / 已迁移 / 已跳过（S3 已存在）/ 失败  │
+│ / 错误（有才显示）+ 开始·结束时间；每 5s 轮询 GET /api/v1/storage/migration。   │
+│ 收敛：501（实例未配置 S3 迁移）→ 一句提示降级、不渲染进度条；403（非 admin）→  │
+│ 整面板隐藏（§3.6.3 L3）；轮询瞬断但有旧数据 → 保留进度 + 行内「上次刷新失败」   │
+│ （观察进行中迁移时单次掉线不清屏）。控制台无触发/写入口——迁移由服务端          │
+│ storage.migration 配置与 POST /api/v1/storage/migration/start 驱动（运维面）。  │
+└──────────────────────────────────────────────────────────────────────────────┘
+┌ 复制（/governance/replication）── T-159 回写：实现形态（ReplicationPage）────┐
+│ 页头「复制 · 单向 push：源仓库 → 目标实例（ADR-0021）」+ 两张只读卡；每 10s   │
+│ 轮询 GET /api/v1/replication/status（挂载即取；轮询刷新不清空已到达数据）。   │
+│ ·复制目标表：状态（运行态标签 + 状态点；优先级 已停用 > 异常（N 失败）>       │
+│   复制中 > 排队（N）> 正常）/ 目标名 / 目标 URL（mono + 拷贝）/ 仓库（源 →    │
+│   目标，mono）/ pending / 进行中 / 失败（>0 标红）/ 累计成功 / 上次成功        │
+│   （'—' = 从未成功）。targets[] 空 → 「未配置复制目标」空态（目标配置经       │
+│   REST /api/v1/replications 或实例配置创建——M6 桥接后可用）。                 │
+│ ·最近事件表：时间（mono）/ 状态 badge（值原样英文不翻译，沿 §4.10 口径；      │
+│   009 闭集 pending|in_progress|success|failed|skipped）/ 制品路径（按         │
+│   replication_id 映射源仓前缀补全，mono + 拷贝）/ sha256（截断展示、拷贝      │
+│   完整值，§7.3）/ 尝试次数 / 最近错误（空为 '—'）；事件跨配置合并、时间       │
+│   倒序（最近 N 条，无分页——量级远低于 §6 虚拟化阈值）。                       │
+│ 收敛（§5.1/§3.6.3）：loading 骨架仅首帧；403（非 admin）→ 页面主数据面单张    │
+│   无权限卡（L2，复用缺省 empty-state 锚）；404（端点未桥接）/ 501（实例       │
+│   未启用复制）→ 降级为一句提示、不渲染表格；其它错误：无数据 → 错误卡 +       │
+│   重试，有旧数据 → 保留表格 + 行内「上次刷新失败」（瞬断不清屏，同迁移        │
+│   面板语义）。控制台只读呈现——目标配置 CRUD 与 trigger 归 REST 面与 CLI。     │
+│ 回写记录：实现先于契约，T-159 核验发现——GET /api/v1/replication/status 为     │
+│   前端假设契约（形状按 internal/replication/model.go 推定，序列化沿           │
+│   MigrationStatusView 惯例：snake_case / int64 计数 / *_at 文本、'' 表空），  │
+│   待 T-180 桥接票对齐或回写差异后本页跟改（假设清单见 reports/agents/         │
+│   T-159.md 与组件头注释）。                                                   │
+└──────────────────────────────────────────────────────────────────────────────┘
 ┌ 备份 / 恢复 ──────────────────────────────────────────────────────────────────┐
 │ [导出 export] → 任务进度 + 产物下载链接                                        │
 │ [导入 import] → 文件选择 + 校验和确认 + ⚠「导入将覆盖当前元数据」→ 双重确认      │
@@ -872,6 +908,18 @@ repo-danger-zone  repo-delete-button  repo-delete-content  repo-delete-confirm-k
         audit-table  audit-row-<i>  audit-more  audit-empty  audit-empty-filtered
   GC：  gc-page  gc-stats  gc-danger-zone  gc-grace-hours  gc-confirm-text
         gc-dryrun  gc-apply  gc-error  gc-result  gc-empty-ok
+        迁移面板（T-160 回写，随 T-176 补录——实现先于清单；e2e/storage_migration.spec.ts 断言）：
+        migration-panel  migration-status  migration-bar  migration-bar-fill  migration-pct
+        migration-total  migration-migrated  migration-skipped  migration-failed
+        migration-error  migration-started  migration-finished
+        migration-unconfigured（501 降级提示）  migration-stale（轮询瞬断行内提示）
+  复制页（T-159 回写，随 T-182 补录——实现先于契约，T-159 核验发现；端点为
+        前端假设契约待 T-180 桥接对齐；e2e/replication.spec.ts 断言）：
+        repl-page  repl-targets  repl-targets-table  repl-target-<i>
+        repl-empty-targets（目标空态）  repl-events  repl-events-table  repl-event-<i>
+        repl-empty-events（事件空态；两空态锚为 EmptyState 的 testid prop 形态）
+        repl-unavailable（404/501 降级提示）  repl-stale（轮询瞬断行内提示）
+        （403 分支复用缺省 empty-state 锚——L2 无权限卡，§10.1 四态基元）
   配额：quotas-page  quotas-table  quotas-empty  quota-row-<repoKey>  quota-bar-<repoKey>
         quota-edit-<repoKey>  quota-input-<repoKey>  quota-save-<repoKey>
         quota-cancel-<repoKey>  quota-error-<repoKey>

@@ -759,6 +759,31 @@ a:hover {
   margin-top: var(--bf-sp-5);
 }
 
+/* T-158 SSO：登录卡内按钮通栏（密码登录与 SSO 同宽）；「或」分隔线 */
+.login-card .btn {
+  width: 100%;
+}
+
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--bf-sp-3);
+  margin-top: var(--bf-sp-5);
+  color: var(--bf-text-muted);
+  font-size: var(--bf-fs-aux);
+}
+
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid var(--bf-border);
+}
+
+.login-sso-error {
+  margin: var(--bf-sp-3) 0 0;
+}
+
 .login-note {
   color: var(--bf-text-muted);
   font-size: var(--bf-fs-aux);

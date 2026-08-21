@@ -139,6 +139,106 @@ config:
   security:
     anonymousAccess: true
 
+  # -- S3 object-storage backend (M6, T-152/T-164/T-170). When enabled the
+  #    chart renders storage.backend: s3 plus a storage.s3 section into the
+  #    mounted binflow.yaml (key names mirror internal/config S3Config).
+  #    secret_access_key is env-only (ADR-0009): it is NEVER a value here —
+  #    create a Secret holding BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY and point
+  #    existingSecret at it:
+  #      kubectl create secret generic binflow-s3 \
+  #        --from-literal=BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY=<key>
+  s3:
+    # -- Switch the blob backend from disk (PVC) to S3.
+    enabled: false
+    # -- Bucket name. The bucket must already exist (the chart does not
+    #    create it) — /healthz's HeadBucket probe reports unhealthy otherwise.
+    bucket: binflow
+    # -- Region (AWS region or MinIO-compatible region spelling).
+    region: us-east-1
+    # -- S3-compatible endpoint URL, e.g.
+    #    http://minio.minio.svc.cluster.local:9000 or https://s3.amazonaws.com.
+    endpoint: ""
+    # -- Access key ID (not secret; the secret key lives in existingSecret).
+    accessKeyId: ""
+    # -- Path-style addressing: true for MinIO, false for AWS virtual-host.
+    usePathStyle: true
+    # -- Optional key prefix for all stored objects (e.g. "binflow-prod").
+    bucketPrefix: ""
+    # -- Multipart upload part size in bytes (default 5 MiB).
+    uploadPartSize: 5242880
+    # -- Concurrent multipart part uploads (default 4).
+    uploadConcurrency: 4
+    # -- Name of an existing Secret with key
+    #    BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY. Required when s3.enabled=true.
+    existingSecret: ""
+
+  # -- OIDC identity provider (M6, ADR-0020). Requires a server build with
+  #    the auth wiring mounted (T-157); on older builds the strict config
+  #    decoder fail-fasts on the auth.oidc section — keep disabled until
+  #    then. Key names mirror internal/auth OIDCConfig. client_secret is
+  #    env-only: create a Secret holding BINFLOW_AUTH_OIDC_CLIENT_SECRET and
+  #    point existingSecret at it:
+  #      kubectl create secret generic binflow-oidc \
+  #        --from-literal=BINFLOW_AUTH_OIDC_CLIENT_SECRET=<secret>
+  oidc:
+    # -- Render the auth.oidc section and inject the client secret.
+    enabled: false
+    # -- OpenID Connect issuer URL (required when enabled), e.g.
+    #    https://accounts.example.com
+    issuerUrl: ""
+    # -- OAuth2 client ID assigned by the provider (required when enabled).
+    clientId: ""
+    # -- Callback URL, e.g.
+    #    https://binflow.example.com/binflow/api/v1/oidc/callback
+    redirectUrl: ""
+    # -- Requested scopes; empty = server default [openid, profile, email].
+    scopes: []
+    # -- JWT claim used as username; empty = server default
+    #    (preferred_username).
+    userClaim: ""
+    # -- JWT claim for group membership; empty = server default (groups).
+    groupClaim: ""
+    # -- Group whose members are granted admin; empty = no claim-inferred
+    #    admin mapping.
+    adminGroup: ""
+    # -- Name of an existing Secret with key BINFLOW_AUTH_OIDC_CLIENT_SECRET.
+    #    Required when oidc.enabled=true.
+    existingSecret: ""
+
+  # -- LDAP identity provider (M6, ADR-0020). Same wiring caveat as oidc
+  #    above; key names mirror internal/auth LDAPConfig. bind_password is
+  #    env-only: create a Secret holding BINFLOW_AUTH_LDAP_BIND_PASSWORD:
+  #      kubectl create secret generic binflow-ldap \
+  #        --from-literal=BINFLOW_AUTH_LDAP_BIND_PASSWORD=<password>
+  ldap:
+    # -- Render the auth.ldap section and inject the bind password.
+    enabled: false
+    # -- LDAP server URL: ldap://host:389 or ldaps://host:636.
+    url: ""
+    # -- Search base DN, e.g. dc=example,dc=com.
+    baseDn: ""
+    # -- Service-account DN for user search; empty = direct user bind
+    #    (uid=<username>,<baseDn>).
+    bindDn: ""
+    # -- User search filter template; first %s is the login username.
+    #    Empty = server default (uid=%s).
+    userFilter: ""
+    # -- Attribute mapping to the BinFlow username; empty = uid.
+    userIdAttr: ""
+    # -- Group search filter template; empty = no group search.
+    groupFilter: ""
+    # -- Attribute holding the group name; empty = cn.
+    groupNameAttr: ""
+    # -- DN of a group whose members are granted admin; empty = no mapping.
+    adminGroup: ""
+    # -- Idle LDAP connection pool size (server default 5).
+    poolSize: 5
+    # -- StartTLS on ldap:// connections (ignored for ldaps://).
+    startTls: false
+    # -- Name of an existing Secret with key BINFLOW_AUTH_LDAP_BIND_PASSWORD.
+    #    Required when ldap.enabled=true.
+    existingSecret: ""
+
 # -- Admin password for the initial admin user. This is stored in a Kubernetes
 #    Secret and injected as the BINFLOW_ADMIN_PASSWORD environment variable.
 #    Change this in production.
