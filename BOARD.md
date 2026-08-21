@@ -39,7 +39,8 @@
 ## 🔨 进行中（doing）
 
 - **T-106** [P0] 部署烟测（批 9） `role:release-engineer` `area:deploy、验收` — 在途（二进制直跑+compose 形态；M4 新面：console embed 反代下/session 路径/GC·备份 CLI；端口段 18160+）
-- **T-107** [P1] M4 用户文档（批 9） `role:tech-writer` `area:docs/user` — 在途（控制台指南/管理增补/FAQ 含 O-MEM1 token 引导与 E4 /v2/token；收编回写遗留移交清单）
+- **T-107** [P1] M4 用户文档 `role:tech-writer` `area:docs/user` — done 2026-08-21（conductor 核验直收）
+  5 新篇（console 指/groups-permissions/governance/backup-restore/FAQ）+README 导航；**全部命令同源抽验通过**（scratch 实例复跑 session 全周期/配额双态/GC 双步/export-import full 往返等）；写作中实修正两处（409 文案前缀、token 签发 admin-only）；词表按 audit 常量核对。移交 H-1/H-2→T-122、H-3→T-123。提交 c900ad8。
 - **T-121** [P1] PRD 勘误（T-105 E1~E5） `role:product-manager` `area:docs/prd/milestone-1~3` — done 2026-08-21（conductor 核验直收）
   E1~E5 **采纳 5/驳回 0**（全落 M1~M3：M2 v1.4 捕获物化+相对路径注记；M3 v1.3 layout 合规名/snapshot 载体/pypi.org 根 URL 根因修；M1 v1.3.2 darwin 等价限速命令）；grep 零活体残留。移交 3 项登记 M5 债务（T-74 E3~E5、T-104 E1/E2 状态核、M1 C17 载体）。提交 e5acc80。
 
