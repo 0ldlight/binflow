@@ -1,0 +1,25 @@
+apiVersion: v2
+name: binflow
+description: BinFlow — A cloud-native binary repository manager (single-binary Go alternative to JFrog Artifactory).
+type: application
+version: "1.0.0"
+appVersion: "1.0.0"
+home: https://github.com/lzwzzy/binflow
+icon: https://raw.githubusercontent.com/lzwzzy/binflow/main/docs/user/assets/logo.png
+sources:
+  - https://github.com/lzwzzy/binflow
+keywords:
+  - binary-repository
+  - artifact-management
+  - docker-registry
+  - maven
+  - npm
+  - pypi
+  - devops
+maintainers:
+  - name: BinFlow Team
+    email: maintainers@binflow.dev
+annotations:
+  artifacthub.io/changes: |
+    - "Initial GA release v1.0.0"
+  artifacthub.io/prerelease: "false"

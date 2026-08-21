@@ -1,0 +1,115 @@
+# BinFlow Deployment (architecture §9 — single replica, M1 no HA).
+#
+# Image: binflow:v1.0.0-distroless (no shell, Go healthcheck probe).
+# For the alpine variant with shell, replace the image and switch the
+# liveness/readiness probes to httpGet.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: binflow
+  labels:
+    app.kubernetes.io/name: binflow
+    app.kubernetes.io/component: server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: binflow
+  strategy:
+    type: Recreate  # SQLite WAL — single writer, no rolling update
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: binflow
+        app.kubernetes.io/component: server
+    spec:
+      # ── Security context ─────────────────────────────────────────────
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532          # nonroot user in distroless image
+        runAsGroup: 65532
+        fsGroup: 65532            # so the PVC is writable
+        # readOnlyRootFilesystem: true  # enable if your distro supports it
+
+      # ── Containers ───────────────────────────────────────────────────
+      containers:
+        - name: binflow
+          image: binflow:v1.0.0-distroless  # no :latest — version-anchored
+
+          # Environment: non-secret from config, secrets via secretKeyRef.
+          env:
+            # Convenience flat names for the two most common overrides.
+            - name: BINFLOW_DATA_DIR
+              value: /var/lib/binflow
+            - name: BINFLOW_SECURITY_ANONYMOUS_ACCESS
+              value: "true"
+            # Admin password from Secret (never hard-coded).
+            - name: BINFLOW_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: binflow-secret
+                  key: BINFLOW_ADMIN_PASSWORD
+            # Remote credentials key (optional).
+            - name: BINFLOW_REMOTE_CREDENTIALS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: binflow-secret
+                  key: BINFLOW_REMOTE_CREDENTIALS_KEY
+                  optional: true
+
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/binflow
+
+          # ── Probes (distroless — no shell, use exec probes) ─────────
+          # K8s runs the healthcheck-probe binary that ships inside the
+          # distroless image.  For the alpine variant, switch to httpGet.
+          livenessProbe:
+            exec:
+              command:
+                - /usr/local/bin/healthcheck-probe
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 5
+          readinessProbe:
+            exec:
+              command:
+                - /usr/local/bin/healthcheck-probe
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          # startupProbe is optional — uncomment for slow-starting clusters:
+          # startupProbe:
+          #   exec:
+          #     command:
+          #       - /usr/local/bin/healthcheck-probe
+          #   initialDelaySeconds: 3
+          #   periodSeconds: 5
+          #   timeoutSeconds: 3
+          #   failureThreshold: 30
+
+          # ── Resources (required by security baseline) ───────────────
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 2000m
+              memory: 512Mi
+
+      # ── Volumes ──────────────────────────────────────────────────────
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: binflow-data
+
+      # ── Termination grace period (aligns with server graceful_timeout) ─
+      terminationGracePeriodSeconds: 35

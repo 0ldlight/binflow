@@ -1,0 +1,83 @@
+{{- $fullName := include "binflow.fullname" . -}}
+{{- $svcPort := .Values.service.port -}}
+
+BinFlow {{ .Chart.AppVersion }} has been deployed!
+
+  Release:   {{ .Release.Name }}
+  Namespace: {{ .Release.Namespace }}
+  Image:     {{ .Values.image.repository }}:{{ include "binflow.imageTag" . }}
+
+-------------------------------------------------------------------------------
+  Getting started
+-------------------------------------------------------------------------------
+
+1. Retrieve the admin password:
+
+   export BINFLOW_ADMIN_PASSWORD=$(kubectl get secret \
+     --namespace {{ .Release.Namespace }} \
+     {{ $fullName }}-secret \
+     -o jsonpath="{.data.BINFLOW_ADMIN_PASSWORD}" | base64 -d)
+
+   echo "Admin password: $BINFLOW_ADMIN_PASSWORD"
+
+{{- if eq .Values.service.type "NodePort" }}
+2. The service is exposed as NodePort. Find the port:
+
+   export NODE_PORT=$(kubectl get svc \
+     --namespace {{ .Release.Namespace }} \
+     {{ $fullName }} \
+     -o jsonpath='{.spec.ports[0].nodePort}')
+   export NODE_IP=$(kubectl get nodes \
+     -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+
+   echo "BinFlow: http://$NODE_IP:$NODE_PORT"
+{{- else if eq .Values.service.type "LoadBalancer" }}
+2. Wait for the LoadBalancer IP to be assigned:
+
+   kubectl get svc --namespace {{ .Release.Namespace }} -w {{ $fullName }}
+
+   Then access BinFlow at:
+
+   export SERVICE_IP=$(kubectl get svc \
+     --namespace {{ .Release.Namespace }} \
+     {{ $fullName }} \
+     -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+
+   echo "BinFlow: http://$SERVICE_IP:{{ $svcPort }}"
+{{- else }}
+2. Port-forward to the service:
+
+   kubectl port-forward --namespace {{ .Release.Namespace }} \
+     svc/{{ $fullName }} {{ $svcPort }}:{{ $svcPort }}
+
+   Then access BinFlow at: http://127.0.0.1:{{ $svcPort }}
+{{- end }}
+
+3. Verify the server is ready:
+
+   curl -s http://127.0.0.1:{{ $svcPort }}/readyz
+
+4. Upload a generic artifact:
+
+   curl -u admin:$BINFLOW_ADMIN_PASSWORD \
+     -X PUT "http://127.0.0.1:{{ $svcPort }}/binflow/default-repo/hello.txt" \
+     -T hello.txt
+
+{{- if .Values.ingress.enabled }}
+5. Docker login via ingress:
+
+   docker login {{ (index .Values.ingress.hosts 0).host }} \
+     -u admin -p $BINFLOW_ADMIN_PASSWORD
+{{- end }}
+
+-------------------------------------------------------------------------------
+  Notes
+-------------------------------------------------------------------------------
+
+- BinFlow runs as a single replica (HA with multi-replica + object storage
+  is a M6+ feature). The chart enforces replicaCount=1 via schema validation.
+- The default admin password is "password". Change it in production by setting
+  --set admin.password=<your-password>.
+- Blob data is persisted via PVC ({{ include "binflow.pvcName" . }}).
+- For production, set config.baseUrl to your external URL for correct
+  redirect and realm generation.

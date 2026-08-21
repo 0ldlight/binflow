@@ -1,0 +1,18 @@
+# BinFlow Service — exposes port 8080 for HTTP traffic.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: binflow
+  labels:
+    app.kubernetes.io/name: binflow
+    app.kubernetes.io/component: server
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: binflow
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP

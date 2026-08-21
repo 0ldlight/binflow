@@ -83,6 +83,20 @@
   font-size: var(--bf-fs-aux);
 }
 
+/* ---------- Docker 仓树（T-134 G32a/G32b）：tag 徽标 + digest 行 ---------- */
+
+.tree-table td .badge {
+  display: inline-block;
+  margin-right: 4px;
+  margin-bottom: 2px;
+  vertical-align: middle;
+}
+
+.tree-table td .badge.warning {
+  background: color-mix(in srgb, var(--bf-warning) 15%, transparent);
+  color: var(--bf-warning);
+}
+
 /* ---------- 面包屑 + 工具行 ---------- */
 
 .tree-breadcrumb {

@@ -27,18 +27,22 @@
   Dockerfile.alpine（38.2MB/有 shell）+ Dockerfile.distroless（36.8MB/无 shell/Go 探针）+ build-release.sh。/readyz/ui/docs/health 全 200。日志 reports/agents/T-132.md。安全 review APPROVE（2 Low：浮动标签+ARG 注入，非阻塞；报告 reports/agents/T-132-review-security.md）。供应链 review APPROVE（4 Medium：SLSA provenance 缺失、healthcheck 缺 cache mount、QEMU 预检缺失、版本格式无校验；非阻塞；报告 reports/agents/T-132-review-supplychain.md）。
 - **T-133** [P0] FR-45 token 审计 `role:dev-go-core` `area:internal/httpapi、internal/audit、internal/auth` `dep:—` — done 2026-08-21（批 2 完成，提交 679dcc9）
   TokenFingerprint sha256[:8]（NFR-S3）；handleTokenCreate/Revoke 落 audit；11 测试+Docker /v2/token 隔离断言。日志 reports/agents/T-133.md。
-- **T-134** [P1] FR-46 docker 视图数据源定案落地+控制台帮助入口（DC-02） `role:dev-frontend` `area:web/src/pages/repositories/tree、web/src（AppShell）` `dep:T-128,T-131` — doing 2026-08-21（批 3 已派）
-- **T-135** [P0] FR-36 docker-compose GA 产物（PB-04） `role:release-engineer` `area:deploy/compose/` `dep:T-132` — doing 2026-08-21（批 3 已派）
-- **T-136** [P0] FR-37 Helm Chart（PB-05） `role:release-engineer` `area:charts/binflow/` `dep:T-132` — doing 2026-08-21（批 3 已派）
-- **T-137** [P0] FR-38 原生 K8s 清单（PB-06） `role:release-engineer` `area:deploy/k8s/` `dep:T-132` — doing 2026-08-21（批 3 已派）
-- T-138~T-147（systemd/离线包/uri 族/文档×2/安全审计/QA×4）— AC 与依赖链见 reports/agents/T-126.md
+- **T-134** [P1] FR-46 docker 视图数据源定案落地+控制台帮助入口（DC-02） `role:dev-frontend` `area:web/src/pages/repositories/tree、web/src（AppShell）` `dep:T-128,T-131` — done 2026-08-21（批 3 完成）
+- **T-135** [P0] FR-36 docker-compose GA 产物（PB-04） `role:release-engineer` `area:deploy/compose/` `dep:T-132` — done 2026-08-21（批 3 完成）
+- **T-136** [P0] FR-37 Helm Chart（PB-05） `role:release-engineer` `area:charts/binflow/` `dep:T-132` — done 2026-08-21（批 3 完成）
+- **T-137** [P0] FR-38 原生 K8s 清单（PB-06） `role:release-engineer` `area:deploy/k8s/` `dep:T-132` — done 2026-08-21（批 3 完成）
+- **T-138** [P0] FR-39 systemd 服务单元（PB-07） `role:release-engineer` `area:deploy/systemd/` `dep:T-132` — doing 2026-08-21（批 4 已派）
+- **T-139** [P0] FR-40 离线安装包（PB-08） `role:release-engineer` `area:deploy/offline/` `dep:T-132` — doing 2026-08-21（批 4 已派）
+- **T-140** [P1] FR-47 URI 硬编码 /binflow 修复 `role:dev-frontend` `area:web/src` `dep:T-131` — doing 2026-08-21（批 4 已派）
+- **T-142** [P1] FR-48 API 文档自动生成 `role:dev-go-core` `area:internal/httpapi` `dep:—` — doing 2026-08-21（批 4 已派）
+- T-141,T-143~T-147（security audit/QA×4/systemd 烟测）— AC 与依赖链见 reports/agents/T-126.md
 
 ## 🔨 进行中（doing）
 
-- **T-134** [P1] FR-46 docker 视图（批 3） — doing 2026-08-21（重派，上轮会话 agent 丢失）
-- **T-135** [P0] FR-36 docker-compose GA（批 3） — doing 2026-08-21（重派，上轮会话 agent 丢失）
-- **T-136** [P0] FR-37 Helm Chart（批 3） — doing 2026-08-21（重派，上轮会话 agent 丢失）
-- **T-137** [P0] FR-38 原生 K8s 清单（批 3） — doing 2026-08-21（重派，上轮会话 agent 丢失）
+- **T-138** [P0] FR-39 systemd 服务单元（PB-07） `role:release-engineer` — doing 2026-08-21（批 4 已派）
+- **T-139** [P0] FR-40 离线安装包（PB-08） `role:release-engineer` — doing 2026-08-21（批 4 已派）
+- **T-140** [P1] FR-47 URI 硬编码 /binflow 修复 `role:dev-frontend` — doing 2026-08-21（批 4 已派）
+- **T-142** [P1] FR-48 API 文档自动生成 `role:dev-go-core` — doing 2026-08-21（批 4 已派）
 
 ## 🧪 测试中（qa）
 

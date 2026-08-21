@@ -1,0 +1,146 @@
+# BinFlow Helm Chart — default values (GA v1.0.0).
+
+# -- Number of replicas. Single replica only (HA is a M6+ feature);
+#    values.schema.json enforces maximum:1.
+replicaCount: 1
+
+image:
+  # -- Container image repository.
+  repository: ghcr.io/lzwzzy/binflow
+  # -- Overrides the image tag (defaults to Chart appVersion-distroless).
+  tag: ""
+  # -- Image pull policy.
+  pullPolicy: IfNotPresent
+
+# -- Image pull secrets for private registries.
+imagePullSecrets: []
+
+# -- String to partially override the fullname template (will be prefixed).
+nameOverride: ""
+# -- String to fully override the fullname template.
+fullnameOverride: ""
+
+# -- ServiceAccount for the BinFlow pod.
+serviceAccount:
+  # -- Whether to create a ServiceAccount.
+  create: true
+  # -- Annotations for the ServiceAccount.
+  annotations: {}
+  # -- The name of the ServiceAccount to use. If not set and create is true,
+  #    a name is generated using the fullname template.
+  name: ""
+
+# -- Pod annotations.
+podAnnotations: {}
+# -- Pod security context.
+podSecurityContext: {}
+  # fsGroup: 10001
+
+# -- Container security context.
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 10001
+
+# -- Service configuration.
+service:
+  # -- Service type. ClusterIP for internal-only; NodePort/LoadBalancer for
+  #    external access. docker push/pull works with NodePort + dind.
+  type: ClusterIP
+  # -- HTTP port for the BinFlow server.
+  port: 8080
+  # -- NodePort port (only used when type=NodePort).
+  nodePort: null
+
+# -- Ingress configuration (optional, disabled by default).
+ingress:
+  # -- Whether to create an Ingress resource.
+  enabled: false
+  # -- Ingress class name.
+  className: ""
+  # -- Annotations for the Ingress.
+  annotations: {}
+  # kubernetes.io/ingress.class: nginx
+  # kubernetes.io/tls-acme: "true"
+  # -- Ingress hosts.
+  hosts:
+    - host: binflow.local
+      paths:
+        - path: /
+          pathType: Prefix
+  # -- Ingress TLS configuration.
+  tls: []
+  #  - secretName: binflow-tls
+  #    hosts:
+  #      - binflow.local
+
+# -- Resource requests/limits for the BinFlow container.
+resources: {}
+  # We recommend 256Mi-1Gi memory and 100m-1 CPU for typical workloads.
+  # limits:
+  #   cpu: 1
+  #   memory: 1Gi
+  # requests:
+  #   cpu: 100m
+  #   memory: 256Mi
+
+# -- Horizontal Pod Autoscaler (disabled by default — single replica constraint).
+hpa:
+  # -- Whether to create an HPA resource.
+  enabled: false
+  # -- Minimum replicas.
+  minReplicas: 1
+  # -- Maximum replicas (must be 1 — single replica constraint).
+  maxReplicas: 1
+  # -- Target CPU utilization percentage for autoscaling.
+  targetCPUUtilizationPercentage: 80
+  # -- Target memory utilization percentage for autoscaling.
+  targetMemoryUtilizationPercentage: null
+
+# -- Node selector for the BinFlow pod.
+nodeSelector: {}
+# -- Tolerations for the BinFlow pod.
+tolerations: []
+# -- Affinity for the BinFlow pod.
+affinity: {}
+
+# -- Persistent Volume Claim configuration for the Blob data directory.
+#    BinFlow stores blobs + SQLite DB + sessions under dataDir.
+#    RWO is required (single-writer constraint; multi-reader is OK via WAL).
+persistence:
+  # -- Whether to create a PVC. If false, an emptyDir is used (data lost on pod restart).
+  enabled: true
+  # -- PVC access mode.
+  accessMode: ReadWriteOnce
+  # -- PVC size. Adjust based on expected artifact storage.
+  size: 20Gi
+  # -- Storage class name.
+  storageClass: ""
+  # -- Existing PVC claim name (if set, no new PVC is created).
+  existingClaim: ""
+  # -- Annotations for the PVC.
+  annotations: {}
+
+# -- BinFlow server configuration. Values here are rendered into configmap.yaml
+#    and mounted at /etc/binflow/binflow.yaml. Secrets (admin password) go into
+#    secret.yaml and are NOT stored in the ConfigMap.
+config:
+  # -- Base URL for the server (used for realm generation, redirects, etc.).
+  #    Example: "https://registry.example.com/binflow"
+  baseUrl: ""
+  # -- Data directory inside the container.
+  dataDir: /var/lib/binflow
+  # -- Log level: debug, info, warn, error.
+  logLevel: info
+  # -- Whether to enable anonymous read access to content paths.
+  security:
+    anonymousAccess: true
+
+# -- Admin password for the initial admin user. This is stored in a Kubernetes
+#    Secret and injected as the BINFLOW_ADMIN_PASSWORD environment variable.
+#    Change this in production.
+admin:
+  password: "password"

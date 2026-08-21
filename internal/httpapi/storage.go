@@ -45,6 +45,10 @@ type fileInfoBody struct {
 	Checksums         *checksumTriple `json:"checksums,omitempty"`
 	OriginalChecksums *checksumTriple `json:"originalChecksums,omitempty"`
 	Children          []folderChild   `json:"children,omitempty"`
+	// DockerTags is a map from bare hex digest to tag names, populated when the
+	// ?docker_tags query parameter is set on a docker repository FolderInfo GET.
+	// The field is omitted entirely when empty (no Docker repo or no tags).
+	DockerTags map[string][]string `json:"dockerTags,omitempty"`
 }
 
 // checksumTriple is the sha1/md5/sha256 digest object (fields omitted when
@@ -111,6 +115,52 @@ func (s *Server) handleStorageItem(w http.ResponseWriter, r *http.Request, repoK
 		return
 	}
 	s.writeFileInfo(w, r, repoKey, node)
+}
+
+// dockerTagsForFolder resolves tag→digests[] for a docker image folder when
+// the ?docker_tags query parameter is set (T-134 G32a: docker tree rendering).
+// Returns nil when the repo is not a docker repo, the path is not a docker
+// image directory, or the caller does not hold read on the image.
+func (s *Server) dockerTagsForFolder(r *http.Request, repoKey, relPath string) map[string][]string {
+	p := principalFrom(r.Context())
+	row, err := s.deps.Repos.Get(r.Context(), repoKey)
+	if err != nil || row == nil || row.PackageType != repo.PackageDocker || row.Type != repo.TypeLocal {
+		return nil
+	}
+	// The relPath is a folder path like "image/" or "image/manifests/".
+	// Extract the image name: the part before the first "/" or before "/manifests/".
+	trimmed := strings.TrimSuffix(relPath, "/")
+	if trimmed == "" {
+		return nil
+	}
+	image := trimmed
+	// If the path is "image/manifests", strip the "/manifests" suffix.
+	if strings.HasSuffix(trimmed, "/manifests") {
+		image = strings.TrimSuffix(trimmed, "/manifests")
+	} else if strings.HasSuffix(trimmed, "/blobs") {
+		image = strings.TrimSuffix(trimmed, "/blobs")
+	}
+	// For bare image name (no sub-directory), use it directly.
+	if strings.Contains(image, "/") {
+		// Multi-level image name: "a/b" or "a/b/manifests" — image is "a/b".
+		// Already handled by the suffix stripping above.
+		// For a single-component image like "app", image is fine.
+	}
+	// If the stripped path still has a "/" without being manifests/blobs, it's
+	// something else — skip.
+	tags, err := s.deps.ReposSvc.ListTags(r.Context(), p, repoKey, image, 0, "")
+	if err != nil {
+		return nil
+	}
+	if len(tags) == 0 {
+		return nil
+	}
+	// Build digest→tag[] map. A digest can have multiple tags.
+	out := make(map[string][]string, len(tags))
+	for _, t := range tags {
+		out[t.Digest] = append(out[t.Digest], t.Tag)
+	}
+	return out
 }
 
 // ---- ?permissions (SE-08, T-97) ----
@@ -268,7 +318,7 @@ func (s *Server) serveRootFolder(w http.ResponseWriter, r *http.Request, p *auth
 		s.writeStorageError(w, err)
 		return
 	}
-	s.writeFolderInfoBody(w, r, repoKey, "/", nil, childInfos(nodes, ""))
+	s.writeFolderInfoBody(w, r, repoKey, "/", nil, childInfos(nodes, ""), nil)
 }
 
 // fileInfoOf builds the FileInfo wire shape (E-09 field set) of one file
@@ -317,7 +367,8 @@ func mimeOrDefault(m string) string {
 }
 
 // writeFolderInfo renders FolderInfo for an explicit folder node row:
-// children are the direct entries under the directory.
+// children are the direct entries under the directory. When ?docker_tags is
+// set on a docker repo, the response includes dockerTags.
 func (s *Server) writeFolderInfo(w http.ResponseWriter, r *http.Request, repoKey string, node *metadata.Node) {
 	dir := strings.TrimSuffix(node.Path, "/")
 	nodes, err := s.deps.ReposSvc.List(r.Context(), principalFrom(r.Context()), repoKey, dir)
@@ -325,12 +376,19 @@ func (s *Server) writeFolderInfo(w http.ResponseWriter, r *http.Request, repoKey
 		s.writeStorageError(w, err)
 		return
 	}
-	s.writeFolderInfoBody(w, r, repoKey, "/"+node.Path, node, childInfos(nodes, dir))
+	var dockerTags map[string][]string
+	if _, ok := r.URL.Query()["docker_tags"]; ok {
+		// relPath for the folder is the node path without trailing slash.
+		// The storage API path uses "/" + node.Path.
+		dockerTags = s.dockerTagsForFolder(r, repoKey, node.Path)
+	}
+	s.writeFolderInfoBody(w, r, repoKey, "/"+node.Path, node, childInfos(nodes, dir), dockerTags)
 }
 
 // writeFolderInfoBody emits the FolderInfo shape. node is nil for the
 // repository root (no row exists there); timestamps degrade to zero time.
-func (s *Server) writeFolderInfoBody(w http.ResponseWriter, r *http.Request, repoKey, displayPath string, node *metadata.Node, children []folderChild) {
+// dockerTags is an optional digest→tag[] map for docker tree rendering.
+func (s *Server) writeFolderInfoBody(w http.ResponseWriter, r *http.Request, repoKey, displayPath string, node *metadata.Node, children []folderChild, dockerTags map[string][]string) {
 	stamp := ""
 	created := ""
 	createdBy := ""
@@ -354,6 +412,9 @@ func (s *Server) writeFolderInfoBody(w http.ResponseWriter, r *http.Request, rep
 		body.LastModified = isoMillisUTC(stamp)
 		body.ModifiedBy = createdBy
 		body.LastUpdated = isoMillisUTC(stamp)
+	}
+	if len(dockerTags) > 0 {
+		body.DockerTags = dockerTags
 	}
 	writeJSONBody(w, http.StatusOK, body)
 }

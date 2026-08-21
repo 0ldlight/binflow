@@ -235,6 +235,16 @@ export default function AppShell() {
             <span className="spacer" />
             <kbd>⌘K</kbd>
           </button>
+          <a
+            className="topbar-help"
+            href="/binflow/docs/"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="帮助文档（新标签页打开）"
+            data-testid="topbar-help"
+          >
+            <span aria-hidden="true">?</span> 帮助
+          </a>
           <button
             type="button"
             className="icon-btn"

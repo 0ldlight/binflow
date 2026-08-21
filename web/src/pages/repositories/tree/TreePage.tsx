@@ -80,6 +80,7 @@ export default function TreePage() {
     ? rclass === 'local' && (packageType === 'generic' || packageType === 'maven')
     : meta.status === 'forbidden'
   const mkdirable = repoMeta ? rclass === 'local' && packageType === 'generic' : meta.status === 'forbidden'
+  const isDockerRepo = repoMeta ? packageType === 'docker' : false
 
   // ---- 目录加载（缓存 + 去重；链 = 根到当前路径的全部祖先） ----
   const chain = useMemo(() => ancestorDirs(dir), [dir])
@@ -105,7 +106,8 @@ export default function TreePage() {
       cacheRef.current.delete(d)
       inflightRef.current.add(d)
       setDirState((s) => ({ ...s, [d]: { status: 'loading' } }))
-      listChildren(repoKey, d)
+      // T-134 G32a: docker repo tree passes isDockerRepo for ?docker_tags enrichment
+      listChildren(repoKey, d, undefined, isDockerRepo)
         .then((nodes) => {
           cacheRef.current.set(d, nodes)
           inflightRef.current.delete(d)
@@ -120,7 +122,7 @@ export default function TreePage() {
           }))
         })
     },
-    [repoKey],
+    [repoKey, isDockerRepo],
   )
 
   const expandedKey = Array.from(expanded).sort().join('\n')
@@ -490,10 +492,10 @@ export default function TreePage() {
                 <thead>
                   <tr>
                     <th>名称</th>
-                    <th>类型</th>
+                    {isDockerRepo ? <th>标签</th> : <th>类型</th>}
                     <th>大小</th>
                     <th>修改时间</th>
-                    <th>sha256</th>
+                    <th>{isDockerRepo ? '摘要' : 'sha256'}</th>
                     <th>操作</th>
                   </tr>
                 </thead>
@@ -518,7 +520,26 @@ export default function TreePage() {
                           {n.name}
                         </span>
                       </td>
-                      <td>{n.folder ? '目录' : '文件'}</td>
+                      {isDockerRepo ? (
+                        <td>
+                          {n.tags && n.tags.length > 0
+                            ? n.tags.map((tag) => (
+                                <span
+                                  key={tag}
+                                  className="badge neutral"
+                                  data-testid={`tag-badge-${tag}`}
+                                  title={`tag: ${tag}`}
+                                >
+                                  {tag}
+                                </span>
+                              ))
+                            : !n.folder
+                              ? <span className="badge warning">untagged</span>
+                              : '—'}
+                        </td>
+                      ) : (
+                        <td>{n.folder ? '目录' : '文件'}</td>
+                      )}
                       <td className="mono">{n.folder ? '—' : n.size !== null ? formatBytes(n.size) : '—'}</td>
                       <td className="mono">{n.lastModified ? n.lastModified.replace('T', ' ').slice(0, 19) : '—'}</td>
                       <td className="mono" title={n.sha256}>

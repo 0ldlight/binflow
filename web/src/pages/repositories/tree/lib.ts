@@ -52,7 +52,12 @@ export interface ChildNode {
   size: number | null
   lastModified: string
   sha256: string
+  /** Docker tags for this manifest digest (T-134 G32a: via ?docker_tags enrichment) */
+  tags?: string[]
 }
+
+/** DockerTagsMap: digest hex → tag names (T-134 G32a: ?docker_tags response field) */
+export type DockerTagsMap = Record<string, string[]>
 
 /** SE-08 ?permissions 视图（admin 门；403 由调用方隐藏该面） */
 export interface PermissionsView {
@@ -107,13 +112,22 @@ function toApiError(err: unknown): ApiError {
  * listChildren 直走主路径，不再需要搜索面兜底。
  * 目录在前、同组按名排序（服务端 children 已按 uri 排序，合并后重排一次
  * 保持全序）。
+ *
+ * 当 isDockerRepo 为 true 且 dir 为 docker image 路径时，自动附加
+ * ?docker_tags 查询参数以获取 digest→tag 映射（T-134 G32a）。
  */
 export async function listChildren(
   repoKey: string,
   dir: string,
   signal?: AbortSignal,
+  isDockerRepo?: boolean,
 ): Promise<ChildNode[]> {
-  const folder = await apiJSON<ItemInfo>(storagePath(repoKey, dir), { signal })
+  // docker repo tree 需要 tag 数据：image 级 + manifests 级均附加 ?docker_tags
+  const qs = isDockerRepo && dir !== '' ? '?docker_tags=1' : ''
+  const folder = await apiJSON<ItemInfo & { dockerTags?: DockerTagsMap }>(
+    `${storagePath(repoKey, dir)}${qs}`, { signal },
+  )
+  const dockerTags = folder.dockerTags ?? {}
   const kids = folder.children ?? []
   let files: { uri: string; size: number; lastModified: string; sha2?: string; folder: boolean }[] = []
   if (dir !== '') {
@@ -137,6 +151,13 @@ export async function listChildren(
       size: meta ? meta.size : null,
       lastModified: meta ? meta.lastModified : '',
       sha256: meta?.sha2 ?? '',
+      // Docker manifest digest row: the child name IS the sha256 hex digest.
+      // Match against the dockerTags map by child name or sha2 from ?list.
+      tags: Object.prototype.hasOwnProperty.call(dockerTags, name)
+        ? dockerTags[name]
+        : Object.prototype.hasOwnProperty.call(dockerTags, meta?.sha2 ?? '')
+          ? dockerTags[meta?.sha2 ?? '']
+          : undefined,
     }
   })
   sortChildren(nodes)

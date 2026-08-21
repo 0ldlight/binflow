@@ -1,0 +1,67 @@
+# BinFlow Ingress — sample, commented out by default.
+#
+# Uncomment and adjust to your cluster's IngressClass and hostname.
+# Path-based routing under /binflow/ and /v2/ (docker registry) must be
+# preserved exactly; the application mounts /v2/** at the root level and
+# /binflow/ under a unified prefix (ADR-0008, ADR-0010).
+#
+# If you use a reverse proxy (nginx, traefik) instead of K8s Ingress, see
+# deploy/dev/README.md for the required proxy_pass configuration.
+#
+# TODO: replace <your-hostname.example.com> with the real hostname.
+# TODO: adjust TLS certificate configuration (cert-manager / manual).
+#
+# ---
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: binflow
+#   labels:
+#     app.kubernetes.io/name: binflow
+#     app.kubernetes.io/component: server
+#   annotations:
+#     # Align with server graceful_timeout (architecture §9).
+#     nginx.ingress.kubernetes.io/proxy-read-timeout: "35"
+#     nginx.ingress.kubernetes.io/proxy-body-size: "0"       # unlimited body (artifact uploads)
+#     nginx.ingress.kubernetes.io/ssl-redirect: "true"
+# spec:
+#   ingressClassName: nginx
+#   tls:
+#     - hosts:
+#         - <your-hostname.example.com>
+#       secretName: binflow-tls
+#   rules:
+#     - host: <your-hostname.example.com>
+#       http:
+#         paths:
+#           # Health endpoints (no /binflow prefix).
+#           - path: /healthz
+#             pathType: Exact
+#             backend:
+#               service:
+#                 name: binflow
+#                 port:
+#                   number: 8080
+#           - path: /readyz
+#             pathType: Exact
+#             backend:
+#               service:
+#                 name: binflow
+#                 port:
+#                   number: 8080
+#           # Docker Registry v2 API (root-level exception, ADR-0010).
+#           - path: /v2
+#             pathType: Prefix
+#             backend:
+#               service:
+#                 name: binflow
+#                 port:
+#                   number: 8080
+#           # All BinFlow endpoints (management API + content paths).
+#           - path: /binflow
+#             pathType: Prefix
+#             backend:
+#               service:
+#                 name: binflow
+#                 port:
+#                   number: 8080

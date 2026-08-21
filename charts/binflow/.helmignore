@@ -1,0 +1,7 @@
+# .helmignore — files not to package in the Chart tarball.
+# Directories (unless explictly listed) are ignored by default.
+*.md
+.git
+.gitignore
+*.tmpl~
+values.schema.json.DISABLED

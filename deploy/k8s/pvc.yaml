@@ -1,0 +1,21 @@
+# BinFlow PVC — persistent storage for blobs, SQLite, and sessions.
+#
+# RWO is mandatory: BinFlow uses SQLite (WAL mode) which requires exclusive
+# write access.  Multi-replica with a shared PVC is explicitly forbidden
+# (architecture §9).
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: binflow-data
+  labels:
+    app.kubernetes.io/name: binflow
+    app.kubernetes.io/component: server
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  # Optionally set storageClassName for your cluster:
+  # storageClassName: standard
