@@ -265,8 +265,14 @@ func TestOpenReadSeekCloserAndMissing(t *testing.T) {
 	if got.Sha256 != ref.Sha256 || got.Size != 16 {
 		t.Fatalf("Open ref = %+v", got)
 	}
-	// Seek then read: the ReadSeekCloser contract T-20 (Range) relies on.
-	if _, err := f.Seek(4, io.SeekStart); err != nil {
+	// Engine.Open returns io.ReadCloser (ADR-0019); the DiskEngine's concrete
+	// value is *os.File which also implements io.ReadSeekCloser. Type-assert
+	// to exercise Seek (the T-20 Range contract relies on it).
+	seekable, ok := f.(io.ReadSeekCloser)
+	if !ok {
+		t.Fatal("DiskEngine Open must return an io.ReadSeekCloser")
+	}
+	if _, err := seekable.Seek(4, io.SeekStart); err != nil {
 		t.Fatalf("Seek: %v", err)
 	}
 	buf := make([]byte, 4)

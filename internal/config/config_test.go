@@ -998,3 +998,309 @@ func TestLoadExplicitZeroValues(t *testing.T) {
 		}
 	})
 }
+
+// ---- S3 configuration tests (T-152) ----
+
+func TestLoadS3Defaults(t *testing.T) {
+	c := mustLoad(t, "", nil)
+	if got, want := c.Storage.Backend, StorageBackendDisk; got != want {
+		t.Errorf("Backend = %q, want %q", got, want)
+	}
+	if got, want := c.Storage.S3.UploadPartSize, DefaultS3UploadPartSize; got != want {
+		t.Errorf("S3.UploadPartSize = %d, want %d", got, want)
+	}
+	if got, want := c.Storage.S3.UploadConcurrency, DefaultS3UploadConcurrency; got != want {
+		t.Errorf("S3.UploadConcurrency = %d, want %d", got, want)
+	}
+	if c.Storage.S3.Bucket != "" {
+		t.Errorf("S3.Bucket = %q, want empty", c.Storage.S3.Bucket)
+	}
+	if c.Storage.S3.SecretAccessKey != "" {
+		t.Errorf("S3.SecretAccessKey = %q, want empty", c.Storage.S3.SecretAccessKey)
+	}
+}
+
+func TestLoadS3FullYAML(t *testing.T) {
+	c := mustLoad(t, `
+storage:
+  backend: s3
+  s3:
+    bucket: my-bucket
+    region: us-east-1
+    endpoint: https://s3.amazonaws.com
+    access_key_id: AKIAIOSFODNN7EXAMPLE
+    use_path_style: true
+    upload_part_size: 10485760
+    upload_concurrency: 8
+    bucket_prefix: binflow-prod
+`, map[string]string{
+		"BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+	})
+	if got, want := c.Storage.Backend, "s3"; got != want {
+		t.Errorf("Backend = %q, want %q", got, want)
+	}
+	if got, want := c.Storage.S3.Bucket, "my-bucket"; got != want {
+		t.Errorf("S3.Bucket = %q, want %q", got, want)
+	}
+	if got, want := c.Storage.S3.Region, "us-east-1"; got != want {
+		t.Errorf("S3.Region = %q, want %q", got, want)
+	}
+	if got, want := c.Storage.S3.Endpoint, "https://s3.amazonaws.com"; got != want {
+		t.Errorf("S3.Endpoint = %q, want %q", got, want)
+	}
+	if got, want := c.Storage.S3.AccessKeyID, "AKIAIOSFODNN7EXAMPLE"; got != want {
+		t.Errorf("S3.AccessKeyID = %q, want %q", got, want)
+	}
+	if got, want := c.Storage.S3.SecretAccessKey, "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"; got != want {
+		t.Errorf("S3.SecretAccessKey = %q, want %q", got, want)
+	}
+	if !c.Storage.S3.UsePathStyle {
+		t.Errorf("S3.UsePathStyle = false, want true")
+	}
+	if got, want := c.Storage.S3.UploadPartSize, int64(10485760); got != want {
+		t.Errorf("S3.UploadPartSize = %d, want %d", got, want)
+	}
+	if got, want := c.Storage.S3.UploadConcurrency, 8; got != want {
+		t.Errorf("S3.UploadConcurrency = %d, want %d", got, want)
+	}
+	if got, want := c.Storage.S3.BucketPrefix, "binflow-prod"; got != want {
+		t.Errorf("S3.BucketPrefix = %q, want %q", got, want)
+	}
+}
+
+func TestLoadS3EnvOverrides(t *testing.T) {
+	base := "storage:\n  backend: s3\n  s3:\n    bucket: yaml-bucket\n    region: yaml-region\n    endpoint: https://yaml.example.com\n    access_key_id: YAMLKEY\n"
+	c := mustLoad(t, base, map[string]string{
+		"BINFLOW_STORAGE__BACKEND":                "s3",
+		"BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY":    "env-secret-key",
+		"BINFLOW_STORAGE__S3__BUCKET":             "env-bucket",
+		"BINFLOW_STORAGE__S3__REGION":             "env-region",
+		"BINFLOW_STORAGE__S3__ENDPOINT":           "https://env.example.com",
+		"BINFLOW_STORAGE__S3__ACCESS_KEY_ID":      "ENVKEY",
+		"BINFLOW_STORAGE__S3__USE_PATH_STYLE":     "true",
+		"BINFLOW_STORAGE__S3__UPLOAD_PART_SIZE":   "20971520",
+		"BINFLOW_STORAGE__S3__UPLOAD_CONCURRENCY": "16",
+		"BINFLOW_STORAGE__S3__BUCKET_PREFIX":      "env-prefix",
+	})
+	if got, want := c.Storage.Backend, "s3"; got != want {
+		t.Errorf("Backend = %q, want %q", got, want)
+	}
+	if got, want := c.Storage.S3.Bucket, "env-bucket"; got != want {
+		t.Errorf("S3.Bucket = %q, want env value %q", got, want)
+	}
+	if got, want := c.Storage.S3.Region, "env-region"; got != want {
+		t.Errorf("S3.Region = %q, want env value %q", got, want)
+	}
+	if got, want := c.Storage.S3.Endpoint, "https://env.example.com"; got != want {
+		t.Errorf("S3.Endpoint = %q, want env value %q", got, want)
+	}
+	if got, want := c.Storage.S3.AccessKeyID, "ENVKEY"; got != want {
+		t.Errorf("S3.AccessKeyID = %q, want env value %q", got, want)
+	}
+	if got, want := c.Storage.S3.SecretAccessKey, "env-secret-key"; got != want {
+		t.Errorf("S3.SecretAccessKey = %q, want env value %q", got, want)
+	}
+	if !c.Storage.S3.UsePathStyle {
+		t.Errorf("S3.UsePathStyle = false, want env override true")
+	}
+	if got, want := c.Storage.S3.UploadPartSize, int64(20971520); got != want {
+		t.Errorf("S3.UploadPartSize = %d, want %d", got, want)
+	}
+	if got, want := c.Storage.S3.UploadConcurrency, 16; got != want {
+		t.Errorf("S3.UploadConcurrency = %d, want %d", got, want)
+	}
+	if got, want := c.Storage.S3.BucketPrefix, "env-prefix"; got != want {
+		t.Errorf("S3.BucketPrefix = %q, want env value %q", got, want)
+	}
+}
+
+func TestLoadS3SecretAccessKeyEnvOnly(t *testing.T) {
+	// Without the env var, S3 should fail validation (missing secret_access_key).
+	_, err := loadWithEnv(t, `
+storage:
+  backend: s3
+  s3:
+    bucket: my-bucket
+    region: us-east-1
+    endpoint: https://s3.amazonaws.com
+    access_key_id: AKIAIOSFODNN7EXAMPLE
+`, nil)
+	if err == nil {
+		t.Fatal("Load() error = nil, want secret_access_key required error")
+	}
+	if !strings.Contains(err.Error(), "secret_access_key") {
+		t.Errorf("error = %q, want it to mention secret_access_key", err)
+	}
+
+	// With the env var, it should succeed.
+	c, err := loadWithEnv(t, `
+storage:
+  backend: s3
+  s3:
+    bucket: my-bucket
+    region: us-east-1
+    endpoint: https://s3.amazonaws.com
+    access_key_id: AKIAIOSFODNN7EXAMPLE
+`, map[string]string{"BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY": "secret!"})
+	if err != nil {
+		t.Fatalf("Load() error = %v, want nil", err)
+	}
+	if got, want := c.Storage.S3.SecretAccessKey, "secret!"; got != want {
+		t.Errorf("S3.SecretAccessKey = %q, want %q", got, want)
+	}
+}
+
+func TestLoadS3SecretAccessKeyCaseInsensitive(t *testing.T) {
+	c, err := loadWithEnv(t, `
+storage:
+  backend: s3
+  s3:
+    bucket: my-bucket
+    region: us-east-1
+    endpoint: https://s3.amazonaws.com
+    access_key_id: AKIAIOSFODNN7EXAMPLE
+`, map[string]string{"binflow_storage_s3_secret_access_key": "lowercase-secret"})
+	if err != nil {
+		t.Fatalf("Load() error = %v, want nil", err)
+	}
+	if got, want := c.Storage.S3.SecretAccessKey, "lowercase-secret"; got != want {
+		t.Errorf("S3.SecretAccessKey = %q, want %q", got, want)
+	}
+}
+
+func TestLoadS3SecretAccessKeyRejectedInYAML(t *testing.T) {
+	_, err := loadWithEnv(t, `
+storage:
+  backend: s3
+  s3:
+    bucket: my-bucket
+    region: us-east-1
+    endpoint: https://s3.amazonaws.com
+    access_key_id: AKIAIOSFODNN7EXAMPLE
+    secret_access_key: hunter2
+`, nil)
+	if err == nil {
+		t.Fatal("Load() error = nil, want secret-access-key-rejected-in-YAML error")
+	}
+	if !strings.Contains(err.Error(), "secret") {
+		t.Errorf("error = %q, want it to mention secrets", err)
+	}
+	if !strings.Contains(err.Error(), "secret_access_key") {
+		t.Errorf("error = %q, want it to mention secret_access_key", err)
+	}
+}
+
+func TestValidateS3BackendMissingFields(t *testing.T) {
+	type testCase struct {
+		name    string
+		mutate  func(*Config)
+		wantErr string
+	}
+	tests := []testCase{
+		{
+			name:    "missing bucket",
+			mutate:  func(c *Config) { c.Storage.S3.Bucket = "" },
+			wantErr: "storage.s3.bucket is required",
+		},
+		{
+			name:    "missing region",
+			mutate:  func(c *Config) { c.Storage.S3.Region = "" },
+			wantErr: "storage.s3.region is required",
+		},
+		{
+			name:    "missing endpoint",
+			mutate:  func(c *Config) { c.Storage.S3.Endpoint = "" },
+			wantErr: "storage.s3.endpoint is required",
+		},
+		{
+			name:    "missing access_key_id",
+			mutate:  func(c *Config) { c.Storage.S3.AccessKeyID = "" },
+			wantErr: "storage.s3.access_key_id is required",
+		},
+		{
+			name:    "missing secret_access_key",
+			mutate:  func(c *Config) { c.Storage.S3.SecretAccessKey = "" },
+			wantErr: "storage.s3.secret_access_key is required",
+		},
+		{
+			name:    "zero upload_part_size",
+			mutate:  func(c *Config) { c.Storage.S3.UploadPartSize = 0 },
+			wantErr: "storage.s3.upload_part_size must be positive",
+		},
+		{
+			name:    "negative upload_part_size",
+			mutate:  func(c *Config) { c.Storage.S3.UploadPartSize = -1 },
+			wantErr: "storage.s3.upload_part_size must be positive",
+		},
+		{
+			name:    "zero upload_concurrency",
+			mutate:  func(c *Config) { c.Storage.S3.UploadConcurrency = 0 },
+			wantErr: "storage.s3.upload_concurrency must be positive",
+		},
+		{
+			name:    "negative upload_concurrency",
+			mutate:  func(c *Config) { c.Storage.S3.UploadConcurrency = -1 },
+			wantErr: "storage.s3.upload_concurrency must be positive",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := validS3Config()
+			tt.mutate(c)
+			err := c.Validate()
+			if err == nil {
+				t.Fatalf("Validate() error = nil, want one containing %q", tt.wantErr)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("error = %q, want it to contain %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateS3BackendValid(t *testing.T) {
+	c := validS3Config()
+	if err := c.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want nil", err)
+	}
+}
+
+func TestValidateBackendUnknown(t *testing.T) {
+	c := Defaults()
+	c.Storage.Backend = "nfs"
+	c.Storage.DataDir = t.TempDir()
+	err := c.Validate()
+	if err == nil {
+		t.Fatal("Validate() error = nil, want unknown backend error")
+	}
+	if !strings.Contains(err.Error(), "unknown backend") {
+		t.Errorf("error = %q, want unknown backend error", err)
+	}
+	if !strings.Contains(err.Error(), "nfs") {
+		t.Errorf("error = %q, want it to mention the bad value", err)
+	}
+}
+
+func TestValidateS3SkipsDataDirCreation(t *testing.T) {
+	// When backend=s3, Validate() should not require a writable data_dir.
+	// Use a non-existent directory path to prove it's skipped.
+	c := validS3Config()
+	c.Storage.DataDir = "/nonexistent/should-not-be-created"
+	if err := c.Validate(); err != nil {
+		t.Fatalf("Validate() error = %v, want nil (S3 backend should skip data_dir creation)", err)
+	}
+}
+
+// validS3Config returns a Config with S3 backend fully configured for validation tests.
+func validS3Config() *Config {
+	c := Defaults()
+	c.Storage.Backend = "s3"
+	c.Storage.S3.Bucket = "test-bucket"
+	c.Storage.S3.Region = "us-east-1"
+	c.Storage.S3.Endpoint = "https://s3.amazonaws.com"
+	c.Storage.S3.AccessKeyID = "AKIAIOSFODNN7EXAMPLE"
+	c.Storage.S3.SecretAccessKey = "secret"
+	c.Storage.S3.UploadPartSize = DefaultS3UploadPartSize
+	c.Storage.S3.UploadConcurrency = DefaultS3UploadConcurrency
+	return c
+}

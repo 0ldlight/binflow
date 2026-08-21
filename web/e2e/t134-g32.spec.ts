@@ -59,20 +59,82 @@ async function apiV2(
   path: string,
   body?: string,
   contentType?: string,
+  authUser?: string,
+  authPass?: string,
 ): Promise<{ status: number; text: string }> {
   return page.evaluate(
-    async ({ method, path, body, contentType }) => {
+    async ({ method, path, body, contentType, authUser, authPass }) => {
       const headers: Record<string, string> = {}
       if (contentType !== undefined) headers['Content-Type'] = contentType
+      if (authUser !== undefined && authPass !== undefined) {
+        headers['Authorization'] = 'Basic ' + btoa(`${authUser}:${authPass}`)
+      }
       const res = await fetch(path, { method, headers, body })
       return { status: res.status, text: await res.text() }
     },
-    { method, path, body, contentType },
+    { method, path, body, contentType, authUser, authPass },
   )
 }
 
 function uniq(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+}
+
+/**
+ * Push a minimal docker image manifest to the docker v2 adapter.
+ * Creates a tiny config blob and uploads it, then pushes the manifest.
+ * Returns the manifest digest (bare hex) and config digest.
+ */
+async function pushManifest(
+  page: Page,
+  repoKey: string,
+  image: string,
+  tag: string,
+): Promise<{ manifestDigest: string; configDigest: string }> {
+  const configBody = JSON.stringify({ architecture: 'amd64', os: 'linux' })
+  const configDigest = simpleSha256(configBody)
+
+  // Upload config blob via monolithic upload
+  const cfgResp = await apiV2(
+    page, 'POST', `/v2/${repoKey}/${image}/blobs/uploads/?digest=sha256:${configDigest}`,
+    configBody, 'application/octet-stream', ADMIN, ADMIN_PW,
+  )
+  if (cfgResp.status !== 201) {
+    throw new Error(`Config blob upload failed: ${cfgResp.status} ${cfgResp.text}`)
+  }
+
+  // Build manifest referencing the real config blob
+  const manifestBody = JSON.stringify({
+    schemaVersion: 2,
+    mediaType: 'application/vnd.docker.distribution.manifest.v2+json',
+    config: {
+      mediaType: 'application/vnd.docker.container.image.v1+json',
+      size: configBody.length,
+      digest: `sha256:${configDigest}`,
+    },
+    layers: [],
+  })
+  const manifestDigest = simpleSha256(manifestBody)
+
+  // Upload manifest blob
+  const mfBlobResp = await apiV2(
+    page, 'POST', `/v2/${repoKey}/${image}/blobs/uploads/?digest=sha256:${manifestDigest}`,
+    manifestBody, 'application/octet-stream', ADMIN, ADMIN_PW,
+  )
+  if (mfBlobResp.status !== 201) {
+    throw new Error(`Manifest blob upload failed: ${mfBlobResp.status} ${mfBlobResp.text}`)
+  }
+
+  // PUT manifest with tag
+  const mfResp = await apiV2(
+    page, 'PUT', `/v2/${repoKey}/${image}/manifests/${tag}`,
+    manifestBody, 'application/vnd.docker.distribution.manifest.v2+json', ADMIN, ADMIN_PW,
+  )
+  if (mfResp.status !== 201) {
+    throw new Error(`Manifest PUT failed: ${mfResp.status} ${mfResp.text}`)
+  }
+
+  return { manifestDigest, configDigest }
 }
 
 function watchServerErrors(page: Page): string[] {
@@ -105,30 +167,10 @@ test('G32a-1: zero /v2/* requests during docker tree browsing', async ({ page })
   // Create docker-local repo
   await api(page, 'PUT', `/api/repositories/${key}`, { rclass: 'local', packageType: 'docker' })
 
-  // Push a docker manifest via the content plane (simulating docker push by
-  // writing the storage layout directly). We write a manifest blob + manifest
-  // node + tag through the docker adapter's content plane.
-  const image = 'app'
-  const manifestBody = JSON.stringify({
-    schemaVersion: 2,
-    mediaType: 'application/vnd.docker.distribution.manifest.v2+json',
-    config: { mediaType: 'application/vnd.docker.container.image.v1+json', size: 7023, digest: 'sha256:0000000000000000000000000000000000000000000000000000000000000000' },
-    layers: [],
-  })
-  const manifestDigest = simpleSha256(manifestBody)
-
-  // Upload the manifest body as a blob (the docker adapter's step-1 PUT).
-  // The docker v2 blob endpoint expects sha256:<hex> in the URL path.
-  const digestParam = `sha256:${manifestDigest}`
-  const blobResp = await apiV2(page, 'PUT', `/v2/${key}/${image}/blobs/${digestParam}`, manifestBody)
-  expect(blobResp.status).toBe(201)
-
-  // Put the manifest (tag: latest)
-  const manifestResp = await apiV2(page, 'PUT', `/v2/${key}/${image}/manifests/latest`, manifestBody)
-  expect(manifestResp.status).toBe(201)
+  // Push a minimal docker image via the v2 adapter
+  const { manifestDigest } = await pushManifest(page, key, 'app', 'latest')
 
   // Snapshot /v2/ and /api/search request counts before tree browsing.
-  // Pushes above used /v2/ (expected), but tree browsing must not trigger any.
   const v2BeforeTree = v2Reqs.count()
   const searchBeforeTree = searchReqs.count()
 
@@ -166,29 +208,9 @@ test('G32a-2: tag badges rendered on manifest digest rows', async ({ page }) => 
 
   await api(page, 'PUT', `/api/repositories/${key}`, { rclass: 'local', packageType: 'docker' })
 
-  const image = 'app'
-  const manifestBody = JSON.stringify({
-    schemaVersion: 2,
-    mediaType: 'application/vnd.docker.distribution.manifest.v2+json',
-    config: { mediaType: 'application/vnd.docker.container.image.v1+json', size: 7023, digest: 'sha256:0000000000000000000000000000000000000000000000000000000000000000' },
-    layers: [],
-  })
-  const manifestDigest = simpleSha256(manifestBody)
-
-  // Push manifest with tag "latest"
-  await apiV2(page, 'PUT', `/v2/${key}/${image}/blobs/sha256:${manifestDigest}`, manifestBody)
-  await apiV2(page, 'PUT', `/v2/${key}/${image}/manifests/latest`, manifestBody)
-
-  // Push another manifest with tag "v1"
-  const manifestBody2 = JSON.stringify({
-    schemaVersion: 2,
-    mediaType: 'application/vnd.docker.distribution.manifest.v2+json',
-    config: { mediaType: 'application/vnd.docker.container.image.v1+json', size: 9999, digest: 'sha256:0000000000000000000000000000000000000000000000000000000000000000' },
-    layers: [],
-  })
-  const manifestDigest2 = simpleSha256(manifestBody2)
-  await apiV2(page, 'PUT', `/v2/${key}/${image}/blobs/sha256:${manifestDigest2}`, manifestBody2)
-  await apiV2(page, 'PUT', `/v2/${key}/${image}/manifests/v1`, manifestBody2)
+  // Push two manifests with different tags
+  const { manifestDigest } = await pushManifest(page, key, 'app', 'latest')
+  const { manifestDigest: manifestDigest2 } = await pushManifest(page, key, 'app', 'v1')
 
   // Browse to manifests/
   await page.goto(`/binflow/ui/repositories/${key}/tree/app/manifests`)
@@ -218,20 +240,11 @@ test('G32a-3: data consistency — tree tag set matches crane tags/list', async 
 
   await api(page, 'PUT', `/api/repositories/${key}`, { rclass: 'local', packageType: 'docker' })
 
-  const image = 'app'
-  const manifestBody = JSON.stringify({
-    schemaVersion: 2,
-    mediaType: 'application/vnd.docker.distribution.manifest.v2+json',
-    config: { mediaType: 'application/vnd.docker.container.image.v1+json', size: 7023, digest: 'sha256:0000000000000000000000000000000000000000000000000000000000000000' },
-    layers: [],
-  })
-  const manifestDigest = simpleSha256(manifestBody)
-
-  await apiV2(page, 'PUT', `/v2/${key}/${image}/blobs/sha256:${manifestDigest}`, manifestBody)
-  await apiV2(page, 'PUT', `/v2/${key}/${image}/manifests/latest`, manifestBody)
+  // Push a manifest with a known tag
+  const { manifestDigest } = await pushManifest(page, key, 'app', 'latest')
 
   // Query tags/list via the v2 API for data consistency check
-  const tagsResp = await apiV2(page, 'GET', `/v2/${key}/${image}/tags/list`)
+  const tagsResp = await apiV2(page, 'GET', `/v2/${key}/app/tags/list`, undefined, undefined, ADMIN, ADMIN_PW)
   expect(tagsResp.status).toBe(200)
   const tagsList = JSON.parse(tagsResp.text) as { tags: string[] }
   const expectedTags = tagsList.tags ?? []
@@ -262,27 +275,17 @@ test('G32b-1: docker tree columns — digest column header "摘要"', async ({ p
 
   await api(page, 'PUT', `/api/repositories/${key}`, { rclass: 'local', packageType: 'docker' })
 
-  const image = 'app'
-  const manifestBody = JSON.stringify({
-    schemaVersion: 2,
-    mediaType: 'application/vnd.docker.distribution.manifest.v2+json',
-    config: { mediaType: 'application/vnd.docker.container.image.v1+json', size: 7023, digest: 'sha256:0000000000000000000000000000000000000000000000000000000000000000' },
-    layers: [],
-  })
-  const manifestDigest = simpleSha256(manifestBody)
-
-  await apiV2(page, 'PUT', `/v2/${key}/${image}/blobs/sha256:${manifestDigest}`, manifestBody)
-  await apiV2(page, 'PUT', `/v2/${key}/${image}/manifests/latest`, manifestBody)
+  const { manifestDigest } = await pushManifest(page, key, 'app', 'latest')
 
   // Browse to manifests/
   await page.goto(`/binflow/ui/repositories/${key}/tree/app/manifests`)
   await expect(page.locator('[data-testid="tree-page"]')).toBeVisible()
 
   // Docker tree should show "摘要" column header instead of "sha256"
-  await expect(page.locator('[data-testid="tree-list"] th')).toContainText('摘要')
-
+  const th = page.locator('[data-testid="tree-list"] th')
+  await expect(th.nth(4)).toHaveText('摘要')
   // Docker tree should show "标签" column header instead of "类型"
-  await expect(page.locator('[data-testid="tree-list"] th')).toContainText('标签')
+  await expect(th.nth(1)).toHaveText('标签')
 
   // Manifest digest should be rendered as a truncated sha256 hex
   const digestCell = page.locator(`[data-testid="tree-row-${manifestDigest}"] td:nth-child(5)`)
@@ -303,26 +306,9 @@ test('G32b-2: docker root level — image directory listing with zero regression
 
   await api(page, 'PUT', `/api/repositories/${key}`, { rclass: 'local', packageType: 'docker' })
 
-  // Push two images with tags
-  const manifestBody = JSON.stringify({
-    schemaVersion: 2,
-    mediaType: 'application/vnd.docker.distribution.manifest.v2+json',
-    config: { mediaType: 'application/vnd.docker.container.image.v1+json', size: 7023, digest: 'sha256:0000000000000000000000000000000000000000000000000000000000000000' },
-    layers: [],
-  })
-  const m1 = simpleSha256(manifestBody)
-  await apiV2(page, 'PUT', `/v2/${key}/app1/blobs/sha256:${m1}`, manifestBody)
-  await apiV2(page, 'PUT', `/v2/${key}/app1/manifests/latest`, manifestBody)
-
-  const manifestBody2 = JSON.stringify({
-    schemaVersion: 2,
-    mediaType: 'application/vnd.docker.distribution.manifest.v2+json',
-    config: { mediaType: 'application/vnd.docker.container.image.v1+json', size: 9999, digest: 'sha256:0000000000000000000000000000000000000000000000000000000000000000' },
-    layers: [],
-  })
-  const m2 = simpleSha256(manifestBody2)
-  await apiV2(page, 'PUT', `/v2/${key}/app2/blobs/sha256:${m2}`, manifestBody2)
-  await apiV2(page, 'PUT', `/v2/${key}/app2/manifests/v1`, manifestBody2)
+  // Push two images with tags using the pushManifest helper
+  const { manifestDigest: m1 } = await pushManifest(page, key, 'app1', 'latest')
+  const { manifestDigest: m2 } = await pushManifest(page, key, 'app2', 'v1')
 
   // Browse to root
   await page.goto(`/binflow/ui/repositories/${key}/tree`)

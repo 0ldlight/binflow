@@ -2,7 +2,7 @@
 
 > 由 product-manager 维护；tech-lead 据此把当前里程碑分解为 ticket。
 
-## 当前里程碑：M4
+## 当前里程碑：M6+（展望/规划阶段）
 
 ### M0 — 团队启动（已完成）
 - [x] 产品愿景 PRODUCT.md（BinFlow）
@@ -40,25 +40,30 @@
 - [x] virtual 仓库聚合与解析顺序（成员顺序优先 + 可选写路由）（FR-21）
 - [x] （支撑）rclass remote/virtual 与 packageType maven/npm/pypi 启用（FR-15，M1 E-07 断言反转见 PRD §5.6）
 
-### M4 — 控制台与治理
-需求基线：docs/prd/milestone-4.md（PRD v1.0，T-85；session 机制/配额粒度/搜索范围/备份一致性窗口等六项开放问题待用户定案，见 PRD §7；信息架构归 ux-designer 并行票）
-- [ ] Web 控制台：登录（session，Q1 暂行 server-side）、仓库管理 CRUD 页、制品树浏览/上传/下载、搜索（FR-23~FR-26，含 repo 治理字段 includes/excludes 启用）
-- [ ] 权限模型完整实现：groups 实体与成员、授权继承（users/groups × repo × path 并集、即时生效）+ 用户/组/权限管理 UI（FR-27/FR-28；email 落盘收编）
-- [ ] 治理：审计日志查询面（audit_events 已有，`/api/v1/audit`）、GC 管理化（dry-run/apply + export 互斥）、repo 级配额 quotaBytes（FR-29~FR-31）
-- [ ] 备份/恢复：export/import CLI（ADR-0006 blobs+SQLite 快照，mtime 保留，Q4 暂行在线导出）（FR-32）
-- [ ] （验收面）Playwright + curl W 序列与 M1~M3 回归基线反转（FR-33，PRD §5.6）
+### M4 — 控制台与治理（已完成，`m4-done`）
+需求基线：docs/prd/milestone-4.md（PRD v1.0，T-85）
+- [x] Web 控制台：登录（session）、仓库管理 CRUD 页、制品树浏览/上传/下载、搜索（FR-23~FR-26）
+- [x] 权限模型完整实现：groups 实体与成员、授权继承（FR-27/FR-28）
+- [x] 治理：审计日志查询面、GC 管理化、repo 级配额 quotaBytes（FR-29~FR-31）
+- [x] 备份/恢复：export/import CLI（FR-32）
+- [x] （验收面）Playwright + curl W 序列与 M1~M3 回归基线反转（FR-33）
 
-### M5 — 发布矩阵与文档中心（GA）
-需求基线：docs/prd/milestone-5.md（PRD v1.1，T-125；FR-34~FR-47；M4 债务归置入 M5 8 / M6+ 2 见 PRD §6.4；§7 四项已定案——发布渠道 GitHub Releases + ghcr.io（Chart 仓库待定）/ HPA disabled + maxReplicas≤1 / 烟测环境用户提供（到位前降级先行）/ GA 版本号 v1.0.0 双 tag）
-- [ ] goreleaser 多平台二进制（linux/darwin/windows × amd64/arm64）+ 校验和
-- [ ] Docker multi-arch 镜像（distroless / alpine 双变体）
-- [ ] docker-compose 产物、Helm Chart（persistence/ingress/HPA）、原生 K8s 清单、systemd + 安装脚本、离线安装包
-- [ ] 帮助文档中心：每种部署方式的安装指南、每协议客户端接入指南、管理指南、API 参考、FAQ
-- [ ] 安全审计（security-auditor）+ 性能基准
-- [ ] （T-125 增补，待 conductor 确认范围差异）M4 债务收编：ADR-0016 目录实体化（BE+FE）、token 签发/吊销审计、docker 树数据源定案与特化视图、windows 锁运行时验证（条件腿）、storage uri 基址族修正（P2）
+### M5 — 发布矩阵与文档中心（GA）（已完成，`m5-done`，2026-08-21）
+需求基线：docs/prd/milestone-5.md（PRD v1.1，T-125；FR-34~FR-47）
+- [x] goreleaser 多平台二进制（linux/darwin/windows × amd64/arm64）+ 校验和
+- [x] Docker multi-arch 镜像（distroless / alpine 双变体）
+- [x] docker-compose 产物、Helm Chart（persistence/ingress/HPA）、原生 K8s 清单、systemd + 安装脚本、离线安装包
+- [x] 帮助文档中心：每种部署方式的安装指南、每协议客户端接入指南、管理指南、API 参考、FAQ
+- [x] 安全审计（security-auditor）+ 性能基准
+- [x] M4 债务收编：ADR-0016 目录实体化（BE+FE）、token 签发/吊销审计、docker 树数据源定案与特化视图、windows 锁运行时验证（条件腿）、storage uri 基址族修正（P2）
+- [x] QA 全量验收矩阵 + 发布清单就绪
 
-### M6+ — 展望
-S3 存储后端、复制/联邦、OIDC/LDAP、Prometheus 指标、`bf` CLI、Artifactory 迁移工具。
+### M6 — 企业就绪与生态扩展（PRD 已完成，待分票）
+需求基线：docs/prd/milestone-6.md（PRD v1.0，T-148；FR-48~FR-63 六域 16 条需求，28 端点/产物，45 条 AC，九项开放问题 Q1~Q9）
+- [x] PRD v1.0：S3 存储后端（FR-48~FR-53）、OIDC+LDAP 企业认证（FR-54~FR-56）、复制/联邦（FR-57~FR-60）、Prometheus 指标（FR-61）、`bf` CLI（FR-62）、Artifactory 迁移工具（FR-63）
+- [ ] ADR-0018~0023（architect）待定案
+- [ ] 待用户定案九项开放问题 Q1~Q9
+- [ ] 待 tech-lead 分票
 
 ## 里程碑完成定义（DoD）
 

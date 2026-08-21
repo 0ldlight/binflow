@@ -97,12 +97,12 @@ test('G30e-1: zero /api/search requests during tree browse (upload + mkdir + nav
 
   // 建目录（单 PUT 不再逐段）
   await page.click('[data-testid="tree-mkdir"]')
-  await page.fill('[data-testid="mkdir-name"]', 'subdir')
+  await page.fill('[data-testid="tree-mkdir-input"]', 'subdir')
   await page.click('[data-testid="confirm-accept"]')
   await expect(page.locator('[data-testid="tree-row-subdir"]')).toBeVisible({ timeout: 10_000 })
 
   // 面包屑回到根
-  await page.click('[data-testid="breadcrumb-root"]')
+  await page.click('[data-testid="tree-breadcrumb"] button.crumb:first-child')
   await expect(page.locator('[data-testid="tree-row-deep"]')).toBeVisible({ timeout: 10_000 })
 
   // 断言：全程零 /api/search 请求
@@ -158,7 +158,7 @@ test('G30e-3: mkdir single-segment regression — one PUT per directory', async 
 
   await page.goto(`/binflow/ui/repositories/${key}/tree/deep/nested`)
   await page.click('[data-testid="tree-mkdir"]')
-  await page.fill('[data-testid="mkdir-name"]', 'child')
+  await page.fill('[data-testid="tree-mkdir-input"]', 'child')
   await page.click('[data-testid="confirm-accept"]')
   await expect(page.locator('[data-testid="tree-row-child"]')).toBeVisible({ timeout: 10_000 })
 

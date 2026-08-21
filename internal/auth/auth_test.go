@@ -278,3 +278,258 @@ func TestTokenDisabledOwner(t *testing.T) {
 		t.Fatalf("basic-token after disable err = %v, want ErrInvalidCredentials", err)
 	}
 }
+
+// --- M6 AC: OIDC Bearer arm (ADR-0020, T-153) ---
+
+// mockOIDCProvider is a test double for auth.IdentityProvider. It validates
+// against a hard-coded token map and resolves against a user map.
+// NOTE: this duplicates the mock from identity_test.go because the test
+// package is auth_test (external), so each test file needs its own definition.
+type authenticatorMockOIDCProvider struct {
+	tokens   map[string]*auth.Claims
+	resolved map[string]auth.ProviderUser
+}
+
+func newAuthenticatorMockOIDCProvider() *authenticatorMockOIDCProvider {
+	return &authenticatorMockOIDCProvider{
+		tokens:   make(map[string]*auth.Claims),
+		resolved: make(map[string]auth.ProviderUser),
+	}
+}
+
+func (m *authenticatorMockOIDCProvider) ProviderName() auth.Provider { return auth.ProviderOIDC }
+func (m *authenticatorMockOIDCProvider) Authenticate(_ context.Context, token string) (*auth.Claims, error) {
+	claims, ok := m.tokens[token]
+	if !ok {
+		return nil, auth.ErrInvalidCredentials
+	}
+	return claims, nil
+}
+func (m *authenticatorMockOIDCProvider) Resolve(_ context.Context, provider auth.Provider, providerID string) (*auth.ProviderUser, error) {
+	if provider != auth.ProviderOIDC {
+		return nil, auth.ErrProviderUserNotFound
+	}
+	u, ok := m.resolved[providerID]
+	if !ok {
+		return nil, auth.ErrProviderUserNotFound
+	}
+	return &auth.ProviderUser{Username: u.Username, IsAdmin: u.IsAdmin, Enabled: u.Enabled}, nil
+}
+func (m *authenticatorMockOIDCProvider) addValidToken(token string, claims *auth.Claims) {
+	m.tokens[token] = claims
+}
+func (m *authenticatorMockOIDCProvider) addResolvedUser(providerID string, u auth.ProviderUser) {
+	m.resolved[providerID] = u
+}
+
+// mockUserCreator captures the last user passed to Create and returns success.
+type authenticatorMockUserCreator struct {
+	created []auth.NewUserParams
+}
+
+func (m *authenticatorMockUserCreator) Create(ctx context.Context, params auth.NewUserParams) error {
+	m.created = append(m.created, params)
+	return nil
+}
+
+// TestAuthenticateOIDCValidToken: a valid OIDC ID Token is accepted and
+// produces the correct Principal with Source=oidc.
+func TestAuthenticateOIDCValidToken(t *testing.T) {
+	f := newFixture(t, true)
+	oidcProv := newAuthenticatorMockOIDCProvider()
+	oidcProv.addValidToken("valid-oidc-token", &auth.Claims{
+		Name:       "oidc-user",
+		Groups:     []string{"developers"},
+		Admin:      false,
+		ProviderID: "sub-abc123",
+	})
+	// Pre-create the user in the local store so Resolve finds it.
+	hash, _ := auth.HashPassword("dummy")
+	err := f.st.Users().Create(f.ctx, &metadata.User{
+		Username: "oidc-user", PasswordHash: hash, IsAdmin: false, Enabled: true,
+		CreatedAt: metadata.Now(), UpdatedAt: metadata.Now(),
+	})
+	if err != nil {
+		t.Fatalf("Create user: %v", err)
+	}
+	oidcProv.addResolvedUser("sub-abc123", auth.ProviderUser{Username: "oidc-user", IsAdmin: false, Enabled: true})
+
+	svc := f.svc.WithOIDC(oidcProv, nil)
+	p, err := svc.Authenticate(f.ctx, req("Bearer valid-oidc-token", ""))
+	if err != nil {
+		t.Fatalf("Authenticate(valid token) = %v", err)
+	}
+	if p == nil {
+		t.Fatal("expected principal, got nil")
+	}
+	if p.Name != "oidc-user" {
+		t.Fatalf("Name = %q, want %q", p.Name, "oidc-user")
+	}
+	if p.Source != auth.ProviderOIDC {
+		t.Fatalf("Source = %q, want %q", p.Source, auth.ProviderOIDC)
+	}
+	if p.Admin {
+		t.Fatal("Admin should be false")
+	}
+	if len(p.Groups) != 1 || p.Groups[0] != "developers" {
+		t.Fatalf("Groups = %v, want [developers]", p.Groups)
+	}
+}
+
+// TestAuthenticateOIDCInvalidToken: an invalid OIDC token is rejected.
+func TestAuthenticateOIDCInvalidToken(t *testing.T) {
+	f := newFixture(t, true)
+	oidcProv := newAuthenticatorMockOIDCProvider()
+	// No tokens registered — every token is invalid.
+	svc := f.svc.WithOIDC(oidcProv, nil)
+	_, err := svc.Authenticate(f.ctx, req("Bearer invalid-token", ""))
+	if err == nil {
+		t.Fatal("expected error for invalid OIDC token, got nil")
+	}
+	if !errors.Is(err, auth.ErrInvalidCredentials) {
+		t.Fatalf("error %v does not satisfy ErrInvalidCredentials", err)
+	}
+}
+
+// TestAuthenticateOIDCWithAPIToken: an API token presented as Bearer is
+// still handled by the API token arm (the OIDC arm only activates when the
+// API token verification fails). This ensures the existing Bearer arm
+// precedence is preserved.
+func TestAuthenticateOIDCWithAPIToken(t *testing.T) {
+	f := newFixture(t, true)
+	tok, err := f.svc.Issue(f.ctx, "ci-bot", time.Hour)
+	if err != nil {
+		t.Fatalf("Issue: %v", err)
+	}
+	oidcProv := newAuthenticatorMockOIDCProvider()
+	svc := f.svc.WithOIDC(oidcProv, nil)
+	p, err := svc.Authenticate(f.ctx, req("Bearer "+tok.AccessToken, ""))
+	if err != nil {
+		t.Fatalf("Authenticate(API token) = %v", err)
+	}
+	if p == nil {
+		t.Fatal("expected principal, got nil")
+	}
+	if p.Name != "ci-bot" {
+		t.Fatalf("Name = %q, want %q", p.Name, "ci-bot")
+	}
+	if p.Source != auth.ProviderLocal {
+		t.Fatalf("Source = %q, want %q (API token should be local)", p.Source, auth.ProviderLocal)
+	}
+	if p.TokenID == 0 {
+		t.Fatal("expected TokenID > 0 for API token")
+	}
+}
+
+// TestAuthenticateOIDCAutoCreate: a valid OIDC token for a user that does
+// not yet exist auto-creates the user row (AC2: OIDC users auto-create
+// users rows on first auth).
+func TestAuthenticateOIDCAutoCreate(t *testing.T) {
+	f := newFixture(t, true)
+	oidcProv := newAuthenticatorMockOIDCProvider()
+	oidcProv.addValidToken("first-login-token", &auth.Claims{
+		Name:       "new-oidc-user",
+		Groups:     nil,
+		Admin:      true,
+		ProviderID: "sub-newuser",
+	})
+	// No resolved user — triggers auto-create.
+	svc := f.svc.WithOIDC(oidcProv, &simpleUserCreator{})
+	p, err := svc.Authenticate(f.ctx, req("Bearer first-login-token", ""))
+	if err != nil {
+		t.Fatalf("Authenticate with auto-create = %v", err)
+	}
+	if p == nil {
+		t.Fatal("expected principal, got nil")
+	}
+	if p.Name != "new-oidc-user" {
+		t.Fatalf("Name = %q, want %q", p.Name, "new-oidc-user")
+	}
+	if p.Source != auth.ProviderOIDC {
+		t.Fatalf("Source = %q, want %q", p.Source, auth.ProviderOIDC)
+	}
+	if !p.Admin {
+		t.Fatal("Admin should be true (from claims)")
+	}
+}
+
+// TestAuthenticateOIDCNoAutoCreate: when auto-create is disabled, a valid
+// token for an unknown user is rejected.
+func TestAuthenticateOIDCNoAutoCreate(t *testing.T) {
+	f := newFixture(t, true)
+	oidcProv := newAuthenticatorMockOIDCProvider()
+	oidcProv.addValidToken("valid-but-unknown", &auth.Claims{
+		Name:       "ghost",
+		Groups:     nil,
+		Admin:      false,
+		ProviderID: "sub-ghost",
+	})
+	// No resolved user AND nil userCreator — auto-create disabled.
+	svc := f.svc.WithOIDC(oidcProv, nil)
+	_, err := svc.Authenticate(f.ctx, req("Bearer valid-but-unknown", ""))
+	if err == nil {
+		t.Fatal("expected error for unresolvable OIDC user without auto-create, got nil")
+	}
+	if !errors.Is(err, auth.ErrInvalidCredentials) {
+		t.Fatalf("error %v does not satisfy ErrInvalidCredentials", err)
+	}
+}
+
+// TestAuthenticateOIDCDisabledUser: a valid OIDC token for an existing but
+// disabled user is rejected.
+func TestAuthenticateOIDCDisabledUser(t *testing.T) {
+	f := newFixture(t, true)
+	oidcProv := newAuthenticatorMockOIDCProvider()
+	oidcProv.addValidToken("disabled-token", &auth.Claims{
+		Name:       "disabled-oidc",
+		Groups:     nil,
+		Admin:      false,
+		ProviderID: "sub-disabled",
+	})
+	// Pre-create the user disabled.
+	hash, _ := auth.HashPassword("dummy")
+	err := f.st.Users().Create(f.ctx, &metadata.User{
+		Username: "disabled-oidc", PasswordHash: hash, IsAdmin: false, Enabled: false,
+		CreatedAt: metadata.Now(), UpdatedAt: metadata.Now(),
+	})
+	if err != nil {
+		t.Fatalf("Create user: %v", err)
+	}
+	oidcProv.addResolvedUser("sub-disabled", auth.ProviderUser{Username: "disabled-oidc", IsAdmin: false, Enabled: false})
+
+	svc := f.svc.WithOIDC(oidcProv, nil)
+	_, err = svc.Authenticate(f.ctx, req("Bearer disabled-token", ""))
+	if err == nil {
+		t.Fatal("expected error for disabled user, got nil")
+	}
+	if !errors.Is(err, auth.ErrInvalidCredentials) {
+		t.Fatalf("error %v does not satisfy ErrInvalidCredentials", err)
+	}
+}
+
+// TestAuthenticateOIDCUnwired: when the OIDC arm is not wired, unknown
+// Bearer tokens still produce an error (the API token arm rejects them).
+func TestAuthenticateOIDCUnwired(t *testing.T) {
+	f := newFixture(t, true)
+	// No WithOIDC call — arm is inert.
+	_, err := f.svc.Authenticate(f.ctx, req("Bearer unknown-token", ""))
+	if err == nil {
+		t.Fatal("expected error for unknown Bearer token without OIDC arm, got nil")
+	}
+	if !errors.Is(err, auth.ErrInvalidCredentials) {
+		t.Fatalf("error %v does not satisfy ErrInvalidCredentials", err)
+	}
+}
+
+// simpleUserCreator implements the userCreator interface for tests.
+// It records created users but does not persist them to the store (the
+// OIDC arm only needs the interface; the actual persistence is the
+// adapter's job in production).
+type simpleUserCreator struct {
+	created []auth.NewUserParams
+}
+
+func (c *simpleUserCreator) Create(ctx context.Context, params auth.NewUserParams) error {
+	c.created = append(c.created, params)
+	return nil
+}

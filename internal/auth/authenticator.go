@@ -33,6 +33,20 @@ type Service struct {
 	// groups backs the membership fill of Principal.Groups (nil = fill
 	// inert; see WithGroups, T-97).
 	groups groupSource
+	// oidcProvider backs the OIDC Bearer arm (nil = arm inert; see
+	// WithOIDC, ADR-0020). When non-nil, a Bearer token that is not a
+	// known API token is tried as an OIDC ID Token through this provider.
+	oidcProvider IdentityProvider
+	// ldapProvider backs the LDAP login fallback (nil = arm inert; see
+	// WithLDAP, ADR-0020). When non-nil, AuthenticateCredentials tries
+	// LDAP bind after local password check fails. LDAP does NOT have a
+	// Bearer arm (ADR-0020): LDAP authentication happens only at the
+	// login endpoint.
+	ldapProvider IdentityProvider
+	// userCreator is the write seam for auto-creating users on first OIDC
+	// authentication (ADR-0020 decision 4). nil = auto-create is disabled
+	// (the arm still works for existing users).
+	userCreator userCreator
 }
 
 // userSource is the consumer-side slice of metadata.UserStore the
@@ -44,12 +58,19 @@ type userSource interface {
 }
 
 // user mirrors metadata.User without importing the whole row type; the
-// adapter in deps.go converts.
+// adapter in deps.go converts. The Provider and ProviderID fields (M6,
+// ADR-0020 / migration 008) identify the identity provider that owns this
+// user: 'local' users have Provider=ProviderLocal and a non-empty
+// PasswordHash; 'oidc' and 'ldap' users have Provider=ProviderOIDC or
+// Provider=ProviderLDAP and an empty PasswordHash (they cannot
+// authenticate via the Basic arm).
 type user struct {
 	Username     string
 	PasswordHash string
 	IsAdmin      bool
 	Enabled      bool
+	Provider     Provider
+	ProviderID   string
 }
 
 // tokenSource is the consumer-side slice of metadata.TokenStore.
@@ -102,6 +123,26 @@ type permissionSource interface {
 	PrincipalsFor(ctx context.Context, repoKey string) ([]PermissionRow, error)
 }
 
+// userCreator is the write seam for creating user rows. It is separate from
+// userSource so that the auto-create path is an explicit opt-in (ADR-0020
+// decision 4: auto-create users on first OIDC auth). The exported
+// NewUserParams carries the Provider and ProviderID fields.
+type userCreator interface {
+	Create(ctx context.Context, params NewUserParams) error
+}
+
+// NewUserParams is the parameter struct for userCreator.Create. It carries
+// the fields needed to create a user row on first OIDC/LDAP authentication
+// (ADR-0020 decision 4: provider, provider_id, empty password_hash).
+type NewUserParams struct {
+	Username     string
+	PasswordHash string
+	IsAdmin      bool
+	Enabled      bool
+	Provider     Provider
+	ProviderID   string
+}
+
 // New builds the auth Service. anonymousRead is config.Security.
 // AnonymousAccess (ADR-0009): when true, content GET/HEAD may proceed
 // anonymously (the Authorizer side of the flag; authentication itself never
@@ -115,6 +156,30 @@ func New(users userSource, tokens tokenSource, perms permissionSource, anonymous
 	}
 	s.verifier = &TokenVerifier{tokens: tokens, users: users}
 	return s
+}
+
+// WithOIDC returns a copy of svc whose OIDC Bearer arm is backed by prov
+// (ADR-0020). Without this call the OIDC arm is inert: a Bearer token that
+// is not a known API token falls through to the Cookie arm (preserving the
+// pre-M6 behavior). The creator is the write seam for auto-creating users
+// on first OIDC authentication; when nil, the arm validates tokens but
+// only resolves existing users (no auto-create).
+func (s *Service) WithOIDC(prov IdentityProvider, creator userCreator) *Service {
+	clone := *s
+	clone.oidcProvider = prov
+	clone.userCreator = creator
+	return &clone
+}
+
+// WithLDAP returns a copy of svc whose LDAP login fallback arm is backed
+// by prov (ADR-0020). Without this call the LDAP arm is inert:
+// AuthenticateCredentials only tries the local password (preserving pre-M6
+// behavior). LDAP does NOT support auto-create at login per ADR-0020 — the
+// user must exist locally with provider='ldap' and an empty password_hash.
+func (s *Service) WithLDAP(prov IdentityProvider) *Service {
+	clone := *s
+	clone.ldapProvider = prov
+	return &clone
 }
 
 var (
@@ -154,7 +219,18 @@ func (s *Service) authenticate(ctx context.Context, r *http.Request) (*Principal
 		return s.verifier.Verify(ctx, tok)
 	}
 	if tok := bearerHeader(r); tok != "" {
-		return s.verifier.Verify(ctx, tok)
+		// First arm: existing API token (the pre-M6 behavior).
+		p, verr := s.verifier.Verify(ctx, tok)
+		if verr == nil {
+			return p, nil
+		}
+		// Second arm (M6, ADR-0020): OIDC ID Token. Only when the
+		// provider is wired — an unwired service treats the unknown
+		// bearer token as a rejected credential (not anonymous).
+		if s.oidcProvider != nil {
+			return s.authenticateOIDC(ctx, tok)
+		}
+		return nil, verr
 	}
 	// Third arm, last in precedence: the binflow_session cookie. Only when
 	// the arm is wired — an unwired service treats the cookie as a non-
@@ -175,11 +251,25 @@ func (s *Service) authenticate(ctx context.Context, r *http.Request) (*Principal
 // when that fails and the value verifies as an API token, the Basic username
 // must equal the token subject case-insensitively ("Token principal
 // mismatch" otherwise).
+//
+// M6 update (ADR-0020): users with an empty password_hash (OIDC/LDAP users)
+// cannot authenticate via the Basic arm. The password check is skipped for
+// them — an empty hash is never a valid argon2id PHC string, so
+// VerifyPassword returns false, and the fallback to API token is also
+// rejected because OIDC/LDAP users should not have API tokens presented
+// through the Basic header. The user must authenticate through their
+// provider's arm (OIDC Bearer, or web session after OIDC/LDAP login).
 func (s *Service) authenticateBasic(ctx context.Context, username, password string) (*Principal, error) {
 	u, err := s.users.Get(ctx, username)
 	switch {
-	case err == nil && u.Enabled && VerifyPassword(password, u.PasswordHash):
-		return &Principal{Name: u.Username, Admin: u.IsAdmin}, nil
+	case err == nil && u.Enabled && u.PasswordHash != "" && VerifyPassword(password, u.PasswordHash):
+		return &Principal{Name: u.Username, Admin: u.IsAdmin, Source: ProviderLocal}, nil
+	case err == nil && u.Enabled && u.PasswordHash == "":
+		// OIDC/LDAP user with no local password — cannot use Basic arm.
+		// The empty hash is structurally not a valid argon2id PHC string,
+		// so VerifyPassword would return false anyway, but the explicit
+		// check produces a clearer rejection message.
+		return nil, invalidf("auth: user %q has no local password (use OIDC or web session)", u.Username)
 	case err == nil && !u.Enabled:
 		return nil, invalidf("auth: user %q is disabled", u.Username)
 	case err != nil && !errors.Is(err, ErrUserNotFound):
@@ -198,6 +288,157 @@ func (s *Service) authenticateBasic(ctx context.Context, username, password stri
 		return nil, invalidf("auth: token principal mismatch")
 	}
 	return p, nil
+}
+
+// authenticateOIDC implements the OIDC Bearer arm (M6, ADR-0020): the
+// bearer token is treated as an OIDC ID Token. The flow:
+//
+//  1. oidcProvider.Authenticate validates the ID Token (JWKS signature,
+//     issuer, audience, expiry) and extracts Claims.
+//  2. oidcProvider.Resolve looks up an existing user row by (provider,
+//     provider_id). If found, the Principal is built from the user row
+//     (the database is authoritative for the admin flag) with the claims'
+//     groups.
+//  3. If not found and userCreator is wired, a new user row is auto-created
+//     (ADR-0020 decision 4): username=claims.Name, password_hash empty,
+//     is_admin=claims.Admin, provider=ProviderOIDC, provider_id=claims.ProviderID,
+//     enabled=true. The Principal is then built from the claims.
+//  4. If not found and userCreator is nil, the token is rejected.
+func (s *Service) authenticateOIDC(ctx context.Context, token string) (*Principal, error) {
+	claims, err := s.oidcProvider.Authenticate(ctx, token)
+	if err != nil {
+		// The provider wraps its own errors; ensure they satisfy
+		// ErrInvalidCredentials for the HTTP layer.
+		if errors.Is(err, ErrInvalidCredentials) {
+			return nil, err
+		}
+		return nil, invalidf("auth: oidc token validation: %v", err)
+	}
+	if claims == nil {
+		return nil, invalidf("auth: oidc provider returned nil claims")
+	}
+	if claims.ProviderID == "" {
+		return nil, invalidf("auth: oidc claims missing provider_id (sub)")
+	}
+	if claims.Name == "" {
+		return nil, invalidf("auth: oidc claims missing username")
+	}
+
+	// Try to resolve an existing user.
+	pu, err := s.oidcProvider.Resolve(ctx, ProviderOIDC, claims.ProviderID)
+	if err == nil {
+		if !pu.Enabled {
+			return nil, invalidf("auth: oidc user %q is disabled", pu.Username)
+		}
+		return &Principal{
+			Name:   pu.Username,
+			Admin:  pu.IsAdmin,
+			Groups: claims.Groups,
+			Source: ProviderOIDC,
+		}, nil
+	}
+	if !errors.Is(err, ErrProviderUserNotFound) {
+		return nil, fmt.Errorf("auth: oidc user resolve: %w", err)
+	}
+
+	// User not found — auto-create if the creator is wired.
+	if s.userCreator == nil {
+		return nil, invalidf("auth: oidc user %q not found (auto-create disabled)", claims.Name)
+	}
+	if err := s.userCreator.Create(ctx, NewUserParams{
+		Username:     claims.Name,
+		PasswordHash: "", // no local password for OIDC users
+		IsAdmin:      claims.Admin,
+		Enabled:      true,
+		Provider:     ProviderOIDC,
+		ProviderID:   claims.ProviderID,
+	}); err != nil {
+		return nil, fmt.Errorf("auth: auto-creating oidc user %q: %w", claims.Name, err)
+	}
+
+	return &Principal{
+		Name:   claims.Name,
+		Admin:  claims.Admin,
+		Groups: claims.Groups,
+		Source: ProviderOIDC,
+	}, nil
+}
+
+// authenticateLDAP implements the LDAP login arm: bind against the LDAP
+// directory, then resolve the user locally and return a Principal.
+//
+// This is only called from AuthenticateCredentials when local password
+// check has already failed. LDAP does NOT have its own Bearer arm
+// (ADR-0020), so this method is not part of authenticate() dispatch.
+//
+// The flow:
+//  1. LDAPProvider.Bind validates username/password against the directory
+//     and returns Claims (with Name, Groups, Admin, ProviderID).
+//  2. Resolve the user by (ProviderLDAP, claims.ProviderID). If found, the
+//     database is authoritative for is_admin, enabled.
+//  3. If not found and userCreator is wired, auto-create the user row
+//     (username=claims.Name, password_hash empty, provider='ldap',
+//     provider_id=claims.ProviderID, enabled=true).
+//  4. If not found and userCreator is nil, reject the credential.
+func (s *Service) authenticateLDAP(ctx context.Context, bindFn interface {
+	Bind(ctx context.Context, username, password string) (*Claims, error)
+}, username, password string) (*Principal, error) {
+	claims, err := bindFn.Bind(ctx, username, password)
+	if err != nil {
+		if errors.Is(err, ErrInvalidCredentials) {
+			return nil, err
+		}
+		return nil, invalidf("auth: ldap bind: %v", err)
+	}
+	if claims == nil {
+		return nil, invalidf("auth: ldap bind returned nil claims")
+	}
+	if claims.ProviderID == "" {
+		return nil, invalidf("auth: ldap claims missing provider_id")
+	}
+	if claims.Name == "" {
+		return nil, invalidf("auth: ldap claims missing username")
+	}
+
+	// s.ldapProvider is guaranteed non-nil by the caller (AuthenticateCredentials
+	// only calls this when ldapProvider != nil). It satisfies IdentityProvider
+	// which has a Resolve method.
+	pu, err := s.ldapProvider.Resolve(ctx, ProviderLDAP, claims.ProviderID)
+	if err == nil {
+		if !pu.Enabled {
+			return nil, invalidf("auth: ldap user %q is disabled", pu.Username)
+		}
+		return &Principal{
+			Name:   pu.Username,
+			Admin:  pu.IsAdmin,
+			Groups: claims.Groups,
+			Source: ProviderLDAP,
+		}, nil
+	}
+	if !errors.Is(err, ErrProviderUserNotFound) {
+		return nil, fmt.Errorf("auth: ldap user resolve: %w", err)
+	}
+
+	// User not found locally: auto-create if the creator is wired.
+	if s.userCreator != nil {
+		if err := s.userCreator.Create(ctx, NewUserParams{
+			Username:     claims.Name,
+			PasswordHash: "", // no local password for LDAP users
+			IsAdmin:      claims.Admin,
+			Enabled:      true,
+			Provider:     ProviderLDAP,
+			ProviderID:   claims.ProviderID,
+		}); err != nil {
+			return nil, fmt.Errorf("auth: auto-creating ldap user %q: %w", claims.Name, err)
+		}
+		return &Principal{
+			Name:   claims.Name,
+			Admin:  claims.Admin,
+			Groups: claims.Groups,
+			Source: ProviderLDAP,
+		}, nil
+	}
+	return nil, invalidf("auth: ldap user %q not found (auto-create disabled)", claims.Name)
 }
 
 // basicAuth extracts the Basic credential. A present but undecodable Basic

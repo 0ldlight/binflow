@@ -232,7 +232,12 @@ func (s *service) probeLocalMember(ctx context.Context, member, path string) (io
 		// local Get — surfaced, never silently skipped.
 		return nil, nil, false, fmt.Errorf("open blob %s for %s/%s: %w", n.Sha256, member, path, err)
 	}
-	return rc, n, true, nil
+	seekable, ok := rc.(io.ReadSeekCloser)
+	if !ok {
+		_ = rc.Close()
+		return nil, nil, false, fmt.Errorf("open blob %s for %s/%s: storage backend does not support Seek", n.Sha256, member, path)
+	}
+	return seekable, n, true, nil
 }
 
 // probeRemoteMember walks one remote member through the FR-20 chain and maps

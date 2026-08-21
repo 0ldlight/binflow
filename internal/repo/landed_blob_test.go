@@ -11,6 +11,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"sync"
@@ -371,12 +372,17 @@ type failReadCloser struct{ io.ReadSeekCloser }
 
 func (failReadCloser) Read([]byte) (int, error) { return 0, errors.New("blob read attempted") }
 
-func (e failReadEngine) Open(ctx context.Context, sha string) (io.ReadSeekCloser, storage.BlobRef, error) {
+func (e failReadEngine) Open(ctx context.Context, sha string) (io.ReadCloser, storage.BlobRef, error) {
 	rc, ref, err := e.Engine.Open(ctx, sha)
 	if err != nil {
 		return nil, ref, err
 	}
-	return failReadCloser{rc}, ref, nil
+	seekable, ok := rc.(io.ReadSeekCloser)
+	if !ok {
+		_ = rc.Close()
+		return nil, ref, fmt.Errorf("failReadEngine: backend does not support Seek")
+	}
+	return failReadCloser{seekable}, ref, nil
 }
 
 // TestPutLandedBlobConcurrentSameDigest: parallel finalize-style lands of

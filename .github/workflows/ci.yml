@@ -23,7 +23,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.26"
+          go-version: "1.26.6"
           cache: true
 
       # Console toolchain (T-89, ADR-0014 decision 4): node is a BUILD-time
@@ -88,7 +88,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.26"
+          go-version: "1.26.6"
           cache: true
 
       # Embed the real SPA so the size gate sees honest numbers (the

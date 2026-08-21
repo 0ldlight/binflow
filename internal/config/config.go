@@ -33,6 +33,14 @@ const (
 	// DefaultConsoleSessionTTL is the web console session lifetime
 	// (console.session_ttl_hours, PRD FR-23 / ADR-0014 erratum 3).
 	DefaultConsoleSessionTTL = 24 * time.Hour
+	// DefaultStorageBackend is the default storage backend.
+	DefaultStorageBackend = StorageBackendDisk
+	// DefaultS3UploadPartSize is the default S3 multipart upload part size (5 MiB).
+	DefaultS3UploadPartSize = int64(5 * 1024 * 1024)
+	// DefaultS3UploadConcurrency is the default number of concurrent S3 upload parts.
+	DefaultS3UploadConcurrency = 4
+	// DefaultMigrationConcurrency is the default number of background migration goroutines.
+	DefaultMigrationConcurrency = 5
 )
 
 // Metadata driver enum (architecture section 8; postgres M1 enum-only).
@@ -45,6 +53,10 @@ const (
 // variable. It is deliberately excluded from the YAML schema: secrets never
 // enter the config file (ADR-0009).
 const SecretEnvVar = "BINFLOW_ADMIN_PASSWORD" //nolint:gosec // identifier of an env variable, not a credential value
+
+// S3SecretEnvVar is the name of the S3 secret access key environment variable.
+// Like the admin password, it is env-only and never appears in YAML.
+const S3SecretEnvVar = "BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY" //nolint:gosec // identifier of an env variable, not a credential value
 
 // allowedDrivers is the accepted metadata.driver enum.
 func allowedDrivers() map[string]bool {
@@ -98,6 +110,8 @@ func splitEnvKey(upper string) (path []string, kind envKind, ok bool) {
 	switch upper {
 	case "ADMIN_PASSWORD":
 		return nil, envSecret, true
+	case "STORAGE_S3_SECRET_ACCESS_KEY":
+		return nil, envSecret, true
 	case "SECURITY_ANONYMOUS_ACCESS":
 		return []string{"security", "anonymous_access"}, envBool, true
 	case "DATA_DIR": // convenience alias for storage.data_dir
@@ -117,6 +131,21 @@ func splitEnvKey(upper string) (path []string, kind envKind, ok bool) {
 	case "storage.data_dir":
 		return parts, envString, true
 	case "storage.session_ttl_hours", "storage.gc_grace_hours":
+		return parts, envIntPos, true
+	case "storage.backend":
+		return parts, envString, true
+	case "storage.s3.bucket", "storage.s3.region", "storage.s3.endpoint",
+		"storage.s3.access_key_id", "storage.s3.bucket_prefix":
+		return parts, envString, true
+	case "storage.s3.use_path_style":
+		return parts, envBool, true
+	case "storage.s3.upload_part_size":
+		return parts, envIntPos, true
+	case "storage.s3.upload_concurrency":
+		return parts, envIntPos, true
+	case "storage.migration.enabled", "storage.migration.completed":
+		return parts, envBool, true
+	case "storage.migration.concurrency":
 		return parts, envIntPos, true
 	case "metadata.driver":
 		return parts, envString, true

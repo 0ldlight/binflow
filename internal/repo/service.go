@@ -281,8 +281,16 @@ func (s *service) Get(ctx context.Context, p *Principal, repoKey, path string) (
 		// gone" repair case, not a normal miss.
 		return nil, nil, fmt.Errorf("open blob %s for %s/%s: %w", n.Sha256, repoKey, path, err)
 	}
+	// Engine.Open returns io.ReadCloser (ADR-0019); the DiskEngine's concrete
+	// value is *os.File which also implements io.ReadSeekCloser. The Service
+	// interface promises Seek — type-assert the concrete value.
+	seekable, ok := rc.(io.ReadSeekCloser)
+	if !ok {
+		_ = rc.Close()
+		return nil, nil, fmt.Errorf("open blob %s for %s/%s: storage backend does not support Seek", n.Sha256, repoKey, path)
+	}
 	s.audit(ctx, AuditEvent{Actor: actor(p), Action: AuditActionDownload, Repo: repoKey, Path: path})
-	return rc, n, nil
+	return seekable, n, nil
 }
 
 // getRemote is the remote branch of Get: the RE-04 six-step pull-through

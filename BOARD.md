@@ -1,7 +1,7 @@
 # 任务看板（BOARD）
 
 > 唯一事实来源。**只有主会话（conductor）可以写本文件**，所有 subagent 只读。
-> ticket 由 tech-lead 生成、主会话录入。当前里程碑：**M5（待 PRD/票务补给）**。M1~M4 已完成，tag m1-done / m2-done / m3-done / m4-done（2026-08-21，DoD 核查 reports/m4-dod-checklist.md）。
+> ticket 由 tech-lead 生成、主会话录入。当前里程碑：**M6+（展望/规划阶段）**。M1~M5 已完成，tag m1-done / m2-done / m3-done / m4-done / m5-done（2026-08-21）。
 
 ## 票据格式
 
@@ -17,36 +17,78 @@
 
 ## 📥 待办（todo）
 
-> **M5 票 AC 全文见 reports/agents/T-126.md**（21 票 T-127~T-147）。批次：1:{T-127,T-128,T-129,T-130} → 2:{T-131,T-132,T-133} → 3:{T-134,T-135,T-136,T-137} → 4:{T-138,T-139,T-140,T-142} → 5:{T-141,T-143,T-144} → 6:{T-145,T-146} → 7:{T-147}。双 reviewer：**T-128（正确性+架构）、T-132（安全+供应链）**。R1~R10 裁决见 T-126.md；P2/M6+ 台账 PRD §6.4 速裁 12 项。
+> **M6 正在开发**（2026-08-22）。T-156/T-161/T-164 已收口（**11/26**，首批已提交）；Batch 4/5 铺开：T-157/T-162/T-160/T-170 四张在途；T-165/T-168 待用户明示重派（半成品在盘）。
 
-- **T-128** [P0] FR-44 BE 材料化+007 回填（ADR-0016，照 T-119 草案；**双 reviewer 票**） `role:dev-go-core` `area:internal/repo、internal/metadata(007)` — done 2026-08-21（双 review 通过 → 提交 80c036a）
-  materializeAncestors（putNode 前置/幂等/哨兵 blob FK 满足）；007 回填迁移（两步 SQL/递归 CTE/幂等）；12 测试文件适配；伴随修复 docs 重定向循环。repo+httpapi+docs 全套测试 race 绿。日志 reports/agents/T-128.md。正确性 review APPROVE（报告 reports/agents/T-128-review-correctness.md）、架构 review APPROVE（报告 reports/agents/T-128-review-architecture.md）。
-- **T-131** [P0] FR-44 FE 删双兜底 `role:dev-frontend` `area:web/src/pages/repositories/tree` `dep:T-128（硬就绪）` — done 2026-08-21（批 2 完成，提交 679dcc9）
-  lib.ts 删 searchListing+mkdirOnce（-59 行），mkdir 简化为单段 PUT，listChildren 404 直达 TreePage；G30e Playwright 回归 4 例。日志 reports/agents/T-131.md。
-- **T-132** [P0] FR-35 镜像双变体（**双 reviewer 票**） `role:release-engineer` `area:deploy/release/` `dep:T-127（就绪）` — done 2026-08-21（双 review 通过：安全 APPROVE + 供应链 APPROVE）
-  Dockerfile.alpine（38.2MB/有 shell）+ Dockerfile.distroless（36.8MB/无 shell/Go 探针）+ build-release.sh。/readyz/ui/docs/health 全 200。日志 reports/agents/T-132.md。安全 review APPROVE（2 Low：浮动标签+ARG 注入，非阻塞；报告 reports/agents/T-132-review-security.md）。供应链 review APPROVE（4 Medium：SLSA provenance 缺失、healthcheck 缺 cache mount、QEMU 预检缺失、版本格式无校验；非阻塞；报告 reports/agents/T-132-review-supplychain.md）。
-- **T-133** [P0] FR-45 token 审计 `role:dev-go-core` `area:internal/httpapi、internal/audit、internal/auth` `dep:—` — done 2026-08-21（批 2 完成，提交 679dcc9）
-  TokenFingerprint sha256[:8]（NFR-S3）；handleTokenCreate/Revoke 落 audit；11 测试+Docker /v2/token 隔离断言。日志 reports/agents/T-133.md。
-- **T-134** [P1] FR-46 docker 视图数据源定案落地+控制台帮助入口（DC-02） `role:dev-frontend` `area:web/src/pages/repositories/tree、web/src（AppShell）` `dep:T-128,T-131` — done 2026-08-21（批 3 完成）
-- **T-135** [P0] FR-36 docker-compose GA 产物（PB-04） `role:release-engineer` `area:deploy/compose/` `dep:T-132` — done 2026-08-21（批 3 完成）
-- **T-136** [P0] FR-37 Helm Chart（PB-05） `role:release-engineer` `area:charts/binflow/` `dep:T-132` — done 2026-08-21（批 3 完成）
-- **T-137** [P0] FR-38 原生 K8s 清单（PB-06） `role:release-engineer` `area:deploy/k8s/` `dep:T-132` — done 2026-08-21（批 3 完成）
-- **T-138** [P0] FR-39 systemd 服务单元（PB-07） `role:release-engineer` `area:deploy/systemd/` `dep:T-132` — doing 2026-08-21（批 4 已派）
-- **T-139** [P0] FR-40 离线安装包（PB-08） `role:release-engineer` `area:deploy/offline/` `dep:T-132` — doing 2026-08-21（批 4 已派）
-- **T-140** [P1] FR-47 URI 硬编码 /binflow 修复 `role:dev-frontend` `area:web/src` `dep:T-131` — doing 2026-08-21（批 4 已派）
-- **T-142** [P1] FR-48 API 文档自动生成 `role:dev-go-core` `area:internal/httpapi` `dep:—` — doing 2026-08-21（批 4 已派）
-- T-141,T-143~T-147（security audit/QA×4/systemd 烟测）— AC 与依赖链见 reports/agents/T-126.md
+### Batch 3（全部完成）：T-151/T-152/T-154/T-155 已完成 ✅
+
+### Batch 4: 适配器与控制台（dev-go-core + dev-frontend）
+
+- **T-158** [P1] 控制台 SSO 登录 UI（OIDC + LDAP 登录页面） `role:dev-frontend` `area:web/src/pages / web/src/components` `dep:T-157`
+  AC: ① 登录页新增「使用 SSO 登录」按钮（仅 `oidc.enabled=true` 时显示）。② 用户名/密码登录表单对 LDAP 用户透明。③ Playwright 测试：`login.spec.ts` 新增 OIDC 登录流和 LDAP 登录流。
+
+- **T-159** [P1] 控制台复制面板 UI（复制状态 + 事件列表） `role:dev-frontend` `area:web/src/pages / web/src/components` `dep:T-162`
+  AC: ① 管理页新增「复制」面板：显示目标列表（URL、仓库、状态、上次成功时间、pending/error 事件数）。② 面板数据通过 `GET /binflow/api/v1/replication/status` 获取，每 10s 自动刷新。③ Playwright 测试：`replication.spec.ts` 验证面板渲染。
+
+### Batch 5: 复制与指标（dev-go-core）
+
+- **T-163** [P1] Prometheus /metrics 端点（stdlib expvar 实现） `role:dev-go-core` `area:internal/metrics / internal/httpapi` `dep:T-149`
+  AC: ① `internal/metrics/metrics.go`：`Registry` 基于 `sync.Map` 的并发安全指标存储；`Format()` 生成 Prometheus text format。四类指标：HTTP、存储、认证、复制。② `GET /metrics` 端点挂载（根级，与 `/healthz` 同级）。匿名可访问，可配 `metrics.require_auth=true` 限制。③ table-driven 单测：`metrics_test.go` 验证 Prometheus 格式正确性；`system_test.go` 验证 `/metrics` 端点。
+
+### Batch 6: CLI 与迁移工具（devops-engineer + release-engineer）
+
+- **T-165** [P2] internal/client 包（HTTP 客户端封装） `role:devops-engineer` `area:internal/client` `dep:T-149`
+  AC: ① `internal/client/client.go`：`Client` 结构体（Base URL 拼接、auth 头注入、错误信封解析、重试、进度条回调）。不得 import `internal/storage`/`internal/metadata`/`internal/httpapi`。② `internal/client/repo.go`/`artifact.go`/`user.go`/`token.go`：CRUD 方法。③ table-driven 单测：`client_test.go` — 使用 `httptest` 模拟 BinFlow server。
+  ▶ 2026-08-22：agent 中途被取消（瞬时 API 错误），**部分产出在盘**——conductor 复核 `go test ./internal/client/` 已 ok（101.9s），重派时先盘点半成品再续做（工作日志未写）。
+
+- **T-166** [P2] bf CLI 四个子命令（cmd/bf/） `role:devops-engineer` `area:cmd/bf/` `dep:T-165`
+  AC: ① `cmd/bf/main.go`：`flag` 包实现的子命令分发（非 cobra）。四个子命令：`bf repo create` / `bf artifact upload` / `bf user create` / `bf token create`。② 配置管理：`~/.bf/config.yaml`（YAML 格式，`profiles` 多 profile）。③ table-driven 单测：`main_test.go` 验证四个子命令 HTTP 调用链。
+
+- **T-167** [P2] bf-migrate 迁移工具（Artifactory → BinFlow） `role:release-engineer` `area:cmd/bf-migrate/ / internal/migrate` `dep:T-165`
+  AC: ① `cmd/bf-migrate/main.go`：`bf-migrate migrate` 子命令。三阶段迁移：repos → users → tokens。`--dry-run` 模式只统计不迁移。`--resume` 断点续传。② `internal/migrate/reader.go`/`converter.go`/`writer.go`：通过 Artifactory REST API 读取 → 转换 → 通过 `internal/client` 写入 BinFlow。③ table-driven 单测：`migrate_test.go` — 使用 mock Artifactory server + mock BinFlow server 验证。**Q9（待用户定案）**：验收环境。
+
+### Batch 7: 部署与文档（devops-engineer + release-engineer + tech-writer）
+
+- **T-168** [P2] M5 债务收编 — Go 1.26.6 + 优雅停机 + nginx SSL `role:devops-engineer` `area:go.mod / cmd/binflow-server / deploy/`
+  AC: ① `go.mod` 升级到 Go 1.26.6（`go mod tidy` + 全量测试 race 绿）。`cmd/binflow-server` 优雅停机：SIGINT/SIGTERM 收到后 → 排空在途请求（graceful period 30s）→ 关闭 HTTP server → 关闭 Engine → 关闭 metadata Store。② `deploy/nginx/` 新增 SSL 配置模板。③ 验证：`make test` 全量 race 绿；`binflow-server` 收到 SIGTERM 后日志含 "shutting down gracefully"。
+  ▶ 2026-08-22：agent 中途被取消（瞬时 API 错误），**部分产出在盘**——Go 工具链已升 1.26.6、优雅停机已实现（自有测试单跑通过）、`deploy/nginx/` 模板已建。**遗留红**：`cmd/binflow-server` 全量套件 `TestServeGracefulShutdownLog` 失败 + adapter 重复注册 panic。重派时先修这两处再走 AC③（工作日志未写）。
+
+- **T-169** [P2] M5 债务收编 — G05 Windows 锁 + G15b systemd 裸机部署 `role:release-engineer` `area:internal/storage / deploy/systemd/`
+  AC: ① `internal/storage/lock.go`：`AcquireDataLock` 在 Windows 上使用 `LockFileEx`。`deploy/systemd/` 新增 `binflow.service`。② `deploy/systemd/install.sh`：安装脚本。③ 验证：`make test` 全量 race 绿；Windows 交叉编译通过；`install.sh` 在 Linux 上执行无错误。
+
+- **T-171** [P2] 文档 5 类（OIDC/LDAP/S3/bf CLI/迁移指南） `role:tech-writer` `area:docs-site/docs/` `dep:T-154,T-155,T-166,T-167`
+  AC: ① `docs-site/docs/guides/` 新增：`oidc-config.md`、`ldap-config.md`、`s3-config.md`、`bf-cli.md`、`migrate-artifactory.md`。② `docs-site/docs/metrics/` 新增 `prometheus-reference.md`。③ 验证：`make docs` 构建通过；`/binflow/docs/guides/oidc-config` 200 可访问。
+
+### Batch 8: QA 与集成（qa-engineer）
+
+- **T-172** [P0] M6 回归基线 — 本地 filestore 下 M1~M5 全部 P0 序列复跑 `role:qa-engineer` `area:QA 全量（本地 filestore）` `dep:T-168`
+  AC: ① M1 C 序列 P0 全绿。② M2 D 序列 P0 全绿。③ M3 M 序列 P0 全绿。④ M4 W 序列 P0 全绿。⑤ M5 G 序列 P0 全绿。⑥ 产出：QA 报告（H68），零失败零 5xx。
+
+- **T-173** [P0] S3 后端下 M1~M5 全部 P0 序列复跑 + 兼容性验证 `role:qa-engineer` `area:QA 全量（S3 后端：MinIO）` `dep:T-164,T-172`
+  AC: ① MinIO 容器上 M1~M5 全部 P0 序列复跑全绿。② S3 配置与健康检查（H07~H11）。③ 本地→S3 迁移（H12~H15）。④ S3 下 GC 与去重（H16~H18）。⑤ S3 下性能基线（H19~H21）。**Q8（待用户定案）**：AWS S3 验收为条件腿。
+
+- **T-174** [P0] OIDC + LDAP 集成验收（含认证臂优先级） `role:qa-engineer` `area:QA 认证（Keycloak + OpenLDAP）` `dep:T-157,T-158`
+  AC: ① OIDC 登录流（H24~H29）：Keycloak SSO 登录 → 控制台 session 可用。② LDAP 登录流（H30~H35）：OpenLDAP 用户名密码登录 → session 创建。③ 认证臂优先级（H36~H38）：三种用户同时登录 → 各返回正确 source。④ 产出：QA 报告，含 IdP 版本与配置。
+
+- **T-175** [P1] 复制多协议 + Prometheus 指标 + bf CLI + bf-migrate 集成验收 `role:qa-engineer` `area:QA 集成（两实例 + Prometheus + CLI + 迁移）` `dep:T-162,T-163,T-166,T-167,T-159,T-160`
+  AC: ① 复制验收（H39~H51）：push 单向复制、replica 仓库只读、幂等等。② Prometheus 指标验收（H52~H55）：`/metrics` 端点 200 + 含 TYPE/HELP 行。③ bf CLI 验收（H56~H61）：四个子命令成功。④ bf-migrate 验收（H62~H67）：1 个 generic 仓库 100+ 制品迁移 → sha256 一致。⑤ 产出：QA 报告，含全部 H 序列结果。
 
 ## 🔨 进行中（doing）
 
-- **T-138** [P0] FR-39 systemd 服务单元（PB-07） `role:release-engineer` — doing 2026-08-21（批 4 已派）
-- **T-139** [P0] FR-40 离线安装包（PB-08） `role:release-engineer` — doing 2026-08-21（批 4 已派）
-- **T-140** [P1] FR-47 URI 硬编码 /binflow 修复 `role:dev-frontend` — doing 2026-08-21（批 4 已派）
-- **T-142** [P1] FR-48 API 文档自动生成 `role:dev-go-core` — doing 2026-08-21（批 4 已派）
+- **T-157** [P0] OIDC/LDAP HTTP 端点挂载（httpapi + route） `role:dev-go-core` `area:internal/httpapi` `dep:T-156`
+  AC: ① 路由表新增：`GET /binflow/api/v1/oidc/login`（302 → IdP）、`GET /binflow/api/v1/oidc/callback`。② `POST /binflow/api/v1/session` 认证逻辑扩展为先本地后 LDAP。③ 集成测试：`httpapi` 测试新增 `oidc_routes_test.go` + `ldap_session_test.go`。
+  ▶ 2026-08-22 已派发（T-156 done + T-164 收口释放 httpapi 区）。
 
-## 🧪 测试中（qa）
+- **T-162** [P1] push 复制引擎（事件驱动 + cron 兜底） `role:dev-go-core` `area:internal/replication` `dep:T-161`
+  AC: ① `repo.Service.Put` 链末增加 `replication.Enqueue` 调用（异步 goroutine，非阻塞）。② 失败重试：指数退避（1s→2s→4s→8s→16s，最多 5 次）。③ 集成测试（需两个 BinFlow 实例）：源 A 上传制品 → 目标 B GET 同路径 200（sha256 一致）；目标 B replica 仓库 PUT/DELETE → 405。**Q6/Q7（待用户定案）**：replica 仓库类型、冲突策略。
+  ▶ 2026-08-22 已派发（T-161 done；Q6/Q7 按 architecture.md ADR-0021 暂行口径实现并在报告标注）。
 
-（空）
+- **T-160** [P1] S3 迁移进度控制台 UI（迁移状态 + 进度条） `role:dev-frontend` `area:web/src/pages / web/src/components` `dep:T-164`
+  AC: ① 管理页新增「存储迁移」面板：显示迁移进度（total_blobs / migrated / in_progress / completed）。② 面板数据通过 `GET /binflow/api/v1/storage/migration` 获取，每 5s 自动刷新。③ Playwright 测试：`storage_migration.spec.ts` 验证面板渲染。
+  ▶ 2026-08-22 已派发（T-164 done 解锁）。
+
+- **T-170** [P2] 部署矩阵更新（compose/k8s/helm 含 S3 + OIDC + LDAP 配置示例） `role:release-engineer` `area:deploy/ / charts/` `dep:T-152,T-156`
+  AC: ① `deploy/compose/docker-compose.yml` 新增 MinIO 服务（可选）+ S3 配置示例。② `charts/binflow/values.yaml` 新增 S3 配置段 + OIDC 配置段 + LDAP 配置段。③ 验证：`docker compose up` 含 MinIO 服务 → BinFlow 起服成功；`helm template` 产出含 S3/OIDC/LDAP 配置段。
+  ▶ 2026-08-22 已派发（并行度达上限 4）。注意：`deploy/nginx/` 有 T-168 取消遗留的半成品，只读绕行不要动。
 
 ## 🧪 测试中（qa）
 
@@ -320,6 +362,60 @@
 
 - **T-91** [P0] session 三臂+console 挂载+CSRF `role:dev-go-core` — done 2026-08-20（经双 review 一轮修复 + 2 次 429）
   Cookie 第三臂（256bit/失效即拒/Touch 封顶）+ session 三动词 + csrfGuard（Origin + XFP）+ console 挂载 + TTL 双键。curl 全周期 24 PASS + Playwright 探针转绿。双 review 修复复审通过：B1 登录端点豁免（stale cookie 5 子例 + B1B2 咬合）；B2 login-CSRF Origin 守卫（6 子例）；assets 保留字；N6 audit nil 兜底。16 包 race 绿。提交 906d82a+67c3380。**批 2 闭环**。
+
+- **T-138** [P0] FR-39 systemd 单元+安装脚本（PB-07）  — done 2026-08-21（批 4 完成）
+
+- **T-139** [P0] FR-40 离线安装包（PB-08）  — done 2026-08-21（批 4 完成）
+
+- **T-140** [P1] FR-47 URI 硬编码 /binflow 修复  — done 2026-08-21（批 4 完成）
+
+- **T-142** [P1] FR-41 内容（下）：API 参考+FAQ 扩写+管理页增强  — done 2026-08-21（批 4 完成）
+
+- **T-144** [P0] QA 全链+回归基线  — done 2026-08-21（批 5 完成，28/28 PASS）
+  G30a~G30d 目录实体化 4/4 + G30e Playwright FE 4/4 + G31a~G31c Token 审计 3/3 + G32 Docker 树视图 6/6 + G33 URI 基址族 1/1 + G34 四里程碑回归 1/1 + §5.6 反转表 6/6 + FR-44-AC6 3/3。修复 t131-g30e.spec.ts 两处 data-testid 不匹配。日志 reports/agents/T-144-qa.md。
+
+- **T-146** [P0] QA：文档中心（剧本 4） `role:qa-engineer` — done 2026-08-21（批 6 完成，6/6 AC PASS，报告 reports/agents/T-146-qa.md）
+  G18 离线可用性 PASS + G19 文档完整性 PASS + G19b 帮助入口 PASS + G20 curl/doc 一致性 PASS + G21 2.25MB<<40MB PASS + G22 构建零错误 PASS
+
+- **T-147** [P0] QA：性能基准 + GA 总矩阵 + 发布清单（剧本 7/8/10） `role:qa-engineer` — done 2026-08-21（批 7 完成，M5 最后一票）
+  AC1 性能：1000 并发零 5xx（421.9 req/s 聚合）、冷启动 98ms（<2s）、RSS 物理足迹 17.7M（<100MB）、1GB 流式 RSS 增量 ~6MB（<256MB）、7 次同内容上传 = 1 物理 blob。AC2 基准：REST GET/PUT 吞吐、搜索 P95 23ms、export 1459.8 MiB/s、GC 27-30ms、vs M4 无 >20% 回归。AC3 GA 总矩阵：94/98 PASS（3 DEFERRED Q3 条件腿 + 1 BLOCKED nginx SSL）、6 平台 sha256 全部验证、M5 DoD 7/7 条 PASS。报告 reports/agents/T-147-qa.md
+- **T-145** [P0] QA：发布矩阵与部署形态全量（剧本 2/3 + 条件腿） `role:qa-engineer` — done 2026-08-21（批 6 完成，PASS 46/49，1 BLOCKED + 2 DEFERRED）
+  G01~G04 产物+版本+可跑腿 PASS + G06~G08 Docker 双变体 8/8 PASS + G09 compose 5/6（nginx SSL 证书 BLOCKED）+ G11~G13b Helm 9/9 PASS + G14 K8s 7/7 PASS + G15~G16 systemd 4/4 PASS + G17 离线包 4/4 PASS。G05 Windows/G15b systemd 真机 DEFERRED（用户环境未到位）。报告 reports/agents/T-145-qa.md
+
+## ✅ 已完成（done）— M6
+
+- **T-148** [P0] goreleaser 三二进制发布矩阵扩展（bf + bf-migrate） `role:devops-engineer` — done 2026-08-21（conductor 核验直收）
+  `make build` 产出三二进制（bf 2.6MB / bf-migrate 2.6MB / binflow-server 22MB，全在预算内）；`--version` 同源 ldflags 注入；`.goreleaser.yaml` 六平台三ID；`make check-size` 覆盖三二进制；`make test` 三二进制 race 绿。日志 reports/agents/T-148.md。
+
+- **T-149** [P0] M6 依赖白名单准入（go.mod + ADR-0005 扩展） `role:devops-engineer` — done 2026-08-21（conductor 核验直收）
+  `go.mod` 新增 minio-go/v7 + go-oidc/v3 + go-ldap/v3；`make check-deps` 零 CGo 基线通过；`go mod verify` 通过；`make build` 三二进制全在预算内；`make vet` 零告警；18/18 测试包 race 绿。ADR-0005 白名单追加。日志 reports/agents/T-149.md。
+
+- **T-150** [P0] storage.Backend 接口 + Engine 签名变更（Open → io.ReadCloser） `role:dev-go-storage` — done 2026-08-21（conductor 核验直收）
+  新增 `internal/storage/backend.go`（包内 Backend 接口：Put/Get/Delete/Exists/List）；`internal/storage/api.go` Engine.Open 返回类型从 `io.ReadSeekCloser` 变更为 `io.ReadCloser`；`internal/storage/engine.go` 实现适配；`engine_test.go` 测试适配。全量 storage 测试 race 绿，11 个依赖包零回归。日志 reports/agents/T-150.md。
+
+- **T-153** [P0] auth.IdentityProvider 接口 + 认证臂扩展（OIDC Bearer 臂） `role:dev-go-core` — done 2026-08-21（conductor 核验直收）
+  新增 `internal/auth/identity.go`（Provider 类型/Claims/ProviderUser/IdentityProvider 接口/ErrProviderUserNotFound）；`internal/auth/api.go` Principal 新增 Source 字段；`internal/auth/authenticator.go` 新增 WithOIDC()/authenticateOIDC()/userCreator 接口；`internal/auth/deps.go` userStoreAdapter 适配 Provider/ProviderID。全量 auth 测试 race 绿，11 个依赖包零回归。日志 reports/agents/T-153.md。
+
+- **T-152** [P0] S3 配置与健康检查（config 段 + /healthz 扩展） `role:dev-go-core` — done 2026-08-22（conductor 核验直收）
+  新增 `internal/config/api.go` S3Config 结构体/StorageBackend 常量/Backend 字段；`internal/config/config.go` S3 默认常量/S3SecretEnvVar/splitEnvKey；`internal/config/load.go` raw 结构体 S3 子段/build/defaults/setEnvValue/rejectSecrets；`internal/config/validate.go` backend 枚举校验/S3 required fields/skip data_dir 创建；`internal/httpapi/system.go` probeS3Storage（BucketExists→PutObject→RemoveObject）。config 40 测试 race 绿，httpapi 构建通过，依赖包零回归。日志 reports/agents/T-152.md。
+
+- **T-154** [P0] OIDC Provider 实现（go-oidc/v3） `role:dev-go-core` — done 2026-08-22（conductor 核验直收）
+  新增 `internal/auth/oidc.go`（~796 行，OIDCProvider 实现 IdentityProvider 接口/PKCE 生成器/claims 提取/go-oidc/v3 ID Token 验证）；`internal/auth/oidc_test.go`（13 测试，httptest+jose mock OIDC server）；`internal/auth/deps.go` 依赖连线（GetByProvider/adaptUser）。auth 62 测试 race 绿，repo/httpapi/6 适配器包零回归。遗留：metadata.User 缺 Provider/ProviderID 字段（008 migration DDL 已有但 Go struct 未更新），userStoreAdapter.GetByProvider 使用 O(n) List() 遍历。日志 reports/agents/T-154.md。
+
+- **T-151** [P0] S3Engine 实现（minio-go/v7） `role:dev-go-storage` — done 2026-08-22（conductor 核验直收）
+  新增 `internal/storage/s3.go`（~755 行，S3Engine/s3Session/s3Backend 实现，multipart upload/go:generate 注册）；`internal/storage/s3_test.go`（~1000 行，mock S3 HTTP server + 25 table-driven 测试）。全量 storage 测试 race 绿（41.4s），repo/httpapi/6 适配器包零回归。mock server 并发写同 blob 收敛测试修复（uploadID 唯一性）。T-150 Backend 接口消费方完工。日志 reports/agents/T-151.md。
+
+- **T-155** [P0] LDAP Provider 实现（go-ldap/v3） `role:dev-go-core` — done 2026-08-22（conductor 核验直收）
+  新增 `internal/auth/ldap.go`（~596 行，LDAPProvider 实现 IdentityProvider 接口/连接池/Bind 流/搜索组/AdminGroup 判定）；`internal/auth/ldap_test.go`（~949 行，mock LDAP server + 16 table-driven 测试）。auth 25.5s race 绿，repo/httpapi/6 适配器包零回归。日志 reports/agents/T-155.md。
+
+- **T-156** [P0] 008 元数据迁移（users 表 provider 列 + 认证臂优先级） `role:dev-go-core` — done 2026-08-22（conductor 核验直收）
+  新增 `migrations/{sqlite,postgres}/008_oidc_ldap.sql`（users 表 +provider/provider_id）；`internal/auth/deps.go` NewLDAPResolver + adaptUser 读 Provider/ProviderID；`internal/auth/authenticator.go` WithLDAP/authenticateLDAP（Bind→Resolve→自动建用户）；`internal/auth/session.go` AuthenticateCredentials 本地密码失败后 LDAP 回退；`internal/auth/ldap_login_test.go` 新增登录回退测试组；metadata User struct/查询/Create/Get/List 全链路读写 provider 列。conductor 复核：auth 60.1s / metadata 62.2s / repo 161.6s / httpapi 全部 race 绿，build+vet 干净。遗留：GetByProvider O(n) 遍历（可后续加索引）。日志 reports/agents/T-156.md。
+
+- **T-161** [P0] replication 模型与 009 迁移（replications + replication_tasks 表） `role:dev-go-core` — done 2026-08-22（conductor 核验直收）
+  新增 `internal/replication/{model,store}.go`（ReplicationConfig/ReplicationTask/ConfigStatus 聚合/Store 接口/SQLiteStore 实现，UNIQUE(name)+busy 503+status 白名单）+ `model_test.go`（11 测试 CRUD 全路径）+ `metadata/replication_internal_test.go`（009 幂等+列形状锁定）。009 SQL 以 architecture.md §6 定稿名为 `009_replication.sql`（AC 写 `009_replication_tables.sql`，以架构契约为准）。conductor 复核：replication 17.6s + metadata 119.3s race 绿。遗留：Store 未接 metadata.Store 装配面（桥接票）；isUniqueViolation 仅 sqlite 文案。日志 reports/agents/T-161.md。
+
+- **T-164** [P1] 本地→S3 在线迁移（双写+后台迁移） `role:dev-go-storage` — done 2026-08-22（conductor 核验直收）
+  新增 `internal/storage/migration.go`（MigrationEngine 三模式 bypass/dual-write/completed；migrationSession TeeReader+Pipe 流式双写、Commit 侧失败回滚；statusGuard 原子快照含 defer 覆盖 bug 修复）+ `migration_test.go`（14 测试，含 927 blob 全量迁移 S3 端硬断言）+ `internal/httpapi/migration.go`（状态/启动端点）+ server/router 接线。agent 一度因 API 400 中断后原地续跑收尾。conductor 复核：storage 196.3s + httpapi 203.9s race 绿。越区发现：binflow-server 红测试属 T-168 遗留（已记录）。日志 reports/agents/T-164.md。
 
 ## 🚫 阻塞（blocked）
 

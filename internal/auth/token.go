@@ -59,7 +59,7 @@ func (v *TokenVerifier) Verify(ctx context.Context, plaintext string) (*Principa
 	if shouldTouch(t.LastUsedAt) {
 		_ = v.tokens.Touch(ctx, t.ID, nowRFC3339())
 	}
-	return &Principal{Name: u.Username, Admin: u.IsAdmin, TokenID: t.ID}, nil
+	return &Principal{Name: u.Username, Admin: u.IsAdmin, TokenID: t.ID, Source: ProviderLocal}, nil
 }
 
 // touchThrottle is the minimum spacing between last_used_at writes for one

@@ -316,6 +316,12 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	case rest == "v1/system/gc" && r.Method == http.MethodPost:
 		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleSystemGC)
 
+	// ---- /api/v1/storage/migration (T-164; admin) ----
+	case rest == "v1/storage/migration" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleMigrationStatus)
+	case rest == "v1/storage/migration/start" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleMigrationStart)
+
 	// ---- /api/v1/session (CE-03..05, T-91; ADR-0014 erratum 2) ----
 	// POST is deliberately un-gated (it IS the credential presentation);
 	// GET/DELETE demand an authenticated principal of any arm — whoami is

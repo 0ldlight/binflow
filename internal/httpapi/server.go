@@ -53,6 +53,9 @@ type Deps struct {
 	// T-94). Nil on stacks assembled without an engine — the endpoint
 	// answers 503 rather than pretending a run happened.
 	GC GarbageCollector
+	// Migration is the optional S3 migration engine (T-164). Nil when
+	// migration is not configured — the endpoints answer 501.
+	Migration MigrationStarter
 	// DataDir is storage.data_dir — the health probe writes there and the
 	// stats endpoint sizes blobs/ under it.
 	DataDir string

@@ -104,7 +104,7 @@ func (s *Service) authenticateSession(ctx context.Context, id string) (*Principa
 	if shouldTouch(row.LastUsedAt) {
 		_ = s.sessions.Touch(ctx, idHash, nowRFC3339()) //nolint:errcheck // heartbeat, best-effort by design
 	}
-	return &Principal{Name: u.Username, Admin: u.IsAdmin, ViaSession: true}, nil
+	return &Principal{Name: u.Username, Admin: u.IsAdmin, ViaSession: true, Source: ProviderLocal}, nil
 }
 
 // IssueSession implements SessionRegistry.IssueSession: 32 random bytes,
@@ -162,12 +162,37 @@ func (s *Service) RevokeSession(ctx context.Context, plaintext string) error {
 }
 
 // AuthenticateCredentials implements SessionRegistry.AuthenticateCredentials:
-// the login endpoint's username/password check IS the Basic arm — same
-// argon2id verification, same API-token duality fallback, same error family
-// — so the console can never drift from the header plane on what a correct
-// credential is.
+// the login endpoint's username/password check. The flow:
+//
+//  1. Try local password (argon2id) via authenticateBasic — same logic as the
+//     Basic auth header arm, including the API-token duality fallback.
+//  2. If that fails and ldapProvider is wired, try LDAP bind. On success,
+//     resolve the LDAP user locally (by provider+providerID) and return a
+//     Principal with the user's stored attributes (admin flag, enabled state).
+//  3. If all fail, return the original error from step 1 (unless LDAP returns
+//     a more specific error).
+//
+// The LDAP arm covers the case where local password check fails for LDAP users
+// (who have empty password_hash) or for users whose LDAP directory password
+// differs from their local password.
 func (s *Service) AuthenticateCredentials(ctx context.Context, username, password string) (*Principal, error) {
-	return s.authenticateBasic(ctx, username, password)
+	p, err := s.authenticateBasic(ctx, username, password)
+	if err == nil {
+		return p, nil
+	}
+
+	// LDAP fallback: only when the provider is wired and the basic auth failed
+	// (which includes LDAP users with empty password_hash).
+	if s.ldapProvider != nil {
+		ldapProv, ok := s.ldapProvider.(interface {
+			Bind(ctx context.Context, username, password string) (*Claims, error)
+		})
+		if ok {
+			return s.authenticateLDAP(ctx, ldapProv, username, password)
+		}
+	}
+
+	return nil, err
 }
 
 // sessionCookie extracts the binflow_session cookie value ("", false when

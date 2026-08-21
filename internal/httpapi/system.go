@@ -1,13 +1,17 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/lzwzzy/binflow/internal/metadata"
+	minio "github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
 )
 
 // ProductName is the product identifier reported by /api/system/version
@@ -110,9 +114,23 @@ func (s *Server) handleV1Health(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(body)
 }
 
-// probeStorage verifies the data directory accepts writes: create +
-// remove a probe file next to the blob store (E-22: "storage 可写探测").
+// probeStorage verifies the data directory accepts writes (disk backend) or
+// does a HeadBucket -> PutObject -> DeleteObject round-trip (S3 backend).
+// When backend is unset, defaults to disk.
 func (s *Server) probeStorage() subsystemStatus {
+	backend := s.deps.Config.Storage.Backend
+	if backend == "" {
+		backend = "disk"
+	}
+	if backend == "s3" {
+		return s.probeS3Storage()
+	}
+	return s.probeDiskStorage()
+}
+
+// probeDiskStorage verifies the data directory accepts writes: create +
+// remove a probe file next to the blob store (E-22: "storage 可写探测").
+func (s *Server) probeDiskStorage() subsystemStatus {
 	if s.deps.DataDir == "" {
 		return subsystemStatus{Status: "error", Detail: "no data directory configured"}
 	}
@@ -123,6 +141,56 @@ func (s *Server) probeStorage() subsystemStatus {
 	if err := os.Remove(probe); err != nil {
 		return subsystemStatus{Status: "error", Detail: fmt.Sprintf("probe cleanup: %v", err)}
 	}
+	return subsystemStatus{Status: "ok"}
+}
+
+// probeS3Storage performs a HeadBucket -> PutObject(sentinel) -> DeleteObject
+// round-trip to verify S3 connectivity and write permissions. If any step
+// fails, the subsystem is reported as unhealthy.
+func (s *Server) probeS3Storage() subsystemStatus {
+	cfg := s.deps.Config.Storage.S3
+
+	client, err := minio.New(cfg.Endpoint, &minio.Options{
+		Creds:  credentials.NewStaticV4(cfg.AccessKeyID, cfg.SecretAccessKey, ""),
+		Secure: true, // Assume HTTPS; minio-go will handle HTTP endpoints via the endpoint URL scheme
+		Region: cfg.Region,
+	})
+	if err != nil {
+		return subsystemStatus{Status: "error", Detail: fmt.Sprintf("s3 client init: %v", err)}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Step 1: BucketExists — verify the bucket exists and is reachable.
+	exists, err := client.BucketExists(ctx, cfg.Bucket)
+	if err != nil {
+		return subsystemStatus{Status: "error", Detail: fmt.Sprintf("s3 BucketExists %s: %v", cfg.Bucket, err)}
+	}
+	if !exists {
+		return subsystemStatus{Status: "error", Detail: fmt.Sprintf("s3 %s: bucket does not exist", cfg.Bucket)}
+	}
+
+	// Step 2: PutObject — verify write access with a sentinel object.
+	sentinelKey := fmt.Sprintf(".healthz/healthz-%d", os.Getpid())
+	if cfg.BucketPrefix != "" {
+		sentinelKey = cfg.BucketPrefix + "/" + sentinelKey
+	}
+	_, err = client.PutObject(ctx, cfg.Bucket, sentinelKey, nil, 0, minio.PutObjectOptions{
+		ContentType: "text/plain",
+	})
+	if err != nil {
+		return subsystemStatus{Status: "error", Detail: fmt.Sprintf("s3 PutObject %s/%s: %v", cfg.Bucket, sentinelKey, err)}
+	}
+
+	// Step 3: RemoveObject — clean up the sentinel.
+	err = client.RemoveObject(ctx, cfg.Bucket, sentinelKey, minio.RemoveObjectOptions{})
+	if err != nil {
+		// Don't fail the health check if cleanup fails — the bucket is writable.
+		// But log the detail so an operator can clean up the sentinel.
+		return subsystemStatus{Status: "ok", Detail: fmt.Sprintf("s3 probe ok (cleanup failed: %v)", err)}
+	}
+
 	return subsystemStatus{Status: "ok"}
 }
 

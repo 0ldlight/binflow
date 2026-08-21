@@ -58,11 +58,51 @@ builds:
       - -X main.revision={{ .ShortCommit }}
     mod_timestamp: '{{ .CommitTimestamp }}'
 
+  - id: bf
+    main: ./cmd/bf
+    binary: bf
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X main.version={{ .Version }}
+      - -X main.revision={{ .ShortCommit }}
+    mod_timestamp: '{{ .CommitTimestamp }}'
+
+  - id: bf-migrate
+    main: ./cmd/bf-migrate
+    binary: bf-migrate
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X main.version={{ .Version }}
+      - -X main.revision={{ .ShortCommit }}
+    mod_timestamp: '{{ .CommitTimestamp }}'
+
 archives:
   - id: binflow
     # binflow_<VER>_<os>_<arch>.tar.gz (windows .zip), each wrapping a
-    # directory of the same name holding binflow-server(.exe) + README +
-    # LICENSE — the unpack shape PRD G02 consumes
+    # directory of the same name holding binflow-server(.exe) + bf(.exe) +
+    # bf-migrate(.exe) + README + LICENSE — the unpack shape PRD G02 consumes
     # (dist/binflow_<VER>_<os>_<arch>/binflow-server).
     name_template: 'binflow_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
     formats: [tar.gz]
@@ -70,6 +110,10 @@ archives:
       - goos: windows
         formats: [zip]
     wrap_in_directory: true
+    ids:
+      - binflow-server
+      - bf
+      - bf-migrate
     files:
       - README.md
       # No LICENSE file exists yet (license choice is a product-level call);

@@ -108,6 +108,8 @@ type User struct {
 	CreatedAt    string
 	UpdatedAt    string
 	Email        string // 004 widening (FR-27-AC8): '' when unset; blank-vs-shape validation is a service-layer concern
+	Provider     string // 008 widening (M6, ADR-0020): 'local', 'oidc', or 'ldap'; DEFAULT 'local'
+	ProviderID   string // 008 widening: stable ID from the identity provider (OIDC sub or LDAP DN); DEFAULT ''
 }
 
 // Token stores only sha256(plaintext); the plaintext is shown once at issue

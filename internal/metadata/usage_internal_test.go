@@ -68,6 +68,14 @@ func TestUsageBackfillMigration(t *testing.T) {
 		`DELETE FROM schema_migrations WHERE version >= 5`,
 		`DROP INDEX IF EXISTS idx_user_groups_username`,
 		`DELETE FROM repo_usage`,
+		`DROP INDEX IF EXISTS idx_users_provider`,
+		`ALTER TABLE users DROP COLUMN provider`,
+		`ALTER TABLE users DROP COLUMN provider_id`,
+		`DROP TABLE replication_tasks`,
+		`DROP INDEX IF EXISTS idx_replication_tasks_status`,
+		`DROP INDEX IF EXISTS idx_replication_tasks_pending`,
+		`DROP TABLE replications`,
+		`DROP INDEX IF EXISTS idx_replications_source`,
 	} {
 		if _, err := db.Exec(stmt); err != nil {
 			t.Fatalf("rewind (%q): %v", stmt, err)

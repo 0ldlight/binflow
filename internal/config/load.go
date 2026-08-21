@@ -30,8 +30,24 @@ type raw struct {
 	} `yaml:"server"`
 	Storage *struct {
 		DataDir         *string `yaml:"data_dir"`
+		Backend         *string `yaml:"backend"`
 		SessionTTLHours *int    `yaml:"session_ttl_hours"`
 		GCGraceHours    *int    `yaml:"gc_grace_hours"`
+		S3              *struct {
+			Bucket            *string `yaml:"bucket"`
+			Region            *string `yaml:"region"`
+			Endpoint          *string `yaml:"endpoint"`
+			AccessKeyID       *string `yaml:"access_key_id"`
+			UsePathStyle      *bool   `yaml:"use_path_style"`
+			UploadPartSize    *int64  `yaml:"upload_part_size"`
+			UploadConcurrency *int    `yaml:"upload_concurrency"`
+			BucketPrefix      *string `yaml:"bucket_prefix"`
+		} `yaml:"s3"`
+			Migration *struct {
+				Enabled     *bool `yaml:"enabled"`
+				Completed   *bool `yaml:"completed"`
+				Concurrency *int  `yaml:"concurrency"`
+			} `yaml:"migration"`
 	} `yaml:"storage"`
 	Metadata *struct {
 		Driver *string `yaml:"driver"`
@@ -132,7 +148,9 @@ func rejectSecrets(m *yaml.Node) error {
 		if valNode.Kind != yaml.MappingNode {
 			continue
 		}
-		if section != "security" && section != "auth" && section != "metadata" {
+		// Extend the secret scan to storage.s3 as well as the existing sections:
+		// secret_access_key must never appear in YAML.
+		if section != "security" && section != "auth" && section != "metadata" && section != "storage" {
 			continue
 		}
 		for j := 0; j+1 < len(valNode.Content); j += 2 {
@@ -143,6 +161,19 @@ func rejectSecrets(m *yaml.Node) error {
 			key := strings.ToLower(nested.Value)
 			if isSecretYAMLKey(section, key) {
 				return secretYAMLErr(section + "." + nested.Value)
+			}
+			// Recurse into storage.s3 for secret_access_key.
+			if section == "storage" && key == "s3" && valNode.Content[j+1].Kind == yaml.MappingNode {
+				s3map := valNode.Content[j+1]
+				for k := 0; k+1 < len(s3map.Content); k += 2 {
+					s3key := s3map.Content[k]
+					if s3key.Kind != yaml.ScalarNode {
+						continue
+					}
+					if strings.ToLower(s3key.Value) == "secret_access_key" {
+						return secretYAMLErr("storage.s3.secret_access_key")
+					}
+				}
 			}
 		}
 	}
@@ -179,11 +210,51 @@ func build(r *raw, env map[string]string) (*Config, error) {
 		if r.Storage.DataDir != nil {
 			c.Storage.DataDir = *r.Storage.DataDir
 		}
+		if r.Storage.Backend != nil {
+			c.Storage.Backend = *r.Storage.Backend
+		}
 		if r.Storage.SessionTTLHours != nil {
 			c.Storage.SessionTTL = time.Duration(*r.Storage.SessionTTLHours) * time.Hour
 		}
 		if r.Storage.GCGraceHours != nil {
 			c.Storage.GCGrace = time.Duration(*r.Storage.GCGraceHours) * time.Hour
+		}
+		if r.Storage.S3 != nil {
+			if r.Storage.S3.Bucket != nil {
+				c.Storage.S3.Bucket = *r.Storage.S3.Bucket
+			}
+			if r.Storage.S3.Region != nil {
+				c.Storage.S3.Region = *r.Storage.S3.Region
+			}
+			if r.Storage.S3.Endpoint != nil {
+				c.Storage.S3.Endpoint = *r.Storage.S3.Endpoint
+			}
+			if r.Storage.S3.AccessKeyID != nil {
+				c.Storage.S3.AccessKeyID = *r.Storage.S3.AccessKeyID
+			}
+			if r.Storage.S3.UsePathStyle != nil {
+				c.Storage.S3.UsePathStyle = *r.Storage.S3.UsePathStyle
+			}
+			if r.Storage.S3.UploadPartSize != nil {
+				c.Storage.S3.UploadPartSize = *r.Storage.S3.UploadPartSize
+			}
+			if r.Storage.S3.UploadConcurrency != nil {
+				c.Storage.S3.UploadConcurrency = *r.Storage.S3.UploadConcurrency
+			}
+			if r.Storage.S3.BucketPrefix != nil {
+				c.Storage.S3.BucketPrefix = *r.Storage.S3.BucketPrefix
+			}
+		}
+		if r.Storage.Migration != nil {
+			if r.Storage.Migration.Enabled != nil {
+				c.Storage.Migration.Enabled = *r.Storage.Migration.Enabled
+			}
+			if r.Storage.Migration.Completed != nil {
+				c.Storage.Migration.Completed = *r.Storage.Migration.Completed
+			}
+			if r.Storage.Migration.Concurrency != nil {
+				c.Storage.Migration.Concurrency = *r.Storage.Migration.Concurrency
+			}
 		}
 	}
 	if r.Metadata != nil {
@@ -264,8 +335,16 @@ func defaults() *Config {
 		},
 		Storage: StorageConfig{
 			DataDir:    DefaultDataDir,
+			Backend:    DefaultStorageBackend,
 			SessionTTL: DefaultTTL,
 			GCGrace:    DefaultTTL,
+			S3: S3Config{
+				UploadPartSize:    DefaultS3UploadPartSize,
+				UploadConcurrency: DefaultS3UploadConcurrency,
+			},
+			Migration: MigrationConfig{
+				Concurrency: DefaultMigrationConcurrency,
+			},
 		},
 		Metadata: MetadataConfig{Driver: DefaultDriver, DSN: ""},
 		Auth: AuthConfig{
@@ -372,7 +451,12 @@ func setEnvValue(c *Config, path []string, kind envKind, value, name string) err
 		// coexist in the environment, applyEnv's sorted (C-locale) walk makes
 		// the lexicographically-last variant win deterministically.
 		if value != "" {
-			c.AdminPassword = value
+			if name == "BINFLOW_ADMIN_PASSWORD" || strings.EqualFold(name, "BINFLOW_ADMIN_PASSWORD") {
+				c.AdminPassword = value
+			} else {
+				// BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY (case-insensitive)
+				c.Storage.S3.SecretAccessKey = value
+			}
 		}
 		return nil
 	case envBool:
@@ -385,6 +469,12 @@ func setEnvValue(c *Config, path []string, kind envKind, value, name string) err
 			c.Security.AnonymousAccess = b
 		case "audit.enabled":
 			c.Audit.Enabled = b
+		case "storage.s3.use_path_style":
+			c.Storage.S3.UsePathStyle = b
+		case "storage.migration.enabled":
+			c.Storage.Migration.Enabled = b
+		case "storage.migration.completed":
+			c.Storage.Migration.Completed = b
 		default:
 			return fmt.Errorf("config: internal: bool path %q not wired", where)
 		}
@@ -397,6 +487,18 @@ func setEnvValue(c *Config, path []string, kind envKind, value, name string) err
 			c.Server.BaseURL = value
 		case "storage.data_dir":
 			c.Storage.DataDir = value
+		case "storage.backend":
+			c.Storage.Backend = value
+		case "storage.s3.bucket":
+			c.Storage.S3.Bucket = value
+		case "storage.s3.region":
+			c.Storage.S3.Region = value
+		case "storage.s3.endpoint":
+			c.Storage.S3.Endpoint = value
+		case "storage.s3.access_key_id":
+			c.Storage.S3.AccessKeyID = value
+		case "storage.s3.bucket_prefix":
+			c.Storage.S3.BucketPrefix = value
 		case "metadata.driver":
 			d := strings.ToLower(value)
 			if !allowedDrivers()[d] {
@@ -436,6 +538,12 @@ func setEnvValue(c *Config, path []string, kind envKind, value, name string) err
 			c.Storage.SessionTTL = time.Duration(n) * time.Hour
 		case "storage.gc_grace_hours":
 			c.Storage.GCGrace = time.Duration(n) * time.Hour
+		case "storage.s3.upload_part_size":
+			c.Storage.S3.UploadPartSize = int64(n)
+		case "storage.s3.upload_concurrency":
+			c.Storage.S3.UploadConcurrency = n
+		case "storage.migration.concurrency":
+			c.Storage.Migration.Concurrency = n
 		case "auth.argon2_memory_mb":
 			c.Auth.Argon2MemoryMB = n
 		case "auth.token_default_ttl_hours":

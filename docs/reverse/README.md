@@ -20,3 +20,8 @@ reverse-engineer 在此产出 **clean-room 行为规格**——让实现者不�
 | `auth-model.md` | 用户/组/权限模型、token 行为 | M1–M4 |
 | `docker-registry.md` | Registry v2 端点行为细节（补官方规范空白处） | M2 |
 | `maven-npm-pypi.md` | 各协议仓库交互细节（补官方规范空白处） | M3 |
+| `import-export-api.md` | 导入/导出 REST API（系统/仓库级，含 marker 文件） | M6 |
+| `replication.md` | 复制 push/pull/事件驱动、全局控制、联邦概念 | M6 |
+| `auth-integration.md` | LDAP 配置模型、OAuth stub 状态、用户自动创建 | M6 |
+| `s3-storage-layout.md` | S3/对象存储 binarystore 配置、MPU 参数、云存储重定向 | M6 |
+| `metrics.md` | 内部指标框架、可观测性日志服务、Prometheus 集成现状 | M6 |

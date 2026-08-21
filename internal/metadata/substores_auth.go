@@ -13,23 +13,23 @@ import (
 type userStore struct{ db *sql.DB }
 
 func (s *userStore) Create(ctx context.Context, u *User) error {
-	const stmt = `INSERT INTO users (username, password_hash, is_admin, enabled, email, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`
+	const stmt = `INSERT INTO users (username, password_hash, is_admin, enabled, email, created_at, updated_at, provider, provider_id)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	if _, err := s.db.ExecContext(ctx, stmt,
-		u.Username, u.PasswordHash, boolToInt(u.IsAdmin), boolToInt(u.Enabled), u.Email, u.CreatedAt, u.UpdatedAt); err != nil {
+		u.Username, u.PasswordHash, boolToInt(u.IsAdmin), boolToInt(u.Enabled), u.Email, u.CreatedAt, u.UpdatedAt, u.Provider, u.ProviderID); err != nil {
 		return wrapExec("users create", u.Username, err)
 	}
 	return nil
 }
 
 func (s *userStore) Get(ctx context.Context, username string) (*User, error) {
-	const stmt = `SELECT username, password_hash, is_admin, enabled, email, created_at, updated_at
+	const stmt = `SELECT username, password_hash, is_admin, enabled, email, created_at, updated_at, provider, provider_id
 		FROM users WHERE username = ?`
 	return scanUser(s.db.QueryRowContext(ctx, stmt, username), username)
 }
 
 func (s *userStore) GetByPasswordHash(ctx context.Context, passwordHash string) (*User, error) {
-	const stmt = `SELECT username, password_hash, is_admin, enabled, email, created_at, updated_at
+	const stmt = `SELECT username, password_hash, is_admin, enabled, email, created_at, updated_at, provider, provider_id
 		FROM users WHERE password_hash = ? LIMIT 1`
 	return scanUser(s.db.QueryRowContext(ctx, stmt, passwordHash), passwordHash)
 }
@@ -37,7 +37,7 @@ func (s *userStore) GetByPasswordHash(ctx context.Context, passwordHash string) 
 func scanUser(row *sql.Row, key string) (*User, error) {
 	u := &User{}
 	var isAdmin, enabled int
-	err := row.Scan(&u.Username, &u.PasswordHash, &isAdmin, &enabled, &u.Email, &u.CreatedAt, &u.UpdatedAt)
+	err := row.Scan(&u.Username, &u.PasswordHash, &isAdmin, &enabled, &u.Email, &u.CreatedAt, &u.UpdatedAt, &u.Provider, &u.ProviderID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("users get %s: %w", key, ErrUserNotFound)
 	}
@@ -114,7 +114,7 @@ func (s *userStore) Delete(ctx context.Context, username string) error {
 }
 
 func (s *userStore) List(ctx context.Context) ([]*User, error) {
-	const stmt = `SELECT username, password_hash, is_admin, enabled, email, created_at, updated_at
+	const stmt = `SELECT username, password_hash, is_admin, enabled, email, created_at, updated_at, provider, provider_id
 		FROM users ORDER BY username`
 	rows, err := s.db.QueryContext(ctx, stmt)
 	if err != nil {
@@ -125,7 +125,7 @@ func (s *userStore) List(ctx context.Context) ([]*User, error) {
 	for rows.Next() {
 		u := &User{}
 		var isAdmin, enabled int
-		if err := rows.Scan(&u.Username, &u.PasswordHash, &isAdmin, &enabled, &u.Email, &u.CreatedAt, &u.UpdatedAt); err != nil {
+		if err := rows.Scan(&u.Username, &u.PasswordHash, &isAdmin, &enabled, &u.Email, &u.CreatedAt, &u.UpdatedAt, &u.Provider, &u.ProviderID); err != nil {
 			return nil, wrapExec("users list scan", "", err)
 		}
 		u.IsAdmin = isAdmin != 0

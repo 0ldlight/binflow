@@ -164,3 +164,30 @@ func TestConsoleRootRedirect(t *testing.T) {
 		}
 	}
 }
+
+// TestHealthEndpointStorage reports correct storage subsystem status for
+// disk backend (the default used by the harness). The S3 backend probe
+// requires a live S3-compatible endpoint and is tested via integration
+// tests; the harness always uses the disk engine.
+func TestHealthEndpointStorageDiskOK(t *testing.T) {
+	h := newHarness(t)
+	resp := h.do(http.MethodGet, "/binflow/api/v1/health", adminUser, adminPass, nil, nil)
+	defer func() { _ = resp.Body.Close() }()
+	body := mustGet(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d; body=%s", resp.StatusCode, body)
+	}
+	var health struct {
+		Status  string `json:"status"`
+		Storage struct {
+			Status string `json:"status"`
+			Detail string `json:"detail,omitempty"`
+		} `json:"storage"`
+	}
+	if err := json.Unmarshal([]byte(body), &health); err != nil {
+		t.Fatalf("body %q: %v", body, err)
+	}
+	if health.Storage.Status != "ok" {
+		t.Fatalf("storage status = %q, want ok; detail=%s body=%s", health.Storage.Status, health.Storage.Detail, body)
+	}
+}

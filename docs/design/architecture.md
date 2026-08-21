@@ -1,7 +1,7 @@
 # BinFlow 架构设计（M1 定稿）
 
 > architect 维护。本文件在 ADR-0001~0015 基线上给出可并行开发的实现蓝图：包边界 = 并行开发 area 边界。
-> 标注 **[M2+]** / **[M3+]** 的内容当期不实现，只保证接口缝存在；标注「待逆向规格确认」的行为以 `docs/reverse/` 规格为准，规格冲突时先回 ADR。
+> 标注 **[M2+]** / **[M3+]** / **[M6+]** 的内容当期不实现，只保证接口缝存在；标注「待逆向规格确认」的行为以 `docs/reverse/` 规格为准，规格冲突时先回 ADR。
 > 文档中文，标识符/表名/字段英文。代码规范：错误 wrap 带上下文、显式 context、table-driven 测试、依赖注入。
 
 ---
@@ -31,7 +31,8 @@
         │     │  storage   │  │  metadata   │   │   auth   │   │  audit  │
         │     │ blob引擎    │  │ Store(SQL) │   │ 用户/令牌  │   │ 审计事件 │
         │     │ 会话/GC     │  │ 迁移器      │   │ ACL      │   │         │
-        │     └──────┬─────┘  └───┬─────────┘   └────┬─────┘   └────┬────┘
+        │     │ Backend↓    │  └───┬─────────┘   └────┬─────┘   └────┬────┘
+        │     └──────┬─────┘      │                  │              │
         │            │            │                  │              │
         └────────────┴────────────┴──────────────────┴──────────────┘
                      依赖方向：上层 → 下层，同层禁止横向 import
@@ -76,10 +77,14 @@ binflow/                       # Go module: github.com/lzwzzy/binflow（ADR-0008
 │   ├── metadata/              # Store 接口 + sqlite 实现 + 迁移器
 │   ├── repo/                  # 仓库模型与解析顺序；服务层核心
 │   ├── remote/                # [M3] remote 代理引擎：fetcher/缓存状态/SSRF 防护/凭据解密
+│   ├── replication/           # [M6+] 复制/联邦：pusher/scheduler/status（ADR-0021）
+│   ├── metrics/               # [M6+] Prometheus 指标暴露（stdlib expvar 实现，ADR-0022）
+│   ├── migrate/               # [M6+] Artifactory 迁移工具（bf migrate 可复用，ADR-0024）
 │   ├── adapter/               # 协议 SPI：Handler 挂载 + layout
 │   │   └── generic/           # M1 唯一实现
-│   ├── auth/                  # Principal / Authorizer / TokenRegistry
+│   ├── auth/                  # Principal / Authorizer / TokenRegistry / IdentityProvider（OIDC/LDAP M6+）
 │   ├── audit/                 # 审计事件 append + 查询
+│   └── client/                # [M6+] HTTP 客户端封装（被 bf CLI 消费，不 import storage/metadata）
 │   ├── httpapi/               # Server、路由表、middleware、错误信封
 │   └── console/               # go:embed 前端资产 [M4]，M1 仅 JSON API
 ├── web/                       # 控制台前端源码（构建产物进 internal/console）
@@ -99,13 +104,17 @@ binflow/                       # Go module: github.com/lzwzzy/binflow（ADR-0008
 | 包 | 职责 | 公开接口（唯一入口） | M1 不做 |
 |---|---|---|---|
 | `config` | 加载 `binflow.yaml`、env 覆盖（`BINFLOW_` 前缀）、校验、默认值 | `Load(path string) (*Config, error)`；`Config` 值树 | 热重载 [M4+] |
-| `storage` | blob 生命周期：上传会话、checksum 计算、原子落盘、打开读、删除、GC | `Engine`（见 §3.1） | S3 后端（只留 `Backend` 缝 [M6+]）、remote 缓存清理 [M3] |
+| `storage` | blob 生命周期：上传会话、checksum 计算、原子落盘、打开读、删除、GC；**M6+ Backend 接口**（disk/s3） | `Engine`（见 §3.1）；`Backend`（§3.1a，包内接口） | S3 后端（M6 实现，ADR-0018/0019） |
 | `metadata` | 全部 SQL：repositories/nodes/blobs/users/tokens/audit_events 的 CRUD；迁移 | `Store`（见 §3.2）；`Migrate(ctx, dialect)` | 复杂查询优化、审计分库 |
-| `repo` | 仓库语义：Get/Put/Delete/List/Search 的用例编排；local + virtual 解析（ADR-0013） | `Service`（见 §3.3）；`GetLocal(ctx, key)` | remote fetch 本体（归 internal/remote） |
+| `repo` | 仓库语义：Get/Put/Delete/List/Search 的用例编排；local + virtual 解析（ADR-0013）；**M6+ 复制触发** | `Service`（见 §3.3）；`GetLocal(ctx, key)` | remote fetch 本体（归 internal/remote） |
 | `remote` [M3] | 上游代理：pull-through fetch、TTL/条件再验证缓存状态、SSRF 双检、AES-GCM 凭据解密、stale-while-error | `remote.Fetch(ctx, repoKey, path) (FetchResult, error)`（fetcher 门面） | 重试库/熔断（stdlib-only，ADR-0012）、手动失效 UI |
+| `replication` [M6+] | 复制/联邦：推式异步推送、拉式复用 remote 机制、任务状态跟踪、冲突处理（ADR-0021） | `Pusher` / `Scheduler` / `StatusReader`（消费方接口） | 双向复制、事件驱动、删除传播 |
+| `metrics` [M6+] | Prometheus 指标：stdlib expvar 实现，Prometheus 文本格式输出（ADR-0022） | `Registry`（注册/更新/格式化） | Histogram 精确分桶、引入 prometheus/client_golang |
+| `migrate` [M6+] | Artifactory 迁移：REST API 读取 + 转换映射 + BinFlow 写入（ADR-0024） | `ArtifactoryReader` / `Converter` / `BinFlowWriter`（纯 HTTP client） | 审计日志历史迁移、build-info 迁移 |
+| `client` [M6+] | HTTP 客户端封装：Base URL 拼接、auth 头注入、错误信封解析、重试、进度条（被 bf CLI 消费） | `Client`（REST 方法族） | 非 REST 协议（docker/maven/npm 客户端） |
 | `adapter` | SPI：协议无关的 Handler 注册与路由挂载；`layout` 包 | `Handler` + `Register/All`（见 §5.1） | 各协议本体 |
 | `adapter/generic` | Generic(raw) 语义：path 即 layout、上传校验、目录列表 | 实现 `Handler` | —— |
-| `auth` | 密码校验（argon2id）、Token 签发/校验、路径 ACL 决策 | `Authenticator` / `Authorizer` / `TokenRegistry`（§3.4） | 组/匿名/LDAP [M4+] |
+| `auth` | 密码校验（argon2id）、Token 签发/校验、路径 ACL 决策；**M6+ OIDC/LDAP 身份提供者** | `Authenticator` / `Authorizer` / `TokenRegistry` / `IdentityProvider`（§3.4 扩展） | 组/匿名/LDAP [M4+] |
 | `audit` | append-only 审计事件 + 查询 | `Logger`（§3.5） | UI、导出 [M4] |
 | `httpapi` | 监听、路由表、middleware 链、统一错误信封、健康检查、优雅停机 | `Run(ctx, deps)`（§7） | —— |
 | `console` | `//go:embed dist`（web/ 构建产物）；`Handler() http.Handler` 挂 `/binflow/ui/**`（ADR-0014 勘误①——包名不变、挂载段为 ui） | M1~M3 返回占位页 | 前端本体源码（在 `web/`，ux-designer + 前端票） |
@@ -154,7 +163,11 @@ type Engine interface {
     // Open 打开 blob 读取；调用方负责 Close。不存在 → ErrBlobNotFound（wrap）。
     // 返回的 BlobRef 只保证 Sha256+Size 有值；sha1/md5 的事实源是 metadata blobs 表
     //（无 sidecar，ADR-0006）——需要三摘要全量时用 Stat。（T-9 review 回写项 D）
-    Open(ctx context.Context, sha256 string) (io.ReadSeekCloser, BlobRef, error)
+    // [M6+] 返回类型从 io.ReadSeekCloser 变更为 io.ReadCloser（ADR-0019 决策 4）：
+    // disk 实现仍返回可 Seek 的类型（类型断言可用），S3 实现返回 GetObject 的 body。
+    // 需要 Seek 的调用方（docker blob GET with Range）在 adapter 层通过 HTTP Range 头
+    // 直接请求 S3 的部分对象，而非在 Go 层 Seek。
+    Open(ctx context.Context, sha256 string) (io.ReadCloser, BlobRef, error)
     // Stat 是完整性校验而非轻量探测（T-9 review 回写项 E）：全量读内容重算三摘要并
     // 验证内容与路径名自洽，不自洽 → ErrBlobCorrupt。代价 O(size)，供 GC/一致性检查
     // 与修复流程用；存在性探测请走 metadata（blob 行在即视为物理在，异常由 GC 兜底）。
@@ -177,6 +190,29 @@ type Engine interface {
     // BeginSession/Delete/GC（ErrEngineClosed）；Open/Stat 继续服务已提交 blob（只读
     // 不可变文件）。幂等。（T-9 review 回写项 B——§7.4 停机序列要求生命周期对称。）
     Close() error
+}
+```
+
+### 3.1a storage.Backend（包内接口，[M6+] ADR-0019）
+
+```go
+package storage
+
+// Backend 是 storage 包内的纯 blob CRUD 接口，不对外暴露。Engine 是唯一公开面。
+// DiskEngine 直接实现 Engine（不经过 Backend），S3Engine 内部持有一个 Backend（即 S3 client）。
+// 设计目的：Engine 接口保持稳定不变，S3 的实现差异被 Backend 封装在包内。
+type Backend interface {
+    // Put 写入一个完整的 blob。在 disk 上 = write + fsync + rename；
+    // 在 S3 上 = PutObject（S3 PutObject 是原子操作，无需 rename）。
+    Put(ctx context.Context, sha256 string, r io.Reader, size int64) (BlobRef, error)
+    // Get 读取 blob。S3 返回 GetObject body。
+    Get(ctx context.Context, sha256 string) (io.ReadCloser, BlobRef, error)
+    // Delete 物理删除 blob。
+    Delete(ctx context.Context, sha256 string) error
+    // Exists 检查 blob 是否存在（不读取内容）。
+    Exists(ctx context.Context, sha256 string) (bool, error)
+    // List 返回全部已知 blob sha256 列表（用于 GC sweep）。
+    List(ctx context.Context) ([]string, error)
 }
 ```
 
@@ -282,7 +318,24 @@ type Authenticator interface {
     // 支持三臂：Basic（user:password 或 user:token）、Bearer <token> [M2 docker]、
     // Cookie binflow_session（web_sessions 表，M4，ADR-0014 勘误②——HttpOnly/Path=/binflow/SameSite=Lax，
     // TTL console.session_ttl_hours 默认 24（seconds 覆盖键测试粒度）+ last_used 滑动续期受绝对封顶，登出 revoke）。
+    // [M6+] 第四臂：Bearer <oidc_id_token>——OIDC ID Token 验证（JWKS 签名校验 + claims 提取），
+    // 映射为 *Principal（Name=user_claim、Groups=group_claim、Admin=管理员映射表）。
+    // LDAP 不走独立 Bearer 臂——LDAP 用户的认证在 login 端点（POST /api/v1/session）触发。
     Authenticate(ctx context.Context, r *http.Request) (*Principal, error) // nil,nil = 匿名
+}
+
+// [M6+] IdentityProvider 身份提供者接口（ADR-0020 决策 1）：
+// OIDCProvider 和 LDAPProvider 实现此接口。Authenticator 的 OIDC Bearer 臂
+// 与 login 端点的 LDAP bind 均消费此接口，Authorizer 不感知 provider 差异。
+type IdentityProvider interface {
+    // ProviderName 返回 "oidc" 或 "ldap"（对应 users.provider 列值）。
+    ProviderName() string
+    // Authenticate 用 provider 特有方式验证凭据。OIDC：验证 ID Token（JWKS + claims）。
+    // LDAP：用用户名/密码执行 bind 验证。返回 Principal 用于后续授权。
+    Authenticate(ctx context.Context, r *http.Request) (*Principal, error)
+    // Resolve 按 provider_id 查找用户（OIDC sub / LDAP DN），返回 Principal。
+    // 用于首次登录自动创建 users 行后的 Principal 填充。
+    Resolve(ctx context.Context, providerID string) (*Principal, error)
 }
 type Authorizer interface {
     // M1 规则：admin 全通过；否则按命名 permission target（见 §6 permission_targets 表，PRD E-24）
@@ -392,6 +445,62 @@ created --Append(可多次)--> appending --Commit--> committed(终态, session �
 - **enforcement 点在 `repo.Service.Put` 链**（PutFromBlob/PutLandedBlob/PutOpts 同链）：`repositories.config` 的 **`quotaBytes`**（0=不限，默认；键名勘误 T-112：原误写 `quota_bytes`——实现/PRD/REST 均为 camelCase，T-95 review NB4）+ `repo_usage` 计数行（logical_bytes，与 node 增删**同一事务**维护——SQLite 单写者无热行竞争放大）。
 - 预检时序：expect.Size 已知（秒传/mount/docker finalize）→ Commit 前直判；流式 size 未知 → 落盘后判，超限**回滚 node 登记但 blob 留待 GC**（不拒已落盘字节，只拒登记），响应 413 + QUOTA_EXCEEDED（码值 PRD 定）。
 - **口径 = 逻辑字节**（nodes.size 之和）：配额按仓计量，跨仓共享 blob 的物理归属无法公平切分；物理占用走既有 `/api/v1/storage/stats`。**remote 缓存 node 不计量**（口径勘误 T-112：原「计入 + `quota_include_cache` 豁免位 [M5+]」与 PRD §7 Q2「pull-through 落盘不计量」相抵，按 Q2 执行——engine 的 cache node 写不走计量，T-95；既有 remote nodes 已由 005 回填一次性计入，快照语义不回滚；M5+ 若需计量再按「计入开关」重开）。
+
+### 4.7 S3 对象存储后端（M6 增量，ADR-0019）
+
+> **设计原则**：S3 后端与 disk 后端共享同一个 `Engine` 接口（§3.1），实现差异封装在 `Backend` 内部接口（§3.1a）。调用方（adapter、repo.Service）不感知后端类型，仅通过 `Engine` 的门面操作。
+
+**blob 布局**：`<bucket>/<prefix>/blobs/<xx>/<sha256>`（xx = sha256 前两字符，与 disk 布局同构）。`sessions/` 目录为瞬时对象，不上传 S3——S3 后端的上传会话在服务端内存管理（见下方 multipart 模型）。
+
+**S3Engine 与 DiskEngine 的核心差异**：
+
+| 维度 | DiskEngine（M1-M5） | S3Engine（M6） |
+|---|---|---|
+| blob 寻址 | 本地文件系统 `blobs/<xx>/<sha256>` | S3 key `<prefix>/blobs/<xx>/<sha256>` |
+| 上传会话 | 临时目录 `sessions/<uuid>/` + rename 原子落盘 | **S3 multipart upload**（单次 5GB+ blob 分块上传，S3 服务端管理中间态） |
+| Open 返回类型 | 返回 `*os.File`（可 Seek，类型断言可用） | 返回 `io.ReadCloser`（S3 GetObject body，不可 Seek） |
+| GC sweep | 本地 `filepath.Walk` 扫 `blobs/` 目录 | **S3 ListObjectsV2** 分页扫 key 前缀，结合 metadata 引用集合判定 |
+| 并发安全 | rename 原子性 + fsync 保证 | S3 PUT 是原子操作（单对象），无 partial write 暴露 |
+| 备份/恢复 | tar 目录树 + 保 mtime（§7.6） | 备份/恢复 [M7+]——S3 对象版本控制 + 跨桶复制为非默认高级功能 |
+
+**S3 multipart 上传会话模型**（替换 disk 的 `sessions/<uuid>/` 目录）：
+
+1. **BeginSession** → 调 S3 `CreateMultipartUpload`，返回 `UploadID`，会话状态存内存 map（`map[uuid]s3SessionState`，重启丢失 = 会话废弃，S3 侧残留 multipart upload 由定期 `AbortMultipartUpload` 清扫——配置项 `storage.s3.incomplete_upload_cleanup_hours` 默认 24h）。
+2. **Append** → 调 S3 `UploadPart`（partNumber 递增，一次 Append 一个 part）。**单 part 上限 5GiB**（S3 限制），超大 blob 分段由 adapter 层控制（M6 的 Docker/Maven adapter 无需改——其 blob 远小于 5GiB）。
+3. **Commit** → 调 S3 `CompleteMultipartUpload`（提交所有 part）→ 写 `blobs` 台账行。若 Commit 失败（part 列表不完整/ETag 失配），S3 返回错误，会话标记为失败，残留 multipart upload 由定期清扫回收。
+4. **Abort/过期** → 调 S3 `AbortMultipartUpload`（即时释放 S3 侧中间态存储）。
+
+**S3 后端对 GC 的影响**（ADR-0019 决策 5）：
+
+- **mark 阶段不变**：引用集合 = `SELECT DISTINCT sha256 FROM nodes UNION SELECT DISTINCT blob_digest FROM docker_refs`（与 disk 后端同集合）。
+- **sweep 阶段变体**：disk 用 `filepath.Walk` 扫 `blobs/` 目录；S3 用 `ListObjectsV2` 分页扫 `blobs/` 前缀，逐个 key 提取 sha256 → 不在引用集合中 → **且** GC grace 期（`gc_grace_hours`）比对 S3 `LastModified`（等价于 disk 的 mtime 语义）→ `DeleteObject`。
+- **性能**：S3 ListObjects 每次 1000 条，百万 blob 需约 1000 次 API 调用（费用约 $0.005/千次，即 $5/百万 blob 扫描——M6 文档标注）。
+
+**S3 配置段**（§8 详细 schema）：
+
+```yaml
+storage:
+  backend: "disk"          # 'disk' | 's3'（M6 默认 disk，向后兼容）
+  data_dir: "./data"       # disk 后端的数据目录（s3 后端时忽略）
+  s3:
+    bucket: ""
+    prefix: ""             # 对象 key 前缀，多实例共享桶时使用
+    region: "us-east-1"
+    endpoint: ""           # 兼容 S3 协议的对象存储（MinIO/Ceph/阿里云 OSS），空=使用 AWS 默认 endpoint
+    access_key_id: ""      # 走 env BINFLOW_STORAGE__S3__ACCESS_KEY_ID（秘密不入 YAML）
+    secret_access_key: ""  # 走 env BINFLOW_STORAGE__S3__SECRET_ACCESS_KEY（秘密不入 YAML）
+    use_path_style: false  # MinIO 等需要 path-style 寻址
+    force_path_style: false
+    max_retries: 3
+    upload_part_size_mb: 64
+    incomplete_upload_cleanup_hours: 24
+```
+
+**S3 后端已知限制**（§11 M6 技术债登记）：
+
+1. **Open 不返回 Seek**：`Engine.Open` 返回 `io.ReadCloser`（§3.1 M6 变更），docker blob GET with Range 需在 adapter 层通过 S3 `Range` 头直取部分对象，而非 Go 层 Seek。
+2. **单实例共享桶时的锁**：M6 不实现跨实例的 blob 写锁（disk 的 singleflight 在进程内有效，S3 侧无分布式锁——同 blob 并发写最后一个 CompleteMultipartUpload 获胜，S3 LastModified 更新）。
+3. **备份/恢复**：S3 后端的 backup/restore 不在 M6 范围（disk 后端已有 §7.6 的 CLI export/import），M7+ 再议 S3 版本控制或跨区域复制方案。
 
 ---
 
@@ -780,6 +889,55 @@ CREATE TABLE repo_usage (                 -- 配额计数（ADR-0015 决策 2）
   updated_at    TEXT NOT NULL
 );
 
+-- ===== 008_oidc_ldap.sql（M6 增量，ADR-0020；架构定稿，dev-go-core 落迁移文件）=====
+-- 在 users 表增加 provider/provider_id 列，支持 OIDC/LDAP 身份源。
+-- 必须先行于 009_replication.sql（replications 引用 users 表）。
+--   ALTER TABLE users ADD COLUMN provider TEXT NOT NULL DEFAULT 'local';
+--     'local' = 本地密码/token 用户（既有语义不变）；'oidc' = OIDC 认证用户；
+--     'ldap' = LDAP 认证用户（password_hash 为空，无本地密码）。
+--   ALTER TABLE users ADD COLUMN provider_id TEXT NOT NULL DEFAULT '';
+--     OIDC: ID Token 的 'sub' claim；LDAP: 用户的 DN（distinguished name）。
+--     本地用户（provider='local'）必须为空字符串。
+-- 索引（SQLite 方言）：
+--   CREATE INDEX idx_users_provider ON users(provider, provider_id);
+--     SQLite 不支持部分唯一索引（WHERE provider != 'local'），故使用普通非唯一索引；
+--     非本地用户的 (provider, provider_id) 唯一性由服务层 enforce。
+-- 索引（Postgres 方言）：
+--   CREATE UNIQUE INDEX idx_users_provider ON users(provider, provider_id) WHERE provider != 'local';
+--     Postgres 支持条件唯一索引，非本地用户直接由 DB 保证唯一性。
+
+-- ===== 009_replication.sql（M6 增量，ADR-0021；架构定稿，dev-go-core 落迁移文件）=====
+-- 复制/联邦：push 复制（异步，制品 Put 后触发）+ pull 复制（复用 remote 机制，ADR-0021 决策 2）。
+CREATE TABLE replications (
+  id                         INTEGER PRIMARY KEY,
+  name                       TEXT NOT NULL UNIQUE,       -- 人类可读名称
+  source_repo                TEXT NOT NULL REFERENCES repositories(repo_key) ON DELETE CASCADE,
+  target_url                 TEXT NOT NULL,              -- 目标 BinFlow 实例 base URL（如 https://remote.example.com）
+  target_repo                TEXT NOT NULL,              -- 目标实例上的仓库 key
+  target_username            TEXT NOT NULL DEFAULT '',
+  target_password_enc        TEXT NOT NULL DEFAULT '',   -- AES-256-GCM 加密（enc:v1:<b64> 格式，与 remote_configs.password 同规）
+  max_bandwidth_bytes_per_sec INTEGER NOT NULL DEFAULT 0, -- 0 = 不限速
+  max_items_per_push         INTEGER NOT NULL DEFAULT 1000, -- 每次触发推送的制品数上限
+  enabled                    INTEGER NOT NULL DEFAULT 1,
+  created_at                 TEXT NOT NULL,
+  updated_at                 TEXT NOT NULL
+);
+CREATE INDEX idx_replications_source ON replications(source_repo);
+
+CREATE TABLE replication_tasks (  -- 单次复制任务记录（push 方向）
+  id              INTEGER PRIMARY KEY,
+  replication_id  INTEGER NOT NULL REFERENCES replications(id) ON DELETE CASCADE,
+  blob_sha256     TEXT NOT NULL,              -- 被复制的 blob hex sha256
+  node_path       TEXT NOT NULL,              -- 仓库内相对路径
+  status          TEXT NOT NULL DEFAULT 'pending', -- pending|in_progress|success|failed|skipped
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  last_error      TEXT NOT NULL DEFAULT '',
+  created_at      TEXT NOT NULL,
+  completed_at    TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX idx_replication_tasks_status ON replication_tasks(replication_id, status);
+CREATE INDEX idx_replication_tasks_pending ON replication_tasks(status, created_at);  -- 调度器扫描候选
+
 首启种子数据（迁移 001 内）：预置 `admin` 用户（is_admin=1）。口令引导（ADR-0009，用户定案）：env `BINFLOW_ADMIN_PASSWORD` 优先；未设置时使用**文档化缺省值 `password`**（仅限评估——文档与启动日志双重标注，检测到缺省值时启动打 WARN）；仅在 admin 用户不存在时生效，改密后不被后续启动覆盖。
 
 模块路径：go.mod `module github.com/lzwzzy/binflow`（ADR-0008），所有 import 以此为根。
@@ -793,7 +951,18 @@ CREATE TABLE repo_usage (                 -- 配额计数（ADR-0015 决策 2）
 ```
 /healthz            GET   存活（恒 200，无依赖检查）          → K8s liveness（基础端点，不带前缀）
 /readyz             GET   就绪（metadata ping + storage 可写） → K8s readiness（同上）
-/metrics            GET   [M5] Prometheus（同上）
+/metrics            GET   [M6] Prometheus 指标（expvar + 自写 text format，ADR-0022；不带
+                          /binflow 前缀，与 /healthz/readyz 同为根级探测端点）
+                          **可用指标**（M6 最小集）：
+                          - binflow_blob_count（gauge，当前 blob 总数）
+                          - binflow_blob_bytes（gauge，当前 blob 物理总字节）
+                          - binflow_node_count（gauge，当前 node 总数）
+                          - binflow_repo_count（gauge，当前仓库数）
+                          - binflow_http_requests_total（counter，labels: method, path_group, status_class）
+                          - binflow_http_request_duration_seconds（histogram，labels: method, path_group）
+                          - binflow_upload_sessions_active（gauge，活跃上传会话数）
+                          - binflow_go_memstats（go 标准 expvar 内存指标族）
+/metrics/json       GET   [M6] 同上指标，JSON 格式（expvar 原生格式，调试/自定义采集器用）
 /v2/...             *     docker adapter [M2]（**根级例外**，ADR-0010：不剥 /binflow 前缀，进同一
                           middleware 链；含 /v2/token 自有 token 端点；详见 §5.3）
 /binflow/api/v1/... *     自有 API（稳定契约，全部需认证——匿名只作用于内容路径）：
@@ -843,6 +1012,26 @@ CREATE TABLE repo_usage (                 -- 配额计数（ADR-0015 决策 2）
                                                  changePassword 真实路径别名并存）
   GET    /binflow/api/v1/storage/usage/{repo}       配额用量观测（{repo,usedBytes,quotaBytes}——GE-06；
                                                  quota 配置走 repositories 字段 quotaBytes，无专用设置端点）
+  POST   /binflow/api/v1/auth/oidc/init              [M6] OIDC 登录初始化（接受 JSON {"provider"} 或 URL query
+                                                 ?provider=，返回 {"redirect_url"}——前端/CLI 重定向到 OIDC
+                                                 Provider 的授权端点；state 参数由服务端生成并存入临时
+                                                 cookie `binflow_oidc_state`，HttpOnly+SameSite=Lax，TTL 10min）
+  GET    /binflow/api/v1/auth/oidc/callback           [M6] OIDC 回调端点（OIDC Provider 授权后回跳终点；
+                                                 验证 state 参数 ↔ `binflow_oidc_state` cookie → 用 code 换
+                                                 ID Token → 验证 JWT 签名与 claims → 签发本地 session/token；
+                                                 登录成功 → 302 到 /binflow/ui/；失败 → 302 到 /binflow/ui/login?error=）
+  GET    /binflow/api/v1/auth/oidc/providers          [M6] 列出已配置的 OIDC Provider 列表（公开端点，匿名可读：
+                                                 [{"name","display_name","icon_url"}]，不暴露 client_id/secret）
+  POST   /binflow/api/v1/replications                 [M6] 创建复制配置（admin；body 见 §8 配置段；source_repo
+                                                 必须存在且为 local 类型）
+  GET    /binflow/api/v1/replications                 [M6] 列出全部复制配置（admin）
+  GET    /binflow/api/v1/replications/{id}            [M6] 单个复制配置详情（admin）
+  PUT    /binflow/api/v1/replications/{id}            [M6] 更新复制配置（admin；PUT = create-or-replace 语义）
+  DELETE /binflow/api/v1/replications/{id}            [M6] 删除复制配置（级联删 replication_tasks；admin）
+  POST   /binflow/api/v1/replications/{id}/trigger    [M6] 手动触发复制任务（admin；异步执行，立即返回 202 +
+                                                 {"task_count": N}；任务写入 replication_tasks 表，由
+                                                 scheduler goroutine 消费）
+  GET    /binflow/api/v1/replications/{id}/tasks      [M6] 列出复制任务历史（admin；?status=&limit=&offset=）
   GET    /binflow/api/storage/{repo}/{path}?permissions
                                                  有效权限视图（SE-08/FR-27，M4 T-97；path 空=仓根）；
                                                  **admin 门**——T-97 review B2 定案：管理面数据（枚举主体名
@@ -916,22 +1105,67 @@ Content-Type: application/json
 
 ```yaml
 # binflow.yaml —— 全量字段（M1）；未列字段一律不给默认值即零值
+# [M6] 新增 storage.backend、storage.s3、auth.oidc、auth.ldap、replication 段
 server:
   listen: ":8080"                # env BINFLOW_SERVER__LISTEN
   base_url: ""                   # 对外可见 URL（控制台链接/absolute path 用），空=请求推导
   graceful_timeout_seconds: 30
   cors_origins: []               # 空=同源限制
 storage:
-  data_dir: "./data"             # 唯一必须人工确认的路径；env 扁便捷拼写 BINFLOW_DATA_DIR（见四个例外名）
+  backend: "disk"                # [M6] 'disk' | 's3'（默认 disk，向后兼容；ADR-0019）
+  data_dir: "./data"             # disk 后端的数据目录（s3 后端时忽略）；env 扁便捷拼写 BINFLOW_DATA_DIR
   session_ttl_hours: 24          # 零值 = 默认 24h（T-9 回写项 J）
   gc_grace_hours: 24             # 零值 = 默认 24h；grace 基准 = blob 文件 mtime（§4.4 硬约束）
+  s3:                            # [M6] S3 对象存储后端配置（backend=s3 时必填；ADR-0019）
+    bucket: ""
+    prefix: ""                   # 对象 key 前缀，多实例共享桶时使用
+    region: "us-east-1"
+    endpoint: ""                 # 兼容 S3 协议的对象存储（MinIO/Ceph/阿里云 OSS），空=使用 AWS 默认 endpoint
+    access_key_id: ""            # 走 env BINFLOW_STORAGE__S3__ACCESS_KEY_ID（秘密不入 YAML）
+    secret_access_key: ""        # 走 env BINFLOW_STORAGE__S3__SECRET_ACCESS_KEY（秘密不入 YAML）
+    use_path_style: false
+    max_retries: 3
+    upload_part_size_mb: 64      # multipart upload 单 part 大小（MB）
+    incomplete_upload_cleanup_hours: 24  # 未完成的 multipart upload 自动清理周期
 metadata:
-  driver: "sqlite"               # 'sqlite' | 'postgres'(M1 只实现 sqlite)
+  driver: "sqlite"               # 'sqlite' | 'postgres'
   dsn: ""                        # sqlite: 文件路径（空=data_dir/binflow.db）；postgres: URL
 auth:
   argon2_memory_mb: 64
   token_default_ttl_hours: 720   # 30d
-
+  oidc:                          # [M6] OIDC 身份提供者列表（ADR-0020）；可配置多个 Provider
+    - name: "google"             # Provider 唯一标识（用于 /api/v1/auth/oidc/init?provider=）
+      display_name: "Google"     # 控制台登录按钮显示名
+      issuer: "https://accounts.google.com"  # OIDC Issuer URL（/.well-known/openid-configuration 自动发现）
+      client_id: ""              # 走 env BINFLOW_AUTH__OIDC__<N>__CLIENT_ID（秘密不入 YAML）
+      client_secret: ""          # 走 env BINFLOW_AUTH__OIDC__<N>__CLIENT_SECRET（秘密不入 YAML）
+      redirect_url: ""           # 空 = {base_url}/binflow/api/v1/auth/oidc/callback
+      scopes: ["openid","profile","email"]
+      claim_mapping:             # OIDC claims → BinFlow 用户字段映射
+        username_claim: "email"  # 默认用 email 作为 username
+        email_claim: "email"
+        display_name_claim: "name"
+      auto_provision: true       # 首次登录时自动创建用户（admin=false，需手动授权）
+      icon_url: ""               # 控制台登录按钮图标（可选）
+  ldap:                          # [M6] LDAP 身份提供者（ADR-0020）；单实例
+    enabled: false
+    host: ""
+    port: 389                    # 636 为 LDAPS（推荐）
+    use_ssl: false
+    base_dn: ""                  # 如 "dc=example,dc=com"
+    user_dn_pattern: ""          # 如 "uid={0},ou=users"——{0} 替换为登录用户名
+    bind_user: ""                # 走 env BINFLOW_AUTH__LDAP__BIND_PASSWORD（秘密不入 YAML）
+    bind_password: ""
+    username_attribute: "uid"    # LDAP 属性映射到 BinFlow username
+    email_attribute: "mail"
+    display_name_attribute: "cn"
+    auto_provision: true
+replication:                     # [M6] 复制调度器配置（ADR-0021）
+  enabled: true
+  scheduler_interval_seconds: 60 # 调度器扫描间隔（检查 pending 任务）
+  max_concurrent_tasks: 10       # 全局并发复制任务上限
+  task_retry_max: 3              # 单个任务最大重试次数
+  task_retry_delay_seconds: 300  # 失败任务重试间隔（5 分钟）
 security:
   anonymous_access: true         # 内容路径 GET/HEAD 匿名放行（ADR-0009）；false = 全端点认证
                                  # 用户可见主键名（PRD/NFR-S8）；env BINFLOW_SECURITY_ANONYMOUS_ACCESS
@@ -945,7 +1179,7 @@ logging:
   format: "json"                 # json|console
 ```
 
-校验规则（`Load` 内，fail-fast）：port 可解析；`data_dir` 可创建/可写；driver ∈ 枚举；未知顶层键报错（防拼写静默失效）。`Config` 结构带 `Validate()` 与 `Defaults()`，表驱动测试覆盖每条规则。
+校验规则（`Load` 内，fail-fast）：port 可解析；`data_dir` 可创建/可写（disk 后端）；`storage.backend` ∈ {disk, s3}；`metadata.driver` ∈ {sqlite, postgres}；s3 后端时 `bucket`/`region` 必填；OIDC provider 的 `name`/`issuer` 必填且 `name` 唯一；LDAP enabled 时 `host`/`base_dn` 必填；未知顶层键报错（防拼写静默失效）。`Config` 结构带 `Validate()` 与 `Defaults()`，表驱动测试覆盖每条规则。
 
 ---
 
@@ -963,6 +1197,37 @@ logging:
 **M2 增补（ADR-0010 裁决第 6 条）**：docker 可用性**不依赖反代**——单二进制/compose/Helm 形态下 `/v2/**` 由应用直接服务，`docker login <host>` 直连即可。已有 nginx/traefik 前置的用户可对 `/v2/` **直通不 rewrite**（`proxy_pass` 原样）；compose 产物（T-17 产物演进）默认**不加**反代组件，文档给「前置反代直通 `/v2/`」示例片段即可。
 
 **M5 增补（ADR-0011）**：帮助文档中心 = Docusaurus 站点，build 产物 **go:embed 进 binflow-server**、挂 `/binflow/docs/**`（统一前缀内）——每种部署形态自带文档（离线/air-gapped 场景可查，对齐「15 分钟跑通」成功标准）；独立域名托管为用户可选自办（同一份静态产物），BinFlow 不维护双轨。源文件工作流：tech-writer 只写 `docs/user/*.md`（frontmatter 用 Docusaurus 兼容子集），`docs-site/` 聚合构建（配置归 architect/release-engineer，writer 不碰）。Makefile 增 `docs` 目标；二进制 40MB 预算对 docs 增量（典型 5~15MB）在 M5 check-size 实测，超限 fallback 独立 tar。
+
+**M6 增补（ADR-0019/0020/0021/0022）**：
+
+- **S3 后端（ADR-0019）**：
+  - K8s 形态：S3 后端时**无需 PVC**（blob 数据全在对象存储），Deployment 可为多副本（M6 多副本实验性——单副本为推荐配置，多副本需验证 SQLite 写冲突场景，见 §11.21）。
+  - 环境变量：`BINFLOW_STORAGE__S3__ACCESS_KEY_ID`、`BINFLOW_STORAGE__S3__SECRET_ACCESS_KEY` 必须通过 K8s Secret 注入（不落 YAML）。
+  - 网络要求：入站（用户/客户端）→ 端口 8080；出站 → S3 endpoint（HTTPS 443）用于对象存储操作。
+  - MinIO 示例：`storage.s3.endpoint: "http://minio.minio.svc.cluster.local:9000"` + `use_path_style: true`。
+
+- **OIDC/LDAP（ADR-0020）**：
+  - OIDC callback URL 必须是 `{base_url}/binflow/api/v1/auth/oidc/callback`，反代/TLS 终结层必须透传该路径。
+  - OIDC Provider 的 `client_secret` 走 env `BINFLOW_AUTH__OIDC__<N>__CLIENT_SECRET`（`<N>` 为配置数组索引，从 0 开始）。
+  - LDAP 绑定密码走 env `BINFLOW_AUTH__LDAP__BIND_PASSWORD`。
+  - 自签 LDAP 证书：需将 CA 证书挂载到容器并设置 `SSL_CERT_FILE` 或 `LDAPTLS_CACERT` 环境变量。
+
+- **Prometheus 指标（ADR-0022）**：
+  - `/metrics` 端点输出 Prometheus text format（`Content-Type: text/plain; version=0.0.4`），无 `/binflow` 前缀。
+  - K8s ServiceMonitor/PodMonitor 直接抓取 `/metrics` 即可，无需 sidecar 或 exporter。
+  - 指标采集间隔建议 30s-60s，`binflow_http_request_duration_seconds` histogram 的 bucket 分位按需调整。
+
+- **复制（ADR-0021）**：
+  - 复制调度器为服务内 goroutine（`scheduler_interval_seconds` 默认 60s），无需额外 sidecar。
+  - 目标实例密码（`target_password_enc`）通过 REST API 提交时以明文传输（HTTPS 保护），服务端 AES-256-GCM 加密后入库。
+  - 复制为单向 push，多实例互通需在各实例上分别配置 `replications`。
+
+| 形态 | 卷（disk 后端） | 卷（S3 后端） | 健康检查 | 说明 |
+|---|---|---|---|---|
+| 单二进制 | `<data_dir>`（blobs+sessions+db） | 仅 `<data_dir>`（db+sessions） | `/healthz` `/readyz` `/metrics` | S3 后端时 data_dir 仅存储 SQLite 与瞬时会话 |
+| Docker/compose | volume → `/var/lib/binflow` | 仅 db+sessions volume | 同上 | S3 后端时 volume 可大幅缩小 |
+| Helm/K8s | PVC(RWO) → `/var/lib/binflow` | **无 PVC**（S3）或小型 PVC（仅 db）/ emptyDir（sessions） | 同上 + ServiceMonitor | S3 后端时多副本实验性支持（§11.21） |
+| 离线包 | 镜像 tar + chart + 脚本 | 同上 | 同上 | — |
 
 公共约定：配置挂载点 `/etc/binflow/binflow.yaml`（env 优先级更高）；日志 stdout（12-factor）；优雅停机期 ≥ 30s（terminationGracePeriodSeconds 对齐 §7.4）。
 
@@ -1004,6 +1269,24 @@ logging:
 19. **备份不含 web_sessions（remote_cache 随 db 走）**：导出面 = db（含 remote_cache 表）+ blobs——即 remote 缓存元数据随 db 走、缓存 blob 随 blobs/ 走，语义自洽；web_sessions 属运行态不入备份（export 时从快照 purge，恢复后用户重登）。（标题勘误 T-112：原「不含 remote_cache/web_sessions」与正文「db 含 remote_cache 表」自相矛盾——实现按正文语义，T-96 review N7。）
 20. **remote 缓存落节点不材料化祖先 folder 行（ADR-0016 边界）**：remote engine 直写 `Nodes().Put` 不经 putNode，缓存树的目录无 folder 行——M4 无 remote 目录浏览面（repo-semantics §7.1 listRemoteFolderItems 默认 false、console 树只浏览 local 仓），不可观察；M5+ 若开 remote 目录浏览/聚合（repo-semantics §8.5），engine 落节点须改经 repo.Service 或共享材料化助手（届时与 §4.5 增量票合并评估）。
 
+21. **S3 后端 Open 不返回 Seek（ADR-0019 决策 4）**：`Engine.Open` 返回 `io.ReadCloser`，disk 实现仍返回可 Seek 的类型（类型断言可用），S3 实现返回 `GetObject` body。需要 Range 的调用方（docker blob GET）在 adapter 层通过 HTTP Range 头直接请求 S3 的部分对象，而非 Go 层 Seek（§4.7 限制 1）。
+
+22. **S3 后端单实例共享桶时无分布式锁（ADR-0019 限制 2）**：disk 的 per-checksum singleflight 在进程内有效，S3 侧无跨进程 blob 写锁——同 blob 并发写最后一个 `CompleteMultipartUpload` 获胜，S3 `LastModified` 更新。M6 多副本为实验性，正式 HA 需引入分布式锁（Postgres advisory lock 或 Redis）。
+
+23. **S3 后端备份/恢复不覆盖（ADR-0019 限制 3）**：§7.6 的 CLI export/import 仅支持 disk 后端。S3 后端的备份/恢复 [M7+] 再议（S3 版本控制或跨区域复制方案）。
+
+24. **SQLite 写冲突在 S3 后端的多副本场景（ADR-0019）**：S3 后端 blob 数据在对象存储，但 SQLite 元数据仍在本地磁盘——多副本共享 S3 但各有独立 SQLite 时，元数据不一致（副本 A 创建的 node 行，副本 B 不可见）。M6 单副本为推荐配置；多副本需共享 Postgres 元数据后端 + S3 blob 存储（届时元数据写冲突消除）。
+
+25. **OIDC/LDAP 用户自动创建后的权限管理（ADR-0020）**：`auto_provision: true` 创建的用户 `is_admin=false`，初次登录后无任何仓库权限——需管理员手动分配 permission target。后续版本可考虑 OIDC claim → group 映射或默认角色。
+
+26. **OIDC session 与本地 session 的 TTL 共用（ADR-0020）**：OIDC 登录签发的是标准 `web_sessions` 行，TTL 与本地密码登录一致（`console.session_ttl_hours`）。OIDC ID Token 自身的 `exp` 不控制 BinFlow 会话时长——OIDC 只用于初次认证，后续请求不验证 ID Token 新鲜度。如需强制周期性 OIDC 重认证，需额外配置 `max_session_age`（M7+）。
+
+27. **复制为单向 push 无双向同步（ADR-0021 决策 1）**：M6 只实现 push 复制（制品 Put 后异步触发）+ pull 复制（复用 remote 机制）。双向同步（active-active）为 M7+ 需求，需冲突解决策略（last-write-wins 或 CRDT）。
+
+28. **复制任务无去重（ADR-0021）**：同一 blob 被多次触发复制时，`replication_tasks` 表可能产生多条 pending 记录（不同 `node_path` 但同 `blob_sha256`）。目标端 blob 去重由目标实例的存储引擎完成（sha256 主键），但网络传输浪费。后续可加 `(replication_id, blob_sha256)` 的 pending 去重。
+
+29. **Prometheus 指标为自写格式非官方 client（ADR-0022 决策 1）**：为避免新增依赖（`prometheus/client_golang` 及其传递依赖树），M6 使用 stdlib `expvar` + 自写 Prometheus text format 序列化器。指标类型（counter/gauge/histogram）正确性需在实现层严格保证，且 histogram 的 `_bucket`/`_sum`/`_count` 后缀规则必须符合 Prometheus 数据模型。若后续社区要求 OpenTelemetry 集成，可按 ADR-0005 重新评估依赖准入。
+
 ## 12. 待逆向规格确认清单（阻塞点挂 docs/reverse/）
 
 | # | 问题 | 规格文件 | 影响面 |
@@ -1017,3 +1300,7 @@ logging:
 | 7 [M2] | 单段 name（无 repo 前缀）的 404 行为、`/v2/_catalog` 匿名是否放宽、Www-Authenticate realm/service 参数确切形态 | docker-registry.md（T-31 产出后） | §5.3 路由与 token 流 |
 | 8 [M3] | ~~virtual priorityResolution 精确语义~~（已由 repo-semantics §8.1 定案：两桶序，ADR-0013 联动记录收口）、remote 影子缓存仓行为（`<key>-cache` 在 Artifactory 的可见性/清理语义）、maven-metadata.xml 合并算法细节（version 去重/排序/placement——C1 已定案大部分） | repo-semantics.md §7.3/§8（余项） | §5.4 接线、§6 003 注释 |
 | 9 [M3] | npm publish 重复 version 状态码（npm 官方语义 403 vs Artifactory）、twine 重复 filename 码、sha512 integrity 的校验策略 | maven-npm-pypi 规格票（M3）+ M3 PRD | §5.4.2/§5.4.3 |
+| 10 [M6] | Artifactory OIDC 登录流的精确行为（callback URL 路径、state/code 参数形态、ID Token 验证细节）——作为 ADR-0020 的对齐参考 | auth-model.md（存续增补） | §3.4/§7.1 |
+| 11 [M6] | Artifactory 复制/联邦的 push/pull 触发语义（trigger 事件、retry 策略、进度追踪 API 形状）——作为 ADR-0021 的对齐参考 | repo-semantics.md（存续增补）/ federation.md | §7.1/§8 |
+| 12 [M6] | Artifactory S3 存储后端的 blob 布局（checksum 路径是否一致、multipart upload 的 session 语义差异）——作为 ADR-0019 对齐验证 | storage-layout.md（存续增补） | §4.7 |
+| 13 [M6] | Artifactory Prometheus/expvar 指标名命名惯例（metric name prefix、label 命名风格）——作为 ADR-0022 的对齐参考（非块——Prometheus 无厂商标准，仅一致性佐证） | metrics.md（新） | §7.1 |

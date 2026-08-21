@@ -30,11 +30,47 @@ type ServerConfig struct {
 	GracefulTimeout time.Duration
 }
 
+// StorageBackend is the enum for the storage backend selection.
+const (
+	StorageBackendDisk = "disk"
+	StorageBackendS3   = "s3"
+)
+
 // StorageConfig is the blob engine surface.
 type StorageConfig struct {
-	DataDir    string        // root for blobs/, sessions/, binflow.db
-	SessionTTL time.Duration // expired upload sessions are reaped at startup
-	GCGrace    time.Duration // unreferenced blobs younger than this survive GC
+	DataDir    string          // root for blobs/, sessions/, binflow.db (disk only)
+	Backend    string          // "disk" (default) | "s3" — storage backend selection
+	SessionTTL time.Duration   // expired upload sessions are reaped at startup
+	GCGrace    time.Duration   // unreferenced blobs younger than this survive GC
+	S3         S3Config        // S3 backend configuration (only used when Backend=s3)
+	Migration  MigrationConfig // disk-to-S3 migration configuration
+}
+
+// S3Config holds the S3-compatible object storage configuration. The
+// secret_access_key field is env-only (BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY)
+// and must never appear in the YAML file. The bucket_prefix is an optional
+// key prefix under which all blobs are stored (e.g. "binflow-prod").
+type S3Config struct {
+	Bucket            string // S3 bucket name (required)
+	Region            string // AWS region or MinIO-compatible region (required)
+	Endpoint          string // S3-compatible endpoint URL (required; e.g. https://s3.amazonaws.com)
+	AccessKeyID       string // access key ID (required)
+	SecretAccessKey   string // secret access key (env-only, never in YAML)
+	UsePathStyle      bool   // use path-style addressing (true for MinIO)
+	UploadPartSize    int64  // multipart upload part size in bytes (default 5 MiB)
+	UploadConcurrency int    // number of concurrent part uploads (default 4)
+	BucketPrefix      string // optional key prefix for all stored objects
+}
+
+// MigrationConfig holds the disk-to-S3 online migration configuration.
+// When enabled, the storage layer enters dual-write mode: all writes go to both
+// disk and S3, reads check S3 first with disk fallback. A background goroutine
+// copies existing blobs from disk to S3. When completed, the migration flag
+// switches to single-write (S3-only).
+type MigrationConfig struct {
+	Enabled     bool // enable dual-write mode and background migration
+	Completed   bool // set to true after all blobs have been migrated; restart-safe
+	Concurrency int  // background migration goroutine count (default 5)
 }
 
 // MetadataConfig selects the SQL driver. M1 ships sqlite; postgres is accepted

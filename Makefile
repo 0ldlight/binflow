@@ -2,7 +2,10 @@
 # The Makefile is the single door into every build/test/lint command, for both
 # humans and CI (.github/workflows/ci.yml invokes these same targets).
 
-BINARY      := bin/binflow-server
+BINARY          := bin/binflow-server
+BF              := bin/bf
+BF_MIGRATE      := bin/bf-migrate
+BINARIES        := $(BINARY) $(BF) $(BF_MIGRATE)
 GO          ?= go
 # The Go package list excludes web/: it is the console's own build domain
 # (npm toolchain, eslint/tsc gates) and node_modules vendors third-party Go
@@ -21,15 +24,18 @@ export GOPROXY
 export GOTOOLCHAIN
 
 .PHONY: all build test lint fmt vet tidy run dev clean tools check-size docs docs-size console console-size \
-	goreleaser-check release-snapshot release release-verify help
+	check-deps goreleaser-check release-snapshot release release-verify help
 
 all: build
 
-## build: compile bin/binflow-server with CGO disabled (ADR-0005 zero-CGo baseline).
-## Node-free by design: the console rides the committed placeholder shell until
-## `make console` has run in this checkout (T-89 placeholder strategy).
+## build: compile bin/binflow-server + bin/bf + bin/bf-migrate with CGO disabled
+## (ADR-0005 zero-CGo baseline). Node-free by design: the console rides the
+## committed placeholder shell until `make console` has run in this checkout
+## (T-89 placeholder strategy).
 build:
 	CGO_ENABLED=0 $(GO) build -trimpath -o $(BINARY) ./cmd/binflow-server
+	CGO_ENABLED=0 $(GO) build -trimpath -o $(BF) ./cmd/bf
+	CGO_ENABLED=0 $(GO) build -trimpath -o $(BF_MIGRATE) ./cmd/bf-migrate
 	@$(MAKE) --no-print-directory check-size
 
 ## console: build the web console (npm ci — lockfile-pinned, ADR-0014
@@ -127,30 +133,52 @@ tools:
 	@echo "golangci-lint:   $$("$(GOLANGCI)" --version 2>/dev/null || echo 'not installed (run: make lint)')"
 	@echo "goreleaser:      $$("$(GORELEASER)" --version 2>/dev/null | grep -m1 GitVersion || echo 'not installed (run: make release-snapshot)')"
 
-## check-size: product budget gate (PRODUCT <40MB), two faces (T-127, G03):
-## the raw bin/binflow-server (WARN only, unchanged since T-7) and every
-## compressed dist/ release artifact (exit 1 when any platform archive is
-## over budget; CHECK_SIZE_WARN=1 downgrades that face to a warning). No
-## dist/ artifacts — the common `make build` case — leaves just the report.
-check-size:
-	@size=$$(wc -c < $(BINARY) | tr -d ' '); \
-	mb=$$(awk -v b="$$size" 'BEGIN { printf "%.2f", b/1048576 }'); \
-	echo "bin size: $$mb MB ($(BINARY))"; \
-	if [ "$$size" -gt 41943040 ]; then \
-		echo "WARNING: binary exceeds the 40MB product budget"; \
+## check-deps: verify zero CGo baseline (ADR-0005) — list all CGo-referencing
+## deps and fail if any found. Run after every `go get` or go.mod edit.
+check-deps:
+	@cgo_deps=$$(CGO_ENABLED=0 $(GO) list -deps -f '{{if .CgoFiles}}{{.ImportPath}}{{end}}' ./...); \
+	if [ -n "$$cgo_deps" ]; then \
+		echo "ERROR: CGo dependencies found (ADR-0005 violation):"; \
+		echo "$$cgo_deps"; \
+		exit 1; \
 	fi; \
+	echo "check-deps: zero CGo baseline — OK (ADR-0005)"
+
+## check-size: product budget gate (T-148), three faces:
+## 1. Raw binaries: bin/bf (<15MB T-148 AC2), bin/bf-migrate (<15MB),
+##    bin/binflow-server (<40MB PRODUCT, unchanged since T-7).
+##    WARN only — `make build` never fails on size.
+## 2. Every compressed dist/ release archive (exit 1 when any platform
+##    archive is over 40MB; CHECK_SIZE_WARN=1 downgrades to a warning).
+## 3. No dist/ artifacts — the common `make build` case — leaves just the
+##    per-binary report.
+check-size:
+	@echo "--- raw binaries ---"; \
+	for pair in "bin/bf:15728640" "bin/bf-migrate:15728640" "$(BINARY):41943040"; do \
+		f=$${pair%%:*}; \
+		limit=$${pair#*:}; \
+		[ -f "$$f" ] || continue; \
+		sz=$$(wc -c < "$$f" | tr -d ' '); \
+		mb=$$(awk -v b="$$sz" 'BEGIN { printf "%.2f", b/1048576 }'); \
+		limit_mb=$$(awk -v b="$$limit" 'BEGIN { printf "%.0f", b/1048576 }'); \
+		echo "  $$f: $$mb MB (budget $$limit_mb MB)"; \
+		if [ "$$sz" -gt $$limit ]; then \
+			echo "  WARNING: $$f exceeds the $$limit_mb MB budget"; \
+		fi; \
+	done; \
+	echo "--- dist archives ---"; \
 	over=0; \
 	for f in dist/binflow_*.tar.gz dist/binflow_*.zip; do \
 		[ -e "$$f" ] || continue; \
 		sz=$$(wc -c < "$$f" | tr -d ' '); \
 		mbz=$$(awk -v b="$$sz" 'BEGIN { printf "%.2f", b/1048576 }'); \
-		echo "archive size: $$mbz MB ($$f)"; \
+		echo "  $$mbz MB ($$f)"; \
 		if [ "$$sz" -gt 41943040 ]; then \
 			over=1; \
 			if [ "$(CHECK_SIZE_WARN)" = "1" ]; then \
-				echo "WARNING: $$f exceeds the 40MB product budget"; \
+				echo "  WARNING: $$f exceeds the 40MB product budget"; \
 			else \
-				echo "ERROR: $$f exceeds the 40MB product budget (CHECK_SIZE_WARN=1 downgrades to a warning)"; \
+				echo "  ERROR: $$f exceeds the 40MB product budget (CHECK_SIZE_WARN=1 downgrades to a warning)"; \
 			fi; \
 		fi; \
 	done; \

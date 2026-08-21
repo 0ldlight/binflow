@@ -66,6 +66,11 @@
   - YAML：A) gopkg.in/yaml.v3（**已归档不维护**，CVE-2022-28948 无上游修复）；B) go.yaml.in/yaml/v3（YAML 官方组织 fork，drop-in 继任，活跃维护）；C) goccy/go-yaml（重写实现，功能多但 API 面大）。
   - HTTP 路由：A) Go 1.22+ stdlib `net/http.ServeMux`（方法匹配 + `{path}` 通配已内建）+ 自写约 30 行 middleware chain；B) go-chi/chi（仍维护，中间件/子路由更强）；C) gorilla/mux（历史包袱）。
 - 决策: 全部选纯 Go 路线——`modernc.org/sqlite`（已验证 `go get` 解析到 v1.56.0）、`go.yaml.in/yaml/v3`（已验证 v3.0.5）、stdlib ServeMux + httpapi 包内极简 middleware chain。**依赖准入原则**：默认 stdlib；引入任何新外部库必须由 architect 记录（追加到本 ADR 附属清单或新 ADR）；CGo 一律禁止。首批依赖白名单：`modernc.org/sqlite`、`go.yaml.in/yaml/v3`、`golang.org/x/crypto`（argon2id 密码哈希）。
+	- **M6 准入（T-149，2026-08-21）**：以下三个依赖由 ADR-0018/ADR-0020 批准，`go get` 验证通过（零 CGo，`CGO_ENABLED=0 go build ./...` 通过）：
+	  - `github.com/minio/minio-go/v7`（纯 Go S3 SDK，ADR-0018 选型）
+	  - `github.com/coreos/go-oidc/v3`（纯 Go OIDC 客户端，ADR-0020 选型）
+	  - `github.com/go-ldap/ldap/v3`（纯 Go LDAP 客户端，ADR-0020 选型）
+	  - 新依赖白名单完整列表：`modernc.org/sqlite`、`go.yaml.in/yaml/v3`、`golang.org/x/crypto`、`minio-go/v7`、`go-oidc/v3`、`go-ldap/ldap/v3`
 - 理由: 6 平台矩阵下无 CGo 是硬收益；BinFlow 元数据负载是小事务 OLTP 而非分析查询，modernc 的写性能折损可接受；YAML 选官方继任 fork 迁移成本最低且持续收安全修复；M1 路由需求是「前缀挂载 + 少量 REST 模式」，1.22+ ServeMux 足够，少一个依赖就少一分供应链风险。
 - 后果: 所有构建环境无 C 工具链要求；受限网络下需配置 `GOPROXY` 镜像（验证时 goproxy.cn 可用、proxy.golang.org 超时——devops-engineer 需在 CI 与文档中体现）；若 M3 npm/Maven 出现 ServeMux 表达不了的匹配需求，再评估引入路由库（届时新 ADR）；性能基准（M5）若显示 SQLite 写瓶颈再评估驱动替换。
 
@@ -275,3 +280,248 @@
   5. **Chart 仓库 = GitHub Pages 经典 helm repo（选 A，Q1 首选转正）**：`https://lzwzzy.github.io/binflow/charts/`（index.yaml + `binflow-<VER>.tgz`；用户 `helm repo add binflow <url>`）。理由：① 消费零凭据、零工具版本门槛（helm 3.0+ 即用；OCI 形态要求 ≥3.8 且 `helm search` 的仓库发现面不覆盖 OCI）；② 渠道家族同质——Releases 与 Pages 均公共 Web 静态面，无注册表消费语义，受限网络的镜像/代理友好；③ 发布面吻合 Q1 手工模型（打包 tgz + 更新 index.yaml 提交，逐项可确认）；④ 离线包已含 chart tgz，无第三渠道诉求。OCI chart（`oci://ghcr.io/lzwzzy/...`）不排除 M6+ 随镜像渠道增补，GA 不双轨（与 ADR-0011「embed 主交付、独立托管不承诺双轨」同哲学）。
 - 理由: 各条共同的主线：供应链每个面让「CVE 新鲜度与材质可审计」先行，把「逐字节可复现与签名信任链」记录化或后置——后者在 GA 手工发布模型下要么不可用（keyless 依赖 CI 身份）、要么是义务而非承诺（自持密钥）；渠道选择全部收敛到「公共 Web 静态面 + 手工可确认推送」，与 Q1 安全底线零张力。
 - 后果: T-132 勘误一行（AC② 基底 `static-debian12:nonroot` → `static-debian13:nonroot`，deploy/release 脚本常量层）；PRD FR-35 基底表述与 PB-03/PB-05 置信度回写（T-130 顺带完成）；T-127 发布清单面增 SBOM 附件与基镜像 digest 记录项（T-147 G35 消费）；release 脚本常量定值（镜像 `ghcr.io/lzwzzy/binflow`、Chart 仓库 URL）；**推送动作安全底线不变**（R7：逐项用户确认、凭证用户注入不入库——本 ADR 只定「推什么、推到哪」，不改变「谁推、凭何确认」）；GitHub Pages 启用与 index.yaml 发布流程归 T-136/T-147 收口阶段（conductor + 用户执行）。
+
+---
+
+## ADR-0018: S3 存储后端——SDK 选型与 storage.Backend 扩展缝
+
+- 状态: Accepted
+- 日期: 2026-08-21
+- 背景: ROADMAP M6+ 首项即为 S3 存储后端。当前 `storage.Engine` 是纯本地文件系统实现（blobs/ 二级分片目录 + sessions/ 会话目录）。S3 后端需同时满足：(a) ADR-0005 零 CGo 约束（六平台 goreleaser 交叉编译）；(b) 与既有 `storage.Engine` 接口的 blob 语义兼容（checksum 寻址、不可变、原子落盘在不同存储介质上需重新诠释）；(c) 依赖准入原则（ADR-0005 白名单扩展需 architect 记录）。
+- 候选方案:
+  - A) **AWS SDK Go v2** (`github.com/aws/aws-sdk-go-v2` + `service/s3`)：官方 SDK，最大 S3 兼容性（AWS S3 + 所有 S3-compatible 实现包括 MinIO、Ceph RGW、GCS S3 互操作模式），纯 Go（无 CGo），功能完整（multipart upload、pre-signed URL、transfer acceleration）。但模块数多（约 200+ 子模块），对 BinFlow 的 go.sum 体积有显著增量（当前 3 个直接依赖，引入后估增 50+ 模块）。
+  - B) **minio-go** (`github.com/minio/minio-go/v7`)：MinIO 官方 Go SDK，纯 Go，高度优化，API 面比 aws-sdk-go-v2 小而聚焦（S3 就是它的全部），对 S3-compatible 实现的兼容性同样优秀。但它是面向 MinIO 服务器优化的，AWS 特有功能（如 STS/S3 Transfer Acceleration）支持不如 A 完整。模块数少（约 10 个直接依赖）。
+  - C) **stdlib `net/http` + AWS SigV4 自签名**（手写 S3 REST 调用）：零外部依赖，但需要自实现 multipart upload、分块重试、预签名 URL、S3 错误解析、区域发现等。代码量估算 1500+ 行，且每个 S3 实现厂的兼容性差异（path-style vs virtual-hosted、签名版本、分块上传最小块大小）全部由自写代码承担——测试矩阵与维护负担不成比例。
+  - D) 三方轻量库（如 `github.com/johannesboyne/gofakes3` 等）：主要用于测试/模拟，非生产级 S3 客户端，排除。
+- 决策: **选 B — minio-go/v7**。理由：
+  1. **纯 Go 零 CGo**：与 ADR-0005 基线一致，goreleaser 六平台交叉编译无 C 工具链需求。
+  2. **API 面聚焦**：BinFlow 对 S3 的使用是「blob 存储 CRUD + multipart upload 替代 Session」（见 ADR-0019 的存储适配器设计），minio-go 的 `PutObject/GetObject/RemoveObject/ListObjects` + `NewMultipartUpload/CompleteMultipartUpload/AbortMultipartUpload` 精确覆盖，无多余模块。
+  3. **S3-compatible 兼容性**：minio-go 对 AWS S3、MinIO、Ceph RGW、GCS（S3 互操作）、阿里云 OSS 等均有成熟验证——这是 BinFlow 用户的实际部署场景。
+  4. **依赖面可控**：minio-go/v7 约 10 个直接依赖，对比 aws-sdk-go-v2 的 200+ 模块，供应链攻击面小一个数量级。对 `go.sum` 与二进制体积的增量在可接受范围（预估二进制增量 < 3MB，当前 21MB 远低于 40MB 预算）。
+  5. **AWS 特有功能非必需**：BinFlow 的 S3 后端目标是「blob CRUD」，不涉及 STS、Transfer Acceleration、S3 Select 等高级功能——minio-go 的功能集恰好匹配。
+- 理由: 在「S3 兼容性足够 + 纯 Go + 最小依赖面」三角上 minio-go 最优。aws-sdk-go-v2 的兼容性优势（STS 等）对 BinFlow 是过剩功能，其模块爆炸带来的 go.sum 膨胀与 `go mod download` 耗时（受限网络/air-gapped 构建场景）是负收益。自写方案（C）的维护成本不成立——S3 协议的表面积和兼容性差异远大于「约 1500 行」的线性估算。
+- 后果:
+  - `go.mod` 新增 `github.com/minio/minio-go/v7`（需 `go get` 验证可达性；受限网络需配置 `GOPROXY` 镜像，与 ADR-0005 后果一致）。
+  - `internal/storage` 新增 `Backend` 接口（见 ADR-0019 存储扩展缝设计），`Engine` 拆为 `DiskEngine`（现有实现）与 `S3Engine`（新实现），`main` 装配时按配置选择。
+  - 会话模型变更：S3 无本地文件系统语义，`Session` 接口的 `Append` 语义在 S3 上通过 multipart upload 实现（见 ADR-0019）。
+  - 二进制体积增量：预估 2–3MB（需 M6 实现后 `make check-size` 实测确认）。
+  - 依赖白名单追加：`github.com/minio/minio-go/v7` + 其传递依赖（`github.com/minio/crc64nvme`、`github.com/go-ini/ini` 等），全部需经 `go list -deps` 逐项确认无 CGo。
+  - 配置面新增 `storage.backend` 字段（`disk` | `s3`），s3 形态下新增 `storage.s3` 配置段（endpoint、bucket、region、access_key_id、secret_access_key、use_ssl、path_style）。
+
+---
+
+## ADR-0019: 存储引擎扩展缝——Backend 接口与 Engine 重构
+
+- 状态: Accepted
+- 日期: 2026-08-21
+- 背景: ADR-0018 确定 S3 SDK 为 minio-go。接下来的问题是：如何将 S3 适配进现有的 `storage.Engine` 接口？当前 Engine 接口（§3.1）隐含了本地文件系统语义（`BlobPath`、`AcquireDataLock`、`sessions/` 目录），且 `GC` 的 mark-sweep 依赖磁盘扫描。S3 是对象存储，无目录概念、无 rename 原子性、上传模型是 multipart upload 而非 append-to-file。直接让 Engine 同时承载 disk 和 S3 会导致接口被最低公共分母拉低。
+- 候选方案:
+  - A) **Engine 接口不变，S3Engine 实现全部方法**：`GC` 在 S3 上走 ListObjects + 引用集比对（mark-sweep 语义等价但实现不同），`Session` 在 S3 上走 multipart upload。缺点是 Engine 接口的某些方法在 S3 上是语义降级（`Open` 返回 `io.ReadSeekCloser` 在 S3 上无法真实 Seek，只能全量下载到内存/临时文件，非 Range GET 语义）。
+  - B) **拆 Backend 接口，Engine 退化为门面**：`Backend` 是纯 blob CRUD 接口（无会话、无 GC、无锁），`DiskEngine` 和 `S3Engine` 都实现 `Backend`；`Engine` 接口保留但变为门面，组合 `Backend` + 会话管理（仅 disk 有会话，S3 的 multipart upload 在 adapter 层承载）。`GC` 移出 Engine 接口，变为独立函数（S3 上 GC = ListObjects vs 引用集）。
+  - C) **完全拆开，disk 和 s3 各走各的接口**：`storage.DiskEngine` 和 `storage.S3Engine` 无共享接口，`main` 中按配置选择不同的 repo.Service 注入路径。这是最灵活但最破坏现有消费者（repo.Service、export/import、GC CLI）的方案。
+- 决策: **选 B — Backend 拆分 + Engine 门面**。具体设计：
+  1. **`Backend` 接口**（`internal/storage/backend.go`）：纯 blob CRUD——`Put(ctx, sha256, reader, size) (BlobRef, error)`、`Get(ctx, sha256) (io.ReadCloser, BlobRef, error)`、`Delete(ctx, sha256) error`、`Exists(ctx, sha256) (bool, error)`、`List(ctx) ([]string, error)`。无会话、无 GC、无锁。
+  2. **`Engine` 接口保持不变**（现有消费者 `repo.Service`、`adapter/docker` 的 blob upload 直持、export/import 不变）。`DiskEngine` 的实现 = 现有 `diskEngine`，直接实现 `Engine`（不经过 Backend，避免中间层开销）。
+  3. **`S3Engine` 实现 `Engine` 接口**：内部持有一个 `Backend`（即 S3 client），`BeginSession` 在 S3 上创建 multipart upload（upload ID 即 session ID），`Append` 映射为 `UploadPart`，`Commit` 映射为 `CompleteMultipartUpload`。`Open` 在 S3 上返回 `io.ReadCloser`（`GetObject` 的 body），**不实现 `ReadSeekCloser`**——契约降级为 `io.ReadCloser`（需要 Seek 的调用方 [docker blob GET with Range] 在 adapter 层通过 HTTP Range 头直接请求 S3 的部分对象，而非在 Go 层 Seek）。`GC` 在 S3 上走 `ListObjects` + 引用集比对。
+  4. **`Engine.Open` 返回类型变更**：`io.ReadSeekCloser` → `io.ReadCloser`。这是对 §3.1 契约的向后兼容变更——当前版 `ReadSeekCloser` 只被 docker blob GET 的 Range 请求使用（adapter 层已用 `Seek` 跳到 offset），S3 形态下 docker blob GET 的 Range 请求在 adapter 层直接带 HTTP Range 头发 S3 GetObject，不经过 Go 侧的 Seek。disk 实现继续保持 `ReadSeekCloser`（返回的类型实现该接口，consumer 用类型断言，Go 惯用法）。
+  5. **`Backend` 不在 M6 暴露为公开接口**：`Backend` 是 `internal/storage` 包内接口，不导出到 `internal/storage` 包外（`Engine` 仍然是唯一公开面）。这允许未来 `DiskEngine` 内部重构为 Backend 门面而不影响消费者。
+- 理由: B 方案在「最小化消费者改动」与「不把 S3 语义硬塞进本地文件系统接口」之间取得平衡。`Engine` 接口保持稳定，repo.Service 与 adapter 的存储消费面不感知后端差异。`Backend` 的引入纯粹是内部实现细节，解决了 S3 的原子性（S3 PutObject 是原子的，无需 rename）和会话模型（multipart upload 替代 append-to-file）与本地文件系统的差异。A 方案让 `Engine` 接口承载过多语义降级（`ReadSeekCloser` 在 S3 上不可实现），C 方案破坏所有现有消费者。
+- 后果:
+  - `storage.Engine.Open` 签名从 `(io.ReadSeekCloser, BlobRef, error)` 变更为 `(io.ReadCloser, BlobRef, error)`——向后兼容变更（disk 实现返回的类型仍实现 `ReadSeekCloser`，现有 consumer 若类型断言 `io.ReadSeekCloser` 则继续工作）。
+  - `storage.Backend` 接口是包内接口（`internal/storage` 内可见），不进入公开契约面。
+  - `S3Engine` 的 `GC` 实现：`ListObjects` 获取 S3 上所有 key → 与引用集比对 → 删除未引用对象。grace 语义在 S3 上通过 object metadata 的 `LastModified`（mtime 等价）实现。
+  - `storage.AcquireDataLock` 在 S3 形态下语义不变但锁目标是本地 `data_dir`（S3 形态下 data_dir 仍存在，用于锁文件、临时文件等）。
+  - 配置面新增 `storage.backend`（`disk` 默认 | `s3`），s3 选型下 `storage.data_dir` 仍用于临时文件（multipart 下载时的临时缓存）和锁文件。
+  - 现有 `blobs/` 布局与 `sessions/` 目录逻辑仅对 `disk` backend 生效；S3 backend 下 `blobs/` 是 S3 bucket 中的 key（`<prefix>/<sha256[0:2]>/<sha256>`，与本地布局同构，确保未来 backend 迁移时目录结构一致）。
+
+---
+
+## ADR-0020: OIDC/LDAP 认证扩展——认证流联邦与 session 对接
+
+- 状态: Accepted
+- 日期: 2026-08-21
+- 背景: M6+ 第二项为 OIDC/LDAP。当前认证体系（ADR-0009/0014）仅支持本地用户（argon2id 密码 + API Token + web session）。引入 OIDC/LDAP 需要在不破坏现有三臂（Basic/Bearer/Session）的前提下扩展认证流，且必须与 ADR-0014 的 web session 体系无缝对接（OIDC 登录后仍发 `binflow_session` Cookie）。
+- 候选方案:
+  - A) **自建 OIDC/LDAP 客户端**：手写 OIDC Relying Party（RP）和 LDAP bind 逻辑，零外部依赖。但 OIDC 协议细节（PKCE、nonce 校验、state 参数、token endpoint 认证、userinfo 端点、JWKS 密钥轮换、ID Token 验证）表面积大，自建 ≥2000 行代码且安全边界（JWT 验证、签名算法白名单、audience 校验）容易出错。
+  - B) **`coreos/go-oidc/v3`**（OIDC）+ **`go-ldap/ldap/v3`**（LDAP）：两个均为纯 Go 库，零 CGo，活跃维护。`go-oidc` 是 Dex 项目维护的 OIDC RP 库，静态度极高（Kubernetes、Grafana、Vault 等均依赖），内建 PKCE、nonce、ID Token 验证、JWKS 自动刷新。`go-ldap` 是 Go 生态 LDAP 事实标准，纯 Go 无 CGo。
+  - C) **Dex 集成**（将 Dex 作为 BinFlow 的 sidecar 或内嵌）：Dex 是 OIDC Provider + LDAP connector，但部署复杂度大幅增加（多一个进程/容器），与「单二进制差异化」理念冲突。
+  - D) **Ory Hydra/Kratos** 等全栈身份方案：过度工程化，面向大型身份平台而非制品仓库集成。
+- 决策: **选 B — `coreos/go-oidc/v3` + `go-ldap/ldap/v3`**。具体设计：
+  1. **认证扩展架构**：`auth.Authenticator` 接口**不变**。新增 `auth.IdentityProvider` 接口（`internal/auth/identity.go`），实现 OIDC 和 LDAP 两套 provider。`Authenticator` 的 `Authenticate` 方法扩展为：Basic 臂（本地密码 + token fallback）→ Bearer 臂（API token）→ Cookie 臂（web session）→ **新增：OIDC ID Token 臂**（`Authorization: Bearer <oidc_id_token>`，将 ID Token 验证后映射为 `*Principal`）。LDAP 不走独立的 HTTP 认证臂——LDAP 用户的认证发生在 login 端点（`POST /api/v1/session`），后端用 LDAP bind 验证用户名/密码。
+  2. **OIDC 认证流**：
+     - **配置**：`auth.oidc` 配置段（`issuer_url`、`client_id`、`client_secret`、`scopes`、`redirect_url`、`user_claim` 默认 `sub`、`group_claim` 默认 `groups`）。
+     - **Web 登录流**：`GET /binflow/api/v1/session/oidc/auth` → 302 跳转 OIDC Provider → 回调 `GET /binflow/api/v1/session/oidc/callback` → 验证 ID Token + 签发 `binflow_session` Cookie（与本地用户登录同构）。首次 OIDC 登录用户自动创建本地 `users` 行（`is_admin=0`，`password_hash` 为空——OIDC 用户无本地密码，只能通过 OIDC 登录）。
+     - **CLI/Docker 流**：OIDC ID Token 可以直接作为 Bearer token 使用（`Authorization: Bearer <oidc_id_token>`）。`Authenticator` 新增 OIDC 臂：验证 ID Token 签名（JWKS）→ 提取 claims → 映射为 `*Principal`（Name=`user_claim`，Groups=`group_claim`，Admin=管理员映射表）。
+     - **管理员映射**：`auth.oidc.admin_group` 配置（OIDC group 名到 admin 的映射），或 `auth.oidc.admin_users` 列表（`sub` 值白名单）。首次登录创建的用户行 `is_admin` 按此映射设置；后续每次认证时根据 Provider 最新 claims 刷新 `is_admin`（OIDC 是权威源）。
+  3. **LDAP 认证流**：
+     - **配置**：`auth.ldap` 配置段（`url`、`bind_dn`、`bind_password`、`user_base_dn`、`user_filter`、`group_base_dn`、`group_filter`、`user_id_attribute` 默认 `uid`、`mail_attribute` 默认 `mail`）。
+     - **仅 Web 登录流**：`POST /api/v1/session` 收到 `username/password` 后，先尝试本地用户（argon2id），失败后尝试 LDAP bind（用 `user_filter` 解析 DN → bind 验证密码 → 查询 groups）。LDAP 验证成功 → 自动创建本地 `users` 行（`is_admin` 按 `admin_group` 映射，`password_hash` 为空）→ 签发 `binflow_session` Cookie。
+     - **不支持 CLI 直接使用 LDAP 密码**：`Authorization: Basic` 只验本地密码和 API token。LDAP 用户需先通过 Web 登录获取 session Cookie，或使用 API Token。
+  4. **自动创建用户行**：OIDC 和 LDAP 认证成功但本地 `users` 表无对应行时，自动创建（`enabled=1`，`is_admin` 按映射规则，`password_hash` 为空）。空 `password_hash` 用户不能通过 Basic 臂登录（密码校验时发现空哈希 → 拒绝，不尝试 LDAP bind——LDAP bind 只在 login 端点触发）。
+  5. **Token 签发**：OIDC/LDAP 用户登录后可通过 API `/api/v1/tokens` 签发 API Token（与本地用户同构），用于 CI/CD 场景。Verify 时 token 对应的 user 行 `password_hash` 可为空——token 验证不依赖密码哈希。
+- 理由: `go-oidc` 是 OIDC RP 的事实标准，Kubernetes 生态广泛使用，安全性经过大量审计。`go-ldap` 同样是纯 Go LDAP 的事实标准。两者都满足 ADR-0005 零 CGo 约束。把认证逻辑封装在 `IdentityProvider` 接口后，`Authenticator` 只需要新增一个臂（OIDC Bearer），不改变现有三臂的语义。LDAP 只走 Web 登录流而非独立 Bearer 臂，简化了 LDAP 的集成复杂度（LDAP 没有标准化的 ID Token 概念，bind 是一次性验证，不合适做请求级 Bearer 认证）。
+- 后果:
+  - `go.mod` 新增两个依赖：`github.com/coreos/go-oidc/v3`、`github.com/go-ldap/ldap/v3`（均需 `go get` 验证可达性，纯 Go 零 CGo）。
+  - 新增 `internal/auth/identity.go`：`IdentityProvider` 接口 + `OIDCProvider` + `LDAPProvider` 实现。
+  - 新增 008 迁移 DDL：`ALTER TABLE users ADD COLUMN provider TEXT NOT NULL DEFAULT 'local'`（`local` | `oidc` | `ldap`）；`ALTER TABLE users ADD COLUMN provider_id TEXT NOT NULL DEFAULT ''`（OIDC `sub` 或 LDAP DN）；`CREATE UNIQUE INDEX idx_users_provider ON users(provider, provider_id) WHERE provider != 'local'`（Postgres 用 partial index，SQLite 用普通唯一索引因为不支持 WHERE 子句）。
+  - 新增 008 迁移 DDL：`ALTER TABLE users ADD COLUMN email TEXT NOT NULL DEFAULT ''`（M4 已有，此处确认被 OIDC/LDAP 消费）；LDAP `mail_attribute` 和 OIDC `email` claim 填充此列。
+  - 新增 `/binflow/api/v1/session/oidc/auth` 和 `/binflow/api/v1/session/oidc/callback` 两个端点。
+  - `POST /binflow/api/v1/session` 的认证逻辑从「本地密码 only」变为「先本地后 LDAP」。
+  - `Authenticator.Authenticate` 新增 OIDC Bearer 臂（ID Token 验证 → Principal 映射）。
+  - 配置面新增 `auth.oidc` 和 `auth.ldap` 两个顶层配置段。
+  - 授权不感知 provider——`Principal` 的 `Name` 和 `Groups` 无论来自本地、OIDC 还是 LDAP，`Authorizer.Can` 统一处理。
+  - 安全面：`redirect_url` 必须校验（防 OAuth 重定向劫持）；`state` 参数必须使用 PKCE + 随机 nonce；ID Token 的 `aud`/`iss`/`exp` 必须严格校验。
+
+---
+
+## ADR-0021: 复制/联邦——推拉模型与冲突处理
+
+- 状态: Accepted
+- 日期: 2026-08-21
+- 背景: M6+ 第三项为复制/联邦。制品仓库的复制（replication）是 Artifactory 的核心企业功能，用于多站点分发、灾备、边缘节点。M6 的复制设计必须在「概念模型对齐 Artifactory（ADR-0003）」与「M6 复杂度可控」之间平衡。当前 BinFlow 是单实例单副本（ADR-0015 明确单副本约束），复制是多实例协同的第一步。
+- 候选方案:
+  - A) **推式复制（push replication）**：源实例在制品落地后主动推送到目标实例。优点：实时性高、适合边缘分发。缺点：需要目标实例 URL 和凭据、源实例需感知目标实例可用性、失败重试与积压管理复杂。
+  - B) **拉式复制（pull replication）**：目标实例定时从源实例拉取。优点：实现简单（复用 remote 仓库的 pull-through 机制）、目标实例自带重试与离线容忍。缺点：延迟高、源实例无感知。
+  - C) **事件驱动+拉式混合**：源实例发出事件（Webhook/消息队列），目标实例收到事件后拉取。优点：结合了实时性与拉式实现的简单性。缺点：需要事件总线（外部依赖），违背单二进制理念。
+  - D) **全功能推拉双向联邦**：Artifactory Enterprise 的完整复制矩阵（推+拉+双向+事件同步+属性复制+逐项校验）。M6 范围过大，不可行。
+- 决策: **选 A+B（推拉双模式），M6 先实现推式，拉式复用 remote 仓库机制**。具体设计：
+  1. **复制配置模型**：`replication_configs` 新表（`replications` 表），每行 = 一个复制目标（`source_repo` → `target_url` + `target_repo` + `target_username` + `target_password` 加密存储）。配置通过 REST API 管理（`/api/v1/replications` CRUD）。
+  2. **推式复制（push，M6 主实现）**：
+     - **触发时机**：制品成功落地后（`repo.Service.Put` 链末），异步 goroutine 执行推式复制。不在 Put 的事务内阻塞客户端响应。
+     - **传输协议**：HTTP（目标 BinFlow 实例的 REST API）。复用 `internal/remote` 包的 HTTP 客户端（stdlib-only，ADR-0012 决策 5）与凭据加密（AES-256-GCM，ADR-0012 决策 4）。
+     - **推送内容**：blob 数据（checksum 校验） + node 元数据（path/size/mime/created_by/created_at）。目标实例走 `repo.Service.PutFromBlob`（blob 已上传则秒传）或完整上传。
+     - **失败处理**：失败记录到 `replication_tasks` 表（`source_repo/target_repo/blob_sha256/status/attempts/last_error/created_at`），后台 goroutine 定时重试（指数退避，最多 5 次）。超过最大重试次数标记 `failed`，需手动重触发或清理。
+     - **幂等**：目标实例校验 blob sha256 已存在则跳过数据上传，只建 node 行（秒传语义）。
+     - **速率限制**：`replication_configs.max_bandwidth_bytes_per_sec`（可选，0=不限）。
+  3. **拉式复制（pull，M6 复用 remote 机制）**：
+     - 拉式复制 = 将 remote 仓库的 `url` 指向另一个 BinFlow 实例的对应仓库。现有的 `remote_cache` TTL 机制、条件再验证、staleness 降级全部复用。
+     - 新增 `remote_configs.sync_interval_seconds` 字段（定期全量同步，默认 0=不自动同步，仅按需 pull-through）。
+     - 拉式复制不新增表——它就是 remote 仓库的一个特例（上游是 BinFlow 而非公共注册表）。
+  4. **冲突处理**：
+     - **推式**：目标实例已存在同 path 的 node → 比较 `updated_at`（源实例的 `updated_at` vs 目标实例的 `updated_at`）。**M6 策略：先到先得（first-write-wins）**——目标实例的 `updated_at` 更新则跳过推送并记录 `skipped`。不做内容合并（Maven metadata 等）——M6 复制是「制品级」而非「元数据合并级」。
+     - **拉式**：remote 仓库的缓存语义（checksum 命中永不再验）天然处理冲突——同一 sha256 的 blob 只存一份，不同 sha256 的同 path 制品按 TTL 过期回源。
+     - **删除传播**：M6 不做。源实例删除制品不触发目标实例删除（删除是危险的跨实例传播）。M6+ 评估「删除同步」开关。
+  5. **元数据同步**：
+     - 推式复制按 `node.created_at` 倒序选择最近 N 个制品（默认 1000，可配 `replication_configs.max_items_per_push`），避免一次推送全量历史。
+     - 增量复制：记录 `replication_configs.last_synced_at`，每次推送 `updated_at > last_synced_at` 的制品。
+     - 全量复制：不接受（M6 scope，pull-through 已覆盖全量回源需求）。
+  6. **审计**：每项复制事件记入 `audit_events`（`replication.push|replication.push.failed|replication.pull`），actor 为触发源（admin 或系统）。
+- 理由: 推拉双模式对齐 Artifactory 的复制模型（ADR-0003），但 M6 的推式实现聚焦在「制品落地后异步推送」的最小可用版本。拉式复制通过复用 remote 仓库机制，几乎零增量实现成本。事件驱动（C）引入外部依赖，与单二进制理念冲突。全功能联邦（D）是 M6+ 两三个里程碑的增量，不在此 ADR 范围。
+- 后果:
+  - 新增 009 迁移 DDL：`replications` 表（`id/name/source_repo/target_url/target_repo/target_username/target_password_enc/max_bandwidth_bytes_per_sec/enabled/created_at/updated_at`）和 `replication_tasks` 表（`id/replication_id/blob_sha256/node_path/status/attempts/last_error/created_at/completed_at`）。
+  - 新增 `internal/replication` 包（pusher/scheduler/status），依赖 `repo.Service`、`storage.Engine`、`remote.Fetch`（拉式复用）。
+  - 新增 REST 端点：`POST/GET/DELETE /api/v1/replications`、`GET /api/v1/replications/{name}/tasks`、`POST /api/v1/replications/{name}/_trigger`（手动触发）。
+  - `repo.Service.Put` 链末增加 `replication.Enqueue` 调用（异步，非阻塞）。
+  - 推式复制的目标凭据加密复用 `internal/remote` 的 AES-256-GCM 方案（`BINFLOW_REMOTE_CREDENTIALS_KEY` env 改名或新增 `BINFLOW_REPLICATION_CREDENTIALS_KEY`，二者择一归实现票定）。
+  - 安全面：复制目标的 URL 必须过 SSRF 校验（复用 `internal/remote` 的 SSRF guard，ADR-0012）；目标实例凭据必须加密存储。
+  - 技术债：先到先得冲突策略对「同一制品在两个实例上被独立修改」的场景不处理（M6+ 引入「最后写入者胜」或「人工合并」）。
+
+---
+
+## ADR-0022: Prometheus 指标——暴露面、命名规范与零依赖实现
+
+- 状态: Accepted
+- 日期: 2026-08-21
+- 背景: M6+ 第四项为 Prometheus 指标。当前 M1~M5 无指标暴露（仅结构化日志与 `/healthz`/`/readyz` 探针，ADR-0005 的 `/metrics` 端点已占位）。引入指标需在 ADR-0005 严格依赖准入（默认 stdlib）下满足 Prometheus 格式要求。
+- 候选方案:
+  - A) **`prometheus/client_golang`**：Prometheus 官方 Go 客户端库，功能最全（Counter/Gauge/Histogram/Summary、collector 注册、proc/process metrics、exemplar 支持），生态最成熟。但它是外部依赖，go.mod 新增约 10 个间接依赖，且部分功能（Histogram 的 quantile 估算）有锁竞争，在高并发场景需注意。
+  - B) **stdlib `expvar` + 自写 Prometheus 文本格式序列化**：零外部依赖。`expvar` 提供 `Map`/`Int`/`Float` 等并发安全的基础类型。自写 Prometheus 文本格式（`# HELP`/`# TYPE`/metric line）约 100 行代码。不足：无 Histogram/Summary 支持（需自实现），无 process metrics（需自采集）。
+  - C) **`VictoriaMetrics/metrics`**：纯 Go 替代方案，API 简洁，性能优于官方库（锁竞争更少），但生态不如官方库成熟，社区较小。
+  - D) **OpenTelemetry Go SDK**：全功能可观测框架，但依赖树巨大（50+ 模块），不适合 BinFlow 的「最小依赖」原则。
+- 决策: **选 B — stdlib `expvar` + 自写 Prometheus 文本格式序列化**。理由：
+  1. **零新依赖**：`expvar` 是 stdlib，已经在 Go 标准库中。自写 Prometheus 文本格式序列化约 100 行代码，在 BinFlow 的规模下维护成本可忽略。
+  2. **Histogram 需求 M6 可推迟**：M6 指标面以 Counter 和 Gauge 为主（请求数、错误数、并发数、存储容量、blob 数），延迟分布（Histogram）在 M6 阶段可用 `time.Since` + 自写分桶统计实现（约 200 行），或留在 M6+ 评估。
+  3. **与 ADR-0005 一致**：依赖准入原则的核心是「默认 stdlib，引入外部库需 architect 记录」。M6 的指标需求在 stdlib 范围内可满足。如果 M6+ 出现 Histogram/Summary 的强需求（如 P99 延迟分布），再评估引入 `prometheus/client_golang`（届时新 ADR）。
+  4. **Process metrics 自采集**：Go runtime 指标（`runtime.MemStats`、`runtime.NumGoroutine`）通过 `expvar` 暴露，约 50 行自采集代码。
+- 具体设计：
+  1. **暴露端点**：`GET /metrics`（根级，不带 `/binflow` 前缀——与 `/healthz`/`/readyz` 同族，ADR-0008 的探针/抓取基础端点）。`Content-Type: text/plain; version=0.0.4`。
+  2. **指标命名规范**：`binflow_<subsystem>_<metric>_<unit>`（遵循 Prometheus 命名最佳实践）。例：
+     - `binflow_http_requests_total{method,path,status}` — Counter
+     - `binflow_http_request_duration_seconds` — Gauge（最近一次请求耗时，M6 简化版）
+     - `binflow_storage_blobs_total` — Gauge
+     - `binflow_storage_disk_used_bytes` — Gauge
+     - `binflow_storage_sessions_active` — Gauge
+     - `binflow_repo_operations_total{repo,type,action}` — Counter
+     - `binflow_remote_cache_requests_total{repo,result}` — Counter（`result` = hit|miss|revalidated|stale|error）
+     - `binflow_auth_attempts_total{result}` — Counter（`result` = success|failure）
+     - `binflow_go_goroutines` — Gauge
+     - `binflow_go_memstats_alloc_bytes` — Gauge
+     - `binflow_go_gc_duration_seconds` — Gauge
+  3. **实现**：`internal/metrics` 包（`registry.go` + `format.go` + `prometheus.go`）。`Registry` 是 `sync.Map` 的并发安全指标存储。`httpapi` 在 `mountProbes` 中挂 `/metrics` 端点，调用 `metrics.Format()` 生成 Prometheus 文本格式。
+  4. **中间件集成**：HTTP 请求计数和延迟在 `httpapi` 的 middleware 链中记录（`accessLog` 中间件已记录请求信息，扩展为同时写指标）。
+  5. **S3 存储指标**：当 `storage.backend=s3` 时，`binflow_storage_disk_used_bytes` 替换为 `binflow_storage_s3_objects_total` 和 `binflow_storage_s3_used_bytes`（通过 S3 ListObjects 或 bucket metrics 获取，取决于实现复杂度）。
+- 理由: 指标是运维面，不是业务核心路径。用 stdlib 实现满足 M6 的「可观测性从无到有」需求，且保持零依赖基线。当 Histogram 延迟分布成为必需时，引入 `prometheus/client_golang` 的决策成本低（它已经是 Prometheus 指标的 Go 事实标准）。
+- 后果:
+  - 新增 `internal/metrics` 包（`registry.go` + `format.go` + `prometheus.go`，约 200 行代码，零外部依赖）。
+  - `GET /metrics` 端点挂载（根级，与 `/healthz`/`/readyz` 同族）。
+  - httpapi middleware 链扩展：`accessLog` 中间件同时写指标。
+  - 二进制体积增量：零（stdlib 已有）。
+  - 技术债：M6 的 Histogram 自实现分桶统计是简化版（可能不精确），M6+ 如需要 P99 精确延迟分布，需引入 `prometheus/client_golang` 或 `github.com/VictoriaMetrics/metrics`（届时新 ADR）。
+  - 安全面：`/metrics` 端点默认暴露（与 `/healthz` 同族），不设认证。如需限制，由部署层（nginx/ingress）或配置 `server.metrics_auth` 控制（M6+ 选项）。
+
+---
+
+## ADR-0023: `bf` CLI 工具——独立二进制 vs 子命令
+
+- 状态: Accepted
+- 日期: 2026-08-21
+- 背景: M6+ 第五项为 `bf` CLI。CLI 是面向用户的操作入口，应覆盖：仓库管理、制品上传/下载、token 管理、复制触发、系统状态查询。当前 BinFlow 的 CLI 面是 `binflow-server` 子命令（`serve`/`gc`/`export`/`import`），面向管理员运维。`bf` 是面向终端用户的客户端工具。
+- 候选方案:
+  - A) **独立二进制 `bf`**：独立 `cmd/bf/` 入口，`go build` 产出独立二进制。与 `binflow-server` 共享 `internal/` 包（http client、config 解析、auth token 管理）。优点：职责清晰（server vs client），用户心智简单（`bf push` / `bf pull`）。
+  - B) **`binflow-server` 子命令**：`binflow-server client push` 等。优点：单二进制配送（下载一个二进制既能当 server 又能当 client）。缺点：server 二进制携带 client 依赖（如交互式终端库），binary 体积膨胀；且 server 配置语义（data_dir、listen）与 client 配置语义（server_url、token）在同一个 config 结构中混乱。
+  - C) **`bf` 作为 `binflow-server` 的 alias**：`cmd/bf/main.go` 编译时与 `cmd/binflow-server/main.go` 共享代码但产出独立二进制名。优点：代码复用。缺点：本质是 B 的变体，代码耦合度高。
+- 决策: **选 A — 独立二进制 `bf`**。具体设计：
+  1. **入口**：`cmd/bf/main.go`，`go build` 产出 `bf`（或 `bf.exe`）。goreleaser 纳入多平台发布矩阵（与 `binflow-server` 同平台，ADR-0004）。
+  2. **子命令族**（M6 最小集）：
+     - `bf push <repo>/<path> <local-file>` — 上传制品
+     - `bf pull <repo>/<path> [--output <dir>]` — 下载制品
+     - `bf repo list` — 列仓库
+     - `bf repo info <key>` — 仓库详情
+     - `bf token create [--user <name>] [--ttl <hours>]` — 签发 token
+     - `bf token revoke <id>` — 吊销 token
+     - `bf status` — 服务器状态（版本、运行时间、存储统计）
+     - `bf replication trigger <name>` — 手动触发复制（M6+）
+  3. **配置**：`~/.binflow/config.yaml`（server_url + token），env `BF_SERVER_URL` / `BF_TOKEN` 覆盖。不与 `binflow-server` 的 `binflow.yaml` 共享配置结构。
+  4. **实现**：`internal/client` 包（HTTP client 封装：Base URL 拼接、auth 头注入、错误信封解析、重试、进度条回调）。`bf` 子命令只做 CLI 参数解析 + 调 `internal/client` + 格式化输出。
+  5. **依赖**：`internal/client` 依赖 `internal/config`（YAML 解析）和 `internal/auth`（Token 验证的客户端侧无需，仅需 HTTP 头注入）。不引入 `cobra`/`cli` 框架——Go 1.26 的 `flag` 包支持子命令，约 50 行自写 dispatch。
+- 理由: 独立二进制清晰分离了 server 和 client 的职责与配置空间。`bf` 不携带存储引擎、元数据、HTTP 服务器等 server 组件，二进制体积预计 < 15MB（server 当前 21MB，client 不含 storage/metadata/httpapi）。子命令模式（B）会使 server 二进制膨胀且配置语义混乱。C 是过度工程化。
+- 后果:
+  - 新增 `cmd/bf/main.go` 和 `internal/client/` 包。
+  - goreleaser 配置新增 `bf` 二进制（六平台，与 `binflow-server` 同矩阵）。
+  - `internal/client` 包被 `bf` 命令行消费，也可被未来 M6+ 的 Artifactory 迁移工具（`bf migrate`）复用。
+  - 依赖约束：`internal/client` 不得 import `internal/storage`/`internal/metadata`/`internal/httpapi`（client 是纯 HTTP 消费者，不嵌入 server 组件）。
+  - 技术债：`bf` 的 `push/pull` 在 M6 只支持 Generic 和 raw 上传下载。Docker/Maven/npm/PyPI 的客户端已有原生工具，`bf` 不替代它们（`bf` 定位是管理 + 通用制品搬运）。
+
+---
+
+## ADR-0024: Artifactory 迁移工具——`bf migrate` 子命令
+
+- 状态: Accepted
+- 日期: 2026-08-21
+- 背景: M6+ 第六项为 Artifactory 迁移工具。迁移工具的目标是帮助用户从 Artifactory 迁移到 BinFlow：读取 Artifactory 的仓库配置、用户、权限、制品数据，转换并写入 BinFlow。这是 ADR-0003（概念模型对齐 Artifactory）的兑现工具。
+- 候选方案:
+  - A) **独立工具 `bf migrate`**：作为 `bf` CLI 的子命令族（ADR-0023 的 `internal/client` 复用）。迁移 = 读取 Artifactory REST API + 转换 + 写入 BinFlow REST API。
+  - B) **`binflow-server` 内嵌迁移端点**：`POST /api/v1/migrate/artifactory`，服务端直接读 Artifactory 实例。缺点：服务端需引入 Artifactory Java 格式解析（XML 配置、Derby DB 格式），且服务端出网拉取另一实例跨越了 SSRF 防护的边界。
+  - C) **离线迁移**：先导出 Artifactory 数据为中间格式（JSON），再导入 BinFlow。两步操作，中间格式需额外维护。
+- 决策: **选 A — `bf migrate` 子命令**。具体设计：
+  1. **三阶段迁移**：
+     - **Phase 1: 仓库配置**（`bf migrate repos`）— 读取 Artifactory 的 `export/repositories.config.xml` 或通过 REST API，转换为 BinFlow 的 `POST /api/v1/repositories` 调用。
+     - **Phase 2: 用户和权限**（`bf migrate users`）— 读取 Artifactory 的 `export/security/` 目录或通过 REST API，转换为 BinFlow 的用户/组/permission target 创建。Artifactory 的 `$default` 等保留用户不迁移。
+     - **Phase 3: 制品**（`bf migrate artifacts`）— 从 Artifactory 逐仓库下载制品（通过 REST API GET），上传到 BinFlow（通过 `bf push` 等价逻辑）。支持断点续传（记录已迁移的 repo+path 清单）。
+  2. **Artifactory 端数据源**：主要通过 Artifactory REST API（`/api/repositories`、`/api/security/users`、`/api/security/permissions`、`/api/storage/<repo>/<path>`）读取。这是 Artifactory 的公开 API，不依赖反编译/私有格式。
+  3. **转换映射**（ADR-0003 对齐表的逆向应用）：
+     - Artifactory `local` → BinFlow `local`（type 和 package_type 直接映射）
+     - Artifactory `remote` → BinFlow `remote`（`url`/`username`/`password` 迁移，密码调用 BinFlow 的凭据加密 API）
+     - Artifactory `virtual` → BinFlow `virtual`（成员序迁移，`defaultDeploymentRepo` 迁移）
+     - Artifactory `permission target` → BinFlow `permission_targets`（`repositories` → `repos`，`includesPattern` → `includes`，`excludesPattern` → `excludes`，`principals` → `principals`）
+     - Artifactory `groups` → BinFlow `groups` + `user_groups` 成员关系
+  4. **制品迁移验证**：迁移后对每个制品校验 sha256（从 Artifactory 响应头的 `X-Checksum-Sha256` 获取，对比 BinFlow 的 blob 摘要）。校验失败的制品记录到 `migration_failures.json` 日志。
+  5. **dry-run 模式**：`bf migrate repos --dry-run` 打印转换后的 BinFlow 配置而不写入。
+  6. **不迁移项**（M6 明确不做）：Artifactory 的 `cron` 任务、`property sets`、`mail` 配置、`backup` 配置、`plugins`、`build-info`、`release-bundles`、审计日志历史。
+- 理由: `bf` CLI 是迁移工具的自然载体（ADR-0023 的 `internal/client` 可直接复用）。独立工具形态（A）让迁移在用户的工作站上运行，不要求 BinFlow server 出网访问 Artifactory（安全边界清晰）。离线两步法（C）增加中间格式维护成本，且用户需要先导出再导入，步骤多。
+- 后果:
+  - `cmd/bf` 新增 `migrate` 子命令族（`migrate repos`/`migrate users`/`migrate artifacts`/`migrate all`）。
+  - `internal/client` 包临被 `bf migrate` 复用（HTTP client 封装）。
+  - 新增 `internal/migrate` 包（Artifactory API reader + 转换器 + BinFlow writer），不 import `internal/storage`/`internal/metadata`（纯 HTTP 客户端）。
+  - 迁移文档（tech-writer）：用户指南含「从 Artifactory 迁移到 BinFlow」完整流程。
+  - 安全面：Artifactory 源实例的凭据由用户通过 `bf migrate` 的 `--source-url`/`--source-user`/`--source-password` 参数或 env 提供，不进 BinFlow 配置文件。

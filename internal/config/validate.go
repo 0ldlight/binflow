@@ -61,9 +61,50 @@ func (c *Config) Validate() error {
 	if !allowedLogFormats()[c.Logging.Format] {
 		return fmt.Errorf("config: logging.format: unknown format %q (want json or console)", c.Logging.Format)
 	}
+	// Backend enum: disk (default) | s3.
+	if c.Storage.Backend != StorageBackendDisk && c.Storage.Backend != StorageBackendS3 {
+		return fmt.Errorf("config: storage.backend: unknown backend %q (want %q or %q)",
+			c.Storage.Backend, StorageBackendDisk, StorageBackendS3)
+	}
+	// When backend=s3, require bucket, region, endpoint, access_key_id, and
+	// secret_access_key; validate upload_part_size and upload_concurrency
+	// are positive.
+	if c.Storage.Backend == StorageBackendS3 {
+		if c.Storage.S3.Bucket == "" {
+			return fmt.Errorf("config: storage.s3.bucket is required when backend=s3")
+		}
+		if c.Storage.S3.Region == "" {
+			return fmt.Errorf("config: storage.s3.region is required when backend=s3")
+		}
+		if c.Storage.S3.Endpoint == "" {
+			return fmt.Errorf("config: storage.s3.endpoint is required when backend=s3")
+		}
+		if c.Storage.S3.AccessKeyID == "" {
+			return fmt.Errorf("config: storage.s3.access_key_id is required when backend=s3")
+		}
+		if c.Storage.S3.SecretAccessKey == "" {
+			return fmt.Errorf("config: storage.s3.secret_access_key is required when backend=s3 (set BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY)")
+		}
+		if c.Storage.S3.UploadPartSize <= 0 {
+			return fmt.Errorf("config: storage.s3.upload_part_size must be positive, got %d", c.Storage.S3.UploadPartSize)
+		}
+		if c.Storage.S3.UploadConcurrency <= 0 {
+			return fmt.Errorf("config: storage.s3.upload_concurrency must be positive, got %d", c.Storage.S3.UploadConcurrency)
+		}
+	}
+	// Migration: when enabled, require concurrency >= 1.
+	if c.Storage.Migration.Enabled {
+		if c.Storage.Migration.Concurrency <= 0 {
+			return fmt.Errorf("config: storage.migration.concurrency must be positive when migration is enabled, got %d", c.Storage.Migration.Concurrency)
+		}
+	}
 	// Filesystem probe last: everything above is pure, this creates the dir.
-	if err := ensureDataDir(c.Storage.DataDir); err != nil {
-		return fmt.Errorf("config: %w", err)
+	// Only probe the data_dir when using disk backend; S3 backends do not need
+	// a local data directory.
+	if c.Storage.Backend == StorageBackendDisk || c.Storage.Backend == "" {
+		if err := ensureDataDir(c.Storage.DataDir); err != nil {
+			return fmt.Errorf("config: %w", err)
+		}
 	}
 	return nil
 }

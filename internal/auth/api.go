@@ -28,6 +28,11 @@ type Principal struct {
 	// (Origin check) without touching Basic/Token traffic. Sessions carry no
 	// TokenID (there is no token row).
 	ViaSession bool
+	// Source is the identity provider that authenticated this request
+	// (M6, ADR-0020). "local" for password/token users, "oidc" for OIDC
+	// Bearer arm, "ldap" for LDAP web sessions. The Authorizer does not
+	// inspect this field — it is informational for audit and debugging.
+	Source Provider
 }
 
 // Actions accepted by Authorizer.Can (architecture section 3.4 uses the

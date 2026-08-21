@@ -307,11 +307,15 @@ func (e *engine) forgetSession(s *uploadSession) {
 	e.mu.Unlock()
 }
 
-// Open returns a ReadSeekCloser over the blob body. The returned BlobRef
-// carries Sha256 and Size only: ancillary digests are metadata-store facts
-// (ADR-0006 keeps no sidecar files next to blobs); use Stat for a full
-// digest pass.
-func (e *engine) Open(ctx context.Context, sha256 string) (io.ReadSeekCloser, BlobRef, error) {
+// Open returns an io.ReadCloser over the blob body. The concrete value is an
+// *os.File, which also implements io.ReadSeekCloser — callers that need Seek
+// (e.g. HTTP Range requests) may type-assert. The returned BlobRef carries
+// Sha256 and Size only: ancillary digests are metadata-store facts (ADR-0006
+// keeps no sidecar files next to blobs); use Stat for a full digest pass.
+// ADR-0019: the Engine interface returns io.ReadCloser so every backend
+// (Disk, S3, memory) can implement it; the DiskEngine's *os.File is a
+// superset.
+func (e *engine) Open(ctx context.Context, sha256 string) (io.ReadCloser, BlobRef, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, BlobRef{}, fmt.Errorf("storage: open blob: %w", err)
 	}

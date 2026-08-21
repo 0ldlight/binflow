@@ -125,6 +125,16 @@ export default function TreePage() {
     [repoKey, isDockerRepo],
   )
 
+  // T-134 G32a: when isDockerRepo flips (e.g. repoMeta resolves),
+  // cached dirs may have been fetched without ?docker_tags.  Invalidate
+  // the cache so loadDir re-fetches with the correct querystring.
+  useEffect(() => {
+    cacheRef.current.clear()
+    inflightRef.current.clear()
+    setDirState({})
+    setTick((t) => t + 1)
+  }, [isDockerRepo])
+
   const expandedKey = Array.from(expanded).sort().join('\n')
   useEffect(() => {
     const wanted = new Set([...chain, ...expanded])

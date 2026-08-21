@@ -62,7 +62,19 @@ func (s *Service) fillGroups(ctx context.Context, p *Principal) {
 			slog.String("user", p.Name), slog.String("error", err.Error()))
 		return
 	}
-	p.Groups = names
+	// Union with any existing groups (e.g., OIDC claims groups already set by
+	// authenticateOIDC). Deduplicate to avoid double-counting overlapping
+	// memberships.
+	seen := make(map[string]bool, len(p.Groups)+len(names))
+	for _, g := range p.Groups {
+		seen[g] = true
+	}
+	for _, g := range names {
+		if !seen[g] {
+			p.Groups = append(p.Groups, g)
+			seen[g] = true
+		}
+	}
 }
 
 // rowCoversPrincipal reports whether one permission_principals row addresses

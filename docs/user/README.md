@@ -15,6 +15,7 @@
   - [原生 K8s 清单](install/k8s.md)
   - [systemd 服务（裸机）](install/systemd.md)
   - [离线安装（air-gapped）](install/offline.md)
+	  - [升级与版本说明](install/upgrade.md) — 升级策略、迁移链 001~007
 - **客户端接入**（每协议一篇）
   - [Docker / OCI 镜像](docker-registry.md)（login/push/pull、oras/Helm 承载、podman/crane/skopeo、差异清单）— M2
   - [Maven](integrations/maven.md)（settings.xml + deploy/resolve、snapshot/-U、checksum 策略、mirror 收口）— M3

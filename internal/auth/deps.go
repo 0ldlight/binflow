@@ -25,7 +25,54 @@ func (a userStoreAdapter) Get(ctx context.Context, username string) (user, error
 		}
 		return user{}, err
 	}
-	return user{Username: u.Username, PasswordHash: u.PasswordHash, IsAdmin: u.IsAdmin, Enabled: u.Enabled}, nil
+	return adaptUser(u), nil
+}
+
+// GetByProvider implements oidcUserResolver. It iterates the user list to
+// find the first user whose (provider, provider_id) matches the given pair.
+// This is O(n) in the number of users, which is acceptable for the initial
+// implementation (the OIDC Bearer arm is called per-request, but the resolve
+// path is only triggered on first authentication when auto-create is on, and
+// even then the user list is small). A future optimization can add a direct
+// provider+provider_id index to the metadata layer.
+func (a userStoreAdapter) GetByProvider(ctx context.Context, prov Provider, providerID string) (*ProviderUser, error) {
+	users, err := a.s.List(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("auth: list users for provider resolve: %w", err)
+	}
+	for _, u := range users {
+		// When metadata.User has Provider/ProviderID fields, use them
+		// directly. Until then, all users default to ProviderLocal, so
+		// a non-local provider will never match.
+		au := adaptUser(u)
+		if au.Provider == prov && au.ProviderID == providerID {
+			return &ProviderUser{
+				Username: au.Username,
+				IsAdmin:  au.IsAdmin,
+				Enabled:  au.Enabled,
+			}, nil
+		}
+	}
+	return nil, fmt.Errorf("auth: %s user %q: %w", prov, providerID, ErrProviderUserNotFound)
+}
+
+// adaptUser converts a metadata.User to the auth package's internal user type.
+func adaptUser(u *metadata.User) user {
+	provider := Provider(u.Provider)
+	switch provider {
+	case ProviderOIDC, ProviderLDAP:
+		// known external providers
+	default:
+		provider = ProviderLocal
+	}
+	return user{
+		Username:     u.Username,
+		PasswordHash: u.PasswordHash,
+		IsAdmin:      u.IsAdmin,
+		Enabled:      u.Enabled,
+		Provider:     provider,
+		ProviderID:   u.ProviderID,
+	}
 }
 
 func (a userStoreAdapter) UpdatePassword(ctx context.Context, username, passwordHash string) error {
@@ -118,19 +165,52 @@ func (a groupStoreAdapter) GroupsOfUser(ctx context.Context, username string) ([
 	return names, nil
 }
 
+// userCreatorAdapter adapts metadata.UserStore for the userCreator seam.
+type userCreatorAdapter struct{ s metadata.UserStore }
+
+func (a userCreatorAdapter) Create(ctx context.Context, params NewUserParams) error {
+	now := metadata.Now()
+	mu := &metadata.User{
+		Username:     params.Username,
+		PasswordHash: params.PasswordHash,
+		IsAdmin:      params.IsAdmin,
+		Enabled:      params.Enabled,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+		Provider:     string(params.Provider),
+		ProviderID:   params.ProviderID,
+	}
+	return a.s.Create(ctx, mu)
+}
+
+// NewLDAPResolver wraps a metadata.UserStore into an LDAPUserResolver. It is
+// used by tests and by the LDAP provider wiring in cmd/binflow-server.
+func NewLDAPResolver(store metadata.UserStore) LDAPUserResolver {
+	return userStoreAdapter{s: store}
+}
+
 // NewFromStore wires Service over a metadata.Store. anonymousRead is
 // config.Security.AnonymousAccess. The browser-session arm (M4, ADR-0014)
 // and the group-membership fill (M4, T-97) are wired unconditionally:
 // metadata.Open always carries the 004 web_sessions/groups tables, so every
 // store-backed service is also the console's SessionRegistry and carries
 // SE-07's union semantics.
+//
+// The OIDC Bearer arm (M6, ADR-0020) is NOT wired by default — it requires
+// an IdentityProvider implementation (T-154). Call WithOIDC after this
+// to activate the arm.
 func NewFromStore(st metadata.Store, anonymousRead bool) *Service {
-	return New(
+	svc := New(
 		userStoreAdapter{s: st.Users()},
 		tokenStoreAdapter{s: st.Tokens()},
 		permissionStoreAdapter{s: st.Permissions()},
 		anonymousRead,
 	).WithSessions(st.WebSessions()).WithGroups(groupStoreAdapter{s: st.Groups()})
+	// Wire the userCreator so OIDC and LDAP auto-create paths work when the
+	// service is backed by a real store. Callers that want a different
+	// creator (e.g. tests) can still override it via WithOIDC.
+	svc.userCreator = userCreatorAdapter{s: st.Users()}
+	return svc
 }
 
 // PermissionSource is the exported permission-plane seam of Service: the

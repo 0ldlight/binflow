@@ -84,7 +84,13 @@ type Engine interface {
 	// yield ErrBlobNotFound wrapped. The returned BlobRef carries Sha256 and
 	// Size; ancillary digests are the metadata store's source of truth, use
 	// Stat for a full digest pass.
-	Open(ctx context.Context, sha256 string) (io.ReadSeekCloser, BlobRef, error)
+	//
+	// The returned reader is an io.ReadCloser — the minimum contract every
+	// backend must satisfy. The DiskEngine returns a concrete *os.File, which
+	// also implements io.ReadSeekCloser; callers that need Seek (e.g. HTTP
+	// Range requests) may type-assert to io.ReadSeekCloser. Other backends
+	// (S3, memory) may only honor io.ReadCloser. ADR-0019.
+	Open(ctx context.Context, sha256 string) (io.ReadCloser, BlobRef, error)
 	// Stat verifies a blob end to end: it streams the content once, returns
 	// all three digests and fails with ErrBlobCorrupt when the content does
 	// not hash to its own path. The pass is O(size); it is the consistency

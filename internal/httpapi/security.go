@@ -328,8 +328,8 @@ func (s *Server) handleTokenCreate(w http.ResponseWriter, r *http.Request) {
 	// Detail carries the fingerprint and TTL; the plaintext never enters the
 	// audit payload (NFR-S3).
 	s.audit.Record(r.Context(), audit.Event{
-		Actor:  p.Name,
-		Action: audit.ActionTokenIssue,
+		Actor:      p.Name,
+		Action:     audit.ActionTokenIssue,
 		RemoteAddr: r.RemoteAddr,
 		Detail: fmt.Sprintf(`{"fingerprint":"%s","ttl_seconds":%d}`,
 			auth.TokenFingerprint(tok.AccessToken), expiresIn),
@@ -397,10 +397,10 @@ func (s *Server) handleTokenRevoke(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		s.audit.Record(r.Context(), audit.Event{
-			Actor:  p.Name,
-			Action: audit.ActionTokenRevoke,
+			Actor:      p.Name,
+			Action:     audit.ActionTokenRevoke,
 			RemoteAddr: r.RemoteAddr,
-			Detail: fmt.Sprintf(`{"fingerprint":"%s"}`, auth.TokenFingerprint(token)),
+			Detail:     fmt.Sprintf(`{"fingerprint":"%s"}`, auth.TokenFingerprint(token)),
 		})
 		writeText(w, http.StatusOK, "Token revoked")
 		return
@@ -421,10 +421,10 @@ func (s *Server) handleTokenRevoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.audit.Record(r.Context(), audit.Event{
-		Actor:  p.Name,
-		Action: audit.ActionTokenRevoke,
+		Actor:      p.Name,
+		Action:     audit.ActionTokenRevoke,
 		RemoteAddr: r.RemoteAddr,
-		Detail: fmt.Sprintf(`{"token_id":%d}`, id),
+		Detail:     fmt.Sprintf(`{"token_id":%d}`, id),
 	})
 	writeText(w, http.StatusOK, "Token revoked")
 }

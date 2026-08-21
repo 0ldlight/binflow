@@ -596,10 +596,15 @@ func (e *Engine) land(ctx context.Context, repoKey, path, kind string, cfg *meta
 	if err != nil {
 		return nil, fmt.Errorf("remote %s: open landed blob %s: %w", repoKey, ref.Sha256, err)
 	}
+	seekable, ok := bodyRC.(io.ReadSeekCloser)
+	if !ok {
+		_ = bodyRC.Close()
+		return nil, fmt.Errorf("remote %s: open landed blob %s: storage backend does not support Seek", repoKey, ref.Sha256)
+	}
 	c := e.counters(repoKey)
 	c.misses.Add(1)
 	c.bytes.Add(written)
-	return &FetchResult{Node: node, Body: hinted(bodyRC, CacheMiss, ""), CacheState: CacheMiss, HasCopy: true}, nil
+	return &FetchResult{Node: node, Body: hinted(seekable, CacheMiss, ""), CacheState: CacheMiss, HasCopy: true}, nil
 }
 
 // mapUpstreamStatus maps a definite non-200 upstream answer: 404 (negative
@@ -741,8 +746,13 @@ func (e *Engine) serveCopy(ctx context.Context, node *metadata.Node, state, upst
 	if err != nil {
 		return nil, fmt.Errorf("remote %s: open cached blob %s: %w", node.RepoKey, node.Sha256, err)
 	}
+	seekable, ok := body.(io.ReadSeekCloser)
+	if !ok {
+		_ = body.Close()
+		return nil, fmt.Errorf("remote %s: open cached blob %s: storage backend does not support Seek", node.RepoKey, node.Sha256)
+	}
 	return &FetchResult{
-		Node: node, Body: hinted(body, state, upstreamError),
+		Node: node, Body: hinted(seekable, state, upstreamError),
 		CacheState: state, UpstreamError: upstreamError, HasCopy: true,
 	}, nil
 }
