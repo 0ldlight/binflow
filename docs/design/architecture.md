@@ -808,6 +808,15 @@ CREATE TABLE repo_usage (                 -- 配额计数（ADR-0015 决策 2）
   POST   /binflow/api/v1/system/gc                 GC 触发（admin, {"apply":bool,"graceHours"?}，同步执行，
                                                  GC↔export 互斥 409——ADR-0015 勘误；GET 状态端点 P2 债务不做）
   POST/GET/DELETE /binflow/api/v1/session          session 三动词（登录 / whoami / 登出——ADR-0014 勘误②）
+  GET/POST /binflow/api/v1/permissions、DELETE /binflow/api/v1/permissions/{name}
+                                                 permission target CRUD（E-24 自有面，admin；纯文本错误——
+                                                 管理面）：POST = create-or-replace（单事务 PutTarget 整体替换
+                                                 target + principals 行，失败无半授权残留）；GET = 列全部 target
+                                                 含 principals；DELETE /{name} = 删 target（授权即时失效）。body
+                                                 {name,repos,includePatterns,excludePatterns,principals{users,
+                                                 groups}}；无 PUT 动词、无单读 GET /{name}（Artifactory /api/v2/
+                                                 security/permissions 有意不承诺——M4 §2.2 裁定）——T-130 补行
+                                                 （实现自 T-15 起即在 router，表漏列，T-122 遗留①）
   GET/POST /binflow/api/security/users、GET/PUT/POST /binflow/api/security/users/{name}
                                                  用户面（admin；兼容层路径非 /api/v1——E-16~E-19 既有事实，
                                                  M1 实现即落 security 段，原行 /api/v1/users 系笔误）；PUT /{name}
@@ -825,6 +834,13 @@ CREATE TABLE repo_usage (                 -- 配额计数（ADR-0015 决策 2）
                                                  200 纯文本（用户管理纯文本层，auth-model §2.1/§2.4）；exact-
                                                  match case 先于 security/users/ 前缀 POST、不落 /{name}
                                                  部分更新臂——T-122 补行（实现早于 T-115 即在 router，表漏列）
+  PUT    /binflow/api/security/password             自有改密路径（E-16 双路由的自有形态，PRD FR-5-AC3）：
+                                                 body {"oldPassword","newPassword"}，目标恒为认证主体（无
+                                                 userName 字段、不能指名他人）；认证即门、非 admin——自助改密；
+                                                 旧口令错误 400、成功 200 纯文本（用户管理纯文本层，
+                                                 auth-model §2.1 同族）——T-130 补行（实现自 T-15 起即在
+                                                 router，表漏列，T-122 遗留②；与上方 authorization/
+                                                 changePassword 真实路径别名并存）
   GET    /binflow/api/v1/storage/usage/{repo}       配额用量观测（{repo,usedBytes,quotaBytes}——GE-06；
                                                  quota 配置走 repositories 字段 quotaBytes，无专用设置端点）
   GET    /binflow/api/storage/{repo}/{path}?permissions

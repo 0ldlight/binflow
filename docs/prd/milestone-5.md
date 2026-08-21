@@ -4,7 +4,7 @@
 |---|---|
 | 文档 | `docs/prd/milestone-5.md` |
 | 里程碑 | M5 — 发布矩阵与文档中心（GA，对应 ROADMAP.md「M5」节全部条目 + §2.1 收编的 M4 债务） |
-| 状态 | **v1.1**（T-125：§7 四项开放问题**用户定案回写**——Q1 发布渠道 = 公共渠道：GitHub Releases + ghcr.io（Chart 仓库形态待定，首选 GitHub Pages）；Q2 HPA = 默认 disabled + maxReplicas≤1 拦截（转正）；Q3 烟测环境 = 用户提供（到位前按 T-106 降级口径先行，拆票 dep:用户环境）；Q4 GA 版本号 = v1.0.0（与 m5-done 双 tag）。FR-34/35/37/39、§5.2/§5.3/§5.4、§5.5-K2、§8/§9 联动。v1.0 初版：FR-34~FR-47、端点矩阵 PB/DC/DM 三域 13 条、G01~G35 验收命令（CLI/curl + 各部署形态烟测剧本）、回归基线反转表 7 行、M4 债务归置 10+12 条（入 M5 八 / M6+ 二，余见 §6.4）） |
+| 状态 | **v1.2**（T-130：§5.5 K1/K2 **架构终裁回写**——K1 = ADR-0011 增补①~⑤（搜索索引 = @easyops-cn/docusaurus-search-local 外挂本地全文 + nodejieba zh 分词、self-host 资产零后处理、v1.x lastVersion 单版本期无版本段、fallback 触发线四步、docs-static tar 内容定案）；K2 = ADR-0017（ghcr.io/lzwzzy/binflow 单镜像名 + 变体 tag、GA 不发滚动 tag、基镜像 **static-debian13:nonroot** / alpine:3.24 + 发布 digest 记录〔FR-35 基底 debian12 勘误〕、GA 携带 syft SBOM 最小面 + 签名 M6+〔结构性理由〕、Chart 仓库 = GitHub Pages 经典 helm repo〔Q1 首选转正〕）；DC-01/PB-03/PB-05 置信度中→高；T-129 影响收敛 docs-site 配置层、T-132 勘误一行）。v1.1（T-125：§7 四项开放问题**用户定案回写**——Q1 发布渠道 = 公共渠道：GitHub Releases + ghcr.io（Chart 仓库形态待定，首选 GitHub Pages）；Q2 HPA = 默认 disabled + maxReplicas≤1 拦截（转正）；Q3 烟测环境 = 用户提供（到位前按 T-106 降级口径先行，拆票 dep:用户环境）；Q4 GA 版本号 = v1.0.0（与 m5-done 双 tag）。FR-34/35/37/39、§5.2/§5.3/§5.4、§5.5-K2、§8/§9 联动。v1.0 初版：FR-34~FR-47、端点矩阵 PB/DC/DM 三域 13 条、G01~G35 验收命令（CLI/curl + 各部署形态烟测剧本）、回归基线反转表 7 行、M4 债务归置 10+12 条（入 M5 八 / M6+ 二，余见 §6.4）） |
 | 上游依据 | PRODUCT.md（核心能力 7 多元部署 + 成功标准四条：15 分钟跑通 / <40MB / 1000 并发 / 真实客户端）、ROADMAP.md M5 节与 DoD、M1 交付基线（milestone-1.md v1.3.1 @m1-done，现行 v1.3.2）、M2 交付基线（milestone-2.md v1.3 @m2-done，现行 v1.4）、M3 交付基线（milestone-3.md v1.2 @m3-done，现行 v1.3）、M4 交付基线（milestone-4.md v1.3 @m4-done）、ADR-0004（部署矩阵六产物 + 离线包）、ADR-0005（零 CGO / 依赖准入）、ADR-0010（/v2 根级例外——ingress 直通断言依据）、ADR-0011（Docusaurus：embed 主交付 / docs-site 聚合 / 匿名可读 / 5~15MB 预算与 fallback）、ADR-0016（目录实体化不变量 + T-119 实现草案两票）、architecture.md §9（部署架构约定：PVC / 健康检查 / 单副本拦截）与 §11 技术债台账（含 20 remote 不材料化）、docs/reverse/rest-api.md §3（?list / uri 族，高置信度）、reports/agents/T-119.md（实现草案）、T-106-qa.md（部署烟测先例与**不可达形态降级口径** §2.5）、T-103/T-104 QA（D-1 / D-104-2）、T-121（勘误台账与遗留移交）、BOARD.md done 区各票遗留登记 |
 | 下游消费者 | tech-lead（拆票）、architect（ADR-0011 增补终裁 K1 / 镜像供应链 K2）、release-engineer（goreleaser / 镜像 / compose / Helm / K8s / systemd / 离线包）、security-auditor（FR-42）、dev-go-core（FR-44 BE / FR-45 / FR-47）、dev-frontend（FR-44 FE / FR-46）、devops-engineer（docs-site 脚手架 / CI）、tech-writer（FR-41 五类内容）、qa-engineer（G 序列 + 四里程碑回归 + GA 总矩阵） |
 
@@ -16,6 +16,7 @@
 |---|---|---|
 | v1.0 | 2026-08-21 | 初版（T-125）：M5 范围、FR-34~FR-47（发布六面 + 文档中心 + 安全审计 + 性能基准 + M4 债务收编四面）、端点矩阵 PB/DC/DM 13 条、G01~G35 验收命令、四项开放问题附暂行（Q1 发布渠道 / Q2 HPA 呈现 / Q3 烟测环境可得性 / Q4 GA 版本号）、M4 债务归置定案（入 M5 8 / M6+ 2，另收编 / 关闭 12 项见 §6.4 速裁表）、Docusaurus 构建形态暂行待 architect 终裁（K1） |
 | v1.1 | 2026-08-21 | §7 四项**用户定案回写**：**Q1** 发布渠道 = 公共渠道——GitHub Releases（goreleaser 产物 + 离线包 / docs-static tar 附件）+ ghcr.io（双变体镜像），Chart 仓库形态待定（首选 GitHub Pages 形态，终形随 K2）；推送时安全底线不变（逐项用户确认），凭证 M5 收口阶段由用户提供 / 注入、不入库；本地归档保留为发布前置校验面（FR-34 release 目标 / FR-35 / K2 / G35 / §8-⑩ / §9-⑦ 联动）。**Q2** HPA = 默认 disabled + 启用强制 maxReplicas≤1（v1.0 假设转正；FR-37 / PB-05 置信度升高联动）。**Q3** 烟测环境 = 用户提供（windows / systemd 真机腿拆票标注 `dep:用户环境`；到位前按 T-106 降级口径静态先行、到位后补跑真机腿；FR-34-AC5 / FR-39-AC2 / §5.3 / §9-③ 联动）。**Q4** GA 版本号 = v1.0.0（semver 起点，无 build 元数据；git tag `v1.0.0` + `m5-done` 双 tag；goreleaser 注入基准） |
+| v1.2 | 2026-08-21 | §5.5 K1/K2 **架构终裁回写**（T-130）：**K1** = ADR-0011 增补①~⑤ 定案——搜索索引 = `@easyops-cn/docusaurus-search-local` 外挂本地全文索引（+ nodejieba zh 分词，构建期原生依赖不进运行时；「Docusaurus 内建方案」修正：内建只索引元数据不搜正文，G18 关键词不可达）；self-host 资产零后处理（baseUrl 原生前缀化，无 relink-assets）；`lastVersion: v1.x` 单版本期默认路径无版本段；fallback 触发线四步（归因→内容减重→占位重建+tar 升格→用户确认）；docs-static tar = 同一 build 产物原样。**K2** = ADR-0017 定案——ghcr.io/lzwzzy/binflow 单镜像名 + 变体 tag；tag 家族 `v1.0.0`（→distroless）/`-alpine`/`-distroless`/`latest`，**GA 不发 dev/edge 滚动 tag**（与 Q1 逐项确认结构性冲突）；基镜像 `static-debian13:nonroot`（**FR-35 基底 debian12 勘误**——debian12 已被 distroless 取代）+ `alpine:3.24` + 发布 digest 记录；GA 携带 syft SBOM 最小面（Release 附件）、cosign 签名/SLSA/helm provenance 列 M6+（结构性理由：keyless 依赖 CI 身份、自持密钥违背零密钥姿态）；Chart 仓库 = GitHub Pages 经典 helm repo（Q1 首选转正）。DC-01/PB-03/PB-05 置信度中→高；T-129 影响收敛 docs-site 配置层（devDependencies + plugin/theme 块）；T-132 勘误一行（基底 tag 常量） |
 
 ---
 
@@ -144,10 +145,10 @@ M5 的用户价值排序（对齐 PRODUCT「离线与受限网络 / 平台工程
 
 行为规格：
 
-- **双变体**：`binflow:<VER>-alpine`（alpine 基底，含 shell——调试 / 排障 / `docker exec` 运维友好）与 `binflow:<VER>-distroless`（`gcr.io/distroless/static-debian12:nonroot` 基底——零 shell、零包管理器）；浮动 tag `binflow:<VER>` 指向 distroless（默认推荐最小面，K2 暂行）。
+- **双变体**：`binflow:<VER>-alpine`（alpine 基底，含 shell——调试 / 排障 / `docker exec` 运维友好）与 `binflow:<VER>-distroless`（`gcr.io/distroless/static-debian13:nonroot` 基底——零 shell、零包管理器；**v1.2 勘误**：原 debian12 已被 distroless 取代，ADR-0017 锚定 debian13 系 + `alpine:3.24`，禁 `latest`，发布清单记录当次 digest）；浮动 tag `binflow:<VER>` 指向 distroless（默认推荐最小面，ADR-0017 转正）。
 - **multi-arch**：两变体均为 `linux/amd64 + linux/arm64` manifest list（buildx）；构建沿 T-106 先例——镜像内 node 阶段自建 console 与 docs 站（不依赖构建机本地状态，资产指纹与 `make console`/`make docs` 一致）。
 - **镜像契约（architecture §9 维持）**：`EXPOSE 8080`、`USER` 非 root、`HEALTHCHECK /readyz`、data 默认 `/var/lib/binflow`、`CGO_ENABLED=0`。dev 形态镜像（deploy/dev，T-17/T-106 产物）继续维护，GA 镜像构建链独立（deploy/release 或同等目录，release-engineer 定布局——K3）。
-- 镜像扫描面归 FR-42-AC2；**镜像发布到 ghcr.io**（§7 Q1 定案；命名空间细节归 K2）——推送前逐项经用户确认、凭证由用户注入（不入库）；未执行确认推送前一律本地 tag。
+- 镜像扫描面归 FR-42-AC2；**镜像发布到 ghcr.io**（§7 Q1 定案；命名空间 `ghcr.io/lzwzzy/binflow`、tag 家族与 GA 不发滚动 tag 归 ADR-0017 定案）——推送前逐项经用户确认、凭证由用户注入（不入库）；未执行确认推送前一律本地 tag。
 
 | # | AC（可执行） | 优先级 |
 |---|---|---|
@@ -398,13 +399,13 @@ M5 的用户价值排序（对齐 PRODUCT「离线与受限网络 / 平台工程
 |---|---|---|---|---|---|---|
 | PB-01 | goreleaser 六平台产物 + `binflow_<VER>_checksums.txt` | linux/darwin/windows × amd64/arm64；CGO 零维持；单二进制含 console+docs embed | 自有 | P0 | — | G01/G03 |
 | PB-02 | `--version` + `/api/v1/health` `version` 字段 | ldflags 注入 `<VER> (<git short sha>)`；裸 build 回退 dev；health 只增字段 | 自有 | P0 | — | G02/G04 |
-| PB-03 | 镜像双变体 multi-arch（`<VER>-alpine` / `<VER>-distroless` / 浮动 `<VER>`） | amd64+arm64 manifest list；非 root；HEALTHCHECK；镜像内自建 console/docs（不依赖构建机） | 自有（浮动 tag 指向为 K2 暂行） | P0 | 中（K2） | G06~G08 |
+| PB-03 | 镜像双变体 multi-arch（`<VER>-alpine` / `<VER>-distroless` / 浮动 `<VER>`） | amd64+arm64 manifest list；非 root；HEALTHCHECK；镜像内自建 console/docs（不依赖构建机） | 自有（ADR-0017 定案） | P0 | 高（ADR-0017） | G06~G08 |
 | PB-04 | `deploy/compose/` GA 产物 | 持久卷 / restart / healthcheck / 反代 profile（D-106-2 修复片段）；15 分钟口径 | 自有 | P0 | — | G09/G10 |
-| PB-05 | `charts/binflow/`（persistence / ingress / HPA 模板） | values.schema 拦 replicaCount>1；HPA 默认 disabled + maxReplicas≤1（Q2 定案）；ingress 直通 `/` 与 `/v2/` 不 rewrite | 自有 | P0 | 高（Q2 用户定案）/ 中（K2 tag 与 Chart 仓库细节） | G11~G13 |
+| PB-05 | `charts/binflow/`（persistence / ingress / HPA 模板） | values.schema 拦 replicaCount>1；HPA 默认 disabled + maxReplicas≤1（Q2 定案）；ingress 直通 `/` 与 `/v2/` 不 rewrite | 自有 | P0 | 高（Q2 用户定案 / ADR-0017 Chart 仓库） | G11~G13 |
 | PB-06 | `deploy/k8s/` 原生清单 | runAsNonRoot / resources / probes；镜像 tag 文档锚定非 latest | 自有 | P0 | — | G14 |
 | PB-07 | `contrib/systemd/binflow.service` + `install.sh` | Type=simple / Restart=on-failure / ReadWritePaths；install.sh checksums 校验失败即止 | 自有 | P1 | — | G15/G16 |
 | PB-08 | `binflow_offline_<VER>.tar.gz` 离线包 | 镜像+chart+清单+linux 二进制+SHA256SUMS+安装脚本；零外网安装 | 自有 | P0 | 中（K3） | G17 |
-| DC-01 | `GET /binflow/docs/**` | Docusaurus 站（zh / 零 CDN / 本地搜索索引 / v1.x 版本化）；**匿名只读**（匿名关实例同放行）；无写面 | 自有 | P0 | 高（ADR-0011）/ 中（K1 构建细节） | G18~G22 |
+| DC-01 | `GET /binflow/docs/**` | Docusaurus 站（zh / 零 CDN / 本地搜索索引 / v1.x 版本化）；**匿名只读**（匿名关实例同放行）；无写面 | 自有 | P0 | 高（ADR-0011 增补） | G18~G22 |
 | DC-02 | 控制台「帮助」入口 → `/binflow/docs/` | 前端一行链接（P1） | 自有 | P1 | — | G19b |
 | DM-01 | `?list` 顶层 uri / `?permissions` uri 基址修正（O-106-1/O-4 族） | uri 与 files[].uri 同基、repo key 恰一次、自 curl 200；形态对照 rest-api.md §3 | 兼容（E-10 子集行为修正） | P2 | 高（rest-api §3） | G33 |
 | DM-02 | 隐式目录 `GET /api/storage/{repo}/{dir}`（含 `?list`）**404 → 200** FolderInfo（ADR-0016） | putNode 材料化祖先 + 007 回填；prune 空祖先链（含显式 mkdir 空目录）；docker image 目录可浏览 | 兼容（行为缺口补齐） | P0 | 高（ADR-0016 双源取证） | G30 |
@@ -569,8 +570,8 @@ curl -su admin:$ADMIN_PW "$BASE/binflow/api/storage/generic-local/acme/?list" | 
 
 | # | 项 | v1.0 暂行值 | 校准来源 |
 |---|---|---|---|
-| K1 | Docusaurus 构建形态细节：搜索索引方案（Docusaurus 内建本地索引 vs 外挂）、self-host 资产落盘布局、fallback 触发线（超 15MB 的处置步骤）、docs-static tar 内容 | 本 PRD DC-01 行为约束（匿名 / 零 CDN / 离线搜索 / v1.x）为准，实现形态如上暂行 | architect **ADR-0011 增补票终裁**；落地后回写 DC-01 注记（+0.1） |
-| K2 | 镜像与 Chart 供应链细节：ghcr.io 命名空间（org / 镜像名）、浮动 tag `<VER>` 指向 distroless、distroless 基镜像 tag 锚定、**Chart 仓库形态**（Q1 定案公共渠道后首选 GitHub Pages 形态，终形待定） | FR-35/FR-37 暂行值（渠道家族已定：ghcr.io / GitHub Releases，Q1 用户定案） | architect/release 增量票（Q1 已定渠道，本项收口剩余细节） |
+| K1 | Docusaurus 构建形态细节：搜索索引方案（Docusaurus 内建本地索引 vs 外挂）、self-host 资产落盘布局、fallback 触发线（超 15MB 的处置步骤）、docs-static tar 内容 | **已定案（v1.2 / T-130，ADR-0011 增补①~⑤）**：搜索索引 = `@easyops-cn/docusaurus-search-local` 外挂本地全文 + nodejieba（内建方案只索引元数据不搜正文，暂行修正）；self-host 资产零后处理（baseUrl 原生前缀化）；`lastVersion: v1.x` 单版本期默认路径无版本段；fallback 四步（归因→减重→占位重建 + tar 升格→用户确认）；docs-static tar = 同一 build 产物原样 | T-129 勘误回写：影响收敛 docs-site 配置层（devDependencies + plugin/theme 块），embed/挂载/`make docs` 链路零改动 |
+| K2 | 镜像与 Chart 供应链细节：ghcr.io 命名空间（org / 镜像名）、浮动 tag `<VER>` 指向 distroless、distroless 基镜像 tag 锚定、**Chart 仓库形态**（Q1 定案公共渠道后首选 GitHub Pages 形态，终形待定） | **已定案（v1.2 / T-130，ADR-0017）**：`ghcr.io/lzwzzy/binflow` 单镜像名 + 变体 tag；tag 家族 `v1.0.0`（→distroless）/`-alpine`/`-distroless`/`latest`，GA 不发滚动 tag；基底 `static-debian13:nonroot` + `alpine:3.24` + 发布 digest 记录；GA 携带 syft SBOM 最小面（Release 附件）、签名 M6+；Chart 仓库 = GitHub Pages 经典 helm repo | T-132 勘误一行（基底 tag → debian13）；PRD FR-35 基底表述已同步（v1.2） |
 | K3 | 离线包内部布局与 `install-offline.sh` 语义（幂等 / 失败清理 / kind 导入分支） | FR-40 暂行结构 | release-engineer 产物票细化，QA 按 G17 断言 |
 
 ### 5.6 回归基线反转表（M5 起生效，qa 更新既有断言）
