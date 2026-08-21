@@ -19,9 +19,11 @@
 
 > **M5 票 AC 全文见 reports/agents/T-126.md**（21 票 T-127~T-147）。批次：1:{T-127,T-128,T-129,T-130} → 2:{T-131,T-132,T-133} → 3:{T-134,T-135,T-136,T-137} → 4:{T-138,T-139,T-140,T-142} → 5:{T-141,T-143,T-144} → 6:{T-145,T-146} → 7:{T-147}。双 reviewer：**T-128（正确性+架构）、T-132（安全+供应链）**。R1~R10 裁决见 T-126.md；P2/M6+ 台账 PRD §6.4 速裁 12 项。
 
-- **T-128** [P0] FR-44 BE 材料化+007 回填（ADR-0016，照 T-119 草案；**双 reviewer 票**） `role:dev-go-core` `area:internal/repo、internal/metadata(007)` — done 2026-08-21（conductor 核验直收；**待双 review**）
-  materializeAncestors（putNode 前置/幂等/哨兵 blob FK 满足）；007 回填迁移（两步 SQL/递归 CTE/幂等）；12 测试文件适配；伴随修复 docs 重定向循环。repo+httpapi+docs 全套测试 race 绿。日志 reports/agents/T-128.md。**双 review 待派发**。
-- **T-131** [P0] FR-44 FE 删双兜底 `dep:T-128（硬）` / **T-132** [P0] FR-35 镜像双变体（**双 reviewer 票**）`dep:T-127（就绪）` / **T-133** [P0] FR-45 token 审计 — AC 见 T-126.md
+- **T-128** [P0] FR-44 BE 材料化+007 回填（ADR-0016，照 T-119 草案；**双 reviewer 票**） `role:dev-go-core` `area:internal/repo、internal/metadata(007)` — done 2026-08-21（双 review 通过 → 提交 80c036a）
+  materializeAncestors（putNode 前置/幂等/哨兵 blob FK 满足）；007 回填迁移（两步 SQL/递归 CTE/幂等）；12 测试文件适配；伴随修复 docs 重定向循环。repo+httpapi+docs 全套测试 race 绿。日志 reports/agents/T-128.md。正确性 review APPROVE（报告 reports/agents/T-128-review-correctness.md）、架构 review APPROVE（报告 reports/agents/T-128-review-architecture.md）。
+- **T-131** [P0] FR-44 FE 删双兜底 `role:dev-frontend` `area:web/src/pages/repositories/tree` `dep:T-128（硬就绪）` — doing 2026-08-21（批 2 已派）
+- **T-132** [P0] FR-35 镜像双变体（**双 reviewer 票**） `role:release-engineer` `area:deploy/release/` `dep:T-127（就绪）` — doing 2026-08-21（批 2 已派）
+- **T-133** [P0] FR-45 token 审计 `role:dev-go-core` `area:internal/httpapi、internal/audit、internal/auth` `dep:—` — doing 2026-08-21（批 2 已派；**违规：agent 未产出代码，需重派**）
 - T-134~T-147（docker 视图/compose/Helm/K8s/systemd/离线包/uri 族/文档×2/安全审计/QA×4）— AC 与依赖链见 reports/agents/T-126.md
 
 ## 🔨 进行中（doing）

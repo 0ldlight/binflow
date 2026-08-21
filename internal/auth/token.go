@@ -93,6 +93,14 @@ func expired(expiresAt string) bool {
 	return !t.After(time.Now())
 }
 
+// TokenFingerprint returns the first 8 hex characters of sha256(plaintext).
+// It is the opaque, collision-resistant short identifier used in audit events
+// so the plaintext token never appears in a stored detail payload (NFR-S3).
+func TokenFingerprint(plaintext string) string {
+	digest := sha256.Sum256([]byte(plaintext))
+	return hex.EncodeToString(digest[:])[:8]
+}
+
 // nowRFC3339 matches the metadata timestamp convention (ADR-0007).
 func nowRFC3339() string { return time.Now().UTC().Format(time.RFC3339) }
 

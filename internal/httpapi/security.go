@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lzwzzy/binflow/internal/audit"
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/metadata"
 )
@@ -321,6 +322,18 @@ func (s *Server) handleTokenCreate(w http.ResponseWriter, r *http.Request) {
 		writeOAuthError(w, http.StatusInternalServerError, "invalid_request", "token creation failed")
 		return
 	}
+	// Record the audit event BEFORE the plaintext AccessToken is serialized
+	// and then discarded. The fingerprint is sha256 first 8 hex chars — the
+	// same digest the verifier uses, so revoke-by-fingerprint is consistent.
+	// Detail carries the fingerprint and TTL; the plaintext never enters the
+	// audit payload (NFR-S3).
+	s.audit.Record(r.Context(), audit.Event{
+		Actor:  p.Name,
+		Action: audit.ActionTokenIssue,
+		RemoteAddr: r.RemoteAddr,
+		Detail: fmt.Sprintf(`{"fingerprint":"%s","ttl_seconds":%d}`,
+			auth.TokenFingerprint(tok.AccessToken), expiresIn),
+	})
 	resp := tokenCreateResponse{
 		AccessToken: tok.AccessToken,
 		TokenType:   tok.TokenType,
@@ -356,6 +369,7 @@ func (s *Server) handleTokenRevoke(w http.ResponseWriter, r *http.Request) {
 		writeOAuthError(w, http.StatusBadRequest, "invalid_request", "malformed form body: "+err.Error())
 		return
 	}
+	p := principalFrom(r.Context())
 	token := r.PostFormValue("token")
 	tokenID := strings.TrimSpace(r.PostFormValue("token_id"))
 	if token != "" && tokenID != "" {
@@ -382,6 +396,12 @@ func (s *Server) handleTokenRevoke(w http.ResponseWriter, r *http.Request) {
 			writeOAuthError(w, http.StatusInternalServerError, "invalid_request", "token revocation failed")
 			return
 		}
+		s.audit.Record(r.Context(), audit.Event{
+			Actor:  p.Name,
+			Action: audit.ActionTokenRevoke,
+			RemoteAddr: r.RemoteAddr,
+			Detail: fmt.Sprintf(`{"fingerprint":"%s"}`, auth.TokenFingerprint(token)),
+		})
 		writeText(w, http.StatusOK, "Token revoked")
 		return
 	}
@@ -400,6 +420,12 @@ func (s *Server) handleTokenRevoke(w http.ResponseWriter, r *http.Request) {
 		writeOAuthError(w, http.StatusInternalServerError, "invalid_request", "token revocation failed")
 		return
 	}
+	s.audit.Record(r.Context(), audit.Event{
+		Actor:  p.Name,
+		Action: audit.ActionTokenRevoke,
+		RemoteAddr: r.RemoteAddr,
+		Detail: fmt.Sprintf(`{"token_id":%d}`, id),
+	})
 	writeText(w, http.StatusOK, "Token revoked")
 }
 

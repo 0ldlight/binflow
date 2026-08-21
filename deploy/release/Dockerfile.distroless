@@ -1,0 +1,165 @@
+# BinFlow GA release image — distroless variant (PB-03, T-132, K2).
+#
+# Identical build stages to Dockerfile.alpine, but the runtime stage uses
+# gcr.io/distroless/static-debian13:nonroot — a minimal shell-free image
+# (ADR-0017, K2 final ruling: debian13, not debian12).
+#
+# Because distroless ships neither a shell nor wget, the HEALTHCHECK uses
+# the Go server's own Go-based TCP check via a tiny helper. Actually, because
+# distroless has NO shell at all, we use the same wget technique via curl or
+# simply accept that distroless uses a different HEALTHCHECK mechanism.
+# The simplest approach: use the Go binary itself to probe via the server's
+# own readyz -- but that would require running a second instance. Instead,
+# we use `docker healthcheck` with CMD-SHELL pointing at wget. Since distroless
+# doesn't have wget, we install ca-certificates only and rely on the fact that
+# HEALTHCHECK can be done externally.
+#
+# Resolution (T-132 AC G07): distroless runtime has no shell. HEALTHCHECK is
+# configured via the Dockerfile but the actual check relies on the server's
+# /readyz endpoint through the orchestrator (compose/K8s) or docker's own
+# healthcheck mechanism. In distroless, we CANNOT use CMD wget because there
+# is no shell. We use a simple Go healthcheck probe binary instead.
+#
+# Build:
+#
+#   docker buildx build \
+#     --platform linux/amd64,linux/arm64 \
+#     -f deploy/release/Dockerfile.distroless \
+#     -t binflow:<VER>-distroless \
+#     --build-arg BINFLOW_VER=<VER> \
+#     --build-arg BINFLOW_REVISION=<short-sha> \
+#     .
+#
+# Or via build-release.sh (the recommended face).
+# Build context is the REPOSITORY ROOT.
+
+# ---- stage 1: console (node) ------------------------------------------------
+
+FROM node:22-alpine AS console
+WORKDIR /web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
+COPY web/index.html web/vite.config.ts web/tsconfig.json web/tsconfig.node.json ./
+COPY web/scripts ./scripts
+COPY web/src ./src
+RUN npm run build
+
+# ---- stage 2: docs (node) ---------------------------------------------------
+# Docusaurus config references docs/user/ as the content source via relative
+# path '../docs/user' (docusaurus.config.js:71). We must COPY the content
+# tree alongside the site machinery so the build can resolve it.
+
+FROM node:22-alpine AS docs
+WORKDIR /docs-site
+COPY docs-site/package.json docs-site/package-lock.json ./
+RUN npm ci
+COPY docs-site/ ./
+COPY docs/ /docs/
+RUN npm run build
+
+# ---- stage 3: builder -------------------------------------------------------
+
+FROM golang:1.26-alpine AS builder
+
+ARG BINFLOW_VER
+ARG BINFLOW_REVISION
+ENV GOTOOLCHAIN=local \
+    CGO_ENABLED=0 \
+    GOPROXY=https://goproxy.cn,direct
+
+WORKDIR /src
+
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+
+COPY cmd ./cmd
+COPY internal ./internal
+
+RUN rm -rf /src/internal/console/dist/assets /src/internal/console/dist/index.html
+COPY --from=console /web/dist/ /src/internal/console/dist/
+
+RUN rm -rf /src/internal/docs/dist/assets /src/internal/docs/dist/index.html
+COPY --from=docs /docs-site/build/ /src/internal/docs/dist/
+
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go build -trimpath \
+      -ldflags="-s -w \
+        -X main.version=${BINFLOW_VER} \
+        -X main.revision=${BINFLOW_REVISION}" \
+      -o /out/binflow-server ./cmd/binflow-server
+
+# ---- stage 3b: healthcheck helper (tiny Go binary) --------------------------
+# Distroless has no shell, so we build a tiny static Go binary that does
+# an HTTP GET on /readyz and exits 0 on 200. This replaces the shell-based
+# `wget` used in the alpine variant.
+
+FROM golang:1.26-alpine AS healthcheck-builder
+
+ENV GOTOOLCHAIN=local CGO_ENABLED=0
+WORKDIR /healthcheck
+# Create a minimal go module so the Go tool can build the tiny probe binary.
+RUN cat > go.mod << 'GOEOF' && cat > main.go << 'GOEOF'
+module healthcheck-probe
+
+go 1.26
+GOEOF
+package main
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+)
+
+func main() {
+	resp, err := http.Get("http://127.0.0.1:8080/readyz")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "healthcheck: %v\n", err)
+		os.Exit(1)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		io.Copy(io.Discard, resp.Body)
+		fmt.Fprintf(os.Stderr, "healthcheck: status %d\n", resp.StatusCode)
+		os.Exit(1)
+	}
+	io.Copy(io.Discard, resp.Body)
+	os.Exit(0)
+}
+GOEOF
+RUN go build -trimpath -ldflags="-s -w" -o /healthcheck/probe
+
+# ---- stage 3c: data directory (scratch + docker) ---------------------------
+# Distroless has no shell so we can't RUN mkdir. We build a tiny layer from
+# scratch that creates /var/lib/binflow with correct ownership.
+
+FROM alpine:3.24 AS datadir
+RUN mkdir -p /var/lib/binflow && chown -R 65532:65532 /var/lib/binflow
+
+# ---- stage 4: runtime (distroless) ------------------------------------------
+
+FROM gcr.io/distroless/static-debian13:nonroot
+
+# Import the CA cert bundle for outbound TLS (M3 remote repos). Distroless
+# has no package manager; the nonroot variant includes /etc/ssl/certs from
+# the base static-debian13 image already.
+
+ENV BINFLOW_DATA_DIR=/var/lib/binflow
+
+COPY --from=builder --chown=nonroot:nonroot /out/binflow-server /usr/local/bin/binflow-server
+COPY --from=healthcheck-builder /healthcheck/probe /usr/local/bin/healthcheck-probe
+COPY --from=datadir --chown=nonroot:nonroot /var/lib/binflow /var/lib/binflow
+
+USER nonroot:nonroot
+
+EXPOSE 8080
+VOLUME /var/lib/binflow
+
+# HEALTHCHECK via the tiny Go probe binary.
+HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=5 \
+    CMD ["/usr/local/bin/healthcheck-probe"]
+
+ENTRYPOINT ["/usr/local/bin/binflow-server"]
+CMD ["serve"]

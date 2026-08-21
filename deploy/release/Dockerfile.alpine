@@ -1,0 +1,121 @@
+# BinFlow GA release image — alpine variant (PB-03, T-132).
+#
+# Multi-stage build, mirroring deploy/dev/Dockerfile (T-17/T-106) with GA
+# additions: version stamping via ldflags, and a docs site build stage.
+#
+# Stages:
+#   1. console — node:22-alpine builds the web console (web/) with the
+#      lockfile-pinned toolchain (ADR-0014 decision 4). The image embeds
+#      the REAL SPA whatever the builder's local checkout state.
+#   2. docs — node:22-alpine builds the help docs site (docs-site/) with
+#      Docusaurus. `make docs` output is gitignored; the image builds it
+#      from source so one source always yields one image.
+#   3. builder — golang:1.26-alpine, CGO disabled (ADR-0005 zero-CGo
+#      baseline), with version ldflags injected from build args.
+#   4. runtime — minimal alpine:3.24, non-root user (10001), HEALTHCHECK
+#      on unauthenticated /readyz, EXPOSE 8080, data /var/lib/binflow.
+#
+# Build via buildx for multi-arch:
+#
+#   docker buildx build \
+#     --platform linux/amd64,linux/arm64 \
+#     -f deploy/release/Dockerfile.alpine \
+#     -t binflow:<VER>-alpine \
+#     --build-arg BINFLOW_VER=<VER> \
+#     --build-arg BINFLOW_REVISION=<short-sha> \
+#     .
+#
+# Or via build-release.sh (the recommended face).
+# Build context is the REPOSITORY ROOT.
+
+# ---- stage 1: console (node) ------------------------------------------------
+
+FROM node:22-alpine AS console
+WORKDIR /web
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
+COPY web/index.html web/vite.config.ts web/tsconfig.json web/tsconfig.node.json ./
+COPY web/scripts ./scripts
+COPY web/src ./src
+RUN npm run build
+
+# ---- stage 2: docs (node) ---------------------------------------------------
+# Docusaurus config references docs/user/ as the content source via relative
+# path '../docs/user' (docusaurus.config.js:71). We must COPY the content
+# tree alongside the site machinery so the build can resolve it.
+
+FROM node:22-alpine AS docs
+WORKDIR /docs-site
+COPY docs-site/package.json docs-site/package-lock.json ./
+RUN npm ci
+COPY docs-site/ ./
+COPY docs/ /docs/
+RUN npm run build
+
+# ---- stage 3: builder -------------------------------------------------------
+
+FROM golang:1.26-alpine AS builder
+
+ARG BINFLOW_VER
+ARG BINFLOW_REVISION
+# CGO_ENABLED=0 across every architecture — pure-Go cross compile
+# (ADR-0005 zero-CGo baseline).
+ENV GOTOOLCHAIN=local \
+    CGO_ENABLED=0 \
+    GOPROXY=https://goproxy.cn,direct
+
+WORKDIR /src
+
+# Cache the Go module layer.
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+
+# Copy source.
+COPY cmd ./cmd
+COPY internal ./internal
+
+# Wipe whatever the context brought for console/dist (gitignored local
+# builds) and take exactly what the console stage built.
+RUN rm -rf /src/internal/console/dist/assets /src/internal/console/dist/index.html
+COPY --from=console /web/dist/ /src/internal/console/dist/
+
+# Same for docs/dist.
+RUN rm -rf /src/internal/docs/dist/assets /src/internal/docs/dist/index.html
+COPY --from=docs /docs-site/build/ /src/internal/docs/dist/
+
+# Build with version ldflags.
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go build -trimpath \
+      -ldflags="-s -w \
+        -X main.version=${BINFLOW_VER} \
+        -X main.revision=${BINFLOW_REVISION}" \
+      -o /out/binflow-server ./cmd/binflow-server
+
+# ---- stage 4: runtime -------------------------------------------------------
+
+FROM alpine:3.24
+
+# ca-certificates for outbound TLS (M3 remote repos), tzdata for honest
+# timestamps. Non-root user 10001, data dir at /var/lib/binflow.
+RUN apk add --no-cache ca-certificates tzdata \
+    && addgroup -S -g 10001 binflow \
+    && adduser -S -D -H -u 10001 -G binflow binflow \
+    && mkdir -p /var/lib/binflow /etc/binflow \
+    && chown -R binflow:binflow /var/lib/binflow /etc/binflow
+
+ENV BINFLOW_DATA_DIR=/var/lib/binflow
+
+COPY --from=builder --chown=binflow:binflow /out/binflow-server /usr/local/bin/binflow-server
+
+USER binflow:binflow
+
+EXPOSE 8080
+VOLUME /var/lib/binflow
+
+# HEALTHCHECK on unauthenticated /readyz. wget is busybox-built into alpine.
+HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=5 \
+    CMD wget -q -O /dev/null http://127.0.0.1:8080/readyz || exit 1
+
+ENTRYPOINT ["/usr/local/bin/binflow-server"]
+CMD ["serve"]

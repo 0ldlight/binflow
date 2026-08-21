@@ -264,13 +264,21 @@ func TestAuditVocabularyW23(t *testing.T) {
 	// W23: deploy/delete/repo.create/group.create/gc.run/quota.exceeded
 	// (the subset the PRD script names) each >= 1 and queryable. The
 	// fixture covers deploy/delete/repo.create/group.create/quota.exceeded;
-	// gc.run completes the set.
+	// gc.run completes the set. T-133 extends the vocabulary assertion with
+	// token.issue and token.revoke (FR-45 audit trail).
 	t93Seed(t, h, append(t93Fixture(), audit.Event{
 		Time: "2026-08-19T11:00:06Z", Actor: "admin", Action: audit.ActionGCRun,
+	}, audit.Event{
+		Time: "2026-08-19T11:00:08Z", Actor: "admin", Action: audit.ActionTokenIssue,
+		Detail: `{"fingerprint":"deadbeef","ttl_seconds":2592000}`,
+	}, audit.Event{
+		Time: "2026-08-19T11:00:09Z", Actor: "admin", Action: audit.ActionTokenRevoke,
+		Detail: `{"fingerprint":"deadbeef"}`,
 	})...)
 	for _, action := range []string{
 		audit.ActionDeploy, audit.ActionDelete, audit.ActionRepoCreate,
 		audit.ActionGroupCreate, audit.ActionGCRun, audit.ActionQuotaExceeded,
+		audit.ActionTokenIssue, audit.ActionTokenRevoke,
 	} {
 		status, page, _ := t93GetAudit(t, h, "?action="+action)
 		if status != http.StatusOK || len(page.Events) < 1 {

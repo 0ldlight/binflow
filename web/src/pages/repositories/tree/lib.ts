@@ -1,4 +1,4 @@
-// 制品树域 API（T-100）。两个平面：
+// 制品树域 API（T-100 / T-131）。两个平面：
 //
 // - 元数据面走 /binflow/api/storage/**（apiJSON 信封，401 全局监听生效）：
 //   目录列举（E-09 FolderInfo children + ?list&depth=1 的文件元数据合并）、
@@ -8,14 +8,13 @@
 //   该面不在 api.ts 的 API_ROOT 下，错误解析本地复刻 errors[] 信封
 //   （generic adapter 全族 E-01）。
 //
-// 契约注记（W12 消费实测，已登记工作日志「契约漂移」）：
+// 契约注记（T-131 更新：ADR-0016 materializeAncestors 已就位）：
 // - FolderInfo children 只有 uri('/name')+folder 两字段——size/mtime 不在
 //   其中；?list&depth=1 给文件的 size/lastModified/sha1/sha2（根目录被
 //   400 拒绝，见 handleStorageList），非根目录两请求合并。
-// - **隐式目录无 folder 行**：putNode 只落文件节点，不落父目录行——
-//   GET /api/storage/{repo}/{dir} 对「制品路径推断出的目录」404（只有
-//   E-15 尾斜杠 PUT 建过的目录有行）。树浏览对这类目录回退搜索面前缀
-//   重构（searchListing；folder 行不进搜索索引，空 mkdir 目录走主路径）。
+// - **隐式目录已材料化**：putNode 前置 materializeAncestors（ADR-0016），
+//   GET /api/storage/{repo}/{dir} 对任意段深度的隐式目录均返回 200
+//   FolderInfo。FE 不再需要搜索面兜底——listChildren 直走主路径即可。
 // - 目录删除携带尾斜杠（service Delete 的 isFolderNode 分支：无斜杠走
 //   文件臂 404）；建目录是尾斜杠 PUT（E-15）；folder 行的存储拼写本身
 //   带尾斜杠（'acme/'）。
@@ -104,8 +103,8 @@ function toApiError(err: unknown): ApiError {
 
 /**
  * 一个目录的直接 children：FolderInfo（结构）+ ?list&depth=1（文件元数据）
- * 合并；**隐式目录**（制品路径推断出、无 folder 行——putNode 不落父目录
- * 行，实测 GET /api/storage/{repo}/{dir} 404）回退到搜索面前缀重构。
+ * 合并。**隐式目录已由 BE materializeAncestors 材料化**（ADR-0016），
+ * listChildren 直走主路径，不再需要搜索面兜底。
  * 目录在前、同组按名排序（服务端 children 已按 uri 排序，合并后重排一次
  * 保持全序）。
  */
@@ -114,18 +113,7 @@ export async function listChildren(
   dir: string,
   signal?: AbortSignal,
 ): Promise<ChildNode[]> {
-  let folder: ItemInfo
-  try {
-    folder = await apiJSON<ItemInfo>(storagePath(repoKey, dir), { signal })
-  } catch (err) {
-    if (err instanceof ApiError && err.status === 404 && dir !== '') {
-      // 隐式目录：无 folder 行——用搜索面（name 是路径子串）拉全后代再
-      // 投影到第一段。folder 行不进搜索索引（nodeQuery 显式排除 '%/'），
-      // 空的 mkdir 目录在此不可见（由 item-info 主路径覆盖）。
-      return searchListing(repoKey, dir, signal)
-    }
-    throw err
-  }
+  const folder = await apiJSON<ItemInfo>(storagePath(repoKey, dir), { signal })
   const kids = folder.children ?? []
   let files: { uri: string; size: number; lastModified: string; sha2?: string; folder: boolean }[] = []
   if (dir !== '') {
@@ -151,36 +139,6 @@ export async function listChildren(
       sha256: meta?.sha2 ?? '',
     }
   })
-  sortChildren(nodes)
-  return nodes
-}
-
-/** 隐式目录的搜索面重构：name=<dir>/ 的子串命中 + 前缀收窄 + 首段投影 */
-async function searchListing(repoKey: string, dir: string, signal?: AbortSignal): Promise<ChildNode[]> {
-  const params = new URLSearchParams({ name: `${dir}/`, repos: repoKey })
-  const res = await apiJSON<{ results: ItemInfo[] }>(`/search/artifact?${params.toString()}`, { signal })
-  const prefix = `${dir}/`
-  const byName = new Map<string, ChildNode>()
-  for (const hit of res.results ?? []) {
-    const p = hit.path.replace(/^\//, '')
-    if (!p.startsWith(prefix)) continue // 子串匹配会把「a<dir>/」一并带回
-    const rel = p.slice(prefix.length)
-    if (rel === '') continue
-    const name = rel.split('/')[0]
-    const isFolder = rel.includes('/')
-    const existing = byName.get(name)
-    if (existing?.folder) continue
-    if (!isFolder && existing) continue
-    byName.set(name, {
-      name,
-      path: `${dir}/${name}`,
-      folder: isFolder,
-      size: isFolder ? null : Number(hit.size) || 0,
-      lastModified: hit.lastModified ?? '',
-      sha256: isFolder ? '' : (hit.checksums?.sha256 ?? ''),
-    })
-  }
-  const nodes = Array.from(byName.values())
   sortChildren(nodes)
   return nodes
 }
@@ -293,26 +251,10 @@ export async function deleteNode(repoKey: string, path: string, folder: boolean)
 /**
  * 建目录（E-15）：尾斜杠 PUT 空 body → folder 节点 201。
  *
- * 逐段材料化祖先：目录节点是显式的（putNode 不落隐式父目录行，契约
- * 漂移 1）——「隐式目录下新建的空目录」在搜索面重构的列表里不可见
- * （folder 行不进搜索索引）。因此 mkdir 把目标路径的每一段都 PUT 一遍
- * （已存在的 folder 行重放 = 幂等 redeploy，只刷新 mtime），保证新目录
- * 在任何父目录下列表可见。祖先段失败不致命（窄授权下 403 可忍），只有
- * 目标段失败才向上抛。
+ * 单段 PUT：BE 已通过 materializeAncestors（ADR-0016）在 putNode 时
+ * 服务端材料化祖先目录行，FE 不再需要逐段 PUT 父目录。
  */
 export async function mkdir(repoKey: string, dirPath: string): Promise<void> {
-  const segs = dirPath.replace(/\/+$/, '').split('/').filter((s) => s !== '')
-  for (let i = 1; i <= segs.length; i++) {
-    const target = `${segs.slice(0, i).join('/')}/`
-    try {
-      await mkdirOnce(repoKey, target)
-    } catch (err) {
-      if (i === segs.length) throw err
-    }
-  }
-}
-
-async function mkdirOnce(repoKey: string, dirPath: string): Promise<void> {
   const res = await fetch(contentURL(repoKey, dirPath), {
     method: 'PUT',
     headers: { 'X-BinFlow-Console': '1' },
