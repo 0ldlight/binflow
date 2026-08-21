@@ -713,8 +713,11 @@ func (s *service) authorizeContentPut(ctx context.Context, p *Principal, repoKey
 // emptyFolderSHA sentinel satisfies the NOT NULL + FK pair on nodes.sha256
 // with a dedicated blobs row — folder paths across every parent level share
 // it (marker semantics, not content: two folders with the same name never
-// collide, their nodes rows stay keyed by (repo_key, path)).
-const emptyFolderSHA = "0000000000000000000000000000000000000000000000000000000000000000"
+// collide, their nodes rows stay keyed by (repo_key, path)). The value lives
+// in metadata.FolderMarkerSHA (T-124) so this writer and the value-based
+// consumers — the snapshot manifest boundary and the GC mark walkers — share
+// one spelling at compile time.
+const emptyFolderSHA = metadata.FolderMarkerSHA
 
 // ensureFolderLedger writes the shared empty-folder blob row. It runs before
 // any folder node write for the same blob-first reason as content uploads.

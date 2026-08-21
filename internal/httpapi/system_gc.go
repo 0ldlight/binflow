@@ -320,6 +320,11 @@ func sumBlobFileSizes(dataDir string, shas []string) (int64, error) {
 // store surfaces: storage never reads metadata by design and metadata
 // offers no DISTINCT helper, so every GC caller builds the set itself —
 // keep the two walks in sync (same shape, same skips).
+//
+// Folder marker rows are skipped (T-124, same exclusion as the snapshot
+// manifest boundary): their sha256 is the shared metadata.FolderMarkerSHA
+// sentinel with no physical file behind it, so no sweep decision changes —
+// the skip keeps the mark set exactly "physical blob shas".
 func liveChecksumSet(ctx context.Context, md metadata.Store) (map[string]struct{}, error) {
 	set := map[string]struct{}{}
 
@@ -333,7 +338,7 @@ func liveChecksumSet(ctx context.Context, md metadata.Store) (map[string]struct{
 			return nil, fmt.Errorf("listing nodes of %s: %w", r.RepoKey, err)
 		}
 		for _, n := range nodes {
-			if n.Sha256 != "" {
+			if n.Sha256 != "" && n.Sha256 != metadata.FolderMarkerSHA {
 				set[n.Sha256] = struct{}{}
 			}
 		}

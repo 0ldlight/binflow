@@ -78,6 +78,15 @@ func openSnapshotRO(path string) (*sql.DB, error) {
 // snapshot can serve, not what the live store happens to reference at some
 // other moment.
 //
+// Folder node rows are not blob references: they carry the FolderMarkerSHA
+// sentinel over one shared ledger row with no physical file behind it, so the
+// nodes half excludes the sentinel (T-124, from T-106 QA D-106-1 — including
+// it made export refuse the whole instance as a dangling reference). The
+// exclusion is by VALUE, not by path shape: the sentinel is the folder
+// contract the whole read plane keys on (repo.Service.Get and the virtual
+// member probe both branch on it), and no physical blob can ever collide
+// with it — SHA-256 output is never 64 zero bytes.
+//
 // The query is SQL-direct (not the store walk the gc CLI uses) on purpose:
 // a snapshot is an artifact being inspected, not a live store to open
 // through Open (which would run migrations and seed against it).
@@ -88,9 +97,9 @@ func SnapshotChecksums(ctx context.Context, path string) (map[string]struct{}, e
 	}
 	defer db.Close() //nolint:errcheck // read-only inspector
 	rows, err := db.QueryContext(ctx, `
-		SELECT DISTINCT sha256 FROM nodes WHERE sha256 != ''
+		SELECT DISTINCT sha256 FROM nodes WHERE sha256 != '' AND sha256 != ?
 		UNION
-		SELECT DISTINCT blob_digest FROM docker_refs WHERE blob_digest != ''`)
+		SELECT DISTINCT blob_digest FROM docker_refs WHERE blob_digest != ''`, FolderMarkerSHA)
 	if err != nil {
 		return nil, fmt.Errorf("metadata: snapshot %s: live checksums: %w", path, err)
 	}

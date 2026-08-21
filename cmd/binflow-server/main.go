@@ -697,6 +697,15 @@ func runGC(args []string, stderr io.Writer) error {
 // set-form callback it is the reconciliation path, not the GC mark
 // (architecture section 3.2 note), and it anti-joins against nodes only and
 // so would ignore docker_refs liveness anyway.
+//
+// Folder marker rows are skipped (T-124, same exclusion as the snapshot
+// manifest boundary): their sha256 is the shared metadata.FolderMarkerSHA
+// sentinel with no physical file behind it. Keeping the sentinel out keeps
+// the mark set exactly "physical blob shas" — no on-disk file can ever match
+// it, so the skip changes no sweep decision, but a future consumer asserting
+// mark ⊆ physical blobs must not trip over a value the filestore can never
+// carry. Keep this walk in sync with httpapi's liveChecksumSet (same shape,
+// same skips).
 func liveChecksumSet(ctx context.Context, md metadata.Store) (map[string]struct{}, error) {
 	set := map[string]struct{}{}
 
@@ -710,7 +719,7 @@ func liveChecksumSet(ctx context.Context, md metadata.Store) (map[string]struct{
 			return nil, fmt.Errorf("listing nodes of %s: %w", r.RepoKey, err)
 		}
 		for _, n := range nodes {
-			if n.Sha256 != "" {
+			if n.Sha256 != "" && n.Sha256 != metadata.FolderMarkerSHA {
 				set[n.Sha256] = struct{}{}
 			}
 		}

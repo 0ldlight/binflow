@@ -70,6 +70,20 @@ func seedSnapshotFixture(t *testing.T, dir string) (nodeA, nodeB, refsOnly strin
 			t.Fatalf("node put: %v", err)
 		}
 	}
+	// Explicit folder rows, written exactly the way repo.Service's folder
+	// deploy writes them (T-124, from T-106 QA D-106-1): trailing-slash
+	// paths over ONE shared FolderMarkerSHA ledger row, no physical blob.
+	// Every checksum assertion below now runs with the folder shape present.
+	if err := md.Blobs().Put(ctx, &metadata.Blob{Sha256: metadata.FolderMarkerSHA, Size: 0, CreatedAt: now}); err != nil {
+		t.Fatalf("blobs put folder marker: %v", err)
+	}
+	for _, p := range []string{"acme/", "acme/nested/"} {
+		if err := md.Nodes().Put(ctx, &metadata.Node{
+			RepoKey: "gen", Path: p, Sha256: metadata.FolderMarkerSHA, Size: 0, CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("folder node put %s: %v", p, err)
+		}
+	}
 	digest := shaFor("manifest-body")
 	if err := md.Docker().PutManifest(ctx, &metadata.DockerManifest{
 		RepoKey: "dock", Image: "app", Digest: digest,
@@ -186,8 +200,14 @@ func TestSnapshotChecksumsIsNodesUnionDockerRefs(t *testing.T) {
 	if _, ok := set[shaFor("ledger-only")]; ok {
 		t.Fatal("ledger-only blob is in the live set — the boundary must be nodes ∪ docker_refs, not the blobs ledger")
 	}
+	// T-124: the folder marker sentinel is a value-based contract, never a
+	// physical blob reference — its presence here is exactly the shape that
+	// made export refuse every instance with an explicit directory node.
+	if _, ok := set[metadata.FolderMarkerSHA]; ok {
+		t.Fatal("folder marker sentinel is in the live set — a folder row is not a physical blob reference (T-124)")
+	}
 	if len(set) != 3 {
-		t.Fatalf("live set size = %d, want 3; set = %v", len(set), set)
+		t.Fatalf("live set size = %d, want 3 (two file nodes + one refs edge; folder markers excluded); set = %v", len(set), set)
 	}
 
 	// The inspector is read-only at the file level: an existing artifact's
@@ -366,4 +386,26 @@ func TestVacuumIntoSnapshotIsConsistentWhileSourceServes(t *testing.T) {
 func containsKey(m map[string]struct{}, k string) bool {
 	_, ok := m[k]
 	return ok
+}
+
+// TestFolderMarkerSHAContract pins the sentinel itself (T-124): 64 hex zero
+// bytes, the exact value repo.Service's folder deploy writes and every
+// value-based consumer (snapshot boundary, GC mark walkers) excludes. A typo
+// in either spelling would break the folder read plane or resurrect D-106-1,
+// so the literal is asserted, not derived.
+func TestFolderMarkerSHAContract(t *testing.T) {
+	if len(metadata.FolderMarkerSHA) != 64 {
+		t.Fatalf("FolderMarkerSHA length = %d, want 64 (sha256 hex width)", len(metadata.FolderMarkerSHA))
+	}
+	for i := 0; i < len(metadata.FolderMarkerSHA); i++ {
+		if metadata.FolderMarkerSHA[i] != '0' {
+			t.Fatalf("FolderMarkerSHA[%d] = %q, want '0' (the sentinel is 64 zero hex bytes)", i, metadata.FolderMarkerSHA[i])
+		}
+	}
+	// The sentinel is unreachable by real content: not even the empty input
+	// hashes to it (sha256("") = e3b0c442…), so no physical blob file can
+	// ever collide with the exclusion.
+	if empty := shaFor(""); empty == metadata.FolderMarkerSHA {
+		t.Fatal("sha256(\"\") equals the folder marker sentinel — the no-collision premise is broken")
+	}
 }

@@ -510,6 +510,65 @@ func TestGCDockerRefsExtendMarkSet(t *testing.T) {
 	}
 }
 
+// TestGCLiveChecksumSetExcludesFolderMarker (T-124): the GC mark walk skips
+// folder marker rows — their sha256 is the shared metadata.FolderMarkerSHA
+// sentinel with no physical file behind it. httpapi's liveChecksumSet (the
+// REST gc face) carries the same skip by the documented same-shape-same-skips
+// invariant; this is the unit-level pin of that shared shape.
+func TestGCLiveChecksumSetExcludesFolderMarker(t *testing.T) {
+	dir := t.TempDir()
+	ctx := context.Background()
+	md, err := metadata.Open(ctx, metadata.Options{
+		Driver:        "sqlite",
+		DSN:           filepath.Join(dir, "binflow.db"),
+		AdminPassword: "test-admin-pw",
+	})
+	if err != nil {
+		t.Fatalf("metadata.Open: %v", err)
+	}
+	defer func() { _ = md.Close() }()
+
+	now := metadata.Now()
+	if err := md.Repos().Create(ctx, &metadata.Repo{
+		RepoKey: "gen", Type: "local", PackageType: "generic", CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("repo create: %v", err)
+	}
+	fileSha := shaOf("gc-mark-file-body")
+	if err := md.Blobs().Put(ctx, &metadata.Blob{Sha256: fileSha, Size: 19, CreatedAt: now}); err != nil {
+		t.Fatalf("blobs put: %v", err)
+	}
+	if err := md.Nodes().Put(ctx, &metadata.Node{
+		RepoKey: "gen", Path: "f.bin", Sha256: fileSha, Size: 19, CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("node put: %v", err)
+	}
+	// The folder deploy shape: shared marker ledger row + trailing-slash
+	// node rows over it.
+	if err := md.Blobs().Put(ctx, &metadata.Blob{Sha256: metadata.FolderMarkerSHA, Size: 0, CreatedAt: now}); err != nil {
+		t.Fatalf("blobs put folder marker: %v", err)
+	}
+	if err := md.Nodes().Put(ctx, &metadata.Node{
+		RepoKey: "gen", Path: "acme/", Sha256: metadata.FolderMarkerSHA, Size: 0, CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatalf("folder node put: %v", err)
+	}
+
+	set, err := liveChecksumSet(ctx, md)
+	if err != nil {
+		t.Fatalf("liveChecksumSet: %v", err)
+	}
+	if _, ok := set[fileSha]; !ok {
+		t.Fatalf("mark set is missing the file blob %s; set = %v", fileSha, set)
+	}
+	if _, ok := set[metadata.FolderMarkerSHA]; ok {
+		t.Fatalf("mark set carries the folder marker sentinel — the mark must be physical blob shas only; set = %v", set)
+	}
+	if len(set) != 1 {
+		t.Fatalf("mark set size = %d, want 1; set = %v", len(set), set)
+	}
+}
+
 // TestGCAuditTrailCLI (FR-30-AC5, the CLI leg of the two-path ruling): every
 // successful gc run — dry-run and apply alike — records a gc.run event with
 // actor=admin (a CLI carries no authenticated principal) and the REST face's

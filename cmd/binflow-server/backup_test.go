@@ -28,7 +28,8 @@ func shaOf(body string) string {
 }
 
 // seedInstance builds a real instance: generic repo with two referenced
-// nodes, a docker repo whose refs edge holds a third blob, a ledger-only
+// nodes plus two explicit folder rows over the shared marker ledger row
+// (T-124), a docker repo whose refs edge holds a third blob, a ledger-only
 // orphan blob on disk, and one live web session. Blob files carry a stale
 // mtime so mtime preservation is observable (W32). Returns the three live
 // checksums.
@@ -81,6 +82,21 @@ func seedInstance(t *testing.T, dataDir string) (nodeA, nodeB, refsOnly string) 
 	} {
 		if err := md.Nodes().Put(ctx, n); err != nil {
 			t.Fatalf("node put: %v", err)
+		}
+	}
+	// Explicit folder rows (T-124, the D-106-1 shape): trailing-slash paths
+	// over ONE shared FolderMarkerSHA ledger row, exactly the rows
+	// repo.Service's folder deploy (C16 mkdir) writes. No physical blob backs
+	// the marker — every export/import assertion below now runs with the
+	// folder shape present.
+	if err := md.Blobs().Put(ctx, &metadata.Blob{Sha256: metadata.FolderMarkerSHA, Size: 0, CreatedAt: now}); err != nil {
+		t.Fatalf("blobs put folder marker: %v", err)
+	}
+	for _, p := range []string{"acme/", "acme/nested/"} {
+		if err := md.Nodes().Put(ctx, &metadata.Node{
+			RepoKey: "gen", Path: p, Sha256: metadata.FolderMarkerSHA, Size: 0, CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatalf("folder node put %s: %v", p, err)
 		}
 	}
 	digest := shaOf("manifest-body")
@@ -528,6 +544,77 @@ func TestImportRoundtripFullState(t *testing.T) {
 	}
 	if !sawImport {
 		t.Fatal("import.run not recorded in the restored instance")
+	}
+}
+
+// TestExportImportRoundtripWithFolderNodes (T-124, from T-106 QA D-106-1):
+// an instance holding explicit directory nodes (C16 mkdir shape) must
+// export, verify-full import and restore with the folder rows intact — the
+// marker sentinel is not a dangling blob reference, on the export face or
+// anywhere on the import verification chain.
+func TestExportImportRoundtripWithFolderNodes(t *testing.T) {
+	root, dataDir := backupEnv(t)
+	nodeA, nodeB, refsOnly := seedInstance(t, dataDir)
+
+	// Export succeeds with folder rows present (pre-T-124 this refused the
+	// whole instance: "snapshot references blob 000…0 … dangling reference").
+	backup := filepath.Join(root, "bk")
+	if err := runCLI(t, "export", "--output", backup); err != nil {
+		t.Fatalf("export with folder nodes: %v", err)
+	}
+
+	// The manifest never carries the marker: it is not a physical blob.
+	raw, err := os.ReadFile(storage.ManifestPath(backup))
+	if err != nil {
+		t.Fatalf("read manifest: %v", err)
+	}
+	if strings.Contains(string(raw), metadata.FolderMarkerSHA) {
+		t.Fatal("manifest references the folder marker sentinel — a folder row is not a blob reference")
+	}
+	m := loadManifestFor(t, backup)
+	if m.BlobCount != 3 {
+		t.Fatalf("manifest blobCount = %d, want 3 (files and refs edges only; folder markers excluded)", m.BlobCount)
+	}
+
+	// Import side (same check the ticket mandates): neither the manifest
+	// size pass nor the --verify full rehash pass trips over the sentinel.
+	freshData := filepath.Join(root, "fresh-data")
+	t.Setenv("BINFLOW_STORAGE__DATA_DIR", freshData)
+	if err := runCLI(t, "import", "--input", backup, "--verify", "full"); err != nil {
+		t.Fatalf("import --verify full with folder nodes: %v", err)
+	}
+
+	// The restored instance keeps the folder rows AND the shared marker
+	// ledger row (the FK target of every folder node), next to the files.
+	ctx := context.Background()
+	md, err := metadata.Open(ctx, metadata.Options{
+		Driver: "sqlite", DSN: filepath.Join(freshData, "binflow.db"), AdminPassword: "test-admin-pw",
+	})
+	if err != nil {
+		t.Fatalf("open restored store: %v", err)
+	}
+	defer func() { _ = md.Close() }()
+	for _, p := range []string{"acme/", "acme/nested/"} {
+		n, err := md.Nodes().Get(ctx, "gen", p)
+		if err != nil {
+			t.Fatalf("restored folder node %s: %v", p, err)
+		}
+		if n.Sha256 != metadata.FolderMarkerSHA {
+			t.Fatalf("restored folder node %s sha256 = %s, want the marker sentinel", p, n.Sha256)
+		}
+	}
+	if _, err := md.Blobs().Get(ctx, metadata.FolderMarkerSHA); err != nil {
+		t.Fatalf("restored folder marker ledger row: %v (folder nodes would lose their FK target)", err)
+	}
+	// The file and refs-edge content rides along unchanged.
+	for _, sha := range []string{nodeA, nodeB, refsOnly} {
+		p := filepath.Join(freshData, "blobs", sha[:2], sha)
+		if _, err := os.Stat(p); err != nil {
+			t.Fatalf("restored blob %s: %v", sha, err)
+		}
+	}
+	if _, err := md.Nodes().Get(ctx, "gen", "a.bin"); err != nil {
+		t.Fatalf("restored file node next to the folders: %v", err)
 	}
 }
 

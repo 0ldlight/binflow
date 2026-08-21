@@ -196,6 +196,24 @@ func Now() string { return time.Now().UTC().Format(time.RFC3339) }
 // NeverExpires is the expires_at sentinel meaning "no expiry".
 const NeverExpires = "9999-12-31T00:00:00Z"
 
+// FolderMarkerSHA is the sha256 sentinel every folder node row carries
+// (repo.Service's folder deploy — a trailing-slash path with an empty body,
+// rest-api.md section 1.1). A folder row has no content of its own: the
+// sentinel exists to satisfy the NOT NULL + FK pair on nodes.sha256 against
+// ONE shared blobs-ledger marker row (size 0), so folder paths at every
+// parent level reuse it (marker semantics, not content). The writer lives in
+// internal/repo (emptyFolderSHA aliases this constant — one spelling, two
+// packages).
+//
+// The sentinel can never name a physical blob: SHA-256 output is never 64
+// zero bytes, and a checksum-deploy that declares it is refused because no
+// filestore object backs it. Consumers deriving a set of PHYSICAL blob
+// references from node rows — the backup manifest boundary (SnapshotChecksums)
+// and the GC mark walkers (cmd/binflow-server and httpapi liveChecksumSet) —
+// must exclude it: treating it as a blob reference fails closed on a file the
+// filestore can never carry (T-124, from T-106 QA D-106-1).
+const FolderMarkerSHA = "0000000000000000000000000000000000000000000000000000000000000000"
+
 // defaultAdminPassword is the documented evaluation default (ADR-0009). Upper
 // layers must warn when it is in effect; this package just uses it.
 const defaultAdminPassword = "password"
