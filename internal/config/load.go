@@ -95,6 +95,9 @@ type raw struct {
 		SessionTTLHours   *int `yaml:"session_ttl_hours"`
 		SessionTTLSeconds *int `yaml:"session_ttl_seconds"`
 	} `yaml:"console"`
+	Metrics *struct {
+		RequireAuth *bool `yaml:"require_auth"`
+	} `yaml:"metrics"`
 }
 
 // Load reads the YAML file at path, applies BINFLOW_-prefixed environment
@@ -414,6 +417,10 @@ func build(r *raw, env map[string]string) (*Config, error) {
 		}
 	}
 
+	if r.Metrics != nil && r.Metrics.RequireAuth != nil {
+		c.Metrics.RequireAuth = *r.Metrics.RequireAuth
+	}
+
 	// The anonymous toggle has two equivalent keys; resolve them with a
 	// conflict check before env overrides apply on top of the merged value.
 	anon, err := resolveAnonymous(r, DefaultAnonymousAccess)
@@ -475,6 +482,9 @@ func defaults() *Config {
 		Audit:    AuditConfig{Enabled: DefaultAuditEnabled},
 		Logging:  LoggingConfig{Level: DefaultLogLevel, Format: DefaultLogFormat},
 		Console:  ConsoleConfig{SessionTTL: DefaultConsoleSessionTTL},
+		// metrics.require_auth defaults to false (ADR-0022: /metrics rides
+		// the /healthz-family anonymous posture).
+		Metrics: MetricsConfig{},
 	}
 }
 
@@ -601,6 +611,8 @@ func setEnvValue(c *Config, path []string, kind envKind, value, name string) err
 			c.Storage.Migration.Enabled = b
 		case "storage.migration.completed":
 			c.Storage.Migration.Completed = b
+		case "metrics.require_auth":
+			c.Metrics.RequireAuth = b
 		default:
 			return fmt.Errorf("config: internal: bool path %q not wired", where)
 		}

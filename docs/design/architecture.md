@@ -1039,16 +1039,49 @@ CREATE INDEX idx_replication_tasks_pending ON replication_tasks(status, created_
                                                  登录成功 → 302 到 /binflow/ui/；失败 → 302 到 /binflow/ui/login?error=）
   GET    /binflow/api/v1/auth/oidc/providers          [M6] 列出已配置的 OIDC Provider 列表（公开端点，匿名可读：
                                                  [{"name","display_name","icon_url"}]，不暴露 client_id/secret）
-  POST   /binflow/api/v1/replications                 [M6] 创建复制配置（admin；body 见 §8 配置段；source_repo
-                                                 必须存在且为 local 类型）
-  GET    /binflow/api/v1/replications                 [M6] 列出全部复制配置（admin）
-  GET    /binflow/api/v1/replications/{id}            [M6] 单个复制配置详情（admin）
-  PUT    /binflow/api/v1/replications/{id}            [M6] 更新复制配置（admin；PUT = create-or-replace 语义）
-  DELETE /binflow/api/v1/replications/{id}            [M6] 删除复制配置（级联删 replication_tasks；admin）
-  POST   /binflow/api/v1/replications/{id}/trigger    [M6] 手动触发复制任务（admin；异步执行，立即返回 202 +
-                                                 {"task_count": N}；任务写入 replication_tasks 表，由
-                                                 scheduler goroutine 消费）
-  GET    /binflow/api/v1/replications/{id}/tasks      [M6] 列出复制任务历史（admin；?status=&limit=&offset=）
+  GET    /binflow/api/v1/replications                 [M6] 列出全部复制配置（admin；bare JSON array——沿
+                                                 /api/v1/permissions 惯例；行形 = 配置行减密码字段：
+                                                 {id,name,source_repo,target_url,target_repo,
+                                                 target_username,max_bandwidth_bytes_per_sec,
+                                                 max_items_per_push,enabled,created_at,updated_at}。
+                                                 target_password 只写不读：POST 收明文、ADR-0012 enc:v1
+                                                 封存落库、任何响应永不回显；target_username 在 CRUD 面
+                                                 保留（无密码即无敏感性，管理面惯例）——status 面不出）
+  POST   /binflow/api/v1/replications                 [M6] 创建复制配置（admin；201 + 上述配置行）。body 即
+                                                 读形诸字段 + target_password（enabled 为 *bool）；校验：
+                                                 name 1..64 字符 [A-Za-z0-9._-] 且首字符字母数字（DELETE
+                                                 单段可寻址的前提）、source_repo 必须存在（400 点名问题
+                                                 键；仅存在性预检查，不校验 local 类型——见回写记录）、
+                                                 target_url 绝对 http/https（REST 时 400 优于任务事后
+                                                 not-retryable）、数值字段非负；enabled 缺省 true、
+                                                 max_items_per_push 缺省 1000（009 DDL 默认，store INSERT
+                                                 恒带列由 handler 归一）；重复名 409；带 target_password
+                                                 而无 master key → 400 点名 BINFLOW_REMOTE_CREDENTIALS_KEY
+                                                 （与 remote 仓凭据同钥，ADR-0012 fail-fast）；store
+                                                 busy 503
+  DELETE /binflow/api/v1/replications/{name}          [M6] 删复制配置（admin；按 name 寻址非 id——store 按 id
+                                                 删、name 经列表解析；204 无 body；任务行随 009 FK 级联；
+                                                 未知名 404；store busy 503）
+  GET    /binflow/api/v1/replication/status           [M6] 复制面板聚合载荷（admin；T-159 面板 10s 轮询端点，
+                                                 T-180 桥接）：targets[] = 配置行 × ConfigStatus 拍平
+                                                 （凭据全不下发，target_username 亦不出）+ events[] =
+                                                 任务行跨配置合并 newest-first（?limit= 1..500，缺省
+                                                 50）；两数组恒 [] 非 null；*_at 为 RFC3339 文本、'' 表
+                                                 「从未/未终态」
+                                                 ——回写记录：实现先于契约，T-180 核验发现（T-184 回写，
+                                                 T-180 遗留之 docs 项）。本处原 ADR-0021 草案 7 端点中
+                                                 GET/{id}、PUT/{id}（create-or-replace）、POST/{id}/
+                                                 trigger（202 + {"task_count"}）、GET/{id}/tasks
+                                                 （?status=&limit=&offset=）四处未落地且不承诺：PUT 待
+                                                 enable/disable 语义裁定（router.go 注释挂号）、trigger
+                                                 与按配置 tasks 无消费方——事件经本 status 聚合面可见；
+                                                 寻址由 {id} 改 **name**；原行「source_repo 为 local
+                                                 类型」未实现（仅存在性检查）。四端点均 admin 门（路由 +
+                                                 create/delete handler 双查）、未接线实例（Deps.
+                                                 Replication 为 nil）统一 501 非 404、错误体 errors[]
+                                                 信封（治理族惯例）、审计动作 replication.config.create /
+                                                 replication.config.delete。契约以 internal/httpapi/
+                                                 replication.go 为准
   GET    /binflow/api/storage/{repo}/{path}?permissions
                                                  有效权限视图（SE-08/FR-27，M4 T-97；path 空=仓根）；
                                                  **admin 门**——T-97 review B2 定案：管理面数据（枚举主体名

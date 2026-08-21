@@ -15,6 +15,7 @@ type Config struct {
 	Audit    AuditConfig
 	Logging  LoggingConfig
 	Console  ConsoleConfig
+	Metrics  MetricsConfig
 
 	// AdminPassword carries BINFLOW_ADMIN_PASSWORD (empty when unset). It is
 	// env-only: the YAML schema rejects any key that looks like a secret.
@@ -158,4 +159,15 @@ type ConsoleConfig struct {
 	// console.session_ttl_seconds as an override key for test granularity;
 	// when both are set, seconds wins (PRD v1.1 R4 dual-key resolution).
 	SessionTTL time.Duration
+}
+
+// MetricsConfig shapes the /metrics exposure (T-163, ADR-0022 / PRD FR-61).
+// The section follows the T-179 config-section pattern (OIDC/LDAP); it
+// carries no secret-valued keys, so the secret scan is not extended.
+type MetricsConfig struct {
+	// RequireAuth demands a valid credential on GET /metrics. Default false:
+	// the endpoint rides the /healthz-family anonymous posture (ADR-0022
+	// exposure rule), and deployments that must not expose operational
+	// metrics either set this or restrict the path at the reverse proxy.
+	RequireAuth bool
 }

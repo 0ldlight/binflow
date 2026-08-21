@@ -15,6 +15,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/config"
 	"github.com/lzwzzy/binflow/internal/docs"
 	"github.com/lzwzzy/binflow/internal/metadata"
+	"github.com/lzwzzy/binflow/internal/metrics"
 	"github.com/lzwzzy/binflow/internal/replication"
 	"github.com/lzwzzy/binflow/internal/repo"
 )
@@ -94,6 +95,11 @@ type Deps struct {
 	// 5.1: cmd passes adapter.All(); tests inject per-stack instances so
 	// the process-wide registry never couples test cases together).
 	Adapters []adapter.Handler
+	// Metrics is the Prometheus registry behind root-level GET /metrics
+	// (T-163, ADR-0022). cmd constructs exactly one per process; nil keeps
+	// the endpoint at 503 and the metrics middleware out of the chain — the
+	// pre-M6 posture for stacks that did not ask for instrumentation.
+	Metrics  *metrics.Registry
 	Version  string
 	Revision string
 }
@@ -120,7 +126,11 @@ type Server struct {
 	// authorizer is not the full auth.Service (unit fakes) — the endpoint
 	// answers 503 there instead of panicking.
 	permView permissionViewer
-	srv      *http.Server
+	// metrics is the instrumentation built from Deps.Metrics (T-163): the
+	// four family handles, the request-counting middleware and the scrape-
+	// time snapshot sources. nil when Deps.Metrics is nil.
+	metrics *instrumentation
+	srv     *http.Server
 }
 
 // New assembles the server. deps.Console may be nil (a bare console
@@ -157,6 +167,11 @@ func New(deps Deps, log *slog.Logger) *Server {
 		adapters[h.Protocol()] = h
 	}
 	s := &Server{deps: deps, log: log, adapters: adapters}
+	// Instrumentation (T-163) attaches before route() runs below — the
+	// mounted /metrics handler and the base chain both read s.metrics.
+	if deps.Metrics != nil {
+		s.metrics = newInstrumentation(deps)
+	}
 	// Console-session facet discovery (T-91): the real auth.Service carries
 	// it; an injected fake stays session-less and the login endpoints
 	// answer 503 rather than crashing on a missing collaborator.
@@ -209,6 +224,12 @@ func (s *Server) route() http.Handler {
 		switch r.URL.EscapedPath() {
 		case "/healthz", "/readyz":
 			probes.ServeHTTP(w, r)
+		case "/metrics":
+			// Root-level Prometheus scrape endpoint (T-163, ADR-0022 /
+			// PRD FR-61): same probe-exemption family as /healthz, with its
+			// own base chain (plus the auth gate when metrics.require_auth
+			// is on).
+			s.metricsHandler().ServeHTTP(w, r)
 		default:
 			s.rootHandler().ServeHTTP(w, r)
 		}

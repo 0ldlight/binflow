@@ -125,7 +125,7 @@ BinFlow ◆                    ← 产品名 + 版本号（/api/system/version�
 | `/security/tokens` | Token 管理 | 签发（仅创建时展示明文）/吊销 | `/api/security/token` + §9-R6 |
 | `/audit` | 审计日志 | 过滤 + 表格 | `GET /api/v1/audit?repo=&actor=&since=` |
 | `/governance/gc` | 存储 & GC | stats、dry-run、apply、存储迁移面板（T-160 回写：本地→S3 迁移只读进度，5s 轮询、501 未配置降级为一句提示、403 整面板隐藏——实际形态见 §4.11 迁移面板框） | `/api/v1/storage/stats` + GC 端点（§9-R4）+ `GET /api/v1/storage/migration`（迁移面板数据源，契约见 architecture.md §7.1） |
-| `/governance/replication` | 复制 | 单向 push 复制目标表 + 最近事件表（T-159 回写：实现先于契约，T-159 核验发现——10s 轮询、四态收敛，实际形态见 §4.11 复制页框） | `GET /api/v1/replication/status`（**前端假设契约**——端点未桥接，形状按 internal/replication/model.go 推定；假设清单见 reports/agents/T-159.md 与组件头注释，**T-180 桥接票对齐基准**） |
+| `/governance/replication` | 复制 | 单向 push 复制目标表 + 最近事件表（T-159 回写：实现先于契约，T-159 核验发现——10s 轮询、四态收敛，实际形态见 §4.11 复制页框） | `GET /api/v1/replication/status`（T-180 桥接完成、**零差异**——T-159 假设契约全数坐实，契约定稿见 architecture.md §7.1；CRUD 面 `GET/POST /api/v1/replications`、`DELETE /api/v1/replications/{name}` 同批落地，**本页不消费——CRUD UI 另票**，见 §4.11 回写记录） |
 | `/governance/backup` | 备份/恢复 | export / import | M4 新端点（§9-R5） |
 | `/governance/quotas` | 配额 | per-repo 配额条 | M4 新端点（§9-R7） |
 | `/settings` | 设置 | 实例信息（version/健康/匿名读开关/数据目录）/ 管理员改密 | `/api/system/version`、`/api/v1/health` |
@@ -600,8 +600,8 @@ permission target = `{name, repos[], includePatterns[], excludePatterns[], princ
 │ ·复制目标表：状态（运行态标签 + 状态点；优先级 已停用 > 异常（N 失败）>       │
 │   复制中 > 排队（N）> 正常）/ 目标名 / 目标 URL（mono + 拷贝）/ 仓库（源 →    │
 │   目标，mono）/ pending / 进行中 / 失败（>0 标红）/ 累计成功 / 上次成功        │
-│   （'—' = 从未成功）。targets[] 空 → 「未配置复制目标」空态（目标配置经       │
-│   REST /api/v1/replications 或实例配置创建——M6 桥接后可用）。                 │
+│   （'—' = 从未成功）。targets[] 空 → 「未配置复制目标」空态（配置经 REST      │
+│   /api/v1/replications 创建——T-180 已落地，见框尾 CRUD 面注记）。             │
 │ ·最近事件表：时间（mono）/ 状态 badge（值原样英文不翻译，沿 §4.10 口径；      │
 │   009 闭集 pending|in_progress|success|failed|skipped）/ 制品路径（按         │
 │   replication_id 映射源仓前缀补全，mono + 拷贝）/ sha256（截断展示、拷贝      │
@@ -611,12 +611,18 @@ permission target = `{name, repos[], includePatterns[], excludePatterns[], princ
 │   无权限卡（L2，复用缺省 empty-state 锚）；404（端点未桥接）/ 501（实例       │
 │   未启用复制）→ 降级为一句提示、不渲染表格；其它错误：无数据 → 错误卡 +       │
 │   重试，有旧数据 → 保留表格 + 行内「上次刷新失败」（瞬断不清屏，同迁移        │
-│   面板语义）。控制台只读呈现——目标配置 CRUD 与 trigger 归 REST 面与 CLI。     │
+│   面板语义）。控制台只读呈现——配置 CRUD 走 REST 面（T-180 已落地，见框尾）；  │
+│   CRUD UI 另票（T-180 遗留 4），本页暂不消费。                                 │
 │ 回写记录：实现先于契约，T-159 核验发现——GET /api/v1/replication/status 为     │
 │   前端假设契约（形状按 internal/replication/model.go 推定，序列化沿           │
-│   MigrationStatusView 惯例：snake_case / int64 计数 / *_at 文本、'' 表空），  │
-│   待 T-180 桥接票对齐或回写差异后本页跟改（假设清单见 reports/agents/         │
-│   T-159.md 与组件头注释）。                                                   │
+│   MigrationStatusView 惯例：snake_case / int64 计数 / *_at 文本、'' 表空）。  │
+│   **T-180 桥接核验：status 面零差异**（假设全数坐实，「待桥接」收口）；同批    │
+│   新增 CRUD 面（GET/POST /api/v1/replications、DELETE /{name}；无 PUT/        │
+│   trigger）：bare array 列表 / 201 / 204 / 重复名 409 / target_password 只写   │
+│   不读 / CRUD 面出 target_username 而 status 面不出 / enabled 缺省 true /      │
+│   max_items_per_push 缺省 1000 / events limit 缺省 50——契约定稿见             │
+│   architecture.md §7.1（回写记录：实现先于契约，T-180 核验发现）。本页仍       │
+│   只读：CRUD UI 另票，组件零改动、repl-* 锚不变（§10.3）。                     │
 └──────────────────────────────────────────────────────────────────────────────┘
 ┌ 备份 / 恢复 ──────────────────────────────────────────────────────────────────┐
 │ [导出 export] → 任务进度 + 产物下载链接                                        │
@@ -913,8 +919,9 @@ repo-danger-zone  repo-delete-button  repo-delete-content  repo-delete-confirm-k
         migration-total  migration-migrated  migration-skipped  migration-failed
         migration-error  migration-started  migration-finished
         migration-unconfigured（501 降级提示）  migration-stale（轮询瞬断行内提示）
-  复制页（T-159 回写，随 T-182 补录——实现先于契约，T-159 核验发现；端点为
-        前端假设契约待 T-180 桥接对齐；e2e/replication.spec.ts 断言）：
+  复制页（T-159 回写，随 T-182 补录——实现先于契约，T-159 核验发现；端点已由
+        T-180 桥接、零差异（见 §4.11 回写记录），组件零改动、锚随组件不变；
+        e2e/replication.spec.ts 断言）：
         repl-page  repl-targets  repl-targets-table  repl-target-<i>
         repl-empty-targets（目标空态）  repl-events  repl-events-table  repl-event-<i>
         repl-empty-events（事件空态；两空态锚为 EmptyState 的 testid prop 形态）

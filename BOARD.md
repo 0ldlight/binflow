@@ -17,14 +17,11 @@
 
 ## 📥 待办（todo）
 
-> **M6 正在开发**（2026-08-22）。装配缺口三处全部闭环（T-178/179/180 ✅）；**batch 3 已提交**（含 .gitignore 修复与被吞测试文件）；在途 T-163/T-184；T-165/T-168 待用户明示重派（卡主链五票）。
+> **M6 正在开发**（2026-08-22）。装配缺口三处全部闭环（T-178/179/180 ✅）；**batch 3 已提交**（含 .gitignore 修复与被吞测试文件）；**T-163/T-184 收口（done 区 31 票，batch 4 已提交）——非重派票全部清零**；剩余 T-165~T-175 主链全部待 T-165/T-168 重派决策。
 
 ### Batch 3（全部完成）：T-151/T-152/T-154/T-155 已完成 ✅
 
 ### Batch 5: 复制与指标（dev-go-core）
-
-- **T-163** [P1] Prometheus /metrics 端点（stdlib expvar 实现） `role:dev-go-core` `area:internal/metrics / internal/httpapi` `dep:T-149`
-  AC: ① `internal/metrics/metrics.go`：`Registry` 基于 `sync.Map` 的并发安全指标存储；`Format()` 生成 Prometheus text format。四类指标：HTTP、存储、认证、复制。② `GET /metrics` 端点挂载（根级，与 `/healthz` 同级）。匿名可访问，可配 `metrics.require_auth=true` 限制。③ table-driven 单测：`metrics_test.go` 验证 Prometheus 格式正确性；`system_test.go` 验证 `/metrics` 端点。
 
 ### Batch 6: CLI 与迁移工具（devops-engineer + release-engineer）
 
@@ -71,9 +68,7 @@
 
 ## 🔨 进行中（doing）
 
-- **T-163** [P1] Prometheus /metrics 端点 — 2026-08-22 已派发（T-180 收口释放 httpapi；详见 Batch 5 条目）。
-
-- **T-184** [P2] replication CRUD 面 docs 回写 — 2026-08-22 已派发（新建票，见 Batch 9）。
+（空——全部可派票已收口，待 T-165/T-168 重派决策）
 
 ## 🧪 测试中（qa）
 
@@ -446,6 +441,12 @@
 
 - **T-180** [P1] 复制面桥接收编 `role:dev-go-core` — done 2026-08-22（conductor 核验直收）
   httpapi replication.go（CRUD 四端点 + status 聚合，T-159 契约**零差异**落地：凭据不下发/''哨兵/[]非 null/newest-first/默认 limit 50）+ Deps 两 seam + MigrationStarter 签名收编（storage 强类型直插，删 cmd 适配器）+ SecureFromEndpoint 导出单点化（删 cmd 副本）+ storage godoc 口径修正；cmd 复制引擎全装配（第二 store 连接池/同钥 cipher/AttachReplicator/start+drain 生命周期）。**真二进制 smoke**：空 200/匿名 401/校验 400/重复 409/上传后 pending 任务行/DELETE 204 FK 级联/SIGTERM→drained→exit。conductor 复核：replication 10.7s + scoped httpapi 5.7s + cmd skip 25.1s race 绿（agent 自跑 httpapi 全量 119.6s 零回归）。**遗留②重大**：`.gitignore:51` 裸名吞掉 cmd/ 下未跟踪测试文件——conductor 已修为 `/binflow-server` 并入 batch 3。遗留：audit 词汇/CRUD UI 票/sub-store DSN 收编。日志 reports/agents/T-180.md。
+
+- **T-184** [P2] replication CRUD 面 docs 回写 `role:architect` — done 2026-08-22（conductor 核验直收）
+  architecture.md §7.1 路由表 ADR-0021 草案 7 端点整块替换为实际落地 4 端点（{name} 寻址）+ 回写记录段收编全部差异；console-ux §4.11 补 CRUD 面说明（REST 已落地、页面仍只读、CRUD UI 另票）+ 两处过时表述修正。conductor 复核：diff 恰两文档（+59/-19）；agent 自证 19 项 grep 对上实现 + 2 项负向断言 0 hits。日志 reports/agents/T-184.md。
+
+- **T-163** [P1] Prometheus /metrics 端点 `role:dev-go-core` — done 2026-08-22（conductor 核验直收）
+  新增 internal/metrics（sync.Map Registry + Counter/Gauge/Histogram + Format() text 0.0.4）+ httpapi metrics.go（四类 family/请求计数中间件/根级 /metrics 匿名+require_auth 门/scrape 快照/路径归一防高基数）+ config metrics.require_auth 段（偏离已申报）+ cmd 注入。真二进制 curl 冒烟（200+CT+7 TYPE 行+counter/histogram+401 门+env 覆盖）。conductor 复核：metrics 1.3s + scoped httpapi 3.7s + cmd 3.0s race 绿。遗留：replication 延迟埋点（另票）/promtool 归 T-175/`/metrics/json` 未实现（§7.1 已列）。日志 reports/agents/T-163.md。
 
 ## 🚫 阻塞（blocked）
 

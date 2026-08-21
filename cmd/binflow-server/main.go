@@ -49,6 +49,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/console"
 	"github.com/lzwzzy/binflow/internal/httpapi"
 	"github.com/lzwzzy/binflow/internal/metadata"
+	"github.com/lzwzzy/binflow/internal/metrics"
 	"github.com/lzwzzy/binflow/internal/remote"
 	"github.com/lzwzzy/binflow/internal/replication"
 	"github.com/lzwzzy/binflow/internal/repo"
@@ -317,6 +318,9 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 		DataDir:  cfg.Storage.DataDir,
 		Console:  console.Handler(),
 		Adapters: []adapter.Handler{stack.genericHandler, dockerHandler, mavenHandler, npmHandler, pypiHandler},
+		// The process metric registry (T-163, ADR-0022): one per serve; the
+		// /metrics endpoint and the request-counting middleware ride it.
+		Metrics:  metrics.NewRegistry(),
 		Version:  version,
 		Revision: revision,
 	}

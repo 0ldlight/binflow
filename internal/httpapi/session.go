@@ -153,6 +153,10 @@ func (s *Server) handleSessionCreate(w http.ResponseWriter, r *http.Request) {
 	s.audit.Record(r.Context(), audit.Event{
 		Actor: p.Name, Action: audit.ActionLoginOK, RemoteAddr: r.RemoteAddr,
 	})
+	// Auth metric (T-163): one login counted by provider source.
+	if s.metrics != nil {
+		s.metrics.countLogin(principalSource(p))
+	}
 	// Info-level structure, never the session value (NFR-S19).
 	s.log.InfoContext(r.Context(), "httpapi: session issued",
 		"user", p.Name, "expires_at", sess.ExpiresAt.Format(time.RFC3339))

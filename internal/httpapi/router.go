@@ -80,14 +80,19 @@ func (s *Server) probeHandler(ready bool) http.Handler {
 }
 
 // baseChain is the route-independent head of the chain (architecture
-// section 7.2, order fixed): requestID -> accessLog -> recover -> CORS.
+// section 7.2, order fixed): requestID -> accessLog -> recover -> CORS,
+// with the metrics middleware (T-163) inserted between accessLog and
+// recover when instrumentation is wired: it reads the statusRecorder
+// accessLog installs, and recover sits INSIDE it so recovered panics still
+// land in the counters. Absent entirely on metrics-less stacks — the
+// section 7.2 order is untouched for them.
 func (s *Server) baseChain(next http.Handler) http.Handler {
-	return chain(
-		requestID,
-		accessLog(s.log),
-		recoverPanic(s.log),
-		cors(s.deps.Config.Server.CORSOrigins),
-	)(next)
+	ms := []Middleware{requestID, accessLog(s.log)}
+	if s.metrics != nil {
+		ms = append(ms, s.metrics.middleware())
+	}
+	ms = append(ms, recoverPanic(s.log), cors(s.deps.Config.Server.CORSOrigins))
+	return chain(ms...)(next)
 }
 
 // dispatch branches on the raw escaped path (no normalization — see the
