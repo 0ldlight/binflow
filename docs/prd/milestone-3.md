@@ -4,7 +4,7 @@
 |---|---|
 | 文档 | `docs/prd/milestone-3.md` |
 | 里程碑 | M3 — 多生态与代理（对应 ROADMAP.md「M3 — 多生态与代理」全部条目） |
-| 状态 | **v1.2**（T-78：Q1 凭据存储依 **ADR-0012 决策 4** 定案关闭——AES-256-GCM + `enc:v1:` 前缀 + env `BINFLOW_REMOTE_CREDENTIALS_KEY` + 有行无钥启动 fail-fast + 存量明文 003 迁移一次性加密；FR-15/FR-20/NFR-S14 措辞统一；§5.5 C2 补「码值 400 暂行」注记。v1.1（T-60）：C1~C8 依 T-59 规格定案、M1 两处勘误吸收、Q3/Q7 定案、Q5 半定案、Q4 维持） |
+| 状态 | **v1.3**（T-121：T-105 QA 勘误 E2/E3/E4 收口，其中 E2/E3 兼收 T-74 E1/E2 未回写遗留——M17 样例文件名 layout 合规化、M16 断言载体改「version 级 metadata + timestamped 直连 GET」、M47 补显式建仓命令钉 `url=https://pypi.org` 站点根、M46 注明 mock 布局 `<name>/packument.json` 与真实 npmjs 已知边界）。v1.2（T-78：Q1 凭据存储依 **ADR-0012 决策 4** 定案关闭——AES-256-GCM + `enc:v1:` 前缀 + env `BINFLOW_REMOTE_CREDENTIALS_KEY` + 有行无钥启动 fail-fast + 存量明文 003 迁移一次性加密；FR-15/FR-20/NFR-S14 措辞统一；§5.5 C2 补「码值 400 暂行」注记。v1.1（T-60）：C1~C8 依 T-59 规格定案、M1 两处勘误吸收、Q3/Q7 定案、Q5 半定案、Q4 维持） |
 | 上游依据 | PRODUCT.md、ROADMAP.md M3 节、M1 交付基线（milestone-1.md v1.3.1）、M2 交付基线（milestone-2.md v1.3，T-43/T-44 QA 全绿）、**docs/reverse/maven-npm-pypi.md（T-59 已落地，v1.1 行为依据）**、**docs/repo-semantics.md §7/§8（T-59 扩编，remote/virtual 语义）**、docs/reverse/repo-semantics.md §1~§6（local 语义/checksum 策略/覆盖检查）、docs/reverse/oss-structure.md（M3 拆票结构参考）、docs/reverse/rest-api.md §1.5（旁车 checksum） |
 | 下游消费者 | tech-lead（拆票）、architect（remote/virtual ADR、adapter SPI 扩展）、dev 各角色、qa-engineer（M 序列验收）、tech-writer（M3 接入文档） |
 
@@ -15,8 +15,9 @@
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | v1.0 | 2026-08-19 | 初版：M3 范围、FR-15~FR-22、端点矩阵 RE/ME/NE/PE 四域 35 条、M01~M54 验收命令（mvn/npm/pip/twine 真实客户端 + curl 抽查）、SSRF 防护专节（NFR-S13）、M1/M2 遗留收编、8 项开放问题（含暂行假设） |
-| v1.2 | 2026-08-19 | T-78：**Q1 凭据存储依 ADR-0012 决策 4 定案关闭**（推翻 v1.0/v1.1 暂行「明文 SQLite + 文件权限」）：AES-256-GCM（随机 12B nonce）+ 密文 `enc:v1:<base64(nonce+ciphertext)>` 前缀 + 主密钥 env **`BINFLOW_REMOTE_CREDENTIALS_KEY`**（base64 32B，不入 YAML/不落盘）+ 有带凭据的 remote 配置行而无密钥 → **启动 fail-fast** + 存量明文 **003 迁移一次性加密**（需密钥在场）+ 密钥轮换不做。落点：§7 Q1 改已决、§2.2 Non-goals 注、FR-15 remote 字段（新增 **FR-15-AC9**：DB grep `enc:v1:`/无明文、fail-fast 双态重启、迁移后明文消失四断言）、FR-20-AC10 与 NFR-S14 措辞统一 env 键名、§9 DoD-3。**顺手（R3）**：§5.5 校准表补 C2 注记一行（码值 400 维持暂行，单点改动面），C2 定案本体不动 |
 | v1.1 | 2026-08-19 | T-60 校准回写（依据 `maven-npm-pypi.md` + repo-semantics §7/§8，T-59，置信度高 ~102/中 ~24）：① §5.5 C1~C8 八项定案（C1 maven-metadata 服务端计算触发时机/版本组与 SNAPSHOT 目录规则/RTFACT-6242 保护性不删；C2 maven-2-default 六字段 layout 模型定案、400 码维持暂行；C3 virtual 四桶搜索序定案（BinFlow 简化两桶）+ stale/下一成员优先关系定案；C4 TTL 7200/1800 定案 + 过期 HEAD 协商列 P1；C5 写路由字段名 + 405 文案定案；C6 remote 缓存删除不同步上游升高置信；C7 PyPI 落盘 `{name}/{version}/{filename}` 定案、PE-03 升兼容（子集）；C8 npm tarball 布局与 scoped 形态定案、`_attachments` 保留维持暂行）。② **M1 勘误吸收**：Maven snapshot policy 拒绝码 **404→409**（SnapshotPolicyException 显式 409，maven-npm-pypi.md §1.4 高置信度；ME-08/FR-16-AC7/M19 同步）；includes/excludes 双值码（下载 404/上传 409）不触 M3 AC，仅归档 §6.4。③ **Q7 定案**：npm 重复 publish **409→403**（`Cannot modify pre-existing version`，规格 §2.3-④ 高置信度；NE-01/FR-18-AC6/M26 更新）；npm 域错误体 **E-01 定案**（三协议共用 `errors[]` 信封，规格 §0 高置信度）；新增 npm 十步校验链要点、`-rev` PUT 恒 200 假成功（unpublish 前置）、dist-tags 201 `{"ok":"created new tag"}`、ETag=包文档 sha1+304、SLIM Accept 协商（P1）。④ **Q3 定案**：PyPI 哈希仅 sha256 定案（规格 §3.4：索引输出必须优先 sha256、Artifactory 同）；补充 `md5_digest` 可缺失（twine ≥6.2）与 `:action` 严格校验 400。⑤ 新增定案行为：remote **checksum 后缀请求不回源 404** `"Checksums are not downloadable."`（FR-20-AC13/M45 探针）；remote 上游故障默认 **404**（assumed-offline 5min 静默）+ `hardFail:true` → 502（推翻 v1.0 的默认 502，FR-20-AC5/M44 更新）；remote 字段默认值对齐（socketTimeout 15s/assumedOfflinePeriodSecs 300/hardFail false）；`snapshotVersionBehavior` 三值（BinFlow 默认 `deployer`，服务端 unique 改写列 P2）；PyPI simple `api-version=2` 头/无尾斜杠 302/ETag-304。⑥ Q4 维持（conductor 已转用户知悉） |
+| v1.2 | 2026-08-19 | T-78：**Q1 凭据存储依 ADR-0012 决策 4 定案关闭**（推翻 v1.0/v1.1 暂行「明文 SQLite + 文件权限」）：AES-256-GCM（随机 12B nonce）+ 密文 `enc:v1:<base64(nonce+ciphertext)>` 前缀 + 主密钥 env **`BINFLOW_REMOTE_CREDENTIALS_KEY`**（base64 32B，不入 YAML/不落盘）+ 有带凭据的 remote 配置行而无密钥 → **启动 fail-fast** + 存量明文 **003 迁移一次性加密**（需密钥在场）+ 密钥轮换不做。落点：§7 Q1 改已决、§2.2 Non-goals 注、FR-15 remote 字段（新增 **FR-15-AC9**：DB grep `enc:v1:`/无明文、fail-fast 双态重启、迁移后明文消失四断言）、FR-20-AC10 与 NFR-S14 措辞统一 env 键名、§9 DoD-3。**顺手（R3）**：§5.5 校准表补 C2 注记一行（码值 400 维持暂行，单点改动面），C2 定案本体不动 |
+| v1.3 | 2026-08-21 | T-121 勘误（T-105 QA 建议 **E2/E3/E4**；T-105 的 E 编号独立于 T-103 的 E 编号（M4 PRD v1.3 已收口）——**E2/E3 与 T-74 E1/E2 同源**，T-74 五条勘误此前未回写 PRD，本版一并收口其 E1/E2；T-74 E3~E5 未含，遗留清单见 T-121 报告）：**E2（=T-74 E1）** §5.4 M17 样例文件名 `bad.jar` 违反 maven layout 校验（文件名须以 `<artifactId>-<version>` 开头——FR-16-AC8/M20 既有规则）先行命中 400，checksum 策略分支不可达——两处 curl 路径改 **`demo-app-1.1.0-badchk.jar`**（layout 合规名；409/201 断言不变，T-74/T-105 双验）。**E3（=T-74 E2）** §5.4 M16 的 `?list&deep=1` 不可作断言载体（SNAPSHOT 目录为隐式目录、无 folder node——M1 既有语义）——载体改为「version 级 maven-metadata 的 `snapshotVersions`（既有断言行保留）+ `<value>` 提取 timestamped 文件名**直连 GET 200**」（T-74 E2 定载体，T-105 §2.4 修正账 M16c 复验）。**E4** §5.4 M47 原无显式建仓命令、remote 上游 URL 约定缺席——补建仓命令钉 **`url=https://pypi.org`（站点根，服务端拼 `simple/<pkg>/` 路径；带 `/simple` 后缀反而 404）**，T-105 真实 pypi.org 双 MISS 已验（T-75 O3 同形）；M46 注明 **mock 上游布局 = `<name>/packument.json`**（BinFlow 回源请求形态），真实 npmjs packument 于 `/<name>` 直出、不兼容为 **T-75 已证既有边界（非回归）**——FR-20-AC7「公网可用时」腿以 mock 为准、FR-20-AC8 url 口径同步。**服务端行为零变更**，仅验收命令与文档口径修正。顺手：§0 修订表行序修正为升序（原 v1.0,v1.2,v1.1） |
 
 ---
 
@@ -310,8 +311,8 @@ M3 在 M1/M2 地基上追加而非返工：三协议构件全部落同一 checks
 | FR-20-AC4 | M43：上游 404 → BinFlow 404；负缓存期内二次 GET 上游 log 零新增 | P0 |
 | FR-20-AC5 | M44（v1.1 改写）：上游停机（kill http.server）→ ① GET 已缓存路径 → **200 旧内容** + `X-Binflow-Upstream-Error` 头；② GET 未缓存路径 → **404** E-01（message 含 assumed offline/offline 状态——v1.1 定案，默认 `hardFail:false`）；③ 配 `hardFail:true` 的对照仓同请求 → **502**；④ 停机静默期内（assumedOfflinePeriodSecs=300）恢复上游，静默期结束前请求**不打上游**（上游 log 零新增）、期后自动恢复；⑤ `/binflow/api/v1/health` 全程 200（故障隔离） | P0 |
 | FR-20-AC6 | M45：maven remote 代理 Maven Central（公网可用时；离线用 mock 上游摆 junit 布局）——`mvn dependency:get -Dartifact=junit:junit:4.13.2 -DremoteRepositories=central::default::$BASE/binflow/maven-remote` → 成功；仓内 item info 可见 `junit/junit/4.13.2/*.jar`；二次 dependency:get（清本地 repo）零上游 | P0 |
-| FR-20-AC7 | M46：npm remote 代理 npmjs（公网可用时；离线用 mock）——`npm install lodash --registry $BASE/binflow/api/npm/npm-remote/` exit 0；抓包/日志证明 tarball 与 packument 均经 BinFlow（`dist.tarball` 已重写） | P1 |
-| FR-20-AC8 | M47：pip 代理 pypi.org（公网可用时；离线 mock）——`pip install --index-url .../simple six` exit 0，二次零上游 | P1 |
+| FR-20-AC7 | M46：npm remote 代理 npmjs（公网可用时；离线用 mock）——`npm install lodash --registry $BASE/binflow/api/npm/npm-remote/` exit 0；抓包/日志证明 tarball 与 packument 均经 BinFlow（`dist.tarball` 已重写）。**v1.3/E4 注记：mock 上游布局 = `<name>/packument.json`（BinFlow 回源请求形态）；真实 npmjs packument 于 `/<name>` 直出——不兼容为 T-75 已证既有边界（非回归），「公网可用时」腿以 mock 为准** | P1 |
+| FR-20-AC8 | M47：pip 代理 pypi.org（公网可用时；离线 mock）——`pip install --index-url .../simple six` exit 0，二次零上游。**v1.3/E4：remote `url=https://pypi.org` 站点根（服务端拼 `simple/<pkg>/`；带 `/simple` 后缀反而 404）——T-105 真实上游已验** | P1 |
 | FR-20-AC9 | M48：remote 写拒绝——`PUT /binflow/generic-remote/x.bin` → 405 + `Allow: GET`；`DELETE /binflow/generic-remote/dir/up.bin` → 204（删缓存）后 GET 再次回源（上游 log +1，内容一致） | P0 |
 | FR-20-AC10 | 上游凭据（凭据经 ADR-0012 加密链存储，见 FR-15-AC9；env `BINFLOW_REMOTE_CREDENTIALS_KEY` 在场）：mock 上游开 Basic（h / tpasswd）→ remote 配 username/password 后 GET 成功；错误凭据 → **404**（上游 401 视为资源 unfound，v1.1 定案 repo-semantics §7.6；message 附 upstream 401 摘要）；GET repo config 不回显明文密码 | P1 |
 | FR-20-AC11 | 大文件流式：上游 1GB 文件代理下载，服务进程 RSS 增量 < 256MB（M1 NFR-P3 的 remote 版） | P1 |
@@ -532,8 +533,12 @@ curl -su admin:$ADMIN_PW $BASE/binflow/maven-local/com/acme/demo-app/maven-metad
 sed -i '' 's/1.1.0/1.2.0-SNAPSHOT/' pom.xml 2>/dev/null || sed -i 's/1.1.0/1.2.0-SNAPSHOT/' pom.xml
 mvn -B -q -DskipTests deploy -DaltDeploymentRepository=binflow::default::$MVN_REPO   # 两次（buildNumber 1→2）
 mvn -B -q -DskipTests deploy -DaltDeploymentRepository=binflow::default::$MVN_REPO
-curl -su admin:$ADMIN_PW "$BASE/binflow/api/storage/maven-local/com/acme/demo-app/1.2.0-SNAPSHOT?list&deep=1" | \
-  jq -r '.files[].uri' | grep -c 'demo-app-1.2.0-[0-9.]*-[0-9]*.jar'    # ≥2（timestamped）
+# v1.3/E3（=T-74 E2）：?list&deep=1 不可作载体（SNAPSHOT 目录为隐式目录、无 folder node——M1 既有语义）；
+#   断言载体 = 下行 version 级 metadata snapshotVersions + <value> 提取 timestamped 文件名直连 GET
+TSJAR=$(curl -su admin:$ADMIN_PW $BASE/binflow/maven-local/com/acme/demo-app/1.2.0-SNAPSHOT/maven-metadata.xml | \
+  grep -o 'demo-app-1\.2\.0-[0-9.]*-[0-9]*\.jar' | sort -u | tail -1)   # 最新 timestamped（buildNumber 2）
+curl -su admin:$ADMIN_PW -o /dev/null -w '%{http_code}\n' \
+  "$BASE/binflow/maven-local/com/acme/demo-app/1.2.0-SNAPSHOT/$TSJAR"   # 200（timestamped 直连可取）
 curl -su admin:$ADMIN_PW $BASE/binflow/maven-local/com/acme/demo-app/1.2.0-SNAPSHOT/maven-metadata.xml | \
   grep -c '<snapshotVersion>'    # ≥2；buildNumber 断言 grep '<buildNumber>2</buildNumber>' = 0 退出码
 mvn -B -q -U dependency:get -Dartifact=com.acme:demo-app:1.2.0-SNAPSHOT \
@@ -542,12 +547,13 @@ mvn -B -q -U dependency:get -Dartifact=com.acme:demo-app:1.2.0-SNAPSHOT \
 # M16c 宽容策略仓（FR-16-AC5 server-generated）
 curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/maven-lenient -H 'Content-Type: application/json' \
   -d '{"rclass":"local","packageType":"maven","checksumPolicyType":"server-generated-checksums"}' -o /dev/null -w '%{http_code}\n'  # 200
-# M17 checksum 策略两态（FR-16-AC5；curl 直打）
+# M17 checksum 策略两态（FR-16-AC5；curl 直打；v1.3/E2（=T-74 E1）：文件名须 layout 合规——
+#   原 bad.jar 会先撞 M20 的 layout 400（须以 <artifactId>-<version> 开头），checksum 分支不可达）
 JAR=target/demo-app-1.1.0.jar   # 任取一个已构建 jar
 curl -su admin:$ADMIN_PW -T $JAR -H "X-Checksum-Sha1: $(printf '0%.0s' {1..40})" \
-  $BASE/binflow/maven-local/com/acme/demo-app/1.1.0/bad.jar -o /dev/null -w '%{http_code}\n'          # 409（client-checksums）
+  $BASE/binflow/maven-local/com/acme/demo-app/1.1.0/demo-app-1.1.0-badchk.jar -o /dev/null -w '%{http_code}\n'    # 409（client-checksums）
 curl -su admin:$ADMIN_PW -T $JAR -H "X-Checksum-Sha1: $(printf '0%.0s' {1..40})" \
-  $BASE/binflow/maven-lenient/com/acme/demo-app/1.1.0/bad.jar -o /dev/null -w '%{http_code}\n'        # 201（server-generated）
+  $BASE/binflow/maven-lenient/com/acme/demo-app/1.1.0/demo-app-1.1.0-badchk.jar -o /dev/null -w '%{http_code}\n'  # 201（server-generated）
 
 # M18 旁车两态（FR-16-AC6）
 printf '%s' "$(sha1sum $JAR | cut -d' ' -f1)" > good.sha1
@@ -707,10 +713,18 @@ curl -su admin:$ADMIN_PW -o /dev/null -w '%{http_code}\n' $BASE/binflow/maven-re
 curl -su admin:$ADMIN_PW $BASE/binflow/maven-remote/junit/junit/4.13.2/junit-4.13.2.jar.sha1 | jq -r '.errors[0].message'  # Checksums are not downloadable.（HTTP 404，v1.1 定案：checksum 后缀不回源）
 
 # M46/M47 npm/pypi 代理（FR-20-AC7/AC8，P1；公网或 mock）
+#   M46 mock 腿注记（v1.3/E4）：mock 上游布局 = <name>/packument.json（BinFlow 回源请求形态）；
+#   真实 npmjs 的 packument 于 /<name> 直出——不兼容为 T-75 已证既有边界（非回归），「公网可用时」腿以 mock 为准
 curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/npm-remote -H 'Content-Type: application/json' \
   -d '{"rclass":"remote","packageType":"npm","url":"https://registry.npmjs.org"}' -o /dev/null -w '%{http_code}\n'
 npm install lodash --registry $BASE/binflow/api/npm/npm-remote/ && echo PROXY_NPM_OK
 npm view lodash version --registry $BASE/binflow/api/npm/npm-remote/ | head -1   # packument 经 BinFlow（tarball 已重写）
+# M47 pip 代理（v1.3/E4 补显式建仓命令：url = 站点根 https://pypi.org，服务端拼 simple/<pkg>/——
+#   带 /simple 后缀反而 404；T-105 真实上游 six 双 MISS 已验，mock 腿同形 T-75 O3）
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/pypi-remote -H 'Content-Type: application/json' \
+  -d '{"rclass":"remote","packageType":"pypi","url":"https://pypi.org"}' -o /dev/null -w '%{http_code}\n'   # 200
+./v/bin/pip install --index-url $BASE/binflow/api/pypi/pypi-remote/simple six && echo PROXY_PYPI_OK
+# 二次同包 install（清 pip 缓存）→ 服务端上游计数不增（缓存命中断言，FR-20-AC8 后半）
 
 # M48 remote 写拒绝 + 删缓存回源（FR-20-AC9 / RE-05/RE-06）
 curl -su admin:$ADMIN_PW -X PUT -T r1.bin $BASE/binflow/generic-remote/x.bin -o /dev/null -w '%{http_code}\n'  # 405（+Allow: GET 头）

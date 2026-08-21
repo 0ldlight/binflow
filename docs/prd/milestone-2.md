@@ -4,7 +4,7 @@
 |---|---|
 | 文档 | `docs/prd/milestone-2.md` |
 | 里程碑 | M2 — Docker Registry v2（对应 ROADMAP.md「M2 — 云原生旗舰」全部条目） |
-| 状态 | **v1.3**（Q1/ADR-0010、§6.5 定案无遗留；T-43 三项勘误已收口；T-44 四项勘误收口：ping 无条件挑战（C6/D44-1）、offline_token 接受并忽略（C5/D44-2）、token POST 表单凭据口径（C4/D44-3）、删光 manifest 后 tags/list 200 空（C7/D44-6）） |
+| 状态 | **v1.4**（T-121：T-105 QA 勘误 E1 收口——D06/D10 的 upload `Location` 为相对路径，命令物化 `$REG` 前缀 + FR-8/DE-02 注记，行为零变更。v1.3（Q1/ADR-0010、§6.5 定案无遗留；T-43 三项勘误已收口；T-44 四项勘误收口：ping 无条件挑战（C6/D44-1）、offline_token 接受并忽略（C5/D44-2）、token POST 表单凭据口径（C4/D44-3）、删光 manifest 后 tags/list 200 空（C7/D44-6））） |
 | 上游依据 | PRODUCT.md、ROADMAP.md M2 节、M1 交付基线（T-18-qa/T-19-qa 全绿 + 观察项 O1~O4）、ADR-0005/0006/0008/0009、docs/design/architecture.md（M1 定稿） |
 | 下游消费者 | tech-lead（拆票）、architect（ADR-0010 路由细化 / 设计更新）、dev 各角色、qa-engineer（D 序列验收）、release-engineer（部署烟测） |
 
@@ -18,6 +18,7 @@
 | v1.1 | 2026-08-18 | 采纳 tech-lead T-32 风险清单 R1/R2/R4/R5 + Q1 用户定案（ADR-0010），依据 `docs/reverse/docker-registry.md`（已落地）：① **R1（硬时序，赶 T-37 token 票派发前）**——token realm 由 `/binflow/api/security/token` 改为 **`/v2/token`**（adapter 自有端点，ADR-0010 定案；`Docker-Distribution-Api-Version: registry/2.0` 头随附）；DE-13/FR-11/D04/D04b/NFR-S9 同步更新；新增「双 token 入口并存」说明（M1 端点 admin-only 管理面 vs `/v2/token` 任意有效用户 docker login 语义入口——设计而非矛盾）；Q1 定案标注：根级 `/v2`（ADR-0010），§7 两案对比表转为决策记录、D 序列 `REG=localhost:8080` 口径坐实。② **R2**——FR-9-AC7 by-tag 删除由 202 改为 **405 UNSUPPORTED**（docker-registry.md §8 高置信度：官方 spec 禁止 by-tag；§10 建议栏 3）；D13c 的 by-tag 断言删除。③ **R4**——FR-10 空仓 `tags:null` 口径维持，补 QA 断言注记（`jq '.tags == null'`，防 T-43 脚本误写空数组）。④ **R5**——§6.5 四项按规格定案：manifest 上限 4MB、`offline_token=true` → 400 `invalid_request`、`service` 值固定 `"binflow"`、catalog `last` 游标 exclusive；§6.5 由「待校准」改「校准记录」，相应暂定值在 FR-11/DE-11/DE-12 落地 |
 | v1.2 | 2026-08-19 | T-43 QA 勘误三项收口（C1/C2/C3，见 reports/agents/T-43-qa.md「PRD 口径勘误」节）：① **C3+D3（PM 裁定）**——`/v2/token` 端点的错误响应**统一 OAuth 形** `{"error","error_description"}`（含 400 参数错与 401 凭据错），资源端点仍用 spec 错误体；v1.1 三处打架表述（FR-11-AC7=spec / §5.2 注=OAuth / NFR-S10=/v2 全 spec）对齐，裁定理由：与 T-37 主实现 400 路径及 M1 管理面 token 端点（E-17 OAuth 形）同族、docker 客户端不解析 401 body 无兼容性损失；实现侧 401=spec 的一行修由 conductor 另派（T-37）。② **C1**——D06/D07/D10/D12/D13/D13d 的 name 由单段（`/v2/<repoKey>/...`）改为全名 `<repoKey>/<image>`（单段 name 实测 404，T-33 评审 AC；mount `from=` 要求全名）；D01/D06 补 name 模型注记与单段 404 断言；两处联动一并收敛：FR-8-AC6 的 mount AC 示例改全名、D04b/D04c 手工协商的 scope 值（`repository:<repoKey>/<image>:...`）改全名。③ **C2**——DE-13/FR-11 补 scope 推导注记：`/v2/` ping 挑战无 scope，scope 仅 repository/catalog 资源端点推导（四形态：GET→pull / 写→pull,push / DELETE→pull,delete / catalog→registry:catalog:*，T-43 全数实测） |
 | v1.3 | 2026-08-19 | T-44 QA 勘误四项收口（C4~C7，见 reports/agents/T-44-qa.md 缺陷 D44-1/2/3/6 与勘误节）：① **C6+D44-1（P0，最重要）**——DE-01/FR-11-AC2/D04 的「匿名开 → ping 200 `{}`」口径**推翻**，改为「**未认证 ping 一律 401+Bearer 挑战（无条件，不随 anonymous_access 变化）**；已认证 → 200 `{}`」：docker daemon/containers-image 为 ping-缓存型认证器，ping 200 即判「无需认证」，后续 401 不再协商 token（实证：默认配置 push 零凭据全断、错口令 login 也 Succeeded）；真实世界（Docker Hub/GHCR/Harbor）匿名可 pull 但 ping 仍挑战，匿名访问经匿名 token 通行（docker-registry.md §0/§5 同构）。**匿名拉取不受损**：挑战 → 客户端无凭据请求 `/v2/token` → `anonymous_access=true` 时照发 pull scope 匿名 token → 匿名 pull 照常（podman 挑战模式已实证全通）；FR-11-AC4（错凭据 login 拒绝）随 ping 挑战化在默认配置下恢复有效。② **C5+D44-2（P0）**——§6.5② 「offline_token=true → 400」**推翻**，改为「**接受并忽略**」（官方 distribution token spec 明文定义该参数且 server MAY ignore；docker 29.x daemon login 必带——400 直接打断挑战模式 login；Artifactory 实况亦为接受，docker-registry.md §5.2）；FR-11-AC7/D04c 断言改为 200 正常 token（无 refresh_token）。③ **C4+D44-3（P0，口径补明）**——`/v2/token` 的 **POST 表单凭据**：无 Basic 头时解析 OAuth 表单（`grant_type=password` 的 `username`/`password`，或 `client_id`/`client_secret` 对），与 Basic 同权；两者皆缺才按匿名（官方 token spec OAuth 流凭据在 form body——buildx/helm 客户端用此形态）。④ **C7+D44-6（P2）**——「删光最后一个 manifest」后 tags/list 由 404 `NAME_UNKNOWN` 改为 **200 且 `"tags":null`**（name 持续性语义，OCI conformance 期望；与 R4 空仓形态统一）；404 仅保留给「无任何登记的 name」；FR-10-AC3/DE-12/D09 注记同步 |
+| v1.4 | 2026-08-21 | T-121 勘误（T-105 QA 建议 **E1**——M2 侧仅此一条；T-105 的 E 编号独立于 T-43 的 C 编号与 T-103 的 E 编号，后者分别在本文 v1.2 与 M4 PRD v1.3 收口）：**E1** §5.4 D06/D10 的 upload `Location` **为相对路径**（`/v2/<name>/blobs/uploads/<uuid>`——T-43 3.1 实测定案，distribution spec 允许相对引用，docker/oras 等真实客户端自行按 RFC 3986 拼 base，无兼容性损失）——v1.0~v1.3 的命令字面把 `$LOC` 直接当 URL 用，照抄执行会请求失败（T-105 §2.4 修正账 D06/D10「客户端旗标」项：QA 拼接 base 后全绿）。修正：D06/D10 两处捕获改 **`LOC=$REG$(...)` 物化拼接**（D10b 的 offset 查询随之可用）；FR-8 行为规格与 DE-02 矩阵行补「相对路径」注记。**服务端行为零变更**（返回值不变），仅验收命令与文档口径修正 |
 
 ---
 
@@ -119,7 +120,7 @@ M2 在 M1 地基上**追加**而非返工：
 **用户故事**：作为 docker/oras 客户端，我希望按 distribution spec 的三种上传方式（POST-then-monolithic-PUT / POST-then-chunked-PATCH-PUT / POST 单请求 monolithic）把 layer/blob 推进仓库，任一方式推的 blob 都能被其它方式拉回——这是 spec 兼容性的地基。
 
 行为规格（对齐 distribution spec，置信度高=官方 spec 明文）：
-- `POST /v2/<name>/blobs/uploads/`： initiating；可带 `?digest=<sha256>`（单请求 monolithic，body 即内容，201 Created + `Location: /v2/<name>/blobs/<digest>`）；不带 digest → 202 Accepted + `Location: <upload-session-url>` + `Docker-Upload-UUID` 头 + `Range: 0-0`。
+- `POST /v2/<name>/blobs/uploads/`： initiating；可带 `?digest=<sha256>`（单请求 monolithic，body 即内容，201 Created + `Location: /v2/<name>/blobs/<digest>`）；不带 digest → 202 Accepted + `Location: <upload-session-url>`（**相对路径**——spec 允许相对引用，客户端需拼 scheme://host；T-43 3.1 定案，v1.4/E1 注记）+ `Docker-Upload-UUID` 头 + `Range: 0-0`。
 - `PATCH <upload-url>`：chunked 追加，`Content-Range` 可选（给了则必须与服务端已收字节数吻合，否则 416 Requested Range Not Satisfiable + `Range: 0-<received>`）；成功 202 + `Location` + `Range: 0-<received>`。
 - `PUT <upload-url>?digest=<sha256>`：终结上传；body 可空（流已在 PATCH 推完）或带最后一段；校验 sha256 一致，不一致 400（spec：`DIGEST_INVALID`）。
 - `GET /v2/<name>/blobs/<digest>`：200 流式返回；支持 `Range`（M1 已实现的 206/416 语义直接复用，Q6 定案的 M2 前置条件在此兑现）；404 用 spec 错误体（§5.2）。
@@ -252,7 +253,7 @@ M2 在 M1 地基上**追加**而非返工：
 | # | 端点（方法 路径） | spec 行为要点 | 层级 | 优先级 | 置信度 | 验收 |
 |---|---|---|---|---|---|---|
 | DE-01 | `GET /v2/` | **未认证一律 401 + `Www-Authenticate: Bearer realm=...` 挑战（无条件，不随 anonymous_access 变化）**；已认证 → 200 `{}`（v1.3/C6/D44-1 定案：ping-缓存型客户端 docker/skopeo/podman 依赖 ping 挑战触发 token 协商，ping 200 会导致永不携带凭据；匿名读经匿名 token 通行，见 FR-11） | 兼容（spec + 真实世界行为：Docker Hub/GHCR/Harbor 同构，docker-registry.md §0/§5） | P0 | 高 | D04 |
-| DE-02 | `POST /v2/<name>/blobs/uploads/` | initiating：带 `?digest=` 单请求 201；否则 202 + `Location` + `Docker-Upload-UUID` + `Range: 0-0` | 兼容（spec） | P0 | 高 | D06/D07 |
+| DE-02 | `POST /v2/<name>/blobs/uploads/` | initiating：带 `?digest=` 单请求 201；否则 202 + `Location`（**相对路径**，客户端拼 base——T-43 3.1 定案，v1.4/E1）+ `Docker-Upload-UUID` + `Range: 0-0` | 兼容（spec） | P0 | 高 | D06/D07 |
 | DE-03 | `POST .../uploads/?mount=<digest>&from=<repo>` | cross-repo mount，201 直接就位 | 兼容（spec） | P0 | 高 | D13 |
 | DE-04 | `PATCH <upload-url>` | chunked 追加 202 + `Range: 0-<received>`；Content-Range 不符 416 | 兼容（spec） | P0 | 高 | D10 |
 | DE-05 | `PUT <upload-url>?digest=` | 终结 201；digest 不符 400 `DIGEST_INVALID`；session 内 offset 查询 `GET <upload-url>` 204 + Range | 兼容（spec） | P0 | 高 | D10b/D12 |
@@ -340,7 +341,8 @@ echo "$ADMIN_PW" | docker login $REG -u admin --password-stdin   # Login Succeed
 dd if=/dev/urandom of=blob.bin bs=1m count=10
 DGST="sha256:$(sha256sum blob.bin | cut -d' ' -f1)"
 # v1.2/C1：name 用全名 docker-local/acme/app（repoKey=docker-local + image=acme/app，与 D08 一致）
-LOC=$(curl -su admin:$ADMIN_PW -si -X POST $REG/v2/docker-local/acme/app/blobs/uploads/ \
+# v1.4/E1（T-105）：Location 为相对路径（/v2/...，T-43 3.1 定案）——客户端需拼 scheme://host，此处以 $REG 前缀物化（D10 同）
+LOC=$REG$(curl -su admin:$ADMIN_PW -si -X POST $REG/v2/docker-local/acme/app/blobs/uploads/ \
   | awk -F': ' 'tolower($1)=="location"{gsub("\r","");print $2}')
 curl -su admin:$ADMIN_PW -X PUT --data-binary @blob.bin -H 'Content-Type: application/octet-stream' \
   "$LOC?digest=$DGST" -o /dev/null -w '%{http_code}\n'           # 201
@@ -376,12 +378,12 @@ curl -su admin:$ADMIN_PW "$REG/v2/docker-local/acme/app/tags/list?n=1" -i | grep
 # last 游标 exclusive：?n=1 两次（第二次带 last=<第一次返回的 tag>）不重复、可枚举完
 # n 非法：?n=abc → 400 PAGINATION_NUMBER_INVALID
 
-# D10 chunked 上传（FR-8-AC3；v1.2/C1：全名）
+# D10 chunked 上传（FR-8-AC3；v1.2/C1：全名；Location 相对路径 → 捕获时拼 $REG，v1.4/E1）
 split -b 1m blob.bin part_                                            # 10 段
-LOC=$(curl -su admin:$ADMIN_PW -si -X POST $REG/v2/docker-local/acme/app/blobs/uploads/ \
+LOC=$REG$(curl -su admin:$ADMIN_PW -si -X POST $REG/v2/docker-local/acme/app/blobs/uploads/ \
   | awk -F': ' 'tolower($1)=="location"{gsub("\r","");print $2}')
 for f in part_*; do
-  LOC=$(curl -su admin:$ADMIN_PW -si -X PATCH --data-binary @$f "$LOC" \
+  LOC=$REG$(curl -su admin:$ADMIN_PW -si -X PATCH --data-binary @$f "$LOC" \
     | awk -F': ' 'tolower($1)=="location"{gsub("\r","");print $2}')
 done
 curl -su admin:$ADMIN_PW -X PUT "$LOC?digest=$DGST" -o /dev/null -w '%{http_code}\n'   # 201

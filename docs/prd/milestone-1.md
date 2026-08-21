@@ -4,7 +4,7 @@
 |---|---|
 | 文档 | `docs/prd/milestone-1.md` |
 | 里程碑 | M1 — 内核基座（对应 ROADMAP.md「M1 — 内核基座（当前）」全部条目） |
-| 状态 | **v1.3**（8 项用户定案 + §5.5 六项校准全部回写完毕：v1.2 依据 rest-api/repo-semantics，v1.3 依据 auth-model.md（T-23）收口 token/改密/建用户四处） |
+| 状态 | **v1.3.2**（T-121 勘误：T-105 QA 建议 E5 收口——C30/FR-2-AC3 慢上传中断手法补 darwin 等价形态，判据「退出码非 0 + 路径 404」不变）。v1.3（8 项用户定案 + §5.5 六项校准全部回写完毕：v1.2 依据 rest-api/repo-semantics，v1.3 依据 auth-model.md（T-23）收口 token/改密/建用户四处） |
 | 上游依据 | PRODUCT.md（愿景/Non-goals/成功标准/技术约束）、ROADMAP.md、DECISIONS.md ADR-0002/0003、用户对 8 项开放问题的定案（§9） |
 | 下游消费者 | tech-lead（拆票）、architect（ADR/设计）、dev 各角色（实现）、qa-engineer（验收） |
 
@@ -19,6 +19,7 @@
 | v1.2 | 2026-08-17 | 依据已落地的 `docs/reverse/`（rest-api.md / repo-semantics.md，T-21）对 §5.5 六项校准项定案回写 + 采纳 tech-lead 评审 R1/R2/R7：① **R1：客户端 checksum 不一致 → 409**（repo-semantics.md §5 `client-checksums` 策略，高置信度；推翻 v1.1 的 400）——FR-4-AC5、C14、E-11 更新，message 含 received/actual 双值。② **R2：建仓成功 → 200 纯文本**（rest-api.md §2，高置信度；推翻 v1.1 的 201）——FR-3-AC1、C03、E-06 更新；更新走 POST、body key 不一致 400/409 语义补记。③ §5.5 六项全部定案（①DELETE 204 无 body ②checksum deploy 未命中 404 ③409 同 R1 ④mkdir 尾斜杠 201 ⑤token 字段按 BinFlow 自有语义暂定、待 auth-model.md（T-23）⑥item info 字段全集按 rest-api.md §3：含 `lastUpdated`、`size` 为字符串、含 `originalChecksums`）；§5.5 由「待校准」改为「校准记录」，置信度列由「待校准」改「高（已定案）」。④ E-14/E-15 置信度升「高」；FR-4-AC7/E-11 的「待校准」标记移除。⑤ 新增两条增补规格（high-value，不扩 M1 范围）：下载头 `ETag=<sha1>`/`Last-Modified`/`Accept-Ranges: bytes` + 304/416 条件请求语义（FR-4 新增 AC15，P2，Range 416 补入 AC14）、同 checksum 幂等重传免覆盖权限检查（记 §4 FR-4 表后注，FR-5 实现必须保留该分支）。Q1~Q8 已决决策表保持 v1.1 原样 |
 | v1.3 | 2026-08-17 | 依据 T-23 产出的 `docs/reverse/auth-model.md`（§3/§5 校准建议，高置信度）收口 §5.5⑤ 并校准四处：① **E-17 token 创建**——请求改 **form-urlencoded**（真实端点只吃 form，JSON 作 BinFlow 扩展）；响应字段集改 `access_token / token_type("Bearer") / expires_in(永不过期时缺省) / scope / refresh_token(仅 refreshable)`，**无 token_id**（BinFlow 超集扩展附 token_id 便于按 id 吊销）；grant_type/scope/expires_in/refreshable/audience 参数语义按规格 §3 落表（M1 子集：username/expires_in/refreshable 可不做）；FR-5-AC4、C21a 更新。② **E-18 revoke**——form 参数 `token` XOR `token_id`（同传 400 `token and token_id are mutually exclusive` / 都缺 400 `token or token_id are required`）；成功 200 纯文本 `Token revoked`；不存在/已吊销仍 200 `Token not found`（幂等）；FR-5-AC6、C21c 更新。③ **E-16 改密**——7.x 无 `PUT /api/security/password`；BinFlow 保留自有路径 + **补真实路径别名** `POST /api/security/users/authorization/changePassword`（userName/oldPassword/newPassword1/newPassword2），**旧口令错误 400（非 401）**；FR-5-AC3、C20 更新。④ **E-19 建用户**——真实为 `PUT /api/security/users/{name}`（201 无 body）；BinFlow 保留自有 POST + 补该兼容路由；GET 列表元素 `{name,uri,realm}`；email/password blank → 400（自有 POST 路由同一条校验链）；FR-5-AC7/AC11、C22a 更新。⑤ §5.1 补**错误体三分层**注记（制品 `errors[]` / 用户管理纯文本 / token OAuth 风格 `{"error","error_description"}`），token 端点采用 OAuth 风格；§5.5⑤ 定案收口、置信度升高；E-16~E-19 置信度升「高」。顺手修复 QA 剧本一处既有缺陷：C20 改密后 `$ADMIN_PW` 未更新会导致 C21/C22 连续 401，补 `export ADMIN_PW` 行 |
 | v1.3.1 | 2026-08-18 | 勘误（QA 剧本缺陷，非实现缺陷；T-14 review 范围外发现，T-27 回写）：C28a `curl -sf $BASE/binflow/api/v1/health` 漏带凭据——`/binflow/api/v1/**` 属管理面需认证（§5.1 认证分层），未带 `-u` 会得 401 且 `curl -f` 以非零退出，按原文执行会误判实现失败。修正为 `curl -sfu admin:$ADMIN_PW ...`（仅此一行；FR-6-AC2 的原命令不带 `-f` 且未声明免认证，不受影响） |
+| v1.3.2 | 2026-08-21 | 勘误（T-121，T-105 QA 建议 **E5**——验收剧本可移植性，非实现缺陷；M1 侧仅此一条，T-105 的 E 编号独立于 T-103 的 E 编号，后者已在 M4 PRD v1.3 收口）：C30 与 FR-2-AC3 的慢上传中断构造 `timeout -s KILL 3 curl ...` 依赖 GNU coreutils（darwin 无 `timeout`，照抄即 command not found）——补**等价形态 `curl --max-time 3 --limit-rate 64k`**（curl 超时自杀，exit 28；T-105 实测同效：随后路径 404、blob 计数不变）。**判据不变**：客户端退出码非 0 + 上传路径 404 + stats blob 计数不变；中断手法平台无关，两形态任选其一 |
 
 ---
 
@@ -144,7 +145,7 @@ M1 的「真实用户」是**平台工程师的 CI 脚本**，不是终端人类
 |---|---|---|
 | FR-2-AC1（去重） | 同一 10MB 内容分别 PUT 到 `a/x.bin` 与 `b/y.bin`（命令 C07 两次），两次均 201；`GET /binflow/api/v1/storage/stats`（C12）返回的 blob 总数第二次上传后**不变**；两条路径均能 200 下载且 sha256 一致 | P0 |
 | FR-2-AC2（校验寻址） | C10（`GET /binflow/api/storage/{repo}/{path}`）返回的 `checksums.sha256` 与本地 `sha256sum` 输出一致（C07 的 jq 断言） | P0 |
-| FR-2-AC3（原子可见性） | 构造慢上传：`dd if=/dev/urandom of=big.bin bs=1m count=100`，`timeout -s KILL 3 curl -su admin:$ADMIN_PW -T big.bin --limit-rate 64k $BASE/binflow/generic-local/acme/big.bin`（退出码非 0）；随后 `curl -s -o /dev/null -w '%{http_code}' .../acme/big.bin` 返回 **404**，且 C12 的 blob 计数较上传前不变（临时文件已清理或在隔离区，不计入 blob 数） | P0 |
+| FR-2-AC3（原子可见性） | 构造慢上传：`dd if=/dev/urandom of=big.bin bs=1m count=100`，`timeout -s KILL 3 curl -su admin:$ADMIN_PW -T big.bin --limit-rate 64k $BASE/binflow/generic-local/acme/big.bin`（退出码非 0；**中断手法平台无关**——GNU `timeout -s KILL 3`（exit 137）或 darwin 等价 `curl --max-time 3 --limit-rate 64k`（exit 28），v1.3.2/E5）；随后 `curl -s -o /dev/null -w '%{http_code}' .../acme/big.bin` 返回 **404**，且 C12 的 blob 计数较上传前不变（临时文件已清理或在隔离区，不计入 blob 数） | P0 |
 | FR-2-AC4（kill -9 一致性） | 上传中 `kill -9 <server_pid>` 后重启服务：已完成的历史上传仍 200 可下载；中断的那条路径 404；`GET /binflow/api/v1/health` 200 | P0 |
 | FR-2-AC5（覆盖写幂等） | 对同一路径再次 PUT 相同内容 → 2xx；stats blob 计数不变。PUT 不同内容 → 2xx，下载返回**新**内容，旧 blob 若无引用则计数减一（允许延迟） | P1 |
 | FR-2-AC6（大文件流式） | 1GB 文件 PUT 成功（201）后 GET 回来 sha256 一致；上传期间服务进程 RSS 增量 < 256MB（QA 用 `ps -o rss` 采样，防全量读入内存） | P1 |
@@ -446,6 +447,9 @@ curl -su admin:$ADMIN_PW -o /dev/null -w '%{http_code}\n' $BASE/binflow/generic-
 # C30 慢上传中断 + kill -9（FR-2-AC3/AC4）
 timeout -s KILL 3 curl -su admin:$ADMIN_PW -T big.bin --limit-rate 64k \
   $BASE/binflow/generic-local/acme/big.bin; echo $?     # 137（被 kill），非 0
+# darwin 无 GNU timeout——等价形态（T-105 E5/v1.3.2）：判据同为「退出码非 0 + 随后 404」，两形态任选其一
+curl -su admin:$ADMIN_PW -T big.bin --limit-rate 64k --max-time 3 \
+  $BASE/binflow/generic-local/acme/big.bin; echo $?     # 28（curl 超时自杀），非 0
 curl -su admin:$ADMIN_PW -o /dev/null -w '%{http_code}\n' $BASE/binflow/generic-local/acme/big.bin  # 404
 ```
 
