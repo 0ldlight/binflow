@@ -17,98 +17,18 @@
 
 ## 📥 待办（todo）
 
-> M4 票 AC 全文见 reports/agents/T-88.md。分批：1~7✓（批 7：T-104 PASS + T-117/T-118/T-119 微票） → 8:{T-105,T-120}（在途） → 9:{T-106,T-107}。M5 首票：ADR-0016 实现（草案 T-119.md）。
+> **M5 票 AC 全文见 reports/agents/T-126.md**（21 票 T-127~T-147）。批次：1:{T-127,T-128,T-129,T-130} → 2:{T-131,T-132,T-133} → 3:{T-134,T-135,T-136,T-137} → 4:{T-138,T-139,T-140,T-142} → 5:{T-141,T-143,T-144} → 6:{T-145,T-146} → 7:{T-147}。双 reviewer：**T-128（正确性+架构）、T-132（安全+供应链）**。R1~R10 裁决见 T-126.md；P2/M6+ 台账 PRD §6.4 速裁 12 项。
 
-- **T-117** [P1] PRD v1.2→v1.3 勘误 `role:product-manager` `area:docs/prd/milestone-4.md` — done 2026-08-21（conductor 核验直收）
-  六项勘误（E1 grep -q/E2 **裁决钉 403 驳回 401 建议——现状即正确零改码**/E3 零残留按每写原子（D-1/D-2 P2 接受）/E4 cookie 排除 /v2/E5 锁文件放行/createdBy 改详情面板口径）。16 处 v1.3 标记、grep 零活体残留。移交登记：console-ux §9 R10 行与 E4 相悖（随下版 ux 勘误）；docker blob node 纳 GC 候选（M5+ 评估）。提交 e86967c。
-- **T-118** [P1] console-ux §10.3 testid 清单 v1.2 回写 `role:ux-designer` `area:docs/design/console-ux.md` — done 2026-08-21（conductor 核验直收）
-  §10 v1.2：预定锚转正（242 处/27 文件对码核实、动态实参域逐一取证）；perm-matrix-cell 细化 {user|group}-<principal>-<action> 防碰撞升命名规则；search-filter-{package|type} 删除；token 族+audit-export 入 §10.4 禁区。T-104 断言锚唯一来源（§10.2+§10.3）。提交 01d7710。
-- **T-119** [P1] 隐式目录 folder 行架构裁决 `role:architect` `area:docs/design、DECISIONS.md` — done 2026-08-21（conductor 核验直收）
-  **裁决选 A（ADR-0016）**：putNode 单缝材料化祖先 folder 行（祖先先落/派生状态免三门/007 回填先落哨兵 blob 满足 FK——最大实现坑）。理由：模型不变量优于读补丁（pruneEmptyParents 在纯隐式树是死代码=症状）、clean-room 取证（nodes DDL+prune 语义）、B 性力量化否决、C 实测证伪。**实现排 M5**（两票草案在 T-119.md：BE 材料化+007 回填 → FE 删回退；行为变更隐式目录 404→200、债务 20 remote 不跟随）。提交 7986784。
-- **T-104** [P0] QA Playwright 浏览器矩阵 `role:qa-engineer` `area:验收` — done 2026-08-21（**PASS**）
-  Chromium CFT151 **47/47 全绿**（W09→W35 全链 + 注入三断言：403 腿/哈希相零 PUT 128MB route 计数/sameSnapshot 逆序）+ 1GB RSS 0~28KB + 50 并发 session 互异；WebKit/Firefox 三链败于 **D-104-1**（P1：relink-assets 只重写 index.html，懒 chunk 运行时死引用→整路由空白）→ **T-120 派修**；D-104-2（P2：token 签发/吊销不落审计——词表「M1 既有」前提不实）登记 M4 收尾评估。E1/E2 勘误登记；E3 与 T-118 v1.2 无冲突；E4 matrix overlay 转常驻已注入 T-105。spec 提交 62d92f1；报告 reports/agents/T-104-qa.md。
-
-- **T-120** [P1] 懒 chunk 资产路径修复 `role:devops-engineer` `area:web/scripts` — done 2026-08-21（conductor 核验直收）
-  根因精一层：vite 6.3 运行时拼接 `"/binflow/ui/"+dep`（非字面量）——relink 扩展+自检门禁（残留→build exit 1）。**三引擎 9/9** + Chromium 47/47 复绿；死命中 0；树页 CSS 0→54 规则。D-104-1 闭合。提交 170cf38。
-
-- **T-105** [P0] QA 回归基线+性能 `role:qa-engineer` `area:验收` — done 2026-08-21（**PASS 279/279**，零 P0/P1）
-  M1~M3 全序列（C01~C30/D01~D24/M01~M59 distinct 279 PASS、首试 79 FAIL 全为 QA 构造修正归档）+ 性能门槛全达（冷启动 120ms/首屏 393ms/P95 搜索 72ms/1GB 194MB/s RSS 52KB）+ 客户端矩阵扩 podman/crane/oras/skopeo。**非预期 5xx=0 panic=0**。O-MEM1（argon2id 瞬态、m1 同形非回归）→T-107 文档引导；E1~E5→T-121。报告 T-105-qa.md，提交 c4a9db3。
-
-- T-106 部署烟测 / T-107 M4 文档 — AC 见 reports/agents/T-88.md
+- **T-127** [P0] goreleaser 基线+版本注入（FR-34/PB-01/02） `role:devops-engineer` `area:.goreleaser、Makefile`
+- **T-128** [P0] FR-44 BE 材料化+007 回填（ADR-0016，照 T-119 草案；**双 reviewer 票**） `role:dev-go-core` `area:internal/repo、internal/metadata(007)`
+- **T-129** [P0] docs-site 脚手架+embed+/binflow/docs（K1 暂行形态） `role:devops-engineer` `area:docs-site、internal/console`
+- **T-130** [P0] K1/K2 架构终裁+§7.1 两行补遗 `role:architect` `area:DECISIONS.md、docs/design`
+- **T-131** [P0] FR-44 FE 删双兜底 `dep:T-128（硬）` / **T-132** [P0] FR-35 镜像双变体（**双 reviewer 票**）`dep:T-127` / **T-133** [P0] FR-45 token 审计 — AC 见 T-126.md
+- T-134~T-147（docker 视图/compose/Helm/K8s/systemd/离线包/uri 族/文档×2/安全审计/QA×4）— AC 与依赖链见 reports/agents/T-126.md
 
 ## 🔨 进行中（doing）
 
-- **T-106** [P0] 部署烟测（批 9） `role:release-engineer` `area:deploy、验收` — 在途（二进制直跑+compose 形态；M4 新面：console embed 反代下/session 路径/GC·备份 CLI；端口段 18160+）
-- **T-107** [P1] M4 用户文档 `role:tech-writer` `area:docs/user` — done 2026-08-21（conductor 核验直收）
-- **T-106** [P0] 部署烟测 `role:release-engineer` `area:deploy、验收` — done 2026-08-21
-  三形态全绿（bare/compose/nginx 反代）：五协议 roundtrip 逐位一致、跨形态 export→import 恢复、真实 restart session+制品存活、容器内 GC+flock 409、down -v 零残留；271 请求 0 5xx。**Dockerfile 增 console 构建阶段**（镜像自建 SPA 不依赖构建机）+ 反代片段修复（已实证）。**D-106-1（P1→T-124 修复中）**：SnapshotChecksums 不排 folder 零占位 → mkdir 实例 export 全败（fail-closed、因果闭环）；O-106-1（?list uri 基址）登记 E-10 面；O-106-2（maven 文档 http-blocker）登记 M5 文档清单。提交 42b9d7b。
-
-- **T-124** [P0] folder 占位 export 修复 `role:dev-go-core` `area:internal/metadata、repo、cmd、httpapi(gc)` — done 2026-08-21（conductor 核验收口）
-  FolderMarkerSHA 导出常量（占位契约文档化）+ SnapshotChecksums 按值排除（sha256("")=e3b0c442 永不误伤，测试 pin）+ import 侧同查（无携带工件存量）+ GC mark 两面同修（mark⊆物理 blob 由构造成立）。红绿锚：还原缺陷→3 测试红与 D-106-1 错误串逐字一致；真机 mkdir×2→export（manifest 零占位）→import full→folder info 200→sha 逐位→二次 export 全 PASS。**D-106-1 闭合**。提交 cb7a212。
-
-- **T-122** [P1] architecture §7.1 两行回写 `role:architect` `area:docs/design/architecture.md` — done 2026-08-21
-  H-1：?permissions 行按 T-113 形态新增（「旧行」实为 T-97 草案②从未落地——行内注记草案匿名门已被 B2 取代防错复刻）；H-2：changePassword 别名行按实况（非 admin 门/指名规则/E-16 双路由）。grep 零旧方向残留。相邻缺口（PUT /api/security/password、/api/v1/permissions CRUD 两行）登记 M5 文档清单。提交 a7ebae7。
-
-- **T-123** [P1] ux R10 例改道 `role:ux-designer` `area:docs/design/console-ux.md` — done 2026-08-21
-  R10 例改 npm packument/pypi simple（路径核对自 t63 mount 测试）；行内显式注记 docker 不作例原因防错例回流；v1.3。遗留观察登记 M5：docker 树数据源（§3.2/§3.4 /v2/_catalog E4 后 session 不可携——storage 兜底 vs 匿名 /v2 vs 反代，随 T-100 P1 docker 特化视图一并裁决）。提交 472df1a。
-
-- **T-107** [P1] M4 用户文档 `role:tech-writer` `area:docs/user` — done 2026-08-21（conductor 核验直收）
-  5 新篇（console 指/groups-permissions/governance/backup-restore/FAQ）+README 导航；**全部命令同源抽验通过**（scratch 实例复跑 session 全周期/配额双态/GC 双步/export-import full 往返等）；写作中实修正两处（409 文案前缀、token 签发 admin-only）；词表按 audit 常量核对。移交 H-1/H-2→T-122、H-3→T-123。提交 c900ad8。
-- **T-121** [P1] PRD 勘误（T-105 E1~E5） `role:product-manager` `area:docs/prd/milestone-1~3` — done 2026-08-21（conductor 核验直收）
-  E1~E5 **采纳 5/驳回 0**（全落 M1~M3：M2 v1.4 捕获物化+相对路径注记；M3 v1.3 layout 合规名/snapshot 载体/pypi.org 根 URL 根因修；M1 v1.3.2 darwin 等价限速命令）；grep 零活体残留。移交 3 项登记 M5 债务（T-74 E3~E5、T-104 E1/E2 状态核、M1 C17 载体）。提交 e5acc80。
-
-（以下为已 done 票归档行——批 6 收口遗留位置，待全量整理）
-- **T-103** [P0] QA 后端面全量矩阵（批 6 提前段——后端已冻结） `role:qa-engineer` `area:验收` — done 2026-08-21（**PASS 217/217**，零 P0/P1）
-  三 AC 全过：基座全周期（session/CSRF 六变体/搜索 ACL 零泄漏/W36 十端点 404）+ 权限治理（组继承即时/词表 11 动作/GC 三方锁互斥全向/五协议 413 真客户端 docker dind 全链+T-95 B1 幂等面）+ 备份往返（四协议 sha 逐位/mtime 35/35/无钥 fail-fast）。被测 3c3cd36 冻结基线独立 worktree+真二进制。缺陷 D-1/D-2（P2：docker/maven 配额 push config 层残留 usage 可见 API 不可达）+ O-3~O-5 观察。**勘误 E1~E5 → T-117**（E4 cookie Path 结构性排除 /v2 已知会在途 T-100）。报告 reports/agents/T-103-qa.md。
-- **T-100** [P0] FE 制品树+搜索 `role:dev-frontend` `area:web/src/pages/repositories/tree、search` — done 2026-08-21（单 review 两轮修复，**输出门放行**）
-  树域 lib（斜杠契约逐项吻合）+ 流式 sha256 零依赖（reviewer 独立对账 25 边界×3 入口）+ 懒加载树/面包屑/分页 + 上传对话框（generic 拖拽+maven GAV、E-11 原样）+ 搜索页（防抖/语义副行/跳树定位）。review B1 两臂修复（关闭泵断：closedRef 闸+hashing 相闸）——PUT 计数恒 1+配额零泄漏服务端复核；artifacts 7/7。提交 c00130a+e1e35e8+77718cc。8 NB 登记（createdBy 口径→T-117、403 腿/哈希相断言→T-104、隐式目录→T-119）。
-
-## 👀 评审中（review）
-
-（T-99 复核 APPROVE → done 区；批 6 四线在途：T-100/T-101/T-102/T-103）
-
-- **T-101** [P0] FE 安全组 `role:dev-frontend` `area:web/src/pages/security` — done 2026-08-21（单 review 两轮修复，**复核 APPROVE**）
-  pathmatch 前端同源移植（36 fixtures 从 Go 测试生成 + --check 漂移闸 + parity spec）+ 权限 target 编辑器（模式测试器/主体×r/w/d 矩阵/保存前 diff 确认）+ users/groups 页 + 409 面板（含点名尾锚定解析）+ SettingsPage N1 收口（403 驱动）。review B1（句点截断）经对抗向量实测闭合；NB② sameSet 集合语义。e2e 10/10。提交 c00130a（三票合并）。登记：NB④ testid v1.2 回写 T-104 前 conductor 硬动作、含逗号 target 名歧义备案、漂移⑤候选后端小票（导航取消 499/WARN）、漂移①待产品裁决。
-
-- **T-102** [P1] FE 治理组 `role:dev-frontend` `area:web/src/pages/governance、audit` — done 2026-08-21（单 review 两轮修复，**输出门放行**）
-  审计页（过滤+keyset 加载更多+**晚到响应守卫**——负控可判别）+ GC 页（typed-confirm apply/409 holder 诊断/graceHours）+ 配额页（水位三态/行内编辑/413）+ 备份 R5 兜底。B1 竞态修复复核通过；B2（spec TS never-call）输出门闭合（tsc exit 0 未过滤 + governance 4 passed）。契约面全过（Filter 无 path 属实/词表/字段集）。提交 c00130a。8 NB 登记；漂移①（path 服务端过滤）需后端增量票。
-- **T-100** [P0] FE 制品树+搜索（批 6 第四线） — 编码完成，conductor 核验通过（本票 17/17：W12 全链 sha 对账/W12d 403 行内/W12a 409/413 原样/maven 表单零写/W14b 搜索/220 节点分页 + T-98/T-99 探针 11 复绿；SPA 151.2KB delta+15.5KB；embed 复绿；E4 口径已按 /v2/token）。review 待派（三票合并提交后）。**契约漂移 8 项**——最重要：**隐式目录无 folder 行**（转 architect 裁决：service 落父目录行 vs storage.go 前缀列举）；children 无 keyset 游标；folder DELETE 尾斜杠 404。遗留：五协议特化视图 P1、虚拟化窗口、dev 代理缝票等。
-- **T-102** [P1] FE 治理组（批 6） — review B1（竞态）修复**复核通过**（守卫时序密闭/回归腿可判别/负控采信）；新引入 B2（spec:142 releaseP2 TS never-call——CI 类型门红，一行断言修）**修复中，输出门放行**（tsc exit 0 + governance 4 passed 原始输出）。契约面全过。8 NB 登记。代码待三票合并提交。
-（T-64/T-67/T-69 等 M3 残留行 2026-08-20 清理，done 记录见 done 区）
-
-- **T-111** [P1] docker 413 verbatim 渲染臂 `role:dev-registry-adapter` `area:internal/adapter/docker` — done 2026-08-21（单 review 一轮修复）
-  writeVerbatimStatusError + specCodeOfVerbatim（413/409→DENIED、405→UNSUPPORTED、TOOMANYREQUESTS 弃用）落 manifest PUT 与 blob 注册支路；review B1（tryMount 治理拒绝降级 202 与 FR-31-AC5 P0 字面冲突）修复：isDenied 前加 errors.As verbatim 臂——mount 面即出 413/409，机械性失败仍降级。真机实证（旧进程占端口的 stale-202 已 root-cause）：quota mount 413 verbatim 断到 used/needs 级、pattern 409、未配置 201 回归、零残留、WARN「mount refused」×2/「degraded」×0。conductor 复核：build/lint 0/mount 测试+全包 ok。提交 8ed20f7+2ee01d2。遗留：remote docker FetchError 500 归 M5+、docker CLI 侧显示归 T-103。
-
-- **T-94** [P0] GC 管理化 `role:dev-go-core` `area:internal/httpapi(gc)、internal/storage(gc)` — done 2026-08-21（**review APPROVE 一轮过**，0 blocker/6 NB）
-  POST /api/v1/system/gc：dry-run 默认/apply 双扫/409 锁映射带 holder pid/op/gc.run 审计/liveChecksumSet（nodes∪docker_refs）。review 实证：三态 grace（缺省 config/显式 0=1ns/越界 400）专测钉死；mark 集完备（manifest 本体疑点排除——经 PutManifest 落 node 行由 nodes 半边保护）；锁互斥真实（flock 跨 fd 排他+defer panic 安全）；clean-room 无嫌疑。范围外①（CLI gc.run 审计缺口）→ T-114；N1（apply 断连幻影）→ T-114；cmd 一行接线越界**conductor 追认**。提交 86f879b（与 T-97 合并）。
-
-- **T-97** [P0] groups 域+权限继承 `role:dev-go-core` `area:internal/auth、internal/metadata(groups)、internal/httpapi(groups)` — done 2026-08-21（双 review 一轮修复）
-  groups CRUD+组并集权限+fail-closed 组侧+三臂等价+users create-or-replace 201（R5）+?permissions 视图。正确性 review B1（映射方向反）+B2（空门泄露普查）修复 `120eb09`（principalLetters 新形态+required admin）；架构 review B1 同款已闭合、遗留②与正确性侧分歧——**conductor 裁决维持收紧**（代码级取证 RestAddonImpl canManage 前置 > 文档 can-be-anonymous；BinFlow 存在性不泄露立场；T-103 真机对照后可一行放宽）。真机矩阵 401/403/200+W21 精确形态实证。提交 86f879b+120eb09。NB：user_groups 索引→T-115、TOCTOU/审计 detail/PUT 事务性登记、users DELETE 缺口（FR-28 UI 需后续票）。
-
-- **T-113** [P1] ?permissions 形态勘误 `role:reverse-engineer` `area:docs/reverse/rest-api.md、docs/prd/milestone-4.md` — done 2026-08-21
-
-- **T-114** [P1] GC 尾巴 `role:dev-go-core` `area:cmd(gc)、internal/httpapi(gc)` — done 2026-08-21（conductor 核验直收）
-  CLI gc.run 审计（detail 对齐 REST、被锁拒绝不落痕）+ apply WithoutCancel 贯穿锁内全程（断连不再留幻影 ledger）。判别性实验：还原缺陷 → TestT114 0.17s 红；真机双路径对账 3 行 gc.run——**FR-30-AC5 闭合**。定案：dry-run 统一挂 WithoutCancel；CLI 双遍 mark 登记备查（M5）。提交 bcf317f。
-
-- **T-115** [P1] 认证热路径索引 + 架构勘误 `role:dev-go-core` `area:internal/metadata(006)、docs/design` — done 2026-08-21（conductor 核验直收）
-  006 迁移 idx_user_groups_username：EXPLAIN 对账 SCAN→SEARCH（pin 断言）；§6 注记 + §7.1 users 行修正。提交 fec7fe2。遗留：§7.1 ?permissions 行 + E-16 行 → T-107。
-
-- **T-99** [P1] FE 仓库管理页 `role:dev-frontend` `area:web/src/pages/repositories` — done 2026-08-21（单 review 一轮修复，**复核 APPROVE**）
-  列表（过滤/双空态/逐仓 usage）+三步表单（governance 字段 local-only）+详情（五协议命令块/usage 水位条/删除双段流）。review B1（行级 onClick 未隔离）修复：页面级 stopPropagation（与共享组件方案语义等价、符合 R6 不中途继承）+ B2（defaultDeploymentRepo 联动清空，uncheck 唯一入口闭合）；三腿 e2e 断言到剪贴板 readText/API 字段对账级。契约面逐字段吻合。提交 0f391ea+6223e74。登记：并行波收口后共享 CopyButton 统一 stopPropagation 作终态；9 NB 与「最近事件卡未交付」交 conductor 分流；ErrorBoundary 基座缺口候选小票。
-
-- **T-116** [P1] 控制台权限可见性漂移集中定案 + console-ux v1.1 `role:ux-designer` `area:docs/design/console-ux.md` — done 2026-08-21
-  定案 A（健康）+ B（仓库列表）**均维持 admin-only**（存在性/内部状态不泄露立场；path-keyed 模型下列表即普查）+ Tokens 收回 admin-only（D3）——**零后端票**。v1.1：§3.3 重写、§3.6 权限可见性矩阵（403 收敛四层主姿态+端点×门 22 行+页面×角色）、§10 data-testid 清单（~99 已落锚核对+T-100~102 预定锚契约——T-104 断言锚源）、N1 裁定（数据呈现一律 403 驱动禁 admin 硬编码；存量偏离一处：设置页健康行→随 T-100~102 修正）。提交 4bdcfd6。
-  §3 键值方向翻转勘误（RestAddonImpl#getItemPermissions 双证）+ annotate 字母 a→n 顺带修正（全集 r/w/n/d/m）+ PRD FR-27/SE-08 v1.2 + NB6 定案（非 local 仓 400 正确、无需改码）。grep 零活体旧表述。提交 f102fef。
-
-- **T-98** [P1] FE 基座：登录页+框架壳+仪表盘 `role:dev-frontend` `area:web/src` — done 2026-08-21（单 review 一轮修复，**复核 APPROVE**）
-  统一请求层（E-01/纯文本/OAuth 三格式+401 全局监听）/useAsync 四态容器/AuthContext（whoami·login·logout、TTL 塌缩无保活）/AppShell（224px 导航 9 占位+⌘K+主题）/五页+四态基元+--bf-* 双主题 tokens/E2E 7 例真后端。review B1 401 风暴（同步 statusRef 哨兵——结构性修复，探针单 toast）/B2 useAsync 闭包旗标（StrictMode+deps 切换均正确）/B3 改密 e2e/N2 ⌘K 让位——复核确认全部到位（gzip 89,402B 一致、embed 产物含修复、树对 5f1a10a 干净）。提交 d51dcce+5f1a10a。遗留：N1 admin 硬编码→随漂移① ux 裁决、N3 OAuth 解析→T-101 前、vitest 框架小票建议、data-testid 清单回写（T-104 锚）、侧栏折叠态（无图标资产）。
-
-- **T-96** [P0] 备份/恢复 CLI `role:dev-go-core` `area:cmd(export/import)、internal/storage、internal/metadata(快照)` — done 2026-08-20（双 review 一轮修复）
-  export/import CLI + storage.AcquireDataLock 跨进程锁原语（flock/LockFileEx kernel32 直调，x/sys 不升 direct）。架构 review APPROVE（0 blocker；锁粒度/生命周期/分层全过；T-112 勘误收口）；正确性 review B1（import 不持锁+clearDirContents unlink 活锁）+ B2（非 sqlite driver/越界 dsn 无守卫）修复：import 整程持锁先于空目录检查/MaintenanceLockName 单一事实源/越界清理，**复核 APPROVE**。conductor 真机抽查：fresh import --verify full 6/6 rehash、GET sha 逐字对账、无钥 fail-fast 实证。提交 75c6d95+f1795b0。遗留：windows 锁运行时未验（M5）、docker/mvn/twine 保真链归 T-103、NB1~N7 台账（NB4/NB7 建议 M4 收尾小票）。
-
-- **T-112** [P1] architecture §7.6/ADR-0015 备份面勘误 `role:architect` `area:docs/design/architecture.md、DECISIONS.md` — done 2026-08-20
-  9 条勘误（§7.6 四处：目录形态/--output/无 REST 面/CLI 退出码；ADR-0015 勘误二纯追加 5 行；§11.19 标题；§3.1/§3.2 公共面两行；§4.6 顺手收口 quotaBytes 键名 + remote 计量口径）。conductor grep 抽查：旧表述仅存于 quote-then-revoke 勘误注记内，零活体残留。技术债三条转 T-94 注记（N1/N2 已转发）/T-107（metadata.db 命名展开）。
-
+- **T-127/T-128/T-129/T-130**（M5 批 1 四线）— 派发见迭代报告 262；AC 全文 reports/agents/T-126.md
 
 ## 🧪 测试中（qa）
 
