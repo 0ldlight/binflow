@@ -817,8 +817,30 @@ CREATE TABLE repo_usage (                 -- 配额计数（ADR-0015 决策 2）
                                                  DELETE /{name} 未做（FR-28 UI 需求补票 + user.delete 审计，P2 登记）
   GET/PUT/POST/DELETE /binflow/api/security/groups[/{name}]  组 CRUD（兼容层路径，非 /api/v1——PRD SE-01；
                                                  成员关系经 users 端点；被 permission target 引用删除 → 409）
+  POST   /binflow/api/security/users/authorization/changePassword
+                                                 改密（E-16 双路由的真实路径别名，与自有 PUT /api/security/
+                                                 password 并存）；认证即门、非 admin——自助：userName 缺省=
+                                                 调用者本人，admin 可指名他人、非 admin 指名 → 403；
+                                                 newPassword1≠newPassword2 → 400、旧口令错误 → 400 非 401；
+                                                 200 纯文本（用户管理纯文本层，auth-model §2.1/§2.4）；exact-
+                                                 match case 先于 security/users/ 前缀 POST、不落 /{name}
+                                                 部分更新臂——T-122 补行（实现早于 T-115 即在 router，表漏列）
   GET    /binflow/api/v1/storage/usage/{repo}       配额用量观测（{repo,usedBytes,quotaBytes}——GE-06；
                                                  quota 配置走 repositories 字段 quotaBytes，无专用设置端点）
+  GET    /binflow/api/storage/{repo}/{path}?permissions
+                                                 有效权限视图（SE-08/FR-27，M4 T-97；path 空=仓根）；
+                                                 **admin 门**——T-97 review B2 定案：管理面数据（枚举主体名
+                                                 与 r/w/d 分布），BinFlow 无 manage 动作、admin 为最近映射，
+                                                 空门会使匿名读实例枚举 users/groups、击穿登录面存在性隐藏；
+                                                 非 local 仓 → 400（先判型，remote 不触发上游拉取）、local+
+                                                 item 不存在 → 404；形状 {"uri","principals":{"users":{"<主体
+                                                 名>":["r","w","d"]},"groups":{...}}}——key=主体名、value=
+                                                 权限字母集合（字母全集 r/w/n/d/m、BinFlow 用 r/w/d 子集；
+                                                 无任何权限的主体不出现、无 target 覆盖=空对象）——T-113
+                                                 勘误定案（逆向规格 §3 原记键值方向相反）；视图与判定共用
+                                                 targetCovers 谓词、与 Authorizer.Can 不可能分叉——T-122
+                                                 补行：T-97 草案②迟未落地，径按定案形态书写（草案②「匿名
+                                                 同门」门位亦被 B2 admin 门取代）
 /binflow/api/...    *     Artifactory 兼容子集 [按 docs/reverse/rest-api.md 逐步]（注意：兼容层路径不带 /artifactory 前缀，直接映射 /binflow/api/...）
 /binflow/<repo>/... *     内容路径：按 repo.package_type 分发到 adapter（M1 = generic）
 /binflow/assets/**  *     SPA 指纹资产（/binflow/assets/<hash>.js|css，immutable 缓存 [M4]）
