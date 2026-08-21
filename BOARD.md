@@ -40,6 +40,9 @@
 
 - **T-106** [P0] 部署烟测（批 9） `role:release-engineer` `area:deploy、验收` — 在途（二进制直跑+compose 形态；M4 新面：console embed 反代下/session 路径/GC·备份 CLI；端口段 18160+）
 - **T-107** [P1] M4 用户文档 `role:tech-writer` `area:docs/user` — done 2026-08-21（conductor 核验直收）
+- **T-122** [P1] architecture §7.1 两行回写 `role:architect` `area:docs/design/architecture.md` — done 2026-08-21
+  H-1：?permissions 行按 T-113 形态新增（「旧行」实为 T-97 草案②从未落地——行内注记草案匿名门已被 B2 取代防错复刻）；H-2：changePassword 别名行按实况（非 admin 门/指名规则/E-16 双路由）。grep 零旧方向残留。相邻缺口（PUT /api/security/password、/api/v1/permissions CRUD 两行）登记 M5 文档清单。提交 a7ebae7。
+
 - **T-123** [P1] ux R10 例改道 `role:ux-designer` `area:docs/design/console-ux.md` — done 2026-08-21
   R10 例改 npm packument/pypi simple（路径核对自 t63 mount 测试）；行内显式注记 docker 不作例原因防错例回流；v1.3。遗留观察登记 M5：docker 树数据源（§3.2/§3.4 /v2/_catalog E4 后 session 不可携——storage 兜底 vs 匿名 /v2 vs 反代，随 T-100 P1 docker 特化视图一并裁决）。提交 472df1a。
 
