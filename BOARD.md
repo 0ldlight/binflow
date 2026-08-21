@@ -28,7 +28,12 @@
 
 ## 🔨 进行中（doing）
 
-- **T-127/T-128/T-129/T-130**（M5 批 1 四线）— 派发见迭代报告 262；AC 全文 reports/agents/T-126.md
+- **T-127/T-128/T-129**（M5 批 1）— 在途；AC 全文 reports/agents/T-126.md
+
+（T-130 done → 下方归档）
+
+- **T-130** [P0] K1/K2 架构终裁+§7.1 两行补遗 `role:architect` — done 2026-08-21（conductor 核验直收）
+  **K1（ADR-0011 增补①~⑤）**：搜索外挂 docusaurus-search-local+nodejieba（事实修正：内建搜索不搜正文）；baseUrl 原生前缀免 relink；fallback 阶梯至用户确认。**K2（新 ADR-0017）**：ghcr.io/lzwzzy/binflow 变体 tag、GA 无滚动 tag、基底 **distroless static-debian13**（修正 debian12 暂行）+ alpine:3.24、syft SBOM 最小面（cosign/SLSA M6+ 结构性理由）、Chart 仓库 GitHub Pages。§7.1 两行补遗；PRD v1.2。在途影响：T-129 搜索方案已知会、T-132 派单带 debian13 锚定。提交 3daa704。
 
 ## 🧪 测试中（qa）
 
