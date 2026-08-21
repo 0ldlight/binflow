@@ -4,7 +4,7 @@
 |---|---|
 | 文档 | `docs/prd/milestone-5.md` |
 | 里程碑 | M5 — 发布矩阵与文档中心（GA，对应 ROADMAP.md「M5」节全部条目 + §2.1 收编的 M4 债务） |
-| 状态 | **v1.0**（T-125 初版：FR-34~FR-47、端点矩阵 PB/DC/DM 三域 13 条、G01~G35 验收命令（CLI/curl + 各部署形态烟测剧本）、回归基线反转表 7 行、M4 债务归置 10+12 条（入 M5 八 / M6+ 二，余见 §6.4）、四项开放问题附暂行（发布渠道 / HPA 呈现 / 烟测环境可得性 / GA 版本号）） |
+| 状态 | **v1.1**（T-125：§7 四项开放问题**用户定案回写**——Q1 发布渠道 = 公共渠道：GitHub Releases + ghcr.io（Chart 仓库形态待定，首选 GitHub Pages）；Q2 HPA = 默认 disabled + maxReplicas≤1 拦截（转正）；Q3 烟测环境 = 用户提供（到位前按 T-106 降级口径先行，拆票 dep:用户环境）；Q4 GA 版本号 = v1.0.0（与 m5-done 双 tag）。FR-34/35/37/39、§5.2/§5.3/§5.4、§5.5-K2、§8/§9 联动。v1.0 初版：FR-34~FR-47、端点矩阵 PB/DC/DM 三域 13 条、G01~G35 验收命令（CLI/curl + 各部署形态烟测剧本）、回归基线反转表 7 行、M4 债务归置 10+12 条（入 M5 八 / M6+ 二，余见 §6.4）） |
 | 上游依据 | PRODUCT.md（核心能力 7 多元部署 + 成功标准四条：15 分钟跑通 / <40MB / 1000 并发 / 真实客户端）、ROADMAP.md M5 节与 DoD、M1 交付基线（milestone-1.md v1.3.1 @m1-done，现行 v1.3.2）、M2 交付基线（milestone-2.md v1.3 @m2-done，现行 v1.4）、M3 交付基线（milestone-3.md v1.2 @m3-done，现行 v1.3）、M4 交付基线（milestone-4.md v1.3 @m4-done）、ADR-0004（部署矩阵六产物 + 离线包）、ADR-0005（零 CGO / 依赖准入）、ADR-0010（/v2 根级例外——ingress 直通断言依据）、ADR-0011（Docusaurus：embed 主交付 / docs-site 聚合 / 匿名可读 / 5~15MB 预算与 fallback）、ADR-0016（目录实体化不变量 + T-119 实现草案两票）、architecture.md §9（部署架构约定：PVC / 健康检查 / 单副本拦截）与 §11 技术债台账（含 20 remote 不材料化）、docs/reverse/rest-api.md §3（?list / uri 族，高置信度）、reports/agents/T-119.md（实现草案）、T-106-qa.md（部署烟测先例与**不可达形态降级口径** §2.5）、T-103/T-104 QA（D-1 / D-104-2）、T-121（勘误台账与遗留移交）、BOARD.md done 区各票遗留登记 |
 | 下游消费者 | tech-lead（拆票）、architect（ADR-0011 增补终裁 K1 / 镜像供应链 K2）、release-engineer（goreleaser / 镜像 / compose / Helm / K8s / systemd / 离线包）、security-auditor（FR-42）、dev-go-core（FR-44 BE / FR-45 / FR-47）、dev-frontend（FR-44 FE / FR-46）、devops-engineer（docs-site 脚手架 / CI）、tech-writer（FR-41 五类内容）、qa-engineer（G 序列 + 四里程碑回归 + GA 总矩阵） |
 
@@ -15,6 +15,7 @@
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | v1.0 | 2026-08-21 | 初版（T-125）：M5 范围、FR-34~FR-47（发布六面 + 文档中心 + 安全审计 + 性能基准 + M4 债务收编四面）、端点矩阵 PB/DC/DM 13 条、G01~G35 验收命令、四项开放问题附暂行（Q1 发布渠道 / Q2 HPA 呈现 / Q3 烟测环境可得性 / Q4 GA 版本号）、M4 债务归置定案（入 M5 8 / M6+ 2，另收编 / 关闭 12 项见 §6.4 速裁表）、Docusaurus 构建形态暂行待 architect 终裁（K1） |
+| v1.1 | 2026-08-21 | §7 四项**用户定案回写**：**Q1** 发布渠道 = 公共渠道——GitHub Releases（goreleaser 产物 + 离线包 / docs-static tar 附件）+ ghcr.io（双变体镜像），Chart 仓库形态待定（首选 GitHub Pages 形态，终形随 K2）；推送时安全底线不变（逐项用户确认），凭证 M5 收口阶段由用户提供 / 注入、不入库；本地归档保留为发布前置校验面（FR-34 release 目标 / FR-35 / K2 / G35 / §8-⑩ / §9-⑦ 联动）。**Q2** HPA = 默认 disabled + 启用强制 maxReplicas≤1（v1.0 假设转正；FR-37 / PB-05 置信度升高联动）。**Q3** 烟测环境 = 用户提供（windows / systemd 真机腿拆票标注 `dep:用户环境`；到位前按 T-106 降级口径静态先行、到位后补跑真机腿；FR-34-AC5 / FR-39-AC2 / §5.3 / §9-③ 联动）。**Q4** GA 版本号 = v1.0.0（semver 起点，无 build 元数据；git tag `v1.0.0` + `m5-done` 双 tag；goreleaser 注入基准） |
 
 ---
 
@@ -51,7 +52,7 @@ M5 的用户价值排序（对齐 PRODUCT「离线与受限网络 / 平台工程
 
 ### 1.3 上游依赖与并行关系
 
-- **架构依赖（architect）**：ADR-0011 增补（Docusaurus 构建形态终裁——搜索方案 / 资产 self-host 细节 / fallback 触发线，K1）；镜像供应链与 tag 策略（K2，随 Q1 渠道定案联动）；ADR-0016 已定案（实现票可直接派）。**M5 无新迁移**（007 回填归 FR-44 实现票，双方言）。
+- **架构依赖（architect）**：ADR-0011 增补（Docusaurus 构建形态终裁——搜索方案 / 资产 self-host 细节 / fallback 触发线，K1）；镜像与 Chart 供应链细节（K2——渠道家族已由 Q1 定案为 ghcr.io / GitHub Releases，K2 收口命名空间与 Chart 仓库形态）；ADR-0016 已定案（实现票可直接派）。**M5 无新迁移**（007 回填归 FR-44 实现票，双方言）。
 - **脚手架先行（devops-engineer）**：`docs-site/` Docusaurus 脚手架票必须在文档矩阵票前（ADR-0011 后果条款明文：类似 T-7 先行——node 依赖 / build 链 / embed 复制 / `/binflow/docs` 路由 / check-size 实测）。
 - **发布角色（release-engineer）**：FR-34~FR-40 主体；烟测沿 T-106 先例（含**不可达形态降级口径**——本 PRD §7 Q3 定案化）。
 - **QA**：G 序列 + 四里程碑 P0 回归 + GA 总矩阵（FR-43-AC4）；windows / systemd 条件腿按 Q3。
@@ -83,7 +84,7 @@ M5 的用户价值排序（对齐 PRODUCT「离线与受限网络 / 平台工程
 
 | 不做项 | 归属 | M5 的隔离边界 |
 |---|---|---|
-| HA / 多副本（任何形态） | M6+ | Helm values.schema 拦截 `replicaCount>1`（FR-37-AC2）；HPA 模板默认 disabled 且启用时强制 `maxReplicas=1`（§7 Q2 暂行）；真水平扩展依赖对象存储（M6+ S3 后端） |
+| HA / 多副本（任何形态） | M6+ | Helm values.schema 拦截 `replicaCount>1`（FR-37-AC2）；HPA 模板默认 disabled 且启用时强制 `maxReplicas=1`（§7 Q2 定案）；真水平扩展依赖对象存储（M6+ S3 后端） |
 | S3 / 对象存储后端 | M6+ | 部署产物只支持 PVC / 本地卷；文档明示单副本 + RWO 约束 |
 | Prometheus 指标 / OpenTelemetry | M6+ | 可观测性维持结构化日志 + 既有健康端点（§6.3）；性能基准走外部压测工具，不加指标面 |
 | 英文文档（i18n en locale） | M6+ | Docusaurus i18n 骨架就位但只交付 zh（用户既定「中文文档」）；en 为后续 locale 增量 |
@@ -112,7 +113,7 @@ M5 的用户价值排序（对齐 PRODUCT「离线与受限网络 / 平台工程
 
 ## 4. 功能需求
 
-约定：`BASE=http://localhost:8080`、`admin`/`$ADMIN_PW` 沿用；`VER=<GA 版本号>`（§7 Q4 暂行 v1.0.0）；`DIST=dist/`（goreleaser 产物目录）。优先级 P0/P1/P2 沿用 M1 定义。G 序列命令见 §5.4。
+约定：`BASE=http://localhost:8080`、`admin`/`$ADMIN_PW` 沿用；`VER=<GA 版本号>`（§7 Q4 定案 **v1.0.0**）；`DIST=dist/`（goreleaser 产物目录）。优先级 P0/P1/P2 沿用 M1 定义。G 序列命令见 §5.4。
 
 ### FR-34 goreleaser 多平台二进制与版本注入（release-engineer / devops-engineer）
 
@@ -122,10 +123,10 @@ M5 的用户价值排序（对齐 PRODUCT「离线与受限网络 / 平台工程
 
 - **工具与平台**：goreleaser（构建侧工具，**不入 Go 运行时依赖**——ADR-0005 依赖准入：构建链工具与运行时依赖隔离，NFR-S31）；六平台 `linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, windows/amd64, windows/arm64`；全平台 `CGO_ENABLED=0` 维持。
 - **产物形态**：`binflow_<VER>_<os>_<arch>.tar.gz`（windows 用 `.zip`）内含 `binflow-server`（windows 为 `binflow-server.exe`）+ LICENSE + README 摘要；`binflow_<VER>_checksums.txt`（sha256，goreleaser 校验和产物）。单二进制含 console + docs 两套 embed（ADR-0002 / ADR-0011）。
-- **版本注入**：ldflags 注入 `version` 与 `revision`（git short sha）；`binflow-server --version` 输出 `binflow-server <VER> (<revision>)`；启动结构化日志首行与 `GET /binflow/api/v1/health` 的 `version` 字段同值（health 只增字段原则，§6.3）。裸 `go build` 回退 `dev (dev)`（现状语义）。
+- **版本注入**：ldflags 注入 `version` 与 `revision`（git short sha）；`binflow-server --version` 输出 `binflow-server <VER> (<revision>)`；启动结构化日志首行与 `GET /binflow/api/v1/health` 的 `version` 字段同值（health 只增字段原则，§6.3）。裸 `go build` 回退 `dev (dev)`（现状语义）。版本基准确定为 **v1.0.0**（§7 Q4 定案，semver 起点）。
 - **check-size（PRODUCT 预算）**：每平台**压缩产物 ≤ 40MB**；docs embed 增量单独记录（预算 ≤ 15MB，gzip 口径，ADR-0011）。超限处置：docs 走 ADR-0011 fallback（独立 tar 附带、二进制不含 docs 资产重建）——触发即属 §7 Q1 联动的用户确认事项，不静默降级。
 - **可跑性矩阵**：darwin（本机 arch）+ linux/amd64（容器）为 P0 真跑腿；windows/amd64 为条件腿（§7 Q3，含锁运行时验证 AC5）；linux/arm64（qemu 容器）P1 抽查；darwin/amd64 与 windows/arm64 产物存在 + checksums 过 + 版本字符串抽查（`strings | grep`）。
-- **Makefile 目标**：`release-snapshot`（`goreleaser release --snapshot --clean`，本地免发布全产）与 `release`（真发布动作，须 Q1 定案 + 用户确认后启用）；CI 增发布流水线 job（dry-run 校验产物存在性）。
+- **Makefile 目标**：`release-snapshot`（`goreleaser release --snapshot --clean`，本地免发布全产）与 `release`（真发布动作——**发布到 GitHub Releases**（§7 Q1 定案）：goreleaser 产物 + 离线包与 docs-static tar 作 Release 附件；执行前仍**逐项经用户确认**，发布凭证（GH token / ghcr 凭据）由用户在 M5 收口阶段注入，**不入库、不入 CI 明文**）；本地归档（dist/ + checksums）照做，作为发布前置校验面；CI 增发布流水线 job（dry-run 校验产物存在性）。
 
 | # | AC（可执行） | 优先级 |
 |---|---|---|
@@ -133,7 +134,7 @@ M5 的用户价值排序（对齐 PRODUCT「离线与受限网络 / 平台工程
 | FR-34-AC2 | G02：darwin 与 linux/amd64 二进制 `--version` 输出 `<VER>` 非 `dev`；`/api/v1/health` 与启动日志 version 同值；不可跑平台抽一产物 `strings <binary> \| grep <VER>` 命中 | P0 |
 | FR-34-AC3 | G03：六平台压缩产物逐一 ≤ 40MB；记录 docs embed 前后增量（MB）进 QA 报告；超限走 fallback 须用户确认记录 | P0 |
 | FR-34-AC4 | G04：darwin + linux/amd64 `serve` 起服 `/readyz` 200、冷启动 < 2s（W37 口径）、`/binflow/ui/` 与 `/binflow/docs/` 200 | P0 |
-| FR-34-AC5 | G05（条件腿，Q3）：windows/amd64 `serve` 起服 + **锁运行时验证**——serve 运行中执行 `export` 成功、并发第二个 `export`/`gc` 退出码非 0（LockFileEx 互斥生效，T-96 遗留收口）；环境不可达按 §7 Q3 降级口径记录并经用户确认 | P1 |
+| FR-34-AC5 | G05（条件腿，Q3 定案：**用户提供环境**——拆票标注 `dep:用户环境`，到位前按 T-106 降级口径静态先行、到位后补跑真机腿）：windows/amd64 `serve` 起服 + **锁运行时验证**——serve 运行中执行 `export` 成功、并发第二个 `export`/`gc` 退出码非 0（LockFileEx 互斥生效，T-96 遗留收口） | P1 |
 | FR-34-AC6 | G04b：`docker run --platform linux/arm64`（qemu）起 dist 内 arm64 二进制 `/readyz` 200 | P1 |
 | FR-34-AC7 | 回归：bare binary 形态五协议烟测 + console/session 链复跑绿（T-106 形态 A 等价口径） | P0 |
 
@@ -146,7 +147,7 @@ M5 的用户价值排序（对齐 PRODUCT「离线与受限网络 / 平台工程
 - **双变体**：`binflow:<VER>-alpine`（alpine 基底，含 shell——调试 / 排障 / `docker exec` 运维友好）与 `binflow:<VER>-distroless`（`gcr.io/distroless/static-debian12:nonroot` 基底——零 shell、零包管理器）；浮动 tag `binflow:<VER>` 指向 distroless（默认推荐最小面，K2 暂行）。
 - **multi-arch**：两变体均为 `linux/amd64 + linux/arm64` manifest list（buildx）；构建沿 T-106 先例——镜像内 node 阶段自建 console 与 docs 站（不依赖构建机本地状态，资产指纹与 `make console`/`make docs` 一致）。
 - **镜像契约（architecture §9 维持）**：`EXPOSE 8080`、`USER` 非 root、`HEALTHCHECK /readyz`、data 默认 `/var/lib/binflow`、`CGO_ENABLED=0`。dev 形态镜像（deploy/dev，T-17/T-106 产物）继续维护，GA 镜像构建链独立（deploy/release 或同等目录，release-engineer 定布局——K3）。
-- 镜像扫描面归 FR-42-AC2；推送公共 registry 归 §7 Q1（未定案前一律本地 tag）。
+- 镜像扫描面归 FR-42-AC2；**镜像发布到 ghcr.io**（§7 Q1 定案；命名空间细节归 K2）——推送前逐项经用户确认、凭证由用户注入（不入库）；未执行确认推送前一律本地 tag。
 
 | # | AC（可执行） | 优先级 |
 |---|---|---|
@@ -180,7 +181,7 @@ M5 的用户价值排序（对齐 PRODUCT「离线与受限网络 / 平台工程
 
 - `charts/binflow/`：Deployment（replicaCount=1）/ PVC(RWO) / Service / Ingress（`ingress.enabled` 可选）/ ConfigMap（YAML 配置）+ Secret（口令——`BINFLOW_ADMIN_PASSWORD` 不入 ConfigMap）/ Probes（liveness=/healthz, readiness=/readyz）/ resources 样例 / `values.schema.json` / NOTES.txt（起服后取口令与端口提示）。
 - **单副本拦截（architecture §9 硬约束）**：`values.schema.json` 拒绝 `replicaCount > 1`（maximum: 1，错误信息含单副本约束与 HA=M6+ 说明）。
-- **HPA 模板（§7 Q2 暂行）**：`hpa.enabled` 默认 `false`；启用时 schema 强制 `maxReplicas <= 1`（多副本水平扩展依赖 M6+ 对象存储，单 PVC RWO 下多副本是数据损坏配置而非扩展）。
+- **HPA 模板（§7 Q2 定案，v1.0 假设经用户确认转正）**：`hpa.enabled` 默认 `false`；启用时 schema 强制 `maxReplicas <= 1`（多副本水平扩展依赖 M6+ 对象存储，单 PVC RWO 下多副本是数据损坏配置而非扩展）。
 - **ingress 与 /v2（ADR-0010 联动）**：ingress 模板必须在同一 host rule 下直通 `/` 与 `/v2/`（**不 rewrite**）；文档注明经 HTTPS 反代后 docker 客户端无需 insecure-registries 配置。
 - Chart 版本随 `<VER>`；`helm-docs` 或 README values 表齐全（P1）。
 
@@ -212,12 +213,12 @@ M5 的用户价值排序（对齐 PRODUCT「离线与受限网络 / 平台工程
 
 - `contrib/systemd/binflow.service`：`Type=simple`（sd_notify 为 P2 可选增强，不承诺）、`User=binflow`、`ExecStart=/usr/local/bin/binflow-server serve -c /etc/binflow/binflow.yaml`、`Restart=on-failure`、`ReadWritePaths=/var/lib/binflow`（硬化）、`TimeoutStopSec` 对齐优雅停机 ≥ 30s（architecture §9 公共约定）。
 - `install.sh`：system 用户创建、目录布局（/etc/binflow /var/lib/binflow /usr/local/bin）、二进制下载 + **checksums 校验失败即中止**、单元安装、`systemctl enable --now`、`--dry-run` 支持、卸载路径文档化；依赖仅 bash + curl + sha256sum + systemctl。
-- 运行时真机验证为条件腿（darwin 宿主不可达 → §7 Q3 降级：容器内 `systemd-analyze verify` 静态验证 + 记录 + 用户确认；有 Linux VM/CI runner 则实测）。
+- 运行时真机验证为条件腿（**§7 Q3 定案：用户提供 Linux VM/CI runner**——拆票标注 `dep:用户环境`；到位前按 T-106 降级口径先行：容器内 `systemd-analyze verify` 静态验证 + 记录 + 用户确认，环境到位后补跑真机腿）。
 
 | # | AC（可执行） | 优先级 |
 |---|---|---|
 | FR-39-AC1 | G15：容器内 `systemd-analyze verify binflow.service` 零 error；`shellcheck install.sh` 零告警 | P0 |
-| FR-39-AC2 | G15b（条件腿，Q3）：Linux 环境 `systemctl start` → `active (running)` → `/readyz` 200 → `systemctl restart` → 制品存活；`systemctl is-enabled` = enabled；不可达按降级口径记录并经用户确认 | P1 |
+| FR-39-AC2 | G15b（条件腿，Q3 定案：用户提供环境，`dep:用户环境`）：Linux 环境 `systemctl start` → `active (running)` → `/readyz` 200 → `systemctl restart` → 制品存活；`systemctl is-enabled` = enabled；环境到位前按降级口径记录并经用户确认、到位后补跑 | P1 |
 | FR-39-AC3 | G16：校验和防线——沙箱内篡改二进制后跑安装脚本 → 脚本在校验步失败退出（退出码非 0、零文件落地） | P0 |
 | FR-39-AC4 | 停机优雅：`systemctl stop` 后日志含优雅停机行、退出码 0（条件腿，随 AC2） | P1 |
 
@@ -399,7 +400,7 @@ M5 的用户价值排序（对齐 PRODUCT「离线与受限网络 / 平台工程
 | PB-02 | `--version` + `/api/v1/health` `version` 字段 | ldflags 注入 `<VER> (<git short sha>)`；裸 build 回退 dev；health 只增字段 | 自有 | P0 | — | G02/G04 |
 | PB-03 | 镜像双变体 multi-arch（`<VER>-alpine` / `<VER>-distroless` / 浮动 `<VER>`） | amd64+arm64 manifest list；非 root；HEALTHCHECK；镜像内自建 console/docs（不依赖构建机） | 自有（浮动 tag 指向为 K2 暂行） | P0 | 中（K2） | G06~G08 |
 | PB-04 | `deploy/compose/` GA 产物 | 持久卷 / restart / healthcheck / 反代 profile（D-106-2 修复片段）；15 分钟口径 | 自有 | P0 | — | G09/G10 |
-| PB-05 | `charts/binflow/`（persistence / ingress / HPA 模板） | values.schema 拦 replicaCount>1；HPA 默认 disabled + maxReplicas≤1（Q2 暂行）；ingress 直通 `/` 与 `/v2/` 不 rewrite | 自有 | P0 | 中（Q2/K2） | G11~G13 |
+| PB-05 | `charts/binflow/`（persistence / ingress / HPA 模板） | values.schema 拦 replicaCount>1；HPA 默认 disabled + maxReplicas≤1（Q2 定案）；ingress 直通 `/` 与 `/v2/` 不 rewrite | 自有 | P0 | 高（Q2 用户定案）/ 中（K2 tag 与 Chart 仓库细节） | G11~G13 |
 | PB-06 | `deploy/k8s/` 原生清单 | runAsNonRoot / resources / probes；镜像 tag 文档锚定非 latest | 自有 | P0 | — | G14 |
 | PB-07 | `contrib/systemd/binflow.service` + `install.sh` | Type=simple / Restart=on-failure / ReadWritePaths；install.sh checksums 校验失败即止 | 自有 | P1 | — | G15/G16 |
 | PB-08 | `binflow_offline_<VER>.tar.gz` 离线包 | 镜像+chart+清单+linux 二进制+SHA256SUMS+安装脚本；零外网安装 | 自有 | P0 | 中（K3） | G17 |
@@ -419,10 +420,10 @@ M5 的用户价值排序（对齐 PRODUCT「离线与受限网络 / 平台工程
 |---|---|---|
 | curl + 发布 CLI（goreleaser / helm / kubectl / systemd-analyze / shellcheck / kubeconform / trivy / govulncheck / gitleaks） | G01~G35 主体 | **P0 必须全过** |
 | docker / buildx / dind（registry 客户端） | G06~G09、G17、G27、G34 基线 | **P0 必须全过** |
-| kind 或 Docker Desktop K8s（helm / kubectl 消费面） | G13 / G14 / G17b | **P0**（环境不可达 → Q3 降级 + 用户确认） |
+| kind 或 Docker Desktop K8s（helm / kubectl 消费面） | G13 / G14 / G17b | **P0**（本地 kind / Docker Desktop K8s 承担，不依赖用户环境） |
 | Playwright（docs 离线面 / FE 清理断言 / docker 视图） | G18 / G30e / G32 | docs 面与 FE 清理 **P0**；docker 视图 P1 |
 | mvn / npm / pip / twine（回归基线） | G34 四序列 P0 | **P0 必须全过** |
-| systemd 真机 / windows 运行时（条件腿） | G05 / G15b | **P1 条件**（Q3：不可达即降级，记录 + 用户确认） |
+| systemd 真机 / windows 运行时（条件腿） | G05 / G15b | **P1 条件**（Q3 定案：**用户提供环境**——拆票 `dep:用户环境`；到位前按 T-106 降级口径先行（静态验证 + 记录 + 用户确认），到位后补跑真机腿） |
 | WebKit / Firefox（docs 三页链） | 观察 | P2（不作门槛） |
 
 ### 5.4 M5 核心验收命令（G 序列，QA 直接引用）
@@ -448,7 +449,7 @@ sleep 1; curl -s localhost:8080/readyz                       # OK（冷启动 <2
 curl -s localhost:8080/binflow/ui/ -o /dev/null -w '%{http_code}\n'    # 200
 curl -s localhost:8080/binflow/docs/ -o /dev/null -w '%{http_code}\n'  # 200
 curl -su admin:$ADMIN_PW localhost:8080/binflow/api/v1/health | jq -r .version   # <VER>
-# G05 条件腿（windows）：serve 起服 → export 成功 → 并发第二 export/gc 退出码非 0（LockFileEx）
+# G05 条件腿（windows，Q3 定案：用户提供环境，到位前降级静态先行）：serve 起服 → export 成功 → 并发第二 export/gc 退出码非 0（LockFileEx）
 # G04b P1：docker run --platform linux/arm64 alpine ... /readyz OK
 
 # ---- 镜像双变体（FR-35） ----
@@ -490,7 +491,7 @@ kubeconform -strict deploy/k8s/*.yaml                        # P1
 # G15 systemd 静态（容器内）
 docker run --rm -v $PWD/contrib/systemd:/s systemd/ubuntu systemd-analyze verify /s/binflow.service; echo RC=$?
 shellcheck contrib/systemd/install.sh                        # 零告警
-# G15b 条件腿：systemctl start/stop/restart + /readyz + is-enabled（Q3）
+# G15b 条件腿：systemctl start/stop/restart + /readyz + is-enabled（Q3 定案：用户提供环境，到位前降级静态先行）
 # G16 校验和防线：篡改二进制 → install.sh 校验步失败退出（沙箱跑，退出码非 0、零落地）
 # G17 离线包结构 + 校验
 tar tzf binflow_offline_${VER}.tar.gz | grep -c -e images/ -e charts/ -e k8s/ -e binaries/ -e SHA256SUMS   # ≥5
@@ -561,7 +562,7 @@ curl -su admin:$ADMIN_PW "$BASE/binflow/api/storage/generic-local/acme/?list" | 
 # ---- 回归与总矩阵（FR-43-AC4/AC5） ----
 # G34 四里程碑回归：M1 C / M2 D / M3 M / M4 W 全序列 P0 复跑（断言按 §5.6 反转表更新）
 #   隐式目录 404 断言（M1 C17 面）→ 200；--version dev → <VER>；/binflow/docs 404 → 200
-# G35 GA 总矩阵 + 发布清单：FR×AC×形态三态表归档；发布物 sha256 清单产出（推送任何公共渠道前须 §7 Q1 定案 + 用户确认）
+# G35 GA 总矩阵 + 发布清单：FR×AC×形态三态表归档；发布物 sha256 清单产出（Q1 已定案：GitHub Releases + ghcr.io；推送前逐项用户确认 + 凭证用户注入、不入库）
 ```
 
 ### 5.5 待校准项（M5 落地后回写，流程同 M1/M3/M4 §5.5）
@@ -569,7 +570,7 @@ curl -su admin:$ADMIN_PW "$BASE/binflow/api/storage/generic-local/acme/?list" | 
 | # | 项 | v1.0 暂行值 | 校准来源 |
 |---|---|---|---|
 | K1 | Docusaurus 构建形态细节：搜索索引方案（Docusaurus 内建本地索引 vs 外挂）、self-host 资产落盘布局、fallback 触发线（超 15MB 的处置步骤）、docs-static tar 内容 | 本 PRD DC-01 行为约束（匿名 / 零 CDN / 离线搜索 / v1.x）为准，实现形态如上暂行 | architect **ADR-0011 增补票终裁**；落地后回写 DC-01 注记（+0.1） |
-| K2 | 镜像供应链细节：distroless 基镜像 tag 锚定、浮动 tag `<VER>` 指向 distroless、registry 命名空间 | FR-35 暂行值 | architect/release 增量票（随 §7 Q1 渠道定案联动） |
+| K2 | 镜像与 Chart 供应链细节：ghcr.io 命名空间（org / 镜像名）、浮动 tag `<VER>` 指向 distroless、distroless 基镜像 tag 锚定、**Chart 仓库形态**（Q1 定案公共渠道后首选 GitHub Pages 形态，终形待定） | FR-35/FR-37 暂行值（渠道家族已定：ghcr.io / GitHub Releases，Q1 用户定案） | architect/release 增量票（Q1 已定渠道，本项收口剩余细节） |
 | K3 | 离线包内部布局与 `install-offline.sh` 语义（幂等 / 失败清理 / kind 导入分支） | FR-40 暂行结构 | release-engineer 产物票细化，QA 按 G17 断言 |
 
 ### 5.6 回归基线反转表（M5 起生效，qa 更新既有断言）
@@ -652,16 +653,16 @@ curl -su admin:$ADMIN_PW "$BASE/binflow/api/storage/generic-local/acme/?list" | 
 
 ---
 
-## 7. 开放问题（需用户定案；暂行假设 v1.0 起生效）
+## 7. 开放问题（已全部定案：2026-08-21 用户定案回写，v1.0 假设转正；无待决项）
 
-| # | 问题 | 影响面 | 暂行假设 |
+| # | 问题 | 影响面 | 定案 |
 |---|---|---|---|
-| Q1 | **发布渠道与产物托管**：六平台二进制 / 双变体镜像 / Chart / 离线包发布到哪里（GitHub Releases？自有/内网 registry？仅本地归档交付？）；镜像与 Chart 的 registry 命名空间与 tag 策略 | FR-34（`make release` 启用）/ FR-35（推送）/ FR-40；K2 供应链细节 | **全部产物本地构建 + checksums 归档（dist/ 与 release 目录），不推送任何公共 registry / Releases**；发布动作待本项定案后执行，且**每次对外发布前逐项经用户确认**（CLAUDE.md 安全底线 + DoD 第 7 条）。浮动 tag `<VER>` 指向 distroless 为暂行（K2） |
-| Q2 | **Helm HPA 的呈现口径**：ROADMAP 字面含「HPA」，但 BinFlow 单副本约束（architecture §9）下多副本挂同 PVC 是禁止配置——交付「默认关闭 + 强制 maxReplicas=1」的 HPA 模板，还是不交付 HPA？ | FR-37 / charts 产物 | **交付模板但默认 `hpa.enabled=false`，启用时 schema 强制 `maxReplicas<=1`**：字面满足 ROADMAP（HPA 对象存在且可用），同时不诱导多副本错误配置；真水平扩展随 M6+ 对象存储。若用户倾向「不交付」，FR-37-AC1/AC2 对应断言删除（其余不变） |
-| Q3 | **部署烟测环境可得性**（T-106 §2.5 降级口径定案化）：windows 运行时（G05 锁验证）、systemd 真机（G15b）、真实 K8s 集群（可选，kind 替代）——用户能否提供？不可得项是否接受「静态验证 + 容器等价 + 记录归档」的降级结论？ | FR-34-AC5 / FR-39-AC2 / §5.3 分级矩阵 / DoD 第 3 条 | **kind（或 Docker Desktop K8s）承担 K8s 面全部 P0 断言**（本地可得）；windows 与 systemd 为条件腿——有环境（用户主机 / CI runner / VM）则实测，无环境按 T-106 先例降级为：`systemd-analyze verify` / `shellcheck` / 单测 + 容器等价腿 + 报告记录，**降级腿逐条经用户确认后视同通过** |
-| Q4 | **GA 版本号**：`<VER>` 取值（v1.0.0？含 build 元数据？）与 tag 策略（`v1.0.0` + `m5-done` 双 tag？） | FR-34 产物命名 / 全部 G 序列 / docs v1.x 版本目录 | **v1.0.0**（semver，无 build 元数据；git tag `v1.0.0` 与里程碑 tag `m5-done` 并存）；docs 版本目录 `v1.x` 起步 |
+| Q1 | **发布渠道与产物托管**：六平台二进制 / 双变体镜像 / Chart / 离线包发布到哪里 | FR-34（`make release`）/ FR-35（推送）/ FR-40；K2 供应链细节 | **发布到公共渠道**：goreleaser 产物（六平台二进制 + checksums）发布 **GitHub Releases**（离线包与 docs-static tar 作 Release 附件）；双变体镜像发布 **ghcr.io**（命名空间细节归 K2）；**Chart 仓库形态待定**（首选 GitHub Pages 形态，终形随 K2 细化）。执行约束：**推送时安全底线不变——发布物清单逐项经用户确认**；发布凭证（GH token / ghcr 凭据）在 M5 收口阶段**由用户提供 / 注入，不入库、不入 CI 明文**；本地归档（dist/ + release 目录 + checksums）照做，作为发布前置校验面 |
+| Q2 | **Helm HPA 的呈现口径**（ROADMAP 字面含「HPA」，单副本约束下须防多副本误配） | FR-37 / charts 产物 | **交付模板但默认 `hpa.enabled=false`，启用时 schema 强制 `maxReplicas<=1`**（v1.0 假设经用户确认转正）：字面满足 ROADMAP（HPA 对象存在且可用），同时不诱导多副本错误配置；真水平扩展随 M6+ 对象存储 |
+| Q3 | **部署烟测环境可得性**（windows 运行时 G05 锁验证 / systemd 真机 G15b；T-106 §2.5 降级口径定案化） | FR-34-AC5 / FR-39-AC2 / §5.3 分级矩阵 / DoD 第 3 条 | **用户提供环境**：windows VM / 主机与 Linux VM / CI runner 由用户提供（拆票时相关烟测票标注 `dep:用户环境`）；**用户未提供前按 T-106 降级口径先行**（`systemd-analyze verify` / `shellcheck` / 单测 + 容器等价腿 + 记录归档 + 逐条用户确认），**环境到位后补跑真机腿**（G05/G15b 升级为实测记录，不受 m5-done 阻断）。K8s 面全部 P0 断言由本地 kind / Docker Desktop K8s 承担，不依赖用户环境 |
+| Q4 | **GA 版本号**：`<VER>` 取值与 tag 策略 | FR-34 产物命名 / 全部 G 序列 / docs v1.x 版本目录 | **v1.0.0**（semver 起点，无 build 元数据）；git tag `v1.0.0` 与里程碑 tag `m5-done` 双 tag 并存；goreleaser 版本注入以 v1.0.0 为基准；docs 版本目录 `v1.x` 起步 |
 
-（无其他开放问题：Docusaurus 选型 / 中文 / embed 主交付 / 零 CGO / 统一 `/binflow` 前缀均为用户既定决策或已定 ADR，本 PRD 照录不重开。）
+（无待决开放问题：Docusaurus 选型 / 中文 / embed 主交付 / 零 CGO / 统一 `/binflow` 前缀为用户既定决策或已定 ADR；K1~K3 为 §5.5 待校准项（architect / release 终裁），属实现细节非用户决策面。）
 
 ---
 
@@ -676,18 +677,18 @@ curl -su admin:$ADMIN_PW "$BASE/binflow/api/storage/generic-local/acme/?list" | 
 7. **性能基准**：G27（1000 并发）→ G28（冷启动/内存）→ G29/G29b（基准报告 + 基线对比 + GC 吞吐记录）。
 8. **GA 总矩阵**：G35（FR×AC×形态三态表 + 发布物 sha256 清单；降级腿逐条挂 Q3 确认记录）。
 9. **文档**：FR-41-AC6 内容验收（tech-writer DoD：http-blocker / graceHours / prune 语义 / API 参考四硬项）。
-10. **发布（DoD 第 7 条）**：Q1 定案 + 用户逐项确认 → 执行推送 / Releases。
+10. **发布（DoD 第 7 条）**：按 Q1 定案渠道执行（GitHub Releases + ghcr.io，Chart 仓库随 K2）——推送前发布物清单逐项用户确认 + 凭证用户注入（不入库）；Q3 用户环境到位时，条件腿真机补跑插入本步之前。
 
 ## 9. M5 DoD（GA 口径）
 
 1. §4 全部 P0 AC 经 qa 验证全绿；P1 除「条件腿」外全绿（P2 与条件腿延后在 BOARD 记录）；
 2. §8 剧本全绿，§5.3 分级矩阵 curl+CLI / docker / K8s(kind) / Playwright(docs+FE) / mvn+npm+pip 五个 P0 成员全过；
-3. **不可达形态降级报告**（windows / systemd 真机等条件腿）按 §7 Q3 口径归档，且**逐条经用户确认**；
+3. **条件腿处置**（windows / systemd 真机）：Q3 用户环境到位 → 真机腿实测记录（G05/G15b 升级为实测）；未到位 → 按 T-106 降级口径归档静态验证报告，**逐条经用户确认**（环境到位后的真机补跑不受 m5-done 阻断，转 M5 收尾追补）；
 4. tech-writer 文档中心五类齐备（安装 7 形态 / 接入 5 篇 / 管理 5 篇 / API 参考 / FAQ，含四项内容硬项——FR-41-AC6）；
 5. 安全审计报告 + 性能基准报告归档：零 Critical/High（或豁免清单经用户确认）；1000 并发 / <40MB / <2s / <100MB 四条 PRODUCT 成功标准全达；
 6. §6.4 主表入 M5 的 8 项债务全部收口（FR-47 为 P2 可至 m5-done 前补收）；
-7. 主会话完成 `m5-done` 与 `v1.0.0` 双 tag；**GA 对外发布物（镜像 / Chart / 二进制 / 离线包 / docs-static tar）清单经用户逐项确认后方可推送任何公共渠道**（§7 Q1 定案为前置）。
+7. 主会话完成 `m5-done` 与 `v1.0.0` 双 tag（Q4 定案）；**GA 对外发布物（镜像 / Chart / 二进制 / 离线包 / docs-static tar）按 Q1 定案渠道发布（GitHub Releases + ghcr.io，Chart 仓库随 K2）——清单经用户逐项确认后方可执行推送，发布凭证由用户注入、不入库**。
 
 ---
 
-*本 PRD v1.0 由 product-manager（T-125）依据 PRODUCT.md、ROADMAP.md M5 节、M1~M4 交付基线与 T-106 烟测先例撰写；与 ADR-0011 增补（K1）/ 镜像供应链（K2）终裁冲突时按 §5.5 流程回写修订。*
+*本 PRD v1.1 由 product-manager（T-125）依据 PRODUCT.md、ROADMAP.md M5 节、M1~M4 交付基线与 T-106 烟测先例撰写，并回写 §7 四项用户定案；与 ADR-0011 增补（K1）/ 供应链细节（K2）终裁冲突时按 §5.5 流程回写修订。*
