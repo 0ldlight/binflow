@@ -1,0 +1,27 @@
+{
+  "id": "admin/remote-virtual",
+  "title": "remote / virtual 仓库管理",
+  "description": "适用版本：M3（pull-through 代理缓存 + 聚合解析；PRD milestone-3 v1.2、ADR-0012/0013）。",
+  "source": "@site/../docs/user/admin/remote-virtual.md",
+  "sourceDirName": "admin",
+  "slug": "/admin/remote-virtual",
+  "permalink": "/binflow/docs/admin/remote-virtual",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 40,
+  "frontMatter": {
+    "title": "remote / virtual 仓库管理",
+    "sidebar_position": 40
+  },
+  "sidebar": "main",
+  "previous": {
+    "title": "Web 控制台使用指南",
+    "permalink": "/binflow/docs/console"
+  },
+  "next": {
+    "title": "用户组与权限管理",
+    "permalink": "/binflow/docs/admin/groups-permissions"
+  }
+}

@@ -1,3 +1,4 @@
 # Pinned toolchain (CI installs exactly these; keep .github/workflows/ci.yml in sync).
 golangci-lint v2.12.2
+goreleaser v2.17.1
 # go: see go.mod `go` directive (1.26); CI uses actions/setup-go with the same minor.

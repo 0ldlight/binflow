@@ -1,0 +1,27 @@
+{
+  "id": "docker-registry",
+  "title": "Docker / OCI 镜像接入",
+  "description": "适用版本：M2（Docker Registry v2 + OCI + Helm OCI 承载；PRD milestone-2 v1.3）。",
+  "source": "@site/../docs/user/docker-registry.md",
+  "sourceDirName": ".",
+  "slug": "/docker-registry",
+  "permalink": "/binflow/docs/docker-registry",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 10,
+  "frontMatter": {
+    "title": "Docker / OCI 镜像接入",
+    "sidebar_position": 10
+  },
+  "sidebar": "main",
+  "previous": {
+    "title": "客户端接入",
+    "permalink": "/binflow/docs/integrations"
+  },
+  "next": {
+    "title": "Maven 接入",
+    "permalink": "/binflow/docs/integrations/maven"
+  }
+}

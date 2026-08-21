@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BinFlow 帮助文档</title>
+  </head>
+  <body>
+    <!-- This file is COMMITTED: it keeps go:embed complete on a fresh clone
+         so `make build` needs no node toolchain (the T-89 placeholder
+         strategy, reused for the docs site by T-129). `make docs`
+         overwrites the embed set with the real Docusaurus build
+         (index.html + 404.html + assets/ + search index); until then this
+         shell is what the /binflow/docs/ segment serves. Same mount point,
+         same title — the mount, cache and method semantics are identical
+         either way (unit-pinned in internal/docs). -->
+    <main style="font-family: system-ui, sans-serif; padding: 2rem">
+      <h1>BinFlow 帮助文档</h1>
+      <p data-testid="docs-scaffold">
+        本构建未包含文档站产物。请运行 <code>make docs</code>（需要 node
+        &gt;= 20）后重新编译二进制。
+      </p>
+    </main>
+  </body>
+</html>

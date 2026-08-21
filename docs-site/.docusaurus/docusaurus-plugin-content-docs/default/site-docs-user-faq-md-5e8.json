@@ -1,0 +1,23 @@
+{
+  "id": "faq",
+  "title": "FAQ 与故障排查",
+  "description": "适用版本：M1~M4（各条目标注引入里程碑）。码值与文案以 M4（PRD milestone-4 v1.2）为准，全部经 QA 真机验证（T-103/T-105 验收基线）。",
+  "source": "@site/../docs/user/faq.md",
+  "sourceDirName": ".",
+  "slug": "/faq",
+  "permalink": "/binflow/docs/faq",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 90,
+  "frontMatter": {
+    "title": "FAQ 与故障排查",
+    "sidebar_position": 90
+  },
+  "sidebar": "main",
+  "previous": {
+    "title": "备份与恢复手册",
+    "permalink": "/binflow/docs/admin/backup-restore"
+  }
+}

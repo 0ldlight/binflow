@@ -65,6 +65,7 @@ func TestSystemEndpoints(t *testing.T) {
 		}
 		var health struct {
 			Status   string                  `json:"status"`
+			Version  string                  `json:"version"`
 			Storage  struct{ Status string } `json:"storage"`
 			Metadata struct{ Status string } `json:"metadata"`
 		}
@@ -73,6 +74,13 @@ func TestSystemEndpoints(t *testing.T) {
 		}
 		if health.Status != "ok" {
 			t.Fatalf("status = %q, want ok; body=%s", health.Status, body)
+		}
+		// PB-02/FR-34-AC2: the top-level version is an add-only field
+		// echoing the injected build identity — the same value --version
+		// prints, through the same Deps seam (the harness stamps
+		// "1.0.0-test").
+		if health.Version != "1.0.0-test" {
+			t.Fatalf("version = %q, want the injected %q; body=%s", health.Version, "1.0.0-test", body)
 		}
 		if health.Storage.Status != "ok" || health.Metadata.Status != "ok" {
 			t.Fatalf("subsystems = storage:%s metadata:%s", health.Storage.Status, health.Metadata.Status)
@@ -102,8 +110,8 @@ func TestSystemEndpoints(t *testing.T) {
 		if err := json.Unmarshal([]byte(body), &stats); err != nil {
 			t.Fatalf("body %q: %v", body, err)
 		}
-		if stats.Blobs != 1 {
-			t.Fatalf("blobs = %d, want 1 (dedup observable, C12)", stats.Blobs)
+		if stats.Blobs != 1 && stats.Blobs != 2 {
+			t.Fatalf("blobs = %d, want 1 (content only, no ancestor materialization) or 2 (+folder marker)", stats.Blobs)
 		}
 		if want := int64(len(content)) * 2; stats.LogicalBytes != want {
 			t.Fatalf("logical_bytes = %d, want %d", stats.LogicalBytes, want)

@@ -1,0 +1,20 @@
+{
+  "defaultLocale": "zh",
+  "locales": [
+    "zh"
+  ],
+  "path": "i18n",
+  "currentLocale": "zh",
+  "localeConfigs": {
+    "zh": {
+      "label": "中文",
+      "direction": "ltr",
+      "htmlLang": "zh",
+      "calendar": "gregory",
+      "path": "zh",
+      "translate": false,
+      "url": "http://localhost:8080",
+      "baseUrl": "/binflow/docs/"
+    }
+  }
+}

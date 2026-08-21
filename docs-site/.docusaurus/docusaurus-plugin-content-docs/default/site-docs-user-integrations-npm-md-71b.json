@@ -1,0 +1,27 @@
+{
+  "id": "integrations/npm",
+  "title": "npm 接入",
+  "description": "适用版本：M3（publish/packument/dist-tags/unpublish/login + remote/virtual；PRD milestone-3 v1.2）。",
+  "source": "@site/../docs/user/integrations/npm.md",
+  "sourceDirName": "integrations",
+  "slug": "/integrations/npm",
+  "permalink": "/binflow/docs/integrations/npm",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 21,
+  "frontMatter": {
+    "title": "npm 接入",
+    "sidebar_position": 21
+  },
+  "sidebar": "main",
+  "previous": {
+    "title": "Maven 接入",
+    "permalink": "/binflow/docs/integrations/maven"
+  },
+  "next": {
+    "title": "PyPI 接入",
+    "permalink": "/binflow/docs/integrations/pypi"
+  }
+}

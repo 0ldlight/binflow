@@ -1,0 +1,27 @@
+{
+  "id": "console",
+  "title": "Web 控制台使用指南",
+  "description": "适用版本：M4（Web 控制台 + 会话认证；PRD milestone-4 v1.2、ADR-0014 勘误后、console-ux v1.2）。",
+  "source": "@site/../docs/user/console.md",
+  "sourceDirName": ".",
+  "slug": "/console",
+  "permalink": "/binflow/docs/console",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 30,
+  "frontMatter": {
+    "title": "Web 控制台使用指南",
+    "sidebar_position": 30
+  },
+  "sidebar": "main",
+  "previous": {
+    "title": "管理指南",
+    "permalink": "/binflow/docs/admin"
+  },
+  "next": {
+    "title": "remote / virtual 仓库管理",
+    "permalink": "/binflow/docs/admin/remote-virtual"
+  }
+}

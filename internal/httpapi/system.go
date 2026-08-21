@@ -23,10 +23,12 @@ const DefaultVersion = "dev"
 // healthResponse is the /binflow/api/v1/health body (E-22/FR-6-AC2):
 // a top-level status plus one nested object per subsystem. Every
 // subsystem reports {status, detail} so a degraded component is
-// self-describing. The registry field is the M2 addition (PRD section
-// 6.3): add-only, never a rename — older dashboards keep parsing.
+// self-describing. The registry field is the M2 addition and version the
+// M5 one (PRD section 6.3): add-only, never a rename — older dashboards
+// keep parsing.
 type healthResponse struct {
 	Status   string          `json:"status"`
+	Version  string          `json:"version"`
 	Storage  subsystemStatus `json:"storage"`
 	Metadata subsystemStatus `json:"metadata"`
 	Registry subsystemStatus `json:"registry"`
@@ -78,8 +80,11 @@ func (s *Server) handleVersion(w http.ResponseWriter, _ *http.Request) {
 // the response stays 200 even when degraded — readiness signaling is
 // /readyz's job, this endpoint is the operator's dashboard.
 func (s *Server) handleV1Health(w http.ResponseWriter, r *http.Request) {
+	// The top-level version echoes the injected build identity (PB-02,
+	// FR-34-AC2): same value --version prints, via the same Deps seam.
 	resp := healthResponse{
 		Status:  "ok",
+		Version: s.versionOrDefault(),
 		Storage: s.probeStorage(),
 	}
 	if err := s.deps.Metadata.Ping(r.Context()); err != nil {

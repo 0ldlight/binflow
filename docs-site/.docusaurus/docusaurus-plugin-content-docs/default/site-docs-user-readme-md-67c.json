@@ -1,0 +1,19 @@
+{
+  "id": "README",
+  "title": "BinFlow 帮助文档中心",
+  "description": "tech-writer 维护。每篇头部标注适用版本。结构如下，未写篇目随里程碑补齐。",
+  "source": "@site/../docs/user/README.md",
+  "sourceDirName": ".",
+  "slug": "/",
+  "permalink": "/binflow/docs/",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "frontMatter": {},
+  "sidebar": "main",
+  "next": {
+    "title": "客户端接入",
+    "permalink": "/binflow/docs/integrations"
+  }
+}

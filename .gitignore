@@ -25,6 +25,12 @@ __pycache__/
 internal/console/dist/*
 !internal/console/dist/placeholder.html
 
+# 文档构建产物（make docs 复制进 internal/docs/dist）：
+# 与 console 同样的占位策略（T-129 复用 T-89 模式）。
+!internal/docs/dist/
+internal/docs/dist/*
+!internal/docs/dist/placeholder.html
+
 # 环境与密钥
 .env
 .env.*

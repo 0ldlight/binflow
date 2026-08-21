@@ -1,0 +1,93 @@
+{
+  "docusaurus-plugin-content-docs": {
+    "default": {
+      "path": "/binflow/docs/",
+      "versions": [
+        {
+          "name": "current",
+          "label": "开发中 (next)",
+          "isLast": true,
+          "path": "/binflow/docs/",
+          "mainDocId": "README",
+          "docs": [
+            {
+              "id": "admin/backup-restore",
+              "path": "/binflow/docs/admin/backup-restore",
+              "sidebar": "main"
+            },
+            {
+              "id": "admin/governance",
+              "path": "/binflow/docs/admin/governance",
+              "sidebar": "main"
+            },
+            {
+              "id": "admin/groups-permissions",
+              "path": "/binflow/docs/admin/groups-permissions",
+              "sidebar": "main"
+            },
+            {
+              "id": "admin/remote-virtual",
+              "path": "/binflow/docs/admin/remote-virtual",
+              "sidebar": "main"
+            },
+            {
+              "id": "console",
+              "path": "/binflow/docs/console",
+              "sidebar": "main"
+            },
+            {
+              "id": "docker-registry",
+              "path": "/binflow/docs/docker-registry",
+              "sidebar": "main"
+            },
+            {
+              "id": "faq",
+              "path": "/binflow/docs/faq",
+              "sidebar": "main"
+            },
+            {
+              "id": "integrations/maven",
+              "path": "/binflow/docs/integrations/maven",
+              "sidebar": "main"
+            },
+            {
+              "id": "integrations/npm",
+              "path": "/binflow/docs/integrations/npm",
+              "sidebar": "main"
+            },
+            {
+              "id": "integrations/pypi",
+              "path": "/binflow/docs/integrations/pypi",
+              "sidebar": "main"
+            },
+            {
+              "id": "README",
+              "path": "/binflow/docs/",
+              "sidebar": "main"
+            },
+            {
+              "id": "/integrations",
+              "path": "/binflow/docs/integrations",
+              "sidebar": "main"
+            },
+            {
+              "id": "/admin",
+              "path": "/binflow/docs/admin",
+              "sidebar": "main"
+            }
+          ],
+          "draftIds": [],
+          "sidebars": {
+            "main": {
+              "link": {
+                "path": "/binflow/docs/",
+                "label": "文档中心首页"
+              }
+            }
+          }
+        }
+      ],
+      "breadcrumbs": true
+    }
+  }
+}

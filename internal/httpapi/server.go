@@ -13,6 +13,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/audit"
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/config"
+	"github.com/lzwzzy/binflow/internal/docs"
 	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/repo"
 )
@@ -61,6 +62,13 @@ type Deps struct {
 	// output). T-89 delivers the handler; the router binds it to every
 	// console segment (T-91).
 	Console http.Handler
+	// Docs serves the embedded help site on /binflow/docs/** (T-129,
+	// ADR-0011/FR-41). Unlike the console seam (cmd wires it), a nil Docs
+	// defaults to the embedded handler itself: the help center rides every
+	// assembly — the embed placeholder is committed, the mount carries no
+	// credential gate, and no assembly exists that wants a docs-less
+	// binary. Tests may still inject a stub.
+	Docs http.Handler
 	// Adapters are the mounted protocol handlers (architecture section
 	// 5.1: cmd passes adapter.All(); tests inject per-stack instances so
 	// the process-wide registry never couples test cases together).
@@ -104,6 +112,14 @@ func New(deps Deps, log *slog.Logger) *Server {
 		deps.Console = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			writeError(w, http.StatusNotFound, "console is not configured")
 		})
+	}
+	// The docs default is the real embedded handler, not a placeholder 404:
+	// the help center is part of the binary (ADR-0011 embed delivery), the
+	// placeholder shell keeps the embed complete on node-less checkouts,
+	// and the route is credential-free product self-description — see the
+	// Deps.Docs field note.
+	if deps.Docs == nil {
+		deps.Docs = docs.Handler()
 	}
 	// Dispatch keys on the repository's package type ONLY (architecture
 	// section 5.1, T-33/T-48 errata collected by T-63): a handler's key is

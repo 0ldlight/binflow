@@ -1,0 +1,21 @@
+/**
+ * BinFlow docs theme overrides (T-129).
+ *
+ * Zero-CDN posture (NFR-S29 / ADR-0011 增补②): the font stack is the
+ * platform's SYSTEM fonts — no webfont is fetched at runtime, so the site
+ * renders identically air-gapped. Chinese-first stack order.
+ */
+:root {
+  --ifm-font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue',
+    Arial, sans-serif;
+  --ifm-font-family-monospace: ui-monospace, SFMono-Regular, Menlo, Consolas,
+    'Liberation Mono', monospace;
+  --ifm-color-primary: #2563eb;
+  --ifm-color-primary-dark: #1d4ed8;
+  --ifm-color-primary-darker: #1e40af;
+  --ifm-color-primary-darkest: #1e3a8a;
+  --ifm-color-primary-light: #3b82f6;
+  --ifm-color-primary-lighter: #60a5fa;
+  --ifm-color-primary-lightest: #93c5fd;
+}

@@ -49,10 +49,11 @@ import (
 	"github.com/lzwzzy/binflow/internal/storage"
 )
 
-// version and revision are overwritten at build time (goreleaser
-// -X main.version=... -X main.revision=..., M5). Until stamping lands both
-// report the honest dev placeholder (Q4: never emulate an Artifactory
-// version).
+// version and revision are stamped at build time by the release faces
+// (goreleaser ldflags -X main.version/-X main.revision, T-127/FR-34; the
+// Makefile release targets own the baseline, VER ?= v1.0.0 — Q4). A bare
+// build leaves the honest dev placeholder in place (never emulate an
+// Artifactory version).
 var (
 	version  = "dev"
 	revision = "dev"
@@ -163,7 +164,9 @@ func run(args []string, stdout, stderr io.Writer) error {
 		fmt.Fprint(stdout, usage) //nolint:errcheck // usage printing has no fallback if it fails
 		return nil
 	case "--version":
-		fmt.Fprintf(stdout, "binflow-server %s (revision %s)\n", version, revision) //nolint:errcheck // usage printing has no fallback if it fails
+		// FR-34-AC2/G02 banner: "binflow-server <VER> (<git short sha>)" —
+		// bare builds pin the same shape with the dev fallback.
+		fmt.Fprintf(stdout, "binflow-server %s (%s)\n", version, revision) //nolint:errcheck // usage printing has no fallback if it fails
 		return nil
 	case "serve":
 		return runServe(args[1:], stderr)

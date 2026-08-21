@@ -1,0 +1,27 @@
+{
+  "id": "integrations/maven",
+  "title": "Maven 接入",
+  "description": "适用版本：M3（Maven 2 layout + maven-metadata.xml + remote/virtual；PRD milestone-3 v1.2）。",
+  "source": "@site/../docs/user/integrations/maven.md",
+  "sourceDirName": "integrations",
+  "slug": "/integrations/maven",
+  "permalink": "/binflow/docs/integrations/maven",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 20,
+  "frontMatter": {
+    "title": "Maven 接入",
+    "sidebar_position": 20
+  },
+  "sidebar": "main",
+  "previous": {
+    "title": "Docker / OCI 镜像接入",
+    "permalink": "/binflow/docs/docker-registry"
+  },
+  "next": {
+    "title": "npm 接入",
+    "permalink": "/binflow/docs/integrations/npm"
+  }
+}

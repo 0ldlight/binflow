@@ -1,0 +1,81 @@
+# BinFlow release pipeline (T-127, FR-34 / PB-01 / PB-02).
+#
+# Driven exclusively through the Makefile (single entrypoint):
+#   make release-snapshot   six-platform snapshot build + checksums (CI face)
+#   make release            final-form local archive (pre-release rehearsal)
+#
+# Publishing (GitHub Releases, Q1) is deliberately NOT wired here: pushing is
+# a conductor + user-confirmed action with user-injected credentials
+# (PRD M5 DoD 7). Both Makefile faces run `goreleaser release --snapshot`
+# which never uploads, and `release.disable` additionally pins the
+# non-snapshot flow to archive-only so an accidental
+# `goreleaser release --clean` cannot push either. Flip that only as part of
+# the deliberate GA release procedure.
+version: 2
+
+project_name: binflow
+
+release:
+  disable: true
+
+# Version face (Q4: v1.0.0 baseline). No v-prefixed tag exists before the
+# conductor cuts `v1.0.0` + `m5-done` at M5 close, so tag inference alone
+# would report 0.0.0 (and the milestone tags are not semver). The Makefile
+# owns the baseline (VER ?= v1.0.0) and passes the effective version through
+# BINFLOW_VER — always invoke through `make release-snapshot` / `make
+# release`; a bare goreleaser call without the env has no version to stamp.
+# Once the v1.0.0 tag exists, plain tag inference would also resolve, but
+# the env face stays the single source of truth for local rehearsal builds.
+snapshot:
+  version_template: '{{ .Env.BINFLOW_VER }}'
+
+builds:
+  - id: binflow-server
+    main: ./cmd/binflow-server
+    binary: binflow-server
+    # ADR-0005 zero-CGo baseline on every platform — pure-Go cross compile,
+    # no host toolchain needed (windows/arm64 included: the data-dir lock is
+    # build-tag isolated, internal/storage/datalock_{unix,windows}.go).
+    #
+    # Asset note (T-89 placeholder strategy, unchanged): the binary embeds
+    # whatever sits in internal/console/dist — run `make console` first to
+    # ship the real SPA (and `make docs` once T-129 lands); a node-less
+    # checkout embeds the committed placeholder shell and still builds.
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X main.version={{ .Version }}
+      - -X main.revision={{ .ShortCommit }}
+    mod_timestamp: '{{ .CommitTimestamp }}'
+
+archives:
+  - id: binflow
+    # binflow_<VER>_<os>_<arch>.tar.gz (windows .zip), each wrapping a
+    # directory of the same name holding binflow-server(.exe) + README +
+    # LICENSE — the unpack shape PRD G02 consumes
+    # (dist/binflow_<VER>_<os>_<arch>/binflow-server).
+    name_template: 'binflow_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    wrap_in_directory: true
+    files:
+      - README.md
+      # No LICENSE file exists yet (license choice is a product-level call);
+      # the glob packs it automatically the moment one lands.
+      - LICENSE*
+
+checksum:
+  name_template: 'binflow_{{ .Version }}_checksums.txt'
+  algorithm: sha256
