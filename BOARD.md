@@ -21,10 +21,17 @@
 
 - **T-128** [P0] FR-44 BE 材料化+007 回填（ADR-0016，照 T-119 草案；**双 reviewer 票**） `role:dev-go-core` `area:internal/repo、internal/metadata(007)` — done 2026-08-21（双 review 通过 → 提交 80c036a）
   materializeAncestors（putNode 前置/幂等/哨兵 blob FK 满足）；007 回填迁移（两步 SQL/递归 CTE/幂等）；12 测试文件适配；伴随修复 docs 重定向循环。repo+httpapi+docs 全套测试 race 绿。日志 reports/agents/T-128.md。正确性 review APPROVE（报告 reports/agents/T-128-review-correctness.md）、架构 review APPROVE（报告 reports/agents/T-128-review-architecture.md）。
-- **T-131** [P0] FR-44 FE 删双兜底 `role:dev-frontend` `area:web/src/pages/repositories/tree` `dep:T-128（硬就绪）` — doing 2026-08-21（批 2 已派）
-- **T-132** [P0] FR-35 镜像双变体（**双 reviewer 票**） `role:release-engineer` `area:deploy/release/` `dep:T-127（就绪）` — doing 2026-08-21（批 2 已派）
-- **T-133** [P0] FR-45 token 审计 `role:dev-go-core` `area:internal/httpapi、internal/audit、internal/auth` `dep:—` — doing 2026-08-21（批 2 已派；**违规：agent 未产出代码，需重派**）
-- T-134~T-147（docker 视图/compose/Helm/K8s/systemd/离线包/uri 族/文档×2/安全审计/QA×4）— AC 与依赖链见 reports/agents/T-126.md
+- **T-131** [P0] FR-44 FE 删双兜底 `role:dev-frontend` `area:web/src/pages/repositories/tree` `dep:T-128（硬就绪）` — done 2026-08-21（批 2 完成，提交 679dcc9）
+  lib.ts 删 searchListing+mkdirOnce（-59 行），mkdir 简化为单段 PUT，listChildren 404 直达 TreePage；G30e Playwright 回归 4 例。日志 reports/agents/T-131.md。
+- **T-132** [P0] FR-35 镜像双变体（**双 reviewer 票**） `role:release-engineer` `area:deploy/release/` `dep:T-127（就绪）` — done 2026-08-21（双 review 通过：安全 APPROVE + 供应链 APPROVE）
+  Dockerfile.alpine（38.2MB/有 shell）+ Dockerfile.distroless（36.8MB/无 shell/Go 探针）+ build-release.sh。/readyz/ui/docs/health 全 200。日志 reports/agents/T-132.md。安全 review APPROVE（2 Low：浮动标签+ARG 注入，非阻塞；报告 reports/agents/T-132-review-security.md）。供应链 review APPROVE（4 Medium：SLSA provenance 缺失、healthcheck 缺 cache mount、QEMU 预检缺失、版本格式无校验；非阻塞；报告 reports/agents/T-132-review-supplychain.md）。
+- **T-133** [P0] FR-45 token 审计 `role:dev-go-core` `area:internal/httpapi、internal/audit、internal/auth` `dep:—` — done 2026-08-21（批 2 完成，提交 679dcc9）
+  TokenFingerprint sha256[:8]（NFR-S3）；handleTokenCreate/Revoke 落 audit；11 测试+Docker /v2/token 隔离断言。日志 reports/agents/T-133.md。
+- **T-134** [P1] FR-46 docker 视图数据源定案落地+控制台帮助入口（DC-02） `role:dev-frontend` `area:web/src/pages/repositories/tree、web/src（AppShell）` `dep:T-128,T-131` — doing 2026-08-21（批 3 已派）
+- **T-135** [P0] FR-36 docker-compose GA 产物（PB-04） `role:release-engineer` `area:deploy/compose/` `dep:T-132` — doing 2026-08-21（批 3 已派）
+- **T-136** [P0] FR-37 Helm Chart（PB-05） `role:release-engineer` `area:charts/binflow/` `dep:T-132` — doing 2026-08-21（批 3 已派）
+- **T-137** [P0] FR-38 原生 K8s 清单（PB-06） `role:release-engineer` `area:deploy/k8s/` `dep:T-132` — doing 2026-08-21（批 3 已派）
+- T-138~T-147（systemd/离线包/uri 族/文档×2/安全审计/QA×4）— AC 与依赖链见 reports/agents/T-126.md
 
 ## 🔨 进行中（doing）
 
