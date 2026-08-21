@@ -62,6 +62,14 @@ server {
         proxy_request_buffering off;     # 流式转发 blob 上传
         proxy_buffering off;             # 流式下发 blob
     }
+    # 控制台入口跳转（/binflow 无尾斜杠）必须显式直通（T-106）：只配
+    # location /binflow/ 时，无斜杠的 /binflow 不命中任何 location，nginx
+    # 会自造 301（Location 用 $host 绝对化、端口被剥掉），非标准端口部署
+    # 下浏览器落到死链；直通后由 BinFlow 自己 301 到 /binflow/ui/。
+    location = /binflow {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+    }
     location /binflow/ {                 # 管理面 API + 控制台 + 通用制品路径
         proxy_pass http://127.0.0.1:8080;
         proxy_set_header Host $host;
@@ -79,7 +87,7 @@ http:
       service: binflow
       tls: {}
     binflow-api:
-      rule: "PathPrefix(`/binflow/`)"
+      rule: "Path(`/binflow`) || PathPrefix(`/binflow/`)"   # 无斜杠入口也要命中（T-106，同 nginx 注）
       service: binflow
       tls: {}
   services:
@@ -97,3 +105,4 @@ http:
 | 里程碑 | 日期 | 范围 | 报告 |
 |---|---|---|---|
 | M2 | 2026-08-19 | FR-14-AC1~AC4 + O2（干净环境默认 8080 复跑） | `reports/agents/T-45-smoke.md` |
+| M4 | 2026-08-21 | FR-33-AC5：console embed（镜像内 node 阶段构建）+ session/CSRF + 五协议 + GC/锁 + export/import + 反代链 | `reports/agents/T-106-qa.md` |

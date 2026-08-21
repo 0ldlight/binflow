@@ -1,12 +1,20 @@
-# BinFlow development image (T-17, PRD FR-6-AC1..AC3).
+# BinFlow development image (T-17, PRD FR-6-AC1..AC3; console build stage
+# added by T-106, PRD FR-33-AC5).
 #
 # Multi-stage build:
-#   1. builder — golang:1.26-alpine, CGO disabled (ADR-0005 zero-CGo
+#   1. console — node:22-alpine builds the web console from web/ with the
+#      lockfile-pinned toolchain (ADR-0014 decision 4). The image embeds
+#      the REAL SPA whatever the builder's local checkout state: `make
+#      console` output is gitignored, so a fresh clone (or CI) carries only
+#      the committed placeholder shell — the console is built here, never
+#      borrowed from the context. node:22 matches the toolchain the shipped
+#      bundle was built and QA'd with (web/package.json engines >= 20).
+#   2. builder — golang:1.26-alpine, CGO disabled (ADR-0005 zero-CGo
 #      baseline), GOPROXY mirror fallback for restricted networks
 #      (ADR-0005: proxy.golang.org is unreachable from this network;
 #      goproxy.cn first, `direct` fallback — the mirror only fetches the
 #      ADR-whitelisted dependency set, it does not widen it).
-#   2. runtime — minimal alpine, non-root user, data_dir=/var/lib/binflow
+#   3. runtime — minimal alpine, non-root user, data_dir=/var/lib/binflow
 #      (architecture section 9 deployment convention), EXPOSE 8080,
 #      HEALTHCHECK on the unauthenticated readiness probe /readyz
 #      (metadata ping + storage writable; probes carry no credentials by
@@ -16,7 +24,27 @@
 #
 #	docker build -f deploy/dev/Dockerfile -t binflow:dev .
 
-# ---- stage 1: builder -------------------------------------------------------
+# ---- stage 1: console (node) ------------------------------------------------
+
+FROM node:22-alpine AS console
+WORKDIR /web
+# Lockfile-pinned install (ADR-0014 decision 4), cached as its own layer
+# like the Go module download below.
+COPY web/package.json web/package-lock.json ./
+RUN npm ci
+# Everything `vite build` reads: the entry html, configs, sources and the
+# post-build asset-relink script. node_modules/, e2e/ and test output stay
+# out of the copy set on purpose (a local node_modules is a host tree; the
+# image builds against the container's own install).
+COPY web/index.html web/vite.config.ts web/tsconfig.json web/tsconfig.node.json ./
+COPY web/scripts ./scripts
+COPY web/src ./src
+# package.json build = vite build && node scripts/relink-assets.mjs (the
+# latter rewrites the emitted /binflow/ui/assets/** URLs onto the shared
+# /binflow/assets mount, see web/vite.config.ts).
+RUN npm run build
+
+# ---- stage 2: builder -------------------------------------------------------
 
 FROM golang:1.26-alpine AS builder
 
@@ -35,11 +63,17 @@ RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
 COPY cmd ./cmd
 COPY internal ./internal
+# Deterministic console embed (T-106): the context's internal/console/dist
+# may carry local `make console` output (gitignored) or only the committed
+# placeholder — wipe whatever came along and take exactly what stage 1
+# built, so one source always yields one image.
+RUN rm -rf /src/internal/console/dist/assets /src/internal/console/dist/index.html
+COPY --from=console /web/dist/ /src/internal/console/dist/
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     go build -trimpath -o /out/binflow-server ./cmd/binflow-server
 
-# ---- stage 2: runtime -------------------------------------------------------
+# ---- stage 3: runtime -------------------------------------------------------
 
 FROM alpine:3.21
 
