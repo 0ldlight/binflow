@@ -43,6 +43,9 @@
 - **T-106** [P0] 部署烟测 `role:release-engineer` `area:deploy、验收` — done 2026-08-21
   三形态全绿（bare/compose/nginx 反代）：五协议 roundtrip 逐位一致、跨形态 export→import 恢复、真实 restart session+制品存活、容器内 GC+flock 409、down -v 零残留；271 请求 0 5xx。**Dockerfile 增 console 构建阶段**（镜像自建 SPA 不依赖构建机）+ 反代片段修复（已实证）。**D-106-1（P1→T-124 修复中）**：SnapshotChecksums 不排 folder 零占位 → mkdir 实例 export 全败（fail-closed、因果闭环）；O-106-1（?list uri 基址）登记 E-10 面；O-106-2（maven 文档 http-blocker）登记 M5 文档清单。提交 42b9d7b。
 
+- **T-124** [P0] folder 占位 export 修复 `role:dev-go-core` `area:internal/metadata、repo、cmd、httpapi(gc)` — done 2026-08-21（conductor 核验收口）
+  FolderMarkerSHA 导出常量（占位契约文档化）+ SnapshotChecksums 按值排除（sha256("")=e3b0c442 永不误伤，测试 pin）+ import 侧同查（无携带工件存量）+ GC mark 两面同修（mark⊆物理 blob 由构造成立）。红绿锚：还原缺陷→3 测试红与 D-106-1 错误串逐字一致；真机 mkdir×2→export（manifest 零占位）→import full→folder info 200→sha 逐位→二次 export 全 PASS。**D-106-1 闭合**。提交 cb7a212。
+
 - **T-122** [P1] architecture §7.1 两行回写 `role:architect` `area:docs/design/architecture.md` — done 2026-08-21
   H-1：?permissions 行按 T-113 形态新增（「旧行」实为 T-97 草案②从未落地——行内注记草案匿名门已被 B2 取代防错复刻）；H-2：changePassword 别名行按实况（非 admin 门/指名规则/E-16 双路由）。grep 零旧方向残留。相邻缺口（PUT /api/security/password、/api/v1/permissions CRUD 两行）登记 M5 文档清单。提交 a7ebae7。
 
