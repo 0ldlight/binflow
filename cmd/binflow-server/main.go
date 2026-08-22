@@ -631,6 +631,13 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 		Logger: logger,
 		Cipher: replCipher,
 		Audit:  auditLog,
+		// replication.allow_private_target (T-210 / ADR-0025 决策 4) bridges
+		// into the engine's SSRF screen: enabling the key (default) leaves
+		// DenyPrivateTargets false (private targets allowed); setting it
+		// false flips DenyPrivateTargets true and rejects private targets.
+		// scheme/host validation, per-hop re-check, and DNS-rebinding pinning
+		// are unaffected by this switch.
+		DenyPrivateTargets: !cfg.Replication.AllowPrivateTarget,
 		// The source-side metadata seam (T-195): selects the protocol-aware
 		// push planes (docker /v2, npm publish/dist-tag, pypi multipart) by
 		// the source repository's package type. Without it every task takes

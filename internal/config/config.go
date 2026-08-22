@@ -49,6 +49,16 @@ const (
 	// DefaultLDAPPoolSize is the default idle LDAP connection pool size
 	// (auth.ldap.pool_size; mirrors internal/auth LDAPConfig.defaults).
 	DefaultLDAPPoolSize = 5
+	// DefaultAllowPrivateTarget is the default for replication.allow_private_target
+	// (T-210 / ADR-0025 decision 4): true keeps the pre-config behavior where the
+	// replication engine's DenyPrivateTargets defaulted to false — every realistic
+	// replication target resolves to a private host (datacenter-to-datacenter,
+	// same-host). This key is the explicit operator spelling of that SSRF surface:
+	// setting it false flips DenyPrivateTargets to true and rejects private target
+	// URLs, while the guard still enforces scheme/host sanity, per-hop re-screening
+	// and DNS-rebinding pinning (ADR-0021). The default is deliberately permissive
+	// so existing deployments that replicate to private targets do not change.
+	DefaultAllowPrivateTarget = true
 )
 
 // Metadata driver enum (architecture section 8; postgres M1 enum-only).
@@ -142,6 +152,11 @@ func splitEnvKey(upper string) (path []string, kind envKind, ok bool) {
 		// BINFLOW_AUTH__TOKEN_NONADMIN_MAX_TTL form maps through the "__"
 		// path below.
 		return []string{"auth", "token_nonadmin_max_ttl"}, envIntPos, true
+	case "REPLICATION_ALLOW_PRIVATE_TARGET":
+		// T-210's documented single-underscore spelling; the generic
+		// BINFLOW_REPLICATION__ALLOW_PRIVATE_TARGET form maps through the "__"
+		// path below.
+		return []string{"replication", "allow_private_target"}, envBool, true
 	}
 	parts := strings.Split(upper, "__")
 	for i, p := range parts {
@@ -188,6 +203,8 @@ func splitEnvKey(upper string) (path []string, kind envKind, ok bool) {
 	case "console.session_ttl_hours", "console.session_ttl_seconds":
 		return parts, envIntPos, true
 	case "metrics.require_auth":
+		return parts, envBool, true
+	case "replication.allow_private_target":
 		return parts, envBool, true
 	case "security.anonymous_access", "auth.anonymous_read":
 		return parts, envBool, true

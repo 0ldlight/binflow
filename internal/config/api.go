@@ -7,15 +7,16 @@ import "time"
 // behavior parameters (architecture section 8: "unlisted fields get no
 // default", listed fields always do).
 type Config struct {
-	Server   ServerConfig
-	Storage  StorageConfig
-	Metadata MetadataConfig
-	Auth     AuthConfig
-	Security SecurityConfig
-	Audit    AuditConfig
-	Logging  LoggingConfig
-	Console  ConsoleConfig
-	Metrics  MetricsConfig
+	Server      ServerConfig
+	Storage     StorageConfig
+	Metadata    MetadataConfig
+	Auth        AuthConfig
+	Security    SecurityConfig
+	Audit       AuditConfig
+	Logging     LoggingConfig
+	Console     ConsoleConfig
+	Metrics     MetricsConfig
+	Replication ReplicationConfig
 
 	// AdminPassword carries BINFLOW_ADMIN_PASSWORD (empty when unset). It is
 	// env-only: the YAML schema rejects any key that looks like a secret.
@@ -192,4 +193,23 @@ type MetricsConfig struct {
 	// exposure rule), and deployments that must not expose operational
 	// metrics either set this or restrict the path at the reverse proxy.
 	RequireAuth bool
+}
+
+// ReplicationConfig carries the push-replication behavior flags (T-210,
+// ADR-0025 decision 4). It holds the explicit operator spelling of the
+// replication engine's SSRF posture, which previously lived only as an implicit
+// default (EngineOptions.DenyPrivateTargets zero value = private targets
+// allowed). Every scalar mirrors the engine option 1:1 so assembly (cmd)
+// can map it without translation.
+type ReplicationConfig struct {
+	// AllowPrivateTarget permits replication target URLs that resolve to
+	// private (RFC 1918 / loopback / link-local) hosts. Default true — the
+	// engine's DenyPrivateTargets defaulted to false because every realistic
+	// replication target (datacenter-to-datacenter, same-host) is a private
+	// address. Setting it false is an explicit opt-in to the tighter posture
+	// (DenyPrivateTargets=true): the engine then rejects private target URLs
+	// while STILL enforcing scheme/host sanity, per-hop re-screening and
+	// DNS-rebinding pinning (ADR-0021). This key is not a bypass of the guard;
+	// it only toggles the private-address leg of the SSRF screening list.
+	AllowPrivateTarget bool
 }

@@ -102,6 +102,9 @@ type raw struct {
 	Metrics *struct {
 		RequireAuth *bool `yaml:"require_auth"`
 	} `yaml:"metrics"`
+	Replication *struct {
+		AllowPrivateTarget *bool `yaml:"allow_private_target"`
+	} `yaml:"replication"`
 }
 
 // Load reads the YAML file at path, applies BINFLOW_-prefixed environment
@@ -440,6 +443,10 @@ func build(r *raw, env map[string]string) (*Config, error) {
 		c.Metrics.RequireAuth = *r.Metrics.RequireAuth
 	}
 
+	if r.Replication != nil && r.Replication.AllowPrivateTarget != nil {
+		c.Replication.AllowPrivateTarget = *r.Replication.AllowPrivateTarget
+	}
+
 	// The anonymous toggle has two equivalent keys; resolve them with a
 	// conflict check before env overrides apply on top of the merged value.
 	anon, err := resolveAnonymous(r, DefaultAnonymousAccess)
@@ -510,6 +517,10 @@ func defaults() *Config {
 		// metrics.require_auth defaults to false (ADR-0022: /metrics rides
 		// the /healthz-family anonymous posture).
 		Metrics: MetricsConfig{},
+		// replication.allow_private_target defaults to true (T-210 /
+		// ADR-0025 decision 4): private targets stay allowed so existing
+		// deployments that replicate over private networks are unchanged.
+		Replication: ReplicationConfig{AllowPrivateTarget: DefaultAllowPrivateTarget},
 	}
 }
 
@@ -638,6 +649,8 @@ func setEnvValue(c *Config, path []string, kind envKind, value, name string) err
 			c.Storage.Migration.Completed = b
 		case "metrics.require_auth":
 			c.Metrics.RequireAuth = b
+		case "replication.allow_private_target":
+			c.Replication.AllowPrivateTarget = b
 		default:
 			return fmt.Errorf("config: internal: bool path %q not wired", where)
 		}
