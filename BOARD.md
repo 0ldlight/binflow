@@ -17,7 +17,7 @@
 
 ## 📥 待办（todo）
 
-> **M6 收尾态**（2026-08-22）。done 区 62 票（M6 全量 59 票 T-148～T-206 全 done）；**用户终裁已落 ADR-0025**（Q2→本地 filestore 会话入新建 `upload_sessions` 表，修订 ADR-0006；Q6/Q7/Q10→认领暂行实现为正式决议；Q8/Q9→MinIO/Docker 等价，AWS/真实 Artifactory 延后 M7；用户禁用 REST seam→P2 修复票）。派生三张后续票 **T-208**（用户禁用 REST seam，P2）/ **T-209**（filestore session 入 DB，P1）/ **T-210**（复制私网目标显式开关，P2）——**T-210 已 done**（config 键 + cmd 组装点已接），**T-208 已 review（APPROVE）**、**T-209 仍在途**。T-208 的 qa 被 T-209 中途重构阻断：`internal/storage/session.go` 现引用未定义符号（`sessionDataFile`/`dataFileName` 重命名进行中），httpapi 传递依赖编译不过——属 T-209 在途正常扰动，待其落地 `go build ./...` 复原后即跑 T-208 qa。ADR-0025 决策 5 已随勘误 `ae81c64` 收窄为仅本地 filestore、S3 保持 multipart。DoD #5 `git tag m6-done` + 补 `m5-done` 待三票 done + DoD 全绿后打（本地）；**push 外发仍须用户单独授权**。
+> **M6 收尾态**（2026-08-22）。done 区 62 票（M6 全量 59 票 T-148～T-206 全 done）；**用户终裁已落 ADR-0025**（Q2→本地 filestore 会话入新建 `upload_sessions` 表，修订 ADR-0006；Q6/Q7/Q10→认领暂行实现为正式决议；Q8/Q9→MinIO/Docker 等价，AWS/真实 Artifactory 延后 M7；用户禁用 REST seam→P2 修复票）。派生三张后续票 **T-208**（用户禁用 REST seam，P2）/ **T-209**（filestore session 入 DB，P1）/ **T-210**（复制私网目标显式开关，P2）——**T-210 已 done**（config 键 + cmd 组装点已接），**T-208 已 review（APPROVE）**、**T-209 仍在途**。T-208 的 qa 被 T-209 中途重构阻断：非测试代码 `go build ./...` 已复原（`sessionDataFile`→`dataFileName` 重命名完成），但 `go test` 测试二进制仍编译失败（`internal/storage/sweep_gc_test.go:21 undefined: stateVersion`）——属 T-209 在途正常扰动，待其落地 `go test ./...` 全绿后即跑 T-208 qa。ADR-0025 决策 5 已随勘误 `ae81c64` 收窄为仅本地 filestore、S3 保持 multipart。DoD #5 `git tag m6-done` + 补 `m5-done` 待三票 done + DoD 全绿后打（本地）；**push 外发仍须用户单独授权**。
 
 ## 🔨 进行中（doing）
 
