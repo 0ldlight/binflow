@@ -26,9 +26,13 @@
 - **T-213** [P1] Session.Offset() + ResumeSession 过期 fail-closed `role:dev-go-storage` — done 2026-08-23（code-review APPROVE 0 阻塞 + 复核人独立红绿复验无残留；提交 `c5a8206`）
   Offset() 权威 offset 契约（活会话=已收字节/恢复=重算文件长度，§3.1/§5.3.1 契约 1）；过期未清扫行 → ErrSessionNotFound（与 ListExpired `<=` 严格同界永不分歧，空/畸形行亦拒，拒绝零副作用）；migration 委托 + S3 最小实现行为零改动（hard-404 契约测试原样绿）；storage 包 race 84.9s 绿 + lint 0。日志 reports/agents/T-213.md / T-213-review.md。
 
-#### 波 1（T-211/T-213 已 done；T-214 在途）
-- **T-214** [P0] M7 架构-PRD 冲突收敛与 ADR-0026/0027/0028 定稿（Q2/Q3/Q5 载体） `role:architect` `area:docs/design/architecture.md + DECISIONS.md` `dep:—` — **doing**（2026-08-23 派发；conductor 已中继 T-211 三条路由现实勘误：PRD §4.1 的 stats/token 列表端点 main 无路由、DU-01「GET 状态腿缺失」表述不准——重启前 204+Range 实测存在、缺的是跨重启存活、T-216 范围收窄为会话重建）
-  三分歧定案（① readonly_admin 内容面语义 PRD vs ADR-0026；② 干净停机 Close 语义 PRD Q3 vs arch §5.3.1 契约 7，牵 ADR-0028 + ADR-0006 回写；③ step-up 契约 PRD FR-68 vs ADR-0027，含 wire 字段/枚举拼写统一）；ADR-0026 转 Accepted；§7.1 路由清点表终版；OIDC/LDAP readonly 组映射显式裁决；裁决记录 reports/agents/T-214.md 交 conductor。
+#### 波 1（全 done）
+- **T-214** [P0] M7 架构-PRD 冲突收敛与 ADR 定稿 `role:architect` `area:docs/design + DECISIONS.md` — done 2026-08-23（conductor 直审通过；提交 `af0f0f6`）
+  **三分歧终裁**：① readonly_admin = 全域只读、角色短路 target（ADR-0026 胜出，角色名是安全不变量；连带否决 Q2 暂行的 GC dry-run 开放）；② Close **保留**未过期会话（PRD 方向胜出，三径 kill-9/SIGTERM/compose 对称可续传，sweep+TTL 唯一回收路径，新增 **ADR-0028** + ADR-0006 勘误④）；③ step-up 作用域全部非 admin session 臂、step_up_password（本地/LDAP）+ mint grant（OIDC，否决 id_token 窗口）、401 step_up_required、`auth.token_step_up` 默认 off（ADR-0027 修订 Accepted）。**wire 统一**：`adminRole`（camel）+ `readonly_admin`（snake）。§7.1 清点表终版（router.go 实际注册点全量 30 处 admin:true，幻影行勘误，T-211 实测三事实吸收）。风险登记：readonly_admin 全域内容读是新的可见面（部署文档明示）；ADR-0020 `admin_users` 文档-实现漂移建议小票；T-211 矩阵脚本列名拼写待 T-215 同步。日志 reports/agents/T-214.md（P1~P13 回写建议 → PM v1.1 在途）。
+
+#### 波 2（在途）
+- **T-212** [P0] RBAC 基座：Role 闭集 + 六能力求值链 + migration 011 + idp_sync role 改写（ADR-0026） `role:dev-go-core` `area:internal/auth + internal/metadata` `dep:T-214 ✅` — **doing 2026-08-23**
+- **T-216** [P1] FR-67 docker blob 上传跨重启续传 REST 化 `role:dev-registry-adapter` `area:internal/adapter/docker` `dep:T-213 ✅` — **doing 2026-08-23**（验收锚 = T-211 红灯探针双臂转绿；范围已按 T-214 收窄为会话重建）
 
 #### 波 2（待波 1）
 - **T-212** [P0] RBAC 基座：Role 闭集 + 六能力求值链 + migration 011 + idp_sync role 改写（ADR-0026） `role:dev-go-core` `area:internal/auth + internal/metadata` `dep:T-214`
