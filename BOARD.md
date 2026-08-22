@@ -30,9 +30,12 @@
 - **T-214** [P0] M7 架构-PRD 冲突收敛与 ADR 定稿 `role:architect` `area:docs/design + DECISIONS.md` — done 2026-08-23（conductor 直审通过；提交 `af0f0f6`）
   **三分歧终裁**：① readonly_admin = 全域只读、角色短路 target（ADR-0026 胜出，角色名是安全不变量；连带否决 Q2 暂行的 GC dry-run 开放）；② Close **保留**未过期会话（PRD 方向胜出，三径 kill-9/SIGTERM/compose 对称可续传，sweep+TTL 唯一回收路径，新增 **ADR-0028** + ADR-0006 勘误④）；③ step-up 作用域全部非 admin session 臂、step_up_password（本地/LDAP）+ mint grant（OIDC，否决 id_token 窗口）、401 step_up_required、`auth.token_step_up` 默认 off（ADR-0027 修订 Accepted）。**wire 统一**：`adminRole`（camel）+ `readonly_admin`（snake）。§7.1 清点表终版（router.go 实际注册点全量 30 处 admin:true，幻影行勘误，T-211 实测三事实吸收）。风险登记：readonly_admin 全域内容读是新的可见面（部署文档明示）；ADR-0020 `admin_users` 文档-实现漂移建议小票；T-211 矩阵脚本列名拼写待 T-215 同步。日志 reports/agents/T-214.md（P1~P13 回写建议 → PM v1.1 在途）。
 
-#### 波 2（在途）
+#### 波 2（T-212 在途；T-216 部分完成待 T-229；T-229 拆票在途）
 - **T-212** [P0] RBAC 基座：Role 闭集 + 六能力求值链 + migration 011 + idp_sync role 改写（ADR-0026） `role:dev-go-core` `area:internal/auth + internal/metadata` `dep:T-214 ✅` — **doing 2026-08-23**
-- **T-216** [P1] FR-67 docker blob 上传跨重启续传 REST 化 `role:dev-registry-adapter` `area:internal/adapter/docker` `dep:T-213 ✅` — **doing 2026-08-23**（验收锚 = T-211 红灯探针双臂转绿；范围已按 T-214 收窄为会话重建）
+- **T-216** [P1] FR-67 docker blob 上传跨重启续传 REST 化 `role:dev-registry-adapter` `area:internal/adapter/docker` `dep:T-213 ✅` — **doing（in-area 完成 + review 在途；AC1 sigterm 臂待 T-229）2026-08-23**
+  lazy 重建（per-id 单飞 funnel + r.mu 外 ResumeSession）+ 五动词统一经 resolve + offset 事实源迁移 sess.Offset() + 416 空 body 权威 Range + S3 恒 404。**kill -9 臂探针已 GREEN EXIT=0**（全链 202→204+Range→续 PATCH→PUT 201→逐位校验）；sigterm 臂红 = `engine.Close()` 仍清会话（storage 层，ADR-0028 落地=T-229）。真实 docker 27.5.1 客户端全绿（push/pull/run/manifest/_catalog）。resume_test.go 9 测试（含 8 并发单飞断言）。日志 reports/agents/T-216.md。
+- **T-229** [P1] ADR-0028 Close 保留语义落地（自 T-220 拆出提前；T-216 sigterm 臂的跨区依赖） `role:dev-go-storage` `area:internal/storage + 受影响测试断言（httpapi/adapter）` `dep:—` — **doing 2026-08-23**
+  Close 移除会话清理（未过期行+目录保留，内存会话正常 detach 不泄漏）+ 保留清单 INFO 日志；受影响旧语义测试重评（含 N2 前移：Close 后重新种过期行再断言 sweep）；验收 = `make test-m7-resume-sigterm` 转绿 + kill 臂维持绿 + 三包 race 绿。T-220 相应减负（Close 段与 N2 已移本票）。
 
 #### 波 2（待波 1）
 - **T-212** [P0] RBAC 基座：Role 闭集 + 六能力求值链 + migration 011 + idp_sync role 改写（ADR-0026） `role:dev-go-core` `area:internal/auth + internal/metadata` `dep:T-214`
@@ -57,8 +60,8 @@
   V01~V10 curl 全绿 + m7-rbac-matrix.sh 矩阵归档；V11 真实客户端（docker push/pull + mvn deploy + npm publish）manage 位不动摇协议行为。
 
 #### 波 6（待波 5）
-- **T-220** [P2] FR-70 技术债打包：O-1 Close 语义（按 ADR-0028）+ N3 ctx 窄窗 + N2 restart 臂 + internal/auth 53 条 lint + sql 行尾 `role:dev-go-core` `area:internal/storage + internal/auth + internal/metadata/migrations + internal/httpapi(仅测试)` `dep:T-214,T-216,T-217,T-219`
-  全仓 lint 0（auth 53 条逐条处置留档）；Close 语义按终裁落地（保留→V32 SIGTERM 腿钉死；维持现状→清册 INFO + 措辞回写）；N3 钉死测试（变异验证）；N2 非空洞化；全仓 race 绿。
+- **T-220** [P2] FR-70 技术债打包（**Close 段与 N2 已拆 T-229 提前**）：N3 ctx 窄窗 + internal/auth 53 条 lint + sql 行尾 `role:dev-go-core` `area:internal/storage + internal/auth + internal/metadata/migrations + internal/httpapi(仅测试)` `dep:T-214,T-216,T-217,T-219,T-229`
+  全仓 lint 0（auth 53 条逐条处置留档）；N3 钉死测试（Append 全量 EOF 后注入 ctx 取消 → 会话不毒化、SetState 已落库，context.WithoutCancel；变异验证）；全仓 race 绿。
 - **T-223** [P1] M7 文档 I：RBAC 指南 + 上传续传说明 `role:tech-writer` `area:docs/user + docs-site` `dep:T-214,T-216,T-217`
   RBAC 指南（三值模型/adminRole curl 用法/manage 派生/矩阵表）；续传说明（措辞严格按 ADR-0028 终裁、S3 限制如实、docker CLI 不续传注记）；make docs 同步。
 - **T-226** [P2] M7 等价口径回归：MinIO + Artifactory OSS 容器复跑 M6 基线（V29） `role:qa-engineer` `area:QA 验收面` `dep:T-217`
