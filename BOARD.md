@@ -17,66 +17,9 @@
 
 ## 📥 待办（todo）
 
-> **M6 正在开发**（2026-08-22）。装配缺口三处全部闭环（T-178/179/180 ✅）；**batch 3 已提交**（含 .gitignore 修复与被吞测试文件）；**done 区 31 票，四个批次已提交（ed9de87/9593bb7/1d27288/cca3ade）**；**T-174 QA 收口（PASS 有保留，9/14 全绿，done 区 33 票）**；**T-205/T-204/T-202/T-201/T-203 收口（done 区 61 票，P0 清零，已知工作清零）**；**13:37 429 限额风暴 → 17:15 配额重置后恢复**；**全仓统一复跑全绿（T-206 修复 T-203 D-6 冷启动 sweep 缺陷后，23 包 -race exit 0）+ make console dist 已刷新 → batch 6 大提交待用户确认**。
+> **M6 收尾态**（2026-08-22）。done 区 62 票（M6 全量 59 票 T-148～T-206 全 done，doing/qa/blocked 空）；全仓 `-race` 全绿（23 包 exit 0）；batch 6 待提交拆两 commit 已落地（45b3b89 工程主体 / bed7a66 文档配置，**未 push**）。**DoD 五条核验**：#1 全票 done ✅ · #2 QA 报告齐但 T-173/T-175 两份含 FAIL ⚠️ · #3 部署烟测 ✅ · #4 文档 ✅ · #5 `git tag m6-done` + 发布 ⛔（tag 未打，且 **m5-done 亦缺**）。**实质性阻塞 = 待用户终裁**：开放问题 Q2（ADR-0006 修订）、Q6/Q7/Q10（暂行实现认领）、Q8/Q9（AWS S3 / 真实 Artifactory 条件腿），外加 DoD #5 tag/push（外发须授权）。未获裁定前 M6 不标 closure。
 
-### Batch 3（全部完成）：T-151/T-152/T-154/T-155 已完成 ✅
-
-### Batch 5: 复制与指标（dev-go-core）
-
-### Batch 6: CLI 与迁移工具（devops-engineer + release-engineer）
-
-- **T-173** [P0] S3 后端 QA — 2026-08-22 已派发（dep T-164/T-172/T-178 全满足；MinIO 容器；详见 Batch 8 条目）。
-
-
-
-  AC: ① `cmd/bf-migrate/main.go`：`bf-migrate migrate` 子命令。三阶段迁移：repos → users → tokens。`--dry-run` 模式只统计不迁移。`--resume` 断点续传。② `internal/migrate/reader.go`/`converter.go`/`writer.go`：通过 Artifactory REST API 读取 → 转换 → 通过 `internal/client` 写入 BinFlow。③ table-driven 单测：`migrate_test.go` — 使用 mock Artifactory server + mock BinFlow server 验证。**Q9（待用户定案）**：验收环境。
-
-### Batch 7: 部署与文档（devops-engineer + release-engineer + tech-writer）
-
-- **T-169** [P2] M5 债务收编 — G05 Windows 锁 + G15b systemd 裸机部署 `role:release-engineer` `area:internal/storage / deploy/systemd/`
-  AC: ① `internal/storage/lock.go`：`AcquireDataLock` 在 Windows 上使用 `LockFileEx`。`deploy/systemd/` 新增 `binflow.service`。② `deploy/systemd/install.sh`：安装脚本。③ 验证：`make test` 全量 race 绿；Windows 交叉编译通过；`install.sh` 在 Linux 上执行无错误。
-
-- **T-173** [P0] S3 后端 QA — 2026-08-22 已派发（dep T-164/T-172/T-178 全满足；MinIO 容器；详见 Batch 8 条目）。
-
-
-  AC: ① `docs-site/docs/guides/` 新增：`oidc-config.md`、`ldap-config.md`、`s3-config.md`、`bf-cli.md`、`migrate-artifactory.md`。② `docs-site/docs/metrics/` 新增 `prometheus-reference.md`。③ 验证：`make docs` 构建通过；`/binflow/docs/guides/oidc-config` 200 可访问。
-
-### Batch 8: QA 与集成（qa-engineer）
-
-- **T-173** [P0] S3 后端下 M1~M5 全部 P0 序列复跑 + 兼容性验证 `role:qa-engineer` `area:QA 全量（S3 后端：MinIO）` `dep:T-164,T-172,T-178`
-  AC: ① MinIO 容器上 M1~M5 全部 P0 序列复跑全绿。② S3 配置与健康检查（H07~H11）。③ 本地→S3 迁移（H12~H15）。④ S3 下 GC 与去重（H16~H18）。⑤ S3 下性能基线（H19~H21）。**Q8（待用户定案）**：AWS S3 验收为条件腿。（dep 增 T-178：S3 数据面接线是硬前置，2026-08-22）
-
-### Batch 9: 核验发现的收尾债（conductor 建票，2026-08-22）
-
-- **T-184** [P2] replication CRUD 面 docs 回写（T-180 遗留④） `role:architect` `area:docs/design`
-  AC: ① architecture.md §7.1 路由表补 replications CRUD 四端点 + /replication/status（形状按 T-180 日志裁定表：bare array/201/204/409/target_password 只写不读/默认值）。② console-ux.md 治理组「复制」页补 CRUD 面说明（当前只读面板，CRUD UI 另票）。③ 同款「回写记录」题头。
-
-
-- **T-173** [P0] S3 后端 QA — 2026-08-22 已派发（dep T-164/T-172/T-178 全满足；MinIO 容器；详见 Batch 8 条目）。
-
-
-
-
-- **T-191** [P1] internal/client 编码面对齐（T-167 发现） `role:devops-engineer` `area:internal/client`
-  AC: ① `UpdateRepo`（或建仓请求体）字段名对齐真服务端：`repositories`（virtual 成员）/`includesPattern`/`excludesPattern`（现 client 用 members/includes/excludes——真服务端不识别，丢虚拟成员与路径模式）。② 测试假后端按真 httpapi 请求体断言（非 client 自述拼写）。③ 真栈交叉验证：virtual 仓含成员+patterns 经 client 写入后 GET 回读一致。④ 评估退役 T-189 的 legacy 兼容臂（cmd/bf 假后端刷新后）。
-  ▶ 2026-08-22 建票并派发（T-167 收口发现；T-175 与真实迁移链前置）。
-
-- **T-195** [P1] 复制引擎修复包（T-175 D1/D2/D3/D4） `role:dev-go-core` `area:internal/replication / internal/repo`
-  AC: ① D1：退避烧尽终态 failed 的任务，cron 兜底轮次内可复活（复活策略可配：无限退避上限或 failed 队列重扫——按 architecture §8 口径实现并测试钉死）。② D2：docker 面复制（blob 走目标 docker 上传面或 v2 API——读 T-175 报告的 404 UNSUPPORTED 复现细节）。③ D3：npm 面（tarball PUT 405 read-only 与 packument dist-tag 400——replica 仓只读语义与复制的边界，可能需裁决）。④ D4：pypi PutLandedBlob 链挂钩。⑤ 两实例四协议（generic/docker/npm/pypi）集成测试。
-  ▶ 2026-08-22 建票并派发。
-
-- **T-196** [P1] bf-migrate 制品迁移实现 + 空目标守卫（T-175 D6/D7/D8） `role:release-engineer` `area:cmd/bf-migrate / internal/migrate`
-  AC: ① D7：制品迁移阶段（文件清单 AQL 或逐仓 list → 下载 → 经 client 上传；断点续传沿用 progress；H62 语义按 T-175 D9 校准后实现）。② D6：非空目标守卫（默认拒绝 --allow-non-empty 覆盖）。③ D8：migration_report.json 产物（摘要+清单+跳过原因）。④ mock 源 120 制品端到端迁移 sha256 全对。
-  ▶ 2026-08-22 建票并派发。
-
-- **T-199** [P2] 指标名文档同步（T-197 遗留①） `role:tech-writer` `area:docs/user`
-  AC: ① `docs/user/metrics/prometheus-reference.md`（:48,49,106）与 `docs/user/guides/s3-config.md`（:153）旧指标名同步 T-197 新名（storage gauge 去 _total；FR-61 实际面）。② 顺带核对两文档其余指标名与 `internal/httpapi/metrics.go` family 定义一致。③ `make docs` 通过。
-
-- **T-200** [P1] 审计词表 web 波及修复（T-193 N-1） `role:dev-frontend` `area:web/src/lib / web/e2e`
-  AC: ① `web/src/lib/governance.ts`（:38-39 附近）审计动作选择器 login.failed → auth.failed（对齐 T-187）。② `web/e2e/t104-supplements.spec.ts`（:306,308）同步。③ W23b 用例复绿（Playwright + 真后端）。④ 全量 e2e 回归无新败。
-
-- **T-205** [P2] docs 断链修缮（T-199 遗留①） `role:tech-writer` `area:docs/user / docs-site`
-  AC: ① docker-registry 页 → deploy/dev/README.md 断链（目标不存在则改指 deploy/README.md 或补目标）。② 首页 getting-started 两断链。③ governance 锚点失效修复。④ `make docs` broken links 清零（对照 T-199 记录的存量 3 处）。
+（空）—— M6 全部 59 票已 done，待用户终裁 Q2/Q6/Q7/Q10 + Q8/Q9 条件腿 + tag/push 后 closure（无新票待派发）。
 
 ## 🔨 进行中（doing）
 
