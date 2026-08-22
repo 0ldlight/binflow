@@ -17,7 +17,7 @@
 
 ## 📥 待办（todo）
 
-> **M6 收尾态**（2026-08-22）。done 区 62 票（M6 全量 59 票 T-148～T-206 全 done）；**用户终裁已落 ADR-0025**（Q2→本地 filestore 会话入新建 `upload_sessions` 表，修订 ADR-0006；Q6/Q7/Q10→认领暂行实现为正式决议；Q8/Q9→MinIO/Docker 等价，AWS/真实 Artifactory 延后 M7；用户禁用 REST seam→P2 修复票）。派生三张后续票 **T-208**（用户禁用 REST seam，P2）/ **T-209**（filestore session 入 DB，P1）/ **T-210**（复制私网目标显式开关，P2）均 doing 在途，ADR-0025 决策 5 已随勘误 `ae81c64` 收窄为仅本地 filestore、S3 保持 multipart。DoD #5 `git tag m6-done` + 补 `m5-done` 待三票 done + DoD 全绿后打（本地）；**push 外发仍须用户单独授权**。全仓 `-race` 全绿（23 包 exit 0）。
+> **M6 收尾态**（2026-08-22）。done 区 62 票（M6 全量 59 票 T-148～T-206 全 done）；**用户终裁已落 ADR-0025**（Q2→本地 filestore 会话入新建 `upload_sessions` 表，修订 ADR-0006；Q6/Q7/Q10→认领暂行实现为正式决议；Q8/Q9→MinIO/Docker 等价，AWS/真实 Artifactory 延后 M7；用户禁用 REST seam→P2 修复票）。派生三张后续票 **T-208**（用户禁用 REST seam，P2）/ **T-209**（filestore session 入 DB，P1）/ **T-210**（复制私网目标显式开关，P2）——**T-210 已 done**（config 键 + cmd 组装点已接），**T-208/T-209 仍在途**。ADR-0025 决策 5 已随勘误 `ae81c64` 收窄为仅本地 filestore、S3 保持 multipart。DoD #5 `git tag m6-done` + 补 `m5-done` 待三票 done + DoD 全绿后打（本地）；**push 外发仍须用户单独授权**。全仓 `-race` 全绿（23 包 exit 0）。
 
 ## 🔨 进行中（doing）
 
@@ -25,9 +25,6 @@
   `userCreateBody`/`userUpdateBody` 补 `enabled` 字段（新建缺省 true 不变；bool 指针区分缺省 vs 显式 false）；`POST /api/security/users/{name}` 允许 admin 禁用用户；wire 禁用即护栏③（TokenVerifier 重查用户行 `enabled`）端到端验证。AC：(1) admin `POST .../users/<u>` 带 `enabled:false` → 200，该用户既有 Token 立即 401；(2) 缺省不传 `enabled` → 新建/更新保持现有语义（true / 不变）；(3) 非 admin 尝试禁用他人 → 403；(4) 顺带核验禁用用户登录（session 臂）→ 401，与 auth 层 `TestAuthenticateDisabledUser` 一致；(5) 全仓 `-race` 绿 + lint 0。
 - **T-209** [P1] filestore session 入 DB（ADR-0025 决策 5 修正，修订 ADR-0006 决策 2） `role:dev-go-storage` `area:internal/storage + internal/metadata + cmd/binflow-server` — doing 2026-08-22
   **口径修正（勘误）**：`upload_sessions` 表 M6 从未落库（009 前无此表）；S3 会话走 multipart（状态由 S3 服务端持有），不建 DB 表。故本票范围 = **仅本地 filestore**：新建 `upload_sessions` 表（migration 010，sha256/state/created_at/expires_at）+ metadata `UploadSessions()` substore + 磁盘引擎 `BeginSession/Append/Commit` 落表、`ResumeSession` 从表恢复（**重启可续传是新能力，非对齐 S3**）；删除磁盘 `sessions/<uuid>/` 路径与启动扫描。磁盘 `OpenEngine` 需注入 `metadata.Store`（改 `Options` 加 `Sessions metadata.UploadSessionStore` 字段 + main.go `openStorageEngine` 传 `md`；cmd/ wiring 由主会话接或授权本 agent 最小改动）。S3 后端不动。ADR-0006 决策 2 改「磁盘 session 非版本兼容承诺，DB 化为迁移边界」。AC：(1) 本地 filestore 会话 append/commit 落 `upload_sessions`，重启经 `ResumeSession` 续传（新能力）；(2) 旧磁盘 session 目录不再产生，启动扫描逻辑删除；(3) S3 后端回归绿（multipart 路径不变）；(4) 备份/恢复语义：sessions 瞬态不进备份面（M4 结论不变）；(5) 全仓 `-race` 绿 + lint 0。
-- **T-210** [P2] 复制私网目标显式开关（ADR-0025 决策 4） `role:dev-go-core` `area:internal/config + internal/replication` — doing 2026-08-22
-  `replication.allow_private_target` 配置键（默认 `true`）落到 `DenyPrivateTargets` 选项——把「默认放行私网目标」从隐式默认升级为显式可配 + 文档警示。AC：(1) 键缺省 `true` → 私网目标放行（现行为不变，回归不破）；(2) 显式 `false` → 私网目标拒绝（DenyPrivateTargets=true），scheme/host 校验、逐跳重检、DNS-rebinding pinning 全保持；(3) 路由门与审计不变；文档（tech-writer 稍后同步）补该键的 SSRF 面警示；(4) 全仓 `-race` 绿 + lint 0。
-
 
 
 ## 🧪 测试中（qa）
@@ -35,6 +32,9 @@
 （空）
 
 ## ✅ 已完成（done）
+
+- **T-210** [P2] 复制私网目标显式开关（ADR-0025 决策 4） `role:dev-go-core` `area:internal/config + internal/replication` — done 2026-08-22（conductor 核验直收，接 cmd 组装点）
+  `replication.allow_private_target` 键（默认 true）→ `EngineOptions.DenyPrivateTargets`（= !allow_private_target）。默认 true 放行私网（现状不破）；显式 false 拒绝。scheme/host 校验、逐跳重检、DNS-rebinding pinning 不随开关变化。conductor 补接 `cmd/binflow-server/main.go` NewEngine 组装 seam（agent area 未覆盖 cmd），端到端生效。测试：config 6 种键解析 + replication 节严格 schema + 引擎拒绝 loopback/默认放行回归；-race 绿 + lint 0。日志 reports/agents/T-210.md。
 
 - **T-127** [P0] goreleaser 基线+版本注入（FR-34/PB-01/02） `role:devops-engineer` — done 2026-08-21（conductor 核验直收）
   六平台 CGO_ENABLED=0（linux/darwin/windows×amd64/arm64）；ldflags version/revision 注入三面一致（`--version`/启动日志/health.version）；check-size 全部 5-6MB（≤40MB）；裸 build 回退 dev；release.snapshot 模板；发布禁用。日志 reports/agents/T-127.md。
