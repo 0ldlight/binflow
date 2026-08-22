@@ -51,3 +51,10 @@ data/
 # 仅忽略仓库根的构建产物二进制；无斜杠裸名会连带忽略 cmd/binflow-server/
 # 下所有未跟踪源文件（T-178/T-179/T-180 测试文件曾被吞，2026-08-22 修正）
 /binflow-server
+/bf
+/bf-migrate
+
+# 测试垃圾：storage/adapter 测试在仓库根落的孤儿 fixture（无对应写代码，建议清理）
+/f1.bin
+/s1.bin
+/s2.bin
