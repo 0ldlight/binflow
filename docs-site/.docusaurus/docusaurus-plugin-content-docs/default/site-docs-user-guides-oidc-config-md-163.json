@@ -1,0 +1,27 @@
+{
+  "id": "guides/oidc-config",
+  "title": "OIDC 单点登录配置",
+  "description": "适用版本：M6（ADR-0020；auth.oidc 段 + /api/v1/oidc/* 端点）。",
+  "source": "@site/../docs/user/guides/oidc-config.md",
+  "sourceDirName": "guides",
+  "slug": "/guides/oidc-config",
+  "permalink": "/binflow/docs/guides/oidc-config",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 51,
+  "frontMatter": {
+    "title": "OIDC 单点登录配置",
+    "sidebar_position": 51
+  },
+  "sidebar": "main",
+  "previous": {
+    "title": "专题指南",
+    "permalink": "/binflow/docs/guides"
+  },
+  "next": {
+    "title": "LDAP 目录认证配置",
+    "permalink": "/binflow/docs/guides/ldap-config"
+  }
+}

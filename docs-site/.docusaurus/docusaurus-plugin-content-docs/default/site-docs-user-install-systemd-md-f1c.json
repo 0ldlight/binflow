@@ -1,0 +1,18 @@
+{
+  "id": "install/systemd",
+  "title": "systemd 服务（裸机）",
+  "description": "适用版本：M5 GA v1.0.0（contrib/systemd/binflow.service + install.sh；T-138, FR-39, PB-07）。",
+  "source": "@site/../docs/user/install/systemd.md",
+  "sourceDirName": "install",
+  "slug": "/install/systemd",
+  "permalink": "/binflow/docs/install/systemd",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 15,
+  "frontMatter": {
+    "title": "systemd 服务（裸机）",
+    "sidebar_position": 15
+  }
+}

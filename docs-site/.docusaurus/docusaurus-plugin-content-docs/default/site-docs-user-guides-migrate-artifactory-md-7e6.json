@@ -1,0 +1,27 @@
+{
+  "id": "guides/migrate-artifactory",
+  "title": "从 Artifactory 迁移（bf-migrate）",
+  "description": "适用版本：M6（T-167；行为逐项核对 cmd/bf-migrate/main.go 与 internal/migrate/，细节参照 reports/agents/T-167.md）。",
+  "source": "@site/../docs/user/guides/migrate-artifactory.md",
+  "sourceDirName": "guides",
+  "slug": "/guides/migrate-artifactory",
+  "permalink": "/binflow/docs/guides/migrate-artifactory",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 55,
+  "frontMatter": {
+    "title": "从 Artifactory 迁移（bf-migrate）",
+    "sidebar_position": 55
+  },
+  "sidebar": "main",
+  "previous": {
+    "title": "bf CLI 使用指南",
+    "permalink": "/binflow/docs/guides/bf-cli"
+  },
+  "next": {
+    "title": "Prometheus 指标参考",
+    "permalink": "/binflow/docs/metrics/prometheus-reference"
+  }
+}

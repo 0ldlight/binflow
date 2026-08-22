@@ -1,0 +1,27 @@
+{
+  "id": "metrics/prometheus-reference",
+  "title": "Prometheus 指标参考",
+  "description": "适用版本：M6（ADR-0022 / PRD FR-61，T-163 交付；指标命名按 T-197 D5 校准）。指标族名、标签与预播行为逐项核对 internal/httpapi/metrics.go；端点行为（匿名 200 / require_auth 401→200 / TYPE 行）于本机构建实测。",
+  "source": "@site/../docs/user/metrics/prometheus-reference.md",
+  "sourceDirName": "metrics",
+  "slug": "/metrics/prometheus-reference",
+  "permalink": "/binflow/docs/metrics/prometheus-reference",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 60,
+  "frontMatter": {
+    "title": "Prometheus 指标参考",
+    "sidebar_position": 60
+  },
+  "sidebar": "main",
+  "previous": {
+    "title": "从 Artifactory 迁移（bf-migrate）",
+    "permalink": "/binflow/docs/guides/migrate-artifactory"
+  },
+  "next": {
+    "title": "FAQ 与故障排查",
+    "permalink": "/binflow/docs/faq"
+  }
+}

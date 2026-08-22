@@ -5,17 +5,17 @@
       "plugin": "138e0e15"
     }
   },
-  "/binflow/docs/-d97": {
+  "/binflow/docs/-30e": {
     "__comp": "5e95c892",
     "__context": {
       "plugin": "aba21aa0"
     }
   },
-  "/binflow/docs/-5da": {
+  "/binflow/docs/-ac8": {
     "__comp": "a7bd4aaa",
     "__props": "05bda79c"
   },
-  "/binflow/docs/-3bb": {
+  "/binflow/docs/-d39": {
     "__comp": "a94703ab"
   },
   "/binflow/docs/admin-d45": {
@@ -54,9 +54,69 @@
     "__comp": "17896441",
     "content": "5e8d1b2e"
   },
+  "/binflow/docs/guides-12d": {
+    "__comp": "14eb3368",
+    "__props": "22713efb"
+  },
+  "/binflow/docs/guides/bf-cli-47d": {
+    "__comp": "17896441",
+    "content": "0990dbc3"
+  },
+  "/binflow/docs/guides/ldap-config-3ed": {
+    "__comp": "17896441",
+    "content": "d5d9f30b"
+  },
+  "/binflow/docs/guides/migrate-artifactory-0c9": {
+    "__comp": "17896441",
+    "content": "7e6a8ad0"
+  },
+  "/binflow/docs/guides/oidc-config-db9": {
+    "__comp": "17896441",
+    "content": "16320750"
+  },
+  "/binflow/docs/guides/s3-config-6f6": {
+    "__comp": "17896441",
+    "content": "0942326c"
+  },
+  "/binflow/docs/install/binary-fed": {
+    "__comp": "17896441",
+    "content": "adb91578"
+  },
+  "/binflow/docs/install/compose-680": {
+    "__comp": "17896441",
+    "content": "d9eaf65b"
+  },
+  "/binflow/docs/install/docker-628": {
+    "__comp": "17896441",
+    "content": "e2c80caa"
+  },
+  "/binflow/docs/install/helm-4dc": {
+    "__comp": "17896441",
+    "content": "c26833de"
+  },
+  "/binflow/docs/install/k8s-548": {
+    "__comp": "17896441",
+    "content": "24e5edad"
+  },
+  "/binflow/docs/install/offline-326": {
+    "__comp": "17896441",
+    "content": "7e9234a4"
+  },
+  "/binflow/docs/install/systemd-7f6": {
+    "__comp": "17896441",
+    "content": "f1c828de"
+  },
+  "/binflow/docs/install/upgrade-2ce": {
+    "__comp": "17896441",
+    "content": "17b710ee"
+  },
   "/binflow/docs/integrations-012": {
     "__comp": "14eb3368",
     "__props": "e0190b8d"
+  },
+  "/binflow/docs/integrations/generic-011": {
+    "__comp": "17896441",
+    "content": "636e20e5"
   },
   "/binflow/docs/integrations/maven-0be": {
     "__comp": "17896441",
@@ -69,6 +129,10 @@
   "/binflow/docs/integrations/pypi-381": {
     "__comp": "17896441",
     "content": "a75441f4"
+  },
+  "/binflow/docs/metrics/prometheus-reference-2b8": {
+    "__comp": "17896441",
+    "content": "ac0b2547"
   },
   "/binflow/docs/-dfe": {
     "__comp": "17896441",

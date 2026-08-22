@@ -9,15 +9,15 @@ export default [
   },
   {
     path: '/binflow/docs/',
-    component: ComponentCreator('/binflow/docs/', 'd97'),
+    component: ComponentCreator('/binflow/docs/', '30e'),
     routes: [
       {
         path: '/binflow/docs/',
-        component: ComponentCreator('/binflow/docs/', '5da'),
+        component: ComponentCreator('/binflow/docs/', 'ac8'),
         routes: [
           {
             path: '/binflow/docs/',
-            component: ComponentCreator('/binflow/docs/', '3bb'),
+            component: ComponentCreator('/binflow/docs/', 'd39'),
             routes: [
               {
                 path: '/binflow/docs/admin',
@@ -74,10 +74,91 @@ export default [
                 sidebar: "main"
               },
               {
+                path: '/binflow/docs/guides',
+                component: ComponentCreator('/binflow/docs/guides', '12d'),
+                exact: true,
+                sidebar: "main"
+              },
+              {
+                path: '/binflow/docs/guides/bf-cli',
+                component: ComponentCreator('/binflow/docs/guides/bf-cli', '47d'),
+                exact: true,
+                sidebar: "main"
+              },
+              {
+                path: '/binflow/docs/guides/ldap-config',
+                component: ComponentCreator('/binflow/docs/guides/ldap-config', '3ed'),
+                exact: true,
+                sidebar: "main"
+              },
+              {
+                path: '/binflow/docs/guides/migrate-artifactory',
+                component: ComponentCreator('/binflow/docs/guides/migrate-artifactory', '0c9'),
+                exact: true,
+                sidebar: "main"
+              },
+              {
+                path: '/binflow/docs/guides/oidc-config',
+                component: ComponentCreator('/binflow/docs/guides/oidc-config', 'db9'),
+                exact: true,
+                sidebar: "main"
+              },
+              {
+                path: '/binflow/docs/guides/s3-config',
+                component: ComponentCreator('/binflow/docs/guides/s3-config', '6f6'),
+                exact: true,
+                sidebar: "main"
+              },
+              {
+                path: '/binflow/docs/install/binary',
+                component: ComponentCreator('/binflow/docs/install/binary', 'fed'),
+                exact: true
+              },
+              {
+                path: '/binflow/docs/install/compose',
+                component: ComponentCreator('/binflow/docs/install/compose', '680'),
+                exact: true
+              },
+              {
+                path: '/binflow/docs/install/docker',
+                component: ComponentCreator('/binflow/docs/install/docker', '628'),
+                exact: true
+              },
+              {
+                path: '/binflow/docs/install/helm',
+                component: ComponentCreator('/binflow/docs/install/helm', '4dc'),
+                exact: true
+              },
+              {
+                path: '/binflow/docs/install/k8s',
+                component: ComponentCreator('/binflow/docs/install/k8s', '548'),
+                exact: true
+              },
+              {
+                path: '/binflow/docs/install/offline',
+                component: ComponentCreator('/binflow/docs/install/offline', '326'),
+                exact: true
+              },
+              {
+                path: '/binflow/docs/install/systemd',
+                component: ComponentCreator('/binflow/docs/install/systemd', '7f6'),
+                exact: true
+              },
+              {
+                path: '/binflow/docs/install/upgrade',
+                component: ComponentCreator('/binflow/docs/install/upgrade', '2ce'),
+                exact: true
+              },
+              {
                 path: '/binflow/docs/integrations',
                 component: ComponentCreator('/binflow/docs/integrations', '012'),
                 exact: true,
                 sidebar: "main"
+              },
+              {
+                path: '/binflow/docs/integrations/generic',
+                component: ComponentCreator('/binflow/docs/integrations/generic', '011'),
+                exact: true
               },
               {
                 path: '/binflow/docs/integrations/maven',
@@ -94,6 +175,12 @@ export default [
               {
                 path: '/binflow/docs/integrations/pypi',
                 component: ComponentCreator('/binflow/docs/integrations/pypi', '381'),
+                exact: true,
+                sidebar: "main"
+              },
+              {
+                path: '/binflow/docs/metrics/prometheus-reference',
+                component: ComponentCreator('/binflow/docs/metrics/prometheus-reference', '2b8'),
                 exact: true,
                 sidebar: "main"
               },

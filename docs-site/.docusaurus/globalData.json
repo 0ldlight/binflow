@@ -51,6 +51,67 @@
               "sidebar": "main"
             },
             {
+              "id": "guides/bf-cli",
+              "path": "/binflow/docs/guides/bf-cli",
+              "sidebar": "main"
+            },
+            {
+              "id": "guides/ldap-config",
+              "path": "/binflow/docs/guides/ldap-config",
+              "sidebar": "main"
+            },
+            {
+              "id": "guides/migrate-artifactory",
+              "path": "/binflow/docs/guides/migrate-artifactory",
+              "sidebar": "main"
+            },
+            {
+              "id": "guides/oidc-config",
+              "path": "/binflow/docs/guides/oidc-config",
+              "sidebar": "main"
+            },
+            {
+              "id": "guides/s3-config",
+              "path": "/binflow/docs/guides/s3-config",
+              "sidebar": "main"
+            },
+            {
+              "id": "install/binary",
+              "path": "/binflow/docs/install/binary"
+            },
+            {
+              "id": "install/compose",
+              "path": "/binflow/docs/install/compose"
+            },
+            {
+              "id": "install/docker",
+              "path": "/binflow/docs/install/docker"
+            },
+            {
+              "id": "install/helm",
+              "path": "/binflow/docs/install/helm"
+            },
+            {
+              "id": "install/k8s",
+              "path": "/binflow/docs/install/k8s"
+            },
+            {
+              "id": "install/offline",
+              "path": "/binflow/docs/install/offline"
+            },
+            {
+              "id": "install/systemd",
+              "path": "/binflow/docs/install/systemd"
+            },
+            {
+              "id": "install/upgrade",
+              "path": "/binflow/docs/install/upgrade"
+            },
+            {
+              "id": "integrations/generic",
+              "path": "/binflow/docs/integrations/generic"
+            },
+            {
               "id": "integrations/maven",
               "path": "/binflow/docs/integrations/maven",
               "sidebar": "main"
@@ -66,6 +127,11 @@
               "sidebar": "main"
             },
             {
+              "id": "metrics/prometheus-reference",
+              "path": "/binflow/docs/metrics/prometheus-reference",
+              "sidebar": "main"
+            },
+            {
               "id": "README",
               "path": "/binflow/docs/",
               "sidebar": "main"
@@ -78,6 +144,11 @@
             {
               "id": "/admin",
               "path": "/binflow/docs/admin",
+              "sidebar": "main"
+            },
+            {
+              "id": "/guides",
+              "path": "/binflow/docs/guides",
               "sidebar": "main"
             }
           ],

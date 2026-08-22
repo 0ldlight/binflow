@@ -1,0 +1,18 @@
+{
+  "id": "install/compose",
+  "title": "docker-compose 部署",
+  "description": "适用版本：M5 GA v1.0.0（deploy/compose/docker-compose.yml；T-135, FR-36, PB-04）。",
+  "source": "@site/../docs/user/install/compose.md",
+  "sourceDirName": "install",
+  "slug": "/install/compose",
+  "permalink": "/binflow/docs/install/compose",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 12,
+  "frontMatter": {
+    "title": "docker-compose 部署",
+    "sidebar_position": 12
+  }
+}

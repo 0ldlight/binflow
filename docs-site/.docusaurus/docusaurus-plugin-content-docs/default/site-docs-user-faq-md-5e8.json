@@ -17,8 +17,8 @@
   },
   "sidebar": "main",
   "previous": {
-    "title": "备份与恢复手册",
-    "permalink": "/binflow/docs/admin/backup-restore"
+    "title": "Prometheus 指标参考",
+    "permalink": "/binflow/docs/metrics/prometheus-reference"
   },
   "next": {
     "title": "API 参考",
