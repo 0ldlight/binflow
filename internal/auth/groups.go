@@ -52,8 +52,16 @@ func (s *Service) WithGroups(src GroupSource) *Service {
 // loudly). Rejecting the whole credential instead would turn a damaged join
 // into a total outage for accounts whose access has nothing to do with
 // groups, which is the wrong blast radius for an enrichment read.
+//
+// T-192: a context that already ended (client disconnected while the
+// credential was being verified) skips the doomed lookup and its ERROR
+// line entirely — an abandonment storm must not flood the operator log
+// with failed enrichment reads no response will ever consume.
 func (s *Service) fillGroups(ctx context.Context, p *Principal) {
 	if p == nil || s.groups == nil {
+		return
+	}
+	if ctx.Err() != nil {
 		return
 	}
 	names, err := s.groups.GroupsOfUser(ctx, p.Name)

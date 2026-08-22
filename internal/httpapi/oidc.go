@@ -126,9 +126,12 @@ func (s *Server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 	// callback then fails the state check below.
 	clearOIDCTxCookie(w, r, s.deps.Config.Server.BaseURL)
 
-	fail := func(status int, msg string) {
+	fail := func(status int, msg, reason string) {
+		// T-187 / T-174 D7+D8: the OIDC arm's rejections land under the
+		// PRD action name with the arm and reason in the Detail payload.
 		s.audit.Record(r.Context(), audit.Event{
-			Actor: "oidc", Action: audit.ActionLoginFail, RemoteAddr: r.RemoteAddr,
+			Actor: "oidc", Action: audit.ActionAuthFail, RemoteAddr: r.RemoteAddr,
+			Detail: audit.AuthEventDetail(string(auth.ProviderOIDC), reason),
 		})
 		writeError(w, status, msg)
 	}
@@ -140,22 +143,23 @@ func (s *Server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 		// text bound for an operator's logs, not a browser page).
 		s.log.WarnContext(r.Context(), "httpapi: oidc provider returned an error",
 			"error", e, "description", q.Get("error_description"))
-		fail(http.StatusBadRequest, "oidc provider returned an error: "+e)
+		fail(http.StatusBadRequest, "oidc provider returned an error: "+e, auth.ReasonProviderError)
 		return
 	}
 	code, state := q.Get("code"), q.Get("state")
 	if code == "" || state == "" {
-		fail(http.StatusBadRequest, "authorization code and state are required")
+		fail(http.StatusBadRequest, "authorization code and state are required", auth.ReasonBadRequest)
 		return
 	}
 	c, err := r.Cookie(oidcTxCookieName)
 	if err != nil || c.Value == "" {
-		fail(http.StatusBadRequest, "oidc login transaction missing or expired; restart the login from the console")
+		fail(http.StatusBadRequest, "oidc login transaction missing or expired; restart the login from the console",
+			auth.ReasonBadRequest)
 		return
 	}
 	wantState, verifier, found := strings.Cut(c.Value, ".")
 	if !found || wantState == "" || verifier == "" {
-		fail(http.StatusBadRequest, "malformed oidc login transaction")
+		fail(http.StatusBadRequest, "malformed oidc login transaction", auth.ReasonBadRequest)
 		return
 	}
 	if subtle.ConstantTimeCompare([]byte(state), []byte(wantState)) != 1 {
@@ -165,7 +169,7 @@ func (s *Server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 		// operator's view; the response reveals nothing.
 		s.log.WarnContext(r.Context(), "httpapi: oidc state mismatch on callback",
 			"path", r.URL.EscapedPath(), "remote", r.RemoteAddr)
-		fail(http.StatusBadRequest, "oidc state mismatch")
+		fail(http.StatusBadRequest, "oidc state mismatch", auth.ReasonBadCredentials)
 		return
 	}
 
@@ -173,13 +177,14 @@ func (s *Server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 		oauth2.SetAuthURLParam("code_verifier", verifier))
 	if err != nil {
 		s.log.ErrorContext(r.Context(), "httpapi: oidc code exchange failed", "error", err.Error())
-		fail(http.StatusBadGateway, "authorization code exchange failed")
+		fail(http.StatusBadGateway, "authorization code exchange failed",
+			auth.ProviderFailureReason(err))
 		return
 	}
 	idToken, _ := tok.Extra("id_token").(string)
 	if idToken == "" {
 		s.log.ErrorContext(r.Context(), "httpapi: oidc token response carried no id_token")
-		fail(http.StatusBadGateway, "token response carried no id_token")
+		fail(http.StatusBadGateway, "token response carried no id_token", auth.ReasonProviderError)
 		return
 	}
 
@@ -189,11 +194,12 @@ func (s *Server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 			// Signature/issuer/audience/expiry rejection or a disabled user:
 			// uniform 401, the same wording as the password login.
 			s.log.WarnContext(r.Context(), "httpapi: oidc id token rejected", "error", err.Error())
-			fail(http.StatusUnauthorized, "invalid credentials")
+			_, reason := loginFailureClass(err)
+			fail(http.StatusUnauthorized, "invalid credentials", reason)
 			return
 		}
 		s.log.ErrorContext(r.Context(), "httpapi: oidc login failed", "error", err.Error())
-		fail(http.StatusInternalServerError, "oidc login failed")
+		fail(http.StatusInternalServerError, "oidc login failed", auth.ReasonProviderError)
 		return
 	}
 
@@ -214,6 +220,7 @@ func (s *Server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit.Record(r.Context(), audit.Event{
 		Actor: p.Name, Action: audit.ActionLoginOK, RemoteAddr: r.RemoteAddr,
+		Detail: audit.AuthEventDetail(principalSource(p), ""),
 	})
 	s.log.InfoContext(r.Context(), "httpapi: oidc session issued",
 		"user", p.Name, "expires_at", sess.ExpiresAt.Format(time.RFC3339))

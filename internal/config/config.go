@@ -25,6 +25,11 @@ const (
 	DefaultArgon2MemoryMB = 64
 	// DefaultTokenTTL is the default API token lifetime (30 days).
 	DefaultTokenTTL = 720 * time.Hour
+	// DefaultTokenNonAdminMaxTTL is the cap on the lifetime a non-admin
+	// caller may request on POST /api/security/token (auth.token_nonadmin_max_ttl,
+	// PRD M6 v1.2 Q11 guardrail 2 / K9). 365 days, the value Artifactory ships
+	// as access.token.non.admin.max.expires.in.
+	DefaultTokenNonAdminMaxTTL = 365 * 24 * time.Hour
 	// DefaultAuditEnabled turns audit logging on.
 	DefaultAuditEnabled = true
 	// DefaultLogLevel and DefaultLogFormat shape structured logging.
@@ -132,6 +137,11 @@ func splitEnvKey(upper string) (path []string, kind envKind, ok bool) {
 		return []string{"security", "anonymous_access"}, envBool, true
 	case "DATA_DIR": // convenience alias for storage.data_dir
 		return []string{"storage", "data_dir"}, envString, true
+	case "AUTH_TOKEN_NONADMIN_MAX_TTL":
+		// K9's documented single-underscore spelling; the generic
+		// BINFLOW_AUTH__TOKEN_NONADMIN_MAX_TTL form maps through the "__"
+		// path below.
+		return []string{"auth", "token_nonadmin_max_ttl"}, envIntPos, true
 	}
 	parts := strings.Split(upper, "__")
 	for i, p := range parts {
@@ -169,7 +179,11 @@ func splitEnvKey(upper string) (path []string, kind envKind, ok bool) {
 		return parts, envString, true
 	case "auth.argon2_memory_mb":
 		return parts, envIntPos, true
+	case "auth.hash_concurrency":
+		return parts, envIntPos, true
 	case "auth.token_default_ttl_hours":
+		return parts, envIntPos, true
+	case "auth.token_nonadmin_max_ttl":
 		return parts, envIntPos, true
 	case "console.session_ttl_hours", "console.session_ttl_seconds":
 		return parts, envIntPos, true

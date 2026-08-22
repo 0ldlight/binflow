@@ -22,16 +22,62 @@ import (
 // BeginSession -> NewMultipartUpload, Append -> PutObjectPart, Commit ->
 // CompleteMultipartUpload, Abort -> AbortMultipartUpload.
 //
+// Session Appends stream in bounded memory: at most one part buffer per
+// session is resident, independent of upload size (T-202, QA T-173 D-4).
+//
 // S3Engine is safe for concurrent use.
 type S3Engine struct {
 	core         *minio.Core // Core has Client embedded + multipart primitives
 	bucket       string
 	bucketPrefix string // prepended to every object key; empty means root
+	partSize     int64  // session Append flush threshold; see resolveS3PartSize
 
 	mu       sync.RWMutex
 	closed   bool
 	sessions map[string]*s3Session
 	clock    func() time.Time // clock override for tests; nil = time.Now
+}
+
+const (
+	// DefaultS3PartSize is the multipart part size used to stream session
+	// Appends when PartSize is not configured: Append buffers at most this
+	// many bytes before flushing one PutObjectPart. 16 MiB bounds per-upload
+	// memory while amortizing part round-trips (1 GiB upload = 64 parts).
+	DefaultS3PartSize = int64(16 << 20)
+	// MinS3PartSize is the smallest legal non-terminal part in the S3
+	// multipart contract: every part except the last must be >= 5 MiB or
+	// CompleteMultipartUpload fails with EntityTooSmall. Configured values
+	// below the floor are clamped up (fail-fast at open instead of failing
+	// mid-upload at complete).
+	MinS3PartSize = int64(5 << 20)
+
+	// blobCreatedAtMetaKey is the S3 user-metadata key that records a blob's
+	// creation time (UTC RFC3339). It is the S3 counterpart of the disk blob's
+	// mtime: the GC grace clock and the orphan-sweep age basis both read it,
+	// falling back to the object's LastModified when it is absent (ADR-0006
+	// erratum 2, T-203 D-5).
+	//
+	// Note: minio-go rounds user-metadata keys through Go's http.Header, which
+	// canonicalizes them ("blob-created-at" reads back as "Blob-Created-At"),
+	// so every read of this key must do a case-insensitive match.
+	blobCreatedAtMetaKey = "blob-created-at"
+
+	// uploadKeySegment is the "sessions" path segment under which multipart
+	// upload keys live: <prefix>/sessions/<uuid>/data. It is the S3 standing-in
+	// for the disk engine's sessionsDirName.
+	uploadKeySegment = "sessions"
+)
+
+// resolveS3PartSize defaults and clamps the session part size.
+func resolveS3PartSize(n int64) int64 {
+	switch {
+	case n <= 0:
+		return DefaultS3PartSize
+	case n < MinS3PartSize:
+		return MinS3PartSize
+	default:
+		return n
+	}
 }
 
 // api returns the high-level minio client. minio.Core shadows several method
@@ -44,13 +90,33 @@ func (e *S3Engine) api() *minio.Client { return e.core.Client }
 type S3EngineOptions struct {
 	// BucketPrefix is prepended to every object key. Defaults to "".
 	BucketPrefix string
+	// PartSize is the multipart part size used to stream session uploads:
+	// Append buffers at most PartSize bytes in memory before flushing one
+	// PutObjectPart, and Commit uploads the trailing remainder as the final
+	// part (which may be smaller). Zero means DefaultS3PartSize; values below
+	// MinS3PartSize are clamped up to it.
+	PartSize int64
+	// SessionTTL bounds the age of an orphaned multipart upload before the
+	// startup sweep aborts it (T-203 D-6). Zero means DefaultSessionTTL.
+	SessionTTL time.Duration
 	// Now overrides the clock (tests only). Nil uses time.Now.
 	Now func() time.Time
 }
 
+// sessionTTL resolves the orphan-sweep grace, mirroring Options.ttl on the
+// disk engine.
+func (o *S3EngineOptions) sessionTTL() time.Duration {
+	if o == nil || o.SessionTTL <= 0 {
+		return DefaultSessionTTL
+	}
+	return o.SessionTTL
+}
+
 // OpenS3Engine creates an S3Engine backed by the given minio Core, bucket and
 // optional prefix. Callers must ensure the bucket exists before calling
-// OpenS3Engine.
+// OpenS3Engine. On success the engine has swept in-progress multipart uploads
+// that predate the session TTL (orphans from interrupted/crashed uploads), the
+// S3 counterpart of the disk engine's startup session sweep (T-203 D-6).
 func OpenS3Engine(core *minio.Core, bucket string, opts *S3EngineOptions) (Engine, error) {
 	if core == nil {
 		return nil, errors.New("storage: s3: core is nil")
@@ -61,28 +127,29 @@ func OpenS3Engine(core *minio.Core, bucket string, opts *S3EngineOptions) (Engin
 	if opts == nil {
 		opts = &S3EngineOptions{}
 	}
-	return &S3Engine{
+	e := &S3Engine{
 		core:         core,
 		bucket:       bucket,
 		bucketPrefix: opts.BucketPrefix,
+		partSize:     resolveS3PartSize(opts.PartSize),
 		sessions:     make(map[string]*s3Session),
 		clock:        opts.Now,
-	}, nil
+	}
+	if err := e.sweepOrphanUploads(context.Background(), opts.sessionTTL()); err != nil {
+		return nil, fmt.Errorf("storage: s3: open: sweep orphan uploads: %w", err)
+	}
+	return e, nil
 }
 
 // OpenS3EngineWithClient creates an S3Engine from a minio.Client. This is a
-// convenience wrapper that constructs a Core internally.
-func OpenS3EngineWithClient(client *minio.Client, bucket string, opts *S3EngineOptions) Engine {
-	if opts == nil {
-		opts = &S3EngineOptions{}
+// convenience wrapper that constructs a Core internally. Like OpenS3Engine it
+// sweeps orphaned multipart uploads on open and fails if the sweep errors.
+func OpenS3EngineWithClient(client *minio.Client, bucket string, opts *S3EngineOptions) (Engine, error) {
+	var core *minio.Core
+	if client != nil {
+		core = &minio.Core{Client: client}
 	}
-	return &S3Engine{
-		core:         &minio.Core{Client: client},
-		bucket:       bucket,
-		bucketPrefix: opts.BucketPrefix,
-		sessions:     make(map[string]*s3Session),
-		clock:        opts.Now,
-	}
+	return OpenS3Engine(core, bucket, opts)
 }
 
 // objectKey returns the S3 key for a blob: <prefix>/blobs/<sha256[0:2]>/<sha256>.
@@ -102,6 +169,17 @@ func (e *S3Engine) objectKeyPrefix() string {
 		prefix = strings.TrimRight(prefix, "/") + "/"
 	}
 	return prefix + blobsDirName + "/"
+}
+
+// uploadKeyPrefix returns the S3 prefix under which multipart upload keys
+// live: <prefix>/sessions/ (or sessions/ when prefix is empty). It is the
+// listing prefix for the orphan sweep (T-203 D-6).
+func (e *S3Engine) uploadKeyPrefix() string {
+	prefix := e.bucketPrefix
+	if prefix != "" {
+		prefix = strings.TrimRight(prefix, "/") + "/"
+	}
+	return prefix + uploadKeySegment + "/"
 }
 
 // checkOpen returns ErrEngineClosed if the engine is closed.
@@ -141,11 +219,7 @@ func (e *S3Engine) BeginSession(ctx context.Context) (Session, error) {
 		return nil, fmt.Errorf("storage: s3: begin session: %w", err)
 	}
 	// The multipart upload key is a temporary path under a "sessions" prefix.
-	prefix := e.bucketPrefix
-	if prefix != "" {
-		prefix = strings.TrimRight(prefix, "/") + "/"
-	}
-	uploadKey := prefix + "sessions/" + id + "/data"
+	uploadKey := e.uploadKeyPrefix() + id + "/data"
 
 	uploadID, err := e.core.NewMultipartUpload(ctx, e.bucket, uploadKey, minio.PutObjectOptions{
 		ContentType: "application/octet-stream",
@@ -159,6 +233,7 @@ func (e *S3Engine) BeginSession(ctx context.Context) (Session, error) {
 		id:        id,
 		uploadID:  uploadID,
 		uploadKey: uploadKey,
+		partSize:  e.partSize,
 		digests:   newDigesters(),
 		createdAt: e.timeNow(),
 	}
@@ -291,7 +366,21 @@ func (e *S3Engine) GC(ctx context.Context, referenced func() (map[string]struct{
 		if _, ok := refs[sha]; ok {
 			continue // mark hit: keep
 		}
-		if obj.LastModified.After(graceCutoff) {
+		// The grace clock is the blob's creation time as recorded in its
+		// "blob-created-at" user metadata, falling back to LastModified when the
+		// metadata is absent (e.g. blobs imported via mc or older deployments).
+		// This aligns the S3 GC with the disk backend, where a migrated blob's
+		// grace is measured from its original creation, not its S3 arrival
+		// (T-203 D-5). ListObjects does not carry user metadata, so a StatObject
+		// (HEAD) is issued per unreferenced object only.
+		ageBasis := obj.LastModified
+		info, statErr := e.api().StatObject(ctx, e.bucket, obj.Key, minio.StatObjectOptions{})
+		if statErr == nil {
+			if created, ok := blobCreatedAtFromMeta(info.UserMetadata); ok {
+				ageBasis = created
+			}
+		}
+		if ageBasis.After(graceCutoff) {
 			continue // inside grace window: skip
 		}
 		candidates = append(candidates, sha)
@@ -309,6 +398,25 @@ func (e *S3Engine) GC(ctx context.Context, referenced func() (map[string]struct{
 		return deleted, nil
 	}
 	return candidates, nil
+}
+
+// blobCreatedAtFromMeta resolves a blob's creation time from its S3
+// user-metadata map under the "blob-created-at" key. It returns (t, true) on a
+// valid RFC3339 value and (zero, false) when the key is absent or malformed —
+// the caller then falls back to the object's LastModified (ADR-0006 erratum 2,
+// T-203 D-5). The lookup is case-insensitive because minio-go canonicalizes
+// user-metadata keys through http.Header ("blob-created-at" -> "Blob-Created-At").
+func blobCreatedAtFromMeta(meta map[string]string) (time.Time, bool) {
+	for k, v := range meta {
+		if strings.EqualFold(k, blobCreatedAtMetaKey) {
+			t, err := time.Parse(time.RFC3339, v)
+			if err != nil {
+				return time.Time{}, false
+			}
+			return t, true
+		}
+	}
+	return time.Time{}, false
 }
 
 // extractSha256FromKey parses a sha256 hex string from an S3 key of the form
@@ -367,6 +475,76 @@ func (e *S3Engine) forgetSession(s *s3Session) {
 	e.mu.Unlock()
 }
 
+// listIncompleteUploads returns every in-progress multipart upload under the
+// upload-key prefix, paginating with keyMarker/uploadIDMarker until the list is
+// exhausted. These are the S3 counterpart of the disk engine's abandoned
+// session directories: an upload interrupted by crash/kill leaves a live MPU
+// that no live process tracks (T-203 D-6).
+func (e *S3Engine) listIncompleteUploads(ctx context.Context) ([]minio.ObjectMultipartInfo, error) {
+	const maxUploads = 1000
+	var (
+		all            []minio.ObjectMultipartInfo
+		keyMarker      string
+		uploadIDMarker string
+	)
+	for {
+		res, err := e.core.ListMultipartUploads(ctx, e.bucket, e.uploadKeyPrefix(),
+			keyMarker, uploadIDMarker, "", maxUploads)
+		if err != nil {
+			// A missing bucket is a benign cold-start state: there is nothing to
+			// sweep. S3-compatible stores report it as NoSuchBucket (some also an
+			// empty code with a 404 status), so treat both as an empty listing.
+			if resp := minio.ToErrorResponse(err); resp.Code == "NoSuchBucket" ||
+				(resp.Code == "" && resp.StatusCode == 404) {
+				return nil, nil
+			}
+			return nil, fmt.Errorf("storage: s3: list multipart uploads: %w", err)
+		}
+		all = append(all, res.Uploads...)
+		if !res.IsTruncated {
+			return all, nil
+		}
+		keyMarker = res.NextKeyMarker
+		uploadIDMarker = res.NextUploadIDMarker
+		if err := ctx.Err(); err != nil {
+			return all, fmt.Errorf("storage: s3: list multipart uploads: %w", err)
+		}
+	}
+}
+
+// sweepOrphanUploads aborts in-progress multipart uploads whose initiated time
+// predates ttl. It runs once at engine open: any MPU older than the TTL is, by
+// definition, no longer tied to a live in-process upload (BeginSession always
+// stamps a fresh Initiated time), so aborting them reclaims the storage that an
+// interrupted/crashed session left behind (T-203 D-6). One abort failure does
+// not stop the sweep: the offending upload is reported via the returned error
+// and retried on the next start.
+func (e *S3Engine) sweepOrphanUploads(ctx context.Context, ttl time.Duration) error {
+	uploads, err := e.listIncompleteUploads(ctx)
+	if err != nil {
+		return err
+	}
+	now := e.timeNow()
+	cutoff := now.Add(-ttl)
+	var firstErr error
+	reclaimed := 0
+	for _, u := range uploads {
+		if u.Initiated.After(cutoff) {
+			continue // still within TTL: a recent upload, leave it alone
+		}
+		// Abort regardless of ctx cancellation: orphan reclamation is best-effort
+		// housekeeping and must not be half-done once started.
+		if err := e.core.AbortMultipartUpload(context.Background(), e.bucket, u.Key, u.UploadID); err != nil {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("storage: s3: sweep orphan uploads: abort %s: %w", u.Key, err)
+			}
+			continue
+		}
+		reclaimed++
+	}
+	return firstErr
+}
+
 // ---------------------------------------------------------------------------
 // s3Session implements the Session interface backed by S3 multipart upload.
 // ---------------------------------------------------------------------------
@@ -381,6 +559,8 @@ type s3Session struct {
 	mu       sync.Mutex
 	digests  *digesters
 	parts    []minio.CompletePart // accumulated PutObjectPart results
+	partBuf  []byte               // pending bytes not yet uploaded; len < partSize
+	partSize int64                // flush threshold for partBuf; resolved at BeginSession
 	received int64
 	done     bool
 	poisoned bool
@@ -390,9 +570,15 @@ type s3Session struct {
 // ID returns the session uuid.
 func (s *s3Session) ID() string { return s.id }
 
-// Append uploads r as a new part in the multipart upload. The part is buffered
-// in memory to compute digests and then uploaded to S3 via PutObjectPart.
-// Returns the cumulative offset.
+// Append streams r into the multipart upload in bounded memory. Bytes flow
+// through the running digesters into the pending part buffer; every time the
+// buffer reaches the session part size it is flushed as one PutObjectPart.
+// The trailing partial buffer (< partSize) is uploaded by Commit as the final
+// part, so per-session memory is capped at partSize regardless of upload
+// size — the whole reader is never resident (T-202, fixing the T-173 D-4
+// 1 GiB -> ~1.96 GiB RSS growth). Multiple Appends coalesce into shared
+// parts, which also keeps sub-5MiB protocol chunks from becoming illegal
+// tiny parts. Returns the cumulative offset.
 func (s *s3Session) Append(ctx context.Context, r io.Reader) (int64, error) {
 	if s == nil {
 		return 0, errors.New("storage: s3: append: nil session")
@@ -410,40 +596,85 @@ func (s *s3Session) Append(ctx context.Context, r io.Reader) (int64, error) {
 		return 0, fmt.Errorf("storage: s3: append session %s: %w", s.id, err)
 	}
 
-	// Buffer the part to compute digests and get a known size. S3 PutObjectPart
-	// requires a reader with known size (io.ReadSeeker or io.Reader + S3 upload
-	// will read the entire body). We use a bytes.Buffer.
-	var buf bytes.Buffer
-	tee := io.TeeReader(r, &buf)
-	// Write to both the digesters and a discard to get the byte count.
-	written, err := io.Copy(io.MultiWriter(s.digests.writer(), io.Discard), tee)
-	if err != nil {
-		s.poison(err)
-		return 0, fmt.Errorf("storage: s3: append session %s: %w", s.id, err)
+	if s.partSize <= 0 {
+		s.partSize = DefaultS3PartSize // hand-built sessions; BeginSession always resolves
 	}
-	if written == 0 {
-		return s.received, nil
+	if s.partBuf == nil {
+		// Start small and grow geometrically toward the part-size flush
+		// threshold: a tiny blob never pays for a full part buffer (the
+		// disk->S3 migration copies thousands of small blobs through one
+		// session each), while a large upload converges to it exactly once.
+		s.partBuf = make([]byte, 0, 32*1024)
 	}
+	digests := s.digests.writer()
 
+	// Read in chunks that never cross the part boundary, so partBuf stays
+	// <= partSize and a full buffer is flushed the moment it fills. The
+	// context is checked per chunk (same contract as the disk engine's
+	// copyWithCtx): a cancelled upload stops consuming the request body.
+	scratch := make([]byte, 32*1024)
+	for {
+		if err := ctx.Err(); err != nil {
+			s.poison(err)
+			return 0, fmt.Errorf("storage: s3: append session %s: %w", s.id, err)
+		}
+		room := int(s.partSize) - len(s.partBuf)
+		if room > len(scratch) {
+			room = len(scratch)
+		}
+		nr, rerr := r.Read(scratch[:room])
+		if nr > 0 {
+			if _, err := digests.Write(scratch[:nr]); err != nil {
+				s.poison(err)
+				return 0, fmt.Errorf("storage: s3: append session %s: %w", s.id, err)
+			}
+			s.partBuf = append(s.partBuf, scratch[:nr]...)
+			s.received += int64(nr)
+			if int64(len(s.partBuf)) >= s.partSize {
+				if err := s.flushPartLocked(ctx); err != nil {
+					s.poison(err)
+					return 0, err
+				}
+			}
+		}
+		if rerr != nil {
+			if errors.Is(rerr, io.EOF) {
+				return s.received, nil
+			}
+			s.poison(rerr)
+			return 0, fmt.Errorf("storage: s3: append session %s: %w", s.id, rerr)
+		}
+	}
+}
+
+// flushPartLocked uploads the pending part buffer as the next part of the
+// multipart upload and resets the buffer for reuse. PutObjectPart is
+// synchronous — the body (a bytes.Reader of a known size) is fully consumed
+// before it returns — so reusing the buffer's storage afterwards is safe.
+// Callers hold s.mu.
+func (s *s3Session) flushPartLocked(ctx context.Context) error {
+	if len(s.partBuf) == 0 {
+		return nil
+	}
 	partNumber := len(s.parts) + 1
 	uploadInfo, err := s.eng.core.PutObjectPart(ctx, s.eng.bucket, s.uploadKey, s.uploadID,
-		partNumber, bytes.NewReader(buf.Bytes()), int64(buf.Len()), minio.PutObjectPartOptions{})
+		partNumber, bytes.NewReader(s.partBuf), int64(len(s.partBuf)), minio.PutObjectPartOptions{})
 	if err != nil {
-		s.poison(err)
-		return 0, fmt.Errorf("storage: s3: append session %s: part %d: %w", s.id, partNumber, err)
+		return fmt.Errorf("storage: s3: session %s: put part %d (%d bytes): %w",
+			s.id, partNumber, len(s.partBuf), err)
 	}
-
 	s.parts = append(s.parts, minio.CompletePart{
 		PartNumber: partNumber,
 		ETag:       uploadInfo.ETag,
 	})
-	s.received += written
-	return s.received, nil
+	s.partBuf = s.partBuf[:0]
+	return nil
 }
 
 // Commit finalizes the multipart upload:
 //  1. Verify expected digests against streamed content.
-//  2. CompleteMultipartUpload (or PutObject for empty/zero-part payloads).
+//  2. Flush the trailing partial part (if any) as the final part, then
+//     CompleteMultipartUpload (or PutObject for empty/zero-part payloads).
 //  3. Copy the result to the final blob key with metadata {"blob-created-at"}.
 //  4. Delete the temp upload key.
 func (s *s3Session) Commit(ctx context.Context, expect BlobRef) (BlobRef, error) {
@@ -507,7 +738,17 @@ func (s *s3Session) Commit(ctx context.Context, expect BlobRef) (BlobRef, error)
 		return BlobRef{}, fmt.Errorf("storage: s3: commit session %s: stat target %s: %w", s.id, targetKey, err)
 	}
 
-	// Step 2: Complete (or put) the upload.
+	// Step 2: flush the trailing partial part as the final part, then
+	// complete (or put, for zero-byte payloads). The flush sits after the
+	// digest gate on purpose: a rejected upload must not ship even its tail.
+	// The trailing part may be smaller than the part size — S3 only requires
+	// non-terminal parts to be >= 5 MiB.
+	if len(s.partBuf) > 0 {
+		if err := s.flushPartLocked(ctx); err != nil {
+			s.failLocked()
+			return BlobRef{}, fmt.Errorf("storage: s3: commit session %s: %w", s.id, err)
+		}
+	}
 	if len(s.parts) == 0 {
 		err := s.putEmptyBlob(ctx, targetKey, actual)
 		if err != nil {
@@ -539,8 +780,15 @@ func (s *s3Session) Commit(ctx context.Context, expect BlobRef) (BlobRef, error)
 		Bucket: s.eng.bucket,
 		Object: targetKey,
 		UserMetadata: map[string]string{
-			"blob-created-at": time.Now().UTC().Format(time.RFC3339),
+			blobCreatedAtMetaKey: s.eng.timeNow().UTC().Format(time.RFC3339),
 		},
+		// Without ReplaceMetadata the S3 COPY operation keeps the source's
+		// metadata and silently drops UserMetadata (minio-go api-compose-object.go
+		// documents "UserMetadata is only set to destination if ReplaceMetadata is
+		// true"). The source here is the temp upload key with no blob-created-at,
+		// so the destination must replace to preserve the creation timestamp
+		// (T-203 D-5).
+		ReplaceMetadata: true,
 	}, minio.CopySrcOptions{
 		Bucket: s.eng.bucket,
 		Object: s.uploadKey,
@@ -569,7 +817,7 @@ func (s *s3Session) putEmptyBlob(ctx context.Context, targetKey string, actual B
 		bytes.NewReader(nil), 0, minio.PutObjectOptions{
 			ContentType: "application/octet-stream",
 			UserMetadata: map[string]string{
-				"blob-created-at": time.Now().UTC().Format(time.RFC3339),
+				blobCreatedAtMetaKey: s.eng.timeNow().UTC().Format(time.RFC3339),
 			},
 		})
 	if err != nil {
@@ -615,6 +863,7 @@ func (s *s3Session) poison(cause error) {
 
 func (s *s3Session) finishLocked() {
 	s.done = true
+	s.partBuf = nil // release the bounded part buffer promptly
 	s.eng.forgetSession(s)
 }
 

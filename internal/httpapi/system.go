@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lzwzzy/binflow/internal/metadata"
+	"github.com/lzwzzy/binflow/internal/storage"
 	minio "github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
@@ -229,12 +229,24 @@ func (s *Server) probeRegistry() subsystemStatus {
 
 // storageStats is the /binflow/api/v1/storage/stats body (E-23): blob
 // count, logical bytes (sum of node sizes) and physical bytes (bytes on
-// disk under blobs/). blob_count < referenced-node count is the
+// disk under blobs/ — or, on an S3-backed instance, summed object bytes in
+// the bucket, T-201/T-173 D-1). blob_count < referenced-node count is the
 // deduplication observable (C12).
 type storageStats struct {
 	BlobCount     int64 `json:"blobs"`
 	LogicalBytes  int64 `json:"logical_bytes"`
 	PhysicalBytes int64 `json:"physical_bytes"`
+}
+
+// BlobInventory is the read-only sizing seam engine-backed instances plug
+// into the stats/metrics/GC-sizing faces (T-201, T-173 D-1): one bucket
+// listing answering every blob's stored size. The S3 engine implements it;
+// cmd wires it only when the assembly's engine is the S3 one — a dual-write
+// (migration in progress) stack keeps the disk walk because its data
+// directory still carries every blob. Nil (the default) preserves the M1
+// disk behavior everywhere else.
+type BlobInventory interface {
+	BlobStats(ctx context.Context) (map[string]storage.BlobStat, error)
 }
 
 // handleV1StorageStats answers the QA/ops stats endpoint (E-23). Requires
@@ -246,7 +258,7 @@ func (s *Server) handleV1StorageStats(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, fmt.Sprintf("count blobs: %v", err))
 		return
 	}
-	logical, physical, err := countBytes(r, s.deps.Metadata, s.deps.DataDir)
+	logical, physical, err := s.countBytes(r)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -265,18 +277,17 @@ func (s *Server) handleV1StorageStats(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(body)
 }
 
-// metadataStore is the consumer-side slice of metadata.Store the system
-// endpoints need (full Store also satisfies it — cmd wires the real one).
-type metadataStore interface {
-	Repos() metadata.RepoStore
-	Nodes() metadata.NodeStore
-	Blobs() metadata.BlobStore
-}
-
 // countBytes computes the logical total (sum of node sizes across every
-// repository) and the physical total (file sizes under blobs/). The two
-// numbers diverge exactly by deduplication and unreferenced-blob residue.
-func countBytes(r *http.Request, md metadataStore, dataDir string) (logical, physical int64, err error) {
+// repository) and the physical total. The two numbers diverge exactly by
+// deduplication and unreferenced-blob residue.
+//
+// The physical half is engine-aware (T-201, T-173 D-1): a wired
+// Deps.BlobInventory (S3-backed instance) sizes the bucket through the
+// engine's listing — the previous unconditional dirSize(data_dir/blobs)
+// made the endpoint a permanent 500 under backend=s3, where no such
+// directory exists. Everything else keeps the disk walk.
+func (s *Server) countBytes(r *http.Request) (logical, physical int64, err error) {
+	md := s.deps.Metadata
 	repos, err := md.Repos().List(r.Context())
 	if err != nil {
 		return 0, 0, fmt.Errorf("list repositories for stats: %w", err)
@@ -290,7 +301,17 @@ func countBytes(r *http.Request, md metadataStore, dataDir string) (logical, phy
 			logical += n.Size
 		}
 	}
-	physical, err = dirSize(filepath.Join(dataDir, "blobs"))
+	if s.deps.BlobInventory != nil {
+		stats, err := s.deps.BlobInventory.BlobStats(r.Context())
+		if err != nil {
+			return 0, 0, fmt.Errorf("size blobs through the storage engine: %w", err)
+		}
+		for _, st := range stats {
+			physical += st.Size
+		}
+		return logical, physical, nil
+	}
+	physical, err = dirSize(filepath.Join(s.deps.DataDir, "blobs"))
 	if err != nil {
 		return 0, 0, fmt.Errorf("size of blobs dir: %w", err)
 	}

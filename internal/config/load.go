@@ -54,10 +54,12 @@ type raw struct {
 		DSN    *string `yaml:"dsn"`
 	} `yaml:"metadata"`
 	Auth *struct {
-		Argon2MemoryMB       *int  `yaml:"argon2_memory_mb"`
-		TokenDefaultTTLHours *int  `yaml:"token_default_ttl_hours"`
-		AnonymousRead        *bool `yaml:"anonymous_read"`
-		OIDC                 *struct {
+		Argon2MemoryMB         *int  `yaml:"argon2_memory_mb"`
+		TokenDefaultTTLHours   *int  `yaml:"token_default_ttl_hours"`
+		TokenNonAdminMaxTTLSec *int  `yaml:"token_nonadmin_max_ttl"`
+		HashConcurrency        *int  `yaml:"hash_concurrency"`
+		AnonymousRead          *bool `yaml:"anonymous_read"`
+		OIDC                   *struct {
 			Enabled     *bool    `yaml:"enabled"`
 			IssuerURL   *string  `yaml:"issuer_url"`
 			ClientID    *string  `yaml:"client_id"`
@@ -75,10 +77,12 @@ type raw struct {
 			UserFilter    *string `yaml:"user_filter"`
 			UserIDAttr    *string `yaml:"user_id_attr"`
 			GroupFilter   *string `yaml:"group_filter"`
+			GroupBaseDN   *string `yaml:"group_base_dn"`
 			GroupNameAttr *string `yaml:"group_name_attr"`
 			AdminGroup    *string `yaml:"admin_group"`
 			PoolSize      *int    `yaml:"pool_size"`
 			StartTLS      *bool   `yaml:"start_tls"`
+			SkipTLSVerify *bool   `yaml:"skip_tls_verify"`
 		} `yaml:"ldap"`
 	} `yaml:"auth"`
 	Security *struct {
@@ -328,6 +332,15 @@ func build(r *raw, env map[string]string) (*Config, error) {
 		if r.Auth.TokenDefaultTTLHours != nil {
 			c.Auth.TokenDefaultTTL = time.Duration(*r.Auth.TokenDefaultTTLHours) * time.Hour
 		}
+		if r.Auth.TokenNonAdminMaxTTLSec != nil {
+			c.Auth.TokenNonAdminMaxTTL = time.Duration(*r.Auth.TokenNonAdminMaxTTLSec) * time.Second
+		}
+		// Explicit 0 counts as unset: the sentinel keeps the auth service's
+		// derived default (GOMAXPROCS clamped), so operators can spell
+		// "default" without deleting the line. Validate rejects negatives.
+		if r.Auth.HashConcurrency != nil {
+			c.Auth.HashConcurrency = *r.Auth.HashConcurrency
+		}
 		if r.Auth.OIDC != nil {
 			o := r.Auth.OIDC
 			if o.Enabled != nil {
@@ -378,6 +391,9 @@ func build(r *raw, env map[string]string) (*Config, error) {
 			if l.GroupFilter != nil {
 				c.Auth.LDAP.GroupFilter = *l.GroupFilter
 			}
+			if l.GroupBaseDN != nil {
+				c.Auth.LDAP.GroupBaseDN = *l.GroupBaseDN
+			}
 			if l.GroupNameAttr != nil {
 				c.Auth.LDAP.GroupNameAttr = *l.GroupNameAttr
 			}
@@ -389,6 +405,9 @@ func build(r *raw, env map[string]string) (*Config, error) {
 			}
 			if l.StartTLS != nil {
 				c.Auth.LDAP.StartTLS = *l.StartTLS
+			}
+			if l.SkipTLSVerify != nil {
+				c.Auth.LDAP.SkipTLSVerify = *l.SkipTLSVerify
 			}
 		}
 	}
@@ -471,8 +490,14 @@ func defaults() *Config {
 		},
 		Metadata: MetadataConfig{Driver: DefaultDriver, DSN: ""},
 		Auth: AuthConfig{
-			Argon2MemoryMB:  DefaultArgon2MemoryMB,
-			TokenDefaultTTL: DefaultTokenTTL,
+			Argon2MemoryMB:      DefaultArgon2MemoryMB,
+			TokenDefaultTTL:     DefaultTokenTTL,
+			TokenNonAdminMaxTTL: DefaultTokenNonAdminMaxTTL,
+			// HashConcurrency stays at its sentinel 0: unset means the
+			// auth service derives its own limit (GOMAXPROCS clamped to
+			// [1,16] — see AuthConfig.HashConcurrency), so an unconfigured
+			// boot is byte-for-byte the pre-T-204 behavior.
+			HashConcurrency: 0,
 			// M6 identity providers default to disabled: an unconfigured boot
 			// keeps the pre-M6 local-only posture (zero behavior change).
 			OIDC: OIDCConfig{},
@@ -684,8 +709,12 @@ func setEnvValue(c *Config, path []string, kind envKind, value, name string) err
 			c.Storage.Migration.Concurrency = n
 		case "auth.argon2_memory_mb":
 			c.Auth.Argon2MemoryMB = n
+		case "auth.hash_concurrency":
+			c.Auth.HashConcurrency = n
 		case "auth.token_default_ttl_hours":
 			c.Auth.TokenDefaultTTL = time.Duration(n) * time.Hour
+		case "auth.token_nonadmin_max_ttl":
+			c.Auth.TokenNonAdminMaxTTL = time.Duration(n) * time.Second
 		case "console.session_ttl_hours":
 			c.Console.SessionTTL = time.Duration(n) * time.Hour
 		case "console.session_ttl_seconds":

@@ -80,39 +80,68 @@ auth:
 
 // TestLoadAuthLDAPSection: the full auth.ldap section decodes field for
 // field; absent optionals stay empty, pool_size carries the explicit value.
+// The T-186 keys (group_base_dn / skip_tls_verify) are part of the full
+// section (T-174 D6: they used to be rejected by the strict decoder).
 func TestLoadAuthLDAPSection(t *testing.T) {
 	c := mustLoad(t, `
 auth:
   ldap:
     enabled: true
-    url: "ldaps://ad.example.com:636"
+    url: "ldap://ad.example.com:389"
     base_dn: "DC=example,DC=com"
     bind_dn: "CN=binflow-bind,CN=Users,DC=example,DC=com"
     user_filter: "(&(objectClass=user)(sAMAccountName=%s))"
     user_id_attr: "sAMAccountName"
     group_filter: "(&(objectClass=group)(member=%s))"
+    group_base_dn: "OU=Groups,DC=example,DC=com"
     group_name_attr: "cn"
     admin_group: "CN=BinFlowAdmins,CN=Users,DC=example,DC=com"
     pool_size: 12
-    start_tls: false
+    start_tls: true
+    skip_tls_verify: true
 `, map[string]string{LDAPBindPasswordEnvVar: "env-only-bind-pw"})
 
 	want := LDAPConfig{
 		Enabled:       true,
-		URL:           "ldaps://ad.example.com:636",
+		URL:           "ldap://ad.example.com:389",
 		BaseDN:        "DC=example,DC=com",
 		BindDN:        "CN=binflow-bind,CN=Users,DC=example,DC=com",
 		BindPassword:  "env-only-bind-pw",
 		UserFilter:    "(&(objectClass=user)(sAMAccountName=%s))",
 		UserIDAttr:    "sAMAccountName",
 		GroupFilter:   "(&(objectClass=group)(member=%s))",
+		GroupBaseDN:   "OU=Groups,DC=example,DC=com",
 		GroupNameAttr: "cn",
 		AdminGroup:    "CN=BinFlowAdmins,CN=Users,DC=example,DC=com",
 		PoolSize:      12,
-		StartTLS:      false,
+		StartTLS:      true,
+		SkipTLSVerify: true,
 	}
 	if c.Auth.LDAP != want {
 		t.Errorf("LDAP = %+v,\nwant %+v", c.Auth.LDAP, want)
+	}
+}
+
+// TestLoadAuthLDAPTLSDefaults (T-186 AC 2): skip_tls_verify defaults to
+// false (NFR-S36 — verification is always on unless the operator opts out)
+// and group_base_dn defaults to empty (= base_dn, resolved in internal/auth
+// at construction); the start_tls default stays false.
+func TestLoadAuthLDAPTLSDefaults(t *testing.T) {
+	c := mustLoad(t, `
+auth:
+  ldap:
+    enabled: true
+    url: "ldap://ad.example.com:389"
+    base_dn: "DC=example,DC=com"
+`, nil)
+	if c.Auth.LDAP.SkipTLSVerify {
+		t.Error("LDAP.SkipTLSVerify = true, want false by default")
+	}
+	if c.Auth.LDAP.StartTLS {
+		t.Error("LDAP.StartTLS = true, want false by default")
+	}
+	if c.Auth.LDAP.GroupBaseDN != "" {
+		t.Errorf("LDAP.GroupBaseDN = %q, want empty (= base_dn) by default", c.Auth.LDAP.GroupBaseDN)
 	}
 }
 
@@ -185,6 +214,8 @@ func TestAuthProvidersStrictDecoderRejectsUnknownKeys(t *testing.T) {
 		{"unknown ldap key", "auth:\n  ldap:\n    admin_group_dn: \"cn=a\"\n"},
 		{"unknown provider section", "auth:\n  saml:\n    enabled: true\n"},
 		{"typo in enabled", "auth:\n  oidc:\n    enbaled: true\n"},
+		{"typo in skip_tls_verify", "auth:\n  ldap:\n    skip_tls_verrify: true\n"},
+		{"typo in group_base_dn", "auth:\n  ldap:\n    group_base_dns: \"ou=g\"\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := loadWithEnv(t, tc.body, nil)

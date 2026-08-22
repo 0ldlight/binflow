@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/lzwzzy/binflow/internal/adapter"
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/repo"
@@ -67,6 +68,14 @@ type Handler struct {
 	opts   Options
 	log    *slog.Logger
 	sess   *sessionRegistry
+	// verifier is the gated password-verification seam the form-credential
+	// exchange runs through (T-204 / T-192 leftover 2). New recovers it
+	// from the authz collaborator — every production assembly passes the
+	// *auth.Service there, so the token endpoint shares the service's one
+	// argon2 gate with the Basic arm. nil (bare test assemblies with fake
+	// authorizers) fails the form-credential path closed; it never falls
+	// back to the ungated pure auth.VerifyPassword.
+	verifier adapter.PasswordVerifier
 	// store drives the blob-upload sessions (T-38). The architecture's
 	// "adapters talk to repo.Service only" rule bends exactly once here —
 	// the section 5.3 session-docking ruling: the upload endpoints own the
@@ -147,6 +156,14 @@ func New(svc repo.Service, repos RepoLookup, authz auth.Authorizer, tokens auth.
 		opts:   opts,
 		log:    log,
 		sess:   newSessionRegistry(),
+	}
+	// Recover the gated verification capability from the identity service
+	// the assembler already wired (cmd and the httpapi harness pass the
+	// *auth.Service as authz; the same capability-probe precedent as
+	// AuthenticateCredentials' LDAP Bind). A fake authorizer leaves the
+	// verifier nil and the form-credential exchange fails closed.
+	if pv, ok := authz.(adapter.PasswordVerifier); ok {
+		h.verifier = pv
 	}
 	if users != nil {
 		h.users = userSeed{store: users}

@@ -390,7 +390,7 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	// GET/DELETE demand an authenticated principal of any arm — whoami is
 	// the SPA's route guard, DELETE revokes the presented session. Login
 	// failures render inside the handler so the uniform 401 wording and the
-	// login.failed audit event stay in one place.
+	// auth.failed audit event stay in one place.
 	case rest == "v1/session" && r.Method == http.MethodPost:
 		s.enforce(w, r, routeAuth{}, s.handleSessionCreate)
 	case rest == "v1/session" && r.Method == http.MethodGet:
@@ -498,12 +498,13 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	case rest == "security/users/authorization/changePassword" && r.Method == http.MethodPost:
 		s.enforce(w, r, routeAuth{required: true}, s.handleChangePasswordAlias)
 	case rest == "security/token" && r.Method == http.MethodPost:
-		// D3: minting is admin-only, aligned with /revoke (auth-model.md
-		// sections 3.3/3.4 mark the token management family admin-only).
-		// M1 has no scope model to honor the spec's "non-admin may mint for
-		// themselves" branch — an api:* token would carry full subject
-		// privileges, so the branch stays closed until scopes exist.
-		s.enforce(w, r, routeAuth{required: true, admin: true, oauth: true}, s.handleTokenCreate)
+		// T-190 (PRD M6 v1.2 Q11, T-188 ruling — supersedes the M1 D3
+		// admin-only subset): minting is open to EVERY authenticated caller
+		// (local/OIDC/LDAP arms alike); the admin-vs-self distinction moved
+		// into the handler (subject + TTL cap guardrails). Anonymous still
+		// meets the 401 challenge here. List/revoke below stay admin-only
+		// (auth-model.md sections 3.3/3.4).
+		s.enforce(w, r, routeAuth{required: true, oauth: true}, s.handleTokenCreate)
 	case rest == "security/token/revoke" && r.Method == http.MethodPost:
 		// oauth: every non-2xx on the token family renders the OAuth error
 		// body, authorization denials included (D3 follow-up: revoke's 403

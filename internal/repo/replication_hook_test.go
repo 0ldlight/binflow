@@ -170,3 +170,111 @@ type panicReplicator struct{}
 func (panicReplicator) Enqueue(context.Context, string, string, string) {
 	panic("replicator boom")
 }
+
+// ---- T-195 D4: the landed-blob and manifest chains fire the same hook ----
+
+// newHookStack builds the hook stack and ALSO hands back the storage engine
+// (the landed-blob tests drive a real upload session the way the adapters
+// do). Repos is a list of (key, packageType) local repositories to seed.
+func newHookStack(t *testing.T, repl repo.Replicator, repos ...[2]string) (repo.Service, storage.Engine, context.Context) {
+	t.Helper()
+	ctx := context.Background()
+	eng, err := storage.OpenEngine(t.TempDir(), storage.Options{})
+	if err != nil {
+		t.Fatalf("OpenEngine: %v", err)
+	}
+	t.Cleanup(func() { _ = eng.Close() })
+	md, err := metadata.Open(ctx, metadata.Options{
+		Driver: "sqlite", Path: filepath.Join(t.TempDir(), "seed.db"), AdminPassword: "pw",
+	})
+	if err != nil {
+		t.Fatalf("metadata.Open: %v", err)
+	}
+	t.Cleanup(func() { _ = md.Close() })
+	for _, r := range repos {
+		if err := md.Repos().Create(ctx, &metadata.Repo{
+			RepoKey: r[0], Type: repo.TypeLocal, PackageType: r[1],
+			Config: "{}", CreatedAt: "2026-08-22T00:00:00Z", UpdatedAt: "2026-08-22T00:00:00Z",
+		}); err != nil {
+			t.Fatalf("seed repo %s: %v", r[0], err)
+		}
+	}
+	svc := repo.New(eng, md, nil, nil)
+	if repl != nil {
+		repo.AttachReplicator(svc, repl)
+	}
+	return svc, eng, ctx
+}
+
+// waitEnqueued polls the recording replicator until want appears.
+func waitEnqueued(t *testing.T, repl *recordingReplicator, want string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		for _, c := range repl.recorded() {
+			if c == want {
+				return
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("enqueue calls = %v, want %s among them", repl.recorded(), want)
+}
+
+// PutLandedBlob is the landing chain of docker layer/config finalizes and
+// pypi uploads; T-175 D4 found it enqueued nothing. The hook fires with the
+// landed node's sha256 at the same path.
+func TestPutLandedBlobFiresReplicationHook(t *testing.T) {
+	repl := &recordingReplicator{}
+	svc, eng, ctx := newHookStack(t, repl, [2]string{"generic-local", repo.PackageGeneric})
+
+	sess, err := eng.BeginSession(ctx)
+	if err != nil {
+		t.Fatalf("BeginSession: %v", err)
+	}
+	if _, err := sess.Append(ctx, strings.NewReader("landed payload")); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+	ref, err := sess.Commit(ctx, storage.BlobRef{})
+	if err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+
+	node, err := svc.PutLandedBlob(ctx, admin(), "generic-local", "acme/landed.bin", ref, "application/octet-stream")
+	if err != nil {
+		t.Fatalf("PutLandedBlob: %v", err)
+	}
+	waitEnqueued(t, repl, "generic-local|acme/landed.bin|"+node.Sha256)
+}
+
+// PutManifest (the docker manifest node + tag/index rows) fires the hook
+// with the manifest node path and digest — the task that drives the /v2
+// manifest-and-tags push plane on the target (T-195 D2).
+func TestPutManifestFiresReplicationHook(t *testing.T) {
+	repl := &recordingReplicator{}
+	svc, eng, ctx := newHookStack(t, repl, [2]string{"docker-local", repo.PackageDocker})
+
+	// The manifest body must exist as a landed blob first (the adapter's
+	// two-step landing: svc.Put of the body, then PutManifest).
+	sess, err := eng.BeginSession(ctx)
+	if err != nil {
+		t.Fatalf("BeginSession: %v", err)
+	}
+	if _, err := sess.Append(ctx, strings.NewReader("manifest bytes")); err != nil {
+		t.Fatalf("Append: %v", err)
+	}
+	ref, err := sess.Commit(ctx, storage.BlobRef{})
+	if err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+	if _, err := svc.Put(ctx, admin(), "docker-local", "t195/app/blobs/"+ref.Sha256,
+		strings.NewReader("manifest bytes"), storage.BlobRef{Sha256: ref.Sha256}, "application/octet-stream"); err != nil {
+		t.Fatalf("Put manifest body: %v", err)
+	}
+
+	if _, err := svc.PutManifest(ctx, admin(), "docker-local", "t195/app", ref.Sha256, "1.0",
+		"application/vnd.docker.distribution.manifest.v2+json", int64(len("manifest bytes")), nil); err != nil {
+		t.Fatalf("PutManifest: %v", err)
+	}
+	waitEnqueued(t, repl, "docker-local|t195/app/manifests/"+ref.Sha256+"|"+ref.Sha256)
+}

@@ -9,6 +9,12 @@ package main
 //	         (manifest + sizes + sha spot/full) before writing a single byte,
 //	         then db -> blobs; any failure clears the target back to empty
 //
+// The blob half of both faces is engine-aware (T-201, T-173 D-2): on
+// storage.backend=s3 (without a live dual-write migration) the blobs come
+// out of / go back into the storage engine — the data directory carries no
+// blobs/ tree there. Dual-write stacks keep the tree copy; the migration's
+// restart-safe re-scan reconciles the difference.
+//
 // There is deliberately no REST face for either (GE-09: /api/export/** and
 // /api/import/** stay 404 — the write side is high-risk and belongs to an
 // out-of-band CLI, ADR-0015 decision 5).
@@ -30,6 +36,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -175,7 +182,26 @@ func runExport(args []string, stderr io.Writer) error {
 	}
 
 	// Step 2 — copy blobs (mtime preserved; surplus window blobs allowed).
-	files, copied, err := storage.CopyBlobsTree(cfg.Storage.DataDir, out)
+	//
+	// Engine-aware since T-201 (T-173 D-2): an S3-backed instance streams
+	// each referenced blob OUT of the storage engine — the data directory
+	// carries no blobs/ tree to walk, so the previous unconditional
+	// CopyBlobsTree made every S3 export die at the manifest boundary
+	// ("dangling reference") after copying nothing. Dual-write stacks keep
+	// the tree copy: while a migration runs, the disk half still carries
+	// every blob.
+	var files int
+	var copied int64
+	if engineBackedBlobStore(cfg) {
+		st, oerr := openStorageEngine(ctx, cfg, logger)
+		if oerr != nil {
+			return fmt.Errorf("export: %w", oerr)
+		}
+		defer func() { _ = st.Close() }()
+		files, copied, err = exportBlobsFromEngine(ctx, st, live, out)
+	} else {
+		files, copied, err = storage.CopyBlobsTree(cfg.Storage.DataDir, out)
+	}
 	if err != nil {
 		return fmt.Errorf("export: %w", err)
 	}
@@ -401,8 +427,28 @@ func runImport(args []string, stderr io.Writer) error {
 	if err := copyFile(metaSrc, dbAbs, 0o600); err != nil {
 		return fmt.Errorf("import: %w", err)
 	}
-	if _, _, err := storage.CopyBlobsTree(in, cfg.Storage.DataDir); err != nil {
-		return fmt.Errorf("import: %w", err)
+	// Blob restore is engine-aware (T-201, T-173 D-2 — the symmetric half
+	// of the export fix): an S3-backed instance uploads the artifact's
+	// blobs INTO the bucket through the engine's session path (the same
+	// drive the migration engine uses), because a data-dir blobs/ tree is
+	// not where that instance reads blobs from. A write-phase failure rolls
+	// the uploads back through the engine — the no-half-restore guarantee
+	// extends to the bucket for blobs THIS run created (pre-existing
+	// objects are never touched: a blob the bucket already carries is
+	// skipped as idempotent, not re-uploaded, and must not be deleted).
+	// Dual-write stacks keep the tree copy; the migration's idempotent
+	// re-scan syncs the restored disk blobs to S3 on its next run.
+	if engineBackedBlobStore(cfg) {
+		st, oerr := openStorageEngine(ctx, cfg, logger)
+		if oerr != nil {
+			return fmt.Errorf("import: %w", oerr)
+		}
+		defer func() { _ = st.Close() }()
+		if uerr := importBlobsIntoEngine(ctx, st, in, manifest, logger); uerr != nil {
+			return fmt.Errorf("import: %w", uerr)
+		}
+	} else if _, _, cerr := storage.CopyBlobsTree(in, cfg.Storage.DataDir); cerr != nil {
+		return fmt.Errorf("import: %w", cerr)
 	}
 	// The engine's posture for a data directory: secret-grade contents.
 	if err := os.Chmod(cfg.Storage.DataDir, 0o700); err != nil { //nolint:gosec // G302: matches the engine's 0700 data-dir posture (OpenEngine)
@@ -448,6 +494,171 @@ func runImport(args []string, stderr io.Writer) error {
 		in, manifest.BlobCount, manifest.TotalBytes, *verify, hashed)
 
 	restored = true
+	return nil
+}
+
+// engineBackedBlobStore reports whether the configured instance keeps its
+// blobs in the storage engine rather than the data directory's blobs/ tree:
+// backend=s3 without a live dual-write migration (T-201, T-173 D-2). A
+// dual-write stack's disk half still carries every blob, so both backup
+// faces keep the tree copy there — and the migration's restart-safe re-scan
+// reconciles anything a restore landed on disk only.
+func engineBackedBlobStore(cfg *config.Config) bool {
+	if cfg.Storage.Backend != config.StorageBackendS3 {
+		return false
+	}
+	return !cfg.Storage.Migration.Enabled || cfg.Storage.Migration.Completed
+}
+
+// blobInventory is the consumer-side spelling of the storage engine's
+// read-only listing seam (storage.S3Engine.BlobStats): the export uses the
+// per-object LastModified as the artifact's mtime — the bucket's stand-in
+// for the disk mtime the tree copy preserves (W28/W32: the GC grace clock
+// must not reset on restore). An engine without the seam falls back to the
+// write time, the same value a fresh upload would carry.
+type blobInventory interface {
+	BlobStats(ctx context.Context) (map[string]storage.BlobStat, error)
+}
+
+// exportBlobsFromEngine streams every snapshot-referenced blob out of the
+// engine into the artifact's blobs/ tree (the engine-backed replacement for
+// storage.CopyBlobsTree, T-201). Unlike the tree copy this ships EXACTLY
+// the live set — the bucket holds no per-run surplus to speak of, and an
+// unreferenced object the operator keeps in the bucket is not the backup's
+// business. A blob the engine cannot produce is a dangling reference in the
+// SOURCE instance: refuse rather than ship a broken artifact (W28b).
+func exportBlobsFromEngine(ctx context.Context, eng storage.Engine, live map[string]struct{}, out string) (files int, bytes int64, err error) {
+	mtimes := map[string]time.Time{}
+	if inv, ok := eng.(blobInventory); ok {
+		stats, serr := inv.BlobStats(ctx)
+		if serr != nil {
+			return 0, 0, fmt.Errorf("sizing blobs through the storage engine: %w", serr)
+		}
+		for sha, stat := range stats {
+			mtimes[sha] = stat.LastModified
+		}
+	}
+	shas := make([]string, 0, len(live))
+	for sha := range live {
+		shas = append(shas, sha)
+	}
+	sort.Strings(shas)
+	for _, sha := range shas {
+		rc, _, oerr := eng.Open(ctx, sha)
+		if oerr != nil {
+			return files, bytes, fmt.Errorf("snapshot references blob %s but the storage engine does not carry it (dangling reference in the source instance): %w", sha, oerr)
+		}
+		dst, perr := storage.BlobPath(out, sha)
+		if perr != nil {
+			_ = rc.Close()
+			return files, bytes, perr
+		}
+		n, werr := writeBlobFromReader(dst, rc, mtimes[sha])
+		if cerr := rc.Close(); werr == nil && cerr != nil {
+			werr = fmt.Errorf("close blob %s stream: %w", sha, cerr)
+		}
+		if werr != nil {
+			return files, bytes, werr
+		}
+		files++
+		bytes += n
+	}
+	return files, bytes, nil
+}
+
+// writeBlobFromReader persists one streamed blob at dst: 0600, fsynced (a
+// crash mid-backup must not leave a short file under a correct name), and
+// stamped with mtime when the source carries one (zero time = keep the
+// write time). The temp+rename dance is unnecessary here: the artifact
+// directory is this run's private output, cleaned wholesale on failure.
+func writeBlobFromReader(dst string, r io.Reader, mtime time.Time) (int64, error) {
+	if err := os.MkdirAll(filepath.Dir(dst), 0o700); err != nil {
+		return 0, fmt.Errorf("create shard dir %s: %w", filepath.Dir(dst), err)
+	}
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o600) //nolint:gosec // G304: dst is built from the manifest-validated 64-hex digest
+	if err != nil {
+		return 0, fmt.Errorf("create %s: %w", dst, err)
+	}
+	n, err := io.Copy(out, r)
+	if err != nil {
+		_ = out.Close()
+		return n, fmt.Errorf("write %s: %w", dst, err)
+	}
+	if err := out.Sync(); err != nil {
+		_ = out.Close()
+		return n, fmt.Errorf("fsync %s: %w", dst, err)
+	}
+	if err := out.Close(); err != nil {
+		return n, fmt.Errorf("close %s: %w", dst, err)
+	}
+	if !mtime.IsZero() {
+		if err := os.Chtimes(dst, mtime, mtime); err != nil {
+			return n, fmt.Errorf("restore mtime on %s: %w", dst, err)
+		}
+	}
+	return n, nil
+}
+
+// importBlobsIntoEngine uploads the artifact's blobs into the storage
+// engine's blob store (the S3-backed restore path, T-201). Blobs are
+// streamed through the engine's own session protocol — the same drive the
+// migration engine uses — with the manifest's sha256 as the expected
+// digest, so the engine's commit-time checksum gate is the integrity check
+// on the wire. Idempotent per blob: one the store already carries is
+// skipped. A failure mid-run deletes the blobs THIS run created (best
+// effort, on a context detached from the failing one) so a failed import
+// leaves no half-restored bucket either.
+func importBlobsIntoEngine(ctx context.Context, eng storage.Engine, in string, manifest *storage.Manifest, logger *slog.Logger) (err error) {
+	var created []string
+	defer func() {
+		if err == nil {
+			return
+		}
+		rollbackCtx := context.WithoutCancel(ctx)
+		for _, sha := range created {
+			if derr := eng.Delete(rollbackCtx, sha); derr != nil && !errors.Is(derr, storage.ErrBlobNotFound) {
+				logger.Warn("import: rolling back an uploaded blob failed", "sha256", sha, "error", derr.Error())
+			}
+		}
+	}()
+	for _, b := range manifest.Blobs {
+		if rc, _, perr := eng.Open(ctx, b.Sha256); perr == nil {
+			_ = rc.Close()
+			continue // the store already carries it: idempotent skip
+		} else if !errors.Is(perr, storage.ErrBlobNotFound) {
+			return fmt.Errorf("probing blob %s in the target store: %w", b.Sha256, perr)
+		}
+		src, perr := storage.BlobPath(in, b.Sha256)
+		if perr != nil {
+			return perr
+		}
+		f, oerr := os.Open(src) //nolint:gosec // G304: path built from the manifest's verified 64-hex digest
+		if oerr != nil {
+			return fmt.Errorf("open backup blob %s: %w", src, oerr)
+		}
+		sess, serr := eng.BeginSession(ctx)
+		if serr != nil {
+			_ = f.Close()
+			return fmt.Errorf("begin upload session for %s: %w", b.Sha256, serr)
+		}
+		if _, aerr := sess.Append(ctx, f); aerr != nil {
+			_ = f.Close()
+			_ = sess.Abort(ctx)
+			return fmt.Errorf("upload blob %s: %w", b.Sha256, aerr)
+		}
+		ref, cerr := sess.Commit(ctx, storage.BlobRef{Sha256: b.Sha256, Size: b.Size})
+		if cerr != nil {
+			_ = f.Close()
+			return fmt.Errorf("commit blob %s: %w", b.Sha256, cerr)
+		}
+		if err := f.Close(); err != nil {
+			return fmt.Errorf("close backup blob %s: %w", src, err)
+		}
+		if ref.Size != b.Size {
+			return fmt.Errorf("blob %s restored as %d bytes, manifest says %d — the backup is corrupted", b.Sha256, ref.Size, b.Size)
+		}
+		created = append(created, b.Sha256)
+	}
 	return nil
 }
 

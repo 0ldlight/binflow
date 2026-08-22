@@ -21,11 +21,39 @@ type Event struct {
 	ID         int64  // row id; zero on the append path, set by Query (GE-01)
 	Time       string // RFC3339 UTC; stamped by the Logger when empty
 	Actor      string // principal name, or ActorAnonymous
-	Action     string // deploy|delete|download|login.success|login.failed|repo.create|...
+	Action     string // deploy|delete|download|login.success|auth.failed|repo.create|...
 	Repo       string
 	Path       string
 	RemoteAddr string
 	Detail     string // JSON object string
+}
+
+// Detail keys of the authentication events (T-187 / T-174 D8). The
+// audit_events row schema has no columns for them, so like remote_addr they
+// ride the Detail JSON object — the query plane renders that object
+// verbatim, so consumers see the fields inside detail.
+const (
+	DetailKeyMethod = "method"
+	DetailKeyReason = "reason"
+)
+
+// AuthEventDetail builds the Detail payload of an authentication audit
+// event: {"method": ...} on success, {"method": ..., "reason": ...} on
+// failure (PRD FR-56-AC3). method is the arm (local/oidc/ldap); reason is
+// the minimal classification (bad_credentials / user_not_found /
+// provider_error / tls_handshake / ...). An empty reason is omitted (the
+// success shape); neither key is credential-shaped, so Redact leaves them
+// alone.
+func AuthEventDetail(method, reason string) string {
+	m := map[string]string{DetailKeyMethod: method}
+	if reason != "" {
+		m[DetailKeyReason] = reason
+	}
+	b, err := json.Marshal(m)
+	if err != nil {
+		return "{}" // unreachable: a flat string map always marshals
+	}
+	return string(b)
 }
 
 // Filter narrows a Query (full-parameter form, GE-01/T-93). Every field is
@@ -77,12 +105,18 @@ func NormalizeTimestamp(v string) (string, error) {
 const ActorAnonymous = "anonymous"
 
 // Action vocabulary (architecture section 3.5 / section 6 DDL comment).
+//
+// ActionAuthFail is the M6 PRD spelling (FR-56-AC3, section 6.4): it
+// replaced the M4 "login.failed" name wholesale in T-187 (T-174 D7) — one
+// vocabulary, no alias. Rows written before T-187 still carry the old name
+// (the log is append-only; history is never rewritten), so a filter on
+// "login.failed" keeps matching pre-upgrade events only.
 const (
 	ActionDeploy         = "deploy"
 	ActionDelete         = "delete"
 	ActionDownload       = "download"
 	ActionLoginOK        = "login.success"
-	ActionLoginFail      = "login.failed"
+	ActionAuthFail       = "auth.failed"
 	ActionRepoCreate     = "repo.create"
 	ActionRepoUpdate     = "repo.update"
 	ActionRepoDelete     = "repo.delete"
@@ -123,7 +157,7 @@ const (
 func Actions() []string {
 	return []string{
 		ActionDeploy, ActionDelete, ActionDownload,
-		ActionLoginOK, ActionLoginFail,
+		ActionLoginOK, ActionAuthFail,
 		ActionRepoCreate, ActionRepoUpdate, ActionRepoDelete,
 		ActionTokenIssue, ActionTokenRevoke,
 		ActionPasswordChange,

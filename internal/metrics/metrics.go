@@ -7,6 +7,10 @@
 // cells (CAS-loop float64, atomic counts). Inc/Set/Observe never block the
 // request path; Format takes a copy-and-sort snapshot under Range.
 //
+// Registration also enforces the Prometheus naming convention that the
+// `_total` suffix is reserved for counters (T-197 / D5): a gauge or
+// histogram declared with a `_total` name is rejected up front.
+//
 // Metric family layout (four families, T-163/FR-61): HTTP (request counter,
 // latency histogram, in-flight gauge), storage (blob count / byte gauges,
 // engine label), auth (login counter by source) and replication (task gauge
@@ -83,6 +87,9 @@ func (r *Registry) NewHistogram(name, help string, buckets []float64) (*Histogra
 // subsystems can never silently share a metric name with divergent meaning.
 func (r *Registry) register(name, help, typ string, buckets []float64) (*family, error) {
 	if err := validateMetricName(name); err != nil {
+		return nil, err
+	}
+	if err := validateMetricNamingConvention(name, typ); err != nil {
 		return nil, err
 	}
 	if err := validateBuckets(typ, buckets); err != nil {
@@ -366,6 +373,19 @@ func validateMetricName(name string) error {
 		default:
 			return fmt.Errorf("metrics: invalid metric name %q", name)
 		}
+	}
+	return nil
+}
+
+// validateMetricNamingConvention enforces the Prometheus naming guidance that
+// the `_total` suffix is reserved for counters (T-197 / D5: promtool's
+// "non-counter metrics should not have _total suffix" lint). The registry
+// rejects the declaration at registration time so a gauge named `..._total`
+// can never reach an exposition again — the failure surfaces in tests, where
+// family declarations live (the consumer-side must* helpers panic on it).
+func validateMetricNamingConvention(name, typ string) error {
+	if typ != TypeCounter && strings.HasSuffix(name, "_total") {
+		return fmt.Errorf("metrics: metric name %q: the _total suffix is reserved for counters (type %s must not carry it)", name, typ)
 	}
 	return nil
 }

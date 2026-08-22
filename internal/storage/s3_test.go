@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -28,6 +29,41 @@ type mockS3Server struct {
 
 	mu      sync.Mutex
 	buckets map[string]*mockBucket
+
+	// partLog records every PutObjectPart (uploadID, part number, body size)
+	// so tests can assert the streaming shape of session Appends.
+	partLogMu sync.Mutex
+	partLog   []mockPartRecord
+
+	// discardPartBodies keeps part bodies out of memory (bounds the mock's
+	// own footprint so memory-gate tests measure the engine, not the server).
+	discardPartBodies bool
+
+	// listMultipartNoSuchBucket, when set, makes handleListMultipartUploads
+	// return a NoSuchBucket error for every bucket — simulating a cold-start
+	// engine whose target bucket has not been provisioned yet.
+	listMultipartNoSuchBucket bool
+}
+
+// mockPartRecord is one observed PutObjectPart call.
+type mockPartRecord struct {
+	UploadID string
+	Number   int
+	Size     int
+}
+
+// partsFor returns the recorded part uploads for one multipart upload, in
+// arrival order.
+func (m *mockS3Server) partsFor(uploadID string) []mockPartRecord {
+	m.partLogMu.Lock()
+	defer m.partLogMu.Unlock()
+	var out []mockPartRecord
+	for _, r := range m.partLog {
+		if r.UploadID == uploadID {
+			out = append(out, r)
+		}
+	}
+	return out
 }
 
 type mockBucket struct {
@@ -38,8 +74,9 @@ type mockBucket struct {
 }
 
 type mockUpload struct {
-	key   string
-	parts []partInfo
+	key       string
+	parts     []partInfo
+	initiated time.Time
 }
 
 type partInfo struct {
@@ -109,6 +146,8 @@ func (m *mockS3Server) handle(w http.ResponseWriter, r *http.Request) {
 		m.handleStatObject(w, r, b, key)
 	case r.Method == "GET" && r.URL.Query().Get("list-type") == "2":
 		m.handleListObjectsV2(w, r, b)
+	case r.Method == "GET" && key == "" && query.Has("uploads"):
+		m.handleListMultipartUploads(w, r, b)
 	case r.Method == "GET" && key != "":
 		m.handleGetObject(w, r, b, key)
 	case r.Method == "POST" && key != "" && query.Has("uploads"):
@@ -135,13 +174,24 @@ func (m *mockS3Server) handle(w http.ResponseWriter, r *http.Request) {
 func (m *mockS3Server) handleStatObject(w http.ResponseWriter, _ *http.Request, b *mockBucket, key string) {
 	m.mu.Lock()
 	data, ok := b.objects[key]
+	md, _ := b.metadata[key]
+	lm := b.lastModified[key]
 	m.mu.Unlock()
 	if !ok {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
+	// Re-emit stored user metadata as x-amz-meta-* headers so minio-go's
+	// StatObject round-trips it back through UserMetadata (with the S3
+	// canonicalization Go's http.Header applies). This lets tests observe the
+	// blob-created-at key the same way the real backend returns it.
+	for k, v := range md {
+		w.Header().Set("x-amz-meta-"+k, v)
+	}
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(data)))
-	w.Header().Set("Last-Modified", time.Now().UTC().Format(http.TimeFormat))
+	if !lm.IsZero() {
+		w.Header().Set("Last-Modified", lm.UTC().Format(http.TimeFormat))
+	}
 	w.Header().Set("ETag", fmt.Sprintf(`"%x"`, sha256.Sum256(data)))
 	w.WriteHeader(http.StatusOK)
 }
@@ -250,7 +300,7 @@ func (m *mockS3Server) handleCopyObject(w http.ResponseWriter, r *http.Request, 
 func (m *mockS3Server) handleCreateMultipartUpload(w http.ResponseWriter, r *http.Request, b *mockBucket, key string) {
 	m.mu.Lock()
 	uploadID := fmt.Sprintf("upload-%d-%d", time.Now().UnixNano(), len(b.uploads))
-	b.uploads[uploadID] = &mockUpload{key: key}
+	b.uploads[uploadID] = &mockUpload{key: key, initiated: time.Now()}
 	m.mu.Unlock()
 	w.Header().Set("Content-Type", "application/xml")
 	w.WriteHeader(http.StatusOK)
@@ -273,12 +323,22 @@ func (m *mockS3Server) handlePutObjectPart(w http.ResponseWriter, r *http.Reques
 	}
 	var partNum int
 	if _, err := fmt.Sscanf(partNumStr, "%d", &partNum); err != nil {
+		m.mu.Unlock()
 		http.Error(w, "bad part number", http.StatusBadRequest)
 		return
 	}
 	etag := fmt.Sprintf(`"%x"`, sha256.Sum256(data))
-	upload.parts = append(upload.parts, partInfo{number: partNum, data: data, etag: etag})
+	stored := data
+	if m.discardPartBodies {
+		stored = nil // keep the mock's footprint flat for memory-gate tests
+	}
+	upload.parts = append(upload.parts, partInfo{number: partNum, data: stored, etag: etag})
 	m.mu.Unlock()
+
+	m.partLogMu.Lock()
+	m.partLog = append(m.partLog, mockPartRecord{UploadID: uploadID, Number: partNum, Size: len(data)})
+	m.partLogMu.Unlock()
+
 	w.Header().Set("ETag", etag)
 	w.WriteHeader(http.StatusOK)
 }
@@ -373,6 +433,70 @@ func (m *mockS3Server) handleListObjectsV2(w http.ResponseWriter, r *http.Reques
 	_, _ = w.Write(buf.Bytes())
 }
 
+// handleListMultipartUploads serves the ListMultipartUploads (GET ?uploads)
+// response over the in-memory upload set, honoring prefix and simple markers.
+// It is the mock counterpart exercised by the orphan sweep (T-203 D-6).
+func (m *mockS3Server) handleListMultipartUploads(w http.ResponseWriter, r *http.Request, b *mockBucket) {
+	query := r.URL.Query()
+
+	if m.listMultipartNoSuchBucket {
+		w.Header().Set("Content-Type", "application/xml")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?><Error><Code>NoSuchBucket</Code><Message>The specified bucket does not exist</Message><BucketName>` + xmlEscape(xmlEscape("")) + `</BucketName></Error>`))
+		return
+	}
+
+	prefix := query.Get("prefix")
+	keyMarker := query.Get("key-marker")
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	type upEntry struct {
+		Key       string
+		UploadID  string
+		Initiated time.Time
+	}
+	var entries []upEntry
+	for uploadID, up := range b.uploads {
+		if !strings.HasPrefix(up.key, prefix) {
+			continue
+		}
+		if keyMarker != "" && up.key <= keyMarker {
+			continue
+		}
+		entries = append(entries, upEntry{Key: up.key, UploadID: uploadID, Initiated: up.initiated})
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Key < entries[j].Key
+	})
+
+	var buf bytes.Buffer
+	buf.WriteString(`<?xml version="1.0" encoding="UTF-8"?><ListMultipartUploadsResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">`)
+	buf.WriteString(`<Bucket>` + xmlEscape(r.URL.Host) + `</Bucket>`)
+	buf.WriteString(`<KeyMarker></KeyMarker>`)
+	buf.WriteString(`<UploadIdMarker></UploadIdMarker>`)
+	buf.WriteString(`<NextKeyMarker></NextKeyMarker>`)
+	buf.WriteString(`<NextUploadIdMarker></NextUploadIdMarker>`)
+	buf.WriteString(`<Prefix>` + xmlEscape(prefix) + `</Prefix>`)
+	buf.WriteString(`<Delimiter></Delimiter>`)
+	buf.WriteString(`<MaxUploads>1000</MaxUploads>`)
+	buf.WriteString(`<IsTruncated>false</IsTruncated>`)
+	for _, e := range entries {
+		buf.WriteString(`<Upload>`)
+		buf.WriteString(`<Key>` + xmlEscape(e.Key) + `</Key>`)
+		buf.WriteString(`<UploadId>` + xmlEscape(e.UploadID) + `</UploadId>`)
+		buf.WriteString(`<Initiated>` + e.Initiated.UTC().Format(time.RFC3339Nano) + `</Initiated>`)
+		buf.WriteString(`<StorageClass>STANDARD</StorageClass>`)
+		buf.WriteString(`</Upload>`)
+	}
+	buf.WriteString(`</ListMultipartUploadsResult>`)
+
+	w.Header().Set("Content-Type", "application/xml")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(buf.Bytes())
+}
+
 func xmlEscape(s string) string {
 	var buf bytes.Buffer
 	xml.Escape(&buf, []byte(s))
@@ -400,6 +524,59 @@ func (m *mockS3Server) setObjectLastModified(bucketName, key string, t time.Time
 	}
 }
 
+// setObjectMetadata sets the stored user metadata for an object (a nil value
+// removes it), letting tests pin the blob-created-at presence/absence the GC
+// grace logic keys off of.
+func (m *mockS3Server) setObjectMetadata(bucketName, key string, meta map[string]string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	b, ok := m.buckets[bucketName]
+	if !ok {
+		return
+	}
+	if meta == nil {
+		delete(b.metadata, key)
+		return
+	}
+	b.metadata[key] = meta
+}
+
+// addOrphanUpload injects an in-progress multipart upload directly into the
+// mock's upload set, simulating one left behind by a crashed/interrupted
+// client. It returns the uploadID so tests can assert its fate.
+func (m *mockS3Server) addOrphanUpload(bucketName, key string, initiated time.Time) string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	b, ok := m.buckets[bucketName]
+	if !ok {
+		b = &mockBucket{
+			objects:      make(map[string][]byte),
+			metadata:     make(map[string]map[string]string),
+			lastModified: make(map[string]time.Time),
+			uploads:      make(map[string]*mockUpload),
+		}
+		m.buckets[bucketName] = b
+	}
+	uploadID := fmt.Sprintf("orphan-%d-%d", initiated.UnixNano(), len(b.uploads))
+	b.uploads[uploadID] = &mockUpload{key: key, initiated: initiated}
+	return uploadID
+}
+
+// uploadCount returns how many in-progress uploads the mock bucket holds.
+func (m *mockS3Server) uploadCount(bucketName string) int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return len(m.buckets[bucketName].uploads)
+}
+
+// objectMetadata returns the stored user metadata for a key (lower-cased keys,
+// mirroring how the engine round-trips metadata).
+func (m *mockS3Server) objectMetadata(bucketName, key string) map[string]string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.buckets[bucketName].metadata[key]
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -410,9 +587,12 @@ func newS3Engine(t *testing.T) (*S3Engine, *mockS3Server, string) {
 	t.Cleanup(func() { mock.Close() })
 
 	bucket := "test-bucket"
-	eng := OpenS3EngineWithClient(mock.core.Client, bucket, &S3EngineOptions{
+	eng, err := OpenS3EngineWithClient(mock.core.Client, bucket, &S3EngineOptions{
 		Now: time.Now,
 	})
+	if err != nil {
+		t.Fatalf("OpenS3EngineWithClient: %v", err)
+	}
 	s3e, ok := eng.(*S3Engine)
 	if !ok {
 		t.Fatal("OpenS3EngineWithClient did not return *S3Engine")
@@ -718,8 +898,13 @@ func TestS3GCGracePeriod(t *testing.T) {
 	content := []byte("grace period test")
 	ref := putS3(t, eng, content)
 
-	// Backdate the blob's last modified time to be 48 hours ago.
-	mock.setObjectLastModified(bucket, eng.objectKey(ref.Sha256), time.Now().Add(-48*time.Hour))
+	// putS3 now records a fresh "blob-created-at" metadata timestamp (D-5);
+	// clear it so this test exercises the LastModified fallback path (the
+	// metadata-aware path is covered separately by TestS3GCGraceUsesBlobCreatedAt
+	// and TestS3GCGraceFallsBackToLastModified).
+	key := eng.objectKey(ref.Sha256)
+	mock.setObjectMetadata(bucket, key, nil)
+	mock.setObjectLastModified(bucket, key, time.Now().Add(-48*time.Hour))
 
 	// With 24h grace, the blob should be a candidate (48h old, unreferenced).
 	candidates, err := eng.GC(context.Background(), func() (map[string]struct{}, error) {
@@ -1013,5 +1198,694 @@ func TestS3BackendPutChecksumMismatch(t *testing.T) {
 	_, err := back.Put(ctx, badSha, bytes.NewReader(content), int64(len(content)))
 	if !errors.Is(err, ErrChecksumMismatch) {
 		t.Fatalf("Put error = %v, want ErrChecksumMismatch", err)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// T-202: streaming session Append (bounded-memory multipart upload). The
+// pre-fix behavior buffered the whole reader per Append (QA T-173 D-4: 1 GiB
+// upload -> ~1.96 GiB RSS); every test below pins the streaming contract.
+// ---------------------------------------------------------------------------
+
+// patternReader serves a repeating deterministic seed without allocating, so
+// memory-gate tests can stream hundreds of MiB through an upload without the
+// reader itself contributing heap. Once limit bytes are served it returns err
+// (nil means io.EOF).
+type patternReader struct {
+	seed  [64 * 1024]byte
+	limit int64
+	read  int64
+	err   error
+}
+
+func newPatternReader(limit int64, err error) *patternReader {
+	r := &patternReader{limit: limit, err: err}
+	for i := range r.seed {
+		r.seed[i] = byte(i*31 + 7)
+	}
+	return r
+}
+
+func (r *patternReader) Read(p []byte) (int, error) {
+	if r.read >= r.limit {
+		if r.err != nil {
+			return 0, r.err
+		}
+		return 0, io.EOF
+	}
+	pos := r.read % int64(len(r.seed))
+	n := len(p)
+	if room := int64(len(r.seed)) - pos; int64(n) > room {
+		n = int(room)
+	}
+	if remain := r.limit - r.read; int64(n) > remain {
+		n = int(remain)
+	}
+	copy(p[:n], r.seed[pos:])
+	r.read += int64(n)
+	return n, nil
+}
+
+// patternBytes returns the first n bytes of the pattern stream.
+func patternBytes(n int64) []byte {
+	buf := make([]byte, n)
+	if _, err := io.ReadFull(newPatternReader(n, nil), buf); err != nil {
+		panic(err)
+	}
+	return buf
+}
+
+// s3SessionOf type-asserts the engine Session to the concrete s3Session so
+// tests can observe uploadID (in-package white box).
+func s3SessionOf(t *testing.T, s Session) *s3Session {
+	t.Helper()
+	cs, ok := s.(*s3Session)
+	if !ok {
+		t.Fatalf("session is %T, want *s3Session", s)
+	}
+	return cs
+}
+
+func TestResolveS3PartSize(t *testing.T) {
+	tests := []struct {
+		in   int64
+		want int64
+	}{
+		{0, DefaultS3PartSize},
+		{-1, DefaultS3PartSize},
+		{1, MinS3PartSize},
+		{4 << 20, MinS3PartSize},
+		{5 << 20, 5 << 20},
+		{64 << 20, 64 << 20},
+	}
+	for _, tt := range tests {
+		if got := resolveS3PartSize(tt.in); got != tt.want {
+			t.Errorf("resolveS3PartSize(%d) = %d, want %d", tt.in, got, tt.want)
+		}
+	}
+
+	// The option must reach the engine (production wiring is cmd's one-liner;
+	// this pins the storage-side contract).
+	mock := newMockS3Server()
+	defer mock.Close()
+	eng, err := OpenS3EngineWithClient(mock.core.Client, "test-bucket", &S3EngineOptions{PartSize: 32 << 20})
+	if err != nil {
+		t.Fatalf("OpenS3EngineWithClient: %v", err)
+	}
+	if got := eng.(*S3Engine).partSize; got != 32<<20 {
+		t.Errorf("engine partSize = %d, want %d", got, 32<<20)
+	}
+	engDefault, err := OpenS3EngineWithClient(mock.core.Client, "test-bucket", nil)
+	if err != nil {
+		t.Fatalf("OpenS3EngineWithClient default: %v", err)
+	}
+	if got := engDefault.(*S3Engine).partSize; got != DefaultS3PartSize {
+		t.Errorf("default engine partSize = %d, want %d", got, DefaultS3PartSize)
+	}
+}
+
+func TestS3AppendFlushesPartsAtThreshold(t *testing.T) {
+	const ps = 1 << 20
+	tests := []struct {
+		name        string
+		appends     []int64 // bytes per Append call
+		wantMid     []int   // part sizes flushed during the Appends
+		wantFinalSz int     // size of the tail part Commit flushes (0 = none)
+	}{
+		{name: "single append exact multiple", appends: []int64{3 * ps}, wantMid: []int{ps, ps, ps}, wantFinalSz: 0},
+		{name: "single append with remainder", appends: []int64{2*ps + 4096}, wantMid: []int{ps, ps}, wantFinalSz: 4096},
+		{name: "appends coalesce across boundary", appends: []int64{600 << 10, 600 << 10, 600 << 10}, wantMid: []int{ps}, wantFinalSz: 3*600<<10 - ps},
+		{name: "small appends single tail part", appends: []int64{1, 2, 3}, wantMid: nil, wantFinalSz: 6},
+		{name: "empty upload flushes nothing", appends: []int64{0}, wantMid: nil, wantFinalSz: 0},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			eng, mock, _ := newS3Engine(t)
+			eng.partSize = ps // white-box: small threshold proves the mechanics
+
+			s, err := eng.BeginSession(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			cs := s3SessionOf(t, s)
+			upID := cs.uploadID
+
+			var want []byte
+			var off int64
+			for _, n := range tt.appends {
+				chunk := patternBytes(n)
+				want = append(want, chunk...)
+				off, err = s.Append(context.Background(), bytes.NewReader(chunk))
+				if err != nil {
+					t.Fatalf("Append(%d): %v", n, err)
+				}
+			}
+			var wantTotal int64
+			for _, n := range tt.appends {
+				wantTotal += n
+			}
+			if off != wantTotal {
+				t.Fatalf("cumulative offset = %d, want %d", off, wantTotal)
+			}
+
+			// Mid-stream: only full parts leave the process during Append; the
+			// tail stays buffered until Commit.
+			parts := mock.partsFor(upID)
+			if len(parts) != len(tt.wantMid) {
+				t.Fatalf("parts flushed before commit = %v, want sizes %v", partSizes(parts), tt.wantMid)
+			}
+			for i, p := range parts {
+				if p.Size != tt.wantMid[i] {
+					t.Fatalf("part %d size = %d, want %d (all: %v)", i, p.Size, tt.wantMid[i], partSizes(parts))
+				}
+				if p.Number != i+1 {
+					t.Fatalf("part %d has number %d, want %d", i, p.Number, i+1)
+				}
+			}
+
+			ref, err := s.Commit(context.Background(), BlobRef{})
+			if err != nil {
+				t.Fatalf("Commit: %v", err)
+			}
+			wantSha := fmt.Sprintf("%x", sha256.Sum256(want))
+			if ref.Sha256 != wantSha || ref.Size != wantTotal {
+				t.Fatalf("ref = %+v, want sha %s size %d", ref, wantSha, wantTotal)
+			}
+
+			// Post-commit: the recorded part log now includes the tail part
+			// flushed by Commit (exactly one, of the remaining size).
+			wantAll := append(append([]int{}, tt.wantMid...), func() []int {
+				if tt.wantFinalSz == 0 {
+					return nil
+				}
+				return []int{tt.wantFinalSz}
+			}()...)
+			all := mock.partsFor(upID)
+			if len(all) != len(wantAll) {
+				t.Fatalf("total parts after commit = %v, want %v", partSizes(all), wantAll)
+			}
+			for i, p := range all {
+				if p.Size != wantAll[i] {
+					t.Fatalf("part %d size = %d, want %d (all: %v)", i, p.Size, wantAll[i], partSizes(all))
+				}
+			}
+
+			rc, _, err := eng.Open(context.Background(), ref.Sha256)
+			if err != nil {
+				t.Fatalf("Open: %v", err)
+			}
+			got, err := io.ReadAll(rc)
+			_ = rc.Close()
+			if err != nil {
+				t.Fatalf("ReadAll: %v", err)
+			}
+			if !bytes.Equal(got, want) {
+				t.Fatalf("blob content mismatch: %d bytes read, want %d", len(got), len(want))
+			}
+		})
+	}
+}
+
+func partSizes(parts []mockPartRecord) []int {
+	out := make([]int, len(parts))
+	for i, p := range parts {
+		out[i] = p.Size
+	}
+	return out
+}
+
+// TestS3AppendReaderErrorKeepsFlushedParts is the streaming discriminator: a
+// reader that dies mid-upload must leave every full part already on the wire.
+// Under the old buffer-everything behavior zero parts would exist when the
+// reader fails, because nothing was uploaded until the reader hit EOF.
+func TestS3AppendReaderErrorKeepsFlushedParts(t *testing.T) {
+	eng, mock, _ := newS3Engine(t)
+	const ps = 1 << 20
+	eng.partSize = ps
+
+	boom := errors.New("boom: client hung up")
+	s, err := eng.BeginSession(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	cs := s3SessionOf(t, s)
+
+	if _, err := s.Append(context.Background(), newPatternReader(2*ps+4096, boom)); !errors.Is(err, boom) {
+		t.Fatalf("Append error = %v, want wrapped %v", err, boom)
+	}
+
+	parts := mock.partsFor(cs.uploadID)
+	if len(parts) != 2 {
+		t.Fatalf("parts uploaded before reader failure = %v, want 2 full parts", partSizes(parts))
+	}
+	for i, p := range parts {
+		if p.Size != ps || p.Number != i+1 {
+			t.Fatalf("part %d = {number:%d size:%d}, want {number:%d size:%d}", i, p.Number, p.Size, i+1, ps)
+		}
+	}
+
+	// The session is poisoned: no further use may be trusted.
+	if _, err := s.Append(context.Background(), strings.NewReader("x")); !errors.Is(err, ErrSessionPoisoned) {
+		t.Fatalf("Append after failure error = %v, want ErrSessionPoisoned", err)
+	}
+	if err := s.Abort(context.Background()); err != nil {
+		t.Fatalf("Abort: %v", err)
+	}
+}
+
+// TestS3CommitMismatchUploadsNoTailPart pins the digest gate ordering: a
+// checksum mismatch must reject before even the buffered tail becomes a part.
+func TestS3CommitMismatchUploadsNoTailPart(t *testing.T) {
+	eng, mock, _ := newS3Engine(t)
+	eng.partSize = 1 << 20
+
+	s, err := eng.BeginSession(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	cs := s3SessionOf(t, s)
+
+	if _, err := s.Append(context.Background(), strings.NewReader("less than one part")); err != nil {
+		t.Fatal(err)
+	}
+	_, err = s.Commit(context.Background(), BlobRef{Sha256: strings.Repeat("0", 64)})
+	if !errors.Is(err, ErrChecksumMismatch) {
+		t.Fatalf("Commit error = %v, want ErrChecksumMismatch", err)
+	}
+	if n := len(mock.partsFor(cs.uploadID)); n != 0 {
+		t.Fatalf("parts uploaded on rejected commit = %d, want 0", n)
+	}
+}
+
+// TestS3SessionAppendBoundedMemory is the T-202 memory gate (NFR-P3 class):
+// streaming a large upload through one Append must not grow the heap
+// proportionally to the upload size. The same harness runs the disk engine as
+// the baseline leg (QA T-173 measured disk at +4 KB RSS for 1 GiB).
+func TestS3SessionAppendBoundedMemory(t *testing.T) {
+	if testing.Short() {
+		t.Skip("streams 128 MiB through each engine")
+	}
+	const total = 128 << 20
+	const partSize = 2 << 20
+	const gate = total / 3 // ~42 MiB: generous vs the ~1x total the old code needed
+
+	run := func(name string, upload func() int) (sysDelta, allocPeak uint64, parts int) {
+		runtime.GC()
+		runtime.GC()
+		baseSys, baseAlloc := memSample()
+
+		var peakSys, peakAlloc uint64
+		stop := make(chan struct{})
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			// ReadMemStats stops the world; sampling must sleep or it would
+			// starve the upload itself.
+			const sampleEvery = 20 * time.Millisecond
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				sys, alloc := memSample()
+				if sys > peakSys {
+					peakSys = sys
+				}
+				if alloc > peakAlloc {
+					peakAlloc = alloc
+				}
+				time.Sleep(sampleEvery)
+			}
+		}()
+		start := time.Now()
+		parts = upload()
+		elapsed := time.Since(start)
+		close(stop)
+		<-done
+
+		if peakSys < baseSys {
+			peakSys = baseSys
+		}
+		t.Logf("%s: upload=%d MiB in %s (%.1f MiB/s) HeapSys delta=%d MiB HeapAlloc peak above base=%d MiB",
+			name, total>>20, elapsed.Truncate(time.Millisecond), float64(total>>20)/elapsed.Seconds(),
+			(peakSys-baseSys)>>20, (peakAlloc-baseAlloc)>>20)
+		return peakSys - baseSys, peakAlloc - baseAlloc, parts
+	}
+
+	// S3 leg: mock discards part bodies so the in-process test server does not
+	// retain the upload (the measurement targets the engine, not the mock).
+	eng, mock, _ := newS3Engine(t)
+	eng.partSize = partSize
+	mock.discardPartBodies = true
+
+	s, err := eng.BeginSession(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	cs := s3SessionOf(t, s)
+	s3Sys, s3Alloc, parts := run("s3", func() int {
+		if _, err := s.Append(context.Background(), newPatternReader(total, nil)); err != nil {
+			t.Fatalf("Append: %v", err)
+		}
+		return len(mock.partsFor(cs.uploadID))
+	})
+	if err := s.Abort(context.Background()); err != nil {
+		t.Fatalf("Abort: %v", err)
+	}
+
+	wantParts := int(total / partSize)
+	if parts != wantParts {
+		t.Fatalf("parts streamed = %d, want %d (one per partSize)", parts, wantParts)
+	}
+	if s3Sys > gate {
+		t.Fatalf("S3 Append HeapSys grew %d MiB for a %d MiB upload; gate is %d MiB (not streaming?)",
+			s3Sys>>20, total>>20, gate>>20)
+	}
+	if s3Alloc > gate {
+		t.Fatalf("S3 Append HeapAlloc peak %d MiB above base for a %d MiB upload; gate is %d MiB",
+			s3Alloc>>20, total>>20, gate>>20)
+	}
+
+	// Disk leg: same harness for the baseline comparison.
+	diskEng, err := OpenEngine(t.TempDir(), Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = diskEng.Close() }()
+	ds, err := diskEng.BeginSession(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	diskSys, diskAlloc, _ := run("disk", func() int {
+		if _, err := ds.Append(context.Background(), newPatternReader(total, nil)); err != nil {
+			t.Fatalf("disk Append: %v", err)
+		}
+		return 0
+	})
+	if err := ds.Abort(context.Background()); err != nil {
+		t.Fatalf("disk Abort: %v", err)
+	}
+	if diskSys > gate || diskAlloc > gate {
+		t.Fatalf("disk Append grew beyond harness gate: HeapSys %d MiB, HeapAlloc %d MiB; gate is %d MiB",
+			diskSys>>20, diskAlloc>>20, gate>>20)
+	}
+}
+
+func memSample() (heapSys, heapAlloc uint64) {
+	var ms runtime.MemStats
+	runtime.ReadMemStats(&ms)
+	return ms.HeapSys, ms.HeapAlloc
+}
+
+// ---------------------------------------------------------------------------
+// T-203: D-5 (blob-created-at metadata fidelity) and D-6 (orphan multipart
+// upload reclamation). Each pins the QA T-173 findings:
+//
+//   - D-5: Commit's CopyObject omitted ReplaceMetadata:true, so minio-go
+//     silently dropped the UserMetadata (the COPY kept the temp key's empty
+//     metadata) and every blob lost its blob-created-at timestamp; GC then
+//     measured grace from LastModified instead.
+//   - D-6: no startup sweep listed and aborted in-progress multipart uploads,
+//     so kill -9 / abandoned sessions leaked incomplete MPUs forever.
+// ---------------------------------------------------------------------------
+
+// TestS3CommitPreservesBlobCreatedAtMetadata pins D-5's metadata fidelity:
+// after Commit, the final blob object must carry a blob-created-at user
+// metadata value identical to what the engine wrote — the same path (session
+// Commit) the disk->S3 migration's copyBlob streams through.
+func TestS3CommitPreservesBlobCreatedAtMetadata(t *testing.T) {
+	tests := []struct {
+		name    string
+		content []byte
+	}{
+		{name: "small blob", content: []byte("metadata fidelity small")},
+		{name: "multi-part blob", content: []byte(strings.Repeat("metadata-", 128))}, // >1 part via low partSize below
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			eng, mock, bucket := newS3Engine(t)
+			eng.partSize = 32 // tiny threshold forces the multipart path for part 2
+
+			ref := putS3(t, eng, tt.content)
+			key := eng.objectKey(ref.Sha256)
+
+			// Stored metadata (mock parses what the engine actually sent).
+			md := mock.objectMetadata(bucket, key)
+			if md == nil {
+				t.Fatal("blob has no user metadata; ReplaceMetadata was likely dropped")
+			}
+			created, ok := blobCreatedAtFromMeta(md)
+			if !ok {
+				t.Fatalf("blob-created-at missing/unparseable from metadata %v", md)
+			}
+			if created.IsZero() {
+				t.Fatalf("blob-created-at = zero time")
+			}
+
+			// Round-trip through StatObject (HEAD): the metadata must survive the
+			// http.Header canonicalization the real S3 backend applies.
+			info, err := eng.api().StatObject(context.Background(), bucket, key, minio.StatObjectOptions{})
+			if err != nil {
+				t.Fatalf("StatObject: %v", err)
+			}
+			readBack, ok := blobCreatedAtFromMeta(info.UserMetadata)
+			if !ok {
+				t.Fatalf("StatObject UserMetadata = %v, want blob-created-at present", info.UserMetadata)
+			}
+			if !readBack.Equal(created) {
+				t.Fatalf("blob-created-at round-trip = %s, want %s", readBack, created)
+			}
+		})
+	}
+}
+
+// TestS3GCGraceUsesBlobCreatedAt pins D-5's GC side: an unreferenced blob whose
+// blob-created-at metadata is 48h old must be a GC candidate even if its S3
+// LastModified is fresh (the migration case where the object arrived seconds
+// ago but the blob is old). The reverse — fresh metadata, stale LastModified —
+// must NOT be a candidate, proving the metadata, not LastModified, is the
+// grace basis.
+func TestS3GCGraceUsesBlobCreatedAt(t *testing.T) {
+	tests := []struct {
+		name          string
+		metaAge       time.Duration // age stamped into blob-created-at
+		lastModAge    time.Duration // age stamped into LastModified
+		grace         time.Duration
+		wantCandidate bool
+	}{
+		{
+			name:          "old blob metadata, fresh lastmodified -> candidate",
+			metaAge:       48 * time.Hour,
+			lastModAge:    1 * time.Minute,
+			grace:         24 * time.Hour,
+			wantCandidate: true,
+		},
+		{
+			name:          "fresh metadata, stale lastmodified -> not candidate",
+			metaAge:       1 * time.Minute,
+			lastModAge:    72 * time.Hour,
+			grace:         24 * time.Hour,
+			wantCandidate: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			eng, mock, bucket := newS3Engine(t)
+			ref := putS3(t, eng, []byte("grace-clock-"+tt.name))
+			key := eng.objectKey(ref.Sha256)
+
+			now := time.Now()
+			mock.setObjectLastModified(bucket, key, now.Add(-tt.lastModAge))
+			// Overwrite the stored metadata's timestamp directly (white-box:
+			// the mock's metadata map is keyed by lower-cased key).
+			mock.mu.Lock()
+			if mock.buckets[bucket].metadata[key] == nil {
+				mock.buckets[bucket].metadata[key] = make(map[string]string)
+			}
+			mock.buckets[bucket].metadata[key][blobCreatedAtMetaKey] = now.Add(-tt.metaAge).UTC().Format(time.RFC3339)
+			mock.mu.Unlock()
+
+			candidates, err := eng.GC(context.Background(), func() (map[string]struct{}, error) {
+				return map[string]struct{}{}, nil // unreferenced
+			}, tt.grace, false)
+			if err != nil {
+				t.Fatalf("GC: %v", err)
+			}
+			if tt.wantCandidate && (len(candidates) != 1 || candidates[0] != ref.Sha256) {
+				t.Fatalf("candidates = %v, want [%s] (metadata should be the grace basis)", candidates, ref.Sha256)
+			}
+			if !tt.wantCandidate && len(candidates) != 0 {
+				t.Fatalf("candidates = %v, want empty (metadata fresh, grace not expired)", candidates)
+			}
+		})
+	}
+}
+
+// TestS3GCGraceFallsBackToLastModified pins the no-metadata fallback: a blob
+// with no blob-created-at metadata (e.g. imported via mc) must age by its
+// LastModified, exactly as the pre-fix behavior did.
+func TestS3GCGraceFallsBackToLastModified(t *testing.T) {
+	eng, mock, bucket := newS3Engine(t)
+	ref := putS3(t, eng, []byte("fallback grace"))
+	key := eng.objectKey(ref.Sha256)
+
+	// Strip the metadata the Commit wrote, then backdate LastModified.
+	mock.mu.Lock()
+	delete(mock.buckets[bucket].metadata, key)
+	mock.mu.Unlock()
+	mock.setObjectLastModified(bucket, key, time.Now().Add(-48*time.Hour))
+
+	candidates, err := eng.GC(context.Background(), func() (map[string]struct{}, error) {
+		return map[string]struct{}{}, nil
+	}, 24*time.Hour, false)
+	if err != nil {
+		t.Fatalf("GC: %v", err)
+	}
+	if len(candidates) != 1 || candidates[0] != ref.Sha256 {
+		t.Fatalf("candidates = %v, want [%s] (LastModified fallback)", candidates, ref.Sha256)
+	}
+}
+
+// TestS3StartupSweepsOrphanUploads pins D-6: opening an engine over a bucket
+// that holds an old in-progress multipart upload aborts it, while a young one
+// survives (within the TTL) and uploads under other prefixes are untouched.
+func TestS3StartupSweepsOrphanUploads(t *testing.T) {
+	const ttl = 24 * time.Hour
+	now := time.Now()
+
+	tests := []struct {
+		name        string
+		key         string
+		age         time.Duration
+		wantAborted bool
+	}{
+		{name: "old orphan under sessions prefix", key: "sessions/old-uuid/data", age: 48 * time.Hour, wantAborted: true},
+		{name: "young orphan within ttl", key: "sessions/new-uuid/data", age: 1 * time.Hour, wantAborted: false},
+		{name: "old upload under foreign prefix", key: "elsewhere/upload", age: 48 * time.Hour, wantAborted: false},
+	}
+
+	// Seed all three orphans up front on one mock server.
+	mock := newMockS3Server()
+	t.Cleanup(func() { mock.Close() })
+	ids := make(map[string]string)
+	for _, tt := range tests {
+		ids[tt.name] = mock.addOrphanUpload("test-bucket", tt.key, now.Add(-tt.age))
+	}
+	if got := mock.uploadCount("test-bucket"); got != len(tests) {
+		t.Fatalf("seeded uploads = %d, want %d", got, len(tests))
+	}
+
+	// Opening the engine performs the startup sweep.
+	eng, err := OpenS3EngineWithClient(mock.core.Client, "test-bucket", &S3EngineOptions{
+		SessionTTL: ttl,
+		Now:        func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatalf("OpenS3EngineWithClient: %v", err)
+	}
+	t.Cleanup(func() { _ = eng.Close() })
+
+	// The old sessions-prefixed orphan must be gone; the young one and the
+	// foreign-prefix upload must remain.
+	mock.mu.Lock()
+	remaining := mock.buckets["test-bucket"].uploads
+	mock.mu.Unlock()
+	if _, ok := remaining[ids["old orphan under sessions prefix"]]; ok {
+		t.Fatalf("old orphan upload %s was not aborted", ids["old orphan under sessions prefix"])
+	}
+	if _, ok := remaining[ids["young orphan within ttl"]]; !ok {
+		t.Fatal("young orphan (within TTL) was wrongly aborted")
+	}
+	if _, ok := remaining[ids["old upload under foreign prefix"]]; !ok {
+		t.Fatal("foreign-prefix upload was wrongly aborted (sweep must not cross prefixes)")
+	}
+}
+
+// TestS3StartupSweepIsIdempotent pins D-6's reliability edge: an empty bucket
+// opens cleanly (the sweep lists an empty set and aborts nothing), and a
+// bucket whose only orphan was already swept reopens without error (no abort
+// on a vanished upload, no stray failure).
+func TestS3StartupSweepIsIdempotent(t *testing.T) {
+	mock := newMockS3Server()
+	t.Cleanup(func() { mock.Close() })
+
+	// First open on an empty bucket: sweep lists zero uploads, succeeds.
+	eng, err := OpenS3EngineWithClient(mock.core.Client, "test-bucket", nil)
+	if err != nil {
+		t.Fatalf("OpenS3EngineWithClient on empty bucket: %v", err)
+	}
+	_ = eng.Close()
+
+	// Seed one old orphan, sweep it via open, then reopen: the second open must
+	// find zero uploads and succeed (idempotent across restarts).
+	old := time.Now().Add(-72 * time.Hour)
+	mock.addOrphanUpload("test-bucket", "sessions/dead/data", old)
+
+	eng2, err := OpenS3EngineWithClient(mock.core.Client, "test-bucket", &S3EngineOptions{
+		SessionTTL: 24 * time.Hour,
+	})
+	if err != nil {
+		t.Fatalf("OpenS3EngineWithClient sweep: %v", err)
+	}
+	_ = eng2.Close()
+	if got := mock.uploadCount("test-bucket"); got != 0 {
+		t.Fatalf("uploads after first sweep = %d, want 0", got)
+	}
+
+	// Reopen: no uploads remain, sweep must still succeed.
+	eng3, err := OpenS3EngineWithClient(mock.core.Client, "test-bucket", nil)
+	if err != nil {
+		t.Fatalf("OpenS3EngineWithClient reopen: %v", err)
+	}
+	_ = eng3.Close()
+	if err := eng.Close(); err != nil {
+		t.Fatalf("idempotent Close: %v", err)
+	}
+}
+
+// TestS3StartupSweepToleratesMissingBucket pins the cold-start edge: opening an
+// engine whose target bucket has not been provisioned yet must succeed — the
+// orphan sweep treats a NoSuchBucket response from ListMultipartUploads as an
+// empty listing, not a fatal error (a fresh deployment has no orphaned uploads
+// to reclaim on first boot).
+func TestS3StartupSweepToleratesMissingBucket(t *testing.T) {
+	mock := newMockS3Server()
+	t.Cleanup(func() { mock.Close() })
+	mock.listMultipartNoSuchBucket = true
+
+	eng, err := OpenS3EngineWithClient(mock.core.Client, "not-yet-provisioned", nil)
+	if err != nil {
+		t.Fatalf("OpenS3EngineWithClient on missing bucket: %v", err)
+	}
+	_ = eng.Close()
+}
+
+// TestBlobCreatedAtFromMeta pins the case-insensitive metadata key lookup that
+// the GC grace and the metadata-fidelity tests rely on: minio-go canonicalizes
+// "blob-created-at" to "Blob-Created-At" through http.Header.
+func TestBlobCreatedAtFromMeta(t *testing.T) {
+	when := time.Date(2026, 8, 22, 10, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name   string
+		meta   map[string]string
+		want   time.Time
+		wantOK bool
+	}{
+		{name: "lower-case key", meta: map[string]string{"blob-created-at": when.Format(time.RFC3339)}, want: when, wantOK: true},
+		{name: "canonicalized key", meta: map[string]string{"Blob-Created-At": when.Format(time.RFC3339)}, want: when, wantOK: true},
+		{name: "absent", meta: map[string]string{"other": "x"}, wantOK: false},
+		{name: "malformed value", meta: map[string]string{"blob-created-at": "not-a-time"}, wantOK: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := blobCreatedAtFromMeta(tt.meta)
+			if ok != tt.wantOK {
+				t.Fatalf("ok = %v, want %v", ok, tt.wantOK)
+			}
+			if ok && !got.Equal(tt.want) {
+				t.Fatalf("got %s, want %s", got, tt.want)
+			}
+		})
 	}
 }

@@ -79,6 +79,20 @@ func (a userStoreAdapter) UpdatePassword(ctx context.Context, username, password
 	return a.s.UpdatePassword(ctx, username, passwordHash)
 }
 
+// SetAdmin implements adminFlagWriter (T-185): one account's admin flag,
+// every other column preserved — the email is re-read here because the
+// consumer-side user type never carries it.
+func (a userStoreAdapter) SetAdmin(ctx context.Context, username string, isAdmin bool) error {
+	u, err := a.s.Get(ctx, username)
+	if err != nil {
+		return fmt.Errorf("auth: set-admin lookup %q: %w", username, err)
+	}
+	if err := a.s.UpdateProfile(ctx, username, u.Email, isAdmin); err != nil {
+		return fmt.Errorf("auth: set-admin update %q: %w", username, err)
+	}
+	return nil
+}
+
 // tokenStoreAdapter adapts metadata.TokenStore.
 type tokenStoreAdapter struct{ s metadata.TokenStore }
 
@@ -165,6 +179,27 @@ func (a groupStoreAdapter) GroupsOfUser(ctx context.Context, username string) ([
 	return names, nil
 }
 
+// SetUserGroups implements the write half of groupSyncSource (T-185): the
+// store's own atomic replace.
+func (a groupStoreAdapter) SetUserGroups(ctx context.Context, username string, groupNames []string) error {
+	return a.s.SetUserGroups(ctx, username, groupNames)
+}
+
+// ListGroupNames implements the existence filter of groupSyncSource (T-185):
+// every local group name, the set an IdP group must be materialized into
+// before it can carry permissions.
+func (a groupStoreAdapter) ListGroupNames(ctx context.Context) ([]string, error) {
+	groups, err := a.s.List(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("auth: list groups: %w", err)
+	}
+	names := make([]string, 0, len(groups))
+	for _, g := range groups {
+		names = append(names, g.Name)
+	}
+	return names, nil
+}
+
 // userCreatorAdapter adapts metadata.UserStore for the userCreator seam.
 type userCreatorAdapter struct{ s metadata.UserStore }
 
@@ -223,16 +258,23 @@ func NewUserCreator(store metadata.UserStore) UserCreator {
 // an IdentityProvider implementation (T-154). Call WithOIDC after this
 // to activate the arm.
 func NewFromStore(st metadata.Store, anonymousRead bool) *Service {
+	users := userStoreAdapter{s: st.Users()}
+	groups := groupStoreAdapter{s: st.Groups()}
 	svc := New(
-		userStoreAdapter{s: st.Users()},
+		users,
 		tokenStoreAdapter{s: st.Tokens()},
 		permissionStoreAdapter{s: st.Permissions()},
 		anonymousRead,
-	).WithSessions(st.WebSessions()).WithGroups(groupStoreAdapter{s: st.Groups()})
+	).WithSessions(st.WebSessions()).WithGroups(groups)
 	// Wire the userCreator so OIDC and LDAP auto-create paths work when the
 	// service is backed by a real store. Callers that want a different
 	// creator (e.g. tests) can still override it via WithOIDC.
 	svc.userCreator = userCreatorAdapter{s: st.Users()}
+	// Wire the T-185 sync seams over the same adapters: the IdP group
+	// replace (write side of the groups fill) and the per-authentication
+	// is_admin refresh for provider-owned rows.
+	svc.groupSync = groups
+	svc.adminWriter = users
 	return svc
 }
 

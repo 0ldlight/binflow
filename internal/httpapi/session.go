@@ -49,11 +49,25 @@ type sessionBody struct {
 
 // sessionWhoami is the 200 body of GET /api/v1/session and POST login.
 // Source is the identity provider that owns the credential (local/oidc/ldap,
-// FR-56-AC1/H36; T-157 leftover 3 closed by T-179).
+// FR-56-AC1/H36; T-157 leftover 3 closed by T-179). Groups is the
+// membership at authentication time (T-185 / T-174 D2, PRD FR-54-AC2):
+// claims groups unioned with the synced user_groups set — rendered as []
+// (never null) when the principal belongs to none.
 type sessionWhoami struct {
-	Username string `json:"username"`
-	Admin    bool   `json:"admin"`
-	Source   string `json:"source"`
+	Username string   `json:"username"`
+	Admin    bool     `json:"admin"`
+	Source   string   `json:"source"`
+	Groups   []string `json:"groups"`
+}
+
+// principalGroups renders the principal's groups as a non-nil slice so the
+// wire form is always groups:[] (a null would push null-handling onto every
+// consumer for the common no-groups case).
+func principalGroups(p *auth.Principal) []string {
+	if p == nil || len(p.Groups) == 0 {
+		return []string{}
+	}
+	return p.Groups
 }
 
 // parseSessionBody accepts JSON and form login bodies (CE-03: "JSON/form
@@ -126,14 +140,39 @@ func (s *Server) handleSessionCreate(w http.ResponseWriter, r *http.Request) {
 	p, err := s.sessions.AuthenticateCredentials(r.Context(), body.Username, body.Password)
 	if err != nil {
 		if !errors.Is(err, auth.ErrInvalidCredentials) {
-			s.log.ErrorContext(r.Context(), "httpapi: login check failed", "error", err.Error())
+			// T-192 (T-172 D-1): a client that disconnected while queued
+			// for an argon2 slot surfaces here as a context error, not a
+			// server fault. Same posture as the access log's disconnect
+			// demotion (T-41): WARN with the client_disconnect annotation
+			// instead of an ERROR line, so an abandonment storm cannot
+			// flood the operator log with false failures.
+			if isClientDisconnect(r.Context().Err(), nil) {
+				s.log.WarnContext(r.Context(), "httpapi: login check aborted by client disconnect",
+					slog.String("error", err.Error()),
+					slog.String("client_disconnect", "true"))
+			} else {
+				s.log.ErrorContext(r.Context(), "httpapi: login check failed", "error", err.Error())
+			}
 			writeError(w, http.StatusInternalServerError, "login failed")
 			return
 		}
 		// Uniform wording: unknown user, wrong password, disabled account
-		// and token-principal mismatch are indistinguishable here.
+		// and token-principal mismatch are indistinguishable here. The audit
+		// trail is where the distinction lives (T-187 / T-174 D7+D8):
+		// action auth.failed with the arm (method) and the minimal reason.
+		method, reason := loginFailureClass(err)
+		if auth.InfraFailure(err) {
+			// O-2 (T-174): the directory or its TLS leg failed, not the
+			// user — one operator-visible WARN; the response above stays
+			// the same uniform 401.
+			s.log.WarnContext(r.Context(), "httpapi: login failed: identity provider problem",
+				slog.String("method", method),
+				slog.String("reason", reason),
+				slog.String("error", err.Error()))
+		}
 		s.audit.Record(r.Context(), audit.Event{
-			Actor: body.Username, Action: audit.ActionLoginFail, RemoteAddr: r.RemoteAddr,
+			Actor: body.Username, Action: audit.ActionAuthFail, RemoteAddr: r.RemoteAddr,
+			Detail: audit.AuthEventDetail(method, reason),
 		})
 		writeError(w, http.StatusUnauthorized, "invalid credentials")
 		return
@@ -152,6 +191,7 @@ func (s *Server) handleSessionCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit.Record(r.Context(), audit.Event{
 		Actor: p.Name, Action: audit.ActionLoginOK, RemoteAddr: r.RemoteAddr,
+		Detail: audit.AuthEventDetail(principalSource(p), ""),
 	})
 	// Auth metric (T-163): one login counted by provider source.
 	if s.metrics != nil {
@@ -170,13 +210,16 @@ func (s *Server) handleSessionCreate(w http.ResponseWriter, r *http.Request) {
 		Secure:   sessionCookieSecure(r, s.deps.Config.Server.BaseURL),
 		MaxAge:   int(ttl.Seconds()),
 	})
-	writeJSONBody(w, http.StatusOK, sessionWhoami{Username: p.Name, Admin: p.Admin, Source: principalSource(p)})
+	writeJSONBody(w, http.StatusOK, sessionWhoami{
+		Username: p.Name, Admin: p.Admin, Source: principalSource(p), Groups: principalGroups(p),
+	})
 }
 
 // handleSessionWhoami serves GET /api/v1/session (CE-04): the current
 // principal of ANY arm (session, Basic, token — the route gate already
 // demanded a credential). The SPA's route guard reads this; Source reports
-// the owning provider (H36).
+// the owning provider (H36), Groups the memberships the fill resolved
+// (T-185/D2 — for session principals these are the synced user_groups).
 func (s *Server) handleSessionWhoami(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r.Context())
 	if p == nil {
@@ -185,7 +228,9 @@ func (s *Server) handleSessionWhoami(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "authentication required")
 		return
 	}
-	writeJSONBody(w, http.StatusOK, sessionWhoami{Username: p.Name, Admin: p.Admin, Source: principalSource(p)})
+	writeJSONBody(w, http.StatusOK, sessionWhoami{
+		Username: p.Name, Admin: p.Admin, Source: principalSource(p), Groups: principalGroups(p),
+	})
 }
 
 // handleSessionDelete serves DELETE /api/v1/session (CE-05): revoke the
@@ -244,3 +289,14 @@ func sessionCookieSecure(r *http.Request, baseURL string) bool {
 type noopRecorder struct{}
 
 func (noopRecorder) Record(context.Context, audit.Event) {}
+
+// loginFailureClass extracts the (method, reason) classification of a
+// rejected login, defaulting to the local bad-credentials pair when the
+// error carries none (hand-built fakes): the audit event always names both
+// fields (T-187 / T-174 D8).
+func loginFailureClass(err error) (method, reason string) {
+	if m, r, ok := auth.FailureClass(err); ok {
+		return m, r
+	}
+	return string(auth.ProviderLocal), auth.ReasonBadCredentials
+}

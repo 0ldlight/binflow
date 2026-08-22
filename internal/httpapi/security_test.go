@@ -226,17 +226,38 @@ func TestTokenCreate(t *testing.T) {
 		_ = mustGet(t, resp)
 	})
 
-	t.Run("non-admin cannot mint (D3: admin-only, aligned with revoke)", func(t *testing.T) {
+	t.Run("non-admin mints for self (T-190: Q11 ruling opens the endpoint)", func(t *testing.T) {
 		h2 := newHarnessCfg(t, nil, [][2]string{{"ci-bot", "ci-pw"}})
 		resp := h2.do(http.MethodPost, "/binflow/api/security/token", "ci-bot", "ci-pw",
 			[]byte("grant_type=client_credentials"),
 			map[string]string{"Content-Type": "application/x-www-form-urlencoded"})
 		body := mustGet(t, resp)
-		if resp.StatusCode != http.StatusForbidden {
-			t.Fatalf("status = %d, want 403; body=%s", resp.StatusCode, body)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", resp.StatusCode, body)
 		}
-		// The token plane keeps its OAuth error shape even on the 403 so
-		// token clients can parse it uniformly.
+		var tok tokenResp
+		if err := json.Unmarshal([]byte(body), &tok); err != nil {
+			t.Fatalf("body %q: %v", body, err)
+		}
+		if tok.AccessToken == "" || tok.TokenID == 0 || tok.TokenType != "Bearer" {
+			t.Fatalf("self-minted token incomplete: %+v", tok)
+		}
+		// The minted token authenticates its subject on the management read
+		// plane (the default TTL is within the non-admin cap).
+		use := h2.do(http.MethodGet, "/binflow/api/system/ping", "", "",
+			nil, map[string]string{"X-JFrog-Art-Api": tok.AccessToken})
+		if use.StatusCode != http.StatusOK {
+			t.Fatalf("minted token use = %d, want 200", use.StatusCode)
+		}
+
+		// The negative branch: naming anyone else is the 403 OAuth form.
+		resp = h2.do(http.MethodPost, "/binflow/api/security/token", "ci-bot", "ci-pw",
+			[]byte("grant_type=client_credentials&username=admin"),
+			map[string]string{"Content-Type": "application/x-www-form-urlencoded"})
+		body = mustGet(t, resp)
+		if resp.StatusCode != http.StatusForbidden {
+			t.Fatalf("username=other status = %d, want 403; body=%s", resp.StatusCode, body)
+		}
 		assertOAuthError(t, body, "invalid_request")
 	})
 }

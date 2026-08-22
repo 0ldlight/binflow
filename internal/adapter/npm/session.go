@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/metadata"
 )
 
@@ -100,8 +99,22 @@ func (h *Handler) serveLogin(ctx context.Context, w http.ResponseWriter, r *http
 		}
 		subject = p.Name
 	case body.Name != "" && body.Password != "":
+		// T-204 (T-192 leftover 2): the argon2id comparison runs through
+		// the verifier seam — the auth service's concurrency gate with
+		// request-scoped cancellation — instead of the pure package
+		// function. A verifier error (the client hung up while queued for
+		// a slot) folds into the same uniform 401: the response lands on a
+		// socket nobody is reading, and the body must not distinguish it
+		// anyway. A nil verifier (assembly without the identity service)
+		// fails closed.
 		u, err := h.lookupUser(ctx, body.Name)
-		if err != nil || u == nil || !u.Enabled || !auth.VerifyPassword(body.Password, u.PasswordHash) {
+		ok := err == nil && u != nil && u.Enabled && h.verifier != nil
+		if ok {
+			var verr error
+			ok, verr = h.verifier.VerifyPassword(ctx, body.Password, u.PasswordHash)
+			ok = verr == nil && ok
+		}
+		if !ok {
 			w.Header().Set("WWW-Authenticate", `Basic realm="BinFlow Realm"`)
 			writeError(w, http.StatusUnauthorized, "authentication required")
 			return

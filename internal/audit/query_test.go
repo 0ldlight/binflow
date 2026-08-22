@@ -34,7 +34,7 @@ func seedQueryFixture(t *testing.T) *queryFixture {
 		{Time: tm(0), Actor: "jane", Action: audit.ActionDeploy, Repo: "generic-local", Path: "a.bin"},
 		{Time: tm(1), Actor: "ci-bot", Action: audit.ActionDelete, Repo: "generic-local", Path: "b.bin"},
 		{Time: tm(2), Actor: audit.ActorAnonymous, Action: audit.ActionDownload, Repo: "docker-local", Path: "img/manifests/sha256:aa"},
-		{Time: tm(3), Actor: "jane", Action: audit.ActionLoginFail},
+		{Time: tm(3), Actor: "jane", Action: audit.ActionAuthFail},
 		{Time: tm(4), Actor: "admin", Action: audit.ActionRepoCreate, Repo: "generic-local"},
 		{Time: tm(5), Actor: "admin", Action: audit.ActionGroupCreate},
 		{Time: tm(6), Actor: "admin", Action: audit.ActionGCRun},

@@ -52,6 +52,14 @@ type Handler struct {
 	// name/password in JSON when the client holds no Basic header). nil
 	// disables that verification path.
 	users UserDirectory
+	// verifier is the gated password-verification seam the couch login
+	// runs through (T-204 / T-192 leftover 2). WithAuth recovers it from
+	// the tokens collaborator — every real assembly passes the
+	// *auth.Service there, so npm login shares the service's one argon2
+	// gate with the Basic arm. nil (assemblies with a fake registry) fails
+	// the body-credential branch closed; it never falls back to the
+	// ungated pure auth.VerifyPassword.
+	verifier adapter.PasswordVerifier
 	// ledger is the read-only blob digest ledger: packument ETag/X-Checksum-Sha1
 	// come from the stored document's ledger row (spec section 2.4). nil
 	// degrades to computing the sha1 of the served bytes.
@@ -95,6 +103,15 @@ func New(svc repo.Service, repos repo.ClassReader, opts Options) *Handler {
 // couch login body credential, and the optional early-write authorizer.
 func (h *Handler) WithAuth(tokens auth.TokenRegistry, users UserDirectory, authz auth.Authorizer) *Handler {
 	h.tokens, h.users, h.authz = tokens, users, authz
+	// Recover the gated verification capability from the identity service
+	// the assembler already wired (cmd, the harnesses and the httpapi
+	// assembly pass the *auth.Service as the token registry; the same
+	// capability-probe precedent as AuthenticateCredentials' LDAP Bind). A
+	// fake registry leaves the verifier nil and the body-credential login
+	// branch fails closed.
+	if pv, ok := tokens.(adapter.PasswordVerifier); ok {
+		h.verifier = pv
+	}
 	return h
 }
 

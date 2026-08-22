@@ -254,9 +254,25 @@ func parseFormInt(v string) (int64, error) {
 	return n, nil
 }
 
-// handleTokenCreate serves POST /api/security/token (E-17). The authenticated
-// caller gets a fresh Bearer token; admin may name another subject, a
-// non-admin naming anyone but themselves is rejected (auth-model.md 3.1).
+// tokenIssueDetail is the JSON payload of the token.issue audit event
+// (G31a/T-133, extended by T-190): fingerprint + TTL as before, plus the
+// token subject (actor != subject when an admin mints on behalf) and the
+// authentication arm of the minting caller (local/oidc/ldap, Q11 guardrail 4).
+type tokenIssueDetail struct {
+	Fingerprint string `json:"fingerprint"`
+	TTLSeconds  int64  `json:"ttl_seconds"`
+	Subject     string `json:"subject"`
+	Source      string `json:"source"`
+}
+
+// handleTokenCreate serves POST /api/security/token (E-17). Permission model
+// per the T-188 ruling (PRD M6 v1.2 Q11, aligned with auth-model.md 3.1):
+// admin is unrestricted (may name any subject, may mint never-expiring
+// tokens); a non-admin authenticated caller — local, OIDC or LDAP arm alike —
+// may mint only for THEMSELVES (username naming anyone else -> 403) and only
+// with a finite TTL (0 < effective ttl <= auth.token_nonadmin_max_ttl, K9;
+// 0/over-cap -> 401 invalid_request with the Artifactory wording). Anonymous
+// callers never reach the handler (the route gate answers 401).
 func (s *Server) handleTokenCreate(w http.ResponseWriter, r *http.Request) {
 	req, err := parseTokenCreateRequest(r)
 	if err != nil {
@@ -291,8 +307,11 @@ func (s *Server) handleTokenCreate(w http.ResponseWriter, r *http.Request) {
 	subject := p.Name
 	if req.Username != "" && !strings.EqualFold(req.Username, p.Name) {
 		if !p.Admin {
-			writeOAuthError(w, http.StatusUnauthorized, "invalid_request",
-				"a non-admin user may only create tokens for themselves")
+			// 403 OAuth form, the same wording the admin route gate uses
+			// (Q11/K9: keep the established "administrator privileges
+			// required" surface instead of a novel message).
+			writeOAuthError(w, http.StatusForbidden, "invalid_request",
+				"administrator privileges required")
 			return
 		}
 		subject = req.Username
@@ -307,6 +326,23 @@ func (s *Server) handleTokenCreate(w http.ResponseWriter, r *http.Request) {
 		ttl = 0 // never expires (auth-model.md 3.5)
 	} else if req.ExpiresIn != nil {
 		ttl = time.Duration(*req.ExpiresIn) * time.Second
+	}
+	if !p.Admin {
+		// Q11 guardrail 2: a finite TTL bounded by the configured cap. The
+		// check applies to the EFFECTIVE lifetime (an absent expires_in
+		// inherits the default TTL, which the cap then also bounds), so an
+		// operator cannot widen the self-service exposure by raising the
+		// default alone. Wording per auth-model.md 3.1.
+		maxTTL := s.deps.Config.Auth.TokenNonAdminMaxTTL
+		if maxTTL <= 0 {
+			maxTTL = 365 * 24 * time.Hour // validated positive at boot; belt-and-braces
+		}
+		if ttl <= 0 || ttl > maxTTL {
+			writeOAuthError(w, http.StatusUnauthorized, "invalid_request",
+				fmt.Sprintf("The user: '%s' can only create user token with expires in larger than 0 and smaller than %d seconds (requested: %d)",
+					p.Name, int64(maxTTL.Seconds()), int64(ttl.Seconds())))
+			return
+		}
 	}
 	if ttl > 0 {
 		expiresIn = int64(ttl.Seconds())
@@ -325,14 +361,28 @@ func (s *Server) handleTokenCreate(w http.ResponseWriter, r *http.Request) {
 	// Record the audit event BEFORE the plaintext AccessToken is serialized
 	// and then discarded. The fingerprint is sha256 first 8 hex chars — the
 	// same digest the verifier uses, so revoke-by-fingerprint is consistent.
-	// Detail carries the fingerprint and TTL; the plaintext never enters the
-	// audit payload (NFR-S3).
+	// Detail carries the fingerprint, the TTL, the token SUBJECT (differs
+	// from the actor when an admin mints on behalf of someone) and the
+	// authentication arm that minted (Q11 guardrail 4: local/oidc/ldap);
+	// the plaintext never enters the audit payload (NFR-S3).
+	detail, derr := json.Marshal(tokenIssueDetail{
+		Fingerprint: auth.TokenFingerprint(tok.AccessToken),
+		TTLSeconds:  expiresIn,
+		Subject:     subject,
+		Source:      string(p.Source),
+	})
+	if derr != nil {
+		// A marshal failure of three strings and an int is not survivable
+		// code; fall back to the pre-T-190 minimal shape so the event still
+		// lands (audit must record even when its payload author failed).
+		detail = []byte(fmt.Sprintf(`{"fingerprint":"%s","ttl_seconds":%d}`,
+			auth.TokenFingerprint(tok.AccessToken), expiresIn))
+	}
 	s.audit.Record(r.Context(), audit.Event{
 		Actor:      p.Name,
 		Action:     audit.ActionTokenIssue,
 		RemoteAddr: r.RemoteAddr,
-		Detail: fmt.Sprintf(`{"fingerprint":"%s","ttl_seconds":%d}`,
-			auth.TokenFingerprint(tok.AccessToken), expiresIn),
+		Detail:     string(detail),
 	})
 	resp := tokenCreateResponse{
 		AccessToken: tok.AccessToken,
@@ -441,18 +491,22 @@ func parseID(v string) (int64, error) {
 // ---- users (E-19) ----
 
 // userListItem is one GET /api/security/users entry (auth-model.md 1.2):
-// name, uri (the item's own API link), realm. Never a password field.
+// name, uri (the item's own API link), realm — plus BinFlow's superset
+// field source, the owning identity provider (T-185 / T-174 D1: "local",
+// "oidc" or "ldap"; PRD FR-54-AC2/FR-55-AC2 assert it). Never a password
+// field.
 type userListItem struct {
-	Name  string `json:"name"`
-	URI   string `json:"uri"`
-	Realm string `json:"realm"`
+	Name   string `json:"name"`
+	URI    string `json:"uri"`
+	Realm  string `json:"realm"`
+	Source string `json:"source"`
 }
 
 // userDetail is the single-user body: the observable account facts, never a
 // password or hash (FR-5-AC11). Email always renders ("" when unset — SE-05
 // round-trips the stored value); groups is the membership set ([] when the
 // user belongs to none); lastLoggedIn stays absent until login times are
-// tracked.
+// tracked. Source mirrors the list entry's provider field (T-185/D1).
 type userDetail struct {
 	Name                     string   `json:"name"`
 	Email                    string   `json:"email"`
@@ -460,9 +514,35 @@ type userDetail struct {
 	Groups                   []string `json:"groups"`
 	LastLoggedIn             string   `json:"lastLoggedIn,omitempty"`
 	Realm                    string   `json:"realm"`
+	Source                   string   `json:"source"`
 	ProfileUpdatable         bool     `json:"profileUpdatable"`
 	InternalPasswordDisabled bool     `json:"internalPasswordDisabled"`
 	DisableUIAccess          bool     `json:"disableUIAccess"`
+}
+
+// providerSource normalizes a stored users.provider value for the wire:
+// unknown or pre-008 spellings collapse to "local" (the same rule
+// auth.adaptUser applies on the read path, so hand-built rows cannot
+// smuggle an arbitrary value into the API surface).
+func providerSource(provider string) string {
+	switch auth.Provider(provider) {
+	case auth.ProviderOIDC, auth.ProviderLDAP:
+		return provider
+	default:
+		return string(auth.ProviderLocal)
+	}
+}
+
+// providerRealm maps the owning provider onto the realm field
+// (auth-model.md 1.1, high confidence: realm is "internal"/"ldap"/… per
+// user): local rows report Artifactory's "internal", federated rows report
+// their provider name (BinFlow models one realm per provider, so the names
+// coincide).
+func providerRealm(provider string) string {
+	if src := providerSource(provider); src != string(auth.ProviderLocal) {
+		return src
+	}
+	return "internal"
 }
 
 // userCreateBody is the create/replace body of both routes. Groups is the
@@ -487,9 +567,10 @@ func (s *Server) handleUserList(w http.ResponseWriter, r *http.Request) {
 	items := make([]userListItem, 0, len(users))
 	for _, u := range users {
 		items = append(items, userListItem{
-			Name:  u.Username,
-			URI:   requestBase(r) + "/binflow/api/security/users/" + u.Username,
-			Realm: "internal",
+			Name:   u.Username,
+			URI:    requestBase(r) + "/binflow/api/security/users/" + u.Username,
+			Realm:  providerRealm(u.Provider),
+			Source: providerSource(u.Provider),
 		})
 	}
 	writeJSONBody(w, http.StatusOK, items)
@@ -521,7 +602,8 @@ func (s *Server) handleUserGet(w http.ResponseWriter, r *http.Request, name stri
 		Email:            u.Email,
 		Admin:            u.IsAdmin,
 		Groups:           groups,
-		Realm:            "internal",
+		Realm:            providerRealm(u.Provider),
+		Source:           providerSource(u.Provider),
 		ProfileUpdatable: true,
 	})
 }

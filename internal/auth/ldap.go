@@ -20,7 +20,9 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -84,14 +86,40 @@ type LDAPConfig struct {
 	// Defaults to 5.
 	PoolSize int
 
-	// StartTLS enables StartTLS on ldap:// connections. Ignored for ldaps://
-	// URLs (which already use TLS). When true, the TLS configuration is
-	// taken from the TLSConfig field.
+	// StartTLS enables the StartTLS extended operation on ldap://
+	// connections: the connection is dialed on the plaintext port and
+	// upgraded to TLS before any LDAP traffic (including the service bind)
+	// is sent. Mutually exclusive with the ldaps:// URL scheme by
+	// construction — ldaps:// already carries implicit TLS, so a StartTLS
+	// upgrade there would fail ("already encrypted"); when both are
+	// configured, ldaps wins and the flag is ignored with a WARN
+	// (PRD FR-55: "start_tls: ldaps:// 时忽略").
+	//
+	// When the upgrade fails (server refuses StartTLS, certificate rejected),
+	// the connection is torn down and the dial fails — BinFlow never falls
+	// back to silently sending credentials in plaintext (T-174 D5).
 	StartTLS bool
 
+	// SkipTLSVerify disables TLS certificate verification for ldaps:// and
+	// StartTLS connections (auth.ldap.skip_tls_verify, default false). It is
+	// an evaluation escape hatch for self-signed directory certificates
+	// (NFR-S36: "仅限评估，生产必须 false"); enabling it logs a WARN at
+	// construction. When TLSConfig is also set, the flag is merged into the
+	// clone used for dialing — the caller's config is never mutated.
+	SkipTLSVerify bool
+
+	// GroupBaseDN is the search base for group searches
+	// (auth.ldap.group_base_dn). Empty falls back to BaseDN; directories
+	// that keep groups in a dedicated subtree (e.g.
+	// "ou=groups,dc=example,dc=org") set it so the group filter does not
+	// scan the user tree (PRD FR-55 step 5).
+	GroupBaseDN string
+
 	// TLSConfig is the TLS configuration for LDAPS or StartTLS connections.
-	// When nil, the default system TLS settings are used. The
-	// InsecureSkipVerify flag should be set only in development.
+	// When nil, a default is built from the URL host with
+	// InsecureSkipVerify taken from SkipTLSVerify and the system roots as
+	// the trust store. The InsecureSkipVerify flag should be set only in
+	// development.
 	TLSConfig *tls.Config
 
 	// ConnectTimeout is the maximum time to wait for a TCP connection.
@@ -113,6 +141,11 @@ func (c *LDAPConfig) defaults() {
 	}
 	if c.GroupNameAttr == "" {
 		c.GroupNameAttr = "cn"
+	}
+	if c.GroupBaseDN == "" {
+		// Group searches default to the user search base (PRD FR-55:
+		// group_base_dn is optional; empty = base_dn).
+		c.GroupBaseDN = c.BaseDN
 	}
 	if c.PoolSize <= 0 {
 		c.PoolSize = 5
@@ -170,11 +203,21 @@ func (w *LDAPConnWrapper) SetTimeout(timeout time.Duration) {
 // with a mock factory. Exported for use by external test packages.
 type LDAPDialer func(ctx context.Context, urlStr string, opts ...ldap.DialOpt) (LDAPConn, error)
 
-// defaultDialer creates a real LDAP connection using DialURL.
+// defaultDialer creates a real LDAP connection using DialURL. Dial failures
+// carry the classification sentinels (T-187 / T-174 O-2): a TLS-shaped
+// failure (ldaps:// certificate rejection) wraps ErrTLSHandshake, everything
+// else wraps ErrProviderUnreachable — the login path folds them into
+// provider_error / tls_handshake audit reasons while the caller still sees
+// the uniform 401.
 func defaultDialer(ctx context.Context, urlStr string, opts ...ldap.DialOpt) (LDAPConn, error) {
 	conn, err := ldap.DialURL(urlStr, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("auth: ldap dial %s: %w", urlStr, err)
+		// Two %w verbs: the sentinel carries the classification, the
+		// original error stays reachable for errors.As/Is.
+		if isTLSFailure(err) {
+			return nil, fmt.Errorf("auth: ldap dial %s: %w: %w", urlStr, ErrTLSHandshake, err)
+		}
+		return nil, fmt.Errorf("auth: ldap dial %s: %w: %w", urlStr, ErrProviderUnreachable, err)
 	}
 	return &LDAPConnWrapper{conn: conn}, nil
 }
@@ -308,20 +351,94 @@ func NewLDAPProvider(cfg *LDAPConfig, resolver LDAPUserResolver, dialer LDAPDial
 		return nil, errors.New("auth: ldap base_dn is required")
 	}
 
+	// The URL scheme selects the TLS posture (fail fast on anything the
+	// config layer already rejects): ldaps:// dials implicit TLS, ldap://
+	// stays plaintext unless StartTLS upgrades it.
+	u, err := url.Parse(cfg.URL)
+	if err != nil || u.Host == "" {
+		return nil, fmt.Errorf("auth: ldap url %q: must be an ldap(s) URL like ldap://host:389", cfg.URL)
+	}
+	scheme := strings.ToLower(u.Scheme)
+	if scheme != "ldap" && scheme != "ldaps" {
+		return nil, fmt.Errorf("auth: ldap url %q: scheme must be ldap or ldaps, got %q", cfg.URL, u.Scheme)
+	}
+
 	if dialer == nil {
 		dialer = defaultDialer
 	}
 
-	// Build DialOpts from config.
+	// Resolve the single effective TLS configuration shared by both TLS
+	// legs — ldaps:// through DialWithTLSConfig at dial time, start_tls via
+	// the StartTLS extended operation — so the verification posture cannot
+	// differ between them. A caller-provided TLSConfig is cloned, never
+	// mutated.
+	tlsConf := cfg.TLSConfig
+	if tlsConf == nil {
+		tlsConf = &tls.Config{}
+	} else {
+		tlsConf = tlsConf.Clone()
+	}
+	// ServerName defaults from the URL host: ldaps:// would derive it from
+	// the dial address anyway, but the StartTLS upgrade wraps an existing
+	// connection, where Go cannot infer a name and would refuse the
+	// handshake ("either ServerName or InsecureSkipVerify must be
+	// specified").
+	if tlsConf.ServerName == "" {
+		tlsConf.ServerName = u.Hostname()
+	}
+	if tlsConf.MinVersion == 0 {
+		tlsConf.MinVersion = tls.VersionTLS12
+	}
+	if cfg.SkipTLSVerify && !tlsConf.InsecureSkipVerify {
+		tlsConf.InsecureSkipVerify = true
+		slog.Warn("auth: ldap skip_tls_verify=true disables TLS certificate verification — evaluation only, never use in production",
+			slog.String("url", cfg.URL))
+	}
+
+	switch {
+	case scheme == "ldaps":
+		// Implicit TLS: the URL scheme owns the encryption. start_tls is
+		// mutually exclusive by construction (RFC 4513 StartTLS extends a
+		// plaintext session; go-ldap refuses the upgrade on an already
+		// encrypted connection), so ldaps wins and the flag is ignored
+		// with a WARN instead of producing a broken double upgrade.
+		if cfg.StartTLS {
+			slog.Warn("auth: ldap start_tls is ignored for ldaps:// URLs — the connection already uses implicit TLS; remove start_tls from auth.ldap",
+				slog.String("url", cfg.URL))
+		}
+	case cfg.StartTLS:
+		// Explicit upgrade on the plaintext port (T-174 D5): the upgrade
+		// runs inside the dialer, so every connection entering the pool is
+		// already TLS and the service bind never leaves in the clear. A
+		// failed upgrade (server refuses StartTLS, certificate rejected)
+		// tears the connection down — no silent plaintext fallback.
+		inner := dialer
+		dialer = func(ctx context.Context, urlStr string, opts ...ldap.DialOpt) (LDAPConn, error) {
+			conn, err := inner(ctx, urlStr, opts...)
+			if err != nil {
+				return nil, err
+			}
+			if err := conn.StartTLS(tlsConf); err != nil {
+				_ = conn.Close()
+				// ErrTLSHandshake carries the O-2 classification: the audit
+				// trail records tls_handshake, not bad_credentials. The
+				// double %w keeps the underlying cause reachable too.
+				return nil, fmt.Errorf("auth: ldap starttls upgrade %s: %w: %w", urlStr, ErrTLSHandshake, err)
+			}
+			return conn, nil
+		}
+	}
+
+	// Build DialOpts from config. The TLS configuration only takes effect
+	// for ldaps:// URLs (go-ldap ignores it on the plaintext port, where
+	// the StartTLS wrapper above owns the upgrade).
 	var opts []ldap.DialOpt
 	if cfg.ConnectTimeout > 0 {
 		opts = append(opts, ldap.DialWithDialer(&net.Dialer{
 			Timeout: cfg.ConnectTimeout,
 		}))
 	}
-	if cfg.TLSConfig != nil {
-		opts = append(opts, ldap.DialWithTLSConfig(cfg.TLSConfig))
-	}
+	opts = append(opts, ldap.DialWithTLSConfig(tlsConf))
 
 	p := &LDAPProvider{
 		config:   cfg,
@@ -370,12 +487,16 @@ func (p *LDAPProvider) Resolve(ctx context.Context, provider Provider, providerI
 //  5. Return Claims with the mapped identity.
 func (p *LDAPProvider) Bind(ctx context.Context, username, password string) (*Claims, error) {
 	if username == "" || password == "" {
-		return nil, fmt.Errorf("auth: ldap bind: %w", ErrInvalidCredentials)
+		return nil, newFailure(ProviderLDAP, ReasonBadCredentials,
+			fmt.Errorf("auth: ldap bind: empty username or password"))
 	}
 
 	conn, err := p.pool.get(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("auth: ldap bind: pool get: %w", err)
+		// Dial, StartTLS upgrade or pool failure: provider-side
+		// infrastructure (O-2) — tls_handshake / provider_error, never
+		// bad_credentials.
+		return nil, classifyProviderConnErr(fmt.Errorf("auth: ldap bind: pool get: %w", err))
 	}
 	defer p.pool.put(conn)
 
@@ -384,16 +505,24 @@ func (p *LDAPProvider) Bind(ctx context.Context, username, password string) (*Cl
 	// Step 1: Resolve the user's DN.
 	userDN, err := p.resolveUserDN(conn, username)
 	if err != nil {
-		return nil, fmt.Errorf("auth: ldap bind: user search %q: %w", username, ErrInvalidCredentials)
+		if errors.Is(err, errNoLDAPEntries) {
+			return nil, newFailure(ProviderLDAP, ReasonUserNotFound, err)
+		}
+		// Service-bind or search failure (misconfigured service account,
+		// directory dropped mid-flow): the directory could not answer for
+		// this user — provider_error.
+		return nil, newFailure(ProviderLDAP, ReasonProviderError, err)
 	}
 
 	// Step 2: Bind as the user with the provided password.
 	if err := conn.Bind(userDN, password); err != nil {
 		// Map LDAP invalid credentials to our sentinel.
 		if ldap.IsErrorWithCode(err, ldap.LDAPResultInvalidCredentials) {
-			return nil, fmt.Errorf("auth: ldap bind: invalid credentials for %q: %w", username, ErrInvalidCredentials)
+			return nil, newFailure(ProviderLDAP, ReasonBadCredentials,
+				fmt.Errorf("auth: ldap bind: invalid credentials for %q: %w", username, ErrInvalidCredentials))
 		}
-		return nil, fmt.Errorf("auth: ldap bind: %w", ErrInvalidCredentials)
+		return nil, newFailure(ProviderLDAP, ReasonProviderError,
+			fmt.Errorf("auth: ldap bind: %w", ErrInvalidCredentials))
 	}
 
 	// Step 3: Determine the user ID attribute value from the search result.
@@ -426,6 +555,12 @@ func (p *LDAPProvider) Bind(ctx context.Context, username, password string) (*Cl
 	}, nil
 }
 
+// errNoLDAPEntries marks a user search the directory ANSWERED with zero
+// matches — the user_not_found classification, distinct from search failures
+// (provider_error). Unexported: only resolveUserDN produces it, only Bind
+// matches it.
+var errNoLDAPEntries = errors.New("auth: ldap search matched no entries")
+
 // resolveUserDN finds the user's DN. When BindDN is configured, it binds as
 // the service account and searches for the user. Otherwise, it constructs the
 // DN directly from the username and BaseDN.
@@ -444,9 +579,9 @@ func (p *LDAPProvider) resolveUserDN(conn LDAPConn, username string) (string, er
 		p.config.BaseDN,
 		ldap.ScopeWholeSubtree,
 		ldap.NeverDerefAliases,
-		0,             // size limit (0 = no limit)
+		0, // size limit (0 = no limit)
 		int(p.config.RequestTimeout.Seconds()),
-		false,         // types only
+		false, // types only
 		filter,
 		[]string{"dn", p.config.UserIDAttr},
 		nil, // controls
@@ -458,7 +593,7 @@ func (p *LDAPProvider) resolveUserDN(conn LDAPConn, username string) (string, er
 	}
 
 	if len(result.Entries) == 0 {
-		return "", fmt.Errorf("user %q not found in LDAP directory", username)
+		return "", fmt.Errorf("user %q: %w", username, errNoLDAPEntries)
 	}
 	if len(result.Entries) > 1 {
 		return "", fmt.Errorf("user %q matched multiple LDAP entries", username)
@@ -503,14 +638,15 @@ func (p *LDAPProvider) extractUserID(conn LDAPConn, username, userDN string) str
 }
 
 // searchGroups searches for LDAP groups that contain the user. It uses the
-// configured GroupFilter, substituting the username for the first %s.
+// configured GroupFilter, substituting the username for the first %s, over
+// GroupBaseDN (defaults to BaseDN).
 func (p *LDAPProvider) searchGroups(conn LDAPConn, username, userDN string) ([]string, error) {
 	_ = userDN // reserved for future use (e.g., member=%s with DN)
 
 	filter := fmt.Sprintf(p.config.GroupFilter, ldap.EscapeFilter(username))
 
 	searchReq := ldap.NewSearchRequest(
-		p.config.BaseDN,
+		p.config.GroupBaseDN,
 		ldap.ScopeWholeSubtree,
 		ldap.NeverDerefAliases,
 		0, // no size limit for groups

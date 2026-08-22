@@ -88,8 +88,28 @@ type MetadataConfig struct {
 type AuthConfig struct {
 	Argon2MemoryMB  int           // argon2id m parameter (64 = 64MB)
 	TokenDefaultTTL time.Duration // default token lifetime
-	OIDC            OIDCConfig    // auth.oidc (disabled by default)
-	LDAP            LDAPConfig    // auth.ldap (disabled by default)
+	// HashConcurrency caps how many argon2id derivations (password
+	// verifies and hashes) run at once across the process (T-204 / T-192:
+	// each in-flight derivation costs ~64 MiB of transient heap, so this
+	// is the operator's memory/CPU ceiling for authentication storms).
+	// Key auth.hash_concurrency. The resolved value is a SENTINEL-DEFAULT:
+	// 0 (unset) keeps the auth service's derived default — GOMAXPROCS
+	// clamped to [1, 16] — so an unconfigured boot changes nothing; a
+	// positive value is passed to auth Service.WithHashConcurrency at the
+	// cmd assembly point. Explicit YAML 0 counts as unset; negative values
+	// fail validation, and the env override
+	// BINFLOW_AUTH__HASH_CONCURRENCY demands a positive integer like every
+	// other int key.
+	HashConcurrency int
+	// TokenNonAdminMaxTTL caps the lifetime a NON-ADMIN caller may request
+	// on POST /api/security/token (PRD M6 v1.2 Q11 guardrail 2 / K9,
+	// T-188/T-190; mirrors Artifactory's
+	// access.token.non.admin.max.expires.in). Key auth.token_nonadmin_max_ttl,
+	// value in SECONDS (the same unit expires_in speaks), default 365d.
+	// Admins are not bound by it (they may mint never-expiring tokens).
+	TokenNonAdminMaxTTL time.Duration
+	OIDC                OIDCConfig // auth.oidc (disabled by default)
+	LDAP                LDAPConfig // auth.ldap (disabled by default)
 }
 
 // OIDCConfig is the auth.oidc section (M6, ADR-0020). Key names mirror
@@ -123,10 +143,12 @@ type LDAPConfig struct {
 	UserFilter    string // user search filter template (%s = username); empty = (uid=%s)
 	UserIDAttr    string // attribute mapping to the BinFlow username; empty = uid
 	GroupFilter   string // group search filter template; empty = no group search
+	GroupBaseDN   string // group search base DN; empty = base_dn (PRD FR-55)
 	GroupNameAttr string // attribute holding the group name; empty = cn
 	AdminGroup    string // DN of a group whose members are granted admin; empty = no mapping
 	PoolSize      int    // idle connection pool size (default 5)
-	StartTLS      bool   // StartTLS on ldap:// connections (ignored for ldaps://)
+	StartTLS      bool   // StartTLS on ldap:// connections (ignored for ldaps://, WARN when both)
+	SkipTLSVerify bool   // skip TLS certificate verification (default false; evaluation only, WARN when enabled)
 }
 
 // SecurityConfig is the access posture. AnonymousAccess only ever opens

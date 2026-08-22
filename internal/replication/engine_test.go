@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -529,13 +530,18 @@ func TestCronSweepProcessesResidue(t *testing.T) {
 			wantPut: 1,
 		},
 		{
-			name: "exhausted task stays terminal",
+			// T-195 D1: only DETERMINISTIC failures stay terminal — the
+			// not-retryable marker in last_error is what the revival scan
+			// keys on (an exhausted TRANSIENT failure is revival fodder, see
+			// TestCronRevivalAfterBackoffBurnout).
+			name: "not-retryable task stays terminal",
 			seed: func(t *testing.T, f *engineFixture, cfgID int64) {
 				if _, err := f.store.CreateTask(f.ctx, &replication.ReplicationTask{
 					ReplicationID: cfgID, BlobSHA256: sha, NodePath: "leave/me.bin",
 					Status: replication.TaskStatusFailed, Attempts: 6,
-					LastError: "out of attempts", CompletedAt: "2026-08-22T00:01:00Z",
-					CreatedAt: "2026-08-22T00:00:00Z",
+					LastError:   "replication: failure is not retryable: conflict: target holds other bytes",
+					CompletedAt: "2020-08-22T00:01:00Z", // aged far past any delay
+					CreatedAt:   "2020-08-22T00:00:00Z",
 				}); err != nil {
 					t.Fatalf("CreateTask: %v", err)
 				}
@@ -571,6 +577,152 @@ func TestCronSweepProcessesResidue(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// ---- D1 (T-195): revival of backoff-exhausted tasks by the cron sweep ----
+
+// TestCronRevivalAfterBackoffBurnout pins the D1 acceptance shape: a dead
+// target burns the whole backoff schedule (six attempts, task terminal
+// failed), the target recovers, and the cron sweep hands the task ONE more
+// attempt per pass until it lands — the same task row, the seventh attempt.
+// The burnout's terminal state is proven by the AUDIT LEDGER (one
+// push.failed before the revived push), not by polling the row: the
+// failed→success transition can complete between two poll ticks because
+// completed_at's RFC3339 second granularity admits a revive up to one
+// second early (harmless for a rate limiter, see revivable).
+func TestCronRevivalAfterBackoffBurnout(t *testing.T) {
+	sha := testSHA256(testPayload)
+	// Six 500s burn the backoff cycle; the seventh PUT (the first revived
+	// attempt) succeeds — the "target recovered" flip.
+	f := newEngineFixture(t,
+		&scriptTarget{putStatuses: []int{
+			http.StatusInternalServerError, http.StatusInternalServerError,
+			http.StatusInternalServerError, http.StatusInternalServerError,
+			http.StatusInternalServerError, http.StatusInternalServerError,
+			http.StatusCreated,
+		}},
+		&replication.EngineOptions{
+			SweepInterval: 30 * time.Millisecond,
+			ReviveDelay:   400 * time.Millisecond,
+		}, nil)
+	f.engine.Enqueue(f.ctx, "libs-local", "org/app/1.bin", sha)
+
+	// The task converges: the SAME row reaches success on the seventh
+	// attempt (six cycle attempts + one revival).
+	task := f.waitTask(t, func(task *replication.ReplicationTask) bool {
+		return task.Status == replication.TaskStatusSuccess && task.Attempts == 7
+	}, "success via cron revival")
+	if task.CompletedAt == "" {
+		t.Fatal("CompletedAt empty on success")
+	}
+	if _, puts, _, _, _ := f.target.snapshot(); puts != 7 {
+		t.Fatalf("PUT calls = %d, want 7 (six cycle attempts + one revival)", puts)
+	}
+	// The burnout terminal state happened first: exactly one failed-audit
+	// event (the cycle's end) followed by one success event (the revived
+	// push). A task that never burned out would show a single success.
+	events := f.audit.collected()
+	if len(events) != 2 ||
+		events[0].Action != replication.AuditActionPushFailed ||
+		events[1].Action != replication.AuditActionPush {
+		t.Fatalf("audit events = %v, want push.failed (burnout) then push (revival)", events)
+	}
+}
+
+// TestCronRevivalGates walks the revival eligibility rules.
+func TestCronRevivalGates(t *testing.T) {
+	sha := testSHA256(testPayload)
+	stamp := func() string { return time.Now().UTC().Add(-time.Hour).Format(time.RFC3339) }
+	cases := []struct {
+		name    string
+		opts    *replication.EngineOptions
+		task    *replication.ReplicationTask
+		wantPut int
+	}{
+		{
+			// The not-retryable marker keeps deterministic faults terminal
+			// however old they are (conflicts must not churn).
+			name: "not-retryable marker blocks revival",
+			opts: &replication.EngineOptions{SweepInterval: 20 * time.Millisecond, ReviveDelay: time.Millisecond},
+			task: &replication.ReplicationTask{BlobSHA256: sha, NodePath: "a.bin",
+				Status: replication.TaskStatusFailed, Attempts: 6,
+				LastError: "replication: failure is not retryable: conflict", CompletedAt: stamp()},
+			wantPut: 0,
+		},
+		{
+			// Aged transient failure + ReviveDelay not yet elapsed: no.
+			name: "unaged exhausted task waits out the delay",
+			opts: &replication.EngineOptions{SweepInterval: 20 * time.Millisecond, ReviveDelay: time.Hour},
+			task: &replication.ReplicationTask{BlobSHA256: sha, NodePath: "b.bin",
+				Status: replication.TaskStatusFailed, Attempts: 6,
+				LastError: "connection refused", CompletedAt: time.Now().UTC().Format(time.RFC3339)},
+			wantPut: 0,
+		},
+		{
+			// A positive MaxRevives is a hard budget: two extra attempts,
+			// then terminal for good.
+			name: "bounded budget exhausts",
+			opts: &replication.EngineOptions{SweepInterval: 20 * time.Millisecond, ReviveDelay: time.Millisecond, MaxRevives: 2},
+			task: &replication.ReplicationTask{BlobSHA256: sha, NodePath: "c.bin",
+				Status: replication.TaskStatusFailed, Attempts: 6,
+				LastError: "connection refused", CompletedAt: stamp()},
+			wantPut: 2,
+		},
+		{
+			// A negative MaxRevives disables revival entirely (the T-162
+			// posture remains selectable).
+			name: "negative option disables revival",
+			opts: &replication.EngineOptions{SweepInterval: 20 * time.Millisecond, ReviveDelay: time.Millisecond, MaxRevives: -1},
+			task: &replication.ReplicationTask{BlobSHA256: sha, NodePath: "d.bin",
+				Status: replication.TaskStatusFailed, Attempts: 6,
+				LastError: "connection refused", CompletedAt: stamp()},
+			wantPut: 0,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newEngineFixture(t, &scriptTarget{putStatuses: []int{http.StatusInternalServerError}}, tc.opts, nil)
+			tc.task.ReplicationID = 1
+			tc.task.CreatedAt = "2026-08-22T00:00:00Z"
+			if _, err := f.store.CreateTask(f.ctx, tc.task); err != nil {
+				t.Fatalf("CreateTask: %v", err)
+			}
+			if tc.wantPut > 0 {
+				// Wait until the budget is spent, then assert it held.
+				f.waitTask(t, func(task *replication.ReplicationTask) bool {
+					return task.Attempts >= 6+int64(tc.wantPut)
+				}, "revival budget spent")
+			}
+			// Give the sweep several more ticks; the count must not move.
+			time.Sleep(120 * time.Millisecond)
+			_, puts, _, _, _ := f.target.snapshot()
+			if puts != tc.wantPut {
+				t.Fatalf("PUT calls = %d, want %d", puts, tc.wantPut)
+			}
+			task := f.newestTask(t)
+			if task == nil || task.Status != replication.TaskStatusFailed {
+				t.Fatalf("task = %+v, want terminal failed", task)
+			}
+		})
+	}
+}
+
+// TestNotRetryableMarkerComposition pins the D1 marker contract: the
+// sentinel's own message carries the substring the revival scan matches on,
+// so every not-retryable wrap (the engine's "%w: %w" composition, unchanged
+// since T-162) persists a classifiable last_error.
+func TestNotRetryableMarkerComposition(t *testing.T) {
+	if !strings.Contains(replication.ErrNotRetryable.Error(), "not retryable") {
+		t.Fatalf("sentinel text %q lacks the revival marker", replication.ErrNotRetryable.Error())
+	}
+	inner := errors.New("conflict: target holds other bytes")
+	wrapped := fmt.Errorf("push a/b: %w", fmt.Errorf("%w: %w", replication.ErrNotRetryable, inner))
+	if !strings.Contains(wrapped.Error(), "not retryable") {
+		t.Fatalf("wrapped text %q lacks the marker", wrapped.Error())
+	}
+	if !errors.Is(wrapped, replication.ErrNotRetryable) {
+		t.Fatal("wrapped error lost the sentinel chain")
 	}
 }
 

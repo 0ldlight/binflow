@@ -47,6 +47,21 @@ type Service struct {
 	// authentication (ADR-0020 decision 4). nil = auto-create is disabled
 	// (the arm still works for existing users).
 	userCreator userCreator
+	// groupSync backs the IdP group membership sync into user_groups
+	// (T-185 / T-174 D4; see idp_sync.go). nil = sync inert.
+	groupSync groupSyncSource
+	// adminWriter backs the per-authentication is_admin refresh for
+	// provider-owned rows (T-185 / T-174 D4; ADR-0020: the provider is the
+	// authority on every authentication, not just the first). nil = inert.
+	adminWriter adminFlagWriter
+	// hashGate bounds concurrent argon2 derivations across this service's
+	// password paths (T-192 / T-172 D-1; see hashgate.go). Never nil after
+	// New; WithHashConcurrency replaces it with a differently sized copy.
+	hashGate *hashGate
+	// hashVerify is the derivation seam the gate wraps. The default runs
+	// the real argon2id comparison; internal tests swap it to observe the
+	// gate without timing games. It runs ONLY while a slot is held.
+	hashVerify func(ctx context.Context, password, encoded string) bool
 }
 
 // userSource is the consumer-side slice of metadata.UserStore the
@@ -155,7 +170,29 @@ func New(users userSource, tokens tokenSource, perms permissionSource, anonymous
 		anonymousRead: anonymousRead,
 	}
 	s.verifier = &TokenVerifier{tokens: tokens, users: users}
+	s.hashGate = newHashGate(defaultHashConcurrency())
+	s.hashVerify = func(_ context.Context, password, encoded string) bool {
+		return VerifyPassword(password, encoded)
+	}
 	return s
+}
+
+// WithHashConcurrency returns a copy of svc whose argon2 gate admits
+// limit concurrent derivations (T-192 / T-172 D-1). The limit is the
+// operator knob for the memory/CPU ceiling of password verification —
+// each in-flight derivation costs ~64 MiB (parameters of record,
+// ADR-0009), so limit x 64 MiB is the worst-case transient heap. It
+// panics for limit < 1: a non-positive bound is an assembly bug, not an
+// operator value (the config plane validates before reaching here).
+// Derivations already running on the old gate drain on their own; the
+// copy's gate starts fresh.
+func (s *Service) WithHashConcurrency(limit int) *Service {
+	if limit < 1 {
+		panic(fmt.Sprintf("auth: hash concurrency limit must be >= 1, got %d", limit))
+	}
+	clone := *s
+	clone.hashGate = newHashGate(limit)
+	return &clone
 }
 
 // WithOIDC returns a copy of svc whose OIDC Bearer arm is backed by prov
@@ -254,26 +291,44 @@ func (s *Service) authenticate(ctx context.Context, r *http.Request) (*Principal
 //
 // M6 update (ADR-0020): users with an empty password_hash (OIDC/LDAP users)
 // cannot authenticate via the Basic arm. The password check is skipped for
-// them — an empty hash is never a valid argon2id PHC string, so
-// VerifyPassword returns false, and the fallback to API token is also
-// rejected because OIDC/LDAP users should not have API tokens presented
-// through the Basic header. The user must authenticate through their
-// provider's arm (OIDC Bearer, or web session after OIDC/LDAP login).
+// them — an empty hash is never a valid argon2id PHC string, so the gated
+// verify returns false, and the fallback to API token is also rejected
+// because OIDC/LDAP users should not have API tokens presented through
+// the Basic header. The user must authenticate through their provider's
+// arm (OIDC Bearer, or web session after OIDC/LDAP login).
+//
+// T-192 (T-172 D-1): the argon2id comparison runs inside the service's
+// concurrency gate — a storm of Basic credentials can no longer start an
+// unbounded number of 64 MiB derivations, and a client that disconnects
+// while queued abandons its slot instead of computing for a dead socket.
+// The gate error is returned verbatim: it is a transport-level
+// abandonment, not a credential verdict (and not a login failure for the
+// audit plane).
 func (s *Service) authenticateBasic(ctx context.Context, username, password string) (*Principal, error) {
 	u, err := s.users.Get(ctx, username)
-	switch {
-	case err == nil && u.Enabled && u.PasswordHash != "" && VerifyPassword(password, u.PasswordHash):
-		return &Principal{Name: u.Username, Admin: u.IsAdmin, Source: ProviderLocal}, nil
-	case err == nil && u.Enabled && u.PasswordHash == "":
-		// OIDC/LDAP user with no local password — cannot use Basic arm.
-		// The empty hash is structurally not a valid argon2id PHC string,
-		// so VerifyPassword would return false anyway, but the explicit
-		// check produces a clearer rejection message.
-		return nil, invalidf("auth: user %q has no local password (use OIDC or web session)", u.Username)
-	case err == nil && !u.Enabled:
-		return nil, invalidf("auth: user %q is disabled", u.Username)
-	case err != nil && !errors.Is(err, ErrUserNotFound):
+	if err != nil && !errors.Is(err, ErrUserNotFound) {
 		return nil, fmt.Errorf("auth: looking up user: %w", err)
+	}
+	if err == nil {
+		// Cheap rejections first — a disabled account or a provider-owned
+		// row never reaches the argon2 gate.
+		switch {
+		case !u.Enabled:
+			return nil, invalidf("auth: user %q is disabled", u.Username)
+		case u.PasswordHash == "":
+			// OIDC/LDAP user with no local password — cannot use Basic arm.
+			// The empty hash is structurally not a valid argon2id PHC
+			// string, so the gated verify would return false anyway, but
+			// the explicit check produces a clearer rejection message.
+			return nil, invalidf("auth: user %q has no local password (use OIDC or web session)", u.Username)
+		}
+		ok, verr := s.VerifyPassword(ctx, password, u.PasswordHash)
+		if verr != nil {
+			return nil, verr
+		}
+		if ok {
+			return &Principal{Name: u.Username, Admin: u.IsAdmin, Source: ProviderLocal}, nil
+		}
 	}
 
 	// Password check failed (unknown user or wrong password): fall back to
@@ -308,31 +363,49 @@ func (s *Service) authenticateOIDC(ctx context.Context, token string) (*Principa
 	claims, err := s.oidcProvider.Authenticate(ctx, token)
 	if err != nil {
 		// The provider wraps its own errors; ensure they satisfy
-		// ErrInvalidCredentials for the HTTP layer.
-		if errors.Is(err, ErrInvalidCredentials) {
-			return nil, err
+		// ErrInvalidCredentials for the HTTP layer — and classify for the
+		// audit plane (T-187): a rejected token is bad_credentials, a
+		// provider-side failure (JWKS fetch, TLS) is provider_error /
+		// tls_handshake.
+		switch {
+		case errors.Is(err, ErrInvalidCredentials):
+			return nil, newFailure(ProviderOIDC, ReasonBadCredentials, err)
+		case errors.Is(err, ErrTLSHandshake):
+			return nil, newFailure(ProviderOIDC, ReasonTLSHandshake, err)
 		}
-		return nil, invalidf("auth: oidc token validation: %v", err)
+		return nil, newFailure(ProviderOIDC, ProviderFailureReason(err),
+			fmt.Errorf("auth: oidc token validation: %w", err))
 	}
 	if claims == nil {
-		return nil, invalidf("auth: oidc provider returned nil claims")
+		return nil, newFailure(ProviderOIDC, ReasonProviderError,
+			errors.New("auth: oidc provider returned nil claims"))
 	}
 	if claims.ProviderID == "" {
-		return nil, invalidf("auth: oidc claims missing provider_id (sub)")
+		return nil, newFailure(ProviderOIDC, ReasonBadCredentials,
+			errors.New("auth: oidc claims missing provider_id (sub)"))
 	}
 	if claims.Name == "" {
-		return nil, invalidf("auth: oidc claims missing username")
+		return nil, newFailure(ProviderOIDC, ReasonBadCredentials,
+			errors.New("auth: oidc claims missing username"))
 	}
 
 	// Try to resolve an existing user.
 	pu, err := s.oidcProvider.Resolve(ctx, ProviderOIDC, claims.ProviderID)
 	if err == nil {
 		if !pu.Enabled {
-			return nil, invalidf("auth: oidc user %q is disabled", pu.Username)
+			return nil, newFailure(ProviderOIDC, ReasonUserDisabled,
+				fmt.Errorf("auth: oidc user %q is disabled", pu.Username))
 		}
+		// T-185 (T-174 D4): the provider is authoritative on EVERY
+		// authentication — refresh a drifted is_admin instead of freezing
+		// it at first login — and mirror the claims' groups into
+		// user_groups so the session arm (and every other DB-backed fill)
+		// sees them.
+		admin := s.refreshProviderAdmin(ctx, claims, pu.Username, pu.IsAdmin)
+		s.syncProviderGroups(ctx, claims, pu.Username)
 		return &Principal{
 			Name:   pu.Username,
-			Admin:  pu.IsAdmin,
+			Admin:  admin,
 			Groups: claims.Groups,
 			Source: ProviderOIDC,
 		}, nil
@@ -343,7 +416,8 @@ func (s *Service) authenticateOIDC(ctx context.Context, token string) (*Principa
 
 	// User not found — auto-create if the creator is wired.
 	if s.userCreator == nil {
-		return nil, invalidf("auth: oidc user %q not found (auto-create disabled)", claims.Name)
+		return nil, newFailure(ProviderOIDC, ReasonUserNotFound,
+			fmt.Errorf("auth: oidc user %q not found (auto-create disabled)", claims.Name))
 	}
 	if err := s.userCreator.Create(ctx, NewUserParams{
 		Username:     claims.Name,
@@ -355,6 +429,7 @@ func (s *Service) authenticateOIDC(ctx context.Context, token string) (*Principa
 	}); err != nil {
 		return nil, fmt.Errorf("auth: auto-creating oidc user %q: %w", claims.Name, err)
 	}
+	s.syncProviderGroups(ctx, claims, claims.Name)
 
 	return &Principal{
 		Name:   claims.Name,
@@ -385,19 +460,34 @@ func (s *Service) authenticateLDAP(ctx context.Context, bindFn interface {
 }, username, password string) (*Principal, error) {
 	claims, err := bindFn.Bind(ctx, username, password)
 	if err != nil {
-		if errors.Is(err, ErrInvalidCredentials) {
+		// LDAPProvider.Bind returns classified Failures; a raw error (test
+		// fakes, future providers) is classified from its sentinel chain,
+		// and everything else keeps the uniform rejection (T-187 / T-174
+		// D8: the audit plane sees method+reason, the caller still a 401).
+		var f *Failure
+		switch {
+		case errors.As(err, &f):
+			return nil, err
+		case errors.Is(err, ErrTLSHandshake):
+			return nil, newFailure(ProviderLDAP, ReasonTLSHandshake, err)
+		case errors.Is(err, ErrProviderUnreachable):
+			return nil, newFailure(ProviderLDAP, ReasonProviderError, err)
+		case errors.Is(err, ErrInvalidCredentials):
 			return nil, err
 		}
 		return nil, invalidf("auth: ldap bind: %v", err)
 	}
 	if claims == nil {
-		return nil, invalidf("auth: ldap bind returned nil claims")
+		return nil, newFailure(ProviderLDAP, ReasonProviderError,
+			errors.New("auth: ldap bind returned nil claims"))
 	}
 	if claims.ProviderID == "" {
-		return nil, invalidf("auth: ldap claims missing provider_id")
+		return nil, newFailure(ProviderLDAP, ReasonProviderError,
+			errors.New("auth: ldap claims missing provider_id"))
 	}
 	if claims.Name == "" {
-		return nil, invalidf("auth: ldap claims missing username")
+		return nil, newFailure(ProviderLDAP, ReasonProviderError,
+			errors.New("auth: ldap claims missing username"))
 	}
 
 	// s.ldapProvider is guaranteed non-nil by the caller (AuthenticateCredentials
@@ -406,11 +496,18 @@ func (s *Service) authenticateLDAP(ctx context.Context, bindFn interface {
 	pu, err := s.ldapProvider.Resolve(ctx, ProviderLDAP, claims.ProviderID)
 	if err == nil {
 		if !pu.Enabled {
-			return nil, invalidf("auth: ldap user %q is disabled", pu.Username)
+			return nil, newFailure(ProviderLDAP, ReasonUserDisabled,
+				fmt.Errorf("auth: ldap user %q is disabled", pu.Username))
 		}
+		// T-185 (T-174 D4): the same refresh the OIDC arm applies — the
+		// directory is authoritative for is_admin on every login, and the
+		// searched group set lands in user_groups so the session arm keeps
+		// it after the login request is gone.
+		admin := s.refreshProviderAdmin(ctx, claims, pu.Username, pu.IsAdmin)
+		s.syncProviderGroups(ctx, claims, pu.Username)
 		return &Principal{
 			Name:   pu.Username,
-			Admin:  pu.IsAdmin,
+			Admin:  admin,
 			Groups: claims.Groups,
 			Source: ProviderLDAP,
 		}, nil
@@ -431,6 +528,7 @@ func (s *Service) authenticateLDAP(ctx context.Context, bindFn interface {
 		}); err != nil {
 			return nil, fmt.Errorf("auth: auto-creating ldap user %q: %w", claims.Name, err)
 		}
+		s.syncProviderGroups(ctx, claims, claims.Name)
 		return &Principal{
 			Name:   claims.Name,
 			Admin:  claims.Admin,
@@ -438,7 +536,8 @@ func (s *Service) authenticateLDAP(ctx context.Context, bindFn interface {
 			Source: ProviderLDAP,
 		}, nil
 	}
-	return nil, invalidf("auth: ldap user %q not found (auto-create disabled)", claims.Name)
+	return nil, newFailure(ProviderLDAP, ReasonUserNotFound,
+		fmt.Errorf("auth: ldap user %q not found (auto-create disabled)", claims.Name))
 }
 
 // basicAuth extracts the Basic credential. A present but undecodable Basic

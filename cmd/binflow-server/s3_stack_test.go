@@ -11,6 +11,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -46,8 +47,9 @@ import (
 type s3Mock struct {
 	srv       *httptest.Server
 	buckets   map[string]map[string][]byte // bucket -> key -> data
-	uploads   map[string]map[int][]byte    // uploadID -> part number -> data
-	uploadKey map[string]string            // uploadID -> object key
+	mtimes    map[string]map[string]time.Time
+	uploads   map[string]map[int][]byte // uploadID -> part number -> data
+	uploadKey map[string]string         // uploadID -> object key
 	mu        sync.Mutex
 }
 
@@ -55,15 +57,42 @@ func newS3Mock(t *testing.T, buckets ...string) *s3Mock {
 	t.Helper()
 	m := &s3Mock{
 		buckets:   map[string]map[string][]byte{},
+		mtimes:    map[string]map[string]time.Time{},
 		uploads:   map[string]map[int][]byte{},
 		uploadKey: map[string]string{},
 	}
 	for _, b := range buckets {
 		m.buckets[b] = map[string][]byte{}
+		m.mtimes[b] = map[string]time.Time{}
 	}
 	m.srv = httptest.NewServer(http.HandlerFunc(m.handle))
 	t.Cleanup(m.srv.Close)
 	return m
+}
+
+// setObjectLastModified backdates one object's LastModified (the mtime the
+// engine's inventory reports — the export path preserves it as the
+// artifact's file mtime, W28/W32).
+func (m *s3Mock) setObjectLastModified(bucket, key string, t time.Time) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if mt, ok := m.mtimes[bucket]; ok {
+		mt[key] = t
+	}
+}
+
+// touchObjectLocked records an object's write time (callers hold m.mu).
+func (m *s3Mock) touchObjectLocked(bucket, key string) {
+	if mt, ok := m.mtimes[bucket]; ok {
+		mt[key] = time.Now().UTC()
+	}
+}
+
+// xmlEscapeText escapes one XML text node (list prefix / key).
+func xmlEscapeText(s string) string {
+	var buf bytes.Buffer
+	xml.Escape(&buf, []byte(s))
+	return buf.String()
 }
 
 // endpoint renders the documented config spelling: a URL with scheme.
@@ -97,15 +126,89 @@ func (m *s3Mock) handle(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 
 	case r.Method == http.MethodHead && key != "":
+		// StatObject. Last-Modified is load-bearing: minio-go's lazy
+		// Object.Stat() satisfies itself through a HEAD and refuses to
+		// parse a response without the header (the read paths then fail
+		// with "Last-Modified time format is invalid").
 		m.mu.Lock()
 		data, ok := objects[key]
+		lm := m.mtimes[bucket][key]
 		m.mu.Unlock()
 		if !ok {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(data)))
+		if lm.IsZero() {
+			lm = time.Now().UTC()
+		}
+		w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+		w.Header().Set("Last-Modified", lm.Format(http.TimeFormat))
+		w.Header().Set("ETag", etag(data))
 		w.WriteHeader(http.StatusOK)
+
+	case r.Method == http.MethodGet && key == "" && query.Get("list-type") == "2":
+		// ListObjectsV2 — the read-only inventory walk (BlobStats, GC,
+		// migration scans). Non-truncated single page, keys sorted.
+		if !hasBucket {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		prefix := query.Get("prefix")
+		m.mu.Lock()
+		keys := make([]string, 0, len(objects))
+		for k := range objects {
+			if strings.HasPrefix(k, prefix) {
+				keys = append(keys, k)
+			}
+		}
+		sort.Strings(keys)
+		var buf bytes.Buffer
+		buf.WriteString(`<?xml version="1.0" encoding="UTF-8"?><ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/">`)
+		buf.WriteString(`<Name>` + bucket + `</Name>`)
+		buf.WriteString(`<Prefix>` + xmlEscapeText(prefix) + `</Prefix>`)
+		buf.WriteString(`<KeyCount>` + strconv.Itoa(len(keys)) + `</KeyCount>`)
+		buf.WriteString(`<MaxKeys>1000</MaxKeys>`)
+		buf.WriteString(`<IsTruncated>false</IsTruncated>`)
+		for _, k := range keys {
+			lm := m.mtimes[bucket][k]
+			if lm.IsZero() {
+				lm = time.Now().UTC()
+			}
+			buf.WriteString(`<Contents>`)
+			buf.WriteString(`<Key>` + xmlEscapeText(k) + `</Key>`)
+			buf.WriteString(`<LastModified>` + lm.Format(time.RFC3339Nano) + `</LastModified>`)
+			buf.WriteString(`<Size>` + strconv.Itoa(len(objects[k])) + `</Size>`)
+			buf.WriteString(`<ETag>` + etag(objects[k]) + `</ETag>`)
+			buf.WriteString(`<StorageClass>STANDARD</StorageClass>`)
+			buf.WriteString(`</Contents>`)
+		}
+		buf.WriteString(`</ListBucketResult>`)
+		m.mu.Unlock()
+		w.Header().Set("Content-Type", "application/xml")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(buf.Bytes())
+
+	case r.Method == http.MethodGet && key != "":
+		// GetObject — the blob read stream (engine Open: export, GC stat,
+		// the import existence probe).
+		m.mu.Lock()
+		data, ok := objects[key]
+		lm := m.mtimes[bucket][key]
+		m.mu.Unlock()
+		if !ok {
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?><Error><Code>NoSuchKey</Code><Message>Not Found</Message></Error>`))
+			return
+		}
+		if lm.IsZero() {
+			lm = time.Now().UTC()
+		}
+		w.Header().Set("Content-Length", strconv.Itoa(len(data)))
+		w.Header().Set("Last-Modified", lm.Format(http.TimeFormat))
+		w.Header().Set("ETag", etag(data))
+		w.Header().Set("Accept-Ranges", "bytes")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(data)
 
 	case r.Method == http.MethodPost && key != "" && query.Has("uploads"):
 		// NewMultipartUpload.
@@ -160,6 +263,7 @@ func (m *s3Mock) handle(w http.ResponseWriter, r *http.Request) {
 		}
 		m.mu.Lock()
 		objects[key] = combined
+		m.touchObjectLocked(bucket, key)
 		m.mu.Unlock()
 		// Bucket and Key must be non-empty: minio-go treats a completion
 		// response without them as an embedded <Error> document.
@@ -179,6 +283,10 @@ func (m *s3Mock) handle(w http.ResponseWriter, r *http.Request) {
 		data, ok := objects[srcKey]
 		if ok {
 			objects[key] = data
+			// Server-side COPY writes a new object: LastModified is now
+			// (real S3 semantics; the engine's Commit path relies on it
+			// for GC grace — see T-173 D-5 for the metadata caveat).
+			m.touchObjectLocked(bucket, key)
 		}
 		m.mu.Unlock()
 		if !ok {
@@ -199,6 +307,7 @@ func (m *s3Mock) handle(w http.ResponseWriter, r *http.Request) {
 		}
 		m.mu.Lock()
 		objects[key] = data
+		m.touchObjectLocked(bucket, key)
 		m.mu.Unlock()
 		w.Header().Set("ETag", etag(data))
 		w.WriteHeader(http.StatusOK)

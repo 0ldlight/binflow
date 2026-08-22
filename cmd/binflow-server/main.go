@@ -134,6 +134,10 @@ lock, so it never overlaps a GC run; the SQLite snapshot is taken BEFORE the
 blob copy and blob mtimes are preserved (the GC grace clock never resets).
 import restores into an empty data directory only, verifies the whole backup
 before writing, and on any failure clears the target back to empty.
+On storage.backend=s3 both faces are engine-aware: export streams the
+referenced blobs out of the bucket into the artifact, and import uploads
+them back through the engine (a dual-write instance keeps the data-dir copy
+and lets the migration sync it).
 
 Common flags:
 
@@ -332,6 +336,19 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// method-set adapter (the T-178 leftover this collapsed).
 	if mig, ok := stack.st.(*storage.MigrationEngine); ok {
 		deps.Migration = mig
+	}
+	// The engine-backed sizing seam (T-201, T-173 D-1): when the assembly's
+	// engine is the S3 one (pure s3 or a completed migration), the stats
+	// endpoint's physical half, the /metrics storage-byte gauge and the GC
+	// candidate sizing read the bucket through the engine instead of walking
+	// a data-dir blobs/ tree that does not exist. A dual-write stack keeps
+	// the disk walk by omission: its MigrationEngine does not carry the
+	// seam, and the data directory still holds every blob while the
+	// migration runs.
+	if cfg.Storage.Backend == config.StorageBackendS3 {
+		if inv, ok := stack.st.(httpapi.BlobInventory); ok {
+			deps.BlobInventory = inv
+		}
 	}
 	// The push-replication plane (T-180, ADR-0021): the store the REST
 	// handlers and the engine share, and the cipher that seals target
@@ -540,8 +557,13 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 		logger.Info("oidc authentication active", "issuer", cfg.Auth.OIDC.IssuerURL)
 	}
 	if ldapProv != nil {
+		// start_tls rides the startup line so the TLS posture of the login
+		// arm is visible without digging through the config (T-186 / QA H35;
+		// ldaps:// URLs and skip_tls_verify already log their own WARNs
+		// inside NewLDAPProvider).
 		logger.Info("ldap authentication active",
-			"url", cfg.Auth.LDAP.URL, "base_dn", cfg.Auth.LDAP.BaseDN)
+			"url", cfg.Auth.LDAP.URL, "base_dn", cfg.Auth.LDAP.BaseDN,
+			"start_tls", cfg.Auth.LDAP.StartTLS)
 	}
 
 	st, err := openStorageEngine(ctx, cfg, logger)
@@ -565,6 +587,13 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 	}
 
 	authSvc := auth.NewFromStore(md, cfg.Security.AnonymousAccess)
+	// auth.hash_concurrency (T-204 / T-192 leftover 1): 0 keeps the service's
+	// derived argon2 gate limit (GOMAXPROCS clamped to [1,16]); a positive
+	// override resizes the one gate every password entrance shares (Basic
+	// arm, web login, docker /v2/token and npm couch login).
+	if cfg.Auth.HashConcurrency > 0 {
+		authSvc = authSvc.WithHashConcurrency(cfg.Auth.HashConcurrency)
+	}
 	// Arm the external providers. WithOIDC's creator parameter REPLACES the
 	// creator NewFromStore wired, so cmd passes the exported store-backed
 	// constructor — the T-157 leftover-2 fix; passing nil here would silently
@@ -602,6 +631,11 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 		Logger: logger,
 		Cipher: replCipher,
 		Audit:  auditLog,
+		// The source-side metadata seam (T-195): selects the protocol-aware
+		// push planes (docker /v2, npm publish/dist-tag, pypi multipart) by
+		// the source repository's package type. Without it every task takes
+		// the generic REST plane — correct for generic/maven only.
+		Meta: replication.NewStoreMetaSource(md),
 	})
 	if err != nil {
 		_ = replDB.Close()
@@ -758,10 +792,12 @@ func wireAuthProviders(ctx context.Context, cfg *config.Config, md metadata.Stor
 			UserFilter:    lc.UserFilter,
 			UserIDAttr:    lc.UserIDAttr,
 			GroupFilter:   lc.GroupFilter,
+			GroupBaseDN:   lc.GroupBaseDN,
 			GroupNameAttr: lc.GroupNameAttr,
 			AdminGroup:    lc.AdminGroup,
 			PoolSize:      lc.PoolSize,
 			StartTLS:      lc.StartTLS,
+			SkipTLSVerify: lc.SkipTLSVerify,
 		}, auth.NewLDAPResolver(md.Users()), nil)
 		if err != nil {
 			return nil, nil, fmt.Errorf("wiring auth.ldap: %w", err)
@@ -889,9 +925,14 @@ func openS3Engine(ctx context.Context, cfg *config.Config) (storage.Engine, erro
 		return nil, fmt.Errorf("opening s3 engine: bucket %s does not exist at %s (create the bucket or point storage.s3.bucket at the right one)", sc.Bucket, sc.Endpoint)
 	}
 
-	return storage.OpenS3EngineWithClient(client, sc.Bucket, &storage.S3EngineOptions{
+	eng, err := storage.OpenS3EngineWithClient(client, sc.Bucket, &storage.S3EngineOptions{
 		BucketPrefix: sc.BucketPrefix,
-	}), nil
+		PartSize:     sc.UploadPartSize,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("opening s3 engine: sweep orphan uploads in %s: %w", sc.Bucket, err)
+	}
+	return eng, nil
 }
 
 // close tears the stack down in the section 7.4 order. It is safe to call

@@ -176,11 +176,65 @@ func TestRegistrationConflict(t *testing.T) {
 			_, err := r.NewHistogram("dup", "help text", []float64{1}) // type conflict doubles as bucket misuse
 			return err
 		}},
+		{"gauge with _total suffix", func(r *Registry) error {
+			_, err := r.NewGauge("binflow_storage_blobs_total", "help")
+			return err
+		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			if err := tc.register(r); err == nil {
 				t.Fatal("registration succeeded, want error")
+			}
+		})
+	}
+}
+
+// TestNamingConventionTotalSuffix (T-197 / D5): the `_total` suffix is
+// reserved for counters — gauge/histogram declarations carrying it are
+// rejected at registration, while counters with the suffix (and every
+// suffix-free non-counter name) register fine and re-register idempotently.
+func TestNamingConventionTotalSuffix(t *testing.T) {
+	cases := []struct {
+		name     string
+		wantErr  bool
+		register func(*Registry) error
+	}{
+		{"gauge with total", true, func(r *Registry) error {
+			_, err := r.NewGauge("binflow_storage_blobs_total", "help")
+			return err
+		}},
+		{"histogram with total", true, func(r *Registry) error {
+			_, err := r.NewHistogram("binflow_replication_latency_seconds_total", "help", []float64{0.5, 1})
+			return err
+		}},
+		{"gauge without total", false, func(r *Registry) error {
+			_, err := r.NewGauge("binflow_storage_blobs", "help")
+			return err
+		}},
+		{"counter with total", false, func(r *Registry) error {
+			_, err := r.NewCounter("binflow_auth_logins_total", "help")
+			return err
+		}},
+		{"counter with total re-registered", false, func(r *Registry) error {
+			if _, err := r.NewCounter("binflow_auth_logins_total", "help"); err != nil {
+				return err
+			}
+			_, err := r.NewCounter("binflow_auth_logins_total", "help")
+			return err
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.register(NewRegistry())
+			if tc.wantErr && err == nil {
+				t.Fatal("registration succeeded, want naming-convention rejection")
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("registration rejected a valid name: %v", err)
+			}
+			if tc.wantErr && err != nil && !strings.Contains(err.Error(), "_total") {
+				t.Fatalf("error does not name the convention: %v", err)
 			}
 		})
 	}

@@ -177,8 +177,8 @@ func TestMetricsEndpointAnonymous(t *testing.T) {
 		"# TYPE binflow_http_requests_total counter",
 		"# TYPE binflow_http_request_duration_seconds histogram",
 		"# HELP binflow_http_requests_in_flight ",
-		`binflow_storage_blobs_total{engine="disk"} 0`,
-		`binflow_storage_blob_bytes_total{engine="disk"} 0`,
+		`binflow_storage_blobs{engine="disk"} 0`,
+		`binflow_storage_blob_bytes{engine="disk"} 0`,
 		`binflow_auth_logins_total{source="local"} 0`,
 		`binflow_auth_logins_total{source="oidc"} 0`,
 		`binflow_auth_logins_total{source="ldap"} 0`,
@@ -323,11 +323,48 @@ func TestMetricsStorageSnapshot(t *testing.T) {
 
 	_, _, body := h.get("/metrics", "", "")
 	for _, want := range []string{
-		`binflow_storage_blobs_total{engine="disk"} 1`,
-		`binflow_storage_blob_bytes_total{engine="disk"} 11`,
+		`binflow_storage_blobs{engine="disk"} 1`,
+		`binflow_storage_blob_bytes{engine="disk"} 11`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("body missing %q\nbody:\n%s", want, body)
+		}
+	}
+}
+
+// TestMetricsNamingConvention (T-197 / D5): `_total` is reserved for counters
+// — every gauge/histogram family in the exposition must drop the suffix, and
+// the pre-rename storage names must be gone (the scrape surface changed, no
+// alias is kept). This pins the convention end-to-end even though the
+// registry also rejects such declarations at registration time.
+func TestMetricsNamingConvention(t *testing.T) {
+	h := newMetricsHarness(t, false, nil, true)
+	_, _, body := h.get("/metrics", "", "")
+
+	gaugesWithTotal := []string{}
+	for _, line := range strings.Split(body, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) != 4 || fields[0] != "#" || fields[1] != "TYPE" {
+			continue
+		}
+		name, typ := fields[2], fields[3]
+		switch typ {
+		case "counter":
+			if !strings.HasSuffix(name, "_total") {
+				t.Errorf("counter family %q lacks the _total suffix", name)
+			}
+		case "gauge", "histogram":
+			if strings.HasSuffix(name, "_total") {
+				gaugesWithTotal = append(gaugesWithTotal, name)
+			}
+		}
+	}
+	if len(gaugesWithTotal) > 0 {
+		t.Errorf("non-counter families carrying _total: %v", gaugesWithTotal)
+	}
+	for _, stale := range []string{"binflow_storage_blobs_total", "binflow_storage_blob_bytes_total"} {
+		if strings.Contains(body, stale) {
+			t.Errorf("body still exposes the pre-T-197 gauge name %q", stale)
 		}
 	}
 }

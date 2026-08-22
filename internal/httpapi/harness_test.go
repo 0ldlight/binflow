@@ -61,6 +61,15 @@ func newHarness(t *testing.T) *harness { return newHarnessCfg(t, nil, nil) }
 // protocol handlers behind the standard two (M3 seam tests inject fake
 // npm/pypi handlers this way; the default stack stays at M2's surface).
 func newHarnessCfg(t *testing.T, mutate func(*config.Config), users [][2]string, extra ...adapter.Handler) *harness {
+	return newHarnessAuth(t, mutate, nil, users, extra...)
+}
+
+// newHarnessAuth is newHarnessCfg plus a seam over the auth service
+// itself: authMutate receives the assembled service and returns the one
+// the stack should use (T-192 injects a lowered argon2 gate for the
+// disconnect-storm regression; nil keeps the default assembly). It runs
+// BEFORE repo/adapter wiring so every consumer sees the same service.
+func newHarnessAuth(t *testing.T, mutate func(*config.Config), authMutate func(*auth.Service) *auth.Service, users [][2]string, extra ...adapter.Handler) *harness {
 	t.Helper()
 	ctx := context.Background()
 	dataDir := t.TempDir()
@@ -84,6 +93,9 @@ func newHarnessCfg(t *testing.T, mutate func(*config.Config), users [][2]string,
 	}
 
 	authSvc := auth.NewFromStore(md, cfg.Security.AnonymousAccess)
+	if authMutate != nil {
+		authSvc = authMutate(authSvc)
+	}
 	// The real audit logger, matching cmd assembly (T-95): governance
 	// assertions (quota.exceeded et al.) read the events the REST path
 	// actually records, instead of the nil the harness used to wire.

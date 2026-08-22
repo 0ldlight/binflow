@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -9,7 +10,9 @@ import (
 
 // ArtifactInfo describes a single artifact node (file or folder) in a
 // repository. Mirrors the server's /api/storage/{repo}/{path} item-info
-// response (E-09).
+// response (E-09): size is a STRING and the digests ride the NESTED
+// checksums object (storage.go fileInfoBody) — UnmarshalJSON folds them
+// into the flat Sha1/MD5/Sha256 fields.
 type ArtifactInfo struct {
 	URI          string `json:"uri"`
 	Size         string `json:"size"`
@@ -21,11 +24,48 @@ type ArtifactInfo struct {
 	MimeType     string `json:"mimeType,omitempty"`
 }
 
-// ArtifactListEntry is one entry in the ?list response (E-10).
+// artifactChecksums is the nested checksums object of the real item-info
+// body (storage.go checksumTriple: sha1/md5/sha256).
+type artifactChecksums struct {
+	Sha1   string `json:"sha1"`
+	Md5    string `json:"md5"`
+	Sha256 string `json:"sha256"`
+}
+
+// UnmarshalJSON folds the real body's nested checksums object into the flat
+// digest fields. A flat spelling is still accepted (pre-alignment peers);
+// the nested values only fill fields the flat spelling left empty.
+func (a *ArtifactInfo) UnmarshalJSON(data []byte) error {
+	type artifactInfoAlias ArtifactInfo // avoids recursing into UnmarshalJSON
+	var v struct {
+		artifactInfoAlias
+		Checksums *artifactChecksums `json:"checksums"`
+	}
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	*a = ArtifactInfo(v.artifactInfoAlias)
+	if v.Checksums != nil {
+		if a.Sha1 == "" {
+			a.Sha1 = v.Checksums.Sha1
+		}
+		if a.MD5 == "" {
+			a.MD5 = v.Checksums.Md5
+		}
+		if a.Sha256 == "" {
+			a.Sha256 = v.Checksums.Sha256
+		}
+	}
+	return nil
+}
+
+// ArtifactListEntry is one entry in the ?list response (E-10). Size is an
+// int64 NUMBER on the wire (storage.go listFile) — unlike the item-info
+// body, whose size is a string.
 type ArtifactListEntry struct {
 	URI    string `json:"uri"`
 	Folder bool   `json:"folder"`
-	Size   string `json:"size,omitempty"`
+	Size   int64  `json:"size,omitempty"`
 }
 
 // ArtifactListResponse is the server response for a storage listing.

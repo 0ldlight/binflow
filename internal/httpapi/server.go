@@ -58,6 +58,13 @@ type Deps struct {
 	// Migration is the optional S3 migration engine (T-164). Nil when
 	// migration is not configured — the endpoints answer 501.
 	Migration MigrationStarter
+	// BlobInventory is the engine-backed sizing seam behind the physical
+	// half of /api/v1/storage/stats, the /metrics storage-byte gauge and the
+	// GC candidate sizing (T-201, T-173 D-1). cmd wires it only when the
+	// assembly's engine is the S3 one (a dual-write stack keeps the disk
+	// walk — its data dir still carries every blob); nil preserves the M1
+	// disk behavior.
+	BlobInventory BlobInventory
 	// Replication is the push-replication store seam (T-180, ADR-0021):
 	// the /api/v1/replications CRUD and /api/v1/replication/status ride it.
 	// Nil leaves those endpoints at 501 — the console panel's "replication

@@ -72,7 +72,7 @@ func t93Fixture() []audit.Event {
 	return []audit.Event{
 		{Time: "2026-08-19T11:00:00Z", Actor: "jane", Action: audit.ActionDeploy, Repo: "generic-local", Path: "a.bin", Detail: `{"size":128}`},
 		{Time: "2026-08-19T11:00:01Z", Actor: "ci-bot", Action: audit.ActionDelete, Repo: "generic-local", Path: "b.bin"},
-		{Time: "2026-08-19T11:00:02Z", Actor: "jane", Action: audit.ActionLoginFail},
+		{Time: "2026-08-19T11:00:02Z", Actor: "jane", Action: audit.ActionAuthFail},
 		{Time: "2026-08-19T11:00:03Z", Actor: "admin", Action: audit.ActionRepoCreate, Repo: "generic-local"},
 		{Time: "2026-08-19T11:00:04Z", Actor: "admin", Action: audit.ActionGroupCreate},
 		{Time: "2026-08-19T11:00:05Z", Actor: "ci-bot", Action: audit.ActionQuotaExceeded, Repo: "generic-local", Path: "big.bin"},
@@ -128,9 +128,9 @@ func TestAuditQueryW22(t *testing.T) {
 			t.Fatalf("actor filter leaked %q", e.Actor)
 		}
 	}
-	_, byAction, _ := t93GetAudit(t, h, "?action=login.failed")
+	_, byAction, _ := t93GetAudit(t, h, "?action="+audit.ActionAuthFail)
 	if len(byAction.Events) < 1 {
-		t.Fatalf("action=login.failed returned no events")
+		t.Fatalf("action=%s returned no events", audit.ActionAuthFail)
 	}
 	_, byRepo, _ := t93GetAudit(t, h, "?repo=generic-local")
 	if len(byRepo.Events) != 4 {
@@ -294,7 +294,7 @@ func TestAuditVocabularyW23(t *testing.T) {
 	// W23b: credentials riding an event's detail are redacted BEFORE
 	// storage; the export surface renders only the masked forms.
 	t93Seed(t, h, audit.Event{
-		Time: "2026-08-19T11:00:07Z", Actor: "sloppy-op", Action: audit.ActionLoginFail,
+		Time: "2026-08-19T11:00:07Z", Actor: "sloppy-op", Action: audit.ActionAuthFail,
 		Detail: `{"password":"w23-literal-pw","Authorization":"Basic d232My1hdXRo","access_token":"w23-token-plaintext","note":"keep"}`,
 	})
 	// A freshly minted API token: its plaintext must never appear in the

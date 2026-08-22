@@ -49,8 +49,23 @@ func (c *Config) Validate() error {
 	if c.Auth.Argon2MemoryMB <= 0 {
 		return fmt.Errorf("config: auth.argon2_memory_mb must be positive, got %d", c.Auth.Argon2MemoryMB)
 	}
+	// hash_concurrency is sentinel-defaulted: 0 keeps the auth service's
+	// derived gate limit, so only negatives are nonsense. A non-positive
+	// override would panic the WithHashConcurrency builder at assembly —
+	// refusing the boot here keeps that panic a never-reached assertion.
+	if c.Auth.HashConcurrency < 0 {
+		return fmt.Errorf("config: auth.hash_concurrency must be a positive integer when set (0 = derived default), got %d",
+			c.Auth.HashConcurrency)
+	}
 	if c.Auth.TokenDefaultTTL <= 0 {
 		return fmt.Errorf("config: auth.token_default_ttl_hours must be positive, got %s", c.Auth.TokenDefaultTTL)
+	}
+	// A zero/negative cap would brick every non-admin token create (the Q11
+	// guardrail demands 0 < ttl <= cap), so refuse the boot instead: raise the
+	// cap or keep the default. Admins are never bound by it, but the value
+	// still gates the self-service plane.
+	if c.Auth.TokenNonAdminMaxTTL <= 0 {
+		return fmt.Errorf("config: auth.token_nonadmin_max_ttl must be positive (seconds), got %s", c.Auth.TokenNonAdminMaxTTL)
 	}
 	if c.Console.SessionTTL <= 0 {
 		return fmt.Errorf("config: console.session_ttl_hours must be positive, got %s", c.Console.SessionTTL)

@@ -19,17 +19,21 @@ import (
 	"github.com/lzwzzy/binflow/internal/storage"
 )
 
-// The push-replication engine (M6, ADR-0021 decision 2; T-162).
+// The push-replication engine (M6, ADR-0021 decision 2; T-162, T-195).
 //
-// One Engine per source instance. repo.Service's Put tail calls Enqueue (the
-// repo.Replicator seam) after an artifact lands; Enqueue appends pending
-// ReplicationTask rows for every enabled config whose source_repo matches and
-// wakes the worker. Run owns the worker loop: it drains pending (and
-// retryable) tasks — directly after a wake, and periodically as the cron
-// fallback (crash recovery: tasks left pending/in_progress by a previous
-// process, H41) — pushing each through the TARGET INSTANCE'S REST upload
-// surface (PUT /binflow/{repo}/{path} with Basic credentials), never by
-// touching the target's storage directly.
+// One Engine per source instance. repo.Service's Put/PutLandedBlob/
+// PutManifest tails call Enqueue (the repo.Replicator seam) after an
+// artifact lands; Enqueue appends pending ReplicationTask rows for every
+// enabled config whose source_repo matches and wakes the worker. Run owns
+// the worker loop: it drains pending (and retryable) tasks — directly after
+// a wake, and periodically as the cron fallback (crash recovery: tasks left
+// pending/in_progress by a previous process, H41; and since T-195 D1, the
+// revival of backoff-exhausted transient failures once they age past
+// ReviveDelay) — pushing each through one of the TARGET INSTANCE'S upload
+// surfaces, selected by the source repository's package type (T-195): the
+// generic REST plane (PUT /binflow/{repo}/{path}, generic/maven), the docker
+// /v2 registry plane, the npm publish/dist-tag plane, or the pypi multipart
+// upload plane. Nothing ever touches the target's storage directly.
 //
 // Q6/Q7 interim posture (pending user ruling, BOARD T-162): the receiving
 // repository is whatever writable surface the config's target_repo names
@@ -61,6 +65,20 @@ const (
 	// DefaultSweepInterval is the cron fallback period (ticket: default 1m,
 	// injectable for tests).
 	DefaultSweepInterval = time.Minute
+	// DefaultReviveDelay is how old a backoff-exhausted failed task must be
+	// (by completed_at) before a cron sweep may revive it (T-195 D1). The
+	// value calibrates on architecture section 8's replication
+	// task_retry_delay_seconds: 300 — one revival opportunity per five
+	// minutes keeps a dead target's failed backlog from hammering the queue
+	// every sweep while still converging within minutes of recovery.
+	DefaultReviveDelay = 5 * time.Minute
+	// DefaultMaxRevives is the internal unlimited-revival sentinel (see
+	// EngineOptions.MaxRevives for the option-value mapping). Unlimited is
+	// the default posture (T-195 D1): the PRD FR-57-AC4 wording ("恢复后定时
+	// cron 增量复制兜底补齐") carries no deadline, and Artifactory's event
+	// replication likewise reconnects indefinitely with a capped delay; the
+	// per-revive cost is ONE attempt per ReviveDelay per task.
+	DefaultMaxRevives = int64(-1)
 	// DefaultSocketTimeout bounds connect/TLS/response-header phases, the
 	// same posture as remote.DefaultSocketTimeout; there is deliberately no
 	// whole-request timeout — artifact bodies stream unbounded.
@@ -87,11 +105,19 @@ const (
 	pushUserAgent = "binflow-replication/1.0"
 )
 
+// notRetryableText is the substring every not-retryable task's last_error
+// carries (it is part of ErrNotRetryable's own message, so every wrap since
+// T-162 already persists it). The cron revival scan (D1) matches on it to
+// keep deterministic faults — conflicts, refused target URLs, vanished
+// source facts — terminal while backoff-exhausted transient failures become
+// revivable; a unit test pins the composition so the wording cannot drift.
+const notRetryableText = "not retryable"
+
 // ErrNotRetryable marks task failures that retrying cannot fix: a refused
 // target URL (SSRF guard), an unde cryptable/unconfigured credential, a
 // source blob that vanished, or a target-side conflict. processTask turns
 // them into terminal failed tasks instead of burning the backoff schedule.
-var ErrNotRetryable = errors.New("replication: failure is not retryable")
+var ErrNotRetryable = errors.New("replication: failure is " + notRetryableText)
 
 // notRetryable wraps err with the ErrNotRetryable sentinel.
 func notRetryable(err error) error {
@@ -151,6 +177,22 @@ type EngineOptions struct {
 	Audit AuditSink
 	// Resolve overrides the guard's host resolution (test seam).
 	Resolve func(ctx context.Context, host string) ([]netip.Addr, error)
+	// MaxRevives bounds how many extra attempts the cron sweep may buy a
+	// backoff-exhausted failed task (T-195 D1). 0 = the default
+	// (DefaultMaxRevives, unlimited); negative = revival disabled (the
+	// T-162 posture); positive N = at most N revivals (attempts cap =
+	// maxAttempts + N). Deterministic not-retryable failures are NEVER
+	// revived regardless of this setting.
+	MaxRevives int64
+	// ReviveDelay is the minimum age of a failed task (completed_at versus
+	// Now) before a sweep may revive it. <= 0 = DefaultReviveDelay. Zero
+	// delay is expressible only through a positive-but-tiny value.
+	ReviveDelay time.Duration
+	// Meta is the source-side metadata seam the protocol-aware push planes
+	// (docker/npm/pypi, T-195) select on. nil = every task pushes through
+	// the generic REST plane (the T-162 behavior — correct for generic and
+	// maven repositories, insufficient for the protocol layouts).
+	Meta MetaSource
 }
 
 // engineConfig is the normalized EngineOptions.
@@ -163,6 +205,9 @@ type engineConfig struct {
 	cipher       *remote.Cipher
 	audit        AuditSink
 	allowPrivate bool
+	maxRevives   int64
+	reviveEvery  time.Duration
+	meta         MetaSource
 }
 
 // maxAttempts is the total attempt budget: the initial attempt plus one retry
@@ -179,6 +224,10 @@ type Engine struct {
 	log    *slog.Logger
 	guard  *remote.Guard
 	client *http.Client
+	// pkgTypes memoizes the source repositories' package types (T-195 plane
+	// selection). Touched only from the drain goroutine — Run's single
+	// worker owns every read and write, so no lock is needed.
+	pkgTypes map[string]string
 	// wake coalesces enqueue signals (capacity 1: one pending drain is
 	// enough, whichever side wins the race).
 	wake chan struct{}
@@ -202,6 +251,9 @@ func NewEngine(store Store, blobs BlobSource, opts EngineOptions) (*Engine, erro
 		cipher:       opts.Cipher,
 		audit:        opts.Audit,
 		allowPrivate: !opts.DenyPrivateTargets,
+		maxRevives:   opts.MaxRevives,
+		reviveEvery:  opts.ReviveDelay,
+		meta:         opts.Meta,
 	}
 	if cfg.now == nil {
 		cfg.now = func() time.Time { return time.Now().UTC() }
@@ -219,6 +271,21 @@ func NewEngine(store Store, blobs BlobSource, opts EngineOptions) (*Engine, erro
 	}
 	if cfg.sweepEvery <= 0 {
 		cfg.sweepEvery = DefaultSweepInterval
+	}
+	if cfg.reviveEvery <= 0 {
+		cfg.reviveEvery = DefaultReviveDelay
+	}
+	// Normalize the revival budget onto the internal spelling: cfg.maxRevives
+	// is the exact cap of EXTRA attempts (>= 0); DefaultMaxRevives (< 0) is
+	// the unlimited sentinel and the zero-value default, so an explicit
+	// negative option value (the "disable" switch) maps onto 0 extras.
+	switch {
+	case opts.MaxRevives > 0:
+		cfg.maxRevives = opts.MaxRevives
+	case opts.MaxRevives < 0:
+		cfg.maxRevives = 0
+	default:
+		cfg.maxRevives = DefaultMaxRevives // -1: unlimited
 	}
 	if cfg.socketEvery <= 0 {
 		cfg.socketEvery = DefaultSocketTimeout
@@ -245,11 +312,12 @@ func NewEngine(store Store, blobs BlobSource, opts EngineOptions) (*Engine, erro
 		DisableCompression:    true,
 	}
 	return &Engine{
-		store: store,
-		blobs: blobs,
-		cfg:   cfg,
-		log:   log,
-		guard: guard,
+		store:    store,
+		blobs:    blobs,
+		cfg:      cfg,
+		log:      log,
+		guard:    guard,
+		pkgTypes: map[string]string{},
 		client: &http.Client{
 			Transport: transport,
 			// Redirects are not followed: a replication target answering 3xx
@@ -358,6 +426,13 @@ func (e *Engine) Run(ctx context.Context) error {
 // the stall a dead target induces on its queue is intended backpressure, and
 // in_progress rows found by the scan can only be crash residue — nothing
 // else writes that status while the loop owns the pass.
+//
+// The failed-task arms implement the D1 revival contract: a task whose
+// backoff burned out (attempts at the cycle cap, transient failure class)
+// becomes revivable once it has aged past the configured ReviveDelay, buying
+// one more attempt per sweep — the cron fallback PRD FR-57-AC4 demands.
+// Deterministic not-retryable failures (the last_error marker) and tasks
+// past their revival budget stay terminal.
 func (e *Engine) drain(ctx context.Context) {
 	configs, err := e.store.ListConfigs(ctx)
 	if err != nil {
@@ -383,7 +458,7 @@ func (e *Engine) drain(ctx context.Context) {
 			case TaskStatusPending:
 				runnable = append(runnable, t)
 			case TaskStatusFailed:
-				if t.Attempts < e.cfg.maxAttempts() {
+				if t.Attempts < e.cfg.maxAttempts() || e.revivable(t) {
 					runnable = append(runnable, t)
 				}
 			case TaskStatusInProgress:
@@ -403,6 +478,42 @@ func (e *Engine) drain(ctx context.Context) {
 			e.processTask(ctx, cfg, t)
 		}
 	}
+}
+
+// reviveCap is the total attempt budget across all revival cycles:
+// the backoff cycle's maxAttempts plus the configured extra attempts.
+func (c *engineConfig) reviveCap() int64 {
+	if c.maxRevives < 0 { // the unlimited sentinel
+		return 1<<62 - 1
+	}
+	return c.maxAttempts() + c.maxRevives
+}
+
+// revivable decides whether one cron sweep may hand a backoff-exhausted
+// failed task another attempt (D1). The gates, in order: the budget (zero
+// extras or attempts already at the cap), the class (the not-retryable
+// marker in last_error — conflicts and configuration faults stay terminal),
+// and the age (completed_at at least ReviveDelay in the past, so a dead
+// target's backlog costs one probe per interval, not one per sweep; the
+// stamp's RFC3339 SECOND granularity can admit a revive up to one second
+// early — harmless for a rate limiter). A missing or unparsable
+// completed_at fails open toward revival: eventual consistency outranks
+// bookkeeping skepticism for transient-class failures.
+func (e *Engine) revivable(t *ReplicationTask) bool {
+	if e.cfg.maxRevives == 0 || t.Attempts >= e.cfg.reviveCap() {
+		return false
+	}
+	if strings.Contains(t.LastError, notRetryableText) {
+		return false
+	}
+	if t.CompletedAt == "" {
+		return true
+	}
+	stamp, err := time.Parse(time.RFC3339, t.CompletedAt)
+	if err != nil {
+		return true
+	}
+	return e.cfg.now().Sub(stamp) >= e.cfg.reviveEvery
 }
 
 // truncateErr bounds an error text for the last_error column.
@@ -568,12 +679,11 @@ func (e *Engine) resolvePassword(cfg *ReplicationConfig) (string, error) {
 	return secret, nil
 }
 
-// targetURL builds the target-side artifact URL:
-// {TargetURL}/binflow/{TargetRepo}/{NodePath}. Every path segment is
-// escaped individually; dot segments and empty segments (which the source's
-// node-path validation already forbids) are refused defensively — a mangled
-// config row must not turn the push into a traversal.
-func (e *Engine) targetURL(cfg *ReplicationConfig, nodePath string) (*url.URL, error) {
+// targetBase parses and validates the config's target URL (shared by every
+// push plane's URL builder). The validations are the not-retryable class: a
+// mangled config row must fail the task deterministically, never turn a
+// push into a traversal or a scheme the SSRF guard would reject per hop.
+func (e *Engine) targetBase(cfg *ReplicationConfig) (*url.URL, error) {
 	if strings.TrimSpace(cfg.TargetRepo) == "" {
 		return nil, notRetryable(fmt.Errorf("config %q: target_repo is empty", cfg.Name))
 	}
@@ -583,6 +693,19 @@ func (e *Engine) targetURL(cfg *ReplicationConfig, nodePath string) (*url.URL, e
 	}
 	if (base.Scheme != "http" && base.Scheme != "https") || base.Host == "" {
 		return nil, notRetryable(fmt.Errorf("config %q: target url %q: only absolute http/https URLs", cfg.Name, cfg.TargetURL))
+	}
+	return base, nil
+}
+
+// targetURL builds the target-side artifact URL:
+// {TargetURL}/binflow/{TargetRepo}/{NodePath}. Every path segment is
+// escaped individually; dot segments and empty segments (which the source's
+// node-path validation already forbids) are refused defensively — a mangled
+// config row must not turn the push into a traversal.
+func (e *Engine) targetURL(cfg *ReplicationConfig, nodePath string) (*url.URL, error) {
+	base, err := e.targetBase(cfg)
+	if err != nil {
+		return nil, err
 	}
 	segments := strings.Split(nodePath, "/")
 	for i, seg := range segments {
@@ -597,6 +720,53 @@ func (e *Engine) targetURL(cfg *ReplicationConfig, nodePath string) (*url.URL, e
 	u.RawQuery = ""
 	u.Fragment = ""
 	return &u, nil
+}
+
+// planeURL builds a target content-plane address with explicit segments:
+// {TargetURL}/binflow/{segments...} — the first segment is the push plane's
+// caller-supplied repository key (cfg.TargetRepo for the content mount, the
+// npm service routes' "-" namespace included). Same escaping and refusal
+// contract as targetURL.
+func (e *Engine) planeURL(cfg *ReplicationConfig, nodePath string, segments ...string) (*url.URL, error) {
+	base, err := e.targetBase(cfg)
+	if err != nil {
+		return nil, err
+	}
+	esc := make([]string, len(segments))
+	for i, seg := range segments {
+		if seg == "" || seg == "." || seg == ".." {
+			return nil, notRetryable(fmt.Errorf("config %q: path %q: illegal segment %q", cfg.Name, nodePath, seg))
+		}
+		esc[i] = url.PathEscape(seg)
+	}
+	u := *base
+	u.Path = strings.TrimRight(base.Path, "/") + "/binflow/" + strings.Join(esc, "/")
+	u.RawPath = ""
+	u.RawQuery = ""
+	u.Fragment = ""
+	return &u, nil
+}
+
+// readAllBounded reads one source blob fully into memory under cap. Plane
+// callers need the whole body in RAM (docker manifests are re-PUT per tag,
+// npm attachments ride inline in the publish JSON, and retries must be able
+// to re-send); the caps keep a corrupt size record from ballooning the
+// engine. An over-cap blob and a vanished/short blob are both deterministic
+// faults on the source side: not retryable.
+func (e *Engine) readAllBounded(ctx context.Context, sha256 string, limit int64) ([]byte, error) {
+	rc, _, err := e.blobs.Open(ctx, sha256)
+	if err != nil {
+		return nil, notRetryable(fmt.Errorf("source blob %s: %w", sha256, err))
+	}
+	defer func() { _ = rc.Close() }() //nolint:errcheck // read-only fd
+	body, err := io.ReadAll(io.LimitReader(rc, limit+1))
+	if err != nil {
+		return nil, fmt.Errorf("read source blob %s: %w", sha256, err)
+	}
+	if int64(len(body)) > limit {
+		return nil, notRetryable(fmt.Errorf("source blob %s: %d bytes exceeds the %d byte plane limit", sha256, len(body), limit))
+	}
+	return body, nil
 }
 
 // do issues one guarded request (SSRF chain point 1/2 here, point 3 in the
@@ -659,7 +829,66 @@ func classify(resp *http.Response, what string) error {
 	return err
 }
 
-// pushOnce performs ONE push attempt for (sha256, nodePath) under cfg:
+// pushOnce performs ONE push attempt for (sha256, nodePath) under cfg,
+// selecting the push plane by the SOURCE repository's package type
+// (T-195): docker repositories speak the /v2 registry protocol (blobs by
+// digest, manifests with tags — anything else answers 404 UNSUPPORTED on
+// the target, T-175 D2); npm repositories converge the package through the
+// npm publish and dist-tag faces (raw node writes are refused there,
+// T-175 D3); pypi repositories ride the warehouse multipart upload face;
+// everything else (generic, maven) keeps the T-162 generic REST plane the
+// QA-verified path already exercises. Without a MetaSource every task takes
+// the generic plane — the T-162 behavior.
+//
+// Retriable failures are returned unwrapped (the retry loop backs off);
+// deterministic faults carry ErrNotRetryable.
+func (e *Engine) pushOnce(ctx context.Context, cfg *ReplicationConfig, sha256, nodePath string) error {
+	if e.cfg.meta != nil {
+		pt, err := e.packageType(ctx, cfg.SourceRepo)
+		if err != nil {
+			return err
+		}
+		var perr error
+		plane := pt
+		switch pt {
+		case "docker":
+			perr = e.pushDocker(ctx, cfg, sha256, nodePath)
+		case "npm":
+			perr = e.pushNpm(ctx, cfg, sha256, nodePath)
+		case "pypi":
+			perr = e.pushPypi(ctx, cfg, sha256, nodePath)
+		default:
+			// generic, maven and any future plain-path type: the T-162
+			// REST plane (content-path PUT), QA-verified.
+			return e.pushGeneric(ctx, cfg, sha256, nodePath)
+		}
+		if perr != nil {
+			return fmt.Errorf("push %s/%s → %s/%s (%s plane): %w",
+				cfg.SourceRepo, nodePath, cfg.TargetURL, cfg.TargetRepo, plane, perr)
+		}
+		return nil
+	}
+	return e.pushGeneric(ctx, cfg, sha256, nodePath)
+}
+
+// packageType resolves (and memoizes) the source repository's package type.
+// A missing repository row is not-retryable (the FK normally prevents it; a
+// row that vanished anyway cannot be retried into existence); any other
+// lookup failure is transient and left retryable.
+func (e *Engine) packageType(ctx context.Context, repoKey string) (string, error) {
+	if pt, ok := e.pkgTypes[repoKey]; ok {
+		return pt, nil
+	}
+	pt, err := e.cfg.meta.PackageType(ctx, repoKey)
+	if err != nil {
+		return "", err
+	}
+	e.pkgTypes[repoKey] = pt
+	return pt, nil
+}
+
+// pushGeneric performs ONE generic-plane push attempt for (sha256, nodePath)
+// under cfg:
 //
 //  1. HEAD the target path — present with the same sha256 is an idempotent
 //     success (zero transfer, ADR-0021 idempotency clause); present with a
@@ -668,10 +897,7 @@ func classify(resp *http.Response, what string) error {
 //  2. PUT the blob bytes with the declared X-Checksum-Sha256 — the target
 //     verifies the digest during ingest (a 409 means the source bytes no
 //     longer match their own checksum, a not-retryable fault).
-//
-// Retriable failures are returned unwrapped (the retry loop backs off);
-// deterministic faults carry ErrNotRetryable.
-func (e *Engine) pushOnce(ctx context.Context, cfg *ReplicationConfig, sha256, nodePath string) error {
+func (e *Engine) pushGeneric(ctx context.Context, cfg *ReplicationConfig, sha256, nodePath string) error {
 	u, err := e.targetURL(cfg, nodePath)
 	if err != nil {
 		return err

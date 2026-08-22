@@ -151,7 +151,7 @@ type AuditEvent struct {
 	ID      int64
 	Time    string
 	Actor   string
-	Action  string // deploy|delete|download|login.success|login.failed|repo.create|...
+	Action  string // deploy|delete|download|login.success|auth.failed|repo.create|... (T-187: auth.failed replaced login.failed)
 	RepoKey string
 	Path    string
 	Detail  string // JSON

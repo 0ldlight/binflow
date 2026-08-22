@@ -8,8 +8,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/lzwzzy/binflow/internal/auth"
 )
 
 // OAuth-form error codes for the token endpoint (the /v2/token plane renders
@@ -231,12 +229,25 @@ var errFormCredential = errors.New("docker: form credential rejected")
 // platform's argon2id verification; the Basic path's password-as-API-token
 // duality is deliberately not duplicated here (docker/buildkit/helm send
 // real passwords; token-authenticated automation uses the header).
+//
+// T-204 (T-192 leftover 2): the argon2id comparison runs through the
+// verifier seam — the auth service's concurrency gate with request-scoped
+// cancellation — instead of the pure package function. A verifier error
+// (the client hung up while queued for a slot) folds into the same
+// uniform rejection: the response lands on a socket nobody is reading,
+// and the body must not distinguish it anyway (FR-11-AC4). A nil verifier
+// (assembly without the identity service) fails closed like a nil user
+// store.
 func (h *Handler) authenticateForm(ctx context.Context, user, pass string) (*Principal, error) {
-	if h.users == nil {
+	if h.users == nil || h.verifier == nil {
 		return nil, errFormCredential
 	}
 	u, err := h.users.Get(ctx, user)
-	if err != nil || !u.Enabled || !auth.VerifyPassword(pass, u.PasswordHash) {
+	if err != nil || !u.Enabled {
+		return nil, errFormCredential
+	}
+	ok, verr := h.verifier.VerifyPassword(ctx, pass, u.PasswordHash)
+	if verr != nil || !ok {
 		return nil, errFormCredential
 	}
 	return &Principal{Name: u.Username, Admin: u.IsAdmin}, nil

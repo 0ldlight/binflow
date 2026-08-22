@@ -76,7 +76,7 @@ func TestMetricsCmdWiringAnonymous(t *testing.T) {
 	for _, want := range []string{
 		"# TYPE binflow_http_requests_total counter",
 		"# TYPE binflow_http_request_duration_seconds histogram",
-		"# HELP binflow_storage_blobs_total ",
+		"# HELP binflow_storage_blobs ",
 		`binflow_auth_logins_total{source="local"} 0`,
 		"# TYPE binflow_replication_tasks gauge",
 		`binflow_replication_tasks{status="pending"} 0`,

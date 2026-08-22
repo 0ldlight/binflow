@@ -15,6 +15,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -180,9 +181,16 @@ func (s *Service) RevokeSession(ctx context.Context, plaintext string) error {
 // The LDAP arm covers the case where local password check fails for LDAP users
 // (who have empty password_hash) or for users whose LDAP directory password
 // differs from their local password.
+//
+// T-185 (T-174 D2): the successful Principal gets the same group fill
+// Authenticate applies, so the login response's whoami body reports the
+// union (claims groups plus the just-synced DB memberships) — the LDAP arm
+// already carries the claims' groups, the local arm gets its DB
+// memberships, and both are deduplicated by fillGroups.
 func (s *Service) AuthenticateCredentials(ctx context.Context, username, password string) (*Principal, error) {
 	p, err := s.authenticateBasic(ctx, username, password)
 	if err == nil {
+		s.fillGroups(ctx, p)
 		return p, nil
 	}
 
@@ -193,11 +201,72 @@ func (s *Service) AuthenticateCredentials(ctx context.Context, username, passwor
 			Bind(ctx context.Context, username, password string) (*Claims, error)
 		})
 		if ok {
-			return s.authenticateLDAP(ctx, ldapProv, username, password)
+			lp, lerr := s.authenticateLDAP(ctx, ldapProv, username, password)
+			if lerr != nil {
+				return nil, s.classifyLoginFailure(ctx, username, lerr)
+			}
+			s.fillGroups(ctx, lp)
+			return lp, nil
 		}
 	}
 
-	return nil, err
+	return nil, s.classifyLoginFailure(ctx, username, err)
+}
+
+// classifyLoginFailure attaches the audit classification (T-187 / T-174 D8)
+// to a failed password login. The uniform 401 the HTTP plane answers is
+// untouched — Failure wraps ErrInvalidCredentials either way; what changes
+// is that the audit event can name the arm and the reason.
+//
+// Rules, in order:
+//
+//   - Server-side failures (store errors reaching this path without a
+//     rejection in their chain) pass through unclassified: the HTTP plane
+//     keeps answering 500 — a metadata outage is not a login rejection.
+//   - Infrastructure failures from the provider arm (provider_error,
+//     tls_handshake) are the operator-actionable signal and survive as-is,
+//     even when a local row also exists (O-2: the directory being down or
+//     StartTLS failing must not read as a wrong password).
+//   - Otherwise the OWNING row decides the arm: a local row means the local
+//     password (or token duality) rejected; an oidc/ldap-owned row means a
+//     password login against a federated identity; a disabled row is
+//     user_disabled regardless of provider.
+//   - No local row: the consulted arm's classification stands verbatim
+//     (user_not_found when the directory answered "no such entry",
+//     bad_credentials when it rejected the bind); without a provider arm
+//     the verdict is local user_not_found.
+//
+// The extra row lookup is one indexed read on the login path only.
+func (s *Service) classifyLoginFailure(ctx context.Context, username string, err error) error {
+	if !errors.Is(err, ErrInvalidCredentials) && failureOf(err) == nil {
+		return err // a server-side failure, not a rejection: keep the 500
+	}
+	if f := failureOf(err); f != nil && infraReason(f.Reason) {
+		return err
+	}
+	u, gerr := s.users.Get(ctx, username)
+	switch {
+	case gerr == nil:
+		method := u.Provider
+		if method == "" {
+			method = ProviderLocal
+		}
+		reason := ReasonBadCredentials
+		if !u.Enabled {
+			reason = ReasonUserDisabled
+		}
+		return newFailure(method, reason, err)
+	case errors.Is(gerr, ErrUserNotFound):
+		if f := failureOf(err); f != nil {
+			return err
+		}
+		return newFailure(ProviderLocal, ReasonUserNotFound, err)
+	default:
+		// The row lookup itself failed: keep a local bad-credentials
+		// classification so the rejection stays uniform; the store error is
+		// in the cause chain for the server log.
+		return newFailure(ProviderLocal, ReasonBadCredentials, err)
+	}
 }
 
 // sessionCookie extracts the binflow_session cookie value ("", false when

@@ -264,6 +264,16 @@ func parseStatusError(statusCode int, body []byte) *StatusError {
 // JSON helpers
 // ---------------------------------------------------------------------------
 
+// looksLikeJSON reports whether a 2xx body is a JSON document (first
+// non-space byte '{' or '['). Endpoints whose real success body is plain
+// text (the repository mutation plane) use this to branch: the real server
+// never sends JSON there, but a pre-alignment peer might — sniffing the
+// body is deliberately more robust than trusting the Content-Type header.
+func looksLikeJSON(body []byte) bool {
+	return strings.HasPrefix(strings.TrimLeft(string(body), " \t\r\n"), "{") ||
+		strings.HasPrefix(strings.TrimLeft(string(body), " \t\r\n"), "[")
+}
+
 // getJSON performs a GET request and unmarshals the JSON response into out.
 func (c *Client) getJSON(ctx context.Context, path string, out interface{}) error {
 	req, err := c.newRequest(ctx, http.MethodGet, path, nil)

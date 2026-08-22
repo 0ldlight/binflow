@@ -33,6 +33,10 @@ import (
 	"github.com/lzwzzy/binflow/internal/storage"
 )
 
+// ErrBlobNotListed marks a GC candidate the engine's inventory no longer
+// carries at sizing time (deleted by a racing writer or foreign sweep).
+var ErrBlobNotListed = errors.New("blob missing from the engine inventory")
+
 // GarbageCollector is the consumer-side seam over storage.Engine's GC face
 // (the interface method the engine already implements — no new storage
 // surface was added for this endpoint). cmd wires the opened engine; the
@@ -176,7 +180,17 @@ func (s *Server) handleSystemGC(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "gc: "+err.Error())
 		return
 	}
-	candidateBytes, statErr := sumBlobFileSizes(s.deps.DataDir, candidates)
+	// Candidate sizing is engine-aware (T-201, T-173 D-1): an S3-backed
+	// instance sizes the candidates from the engine's bucket listing — the
+	// disk-only walk below could only ever log "sizing incomplete" there,
+	// because the candidates name bucket objects, not files under blobs/.
+	var candidateBytes int64
+	var statErr error
+	if s.deps.BlobInventory != nil {
+		candidateBytes, statErr = sumCandidateBytesFromInventory(sweepCtx, s.deps.BlobInventory, candidates)
+	} else {
+		candidateBytes, statErr = sumBlobFileSizes(s.deps.DataDir, candidates)
+	}
 	if statErr != nil {
 		// The sweep listed these files a moment ago; a stat failure means
 		// something foreign raced the tree. The count stays honest (the
@@ -281,6 +295,32 @@ func (s *Server) gcLockRefusedMessage(err error) string {
 		because = "another maintenance operation is in progress; "
 	}
 	return "gc rejected: " + because + err.Error()
+}
+
+// sumCandidateBytesFromInventory sizes GC candidates through the engine's
+// read-only blob listing (the S3-backend arm, T-201): one bucket walk
+// answers every candidate's stored size. A candidate absent from the
+// listing contributes zero and is reported through the error — the same
+// "vanished between sweep and sizing" reading sumBlobFileSizes gives a
+// disk-resident blob that disappeared mid-run.
+func sumCandidateBytesFromInventory(ctx context.Context, inv BlobInventory, shas []string) (int64, error) {
+	stats, err := inv.BlobStats(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("sizing candidates through the storage engine: %w", err)
+	}
+	var total int64
+	var firstErr error
+	for _, sha := range shas {
+		st, ok := stats[sha]
+		if !ok {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("blob %s: %w", sha, ErrBlobNotListed)
+			}
+			continue
+		}
+		total += st.Size
+	}
+	return total, firstErr
 }
 
 // sumBlobFileSizes totals the on-disk size of the given blobs through the

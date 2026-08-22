@@ -26,13 +26,16 @@ import (
 )
 
 // Metric family names (ADR-0022 naming rule binflow_<subsystem>_<metric>_<unit>;
-// the PRD FR-61 spellings for the families H52 asserts).
+// the PRD FR-61 spellings for the families H52 asserts). The two storage
+// gauges dropped their v1 `_total` suffixes in T-197 (D5): Prometheus
+// reserves `_total` for counters — `promtool check metrics` lints it and the
+// registry now rejects such declarations.
 const (
 	metricHTTPRequestsTotal = "binflow_http_requests_total"
 	metricHTTPDuration      = "binflow_http_request_duration_seconds"
 	metricHTTPInFlight      = "binflow_http_requests_in_flight"
-	metricStorageBlobsTotal = "binflow_storage_blobs_total"
-	metricStorageBlobBytes  = "binflow_storage_blob_bytes_total"
+	metricStorageBlobs      = "binflow_storage_blobs"
+	metricStorageBlobBytes  = "binflow_storage_blob_bytes"
 	metricAuthLoginsTotal   = "binflow_auth_logins_total"
 	metricReplicationTasks  = "binflow_replication_tasks"
 )
@@ -73,10 +76,10 @@ func newInstrumentation(deps Deps) *instrumentation {
 		"HTTP request duration in seconds by method and normalized route.", metrics.DefaultBuckets)
 	ins.httpInFlt = mustGauge(reg, metricHTTPInFlight,
 		"HTTP requests currently being served.")
-	ins.stBlobs = mustGauge(reg, metricStorageBlobsTotal,
+	ins.stBlobs = mustGauge(reg, metricStorageBlobs,
 		"Blob ledger rows in the metadata store, by storage engine.")
 	ins.stBytes = mustGauge(reg, metricStorageBlobBytes,
-		"Stored blob bytes by storage engine: physical bytes under blobs/ on disk, logical (quota-metered) artifact bytes on s3.")
+		"Stored blob bytes by storage engine: physical bytes under blobs/ on disk or, on s3, summed blob object bytes from the engine's bucket listing.")
 	ins.authLogins = mustCounter(reg, metricAuthLoginsTotal,
 		"Console logins by identity provider source.")
 
@@ -239,12 +242,29 @@ func (s *Server) refreshMetricsSnapshots(ctx context.Context) {
 }
 
 // refreshStorageBytes sets the byte gauge per engine: the disk backend
-// walks blobs/ (physical bytes, the same walk /api/v1/storage/stats uses);
-// the s3 backend sums repo_usage logical bytes (there is no cheap physical
-// byte count without a bucket listing — ADR-0022's s3 replacement metrics
-// stay an M6+ refinement).
+// walks blobs/ (physical bytes, the same walk /api/v1/storage/stats uses).
+// An engine-backed inventory (s3 backend since T-201, T-173 D-1) sizes the
+// bucket through the engine's listing — physical object bytes, the same
+// number the stats endpoint reports. The pre-T-201 s3 fallback (summing
+// repo_usage logical bytes, an approximation ADR-0022 documented as an
+// M6+ refinement) remains for s3-labeled stacks assembled without the
+// seam: dual-write instances, whose data dir still carries every blob and
+// therefore answer through the disk walk's engineLabel != "s3" arm anyway.
 func (s *Server) refreshStorageBytes(ctx context.Context) {
 	ins := s.metrics
+	if s.deps.BlobInventory != nil {
+		stats, err := s.deps.BlobInventory.BlobStats(ctx)
+		if err != nil {
+			s.log.DebugContext(ctx, "httpapi: metrics blob-bytes snapshot failed", "error", err.Error())
+			return
+		}
+		var total int64
+		for _, st := range stats {
+			total += st.Size
+		}
+		ins.stBytes.Set(float64(total), "engine", ins.engineLabel)
+		return
+	}
 	if ins.engineLabel != "s3" {
 		if s.deps.DataDir == "" {
 			return
@@ -257,8 +277,9 @@ func (s *Server) refreshStorageBytes(ctx context.Context) {
 		ins.stBytes.Set(float64(n), "engine", ins.engineLabel)
 		return
 	}
-	// s3: sum the per-repository usage rows (repos × one indexed read; a
-	// failed read skips that repo's contribution rather than the scrape).
+	// s3 without the inventory seam: sum the per-repository usage rows
+	// (repos × one indexed read; a failed read skips that repo's
+	// contribution rather than the scrape).
 	repos, err := s.deps.Metadata.Repos().List(ctx)
 	if err != nil {
 		s.log.DebugContext(ctx, "httpapi: metrics usage snapshot failed", "error", err.Error())

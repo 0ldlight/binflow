@@ -19,14 +19,21 @@ import (
 // of user and group entries and simulates Bind and Search operations.
 type mockLDAPConn struct {
 	// bound tracks whether the connection is currently bound, and as whom.
-	bound    bool
-	boundDN  string
+	bound   bool
+	boundDN string
 
 	// users maps DN -> password for bind verification.
 	users map[string]mockLDAPUser
 
 	// groups maps group DN -> group info.
 	groups map[string]mockLDAPGroup
+
+	// startTLSCalls counts StartTLS invocations seen by this connection and
+	// startTLSConfig captures the tls.Config of the last one (T-186 wiring
+	// assertions); startTLSErr, when set, makes the upgrade fail.
+	startTLSCalls  int
+	startTLSConfig *tls.Config
+	startTLSErr    error
 
 	// closed tracks whether the connection has been closed.
 	closed bool
@@ -128,6 +135,11 @@ func (m *mockLDAPConn) Search(searchRequest *ldap.SearchRequest) (*ldap.SearchRe
 }
 
 func (m *mockLDAPConn) StartTLS(config *tls.Config) error {
+	m.startTLSCalls++
+	m.startTLSConfig = config
+	if m.startTLSErr != nil {
+		return m.startTLSErr
+	}
 	return nil
 }
 
@@ -681,12 +693,12 @@ func TestLDAPProviderAuthenticateAlwaysFails(t *testing.T) {
 	}
 
 	cfg := &auth.LDAPConfig{
-		Enabled:       true,
-		URL:           "ldap://ldap.example.com:389",
-		BaseDN:        "dc=example,dc=com",
-		UserFilter:    "(uid=%s)",
-		UserIDAttr:    "uid",
-		PoolSize:      1,
+		Enabled:    true,
+		URL:        "ldap://ldap.example.com:389",
+		BaseDN:     "dc=example,dc=com",
+		UserFilter: "(uid=%s)",
+		UserIDAttr: "uid",
+		PoolSize:   1,
 	}
 
 	prov, err := auth.NewLDAPProvider(cfg, nil, dialer)
@@ -713,12 +725,12 @@ func TestLDAPProviderResolveImplementsIdentityProvider(t *testing.T) {
 	}
 
 	cfg := &auth.LDAPConfig{
-		Enabled:       true,
-		URL:           "ldap://ldap.example.com:389",
-		BaseDN:        "dc=example,dc=com",
-		UserFilter:    "(uid=%s)",
-		UserIDAttr:    "uid",
-		PoolSize:      1,
+		Enabled:    true,
+		URL:        "ldap://ldap.example.com:389",
+		BaseDN:     "dc=example,dc=com",
+		UserFilter: "(uid=%s)",
+		UserIDAttr: "uid",
+		PoolSize:   1,
 	}
 
 	prov, err := auth.NewLDAPProvider(cfg, nil, dialer)
@@ -822,12 +834,12 @@ func TestLDAPProviderGetByProviderError(t *testing.T) {
 	}
 
 	cfg := &auth.LDAPConfig{
-		Enabled:       true,
-		URL:           "ldap://ldap.example.com:389",
-		BaseDN:        "dc=example,dc=com",
-		UserFilter:    "(uid=%s)",
-		UserIDAttr:    "uid",
-		PoolSize:      1,
+		Enabled:    true,
+		URL:        "ldap://ldap.example.com:389",
+		BaseDN:     "dc=example,dc=com",
+		UserFilter: "(uid=%s)",
+		UserIDAttr: "uid",
+		PoolSize:   1,
 	}
 
 	// Create a resolver that returns a generic error.

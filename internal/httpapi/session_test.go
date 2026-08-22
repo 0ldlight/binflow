@@ -320,16 +320,16 @@ func TestSessionLogin(t *testing.T) {
 		}
 	})
 
-	t.Run("login.failed lands in the audit trail (W05/W23 anchor)", func(t *testing.T) {
+	t.Run("auth.failed lands in the audit trail (W05/W23 anchor, T-187 name)", func(t *testing.T) {
 		_, _ = loginJSON(t, h, adminUser, "definitely-wrong")
 		events, err := h.md.Audits().Query(context.Background(), metadata.AuditQuery{
-			Actor: adminUser, Action: "login.failed",
+			Actor: adminUser, Action: "auth.failed",
 		})
 		if err != nil {
 			t.Fatalf("audit query: %v", err)
 		}
 		if len(events) == 0 {
-			t.Fatal("no login.failed event recorded")
+			t.Fatal("no auth.failed event recorded")
 		}
 		for _, e := range events {
 			if strings.Contains(e.Detail, "definitely-wrong") {

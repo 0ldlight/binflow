@@ -38,10 +38,13 @@ type UserInfo struct {
 type UserListResponse []UserInfo
 
 // ChangePasswordRequest is the body for changing the current user's password
-// (PUT /api/security/password).
+// (PUT /api/security/password). Field names mirror the server's body
+// (security.go changePasswordOwn): oldPassword/newPassword — the server
+// reads "oldPassword", so any other spelling arrives empty and fails the
+// credentials check.
 type ChangePasswordRequest struct {
-	CurrentPassword string `json:"currentPassword"`
-	NewPassword     string `json:"newPassword"`
+	OldPassword string `json:"oldPassword"`
+	NewPassword string `json:"newPassword"`
 }
 
 // CreateUser creates a new user (PUT /binflow/api/security/users/{name}).
@@ -84,11 +87,14 @@ func (c *Client) ListUsers(ctx context.Context) (UserListResponse, error) {
 }
 
 // ChangeSelfPassword changes the current user's password
-// (PUT /binflow/api/security/password).
+// (PUT /binflow/api/security/password). The endpoint answers 200 plain text
+// on success ("Password has been successfully changed") and 400 plain text
+// with the spec's wording on a wrong old password ("Incorrect
+// username/password").
 func (c *Client) ChangeSelfPassword(ctx context.Context, current, newPassword string) error {
 	req := ChangePasswordRequest{
-		CurrentPassword: current,
-		NewPassword:     newPassword,
+		OldPassword: current,
+		NewPassword: newPassword,
 	}
 	if err := c.putJSON(ctx, "/binflow/api/security/password", req, nil); err != nil {
 		return fmt.Errorf("change password: %w", err)

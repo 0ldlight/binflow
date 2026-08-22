@@ -687,6 +687,12 @@ func (s *service) PutLandedBlob(ctx context.Context, p *Principal, repoKey, path
 		Actor: p.Name, Action: AuditActionDeploy, Repo: repoKey, Path: path,
 		Detail: fmt.Sprintf(`{"sha256":%q,"size":%d,"idempotent":%t,"landedBlob":true}`, n.Sha256, n.Size, idempotent),
 	})
+	// Push-replication hook (T-195 D4): the landed-blob chain is how docker
+	// layer/config finalizes and pypi uploads land — without this tail those
+	// artifacts never enqueued a replication task (T-175 D4: zero tasks for a
+	// twine upload). Same contract as PutWithOptions: detached, non-blocking,
+	// never fails the caller.
+	s.notifyReplicator(ctx, repoKey, path, n.Sha256)
 	return n, nil
 }
 
@@ -1346,6 +1352,12 @@ func (s *service) PutManifest(ctx context.Context, p *Principal, repoKey, image,
 		Detail: fmt.Sprintf(`{"digest":%q,"tag":%q,"size":%d,"refs":%d,"idempotent":%t}`,
 			digest, tag, size, len(rows), idempotent),
 	})
+	// Push-replication hook (T-195 D2): the manifest NODE task is what drives
+	// the protocol-aware docker push plane (the /v2 manifest PUT that lands
+	// the manifest row AND the tag pointers on the target); the body blob's
+	// task fired from the adapter's step-1 Put above. A tag repoint re-fires
+	// this hook, so re-pointed tags re-converge on the target.
+	s.notifyReplicator(ctx, repoKey, nodePath, digest)
 	// On an idempotent republish the result carries the STORED manifest row
 	// (unchanged provenance and serving columns); on a fresh publish the row
 	// just written. `stored` is only ever set on the idempotent path.

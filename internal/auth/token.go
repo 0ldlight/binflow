@@ -59,7 +59,13 @@ func (v *TokenVerifier) Verify(ctx context.Context, plaintext string) (*Principa
 	if shouldTouch(t.LastUsedAt) {
 		_ = v.tokens.Touch(ctx, t.ID, nowRFC3339())
 	}
-	return &Principal{Name: u.Username, Admin: u.IsAdmin, TokenID: t.ID, Source: ProviderLocal}, nil
+	// Source reflects the OWNING provider of the user row — the same policy
+	// the session arm settled (T-157 leftover 3): a token minted by an OIDC
+	// or LDAP user keeps reporting that source on every request, so the
+	// whoami plane and the token.issue audit name the arm consistently
+	// (T-190 / Q11 guardrail 4). adaptUser normalizes unknown providers to
+	// local, so hand-built rows cannot smuggle an arbitrary value.
+	return &Principal{Name: u.Username, Admin: u.IsAdmin, TokenID: t.ID, Source: u.Provider}, nil
 }
 
 // touchThrottle is the minimum spacing between last_used_at writes for one
@@ -204,7 +210,15 @@ func (s *Service) ChangePassword(ctx context.Context, username, oldPassword, new
 		}
 		return fmt.Errorf("auth: change-password lookup: %w", err)
 	}
-	if !VerifyPassword(oldPassword, u.PasswordHash) {
+	// T-192: the old-password check and the new-password hash both run
+	// inside the argon2 gate — each costs the same ~64 MiB derivation as a
+	// login, and a disconnect mid-queue abandons the attempt cleanly (the
+	// gate error is a transport-level abandonment, not a bad-password 400).
+	ok, verr := s.VerifyPassword(ctx, oldPassword, u.PasswordHash)
+	if verr != nil {
+		return verr
+	}
+	if !ok {
 		return fmt.Errorf("%w: incorrect username/password", ErrInvalidCredentials)
 	}
 	switch {
@@ -213,7 +227,7 @@ func (s *Service) ChangePassword(ctx context.Context, username, oldPassword, new
 	case oldPassword == newPassword:
 		return ErrSamePassword
 	}
-	hash, err := HashPassword(newPassword)
+	hash, err := s.hashPassword(ctx, newPassword)
 	if err != nil {
 		return fmt.Errorf("auth: hashing new password: %w", err)
 	}

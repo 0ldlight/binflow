@@ -146,11 +146,14 @@ func TestV2TokenNonAdmin(t *testing.T) {
 		t.Fatalf("scope = %q, want empty (repo outside every grant)", tok2.Scope)
 	}
 
-	// Management plane contrast: same credentials, admin-only endpoint.
+	// Management plane contrast (T-190/Q11): the same non-admin credentials
+	// may mint a self-subject API token there too — a finite, default-TTL
+	// credential with the full api:* subject privileges, unlike the scoped
+	// docker token above.
 	mgmt := h.do(http.MethodPost, "/binflow/api/security/token", "ci-bot", "ci-pw",
 		[]byte("grant_type=client_credentials"), nil)
-	if mgmt.StatusCode != http.StatusForbidden {
-		t.Fatalf("management plane for non-admin = %d, want 403", mgmt.StatusCode)
+	if mgmt.StatusCode != http.StatusOK {
+		t.Fatalf("management plane for non-admin = %d, want 200 (Q11 self-mint)", mgmt.StatusCode)
 	}
 
 	// offline_token accepted and ignored (D44-2/C5: docker 29's

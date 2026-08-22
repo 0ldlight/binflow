@@ -67,8 +67,10 @@ func TestManagementPlane401Matrix(t *testing.T) {
 
 // TestD2D3AdminReadPlaneMatrix is the D2/D3 regression matrix: the four
 // surfaces QA flagged (repository reads, single-repo read, v1 stats, v1
-// health, token minting) answer 403 for a non-admin principal, 200 for
-// admin, 401 for anonymous — and the unauthenticated probes stay open.
+// health) answer 403 for a non-admin principal, 200 for admin, 401 for
+// anonymous — and the unauthenticated probes stay open. Token minting LEFT
+// this matrix with T-190 (PRD M6 v1.2 Q11): the self-mint is open to every
+// authenticated caller, so its posture is asserted separately below.
 func TestD2D3AdminReadPlaneMatrix(t *testing.T) {
 	h := newHarnessCfg(t, nil, [][2]string{{"qa-bot", "qa-pw"}})
 	seedRepo(t, h, "generic-local")
@@ -82,7 +84,6 @@ func TestD2D3AdminReadPlaneMatrix(t *testing.T) {
 		{"single repo", http.MethodGet, "/binflow/api/repositories/generic-local"},
 		{"v1 storage stats", http.MethodGet, "/binflow/api/v1/storage/stats"},
 		{"v1 health", http.MethodGet, "/binflow/api/v1/health"},
-		{"token mint", http.MethodPost, "/binflow/api/security/token"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -125,8 +126,28 @@ func TestD2D3AdminReadPlaneMatrix(t *testing.T) {
 		}
 	})
 
+	// T-190 (Q11): the mint left the admin-only set — a non-admin
+	// authenticates and mints a self-subject token (200, finite default
+	// TTL), while anonymous keeps the 401 challenge.
+	t.Run("token mint opens to non-admin (T-190)", func(t *testing.T) {
+		body := []byte("grant_type=client_credentials")
+		resp := h.do(http.MethodPost, "/binflow/api/security/token", "qa-bot", "qa-pw", body, nil)
+		respBody := mustGet(t, resp)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("non-admin mint status = %d, want 200; body=%s", resp.StatusCode, respBody)
+		}
+		if token := jsonFieldString(t, respBody, "access_token"); token == "" {
+			t.Fatalf("no access_token: %s", respBody)
+		}
+		resp = h.do(http.MethodPost, "/binflow/api/security/token", "", "", body, nil)
+		_ = mustGet(t, resp)
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("anonymous mint status = %d, want 401", resp.StatusCode)
+		}
+	})
+
 	// A minted token must inherit admin authority only from an admin
-	// issuer: an admin-minted token still works, and nothing else can mint.
+	// issuer: an admin-minted token still works.
 	t.Run("admin-minted token still authenticates", func(t *testing.T) {
 		resp := h.do(http.MethodPost, "/binflow/api/security/token", adminUser, adminPass,
 			[]byte("grant_type=client_credentials"),
