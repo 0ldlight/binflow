@@ -30,12 +30,16 @@
 - **T-214** [P0] M7 架构-PRD 冲突收敛与 ADR 定稿 `role:architect` `area:docs/design + DECISIONS.md` — done 2026-08-23（conductor 直审通过；提交 `af0f0f6`）
   **三分歧终裁**：① readonly_admin = 全域只读、角色短路 target（ADR-0026 胜出，角色名是安全不变量；连带否决 Q2 暂行的 GC dry-run 开放）；② Close **保留**未过期会话（PRD 方向胜出，三径 kill-9/SIGTERM/compose 对称可续传，sweep+TTL 唯一回收路径，新增 **ADR-0028** + ADR-0006 勘误④）；③ step-up 作用域全部非 admin session 臂、step_up_password（本地/LDAP）+ mint grant（OIDC，否决 id_token 窗口）、401 step_up_required、`auth.token_step_up` 默认 off（ADR-0027 修订 Accepted）。**wire 统一**：`adminRole`（camel）+ `readonly_admin`（snake）。§7.1 清点表终版（router.go 实际注册点全量 30 处 admin:true，幻影行勘误，T-211 实测三事实吸收）。风险登记：readonly_admin 全域内容读是新的可见面（部署文档明示）；ADR-0020 `admin_users` 文档-实现漂移建议小票；T-211 矩阵脚本列名拼写待 T-215 同步。日志 reports/agents/T-214.md（P1~P13 回写建议 → PM v1.1 在途）。
 
-#### 波 2（T-212 在途；T-216 部分完成待 T-229；T-229 拆票在途）
-- **T-212** [P0] RBAC 基座：Role 闭集 + 六能力求值链 + migration 011 + idp_sync role 改写（ADR-0026） `role:dev-go-core` `area:internal/auth + internal/metadata` `dep:T-214 ✅` — **doing 2026-08-23**
-- **T-216** [P1] FR-67 docker blob 上传跨重启续传 REST 化 `role:dev-registry-adapter` `area:internal/adapter/docker` `dep:T-213 ✅` — **review APPROVE（2026-08-23，0 阻塞 + 单飞变异实证 + clean-room 无嫌疑；kill 臂探针复核人新构建复证 GREEN）——sigterm 臂待 T-229 落地后整票关账**
-  lazy 重建（per-id 单飞 funnel + r.mu 外 ResumeSession）+ 五动词统一经 resolve + offset 事实源迁移 sess.Offset() + 416 空 body 权威 Range + S3 恒 404。kill -9 臂 GREEN EXIT=0；真实 docker 27.5.1 全绿。**review 遗留（非阻塞，挂账）**：① 探针「binary 存在即复用」陈旧制品假红陷阱（复核人亲历——后续触碰 scripts/ 的票须顺手加固新鲜度校验，T-222 消费前必修）；② flyer 路径 defer 收尾加固（panic 防永久阻塞，M7 债）。日志 reports/agents/T-216.md / T-216-review.md。
-- **T-229** [P1] ADR-0028 Close 保留语义落地（自 T-220 拆出提前；T-216 sigterm 臂的跨区依赖） `role:dev-go-storage` `area:internal/storage + 受影响测试断言（httpapi/adapter）` `dep:—` — **doing 2026-08-23**
-  Close 移除会话清理（未过期行+目录保留，内存会话正常 detach 不泄漏）+ 保留清单 INFO 日志；受影响旧语义测试重评（含 N2 前移：Close 后重新种过期行再断言 sweep）；验收 = `make test-m7-resume-sigterm` 转绿 + kill 臂维持绿 + 三包 race 绿。T-220 相应减负（Close 段与 N2 已移本票）。
+#### 波 2（全 done 2026-08-23；提交 `efd88d7`/`e9de5ef`/`6d379cf`）
+- **T-212** [P0] RBAC 基座 `role:dev-go-core` — done（review APPROVE 0 阻塞：四不变量逐条 + 双独立红绿 + clean-room 无嫌疑）
+  Role 闭集 + 六能力 CanManage 全表 + m 动作（只判 repos[]、双向不隐含）+ readonly 短路 + 四写路径单语句镜像 + Verify/Session 即时生效缝 + idp_sync 权威阶梯 + migration 011 双方言（回填/幂等/101 用户 ~80ms）。**review 移交（并入 T-215）**：① adapter/docker/token.go:253 `authenticateForm` 不带 Role——form 腿 readonly_admin 折叠为 user（欠授权 fail-closed 非提权），**T-215 接通 readonly_group 前必修**；② metadata Create 对 Role+IsAdmin 矛盾输入无校验（ADR 冲突 400 归 handler）；readonly_group config/cmd 接线（T-212 遗留①）。**归 T-220**：TestSessionTTLAbsoluteCapWins 墙钟 flake 放宽。日志 reports/agents/T-212.md / T-212-review.md。
+- **T-216** [P1] FR-67 docker 续传 REST 化 `role:dev-registry-adapter` — done（review APPROVE + sigterm 臂随 T-229 转绿）
+  lazy 重建（per-id 单飞，变异实证）+ 五动词统一 resolve + offset 事实源 sess.Offset() + 416 空 body 权威 Range + S3 恒 404。kill 臂 GREEN EXIT=0（复核人新构建复证）、真实 docker 27.5.1 全绿。**挂账**：探针陈旧二进制陷阱（T-222 消费前必修）；flyer defer 加固（M7 债）。日志 reports/agents/T-216.md / T-216-review.md。
+- **T-229** [P1] ADR-0028 Close 保留语义 `role:dev-go-storage` — done（conductor 强制新构建亲验：sigterm 臂 GREEN EXIT=0 + kill 臂维持绿）
+  Close 去 cleanup 改 detach + 保留清单 INFO 日志；sweep+TTL 唯一回收四路钉死；N2 前移（sweep-residue restart 臂重种子语义）。三包 race 绿 + lint 0。日志 reports/agents/T-229.md。
+
+#### 波 3（在途）
+- **T-215** [P0] FR-64 REST：routeAuth 能力化迁移 + adminRole wire + 角色即时生效与审计 `role:dev-go-core` `area:internal/httpapi + internal/config(readonly_group 键) + cmd/binflow-server(接线) + scripts/m7-rbac-matrix.sh(列名同步)` `dep:T-212 ✅` — **doing 2026-08-23（吸收 T-212 review 移交项：authenticateForm Role 修复 / Create 矛盾 400 / readonly_group 接线）**
 
 #### 波 2（待波 1）
 - **T-212** [P0] RBAC 基座：Role 闭集 + 六能力求值链 + migration 011 + idp_sync role 改写（ADR-0026） `role:dev-go-core` `area:internal/auth + internal/metadata` `dep:T-214`
