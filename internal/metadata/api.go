@@ -391,6 +391,11 @@ type UserStore interface {
 	// while this method serves the create-or-replace and partial-update
 	// bodies of /api/security/users/{name} (T-97 SE-05/06).
 	UpdateProfile(ctx context.Context, username, email string, isAdmin bool) error
+	// SetEnabled flips the enabled flag of one account (T-208, ADR-0025
+	// decision 6): disabling an account invalidates its existing sessions and
+	// tokens immediately because Verify re-resolves the owner row per request.
+	// ErrUserNotFound when the user does not exist.
+	SetEnabled(ctx context.Context, username string, enabled bool) error
 	Delete(ctx context.Context, username string) error
 	List(ctx context.Context) ([]*User, error)
 }

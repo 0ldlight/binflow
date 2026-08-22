@@ -100,6 +100,21 @@ func (s *userStore) UpdateProfile(ctx context.Context, username, email string, i
 	return nil
 }
 
+func (s *userStore) SetEnabled(ctx context.Context, username string, enabled bool) error {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE users SET enabled = ?, updated_at = ? WHERE username = ?`,
+		boolToInt(enabled), Now(), username)
+	if err != nil {
+		return wrapExec("users set-enabled", username, err)
+	}
+	if n, err := res.RowsAffected(); err != nil {
+		return wrapExec("users set-enabled rows", username, err)
+	} else if n == 0 {
+		return fmt.Errorf("users set-enabled %s: %w", username, ErrUserNotFound)
+	}
+	return nil
+}
+
 func (s *userStore) Delete(ctx context.Context, username string) error {
 	res, err := s.db.ExecContext(ctx, `DELETE FROM users WHERE username = ?`, username)
 	if err != nil {

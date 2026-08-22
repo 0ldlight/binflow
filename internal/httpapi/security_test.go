@@ -559,6 +559,148 @@ func TestUsersRoutes(t *testing.T) {
 	})
 }
 
+// ---- T-208 (ADR-0025 decision 6): user disable REST seam ----
+
+// TestUserEnabledSeam covers the full disable chain: create with an explicit
+// enabled=false, partial-update disable, the immediate 401 of a previously
+// valid token, the immediate 401 of the session/login arm, the create default
+// (enabled absent -> true), the replace-path enabled propagation, and the
+// non-admin 403 gate.
+func TestUserEnabledSeam(t *testing.T) {
+	h := newHarnessCfg(t, nil, [][2]string{{"ci-bot", "ci-pw"}})
+
+	t.Run("create with enabled=false stays disabled", func(t *testing.T) {
+		resp := h.do(http.MethodPut, "/binflow/api/security/users/ci-disabled", adminUser, adminPass,
+			[]byte(`{"name":"ci-disabled","email":"d@example.com","password":"d-pw","enabled":false}`),
+			map[string]string{"Content-Type": "application/json"})
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("status = %d body=%s", resp.StatusCode, mustGet(t, resp))
+		}
+		_ = resp.Body.Close()
+		resp = h.do(http.MethodGet, "/binflow/api/system/version", "ci-disabled", "d-pw", nil, nil)
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("disabled-at-create login = %d, want 401", resp.StatusCode)
+		}
+		_ = resp.Body.Close()
+	})
+
+	t.Run("create default enabled=true (absent field)", func(t *testing.T) {
+		resp := h.do(http.MethodPost, "/binflow/api/security/users", adminUser, adminPass,
+			[]byte(`{"name":"ci-default","email":"d@example.com","password":"d-pw"}`),
+			map[string]string{"Content-Type": "application/json"})
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("status = %d body=%s", resp.StatusCode, mustGet(t, resp))
+		}
+		_ = resp.Body.Close()
+		resp = h.do(http.MethodGet, "/binflow/api/system/version", "ci-default", "d-pw", nil, nil)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("default-enabled login = %d, want 200", resp.StatusCode)
+		}
+		_ = resp.Body.Close()
+	})
+
+	t.Run("admin disables a user; existing token 401s immediately", func(t *testing.T) {
+		h2 := newHarnessCfg(t, nil, [][2]string{{"ci-bot", "ci-pw"}})
+
+		// ci-bot mints its own token (non-admin self-mint, T-190).
+		resp := h2.do(http.MethodPost, "/binflow/api/security/token", "ci-bot", "ci-pw",
+			[]byte("grant_type=client_credentials"),
+			map[string]string{"Content-Type": "application/x-www-form-urlencoded"})
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("mint status = %d body=%s", resp.StatusCode, mustGet(t, resp))
+		}
+		var tok tokenResp
+		if err := json.Unmarshal([]byte(mustGet(t, resp)), &tok); err != nil {
+			t.Fatalf("mint body: %v", err)
+		}
+		_ = resp.Body.Close()
+
+		// The token works before the disable.
+		use := h2.do(http.MethodGet, "/binflow/api/system/ping", "", "",
+			nil, map[string]string{"X-JFrog-Art-Api": tok.AccessToken})
+		if use.StatusCode != http.StatusOK {
+			t.Fatalf("token before disable = %d, want 200", use.StatusCode)
+		}
+		_ = use.Body.Close()
+
+		// Admin partial-update disables ci-bot.
+		resp = h2.do(http.MethodPost, "/binflow/api/security/users/ci-bot", adminUser, adminPass,
+			[]byte(`{"enabled":false}`),
+			map[string]string{"Content-Type": "application/json"})
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("disable status = %d body=%s", resp.StatusCode, mustGet(t, resp))
+		}
+		_ = resp.Body.Close()
+
+		// The same token is dead now.
+		use = h2.do(http.MethodGet, "/binflow/api/system/ping", "", "",
+			nil, map[string]string{"X-JFrog-Art-Api": tok.AccessToken})
+		if use.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("token after disable = %d, want 401", use.StatusCode)
+		}
+		_ = use.Body.Close()
+
+		// The session/login arm is dead too (basic credential).
+		resp = h2.do(http.MethodGet, "/binflow/api/system/version", "ci-bot", "ci-pw", nil, nil)
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("login after disable = %d, want 401", resp.StatusCode)
+		}
+		_ = resp.Body.Close()
+	})
+
+	t.Run("replace path propagates enabled and keeps it when absent", func(t *testing.T) {
+		h2 := newHarnessCfg(t, nil, [][2]string{{"ci-bot", "ci-pw"}})
+
+		// Replace with enabled=false.
+		resp := h2.do(http.MethodPut, "/binflow/api/security/users/ci-bot", adminUser, adminPass,
+			[]byte(`{"name":"ci-bot","email":"ci@example.com","password":"new-pw","enabled":false}`),
+			map[string]string{"Content-Type": "application/json"})
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("replace disable status = %d body=%s", resp.StatusCode, mustGet(t, resp))
+		}
+		_ = resp.Body.Close()
+		resp = h2.do(http.MethodGet, "/binflow/api/system/version", "ci-bot", "new-pw", nil, nil)
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("login after replace-disable = %d, want 401", resp.StatusCode)
+		}
+		_ = resp.Body.Close()
+
+		// Replace with enabled absent: the stored (disabled) value persists.
+		resp = h2.do(http.MethodPut, "/binflow/api/security/users/ci-bot", adminUser, adminPass,
+			[]byte(`{"name":"ci-bot","email":"ci@example.com","password":"new-pw"}`),
+			map[string]string{"Content-Type": "application/json"})
+		if resp.StatusCode != http.StatusCreated {
+			t.Fatalf("replace absent-enabled status = %d body=%s", resp.StatusCode, mustGet(t, resp))
+		}
+		_ = resp.Body.Close()
+		resp = h2.do(http.MethodGet, "/binflow/api/system/version", "ci-bot", "new-pw", nil, nil)
+		if resp.StatusCode != http.StatusUnauthorized {
+			t.Fatalf("login after absent-enabled replace = %d, want 401 (keeps disabled)", resp.StatusCode)
+		}
+		_ = resp.Body.Close()
+	})
+
+	t.Run("non-admin cannot disable anyone (403, existing gate)", func(t *testing.T) {
+		h2 := newHarnessCfg(t, nil, [][2]string{{"ci-bot", "ci-pw"}, {"ci-two", "pw2"}})
+		// ci-bot attempts to disable ci-two (and itself) — both 403.
+		for _, target := range []string{"ci-two", "admin"} {
+			resp := h2.do(http.MethodPost, "/binflow/api/security/users/"+target, "ci-bot", "ci-pw",
+				[]byte(`{"enabled":false}`),
+				map[string]string{"Content-Type": "application/json"})
+			if resp.StatusCode != http.StatusForbidden {
+				t.Fatalf("non-admin disable %s = %d, want 403", target, resp.StatusCode)
+			}
+			_ = mustGet(t, resp)
+		}
+		// The victim stays enabled and can still log in.
+		resp := h2.do(http.MethodGet, "/binflow/api/system/version", "ci-two", "pw2", nil, nil)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("ci-two login after failed disable = %d, want 200", resp.StatusCode)
+		}
+		_ = resp.Body.Close()
+	})
+}
+
 // ---- E-24: /api/v1/permissions (C22b/C22c) ----
 
 // TestPermissionsCRUD covers create/replace, list, delete and the

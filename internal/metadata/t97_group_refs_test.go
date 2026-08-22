@@ -111,3 +111,44 @@ func TestUpdateProfile(t *testing.T) {
 		t.Fatalf("unknown user err = %v, want ErrUserNotFound", err)
 	}
 }
+
+// T-208: SetEnabled flips the enabled flag in place; profile columns and the
+// password hash keep their stored values; unknown users answer
+// ErrUserNotFound.
+func TestSetEnabled(t *testing.T) {
+	st := open(t)
+	ctx := context.Background()
+
+	putUser(t, st, "jane", "jane@example.com")
+	before, err := st.Users().Get(ctx, "jane")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if err := st.Users().SetEnabled(ctx, "jane", false); err != nil {
+		t.Fatalf("set enabled false: %v", err)
+	}
+	after, err := st.Users().Get(ctx, "jane")
+	if err != nil {
+		t.Fatalf("get after: %v", err)
+	}
+	if after.Enabled {
+		t.Fatal("SetEnabled(false) did not disable the account")
+	}
+	if after.PasswordHash != before.PasswordHash || after.Email != before.Email || after.IsAdmin != before.IsAdmin {
+		t.Fatal("SetEnabled must not touch profile columns or the password hash")
+	}
+	if err := st.Users().SetEnabled(ctx, "jane", true); err != nil {
+		t.Fatalf("set enabled true: %v", err)
+	}
+	re, err := st.Users().Get(ctx, "jane")
+	if err != nil {
+		t.Fatalf("get re-enabled: %v", err)
+	}
+	if !re.Enabled {
+		t.Fatal("SetEnabled(true) did not re-enable the account")
+	}
+
+	if err := st.Users().SetEnabled(ctx, "ghost", false); !errors.Is(err, metadata.ErrUserNotFound) {
+		t.Fatalf("unknown user err = %v, want ErrUserNotFound", err)
+	}
+}

@@ -553,6 +553,7 @@ type userCreateBody struct {
 	Email    string   `json:"email"`
 	Password string   `json:"password"`
 	Admin    bool     `json:"admin"`
+	Enabled  *bool    `json:"enabled"`
 	Groups   []string `json:"groups"`
 }
 
@@ -693,9 +694,12 @@ func (s *Server) userCreate(w http.ResponseWriter, r *http.Request, pathName str
 			writePlainError(w, http.StatusInternalServerError, "hash password: "+herr.Error())
 			return
 		}
+		// T-208: enabled defaults true on create (the prior hard-coded
+		// posture); an explicit false disables the brand-new account.
+		enabled := body.Enabled == nil || *body.Enabled
 		now := nowRFC3339UTC()
 		if err := s.deps.Metadata.Users().Create(r.Context(), &metadata.User{
-			Username: name, PasswordHash: hash, IsAdmin: body.Admin, Enabled: true,
+			Username: name, PasswordHash: hash, IsAdmin: body.Admin, Enabled: enabled,
 			Email:     strings.TrimSpace(body.Email),
 			CreatedAt: now, UpdatedAt: now,
 		}); err != nil {
@@ -704,8 +708,8 @@ func (s *Server) userCreate(w http.ResponseWriter, r *http.Request, pathName str
 		}
 	} else {
 		// Replace (create-or-replace semantics): password, email and the
-		// admin flag take the body's values; the enabled flag is not part
-		// of the wire body and keeps its stored value.
+		// admin flag take the body's values; enabled is taken from the body
+		// when provided (T-208) and keeps its stored value otherwise.
 		hash, herr := auth.HashPassword(body.Password)
 		if herr != nil {
 			writePlainError(w, http.StatusInternalServerError, "hash password: "+herr.Error())
@@ -719,6 +723,12 @@ func (s *Server) userCreate(w http.ResponseWriter, r *http.Request, pathName str
 			strings.TrimSpace(body.Email), body.Admin); err != nil {
 			writePlainError(w, http.StatusInternalServerError, "replace profile: "+err.Error())
 			return
+		}
+		if body.Enabled != nil {
+			if err := s.deps.Metadata.Users().SetEnabled(r.Context(), name, *body.Enabled); err != nil {
+				writePlainError(w, http.StatusInternalServerError, "replace enabled: "+err.Error())
+				return
+			}
 		}
 	}
 	if err := s.setUserGroups(r, name, body.Groups); err != nil {
@@ -738,6 +748,7 @@ type userUpdateBody struct {
 	Email    *string   `json:"email"`
 	Password *string   `json:"password"`
 	Admin    *bool     `json:"admin"`
+	Enabled  *bool     `json:"enabled"`
 	Groups   *[]string `json:"groups"`
 }
 
@@ -801,6 +812,15 @@ func (s *Server) handleUserUpdatePost(w http.ResponseWriter, r *http.Request, na
 		}
 		if err := s.deps.Metadata.Users().UpdateProfile(r.Context(), name, email, isAdmin); err != nil {
 			writePlainError(w, http.StatusInternalServerError, "update profile: "+err.Error())
+			return
+		}
+	}
+	if body.Enabled != nil {
+		// T-208: the partial-update seam lets an admin disable an account.
+		// Absent enabled leaves the stored value untouched (the pointer keeps
+		// "absent" distinct from an explicit false).
+		if err := s.deps.Metadata.Users().SetEnabled(r.Context(), name, *body.Enabled); err != nil {
+			writePlainError(w, http.StatusInternalServerError, "update enabled: "+err.Error())
 			return
 		}
 	}

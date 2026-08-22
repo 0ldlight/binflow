@@ -102,6 +102,8 @@ func (f *fakeUsers) UpdateProfile(_ context.Context, _ string, _ string, _ bool)
 	return nil
 }
 
+func (f *fakeUsers) SetEnabled(_ context.Context, _ string, _ bool) error { return nil }
+
 func (f *fakeUsers) List(_ context.Context) ([]*metadata.User, error) { return nil, nil }
 
 func (f *fakeUsers) GetByPasswordHash(_ context.Context, _ string) (*metadata.User, error) {
