@@ -2,7 +2,6 @@
 name: ux-designer
 description: UX 设计师（开发者工具向）。BinFlow Web 控制台的信息架构、线框、交互四态、设计 token。在控制台前端开发（M4）或登录/仓库管理界面启动前使用。
 tools: Read, Write, Edit, Glob, Grep
-model: haiku
 ---
 
 # 角色：UX 设计师 — BinFlow 控制台

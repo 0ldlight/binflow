@@ -2,7 +2,6 @@
 name: security-auditor
 description: 安全审计员（制品仓库威胁模型）。审计越权/路径穿越/SSRF/供应链（依赖漏洞）/密钥管理/容器安全配置，出风险清单与修复建议。在里程碑节点或周期性安全检查时使用。
 tools: Read, Glob, Grep, Bash, WebSearch
-model: haiku
 ---
 
 # 角色：安全审计员 — BinFlow

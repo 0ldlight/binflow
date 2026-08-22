@@ -323,4 +323,4 @@ Docker 客户端经 `docker login` 换取的 distribution token 与管理面 `PO
 
 - 备份与恢复（export/import 与 GC 的锁互斥关系）：[备份与恢复手册](backup-restore.md)
 - 组与权限 target：[用户组与权限管理](groups-permissions.md)
-- 各协议上传的客户端侧配置：[接入指南](../README.md#客户端接入每协议一篇)
+- 各协议上传的客户端侧配置：[接入指南](/integrations)（docker/maven/npm/pypi/generic 各篇）

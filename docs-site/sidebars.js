@@ -53,6 +53,26 @@ const sidebars = {
       ],
     },
 
+    // --- 专题指南 (M6: identity providers, S3, CLI, migration, metrics) ---
+    {
+      type: 'category',
+      label: '专题指南',
+      link: {
+        type: 'generated-index',
+        title: '专题指南',
+        description: '身份认证、存储后端、CLI 与 Artifactory 迁移的专题配置指南。',
+        slug: '/guides',
+      },
+      items: [
+        'guides/oidc-config',
+        'guides/ldap-config',
+        'guides/s3-config',
+        'guides/bf-cli',
+        'guides/migrate-artifactory',
+        'metrics/prometheus-reference',
+      ],
+    },
+
     'faq',
 
     // --- 安装指南 (7 deployment forms + upgrade notes) lands with T-141 ---

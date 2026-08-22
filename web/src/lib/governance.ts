@@ -36,7 +36,7 @@ export const AUDIT_ACTIONS: readonly string[] = [
   'delete',
   'download',
   'login.success',
-  'login.failed',
+  'auth.failed', // M6 PRD FR-56 拼写：认证失败动作（T-187 更名后的全局单一词汇）
   'repo.create',
   'repo.update',
   'repo.delete',

@@ -2,7 +2,6 @@
 name: code-reviewer
 description: 代码评审员（Go/云原生）。对票据改动做正确性（并发/错误处理/资源泄漏）或一致性（架构分层/测试覆盖）评审，出 APPROVE/REQUEST_CHANGES。在票据进入 review 状态时使用（关键模块可多实例不同视角并行）。
 tools: Read, Write, Glob, Grep, Bash
-model: haiku
 ---
 
 # 角色：代码评审员（Code Reviewer）— Go/云原生

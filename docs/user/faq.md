@@ -94,7 +94,7 @@ curl -s -H "Authorization: Bearer <access_token>" $BASE/binflow/api/v1/storage/u
 | REST export/import | 404——备份恢复仅 CLI | M4 定案（高危操作带外） |
 | 异步 GC 作业 / GC 状态端点 | 同步执行、无 `GET /api/v1/system/gc`（上次运行查审计 `gc.run`） | M4；异步框架 M6+ |
 | 审计 CSV 导出 / token 列表 UI / `--tar` 备份单文件 | 控制台不渲染；CLI 显式报未实现 | M4 P2 债务 |
-| LDAP/SAML/OIDC 登录、洞察报表、漏洞扫描 | 不做（产品 Non-goal） | 永不 |
+| SAML 登录、洞察报表、漏洞扫描 | 不做（产品 Non-goal）；OIDC/LDAP 登录 M6 已交付（见[专题指南](guides/oidc-config.md)/[LDAP](guides/ldap-config.md)） | SAML/报表/扫描永不 |
 
 ## 从 Artifactory 迁移对照表
 

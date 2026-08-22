@@ -2,7 +2,6 @@
 name: dev-registry-adapter
 description: 制品协议适配器工程师。实现 Generic/Docker Registry v2/Maven 2/npm/PyPI 等协议适配层（internal/adapter/<proto>），用真实客户端验收。在协议接入 ticket 时使用（每协议一实例并行）。
 tools: Read, Write, Edit, Glob, Grep, Bash
-model: haiku
 ---
 
 # 角色：制品协议适配器工程师 — BinFlow

@@ -141,8 +141,10 @@ test('local generic full lifecycle: create with governance -> list -> edit round
   await page.fill('[data-testid="repo-delete-confirm-key"]', key)
   await page.click('[data-testid="confirm-accept"]')
 
-  // 非空仓：400 原因（含制品数）带回对话框呈现，deleteContent 已预勾选
-  await expect(page.locator('[data-testid="repo-delete-reason"]')).toContainText('holds 1 node(s)')
+  // 非空仓：400 原因（含制品数）带回对话框呈现，deleteContent 已预勾选。
+  // 节点数口径（T-172 D-3 / ADR-0016 目录实体化）：release/app.bin 落库
+  // 时 putNode 材料化 release/ folder 行——1 文件 + 1 祖先目录 = 恰 2 nodes
+  await expect(page.locator('[data-testid="repo-delete-reason"]')).toContainText('holds 2 node(s)')
   await expect(page.locator('[data-testid="confirm-dialog"]')).toBeVisible()
   await page.fill('[data-testid="repo-delete-confirm-key"]', key)
   await page.click('[data-testid="confirm-accept"]')

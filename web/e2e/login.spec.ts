@@ -105,7 +105,7 @@ async function installMocks(
     return route.fulfill({
       status: reply.status,
       contentType: 'application/json',
-      body: JSON.stringify({ errors: [{ message: reply.status === 404 ? 'not implemented' : 'oidc login failed' }] }),
+      body: JSON.stringify({ errors: [{ message: reply.status === 404 ? 'not implemented' : 'oidc sign-in failed' }] }),
     })
   })
   // 仪表盘管理面四端点恒 403：非 admin 落地时卡片走「403 即隐藏」收敛

@@ -227,6 +227,9 @@ config:
     userIdAttr: ""
     # -- Group search filter template; empty = no group search.
     groupFilter: ""
+    # -- Group search base DN; empty = server default (falls back to baseDn,
+    #    PRD FR-55). Set it when groups live in a separate subtree.
+    groupBaseDn: ""
     # -- Attribute holding the group name; empty = cn.
     groupNameAttr: ""
     # -- DN of a group whose members are granted admin; empty = no mapping.
@@ -235,6 +238,10 @@ config:
     poolSize: 5
     # -- StartTLS on ldap:// connections (ignored for ldaps://).
     startTls: false
+    # -- Skip TLS certificate verification. Evaluation only: the server logs
+    #    a WARN at boot when enabled. Default false — production must verify
+    #    against the system trust store (there is no CA-bundle config key).
+    skipTlsVerify: false
     # -- Name of an existing Secret with key BINFLOW_AUTH_LDAP_BIND_PASSWORD.
     #    Required when ldap.enabled=true.
     existingSecret: ""

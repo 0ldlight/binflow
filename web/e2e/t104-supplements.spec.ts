@@ -280,7 +280,7 @@ test('W23b UI leg: audit page DOM carries no token plaintext / password literal'
   await page.goto('/binflow/ui/')
   await login(page)
 
-  // 秘密源 1：错口令登录（login.failed 落审计；detail 不得携带尝试值）
+  // 秘密源 1：错口令登录（auth.failed 落审计；detail 不得携带尝试值）
   const bad = await page.evaluate(
     async (pw) => {
       const res = await fetch('/binflow/api/v1/session', {
@@ -301,11 +301,12 @@ test('W23b UI leg: audit page DOM carries no token plaintext / password literal'
   const token = JSON.parse(tok.text).access_token as string
   expect(token.length).toBeGreaterThan(20)
 
-  // UI：审计页按 action 收窄到 login.failed（行确实被渲染，脱敏断言不空转）
+  // UI：审计页按 action 收窄到 auth.failed（行确实被渲染，脱敏断言不空转；
+  // 词汇对齐 T-187：服务端自 M6 起认证失败只发 auth.failed 一词）
   await page.goto('/binflow/ui/audit')
-  await page.selectOption('[data-testid="audit-filter-action"]', 'login.failed')
+  await page.selectOption('[data-testid="audit-filter-action"]', 'auth.failed')
   await page.waitForTimeout(700)
-  await expect(page.locator('[data-testid="audit-table"] tbody tr').first()).toContainText('login.failed')
+  await expect(page.locator('[data-testid="audit-table"] tbody tr').first()).toContainText('auth.failed')
   const loginDom = await page.locator('[data-testid="audit-page"]').innerText()
   expect(loginDom).not.toContain(wrongPw)
 

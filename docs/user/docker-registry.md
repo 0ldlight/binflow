@@ -301,6 +301,6 @@ http:
 
 ## 下一步
 
-- 部署形态与端口/持久化调整：[deploy/dev/README.md](../../deploy/dev/README.md)
+- 部署形态与端口/持久化调整：[Docker 运行](install/docker.md)、[docker-compose 部署](install/compose.md)（开发/评估用 compose 形态另见仓库内 `deploy/dev/README.md`，非文档站页面）
 - 管理面 API（建仓/用户/token 吊销）：API 参考篇（随里程碑补齐）
 - 从 Artifactory 迁移的概念对照：[faq.md](faq.md)

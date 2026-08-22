@@ -69,7 +69,18 @@ function watchServerErrors(page: import('@playwright/test').Page): string[] {
   return bad
 }
 
+/** T-172 D-4 放行项：GC 页挂载 MigrationPanel，每 5s 轮询
+ *  GET /api/v1/storage/migration；未配置 S3 迁移的实例按 T-164 既定语义
+ *  返 501「migration is not configured」（UI 降级为 migration-unconfigured
+ *  提示，非服务端故障）——「零 5xx」账面对该预期态放行（仅 GC 用例会
+ *  触发：MigrationPanel 只挂在 GCPage）。 */
+const MIGRATION_501 = /^501 \S+\/binflow\/api\/v1\/storage\/migration$/
+
 test('audit: filters, keyset load-more, path client-filter, REST parity', async ({ page }) => {
+  // 负载余量（T-172 D-2 同族的 e2e 面）：105 次造数 PUT + 多段过滤/分页
+  // 腿在并行负载下逼近默认 30s——本机两连超时（31.0s，造数腿独占 ~20s），
+  // 加倍消化调度抖动；断言本体不变（T-159 曾记同点位顺序性 flake）
+  test.setTimeout(60_000)
   const errors = watchServerErrors(page)
   const key = uniq('t102a')
   await page.goto('/binflow/ui/audit')
@@ -206,6 +217,10 @@ test('gc: dry-run -> typed confirm apply -> zero candidates after, gc.run audite
   await expect(page.locator('[data-testid="gc-stats"]')).toBeVisible()
   await expect(page.locator('[data-testid="gc-stats"]')).toContainText('blob')
 
+  // T-172 D-4：同页 MigrationPanel 探测 /api/v1/storage/migration 得 501
+  // （未配置 S3 迁移，T-164 既定语义）→ 面板降级为一句提示而非错误态
+  await expect(page.locator('[data-testid="migration-unconfigured"]')).toBeVisible()
+
   // 无 dry-run 时 apply 不可用（ADR-0015 勘误①：先审后执行）
   await expect(page.locator('[data-testid="gc-apply"]')).toBeDisabled()
 
@@ -253,7 +268,9 @@ test('gc: dry-run -> typed confirm apply -> zero candidates after, gc.run audite
 
   // 收尾
   await api(page, 'DELETE', `/api/repositories/${key}?deleteContent=true`)
-  expect(errors).toEqual([])
+  // 零 5xx 账面：放行 MigrationPanel 的 501-not-configured 预期态（D-4，
+  // 见 MIGRATION_501 注释——上面已正向断言其降级呈现）
+  expect(errors.filter((e) => !MIGRATION_501.test(e))).toEqual([])
 })
 
 test('quotas: water levels warn/full, inline edit roundtrip, 413 at ceiling', async ({ page }) => {

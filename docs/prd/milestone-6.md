@@ -4,7 +4,7 @@
 |---|---|
 | 文档 | `docs/prd/milestone-6.md` |
 | 里程碑 | M6 — 企业就绪与生态扩展（对应 ROADMAP.md「M6+ — 展望」全部条目） |
-| 状态 | **v1.2**（v1.0 初版：FR-48~FR-63 六域 16 条功能需求，端点矩阵 S3/OD/LD/RE/PM/CL/MG 七域 28 条，九项开放问题 Q1~Q9；v1.1 勘误：FR-50 迁移端点契约对齐实现 + Q6/Q7 暂行口径回写 + Q10 增补，T-181；v1.2 规格裁决：Q11 定案 token 端点权限走 A 路径开放，FR-54-AC3 维持原文，T-188） |
+| 状态 | **v1.3**（v1.0 初版：FR-48~FR-63 六域 16 条功能需求，端点矩阵 S3/OD/LD/RE/PM/CL/MG 七域 28 条，九项开放问题 Q1~Q9；v1.1 勘误：FR-50 迁移端点契约对齐实现 + Q6/Q7 暂行口径回写 + Q10 增补，T-181；v1.2 规格裁决：Q11 定案 token 端点权限走 A 路径开放，FR-54-AC3 维持原文，T-188；v1.3 校准记录：D5 指标命名去 gauge `_total` + FR-61 按实际交付面回写 + D9 四项（H44/H47/H62/H66）+ T-187 遗留①②裁决〔成功词表维持 `login.success` / 审计 method=臂维度〕，T-197） |
 | 上游依据 | PRODUCT.md（愿景与 Non-goals：M6 起 OIDC/LDAP 解禁——PRODUCT 只标注「第一版不做」，M6 起进入企业就绪期）、ROADMAP.md M6+ 展望（S3 存储后端 / 复制联邦 / OIDC+LDAP / Prometheus 指标 / `bf` CLI / 迁移工具）、DECISIONS.md 全部 ADR（ADR-0004 部署矩阵六产物、ADR-0005 零 CGO 依赖基线、ADR-0006 blob 存储布局与存量兼容升级、ADR-0007 元数据迁移机制、ADR-0008 路由前缀 `/binflow`、ADR-0009 匿名读默认开、ADR-0010 docker /v2 根级例外、ADR-0012 remote 代理基线、ADR-0013 virtual 解析顺序、ADR-0014 console 基线与 session 认证、ADR-0015 治理面、ADR-0016 目录实体化、ADR-0017 镜像供应链）、M5 交付基线（milestone-5.md v1.2 @m5-done）、docs/reverse/rest-api.md / auth-model.md / repo-semantics.md（行为参考） |
 | 下游消费者 | tech-lead（拆票）、architect（ADR-0018~ADR-0023 新决策面）、dev-go-core（S3 adapter / replication / OIDC/LDAP 认证臂）、dev-go-storage（S3 后端）、devops-engineer（Prometheus / bf CLI scaffold）、release-engineer（迁移工具与 bf CLI 发布）、qa-engineer（H 序列验收）、tech-writer（OIDC/LDAP 接入指南、bf CLI 手册、迁移指南） |
 
@@ -17,6 +17,7 @@
 | v1.0 | 2026-08-21 | 初版：M6 范围、FR-48~FR-63（S3 六条 / OIDC-LDAP 三条 / 复制联邦四条 / Prometheus 一条 / bf CLI 一条 / 迁移工具一条）、端点矩阵 28 条、H01~H42 验收命令草案、九项开放问题 Q1~Q9、与既有 ADR 的冲突/补充标注 |
 | v1.1 | 2026-08-22 | 勘误（T-181）：① migration 契约对齐实现——FR-50 迁移进度端点响应字段改为 `running/done/total/migrated/skipped/failed`（+`error`/`started_at`/`finished_at` 三者 omitempty），未配置/未启用双写时迁移两端点 501（以 architecture.md §7.1 T-176 回写版与 `internal/storage/migration.go` json tag 为准；旧拟名 `total_blobs`/`in_progress`/`completed` 作废——配置键 `migration.completed` 不受影响）；② Q6/Q7 暂行口径按 T-162 报告回写，标注「暂行已实现，待终裁」并注明切换位；增补 Q10（私有复制目标默认放行） |
 | v1.2 | 2026-08-22 | 规格裁决（T-188，§7 Q11）：T-174 D3 冲突裁定走 **A 路径（开放）**——`POST /api/security/token` 权限模型对齐 Artifactory（auth-model.md §3.1）：admin 全量；**非 admin 已认证用户（本地/OIDC/LDAP 三臂同权）可为本人发 Token**。FR-54-AC3 **维持原文不勘误**；T-174 D3 定性从「PRD 冲突」改判「实现未达 PRD」（H26 维持部分过定格，普通 OIDC 用户腿转实现票）。四条护栏：① 非 admin 主体仅限本人（指定他人 → 403）；② 非 admin 强制有限 TTL（`expires_in>0` 且 ≤ 上限，默认 365d，K9）；③ 验证期校验主体用户行存在且未禁用（禁用 → Token 401）；④ 非 admin 铸 Token 记 `token.issue` 审计（M5 G31a 既有面）。列表/吊销维持 admin-only。FR-54 Token 兼容条、FR-54-AC3、FR-55 映射条、OD-04、H26、K9 同步回写；实现票草案 AC 见 Q11 |
+| v1.3 | 2026-08-22 | 校准记录（T-197，T-175 D5/D9 + T-187 遗留①②）：① **D5 指标命名**——gauge 去 `_total` 后缀（Prometheus 规范：`_total` 仅 counter；`binflow_storage_blobs{engine}` / `binflow_storage_blob_bytes{engine}` 为正式名，注册面已结构性拦截违规名），FR-61 全部指标名按 T-163 实际交付面回写（H55 拟名 events_total/latency 作废 → `binflow_replication_tasks{status}`），未实现者标注 M7+；② **D9 四项**——H44 事件查询按 status 聚合面 events[] 实际形状回写（FR-58-AC2/RE-03/H44）；H47 冲突词表按 Q7 暂行回写（FR-59-AC3/H47）；H62 目标占用守卫按 T-196 口径回写（默认拒绝 + `--allow-non-empty` 覆盖）；H66 Token **设计性不可迁**改为如实的条件腿表述（清点 + skipped + 政策注记，FR-63/AC5/H66/MG-01）；③ **T-187 遗留①裁决**——`auth.login.{local,oidc,ldap}` 三动作撤销，登录成功维持 `login.success` 单动作 + detail.method（§6.4 回写，无需实现票）；④ **T-187 遗留②裁决**——审计 method 词表 = 认证臂维度 `local/oidc/ldap`（FR-56 :345 勘误，v1.0 的 basic/bearer/session 为请求级机制词表，属访问日志 auth_method 字段）；⑤ FR-61-AC4 不暴露腿的判定条件勘误为「复制子系统未装配」（M6 无 `replication.enabled` 配置键） |
 
 ---
 
@@ -342,7 +343,7 @@ M5 的行为面冻结标志着 BinFlow 从「可用」进入「可运营」阶�
   5. **匿名**——无凭据时的默认身份（ADR-0009 匿名读）
 - **Basic 认证的 fallback 链**：用户名+密码 → 先查本地用户（`source=local`）→ 命中则密码验证（bcrypt/argon2id）→ 未命中 → 若 `ldap.enabled=true`，走 LDAP bind 验证 → 仍未命中 → 401。
 - **OIDC 与 LDAP 用户名冲突**：同一用户名同时存在于本地/LDAP/OIDC → 本地优先（显式创建）；LDAP 与 OIDC 用户名冲突由 `source` 字段区分（`source=ldap` 与 `source=oidc` 可共存同一 username——Q5 定案是否允许）。
-- **认证失败审计**：所有认证失败记审计事件（`auth.failed`），含 actor、method（basic/bearer/session/oidc/ldap）、reason（bad_credentials / user_not_found / provider_error）。
+- **认证失败审计**：所有认证失败记审计事件（`auth.failed`），含 actor、method（local/oidc/ldap）、reason（bad_credentials / user_not_found / provider_error / tls_handshake / user_disabled / bad_request）。（v1.3 校准记录，T-187 遗留②裁决：审计 method 词表 = **认证臂/身份属主维度** `local|oidc|ldap`，与 users.provider、whoami source 同源——失败归因需要臂粒度（Basic 机制维度下 local 错口令与 ldap bind 失败不可区分）；v1.0 的 `basic/bearer/session` 为**请求级认证机制**词表，属访问日志 `auth_method` 字段（§6.4），非审计字段，两类字段自此区分。reason 在 v1.0 三值上按 T-187 实现扩展 tls_handshake / user_disabled / bad_request。「所有认证失败」的现行口径 = 登录面（session/OIDC callback），每请求 Bearer/Basic 401 不记〔噪声考虑，T-187 遗留④〕；FR-56-AC3 只要求「含 method 与 reason 字段」未钉值域，实现与 AC 一致，无需实现票）
 
 | # | AC（可执行） | 优先级 |
 |---|---|---|
@@ -394,7 +395,7 @@ M5 的行为面冻结标志着 BinFlow 从「可用」进入「可运营」阶�
 | # | AC（可执行） | 优先级 |
 |---|---|---|
 | FR-58-AC1 | H43：源 A 上传同一制品两次（同 sha256）→ 目标 B 只收到一次 blob 传输（第二次 push 时 sha256 已存在，跳过 blob + 标记 done） | P1 |
-| FR-58-AC2 | H44：`replication_events` 表可查询——`GET /api/v1/replication/events?status=pending` 返回待复制事件列表 | P1 |
+| FR-58-AC2 | H44：复制任务台账可查询（v1.3 校准记录：经 `GET /api/v1/replication/status` 聚合响应的 `events[]`——逐条含 status/attempts/last_error，pending 与 in_progress 实测可见；独立 `GET /api/v1/replication/events?status=` 过滤端点**未实现**，T-180 契约即如此，如需过滤端点 M7+ 增补） | P1 |
 
 #### FR-59 复制监控与冲突处理（dev-go-core + httpapi）
 
@@ -411,7 +412,7 @@ M5 的行为面冻结标志着 BinFlow 从「可用」进入「可运营」阶�
 |---|---|---|
 | FR-59-AC1 | H45：`GET /api/v1/replication/status` → 200，含目标列表与状态 | P1 |
 | FR-59-AC2 | H46：控制台「复制」面板可见（目标/仓库/状态/上次成功） | P1 |
-| FR-59-AC3 | H47：目标端存在冲突路径（同路径不同 sha256，手动放入）→ 源 push 时跳过，`replication_events` 中 status=conflict，不覆盖目标 | P1 |
+| FR-59-AC3 | H47：目标端存在冲突路径（同路径不同 sha256，手动放入）→ 源 push 时**不覆盖目标**（目标内容逐字不动）（v1.3 校准记录，T-175 D9：任务终态 `status=failed` + `last_error` 明示 conflict 与两侧 sha256——009 任务状态闭集无 `conflict` 词，Q7 暂行口径；v1.0 的「`status=conflict`」字面作废，终裁若引入 conflict/skipped 状态词再回写本行） | P1 |
 
 #### FR-60 多协议覆盖（dev-go-core + 各 adapter）
 
@@ -444,31 +445,30 @@ M5 的行为面冻结标志着 BinFlow 从「可用」进入「可运营」阶�
 
 - **端点**：`GET /metrics`（根路径，与 `/healthz` 同级——Prometheus 抓取端点惯例不挂子路径前缀；不与 ADR-0008 冲突——`/metrics` 与 `/healthz` 同属「探针/抓取基础端点」豁免类）。
 - **格式**：Prometheus text format（`Content-Type: text/plain; version=0.0.4`），兼容 OpenMetrics 规范。
-- **四类指标**（命名规范待 architect ADR 定案，PRD 给最低要求）：
+- **四类指标**（命名规范待 architect ADR 定案，PRD 给最低要求）（v1.3 校准记录，T-175 D5/D9 + T-197：以下按 T-163 实际交付面回写——gauge 名去 `_total` 后缀〔Prometheus 规范：`_total` 仅 counter，promtool lint；注册面已结构性拦截违规名〕；v1.0 拟名与实现不符者逐条标注，未实现者标 M7+）：
   1. **HTTP 指标**：
      - `binflow_http_requests_total{method, path, status}` — 请求计数（counter）
-     - `binflow_http_request_duration_seconds{method, path, quantile}` — 请求延迟直方图（histogram，默认 buckets: .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10）
+     - `binflow_http_request_duration_seconds{method, path}` — 请求延迟直方图（histogram，默认 buckets: .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10；桶以 `le` 标签暴露 `_bucket`/`_sum`/`_count` 三序列——v1.0 的 `quantile` 标签表述作废，histogram 无 quantile 标签）
      - `binflow_http_requests_in_flight` — 当前处理中请求数（gauge）
-     - **标签约束**：`path` 标签归一化（`/binflow/api/storage/:repo/:path` 而非原始路径），防 HIGH CARDINALITY
-  2. **存储指标**：
-     - `binflow_storage_blobs_total` — blob 总数（gauge）
-     - `binflow_storage_blob_bytes_total` — blob 物理字节数（gauge）
-     - `binflow_storage_logical_bytes_total{repo}` — 逻辑字节数（gauge）
+     - **标签约束**：`path` 标签归一化（`/binflow/api/storage/:repo/:path` 而非原始路径），防 HIGH CARDINALITY（T-175 H53 实测：30 条不同路径归一为 16 个模板 « 100）
+  2. **存储指标**（`engine` 标签 = `disk`/`s3`）：
+     - `binflow_storage_blobs{engine}` — blob 台账行数（gauge；v1.0 名 `binflow_storage_blobs_total`，v1.3 去 `_total`——正式名以本行为准）
+     - `binflow_storage_blob_bytes{engine}` — 存储字节（gauge；v1.0 名 `binflow_storage_blob_bytes_total`，v1.3 去 `_total`；disk = `blobs/` 物理字节，s3 = 配额口径逻辑字节合计〔无轻量物理计数，ADR-0022 注记〕）
+     - `binflow_storage_logical_bytes{repo}` — 逻辑字节数（gauge；v1.0 名 `binflow_storage_logical_bytes_total{repo}`，v1.3 去 `_total`）**未实现，M7+**（s3 的逻辑口径已并入上一条 engine 标签；disk 后端物理≈逻辑）
   3. **认证指标**：
-     - `binflow_auth_logins_total{method, status}` — 登录计数（counter，method=[basic, token, oidc, ldap, session]）
-     - `binflow_auth_sessions_active` — 活跃 session 数（gauge）
-  4. **复制指标**（`replication.enabled=true` 时）：
-     - `binflow_replication_events_total{target, status}` — 复制事件计数（counter，status=[pending, done, error, conflict]）
-     - `binflow_replication_latency_seconds{target, quantile}` — 复制延迟（histogram，从源上传到目标可见的秒数）
+     - `binflow_auth_logins_total{source}` — 登录成功计数（counter，source=local/oidc/ldap；v1.0 拟 `{method, status}` 与 method=[basic, token, oidc, ldap, session] 作废——实际按身份属主计成功数，失败不进指标、走审计 `auth.failed`）
+     - `binflow_auth_sessions_active` — 活跃 session 数（gauge）**未实现，M7+**
+  4. **复制指标**（复制子系统装配时暴露；见 FR-61-AC4 v1.3 勘误）：
+     - `binflow_replication_tasks{status}` — push 复制任务行数（gauge，status=pending/in_progress/success/failed/skipped；scrape 时按配置聚合快照，T-175 H55 实测与 sqlite 台账逐值一致）（v1.0 拟名 `binflow_replication_events_total{target, status}` + `binflow_replication_latency_seconds{target, quantile}` 作废——无 target 维度、无延迟直方图，T-163 遗留①，M7+ 增补）
 - **匿名访问**：`/metrics` 匿名可访问（与 `/healthz` 同级产品自描述面），但可通过配置 `metrics.require_auth: true` 限制（需认证）。
 - **性能影响**：指标收集不阻塞请求路径（内存原子操作）；histogram 采样率可配（默认 100% 即全量，可降到 10%——`metrics.sample_rate`）。
 
 | # | AC（可执行） | 优先级 |
 |---|---|---|
-| FR-61-AC1 | H52：`curl -s $BASE/metrics` → 200，body 含 `binflow_http_requests_total` + `binflow_storage_blobs_total` + `binflow_auth_logins_total` + TYPE/HELP 行 | P1 |
+| FR-61-AC1 | H52：`curl -s $BASE/metrics` → 200，body 含 `binflow_http_requests_total` + `binflow_storage_blobs`（v1.3 校准记录：原名 `binflow_storage_blobs_total` 已按 Prometheus 规范去 `_total`，T-197 D5）+ `binflow_auth_logins_total` + TYPE/HELP 行 | P1 |
 | FR-61-AC2 | H53：Prometheus server 抓取 `/metrics` 成功（`promtool check metrics` 或 `promtool test rules` 通过）；无 HIGH CARDINALITY 告警（path 标签归一化后基数 < 100） | P1 |
 | FR-61-AC3 | H54：`metrics.require_auth=true` 时匿名 curl `/metrics` → 401；认证后 curl 200 | P1 |
-| FR-61-AC4 | H55：`replication.enabled=true` 时 `/metrics` 含 `binflow_replication_events_total` + `binflow_replication_latency_seconds`；`replication.enabled=false` 时不含（不暴露零值） | P1 |
+| FR-61-AC4 | H55：复制指标在场（v1.3 校准记录，T-175 D5/D9：实际名 `binflow_replication_tasks{status}`——v1.0 拟名 events_total/latency_seconds 作废；**整族不暴露**的判定条件 = 复制子系统未装配〔Deps.Replication 未接线〕，而非 `replication.enabled` 配置开关——M6 无该配置键，cmd 无条件接线复制引擎〔T-175 O3〕，零配置实例 family 以预播 0 值在场，「enabled=false 不暴露」腿在标准部署不可测、仅未接线装配面可验；target 维度与延迟直方图 M7+） | P1 |
 
 ---
 
@@ -518,16 +518,16 @@ M5 的行为面冻结标志着 BinFlow 从「可用」进入「可运营」阶�
 - **迁移范围（M6 子集）**：
   - **仓库**：generic local 仓库（含制品与目录结构）——全量拉取并上传到目标 BinFlow
   - **用户**：Artifactory 本地用户（用户名 + email + admin 标志）——密码不可迁移（Artifactory 哈希无法跨平台验证），迁移后用户设随机口令 + 标记 `require_password_change=true`（或 BinFlow 等效机制）
-  - **Token**：API Token（仅 token 值——迁移到目标 BinFlow 后立即可用）
+  - **Token**：API Token——**设计性不可迁**（v1.3 校准记录，T-175 D9/H66：Artifactory 硬约束，token 值仅创建时返回一次、任何第三方工具无法读取；工具按元数据清点并全部 skipped + 政策注记「token values cannot be exported from Artifactory」，替代路径 = 迁移后在 BinFlow 重新签发〔`bf token create` / `POST /api/security/token`〕。v1.0「迁移后立即可用」口径作废）
   - **不做**：LDAP/OIDC 配置（手工重新配置）、权限 targets（手工重建）、remote/virtual 仓库（手工重建）、docker/maven/npm/pypi 仓库（M7+）
 - **迁移流程**：
   1. `bf-migrate migrate --source <artifactory_url> --target <binflow_url> --source-user <user> --source-password <pw> --target-user <user> --target-password <pw>`（或 `--target-token <token>`）
   2. 连接源 Artifactory → 验证连通性（`GET /artifactory/api/system/ping`）
-  3. 连接目标 BinFlow → 验证连通性（`GET /binflow/api/system/ping`）→ 校验目标 BinFlow 为空实例（零仓库——FR-63-AC1）
+  3. 连接目标 BinFlow → 验证连通性（`GET /binflow/api/system/ping`）→ 目标占用守卫：目标存在任何仓库即**默认拒绝**（非零退出 + 明示错误；占用检查本身失败同样拒绝盲跑）；`--allow-non-empty` 显式覆盖后按 create-or-replace 合并语义继续并在报告记录（v1.3 校准记录：T-196 实现口径，v1.0「仅空实例才可迁移」的绝对表述放宽为默认拒绝 + 显式覆盖）
   4. 列出源仓库（`GET /artifactory/api/repositories`）→ 筛选 generic local 仓库
   5. 逐仓库迁移制品：遍历源仓库文件列表（`?list&deep=1`）→ 逐文件下载（GET）+ 上传到目标 BinFlow（PUT）→ 校验 sha256 一致
   6. 迁移用户：列出源用户（`GET /artifactory/api/security/users`）→ 逐用户在目标 BinFlow 创建（`POST /binflow/api/security/users`）
-  7. 迁移 Token：列出源 Token（需 Artifactory admin 权限）→ 逐 Token 在目标 BinFlow 创建（`POST /binflow/api/security/token`）
+  7. Token 阶段（v1.3 校准记录，随 H66 裁定改口径）：列出源 Token（需 Artifactory admin 权限）→ **清点即止**——全部 skipped + 政策注记（token 值不可导出），不在目标创建；重签走迁移后的人工/CI 路径（`POST /api/security/token`、`bf token create`）
   8. 输出迁移报告：`migration_report.json`（制品数/成功/失败/跳过 + 用户数/成功/失败 + Token 数/成功/失败 + 失败明细）
 - **错误处理**：单制品迁移失败不中断整体流程（记录失败，继续下一制品）；网络中断 → 断点续传（`--resume` 标志，从上次报告中的最后成功制品继续）。
 - **限速与并发**：`--concurrency N`（默认 4 并发）；`--rate-limit`（每秒请求数上限，默认 10，避免打爆源 Artifactory）。
@@ -535,11 +535,11 @@ M5 的行为面冻结标志着 BinFlow 从「可用」进入「可运营」阶�
 
 | # | AC（可执行） | 优先级 |
 |---|---|---|
-| FR-63-AC1 | H62：目标 BinFlow 非空实例时 `bf-migrate` 退出码非 0 + 错误提示（仅空实例才可迁移） | P2 |
+| FR-63-AC1 | H62：目标 BinFlow 非空实例时 `bf-migrate` 退出码非 0 + 错误提示（v1.3 校准记录：`--allow-non-empty` 可显式覆盖，覆盖时按 create-or-replace 合并且报告记录——T-196 实现口径） | P2 |
 | FR-63-AC2 | H63：源 Artifactory 1 个 generic local 仓库（100+ 制品）→ `bf-migrate` 迁移 → 目标 BinFlow 仓库 200 + 制品 sha256 逐条一致（抽样 10 条） | P2 |
 | FR-63-AC3 | H64：迁移报告 `migration_report.json` 产出——制品迁移成功率 100%（或含失败明细） | P2 |
 | FR-63-AC4 | H65：迁移的用户在目标 BinFlow 可登录（随机口令 + 首次登录强制改密——或 admin 手工设密码） | P2 |
-| FR-63-AC5 | H66：迁移的 Token 在目标 BinFlow 可用（`curl -H "X-JFrog-Art-Api: <token>"` 200） | P2 |
+| FR-63-AC5 | H66：Token 迁移腿的**如实条件腿**（v1.3 校准记录，T-175 D9——设计性不可迁：Artifactory token 值仅创建时返回一次）：工具清点源 Token 数并在报告/输出全部 skipped + 明示政策注记（token values cannot be exported），不以部分迁移的假可用态收场；替代验收 = 迁移后在目标重签 Token 可用（`curl -H "X-JFrog-Art-Api: <token>"` 200）。v1.0「迁移的 Token 可用」字面作废 | P2 |
 | FR-63-AC6 | H67：`--dry-run` 模式零制品迁移（目标 BinFlow 仓库存空），报告统计数与源 Artifactory 一致 | P2 |
 
 ---
@@ -578,14 +578,14 @@ M5 的行为面冻结标志着 BinFlow 从「可用」进入「可运营」阶�
 | LD-04 | LDAP TLS（`ldaps://` + `start_tls`） | 支持 `ldaps://`（隐式 TLS）与 `ldap://` + `start_tls=true`（显式 TLS）；`skip_tls_verify` 开关 | 自有 | P1 | — | H35 |
 | RE-01 | `POST /binflow/api/v1/replication/targets`（创建复制目标） | 配置目标 URL + 凭据 + 仓库列表 + cron | 自有（/api/v1） | P1 | 中（待逆向规格） | H39 |
 | RE-02 | `GET /binflow/api/v1/replication/status`（复制状态） | 目标列表 / 仓库 / 上次成功 / pending 事件数 / error 事件数 | 自有 | P1 | — | H45 |
-| RE-03 | `GET /binflow/api/v1/replication/events?status=pending`（事件列表） | 待复制事件列表（repo_key / path / sha256 / timestamp） | 自有 | P1 | — | H44 |
+| RE-03 | 复制事件查询（v1.3 校准记录：独立 `GET /api/v1/replication/events?status=` 端点**未实现**——事件面落在 `GET /api/v1/replication/status` 聚合响应的 `events[]`，T-180 契约） | 事件列表（blob_sha256 / node_path / status / attempts / last_error / created_at / completed_at），跨配置合并 newest-first，`?limit=`（默认 50、上限 500） | 自有 | P1 | — | H44 |
 | RE-04 | 目标端 replica 仓库 PUT/DELETE → 405 | `Allow: GET, HEAD`；replica 仓库只读 | 自有（有意不兼容——Artifactory 的 push replication 目标端行为待逆向校准） | P1 | 中 | H40 |
 | RE-05 | push 复制事件驱动（上传事件 → `replication_events` → worker 消费 → 目标 push） | 异步非阻塞；幂等（sha256 存在性检查）；失败重试 + 定时 cron 兜底 | 自有 | P1 | — | H41~H43 |
 | RE-06 | 多协议复制（docker + maven + npm + pypi） | docker（manifest+blob+tag）、maven（jar+pom+metadata）、npm（tarball+packument）、pypi（wheel+tar.gz+simple index） | 自有 | P1 | — | H48~H51 |
 | PM-01 | `GET /metrics`（Prometheus text format） | HTTP/存储/认证/复制四类指标；path 标签归一化；匿名可访问（可配认证） | 自有（/metrics 属探针/抓取基础端点，与 /healthz 同豁免类） | P1 | 高（Prometheus text format 公开规范） | H52~H55 |
 | CL-01 | `bf` 二进制（goreleaser 六平台） | 独立二进制 `bf`；`bf --version` 输出版本号；四个子命令（repo create / artifact upload / user create / token create） | 自有 | P2 | — | H56~H61 |
 | CL-02 | `bf` 配置管理（`~/.bf/config.yaml` + profile） | 多 profile 支持；环境变量覆盖；`bf config set` 修改 | 自有 | P2 | — | H61 |
-| MG-01 | `bf-migrate` 二进制（goreleaser 六平台） | 独立二进制 `bf-migrate`；source Artifactory → target BinFlow；generic local 仓库 + 用户 + token | 自有 | P2 | 中（待逆向规格） | H62~H67 |
+| MG-01 | `bf-migrate` 二进制（goreleaser 六平台） | 独立二进制 `bf-migrate`；source Artifactory → target BinFlow；generic local 仓库 + 用户 + token（token 清点即止、设计性不可迁——v1.3 校准记录见 FR-63；目标占用默认拒绝 + `--allow-non-empty` 覆盖） | 自有 | P2 | 中（待逆向规格） | H62~H67 |
 | MG-02 | `bf-migrate --dry-run` + 迁移报告 | 统计不迁移；`migration_report.json` 产出 | 自有 | P2 | — | H66/H67 |
 
 > 计数：**28 条**。S3 面 5 条（S3-01~S3-05）、OIDC 面 5 条（OD-01~OD-05）、LDAP 面 4 条（LD-01~LD-04）、复制面 6 条（RE-01~RE-06）、Prometheus 面 1 条（PM-01）、CLI 面 2 条（CL-01~CL-02）、迁移面 2 条（MG-01~MG-02）。全部为 BinFlow 自有端点（无 Artifactory 兼容端点——M6 全部能力为 BinFlow 原生或基于公开协议标准）。有意不兼容 **1** 条（RE-04：replica 仓库只读）。M6 无 Artifactory REST 兼容端点新增。
@@ -699,12 +699,12 @@ curl -su admin:$ADMIN_PW -X PUT -T t.bin $BASE2/binflow/replica-repo/x -o /dev/n
 # H41 源重启后最终一致（RE-05）
 # H42 目标不可达 → 源上传正常 → 目标恢复后 cron 兜底补齐
 # H43 幂等（同 sha256 跳过 blob 传输）
-# H44 复制事件查询（RE-03）
-curl -su admin:$ADMIN_PW "$BASE/binflow/api/v1/replication/events?status=pending" | jq '.events | length'
+# H44 复制事件查询（RE-03；v1.3 校准记录：经 status 聚合面 events[]，独立 events 过滤端点未实现）
+curl -su admin:$ADMIN_PW "$BASE/binflow/api/v1/replication/status?limit=50" | jq '[.events[] | select(.status=="pending")] | length'
 # H45 复制状态（RE-02）
 curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/replication/status | jq '.targets'
 # H46 控制台复制面板（Playwright 断言）
-# H47 冲突处理（目标端同路径不同 sha256 → 跳过 + conflict；v1.1 暂行口径：任务 status=failed + conflict 文案，见 §7 Q7）
+# H47 冲突处理（v1.1 暂行口径 + v1.3 校准记录：目标端同路径不同 sha256 → 任务终态 failed + last_error conflict 文案、目标逐字不动；无 conflict 状态词，见 §7 Q7）
 # H48~H51 多协议复制（docker/maven/npm/pypi 各一腿）
 
 # ========== Prometheus 指标（FR-61） ==========
@@ -713,7 +713,8 @@ curl -s $BASE/metrics | grep -c 'binflow_http_requests_total'   # ≥1
 curl -s $BASE/metrics | grep -c 'TYPE\|HELP'                     # 含 TYPE/HELP 行
 # H53 Prometheus 抓取（promtool check metrics 或 promtool test rules 通过）
 # H54 metrics.require_auth=true → 匿名 401
-# H55 replication.enabled=true 时含复制指标
+# H55 复制指标在场（v1.3 校准记录：实际名 binflow_replication_tasks{status}；不暴露腿 = 复制子系统未装配，M6 无 replication.enabled 配置键）
+curl -s $BASE/metrics | grep -c 'binflow_replication_tasks'   # ≥1（含 TYPE/HELP 与预播 0 值序列）
 
 # ========== bf CLI（FR-62） ==========
 # H56 bf --version + --help（CL-01）
@@ -733,9 +734,9 @@ bf token create | grep -oE '^[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+'   #
 bf --profile staging repo create staging-repo --type local --package-type generic
 
 # ========== 迁移工具（FR-63） ==========
-# H62 目标 BinFlow 非空 → 拒绝（MG-01）
+# H62 目标 BinFlow 非空 → 拒绝（MG-01；v1.3 校准记录：--allow-non-empty 可显式覆盖〔T-196 口径〕，覆盖时按 create-or-replace 合并并记录于报告）
 bf-migrate migrate --source http://artifactory:8081/artifactory --target $BASE --source-user admin --source-password pw --target-user admin --target-password $ADMIN_PW
-#   期望：退出码非 0 + 错误提示「目标 BinFlow 非空」
+#   期望：退出码非 0 + 错误提示「目标 BinFlow 非空」；加 --allow-non-empty → 正常合并
 # H63 1 个 generic 仓库 100+ 制品迁移（MG-01）
 #   前置：Artifactory 实例有 generic-local 仓库（100+ 制品）
 #   bf-migrate 迁移 → 目标 BinFlow 仓库 200 + sha256 抽样一致
@@ -743,8 +744,9 @@ bf-migrate migrate --source http://artifactory:8081/artifactory --target $BASE -
 cat migration_report.json | jq '.artifacts.migrated'   # ≥100
 # H65 用户迁移后登录（MG-01）
 #   迁移的用户在目标 BinFlow 可登录（随机口令，admin 手工改密或首次登录强制改密）
-# H66 迁移 Token 可用（MG-01）
-#   bf-migrate 迁移的 Token → curl -H "X-JFrog-Art-Api: <token>" 目标 BinFlow 200
+# H66 迁移 Token（MG-01；v1.3 校准记录：设计性不可迁——Artifactory token 值仅创建时返回一次，任何工具无法导出）
+#   如实腿：bf-migrate 输出 tokens: found=N migrated=0 skipped=N + 「token values cannot be exported from Artifactory」政策注记
+#   替代腿：迁移后 bf token create 重签 → curl -H "X-JFrog-Art-Api: <token>" $BASE/binflow/api/system/ping 200
 # H67 --dry-run 零迁移（MG-02）
 bf-migrate migrate --dry-run ...  # 退出码 0，migration_report.json 统计数与源一致，目标 BinFlow 无制品
 
@@ -762,7 +764,7 @@ bf-migrate migrate --dry-run ...  # 退出码 0，migration_report.json 统计�
 | K3 | OIDC claims 映射（username_claim / groups_claim 的默认值与 fallback 链） | `preferred_username` → fallback `sub`；`groups` → fallback 无 | ADR-0020（architect） |
 | K4 | LDAP 搜索过滤器（user_filter / group_filter 的默认值）与 AD/OpenLDAP 兼容性 | `(&(objectClass=user)(sAMAccountName={0}))` / `(&(objectClass=group)(member={0}))` | ADR-0021（architect） |
 | K5 | 复制事件模型（`replication_events` 表 schema）与复制冲突策略（跳过 vs 覆盖） | 跳过冲突（不覆盖目标端）；事件含 sha256 + timestamp + status + retries | ADR-0022（architect） |
-| K6 | Prometheus 指标命名与标签规范（`binflow_*` 前缀、path 归一化、histogram buckets） | 见 FR-61；path 归一化 = 动态段替换为 `:param` 占位符 | ADR-0023（architect） |
+| K6 | Prometheus 指标命名与标签规范（`binflow_*` 前缀、path 归一化、histogram buckets） | 见 FR-61；path 归一化 = 动态段替换为 `:param` 占位符；v1.3 校准记录：gauge 名不带 `_total`（Prometheus 规范，T-197 D5），metric registry 注册面已结构性拦截——ADR 文本回写待 architect | ADR-0023（architect） |
 | K7 | `bf` CLI 配置文件格式（`~/.bf/config.yaml`）与 profile 切换 | 见 FR-62；YAML 格式 + `--profile` flag + 环境变量覆盖 | 实现票细化 |
 | K8 | `bf-migrate` 迁移范围（M6 子集：generic 仓库 + 用户 + token）与断点续传 | 见 FR-63；`--resume` 从 migration_report.json 恢复 | 实现票细化 |
 | K9 | 非 admin 发 Token 的 TTL 上限默认值与配置键形态；非 admin 指定他人 `username` 的错误语义 | 暂行：上限默认 365d（31536000s，对齐 Artifactory `access.token.non.admin.max.expires.in`）；配置键建议 `auth.token_nonadmin_max_ttl`（env `BINFLOW_AUTH_TOKEN_NONADMIN_MAX_TTL`，秘密不入 YAML 原则不适用——非秘密）；指定他人 → 403 OAuth 形（沿用现有 `administrator privileges required` 文案） | Q11 裁决（T-188）+ ADR-0020 附带确认（architect 定键名） |
@@ -824,14 +826,14 @@ bf-migrate migrate --dry-run ...  # 退出码 0，migration_report.json 统计�
 
 - **结构化日志**：保持 M1~M5 字段集（time/level/method/path/status/duration_ms/remote_addr/user）；新增字段：
   - `storage_backend`: `local` | `s3`（启动日志）
-  - `auth_method`: `basic` | `bearer` | `session` | `oidc` | `ldap`（认证日志）
+  - `auth_method`: `basic` | `bearer` | `session` | `oidc` | `ldap`（认证日志——**请求级认证机制**词表；与审计事件的 method〔认证臂维度 local/oidc/ldap〕是两个字段，v1.3 起在 FR-56 勘误中区分）
   - `replication_event`: `push` | `error` | `conflict`（复制日志）
-- **Prometheus `/metrics`**：FR-61 定义的四类指标（HTTP/存储/认证/复制）。
+- **Prometheus `/metrics`**：FR-61 定义的四类指标（HTTP/存储/认证/复制）——**族名以 FR-61 的 v1.3 校准记录为准**（gauge 无 `_total` 后缀；复制面为 `binflow_replication_tasks{status}`）。
 - **健康检查**：`/health` 的 `storage` 子系统在 S3 后端下反映 S3 连通性；新增 `auth` 子系统（OIDC provider 发现可用 / LDAP 连接可用）。
 - **审计日志**（`audit_events` 表）新增事件类型：
-  - `auth.login.oidc` / `auth.login.ldap` / `auth.login.local`（登录成功）
-  - `auth.failed`（认证失败，含 method 与 reason）
-  - `replication.push` / `replication.error` / `replication.conflict`
+  - `login.success`（登录成功，detail 含 method=local/oidc/ldap）——**v1.3 校准记录，T-187 遗留①裁决**：v1.0 拟增的 `auth.login.oidc` / `auth.login.ldap` / `auth.login.local` 三动作**撤销**，维持 M4 既有 `login.success` 单动作 + detail.method。理由：① 与失败侧「`auth.failed` 单动作 + method/reason」（T-187 AC1 裁决）对称，信息等价——按臂区分在响应 detail 上可见，无需按臂拆动作；② 拆三动作是一次纯更名的消费面连坐（控制台动作选择器、用户文档、M4 验收锚、append-only 存量行——NFR-S21 不回填，旧词查询面将永久劈叉）；③ 如需服务端按臂过滤，M7+ 给审计查询面加 `method` 参数优于开动作词。**无需实现票，PRD 回写即收口**
+  - `auth.failed`（认证失败，含 method 与 reason——词表口径见 FR-56 v1.3 勘误：method=认证臂 local/oidc/ldap）
+  - `replication.push` / `replication.error`（v1.3 校准注：`replication.conflict` 未实现——冲突走任务台账终态 failed + last_error conflict 文案〔Q7 暂行〕，不另发审计动作；配置面实际词为 `replication.config.create` / `replication.config.delete`，T-180）
   - `storage.migration.start` / `storage.migration.complete` / `storage.migration.error`
   - `storage.backend_switch`（backend 切换事件）
 
@@ -847,7 +849,7 @@ bf-migrate migrate --dry-run ...  # 退出码 0，migration_report.json 统计�
 | Q4 | **OIDC `admin_group` 映射的角色粒度**：`admin_group` 成员是获得完整 admin 权限，还是可配「只读 admin」？ | FR-54；权限模型 | **完整 admin 权限**（与本地 admin 用户同权）。更细粒度的角色（read-only admin / repo admin）归 M7+ 的 RBAC 里程碑
 | Q5 | **OIDC 与 LDAP 用户名冲突处理**：同一 username 同时存在于 OIDC 和 LDAP 时，哪个优先？ | FR-56；用户映射 | **不允许冲突**——`username` 全局唯一。若 OIDC 用户与 LDAP 用户 username 相同，第二个登录的返回 409「username already exists with different source」。用户需在 IdP 侧或 LDAP 侧调整 username 避免冲突
 | Q6 | **replica 仓库的仓库类型**：目标端 replica 仓库是 `rclass=local` + `replica=true` 标记，还是新增 `rclass=replica`？ | FR-57；仓库模型 | **暂行已实现，待终裁**（T-162 口径，2026-08-22 回写）：落法 = `target_repo` 指向**可写 local 仓**（backing，如 `replica-local`）+ 未配置写路由的 **virtual 只读门面**（members=[backing]）——「replica 只读 PUT/DELETE 405」复用 M3 virtual 既有行为，零仓库模型改动。**注意**：暂行下 backing local 本身仍可被目标实例上的用户直写（只有门面只读）。v1.0 暂行假设（`rclass=local` + `replica=true` 标记，不新增 rclass 枚举）**未实施**；终裁若选标记/新 rclass 路线，切换位在 `pushOnce` 的推送落点寻址（`PUT /binflow/{targetRepo}/{path}`，internal/replication/engine.go），引擎骨架不动 |
-| Q7 | **复制冲突策略**：目标端存在同路径但不同 sha256 的制品时，覆盖还是跳过？ | FR-59；复制语义 | **暂行已实现，待终裁**（T-162 口径，2026-08-22 回写）：目标同路径已存在且 **checksum 一致 → 幂等成功**（零传输、不打开源 blob）；**不一致 → 任务终态 `status=failed`**（attempts 记满防 cron 复活、completed_at 置位）且**不动目标**。与 ADR-0021 决策 4 字面（比较 updated_at、first-write-wins、记 `skipped`）及本 PRD H47 的 `status=conflict` 词汇不一致——009 任务状态闭集（T-161）无 `conflict`，暂行取 failed + conflict 文案。终裁若选 skipped/覆盖，切换位在 `pushOnce` 的 HEAD 分支（internal/replication/engine.go），引擎骨架不动 |
+| Q7 | **复制冲突策略**：目标端存在同路径但不同 sha256 的制品时，覆盖还是跳过？ | FR-59；复制语义 | **暂行已实现，待终裁**（T-162 口径，2026-08-22 回写）：目标同路径已存在且 **checksum 一致 → 幂等成功**（零传输、不打开源 blob）；**不一致 → 任务终态 `status=failed`**（attempts 记满防 cron 复活、completed_at 置位）且**不动目标**。与 ADR-0021 决策 4 字面（比较 updated_at、first-write-wins、记 `skipped`）及本 PRD H47 的 `status=conflict` 词汇不一致——009 任务状态闭集（T-161）无 `conflict`，暂行取 failed + conflict 文案。终裁若选 skipped/覆盖，切换位在 `pushOnce` 的 HEAD 分支（internal/replication/engine.go），引擎骨架不动。（v1.3 校准记录：FR-59-AC3/H47 验收行已按本暂行口径回写——T-175 D9；终裁时同步改 AC 行与 §6.4 replication 词表） |
 | Q8 | **AWS S3 验收环境**：QA 需要 AWS 账号与 S3 bucket 用于验收——由谁提供？ | FR-53；QA 条件腿 | **优先 MinIO 本地容器**（P0 可自足）；AWS S3 验收为条件腿（用户提供 bucket 与凭据——拆票标注 `dep:用户环境`），到位前 MinIO 全序列 PASS 视为等价。与 M5 Q3 同口径 |
 | Q9 | **Artifactory 迁移工具验收环境**：QA 需要 Artifactory 实例（含制品）用于验收——由谁提供？ | FR-63；QA 条件腿 | **用户提供 Artifactory 实例**（或 QA 用 Docker 自建 Artifactory OSS 容器 + 脚本填充 100+ 制品）。Docker 自建可覆盖 P2 验收；若需真实企业版 Artifactory 实例，拆票标注 `dep:用户环境`。与 M5 Q3 同口径 |
 | Q10 | **复制目标私网地址默认放行**：复制目标几乎必然是内网/同主机 BinFlow 实例——`DenyPrivateTargets` 默认拒绝会使功能在所有现实部署不可用；但「默认放行私网目标」是否需要 config 显式开关与文档警示？ | FR-57；SSRF 面（NFR-S13） | **暂行已实现，待终裁**（T-162 口径，2026-08-22 增补）：`DenyPrivateTargets` 默认 `false`（私网目标放行，等价 Guard 的 AllowPrivateUpstream=true）——scheme/host 校验、逐跳重检、DNS-rebinding pinning 仍然生效。建议 config 桥接票增 `replication.allow_private_target`（默认 `true`）落到该选项（T-162 建议，未实施） |
@@ -883,4 +885,4 @@ bf-migrate migrate --dry-run ...  # 退出码 0，migration_report.json 统计�
 
 ---
 
-*本 PRD v1.0 由 product-manager（T-148）依据 PRODUCT.md、ROADMAP.md M6+ 展望、M1~M5 交付基线、DECISIONS.md 全部 ADR 撰写；开放问题 Q1~Q9（v1.1 增补 Q10）待用户定案后回写。与既有 ADR 的冲突/补充点见 §6.1 标注表。v1.1 勘误由 product-manager（T-181）回写：FR-50 迁移端点契约对齐实现（architecture.md §7.1 T-176 回写版）+ Q6/Q7/Q10 暂行口径（reports/agents/T-162.md）。v1.2 规格裁决由 product-manager（T-188）回写：Q11（token 端点权限 vs FR-54-AC3，T-174 D3）裁 A 路径开放 + 四条护栏 + 实现票草案 AC，依据 reports/agents/T-174.md §3 与 docs/reverse/auth-model.md §3.1。*
+*本 PRD v1.0 由 product-manager（T-148）依据 PRODUCT.md、ROADMAP.md M6+ 展望、M1~M5 交付基线、DECISIONS.md 全部 ADR 撰写；开放问题 Q1~Q9（v1.1 增补 Q10）待用户定案后回写。与既有 ADR 的冲突/补充点见 §6.1 标注表。v1.1 勘误由 product-manager（T-181）回写：FR-50 迁移端点契约对齐实现（architecture.md §7.1 T-176 回写版）+ Q6/Q7/Q10 暂行口径（reports/agents/T-162.md）。v1.2 规格裁决由 product-manager（T-188）回写：Q11（token 端点权限 vs FR-54-AC3，T-174 D3）裁 A 路径开放 + 四条护栏 + 实现票草案 AC，依据 reports/agents/T-174.md §3 与 docs/reverse/auth-model.md §3.1。v1.3 校准记录由 product-manager + dev-go-core（T-197）回写：D5 指标命名（gauge 去 `_total`，FR-61 族名按 T-163 实际交付面）+ D9 四项（H44 事件查询形状 / H47 冲突词表 / H62 占用守卫 / H66 token 设计性不可迁）+ T-187 遗留①②裁决（成功词表维持 `login.success`+method；审计 method = 臂维度 local/oidc/ldap），依据 reports/agents/T-175.md §5 与 reports/agents/T-187.md §5。*

@@ -90,6 +90,9 @@ data:
         {{- if .Values.config.ldap.groupFilter }}
         group_filter: {{ .Values.config.ldap.groupFilter | quote }}
         {{- end }}
+        {{- if .Values.config.ldap.groupBaseDn }}
+        group_base_dn: {{ .Values.config.ldap.groupBaseDn | quote }}
+        {{- end }}
         {{- if .Values.config.ldap.groupNameAttr }}
         group_name_attr: {{ .Values.config.ldap.groupNameAttr | quote }}
         {{- end }}
@@ -98,5 +101,11 @@ data:
         {{- end }}
         pool_size: {{ .Values.config.ldap.poolSize | int64 }}
         start_tls: {{ .Values.config.ldap.startTls }}
+        # TLS posture pair (T-186 keys, chart catch-up T-194): rendered
+        # explicitly so the effective certificate-verification stance is
+        # visible in the rendered ConfigMap (lesson of T-183: silent key
+        # absence reads as a silent default). skip_tls_verify=true logs a
+        # WARN at boot — evaluation only, never production.
+        skip_tls_verify: {{ .Values.config.ldap.skipTlsVerify }}
       {{- end }}
     {{- end }}

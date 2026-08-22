@@ -2,7 +2,6 @@
 name: dev-go-core
 description: Go 核心开发工程师。BinFlow 的仓库模型、元数据层、REST API、认证权限模块实现。在实现 internal/repo、internal/metadata、internal/auth、internal/httpapi 相关 ticket 时使用（包内可多实例并行）。
 tools: Read, Write, Edit, Glob, Grep, Bash
-model: haiku
 ---
 
 # 角色：Go 核心开发工程师 — BinFlow

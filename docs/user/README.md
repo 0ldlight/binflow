@@ -4,9 +4,9 @@
 
 ## 导航
 
-- **快速开始**
-  - [5 分钟上手（单二进制）](getting-started/binary.md) — M1
-  - [5 分钟上手（Docker）](getting-started/docker.md) — M1
+- **快速开始**（两条最快路径，完整步骤见下方「安装指南」）
+  - [5 分钟上手（单二进制）](install/binary.md) — 下载 → `serve` → `/readyz` 200
+  - [5 分钟上手（Docker）](install/docker.md) — `docker run` → `/readyz` 200
 - **安装指南**（每种部署方式一篇，`install/`）
   - [单二进制安装](install/binary.md) — linux/darwin/windows × amd64/arm64
   - [Docker 运行](install/docker.md) — 含 distroless/alpine 变体说明
@@ -30,7 +30,13 @@
   - [用户组与权限管理](admin/groups-permissions.md)（三步授权流、并集与即时生效、组 CRUD 与 409 保护、`?permissions` 视图、组无 admin 位）— M4
   - [治理：审计、GC 与配额](admin/governance.md)（审计查询与词表、GC dry-run→apply 与互斥 409、quotaBytes 413 语义、includes/excludes 409/404 双值码）— M4
   - [备份与恢复手册](admin/backup-restore.md)（export/import CLI、产物 0700 保管告警、`--verify spot/full`、无钥 fail-fast 恢复链、停机强一致可选）— M4
-  - API Token · 监控（随里程碑补齐）
+- **专题指南**（`guides/`）— M6
+  - [OIDC 单点登录配置](guides/oidc-config.md)（auth.oidc 段、PKCE 登录流、组/管理员映射、Keycloak 实例）
+  - [LDAP 目录认证配置](guides/ldap-config.md)（auth.ldap 段、先本地后目录回退、ldaps/StartTLS 姿势、OpenLDAP 排障）
+  - [S3 对象存储后端与在线迁移](guides/s3-config.md)（storage.s3 段、健康探测、compose --profile s3、双写迁移三步收口）
+  - [bf CLI 使用指南](guides/bf-cli.md)（四子命令、~/.bf/config.yaml 多 profile、密钥 env 引用制）
+  - [从 Artifactory 迁移（bf-migrate）](guides/migrate-artifactory.md)（三阶段、--dry-run/--resume、口令与 token 不可导出策略）
+  - [Prometheus 指标参考](metrics/prometheus-reference.md)（/metrics 端点、四类指标族、path 基数防护、PromQL 示例）
 - **API 参考**（`api/`）：Artifactory 兼容子集 + `/api/v1`
 - [FAQ 与故障排查](faq.md)（401/403/404/409/413 信封解读、高 QPS 用 Token、M4 不兼容清单、Artifactory 迁移对照表）
 

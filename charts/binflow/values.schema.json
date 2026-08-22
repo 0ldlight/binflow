@@ -154,10 +154,12 @@
             "userFilter": { "type": "string" },
             "userIdAttr": { "type": "string" },
             "groupFilter": { "type": "string" },
+            "groupBaseDn": { "type": "string" },
             "groupNameAttr": { "type": "string" },
             "adminGroup": { "type": "string" },
             "poolSize": { "type": "integer", "minimum": 1 },
             "startTls": { "type": "boolean" },
+            "skipTlsVerify": { "type": "boolean" },
             "existingSecret": { "type": "string" }
           }
         }
