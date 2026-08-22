@@ -108,7 +108,8 @@ func (s *uploadSession) persistStateLocked(ctx context.Context) error {
 
 // poison marks the session unusable after a write-path failure. It does NOT
 // delete the directory: the caller gets to inspect the failure, and Abort
-// (or engine Close / the startup sweep) performs the actual cleanup.
+// (or the startup sweep once the row expires) performs the actual cleanup —
+// engine Close no longer deletes anything (ADR-0028).
 func (s *uploadSession) poison(_ *uploadSession, cause error) {
 	if !s.poisoned {
 		s.poisoned = true
@@ -275,13 +276,14 @@ func (s *uploadSession) failLocked() {
 	s.finishLocked()
 }
 
-// detach unloads a session whose id has been re-registered (a repeated
-// ResumeSession for the same id). It closes the old fd and marks the session
-// finalized so every later Append/Commit/Abort is a no-op, but it leaves the
-// on-disk directory and the DB row alone: the replacement session owns those
-// shared resources, and deleting them here would destroy it. The caller must
-// NOT hold e.mu — acquiring s.mu while holding e.mu would invert the
-// s.mu -> e.mu order finishLocked/forgetSession establish.
+// detach unloads a session without deleting anything. Callers: a repeated
+// ResumeSession for the same id (the replacement session owns the shared
+// directory and row), and engine Close (ADR-0028 — a clean shutdown detaches
+// every live session's fd but preserves its uploads/<id>/ directory and DB
+// row, so the restart resumes exactly like a crash would). It closes the fd
+// and marks the session finalized so every later Append/Commit/Abort is a
+// no-op. The caller must NOT hold e.mu — acquiring s.mu while holding e.mu
+// would invert the s.mu -> e.mu order finishLocked/forgetSession establish.
 func (s *uploadSession) detach() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -293,29 +295,6 @@ func (s *uploadSession) detach() {
 		_ = s.file.Close()
 		s.file = nil
 	}
-}
-
-// cleanup is the engine-shutdown path (Close already drained the registry).
-// A poisoned session cleans up exactly like a healthy one: the temp data is
-// garbage either way.
-func (s *uploadSession) cleanup() error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.done {
-		return nil
-	}
-	s.done = true
-	s.poisoned = true
-	if s.file != nil {
-		if err := s.file.Close(); err != nil {
-			return fmt.Errorf("close data: %w", err)
-		}
-	}
-	if err := os.RemoveAll(s.dir); err != nil {
-		return fmt.Errorf("remove %s: %w", s.dir, err)
-	}
-	s.deleteRowLocked()
-	return nil
 }
 
 // copyWithCtx is io.Copy with context cancellation checked between buffer

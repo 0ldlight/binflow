@@ -168,11 +168,14 @@ func (r *cancelOnceReader) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-// TestPoisonedSessionOnEngineClose: Close reclaims a poisoned session like
-// any other; the poison flag never blocks cleanup paths.
+// TestPoisonedSessionOnEngineClose: a poisoned session detaches on Close
+// exactly like a healthy one — the poison flag never blocks the shutdown
+// path — and since ADR-0028 its directory is preserved with the rest: the
+// startup sweep + TTL reclaims it, Close reclaims nothing.
 func TestPoisonedSessionOnEngineClose(t *testing.T) {
 	root := t.TempDir()
-	eng, err := OpenEngine(root, Options{})
+	store := newMemUploadSessions()
+	eng, err := OpenEngine(root, Options{Sessions: store})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,8 +189,25 @@ func TestPoisonedSessionOnEngineClose(t *testing.T) {
 	if err := eng.Close(); err != nil {
 		t.Fatalf("Close with poisoned session: %v", err)
 	}
+	// ADR-0028: the poisoned session's dir and row survive the Close.
+	if n := countSessionDirs(t, root); n != 1 {
+		t.Fatalf("session dirs after Close = %d, want 1 (preserved, ADR-0028)", n)
+	}
+	if n := store.countRows(); n != 1 {
+		t.Fatalf("session rows after Close = %d, want 1 (preserved, ADR-0028)", n)
+	}
+	// The only reclamation path: expiry + the startup sweep.
+	expireAllRows(t, store, DefaultSessionTTL+time.Hour)
+	eng2, err := OpenEngine(root, Options{Sessions: store})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer eng2.Close() //nolint:errcheck // test
 	if n := countSessionDirs(t, root); n != 0 {
-		t.Fatalf("session dirs after Close = %d, want 0", n)
+		t.Fatalf("session dirs after restart sweep = %d, want 0", n)
+	}
+	if n := store.countRows(); n != 0 {
+		t.Fatalf("session rows after restart sweep = %d, want 0", n)
 	}
 }
 

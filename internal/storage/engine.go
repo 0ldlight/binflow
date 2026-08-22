@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -30,6 +32,11 @@ const (
 	sha1HexLen     = 40
 	md5HexLen      = 32
 )
+
+// maxPreservedSessionIDs caps how many session ids the Close retention INFO
+// enumerates (ADR-0028): the count is always exact, the list truncates so a
+// large registry cannot flood the shutdown log.
+const maxPreservedSessionIDs = 20
 
 // sessionState is the persisted per-session bookkeeping, shaped after
 // architecture section 4.1: {"version","id","created_at","received"}.
@@ -63,6 +70,10 @@ type Options struct {
 	// reclaimable). The blob-only GC path (which never touches sessions) is
 	// the one caller that may leave it nil.
 	Sessions metadata.UploadSessionStore
+	// Logger receives the Close retention INFO line (ADR-0028: the preserved
+	// unexpired session count + ids, truncated). Nil means slog.Default().
+	// It is the only thing this package logs.
+	Logger *slog.Logger
 }
 
 func (o *Options) ttl() time.Duration {
@@ -567,9 +578,18 @@ func (e *engine) Delete(ctx context.Context, sha256 string) error {
 	return nil
 }
 
-// Close aborts live sessions (their temp data is garbage the next sweep
-// reclaims; their rows are deleted now) and marks the engine unusable.
-// Idempotent.
+// Close shuts the engine down (ADR-0028, architecture section 5.3.1 contract
+// 7): it stops accepting new mutations (BeginSession/Delete/GC fail with
+// ErrEngineClosed) and drains the in-memory session registry — every live
+// session's data fd is closed and its handle finalized, so nothing leaks —
+// while PRESERVING the sessions themselves: their upload_sessions rows and
+// uploads/<id>/ data files stay on disk untouched, so a clean shutdown
+// (SIGTERM, compose restart) resumes exactly like a crash (kill -9). Close
+// performs no session deletion and no expiry processing: the startup sweep +
+// TTL is the one and only reclamation path. The preservation is observable:
+// one INFO line carries the preserved session count + id list (truncated) via
+// opts.Logger (or slog.Default). Read paths (Open/Stat) keep serving
+// committed blobs. Idempotent.
 func (e *engine) Close() error {
 	e.mu.Lock()
 	if e.closed {
@@ -578,18 +598,47 @@ func (e *engine) Close() error {
 	}
 	e.closed = true
 	live := make([]*uploadSession, 0, len(e.sessions))
-	for _, s := range e.sessions {
+	ids := make([]string, 0, len(e.sessions))
+	for id, s := range e.sessions {
 		live = append(live, s)
+		ids = append(ids, id)
 	}
 	e.sessions = nil
 	e.mu.Unlock()
-	var firstErr error
+	// Detach (not cleanup): the fd must be released, but the directory and
+	// the DB row survive — they are the restart-resumable state ADR-0028
+	// protects. detach must be called WITHOUT e.mu held (lock ordering).
 	for _, s := range live {
-		if err := s.cleanup(); err != nil && firstErr == nil {
-			firstErr = fmt.Errorf("storage: close: session %s: %w", s.id, err)
-		}
+		s.detach()
 	}
-	return firstErr
+	logPreservedSessions(e.opts.Logger, ids)
+	return nil
+}
+
+// logPreservedSessions emits the Close retention INFO (ADR-0028): the count
+// of unexpired sessions preserved across the shutdown plus their ids,
+// truncated to maxPreservedSessionIDs. Nothing is logged when the registry
+// was empty — a zero-count line on every routine shutdown would be noise.
+// log nil means slog.Default().
+func logPreservedSessions(log *slog.Logger, ids []string) {
+	if len(ids) == 0 {
+		return
+	}
+	sort.Strings(ids) // deterministic line regardless of map order
+	shown := ids
+	truncated := 0
+	if len(shown) > maxPreservedSessionIDs {
+		shown = shown[:maxPreservedSessionIDs]
+		truncated = len(ids) - len(shown)
+	}
+	attrs := []any{"count", len(ids), "sessions", strings.Join(shown, ",")}
+	if truncated > 0 {
+		attrs = append(attrs, "truncated", truncated)
+	}
+	if log == nil {
+		log = slog.Default()
+	}
+	log.Info("storage: close: preserving unexpired upload sessions (sweep+TTL reclaims them)", attrs...)
 }
 
 // normalizeHex validates a client-supplied digest of the given length and

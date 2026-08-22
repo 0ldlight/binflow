@@ -391,7 +391,11 @@ func TestDeleteAndCorruption(t *testing.T) {
 	}
 }
 
-func TestCloseRefusesNewSessionsAndCleansUp(t *testing.T) {
+// TestCloseRefusesNewSessionsAndPreserves pins the ADR-0028 Close contract:
+// a clean shutdown detaches live sessions (their fds close, the handles go
+// final) but PRESERVES their uploads/<id>/ directories — the restart-resume
+// state. Reclaiming them is the startup sweep + TTL's job, never Close's.
+func TestCloseRefusesNewSessionsAndPreserves(t *testing.T) {
 	root := t.TempDir()
 	eng, err := OpenEngine(root, Options{})
 	if err != nil {
@@ -401,19 +405,49 @@ func TestCloseRefusesNewSessionsAndCleansUp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	id := s.ID()
 	if _, err := s.Append(context.Background(), strings.NewReader("in-flight when shutdown hits")); err != nil {
 		t.Fatal(err)
 	}
 	if err := eng.Close(); err != nil {
 		t.Fatalf("Close with live session: %v", err)
 	}
-	if n := countSessionDirs(t, root); n != 0 {
-		t.Fatalf("session dirs after Close = %d, want 0", n)
+	// ADR-0028: the session dir (and its data file) survive the Close.
+	if n := countSessionDirs(t, root); n != 1 {
+		t.Fatalf("session dirs after Close = %d, want 1 (preserved, ADR-0028)", n)
 	}
+	got, err := os.ReadFile(filepath.Join(root, uploadsDirName, id, dataFileName))
+	if err != nil {
+		t.Fatalf("preserved data file unreadable: %v", err)
+	}
+	if string(got) != "in-flight when shutdown hits" {
+		t.Fatalf("preserved data = %q, want the appended bytes intact", got)
+	}
+	// The handle is detached, not usable — and must not panic on reuse.
+	if _, err := s.Append(context.Background(), strings.NewReader("x")); err == nil {
+		t.Fatal("Append on a Close-detached session should fail")
+	}
+	if _, err := s.Commit(context.Background(), BlobRef{}); err == nil {
+		t.Fatal("Commit on a Close-detached session should fail")
+	}
+	if err := s.Abort(context.Background()); err != nil {
+		t.Fatalf("Abort on a Close-detached session: %v", err)
+	}
+	// Close finalizes the engine; new mutations are refused.
 	if _, err := eng.BeginSession(context.Background()); !errors.Is(err, ErrEngineClosed) {
 		t.Fatalf("BeginSession after Close err = %v, want ErrEngineClosed", err)
 	}
 	if err := eng.Close(); err != nil {
 		t.Fatalf("second Close: %v", err)
+	}
+	// Reopen: with no Sessions store the dir has no protecting row, so the
+	// startup sweep's orphan scan reclaims it (the only reclamation path).
+	eng2, err := OpenEngine(root, Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer eng2.Close() //nolint:errcheck // test
+	if n := countSessionDirs(t, root); n != 0 {
+		t.Fatalf("session dirs after reopen sweep = %d, want 0 (orphan, no row)", n)
 	}
 }

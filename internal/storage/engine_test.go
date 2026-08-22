@@ -344,11 +344,11 @@ func TestResumeSessionRehashesPartialData(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Simulate crash without Abort/Commit: tear down the engine but leave the
-	// row and data file. Close would delete them, so instead drop the engine's
-	// registry entry by closing a *never-aborting* path — we replicate the
-	// crash by writing a new engine over the same root without closing the
-	// old one (the old session's in-memory state is simply discarded, which is
-	// exactly what a process crash leaves behind).
+	// row and data file. Since ADR-0028 a Close would preserve them too, but
+	// this test keeps the raw crash posture (the fd is never closed, the
+	// in-memory hash state simply vanishes) — the harsher case the resume
+	// path must survive — by writing a new engine over the same root without
+	// closing the old one.
 	_ = eng // the live session object is abandoned, mirroring a crash
 
 	eng2 := newEngineAt(t, root, Options{Sessions: store})

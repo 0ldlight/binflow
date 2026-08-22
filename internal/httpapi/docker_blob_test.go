@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/lzwzzy/binflow/internal/adapter"
 	"github.com/lzwzzy/binflow/internal/adapter/docker"
@@ -450,10 +451,13 @@ func TestV2BlobUnknown404(t *testing.T) {
 	}
 }
 
-// TestV2BlobSessionDiesWithProcess (D14's core posture): the upload-session
-// registry is process state by design — after a process restart the old
-// session URL is BLOB_UPLOAD_UNKNOWN, a blob finalized BEFORE the restart
-// stays readable, and one that was mid-upload was never visible.
+// TestV2BlobSessionDiesWithProcess (D14's core posture, scoped to a stack
+// WITHOUT the session persistence seam): with no upload_sessions store the
+// session is process state by definition — after a restart the old session
+// URL is BLOB_UPLOAD_UNKNOWN, a blob finalized BEFORE the restart stays
+// readable, and one that was mid-upload was never visible. (The DB-backed
+// resume-across-restart behavior is ADR-0028 / T-216 territory, covered by
+// the m7-resume probes and internal/adapter/docker/resume_test.go.)
 func TestV2BlobSessionDiesWithProcess(t *testing.T) {
 	// This test builds its own stack so the "restart" is a second assembly
 	// over the same data directory (the closest an in-process suite comes
@@ -489,8 +493,10 @@ func TestV2BlobSessionDiesWithProcess(t *testing.T) {
 		t.Fatalf("mid-upload blob visible before restart: %d", resp.StatusCode)
 	}
 
-	// Simulate the crash: close the engine (the sweep clears the orphaned
-	// session directory), reopen, rebuild the HTTP surface.
+	// Simulate the crash: close the engine (ADR-0028: Close preserves the
+	// session dir; the reopen below clears it via the orphan scan — with no
+	// Sessions seam there is no row to protect it), reopen, rebuild the
+	// HTTP surface.
 	if err := st.Close(); err != nil {
 		t.Fatalf("close engine: %v", err)
 	}
@@ -755,16 +761,20 @@ func newHarnessWithDataDir(t *testing.T, dataDir string, st storage.Engine) *har
 }
 
 // TestV2BlobSessionSweepResidue checks the sessions residue arm (D14) against
-// the DB-backed session layout (T-209): an abandoned upload persists an
-// upload_sessions row + uploads/<uuid>/data file, and a crash+restart leaves
-// neither behind. The pre-T-209 disk sessions/ layout is gone.
+// the DB-backed session layout (T-209) under the ADR-0028 Close semantics: a
+// clean Close PRESERVES the abandoned upload's upload_sessions row +
+// uploads/<uuid>/data file (that is what makes SIGTERM/compose restart
+// resumable), and the residue is reclaimed only by the startup sweep once the
+// row's TTL expires — sweep + TTL is the one reclamation path. The pre-T-209
+// disk sessions/ layout is gone.
 func TestV2BlobSessionSweepResidue(t *testing.T) {
 	dataDir := t.TempDir()
 	ctx := t.Context()
 
 	// Open metadata first so the engine carries the session persistence seam:
 	// the abandoned upload must land an upload_sessions row to make the
-	// "crash leaves residue" precondition real (nil seam would never persist).
+	// "residue survives the Close" precondition real (nil seam would never
+	// persist).
 	md, err := metadata.Open(ctx, metadata.Options{Driver: "sqlite", Path: dataDir + "/binflow.db"})
 	if err != nil {
 		t.Fatalf("metadata.Open: %v", err)
@@ -791,17 +801,49 @@ func TestV2BlobSessionSweepResidue(t *testing.T) {
 	// boundary is expires_at <= now, so a far-future now returns every row).
 	rows, err := md.UploadSessions().ListExpired(ctx, "9999-12-31T23:59:59Z", 0)
 	if err != nil {
-		t.Fatalf("list upload_sessions before crash: %v", err)
+		t.Fatalf("list upload_sessions before close: %v", err)
 	}
 	if len(rows) != 1 {
-		t.Fatalf("upload_sessions rows before crash = %d, want 1 (abandoned upload persisted)", len(rows))
+		t.Fatalf("upload_sessions rows before close = %d, want 1 (abandoned upload persisted)", len(rows))
 	}
+	sid := rows[0].ID
 
-	// Crash: close WITHOUT a graceful cancel, reopen (the startup sweep
-	// removes the orphaned session directory and its upload_sessions row).
+	// Clean shutdown (ADR-0028): Close preserves the unexpired row AND the
+	// data file — nothing is reclaimed here, by design.
 	if err := st.Close(); err != nil {
 		t.Fatalf("close: %v", err)
 	}
+	rows, err = md.UploadSessions().ListExpired(ctx, "9999-12-31T23:59:59Z", 0)
+	if err != nil {
+		t.Fatalf("list upload_sessions after close: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("upload_sessions rows after clean Close = %d, want 1 (preserved, ADR-0028)", len(rows))
+	}
+	dataFile := dataDir + "/uploads/" + sid + "/data"
+	if _, err := os.Stat(dataFile); err != nil {
+		t.Fatalf("session data file after clean Close: %v (want preserved, ADR-0028)", err)
+	}
+
+	// Age the residue past its TTL (Close does no expiry processing; the
+	// sweep owns reclamation). The store has no expiry-update seam, so the
+	// row is re-seeded as already-expired — same id, same state, past
+	// expires_at, exactly what time passing would leave behind.
+	if err := md.UploadSessions().Delete(ctx, sid); err != nil {
+		t.Fatalf("delete row for re-seed: %v", err)
+	}
+	past := time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)
+	if err := md.UploadSessions().Create(ctx, &metadata.UploadSession{
+		ID:        sid,
+		State:     rows[0].State,
+		CreatedAt: past,
+		ExpiresAt: past,
+	}); err != nil {
+		t.Fatalf("re-seed expired row: %v", err)
+	}
+
+	// Restart: the startup sweep removes the orphaned session directory and
+	// its (now expired) upload_sessions row — the only reclamation path.
 	st2, err := storage.OpenEngine(dataDir, storage.Options{Sessions: md.UploadSessions()})
 	if err != nil {
 		t.Fatalf("reopen: %v", err)

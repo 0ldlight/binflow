@@ -34,8 +34,9 @@ var (
 	ErrEngineClosed = errors.New("storage engine closed")
 	// ErrSessionPoisoned is reported by Append and Commit after an earlier
 	// Append failed: the session can no longer produce a trustworthy blob
-	// and must be discarded with Abort (engine Close and the startup sweep
-	// are the backstops). The wrapped chain carries the original cause.
+	// and must be discarded with Abort (the startup sweep is the backstop —
+	// engine Close no longer deletes sessions, ADR-0028). The wrapped chain
+	// carries the original cause.
 	ErrSessionPoisoned = errors.New("session poisoned by a failed append")
 )
 
@@ -137,6 +138,15 @@ type Engine interface {
 	// sub-second duration explicitly. Returns an error wrapping
 	// ErrEngineClosed after Close.
 	GC(ctx context.Context, referenced func() (map[string]struct{}, error), grace time.Duration, apply bool) ([]string, error)
-	// Close shuts the engine down; further sessions are refused.
+	// Close shuts the engine down: it stops accepting mutations (BeginSession,
+	// Delete, GC fail with ErrEngineClosed), drains the in-memory session
+	// registry (closing live sessions' data fds — no leaks) and PRESERVES
+	// unexpired upload sessions — rows and uploads/<id>/ data files alike —
+	// so a clean shutdown (SIGTERM, compose restart) resumes exactly like a
+	// crash (kill -9). Close deletes no session and runs no expiry pass: the
+	// startup sweep + TTL is the only reclamation path, and one INFO line
+	// (opts.Logger or slog.Default) reports the preserved count + ids
+	// (ADR-0028, architecture section 5.3.1 contract 7). Open/Stat keep
+	// serving committed blobs. Idempotent.
 	Close() error
 }
