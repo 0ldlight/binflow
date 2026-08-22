@@ -195,3 +195,8 @@ func (s userSeed) Create(ctx context.Context, u *metadata.User) error {
 
 // Principal is the caller identity, aliased like every adapter does.
 type Principal = auth.Principal
+
+// Role is the closed-set role of a principal (M7, ADR-0026), aliased beside
+// Principal so the token endpoint's form leg can carry it without importing
+// the auth package at every construction site.
+type Role = auth.Role

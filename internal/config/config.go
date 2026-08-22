@@ -157,6 +157,13 @@ func splitEnvKey(upper string) (path []string, kind envKind, ok bool) {
 		// BINFLOW_REPLICATION__ALLOW_PRIVATE_TARGET form maps through the "__"
 		// path below.
 		return []string{"replication", "allow_private_target"}, envBool, true
+	case "AUTH_OIDC_READONLY_GROUP":
+		// M7 (ADR-0026 decision 4): the documented single-underscore
+		// spelling; the generic BINFLOW_AUTH__OIDC__READONLY_GROUP form maps
+		// through the "__" path below.
+		return []string{"auth", "oidc", "readonly_group"}, envString, true
+	case "AUTH_LDAP_READONLY_GROUP":
+		return []string{"auth", "ldap", "readonly_group"}, envString, true
 	}
 	parts := strings.Split(upper, "__")
 	for i, p := range parts {
@@ -191,6 +198,10 @@ func splitEnvKey(upper string) (path []string, kind envKind, ok bool) {
 	case "metadata.driver":
 		return parts, envString, true
 	case "metadata.dsn":
+		return parts, envString, true
+	case "auth.oidc.readonly_group", "auth.ldap.readonly_group":
+		// M7 (ADR-0026 decision 6): the federated read-only-admin group
+		// mapping, same reachability as its YAML key.
 		return parts, envString, true
 	case "auth.argon2_memory_mb":
 		return parts, envIntPos, true

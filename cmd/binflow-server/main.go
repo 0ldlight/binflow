@@ -769,14 +769,15 @@ func wireAuthProviders(ctx context.Context, cfg *config.Config, md metadata.Stor
 			secret = os.Getenv(config.OIDCClientSecretEnvVar)
 		}
 		p, err := auth.NewOIDCProvider(ctx, &auth.OIDCConfig{
-			IssuerURL:    oc.IssuerURL,
-			ClientID:     oc.ClientID,
-			ClientSecret: secret,
-			RedirectURL:  oc.RedirectURL,
-			Scopes:       oc.Scopes,
-			UserClaim:    oc.UserClaim,
-			GroupClaim:   oc.GroupClaim,
-			AdminGroup:   oc.AdminGroup,
+			IssuerURL:     oc.IssuerURL,
+			ClientID:      oc.ClientID,
+			ClientSecret:  secret,
+			RedirectURL:   oc.RedirectURL,
+			Scopes:        oc.Scopes,
+			UserClaim:     oc.UserClaim,
+			GroupClaim:    oc.GroupClaim,
+			AdminGroup:    oc.AdminGroup,
+			ReadOnlyGroup: oc.ReadOnlyGroup,
 		}, auth.NewOIDCResolver(md.Users()))
 		if err != nil {
 			return nil, nil, fmt.Errorf("wiring auth.oidc: %w", err)
@@ -802,6 +803,7 @@ func wireAuthProviders(ctx context.Context, cfg *config.Config, md metadata.Stor
 			GroupBaseDN:   lc.GroupBaseDN,
 			GroupNameAttr: lc.GroupNameAttr,
 			AdminGroup:    lc.AdminGroup,
+			ReadOnlyGroup: lc.ReadOnlyGroup,
 			PoolSize:      lc.PoolSize,
 			StartTLS:      lc.StartTLS,
 			SkipTLSVerify: lc.SkipTLSVerify,

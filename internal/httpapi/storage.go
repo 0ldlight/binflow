@@ -263,10 +263,14 @@ func (s *Server) handleStoragePermissions(w http.ResponseWriter, r *http.Request
 // of the reference implementation: key = principal name, value = its
 // permission letters in r/w/d order; a principal holding no action through
 // the covering targets renders no entry (empty collections are skipped).
+// M7 (ADR-0026, inventory family 7) appends the m letter — the repo-scoped
+// manage bit, orthogonal to the path-plane letters and carried by any
+// target that lists the repository (auth.PrincipalBits.Manage computes it
+// with Can's exact predicate, so the view and the decision cannot diverge).
 func principalLetters(m map[string]auth.PrincipalBits) map[string][]string {
 	out := map[string][]string{}
 	for name, bits := range m {
-		letters := make([]string, 0, 3)
+		letters := make([]string, 0, 4)
 		if bits.Read {
 			letters = append(letters, "r")
 		}
@@ -275,6 +279,9 @@ func principalLetters(m map[string]auth.PrincipalBits) map[string][]string {
 		}
 		if bits.Delete {
 			letters = append(letters, "d")
+		}
+		if bits.Manage {
+			letters = append(letters, "m")
 		}
 		if len(letters) > 0 {
 			out[name] = letters

@@ -284,11 +284,15 @@ func withRootPrincipal(r *http.Request, p *auth.Principal) *http.Request {
 // planes (T-15); every other path answers the envelope 404 with "not
 // implemented" wording (E-26②).
 //
-// Route gates (routeAuth.required) encode the management-plane rule of
-// ADR-0009: everything under /binflow/api/** demands authentication. Where
-// the operation is additionally admin-only, the terminal handler still
-// consults the principal (repo.Service's requireAdmin or an explicit check)
-// — the route gate alone would let any authenticated user through.
+// Route gates (routeAuth) encode the management-plane rule of ADR-0009
+// plus the M7 capability split (ADR-0026): everything under
+// /binflow/api/** demands authentication, and the operations beyond
+// self-service demand a closed-set capability (auth.CanManage) or the
+// single-repo manage gate (auth.CanManageRepo) — see the section 7.1
+// inventory. Where the write is additionally destructive, the terminal
+// handler still re-checks (repo.Service's requireAdmin, the GC and
+// replication create/delete guards) — the route gate alone would let any
+// gate-passing principal through a later route edit.
 func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string) {
 	switch {
 	case rest == "system/ping" && r.Method == http.MethodGet:
@@ -300,19 +304,23 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		s.enforce(w, r, routeAuth{}, s.handleVersion)
 	case rest == "v1/health" && r.Method == http.MethodGet:
 		// Management plane (C28a is `-sfu admin` for a reason): the health
-		// dashboard exposes instance internals, so it sits behind the admin
-		// gate like the rest of /api/v1. Deployers' liveness/readiness
-		// probes use the unauthenticated /healthz and /readyz instead.
-		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleV1Health)
+		// dashboard exposes instance internals, so it sits behind the
+		// system-read capability like the rest of /api/v1. Deployers'
+		// liveness/readiness probes use the unauthenticated /healthz and
+		// /readyz instead.
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleV1Health)
 	case rest == "v1/storage/stats" && r.Method == http.MethodGet:
-		// Whole-instance blob/byte statistics (D2): operator data, admin
-		// only — a non-admin reader must not learn repository volume.
-		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleV1StorageStats)
+		// Whole-instance blob/byte statistics (D2): operator data, a
+		// read-capability question since M7 — a plain user must not learn
+		// repository volume, readonly_admin may (the auditor's dashboard).
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleV1StorageStats)
 	case strings.HasPrefix(rest, "v1/storage/usage/"):
-		// Per-repository quota usage (GE-06/W26b, T-95): one segment after
-		// the prefix is the repo key. The route demands authentication; the
-		// admin-OR-read-grant decision is the use case's (a denied reader
-		// must see 403, not a 401 challenge).
+		// Per-repository quota usage (GE-06/W26b, T-95; family 7): one
+		// segment after the prefix is the repo key. The route demands
+		// authentication; the CanManageRepo(read)-OR-read-grant decision is
+		// the use case's (a denied reader must see 403, not a 401
+		// challenge). readonly_admin passes through Can's global r; the
+		// m-holder OR-arm rides the same seam (FR-65/K11).
 		key, tail := splitAPIName(rest, "v1/storage/usage/")
 		if tail == "" && r.Method == http.MethodGet {
 			s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
@@ -329,23 +337,25 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	// write surface to reach; the metadata layer has no UPDATE/DELETE
 	// audit path either, NFR-S21).
 	case rest == "v1/audit" && r.Method == http.MethodGet:
-		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleAuditQuery)
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleAuditQuery)
 
-	// ---- /api/v1/system/gc (GE-03, T-94; admin, sync, lock-guarded) ----
+	// ---- /api/v1/system/gc (GE-03, T-94; sync, lock-guarded) ----
 	// POST is the only verb with a route: the job-status endpoint (GET) is
 	// a recorded P2 debt (ADR-0015 erratum ②) — the last run is queried
 	// through the audit trail's gc.run events, not a live status surface.
-	// Every other spelling falls to the E-26 404.
+	// Every other spelling falls to the E-26 404. Gate = system:write with
+	// NO dry-run exception (T-214①: readonly_admin does not POST write
+	// routes, apply=false included).
 	case rest == "v1/system/gc" && r.Method == http.MethodPost:
-		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleSystemGC)
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleSystemGC)
 
-	// ---- /api/v1/storage/migration (T-164; admin) ----
+	// ---- /api/v1/storage/migration (T-164) ----
 	case rest == "v1/storage/migration" && r.Method == http.MethodGet:
-		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleMigrationStatus)
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleMigrationStatus)
 	case rest == "v1/storage/migration/start" && r.Method == http.MethodPost:
-		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleMigrationStart)
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleMigrationStart)
 
-	// ---- /api/v1/replications (T-180, ADR-0021; admin) ----
+	// ---- /api/v1/replications (T-180, ADR-0021) ----
 	// The push-replication configuration plane. GET lists (secrets
 	// excluded), POST creates, DELETE /{name} drops one config — its task
 	// rows cascade via the 009 FK. No PUT yet: the ticket scoped the CRUD to
@@ -353,18 +363,18 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	// semantics ruling first. The sibling /api/v1/replication/status below
 	// is the console panel's aggregated read face (T-159).
 	case rest == "v1/replications" && r.Method == http.MethodGet:
-		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleReplicationList)
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleReplicationList)
 	case rest == "v1/replications" && r.Method == http.MethodPost:
-		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleReplicationCreate)
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleReplicationCreate)
 	case strings.HasPrefix(rest, "v1/replications/") && r.Method == http.MethodDelete:
-		s.enforce(w, r, routeAuth{required: true, admin: true},
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite},
 			s.withName(rest, "v1/replications/", s.handleReplicationDelete))
 
-	// ---- /api/v1/replication/status (T-159/T-180; admin) ----
+	// ---- /api/v1/replication/status (T-159/T-180) ----
 	// The panel polls this every 10s; the data shape is pinned to the T-159
 	// contract assumptions (see replication.go's header).
 	case rest == "v1/replication/status" && r.Method == http.MethodGet:
-		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleReplicationStatus)
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleReplicationStatus)
 
 	// ---- /api/v1/oidc (OD-01/OD-02, T-157; anonymous browser entry) ----
 	// GET is the only verb with a route on either path: the flow is two
@@ -398,42 +408,54 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	case rest == "v1/session" && r.Method == http.MethodDelete:
 		s.enforce(w, r, routeAuth{required: true}, s.handleSessionDelete)
 
-	// ---- /api/v1/permissions (E-24; admin) ----
+	// ---- /api/v1/permissions (E-24; security plane) ----
+	// Write verbs sit on security:write; FR-65/T-217 will add the m-holder
+	// coverage arm inside the handlers (CapSecurityWrite ∨ target.repos ⊆
+	// the caller's manage coverage). The read verb is security:read —
+	// readonly_admin sees the grant map, a plain user does not (the targets
+	// enumerate principals and their action distribution).
 	case rest == "v1/permissions" && r.Method == http.MethodPost:
-		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handlePermissionCreate)
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite}, s.handlePermissionCreate)
 	case rest == "v1/permissions" && r.Method == http.MethodGet:
-		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handlePermissionList)
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityRead}, s.handlePermissionList)
 	case strings.HasPrefix(rest, "v1/permissions/") && r.Method == http.MethodDelete:
-		s.enforce(w, r, routeAuth{required: true, admin: true},
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite},
 			s.withName(rest, "v1/permissions/", s.handlePermissionDelete))
 
-	// ---- /api/repositories (E-04..E-08; admin) ----
-	// The list is admin-gated too (D2): M1 has no per-repository read-ACL
-	// data plane to filter the listing by caller (the permission model is
-	// path-keyed), so an authenticated non-admin would otherwise see every
-	// repository's configuration — FR-5-AC8's C22b assertion. A filtered
-	// listing needs the M4 repository-ACL model.
+	// ---- /api/repositories (E-04..E-08) ----
+	// The list sits on repo:read (family 5, D2/C22b): readonly_admin sees
+	// the full inventory; a plain user must not (M1 has no per-repository
+	// read-ACL data plane to filter the listing by caller — the permission
+	// model is path-keyed; a filtered listing is M8+, §11.30). The
+	// single-repo family walks CanManageRepo (family 7); repo creation and
+	// deletion stay on the global repo:write gate (family 6) — the create
+	// arm of PUT splits inside the handler, which knows whether the key
+	// exists.
 	case rest == "repositories" && r.Method == http.MethodGet:
-		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleRepoList)
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapRepoRead}, s.handleRepoList)
 	case strings.HasPrefix(rest, "repositories/"):
 		key, tail := splitAPIName(rest, "repositories/")
 		switch {
 		case tail == "" && r.Method == http.MethodGet:
-			s.enforce(w, r, routeAuth{required: true, admin: true}, func(w http.ResponseWriter, r *http.Request) {
-				s.handleRepoGet(w, r, key)
-			})
+			s.enforce(w, r, routeAuth{required: true, repoManage: &repoManageGate{repo: key}},
+				func(w http.ResponseWriter, r *http.Request) {
+					s.handleRepoGet(w, r, key)
+				})
 		case tail == "" && r.Method == http.MethodPut:
-			s.enforce(w, r, routeAuth{required: true, admin: true}, func(w http.ResponseWriter, r *http.Request) {
-				s.handleRepoPut(w, r, key)
-			})
+			s.enforce(w, r, routeAuth{required: true, repoManage: &repoManageGate{repo: key, write: true}},
+				func(w http.ResponseWriter, r *http.Request) {
+					s.handleRepoPut(w, r, key)
+				})
 		case tail == "" && r.Method == http.MethodPost:
-			s.enforce(w, r, routeAuth{required: true, admin: true}, func(w http.ResponseWriter, r *http.Request) {
-				s.handleRepoPost(w, r, key)
-			})
+			s.enforce(w, r, routeAuth{required: true, repoManage: &repoManageGate{repo: key, write: true}},
+				func(w http.ResponseWriter, r *http.Request) {
+					s.handleRepoPost(w, r, key)
+				})
 		case tail == "" && r.Method == http.MethodDelete:
-			s.enforce(w, r, routeAuth{required: true, admin: true}, func(w http.ResponseWriter, r *http.Request) {
-				s.handleRepoDelete(w, r, key)
-			})
+			s.enforce(w, r, routeAuth{required: true, manage: auth.CapRepoWrite},
+				func(w http.ResponseWriter, r *http.Request) {
+					s.handleRepoDelete(w, r, key)
+				})
 		default:
 			notImplemented(w, "/binflow/api/"+rest)
 		}
@@ -458,17 +480,19 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 			return
 		}
 		if _, ok := r.URL.Query()["permissions"]; ok && r.Method == http.MethodGet {
-			// SE-08 (T-97 review B2): the effective-permission view is
-			// MANAGEMENT-plane data — it enumerates principal names and their
-			// r/w/d distribution, so it sits behind the admin gate exactly
-			// like the rest of the security configuration (upstream's first
-			// door on this arm is canManage; BinFlow has no manage action,
-			// admin is the nearest mapping). An empty gate here would let any
-			// visitor of an anonymous-read instance enumerate users and
-			// groups, defeating the login plane's existence-hiding.
-			s.enforce(w, r, routeAuth{required: true, admin: true}, func(w http.ResponseWriter, r *http.Request) {
-				s.handleStoragePermissions(w, r, repoKey, rel)
-			})
+			// SE-08 (T-97 review B2, M7 family 7): the effective-permission
+			// view is MANAGEMENT-plane data — it enumerates principal names
+			// and their r/w/d/m distribution — so it walks the single-repo
+			// manage gate: admin and readonly_admin read it, a plain user
+			// needs the m action on the repository (upstream's first door on
+			// this arm is canManage; BinFlow's m is the same question). An
+			// empty gate here would let any visitor of an anonymous-read
+			// instance enumerate users and groups, defeating the login
+			// plane's existence-hiding.
+			s.enforce(w, r, routeAuth{required: true, repoManage: &repoManageGate{repo: repoKey}},
+				func(w http.ResponseWriter, r *http.Request) {
+					s.handleStoragePermissions(w, r, repoKey, rel)
+				})
 			return
 		}
 		if r.Method == http.MethodGet {
@@ -509,41 +533,41 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		// oauth: every non-2xx on the token family renders the OAuth error
 		// body, authorization denials included (D3 follow-up: revoke's 403
 		// previously leaked the errors[] envelope).
-		s.enforce(w, r, routeAuth{required: true, admin: true, oauth: true}, s.handleTokenRevoke)
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite, oauth: true}, s.handleTokenRevoke)
 	case rest == "security/users" && r.Method == http.MethodGet:
-		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleUserList)
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityRead}, s.handleUserList)
 	case rest == "security/users" && r.Method == http.MethodPost:
-		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleUserCreatePost)
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite}, s.handleUserCreatePost)
 	case strings.HasPrefix(rest, "security/users/") && r.Method == http.MethodGet:
-		s.enforce(w, r, routeAuth{required: true, admin: true},
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityRead},
 			s.withName(rest, "security/users/", s.handleUserGet))
 	case strings.HasPrefix(rest, "security/users/") && r.Method == http.MethodPut:
-		s.enforce(w, r, routeAuth{required: true, admin: true},
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite},
 			s.withName(rest, "security/users/", s.handleUserCreatePut))
 	case strings.HasPrefix(rest, "security/users/") && r.Method == http.MethodPost:
-		// SE-06 partial update (T-97): email/password/admin and the groups[]
-		// membership set. The changePassword alias above wins by order — its
-		// exact-match case precedes this prefix case.
-		s.enforce(w, r, routeAuth{required: true, admin: true},
+		// SE-06 partial update (T-97): email/password/admin/adminRole and
+		// the groups[] membership set. The changePassword alias above wins
+		// by order — its exact-match case precedes this prefix case.
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite},
 			s.withName(rest, "security/users/", s.handleUserUpdatePost))
 
-	// ---- /api/security/groups (SE-01..04, T-97; admin) ----
+	// ---- /api/security/groups (SE-01..04, T-97; security plane) ----
 	// Errors inside the handlers are the user-management plain-text layer;
-	// the admin gate itself renders the plane's envelope like every other
-	// /api/security route.
+	// the capability gate itself renders the plane's envelope like every
+	// other /api/security route.
 	case rest == "security/groups" && r.Method == http.MethodGet:
-		s.enforce(w, r, routeAuth{required: true, admin: true}, s.handleGroupList)
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityRead}, s.handleGroupList)
 	case strings.HasPrefix(rest, "security/groups/") && r.Method == http.MethodGet:
-		s.enforce(w, r, routeAuth{required: true, admin: true},
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityRead},
 			s.withName(rest, "security/groups/", s.handleGroupGet))
 	case strings.HasPrefix(rest, "security/groups/") && r.Method == http.MethodPut:
-		s.enforce(w, r, routeAuth{required: true, admin: true},
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite},
 			s.withName(rest, "security/groups/", s.handleGroupPut))
 	case strings.HasPrefix(rest, "security/groups/") && r.Method == http.MethodPost:
-		s.enforce(w, r, routeAuth{required: true, admin: true},
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite},
 			s.withName(rest, "security/groups/", s.handleGroupPost))
 	case strings.HasPrefix(rest, "security/groups/") && r.Method == http.MethodDelete:
-		s.enforce(w, r, routeAuth{required: true, admin: true},
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite},
 			s.withName(rest, "security/groups/", s.handleGroupDelete))
 
 	default:

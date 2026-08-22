@@ -250,7 +250,14 @@ func (h *Handler) authenticateForm(ctx context.Context, user, pass string) (*Pri
 	if verr != nil || !ok {
 		return nil, errFormCredential
 	}
-	return &Principal{Name: u.Username, Admin: u.IsAdmin}, nil
+	// Role rides the principal since M7 (T-212 review handover 1: this
+	// arm used to build Admin-only, folding a readonly_admin form login
+	// down to a plain user — under-authorization, fail-closed, but the
+	// auditor's global read went missing). Role and Admin stay consistent
+	// because every users-row write maintains the mirror in one statement
+	// (ADR-0026 decision 6); a hand-built row with a garbage role falls
+	// back to the Admin flag inside EffectiveRole.
+	return &Principal{Name: u.Username, Role: Role(u.Role), Admin: u.IsAdmin}, nil
 }
 
 // writeOAuthError renders the token endpoint's OAuth-form error body with

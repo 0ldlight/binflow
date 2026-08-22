@@ -60,14 +60,15 @@ type raw struct {
 		HashConcurrency        *int  `yaml:"hash_concurrency"`
 		AnonymousRead          *bool `yaml:"anonymous_read"`
 		OIDC                   *struct {
-			Enabled     *bool    `yaml:"enabled"`
-			IssuerURL   *string  `yaml:"issuer_url"`
-			ClientID    *string  `yaml:"client_id"`
-			RedirectURL *string  `yaml:"redirect_url"`
-			Scopes      []string `yaml:"scopes"`
-			UserClaim   *string  `yaml:"user_claim"`
-			GroupClaim  *string  `yaml:"group_claim"`
-			AdminGroup  *string  `yaml:"admin_group"`
+			Enabled       *bool    `yaml:"enabled"`
+			IssuerURL     *string  `yaml:"issuer_url"`
+			ClientID      *string  `yaml:"client_id"`
+			RedirectURL   *string  `yaml:"redirect_url"`
+			Scopes        []string `yaml:"scopes"`
+			UserClaim     *string  `yaml:"user_claim"`
+			GroupClaim    *string  `yaml:"group_claim"`
+			AdminGroup    *string  `yaml:"admin_group"`
+			ReadOnlyGroup *string  `yaml:"readonly_group"`
 		} `yaml:"oidc"`
 		LDAP *struct {
 			Enabled       *bool   `yaml:"enabled"`
@@ -80,6 +81,7 @@ type raw struct {
 			GroupBaseDN   *string `yaml:"group_base_dn"`
 			GroupNameAttr *string `yaml:"group_name_attr"`
 			AdminGroup    *string `yaml:"admin_group"`
+			ReadOnlyGroup *string `yaml:"readonly_group"`
 			PoolSize      *int    `yaml:"pool_size"`
 			StartTLS      *bool   `yaml:"start_tls"`
 			SkipTLSVerify *bool   `yaml:"skip_tls_verify"`
@@ -370,6 +372,9 @@ func build(r *raw, env map[string]string) (*Config, error) {
 			if o.AdminGroup != nil {
 				c.Auth.OIDC.AdminGroup = *o.AdminGroup
 			}
+			if o.ReadOnlyGroup != nil {
+				c.Auth.OIDC.ReadOnlyGroup = *o.ReadOnlyGroup
+			}
 		}
 		if r.Auth.LDAP != nil {
 			l := r.Auth.LDAP
@@ -402,6 +407,9 @@ func build(r *raw, env map[string]string) (*Config, error) {
 			}
 			if l.AdminGroup != nil {
 				c.Auth.LDAP.AdminGroup = *l.AdminGroup
+			}
+			if l.ReadOnlyGroup != nil {
+				c.Auth.LDAP.ReadOnlyGroup = *l.ReadOnlyGroup
 			}
 			if l.PoolSize != nil {
 				c.Auth.LDAP.PoolSize = *l.PoolSize
@@ -683,6 +691,10 @@ func setEnvValue(c *Config, path []string, kind envKind, value, name string) err
 			c.Metadata.Driver = d
 		case "metadata.dsn":
 			c.Metadata.DSN = value
+		case "auth.oidc.readonly_group":
+			c.Auth.OIDC.ReadOnlyGroup = value
+		case "auth.ldap.readonly_group":
+			c.Auth.LDAP.ReadOnlyGroup = value
 		case "logging.level":
 			l := strings.ToLower(value)
 			if !allowedLogLevels()[l] {

@@ -507,10 +507,14 @@ type userListItem struct {
 // round-trips the stored value); groups is the membership set ([] when the
 // user belongs to none); lastLoggedIn stays absent until login times are
 // tracked. Source mirrors the list entry's provider field (T-185/D1).
+// AdminRole (M7/RB-02, FR-64) echoes the closed-set role of the account —
+// snake values user/readonly_admin/admin, the same spelling as the wire
+// input and the DB column (ADR-0026 decision 6: wire=DB=constant).
 type userDetail struct {
 	Name                     string   `json:"name"`
 	Email                    string   `json:"email"`
 	Admin                    bool     `json:"admin"`
+	AdminRole                string   `json:"adminRole"`
 	Groups                   []string `json:"groups"`
 	LastLoggedIn             string   `json:"lastLoggedIn,omitempty"`
 	Realm                    string   `json:"realm"`
@@ -518,6 +522,18 @@ type userDetail struct {
 	ProfileUpdatable         bool     `json:"profileUpdatable"`
 	InternalPasswordDisabled bool     `json:"internalPasswordDisabled"`
 	DisableUIAccess          bool     `json:"disableUIAccess"`
+}
+
+// roleFromStored normalizes a stored users.role spelling onto the closed
+// set for the wire: rows predating migration 011 or hand-built fixtures
+// collapse to the default (the same fail-safe auth.principalRole applies
+// on the read path, so the echo can never diverge from what authorization
+// actually decided).
+func roleFromStored(role string) auth.Role {
+	if r, ok := auth.ParseRole(role); ok {
+		return r
+	}
+	return auth.RoleUser
 }
 
 // providerSource normalizes a stored users.provider value for the wire:
@@ -547,14 +563,43 @@ func providerRealm(provider string) string {
 
 // userCreateBody is the create/replace body of both routes. Groups is the
 // M4 membership field (SE-06): nil means "not addressed" on partial update
-// and "no groups" on create/replace.
+// and "no groups" on create/replace. AdminRole (M7/RB-01) is the closed-set
+// role of the account; absent derives from the admin boolean, and the two
+// spellings must agree (admin=true ⇔ adminRole=admin) — a disagreement is
+// a 400 (ADR-0026 decision 6, wire compatibility).
 type userCreateBody struct {
-	Name     string   `json:"name"`
-	Email    string   `json:"email"`
-	Password string   `json:"password"`
-	Admin    bool     `json:"admin"`
-	Enabled  *bool    `json:"enabled"`
-	Groups   []string `json:"groups"`
+	Name      string   `json:"name"`
+	Email     string   `json:"email"`
+	Password  string   `json:"password"`
+	Admin     bool     `json:"admin"`
+	AdminRole string   `json:"adminRole"`
+	Enabled   *bool    `json:"enabled"`
+	Groups    []string `json:"groups"`
+}
+
+// resolveCreateRole validates the (adminRole, admin) pair of a
+// create/replace body and returns the role that must land in users.role.
+// An empty adminRole derives from the boolean — the pre-M7 spelling keeps
+// working byte-for-byte. The T-212 review's contradictory-input guard
+// (metadata.Create would store Role='user'+IsAdmin=true verbatim) lives
+// HERE: after this check the pair the handler hands down cannot disagree.
+func resolveCreateRole(adminRole string, admin bool) (auth.Role, string) {
+	if adminRole == "" {
+		if admin {
+			return auth.RoleAdmin, ""
+		}
+		return auth.RoleUser, ""
+	}
+	role, ok := auth.ParseRole(adminRole)
+	if !ok {
+		return "", fmt.Sprintf("unknown adminRole %q (supported: user, readonly_admin, admin)", adminRole)
+	}
+	if (role == auth.RoleAdmin) != admin {
+		return "", fmt.Sprintf(
+			"conflicting 'admin' and 'adminRole' fields: admin=%t is incompatible with adminRole=%q (admin=true is equivalent to adminRole=admin)",
+			admin, adminRole)
+	}
+	return role, ""
 }
 
 // handleUserList serves GET /api/security/users (admin): the name/uri/realm
@@ -602,6 +647,7 @@ func (s *Server) handleUserGet(w http.ResponseWriter, r *http.Request, name stri
 		Name:             u.Username,
 		Email:            u.Email,
 		Admin:            u.IsAdmin,
+		AdminRole:        string(roleFromStored(u.Role)),
 		Groups:           groups,
 		Realm:            providerRealm(u.Provider),
 		Source:           providerSource(u.Provider),
@@ -673,6 +719,13 @@ func (s *Server) userCreate(w http.ResponseWriter, r *http.Request, pathName str
 	if !s.validateGroupNames(w, r, body.Groups) {
 		return
 	}
+	// The role pair resolves before any write (RB-01): an unknown value or
+	// an admin/adminRole disagreement is a 400 with nothing stored.
+	role, roleErr := resolveCreateRole(body.AdminRole, body.Admin)
+	if roleErr != "" {
+		writePlainError(w, http.StatusBadRequest, roleErr)
+		return
+	}
 
 	existing, err := s.deps.Metadata.Users().Get(r.Context(), name)
 	switch {
@@ -700,11 +753,21 @@ func (s *Server) userCreate(w http.ResponseWriter, r *http.Request, pathName str
 		now := nowRFC3339UTC()
 		if err := s.deps.Metadata.Users().Create(r.Context(), &metadata.User{
 			Username: name, PasswordHash: hash, IsAdmin: body.Admin, Enabled: enabled,
+			// M7 (FR-64/RB-01): the resolved role rides the same row; the
+			// pair cannot disagree (resolveCreateRole proved it above), so
+			// the is_admin mirror lands consistent in Create's statement.
+			Role:      string(role),
 			Email:     strings.TrimSpace(body.Email),
 			CreatedAt: now, UpdatedAt: now,
 		}); err != nil {
 			writePlainError(w, http.StatusInternalServerError, "create user: "+err.Error())
 			return
+		}
+		// A non-default role on a fresh account is a role assignment — the
+		// auditor's account must leave the same trail a promotion would
+		// (NFR-S42; old="" marks the account as new).
+		if role != auth.RoleUser {
+			s.recordRoleChange(r, name, "", role)
 		}
 	} else {
 		// Replace (create-or-replace semantics): password, email and the
@@ -724,12 +787,22 @@ func (s *Server) userCreate(w http.ResponseWriter, r *http.Request, pathName str
 			writePlainError(w, http.StatusInternalServerError, "replace profile: "+err.Error())
 			return
 		}
+		if body.AdminRole != "" {
+			// The explicit role is the last word (UpdateProfile's boolean
+			// CASE cannot express readonly_admin, ADR-0026 decision 6 —
+			// SetRole writes role + is_admin mirror in one statement).
+			if err := s.deps.Metadata.Users().SetRole(r.Context(), name, string(role)); err != nil {
+				writePlainError(w, http.StatusInternalServerError, "set user role: "+err.Error())
+				return
+			}
+		}
 		if body.Enabled != nil {
 			if err := s.deps.Metadata.Users().SetEnabled(r.Context(), name, *body.Enabled); err != nil {
 				writePlainError(w, http.StatusInternalServerError, "replace enabled: "+err.Error())
 				return
 			}
 		}
+		s.recordRoleChange(r, name, roleFromStored(existing.Role), replaceLandedRole(roleFromStored(existing.Role), role, body.AdminRole != "", body.Admin))
 	}
 	if err := s.setUserGroups(r, name, body.Groups); err != nil {
 		writePlainError(w, http.StatusInternalServerError, "set user groups: "+err.Error())
@@ -738,18 +811,51 @@ func (s *Server) userCreate(w http.ResponseWriter, r *http.Request, pathName str
 	w.WriteHeader(http.StatusCreated) // 201, no body (auth-model.md 1.2/1.3-11)
 }
 
+// replaceLandedRole computes the role a replace lands on: the explicit
+// adminRole when given, otherwise the boolean path's CASE semantics
+// (promote to admin; demote an admin to user; a readonly_admin row keeps
+// its role under admin=false — the boolean seam cannot express it).
+func replaceLandedRole(old, explicit auth.Role, explicitSet bool, admin bool) auth.Role {
+	if explicitSet {
+		return explicit
+	}
+	if admin {
+		return auth.RoleAdmin
+	}
+	if old == auth.RoleAdmin {
+		return auth.RoleUser
+	}
+	return old
+}
+
+// recordRoleChange appends the user.role.change audit event when the stored
+// role actually moved (FR-64-AC6: actor, target user, old and new roles).
+// Best-effort like every audit append.
+func (s *Server) recordRoleChange(r *http.Request, username string, oldRole, newRole auth.Role) {
+	if oldRole == newRole {
+		return
+	}
+	s.audit.Record(r.Context(), audit.Event{
+		Actor:  actorName(r),
+		Action: audit.ActionUserRoleChange,
+		Detail: auditDetail("user", username, "old", string(oldRole), "new", string(newRole)),
+	})
+}
+
 // userUpdateBody is the partial-update body of POST /api/security/users/
 // {name} (SE-06, auth-model.md 1.4: unprovided fields keep their stored
 // values). Every mutable field is a pointer so "absent" and "explicitly
 // empty" stay distinguishable — clearing the membership is groups:[], not
-// an omitted groups field.
+// an omitted groups field. AdminRole (M7/RB-01) is the closed-set role;
+// present together with admin, the two spellings must agree.
 type userUpdateBody struct {
-	Name     string    `json:"name"`
-	Email    *string   `json:"email"`
-	Password *string   `json:"password"`
-	Admin    *bool     `json:"admin"`
-	Enabled  *bool     `json:"enabled"`
-	Groups   *[]string `json:"groups"`
+	Name      string    `json:"name"`
+	Email     *string   `json:"email"`
+	Password  *string   `json:"password"`
+	Admin     *bool     `json:"admin"`
+	AdminRole *string   `json:"adminRole"`
+	Enabled   *bool     `json:"enabled"`
+	Groups    *[]string `json:"groups"`
 }
 
 // handleUserUpdatePost serves POST /api/security/users/{name} (SE-06): the
@@ -783,6 +889,26 @@ func (s *Server) handleUserUpdatePost(w http.ResponseWriter, r *http.Request, na
 		writePlainError(w, http.StatusBadRequest, "Please provide a valid user password.")
 		return
 	}
+	// M7 (RB-01): the role field resolves before any write. Present with
+	// the admin boolean, the pair must agree (admin=true ⇔ adminRole=admin);
+	// alone it is the full role statement (the boolean seam cannot express
+	// readonly_admin, so SetRole — not UpdateProfile — owns the write).
+	var newRole auth.Role
+	if body.AdminRole != nil {
+		role, ok := auth.ParseRole(*body.AdminRole)
+		if !ok {
+			writePlainError(w, http.StatusBadRequest,
+				fmt.Sprintf("unknown adminRole %q (supported: user, readonly_admin, admin)", *body.AdminRole))
+			return
+		}
+		if body.Admin != nil && (role == auth.RoleAdmin) != *body.Admin {
+			writePlainError(w, http.StatusBadRequest, fmt.Sprintf(
+				"conflicting 'admin' and 'adminRole' fields: admin=%t is incompatible with adminRole=%q (admin=true is equivalent to adminRole=admin)",
+				*body.Admin, *body.AdminRole))
+			return
+		}
+		newRole = role
+	}
 	var groups []string
 	if body.Groups != nil {
 		groups = *body.Groups
@@ -810,8 +936,20 @@ func (s *Server) handleUserUpdatePost(w http.ResponseWriter, r *http.Request, na
 		if body.Admin != nil {
 			isAdmin = *body.Admin
 		}
+		if body.AdminRole != nil {
+			// The explicit role wins the isAdmin mirror too (the pair was
+			// proven consistent above): UpdateProfile sets the email, the
+			// SetRole below has the last word on role + mirror.
+			isAdmin = newRole == auth.RoleAdmin
+		}
 		if err := s.deps.Metadata.Users().UpdateProfile(r.Context(), name, email, isAdmin); err != nil {
 			writePlainError(w, http.StatusInternalServerError, "update profile: "+err.Error())
+			return
+		}
+	}
+	if body.AdminRole != nil {
+		if err := s.deps.Metadata.Users().SetRole(r.Context(), name, string(newRole)); err != nil {
+			writePlainError(w, http.StatusInternalServerError, "set user role: "+err.Error())
 			return
 		}
 	}
@@ -830,6 +968,18 @@ func (s *Server) handleUserUpdatePost(w http.ResponseWriter, r *http.Request, na
 			return
 		}
 	}
+	// The role-change trail covers the boolean path too (FR-64-AC6): an
+	// admin:true promotion or admin:false demotion moves users.role exactly
+	// like the explicit field does.
+	oldRole := roleFromStored(u.Role)
+	final := oldRole
+	switch {
+	case body.AdminRole != nil:
+		final = newRole
+	case body.Admin != nil:
+		final = replaceLandedRole(oldRole, auth.RoleUser, false, *body.Admin)
+	}
+	s.recordRoleChange(r, name, oldRole, final)
 	w.WriteHeader(http.StatusOK) // 200, no body (auth-model.md 1.2)
 }
 

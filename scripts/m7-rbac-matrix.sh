@@ -8,27 +8,34 @@
 # status-code matrix.
 #
 # Roles:
-#   admin            bootstrap administrator (exists today)
-#   user             plain non-admin fixture user (exists today)
-#   read-only-admin  provisioned by POSTing adminRole=read-only-admin; if the
-#                    build does not carry the role field (pre-T-215 main) the
-#                    whole column is SKIPped with a note — the field's absence
-#                    IS the finding, not a failure of the run.
+#   admin           bootstrap administrator (exists today)
+#   user            plain non-admin fixture user (exists today)
+#   readonly_admin  provisioned by PUTting adminRole=readonly_admin (T-215
+#                   wire spelling, snake per ADR-0026 decision 6 — the kebab
+#                   spelling is a 400); if the build does not carry the role
+#                   field (pre-T-215 main) the whole column is SKIPped with a
+#                   note — the field's absence IS the finding, not a failure
+#                   of the run.
 #
 # Columns execute non-admin roles first (their change-face legs must be 403
 # with zero side effects) and admin last (its change-face legs really execute
-# on the throwaway instance). A zero-side-effect guard snapshots one entity
-# before/after the non-admin columns.
+# on the throwaway instance). A zero-side-effect guard snapshots the user,
+# repository-config and group entities before/after the non-admin columns,
+# plus the absence of the create-arm repository.
 #
 # Output: the matrix on stdout (markdown table; 404 on a read row is
 # annotated with a dagger = route absent on this build). Default mode is
 # OBSERVATIONAL (exit 0 once the run completes — the archived baseline);
 # --expect switches to verdict mode against the PRD M7 target table
-# (admin: reads 200 / changes non-403; user: management face 403;
-# read-only-admin: reads 200 / changes 403) and exits 1 on any deviation —
-# flip it on once T-215 lands.
+# (admin: reads 200-or-pass-gate-501 / changes non-403; user: management
+# face 403; readonly_admin: reads 200-or-pass-gate-501 / changes 403) and
+# exits 1 on any deviation — the "pass-gate 501" rows are storage/migration
+# (no dual-write on the throwaway config) and the replication pair when the
+# instance carries no replication store: the capability gate PASSED and the
+# feature is honestly unwired (architecture 7.1; a plain user collects 403
+# on the same rows, which is what tells the two apart).
 #
-# Usage: scripts/m7-rbac-matrix.sh [--roles admin,user,read-only-admin]
+# Usage: scripts/m7-rbac-matrix.sh [--roles admin,user,readonly_admin]
 #                                  [--expect] [path-to-binary]
 #          (add --base URL --admin-pw PW to run against an already-running
 #           instance instead of booting one; the script then never stops it)
@@ -43,7 +50,7 @@ set -f
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 
-ROLES="read-only-admin,user,admin"
+ROLES="readonly_admin,user,admin"
 EXPECT=0
 BIN=""
 BASE=""
@@ -99,6 +106,8 @@ done
 [ -n "$ROLES" ] || { echo "m7-rbac-matrix: --roles is empty" >&2; exit 2; }
 
 FIX_REPO="m7-matrix"
+FIX_WREPO="m7-matrix-w"
+FIX_NEWREPO="m7-matrix-create"
 FIX_USER="m7user"
 FIX_USER_PW="m7user-pw"
 FIX_BOB="m7bob"
@@ -198,8 +207,8 @@ fi
 # ---- fixtures (as admin; idempotent, re-run before every column) -----------
 
 ensure_fixtures() {
-    # write-probe repo (W01 target)
-    http PUT admin "$ADMIN_PW" "api/repositories/m7-matrix-w" "$WORK/fx1" \
+    # write-probe repo (config/quota snapshot target)
+    http PUT admin "$ADMIN_PW" "api/repositories/$FIX_WREPO" "$WORK/fx1" \
         -H 'Content-Type: application/json' \
         -d '{"rclass":"local","packageType":"generic"}' >/dev/null
     # read-fixture repo
@@ -252,14 +261,15 @@ declare_role() {
         CRED_PW="$FIX_USER_PW"
         return 0
         ;;
-    read-only-admin)
-        # Provision with the FR-64 wire field; support is detected by the
-        # field coming back on the user read. Absent field => SKIP (T-215).
+    readonly_admin)
+        # Provision with the FR-64 wire field (snake spelling, T-215);
+        # support is detected by the field coming back on the user read.
+        # Absent field => SKIP (pre-T-215 build).
         http PUT admin "$ADMIN_PW" "api/security/users/$FIX_ROA" "$WORK/roa.body" \
             -H 'Content-Type: application/json' \
-            -d "{\"name\":\"$FIX_ROA\",\"email\":\"$FIX_ROA@t.io\",\"password\":\"$FIX_ROA_PW\",\"adminRole\":\"read-only-admin\"}" >/dev/null
+            -d "{\"name\":\"$FIX_ROA\",\"email\":\"$FIX_ROA@t.io\",\"password\":\"$FIX_ROA_PW\",\"adminRole\":\"readonly_admin\"}" >/dev/null
         http GET admin "$ADMIN_PW" "api/security/users/$FIX_ROA" "$WORK/roa.get" >/dev/null
-        if grep -q 'adminRole' "$WORK/roa.get" 2>/dev/null; then
+        if grep -q '"adminRole": "readonly_admin"' "$WORK/roa.get" 2>/dev/null; then
             CRED_USER="$FIX_ROA"
             CRED_PW="$FIX_ROA_PW"
             return 0
@@ -267,34 +277,52 @@ declare_role() {
         return 1
         ;;
     *)
-        echo "m7-rbac-matrix: unknown role '$1' (known: admin, user, read-only-admin)" >&2
+        echo "m7-rbac-matrix: unknown role '$1' (known: admin, user, readonly_admin)" >&2
         exit 2
         ;;
     esac
 }
 
-# ---- the endpoint lists (PRD FR-64 §4.1) ------------------------------------
+# ---- the endpoint lists (PRD FR-64 §4.1 v1.1) -------------------------------
+#
+# Read face = the T-214① final 11-endpoint list plus the single-user read
+# (both sit on security:read): repositories list/detail, health, users
+# list/detail, groups, permissions, audit, replication status, replication
+# configs, storage stats, storage migration. The v1.0 rows api/v1/stats
+# (route never existed; the real endpoint is storage/stats) and
+# api/security/token (M1 E-17 deliberately has no token list) are GONE —
+# T-214 P2's erratum. Rows whose PASS-GATE posture is 501 on this build:
+# R12 storage/migration (no dual-write in the throwaway config).
 
 READ_ROWS="R01|api/repositories
 R02|api/repositories/$FIX_REPO
-R03|api/v1/stats
-R04|api/v1/health
-R05|api/security/users
-R06|api/security/users/$FIX_USER
-R07|api/security/groups
-R08|api/v1/permissions
-R09|api/v1/audit
+R03|api/v1/health
+R04|api/security/users
+R05|api/security/users/$FIX_USER
+R06|api/security/groups
+R07|api/v1/permissions
+R08|api/v1/audit
+R09|api/v1/replications
 R10|api/v1/replication/status
 R11|api/v1/storage/stats
-R12|api/v1/storage/migration
-R13|api/security/token"
+R12|api/v1/storage/migration"
 
-WRITE_ROWS="W01|PUT|api/repositories/m7-matrix-w
+READ_ROWS_N=12
+
+# Change face samples per the PRD: repo creation (the PUT create arm — the
+# router has no POST collection route, T-214 P8), user write, group delete,
+# permission write, token revoke, GC (dry-run included) and the quota write
+# (POST partial update, family 7).
+
+WRITE_ROWS="W01|PUT|api/repositories/$FIX_NEWREPO
 W02|PUT|api/security/users/$FIX_BOB
 W03|DELETE|api/security/groups/m7-sac-grp
 W04|POST|api/v1/permissions
 W05|POST|api/security/token/revoke
-W06|POST|api/v1/system/gc"
+W06|POST|api/v1/system/gc
+W07|POST|api/repositories/$FIX_WREPO"
+
+WRITE_ROWS_N=7
 
 # ---- run one role column ----------------------------------------------------
 
@@ -306,12 +334,12 @@ run_column() {
         : > "$WORK/$role.read"
         : > "$WORK/$role.write"
         n=0
-        while [ "$n" -lt 13 ]; do
+        while [ "$n" -lt "$READ_ROWS_N" ]; do
             echo "SKIP" >> "$WORK/$role.read"
             n=$((n + 1))
         done
         n=0
-        while [ "$n" -lt 6 ]; do
+        while [ "$n" -lt "$WRITE_ROWS_N" ]; do
             echo "SKIP" >> "$WORK/$role.write"
             n=$((n + 1))
         done
@@ -343,7 +371,13 @@ run_column() {
             extra="-d token=sha256-0000000000000000000000000000000000000000000000000000000000000000-nonexistent"
             ;;
         W06)
-            extra=""
+            # dry-run arm on purpose (T-214①: readonly_admin is 403 here too)
+            extra="-H Content-Type:application/json -d {\"apply\":false}"
+            ;;
+        W07)
+            # quota write (family 7 partial update): the repository-config
+            # snapshot catches any leak
+            extra="-H Content-Type:application/json -d {\"quotaBytes\":424242}"
             ;;
         esac
         # shellcheck:disable=SC2086 — extra is a curated word list per row
@@ -353,10 +387,20 @@ run_column() {
 }
 
 # ---- zero-side-effect guard around the non-admin columns ---------------------
+#
+# Snapshots three entities a denied write must leave byte-identical (the
+# user, the repository config — quota included — and the group), plus the
+# ABSENCE of the create-arm repository: if any non-admin column minted it,
+# the probe finds a 200 where the 404 belongs.
 
 GUARD=""
-http GET admin "$ADMIN_PW" "api/security/users/$FIX_BOB" "$WORK/guard.before" >/dev/null
-cp "$WORK/guard.before" "$WORK/guard.snapshot"
+guard_entity() {
+    # guard_entity PATH OUTFILE — snapshot one entity's current body.
+    http GET admin "$ADMIN_PW" "$1" "$2" >/dev/null
+}
+guard_entity "api/security/users/$FIX_BOB" "$WORK/guard.bob.before"
+guard_entity "api/repositories/$FIX_WREPO" "$WORK/guard.repo.before"
+guard_entity "api/security/groups/m7-sac-grp" "$WORK/guard.group.before"
 
 step "run columns (execution order:$RUN_ORDER)"
 for role in $RUN_ORDER; do
@@ -365,12 +409,31 @@ for role in $RUN_ORDER; do
     esac
     run_column "$role"
 done
-http GET admin "$ADMIN_PW" "api/security/users/$FIX_BOB" "$WORK/guard.after" >/dev/null
 if [ "$EXTERNAL" = "0" ]; then
-    if cmp -s "$WORK/guard.snapshot" "$WORK/guard.after"; then
-        GUARD="zero-side-effect guard: $FIX_BOB unchanged across non-admin columns — OK"
+    GUARD="zero-side-effect guard:"
+    guard_entity "api/security/users/$FIX_BOB" "$WORK/guard.bob.after"
+    if cmp -s "$WORK/guard.bob.before" "$WORK/guard.bob.after"; then
+        GUARD="$GUARD $FIX_BOB unchanged"
     else
-        GUARD="zero-side-effect guard: $FIX_BOB CHANGED across non-admin columns — VIOLATION"
+        GUARD="$GUARD $FIX_BOB CHANGED (VIOLATION)"
+    fi
+    guard_entity "api/repositories/$FIX_WREPO" "$WORK/guard.repo.after"
+    if cmp -s "$WORK/guard.repo.before" "$WORK/guard.repo.after"; then
+        GUARD="$GUARD, repo config unchanged"
+    else
+        GUARD="$GUARD, repo config CHANGED (VIOLATION)"
+    fi
+    guard_entity "api/security/groups/m7-sac-grp" "$WORK/guard.group.after"
+    if cmp -s "$WORK/guard.group.before" "$WORK/guard.group.after"; then
+        GUARD="$GUARD, group unchanged"
+    else
+        GUARD="$GUARD, group CHANGED (VIOLATION)"
+    fi
+    crecode=$(http GET admin "$ADMIN_PW" "api/repositories/$FIX_NEWREPO" "$WORK/guard.create.body")
+    if [ "$crecode" = "404" ]; then
+        GUARD="$GUARD, create-arm repo still absent — OK"
+    else
+        GUARD="$GUARD, create-arm repo EXISTS after non-admin columns (VIOLATION, got $crecode)"
     fi
 else
     GUARD="zero-side-effect guard: skipped (external instance)"
@@ -428,10 +491,16 @@ render_face() {
 
 render_face read "$READ_ROWS"
 render_face write "$WRITE_ROWS"
-echo "† = 404 on a governance read: the route is absent on this build (E-26 envelope), both roles see it — feeds T-215's route inventory."
+echo "† = 404 on a governance read: the route is absent on this build (E-26 envelope) — with the T-214① v1.1 row set no read row should carry one."
 echo "$GUARD"
 
 # ---- verdict mode ------------------------------------------------------------
+#
+# Row-aware: every code line maps to its row id, because the pass-gate
+# posture is per row — R12 storage/migration answers 501 once the gate
+# passed on a build without dual-write (a plain user's 403 on the same row
+# is what proves the gate decided). The zero-side-effect guard's verdicts
+# count as deviations too.
 
 if [ "$EXPECT" = "1" ]; then
     step "verdict (--expect: PRD M7 target table)"
@@ -440,37 +509,56 @@ if [ "$EXPECT" = "1" ]; then
         crole=$1
         cface=$2
         [ -f "$WORK/$crole.$cface" ] || return 0
+        rows=$READ_ROWS
+        [ "$cface" = "write" ] && rows=$WRITE_ROWS
         line_no=0
-        while read -r code; do
+        row_id=""
+        while IFS='|' read -r row_a row_b row_c; do
             line_no=$((line_no + 1))
-            if [ "$code" = "SKIP" ]; then
-                continue
+            if [ "$cface" = "write" ]; then
+                row_id="$row_a"
+            else
+                row_id="$row_a"
             fi
+            code=$(sed -n "${line_no}p" "$WORK/$crole.$cface")
+            [ "$code" = "SKIP" ] && continue
             case "$crole:$cface" in
-            admin:read)
-                [ "$code" = "200" ] || { echo "  DEV $crole $cface #$line_no: want 200, got $code"; dev=$((dev + 1)); }
+            admin:read|readonly_admin:read)
+                want="200"
+                [ "$row_id" = "R12" ] && want="200-or-501"
+                ok=0
+                [ "$code" = "200" ] && ok=1
+                if [ "$want" = "200-or-501" ] && [ "$code" = "501" ]; then
+                    ok=1
+                fi
+                [ "$ok" = "1" ] || { echo "  DEV $crole $cface $row_id: want $want, got $code"; dev=$((dev + 1)); }
                 ;;
             admin:write)
                 case "$code" in
-                403) echo "  DEV $crole $cface #$line_no: admin change-face must not be 403, got $code"; dev=$((dev + 1)) ;;
+                403) echo "  DEV $crole $cface $row_id: admin change-face must not be 403, got $code"; dev=$((dev + 1)) ;;
                 esac
                 ;;
             user:*)
-                [ "$code" = "403" ] || { echo "  DEV $crole $cface #$line_no: want 403, got $code"; dev=$((dev + 1)); }
+                [ "$code" = "403" ] || { echo "  DEV $crole $cface $row_id: want 403, got $code"; dev=$((dev + 1)); }
                 ;;
-            read-only-admin:read)
-                [ "$code" = "200" ] || { echo "  DEV $crole $cface #$line_no: want 200, got $code"; dev=$((dev + 1)); }
-                ;;
-            read-only-admin:write)
-                [ "$code" = "403" ] || { echo "  DEV $crole $cface #$line_no: want 403, got $code"; dev=$((dev + 1)); }
+            readonly_admin:write)
+                [ "$code" = "403" ] || { echo "  DEV $crole $cface $row_id: want 403, got $code"; dev=$((dev + 1)); }
                 ;;
             esac
-        done < "$WORK/$crole.$cface"
+        done <<EOF
+$rows
+EOF
     }
     for c in $COLS; do
         check_col "$c" read
         check_col "$c" write
     done
+    case "$GUARD" in
+    *VIOLATION*)
+        echo "  DEV zero-side-effect guard: $GUARD"
+        dev=$((dev + 1))
+        ;;
+    esac
     if [ "$dev" -gt 0 ]; then
         echo "m7-rbac-matrix: $dev deviation(s) from the M7 target table"
         exit 1

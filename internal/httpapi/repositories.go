@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8,14 +9,18 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/repo"
 )
 
 // Artifactory-compatible repository CRUD (rest-api.md section 2; PRD
-// E-04..E-08). All routes demand authentication; repository mutations are
-// additionally admin-only — enforced by the route gates in router.go, not
-// re-checked here (the terminal handlers run only after the gate passed).
+// E-04..E-08). All routes demand authentication; the gates are the M7
+// capability split (ADR-0026): the inventory list and create/delete sit on
+// repo:read/repo:write, the single-repo family on CanManageRepo — enforced
+// by the route gates in router.go (plus the create-arm split in
+// handleRepoPut), not re-checked on the read paths here (the terminal
+// handlers run only after the gate passed).
 //
 // Success bodies for PUT/DELETE are plain text (spec wording); failures use
 // the errors[] envelope (the repository plane belongs to the generic error
@@ -304,6 +309,15 @@ func (s *Server) repoConfigOf(r *http.Request, row *metadata.Repo) repoConfig {
 	return cfg
 }
 
+// canManage asks one management-plane capability of the injected authorizer
+// (handler-side arm splits, family 6: the PUT route's create arm knows it
+// is a create only after resolving the key). Fails closed without the facet.
+func (s *Server) canManage(ctx context.Context, p *auth.Principal, capability auth.ManagementCapability) bool {
+	return managementAllowed(s.deps.Authz, func(m auth.ManagementAuthorizer) bool {
+		return m.CanManage(ctx, p, capability)
+	})
+}
+
 // handleRepoPut serves PUT /api/repositories/{key} (E-06/E-07): create, or
 // update when the key exists — both answer 200 plain text (PRD v1.3
 // calibration R2; the create-vs-update wording distinction is kept so
@@ -311,6 +325,12 @@ func (s *Server) repoConfigOf(r *http.Request, row *metadata.Repo) repoConfig {
 // the type-relevant body fields ride through to repo.Service's typed config
 // (E-07's M1 refusal is inverted per PRD section 5.6; the docker
 // combinations stay refused — that rule is the service's).
+//
+// M7 (ADR-0026, inventory family 6): the route gate is the family-7
+// repoManage write gate (the replace arm of an EXISTING repository); the
+// CREATE arm — the key does not exist yet — splits here onto the global
+// repo:write capability, which is deliberately NOT delegated to manage
+// holders (FR-65: a repo admin cannot create or delete repositories).
 func (s *Server) handleRepoPut(w http.ResponseWriter, r *http.Request, key string) {
 	var body repoConfig
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
@@ -366,6 +386,14 @@ func (s *Server) handleRepoPut(w http.ResponseWriter, r *http.Request, key strin
 		return
 	}
 	stored.Config = config
+	// Family 6 create arm: repository creation stays on the global
+	// repo:write capability (admin-only by invariant). The route already
+	// answered the family-7 question; this second door is what keeps a
+	// manage holder from minting repositories (FR-65 V08's boundary).
+	if !s.canManage(r.Context(), p, auth.CapRepoWrite) {
+		writeError(w, http.StatusForbidden, "administrator privileges required")
+		return
+	}
 	created, err := s.deps.ReposSvc.CreateRepo(r.Context(), p, stored)
 	if err != nil {
 		s.writeRepoSvcError(w, err)

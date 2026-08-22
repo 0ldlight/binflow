@@ -52,12 +52,15 @@ type sessionBody struct {
 // FR-56-AC1/H36; T-157 leftover 3 closed by T-179). Groups is the
 // membership at authentication time (T-185 / T-174 D2, PRD FR-54-AC2):
 // claims groups unioned with the synced user_groups set — rendered as []
-// (never null) when the principal belongs to none.
+// (never null) when the principal belongs to none. AdminRole (M7, FR-64 /
+// ADR-0026 decision 6) is the closed-set role the console's read-only mode
+// gates on — a read-only echo, assignment lives on the users plane.
 type sessionWhoami struct {
-	Username string   `json:"username"`
-	Admin    bool     `json:"admin"`
-	Source   string   `json:"source"`
-	Groups   []string `json:"groups"`
+	Username  string   `json:"username"`
+	Admin     bool     `json:"admin"`
+	AdminRole string   `json:"adminRole"`
+	Source    string   `json:"source"`
+	Groups    []string `json:"groups"`
 }
 
 // principalGroups renders the principal's groups as a non-nil slice so the
@@ -211,7 +214,8 @@ func (s *Server) handleSessionCreate(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   int(ttl.Seconds()),
 	})
 	writeJSONBody(w, http.StatusOK, sessionWhoami{
-		Username: p.Name, Admin: p.Admin, Source: principalSource(p), Groups: principalGroups(p),
+		Username: p.Name, Admin: p.Admin, AdminRole: string(p.EffectiveRole()),
+		Source: principalSource(p), Groups: principalGroups(p),
 	})
 }
 
@@ -229,7 +233,8 @@ func (s *Server) handleSessionWhoami(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSONBody(w, http.StatusOK, sessionWhoami{
-		Username: p.Name, Admin: p.Admin, Source: principalSource(p), Groups: principalGroups(p),
+		Username: p.Name, Admin: p.Admin, AdminRole: string(p.EffectiveRole()),
+		Source: principalSource(p), Groups: principalGroups(p),
 	})
 }
 

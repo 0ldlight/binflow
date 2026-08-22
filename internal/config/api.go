@@ -119,15 +119,16 @@ type AuthConfig struct {
 // appears in the YAML file; the strict schema and the secret scan both
 // reject it there.
 type OIDCConfig struct {
-	Enabled      bool     // arm the OIDC Bearer/login flow (default false)
-	IssuerURL    string   // issuer URL for .well-known/openid-configuration discovery
-	ClientID     string   // OAuth2 client ID registered at the provider
-	ClientSecret string   // env-only secret, resolved from BINFLOW_AUTH_OIDC_CLIENT_SECRET
-	RedirectURL  string   // callback URL (…/binflow/api/v1/oidc/callback)
-	Scopes       []string // requested scopes; empty = provider default [openid, profile, email]
-	UserClaim    string   // username claim; empty = preferred_username
-	GroupClaim   string   // group claim; empty = groups
-	AdminGroup   string   // group whose members are granted admin; empty = no mapping
+	Enabled       bool     // arm the OIDC Bearer/login flow (default false)
+	IssuerURL     string   // issuer URL for .well-known/openid-configuration discovery
+	ClientID      string   // OAuth2 client ID registered at the provider
+	ClientSecret  string   // env-only secret, resolved from BINFLOW_AUTH_OIDC_CLIENT_SECRET
+	RedirectURL   string   // callback URL (…/binflow/api/v1/oidc/callback)
+	Scopes        []string // requested scopes; empty = provider default [openid, profile, email]
+	UserClaim     string   // username claim; empty = preferred_username
+	GroupClaim    string   // group claim; empty = groups
+	AdminGroup    string   // group whose members are granted admin; empty = no mapping
+	ReadOnlyGroup string   // group whose members are granted readonly_admin (M7, ADR-0026 decision 6); empty = no mapping
 }
 
 // LDAPConfig is the auth.ldap section (M6, ADR-0020). Key names mirror
@@ -147,6 +148,7 @@ type LDAPConfig struct {
 	GroupBaseDN   string // group search base DN; empty = base_dn (PRD FR-55)
 	GroupNameAttr string // attribute holding the group name; empty = cn
 	AdminGroup    string // DN of a group whose members are granted admin; empty = no mapping
+	ReadOnlyGroup string // DN of a group whose members are granted readonly_admin (M7, ADR-0026); empty = no mapping
 	PoolSize      int    // idle connection pool size (default 5)
 	StartTLS      bool   // StartTLS on ldap:// connections (ignored for ldaps://, WARN when both)
 	SkipTLSVerify bool   // skip TLS certificate verification (default false; evaluation only, WARN when enabled)

@@ -148,6 +148,12 @@ const (
 	// no member-change action; NFR-S25 requires membership changes to leave
 	// an audit trail). Detail carries {"user", "groups"}.
 	ActionGroupMember = "group.member"
+	// ActionUserRoleChange records one role assignment or move of a user
+	// (the adminRole field and the admin boolean of the users plane, M7
+	// FR-64/ADR-0026 decision 6 — NFR-S42: role changes leave a trail).
+	// Detail carries {"user", "old", "new"}; old is empty when the account
+	// was created directly with a non-default role.
+	ActionUserRoleChange = "user.role.change"
 )
 
 // Actions returns the full M1~M4 action vocabulary (GE-02): every action
@@ -163,6 +169,7 @@ func Actions() []string {
 		ActionPasswordChange,
 		ActionGroupCreate, ActionGroupUpdate, ActionGroupDelete,
 		ActionGroupMember,
+		ActionUserRoleChange,
 		ActionPermissionCreate, ActionPermissionUpdate, ActionPermissionDelete,
 		ActionGCRun, ActionExportRun, ActionImportRun,
 		ActionQuotaExceeded,

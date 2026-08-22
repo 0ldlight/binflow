@@ -437,10 +437,23 @@ type routeAuth struct {
 	// required: the request must carry a valid credential (management
 	// plane; content writes). Anonymous yields a 401 challenge.
 	required bool
-	// admin: the credential must belong to an administrator (repository
-	// mutation, user/token/permission management). A non-admin principal
-	// yields 403.
-	admin bool
+	// manage names the closed-set management-plane capability this route
+	// demands (M7, ADR-0026 — the precise replacement of the pre-M7 admin
+	// boolean; T-215 migrated every route per the architecture section 7.1
+	// inventory). Empty means "no management gate". The decision walks
+	// auth.CanManage: admin passes everything, readonly_admin the three
+	// read capabilities, user nothing. An authorizer without the
+	// ManagementAuthorizer facet (unit fakes) fails CLOSED — a typo'd or
+	// unheld capability must never pass.
+	manage auth.ManagementCapability
+	// repoManage is the single-repository configuration gate (inventory
+	// family 7): the decision walks auth.CanManageRepo(repoKey, write) —
+	// admin true / readonly_admin read-only / user via the m action. The
+	// gate rides a struct so the (repo, write) pair cannot split; the
+	// dispatcher resolves the repository key per route before the gate is
+	// attached. Repo creation and deletion NEVER use this gate (family 6
+	// keeps them on CapRepoWrite, deliberately not delegated to m).
+	repoManage *repoManageGate
 	// oauth: failures on this route render the token plane's OAuth error
 	// body ({"error","error_description"}) instead of the errors[]
 	// envelope, per the PRD section 5.1 three-format split. Used by the
@@ -454,6 +467,27 @@ type routeAuth struct {
 	// auth.Authorizer.Can (it owns Security.AnonymousAccess), so this
 	// struct needs no flag of its own — a nil principal with
 	// action=read consults the flag there (ADR-0009).
+}
+
+// repoManageGate carries the single-repo management question of one family-7
+// route: which repository, and whether the verb writes it (the partial
+// update, replace and quota arms) or only reads it (detail, ?permissions).
+type repoManageGate struct {
+	repo  string
+	write bool
+}
+
+// managementAllowed resolves the authorizer's management facet and asks one
+// capability or repo-manage question. A nil authorizer, or one without the
+// ManagementAuthorizer facet, denies — the fail-closed posture ADR-0026
+// demands of the route gates (a missing decision point is a deny, never a
+// pass; the facet pattern keeps the Authorizer interface itself unchanged).
+func managementAllowed(a auth.Authorizer, ask func(auth.ManagementAuthorizer) bool) bool {
+	m, ok := a.(auth.ManagementAuthorizer)
+	if !ok {
+		return false
+	}
+	return ask(m)
 }
 
 // basicChallenge is the WWW-Authenticate response for missing credentials
@@ -558,12 +592,18 @@ func sameOrigin(r *http.Request, origin string) bool {
 
 // authorize enforces the route's requirement after authentication:
 //
-//   - required && anonymous         -> 401 challenge;
-//   - admin && non-admin principal  -> 403;
-//   - content action (r/w/d)        -> Authorizer.Can(principal, repo,
-//     path, action); denied anonymous -> 401 challenge, denied
-//     authenticated -> 403 (rest-api section 1.4 "403 -> 401 when
-//     anonymous").
+//   - required && anonymous -> 401 challenge;
+//   - manage capability (M7, ADR-0026) -> auth.CanManage(principal,
+//     capability); a principal without the capability yields 403. The
+//     pre-M7 admin boolean was this branch's only question; the wording of
+//     its denial is kept verbatim (rest-api section 1.4's surface —
+//     readonly_admin is accurately told it lacks administrator privileges
+//     on write capabilities);
+//   - repoManage gate -> auth.CanManageRepo(principal, repoKey, write),
+//     same 403 on denial;
+//   - content action (r/w/d) -> Authorizer.Can(principal, repo, path,
+//     action); denied anonymous -> 401 challenge, denied authenticated
+//     -> 403 (rest-api section 1.4 "403 -> 401 when anonymous").
 //
 // Failure bodies follow the route's plane (PRD section 5.1 three-format
 // split): the errors[] envelope by default, the OAuth shape on routes
@@ -587,11 +627,19 @@ func authorize(a auth.Authorizer, req routeAuth) Middleware {
 				writeError(w, http.StatusUnauthorized, "authentication required")
 				return
 			}
-			if req.admin && (p == nil || !p.Admin) {
+			if req.manage != "" && !managementAllowed(a,
+				func(m auth.ManagementAuthorizer) bool { return m.CanManage(r.Context(), p, req.manage) }) {
 				if req.oauth {
 					writeOAuthError(w, http.StatusForbidden, "invalid_request", "administrator privileges required")
 					return
 				}
+				writeError(w, http.StatusForbidden, "administrator privileges required")
+				return
+			}
+			if req.repoManage != nil && !managementAllowed(a,
+				func(m auth.ManagementAuthorizer) bool {
+					return m.CanManageRepo(r.Context(), p, req.repoManage.repo, req.repoManage.write)
+				}) {
 				writeError(w, http.StatusForbidden, "administrator privileges required")
 				return
 			}
