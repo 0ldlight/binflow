@@ -17,11 +17,7 @@
 
 ## 📥 待办（todo）
 
-> **M6 收尾态**（2026-08-22）。done 区 62 票（M6 全量 59 票 T-148～T-206 全 done）；**用户终裁已落 ADR-0025**（Q2→修订 ADR-0006 会话统一 DB；Q6/Q7/Q10→认领暂行实现为正式决议；Q8/Q9→MinIO/Docker 等价，AWS/真实 Artifactory 延后 M7）。派生两张后续票 **T-208**（用户禁用 REST seam，P2）/ **T-209**（filestore session 统一 DB，P1）入 todo。DoD #5 `git tag m6-done` + 补 `m5-done` 待打（本地）；**push 外发仍须用户单独授权**。全仓 `-race` 全绿（23 包 exit 0）；batch 6 已拆两 commit 落地（45b3b89 / bed7a66，未 push）。
-
-## 📥 待办（todo）
-
-（空）—— T-208/T-209/T-210 已派发进行中。
+> **M6 收尾态**（2026-08-22）。done 区 62 票（M6 全量 59 票 T-148～T-206 全 done）；**用户终裁已落 ADR-0025**（Q2→本地 filestore 会话入新建 `upload_sessions` 表，修订 ADR-0006；Q6/Q7/Q10→认领暂行实现为正式决议；Q8/Q9→MinIO/Docker 等价，AWS/真实 Artifactory 延后 M7；用户禁用 REST seam→P2 修复票）。派生三张后续票 **T-208**（用户禁用 REST seam，P2）/ **T-209**（filestore session 入 DB，P1）/ **T-210**（复制私网目标显式开关，P2）均 doing 在途，ADR-0025 决策 5 已随勘误 `ae81c64` 收窄为仅本地 filestore、S3 保持 multipart。DoD #5 `git tag m6-done` + 补 `m5-done` 待三票 done + DoD 全绿后打（本地）；**push 外发仍须用户单独授权**。全仓 `-race` 全绿（23 包 exit 0）。
 
 ## 🔨 进行中（doing）
 
