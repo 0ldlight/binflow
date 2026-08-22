@@ -12,7 +12,8 @@ import (
 // "no identity", never as "unknown user".
 type Principal struct {
 	Name    string
-	Admin   bool
+	Role    Role  // closed-set role (M7, ADR-0026); zero value derives from Admin, see EffectiveRole
+	Admin   bool  // derived convenience mirror of Role == RoleAdmin — management-plane checks must use CanManage/CanManageRepo (architecture 3.4a)
 	TokenID int64 // > 0 when the request authenticated via API token
 	// Groups holds the group names the user belonged to at authentication
 	// time (T-97 / SE-07, architecture 3.4: the user_groups JOIN filled on
@@ -37,10 +38,15 @@ type Principal struct {
 
 // Actions accepted by Authorizer.Can (architecture section 3.4 uses the
 // short forms; metadata permission rows map read/write/delete onto them).
+// ActionManage (M7, ADR-0026) is the repo-level admin action: it matches a
+// target on its repos list only — includes/excludes never apply — and implies
+// none of r/w/d. It never appears in the docker scope vocabulary (invariant 3,
+// architecture 3.4a: pull/push/delete are the whole word set of /v2/token).
 const (
 	ActionRead   = "r"
 	ActionWrite  = "w"
 	ActionDelete = "d"
+	ActionManage = "m"
 )
 
 // Sentinel errors. Authenticate/Verify failures are distinguishable for
@@ -96,12 +102,16 @@ type Authenticator interface {
 // (architecture section 3.4). Rules, in order:
 //
 //  1. admin principals pass everything;
-//  2. named permission targets (PRD E-24): repo must be listed in the
+//  2. readonly_admin principals (M7, ADR-0026) are globally read-only — r
+//     passes everywhere, w/d/m never, and permission targets are not
+//     consulted for them (role short-circuit; a target grant they would
+//     match is ineffective, not an error);
+//  3. named permission targets (PRD E-24): repo must be listed in the
 //     target's repos, the path must match an include pattern and no exclude
 //     pattern (Ant-style ** and *, exclude wins), and the principal row for
 //     this user must carry the requested action;
-//  3. no matching grant denies;
-//  4. a nil principal (anonymous) is only allowed for ActionRead when
+//  4. no matching grant denies;
+//  5. a nil principal (anonymous) is only allowed for ActionRead when
 //     anonymous access is enabled, and only on content paths — Can is the
 //     content-path decision point, callers must keep the management plane
 //     (/binflow/api/**) behind an "authenticated or 401" gate of its own

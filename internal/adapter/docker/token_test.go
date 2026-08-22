@@ -104,6 +104,12 @@ func (f *fakeUsers) UpdateProfile(_ context.Context, _ string, _ string, _ bool)
 
 func (f *fakeUsers) SetEnabled(_ context.Context, _ string, _ bool) error { return nil }
 
+// SetRole is the 011 widening stub (mechanical wave through the package's
+// UserStore fake, T-212 compile fix — same posture as UpdateProfile in
+// T-111): the token flow never mutates roles, so the fake accepts and
+// forgets.
+func (f *fakeUsers) SetRole(_ context.Context, _ string, _ string) error { return nil }
+
 func (f *fakeUsers) List(_ context.Context) ([]*metadata.User, error) { return nil, nil }
 
 func (f *fakeUsers) GetByPasswordHash(_ context.Context, _ string) (*metadata.User, error) {

@@ -100,13 +100,16 @@ func rowCoversPrincipal(row PermissionRow, p *Principal) bool {
 	}
 }
 
-// PrincipalBits is the per-principal action triple of the effective
-// permission view (SE-08): which of read/write/delete one principal holds
-// on one repo path through the targets covering it.
+// PrincipalBits is the per-principal action set of the effective permission
+// view (SE-08): which of read/write/delete one principal holds on one repo
+// path through the targets covering it, plus Manage (M7, ADR-0026) — the
+// repo-scoped admin bit, which a target carries for the principal whenever
+// it lists the repo, regardless of the path patterns.
 type PrincipalBits struct {
 	Read   bool
 	Write  bool
 	Delete bool
+	Manage bool
 }
 
 // ItemPrincipals computes the effective-permission view of (repoKey, path)
@@ -159,13 +162,32 @@ func (s *Service) ItemPrincipals(ctx context.Context, repoKey, path string) (use
 				slog.String("target", t.Name), slog.String("error", err.Error()))
 			continue
 		}
-		if !covers {
-			continue
+		if covers {
+			if row.PrincipalType == "group" {
+				merge(groups, row)
+			} else {
+				merge(users, row)
+			}
 		}
-		if row.PrincipalType == "group" {
-			merge(groups, row)
-		} else {
-			merge(users, row)
+		// Manage is repo-scoped (M7, ADR-0026): it shows on the view when
+		// the row carries it and the target lists the repo — independent of
+		// the path plane above, mirroring Can's m evaluation exactly.
+		if row.CanManage {
+			lists, err := targetListsRepo(t, repoKey)
+			if err != nil {
+				slog.ErrorContext(ctx, "auth: malformed permission target, skipping manage",
+					slog.String("target", t.Name), slog.String("error", err.Error()))
+				continue
+			}
+			if lists {
+				m := users
+				if row.PrincipalType == "group" {
+					m = groups
+				}
+				b := m[row.Principal]
+				b.Manage = true
+				m[row.Principal] = b
+			}
 		}
 	}
 	return users, groups, nil

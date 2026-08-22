@@ -71,6 +71,10 @@ func TestUsageBackfillMigration(t *testing.T) {
 		`DROP INDEX IF EXISTS idx_users_provider`,
 		`ALTER TABLE users DROP COLUMN provider`,
 		`ALTER TABLE users DROP COLUMN provider_id`,
+		// 011 (T-212): the role column and the manage bit must leave with
+		// their ledger row, or the re-application dies on the duplicate.
+		`ALTER TABLE users DROP COLUMN role`,
+		`ALTER TABLE permission_principals DROP COLUMN can_manage`,
 		`DROP TABLE replication_tasks`,
 		`DROP INDEX IF EXISTS idx_replication_tasks_status`,
 		`DROP INDEX IF EXISTS idx_replication_tasks_pending`,

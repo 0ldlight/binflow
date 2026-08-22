@@ -43,7 +43,7 @@ const (
 // Claims carries the identity information extracted from a validated ID
 // Token (OIDC) or LDAP bind result. It is the building block for a
 // Principal: the Name becomes Principal.Name, the Groups become
-// Principal.Groups, and Admin becomes Principal.Admin. The ProviderID is
+// Principal.Groups, and the role becomes Principal.Role. The ProviderID is
 // the stable identifier from the identity provider (the OIDC 'sub' claim
 // or the LDAP DN).
 type Claims struct {
@@ -56,13 +56,36 @@ type Claims struct {
 	// search).
 	Groups []string
 	// Admin reports whether this identity should be granted administrative
-	// privileges (mapped from the configured admin_group or admin_users
-	// list in the provider configuration).
+	// privileges (mapped from the configured admin_group in the provider
+	// configuration). It is the pre-M7 boolean seam: providers built before
+	// T-212 set only this field, and claimsRole folds it into the role.
 	Admin bool
+	// Role is the closed-set role the provider's group mappings resolved
+	// (M7, ADR-0026 decision 6): admin_group hit -> RoleAdmin, else
+	// readonly_group hit -> RoleReadOnlyAdmin, else RoleUser. Empty defers
+	// to Admin (claimsRole) so older providers and tests keep working.
+	Role Role
 	// ProviderID is the stable, unique identifier assigned by the identity
 	// provider. For OIDC this is the 'sub' claim; for LDAP this is the
 	// user's DN.
 	ProviderID string
+}
+
+// claimsRole resolves the role one claims set carries: an explicit closed-set
+// Role wins; otherwise the pre-M7 Admin boolean folds into RoleAdmin; the
+// rest are RoleUser (ADR-0026's authority ladder lives in the providers that
+// set Role).
+func claimsRole(c *Claims) Role {
+	if c == nil {
+		return RoleUser
+	}
+	if r, ok := ParseRole(string(c.Role)); ok {
+		return r
+	}
+	if c.Admin {
+		return RoleAdmin
+	}
+	return RoleUser
 }
 
 // ProviderUser is the user record returned by IdentityProvider.Resolve.
@@ -71,6 +94,7 @@ type Claims struct {
 type ProviderUser struct {
 	Username string
 	IsAdmin  bool
+	Role     Role // stored role of the row (M7); zero value reads as RoleUser in the refresh comparison
 	Enabled  bool
 }
 

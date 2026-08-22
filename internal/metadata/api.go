@@ -103,17 +103,29 @@ type Blob struct {
 	CreatedAt string
 }
 
+// Role spellings of the users.role column (011 widening, M7 ADR-0026). The
+// closed set is defined by the auth package (auth.Role*); the metadata layer
+// stores and returns the text verbatim and does not interpret it. Empty (rows
+// from callers predating 011, hand-built test fixtures) means "derive from
+// IsAdmin", which Create applies so the is_admin mirror never drifts on insert.
+const (
+	RoleAdmin         = "admin"
+	RoleReadOnlyAdmin = "readonly_admin"
+	RoleUser          = "user"
+)
+
 // User is one local account.
 type User struct {
 	Username     string
 	PasswordHash string // argon2id PHC string; never round-trips through API responses
-	IsAdmin      bool
+	IsAdmin      bool   // compatibility mirror of Role == "admin" (ADR-0026 decision 6; removal M8)
 	Enabled      bool
 	CreatedAt    string
 	UpdatedAt    string
 	Email        string // 004 widening (FR-27-AC8): '' when unset; blank-vs-shape validation is a service-layer concern
 	Provider     string // 008 widening (M6, ADR-0020): 'local', 'oidc', or 'ldap'; DEFAULT 'local'
 	ProviderID   string // 008 widening: stable ID from the identity provider (OIDC sub or LDAP DN); DEFAULT ''
+	Role         string // 011 widening (M7, ADR-0026): 'admin' | 'readonly_admin' | 'user'; '' on Create derives from IsAdmin
 }
 
 // Token stores only sha256(plaintext); the plaintext is shown once at issue
@@ -139,7 +151,10 @@ type PermissionTarget struct {
 }
 
 // PermissionPrincipal is one (target, user) grant row. Actions are the
-// read/write/delete booleans; write covers upload but not delete.
+// read/write/delete booleans; write covers upload but not delete. CanManage
+// (011 widening, M7 ADR-0026) is the repo-scoped admin bit: it matches on the
+// target's repos list only — includes/excludes never apply to it, and it
+// implies none of r/w/d.
 type PermissionPrincipal struct {
 	ID            int64
 	TargetName    string
@@ -148,6 +163,7 @@ type PermissionPrincipal struct {
 	CanRead       bool
 	CanWrite      bool
 	CanDelete     bool
+	CanManage     bool
 }
 
 // AuditEvent is one append-only audit record (architecture section 3.5).
@@ -413,6 +429,13 @@ type UserStore interface {
 	// tokens immediately because Verify re-resolves the owner row per request.
 	// ErrUserNotFound when the user does not exist.
 	SetEnabled(ctx context.Context, username string, enabled bool) error
+	// SetRole writes the 011 role column of one account and maintains the
+	// is_admin compatibility mirror in the SAME statement (role = 'admin' <=>
+	// is_admin = 1, ADR-0026 decision 6). The role value is stored verbatim;
+	// closed-set validation is the service layer's concern. ErrUserNotFound
+	// when the user does not exist. Consumers: the idp_sync authoritative
+	// rewrite (every provider authentication) and the adminRole wire field.
+	SetRole(ctx context.Context, username string, role string) error
 	Delete(ctx context.Context, username string) error
 	List(ctx context.Context) ([]*User, error)
 }

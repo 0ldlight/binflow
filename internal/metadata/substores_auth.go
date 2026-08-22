@@ -13,23 +13,37 @@ import (
 type userStore struct{ db *sql.DB }
 
 func (s *userStore) Create(ctx context.Context, u *User) error {
-	const stmt = `INSERT INTO users (username, password_hash, is_admin, enabled, email, created_at, updated_at, provider, provider_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	const stmt = `INSERT INTO users (username, password_hash, is_admin, enabled, email, created_at, updated_at, provider, provider_id, role)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	if _, err := s.db.ExecContext(ctx, stmt,
-		u.Username, u.PasswordHash, boolToInt(u.IsAdmin), boolToInt(u.Enabled), u.Email, u.CreatedAt, u.UpdatedAt, u.Provider, u.ProviderID); err != nil {
+		u.Username, u.PasswordHash, boolToInt(u.IsAdmin), boolToInt(u.Enabled), u.Email,
+		u.CreatedAt, u.UpdatedAt, u.Provider, u.ProviderID, deriveRole(u.Role, u.IsAdmin)); err != nil {
 		return wrapExec("users create", u.Username, err)
 	}
 	return nil
 }
 
+// deriveRole resolves the stored role spelling for a row write: an explicit
+// role wins; an empty one (pre-011 callers that only set IsAdmin) derives from
+// the admin flag so the is_admin mirror cannot drift on insert.
+func deriveRole(role string, isAdmin bool) string {
+	if role != "" {
+		return role
+	}
+	if isAdmin {
+		return RoleAdmin
+	}
+	return RoleUser
+}
+
 func (s *userStore) Get(ctx context.Context, username string) (*User, error) {
-	const stmt = `SELECT username, password_hash, is_admin, enabled, email, created_at, updated_at, provider, provider_id
+	const stmt = `SELECT username, password_hash, is_admin, enabled, email, created_at, updated_at, provider, provider_id, role
 		FROM users WHERE username = ?`
 	return scanUser(s.db.QueryRowContext(ctx, stmt, username), username)
 }
 
 func (s *userStore) GetByPasswordHash(ctx context.Context, passwordHash string) (*User, error) {
-	const stmt = `SELECT username, password_hash, is_admin, enabled, email, created_at, updated_at, provider, provider_id
+	const stmt = `SELECT username, password_hash, is_admin, enabled, email, created_at, updated_at, provider, provider_id, role
 		FROM users WHERE password_hash = ? LIMIT 1`
 	return scanUser(s.db.QueryRowContext(ctx, stmt, passwordHash), passwordHash)
 }
@@ -37,7 +51,8 @@ func (s *userStore) GetByPasswordHash(ctx context.Context, passwordHash string) 
 func scanUser(row *sql.Row, key string) (*User, error) {
 	u := &User{}
 	var isAdmin, enabled int
-	err := row.Scan(&u.Username, &u.PasswordHash, &isAdmin, &enabled, &u.Email, &u.CreatedAt, &u.UpdatedAt, &u.Provider, &u.ProviderID)
+	var role sql.NullString
+	err := row.Scan(&u.Username, &u.PasswordHash, &isAdmin, &enabled, &u.Email, &u.CreatedAt, &u.UpdatedAt, &u.Provider, &u.ProviderID, &role)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("users get %s: %w", key, ErrUserNotFound)
 	}
@@ -46,6 +61,7 @@ func scanUser(row *sql.Row, key string) (*User, error) {
 	}
 	u.IsAdmin = isAdmin != 0
 	u.Enabled = enabled != 0
+	u.Role = role.String
 	return u, nil
 }
 
@@ -84,11 +100,20 @@ func (s *userStore) UpdateEmail(ctx context.Context, username, email string) err
 
 // UpdateProfile refreshes the mutable non-credential columns (email, admin
 // flag) in one statement (T-97: the replace/partial-update bodies of
-// /api/security/users/{name}).
+// /api/security/users/{name}). Since 011 the role column rides along in the
+// same statement (ADR-0026 decision 6, is_admin mirror): promoting keeps
+// role='admin'; demoting an admin lands on 'user'; a readonly_admin row keeps
+// its role — this boolean-shaped seam cannot express readonly_admin, the
+// adminRole field's SetRole seam owns that value.
 func (s *userStore) UpdateProfile(ctx context.Context, username, email string, isAdmin bool) error {
 	res, err := s.db.ExecContext(ctx,
-		`UPDATE users SET email = ?, is_admin = ?, updated_at = ? WHERE username = ?`,
-		email, boolToInt(isAdmin), Now(), username)
+		`UPDATE users SET
+			email = ?,
+			is_admin = ?,
+			role = CASE WHEN ? = 1 THEN 'admin' WHEN role = 'admin' THEN 'user' ELSE role END,
+			updated_at = ?
+		WHERE username = ?`,
+		email, boolToInt(isAdmin), boolToInt(isAdmin), Now(), username)
 	if err != nil {
 		return wrapExec("users update-profile", username, err)
 	}
@@ -96,6 +121,25 @@ func (s *userStore) UpdateProfile(ctx context.Context, username, email string, i
 		return wrapExec("users update-profile rows", username, err)
 	} else if n == 0 {
 		return fmt.Errorf("users update-profile %s: %w", username, ErrUserNotFound)
+	}
+	return nil
+}
+
+// SetRole implements UserStore.SetRole (011, ADR-0026): the role column and
+// its is_admin mirror land in ONE statement, so no reader can observe the two
+// disagreeing.
+func (s *userStore) SetRole(ctx context.Context, username string, role string) error {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE users SET role = ?, is_admin = CASE WHEN ? = 'admin' THEN 1 ELSE 0 END, updated_at = ?
+		WHERE username = ?`,
+		role, role, Now(), username)
+	if err != nil {
+		return wrapExec("users set-role", username, err)
+	}
+	if n, err := res.RowsAffected(); err != nil {
+		return wrapExec("users set-role rows", username, err)
+	} else if n == 0 {
+		return fmt.Errorf("users set-role %s: %w", username, ErrUserNotFound)
 	}
 	return nil
 }
@@ -129,7 +173,7 @@ func (s *userStore) Delete(ctx context.Context, username string) error {
 }
 
 func (s *userStore) List(ctx context.Context) ([]*User, error) {
-	const stmt = `SELECT username, password_hash, is_admin, enabled, email, created_at, updated_at, provider, provider_id
+	const stmt = `SELECT username, password_hash, is_admin, enabled, email, created_at, updated_at, provider, provider_id, role
 		FROM users ORDER BY username`
 	rows, err := s.db.QueryContext(ctx, stmt)
 	if err != nil {
@@ -140,11 +184,13 @@ func (s *userStore) List(ctx context.Context) ([]*User, error) {
 	for rows.Next() {
 		u := &User{}
 		var isAdmin, enabled int
-		if err := rows.Scan(&u.Username, &u.PasswordHash, &isAdmin, &enabled, &u.Email, &u.CreatedAt, &u.UpdatedAt, &u.Provider, &u.ProviderID); err != nil {
+		var role sql.NullString
+		if err := rows.Scan(&u.Username, &u.PasswordHash, &isAdmin, &enabled, &u.Email, &u.CreatedAt, &u.UpdatedAt, &u.Provider, &u.ProviderID, &role); err != nil {
 			return nil, wrapExec("users list scan", "", err)
 		}
 		u.IsAdmin = isAdmin != 0
 		u.Enabled = enabled != 0
+		u.Role = role.String
 		out = append(out, u)
 	}
 	if err := rows.Err(); err != nil {
@@ -270,12 +316,12 @@ func (s *permissionStore) PutTarget(ctx context.Context, t *PermissionTarget, pr
 		return wrapExec("permission put-target clear principals", t.Name, err)
 	}
 	const insertPrincipal = `INSERT INTO permission_principals
-		(target_name, principal, principal_type, can_read, can_write, can_delete)
-		VALUES (?, ?, ?, ?, ?, ?)`
+		(target_name, principal, principal_type, can_read, can_write, can_delete, can_manage)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`
 	for _, p := range principals {
 		if _, err := tx.ExecContext(ctx, insertPrincipal,
 			t.Name, p.Principal, p.PrincipalType,
-			boolToInt(p.CanRead), boolToInt(p.CanWrite), boolToInt(p.CanDelete)); err != nil {
+			boolToInt(p.CanRead), boolToInt(p.CanWrite), boolToInt(p.CanDelete), boolToInt(p.CanManage)); err != nil {
 			return wrapExec("permission put-target principal "+p.Principal, t.Name, err)
 		}
 	}
@@ -304,7 +350,7 @@ func (s *permissionStore) GetTarget(ctx context.Context, name string) (*Permissi
 	}
 
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, target_name, principal, principal_type, can_read, can_write, can_delete
+		`SELECT id, target_name, principal, principal_type, can_read, can_write, can_delete, can_manage
 		FROM permission_principals WHERE target_name = ? ORDER BY principal`, name)
 	if err != nil {
 		return nil, nil, wrapExec("permission get principals", name, err)
@@ -313,11 +359,11 @@ func (s *permissionStore) GetTarget(ctx context.Context, name string) (*Permissi
 	var out []*PermissionPrincipal
 	for rows.Next() {
 		p := &PermissionPrincipal{}
-		var canRead, canWrite, canDelete int
-		if err := rows.Scan(&p.ID, &p.TargetName, &p.Principal, &p.PrincipalType, &canRead, &canWrite, &canDelete); err != nil {
+		var canRead, canWrite, canDelete, canManage int
+		if err := rows.Scan(&p.ID, &p.TargetName, &p.Principal, &p.PrincipalType, &canRead, &canWrite, &canDelete, &canManage); err != nil {
 			return nil, nil, wrapExec("permission get principals scan", name, err)
 		}
-		p.CanRead, p.CanWrite, p.CanDelete = canRead != 0, canWrite != 0, canDelete != 0
+		p.CanRead, p.CanWrite, p.CanDelete, p.CanManage = canRead != 0, canWrite != 0, canDelete != 0, canManage != 0
 		out = append(out, p)
 	}
 	if err := rows.Err(); err != nil {
@@ -369,7 +415,7 @@ func (s *permissionStore) PrincipalsFor(ctx context.Context, repoKey string) ([]
 	// repos is a JSON array of repo keys; the LIKE match over the quoted key
 	// is exact enough for M1 (keys cannot contain quotes or JSON specials).
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT p.id, p.target_name, p.principal, p.principal_type, p.can_read, p.can_write, p.can_delete
+		`SELECT p.id, p.target_name, p.principal, p.principal_type, p.can_read, p.can_write, p.can_delete, p.can_manage
 		FROM permission_principals p
 		JOIN permission_targets t ON t.name = p.target_name
 		WHERE t.repos LIKE ? ESCAPE '\'
@@ -382,11 +428,11 @@ func (s *permissionStore) PrincipalsFor(ctx context.Context, repoKey string) ([]
 	var out []*PermissionPrincipal
 	for rows.Next() {
 		p := &PermissionPrincipal{}
-		var canRead, canWrite, canDelete int
-		if err := rows.Scan(&p.ID, &p.TargetName, &p.Principal, &p.PrincipalType, &canRead, &canWrite, &canDelete); err != nil {
+		var canRead, canWrite, canDelete, canManage int
+		if err := rows.Scan(&p.ID, &p.TargetName, &p.Principal, &p.PrincipalType, &canRead, &canWrite, &canDelete, &canManage); err != nil {
 			return nil, wrapExec("permission principals-for scan", repoKey, err)
 		}
-		p.CanRead, p.CanWrite, p.CanDelete = canRead != 0, canWrite != 0, canDelete != 0
+		p.CanRead, p.CanWrite, p.CanDelete, p.CanManage = canRead != 0, canWrite != 0, canDelete != 0, canManage != 0
 		out = append(out, p)
 	}
 	if err := rows.Err(); err != nil {

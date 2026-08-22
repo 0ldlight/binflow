@@ -49,6 +49,7 @@ func (a userStoreAdapter) GetByProvider(ctx context.Context, prov Provider, prov
 			return &ProviderUser{
 				Username: au.Username,
 				IsAdmin:  au.IsAdmin,
+				Role:     au.Role,
 				Enabled:  au.Enabled,
 			}, nil
 		}
@@ -72,6 +73,7 @@ func adaptUser(u *metadata.User) user {
 		Enabled:      u.Enabled,
 		Provider:     provider,
 		ProviderID:   u.ProviderID,
+		Role:         principalRole(u.Role),
 	}
 }
 
@@ -79,16 +81,12 @@ func (a userStoreAdapter) UpdatePassword(ctx context.Context, username, password
 	return a.s.UpdatePassword(ctx, username, passwordHash)
 }
 
-// SetAdmin implements adminFlagWriter (T-185): one account's admin flag,
-// every other column preserved — the email is re-read here because the
-// consumer-side user type never carries it.
-func (a userStoreAdapter) SetAdmin(ctx context.Context, username string, isAdmin bool) error {
-	u, err := a.s.Get(ctx, username)
-	if err != nil {
-		return fmt.Errorf("auth: set-admin lookup %q: %w", username, err)
-	}
-	if err := a.s.UpdateProfile(ctx, username, u.Email, isAdmin); err != nil {
-		return fmt.Errorf("auth: set-admin update %q: %w", username, err)
+// SetRole implements roleWriter (T-212, widening the T-185 adminFlagWriter
+// seam): one statement in the store writes the role and its is_admin mirror
+// together — the two columns can never be observed disagreeing.
+func (a userStoreAdapter) SetRole(ctx context.Context, username string, role Role) error {
+	if err := a.s.SetRole(ctx, username, string(role)); err != nil {
+		return fmt.Errorf("auth: set-role %q: %w", username, err)
 	}
 	return nil
 }
@@ -155,6 +153,7 @@ func (a permissionStoreAdapter) PrincipalsFor(ctx context.Context, repoKey strin
 			ID: p.ID, TargetName: p.TargetName, Principal: p.Principal,
 			PrincipalType: p.PrincipalType,
 			CanRead:       p.CanRead, CanWrite: p.CanWrite, CanDelete: p.CanDelete,
+			CanManage: p.CanManage,
 		}
 	}
 	return out, nil
@@ -214,6 +213,7 @@ func (a userCreatorAdapter) Create(ctx context.Context, params NewUserParams) er
 		UpdatedAt:    now,
 		Provider:     string(params.Provider),
 		ProviderID:   params.ProviderID,
+		Role:         string(params.Role),
 	}
 	return a.s.Create(ctx, mu)
 }
@@ -272,9 +272,10 @@ func NewFromStore(st metadata.Store, anonymousRead bool) *Service {
 	svc.userCreator = userCreatorAdapter{s: st.Users()}
 	// Wire the T-185 sync seams over the same adapters: the IdP group
 	// replace (write side of the groups fill) and the per-authentication
-	// is_admin refresh for provider-owned rows.
+	// role refresh for provider-owned rows (T-212: the adminFlagWriter seam
+	// widened to the closed role set, ADR-0026 decision 6).
 	svc.groupSync = groups
-	svc.adminWriter = users
+	svc.roleWriter = users
 	return svc
 }
 

@@ -241,8 +241,8 @@ func seedAdmin(ctx context.Context, db *sql.DB, password string) error {
 	}
 	now := Now()
 	if _, err := db.ExecContext(ctx,
-		`INSERT INTO users (username, password_hash, is_admin, enabled, created_at, updated_at, provider, provider_id)
-		 VALUES ('admin', ?, 1, 1, ?, ?, 'local', '')`,
+		`INSERT INTO users (username, password_hash, is_admin, enabled, created_at, updated_at, provider, provider_id, role)
+		 VALUES ('admin', ?, 1, 1, ?, ?, 'local', '', 'admin')`,
 		hash, now, now); err != nil {
 		return fmt.Errorf("metadata: seeding admin user: %w", err)
 	}

@@ -50,10 +50,11 @@ type Service struct {
 	// groupSync backs the IdP group membership sync into user_groups
 	// (T-185 / T-174 D4; see idp_sync.go). nil = sync inert.
 	groupSync groupSyncSource
-	// adminWriter backs the per-authentication is_admin refresh for
-	// provider-owned rows (T-185 / T-174 D4; ADR-0020: the provider is the
-	// authority on every authentication, not just the first). nil = inert.
-	adminWriter adminFlagWriter
+	// roleWriter backs the per-authentication role refresh for
+	// provider-owned rows (T-212 widening T-185 / T-174 D4; ADR-0020: the
+	// provider is the authority on every authentication, not just the
+	// first). nil = inert.
+	roleWriter roleWriter
 	// hashGate bounds concurrent argon2 derivations across this service's
 	// password paths (T-192 / T-172 D-1; see hashgate.go). Never nil after
 	// New; WithHashConcurrency replaces it with a differently sized copy.
@@ -78,7 +79,8 @@ type userSource interface {
 // user: 'local' users have Provider=ProviderLocal and a non-empty
 // PasswordHash; 'oidc' and 'ldap' users have Provider=ProviderOIDC or
 // Provider=ProviderLDAP and an empty PasswordHash (they cannot
-// authenticate via the Basic arm).
+// authenticate via the Basic arm). Role (M7, ADR-0026 / migration 011) is
+// the closed-set system role; IsAdmin stays its admin mirror.
 type user struct {
 	Username     string
 	PasswordHash string
@@ -86,6 +88,7 @@ type user struct {
 	Enabled      bool
 	Provider     Provider
 	ProviderID   string
+	Role         Role
 }
 
 // tokenSource is the consumer-side slice of metadata.TokenStore.
@@ -118,7 +121,8 @@ type Target struct {
 
 // PermissionRow is one (target, principal) grant row (mirrors
 // metadata.PermissionPrincipal). PrincipalType is "user" in M1; groups are
-// M4 and non-user rows are ignored by the authorizer.
+// M4 and non-user rows are ignored by the authorizer. CanManage (M7,
+// ADR-0026) is the repo-scoped admin bit — see ActionManage.
 type PermissionRow struct {
 	ID            int64
 	TargetName    string
@@ -127,6 +131,7 @@ type PermissionRow struct {
 	CanRead       bool
 	CanWrite      bool
 	CanDelete     bool
+	CanManage     bool
 }
 
 // permissionSource is the consumer-side slice of metadata.PermissionStore.
@@ -148,7 +153,9 @@ type userCreator interface {
 
 // NewUserParams is the parameter struct for userCreator.Create. It carries
 // the fields needed to create a user row on first OIDC/LDAP authentication
-// (ADR-0020 decision 4: provider, provider_id, empty password_hash).
+// (ADR-0020 decision 4: provider, provider_id, empty password_hash). Role
+// (M7, ADR-0026) is the closed-set role the claims resolved; empty derives
+// from IsAdmin so pre-RBAC creators keep working.
 type NewUserParams struct {
 	Username     string
 	PasswordHash string
@@ -156,6 +163,7 @@ type NewUserParams struct {
 	Enabled      bool
 	Provider     Provider
 	ProviderID   string
+	Role         Role
 }
 
 // New builds the auth Service. anonymousRead is config.Security.
@@ -327,7 +335,7 @@ func (s *Service) authenticateBasic(ctx context.Context, username, password stri
 			return nil, verr
 		}
 		if ok {
-			return &Principal{Name: u.Username, Admin: u.IsAdmin, Source: ProviderLocal}, nil
+			return newPrincipal(u.Username, u.Role, ProviderLocal), nil
 		}
 	}
 
@@ -352,12 +360,13 @@ func (s *Service) authenticateBasic(ctx context.Context, username, password stri
 //     issuer, audience, expiry) and extracts Claims.
 //  2. oidcProvider.Resolve looks up an existing user row by (provider,
 //     provider_id). If found, the Principal is built from the user row
-//     (the database is authoritative for the admin flag) with the claims'
+//     (the database is authoritative for the role) with the claims'
 //     groups.
 //  3. If not found and userCreator is wired, a new user row is auto-created
 //     (ADR-0020 decision 4): username=claims.Name, password_hash empty,
-//     is_admin=claims.Admin, provider=ProviderOIDC, provider_id=claims.ProviderID,
-//     enabled=true. The Principal is then built from the claims.
+//     role=claims role (admin/readonly_admin/user, ADR-0026), provider=
+//     ProviderOIDC, provider_id=claims.ProviderID, enabled=true. The
+//     Principal is then built from the claims.
 //  4. If not found and userCreator is nil, the token is rejected.
 func (s *Service) authenticateOIDC(ctx context.Context, token string) (*Principal, error) {
 	claims, err := s.oidcProvider.Authenticate(ctx, token)
@@ -396,19 +405,17 @@ func (s *Service) authenticateOIDC(ctx context.Context, token string) (*Principa
 			return nil, newFailure(ProviderOIDC, ReasonUserDisabled,
 				fmt.Errorf("auth: oidc user %q is disabled", pu.Username))
 		}
-		// T-185 (T-174 D4): the provider is authoritative on EVERY
-		// authentication — refresh a drifted is_admin instead of freezing
-		// it at first login — and mirror the claims' groups into
+		// T-185 (T-174 D4), widened to roles by T-212 (ADR-0026 decision 6):
+		// the provider is authoritative on EVERY authentication — refresh a
+		// drifted role instead of freezing it at first login (admin_group >
+		// readonly_group > user) — and mirror the claims' groups into
 		// user_groups so the session arm (and every other DB-backed fill)
 		// sees them.
-		admin := s.refreshProviderAdmin(ctx, claims, pu.Username, pu.IsAdmin)
+		role := s.refreshProviderRole(ctx, claims, pu.Username, pu.Role)
 		s.syncProviderGroups(ctx, claims, pu.Username)
-		return &Principal{
-			Name:   pu.Username,
-			Admin:  admin,
-			Groups: claims.Groups,
-			Source: ProviderOIDC,
-		}, nil
+		p := newPrincipal(pu.Username, role, ProviderOIDC)
+		p.Groups = claims.Groups
+		return p, nil
 	}
 	if !errors.Is(err, ErrProviderUserNotFound) {
 		return nil, fmt.Errorf("auth: oidc user resolve: %w", err)
@@ -419,24 +426,23 @@ func (s *Service) authenticateOIDC(ctx context.Context, token string) (*Principa
 		return nil, newFailure(ProviderOIDC, ReasonUserNotFound,
 			fmt.Errorf("auth: oidc user %q not found (auto-create disabled)", claims.Name))
 	}
+	role := claimsRole(claims)
 	if err := s.userCreator.Create(ctx, NewUserParams{
 		Username:     claims.Name,
 		PasswordHash: "", // no local password for OIDC users
-		IsAdmin:      claims.Admin,
+		IsAdmin:      role == RoleAdmin,
 		Enabled:      true,
 		Provider:     ProviderOIDC,
 		ProviderID:   claims.ProviderID,
+		Role:         role,
 	}); err != nil {
 		return nil, fmt.Errorf("auth: auto-creating oidc user %q: %w", claims.Name, err)
 	}
 	s.syncProviderGroups(ctx, claims, claims.Name)
 
-	return &Principal{
-		Name:   claims.Name,
-		Admin:  claims.Admin,
-		Groups: claims.Groups,
-		Source: ProviderOIDC,
-	}, nil
+	p := newPrincipal(claims.Name, role, ProviderOIDC)
+	p.Groups = claims.Groups
+	return p, nil
 }
 
 // authenticateLDAP implements the LDAP login arm: bind against the LDAP
@@ -499,18 +505,16 @@ func (s *Service) authenticateLDAP(ctx context.Context, bindFn interface {
 			return nil, newFailure(ProviderLDAP, ReasonUserDisabled,
 				fmt.Errorf("auth: ldap user %q is disabled", pu.Username))
 		}
-		// T-185 (T-174 D4): the same refresh the OIDC arm applies — the
-		// directory is authoritative for is_admin on every login, and the
+		// T-185 (T-174 D4), widened to roles by T-212: the same refresh the
+		// OIDC arm applies — the directory is authoritative for the role on
+		// every login (admin_group > readonly_group > user), and the
 		// searched group set lands in user_groups so the session arm keeps
 		// it after the login request is gone.
-		admin := s.refreshProviderAdmin(ctx, claims, pu.Username, pu.IsAdmin)
+		role := s.refreshProviderRole(ctx, claims, pu.Username, pu.Role)
 		s.syncProviderGroups(ctx, claims, pu.Username)
-		return &Principal{
-			Name:   pu.Username,
-			Admin:  admin,
-			Groups: claims.Groups,
-			Source: ProviderLDAP,
-		}, nil
+		p := newPrincipal(pu.Username, role, ProviderLDAP)
+		p.Groups = claims.Groups
+		return p, nil
 	}
 	if !errors.Is(err, ErrProviderUserNotFound) {
 		return nil, fmt.Errorf("auth: ldap user resolve: %w", err)
@@ -518,23 +522,22 @@ func (s *Service) authenticateLDAP(ctx context.Context, bindFn interface {
 
 	// User not found locally: auto-create if the creator is wired.
 	if s.userCreator != nil {
+		role := claimsRole(claims)
 		if err := s.userCreator.Create(ctx, NewUserParams{
 			Username:     claims.Name,
 			PasswordHash: "", // no local password for LDAP users
-			IsAdmin:      claims.Admin,
+			IsAdmin:      role == RoleAdmin,
 			Enabled:      true,
 			Provider:     ProviderLDAP,
 			ProviderID:   claims.ProviderID,
+			Role:         role,
 		}); err != nil {
 			return nil, fmt.Errorf("auth: auto-creating ldap user %q: %w", claims.Name, err)
 		}
 		s.syncProviderGroups(ctx, claims, claims.Name)
-		return &Principal{
-			Name:   claims.Name,
-			Admin:  claims.Admin,
-			Groups: claims.Groups,
-			Source: ProviderLDAP,
-		}, nil
+		p := newPrincipal(claims.Name, role, ProviderLDAP)
+		p.Groups = claims.Groups
+		return p, nil
 	}
 	return nil, newFailure(ProviderLDAP, ReasonUserNotFound,
 		fmt.Errorf("auth: ldap user %q not found (auto-create disabled)", claims.Name))

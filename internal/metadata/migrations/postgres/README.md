@@ -55,6 +55,10 @@ one-to-one when the dialect lands):
 - 010_upload_sessions: local-filestore upload session persistence (T-209).
   The session id is a uuid text primary key in both dialects (no sequence),
   state is opaque JSON owned by the storage engine.
+- 011_rbac_role: users.role closed-set text column with the is_admin=1 →
+  'admin' backfill (is_admin stays as the compatibility mirror, same-statement
+  maintenance, removal M8) + permission_principals.can_manage INTEGER (the 'm'
+  action bit, repo-scoped). Statements are dialect-common (ADR-0026).
 
 The migrator currently embeds `migrations/sqlite/*.sql` only
 (see ../migrate.go).

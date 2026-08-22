@@ -28,9 +28,12 @@
 //     skipped so configurations without a group plane never clobber
 //     memberships. A present-but-empty claim ("groups": []) IS a zero set
 //     and clears the membership.
-//   - is_admin: the provider is authoritative on EVERY authentication
-//     (ADR-0020), so a drifted row is refreshed in place; the request's
-//     Principal uses the claims' value either way.
+//   - role (widened from is_admin by T-212, ADR-0026 decision 6): the
+//     provider is authoritative on EVERY authentication (ADR-0020), so a
+//     drifted row is refreshed in place — admin_group hit > readonly_group
+//     hit > user, the same ladder the providers apply to claims; the
+//     request's Principal uses the claims' value either way. The is_admin
+//     column rides the same write as a compatibility mirror (removal M8).
 
 package auth
 
@@ -55,14 +58,17 @@ type groupSyncSource interface {
 // metadata.GroupStore is adapted onto it in deps.go.
 type GroupSyncSource = groupSyncSource
 
-// adminFlagWriter is the write seam the is_admin refresh needs: one account's
-// admin flag, everything else preserved.
-type adminFlagWriter interface {
-	SetAdmin(ctx context.Context, username string, isAdmin bool) error
+// roleWriter is the write seam the role refresh needs: one account's role
+// (and its is_admin mirror — the store maintains both in one statement),
+// everything else preserved. T-212 widened the T-185 adminFlagWriter seam to
+// the closed set; userStoreAdapter.SetRole implements it over
+// metadata.UserStore.SetRole.
+type roleWriter interface {
+	SetRole(ctx context.Context, username string, role Role) error
 }
 
-// AdminFlagWriter re-exports the seam (same pattern as GroupSyncSource).
-type AdminFlagWriter = adminFlagWriter
+// RoleWriter re-exports the seam (same pattern as GroupSyncSource).
+type RoleWriter = roleWriter
 
 // WithGroupSync returns a copy of svc whose IdP group sync is backed by src.
 // Without it the sync is inert (the pre-T-185 posture), which keeps New()-
@@ -74,11 +80,11 @@ func (s *Service) WithGroupSync(src GroupSyncSource) *Service {
 	return &clone
 }
 
-// WithAdminFlagWriter returns a copy of svc whose is_admin refresh is backed
-// by w. See WithGroupSync for the inert-by-default posture.
-func (s *Service) WithAdminFlagWriter(w AdminFlagWriter) *Service {
+// WithRoleWriter returns a copy of svc whose IdP role refresh is backed by
+// w. See WithGroupSync for the inert-by-default posture.
+func (s *Service) WithRoleWriter(w RoleWriter) *Service {
 	clone := *s
-	clone.adminWriter = w
+	clone.roleWriter = w
 	return &clone
 }
 
@@ -128,21 +134,25 @@ func (s *Service) syncProviderGroups(ctx context.Context, c *Claims, username st
 		slog.String("user", username), slog.Any("groups", synced))
 }
 
-// refreshProviderAdmin refreshes the user row's is_admin to the provider's
-// verdict and returns the value the Principal must carry. The provider is
-// the authority (ADR-0020): a failed persistence is logged and the claims'
-// value still governs this request — the row catches up on the next
-// authentication.
-func (s *Service) refreshProviderAdmin(ctx context.Context, c *Claims, username string, dbAdmin bool) bool {
-	if c == nil || s.adminWriter == nil || c.Admin == dbAdmin {
-		return dbAdmin
+// refreshProviderRole refreshes the user row's role to the provider's
+// verdict and returns the role the Principal must carry. The provider is
+// the authority (ADR-0020; widened to the role ladder by ADR-0026 decision 6:
+// admin_group hit > readonly_group hit > user — a drifted admin row is
+// DEMOTED when the directory no longer lists the user): a failed persistence
+// is logged and the claims' value still governs this request — the row
+// catches up on the next authentication. dbRole is the stored row's role as
+// Resolve reported it (zero value = user).
+func (s *Service) refreshProviderRole(ctx context.Context, c *Claims, username string, dbRole Role) Role {
+	role := claimsRole(c)
+	if c == nil || s.roleWriter == nil || role == dbRole {
+		return role
 	}
-	if err := s.adminWriter.SetAdmin(ctx, username, c.Admin); err != nil {
-		slog.ErrorContext(ctx, "auth: provider admin flag refresh failed",
-			slog.String("user", username), slog.Bool("provider_admin", c.Admin),
+	if err := s.roleWriter.SetRole(ctx, username, role); err != nil {
+		slog.ErrorContext(ctx, "auth: provider role refresh failed",
+			slog.String("user", username), slog.String("role", string(role)),
 			slog.String("error", err.Error()))
 	}
-	return c.Admin
+	return role
 }
 
 // materializedNames splits the claimed names into those with a local group

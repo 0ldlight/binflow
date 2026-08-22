@@ -342,6 +342,9 @@ func TestDockerUpgradeFromM1Database(t *testing.T) {
 		`DROP INDEX IF EXISTS idx_audit_action`,
 		`DROP INDEX IF EXISTS idx_audit_actor`,
 		`ALTER TABLE users DROP COLUMN email`,
+		// 011 (T-212): role and can_manage leave with their ledger rows.
+		`ALTER TABLE users DROP COLUMN role`,
+		`ALTER TABLE permission_principals DROP COLUMN can_manage`,
 		`DROP INDEX IF EXISTS idx_users_provider`,
 		`ALTER TABLE users DROP COLUMN provider`,
 		`ALTER TABLE users DROP COLUMN provider_id`,

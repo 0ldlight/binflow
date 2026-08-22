@@ -80,9 +80,9 @@ func (s *Service) authenticateSession(ctx context.Context, id string) (*Principa
 		// note below.
 		return nil, invalidf("auth: session expired")
 	}
-	// Re-resolve the owner per request: admin-flag changes must apply
-	// immediately and a disabled account must kill its sessions (the row's
-	// FK removes sessions of deleted users already).
+	// Re-resolve the owner per request: role and admin-flag changes must
+	// apply immediately and a disabled account must kill its sessions (the
+	// row's FK removes sessions of deleted users already).
 	u, err := s.users.Get(ctx, row.Username)
 	if err != nil {
 		return nil, invalidf("auth: session owner unavailable")
@@ -109,8 +109,11 @@ func (s *Service) authenticateSession(ctx context.Context, id string) (*Principa
 	// a session minted by an OIDC or LDAP login keeps reporting that source
 	// on every request — whoami's source is the user row's provider, not the
 	// arm that verified the cookie. adaptUser normalizes unknown providers
-	// to local, so hand-built rows cannot smuggle an arbitrary value.
-	return &Principal{Name: u.Username, Admin: u.IsAdmin, ViaSession: true, Source: u.Provider}, nil
+	// to local, so hand-built rows cannot smuggle an arbitrary value. The
+	// role rides the same per-request re-read (ADR-0026 decision 6).
+	p := newPrincipal(u.Username, u.Role, u.Provider)
+	p.ViaSession = true
+	return p, nil
 }
 
 // IssueSession implements SessionRegistry.IssueSession: 32 random bytes,

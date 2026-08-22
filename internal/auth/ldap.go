@@ -78,9 +78,17 @@ type LDAPConfig struct {
 	// Defaults to "cn".
 	GroupNameAttr string
 
-	// AdminGroup is the DN of a group whose members are granted administrative
-	// privileges. When empty, no group-inferred admin mapping is performed.
+	// AdminGroup is the DN of a group whose members are granted the admin
+	// role. When empty, no group-inferred admin mapping is performed.
 	AdminGroup string
+
+	// ReadOnlyGroup is the DN of a group whose members are granted the
+	// readonly_admin role (M7, ADR-0026 decision 6 — config key
+	// auth.ldap.readonly_group). The admin mapping wins when both groups
+	// match: the authority ladder is admin_group > readonly_group > user.
+	// Empty (the default) keeps the pre-M7 behavior: no readonly mapping is
+	// performed.
+	ReadOnlyGroup string
 
 	// PoolSize is the maximum number of idle connections kept in the pool.
 	// Defaults to 5.
@@ -483,8 +491,9 @@ func (p *LDAPProvider) Resolve(ctx context.Context, provider Provider, providerI
 //     and BaseDN.
 //  2. Bind as the user DN with the provided password to verify credentials.
 //  3. If GroupFilter is configured, search for groups the user belongs to.
-//  4. If AdminGroup is configured, check whether the user is a member.
-//  5. Return Claims with the mapped identity.
+//  4. If AdminGroup/ReadOnlyGroup is configured, check group membership
+//     (admin wins over readonly, ADR-0026 decision 6).
+//  5. Return Claims with the mapped identity and role.
 func (p *LDAPProvider) Bind(ctx context.Context, username, password string) (*Claims, error) {
 	if username == "" || password == "" {
 		return nil, newFailure(ProviderLDAP, ReasonBadCredentials,
@@ -541,16 +550,20 @@ func (p *LDAPProvider) Bind(ctx context.Context, username, password string) (*Cl
 		}
 	}
 
-	// Step 5: Determine admin status.
-	admin := false
-	if p.config.AdminGroup != "" {
-		admin = p.isAdminMember(conn, userDN, groups)
+	// Step 5: Determine the group-inferred role (ADR-0026 decision 6):
+	// admin_group membership > readonly_group membership > user.
+	role := RoleUser
+	if p.config.AdminGroup != "" && p.isGroupMember(conn, userDN, groups, p.config.AdminGroup) {
+		role = RoleAdmin
+	} else if p.config.ReadOnlyGroup != "" && p.isGroupMember(conn, userDN, groups, p.config.ReadOnlyGroup) {
+		role = RoleReadOnlyAdmin
 	}
 
 	return &Claims{
 		Name:       userID,
 		Groups:     groups,
-		Admin:      admin,
+		Admin:      role == RoleAdmin,
+		Role:       role,
 		ProviderID: userDN,
 	}, nil
 }
@@ -672,25 +685,26 @@ func (p *LDAPProvider) searchGroups(conn LDAPConn, username, userDN string) ([]s
 	return groups, nil
 }
 
-// isAdminMember checks whether the user is a member of the configured admin
-// group. It first checks the groups list from the group search; if not found
-// there, it performs a direct check against the admin group DN.
-func (p *LDAPProvider) isAdminMember(conn LDAPConn, userDN string, groups []string) bool {
-	// Check if AdminGroup appears in the already-resolved group names.
+// isGroupMember checks whether the user is a member of the given group (the
+// generalized admin-group check, reused for the readonly group by T-212). It
+// first checks the groups list from the group search; if not found there, it
+// performs a direct check against the group DN.
+func (p *LDAPProvider) isGroupMember(conn LDAPConn, userDN string, groups []string, group string) bool {
+	// Check if the group appears in the already-resolved group names.
 	for _, g := range groups {
-		if g == p.config.AdminGroup || strings.EqualFold(g, p.config.AdminGroup) {
+		if g == group || strings.EqualFold(g, group) {
 			return true
 		}
 	}
 
-	// If AdminGroup looks like a DN (contains "="), search for the group
+	// If the group looks like a DN (contains "="), search for the group
 	// entry and check membership by DN.
-	if strings.Contains(p.config.AdminGroup, "=") {
-		adminGroupName := p.adminGroupNameFromDN(conn)
+	if strings.Contains(group, "=") {
+		groupName := p.groupNameFromDN(conn, group)
 		// If we got a group name from the DN, check if it matches any group.
-		if adminGroupName != "" {
+		if groupName != "" {
 			for _, g := range groups {
-				if strings.EqualFold(g, adminGroupName) {
+				if strings.EqualFold(g, groupName) {
 					return true
 				}
 			}
@@ -700,12 +714,12 @@ func (p *LDAPProvider) isAdminMember(conn LDAPConn, userDN string, groups []stri
 	return false
 }
 
-// adminGroupNameFromDN looks up the AdminGroup DN and returns its name
-// attribute value. This is called when AdminGroup is a DN and we need to
-// compare against group names from the group search.
-func (p *LDAPProvider) adminGroupNameFromDN(conn LDAPConn) string {
+// groupNameFromDN looks up a group DN and returns its name attribute value.
+// This is called when a configured group is a DN and we need to compare
+// against group names from the group search.
+func (p *LDAPProvider) groupNameFromDN(conn LDAPConn, groupDN string) string {
 	searchReq := ldap.NewSearchRequest(
-		p.config.AdminGroup,
+		groupDN,
 		ldap.ScopeBaseObject,
 		ldap.NeverDerefAliases,
 		1,

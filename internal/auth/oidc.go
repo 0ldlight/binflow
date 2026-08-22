@@ -63,9 +63,17 @@ type OIDCConfig struct {
 	GroupClaim string
 
 	// AdminGroup optionally specifies a group name whose members are granted
-	// administrative privileges. When empty, no claim-inferred admin mapping
-	// is performed.
+	// the admin role. When empty, no claim-inferred admin mapping is
+	// performed.
 	AdminGroup string
+
+	// ReadOnlyGroup optionally specifies a group name (a value of the group
+	// claim) whose members are granted the readonly_admin role (M7,
+	// ADR-0026 decision 6 — config key oidc.<provider>.readonly_group). The
+	// admin mapping wins when both groups match: the authority ladder is
+	// admin_group > readonly_group > user. Empty (the default) keeps the
+	// pre-M7 behavior: no readonly mapping is performed.
+	ReadOnlyGroup string
 }
 
 // defaults populates zero-valued fields with their documented defaults.
@@ -208,21 +216,16 @@ func (p *OIDCProvider) Authenticate(ctx context.Context, token string) (*Claims,
 	// Map the configured group_claim.
 	groups := p.extractGroups(rawClaims, p.config.GroupClaim)
 
-	// Map the admin_group.
-	admin := false
-	if p.config.AdminGroup != "" {
-		for _, g := range groups {
-			if g == p.config.AdminGroup {
-				admin = true
-				break
-			}
-		}
-	}
+	// Map the group-inferred role (ADR-0026 decision 6): admin_group hit >
+	// readonly_group hit > user. Both keys default to empty = behavior
+	// identical to the pre-M7 admin-only mapping.
+	role := mapGroupsRole(p.config.AdminGroup, p.config.ReadOnlyGroup, groups)
 
 	return &Claims{
 		Name:       userName,
 		Groups:     groups,
-		Admin:      admin,
+		Admin:      role == RoleAdmin,
+		Role:       role,
 		ProviderID: idToken.Subject,
 	}, nil
 }
@@ -243,6 +246,25 @@ func (p *OIDCProvider) Resolve(ctx context.Context, provider Provider, providerI
 		return nil, fmt.Errorf("auth: oidc resolve %s/%s: %w", provider, providerID, err)
 	}
 	return pu, nil
+}
+
+// mapGroupsRole resolves the closed-set role from group memberships using
+// the provider's two mapping keys (ADR-0026 decision 6, T-214 ④): an
+// admin-group hit wins over a readonly-group hit, and no hit is RoleUser.
+// The authority order matters — a user sitting in both groups gets admin,
+// never a merge.
+func mapGroupsRole(adminGroup, readOnlyGroup string, groups []string) Role {
+	for _, g := range groups {
+		if adminGroup != "" && g == adminGroup {
+			return RoleAdmin
+		}
+	}
+	for _, g := range groups {
+		if readOnlyGroup != "" && g == readOnlyGroup {
+			return RoleReadOnlyAdmin
+		}
+	}
+	return RoleUser
 }
 
 // extractClaim retrieves a string claim from the raw claims map. Nested
@@ -313,14 +335,14 @@ func GeneratePKCEPair() (verifier, challenge string, err error) {
 // oidcClaims is a holder for structured claims from the ID Token. It is used
 // inside Authenticate to map standard and custom claims.
 type oidcClaims struct {
-	Subject          string   `json:"sub"`
-	PreferredName    string   `json:"preferred_username"`
-	Name             string   `json:"name"`
-	Email            string   `json:"email"`
-	EmailVerified    *bool    `json:"email_verified,omitempty"`
-	Groups           []string `json:"groups"`
-	RealmAccess      *realmAccess
-	ResourceAccess   map[string]resourceAccess `json:"resource_access,omitempty"`
+	Subject        string   `json:"sub"`
+	PreferredName  string   `json:"preferred_username"`
+	Name           string   `json:"name"`
+	Email          string   `json:"email"`
+	EmailVerified  *bool    `json:"email_verified,omitempty"`
+	Groups         []string `json:"groups"`
+	RealmAccess    *realmAccess
+	ResourceAccess map[string]resourceAccess `json:"resource_access,omitempty"`
 }
 
 type realmAccess struct {

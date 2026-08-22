@@ -65,7 +65,13 @@ func (v *TokenVerifier) Verify(ctx context.Context, plaintext string) (*Principa
 	// whoami plane and the token.issue audit name the arm consistently
 	// (T-190 / Q11 guardrail 4). adaptUser normalizes unknown providers to
 	// local, so hand-built rows cannot smuggle an arbitrary value.
-	return &Principal{Name: u.Username, Admin: u.IsAdmin, TokenID: t.ID, Source: u.Provider}, nil
+	//
+	// The role rides the SAME re-read (ADR-0026 decision 6, the T-208
+	// enabled seam): an existing token's management-plane permissions follow
+	// role changes immediately — Verify never freezes the role at mint time.
+	p := newPrincipal(u.Username, u.Role, u.Provider)
+	p.TokenID = t.ID
+	return p, nil
 }
 
 // touchThrottle is the minimum spacing between last_used_at writes for one
