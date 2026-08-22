@@ -17,7 +17,7 @@
 
 ## 📥 待办（todo）
 
-> **M6 完结（closure）**（2026-08-23）。**用户终裁 ADR-0025 已全量落地**，派生三票 **T-208 / T-209 / T-210 全部 done**（review 两轮 + qa PASS 5/5 + conductor 复验，提交 `0a4d154`/`f21fd74`/`e7b581e`+`db45cb2`）。M6 主体 59 票（T-148～T-206）+ 收尾 3 票全绿；DoD 五条达成（#2 的 T-173/T-175 FAIL 项经终裁记为已知限制，Q8/Q9 条件腿以 MinIO/Docker 等价性收口）。**DoD #5 已执行：本地打 `m5-done`（回补，落点 `5d13c3c`）+ `m6-done`**；**push 外发仍须用户单独授权，未执行**。遗留债（M7 候选）：N6/O-2 重启续传 REST 可见性、N3 ctx 取消窄窗、O-1 干净停机清会话、N2 restart 臂注释、internal/auth 53 条既有 lint、008/009 sql 行尾。下一里程碑待用户指令（M7 规划或新方向）。
+> **M6 完结（closure）**（2026-08-23）。**用户终裁 ADR-0025 已全量落地**，派生三票 **T-208 / T-209 / T-210 全部 done**（review 两轮 + qa PASS 5/5 + conductor 复验，提交 `0a4d154`/`f21fd74`/`e7b581e`+`db45cb2`）。M6 主体 59 票（T-148～T-206）+ 收尾 3 票全绿；DoD 五条达成（#2 的 T-173/T-175 FAIL 项经终裁记为已知限制，Q8/Q9 条件腿以 MinIO/Docker 等价性收口）。**DoD #5 已执行：本地打 `m5-done`（回补，落点 `5d13c3c`）+ `m6-done`；push 已获用户授权并推送 origin（main + tags，41 commits）**。遗留债（M7 候选）：N6/O-2 重启续传 REST 可见性、N3 ctx 取消窄窗、O-1 干净停机清会话、N2 restart 臂注释、internal/auth 53 条既有 lint、008/009 sql 行尾。下一里程碑待用户指令（M7 规划或新方向）。
 
 ## 🔨 进行中（doing）
 
