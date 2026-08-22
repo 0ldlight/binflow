@@ -537,7 +537,11 @@
   2. **Q7（复制冲突策略）—— 认领暂行实现为正式决议**：同 path 同 checksum → 幂等成功（零传输）；不一致 → `status=failed`（attempts 记满防 cron 复活、completed_at 置位、**不动目标**）。正式决议**不引入 `status=conflict` 状态词**（009 任务状态闭集维持），failed + conflict 文案为终态口径。FR-59-AC3 / H47 验收行已按此回写，标记为终裁落定而非暂存。
   3. **Q8（S3 验收环境）—— MinIO 等价 + AWS 实腿延后 M7**：P0 以 MinIO 本地容器全序列 PASS 视为等价；AWS 真实 S3 后续条件腿如需到位，标注 `dep:用户环境`。**Q9（Artifactory 迁移验收）** 同口径：Docker 自建 Artifactory OSS 容器覆盖 P2 验收；真实企业版实例如需，标注 `dep:用户环境`。
   4. **Q10（复制私网目标默认放行）—— 认领暂行实现 + 补 config 桥接**：`DenyPrivateTargets` 默认 `false`（私网放行）为正式决议；T-162 建议的 `replication.allow_private_target`（默认 `true`）config 键落为**后续 P2 票 T-210**，scheme/host 校验、逐跳重检、DNS-rebinding pinning 仍然生效。
-  5. **Q2（本地 filestore sessions 统一 DB）—— 修订 ADR-0006 决策 2**：**采纳建议，统一为 DB 会话**（`upload_sessions` 表），本地 filestore 下同样的会话状态入 DB，删除磁盘 `sessions/<uuid>/{data,state.json}` 路径。落地为 **P1 票 T-209**。ADR-0006 决策 2 与后果段「`sessions/` 与 `blobs/` 是版本兼容承诺」相应修订：磁盘 session 目录不再是版本兼容承诺（DB 化为迁移边界）。
+  5. **Q2（本地 filestore sessions 入 DB）—— 修订 ADR-0006 决策 2**：**采纳建议，本地 filestore 会话状态迁入新建 `upload_sessions` 表**（migration 010），磁盘 `sessions/<uuid>/{data,state.json}` 路径删除。落地为 **P1 票 T-209**。ADR-0006 决策 2 与后果段「`sessions/` 与 `blobs/` 是版本兼容承诺」相应修订：磁盘 session 目录不再是版本兼容承诺（DB 化为迁移边界）。
+
+     **前提修正（勘误）**：本决策最初表述「与 S3 后端同表/同语义，该表 S3 后端 M6 已建」与事实不符。经 T-209 agent 复核并经 conductor 独立核实：`upload_sessions` 表在 M6 **从未实际落库**（migrations 001-009 无任何 `CREATE TABLE upload_sessions`）；S3 后端会话状态走 minio-go multipart upload（upload ID 即 session ID，状态由 S3 服务端持有），并非 DB；且磁盘 `ResumeSession` 与 S3 `ResumeSession` 均 hard 返回 `ErrSessionNotFound`（重启续传是既定 M2 能力，两腿至今都未实现）。PRD（milestone-6.md）曾*规划*该表，但 S3 实现最终以 multipart 代替、未建表。
+
+     因此口径修正为：**仅本地 filestore 入新建表；S3 维持 multipart（其会话状态已由 S3 服务端持久化，无需另建 DB 表）**。「重启可续传」由「对齐 S3 既有行为」更正为「**新增能力**」——本地 filestore 经 `upload_sessions` 表在重启后恢复会话，S3 的 multipart 中间态本就可跨重启由 S3 持有（若需显式续传另行评估 M7）。
   6. **用户禁用 REST seam（悖论 A）—— P2 票 T-208**：`userCreateBody`/`userUpdateBody` 补 `enabled` 字段（新建缺省 true 不变；disabled 时 bool 指针区分缺省 vs 显式 false），`POST /api/security/users/{name}` 允许 admin 禁用用户，wire 禁用即护栏③（TokenVerifier 重查用户行 `enabled`）端到端验证。与 Artifactory「允许 API 禁用用户」行为对齐。
 
 - 理由: 六项均属 M6 scope 内既定的「暂行 / 条件腿」，无引入新能力的分歧；用户已授权 conductor 依过往经验裁决并终结延期仲裁。Q2/Q10 附带的两个后续票（T-208/T-209）为补契约而非返工——暂行实现本体的正确性不因本裁决受质疑。

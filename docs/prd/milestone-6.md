@@ -844,7 +844,7 @@ bf-migrate migrate --dry-run ...  # 退出码 0，migration_report.json 统计�
 | # | 问题 | 影响面 | 暂行假设（v1.0；v1.1 起标注实现状态） |
 |---|---|---|---|
 | Q1 | **S3 后端热切换 vs 冷切换**：运行时切换 `storage.backend` 需要重启？还是支持热切换（SIGHUP 重载配置）？ | FR-48/FR-50；运维体验 | **冷切换**（需重启）——M6 暂不引入 SIGHUP 重载，降低复杂度。重启后 `migration.enabled=true` 自动进入双写+迁移模式 |
-| Q2 | **本地 filestore 的 sessions 是否统一为 DB 会话**：ADR-0006 决策 2 定为磁盘会话，S3 后端下必须入 DB。是否趁 M6 统一为 DB 会话？ | FR-48；ADR-0006 修订；双路径维护成本 | **已定案（ADR-0025 决策 5）**：统一为 DB 会话（`upload_sessions` 表），本地 filestore 下也入 DB，删除磁盘 `sessions/<uuid>/{data,state.json}` 路径；ADR-0006 决策 2 与后果段相应修订。实现票 **T-209**
+| Q2 | **本地 filestore 的 sessions 是否统一为 DB 会话**：ADR-0006 决策 2 定为磁盘会话，S3 后端下必须入 DB。是否趁 M6 统一为 DB 会话？ | FR-48；ADR-0006 修订；双路径维护成本 | **已定案（ADR-0025 决策 5，含前提修正）**：本地 filestore 会话状态入**新建** `upload_sessions` 表（migration 010），删除磁盘 `sessions/<uuid>/{data,state.json}` 路径；S3 后端保持 multipart（状态由 S3 服务端持有）不入表。「重启可续传」为新增能力。ADR-0006 决策 2 与后果段相应修订。实现票 **T-209**
 | Q3 | **S3 下 GC `--apply` 的安全确认**：S3 后端下 DeleteObject 不可逆（无回收站），是否需额外确认标志？ | FR-51；S3 数据安全 | **复用 `--apply` 标志**（与本地 filestore 一致），但 S3 后端下日志额外 WARN「S3 backend: blob deletion is irreversible」。不加 `--confirm-s3` 新标志，保持运维界面一致
 | Q4 | **OIDC `admin_group` 映射的角色粒度**：`admin_group` 成员是获得完整 admin 权限，还是可配「只读 admin」？ | FR-54；权限模型 | **完整 admin 权限**（与本地 admin 用户同权）。更细粒度的角色（read-only admin / repo admin）归 M7+ 的 RBAC 里程碑
 | Q5 | **OIDC 与 LDAP 用户名冲突处理**：同一 username 同时存在于 OIDC 和 LDAP 时，哪个优先？ | FR-56；用户映射 | **不允许冲突**——`username` 全局唯一。若 OIDC 用户与 LDAP 用户 username 相同，第二个登录的返回 409「username already exists with different source」。用户需在 IdP 侧或 LDAP 侧调整 username 避免冲突
