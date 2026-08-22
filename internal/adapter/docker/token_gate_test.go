@@ -275,8 +275,8 @@ func TestFormCredentialStormThroughGate(t *testing.T) {
 	// Gate=1 serializes all n derivations; require well over half of the
 	// fully serialized n*single so a parallel ungated run cannot pass (CI
 	// load only inflates elapsed, never shrinks it).
-	if min := time.Duration(0.6 * float64(n) * float64(single)); elapsed < min {
+	if floor := time.Duration(0.6 * float64(n) * float64(single)); elapsed < floor {
 		t.Fatalf("storm elapsed %s < %s (0.6 x %d x single derivation): derivations ran in parallel, the exchange is not gated",
-			elapsed, min, n)
+			elapsed, floor, n)
 	}
 }

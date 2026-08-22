@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -26,9 +27,12 @@ const uploadsTailPrefix = "blobs/uploads"
 
 // liveUpload is one in-flight upload session: the storage session plus the
 // protocol's own received counter. The counter mirrors what Append returned
-// (and state.json persists); keeping it here means the Content-Range contract
-// is judged against the adapter's own bookkeeping, never by trusting a client
-// claim.
+// and is seeded from Session.Offset() on a lazy rebuild (T-216); keeping it
+// here means the Content-Range contract is judged against server-side
+// bookkeeping, never by trusting a client claim. Since [M7] the counter is a
+// CACHE, not the fact source: architecture section 5.3.1 contract 1 moves the
+// authoritative offset to the engine session (Session.Offset()), which is
+// what every Range-bearing response renders (see authoritativeOffset).
 //
 // Concurrency (review B1): every field is guarded by mu, and mu serializes
 // the WHOLE per-session operation — the Content-Range judgment, the Append
@@ -71,14 +75,22 @@ const (
 )
 
 // sessionRegistry is the process-wide upload-session table: UUID -> live
-// upload. Deliberately in-memory (architecture ruling: cross-process resume
-// is M3+; a restarted registry answers 404 for every pre-restart session and
-// the client restarts its upload from zero, which the spec allows). Entries
-// leave through finalize (Commit consumed the session), abort, or the idle
-// sweep (B2); the storage engine's startup sweep is the disk-side backstop.
+// upload. The table itself is in-memory, but since T-216 a lookup miss is no
+// longer the answer: resolve lazily re-materializes the session from the
+// engine's persisted state (upload_sessions row + uploads/<id>/data, T-209),
+// which is what makes an in-flight upload survive a registry restart
+// (architecture section 5.3.1; kill -9 and — per ADR-0028 — a graceful
+// SIGTERM both leave the row and data file behind). Backends whose
+// ResumeSession is permanently ErrSessionNotFound (S3: multipart state lives
+// server-side) keep the plain 404. Entries leave through finalize (Commit
+// consumed the session), abort, or the idle sweep (B2); the storage engine's
+// startup sweep remains the disk-side backstop.
 type sessionRegistry struct {
 	mu   sync.Mutex
 	byID map[string]*liveUpload
+	// resuming tracks in-flight lazy rebuilds (T-216): the per-id
+	// single-flight funnel below. Guarded by mu.
+	resuming map[string]*resumeAttempt
 	// ttl is the idle bound the sweep enforces; overridable in tests (the
 	// production value is idleSessionTTL).
 	ttl time.Duration
@@ -87,9 +99,22 @@ type sessionRegistry struct {
 	sweepOnce sync.Once
 }
 
+// resumeAttempt is one in-flight lazy rebuild: exactly one caller (the
+// "flyer") runs engine.ResumeSession while every other request for the same
+// id waits on done and consumes the same outcome.
+type resumeAttempt struct {
+	done chan struct{} // closed exactly once, after up/err are final
+	up   *liveUpload   // set on success
+	err  error         // set on failure (may wrap storage.ErrSessionNotFound)
+}
+
 // newSessionRegistry builds the empty table.
 func newSessionRegistry() *sessionRegistry {
-	return &sessionRegistry{byID: map[string]*liveUpload{}, ttl: idleSessionTTL}
+	return &sessionRegistry{
+		byID:     map[string]*liveUpload{},
+		resuming: map[string]*resumeAttempt{},
+		ttl:      idleSessionTTL,
+	}
 }
 
 // startSweep launches the idle-eviction loop (once per process). The loop
@@ -148,8 +173,25 @@ func (r *sessionRegistry) evictIdle(now time.Time) []string {
 // both sufficient and the honest bound (a session that has been streaming
 // for hours is not "idle" in the disk-usage sense the TTL addresses — but
 // it also holds an fd the whole time, and 24h is a generous ceiling for any
-// single docker push).
+// single docker push). A lazily rebuilt session (T-216) gets a fresh stamp:
+// the idle clock restarts at the resume, which is the honest anchor for a
+// session this process only just re-materialized.
 func (u *liveUpload) lastActivityLocked() time.Time { return u.started }
+
+// authoritativeOffset returns the session's current received count straight
+// from the engine session — the [M7] offset source of truth (architecture
+// section 5.3.1 contract 1): received is a mirror seeded at build time, while
+// Offset() reads the engine's own counter (for a resumed session, the
+// re-derived data-file length after the re-hash recovery). Callers hold u.mu,
+// which keeps the read atomic against this adapter's own Appends; u.mu is
+// also the one-direction lock order (u.mu -> the storage session's own
+// mutex) — storage never calls back into the adapter.
+func (u *liveUpload) authoritativeOffset() int64 {
+	if u.sess == nil {
+		return u.received // defensive: assemblies that stub the session out
+	}
+	return u.sess.Offset()
+}
 
 // add registers a fresh upload under the session's own ID.
 func (r *sessionRegistry) add(sess storage.Session) *liveUpload {
@@ -168,6 +210,78 @@ func (r *sessionRegistry) lookup(id string) (*liveUpload, bool) {
 	defer r.mu.Unlock()
 	up, ok := r.byID[id]
 	return up, ok
+}
+
+// resolve is the five per-session verbs' unified entry (architecture section
+// 5.3.1): the in-registry fast path first, then — on a miss — the [M7] lazy
+// rebuild that re-materializes the session from the engine's persisted state
+// (upload_sessions row + uploads/<id>/data). No start-up preloading: the
+// rebuild happens on the first request that addresses the id.
+//
+// The rebuild is funneled per id. The engine resolves same-id concurrent
+// ResumeSession calls last-writer-wins (the superseded handle's next Append
+// fails "already finalized"), so two racing first requests must not both
+// reach the engine — the loser would leak that engine-internal verdict as a
+// 500. The funnel: the first miss registers a resumeAttempt and becomes the
+// single flyer; the rest wait for its outcome and reuse the winner's session.
+// The rebuild itself runs OUTSIDE r.mu on purpose: a resume re-hashes the
+// partial data (O(size)) and must not stall unrelated sessions' lookups or
+// new POSTs. Waiters do not bail on their own request context: the flyer's
+// rebuild is shared state and its outcome is what every waiter reports.
+//
+// Error mapping (contracts 3/5): storage.ErrSessionNotFound — an unknown id,
+// an expired-but-not-yet-swept row (fail-closed), or an S3 backend, which
+// never supports resume — is returned as-is for the caller's 404
+// BLOB_UPLOAD_UNKNOWN. Any other engine failure is returned verbatim
+// (5xx-class at the caller) and NOTHING is cached, so the next request
+// retries the rebuild from scratch (a transient store fault self-heals; the
+// registry is never poisoned by a failed rebuild).
+func (r *sessionRegistry) resolve(ctx context.Context, eng storage.Engine, log *slog.Logger, id string) (*liveUpload, error) {
+	if up, ok := r.lookup(id); ok {
+		return up, nil
+	}
+	r.mu.Lock()
+	// Double-check under the lock: the flyer of a rebuild race may have
+	// registered the session between the fast lookup and here.
+	if up, ok := r.byID[id]; ok {
+		r.mu.Unlock()
+		return up, nil
+	}
+	if att, ok := r.resuming[id]; ok {
+		r.mu.Unlock()
+		<-att.done // the funnel: reuse the flyer's outcome
+		return att.up, att.err
+	}
+	if eng == nil {
+		// A bare assembly without the storage seam cannot rebuild anything:
+		// the id is simply unknown (the pre-T-216 posture).
+		r.mu.Unlock()
+		return nil, fmt.Errorf("docker: resume upload %s: %w", id, storage.ErrSessionNotFound)
+	}
+	att := &resumeAttempt{done: make(chan struct{})}
+	r.resuming[id] = att
+	r.mu.Unlock()
+
+	// Single flyer. ctx arrives WithoutCancel from the caller: once waiters
+	// share it, the rebuild must not die with the request that triggered it.
+	sess, err := eng.ResumeSession(ctx, id)
+	off := int64(0)
+	r.mu.Lock()
+	delete(r.resuming, id)
+	if err == nil {
+		off = sess.Offset() // capture BEFORE publishing: received mutates under up.mu afterwards
+		att.up = &liveUpload{sess: sess, received: off, started: time.Now()}
+		r.byID[id] = att.up
+	} else {
+		att.err = err
+	}
+	r.mu.Unlock()
+	close(att.done)
+	if err == nil && log != nil {
+		log.InfoContext(ctx, "docker: upload session re-materialized from storage (restart resume)",
+			"upload", id, "offset", off)
+	}
+	return att.up, att.err
 }
 
 // remove drops a finished/aborted upload; safe to call twice.
@@ -267,15 +381,17 @@ func (h *Handler) serveUploadStart(w http.ResponseWriter, r *http.Request, ref n
 //	GET    offset query, 204 + Range      (official endpoint)
 //	DELETE cancel, 204                    (official endpoint)
 //
-// Every verb takes the session's own lock for its whole operation (review
-// B1): the storage Session is single-threaded by contract, and the
-// received/poisoned protocol state must never interleave.
+// Every verb resolves its session through resolveUpload — the in-memory
+// registry first, then the [M7] lazy rebuild for a session that predates a
+// restart (architecture section 5.3.1) — and takes the session's own lock
+// for its whole operation (review B1): the storage Session is
+// single-threaded by contract, and the received/poisoned protocol state must
+// never interleave.
 func (h *Handler) serveUploadSession(w http.ResponseWriter, r *http.Request, ref nameRef, id string) {
 	switch r.Method {
 	case http.MethodPatch, http.MethodPut:
-		up, ok := h.sess.lookup(id)
+		up, ok := h.resolveUpload(w, r, id)
 		if !ok {
-			writeBlobUploadUnknown(w, id)
 			return
 		}
 		up.mu.Lock()
@@ -295,14 +411,15 @@ func (h *Handler) serveUploadSession(w http.ResponseWriter, r *http.Request, ref
 	case http.MethodGet, http.MethodHead:
 		// The offset query. The docker client does not use it (it holds its
 		// own offset), but crane/oras and resume tooling do; the official
-		// endpoint is GET (204 + Range + Docker-Upload-UUID).
-		up, ok := h.sess.lookup(id)
+		// endpoint is GET (204 + Range + Docker-Upload-UUID). Across a
+		// restart this leg is the resume premise: resolve rebuilds the
+		// session and Range carries the re-derived authoritative offset.
+		up, ok := h.resolveUpload(w, r, id)
 		if !ok {
-			writeBlobUploadUnknown(w, id)
 			return
 		}
 		up.mu.Lock()
-		received, done := up.received, up.done
+		received, done := up.authoritativeOffset(), up.done
 		up.mu.Unlock()
 		if done {
 			writeBlobUploadUnknown(w, id)
@@ -315,9 +432,8 @@ func (h *Handler) serveUploadSession(w http.ResponseWriter, r *http.Request, ref
 		hdr.Set("Content-Length", "0")
 		w.WriteHeader(http.StatusNoContent)
 	case http.MethodDelete:
-		up, ok := h.sess.lookup(id)
+		up, ok := h.resolveUpload(w, r, id)
 		if !ok {
-			writeBlobUploadUnknown(w, id)
 			return
 		}
 		up.mu.Lock()
@@ -336,12 +452,36 @@ func (h *Handler) serveUploadSession(w http.ResponseWriter, r *http.Request, ref
 	}
 }
 
+// resolveUpload is every per-session verb's session entry: the registry
+// lookup, then — on the miss a restart produces — the lazy rebuild from
+// storage (T-216). Failures render here and return ok=false: an unknown,
+// expired (fail-closed, contract 3) or S3-backend session is the spec's 404
+// BLOB_UPLOAD_UNKNOWN; a broken rebuild is the store-failure 5xx (nothing is
+// cached — the client's retry re-enters the rebuild).
+func (h *Handler) resolveUpload(w http.ResponseWriter, r *http.Request, id string) (*liveUpload, bool) {
+	up, err := h.sess.resolve(context.WithoutCancel(r.Context()), h.store, h.log, id)
+	if err == nil {
+		return up, true
+	}
+	if errors.Is(err, storage.ErrSessionNotFound) {
+		writeBlobUploadUnknown(w, id)
+		return nil, false
+	}
+	h.writeStoreFailure(w, r, "resume upload session "+id, err)
+	return nil, false
+}
+
 // patchUpload implements PATCH (DE-04): streamed append when Content-Range is
 // absent (official "Stream upload"); strict offset alignment when present —
 // the start MUST equal the server's received count, a mismatch is 416 with
-// the authoritative Range and an empty body (docker-registry.md 2.2#3).
-// The caller holds up.mu for the whole operation (B1): the anchor judgment
-// and the Append+received assignment are one indivisible critical section.
+// the authoritative Range and an empty body (docker-registry.md 2.2#3: only
+// the anchor is protocol, the end value is echoed advice). The alignment
+// verdict and the Range header both read the ENGINE's offset
+// (authoritativeOffset — architecture 5.3.1 contract 1), so a session that
+// crossed a restart judges against the re-derived byte count, never a stale
+// adapter mirror. The caller holds up.mu for the whole operation (B1): the
+// anchor judgment and the Append+received assignment are one indivisible
+// critical section.
 func (h *Handler) patchUpload(w http.ResponseWriter, r *http.Request, ref nameRef, id string, up *liveUpload) {
 	if up.poisoned {
 		// A poisoned session can never become a trustworthy blob: refuse the
@@ -350,18 +490,18 @@ func (h *Handler) patchUpload(w http.ResponseWriter, r *http.Request, ref nameRe
 		hdr := w.Header()
 		writeAPIVersionHdr(hdr)
 		hdr.Set("Location", h.uploadLocation(ref, id, nil))
-		hdr.Set("Range", rangeHeader(up.received))
+		hdr.Set("Range", rangeHeader(up.authoritativeOffset()))
 		hdr.Set("Content-Length", "0")
 		w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
 		return
 	}
-	if _, ok := alignContentRange(r.Header.Get("Content-Range"), up.received); !ok {
+	if _, ok := alignContentRange(r.Header.Get("Content-Range"), up.authoritativeOffset()); !ok {
 		// 416 with the server's authoritative offset and NO body (the spec's
 		// error posture for chunk misalignment; docker-registry.md 2.2#3).
 		hdr := w.Header()
 		writeAPIVersionHdr(hdr)
 		hdr.Set("Location", h.uploadLocation(ref, id, nil))
-		hdr.Set("Range", rangeHeader(up.received))
+		hdr.Set("Range", rangeHeader(up.authoritativeOffset()))
 		hdr.Set("Content-Length", "0")
 		w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
 		return
@@ -387,7 +527,7 @@ func (h *Handler) patchUpload(w http.ResponseWriter, r *http.Request, ref nameRe
 			hdr := w.Header()
 			writeAPIVersionHdr(hdr)
 			hdr.Set("Location", h.uploadLocation(ref, id, nil))
-			hdr.Set("Range", rangeHeader(up.received))
+			hdr.Set("Range", rangeHeader(up.authoritativeOffset()))
 			hdr.Set("Content-Length", "0")
 			w.WriteHeader(http.StatusRequestedRangeNotSatisfiable)
 			return
