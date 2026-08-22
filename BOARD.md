@@ -21,12 +21,13 @@
 
 ### M7 票据（T-211~T-228，tech-lead 2026-08-23 分解；AC 全文见 docs/prd/milestone-7.md）
 
-#### 波 1（在途）
-- **T-211** [P1] M7 验收脚手架：续传重启探针 + 角色×端点矩阵跑批 + lint 基线归档 `role:devops-engineer` `area:scripts/ + Makefile + deploy/dev` `dep:—`
-  m7-resume-probe.sh（--stop kill|sigterm 全链探针，当前 main 红灯先行）；m7-rbac-matrix.sh（角色×端点状态码矩阵，基线归档）；lint-baseline.sh（internal/auth=53 归档供 FR-70 对照）。三脚本 bash -n + POSIX 双跑。
-- **T-213** [P1] Session.Offset() 权威 offset 契约 + ResumeSession 过期 fail-closed `role:dev-go-storage` `area:internal/storage` `dep:—`
-  Session.Offset()（重哈希恢复后=数据文件长度）；已过期未清扫行 → ErrSessionNotFound（表驱动四例）；S3 零改动（TestS3ResumeSessionNotSupported 原样绿）；race + lint 0；godoc 与 §3.1/§5.3.1 对齐。
-- **T-214** [P0] M7 架构-PRD 冲突收敛与 ADR-0026/0027/0028 定稿（Q2/Q3/Q5 载体） `role:architect` `area:docs/design/architecture.md + DECISIONS.md` `dep:—`
+- **T-211** [P1] M7 验收脚手架 `role:devops-engineer` — done 2026-08-23（conductor 核验直收：红灯探针亲跑 404 BLOB_UPLOAD_UNKNOWN + 真实 EXIT=1；lint 基线复现 auth=53）
+  三脚本 + 4 个 make 目标。红灯探针（kill -9/SIGTERM 双臂，main 基线必败非零退出，T-216 转绿即验收）；矩阵基线（user 管理面 11 读+6 变更全 403 零副作用 / read-only-admin 列 SKIP 待 T-215）；lint 基线（auth=53 + npm=1 逐项归档）。POSIX 四壳实测（bash3.2/dash/busybox ash/linux 交叉）。**勘误产出**：PRD §4.1 stats/token-list 端点 main 无路由；DU-01 GET 状态腿重启前实测存在（204+Range），缺的是跨重启存活 → T-216 范围收窄。提交 `5fd0b17`。日志 reports/agents/T-211.md。
+- **T-213** [P1] Session.Offset() + ResumeSession 过期 fail-closed `role:dev-go-storage` — done 2026-08-23（code-review APPROVE 0 阻塞 + 复核人独立红绿复验无残留；提交 `c5a8206`）
+  Offset() 权威 offset 契约（活会话=已收字节/恢复=重算文件长度，§3.1/§5.3.1 契约 1）；过期未清扫行 → ErrSessionNotFound（与 ListExpired `<=` 严格同界永不分歧，空/畸形行亦拒，拒绝零副作用）；migration 委托 + S3 最小实现行为零改动（hard-404 契约测试原样绿）；storage 包 race 84.9s 绿 + lint 0。日志 reports/agents/T-213.md / T-213-review.md。
+
+#### 波 1（T-211/T-213 已 done；T-214 在途）
+- **T-214** [P0] M7 架构-PRD 冲突收敛与 ADR-0026/0027/0028 定稿（Q2/Q3/Q5 载体） `role:architect` `area:docs/design/architecture.md + DECISIONS.md` `dep:—` — **doing**（2026-08-23 派发；conductor 已中继 T-211 三条路由现实勘误：PRD §4.1 的 stats/token 列表端点 main 无路由、DU-01「GET 状态腿缺失」表述不准——重启前 204+Range 实测存在、缺的是跨重启存活、T-216 范围收窄为会话重建）
   三分歧定案（① readonly_admin 内容面语义 PRD vs ADR-0026；② 干净停机 Close 语义 PRD Q3 vs arch §5.3.1 契约 7，牵 ADR-0028 + ADR-0006 回写；③ step-up 契约 PRD FR-68 vs ADR-0027，含 wire 字段/枚举拼写统一）；ADR-0026 转 Accepted；§7.1 路由清点表终版；OIDC/LDAP readonly 组映射显式裁决；裁决记录 reports/agents/T-214.md 交 conductor。
 
 #### 波 2（待波 1）
