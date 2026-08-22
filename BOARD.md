@@ -38,8 +38,9 @@
 - **T-229** [P1] ADR-0028 Close 保留语义 `role:dev-go-storage` — done（conductor 强制新构建亲验：sigterm 臂 GREEN EXIT=0 + kill 臂维持绿）
   Close 去 cleanup 改 detach + 保留清单 INFO 日志；sweep+TTL 唯一回收四路钉死；N2 前移（sweep-residue restart 臂重种子语义）。三包 race 绿 + lint 0。日志 reports/agents/T-229.md。
 
-#### 波 3（在途）
-- **T-215** [P0] FR-64 REST：routeAuth 能力化迁移 + adminRole wire + 角色即时生效与审计 `role:dev-go-core` `area:internal/httpapi + internal/config(readonly_group 键) + cmd/binflow-server(接线) + scripts/m7-rbac-matrix.sh(列名同步)` `dep:T-212 ✅` — **doing 2026-08-23（吸收 T-212 review 移交项：authenticateForm Role 修复 / Create 矛盾 400 / readonly_group 接线）**
+#### 波 3（T-215 返修轮在途）
+- **T-215** [P0] FR-64 REST：routeAuth 能力化迁移 + adminRole wire + 角色即时生效与审计 `role:dev-go-core` — **review 双视角：架构 APPROVE（0 阻塞）+ 正确性 REQUEST_CHANGES（B1），返修中 2026-08-23**
+  30 门迁移（26 manage/4 repoManage，双 review 独立 grep 零残留）+ adminRole wire（冲突 400/kebab 拒/回显/落值）+ 同 Token 即时生效三段实证 + user.role.change 审计 + authenticateForm 带 Role + readonly_group config/cmd 接线 + 矩阵 EXPECT=1 零偏差。**B1（阻塞）**：族 6 建仓臂 CapRepoWrite 分支无判别性测试（reviewer 删分支全套仍绿——零 m-holder 夹具；今日有 service requireAdmin 二道门兜底，**T-217 放宽后此分支即唯一守门**）→ 返修：m-holder 夹具三断言（建仓 403/详情 200/permissions 渲染 m，含 N1）。**移交归位**：T-217 三挂钩（m-holder 覆盖集臂/principals manage 字母/**usage ∨-臂必须落**——review-a 留证）；Makefile:117-120 过时注释并入 T-217 顺手修；T-218 补 governance.ts `user.role.change`；T-219 统一 token handler p.Admin；PM 回写两处（V01 骨架改 PUT / Token 签发限定为他人——review-a 判 architecture 对）。日志 reports/agents/T-215.md / T-215-review-c.md / T-215-review-a.md。
 
 #### 波 2（待波 1）
 - **T-212** [P0] RBAC 基座：Role 闭集 + 六能力求值链 + migration 011 + idp_sync role 改写（ADR-0026） `role:dev-go-core` `area:internal/auth + internal/metadata` `dep:T-214`
