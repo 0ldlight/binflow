@@ -144,6 +144,65 @@ func TestSweepFallsBackToMtime(t *testing.T) {
 	}
 }
 
+// busyUploadSessions wraps the in-memory store with a ListExpired that always
+// fails, simulating the transient DB fault (SQLITE_BUSY under load, see T-54)
+// a startup sweep can hit.
+type busyUploadSessions struct {
+	*memUploadSessions
+	cause error
+}
+
+func (b *busyUploadSessions) ListExpired(context.Context, string, int) ([]*metadata.UploadSession, error) {
+	return nil, b.cause
+}
+
+// TestOpenSweepFailureKeepsUploads pins review2 B1: when the startup sweep
+// fails, OpenEngine must fail the open WITHOUT deleting anything under
+// uploads/. runGC/runExport open an engine over a LIVE server's data dir, so
+// one transient DB error must not destroy resumable upload dirs the sweep
+// contract (unexpired rows protect their dirs) requires us to keep.
+func TestOpenSweepFailureKeepsUploads(t *testing.T) {
+	root := t.TempDir()
+	store := newMemUploadSessions()
+	// One resumable dir (fresh row), one expired dir the failing sweep never
+	// reached, and one crash orphan: all must survive the failed open.
+	mkStaleSession(t, root, store, "resumable", time.Now().Add(time.Hour))
+	mkStaleSession(t, root, store, "expired-unswept", time.Now().Add(-time.Minute))
+	orphan := filepath.Join(root, "uploads", "crash-orphan")
+	if err := os.MkdirAll(orphan, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(orphan, "data"), []byte("partial"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := OpenEngine(root, Options{Sessions: &busyUploadSessions{
+		memUploadSessions: store,
+		cause:             errors.New("db is locked (simulated SQLITE_BUSY)"),
+	}})
+	if err == nil {
+		t.Fatal("OpenEngine = nil error, want the sweep failure to fail the open")
+	}
+	if !strings.Contains(err.Error(), "sweep sessions") {
+		t.Fatalf("err = %v, want it to carry the sweep context", err)
+	}
+
+	// The failure path must not touch disk: every pre-existing dir is still
+	// there with its bytes intact, and no row was deleted.
+	for _, id := range []string{"resumable", "expired-unswept", "crash-orphan"} {
+		b, rerr := os.ReadFile(filepath.Join(root, "uploads", id, "data"))
+		if rerr != nil {
+			t.Fatalf("uploads/%s/data after failed open: %v (dir was deleted)", id, rerr)
+		}
+		if string(b) != "partial" {
+			t.Fatalf("uploads/%s/data = %q, want %q", id, b, "partial")
+		}
+	}
+	if got := store.countRows(); got != 2 {
+		t.Fatalf("rows after failed open = %d, want 2 (untouched)", got)
+	}
+}
+
 func refsSet(sums ...string) func() (map[string]struct{}, error) {
 	return func() (map[string]struct{}, error) {
 		m := make(map[string]struct{}, len(sums))

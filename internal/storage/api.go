@@ -14,8 +14,9 @@ var (
 	// requested sha256 is not present in the blob store.
 	ErrBlobNotFound = errors.New("blob not found")
 	// ErrSessionNotFound is returned (wrapped) by ResumeSession when no
-	// persisted session row (or its data file) exists for the id. Callers
-	// should restart the upload from zero.
+	// persisted session row exists for the id (a surviving row whose data
+	// file vanished instead resumes from offset 0). Callers should restart
+	// the upload from zero.
 	ErrSessionNotFound = errors.New("session not found")
 	// ErrChecksumMismatch is returned (wrapped) by Commit when an expected
 	// digest supplied by the caller does not match the streamed content. No
@@ -82,8 +83,10 @@ type Engine interface {
 	// ResumeSession re-materializes an in-progress session from its persisted
 	// row and on-disk data file: the partial bytes are re-hashed to rebuild
 	// the digest chain and the session is returned ready for further Append.
-	// Missing rows or data files yield ErrSessionNotFound. Requires a Sessions
-	// store in Options; without one this always yields ErrSessionNotFound.
+	// A missing row yields ErrSessionNotFound; a missing data file is
+	// recreated empty and the session resumes from offset 0. Requires a
+	// Sessions store in Options; without one this always yields
+	// ErrSessionNotFound.
 	ResumeSession(ctx context.Context, id string) (Session, error)
 	// Open opens a blob for reading; the caller must Close it. Missing blobs
 	// yield ErrBlobNotFound wrapped. The returned BlobRef carries Sha256 and

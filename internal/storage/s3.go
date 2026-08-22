@@ -63,8 +63,9 @@ const (
 	blobCreatedAtMetaKey = "blob-created-at"
 
 	// uploadKeySegment is the "sessions" path segment under which multipart
-	// upload keys live: <prefix>/sessions/<uuid>/data. It is the S3 standing-in
-	// for the disk engine's sessionsDirName.
+	// upload keys live: <prefix>/sessions/<uuid>/data. It is the S3
+	// counterpart of the disk engine's uploads/ dir (uploadsDirName); the S3
+	// layout keeps its own historical segment name.
 	uploadKeySegment = "sessions"
 )
 

@@ -94,9 +94,12 @@ type engine struct {
 //	<root>/uploads/<uuid>                 in-progress upload data (temp files)
 //
 // It then sweeps expired upload sessions (age > ttl) from the metadata store
-// (via opts.Sessions, when configured) and their temp files. The engine never
-// owns the metadata schema; session rows live in the upload_sessions table the
-// metadata layer manages (T-209, architecture section 2).
+// (via opts.Sessions, when configured) and their temp files. A failing sweep
+// fails the open with that error and leaves all pre-existing data on disk
+// untouched — including in-flight upload dirs the sweep contract must keep.
+// The engine never owns the metadata schema; session rows live in the
+// upload_sessions table the metadata layer manages (T-209, architecture
+// section 2).
 func OpenEngine(root string, opts Options) (Engine, error) {
 	if root == "" {
 		return nil, errors.New("storage: open: root path is empty")
@@ -114,7 +117,12 @@ func OpenEngine(root string, opts Options) (Engine, error) {
 	}
 	e := &engine{root: abs, opts: opts, sessions: make(map[string]*uploadSession)}
 	if err := e.sweepSessions(time.Now()); err != nil {
-		_ = os.RemoveAll(filepath.Join(abs, uploadsDirName))
+		// Fail the open, but never modify on-disk data in response to a sweep
+		// failure: the error may be a transient DB fault (e.g. SQLITE_BUSY)
+		// while the root still holds resumable upload dirs protected by
+		// unexpired rows, and wiping uploads/ would destroy in-flight uploads
+		// the sweep contract must keep. Nothing is deleted; the next Open
+		// retries the sweep.
 		return nil, fmt.Errorf("storage: open %s: %w", abs, err)
 	}
 	return e, nil
@@ -220,8 +228,10 @@ func (e *engine) BeginSession(ctx context.Context) (Session, error) {
 // ResumeSession re-materializes a crashed/in-progress session from its
 // persisted row and on-disk data file. It re-hashes the partial data to
 // rebuild the digest chain (hash state is not serializable) and returns the
-// session ready for further Append. Missing rows or missing data files yield
-// ErrSessionNotFound.
+// session ready for further Append. A missing (or never persisted) row yields
+// ErrSessionNotFound. A missing data file with a surviving row is recreated
+// empty and the session resumes from offset 0; a missing data directory
+// surfaces the underlying open error (not a sentinel).
 func (e *engine) ResumeSession(ctx context.Context, id string) (Session, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("storage: resume session %s: %w", id, err)
@@ -343,8 +353,10 @@ func syncDir(dir string) error {
 // are consulted.
 func (e *engine) sweepSessions(now time.Time) error {
 	ss := e.opts.Sessions
-	// Best-effort: a failing sweep must not brick startup; the next Open
-	// retries. But we still return a hard error so callers can log it.
+	// A failing sweep fails the Open that triggered it (OpenEngine returns
+	// the error) but never deletes on-disk data in response: expired sessions
+	// the sweep already reclaimed stay reclaimed, everything else waits for
+	// the next Open to retry.
 	nowStr := now.UTC().Format(time.RFC3339)
 	if ss != nil {
 		rows, err := ss.ListExpired(context.Background(), nowStr, 0)
