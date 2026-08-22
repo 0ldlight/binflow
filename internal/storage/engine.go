@@ -58,9 +58,10 @@ type Options struct {
 	// Sessions is the persistence seam for upload sessions (metadata
 	// upload_sessions table). When nil, session state is not persisted:
 	// BeginSession still works (session data stays on disk) but ResumeSession
-	// always fails with ErrSessionNotFound and the startup sweep is a no-op.
-	// The blob-only GC path (which never touches sessions) is the one caller
-	// that may leave it nil.
+	// always fails with ErrSessionNotFound and the startup sweep skips its
+	// row pass (the orphan-dir scan still runs — crash residue stays
+	// reclaimable). The blob-only GC path (which never touches sessions) is
+	// the one caller that may leave it nil.
 	Sessions metadata.UploadSessionStore
 }
 
@@ -225,13 +226,38 @@ func (e *engine) BeginSession(ctx context.Context) (Session, error) {
 	return s, nil
 }
 
+// sessionRowExpired reports whether a persisted session row is past its
+// expiry at now, on the same boundary the sweep's ListExpired uses
+// (expires_at <= now counts as expired). ResumeSession re-checks it because
+// the substore's Get does not filter by expires_at, and a resume racing the
+// sweep must fail closed instead of resurrecting a row the sweep is about to
+// reclaim (architecture section 5.3.1 contract 3). An empty or malformed
+// expires_at also counts as expired: expiry is a write-path invariant
+// (BeginSession always persists it), and a row that lost it must not live
+// forever.
+func sessionRowExpired(row *metadata.UploadSession, now time.Time) bool {
+	if row == nil || row.ExpiresAt == "" {
+		return true
+	}
+	t, err := time.Parse(time.RFC3339, row.ExpiresAt)
+	if err != nil {
+		return true
+	}
+	return !now.Before(t)
+}
+
 // ResumeSession re-materializes a crashed/in-progress session from its
 // persisted row and on-disk data file. It re-hashes the partial data to
 // rebuild the digest chain (hash state is not serializable) and returns the
-// session ready for further Append. A missing (or never persisted) row yields
-// ErrSessionNotFound. A missing data file with a surviving row is recreated
-// empty and the session resumes from offset 0; a missing data directory
-// surfaces the underlying open error (not a sentinel).
+// session ready for further Append, with Offset reporting the re-derived
+// data-file length — the authoritative offset source for REST resume
+// (architecture sections 3.1 [M7] and 5.3.1 contract 1). A missing (or never
+// persisted) row — or one already expired but not yet swept — yields
+// ErrSessionNotFound (fail-closed; expired = unknown, and the sweep is the
+// row's only legitimate reclamation path). A missing data file under a
+// surviving unexpired row is recreated empty and the session resumes from
+// offset 0; a missing data directory surfaces the underlying open error
+// (not a sentinel).
 func (e *engine) ResumeSession(ctx context.Context, id string) (Session, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("storage: resume session %s: %w", id, err)
@@ -252,6 +278,13 @@ func (e *engine) ResumeSession(ctx context.Context, id string) (Session, error) 
 			return nil, fmt.Errorf("storage: resume session %s: %w", id, ErrSessionNotFound)
 		}
 		return nil, fmt.Errorf("storage: resume session %s: %w", id, err)
+	}
+	// Fail closed on an expired-but-not-yet-swept row BEFORE touching the
+	// data directory: the sweep owns reclamation, a resume racing it must not
+	// resurrect the row, and a rejected resume must not O_CREATE files under
+	// a directory the sweep is about to remove.
+	if sessionRowExpired(row, e.opts.now()) {
+		return nil, fmt.Errorf("storage: resume session %s: %w", id, ErrSessionNotFound)
 	}
 	dir := filepath.Join(e.root, uploadsDirName, id)
 	f, err := os.OpenFile(filepath.Join(dir, dataFileName), os.O_CREATE|os.O_RDWR, 0o600) // re-hash reads + append writes both need the fd; O_CREATE tolerates a vanished data file with a surviving row

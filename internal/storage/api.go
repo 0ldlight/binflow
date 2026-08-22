@@ -14,9 +14,12 @@ var (
 	// requested sha256 is not present in the blob store.
 	ErrBlobNotFound = errors.New("blob not found")
 	// ErrSessionNotFound is returned (wrapped) by ResumeSession when no
-	// persisted session row exists for the id (a surviving row whose data
-	// file vanished instead resumes from offset 0). Callers should restart
-	// the upload from zero.
+	// persisted session row exists for the id, or when the row is already
+	// expired but not yet swept (expired = unknown, architecture section
+	// 5.3.1 contract 3: the sweep is a row's only legitimate reclamation
+	// path, so a resume must fail closed rather than race it). A surviving
+	// unexpired row whose data file vanished instead resumes from offset 0.
+	// Callers should restart the upload from zero.
 	ErrSessionNotFound = errors.New("session not found")
 	// ErrChecksumMismatch is returned (wrapped) by Commit when an expected
 	// digest supplied by the caller does not match the streamed content. No
@@ -49,9 +52,20 @@ type BlobRef struct {
 // Session is one upload. Data is streamed to <data>/uploads/<id>/data while
 // sha256+sha1+md5 are computed incrementally, and the session row is kept in
 // the metadata store's upload_sessions table (T-209). Implementations must be
-// safe for concurrent use of distinct sessions; a single session is serial.
+// safe for concurrent use of distinct sessions; a single session is serial
+// for its mutating methods — Offset is the one reader that must stay safe to
+// call while another goroutine holds the session in Append/Commit
+// (architecture section 3.1 [M7]).
 type Session interface {
 	ID() string
+	// Offset returns the cumulative bytes the session has received so far.
+	// For the disk backend it is the uploads/<id>/data file length: after a
+	// ResumeSession re-hash recovery it is the re-derived file length, which
+	// makes it the authoritative offset source for REST resume (architecture
+	// sections 3.1 [M7] and 5.3.1 contract 1) — callers must treat this
+	// value, not a cached mirror, as the basis for Content-Range alignment
+	// checks and 416/Range responses. Reads serialize against Append/Commit.
+	Offset() int64
 	// Append streams r into the session and returns the cumulative offset.
 	// If Append fails for any reason the session is poisoned: every
 	// subsequent Append or Commit fails with an error wrapping
@@ -82,11 +96,17 @@ type Engine interface {
 	BeginSession(ctx context.Context) (Session, error)
 	// ResumeSession re-materializes an in-progress session from its persisted
 	// row and on-disk data file: the partial bytes are re-hashed to rebuild
-	// the digest chain and the session is returned ready for further Append.
-	// A missing row yields ErrSessionNotFound; a missing data file is
-	// recreated empty and the session resumes from offset 0. Requires a
+	// the digest chain and the session is returned ready for further Append,
+	// with Offset reporting the re-derived data-file length. A missing row —
+	// or one already expired but not yet swept — yields ErrSessionNotFound
+	// (fail-closed, architecture sections 3.1 [M7] and 5.3.1 contract 3: an
+	// expired session is unknown, and the sweep is the row's only legitimate
+	// reclamation path). A missing data file under a surviving unexpired row
+	// is recreated empty and the session resumes from offset 0. Requires a
 	// Sessions store in Options; without one this always yields
-	// ErrSessionNotFound.
+	// ErrSessionNotFound. The S3 engine never resumes (multipart state lives
+	// server-side, never in upload_sessions) and always yields
+	// ErrSessionNotFound — the hard-404 contract of section 5.3.1 contract 5.
 	ResumeSession(ctx context.Context, id string) (Session, error)
 	// Open opens a blob for reading; the caller must Close it. Missing blobs
 	// yield ErrBlobNotFound wrapped. The returned BlobRef carries Sha256 and

@@ -251,7 +251,10 @@ func (e *S3Engine) BeginSession(ctx context.Context) (Session, error) {
 }
 
 // ResumeSession returns ErrSessionNotFound. S3 multipart uploads are not
-// resumable in this implementation.
+// resumable in this implementation: multipart state lives server-side and is
+// never persisted to upload_sessions, so an expired id is indistinguishable
+// from an unknown one — the hard-404 contract of architecture section 5.3.1
+// contract 5, pinned by TestS3ResumeSessionNotSupported.
 func (e *S3Engine) ResumeSession(_ context.Context, id string) (Session, error) {
 	return nil, fmt.Errorf("storage: s3: resume session %s: %w", id, ErrSessionNotFound)
 }
@@ -570,6 +573,20 @@ type s3Session struct {
 
 // ID returns the session uuid.
 func (s *s3Session) ID() string { return s.id }
+
+// Offset returns the cumulative bytes received so far (committed parts plus
+// the pending part buffer). S3 sessions are never re-materialized — this
+// engine's ResumeSession is a hard ErrSessionNotFound (architecture section
+// 5.3.1 contract 5) — so Offset only ever describes a live in-process
+// session. Reads serialize against Append/Commit via s.mu.
+func (s *s3Session) Offset() int64 {
+	if s == nil {
+		return 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.received
+}
 
 // Append streams r into the multipart upload in bounded memory. Bytes flow
 // through the running digesters into the pending part buffer; every time the

@@ -31,6 +31,22 @@ type uploadSession struct {
 // ID returns the session uuid.
 func (s *uploadSession) ID() string { return s.id }
 
+// Offset returns the cumulative bytes received so far — the authoritative
+// offset source for REST resume (architecture sections 3.1 [M7] and 5.3.1
+// contract 1). For a live session it is the appended byte count, which equals
+// the uploads/<id>/data file length (every Append updates it while holding
+// s.mu); after a ResumeSession re-hash recovery it is the re-derived file
+// length. Reads serialize against Append/Commit via s.mu, so a concurrent
+// reader never observes a mid-write counter.
+func (s *uploadSession) Offset() int64 {
+	if s == nil {
+		return 0
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.state.Received
+}
+
 // Append streams r into the session data file while feeding the three hash
 // states, returning the cumulative offset. The write is durable-visible to
 // readers of the temp path but not to the blob store until Commit renames

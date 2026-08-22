@@ -657,6 +657,14 @@ func (s *migrationSession) ID() string {
 	return s.disk.ID()
 }
 
+// Offset returns the disk session's offset: the disk side is the primary (its
+// ID names the session, and ResumeSession delegates to disk), and Append
+// already enforces that both backends agree on the cumulative offset, so the
+// disk value is the pair's shared truth.
+func (s *migrationSession) Offset() int64 {
+	return s.disk.Offset()
+}
+
 // Append streams r into both the disk and S3 sessions. The reader is consumed
 // once via io.TeeReader so memory usage is constant regardless of blob size.
 // If either backend fails, both sessions are poisoned and the error is returned.
