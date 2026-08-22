@@ -24,7 +24,8 @@ export GOPROXY
 export GOTOOLCHAIN
 
 .PHONY: all build test lint fmt vet tidy run dev clean tools check-size docs docs-size console console-size \
-	check-deps goreleaser-check release-snapshot release release-verify help
+	check-deps goreleaser-check release-snapshot release release-verify \
+	test-m7-resume test-m7-resume-sigterm test-m7-rbac-matrix lint-baseline help
 
 all: build
 
@@ -95,6 +96,36 @@ test:
 test-cov:
 	CGO_ENABLED=1 $(GO) test -race -count=1 -coverprofile=coverage.out -covermode=atomic $(PKG)
 	@$(GO) tool cover -func=coverage.out | tail -1
+
+# ---- M7 acceptance scaffolding (T-211) ---------------------------------------
+# RED-LIGHT-FIRST: the resume probe encodes PRD FR-67 (V15/V16 shape) and on
+# pre-T-216 main FAILS by design (exit 1, 404 BLOB_UPLOAD_UNKNOWN after the
+# restart — the in-memory upload-session registry). It goes GREEN when T-216
+# lands; the archived baseline lives in reports/agents/T-211.md. Deliberately
+# NOT wired into CI until then (ci.yml stays green on main).
+
+## test-m7-resume: FR-67 resume probe, kill -9 arm (RED on pre-T-216 main).
+test-m7-resume:
+	scripts/m7-resume-probe.sh --stop kill
+
+## test-m7-resume-sigterm: FR-67 resume probe, graceful-restart arm (the
+## `docker compose restart` signal 口径; RED until T-216 + ADR-0028 Close
+## semantics).
+test-m7-resume-sigterm:
+	scripts/m7-resume-probe.sh --stop sigterm
+
+## test-m7-rbac-matrix: FR-64 role x endpoint status matrix on a throwaway
+## instance (roles admin/user run; read-only-admin SKIPs until T-215 wires
+## the role field). Observational by default — pass EXPECT=1 for the PRD M7
+## target-table verdict (exit 1 on deviations; flip on after T-215).
+test-m7-rbac-matrix:
+	scripts/m7-rbac-matrix.sh $(if $(EXPECT),--expect)
+
+## lint-baseline: per-package golangci-lint issue counts — the archived
+## before-picture for FR-70/V31 (internal/auth is the tracked debt line).
+## Archive, not gate: exit 0 with issues; `make lint` stays the gate.
+lint-baseline:
+	scripts/lint-baseline.sh
 
 ## lint: golangci-lint over the whole module (config in .golangci.yml).
 lint:
