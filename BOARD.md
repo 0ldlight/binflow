@@ -32,8 +32,8 @@
 
 #### 波 2（T-212 在途；T-216 部分完成待 T-229；T-229 拆票在途）
 - **T-212** [P0] RBAC 基座：Role 闭集 + 六能力求值链 + migration 011 + idp_sync role 改写（ADR-0026） `role:dev-go-core` `area:internal/auth + internal/metadata` `dep:T-214 ✅` — **doing 2026-08-23**
-- **T-216** [P1] FR-67 docker blob 上传跨重启续传 REST 化 `role:dev-registry-adapter` `area:internal/adapter/docker` `dep:T-213 ✅` — **doing（in-area 完成 + review 在途；AC1 sigterm 臂待 T-229）2026-08-23**
-  lazy 重建（per-id 单飞 funnel + r.mu 外 ResumeSession）+ 五动词统一经 resolve + offset 事实源迁移 sess.Offset() + 416 空 body 权威 Range + S3 恒 404。**kill -9 臂探针已 GREEN EXIT=0**（全链 202→204+Range→续 PATCH→PUT 201→逐位校验）；sigterm 臂红 = `engine.Close()` 仍清会话（storage 层，ADR-0028 落地=T-229）。真实 docker 27.5.1 客户端全绿（push/pull/run/manifest/_catalog）。resume_test.go 9 测试（含 8 并发单飞断言）。日志 reports/agents/T-216.md。
+- **T-216** [P1] FR-67 docker blob 上传跨重启续传 REST 化 `role:dev-registry-adapter` `area:internal/adapter/docker` `dep:T-213 ✅` — **review APPROVE（2026-08-23，0 阻塞 + 单飞变异实证 + clean-room 无嫌疑；kill 臂探针复核人新构建复证 GREEN）——sigterm 臂待 T-229 落地后整票关账**
+  lazy 重建（per-id 单飞 funnel + r.mu 外 ResumeSession）+ 五动词统一经 resolve + offset 事实源迁移 sess.Offset() + 416 空 body 权威 Range + S3 恒 404。kill -9 臂 GREEN EXIT=0；真实 docker 27.5.1 全绿。**review 遗留（非阻塞，挂账）**：① 探针「binary 存在即复用」陈旧制品假红陷阱（复核人亲历——后续触碰 scripts/ 的票须顺手加固新鲜度校验，T-222 消费前必修）；② flyer 路径 defer 收尾加固（panic 防永久阻塞，M7 债）。日志 reports/agents/T-216.md / T-216-review.md。
 - **T-229** [P1] ADR-0028 Close 保留语义落地（自 T-220 拆出提前；T-216 sigterm 臂的跨区依赖） `role:dev-go-storage` `area:internal/storage + 受影响测试断言（httpapi/adapter）` `dep:—` — **doing 2026-08-23**
   Close 移除会话清理（未过期行+目录保留，内存会话正常 detach 不泄漏）+ 保留清单 INFO 日志；受影响旧语义测试重评（含 N2 前移：Close 后重新种过期行再断言 sweep）；验收 = `make test-m7-resume-sigterm` 转绿 + kill 臂维持绿 + 三包 race 绿。T-220 相应减负（Close 段与 N2 已移本票）。
 
