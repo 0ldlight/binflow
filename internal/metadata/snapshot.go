@@ -166,11 +166,13 @@ func LatestSchemaVersion() int {
 }
 
 // PurgeTransientFromSnapshot removes runtime-only rows from a freshly
-// written snapshot: web_sessions never ride a backup (architecture section
-// 11 item 19 — sessions are per-instance runtime state, restored users
-// simply log in again; carrying them would also make old browser cookies
-// authenticate against the restored instance). remote_cache deliberately
-// STAYS: its validator rows describe cached blobs that travel with blobs/.
+// written snapshot: web_sessions and upload_sessions never ride a backup
+// (architecture section 11 item 19 — sessions are per-instance runtime state,
+// restored users simply log in again; carrying them would also make old
+// browser cookies authenticate against the restored instance, and an
+// upload_sessions row without its uploads/<uuid>/data temp file is an orphan).
+// remote_cache deliberately STAYS: its validator rows describe cached blobs
+// that travel with blobs/.
 //
 // The purge opens the artifact read-write without the WAL pragma (a plain
 // rollback-journal transaction leaves no companion files behind), runs after
@@ -193,17 +195,28 @@ func PurgeTransientFromSnapshot(ctx context.Context, path string) error {
 	}
 	defer db.Close() //nolint:errcheck // purge finished or failed; either way the handle is dropped
 
-	var name string
-	err = db.QueryRowContext(ctx,
-		`SELECT name FROM sqlite_master WHERE type='table' AND name='web_sessions'`).Scan(&name)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil // snapshot predates the table: nothing to purge
-	}
-	if err != nil {
-		return fmt.Errorf("metadata: purge snapshot %s: web_sessions probe: %w", path, err)
-	}
-	if _, err := db.ExecContext(ctx, `DELETE FROM web_sessions`); err != nil {
-		return fmt.Errorf("metadata: purge snapshot %s: web_sessions: %w", path, err)
+	// Each transient table is probed independently: a snapshot predating the
+	// table (web_sessions predates ADR-0014, upload_sessions predates T-209's
+	// migration 010) carries nothing to purge and must not fail the export.
+	// The statements are literal (no SQL concatenation): the table names are a
+	// fixed allowlist, never caller input (gosec G202).
+	type purgeTarget struct{ table, stmt string }
+	for _, t := range []purgeTarget{
+		{"web_sessions", `DELETE FROM web_sessions`},
+		{"upload_sessions", `DELETE FROM upload_sessions`},
+	} {
+		var name string
+		err = db.QueryRowContext(ctx,
+			`SELECT name FROM sqlite_master WHERE type='table' AND name=?`, t.table).Scan(&name)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue // snapshot predates the table: nothing to purge
+		}
+		if err != nil {
+			return fmt.Errorf("metadata: purge snapshot %s: %s probe: %w", path, t.table, err)
+		}
+		if _, err := db.ExecContext(ctx, t.stmt); err != nil {
+			return fmt.Errorf("metadata: purge snapshot %s: %s: %w", path, t.table, err)
+		}
 	}
 	return nil
 }

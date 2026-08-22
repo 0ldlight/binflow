@@ -214,21 +214,23 @@ func TestGCBoundaryExactGrace(t *testing.T) {
 	}
 }
 
-// TestSweepBoundaryExactTTL pins the startup sweep the same way: age <= ttl
-// keeps the session, age just past ttl removes it. The fixture uses a 1s
-// margin (not the raw boundary) because mkStaleSession and the sweep each
-// take their own time.Now() snapshot; the comparison operator itself is
-// what this test protects.
+// TestSweepBoundaryExactTTL pins the startup sweep's comparison: expires_at <=
+// now is expired (removed), expires_at slightly in the future is kept. It uses
+// a 1s margin because mkStaleSession and the sweep each take their own
+// time.Now() snapshot; the <= operator itself is what this test protects.
 func TestSweepBoundaryExactTTL(t *testing.T) {
 	root := t.TempDir()
-	mkStaleSession(t, root, "inside-ttl", time.Hour-time.Second)
-	mkStaleSession(t, root, "past-ttl", time.Hour+time.Minute)
-	eng, err := OpenEngine(root, Options{SessionTTL: time.Hour})
+	store := newMemUploadSessions()
+	now := time.Now()
+	mkStaleSession(t, root, store, "inside-ttl", now.Add(time.Minute)) // future: kept
+	mkStaleSession(t, root, store, "at-edge", now.Add(-time.Second))   // just past: removed
+	mkStaleSession(t, root, store, "past-ttl", now.Add(-time.Hour))
+	eng, err := OpenEngine(root, Options{Sessions: store})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer eng.Close() //nolint:errcheck // test
-	entries, err := os.ReadDir(filepath.Join(root, "sessions"))
+	entries, err := os.ReadDir(filepath.Join(root, "uploads"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,6 +239,10 @@ func TestSweepBoundaryExactTTL(t *testing.T) {
 		left = append(left, e.Name())
 	}
 	if len(left) != 1 || left[0] != "inside-ttl" {
-		t.Fatalf("sessions left = %v, want [inside-ttl] (age<ttl must be kept)", left)
+		t.Fatalf("sessions left = %v, want [inside-ttl] (future expires_at must be kept)", left)
+	}
+	// And the surviving row stays consistent with its dir.
+	if store.countRows() != 1 {
+		t.Fatalf("rows left = %d, want 1 (inside-ttl row kept)", store.countRows())
 	}
 }

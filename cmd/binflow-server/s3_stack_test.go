@@ -33,6 +33,7 @@ import (
 
 	"github.com/lzwzzy/binflow/internal/config"
 	"github.com/lzwzzy/binflow/internal/httpapi"
+	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/storage"
 )
 
@@ -608,7 +609,16 @@ func TestOpenStorageEngineDiskDefaultZeroRegression(t *testing.T) {
 	cfg := configDefaults()
 	cfg.Storage.DataDir = t.TempDir()
 
-	st, err := openStorageEngine(context.Background(), cfg, testSlogLogger(t))
+	md, err := metadata.Open(context.Background(), metadata.Options{
+		Driver: "sqlite",
+		DSN:    sqlitePath(cfg),
+	})
+	if err != nil {
+		t.Fatalf("metadata.Open: %v", err)
+	}
+	defer func() { _ = md.Close() }()
+
+	st, err := openStorageEngine(context.Background(), cfg, testSlogLogger(t), md)
 	if err != nil {
 		t.Fatalf("openStorageEngine(disk): %v", err)
 	}

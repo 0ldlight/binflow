@@ -84,13 +84,13 @@
   - 引用计数：A) `blobs.ref_count` 列实时维护（每次 node 增删都写同热行，锁竞争）；B) 无计数列，GC 时与 `nodes` 实时 JOIN（mark-sweep）。
 - 决策:
   1. 布局：`<data>/blobs/<sha256[0:2]>/<sha256>`，blob 文件内容不可变、全局唯一、无 sidecar 属性文件（附属 sha1/md5/size 存元数据 `blobs` 表，元数据库是唯一事实源）。
-  2. 会话：`<data>/sessions/<uuid>/{data,state.json}`，纯磁盘状态，不入 DB；启动时扫描，过期（ttl，默认 24h）即清理。
+  2. 会话：`<data>/uploads/<uuid>/data`（瞬态数据）+ 元数据库 `upload_sessions` 表（状态），磁盘 `sessions/<uuid>/{data,state.json}` 纯磁盘方案废止（2026-08-22，T-209 勘误）；启动时扫描，过期（ttl，默认 24h）即清理。
   3. 落盘协议：session 追加写 `data`（边写边算 sha256/sha1/md5）→ fsync(data) → 若目标 blob 不存在则 `rename` 到 blobs 路径 → fsync(目标目录) → 提交元数据。同一文件系统内 rename 原子，崩溃只会留下 session 残渣或已完整 blob，无半写文件。
   4. 并发同一 blob：进程内 per-checksum singleflight 互斥；后到者发现目标已存在 → 丢弃自己的会话数据、返回已有 blob（幂等）。
   5. 引用与 GC：不设 ref_count 列；GC 为离线 CLI（`binflow-server gc`，默认 dry-run，`--apply` 才删），mark-sweep：未出现在 `nodes` 中且 `created_at < now - grace_period`（默认 24h，防与在途上传竞态）的 blob 才可删。
 - 理由: 分片布局消除单目录规模问题且推导简单；全局内容寻址让跨仓去重、零拷贝移动/重命名（只改 nodes 行）免费获得；会话留磁盘使存储引擎可独立于元数据库测试与恢复；mark-sweep + grace period 用时间换锁，避免为 M1 引入分布式锁或引用计数热点。
-- 后果: 备份 = `blobs/` 目录 + SQLite 文件的一致性快照（M4 交付工具）；blob 物理删除只有 GC 一个入口（运行时 DELETE 制品只删 node 引用，安全底线友好）；`sessions/` 与 `blobs/` 是版本兼容承诺，改名需新 ADR；「Artifactory 是否有 blob sidecar 属性文件」待逆向规格 docs/reverse/storage-layout.md 确认（若其有 properties 文件，BinFlow 也不跟进——以本决策为准，差异记入架构文档对齐表）。
-- 勘误（2026-08-17，T-25 依 T-9 review 落地，不推翻决策本体）: ① 决策 5 的 grace 基准明确为 **blob 文件 mtime**（非 `blobs.created_at` 列——storage 不读 DB 的必然选择，方向安全：mtime 被推新只会多保留）；mark 形态升级为**引用集合回调**（调用方一次 `SELECT DISTINCT sha256 FROM nodes`）取代逐条反连接；grace/ttl 零值 = 默认 24h。② **备份/恢复硬约束**：必须保留 blob 文件 mtime（`tar` / `rsync -a` 默认保留），否则恢复后宽限期时钟重置、全部历史 blob 立即可回收——M4 备份票与 ops 文档必须遵守。③ 会话瞬态文件 state.json 的形状由架构 §4.1 契约定稿（`version` 字段 + 演进规则）；session 目录命名仍是兼容承诺，state.json 内容不是。
+- 后果: 备份 = `blobs/` 目录 + SQLite 文件的一致性快照（M4 交付工具）；blob 物理删除只有 GC 一个入口（运行时 DELETE 制品只删 node 引用，安全底线友好）；`blobs/` 是版本兼容承诺，改名需新 ADR；磁盘 session 目录（`sessions/`）**不是**版本兼容承诺——session 状态 DB 化为迁移边界（2026-08-22，T-209 勘误，见决策 2）；「Artifactory 是否有 blob sidecar 属性文件」待逆向规格 docs/reverse/storage-layout.md 确认（若其有 properties 文件，BinFlow 也不跟进——以本决策为准，差异记入架构文档对齐表）。
+- 勘误（2026-08-17，T-25 依 T-9 review 落地，不推翻决策本体）: ① 决策 5 的 grace 基准明确为 **blob 文件 mtime**（非 `blobs.created_at` 列——storage 不读 DB 的必然选择，方向安全：mtime 被推新只会多保留）；mark 形态升级为**引用集合回调**（调用方一次 `SELECT DISTINCT sha256 FROM nodes`）取代逐条反连接；grace/ttl 零值 = 默认 24h。② **备份/恢复硬约束**：必须保留 blob 文件 mtime（`tar` / `rsync -a` 默认保留），否则恢复后宽限期时钟重置、全部历史 blob 立即可回收——M4 备份票与 ops 文档必须遵守。③ 会话瞬态文件 state.json 的形状由架构 §4.1 契约定稿（`version` 字段 + 演进规则）；session 目录命名仍是兼容承诺，state.json 内容不是（此句已被 2026-08-22 T-209 勘误修订：磁盘 session 目录不再兼容承诺，状态 DB 化——见决策 2）。
 
 ## ADR-0007: 元数据迁移机制与 SQLite 并发策略
 - 状态: Accepted

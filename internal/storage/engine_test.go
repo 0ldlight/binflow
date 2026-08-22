@@ -72,12 +72,12 @@ func countBlobs(t *testing.T, root string) int {
 
 func countSessionDirs(t *testing.T, root string) int {
 	t.Helper()
-	entries, err := os.ReadDir(filepath.Join(root, "sessions"))
+	entries, err := os.ReadDir(filepath.Join(root, "uploads"))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return 0
 		}
-		t.Fatalf("read sessions dir: %v", err)
+		t.Fatalf("read uploads dir: %v", err)
 	}
 	n := 0
 	for _, e := range entries {
@@ -323,14 +323,126 @@ func TestMultipleAppendsAccumulate(t *testing.T) {
 	}
 }
 
-func TestResumeSessionNotSupported(t *testing.T) {
-	eng := newEngine(t, Options{})
-	s, err := eng.BeginSession(context.Background())
+// TestResumeSessionRehashesPartialData simulates a crash after one Append:
+// the original session is abandoned (its in-memory hash state "lost", but its
+// row and data file survive — the original is closed via a separate engine),
+// then a fresh engine resumes the id and completes the upload with a correct
+// digest. This is the T-209 "restart can resume" capability.
+func TestResumeSessionRehashesPartialData(t *testing.T) {
+	root := t.TempDir()
+	store := newMemUploadSessions()
+	eng := newEngineAt(t, root, Options{Sessions: store})
+	ctx := context.Background()
+
+	s, err := eng.BeginSession(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := eng.ResumeSession(context.Background(), s.ID()); !errors.Is(err, ErrSessionNotFound) {
-		t.Fatalf("ResumeSession error = %v, want ErrSessionNotFound", err)
+	id := s.ID()
+	first := []byte("first chunk; ")
+	if _, err := s.Append(ctx, bytes.NewReader(first)); err != nil {
+		t.Fatal(err)
 	}
-	_ = s.Abort(context.Background())
+	// Simulate crash without Abort/Commit: tear down the engine but leave the
+	// row and data file. Close would delete them, so instead drop the engine's
+	// registry entry by closing a *never-aborting* path — we replicate the
+	// crash by writing a new engine over the same root without closing the
+	// old one (the old session's in-memory state is simply discarded, which is
+	// exactly what a process crash leaves behind).
+	_ = eng // the live session object is abandoned, mirroring a crash
+
+	eng2 := newEngineAt(t, root, Options{Sessions: store})
+	rs, err := eng2.ResumeSession(ctx, id)
+	if err != nil {
+		t.Fatalf("ResumeSession after crash: %v", err)
+	}
+	if rs.ID() != id {
+		t.Fatalf("resumed id = %q, want %q", rs.ID(), id)
+	}
+	second := []byte("second chunk completes it")
+	if off, err := rs.Append(ctx, bytes.NewReader(second)); err != nil {
+		t.Fatal(err)
+	} else if off != int64(len(first)+len(second)) {
+		t.Fatalf("offset after resume append = %d, want %d", off, len(first)+len(second))
+	}
+	ref, err := rs.Commit(ctx, BlobRef{})
+	if err != nil {
+		t.Fatalf("Commit after resume: %v", err)
+	}
+	want := fmt.Sprintf("%x", sha256.Sum256(append(append([]byte(nil), first...), second...)))
+	if ref.Sha256 != want {
+		t.Fatalf("resumed commit sha256 = %s, want %s (re-hash must reconstruct the chain)", ref.Sha256, want)
+	}
+}
+
+// TestResumeSessionNotFound pins the nil-store and missing-row paths: without
+// a Sessions store, or for an unknown id, ResumeSession yields
+// ErrSessionNotFound.
+func TestResumeSessionNotFound(t *testing.T) {
+	t.Run("nil store", func(t *testing.T) {
+		eng := newEngineAt(t, t.TempDir(), Options{})
+		if _, err := eng.ResumeSession(context.Background(), "missing"); !errors.Is(err, ErrSessionNotFound) {
+			t.Fatalf("ResumeSession err = %v, want ErrSessionNotFound", err)
+		}
+	})
+	t.Run("unknown id", func(t *testing.T) {
+		eng := newEngine(t, Options{})
+		if _, err := eng.ResumeSession(context.Background(), "00000000-0000-4000-8000-000000000000"); !errors.Is(err, ErrSessionNotFound) {
+			t.Fatalf("ResumeSession err = %v, want ErrSessionNotFound", err)
+		}
+	})
+	t.Run("empty id", func(t *testing.T) {
+		eng := newEngine(t, Options{})
+		if _, err := eng.ResumeSession(context.Background(), ""); !errors.Is(err, ErrSessionNotFound) {
+			t.Fatalf("ResumeSession('') err = %v, want ErrSessionNotFound", err)
+		}
+	})
+}
+
+// TestSessionStatePersistedToDB pins the T-209 semantics: BeginSession inserts
+// a row, Append updates its state, and Commit/Abort delete it. The row count
+// is asserted via the fake store.
+func TestSessionStatePersistedToDB(t *testing.T) {
+	store := newMemUploadSessions()
+	eng := newEngineAt(t, t.TempDir(), Options{Sessions: store})
+	ctx := context.Background()
+
+	if store.countRows() != 0 {
+		t.Fatalf("rows before begin = %d, want 0", store.countRows())
+	}
+	s, err := eng.BeginSession(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if store.countRows() != 1 {
+		t.Fatalf("rows after begin = %d, want 1", store.countRows())
+	}
+	if _, err := s.Append(ctx, strings.NewReader("abc")); err != nil {
+		t.Fatal(err)
+	}
+	row, err := store.Get(ctx, s.ID())
+	if err != nil {
+		t.Fatalf("Get after append: %v", err)
+	}
+	if row.State == "" {
+		t.Fatal("state after append is empty; want JSON bookkeeping")
+	}
+	if _, err := s.Commit(ctx, BlobRef{}); err != nil {
+		t.Fatal(err)
+	}
+	if store.countRows() != 0 {
+		t.Fatalf("rows after commit = %d, want 0 (row deleted)", store.countRows())
+	}
+
+	// Abort also deletes the row.
+	s2, err := eng.BeginSession(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := s2.Abort(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if store.countRows() != 0 {
+		t.Fatalf("rows after abort = %d, want 0", store.countRows())
+	}
 }

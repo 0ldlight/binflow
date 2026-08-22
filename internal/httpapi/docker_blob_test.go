@@ -754,10 +754,24 @@ func newHarnessWithDataDir(t *testing.T, dataDir string, st storage.Engine) *har
 	}
 }
 
-// os/stat check the sessions sweep left nothing behind (D14's residue arm).
+// TestV2BlobSessionSweepResidue checks the sessions residue arm (D14) against
+// the DB-backed session layout (T-209): an abandoned upload persists an
+// upload_sessions row + uploads/<uuid>/data file, and a crash+restart leaves
+// neither behind. The pre-T-209 disk sessions/ layout is gone.
 func TestV2BlobSessionSweepResidue(t *testing.T) {
 	dataDir := t.TempDir()
-	st, err := storage.OpenEngine(dataDir, storage.Options{})
+	ctx := t.Context()
+
+	// Open metadata first so the engine carries the session persistence seam:
+	// the abandoned upload must land an upload_sessions row to make the
+	// "crash leaves residue" precondition real (nil seam would never persist).
+	md, err := metadata.Open(ctx, metadata.Options{Driver: "sqlite", Path: dataDir + "/binflow.db"})
+	if err != nil {
+		t.Fatalf("metadata.Open: %v", err)
+	}
+	t.Cleanup(func() { _ = md.Close() })
+
+	st, err := storage.OpenEngine(dataDir, storage.Options{Sessions: md.UploadSessions()})
 	if err != nil {
 		t.Fatalf("storage.OpenEngine: %v", err)
 	}
@@ -773,23 +787,40 @@ func TestV2BlobSessionSweepResidue(t *testing.T) {
 		t.Fatalf("abandoned PATCH status = %d", resp.StatusCode)
 	}
 
+	// The abandoned session is persisted: one upload_sessions row (the sweep
+	// boundary is expires_at <= now, so a far-future now returns every row).
+	rows, err := md.UploadSessions().ListExpired(ctx, "9999-12-31T23:59:59Z", 0)
+	if err != nil {
+		t.Fatalf("list upload_sessions before crash: %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("upload_sessions rows before crash = %d, want 1 (abandoned upload persisted)", len(rows))
+	}
+
 	// Crash: close WITHOUT a graceful cancel, reopen (the startup sweep
-	// removes the orphaned session directory).
+	// removes the orphaned session directory and its upload_sessions row).
 	if err := st.Close(); err != nil {
 		t.Fatalf("close: %v", err)
 	}
-	st2, err := storage.OpenEngine(dataDir, storage.Options{})
+	st2, err := storage.OpenEngine(dataDir, storage.Options{Sessions: md.UploadSessions()})
 	if err != nil {
 		t.Fatalf("reopen: %v", err)
 	}
 	t.Cleanup(func() { _ = st2.Close() })
 
-	sessionsDir := dataDir + "/sessions"
-	entries, err := os.ReadDir(sessionsDir)
+	rows, err = md.UploadSessions().ListExpired(ctx, "9999-12-31T23:59:59Z", 0)
 	if err != nil {
-		t.Fatalf("read sessions dir: %v", err)
+		t.Fatalf("list upload_sessions after restart: %v", err)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("upload_sessions residue survived the restart sweep: %d rows", len(rows))
+	}
+	uploadsDir := dataDir + "/uploads"
+	entries, err := os.ReadDir(uploadsDir)
+	if err != nil {
+		t.Fatalf("read uploads dir: %v", err)
 	}
 	if len(entries) != 0 {
-		t.Fatalf("session residue survived the startup sweep: %d entries", len(entries))
+		t.Fatalf("session residue survived the startup sweep: %d entries under %s", len(entries), uploadsDir)
 	}
 }

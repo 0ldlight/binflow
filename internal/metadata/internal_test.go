@@ -215,6 +215,7 @@ func TestSchemaTablesExist(t *testing.T) {
 		"docker_manifests", "docker_tags", "docker_refs",
 		"remote_cache",
 		"groups", "user_groups", "web_sessions", "repo_usage",
+		"replications", "replication_tasks", "upload_sessions",
 	}
 	rows, err := db.Query(`SELECT name FROM sqlite_master WHERE type = 'table'`)
 	if err != nil {
@@ -350,6 +351,8 @@ func TestDockerUpgradeFromM1Database(t *testing.T) {
 		`DROP INDEX IF EXISTS idx_replication_tasks_pending`,
 		`DROP TABLE replications`,
 		`DROP INDEX IF EXISTS idx_replications_source`,
+		`DROP TABLE upload_sessions`,
+		`DROP INDEX IF EXISTS idx_upload_sessions_expiry`,
 		`DROP INDEX IF EXISTS idx_blobs_sha1`,
 		`DROP TABLE docker_refs`,
 		`DROP INDEX IF EXISTS idx_docker_tags_image`,

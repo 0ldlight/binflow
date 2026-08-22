@@ -193,7 +193,7 @@ func runExport(args []string, stderr io.Writer) error {
 	var files int
 	var copied int64
 	if engineBackedBlobStore(cfg) {
-		st, oerr := openStorageEngine(ctx, cfg, logger)
+		st, oerr := openStorageEngine(ctx, cfg, logger, md)
 		if oerr != nil {
 			return fmt.Errorf("export: %w", oerr)
 		}
@@ -427,6 +427,21 @@ func runImport(args []string, stderr io.Writer) error {
 	if err := copyFile(metaSrc, dbAbs, 0o600); err != nil {
 		return fmt.Errorf("import: %w", err)
 	}
+	// Open the restored metadata before the blob restore: the engine needs the
+	// upload_sessions store, and this open also migrates an older snapshot up
+	// (the reachable direction checked above) — a failure here is a write-phase
+	// failure and clears the target like any other. The same store later records
+	// the import.run audit event.
+	md, err := metadata.Open(ctx, metadata.Options{
+		Driver:        cfg.Metadata.Driver,
+		DSN:           dbAbs,
+		AdminPassword: cfg.AdminPassword,
+	})
+	if err != nil {
+		return fmt.Errorf("import: opening restored metadata: %w", err)
+	}
+	defer func() { _ = md.Close() }()
+
 	// Blob restore is engine-aware (T-201, T-173 D-2 — the symmetric half
 	// of the export fix): an S3-backed instance uploads the artifact's
 	// blobs INTO the bucket through the engine's session path (the same
@@ -439,7 +454,7 @@ func runImport(args []string, stderr io.Writer) error {
 	// Dual-write stacks keep the tree copy; the migration's idempotent
 	// re-scan syncs the restored disk blobs to S3 on its next run.
 	if engineBackedBlobStore(cfg) {
-		st, oerr := openStorageEngine(ctx, cfg, logger)
+		st, oerr := openStorageEngine(ctx, cfg, logger, md)
 		if oerr != nil {
 			return fmt.Errorf("import: %w", oerr)
 		}
@@ -455,19 +470,7 @@ func runImport(args []string, stderr io.Writer) error {
 		return fmt.Errorf("import: chmod %s 0700: %w", cfg.Storage.DataDir, err)
 	}
 
-	// Record import.run in the RESTORED instance's audit trail. Opening
-	// through metadata.Open also migrates an older snapshot up (the
-	// reachable direction checked above) — a failure here is a write-phase
-	// failure and clears the target like any other.
-	md, err := metadata.Open(ctx, metadata.Options{
-		Driver:        cfg.Metadata.Driver,
-		DSN:           dbAbs,
-		AdminPassword: cfg.AdminPassword,
-	})
-	if err != nil {
-		return fmt.Errorf("import: opening restored metadata: %w", err)
-	}
-	defer func() { _ = md.Close() }()
+	// Record import.run in the RESTORED instance's audit trail.
 	elapsed := time.Since(started)
 	detail, _ := json.Marshal(struct {
 		Input      string `json:"input"`

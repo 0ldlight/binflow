@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -16,6 +17,8 @@ import (
 	"runtime"
 	"testing"
 	"time"
+
+	"github.com/lzwzzy/binflow/internal/metadata"
 )
 
 // streamSource is an io.Reader producing size pseudo-random bytes with a
@@ -229,13 +232,15 @@ func TestStatDigestsMatchCliTools(t *testing.T) {
 	}
 }
 
-// TestSessionStateOnDisk pins the state.json contract (architecture
-// section 4.1): exact key set {"version","id","created_at","received",
-// "sha256"}, sha256 always null, received tracking the bytes appended, and
-// the file vanishing with the session.
+// TestSessionStateOnDisk pins the T-209 DB-backed state contract: the
+// persisted row's state is a JSON document of the shape
+// {"version","id","created_at","received"} (no sha256 — digests are never
+// persisted), received tracks appended bytes truthfully, the data file lives
+// under uploads/<id>/data, and both the row and the file vanish with the
+// session.
 func TestSessionStateOnDisk(t *testing.T) {
-	root := t.TempDir()
-	eng, err := OpenEngine(root, Options{})
+	store := newMemUploadSessions()
+	eng, err := OpenEngine(t.TempDir(), Options{Sessions: store})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -244,9 +249,9 @@ func TestSessionStateOnDisk(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, err := os.ReadFile(filepath.Join(root, "sessions", s.ID(), "state.json"))
+	row, err := store.Get(context.Background(), s.ID())
 	if err != nil {
-		t.Fatalf("state.json missing: %v", err)
+		t.Fatalf("row missing after begin: %v", err)
 	}
 	var st struct {
 		Version   *int   `json:"version"`
@@ -255,45 +260,51 @@ func TestSessionStateOnDisk(t *testing.T) {
 		Received  *int64 `json:"received"`
 		Sha256    any    `json:"sha256"`
 	}
-	if err := json.Unmarshal(b, &st); err != nil {
-		t.Fatalf("state.json = %s: %v", b, err)
+	if err := json.Unmarshal([]byte(row.State), &st); err != nil {
+		t.Fatalf("state JSON = %s: %v", row.State, err)
 	}
 	if st.Version == nil || *st.Version != 1 {
-		t.Fatalf("state.json version = %v, want 1", st.Version)
+		t.Fatalf("state version = %v, want 1", st.Version)
 	}
 	if st.ID != s.ID() {
-		t.Fatalf("state.json id = %q, want %q", st.ID, s.ID())
+		t.Fatalf("state id = %q, want %q", st.ID, s.ID())
 	}
 	if st.CreatedAt == "" {
-		t.Fatal("state.json created_at empty")
+		t.Fatal("state created_at empty")
 	}
 	if st.Received == nil || *st.Received != 0 {
-		t.Fatalf("state.json received at begin = %v, want 0", st.Received)
+		t.Fatalf("state received at begin = %v, want 0", st.Received)
 	}
 	if st.Sha256 != nil {
-		t.Fatalf("state.json sha256 = %v, want null (digests never persisted)", st.Sha256)
+		t.Fatalf("state sha256 = %v, want null (digests never persisted)", st.Sha256)
+	}
+	if row.CreatedAt == "" || row.ExpiresAt == "" {
+		t.Fatalf("row timestamps empty: created=%q expires=%q", row.CreatedAt, row.ExpiresAt)
 	}
 
 	// received must track appended bytes truthfully.
 	if _, err := s.Append(context.Background(), bytes.NewReader([]byte("partial"))); err != nil {
 		t.Fatal(err)
 	}
-	b, err = os.ReadFile(filepath.Join(root, "sessions", s.ID(), "state.json"))
+	row, err = store.Get(context.Background(), s.ID())
 	if err != nil {
 		t.Fatal(err)
 	}
 	st.Received = nil
-	if err := json.Unmarshal(b, &st); err != nil {
-		t.Fatalf("state.json after append = %s: %v", b, err)
+	if err := json.Unmarshal([]byte(row.State), &st); err != nil {
+		t.Fatalf("state after append = %s: %v", row.State, err)
 	}
 	if st.Received == nil || *st.Received != int64(len("partial")) {
-		t.Fatalf("state.json received after append = %v, want %d", st.Received, len("partial"))
+		t.Fatalf("state received after append = %v, want %d", st.Received, len("partial"))
 	}
-	if _, err := os.Stat(filepath.Join(root, "sessions", s.ID(), "data")); err != nil {
+	if _, err := os.Stat(filepath.Join(engineRoot(t, eng), "uploads", s.ID(), "data")); err != nil {
 		t.Fatalf("session data file missing: %v", err)
 	}
 	_ = s.Abort(context.Background())
-	if _, err := os.Stat(filepath.Join(root, "sessions", s.ID(), "state.json")); !os.IsNotExist(err) {
-		t.Fatalf("state.json survived Abort: %v", err)
+	if _, err := store.Get(context.Background(), s.ID()); !errors.Is(err, metadata.ErrUploadSessionNotFound) {
+		t.Fatalf("row survived Abort: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(engineRoot(t, eng), "uploads", s.ID(), "data")); !os.IsNotExist(err) {
+		t.Fatalf("data file survived Abort: %v", err)
 	}
 }

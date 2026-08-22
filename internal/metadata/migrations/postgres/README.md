@@ -49,6 +49,12 @@ one-to-one when the dialect lands):
   substr/length unchanged; created_by='' and created_at = updated_at = the
   youngest descendant's created_at (MAX) keep the value deterministic across
   replays.
+- 008_oidc_ldap: auth provider columns (oidc_* on users, ldap_dn; ADR-0020).
+- 009_replication: replication/federation tables (replications,
+  replication_tasks; ADR-0021).
+- 010_upload_sessions: local-filestore upload session persistence (T-209).
+  The session id is a uuid text primary key in both dialects (no sequence),
+  state is opaque JSON owned by the storage engine.
 
 The migrator currently embeds `migrations/sqlite/*.sql` only
 (see ../migrate.go).

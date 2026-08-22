@@ -8,69 +8,73 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/lzwzzy/binflow/internal/metadata"
 )
 
-// mkStaleSession fabricates a session directory as a crashed process would
-// leave it, with created_at (and mtime) age old.
-func mkStaleSession(t *testing.T, root, id string, age time.Duration) {
+// mkStaleSession fabricates a crashed session: an uploads/<id>/data file plus
+// an upload_sessions row with the given absolute expires_at. The sweep's
+// ListExpired boundary is expires_at <= now, so expiresAt determines whether
+// the session survives.
+func mkStaleSession(t *testing.T, root string, store *memUploadSessions, id string, expiresAt time.Time) {
 	t.Helper()
-	dir := filepath.Join(root, "sessions", id)
+	dir := filepath.Join(root, "uploads", id)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	st := sessionState{Version: stateVersion, ID: id, CreatedAt: time.Now().Add(-age)}
-	if err := writeSessionState(dir, st); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "data"), []byte("partial"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	past := time.Now().Add(-age)
-	if err := os.Chtimes(dir, past, past); err != nil {
-		t.Fatal(err)
+	created := expiresAt.Add(-DefaultSessionTTL)
+	st := sessionState{Version: 1, ID: id, CreatedAt: created}
+	if err := store.Create(context.Background(), &metadata.UploadSession{
+		ID:        id,
+		State:     marshalSessionState(st),
+		CreatedAt: created.UTC().Format(time.RFC3339),
+		ExpiresAt: expiresAt.UTC().Format(time.RFC3339),
+	}); err != nil {
+		t.Fatalf("seed stale row %s: %v", id, err)
 	}
 }
 
 func TestStartupSweepSessions(t *testing.T) {
 	tests := []struct {
 		name    string
-		ttl     time.Duration
-		ages    map[string]time.Duration // session id -> age
+		expires map[string]time.Duration // session id -> expires_at offset from now (negative = expired)
 		wantLen int                      // sessions left after OpenEngine
 	}{
 		{
-			name: "stale beyond ttl removed, fresh kept",
-			ttl:  time.Hour,
-			ages: map[string]time.Duration{
-				"old-1": 2 * time.Hour,
-				"old-2": 25 * time.Hour,
+			name: "expired removed, fresh kept",
+			expires: map[string]time.Duration{
+				"old-1": -2 * time.Hour,
+				"old-2": -25 * time.Hour,
 				"new-1": 10 * time.Minute,
 			},
 			wantLen: 1,
 		},
 		{
 			name: "default ttl keeps 23h sessions",
-			ttl:  0, // -> DefaultSessionTTL (24h)
-			ages: map[string]time.Duration{
-				"edge-keeps": 23 * time.Hour,
-				"edge-drops": 25 * time.Hour,
+			expires: map[string]time.Duration{
+				"edge-keeps": time.Hour, // expires 1h in the future
+				"edge-drops": -time.Hour,
 			},
 			wantLen: 1,
 		},
 		{
 			name:    "no sessions",
-			ttl:     time.Hour,
-			ages:    map[string]time.Duration{},
+			expires: map[string]time.Duration{},
 			wantLen: 0,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			root := t.TempDir()
-			for id, age := range tt.ages {
-				mkStaleSession(t, root, id, age)
+			store := newMemUploadSessions()
+			now := time.Now()
+			for id, off := range tt.expires {
+				mkStaleSession(t, root, store, id, now.Add(off))
 			}
-			eng, err := OpenEngine(root, Options{SessionTTL: tt.ttl})
+			eng, err := OpenEngine(root, Options{Sessions: store})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -88,7 +92,8 @@ func TestStartupSweepSessions(t *testing.T) {
 // the second engine's sweep would use, via the owning engine directly.
 func TestSweepKeepsLiveSessions(t *testing.T) {
 	root := t.TempDir()
-	eng, err := OpenEngine(root, Options{SessionTTL: time.Nanosecond})
+	store := newMemUploadSessions()
+	eng, err := OpenEngine(root, Options{SessionTTL: time.Nanosecond, Sessions: store})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,6 +112,9 @@ func TestSweepKeepsLiveSessions(t *testing.T) {
 	if got := countSessionDirs(t, root); got != 1 {
 		t.Fatalf("sessions after own-engine sweep = %d, want 1 (live session kept)", got)
 	}
+	if got := store.countRows(); got != 1 {
+		t.Fatalf("rows after own-engine sweep = %d, want 1 (live row kept)", got)
+	}
 
 	// Once aborted (unregistered), the same sweep removes it.
 	_ = s.Abort(context.Background())
@@ -118,25 +126,21 @@ func TestSweepKeepsLiveSessions(t *testing.T) {
 	}
 }
 
-// TestSweepFallsBackToMtime: a session dir without readable state.json still
-// ages out via directory mtime.
+// TestSweepFallsBackToMtime: an orphan uploads/ dir with NO surviving row is
+// reclaimed by the orphan scan (no row to age it out).
 func TestSweepFallsBackToMtime(t *testing.T) {
 	root := t.TempDir()
-	dir := filepath.Join(root, "sessions", "no-state")
+	dir := filepath.Join(root, "uploads", "no-state")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	past := time.Now().Add(-25 * time.Hour)
-	if err := os.Chtimes(dir, past, past); err != nil {
-		t.Fatal(err)
-	}
-	eng, err := OpenEngine(root, Options{})
+	eng, err := OpenEngine(root, Options{Sessions: newMemUploadSessions()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer eng.Close() //nolint:errcheck // test
 	if got := countSessionDirs(t, root); got != 0 {
-		t.Fatalf("sessions after sweep = %d, want 0 (mtime fallback)", got)
+		t.Fatalf("sessions after sweep = %d, want 0 (orphan dir reclaimed)", got)
 	}
 }
 

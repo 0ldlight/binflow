@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -212,7 +211,8 @@ func TestSingleflightExecutesOnce(t *testing.T) {
 // and asserts the two invariants that matter (ADR-0006):
 //
 //	a) no half-written blob is ever visible under blobs/
-//	b) residue is confined to sessions/, which the next Open sweeps
+//	b) residue is confined to uploads/ + upload_sessions rows, which the next
+//	   Open sweeps once expired
 func TestCrashWindowsSimulated(t *testing.T) {
 	content := []byte("payload that would have been committed")
 	want := fmt.Sprintf("%x", sha256.Sum256(content))
@@ -220,36 +220,40 @@ func TestCrashWindowsSimulated(t *testing.T) {
 	crashPoints := []struct {
 		name string
 		// leave simulates the process dying at a specific protocol step by
-		// leaving on-disk state as it would be at that instant.
-		leave func(t *testing.T, root string)
+		// leaving on-disk + row state as it would be at that instant.
+		leave func(t *testing.T, root string, store *memUploadSessions)
 	}{
 		{
 			name: "mid-append",
-			leave: func(t *testing.T, root string) {
-				dir := filepath.Join(root, "sessions", "00000000-0000-4000-8000-000000000001")
+			leave: func(t *testing.T, root string, store *memUploadSessions) {
+				id := "00000000-0000-4000-8000-000000000001"
+				dir := filepath.Join(root, "uploads", id)
 				if err := os.MkdirAll(dir, 0o755); err != nil {
 					t.Fatal(err)
 				}
 				if err := os.WriteFile(filepath.Join(dir, "data"), content[:5], 0o644); err != nil {
 					t.Fatal(err)
 				}
+				seedSessionRow(t, store, id, content[:5])
 			},
 		},
 		{
 			name: "after-fsync-before-rename",
-			leave: func(t *testing.T, root string) {
-				dir := filepath.Join(root, "sessions", "00000000-0000-4000-8000-000000000002")
+			leave: func(t *testing.T, root string, store *memUploadSessions) {
+				id := "00000000-0000-4000-8000-000000000002"
+				dir := filepath.Join(root, "uploads", id)
 				if err := os.MkdirAll(dir, 0o755); err != nil {
 					t.Fatal(err)
 				}
 				if err := os.WriteFile(filepath.Join(dir, "data"), content, 0o644); err != nil { // fully written, not yet renamed
 					t.Fatal(err)
 				}
+				seedSessionRow(t, store, id, content)
 			},
 		},
 		{
 			name: "after-rename-before-metadata",
-			leave: func(t *testing.T, root string) {
+			leave: func(t *testing.T, root string, store *memUploadSessions) {
 				p := filepath.Join(root, "blobs", want[:2], want)
 				if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 					t.Fatal(err)
@@ -258,13 +262,15 @@ func TestCrashWindowsSimulated(t *testing.T) {
 					t.Fatal(err)
 				}
 				// A stray unrelated session the crash also leaves behind.
-				dir := filepath.Join(root, "sessions", "00000000-0000-4000-8000-000000000003")
+				id := "00000000-0000-4000-8000-000000000003"
+				dir := filepath.Join(root, "uploads", id)
 				if err := os.MkdirAll(dir, 0o755); err != nil {
 					t.Fatal(err)
 				}
 				if err := os.WriteFile(filepath.Join(dir, "data"), []byte("half"), 0o644); err != nil {
 					t.Fatal(err)
 				}
+				seedSessionRow(t, store, id, []byte("half"))
 			},
 		},
 	}
@@ -272,21 +278,25 @@ func TestCrashWindowsSimulated(t *testing.T) {
 	for _, cp := range crashPoints {
 		t.Run(cp.name, func(t *testing.T) {
 			root := t.TempDir()
-			cp.leave(t, root)
+			store := newMemUploadSessions()
+			cp.leave(t, root, store)
 			// Simulate the crash residue having aged past the session TTL:
 			// a fresh crash leaves young sessions (kept), time expires them.
-			backdateSessions(t, root, DefaultSessionTTL+time.Hour)
+			expireAllRows(t, store, DefaultSessionTTL+time.Hour)
 
 			// Reopen (simulated restart): must succeed and sweep the residue.
-			eng, err := OpenEngine(root, Options{})
+			eng, err := OpenEngine(root, Options{Sessions: store})
 			if err != nil {
 				t.Fatalf("reopen after crash: %v", err)
 			}
 			defer eng.Close() //nolint:errcheck // test
 
-			// Invariant b: residue only ever lived under sessions/, now swept.
+			// Invariant b: residue only ever lived under uploads/, now swept.
 			if n := countSessionDirs(t, root); n != 0 {
 				t.Fatalf("session residue after restart sweep = %d, want 0", n)
+			}
+			if n := store.countRows(); n != 0 {
+				t.Fatalf("session rows after restart sweep = %d, want 0", n)
 			}
 
 			// Invariant a: whatever exists under blobs/ is a complete blob.
@@ -308,39 +318,5 @@ func TestCrashWindowsSimulated(t *testing.T) {
 				t.Fatalf("post-recovery upload: ref=%s blobs=%d", ref.Sha256, countBlobs(t, root))
 			}
 		})
-	}
-}
-
-// backdateSessions rewinds every session directory mtime by age so the sweep
-// sees it as beyond the TTL (state.json, when present, holds an equally old
-// created_at by construction of the test fixtures).
-func backdateSessions(t *testing.T, root string, age time.Duration) {
-	t.Helper()
-	sessions := filepath.Join(root, "sessions")
-	entries, err := os.ReadDir(sessions)
-	if err != nil {
-		t.Fatalf("read sessions: %v", err)
-	}
-	past := time.Now().Add(-age)
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		p := filepath.Join(sessions, e.Name())
-		if err := os.Chtimes(p, past, past); err != nil {
-			t.Fatalf("chtimes %s: %v", p, err)
-		}
-		// A crashed writer may have died before state.json existed; the ones
-		// that did write it get a matching created_at.
-		statePath := filepath.Join(p, "state.json")
-		if b, err := os.ReadFile(statePath); err == nil {
-			var st sessionState
-			if json.Unmarshal(b, &st) == nil {
-				st.CreatedAt = past
-				if b2, err := json.Marshal(st); err == nil {
-					_ = os.WriteFile(statePath, b2, 0o644)
-				}
-			}
-		}
 	}
 }

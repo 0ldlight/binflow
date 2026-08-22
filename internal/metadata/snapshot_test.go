@@ -109,6 +109,16 @@ func seedSnapshotFixture(t *testing.T, dir string) (nodeA, nodeB, refsOnly strin
 	}); err != nil {
 		t.Fatalf("web session create: %v", err)
 	}
+	// A live upload session row: like the web session, it is runtime state and
+	// must not ride the artifact (purged on export). The timestamps are strings
+	// (metadata.Now() returns an RFC3339 string); the expiry is far in the
+	// future only to keep the row valid — the purge ignores expiry entirely.
+	if err := md.UploadSessions().Create(ctx, &metadata.UploadSession{
+		ID: "11111111-2222-3333-4444-555555555555", State: `{"received":42}`,
+		CreatedAt: now, ExpiresAt: metadata.NeverExpires,
+	}); err != nil {
+		t.Fatalf("upload session create: %v", err)
+	}
 	return nodeA, nodeB, refsOnly
 }
 
@@ -281,7 +291,7 @@ func TestSnapshotSchemaVersionAndCeiling(t *testing.T) {
 	}
 }
 
-func TestPurgeTransientFromSnapshotRemovesWebSessionsOnly(t *testing.T) {
+func TestPurgeTransientFromSnapshotRemovesRuntimeSessionTables(t *testing.T) {
 	dir := t.TempDir()
 	seedSnapshotFixture(t, dir)
 	dst := filepath.Join(t.TempDir(), "snapshot.db")
@@ -297,6 +307,13 @@ func TestPurgeTransientFromSnapshotRemovesWebSessionsOnly(t *testing.T) {
 	}
 	if sessions != 0 {
 		t.Fatalf("web_sessions rows = %d, want 0 (runtime state never rides a backup, architecture 11.19)", sessions)
+	}
+	var uploads int
+	if err := db.QueryRow("SELECT COUNT(*) FROM upload_sessions").Scan(&uploads); err != nil {
+		t.Fatalf("count upload_sessions: %v", err)
+	}
+	if uploads != 0 {
+		t.Fatalf("upload_sessions rows = %d, want 0 (runtime session rows never ride a backup, T-209)", uploads)
 	}
 	// remote_cache STAYS (validators of cached blobs that travel with blobs/).
 	if _, err := db.Exec("CREATE TABLE IF NOT EXISTS remote_cache (x)"); err != nil {

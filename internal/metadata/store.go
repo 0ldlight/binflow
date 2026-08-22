@@ -285,7 +285,10 @@ func (s *sqliteStore) Remote() RemoteStore          { return &remoteStore{db: s.
 func (s *sqliteStore) Virtual() VirtualStore        { return &virtualStore{db: s.db} }
 func (s *sqliteStore) Groups() GroupStore           { return &groupStore{db: s.db} }
 func (s *sqliteStore) WebSessions() WebSessionStore { return &webSessionStore{db: s.db} }
-func (s *sqliteStore) Usage() UsageStore            { return &usageStore{db: s.db} }
+func (s *sqliteStore) UploadSessions() UploadSessionStore {
+	return &uploadSessionStore{db: s.db}
+}
+func (s *sqliteStore) Usage() UsageStore { return &usageStore{db: s.db} }
 
 func (s *sqliteStore) Ping(ctx context.Context) error {
 	if err := s.db.PingContext(ctx); err != nil {

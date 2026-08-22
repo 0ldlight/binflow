@@ -566,7 +566,7 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 			"start_tls", cfg.Auth.LDAP.StartTLS)
 	}
 
-	st, err := openStorageEngine(ctx, cfg, logger)
+	st, err := openStorageEngine(ctx, cfg, logger, md)
 	if err != nil {
 		_ = md.Close()
 		return nil, err
@@ -844,13 +844,14 @@ func sqlitePath(cfg *config.Config) string {
 // whose endpoint and credentials the config only validates under
 // backend=s3 — silently skipping half of every write is not an acceptable
 // reading of the flag.
-func openStorageEngine(ctx context.Context, cfg *config.Config, logger *slog.Logger) (storage.Engine, error) {
+func openStorageEngine(ctx context.Context, cfg *config.Config, logger *slog.Logger, md metadata.Store) (storage.Engine, error) {
 	if cfg.Storage.Backend != config.StorageBackendS3 {
 		if cfg.Storage.Migration.Enabled && !cfg.Storage.Migration.Completed {
 			return nil, fmt.Errorf("opening storage engine: storage.migration.enabled requires storage.backend=s3 (dual-write targets the S3 backend)")
 		}
 		st, err := storage.OpenEngine(cfg.Storage.DataDir, storage.Options{
 			SessionTTL: cfg.Storage.SessionTTL,
+			Sessions:   md.UploadSessions(),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("opening storage engine at %s: %w", cfg.Storage.DataDir, err)
@@ -867,6 +868,7 @@ func openStorageEngine(ctx context.Context, cfg *config.Config, logger *slog.Log
 	if mig.Enabled && !mig.Completed {
 		diskEngine, derr := storage.OpenEngine(cfg.Storage.DataDir, storage.Options{
 			SessionTTL: cfg.Storage.SessionTTL,
+			Sessions:   md.UploadSessions(),
 		})
 		if derr != nil {
 			_ = s3Engine.Close()
@@ -1066,12 +1068,8 @@ func runGC(args []string, stderr io.Writer) error {
 	}
 
 	logger := slog.New(slog.NewTextHandler(stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
-	st, err := storage.OpenEngine(cfg.Storage.DataDir, storage.Options{SessionTTL: cfg.Storage.SessionTTL})
-	if err != nil {
-		return fmt.Errorf("gc: opening storage engine at %s: %w", cfg.Storage.DataDir, err)
-	}
-	defer func() { _ = st.Close() }()
-
+	// Metadata opens first so the storage engine can hand its upload_sessions
+	// store to the startup sweep (T-209: sessions are DB-backed).
 	md, err := metadata.Open(ctx, metadata.Options{
 		Driver:        cfg.Metadata.Driver,
 		DSN:           sqlitePath(cfg),
@@ -1081,6 +1079,15 @@ func runGC(args []string, stderr io.Writer) error {
 		return fmt.Errorf("gc: opening metadata: %w", err)
 	}
 	defer func() { _ = md.Close() }()
+
+	st, err := storage.OpenEngine(cfg.Storage.DataDir, storage.Options{
+		SessionTTL: cfg.Storage.SessionTTL,
+		Sessions:   md.UploadSessions(),
+	})
+	if err != nil {
+		return fmt.Errorf("gc: opening storage engine at %s: %w", cfg.Storage.DataDir, err)
+	}
+	defer func() { _ = st.Close() }()
 
 	referenced := func() (map[string]struct{}, error) {
 		set, err := liveChecksumSet(ctx, md)

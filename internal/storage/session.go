@@ -11,9 +11,10 @@ import (
 )
 
 // uploadSession is the live state of one upload: an append-only data file
-// under <root>/sessions/<uuid>/ plus running hash states. A session is
-// single-threaded by contract (architecture section 3.1); mu guards against
-// accidental concurrent use so state can never interleave.
+// under <root>/uploads/<uuid>/ plus running hash states, mirrored by an
+// upload_sessions row in the metadata store. A session is single-threaded by
+// contract (architecture section 3.1); mu guards against accidental concurrent
+// use so state can never interleave.
 type uploadSession struct {
 	eng      *engine
 	id       string
@@ -64,15 +65,29 @@ func (s *uploadSession) Append(ctx context.Context, r io.Reader) (int64, error) 
 		return 0, fmt.Errorf("storage: append session %s: %w", s.id, err)
 	}
 	s.state.Received += written
-	// Keep state.json truthful (received = bytes on disk) per section 4.1;
-	// M1 has no reader for it, but the file must never lie. Best effort: a
-	// failure here poisons the session too — the on-disk bookkeeping would
-	// diverge from the data file.
-	if err := writeSessionState(s.dir, s.state); err != nil {
+	// Persist the updated received counter to the DB row (best-effort truth
+	// bookkeeping; ResumeSession re-derives the offset from the file, so a
+	// crash between the data write and this update is harmless). A failure
+	// here poisons the session: on-disk bookkeeping diverged from the data
+	// file, and a resumed session must not trust either.
+	if err := s.persistStateLocked(ctx); err != nil {
 		s.poison(s, err)
 		return 0, fmt.Errorf("storage: append session %s: %w", s.id, err)
 	}
 	return s.state.Received, nil
+}
+
+// persistStateLocked writes the session state to the metadata row. A nil
+// Sessions store (blob-only GC path) makes it a no-op. Callers hold s.mu.
+func (s *uploadSession) persistStateLocked(ctx context.Context) error {
+	ss := s.eng.opts.Sessions
+	if ss == nil {
+		return nil
+	}
+	if err := ss.SetState(ctx, s.id, marshalSessionState(s.state)); err != nil {
+		return fmt.Errorf("persist session state: %w", err)
+	}
+	return nil
 }
 
 // poison marks the session unusable after a write-path failure. It does NOT
@@ -96,7 +111,7 @@ func (s *uploadSession) poison(_ *uploadSession, cause error) {
 //
 // The metadata transaction is deliberately out of scope: this method's
 // contract ends at "blob in place" (architecture section 3.3 makes the
-// ordering blob-first a hard rule).
+// ordering blob-first a hard rule). The session row is deleted on success.
 func (s *uploadSession) Commit(ctx context.Context, expect BlobRef) (BlobRef, error) {
 	if s == nil {
 		return BlobRef{}, errors.New("storage: commit: nil session")
@@ -162,6 +177,7 @@ func (s *uploadSession) Commit(ctx context.Context, expect BlobRef) (BlobRef, er
 	// uploader of this blob performs the physical publish; the rest wake up,
 	// see the blob present and discard their own session data.
 	commitErr := s.eng.sf.do(actual.Sha256, func() error {
+		fp := s.dataPath()
 		if _, err := os.Stat(target); err == nil {
 			return nil // blob already present; idempotent hit
 		} else if !errors.Is(err, os.ErrNotExist) {
@@ -172,8 +188,8 @@ func (s *uploadSession) Commit(ctx context.Context, expect BlobRef) (BlobRef, er
 		}
 		// rename is atomic: readers see either the old file or the complete
 		// new one, never a half-written blob.
-		if err := os.Rename(s.dataPath(), target); err != nil {
-			return fmt.Errorf("rename %s -> %s: %w", s.dataPath(), target, err)
+		if err := os.Rename(fp, target); err != nil {
+			return fmt.Errorf("rename %s -> %s: %w", fp, target, err)
 		}
 		if err := syncDir(filepath.Dir(target)); err != nil {
 			return fmt.Errorf("fsync %s: %w", filepath.Dir(target), err)
@@ -189,7 +205,7 @@ func (s *uploadSession) Commit(ctx context.Context, expect BlobRef) (BlobRef, er
 	}
 
 	// Success: the data file is gone (renamed) or obsolete (dedup hit);
-	// close the fd and drop the session directory.
+	// close the fd and drop the session directory and DB row.
 	s.finishLocked()
 	return actual, nil
 }
@@ -212,17 +228,27 @@ func (s *uploadSession) Abort(ctx context.Context) error {
 
 // dataPath is the temp file location; only valid while the session lives.
 func (s *uploadSession) dataPath() string {
-	return filepath.Join(s.dir, sessionDataFile)
+	return filepath.Join(s.dir, dataFileName)
 }
 
-// finishLocked marks the session done and removes its directory. Callers
-// hold s.mu.
+// deleteRowLocked removes the metadata row (best-effort: a replayed Commit
+// or Abort is a no-op and the startup sweep reclaims any orphan row via
+// expiry). A nil Sessions store makes it a no-op. Callers hold s.mu.
+func (s *uploadSession) deleteRowLocked() {
+	if ss := s.eng.opts.Sessions; ss != nil {
+		_ = ss.Delete(context.Background(), s.id)
+	}
+}
+
+// finishLocked marks the session done and removes its directory and row.
+// Callers hold s.mu.
 func (s *uploadSession) finishLocked() {
 	s.done = true
 	if s.file != nil {
 		_ = s.file.Close()
 	}
 	_ = os.RemoveAll(s.dir)
+	s.deleteRowLocked()
 	s.eng.forgetSession(s)
 }
 
@@ -231,6 +257,26 @@ func (s *uploadSession) finishLocked() {
 func (s *uploadSession) failLocked() {
 	s.poisoned = true
 	s.finishLocked()
+}
+
+// detach unloads a session whose id has been re-registered (a repeated
+// ResumeSession for the same id). It closes the old fd and marks the session
+// finalized so every later Append/Commit/Abort is a no-op, but it leaves the
+// on-disk directory and the DB row alone: the replacement session owns those
+// shared resources, and deleting them here would destroy it. The caller must
+// NOT hold e.mu — acquiring s.mu while holding e.mu would invert the
+// s.mu -> e.mu order finishLocked/forgetSession establish.
+func (s *uploadSession) detach() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.done {
+		return
+	}
+	s.done = true
+	if s.file != nil {
+		_ = s.file.Close()
+		s.file = nil
+	}
 }
 
 // cleanup is the engine-shutdown path (Close already drained the registry).
@@ -252,6 +298,7 @@ func (s *uploadSession) cleanup() error {
 	if err := os.RemoveAll(s.dir); err != nil {
 		return fmt.Errorf("remove %s: %w", s.dir, err)
 	}
+	s.deleteRowLocked()
 	return nil
 }
 

@@ -174,7 +174,7 @@ func (m *mockS3Server) handle(w http.ResponseWriter, r *http.Request) {
 func (m *mockS3Server) handleStatObject(w http.ResponseWriter, _ *http.Request, b *mockBucket, key string) {
 	m.mu.Lock()
 	data, ok := b.objects[key]
-	md, _ := b.metadata[key]
+	md := b.metadata[key]
 	lm := b.lastModified[key]
 	m.mu.Unlock()
 	if !ok {

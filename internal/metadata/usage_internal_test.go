@@ -76,6 +76,8 @@ func TestUsageBackfillMigration(t *testing.T) {
 		`DROP INDEX IF EXISTS idx_replication_tasks_pending`,
 		`DROP TABLE replications`,
 		`DROP INDEX IF EXISTS idx_replications_source`,
+		`DROP TABLE upload_sessions`,
+		`DROP INDEX IF EXISTS idx_upload_sessions_expiry`,
 	} {
 		if _, err := db.Exec(stmt); err != nil {
 			t.Fatalf("rewind (%q): %v", stmt, err)

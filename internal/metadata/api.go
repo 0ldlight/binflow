@@ -49,6 +49,10 @@ var ErrGroupNotFound = errors.New("metadata: group not found")
 // web_sessions rows.
 var ErrWebSessionNotFound = errors.New("metadata: web session not found")
 
+// ErrUploadSessionNotFound is returned by UploadSessionStore methods for
+// missing upload_sessions rows.
+var ErrUploadSessionNotFound = errors.New("metadata: upload session not found")
+
 // ErrInvalidCursor is returned by AuditStore.Query when the cursor parameter
 // cannot be decoded; the HTTP layer maps it to 400 (GE-01).
 var ErrInvalidCursor = errors.New("metadata: invalid cursor")
@@ -281,6 +285,18 @@ type RepoUsage struct {
 	UpdatedAt    string
 }
 
+// UploadSession is one upload_sessions row (010, T-209): the persisted state
+// of a local-filestore upload session. The disk storage engine owns the
+// lifecycle; State is opaque JSON owned by the engine (the metadata layer
+// never parses it), so the engine may widen the JSON shape without a
+// metadata migration.
+type UploadSession struct {
+	ID        string // session uuid, primary key
+	State     string // opaque JSON owned by the engine (created_at/received/version)
+	CreatedAt string // RFC3339 UTC
+	ExpiresAt string // RFC3339 UTC; startup sweep deletes rows past this
+}
+
 // AuditQuery is the full-parameter audit filter (GE-01, M4). Every field is
 // optional; the zero query returns the newest events. Since and Until are
 // RFC3339 UTC text forming a closed-open interval on the event time
@@ -319,6 +335,7 @@ type Store interface {
 	Virtual() VirtualStore
 	Groups() GroupStore
 	WebSessions() WebSessionStore
+	UploadSessions() UploadSessionStore
 	Usage() UsageStore
 	// Ping verifies liveness for health endpoints.
 	Ping(ctx context.Context) error
@@ -636,6 +653,29 @@ type WebSessionStore interface {
 	ListSweepable(ctx context.Context, now string, limit int) ([]*WebSession, error)
 	// Delete removes one row; ErrWebSessionNotFound when absent.
 	Delete(ctx context.Context, idHash string) error
+}
+
+// UploadSessionStore is the persistence seam over upload_sessions (010, T-209)
+// for the local-filestore upload session. The storage engine owns the rows:
+// it creates one on BeginSession, re-reads it on ResumeSession and deletes it
+// on Commit/Abort/expiry. State is opaque to the metadata layer.
+type UploadSessionStore interface {
+	// Create inserts one session row; ErrDuplicate-class constraint errors are
+	// wrapped by the driver (a fresh uuid colliding is a retryable rarity).
+	Create(ctx context.Context, s *UploadSession) error
+	// Get resolves a session by id; ErrUploadSessionNotFound when absent.
+	Get(ctx context.Context, id string) (*UploadSession, error)
+	// SetState replaces the opaque state blob for an existing session;
+	// ErrUploadSessionNotFound when absent.
+	SetState(ctx context.Context, id, state string) error
+	// Delete removes a session row. Idempotent: deleting an absent row reports
+	// ErrUploadSessionNotFound so the caller can distinguish replayed cleanup
+	// from a missing session.
+	Delete(ctx context.Context, id string) error
+	// ListExpired returns the expired (expires_at <= now) rows, ordered by
+	// expires_at then id for determinism — the startup sweep candidates.
+	// limit<=0 means all.
+	ListExpired(ctx context.Context, now string, limit int) ([]*UploadSession, error)
 }
 
 // UsageStore is the quota accounting seam over repo_usage (004; ADR-0015

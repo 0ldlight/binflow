@@ -62,7 +62,18 @@ func seedS3Instance(t *testing.T, cfg *config.Config) (liveA, liveB, dangling st
 	t.Helper()
 	ctx := context.Background()
 
-	st, err := openStorageEngine(ctx, cfg, testSlogLogger(t))
+	// The S3 engine path never touches upload_sessions, but openStorageEngine
+	// now accepts the metadata store seam; open a throwaway store on the
+	// shared data-dir database (the tests optionally reuse the same file).
+	md, err := metadata.Open(ctx, metadata.Options{
+		Driver: "sqlite", DSN: sqlitePath(cfg), AdminPassword: "test-admin-pw",
+	})
+	if err != nil {
+		t.Fatalf("metadata.Open: %v", err)
+	}
+	defer func() { _ = md.Close() }()
+
+	st, err := openStorageEngine(ctx, cfg, testSlogLogger(t), md)
 	if err != nil {
 		t.Fatalf("openStorageEngine: %v", err)
 	}
@@ -299,7 +310,7 @@ func TestExportImportS3Roundtrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadServeConfig (dst): %v", err)
 	}
-	stDst, err := openStorageEngine(ctx, cfgDst, testSlogLogger(t))
+	stDst, err := openStorageEngine(ctx, cfgDst, testSlogLogger(t), restored)
 	if err != nil {
 		t.Fatalf("openStorageEngine (dst): %v", err)
 	}
