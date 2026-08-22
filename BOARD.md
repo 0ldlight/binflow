@@ -17,11 +17,20 @@
 
 ## 📥 待办（todo）
 
-> **M6 收尾态**（2026-08-22）。done 区 62 票（M6 全量 59 票 T-148～T-206 全 done，doing/qa/blocked 空）；全仓 `-race` 全绿（23 包 exit 0）；batch 6 待提交拆两 commit 已落地（45b3b89 工程主体 / bed7a66 文档配置，**未 push**）。**DoD 五条核验**：#1 全票 done ✅ · #2 QA 报告齐但 T-173/T-175 两份含 FAIL ⚠️ · #3 部署烟测 ✅ · #4 文档 ✅ · #5 `git tag m6-done` + 发布 ⛔（tag 未打，且 **m5-done 亦缺**）。**实质性阻塞 = 待用户终裁**：开放问题 Q2（ADR-0006 修订）、Q6/Q7/Q10（暂行实现认领）、Q8/Q9（AWS S3 / 真实 Artifactory 条件腿），外加 DoD #5 tag/push（外发须授权）。未获裁定前 M6 不标 closure。
+> **M6 收尾态**（2026-08-22）。done 区 62 票（M6 全量 59 票 T-148～T-206 全 done）；**用户终裁已落 ADR-0025**（Q2→修订 ADR-0006 会话统一 DB；Q6/Q7/Q10→认领暂行实现为正式决议；Q8/Q9→MinIO/Docker 等价，AWS/真实 Artifactory 延后 M7）。派生两张后续票 **T-208**（用户禁用 REST seam，P2）/ **T-209**（filestore session 统一 DB，P1）入 todo。DoD #5 `git tag m6-done` + 补 `m5-done` 待打（本地）；**push 外发仍须用户单独授权**。全仓 `-race` 全绿（23 包 exit 0）；batch 6 已拆两 commit 落地（45b3b89 / bed7a66，未 push）。
 
-（空）—— M6 全部 59 票已 done，待用户终裁 Q2/Q6/Q7/Q10 + Q8/Q9 条件腿 + tag/push 后 closure（无新票待派发）。
+## 📥 待办（todo）
+
+（空）—— T-208/T-209/T-210 已派发进行中。
 
 ## 🔨 进行中（doing）
+
+- **T-208** [P2] 用户禁用 REST seam（ADR-0025 决策 6） `role:dev-go-core` `area:internal/httpapi + internal/auth` — doing 2026-08-22
+  `userCreateBody`/`userUpdateBody` 补 `enabled` 字段（新建缺省 true 不变；bool 指针区分缺省 vs 显式 false）；`POST /api/security/users/{name}` 允许 admin 禁用用户；wire 禁用即护栏③（TokenVerifier 重查用户行 `enabled`）端到端验证。AC：(1) admin `POST .../users/<u>` 带 `enabled:false` → 200，该用户既有 Token 立即 401；(2) 缺省不传 `enabled` → 新建/更新保持现有语义（true / 不变）；(3) 非 admin 尝试禁用他人 → 403；(4) 顺带核验禁用用户登录（session 臂）→ 401，与 auth 层 `TestAuthenticateDisabledUser` 一致；(5) 全仓 `-race` 绿 + lint 0。
+- **T-209** [P1] filestore session 统一 DB（ADR-0025 决策 5，修订 ADR-0006 决策 2） `role:dev-go-storage` `area:internal/storage + internal/metadata` — doing 2026-08-22
+  本地 filestore 会话状态从磁盘 `sessions/<uuid>/{data,state.json}` 迁入 `upload_sessions` 表（与 S3 后端同表语义）；删除磁盘 session 路径；ADR-0006 决策 2 与后果段「sessions/ 版本兼容承诺」改写为「磁盘 session 非兼容承诺，DB 化为迁移边界」。AC：(1) 本地 filestore 上传会话 append/commit 经 `upload_sessions` 表恢复，重启可续传（对齐 S3 腿既有行为）；(2) 旧磁盘 session 目录不再产生；启动扫描清理磁盘 session 的逻辑随路径删除；(3) 备份/恢复语义更新：sessions 瞬态不进备份面（M4 既有结论不变）；(4) 全仓 `-race` 绿 + lint 0。
+- **T-210** [P2] 复制私网目标显式开关（ADR-0025 决策 4） `role:dev-go-core` `area:internal/config + internal/replication` — doing 2026-08-22
+  `replication.allow_private_target` 配置键（默认 `true`）落到 `DenyPrivateTargets` 选项——把「默认放行私网目标」从隐式默认升级为显式可配 + 文档警示。AC：(1) 键缺省 `true` → 私网目标放行（现行为不变，回归不破）；(2) 显式 `false` → 私网目标拒绝（DenyPrivateTargets=true），scheme/host 校验、逐跳重检、DNS-rebinding pinning 全保持；(3) 路由门与审计不变；文档（tech-writer 稍后同步）补该键的 SSRF 面警示；(4) 全仓 `-race` 绿 + lint 0。
 
 
 

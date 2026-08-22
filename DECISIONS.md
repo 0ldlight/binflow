@@ -525,3 +525,25 @@
   - 新增 `internal/migrate` 包（Artifactory API reader + 转换器 + BinFlow writer），不 import `internal/storage`/`internal/metadata`（纯 HTTP 客户端）。
   - 迁移文档（tech-writer）：用户指南含「从 Artifactory 迁移到 BinFlow」完整流程。
   - 安全面：Artifactory 源实例的凭据由用户通过 `bf migrate` 的 `--source-url`/`--source-user`/`--source-password` 参数或 env 提供，不进 BinFlow 配置文件。
+
+## ADR-0025: M6 收尾开放问题用户终裁——复制语义 / S3 验收等价 / 会话统一 / 禁用 seam
+
+- 状态: Accepted
+- 日期: 2026-08-22
+- 背景: M6 在 DoD 盘点（iteration-371/374）时暴露的开放问题 Q2/Q6/Q7/Q8/Q9/Q10 以「暂行实现 / 条件腿」形态冻结，阻塞 milestone closure。Sprint 374 末尾用户授权 conductor 依据过往经验代行终裁。本 ADR 把六项裁决落为正式决议，终结延期仲裁。
+
+- 决策:
+  1. **Q6（replica 仓库类型）—— 认领暂行实现为正式决议**：「`target_repo` 指向可写 local backing 仓 + 未配置写路由的 virtual 只读门面（members=[backing]）」即定案，**不新增 `rclass=replica` 枚举**。已知限制（backing local 本身仍可被目标实例用户直写，仅门面只读）记为**已接受**——replica 端完整只读隔离归 M7+ RBAC/复制里程碑。PRD §6.4 复制词表与 Q6 单元格同步改「已定案」。
+  2. **Q7（复制冲突策略）—— 认领暂行实现为正式决议**：同 path 同 checksum → 幂等成功（零传输）；不一致 → `status=failed`（attempts 记满防 cron 复活、completed_at 置位、**不动目标**）。正式决议**不引入 `status=conflict` 状态词**（009 任务状态闭集维持），failed + conflict 文案为终态口径。FR-59-AC3 / H47 验收行已按此回写，标记为终裁落定而非暂存。
+  3. **Q8（S3 验收环境）—— MinIO 等价 + AWS 实腿延后 M7**：P0 以 MinIO 本地容器全序列 PASS 视为等价；AWS 真实 S3 后续条件腿如需到位，标注 `dep:用户环境`。**Q9（Artifactory 迁移验收）** 同口径：Docker 自建 Artifactory OSS 容器覆盖 P2 验收；真实企业版实例如需，标注 `dep:用户环境`。
+  4. **Q10（复制私网目标默认放行）—— 认领暂行实现 + 补 config 桥接**：`DenyPrivateTargets` 默认 `false`（私网放行）为正式决议；T-162 建议的 `replication.allow_private_target`（默认 `true`）config 键落为**后续 P2 票 T-210**，scheme/host 校验、逐跳重检、DNS-rebinding pinning 仍然生效。
+  5. **Q2（本地 filestore sessions 统一 DB）—— 修订 ADR-0006 决策 2**：**采纳建议，统一为 DB 会话**（`upload_sessions` 表），本地 filestore 下同样的会话状态入 DB，删除磁盘 `sessions/<uuid>/{data,state.json}` 路径。落地为 **P1 票 T-209**。ADR-0006 决策 2 与后果段「`sessions/` 与 `blobs/` 是版本兼容承诺」相应修订：磁盘 session 目录不再是版本兼容承诺（DB 化为迁移边界）。
+  6. **用户禁用 REST seam（悖论 A）—— P2 票 T-208**：`userCreateBody`/`userUpdateBody` 补 `enabled` 字段（新建缺省 true 不变；disabled 时 bool 指针区分缺省 vs 显式 false），`POST /api/security/users/{name}` 允许 admin 禁用用户，wire 禁用即护栏③（TokenVerifier 重查用户行 `enabled`）端到端验证。与 Artifactory「允许 API 禁用用户」行为对齐。
+
+- 理由: 六项均属 M6 scope 内既定的「暂行 / 条件腿」，无引入新能力的分歧；用户已授权 conductor 依过往经验裁决并终结延期仲裁。Q2/Q10 附带的两个后续票（T-208/T-209）为补契约而非返工——暂行实现本体的正确性不因本裁决受质疑。
+
+- 后果:
+  - milestone-6.md §7 开放问题表 Q6/Q7/Q8/Q9/Q10 状态改「已定案」（替换「暂行…待终裁」）；Q2 改「已定案（修订 ADR-0006，实现票 T-209）」。
+  - PRD §6.4 replication 词表 / FR-59-AC3 / H47 验收行确认终裁口径，去「暂存」措辞。
+  - 后续两张工程票：**T-208**（用户禁用 REST seam，P2）+ **T-209**（filestore session 统一 DB，P1）。
+  - **DoD #5 未决**：`git tag m6-done`（及补 `m5-done`）由 conductor 打本地 tag；`git push` 外发仍须用户单独授权，不打不进本 ADR。
