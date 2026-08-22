@@ -551,3 +551,36 @@
   - PRD §6.4 replication 词表 / FR-59-AC3 / H47 验收行确认终裁口径，去「暂存」措辞。
   - 后续两张工程票：**T-208**（用户禁用 REST seam，P2）+ **T-209**（filestore session 统一 DB，P1）。
   - **DoD #5 未决**：`git tag m6-done`（及补 `m5-done`）由 conductor 打本地 tag；`git push` 外发仍须用户单独授权，不打不进本 ADR。
+
+## ADR-0026: M7 RBAC——闭集角色（users.role）+ permission target 增 m（manage）动作
+
+- 状态: Proposed（M7 PRD 定稿后转 Accepted；PRD 开放问题：readonly 组映射、路由清点表终版）
+- 日期: 2026-08-23
+- 背景: M6 PRD §7 Q4 定案「更细粒度角色（read-only admin / repo admin）归 M7+ 的 RBAC 里程碑」。现状权限模型 = `users.is_admin` 布尔（M1 起，OIDC `admin_group` 映射亦写此列）+ 命名 permission target（r/w/d，M1 起；groups 承载 M4 起）；管理面由 httpapi `routeAuth{admin: bool}` 逐路由硬门。三个表达不了的诉求：① 审计/运维角色「能看全部管理面数据但不能改配置」（read-only admin）；② 「某仓的管理员」——现 model 里仓库配置 CRUD 是全局 admin 门，无法下放；③ ADR-0025 决策 1 遗留的 replica backing 仓只读隔离也依赖仓库域下放的写控制。约束：概念模型对齐 Artifactory（ADR-0003）；clean-room 依据 = docs/reverse/auth-model.md §4（高置信：动作集 read/write/annotate/delete/manage、admin 旁路 permission target、Ant 通配、excludes 优先）；不翻案 ADR-0025 已裁事项。
+- 候选方案:
+  - A) **仅扩 permission target 动作集（加 `m`，Artifactory 原样）**：仓库级 admin = target 授 m。优点：与 Artifactory 权限面 1:1、改动最小（`permission_principals` 加 `can_manage` 列 + 单仓配置族路由改判 `Can(m)`）。缺点：**read-only admin 无承载点**——BinFlow 管理面是路由级 admin 布尔门，不经 permission target 求值，「能看审计/用量/用户列表但不能改」没有落点；Q4 的半数需求落空。
+  - B) **闭集角色列 + `m` 动作（分层）**：`users.role TEXT ∈ {admin, readonly_admin, user}`（代码闭集，非 DB 实体）承载管理面（`routeAuth.admin` → `CanManage(cap)` 六能力闭集 / 单仓族 `CanManageRepo`）；permission target 增 `m` 承载仓库级 admin；内容面 r/w/d 求值不变。优点：三面各归其位（管理面=角色、仓库域=target 的 m、内容面=target 的 r/w/d）；无新表（migration 011 = 两列一回填）；readonly_admin 全域只读 + 管理面只读，语义自洽；`is_admin` 可平滑降级为派生兼容镜像。
+  - C) **完整 RBAC 实体（roles/role_permissions/user_roles 多对多、自定义角色）**：最灵活。缺点：Artifactory 本身没有自定义角色（admin 布尔 + target 动作即其全部），实体化反而**背离**对齐目标；角色-权限绑定表 + 求值缓存 + CRUD/审计面是三张票的量，M7 复杂度不成比例；自定义角色 = 权限审计的敌人（闭集才可枚举验证）。
+  - D) 外置策略引擎（Casbin/OPA）：破坏 ADR-0005 依赖准入与单二进制哲学，结构上排除（非优劣权衡）。
+- 决策: **选 B**。要点：
+  1. **闭集角色**：`admin`（≡ 现 is_admin 全量）/ `readonly_admin`（管理面 {system:read, security:read, repo:read} + 内容面全域 r；w/d/m 硬拒、不可与 target 组合——防「只读管理员还能删」的矛盾配置）/ `user`（默认；管理面拒绝，内容面走 target）。角色是代码常量；新增角色 = 架构变更（新 ADR）。
+  2. **管理面能力闭集**：`system:read|write`、`security:read|write`、`repo:read|write` 六个，`routeAuth{admin}` 逐路由改写映射（基线清点表见 architecture §7.1 [M7]；终版归 M7 PRD）。自助族（改密/token 自铸/whoami/session、`/v2/token`）不属管理面，维持 required-only（Q11 裁决口径不变）。
+  3. **仓库级 admin = target 的 `m`**：单仓配置族路由（GET/PUT/DELETE repositories/{key} + quota 字段 + `?permissions` 视图）改走 `CanManageRepo`：admin true / readonly_admin !write / user 走 `Can(repo, "", "m")`；m 的 target 匹配**只判 repos[]**，includes/excludes 不参与（manage 是仓库配置权、无路径子域，对齐 Artifactory manage 语义）。
+  4. **无提权链不变量**：`m` 不开启任何 security:*/system:* 能力——repo-admin 不能改 permission targets（否则可自授全域 w）、不能管用户、不能指派角色（security:write = admin-only）。
+  5. **两臂一致性**：docker token 臂（scope pull→r/push→w，ADR-0010）与 REST 臂最终都终止于 `Can()`，单决策点（auth.Service）；m 永不出 docker scope 词表。readonly_admin 的 push token 在 push 时逐请求 403，与 REST 面 403 同源。
+  6. **migration 011**：`users.role` 列 + `is_admin=1 → 'admin'` 回填（is_admin 留兼容镜像、substore 同语句维护、M8 移除）+ `permission_principals.can_manage` 列；双方言同步。wire：users PUT/POST body 增 `role`（admin-only 可写、闭集校验 400）、GET 回显；审计 `role.change`。OIDC/LDAP idp_sync 改写 role（admin_group→admin；readonly 组映射为 PRD 开放问题）。
+- 理由: B 是「Artifactory 对齐」与「Q4 需求可表达」的唯一交集：A 对齐但表达不了 read-only admin（BinFlow 管理面形态与 Artifactory 的 REST 面权限演进不同源，纯照搬留下半数需求空洞）；C 可表达但把闭集问题过度一般化——三个目标角色（admin/readonly/repo-admin）里两个已各有天然载体（is_admin、target 动作），只有 readonly_admin 需要新概念，为其建三张表是为想象买单。闭集还让 QA 可以枚举验证角色×能力矩阵（6×3 全表），自定义角色做不到。
+- 后果: migration 011（双方言）；`Principal` 增 `Role`（`Admin` 降为派生便捷字段，既有 `p.Admin` 消费点语义不变——但**管理面判定代码必须迁移到 CanManage/CanManageRepo**，漏迁即 readonly_admin/repo-admin 静默 403）；httpapi `routeAuth` 结构变更 + authorize() 门位分支；`?permissions` 视图（SE-08）字母集扩 m；console 用户页增角色下拉、仓库页对 repo-admin 可见（过滤列表不做，§11.30）；ADR-0025 决策 1 的 replica backing 只读隔离自此有了下放基座（用 m 收写、门面读）——兑现归 M7 实现票评估；逆向补证 #14（manage 边界/group 角色语义/read-only admin 等价物取证）先行，低置信不改本决策、冲突时新 ADR。
+
+## ADR-0027: SSO session 铸管理 Token 的二次认证——插入点选端点 handler 而非通用 step-up 中间件
+
+- 状态: Proposed（若 M7 PRD 不立项则顺延，Q11 四护栏维持；不影响其余 M7 范围）
+- 日期: 2026-08-23
+- 背景: M6 PRD §7 Q11 裁决（v1.2）开放非 admin 自铸 Token 时明示留痕「M7+ 可选加固：SSO session 铸 Token 需二次认证」。威胁模型（Q11 依据链②）：web session cookie 被盗 → 铸最长 365d 的 API Token = 把小时级劫持窗口（session TTL 24h 封顶）升级为季度级持久化立足点；且 IdP 侧停用用户只杀会话不触发护栏③（验证期禁用检查），Token 存活至 TTL。范围钉死为 **SSO 臂**（`users.provider ∈ {oidc, ldap}` 且认证臂 = web session cookie）；Basic 臂（本身就是密码级证明）、Bearer 臂、`/v2/token`（Basic 支撑）不触发；本地用户 session 臂不触发（Q11 留痕原口径）。
+- 候选方案:
+  - A) **端点级二次凭据（token handler 内）**：`POST /api/security/token`（及并存的自有签发端点）判定「session 臂 + provider≠local」→ 要求二次证明——LDAP：body `password` 字段重 bind；OIDC：body `id_token` 字段做新鲜性校验（`auth_time` ≤ N 分钟且 `sub` 匹配当前用户；console 在登录后 N 分钟内可复用登录 ID Token，过期引导重登）。缺失/失验 → 401 OAuth 形 `reauthentication required`。优点：插入点单一、零 schema 变更、零 middleware 链改动；OIDC 腿用 auth_time 是标准 step-up 语义，不自造协议。
+  - B) **中间件级通用 step-up 层**：`web_sessions` 加 assurance/auth_time 列，authenticator 对「敏感端点族」统一要求高保证级别。优点：未来第二消费方（导出、密钥轮换、删除确认）免费复用。缺点：M7 唯一消费方是 token 签发；assurance 语义（新鲜窗口、提升流、降级）需要全局配置面与 console 全局拦截——为一个端点建通用机制是为想象买单（ADR 工作准则明令禁止）。
+  - C) **不做**：Q11 四护栏（主体本人、TTL≤365d、验证期禁用检查、token.issue 审计）已对冲大部分风险；session 劫持本身另有 CSRF/Origin 校验与 HttpOnly cookie 两层。
+- 决策: **选 A**（M7 PRD 立项为前提；不立项则维持 C 并顺延）。要点：① 判定条件 = 「认证臂 = web session cookie」且 `users.provider ∈ {oidc, ldap}`——精确对齐 Q11 留痕范围，不扩大到本地用户；② 新鲜窗口 N 默认 15 分钟（可配 `auth.token_stepup_fresh_seconds`，0 = 禁用加固回到 C 行为，部署 escape hatch）；③ 审计 `token.issue` 增 `second_factor` 维度（password | id_token | none(<reason>)）；④ console 铸 Token 对 SSO 用户按 provider 分流弹二次输入（LDAP 密码框 / OIDC 过期重登引导）。
+- 理由: 插入点是本决策的全部内容——token 签发是**唯一**同时满足「session 臂可达 + 收益是量级（24h→365d）」的端点，风险面收敛在单 handler 内；B 的通用层等第二个真实消费方出现再建（届时新 ADR），符合「刚好够用、为扩展留缝不为想象买单」；C 放弃的是 Q11 已识别且用户留痕过的加固项，仅在 PRD 裁决不做时成立。
+- 后果: token 端点 body 增可选字段 `password` / `id_token`（不触发的请求不要求、不解析——wire 向后兼容）；console UI 铸 Token 流对 SSO 用户有条件多一步（ux-designer 面）；tech-writer 文档须写「SSO 用户 CLI 铸 Token」路径（OIDC 用户无本地密码，CLI 侧建议先经 console 或用 IdP cli 取 id_token）；护栏② 的 TTL 上限与护栏③④ 不变；本地 session 臂与 Bearer-OIDC 臂不触发记为 §11.32 边界。

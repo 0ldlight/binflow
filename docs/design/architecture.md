@@ -1,7 +1,7 @@
-# BinFlow 架构设计（M1 定稿）
+# BinFlow 架构设计（M1 定稿；M2~M6 增量已并入，M7 增量标注 [M7]）
 
-> architect 维护。本文件在 ADR-0001~0015 基线上给出可并行开发的实现蓝图：包边界 = 并行开发 area 边界。
-> 标注 **[M2+]** / **[M3+]** / **[M6+]** 的内容当期不实现，只保证接口缝存在；标注「待逆向规格确认」的行为以 `docs/reverse/` 规格为准，规格冲突时先回 ADR。
+> architect 维护。本文件在 ADR-0001~0027 基线上给出可并行开发的实现蓝图：包边界 = 并行开发 area 边界。
+> 标注 **[M2+]** / **[M3+]** / **[M6+]** / **[M7]** 的内容当期不实现，只保证接口缝存在；标注「待逆向规格确认」的行为以 `docs/reverse/` 规格为准，规格冲突时先回 ADR。
 > 文档中文，标识符/表名/字段英文。代码规范：错误 wrap 带上下文、显式 context、table-driven 测试、依赖注入。
 
 ---
@@ -143,6 +143,11 @@ type BlobRef struct {
 // 实现必须并发安全：不同 session 可并行，同 session 串行。
 type Session interface {
     ID() string
+    // Offset 返回会话当前累计已收字节数（disk 后端 = uploads/<id>/data 文件长度）。
+    // [M7] REST 续传的权威 offset 源：重哈希恢复（ResumeSession）后即重算后的文件
+    // 长度，取代 adapter 侧内存镜像作为 416/Range 响应的基准。实现必须并发安全
+    // （与 Append/Commit 互斥读）。
+    Offset() int64
     // Append 追加并返回当前累计 offset；r 由 adapter 提供（http body）。
     // Append 一旦失败（含部分写），会话即被毒化：后续 Append/Commit 一律返回
     // wrap ErrSessionPoisoned 的错误（错误链双 %w 同时携带原始因，T-9 修复新增），
@@ -158,7 +163,13 @@ type Session interface {
 type Engine interface {
     // BeginSession 创建会话；dirs 自动创建。Close 后返回 ErrEngineClosed。
     BeginSession(ctx context.Context) (Session, error)
-    // ResumeSession 按 id 恢复（chunked 上传 [M2] 需要）；M1 返回 ErrSessionNotFound。
+    // ResumeSession 按 id 恢复（T-209/M7 契约，ADR-0006 决策 2 修订版）：从 upload_sessions
+    // 行 + uploads/<id>/data 部分数据重物化会话——重哈希重建三摘要链，返回可直接续 Append
+    // 的会话。行缺失/已过期未清扫 → ErrSessionNotFound（fail-closed，行的唯一正确回收路径
+    // 是 sweep）；数据文件缺失但目录在 → 按 offset 0 新建空文件恢复（有意行为，见实现 godoc）。
+    // disk 后端注入 Options.Sessions（metadata.UploadSessionStore）后可用；S3 后端恒
+    // ErrSessionNotFound（multipart 会话状态由 S3 服务端持有，TestS3ResumeSessionNotSupported
+    // 钉死 hard 404 契约）。
     ResumeSession(ctx context.Context, id string) (Session, error)
     // Open 打开 blob 读取；调用方负责 Close。不存在 → ErrBlobNotFound（wrap）。
     // 返回的 BlobRef 只保证 Sha256+Size 有值；sha1/md5 的事实源是 metadata blobs 表
@@ -360,6 +371,99 @@ type TokenRegistry interface {
 // 用户密码：argon2id（golang.org/x/crypto/argon2），标准参数（t=1,m=64MB,p=4）。
 ```
 
+#### 3.4a RBAC 增量 [M7]（ADR-0026，Proposed——PRD 定稿后转 Accepted）
+
+> 现状：`users.is_admin` 布尔 + permission target（r/w/d）两件套，管理面由 httpapi 的
+> `routeAuth{admin: bool}` 逐路由硬门。M7 按 ADR-0026 扩展为**闭集角色 + `m` 动作**分层模型，
+> 不引入角色实体表（候选对比与裁决见 ADR-0026）。
+
+```go
+package auth
+
+// Role 是闭集系统角色（users.role 列，migration 011 回填 is_admin=1 → admin）。
+// 闭集 = 代码常量，不是 DB 实体——新增角色是架构变更（新 ADR），不是数据变更。
+type Role string
+
+const (
+    RoleAdmin         Role = "admin"          // 全量：内容面 + 管理面读写（≡ 现 is_admin）
+    RoleReadOnlyAdmin Role = "readonly_admin" // 管理面只读 + 内容面全域只读（Q4 需求）
+    RoleUser          Role = "user"           // 默认：内容面走 permission target，管理面拒绝
+)
+
+// Principal 增量：Role 随认证填充（与 Groups 同源同刻）；Admin 保留为派生便捷字段
+// （Admin = Role == RoleAdmin），既有 p.Admin 消费点语义不变——readonly_admin 的
+// Admin=false，管理面判定必须改走 CanManage（下方），不得继续用 p.Admin。
+type Principal struct { Name string; Role Role; Admin bool; TokenID int64; Groups []string }
+
+// ManagementCapability 管理面闭集能力（routeAuth.admin 布尔门的精确化替身）。
+// 路由→能力的一次性清点表见 §7.1 [M7] 增补；清点归 M7 PRD 定稿，本处定闭集与规则。
+type ManagementCapability string
+
+const (
+    CapSystemRead    ManagementCapability = "system:read"    // 健康面板/存储统计/审计查询/复制状态/迁移状态
+    CapSystemWrite   ManagementCapability = "system:write"   // GC 触发/迁移启动/复制配置 CRUD
+    CapSecurityRead  ManagementCapability = "security:read"  // users/groups/token 列表与详情
+    CapSecurityWrite ManagementCapability = "security:write" // users/groups/permission targets CRUD、角色指派、token 吊销
+    CapRepoRead      ManagementCapability = "repo:read"      // 仓库配置族的全局读（列表/详情）
+    CapRepoWrite     ManagementCapability = "repo:write"     // 建仓/删仓（全局写）
+)
+
+// Authorizer 增量（实现仍在 auth.Service，同 Can 一处求值，禁止第二决策点）：
+CanManage(ctx, p, cap ManagementCapability) bool
+CanManageRepo(ctx, p, repoKey string, write bool) bool
+```
+
+**求值链（精确语义，三面合一）**：
+
+```text
+① 内容面（既有 Can，动作集扩为 r|w|d|m）——docker token 臂与 REST 臂都终止于此，两臂一致性由本条保证：
+   Can(p, repoKey, path, action):
+     p == nil            → anonymous_read && action == "r"                 （ADR-0009，不变）
+     p.Role == admin     → true                                        （admin 旁路，不变）
+     p.Role == readonly_admin → action == "r" ? true : false             （全域只读；w/d/m 硬拒，不可与 target 组合——防"只读管理员还能删"的矛盾配置）
+     其余（user）        → permission target 求值（不变）：repo ∈ repos[] 且 path 命中
+                           include 不命中 exclude 且 principals 行（user 或其 Groups 任一）
+                           携带 can_<action> → 授予；无命中 = 拒绝
+     m 动作的 target 匹配特例：只判 repos[]，includes/excludes 不参与（manage 是仓库配置
+     权，无路径子域——对齐 Artifactory manage 动作语义，auth-model §4）
+
+② 管理面（全局）——CanManage(p, cap)：
+     p == nil                     → 401（认证门在前，middleware 序不变）
+     p.Role == admin              → true（全部 cap）
+     p.Role == readonly_admin     → cap ∈ {system:read, security:read, repo:read}
+     p.Role == user               → false（自助端点不属管理面：token 自铸/改密/whoami
+                                    维持 required-only，现状不变，Q11 裁决口径）
+
+③ 管理面（仓库域）——CanManageRepo(p, repoKey, write)——单 repo 寻址的配置族路由
+  （/api/repositories/{key}、/api/v1/repositories/{key} 的 GET/PUT/DELETE、quota 字段）：
+     p == nil                     → 401
+     p.Role == admin              → true
+     p.Role == readonly_admin     → !write（读 verbs 放行、写 verbs 403）
+     p.Role == user               → Can(p, repoKey, "", "m")             （仓库级 admin = m 动作）
+```
+
+**不变量（review 依据，违反 = 拒绝合并）**：
+1. **无提权链**：`m` 动作不开启任何 `security:*`/`system:*` 能力——repo-admin 不能改
+   permission targets（否则可自授全域 w）、不能管用户、不能改角色（角色指派是
+   `security:write`，admin-only）。
+2. **单决策点**：CanManage/CanManageRepo 与 Can 同在 auth.Service 实现；docker token 臂
+   （scope pull→r、push→w，ADR-0010 第 5 条）与 REST 臂的判定最终都落在 Can——
+   scope 签发不预检能力、逐请求判定的现状不变（readonly_admin 的 push token 在
+   push 时逐请求 403，与 REST 面 403 同源）。
+3. **m 不出 docker 协议面**：docker 协议无仓库配置操作，`/v2/token` 的 scope 词表维持
+   pull/push/delete，永不映射 m。
+4. **wire 兼容**：`users.role` 字段进 PUT/POST `/api/security/users/{name}` body 与 GET
+   回显（admin-only 可写；非 admin 传入 → 403；值 ∉ 闭集 → 400）；`is_admin` 列保留为
+   兼容镜像（substore 同语句维护，M8 移除）。OIDC/LDAP 同步（idp_sync）改写 role：
+   `admin_group`/`admin_users` → `admin`；readonly 映射组为 M7 PRD 开放问题。
+
+**migration 011 草案**（双方言同步，§6 注记）：
+```sql
+ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user';
+UPDATE users SET role = 'admin' WHERE is_admin = 1;   -- 回填；is_admin 留作兼容镜像，M8 移除
+ALTER TABLE permission_principals ADD COLUMN can_manage INTEGER NOT NULL DEFAULT 0;
+```
+
 ### 3.5 audit.Logger（owner: dev-go-core）
 
 ```go
@@ -381,29 +485,31 @@ type Logger interface {
 
 ### 4.1 磁盘布局
 
+> **T-209 勘误（2026-08-23 回写，ADR-0006 决策 2 修订版）**：会话状态自磁盘 `sessions/<uuid>/state.json`
+> 迁入元数据库 `upload_sessions` 表（migration 010）；磁盘只留数据文件，目录名 `sessions/` 改
+> `uploads/`。磁盘 session 目录**不是**版本兼容承诺（ADR-0025 决策 5）；本节旧版 state.json
+> 契约作废。
+
 ```
 <data-dir>/                          # 默认 ./data，可配
 ├── blobs/
 │   └── <sha256[0:2]>/<sha256>       # 内容寻址，全局去重，文件不可变
 │       例: blobs/ab/ab530313...     # 无扩展名、无 sidecar
-├── sessions/
+├── uploads/
 │   └── <uuid>/
-│       ├── data                     # 追加写目标
-│       └── state.json               # 形状见下方契约
+│       └── data                     # 追加写目标（唯一磁盘瞬态；状态在 upload_sessions 行）
 ├── binflow.db                       # SQLite（WAL 模式）；Postgres 形态下不存在
 └── binflow.db-wal / -shm
 ```
 
-**state.json 契约**（T-9 review 回写项 F + 修复票定稿；session 属瞬态文件，非 ADR-0006 的兼容承诺面——兼容承诺仅 `blobs/`+`sessions/` 目录命名，备份面 = blobs/ + SQLite 文件）：
+**upload_sessions 行契约**（metadata.UploadSessionStore，T-209；state blob 对 metadata 层不透明，引擎自有）：
 
-```json
-{"version": 1, "id": "<uuid>", "created_at": "<RFC3339>", "received": 0, "sha256": null}
-```
-
-- `version`：形状版本号，**v1 = 上形状**；演进规则（architect 定稿）：字段新增必须 bump version，读侧遇到未知 version 视为不可恢复（按过期清扫处理，M1 从 0 重传语义不变）；字段不得删除与改名。
-- `sha256`：恒为 `null` 字面量——摘要不落盘（崩溃使运行中哈希链失效），M1 恢复即从 0 重传（ResumeSession 是 [M2] chunked 的缝）。
-- `received`：磁盘已落字节数，M1 每次 Append 后更新（文件永不撒谎）；M1 无读者，[M2] chunked 续传以其为 offset 基准。
-```
+- 行 = `(id TEXT PK, state TEXT, created_at, expires_at)`；`BeginSession` 建行、`Commit/Abort` 删行、
+  `ResumeSession` 读行重哈希恢复（摘要不落盘——崩溃使运行中哈希链失效，恢复即从数据文件重算）。
+- offset 事实源 = `uploads/<id>/data` 文件长度（文件永不撒谎；DB 行的 state 收计数是尽力而为的
+  记账，ResumeSession 以重算为准）。
+- 备份面不含该表（瞬态，PurgeTransientFromSnapshot 与 web_sessions 并列清）；过期行由启动
+  sweep（`ListExpired`）+ 引擎清扫回收，sweep 失败**不得**升级为删目录（T-209 review2 B1 定案）。
 
 ### 4.2 checksum 与去重语义
 
@@ -414,9 +520,13 @@ type Logger interface {
 ### 4.3 上传会话状态机
 
 ```
-created --Append(可多次)--> appending --Commit--> committed(终态, session 目录删除)
+created --Append(可多次)--> appending --Commit--> committed(终态, upload_sessions 行 + uploads/<id>/ 目录删除)
     │                            │
-    └──Abort/过期----------------┴--> aborted(终态, 目录删除)
+    └──Abort/过期(sweep)---------┴--> aborted(终态, 行 + 目录删除)
+
+[M7] 续传态：appending --进程崩溃(kill -9)--> 落盘行+部分数据幸存 --ResumeSession--> appending
+（干净停机 SIGTERM → Engine.Close 排空清册，续传前提不存在——「重启可续传」对外措辞限定
+「异常中断后」，见 §5.3.1 O-1 语义定案）
 ```
 
 落盘协议（顺序不可换）：write(data) → **fsync(data)** → rename(data → blobs/xx/sha256)（目标已存在则丢弃）→ **fsync(blobs/xx 目录)** → 元数据事务。崩溃窗口分析：任一点断电，最坏残留 = 完整但未引用的 blob（GC 回收）或 session 残渣（启动清理），**不存在半写 blob 暴露给读者**。
@@ -427,7 +537,7 @@ created --Append(可多次)--> appending --Commit--> committed(终态, session �
 - 运行时 `Delete` 制品只删 `nodes` 行（软删语义在物理层）。物理回收唯一入口：`binflow-server gc [--apply]`，mark（**引用集合回调**，调用方实现 `SELECT DISTINCT sha256 FROM nodes`，一次查询——T-9 集合形，取代原 FilterUnreferenced 反连接逐条路线）→ sweep（storage 扫描 `blobs/` 磁盘，未引用且**文件 mtime** 早于 `now-grace` 才删；删除后同时清 `blobs` 行）。默认 dry-run 打印清单，`--apply` 才真删（安全底线）。
 - **grace 基准是 blob 文件 mtime，不是 `blobs.created_at` 列**（T-9 回写项 G；storage 不读 DB 的必然选择，方向安全——mtime 被推新只会多保留）。**硬约束：备份/恢复工具必须保留 mtime（`tar` / `rsync -a` 默认保留；勿用会重置时间戳的复制方式），否则宽限期时钟被重置**——M4 备份票与 ops 文档必须遵守。
 - grace 与 session ttl 的零值语义：`<= 0` 一律取默认 24h（T-9 回写项 J）——零值不是「立即回收」；要无宽限期须显式传亚秒时长。
-- 启动时清扫：`sessions/` 下会话目录按 state.json `created_at`（缺失回退目录 mtime）超 ttl（默认 24h）删除；活会话（近期 mtime）受保护。
+- 启动时清扫（T-209 修订）：`upload_sessions` 表按 `expires_at`（`ListExpired`）超 ttl（默认 24h）删行并同步删 `uploads/<id>/` 目录（目录 mtime 兜底孤儿）；未过期行保护其目录不被误杀（QA 钉死：kill -9 后行 + 部分数据幸存）。sweep 失败仅使本次 Open 失败重试，**不得**删除 uploads/ 下任何内容（T-209 review2 B1）。
 - `FilterUnreferenced`（metadata）自 GC 链路退役，转为对账/一致性检查用途（见 §3.2 注释，回写项 I）。
 
 ### 4.5 remote 代理缓存存储面（M3 增量，ADR-0012）
@@ -450,14 +560,14 @@ created --Append(可多次)--> appending --Commit--> committed(终态, session �
 
 > **设计原则**：S3 后端与 disk 后端共享同一个 `Engine` 接口（§3.1），实现差异封装在 `Backend` 内部接口（§3.1a）。调用方（adapter、repo.Service）不感知后端类型，仅通过 `Engine` 的门面操作。
 
-**blob 布局**：`<bucket>/<prefix>/blobs/<xx>/<sha256>`（xx = sha256 前两字符，与 disk 布局同构）。`sessions/` 目录为瞬时对象，不上传 S3——S3 后端的上传会话在服务端内存管理（见下方 multipart 模型）。
+**blob 布局**：`<bucket>/<prefix>/blobs/<xx>/<sha256>`（xx = sha256 前两字符，与 disk 布局同构）。S3 后端无 `uploads/` 瞬态目录——上传会话 = multipart upload，中间态由 S3 服务端持有（见下方 multipart 模型；`upload_sessions` 表仅 disk 后端使用，T-209 口径）。
 
 **S3Engine 与 DiskEngine 的核心差异**：
 
 | 维度 | DiskEngine（M1-M5） | S3Engine（M6） |
 |---|---|---|
 | blob 寻址 | 本地文件系统 `blobs/<xx>/<sha256>` | S3 key `<prefix>/blobs/<xx>/<sha256>` |
-| 上传会话 | 临时目录 `sessions/<uuid>/` + rename 原子落盘 | **S3 multipart upload**（单次 5GB+ blob 分块上传，S3 服务端管理中间态） |
+| 上传会话 | `uploads/<uuid>/data` + `upload_sessions` 行（T-209）+ rename 原子落盘；`ResumeSession` 重哈希恢复 | **S3 multipart upload**（单次 5GB+ blob 分块上传，S3 服务端管理中间态；ResumeSession 恒 ErrSessionNotFound） |
 | Open 返回类型 | 返回 `*os.File`（可 Seek，类型断言可用） | 返回 `io.ReadCloser`（S3 GetObject body，不可 Seek） |
 | GC sweep | 本地 `filepath.Walk` 扫 `blobs/` 目录 | **S3 ListObjectsV2** 分页扫 key 前缀，结合 metadata 引用集合判定 |
 | 并发安全 | rename 原子性 + fsync 保证 | S3 PUT 是原子操作（单对象），无 partial write 暴露 |
@@ -588,7 +698,7 @@ func All() []Handler
 | `/v2/token` | GET | Bearer 签发（ADR-0010 第 4 条），Basic 凭据 + `service`/`scope` 参数 → `{"token","expires_in"}`（附 `access_token` 同值兼容字段） |
 
 **blob upload 与 storage.Session 的语义对接**（三条关键裁定；裁定 1 的直持 storage.Engine 是 §5.1 例外一，T-48 勘误交叉引用）：
-1. **offset 语义 vs 流式**：Registry chunked 协议是「断点对齐追加」（客户端持 offset、服务端必须可查询与续传），storage.Session 是「黑盒流式追加」。对接法：adapter 持有协议状态（`received` 由 state.json 持久化），PATCH 时先校验 `Content-Range` 与 `received` 对齐再调 `Append`；PUT finalize 用 `Commit(expect)` 一次性收口。**M1 的 ResumeSession 仍恒 ErrSessionNotFound**：M2 续传实现 = 磁盘 `received` 已持久（state.json），新会话不复用——客户端重发从其对齐点开始（docker 客户端 PATCH 失败会从头重传 uploads 会话，spec 允许；真正的跨进程断点续传 [M3+] 再启用 ResumeSession）。
+1. **offset 语义 vs 流式**：Registry chunked 协议是「断点对齐追加」（客户端持 offset、服务端必须可查询与续传），storage.Session 是「黑盒流式追加」。对接法：adapter 持有协议状态（`received` 计数），PATCH 时先校验 `Content-Range` 与 `received` 对齐再调 `Append`；PUT finalize 用 `Commit(expect)` 一次性收口。~~M1 的 ResumeSession 仍恒 ErrSessionNotFound~~（**T-209 已作废**：ResumeSession 自 migration 010 起真实可用；[M7] REST 重暴露路径见 §5.3.1——`received` 的权威源随之上移至引擎会话状态）。
 2. **digest 算法**：Registry digest 形如 `sha256:<hex>`；BinFlow blob 主键就是裸 hex sha256——adapter 只剥 `sha256:` 前缀，无算法转换（spec 允许其他算法，M2 只实现 sha256，收到 `sha512:` 等 → 400 Unsupported）。
 3. **cross-repo blob mount**（`?mount=<digest>&from=<repo>`）：POST uploads 带 mount 参数且目标 blob 已被 from-repo 引用 → 直接走 `repo.Service.PutFromBlob` 零拷贝挂账（M1 已备该契约）；mount 失败按 spec 降级为普通上传会话（202 + Location，不报错）。
 
@@ -607,6 +717,55 @@ docker login <host>
   → 后续请求 Authorization: Bearer <jwt>
 ```
 签发 = `TokenRegistry.Issue`（有限 TTL）+ scope 编码进 token 声明；Verify 解出 Principal + scope，`pull`→`r`、`push`→`w`、manifest DELETE→`d` 映射进 `Authorizer.Can`。无 Bearer 头时回退 Basic 直连（匿名读开启时 pull 匿名放行——与 §7.1 认证分层一致）。
+
+#### 5.3.1 blob upload 会话的 REST 重暴露——重启续传 [M7]（N6/O-2 收口）
+
+> 现状：`sessionRegistry`（`internal/adapter/docker/uploads.go`）是进程内存表
+> UUID → liveUpload；重启后 lookup miss → 404 `BLOB_UPLOAD_UNKNOWN`，客户端从零重传。
+> 引擎级 `ResumeSession` 已就位并被单测钉死（T-209），但无生产调用方——本节接通
+> 「DB 行 → HTTP 会话」的最后一公里。**无 ADR 需求**：方向已由 ADR-0006 决策 2
+>（修订版）+ ADR-0025 决策 5 裁定，本节是实现契约。
+
+**决策：adapter 层 lazy 重建（lookup miss → 引擎重物化），不做启动预载**。
+
+```text
+registry.resolve(ctx, id):                        # GET/HEAD(offset)/PATCH/PUT/DELETE 五动词统一入口
+    up, ok := lookup(id); if ok → return up       # 进程内快路径（现状不变）
+    # —— 慢路径 [M7]：在 registry 锁内 double-check + 单飞 funnel ——
+    # （engine 侧同 id 并发 ResumeSession 是 last-writer-wins、被顶替句柄后续
+    #  Append 报 already finalized——不 funnel 会把该错误漏成 500）
+    sess, err := engine.ResumeSession(ctx, id)
+    errors.Is(err, storage.ErrSessionNotFound) → return miss          # → 404 BLOB_UPLOAD_UNKNOWN（S3 后端恒走此臂）
+    err != nil                                   → 500 + log（存储故障，不毒化注册表）
+    up = &liveUpload{sess: sess, received: sess.Offset()}             # 权威 offset = 重哈希后的数据文件长度
+    register(id, up); return up
+```
+
+**关键契约**：
+1. **offset 权威性转移**：`liveUpload.received` 从「adapter 内存镜像」降级为缓存，
+   事实源 = 引擎会话状态（`Session.Offset()`，§3.1 [M7] 新增）。Content-Range 对齐
+   检查与 416 + 权威 `Range` 响应语义不变（QA 已钉死 416 行为，属回归面）。
+2. **重建后五动词齐备**：PUT finalize 与 DELETE cancel 重建后立即执行——客户端重启后
+   直接 `PUT ?digest=` 收口或 DELETE 弃置都是 distribution spec 合法流。
+3. **过期 = 未知**：ResumeSession 对「已过期未清扫行」必须按 `ErrSessionNotFound` 处理
+   （fail-closed；sweep 是行的唯一回收路径）。若实现复核发现引擎未查过期，属实现票必改项。
+4. **无 repo 绑定校验**（与进程内行为一致）：会话 id 是不可猜测的 capability
+   （uuid），URL 的 `<name>` 段只决定授权门，不参与会话寻址——重建路径不引入新面。
+5. **S3 后端契约不变**：ResumeSession 恒 `ErrSessionNotFound` → resolve 直落 404
+   （`TestS3ResumeSessionNotSupported` 钉死）。S3 的 REST 续传 [M8+] 评估——需把
+   multipart upload ID 落 `upload_sessions` 表并实现 S3 ResumeSession，M7 不做（§11.31）。
+6. **与 upload_sessions 表的关系**：表是引擎级会话台账（T-209）；本节零 schema 变更、
+   零 metadata 触点（adapter 只调 engine，§5.1 例外一范围内）。备份不含该表（瞬态）
+   不变——重启恢复的是无备份瞬态，续传失败最坏 = 客户端重传，与今日行为一致。
+7. **O-1 语义定案（架构裁决）**：干净停机（SIGTERM → `Engine.Close` 排空清册）**维持现状**——
+   「重启可续传」对外措辞限定为**异常中断后**（crash/kill -9/断电）。理由：Close 排空是
+   §3.1 契约 + export/backup「瞬态不落盘」不变量的组成部分；优雅停机 30s 窗口内由
+   `server.Shutdown` 等待在途请求兜底，超时客户端重开会话（spec 允许）。收口动作 =
+   Close 清会话时打一条 INFO（枚举清掉的会话 id 计数，可观测性）。若 K8s 滚动升级场景
+   确需「计划内停机保留会话」，须改 Close 契约——届时新 ADR，M7 不做。
+8. **协议范围**：仅 docker（唯一 chunked 会话协议）。generic/maven/npm/pypi 是单请求
+   上传，无再暴露面；未来协议引入 chunked（OCI chunked blob 等）复用 resolve 模式
+   （缝在 adapter，核心零改动）。
 
 ### 5.4 M3 协议适配器与 remote/virtual（三节增量；行为细节以 M3 PRD（T-57）为准，本文定结构）
 
@@ -879,7 +1038,7 @@ CREATE TABLE web_sessions (               -- 浏览器会话（ADR-0014 决策 2
   created_at   TEXT NOT NULL,
   expires_at   TEXT NOT NULL,             -- 绝对 TTL：console.session_ttl_hours 默认 24（seconds 覆盖键测试粒度）；滑动受绝对封顶
   last_used_at TEXT NOT NULL DEFAULT '',
-  revoked_at   TEXT NOT NULL DEFAULT ''   -- 登出 = revoke；过期/吊销行由启动清扫（同 sessions/ 目录模式）
+  revoked_at   TEXT NOT NULL DEFAULT ''   -- 登出 = revoke；过期/吊销行由启动清扫（同 upload_sessions 表的 DB sweep 模式，T-209 口径）
 );
 CREATE INDEX idx_web_sessions_user ON web_sessions(username);
 
@@ -937,6 +1096,30 @@ CREATE TABLE replication_tasks (  -- 单次复制任务记录（push 方向）
 );
 CREATE INDEX idx_replication_tasks_status ON replication_tasks(replication_id, status);
 CREATE INDEX idx_replication_tasks_pending ON replication_tasks(status, created_at);  -- 调度器扫描候选
+
+-- ===== 010_upload_sessions.sql（M6 收尾增量，ADR-0025 决策 5 / T-209；架构 §4.1 回写补记）=====
+-- 本地 filestore 上传会话状态入 DB（磁盘 sessions/<uuid>/state.json 方案废止）。
+-- 仅 disk 后端使用；S3 会话走 multipart（状态由 S3 服务端持有）。
+CREATE TABLE upload_sessions (
+  id         TEXT PRIMARY KEY,               -- 会话 uuid（commit 前不绑定 blob，故主键非 sha256）
+  state      TEXT NOT NULL DEFAULT '',       -- 引擎自有不透明状态 blob（metadata 层不解读）
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL                   -- ttl 默认 24h；启动 sweep（ListExpired）回收
+);
+CREATE INDEX idx_upload_sessions_expiry ON upload_sessions(expires_at);
+-- 快照语义：PurgeTransientFromSnapshot 与 web_sessions 并列清（瞬态不进备份面）。
+
+-- ===== 011_rbac.sql（[M7] 增量，ADR-0026 Proposed；架构定稿，dev-go-core 落迁移文件）=====
+-- 闭集角色（users.role）+ permission target 的 manage 动作。无新表、无新索引。
+--   ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user';
+--     闭集 'admin' | 'readonly_admin' | 'user'（代码常量 Role*，§3.4a）；校验在服务层。
+--   UPDATE users SET role = 'admin' WHERE is_admin = 1;
+--     回填；is_admin 列保留为兼容镜像（substore 同语句维护，M8 迁移移除——OIDC idp_sync
+--     的每次登录刷新改写 role，admin_group/admin_users → 'admin'）。
+--   ALTER TABLE permission_principals ADD COLUMN can_manage INTEGER NOT NULL DEFAULT 0;
+--     m 动作 = 仓库级 admin（repo 配置族路由的 CanManageRepo 消费，§3.4a 求值链③）；
+--     m 的 target 匹配只判 repos[]，includes/excludes 不参与。
+```
 
 首启种子数据（迁移 001 内）：预置 `admin` 用户（is_admin=1）。口令引导（ADR-0009，用户定案）：env `BINFLOW_ADMIN_PASSWORD` 优先；未设置时使用**文档化缺省值 `password`**（仅限评估——文档与启动日志双重标注，检测到缺省值时启动打 WARN）；仅在 admin 用户不存在时生效，改密后不被后续启动覆盖。
 
@@ -1107,6 +1290,28 @@ CREATE INDEX idx_replication_tasks_pending ON replication_tasks(status, created_
 ```
 
 **认证分层默认值（ADR-0009）**：内容路径 `GET/HEAD` 匿名放行（`security.anonymous_access: true` 默认）；内容路径写操作与 `/binflow/api/**` 全部要求认证，不受该开关豁免。`anonymous_access: false` 时所有端点一律认证。
+
+**[M7] 管理面门位精确化（ADR-0026）**：`routeAuth{admin: bool}` 升级为
+`routeAuth{manage ManagementCapability | repoManage bool}`——middleware `authorize()` 的
+判定序不变（401 → 门位 → 内容 action），门位求值走 `auth.CanManage/CanManageRepo`
+（§3.4a）。路由清点表（现 admin 路由 → 能力映射，PRD 定稿，本处给基线）：
+
+| 路由族（§7.1 既有 admin 门） | 现门 | [M7] 门 |
+|---|---|---|
+| `/api/v1/health`、`/api/v1/storage/stats`、`/api/v1/audit`、`/api/v1/replication/status`、`/api/v1/storage/migration`(GET)、`/api/v1/storage/usage/{repo}` | admin | `CapSystemRead` |
+| `/api/v1/system/gc`、`/api/v1/storage/migration/start`、`/api/v1/replications` POST/DELETE | admin | `CapSystemWrite` |
+| `GET /api/security/users[/·{name}]`、`GET /api/security/groups[/·{name}]`、`GET /api/security/token`（列表） | admin | `CapSecurityRead` |
+| users/groups/permissions CRUD、PUT·POST `/api/security/users/{name}`（含 `role` 字段）、token revoke、`/api/v1/permissions` | admin | `CapSecurityWrite` |
+| `GET /api/repositories`（列表）、`GET /api/v1/repositories`（列表） | admin（D2 理由） | `CapRepoRead`（D2 理由随 RBAC 失效重述：readonly_admin 可见全量列表；repo-admin 的**过滤列表**不做，§11.30） |
+| `POST /api/repositories`、`DELETE /api/v1/repositories/{key}`（建/删仓，全局语义） | admin | `CapRepoWrite` |
+| `GET/PUT/DELETE /api/(v1/)repositories/{key}`（单仓配置族 + quota 字段）、`?permissions` 视图 | admin | `repoManage`（CanManageRepo：admin true / readonly_admin !write / user 走 `m`） |
+| 自助族：改密、`POST /api/security/token` 自铸（Q11）、whoami/session、`/v2/token` | required-only / Basic | **不变**（不属管理面） |
+
+**[M7] token 自铸的二次认证插入点（ADR-0027 Proposed）**：`POST /api/security/token`
+handler 内——认证臂 = web session 且 `users.provider ∈ {oidc, ldap}` 时要求二次证明
+（LDAP：body `password` 重 bind；OIDC：body `id_token` 新鲜性校验 auth_time ≤ N 分钟且
+sub 匹配），缺失/失验 → 401 OAuth 形 `reauthentication required`。Basic/Bearer 臂与
+`/v2/token`（本就 Basic 支撑）不触发。中间件级通用 step-up 层否决（候选对比见 ADR-0027）。
 
 **路由解析位置（T-14 review RepoLookup 缝终判）**：repo key → repo 行查询位于**授权门之后**；RepoLookup 用 `metadata.Get` 是有意为之的匿名读前置缝——安全面成立（无权者在查询前即被拦截，repo 行不泄漏给未授权请求）。`PackageTypeOf(ctx, key)` 收回服务层列 T-15/M2 非阻断重构项。
 
@@ -1300,13 +1505,14 @@ logging:
 | remote 影子缓存仓（`<remoteKey>-cache`） | 缓存 node 直接落 remote 仓自身 repo_key + `remote_cache` 验证器表 | pull-through 语义等价 | 不做影子仓间接层（Artifactory 是其存储分片历史包袱，ADR-0012）；待 repo-semantics §7.3 M3 逆向印证后如有行为差异再评估 |
 | virtual priorityResolution | 两桶序：priorityResolution 优先桶（桶内声明序）→ 其余成员（桶内声明序）（ADR-0013 联动记录，T-79 定案） | 聚合解析（Artifactory 四桶的两桶简化，客户端不可观察差异） | stale 命中即成员结果、真 404 续桶；写路由 defaultDeploymentRepo 见 PRD FR-21 |
 | Access（用户/权限） | auth + users/tokens/permission_targets(+principals) 表 | 本地用户+token+命名 permission target ACL | M1 无组、无 SSO |
+| Access 动作集 read/write/annotate/delete/manage（auth-model §4，高置信） | r/w/d + **[M7] m（manage）**（§3.4a） | manage 动作对齐 = 仓库级 admin（CanManageRepo 消费）；m 只判 repos[]、无路径子域 | annotate/distribute/managedXrayMeta 不做；Artifactory 无 read-only admin 角色——BinFlow `users.role` 闭集的 `readonly_admin` 是 Q4 需求的自有扩展（**有意差异**，ADR-0026） |
 | `/api/` REST | 兼容子集 + `/api/v1` | 高频端点 | 全量兼容明确不做（PRODUCT）；统一挂 `/binflow` 前缀，不用 `/artifactory` 前缀、不做根路径镜像（ADR-0008） |
 
 ## 11. 已知妥协（技术债台账）
 
 1. **Token 存 sha256 明文摘要**：高熵随机使可接受；若未来支持低熵 token 需换 argon2id。
 2. **SQLite 单写者**：1000 并发读靠 WAL；写热点若出现按 ADR-0007 升级双池，不推架构。
-3. **Session 崩溃恢复从 0 重传**：M1 无断点续传（Generic 单请求即可）；[M2] docker chunked 上传需要 offset 恢复，届时在 `state.json`（v1 形状，见 §4.1 契约）增加固定块摘要并 bump version——接口 `ResumeSession` 与 `received` 字段已留。
+3. **Session 崩溃恢复从 0 重传**（~~M1 现状~~ **T-209 引擎级收口、[M7] REST 面收口**）：ResumeSession 自 migration 010 起重哈希恢复（§3.1/§4.1）；[M7] §5.3.1 接通 HTTP 重暴露（lazy 重建 + `Session.Offset()` 权威 offset）。本条仅存历史脉络，设计债已清，剩实现票。
 4. **审计「尽力而为」**：Append 失败不阻断业务；严格审计（两阶段）[M4+] 再议。
 5. **remote_configs 密码列明文占位**：M3 接入前必须定静态加密方案（新 ADR）。
 6. **metrics 缺位**：[M5] Prometheus；M1 仅结构化日志。
@@ -1314,7 +1520,7 @@ logging:
 8. **匿名读的缓存不可见性**：remote 仓库 [M3] 若命中匿名读，代理层拉取上游使用仓配置凭据、审计 actor 记 `anonymous`；不因此放宽上游私有仓的写侧安全。
 9. **GC 引用集全量驻内存**（T-9 review §1.1 代价注记）：集合形回调一次 `SELECT DISTINCT sha256 FROM nodes`，1M nodes ≈ 100MB 量级；M6+ 千万级 blob 需流式接口变体（届时新 ADR）。
 10. **清扫仅启动时执行**（T-9 review 范围外发现）：长驻进程中被遗弃会话目录要等重启才清；`sweepSessions` 已就绪，后续票接线周期 ticker 即可，M1 接受。
-11. **M2 chunked 断点续传降级**（ADR-0010/§5.3 裁定）：docker 分块上传的跨进程真续传（ResumeSession）暂不启用——offset 对齐由 state.json 的 `received` 支撑单会话内续传，客户端 PATCH 失败重传走 uploads 会话重建；跨进程续传 [M3+] 再启用（T-20 Range 已备 ReadSeekCloser 基础）。
+11. ~~M2 chunked 断点续传降级~~（**N6/O-2 定案 [M7] §5.3.1**）：跨进程续传经 adapter lazy 重建接通（lazy 优于启动预载：启动时间不受在途会话量影响）；S3 后端维持 hard 404（§11.31）；干净停机清会话语义维持并限定对外措辞为「异常中断后」（O-1 收口）。
 12. **docker_gc 的 mark 集合扩容**：M2 起 GC 引用集合 = nodes ∪ docker_refs（§6 迁移 002 注记）；docker_manifests/docker_tags 行的级联清理由服务层维护（无 DB 级 FK 到复合主键部分列），一致性靠「manifest 删除同事务清 refs/tags」约定，QA 需覆盖孤儿 tag 用例。
 13. **PutLandedBlob 用例缺口（T-38 review N2，T-48 登记）**：docker finalize 后 adapter 用 `store.Open` 把已落盘 blob 回读成流喂 `svc.Put`（uploads.go registerBlobNode）——绕过 §5.1「扩方法不绕过」条款，且每次 finalize 多一轮 O(size) 回读 + 三摘要重算（singleflight 免二份磁盘副本但 CPU/IO 不免；10GB 层推送是可感知延迟）。根因是 repo.Service 缺「从已提交 BlobRef 建 blobs 台账行 + node」的用例（PutFromBlob 拒孤儿台账、Put 只吃 body）。处置：**M3 前为 repo.Service 增 `PutLandedBlob(ctx, p, repoKey, path, ref, mime)`**（创建台账行的 PutFromBlob 变体），docker finalize 与未来 maven/npm chunked 上传共用，届时删除 adapter 回读（独立 dev-go-core 小票，不塞进 T-39）。
 14. **remote 缓存无主动失效（ADR-0012 边界）**：M3 只有 TTL + 条件再验证 + blocked_out 手动遮蔽；`DELETE /api/v1/repositories/{key}` 外的「按路径强制失效」端点不做（M4 治理面）。idx_remote_cache_expiry 已留周期清扫缝。
@@ -1343,6 +1549,14 @@ logging:
 
 29. **Prometheus 指标为自写格式非官方 client（ADR-0022 决策 1）**：为避免新增依赖（`prometheus/client_golang` 及其传递依赖树），M6 使用 stdlib `expvar` + 自写 Prometheus text format 序列化器。指标类型（counter/gauge/histogram）正确性需在实现层严格保证，且 histogram 的 `_bucket`/`_sum`/`_count` 后缀规则必须符合 Prometheus 数据模型。若后续社区要求 OpenTelemetry 集成，可按 ADR-0005 重新评估依赖准入。
 
+30. **[M7] repo-admin 无过滤列表**（ADR-0026 边界）：仓库列表/详情对 readonly_admin 全量可见、对 repo-admin（`m` 授权的 user）**不做按授权过滤的列表视图**——repo-admin 需已知 repo key 才能寻址单仓配置族（CanManageRepo 逐仓判定）。过滤列表（「只看我管的仓」）若控制台有诉求，M8+ 评估（需 target 覆盖域反查，成本 = Can 的求值逆问题）。
+
+31. **[M7] S3 后端无 REST 续传**（§5.3.1 契约 5）：multipart 会话不落 `upload_sessions` 表、S3 ResumeSession 恒 ErrSessionNotFound——S3 形态下 docker 重启后 uploads URL 仍 404、客户端重传。若做：upload ID 落表 + S3 ResumeSession（ListParts 重建 part 清单与 offset），M8+ 评估（届时新 ADR 或本条扩写）。
+
+32. **[M7] token 二次认证只覆盖 SSO session 臂**（ADR-0027 边界）：本地用户的 session 臂自铸 Token 不要求二次密码（Q11 留痕口径即「SSO session」）；OIDC 的 `prompt=login` 交互式 step-up 重定向流不做（M7 只收 body `id_token` 新鲜性校验，console 在 auth_time 过期后引导重登）。Bearer-OIDC 臂（ID Token 直作 Bearer）铸 Token 同样不触发——该臂本身即新鲜凭据。
+
+33. **[M7] 债务包 E 的非设计项**（conductor 种子第 E 条，无架构增量，登记防丢）：N3 ctx 取消窄窗（Append EOF→SetState 用请求 ctx，恰取消即毒化完好会话——实现票以 `context.WithoutCancel` 收口，fail-closed 现状可接受）；N2 `TestV2BlobSessionSweepResidue` restart 臂注释与断言空洞化修正；O-1 收口动作 = §5.3.1 契约 7 的 Close 清册 INFO 日志；`internal/auth` 53 条既有 lint 清零；008/009 迁移 .sql 行尾换行补齐。
+
 ## 12. 待逆向规格确认清单（阻塞点挂 docs/reverse/）
 
 | # | 问题 | 规格文件 | 影响面 |
@@ -1360,3 +1574,4 @@ logging:
 | 11 [M6] | Artifactory 复制/联邦的 push/pull 触发语义（trigger 事件、retry 策略、进度追踪 API 形状）——作为 ADR-0021 的对齐参考 | repo-semantics.md（存续增补）/ federation.md | §7.1/§8 |
 | 12 [M6] | Artifactory S3 存储后端的 blob 布局（checksum 路径是否一致、multipart upload 的 session 语义差异）——作为 ADR-0019 对齐验证 | storage-layout.md（存续增补） | §4.7 |
 | 13 [M6] | Artifactory Prometheus/expvar 指标名命名惯例（metric name prefix、label 命名风格）——作为 ADR-0022 的对齐参考（非块——Prometheus 无厂商标准，仅一致性佐证） | metrics.md（新） | §7.1 |
+| 14 [M7] | Artifactory `manage` 动作的精确边界（是否路径作用域、对 REST 仓库配置端点的实际映射）；group 是否可承载 admin/角色语义（BinFlow role 用户级 only 的对齐佐证）；Artifactory 是否存在 read-only admin 等价物（readonly_admin 有意差异的取证） | auth-model.md §4 存续增补（reverse-engineer） | §3.4a / §10 / ADR-0026 |

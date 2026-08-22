@@ -74,6 +74,28 @@ PUT 结束会话时，服务端要判定「PUT 带 body（单体）」还是「b
 | 清理周期 | `docker.cleanup.uploadsTmpFolderJobSecs` 默认 86400s（每日）；另 manifest PUT 成功后**同步**清一次 `<image>/_uploads`（`DockerWorkContext#cleanup`） | 高 |
 | 实现 | AQL 查 `_uploads` 路径下过期项逐个 undeploy（跳过回收站） | 高 |
 
+### 2.5 断点续传与重启存活语义（M7 种子 B 校准来源，`DockerBlobUploadHandler` + `DockerV2LocalRepoHandler#finishPatchUpload`）
+
+核心结论：**上传会话的全部状态就是仓库内文件 `<image>/_uploads/<uuid>.patch` 本身**——服务端不存在任何内存会话表/会话注册表（docker addon 全量检索无 session map）。因此：
+
+| # | 行为 | 置信度 |
+|---|---|---|
+| 1 | **重启存活**：会话进度 = 文件的已存字节数（`repo.artifact(uuidPath)` 的 length）。服务重启不丢会话（文件在 filestore/DB 里），TTL（§2.4 的 24h）内 PATCH/PUT 可继续收尾。无「重启后作废会话」的逻辑——启动路径不清理 `_uploads`（清理仅由 cron job 与 manifest PUT 成功后的同步清理触发）。 | 高 |
+| 2 | **续传判定完全由文件推导**（PATCH）：文件不存在且无 Content-Range → 全量流式上传（重写会话）；文件不存在且有 Content-Range → 要求起点=0，否则 416（无 body）；文件存在 → 要求 Content-Range 起点严格等于已存字节数，否则 416（无 body）；追加实现为「读旧内容 + 新流串接后整体重存」（`SequenceInputStream`），非原地 append。 | 高 |
+| 3 | **Content-Range 只校验起点**：终点值不与实际字节数比对，仅原样回显进 202 的 Range 头；服务端以实测字节数为准。客户端虚报终点不会报错。 | 高 |
+| 4 | **状态查询（非标准端点）**：`GET .../blobs/uploads/<uuid>.patch` → 会话文件存在：`204` + `Range: 0-<len-1>`（即「已接收 len 字节」，续传偏移=len）；文件不存在：`404 BLOB_UNKNOWN`（detail=blobSum）；无读权限：401。官方 [DIST-API] 的标准 GET 状态端点（`GET .../blobs/uploads/<uuid>`）在路由表中**确证不存在**（路由表仅有 `.patch` 变体的 GET）——标准客户端无法探测偏移，只能盲 PATCH。 | 高（路由表逐条枚举） |
+| 5 | **PUT 收尾时会话丢失**（被清理/超 TTL/传错 uuid）：无 body 的 PUT 走 `finishPatchUpload`，`_uploads/<uuid>` 不存在 → `404 BLOB_UNKNOWN`（detail=digest）；存在但读不出 artifact 元数据 → `400 BLOB_UPLOAD_INVALID`（"Didn't found specified temp blob ..."）。客户端唯一恢复路径 = 重新 POST 开新会话重传。 | 高 |
+| 6 | **PUT 单体/收尾二义性判定也由文件存在性决定**（§2.2 规则 1）：`_uploads/<uuid>` 不存在 → PUT 的 body 是单体直传；存在 → 忽略 body、对文件做 digest 校验收尾。重启不改变该判定。 | 高 |
+| 7 | **错误形态对照官方规范**：官方 spec 对「PUT/PATCH 未知 session」定义 `BLOB_UPLOAD_UNKNOWN`(404)；Artifactory 实际回 404 + `BLOB_UNKNOWN`（GET 状态端点带 blobSum detail）或 416（Range 错），**没有 BLOB_UPLOAD_UNKNOWN 码**。 | 高 |
+| 8 | docker 客户端实际续传行为：push 中断（网络断/服务重启）后同一客户端进程重试 PATCH，因 Content-Range 起点与文件字节数吻合即自然续传；客户端重启则会重新 POST 开新会话（客户端行为，非服务端语义）。 | 中（客户端侧推断，服务端行为由 #2 保证） |
+
+**BinFlow M7（种子 B）校准建议**：
+
+1. BinFlow 的 `upload_sessions` 表（T-209）等价于 Artifactory 的「文件即会话」语义——**续传能力对客户端可观察的行为面**是：`PATCH` 以「当前会话已存字节数」为唯一真源校验 Content-Range 起点；`PUT` 无 body 收尾时从会话数据取校验和比对 digest。这两点对齐即达标，重启存活是存储层自然结果，无需额外协议。
+2. 建议实现官方标准 `GET /v2/<name>/blobs/uploads/<uuid>`（204+Range）——Artifactory 用非标准 `.patch` 变体是历史包袱，标准端点对断点续传客户端（buildkit/crane 等）更友好，且不破坏 docker 官方客户端。
+3. 会话丢失时错误码二选一：按 Artifactory 兼容（404 BLOB_UNKNOWN）或按官方（404 BLOB_UPLOAD_UNKNOWN）；docker 客户端对两者都按「重传」处理，建议按官方。
+
+
 ## 3. manifest PUT 校验链（`DockerManifestPutHandler#uploadManifest`）
 
 按代码执行顺序：

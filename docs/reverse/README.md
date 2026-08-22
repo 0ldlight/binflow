@@ -25,3 +25,4 @@ reverse-engineer 在此产出 **clean-room 行为规格**——让实现者不�
 | `auth-integration.md` | LDAP 配置模型、OAuth stub 状态、用户自动创建 | M6 |
 | `s3-storage-layout.md` | S3/对象存储 binarystore 配置、MPU 参数、云存储重定向 | M6 |
 | `metrics.md` | 内部指标框架、可观测性日志服务、Prometheus 集成现状 | M6 |
+| `rbac-model.md` | 实例级/Projects 域两层授权模型、角色闭集、组 CRUD 与 effective admin | M7 |

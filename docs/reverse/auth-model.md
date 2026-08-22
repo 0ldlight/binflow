@@ -210,6 +210,23 @@ Token 不是独立头协议的「API key」，而是**多入口进入同一验�
 
 ---
 
+### 3.7 Token 创建的「二次认证」边界（M7 种子 C 校准来源，2026-08 增补）
+
+结论：**REST 层的 token 创建（`POST /api/security/token`）没有任何二次认证/口令确认环节**——请求表单里无口令参数（§3.1 字段表 + 官方文档 Create Token 条目均无），唯一的门是「已认证（admin 全量 / 非 admin 只能为自己）」。二次认证只存在于 **UI 侧的邻近敏感操作**，机制如下：
+
+| # | 行为 | 置信度 |
+|---|---|---|
+| 1 | UI 的 API key 管理与用户资料修改走 `PasswordProtectedResource` 包装（`o.a.a.ui.rest.resource.admin.security.apikey` / `...user.UserProfileResource`）：执行前若 `requireProfileUnlock()` 为 true，要求请求头 **`X-JFrog-Reauthentication: Basic base64(<user>:<password>)`** 携带**内部口令**并重新过一遍认证；缺失/错误 → 401 `Bad credentials`（匿名 → 401 `Unable to unlock settings for anonymous user`）。 | 高（代码；头名仅代码=中） |
+| 2 | `requireProfileUnlock` 为 false（即放行）的条件：当前认证是 props OAuth / SAML / http-sso / crowd 之一**且**对应 SSO 配置的 `allowUserToAccessProfile=true`；或 override realm 的中心 OAuth provider 启用。即：**SSO 会话默认要求内部口令解锁** profile/API key 类敏感面，除非管理员显式开了对应 SSO 配置的 profile 放行开关。 | 高（代码 + 官方 SAML SSO 文档 "Allow Created Users Access To Profile Page"（terraform `allow_user_to_access_profile`，默认 true 的差异见 #4）双证） |
+| 3 | 独立端点 `GET /ui/api/v1/validateUserPassword`（admin only）：从同一 `X-JFrog-Reauthentication` 头取口令重验；非 effective admin → 401 `The user: '<u>' is not admin user.`；口令错 → 401 `Bad credentials`。用于 UI 在敏感管理动作前的「重输口令」对话框。该端点还调 `assertValidAuthInCaseMfaEnabled`：MFA 已验证用户只接受 Bearer token，否则 403 `When multi-factor authentication is enabled only bearer token is accepted`。 | 高（代码；调用它的前端流程=推断） |
+| 4 | 新建 SAML/OAuth 设置的 `allowUserToAccessProfile` 默认值在代码侧来自 Access 服务配置（本 war 内不可见）；terraform provider 文档写默认 `true`，而 JFrog 帮助中心多篇文章把「SSO 用户无法生成 token/编辑 profile」归因于该开关未开——两个默认值叙述存在版本间漂移，动态验证后再定。 | 中 |
+| 5 | 帮助中心文档佐证的现象：SSO（SAML）用户在 UI 上生成 access token / Edit Profile 报 `Password is incorrect`，解法是开启 Auto Create + Allow Created Users Access To Profile——即 **UI 上的 token 生成入口与 profile 解锁状态关联**（前端把 token 生成放在 profile 页内）；但直接调 `POST /api/security/token` 不受该解锁门约束（API 层无此包装）。 | 中（文档现象=高；「前端把 token 生成挂在 profile 门内」的归因=中，代码未见 token 资源被 PasswordProtectedResource 包装） |
+| 6 | remember-me 会话的 `GET /api/v1/auth/reauthenticate/{realm}/{username}` 是**会话刷新**（用 remember-me token 对原 realm 重验身份、刷新组成员），不是敏感操作二次认证；仅允许重验自己（非 admin 改别人 → 401 `User is only allowed to reauthenticate himself`）。 | 中 |
+
+**BinFlow M7（种子 C）校准建议**：若做「SSO session 铸管理 Token 需二次认证」，Artifactory 没有现成等价物可照抄——它对 API 层 token 创建不加门，只对 UI 的 profile/API key 面加「内部口令重验」门（`X-JFrog-Reauthentication` 头 + requireProfileUnlock 开关矩阵）。可对齐的最接近形态：BinFlow 的 token 创建端点保持无口令参数（客户端兼容），二次认证做在**控制台前端调用的独立解锁端点**（等价 validateUserPassword）+ SSO 用户铸 admin token 时前端强制先解锁；或定义成 BinFlow 自有超集（后端强校验），但需评估 docker login 的 token 交换路径不受影响（该路径是 Basic 凭据，天然已带口令）。
+
+---
+
 ## 4. 权限模型概览（简述，M4 前再细化）
 
 - 授权单元 permission target = `{name, repositories[], includesPattern, excludesPattern, principals{users{<name>:[actions]}, groups{<name>:[actions]}}}`；动作集：`read / write(=deploy) / annotate / delete / manage / distribute / managedXrayMeta`（`o.a.a.security.AceInfo`）。BinFlow M1 用 `read|write|delete` 子集即可。高。
@@ -271,3 +288,5 @@ refresh_token  仅 refreshable=true 时返
 | 3 | 匿名调 `POST /api/security/token`（client_credentials）的拒绝码是 401 还是 403（RolesAllowed 与代码内检查的先后） | §3.1，标低-中 |
 | 4 | `invalid_client`/`unauthorized_client` 错误码在本资源的实际触发场景 | 枚举存在但未见直接抛点（§3.1） |
 | 5 | 7.161 中 `/api/security/token` 的 @Deprecated 是否影响响应（如加告警头） | 仅见注解，未见行为差异 |
+| 6 | UI 前端生成 token 是否真的被 profile 解锁门拦住（帮助中心文档现象 vs token 资源无包装） | §3.7 #5，标中 |
+| 7 | `allowUserToAccessProfile` 在 7.161 新建 SSO 配置的默认值（terraform 文档 true vs 帮助中心现象） | §3.7 #4，标中 |

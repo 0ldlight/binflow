@@ -17,7 +17,61 @@
 
 ## 📥 待办（todo）
 
-> **M6 完结（closure）**（2026-08-23）。**用户终裁 ADR-0025 已全量落地**，派生三票 **T-208 / T-209 / T-210 全部 done**（review 两轮 + qa PASS 5/5 + conductor 复验，提交 `0a4d154`/`f21fd74`/`e7b581e`+`db45cb2`）。M6 主体 59 票（T-148～T-206）+ 收尾 3 票全绿；DoD 五条达成（#2 的 T-173/T-175 FAIL 项经终裁记为已知限制，Q8/Q9 条件腿以 MinIO/Docker 等价性收口）。**DoD #5 已执行：本地打 `m5-done`（回补，落点 `5d13c3c`）+ `m6-done`；push 已获用户授权并推送 origin（main + tags，41 commits）**。遗留债（M7 候选）：N6/O-2 重启续传 REST 可见性、N3 ctx 取消窄窗、O-1 干净停机清会话、N2 restart 臂注释、internal/auth 53 条既有 lint、008/009 sql 行尾。下一里程碑待用户指令（M7 规划或新方向）。
+> **M7 已立项·波 1 在途**（2026-08-23，规划落地 sprint 389）。用户指令「规划 m7」→ 三路规划（PM PRD v1.0 草案 `docs/prd/milestone-7.md`：FR-64~FR-70 / architect：architecture §3.4a+§5.3.1+ADR-0026/0027 Proposed / reverse：rbac-model.md + docker-registry §2.5 + auth-model §3.7）→ tech-lead 分票 **18 票 T-211~T-228、8 波**，conductor 审核通过录板。主线：RBAC（T-214 收敛→T-212 基座→T-215/T-217 REST 面→T-218 控制台）+ 续传 REST 化（T-213→T-216）+ step-up 可选（T-219→T-224/T-225）+ 技术债（T-220）+ 条件腿（T-227/T-228，`dep:用户环境` 到位即插队不阻塞 DoD）。**七项开放问题 Q1~Q7**（PRD §7，均带暂行假设已开工；用户可随时推翻→PM 回写 v1.1）：Q1 角色闭集三值 / Q2 readonly_admin 读面边界 / Q3 干净停机会话语义（牵 ADR-0028）/ Q4 S3 续传不纳入 / Q5 step-up 形态与默认 off / Q6 条件腿触发 / Q7 replica 隔离延后 M8+。**波 1 已派**（T-211 脚手架 / T-213 storage 基座 / T-214 架构-PRD 三分歧收敛定稿，area 互斥）。M6 已完结：tag `m5-done`/`m6-done` 已随用户授权推送 origin。
+
+### M7 票据（T-211~T-228，tech-lead 2026-08-23 分解；AC 全文见 docs/prd/milestone-7.md）
+
+#### 波 1（在途）
+- **T-211** [P1] M7 验收脚手架：续传重启探针 + 角色×端点矩阵跑批 + lint 基线归档 `role:devops-engineer` `area:scripts/ + Makefile + deploy/dev` `dep:—`
+  m7-resume-probe.sh（--stop kill|sigterm 全链探针，当前 main 红灯先行）；m7-rbac-matrix.sh（角色×端点状态码矩阵，基线归档）；lint-baseline.sh（internal/auth=53 归档供 FR-70 对照）。三脚本 bash -n + POSIX 双跑。
+- **T-213** [P1] Session.Offset() 权威 offset 契约 + ResumeSession 过期 fail-closed `role:dev-go-storage` `area:internal/storage` `dep:—`
+  Session.Offset()（重哈希恢复后=数据文件长度）；已过期未清扫行 → ErrSessionNotFound（表驱动四例）；S3 零改动（TestS3ResumeSessionNotSupported 原样绿）；race + lint 0；godoc 与 §3.1/§5.3.1 对齐。
+- **T-214** [P0] M7 架构-PRD 冲突收敛与 ADR-0026/0027/0028 定稿（Q2/Q3/Q5 载体） `role:architect` `area:docs/design/architecture.md + DECISIONS.md` `dep:—`
+  三分歧定案（① readonly_admin 内容面语义 PRD vs ADR-0026；② 干净停机 Close 语义 PRD Q3 vs arch §5.3.1 契约 7，牵 ADR-0028 + ADR-0006 回写；③ step-up 契约 PRD FR-68 vs ADR-0027，含 wire 字段/枚举拼写统一）；ADR-0026 转 Accepted；§7.1 路由清点表终版；OIDC/LDAP readonly 组映射显式裁决；裁决记录 reports/agents/T-214.md 交 conductor。
+
+#### 波 2（待波 1）
+- **T-212** [P0] RBAC 基座：Role 闭集 + 六能力求值链 + migration 011 + idp_sync role 改写（ADR-0026） `role:dev-go-core` `area:internal/auth + internal/metadata` `dep:T-214`
+  migration 011 双方言（users.role 三值 + is_admin 回填 admin + can_manage 列）幂等 <1s；Role(3)×Capability(6) CanManage 全表 + CanManageRepo + Can 扩 m 动作表驱动单测零遗漏；idp_sync admin_group/admin 臂 → role=admin 回归绿；export/import 往返含 role/can_manage 保真。
+- **T-216** [P1] FR-67 docker blob 上传跨重启续传 REST 化 `role:dev-registry-adapter` `area:internal/adapter/docker` `dep:T-213`
+  registry lazy 重建（clean-room 依据 docs/reverse/docker-registry.md §2.5）；GET 状态腿（204+Range / 404 BLOB_UPLOAD_UNKNOWN）；Content-Range 错位 416 + 权威 Range（sess.Offset()）；kill -9 真实栈全链（PATCH 512KiB→kill→重启→GET→续块→PUT digest→逐位校验）；S3 hard 404 契约不动；M2 D 序列回归。
+
+#### 波 3（待波 2）
+- **T-215** [P0] FR-64 REST：routeAuth 能力化迁移 + adminRole wire + 角色即时生效与审计 `role:dev-go-core` `area:internal/httpapi` `dep:T-212`
+  router.go 全部 admin:true → manage|repoManage（依 T-214 终版清点表逐路由 diff）；守卫测试防裸 admin 门回归；adminRole 三值 wire（冲突 400/非 admin 写 403/回显/落库）；同 Token 升降角色即时生效；user.role.change 审计；readonly_admin 12 读端点 200 + 变更面 403 零副作用（V01~V06）。
+
+#### 波 4（待波 3）
+- **T-217** [P0] FR-65 REST：manage 动作 wire + CanManageRepo 接线 + 仓库级 admin 派生 `role:dev-go-core` `area:internal/httpapi` `dep:T-215`
+  permission target 动作集扩 m（wire + 回显 + 视图字母集）；单仓配置族路由走 CanManageRepo；manage 派生授权链 + 越界 403 + 正交腿（仅 manage 无 r/w/d 不授予内容读写）；无提权链不变量测试；M1 C22/C27 + M4 W19~W21 零回归（V07~V10）。
+
+#### 波 5（待波 4）
+- **T-218** [P1] FR-66 控制台角色与权限管理扩展 + read-only 只读态 `role:dev-frontend` `area:web/src/pages（security 用户/权限 + governance 仓库管理只读态）` `dep:T-215,T-217`
+  角色下拉（wire 回显）/manage 复选/read-only 只读态（服务端 403 如实呈现、UI 无绕过）；Playwright 三腿（V12~V14）；零新增运行时依赖。
+- **T-219** [P2] FR-68 step-up：SSO session 铸管理 Token 二次认证（契约以 T-214/ADR-0027 终版为准） `role:dev-go-core` `area:internal/httpapi(token) + internal/auth + internal/config` `dep:T-215,T-214`
+  开关默认 off；SSO 臂无二次凭据 401；LDAP 重 bind / OIDC 新鲜性双值腿；Basic/admin/docker 臂零影响；M6 Q11 四护栏回归；审计 second_factor 维度；Keycloak/LDAP 容器集成测试（V21~V26）。
+- **T-221** [P1] M7 验收 I：RBAC 角色×能力全表 + manage 派生 + 真实客户端（V01~V11） `role:qa-engineer` `area:QA 验收面` `dep:T-217,T-211`
+  V01~V10 curl 全绿 + m7-rbac-matrix.sh 矩阵归档；V11 真实客户端（docker push/pull + mvn deploy + npm publish）manage 位不动摇协议行为。
+
+#### 波 6（待波 5）
+- **T-220** [P2] FR-70 技术债打包：O-1 Close 语义（按 ADR-0028）+ N3 ctx 窄窗 + N2 restart 臂 + internal/auth 53 条 lint + sql 行尾 `role:dev-go-core` `area:internal/storage + internal/auth + internal/metadata/migrations + internal/httpapi(仅测试)` `dep:T-214,T-216,T-217,T-219`
+  全仓 lint 0（auth 53 条逐条处置留档）；Close 语义按终裁落地（保留→V32 SIGTERM 腿钉死；维持现状→清册 INFO + 措辞回写）；N3 钉死测试（变异验证）；N2 非空洞化；全仓 race 绿。
+- **T-223** [P1] M7 文档 I：RBAC 指南 + 上传续传说明 `role:tech-writer` `area:docs/user + docs-site` `dep:T-214,T-216,T-217`
+  RBAC 指南（三值模型/adminRole curl 用法/manage 派生/矩阵表）；续传说明（措辞严格按 ADR-0028 终裁、S3 限制如实、docker CLI 不续传注记）；make docs 同步。
+- **T-226** [P2] M7 等价口径回归：MinIO + Artifactory OSS 容器复跑 M6 基线（V29） `role:qa-engineer` `area:QA 验收面` `dep:T-217`
+  M6 H01~H05 + H63/H67 在 M7 代码上复跑；差异逐条归档定性。
+
+#### 波 7（待波 6）
+- **T-222** [P1] M7 验收 II：续传四腿 + 控制台 Playwright + 性能回归（V12~V20） `role:qa-engineer` `area:QA 验收面` `dep:T-218,T-220,T-211`
+  kill -9/SIGTERM/错位 416/过期 404 四腿 + MinIO 腿 + M2 D 序列双份；1000 并发 P33/P34（P95 偏差 <10%、重启首请求 <2s）；M1~M6 全 P0 序列复跑（回归硬门槛）。
+- **T-224** [P2] M7 验收 III：step-up 双态矩阵（V21~V26） `role:qa-engineer` `area:QA 验收面` `dep:T-219`
+  开启态矩阵（Keycloak/LDAP）+ 豁免腿 + 审计断言 + 默认 off 回归；企业部署默认值建议归档。
+- **T-225** [P2] M7 文档 II：step-up 指南 + 条件腿真实环境附录 `role:tech-writer` `area:docs/user + docs-site` `dep:T-219,T-214`
+  step-up 指南（开关键/双轨交互/CI 不受影响/API 参考）；条件腿证据归档模板（V27/V28）；FAQ 增补（readonly 边界/S3 404 原因/step-up 排查）。
+
+#### 波 8（末位，`dep:用户环境` 到位即插队）
+- **T-227** [P2] FR-69/Q8 真实 AWS S3 验收实腿（V27） `role:qa-engineer` `area:QA 条件腿` `dep:dep:用户环境,T-222`
+  真实 bucket 上 M1~M6 全 P0 复跑或差异归档；FR-52 吞吐实测；与 MinIO 对照表 + V30 状态记录。
+- **T-228** [P2] FR-69/Q9 真实 Artifactory 迁移验收实腿（V28） `role:qa-engineer` `area:QA 条件腿` `dep:dep:用户环境,T-222`
+  真实实例上 FR-63 全序列复跑（H62~H67 口径）或差异归档（注明版本号）；差异不擅自修代码，回 conductor 转交。
 
 ## 🔨 进行中（doing）
 
