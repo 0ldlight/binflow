@@ -2,7 +2,7 @@
 
 > 由 product-manager 维护；tech-lead 据此把当前里程碑分解为 ticket。
 
-## 当前里程碑：M7（PRD v1.0 草案待 conductor 审）
+## 当前里程碑：M7（PRD v1.1）
 
 ### M0 — 团队启动（已完成）
 - [x] 产品愿景 PRODUCT.md（BinFlow）
@@ -65,13 +65,13 @@
 - [ ] 待用户定案九项开放问题 Q1~Q9
 - [ ] 待 tech-lead 分票
 
-### M7 — 权限细化与运营硬化（PRD v1.0 草案待 conductor 审，2026-08-23）
-需求基线：docs/prd/milestone-7.md（PRD v1.0 草案；FR-64~FR-70 七条需求，13 条端点/产物矩阵，V01~V35 验收命令，七项开放问题 Q1~Q7）
+### M7 — 权限细化与运营硬化（PRD v1.1，2026-08-23）
+需求基线：docs/prd/milestone-7.md（PRD v1.1——T-214 裁决回写〔ADR-0026/0027/0028 Accepted〕；FR-64~FR-70 七条需求，13 条端点/产物矩阵，V01~V35 验收命令；Q1~Q7 中 Q1/Q2/Q3/Q5 已定案、Q4/Q6/Q7 仍开放）
 来源链：M6 §7 Q4（细粒度角色归 M7+ RBAC）+ T-209 遗留债 N6/O-2/O-1/N3/N2 + M6 §7 Q11 留的「SSO session 铸 Token 二次认证」可选加固 + ADR-0025 决策 3 条件腿（Q8/Q9）
-- [ ] PRD v1.0 草案：细粒度 RBAC（FR-64~FR-66：角色闭集 + read-only admin + manage 派生 + 控制台）、docker blob 上传跨重启续传 REST 化（FR-67，N6/O-2 收口）、Token 铸造 step-up 可选增强（FR-68，P2）、Q8/Q9 条件腿执行（FR-69，dep:用户环境）、技术债打包（FR-70：O-1/N3/N2/internal-auth 53 条 lint/008-009 sql 行尾）
-- [ ] ADR-0026~0028（architect）待定案（角色模型与 manage 派生 / step-up 契约 / 会话 Close 语义修订牵 ADR-0006）
-- [ ] 待用户定案七项开放问题 Q1~Q7（角色闭集 / read-only 边界 / 干净停机语义 / S3 续传 / step-up 形态与默认值 / 条件腿触发 / replica 隔离归属）
-- [ ] 待 tech-lead 分票（PRD 定稿后）
+- [x] PRD v1.1（v1.0 草案 + T-214 裁决回写）：细粒度 RBAC（FR-64~FR-66：角色闭集 + readonly_admin 全域只读 + manage 派生 + 控制台）、docker blob 上传跨重启续传 REST 化（FR-67，N6/O-2 收口）、Token 铸造 step-up 可选增强（FR-68，P2）、Q8/Q9 条件腿执行（FR-69，dep:用户环境）、技术债打包（FR-70：O-1/N3/N2/internal-auth 53 条 lint/008-009 sql 行尾）
+- [x] ADR-0026~0028 已定案（Accepted，2026-08-23，T-214：角色模型与 manage 派生 / step-up 契约 / 会话 Close 语义修订牵 ADR-0006 勘误④）
+- [ ] Q1~Q7 已按 ADR-0026~0028 收敛，推翻出口保留（Q1 角色闭集 / Q2 read-only 边界 / Q3 干净停机语义 / Q5 step-up 形态与默认值已定案；Q4 S3 续传 / Q6 条件腿触发 / Q7 replica 隔离归属维持暂行待用户终裁）
+- [x] tech-lead 分票完成（T-211~T-228 已录板）
 
 ## 里程碑完成定义（DoD）
 

@@ -1,12 +1,12 @@
 # PRD — M7 权限细化与运营硬化（细粒度 RBAC / 上传续传 REST 化 / Token 铸造加固 / 条件腿执行 / 技术债收编）
 
-> **PRD 状态：草案待 conductor 审**（v1.0 定稿前不作为实现票基线；§7 七项开放问题待用户终裁后回写）。
+> **PRD 状态：v1.1**（三分歧已收敛——T-214 终裁 + ADR-0026/0027/0028 Accepted；§7 Q1~Q7 中 Q1/Q2/Q3/Q5 已定案，Q4/Q6/Q7 维持暂行待用户终裁，推翻出口保留；文本与 ADR 冲突时以 ADR 为准）。
 
 | 项 | 值 |
 |---|---|
 | 文档 | `docs/prd/milestone-7.md` |
 | 里程碑 | M7 — 权限细化与运营硬化（对应 ROADMAP.md「M7」条目；M6 §7 Q4 延续项 + T-209 遗留债 N6/O-2/O-1 + Q11 留的 M7+ 可选加固 + ADR-0025 决策 3 条件腿） |
-| 状态 | **v1.0 草案**（初版：FR-64~FR-70 七条功能需求，端点矩阵 13 条，V01~V35 验收命令草案，七项开放问题 Q1~Q7） |
+| 状态 | **v1.1**（v1.0 基线上按 T-214 裁决回写：readonly_admin 全域只读短路 / Close 保留语义 / step-up 终版契约 + wire 统一 `adminRole`·`readonly_admin` + T-211 三处勘误；FR-64~FR-70、端点矩阵 13 条、V01~V35 结构不变；Q1/Q2/Q3/Q5 已定案，Q4/Q6/Q7 仍开放） |
 | 上游依据 | PRODUCT.md（愿景与 Non-goals）、ROADMAP.md M7 节、docs/prd/milestone-6.md（v1.3 基线：§7 Q4「细粒度角色归 M7+ RBAC 里程碑」、Q8/Q9 条件腿、Q11「M7+ 可选加固：SSO session 铸 Token 需二次认证」）、DECISIONS.md（ADR-0005 零 CGO、ADR-0006 blob 布局与会话〔决策 2 已被 T-209 修订〕、ADR-0009 匿名读、ADR-0010 docker token、ADR-0014 console/session、ADR-0020 OIDC/LDAP、ADR-0025 M6 终裁）、reports/iteration-386.md（M6 收官 + 遗留债清单）、reports/agents/T-209-review2.md（N1~N7）、reports/agents/T-209-qa.md（O-1/O-2）、docs/reverse/auth-model.md §4（Artifactory 动作集与 permission target 行为）、docs/reverse/docker-registry.md §2（blob upload 会话与 416 语义）、M4 交付基线（milestone-4.md FR-27/FR-28 权限模型） |
 | 下游消费者 | tech-lead（拆票）、architect（ADR-0026~0028：角色模型与 manage 派生 / step-up 契约 / 会话 Close 语义）、reverse-engineer（Artifactory manage 动作与 scoped admin 行为校准）、dev-go-core（auth/metadata/httpapi）、dev-go-storage + dev-registry-adapter（续传接线）、web 前端（角色与权限页扩展）、qa-engineer（V 序列验收）、tech-writer（RBAC 指南 / 续传说明 / step-up 指南 / 真实环境附录） |
 
@@ -17,6 +17,7 @@
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | v1.0 | 2026-08-23 | 初版草案：M7 范围（conductor 种子 A~E 全覆盖）、FR-64~FR-70（RBAC 三条 / 续传一条 / step-up 一条 / 条件腿一条 / 技术债打包一条）、端点矩阵 13 条、V01~V35 验收命令草案、开放问题 Q1~Q7 |
+| v1.1 | 2026-08-23 | T-214 裁决回写（conductor 终审通过，依据 ADR-0026/0027/0028 Accepted 终版）：① FR-64 readonly_admin 数据面改全域只读短路（否决「同权走 target」），读面清单勘误（删 `/api/v1/stats` 与 token 列表、补 `/api/v1/replications`、`storage/migration` 过门 501 注记），wire 统一 `adminRole`/`readonly_admin`（snake）；② FR-67/DU-01 改「GET 状态腿重启前已在，M7 修复跨重启存活」（T-211 实测，T-216 收窄为会话重建接线）；③ FR-68 对齐 ADR-0027 修订版（作用域含本地 session 臂、`step_up_required`/`step_up_invalid`、`auth.token_step_up_grant_ttl_seconds`）；④ FR-65 全局列表不随 manage 开放、建仓臂改 PUT、K11 定案（配额读含）；⑤ §7 Q1/Q2/Q3/Q5 已定案、Q4/Q6/Q7 维持暂行（推翻出口保留）；§5.6 增 token 列表勘误行 |
 
 ---
 
@@ -42,15 +43,15 @@ M6（`m6-done`，2026-08-23）交付了企业就绪基座：S3 后端、OIDC/LDA
 |---|---|---|
 | RBAC | read-only admin 治理读面全通、全部变更面 403 且零副作用；repo admin 经 `manage` 可管所属 permission target；M4 W 序列权限回归零回退 | FR-64/FR-65 |
 | 续传 | 本地 filestore 后端下，docker blob upload 经 kill -9 **与** SIGTERM 两种重启后均可按 Docker Registry spec 续传（GET 204+Range / 错位 416+Range）；S3 后端契约零回归 | FR-67 |
-| step-up | 开关开启时 SSO session 无二次凭据铸管理 Token → 401；Basic/admin 臂不受影响；默认值 Q5 终裁 | FR-68 |
+| step-up | 开关开启时非 admin web session（含本地用户）无二次凭据铸管理 Token → 401；Basic/admin 臂不受影响；默认 false（Q5 已定案，ADR-0027） | FR-68 |
 | 条件腿 | Q8/Q9 用户环境到位 → 真实环境记录归档；未到位 → 按 ADR-0025 决策 3 等价口径收口，不阻塞 DoD | FR-69 |
 | 技术债 | 全仓 golangci-lint 0 issues（含 internal/auth 53 条清零）；全仓 `-race` 绿 | FR-70 |
 | 既有零回归 | M1~M6 全部 P0 序列在本地 filestore 下复跑全绿 | 回归硬门槛 |
 
 ### 1.3 上游依赖与并行关系
 
-- **架构依赖（architect）**：M7 预计三条新 ADR——ADR-0026（角色模型与 manage 派生能力清单）、ADR-0027（step-up 交互契约与 mint grant 形态）、ADR-0028（会话 Close 语义修订：牵 ADR-0006 决策 2 与 T-209 qa O-1 判定）。本 PRD 只约束可观察行为。
-- **逆向参考（reverse-engineer）**：Artifactory 的 `manage` 动作语义（谁能编辑哪个 permission target）与「scoped repository admin」行为在 docs/reverse/auth-model.md §4 仅有动作集清单（置信度高）与端点行为（置信度中），派生细则需一页校准规格；docker 续传语义以 Docker Registry HTTP API v2 公开规范为准（docs/reverse/docker-registry.md §2 已有分块/416 行为）。
+- **架构依赖（architect）**：三条新 ADR 已定案（均 Accepted，2026-08-23，T-214）——ADR-0026（角色模型与 manage 派生能力清单）、ADR-0027（step-up 交互契约与 mint grant 形态，修订版）、ADR-0028（会话 Close 语义修订：牵 ADR-0006 决策 2 勘误④ 与 T-209 qa O-1 判定）。本 PRD 只约束可观察行为，与 ADR 文本冲突时以 ADR 为准。
+- **逆向参考（reverse-engineer）**：docs/reverse/rbac-model.md（2026-08-23）已回答校准问题：实例级无角色层 / 无 read-only admin（#1/#2 高置信）、manage 为 ACE 动作而仓库级 admin 的正式对应物在 project 域——BinFlow 无 projects，target 的 `m` 是最小诚实同构（ADR-0026 已引用）；docker 续传语义以 Docker Registry HTTP API v2 公开规范为准（docs/reverse/docker-registry.md §2 已有分块/416 行为）。
 - **实现分区**：RBAC 面（internal/auth + internal/metadata + internal/httpapi + web 用户/权限页）与续传面（internal/adapter/docker + internal/storage Close 语义）area 不重叠，可并行；step-up 依赖 RBAC 角色判定（非 admin 判定复用），排后。
 - **QA 并行面**：V 序列以 curl + Playwright + docker 为主；条件腿需用户提供环境（FR-69 单列）。
 
@@ -76,7 +77,7 @@ M6（`m6-done`，2026-08-23）交付了企业就绪基座：S3 后端、OIDC/LDA
 
 | 不做项 | 归属 | M7 的隔离边界 |
 |---|---|---|
-| 自定义角色 / 角色继承 / 角色层级树 | M8+ | 角色为**闭集**（暂定 `user / read-only-admin / admin` 三值，Q1 终裁）；「仓库级 admin」经 permission target 的 `manage` 动作派生，非独立角色实体 |
+| 自定义角色 / 角色继承 / 角色层级树 | M8+ | 角色为**闭集**（`user / readonly_admin / admin` 三值，Q1 已定案——ADR-0026；新增角色 = 架构变更，须新 ADR）；「仓库级 admin」经 permission target 的 `manage` 动作派生，非独立角色实体 |
 | permission target 之外的资源域授权（按 packageType / 按系统配置域） | M8+ | 授权单元仍是 repo × pattern（M4 语义零变更） |
 | SAML / 多 IdP / LDAP 分页 / pull 复制 / 多源复制 / Grafana 预置 / bf 完整命令集 / 迁移工具多协议与在线迁移 | M8+ | M6 §2.2 将其排为「M7+」= M6 之后不特指 M7；M7 仅收编种子明列的 RBAC / 条件腿 / step-up，其余继续顺延，本表为防歧义声明 |
 | S3 后端 blob 上传续传 | Q4（暂行不做） | S3 multipart 状态由 S3 服务端持有；`ResumeSession` 维持 hard 404 契约（`TestS3ResumeSessionNotSupported`） |
@@ -88,7 +89,7 @@ M6（`m6-done`，2026-08-23）交付了企业就绪基座：S3 后端、OIDC/LDA
 
 ## 3. 用户与场景（M7 视角）
 
-- **场景 A（值班与合规）**：SRE 值班与内审员需要看仓库清单、用户、权限、审计、复制状态来排查问题，但不应有改配置的能力——平台 admin 给其账号设 `read-only-admin`，而不是共享 admin 口令。
+- **场景 A（值班与合规）**：SRE 值班与内审员需要看仓库清单、用户、权限、审计、复制状态来排查问题，但不应有改配置的能力——平台 admin 给其账号设 `readonly_admin`（wire 枚举 snake 形），而不是共享 admin 口令。
 - **场景 B（团队自治）**：应用团队自管 `app-local` 仓库的权限（给 CI 账号开 write、给新成员开 read）。平台 admin 建一个含 `manage` 动作的 permission target 给 `app-admins` 组，之后权限调整不再需要平台 admin 介入。
 - **场景 C（弱网大镜像））：CI 在跨国链路 push 2GB 镜像层，传到 70% 时服务器因升级重启（compose restart）——docker 客户端按 spec 查询 upload 状态拿到权威 offset 续传，而不是从零重传 2GB。
 - **场景 D（session 被盗））：开发者的浏览器 session 被 XSS 窃取；攻击者想铸一枚长效管理 Token 持久化立足点——step-up 开启后被二次认证挡下（session 可用 ≠ 可铸 Token）。
@@ -110,20 +111,20 @@ M6（`m6-done`，2026-08-23）交付了企业就绪基座：S3 后端、OIDC/LDA
 
 行为规格：
 
-- **角色闭集（暂行，Q1 终裁）**：`user`（缺省）< `read-only-admin` < `admin`。承载形态暂行：`users` 表新增 `role` 列（migration 011），存量数据回填 `is_admin=1 → role=admin`、其余 → `user`；`is_admin` 布尔列保留为兼容视图（admin ⇔ role=admin），K10 定存储细则。
+- **角色闭集（已定案：Q1，ADR-0026）**：`user`（缺省）< `readonly_admin` < `admin`。承载形态：`users` 表新增 `role` 列（migration 011），存量数据回填 `is_admin=1 → role=admin`、其余 → `user`；`is_admin` 布尔列保留为兼容视图（admin ⇔ role=admin，M8 移除）。**wire 字段名 = `adminRole`（camelCase）、DB 列名 = `role`，handler 一处映射（quotaBytes→quota_bytes 先例）；枚举值 snake 形 `user | readonly_admin | admin` 与 DB/代码常量同拼**（ADR-0026 决策 6，T-214 全局裁定）。
 - **角色分配面**：兼容面 `PUT|POST /binflow/api/security/users/{name}` 增可选字段 `adminRole`（枚举，缺省 `user`）；`admin` 布尔语义不变（`admin=true` ⇔ `adminRole=admin`），两者冲突（如 `admin=false` + `adminRole=admin`）→ 400 纯文本。角色变更**即时生效**（含该用户存量 Token 的管理面权限——数据面权限仍只走 permission targets，不受角色影响）。
-- **read-only admin 的行为边界（暂行，Q2 终裁）**：
-  - 读面全通（现行 admin-only 四读面 + 治理查询面）：`GET /api/repositories`、`GET /api/repositories/{key}`、`GET /api/v1/stats`、`GET /api/v1/health`、`GET /api/security/users`（列表/单查）、`GET /api/security/groups`、`GET /api/v1/permissions`、`GET /api/v1/audit`、`GET /api/v1/replication/status`、`GET /api/v1/storage/stats`、`GET /api/v1/storage/migration`、`GET /api/security/token`（列表，元数据面）。
-  - 变更面全拒 403：仓库/用户/组/权限 target 的一切写法、Token 签发与吊销、复制配置写、GC 触发、配额写、系统配置。
-  - 数据面（制品读写）：与普通 user 同权——走 permission targets 判定，角色不加持数据面权限。
-- **最小权限**：仅 `admin` 可写 `adminRole`/`admin` 字段；`read-only-admin` 改任何用户 → 403。groups 不引入角色语义（M4 FR-27-AC9 有意不兼容断言维持）。
+- **read-only admin 的行为边界（已定案：Q2，T-214① + ADR-0026 决策 1）**：
+  - 读面全通（11 端点；T-214① 勘误定稿）：`GET /api/repositories`、`GET /api/repositories/{key}`、`GET /api/v1/health`、`GET /api/security/users`（列表/单查）、`GET /api/security/groups`、`GET /api/v1/permissions`、`GET /api/v1/audit`、`GET /api/v1/replication/status`、`GET /api/v1/replications`（配置列表，补入）、`GET /api/v1/storage/stats`、`GET /api/v1/storage/migration`（未装配双写的裸实例**过门后 501**，矩阵断言按「过门 501」判——T-211 实测佐证）。勘误：v1.0 所列 `GET /api/v1/stats` 实为 `/api/v1/storage/stats`（去重）；`GET /api/security/token`（列表）**端点不存在**（M1 E-17 有意不存在，T-211 实测 404 佐证），自清单删除。
+  - 变更面全拒 403：仓库/用户/组/权限 target 的一切写法、Token 签发与吊销、复制配置写、GC 触发（**全路由 `system:write`，含 dry-run/`apply=false`**——T-214① 否决 v1.0「dry-run 开放」暂行）、配额写、系统配置。
+  - 数据面（制品读写）：**全域只读**——`r` 恒放行，`w`/`d`/`m` 恒拒；permission targets **不参与** readonly_admin 的任何求值（内容面与仓库域均角色短路）；与 target 组合 = **无效**而非非法（不引入 principals 校验报错，组合静默无效果）——ADR-0026 决策 1 / T-214①，否决 v1.0「同权走 target」措辞。
+- **最小权限**：仅 `admin` 可写 `adminRole`/`admin` 字段；`readonly_admin` 改任何用户 → 403。groups 不引入角色语义（M4 FR-27-AC9 有意不兼容断言维持）。
 - **审计**：角色变更记 `user.role.change`（actor + old/new + target user）。
-- **docker token / 匿名臂零影响**：`/v2/token` 签发与 ADR-0009 匿名读不变。
+- **docker token / 匿名臂零影响**：`/v2/token` 签发与 ADR-0009 匿名读不变；readonly_admin 的 push token 在 push 时逐请求 403（与 REST 面 403 同源，ADR-0026 决策 5）。
 
 | # | AC（可执行） | 优先级 |
 |---|---|---|
-| FR-64-AC1 | V01：admin `curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/security/users/alice -d '...' -d 'adminRole=read-only-admin'` → 201；`GET .../users/alice` 回显 `adminRole=read-only-admin`；DB `users.role` 列落值（sqlite 直查） | P0 |
-| FR-64-AC2 | V02：alice（read-only admin）读面全通——§行为规格所列 12 个 GET 端点逐一 200（curl 序列） | P0 |
+| FR-64-AC1 | V01：admin `curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/security/users/alice -d '...' -d 'adminRole=readonly_admin'` → 201；`GET .../users/alice` 回显 `adminRole=readonly_admin`；DB `users.role` 列落值（sqlite 直查） | P0 |
+| FR-64-AC2 | V02：alice（readonly_admin）读面全通——§行为规格所列 11 个 GET 端点逐一通过（200；`storage/migration` 裸实例按「过门 501」判）（curl 序列） | P0 |
 | FR-64-AC3 | V03：alice 变更面全拒——`POST /api/repositories`、`PUT /api/security/users/bob`、`DELETE /api/security/groups/devs`、`PUT /api/v1/permissions/t1`、`POST /api/security/token/revoke`、GC/配额写各一腿 → 全 403；且零副作用断言（写后再 GET 对应实体逐字未变） | P0 |
 | FR-64-AC4 | V04：即时生效——alice 原为 user 时 `GET /api/security/users` 403 → admin 升角色后**同一 Token 不换发**重放 → 200 → 降回 user → 再 403（无重启、无延迟窗口） | P0 |
 | FR-64-AC5 | V05：越权与冲突腿——alice 改 bob 角色 → 403；`admin=false`+`adminRole=admin` → 400；非 admin（普通 user）带 `adminRole` 字段建用户 → 403 | P0 |
@@ -138,10 +139,11 @@ M6（`m6-done`，2026-08-23）交付了企业就绪基座：S3 后端、OIDC/LDA
 行为规格：
 
 - **动作集扩展**：permission target 的 principals 动作集从 `read|write|delete` 扩为 `read|write|delete|manage`（对齐 Artifactory `AceInfo` 动作集子集，docs/reverse/auth-model.md §4；`annotate/distribute/managedXrayMeta` 不跟进）。既有 target 与 AC 语义零变更（无 manage 位 = 行为不变）。
-- **manage 派生能力（暂行，K11/逆向规格校准）**：对持有 `manage`（经 user 或 group principals）且 target 命中的 repo×pattern：
-  1. 可读全部仓库配置（`GET /api/repositories`、`GET /api/repositories/{key}` 对其 manage 覆盖的 repo 200）；
-  2. 可创建/编辑/删除** repositories 集合 ⊆ 其 manage 覆盖 repo 集**的 permission target（对齐 Artifactory「manage = 可管理该 target」语义）；
-  3. 可读制品授权位（`GET .../<path>?permissions`）。
+- **manage 派生能力（已定案：K11，ADR-0026 决策 3）**：对持有 `manage`（经 user 或 group principals）且 target 命中的 repo×pattern（`m` 的 target 匹配**只判 repos[]**，includes/excludes 不参与——manage 是仓库配置权、无路径子域）：
+  1. 可读其 manage 覆盖仓库的**单仓配置**（`GET /api/repositories/{key}` 200）；全局列表 `GET /api/repositories` **不随 manage 开放**（CapRepoRead；过滤列表 M8+，architecture §11.30——T-214 P7）；
+  2. 可创建/编辑/删除** repositories 集合 ⊆ 其 manage 覆盖 repo 集**的 permission target（覆盖集判定 = ⊆ 已定案；门 = CapSecurityWrite ∨ 覆盖集校验，body 依赖故在 handler 判定，越界 403——ADR-0026 决策 3；对齐 Artifactory「manage = 可管理该 target」语义）；
+  3. 可读制品授权位（`GET /api/storage/{repo}/{path}?permissions` 视图，走 CanManageRepo）；
+  4. 可读所属仓库的配额与用量（`GET /api/v1/storage/usage/{repo}` 归仓库域：CanManageRepo(read) ∨ Can(r)，W26b 既有 r 放行零回归；quota 配置与用量观测同域且 m-holder 可设 quotaBytes 不可不见用量——K11 定案，v1.0 暂行「不含配额」被推翻，T-214 P9）。
 - **manage 不是数据面权限**：`manage` 不隐含 read/write/delete——制品读写仍需显式授予（与 Artifactory 动作正交语义一致）。
 - **不可越界**：manage 持有者不可建/删仓库、不可管用户/组/角色/Token、不可触发 GC/配额/复制配置——全部 403。
 - **admin 隐式含 manage**（admin 全权不变）。
@@ -150,20 +152,20 @@ M6（`m6-done`，2026-08-23）交付了企业就绪基座：S3 后端、OIDC/LDA
 | # | AC（可执行） | 优先级 |
 |---|---|---|
 | FR-65-AC1 | V07：admin 建 target `t-app`（repo=app-local、pattern `**`、principals groups{app-admins:[read,write,delete,manage]}）+ 用户 carol 入组 → carol `PUT $BASE/binflow/api/v1/permissions/t-app`（principals 增 user dave:[read]）→ 200；dave `curl -su dave:... GET $BASE/binflow/app-local/lib.a`（预先放入制品）→ 200 | P0 |
-| FR-65-AC2 | V08：边界腿——carol `POST /api/repositories` → 403；`PUT /api/v1/permissions/t-other`（引用 other-repo，超出覆盖集）→ 403；`PUT /api/security/users/*` → 403；`POST /api/security/token/revoke` → 403 | P0 |
+| FR-65-AC2 | V08：边界腿——carol `PUT /api/repositories/new-repo`（建仓臂，repo 不存在；router 无 POST 建仓路由——T-214 P8）→ 403；`PUT /api/v1/permissions/t-other`（引用 other-repo，超出覆盖集）→ 403；`PUT /api/security/users/*` → 403；`POST /api/security/token/revoke` → 403 | P0 |
 | FR-65-AC3 | V09：正交腿——target 只授 `manage`（无 r/w/d）的用户 carol2：`GET /api/repositories/app-local` 200、`PUT /api/v1/permissions/t-app` 200，但 `PUT $BASE/binflow/app-local/x.bin`（上传）→ 403、GET 制品 → 403 | P0 |
 | FR-65-AC4 | V10：零回归——M1 C22/C27、M4 W19/W19c/W21 权限序列复跑全绿（无 manage 位的行为逐字不变） | P0 |
 | FR-65-AC5 | V11：真实客户端腿——carol 所在 app-admins 组授 r/w/d/manage 后：`docker push $BASE/app-local/myimg:t` 成功且 `docker pull` 成功；`mvn deploy`/`npm publish` 各一腿成功（manage 位存在不动摇协议行为） | P1 |
 
 #### FR-66 控制台角色与权限管理扩展（web 前端 + dev-go-core 配合）
 
-**用户故事**：作为管理员，我在 UI 用户页直接选角色（user / read-only admin / admin），在权限页 principals 面板勾选 `manage` 动作——不用切到 curl。
+**用户故事**：作为管理员，我在 UI 用户页直接选角色（wire 三值 `user` / `readonly_admin` / `admin`），在权限页 principals 面板勾选 `manage` 动作——不用切到 curl。
 
 行为规格：用户编辑页增「角色」下拉（三值，仅 admin 可见可改）；权限 target 页动作位扩展 `manage` 复选；read-only admin 登录后全部管理页可见但编辑动作禁用（或提交后如实呈现 403 服务端文案）；错误呈现服务端原文（沿用 M4 FR-28 约定）。
 
 | # | AC（可执行） | 优先级 |
 |---|---|---|
-| FR-66-AC1 | V12：Playwright——admin 在 UI 把 alice 设为 read-only admin → curl `GET /api/security/users/alice` 回显 `adminRole=read-only-admin` | P1 |
+| FR-66-AC1 | V12：Playwright——admin 在 UI 把 alice 设为 readonly_admin → curl `GET /api/security/users/alice` 回显 `adminRole=readonly_admin` | P1 |
 | FR-66-AC2 | V13：Playwright——alice 登录控制台：仓库/用户/权限/审计页可见；「新建仓库」等编辑动作禁用或提交后呈现 403；无任何 UI 路径能绕过服务端判定 | P1 |
 | FR-66-AC3 | V14：Playwright——权限页编辑 `t-app` principals 勾选 manage 保存 → curl `GET /api/v1/permissions/t-app` 回显 manage 位 | P1 |
 
@@ -179,13 +181,13 @@ M6（`m6-done`，2026-08-23）交付了企业就绪基座：S3 后端、OIDC/LDA
 
 行为规格：
 
-- **接线**：docker HTTP 层会话注册表不再仅是进程内存——上传会话以 `upload_sessions` 表（migration 010，T-209 交付）为事实源，服务启动时重建（或惰性查询，K13 定）注册表；upload URL 中的 session id 即表主键，跨重启稳定。
+- **接线**：docker HTTP 层会话注册表不再仅是进程内存——上传会话以 `upload_sessions` 表（migration 010，T-209 交付）为事实源，注册表跨重启重建（T-216 范围已收窄为「会话重建接线」：lazy 重建 + `Offset()` 权威化，非状态腿补齐——T-211 实测确认）；upload URL 中的 session id 即表主键，跨重启稳定。
 - **规格对齐**（Docker Registry HTTP API v2 公开规范 + docs/reverse/docker-registry.md §2）：
-  - `GET /v2/<name>/blobs/uploads/<reference>` → **204 No Content + `Range: 0-<offset-1>`**（上传状态查询，续传前提；现缺失——重启前亦未实现该 GET 状态腿的，一并补齐）；
+  - `GET /v2/<name>/blobs/uploads/<reference>` → **204 No Content + `Range: 0-<offset-1>`**（上传状态查询，续传前提；该 GET 状态腿**重启前已在且正确**——T-211 实测，v1.0「现缺失」系勘误；M7 修复项 = **跨重启存活**〔会话重建接线〕）；
   - `PATCH` 续块：`Content-Range` 起点 == 已存字节数 → 202 追加并回 `Range`；起点错位 → **416 + `Range` 权威 offset**（空 body，非 404 非 500）；
   - `PUT ?digest=` 收尾不变（digest 校验失败 400、成功 201、终态清行清目录）；
   - 会话过期（ttl 24h）或行不存在 → 404 `BLOB_UPLOAD_UNKNOWN`。
-- **干净停机语义（暂行，Q3 终裁，落地为 ADR-0028）**：`Engine.Close()` 不再清除在册**未过期**上传会话（行+目录保留），孤儿清理由启动 sweep + TTL 承担——使 SIGTERM/compose restart 后续传同样成立（现行为为 Close 全清，T-209 qa O-1 判定非回归、本 PRD 升格为目标行为变更）。
+- **干净停机语义（已定案：Q3，ADR-0028 Accepted，T-214②）**：`Engine.Close()` = 停止接受变更 + 排空在途 Append/Commit + **不删除任何未过期会话行与数据文件、不做过期清理**（sweep + TTL 是会话行唯一回收路径；Close 打保留清单 INFO 替代原清册 INFO）——三径 kill -9 / SIGTERM / compose restart 对称可续传（现行为为 Close 全清；T-209 qa O-1 判定在 M6 语境仍正确，M7 起为目标行为变更）。
 - **范围**：仅本地 filestore 后端。S3 后端维持现状（multipart 状态由 S3 持有，`ResumeSession` hard 404 契约与 `TestS3ResumeSessionNotSupported` 不变，Q4）。generic/maven/npm/pypi 均为单体 PUT，无续传面（§2.2 裁定）。
 - **客户端注记**：docker CLI 自身中断后从头重传（客户端不实现续传），规格级续传以 curl 验证；真实客户端回归以 docker push/pull 全绿为准（D 序列）。
 
@@ -210,18 +212,18 @@ M6（`m6-done`，2026-08-23）交付了企业就绪基座：S3 后端、OIDC/LDA
 
 行为规格：
 
-- **作用域（暂行，Q5 终裁）**：`auth.token_step_up` 开关（暂行默认 **false**，不破既有脚本；Q5 终裁默认值）开启时——经 **web session cookie 认证的非 admin 用户**调用 `POST /api/security/token` 铸管理 Token 需 step-up；Basic / Token / Bearer 臂直接放行（首因子新鲜）；admin 臂不受限。
-- **交互形态（暂行两型，Q5 终裁，ADR-0027 定契约）**：
-  - 本地 / LDAP 用户：铸造请求携带重验口令（暂行 body 参数 `step_up_password`；LDAP 走 bind 重验）；缺失 → 401 `step_up_required`（OAuth 形错误体）；口令错误 → 401。
-  - OIDC 用户：先经 IdP 新鲜重认证（authorize 携 `prompt=login`〔或 `max_age=0`〕）换取**单次有效、短 TTL（暂行 ≤5min）的 mint grant**，铸造请求携 grant；grant 过期 / 复用第二次 → 401。
+- **作用域（已定案：Q5，ADR-0027 Accepted，T-214③）**：`auth.token_step_up` 开关（默认 **false**，不破既有脚本，企业部署文档建议开启）开启时——经 **web session cookie 认证的非 admin 用户**（**含本地用户 session 臂**，T-214 扩围：威胁载体是 session 臂本身，与身份源无关）调用 `POST /api/security/token` 铸管理 Token 需 step-up；Basic / Token / Bearer 臂直接放行（首因子新鲜）；admin 臂不受限；匿名 401 挑战照旧。
+- **交互形态（已定案：ADR-0027 修订版，腿选择 = `users.provider`）**：
+  - 本地 / LDAP 用户：铸造请求携带重验口令（body 参数 `step_up_password`；本地 argon2 校验 / LDAP bind 重验，`users.provider` 选腿）；缺失 → 401 `step_up_required`（OAuth 形错误体）；口令失验 → 401 `step_up_invalid`。
+  - OIDC 用户：login init 携 `purpose=step_up`（authorize 强制 `prompt=login`）→ callback 对该 purpose **不建新 session**、换发 **mint grant**（opaque 256-bit 随机串，服务端只存 sha256；绑定 {username, session_id}；**单次消费即删**），铸造请求 body `step_up_grant` 携带；TTL = `auth.token_step_up_grant_ttl_seconds`（默认 300s，域 [60,3600]；台账进程内存，重启丢失 = 重走一次 re-auth，零 schema）；grant 过期 / 失验 / 复用第二次 → 401 `step_up_invalid`。
 - **审计**：step-up 路径铸造的 `token.issue` 事件 detail 增 `step_up` 标志与方式（password / oidc_reauth）。
 - **不动的面**：Q11 四条护栏（仅限本人 / 有限 TTL / 主体行校验 / 审计）语义零变更；`/v2/token`（docker）不引入 step-up。
 
 | # | AC（可执行） | 优先级 |
 |---|---|---|
-| FR-68-AC1 | V21：开关开启 + OIDC session 用户（非 admin）无 grant `POST $BASE/binflow/api/security/token -d 'grant_type=client_credentials'` → 401 `step_up_required`（OAuth 形错误体 `{"error":"unauthorized", ...}`） | P2 |
-| FR-68-AC2 | V22：口令重验腿——本地非 admin 用户 session + 正确 `step_up_password` → 200 铸得 Token → `curl -H "X-JFrog-Art-Api: $T" .../api/system/ping` 200；错误口令 → 401 | P2 |
-| FR-68-AC3 | V23：OIDC grant 腿——fresh re-auth（`prompt=login`）后窗口内携 grant POST → 200；grant 复用第二次 → 401；超 TTL → 401 | P2 |
+| FR-68-AC1 | V21：开关开启 + OIDC session 用户（非 admin）无 grant `POST $BASE/binflow/api/security/token -d 'grant_type=client_credentials'` → 401 `step_up_required`（OAuth 形错误体 `{"error":"step_up_required", ...}`——v1.0 示例 `unauthorized` 系笔误，T-214 P11） | P2 |
+| FR-68-AC2 | V22：口令重验腿——本地非 admin 用户 session + 正确 `step_up_password` → 200 铸得 Token → `curl -H "X-JFrog-Art-Api: $T" .../api/system/ping` 200；错误口令 → 401 `step_up_invalid` | P2 |
+| FR-68-AC3 | V23：OIDC grant 腿——fresh re-auth（`prompt=login`）后 TTL 窗口内携 grant POST → 200；grant 复用第二次 → 401 `step_up_invalid`；超 TTL → 401 `step_up_invalid` | P2 |
 | FR-68-AC4 | V24：豁免腿——开关开启下：Basic 认证（CI）POST token → 200（无需 step-up）；admin session POST → 200；`/v2/token` docker login 流零影响 | P2 |
 | FR-68-AC5 | V25：开关默认关闭回归——默认配置下 M6 H26/Q11 四护栏序列复跑全绿（非 admin 本人铸造 / 指定他人 403 / TTL 上限 401 / 禁用即失效） | P2 |
 | FR-68-AC6 | V26：审计——step-up 铸造后 `GET /api/v1/audit?action=token.issue` 事件 detail 含 `step_up` 与方式字段 | P2 |
@@ -258,7 +260,7 @@ M6（`m6-done`，2026-08-23）交付了企业就绪基座：S3 后端、OIDC/LDA
 
 行为规格（五项打包，逐项溯源）：
 
-1. **O-1 干净停机会话语义**：`Engine.Close()` 改为保留在册未过期上传会话（行+目录），孤儿由启动 sweep + TTL 清理——FR-67-V16 的前置；语义变更落 ADR-0028 并回写 T-209 qa O-1 的「异常中断后」措辞边界。防孤儿行回归钉死（干净停机后无孤儿行、无泄漏目录）。
+1. **O-1 干净停机会话语义**：`Engine.Close()` 改为保留在册未过期上传会话（行+目录），孤儿由启动 sweep + TTL 清理——FR-67-V16 的前置；语义变更已落 **ADR-0028（Accepted，T-214②）**。T-209 qa O-1 的「异常中断后」措辞边界：**qa 报告为历史记录不回改**（其判定在 M6 语境仍正确），PRD §5.6 与 tech-writer 文档措辞以 ADR-0028 为准（不再写「异常中断后」限定）。防孤儿行回归钉死（干净停机后无孤儿行、无泄漏目录）。
 2. **N3 ctx 取消窄窗**：`Append` 在 body 读完 EOF 与 `SetState` 之间 ctx 恰好取消会把完好会话毒化（SetState 用请求 ctx）——改 `context.WithoutCancel`（或等效），消除窄窗；钉死测试（EOF 后注入取消 → 会话不毒化、状态落库）。
 3. **N2 restart 臂注释/测试空洞**：`TestV2BlobSessionSweepResidue` 的 restart 臂在 Close 语义变更后需重评——使该臂非空洞（Close 后重新种入过期行+目录再断言 sweep）或注释如实化。
 4. **internal/auth 53 条既有 lint 清零**：仅修 lint 不改行为；如有个别条目需行为性处置，逐条记录理由（reviewer 复核）。
@@ -288,15 +290,15 @@ M6（`m6-done`，2026-08-23）交付了企业就绪基座：S3 后端、OIDC/LDA
 |---|---|---|---|---|---|---|
 | RB-01 | `PUT\|POST /binflow/api/security/users/{name}` 增可选 `adminRole` | 枚举三值缺省 `user`；与 `admin` 布尔冲突 → 400；仅 admin 可写 | 兼容（超集扩展字段，缺省语义不变） | P0 | 高（自有扩展，Artifactory 用户面仅有 admin 布尔） | V01/V05 |
 | RB-02 | `GET /binflow/api/security/users`（列表/单查）回显 `adminRole` | 列表简形态 + 单查回显；永不回显口令 | 兼容（超集字段） | P0 | 高 | V01 |
-| RB-03 | read-only admin 角色（治理读面全通 / 变更面 403） | 12 读端点 200；全部变更面 403 零副作用；数据面不加持 | **自有（有意差异）**——Artifactory 无内置只读 admin 角色（近似能力 = permission target 授 read，无管理面只读） | P0 | — | V02/V03 |
+| RB-03 | readonly_admin 角色（治理读面全通 / 变更面 403 / 数据面全域只读） | 11 读端点通过（`storage/migration` 裸实例按「过门 501」判）；变更面全 403 零副作用（含 GC dry-run）；数据面 r 恒放行、w/d/m 恒拒（角色短路，ADR-0026） | **自有（有意差异）**——Artifactory 无内置只读 admin 角色（近似能力 = permission target 授 read，无管理面只读） | P0 | 高（ADR-0026 Accepted） | V02/V03 |
 | RB-04 | permission target 动作集扩展 `manage` | `read\|write\|delete\|manage` 四值；既有 target 零变更 | 兼容（Artifactory `AceInfo` 动作集子集，auth-model.md §4） | P0 | 高 | V07 |
 | RB-05 | manage 派生：被授权者可编辑覆盖集内的 permission target | 可管 target 的 repositories ⊆ manage 覆盖 repo 集；不越建仓/用户/token 面；manage 不隐含 r/w/d | 兼容（语义对齐 Artifactory「manage = 可管理该 target」） | P0 | 中（派生细则待逆向校准，K11） | V07~V09 |
 | RB-06 | 控制台角色/权限管理扩展（角色下拉 + manage 复选 + 只读态） | 用户页/权限页扩展；错误呈现服务端原文 | 自有 | P1 | — | V12~V14 |
-| DU-01 | `GET /v2/<name>/blobs/uploads/<reference>` → 204 + `Range` | 上传状态查询（续传前提）；M2 起缺失，M7 补齐；跨重启稳定 | 兼容（Docker Registry HTTP API v2 spec；docs/reverse/docker-registry.md §2） | P1 | 高（公开规范） | V15 |
+| DU-01 | `GET /v2/<name>/blobs/uploads/<reference>` → 204 + `Range` | 上传状态查询（续传前提）；GET 状态腿重启前已在（T-211 实测勘误），M7 修复项 = **跨重启存活缺失**（会话重建接线，T-216 收窄） | 兼容（Docker Registry HTTP API v2 spec；docs/reverse/docker-registry.md §2） | P1 | 高（公开规范 + T-211 实测） | V15 |
 | DU-02 | PATCH 分块续传跨重启（错位 416 + `Range`） | Content-Range 起点校验；重启前后行为一致；过期/无行 404 `BLOB_UPLOAD_UNKNOWN` | 兼容（spec 分块上传语义；现状重启后 404 属缺陷，本条修复） | P1 | 高 | V15/V17/V18 |
 | DU-03 | `PUT ?digest=` 收尾（digest 校验/201/终态清理） | T-209 语义零变更 | 兼容（spec；回归项） | P1 | 高 | V15/V17 |
 | DU-04 | S3 后端 blob 上传续传 | multipart 状态由 S3 持有；`ResumeSession` hard 404 维持 | **有意不做**（Q4 暂行；ADR-0025 决策 5 勘误留的评估位） | — | — | V19（回归断言） |
-| TK-01 | SSO session 铸管理 Token 需 step-up | 开关 `auth.token_step_up`（暂行默认 false）；口令重验 / OIDC fresh re-auth mint grant；Basic/Token/admin 臂豁免 | **自有（有意差异）**——Artifactory 无此要求；开启后对平移脚本有行为差异（401 `step_up_required`），文档标注 | P2 | 中（契约待 ADR-0027，Q5） | V21~V26 |
+| TK-01 | 非 admin web session 铸管理 Token 需 step-up | 开关 `auth.token_step_up`（默认 false）+ `auth.token_step_up_grant_ttl_seconds`（默认 300s）；口令重验 `step_up_password` / OIDC mint grant `step_up_grant`；错误码 `step_up_required`/`step_up_invalid`；Basic/Token/admin 臂豁免 | **自有（有意差异）**——Artifactory 无此要求；开启后对平移脚本有行为差异（401 `step_up_required`），文档标注 | P2 | 高（ADR-0027 Accepted，Q5 已定案） | V21~V26 |
 | CD-01/02 | AWS S3 实腿 / 真实 Artifactory 实腿 | 环境验收（非端点）；未到位走 MinIO/OSS 等价口径（ADR-0025 决策 3） | 条件腿（`dep:用户环境`） | P2 | — | V27~V30 |
 | DB-01 | 技术债打包（Close 语义 / ctx 窄窗 / N2 / lint / sql 行尾） | 行为变更仅 Close 保留在册会话（落 ADR-0028）；其余零行为变化 | 自有（非兼容面） | P1 | — | V31~V35 |
 
@@ -325,13 +327,13 @@ M6（`m6-done`，2026-08-23）交付了企业就绪基座：S3 后端、OIDC/LDA
 # ========== RBAC（FR-64） ==========
 # V01 角色分配（RB-01/02）
 curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/security/users/alice \
-  -d 'email=alice@t.io' -d 'password=pw123' -d 'adminRole=read-only-admin' -o /dev/null -w '%{http_code}\n'  # 201
-curl -su admin:$ADMIN_PW $BASE/binflow/api/security/users/alice | jq -r '.adminRole'   # "read-only-admin"
-# V02 读面全通（12 端点逐一 200，RB-03）
-for p in api/repositories api/repositories/generic-local api/v1/stats api/v1/health \
+  -d 'email=alice@t.io' -d 'password=pw123' -d 'adminRole=readonly_admin' -o /dev/null -w '%{http_code}\n'  # 201
+curl -su admin:$ADMIN_PW $BASE/binflow/api/security/users/alice | jq -r '.adminRole'   # "readonly_admin"
+# V02 读面全通（11 端点；storage/migration 裸实例按「过门 501」判，RB-03——T-214 P2 勘误：删 v1/stats 与 token 列表、补 replications）
+for p in api/repositories api/repositories/generic-local api/v1/health \
          api/security/users api/security/groups api/v1/permissions api/v1/audit \
-         api/v1/replication/status api/v1/storage/stats api/v1/storage/migration api/security/token; do
-  curl -su alice:pw123 $BASE/binflow/$p -o /dev/null -w "%{http_code} $p\n"; done        # 全 200
+         api/v1/replication/status api/v1/replications api/v1/storage/stats api/v1/storage/migration; do
+  curl -su alice:pw123 $BASE/binflow/$p -o /dev/null -w "%{http_code} $p\n"; done        # 其余 10 项 200；migration 200（已装配双写）或 501（裸实例，过门即 PASS）
 # V03 变更面全拒 + 零副作用（RB-03）
 curl -su alice:pw123 -X POST $BASE/binflow/api/repositories -H 'Content-Type: application/json' \
   -d '{"rclass":"local","packageType":"generic"}' -o /dev/null -w '%{http_code}\n'      # 403
@@ -345,7 +347,7 @@ curl -su alice:pw123 -X POST $BASE/binflow/api/repositories -H 'Content-Type: ap
 curl -su carol:pw123 -X PUT $BASE/binflow/api/v1/permissions/t-app -H 'Content-Type: application/json' \
   -d '{"name":"t-app","repositories":["app-local"],"includesPattern":"**","principals":{"groups":{"app-admins":["read","write","delete","manage"]},"users":{"dave":["read"]}}}' \
   -o /dev/null -w '%{http_code}\n'                                                       # 200
-# V08 边界：carol POST repositories → 403；PUT t-other（超覆盖集）→ 403；users → 403；revoke → 403
+# V08 边界：carol PUT repositories/new-repo（建仓臂，router 无 POST 建仓路由）→ 403；PUT t-other（超覆盖集）→ 403；users → 403；revoke → 403
 # V09 正交：仅 manage 的 carol2：GET repositories/app-local 200 / PUT 制品 403 / GET 制品 403
 # V10 零回归：M1 C22/C27 + M4 W19/W19c/W21 复跑全绿
 # V11 真实客户端：docker push $BASE/app-local/myimg:t && docker pull …；mvn deploy；npm publish
@@ -388,10 +390,10 @@ docker pull $BASE/qa-docker/myimg:<tag>                               # 端到�
 
 | # | 项 | v1.0 暂行值 | 校准来源 |
 |---|---|---|---|
-| K10 | 角色承载形态（`users.role` 列 vs 独立表）、`is_admin` 兼容视图维护方式、migration 011 细则 | `users.role` 列 + `is_admin` 保留为派生视图 | ADR-0026（architect） |
-| K11 | manage 派生能力闭集（可管 target 的 repo 覆盖判定 = 子集 or 相等；`?permissions` 可见范围；是否含配额读） | repo 集 ⊆ 覆盖集；含仓库配置读与 target CRUD；不含配额 | ADR-0026 + 逆向校准规格（reverse-engineer） |
-| K12 | step-up 契约（参数/头名、mint grant 形态与 TTL、开关键名与默认值、错误码文案） | `step_up_password` body 参数；grant ≤5min 单次；`auth.token_step_up` 默认 false | ADR-0027（architect）+ Q5 终裁 |
-| K13 | docker 续传注册表重建策略（启动全量 vs 惰性查询）与 Location 基址稳定性 | 启动时重建（行数小、路径简单）；Location 复用 M2 既有生成 | 实现票细化 |
+| K10 | 角色承载形态（`users.role` 列 vs 独立表）、`is_admin` 兼容视图维护方式、migration 011 细则 | **已定案（ADR-0026 Accepted）**：`users.role` 列 + `is_admin` 兼容镜像（M8 移除）+ `permission_principals.can_manage` 列；wire=`adminRole` / DB=`role`，handler 一处映射 | ADR-0026 决策 6（2026-08-23 定稿） |
+| K11 | manage 派生能力闭集（可管 target 的 repo 覆盖判定；`?permissions` 可见范围；是否含配额读） | **已定案（ADR-0026 决策 3）**：覆盖集判定 = ⊆；含单仓配置读、target CRUD、`?permissions` 视图与配额/用量读（usage/{repo} 归仓库域）——v1.0「不含配额」被推翻（T-214 P9）；全局列表不开放（M8+ 过滤列表，architecture §11.30） | ADR-0026（Accepted）+ docs/reverse/rbac-model.md |
+| K12 | step-up 契约（参数/头名、mint grant 形态与 TTL、开关键名与默认值、错误码文案） | **已定案（ADR-0027 Accepted 修订版）**：`step_up_password`/`step_up_grant`；grant 绑定 user+session、单次消费即删；`auth.token_step_up`（默认 false）+ `auth.token_step_up_grant_ttl_seconds`（默认 300s，域 [60,3600]）；错误码 `step_up_required`/`step_up_invalid` | ADR-0027 决策 3~6（Q5 已定案） |
+| K13 | docker 续传注册表重建策略（启动全量 vs 惰性查询）与 Location 基址稳定性 | T-216 已收窄：**lazy 惰性重建** + `Offset()` 权威化（T-211 实测：GET 状态腿重启前已在）；Location 复用 M2 既有生成 | T-216 实现票（进行中口径） |
 
 ### 5.6 回归基线反转表（M7 起生效，qa 更新既有断言）
 
@@ -401,8 +403,9 @@ docker pull $BASE/qa-docker/myimg:<tag>                               # 端到�
 | 干净停机（SIGTERM）清空在册上传会话 | T-209 qa O-1（判定为既有语义） | 保留未过期会话至 TTL（ADR-0028；V16/V32） |
 | 用户权限为 admin 布尔二元 | M1 FR-5 / M4 FR-27 | role 闭集三值（`admin` 布尔保留为兼容视图，语义不变） |
 | permission target 动作集 `read\|write\|delete` | M1/M4 | 增 `manage`（无 manage 位行为不变） |
-| session 臂非 admin 铸 Token 直接 200 | M6 Q11 裁决 | 开关开启时 401 `step_up_required`（默认关闭不反转；Q5 终裁默认值） |
+| session 臂非 admin 铸 Token 直接 200 | M6 Q11 裁决 | 开关开启时 401 `step_up_required`/`step_up_invalid`（默认关闭不反转；Q5 已定案默认 false，ADR-0027） |
 | internal/auth 53 条既有 lint 为已知债务 | T-208/T-209 qa 注记 | 0 issues（V31） |
+| `GET /api/security/token`（token 列表） | M1 E-17（有意不存在；T-211 实测 404 佐证） | **勘误（非反转）**：端点从未存在，v1.0 readonly 读面清单误列已删（T-214 P2/P13） |
 
 ---
 
@@ -412,10 +415,10 @@ docker pull $BASE/qa-docker/myimg:<tag>                               # 端到�
 
 | ADR | 冲突/补充点 | 本 PRD 立场 | 所需 ADR |
 |---|---|---|---|
-| ADR-0006 决策 2（会话入 `upload_sessions` 表，T-209 修订版） | Close 现行清空在册会话（T-209 qa O-1 判非回归）与续传目标冲突 | 修订：Close 保留未过期会话，孤儿由 sweep+TTL 清理 | **ADR-0028**（新） |
+| ADR-0006 决策 2（会话入 `upload_sessions` 表，T-209 修订版） | Close 现行清空在册会话（T-209 qa O-1 判非回归）与续传目标冲突 | 修订：Close 保留未过期会话，孤儿由 sweep+TTL 清理 | **ADR-0028 已定案**（Accepted，2026-08-23，T-214②；ADR-0006 追加勘误④） |
 | ADR-0025 决策 1（replica 隔离归 M7+ RBAC/复制里程碑） | M7 是否收编 | 暂行不收编（Q7 请用户终裁）；M7 交付 RBAC 使能位 | Q7 处置 |
 | ADR-0025 决策 5 勘误（S3 multipart 续传「另行评估 M7」） | M7 是否纳入 S3 续传 | 暂行不纳入（Q4）；hard 404 契约维持 | Q4 处置 |
-| ADR-0014（console/session） | step-up 的 mint grant 是否动 session 模型 | 不动：grant 为短时独立凭据，session 机制零变更 | ADR-0027 附带 |
+| ADR-0014（console/session） | step-up 的 mint grant 是否动 session 模型 | 不动：grant 为短时独立凭据（进程内台账），session 机制零变更 | ADR-0027 已定案（Accepted；`purpose=step_up` callback 不建新 session） |
 | ADR-0005（零 CGO 依赖基线） | M7 无新第三方依赖（RBAC/续传/step-up 全部内生实现） | 补充：go.mod 零新增（如实现中发现必须引入，走 architect 白名单流程） | — |
 | M4 FR-27-AC9（组不带 admin 位，有意不兼容断言） | RBAC 是否给 groups 引入角色 | 不引入：角色仅在 user 行，断言维持并复跑 | — |
 
@@ -444,17 +447,17 @@ docker pull $BASE/qa-docker/myimg:<tag>                               # 端到�
 
 ---
 
-## 7. 开放问题（待用户定案）
+## 7. 开放问题（Q1~Q7 状态：Q1/Q2/Q3/Q5 已定案，Q4/Q6/Q7 仍开放）
 
-| # | 问题 | 影响面 | 暂行假设（v1.0 草案口径，实现票按此开工、终裁后回写） |
+| # | 问题 | 影响面 | 状态与口径（v1.1 按 T-214/ADR-0026~0028 回写；「推翻出口」= 推翻已裁项须新 ADR 或用户显式要求） |
 |---|---|---|---|
-| Q1 | **RBAC 角色闭集与承载形态**：闭集取 `{user, read-only-admin, admin}` 三值 + manage 派生，还是引入独立「repo-admin」第四角色？`users.role` 列 vs 独立角色表？兼容面 `admin` 布尔与 `adminRole` 的映射细则？ | FR-64/FR-65；migration 011；兼容面 RB-01/02 | 三值闭集 + `manage` 派生（对齐 Artifactory「动作集而非角色树」的模型，避免自造角色系统）；`users.role` 列；`admin` 布尔 ⇔ `role=admin` 兼容视图。独立角色实体/自定义角色归 M8+ |
-| Q2 | **read-only admin 的边界清单**：12 读端点（含 token 列表、audit、复制状态、迁移进度）是否全开？GC dry-run（只读报告）是否开放？ | FR-64-AC2/V02；routeAuth 全部 admin-only 读面的授权口径 | 治理读面全开（含 token 元数据列表——不含 token 值）；GC dry-run 开放、`--apply`/在线触发拒；如用户要求收缩，从 token 列表与迁移进度两端点起收 |
-| Q3 | **干净停机的会话语义**：Close 保留在册未过期会话（干净重启也可续传，孤儿靠 TTL sweep）vs 维持现状清空（续传仅限 kill -9/断电等异常中断，文档限定措辞）？ | FR-67-V16；FR-70/O-1；ADR-0028；运维心智（compose restart 后大上传存活 vs 停机后无孤儿） | **保留**（推荐）：真实世界「升级重启后续传」是主要价值场景；孤儿风险由 24h TTL sweep 兜底且 FR-70 有防孤儿回归钉死。若用户选维持现状，FR-67-V16 与 §5.6 对应行改「异常中断后」口径 |
-| Q4 | **S3 后端续传是否纳入 M7**：multipart 状态由 S3 持有（upload ID 跨重启有效），BinFlow 可建 DB 影子表把 upload ID 接回 HTTP 层 | FR-67 范围；DU-04；S3 大对象中断重传成本 | **不纳入**：维持 hard 404 契约（`TestS3ResumeSessionNotSupported`）；S3 侧续传需 DB 影子表 + multipart 语义对齐，工作量独立成票，归 M8+ 评估。用户如要求纳入，FR-67 拆双后置票 |
-| Q5 | **step-up 交互形态与默认值**：口令重验 + OIDC fresh re-auth 双轨（草案）vs 仅 OIDC 臂强制 vs 仅确认对话框（弱）；作用域（全部非 admin session vs 仅 SSO 臂）；`auth.token_step_up` 默认 on/off | FR-68；TK-01；既有 CI/脚本兼容（默认 on 会改变现状行为） | 双轨（本地/LDAP 口令重验 + OIDC `prompt=login` mint grant）；作用域 = 全部非 admin session 臂（本地 session 一并加固，口径统一）；**默认 off**（不破既有脚本，企业部署文档建议开启）。确认对话框形态不采用（无安全增量） |
-| Q6 | **条件腿触发条件与截止**：用户环境（AWS bucket / Artifactory 实例）到位的判定方式与执行窗口——M7 收官前必须？到位即插队？长期挂账？ | FR-69；M7 DoD 判定；qa 排期 | 到位即插队执行（不等收官窗）；M7 DoD 不被条件腿阻塞（P2 延后记 BOARD，沿用 ADR-0025 决策 3 与 M5 Q3 降级口径）；环境长期未到位则随 M8 PRD 重申 |
-| Q7 | **replica backing 仓直写隔离是否并入 M7**：ADR-0025 决策 1 将其指派「M7+ RBAC/复制里程碑」——M7 交付 RBAC 后已具备表达位（如 manage/角色 + repo 级 write-block 开关），是否顺势收编 | FR-65 范围；复制目标端数据一致性；票量 | **不并入**（conductor 种子未列，避免无票面来源的扩项）：M7 只交付 RBAC 本体；隔离本体（repo 级 write-block 配置或复制引擎标记）归 M8+ 复制里程碑，届时 RBAC 使能位已在。现状维持 ADR-0025 决策 1 的「已接受限制」 |
+| Q1 | **RBAC 角色闭集与承载形态**：闭集取三值 + manage 派生，还是引入独立「repo-admin」第四角色？`users.role` 列 vs 独立角色表？兼容面 `admin` 布尔与 `adminRole` 的映射细则？ | FR-64/FR-65；migration 011；兼容面 RB-01/02 | **已定案（ADR-0026 Accepted，T-214）**：三值闭集 `{user, readonly_admin, admin}`（snake）+ `manage` 派生，无第四角色；`users.role` 列 + `is_admin` 兼容镜像（`admin` 布尔 ⇔ `role=admin`）；wire 字段 = `adminRole`（camelCase）/ DB 列 = `role`，handler 一处映射。推翻出口：新增角色/自定义角色 = 架构变更，须新 ADR（独立角色实体归 M8+） |
+| Q2 | **read-only admin 的边界清单**：读端点清单与 GC dry-run（只读报告）是否开放？ | FR-64-AC2/V02；routeAuth 全部 admin-only 读面的授权口径 | **已定案（T-214① + ADR-0026 Accepted）**：读面 = 11 端点（勘误：`/api/v1/stats` 并入 `/api/v1/storage/stats`、token 列表端点不存在〔M1 E-17〕删除、补 `/api/v1/replications`；`storage/migration` 裸实例按「过门 501」判）；GC **全路由 `system:write`，readonly_admin 403 含 dry-run**（T-214 否决 v1.0 暂行「dry-run 开放」——readonly 角色不 POST 写路由；如需开放 M8+ 拆 GET 只读路由）；数据面全域只读（角色短路）。推翻出口：若用户显式要求 readonly_admin 可与 target 组合，须新 ADR 推翻（ADR-0026 已留此口径） |
+| Q3 | **干净停机的会话语义**：Close 保留在册未过期会话（干净重启也可续传，孤儿靠 TTL sweep）vs 维持现状清空（续传仅限 kill -9/断电等异常中断，文档限定措辞）？ | FR-67-V16；FR-70/O-1；ADR-0028；运维心智（compose restart 后大上传存活 vs 停机后无孤儿） | **已定案（ADR-0028 Accepted，T-214②，选保留）**：Close 保留未过期会话（行+目录），孤儿回收唯一路径 = 启动 sweep + TTL；三径 kill -9/SIGTERM/compose restart 对称可续传；FR-67-V16/V32 照 PRD 执行；tech-writer 措辞不再限「异常中断后」（T-209 qa O-1 判定在 M6 语境仍正确、报告不回改）。推翻出口：若用户选维持现状，须新 ADR 推翻，且 FR-67-V16 与 §5.6 对应行改回「异常中断后」口径 |
+| Q4 | **S3 后端续传是否纳入 M7**：multipart 状态由 S3 持有（upload ID 跨重启有效），BinFlow 可建 DB 影子表把 upload ID 接回 HTTP 层 | FR-67 范围；DU-04；S3 大对象中断重传成本 | **仍开放（暂行不纳入，architect 无异议）**：维持 hard 404 契约（`TestS3ResumeSessionNotSupported`）；前置条件（upload ID 落表 + S3 ResumeSession〔ListParts 重建〕）已登记 architecture §11.31，M8+ 新 ADR 评估。推翻出口：用户如要求纳入，FR-67 拆双后置票 |
+| Q5 | **step-up 交互形态与默认值**：口令重验 + OIDC re-auth 双轨 vs 仅 OIDC 臂强制 vs 仅确认对话框（弱）；作用域（全部非 admin session vs 仅 SSO 臂）；`auth.token_step_up` 默认 on/off | FR-68；TK-01；既有 CI/脚本兼容（默认 on 会改变现状行为） | **已定案（ADR-0027 Accepted 修订版，T-214③）**：双轨（本地/LDAP `step_up_password` + OIDC `prompt=login` mint grant `step_up_grant`）；作用域 = **全部非 admin web session 臂（含本地用户，T-214 扩围）**；错误码 `step_up_required`/`step_up_invalid`；config = `auth.token_step_up`（**默认 off**，企业部署文档建议开启）+ `auth.token_step_up_grant_ttl_seconds`（默认 300s）；确认对话框与 id_token 新鲜窗口形态不采用（A' 否决）。推翻出口：M8+ 若落自有签发端点，ADR-0027 同缝适用防旁路 |
+| Q6 | **条件腿触发条件与截止**：用户环境（AWS bucket / Artifactory 实例）到位的判定方式与执行窗口——M7 收官前必须？到位即插队？长期挂账？ | FR-69；M7 DoD 判定；qa 排期 | **仍开放（维持暂行，architect 无架构增量）**：到位即插队执行（不等收官窗）；M7 DoD 不被条件腿阻塞（P2 延后记 BOARD，沿用 ADR-0025 决策 3 与 M5 Q3 降级口径）；环境长期未到位则随 M8 PRD 重申。推翻出口：用户如指定收官前硬截止，改 FR-69 行为规格并重排 qa 窗口 |
+| Q7 | **replica backing 仓直写隔离是否并入 M7**：ADR-0025 决策 1 将其指派「M7+ RBAC/复制里程碑」——M7 交付 RBAC 后已具备表达位（如 manage/角色 + repo 级 write-block 开关），是否顺势收编 | FR-65 范围；复制目标端数据一致性；票量 | **仍开放（暂行不并入，conductor 种子未列，避免无票面来源的扩项）**：M7 只交付 RBAC 本体与使能位（m 动作 + role，ADR-0026 已交付下放基座）；隔离本体（repo 级 write-block 配置或复制引擎标记）归 M8+ 复制里程碑。现状维持 ADR-0025 决策 1 的「已接受限制」。推翻出口：用户如要求并入，须 conductor 录票并扩 FR-65 范围 |
 
 ---
 
@@ -468,7 +471,7 @@ docker pull $BASE/qa-docker/myimg:<tag>                               # 端到�
 6. **step-up**：开关开启矩阵 V21~V24 + V26（审计）→ 开关默认关闭回归 V25。
 7. **条件腿**：V29（等价口径回归，必跑）→ V27/V28（`dep:用户环境`，到位即跑）→ V30（状态归档）。
 8. **技术债**：V31（lint/gofmt）→ V32（Close 保留 + 防孤儿）→ V33（N3 钉死）→ V34（N2）→ V35（sql 行尾 + -race）。
-9. **文档**：tech-writer 产出 RBAC 指南（角色/manage/示例）、上传续传说明（措辞边界按 Q3 终裁）、step-up 指南（开关/双轨交互/CI 影响）、S3 与迁移真实环境附录（条件腿记录位）。
+9. **文档**：tech-writer 产出 RBAC 指南（角色/manage/示例）、上传续传说明（措辞按 ADR-0028，不再限「异常中断后」）、step-up 指南（开关/双轨交互/CI 影响/SSO 用户 CLI 铸 Token 路径）、S3 与迁移真实环境附录（条件腿记录位）。
 
 ---
 
@@ -478,10 +481,10 @@ docker pull $BASE/qa-docker/myimg:<tag>                               # 端到�
 2. §8 剧本全绿；§5.3 分级矩阵 curl/docker/mvn/npm/Playwright 各 P0/P1 面全过；
 3. M1~M6 全部 P0 序列本地 filestore 复跑全绿（回归硬门槛）；S3（MinIO）下 D 序列与 H01~H05 汇总断言全绿；
 4. tech-writer 文档 4 类齐备（RBAC 指南 / 续传说明 / step-up 指南 / 真实环境附录）；
-5. architect 完成 ADR-0026（角色模型与 manage 派生）、ADR-0027（step-up 契约）、ADR-0028（会话 Close 语义修订）——共 3 条新 ADR；
+5. architect ADR-0026（角色模型与 manage 派生）、ADR-0027（step-up 契约）、ADR-0028（会话 Close 语义修订）——已定案（均 Accepted，2026-08-23，T-214）；
 6. 全仓 golangci-lint 0 issues（含 internal/auth 53 条清零）、全仓 `-race` 绿、gofmt 空；
 7. 主会话完成 `m7-done` tag（push 须用户单独授权）。
 
 ---
 
-*本 PRD v1.0 草案由 product-manager 依据 PRODUCT.md、ROADMAP.md、docs/prd/milestone-6.md（v1.3）§7 Q4/Q8/Q9/Q11 裁决与遗留债、DECISIONS.md（ADR-0006/0025 等）、reports/iteration-386.md、reports/agents/T-209-review2.md（N1~N7）、reports/agents/T-209-qa.md（O-1/O-2）、docs/reverse/auth-model.md §4、docs/reverse/docker-registry.md §2、M4 交付基线（FR-27/FR-28）撰写；**草案待 conductor 审**，§7 Q1~Q7 待用户终裁后回写定稿。与既有 ADR 冲突/补充点见 §6.1。*
+*本 PRD v1.1 由 product-manager 依据 PRODUCT.md、ROADMAP.md、docs/prd/milestone-6.md（v1.3）§7 Q4/Q8/Q9/Q11 裁决与遗留债、DECISIONS.md（ADR-0006/0025 等）、reports/iteration-386.md、reports/agents/T-209-review2.md（N1~N7）、reports/agents/T-209-qa.md（O-1/O-2）、docs/reverse/auth-model.md §4、docs/reverse/docker-registry.md §2、M4 交付基线（FR-27/FR-28）撰写 v1.0，并按 T-214 裁决（ADR-0026/0027/0028 Accepted 终版 + T-211 实测基线，conductor 终审通过）回写 v1.1；§7 Q1/Q2/Q3/Q5 已定案，Q4/Q6/Q7 待用户终裁（推翻出口保留）。与既有 ADR 冲突/补充点见 §6.1，文本冲突以 ADR 为准。*
