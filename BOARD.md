@@ -54,7 +54,10 @@
 #### 环境票（done）+ 波 6（在途）
 - **T-230** [P2] 用户 VM 纳管 `role:release-engineer` — **done 2026-08-23（conductor 免密腿亲验；报告 `3b335b8`）**
   systemd 真机复验全绿（unit 硬化 systemctl show 证实 / docker push/re-pull digest 逐位一致 / npm 往返 / 优雅停机 0.07s 含引擎 drain 日志）；SSH 密钥免密固化（macOS expect pty 挂死以 SSH_ASKPASS 绕开）；docker 29.1.3 + mirrors（Hub 直连不通）+ minio 镜像在位；VM 回基线零残留；凭据零落盘。勘误：免认证 ping 路径实为 `/binflow/api/system/ping`。日志 reports/agents/T-230.md。
-- **T-226** [P2] M7 等价口径回归（V29） `role:qa-engineer` — **doing 2026-08-23（VM 上执行：MinIO 腿 + Artifactory OSS 迁移腿；带扩盘自愈与中断韧性——用户随时可能关机扩 100G）**
+- **T-226** [P2] M7 等价口径回归（V29） `role:qa-engineer` — **done 2026-08-23（PASS：等价基线全绿、M7 回归=零；qa 报告 `66a8d1c`）**
+  H01~H05 + H62~H67 全绿（MinIO/S3 + mock 源）；真实 OSS 腿 license 门限制如实归档。**B-1 [P2 建议票]**：bf-migrate users 阶段 ListUsers 403 硬 abort → 建议降级 warning 或 `--skip-users`（M8 候选）。**T-228 环境知识**：7.84.10+PG system.yaml url 形态/OSS UI-only 建仓建户/token scope 只收 applied-permissions/user。VM 扩盘中断自愈实证（growpart+resize2fs）。日志 reports/agents/T-226-qa.md。
+- **T-228** [P2] Q9 真实 Artifactory 实腿（V28） — **doing 2026-08-23（dep:用户环境 已解除——用户 VM+保留栈；产出按 real-env-appendix 模板归档）**
+- **PM v1.2 回写** — **doing 2026-08-23（7 项勘误落地）**
 - **T-218** [P1] FR-66 控制台角色与权限管理扩展 + read-only 只读态 `role:dev-frontend` — **done 2026-08-23（review APPROVE 0 阻塞；提交 `2923edf`）**
   14 文件 + e2e 三腿（V12 落值/回显/审计、V13 五页只读+四写重放 403、V14 manage 往返）全套 85 passed/0 failed。review 亮点：wire 闭集 fail-safe 与 EffectiveRole 同构、adminRole 永不与 admin 布尔混发（结构性规避冲突 400）、reviewer 独立重放配额写+内容面双写全 403。**M7 尾债（UI 打磨，非阻塞 4 条）**：MigrationPanel 启动钮/树页上传删除钮未按角色禁用、UserUpdateBody.adminRole 类型可收紧、仓库设置页只读文案错位。日志 reports/agents/T-218.md / T-218-review.md。
 - **T-225** [P2] M7 文档 II `role:tech-writer` — **done 2026-08-23（conductor 直审通过；提交 `5f01cbc`）**
