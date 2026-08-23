@@ -108,7 +108,11 @@ DoD 七条全达成（PRD §9 对证）：P0/P1 全绿（T-221 16/16 / T-222 192
 #### B5 对话框族 + 键盘 + 文档（T-242 done；T-244/T-245 在途）
 - **T-242** [P0] Set Me Up 与 Deploy 对话框族 `role:dev-frontend` — **done 2026-08-24（armed 实例 step-up 全链 7/7 + 全量 141/0 + 三特殊字符编码回显；提交 `bccfea6`）**
   包类型网格/协议 Tab/一次性明文 Token 面板（token_id 如实降级）/step-up 内联重验（401 豁免全局登出）/拖拽上传流式 sha256。三漂移登记：admin 口令框与 ADR-0027 豁免语义不可兼容（§4.1 回写队列）；§4.1 D3 被 step-up 融合指令推翻；无 description 字段。遗留归 T-244（quick 入口/对比度家族/48 锚入册）。日志 reports/agents/T-242.md。
-- **T-244** [P1] 键盘可达 + 共享层债收口 `role:dev-frontend` — **doing 2026-08-24（吸收六项债：对比度家族/stepper/quick-setmeup/quota helper/双 Deploy 入口/锚册 v1.7 回写〔T-243 D-1~D-3 + T-242 48 锚〕）**
+- **T-244** [P1] 键盘可达 + 共享层债收口 `role:dev-frontend` — **done 2026-08-24（六债全收 + 键盘 6/6 + 全量 147/0 + 对账器终态 423/0/0；conductor 复验 TS+audit；提交 `74f4f08`）——B5 全清，M8 实现票全部落地**
+  对比度家族 ≥4.59:1 双主题三承载面（审计新抓 info/danger 暗角）；死样式清除；quick-setmeup 全局入口；quota helper 合一；双 Deploy 收敛（UploadDialog 退役+锚显式注销+反向依赖消除）；锚册 v1.7 + **anchor-audit.mjs 三方对账器**（断链=0 实证）。键盘共享件接入 Tab/表格/三对话框。遗留：repos-deploy readonly 预收敛；两页自持对比度类可回退。日志 reports/agents/T-244.md。
+
+#### B6 终验（在途——M8 最后一票）
+- **T-246** [P0] M8 终验 `role:qa-engineer` — **doing 2026-08-24（U01~U15 + 剧本×8 + NFR + 回归硬门槛 + DoD 八条 + 三豁免票溯源终审）**
 - **T-245** [P1] M8 文档改版 `role:tech-writer` — **done 2026-08-24（击落-恢复后收口；scratch 栈走查 11/11 + T-249 四臂活体复验 + make docs 零告警；提交 `a88b728`）**
   console.md 新 IA 重写 + artifactory-path-map.md（24 任务两列）+ 七页路径修订 + 两处过时事实实测修正 + 三向交叉链接。**发现**：用户 18080 实例为 M7 期构建（指纹核验，零触碰）——M8 收官后提议刷新。遗留：T-244 合入后三处回写注记。日志 reports/agents/T-245.md。
 - **T-237** [P0] 用户与组管理重排 `role:dev-frontend` — **done 2026-08-23（4/4 三角色 spec + 锚守卫 23/23 + 只读完备 grep 零裸写；提交 `c5eb748`）**
