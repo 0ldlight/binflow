@@ -99,6 +99,7 @@ func (h *Handler) setDistTags(ctx context.Context, w http.ResponseWriter, p *Pri
 		h.writeTagsLookupError(w, err, name)
 		return
 	}
+	oldDoc := copyDoc(doc)
 	versions := versionsOf(doc)
 	for tag, version := range tags {
 		if version == "" {
@@ -119,7 +120,11 @@ func (h *Handler) setDistTags(ctx context.Context, w http.ResponseWriter, p *Pri
 	}
 	doc["dist-tags"] = tagsM
 	bumpRev(doc)
-	if err := h.savePackument(ctx, p, repoKey, name, doc); err != nil {
+	// A tag move rewrites no version manifest, so the save classifies
+	// append-only and rides the write grant (T-249's classifier; spec
+	// section 2.1's own error column for this route is "403 无 write" — no
+	// delete demand).
+	if err := h.savePackument(ctx, p, repoKey, name, oldDoc, doc); err != nil {
 		h.writeServiceError(w, err)
 		return
 	}
@@ -137,6 +142,7 @@ func (h *Handler) deleteDistTag(ctx context.Context, w http.ResponseWriter, p *P
 		h.writeTagsLookupError(w, err, name)
 		return
 	}
+	oldDoc := copyDoc(doc)
 	tags := mapOf(doc["dist-tags"])
 	if tags == nil || tags[tag] == nil {
 		writeError(w, http.StatusNotFound, fmt.Sprintf(msgTagNotFound, name, tag))
@@ -145,7 +151,9 @@ func (h *Handler) deleteDistTag(ctx context.Context, w http.ResponseWriter, p *P
 	delete(tags, tag)
 	doc["dist-tags"] = tags
 	bumpRev(doc)
-	if err := h.savePackument(ctx, p, repoKey, name, doc); err != nil {
+	// Same as setDistTags: no version manifest is rewritten, the write grant
+	// carries the save (T-249).
+	if err := h.savePackument(ctx, p, repoKey, name, oldDoc, doc); err != nil {
 		h.writeServiceError(w, err)
 		return
 	}

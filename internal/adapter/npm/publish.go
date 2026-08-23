@@ -278,7 +278,9 @@ func (h *Handler) publishWithTarball(ctx context.Context, w http.ResponseWriter,
 
 	// Step 10: merge the packument and answer 201. The read-modify-write is
 	// serialized (docMu) so concurrent publishes of different versions merge
-	// instead of racing one away.
+	// instead of racing one away. The pre-merge snapshot rides the save so
+	// the transition classifies as version-append (T-249): a second version
+	// publish needs write only.
 	h.docMu.Lock()
 	defer h.docMu.Unlock()
 	doc, _, _, err := h.loadPackumentForWrite(ctx, p, repoKey, name)
@@ -286,12 +288,15 @@ func (h *Handler) publishWithTarball(ctx context.Context, w http.ResponseWriter,
 		h.writeServiceError(w, err)
 		return
 	}
-	if doc == nil {
+	var oldDoc map[string]any
+	if doc != nil {
+		oldDoc = copyDoc(doc)
+	} else {
 		doc = newPackument(name)
 	}
 	merged := mergePublish(doc, name, version, manifest, body.raw, body.distTags, h.clock)
 	bumpRev(merged)
-	if err := h.savePackument(ctx, p, repoKey, name, merged); err != nil {
+	if err := h.savePackument(ctx, p, repoKey, name, oldDoc, merged); err != nil {
 		h.writeServiceError(w, err)
 		return
 	}
@@ -299,7 +304,11 @@ func (h *Handler) publishWithTarball(ctx context.Context, w http.ResponseWriter,
 }
 
 // deprecate applies versions[v].deprecated markers (spec step 6; the npm 10
-// deprecate command PUTs the full packument with no attachments).
+// deprecate command PUTs the full packument with no attachments). The marker
+// is a field overwrite of EXISTING version manifests, so the save keeps the
+// strict overwrite arm (T-249's ruling: rewriting already-published version
+// data — dist digest swap, field overwrite, version removal — keeps the
+// delete-permission demand; only version-append rides the write grant).
 func (h *Handler) deprecate(ctx context.Context, w http.ResponseWriter, p *Principal, repoKey, name string,
 	body *publishBody) {
 	h.docMu.Lock()
@@ -309,6 +318,7 @@ func (h *Handler) deprecate(ctx context.Context, w http.ResponseWriter, p *Princ
 		h.writeServiceError(w, err)
 		return
 	}
+	oldDoc := copyDoc(doc)
 	versions := mapOf(doc["versions"])
 	for v, msg := range body.deprecated {
 		m := mapOf(versions[v])
@@ -326,7 +336,7 @@ func (h *Handler) deprecate(ctx context.Context, w http.ResponseWriter, p *Princ
 		tm["modified"] = h.clock()
 	}
 	bumpRev(doc)
-	if err := h.savePackument(ctx, p, repoKey, name, doc); err != nil {
+	if err := h.savePackument(ctx, p, repoKey, name, oldDoc, doc); err != nil {
 		h.writeServiceError(w, err)
 		return
 	}

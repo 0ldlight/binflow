@@ -67,17 +67,106 @@ func (h *Handler) loadPackument(ctx context.Context, p *Principal, repoKey, name
 	return doc, node, hints, nil
 }
 
-// savePackument marshals and stores the document node.
-func (h *Handler) savePackument(ctx context.Context, p *Principal, repoKey, name string, doc map[string]any) error {
+// savePackument marshals and stores the document node after a
+// read-modify-write transition, carrying oldDoc (the document as loaded,
+// BEFORE this handler mutated or replaced it; nil for a fresh package) so the
+// write can pick its overwrite-exemption arm (T-249):
+//
+//   - append-only transitions — every version oldDoc holds survives with a
+//     byte-identical manifest; added versions, dist-tag moves, time stamps
+//     and root-level metadata (readme/description/...) may differ freely —
+//     save with the overwrite check skipped: appending a version is npm's
+//     STANDARD publish path ([NPM-API] publish: a publish is one packument
+//     PUT that adds a version) and rides the write grant alone. Version
+//     immutability is enforced one layer up, at the tarball (spec section
+//     2.3 step 4: an existing tarball path is the pinned 403 "Cannot modify
+//     pre-existing version" for EVERYONE) — Artifactory keeps the same
+//     posture with its server-maintained aggregate `.npm/{name}/package.json`
+//     (maven-npm-pypi.md section 2.2), which is repository bookkeeping, not
+//     a stored client artifact, and never rides the artifact overwrite pair.
+//     BinFlow's packument.json node is this aggregate's storage rendering;
+//     its overwrites hitting repo-semantics section 3's DELETE demand was an
+//     implementation artifact (T-247 product finding P-1), not a protocol
+//     requirement.
+//   - anything else — a version removed, or an existing version's manifest
+//     rewritten (a dist digest swap, a field overwrite) — is a rewrite of
+//     already-published version data and keeps the strict Put: the
+//     delete-permission demand of the overwrite pair stands (403 for a
+//     write-only principal).
+func (h *Handler) savePackument(ctx context.Context, p *Principal, repoKey, name string, oldDoc, doc map[string]any) error {
 	body, err := encodeDoc(doc)
 	if err != nil {
 		return fmt.Errorf("encode packument %s/%s: %w", repoKey, name, err)
 	}
-	if _, err := h.svc.Put(ctx, p, repoKey, packumentPath(name), bytes.NewReader(body),
-		storage.BlobRef{}, "application/json"); err != nil {
+	opts := repo.PutOptions{}
+	if packumentAppendOnly(oldDoc, doc) {
+		opts.SkipOverwriteCheck = true
+	}
+	if _, err := h.svc.PutWithOptions(ctx, p, repoKey, packumentPath(name), bytes.NewReader(body),
+		storage.BlobRef{}, "application/json", opts); err != nil {
 		return err
 	}
 	return nil
+}
+
+// packumentAppendOnly reports whether the old→new transition leaves every
+// version the OLD document holds untouched: each survives into the new
+// document with a byte-identical manifest. A missing (nil) old document is a
+// fresh package — trivially append-only. The comparison is over the version
+// manifests ONLY: dist-tags, time and root-level metadata are the publish
+// flow's own bookkeeping and never gate the decision.
+func packumentAppendOnly(oldDoc, newDoc map[string]any) bool {
+	if oldDoc == nil {
+		return true
+	}
+	newVersions := mapOf(newDoc["versions"])
+	for v, oldManifest := range mapOf(oldDoc["versions"]) {
+		newManifest, ok := newVersions[v]
+		if !ok {
+			return false // version removed
+		}
+		if !jsonValueEqual(oldManifest, newManifest) {
+			return false // existing manifest rewritten
+		}
+	}
+	return true
+}
+
+// jsonValueEqual is deep equality over JSON values decoded with UseNumber:
+// maps need equal key sets, arrays equal length, and numbers compare by their
+// LITERAL spelling ("1.0" never equals "1.00") — the rule is byte-identity of
+// stored version data, not numeric equivalence.
+func jsonValueEqual(a, b any) bool {
+	switch av := a.(type) {
+	case map[string]any:
+		bv, ok := b.(map[string]any)
+		if !ok || len(av) != len(bv) {
+			return false
+		}
+		for k, v := range av {
+			bv2, ok := bv[k]
+			if !ok || !jsonValueEqual(v, bv2) {
+				return false
+			}
+		}
+		return true
+	case []any:
+		bv, ok := b.([]any)
+		if !ok || len(av) != len(bv) {
+			return false
+		}
+		for i, v := range av {
+			if !jsonValueEqual(v, bv[i]) {
+				return false
+			}
+		}
+		return true
+	case json.Number:
+		bn, ok := b.(json.Number)
+		return ok && av == bn
+	default:
+		return a == b
+	}
 }
 
 // decodeDoc parses one packument document, keeping numbers literal.

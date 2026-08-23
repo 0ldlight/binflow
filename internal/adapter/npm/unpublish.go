@@ -79,6 +79,10 @@ func (h *Handler) serveRevPut(ctx context.Context, w http.ResponseWriter, r *htt
 
 // applyRevDocumentLocked is the -rev PUT's document replacement under docMu:
 // load, replace versions/dist-tags (normalizing tarball references), save.
+// The transition classifier (T-249) still gates the save: a replacement that
+// only APPENDS versions rides the write grant, while the npm 10 flow's own
+// shapes — a version dropped (unpublish) or an existing manifest rewritten
+// (deprecate markers) — keep the overwrite pair's delete demand.
 // repo.ErrNodeNotFound means "nothing to apply to" — the caller treats it as
 // a no-op, not a failure.
 func (h *Handler) applyRevDocumentLocked(ctx context.Context, p *Principal,
@@ -92,7 +96,7 @@ func (h *Handler) applyRevDocumentLocked(ctx context.Context, p *Principal,
 		return nil
 	}
 	bumpRev(merged)
-	return h.savePackument(ctx, p, repoKey, name, merged)
+	return h.savePackument(ctx, p, repoKey, name, doc, merged)
 }
 
 // unpublishWhole removes the package: every tarball node under <name>/-/,
@@ -141,6 +145,7 @@ func (h *Handler) serveTarballRev(ctx context.Context, w http.ResponseWriter, r 
 		// Find the version owning this tarball path (matching the stored
 		// dist reference keeps scoped filenames honest without re-parsing
 		// "<name>-<version>.tgz").
+		oldDoc := copyDoc(doc)
 		versions := versionsOf(doc)
 		removed := false
 		for v, mv := range versions {
@@ -153,8 +158,11 @@ func (h *Handler) serveTarballRev(ctx context.Context, w http.ResponseWriter, r 
 			}
 		}
 		if removed {
+			// A removed version is NOT an append-only transition: the save
+			// keeps the delete demand (T-249) — the right posture for an
+			// unpublish, which Delete below enforces anyway.
 			bumpRev(doc)
-			if err := h.savePackument(ctx, p, repoKey, name, doc); err != nil {
+			if err := h.savePackument(ctx, p, repoKey, name, oldDoc, doc); err != nil {
 				h.writeServiceError(w, err)
 				return
 			}
