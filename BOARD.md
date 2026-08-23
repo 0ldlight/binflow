@@ -89,7 +89,8 @@ DoD 七条全达成（PRD §9 对证）：P0/P1 全绿（T-221 16/16 / T-222 192
 
 #### B3 页面域第一轮（在途，宽 2——配额纪律）
 - **T-236** [P0] 制品浏览器 `role:dev-frontend` — **doing 2026-08-23**（含 T-218 树页按钮角色禁用债）
-- **T-237** [P0] 用户与组管理重排 `role:dev-frontend` — **doing 2026-08-23**（含 T-218 用户面债；PUT replace 姿势验证）
+- **T-237** [P0] 用户与组管理重排 `role:dev-frontend` — **done 2026-08-23（4/4 三角色 spec + 锚守卫 23/23 + 只读完备 grep 零裸写；提交 `c5eb748`）**
+  分区编辑器/双列穿梭/排序/角色徽章/删除守卫；T-224 PUT replace 姿势端到端实证；M7 语义全量保留。**契约缺口登记（熔断线合规，待 PM/architect 立项）**：① GET users 无 enabled 回显（T-208 只落写侧）；② 无 DELETE users/{name}（Artifactory 有）；③ 组成员 N+1 汇总（无端点）；④ 组无 adminPrivileges 字段。遗留：base.css badge.warning 亮色 4.26:1 共享层小票。日志 reports/agents/T-237.md。
 
 #### B3 页面域第一波（并行 4）
 - **T-236** [P0] 制品浏览器：跨仓左树+详情+右键+深链+特化视图（FR-72） `role:dev-frontend` `area:web/src/pages/artifacts/` `dep:T-232,T-235`
