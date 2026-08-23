@@ -114,9 +114,11 @@ test('logout revokes the session server-side and re-entry requires login', async
 
 test('settings password change surfaces server plain-text wording inline', async ({ page }) => {
   // B3：改密错误分支——服务端纯文本层文案（错旧口令 = 400 非信封）
-  // 必须行内原样呈现，不进 toast、不触发 401 全局处理
-  await page.goto('/binflow/ui/settings')
-  await login(page) // 守卫先拦到 /login?return=%2Fsettings，登录后回设置页
+  // 必须行内原样呈现，不进 toast、不触发 401 全局处理。
+  // M8 归位（T-238/T-239）：改密块自 /settings 迁 /profile（console-m8
+  // §1.4；/settings 旧路由让位 /admin/general/settings 系统信息页）
+  await page.goto('/binflow/ui/profile')
+  await login(page) // 守卫先拦到 /login?return=%2Fprofile，登录后回档案页
   await page.waitForSelector('[data-testid="password-old"]')
 
   await page.fill('[data-testid="password-old"]', 'definitely-wrong')
@@ -126,5 +128,5 @@ test('settings password change surfaces server plain-text wording inline', async
 
   await expect(page.locator('[data-testid="password-error"]')).toContainText('Incorrect username/password')
   await expect(page.locator('[data-testid="toast"]')).toHaveCount(0)
-  await expect(page).toHaveURL(/settings/) // 行内错误，不跳转
+  await expect(page).toHaveURL(/profile/) // 行内错误，不跳转
 })

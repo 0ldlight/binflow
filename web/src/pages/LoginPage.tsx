@@ -195,7 +195,20 @@ export default function LoginPage() {
           </p>
         )}
       </form>
-      <p className="login-note">管理面需认证。CI 与脚本请使用 API Token。</p>
+      {/* 常驻说明 + 文档链接（console-m8 §6.1 [6]）。链接带下划线：弱化色
+          说明文字中的链接需非色彩信号区分（axe link-in-text-block） */}
+      <p className="login-note">
+        管理面需认证。CI 与脚本请使用 API Token。
+        <a
+          href="/binflow/docs/api-reference"
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid="login-docs"
+          style={{ marginLeft: 8, textDecoration: 'underline', textUnderlineOffset: 2 }}
+        >
+          查看文档
+        </a>
+      </p>
     </div>
   )
 }

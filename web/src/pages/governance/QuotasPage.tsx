@@ -128,7 +128,7 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
   return (
     <tr data-testid={`quota-row-${repo.key}`}>
       <td>
-        <Link className="row-link mono" to={`/repositories/${repo.key}`} lang="en">
+        <Link className="row-link mono" to={`/admin/repositories/${repo.key}`} lang="en">
           {repo.key}
         </Link>{' '}
         <CopyButton value={repo.key} label={`仓库 key ${repo.key}`} />
@@ -218,7 +218,7 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
                   编辑上限
                 </button>
               )}{' '}
-            <Link className="text-2" to={`/repositories/${repo.key}/settings`} style={{ fontSize: 'var(--bf-fs-aux)' }}>
+            <Link className="text-2" to={`/admin/repositories/${repo.key}/edit`} style={{ fontSize: 'var(--bf-fs-aux)' }}>
               仓库设置 →
             </Link>
           </>
@@ -232,6 +232,10 @@ export default function QuotasPage() {
   // L2 收敛走 repos 403（整页主数据面），无需 whoami 预收敛
   const repos = useAsync(getRepositories, [])
   const list = repos.data ?? []
+  // readonly_admin（M7 §7.3 推广）：行内编辑已按行禁用（T-218），页级
+  // 再给只读注记——配额写是 repoManage write，服务端 403 兜底
+  const { session } = useAuth()
+  const readOnly = isReadOnlyAdmin(session)
 
   return (
     <div data-testid="quotas-page">
@@ -241,6 +245,12 @@ export default function QuotasPage() {
           水位 ≥80% 黄 · ≥100% 红（此后写入 413）
         </span>
       </div>
+      {readOnly && (
+        <p className="admin-note" data-testid="quotas-readonly-note">
+          只读管理员（readonly_admin）：配额读写面可见，行内编辑已禁用——
+          配额写是管理面写操作（repoManage write），提交会被服务端 403 拒绝。
+        </p>
+      )}
 
       {repos.status === 'loading' && <Skeleton lines={8} />}
       {repos.status === 'error' && repos.error && <ErrorCard error={repos.error} onRetry={repos.reload} />}
@@ -256,7 +266,7 @@ export default function QuotasPage() {
             message="还没有仓库"
             hint="配额在创建 local 仓库时或仓库设置页配置（quotaBytes，0 = 不限）"
             action={
-              <Link className="btn primary" to="/repositories/new">
+              <Link className="btn primary" to="/admin/repositories/new">
                 创建第一个仓库
               </Link>
             }

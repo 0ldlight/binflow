@@ -20,7 +20,9 @@ import './styles/governance.css'
 // testid 242 锚不随路由改名（ADR-0029 决策 3 / console-ux §10.5）。
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
-const SettingsPage = lazy(() => import('./pages/SettingsPage'))
+// 编辑档案（T-239 自设置页拆分：改密 + API Token 说明，§6.5；实例只读
+// 面归 T-238 的 SystemInfoPage——SettingsPage.tsx 至此解散删除）
+const ProfilePage = lazy(() => import('./pages/ProfilePage'))
 const RepositoriesPage = lazy(() => import('./pages/repositories/RepositoriesPage'))
 const RepositoryFormPage = lazy(() => import('./pages/repositories/RepositoryFormPage'))
 const RepoDetailPage = lazy(() => import('./pages/repositories/RepoDetailPage'))
@@ -44,6 +46,10 @@ const GCPage = lazy(() => import('./pages/governance/GCPage'))
 const ReplicationPage = lazy(() => import('./pages/governance/ReplicationPage'))
 const QuotasPage = lazy(() => import('./pages/governance/QuotasPage'))
 const BackupPage = lazy(() => import('./pages/governance/BackupPage'))
+// 存储概要（T-238 落真身；§6.18：stats + 逐仓 usage 现役端点编排）
+const StorageSummaryPage = lazy(() => import('./pages/monitoring/StorageSummaryPage'))
+// 系统信息（T-238 落真身；§6.19——只读展示，改密块归 /profile 的 T-239 拆分）
+const SystemInfoPage = lazy(() => import('./pages/admin/SystemInfoPage'))
 const AppShell = lazy(() => import('./components/AppShell'))
 
 function RouteFallback() {
@@ -96,8 +102,8 @@ createRoot(document.getElementById('root')!).render(
                     <Route path="artifacts" element={<ArtifactsBrowser />} />
                     <Route path="artifacts/:key/*" element={<ArtifactsBrowser />} />
                     <Route path="search" element={<SearchPage />} />
-                    {/* 编辑档案：改密块现驻设置页（页面原样挂载，T-239 拆分） */}
-                    <Route path="profile" element={<SettingsPage />} />
+                    {/* 编辑档案（T-239 拆分落位：改密 + API Token；§6.5） */}
+                    <Route path="profile" element={<ProfilePage />} />
 
                     {/* —— 管理模式：仓库（§1.3 五分组之一）—— */}
                     <Route
@@ -148,12 +154,10 @@ createRoot(document.getElementById('root')!).render(
                     <Route path="admin/governance/replication" element={<ReplicationPage />} />
                     <Route path="admin/governance/backup" element={<BackupPage />} />
 
-                    {/* —— 管理模式：监控 / 常规 —— */}
-                    <Route
-                      path="admin/monitoring/storage"
-                      element={<PlaceholderPage title="存储概要" ticket="T-238" adminOnly />}
-                    />
-                    <Route path="admin/general/settings" element={<SettingsPage />} />
+                    {/* —— 管理模式：监控 / 常规（T-238 落真身：存储概要 +
+                         系统信息；占位/设置页挂载让位，路由结构不变）—— */}
+                    <Route path="admin/monitoring/storage" element={<StorageSummaryPage />} />
+                    <Route path="admin/general/settings" element={<SystemInfoPage />} />
 
                     {/* —— 旧路由兼容窗口（console-m8 §1.4 的 20 条映射；
                          8 条路由承载——security/* 与 governance/* 前缀平移

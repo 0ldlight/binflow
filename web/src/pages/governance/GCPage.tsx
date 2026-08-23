@@ -8,15 +8,16 @@ import { useConfirm } from '../../components/ConfirmDialog'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
-import { ApiError, errText, getStorageStats } from '../../lib/api'
+import { ApiError, canAdminWrite, errText, getStorageStats, isReadOnlyAdmin } from '../../lib/api'
 import { dedupRatio, formatBytes, formatCount } from '../../lib/format'
 import { GC_MAX_GRACE_HOURS, runGC } from '../../lib/governance'
 import type { GCRunResult } from '../../lib/governance'
 import { useAsync } from '../../lib/useAsync'
 import MigrationPanel from './MigrationPanel'
 
-// 存储 & GC（console-ux §4.11 / §5.3；T-102 AC②）：
-// - 概况卡与仪表盘同源（GET /api/v1/storage/stats，admin）。
+// 维护（GC）（console-m8 §6.14 归位 /admin/governance/gc；T-102 语义原样）：
+// - 概况卡与仪表盘同源（GET /api/v1/storage/stats，system:read——
+//   readonly_admin 读面全通）。
 // - dry-run 是默认姿态（ADR-0015 勘误①）：POST {} 即试运行；apply 必须
 //   在「看过一次当前参数下的 dry-run」之后才可用——grace 变更后视为
 //   过期，须重新试运行（UI 门控，服务端不强制）。
@@ -28,6 +29,8 @@ import MigrationPanel from './MigrationPanel'
 // - 无候选 = 绿色空态（好消息，§5.3）。
 // - 上次运行历史：GET 状态端点是 P2 债务（R4）——经审计页 gc.run 查询。
 // - 非 admin：stats 403 → 单张无权限卡（§3.6.3 L2）；写入口不渲染（L4）。
+// - readonly_admin（M7 §7.3 / T-238 收口）：GC 全路由（含 dry-run）是
+//   system:write——试运行与执行按钮禁用 + 只读注记；服务端 403 兜底。
 
 /** grace 输入解析：'' → null（实例缺省）；纯数字 → number；其余非法 */
 function parseGrace(v: string): number | null | 'invalid' {
@@ -47,7 +50,10 @@ function graceLabel(hours: number | null): string {
 
 export default function GCPage() {
   const { session } = useAuth()
-  const admin = session?.admin ?? false
+  // 写面判定（M7 §7.3）：admin 布尔是角色镜像，readonly_admin 为 false——
+  // 只读态单列；普通 user 不入本面（stats 403 → L2 收敛在前）
+  const readOnly = isReadOnlyAdmin(session)
+  const adminWrite = canAdminWrite(session)
   const toast = useToast()
   const confirm = useConfirm()
   const navigate = useNavigate()
@@ -65,7 +71,7 @@ export default function GCPage() {
   const [runError, setRunError] = useState<ApiError | null>(null)
 
   const dryStale = dryRun !== null && dryGrace !== undefined && dryGrace !== grace
-  const canApply = admin && dryRun !== null && !dryStale && grace !== 'invalid' && running === ''
+  const canApply = adminWrite && dryRun !== null && !dryStale && grace !== 'invalid' && running === ''
 
   const doDryRun = async (): Promise<void> => {
     if (grace === 'invalid' || running !== '') return
@@ -137,7 +143,7 @@ export default function GCPage() {
         `GC 完成：回收 ${formatCount(r.deletedCount)} 项，释放 ${formatBytes(r.candidateBytes)}`,
         {
           label: '查看审计（gc.run）',
-          onClick: () => navigate('/audit'),
+          onClick: () => navigate('/admin/governance/audit'),
         },
       )
     } catch (err) {
@@ -152,7 +158,10 @@ export default function GCPage() {
   return (
     <div data-testid="gc-page">
       <div className="page-header">
-        <h2>存储 &amp; GC</h2>
+        <h2>维护</h2>
+        <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>
+          垃圾回收（GC）与存储迁移（console-m8 §6.14 分块骨架）
+        </span>
       </div>
 
       <section className="card section" data-testid="gc-stats">
@@ -186,7 +195,7 @@ export default function GCPage() {
               </span>
             </div>
             <p className="field-hint" style={{ marginBottom: 0 }}>
-              上次 GC 运行记录经审计查询（<Link to="/audit">审计日志</Link> 过滤 <span className="mono" lang="en">gc.run</span>）；
+              上次 GC 运行记录经审计查询（<Link to="/admin/governance/audit">审计日志</Link> 过滤 <span className="mono" lang="en">gc.run</span>）；
               GC 状态端点为 P2 债务（ux R4）。
             </p>
           </>
@@ -197,13 +206,19 @@ export default function GCPage() {
           501 未配置降级，与非 admin 的 stats 无权限卡互不干扰 */}
       <MigrationPanel />
 
-      {admin && (
+      {(adminWrite || readOnly) && (
         <div className="danger-zone" data-testid="gc-danger-zone">
           <h3>危险区：垃圾回收</h3>
           <p>
             回收未被任何节点引用且超过 grace 窗口的 blob（grace 基准 = blob mtime）。
             先试运行看候选，再输入确认执行。与 export / 其它 gc 互斥（运行中被拒 409）。
           </p>
+          {readOnly && (
+            <p className="admin-note" data-testid="gc-readonly-note">
+              只读管理员（readonly_admin）：GC 全部路由（含 dry-run）均为管理面写操作
+              （system:write），入口已禁用——直接提交会被服务端 403 拒绝。
+            </p>
+          )}
 
           <details className="grace-details">
             <summary>高级：graceHours（{grace === 'invalid' ? '输入非法' : graceLabel(grace)}）</summary>
@@ -218,6 +233,7 @@ export default function GCPage() {
                 autoComplete="off"
                 value={graceInput}
                 onChange={(e) => setGraceInput(e.target.value)}
+                disabled={readOnly}
                 data-testid="gc-grace-hours"
                 lang="en"
               />
@@ -231,19 +247,20 @@ export default function GCPage() {
             <button
               type="button"
               className="btn"
-              disabled={grace === 'invalid' || running !== ''}
+              disabled={grace === 'invalid' || running !== '' || readOnly}
               onClick={() => void doDryRun()}
               data-testid="gc-dryrun"
+              title={readOnly ? '只读管理员：GC 试运行是 system:write（服务端 403 兜底）' : undefined}
             >
               {running === 'dry' ? '试运行中…' : '试运行（dry-run）'}
             </button>
             <button
               type="button"
               className="btn danger"
-              disabled={!canApply}
+              disabled={!canApply || readOnly}
               onClick={() => void doApply()}
               data-testid="gc-apply"
-              title={dryStale ? '参数已变更，请重新试运行' : canApply ? '' : '先完成一次当前参数下的试运行'}
+              title={readOnly ? '只读管理员：GC 执行是 system:write（服务端 403 兜底）' : dryStale ? '参数已变更，请重新试运行' : canApply ? '' : '先完成一次当前参数下的试运行'}
             >
               {running === 'apply' ? '执行中…' : '执行 GC（apply）'}
             </button>

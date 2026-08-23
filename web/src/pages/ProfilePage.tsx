@@ -1,69 +1,22 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 
-import { useAuth } from '../app/AuthContext'
 import { useToast } from '../app/ToastContext'
-import { apiText, errText, getHealth } from '../lib/api'
-import type { HealthInfo } from '../lib/api'
-import { useAsync } from '../lib/useAsync'
-import { useVersion } from '../lib/useVersion'
+import { apiText, errText } from '../lib/api'
 
-// 设置页（console-ux §3.2 /settings）：实例信息（版本开放端点 + 健康行
-// ——v1.1 §3.6.3 N1 收口：403 驱动而非 whoami admin 位硬编码，后端放宽
-// 门时自动跟随，锚 settings-health）+ 修改口令（PUT /api/security/password
-// ——错误体走用户管理纯文本层，统一由 api 层解析成 message 行内呈现）。
-// 匿名读开关状态：后端无查询端点（M4 缺口），不伪造数据，见工作日志。
-
-function InstanceSection() {
-  const version = useVersion()
-  const { session } = useAuth()
-  const health = useAsync<HealthInfo>(getHealth, [])
-  const admin = session?.admin ?? false
-
-  return (
-    <section className="card section" data-testid="settings-instance">
-      <h3>实例信息</h3>
-      <div className="kv">
-        <span className="k">产品</span>
-        <span className="mono" lang="en">
-          {version?.product ?? '—'}
-        </span>
-      </div>
-      <div className="kv">
-        <span className="k">版本</span>
-        <span className="mono" lang="en">
-          {version ? `v${version.version}` : '—'}
-        </span>
-      </div>
-      <div className="kv">
-        <span className="k">修订</span>
-        <span className="mono" lang="en">
-          {version?.revision || '—'}
-        </span>
-      </div>
-      <div className="kv">
-        <span className="k">当前用户</span>
-        <span>
-          {session?.username}
-          {admin ? '（admin）' : ''}
-        </span>
-      </div>
-      {health.status !== 'forbidden' && (
-        <div className="kv" data-testid="settings-health">
-          <span className="k">健康</span>
-          {health.status === 'loading' && <span className="text-2">检查中…</span>}
-          {health.status === 'error' && health.error && <span style={{ color: 'var(--bf-danger)' }}>{health.error.message}</span>}
-          {health.status === 'ok' && health.data && (
-            <span>
-              <span className={`status-dot ${health.data.status === 'ok' ? 'ok' : 'err'}`} aria-hidden="true" />
-              {health.data.status}
-            </span>
-          )}
-        </div>
-      )}
-    </section>
-  )
-}
+// 编辑档案（console-m8 §6.5——Artifactory /ui/user_profile 的 BinFlow
+// 对齐面，T-239 自设置页拆分）：
+//
+// - 认证设置 = 修改口令（自 /settings 平移，authenticated 全员可用；
+//   PUT /api/security/password 的错误体走用户管理纯文本层，统一由 api
+//   层解析成 message 行内呈现——auth-shell W 腿的 password-* 锚随表单
+//   整体迁址，锚名不变）。
+// - API Token = 说明 + 文档链接 + 管理 Tokens 页入口（§6.5[2]：Identity
+//   Tokens 表不建——R6 未落地，无影子入口；readonly_admin 自铸 200 但
+//   管理面 Tokens 页 admin 门——按现役门呈现入口，目标页自身收敛）。
+// - step-up 相关交互不建（票面：console 铸造页未落地——T-219/T-242 域，
+//   如实不占位；step-up 语义见 docs/user/admin/token-step-up.md）。
 
 function PasswordSection() {
   const toast = useToast()
@@ -102,8 +55,8 @@ function PasswordSection() {
   }
 
   return (
-    <section className="card section" data-testid="settings-password">
-      <h3>修改口令</h3>
+    <section className="card section" data-testid="profile-password">
+      <h3>认证设置 · 修改口令</h3>
       <form onSubmit={(e) => void onSubmit(e)}>
         <div className="field">
           <label htmlFor="pw-old">当前口令</label>
@@ -151,14 +104,29 @@ function PasswordSection() {
   )
 }
 
-export default function SettingsPage() {
+export default function ProfilePage() {
   return (
-    <div data-testid="settings">
+    <div data-testid="profile-page">
       <div className="page-header">
-        <h2>设置</h2>
+        <h2>编辑档案</h2>
       </div>
-      <InstanceSection />
       <PasswordSection />
+      <section className="card section" data-testid="profile-token">
+        <h3>API Token</h3>
+        <p className="text-2">
+          CI 与脚本请使用 API Token（管理面签发需管理员；实例开启 step-up 时非 admin
+          自铸需二次口令——见文档）。
+        </p>
+        <p>
+          <a href="/binflow/docs/api-reference" target="_blank" rel="noopener noreferrer" data-testid="profile-token-docs">
+            查看文档
+          </a>
+          <span aria-hidden="true"> · </span>
+          <Link to="/admin/security/tokens" data-testid="profile-token-goto">
+            去 Tokens 页 →
+          </Link>
+        </p>
+      </section>
     </div>
   )
 }

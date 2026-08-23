@@ -334,26 +334,5 @@
   color: var(--bf-danger);
 }
 
-/* ---------- 搜索页 ---------- */
-
-.search-headline {
-  margin: 0 0 var(--bf-sp-2);
-  font-size: var(--bf-fs-h2);
-}
-
-.search-sub {
-  max-width: 640px;
-}
-
-.search-count {
-  margin-left: auto;
-}
-
-.search-result-sub {
-  color: var(--bf-text-2);
-  font-size: var(--bf-fs-aux);
-}
-
-.search-result-sub .mono {
-  color: var(--bf-text-2);
-}
+/* 搜索页样式已迁 pages/search/search.css（T-239 归位——本文件不再被
+ * 搜索页引用，仅 ArtifactsBrowser 消费）。 */

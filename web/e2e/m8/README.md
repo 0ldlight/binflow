@@ -162,7 +162,10 @@ expect((got.json as { adminRole: string }).adminRole).toBe('readonly_admin')
 （三角色键盘冒烟）/ `theme-smoke.spec.ts`（T-234 皮肤冒烟，T-232 遗留①
 自 `src/styles/` 迁入，`playwright.styles.config.ts` 随迁删除——登录改用
 `loginAs`）/ `shell.spec.ts`（T-235 双模式壳：三角色 × 双模式导航可达性 +
-20 条旧路由映射表 redirect + 键盘模式切换/Quick 动作）。
+20 条旧路由映射表 redirect + 键盘模式切换/Quick 动作）/
+`auxiliary.spec.ts`（T-239 应用模式辅助页：仪表盘三角色 + 审计行深链 +
+搜索全链（Enter/recentSearches/?q= 深链回显/行 Enter 跳树）+ 登录错误态
+return 回跳 + 404 + /profile 拆分形态）。
 
 种子树形态（性能腿数据，确定性计划）：`perf/` 根 + 宽层 50 目录 × 20 文件
 （一层展开的真实负载）+ 120 条深链 × 75 层（借祖先物化廉价堆节点数）=

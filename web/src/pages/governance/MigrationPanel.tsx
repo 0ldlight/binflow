@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 
+import { useAuth } from '../../app/AuthContext'
 import { useToast } from '../../app/ToastContext'
 import { useConfirm } from '../../components/ConfirmDialog'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
-import { ApiError, apiJSON, errText } from '../../lib/api'
+import { ApiError, apiJSON, errText, isReadOnlyAdmin } from '../../lib/api'
 import { formatAuditTime, formatCount } from '../../lib/format'
 
 // 存储迁移面板（T-160 进度呈现 + T-177 启动入口）：
@@ -230,6 +231,10 @@ export default function MigrationPanel() {
   const { phase, retry, merge } = useMigrationStatus()
   const confirm = useConfirm()
   const toast = useToast()
+  // readonly_admin（T-218 治理域 UI 债收口，M7 §7.3）：迁移启动是
+  // system:write——按钮禁用 + 只读注记；GET 状态面（system:read）照常
+  const { session } = useAuth()
+  const readOnly = isReadOnlyAdmin(session)
 
   const [starting, setStarting] = useState(false)
   const [startError, setStartError] = useState<{ status: number; message: string } | null>(null)
@@ -242,7 +247,7 @@ export default function MigrationPanel() {
   const canStart = okData !== null && !okData.running
 
   const doStart = async (): Promise<void> => {
-    if (!canStart || starting) return
+    if (!canStart || starting || readOnly) return
     // confirmDisabled 是事件驱动重求值的闭包缝（T-99）：输入值收在 holder
     const holder = { typed: '' }
     const body: ReactNode = (
@@ -325,15 +330,22 @@ export default function MigrationPanel() {
           <button
             type="button"
             className="btn danger"
-            disabled={starting}
+            disabled={starting || readOnly}
             onClick={() => void doStart()}
             data-testid="migration-start"
+            title={readOnly ? '只读管理员：迁移启动是 system:write（服务端 403 兜底）' : undefined}
           >
             {starting ? '启动中…' : '启动迁移'}
           </button>
-          <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>
-            危险操作——需二次确认（输入 YES）
-          </span>
+          {readOnly ? (
+            <span className="text-2" data-testid="migration-readonly-note" style={{ fontSize: 'var(--bf-fs-aux)' }}>
+              只读管理员：启动迁移为管理面写操作（system:write），入口已禁用——服务端 403 兜底。
+            </span>
+          ) : (
+            <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>
+              危险操作——需二次确认（输入 YES）
+            </span>
+          )}
         </div>
       )}
       {startError && (

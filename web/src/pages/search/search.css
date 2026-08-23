@@ -1,0 +1,114 @@
+/*
+ * 搜索页样式（T-239；area: pages/search）。原「搜索页」段自
+ * pages/repositories/tree/tree.css 迁入归位（T-236 登记：搜索样式混驻
+ * tree.css，归本票收口）。只消费 --bf-* token（console-ux §7），
+ * 不回头改 base.css / pages.css（共享面纪律）。
+ */
+
+/* ---------- 页头（console-m8 §6.4：标题 + 计数副标） ---------- */
+
+.search-headline {
+  margin: 0 0 var(--bf-sp-2);
+  font-size: var(--bf-fs-h2);
+}
+
+.search-sub {
+  max-width: 640px;
+}
+
+.search-count {
+  margin: 0 0 var(--bf-sp-2);
+  color: var(--bf-text-2);
+  font-size: var(--bf-fs-form);
+}
+
+/* ---------- 搜索框 + recentSearches 下拉（reverse §4.5） ---------- */
+
+.search-box {
+  position: relative;
+  flex: 1 1 320px;
+  min-width: 260px;
+}
+
+.search-box input[type='search'] {
+  width: 100%;
+}
+
+.search-recent {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  min-width: 260px;
+  z-index: 80; /* z-dropdown（console-m8 §5.2 层级） */
+  background: var(--bf-surface-1);
+  border: 1px solid var(--bf-border-strong);
+  border-radius: var(--bf-r-md);
+  box-shadow: var(--bf-shadow-2);
+  padding: var(--bf-sp-2);
+}
+
+.search-recent-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--bf-sp-1) var(--bf-sp-1);
+  color: var(--bf-text-muted);
+  font-size: var(--bf-fs-aux);
+  border-bottom: 1px solid var(--bf-border);
+}
+
+.search-recent-list {
+  list-style: none;
+  margin: var(--bf-sp-1) 0 0;
+  padding: 0;
+}
+
+.search-recent-list button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-radius: var(--bf-r-sm);
+  padding: var(--bf-sp-1) var(--bf-sp-2);
+  min-height: 28px;
+  color: var(--bf-text);
+  font-family: var(--bf-mono);
+  font-size: var(--bf-fs-body);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-recent-list button:hover,
+.search-recent-list button.active {
+  background: var(--bf-surface-2);
+}
+
+.search-recent-list button:focus-visible {
+  outline: 2px solid var(--bf-accent);
+  outline-offset: -2px;
+}
+
+/* ---------- 结果表 ---------- */
+
+.search-result-sub {
+  color: var(--bf-text-2);
+  font-size: var(--bf-fs-aux);
+}
+
+.search-result-sub .mono {
+  color: var(--bf-text-2);
+}
+
+.search-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--bf-sp-3);
+  padding: var(--bf-sp-3) 0;
+  color: var(--bf-text-2);
+  font-size: var(--bf-fs-aux);
+}

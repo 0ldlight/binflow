@@ -975,14 +975,14 @@ M8 路由表（console-m8 §1.4）重排后，§10.2/§10.3 的 **242 锚零改�
 |---|---|---|
 | `/dashboard` | `dashboard` 页根 + dashboard-* 卡族 | 原 `/`；登录落点让位 `/artifacts` |
 | `/artifacts`、`/artifacts/:key/*` | `tree-page` 族 + `?focus=` 深链参数 + T-236 跨仓树新锚（见下） | 原 `/repositories/:key/tree/*`；T-236 起根与子树同承载跨仓树 |
-| `/search` `/profile` | `search-page` 族 / `settings` + `password-*` | `/profile` 现挂设置页组件（T-239 拆分） |
+| `/search` `/profile` | `search-page` 族（+ T-239 搜索新锚，见下） / `profile-page` 族 + `password-*`（T-239 拆分落位） | `/profile` 现挂设置页组件（T-239 拆分） |
 | `/admin/repositories/{local\|remote\|virtual}` | `repos-page` 族 | 原 `/repositories`；Tab 形态归 T-240 |
 | `/admin/repositories/new` `?rclass=` | `repo-form-page` + `form-*` 族 | Quick 建仓入口的参数形态（T-240 消费） |
 | `/admin/repositories/:key[/edit]` | `repo-detail-page` 族 / `repo-form-page` | 原 `/repositories/:key[/settings]` |
 | `/admin/security/{users\|groups\|permissions\|tokens}[/:name\|/new]` | `users-*` `user-*` `groups-*` `perm-*` 族 / `placeholder-page` | 原 `/security/*` |
 | `/admin/governance/{audit\|gc\|quotas\|replication\|backup}` | `audit-*` `gc-*` `quota-*` `repl-*` `backup-*` 族 | 原 `/audit` `/governance/*` |
 | `/admin/monitoring/storage` | `placeholder-page`（新页归 T-238） | 新路由 |
-| `/admin/general/settings` | `settings` + `password-*`（改密迁 `/profile` 前 doubled 挂载） | 原 `/settings` |
+| `/admin/general/settings` | `settings` + `settings-instance` + `settings-health`（T-238 `SystemInfoPage` 承接；改密已迁 `/profile`——T-239） | 原 `/settings` |
 
 **T-235 壳新锚（10 枚，先入本清单再落码流程兑现）**：
 
@@ -1013,6 +1013,31 @@ node-tags（docker manifest 详情的 tag 徽标块）
 ```
 
 变更注记（T-236，dev-frontend 回写）：`/artifacts` 根由 `placeholder-page` 换为跨仓树真身（`tree-page` 族 + 上表新锚）；`node-perms` 自本票起藏于 `node-tab-perms` 之后（C4 Tab 式详情——**锚不变、操作流多一步 Tab 切换**，`e2e/artifacts.spec.ts` W12 腿同步 +1 行）；`tree.css` 留驻 `pages/repositories/tree/`（搜索页同引的共享文件，归位归 T-239/T-240）。
+
+**T-239 应用模式辅助页新锚（17 枚，先入本清单再落码流程兑现；§10.5 表
+`/search` `/profile` 行的承载锚随之改写）**：
+
+```
+仪表盘：dashboard-repos-create（仓库卡「建仓 →」快捷入口——仅全量 admin，L4 预收敛）
+        dashboard-audit-all（审计卡「查看全部 →」——直达 /admin/governance/audit）
+        dashboard-audit-row-<i>（审计行——repo 事件行可点，深链 /artifacts/<repo>/<父目录>?focus=<名>）
+搜索页：search-recent（recentSearches 下拉容器——localStorage 最近 8 条）
+        search-recent-item-<i>（历史项；↑↓ 导航 + Enter 应用）
+        search-recent-clear（清除历史）
+        search-pager（底部计数行「显示 a – b / 共 c 项」+ 加载更多）
+        （search-count 迁为页头计数副标「搜索结果 – N 项」，锚名不变）
+编辑档案：profile-page（页根）  profile-password（认证设置·改密卡）
+        profile-token（API Token 说明卡）  profile-token-docs  profile-token-goto
+        （password-{old,new,confirm,error,submit} 冻结锚随改密表自设置页整体迁址，锚名不变）
+404：   not-found-path（触发 404 的原始路径回显）  not-found-home（回主页链接）
+登录：   login-docs（常驻说明的文档链接）
+```
+
+变更注记（T-239，dev-frontend 回写）：`/profile` 自设置页组件换为拆分真身
+（`profile-page` 族；改密 `password-*` 锚随表迁址零改名）；`SettingsPage.tsx`
+解散（实例只读面归 T-238 `SystemInfoPage`，`settings`/`settings-instance`/
+`settings-health` 锚由其承接）；搜索页样式自 `tree.css` 迁 `pages/search/
+search.css`（T-236 登记的归位收口）。
 
 **锚总量复核口径（v1.4 实测）**：`grep -rn "data-testid" web/src/` = **293 落点 / 29 文件**（v1.2 基线 242 之后，T-104~T-234 各票陆续增锚至 HEAD 的 283 落点——ADR-0029 原写 283 即此原始 grep 数）；T-235 净变化 = 壳**删 0 改 0、新增 10**（AppShell 10 → 20），占位路由新增 0（复用 `placeholder-page`）。另：`web/src/styles/theme-smoke.spec.ts`（7 处选择器引用，非锚）随 T-232 遗留①迁出 `src/` 至 `e2e/m8/theme-smoke.spec.ts`，不再计入 src 侧 grep。
 

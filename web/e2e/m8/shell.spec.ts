@@ -34,7 +34,7 @@ const ADMIN_ENTRIES: [string, string][] = [
   ['配额', 'quotas-page'],
   ['复制', 'repl-page'],
   ['备份 / 恢复', 'backup-page'],
-  ['存储', 'placeholder-page'],
+  ['存储', 'storage-page'], // T-238 落真身（原 placeholder-page 占位）
   ['系统信息', 'settings'],
 ]
 

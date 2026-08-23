@@ -533,3 +533,23 @@ legend.field-label {
   font-size: var(--bf-fs-aux);
   overflow-wrap: anywhere;
 }
+
+/* ---- 存储概要页（T-238 / console-m8 §6.18；area: pages/monitoring）---- */
+
+/* 刷新行：「数据最近刷新于 <ts>」+ 刷新按钮（reverse §3.11 骨架首行） */
+.storage-refresh-row {
+  display: flex;
+  align-items: center;
+  gap: var(--bf-sp-3);
+  margin-bottom: var(--bf-sp-4);
+}
+
+.storage-refresh-row .mono {
+  margin-left: var(--bf-sp-1);
+}
+
+/* TOTAL 汇总首行（表内强调；不随主题换色——密度表达而非状态色） */
+.storage-total td {
+  border-top: 2px solid var(--bf-border-strong);
+  background: var(--bf-surface-2);
+}

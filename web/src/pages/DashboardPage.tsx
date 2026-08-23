@@ -1,21 +1,27 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import type { ReactNode } from 'react'
 
 import { useAuth } from '../app/AuthContext'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorCard } from '../components/ErrorCard'
 import { Skeleton } from '../components/Skeleton'
-import { getHealth, getRecentAudit, getRepositories, getStorageStats, isReadOnlyAdmin } from '../lib/api'
-import type { HealthInfo, RepoListItem, StorageStats, AuditPage } from '../lib/api'
+import { canAdminWrite, getHealth, getRecentAudit, getRepositories, getStorageStats, isReadOnlyAdmin } from '../lib/api'
+import type { HealthInfo, RepoListItem, StorageStats, AuditPage, AuditEvent } from '../lib/api'
 import { dedupRatio, formatAuditTime, formatBytes, formatCount } from '../lib/format'
 import { useAsync } from '../lib/useAsync'
 import { useVersion } from '../lib/useVersion'
 
-// 仪表盘（console-ux §4.2 / §5.2）：只读聚合——健康 / 存储 stats /
-// 仓库计数 / 最近审计 8 条。各卡片独立骨架独立到达（health 慢不挡
-// storage stats）。四态矩阵（§5.3）：loading=卡片骨架、empty=空实例
-// CTA、error=该卡错误卡其余照常、403=整卡隐藏（§3.3「API 403 即隐藏」
-// ——本批管理面数据端点均 admin-only，非 admin 面板自然收敛为实例卡）。
+// 仪表盘（console-m8 §6.2——应用模式数据面；reverse 未深走 Dashboard，
+// 无对齐负担，保留 BinFlow 五卡形态）：健康 / 存储 stats / 仓库计数 /
+// 最近审计 8 条。快捷入口（§6.2 线框）：仓库卡「建仓 →」（仅全量 admin，
+// L4 写入口预收敛）与审计卡「查看全部 →」。审计行点击进对象（深链
+// /artifacts/<repo>/<父目录>?focus=<名>——T-236 深链自动展开消费）。
+// 各卡片独立骨架独立到达（health 慢不挡 storage stats）。四态矩阵
+// （§3.2）：loading=卡片骨架、empty=空实例 CTA、error=该卡错误卡其余
+// 照常、403=整卡隐藏（§3.6「API 403 即隐藏」——非 admin 面板自然收敛
+// 为实例卡 + 说明）。
+// §6.2 [4]「Remote 状态」不建：remote 上游健康/统计端点未开放（ux R9，
+// 仓库卡内如实注记）——无端点支撑的形态不伪造。
 
 function Card({
   title,
@@ -113,19 +119,23 @@ function StorageCard() {
 }
 
 function ReposCard() {
+  const { session } = useAuth()
   const state = useAsync<RepoListItem[]>(getRepositories, [])
   const repos = state.data ?? []
   const byType = (t: string) => repos.filter((r) => r.type === t).length
   const remotes = repos.filter((r) => r.type === 'remote')
+  const canCreate = canAdminWrite(session)
   return (
     <Card title="仓库" testid="dashboard-repos-card" state={state}>
       {repos.length === 0 ? (
         <EmptyState
           message="还没有仓库"
           action={
-            <Link className="btn primary" to="/repositories/new">
-              创建第一个仓库
-            </Link>
+            canCreate ? (
+              <Link className="btn primary" to="/admin/repositories/new">
+                创建第一个仓库
+              </Link>
+            ) : undefined
           }
           hint="建议从 local + generic 起步（任意文件）；协议仓选型见 docs/user 接入文档"
           testid="repos-empty"
@@ -149,20 +159,47 @@ function ReposCard() {
               {remotes.length} 个 remote 仓，上游状态 <span className="mono">—</span>（统计端点未开放，ux R9 兜底）
             </div>
           )}
+          {/* 快捷入口（§6.2 线框 [3]）：建仓直达——仅全量 admin（L4 写入口
+              预收敛；readonly_admin 不渲染，服务端 403 兜底） */}
+          {canCreate && (
+            <p style={{ margin: 'var(--bf-sp-3) 0 0' }}>
+              <Link to="/admin/repositories/new" data-testid="dashboard-repos-create">
+                建仓 →
+              </Link>
+            </p>
+          )}
         </>
       )}
     </Card>
   )
 }
 
+/** 审计事件 → 制品树深链：父目录进路径、末段进 ?focus=（文件与目录两态
+ *  都落在正确层——目录会成为父层的一个子节点被选中）。无 repo 的事件
+ *  （用户/权限面）无树目标，行不可点。 */
+function auditTarget(ev: AuditEvent): string | null {
+  if (!ev.repo || ev.repo === '') return null
+  const segs = ev.path.replace(/^\//, '').split('/')
+  const name = segs.pop() ?? ''
+  const enc = segs.map((s) => encodeURIComponent(s)).join('/')
+  const dirPart = enc ? `/${enc}` : ''
+  return `/artifacts/${encodeURIComponent(ev.repo)}${dirPart}${name ? `?focus=${encodeURIComponent(name)}` : ''}`
+}
+
 function AuditCard() {
+  const navigate = useNavigate()
   const state = useAsync<AuditPage>(() => getRecentAudit(8), [])
   const events = state.data?.events ?? []
   if (state.status === 'forbidden') return null
   return (
     <section className="card" data-testid="dashboard-audit-card">
       <h3>
-        最近审计（最新 8 条）{state.status === 'ok' && <Link to="/audit" style={{ float: 'right', fontSize: 12 }}>查看全部 →</Link>}
+        最近审计（最新 8 条）
+        {state.status === 'ok' && (
+          <Link to="/admin/governance/audit" style={{ float: 'right', fontSize: 12 }} data-testid="dashboard-audit-all">
+            查看全部 →
+          </Link>
+        )}
       </h3>
       {state.status === 'loading' && <Skeleton lines={6} />}
       {state.status === 'error' && state.error && <ErrorCard error={state.error} onRetry={state.reload} />}
@@ -180,18 +217,33 @@ function AuditCard() {
               </tr>
             </thead>
             <tbody>
-              {events.map((ev) => (
-                <tr key={ev.id}>
-                  <td className="mono">{formatAuditTime(ev.time)}</td>
-                  <td>{ev.actor}</td>
-                  <td className="mono" lang="en">
-                    {ev.action}
-                  </td>
-                  <td className="mono wrap" lang="en">
-                    {ev.repo ? `${ev.repo}/${ev.path}` : ev.path}
-                  </td>
-                </tr>
-              ))}
+              {events.map((ev, i) => {
+                const target = auditTarget(ev)
+                return (
+                  <tr
+                    key={ev.id}
+                    data-testid={`dashboard-audit-row-${i}`}
+                    tabIndex={target ? 0 : undefined}
+                    onClick={target ? () => navigate(target) : undefined}
+                    onKeyDown={
+                      target
+                        ? (e) => {
+                            if (e.key === 'Enter') navigate(target)
+                          }
+                        : undefined
+                    }
+                  >
+                    <td className="mono">{formatAuditTime(ev.time)}</td>
+                    <td>{ev.actor}</td>
+                    <td className="mono" lang="en">
+                      {ev.action}
+                    </td>
+                    <td className="mono wrap" lang="en">
+                      {ev.repo ? `${ev.repo}/${ev.path}` : ev.path}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         ))}
@@ -239,10 +291,11 @@ export default function DashboardPage() {
       <div className="page-header">
         <h2>仪表盘</h2>
       </div>
+      {/* 收敛说明（§3.6.4 姿态不变；M7 readonly 横幅语义融入新形态） */}
       {!admin && !readOnly && (
         <div className="card section" style={{ maxWidth: 640 }}>
           以 <b>{session?.username}</b>（非 admin）身份登录：健康、存储、仓库与审计面板为管理员视图，
-          已按「无权限即隐藏」收敛；你的可用操作见左下角「修改口令」。
+          已按「无权限即隐藏」收敛；可用操作见右上角用户菜单「编辑档案」（修改口令）与全局搜索。
         </div>
       )}
       {readOnly && (
