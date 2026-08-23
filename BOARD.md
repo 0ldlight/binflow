@@ -88,7 +88,10 @@ DoD 七条全达成（PRD §9 对证）：P0/P1 全绿（T-221 16/16 / T-222 192
   双模式 IA（应用/管理五分组 12 条目 + 模式切换 + Quick 动作）+ LegacyRedirect 20 条（percent-encode/查询串保真）+ 242 锚零改名（+10 壳锚入册=293）+ theme-smoke 迁入收口。票面纠偏：Proxies 占位与范围下拉**不建**（无影子入口规则）。QA 面归 T-243 中期回归。日志 reports/agents/T-235.md。
 
 #### B3 页面域第一轮（在途，宽 2——配额纪律）
-- **T-236** [P0] 制品浏览器 `role:dev-frontend` — **doing 2026-08-23**（含 T-218 树页按钮角色禁用债）
+- **T-236** [P0] 制品浏览器 `role:dev-frontend` — **done 2026-08-23（8/8 spec + 全量 115/0 + 树展开 56ms@10k 节点；conductor 复验 TS/build；提交 `9921bd5`）**
+  跨仓树真身（懒展开/URL 即状态/深链自动展开滚动定位/过滤/右键三形态/403 四层收敛）+ 详情三形态（Tab/校验和徽标/docker tag）+ 共享库 git mv 零契约改动；挂载缝 1 import+2 element 备案。**契约漂移上报**：console-m8 §2.2 称仓库清单 admin-only，实现是 CapRepoRead（readonly 可见全量）——architect 回写 §2.2。遗留：树虚拟滚动轻量形态（10k 达标）；Set Me Up 入口 T-242 挂载点已备。日志 reports/agents/T-236.md。
+- **T-238** [P1] 治理/监控/常规域归位 `role:dev-frontend` — **doing 2026-08-23（B3R2；含 T-218 MigrationPanel 债）**
+- **T-239** [P1] 应用模式辅助页与全局导航 `role:dev-frontend` — **doing 2026-08-23（B3R2；搜索→树深链消费 T-236）**
 - **T-237** [P0] 用户与组管理重排 `role:dev-frontend` — **done 2026-08-23（4/4 三角色 spec + 锚守卫 23/23 + 只读完备 grep 零裸写；提交 `c5eb748`）**
   分区编辑器/双列穿梭/排序/角色徽章/删除守卫；T-224 PUT replace 姿势端到端实证；M7 语义全量保留。**契约缺口登记（熔断线合规，待 PM/architect 立项）**：① GET users 无 enabled 回显（T-208 只落写侧）；② 无 DELETE users/{name}（Artifactory 有）；③ 组成员 N+1 汇总（无端点）；④ 组无 adminPrivileges 字段。遗留：base.css badge.warning 亮色 4.26:1 共享层小票。日志 reports/agents/T-237.md。
 
