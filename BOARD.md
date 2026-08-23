@@ -133,8 +133,9 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
   Jenkins LTS（docker 形态，mirror/save-load 兜底）+ VM 上 systemd 形态 BinFlow 实例（T-230 已验证路径）+ 三条流水线（maven deploy/npm publish/docker push）+ 消费 job（从 BinFlow 解析）全绿取证；Jenkins 凭据走其 credential store（零入仓库）；内存压力时 Artifactory 栈可停（可再起）。产出 CI 场景报告（后续可入 PRD 场景库）。
 - **T-247** [P1] Jenkins 就绪 + BinFlow CI/CD 场景 `role:release-engineer` — **done 2026-08-24（五 job 全 SUCCESS；报告 `2a682da`）**
   mvn（279 Central 构件经 BinFlow 虚拟仓）/npm（Access Token）/docker（digest 一致）三发布 + **消费闭环**（三协议只从 BinFlow 解析，X-Binflow-Resolved-From 代理证据）+ 负面腿全绿。**产品发现 P-1→T-249**：npm 第二版本发布命中「覆写需 DELETE」臂——无 delete 的 CI 号必 403（真实 CI 才会暴露）。栈保留（Jenkins :9090 / BinFlow :8080 active；t226 栈已停可再起）。日志 reports/agents/T-247.md（含 T-248 接续点 §8）。
-- **T-248** [P1] BinFlow 自身研发测试 CI/CD `role:devops-engineer` — **doing 2026-08-24（复用 T-247 Jenkins；三级流水线：smoke/nightly 全量/tag 发布 dogfood；GitHub 不通则 Mac→VM bare repo push 通路）**
-- **T-249** [P1] npm packument 追加语义修复（P-1 产品发现：第二版本发布不应要求 delete 权限） `role:dev-registry-adapter` `area:internal/adapter/npm` `dep:—` — **todo（M8 收官段或 B5 后插入；Artifactory 对齐面：追加版本默认放行、真覆写才走 DELETE 臂——需逆向规格佐证）**
+- **T-248** [P1] BinFlow 自身研发测试 CI/CD `role:devops-engineer` — **done 2026-08-24（三级全绿 + dogfood 闭环实证；报告 `8eb207f`）——CI 双线收官**
+  smoke（热 21s/push 触发 ≤1min——Mac↔VM bare repo remote「vm」）/ nightly（全仓 race 15.5m@2C）/ release（goreleaser 六平台 + 镜像进 BinFlow）。dogfood：拉回运行 /readyz OK 自报版本。基线与遗留登记（单架构镜像/docs 链缺/web lint 未进 nightly/poll 触发）。日志 reports/agents/T-248.md。
+- **T-249** [P1] npm packument 追加语义修复 `role:dev-registry-adapter` — **doing 2026-08-24（追加=write 放行/改既有=维持 DELETE 臂；npm CLI 连发两版本回归腿；历史覆写断言按新语义显式更新）**
   范围：源码进 Jenkins（GitHub 直连不通则 Mac→VM bare repo push 兜底）；流水线分级——commit 烟测（build+lint+关键包测试）/ nightly 全量（make test TEST_TIMEOUT=20m 全仓 race，2C 耗时如实记录）/ tag 发布（goreleaser 风格多平台二进制 + docker 镜像**推进 BinFlow 自身**——dogfood 闭环）；console 构建链（node）；结果通知形态。产出：分级 Jenkinsfile + 首轮各级绿灯证据 + 耗时基线。
 
 #### B6 终验（串行 1）
