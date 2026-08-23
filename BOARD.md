@@ -58,6 +58,13 @@
   H01~H05 + H62~H67 全绿（MinIO/S3 + mock 源）；真实 OSS 腿 license 门限制如实归档。**B-1 [P2 建议票]**：bf-migrate users 阶段 ListUsers 403 硬 abort → 建议降级 warning 或 `--skip-users`（M8 候选）。**T-228 环境知识**：7.84.10+PG system.yaml url 形态/OSS UI-only 建仓建户/token scope 只收 applied-permissions/user。VM 扩盘中断自愈实证（growpart+resize2fs）。日志 reports/agents/T-226-qa.md。
 - **T-228** [P2] Q9 真实 Artifactory 实腿（V28） — **doing 2026-08-23（dep:用户环境 已解除——用户 VM+保留栈；产出按 real-env-appendix 模板归档）**
 - **PM v1.2 回写** — **doing 2026-08-23（7 项勘误落地）**
+
+#### 用户方向指令（2026-08-23）：M8 主轴 = 控制台对齐 Artifactory
+
+**「前端 UI 和交互逻辑要求和 JFrog 一样」**（用户原话）。conductor 执行裁定：
+- **对齐口径** = 信息架构 + 交互逻辑 + 操作流对齐（Artifactory 用户零学习成本迁移），视觉近似但**自有皮肤**——clean-room 铁律（ADR-0001）对 UI 同样生效：reverse-src 内 JFrog 前端资产只读参考产出**行为规格**（布局描述/交互流/组件清单），图标/样式资产零复制。
+- **载体**：M8 里程碑（M7 收官后立即启动规划——PM PRD + ux-designer 控制台规格 + reverse-engineer UI 行为规格 + architect 嵌入约束 → tech-lead 分票）。需要新 ADR（UI 对齐边界与 clean-room 应用）。
+- **现控制台**：M7 已交付的 RBAC/readonly/manage 交互语义保留（服务端契约不动），承载层重排。
 - **T-218** [P1] FR-66 控制台角色与权限管理扩展 + read-only 只读态 `role:dev-frontend` — **done 2026-08-23（review APPROVE 0 阻塞；提交 `2923edf`）**
   14 文件 + e2e 三腿（V12 落值/回显/审计、V13 五页只读+四写重放 403、V14 manage 往返）全套 85 passed/0 failed。review 亮点：wire 闭集 fail-safe 与 EffectiveRole 同构、adminRole 永不与 admin 布尔混发（结构性规避冲突 400）、reviewer 独立重放配额写+内容面双写全 403。**M7 尾债（UI 打磨，非阻塞 4 条）**：MigrationPanel 启动钮/树页上传删除钮未按角色禁用、UserUpdateBody.adminRole 类型可收紧、仓库设置页只读文案错位。日志 reports/agents/T-218.md / T-218-review.md。
 - **T-225** [P2] M7 文档 II `role:tech-writer` — **done 2026-08-23（conductor 直审通过；提交 `5f01cbc`）**
