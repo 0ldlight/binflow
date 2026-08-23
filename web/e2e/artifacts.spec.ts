@@ -90,7 +90,7 @@ test('W12/W12b/W13 generic tree: upload -> browse -> detail/download sha match -
 
   // 进目录（W12b）：children 表 + ?list 合并的 size 列
   await page.click('[data-testid="tree-row-acme"]')
-  await expect(page).toHaveURL(new RegExp(`/binflow/ui/repositories/${key}/tree/acme$`))
+  await expect(page).toHaveURL(new RegExp(`/binflow/ui/artifacts/${key}/acme$`))
   await expect(page.locator('[data-testid="tree-row-app.bin"]')).toBeVisible()
   await expect(page.locator('[data-testid="tree-row-app.bin"] td').nth(2)).toHaveText('12 B')
   await expect(page.locator('[data-testid="tree-row-sbom.json"]')).toBeVisible()
@@ -122,7 +122,7 @@ test('W12/W12b/W13 generic tree: upload -> browse -> detail/download sha match -
 
   // 面包屑回根
   await page.click('[data-testid="tree-breadcrumb"] .crumb')
-  await expect(page).toHaveURL(new RegExp(`/binflow/ui/repositories/${key}/tree$`))
+  await expect(page).toHaveURL(new RegExp(`/binflow/ui/artifacts/${key}$`))
   await expect(page.locator('[data-testid="tree-row-acme"]')).toBeVisible()
 
   // 删除（E-14）：文件 → 行消失 + 内容面 404；重复删除 = 404（幂等语义源）
@@ -303,7 +303,7 @@ test('W14b search: empty-keyword guide, debounced results, semantic subline, row
 
   // 行点击跳树定位（?focus= 自动选中 + 详情面板）
   await page.click('[data-testid="search-result-0"]')
-  await expect(page).toHaveURL(new RegExp(`/binflow/ui/repositories/${key}/tree/acme\\?focus=${fileName}`))
+  await expect(page).toHaveURL(new RegExp(`/binflow/ui/artifacts/${key}/acme\\?focus=${fileName}`))
   await expect(page.locator('[data-testid="node-detail"]')).toBeVisible()
   await expect(page.locator('[data-testid="node-detail"]')).toContainText(`acme/${fileName}`)
 })

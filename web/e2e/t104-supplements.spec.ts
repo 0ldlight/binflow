@@ -95,7 +95,7 @@ test('W10: UI form creates docker-ui-local (local+docker); REST packageType reco
   await page.click('[data-testid="form-next"]')
   await page.click('[data-testid="form-submit"]')
 
-  await expect(page).toHaveURL(new RegExp(`/binflow/ui/repositories/${DOCKER_REPO}$`))
+  await expect(page).toHaveURL(new RegExp(`/binflow/ui/admin/repositories/${DOCKER_REPO}$`))
 
   // UI 列表行可见
   await page.goto('/binflow/ui/repositories')
@@ -205,7 +205,7 @@ test('W10b: UI edits remote url; REST round-trips new value; password never echo
   await page.fill('[data-testid="form-password"]', secret)
   await page.click('[data-testid="form-next"]')
   await page.click('[data-testid="form-submit"]')
-  await expect(page).toHaveURL(new RegExp(`/binflow/ui/repositories/${key}$`))
+  await expect(page).toHaveURL(new RegExp(`/binflow/ui/admin/repositories/${key}$`))
 
   let got = await api(page, 'GET', `/api/repositories/${key}`)
   expect(got.status).toBe(200)

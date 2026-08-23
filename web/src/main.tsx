@@ -1,6 +1,6 @@
 import { StrictMode, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 
 import { AuthProvider } from './app/AuthContext'
 import { ConfirmProvider } from './components/ConfirmDialog'
@@ -11,23 +11,25 @@ import './styles/base.css'
 import './styles/pages.css'
 import './styles/governance.css'
 
-// 路由表（console-ux §3.2，应用内路径；basename = vite base =
-// /binflow/ui，见 vite.config.ts）。每个页面 React.lazy——懒加载缝
-// 是 T-89 定下的构建形态，后续票加页面不改本文件的构建形状。
-// 已交付：login / 仪表盘 / 设置（T-98）、仓库组（T-99：列表/新建/
-// 详情/设置；tree 归 T-100）、治理组（T-102：审计 / GC / 配额 / 备份
-// 兜底页）；其余已规划路由渲染占位页（携带交付票号），未匹配路由
-// 渲染 404。
+// 路由表（console-m8 §1.3/§1.4——M8 IA 重排，T-235）。basename =
+// vite base = /binflow/ui（ADR-0014，不变）。双模式：应用模式
+// （/dashboard /artifacts /search /profile）+ 管理模式（/admin/** 五分组：
+// 仓库/用户与权限/治理/监控/常规）。页面组件原样挂载（B3/B4 域票再重排
+// 页内形态）；旧路由按 console-m8 §1.4 的 20 条映射做客户端 replace
+// 重定向（Q3 终裁：M8 全量保留兼容窗口，M9 移除）。
+// testid 242 锚不随路由改名（ADR-0029 决策 3 / console-ux §10.5）。
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 const RepositoriesPage = lazy(() => import('./pages/repositories/RepositoriesPage'))
 const RepositoryFormPage = lazy(() => import('./pages/repositories/RepositoryFormPage'))
 const RepoDetailPage = lazy(() => import('./pages/repositories/RepoDetailPage'))
-// 制品树 + 搜索（T-100：树浏览/上传/下载/删除 + 搜索页）
+// 制品树（T-100 形态原样）：挂载点从「仓内树」平移为跨仓树子树
+// （/artifacts/:key/*；根 /artifacts 跨仓树归 T-236，本票占位）。
+// URL 即状态 + ?focus= 深链参数形态随挂载点就位（T-236 消费）。
 const TreePage = lazy(() => import('./pages/repositories/tree/TreePage'))
 const SearchPage = lazy(() => import('./pages/search/SearchPage'))
-// 安全组（T-101：用户/组/权限 target 编辑器；tokens P2 兜底占位）
+// 安全组（T-101 形态原样；页面重排归 T-237/T-241）
 const UsersPage = lazy(() => import('./pages/security/UsersPage'))
 const UserDetailPage = lazy(() => import('./pages/security/UserDetailPage'))
 const GroupsPage = lazy(() => import('./pages/security/GroupsPage'))
@@ -47,6 +49,32 @@ function RouteFallback() {
   return <div className="route-fallback">加载中…</div>
 }
 
+// ---- 旧路由兼容窗口（console-m8 §1.4；Q3 终裁 M9 移除）--------------------
+// 客户端 replace 重定向。对 raw pathname 做前缀/后缀改写而非按 params 重组：
+// 保真 percent-encode 形态（T-231 矩阵的 %/#/?/空格/UTF-8 段不二次编解码），
+// 并保留查询串（树页 ?focus= 深链锚定依赖）。
+
+type PathRewrite = (pathname: string) => string
+
+/** 前缀改写：/security/* → /admin/security/* 这类平移 */
+function prefix(from: string, to: string): PathRewrite {
+  return (p) => to + p.slice(from.length)
+}
+
+/** 仓内树 → 跨仓树：/repositories/<key>/tree[/<path…>] → /artifacts/<key>[/<path…>] */
+const TREE_REWRITE: PathRewrite = (p) =>
+  p.replace(/^\/repositories\/([^/]+)\/tree(?:\/(.*))?$/, (_m, key: string, rest: string) =>
+    rest ? `/artifacts/${key}/${rest}` : `/artifacts/${key}`,
+  )
+
+/** 编辑仓后缀改写：…/settings → …/edit（/settings 让位 /admin/general/settings） */
+const EDIT_REWRITE: PathRewrite = (p) => p.replace(/\/settings$/, '/edit')
+
+function LegacyRedirect({ rewrite }: { rewrite: PathRewrite }) {
+  const { pathname, search } = useLocation()
+  return <Navigate to={rewrite(pathname) + search} replace />
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ThemeProvider>
@@ -58,36 +86,113 @@ createRoot(document.getElementById('root')!).render(
                 <Routes>
                   <Route path="/login" element={<LoginPage />} />
                   <Route path="/" element={<AppShell />}>
-                    <Route index element={<DashboardPage />} />
-                    <Route path="settings" element={<SettingsPage />} />
-                    {/* 仓库组（T-99；tree 归 T-100，深链保留占位） */}
-                    <Route path="repositories" element={<RepositoriesPage />} />
-                    <Route path="repositories/new" element={<RepositoryFormPage mode="create" />} />
-                    <Route path="repositories/:key" element={<RepoDetailPage />} />
-                    <Route path="repositories/:key/settings" element={<RepositoryFormPage mode="edit" />} />
-                    {/* 制品树（T-100）：splat = repo 相对目录深链 */}
-                    <Route path="repositories/:key/tree/*" element={<TreePage />} />
-                    {/* 搜索（T-100，⌘K 全局快捷键的落点） */}
-                    <Route path="search" element={<SearchPage />} />
-                    {/* 安全组（T-101）：用户/组/权限 target 编辑器 */}
-                    <Route path="security/users" element={<UsersPage />} />
-                    <Route path="security/users/:name" element={<UserDetailPage />} />
-                    <Route path="security/groups" element={<GroupsPage />} />
-                    <Route path="security/permissions" element={<PermissionsPage />} />
-                    <Route path="security/permissions/new" element={<PermissionEditorPage mode="create" />} />
-                    <Route path="security/permissions/:name" element={<PermissionEditorPage mode="edit" />} />
-                    {/* 兜底占位（Access Tokens——ux R6 P2：签发引导 + 既有 revoke） */}
+                    {/* —— 应用模式（console-m8 §1.3）—— */}
+                    {/* 登录落点 = /artifacts（§1.1）；匿名访问 / 时壳的
+                        认证守卫先于本 index 重定向生效，return=%2F 语义不变 */}
+                    <Route index element={<Navigate to="/artifacts" replace />} />
+                    <Route path="dashboard" element={<DashboardPage />} />
+                    {/* 跨仓树根（T-236 占位）；子树深链挂现役树页（URL 即状态） */}
                     <Route
-                      path="security/*"
+                      path="artifacts"
+                      element={<PlaceholderPage title="制品" ticket="T-236" />}
+                    />
+                    <Route path="artifacts/:key/*" element={<TreePage />} />
+                    <Route path="search" element={<SearchPage />} />
+                    {/* 编辑档案：改密块现驻设置页（页面原样挂载，T-239 拆分） */}
+                    <Route path="profile" element={<SettingsPage />} />
+
+                    {/* —— 管理模式：仓库（§1.3 五分组之一）—— */}
+                    <Route
+                      path="admin"
+                      element={<Navigate to="/admin/repositories" replace />}
+                    />
+                    <Route
+                      path="admin/repositories"
+                      element={<Navigate to="/admin/repositories/local" replace />}
+                    />
+                    {/* 三 Tab 子路由（Tab 形态归 T-240；页面原样挂载） */}
+                    <Route path="admin/repositories/local" element={<RepositoriesPage />} />
+                    <Route path="admin/repositories/remote" element={<RepositoriesPage />} />
+                    <Route path="admin/repositories/virtual" element={<RepositoriesPage />} />
+                    <Route
+                      path="admin/repositories/new"
+                      element={<RepositoryFormPage mode="create" />}
+                    />
+                    <Route path="admin/repositories/:key" element={<RepoDetailPage />} />
+                    <Route
+                      path="admin/repositories/:key/edit"
+                      element={<RepositoryFormPage mode="edit" />}
+                    />
+
+                    {/* —— 管理模式：用户与权限 —— */}
+                    <Route path="admin/security/users" element={<UsersPage />} />
+                    <Route path="admin/security/users/:name" element={<UserDetailPage />} />
+                    <Route path="admin/security/groups" element={<GroupsPage />} />
+                    <Route path="admin/security/permissions" element={<PermissionsPage />} />
+                    <Route
+                      path="admin/security/permissions/new"
+                      element={<PermissionEditorPage mode="create" />}
+                    />
+                    <Route
+                      path="admin/security/permissions/:name"
+                      element={<PermissionEditorPage mode="edit" />}
+                    />
+                    {/* Access Tokens（ux R6/P2：签发引导 + 吊销占位，§6.12） */}
+                    <Route
+                      path="admin/security/tokens"
                       element={<PlaceholderPage title="Access Tokens" ticket="P2" adminOnly />}
                     />
-                    {/* 治理组（T-102）：审计 / GC / 配额 / 备份（备份为 R5 兜底引导页）；
-                        复制面板（T-159）：push 复制状态 + 事件列表 */}
-                    <Route path="audit" element={<AuditPage />} />
-                    <Route path="governance/gc" element={<GCPage />} />
-                    <Route path="governance/replication" element={<ReplicationPage />} />
-                    <Route path="governance/quotas" element={<QuotasPage />} />
-                    <Route path="governance/backup" element={<BackupPage />} />
+
+                    {/* —— 管理模式：治理 —— */}
+                    <Route path="admin/governance/audit" element={<AuditPage />} />
+                    <Route path="admin/governance/gc" element={<GCPage />} />
+                    <Route path="admin/governance/quotas" element={<QuotasPage />} />
+                    <Route path="admin/governance/replication" element={<ReplicationPage />} />
+                    <Route path="admin/governance/backup" element={<BackupPage />} />
+
+                    {/* —— 管理模式：监控 / 常规 —— */}
+                    <Route
+                      path="admin/monitoring/storage"
+                      element={<PlaceholderPage title="存储概要" ticket="T-238" adminOnly />}
+                    />
+                    <Route path="admin/general/settings" element={<SettingsPage />} />
+
+                    {/* —— 旧路由兼容窗口（console-m8 §1.4 的 20 条映射；
+                         8 条路由承载——security/* 与 governance/* 前缀平移
+                         各自覆盖一族）—— */}
+                    <Route
+                      path="repositories"
+                      element={<LegacyRedirect rewrite={() => '/admin/repositories/local'} />}
+                    />
+                    <Route
+                      path="repositories/:key/tree/*"
+                      element={<LegacyRedirect rewrite={TREE_REWRITE} />}
+                    />
+                    <Route
+                      path="repositories/:key/settings"
+                      element={<LegacyRedirect rewrite={EDIT_REWRITE} />}
+                    />
+                    <Route
+                      path="repositories/*"
+                      element={<LegacyRedirect rewrite={prefix('/repositories', '/admin/repositories')} />}
+                    />
+                    <Route
+                      path="settings"
+                      element={<LegacyRedirect rewrite={() => '/admin/general/settings'} />}
+                    />
+                    <Route
+                      path="security/*"
+                      element={<LegacyRedirect rewrite={prefix('/security', '/admin/security')} />}
+                    />
+                    <Route
+                      path="audit"
+                      element={<LegacyRedirect rewrite={() => '/admin/governance/audit'} />}
+                    />
+                    <Route
+                      path="governance/*"
+                      element={<LegacyRedirect rewrite={prefix('/governance', '/admin/governance')} />}
+                    />
+
                     <Route path="*" element={<NotFoundPage />} />
                   </Route>
                 </Routes>

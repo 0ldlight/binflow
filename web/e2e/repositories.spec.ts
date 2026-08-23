@@ -72,7 +72,7 @@ test('local generic full lifecycle: create with governance -> list -> edit round
 
   // 创建成功：toast（服务端文案）+ 跳详情
   await expect(page.locator('[data-testid="toast"]')).toContainText(`Successfully created repository '${key}'`)
-  await expect(page).toHaveURL(new RegExp(`/binflow/ui/repositories/${key}$`))
+  await expect(page).toHaveURL(new RegExp(`/binflow/ui/admin/repositories/${key}$`))
   await expect(page.locator('[data-testid="repo-detail-page"] .key')).toHaveText(key)
   await expect(page.locator('[data-testid="repo-governance-card"]')).toContainText('1048576')
   await expect(page.locator('[data-testid="repo-usage-card"]')).toBeVisible()
@@ -94,7 +94,7 @@ test('local generic full lifecycle: create with governance -> list -> edit round
   // review B1：行内拷贝不触发行导航（隔离层），且剪贴板拿到完整 key
   await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
   await page.click(`[data-testid="repos-row-${key}"] .copy-btn`)
-  await expect(page).toHaveURL(/\/binflow\/ui\/repositories$/)
+  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/local$/)
   const clip = await page.evaluate(() => navigator.clipboard.readText())
   expect(clip).toBe(key)
 
@@ -150,7 +150,7 @@ test('local generic full lifecycle: create with governance -> list -> edit round
   await page.click('[data-testid="confirm-accept"]')
 
   await expect(page.locator('[data-testid="toast"]')).toContainText('deleted successfully')
-  await expect(page).toHaveURL(/\/binflow\/ui\/repositories$/)
+  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/local$/)
   await expect(page.locator(`[data-testid="repos-row-${key}"]`)).toHaveCount(0)
 
   // 内容路径 404 断言（AC②）
@@ -175,7 +175,7 @@ test('remote maven: url roundtrip, password never echoed, empty delete', async (
   await page.click('[data-testid="form-next"]')
   await page.click('[data-testid="form-submit"]')
 
-  await expect(page).toHaveURL(new RegExp(`/binflow/ui/repositories/${key}$`))
+  await expect(page).toHaveURL(new RegExp(`/binflow/ui/admin/repositories/${key}$`))
   await expect(page.locator('[data-testid="repo-remote-card"]')).toContainText('repo1.maven.org')
 
   // API 对账：url/username 回显；密码绝不出现在任何回显面（NFR-S14）
@@ -265,7 +265,7 @@ test('virtual: member order roundtrip, defaultDeploymentRepo, server 400 inline'
   await page.click('[data-testid="form-next"]')
   await page.click('[data-testid="form-submit"]')
 
-  await expect(page).toHaveURL(new RegExp(`/binflow/ui/repositories/${vkey}$`))
+  await expect(page).toHaveURL(new RegExp(`/binflow/ui/admin/repositories/${vkey}$`))
   await expect(page.locator('[data-testid="repo-virtual-card"]')).toBeVisible()
 
   // API 对账：成员序 + defaultDeploymentRepo（写路由只接受 local 成员）
@@ -281,7 +281,7 @@ test('virtual: member order roundtrip, defaultDeploymentRepo, server 400 inline'
   await expect(pop).toBeVisible()
   await expect(pop).toContainText(m2)
   await expect(pop).toContainText(m1)
-  await expect(page).toHaveURL(/\/binflow\/ui\/repositories$/)
+  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/local$/)
 
   // review B2：取消 defaultDeploymentRepo 所指成员 → select 联动回「（未配置）」，提交不再吃 400
   await page.goto(`/binflow/ui/repositories/${vkey}/settings`)

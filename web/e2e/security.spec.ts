@@ -137,7 +137,7 @@ test('W33 three-step flow: group -> user membership -> target matrix, tester + d
   await expect(diff).toContainText(`授予组 ${group} write`)
   await page.click('[data-testid="confirm-accept"]')
   await expect(page.locator('[data-testid="toast"]').filter({ hasText: `permission target ${target} 已保存` })).toBeVisible({ timeout: 8000 })
-  await expect(page).toHaveURL(/\/binflow\/ui\/security\/permissions$/)
+  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/security\/permissions$/)
   await expect(page.locator(`[data-testid="perm-row-${target}"]`)).toBeVisible()
 
   // API 对账：三实体字段回显

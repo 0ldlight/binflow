@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 文档 | `docs/design/console-ux.md` |
-| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道） |
-| 状态 | v1.3（2026-08-21） |
+| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚） |
+| 状态 | v1.4（2026-08-23） |
 | 维护者 | ux-designer |
 | 上游依据 | PRODUCT.md（Web 控制台/治理/Non-goals）、ROADMAP.md M4 节、docs/prd/milestone-1/2/3/4.md（端点矩阵与已定案行为）、docs/user/docker-registry.md（用户面口径）、docs/design/architecture.md §7（路由/console 挂载点）、internal/httpapi/router.go（路由门事实——§3.6.2 矩阵逐一核对）、reports/agents/T-98.md · T-99.md（漂移登记与 testid 素材）、reports/agents/T-98-review.md（N1 收敛建议）、BOARD.md（T-85 PRD / T-97 存在性不泄露裁决） |
 | 下游消费者 | T-86（架构：console 包/session/前端工程结构）、tech-lead（M4 拆票）、前端 dev（页面组票）、qa-engineer（控制台验收） |
@@ -19,6 +19,7 @@
 | v1.1 | 2026-08-21 | T-116 权限可见性漂移集中定案：① §3.3 按路由门事实修订角色可见性——健康、仓库列表、Tokens 三处 v1.0 设想与实现的漂移定案，**均维持实现（admin-only）**，理由与放宽前置条件见 §3.6.1；② 新增 §3.6 权限可见性矩阵（403 收敛四层主姿态 + 端点×门矩阵 + 页面×角色呈现矩阵 + admin 硬编码裁定，收敛 T-98 review N1）；③ §3.1 治理分组补「审计日志」条目（v1.0 导航漏列而 §3.2 已有路由；`GET /api/v1/audit` 为 admin 门，归治理组）；④ §5.1 的 403 分流改挂 §3.6.3 分层规则（消除「403 一律无权限卡」与卡片级隐藏的矛盾）；⑤ 新增 §10 data-testid 命名清单（T-98/T-99 已落锚全量核对自源码 + 命名规则 + T-100~T-102 预定锚——T-104 断言锚源）；⑥ 修订记录自文末移至 §0 |
 | v1.2 | 2026-08-21 | T-118 §10 testid 清单回写（T-104 断言锚冻结的前置）：① §10.3 预定锚**转正为已落地清单**——T-100~T-102 全部落码，逐一对码核对（差异注记随各组）；② `perm-matrix-cell-<principal>-<action>` 细化为 `perm-matrix-cell-{user|group}-<principal>-<action>`（防用户/组同名碰撞，T-101 遗留 2 定案），类段防碰撞原则升入 §10.1 命名规则；③ 搜索页 `search-filter-{package|type}` **删除**（实现仅 repo 过滤；R2 类型化过滤落地时回填）；④ 未落/裁剪锚（token 族 / `audit-export` / `copy-<field>`）新设 §10.4 承载，T-104 不得断言；⑤ grep 补记两处三票日志未列锚（`search-results` 结果表容器、`perm-pattern-{include|exclude}-<i>` chip 本体）；锚总量 **242 落点 / 27 文件**（`grep -rn "data-testid" web/src/`，动态族计一名约 230 锚） |
 | v1.3 | 2026-08-21 | T-123 §9 R10 例改道（E4 定案一致性收口，T-107 移交 H-3 / T-103 同建议）：session 凭据等价性示例由「docker tags/list」改为「npm packument / pypi simple」——二者挂在 `/binflow` 前缀下，cookie `Path=/binflow` 可携 session；docker tags 因 cookie 结构性不达根级 `/v2`（docker 客户端走 `/v2/token` Basic 面）不再作例。依据：PRD M4 v1.3 CE-03 E4 注记、docs/user/faq.md |
+| v1.4 | 2026-08-23 | T-235 M8 双模式壳与路由重排（console-m8 §1 落地）：① 新增 **§10.5 路由重排锚保全映射**——M8 新路由表 ↔ §10.2/§10.3 既有锚，242 锚**零改名**（ADR-0029 决策 3，W 资产保全）；② 壳新锚 10 枚入册（`nav-mode-switch` / `topbar-breadcrumb` / 用户菜单 Quick 动作族）；③ §10.4 Tokens 行注记更新——侧栏禁用占位（`nav-item.disabled` 计数断言）让位真实路由 `/admin/security/tokens` 的 `placeholder-page` 承载；④ IA/路由正文以 console-m8 为准（§0.2 冲突条款），本版不重写 §3.1/§3.2 旧路由表 |
 
 ---
 
@@ -946,9 +947,38 @@ v1.1 → v1.2 差异注记（核对基准 = v1.1 §10.3 预定清单 vs 源码�
 
 | 锚 | 归属 | 状态 |
 |---|---|---|
-| `tokens-page` `token-create` `token-plaintext` `token-revoke-<id>` | 安全组 Tokens 页 | P2 兜底占位（`placeholder-page` 承载；auth-shell 以 `nav-item.disabled` 计数 1 断言占位态） |
+| `tokens-page` `token-create` `token-plaintext` `token-revoke-<id>` | 安全组 Tokens 页 | P2 兜底占位（v1.4：路由 `/admin/security/tokens` 落地，`placeholder-page` 承载占位态——旧 `nav-item.disabled` 计数断言随之退役，auth-shell/spec 改断路由 + `placeholder-page`） |
 | `audit-export` | 审计 CSV 导出（ux R3） | P2 债务，不渲染 |
 | `search-filter-package` `search-filter-type` | 搜索页类型过滤 | v1.1 预定、v1.2 删除——R2 类型化过滤落地时回填 §10.3 |
 | `copy-<field>` | 拷贝按钮（§10.1 可选约定） | 现仅 `aria-label` 标注被拷对象（§8），无 testid；需要断言拷贝行为时再加 |
+
+### 10.5 路由重排锚保全映射（v1.4 新增，T-235——M8 IA 重排的锚口径）
+
+M8 路由表（console-m8 §1.4）重排后，§10.2/§10.3 的 **242 锚零改名**：锚挂在页面/组件上，不挂路由路径（ADR-0029 决策 3「testid 锚不随路由改名」）。W 序列断言迁移口径 = **路径断言随路由表改、锚断言不动**；旧路由 20 条客户端 redirect（兼容窗口，M9 移除）只出现在 `e2e/m8/shell.spec.ts` 的映射表腿。
+
+| M8 新路由 | 承载锚（不变） | 备注 |
+|---|---|---|
+| `/dashboard` | `dashboard` 页根 + dashboard-* 卡族 | 原 `/`；登录落点让位 `/artifacts` |
+| `/artifacts`、`/artifacts/:key/*` | `placeholder-page`（根）/ `tree-page` 族 + `?focus=` 深链参数 | 原 `/repositories/:key/tree/*`；跨仓树根归 T-236 |
+| `/search` `/profile` | `search-page` 族 / `settings` + `password-*` | `/profile` 现挂设置页组件（T-239 拆分） |
+| `/admin/repositories/{local\|remote\|virtual}` | `repos-page` 族 | 原 `/repositories`；Tab 形态归 T-240 |
+| `/admin/repositories/new` `?rclass=` | `repo-form-page` + `form-*` 族 | Quick 建仓入口的参数形态（T-240 消费） |
+| `/admin/repositories/:key[/edit]` | `repo-detail-page` 族 / `repo-form-page` | 原 `/repositories/:key[/settings]` |
+| `/admin/security/{users\|groups\|permissions\|tokens}[/:name\|/new]` | `users-*` `user-*` `groups-*` `perm-*` 族 / `placeholder-page` | 原 `/security/*` |
+| `/admin/governance/{audit\|gc\|quotas\|replication\|backup}` | `audit-*` `gc-*` `quota-*` `repl-*` `backup-*` 族 | 原 `/audit` `/governance/*` |
+| `/admin/monitoring/storage` | `placeholder-page`（新页归 T-238） | 新路由 |
+| `/admin/general/settings` | `settings` + `password-*`（改密迁 `/profile` 前 doubled 挂载） | 原 `/settings` |
+
+**T-235 壳新锚（10 枚，先入本清单再落码流程兑现）**：
+
+```
+nav-mode-switch（双模式切换项——button + aria-current；admin/readonly_admin 可见）
+topbar-breadcrumb（管理模式面包屑容器）
+quick-set-me-up  quick-new-repo-{local|remote|virtual}（用户菜单·快速建仓；仅全量 admin）
+quick-new-user  quick-new-group  quick-new-perm（用户菜单·新建；仅全量 admin）
+menu-edit-profile（用户菜单·编辑档案 → /profile；全角色可见）
+```
+
+**锚总量复核口径（v1.4 实测）**：`grep -rn "data-testid" web/src/` = **293 落点 / 29 文件**（v1.2 基线 242 之后，T-104~T-234 各票陆续增锚至 HEAD 的 283 落点——ADR-0029 原写 283 即此原始 grep 数）；T-235 净变化 = 壳**删 0 改 0、新增 10**（AppShell 10 → 20），占位路由新增 0（复用 `placeholder-page`）。另：`web/src/styles/theme-smoke.spec.ts`（7 处选择器引用，非锚）随 T-232 遗留①迁出 `src/` 至 `e2e/m8/theme-smoke.spec.ts`，不再计入 src 侧 grep。
 
 **锚总量（v1.2 核对基准）**：`grep -rn "data-testid" web/src/` = **242 处落点 / 27 文件**；动态族计一名约 **230 锚**（§10.2 + §10.3 合计）。v1.1 预定锚转正流程至此闭环（v1.1 文末「落码后回写本节并升 v1.2」约定兑现）。

@@ -129,7 +129,7 @@ test('G30e-2: typo deep-link renders 404 EmptyState for non-root dir (NB1 struct
 
   // 回仓库根按钮可用
   await page.click('button:has-text("← 回仓库根")')
-  await expect(page).toHaveURL(new RegExp(`/binflow/ui/repositories/${key}/tree$`))
+  await expect(page).toHaveURL(new RegExp(`/binflow/ui/artifacts/${key}$`))
   await expect(page.locator('[data-testid="tree-page"]')).toBeVisible()
 
   // 根目录不应触发 404（根目录 400 被 listChildren 处理为空列表）

@@ -44,12 +44,16 @@ test('login lands on shell; dashboard cards arrive; theme toggles; 404 keeps she
   await expect(page.locator('[data-testid="session-user"]')).toHaveText(ADMIN)
   await expect(page.locator('[data-testid="nav-version"]')).toContainText(/v.+/)
 
-  // 导航占位：T-99 仓库、T-100 搜索、T-101 安全组（用户/组/权限）、
-  // T-102 治理组（审计/GC/备份/配额）已启用；仅 Access Tokens（P2）仍为禁用态占位
-  await expect(page.locator('.app-nav .nav-item.disabled').first()).toBeVisible()
-  await expect(page.locator('.app-nav .nav-item.disabled')).toHaveCount(1)
+  // M8 IA 重排（T-235）：登录落点 = /artifacts（console-m8 §1.1）；
+  // Access Tokens 从侧栏禁用占位改为真实路由 /admin/security/tokens 的
+  // P2 占位页（placeholder-page 锚承载，§10.4 注记随 v1.4 更新）
+  await expect(page).toHaveURL(/\/binflow\/ui\/artifacts$/)
+  await expect(page.locator('[data-testid="placeholder-page"]')).toBeVisible()
+  await page.goto('/binflow/ui/admin/security/tokens')
+  await expect(page.locator('[data-testid="placeholder-page"]')).toBeVisible()
 
-  // 仪表盘卡片独立到达（admin 登录下四张管理面卡都在）
+  // 仪表盘卡片独立到达（admin 登录下四张管理面卡都在；M8 起仅侧栏入口）
+  await page.goto('/binflow/ui/dashboard')
   await expect(page.locator('[data-testid="dashboard-instance-card"]')).toBeVisible()
   await expect(page.locator('[data-testid="dashboard-health-card"]')).toBeVisible()
   await expect(page.locator('[data-testid="dashboard-storage-card"]')).toBeVisible()

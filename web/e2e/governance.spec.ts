@@ -321,7 +321,7 @@ test('quotas: water levels warn/full, inline edit roundtrip, 413 at ceiling', as
 
   // 跳转仓库设置可达
   await page.click(`[data-testid="quota-row-${key}"] a:has-text("仓库设置")`)
-  await expect(page).toHaveURL(new RegExp(`/binflow/ui/repositories/${key}/settings$`))
+  await expect(page).toHaveURL(new RegExp(`/binflow/ui/admin/repositories/${key}/edit$`))
   await expect(page.locator('[data-testid="repo-form-page"]')).toBeVisible()
 
   // 收尾
