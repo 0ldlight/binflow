@@ -21,7 +21,7 @@
     "permalink": "/binflow/docs/admin/governance"
   },
   "next": {
-    "title": "专题指南",
-    "permalink": "/binflow/docs/guides"
+    "title": "RBAC 角色与仓库级管理员",
+    "permalink": "/binflow/docs/admin/rbac-roles"
   }
 }

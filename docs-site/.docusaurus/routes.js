@@ -9,15 +9,15 @@ export default [
   },
   {
     path: '/binflow/docs/',
-    component: ComponentCreator('/binflow/docs/', '30e'),
+    component: ComponentCreator('/binflow/docs/', 'f14'),
     routes: [
       {
         path: '/binflow/docs/',
-        component: ComponentCreator('/binflow/docs/', 'ac8'),
+        component: ComponentCreator('/binflow/docs/', '60d'),
         routes: [
           {
             path: '/binflow/docs/',
-            component: ComponentCreator('/binflow/docs/', 'd39'),
+            component: ComponentCreator('/binflow/docs/', 'bdf'),
             routes: [
               {
                 path: '/binflow/docs/admin',
@@ -40,6 +40,12 @@ export default [
               {
                 path: '/binflow/docs/admin/groups-permissions',
                 component: ComponentCreator('/binflow/docs/admin/groups-permissions', '556'),
+                exact: true,
+                sidebar: "main"
+              },
+              {
+                path: '/binflow/docs/admin/rbac-roles',
+                component: ComponentCreator('/binflow/docs/admin/rbac-roles', '430'),
                 exact: true,
                 sidebar: "main"
               },

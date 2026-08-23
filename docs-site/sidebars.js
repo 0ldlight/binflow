@@ -3,7 +3,7 @@
  *
  * Doc ids are file paths under docs/user/ without extension; positions
  * come from each file's frontmatter sidebar_position (docker 10, maven/npm/
- * pypi 20-22, console 30, admin 40-43, faq 90) so the hand-written grouping
+ * pypi 20-22, console 30, admin 40-44, faq 90) so the hand-written grouping
  * and the frontmatter order can never disagree about sequence.
  *
  * The 安装指南 (7 forms) and API 参考 categories land with the content
@@ -50,6 +50,7 @@ const sidebars = {
         'admin/groups-permissions',
         'admin/governance',
         'admin/backup-restore',
+        'admin/rbac-roles', // M7 (T-223): roles + manage delegation guide.
       ],
     },
 

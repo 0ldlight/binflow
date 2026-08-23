@@ -5,8 +5,8 @@ sidebar_position: 10
 
 # Docker / OCI 镜像接入
 
-> 适用版本：M2（Docker Registry v2 + OCI + Helm OCI 承载；PRD milestone-2 v1.3）。
-> 本文命令在 M2 烟测基线（commit `923db2e`，即 T-44/T-45 验收产物）的 compose 实例上复验，登录/推送/拉取/运行、oras、helm、buildx、podman/crane/skopeo 链路均退出码 0。
+> 适用版本：M2（Docker Registry v2 + OCI + Helm OCI 承载；PRD milestone-2 v1.3）；[上传中断续传](#大层上传中断续传跨重启)为 M7 增补（FR-67 / ADR-0028）。
+> 本文命令在 M2 烟测基线（commit `923db2e`，即 T-44/T-45 验收产物）的 compose 实例上复验，登录/推送/拉取/运行、oras、helm、buildx、podman/crane/skopeo 链路均退出码 0；续传链于 M7 代码（2026-08-23）以 `make test-m7-resume`（kill -9）与 `make test-m7-resume-sigterm`（SIGTERM）双探针 + curl 全链复验。
 
 把 BinFlow 当作私有 Docker Registry：`docker login/push/pull` 直连可用，OCI 镜像与 Helm chart 都能存放（chart 以 OCI artifact 形态承载，无需任何 Helm 专有端点）。
 
@@ -226,6 +226,74 @@ TOKEN=$(curl -su admin:$ADMIN_PW \
 curl -s -H "Authorization: Bearer $TOKEN" $REG/v2/_catalog   # 200
 ```
 
+## 大层上传中断续传（跨重启）
+
+M7 起，**本地 filestore 后端**的 docker blob 上传会话跨进程重启存活——传到一半遇到服务器重启，客户端向 upload URL 查询状态即可拿到**权威 offset** 从断点续传，不必从零重传。
+
+适用口径（ADR-0028）：
+
+- **三径对称**：`kill -9`（崩溃/断电）、SIGTERM（优雅停机）、`docker compose restart` 三种重启形态**一致可续传**——计划内维护窗口不打断在途大上传，「跨重启续传」不限于异常中断。
+- **唯一回收路径**：上传会话的清除只有「启动 sweep + TTL 过期」一条路（默认 24h）。优雅停机会在日志打一条保留清单 INFO（`storage: close: preserving unexpired upload sessions ...`），在途数据文件原样保留到 TTL。
+- **范围**：仅本地 filestore 后端。**S3 后端不适用**——multipart 状态由 S3 服务端持有，重启后旧 upload URL 一律 404 `BLOB_UPLOAD_UNKNOWN`（Q4 暂行不纳入）。generic/maven/npm/pypi 的上传是单体 PUT，无分块会话，也就没有续传面。
+- **docker CLI 注记**：docker CLI 自身在中断后**从头重传**（客户端不实现续传逻辑），`docker push` 行为不变。规格级续传面向探针与自管传输脚本——按 Docker Registry HTTP API v2 的上传状态查询 + `Content-Range` 锚点用 curl（或任意实现续传的客户端）完成，形态如下。
+
+完整续传链（每步状态码右侧为实测值）：
+
+```bash
+export BASE=http://localhost:8080
+export ADMIN_PW=<你的管理员口令>
+
+# 0. 发起上传会话 → 202 + Location
+LOC=$(curl -su admin:$ADMIN_PW -X POST $BASE/v2/docker-local/myimg/blobs/uploads/ \
+  -o /dev/null -D - | awk -F': ' 'tolower($1)=="location"{sub(/\r/,"",$2);print $2}')
+# LOC=/v2/docker-local/myimg/blobs/uploads/<uuid>
+
+# 1. 传首块（512KiB）→ 202 + Range: 0-524287
+head -c 524288 /dev/urandom > /tmp/chunk1
+curl -su admin:$ADMIN_PW -X PATCH -H 'Content-Type: application/octet-stream' \
+  --data-binary @/tmp/chunk1 "$BASE$LOC" -o /dev/null -D - | grep -i '^range:'
+# Range: 0-524287
+
+# 2. —— 此刻服务器重启（kill -9 / SIGTERM / docker compose restart 任一形态）——
+
+# 3. 查询上传状态 → 204 No Content + 权威 Range（= 已收字节数，断点锚点）
+curl -su admin:$ADMIN_PW "$BASE$LOC" -o /dev/null -D - | grep -iE '^(HTTP|range)'
+# HTTP/1.1 204 No Content
+# Range: 0-524287
+
+# 4.（演示）起点错位——重放首块 Content-Range → 416 + 空 body + 权威 Range（会话不受影响）
+curl -su admin:$ADMIN_PW -X PATCH -H 'Content-Type: application/octet-stream' \
+  -H 'Content-Range: 0-65535' --data-binary @/tmp/chunk1 "$BASE$LOC" \
+  -o /dev/null -D - | grep -iE '^(HTTP|content-length|range)'
+# HTTP/1.1 416 Requested Range Not Satisfiable
+# Content-Length: 0
+# Range: 0-524287        ← 以此为锚续传，不要猜
+
+# 5. 从权威 offset 续传剩余块（Content-Range 起点 == 已收字节数）→ 202
+head -c 65536 /dev/urandom > /tmp/chunk2
+curl -su admin:$ADMIN_PW -X PATCH -H 'Content-Type: application/octet-stream' \
+  -H 'Content-Range: 524288-589823' --data-binary @/tmp/chunk2 "$BASE$LOC" \
+  -o /dev/null -w '%{http_code}\n'                                    # 202
+
+# 6. PUT 收尾（digest 校验）→ 201
+DIG="sha256:$(cat /tmp/chunk1 /tmp/chunk2 | openssl dgst -sha256 -r | cut -d' ' -f1)"
+curl -su admin:$ADMIN_PW -X PUT "$BASE$LOC?digest=$DIG" -o /dev/null -w '%{http_code}\n'   # 201
+
+# 7. 回读逐位校验
+curl -su admin:$ADMIN_PW "$BASE/v2/docker-local/myimg/blobs/$DIG" -o /tmp/got.bin
+cat /tmp/chunk1 /tmp/chunk2 | cmp - /tmp/got.bin && echo IDENTICAL
+```
+
+要点与边界：
+
+| 情形 | 响应 | 说明 |
+|---|---|---|
+| GET upload URL（未过期） | **204 + `Range: 0-<offset-1>`** | offset 为服务端权威已收字节数 |
+| PATCH `Content-Range` 起点 ≠ 已收字节 | **416 + 空 body + `Range` 权威值** | 客户端应改用响应里的 Range 重锚；会话本身存活 |
+| PUT `?digest=` 校验失败 | 400 | 会话保留，可修正后重试 |
+| 会话过期（默认 24h）或行不存在 | 404 `BLOB_UPLOAD_UNKNOWN` | 唯一「作废」形态；重启后过期行由启动 sweep 清行清目录 |
+| S3 后端（任何时刻的重启后） | 404 `BLOB_UPLOAD_UNKNOWN` | multipart 状态在 S3 服务端；见上文范围说明 |
+
 ## 有意不兼容与差异清单
 
 与 Artifactory 对接过的用户注意以下差异（前四条为 BinFlow 有意设计，来源 PRD/ADR）：
@@ -298,6 +366,8 @@ http:
 | buildx push `unauthorized` | builder 缺登录态或缺 `http = true` 配置 | 宿主先 `docker login`；`buildkitd.toml` 配 `[registry."<REG>"] http = true` |
 | oras `absolute file path detected` | oras v1.2 路径校验拒绝绝对路径 | 工作目录内改用相对路径引用文件 |
 | helm push 401 | 明文 HTTP 下 `helm registry login` 不可用（无 `--plain-http`） | 写 `HELM_REGISTRY_CONFIG` 凭据文件（见上文 helm 节） |
+| PATCH upload 报 416（`Content-Length: 0`） | `Content-Range` 起点 ≠ 服务端已收字节数（错位重放） | 读响应里的 `Range` 头取权威 offset，从 `Range` 末尾 +1 处重锚续传 |
+| 重启后 GET/PATCH upload URL 报 404 `BLOB_UPLOAD_UNKNOWN` | 会话过期（>24h TTL）、已被收尾/取消，或 **S3 后端**（multipart 状态在 S3 服务端，BinFlow 侧不续传） | 本地 filestore 下未过期会话不会 404（见[续传](#大层上传中断续传跨重启)）；S3 后端请整块重传 |
 
 ## 下一步
 

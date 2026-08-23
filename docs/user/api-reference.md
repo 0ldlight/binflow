@@ -5,7 +5,7 @@ sidebar_position: 70
 
 # API 参考
 
-> 适用版本：M1~M4（端点引入里程碑标注于各表）。Artifactory 兼容端点基于 REST 逆向规格 `docs/reverse/rest-api.md`（置信度高）。
+> 适用版本：M1~M7（端点引入里程碑标注于各表；M7 增补：用户角色字段 `adminRole`、permission target 动作 `manage`、docker 上传状态腿跨重启）。Artifactory 兼容端点基于 REST 逆向规格 `docs/reverse/rest-api.md`（置信度高）。
 > BinFlow 自有端点以 `/api/v1` 前缀标记。
 
 BinFlow 的 API 分为两个面：
@@ -51,7 +51,8 @@ BinFlow 的 API 分为两个面：
 | PUT | `/v2/{name}/manifests/{ref}` | 上传 manifest（Content-Type 透传不白名单） | M2 |
 | DELETE | `/v2/{name}/manifests/{digest}` | 删除 manifest（by-digest 仅） | M2 |
 | POST | `/v2/{name}/blobs/uploads/` | 启动 blob 上传会话 | M2 |
-| PATCH | `/v2/{name}/blobs/uploads/{uuid}` | 上传 blob 分片 | M2 |
+| GET | `/v2/{name}/blobs/uploads/{uuid}` | 上传状态查询（**204 + `Range: 0-<offset-1>`** 权威断点；M7 起跨重启存活，续传见 [Docker 接入指南](docker-registry.md#大层上传中断续传跨重启)） | M2/M7 |
+| PATCH | `/v2/{name}/blobs/uploads/{uuid}` | 上传 blob 分片（`Content-Range` 起点错位 → 416 空 body + 权威 `Range`） | M2 |
 | PUT | `/v2/{name}/blobs/uploads/{uuid}` | 完成 blob 上传（`?digest=sha256:...`） | M2 |
 | GET | `/v2/{name}/blobs/{digest}` | 下载 blob | M2 |
 | HEAD | `/v2/{name}/blobs/{digest}` | blob 存在检测 | M2 |
@@ -91,9 +92,9 @@ BinFlow 的 API 分为两个面：
 | 方法 | 路径 | 语义 | 里程碑 |
 |---|---|---|---|
 | GET | `/binflow/api/security/users` | 用户列表（简洁形态） | M1 |
-| GET | `/binflow/api/security/users/{name}` | 用户详情（无口令字段） | M1 |
-| PUT | `/binflow/api/security/users/{name}` | 创建或替换用户（create-or-replace，两态 201） | M1 |
-| POST | `/binflow/api/security/users/{name}` | 部分更新用户（email/password/admin/groups） | M4 |
+| GET | `/binflow/api/security/users/{name}` | 用户详情（无口令字段；M7 起回显 `adminRole`） | M1 |
+| PUT | `/binflow/api/security/users/{name}` | 创建或替换用户（create-or-replace，两态 201；M7 起 body 可含 `adminRole`，仅 admin 可写） | M1 |
+| POST | `/binflow/api/security/users/{name}` | 部分更新用户（email/password/admin/groups/adminRole） | M4 |
 | PUT | `/binflow/api/security/password` | 当前用户改密 | M1 |
 | POST | `/binflow/api/security/users/authorization/changePassword` | 别名改密端点 | M4 |
 | GET | `/binflow/api/security/groups` | 组列表 | M4 |
@@ -103,8 +104,8 @@ BinFlow 的 API 分为两个面：
 | DELETE | `/binflow/api/security/groups/{name}` | 删组（被 target 引用 → 409） | M4 |
 | POST | `/binflow/api/security/token` | 签发 Access Token（admin only） | M1 |
 | POST | `/binflow/api/security/token/revoke` | 吊销 Token（admin only） | M1 |
-| POST | `/binflow/api/v1/permissions` | 创建 Permission Target | M1 |
-| GET | `/binflow/api/v1/permissions` | 列出 Permission Targets | M4 |
+| POST | `/binflow/api/v1/permissions` | 创建 Permission Target（create-or-replace；M7 起动作集含 `manage`，manage 持有者可编辑覆盖集内的 target） | M1 |
+| GET | `/binflow/api/v1/permissions` | 列出 Permission Targets（M7 起 principals 回显 `manage` 位） | M4 |
 | DELETE | `/binflow/api/v1/permissions/{name}` | 删除 Permission Target | M1 |
 
 ### SR: 搜索域
@@ -119,12 +120,12 @@ BinFlow 的 API 分为两个面：
 
 | 方法 | 路径 | 语义 | 里程碑 |
 |---|---|---|---|
-| GET | `/binflow/api/repositories` | 仓库列表（admin only） | M1 |
+| GET | `/binflow/api/repositories` | 仓库列表（admin / readonly_admin） | M1 |
 | GET | `/binflow/api/repositories?type=&packageType=` | 过滤列表 | M1 |
-| GET | `/binflow/api/repositories/{key}` | 单仓配置 | M1 |
-| PUT | `/binflow/api/repositories/{key}` | 建仓（创建） | M1 |
-| POST | `/binflow/api/repositories/{key}` | 改仓（更新配置） | M1 |
-| DELETE | `/binflow/api/repositories/{key}` | 删仓（含可选 `?deleteContent`） | M1 |
+| GET | `/binflow/api/repositories/{key}` | 单仓配置（M7 起 manage 持有者对覆盖仓亦可读） | M1 |
+| PUT | `/binflow/api/repositories/{key}` | 建仓（创建）/ 替换既有仓（M7 起替换臂与配额字段对覆盖仓的 manage 持有者开放；**建仓臂仍 admin only**） | M1 |
+| POST | `/binflow/api/repositories/{key}` | 改仓（更新配置，含 quotaBytes 配额写；M7 起 manage 持有者同上） | M1 |
+| DELETE | `/binflow/api/repositories/{key}` | 删仓（含可选 `?deleteContent`；admin only，不下放） | M1 |
 
 ### 系统端点
 
@@ -132,11 +133,11 @@ BinFlow 的 API 分为两个面：
 |---|---|---|---|
 | GET | `/binflow/api/system/ping` | 存活探测（免认证） | M1 |
 | GET | `/binflow/api/system/version` | 版本信息（免认证） | M1 |
-| GET | `/binflow/api/v1/health` | 健康面板（admin only） | M1 |
-| GET | `/binflow/api/v1/storage/stats` | 全实例存储统计（admin only） | M1 |
-| GET | `/binflow/api/v1/storage/usage/{repo}` | 单仓配额用量（admin 或有 read 授权） | M4 |
-| GET | `/binflow/api/v1/audit` | 审计日志查询（admin only） | M4 |
-| POST | `/binflow/api/v1/system/gc` | 触发 GC（admin only，同步执行） | M4 |
+| GET | `/binflow/api/v1/health` | 健康面板（admin / readonly_admin） | M1 |
+| GET | `/binflow/api/v1/storage/stats` | 全实例存储统计（admin / readonly_admin） | M1 |
+| GET | `/binflow/api/v1/storage/usage/{repo}` | 单仓配额用量（admin / readonly_admin / 对该仓有 `read` **或** `manage` 授权者——M7 起 manage ∨-臂） | M4 |
+| GET | `/binflow/api/v1/audit` | 审计日志查询（admin / readonly_admin） | M4 |
+| POST | `/binflow/api/v1/system/gc` | 触发 GC（admin only；readonly_admin 403 **含 dry-run**） | M4 |
 
 ### 会话端点
 
@@ -163,13 +164,13 @@ BinFlow 在 Artifactory 兼容端点之外增加了一批自有端点（以 `/ap
 
 | 端点 | 方法 | 说明 |
 |---|---|---|
-| `/binflow/api/v1/health` | GET | 实例健康详情（admin only） |
-| `/binflow/api/v1/storage/stats` | GET | 全实例 blob/字节统计（admin only） |
-| `/binflow/api/v1/storage/usage/{repo}` | GET | 单仓配额用量（admin 或有 read 授权） |
-| `/binflow/api/v1/audit` | GET | 审计日志查询（admin only） |
-| `/binflow/api/v1/system/gc` | POST | 触发 GC（同步执行，dry-run/apply） |
-| `/binflow/api/v1/session` | POST/GET/DELETE | 控制台会话管理 |
-| `/binflow/api/v1/permissions` | POST/GET/DELETE | Permission Target CRUD |
+| `/binflow/api/v1/health` | GET | 实例健康详情（admin / readonly_admin） |
+| `/binflow/api/v1/storage/stats` | GET | 全实例 blob/字节统计（admin / readonly_admin） |
+| `/binflow/api/v1/storage/usage/{repo}` | GET | 单仓配额用量（admin / readonly_admin / 该仓 read 或 manage 授权者） |
+| `/binflow/api/v1/audit` | GET | 审计日志查询（admin / readonly_admin） |
+| `/binflow/api/v1/system/gc` | POST | 触发 GC（同步执行，dry-run/apply；admin only） |
+| `/binflow/api/v1/session` | POST/GET/DELETE | 控制台会话管理（whoami/登录回显 `adminRole`） |
+| `/binflow/api/v1/permissions` | POST/GET/DELETE | Permission Target CRUD（动作集 r/w/d/manage） |
 
 ---
 
@@ -321,6 +322,12 @@ Content-Type: text/plain; charset=utf-8
 
 Unable to find group by name 'devs'. Please make sure the group exists before adding users to it.
 
+# 400 — adminRole 与 admin 布尔矛盾（M7；仅 admin 可写角色字段）
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain; charset=utf-8
+
+conflicting 'admin' and 'adminRole' fields: admin=false is incompatible with adminRole="admin" (admin=true is equivalent to adminRole=admin)
+
 # 409 — 删除的组被权限引用
 HTTP/1.1 409 Conflict
 Content-Type: text/plain; charset=utf-8
@@ -459,5 +466,5 @@ Docker-Distribution-Api-Version: registry/2.0
 ## 下一步
 
 - 各协议接入指南：[Docker](docker-registry.md) · [Maven](integrations/maven.md) · [npm](integrations/npm.md) · [PyPI](integrations/pypi.md)
-- 管理操作：[治理指南](admin/governance.md) · [权限管理](admin/groups-permissions.md) · [备份恢复](admin/backup-restore.md)
+- 管理操作：[治理指南](admin/governance.md) · [权限管理](admin/groups-permissions.md) · [RBAC 角色与仓库级管理员](admin/rbac-roles.md) · [备份恢复](admin/backup-restore.md)
 - 常见问题与排障：[FAQ](faq.md)

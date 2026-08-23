@@ -1,0 +1,27 @@
+{
+  "id": "admin/rbac-roles",
+  "title": "RBAC 角色与仓库级管理员",
+  "description": "适用版本：M7（角色三值模型 + manage 动作；PRD milestone-7 v1.1 FR-64/FR-65、ADR-0026/ADR-0028）。",
+  "source": "@site/../docs/user/admin/rbac-roles.md",
+  "sourceDirName": "admin",
+  "slug": "/admin/rbac-roles",
+  "permalink": "/binflow/docs/admin/rbac-roles",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 44,
+  "frontMatter": {
+    "title": "RBAC 角色与仓库级管理员",
+    "sidebar_position": 44
+  },
+  "sidebar": "main",
+  "previous": {
+    "title": "备份与恢复手册",
+    "permalink": "/binflow/docs/admin/backup-restore"
+  },
+  "next": {
+    "title": "专题指南",
+    "permalink": "/binflow/docs/guides"
+  }
+}

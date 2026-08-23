@@ -26,6 +26,11 @@
               "sidebar": "main"
             },
             {
+              "id": "admin/rbac-roles",
+              "path": "/binflow/docs/admin/rbac-roles",
+              "sidebar": "main"
+            },
+            {
               "id": "admin/remote-virtual",
               "path": "/binflow/docs/admin/remote-virtual",
               "sidebar": "main"

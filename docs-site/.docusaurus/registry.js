@@ -16,6 +16,7 @@ export default {
   "5e8d1b2e": [() => import(/* webpackChunkName: "5e8d1b2e" */ "@site/../docs/user/faq.md"), "@site/../docs/user/faq.md", require.resolveWeak("@site/../docs/user/faq.md")],
   "5e95c892": [() => import(/* webpackChunkName: "5e95c892" */ "@theme/DocsRoot"), "@theme/DocsRoot", require.resolveWeak("@theme/DocsRoot")],
   "636e20e5": [() => import(/* webpackChunkName: "636e20e5" */ "@site/../docs/user/integrations/generic.md"), "@site/../docs/user/integrations/generic.md", require.resolveWeak("@site/../docs/user/integrations/generic.md")],
+  "6435e978": [() => import(/* webpackChunkName: "6435e978" */ "@site/../docs/user/admin/rbac-roles.md"), "@site/../docs/user/admin/rbac-roles.md", require.resolveWeak("@site/../docs/user/admin/rbac-roles.md")],
   "67c5f7d5": [() => import(/* webpackChunkName: "67c5f7d5" */ "@site/../docs/user/README.md"), "@site/../docs/user/README.md", require.resolveWeak("@site/../docs/user/README.md")],
   "71bdfabd": [() => import(/* webpackChunkName: "71bdfabd" */ "@site/../docs/user/integrations/npm.md"), "@site/../docs/user/integrations/npm.md", require.resolveWeak("@site/../docs/user/integrations/npm.md")],
   "7e6a8ad0": [() => import(/* webpackChunkName: "7e6a8ad0" */ "@site/../docs/user/guides/migrate-artifactory.md"), "@site/../docs/user/guides/migrate-artifactory.md", require.resolveWeak("@site/../docs/user/guides/migrate-artifactory.md")],

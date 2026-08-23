@@ -5,12 +5,12 @@ sidebar_position: 41
 
 # 用户组与权限管理
 
-> 适用版本：M4（groups 域 + 权限继承；PRD milestone-4 v1.2 FR-27/FR-28、ADR-0014 决策 2）。
+> 适用版本：M4（groups 域 + 权限继承；PRD milestone-4 v1.2 FR-27/FR-28、ADR-0014 决策 2）；动作集 `manage` 与用户字段 `adminRole` 为 **M7 增补**（PRD milestone-7 v1.1 FR-64/FR-65、ADR-0026，见 [RBAC 指南](rbac-roles.md)）。
 > 本文全部命令在本机 scratch 实例（commit `7593d8e`）上复跑：三步授权流、并集、即时生效、409 删除保护、`?permissions` 视图均按预期（蓝本 T-103 W17~W21/W40，报告见 `reports/agents/T-103-qa.md` §2.4）。
 
 M4 起权限模型支持**组**：permission target 的 principals 双栏（users + groups），用户的有效权限 = 直接授予 ∪ 所属各组授予，逐请求现算——**移出组下一次请求即生效**，无重启无窗口。
 
-模型与 Artifactory 一致（术语不变）：permission target = `{name, repos[], includePatterns[], excludePatterns[], principals{users, groups}}`，动作 read / write / delete；**excludes 优先**；admin 隐式拥有全部权限（不进矩阵）。
+模型与 Artifactory 一致（术语不变）：permission target = `{name, repos[], includePatterns[], excludePatterns[], principals{users, groups}}`，动作 read / write / delete / **manage**（M7 起四值——manage 是仓库级管理员派生位，不是内容读写，见下）；**excludes 优先**；admin 隐式拥有全部权限（不进矩阵）。
 
 ## 三步授权流（组 → 用户入组 → target）
 
@@ -29,7 +29,7 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/security/users/jane \
   -d '{"name":"jane","password":"<jane口令>","email":"jane@example.com","groups":["devs"]}' \
   -o /dev/null -w '%{http_code}\n'                                                # 201
 
-# 3. 建 permission target：groups 走 principals.groups（动作数组 read/write/delete）
+# 3. 建 permission target：groups 走 principals.groups（动作数组 read/write/delete/manage）
 curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/permissions \
   -H 'Content-Type: application/json' \
   -d '{"name":"devs-rw","repos":["generic-local"],"includePatterns":["devs/**"],
@@ -101,13 +101,19 @@ curl -su admin:$ADMIN_PW -X DELETE $BASE/binflow/api/v1/permissions/devs-rw -o /
 |---|---|---|
 | 建用户/替换 | `PUT /api/security/users/{name}` | create-or-replace，两态皆 **201 无 body**；`email` **必填**（缺省 400 `Please provide a valid user email.`）；`groups` 引用未知组 → 400 `Unable to find group by name '<g>'.` |
 | 部分更新 | `POST /api/security/users/{name}` | 指针字段区分缺省/显式空：`"groups":[]` 清成员、缺 `groups` 不动 |
-| 用户详情 | `GET /api/security/users/{name}` | `{name, email, admin, groups[], realm, ...}`——**无口令字段** |
+| 用户详情 | `GET /api/security/users/{name}` | `{name, email, admin, adminRole, groups[], realm, ...}`——**无口令字段** |
 | 用户列表 | `GET /api/security/users` | 简形态 `[{name, uri, realm}]`（email/groups 仅单查端点） |
 | 删除用户 | — | M4 未提供（DELETE 端点未做，登记 P2） |
 
+M7 起用户行携带**角色**字段（仅 admin 可写）：
+
+- body 可选字段 **`adminRole`**，闭集三值 `user`（缺省）/ `readonly_admin` / `admin`（snake 形；kebab 拼写 400）；与 `admin` 布尔等价映射（`admin=true ⇔ adminRole=admin`），同时出现且矛盾 → 400。
+- 角色变更对该用户**存量 Token 即时生效**，并记审计 `user.role.change`。
+- readonly_admin 的行为边界（管理读面全通 / 变更面全拒 / 数据面全域只读短路）与 curl 序列见 [RBAC 角色与仓库级管理员](rbac-roles.md)。
+
 ## 有效权限视图：`?permissions`
 
-对 local 仓的制品路径请求 `?permissions`，返回逐主体的有效权限（admin only；**key = 主体名、value = 权限字母集合**，字母为 r/w/d）：
+对 local 仓的制品路径请求 `?permissions`，返回逐主体的有效权限（admin only；**key = 主体名、value = 权限字母集合**，字母为 r/w/d/**m**——M7 起 manage 位渲染为 `m`）：
 
 ```bash
 curl -su admin:$ADMIN_PW "$BASE/binflow/api/storage/generic-local/devs/w.bin?permissions"
@@ -129,7 +135,7 @@ virtual / remote 仓请求 → 400（`only supported on local repositories`）�
 
 | 项 | BinFlow 行为 | 说明 |
 |---|---|---|
-| **组无 admin 位** | 组**不能**授予 admin；admin 组成员的非 admin 用户对管理面（用户/组/权限/审计/GC/token）仍是 **403** | BinFlow 有意不兼容（admin 是用户属性不是可授予权限；防「建个组把自己提权」） |
+| **组无 admin 位** | 组**不能**授予 admin 或角色（`adminRole` 仅在用户行，M7 起同样不可经组授予）；admin 组成员的非 admin 用户对管理面（用户/组/权限/审计/GC/token）仍是 **403** | BinFlow 有意不兼容（admin/角色是用户属性不是可授予权限；防「建个组把自己提权」） |
 | `PUT groups` 已存在 → 200 | Artifactory 习惯为 201 | M4 定案（创建 201 / 更新 200 分态）；自动化脚本请以状态码区分而非假设恒 201 |
 | `PUT users` 已存在 → 201（create-or-replace） | — | replace 覆盖 email/password/admin/groups；未提供的字段不保留旧值 |
 | `/api/v2/security/permissions/**` | **404** | BinFlow 权限面是 `/api/v1/permissions`；Artifactory 的 v2 权限 API 不承诺 |
@@ -148,6 +154,7 @@ virtual / remote 仓请求 → 400（`only supported on local repositories`）�
 
 ## 下一步
 
+- 角色（user/readonly_admin/admin）与 `manage` 派生的仓库级管理员：[RBAC 角色与仓库级管理员](rbac-roles.md)
 - 仓库级治理字段与配额：[治理指南](governance.md)
 - 控制台安全页走查：[Web 控制台使用指南](../console.md)
 - 权限语义总览与 Artifactory 对照：[FAQ](../faq.md)

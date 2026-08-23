@@ -32,13 +32,13 @@ curl -su admin:$ADMIN_PW "$BASE/binflow/api/v1/audit?action=gc.run&limit=2"
 
 ### 词表与脱敏
 
-M4 审计动作全集（可作 `action=` 过滤值）：
+M4 审计动作全集（可作 `action=` 过滤值；M7 增补 `user.role.change`）：
 
 | 族 | 动作 |
 |---|---|
 | 制品 | `deploy`（上传/发布）、`download`、`delete` |
 | 仓库 | `repo.create`、`repo.update`、`repo.delete` |
-| 安全 | `group.create`、`group.update`、`group.delete`、`group.member`（成员集变更）、`permission.create`、`permission.update`、`permission.delete`、`password.change` |
+| 安全 | `group.create`、`group.update`、`group.delete`、`group.member`（成员集变更）、`permission.create`、`permission.update`、`permission.delete`、`password.change`、`user.role.change`（M7：角色分配/升降，detail 含 user/old/new） |
 | 治理 | `gc.run`、`quota.exceeded`、`export.run`、`import.run` |
 | 会话 | `login.success`、`login.failed` |
 

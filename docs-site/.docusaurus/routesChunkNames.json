@@ -5,17 +5,17 @@
       "plugin": "138e0e15"
     }
   },
-  "/binflow/docs/-30e": {
+  "/binflow/docs/-f14": {
     "__comp": "5e95c892",
     "__context": {
       "plugin": "aba21aa0"
     }
   },
-  "/binflow/docs/-ac8": {
+  "/binflow/docs/-60d": {
     "__comp": "a7bd4aaa",
     "__props": "05bda79c"
   },
-  "/binflow/docs/-d39": {
+  "/binflow/docs/-bdf": {
     "__comp": "a94703ab"
   },
   "/binflow/docs/admin-d45": {
@@ -33,6 +33,10 @@
   "/binflow/docs/admin/groups-permissions-556": {
     "__comp": "17896441",
     "content": "b4dd1e98"
+  },
+  "/binflow/docs/admin/rbac-roles-430": {
+    "__comp": "17896441",
+    "content": "6435e978"
   },
   "/binflow/docs/admin/remote-virtual-925": {
     "__comp": "17896441",
