@@ -67,6 +67,15 @@ func (c *Config) Validate() error {
 	if c.Auth.TokenNonAdminMaxTTL <= 0 {
 		return fmt.Errorf("config: auth.token_nonadmin_max_ttl must be positive (seconds), got %s", c.Auth.TokenNonAdminMaxTTL)
 	}
+	// M7 step-up (ADR-0027 decision 4/6): the mint-grant TTL's domain is
+	// [60, 3600] seconds, enforced UNCONDITIONALLY — with the switch on it
+	// bounds the single-use re-auth window, and with the switch off the
+	// operator has still spelled an intent a silent clamp would betray
+	// (the strict-schema posture T-179 established for every auth key).
+	if c.Auth.TokenStepUpGrantTTL < MinTokenStepUpGrantTTL || c.Auth.TokenStepUpGrantTTL > MaxTokenStepUpGrantTTL {
+		return fmt.Errorf("config: auth.token_step_up_grant_ttl_seconds must be within [%d, %d] seconds, got %s",
+			int(MinTokenStepUpGrantTTL.Seconds()), int(MaxTokenStepUpGrantTTL.Seconds()), c.Auth.TokenStepUpGrantTTL)
+	}
 	if c.Console.SessionTTL <= 0 {
 		return fmt.Errorf("config: console.session_ttl_hours must be positive, got %s", c.Console.SessionTTL)
 	}

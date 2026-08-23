@@ -29,6 +29,12 @@ type Principal struct {
 	// (Origin check) without touching Basic/Token traffic. Sessions carry no
 	// TokenID (there is no token row).
 	ViaSession bool
+	// SessionHash is the sha256 hex of the session id when (and only when)
+	// ViaSession (M7, ADR-0027 decision 4): it identifies the session ROW —
+	// the digest the store keys on, never the cookie's plaintext — so a
+	// step-up mint grant can bind to {username, session_id}. Empty for
+	// every header arm and for session principals built by hand.
+	SessionHash string
 	// Source is the identity provider that authenticated this request
 	// (M6, ADR-0020). "local" for password/token users, "oidc" for OIDC
 	// Bearer arm, "ldap" for LDAP web sessions. The Authorizer does not

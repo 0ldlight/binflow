@@ -285,11 +285,13 @@ func oidcLoginLeg(t *testing.T, tsURL string, extraCookie string) (state, txCook
 }
 
 // txVerifier splits a tx cookie header value into the state and the PKCE
-// verifier it carries.
+// verifier it carries (the value is state.verifier[.purpose]; the optional
+// purpose field is dropped here).
 func txVerifier(tx string) (state, verifier string) {
 	v := strings.TrimPrefix(tx, "binflow_oidc_tx=")
-	s, ver, _ := strings.Cut(v, ".")
-	return s, ver
+	s, rest, _ := strings.Cut(v, ".")
+	verifier, _, _ = strings.Cut(rest, ".")
+	return s, verifier
 }
 
 // responseCookie finds one named cookie among a response's possibly many

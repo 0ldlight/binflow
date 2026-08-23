@@ -63,6 +63,10 @@ type Service struct {
 	// the real argon2id comparison; internal tests swap it to observe the
 	// gate without timing games. It runs ONLY while a slot is held.
 	hashVerify func(ctx context.Context, password, encoded string) bool
+	// stepUpGrants is the in-process single-use mint-grant ledger (M7,
+	// ADR-0027 decision 4; see stepup.go). Initialized by New and shared by
+	// every With* clone of this service — one process, one ledger.
+	stepUpGrants *stepUpLedger
 }
 
 // userSource is the consumer-side slice of metadata.UserStore the
@@ -176,6 +180,7 @@ func New(users userSource, tokens tokenSource, perms permissionSource, anonymous
 		tokens:        tokens,
 		permissions:   perms,
 		anonymousRead: anonymousRead,
+		stepUpGrants:  newStepUpLedger(),
 	}
 	s.verifier = &TokenVerifier{tokens: tokens, users: users}
 	s.hashGate = newHashGate(defaultHashConcurrency())

@@ -160,24 +160,30 @@ func writeOAuthError(w http.ResponseWriter, status int, code, description string
 
 // tokenCreateForm is the normalized create request: the real endpoint speaks
 // form-urlencoded; BinFlow additionally accepts the JSON projection with the
-// same field names (PRD E-17, BinFlow extension).
+// same field names (PRD E-17, BinFlow extension). StepUpPassword and
+// StepUpGrant (M7, ADR-0027) ride both shapes; requests that do not trigger
+// the gate never require them and the fields stay empty (wire-compatible).
 type tokenCreateForm struct {
-	GrantType   string
-	Username    string
-	Scope       string
-	ExpiresIn   *int64
-	Refreshable bool
-	Audience    string
+	GrantType      string
+	Username       string
+	Scope          string
+	ExpiresIn      *int64
+	Refreshable    bool
+	Audience       string
+	StepUpPassword string
+	StepUpGrant    string
 }
 
 // tokenCreateJSON is the JSON body shape (identical semantics, JSON names).
 type tokenCreateJSON struct {
-	GrantType   string `json:"grant_type"`
-	Username    string `json:"username"`
-	Scope       string `json:"scope"`
-	ExpiresIn   *int64 `json:"expires_in"`
-	Refreshable bool   `json:"refreshable"`
-	Audience    string `json:"audience"`
+	GrantType      string `json:"grant_type"`
+	Username       string `json:"username"`
+	Scope          string `json:"scope"`
+	ExpiresIn      *int64 `json:"expires_in"`
+	Refreshable    bool   `json:"refreshable"`
+	Audience       string `json:"audience"`
+	StepUpPassword string `json:"step_up_password"`
+	StepUpGrant    string `json:"step_up_grant"`
 }
 
 // parseTokenCreateRequest accepts both content types and normalizes onto
@@ -217,6 +223,8 @@ func parseTokenCreateRequest(r *http.Request) (tokenCreateForm, error) {
 	form.Scope = vals.Get("scope")
 	form.Audience = vals.Get("audience")
 	form.Refreshable = isFormTrue(vals.Get("refreshable"))
+	form.StepUpPassword = vals.Get("step_up_password")
+	form.StepUpGrant = vals.Get("step_up_grant")
 	if v := vals.Get("expires_in"); v != "" {
 		n, err := parseFormInt(v)
 		if err != nil {
@@ -255,14 +263,19 @@ func parseFormInt(v string) (int64, error) {
 }
 
 // tokenIssueDetail is the JSON payload of the token.issue audit event
-// (G31a/T-133, extended by T-190): fingerprint + TTL as before, plus the
-// token subject (actor != subject when an admin mints on behalf) and the
-// authentication arm of the minting caller (local/oidc/ldap, Q11 guardrail 4).
+// (G31a/T-133, extended by T-190, then by T-219): fingerprint + TTL as
+// before, plus the token subject (actor != subject when an admin mints on
+// behalf), the authentication arm of the minting caller (local/oidc/ldap,
+// Q11 guardrail 4) and — ONLY on the step-up path — the second-factor flag
+// and its method (password | oidc_reauth, ADR-0027 decision 7). Exempt arms
+// leave both fields out.
 type tokenIssueDetail struct {
-	Fingerprint string `json:"fingerprint"`
-	TTLSeconds  int64  `json:"ttl_seconds"`
-	Subject     string `json:"subject"`
-	Source      string `json:"source"`
+	Fingerprint  string `json:"fingerprint"`
+	TTLSeconds   int64  `json:"ttl_seconds"`
+	Subject      string `json:"subject"`
+	Source       string `json:"source"`
+	StepUp       bool   `json:"step_up,omitempty"`
+	StepUpMethod string `json:"step_up_method,omitempty"`
 }
 
 // handleTokenCreate serves POST /api/security/token (E-17). Permission model
@@ -304,9 +317,33 @@ func (s *Server) handleTokenCreate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	p := principalFrom(r.Context())
+	// T-215 leftover 5 (landed here with T-219): the two Q11 guardrail
+	// checks migrate from the p.Admin boolean to the capability form —
+	// CanManage(security:write) is held by exactly the admin role
+	// (readonly_admin carries only read capabilities), so the three-role
+	// verdict is identical and only the judgment's shape unifies. The same
+	// decision doubles as the step-up exemption below (ADR-0027 decision 1:
+	// an admin session owes no second credential).
+	adminMinter := managementAllowed(s.deps.Authz, func(m auth.ManagementAuthorizer) bool {
+		return m.CanManage(r.Context(), p, auth.CapSecurityWrite)
+	})
+	// Step-up gate (M7, FR-68 / ADR-0027): a non-admin WEB-SESSION caller
+	// owes a second credential before anything about the subject or the TTL
+	// is decided — assurance precedes authorization, and the 403/401 of the
+	// guardrails below must not leak to an unverified session. Runs only
+	// when the operator armed auth.token_step_up; every other arm and the
+	// default-off boot keep today's behavior byte-for-byte.
+	var stepUpMethod string
+	if s.stepUpTriggered(p, adminMinter) {
+		method, ok := s.requireStepUp(w, r, p, req)
+		if !ok {
+			return
+		}
+		stepUpMethod = method
+	}
 	subject := p.Name
 	if req.Username != "" && !strings.EqualFold(req.Username, p.Name) {
-		if !p.Admin {
+		if !adminMinter {
 			// 403 OAuth form, the same wording the admin route gate uses
 			// (Q11/K9: keep the established "administrator privileges
 			// required" surface instead of a novel message).
@@ -327,7 +364,7 @@ func (s *Server) handleTokenCreate(w http.ResponseWriter, r *http.Request) {
 	} else if req.ExpiresIn != nil {
 		ttl = time.Duration(*req.ExpiresIn) * time.Second
 	}
-	if !p.Admin {
+	if !adminMinter {
 		// Q11 guardrail 2: a finite TTL bounded by the configured cap. The
 		// check applies to the EFFECTIVE lifetime (an absent expires_in
 		// inherits the default TTL, which the cap then also bounds), so an
@@ -364,12 +401,16 @@ func (s *Server) handleTokenCreate(w http.ResponseWriter, r *http.Request) {
 	// Detail carries the fingerprint, the TTL, the token SUBJECT (differs
 	// from the actor when an admin mints on behalf of someone) and the
 	// authentication arm that minted (Q11 guardrail 4: local/oidc/ldap);
-	// the plaintext never enters the audit payload (NFR-S3).
+	// the step-up dimensions land ONLY when the gate ran (ADR-0027 decision
+	// 7 — exempt arms write nothing); the plaintext never enters the audit
+	// payload (NFR-S3).
 	detail, derr := json.Marshal(tokenIssueDetail{
-		Fingerprint: auth.TokenFingerprint(tok.AccessToken),
-		TTLSeconds:  expiresIn,
-		Subject:     subject,
-		Source:      string(p.Source),
+		Fingerprint:  auth.TokenFingerprint(tok.AccessToken),
+		TTLSeconds:   expiresIn,
+		Subject:      subject,
+		Source:       string(p.Source),
+		StepUp:       stepUpMethod != "",
+		StepUpMethod: stepUpMethod,
 	})
 	if derr != nil {
 		// A marshal failure of three strings and an int is not survivable

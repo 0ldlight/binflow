@@ -49,6 +49,21 @@ const (
 	// DefaultLDAPPoolSize is the default idle LDAP connection pool size
 	// (auth.ldap.pool_size; mirrors internal/auth LDAPConfig.defaults).
 	DefaultLDAPPoolSize = 5
+	// DefaultTokenStepUpGrantTTL is the default lifetime of one OIDC mint
+	// grant (auth.token_step_up_grant_ttl_seconds, ADR-0027 decision 4):
+	// 300 seconds — long enough for a browser to carry the grant from the
+	// re-auth redirect into the mint request, short enough that the
+	// single-use window closes quickly. The value domain is
+	// [MinTokenStepUpGrantTTL, MaxTokenStepUpGrantTTL], enforced at boot.
+	DefaultTokenStepUpGrantTTL = 300 * time.Second
+	// MinTokenStepUpGrantTTL and MaxTokenStepUpGrantTTL bound
+	// auth.token_step_up_grant_ttl_seconds (ADR-0027: domain [60, 3600]
+	// seconds). Out-of-domain values refuse the boot regardless of the
+	// auth.token_step_up switch — an operator spelling the key has stated
+	// intent and a silently-clamped grant window would be a security
+	// posture they never chose.
+	MinTokenStepUpGrantTTL = 60 * time.Second
+	MaxTokenStepUpGrantTTL = 3600 * time.Second
 	// DefaultAllowPrivateTarget is the default for replication.allow_private_target
 	// (T-210 / ADR-0025 decision 4): true keeps the pre-config behavior where the
 	// replication engine's DenyPrivateTargets defaulted to false — every realistic
@@ -152,6 +167,15 @@ func splitEnvKey(upper string) (path []string, kind envKind, ok bool) {
 		// BINFLOW_AUTH__TOKEN_NONADMIN_MAX_TTL form maps through the "__"
 		// path below.
 		return []string{"auth", "token_nonadmin_max_ttl"}, envIntPos, true
+	case "AUTH_TOKEN_STEP_UP":
+		// M7 (ADR-0027 decision 6): the step-up switch's documented
+		// single-underscore spelling; the generic
+		// BINFLOW_AUTH__TOKEN_STEP_UP form maps through the "__" path below.
+		return []string{"auth", "token_step_up"}, envBool, true
+	case "AUTH_TOKEN_STEP_UP_GRANT_TTL_SECONDS":
+		// Same dual-spelling rule for the mint-grant TTL (ADR-0027
+		// decision 6); the domain check lives in Validate.
+		return []string{"auth", "token_step_up_grant_ttl_seconds"}, envIntPos, true
 	case "REPLICATION_ALLOW_PRIVATE_TARGET":
 		// T-210's documented single-underscore spelling; the generic
 		// BINFLOW_REPLICATION__ALLOW_PRIVATE_TARGET form maps through the "__"
@@ -210,6 +234,13 @@ func splitEnvKey(upper string) (path []string, kind envKind, ok bool) {
 	case "auth.token_default_ttl_hours":
 		return parts, envIntPos, true
 	case "auth.token_nonadmin_max_ttl":
+		return parts, envIntPos, true
+	case "auth.token_step_up":
+		// M7 (ADR-0027): the generic BINFLOW_AUTH__TOKEN_STEP_UP spelling.
+		return parts, envBool, true
+	case "auth.token_step_up_grant_ttl_seconds":
+		// M7 (ADR-0027): the generic
+		// BINFLOW_AUTH__TOKEN_STEP_UP_GRANT_TTL_SECONDS spelling.
 		return parts, envIntPos, true
 	case "console.session_ttl_hours", "console.session_ttl_seconds":
 		return parts, envIntPos, true

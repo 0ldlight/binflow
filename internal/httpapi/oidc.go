@@ -60,6 +60,14 @@ const (
 	// over). It is a fixed internal path — never client-supplied — so the
 	// callback cannot be turned into an open redirector.
 	oidcUIRedirect = prefix + "/ui/"
+	// oidcPurposeStepUp is the login-flow purpose that turns the pair into a
+	// step-up re-authentication (M7, T-219, ADR-0027 decision 4): the
+	// authorize URL forces prompt=login and the callback answers with a
+	// single-use mint grant instead of a session. The grant rides the
+	// redirect's FRAGMENT — fragments never reach a server or proxy log,
+	// and the console (T-218/T-225) reads it before the mint POST.
+	oidcPurposeStepUp   = "step_up"
+	stepUpGrantFragment = "#step_up_grant="
 )
 
 // handleOIDCLogin serves GET /binflow/api/v1/oidc/login (OD-01): mint a
@@ -67,6 +75,14 @@ const (
 // IdP's authorization endpoint. The route is a browser navigation and is
 // deliberately unauthenticated — the credential arrives later, inside the
 // callback's authorization code.
+//
+// M7 (T-219, ADR-0027 decision 4): ?purpose=step_up re-shapes the flow into
+// a re-authentication — the authorize URL forces prompt=login (the OIDC Core
+// standard "ask again" parameter, not a home-grown protocol) and the purpose
+// rides the transaction cookie so the callback branch cannot be forged from
+// the outside. A step-up init without an ACTIVE console session is refused
+// here, before the IdP round trip: the flow's payout is bound to that
+// session, so a sessionless run could never finish.
 func (s *Server) handleOIDCLogin(w http.ResponseWriter, r *http.Request) {
 	if s.deps.OIDC == nil {
 		// oidc.enabled=false: the endpoint does not exist (FR-54-AC6/H29).
@@ -78,6 +94,19 @@ func (s *Server) handleOIDCLogin(w http.ResponseWriter, r *http.Request) {
 		// instead of after a round trip through the IdP.
 		writeError(w, http.StatusServiceUnavailable, "console sessions are not available on this instance")
 		return
+	}
+	purpose := r.URL.Query().Get("purpose")
+	if purpose != "" && purpose != oidcPurposeStepUp {
+		writeError(w, http.StatusBadRequest, "unknown login purpose: "+purpose)
+		return
+	}
+	if purpose == oidcPurposeStepUp {
+		p := principalFrom(r.Context())
+		if p == nil || !p.ViaSession {
+			writeError(w, http.StatusUnauthorized,
+				"step-up re-authentication requires an active console session")
+			return
+		}
 	}
 	state, err := oidcState()
 	if err != nil {
@@ -94,21 +123,29 @@ func (s *Server) handleOIDCLogin(w http.ResponseWriter, r *http.Request) {
 	// Path is the oidc segment only: the cookie ships on the two flow routes
 	// and nowhere else (same least-privilege rule as the session cookie's
 	// /binflow path, NFR-S19). SameSite=Lax survives the IdP's top-level GET
-	// redirect back to the callback.
+	// redirect back to the callback. The step-up purpose rides the value's
+	// third dot-separated field (empty for a plain login) — the callback
+	// reads it back from the same HttpOnly cookie, never from the request.
 	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124 cannot see the derived Secure attribute; see sessionCookieSecure
 		Name:     oidcTxCookieName,
-		Value:    state + "." + verifier,
+		Value:    state + "." + verifier + "." + purpose,
 		Path:     prefix + "/api/v1/oidc",
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   sessionCookieSecure(r, s.deps.Config.Server.BaseURL),
 		MaxAge:   int(oidcTxTTL.Seconds()),
 	})
-	authURL := s.deps.OIDC.OAuth2Config().AuthCodeURL(state,
+	authParams := []oauth2.AuthCodeOption{
 		oauth2.SetAuthURLParam("code_challenge", challenge),
 		oauth2.SetAuthURLParam("code_challenge_method", auth.PKCECodeChallengeMethod),
-	)
-	http.Redirect(w, r, authURL, http.StatusFound)
+	}
+	if purpose == oidcPurposeStepUp {
+		// OIDC Core standard parameter: force a fresh authentication even
+		// though the IdP still holds an SSO session — the whole point of
+		// the step-up leg (ADR-0027: prompt=login, not a freshness window).
+		authParams = append(authParams, oauth2.SetAuthURLParam("prompt", "login"))
+	}
+	http.Redirect(w, r, s.deps.OIDC.OAuth2Config().AuthCodeURL(state, authParams...), http.StatusFound)
 }
 
 // handleOIDCCallback serves GET /binflow/api/v1/oidc/callback (OD-02):
@@ -157,8 +194,20 @@ func (s *Server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 			auth.ReasonBadRequest)
 		return
 	}
-	wantState, verifier, found := strings.Cut(c.Value, ".")
-	if !found || wantState == "" || verifier == "" {
+	// The transaction value is state.verifier[.purpose]: the first two are
+	// hex (dot-free by construction), the optional third names a purpose
+	// only this server wrote (T-219) — a plain login's cookie has no third
+	// field, which the empty purpose spells.
+	wantState, rest, found := strings.Cut(c.Value, ".")
+	verifier, purpose, vFound := strings.Cut(rest, ".")
+	if !found || !vFound || wantState == "" || verifier == "" {
+		// Pre-M7 cookies (state.verifier, one dot) are not valid here either:
+		// the transaction is single-use and bounded by oidcTxTTL, so by the
+		// time this code ships no live cookie predates the three-field form.
+		fail(http.StatusBadRequest, "malformed oidc login transaction", auth.ReasonBadRequest)
+		return
+	}
+	if purpose != "" && purpose != oidcPurposeStepUp {
 		fail(http.StatusBadRequest, "malformed oidc login transaction", auth.ReasonBadRequest)
 		return
 	}
@@ -205,6 +254,18 @@ func (s *Server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 
 	if s.sessions == nil {
 		writeError(w, http.StatusServiceUnavailable, "console sessions are not available on this instance")
+		return
+	}
+	// Step-up branch (M7, T-219, ADR-0027 decision 4): the purpose came from
+	// this server's own HttpOnly transaction cookie, so it is trusted
+	// routing, not a client claim. The re-authentication does NOT mint a
+	// session — the caller already holds one (the premise of the flow) — it
+	// pays out one single-use mint grant bound to that session's owner, and
+	// lands the browser back on the console with the grant in the redirect
+	// FRAGMENT (never a query parameter: fragments stay out of server and
+	// proxy logs).
+	if purpose == oidcPurposeStepUp {
+		s.completeStepUpReauth(w, r, p)
 		return
 	}
 	ttl := s.deps.Config.Console.SessionTTL
@@ -269,6 +330,56 @@ func oidcState() (string, error) {
 		return "", fmt.Errorf("httpapi: oidc state entropy: %w", err)
 	}
 	return hex.EncodeToString(buf), nil
+}
+
+// completeStepUpReauth finishes the purpose=step_up callback: reauth is the
+// OIDC-Bearer-resolved principal of the fresh ID Token (prompt=login), sess
+// the console session that initiated the flow. The grant is issued only when
+// the re-authenticated identity IS the session's owner — a grant for user A
+// re-authenticated as user B would hand B's second factor to A's mint. The
+// tx cookie was already cleared on entry; every exit here keeps it that way.
+func (s *Server) completeStepUpReauth(w http.ResponseWriter, r *http.Request, reauth *auth.Principal) {
+	sess := principalFrom(r.Context())
+	if sess == nil || !sess.ViaSession {
+		s.audit.Record(r.Context(), audit.Event{
+			Actor: "oidc", Action: audit.ActionAuthFail, RemoteAddr: r.RemoteAddr,
+			Detail: audit.AuthEventDetail(string(auth.ProviderOIDC), auth.ReasonBadCredentials),
+		})
+		writeError(w, http.StatusUnauthorized,
+			"step-up re-authentication requires an active console session")
+		return
+	}
+	if reauth == nil || !strings.EqualFold(reauth.Name, sess.Name) {
+		s.audit.Record(r.Context(), audit.Event{
+			Actor: sess.Name, Action: audit.ActionAuthFail, RemoteAddr: r.RemoteAddr,
+			Detail: audit.AuthEventDetail(string(auth.ProviderOIDC), auth.ReasonBadCredentials),
+		})
+		s.log.WarnContext(r.Context(), "httpapi: oidc step-up identity mismatch",
+			"user", sess.Name)
+		writeError(w, http.StatusUnauthorized,
+			"the re-authenticated identity does not match the current session")
+		return
+	}
+	if s.stepUp == nil {
+		// The mint gate would fail closed without the facet; refuse the
+		// payout here rather than handing the browser a dead grant.
+		writeError(w, http.StatusServiceUnavailable, "step-up is not available on this instance")
+		return
+	}
+	grant, err := s.stepUp.IssueStepUpGrant(r.Context(), sess.Name, sess.SessionHash,
+		s.deps.Config.Auth.TokenStepUpGrantTTL)
+	if err != nil {
+		s.log.ErrorContext(r.Context(), "httpapi: step-up grant issue failed",
+			"user", sess.Name, "error", err.Error())
+		writeError(w, http.StatusInternalServerError, "oidc step-up failed")
+		return
+	}
+	s.log.InfoContext(r.Context(), "httpapi: oidc step-up grant issued",
+		"user", sess.Name, "ttl", s.deps.Config.Auth.TokenStepUpGrantTTL.String())
+	// The fragment carries the grant plaintext (its only appearance outside
+	// the ledger — NFR-S2); the console reads it and posts it as
+	// step_up_grant. Single-use, session-bound and TTL-bounded by the ledger.
+	http.Redirect(w, r, oidcUIRedirect+stepUpGrantFragment+grant, http.StatusFound)
 }
 
 // clearOIDCTxCookie expires the transaction cookie (epoch, same attributes

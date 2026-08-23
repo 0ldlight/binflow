@@ -57,6 +57,8 @@ type raw struct {
 		Argon2MemoryMB         *int  `yaml:"argon2_memory_mb"`
 		TokenDefaultTTLHours   *int  `yaml:"token_default_ttl_hours"`
 		TokenNonAdminMaxTTLSec *int  `yaml:"token_nonadmin_max_ttl"`
+		TokenStepUp            *bool `yaml:"token_step_up"`
+		TokenStepUpGrantTTLSec *int  `yaml:"token_step_up_grant_ttl_seconds"`
 		HashConcurrency        *int  `yaml:"hash_concurrency"`
 		AnonymousRead          *bool `yaml:"anonymous_read"`
 		OIDC                   *struct {
@@ -340,6 +342,12 @@ func build(r *raw, env map[string]string) (*Config, error) {
 		if r.Auth.TokenNonAdminMaxTTLSec != nil {
 			c.Auth.TokenNonAdminMaxTTL = time.Duration(*r.Auth.TokenNonAdminMaxTTLSec) * time.Second
 		}
+		if r.Auth.TokenStepUp != nil {
+			c.Auth.TokenStepUp = *r.Auth.TokenStepUp
+		}
+		if r.Auth.TokenStepUpGrantTTLSec != nil {
+			c.Auth.TokenStepUpGrantTTL = time.Duration(*r.Auth.TokenStepUpGrantTTLSec) * time.Second
+		}
 		// Explicit 0 counts as unset: the sentinel keeps the auth service's
 		// derived default (GOMAXPROCS clamped), so operators can spell
 		// "default" without deleting the line. Validate rejects negatives.
@@ -508,6 +516,12 @@ func defaults() *Config {
 			Argon2MemoryMB:      DefaultArgon2MemoryMB,
 			TokenDefaultTTL:     DefaultTokenTTL,
 			TokenNonAdminMaxTTL: DefaultTokenNonAdminMaxTTL,
+			// M7 step-up (ADR-0027): switch defaults OFF — an unconfigured
+			// boot keeps the Q11 self-mint posture byte-for-byte; the grant
+			// TTL carries its documented default either way (the domain is
+			// validated even with the switch off).
+			TokenStepUp:         false,
+			TokenStepUpGrantTTL: DefaultTokenStepUpGrantTTL,
 			// HashConcurrency stays at its sentinel 0: unset means the
 			// auth service derives its own limit (GOMAXPROCS clamped to
 			// [1,16] — see AuthConfig.HashConcurrency), so an unconfigured
@@ -657,6 +671,9 @@ func setEnvValue(c *Config, path []string, kind envKind, value, name string) err
 			c.Storage.Migration.Completed = b
 		case "metrics.require_auth":
 			c.Metrics.RequireAuth = b
+		case "auth.token_step_up":
+			// M7 (ADR-0027 decision 6): the step-up switch; default false.
+			c.Auth.TokenStepUp = b
 		case "replication.allow_private_target":
 			c.Replication.AllowPrivateTarget = b
 		default:
@@ -740,6 +757,10 @@ func setEnvValue(c *Config, path []string, kind envKind, value, name string) err
 			c.Auth.TokenDefaultTTL = time.Duration(n) * time.Hour
 		case "auth.token_nonadmin_max_ttl":
 			c.Auth.TokenNonAdminMaxTTL = time.Duration(n) * time.Second
+		case "auth.token_step_up_grant_ttl_seconds":
+			// The [60, 3600] domain is Validate's (refusing the boot on an
+			// out-of-domain override, whatever wrote the value here).
+			c.Auth.TokenStepUpGrantTTL = time.Duration(n) * time.Second
 		case "console.session_ttl_hours":
 			c.Console.SessionTTL = time.Duration(n) * time.Hour
 		case "console.session_ttl_seconds":

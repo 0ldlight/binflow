@@ -113,6 +113,11 @@ func (s *Service) authenticateSession(ctx context.Context, id string) (*Principa
 	// role rides the same per-request re-read (ADR-0026 decision 6).
 	p := newPrincipal(u.Username, u.Role, u.Provider)
 	p.ViaSession = true
+	// The row's storage digest identifies the session for binding purposes
+	// (M7, ADR-0027 decision 4): a step-up mint grant consumed over this
+	// session must have been issued over the same one. It is a digest, not
+	// the cookie's plaintext credential, so it carries no replay value.
+	p.SessionHash = idHash
 	return p, nil
 }
 

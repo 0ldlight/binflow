@@ -109,6 +109,20 @@ type AuthConfig struct {
 	// value in SECONDS (the same unit expires_in speaks), default 365d.
 	// Admins are not bound by it (they may mint never-expiring tokens).
 	TokenNonAdminMaxTTL time.Duration
+	// TokenStepUp arms the second-factor gate on POST /api/security/token
+	// (M7 FR-68 / ADR-0027, default false — an unconfigured boot keeps the
+	// Q11 posture byte-for-byte, and enterprise deployments are advised to
+	// enable it). When true, a NON-ADMIN web-session caller must present a
+	// second credential: step_up_password for local/LDAP legs (argon2
+	// verify / LDAP re-bind) or step_up_grant for the OIDC leg (single-use
+	// mint grant from a prompt=login re-authentication). Basic, Bearer,
+	// admin-session and /v2/token arms are exempt.
+	TokenStepUp bool
+	// TokenStepUpGrantTTL is the lifetime of one OIDC mint grant, in
+	// seconds (auth.token_step_up_grant_ttl_seconds, default 300, domain
+	// [60, 3600] enforced at boot). Grants are single-use and bound to
+	// {username, session}; the ledger is in-process (ADR-0027 decision 4).
+	TokenStepUpGrantTTL time.Duration
 	OIDC                OIDCConfig // auth.oidc (disabled by default)
 	LDAP                LDAPConfig // auth.ldap (disabled by default)
 }

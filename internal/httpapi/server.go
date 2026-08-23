@@ -133,6 +133,11 @@ type Server struct {
 	// authorizer is not the full auth.Service (unit fakes) — the endpoint
 	// answers 503 there instead of panicking.
 	permView permissionViewer
+	// stepUp is the token-mint step-up facet of Deps.Auth (M7, T-219,
+	// ADR-0027); nil when the injected authenticator is not the full
+	// auth.Service (unit fakes) — an auth.token_step_up=on stack then fails
+	// CLOSED at the mint gate instead of minting past the facet.
+	stepUp stepUpRegistry
 	// metrics is the instrumentation built from Deps.Metrics (T-163): the
 	// four family handles, the request-counting middleware and the scrape-
 	// time snapshot sources. nil when Deps.Metrics is nil.
@@ -190,6 +195,12 @@ func New(deps Deps, log *slog.Logger) *Server {
 	// view-less and the endpoint answers 503 instead of panicking.
 	if pv, ok := deps.Authz.(permissionViewer); ok {
 		s.permView = pv
+	}
+	// Step-up facet discovery (M7, T-219): the real auth.Service carries
+	// the mint-grant ledger and the password-leg verifier; a bare
+	// Authenticator fake stays facet-less and the step-up gate fails closed.
+	if su, ok := deps.Auth.(stepUpRegistry); ok {
+		s.stepUp = su
 	}
 	// The audit recorder for the login plane: same store, same enabled
 	// toggle and the same redaction chain every other audited surface uses.
