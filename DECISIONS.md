@@ -614,7 +614,7 @@
 
 ## ADR-0029: M8 控制台对齐边界——IA/交互/操作流对齐 + 自有皮肤，clean-room 细则扩展至 UI 域，交互断言验收制
 
-- 状态: Proposed（M8 PRD 定稿后转 Accepted；转正时可带勘误修订，先例 ADR-0026/0027）
+- 状态: Accepted（2026-08-23 转 正——conductor 终审通过 M8 规划四件套（PRD v1.0 + console-ui 行为规格 + console-m8 设计规格 + architecture §13），并终裁 PRD §7 开放问题 Q1~Q6（Q1 基线=7.84.10 实例 / Q2 默认亮色 / Q3 redirect 全量映射 M9 移除 / Q4 Governance 保留 BinFlow 分组 / Q5 前端栈维持现役 / Q6 UI 打磨并入域票），用户推翻出口保留。**转正勘误**：锚数以 console-ux §10 全量核对的 **242** 为准〔本文原写 283〕；spec 目录取现役 `web/e2e/m8/`〔PRD §4 的 `web/tests/m8/` 与现役 testDir 冲突，PM v1.1 勘误项〕）
 - 日期: 2026-08-23
 - 背景: 用户指令（2026-08-23 原话）：「前端 UI 和交互逻辑要求和 JFrog 一样」。conductor 执行口径：对齐 = 信息架构 + 交互逻辑 + 操作流（Artifactory 用户零学习成本）；服务端契约零改动（M7 的 RBAC/manage/step-up/续传语义全保留）——M8 是承载层（web/）重排，不是后端重写。两个前置裁决缺口：① ADR-0001 的 clean-room 流程以「行为规格 vs 反编译代码」为轴，UI 域的参考素材形态不同（JFrog 官方文档/公开网站/本地 OSS 容器的可观察行为，而非 reverse-src 反编译），且 UI 的视觉表达层（图标/样式/设计系统）受版权保护而无「公开规范」出口——协议对齐可以「以官方 spec 为准」，视觉对齐没有等价物；② 既有验收面（console-ux §10 的 data-testid 体系、18 个 Playwright spec）需要明确 M8 断言形态，防止「像素级像不像」成为事实验收标准。
 - 候选方案:
