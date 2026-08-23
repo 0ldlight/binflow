@@ -17,7 +17,7 @@
 
 ## 📥 待办（todo）
 
-> **M7 已立项·波 1 在途**（2026-08-23，规划落地 sprint 389）。用户指令「规划 m7」→ 三路规划（PM PRD v1.0 草案 `docs/prd/milestone-7.md`：FR-64~FR-70 / architect：architecture §3.4a+§5.3.1+ADR-0026/0027 Proposed / reverse：rbac-model.md + docker-registry §2.5 + auth-model §3.7）→ tech-lead 分票 **18 票 T-211~T-228、8 波**，conductor 审核通过录板。主线：RBAC（T-214 收敛→T-212 基座→T-215/T-217 REST 面→T-218 控制台）+ 续传 REST 化（T-213→T-216）+ step-up 可选（T-219→T-224/T-225）+ 技术债（T-220）+ 条件腿（T-227/T-228，`dep:用户环境` 到位即插队不阻塞 DoD）。**七项开放问题 Q1~Q7**（PRD §7，均带暂行假设已开工；用户可随时推翻→PM 回写 v1.1）：Q1 角色闭集三值 / Q2 readonly_admin 读面边界 / Q3 干净停机会话语义（牵 ADR-0028）/ Q4 S3 续传不纳入 / Q5 step-up 形态与默认 off / Q6 条件腿触发 / Q7 replica 隔离延后 M8+。**波 1 已派**（T-211 脚手架 / T-213 storage 基座 / T-214 架构-PRD 三分歧收敛定稿，area 互斥）。M6 已完结：tag `m5-done`/`m6-done` 已随用户授权推送 origin。
+> **M7 完结（closure）· M8 规划落地**（2026-08-23）。M7 22 票 21 done（唯 T-227 真实 AWS 腿 `dep:用户环境` 插队制不阻塞）；DoD 七条全绿；`m7-done` tag 本地已打（push 须用户授权）。**M8 = 控制台对齐 Artifactory**（用户指令；IA/交互/操作流对齐 + 自有皮肤，clean-room 行为规格制）——规划四件套已交付（PRD v1.0 / console-ui 行为规格〔活体观察 VM 真实 OSS〕 / console-m8 设计规格 / ADR-0029），tech-lead 分票 **T-231~T-246 共 16 票 6 波**已录板（见下）。conductor 终裁：Q1 基线=7.84.10 实例；**Q2 默认主题=亮色**（对齐 Artifactory 默认观感，暗色可切换——推翻 console-ux P4 暗色优先）；Q3 redirect 全量映射 M9 移除；Q4 Governance 保留 BinFlow 分组；Q5 前端栈维持现役 React/Vite（NFR-P36 体积门兜底）；Q6 UI 打磨并入域票 AC。M6 已完结：tag `m5-done`/`m6-done` 已随用户授权推送 origin。
 
 ### M7 票据（T-211~T-228，tech-lead 2026-08-23 分解；AC 全文见 docs/prd/milestone-7.md）
 
@@ -56,8 +56,13 @@
   systemd 真机复验全绿（unit 硬化 systemctl show 证实 / docker push/re-pull digest 逐位一致 / npm 往返 / 优雅停机 0.07s 含引擎 drain 日志）；SSH 密钥免密固化（macOS expect pty 挂死以 SSH_ASKPASS 绕开）；docker 29.1.3 + mirrors（Hub 直连不通）+ minio 镜像在位；VM 回基线零残留；凭据零落盘。勘误：免认证 ping 路径实为 `/binflow/api/system/ping`。日志 reports/agents/T-230.md。
 - **T-226** [P2] M7 等价口径回归（V29） `role:qa-engineer` — **done 2026-08-23（PASS：等价基线全绿、M7 回归=零；qa 报告 `66a8d1c`）**
   H01~H05 + H62~H67 全绿（MinIO/S3 + mock 源）；真实 OSS 腿 license 门限制如实归档。**B-1 [P2 建议票]**：bf-migrate users 阶段 ListUsers 403 硬 abort → 建议降级 warning 或 `--skip-users`（M8 候选）。**T-228 环境知识**：7.84.10+PG system.yaml url 形态/OSS UI-only 建仓建户/token scope 只收 applied-permissions/user。VM 扩盘中断自愈实证（growpart+resize2fs）。日志 reports/agents/T-226-qa.md。
-- **T-228** [P2] Q9 真实 Artifactory 实腿（V28） — **doing 2026-08-23（dep:用户环境 已解除——用户 VM+保留栈；产出按 real-env-appendix 模板归档）**
-- **PM v1.2 回写** — **doing 2026-08-23（7 项勘误落地）**
+- **T-228** [P2] FR-69/Q9 真实 Artifactory 迁移实腿（V28） `role:qa-engineer` — **done 2026-08-23（带限制通过；qa 报告 `012bd92`）**
+  真实 OSS 7.84.10+PG 源（7 仓/158 制品/4 用户/5 token，curl+mvn 真实客户端造数）H62~H67 全绿；占用守卫/合并幂等/157 迁移 12/12 四方 sha256 对齐/七份报告/用户迁移登录/dry-run 双跑。**结构性限制归档**：OSS 无 docker/npm 协议面（404 实证，config-only 迁移）；B-1 真源实证。**新缺陷 D-1→T-231**。栈保留（VM，盘 99G 用 17G）。日志 reports/agents/T-228-qa.md。
+- **PM v1.2 回写** — **done 2026-08-23（7 项勘误落 PRD v1.2，提交 `ffd8e6c`）**
+
+#### M7 完结（closure，2026-08-23）
+
+DoD 七条全达成（PRD §9 对证）：P0/P1 全绿（T-221 16/16 / T-222 192/192）/ P2 双态过 + 条件腿 Q6 口径（T-226 等价归档 + T-228 真实腿带限制通过；T-227 真实 AWS 未到位不阻塞）/ 文档四类 / ADR-0026/27/28 Accepted / lint 0 + race 全绿 / **`m7-done` tag 本地已打（`5c34194`；push 须用户授权）**。M8 债券：T-231 percent-encode 缺陷 / B-1 --skip-users / UI 打磨 4 条 / CI -timeout 20m / V28 附录移植 / dialer 样板 13 处。
 
 #### 用户方向指令（2026-08-23）：M8 主轴 = 控制台对齐 Artifactory
 
@@ -65,6 +70,41 @@
 - **对齐口径** = 信息架构 + 交互逻辑 + 操作流对齐（Artifactory 用户零学习成本迁移），视觉近似但**自有皮肤**——clean-room 铁律（ADR-0001）对 UI 同样生效：reverse-src 内 JFrog 前端资产只读参考产出**行为规格**（布局描述/交互流/组件清单），图标/样式资产零复制。
 - **载体**：M8 里程碑（M7 收官后立即启动规划——PM PRD + ux-designer 控制台规格 + reverse-engineer UI 行为规格 + architect 嵌入约束 → tech-lead 分票）。需要新 ADR（UI 对齐边界与 clean-room 应用）。
 - **现控制台**：M7 已交付的 RBAC/readonly/manage 交互语义保留（服务端契约不动），承载层重排。
+
+### M8 票据（T-231~T-246，tech-lead 2026-08-23 分解；AC 全文见 docs/prd/milestone-8.md；规格依据 console-ui.md + console-m8.md）
+
+#### B1 基座与债券（首波并行 3；T-233 待 T-231）
+- **T-231** [P1] internal/client 上传路径 percent-encode 修复（D-1 缺陷，T-228 发现） `role:dev-go-core` `area:internal/client + cmd/bf` `dep:—`
+  uploadFile PUT URL 逐段转义（reader 侧 escapePathSegments 同构复用）；5×2 回归矩阵（%/#/?/空格/UTF-8 × curl/UI）变异验证。**B5 前必须完成**（T-242 特殊字符腿与 T-233 复验前置）。
+- **T-232** [P0] M8 Playwright 交互断言基座 `role:devops-engineer` `area:web/e2e/m8/ + seed 脚本` `dep:—`
+  tests 目录 + loginAs/seedTree(≥10k 节点)/剪贴板/axe/性能助手 + 断言口径 README（交互断言制，禁像素 diff——ADR-0029）+ 三角色冒烟。**spec 目录用 web/e2e/m8/**（PRD web/tests/m8/ 与现役 testDir 冲突，勘误）。
+- **T-234** [P0] 设计 token 重做与双主题皮肤基座 `role:dev-frontend` `area:web/src/styles/ + ThemeContext` `dep:—`
+  tokens.css 按 console-m8 §5（三阶纵深/shadow 1-3/亮暗双主题纯换值）；**默认亮色（Q2 终裁）**；css 零硬编码色值编译期断言；零复制合规腿（无 jfrog/artifactory 依赖、无位图图标）；gzip ≤350KB 基线。
+- **T-233** [P1] FR-77 债券打包 `role:dev-go-core` `area:cmd/bf + internal/(dialer 13 处) + ci.yml + 附录移植` `dep:T-231`（B1 末位，T-231 落地后接续）
+
+#### B2 双模式壳（串行 1）
+- **T-235** [P0] 双模式壳与路由重排（AppShell/路由表/20 条旧路由 redirect/testid 242 锚映射） `role:dev-frontend` `area:web/src/components/AppShell + main.tsx 路由表` `dep:T-232,T-234`
+
+#### B3 页面域第一波（并行 4）
+- **T-236** [P0] 制品浏览器：跨仓左树+详情+右键+深链+特化视图（FR-72） `role:dev-frontend` `area:web/src/pages/artifacts/` `dep:T-232,T-235`
+- **T-237** [P0] 用户与组管理页重排（FR-73） `role:dev-frontend` `area:web/src/pages/security/{Users,UserDetail,Groups}` `dep:T-232,T-235`
+- **T-238** [P1] 治理/监控/常规域归位 + 存储概要新页（FR-73 治理面） `role:dev-frontend` `area:web/src/pages/{governance,monitoring,admin}` `dep:T-232,T-235`
+- **T-239** [P1] 应用模式辅助页与全局导航（FR-74） `role:dev-frontend` `area:web/src/pages/{Dashboard,Search,Login,NotFound} + Settings 拆分` `dep:T-232,T-235`
+
+#### B4 域第二波 + 中期回归（并行 3）
+- **T-240** [P0] 仓库管理域重排（三 Tab/包类型网格/分组表单/删仓强确认） `role:dev-frontend` `area:web/src/pages/repositories/{...不含 tree}` `dep:T-232,T-235`
+- **T-241** [P0] 权限 target 编辑器重排（两步资源对话框/四动作矩阵/模式测试器） `role:dev-frontend` `area:web/src/pages/security/{Permissions,PermissionEditor}` `dep:T-232,T-235,T-237`
+- **T-243** [P1] M8 中期回归（W 锚迁移首轮 + 契约冻结 git diff 审计） `role:qa-engineer` `area:只读验证` `dep:T-235~T-239`
+
+#### B5 对话框族 + 键盘 + 文档（并行 3）
+- **T-242** [P0] Set Me Up 与 Deploy 对话框族（含 step-up 融合） `role:dev-frontend` `area:web/src/components/{SetMeUp,Deploy}Dialog + commands.ts` `dep:T-232,T-236,T-240`（T-231 前置）
+- **T-244** [P1] 键盘可达与焦点管理补齐（FR-75） `role:dev-frontend` `area:web/src/components/ 共享层 + 页面小补丁` `dep:T-236,T-240,T-241,T-242`
+- **T-245** [P1] M8 用户文档改版（新 IA 指南 + 操作路径对照表） `role:tech-writer` `area:docs/user/` `dep:T-236,T-240,T-241,T-242`
+
+#### B6 终验（串行 1）
+- **T-246** [P0] M8 终验：U01~U15 全量 + 零学习成本剧本×8 + DoD 收口 `role:qa-engineer` `area:只读验证 + 收口材料` `dep:T-233,T-242~T-245`
+
+**tech-lead 风险登记**：dev-frontend 单角色瓶颈（9 前端票，B3/B4 可双前端按域串行接续）；console-ui 低置信 10 项不作验收依赖；契约冻结熔断线（UI 票私加端点即违约，T-243 硬闸）；锚数以 console-ux §10 的 242 为准（ADR-0029 的 283 转正时勘误）。
 - **T-218** [P1] FR-66 控制台角色与权限管理扩展 + read-only 只读态 `role:dev-frontend` — **done 2026-08-23（review APPROVE 0 阻塞；提交 `2923edf`）**
   14 文件 + e2e 三腿（V12 落值/回显/审计、V13 五页只读+四写重放 403、V14 manage 往返）全套 85 passed/0 failed。review 亮点：wire 闭集 fail-safe 与 EffectiveRole 同构、adminRole 永不与 admin 布尔混发（结构性规避冲突 400）、reviewer 独立重放配额写+内容面双写全 403。**M7 尾债（UI 打磨，非阻塞 4 条）**：MigrationPanel 启动钮/树页上传删除钮未按角色禁用、UserUpdateBody.adminRole 类型可收紧、仓库设置页只读文案错位。日志 reports/agents/T-218.md / T-218-review.md。
 - **T-225** [P2] M7 文档 II `role:tech-writer` — **done 2026-08-23（conductor 直审通过；提交 `5f01cbc`）**
