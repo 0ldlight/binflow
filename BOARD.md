@@ -83,8 +83,13 @@ DoD 七条全达成（PRD §9 对证）：P0/P1 全绿（T-221 16/16 / T-222 192
 - **T-233** [P1] FR-77 债券打包 `role:dev-go-core` — **done 2026-08-23（conductor 复验：样板 grep=0 + migrate/CLI 测试绿 + lint 0；提交 `b3b3c06`）——FR-77 台账六项全收口，B1 全清**
   --skip-users 降级（403→告警续迁、500 仍 fail-closed、无旗标零回归）+ CI/Makefile TEST_TIMEOUT=20m（1ms 红绿证旗标生效）+ V28 附录填实 + dialer **28 处**收敛为 2 构造 + T-231 遗留① reader 转义收敛（变异红绿）+ 5×2 矩阵复验全绿。遗留登记：adapter/npm 第三份同构转义体（候选票）；remote singleflight 负载敏感观察。日志 reports/agents/T-233.md。
 
-#### B2 双模式壳（在途）
-- **T-235** [P0] 双模式壳与路由重排 `role:dev-frontend` — **doing 2026-08-23（T-232 `d6a7db9` + T-234 `9da9d18` 双门解锁即派；含 theme-smoke 迁入 e2e/m8；页面组件不动——壳/路由/redirect/242 锚保全）**
+#### B2 双模式壳（done）
+- **T-235** [P0] 双模式壳与路由重排 `role:dev-frontend` — **done 2026-08-23（击落-恢复后全量 103/0；conductor 复验四绿 + 服务端 diff=0；提交 `aad97d9`）**
+  双模式 IA（应用/管理五分组 12 条目 + 模式切换 + Quick 动作）+ LegacyRedirect 20 条（percent-encode/查询串保真）+ 242 锚零改名（+10 壳锚入册=293）+ theme-smoke 迁入收口。票面纠偏：Proxies 占位与范围下拉**不建**（无影子入口规则）。QA 面归 T-243 中期回归。日志 reports/agents/T-235.md。
+
+#### B3 页面域第一轮（在途，宽 2——配额纪律）
+- **T-236** [P0] 制品浏览器 `role:dev-frontend` — **doing 2026-08-23**（含 T-218 树页按钮角色禁用债）
+- **T-237** [P0] 用户与组管理重排 `role:dev-frontend` — **doing 2026-08-23**（含 T-218 用户面债；PUT replace 姿势验证）
 
 #### B3 页面域第一波（并行 4）
 - **T-236** [P0] 制品浏览器：跨仓左树+详情+右键+深链+特化视图（FR-72） `role:dev-frontend` `area:web/src/pages/artifacts/` `dep:T-232,T-235`
