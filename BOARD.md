@@ -57,7 +57,8 @@
 - **T-226** [P2] M7 等价口径回归（V29） `role:qa-engineer` — **doing 2026-08-23（VM 上执行：MinIO 腿 + Artifactory OSS 迁移腿；带扩盘自愈与中断韧性——用户随时可能关机扩 100G）**
 - **T-218** [P1] FR-66 控制台角色与权限管理扩展 + read-only 只读态 `role:dev-frontend` — **done 2026-08-23（review APPROVE 0 阻塞；提交 `2923edf`）**
   14 文件 + e2e 三腿（V12 落值/回显/审计、V13 五页只读+四写重放 403、V14 manage 往返）全套 85 passed/0 failed。review 亮点：wire 闭集 fail-safe 与 EffectiveRole 同构、adminRole 永不与 admin 布尔混发（结构性规避冲突 400）、reviewer 独立重放配额写+内容面双写全 403。**M7 尾债（UI 打磨，非阻塞 4 条）**：MigrationPanel 启动钮/树页上传删除钮未按角色禁用、UserUpdateBody.adminRole 类型可收紧、仓库设置页只读文案错位。日志 reports/agents/T-218.md / T-218-review.md。
-- **T-225** [P2] M7 文档 II：step-up 指南 + 条件腿真实环境附录 — **doing 2026-08-23**（deps 全绿即派；RBAC 主线三票+文档 I 已闭环，本票为 step-up 面 + V27/V28 附录模板 + FAQ）
+- **T-225** [P2] M7 文档 II `role:tech-writer` — **done 2026-08-23（conductor 直审通过；提交 `5f01cbc`）**
+  step-up 指南（ADR-0027 逐字 + 两处自决如实标注）+ V27/V28 证据归档模板（ADR-0025 等价口径，供 T-227/T-228 填）+ api-reference token 字段/401 双形态 + FAQ 三问。全部 curl 自建 IdP 容器实跑验证。遗留：console step-up 铸造页落地后回写 CLI 路径 §2。日志 reports/agents/T-225.md。
 - **T-219** [P2] FR-68 step-up `role:dev-go-core` — **done 2026-08-23（安全视角 review APPROVE 0 阻塞；提交 `7be4da7`）**
   mint grant 台账（256-bit 只存 sha256、绑定 {user,session}、burn 原子）+ step_up_password 双 provider 腿（LDAP 结构上不可探活他人）+ OIDC prompt=login 单次 grant（明文仅存 302 fragment，RFC 3986 不进服务端日志）+ 双 config 键 TTL 域无条件拒启动 + p.Admin→CanManage 统一（Q11 零变）。真实 Keycloak+OpenLDAP 容器实测 V21~V26；默认 off 四护栏逐字复绿；64 goroutine 烧毁探针恰一次。移交：第二身份回跳腿→T-224；并发烧毁常驻用例→T-220；grant 签发审计小票+登录 lockout 存量姿态→M7+。日志 reports/agents/T-219.md / T-219-review.md。
 - **T-220** [P2] FR-70 技术债打包 — **doing 2026-08-23**（T-219 合入解锁即派；auth 53 条逐条处置 + N3 变异钉死 + TTL flake + sql 行尾 + T-219 移交并发用例；全仓 lint 归零）
