@@ -47,7 +47,7 @@ test('admin: app-mode sidebar (2 entries) -> admin mode (5 groups / 12 entries) 
   await page.fill('[data-testid="login-password"]', roleFixturesFromEnv().admin.password)
   await page.click('[data-testid="login-submit"]')
 
-  // 登录落点 = /artifacts（console-m8 §1.1；T-236 占位承载）
+  // 登录落点 = /artifacts（console-m8 §1.1；T-236 起跨仓树真身承载）
   await expect(page).toHaveURL(/\/binflow\/ui\/artifacts$/)
   const nav = page.locator('[data-testid="app-nav"]')
   await expect(nav.locator('.nav-group-label', { hasText: '应用' })).toBeVisible()
@@ -155,7 +155,7 @@ test('admin: user-menu quick actions are keyboard reachable', async ({ page }) =
 // 实体腿先种（幂等）：仓库 + 根文件；用户/权限 target 来自 provisionRoles。
 
 const LEGACY_ROUTES: { from: string; to: RegExp; anchor: string }[] = [
-  { from: '/', to: /\/binflow\/ui\/artifacts$/, anchor: 'placeholder-page' },
+  { from: '/', to: /\/binflow\/ui\/artifacts$/, anchor: 'tree-page' },
   { from: '/repositories', to: /\/binflow\/ui\/admin\/repositories\/local$/, anchor: 'repos-page' },
   { from: '/repositories/new', to: /\/binflow\/ui\/admin\/repositories\/new$/, anchor: 'repo-form-page' },
   { from: `/repositories/${REPO}`, to: new RegExp(`/binflow/ui/admin/repositories/${REPO}$`), anchor: 'repo-detail-page' },

@@ -1,4 +1,5 @@
-// 制品树域 API（T-100 / T-131）。两个平面：
+// 制品树域 API（T-100 / T-131；T-236 自 repositories/tree 迁址——跨仓树
+// （/artifacts）消费，契约零改动）。两个平面：
 //
 // - 元数据面走 /binflow/api/storage/**（apiJSON 信封，401 全局监听生效）：
 //   目录列举（E-09 FolderInfo children + ?list&depth=1 的文件元数据合并）、
@@ -19,7 +20,7 @@
 //   文件臂 404）；建目录是尾斜杠 PUT（E-15）；folder 行的存储拼写本身
 //   带尾斜杠（'acme/'）。
 
-import { ApiError, apiJSON } from '../../../lib/api'
+import { ApiError, apiJSON } from '../../lib/api'
 
 import { streamSha256 } from './sha256'
 

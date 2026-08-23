@@ -24,10 +24,11 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 const RepositoriesPage = lazy(() => import('./pages/repositories/RepositoriesPage'))
 const RepositoryFormPage = lazy(() => import('./pages/repositories/RepositoryFormPage'))
 const RepoDetailPage = lazy(() => import('./pages/repositories/RepoDetailPage'))
-// 制品树（T-100 形态原样）：挂载点从「仓内树」平移为跨仓树子树
-// （/artifacts/:key/*；根 /artifacts 跨仓树归 T-236，本票占位）。
-// URL 即状态 + ?focus= 深链参数形态随挂载点就位（T-236 消费）。
-const TreePage = lazy(() => import('./pages/repositories/tree/TreePage'))
+// 跨仓制品树（T-236 落真身；自 repositories/tree 迁址）：仓库为顶层节点
+// 的左树 + 右详情面板 + 右键菜单；URL 即状态（/artifacts/<repo>/<path>，
+// 文件选中进 ?focus=），深链自动展开。一个组件同时承载根与子树两条路由
+// （路由结构 T-235 已定，本票只换占位挂载）。
+const ArtifactsBrowser = lazy(() => import('./pages/artifacts/ArtifactsBrowser'))
 const SearchPage = lazy(() => import('./pages/search/SearchPage'))
 // 安全组（T-101 形态原样；页面重排归 T-237/T-241）
 const UsersPage = lazy(() => import('./pages/security/UsersPage'))
@@ -91,12 +92,9 @@ createRoot(document.getElementById('root')!).render(
                         认证守卫先于本 index 重定向生效，return=%2F 语义不变 */}
                     <Route index element={<Navigate to="/artifacts" replace />} />
                     <Route path="dashboard" element={<DashboardPage />} />
-                    {/* 跨仓树根（T-236 占位）；子树深链挂现役树页（URL 即状态） */}
-                    <Route
-                      path="artifacts"
-                      element={<PlaceholderPage title="制品" ticket="T-236" />}
-                    />
-                    <Route path="artifacts/:key/*" element={<TreePage />} />
+                    {/* 跨仓树（T-236）：根与子树同组件——URL 即状态 */}
+                    <Route path="artifacts" element={<ArtifactsBrowser />} />
+                    <Route path="artifacts/:key/*" element={<ArtifactsBrowser />} />
                     <Route path="search" element={<SearchPage />} />
                     {/* 编辑档案：改密块现驻设置页（页面原样挂载，T-239 拆分） */}
                     <Route path="profile" element={<SettingsPage />} />
