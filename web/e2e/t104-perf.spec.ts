@@ -88,16 +88,17 @@ test('FR-25-AC6: 1GB UI upload completes; server RSS delta < 256MB', async ({ pa
   }, 1_000)
 
   await page.goto(`/binflow/ui/repositories/${key}/tree`)
-  await page.click('[data-testid="tree-upload"]')
-  await page.fill('[data-testid="upload-target"]', 'bulk/')
+  await page.click('[data-testid="tree-deploy"]')
+  await page.fill('[data-testid="deploy-target"]', 'bulk/')
   // 本版 Playwright 的 FilePayload 仅收 buffer——1GB 走路径形态（文件名取
   // basename gig.bin），避免 Node 侧 1GB 常驻与 CDP 整块搬运
-  await page.setInputFiles('[data-testid="upload-file-input"]', GIG)
-  await expect(page.locator('[data-testid="upload-file-0"]')).toContainText('上传完成 201', {
+  await page.setInputFiles('[data-testid="deploy-file-input"]', GIG)
+  await page.click('[data-testid="deploy-submit"]')
+  await expect(page.locator('[data-testid="deploy-row-gig.bin"]')).toContainText('上传完成 201', {
     timeout: 420_000,
   })
-  await expect(page.locator('[data-testid="upload-verify-0"]')).toContainText('✓ checksum 一致')
-  await page.click('[data-testid="upload-dialog"] .modal-actions .btn.primary')
+  await expect(page.locator('[data-testid="deploy-verify-gig.bin"]')).toContainText('✓ checksum 一致')
+  await page.click('[data-testid="deploy-close"]')
 
   // 落库对账 + 收尾采样（GC 回落窗口）
   const item = JSON.parse((await api(page, 'GET', `/api/storage/${key}/bulk/gig.bin`)).text)

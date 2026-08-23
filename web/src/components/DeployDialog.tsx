@@ -15,17 +15,8 @@ import { useAsync } from '../lib/useAsync'
 import { blobSha256 } from '../pages/artifacts/sha256'
 import { putArtifact } from '../pages/artifacts/lib'
 import type { UploadProgress } from '../pages/artifacts/lib'
-import { mavenTarget } from '../pages/artifacts/UploadDialog'
-
-// GAV 形态与 UploadDialog 同构（mavenTarget 参数是结构类型——GavForm 未导出，
-// 这里本地声明同形接口；共享层归位登记 T-244）
-interface GavForm {
-  groupId: string
-  artifactId: string
-  version: string
-  classifier: string
-  packaging: string
-}
+import { mavenTarget } from '../lib/maven'
+import type { GavForm } from '../lib/maven'
 
 import './dialogs.css'
 
@@ -36,8 +27,9 @@ import './dialogs.css'
 //
 // BinFlow 既有增强全保留（§4.2）：浏览器端流式 sha256 + X-Checksum-Sha256、
 // 行级进度/速度、409 双值 / 403 权限指引 / 413 quota 错误语义、maven 仓按
-// GAV 表单生成 layout 路径 + 前端预检（mavenTarget 与 UploadDialog 同源——
-// seam 注记：GAV 校验器现居 pages/artifacts，共享层归位登记 T-244）。
+// GAV 表单生成 layout 路径 + 前端预检（mavenTarget 归位 lib/maven，T-244
+// 树页双 Deploy 入口收敛后本对话框是浏览器上传唯一形态——UploadDialog
+// 随 tree-upload 退役删除，upload-* 锚族显式退役见 console-ux §10.5）。
 // docker/npm/pypi 不出现上传入口（以接入命令块替代，P6 语义）。
 //
 // T-231 债券承接（console-m8 §8）：目标路径输入框显示原值（可编辑）；每行
@@ -91,12 +83,14 @@ function normalizeDir(target: string): string {
 export interface DeployDialogProps {
   /** 入口仓库上下文；在候选集（local generic/maven）内则预选 */
   preselectedRepo?: string
+  /** 入口目录上下文（树页空目录 CTA 等）：generic 模式目标路径初值 */
+  preselectedDir?: string
   onClose: () => void
   /** 任一行成功后通知父级刷新 */
   onUploaded?: () => void
 }
 
-export default function DeployDialog({ preselectedRepo, onClose, onUploaded }: DeployDialogProps) {
+export default function DeployDialog({ preselectedRepo, preselectedDir, onClose, onUploaded }: DeployDialogProps) {
   const { session } = useAuth()
   const admin = !!session?.admin
 
@@ -115,8 +109,18 @@ export default function DeployDialog({ preselectedRepo, onClose, onUploaded }: D
       const d = fallback.data as RepoDetail
       return okType(d.rclass, d.packageType) ? [{ key: d.key, packageType: d.packageType, type: d.rclass }] : []
     }
+    // 双 403 降级（W12d 语义保全，T-244 收敛时补臂）：普通 user 仓清单与
+    // 单仓详情都不可得（无 manage）时，入口仓按 Generic 直传降级——与
+    // 树页 uploadable 的「元数据 403 → generic 语义」同款；写权限由内容面
+    // 按路径 ACL 终裁（403 行内指引），协议形态由服务端 layout 终裁。
+    if (needFallback && fallback.status === 'forbidden' && preselectedRepo) {
+      return [{ key: preselectedRepo, packageType: 'generic', type: 'local' }]
+    }
     return []
-  }, [list.status, list.data, needFallback, fallback.status, fallback.data])
+  }, [list.status, list.data, needFallback, fallback.status, fallback.data, preselectedRepo])
+  /** 候选是 403 降级合成（包类型为假设）——界面须如实标注 */
+  const degradedCandidate =
+    list.status === 'forbidden' && needFallback && fallback.status === 'forbidden'
 
   const [repoKey, setRepoKey] = useState('')
   const initRef = useRef(false)
@@ -137,7 +141,7 @@ export default function DeployDialog({ preselectedRepo, onClose, onUploaded }: D
 
   // ---- 表单态 ----
   const [deployMode, setDeployMode] = useState<'single' | 'multi'>('multi')
-  const [target, setTarget] = useState('')
+  const [target, setTarget] = useState(preselectedDir ?? '')
   const [gav, setGav] = useState<GavForm>(EMPTY_GAV)
   const [sendChecksum, setSendChecksum] = useState(true)
   const [dragOver, setDragOver] = useState(false)
@@ -273,7 +277,10 @@ export default function DeployDialog({ preselectedRepo, onClose, onUploaded }: D
   const rootRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     rootRef.current?.focus()
-    const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    // disabled 控件不可聚焦（部署钮在队列空/inFlight 时禁用——陷阱首尾
+    // 落在禁用钮上 focus() 无效会破口；T-244 复核收口）
+    const FOCUSABLE =
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault()
@@ -355,6 +362,12 @@ export default function DeployDialog({ preselectedRepo, onClose, onUploaded }: D
                       </option>
                     ))}
                   </select>
+                  {degradedCandidate && (
+                    <div className="field-hint">
+                      仓库元数据为管理员视图（HTTP 403）——按 Generic 语义直传；实际协议与
+                      写权限由服务端终裁（被拒原因会在此原样呈现）。
+                    </div>
+                  )}
                 </div>
                 <div className="field">
                   <label>包类型（只读）</label>

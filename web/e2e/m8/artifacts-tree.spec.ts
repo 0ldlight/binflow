@@ -176,8 +176,9 @@ test('readonly_admin: full repo inventory + write entries disabled + readonly no
 
   await page.goto(`/binflow/ui/artifacts/${key}/d`)
   await expect(page.locator('[data-testid="tree-row-keep.bin"]')).toBeVisible()
-  // 写入口禁用（T-218 债收口：上传/建目录/删除）
-  await expect(page.locator('[data-testid="tree-upload"]')).toBeDisabled()
+  // 写入口禁用（T-218 债收口：上传/建目录/删除；Deploy 钮随 T-244 收敛
+  // 自 tree-upload 平移到页头 tree-deploy，语义不变）
+  await expect(page.locator('[data-testid="tree-deploy"]')).toBeDisabled()
   await expect(page.locator('[data-testid="tree-mkdir"]')).toBeDisabled()
   await expect(page.locator('[data-testid="delete-node-button"]').first()).toBeDisabled()
   // 右键菜单删除项同样禁用
@@ -216,7 +217,7 @@ test('plain user: repo inventory 403 -> L2 card; known-key deep link works via p
   // repo 元数据 admin 面 403 → 降级提示（warn-box）
   await expect(page.locator('.tree-page .warn-box')).toContainText('管理员视图')
   // 普通用户写入口保留（服务端 403 行内呈现，W12d 语义不变）
-  await expect(page.locator('[data-testid="tree-upload"]')).toBeEnabled()
+  await expect(page.locator('[data-testid="tree-deploy"]')).toBeEnabled()
 })
 
 // ---- axe 结构可达性（serious/critical = 0 门；§9）----------------------------

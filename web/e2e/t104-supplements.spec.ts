@@ -108,10 +108,16 @@ test('W10: UI form creates docker-ui-local (local+docker); REST packageType reco
   expect(json.packageType).toBe('docker')
   expect(json.rclass).toBe('local')
 
-  // P6：docker 仓不出上传入口，以接入命令块替代（tree-commands）
+  // P6：docker 仓不走浏览器上传，以接入命令块替代（tree-commands）。
+  // T-244 双 Deploy 入口收敛后语义承载改写：页头 Deploy 对话框的候选仓
+  // 下拉（local × {generic,maven}）不含 docker 仓。
   await page.goto(`/binflow/ui/repositories/${DOCKER_REPO}/tree`)
   await expect(page.locator('[data-testid="tree-commands"]')).toBeVisible()
-  await expect(page.locator('[data-testid="tree-upload"]')).toHaveCount(0)
+  await page.click('[data-testid="tree-deploy"]')
+  await expect(page.locator('[data-testid="deploy-dialog"]')).toBeVisible()
+  await expect(page.locator(`[data-testid="deploy-repo"] option[value="${DOCKER_REPO}"]`)).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(page.locator('[data-testid="deploy-dialog"]')).toHaveCount(0)
   expect(errors).toEqual([])
 })
 

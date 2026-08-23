@@ -5,6 +5,7 @@ import { useAuth } from '../app/AuthContext'
 import { useTheme } from '../app/ThemeContext'
 import { useToast } from '../app/ToastContext'
 import { useConfirm } from './ConfirmDialog'
+import SetMeUpDialog from './SetMeUpDialog'
 import { useVersion } from '../lib/useVersion'
 import { errText, isReadOnlyAdmin } from '../lib/api'
 
@@ -172,6 +173,12 @@ export default function AppShell() {
 
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
+  const sessionToggleRef = useRef<HTMLButtonElement>(null)
+
+  // Set Me Up 全局入口（T-244 收口 quick-set-me-up 占位接线——T-242 遗留）：
+  // 用户菜单 → 快速建仓 → Set Me Up 直接开全局对话框（无仓库上下文 →
+  // 步骤 0 包类型网格）；关闭回焦菜单钮（焦点回到开启者，§8）。
+  const [smuOpen, setSmuOpen] = useState(false)
 
   const admin = session?.admin ?? false
   const readOnlyAdmin = isReadOnlyAdmin(session)
@@ -354,6 +361,7 @@ export default function AppShell() {
           <div className="session-box topbar-session" ref={menuRef}>
             <button
               type="button"
+              ref={sessionToggleRef}
               className="session-toggle"
               aria-haspopup="menu"
               aria-expanded={menuOpen}
@@ -377,15 +385,39 @@ export default function AppShell() {
               <span aria-hidden="true">▾</span>
             </button>
             {menuOpen && (
-              <div className="session-menu" role="menu">
+              <div
+                className="session-menu"
+                role="menu"
+                onKeyDown={(e) => {
+                  // §3.4 键盘清单：菜单 ↑/↓ 循环移动菜单项（role=menu 语义）
+                  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+                  e.preventDefault()
+                  const items = Array.from(
+                    menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') ?? [],
+                  )
+                  if (items.length === 0) return
+                  const i = items.indexOf(document.activeElement as HTMLElement)
+                  const next =
+                    e.key === 'ArrowDown' ? items[(i + 1) % items.length] : items[(i - 1 + items.length) % items.length]
+                  next?.focus()
+                }}
+              >
                 {admin && !readOnlyAdmin && (
                   <>
                     <div className="menu-label" role="presentation">
                       快速建仓
                     </div>
-                    <Link role="menuitem" data-testid="quick-set-me-up" to={APP_HOME} onClick={() => setMenuOpen(false)}>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      data-testid="quick-set-me-up"
+                      onClick={() => {
+                        setMenuOpen(false)
+                        setSmuOpen(true)
+                      }}
+                    >
                       Set Me Up
-                    </Link>
+                    </button>
                     <Link
                       role="menuitem"
                       data-testid="quick-new-repo-local"
@@ -453,6 +485,16 @@ export default function AppShell() {
           <Outlet />
         </main>
       </div>
+      {/* 全局 Set Me Up 入口承载（quick-set-me-up 接线，T-244）——modal
+          层 fixed 定位不随壳布局；关闭回焦菜单钮 */}
+      {smuOpen && (
+        <SetMeUpDialog
+          onClose={() => {
+            setSmuOpen(false)
+            sessionToggleRef.current?.focus()
+          }}
+        />
+      )}
     </div>
   )
 }

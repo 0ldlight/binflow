@@ -20,7 +20,6 @@ import { clientCommands } from '../repositories/commands'
 
 import NodeDetail from './NodeDetail'
 import type { DownloadState } from './NodeDetail'
-import UploadDialog from './UploadDialog'
 import type { ChildNode } from './lib'
 import './browser.css'
 // 共享样式（T-100 建立的树/上传/搜索样式族；搜索页仍从原址引入——完整
@@ -248,8 +247,10 @@ export default function ArtifactsBrowser() {
   const selectedNode = focus && cur?.status === 'ok' ? cur.nodes.find((n) => n.name === focus) : undefined
 
   // ---- 操作：上传 / 建目录 / 删除 / 下载 / 右键菜单 ----
-  const [uploadOpen, setUploadOpen] = useState(false)
-  // 对话框族（T-242）：页头动作区 Set Me Up / Deploy（console-m8 §6.3[1]）
+  // 对话框族（T-242）：页头动作区 Set Me Up / Deploy（console-m8 §6.3[1]）。
+  // T-244 双 Deploy 入口收敛：面包屑位 tree-upload（UploadDialog）退役，
+  // 页头 tree-deploy（DeployDialog）是浏览器上传唯一入口（console-m8
+  // §6.3[1] 裁定）；空目录 CTA 与目录上下文经 preselectedDir 带入。
   const [smuOpen, setSmuOpen] = useState(false)
   const [deployOpen, setDeployOpen] = useState(false)
   const [deleteError, setDeleteError] = useState<{ path: string; err: ApiError } | null>(null)
@@ -433,7 +434,8 @@ export default function ArtifactsBrowser() {
             type="button"
             className="btn primary"
             data-testid="tree-deploy"
-            title="浏览器上传（local Generic / Maven 仓）"
+            disabled={readOnly}
+            title={readOnly ? '只读管理员不可写（服务端 403 兜底）' : '浏览器上传（local Generic / Maven 仓）'}
             onClick={() => setDeployOpen(true)}
           >
             ⬆ 部署 Deploy
@@ -526,18 +528,6 @@ export default function ArtifactsBrowser() {
                 onClick={() => void doMkdir()}
               >
                 + 目录
-              </button>
-            )}
-            {uploadable && (
-              <button
-                type="button"
-                className="btn primary"
-                data-testid="tree-upload"
-                disabled={readOnly}
-                title={readOnly ? '只读管理员不可写（服务端 403 兜底）' : undefined}
-                onClick={() => setUploadOpen(true)}
-              >
-                ⬆ 部署 Deploy
               </button>
             )}
           </div>
@@ -736,7 +726,13 @@ export default function ArtifactsBrowser() {
                         testid="tree-empty-dir"
                         action={
                           uploadable && !readOnly ? (
-                            <button type="button" className="btn primary" onClick={() => setUploadOpen(true)}>
+                            <button
+                              type="button"
+                              className="btn primary"
+                              onClick={() => {
+                                setDeployOpen(true)
+                              }}
+                            >
                               上传第一个制品
                             </button>
                           ) : undefined
@@ -906,22 +902,13 @@ export default function ArtifactsBrowser() {
         />
       )}
 
-      {uploadOpen && repoKey && (
-        <UploadDialog
-          repoKey={repoKey}
-          mode={packageType === 'maven' ? 'maven' : 'generic'}
-          dir={dir}
-          onClose={() => setUploadOpen(false)}
-          onUploaded={refresh}
-        />
-      )}
-
       {smuOpen && (
         <SetMeUpDialog preselectedRepo={repoKey || undefined} onClose={() => setSmuOpen(false)} />
       )}
       {deployOpen && (
         <DeployDialog
           preselectedRepo={repoKey || undefined}
+          preselectedDir={dir || undefined}
           onClose={() => setDeployOpen(false)}
           onUploaded={refresh}
         />

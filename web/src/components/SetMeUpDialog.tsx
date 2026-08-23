@@ -220,7 +220,10 @@ export default function SetMeUpDialog({ preselectedRepo, onClose }: SetMeUpDialo
   const rootRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     rootRef.current?.focus()
-    const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    // disabled 控件不可聚焦（口令空时 smu-password-submit 禁用——陷阱首尾
+    // 落在禁用钮上 focus() 无效会破口；T-244 复核收口）
+    const FOCUSABLE =
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault()
@@ -276,7 +279,27 @@ export default function SetMeUpDialog({ preselectedRepo, onClose }: SetMeUpDialo
       )
     }
     return (
-      <div className="smu-grid-items" role="radiogroup" aria-label="包类型" data-testid="smu-grid">
+      <div
+        className="smu-grid-items"
+        role="radiogroup"
+        aria-label="包类型"
+        data-testid="smu-grid"
+        onKeyDown={(e) => {
+          // radiogroup 方向键（§8/§9 键盘清单）：←↑→↓ 在网格项间移动焦点
+          //（选择仍由 Enter/Space/点击承载——网格项即按钮）
+          const keys = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp']
+          if (!keys.includes(e.key)) return
+          e.preventDefault()
+          const items = Array.from(
+            e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]:not([disabled])'),
+          )
+          if (items.length === 0) return
+          const i = items.indexOf(document.activeElement as HTMLButtonElement)
+          const forward = e.key === 'ArrowRight' || e.key === 'ArrowDown'
+          const next = forward ? items[(i + 1) % items.length] : items[(i - 1 + items.length) % items.length]
+          next?.focus()
+        }}
+      >
         {CLIENT_PKG_META.filter((m) => availableTypes.includes(m.id)).map((m) => (
           <button
             type="button"

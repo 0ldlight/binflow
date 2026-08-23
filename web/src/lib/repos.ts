@@ -160,3 +160,32 @@ export function cfgStrList(cfg: Record<string, unknown> | undefined, field: stri
   const v = cfg?.[field]
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
 }
+
+// ---- 配额行内编辑共享件（T-244 抽取：QuotasPage 与 RepoDetailPage 此前
+// 各持一份同源副本——T-240 登记；行为零变化，字段集 = RepositoryFormPage
+// buildBody 的 local 分支）----
+
+/**
+ * 组装「只覆写 quotaBytes」的 local 仓全量替换体（POST 全量替换语义——
+ * 先 GET 详情再重组完整 body，防止「改配额丢其它字段」）。maven 仓附
+ * 包类型专属字段。
+ */
+export function buildLocalQuotaBody(d: RepoDetail, quotaBytes: number): RepoConfigBody {
+  const cfg = d.configuration
+  const body: RepoConfigBody = {
+    rclass: 'local',
+    packageType: (d.packageType as PackageType) ?? 'generic',
+    description: d.description ?? '',
+    priorityResolution: cfgBool(cfg, 'priorityResolution'),
+    includesPattern: cfgStr(cfg, 'includesPattern'),
+    excludesPattern: cfgStr(cfg, 'excludesPattern'),
+    quotaBytes,
+  }
+  if (d.packageType === 'maven') {
+    body.handleReleases = cfgBool(cfg, 'handleReleases', true)
+    body.handleSnapshots = cfgBool(cfg, 'handleSnapshots', true)
+    body.checksumPolicyType = cfgStr(cfg, 'checksumPolicyType') || 'client-checksums'
+    body.snapshotVersionBehavior = cfgStr(cfg, 'snapshotVersionBehavior') || 'deployer'
+  }
+  return body
+}

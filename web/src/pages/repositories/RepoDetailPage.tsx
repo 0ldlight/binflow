@@ -11,7 +11,9 @@ import { Skeleton } from '../../components/Skeleton'
 import { useToast } from '../../app/ToastContext'
 import { ApiError, canAdminWrite, errText, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
 import { formatBytes } from '../../lib/format'
+import { onTablistKeys } from '../../lib/keys'
 import {
+  buildLocalQuotaBody,
   cfgBool,
   cfgNum,
   cfgStr,
@@ -20,7 +22,7 @@ import {
   getRepoUsage,
   updateRepo,
 } from '../../lib/repos'
-import type { PackageType, RClass, RepoConfigBody, RepoDetail, RepoUsage } from '../../lib/repos'
+import type { PackageType, RClass, RepoDetail, RepoUsage } from '../../lib/repos'
 import { useAsync } from '../../lib/useAsync'
 
 import './repositories.css'
@@ -78,28 +80,6 @@ function QuotaLine({ usage }: { usage: RepoUsage }) {
       </div>
     </div>
   )
-}
-
-/** 与 RepositoryFormPage buildBody 的 local 分支同款字段集（全量替换保全；
- * QuotasPage 同源逻辑——本域自持副本，见日志登记） */
-function buildLocalQuotaBody(d: RepoDetail, quotaBytes: number): RepoConfigBody {
-  const cfg = d.configuration
-  const body: RepoConfigBody = {
-    rclass: 'local',
-    packageType: (d.packageType as PackageType) ?? 'generic',
-    description: d.description ?? '',
-    priorityResolution: cfgBool(cfg, 'priorityResolution'),
-    includesPattern: cfgStr(cfg, 'includesPattern'),
-    excludesPattern: cfgStr(cfg, 'excludesPattern'),
-    quotaBytes,
-  }
-  if (d.packageType === 'maven') {
-    body.handleReleases = cfgBool(cfg, 'handleReleases', true)
-    body.handleSnapshots = cfgBool(cfg, 'handleSnapshots', true)
-    body.checksumPolicyType = cfgStr(cfg, 'checksumPolicyType') || 'client-checksums'
-    body.snapshotVersionBehavior = cfgStr(cfg, 'snapshotVersionBehavior') || 'deployer'
-  }
-  return body
 }
 
 /** 配置 Tab 的行内配额编辑（CanManageRepo 语义：admin / m-holder 可写） */
@@ -335,7 +315,12 @@ export default function RepoDetailPage() {
         </p>
       )}
 
-      <div className="repo-tabs" role="tablist" aria-label="仓库视图">
+      <div
+        className="repo-tabs"
+        role="tablist"
+        aria-label="仓库视图"
+        onKeyDown={(e) => onTablistKeys(e, ['summary', 'config', 'replications'], tab, setTab)}
+      >
         {(
           [
             ['summary', '概要'],

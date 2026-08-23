@@ -80,13 +80,14 @@ test('G30e-1: zero /api/search requests during tree browse (upload + mkdir + nav
 
   // 上传文件到嵌套目录（触发 materializeAncestors）
   await page.goto(`/binflow/ui/repositories/${key}/tree`)
-  await page.click('[data-testid="tree-upload"]')
-  await page.fill('[data-testid="upload-target"]', 'deep/nested/')
-  await page.setInputFiles('[data-testid="upload-file-input"]', [
+  await page.click('[data-testid="tree-deploy"]')
+  await page.fill('[data-testid="deploy-target"]', 'deep/nested/')
+  await page.setInputFiles('[data-testid="deploy-file-input"]', [
     { name: 'data.bin', mimeType: 'application/octet-stream', buffer: Buffer.from('g30e-probe') },
   ])
-  await expect(page.locator('[data-testid="upload-file-0"]')).toContainText('完成', { timeout: 15_000 })
-  await page.click('[data-testid="upload-dialog"] .modal-actions .btn:not(.primary)') // 关闭
+  await page.click('[data-testid="deploy-submit"]')
+  await expect(page.locator('[data-testid="deploy-row-data.bin"]')).toContainText('完成', { timeout: 15_000 })
+  await page.click('[data-testid="deploy-close"]') // 关闭
 
   // 浏览：点击进入 deep → 检查目录可见
   await expect(page.locator('[data-testid="tree-row-deep"]')).toBeVisible({ timeout: 10_000 })

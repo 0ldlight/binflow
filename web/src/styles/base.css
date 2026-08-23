@@ -432,7 +432,12 @@ a:hover {
   font-size: var(--bf-fs-aux);
 }
 
-/* 语义 badge（§7.1：语义色 15% 透明底 + 语义色文字） */
+/* 语义 badge（§7.1：语义色 15% 透明底 + 语义色文字）。文字色 = 语义色向
+ * 正文色收敛 22%（T-244 对比度家族收口）：纯语义色文字在 tint 底上亮主题
+ * 实测 warning 4.26 / success 4.14 / danger 4.12 / info 4.27、暗主题 danger
+ * 4.20——全部 <4.5:1（§8 次要文字与语义色文字 ≥4.5:1 两主题门）。向正文
+ * 色收敛 22% 后双主题 × {surface-1, surface-2（悬停行）, bg} 三承载面全
+ * ≥4.59:1（T-237 role-warning / T-241 perm-verdict 自持修法的上收到 base）。 */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -442,7 +447,7 @@ a:hover {
   font-size: var(--bf-fs-aux);
   line-height: 1.4;
   background: color-mix(in srgb, var(--bf-info) 15%, transparent);
-  color: var(--bf-info);
+  color: color-mix(in srgb, var(--bf-info) 78%, var(--bf-text));
 }
 
 .badge.neutral {
@@ -452,17 +457,17 @@ a:hover {
 
 .badge.success {
   background: color-mix(in srgb, var(--bf-success) 15%, transparent);
-  color: var(--bf-success);
+  color: color-mix(in srgb, var(--bf-success) 78%, var(--bf-text));
 }
 
 .badge.warning {
   background: color-mix(in srgb, var(--bf-warning) 18%, transparent);
-  color: var(--bf-warning);
+  color: color-mix(in srgb, var(--bf-warning) 78%, var(--bf-text));
 }
 
 .badge.danger {
   background: color-mix(in srgb, var(--bf-danger) 15%, transparent);
-  color: var(--bf-danger);
+  color: color-mix(in srgb, var(--bf-danger) 78%, var(--bf-text));
 }
 
 /* 状态点（不以颜色为唯一信号：配文字，§8） */

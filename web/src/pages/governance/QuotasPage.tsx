@@ -11,8 +11,8 @@ import { getRepositories, isReadOnlyAdmin } from '../../lib/api'
 import type { RepoListItem } from '../../lib/api'
 import { errText } from '../../lib/api'
 import { formatBytes } from '../../lib/format'
-import { cfgBool, cfgNum, cfgStr, getRepoDetail, getRepoUsage, updateRepo } from '../../lib/repos'
-import type { PackageType, RepoConfigBody, RepoDetail, RepoUsage } from '../../lib/repos'
+import { buildLocalQuotaBody, cfgNum, getRepoDetail, getRepoUsage, updateRepo } from '../../lib/repos'
+import type { RepoUsage } from '../../lib/repos'
 import { useAsync } from '../../lib/useAsync'
 
 // 配额页（console-ux §4.11 配额行 / §5.3；T-102 AC③）：
@@ -21,30 +21,9 @@ import { useAsync } from '../../lib/useAsync'
 // - usage 逐仓独立拉取（virtual 无自身内容不请求，显示 —）。
 // - 行内编辑**仅 local 仓**（governance 字段只在 local 的 config 透传链上
 //   有效，remote/virtual 的规范化会丢弃）；保存走 POST 全量替换语义——
-//   先 GET 详情再按 RepositoryFormPage 的 local 分支同款字段集重组 body，
-//   防止「改配额丢其它字段」。
+//   buildLocalQuotaBody 共享件（lib/repos，T-244 自本页与仓库详情页的
+//   双份副本抽取合一）。
 // - 非 admin：仓库列表 403 → 单张无权限卡（§3.6.3 L2）。
-
-/** 与 RepositoryFormPage buildBody 的 local 分支同款字段集（全量替换保全） */
-function buildLocalQuotaBody(d: RepoDetail, quotaBytes: number): RepoConfigBody {
-  const cfg = d.configuration
-  const body: RepoConfigBody = {
-    rclass: 'local',
-    packageType: (d.packageType as PackageType) ?? 'generic',
-    description: d.description ?? '',
-    priorityResolution: cfgBool(cfg, 'priorityResolution'),
-    includesPattern: cfgStr(cfg, 'includesPattern'),
-    excludesPattern: cfgStr(cfg, 'excludesPattern'),
-    quotaBytes,
-  }
-  if (d.packageType === 'maven') {
-    body.handleReleases = cfgBool(cfg, 'handleReleases', true)
-    body.handleSnapshots = cfgBool(cfg, 'handleSnapshots', true)
-    body.checksumPolicyType = cfgStr(cfg, 'checksumPolicyType') || 'client-checksums'
-    body.snapshotVersionBehavior = cfgStr(cfg, 'snapshotVersionBehavior') || 'deployer'
-  }
-  return body
-}
 
 function WaterBar({ usage }: { usage: RepoUsage }) {
   const quota = usage.quotaBytes

@@ -70,19 +70,22 @@ test('W12/W12b/W13 generic tree: upload -> browse -> detail/download sha match -
   await expect(page.locator('[data-testid="tree-empty-dir"]')).toContainText('此目录为空')
 
   // 上传（W13）：目标 acme/，双文件，行级完成态 + checksum 比对徽标
+  // （T-244 双 Deploy 入口收敛：tree-upload/UploadDialog 退役，统一走页头
+  //   tree-deploy → DeployDialog——显式「部署」提交步 +1 次点击）
   const payloadA = 't100-probe-A'
   const payloadB = '{"v":1,"src":"t100"}'
-  await page.click('[data-testid="tree-upload"]')
-  await expect(page.locator('[data-testid="upload-dialog"]')).toBeVisible()
-  await page.fill('[data-testid="upload-target"]', 'acme/')
-  await page.setInputFiles('[data-testid="upload-file-input"]', [
+  await page.click('[data-testid="tree-deploy"]')
+  await expect(page.locator('[data-testid="deploy-dialog"]')).toBeVisible()
+  await page.fill('[data-testid="deploy-target"]', 'acme/')
+  await page.setInputFiles('[data-testid="deploy-file-input"]', [
     { name: 'app.bin', mimeType: 'application/octet-stream', buffer: Buffer.from(payloadA) },
     { name: 'sbom.json', mimeType: 'application/json', buffer: Buffer.from(payloadB) },
   ])
-  await expect(page.locator('[data-testid="upload-file-0"]')).toContainText('上传完成 201', { timeout: 15_000 })
-  await expect(page.locator('[data-testid="upload-file-0"]')).toContainText('✓ checksum 一致')
-  await expect(page.locator('[data-testid="upload-file-1"]')).toContainText('✓ checksum 一致')
-  await page.click('[data-testid="upload-dialog"] .modal-actions .btn.primary')
+  await page.click('[data-testid="deploy-submit"]')
+  await expect(page.locator('[data-testid="deploy-row-app.bin"]')).toContainText('上传完成 201', { timeout: 15_000 })
+  await expect(page.locator('[data-testid="deploy-row-app.bin"]')).toContainText('✓ checksum 一致')
+  await expect(page.locator('[data-testid="deploy-row-sbom.json"]')).toContainText('✓ checksum 一致')
+  await page.click('[data-testid="deploy-close"]')
 
   // 根层：acme 目录行出现（服务端 mkdir-on-put 语义），左树同步
   await expect(page.locator('[data-testid="tree-row-acme"]')).toBeVisible()
@@ -210,23 +213,25 @@ test('W12a on upload UI: 409 pattern and 413 quota messages surface verbatim', a
 
   // 409：excludesPattern 拒绝（message 含两侧 pattern，原样呈现）
   await page.goto(`/binflow/ui/repositories/${patKey}/tree`)
-  await page.click('[data-testid="tree-upload"]')
-  await page.fill('[data-testid="upload-target"]', 'tmp/')
-  await page.setInputFiles('[data-testid="upload-file-input"]', [
+  await page.click('[data-testid="tree-deploy"]')
+  await page.fill('[data-testid="deploy-target"]', 'tmp/')
+  await page.setInputFiles('[data-testid="deploy-file-input"]', [
     { name: 'x.bin', mimeType: 'application/octet-stream', buffer: Buffer.alloc(16, 1) },
   ])
-  const row409 = page.locator('[data-testid="upload-file-0"]')
+  await page.click('[data-testid="deploy-submit"]')
+  const row409 = page.locator('[data-testid="deploy-row-x.bin"]')
   await expect(row409).toContainText('HTTP 409', { timeout: 15_000 })
   await expect(row409).toContainText('excludesPattern')
   await expect(row409).toContainText('tmp/**')
 
   // 413：quota 超限（message 含 used/quota 双值）
   await page.goto(`/binflow/ui/repositories/${quoKey}/tree`)
-  await page.click('[data-testid="tree-upload"]')
-  await page.setInputFiles('[data-testid="upload-file-input"]', [
+  await page.click('[data-testid="tree-deploy"]')
+  await page.setInputFiles('[data-testid="deploy-file-input"]', [
     { name: 'big.bin', mimeType: 'application/octet-stream', buffer: Buffer.alloc(64, 7) },
   ])
-  const row413 = page.locator('[data-testid="upload-file-0"]')
+  await page.click('[data-testid="deploy-submit"]')
+  const row413 = page.locator('[data-testid="deploy-row-big.bin"]')
   await expect(row413).toContainText('HTTP 413', { timeout: 15_000 })
   await expect(row413).toContainText('quota exceeded')
   await expect(row413).toContainText('配额已满')
@@ -239,8 +244,8 @@ test('maven upload form: GAV generates layout path, precheck blocks bad input wi
   await api(page, 'PUT', `/api/repositories/${key}`, { rclass: 'local', packageType: 'maven' })
 
   await page.goto(`/binflow/ui/repositories/${key}/tree`)
-  await page.click('[data-testid="tree-upload"]')
-  await expect(page.locator('[data-testid="upload-dialog"]')).toBeVisible()
+  await page.click('[data-testid="tree-deploy"]')
+  await expect(page.locator('[data-testid="deploy-dialog"]')).toBeVisible()
 
   const writes: string[] = []
   page.on('request', (r) => {
@@ -249,26 +254,28 @@ test('maven upload form: GAV generates layout path, precheck blocks bad input wi
     }
   })
 
-  // 预检：version 空 → 前端拦（不送服务端吃 400）
-  await page.fill('[data-testid="upload-gav-groupId"]', 'com.acme')
-  await page.fill('[data-testid="upload-gav-artifactId"]', 'demo-app')
-  await expect(page.locator('[data-testid="upload-maven-preview"]')).toContainText('version 不能为空')
-  await page.setInputFiles('[data-testid="upload-maven-input"]', [
+  // 预检：version 空 → 前端拦（不送服务端吃 400；DeployDialog 对未过 GAV
+  // 预检的选择零入队——行区不渲染）
+  await page.fill('[data-testid="deploy-gav-groupId"]', 'com.acme')
+  await page.fill('[data-testid="deploy-gav-artifactId"]', 'demo-app')
+  await expect(page.locator('[data-testid="deploy-maven-preview"]')).toContainText('version 不能为空')
+  await page.setInputFiles('[data-testid="deploy-file-input"]', [
     { name: 'whatever.jar', mimeType: 'application/java-archive', buffer: Buffer.alloc(24, 3) },
   ])
   await page.waitForTimeout(400)
   expect(writes).toHaveLength(0)
-  await expect(page.locator('[data-testid="upload-file-0"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="deploy-rows"]')).toHaveCount(0)
 
   // 合法 GAV：路径生成 + 文件改名 → 201 → 树上按 layout 路径可见
-  await page.fill('[data-testid="upload-gav-version"]', '1.0.0')
-  await expect(page.locator('[data-testid="upload-maven-preview"]')).toContainText('com/acme/demo-app/1.0.0/')
-  await expect(page.locator('[data-testid="upload-maven-preview"]')).toContainText('demo-app-1.0.0.jar')
-  await page.setInputFiles('[data-testid="upload-maven-input"]', [
+  await page.fill('[data-testid="deploy-gav-version"]', '1.0.0')
+  await expect(page.locator('[data-testid="deploy-maven-preview"]')).toContainText('com/acme/demo-app/1.0.0/')
+  await expect(page.locator('[data-testid="deploy-maven-preview"]')).toContainText('demo-app-1.0.0.jar')
+  await page.setInputFiles('[data-testid="deploy-file-input"]', [
     { name: 'whatever.jar', mimeType: 'application/java-archive', buffer: Buffer.alloc(24, 3) },
   ])
-  await expect(page.locator('[data-testid="upload-file-0"]')).toContainText('上传完成 201', { timeout: 15_000 })
-  await page.click('[data-testid="upload-dialog"] .modal-actions .btn.primary')
+  await page.click('[data-testid="deploy-submit"]')
+  await expect(page.locator('[data-testid="deploy-row-demo-app-1.0.0.jar"]')).toContainText('上传完成 201', { timeout: 15_000 })
+  await page.click('[data-testid="deploy-close"]')
   await expect(page.locator('[data-testid="tree-row-com"]')).toBeVisible()
   await page.click('[data-testid="tree-row-com"]')
   await page.click('[data-testid="tree-row-acme"]')
@@ -338,17 +345,18 @@ test('upload dialog close stops the queue: remaining files never PUT (review B1)
   })
 
   await page.goto(`/binflow/ui/repositories/${key}/tree`)
-  await page.click('[data-testid="tree-upload"]')
-  await page.fill('[data-testid="upload-target"]', 'q/')
-  await page.setInputFiles('[data-testid="upload-file-input"]', [
+  await page.click('[data-testid="tree-deploy"]')
+  await page.fill('[data-testid="deploy-target"]', 'q/')
+  await page.setInputFiles('[data-testid="deploy-file-input"]', [
     { name: 'f0.bin', mimeType: 'application/octet-stream', buffer: Buffer.alloc(8, 1) },
     { name: 'f1.bin', mimeType: 'application/octet-stream', buffer: Buffer.alloc(8, 2) },
     { name: 'f2.bin', mimeType: 'application/octet-stream', buffer: Buffer.alloc(8, 3) },
   ])
+  await page.click('[data-testid="deploy-submit"]')
   // 行 0 进入上传中（其 PUT 停在 route 闸上）后关闭对话框
-  await expect(page.locator('[data-testid="upload-file-0"]')).toContainText('上传中', { timeout: 15_000 })
-  await page.click('[data-testid="upload-dialog"] .modal-actions .btn:not(.primary)') // 关闭
-  await expect(page.locator('[data-testid="upload-dialog"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="deploy-row-f0.bin"]')).toContainText('上传中', { timeout: 15_000 })
+  await page.click('[data-testid="deploy-close"]') // 关闭（落闸 + abort）
+  await expect(page.locator('[data-testid="deploy-dialog"]')).toHaveCount(0)
   releaseFirst()
 
   // 断言：关闭后不再有新 PUT（唯一一条是行 0），排队两文件从未落库

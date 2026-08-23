@@ -263,6 +263,10 @@
 
 /* ---------- 分步表单（§4.4） ---------- */
 
+/* .stepper 族已随 T-240 单页分区式表单退役（三步向导 → 分区表单，
+ * §4.4 定案；v1.6 退役 form-prev/form-next 锚时 DOM 已无渲染位）——
+ * T-244 清死样式。.form-layout 仍在役（右栏实时摘要布局）。 */
+
 .form-layout {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(240px, 1fr);
@@ -274,44 +278,6 @@
   .form-layout {
     grid-template-columns: 1fr;
   }
-}
-
-.stepper {
-  display: flex;
-  gap: var(--bf-sp-2);
-  align-items: center;
-  margin-bottom: var(--bf-sp-4);
-  color: var(--bf-text-2);
-  font-size: var(--bf-fs-aux);
-}
-
-.stepper .dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--bf-surface-3);
-  border: 1px solid var(--bf-border-strong);
-  margin-right: 6px;
-  vertical-align: middle;
-}
-
-.stepper .step-label.done .dot,
-.stepper .step-label.now .dot {
-  background: var(--bf-accent);
-  border-color: var(--bf-accent);
-}
-
-.stepper .step-label.now {
-  color: var(--bf-text);
-  font-weight: 600;
-}
-
-.stepper .sep {
-  flex: 1;
-  height: 1px;
-  background: var(--bf-border);
-  min-width: 12px;
 }
 
 .radio-row {

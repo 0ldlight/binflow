@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '../../app/AuthContext'
 import { useToast } from '../../app/ToastContext'
@@ -9,6 +9,7 @@ import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import { ADMIN_ROLES, ApiError, canAdminWrite, errText, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
 import type { AdminRole } from '../../lib/api'
+import { onTableRowKeys } from '../../lib/keys'
 import { useAsync } from '../../lib/useAsync'
 import './security.css'
 import { TransferBox } from './TransferBox'
@@ -261,6 +262,7 @@ function CreateUserForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
 
 export default function UsersPage() {
   const { session } = useAuth()
+  const navigate = useNavigate()
   const admin = canAdminWrite(session)
   const readOnly = isReadOnlyAdmin(session)
   const state = useAsync(fetchUserRows, [])
@@ -335,7 +337,16 @@ export default function UsersPage() {
               </thead>
               <tbody>
                 {rows.map((r) => (
-                  <tr key={r.item.name} data-testid={`user-row-${r.item.name}`}>
+                  <tr
+                    key={r.item.name}
+                    data-testid={`user-row-${r.item.name}`}
+                    tabIndex={0}
+                    onKeyDown={(e) =>
+                      onTableRowKeys(e, () =>
+                        navigate(`/admin/security/users/${encodeURIComponent(r.item.name)}`),
+                      )
+                    }
+                  >
                     <td>
                       <Link className="row-link mono" to={`/admin/security/users/${encodeURIComponent(r.item.name)}`} lang="en">
                         {r.item.name}

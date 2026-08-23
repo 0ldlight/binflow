@@ -108,19 +108,20 @@ test('upload 403 (write denied) renders inline guidance for read-only user (T-10
 
   // 树页上传（ro 有 read → 树可见；write 拒 → 403 行内指引）
   await page.goto(`/binflow/ui/repositories/${key}/tree`)
-  await page.click('[data-testid="tree-upload"]')
-  await expect(page.locator('[data-testid="upload-dialog"]')).toBeVisible()
-  await page.fill('[data-testid="upload-target"]', 'denied/')
-  await page.setInputFiles('[data-testid="upload-file-input"]', [
+  await page.click('[data-testid="tree-deploy"]')
+  await expect(page.locator('[data-testid="deploy-dialog"]')).toBeVisible()
+  await page.fill('[data-testid="deploy-target"]', 'denied/')
+  await page.setInputFiles('[data-testid="deploy-file-input"]', [
     { name: 'x.bin', mimeType: 'application/octet-stream', buffer: Buffer.alloc(16, 1) },
   ])
-  const row = page.locator('[data-testid="upload-file-0"]')
+  await page.click('[data-testid="deploy-submit"]')
+  const row = page.locator('[data-testid="deploy-row-x.bin"]')
   await expect(row).toContainText('HTTP 403', { timeout: 15_000 })
   await expect(row).toContainText('permission denied')
   // 403 指引行内呈现（AC②）：写入需 write 的说明；非 admin 不给权限页链接
   await expect(row).toContainText('当前会话对该路径没有所需权限')
   await expect(row).toContainText('write')
-  await expect(page.locator('[data-testid="upload-dialog"] a')).toHaveCount(0)
+  await expect(page.locator('[data-testid="deploy-dialog"] a')).toHaveCount(0)
 
   // 被拒路径零残留 + 既有节点不受影响（curl 侧等价腿）
   expect((await api(page, 'GET', `/${key}/denied/x.bin`)).status).toBe(404)
@@ -153,13 +154,14 @@ test('B1 residual arm: close during hashing phase emits zero PUT (fix 77718cc)',
     execSync(`mkdir -p ${TMP} && dd if=/dev/urandom of=${bigPath} bs=1048576 count=128 2>/dev/null`)
   }
   await page.goto(`/binflow/ui/repositories/${key}/tree`)
-  await page.click('[data-testid="tree-upload"]')
-  await page.fill('[data-testid="upload-target"]', 'big/')
-  await page.setInputFiles('[data-testid="upload-file-input"]', bigPath)
+  await page.click('[data-testid="tree-deploy"]')
+  await page.fill('[data-testid="deploy-target"]', 'big/')
+  await page.setInputFiles('[data-testid="deploy-file-input"]', bigPath)
+  await page.click('[data-testid="deploy-submit"]')
   // 行 0 处于哈希相（此相无 XHR，route 闸挂不住——正是残余臂的相）
-  await expect(page.locator('[data-testid="upload-file-0"]')).toContainText('哈希中', { timeout: 15_000 })
-  await page.click('[data-testid="upload-dialog"] .modal-actions .btn:not(.primary)') // 关闭
-  await expect(page.locator('[data-testid="upload-dialog"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="deploy-row-hash128m.bin"]')).toContainText('哈希中', { timeout: 15_000 })
+  await page.click('[data-testid="deploy-close"]') // 关闭
+  await expect(page.locator('[data-testid="deploy-dialog"]')).toHaveCount(0)
 
   // 哈希最坏 ~4.3s（128MB @ 30MB/s）——等过全程再断言零 PUT
   await page.waitForTimeout(9_000)

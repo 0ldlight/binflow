@@ -61,7 +61,7 @@ export function useConfirm(): (opts: ConfirmOptions) => Promise<boolean> {
   return useContext(ConfirmContext)
 }
 
-const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 function ConfirmDialog({
   opts,
@@ -87,6 +87,8 @@ function ConfirmDialog({
         return
       }
       if (e.key !== 'Tab') return
+      // FOCUSABLE 选择器排除 disabled：强确认（输入 key 前置）下确认钮
+      // 禁用时，Tab 首尾若落在它上面 focus() 无效、陷阱破口（T-244 复核）
       const nodes = Array.from(rootRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])
       if (nodes.length === 0) return
       const first = nodes[0]

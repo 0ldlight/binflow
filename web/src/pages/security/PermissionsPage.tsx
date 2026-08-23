@@ -6,6 +6,7 @@ import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import { canAdminWrite, isReadOnlyAdmin } from '../../lib/api'
+import { onTableRowKeys } from '../../lib/keys'
 import { useAsync } from '../../lib/useAsync'
 import './security.css'
 import { listPermissionTargets } from './api'
@@ -115,7 +116,13 @@ export default function PermissionsPage() {
                     key={t.name}
                     data-testid={`perm-row-${t.name}`}
                     style={{ cursor: 'pointer' }}
+                    tabIndex={0}
                     onClick={() => navigate(`/admin/security/permissions/${encodeURIComponent(t.name)}`)}
+                    onKeyDown={(e) =>
+                      onTableRowKeys(e, () =>
+                        navigate(`/admin/security/permissions/${encodeURIComponent(t.name)}`),
+                      )
+                    }
                   >
                     <td>
                       <span className="cell-inline">

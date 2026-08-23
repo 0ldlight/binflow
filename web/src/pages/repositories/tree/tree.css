@@ -234,105 +234,10 @@
   color: var(--bf-accent);
 }
 
-/* ---------- 上传对话框（§4.7） ---------- */
-
-.upload-modal {
-  width: min(760px, calc(100vw - 48px));
-  max-height: calc(100vh - 64px);
-  overflow-y: auto;
-}
-
-.upload-modal h2 .mono {
-  font-size: var(--bf-fs-h3);
-  word-break: break-all;
-}
-
-.drop-zone {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--bf-sp-1);
-  margin: var(--bf-sp-4) 0;
-  padding: var(--bf-sp-5);
-  border: 1px dashed var(--bf-border-strong);
-  border-radius: var(--bf-r-lg);
-  background: var(--bf-surface-3);
-  color: var(--bf-text-2);
-  cursor: pointer;
-  text-align: center;
-}
-
-.drop-zone:hover,
-.drop-zone.over {
-  border-color: var(--bf-accent);
-  color: var(--bf-text);
-}
-
-.drop-zone > div:first-child {
-  font-size: 22px;
-}
-
-.upload-table {
-  margin: var(--bf-sp-3) 0;
-}
-
-.upload-progress {
-  display: flex;
-  align-items: center;
-  gap: var(--bf-sp-2);
-  margin-top: 4px;
-}
-
-.upload-progress .bar {
-  flex: 1;
-  min-width: 80px;
-  height: 6px;
-  border-radius: var(--bf-r-sm);
-  background: var(--bf-surface-3);
-  overflow: hidden;
-}
-
-.upload-progress .fill {
-  height: 100%;
-  background: var(--bf-accent);
-  transition: width 0.15s ease;
-}
-
-.upload-error .raw {
-  font-size: var(--bf-fs-aux);
-  color: var(--bf-text);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  margin: 4px 0;
-}
-
-.upload-error .hint {
-  color: var(--bf-text-2);
-  font-size: var(--bf-fs-aux);
-}
-
-.upload-table td {
-  vertical-align: top;
-}
-
-.gav-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: var(--bf-sp-2) var(--bf-sp-3);
-}
-
-.preview-path {
-  border: 1px solid var(--bf-border);
-  border-radius: var(--bf-r-sm);
-  background: var(--bf-surface-3);
-  padding: var(--bf-sp-2) var(--bf-sp-3);
-  font-size: var(--bf-fs-body);
-  word-break: break-all;
-}
-
-.upload-invalid {
-  color: var(--bf-danger);
-}
+/* 上传对话框样式族（.upload-* / .drop-zone / .gav-grid / .preview-path /
+ * .upload-invalid）已随 T-244 树页双 Deploy 入口收敛退役——UploadDialog
+ * 删除、DeployDialog 用 components/dialogs.css 自持样式（deploy-drop /
+ * deploy-progress 等同形类），本文件不再承载上传面。 */
 
 /* 搜索页样式已迁 pages/search/search.css（T-239 归位——本文件不再被
  * 搜索页引用，仅 ArtifactsBrowser 消费）。 */

@@ -77,17 +77,18 @@ test('chain 3: upload via dialog, row completes with checksum badge', async ({ p
   }, key)
 
   await page.goto(`/binflow/ui/repositories/${key}/tree`)
-  await page.click('[data-testid="tree-upload"]')
-  await expect(page.locator('[data-testid="upload-dialog"]')).toBeVisible()
-  await page.fill('[data-testid="upload-target"]', 'up/')
-  await page.setInputFiles('[data-testid="upload-file-input"]', [
+  await page.click('[data-testid="tree-deploy"]')
+  await expect(page.locator('[data-testid="deploy-dialog"]')).toBeVisible()
+  await page.fill('[data-testid="deploy-target"]', 'up/')
+  await page.setInputFiles('[data-testid="deploy-file-input"]', [
     { name: 'xb-up.bin', mimeType: 'application/octet-stream', buffer: Buffer.from('t104-xb-upload') },
   ])
-  await expect(page.locator('[data-testid="upload-file-0"]')).toContainText('上传完成 201', {
+  await page.click('[data-testid="deploy-submit"]')
+  await expect(page.locator('[data-testid="deploy-row-xb-up.bin"]')).toContainText('上传完成 201', {
     timeout: 20_000,
   })
-  await expect(page.locator('[data-testid="upload-verify-0"]')).toContainText('✓ checksum 一致')
-  await page.click('[data-testid="upload-dialog"] .modal-actions .btn.primary')
+  await expect(page.locator('[data-testid="deploy-verify-xb-up.bin"]')).toContainText('✓ checksum 一致')
+  await page.click('[data-testid="deploy-close"]')
   await expect(page.locator('[data-testid="tree-row-up"]')).toBeVisible()
 
   // 收尾

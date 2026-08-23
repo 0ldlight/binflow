@@ -13,6 +13,7 @@ import { canAdminWrite, isReadOnlyAdmin } from '../../lib/api'
 import { cfgStr, cfgStrList, getRepositoriesFiltered, getRepoUsage } from '../../lib/repos'
 import type { RClass } from '../../lib/repos'
 import { formatBytes } from '../../lib/format'
+import { onTableRowKeys, onTablistKeys } from '../../lib/keys'
 import { useAsync } from '../../lib/useAsync'
 
 import './repositories.css'
@@ -211,7 +212,11 @@ export default function RepositoriesPage() {
         </p>
       )}
 
-      <nav className="repos-tabs" aria-label="仓库类型">
+      <nav
+        className="repos-tabs"
+        aria-label="仓库类型"
+        onKeyDown={(e) => onTablistKeys(e, TABS.map((t) => t.id), tab, (id) => navigate(`/admin/repositories/${id}`))}
+      >
         {TABS.map((t) => (
           <Link
             key={t.id}
@@ -304,7 +309,9 @@ export default function RepositoriesPage() {
                     key={repo.key}
                     data-testid={`repos-row-${repo.key}`}
                     style={{ cursor: 'pointer' }}
+                    tabIndex={0}
                     onClick={() => navigate(`/admin/repositories/${repo.key}`)}
+                    onKeyDown={(e) => onTableRowKeys(e, () => navigate(`/admin/repositories/${repo.key}`))}
                   >
                     <td>
                       <Link

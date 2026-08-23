@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 文档 | `docs/design/console-ux.md` |
-| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚） |
-| 状态 | v1.4（2026-08-23） |
+| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记） |
+| 状态 | v1.7（2026-08-24） |
 | 维护者 | ux-designer |
 | 上游依据 | PRODUCT.md（Web 控制台/治理/Non-goals）、ROADMAP.md M4 节、docs/prd/milestone-1/2/3/4.md（端点矩阵与已定案行为）、docs/user/docker-registry.md（用户面口径）、docs/design/architecture.md §7（路由/console 挂载点）、internal/httpapi/router.go（路由门事实——§3.6.2 矩阵逐一核对）、reports/agents/T-98.md · T-99.md（漂移登记与 testid 素材）、reports/agents/T-98-review.md（N1 收敛建议）、BOARD.md（T-85 PRD / T-97 存在性不泄露裁决） |
 | 下游消费者 | T-86（架构：console 包/session/前端工程结构）、tech-lead（M4 拆票）、前端 dev（页面组票）、qa-engineer（控制台验收） |
@@ -22,6 +22,7 @@
 | v1.4 | 2026-08-23 | T-235 M8 双模式壳与路由重排（console-m8 §1 落地）：① 新增 **§10.5 路由重排锚保全映射**——M8 新路由表 ↔ §10.2/§10.3 既有锚，242 锚**零改名**（ADR-0029 决策 3，W 资产保全）；② 壳新锚 10 枚入册（`nav-mode-switch` / `topbar-breadcrumb` / 用户菜单 Quick 动作族）；③ §10.4 Tokens 行注记更新——侧栏禁用占位（`nav-item.disabled` 计数断言）让位真实路由 `/admin/security/tokens` 的 `placeholder-page` 承载；④ IA/路由正文以 console-m8 为准（§0.2 冲突条款），本版不重写 §3.1/§3.2 旧路由表 |
 | v1.5 | 2026-08-23 | T-237 用户/组页重排（console-m8 §6.9/§6.10 落地）：① §10.3 安全组增补 T-237 批次锚（列表排序头/计数行、分区表单按钮族、穿梭列容器、成员/权限汇总矩阵、组计数与管理徽章）——T-101 冻结锚**零改名**（`user-form-group-<name>` 等穿梭化后语义不变）；② `user-form-admin`（admin 布尔复选）退役——创建表单角色改三值下拉，与编辑态同走 `user-form-role`（wire 不变：创建走一致对 admin+adminRole，编辑只走 adminRole）；③ `user-perms`/`user-facts` 分卡承载权限矩阵与账户信息（`user-facts-role` 不变） |
 | v1.6 | 2026-08-24 | T-240 仓库管理域重排（console-m8 §6.6~§6.8 落地）：① §10.5 增补 T-240 批次锚 24 枚（三 Tab 导航/列头排序/行删除入口/计数行/包类型网格/表单按钮族/详情三 Tab/quota 行内编辑/readonly 与 m-holder 注记/Replications 降位）；② 退役 4 枚——`repos-filter-{type,package}`（类型过滤由三 Tab 子路由承载）、`form-prev`/`form-next`（三步向导 → 单页分区式，§4.4 定案）；③ `repo-governance-card` 移入配置 Tab（锚不变、+1 步 Tab 切换）；④ 编辑态 `form-key` 输入框改锁定展示（门控语义不变）——T-99 冻结锚零改名 |
+| v1.7 | 2026-08-24 | T-244 键盘可达 + 共享层债收口的锚册回写（收 T-243 缺陷 D-1~D-4 + T-242 待扫锚）：① **T-238 存储批 12 锚入册**（D-1）+ §10.5 路由表 `/admin/monitoring/storage` 行回写；② **T-242 对话框批 48 锚入册**（smu-* / deploy-* / 三入口族）；③ **散锚入册**（D-2：browser-intro / migration-readonly-note / perm-res-back / repo-advanced-card / perms-sort 族 + 审计新溯的历史散锚：T-158 SSO、T-160 迁移面板补遗、T-218 readonly 注记族、T-241 权限编辑器批、transfer-* 显名、tag-badge、topbar-help、settings-{version,license} 等）；④ **显式退役条目**（D-3）：`settings-password` + 本票树页双 Deploy 入口收敛退役的 `tree-upload` 与 `upload-*` 族 15 枚；⑤ 新增 **§10.6 死锚登记**（D-4：src 侧 115 家族零 spec 消费——`web/scripts/anchor-audit.mjs` 册↔src↔spec 三方对账器为底稿与常设工具）。本版起锚总量按家族口径核算（src 423 家族 / 493 落点） |
 
 ---
 
@@ -898,24 +899,25 @@ repo-danger-zone  repo-delete-button  repo-delete-content  repo-delete-confirm-k
   search-result-<i>  search-more（空态复用缺省 empty-state）
 安全组（T-101；**T-237 重排增补**见下段）：
   用户：users-page  users-create  users-table  user-row-<name>
-        user-form（创建/编辑共用）  user-form-{name,email,password,admin,groups,submit,error}
+        user-form（创建/编辑共用）  user-form-{name|email|password|admin|groups|submit|error}
         user-form-group-<name>  user-detail-page  user-facts
   组：  groups-page  groups-create  groups-table  group-row-<name>  group-form
-        group-form-{name,description,submit,error}  group-edit-<name>  group-delete-<name>
+        group-form-{name|description|submit|error}  group-edit-<name>  group-delete-<name>
         group-delete-reason（409 冲突面板）  group-delete-dismiss
 安全组 T-237 批次（用户/组页 Artifactory 形态重排，console-m8 §6.9/§6.10）：
-  用户列表：users-sort-{name,email,groups,role}（列头排序，aria-sort 三态）
+  用户列表：users-sort-{name|email|groups|role}（列头排序，aria-sort 三态）
             users-count（底部「用户总数： N」）
-  用户表单：user-form-{role,enabled,password2,reset,cancel}（角色下拉进创建态
+  用户表单：user-form-{role|enabled|password2|reset|cancel}（角色下拉进创建态
             ——user-form-admin 复选退役 v1.5；enabled 翻转/确认口令/按钮族）
             user-form-groups 内 transfer-{available,selected}（C5 双列穿梭
             列容器；条目 checkbox 仍用 user-form-group-<name> 冻结锚）
   用户详情：user-perms（权限矩阵卡容器）  user-perm-matrix（有授权时表体）
             user-perm-row-<target>（只读 r/w/d/m 汇总行）
-  组列表：  groups-sort-{name,perms,members}  groups-count
-            group-{perms,members}-<name>（计数单元格）
+  组列表：  groups-sort-{name|perms|members}  groups-count
+            group-{perms|members}-<name>（计数单元格）
             group-manage-badge-<name>（manage 持有徽章——adminPrivileges 同构）
-  组表单：  group-form-{members,member-<user>,reset,cancel}（成员穿梭 + 按钮族）
+  组表单：  group-form-members  group-form-member-<user>  group-form-reset
+                group-form-cancel（成员穿梭 + 按钮族）
   组矩阵：  group-perm-matrix  group-perm-row-<target>（编辑态组权限汇总）
   权限：perms-page  perms-create  perms-table  perm-row-<name>  perm-editor-page
         perm-form-name  perm-repos  perm-repo-add  perm-repo-remove-<key>
@@ -949,6 +951,50 @@ repo-danger-zone  repo-delete-button  repo-delete-content  repo-delete-confirm-k
         quota-cancel-<repoKey>  quota-error-<repoKey>
   备份：backup-page  backup-cmd-{export|import}
 设置补锚：settings-health（§3.6.3 N1 收口已兑现——健康行 403 驱动 + 锚，T-101 落地）
+T-238 存储概要批（v1.7 入册——D-1 收口；页面先落码、批未回册的欠账）：
+  storage-page（页根）  storage-summary（汇总卡区）  storage-summary-blobs
+  storage-table  storage-row-<repoKey>  storage-total-row（TOTAL 首行）
+  storage-refresh  storage-refreshed-at（刷新行时间戳）
+  storage-empty（空实例）  storage-partial（>50 仓「部分数据」标注）
+  storage-progress（逐仓拉取进度提示）
+T-238/239 系统信息补遗：settings-version  settings-license（只读面版本/许可行）
+壳补遗：topbar-help（顶栏帮助链接）；user-facts-role（用户详情账户信息角色行——
+  v1.5 行文提过未入清单，v1.7 显名列出）
+T-134 docker 树补遗：tag-badge-<tag>（tag 徽标——G32a docker_tags 富化）
+T-158 SSO 补遗：login-sso  sso-error（OIDC 登录按钮与错误行）
+T-160/T-177 迁移面板补遗：migration-readonly-note  migration-confirm-text
+  migration-start  migration-start-error（T-177 为迁移加了控制台启动入口
+  ——本册 §4.11 框注「控制台无触发/写入口」已过时，以 src 为准）
+T-218 readonly 注记族（各管理页「只读管理员」说明行 + 会话徽章）：
+  session-readonly-badge（AppShell 会话徽章「只读」）
+  dashboard-readonly-note  repos-readonly-note  users-readonly-note
+  groups-readonly-note  perms-readonly-note  quotas-readonly-note
+  gc-readonly-note  user-form-readonly-note  perm-editor-readonly-note
+T-237 穿梭显名（C5 双列穿梭列容器，原以逗号短写行文、现显名列出）：
+  transfer-available  transfer-selected
+T-239 树页引导卡：browser-intro（跨仓根引导卡——无仓库选中时的右列说明）
+T-241 权限编辑器批（v1.7 入册——T-241 落地时 area 不含本册，§2.3 登记）：
+  两步资源对话框：perm-res-dialog  perm-res-step  perm-res-repos
+    perm-res-next  perm-res-cancel  perm-res-ok  perm-res-back
+  列表与编辑器：perms-count  perms-sort-{name|users|groups|repos|patterns}
+    perm-manage-badge-<name>  perm-matrix-groups（组矩阵表体——
+    kind===groups 臂；perm-matrix 为 users 臂）  perm-patterns-summary
+    perm-repo-pick-<key>（对话框选仓复选项）  perm-editor-readonly-note
+T-242 对话框族批（v1.7 入册，48 枚——Set Me Up + Deploy + 三入口）：
+  Set Me Up：smu-dialog  smu-grid  smu-grid-item-<pt>  smu-grid-denied
+    smu-grid-empty  smu-back  smu-repo  smu-tab-configure  smu-tab-deploy
+    smu-pane-configure  smu-pane-deploy  smu-token-area  smu-generate
+    smu-stepup  smu-password  smu-password-submit  smu-password-error
+    smu-mint-error  smu-token-panel  smu-token  smu-cmd-conf-<pt>-<i>
+    smu-cmd-dep-<pt>-<i>  smu-close  smu-done
+  Deploy：deploy-dialog  deploy-repo  deploy-target  deploy-target-echo
+    deploy-drop  deploy-file-input  deploy-rows  deploy-row-<name>
+    deploy-echo-<name>  deploy-verify-<name>  deploy-retry-<name>
+    deploy-submit  deploy-close  deploy-empty  deploy-gav-<field>
+    deploy-maven-preview
+  入口钮：tree-setmeup  tree-deploy（树页头动作区）
+    repos-setmeup-<key>  repos-deploy-<key>（列表行操作列）
+    repo-setmeup  repo-deploy（详情头动作区）
 ```
 
 v1.1 → v1.2 差异注记（核对基准 = v1.1 §10.3 预定清单 vs 源码）：
@@ -982,7 +1028,7 @@ M8 路由表（console-m8 §1.4）重排后，§10.2/§10.3 的 **242 锚零改�
 | `/admin/repositories/:key[/edit]` | `repo-detail-page` 族 / `repo-form-page` | 原 `/repositories/:key[/settings]` |
 | `/admin/security/{users\|groups\|permissions\|tokens}[/:name\|/new]` | `users-*` `user-*` `groups-*` `perm-*` 族 / `placeholder-page` | 原 `/security/*` |
 | `/admin/governance/{audit\|gc\|quotas\|replication\|backup}` | `audit-*` `gc-*` `quota-*` `repl-*` `backup-*` 族 | 原 `/audit` `/governance/*` |
-| `/admin/monitoring/storage` | `placeholder-page`（新页归 T-238） | 新路由 |
+| `/admin/monitoring/storage` | `storage-page` 族（T-238 批，v1.7 入册——D-1 收口） | 新路由；原行 `placeholder-page（新页归 T-238）` 已过时 |
 | `/admin/general/settings` | `settings` + `settings-instance` + `settings-health`（T-238 `SystemInfoPage` 承接；改密已迁 `/profile`——T-239） | 原 `/settings` |
 
 **T-235 壳新锚（10 枚，先入本清单再落码流程兑现）**：
@@ -1045,7 +1091,7 @@ search.css`（T-236 登记的归位收口）。
 
 ```
 列表三 Tab：repos-tab-{local|remote|virtual}（Tab 子路由导航，aria-current=page）
-            repos-sort-{key,package}（列头排序，aria-sort 三态——T-237 基准同款）
+            repos-sort-{key|package}（列头排序，aria-sort 三态——T-237 基准同款）
             repos-delete-<repoKey>（行尾删除入口——仅全量 admin，L4 预收敛）
             repos-pager（底部计数行「显示 a – b / 共 c 项」）
 建仓向导：  pkg-grid（包类型网格对话框——C7 五项，进页即弹）
@@ -1055,7 +1101,7 @@ search.css`（T-236 登记的归位收口）。
             repo-form-readonly-note（readonly_admin 表单只读注记——T-218 债收口：
             文案走 CanManageRepo write 语义）
 详情三 Tab：repo-tab-{summary,config,replications}（概要/配置/Replications）
-            repo-quota-{input,save,cancel,error}（配置 Tab 行内配额编辑——
+            repo-quota-{input|save|cancel|error}（配置 Tab 行内配额编辑——
             CanManageRepo：admin 与 m-holder 可写、readonly 禁用）
             repo-detail-readonly-note（readonly_admin 详情只读注记）
             repo-manage-note（m-holder〔普通 user 持 manage〕详情身份注记）
@@ -1072,6 +1118,19 @@ T-240 退役锚（4 枚，操作流演进——替换形态入册如上）：`re
 （三步向导步骤钮——console-m8 §4.4 定案单页分区式）。T-99 冻结锚（repos-* /
 repo-* / form-* 主体）**零改名**；`repos-filter-key` 保留。
 
+**T-244 显式退役条目（v1.7）**——锚册的退役只认本格式条目（T-243 缺陷 D-3
+起规矩；v1.5/v1.6 的退役已各在其批次注记，等价生效）：
+
+| 退役锚 | 原承载 | 退役原因（票/裁定） | 替换形态 |
+|---|---|---|---|
+| `settings-password` | 设置页改密卡（T-98） | T-239 拆分：改密随 `/profile` 迁址（`profile-password` 卡 + `password-*` 冻结锚随表迁址零改名）；D-3 补显式条目 | `/profile` 的 `profile-password` + `password-{old,new,confirm,error,submit}` |
+| `tree-upload` | 树页面包屑位「⬆ 部署 Deploy」（UploadDialog，T-100） | T-244 树页双 Deploy 入口收敛——console-m8 §6.3[1] 裁定页头动作区承载 Deploy；`tree-deploy`（DeployDialog）是浏览器上传唯一入口 | 页头 `tree-deploy`；空目录 CTA 亦开 DeployDialog（目录上下文经 preselectedDir 带入） |
+| `upload-dialog` `upload-target` `upload-drop` `upload-file-input` `upload-file-<i>` `upload-retry-<i>` `upload-verify-<i>` `upload-gav-<groupId|artifactId|version|classifier|packaging>` `upload-maven-preview` `upload-maven-input` | UploadDialog（T-100 上传对话框全家，14 锚） | 同上——组件随唯一入口退役删除（`mavenTarget` 归位 lib/maven）；e2e 上传腿全量迁移 deploy-* 锚 | `deploy-dialog` 族（T-242 批，v1.7 已入册）：行 = `deploy-row-<name>`、校验 = `deploy-verify-<name>`、GAV = `deploy-gav-<field>`、预览 = `deploy-maven-preview` |
+
+T-99 冻结锚主体（tree-* 除 tree-upload 外 / node-* / 其余）**零改名**；
+`tree-deploy` 对 readonly_admin 禁用（T-218 写入口预收敛语义，随收敛自
+tree-upload 平移）。
+
 变更注记（T-240，dev-frontend 回写）：仓库详情 `repo-governance-card` 自本票
 起藏于 `repo-tab-config` 之后（**锚不变、操作流多一步 Tab 切换**，
 `e2e/repositories.spec.ts` 同步 +2 行）；`repo-detail-page .key` 类锚与危险区
@@ -1081,3 +1140,61 @@ repo-* / form-* 主体）**零改名**；`repos-filter-key` 保留。
 **锚总量复核口径（v1.4 实测）**：`grep -rn "data-testid" web/src/` = **293 落点 / 29 文件**（v1.2 基线 242 之后，T-104~T-234 各票陆续增锚至 HEAD 的 283 落点——ADR-0029 原写 283 即此原始 grep 数）；T-235 净变化 = 壳**删 0 改 0、新增 10**（AppShell 10 → 20），占位路由新增 0（复用 `placeholder-page`）。另：`web/src/styles/theme-smoke.spec.ts`（7 处选择器引用，非锚）随 T-232 遗留①迁出 `src/` 至 `e2e/m8/theme-smoke.spec.ts`，不再计入 src 侧 grep。
 
 **锚总量（v1.2 核对基准）**：`grep -rn "data-testid" web/src/` = **242 处落点 / 27 文件**；动态族计一名约 **230 锚**（§10.2 + §10.3 合计）。v1.1 预定锚转正流程至此闭环（v1.1 文末「落码后回写本节并升 v1.2」约定兑现）。
+
+### 10.6 死锚登记与三方对账器（v1.6 新增，T-244——T-243 缺陷 D-4 收口）
+
+**对账器**：`web/scripts/anchor-audit.mjs`（node 直跑，零依赖）——册（本文档 §10，
+`{a|b}` 备选展开 + `<动态段>` 家族化）↔ src（`web/src` 全量 `data-testid` / `testid`
+prop / prop 缺省值 / `itemTestid` 回调 / 三元双臂）↔ spec（`web/e2e` 全量引用）三方
+对账，输出四张表：`unregistered`（src 有册无）/ `retired`（册有 src 无，§10.4 未
+落地锚白名单豁免）/ `dead`（src 有、spec 零消费）/ `broken`（spec 引用 src 无——
+断链，必须修）。**broken = 0 是硬门**，其余三表为登记底稿。
+
+**v1.7 实测基线**（本票终态，`node web/scripts/anchor-audit.mjs` 复现）：src
+**423 家族 / 493 落点**；spec 引用 **372 家族**（1,356 具体引用）；册 **482**；
+四表终态 = **unregistered 0 / broken 0**（入册与断链双清零）——retired 表恰为
+已登记退役集（v1.5 `user-form-admin`、v1.6 `repos-filter-{type,package}`、
+v1.7 `settings-password` + `tree-upload`/`upload-*` 族）；**死锚 112 家族**（占
+src 家族 26%——主体为 m7-done 前的「先落锚后补断言」欠账，M8 未丢失既有覆盖，
+T-243 §二溯源结论维持）。死锚全量清单（按域分组，对账器随时可重出）：
+
+```
+壳/全局：app-boot  toast-stack  error-retry
+仪表盘：dashboard-audit-table  dashboard-audit-row-<i>  repos-empty（仪表盘臂）
+树页：  browser-toolbar  tree-refresh  tree-empty-instance  tree-footer-stats
+        node-copy-<sha256|sha1|md5>  node-tab-general  node-tags
+仓库域：repo-commands  repo-cmd-<pkg>-<i>  repo-usage-bar  repo-advanced-card
+        repo-goto-tree  repo-edit-link-config  repo-quota-cancel  repo-quota-error
+        repos-delete-<key>  repos-sort-package  form-summary  form-cancel
+        form-allow-private  form-private-warn  form-member-pick  form-priority
+        form-handle-releases  form-handle-snapshots  form-checksum-policy
+        form-snapshot-behavior  form-hard-fail  member-down-<i>
+安全域：user-row-<name>  user-facts  user-form-cancel  user-form-reset
+        user-form-group-<name>  user-form-role-<role>  user-perm-row-<target>
+        group-row-<name>  group-edit-<name>  group-delete-dismiss
+        group-form-cancel  group-form-error  group-form-reset  group-form-member-<user>
+        group-perms-<name>  group-members-<name>  group-manage-badge-<name>
+        group-perm-row-<target>  perm-row-<name>  perms-sort-{users|groups|repos|patterns}
+        perm-delete-button  perm-repo-remove-<key>  perm-repo-pick-<key>
+        perm-matrix-cell-<kind>-<principal>-<action>  perm-matrix-remove-<kind>-<name>
+        perm-manage-badge-<name>  perm-patterns-summary  perm-res-back
+        perm-editor-readonly-note  transfer-available  transfer-selected
+治理域：backup-page  backup-cmd-{export,import}  gc-error  quotas-table  quotas-empty
+        quota-row-<repoKey>  quota-bar-<repoKey>  quota-edit-<repoKey>
+        quota-input-<repoKey>  quota-save-<repoKey>  quota-cancel-<repoKey>
+        quota-error-<repoKey>  migration-readonly-note  repl-page
+监控域：storage-row-<repoKey>  storage-summary-blobs  storage-empty  storage-partial
+        storage-progress
+搜索页：search-results（结果表容器）
+壳菜单：quick-new-group  quick-new-repo-{local|remote|virtual}
+对话框：smu-close  smu-grid-denied  smu-grid-empty  smu-mint-error  smu-token-area
+        smu-cmd-conf-<pt>-<i>  deploy-close  deploy-empty  deploy-file-input
+        deploy-rows  deploy-row-<name>  deploy-echo-<name>  deploy-verify-<name>
+        deploy-retry-<name>  deploy-target  deploy-target-echo  deploy-gav-<field>
+        deploy-maven-preview
+```
+
+**守卫规矩（建议入后续票 AC）**：① 新票锚**消费下限**——新批次锚的 spec 消费率
+≥80%（T-243 实测新批次 7~8 成即达线；跌破线须在票内说明）；② `anchor-audit.mjs`
+的 `broken` 表必须为空才可过 qa；③ 死锚清单每大版本回归时重出一次，连续两个大
+版本零消费的锚按退役流程处置（显式条目，不得静默删除）。

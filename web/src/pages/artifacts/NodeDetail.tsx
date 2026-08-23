@@ -5,6 +5,7 @@ import { useAuth } from '../../app/AuthContext'
 import { CopyButton } from '../../components/CopyButton'
 import { Skeleton } from '../../components/Skeleton'
 import { formatBytes } from '../../lib/format'
+import { onTablistKeys } from '../../lib/keys'
 import { getRepoDetail, getRepoUsage } from '../../lib/repos'
 import { useAsync } from '../../lib/useAsync'
 import { getItem, getItemPermissions } from './lib'
@@ -117,7 +118,12 @@ export default function NodeDetail({
         </div>
       </header>
 
-      <div className="node-tabs" role="tablist" aria-label="详情视图">
+      <div
+        className="node-tabs"
+        role="tablist"
+        aria-label="详情视图"
+        onKeyDown={(e) => onTablistKeys(e, admin ? ['general', 'perms'] : ['general'], tab, setTab)}
+      >
         <button
           type="button"
           role="tab"
