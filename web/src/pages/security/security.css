@@ -492,3 +492,58 @@
   color: var(--bf-text-muted);
   font-size: var(--bf-fs-aux);
 }
+
+/* ============================================================
+ * T-241 增补区块（权限 target 编辑器重排，console-m8 §4.5/§6.11）：
+ * 两步资源对话框 + 路径模式摘要行。只追加新类，不改上方 T-101/T-237
+ * 已交区块的任何类名。
+ * ============================================================ */
+
+/* 两步资源对话框：base.css 的 .modal 是 440px（危险确认体量）；穿梭双列
+   + pattern 双栏需要宽体——本页面组自持加宽类叠加，不动共享层。 */
+
+.modal.perm-res-modal {
+  width: min(720px, calc(100vw - 48px));
+}
+
+.perm-res-step {
+  margin: calc(-1 * var(--bf-sp-2)) 0 var(--bf-sp-3);
+  font-size: var(--bf-fs-aux);
+  color: var(--bf-text-2);
+}
+
+.perm-res-body {
+  margin-bottom: var(--bf-sp-4);
+}
+
+/* 编辑器 [2] 区的模式只读摘要（编辑面在对话框第 2 步——§6.11 线框） */
+
+.perm-pattern-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--bf-sp-2);
+  margin-bottom: var(--bf-sp-3);
+  font-size: var(--bf-fs-body);
+}
+
+.perm-pattern-summary .badge {
+  font-family: var(--bf-mono);
+}
+
+/* 模式测试器判定徽章对比度收口（axe serious=0，T-241）：base 的
+   .badge.success/.badge.danger 亮主题实测 4.14:1 / 4.07:1（语义色 15%
+   tint 上语义色文字——shared 层缺陷，与 T-237 发现的 .badge.warning
+   4.26:1 同族）。本页面组自持类：底保持 15% 语义 tint，文字向正文色
+   收敛 18%（实测 ≥5:1 两主题）；base.css 是共享层（R6 边界）不动，
+   全局收口归共享层小票（T-237 §2.4 建议合并）。 */
+
+.badge.perm-verdict-success {
+  background: color-mix(in srgb, var(--bf-success) 15%, transparent);
+  color: color-mix(in srgb, var(--bf-success) 82%, var(--bf-text));
+}
+
+.badge.perm-verdict-danger {
+  background: color-mix(in srgb, var(--bf-danger) 15%, transparent);
+  color: color-mix(in srgb, var(--bf-danger) 82%, var(--bf-text));
+}

@@ -99,14 +99,20 @@ test('W33 three-step flow: group -> user membership -> target matrix, tester + d
   // 第三步：建 target（repo / patterns / principals 双栏 r/w/d）
   await page.goto('/binflow/ui/security/permissions/new')
   await page.fill('[data-testid="perm-form-name"]', target)
-  await page.selectOption('[data-testid="perm-repo-add"]', repo)
-  await expect(page.locator('[data-testid="perm-repos"]')).toContainText(repo)
+  // 两步资源对话框（T-241，console-m8 §4.5）：① 穿梭选仓 → ② pattern → 确定
+  await page.click('[data-testid="perm-repo-add"]')
+  await expect(page.locator('[data-testid="perm-res-dialog"]')).toBeVisible()
+  await page.check(`[data-testid="perm-repo-pick-${repo}"]`)
+  await expect(page.locator('[data-testid="perm-res-repos"] [data-testid="transfer-selected"]')).toContainText(repo)
+  await page.click('[data-testid="perm-res-next"]')
   // include：默认 ** 收窄为 qa/**
   await page.click('[data-testid="perm-pattern-remove-include-0"]')
   await page.fill('[data-testid="perm-pattern-input-include"]', 'qa/**')
   await page.click('[data-testid="perm-pattern-add-include"]')
   await page.fill('[data-testid="perm-pattern-input-exclude"]', 'qa/tmp/**')
   await page.click('[data-testid="perm-pattern-add-exclude"]')
+  await page.click('[data-testid="perm-res-ok"]')
+  await expect(page.locator('[data-testid="perm-repos"]')).toContainText(repo)
 
   // 模式测试器（编辑器灵魂件）：命中 / exclude 优先 / 未命中
   await page.fill('[data-testid="perm-pattern-test"]', 'qa/builds/app.bin')
@@ -317,10 +323,14 @@ test('W33c dotted target name: 409 panel parses and links the full name (review 
   await expect(editor).not.toContainText('不存在')
 
   // NB② 回归：删掉 include chip 再加回（仅重排）→ 集合等价 → 保存按钮禁用
-  //（旧 sameSnapshot 顺序敏感会让 diff 空而按钮可点、确认框误显新建文案）
+  //（旧 sameSnapshot 顺序敏感会让 diff 空而按钮可点、确认框误显新建文案；
+  //  T-241 起 pattern 编辑面在两步对话框第 2 步）
+  await page.click('[data-testid="perm-repo-add"]')
+  await page.click('[data-testid="perm-res-next"]')
   await page.click('[data-testid="perm-pattern-remove-include-0"]')
   await page.fill('[data-testid="perm-pattern-input-include"]', '**')
   await page.click('[data-testid="perm-pattern-add-include"]')
+  await page.click('[data-testid="perm-res-ok"]')
   await expect(page.locator('[data-testid="perm-save"]')).toBeDisabled()
 
   // 解除引用 + 删组收尾（闭环与 W33c 同）
