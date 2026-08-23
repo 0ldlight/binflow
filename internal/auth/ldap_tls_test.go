@@ -40,7 +40,6 @@ import (
 	"time"
 
 	ber "github.com/go-asn1-ber/asn1-ber"
-	ldap "github.com/go-ldap/ldap/v3"
 
 	"github.com/lzwzzy/binflow/internal/auth"
 )
@@ -644,12 +643,7 @@ func TestLDAPProviderStartTLSWiring(t *testing.T) {
 			})
 			mock.startTLSErr = tt.startTLSErr
 
-			dialer := func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
-				mock.bound = false
-				mock.boundDN = ""
-				mock.closed = false
-				return mock, nil
-			}
+			dialer := mockDialer(mock)
 			cfg := &auth.LDAPConfig{
 				Enabled: true, URL: tt.url, BaseDN: "dc=example,dc=com",
 				UserFilter: "(uid=%s)", UserIDAttr: "uid", PoolSize: 1,
@@ -703,9 +697,7 @@ func TestLDAPProviderGroupBaseDNDefaults(t *testing.T) {
 		mock.addGroup("cn=dev,ou=groups,dc=example,dc=com", map[string][]string{
 			"cn": {"dev"}, "objectClass": {"groupOfNames"}, "memberUid": {"alice"},
 		})
-		dialer := func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
-			return mock, nil
-		}
+		dialer := mockDialer(mock, mockDialKeepState())
 		cfg := &auth.LDAPConfig{
 			Enabled: true, URL: "ldap://dir.example.com:389", BaseDN: "dc=example,dc=com",
 			UserFilter: "(uid=%s)", UserIDAttr: "uid",
@@ -751,9 +743,7 @@ func TestLDAPProviderGroupBaseDNDefaults(t *testing.T) {
 		mock.addGroup("cn=legacy,ou=other,dc=example,dc=com", map[string][]string{
 			"cn": {"legacy"}, "objectClass": {"groupOfNames"}, "memberUid": {"alice"},
 		})
-		dialer := func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
-			return mock, nil
-		}
+		dialer := mockDialer(mock, mockDialKeepState())
 		cfg := &auth.LDAPConfig{
 			Enabled: true, URL: "ldap://dir.example.com:389", BaseDN: "dc=example,dc=com",
 			UserFilter: "(uid=%s)", UserIDAttr: "uid",
@@ -810,9 +800,7 @@ func TestLDAPProviderTLSConfigLogs(t *testing.T) {
 
 			mock := newMockLDAPConn()
 			mock.addUser("uid=alice,dc=example,dc=com", "alicepass", map[string][]string{"uid": {"alice"}})
-			dialer := func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
-				return mock, nil
-			}
+			dialer := mockDialer(mock, mockDialKeepState())
 			prov, err := auth.NewLDAPProvider(tt.cfg, nil, dialer)
 			if err != nil {
 				t.Fatalf("NewLDAPProvider: %v", err)

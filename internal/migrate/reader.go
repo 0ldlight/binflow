@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/lzwzzy/binflow/internal/client"
 )
 
 // SourceConfig configures the Artifactory source reader.
@@ -239,7 +241,7 @@ func (r *Reader) walkRepoFiles(ctx context.Context, repo string) ([]SourceFile, 
 
 		path := "/api/storage/" + url.PathEscape(repo)
 		if folder != "" {
-			path += "/" + escapePathSegments(folder)
+			path += "/" + client.EscapePathSegments(folder)
 		}
 		var body folderInfoChildren
 		if err := r.get(ctx, path, &body); err != nil {
@@ -288,7 +290,7 @@ func filterSourceFiles(files []SourceFile) []SourceFile {
 // rest-api.md section 1: GET /{repoKey}/{path} — no /api prefix). The caller
 // must close the returned reader.
 func (r *Reader) OpenFile(ctx context.Context, repo, path string) (io.ReadCloser, error) {
-	u := r.base + "/" + url.PathEscape(repo) + "/" + escapePathSegments(path)
+	u := r.base + "/" + url.PathEscape(repo) + "/" + client.EscapePathSegments(path)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build GET %s/%s: %w", repo, path, err)
@@ -311,16 +313,10 @@ func (r *Reader) OpenFile(ctx context.Context, repo, path string) (io.ReadCloser
 	return nil, &APIError{Op: "GET " + repo + "/" + path, StatusCode: resp.StatusCode, Body: string(body)}
 }
 
-// escapePathSegments percent-escapes every segment of a slash-separated
-// path so spaces and non-ASCII names survive the URL round trip (the
-// escaping never touches the separating slashes).
-func escapePathSegments(path string) string {
-	segs := strings.Split(path, "/")
-	for i, s := range segs {
-		segs[i] = url.PathEscape(s)
-	}
-	return strings.Join(segs, "/")
-}
+// escapePathSegments is gone (T-233, T-231 legacy item 1): the reader now
+// calls client.EscapePathSegments, the single wire-side escaping contract —
+// one implementation instead of two byte-identical private copies, so the
+// listing/download spelling and the writer's PUT spelling cannot drift.
 
 // get performs one authenticated GET and decodes the JSON body into out.
 func (r *Reader) get(ctx context.Context, path string, out any) error {

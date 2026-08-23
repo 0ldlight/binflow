@@ -56,6 +56,18 @@ type Options struct {
 	// users phase has users to create.
 	PasswordsOut string
 
+	// SkipUsers makes the users phase optional (FR-77 AC2, the B-1 fix):
+	// when the source REFUSES the user listing — HTTP 403 (non-admin
+	// credentials) or 400 (the Artifactory OSS license gate answers
+	// "available only in Artifactory Pro" to every caller, T-228 R-1) —
+	// the phase is skipped with a recorded degradation warning instead of
+	// aborting the whole run, and tokens/artifacts still migrate. A listing
+	// that succeeds migrates users normally. Any OTHER listing error
+	// (network, 5xx, decode) still aborts: fail-closed for unexpected
+	// shapes. Without the flag the phase is unchanged — any listing error
+	// aborts before the first user write.
+	SkipUsers bool
+
 	// Stdout receives the summary. Nil selects io.Discard.
 	Stdout io.Writer
 
@@ -130,6 +142,11 @@ type Summary struct {
 	Users        PhaseCounts
 	UserSkips    []ItemNote
 	UserFailures []ItemNote
+
+	// UserPhaseWarn carries the users-phase degradation note (--skip-users
+	// with a refused listing): rendered under the users block and persisted
+	// in the report's users warnings.
+	UserPhaseWarn string
 
 	// TokensMigrated is always 0: token values are not exportable
 	// (TokenPolicyNote).
@@ -449,6 +466,15 @@ func aliasPackageType(pkg string) string {
 func runUserPhase(ctx context.Context, rd *Reader, wr *Writer, opts Options, progress *Progress, s *Summary, now func() time.Time) error {
 	list, err := rd.ListUsers(ctx)
 	if err != nil {
+		// B-1 (FR-77 AC2): with --skip-users a REFUSED listing degrades to
+		// a warning and the run continues without users. Only 403/400
+		// qualify — the deterministic refusals T-228 documented on a real
+		// OSS source (non-admin credentials / the license gate); anything
+		// else (network, 5xx, decode) still aborts before the first write.
+		if opts.SkipUsers && IsStatus(err, 400, 403) {
+			s.UserPhaseWarn = fmt.Sprintf("users phase skipped via --skip-users: source refused the user listing (403 = non-admin credentials, 400 = e.g. the Artifactory OSS license gate): %v — no users migrated; recreate accounts on the target", err)
+			return nil
+		}
 		return fmt.Errorf("migrate: user phase aborted before any write: %w", err)
 	}
 	s.Users.Found = len(list)
@@ -689,6 +715,9 @@ func (s *Summary) Print(w io.Writer) {
 	}
 	for _, n := range s.UserFailures {
 		_, _ = fmt.Fprintf(w, "  FAILED user %s: %s\n", n.Name, n.Reason)
+	}
+	if s.UserPhaseWarn != "" {
+		_, _ = fmt.Fprintf(w, "  warning: %s\n", s.UserPhaseWarn)
 	}
 	if s.PasswordsWritten > 0 {
 		_, _ = fmt.Fprintf(w, "  generated passwords appended to %s (mode 0600)\n", s.PasswordsPath)

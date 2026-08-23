@@ -14,8 +14,6 @@ import (
 	"testing"
 	"time"
 
-	ldap "github.com/go-ldap/ldap/v3"
-
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/metadata"
 )
@@ -306,9 +304,7 @@ func TestLDAPLoginSyncsGroups(t *testing.T) {
 	}
 	addMockGroup("cn=developers,ou=groups,dc=example,dc=org", "jdoe")
 
-	dialer := func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
-		return mock, nil
-	}
+	dialer := mockDialer(mock, mockDialKeepState())
 	prov, err := auth.NewLDAPProvider(&auth.LDAPConfig{
 		Enabled:       true,
 		URL:           "ldap://ldap.example.com:389",

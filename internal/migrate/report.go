@@ -98,6 +98,16 @@ func phaseReportOf(found, migrated, skipped, already, failed int, skips, failure
 	}
 }
 
+// userWarnings projects the users-phase degradation note (--skip-users with
+// a refused listing, B-1) into the report's warnings slot; nil keeps the
+// field absent for a phase that ran normally.
+func userWarnings(s *Summary) []string {
+	if s.UserPhaseWarn == "" {
+		return nil
+	}
+	return []string{s.UserPhaseWarn}
+}
+
 // writeReportFile renders the summary into migration_report.json
 // (atomically, 0600 — the document names accounts and repository layout).
 // A missing path disables the report (tests and library embedding).
@@ -123,7 +133,7 @@ func writeReportFile(path, toolVersion string, s *Summary, started, ended time.T
 		Note:           s.Guard.Note,
 	}
 	rep.Repos = phaseReportOf(s.Repos.Found, s.Repos.Migrated, s.Repos.Skipped, s.Repos.AlreadyDone, s.Repos.Failed, s.RepoSkips, s.RepoFailures, s.RepoWarnings)
-	rep.Users = phaseReportOf(s.Users.Found, s.Users.Migrated, s.Users.Skipped, s.Users.AlreadyDone, s.Users.Failed, s.UserSkips, s.UserFailures, nil)
+	rep.Users = phaseReportOf(s.Users.Found, s.Users.Migrated, s.Users.Skipped, s.Users.AlreadyDone, s.Users.Failed, s.UserSkips, s.UserFailures, userWarnings(s))
 	rep.Tokens = reportTokens{Found: s.TokensFound, Migrated: s.TokensMigrated, Skipped: s.TokensSkipped, Note: s.TokenPhaseNote, Warning: s.TokenPhaseWarn}
 	rep.Artifacts = reportArtifacts{
 		reportPhase:  phaseReportOf(s.Artifacts.Found, s.Artifacts.Migrated, s.Artifacts.Skipped, s.Artifacts.AlreadyDone, s.Artifacts.Failed, nil, s.ArtifactFailures, s.ArtifactWarnings),

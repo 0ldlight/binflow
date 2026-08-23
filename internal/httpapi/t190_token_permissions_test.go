@@ -30,8 +30,6 @@ import (
 	"testing"
 	"time"
 
-	ldap "github.com/go-ldap/ldap/v3"
-
 	"github.com/lzwzzy/binflow/internal/audit"
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/config"
@@ -115,9 +113,7 @@ func newT190Stack(t *testing.T, mutate func(*config.Config)) *t190Stack {
 		ConnectTimeout: 2 * time.Second,
 		RequestTimeout: 5 * time.Second,
 	}, auth.NewLDAPResolver(md.Users()),
-		auth.LDAPDialer(func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
-			return &mockLDAPConn{dir: dir}, nil
-		}))
+		ldapTestDialer(dir, ldapDialFaults{}))
 	if err != nil {
 		t.Fatalf("NewLDAPProvider: %v", err)
 	}

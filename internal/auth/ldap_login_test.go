@@ -7,8 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	ldap "github.com/go-ldap/ldap/v3"
-
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/metadata"
 )
@@ -62,13 +60,7 @@ func TestLDAPLoginFallback(t *testing.T) {
 	})
 
 	dialCount := 0
-	dialer := func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
-		dialCount++
-		mock.bound = false
-		mock.boundDN = ""
-		mock.closed = false
-		return mock, nil
-	}
+	dialer := mockDialer(mock, mockDialCount(&dialCount))
 
 	cfg := &auth.LDAPConfig{
 		Enabled:       true,
@@ -230,12 +222,7 @@ func TestLDAPLoginAutoCreate(t *testing.T) {
 		"objectClass": {"posixAccount"},
 	})
 
-	dialer := func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
-		mock.bound = false
-		mock.boundDN = ""
-		mock.closed = false
-		return mock, nil
-	}
+	dialer := mockDialer(mock)
 
 	cfg := &auth.LDAPConfig{
 		Enabled:       true,
@@ -351,12 +338,7 @@ func TestLDAPLoginLocalUserWithLdapPass(t *testing.T) {
 		"uid": {"shared-user"},
 	})
 
-	dialer := func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
-		mock.bound = false
-		mock.boundDN = ""
-		mock.closed = false
-		return mock, nil
-	}
+	dialer := mockDialer(mock)
 
 	cfg := &auth.LDAPConfig{
 		Enabled:       true,

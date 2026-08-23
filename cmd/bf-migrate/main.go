@@ -32,6 +32,10 @@
 //   - User passwords are never exportable either: pass --password-env
 //     (one shared password) or --passwords-out (generated per-user
 //     passwords written to a 0600 file).
+//   - --skip-users makes the users phase optional: a REFUSED listing
+//     (HTTP 400/403 — the Artifactory OSS license gate or non-admin
+//     credentials) is degraded to a recorded warning and the run continues
+//     without users; a readable listing still migrates them.
 //   - Every run writes migration_report.json (path overridable) recording
 //     per-phase counts, per-repository artifact rows, skip reasons and
 //     failure lists.
@@ -109,7 +113,9 @@ Phases (always in this order):
 	          package types are skipped with a recorded reason)
 	users     internal-realm users (anonymous, _system_ and identity-provider
 	          realms are skipped); passwords are NOT exportable, so pass
-	          --password-env or --passwords-out
+	          --password-env or --passwords-out; --skip-users degrades a
+	          REFUSED listing (HTTP 400/403 — OSS license gate, non-admin
+	          credentials) to a warning and continues without users
 	tokens    accounting only: Artifactory's token listing is metadata-only,
 	          token values cannot be exported — recreate them on the target
 	artifacts repository content: generic (and maven layout) repositories
@@ -168,6 +174,13 @@ Flags:
 	--passwords-out <file>         Write one generated random password per
 	                                   migrated user as "<name> <password>"
 	                                   lines (mode 0600, appended on resume)
+	--skip-users                   Treat the users phase as optional: when the
+	                                   source refuses the user listing (HTTP
+	                                   400/403 — the Artifactory OSS license
+	                                   gate or non-admin credentials), skip
+	                                   the phase with a recorded warning
+	                                   instead of aborting the run; a
+	                                   readable listing still migrates users
 	--help, -h                     Show this help text
 
 Examples:
@@ -187,6 +200,10 @@ Examples:
 	bf-migrate migrate --artifactory-url http://src:8081/artifactory \
 	    --server http://binflow:8080 --passwords-out ./migrated-passwords.txt \
 	    --resume
+
+	# Artifactory OSS source (the user API is license-gated there):
+	bf-migrate migrate --artifactory-url http://src:8081/artifactory \
+	    --server http://binflow:8080 --skip-users
 
 Notes:
 
@@ -251,6 +268,7 @@ type migrateFlags struct {
 	reportFile         string
 	passwordEnv        string
 	passwordsOut       string
+	skipUsers          bool
 }
 
 // runMigrate wires the flags into a migrate.Run call.
@@ -273,6 +291,7 @@ func runMigrate(args []string, stdout, stderr io.Writer) error {
 	fs.StringVar(&f.reportFile, "report-file", migrate.DefaultReportPath, "run report file path (migration_report.json shape)")
 	fs.StringVar(&f.passwordEnv, "password-env", "", "env var holding a shared password for migrated users")
 	fs.StringVar(&f.passwordsOut, "passwords-out", "", "file to write generated per-user passwords to (0600)")
+	fs.BoolVar(&f.skipUsers, "skip-users", false, "treat the users phase as optional: a refused listing (HTTP 400/403) is skipped with a warning instead of aborting")
 	if err := fs.Parse(args); err != nil {
 		return fmt.Errorf("bf-migrate migrate: %w", err)
 	}
@@ -341,6 +360,7 @@ func doMigrate(f migrateFlags, stdout, stderr io.Writer) error {
 		ToolVersion:         version,
 		PasswordEnv:         f.passwordEnv,
 		PasswordsOut:        f.passwordsOut,
+		SkipUsers:           f.skipUsers,
 		Stdout:              stdout,
 	})
 	return err

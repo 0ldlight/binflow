@@ -107,6 +107,29 @@ func (c *mockLDAPConn) Close() error { return nil }
 
 func (c *mockLDAPConn) SetTimeout(_ time.Duration) {}
 
+// ldapDialFaults injects the failure arms of the httpapi LDAP dialer mock.
+type ldapDialFaults struct {
+	err         error // non-nil: every dial fails with err (dial outage)
+	upgradeFail bool  // hand out startTLSFailConn instead (StartTLS refusal)
+}
+
+// ldapTestDialer is the httpapi-side constructor for the auth.LDAPDialer
+// seam (FR-77 AC5 / T-233): it hands out a FRESH mockLDAPConn over dir on
+// every dial — this mock keeps no shared bookkeeping, so nothing resets.
+// It replaces the per-file inline dialer closures; the old blank-parameter
+// dialer signature must stay at ZERO grep hits under internal/.
+func ldapTestDialer(dir *mockDirectory, faults ldapDialFaults) auth.LDAPDialer {
+	return func(context.Context, string, ...ldap.DialOpt) (auth.LDAPConn, error) {
+		if faults.err != nil {
+			return nil, faults.err
+		}
+		if faults.upgradeFail {
+			return startTLSFailConn{&mockLDAPConn{dir: dir}}, nil
+		}
+		return &mockLDAPConn{dir: dir}, nil
+	}
+}
+
 // filterValue extracts the value of attr= from an LDAP filter term
 // ("(uid=jdoe)" -> "jdoe").
 func filterValue(filter, attr string) string {
@@ -172,9 +195,7 @@ func newLDAPStack(t *testing.T, wireLDAP bool) *ldapStack {
 			ConnectTimeout: 2 * time.Second,
 			RequestTimeout: 5 * time.Second,
 		}, auth.NewLDAPResolver(md.Users()),
-			auth.LDAPDialer(func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
-				return &mockLDAPConn{dir: dir}, nil
-			}))
+			ldapTestDialer(dir, ldapDialFaults{}))
 		if err != nil {
 			t.Fatalf("NewLDAPProvider: %v", err)
 		}

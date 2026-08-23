@@ -23,8 +23,6 @@ import (
 	"testing"
 	"time"
 
-	ldap "github.com/go-ldap/ldap/v3"
-
 	"github.com/lzwzzy/binflow/internal/audit"
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/config"
@@ -118,15 +116,7 @@ func newT187Stack(t *testing.T, opts ...t187StackOpt) *t187Stack {
 			RequestTimeout: 5 * time.Second,
 			StartTLS:       cfg.startTLS,
 		}, auth.NewLDAPResolver(md.Users()),
-			auth.LDAPDialer(func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
-				if cfg.dialErr != nil {
-					return nil, cfg.dialErr
-				}
-				if cfg.upgradeFail {
-					return startTLSFailConn{&mockLDAPConn{dir: dir}}, nil
-				}
-				return &mockLDAPConn{dir: dir}, nil
-			}))
+			ldapTestDialer(dir, ldapDialFaults{err: cfg.dialErr, upgradeFail: cfg.upgradeFail}))
 		if err != nil {
 			t.Fatalf("NewLDAPProvider: %v", err)
 		}

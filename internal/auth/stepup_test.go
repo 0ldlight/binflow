@@ -14,8 +14,6 @@ import (
 	"testing"
 	"time"
 
-	ldap "github.com/go-ldap/ldap/v3"
-
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/metadata"
 )
@@ -62,9 +60,7 @@ func newStepUpFixture(t *testing.T, wireLDAP bool) *stepUpFixture {
 			ConnectTimeout: 2 * time.Second,
 			RequestTimeout: 5 * time.Second,
 		}, auth.NewLDAPResolver(st.Users()),
-			auth.LDAPDialer(func(context.Context, string, ...ldap.DialOpt) (auth.LDAPConn, error) {
-				return mock, nil
-			}))
+			mockDialer(mock, mockDialKeepState()))
 		if err != nil {
 			t.Fatalf("NewLDAPProvider: %v", err)
 		}

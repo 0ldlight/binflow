@@ -248,8 +248,60 @@ func filterAttributes(attrs map[string][]string, requested []string) map[string]
 	return out
 }
 
-// mockLDAPDialer is gone (T-220): every test builds its closure inline with
-// NewLDAPProvider's LDAPDialer seam, so the wrapper type had no callers.
+// mockDialer is the single constructor for the LDAP test dialer seam
+// (FR-77 AC5 / T-233): it replaced the per-test inline closures T-220 had
+// blanked, so the old blank-parameter dialer signature (the one with every
+// parameter underscored) must stay at ZERO grep hits under internal/.
+// Default behavior: every dial hands out conn after resetting its
+// bind/close bookkeeping, so one shared mock acts like a fresh connection
+// on each pool checkout. The options below adapt the per-test concerns
+// that used to live in the closure bodies.
+func mockDialer(conn *mockLDAPConn, opts ...mockDialOpt) auth.LDAPDialer {
+	cfg := mockDialerConfig{reset: true}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+	return func(context.Context, string, ...ldap.DialOpt) (auth.LDAPConn, error) {
+		if cfg.err != nil {
+			return nil, cfg.err
+		}
+		if cfg.count != nil {
+			*cfg.count++
+		}
+		if cfg.reset {
+			conn.bound, conn.boundDN, conn.closed = false, "", false
+		}
+		return conn, nil
+	}
+}
+
+// mockDialOpt adapts mockDialer to a test's needs (functional options, the
+// package's injection convention).
+type mockDialOpt func(*mockDialerConfig)
+
+// mockDialerConfig is mockDialer's option state.
+type mockDialerConfig struct {
+	reset bool
+	count *int
+	err   error
+}
+
+// mockDialCount increments n on every dial (pool re-dial assertions).
+func mockDialCount(n *int) mockDialOpt {
+	return func(c *mockDialerConfig) { c.count = n }
+}
+
+// mockDialKeepState disables the per-dial reset: the shared conn keeps its
+// bind/close bookkeeping across dials (the former plain "return mock"
+// closures — those suites never re-dial mid-assertion).
+func mockDialKeepState() mockDialOpt {
+	return func(c *mockDialerConfig) { c.reset = false }
+}
+
+// mockDialErr fails every dial with err (fault injection, failure suite).
+func mockDialErr(err error) mockDialOpt {
+	return func(c *mockDialerConfig) { c.err = err }
+}
 
 // TestLDAPProviderBind tests the primary Bind flow of LDAPProvider.
 func TestLDAPProviderBind(t *testing.T) {
@@ -284,13 +336,7 @@ func TestLDAPProviderBind(t *testing.T) {
 
 	// Create a dialer that returns our mock.
 	dialCount := 0
-	dialer := func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
-		dialCount++
-		mock.bound = false
-		mock.boundDN = ""
-		mock.closed = false
-		return mock, nil
-	}
+	dialer := mockDialer(mock, mockDialCount(&dialCount))
 
 	cfg := &auth.LDAPConfig{
 		Enabled:       true,
@@ -353,12 +399,7 @@ func TestLDAPProviderBindWrongPassword(t *testing.T) {
 		"uid": {"alice"},
 	})
 
-	dialer := func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
-		mock.bound = false
-		mock.boundDN = ""
-		mock.closed = false
-		return mock, nil
-	}
+	dialer := mockDialer(mock)
 
 	cfg := &auth.LDAPConfig{
 		Enabled:       true,
@@ -398,12 +439,7 @@ func TestLDAPProviderBindUnknownUser(t *testing.T) {
 		"uid": {"admin"},
 	})
 
-	dialer := func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
-		mock.bound = false
-		mock.boundDN = ""
-		mock.closed = false
-		return mock, nil
-	}
+	dialer := mockDialer(mock)
 
 	cfg := &auth.LDAPConfig{
 		Enabled:       true,
@@ -439,12 +475,7 @@ func TestLDAPProviderBindUnknownUser(t *testing.T) {
 func TestLDAPProviderBindEmptyCredentials(t *testing.T) {
 	mock := newMockLDAPConn()
 
-	dialer := func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
-		mock.bound = false
-		mock.boundDN = ""
-		mock.closed = false
-		return mock, nil
-	}
+	dialer := mockDialer(mock)
 
 	cfg := &auth.LDAPConfig{
 		Enabled:       true,
@@ -498,12 +529,7 @@ func TestLDAPProviderBindWithoutBindDN(t *testing.T) {
 		"objectClass": {"posixAccount"},
 	})
 
-	dialer := func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
-		mock.bound = false
-		mock.boundDN = ""
-		mock.closed = false
-		return mock, nil
-	}
+	dialer := mockDialer(mock)
 
 	cfg := &auth.LDAPConfig{
 		Enabled:       true,
@@ -568,12 +594,7 @@ func TestLDAPProviderBindWithGroups(t *testing.T) {
 		"memberUid":   {"bob"},
 	})
 
-	dialer := func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
-		mock.bound = false
-		mock.boundDN = ""
-		mock.closed = false
-		return mock, nil
-	}
+	dialer := mockDialer(mock)
 
 	cfg := &auth.LDAPConfig{
 		Enabled:       true,
@@ -619,12 +640,7 @@ func TestLDAPProviderBindWithGroups(t *testing.T) {
 // TestLDAPProviderProviderName tests that ProviderName returns ProviderLDAP.
 func TestLDAPProviderProviderName(t *testing.T) {
 	mock := newMockLDAPConn()
-	dialer := func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
-		mock.bound = false
-		mock.boundDN = ""
-		mock.closed = false
-		return mock, nil
-	}
+	dialer := mockDialer(mock)
 
 	cfg := &auth.LDAPConfig{
 		Enabled:       true,
@@ -652,12 +668,7 @@ func TestLDAPProviderProviderName(t *testing.T) {
 // ErrInvalidCredentials (LDAP does not support Bearer tokens).
 func TestLDAPProviderAuthenticateAlwaysFails(t *testing.T) {
 	mock := newMockLDAPConn()
-	dialer := func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
-		mock.bound = false
-		mock.boundDN = ""
-		mock.closed = false
-		return mock, nil
-	}
+	dialer := mockDialer(mock)
 
 	cfg := &auth.LDAPConfig{
 		Enabled:    true,
@@ -687,9 +698,7 @@ func TestLDAPProviderAuthenticateAlwaysFails(t *testing.T) {
 // ProviderName make LDAPProvider a valid IdentityProvider.
 func TestLDAPProviderResolveImplementsIdentityProvider(t *testing.T) {
 	mock := newMockLDAPConn()
-	dialer := func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
-		return mock, nil
-	}
+	dialer := mockDialer(mock, mockDialKeepState())
 
 	cfg := &auth.LDAPConfig{
 		Enabled:    true,
@@ -764,12 +773,7 @@ func TestLDAPProviderMissingBaseDN(t *testing.T) {
 // populated with sensible defaults.
 func TestLDAPProviderConfigDefaults(t *testing.T) {
 	mock := newMockLDAPConn()
-	dialer := func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
-		mock.bound = false
-		mock.boundDN = ""
-		mock.closed = false
-		return mock, nil
-	}
+	dialer := mockDialer(mock)
 
 	cfg := &auth.LDAPConfig{
 		Enabled: true,
@@ -796,9 +800,7 @@ func TestLDAPProviderConfigDefaults(t *testing.T) {
 // non-ErrProviderUserNotFound error.
 func TestLDAPProviderGetByProviderError(t *testing.T) {
 	mock := newMockLDAPConn()
-	dialer := func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
-		return mock, nil
-	}
+	dialer := mockDialer(mock, mockDialKeepState())
 
 	cfg := &auth.LDAPConfig{
 		Enabled:    true,
@@ -844,12 +846,7 @@ func TestLDAPProviderBindServiceAccountFailure(t *testing.T) {
 		"uid": {"admin"},
 	})
 
-	dialer := func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
-		mock.bound = false
-		mock.boundDN = ""
-		mock.closed = false
-		return mock, nil
-	}
+	dialer := mockDialer(mock)
 
 	cfg := &auth.LDAPConfig{
 		Enabled:       true,
@@ -892,12 +889,7 @@ func TestLDAPProviderNoAdminGroup(t *testing.T) {
 		"objectClass": {"posixAccount"},
 	})
 
-	dialer := func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
-		mock.bound = false
-		mock.boundDN = ""
-		mock.closed = false
-		return mock, nil
-	}
+	dialer := mockDialer(mock)
 
 	cfg := &auth.LDAPConfig{
 		Enabled:       true,

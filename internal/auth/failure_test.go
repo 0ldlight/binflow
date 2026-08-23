@@ -18,8 +18,6 @@ import (
 	"strings"
 	"testing"
 
-	ldap "github.com/go-ldap/ldap/v3"
-
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/metadata"
 )
@@ -175,13 +173,7 @@ func TestAuthenticateCredentialsFailureClass(t *testing.T) {
 						"uid": {u.uid}, "objectClass": {"posixAccount"},
 					})
 				}
-				dialer := auth.LDAPDialer(func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
-					if tc.dialErr != nil {
-						return nil, tc.dialErr
-					}
-					mock.bound, mock.boundDN, mock.closed = false, "", false
-					return mock, nil
-				})
+				dialer := mockDialer(mock, mockDialErr(tc.dialErr))
 				prov, perr := auth.NewLDAPProvider(&auth.LDAPConfig{
 					Enabled: true, URL: "ldap://dir.example.com:389", BaseDN: "dc=example,dc=com",
 					BindDN: "cn=admin,dc=example,dc=com", BindPassword: "adminpass",

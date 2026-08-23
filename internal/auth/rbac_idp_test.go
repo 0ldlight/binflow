@@ -14,8 +14,6 @@ import (
 	"testing"
 	"time"
 
-	ldap "github.com/go-ldap/ldap/v3"
-
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/metadata"
 )
@@ -272,12 +270,7 @@ func TestLDAPReadOnlyGroupMapping(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mock := newDir()
-			dialer := func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
-				mock.bound = false
-				mock.boundDN = ""
-				mock.closed = false
-				return mock, nil
-			}
+			dialer := mockDialer(mock)
 			cfg := &auth.LDAPConfig{
 				Enabled: true, URL: "ldap://ldap.example.com:389",
 				BaseDN:        "dc=example,dc=com",
@@ -324,12 +317,7 @@ func TestLDAPLoginRoleRefresh(t *testing.T) {
 	mock.addGroup("cn=binflow-readonly,dc=example,dc=com", map[string][]string{
 		"cn": {"binflow-readonly"}, "objectClass": {"posixGroup"}, "memberUid": {"alice"},
 	})
-	dialer := func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
-		mock.bound = false
-		mock.boundDN = ""
-		mock.closed = false
-		return mock, nil
-	}
+	dialer := mockDialer(mock)
 	cfg := &auth.LDAPConfig{
 		Enabled: true, URL: "ldap://ldap.example.com:389",
 		BaseDN: "dc=example,dc=com",

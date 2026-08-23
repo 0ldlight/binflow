@@ -91,6 +91,7 @@ type artMock struct {
 	authz      []string // Authorization header per request ("" when absent)
 	apiKeyHdrs []string // X-JFrog-Art-Api header per request
 	requests   []string // method + path per request
+	escaped    []string // method + EscapedPath per request (wire spelling)
 }
 
 // writeJSON is the shared JSON responder for both mocks.
@@ -219,6 +220,7 @@ func (m *artMock) record(r *http.Request) {
 	m.authz = append(m.authz, r.Header.Get("Authorization"))
 	m.apiKeyHdrs = append(m.apiKeyHdrs, r.Header.Get("X-JFrog-Art-Api"))
 	m.requests = append(m.requests, r.Method+" "+r.URL.Path)
+	m.escaped = append(m.escaped, r.Method+" "+r.URL.EscapedPath())
 }
 
 // url returns the mock's base URL, standing in for the Artifactory root
@@ -229,6 +231,14 @@ func (m *artMock) snapshot() (authz, apiKeys, requests []string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return append([]string(nil), m.authz...), append([]string(nil), m.apiKeyHdrs...), append([]string(nil), m.requests...)
+}
+
+// snapshotEscaped returns the recorded wire spellings (method + EscapedPath)
+// — the discriminator for the path-escaping tests (T-233).
+func (m *artMock) snapshotEscaped() []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]string(nil), m.escaped...)
 }
 
 // ---------------------------------------------------------------------------
@@ -1306,6 +1316,138 @@ func TestRunTable(t *testing.T) {
 				}
 			},
 		},
+
+		// --skip-users (FR-77 AC2 / B-1): a REFUSED user listing degrades to
+		// a warning and the rest of the migration proceeds. T-228 R-1 saw
+		// both refusals on a real source: 400 = the OSS license gate, 403 =
+		// non-admin credentials.
+		{
+			name:  "skip-users degrades a 403 listing to a warning and migrates the rest",
+			fixup: func(f *artFixture) { f.userStatus = http.StatusForbidden },
+			optMutate: func(o *Options) {
+				o.SkipUsers = true
+				o.PasswordsOut = "" // no users can be created: no password strategy may be required
+			},
+			check: func(t *testing.T, s *Summary, err error, _ *artMock, bf *bfMock, tmp string) {
+				if err != nil {
+					t.Fatalf("Run error = %v, want nil (the degraded run succeeds)", err)
+				}
+				if s.Users.Found != 0 || s.Users.Migrated != 0 || s.Users.Failed != 0 {
+					t.Errorf("user counts = %+v, want all zero (phase skipped)", s.Users)
+				}
+				if s.UserPhaseWarn == "" || !strings.Contains(s.UserPhaseWarn, "--skip-users") || !strings.Contains(s.UserPhaseWarn, "403") {
+					t.Errorf("UserPhaseWarn = %q, want the --skip-users degradation note naming the refusal", s.UserPhaseWarn)
+				}
+				if len(bf.userBodies()) != 0 {
+					t.Errorf("target user PUTs = %v, want none", bf.userBodies())
+				}
+				if _, err := os.Stat(filepath.Join(tmp, "passwords.txt")); !os.IsNotExist(err) {
+					t.Errorf("degraded run must not need a passwords file (err=%v)", err)
+				}
+				// Tokens and artifacts still run (B-1: the refusal used to
+				// make them unreachable).
+				if s.TokensFound != 2 || s.TokensSkipped != 2 {
+					t.Errorf("token counts found=%d skipped=%d, want 2/2 (phase reached)", s.TokensFound, s.TokensSkipped)
+				}
+				if s.Artifacts.Migrated != 8 || s.Artifacts.Failed != 0 {
+					t.Errorf("artifact counts = %+v, want migrated=8 failed=0 (phase reached)", s.Artifacts)
+				}
+				// Progress: repos recorded, users untouched.
+				p := readProgressFile(t, filepath.Join(tmp, "progress.json"))
+				if len(p.Repos) != 7 || len(p.Users) != 0 {
+					t.Errorf("progress repos=%d users=%d, want 7/0", len(p.Repos), len(p.Users))
+				}
+				// The report persists the degradation note (durable evidence).
+				rep := readReportFile(t, filepath.Join(tmp, "migration_report.json"))
+				if len(rep.Users.Warnings) != 1 || !strings.Contains(rep.Users.Warnings[0], "--skip-users") {
+					t.Errorf("report users warnings = %+v, want the degradation note", rep.Users.Warnings)
+				}
+			},
+		},
+		{
+			name:  "skip-users degrades the 400 OSS license-gate shape",
+			fixup: func(f *artFixture) { f.userStatus = http.StatusBadRequest },
+			optMutate: func(o *Options) {
+				o.SkipUsers = true
+				o.PasswordsOut = ""
+			},
+			check: func(t *testing.T, s *Summary, err error, _ *artMock, _ *bfMock, _ string) {
+				if err != nil {
+					t.Fatalf("Run error = %v, want nil", err)
+				}
+				if !strings.Contains(s.UserPhaseWarn, "license gate") || !strings.Contains(s.UserPhaseWarn, "400") {
+					t.Errorf("UserPhaseWarn = %q, want the OSS license-gate note naming 400", s.UserPhaseWarn)
+				}
+				if s.Artifacts.Migrated != 8 {
+					t.Errorf("artifact migrated = %d, want 8", s.Artifacts.Migrated)
+				}
+			},
+		},
+		{
+			name: "skip-users with a readable listing still migrates users",
+			optMutate: func(o *Options) {
+				o.SkipUsers = true
+			},
+			check: func(t *testing.T, s *Summary, err error, _ *artMock, bf *bfMock, _ string) {
+				if err != nil {
+					t.Fatalf("Run error = %v, want nil", err)
+				}
+				if s.Users.Found != 4 || s.Users.Migrated != 2 || s.Users.Skipped != 2 {
+					t.Errorf("user counts = %+v, want found=4 migrated=2 skipped=2 (full migration)", s.Users)
+				}
+				if s.UserPhaseWarn != "" {
+					t.Errorf("UserPhaseWarn = %q, want empty (no degradation happened)", s.UserPhaseWarn)
+				}
+				if users := bf.userBodies(); len(users) != 2 {
+					t.Errorf("target user PUTs = %d, want 2", len(users))
+				}
+			},
+		},
+		{
+			// Zero-regression negative legs: without the flag nothing
+			// changes — the refusal still aborts before the first write.
+			name:    "refused user listing still aborts without the flag",
+			fixup:   func(f *artFixture) { f.userStatus = http.StatusForbidden },
+			wantErr: "user phase aborted before any write",
+			check: func(t *testing.T, s *Summary, err error, _ *artMock, bf *bfMock, tmp string) {
+				if err == nil {
+					t.Fatal("expected the abort without --skip-users")
+				}
+				if s.Repos.Migrated != 5 {
+					t.Errorf("repo migrated = %d, want 5 (repos phase precedes users)", s.Repos.Migrated)
+				}
+				if s.UserPhaseWarn != "" {
+					t.Errorf("UserPhaseWarn = %q, want empty (no flag, no degradation)", s.UserPhaseWarn)
+				}
+				if tokens := s.TokensFound; tokens != 0 {
+					t.Errorf("token found = %d, want 0 (phase never reached)", tokens)
+				}
+				if arts := len(bf.artifactBodies()); arts != 0 {
+					t.Errorf("artifact PUTs = %d, want 0 (phase never reached)", arts)
+				}
+				rep := readReportFile(t, filepath.Join(tmp, "migration_report.json"))
+				if len(rep.Users.Warnings) != 0 {
+					t.Errorf("report users warnings = %+v, want none", rep.Users.Warnings)
+				}
+			},
+		},
+		{
+			name:  "skip-users does not soften unexpected listing errors",
+			fixup: func(f *artFixture) { f.userStatus = http.StatusInternalServerError },
+			optMutate: func(o *Options) {
+				o.SkipUsers = true
+				o.PasswordsOut = ""
+			},
+			wantErr: "user phase aborted before any write",
+			check: func(t *testing.T, s *Summary, err error, _ *artMock, _ *bfMock, _ string) {
+				if err == nil {
+					t.Fatal("expected the abort: only 400/403 degrade")
+				}
+				if s.UserPhaseWarn != "" {
+					t.Errorf("UserPhaseWarn = %q, want empty (500 does not degrade)", s.UserPhaseWarn)
+				}
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1841,6 +1983,94 @@ func TestListRepoFilesWalker(t *testing.T) {
 	}
 	if !sawRoot || !sawSubfolder {
 		t.Errorf("walker must read FolderInfo nodes, root=%v subfolder=%v (requests %v)", sawRoot, sawSubfolder, requests)
+	}
+}
+
+// TestReaderSpecialPathEscapes pins the reader's URL spelling after the
+// T-233 convergence onto client.EscapePathSegments (T-231 legacy item 1 —
+// the private escapePathSegments copy was deleted). Both read faces that
+// BUILD URLs must request the percent-encoded spelling: the download face
+// (OpenFile) and the walker's FolderInfo reads. A raw '%', '#' or '?' in
+// the wire form fails client-side (invalid URL escape) or addresses the
+// wrong node; the mock's escaped-path recording pins the exact wire form,
+// so under-escaping cannot hide behind net/http's re-escaping of spaces
+// and UTF-8 (the T-231 mutation observation).
+func TestReaderSpecialPathEscapes(t *testing.T) {
+	const (
+		percentPath = "sym'bols$/percent%.txt" // the T-228 D-1 reproducer
+		markerPath  = "dir frag#ment/query?name.bin"
+	)
+	fx := baseFixture()
+	fx.files = map[string][]SourceFile{
+		"libs-generic": fileEntries("libs-generic", percentPath, markerPath),
+	}
+	fx.blobs = map[string]string{
+		"libs-generic/" + percentPath: blobContent("libs-generic", percentPath),
+		"libs-generic/" + markerPath:  blobContent("libs-generic", markerPath),
+	}
+	art := newArtMock(t, fx)
+	rd, err := NewSourceReader(SourceConfig{BaseURL: art.url(), Token: "tok"})
+	if err != nil {
+		t.Fatalf("NewSourceReader: %v", err)
+	}
+
+	// Download face: content round-trips for every special character.
+	for _, p := range []string{percentPath, markerPath} {
+		rc, err := rd.OpenFile(context.Background(), "libs-generic", p)
+		if err != nil {
+			t.Fatalf("OpenFile(%q): %v", p, err)
+		}
+		body, rerr := io.ReadAll(rc)
+		_ = rc.Close()
+		if rerr != nil {
+			t.Fatalf("read %q: %v", p, rerr)
+		}
+		if string(body) != blobContent("libs-generic", p) {
+			t.Errorf("OpenFile(%q) body = %q", p, body)
+		}
+	}
+	// Wire spelling: the server saw the percent-encoded form, not the
+	// literal one (EscapedPath keeps what the client sent).
+	wire := strings.Join(art.snapshotEscaped(), "\n")
+	for _, want := range []string{
+		"GET /artifactory/libs-generic/sym%27bols$/percent%25.txt",
+		"GET /artifactory/libs-generic/dir%20frag%23ment/query%3Fname.bin",
+	} {
+		if !strings.Contains(wire, want) {
+			t.Errorf("wire form missing %q; escaped requests:\n%s", want, wire)
+		}
+	}
+
+	// Walker face: a special-character FOLDER name must survive the
+	// FolderInfo walk (the second call site of the escaping).
+	fx2 := baseFixture()
+	fx2.rootList400 = map[string]bool{"libs-generic": true}
+	fx2.folderChildren = map[string][]mockChild{
+		"libs-generic": {
+			{URI: "/dir frag#ment", Folder: true},
+			{URI: "/root.txt", Folder: false},
+		},
+		"libs-generic/dir frag#ment": {
+			{URI: "/percent%.bin", Folder: false},
+		},
+	}
+	art2 := newArtMock(t, fx2)
+	rd2, err := NewSourceReader(SourceConfig{BaseURL: art2.url(), Token: "tok"})
+	if err != nil {
+		t.Fatalf("NewSourceReader: %v", err)
+	}
+	files, err := rd2.ListRepoFiles(context.Background(), "libs-generic")
+	if err != nil {
+		t.Fatalf("ListRepoFiles (walker): %v", err)
+	}
+	got := map[string]bool{}
+	for _, f := range files {
+		got[f.Path] = true
+	}
+	for _, want := range []string{"root.txt", "dir frag#ment/percent%.bin"} {
+		if !got[want] {
+			t.Errorf("walker output missing %q: %v", want, got)
+		}
 	}
 }
 

@@ -391,14 +391,14 @@ func pathEscape(segment string) string {
 // round trip; the separating slashes are never escaped, while a '/' inside
 // a segment becomes %2F. This is the single wire-side escaping contract for
 // artifact paths: every content-plane and storage-plane URL this package
-// builds goes through it. It is isomorphic to the migrate reader's private
-// helper (internal/migrate reader.go escapePathSegments) — the path the
-// reader lists and downloads with one spelling is the path the writer must
-// PUT with the same spelling; a raw '%' instead makes url.Parse fail with
-// `invalid URL escape` and loses the artifact (T-228 defect D-1, fixed by
-// T-231). RFC 3986 is the governing public spec for the encoding itself;
-// the reader's spelling was proven against a real Artifactory 7.84.10
-// source during the T-228 migration run.
+// builds goes through it, and the migrate reader consumes it directly for
+// its listing/download URLs (T-233 collapsed the reader's former private
+// copy) — the path the reader lists and downloads with one spelling is the
+// path the writer must PUT with the same spelling; a raw '%' instead makes
+// url.Parse fail with `invalid URL escape` and loses the artifact (T-228
+// defect D-1, fixed by T-231). RFC 3986 is the governing public spec for
+// the encoding itself; the reader's spelling was proven against a real
+// Artifactory 7.84.10 source during the T-228 migration run.
 func EscapePathSegments(path string) string {
 	segs := strings.Split(path, "/")
 	for i, s := range segs {

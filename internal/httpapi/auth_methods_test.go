@@ -16,8 +16,6 @@ import (
 	"testing"
 	"time"
 
-	ldap "github.com/go-ldap/ldap/v3"
-
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/config"
 	"github.com/lzwzzy/binflow/internal/httpapi"
@@ -76,9 +74,7 @@ func newBothOnStack(t *testing.T) *httptest.Server {
 		UserFilter: "(uid=%s)", UserIDAttr: "uid", PoolSize: 2,
 		ConnectTimeout: 2 * time.Second, RequestTimeout: 5 * time.Second,
 	}, auth.NewLDAPResolver(md.Users()),
-		auth.LDAPDialer(func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
-			return &mockLDAPConn{dir: dir}, nil
-		}))
+		ldapTestDialer(dir, ldapDialFaults{}))
 	if err != nil {
 		t.Fatalf("NewLDAPProvider: %v", err)
 	}

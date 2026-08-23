@@ -63,8 +63,13 @@ jobs:
       - name: Lint
         run: make lint
 
+      # Go test with an explicit per-package timeout (FR-77 AC3, T-220
+      # handover): the -race suite's slowest package (internal/httpapi)
+      # takes ~571s on an idle machine — go test's 10m default leaves no
+      # headroom on slower CI runners. The Makefile defaults to the same
+      # 20m; passing it here keeps the CI budget visible in the workflow.
       - name: Test
-        run: make test
+        run: make test TEST_TIMEOUT=20m
 
       - name: Build (zero CGo, ADR-0005)
         run: |

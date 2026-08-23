@@ -88,13 +88,20 @@ docs-size:
 	fi
 
 
-## test: run all tests with the race detector (default test target).
+## test: run the full -race suite (default test target). TEST_TIMEOUT
+## (default 20m) raises go test's per-package ceiling: the slowest
+## package, ./internal/httpapi, needs ~571s of -race time on an idle dev
+## machine — inside go test's 10m default but with no headroom, and a
+## CPU-contended run once blew past it (T-220 handover, FR-77 AC3). CI
+## passes the same value explicitly.
+TEST_TIMEOUT ?= 20m
+
 test:
-	CGO_ENABLED=1 $(GO) test -race -count=1 $(PKG)
+	CGO_ENABLED=1 $(GO) test -race -count=1 -timeout $(TEST_TIMEOUT) $(PKG)
 
 ## test-cov: run tests with a coverage profile (not part of `all`).
 test-cov:
-	CGO_ENABLED=1 $(GO) test -race -count=1 -coverprofile=coverage.out -covermode=atomic $(PKG)
+	CGO_ENABLED=1 $(GO) test -race -count=1 -timeout $(TEST_TIMEOUT) -coverprofile=coverage.out -covermode=atomic $(PKG)
 	@$(GO) tool cover -func=coverage.out | tail -1
 
 # ---- M7 acceptance scaffolding (T-211) ---------------------------------------

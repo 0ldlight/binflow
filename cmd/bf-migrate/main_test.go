@@ -64,7 +64,7 @@ func TestMigrateHelp(t *testing.T) {
 	if err := run([]string{"migrate", "--help"}, &stdout, &stderr); err != nil {
 		t.Fatalf("run(migrate --help) error = %v, want nil (help exits zero)", err)
 	}
-	for _, want := range []string{"--dry-run", "--resume", "--passwords-out", "--allow-non-empty", "--concurrency", "--report-file", "artifacts repository content", "target must be EMPTY"} {
+	for _, want := range []string{"--dry-run", "--resume", "--passwords-out", "--allow-non-empty", "--concurrency", "--report-file", "--skip-users", "artifacts repository content", "target must be EMPTY"} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Errorf("migrate usage missing %q:\n%s", want, stdout.String())
 		}
@@ -122,8 +122,10 @@ func TestMigrateFlagErrors(t *testing.T) {
 
 // cliArtMock / cliBFMock are self-contained mock servers for the CLI-level
 // tests (cmd cannot reach internal/migrate's test mocks). The shapes mirror
-// docs/reverse/rest-api.md and the real BinFlow write plane.
-func cliArtMock(t *testing.T) *httptest.Server {
+// docs/reverse/rest-api.md and the real BinFlow write plane. userStatus
+// injects the GET /api/security/users answer (0 = 200) for the --skip-users
+// legs (B-1: 403 = non-admin credentials, 400 = the OSS license gate).
+func cliArtMock(t *testing.T, userStatus int) *httptest.Server {
 	t.Helper()
 	repos := []map[string]any{
 		{"key": "libs-generic", "type": "local", "packageType": "generic"},
@@ -173,6 +175,10 @@ func cliArtMock(t *testing.T) *httptest.Server {
 		writeJSON(w, cfg)
 	})
 	mux.HandleFunc("GET /artifactory/api/security/users", func(w http.ResponseWriter, _ *http.Request) {
+		if userStatus != 0 {
+			http.Error(w, "available only in Artifactory Pro", userStatus)
+			return
+		}
 		writeJSON(w, users)
 	})
 	mux.HandleFunc("GET /artifactory/api/security/users/{name}", func(w http.ResponseWriter, r *http.Request) {
@@ -363,7 +369,7 @@ func TestMigrateEndToEnd(t *testing.T) {
 	t.Setenv("ARTIFACTORY_URL", "")
 	t.Setenv("BINFLOW_SERVER_URL", "")
 
-	art := cliArtMock(t)
+	art := cliArtMock(t, 0)
 	tmp := t.TempDir()
 	progress := filepath.Join(tmp, "progress.json")
 	passwords := filepath.Join(tmp, "passwords.txt")
@@ -635,6 +641,109 @@ func TestMigrateEndToEnd(t *testing.T) {
 		}
 		if n := st.artifactCount(); n != 3 {
 			t.Errorf("resume must copy the retried repo's artifacts, got %d", n)
+		}
+	})
+}
+
+// TestMigrateSkipUsers pins the B-1 fix on the CLI seam (FR-77 AC2): a
+// source that refuses the user listing (the T-228 real-OSS shapes: 400
+// license gate, 403 non-admin) aborts without the flag, degrades to an
+// explicit warning with it, and a readable listing still migrates users.
+func TestMigrateSkipUsers(t *testing.T) {
+	t.Setenv("ARTIFACTORY_TOKEN", "src-cred")
+	t.Setenv("BINFLOW_TOKEN", "tgt-cred")
+	t.Setenv("ARTIFACTORY_URL", "")
+	t.Setenv("BINFLOW_SERVER_URL", "")
+
+	runMigrate := func(t *testing.T, artURL, bfURL string, args ...string) (string, error) {
+		t.Helper()
+		var stdout, stderr bytes.Buffer
+		args = append([]string{
+			"migrate",
+			"--artifactory-url", artURL + "/artifactory",
+			"--server", bfURL,
+			"--retry-max", "-1",
+		}, args...)
+		err := run(args, &stdout, &stderr)
+		return stdout.String(), err
+	}
+
+	t.Run("refused listing aborts without the flag", func(t *testing.T) {
+		art := cliArtMock(t, http.StatusForbidden)
+		bf, st := cliBFMock(t)
+		tmp := t.TempDir()
+		_, err := runMigrate(t, art.URL, bf.URL,
+			"--progress-file", filepath.Join(tmp, "p1.json"),
+			"--report-file", filepath.Join(tmp, "r1.json"))
+		if err == nil || !strings.Contains(err.Error(), "user phase aborted before any write") {
+			t.Fatalf("error = %v, want the user-phase abort (zero regression without the flag)", err)
+		}
+		if repos, users, _ := st.snapshot(); len(users) != 0 || len(repos) == 0 {
+			t.Errorf("repos phase precedes users (repos written), users not: repos=%v users=%v", repos, users)
+		}
+		if n := st.artifactCount(); n != 0 {
+			t.Errorf("artifacts reached the target (%d), want never attempted", n)
+		}
+	})
+
+	t.Run("license-gated source degrades to a warning and finishes", func(t *testing.T) {
+		art := cliArtMock(t, http.StatusBadRequest) // the OSS "available only in Artifactory Pro" shape
+		bf, st := cliBFMock(t)
+		tmp := t.TempDir()
+		progress := filepath.Join(tmp, "p2.json")
+		report := filepath.Join(tmp, "r2.json")
+		stdout, err := runMigrate(t, art.URL, bf.URL,
+			"--progress-file", progress,
+			"--report-file", report,
+			"--skip-users") // no --passwords-out: nothing to create
+		if err != nil {
+			t.Fatalf("run error = %v (the degraded run must succeed)", err)
+		}
+		for _, want := range []string{
+			"users: found=0 migrated=0",
+			"warning: users phase skipped via --skip-users",
+			"license gate",
+			"artifacts: found=3 migrated=3",
+		} {
+			if !strings.Contains(stdout, want) {
+				t.Errorf("summary missing %q:\n%s", want, stdout)
+			}
+		}
+		if repos, users, _ := st.snapshot(); len(users) != 0 || len(repos) != 2 {
+			t.Errorf("target writes = repos %v users %v, want 2 repos and no users", repos, users)
+		}
+		if _, err := os.Stat(filepath.Join(tmp, "passwords.txt")); !os.IsNotExist(err) {
+			t.Errorf("no passwords file may be required for a users-free run (err=%v)", err)
+		}
+		raw, err := os.ReadFile(report)
+		if err != nil {
+			t.Fatalf("report file: %v", err)
+		}
+		if !strings.Contains(string(raw), "--skip-users") {
+			t.Errorf("report must persist the degradation note:\n%s", raw)
+		}
+	})
+
+	t.Run("readable listing still migrates users with the flag", func(t *testing.T) {
+		art := cliArtMock(t, 0)
+		bf, st := cliBFMock(t)
+		tmp := t.TempDir()
+		stdout, err := runMigrate(t, art.URL, bf.URL,
+			"--progress-file", filepath.Join(tmp, "p3.json"),
+			"--report-file", filepath.Join(tmp, "r3.json"),
+			"--passwords-out", filepath.Join(tmp, "p3-passwords.txt"),
+			"--skip-users")
+		if err != nil {
+			t.Fatalf("run error = %v", err)
+		}
+		if strings.Contains(stdout, "users phase skipped") {
+			t.Errorf("summary must not claim a skip when users migrated:\n%s", stdout)
+		}
+		if !strings.Contains(stdout, "users: found=2 migrated=1") {
+			t.Errorf("summary must account the migrated user:\n%s", stdout)
+		}
+		if _, users, _ := st.snapshot(); len(users) != 1 || users[0] != "alice" {
+			t.Errorf("target users = %v, want [alice]", users)
 		}
 	})
 }

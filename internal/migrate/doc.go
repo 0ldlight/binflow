@@ -52,6 +52,11 @@
 //     safely and a re-run of a completed item is harmless.
 //   - Single-artifact failures never abort the artifact phase (PRD
 //     FR-63): they are recorded and retried by --resume.
+//   - The users phase is abort-on-listing-error by default; --skip-users
+//     (FR-77 AC2, the B-1 fix) makes it optional — a listing REFUSED with
+//     403/400 (non-admin credentials, the OSS license gate) degrades to a
+//     recorded warning and the run continues without users. Everything
+//     else still aborts before the first user write.
 //   - Token values are NEVER migratable: Artifactory's token listing is
 //     metadata-only (auth-model.md section 3.3 — the value is returned
 //     exactly once at creation). The token phase therefore only accounts
