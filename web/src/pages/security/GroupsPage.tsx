@@ -8,17 +8,73 @@ import { CopyButton } from '../../components/CopyButton'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
-import { ApiError, errText, isReadOnlyAdmin } from '../../lib/api'
+import { ApiError, canAdminWrite, errText, isReadOnlyAdmin } from '../../lib/api'
 import { useAsync } from '../../lib/useAsync'
 import './security.css'
-import { deleteGroup, listGroups, parseReferencedTargets, putGroup, validateGroupName } from './api'
+import { TransferBox } from './TransferBox'
+import { PermSummaryTable, SortTh, applySort, useTableSort } from './widgets'
+import {
+  deleteGroup,
+  grantsOfGroup,
+  listGroups,
+  listPermissionTargets,
+  listUsers,
+  getUser,
+  parseReferencedTargets,
+  putGroup,
+  updateUser,
+  validateGroupName,
+} from './api'
+import type { GroupListItem, PermissionTarget } from './api'
 
-// 组页（console-ux §3.2 /security/groups；SE-01~04）：CRUD + 成员维护入口
-// （成员在用户详情页维护——SE-06 双端点分工，本页不代持）。
+// 组管理（console-m8 §6.10，T-237 重排）：列表（Name〔描述副行〕│ 权限数
+// 〔+ manage 徽章〕│ 成员数）+ 同形态分区编辑器（组设置 / 成员穿梭 /
+// 编辑态组权限矩阵）。
+//
+// adminPrivileges 徽章：BinFlow 组模型无 Artifactory 的 adminPrivileges
+// 布尔（rbac-model §5 有意不跟进——组不承载角色语义）；徽章呈现的是
+// 「组在至少一个 target 上持有 manage」——manage（仓库配置派生权，
+// ADR-0026）是其最小诚实同构，数据源 = 权限 target 列表（零新端点）。
+//
+// 成员数/成员列表：无按组查询端点（GET group 仅 name/uri/description；
+// Artifactory 的 ?includeUsers=true 不存在）——契约漂移②：前端以
+// listUsers + 逐用户 getUser 汇总（T-99「逐仓拉取」先例，行级失败降级）。
+// 成员变更经各用户的部分更新臂落盘（POST groups 全量替换该用户组集）。
 //
 // W33c 核心：删除被 permission target 引用的组 → 409，message 列 target
 // 名。UI 呈现：行内冲突面板（服务端原文 mono + 解析出的 target 名链接到
 // 权限编辑器，解除引用后重删即成——「不撞墙」）。
+
+/** 成员扫描快照：用户 → 其组集（组页成员数与穿梭数据源） */
+interface MembershipSnapshot {
+  /** user → groups */
+  userGroups: Record<string, string[]>
+  /** group → 成员用户名（有序） */
+  groupMembers: Record<string, string[]>
+}
+
+async function scanMembership(): Promise<MembershipSnapshot> {
+  const users = await listUsers()
+  const details = await Promise.all(users.map((u) => getUser(u.name).catch(() => null)))
+  const userGroups: Record<string, string[]> = {}
+  const groupMembers: Record<string, string[]> = {}
+  for (let i = 0; i < users.length; i++) {
+    const d = details[i]
+    if (!d) continue
+    userGroups[d.name] = d.groups
+    for (const g of d.groups) {
+      ;(groupMembers[g] ??= []).push(d.name)
+    }
+  }
+  return { userGroups, groupMembers }
+}
+
+interface GroupRowModel {
+  group: GroupListItem
+  /** 该组被引用的 target 行（权限数 + manage 徽章 + 矩阵数据源） */
+  grants: ReturnType<typeof grantsOfGroup>
+  memberCount: number | null
+}
 
 interface Conflict {
   group: string
@@ -26,35 +82,101 @@ interface Conflict {
   targets: string[]
 }
 
-function GroupForm({
-  initialName,
-  initialDescription,
-  mode,
+interface EditorSeed {
+  mode: 'create' | 'edit'
+  name: string
+  description: string
+}
+
+function GroupEditor({
+  seed,
+  snapshot,
+  targets,
   onDone,
   onCancel,
 }: {
-  initialName: string
-  initialDescription: string
-  mode: 'create' | 'edit'
+  seed: EditorSeed
+  snapshot: MembershipSnapshot | null
+  targets: PermissionTarget[] | null
   onDone: () => void
   onCancel: () => void
 }) {
   const toast = useToast()
-  const [name, setName] = useState(initialName)
-  const [description, setDescription] = useState(initialDescription)
+  const editMode = seed.mode === 'edit'
+  const [name, setName] = useState(seed.name)
+  const [description, setDescription] = useState(seed.description)
+  const [members, setMembers] = useState<string[]>(editMode ? (snapshot?.groupMembers[seed.name] ?? []) : [])
   const [submitting, setSubmitting] = useState(false)
   const [serverError, setServerError] = useState<ApiError | null>(null)
 
-  const nameErr = mode === 'create' ? validateGroupName(name.trim()) : null
-  const canSubmit = mode === 'edit' || (name.trim() !== '' && nameErr === null)
-  const changed = mode === 'create' || description !== initialDescription
+  const initialMembers = editMode ? (snapshot?.groupMembers[seed.name] ?? []) : []
+  const nameErr = editMode ? null : validateGroupName(name.trim())
+  const memberAdded = members.filter((m) => !initialMembers.includes(m))
+  const memberRemoved = initialMembers.filter((m) => !members.includes(m))
+  const canSubmit = editMode || (name.trim() !== '' && nameErr === null)
+  const dirty = editMode ? description !== seed.description || memberAdded.length > 0 || memberRemoved.length > 0 : true
+
+  /** 成员落盘：逐用户替换组集（add → 追加本组；remove → 去掉本组） */
+  const applyMembership = async (group: string) => {
+    if (!snapshot) return
+    const failures: string[] = []
+    for (const m of memberAdded) {
+      const current = snapshot.userGroups[m]
+      if (!current) {
+        failures.push(m)
+        continue
+      }
+      try {
+        await updateUser(m, { groups: [...current, group] })
+      } catch {
+        failures.push(m)
+      }
+    }
+    for (const m of memberRemoved) {
+      const current = snapshot.userGroups[m]
+      if (!current) {
+        failures.push(m)
+        continue
+      }
+      try {
+        await updateUser(m, { groups: current.filter((g) => g !== group) })
+      } catch {
+        failures.push(m)
+      }
+    }
+    return failures
+  }
 
   const submit = async () => {
     setServerError(null)
     setSubmitting(true)
     try {
       await putGroup(name.trim(), description.trim())
-      toast.success(mode === 'create' ? `组 ${name.trim()} 已创建` : `组 ${name.trim()} 的描述已更新`)
+      let failures: string[] = []
+      if (memberAdded.length > 0 || memberRemoved.length > 0) {
+        failures = (await applyMembership(name.trim())) ?? []
+      }
+      if (failures.length > 0) {
+        // 部分成员变更未落盘：组本体已保存（PUT 先成），失败名单行内呈现
+        setServerError(
+          new ApiError(
+            0,
+            `部分成员变更未落盘（${failures.join(', ')}）——组本体已保存；请重试或到用户编辑器逐个处理。`,
+          ),
+        )
+        return
+      }
+      if (editMode) {
+        toast.success(
+          memberAdded.length === 0 && memberRemoved.length === 0
+            ? `组 ${name.trim()} 的描述已更新`
+            : `组 ${name.trim()} 已更新（成员 +${memberAdded.length} −${memberRemoved.length}）`,
+        )
+      } else {
+        toast.success(
+          memberAdded.length > 0 ? `组 ${name.trim()} 已创建（成员 +${memberAdded.length}）` : `组 ${name.trim()} 已创建`,
+        )
+      }
       onDone()
     } catch (err) {
       setServerError(err instanceof ApiError ? err : new ApiError(0, errText(err)))
@@ -63,60 +185,114 @@ function GroupForm({
     }
   }
 
+  const userItems = snapshot
+    ? Object.keys(snapshot.userGroups)
+        .sort()
+        .map((u) => ({ name: u, note: snapshot.userGroups[u].length > 0 ? snapshot.userGroups[u].join(', ') : undefined }))
+    : []
+  const grants = editMode && targets ? grantsOfGroup(targets, seed.name) : []
+
   return (
-    <section className="card inline-form" data-testid="group-form" aria-label={mode === 'create' ? '创建组' : '编辑组'}>
-      <h3>{mode === 'create' ? '创建组' : `编辑组 · ${initialName}`}</h3>
-      <div className="field">
-        <label htmlFor="gf-name">组名{mode === 'edit' ? '（不可变）' : ''}</label>
-        <input
-          id="gf-name"
-          className="mono-input"
-          value={mode === 'create' ? name : initialName}
-          disabled={mode === 'edit'}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="qa-team"
-          aria-invalid={!!nameErr}
-          data-testid="group-form-name"
-          lang="en"
-        />
-        {nameErr ? (
-          <p className="field-error" role="alert">
-            {nameErr}
-          </p>
+    <section className="card inline-form" data-testid="group-form" aria-label={editMode ? '编辑组' : '新建组'}>
+      <h3>{editMode ? `编辑组 · ${seed.name}` : '新建组'}</h3>
+      <div className="form-section">
+        <h4>组设置</h4>
+        <div className="field">
+          <label htmlFor="gf-name">组名{editMode ? '（不可变）' : ' *'}</label>
+          <input
+            id="gf-name"
+            className="mono-input"
+            value={editMode ? seed.name : name}
+            disabled={editMode}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="qa-team"
+            aria-invalid={!!nameErr}
+            data-testid="group-form-name"
+            lang="en"
+          />
+          {nameErr ? (
+            <p className="field-error" role="alert">
+              {nameErr}
+            </p>
+          ) : (
+            <p className="field-hint">[a-z][a-z0-9._-]*，≤64；保留字 anonymous / _system_ 拒绝。</p>
+          )}
+        </div>
+        <div className="field">
+          <label htmlFor="gf-desc">描述</label>
+          <textarea
+            id="gf-desc"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="用途、负责人…"
+            data-testid="group-form-description"
+          />
+        </div>
+      </div>
+      <div className="form-section">
+        <h4>成员</h4>
+        <p className="field-hint">勾选即加入（右列）；保存后即时生效——移出即失去该组授权，无需重登。</p>
+        {snapshot ? (
+          <div data-testid="group-form-members">
+            <TransferBox
+              items={userItems}
+              selected={members}
+              onToggle={(u, next) => setMembers((p) => (next ? [...p, u] : p.filter((x) => x !== u)))}
+              availableLabel="可选用户"
+              selectedLabel="已选成员"
+              itemTestid={(u) => `group-form-member-${u}`}
+            />
+          </div>
         ) : (
-          <p className="field-hint">[a-z][a-z0-9._-]*，≤64；保留字 anonymous / _system_ 拒绝。</p>
+          <p className="field-hint">成员数据不可用（用户/组扫描失败）——可先保存组，稍后维护成员。</p>
         )}
       </div>
-      <div className="field">
-        <label htmlFor="gf-desc">描述</label>
-        <textarea
-          id="gf-desc"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="用途、负责人…"
-          data-testid="group-form-description"
-        />
-      </div>
+      {editMode && (
+        <div className="form-section">
+          <h4>组权限矩阵</h4>
+          <p className="field-hint">只读汇总（来源 = 引用本组的 permission target）——变更入口在权限编辑器。</p>
+          {targets ? (
+            <PermSummaryTable
+              rows={grants}
+              rowTestidPrefix="group-perm"
+              emptyHint="该组未被任何 permission target 引用——组的授权经 target 生效。"
+            />
+          ) : (
+            <p className="field-hint">权限汇总不可用。</p>
+          )}
+        </div>
+      )}
       {serverError && (
         <div className="form-error" data-testid="group-form-error" role="alert">
-          <div className="headline">保存失败（HTTP {serverError.status || '网络'}）</div>
-          <div className="raw" lang="en">
-            {serverError.message}
-          </div>
+          <div className="headline">{editMode ? '保存失败' : '创建失败'}</div>
+          <div className="raw">{serverError.message}</div>
         </div>
       )}
       <div className="form-actions">
-        <button type="button" className="btn" onClick={onCancel}>
+        <button type="button" className="btn" onClick={onCancel} data-testid="group-form-cancel">
           取消
         </button>
         <button
           type="button"
+          className="btn"
+          disabled={!dirty || submitting}
+          onClick={() => {
+            setName(seed.name)
+            setDescription(seed.description)
+            setMembers(initialMembers)
+          }}
+          data-testid="group-form-reset"
+        >
+          重置
+        </button>
+        <button
+          type="button"
           className="btn primary"
-          disabled={!canSubmit || !changed || submitting}
+          disabled={!canSubmit || !dirty || submitting}
           onClick={() => void submit()}
           data-testid="group-form-submit"
         >
-          {submitting ? '保存中…' : mode === 'create' ? '创建组' : '保存变更'}
+          {submitting ? '保存中…' : editMode ? '保存' : '创建组'}
         </button>
       </div>
     </section>
@@ -125,25 +301,57 @@ function GroupForm({
 
 export default function GroupsPage() {
   const { session } = useAuth()
-  const admin = session?.admin ?? false
+  const admin = canAdminWrite(session)
   const readOnly = isReadOnlyAdmin(session)
   const toast = useToast()
   const confirm = useConfirm()
-  const state = useAsync(listGroups, [])
+  // 一次链式取数：组列表 + 成员扫描（N+1，行级降级）+ 权限 target 列表
+  const state = useAsync(async () => {
+    const [groups, membership, targets] = await Promise.all([
+      listGroups(),
+      scanMembership().catch(() => null),
+      listPermissionTargets().catch(() => null),
+    ])
+    return { groups, membership, targets }
+  }, [])
+  const { sort, toggle } = useTableSort<'name' | 'perms' | 'members'>({ key: 'name', dir: 'asc' })
 
-  const [form, setForm] = useState<{ mode: 'create' | 'edit'; name: string; description: string } | null>(null)
+  const [form, setForm] = useState<EditorSeed | null>(null)
   const [conflict, setConflict] = useState<Conflict | null>(null)
 
+  const groups = state.data?.groups ?? []
+  const membership = state.data?.membership ?? null
+  const targets = state.data?.targets ?? null
+  const rows: GroupRowModel[] = groups.map((g) => {
+    const grants = targets ? grantsOfGroup(targets, g.name) : []
+    return { group: g, grants, memberCount: membership ? (membership.groupMembers[g.name] ?? []).length : null }
+  })
+  const sorted = applySort(rows, sort as { key: string | null; dir: 'asc' | 'desc' }, (r) => {
+    switch (sort.key) {
+      case 'perms':
+        return r.grants.length
+      case 'members':
+        return r.memberCount ?? null
+      default:
+        return r.group.name
+    }
+  })
+
   const doDelete = async (name: string, description: string) => {
+    const memberCount = membership ? (membership.groupMembers[name] ?? []).length : null
     const ok = await confirm({
       title: `删除组 ${name}`,
       body: (
         <div>
-          <p>
-            将删除组 <span className="mono" lang="en">{name}</span>
-            {description ? `（${description}）` : ''}。成员关系随之解除；组成员基于该组的授权即时失效。
-          </p>
+          <p>确定要移除该组吗？此操作不可撤销。</p>
+          {memberCount !== null && memberCount > 0 && <p>将解除 {memberCount} 个成员的关联。</p>}
           <p className="text-muted" style={{ fontSize: 12 }}>
+            {description && (
+              <>
+                描述：{description}。
+                <br />
+              </>
+            )}
             若该组被 permission target 引用，服务端会拒绝（409）并列出引用的 target 名。
           </p>
         </div>
@@ -178,22 +386,22 @@ export default function GroupsPage() {
             onClick={() => setForm({ mode: 'create', name: '', description: '' })}
             data-testid="groups-create"
           >
-            ＋ 创建组
+            ＋ 新建组
           </button>
         )}
       </div>
 
       {readOnly && (
         <p className="admin-note" data-testid="groups-readonly-note">
-          ⓘ 只读管理员（readonly_admin）视角：组只读；创建/编辑描述/删除是管理面写操作（服务端 403 兜底）。
+          ⓘ 只读管理员（readonly_admin）视角：组只读；创建/编辑/删除是管理面写操作（服务端 403 兜底）。
         </p>
       )}
 
-      {form && (
-        <GroupForm
-          mode={form.mode}
-          initialName={form.name}
-          initialDescription={form.description}
+      {form && admin && (
+        <GroupEditor
+          seed={form}
+          snapshot={membership}
+          targets={targets}
           onDone={() => {
             setForm(null)
             state.reload()
@@ -211,7 +419,7 @@ export default function GroupsPage() {
           <div className="targets">
             {conflict.targets.length > 0 && <span className="text-2">解除引用（编辑后移除该组主体）：</span>}
             {conflict.targets.map((t) => (
-              <Link key={t} className="btn" to={`/security/permissions/${encodeURIComponent(t)}`}>
+              <Link key={t} className="btn" to={`/admin/security/permissions/${encodeURIComponent(t)}`}>
                 <span className="mono" lang="en">
                   {t}
                 </span>
@@ -233,62 +441,99 @@ export default function GroupsPage() {
         />
       )}
       {state.status === 'ok' &&
-        ((state.data ?? []).length === 0 ? (
+        (sorted.length === 0 ? (
           admin ? (
             <EmptyState
               message="还没有组"
-              hint="组的授权经 permission target 生效（组行 × read/write/delete 并集）。"
+              hint="组的授权经 permission target 生效（组行 × read/write/delete/manage 并集）。"
             />
           ) : (
             <EmptyState message="还没有组" />
           )
         ) : (
-          <table className="table" data-testid="groups-table">
-            <thead>
-              <tr>
-                <th scope="col">组名</th>
-                <th scope="col">描述</th>
-                <th scope="col">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(state.data ?? []).map((g) => (
-                <tr key={g.name} data-testid={`group-row-${g.name}`}>
-                  <td>
-                    <span className="mono" lang="en">
-                      {g.name}
-                    </span>{' '}
-                    <CopyButton value={g.name} label={`组名 ${g.name}`} />
-                  </td>
-                  <td className="wrap" style={{ maxWidth: 420, color: 'var(--bf-text-2)' }}>
-                    {g.description || '—'}
-                  </td>
-                  <td>
-                    {admin && (
-                      <span style={{ display: 'inline-flex', gap: 8 }}>
-                        <button
-                          type="button"
-                          className="btn"
-                          onClick={() => setForm({ mode: 'edit', name: g.name, description: g.description })}
-                          data-testid={`group-edit-${g.name}`}
-                        >
-                          编辑
-                        </button>
-                        <button
-                          type="button"
-                          className="btn danger"
-                          onClick={() => void doDelete(g.name, g.description)}
-                          data-testid={`group-delete-${g.name}`}
-                        >
-                          删除
-                        </button>
-                      </span>
-                    )}
-                  </td>
+          <>
+            <table className="table" data-testid="groups-table">
+              <thead>
+                <tr>
+                  <SortTh label="组名" sortKey="name" sort={sort} onToggle={toggle} testid="groups-sort-name" />
+                  <SortTh label="权限数" sortKey="perms" sort={sort} onToggle={toggle} testid="groups-sort-perms" />
+                  <SortTh label="成员数" sortKey="members" sort={sort} onToggle={toggle} testid="groups-sort-members" />
+                  {admin && <th scope="col">操作</th>}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {sorted.map((r) => (
+                  <tr key={r.group.name} data-testid={`group-row-${r.group.name}`}>
+                    <td>
+                      <div className="cell-stack">
+                        <span>
+                          <span className="mono" lang="en">
+                            {r.group.name}
+                          </span>{' '}
+                          <CopyButton value={r.group.name} label={`组名 ${r.group.name}`} />
+                        </span>
+                        {r.group.description && (
+                          <span className="text-muted" style={{ fontSize: 11 }}>
+                            {r.group.description}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      {targets === null ? (
+                        <span className="text-muted">—</span>
+                      ) : (
+                        <span className="cell-inline">
+                          <span className="text-2" data-testid={`group-perms-${r.group.name}`}>
+                            {r.grants.length}
+                          </span>
+                          {r.grants.some((g) => g.actions.includes('manage')) && (
+                            <span className="badge neutral mono" lang="en" title="组在至少一个 permission target 上持有 manage（仓库配置派生权）——BinFlow 无 Artifactory 组级 adminPrivileges 字段（有意不跟进，rbac-model §5）" data-testid={`group-manage-badge-${r.group.name}`}>
+                              manage
+                            </span>
+                          )}
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      {r.memberCount === null ? (
+                        <span className="text-muted">—</span>
+                      ) : (
+                        <span className="text-2" title={(membership?.groupMembers[r.group.name] ?? []).join(', ') || undefined} data-testid={`group-members-${r.group.name}`}>
+                          {r.memberCount}
+                        </span>
+                      )}
+                    </td>
+                    {admin && (
+                      <td>
+                        <span style={{ display: 'inline-flex', gap: 8 }}>
+                          <button
+                            type="button"
+                            className="btn"
+                            onClick={() => setForm({ mode: 'edit', name: r.group.name, description: r.group.description })}
+                            data-testid={`group-edit-${r.group.name}`}
+                          >
+                            编辑
+                          </button>
+                          <button
+                            type="button"
+                            className="btn danger"
+                            onClick={() => void doDelete(r.group.name, r.group.description)}
+                            data-testid={`group-delete-${r.group.name}`}
+                          >
+                            删除
+                          </button>
+                        </span>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="table-foot" data-testid="groups-count">
+              组总数： {sorted.length}
+            </p>
+          </>
         ))}
     </div>
   )

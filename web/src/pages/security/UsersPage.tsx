@@ -7,89 +7,90 @@ import { CopyButton } from '../../components/CopyButton'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
-import { ApiError, errText, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
+import { ADMIN_ROLES, ApiError, canAdminWrite, errText, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
+import type { AdminRole } from '../../lib/api'
 import { useAsync } from '../../lib/useAsync'
 import './security.css'
+import { TransferBox } from './TransferBox'
+import { SortTh, applySort, useTableSort } from './widgets'
 import { createUser, getUser, listGroups, listUsers, validateUserName } from './api'
-import type { UserListItem } from './api'
+import type { UserDetail, UserListItem } from './api'
 
-// 用户列表（console-ux §3.2 /security/users；§3.6 安全全组 admin 面）。
-// 列表端点是简形态 {name,uri,realm}（SE-05 双端点分工）；admin 位与组员
-// 在详情端点——按 T-99 已用列先例（usage 逐仓拉取）行级独立请求独立到达，
-// 失败降级 —（不伪造）。
+// 用户列表 + 新建（console-m8 §6.9，T-237 重排）。
 //
-// 403 收敛（§3.6.3）：L2——列表整体 403 呈现无权限卡（直链可达，导航组
-// 已由 whoami 预收敛隐藏）；L4——创建按钮仅 admin 渲染。
+// 列集：Name │ Email │ Groups（计数 | 明细，Artifactory "1 | readers" 形态）
+// │ Role（三值 badge）。Realm/Last Login/Admin 布尔列不建（§6.9[1]）；
+// Status 列**暂缺**——契约漂移①：GET /security/users 与 /{name} 均无
+// enabled 回显（T-208 只落了写侧 seam），无数据不伪造列。
+//
+// 列表端点是简形态 {name,uri,realm}；email/角色/组员在详情端点——沿用
+// T-99「逐仓拉取」先例行级独立到达（这里折为一次链式并发），单行失败
+// 降级 —（不伪造）。排序 = 前端列头排序（§4.7 asc/desc/none 循环），
+// 全量数据在端上无分页（用户数 = 实例账号规模）；底部计数行对齐
+// 「用户总数： N」。
+//
+// 403 收敛（§3.6）：L2——列表 403 呈现无权限卡；L4——创建按钮仅 admin
+// 渲染。readonly_admin：读面全通 + users-readonly-note（M7 §7.3）。
 
-function UserRow({ user }: { user: UserListItem }) {
-  const detail = useAsync(() => getUser(user.name), [user.name])
-  return (
-    <tr data-testid={`user-row-${user.name}`}>
-      <td>
-        <Link className="row-link mono" to={`/security/users/${user.name}`} lang="en">
-          {user.name}
-        </Link>{' '}
-        <CopyButton value={user.name} label={`用户名 ${user.name}`} />
-      </td>
-      <td>
-        {detail.status === 'loading' && <span className="cell-pending" role="progressbar" aria-label="用户信息加载中" />}
-        {detail.status === 'ok' && detail.data && (
-          <>
-            {normalizeAdminRole(detail.data.adminRole, detail.data.admin) === 'admin' && (
-              <span className="badge warning">admin</span>
-            )}
-            {normalizeAdminRole(detail.data.adminRole, detail.data.admin) === 'readonly_admin' && (
-              <span className="badge neutral">readonly_admin</span>
-            )}
-            {normalizeAdminRole(detail.data.adminRole, detail.data.admin) === 'user' && <span className="text-muted">—</span>}
-          </>
-        )}
-        {detail.status !== 'loading' && detail.status !== 'ok' && (
-          <span className="text-muted" title={detail.error?.message ?? '详情不可用'}>
-            —
-          </span>
-        )}
-      </td>
-      <td className="wrap" style={{ maxWidth: 360 }}>
-        {detail.status === 'loading' && <span className="cell-pending" role="progressbar" aria-label="组员加载中" />}
-        {detail.status === 'ok' && detail.data &&
-          (detail.data.groups.length === 0 ? (
-            <span className="text-muted">—</span>
-          ) : (
-            <span className="sec-chips">
-              {detail.data.groups.map((g) => (
-                <span key={g} className="badge neutral mono" lang="en">
-                  {g}
-                </span>
-              ))}
-            </span>
-          ))}
-        {detail.status !== 'loading' && detail.status !== 'ok' && <span className="text-muted">—</span>}
-      </td>
-      <td className="text-2">{user.realm}</td>
-    </tr>
-  )
+/** 列表行模型：简形态 + 详情（可缺失——行级降级） */
+interface UserRowModel {
+  item: UserListItem
+  detail: UserDetail | null
+}
+
+/** 拉全量行模型：列表 + 逐用户详情并发（行级失败降级 null） */
+async function fetchUserRows(): Promise<UserRowModel[]> {
+  const items = await listUsers()
+  const details = await Promise.all(items.map((u) => getUser(u.name).catch(() => null)))
+  return items.map((item, i) => ({ item, detail: details[i] }))
+}
+
+type UserSortKey = 'name' | 'email' | 'groups' | 'role'
+
+function roleBadge(detail: UserDetail | null) {
+  if (!detail) return <span className="text-muted">—</span>
+  return <RoleLabel role={normalizeAdminRole(detail.adminRole, detail.admin)} />
+}
+
+function RoleLabel({ role }: { role: AdminRole }) {
+  // role-warning：本页面组自持类（security.css）——亮主题对比度收口
+  if (role === 'admin') return <span className="badge role-warning">admin</span>
+  if (role === 'readonly_admin') return <span className="badge neutral">readonly_admin</span>
+  return <span className="badge neutral">user</span>
 }
 
 interface CreateState {
   name: string
   email: string
   password: string
-  admin: boolean
+  role: AdminRole
+  enabled: boolean
   groups: string[]
 }
 
-const CREATE_INITIAL: CreateState = { name: '', email: '', password: '', admin: false, groups: [] }
+const CREATE_INITIAL: CreateState = { name: '', email: '', password: '', role: 'user', enabled: true, groups: [] }
 
-function CreateUserForm({ onDone }: { onDone: () => void }) {
+function CreateUserForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
   const toast = useToast()
+  // 组清单随表单挂载取数（非页面级）：老流（W33d）是先开页再带外建组、
+  // 后开表单——页面级缓存会拿到建组前的陈旧列表。
   const groups = useAsync(listGroups, [])
   const [f, setF] = useState<CreateState>(CREATE_INITIAL)
+  const [touched, setTouched] = useState<{ name: boolean; email: boolean; password: boolean }>({
+    name: false,
+    email: false,
+    password: false,
+  })
   const [submitting, setSubmitting] = useState(false)
   const [serverError, setServerError] = useState<ApiError | null>(null)
 
-  const nameErr = validateUserName(f.name.trim())
-  const canSubmit = f.name.trim() !== '' && nameErr === null && f.email.trim() !== '' && f.password !== '' && !submitting
+  // blur 触发校验（§4.7：必填空给「请填写此字段」语义）；必填未满足时
+  // 主按钮禁用（reverse §4.6 新建用户 Save 置灰形态）。用户名规则非空即校。
+  const nameErr = touched.name || f.name.trim() !== '' ? validateUserName(f.name.trim()) : null
+  const emailErr = touched.email && f.email.trim() === '' ? '请填写此字段' : null
+  const passErr = touched.password && f.password === '' ? '请填写此字段' : null
+  const canSubmit =
+    f.name.trim() !== '' && validateUserName(f.name.trim()) === null && f.email.trim() !== '' && f.password !== '' && !submitting
 
   const submit = async () => {
     setServerError(null)
@@ -99,11 +100,14 @@ function CreateUserForm({ onDone }: { onDone: () => void }) {
         name: f.name.trim(),
         email: f.email.trim(),
         password: f.password,
-        admin: f.admin,
+        // 角色走一致对（admin 布尔 = adminRole===admin——服务端对校验要求，
+        // resolveCreateRole 的对一致性，非「混发」：编辑臂才只走 adminRole）
+        admin: f.role === 'admin',
+        adminRole: f.role,
+        enabled: f.enabled,
         groups: f.groups,
       })
       toast.success(`用户 ${f.name.trim()} 已创建`)
-      setF(CREATE_INITIAL)
       onDone()
     } catch (err) {
       // 服务端 400 文案原样行内（email/口令缺失、混合大小写、未知组）
@@ -114,90 +118,122 @@ function CreateUserForm({ onDone }: { onDone: () => void }) {
   }
 
   return (
-    <section className="card inline-form" data-testid="user-form" aria-label="创建用户">
-      <h3>创建用户</h3>
-      <div className="field">
-        <label htmlFor="uf-name">用户名</label>
-        <input
-          id="uf-name"
-          className="mono-input"
-          value={f.name}
-          onChange={(e) => setF((p) => ({ ...p, name: e.target.value }))}
-          placeholder="bob"
-          aria-invalid={!!nameErr}
-          data-testid="user-form-name"
-          lang="en"
-        />
-        {nameErr ? (
-          <p className="field-error" role="alert">
-            {nameErr}
-          </p>
-        ) : (
-          <p className="field-hint">全小写；服务端终裁（保留名拒绝）。</p>
-        )}
+    <section className="card inline-form" data-testid="user-form" aria-label="新建用户">
+      <h3>新建用户</h3>
+      <div className="form-section">
+        <h4>用户设置</h4>
+        <div className="field">
+          <label htmlFor="uf-name">用户名 *</label>
+          <input
+            id="uf-name"
+            className="mono-input"
+            value={f.name}
+            onBlur={() => setTouched((p) => ({ ...p, name: true }))}
+            onChange={(e) => setF((p) => ({ ...p, name: e.target.value }))}
+            placeholder="bob"
+            aria-invalid={!!nameErr}
+            data-testid="user-form-name"
+            lang="en"
+          />
+          {nameErr ? (
+            <p className="field-error" role="alert">
+              {nameErr}
+            </p>
+          ) : (
+            <p className="field-hint">全小写；服务端终裁（保留名拒绝）。</p>
+          )}
+        </div>
+        <div className="field">
+          <label htmlFor="uf-email">Email *</label>
+          <input
+            id="uf-email"
+            type="email"
+            value={f.email}
+            onBlur={() => setTouched((p) => ({ ...p, email: true }))}
+            onChange={(e) => setF((p) => ({ ...p, email: e.target.value }))}
+            placeholder="bob@example.com"
+            aria-invalid={!!emailErr}
+            data-testid="user-form-email"
+          />
+          {emailErr && (
+            <p className="field-error" role="alert">
+              {emailErr}
+            </p>
+          )}
+        </div>
+        <div className="field" style={{ maxWidth: 480 }}>
+          <label htmlFor="uf-role">角色（三值闭集，M7 FR-66）</label>
+          <select
+            id="uf-role"
+            value={f.role}
+            onChange={(e) => setF((p) => ({ ...p, role: e.target.value as AdminRole }))}
+            data-testid="user-form-role"
+          >
+            {ADMIN_ROLES.map((r) => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </select>
+          <p className="field-hint">user=按 permission target 授权；readonly_admin=管理面只读；admin=管理面全权。</p>
+        </div>
       </div>
-      <div className="field">
-        <label htmlFor="uf-email">Email（必填）</label>
-        <input
-          id="uf-email"
-          type="email"
-          value={f.email}
-          onChange={(e) => setF((p) => ({ ...p, email: e.target.value }))}
-          placeholder="bob@example.com"
-          data-testid="user-form-email"
-        />
+      <div className="form-section">
+        <h4>选项</h4>
+        <label className="check-row">
+          <input
+            type="checkbox"
+            checked={f.enabled}
+            onChange={(e) => setF((p) => ({ ...p, enabled: e.target.checked }))}
+            data-testid="user-form-enabled"
+          />
+          启用（取消勾选 = 禁用账号——禁用后登录与写面全部拒绝）
+        </label>
       </div>
-      <div className="field">
-        <label htmlFor="uf-pass">初始口令（必填）</label>
-        <input
-          id="uf-pass"
-          type="password"
-          autoComplete="new-password"
-          value={f.password}
-          onChange={(e) => setF((p) => ({ ...p, password: e.target.value }))}
-          data-testid="user-form-password"
-        />
+      <div className="form-section">
+        <h4>口令</h4>
+        <div className="field">
+          <label htmlFor="uf-pass">初始口令 *</label>
+          <input
+            id="uf-pass"
+            type="password"
+            autoComplete="new-password"
+            value={f.password}
+            onBlur={() => setTouched((p) => ({ ...p, password: true }))}
+            onChange={(e) => setF((p) => ({ ...p, password: e.target.value }))}
+            aria-invalid={!!passErr}
+            data-testid="user-form-password"
+          />
+          {passErr && (
+            <p className="field-error" role="alert">
+              {passErr}
+            </p>
+          )}
+        </div>
       </div>
-      <label className="check-row">
-        <input
-          type="checkbox"
-          checked={f.admin}
-          onChange={(e) => setF((p) => ({ ...p, admin: e.target.checked }))}
-          data-testid="user-form-admin"
-        />
-        admin（管理面全权；默认关闭）
-      </label>
-      <div className="field" style={{ maxWidth: 560 }}>
-        <label>组成员（可选，多选；即时生效——移出组即失去该组授权）</label>
+      <div className="form-section">
+        <h4>相关组</h4>
+        <p className="field-hint">勾选即加入（右列）；保存后即时生效——移出组即失去该组授权，无需重登。</p>
         {groups.status === 'loading' && <Skeleton lines={2} />}
         {groups.status === 'ok' && (
-          <div className="sec-pick" data-testid="user-form-groups">
-            {(groups.data ?? []).length === 0 && (
-              <span className="empty">还没有组——先到「组」页创建（三步流第一步）。</span>
-            )}
-            {(groups.data ?? []).map((g) => (
-              <label key={g.name}>
-                <input
-                  type="checkbox"
-                  checked={f.groups.includes(g.name)}
-                  onChange={(e) =>
-                    setF((p) => ({
-                      ...p,
-                      groups: e.target.checked ? [...p.groups, g.name] : p.groups.filter((x) => x !== g.name),
-                    }))
-                  }
-                  data-testid={`user-form-group-${g.name}`}
-                />
-                <span className="mono" lang="en">
-                  {g.name}
-                </span>
-                {g.description && <span className="text-muted" style={{ fontSize: 11 }}>{g.description}</span>}
-              </label>
-            ))}
+          <div data-testid="user-form-groups">
+            <TransferBox
+              items={(groups.data ?? []).map((g) => ({ name: g.name, note: g.description || undefined }))}
+              selected={f.groups}
+              onToggle={(name, next) =>
+                setF((p) => ({ ...p, groups: next ? [...p.groups, name] : p.groups.filter((x) => x !== name) }))
+              }
+              availableLabel="可选组"
+              selectedLabel="已选组"
+              itemTestid={(name) => `user-form-group-${name}`}
+            />
           </div>
         )}
+        {groups.status === 'ok' && (groups.data ?? []).length === 0 && (
+          <p className="field-hint">实例还没有组——先到「组」页创建。</p>
+        )}
         {groups.status !== 'loading' && groups.status !== 'ok' && (
-          <p className="field-hint">组列表不可用（{groups.error?.message}）；可先建用户，稍后在详情页入组。</p>
+          <p className="field-hint">组列表不可用（{groups.error?.message}）；可先建用户，稍后在编辑页入组。</p>
         )}
       </div>
       {serverError && (
@@ -209,6 +245,12 @@ function CreateUserForm({ onDone }: { onDone: () => void }) {
         </div>
       )}
       <div className="form-actions">
+        <button type="button" className="btn" onClick={onCancel} data-testid="user-form-cancel">
+          取消
+        </button>
+        <button type="button" className="btn" onClick={() => setF(CREATE_INITIAL)} data-testid="user-form-reset">
+          重置
+        </button>
         <button type="button" className="btn primary" disabled={!canSubmit} onClick={() => void submit()} data-testid="user-form-submit">
           {submitting ? '创建中…' : '创建用户'}
         </button>
@@ -219,10 +261,24 @@ function CreateUserForm({ onDone }: { onDone: () => void }) {
 
 export default function UsersPage() {
   const { session } = useAuth()
-  const admin = session?.admin ?? false
+  const admin = canAdminWrite(session)
   const readOnly = isReadOnlyAdmin(session)
-  const state = useAsync(listUsers, [])
+  const state = useAsync(fetchUserRows, [])
   const [creating, setCreating] = useState(false)
+  const { sort, toggle } = useTableSort<UserSortKey>({ key: 'name', dir: 'asc' })
+
+  const rows = applySort(state.data ?? [], sort as { key: string | null; dir: 'asc' | 'desc' }, (r) => {
+    switch (sort.key) {
+      case 'email':
+        return r.detail?.email ?? null
+      case 'groups':
+        return r.detail ? r.detail.groups.length : null
+      case 'role':
+        return r.detail ? normalizeAdminRole(r.detail.adminRole, r.detail.admin) : null
+      default:
+        return r.item.name
+    }
+  })
 
   return (
     <div data-testid="users-page">
@@ -230,7 +286,7 @@ export default function UsersPage() {
         <h2>用户</h2>
         {admin && (
           <button type="button" className="btn primary" onClick={() => setCreating((v) => !v)} data-testid="users-create">
-            {creating ? '收起表单' : '＋ 创建用户'}
+            {creating ? '收起表单' : '＋ 新建用户'}
           </button>
         )}
       </div>
@@ -241,7 +297,15 @@ export default function UsersPage() {
         </p>
       )}
 
-      {creating && <CreateUserForm onDone={state.reload} />}
+      {creating && admin && (
+        <CreateUserForm
+          onDone={() => {
+            setCreating(false)
+            state.reload()
+          }}
+          onCancel={() => setCreating(false)}
+        />
+      )}
 
       {state.status === 'loading' && <Skeleton lines={6} />}
       {state.status === 'error' && state.error && <ErrorCard error={state.error} onRetry={state.reload} />}
@@ -252,28 +316,68 @@ export default function UsersPage() {
         />
       )}
       {state.status === 'ok' &&
-        ((state.data ?? []).length === 0 ? (
+        (rows.length === 0 ? (
           admin ? (
-            <EmptyState message="还没有用户" hint="点击「创建用户」建立第一个账号；CI 与脚本建议使用 API Token。" />
+            <EmptyState message="还没有用户" hint="点击「新建用户」建立第一个账号；CI 与脚本建议使用 API Token。" />
           ) : (
             <EmptyState message="还没有用户" />
           )
         ) : (
-          <table className="table" data-testid="users-table">
-            <thead>
-              <tr>
-                <th scope="col">用户名</th>
-                <th scope="col">角色</th>
-                <th scope="col">组</th>
-                <th scope="col">realm</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(state.data ?? []).map((u) => (
-                <UserRow key={u.name} user={u} />
-              ))}
-            </tbody>
-          </table>
+          <>
+            <table className="table" data-testid="users-table">
+              <thead>
+                <tr>
+                  <SortTh label="用户名" sortKey="name" sort={sort} onToggle={toggle} testid="users-sort-name" />
+                  <SortTh label="Email" sortKey="email" sort={sort} onToggle={toggle} testid="users-sort-email" />
+                  <SortTh label="组" sortKey="groups" sort={sort} onToggle={toggle} testid="users-sort-groups" />
+                  <SortTh label="角色" sortKey="role" sort={sort} onToggle={toggle} testid="users-sort-role" />
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.item.name} data-testid={`user-row-${r.item.name}`}>
+                    <td>
+                      <Link className="row-link mono" to={`/admin/security/users/${encodeURIComponent(r.item.name)}`} lang="en">
+                        {r.item.name}
+                      </Link>{' '}
+                      <CopyButton value={r.item.name} label={`用户名 ${r.item.name}`} />
+                    </td>
+                    <td>
+                      {r.detail ? (
+                        <span className="text-2">{r.detail.email}</span>
+                      ) : (
+                        <span className="text-muted" title="详情不可用">
+                          —
+                        </span>
+                      )}
+                    </td>
+                    <td className="wrap" style={{ maxWidth: 360 }}>
+                      {!r.detail ? (
+                        <span className="text-muted">—</span>
+                      ) : r.detail.groups.length === 0 ? (
+                        <span className="text-muted">—</span>
+                      ) : (
+                        <span title={r.detail.groups.join(', ')}>
+                          <span className="badge neutral">{r.detail.groups.length}</span>{' '}
+                          <span className="sec-chips">
+                            {r.detail.groups.map((g) => (
+                              <span key={g} className="badge neutral mono" lang="en">
+                                {g}
+                              </span>
+                            ))}
+                          </span>
+                        </span>
+                      )}
+                    </td>
+                    <td>{roleBadge(r.detail)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="table-foot" data-testid="users-count">
+              用户总数： {rows.length}
+            </p>
+          </>
         ))}
     </div>
   )

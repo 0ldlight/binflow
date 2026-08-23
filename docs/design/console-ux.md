@@ -20,6 +20,7 @@
 | v1.2 | 2026-08-21 | T-118 §10 testid 清单回写（T-104 断言锚冻结的前置）：① §10.3 预定锚**转正为已落地清单**——T-100~T-102 全部落码，逐一对码核对（差异注记随各组）；② `perm-matrix-cell-<principal>-<action>` 细化为 `perm-matrix-cell-{user|group}-<principal>-<action>`（防用户/组同名碰撞，T-101 遗留 2 定案），类段防碰撞原则升入 §10.1 命名规则；③ 搜索页 `search-filter-{package|type}` **删除**（实现仅 repo 过滤；R2 类型化过滤落地时回填）；④ 未落/裁剪锚（token 族 / `audit-export` / `copy-<field>`）新设 §10.4 承载，T-104 不得断言；⑤ grep 补记两处三票日志未列锚（`search-results` 结果表容器、`perm-pattern-{include|exclude}-<i>` chip 本体）；锚总量 **242 落点 / 27 文件**（`grep -rn "data-testid" web/src/`，动态族计一名约 230 锚） |
 | v1.3 | 2026-08-21 | T-123 §9 R10 例改道（E4 定案一致性收口，T-107 移交 H-3 / T-103 同建议）：session 凭据等价性示例由「docker tags/list」改为「npm packument / pypi simple」——二者挂在 `/binflow` 前缀下，cookie `Path=/binflow` 可携 session；docker tags 因 cookie 结构性不达根级 `/v2`（docker 客户端走 `/v2/token` Basic 面）不再作例。依据：PRD M4 v1.3 CE-03 E4 注记、docs/user/faq.md |
 | v1.4 | 2026-08-23 | T-235 M8 双模式壳与路由重排（console-m8 §1 落地）：① 新增 **§10.5 路由重排锚保全映射**——M8 新路由表 ↔ §10.2/§10.3 既有锚，242 锚**零改名**（ADR-0029 决策 3，W 资产保全）；② 壳新锚 10 枚入册（`nav-mode-switch` / `topbar-breadcrumb` / 用户菜单 Quick 动作族）；③ §10.4 Tokens 行注记更新——侧栏禁用占位（`nav-item.disabled` 计数断言）让位真实路由 `/admin/security/tokens` 的 `placeholder-page` 承载；④ IA/路由正文以 console-m8 为准（§0.2 冲突条款），本版不重写 §3.1/§3.2 旧路由表 |
+| v1.5 | 2026-08-23 | T-237 用户/组页重排（console-m8 §6.9/§6.10 落地）：① §10.3 安全组增补 T-237 批次锚（列表排序头/计数行、分区表单按钮族、穿梭列容器、成员/权限汇总矩阵、组计数与管理徽章）——T-101 冻结锚**零改名**（`user-form-group-<name>` 等穿梭化后语义不变）；② `user-form-admin`（admin 布尔复选）退役——创建表单角色改三值下拉，与编辑态同走 `user-form-role`（wire 不变：创建走一致对 admin+adminRole，编辑只走 adminRole）；③ `user-perms`/`user-facts` 分卡承载权限矩阵与账户信息（`user-facts-role` 不变） |
 
 ---
 
@@ -894,13 +895,27 @@ repo-danger-zone  repo-delete-button  repo-delete-content  repo-delete-confirm-k
   upload-gav-<groupId|artifactId|version|classifier|packaging>  upload-maven-preview  upload-maven-input
 搜索页（T-100）：search-page  search-input  search-filter-repo  search-count  search-results
   search-result-<i>  search-more（空态复用缺省 empty-state）
-安全组（T-101）：
+安全组（T-101；**T-237 重排增补**见下段）：
   用户：users-page  users-create  users-table  user-row-<name>
         user-form（创建/编辑共用）  user-form-{name,email,password,admin,groups,submit,error}
         user-form-group-<name>  user-detail-page  user-facts
   组：  groups-page  groups-create  groups-table  group-row-<name>  group-form
         group-form-{name,description,submit,error}  group-edit-<name>  group-delete-<name>
         group-delete-reason（409 冲突面板）  group-delete-dismiss
+安全组 T-237 批次（用户/组页 Artifactory 形态重排，console-m8 §6.9/§6.10）：
+  用户列表：users-sort-{name,email,groups,role}（列头排序，aria-sort 三态）
+            users-count（底部「用户总数： N」）
+  用户表单：user-form-{role,enabled,password2,reset,cancel}（角色下拉进创建态
+            ——user-form-admin 复选退役 v1.5；enabled 翻转/确认口令/按钮族）
+            user-form-groups 内 transfer-{available,selected}（C5 双列穿梭
+            列容器；条目 checkbox 仍用 user-form-group-<name> 冻结锚）
+  用户详情：user-perms（权限矩阵卡容器）  user-perm-matrix（有授权时表体）
+            user-perm-row-<target>（只读 r/w/d/m 汇总行）
+  组列表：  groups-sort-{name,perms,members}  groups-count
+            group-{perms,members}-<name>（计数单元格）
+            group-manage-badge-<name>（manage 持有徽章——adminPrivileges 同构）
+  组表单：  group-form-{members,member-<user>,reset,cancel}（成员穿梭 + 按钮族）
+  组矩阵：  group-perm-matrix  group-perm-row-<target>（编辑态组权限汇总）
   权限：perms-page  perms-create  perms-table  perm-row-<name>  perm-editor-page
         perm-form-name  perm-repos  perm-repo-add  perm-repo-remove-<key>
         perm-pattern-{include|exclude}-<i>（chip 本体）
@@ -959,7 +974,7 @@ M8 路由表（console-m8 §1.4）重排后，§10.2/§10.3 的 **242 锚零改�
 | M8 新路由 | 承载锚（不变） | 备注 |
 |---|---|---|
 | `/dashboard` | `dashboard` 页根 + dashboard-* 卡族 | 原 `/`；登录落点让位 `/artifacts` |
-| `/artifacts`、`/artifacts/:key/*` | `placeholder-page`（根）/ `tree-page` 族 + `?focus=` 深链参数 | 原 `/repositories/:key/tree/*`；跨仓树根归 T-236 |
+| `/artifacts`、`/artifacts/:key/*` | `tree-page` 族 + `?focus=` 深链参数 + T-236 跨仓树新锚（见下） | 原 `/repositories/:key/tree/*`；T-236 起根与子树同承载跨仓树 |
 | `/search` `/profile` | `search-page` 族 / `settings` + `password-*` | `/profile` 现挂设置页组件（T-239 拆分） |
 | `/admin/repositories/{local\|remote\|virtual}` | `repos-page` 族 | 原 `/repositories`；Tab 形态归 T-240 |
 | `/admin/repositories/new` `?rclass=` | `repo-form-page` + `form-*` 族 | Quick 建仓入口的参数形态（T-240 消费） |
@@ -978,6 +993,26 @@ quick-set-me-up  quick-new-repo-{local|remote|virtual}（用户菜单·快速建
 quick-new-user  quick-new-group  quick-new-perm（用户菜单·新建；仅全量 admin）
 menu-edit-profile（用户菜单·编辑档案 → /profile；全角色可见）
 ```
+
+**T-236 跨仓树新锚（14 枚，先入本清单再落码流程兑现；§10.5 表 `/artifacts` 行的承载锚随之改写）**：
+
+```
+tree-repo-<repoKey>（仓库顶层树节点——跨仓树 L0）
+tree-repo-filter  tree-repo-filter-clear（页头「过滤仓库」输入 + 清除；仅过滤已加载集）
+tree-context-menu（右键菜单容器）
+tree-context-{copy-path|copy-repo-path|download|delete|refresh|open-admin}（菜单项——
+  文件=复制路径/下载/删除；目录=复制路径/删除/刷新；仓库=复制仓库路径/刷新/在仓库管理中打开）
+tree-readonly-note（readonly_admin 只读注记——上传/删除禁用的说明行）
+tree-root-denied（普通 user 顶层 L2 无权限卡——repo 清单 403）
+tree-empty-instance（空实例引导卡：创建仓库 + 跳过）
+tree-footer-stats（页脚标语行——stats admin 门）
+tree-manage-repos（页头「管理仓库 →」链接；admin/readonly 可见）
+browser-tree（左树容器）  browser-toolbar（页头动作区容器）
+node-tab-{general|perms}（详情面板 Tab——C4：常规 + 有效权限〔admin〕）
+node-tags（docker manifest 详情的 tag 徽标块）
+```
+
+变更注记（T-236，dev-frontend 回写）：`/artifacts` 根由 `placeholder-page` 换为跨仓树真身（`tree-page` 族 + 上表新锚）；`node-perms` 自本票起藏于 `node-tab-perms` 之后（C4 Tab 式详情——**锚不变、操作流多一步 Tab 切换**，`e2e/artifacts.spec.ts` W12 腿同步 +1 行）；`tree.css` 留驻 `pages/repositories/tree/`（搜索页同引的共享文件，归位归 T-239/T-240）。
 
 **锚总量复核口径（v1.4 实测）**：`grep -rn "data-testid" web/src/` = **293 落点 / 29 文件**（v1.2 基线 242 之后，T-104~T-234 各票陆续增锚至 HEAD 的 283 落点——ADR-0029 原写 283 即此原始 grep 数）；T-235 净变化 = 壳**删 0 改 0、新增 10**（AppShell 10 → 20），占位路由新增 0（复用 `placeholder-page`）。另：`web/src/styles/theme-smoke.spec.ts`（7 处选择器引用，非锚）随 T-232 遗留①迁出 `src/` 至 `e2e/m8/theme-smoke.spec.ts`，不再计入 src 侧 grep。
 

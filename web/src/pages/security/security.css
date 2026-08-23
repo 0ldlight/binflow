@@ -1,5 +1,6 @@
 /*
- * 安全页面组样式（T-101；area: pages/security）。只消费 --bf-* token
+ * 安全页面组样式（T-101；area: pages/security。T-237 重排增补：分区表单/
+ * 双列穿梭/列头排序/计数行/权限汇总矩阵）。只消费 --bf-* token
  * （console-ux §7），不回改 base.css / pages.css（T-98/T-99 面——R6 边界）。
  */
 
@@ -11,6 +12,168 @@
 
 .inline-form h3 {
   margin-top: 0;
+}
+
+/* ---------- 分区表单（console-m8 §3.3 C8：分区卡片 = Section 标题 + 字段） ---------- */
+
+.form-section {
+  padding: var(--bf-sp-3) 0 var(--bf-sp-2);
+  border-top: 1px solid var(--bf-border);
+  margin-top: var(--bf-sp-3);
+}
+
+.inline-form > .form-section:first-of-type {
+  border-top: 0;
+  margin-top: 0;
+}
+
+.form-section > h4 {
+  margin: 0 0 var(--bf-sp-2);
+  font-size: var(--bf-fs-aux);
+  color: var(--bf-text-2);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* ---------- 双列穿梭（§3.3 C5：Available N / Selected N + 空侧「未选择项」） ---------- */
+
+.transfer {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--bf-sp-3);
+  max-width: 720px;
+}
+
+.transfer-col {
+  display: flex;
+  flex-direction: column;
+  min-height: 148px;
+  max-height: 300px;
+  border: 1px solid var(--bf-border);
+  border-radius: var(--bf-r-md);
+  background: var(--bf-surface-1);
+}
+
+.transfer-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: var(--bf-sp-2) var(--bf-sp-3);
+  border-bottom: 1px solid var(--bf-border);
+  font-size: var(--bf-fs-aux);
+  color: var(--bf-text-2);
+  font-weight: 600;
+}
+
+.transfer-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--bf-text-muted);
+}
+
+.transfer-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--bf-sp-1) var(--bf-sp-2);
+}
+
+/* 角色徽章对比度收口（axe serious=0，T-237）：base 的 .badge.warning 亮主题
+   实测 4.26:1（#946200 on 18% tint）差一线——本页面组用自持类：15% 底 +
+   向正文色收敛的文字。base.css 是共享层（R6 边界），不动；全局收口另票。 */
+.badge.role-warning {
+  background: color-mix(in srgb, var(--bf-warning) 15%, transparent);
+  color: color-mix(in srgb, var(--bf-warning) 82%, var(--bf-text));
+}
+
+.transfer-item {
+  display: flex;
+  align-items: center;
+  gap: var(--bf-sp-2);
+  min-height: 28px;
+  font-size: var(--bf-fs-body);
+  cursor: pointer;
+}
+
+.transfer-item:has(input:disabled) {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.transfer-empty {
+  color: var(--bf-text-muted);
+  font-size: var(--bf-fs-aux);
+  margin: var(--bf-sp-2);
+}
+
+@media (max-width: 720px) {
+  .transfer {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- 列头排序（§3.3 C1 / §4.7：asc → desc → none 循环） ---------- */
+
+.th-sort {
+  all: unset;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.th-sort:hover {
+  color: var(--bf-accent);
+}
+
+.th-sort:focus-visible {
+  outline: 2px solid var(--bf-accent);
+  outline-offset: 2px;
+}
+
+.th-sort-arrow {
+  font-size: 10px;
+  color: var(--bf-text-2);
+}
+
+/* ---------- 表格计数行（§6.6/§6.9 底部「共 N 项」族） ---------- */
+
+.table-foot {
+  margin: var(--bf-sp-2) 0 0;
+  font-size: var(--bf-fs-aux);
+  color: var(--bf-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 单元格内两行堆叠（组名 + 描述副行）/ 徽章与计数同行 */
+.cell-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cell-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--bf-sp-2);
+}
+
+/* ---------- 权限汇总矩阵（§6.9[5]/§6.10：只读 r/w/d/m） ---------- */
+
+.perm-summary .th-action,
+.perm-summary .td-mark {
+  text-align: center;
+  width: 64px;
+}
+
+.perm-summary .mark-on {
+  color: var(--bf-success);
+}
+
+.perm-summary .mark-off {
+  color: var(--bf-text-muted);
+}
+
+.perm-summary-empty {
+  font-size: var(--bf-fs-body);
+  margin: var(--bf-sp-1) 0 0;
 }
 
 /* 组员维护 / 主体选择：多选列表（复用 pages.css .member-pick 视觉，自持副本防跨组依赖） */

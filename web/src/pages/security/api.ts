@@ -16,6 +16,7 @@
 // 三种格式不暴露给组件，console-ux §1.3/§5.1）。
 
 import { apiJSON, apiText } from '../../lib/api'
+import type { AdminRole } from '../../lib/api'
 
 // ---- users（E-19 / SE-05/06） ----
 
@@ -39,26 +40,33 @@ export interface UserDetail {
   disableUIAccess: boolean
 }
 
-/** PUT 体（create-or-replace：口令必填，admin 位与组员全量替换） */
+/** PUT 体（create-or-replace：口令必填，admin 位与组员全量替换）。
+ *  adminRole/enabled 为可选增补位（服务端 userCreateBody 实存）：
+ *  adminRole 携带时须与 admin 布尔一致（resolveCreateRole 对校验）。 */
 export interface UserReplaceBody {
   name: string
   email: string
   password: string
   admin: boolean
+  adminRole?: AdminRole
+  enabled?: boolean
   groups: string[]
 }
 
 /** POST 体（部分更新：仅携带要改的字段——指针语义的前端侧落法）。
  *  adminRole（M7）：单独携带时是完整的角色陈述；与 admin 布尔同时携带
  *  必须一致（admin=true ⇔ adminRole=admin），否则服务端 400——UI 角色下拉
- *  只走 adminRole 通道，永不与布尔混发。 */
+ *  只走 adminRole 通道，永不与布尔混发。类型收紧为闭集 AdminRole 是
+ *  T-218 尾债②收口（wire 不变，编译期挡住拼写错误）。enabled（T-208
+ *  seam）：指针语义，携带即写入，absent 保持。 */
 export interface UserUpdateBody {
   name?: string
   email?: string
   password?: string
   admin?: boolean
-  adminRole?: string
+  adminRole?: AdminRole
   groups?: string[]
+  enabled?: boolean
 }
 
 export function listUsers(): Promise<UserListItem[]> {
@@ -190,4 +198,64 @@ export function validateUserName(name: string): string | null {
   if (name !== name.toLowerCase()) return '用户名必须全小写（服务端拒绝混合大小写拼写）'
   if (/\s/.test(name)) return '用户名不能包含空白字符'
   return null
+}
+
+// ---- 主体授权汇总（T-237；console-m8 §6.9[5]/§6.10 组权限矩阵）----
+// 只读汇总：把 permission targets 列表折叠成「某主体在每个 target 上的
+// 四动作视图」。对用户 = 直接行 + 经所属组行（Artifactory User Permissions
+// Tab 的 Applied To 语义）；对组 = 该组的行。纯前端计算，零新端点。
+
+export interface PrincipalGrantRow {
+  /** permission target 名 */
+  target: string
+  /** 授权途径：'direct'（主体直接在 principals 上）或组名（经该组） */
+  sources: string[]
+  /** 各途径动作的并集（r/w/d/m 序） */
+  actions: PermAction[]
+}
+
+/** 组的授权行（§6.10 编辑态组权限矩阵；manage 徽章数据源同此） */
+export function grantsOfGroup(targets: PermissionTarget[], group: string): PrincipalGrantRow[] {
+  const rows: PrincipalGrantRow[] = []
+  for (const t of targets) {
+    const actions = t.principals.groups[group]
+    if (!actions || actions.length === 0) continue
+    rows.push({ target: t.name, sources: ['direct'], actions })
+  }
+  return rows
+}
+
+/** 用户的授权行：直接 + 经组（Artifactory Applied To 形态） */
+export function grantsOfUser(
+  targets: PermissionTarget[],
+  user: string,
+  userGroups: readonly string[],
+): PrincipalGrantRow[] {
+  const rows: PrincipalGrantRow[] = []
+  for (const t of targets) {
+    const sources: string[] = []
+    const actions = new Set<PermAction>()
+    const direct = t.principals.users[user]
+    if (direct && direct.length > 0) {
+      sources.push('direct')
+      for (const a of direct) actions.add(a)
+    }
+    for (const g of userGroups) {
+      const via = t.principals.groups[g]
+      if (via && via.length > 0) {
+        sources.push(g)
+        for (const a of via) actions.add(a)
+      }
+    }
+    if (sources.length === 0) continue
+    rows.push({ target: t.name, sources, actions: PERM_ACTIONS.filter((a) => actions.has(a)) })
+  }
+  return rows
+}
+
+/** 主体是否在任何 target 上持有 manage——组页 adminPrivileges 徽章的数据源。
+ *  BinFlow 组模型无 Artifactory 的 adminPrivileges 布尔（rbac-model §5
+ *  有意不跟进）；manage（仓库配置派生权，ADR-0026）是其最小诚实同构。 */
+export function holdsManage(rows: readonly PrincipalGrantRow[]): boolean {
+  return rows.some((r) => r.actions.includes('manage'))
 }

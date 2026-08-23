@@ -361,7 +361,9 @@ test('users: edit roundtrip, reset-password entry, server 400 inline, 404s, non-
 
   await page.goto(`/binflow/ui/security/users/${user}`)
   await page.fill('[data-testid="user-form-email"]', `${user}-new@example.com`)
-  await page.fill('[data-testid="user-form-password"]', 'd-probe-pw-2') // 重置口令入口（无需旧口令）
+  // 重置口令入口（无需旧口令）；T-237 起表单带确认口令位（console-m8 §6.9）——两处都填
+  await page.fill('[data-testid="user-form-password"]', 'd-probe-pw-2')
+  await page.fill('[data-testid="user-form-password2"]', 'd-probe-pw-2')
   await page.click('[data-testid="user-form-submit"]')
   await expect(page.locator('[data-testid="toast"]').filter({ hasText: `用户 ${user} 已更新` })).toBeVisible({ timeout: 8000 })
   const got = await api(page, 'GET', `/api/security/users/${user}`)
