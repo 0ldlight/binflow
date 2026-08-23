@@ -109,7 +109,8 @@ DoD 七条全达成（PRD §9 对证）：P0/P1 全绿（T-221 16/16 / T-222 192
 - **T-242** [P0] Set Me Up 与 Deploy 对话框族 `role:dev-frontend` — **done 2026-08-24（armed 实例 step-up 全链 7/7 + 全量 141/0 + 三特殊字符编码回显；提交 `bccfea6`）**
   包类型网格/协议 Tab/一次性明文 Token 面板（token_id 如实降级）/step-up 内联重验（401 豁免全局登出）/拖拽上传流式 sha256。三漂移登记：admin 口令框与 ADR-0027 豁免语义不可兼容（§4.1 回写队列）；§4.1 D3 被 step-up 融合指令推翻；无 description 字段。遗留归 T-244（quick 入口/对比度家族/48 锚入册）。日志 reports/agents/T-242.md。
 - **T-244** [P1] 键盘可达 + 共享层债收口 `role:dev-frontend` — **doing 2026-08-24（吸收六项债：对比度家族/stepper/quick-setmeup/quota helper/双 Deploy 入口/锚册 v1.7 回写〔T-243 D-1~D-3 + T-242 48 锚〕）**
-- **T-245** [P1] M8 文档改版 `role:tech-writer` — **doing 2026-08-24（新 IA 控制台指南 + 操作路径对照表 + T-249 语义更新：npm 发布仅需 write）**
+- **T-245** [P1] M8 文档改版 `role:tech-writer` — **done 2026-08-24（击落-恢复后收口；scratch 栈走查 11/11 + T-249 四臂活体复验 + make docs 零告警；提交 `a88b728`）**
+  console.md 新 IA 重写 + artifactory-path-map.md（24 任务两列）+ 七页路径修订 + 两处过时事实实测修正 + 三向交叉链接。**发现**：用户 18080 实例为 M7 期构建（指纹核验，零触碰）——M8 收官后提议刷新。遗留：T-244 合入后三处回写注记。日志 reports/agents/T-245.md。
 - **T-237** [P0] 用户与组管理重排 `role:dev-frontend` — **done 2026-08-23（4/4 三角色 spec + 锚守卫 23/23 + 只读完备 grep 零裸写；提交 `c5eb748`）**
   分区编辑器/双列穿梭/排序/角色徽章/删除守卫；T-224 PUT replace 姿势端到端实证；M7 语义全量保留。**契约缺口登记（熔断线合规，待 PM/architect 立项）**：① GET users 无 enabled 回显（T-208 只落写侧）；② 无 DELETE users/{name}（Artifactory 有）；③ 组成员 N+1 汇总（无端点）；④ 组无 adminPrivileges 字段。遗留：base.css badge.warning 亮色 4.26:1 共享层小票。日志 reports/agents/T-237.md。
 
