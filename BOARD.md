@@ -46,10 +46,11 @@
 - **T-217** [P0] FR-65 REST `role:dev-go-core` — **done 2026-08-23（双视角 review 双 REQUEST_CHANGES 独立收敛 B1 → 返修红绿闭环 → conductor 复验；提交 `04f88fb`）**
   manage wire + 族 4 例外门（handler 覆盖臂，守卫 26→24 精确两处）+ service 门放宽（Create/Update authenticated、Delete 保 admin；非测试调用点仅 httpapi——零提权 grep 证实）+ usage ∨-臂（m-无-r 翻转 403→200）+ **B1 修复**：替换臂 union(body, 存量) ⊆ 覆盖集（对抗探针实证的跨覆盖集吊销洞闭合，矩阵腿 403+清单字节不变钉死）。矩阵 EXPECT=1 零偏差；三包 race 绿 + lint 0。偏离（路由字面量迁移）裁可：§7.1 族 4 行明文预载。挂账：principal 名字枚举面（M8 裁量）；PM 回写勘误 1（POST/201+字段拼写）成立、勘误 2 可选。日志 reports/agents/T-217.md / T-217-review-a.md / T-217-review-c.md。
 
-#### 波 5（在途，3/4）
+#### 波 5（T-221 done；T-218/T-219 在途）+ 波 6 前置（T-223 已派）
 - **T-218** [P1] FR-66 控制台角色与权限管理扩展 + read-only 只读态 `role:dev-frontend` `area:web/src` `dep:T-215,T-217 ✅` — **doing 2026-08-23**（含 T-215 移交 governance.ts 词表补 `user.role.change`）
 - **T-219** [P2] FR-68 step-up：SSO session 铸管理 Token 二次认证 `role:dev-go-core` `area:internal/httpapi(token) + internal/auth + internal/config` `dep:T-215 ✅,T-214 ✅` — **doing 2026-08-23**（契约 = ADR-0027 修订版；含 T-215 移交 token handler p.Admin → CanManage 统一）
-- **T-221** [P1] M7 验收 I：RBAC 全表 + manage 派生 + 真实客户端（V01~V11） `role:qa-engineer` `area:QA 验收面` `dep:T-217 ✅,T-211 ✅` — **doing 2026-08-23**（含 usage ∨-臂翻转腿 + B1 回归腿 + binary 新鲜度纪律）
+- **T-221** [P1] M7 验收 I `role:qa-engineer` — **done 2026-08-23（PASS 16/16 零缺陷；qa 报告 `cf4c16a`）**
+  V01~V11 全绿 + usage ∨-臂翻转 + B1 回归腿仍闭合 + M1/M4 回归零回退 + 真实客户端三协议（docker 29.7.2 push/pull + readonly 双 token 臂 / mvn deploy+resolve / npm publish+install）+ 负面矩阵全 403 + 矩阵 EXPECT=1 归档 + 全仓 23 包 race 绿。三条 PRD 字面偏差实证复核 = 已登记 PM v1.2 回写项（与 T-217 勘误 1 合并收口）。日志 reports/agents/T-221-qa.md。
 
 #### 波 2（待波 1）
 - **T-212** [P0] RBAC 基座：Role 闭集 + 六能力求值链 + migration 011 + idp_sync role 改写（ADR-0026） `role:dev-go-core` `area:internal/auth + internal/metadata` `dep:T-214`
