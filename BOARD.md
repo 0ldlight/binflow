@@ -51,8 +51,10 @@
 - **T-223** [P1] M7 文档 I：RBAC 指南 + 上传续传说明 `role:tech-writer` — **done 2026-08-23（conductor 直审通过；提交 `24259fb`）**
   新页 admin/rbac-roles.md（三值模型+矩阵+wire 用法+覆盖集规则+审计+readonly_group 键）+ docker-registry.md 续传节（ADR-0028 口径、S3 限制如实、curl 全链）+ 四处既有补齐 + docs-site 重建零断链。**文档内全部 curl 逐条 scratch 实跑验证**；双探针复跑 GREEN。遗留归位：FAQ/console/step-up → T-225/T-218。日志 reports/agents/T-223.md。
 
-#### 环境票（在途）
-- **T-230** [P2] 用户 VM 纳管 `role:release-engineer` — **doing 2026-08-23**（SSH 密钥固化 + M5 systemd 真机复验 + docker/MinIO 就绪；**收尾清单含客体侧扩盘 growpart+resize2fs**——用户已确认宿主侧扩至 100G，扩完 T-228 真实 Artifactory 腿改派本机，`dep:用户环境` 解除）。凭据禁入仓库。
+#### 环境票（done）+ 波 6（在途）
+- **T-230** [P2] 用户 VM 纳管 `role:release-engineer` — **done 2026-08-23（conductor 免密腿亲验；报告 `3b335b8`）**
+  systemd 真机复验全绿（unit 硬化 systemctl show 证实 / docker push/re-pull digest 逐位一致 / npm 往返 / 优雅停机 0.07s 含引擎 drain 日志）；SSH 密钥免密固化（macOS expect pty 挂死以 SSH_ASKPASS 绕开）；docker 29.1.3 + mirrors（Hub 直连不通）+ minio 镜像在位；VM 回基线零残留；凭据零落盘。勘误：免认证 ping 路径实为 `/binflow/api/system/ping`。日志 reports/agents/T-230.md。
+- **T-226** [P2] M7 等价口径回归（V29） `role:qa-engineer` — **doing 2026-08-23（VM 上执行：MinIO 腿 + Artifactory OSS 迁移腿；带扩盘自愈与中断韧性——用户随时可能关机扩 100G）**
 - **T-218** [P1] FR-66 控制台角色与权限管理扩展 + read-only 只读态 `role:dev-frontend` `area:web/src` `dep:T-215,T-217 ✅` — **doing 2026-08-23**（含 T-215 移交 governance.ts 词表补 `user.role.change`）
 - **T-219** [P2] FR-68 step-up：SSO session 铸管理 Token 二次认证 `role:dev-go-core` `area:internal/httpapi(token) + internal/auth + internal/config` `dep:T-215 ✅,T-214 ✅` — **doing 2026-08-23**（契约 = ADR-0027 修订版；含 T-215 移交 token handler p.Admin → CanManage 统一）
 - **T-221** [P1] M7 验收 I `role:qa-engineer` — **done 2026-08-23（PASS 16/16 零缺陷；qa 报告 `cf4c16a`）**
