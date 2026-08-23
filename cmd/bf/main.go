@@ -447,7 +447,13 @@ func artifactUpload(args []string, opts globalOpts, stdout io.Writer) error {
 	if err := rt.Client.UploadArtifact(context.Background(), *repo, *nodePath, f, st.Size(), *contentType); err != nil {
 		return err
 	}
-	uri := strings.TrimRight(rt.BaseURL, "/") + "/binflow/" + *repo + "/" + strings.TrimLeft(*nodePath, "/")
+	// The printed URI carries the percent-escaped spelling (the same
+	// EscapePathSegments the upload itself used): a raw '%'/'#'/'?' in the
+	// node path would make the printed URL unparseable for the operator's
+	// next curl/browser hop. The repo key holds no '/', so folding it into
+	// the same call is exactly the per-segment escape.
+	uri := strings.TrimRight(rt.BaseURL, "/") + "/binflow/" +
+		client.EscapePathSegments(*repo+"/"+strings.TrimLeft(*nodePath, "/"))
 	_, _ = fmt.Fprintf(stdout, "sha256: %s\n", sum)
 	_, _ = fmt.Fprintf(stdout, "uri: %s\n", uri)
 	return nil

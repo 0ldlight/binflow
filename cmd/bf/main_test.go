@@ -144,7 +144,8 @@ func TestSubcommandHelpFaces(t *testing.T) {
 // fakeCall is one recorded incoming request.
 type fakeCall struct {
 	Method      string
-	Path        string
+	Path        string // decoded request path (r.URL.Path)
+	Raw         string // escaped wire spelling (r.URL.EscapedPath())
 	Body        string
 	Auth        string
 	ContentType string
@@ -168,6 +169,7 @@ func (f *fakeBackend) record(r *http.Request) {
 	f.calls = append(f.calls, fakeCall{
 		Method:      r.Method,
 		Path:        r.URL.Path,
+		Raw:         r.URL.EscapedPath(),
 		Body:        string(body),
 		Auth:        r.Header.Get("Authorization"),
 		ContentType: r.Header.Get("Content-Type"),
@@ -803,4 +805,75 @@ func TestBuildClientCredentials(t *testing.T) {
 			t.Fatalf("buildClient error = %v, want invalid server URL", err)
 		}
 	})
+}
+
+// ---------------------------------------------------------------------------
+// T-231: artifact upload percent-escapes special characters in --path
+// (the T-228 D-1 defect class — a literal '%' made the PUT URL unparseable)
+// ---------------------------------------------------------------------------
+
+func TestArtifactUploadEscapesSpecialPaths(t *testing.T) {
+	isolateCLIEnv(t)
+	f := newFakeBackend(t)
+
+	content := "t231 cli payload\n"
+	file := filepath.Join(t.TempDir(), "artifact.bin")
+	writeFile(t, file, content)
+	sum := fmt.Sprintf("%x", sha256.Sum256([]byte(content)))
+
+	tests := []struct {
+		name     string
+		nodePath string
+		wantSegs string // escaped repo-relative wire spelling
+	}{
+		{name: "literal percent (D-1 reproducer)", nodePath: "sym'bols$/percent%.txt", wantSegs: "sym%27bols$/percent%25.txt"},
+		{name: "fragment marker", nodePath: "frag#ment.txt", wantSegs: "frag%23ment.txt"},
+		{name: "query marker", nodePath: "query?name.txt", wantSegs: "query%3Fname.txt"},
+		{name: "space", nodePath: "with space.txt", wantSegs: "with%20space.txt"},
+		{name: "utf-8 chinese nested", nodePath: "中文/文件 名.txt", wantSegs: "%E4%B8%AD%E6%96%87/%E6%96%87%E4%BB%B6%20%E5%90%8D.txt"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f.reset()
+			path := filepath.Join(t.TempDir(), "config.yaml")
+			writeFile(t, path, fmt.Sprintf("profiles:\n  default:\n    base_url: %s\n    token_env: BF_TEST_TOKEN\n", f.URL))
+			t.Setenv("BF_CONFIG", path)
+			t.Setenv("BF_TEST_TOKEN", "sekret")
+
+			var stdout, stderr bytes.Buffer
+			if err := run([]string{"artifact", "upload", file, "--repo", "esc-cli", "--path", tt.nodePath}, &stdout, &stderr); err != nil {
+				t.Fatalf("run artifact upload --path %q: %v (before T-231 the '%%' leg died in url.Parse)", tt.nodePath, err)
+			}
+			if stderr.Len() != 0 {
+				t.Errorf("stderr = %q, want empty on success", stderr.String())
+			}
+
+			calls := f.recorded()
+			if len(calls) != 1 || calls[0].Method != "PUT" {
+				t.Fatalf("calls = %+v, want exactly one PUT", calls)
+			}
+			// Decoded: the server routes the literal node path; escaped: the
+			// wire spelling is percent-encoded per segment.
+			if calls[0].Path != "/binflow/esc-cli/"+tt.nodePath {
+				t.Errorf("decoded path = %q, want %q", calls[0].Path, "/binflow/esc-cli/"+tt.nodePath)
+			}
+			if calls[0].Raw != "/binflow/esc-cli/"+tt.wantSegs {
+				t.Errorf("wire path = %q, want %q", calls[0].Raw, "/binflow/esc-cli/"+tt.wantSegs)
+			}
+			if calls[0].Body != content {
+				t.Errorf("body = %q, want the file content", calls[0].Body)
+			}
+
+			// The printed uri line carries the escaped spelling so the
+			// operator's next curl hop is copy-pasteable.
+			out := stdout.String()
+			if !strings.Contains(out, "sha256: "+sum+"\n") {
+				t.Errorf("stdout %q missing sha256 line", out)
+			}
+			if !strings.Contains(out, "uri: "+f.URL+"/binflow/esc-cli/"+tt.wantSegs+"\n") {
+				t.Errorf("stdout %q missing the escaped uri line %q", out, f.URL+"/binflow/esc-cli/"+tt.wantSegs)
+			}
+		})
+	}
 }

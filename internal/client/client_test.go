@@ -890,6 +890,172 @@ func TestArtifactOperations(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// T-231: artifact-path percent-encoding on the wire (the T-228 D-1 defect).
+// A node name carrying '%', '#', '?', a space or non-ASCII must reach the
+// server percent-escaped on EVERY verb, and the escaped spelling must
+// address the same node the literal name denotes.
+// ---------------------------------------------------------------------------
+
+// escapingCall is one recorded request of the escaping-matrix fake: the
+// ESCAPED wire path (what the request line carried, r.URL.EscapedPath())
+// next to the DECODED path the server would route on (r.URL.Path).
+type escapingCall struct {
+	Method string
+	Raw    string
+	Path   string
+	Query  string
+}
+
+// TestArtifactPathEscapingWireForm is the 5-character regression matrix
+// against a recording fake. Storage is keyed by the DECODED request path,
+// so a verb that escapes wrongly addresses an unknown node and fails —
+// correctness is discriminated, not just asserted. Every recorded request's
+// escaped spelling is additionally pinned exactly.
+func TestArtifactPathEscapingWireForm(t *testing.T) {
+	const repo = "esc-repo"
+	tests := []struct {
+		name     string
+		nodePath string // literal node path handed to the client
+		wantSegs string // expected escaped repo-relative wire spelling
+	}{
+		{name: "literal percent", nodePath: "sym'bols$/percent%.txt", wantSegs: "sym%27bols$/percent%25.txt"},
+		{name: "fragment marker", nodePath: "frag#ment.txt", wantSegs: "frag%23ment.txt"},
+		{name: "query marker", nodePath: "query?name.txt", wantSegs: "query%3Fname.txt"},
+		{name: "space", nodePath: "with space.txt", wantSegs: "with%20space.txt"},
+		{name: "utf-8 chinese nested", nodePath: "中文/文件 名.txt", wantSegs: "%E4%B8%AD%E6%96%87/%E6%96%87%E4%BB%B6%20%E5%90%8D.txt"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			content := []byte("t231 payload " + tt.name)
+			artifacts := make(map[string][]byte) // keyed by DECODED path
+			var mu sync.Mutex
+			var calls []escapingCall
+
+			record := func(r *http.Request) escapingCall {
+				return escapingCall{Method: r.Method, Raw: r.URL.EscapedPath(), Path: r.URL.Path, Query: r.URL.RawQuery}
+			}
+			wantCall := func(method string) escapingCall {
+				var last escapingCall
+				for _, c := range append([]escapingCall(nil), calls...) {
+					if c.Method == method {
+						last = c
+					}
+				}
+				return last
+			}
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				mu.Lock()
+				c := record(r)
+				calls = append(calls, c)
+				mu.Unlock()
+
+				switch {
+				case strings.HasPrefix(r.URL.Path, "/binflow/api/storage/"):
+					// The storage plane must address the same node as the
+					// content plane: translate the /api/storage infix onto
+					// the content-plane key. A bogus escaping answers 404
+					// and fails the client call.
+					key := strings.Replace(r.URL.Path, "/binflow/api/storage/", "/binflow/", 1)
+					mu.Lock()
+					_, ok := artifacts[key]
+					mu.Unlock()
+					if !ok && r.URL.Query().Get("list") == "" {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = io.WriteString(w, errorBody(404, "no such node"))
+						return
+					}
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusOK)
+					_, _ = fmt.Fprintf(w, `{"uri":"http://%s%s","size":"%d","folder":false,"checksums":{"sha256":"x"}}`,
+						r.Host, r.URL.Path, len(content))
+				case r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/binflow/"):
+					b, _ := io.ReadAll(r.Body)
+					mu.Lock()
+					artifacts[r.URL.Path] = b
+					mu.Unlock()
+					w.WriteHeader(http.StatusCreated)
+				case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/binflow/"):
+					mu.Lock()
+					b, ok := artifacts[r.URL.Path]
+					mu.Unlock()
+					if !ok {
+						w.WriteHeader(http.StatusNotFound)
+						_, _ = io.WriteString(w, errorBody(404, "file not found"))
+						return
+					}
+					w.WriteHeader(http.StatusOK)
+					_, _ = w.Write(b)
+				case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/binflow/"):
+					mu.Lock()
+					delete(artifacts, r.URL.Path)
+					mu.Unlock()
+					w.WriteHeader(http.StatusNoContent)
+				default:
+					w.WriteHeader(http.StatusNotFound)
+				}
+			}))
+			defer srv.Close()
+
+			c := client.New()
+			c.BaseURL = srv.URL
+			c.RetryMax = -1 // fail fast: no 4xx retry masking
+			ctx := context.Background()
+
+			// Upload: before T-231 the '%' leg died in url.Parse with
+			// `invalid URL escape`; '#'/'?' legs silently addressed the
+			// wrong node (fragment/query split).
+			if err := c.UploadArtifact(ctx, repo, tt.nodePath, bytes.NewReader(content), int64(len(content)), "text/plain"); err != nil {
+				t.Fatalf("UploadArtifact(%q): %v", tt.nodePath, err)
+			}
+			if got := wantCall(http.MethodPut); got.Raw != "/binflow/"+repo+"/"+tt.wantSegs || got.Path != "/binflow/"+repo+"/"+tt.nodePath {
+				t.Errorf("PUT wire = raw %q decoded %q, want raw %q decoded %q",
+					got.Raw, got.Path, "/binflow/"+repo+"/"+tt.wantSegs, "/binflow/"+repo+"/"+tt.nodePath)
+			}
+
+			// Download must return the exact bytes of the same node.
+			rc, err := c.DownloadArtifact(ctx, repo, tt.nodePath)
+			if err != nil {
+				t.Fatalf("DownloadArtifact(%q): %v", tt.nodePath, err)
+			}
+			down, readErr := io.ReadAll(rc)
+			_ = rc.Close()
+			if readErr != nil {
+				t.Fatalf("read download: %v", readErr)
+			}
+			if !bytes.Equal(down, content) {
+				t.Errorf("downloaded %q, want %q", down, content)
+			}
+			if got := wantCall(http.MethodGet); got.Raw != "/binflow/"+repo+"/"+tt.wantSegs {
+				t.Errorf("GET wire = raw %q, want %q", got.Raw, "/binflow/"+repo+"/"+tt.wantSegs)
+			}
+
+			// Item info on the storage plane addresses the identical node.
+			if _, err := c.GetArtifactInfo(ctx, repo, tt.nodePath); err != nil {
+				t.Fatalf("GetArtifactInfo(%q): %v", tt.nodePath, err)
+			}
+			// The ?list spelling keeps the escaped path out of the query.
+			if _, err := c.ListArtifacts(ctx, repo, tt.nodePath); err != nil {
+				t.Fatalf("ListArtifacts(%q): %v", tt.nodePath, err)
+			}
+			if got := wantCall(http.MethodGet); got.Raw != "/binflow/api/storage/"+repo+"/"+tt.wantSegs || got.Query != "list" {
+				t.Errorf("list wire = raw %q query %q, want raw %q query list",
+					got.Raw, got.Query, "/binflow/api/storage/"+repo+"/"+tt.wantSegs)
+			}
+
+			// Delete, then the node must be gone.
+			if err := c.DeleteArtifact(ctx, repo, tt.nodePath); err != nil {
+				t.Fatalf("DeleteArtifact(%q): %v", tt.nodePath, err)
+			}
+			if _, err := c.DownloadArtifact(ctx, repo, tt.nodePath); err == nil {
+				t.Fatal("download after delete must fail, got nil")
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
 // User CRUD — fake answers with the REAL server behavior copied from
 // internal/httpapi/security.go: create answers 201 with no body; reads
 // answer userDetail/userListItem JSON; the user plane's errors are PLAIN

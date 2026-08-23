@@ -77,9 +77,8 @@ type ArtifactListResponse struct {
 
 // GetArtifactInfo gets metadata for a single artifact (GET /binflow/api/storage/{repo}/{path}).
 func (c *Client) GetArtifactInfo(ctx context.Context, repo, nodePath string) (*ArtifactInfo, error) {
-	path := "/binflow/api/storage/" + pathEscape(repo) + "/" + trimPrefix(nodePath, "/")
 	var out ArtifactInfo
-	if err := c.getJSON(ctx, path, &out); err != nil {
+	if err := c.getJSON(ctx, storagePlanePath(repo, nodePath), &out); err != nil {
 		return nil, fmt.Errorf("get artifact info %s/%s: %w", repo, nodePath, err)
 	}
 	return &out, nil
@@ -87,9 +86,7 @@ func (c *Client) GetArtifactInfo(ctx context.Context, repo, nodePath string) (*A
 
 // ListArtifacts lists artifacts under a repo path (GET /binflow/api/storage/{repo}/{path}?list).
 func (c *Client) ListArtifacts(ctx context.Context, repo, nodePath string) (*ArtifactListResponse, error) {
-	p := "/binflow/api/storage/" + pathEscape(repo) + "/" + trimPrefix(nodePath, "/")
-	p = strings.TrimSuffix(p, "/")
-	p += "?list"
+	p := strings.TrimSuffix(storagePlanePath(repo, nodePath), "/") + "?list"
 	var out ArtifactListResponse
 	if err := c.getJSON(ctx, p, &out); err != nil {
 		return nil, fmt.Errorf("list artifacts %s/%s: %w", repo, nodePath, err)
@@ -102,8 +99,7 @@ func (c *Client) ListArtifacts(ctx context.Context, repo, nodePath string) (*Art
 // (used for Content-Length and progress reporting). contentType defaults to
 // "application/octet-stream" when empty.
 func (c *Client) UploadArtifact(ctx context.Context, repo, nodePath string, body io.Reader, size int64, contentType string) error {
-	path := "/binflow/" + pathEscape(repo) + "/" + trimPrefix(nodePath, "/")
-	if err := c.uploadFile(ctx, path, body, size, contentType); err != nil {
+	if err := c.uploadFile(ctx, contentPlanePath(repo, nodePath), body, size, contentType); err != nil {
 		return fmt.Errorf("upload artifact %s/%s: %w", repo, nodePath, err)
 	}
 	return nil
@@ -112,8 +108,7 @@ func (c *Client) UploadArtifact(ctx context.Context, repo, nodePath string, body
 // DownloadArtifact downloads a file from a repository path (GET /binflow/{repo}/{path}).
 // The caller must close the returned ReadCloser.
 func (c *Client) DownloadArtifact(ctx context.Context, repo, nodePath string) (io.ReadCloser, error) {
-	path := "/binflow/" + pathEscape(repo) + "/" + trimPrefix(nodePath, "/")
-	req, err := c.newRequest(ctx, "GET", path, nil)
+	req, err := c.newRequest(ctx, "GET", contentPlanePath(repo, nodePath), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -131,8 +126,7 @@ func (c *Client) DownloadArtifact(ctx context.Context, repo, nodePath string) (i
 
 // DeleteArtifact deletes a file from a repository path (DELETE /binflow/{repo}/{path}).
 func (c *Client) DeleteArtifact(ctx context.Context, repo, nodePath string) error {
-	path := "/binflow/" + pathEscape(repo) + "/" + trimPrefix(nodePath, "/")
-	req, err := c.newRequest(ctx, "DELETE", path, nil)
+	req, err := c.newRequest(ctx, "DELETE", contentPlanePath(repo, nodePath), nil)
 	if err != nil {
 		return err
 	}
@@ -140,6 +134,25 @@ func (c *Client) DeleteArtifact(ctx context.Context, repo, nodePath string) erro
 		return fmt.Errorf("delete artifact %s/%s: %w", repo, nodePath, err)
 	}
 	return nil
+}
+
+// contentPlanePath builds the artifact content-plane request path
+// /binflow/{repo}/{path} with the repo key and EVERY artifact-path segment
+// percent-escaped (EscapePathSegments). nodePath is the literal node path;
+// a raw '%', '#', '?' or space in a name must never reach the URL —
+// url.Parse rejects "%.t"-class escapes outright and a raw '#'/'?' would be
+// read as fragment/query separators (T-231, the T-228 D-1 migration
+// failure). An empty nodePath keeps the repository-root spelling
+// "/binflow/{repo}/", unchanged from the pre-escaping construction.
+func contentPlanePath(repo, nodePath string) string {
+	return "/binflow/" + pathEscape(repo) + "/" + EscapePathSegments(trimPrefix(nodePath, "/"))
+}
+
+// storagePlanePath builds the item-info/listing request path
+// /binflow/api/storage/{repo}/{path} with the same per-segment escaping as
+// the content plane, so both planes address the identical node.
+func storagePlanePath(repo, nodePath string) string {
+	return "/binflow/api/storage/" + pathEscape(repo) + "/" + EscapePathSegments(trimPrefix(nodePath, "/"))
 }
 
 // trimPrefix removes a leading "/" from s, if present.

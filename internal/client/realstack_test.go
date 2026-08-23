@@ -362,6 +362,111 @@ func TestClientAgainstRealServerStack(t *testing.T) {
 	}
 }
 
+// TestArtifactSpecialPathsRealStack is the T-231 regression matrix against
+// the REAL server stack: the writer's percent-escaped PUT must be decoded
+// by adapter.Layout back to the literal node name, and every read verb
+// must address that same node. This is the end-to-end closure of the T-228
+// D-1 defect (the migration writer lost `sym'bols$/percent%.txt` with
+// `invalid URL escape "%.t"`).
+func TestArtifactSpecialPathsRealStack(t *testing.T) {
+	ts := newRealStack(t)
+	ctx := context.Background()
+	c := newTokenClient(ts, bootstrapAdminToken(t, ts))
+
+	const repoKey = "t231-esc"
+	if _, err := c.CreateRepo(ctx, client.RepoCreateRequest{
+		Key: repoKey, Rclass: "local", PackageType: "generic",
+		Description: "T-231 escaping matrix",
+	}); err != nil {
+		t.Fatalf("CreateRepo: %v", err)
+	}
+
+	tests := []struct {
+		name     string
+		nodePath string
+	}{
+		{name: "literal percent (D-1 reproducer)", nodePath: "t231/percent/sym'bols$/percent%.txt"},
+		{name: "fragment marker", nodePath: "t231/frag/frag#ment.txt"},
+		{name: "query marker", nodePath: "t231/query/query?name.txt"},
+		{name: "space", nodePath: "t231/space/with space.txt"},
+		{name: "utf-8 chinese", nodePath: "t231/utf8/中文/文件 名.txt"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			content := []byte("t231 real-stack payload: " + tt.name + "\n")
+			sum := sha256.Sum256(content)
+			wantSha := hex.EncodeToString(sum[:])
+			// The listing target is the file's DIRECT parent (the D-1
+			// reproducer keeps a "sym'bols$" directory segment on purpose:
+			// the special characters ride every path segment, not just the
+			// file name).
+			cut := strings.LastIndex(tt.nodePath, "/")
+			listDir, base := tt.nodePath[:cut], tt.nodePath[cut+1:]
+
+			if err := c.UploadArtifact(ctx, repoKey, tt.nodePath,
+				bytes.NewReader(content), int64(len(content)), "text/plain"); err != nil {
+				t.Fatalf("UploadArtifact(%q): %v (before T-231 the '%%' leg died in url.Parse)", tt.nodePath, err)
+			}
+
+			info, err := c.GetArtifactInfo(ctx, repoKey, tt.nodePath)
+			if err != nil {
+				t.Fatalf("GetArtifactInfo(%q): %v", tt.nodePath, err)
+			}
+			if info.Size != strconv.FormatInt(int64(len(content)), 10) {
+				t.Errorf("size = %q, want %q", info.Size, strconv.FormatInt(int64(len(content)), 10))
+			}
+			if info.Sha256 != wantSha {
+				t.Errorf("sha256 = %q, want the server-computed %q", info.Sha256, wantSha)
+			}
+
+			rc, err := c.DownloadArtifact(ctx, repoKey, tt.nodePath)
+			if err != nil {
+				t.Fatalf("DownloadArtifact(%q): %v", tt.nodePath, err)
+			}
+			down, readErr := io.ReadAll(rc)
+			_ = rc.Close()
+			if readErr != nil {
+				t.Fatalf("read download: %v", readErr)
+			}
+			if !bytes.Equal(down, content) {
+				t.Errorf("downloaded %q, want the exact uploaded bytes", down)
+			}
+
+			// The listing proves the server stored the LITERAL name: the
+			// escaped wire path decoded to the node the caller named.
+			listing, err := c.ListArtifacts(ctx, repoKey, listDir)
+			if err != nil {
+				t.Fatalf("ListArtifacts(%q): %v", listDir, err)
+			}
+			found := false
+			for _, f := range listing.Files {
+				if f.URI == base {
+					found = true
+					if f.Folder || f.Size != int64(len(content)) {
+						t.Errorf("list entry = %+v, want folder false size %d", f, len(content))
+					}
+				}
+			}
+			if !found {
+				t.Errorf("listing of %q = %+v, want the literal name %q (decode contract broken)", listDir, listing.Files, base)
+			}
+
+			if err := c.DeleteArtifact(ctx, repoKey, tt.nodePath); err != nil {
+				t.Fatalf("DeleteArtifact(%q): %v", tt.nodePath, err)
+			}
+			if _, err := c.GetArtifactInfo(ctx, repoKey, tt.nodePath); err == nil {
+				t.Fatal("GetArtifactInfo after delete must fail, got nil")
+			} else {
+				var se *client.StatusError
+				if !errors.As(err, &se) || se.StatusCode != http.StatusNotFound {
+					t.Errorf("post-delete error = %v, want 404 StatusError", err)
+				}
+			}
+		})
+	}
+}
+
 // TestRepoConfigEncodeRoundTripRealStack is the T-191 AC 3 cross-validation:
 // virtual members and local path patterns written through the client must
 // survive the REAL server's create → store → GET path value-for-value. The
