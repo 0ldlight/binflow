@@ -42,8 +42,9 @@
 - **T-215** [P0] FR-64 REST：routeAuth 能力化迁移 + adminRole wire + 角色即时生效与审计 `role:dev-go-core` — **done 2026-08-23（双视角 review：架构 APPROVE + 正确性 B1 返修闭环；提交 `bbbfbf2`）**
   30 门迁移（26/4，双 review 独立 grep 零残留 + 守卫测试防回归）+ adminRole wire（冲突 400/kebab 拒/回显/落值/镜像）+ 同 Token 即时生效三段实证 + user.role.change 审计 + authenticateForm 带 Role + readonly_group config/cmd 接线 + 矩阵 EXPECT=1 零偏差。**B1 返修**：m-holder 夹具（metadata 真缝 + 幽灵仓 PUT 可达性）判别性测试——门源文案断言（删分支精确翻红）。日志 reports/agents/T-215.md / T-215-review-c.md / T-215-review-a.md。
 
-#### 波 4（在途）
-- **T-217** [P0] FR-65 REST：manage 动作 wire + CanManageRepo 接线 + 仓库级 admin 派生 `role:dev-go-core` `area:internal/httpapi + internal/repo(service 门放宽) + Makefile(注释一行)` `dep:T-215 ✅` — **doing 2026-08-23（prompt 带 T-215 移交三挂钩：覆盖集臂 / principals manage 字母 / usage ∨-臂必须落；service 门逐处分析零提权证明；复用 t215 m-holder 夹具技术）**
+#### 波 4（T-217 双 review：架构 REQUEST_CHANGES 1 阻塞；正确性在途）
+- **T-217** [P0] FR-65 REST：manage 动作 wire + CanManageRepo 接线 + 仓库级 admin 派生 `role:dev-go-core` — **review-a REQUEST_CHANGES（B1：替换臂 permissions.go:95-103 只验 body 不验存量 target.repos——carol 越名 POST t-other 可销毁覆盖集外既有授权，PutTarget UPSERT 删光 principal 行；与 DELETE 臂不对称坐实遗漏。改法：非 security-writer 时 GetTarget 命中存量追加 canManageAllRepos(存量) + 补测试腿）；review-c 在途，落地后合并返修。偏离裁可成立（§7.1 族 4 逐字吻合 + 守卫 26→24 精确两处无暗改 + 零提权证明属实——cmd/bf 与 migrate/writer 均 HTTP client 路径）2026-08-23**
+  manage wire（POST/GET 往返 + 族 4 例外门）+ service 门放宽（Create/Update→authenticated、Delete 保 admin 纵深）+ usage ∨-臂（service 用例判，族 7「required+用例判定」注记一致）+ 覆盖集矩阵 6 例 + 三组红绿探针 + 矩阵 EXPECT=1 零偏差。PM 回写勘误 1 成立（PUT/200→POST/201 + 字段拼写）勘误 2 可选。日志 reports/agents/T-217.md / T-217-review-a.md。
 
 #### 波 2（待波 1）
 - **T-212** [P0] RBAC 基座：Role 闭集 + 六能力求值链 + migration 011 + idp_sync role 改写（ADR-0026） `role:dev-go-core` `area:internal/auth + internal/metadata` `dep:T-214`
