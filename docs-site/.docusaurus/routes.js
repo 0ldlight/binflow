@@ -9,15 +9,15 @@ export default [
   },
   {
     path: '/binflow/docs/',
-    component: ComponentCreator('/binflow/docs/', 'f14'),
+    component: ComponentCreator('/binflow/docs/', '696'),
     routes: [
       {
         path: '/binflow/docs/',
-        component: ComponentCreator('/binflow/docs/', '60d'),
+        component: ComponentCreator('/binflow/docs/', 'c8e'),
         routes: [
           {
             path: '/binflow/docs/',
-            component: ComponentCreator('/binflow/docs/', 'bdf'),
+            component: ComponentCreator('/binflow/docs/', '56e'),
             routes: [
               {
                 path: '/binflow/docs/admin',
@@ -50,8 +50,20 @@ export default [
                 sidebar: "main"
               },
               {
+                path: '/binflow/docs/admin/real-env-appendix',
+                component: ComponentCreator('/binflow/docs/admin/real-env-appendix', 'dc5'),
+                exact: true,
+                sidebar: "main"
+              },
+              {
                 path: '/binflow/docs/admin/remote-virtual',
                 component: ComponentCreator('/binflow/docs/admin/remote-virtual', '925'),
+                exact: true,
+                sidebar: "main"
+              },
+              {
+                path: '/binflow/docs/admin/token-step-up',
+                component: ComponentCreator('/binflow/docs/admin/token-step-up', '782'),
                 exact: true,
                 sidebar: "main"
               },

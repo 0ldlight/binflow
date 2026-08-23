@@ -21,6 +21,7 @@ export default {
   "71bdfabd": [() => import(/* webpackChunkName: "71bdfabd" */ "@site/../docs/user/integrations/npm.md"), "@site/../docs/user/integrations/npm.md", require.resolveWeak("@site/../docs/user/integrations/npm.md")],
   "7e6a8ad0": [() => import(/* webpackChunkName: "7e6a8ad0" */ "@site/../docs/user/guides/migrate-artifactory.md"), "@site/../docs/user/guides/migrate-artifactory.md", require.resolveWeak("@site/../docs/user/guides/migrate-artifactory.md")],
   "7e9234a4": [() => import(/* webpackChunkName: "7e9234a4" */ "@site/../docs/user/install/offline.md"), "@site/../docs/user/install/offline.md", require.resolveWeak("@site/../docs/user/install/offline.md")],
+  "888e8f3c": [() => import(/* webpackChunkName: "888e8f3c" */ "@site/../docs/user/admin/real-env-appendix.md"), "@site/../docs/user/admin/real-env-appendix.md", require.resolveWeak("@site/../docs/user/admin/real-env-appendix.md")],
   "942b6d6f": [() => import(/* webpackChunkName: "942b6d6f" */ "@site/../docs/user/console.md"), "@site/../docs/user/console.md", require.resolveWeak("@site/../docs/user/console.md")],
   "a75441f4": [() => import(/* webpackChunkName: "a75441f4" */ "@site/../docs/user/integrations/pypi.md"), "@site/../docs/user/integrations/pypi.md", require.resolveWeak("@site/../docs/user/integrations/pypi.md")],
   "a7bd4aaa": [() => import(/* webpackChunkName: "a7bd4aaa" */ "@theme/DocVersionRoot"), "@theme/DocVersionRoot", require.resolveWeak("@theme/DocVersionRoot")],
@@ -37,5 +38,6 @@ export default {
   "d9eaf65b": [() => import(/* webpackChunkName: "d9eaf65b" */ "@site/../docs/user/install/compose.md"), "@site/../docs/user/install/compose.md", require.resolveWeak("@site/../docs/user/install/compose.md")],
   "e0190b8d": [() => import(/* webpackChunkName: "e0190b8d" */ "@generated/docusaurus-plugin-content-docs/default/p/binflow-docs-integrations-537.json"), "@generated/docusaurus-plugin-content-docs/default/p/binflow-docs-integrations-537.json", require.resolveWeak("@generated/docusaurus-plugin-content-docs/default/p/binflow-docs-integrations-537.json")],
   "e2c80caa": [() => import(/* webpackChunkName: "e2c80caa" */ "@site/../docs/user/install/docker.md"), "@site/../docs/user/install/docker.md", require.resolveWeak("@site/../docs/user/install/docker.md")],
+  "ec80a0a7": [() => import(/* webpackChunkName: "ec80a0a7" */ "@site/../docs/user/admin/token-step-up.md"), "@site/../docs/user/admin/token-step-up.md", require.resolveWeak("@site/../docs/user/admin/token-step-up.md")],
   "f1c828de": [() => import(/* webpackChunkName: "f1c828de" */ "@site/../docs/user/install/systemd.md"), "@site/../docs/user/install/systemd.md", require.resolveWeak("@site/../docs/user/install/systemd.md")],
   "f857aed3": [() => import(/* webpackChunkName: "f857aed3" */ "@site/../docs/user/admin/remote-virtual.md"), "@site/../docs/user/admin/remote-virtual.md", require.resolveWeak("@site/../docs/user/admin/remote-virtual.md")],};

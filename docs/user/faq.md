@@ -5,7 +5,7 @@ sidebar_position: 90
 
 # FAQ 与故障排查
 
-> 适用版本：M1~M4（各条目标注引入里程碑）。码值与文案以 M4（PRD milestone-4 v1.2）为准，全部经 QA 真机验证（T-103/T-105 验收基线）。
+> 适用版本：M1~M7（各条目标注引入里程碑）。码值与文案以 M4（PRD milestone-4 v1.2）为基线，全部经 QA 真机验证（T-103/T-105 验收基线）；M7 增补条目（RBAC 只读短路 / S3 续传 404 / token step-up）以 ADR-0026/0027/0028 与 PRD milestone-7 v1.1 为准，命令经 scratch 实例复跑（2026-08-23）。
 
 ## 状态码信封解读
 
@@ -81,6 +81,27 @@ curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/security/token \
 curl -s -H "Authorization: Bearer <access_token>" $BASE/binflow/api/v1/storage/usage/<repo>
 ```
 
+## M7 增补三问（RBAC / S3 续传 / step-up）
+
+### readonly_admin 能写某个仓吗？给他授 write 的组也不行？
+
+**不能**。readonly_admin 的内容面与仓库域求值**不查 permission targets**——「全域只读短路」是角色层的结构性设计（安全不变量：只读管理员还能删制品的矛盾配置在求值层被排除）。把 readonly_admin 加进带 `write` 的组**不会**让他能写：组合结果是**无效（静默无效果）**，不是报错，也不会有任何提示。管理面写操作（建仓/配额/GC〔含 dry-run〕/角色写等）同样恒 403。
+
+需要写能力的用户应使用 `user` 角色 + permission target 授 `write`。见 [RBAC 角色与仓库级管理员](admin/rbac-roles.md)。
+
+### S3 后端重启后，docker 上传 URL 为什么一律 404？
+
+跨重启续传（M7）目前**仅本地 filestore 后端**。S3 后端的分块上传状态由 S3 multipart upload 服务端持有，BinFlow 对 S3 的续传查询恒答「会话不存在」——重启后旧 upload URL 一律 **404 `BLOB_UPLOAD_UNKNOWN`**，客户端从头重传（Q4 暂行口径，未纳入 M7）。这不是数据丢失：已 commit 的层与制品不受影响。本地 filestore 的三径（kill -9 / SIGTERM / compose restart）对称续传见 [Docker 接入指南](docker-registry.md#大层上传中断续传跨重启)。
+
+### token 铸造报 401 step_up_required / step_up_invalid，怎么排查？
+
+按四步走（详见 [step-up 指南](admin/token-step-up.md)）：
+
+1. **开关**：`auth.token_step_up` 开了吗？默认 false——没开就不存在 step-up 报错。
+2. **臂**：报错只可能来自 **web session 臂**。Basic / Bearer(token) / docker `/v2/token` 臂全部豁免——CI 里出现的 401 与 step-up 无关，查凭据本身。注意豁免的是 **admin 角色**：readonly_admin 的 session 自铸同样要过 step-up。
+3. **错误码**：`step_up_required` = 所欠凭据缺失（本地/LDAP 缺 `step_up_password`、OIDC 缺 `step_up_grant`；**交了错腿的凭据也算缺失**）；`step_up_invalid` = 口令错 / grant 过期（TTL 默认 300s）/ **grant 已用过**（单次消费即删，第二次铸造即烧）/ 服务重启（grant 台账在进程内存）。
+4. **另一种 401**：文案为 `The user: '...' can only create user token with expires in larger than 0 and smaller than 31536000 seconds ...` 的 401 是 **TTL 护栏**（非 admin 上限 365d），与 step-up 无关——step-up 已通过，调低 `expires_in` 即可。
+
 ## M4 有意不兼容清单（里程碑级汇总）
 
 从 Artifactory 迁移时的差异点（各域细节见对应指南；M1~M3 清单见 [remote/virtual 管理](admin/remote-virtual.md#m3-有意不兼容清单汇总)）：
@@ -107,6 +128,7 @@ curl -s -H "Authorization: Bearer <access_token>" $BASE/binflow/api/v1/storage/u
 | deployment / resolution | 上传 / 解析 | UI 与文档保留 deployment 原词 |
 | permission target、include/exclude patterns | 同名同构 | M4 起 principals 支持 groups；`?permissions` 视图同形（key=主体名、value=r/w/d 字母集） |
 | groups / users / access tokens | 同名 | 组删除的 409 保护、`Unable to find group by name '<g>'.` 文案同款 |
+| （无内置实例级只读管理员；管理面 admin 为布尔） | `adminRole` 三值角色（`user`/`readonly_admin`/`admin`） | M7 起；`admin=true ⇔ adminRole=admin` 两写法等价。readonly_admin 为 BinFlow 自有（Artifactory 近似能力 = target 只授 read，无管理面只读） |
 | `binflow_session` 控制台会话 | （本产品新增） | server-side session + CSRF Origin 校验；Artifactory 无对应面 |
 | System YAML / storage GC / backup | `binflow.yaml` / `POST /api/v1/system/gc` / `export`/`import` CLI | GC 语义（mark-sweep + grace=mtime）同构 |
 
@@ -367,6 +389,8 @@ twine upload --repository binflow dist/*
 | 脚本 401 但浏览器正常 | 浏览器用会话 cookie，脚本用 Basic/token | 确认脚本用 Basic/token 而非混用 cookie |
 | 已吊销 token 401 | token 已被管理面吊销 | 签发新 token |
 | 会话 cookie 401 | 会话过期或已登出 | 重新登录控制台 |
+| 401 `step_up_required`（token 铸造，M7） | step-up 开启 + 非 admin session 臂缺二次凭据（或交了错腿凭据） | 按腿补 `step_up_password` / `step_up_grant` |
+| 401 `step_up_invalid`（token 铸造，M7） | 口令错 / grant 过期 / **grant 已用过** / 服务重启丢台账 | grant 一次性，重走获取流 |
 
 ### 403 权限类
 

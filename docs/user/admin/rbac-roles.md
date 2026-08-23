@@ -240,5 +240,6 @@ auth:
 ## 下一步
 
 - permission target 基础（principals/patterns/并集/即时生效）：[用户组与权限管理](groups-permissions.md)
+- Token 铸造二次认证（session 臂铸 Token 的 step-up 门）：[step-up 指南](token-step-up.md)
 - 审计查询与词表：[治理指南](governance.md)
 - docker 上传跨重启续传（另一项 M7 能力）：[Docker 接入指南](../docker-registry.md#大层上传中断续传跨重启)

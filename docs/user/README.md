@@ -31,6 +31,8 @@
   - [治理：审计、GC 与配额](admin/governance.md)（审计查询与词表、GC dry-run→apply 与互斥 409、quotaBytes 413 语义、includes/excludes 409/404 双值码）— M4
   - [备份与恢复手册](admin/backup-restore.md)（export/import CLI、产物 0700 保管告警、`--verify spot/full`、无钥 fail-fast 恢复链、停机强一致可选）— M4
   - [RBAC 角色与仓库级管理员](admin/rbac-roles.md)（角色三值模型与能力矩阵、adminRole wire、manage 派生与覆盖集、user.role.change 审计、IdP readonly 组映射）— M7
+  - [Token 铸造二次认证 step-up](admin/token-step-up.md)（`auth.token_step_up` 开关与 TTL 域、作用域与豁免臂、本地/LDAP 口令腿与 OIDC mint grant 腿、审计维度）— M7
+  - [附录：条件腿真实环境验收](admin/real-env-appendix.md)（V27 真实 AWS S3 / V28 真实 Artifactory 证据归档模板 + MinIO/OSS 等价口径）— M7
 - **专题指南**（`guides/`）— M6
   - [OIDC 单点登录配置](guides/oidc-config.md)（auth.oidc 段、PKCE 登录流、组/管理员映射、Keycloak 实例）
   - [LDAP 目录认证配置](guides/ldap-config.md)（auth.ldap 段、先本地后目录回退、ldaps/StartTLS 姿势、OpenLDAP 排障）

@@ -31,8 +31,18 @@
               "sidebar": "main"
             },
             {
+              "id": "admin/real-env-appendix",
+              "path": "/binflow/docs/admin/real-env-appendix",
+              "sidebar": "main"
+            },
+            {
               "id": "admin/remote-virtual",
               "path": "/binflow/docs/admin/remote-virtual",
+              "sidebar": "main"
+            },
+            {
+              "id": "admin/token-step-up",
+              "path": "/binflow/docs/admin/token-step-up",
               "sidebar": "main"
             },
             {

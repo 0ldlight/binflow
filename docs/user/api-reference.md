@@ -5,7 +5,7 @@ sidebar_position: 70
 
 # API 参考
 
-> 适用版本：M1~M7（端点引入里程碑标注于各表；M7 增补：用户角色字段 `adminRole`、permission target 动作 `manage`、docker 上传状态腿跨重启）。Artifactory 兼容端点基于 REST 逆向规格 `docs/reverse/rest-api.md`（置信度高）。
+> 适用版本：M1~M7（端点引入里程碑标注于各表；M7 增补：用户角色字段 `adminRole`、permission target 动作 `manage`、docker 上传状态腿跨重启、token 铸造 step-up 可选门）。Artifactory 兼容端点基于 REST 逆向规格 `docs/reverse/rest-api.md`（置信度高）。
 > BinFlow 自有端点以 `/api/v1` 前缀标记。
 
 BinFlow 的 API 分为两个面：
@@ -102,7 +102,7 @@ BinFlow 的 API 分为两个面：
 | PUT | `/binflow/api/security/groups/{name}` | 创建或更新组（创建 201 / 更新 200） | M4 |
 | POST | `/binflow/api/security/groups/{name}` | 改描述 | M4 |
 | DELETE | `/binflow/api/security/groups/{name}` | 删组（被 target 引用 → 409） | M4 |
-| POST | `/binflow/api/security/token` | 签发 Access Token（admin only） | M1 |
+| POST | `/binflow/api/security/token` | 签发 Access Token（admin 为任意用户签发；非 admin 限本人——M6 起；M7 起实例可开 step-up 二次认证，见 [step-up 指南](admin/token-step-up.md)） | M1 |
 | POST | `/binflow/api/security/token/revoke` | 吊销 Token（admin only） | M1 |
 | POST | `/binflow/api/v1/permissions` | 创建 Permission Target（create-or-replace；M7 起动作集含 `manage`，manage 持有者可编辑覆盖集内的 target） | M1 |
 | GET | `/binflow/api/v1/permissions` | 列出 Permission Targets（M7 起 principals 回显 `manage` 位） | M4 |
@@ -198,7 +198,7 @@ curl -s -H "Authorization: Basic $(printf 'admin:<口令>' | base64 -w0)" \
 适用于高 QPS、CI/CD 流水线和无浏览器场景。Token 校验不触发 argon2 哈希计算，性能远优于 Basic：
 
 ```bash
-# 签发 token（admin only，可指名替目标用户签发）
+# 签发 token（admin 可指名替目标用户签发；非 admin 免 username 自铸）
 TOKEN=$(curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/security/token \
   -d 'grant_type=client_credentials&username=ci-bot' | jq -r '.access_token')
 # 200: {"access_token":"<64hex>","token_id":"<id>","expires_in":2592000,"scope":"api:*"}
@@ -215,7 +215,7 @@ curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/security/token/revoke \
 |---|---|
 | token 长度 | 64 位 hex（256-bit） |
 | 默认 TTL | 2592000 秒（30 天）；`auth__token_default_ttl_hours` 可调 |
-| 签发 | admin only（M1），命名替目标用户签发 |
+| 签发 | admin 为任意用户签发；非 admin 限本人（M6 起）；body 可选 `step_up_password` / `step_up_grant`（M7，仅 `auth.token_step_up` 开启时的非 admin session 臂要求，见 [step-up 指南](admin/token-step-up.md)） |
 | 吊销 | admin only；所有 token 同表管理 |
 | 审计签发 | M4 登记缺口（无审计事件），token.revoke 日志可见 |
 | docker token 流 | 也走同表——管理面吊销对 docker token 即时生效 |
@@ -359,6 +359,19 @@ WWW-Authenticate: Basic realm="BinFlow"
 
 {"error":"invalid_client","error_description":"authentication failed"}
 
+# Token 签发：step-up 两形态（M7，开关 auth.token_step_up 开启时的非 admin session 臂）
+# 401 — 所欠二次凭据缺失（本地/LDAP 缺 step_up_password；OIDC 缺 step_up_grant；含错腿凭据）
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json
+
+{"error":"step_up_required","error_description":"step-up authentication required to mint a token"}
+
+# 401 — 二次凭据失验 / grant 过期 / grant 复用（单次消费即删）/ 服务重启丢台账
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json
+
+{"error":"step_up_invalid","error_description":"step-up credential rejected, expired, or already used"}
+
 # Docker /v2 面 401 挑战
 HTTP/1.1 401 Unauthorized
 Content-Type: application/json
@@ -466,5 +479,5 @@ Docker-Distribution-Api-Version: registry/2.0
 ## 下一步
 
 - 各协议接入指南：[Docker](docker-registry.md) · [Maven](integrations/maven.md) · [npm](integrations/npm.md) · [PyPI](integrations/pypi.md)
-- 管理操作：[治理指南](admin/governance.md) · [权限管理](admin/groups-permissions.md) · [RBAC 角色与仓库级管理员](admin/rbac-roles.md) · [备份恢复](admin/backup-restore.md)
+- 管理操作：[治理指南](admin/governance.md) · [权限管理](admin/groups-permissions.md) · [RBAC 角色与仓库级管理员](admin/rbac-roles.md) · [Token 铸造 step-up](admin/token-step-up.md) · [备份恢复](admin/backup-restore.md)
 - 常见问题与排障：[FAQ](faq.md)
