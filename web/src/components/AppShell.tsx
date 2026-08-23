@@ -6,7 +6,7 @@ import { useTheme } from '../app/ThemeContext'
 import { useToast } from '../app/ToastContext'
 import { useConfirm } from './ConfirmDialog'
 import { useVersion } from '../lib/useVersion'
-import { errText } from '../lib/api'
+import { errText, isReadOnlyAdmin } from '../lib/api'
 
 // 框架壳（console-ux §3.1/§3.5）：左侧固定导航（224px）+ 顶栏（48px）
 // + 内容区。已启用入口：仪表盘、设置（T-98）、仓库（T-99）、搜索
@@ -14,6 +14,8 @@ import { errText } from '../lib/api'
 // Access Tokens（ux R6 P2）保持占位禁用态——title 说明票号。
 // admin/非 admin 收敛：whoami 的 admin 位为主信号（CE-04），
 // 「API 403 即隐藏」为兜底（仪表盘卡片层）。
+// readonly_admin（M7 FR-66）：管理组导航可见（读面全量）+ 会话徽章「只读」；
+// 各页写入口由页面层禁用/隐藏——服务端 403 是唯一守门。
 
 interface NavGroup {
   title?: string
@@ -144,6 +146,7 @@ export default function AppShell() {
   }
 
   const admin = session?.admin ?? false
+  const readOnlyAdmin = isReadOnlyAdmin(session)
 
   return (
     <div className="app">
@@ -158,7 +161,8 @@ export default function AppShell() {
         </div>
         <div className="app-nav-items">
           {NAV.map((group, gi) => {
-            if (group.adminOnly && !admin) return null
+            // readonly_admin 读面全量可见（M7 能力矩阵 security/system/repo:read）
+            if (group.adminOnly && !admin && !readOnlyAdmin) return null
             return (
               <div key={group.title ?? `g${gi}`}>
                 {group.title && (
@@ -205,6 +209,11 @@ export default function AppShell() {
                 {session?.username ?? ''}
               </span>
               {admin && <span className="badge neutral">admin</span>}
+              {readOnlyAdmin && (
+                <span className="badge neutral" data-testid="session-readonly-badge" title="readonly_admin：管理面只读（服务端 403 兜底）">
+                  只读
+                </span>
+              )}
               <span aria-hidden="true">▾</span>
             </button>
             {menuOpen && (

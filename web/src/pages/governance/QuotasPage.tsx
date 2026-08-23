@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import { useAuth } from '../../app/AuthContext'
 import { useToast } from '../../app/ToastContext'
 import { CopyButton } from '../../components/CopyButton'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
-import { getRepositories } from '../../lib/api'
+import { getRepositories, isReadOnlyAdmin } from '../../lib/api'
 import type { RepoListItem } from '../../lib/api'
 import { errText } from '../../lib/api'
 import { formatBytes } from '../../lib/format'
@@ -77,6 +78,10 @@ function WaterBar({ usage }: { usage: RepoUsage }) {
 
 function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => void }) {
   const toast = useToast()
+  // readonly_admin（M7 FR-66）：配额写是 repoManage write——编辑入口禁用
+  //（服务端 403 兜底；普通 user 在列表层已被 403 收敛，走不进本行）
+  const { session } = useAuth()
+  const readOnly = isReadOnlyAdmin(session)
   // virtual 不持有自身内容：不请求 usage（不伪造 0）
   const usage = useAsync(
     () => (repo.type === 'virtual' ? Promise.resolve(null) : getRepoUsage(repo.key)),
@@ -205,6 +210,8 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
                 <button
                   type="button"
                   className="btn"
+                  disabled={readOnly}
+                  title={readOnly ? '只读管理员：配额写是管理面写操作（服务端 403 兜底）' : undefined}
                   onClick={startEdit}
                   data-testid={`quota-edit-${repo.key}`}
                 >

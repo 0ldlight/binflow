@@ -7,7 +7,7 @@ import { useToast } from '../../app/ToastContext'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
-import { ApiError, errText, getRepositories } from '../../lib/api'
+import { ApiError, errText, getRepositories, isReadOnlyAdmin } from '../../lib/api'
 import type { RepoListItem } from '../../lib/api'
 import {
   PACKAGE_TYPES,
@@ -274,7 +274,11 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
         </div>
         <EmptyState
           message="无权限"
-          hint={`仓库${mode === 'create' ? '创建' : '配置修改'}是管理员操作；当前用户 ${session?.username} 不是 admin。`}
+          hint={
+            isReadOnlyAdmin(session)
+              ? `只读管理员（readonly_admin）为只读呈现态：仓库${mode === 'create' ? '创建' : '配置修改'}是管理面写操作（repo:write，服务端 403 兜底）。`
+              : `仓库${mode === 'create' ? '创建' : '配置修改'}是管理员操作；当前用户 ${session?.username} 不是 admin。`
+          }
         />
       </div>
     )

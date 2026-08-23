@@ -1,38 +1,54 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
+import { useAuth } from '../../app/AuthContext'
 import { useToast } from '../../app/ToastContext'
 import { CopyButton } from '../../components/CopyButton'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
-import { ApiError, errText } from '../../lib/api'
+import { ADMIN_ROLES, ApiError, errText, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
+import type { AdminRole } from '../../lib/api'
 import { useAsync } from '../../lib/useAsync'
 import './security.css'
 import { getUser, listGroups, updateUser } from './api'
 import type { UserDetail } from './api'
 
-// 用户详情/编辑（console-ux §3.2 /security/users/:name）：email/admin/组员
+// 用户详情/编辑（console-ux §3.2 /security/users/:name）：email/角色/组员
 // 维护 + 口令重置入口（AC③）。写面走 POST /{name} 部分更新——指针语义下
 // 仅携带改动字段（groups:[] 是显式清空，不是「未提及」）。
 //
-// 契约缺口（登记漂移）：后端无「禁用用户」与「删除用户」端点（SE 域仅
-// GET/PUT/POST）；禁用位（internalPasswordDisabled/disableUIAccess）为回显
-// 字段且恒 false。UI 不伪造入口。
+// 角色（M7 FR-66）：三值下拉（wire snake：user/readonly_admin/admin），只走
+// adminRole 通道、不与 admin 布尔混发（同时发且不一致 → 服务端 400）。
+// readonly_admin 会话进入本页 = 只读呈现：编辑控件禁用（服务端 403 兜底，
+// UI 无绕过——服务端是唯一守门）。
+//
+// 契约缺口（登记漂移）：后端无「删除用户」端点（SE 域仅 GET/PUT/POST）；
+// 禁用位（internalPasswordDisabled/disableUIAccess）为回显字段且恒 false。
+// UI 不伪造入口。
+
+/** 下拉显示名（wire 值严格 snake——选项 value 即 wire，显示名仅呈现层） */
+const ROLE_LABEL: Record<AdminRole, string> = {
+  user: '普通用户（user）——内容面按 permission target 授权',
+  readonly_admin: '只读管理员（readonly_admin）——管理面全量只读',
+  admin: '管理员（admin）——管理面全权',
+}
 
 interface EditState {
   email: string
-  admin: boolean
+  role: AdminRole
   groups: string[]
   password: string
 }
 
 function editFromDetail(d: UserDetail): EditState {
-  return { email: d.email, admin: d.admin, groups: [...d.groups], password: '' }
+  return { email: d.email, role: normalizeAdminRole(d.adminRole, d.admin), groups: [...d.groups], password: '' }
 }
 
 export default function UserDetailPage() {
   const { name = '' } = useParams<{ name: string }>()
+  const { session } = useAuth()
+  const readOnly = isReadOnlyAdmin(session)
   const toast = useToast()
   const detail = useAsync(() => getUser(name), [name])
   const groups = useAsync(listGroups, [])
@@ -78,11 +94,12 @@ export default function UserDetailPage() {
   }
 
   const d = detail.data
+  const baseRole = d ? normalizeAdminRole(d.adminRole, d.admin) : null
   const dirty =
     !!f &&
     !!d &&
     (f.email.trim() !== d.email ||
-      f.admin !== d.admin ||
+      f.role !== baseRole ||
       JSON.stringify([...f.groups].sort()) !== JSON.stringify([...d.groups].sort()) ||
       f.password !== '')
 
@@ -93,7 +110,8 @@ export default function UserDetailPage() {
     try {
       const body: Record<string, unknown> = { name: d.name }
       if (f.email.trim() !== d.email) body.email = f.email.trim()
-      if (f.admin !== d.admin) body.admin = f.admin
+      // 角色只走 adminRole 通道（与 admin 布尔混发不一致 → 服务端 400）
+      if (f.role !== baseRole) body.adminRole = f.role
       if (JSON.stringify([...f.groups].sort()) !== JSON.stringify([...d.groups].sort())) body.groups = f.groups
       if (f.password !== '') body.password = f.password
       await updateUser(d.name, body)
@@ -131,26 +149,44 @@ export default function UserDetailPage() {
         </div>
         {f && (
           <>
+            {readOnly && (
+              <p className="admin-note" data-testid="user-form-readonly-note">
+                ⓘ 只读管理员（readonly_admin）视角：用户编辑是管理面写操作，本页为只读呈现
+                （服务端 403 兜底，UI 不代持判定）。
+              </p>
+            )}
             <div className="field">
               <label htmlFor="ud-email">Email</label>
               <input
                 id="ud-email"
                 type="email"
                 value={f.email}
+                disabled={readOnly}
                 onChange={(e) => setF((p) => (p ? { ...p, email: e.target.value } : p))}
                 data-testid="user-form-email"
               />
               {f.email.trim() === '' && <p className="field-error">email 不能为空（服务端 400）</p>}
             </div>
-            <label className="check-row">
-              <input
-                type="checkbox"
-                checked={f.admin}
-                onChange={(e) => setF((p) => (p ? { ...p, admin: e.target.checked } : p))}
-                data-testid="user-form-admin"
-              />
-              admin（管理面全权）
-            </label>
+            <div className="field" style={{ maxWidth: 480 }}>
+              <label htmlFor="ud-role">角色（闭集三值——wire 值即选项值）</label>
+              <select
+                id="ud-role"
+                value={f.role}
+                disabled={readOnly}
+                onChange={(e) => setF((p) => (p ? { ...p, role: e.target.value as AdminRole } : p))}
+                data-testid="user-form-role"
+              >
+                {ADMIN_ROLES.map((r) => (
+                  <option key={r} value={r} data-testid={`user-form-role-${r}`}>
+                    {ROLE_LABEL[r]}
+                  </option>
+                ))}
+              </select>
+              <p className="field-hint">
+                角色变更即时生效并落 <span className="mono" lang="en">user.role.change</span> 审计；只读管理员对
+                permission target 短路（组合无效而非非法）。
+              </p>
+            </div>
             <div className="field" style={{ maxWidth: 560 }}>
               <label>组成员（保存后即时生效——移出组即失去该组授权，无需重登）</label>
               {groups.status === 'loading' && <Skeleton lines={2} />}
@@ -162,6 +198,7 @@ export default function UserDetailPage() {
                       <input
                         type="checkbox"
                         checked={f.groups.includes(g.name)}
+                        disabled={readOnly}
                         onChange={(e) =>
                           setF((p) =>
                             p
@@ -196,6 +233,7 @@ export default function UserDetailPage() {
                 autoComplete="new-password"
                 placeholder="（不改动）"
                 value={f.password}
+                disabled={readOnly}
                 onChange={(e) => setF((p) => (p ? { ...p, password: e.target.value } : p))}
                 data-testid="user-form-password"
               />
@@ -212,7 +250,8 @@ export default function UserDetailPage() {
               <button
                 type="button"
                 className="btn primary"
-                disabled={!dirty || f.email.trim() === '' || submitting}
+                disabled={!dirty || f.email.trim() === '' || submitting || readOnly}
+                title={readOnly ? '只读管理员：用户编辑是管理面写操作（服务端 403）' : undefined}
                 onClick={() => void submit()}
                 data-testid="user-form-submit"
               >
@@ -229,6 +268,12 @@ export default function UserDetailPage() {
           <span className="k">realm</span>
           <span className="mono" lang="en">
             {d?.realm ?? '—'}
+          </span>
+        </div>
+        <div className="kv">
+          <span className="k">角色</span>
+          <span className="mono" lang="en" data-testid="user-facts-role">
+            {baseRole ?? '—'}
           </span>
         </div>
         <div className="kv">

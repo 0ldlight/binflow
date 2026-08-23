@@ -19,7 +19,7 @@ export interface DiffLine {
   value: string
 }
 
-const ACTION_ORDER: Record<PermAction, number> = { read: 0, write: 1, delete: 2 }
+const ACTION_ORDER: Record<PermAction, number> = { read: 0, write: 1, delete: 2, manage: 3 }
 const sortActions = (a: PermAction[]) => [...a].sort((x, y) => ACTION_ORDER[x] - ACTION_ORDER[y])
 const sameActions = (a: PermAction[], b: PermAction[]) =>
   sortActions(a).join(',') === sortActions(b).join(',')

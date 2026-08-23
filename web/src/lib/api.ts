@@ -111,6 +111,33 @@ export function errText(err: unknown): string {
 export interface Whoami {
   username: string
   admin: boolean
+  /** M7 RBAC 闭集角色回显（wire snake 值，与 users.role 列同拼——ADR-0026
+   *  决策 6）。旧二进制无此字段：归一化回退 admin 布尔镜像。 */
+  adminRole?: string
+}
+
+// ---- RBAC 角色闭集（M7 FR-64/FR-66；唯一事实源 internal/auth/rbac.go） ----
+
+/** 闭集角色 wire 值（snake 三值；新增角色 = 架构变更，永远不是数据变更） */
+export type AdminRole = 'user' | 'readonly_admin' | 'admin'
+export const ADMIN_ROLES: readonly AdminRole[] = ['user', 'readonly_admin', 'admin']
+
+/** 回显归一：闭集外（旧二进制 / 残缺回显）回退 admin 布尔镜像，与服务端
+ *  EffectiveRole / roleFromStored 的 fail-safe 同口径——UI 呈现永不放大权限。 */
+export function normalizeAdminRole(role: string | null | undefined, admin: boolean): AdminRole {
+  if (role === 'admin' || role === 'readonly_admin' || role === 'user') return role
+  return admin ? 'admin' : 'user'
+}
+
+/** 管理面写能力（UI 呈现位）：仅全量 admin。readonly_admin 是只读呈现态，
+ *  普通 user 不入管理面。服务端是唯一守门——这里只驱动禁用/隐藏，不放大。 */
+export function canAdminWrite(session: Whoami | null): boolean {
+  return !!session && normalizeAdminRole(session.adminRole, session.admin) === 'admin'
+}
+
+/** readonly_admin 只读态（管理页可见 + 编辑动作禁用的 UI 判定位） */
+export function isReadOnlyAdmin(session: Whoami | null): boolean {
+  return !!session && normalizeAdminRole(session.adminRole, session.admin) === 'readonly_admin'
 }
 
 export function postSession(username: string, password: string): Promise<Whoami> {

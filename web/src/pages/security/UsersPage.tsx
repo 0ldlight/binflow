@@ -7,7 +7,7 @@ import { CopyButton } from '../../components/CopyButton'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
-import { ApiError, errText } from '../../lib/api'
+import { ApiError, errText, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
 import { useAsync } from '../../lib/useAsync'
 import './security.css'
 import { createUser, getUser, listGroups, listUsers, validateUserName } from './api'
@@ -33,8 +33,17 @@ function UserRow({ user }: { user: UserListItem }) {
       </td>
       <td>
         {detail.status === 'loading' && <span className="cell-pending" role="progressbar" aria-label="用户信息加载中" />}
-        {detail.status === 'ok' && detail.data?.admin && <span className="badge warning">admin</span>}
-        {detail.status === 'ok' && detail.data && !detail.data.admin && <span className="text-muted">—</span>}
+        {detail.status === 'ok' && detail.data && (
+          <>
+            {normalizeAdminRole(detail.data.adminRole, detail.data.admin) === 'admin' && (
+              <span className="badge warning">admin</span>
+            )}
+            {normalizeAdminRole(detail.data.adminRole, detail.data.admin) === 'readonly_admin' && (
+              <span className="badge neutral">readonly_admin</span>
+            )}
+            {normalizeAdminRole(detail.data.adminRole, detail.data.admin) === 'user' && <span className="text-muted">—</span>}
+          </>
+        )}
         {detail.status !== 'loading' && detail.status !== 'ok' && (
           <span className="text-muted" title={detail.error?.message ?? '详情不可用'}>
             —
@@ -211,6 +220,7 @@ function CreateUserForm({ onDone }: { onDone: () => void }) {
 export default function UsersPage() {
   const { session } = useAuth()
   const admin = session?.admin ?? false
+  const readOnly = isReadOnlyAdmin(session)
   const state = useAsync(listUsers, [])
   const [creating, setCreating] = useState(false)
 
@@ -224,6 +234,12 @@ export default function UsersPage() {
           </button>
         )}
       </div>
+
+      {readOnly && (
+        <p className="admin-note" data-testid="users-readonly-note">
+          ⓘ 只读管理员（readonly_admin）视角：用户与角色只读；创建/编辑是管理面写操作（服务端 403 兜底）。
+        </p>
+      )}
 
       {creating && <CreateUserForm onDone={state.reload} />}
 
@@ -247,7 +263,7 @@ export default function UsersPage() {
             <thead>
               <tr>
                 <th scope="col">用户名</th>
-                <th scope="col">admin</th>
+                <th scope="col">角色</th>
                 <th scope="col">组</th>
                 <th scope="col">realm</th>
               </tr>

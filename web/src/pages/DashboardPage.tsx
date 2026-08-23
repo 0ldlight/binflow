@@ -5,7 +5,7 @@ import { useAuth } from '../app/AuthContext'
 import { EmptyState } from '../components/EmptyState'
 import { ErrorCard } from '../components/ErrorCard'
 import { Skeleton } from '../components/Skeleton'
-import { getHealth, getRecentAudit, getRepositories, getStorageStats } from '../lib/api'
+import { getHealth, getRecentAudit, getRepositories, getStorageStats, isReadOnlyAdmin } from '../lib/api'
 import type { HealthInfo, RepoListItem, StorageStats, AuditPage } from '../lib/api'
 import { dedupRatio, formatAuditTime, formatBytes, formatCount } from '../lib/format'
 import { useAsync } from '../lib/useAsync'
@@ -222,7 +222,7 @@ function InstanceCard() {
         <span className="k">当前用户</span>
         <span>
           {session?.username}
-          {session?.admin ? '（admin）' : ''}
+          {session?.admin ? '（admin）' : isReadOnlyAdmin(session) ? '（readonly_admin）' : ''}
         </span>
       </div>
     </section>
@@ -232,16 +232,23 @@ function InstanceCard() {
 export default function DashboardPage() {
   const { session } = useAuth()
   const admin = session?.admin ?? false
+  const readOnly = isReadOnlyAdmin(session)
 
   return (
     <div data-testid="dashboard">
       <div className="page-header">
         <h2>仪表盘</h2>
       </div>
-      {!admin && (
+      {!admin && !readOnly && (
         <div className="card section" style={{ maxWidth: 640 }}>
           以 <b>{session?.username}</b>（非 admin）身份登录：健康、存储、仓库与审计面板为管理员视图，
           已按「无权限即隐藏」收敛；你的可用操作见左下角「修改口令」。
+        </div>
+      )}
+      {readOnly && (
+        <div className="card section" style={{ maxWidth: 640 }} data-testid="dashboard-readonly-note">
+          以 <b>{session?.username}</b>（readonly_admin）身份登录：管理面全量只读——健康、存储、仓库与审计
+          面板可见；配置变更（建仓 / 用户与权限 / GC / 复制）需 admin，提交会被服务端 403 拒绝。
         </div>
       )}
       <div className="card-grid">

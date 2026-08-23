@@ -7,6 +7,7 @@ import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import type { RepoListItem } from '../../lib/api'
+import { isReadOnlyAdmin } from '../../lib/api'
 import { cfgStr, cfgStrList, getRepositoriesFiltered, getRepoUsage } from '../../lib/repos'
 import { PACKAGE_TYPES, RCLASSES } from '../../lib/repos'
 import { formatBytes } from '../../lib/format'
@@ -91,6 +92,7 @@ function UpstreamCell({ repo }: { repo: RepoListItem }) {
 export default function RepositoriesPage() {
   const { session } = useAuth()
   const admin = session?.admin ?? false
+  const readOnly = isReadOnlyAdmin(session)
   const navigate = useNavigate()
 
   const [typeFilter, setTypeFilter] = useState('')
@@ -115,6 +117,13 @@ export default function RepositoriesPage() {
           </Link>
         )}
       </div>
+
+      {readOnly && (
+        <p className="admin-note" data-testid="repos-readonly-note">
+          ⓘ 只读管理员（readonly_admin）视角：仓库配置与制品只读；创建/删除仓库与写操作是管理面写
+          （repo:write，服务端 403 兜底）。
+        </p>
+      )}
 
       <div className="filter-bar">
         <input

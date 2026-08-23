@@ -8,7 +8,7 @@ import { CopyButton } from '../../components/CopyButton'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
-import { ApiError, errText } from '../../lib/api'
+import { ApiError, errText, isReadOnlyAdmin } from '../../lib/api'
 import { useAsync } from '../../lib/useAsync'
 import './security.css'
 import { deleteGroup, listGroups, parseReferencedTargets, putGroup, validateGroupName } from './api'
@@ -126,6 +126,7 @@ function GroupForm({
 export default function GroupsPage() {
   const { session } = useAuth()
   const admin = session?.admin ?? false
+  const readOnly = isReadOnlyAdmin(session)
   const toast = useToast()
   const confirm = useConfirm()
   const state = useAsync(listGroups, [])
@@ -181,6 +182,12 @@ export default function GroupsPage() {
           </button>
         )}
       </div>
+
+      {readOnly && (
+        <p className="admin-note" data-testid="groups-readonly-note">
+          ⓘ 只读管理员（readonly_admin）视角：组只读；创建/编辑描述/删除是管理面写操作（服务端 403 兜底）。
+        </p>
+      )}
 
       {form && (
         <GroupForm

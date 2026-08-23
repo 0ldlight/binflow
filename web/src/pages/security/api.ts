@@ -29,6 +29,8 @@ export interface UserDetail {
   name: string
   email: string
   admin: boolean
+  /** M7 闭集角色回显（snake 三值；与 admin 布尔一致：admin ⇔ adminRole=admin） */
+  adminRole: string
   groups: string[]
   lastLoggedIn?: string
   realm: string
@@ -46,12 +48,16 @@ export interface UserReplaceBody {
   groups: string[]
 }
 
-/** POST 体（部分更新：仅携带要改的字段——指针语义的前端侧落法） */
+/** POST 体（部分更新：仅携带要改的字段——指针语义的前端侧落法）。
+ *  adminRole（M7）：单独携带时是完整的角色陈述；与 admin 布尔同时携带
+ *  必须一致（admin=true ⇔ adminRole=admin），否则服务端 400——UI 角色下拉
+ *  只走 adminRole 通道，永不与布尔混发。 */
 export interface UserUpdateBody {
   name?: string
   email?: string
   password?: string
   admin?: boolean
+  adminRole?: string
   groups?: string[]
 }
 
@@ -123,10 +129,12 @@ export function parseReferencedTargets(message: string): string[] {
     .filter((s) => s !== '')
 }
 
-// ---- permission targets（E-24 / SE-07） ----
+// ---- permission targets（E-24 / SE-07；M7 动作集扩 manage，T-217） ----
 
-export type PermAction = 'read' | 'write' | 'delete'
-export const PERM_ACTIONS: PermAction[] = ['read', 'write', 'delete']
+/** 动作集四值：r/w/d + m（manage = 仓库级 admin 派生位，ADR-0026 决策 3）。
+ *  wire 全词形（read/write/delete/manage）；GET 回显按本数组序（r/w/d/m）。 */
+export type PermAction = 'read' | 'write' | 'delete' | 'manage'
+export const PERM_ACTIONS: PermAction[] = ['read', 'write', 'delete', 'manage']
 
 export interface PermPrincipals {
   users: Record<string, PermAction[]>

@@ -8,7 +8,7 @@ import { useConfirm } from '../../components/ConfirmDialog'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
-import { ApiError, errText, getRepositories } from '../../lib/api'
+import { ApiError, errText, getRepositories, isReadOnlyAdmin } from '../../lib/api'
 import { useAsync } from '../../lib/useAsync'
 import './security.css'
 import { PERM_ACTIONS, deletePermissionTarget, listGroups, listPermissionTargets, listUsers, savePermissionTarget } from './api'
@@ -22,9 +22,13 @@ import type { DiffLine, TargetSnapshot } from './targetdiff'
 //   [2] 路径模式（include/exclude 双栏 chips）+ 模式测试器（灵魂件：
 //       逐条命中明细 + exclude 优先最终判定；判定向量与 internal/auth
 //       pathmatch 同源——fixtures 由 Go 用例生成，parity spec 断言）
-//   [3] 主体与动作矩阵（用户行 + 👥组行 × r/w/d）
+//   [3] 主体与动作矩阵（用户行 + 👥组行 × r/w/d/m——M7 扩 manage 复选，
+//       wire 全词形 manage，回显按 r/w/d/m 序，T-217/FR-66）
 //   [4] 保存 = 变更摘要 diff 确认（§4.9[4]）→ POST create-or-replace
 // 危险区：删除 target（连带全部授权行，单事务）。
+//
+// readonly_admin（M7 FR-66）：编辑器可见但全控件只读（security:read 过 GET，
+// 写端点 403——服务端是唯一守门，UI 只呈现）；普通 user 维持无权限卡。
 
 type PrincipalMap = Record<string, PermAction[]>
 
@@ -57,12 +61,14 @@ function MatrixCell({
   action,
   on,
   onToggle,
+  disabled,
 }: {
   kind: 'user' | 'group'
   name: string
   action: PermAction
   on: boolean
   onToggle: () => void
+  disabled?: boolean
 }) {
   return (
     <td>
@@ -70,6 +76,7 @@ function MatrixCell({
         <input
           type="checkbox"
           checked={on}
+          disabled={disabled}
           onChange={onToggle}
           aria-label={`${kind === 'user' ? '用户' : '组'} ${name} 的 ${action} 权限`}
           data-testid={`perm-matrix-cell-${kind}-${name}-${action}`}
@@ -83,6 +90,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
   const { name: routeName = '' } = useParams<{ name: string }>()
   const { session } = useAuth()
   const admin = session?.admin ?? false
+  const readOnly = isReadOnlyAdmin(session)
   const toast = useToast()
   const confirm = useConfirm()
   const navigate = useNavigate()
@@ -170,7 +178,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
     })
   }
 
-  if (!admin) {
+  if (!admin && !readOnly) {
     return (
       <div data-testid="perm-editor-page">
         <div className="page-header">
@@ -223,6 +231,26 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
   }
 
   const nameValid = f.name.trim() !== ''
+
+  // readonly_admin 的创建臂：纯写流程无只读形态——如实呈现只读空态
+  if (readOnly && mode === 'create') {
+    return (
+      <div data-testid="perm-editor-page">
+        <div className="page-header">
+          <h2>创建 permission target</h2>
+        </div>
+        <EmptyState
+          message="只读管理员无法创建 permission target"
+          hint="创建 target 是管理面写操作（security:write，服务端 403 兜底）。"
+          action={
+            <Link className="btn" to="/security/permissions">
+              ← 返回权限列表
+            </Link>
+          }
+        />
+      </div>
+    )
+  }
 
   const doSave = async () => {
     // [4] 变更摘要 diff 确认（§4.9 线框：+ 授予 / − 移除 逐条列出）
@@ -323,6 +351,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
             <button
               type="button"
               aria-label={`移除 ${p}`}
+              disabled={readOnly}
               onClick={() => setF((prev) => ({ ...prev, [kind]: prev[kind].filter((x) => x !== p) }))}
               data-testid={`perm-pattern-remove-${kind === 'includes' ? 'include' : 'exclude'}-${i}`}
             >
@@ -333,6 +362,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
         <div className="pattern-add">
           <input
             value={input}
+            disabled={readOnly}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
@@ -345,7 +375,13 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
             data-testid={`perm-pattern-input-${kind === 'includes' ? 'include' : 'exclude'}`}
             lang="en"
           />
-          <button type="button" className="btn" onClick={() => addPattern(kind, input)} data-testid={`perm-pattern-add-${kind === 'includes' ? 'include' : 'exclude'}`}>
+          <button
+            type="button"
+            className="btn"
+            disabled={readOnly}
+            onClick={() => addPattern(kind, input)}
+            data-testid={`perm-pattern-add-${kind === 'includes' ? 'include' : 'exclude'}`}
+          >
             添加
           </button>
         </div>
@@ -373,6 +409,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
               type="button"
               className="principal-remove"
               aria-label={`移除主体 ${name}`}
+              disabled={readOnly}
               onClick={() => removePrincipal(kind, name)}
               data-testid={`perm-matrix-remove-${cellKind}-${name}`}
             >
@@ -387,6 +424,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
             name={name}
             action={a}
             on={actions.includes(a)}
+            disabled={readOnly}
             onToggle={() => toggleAction(kind, name, a)}
           />
         ))}
@@ -411,6 +449,13 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
         )}
       </div>
 
+      {readOnly && (
+        <p className="admin-note" data-testid="perm-editor-readonly-note">
+          ⓘ 只读管理员（readonly_admin）视角：本编辑器为只读呈现（矩阵含 manage 位）；保存/删除是管理面写操作，
+          服务端 403 兜底——UI 不代持判定。
+        </p>
+      )}
+
       <section className="card perm-section">
         <h3>[1] 基本信息</h3>
         <div className="field">
@@ -419,7 +464,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
             id="pe-name"
             className="mono-input"
             value={mode === 'create' ? f.name : routeName}
-            disabled={mode === 'edit'}
+            disabled={mode === 'edit' || readOnly}
             onChange={(e) => setF((p) => ({ ...p, name: e.target.value }))}
             placeholder="ci-out-rw"
             aria-invalid={!nameValid}
@@ -445,6 +490,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
                   <button
                     type="button"
                     aria-label={`移除仓库 ${r}`}
+                    disabled={readOnly}
                     onClick={() => setF((p) => ({ ...p, repos: p.repos.filter((x) => x !== r) }))}
                     data-testid={`perm-repo-remove-${r}`}
                   >
@@ -457,6 +503,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
           <div className="pattern-add">
             <select
               value=""
+              disabled={readOnly}
               onChange={(e) => {
                 const k = e.target.value
                 if (k && !f.repos.includes(k)) setF((p) => ({ ...p, repos: [...p.repos, k] }))
@@ -559,6 +606,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
               <th scope="col">read</th>
               <th scope="col">write</th>
               <th scope="col">delete</th>
+              <th scope="col" title="manage = 仓库级 admin 派生位（只判 repos[]，pattern 不参与）">manage</th>
             </tr>
           </thead>
           <tbody>
@@ -566,7 +614,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
             {Object.keys(f.groups).sort().map((n) => renderPrincipalRow('groups', n))}
             {Object.keys(f.users).length === 0 && Object.keys(f.groups).length === 0 && (
               <tr>
-                <td colSpan={4} className="text-muted">
+                <td colSpan={5} className="text-muted">
                   还没有主体——从下方添加用户或组。授权 = 用户自身行 ∪ 所属组行的动作并集。
                 </td>
               </tr>
@@ -574,7 +622,13 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
           </tbody>
         </table>
         <div className="matrix-add">
-          <select value={addUser} onChange={(e) => setAddUser(e.target.value)} aria-label="选择要添加的用户" data-testid="perm-add-user">
+          <select
+            value={addUser}
+            disabled={readOnly}
+            onChange={(e) => setAddUser(e.target.value)}
+            aria-label="选择要添加的用户"
+            data-testid="perm-add-user"
+          >
             <option value="">＋ 添加用户…</option>
             {userOptions.map((n) => (
               <option key={n} value={n}>
@@ -582,10 +636,16 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
               </option>
             ))}
           </select>
-          <button type="button" className="btn" disabled={addUser === ''} onClick={() => addPrincipal('users', addUser)}>
+          <button type="button" className="btn" disabled={addUser === '' || readOnly} onClick={() => addPrincipal('users', addUser)}>
             添加用户
           </button>
-          <select value={addGroup} onChange={(e) => setAddGroup(e.target.value)} aria-label="选择要添加的组" data-testid="perm-add-group">
+          <select
+            value={addGroup}
+            disabled={readOnly}
+            onChange={(e) => setAddGroup(e.target.value)}
+            aria-label="选择要添加的组"
+            data-testid="perm-add-group"
+          >
             <option value="">＋ 添加组…</option>
             {groupOptions.map((n) => (
               <option key={n} value={n}>
@@ -593,11 +653,14 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
               </option>
             ))}
           </select>
-          <button type="button" className="btn" disabled={addGroup === ''} onClick={() => addPrincipal('groups', addGroup)}>
+          <button type="button" className="btn" disabled={addGroup === '' || readOnly} onClick={() => addPrincipal('groups', addGroup)}>
             添加组
           </button>
         </div>
-        <p className="admin-note">ⓘ admin 隐式拥有全部权限，不列入矩阵；无动作的主体不会提交（空 r/w/d ≡ 未授权）。</p>
+        <p className="admin-note">
+          ⓘ admin 隐式拥有全部权限，不列入矩阵；无动作的主体不会提交（空 r/w/d/m ≡ 未授权）。manage =
+          仓库级 admin（可编辑覆盖集内的 target、读写该仓配置族；不含建/删仓与安全面）。
+        </p>
       </section>
 
       {serverError && (
@@ -611,29 +674,31 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
 
       <div className="form-actions">
         <Link className="btn" to="/security/permissions">
-          取消
+          {readOnly ? '返回列表' : '取消'}
         </Link>
-        <button
-          type="button"
-          className="btn primary"
-          disabled={!nameValid || f.repos.length === 0 || !dirty || submitting}
-          title={
-            !nameValid
-              ? '名称必填'
-              : f.repos.length === 0
-                ? '至少选择一个适用仓库'
-                : !dirty
-                  ? '没有变更'
-                  : undefined
-          }
-          onClick={() => void doSave()}
-          data-testid="perm-save"
-        >
-          {submitting ? '保存中…' : '保存变更'}
-        </button>
+        {!readOnly && (
+          <button
+            type="button"
+            className="btn primary"
+            disabled={!nameValid || f.repos.length === 0 || !dirty || submitting}
+            title={
+              !nameValid
+                ? '名称必填'
+                : f.repos.length === 0
+                  ? '至少选择一个适用仓库'
+                  : !dirty
+                    ? '没有变更'
+                    : undefined
+            }
+            onClick={() => void doSave()}
+            data-testid="perm-save"
+          >
+            {submitting ? '保存中…' : '保存变更'}
+          </button>
+        )}
       </div>
 
-      {mode === 'edit' && (
+      {mode === 'edit' && !readOnly && (
         <div className="danger-zone" style={{ marginTop: 'var(--bf-sp-5)' }} data-testid="perm-danger-zone">
           <h3>危险区</h3>
           <p>删除 target 会连带删除其全部授权行（单事务，无撤销）。</p>
