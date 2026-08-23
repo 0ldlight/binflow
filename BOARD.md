@@ -98,7 +98,11 @@ DoD 七条全达成（PRD §9 对证）：P0/P1 全绿（T-221 16/16 / T-222 192
 #### B4 域第二波 + 中期回归（在途）
 - **T-240** [P0] 仓库管理域重排 `role:dev-frontend` — **done 2026-08-24（击落-恢复五文件零分叉；5/5 新 spec + 域外全量 124/0；提交 `196966c`）**
   三 Tab 列表/包类型网格向导/详情三 Tab（quota 行内编辑 CanManageRepo 语义）/删仓两段强确认；T-218 仓库域债收口；锚零改名迁移。分歧记录：列表链接进详情自有页（§6.8 裁定）；无端点列不伪造。日志 reports/agents/T-240.md。
-- **T-241** [P0] 权限 target 编辑器重排 `role:dev-frontend` — **doing 2026-08-24（串行复工——T-240 已提交解除共享树隐患；先修自建对话框对比度再收尾）**
+- **T-241** [P0] 权限 target 编辑器重排 `role:dev-frontend` — **done 2026-08-24（隔离 worktree 全量 136/0 + 锚守卫 9/9；提交 `6158f53`）——B4 全清**
+  两步资源对话框（冻结锚迁入/焦点陷阱/Esc 零回填）+ 四动作矩阵 + pathmatch 测试器 + 覆盖集三呈现面（B1 存量并集钉死）。**conductor 裁定**：m-holder 控制台编辑器可达性 = 契约冻结下 API-only（列表端点 CapSecurityRead）——L2 边界说明已随票交付，过滤列表端点列 M9 候选；POST 恒 201 为 wire 事实（AC 已正）。**共享层债（T-250 候选）**：base.css 语义 badge 亮主题对比度家族（warning/success/danger）+ stepper 死样式 + quota helper 双份。日志 reports/agents/T-241.md。
+
+#### B4.5 中期回归（在途）
+- **T-243** [P1] M8 中期回归 `role:qa-engineer` — **doing 2026-08-24（契约冻结 git diff 审计硬闸 + W 锚全量对账 + M7 语义抽样 + 全量 e2e）**
 - **T-237** [P0] 用户与组管理重排 `role:dev-frontend` — **done 2026-08-23（4/4 三角色 spec + 锚守卫 23/23 + 只读完备 grep 零裸写；提交 `c5eb748`）**
   分区编辑器/双列穿梭/排序/角色徽章/删除守卫；T-224 PUT replace 姿势端到端实证；M7 语义全量保留。**契约缺口登记（熔断线合规，待 PM/architect 立项）**：① GET users 无 enabled 回显（T-208 只落写侧）；② 无 DELETE users/{name}（Artifactory 有）；③ 组成员 N+1 汇总（无端点）；④ 组无 adminPrivileges 字段。遗留：base.css badge.warning 亮色 4.26:1 共享层小票。日志 reports/agents/T-237.md。
 
