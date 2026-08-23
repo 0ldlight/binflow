@@ -76,14 +76,14 @@ DoD 七条全达成（PRD §9 对证）：P0/P1 全绿（T-221 16/16 / T-222 192
 #### B1 基座与债券（首波并行 3；T-233 待 T-231）
 - **T-231** [P1] internal/client percent-encode 修复 `role:dev-go-core` — **done 2026-08-23（conductor 复验：矩阵测试 race 绿 + 全仓 lint 0；提交 `684e71c`）**
   EscapePathSegments 导出 + contentPlanePath/storagePlanePath 单一构造点喂全部五个消费方法；CLI 打印 URI 同步可复制。5×2 真实栈矩阵 + 变异验证（%/#/? 腿复现生产报错原文）。遗留① migrate/reader 转义收敛→T-233 顺手。日志 reports/agents/T-231.md。
-- **T-232** [P0] M8 Playwright 交互断言基座 `role:devops-engineer` `area:web/e2e/m8/ + seed 脚本` `dep:—`
-  tests 目录 + loginAs/seedTree(≥10k 节点)/剪贴板/axe/性能助手 + 断言口径 README（交互断言制，禁像素 diff——ADR-0029）+ 三角色冒烟。**spec 目录用 web/e2e/m8/**（PRD web/tests/m8/ 与现役 testDir 冲突，勘误）。
+- **T-232** [P0] M8 交互断言基座 `role:devops-engineer` — **done 2026-08-23（提交 `d6a7db9`）**
+  e2e/m8/（README 断言口径 + support 五助手 + 冒烟/自证 spec）+ seed-m8 双形态（**10,291 节点树 75.8s 验证、幂等复跑 0.4s**）；全量 95 passed/0 failed。**发现（conductor 待裁）**：既有套件 gc `graceHours=0` 并行竞态（apply 与并行上传互斥——全量验收一律 `--workers=1` 兜底，根治归后续票）。日志 reports/agents/T-232.md。
 - **T-234** [P0] 设计 token 基座 `role:dev-frontend` — **done 2026-08-23（conductor 复验：assert-tokens OK + typecheck 绿；提交 `9da9d18`）**
   tokens.css 全量重做（Q2 亮色默认/[data-theme] 纯换值/三阶纵深/shadow 系/scrim·danger 增补）+ ThemeContext（亮默认+持久+首访 prefers）+ 编译期断言门（assert:tokens 入 build 前置）+ --bf-text-muted 上调过 §8 对比度门（axe 双主题 serious=0）+ 零复制合规 + gzip 155KB。**勘误登记（console-m8 §5.1 回写）**：暗色默认标头过时/text-muted 新值/增补 token 未入册。冒烟 spec 暂驻 styles/ 待 T-232 合入迁 e2e/m8。日志 reports/agents/T-234.md。
 - **T-233** [P1] FR-77 债券打包 `role:dev-go-core` — **doing 2026-08-23（T-231 `684e71c` 解锁即派；含 reader 转义收敛）**
 
-#### B2 双模式壳（串行 1）
-- **T-235** [P0] 双模式壳与路由重排（AppShell/路由表/20 条旧路由 redirect/testid 242 锚映射） `role:dev-frontend` `area:web/src/components/AppShell + main.tsx 路由表` `dep:T-232,T-234`
+#### B2 双模式壳（在途）
+- **T-235** [P0] 双模式壳与路由重排 `role:dev-frontend` — **doing 2026-08-23（T-232 `d6a7db9` + T-234 `9da9d18` 双门解锁即派；含 theme-smoke 迁入 e2e/m8；页面组件不动——壳/路由/redirect/242 锚保全）**
 
 #### B3 页面域第一波（并行 4）
 - **T-236** [P0] 制品浏览器：跨仓左树+详情+右键+深链+特化视图（FR-72） `role:dev-frontend` `area:web/src/pages/artifacts/` `dep:T-232,T-235`
