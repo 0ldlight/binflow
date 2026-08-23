@@ -80,7 +80,8 @@ DoD 七条全达成（PRD §9 对证）：P0/P1 全绿（T-221 16/16 / T-222 192
   e2e/m8/（README 断言口径 + support 五助手 + 冒烟/自证 spec）+ seed-m8 双形态（**10,291 节点树 75.8s 验证、幂等复跑 0.4s**）；全量 95 passed/0 failed。**发现（conductor 待裁）**：既有套件 gc `graceHours=0` 并行竞态（apply 与并行上传互斥——全量验收一律 `--workers=1` 兜底，根治归后续票）。日志 reports/agents/T-232.md。
 - **T-234** [P0] 设计 token 基座 `role:dev-frontend` — **done 2026-08-23（conductor 复验：assert-tokens OK + typecheck 绿；提交 `9da9d18`）**
   tokens.css 全量重做（Q2 亮色默认/[data-theme] 纯换值/三阶纵深/shadow 系/scrim·danger 增补）+ ThemeContext（亮默认+持久+首访 prefers）+ 编译期断言门（assert:tokens 入 build 前置）+ --bf-text-muted 上调过 §8 对比度门（axe 双主题 serious=0）+ 零复制合规 + gzip 155KB。**勘误登记（console-m8 §5.1 回写）**：暗色默认标头过时/text-muted 新值/增补 token 未入册。冒烟 spec 暂驻 styles/ 待 T-232 合入迁 e2e/m8。日志 reports/agents/T-234.md。
-- **T-233** [P1] FR-77 债券打包 `role:dev-go-core` — **doing 2026-08-23（T-231 `684e71c` 解锁即派；含 reader 转义收敛）**
+- **T-233** [P1] FR-77 债券打包 `role:dev-go-core` — **done 2026-08-23（conductor 复验：样板 grep=0 + migrate/CLI 测试绿 + lint 0；提交 `b3b3c06`）——FR-77 台账六项全收口，B1 全清**
+  --skip-users 降级（403→告警续迁、500 仍 fail-closed、无旗标零回归）+ CI/Makefile TEST_TIMEOUT=20m（1ms 红绿证旗标生效）+ V28 附录填实 + dialer **28 处**收敛为 2 构造 + T-231 遗留① reader 转义收敛（变异红绿）+ 5×2 矩阵复验全绿。遗留登记：adapter/npm 第三份同构转义体（候选票）；remote singleflight 负载敏感观察。日志 reports/agents/T-233.md。
 
 #### B2 双模式壳（在途）
 - **T-235** [P0] 双模式壳与路由重排 `role:dev-frontend` — **doing 2026-08-23（T-232 `d6a7db9` + T-234 `9da9d18` 双门解锁即派；含 theme-smoke 迁入 e2e/m8；页面组件不动——壳/路由/redirect/242 锚保全）**
