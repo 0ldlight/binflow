@@ -78,8 +78,8 @@ DoD 七条全达成（PRD §9 对证）：P0/P1 全绿（T-221 16/16 / T-222 192
   EscapePathSegments 导出 + contentPlanePath/storagePlanePath 单一构造点喂全部五个消费方法；CLI 打印 URI 同步可复制。5×2 真实栈矩阵 + 变异验证（%/#/? 腿复现生产报错原文）。遗留① migrate/reader 转义收敛→T-233 顺手。日志 reports/agents/T-231.md。
 - **T-232** [P0] M8 Playwright 交互断言基座 `role:devops-engineer` `area:web/e2e/m8/ + seed 脚本` `dep:—`
   tests 目录 + loginAs/seedTree(≥10k 节点)/剪贴板/axe/性能助手 + 断言口径 README（交互断言制，禁像素 diff——ADR-0029）+ 三角色冒烟。**spec 目录用 web/e2e/m8/**（PRD web/tests/m8/ 与现役 testDir 冲突，勘误）。
-- **T-234** [P0] 设计 token 重做与双主题皮肤基座 `role:dev-frontend` `area:web/src/styles/ + ThemeContext` `dep:—`
-  tokens.css 按 console-m8 §5（三阶纵深/shadow 1-3/亮暗双主题纯换值）；**默认亮色（Q2 终裁）**；css 零硬编码色值编译期断言；零复制合规腿（无 jfrog/artifactory 依赖、无位图图标）；gzip ≤350KB 基线。
+- **T-234** [P0] 设计 token 基座 `role:dev-frontend` — **done 2026-08-23（conductor 复验：assert-tokens OK + typecheck 绿；提交 `9da9d18`）**
+  tokens.css 全量重做（Q2 亮色默认/[data-theme] 纯换值/三阶纵深/shadow 系/scrim·danger 增补）+ ThemeContext（亮默认+持久+首访 prefers）+ 编译期断言门（assert:tokens 入 build 前置）+ --bf-text-muted 上调过 §8 对比度门（axe 双主题 serious=0）+ 零复制合规 + gzip 155KB。**勘误登记（console-m8 §5.1 回写）**：暗色默认标头过时/text-muted 新值/增补 token 未入册。冒烟 spec 暂驻 styles/ 待 T-232 合入迁 e2e/m8。日志 reports/agents/T-234.md。
 - **T-233** [P1] FR-77 债券打包 `role:dev-go-core` — **doing 2026-08-23（T-231 `684e71c` 解锁即派；含 reader 转义收敛）**
 
 #### B2 双模式壳（串行 1）
