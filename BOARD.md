@@ -62,7 +62,8 @@
 - **T-219** [P2] FR-68 step-up `role:dev-go-core` — **done 2026-08-23（安全视角 review APPROVE 0 阻塞；提交 `7be4da7`）**
   mint grant 台账（256-bit 只存 sha256、绑定 {user,session}、burn 原子）+ step_up_password 双 provider 腿（LDAP 结构上不可探活他人）+ OIDC prompt=login 单次 grant（明文仅存 302 fragment，RFC 3986 不进服务端日志）+ 双 config 键 TTL 域无条件拒启动 + p.Admin→CanManage 统一（Q11 零变）。真实 Keycloak+OpenLDAP 容器实测 V21~V26；默认 off 四护栏逐字复绿；64 goroutine 烧毁探针恰一次。移交：第二身份回跳腿→T-224；并发烧毁常驻用例→T-220；grant 签发审计小票+登录 lockout 存量姿态→M7+。日志 reports/agents/T-219.md / T-219-review.md。
 - **T-220** [P2] FR-70 技术债打包 — **doing 2026-08-23**（T-219 合入解锁即派；auth 53 条逐条处置 + N3 变异钉死 + TTL flake + sql 行尾 + T-219 移交并发用例；全仓 lint 归零）
-- **T-224** [P2] M7 验收 III：step-up 双态矩阵 — **doing 2026-08-23**（验收对象锚已提交 `7be4da7`、worktree 隔离在途 WIP；含 review 移交第二身份回跳腿）
+- **T-224** [P2] M7 验收 III `role:qa-engineer` — **done 2026-08-23（PASS 8/8 零缺陷；qa 报告 `830bc9d`）**
+  V21~V26 + config 域 + 干净树全仓 race 全绿。亮点：错误体与 ADR 逐字节、第二身份回跳腿拒发 grant、TTL 闭区间实测、dind 三态 digest 稳定、T-208 seam 禁用即失效复验。非缺陷 4 条已路由（NFR-S41 措辞→PM v1.2；PUT replace 语义姿势→文档面；ssouser2 自动建行=既有 H25；grant 签发审计=M7+ 债）。日志 reports/agents/T-224-qa.md。
 - **T-221** [P1] M7 验收 I `role:qa-engineer` — **done 2026-08-23（PASS 16/16 零缺陷；qa 报告 `cf4c16a`）**
   V01~V11 全绿 + usage ∨-臂翻转 + B1 回归腿仍闭合 + M1/M4 回归零回退 + 真实客户端三协议（docker 29.7.2 push/pull + readonly 双 token 臂 / mvn deploy+resolve / npm publish+install）+ 负面矩阵全 403 + 矩阵 EXPECT=1 归档 + 全仓 23 包 race 绿。三条 PRD 字面偏差实证复核 = 已登记 PM v1.2 回写项（与 T-217 勘误 1 合并收口）。日志 reports/agents/T-221-qa.md。
 
