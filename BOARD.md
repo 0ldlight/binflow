@@ -111,6 +111,12 @@ DoD 七条全达成（PRD §9 对证）：P0/P1 全绿（T-221 16/16 / T-222 192
 - **T-244** [P1] 键盘可达与焦点管理补齐（FR-75） `role:dev-frontend` `area:web/src/components/ 共享层 + 页面小补丁` `dep:T-236,T-240,T-241,T-242`
 - **T-245** [P1] M8 用户文档改版（新 IA 指南 + 操作路径对照表） `role:tech-writer` `area:docs/user/` `dep:T-236,T-240,T-241,T-242`
 
+#### 用户指令（2026-08-23 21:51）：VM 测试环境装 Jenkins、接入 CI/CD
+
+conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的制品骨架**（构建→推制品到 BinFlow→消费侧从 BinFlow 解析依赖——产品真实场景验证），非用 Jenkins CI BinFlow 自身（已有 GitHub Actions）。开票 **T-247**：
+- **T-247** [P1] Jenkins 就绪 + BinFlow CI/CD 场景验收 `role:release-engineer` `area:VM（仓外）+ reports/agents/T-247.md` `dep:—` — **doing 2026-08-23**
+  Jenkins LTS（docker 形态，mirror/save-load 兜底）+ VM 上 systemd 形态 BinFlow 实例（T-230 已验证路径）+ 三条流水线（maven deploy/npm publish/docker push）+ 消费 job（从 BinFlow 解析）全绿取证；Jenkins 凭据走其 credential store（零入仓库）；内存压力时 Artifactory 栈可停（可再起）。产出 CI 场景报告（后续可入 PRD 场景库）。
+
 #### B6 终验（串行 1）
 - **T-246** [P0] M8 终验：U01~U15 全量 + 零学习成本剧本×8 + DoD 收口 `role:qa-engineer` `area:只读验证 + 收口材料` `dep:T-233,T-242~T-245`
 
