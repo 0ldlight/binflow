@@ -42,9 +42,14 @@
 - **T-215** [P0] FR-64 REST：routeAuth 能力化迁移 + adminRole wire + 角色即时生效与审计 `role:dev-go-core` — **done 2026-08-23（双视角 review：架构 APPROVE + 正确性 B1 返修闭环；提交 `bbbfbf2`）**
   30 门迁移（26/4，双 review 独立 grep 零残留 + 守卫测试防回归）+ adminRole wire（冲突 400/kebab 拒/回显/落值/镜像）+ 同 Token 即时生效三段实证 + user.role.change 审计 + authenticateForm 带 Role + readonly_group config/cmd 接线 + 矩阵 EXPECT=1 零偏差。**B1 返修**：m-holder 夹具（metadata 真缝 + 幽灵仓 PUT 可达性）判别性测试——门源文案断言（删分支精确翻红）。日志 reports/agents/T-215.md / T-215-review-c.md / T-215-review-a.md。
 
-#### 波 4（T-217 双 review：架构 REQUEST_CHANGES 1 阻塞；正确性在途）
-- **T-217** [P0] FR-65 REST：manage 动作 wire + CanManageRepo 接线 + 仓库级 admin 派生 `role:dev-go-core` — **review-a REQUEST_CHANGES（B1：替换臂 permissions.go:95-103 只验 body 不验存量 target.repos——carol 越名 POST t-other 可销毁覆盖集外既有授权，PutTarget UPSERT 删光 principal 行；与 DELETE 臂不对称坐实遗漏。改法：非 security-writer 时 GetTarget 命中存量追加 canManageAllRepos(存量) + 补测试腿）；review-c 在途，落地后合并返修。偏离裁可成立（§7.1 族 4 逐字吻合 + 守卫 26→24 精确两处无暗改 + 零提权证明属实——cmd/bf 与 migrate/writer 均 HTTP client 路径）2026-08-23**
-  manage wire（POST/GET 往返 + 族 4 例外门）+ service 门放宽（Create/Update→authenticated、Delete 保 admin 纵深）+ usage ∨-臂（service 用例判，族 7「required+用例判定」注记一致）+ 覆盖集矩阵 6 例 + 三组红绿探针 + 矩阵 EXPECT=1 零偏差。PM 回写勘误 1 成立（PUT/200→POST/201 + 字段拼写）勘误 2 可选。日志 reports/agents/T-217.md / T-217-review-a.md。
+#### 波 4（done）
+- **T-217** [P0] FR-65 REST `role:dev-go-core` — **done 2026-08-23（双视角 review 双 REQUEST_CHANGES 独立收敛 B1 → 返修红绿闭环 → conductor 复验；提交 `04f88fb`）**
+  manage wire + 族 4 例外门（handler 覆盖臂，守卫 26→24 精确两处）+ service 门放宽（Create/Update authenticated、Delete 保 admin；非测试调用点仅 httpapi——零提权 grep 证实）+ usage ∨-臂（m-无-r 翻转 403→200）+ **B1 修复**：替换臂 union(body, 存量) ⊆ 覆盖集（对抗探针实证的跨覆盖集吊销洞闭合，矩阵腿 403+清单字节不变钉死）。矩阵 EXPECT=1 零偏差；三包 race 绿 + lint 0。偏离（路由字面量迁移）裁可：§7.1 族 4 行明文预载。挂账：principal 名字枚举面（M8 裁量）；PM 回写勘误 1（POST/201+字段拼写）成立、勘误 2 可选。日志 reports/agents/T-217.md / T-217-review-a.md / T-217-review-c.md。
+
+#### 波 5（在途，3/4）
+- **T-218** [P1] FR-66 控制台角色与权限管理扩展 + read-only 只读态 `role:dev-frontend` `area:web/src` `dep:T-215,T-217 ✅` — **doing 2026-08-23**（含 T-215 移交 governance.ts 词表补 `user.role.change`）
+- **T-219** [P2] FR-68 step-up：SSO session 铸管理 Token 二次认证 `role:dev-go-core` `area:internal/httpapi(token) + internal/auth + internal/config` `dep:T-215 ✅,T-214 ✅` — **doing 2026-08-23**（契约 = ADR-0027 修订版；含 T-215 移交 token handler p.Admin → CanManage 统一）
+- **T-221** [P1] M7 验收 I：RBAC 全表 + manage 派生 + 真实客户端（V01~V11） `role:qa-engineer` `area:QA 验收面` `dep:T-217 ✅,T-211 ✅` — **doing 2026-08-23**（含 usage ∨-臂翻转腿 + B1 回归腿 + binary 新鲜度纪律）
 
 #### 波 2（待波 1）
 - **T-212** [P0] RBAC 基座：Role 闭集 + 六能力求值链 + migration 011 + idp_sync role 改写（ADR-0026） `role:dev-go-core` `area:internal/auth + internal/metadata` `dep:T-214`
