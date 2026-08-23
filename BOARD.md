@@ -55,8 +55,11 @@
 - **T-230** [P2] 用户 VM 纳管 `role:release-engineer` — **done 2026-08-23（conductor 免密腿亲验；报告 `3b335b8`）**
   systemd 真机复验全绿（unit 硬化 systemctl show 证实 / docker push/re-pull digest 逐位一致 / npm 往返 / 优雅停机 0.07s 含引擎 drain 日志）；SSH 密钥免密固化（macOS expect pty 挂死以 SSH_ASKPASS 绕开）；docker 29.1.3 + mirrors（Hub 直连不通）+ minio 镜像在位；VM 回基线零残留；凭据零落盘。勘误：免认证 ping 路径实为 `/binflow/api/system/ping`。日志 reports/agents/T-230.md。
 - **T-226** [P2] M7 等价口径回归（V29） `role:qa-engineer` — **doing 2026-08-23（VM 上执行：MinIO 腿 + Artifactory OSS 迁移腿；带扩盘自愈与中断韧性——用户随时可能关机扩 100G）**
-- **T-218** [P1] FR-66 控制台角色与权限管理扩展 + read-only 只读态 `role:dev-frontend` `area:web/src` `dep:T-215,T-217 ✅` — **doing 2026-08-23**（含 T-215 移交 governance.ts 词表补 `user.role.change`）
-- **T-219** [P2] FR-68 step-up：SSO session 铸管理 Token 二次认证 `role:dev-go-core` `area:internal/httpapi(token) + internal/auth + internal/config` `dep:T-215 ✅,T-214 ✅` — **doing 2026-08-23**（契约 = ADR-0027 修订版；含 T-215 移交 token handler p.Admin → CanManage 统一）
+- **T-218** [P1] FR-66 控制台角色与权限管理扩展 + read-only 只读态 `role:dev-frontend` `area:web/src` `dep:T-215,T-217 ✅` — **agent 完成 2026-08-23，review 在途**（14 文件 + e2e/rbac.spec.ts 三腿：V12 角色下拉落值/回显/审计、V13 五页只读走查+四写重放全 403、V14 manage 复选往返；全套 85 passed/3 skipped/0 failed；typecheck/lint/build 三绿；payload 158KB 预算内。AppShell 导航位越区报备〔web/src 内〕；组页操作列隐藏式沿用 L4 模式，显式禁用形态可另开小票）
+- **T-219** [P2] FR-68 step-up `role:dev-go-core` — **done 2026-08-23（安全视角 review APPROVE 0 阻塞；提交 `7be4da7`）**
+  mint grant 台账（256-bit 只存 sha256、绑定 {user,session}、burn 原子）+ step_up_password 双 provider 腿（LDAP 结构上不可探活他人）+ OIDC prompt=login 单次 grant（明文仅存 302 fragment，RFC 3986 不进服务端日志）+ 双 config 键 TTL 域无条件拒启动 + p.Admin→CanManage 统一（Q11 零变）。真实 Keycloak+OpenLDAP 容器实测 V21~V26；默认 off 四护栏逐字复绿；64 goroutine 烧毁探针恰一次。移交：第二身份回跳腿→T-224；并发烧毁常驻用例→T-220；grant 签发审计小票+登录 lockout 存量姿态→M7+。日志 reports/agents/T-219.md / T-219-review.md。
+- **T-220** [P2] FR-70 技术债打包 — **doing 2026-08-23**（T-219 合入解锁即派；auth 53 条逐条处置 + N3 变异钉死 + TTL flake + sql 行尾 + T-219 移交并发用例；全仓 lint 归零）
+- **T-224** [P2] M7 验收 III：step-up 双态矩阵 — **doing 2026-08-23**（验收对象锚已提交 `7be4da7`、worktree 隔离在途 WIP；含 review 移交第二身份回跳腿）
 - **T-221** [P1] M7 验收 I `role:qa-engineer` — **done 2026-08-23（PASS 16/16 零缺陷；qa 报告 `cf4c16a`）**
   V01~V11 全绿 + usage ∨-臂翻转 + B1 回归腿仍闭合 + M1/M4 回归零回退 + 真实客户端三协议（docker 29.7.2 push/pull + readonly 双 token 臂 / mvn deploy+resolve / npm publish+install）+ 负面矩阵全 403 + 矩阵 EXPECT=1 归档 + 全仓 23 包 race 绿。三条 PRD 字面偏差实证复核 = 已登记 PM v1.2 回写项（与 T-217 勘误 1 合并收口）。日志 reports/agents/T-221-qa.md。
 
