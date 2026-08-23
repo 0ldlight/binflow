@@ -46,7 +46,10 @@
 - **T-217** [P0] FR-65 REST `role:dev-go-core` — **done 2026-08-23（双视角 review 双 REQUEST_CHANGES 独立收敛 B1 → 返修红绿闭环 → conductor 复验；提交 `04f88fb`）**
   manage wire + 族 4 例外门（handler 覆盖臂，守卫 26→24 精确两处）+ service 门放宽（Create/Update authenticated、Delete 保 admin；非测试调用点仅 httpapi——零提权 grep 证实）+ usage ∨-臂（m-无-r 翻转 403→200）+ **B1 修复**：替换臂 union(body, 存量) ⊆ 覆盖集（对抗探针实证的跨覆盖集吊销洞闭合，矩阵腿 403+清单字节不变钉死）。矩阵 EXPECT=1 零偏差；三包 race 绿 + lint 0。偏离（路由字面量迁移）裁可：§7.1 族 4 行明文预载。挂账：principal 名字枚举面（M8 裁量）；PM 回写勘误 1（POST/201+字段拼写）成立、勘误 2 可选。日志 reports/agents/T-217.md / T-217-review-a.md / T-217-review-c.md。
 
-#### 波 5（T-221 done；T-218/T-219 在途）+ 波 6 前置（T-223 已派）
+#### 波 5（T-221 done；T-218/T-219 在途）+ 波 6 前置（T-223 已派）+ 环境票 T-230（用户 VM 纳管）
+
+- **T-230** [P2] 用户 VM 纳管：Ubuntu 24.04 systemd 部署烟测 + docker 就绪 `role:release-engineer` `area:deploy/ 产物复验 + VM（仓外）` `dep:—` — **doing 2026-08-23**
+  用户提供 VMware Ubuntu 24.04 VM（172.16.58.129；2C/5.7G/7.8G 空闲/无 docker）。任务：SSH 密钥固化（后续 agent 免密消费）→ M5 systemd 部署矩阵真机复验（linux/amd64 构建 + unit + ping/建仓/客户端烟测 + 优雅停机）→ docker 就绪（T-226 MinIO 腿前置）。**凭据只在会话/派单内，禁入仓库文件**。Artifactory 不装（磁盘紧，真实腿维持 dep:用户环境 等用户定）。
 - **T-218** [P1] FR-66 控制台角色与权限管理扩展 + read-only 只读态 `role:dev-frontend` `area:web/src` `dep:T-215,T-217 ✅` — **doing 2026-08-23**（含 T-215 移交 governance.ts 词表补 `user.role.change`）
 - **T-219** [P2] FR-68 step-up：SSO session 铸管理 Token 二次认证 `role:dev-go-core` `area:internal/httpapi(token) + internal/auth + internal/config` `dep:T-215 ✅,T-214 ✅` — **doing 2026-08-23**（契约 = ADR-0027 修订版；含 T-215 移交 token handler p.Admin → CanManage 统一）
 - **T-221** [P1] M7 验收 I `role:qa-engineer` — **done 2026-08-23（PASS 16/16 零缺陷；qa 报告 `cf4c16a`）**
