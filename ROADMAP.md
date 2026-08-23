@@ -2,7 +2,7 @@
 
 > 由 product-manager 维护；tech-lead 据此把当前里程碑分解为 ticket。
 
-## 当前里程碑：M7（PRD v1.1）
+## 当前里程碑：M8（PRD v1.0 草案，待 conductor 审）
 
 ### M0 — 团队启动（已完成）
 - [x] 产品愿景 PRODUCT.md（BinFlow）
@@ -65,13 +65,24 @@
 - [ ] 待用户定案九项开放问题 Q1~Q9
 - [ ] 待 tech-lead 分票
 
-### M7 — 权限细化与运营硬化（PRD v1.1，2026-08-23）
-需求基线：docs/prd/milestone-7.md（PRD v1.1——T-214 裁决回写〔ADR-0026/0027/0028 Accepted〕；FR-64~FR-70 七条需求，13 条端点/产物矩阵，V01~V35 验收命令；Q1~Q7 中 Q1/Q2/Q3/Q5 已定案、Q4/Q6/Q7 仍开放）
+### M7 — 权限细化与运营硬化（已完成，`m7-done`，2026-08-23；PRD v1.2）
+需求基线：docs/prd/milestone-7.md（PRD v1.2——T-214 裁决回写〔ADR-0026/0027/0028 Accepted〕+ 执行期勘误〔T-215/217/221/222/224/226〕；FR-64~FR-70 七条需求，13 条端点/产物矩阵，V01~V35 验收命令；Q1/Q2/Q3/Q5 已定案、Q6 进入执行态〔T-228 已解除并归档、T-227 dep:用户环境〕、Q4/Q7 维持暂行）
 来源链：M6 §7 Q4（细粒度角色归 M7+ RBAC）+ T-209 遗留债 N6/O-2/O-1/N3/N2 + M6 §7 Q11 留的「SSO session 铸 Token 二次认证」可选加固 + ADR-0025 决策 3 条件腿（Q8/Q9）
 - [x] PRD v1.1（v1.0 草案 + T-214 裁决回写）：细粒度 RBAC（FR-64~FR-66：角色闭集 + readonly_admin 全域只读 + manage 派生 + 控制台）、docker blob 上传跨重启续传 REST 化（FR-67，N6/O-2 收口）、Token 铸造 step-up 可选增强（FR-68，P2）、Q8/Q9 条件腿执行（FR-69，dep:用户环境）、技术债打包（FR-70：O-1/N3/N2/internal-auth 53 条 lint/008-009 sql 行尾）
 - [x] ADR-0026~0028 已定案（Accepted，2026-08-23，T-214：角色模型与 manage 派生 / step-up 契约 / 会话 Close 语义修订牵 ADR-0006 勘误④）
-- [ ] Q1~Q7 已按 ADR-0026~0028 收敛，推翻出口保留（Q1 角色闭集 / Q2 read-only 边界 / Q3 干净停机语义 / Q5 step-up 形态与默认值已定案；Q4 S3 续传 / Q7 replica 隔离归属维持暂行待用户终裁；Q6 条件腿进入执行态——T-228 环境 2026-08-23 解除（用户 VM + 真实 OSS 7.84.10）已在跑、T-227 真实 AWS 仍 dep:用户环境）
+- [x] Q1~Q7 已按 ADR-0026~0028 收敛，推翻出口保留（Q1 角色闭集 / Q2 read-only 边界 / Q3 干净停机语义 / Q5 step-up 形态与默认值已定案；Q4 S3 续传 / Q7 replica 隔离归属维持暂行待用户终裁；Q6 条件腿执行收口——T-228 真实 OSS 7.84.10 实腿完成并归档、V28 证据移植 docs 为 M8 债券〔FR-77〕，T-227 真实 AWS 仍 dep:用户环境，插队制不阻塞 DoD）
 - [x] tech-lead 分票完成（T-211~T-228 已录板）
+
+### M8 — 控制台对齐 Artifactory（PRD v1.0 草案，2026-08-23，待 conductor 审）
+需求基线：docs/prd/milestone-8.md（PRD v1.0 草案；用户指令「前端 UI 和交互逻辑要求和 JFrog 一样」——对齐 = IA + 交互逻辑 + 操作流，自有皮肤，clean-room 行为规格制，服务端契约零改动；FR-71~FR-77 七条需求，UI 对齐矩阵 24 条〔对齐 8 / 形态不同 3 / 子集 8 / 有意差异 5〕，U01~U24 验收命令，开放问题 Q1~Q6 带暂行）
+- [ ] conductor 审定 PRD v1.0（含 Q1~Q6 暂行口径）并定案基线版本（Q1 暂行 = T-228 保留的 Artifactory OSS 7.84.10）
+- [ ] 前置产物：docs/reverse/ui-console.md（reverse-engineer，UI 行为规格：布局/交互流/组件清单/状态矩阵，JFrog 资产零复制）+ 前端重排 ADR（architect，ADR-0029+ 候选）+ console-ux v2.0（ux-designer）
+- [ ] FR-71 双模式壳与导航树重排（Application/Administration、URL 深链、旧路由 redirect 映射，P0）
+- [ ] FR-72 制品浏览器左树右详情（rclass 分组/树内过滤/checksum 拷贝/packageType 特化视图迁入，P0）
+- [ ] FR-73 管理面统一表格与编辑器 + Set-Me-Up 式对话框（P0；字段集 = 既有面零增减）
+- [ ] FR-74 面包屑/全局搜索/深链状态保持；FR-75 键盘可达与批量动作；FR-76 自有皮肤与设计 token（零复制合规 + 非像素判定口径）（P1）
+- [ ] FR-77 M8 债券收编（T-231 percent-encode 5×2 矩阵 / B-1 bf-migrate --skip-users / UI 打磨 4 条 / CI -timeout 20m / V28 附录移植 docs / dialer 样板 13 处；「ROADMAP M7 勾账同步」已随 M8 PRD 发稿完成）
+- [ ] QA：U 序列 + 8 个零学习成本剧本 + W 序列锚迁移回归 + M1~M7 P0 序列复跑（服务端零改动硬门槛）；tech-writer 控制台指南改版 + 操作路径对照表
 
 ## 里程碑完成定义（DoD）
 

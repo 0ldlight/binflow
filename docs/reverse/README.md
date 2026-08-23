@@ -26,3 +26,4 @@ reverse-engineer 在此产出 **clean-room 行为规格**——让实现者不�
 | `s3-storage-layout.md` | S3/对象存储 binarystore 配置、MPU 参数、云存储重定向 | M6 |
 | `metrics.md` | 内部指标框架、可观测性日志服务、Prometheus 集成现状 | M6 |
 | `rbac-model.md` | 实例级/Projects 域两层授权模型、角色闭集、组 CRUD 与 effective admin | M7 |
+| `console-ui.md` | 控制台 UI 行为规格：全局 IA、页面骨架、交互流、状态矩阵、OSS 缺位（活体 7.84.10 取证） | M8 |

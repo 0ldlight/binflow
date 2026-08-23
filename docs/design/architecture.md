@@ -1,4 +1,4 @@
-# BinFlow 架构设计（M1 定稿；M2~M6 增量已并入，M7 增量标注 [M7]）
+# BinFlow 架构设计（M1 定稿；M2~M6 增量已并入，M7 增量标注 [M7]，M8 控制台对齐约束见 §13 [M8]）
 
 > architect 维护。本文件在 ADR-0001~0027 基线上给出可并行开发的实现蓝图：包边界 = 并行开发 area 边界。
 > 标注 **[M2+]** / **[M3+]** / **[M6+]** / **[M7]** 的内容当期不实现，只保证接口缝存在；标注「待逆向规格确认」的行为以 `docs/reverse/` 规格为准，规格冲突时先回 ADR。
@@ -1582,6 +1582,10 @@ logging:
 
 33. **[M7] 债务包 E 的非设计项**（conductor 种子第 E 条，登记防丢）：N3 ctx 取消窄窗（Append EOF→SetState 用请求 ctx，恰取消即毒化完好会话——实现票以 `context.WithoutCancel` 收口，fail-closed 现状可接受）；N2 `TestV2BlobSessionSweepResidue` restart 臂注释与断言空洞化修正（Close 语义 ADR-0028 变更后该臂重评——Close 后重新种入过期行+目录再断言 sweep）；O-1 收口动作 = §5.3.1 契约 7 的 Close **保留清单** INFO 日志（ADR-0028——保留而非清册）；`internal/auth` 53 条既有 lint 清零；008/009 迁移 .sql 行尾换行补齐。
 
+34. **[M8] e2e 断言迁移债**（ADR-0029 决策 3/6 的代价面）：IA 重排改变应用内路由后，web/e2e 既有 18 spec（4448 行）中的**路径断言**需逐票同步（testid/交互断言按 §13.5 规则沿用）；迁移期间「路径断言未跟上 IA」会被误读为回归——tech-lead 分票时每个改路由的 UI 票必须同票携带其 e2e 路径断言更新，禁止跨票欠账。data-testid 命名规则（console-ux §10.1）在 M8 冻结——锚改名仅允许随组件语义变化，逐票回写 §10 清单。
+
+35. **[M8] 契约冻结的张力登记**：行为规格（docs/reverse/console-ui.md）产出后，预期存在「Artifactory 操作流在 BinFlow 既有 API 面上表达不了」的缺口（候选：dashboard 聚合卡片、仓库列表的过滤/排序参数、Set Me Up 的上下文数据）。ADR-0029 决策 4 的例外通道（PM 出 FR + architect 评审独立票）是唯一出口；若 M8 PRD 立项的聚合端点超过 ~3 个，应视为 IA 对齐口径过宽的信号，回本节重评（对齐「BinFlow 已有功能面」的呈现，不为想象中的操作流扩后端）。
+
 ## 12. 待逆向规格确认清单（阻塞点挂 docs/reverse/）
 
 | # | 问题 | 规格文件 | 影响面 |
@@ -1600,3 +1604,62 @@ logging:
 | 12 [M6] | Artifactory S3 存储后端的 blob 布局（checksum 路径是否一致、multipart upload 的 session 语义差异）——作为 ADR-0019 对齐验证 | storage-layout.md（存续增补） | §4.7 |
 | 13 [M6] | Artifactory Prometheus/expvar 指标名命名惯例（metric name prefix、label 命名风格）——作为 ADR-0022 的对齐参考（非块——Prometheus 无厂商标准，仅一致性佐证） | metrics.md（新） | §7.1 |
 | 14 [M7] | ~~Artifactory `manage` 动作的精确边界（是否路径作用域、对 REST 仓库配置端点的实际映射）；group 是否可承载 admin/角色语义（BinFlow role 用户级 only 的对齐佐证）；Artifactory 是否存在 read-only admin 等价物（readonly_admin 有意差异的取证）~~ **已回答**（2026-08-23，rbac-model.md，M7 种子 A 校准规格：实例级无角色层/无 read-only admin〔#1/#2 高置信〕、组级 adminPrivileges 存在但 BinFlow 有意不跟进、manage 为 ACE 动作〔auth-model §4〕而仓库级 admin 正式对应物在 project 域——BinFlow 无 projects，target 的 m 是最小诚实同构，rbac-model §5 建议 2 背书） | rbac-model.md（已交付）+ auth-model.md §4 | §3.4a / §10 / ADR-0026（T-214 收口） |
+| 15 [M8] | Artifactory 控制台的 IA / 交互流 / 操作流行为规格（导航分组与页面归属、Artifacts 树+详情双栏行为、Set Me Up 面板数据、权限矩阵编辑动线、四态与确认对话时机）——**M8 全部 UI 票的前置依赖**；产出限定 = 行为规格（布局描述/交互流表/组件清单/状态矩阵 + 置信度），素材边界见 ADR-0029 决策 2（官方文档 + 本地 OSS 容器行为观察；禁止产物拆解与像素取证） | console-ui.md（新，reverse-engineer） | §13 全节 / ADR-0029 |
+
+---
+
+## 13. [M8] 控制台承载层重排——架构约束（ADR-0029 展开）
+
+> M8 主轴 = 用户指令「前端 UI 和交互逻辑要求和 JFrog 一样」。定性：**承载层（web/）重排，不是后端重写**。本节是 M8 全部 UI 票的约束源；对齐口径与 clean-room 细则以 ADR-0029 为准（Proposed——PRD 定稿后转正，转正可带勘误）。
+
+### 13.1 冻结面（M8 不可触碰的不变量）
+
+1. **服务端契约零改动**：REST wire（`/api/v1/**`、兼容层 `/api/security/**`、`/v2/**`、session 族 `POST/GET/DELETE /api/v1/session`）、RBAC 判定（§3.4a / ADR-0026 六能力闭集与角色短路）、step-up（ADR-0027）、上传续传语义（§5.3.1 / ADR-0028）、错误信封（§7.3）。回归背书 = **M1~M7 既有 REST 测试零改动全绿**——任何「必须改后端断言才能过」的 UI 票即违约信号。例外通道：仅 PM 出 FR + architect 评审的独立票（§11.35 登记张力与熔断线）。
+2. **挂载与资源前缀不变性**（ADR-0014 + T-108/T-110 勘误口径维持）：SPA 段 `/binflow/ui/**`（深链 fallback 段内回 index.html）、指纹资产共享段 `/binflow/assets/<hash>.<ext>`（immutable 缓存）、`GET /binflow/` → 301 → `/binflow/ui/`、SPA basename `/binflow/ui`（vite base + relink-assets 构建链不改）、repo key 保留字并集 {api, v2, docs, console, ui, assets}。UI 资源前缀是对外 URL 兼容承诺的一部分（书签/文档/反代规则消费），M8 重排不得触碰。
+3. **go:embed 构建链不变**：`web/` 源码 → `vite build && node scripts/relink-assets.mjs` → 产物复制进 `internal/console/dist` → `go:embed` 打入单二进制（`make console`）。零运行时 CDN 依赖红线（ADR-0014 决策 4）维持——对齐 Artifactory 的任何 UI 能力都不得引入外链字体/图标 CDN。
+4. **认证与浏览器会话形态不变**：server-side session + `binflow_session` cookie（HttpOnly + Path=/binflow + SameSite=Lax）、CSRF 两层（SameSite + Origin 同源校验）、`X-BinFlow-Console` 习惯头、401 全局监听与会话过期重登流（lib/api.ts 既有契约）。IA 重排后的所有页面继续消费同一 AuthContext 信号（admin / readonly_admin / anonymous 三态）。
+5. **范围红线**：只对齐 BinFlow 已有功能面的呈现；Xray / Pipelines / Build-info 等 JFrog 独立产品不做**且不占位**（导航不出现无功能对应的入口，含禁用态——ADR-0029 决策 5）。
+
+### 13.2 变更面（允许重排的层）
+
+- `web/src` 内部一切：应用内路由路径（console-ux §3.2 路由表随之升版）、导航 IA、页面组件结构、样式皮肤。
+- `docs/design/console-ux.md` 升 v2：IA 重排后的信息架构 / 线框 / 交互四态 / testid 清单；§7 视觉 token 节保留并演进（自有皮肤，非重写为他人皮肤）。
+- 约束：应用内路由变更必须同票完成三件事——路由表回写、深链回归、e2e 路径断言更新（§11.34）。
+
+### 13.3 前置依赖（排期硬序）
+
+1. **ADR-0029 转正**（M8 PRD 定稿时）。
+2. **docs/reverse/console-ui.md 行为规格**（reverse-engineer，§12 表第 15 行）：导航树、页面归属、Artifacts 树+详情双栏行为、建仓/上传/授权/GC 操作流步骤表、四态与确认对话矩阵、Set Me Up 面板数据面——带置信度标注。UI 实现票只依据规格 + console-ux v2 编码，不直接对照 Artifactory 实例（clean-room 规格与实现分离，UI 域细则 = ADR-0029 决策 2）。
+3. console-ux v2（ux-designer 消费规格转译）——tech-lead 依 §13.4 分票。
+
+### 13.4 存量 web/src 存留判定（tech-lead 分票依据；不写代码）
+
+**判定原则**：逻辑层（纯函数 / API 封装 / 权限判定辅助）**保留**；页面布局与导航（IA 表达层）**重构**（领域逻辑与数据获取留下，视图结构按行为规格重排）；视觉皮肤（styles）**重做**（自有 token 演进；CSS 是零复制红线的最外层）。
+
+| 存档 | 文件 | 判定 | 依据 |
+|---|---|---|---|
+| **保留（不动或微调）** | `lib/api.ts` | 保留 | 统一请求层 + wire 类型 + 错误三格式收敛 + 401 监听——契约冻结的直接受益者；IA 重排对其零需求 |
+| | `lib/format.ts` / `lib/useAsync.ts` / `lib/useVersion.ts` | 保留 | 通用工具，跨 IA 存活 |
+| | `app/AuthContext.tsx` / `ThemeContext.tsx` / `ToastContext.tsx` | 保留 | Provider 组合与 M8 无冲突；AuthContext 的 whoami/admin/readonlyAdmin 信号是角色可见性基座（§13.1.4），IA 重排后仍唯一消费 |
+| | `components/ConfirmDialog.tsx` / `CopyButton.tsx` / `Skeleton.tsx` / `ErrorCard.tsx` / `EmptyState.tsx` | 保留（可按行为规格扩展 API） | 通用原语；Artifactory 确认对话模式由 ConfirmDialog 承载或扩展，不另起炉灶 |
+| | `pages/security/pathmatch.ts` + `pathmatch.fixtures.ts` + `targetdiff.ts`；`pages/repositories/tree/sha256.ts`、`tree/lib.ts`；`pages/repositories/commands.ts` | 保留 | 纯逻辑零 UI；commands.ts 是 Set Me Up 的对物——IA 对齐时**升格为组件化消费**（Artifactory Set Me Up 面板的逻辑底座已在） |
+| | `lib/repos.ts` / `lib/governance.ts` / `pages/security/api.ts` | 保留 | 领域数据获取层，重构页面继续消费 |
+| **重构（逻辑留、视图重排）** | `components/AppShell.tsx` | 重构 | IA 主战场：NAV 数组的数据结构（分组 + adminOnly + ticket 占位机制）可保留，分组与条目按行为规格重排；pageTitle 前缀匹配函数随之改；⌘K/对话框让位等交互逻辑保留 |
+| | `main.tsx` 路由表 | 重构 | 懒加载缝（React.lazy）构建形态不变（T-89 既定）；路径与嵌套按 console-ux v2 §3.2 重写 |
+| | `pages/` 全部页面组件（Dashboard / Login / Settings / repositories 组 / tree / search / security 组 / audit / governance 组） | 重构 | 视图结构按 Artifactory 模式重排（树+详情双栏、tab 归属、表格形态）；数据获取与提交逻辑（消费 lib/*）留下 |
+| **重做（皮肤层）** | `styles/*`（tokens / base / pages / governance / security / tree css） | 重做 | 自有皮肤按 §7 token 演进；组件重排后类名体系随之重写；零复制红线最外层（不取色、不描摹） |
+| **随票迁移** | `web/e2e/*`（18 spec） | 迁移 | testid/交互断言沿用、路径断言随路由表改（§13.5）；每个改路由的 UI 票同票携带 |
+
+**分票 area 边界建议**（供 tech-lead）：按页面域切（壳+皮肤 / artifacts 域 / security 域 / governance+administration 域），lib/ 与 styles/ 的写权限归属须与消费页面票错峰或独占——沿用「area 不得重叠」规则。
+
+### 13.5 Playwright e2e 策略——交互断言的适配（ADR-0029 决策 3）
+
+1. **断言形态**：交互与信息可达性——点击路径可达、元素存在/可见/禁用、四态渲染、键盘流、路由跳转；锚 = data-testid（§10 命名规则冻结）。**禁止**引入 screenshot baseline / toHaveScreenshot 类视觉对比作为验收门。
+2. **允许的样式断言**：computed style 对自有 token 的存在性校验（如暗色主题变量已应用到根节点）——断言「皮肤系统在工作」，不断言「长得像谁」。
+3. **既有 18 spec 处置**：断言二分——testid/交互类沿用（组件重构后锚保持或按 §10 规则迁移）；路径类（URL/glob 断言）随路由表逐票同步（§11.34 禁止跨票欠账）。
+4. **新增「操作流对照」spec 形态**：以行为规格的操作流表为锚生成——每行 = 步骤 N → 目标锚 → 期望状态（可见/可用/值/跳转）；这是「Artifactory 用户零学习成本」的可测等价物，替代像素对比成为 M8 的对齐验收面。
+5. **回归面**：M1~M7 REST 测试零改动全绿（契约冻结背书，§13.1.1）+ 既有 e2e 迁移后全绿；CI `-timeout 20m` 债券与 e2e 增量的关系由 tech-lead 在 M8 排期时合并评估。
+
+### 13.6 M8 债券的架构挂点（与 ADR-0029 正交，PRD 排期）
+
+T-231（internal/client 上传路径 percent-encode 缺陷，含 %/#/?/空格/UTF-8 回归矩阵）属 Go 客户端面、与 UI 重排零耦合；UI 打磨 4 条若与 IA 重排同域，应并入对应 UI 票消化而非单独立票（避免同 area 双写）；其余（B-1 / CI timeout / V28 证据移植 / ROADMAP 勾账 / dialer 样板）均不触本节约束。
