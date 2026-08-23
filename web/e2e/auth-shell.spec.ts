@@ -67,12 +67,13 @@ test('login lands on shell; dashboard cards arrive; theme toggles; 404 keeps she
   await expect(page.locator('[data-testid="search-page"]')).toBeVisible()
   await expect(page.locator('[data-testid="search-input"]')).toBeFocused()
 
-  // 主题切换：暗 → 亮 → 暗（token 零分叉，data-theme 属性切换）
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
-  await page.click('[data-testid="topbar-theme-toggle"]')
+  // 主题切换：亮 → 暗 → 亮（T-234/Q2 终裁默认亮色，推翻旧暗色优先；
+  // token 零分叉，data-theme 属性切换）
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
   await page.click('[data-testid="topbar-theme-toggle"]')
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+  await page.click('[data-testid="topbar-theme-toggle"]')
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
 
   // 404：保留壳 + 返回链接
   await page.goto('/binflow/ui/definitely-not-a-route')

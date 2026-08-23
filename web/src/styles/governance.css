@@ -58,7 +58,7 @@
   background: var(--bf-surface-1);
   border: 1px solid var(--bf-border);
   border-radius: var(--bf-r-md);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+  box-shadow: var(--bf-shadow-2);
   font-family: var(--bf-mono);
   font-size: var(--bf-fs-aux);
   white-space: pre-wrap;

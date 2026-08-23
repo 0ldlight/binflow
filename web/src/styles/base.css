@@ -62,13 +62,15 @@ a:hover {
   min-height: 100vh;
 }
 
+/* 侧栏 = 三阶纵深最暗层（console-m8 §5.1）：亮色主题下同为深底，
+ * 文字/分隔线走 --bf-sidebar-text 系（不与内容区 --bf-text 混用）。 */
 .app-nav {
   width: 224px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  background: var(--bf-surface-1);
-  border-right: 1px solid var(--bf-border);
+  background: var(--bf-sidebar);
+  border-right: 1px solid var(--bf-sidebar-border);
   position: sticky;
   top: 0;
   height: 100vh;
@@ -80,18 +82,19 @@ a:hover {
   align-items: baseline;
   gap: var(--bf-sp-2);
   padding: var(--bf-sp-4);
-  border-bottom: 1px solid var(--bf-border);
+  border-bottom: 1px solid var(--bf-sidebar-border);
 }
 
 .app-nav-brand .name {
   font-size: var(--bf-fs-h3);
   font-weight: 600;
+  color: var(--bf-sidebar-text);
 }
 
 .app-nav-brand .ver {
   font-family: var(--bf-mono);
   font-size: var(--bf-fs-aux);
-  color: var(--bf-text-muted);
+  color: var(--bf-sidebar-text-2);
 }
 
 .app-nav-items {
@@ -102,8 +105,8 @@ a:hover {
 .nav-group-label {
   padding: var(--bf-sp-3) var(--bf-sp-3) var(--bf-sp-1);
   font-size: var(--bf-fs-aux);
-  color: var(--bf-text-muted);
-  border-top: 1px solid var(--bf-border);
+  color: var(--bf-sidebar-text-2);
+  border-top: 1px solid var(--bf-sidebar-border);
   margin-top: var(--bf-sp-2);
 }
 
@@ -119,23 +122,24 @@ a:hover {
   min-height: 32px;
   padding: 0 var(--bf-sp-3);
   border-radius: var(--bf-r-sm);
-  color: var(--bf-text);
+  color: var(--bf-sidebar-text);
   font-size: var(--bf-fs-body);
 }
 
 .nav-item:hover {
-  background: var(--bf-surface-2);
+  background: var(--bf-sidebar-2);
   text-decoration: none;
 }
 
+/* active：左侧 2px accent 指示条（console-m8 §2.1） */
 .nav-item.active {
-  background: var(--bf-surface-3);
-  color: var(--bf-text);
+  background: var(--bf-sidebar-3);
+  color: var(--bf-sidebar-text);
   box-shadow: inset 2px 0 0 var(--bf-accent);
 }
 
 .nav-item.disabled {
-  color: var(--bf-text-muted);
+  color: var(--bf-sidebar-text-2);
   cursor: not-allowed;
 }
 
@@ -148,13 +152,13 @@ a:hover {
   line-height: 1;
   padding: 3px 5px;
   border-radius: var(--bf-r-sm);
-  background: color-mix(in srgb, var(--bf-text-muted) 15%, transparent);
-  color: var(--bf-text-muted);
+  background: color-mix(in srgb, var(--bf-sidebar-text-2) 15%, transparent);
+  color: var(--bf-sidebar-text-2);
 }
 
 /* 侧栏底栏：会话指示 + 用户菜单（§3.1） */
 .app-nav-footer {
-  border-top: 1px solid var(--bf-border);
+  border-top: 1px solid var(--bf-sidebar-border);
   padding: var(--bf-sp-2);
 }
 
@@ -172,13 +176,13 @@ a:hover {
   background: transparent;
   border: none;
   border-radius: var(--bf-r-sm);
-  color: var(--bf-text);
+  color: var(--bf-sidebar-text);
   font-size: var(--bf-fs-body);
   cursor: pointer;
 }
 
 .session-toggle:hover {
-  background: var(--bf-surface-2);
+  background: var(--bf-sidebar-2);
 }
 
 .session-toggle .who {
@@ -195,7 +199,7 @@ a:hover {
   border: 1px solid var(--bf-border);
   border-radius: var(--bf-r-md);
   padding: var(--bf-sp-1);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 40%);
+  box-shadow: var(--bf-shadow-2);
 }
 
 .session-menu button,
@@ -254,6 +258,8 @@ a:hover {
   flex: 1;
 }
 
+/* 顶栏搜索入口：surface-3 上承载可读控件标签，用 text-2（muted 在
+ * surface-3 上不达 §8 对比度门），kbd 继承同色 */
 .search-entry {
   display: flex;
   align-items: center;
@@ -264,7 +270,7 @@ a:hover {
   background: var(--bf-surface-3);
   border: 1px solid var(--bf-border);
   border-radius: var(--bf-r-md);
-  color: var(--bf-text-muted);
+  color: var(--bf-text-2);
   font-size: var(--bf-fs-body);
   cursor: pointer;
 }
@@ -309,11 +315,13 @@ a:hover {
 
 /* ---------- 卡片与网格 ---------- */
 
+/* 卡片 = 三阶最亮层；shadow-1 锚定（§5.2：暗色下弱影 + 边框补偿） */
 .card {
   background: var(--bf-surface-1);
   border: 1px solid var(--bf-border);
   border-radius: var(--bf-r-md);
   padding: var(--bf-sp-4);
+  box-shadow: var(--bf-shadow-1);
 }
 
 .card h3 {
@@ -531,7 +539,7 @@ a:hover {
 .btn.danger {
   background: var(--bf-danger);
   border-color: var(--bf-danger);
-  color: #ffffff;
+  color: var(--bf-danger-fg);
   font-weight: 600;
 }
 
@@ -646,7 +654,7 @@ a:hover {
   border-radius: var(--bf-r-md);
   background: var(--bf-surface-1);
   border: 1px solid var(--bf-border);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+  box-shadow: var(--bf-shadow-2);
   font-size: var(--bf-fs-body);
 }
 
@@ -686,15 +694,17 @@ a:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgb(0 0 0 / 55%);
+  background: var(--bf-scrim);
 }
 
+/* modal = shadow-3（§5.2：modal/向导） */
 .modal {
   width: min(440px, calc(100vw - 48px));
   background: var(--bf-surface-1);
   border: 1px solid var(--bf-border);
   border-radius: var(--bf-r-lg);
   padding: var(--bf-sp-5);
+  box-shadow: var(--bf-shadow-3);
 }
 
 .modal.danger {
