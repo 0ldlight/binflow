@@ -1,0 +1,223 @@
+/* T-242 Set Me Up / Deploy 对话框族（components 域自持样式）。
+ * 纪律与 assert-tokens 同款：只经 var(--bf-*) 引色，零硬编码色值。
+ * 宽版 modal + 包类型网格 + 对话框内 Tab + step-up 内联表单 + 令牌面板 +
+ * Deploy 拖拽区/进度条（tree.css 的同名形态留在 pages 域，这里不跨页依赖）。 */
+
+.smu-modal,
+.deploy-modal {
+  width: min(720px, calc(100vw - 48px));
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+}
+
+/* ---- Set Me Up 步骤 0：包类型网格（console-m8 C7 五项闭集） ---- */
+
+.smu-grid-items {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: var(--bf-sp-3);
+  margin: var(--bf-sp-4) 0;
+}
+
+.smu-grid-item {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--bf-sp-1);
+  padding: var(--bf-sp-4);
+  border: 1px solid var(--bf-border);
+  border-radius: var(--bf-r-md);
+  background: var(--bf-surface-2);
+  cursor: pointer;
+}
+
+.smu-grid-item:hover:not(:disabled),
+.smu-grid-item:focus-visible {
+  border-color: var(--bf-accent);
+  background: var(--bf-surface-3);
+}
+
+.smu-grid-item:focus-visible {
+  outline: 2px solid var(--bf-accent);
+  outline-offset: 1px;
+}
+
+.smu-grid-item .pkg-icon {
+  font-size: 18px;
+  color: var(--bf-accent);
+}
+
+.smu-grid-item .pkg-name {
+  font-weight: 600;
+  font-size: var(--bf-fs-h3);
+}
+
+.smu-grid-item .pkg-desc {
+  font-size: var(--bf-fs-aux);
+  color: var(--bf-text-2);
+  line-height: 1.4;
+}
+
+.smu-back {
+  all: unset;
+  color: var(--bf-accent);
+  cursor: pointer;
+  font-size: var(--bf-fs-aux);
+}
+
+.smu-back:focus-visible {
+  outline: 2px solid var(--bf-accent);
+  outline-offset: 1px;
+}
+
+/* ---- 对话框内 Tab（role=tablist + 方向键，console-m8 §9） ---- */
+
+.smu-tabs {
+  display: flex;
+  gap: var(--bf-sp-2);
+  border-bottom: 1px solid var(--bf-border);
+  margin: var(--bf-sp-3) 0;
+}
+
+.smu-tab {
+  all: unset;
+  padding: var(--bf-sp-2) var(--bf-sp-3);
+  font-size: var(--bf-fs-h3);
+  color: var(--bf-text-2);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.smu-tab[aria-selected='true'] {
+  color: var(--bf-text);
+  border-bottom-color: var(--bf-accent);
+}
+
+.smu-tab:focus-visible {
+  outline: 2px solid var(--bf-accent);
+  outline-offset: -2px;
+}
+
+/* ---- step-up 内联口令重验（ADR-0027 / console-m8 §7.4） ---- */
+
+.smu-stepup {
+  border: 1px solid var(--bf-warning);
+  border-radius: var(--bf-r-md);
+  padding: var(--bf-sp-3);
+  margin: var(--bf-sp-3) 0;
+  background: var(--bf-surface-2);
+}
+
+.smu-stepup .field {
+  margin-bottom: var(--bf-sp-2);
+}
+
+.smu-error-inline {
+  color: var(--bf-danger);
+  font-size: var(--bf-fs-aux);
+  margin-top: var(--bf-sp-1);
+}
+
+/* 服务端原文折叠（ADR-0027 错误体 mono 呈现，console-ux §5 错误态形态） */
+.smu-error-raw {
+  font-family: var(--bf-mono);
+  font-size: var(--bf-fs-aux);
+  color: var(--bf-text-2);
+  word-break: break-all;
+}
+
+/* ---- 令牌一次性明文面板（成功态） ---- */
+
+.smu-token-panel {
+  border: 1px solid var(--bf-success);
+  border-radius: var(--bf-r-md);
+  padding: var(--bf-sp-3);
+  margin: var(--bf-sp-3) 0;
+  background: var(--bf-surface-2);
+}
+
+.smu-token-panel .token-line {
+  display: flex;
+  align-items: center;
+  gap: var(--bf-sp-2);
+  margin: var(--bf-sp-2) 0;
+}
+
+.smu-token-panel code {
+  font-family: var(--bf-mono);
+  font-size: var(--bf-fs-aux);
+  word-break: break-all;
+}
+
+/* ---- Deploy 对话框（console-m8 §4.2 字段序） ---- */
+
+.deploy-field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--bf-sp-3);
+}
+
+.deploy-drop {
+  border: 1px dashed var(--bf-border-strong);
+  border-radius: var(--bf-r-lg);
+  padding: var(--bf-sp-5);
+  text-align: center;
+  color: var(--bf-text-2);
+  background: var(--bf-surface-3);
+  cursor: pointer;
+  margin: var(--bf-sp-3) 0;
+}
+
+.deploy-drop.over,
+.deploy-drop:hover {
+  border-color: var(--bf-accent);
+  color: var(--bf-text);
+}
+
+.deploy-drop:focus-visible {
+  outline: 2px solid var(--bf-accent);
+  outline-offset: 1px;
+}
+
+.deploy-progress {
+  display: flex;
+  align-items: center;
+  gap: var(--bf-sp-2);
+  margin-top: var(--bf-sp-1);
+}
+
+.deploy-progress .bar {
+  flex: 1;
+  height: 4px;
+  background: var(--bf-surface-3);
+  border-radius: var(--bf-r-sm);
+  overflow: hidden;
+}
+
+.deploy-progress .fill {
+  height: 100%;
+  background: var(--bf-accent);
+}
+
+/* T-231 编码回显：原值可编辑，请求编码值只读 mono（console-m8 §8 债券承接） */
+.deploy-echo {
+  font-family: var(--bf-mono);
+  font-size: var(--bf-fs-aux);
+  color: var(--bf-text-2);
+  word-break: break-all;
+}
+
+.deploy-error {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bf-sp-1);
+}
+
+.deploy-error .raw {
+  font-family: var(--bf-mono);
+  font-size: var(--bf-fs-aux);
+  word-break: break-all;
+  color: var(--bf-text-2);
+}

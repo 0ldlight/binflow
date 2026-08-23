@@ -3,8 +3,10 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '../../app/AuthContext'
 import { CopyButton } from '../../components/CopyButton'
+import DeployDialog from '../../components/DeployDialog'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
+import SetMeUpDialog from '../../components/SetMeUpDialog'
 import { Skeleton } from '../../components/Skeleton'
 import type { RepoListItem } from '../../lib/api'
 import { canAdminWrite, isReadOnlyAdmin } from '../../lib/api'
@@ -159,6 +161,10 @@ export default function RepositoriesPage() {
 
   const requestDelete = useRepoDelete({ onDeleted: reload })
 
+  // 对话框族（T-242）：行内 Set Me Up / Deploy 入口（dialog state 就地）
+  const [smuKey, setSmuKey] = useState<string | null>(null)
+  const [deployKey, setDeployKey] = useState<string | null>(null)
+
   const [sortKey, setSortKey] = useState<'key' | 'package' | null>(null)
   const [sortDir, setSortDir] = useState<SortDir>('asc')
   const toggleSort = (k: 'key' | 'package') => {
@@ -287,11 +293,9 @@ export default function RepositoriesPage() {
                   <th scope="col">上游 / 成员</th>
                   <th scope="col">已用</th>
                   <th scope="col">描述</th>
-                  {admin && (
-                    <th scope="col" className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>
-                      操作
-                    </th>
-                  )}
+                  <th scope="col" className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>
+                    操作
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -331,23 +335,43 @@ export default function RepositoriesPage() {
                     <td className="wrap" style={{ maxWidth: 260, color: 'var(--bf-text-2)' }}>
                       {repo.description || '—'}
                     </td>
-                    {admin && (
-                      <td>
+                    <td onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
-                          className="row-del"
-                          aria-label={`删除仓库 ${repo.key}`}
-                          title={`删除仓库 ${repo.key}`}
-                          data-testid={`repos-delete-${repo.key}`}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            requestDelete({ key: repo.key, rclass: repo.type, packageType: repo.packageType })
-                          }}
+                          className="btn"
+                          data-testid={`repos-setmeup-${repo.key}`}
+                          title={`Set Me Up：${repo.key} 的客户端接入向导`}
+                          onClick={() => setSmuKey(repo.key)}
                         >
-                          删除
-                        </button>
+                          Set Me Up
+                        </button>{' '}
+                        {repo.type === 'local' && (repo.packageType === 'generic' || repo.packageType === 'maven') && (
+                          <button
+                            type="button"
+                            className="btn"
+                            data-testid={`repos-deploy-${repo.key}`}
+                            title={`部署到 ${repo.key}（浏览器上传）`}
+                            onClick={() => setDeployKey(repo.key)}
+                          >
+                            部署
+                          </button>
+                        )}{' '}
+                        {admin && (
+                          <button
+                            type="button"
+                            className="row-del"
+                            aria-label={`删除仓库 ${repo.key}`}
+                            title={`删除仓库 ${repo.key}`}
+                            data-testid={`repos-delete-${repo.key}`}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              requestDelete({ key: repo.key, rclass: repo.type, packageType: repo.packageType })
+                            }}
+                          >
+                            删除
+                          </button>
+                        )}
                       </td>
-                    )}
                   </tr>
                 ))}
               </tbody>
@@ -358,6 +382,11 @@ export default function RepositoriesPage() {
             </p>
           </>
         ))}
+
+      {smuKey && <SetMeUpDialog preselectedRepo={smuKey} onClose={() => setSmuKey(null)} />}
+      {deployKey && (
+        <DeployDialog preselectedRepo={deployKey} onClose={() => setDeployKey(null)} onUploaded={reload} />
+      )}
     </div>
   )
 }

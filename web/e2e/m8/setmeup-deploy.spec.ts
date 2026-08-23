@@ -1,0 +1,360 @@
+import { expect, test } from '@playwright/test'
+import type { Page } from '@playwright/test'
+
+import { expectA11yClean } from './support/a11y'
+import { expectCopied, grantClipboard } from './support/clipboard'
+import { loginAs } from './support/roles'
+import { m8Client, seedRepos, sessionApi } from './support/seed'
+
+// T-242 Set Me Up / Deploy 对话框族（console-m8 §4.1/§4.2 + §7.4 step-up 融合
+// + §8 T-231 债券）。断言口径 = e2e/m8/README §2：锚断言 + 操作流对照 +
+// sessionApi 对账；错误文案断言 ADR-0027 决策 5 逐字（error_description）。
+//
+// 三入口（树工具栏 / 仓库列表行 / 仓库详情头）在本 spec 内全部走通；
+// step-up 腿两层：(a) mock 拦截腿（verbatim ADR 错误体 + 第三次放行真铸，
+// 任何实例可跑）；(b) 真实 armed 实例腿（BINFLOW_AUTH__TOKEN_STEP_UP=true
+// 的实例全链——默认实例自动 skip）。
+
+const ADR_STEP_UP_REQUIRED = JSON.stringify({
+  error: 'step_up_required',
+  error_description: 'step-up authentication required to mint a token',
+})
+const ADR_STEP_UP_INVALID = JSON.stringify({
+  error: 'step_up_invalid',
+  error_description: 'step-up credential rejected, expired, or already used',
+})
+
+test.beforeEach(async ({ request }) => {
+  const probe = await request.get('/binflow/ui/')
+  test.skip(probe.status() === 404, 'console segment not mounted by this binary yet')
+})
+
+function uniq(prefix: string): string {
+  return `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+}
+
+/** 实例内已有仓库的包类型集合（网格「只列已有仓库的包类型」的对照源） */
+async function livePackageTypes(page: Page): Promise<Set<string>> {
+  const res = await sessionApi(page, 'GET', '/api/repositories')
+  expect(res.status).toBe(200)
+  const repos = res.json as { packageType: string }[]
+  return new Set(repos.map((r) => r.packageType))
+}
+
+// ---- Set Me Up：仓库上下文直达 + 铸币 + 命令块 + Tab + 剪贴板（admin 腿） ----
+
+test('setmeup: repo context opens the client dialog directly; mint + token-embedded commands + copy', async ({
+  page,
+}) => {
+  test.setTimeout(120_000)
+  test.skip(!(await grantClipboard(page)), 'clipboard legs are chromium-only (the supported matrix)')
+  const key = uniq('m8smu')
+  await seedRepos(m8Client(), [{ key }, { key: `${key}-npm`, packageType: 'npm' }])
+
+  await loginAs(page, 'admin')
+  await page.goto('/binflow/ui/artifacts')
+  await page.click(`[data-testid="tree-repo-${key}"]`)
+  await page.click('[data-testid="tree-setmeup"]')
+
+  // 选中仓库 → 直达主对话框（reverse §4.1），仓库下拉预选当前仓
+  const dialog = page.locator('[data-testid="smu-dialog"]')
+  await expect(dialog).toBeVisible()
+  await expect(page.locator('[data-testid="smu-grid"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="smu-repo"]')).toHaveValue(key)
+  await expect(dialog).toContainText('配置 Generic 客户端')
+
+  // 铸币（admin 会话 = ADR-0027 决策 1 豁免臂，无二次口令）
+  await page.click('[data-testid="smu-generate"]')
+  const panel = page.locator('[data-testid="smu-token-panel"]')
+  await expect(panel).toBeVisible()
+  await expect(panel).toContainText('关闭对话框后不可再查看')
+  const token = (await page.locator('[data-testid="smu-token"]').textContent()) ?? ''
+  expect(token.length).toBeGreaterThan(20)
+
+  // 命令块回填真实凭据：配置面占位符退场（generic 的配置侧不含凭据——
+  // token 明文进部署侧 curl -u）
+  await expect(page.locator('[data-testid="smu-pane-configure"]')).not.toContainText('<TOKEN 或口令>')
+
+  // 剪贴板断言：令牌全值（console-ux §7.3——拷贝不截断）
+  await expectCopied(page, page.locator('button[aria-label="复制 API Token"]'), token)
+
+  // Tab 切换（配置 → 部署）：部署侧命令含仓库 key + token 明文（回填凭据）
+  await page.click('[data-testid="smu-tab-deploy"]')
+  await expect(page.locator('[data-testid="smu-pane-deploy"]')).toBeVisible()
+  await expect(page.locator('[data-testid="smu-cmd-dep-generic-0"] pre')).toContainText(token)
+  await expect(page.locator('[data-testid="smu-pane-deploy"]')).toContainText(key)
+
+  // 对账（§2.6）：UI 说铸了 token——让同源 Bearer 臂复核管理面可达
+  const bearer = await page.evaluate(async (t) => {
+    const r = await fetch('/binflow/api/repositories', { headers: { Authorization: `Bearer ${t}` } })
+    return r.status
+  }, token)
+  expect(bearer).toBe(200)
+
+  // Esc 关闭（§3.4）
+  await page.keyboard.press('Escape')
+  await expect(page.locator('[data-testid="smu-dialog"]')).toHaveCount(0)
+})
+
+// ---- Set Me Up：包类型网格（无仓库上下文入口；只列已有仓库的包类型） ----
+
+test('setmeup grid: package types = union of existing repos; back link returns to grid', async ({ page }) => {
+  const key = uniq('m8grid')
+  await seedRepos(m8Client(), [{ key }, { key: `${key}-npmpkg`, packageType: 'npm' }])
+
+  await loginAs(page, 'admin')
+  await page.goto('/binflow/ui/artifacts')
+  await page.click('[data-testid="tree-setmeup"]')
+
+  await expect(page.locator('[data-testid="smu-grid"]')).toBeVisible()
+  // 网格项集合 = 实例内已有仓库的包类型并集（对齐 reverse §4.1）
+  const types = await livePackageTypes(page)
+  for (const pt of ['generic', 'docker', 'maven', 'npm', 'pypi']) {
+    const want = types.has(pt) ? 1 : 0
+    await expect(page.locator(`[data-testid="smu-grid-item-${pt}"]`)).toHaveCount(want)
+  }
+
+  // 选 npm → 主对话框；下拉只列 npm 仓
+  await page.click('[data-testid="smu-grid-item-npm"]')
+  await expect(page.locator('[data-testid="smu-repo"]')).toBeVisible()
+  const picked = await page.locator('[data-testid="smu-repo"]').inputValue()
+  const npmKeys = (await sessionApi(page, 'GET', '/api/repositories?packageType=npm'))
+  expect(npmKeys.status).toBe(200)
+  const npmKeyList = (npmKeys.json as { key: string }[]).map((r) => r.key)
+  expect(npmKeyList.length).toBeGreaterThan(0)
+  expect(npmKeyList).toContain(picked)
+  for (const opt of await page.locator('[data-testid="smu-repo"] option').evaluateAll((els) =>
+    els.map((e) => (e as HTMLOptionElement).value),
+  )) {
+    expect(npmKeyList).toContain(opt)
+  }
+
+  // 「选择不同的包类型」返回网格（reverse §4.1 返回链接）
+  await page.click('[data-testid="smu-back"]')
+  await expect(page.locator('[data-testid="smu-grid-item-generic"]')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.locator('[data-testid="smu-dialog"]')).toHaveCount(0)
+})
+
+// ---- Set Me Up：step-up 内联腿（mock 拦截：ADR 逐字错误体 + 第三次真铸） ----
+
+test('setmeup step-up: 401 step_up_required -> inline password form; invalid -> verbatim ADR text; retry mints', async ({
+  page,
+}) => {
+  const key = uniq('m8step')
+  await seedRepos(m8Client(), [{ key }])
+
+  // readonly_admin：非 admin web session 臂（step-up 的作用域）+ 可列仓库
+  const sess = await loginAs(page, 'readonly_admin')
+  await page.goto('/binflow/ui/artifacts')
+  await page.click(`[data-testid="tree-repo-${key}"]`)
+  await page.click('[data-testid="tree-setmeup"]')
+  await expect(page.locator('[data-testid="smu-repo"]')).toHaveValue(key)
+
+  // 拦截铸币端点：① 401 step_up_required（ADR 逐字）② 错口令 401
+  // step_up_invalid（ADR 逐字）③ 放行到真实服务端（默认实例 step-up 关闭
+  // → 200 真铸；armed 实例携正确 step_up_password 同样 200）
+  const bodies: unknown[] = []
+  let calls = 0
+  await page.route('**/api/security/token', async (route) => {
+    calls += 1
+    try {
+      bodies.push(route.request().postDataJSON())
+    } catch {
+      bodies.push(null)
+    }
+    if (calls === 1) {
+      return route.fulfill({ status: 401, contentType: 'application/json', body: ADR_STEP_UP_REQUIRED })
+    }
+    if (calls === 2) {
+      return route.fulfill({ status: 401, contentType: 'application/json', body: ADR_STEP_UP_INVALID })
+    }
+    return route.continue()
+  })
+
+  // ① 首次铸币 → 401 required → 对话框内联口令框（不弹第二层）+ 聚焦
+  await page.click('[data-testid="smu-generate"]')
+  const stepUp = page.locator('[data-testid="smu-stepup"]')
+  await expect(stepUp).toBeVisible()
+  await expect(page.locator('[data-testid="smu-password"]')).toBeFocused()
+  await expect(page.locator('[data-testid="smu-token-panel"]')).toHaveCount(0)
+
+  // ② 错误口令 → 401 invalid → 内联错误 = error_description 逐字
+  await page.fill('[data-testid="smu-password"]', 'definitely-wrong-password')
+  await page.click('[data-testid="smu-password-submit"]')
+  await expect(page.locator('[data-testid="smu-password-error"]')).toHaveText(
+    'step-up credential rejected, expired, or already used',
+  )
+  await expect(stepUp).toBeVisible() // 内联呈现，仍在原对话框
+  await expect(page.locator('[data-testid="smu-stepup"]')).toHaveCount(1)
+
+  // ③ 正确口令 → 续铸成功（请求体携带 step_up_password；token 面板出现）
+  await page.fill('[data-testid="smu-password"]', sess.password)
+  await page.click('[data-testid="smu-password-submit"]')
+  await expect(page.locator('[data-testid="smu-token-panel"]')).toBeVisible()
+  expect(calls).toBe(3)
+  const third = bodies[2] as { step_up_password?: string; expires_in?: number }
+  expect(third.step_up_password).toBe(sess.password)
+  expect(third.expires_in).toBe(86400)
+})
+
+// ---- Set Me Up：真实 armed 实例腿（BINFLOW_AUTH__TOKEN_STEP_UP=true 才跑） ----
+
+test('setmeup step-up (real armed instance): full chain against the live gate', async ({ page }) => {
+  const key = uniq('m8armed')
+  await seedRepos(m8Client(), [{ key }])
+
+  const sess = await loginAs(page, 'readonly_admin')
+  // 探针：armed 实例的非 admin session 铸币答 401 step_up_required；默认
+  // 实例（step-up 关闭）直接 200 → skip（mock 腿已覆盖默认实例）
+  const probe = await sessionApi(page, 'POST', '/api/security/token', {
+    grant_type: 'client_credentials',
+    expires_in: 3600,
+  })
+  test.skip(
+    probe.status !== 401 || (probe.json as { error?: string })?.error !== 'step_up_required',
+    'instance not armed with auth.token_step_up (covered by the mocked leg)',
+  )
+
+  await page.goto('/binflow/ui/artifacts')
+  await page.click(`[data-testid="tree-repo-${key}"]`)
+  await page.click('[data-testid="tree-setmeup"]')
+  await expect(page.locator('[data-testid="smu-repo"]')).toHaveValue(key)
+
+  await page.click('[data-testid="smu-generate"]')
+  await expect(page.locator('[data-testid="smu-stepup"]')).toBeVisible()
+
+  // 真服务端错口令 → ADR-0027 决策 5 逐字（服务端原文，不由 UI 改写）
+  await page.fill('[data-testid="smu-password"]', 'wrong-password-for-probe')
+  await page.click('[data-testid="smu-password-submit"]')
+  await expect(page.locator('[data-testid="smu-password-error"]')).toHaveText(
+    'step-up credential rejected, expired, or already used',
+  )
+
+  // 正确口令 → 真铸成功
+  await page.fill('[data-testid="smu-password"]', sess.password)
+  await page.click('[data-testid="smu-password-submit"]')
+  await expect(page.locator('[data-testid="smu-token-panel"]')).toBeVisible()
+})
+
+// ---- Deploy 对话框：拖拽上传 + T-231 特殊字符路径（% / 空格 / 中文） ----
+
+test('deploy dialog: drag-drop upload with special-char filenames; encoded echo; checksum badge; API reconcile', async ({
+  page,
+}) => {
+  const key = uniq('m8dep')
+  await seedRepos(m8Client(), [{ key }])
+  const names = ['50%off.bin', 'hello world.txt', '中文包.tar.gz']
+
+  await loginAs(page, 'admin')
+  await page.goto('/binflow/ui/artifacts')
+  await page.click('[data-testid="tree-deploy"]')
+
+  const dialog = page.locator('[data-testid="deploy-dialog"]')
+  await expect(dialog).toBeVisible()
+  await expect(dialog).toContainText('部署 Deploy')
+  await page.selectOption('[data-testid="deploy-repo"]', key)
+  // 包类型只读回显（§4.2 字段序）
+  await expect(dialog).toContainText('Generic')
+
+  // 拖拽投放（Chromium DataTransfer 合成 drop 事件——真实拖拽路径）
+  await page.locator('[data-testid="deploy-drop"]').evaluate((el, files) => {
+    const dt = new DataTransfer()
+    for (const [name, body] of files) {
+      dt.items.add(new File([body], name, { type: 'application/octet-stream' }))
+    }
+    el.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }))
+  }, names.map((n) => [n, `t231-body-${n}\n`] as [string, string]))
+
+  // 行入队（hashing）+「部署」启泵（显式提交步，§4.2）
+  for (const n of names) await expect(page.locator(`[data-testid="deploy-row-${n}"]`)).toBeVisible()
+  await page.click('[data-testid="deploy-submit"]')
+
+  // 201 + checksum 比对徽标（成功态：§3.2 矩阵 Deploy 行）
+  for (const n of names) {
+    await expect(page.locator(`[data-testid="deploy-verify-${n}"]`)).toHaveText('✓ checksum 一致', {
+      timeout: 30_000,
+    })
+  }
+
+  // T-231 编码回显：% → %25、空格 → %20、中文 → UTF-8 percent（只读 mono）
+  await expect(page.locator('[data-testid="deploy-echo-50%off.bin"]')).toContainText('50%25off.bin')
+  await expect(page.locator('[data-testid="deploy-echo-hello world.txt"]')).toContainText('hello%20world.txt')
+  await expect(page.locator('[data-testid="deploy-echo-中文包.tar.gz"]')).toContainText(
+    '%E4%B8%AD%E6%96%87%E5%8C%85.tar.gz',
+  )
+
+  // 对账（§2.6）：树面按原名可见（服务端原值，不二次编解码）
+  const ls = await sessionApi(page, 'GET', `/api/storage/${key}`)
+  expect(ls.status).toBe(200)
+  const children = ((ls.json as { children?: { uri: string }[] }).children ?? []).map((c) => c.uri)
+  for (const n of names) expect(children).toContain(`/${n}`)
+
+  await page.keyboard.press('Escape')
+  await expect(page.locator('[data-testid="deploy-dialog"]')).toHaveCount(0)
+})
+
+// ---- 三入口可达（树工具栏已由上腿覆盖；此处：列表行 + 详情头） ----
+
+test('entry points: repositories list row and repo detail header open both dialogs', async ({ page }) => {
+  const key = uniq('m8ent')
+  await seedRepos(m8Client(), [{ key }])
+
+  await loginAs(page, 'admin')
+
+  // 仓库列表行：Set Me Up（行导航不触发——按钮 stopPropagation）
+  await page.goto('/binflow/ui/admin/repositories/local')
+  await page.click(`[data-testid="repos-setmeup-${key}"]`)
+  await expect(page.locator('[data-testid="smu-dialog"]')).toBeVisible()
+  await expect(page.locator('[data-testid="smu-repo"]')).toHaveValue(key)
+  await expect(page).toHaveURL(/\/admin\/repositories\/local$/) // 未跳详情页
+  await page.keyboard.press('Escape')
+  await expect(page.locator('[data-testid="smu-dialog"]')).toHaveCount(0)
+
+  // 仓库列表行：部署（generic local 行有 Deploy 入口）
+  await page.click(`[data-testid="repos-deploy-${key}"]`)
+  await expect(page.locator('[data-testid="deploy-dialog"]')).toBeVisible()
+  await expect(page.locator('[data-testid="deploy-repo"]')).toHaveValue(key)
+  await page.keyboard.press('Escape')
+  await expect(page.locator('[data-testid="deploy-dialog"]')).toHaveCount(0)
+
+  // 仓库详情头：Set Me Up + Deploy
+  await page.goto(`/binflow/ui/admin/repositories/${key}`)
+  await page.click('[data-testid="repo-setmeup"]')
+  await expect(page.locator('[data-testid="smu-dialog"]')).toBeVisible()
+  await expect(page.locator('[data-testid="smu-repo"]')).toHaveValue(key)
+  await page.keyboard.press('Escape')
+  await page.click('[data-testid="repo-deploy"]')
+  await expect(page.locator('[data-testid="deploy-dialog"]')).toBeVisible()
+  await expect(page.locator('[data-testid="deploy-repo"]')).toHaveValue(key)
+  await page.keyboard.press('Escape')
+  await expect(page.locator('[data-testid="deploy-dialog"]')).toHaveCount(0)
+})
+
+// ---- axe 结构可达性（serious/critical = 0 门；§9）----------------------------
+
+test('axe: setmeup (grid + main) and deploy dialogs scan clean', async ({ page }, testInfo) => {
+  const key = uniq('m8axe')
+  await seedRepos(m8Client(), [{ key }, { key: `${key}-npmpkg`, packageType: 'npm' }])
+
+  await loginAs(page, 'admin')
+  await page.goto('/binflow/ui/artifacts')
+
+  // 网格态
+  await page.click('[data-testid="tree-setmeup"]')
+  await expect(page.locator('[data-testid="smu-grid-item-generic"]')).toBeVisible()
+  await expectA11yClean(page, testInfo, { include: '[data-testid="smu-dialog"]' })
+  await page.keyboard.press('Escape')
+
+  // 主对话框（含铸币区 + 命令块）
+  await page.click(`[data-testid="tree-repo-${key}"]`)
+  await page.click('[data-testid="tree-setmeup"]')
+  await expect(page.locator('[data-testid="smu-repo"]')).toHaveValue(key)
+  await expectA11yClean(page, testInfo, { include: '[data-testid="smu-dialog"]' })
+  await page.keyboard.press('Escape')
+
+  // Deploy 对话框（含拖拽区 + GAV 回显面隐藏——generic 仓）
+  await page.click('[data-testid="tree-deploy"]')
+  await expect(page.locator('[data-testid="deploy-drop"]')).toBeVisible()
+  await expectA11yClean(page, testInfo, { include: '[data-testid="deploy-dialog"]' })
+})

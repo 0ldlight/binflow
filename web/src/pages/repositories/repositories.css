@@ -239,3 +239,13 @@
 .quota-edit input {
   width: 160px;
 }
+
+/* T-242（axe 实证，e2e/m8/repositories-admin 三 Tab 腿）：hover 行背景
+ * surface-2 上的 .row-link:hover 用 accent，亮色主题 4.47:1（差 0.03 不过
+ * 4.5 门）——hover 时链接色回 --bf-text 全对比度，hover 语义由下划线承载
+ * （T-236 的 .on-chain 同款收口）。选择器是表格通用形态：users/groups/
+ * permissions/search 表的同款配对同此修复；badge.warning 亮色 4.26:1
+ * 等共享层对比度家族统一归 T-250 共享层票。 */
+.table tbody tr:hover .row-link:hover {
+  color: var(--bf-text);
+}

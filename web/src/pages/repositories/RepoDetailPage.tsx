@@ -3,8 +3,10 @@ import { Link, useParams } from 'react-router-dom'
 
 import { useAuth } from '../../app/AuthContext'
 import { CopyButton } from '../../components/CopyButton'
+import DeployDialog from '../../components/DeployDialog'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
+import SetMeUpDialog from '../../components/SetMeUpDialog'
 import { Skeleton } from '../../components/Skeleton'
 import { useToast } from '../../app/ToastContext'
 import { ApiError, canAdminWrite, errText, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
@@ -202,6 +204,10 @@ export default function RepoDetailPage() {
   const [tab, setTab] = useState<DetailTab>('summary')
   useEffect(() => setTab('summary'), [routeKey])
 
+  // 对话框族（T-242）：详情头 Set Me Up / Deploy 入口（dialog state 就地）
+  const [smuOpen, setSmuOpen] = useState(false)
+  const [deployOpen, setDeployOpen] = useState(false)
+
   const state = useAsync(() => (routeKey ? getRepoDetail(routeKey) : Promise.resolve(null)), [routeKey])
   // virtual 仓无自身内容（usage 恒 0），不发起请求
   const usage = useAsync(
@@ -284,6 +290,26 @@ export default function RepoDetailPage() {
         <span className="badge neutral">{repo.rclass}</span>
         <span className="badge neutral">{repo.packageType}</span>
         <div className="detail-head-actions">
+          <button
+            type="button"
+            className="btn"
+            data-testid="repo-setmeup"
+            title="Set Me Up：客户端接入向导"
+            onClick={() => setSmuOpen(true)}
+          >
+            Set Me Up
+          </button>
+          {rclass === 'local' && (packageType === 'generic' || packageType === 'maven') && (
+            <button
+              type="button"
+              className="btn"
+              data-testid="repo-deploy"
+              title="部署到本仓（浏览器上传）"
+              onClick={() => setDeployOpen(true)}
+            >
+              ⬆ 部署 Deploy
+            </button>
+          )}
           <Link className="btn" to={`/artifacts/${repo.key}`} data-testid="repo-goto-tree">
             浏览制品 →
           </Link>
@@ -567,6 +593,11 @@ export default function RepoDetailPage() {
             前往复制管理 →
           </Link>
         </section>
+      )}
+
+      {smuOpen && routeKey && <SetMeUpDialog preselectedRepo={routeKey} onClose={() => setSmuOpen(false)} />}
+      {deployOpen && routeKey && (
+        <DeployDialog preselectedRepo={routeKey} onClose={() => setDeployOpen(false)} onUploaded={state.reload} />
       )}
     </div>
   )

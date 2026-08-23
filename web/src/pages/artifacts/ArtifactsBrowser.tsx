@@ -5,8 +5,10 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../app/AuthContext'
 import { useConfirm } from '../../components/ConfirmDialog'
 import { CopyButton } from '../../components/CopyButton'
+import DeployDialog from '../../components/DeployDialog'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
+import SetMeUpDialog from '../../components/SetMeUpDialog'
 import { useToast } from '../../app/ToastContext'
 import { ApiError, getRepositories, getStorageStats, isReadOnlyAdmin } from '../../lib/api'
 import type { RepoListItem } from '../../lib/api'
@@ -247,6 +249,9 @@ export default function ArtifactsBrowser() {
 
   // ---- 操作：上传 / 建目录 / 删除 / 下载 / 右键菜单 ----
   const [uploadOpen, setUploadOpen] = useState(false)
+  // 对话框族（T-242）：页头动作区 Set Me Up / Deploy（console-m8 §6.3[1]）
+  const [smuOpen, setSmuOpen] = useState(false)
+  const [deployOpen, setDeployOpen] = useState(false)
   const [deleteError, setDeleteError] = useState<{ path: string; err: ApiError } | null>(null)
   const [download, setDownload] = useState<DownloadState | null>(null)
   const [menu, setMenu] = useState<{ x: number; y: number; target: MenuTarget } | null>(null)
@@ -412,9 +417,27 @@ export default function ArtifactsBrowser() {
 
   return (
     <div data-testid="tree-page" className="tree-page browser-page">
-      {/* 页头动作区（console-m8 §6.3[1]；Set Me Up 对话框族归 T-242） */}
+      {/* 页头动作区（console-m8 §6.3[1]：Set Me Up / Deploy / 管理仓库） */}
       <div className="browser-toolbar" data-testid="browser-toolbar">
         <div className="browser-actions">
+          <button
+            type="button"
+            className="btn"
+            data-testid="tree-setmeup"
+            title="客户端接入向导（按包类型生成接入命令与令牌）"
+            onClick={() => setSmuOpen(true)}
+          >
+            Set Me Up
+          </button>
+          <button
+            type="button"
+            className="btn primary"
+            data-testid="tree-deploy"
+            title="浏览器上传（local Generic / Maven 仓）"
+            onClick={() => setDeployOpen(true)}
+          >
+            ⬆ 部署 Deploy
+          </button>
           {admin && (
             <Link className="btn" to="/admin/repositories/local" data-testid="tree-manage-repos">
               管理仓库 →
@@ -889,6 +912,17 @@ export default function ArtifactsBrowser() {
           mode={packageType === 'maven' ? 'maven' : 'generic'}
           dir={dir}
           onClose={() => setUploadOpen(false)}
+          onUploaded={refresh}
+        />
+      )}
+
+      {smuOpen && (
+        <SetMeUpDialog preselectedRepo={repoKey || undefined} onClose={() => setSmuOpen(false)} />
+      )}
+      {deployOpen && (
+        <DeployDialog
+          preselectedRepo={repoKey || undefined}
+          onClose={() => setDeployOpen(false)}
           onUploaded={refresh}
         />
       )}
