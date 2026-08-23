@@ -74,13 +74,13 @@ DoD 七条全达成（PRD §9 对证）：P0/P1 全绿（T-221 16/16 / T-222 192
 ### M8 票据（T-231~T-246，tech-lead 2026-08-23 分解；AC 全文见 docs/prd/milestone-8.md；规格依据 console-ui.md + console-m8.md）
 
 #### B1 基座与债券（首波并行 3；T-233 待 T-231）
-- **T-231** [P1] internal/client 上传路径 percent-encode 修复（D-1 缺陷，T-228 发现） `role:dev-go-core` `area:internal/client + cmd/bf` `dep:—`
-  uploadFile PUT URL 逐段转义（reader 侧 escapePathSegments 同构复用）；5×2 回归矩阵（%/#/?/空格/UTF-8 × curl/UI）变异验证。**B5 前必须完成**（T-242 特殊字符腿与 T-233 复验前置）。
+- **T-231** [P1] internal/client percent-encode 修复 `role:dev-go-core` — **done 2026-08-23（conductor 复验：矩阵测试 race 绿 + 全仓 lint 0；提交 `684e71c`）**
+  EscapePathSegments 导出 + contentPlanePath/storagePlanePath 单一构造点喂全部五个消费方法；CLI 打印 URI 同步可复制。5×2 真实栈矩阵 + 变异验证（%/#/? 腿复现生产报错原文）。遗留① migrate/reader 转义收敛→T-233 顺手。日志 reports/agents/T-231.md。
 - **T-232** [P0] M8 Playwright 交互断言基座 `role:devops-engineer` `area:web/e2e/m8/ + seed 脚本` `dep:—`
   tests 目录 + loginAs/seedTree(≥10k 节点)/剪贴板/axe/性能助手 + 断言口径 README（交互断言制，禁像素 diff——ADR-0029）+ 三角色冒烟。**spec 目录用 web/e2e/m8/**（PRD web/tests/m8/ 与现役 testDir 冲突，勘误）。
 - **T-234** [P0] 设计 token 重做与双主题皮肤基座 `role:dev-frontend` `area:web/src/styles/ + ThemeContext` `dep:—`
   tokens.css 按 console-m8 §5（三阶纵深/shadow 1-3/亮暗双主题纯换值）；**默认亮色（Q2 终裁）**；css 零硬编码色值编译期断言；零复制合规腿（无 jfrog/artifactory 依赖、无位图图标）；gzip ≤350KB 基线。
-- **T-233** [P1] FR-77 债券打包 `role:dev-go-core` `area:cmd/bf + internal/(dialer 13 处) + ci.yml + 附录移植` `dep:T-231`（B1 末位，T-231 落地后接续）
+- **T-233** [P1] FR-77 债券打包 `role:dev-go-core` — **doing 2026-08-23（T-231 `684e71c` 解锁即派；含 reader 转义收敛）**
 
 #### B2 双模式壳（串行 1）
 - **T-235** [P0] 双模式壳与路由重排（AppShell/路由表/20 条旧路由 redirect/testid 242 锚映射） `role:dev-frontend` `area:web/src/components/AppShell + main.tsx 路由表` `dep:T-232,T-234`
