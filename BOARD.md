@@ -63,7 +63,8 @@
   mint grant 台账（256-bit 只存 sha256、绑定 {user,session}、burn 原子）+ step_up_password 双 provider 腿（LDAP 结构上不可探活他人）+ OIDC prompt=login 单次 grant（明文仅存 302 fragment，RFC 3986 不进服务端日志）+ 双 config 键 TTL 域无条件拒启动 + p.Admin→CanManage 统一（Q11 零变）。真实 Keycloak+OpenLDAP 容器实测 V21~V26；默认 off 四护栏逐字复绿；64 goroutine 烧毁探针恰一次。移交：第二身份回跳腿→T-224；并发烧毁常驻用例→T-220；grant 签发审计小票+登录 lockout 存量姿态→M7+。日志 reports/agents/T-219.md / T-219-review.md。
 - **T-220** [P2] FR-70 技术债打包 `role:dev-go-core` — **done 2026-08-23（conductor 复验：lint-baseline total=0 + N3/并发测试亲跑绿；提交 `b8e5fcf`）**
   auth 53 条逐条处置（死类型族按 ADR-0020 映射规则删 + 留注释；测试重构 makeUser 助手）+ npm 1 条；N3=context.WithoutCancel 修复 + 变异钉死 + fail-closed 反向钉死；TTL flake 放宽压测 10/10；64-goroutine 烧毁用例固化；15 个 sql 行尾全齐。**移交**：CI 显式 -timeout 20m（httpapi 净机 571s 逼近默认上限）→ release 小票；dialer 闭包样板 13 处 → reviewer 偏好项 M8。日志 reports/agents/T-220.md。
-- **T-222** [P1] M7 验收 II — **doing 2026-08-23（收官硬门槛；任务 0=探针新鲜度必修〔T-216 review 挂账〕；M1~M6 全 P0 复跑 + NFR P33/P34 + 续传四腿 + Playwright + MinIO/S3 双份）**
+- **T-222** [P1] M7 验收 II `role:qa-engineer` — **done 2026-08-23（PASS 全 AC 零缺陷；提交 `f383261`）——M7 收官硬门槛通过**
+  探针新鲜度守卫落地（含 embed 面，陷阱当场咬合实证）；续传四腿逐字节；MinIO/S3 双份；Playwright 85/0；千并发两臂优于 M6 基线 86%/34%（P95 新基线归档：6.8ms/2748ms）；重启首 200 仅 0.34s；**M1~M6 全 P0 复跑 192/192 四批全绿**；全仓 race 23 包绿。观察 5 条路由（O-2 P95 基线分母→PM v1.2；O-3 Helm OCI=oras 不可得条件腿；O-4 wire 校准备忘；O-5 Playwright 负载教训；O-1 TTL 回收=ADR-0028 一致）。日志 reports/agents/T-222-qa.md（含击落-恢复说明）。
 - **T-224** [P2] M7 验收 III `role:qa-engineer` — **done 2026-08-23（PASS 8/8 零缺陷；qa 报告 `830bc9d`）**
   V21~V26 + config 域 + 干净树全仓 race 全绿。亮点：错误体与 ADR 逐字节、第二身份回跳腿拒发 grant、TTL 闭区间实测、dind 三态 digest 稳定、T-208 seam 禁用即失效复验。非缺陷 4 条已路由（NFR-S41 措辞→PM v1.2；PUT replace 语义姿势→文档面；ssouser2 自动建行=既有 H25；grant 签发审计=M7+ 债）。日志 reports/agents/T-224-qa.md。
 - **T-221** [P1] M7 验收 I `role:qa-engineer` — **done 2026-08-23（PASS 16/16 零缺陷；qa 报告 `cf4c16a`）**
