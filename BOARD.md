@@ -101,8 +101,12 @@ DoD 七条全达成（PRD §9 对证）：P0/P1 全绿（T-221 16/16 / T-222 192
 - **T-241** [P0] 权限 target 编辑器重排 `role:dev-frontend` — **done 2026-08-24（隔离 worktree 全量 136/0 + 锚守卫 9/9；提交 `6158f53`）——B4 全清**
   两步资源对话框（冻结锚迁入/焦点陷阱/Esc 零回填）+ 四动作矩阵 + pathmatch 测试器 + 覆盖集三呈现面（B1 存量并集钉死）。**conductor 裁定**：m-holder 控制台编辑器可达性 = 契约冻结下 API-only（列表端点 CapSecurityRead）——L2 边界说明已随票交付，过滤列表端点列 M9 候选；POST 恒 201 为 wire 事实（AC 已正）。**共享层债（T-250 候选）**：base.css 语义 badge 亮主题对比度家族（warning/success/danger）+ stepper 死样式 + quota helper 双份。日志 reports/agents/T-241.md。
 
-#### B4.5 中期回归（在途）
-- **T-243** [P1] M8 中期回归 `role:qa-engineer` — **doing 2026-08-24（契约冻结 git diff 审计硬闸 + W 锚全量对账 + M7 语义抽样 + 全量 e2e）**
+#### B4.5 中期回归（done）
+- **T-243** [P1] M8 中期回归 `role:qa-engineer` — **done 2026-08-24（五段全 PASS——契约冻结零违约：26 文件 Go diff 全属两张裁定债券票、五不变量 live 实证；锚册 0 断链/冻结 242 零改名；M7 语义新壳下全绿含续传双臂；全量 e2e 136/0；SPA 52.4% 预算；报告 `8b04245`）**
+  P2 簿记债四条登记（D-1 存储批锚未入册/D-2 散锚 8 枚/D-3 隐式退役/D-4 死锚无守卫）——B6 前微 chore 收口。日志 reports/agents/T-243-qa.md。
+
+#### B5 对话框族 + 键盘 + 文档（T-242 在途；T-244/T-245 等 T-242）
+- **T-242** [P0] Set Me Up 与 Deploy 对话框族 `role:dev-frontend` — **doing 2026-08-24（step-up 内联重验融合 + T-231 特殊字符腿 + 三入口接线）**
 - **T-237** [P0] 用户与组管理重排 `role:dev-frontend` — **done 2026-08-23（4/4 三角色 spec + 锚守卫 23/23 + 只读完备 grep 零裸写；提交 `c5eb748`）**
   分区编辑器/双列穿梭/排序/角色徽章/删除守卫；T-224 PUT replace 姿势端到端实证；M7 语义全量保留。**契约缺口登记（熔断线合规，待 PM/architect 立项）**：① GET users 无 enabled 回显（T-208 只落写侧）；② 无 DELETE users/{name}（Artifactory 有）；③ 组成员 N+1 汇总（无端点）；④ 组无 adminPrivileges 字段。遗留：base.css badge.warning 亮色 4.26:1 共享层小票。日志 reports/agents/T-237.md。
 
