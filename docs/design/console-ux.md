@@ -21,6 +21,7 @@
 | v1.3 | 2026-08-21 | T-123 §9 R10 例改道（E4 定案一致性收口，T-107 移交 H-3 / T-103 同建议）：session 凭据等价性示例由「docker tags/list」改为「npm packument / pypi simple」——二者挂在 `/binflow` 前缀下，cookie `Path=/binflow` 可携 session；docker tags 因 cookie 结构性不达根级 `/v2`（docker 客户端走 `/v2/token` Basic 面）不再作例。依据：PRD M4 v1.3 CE-03 E4 注记、docs/user/faq.md |
 | v1.4 | 2026-08-23 | T-235 M8 双模式壳与路由重排（console-m8 §1 落地）：① 新增 **§10.5 路由重排锚保全映射**——M8 新路由表 ↔ §10.2/§10.3 既有锚，242 锚**零改名**（ADR-0029 决策 3，W 资产保全）；② 壳新锚 10 枚入册（`nav-mode-switch` / `topbar-breadcrumb` / 用户菜单 Quick 动作族）；③ §10.4 Tokens 行注记更新——侧栏禁用占位（`nav-item.disabled` 计数断言）让位真实路由 `/admin/security/tokens` 的 `placeholder-page` 承载；④ IA/路由正文以 console-m8 为准（§0.2 冲突条款），本版不重写 §3.1/§3.2 旧路由表 |
 | v1.5 | 2026-08-23 | T-237 用户/组页重排（console-m8 §6.9/§6.10 落地）：① §10.3 安全组增补 T-237 批次锚（列表排序头/计数行、分区表单按钮族、穿梭列容器、成员/权限汇总矩阵、组计数与管理徽章）——T-101 冻结锚**零改名**（`user-form-group-<name>` 等穿梭化后语义不变）；② `user-form-admin`（admin 布尔复选）退役——创建表单角色改三值下拉，与编辑态同走 `user-form-role`（wire 不变：创建走一致对 admin+adminRole，编辑只走 adminRole）；③ `user-perms`/`user-facts` 分卡承载权限矩阵与账户信息（`user-facts-role` 不变） |
+| v1.6 | 2026-08-24 | T-240 仓库管理域重排（console-m8 §6.6~§6.8 落地）：① §10.5 增补 T-240 批次锚 24 枚（三 Tab 导航/列头排序/行删除入口/计数行/包类型网格/表单按钮族/详情三 Tab/quota 行内编辑/readonly 与 m-holder 注记/Replications 降位）；② 退役 4 枚——`repos-filter-{type,package}`（类型过滤由三 Tab 子路由承载）、`form-prev`/`form-next`（三步向导 → 单页分区式，§4.4 定案）；③ `repo-governance-card` 移入配置 Tab（锚不变、+1 步 Tab 切换）；④ 编辑态 `form-key` 输入框改锁定展示（门控语义不变）——T-99 冻结锚零改名 |
 
 ---
 
@@ -1038,6 +1039,44 @@ node-tags（docker manifest 详情的 tag 徽标块）
 解散（实例只读面归 T-238 `SystemInfoPage`，`settings`/`settings-instance`/
 `settings-health` 锚由其承接）；搜索页样式自 `tree.css` 迁 `pages/search/
 search.css`（T-236 登记的归位收口）。
+
+**T-240 仓库管理域新锚（24 枚，先入本清单再落码流程兑现；§10.5 表
+`/admin/repositories/*` 行的承载锚随之补齐）**：
+
+```
+列表三 Tab：repos-tab-{local|remote|virtual}（Tab 子路由导航，aria-current=page）
+            repos-sort-{key,package}（列头排序，aria-sort 三态——T-237 基准同款）
+            repos-delete-<repoKey>（行尾删除入口——仅全量 admin，L4 预收敛）
+            repos-pager（底部计数行「显示 a – b / 共 c 项」）
+建仓向导：  pkg-grid（包类型网格对话框——C7 五项，进页即弹）
+            pkg-grid-item-{generic|docker|maven|npm|pypi}（网格项；非法组合禁用）
+            pkg-grid-cancel（网格退出——回对应 Tab）
+分区表单：  form-cancel  form-reset（底部 取消/重置/创建|保存 族——单页分区式）
+            repo-form-readonly-note（readonly_admin 表单只读注记——T-218 债收口：
+            文案走 CanManageRepo write 语义）
+详情三 Tab：repo-tab-{summary,config,replications}（概要/配置/Replications）
+            repo-quota-{input,save,cancel,error}（配置 Tab 行内配额编辑——
+            CanManageRepo：admin 与 m-holder 可写、readonly 禁用）
+            repo-detail-readonly-note（readonly_admin 详情只读注记）
+            repo-manage-note（m-holder〔普通 user 持 manage〕详情身份注记）
+            repo-repl-degraded  repo-repl-goto（Replications Tab 降级卡 +
+            全局复制页入口——OSS 同款降级语义）
+            repo-edit-link（详情 → /edit 编辑器入口；readonly 不渲染）
+            repo-edit-link-config（配置 Tab 内同一入口的变体锚）
+            repo-goto-tree（详情 → /artifacts/<key> 浏览入口）
+```
+
+T-240 退役锚（4 枚，操作流演进——替换形态入册如上）：`repos-filter-type`、
+`repos-filter-package`（类型/包类型筛选 select——类型过滤由三 Tab 子路由承载，
+包类型走列头排序+肉眼辨识；R2 类型化面落地时再议）、`form-prev`、`form-next`
+（三步向导步骤钮——console-m8 §4.4 定案单页分区式）。T-99 冻结锚（repos-* /
+repo-* / form-* 主体）**零改名**；`repos-filter-key` 保留。
+
+变更注记（T-240，dev-frontend 回写）：仓库详情 `repo-governance-card` 自本票
+起藏于 `repo-tab-config` 之后（**锚不变、操作流多一步 Tab 切换**，
+`e2e/repositories.spec.ts` 同步 +2 行）；`repo-detail-page .key` 类锚与危险区
+`repo-danger-zone`/`repo-delete-button` 留在概要 Tab；编辑表单编辑态 key 由输入
+框改为锁定展示（`form-key` 仅创建态渲染——门控语义不变）。
 
 **锚总量复核口径（v1.4 实测）**：`grep -rn "data-testid" web/src/` = **293 落点 / 29 文件**（v1.2 基线 242 之后，T-104~T-234 各票陆续增锚至 HEAD 的 283 落点——ADR-0029 原写 283 即此原始 grep 数）；T-235 净变化 = 壳**删 0 改 0、新增 10**（AppShell 10 → 20），占位路由新增 0（复用 `placeholder-page`）。另：`web/src/styles/theme-smoke.spec.ts`（7 处选择器引用，非锚）随 T-232 遗留①迁出 `src/` 至 `e2e/m8/theme-smoke.spec.ts`，不再计入 src 侧 grep。
 

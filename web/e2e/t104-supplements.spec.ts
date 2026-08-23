@@ -86,13 +86,13 @@ test('W10: UI form creates docker-ui-local (local+docker); REST packageType reco
   await api(page, 'DELETE', `/api/repositories/${DOCKER_REPO}?deleteContent=true`)
 
   await page.goto('/binflow/ui/repositories/new')
-  // 步骤 1：local（默认）+ docker
+  // T-240 向导：进页弹包类型网格，选 Docker 即选定关闭（local 默认）
+  await expect(page.locator('[data-testid="pkg-grid"]')).toBeVisible()
+  await page.click('[data-testid="pkg-grid-item-docker"]')
   await expect(page.locator('[data-testid="form-rclass-local"]')).toBeChecked()
-  await page.click('[data-testid="form-package-docker"]')
-  await page.click('[data-testid="form-next"]')
+  await expect(page.locator('[data-testid="form-package-docker"]')).toBeChecked()
   await page.fill('[data-testid="form-key"]', DOCKER_REPO)
   await expect(page.locator('[data-testid="form-key-ok"]')).toBeVisible()
-  await page.click('[data-testid="form-next"]')
   await page.click('[data-testid="form-submit"]')
 
   await expect(page).toHaveURL(new RegExp(`/binflow/ui/admin/repositories/${DOCKER_REPO}$`))
@@ -196,14 +196,13 @@ test('W10b: UI edits remote url; REST round-trips new value; password never echo
   await login(page)
 
   await page.goto('/binflow/ui/repositories/new')
+  // T-240 向导：进页弹包类型网格（generic 选定即关）；再切 Remote；单页表单
+  await page.click('[data-testid="pkg-grid-item-generic"]')
   await page.click('[data-testid="form-rclass-remote"]')
-  await page.click('[data-testid="form-package-generic"]')
-  await page.click('[data-testid="form-next"]')
   await page.fill('[data-testid="form-key"]', key)
   await page.fill('[data-testid="form-url"]', url1)
   await page.fill('[data-testid="form-username"]', 'ci')
   await page.fill('[data-testid="form-password"]', secret)
-  await page.click('[data-testid="form-next"]')
   await page.click('[data-testid="form-submit"]')
   await expect(page).toHaveURL(new RegExp(`/binflow/ui/admin/repositories/${key}$`))
 
@@ -212,12 +211,10 @@ test('W10b: UI edits remote url; REST round-trips new value; password never echo
   expect(got.text).not.toContain(secret)
   expect(JSON.parse(got.text).configuration.url).toBe(url1)
 
-  // W10b：UI 改 url → 保存 → REST 单查回显新值
+  // W10b：UI 改 url → 保存 → REST 单查回显新值（单页直达，无步骤钮）
   await page.goto(`/binflow/ui/repositories/${key}/settings`)
-  await page.click('[data-testid="form-next"]')
   await expect(page.locator('[data-testid="form-url"]')).toHaveValue(url1)
   await page.fill('[data-testid="form-url"]', url2)
-  await page.click('[data-testid="form-next"]')
   await page.click('[data-testid="form-submit"]')
   await expect(page.locator('[data-testid="toast"]')).toContainText('update successfully')
 

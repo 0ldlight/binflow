@@ -1,0 +1,241 @@
+/* 仓库管理域样式（T-240，console-m8 §6.6~§6.8）
+ *
+ * 只服务 pages/repositories/ 的三个页面（列表三 Tab / 建仓向导与分区
+ * 表单 / 详情三 Tab）；tree/ 子目录的 tree.css 是 T-236 地盘，不在此处。
+ * 色值纪律与 src/styles 一致：只经 var(--bf-*) 引色（assert-tokens 同款
+ * 口径，页面 css 虽不在脚本扫描范围也遵守）。 */
+
+/* ---------- 三 Tab 子路由导航（§6.6[1]：Tab + 计数 + 添加按钮） ---------- */
+
+.repos-tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--bf-sp-1);
+  border-bottom: 1px solid var(--bf-border);
+  margin-bottom: var(--bf-sp-4);
+}
+
+.repos-tab {
+  padding: var(--bf-sp-2) var(--bf-sp-4);
+  border-bottom: 2px solid transparent;
+  color: var(--bf-text-2);
+  font-size: var(--bf-fs-body);
+}
+
+.repos-tab:hover {
+  color: var(--bf-text);
+  text-decoration: none;
+}
+
+.repos-tab.active {
+  color: var(--bf-text);
+  border-bottom-color: var(--bf-accent);
+  font-weight: 600;
+}
+
+.repos-tab:focus-visible {
+  outline: 2px solid var(--bf-accent);
+  outline-offset: -2px;
+}
+
+/* 页头右侧：计数标题 + 添加按钮（对齐 Artifactory "<N> Repositories" + Add） */
+.repos-head-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--bf-sp-3);
+}
+
+.repos-head-count {
+  font-size: var(--bf-fs-aux);
+  color: var(--bf-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 行尾删除入口（§6.6[2]：行级删除，仅 admin 渲染；弱化常显 + hover 强调）。
+ * 注意不用 opacity 弱化——会把 --bf-text-2 压到 4.5:1 以下（axe
+ * color-contrast serious；T-236 tree.css 同款坑），密度靠字号承载。 */
+.row-del {
+  all: unset;
+  cursor: pointer;
+  color: var(--bf-text-2);
+  font-size: var(--bf-fs-aux);
+  padding: 2px 6px;
+  border-radius: var(--bf-r-sm);
+}
+
+.row-del:hover {
+  color: var(--bf-danger);
+  background: var(--bf-surface-2);
+  opacity: 1;
+}
+
+.row-del:focus-visible {
+  outline: 2px solid var(--bf-accent);
+  opacity: 1;
+}
+
+/* 列头排序按钮（§4.7；security.css 同款语义，本域自持） */
+.th-sort {
+  all: unset;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.th-sort:hover {
+  color: var(--bf-accent);
+}
+
+.th-sort:focus-visible {
+  outline: 2px solid var(--bf-accent);
+  outline-offset: 2px;
+}
+
+.th-sort-arrow {
+  font-size: 10px;
+  color: var(--bf-text-2);
+}
+
+/* 表格底部计数行（§6.6[3]「显示 a – b / 共 c 项」） */
+.table-foot {
+  margin: var(--bf-sp-2) 0 0;
+  font-size: var(--bf-fs-aux);
+  color: var(--bf-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- 建仓向导：包类型网格对话框（§4.4 进页即弹 / C7 五项） ---------- */
+
+.pkg-grid-items {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: var(--bf-sp-3);
+  margin: var(--bf-sp-4) 0;
+}
+
+.pkg-grid-item {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--bf-sp-1);
+  padding: var(--bf-sp-4);
+  border: 1px solid var(--bf-border);
+  border-radius: var(--bf-r-md);
+  background: var(--bf-surface-2);
+  cursor: pointer;
+}
+
+.pkg-grid-item:hover:not(:disabled),
+.pkg-grid-item:focus-visible {
+  border-color: var(--bf-accent);
+  background: var(--bf-surface-3);
+}
+
+.pkg-grid-item:focus-visible {
+  outline: 2px solid var(--bf-accent);
+  outline-offset: 1px;
+}
+
+.pkg-grid-item:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pkg-grid-item .pkg-icon {
+  font-size: 18px;
+  color: var(--bf-accent);
+}
+
+.pkg-grid-item .pkg-name {
+  font-weight: 600;
+  font-size: var(--bf-fs-h3);
+}
+
+.pkg-grid-item .pkg-desc {
+  font-size: var(--bf-fs-aux);
+  color: var(--bf-text-2);
+  line-height: 1.4;
+}
+
+/* ---------- 分区表单（§4.4 单页分区式：常规/来源成员/包类型专属/高级） ---------- */
+
+.repo-form-section {
+  border: 1px solid var(--bf-border);
+  border-radius: var(--bf-r-md);
+  padding: var(--bf-sp-4) var(--bf-sp-4) var(--bf-sp-3);
+  margin-bottom: var(--bf-sp-4);
+  background: var(--bf-surface-1);
+}
+
+.repo-form-section > h3 {
+  margin: 0 0 var(--bf-sp-3);
+  font-size: var(--bf-fs-h3);
+}
+
+.repo-form-section > .section-sub {
+  margin: calc(-1 * var(--bf-sp-2)) 0 var(--bf-sp-3);
+  font-size: var(--bf-fs-aux);
+  color: var(--bf-text-2);
+}
+
+/* 页级只读注记（M7 §7.3 推广形态；security.css 同款语义，本域自持） */
+.page-note {
+  color: var(--bf-text-muted);
+  font-size: var(--bf-fs-aux);
+  margin: var(--bf-sp-2) 0;
+}
+
+/* ---------- 详情三 Tab（概要/配置/Replications，§6.8 自有形态） ---------- */
+
+.repo-tabs {
+  display: flex;
+  gap: var(--bf-sp-1);
+  border-bottom: 1px solid var(--bf-border);
+  margin-bottom: var(--bf-sp-4);
+}
+
+.repo-tab {
+  all: unset;
+  cursor: pointer;
+  padding: var(--bf-sp-2) var(--bf-sp-3);
+  border-bottom: 2px solid transparent;
+  color: var(--bf-text-2);
+  font-size: var(--bf-fs-body);
+}
+
+.repo-tab:hover {
+  color: var(--bf-text);
+}
+
+.repo-tab.active {
+  color: var(--bf-text);
+  border-bottom-color: var(--bf-accent);
+  font-weight: 600;
+}
+
+.repo-tab:focus-visible {
+  outline: 2px solid var(--bf-accent);
+  outline-offset: -2px;
+}
+
+/* 详情头部动作区（浏览制品 / 编辑配置） */
+.detail-head-actions {
+  display: flex;
+  gap: var(--bf-sp-2);
+  margin-left: auto;
+}
+
+/* ---------- 配置 Tab：行内配额编辑（CanManageRepo 语义） ---------- */
+
+.quota-edit {
+  display: flex;
+  align-items: center;
+  gap: var(--bf-sp-2);
+  flex-wrap: wrap;
+  margin-top: var(--bf-sp-2);
+}
+
+.quota-edit input {
+  width: 160px;
+}

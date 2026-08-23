@@ -1,37 +1,47 @@
-import { useState } from 'react'
-import type { ReactNode } from 'react'
-import { Link, NavLink, useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
 
 import { useAuth } from '../../app/AuthContext'
-import { useConfirm } from '../../components/ConfirmDialog'
 import { CopyButton } from '../../components/CopyButton'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import { useToast } from '../../app/ToastContext'
-import { ApiError, errText } from '../../lib/api'
+import { ApiError, canAdminWrite, errText, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
 import { formatBytes } from '../../lib/format'
 import {
   cfgBool,
   cfgNum,
   cfgStr,
   cfgStrList,
-  deleteRepo,
   getRepoDetail,
   getRepoUsage,
+  updateRepo,
 } from '../../lib/repos'
-import type { PackageType, RClass, RepoUsage } from '../../lib/repos'
+import type { PackageType, RClass, RepoConfigBody, RepoDetail, RepoUsage } from '../../lib/repos'
 import { useAsync } from '../../lib/useAsync'
 
+import './repositories.css'
 import { clientCommands } from './commands'
+import { useRepoDelete } from './RepoDeleteConfirm'
 
-// 仓库详情·概要（console-ux §4.5）：接入命令块（P3，docs/user 同源）+
-// 统计（usage 端点：used / quota 水位条）+ governance / remote / virtual
-// 特化 + 危险区（P5 删除）。「制品」tab 归 T-100（占位路由）。
+// 仓库详情（console-m8 §6.8——BinFlow 自有增强页，T-240 三 Tab 化）：
 //
-// 删除流（AC②）：不勾 deleteContent 直接确认时若仓非空，服务端 400 的
-// 原因（含「holds N node(s)」）被带回对话框原样呈现并预勾选——用户看见
-// 影响面再决定，而不是撞 400。
+//   概要        接入命令（P3，docs/user 同源）+ 统计（usage 水位条）+
+//               remote 上游 / virtual 成员特化
+//   配置        治理（quota 行内编辑 + patterns）+ 高级字段 +
+//               「打开编辑器」入口（全量编辑走 /edit 的全量替换保全）
+//   Replications OSS 同款降级位——BinFlow 的复制配置由全局复制页承载
+//               （/admin/governance/replication，T-159/T-180），本仓级
+//               不建第二入口
+//
+// 门（router.go / rbac.go 实测）：GET /api/repositories/{key} 走
+// CanManageRepo——admin/readonly_admin 全量可读；普通 user 仅覆盖集内
+// （持该仓 manage）可得，403 → L2。于是：
+// - 危险区（删除 = CapRepoWrite）仅全量 admin 渲染（L4）。
+// - 配置编辑（quota 行内 + 编辑器入口）对 admin 与 m-holder（普通 user，
+//   GET 已过即覆盖集内）开放；readonly_admin 禁用 + 注记（§7.3）。
+//   UI 不自行判定覆盖集（§7.10：403 驱动）。
 
 function QuotaLine({ usage }: { usage: RepoUsage }) {
   const quota = usage.quotaBytes
@@ -49,28 +59,148 @@ function QuotaLine({ usage }: { usage: RepoUsage }) {
   const cls = used >= quota ? 'full' : pct >= 80 ? 'warn' : ''
   return (
     <div data-testid="repo-usage-bar">
-      <div className={`water-bar${cls ? ` ${cls}` : ''}`} role="progressbar" aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}>
+      <div
+        className={`water-bar${cls ? ` ${cls}` : ''}`}
+        role="progressbar"
+        aria-valuenow={Math.round(pct)}
+        aria-valuemin={0}
+        aria-valuemax={100}
+      >
         <div className="fill" style={{ width: `${Math.max(used > 0 ? 2 : 0, pct)}%` }} />
       </div>
       <div className="water-line" style={{ marginTop: 6 }}>
         <span className="label">
-          <span className="mono">{formatBytes(used)}</span> / <span className="mono">{formatBytes(quota)}</span>（{pct.toFixed(1)}%）
-          {used >= quota ? ' · 已满（写入将 413）' : pct >= 80 ? ' · 接近上限' : ''}
+          <span className="mono">{formatBytes(used)}</span> / <span className="mono">{formatBytes(quota)}</span>
+          （{pct.toFixed(1)}%）{used >= quota ? ' · 已满（写入将 413）' : pct >= 80 ? ' · 接近上限' : ''}
         </span>
       </div>
     </div>
   )
 }
 
+/** 与 RepositoryFormPage buildBody 的 local 分支同款字段集（全量替换保全；
+ * QuotasPage 同源逻辑——本域自持副本，见日志登记） */
+function buildLocalQuotaBody(d: RepoDetail, quotaBytes: number): RepoConfigBody {
+  const cfg = d.configuration
+  const body: RepoConfigBody = {
+    rclass: 'local',
+    packageType: (d.packageType as PackageType) ?? 'generic',
+    description: d.description ?? '',
+    priorityResolution: cfgBool(cfg, 'priorityResolution'),
+    includesPattern: cfgStr(cfg, 'includesPattern'),
+    excludesPattern: cfgStr(cfg, 'excludesPattern'),
+    quotaBytes,
+  }
+  if (d.packageType === 'maven') {
+    body.handleReleases = cfgBool(cfg, 'handleReleases', true)
+    body.handleSnapshots = cfgBool(cfg, 'handleSnapshots', true)
+    body.checksumPolicyType = cfgStr(cfg, 'checksumPolicyType') || 'client-checksums'
+    body.snapshotVersionBehavior = cfgStr(cfg, 'snapshotVersionBehavior') || 'deployer'
+  }
+  return body
+}
+
+/** 配置 Tab 的行内配额编辑（CanManageRepo 语义：admin / m-holder 可写） */
+function QuotaEditor({
+  repo,
+  disabled,
+  onSaved,
+}: {
+  repo: RepoDetail
+  disabled: boolean
+  onSaved: () => void
+}) {
+  const toast = useToast()
+  const [draft, setDraft] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const current = String(cfgNum(repo.configuration, 'quotaBytes') ?? 0)
+  const value = draft ?? current
+  const bad = !/^\d+$/.test(value.trim())
+
+  const save = async () => {
+    setError(null)
+    setSaving(true)
+    try {
+      // 全量替换语义：保存瞬间重取详情再重组完整 body（只覆写 quotaBytes）
+      const fresh = await getRepoDetail(repo.key)
+      const text = await updateRepo(repo.key, buildLocalQuotaBody(fresh, Number(value.trim())))
+      toast.success(text)
+      setDraft(null)
+      onSaved()
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : errText(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div>
+      <div className="kv">
+        <span className="k">quotaBytes</span>
+        <span>
+          <span className="mono">{current}</span>
+          {cfgNum(repo.configuration, 'quotaBytes') ? '' : '（不限）'}
+        </span>
+      </div>
+      <div className="quota-edit">
+        <input
+          className="mono-input"
+          inputMode="numeric"
+          aria-label="配额 quotaBytes（字节）"
+          value={value}
+          disabled={disabled}
+          aria-invalid={bad}
+          onChange={(e) => setDraft(e.target.value)}
+          data-testid="repo-quota-input"
+        />
+        <button
+          type="button"
+          className="btn"
+          disabled={disabled || saving || bad || value.trim() === current}
+          onClick={() => void save()}
+          data-testid="repo-quota-save"
+        >
+          {saving ? '保存中…' : '保存配额'}
+        </button>
+        <button
+          type="button"
+          className="btn"
+          disabled={disabled || draft === null}
+          onClick={() => {
+            setDraft(null)
+            setError(null)
+          }}
+          data-testid="repo-quota-cancel"
+        >
+          取消
+        </button>
+      </div>
+      {error && (
+        <p className="field-error" role="alert" data-testid="repo-quota-error">
+          {error}
+        </p>
+      )}
+      <p className="field-hint">正整数；0 = 不限。超限写入收到 413（message 含 used/quota）。</p>
+    </div>
+  )
+}
+
+type DetailTab = 'summary' | 'config' | 'replications'
+
 export default function RepoDetailPage() {
   const { key: routeKey } = useParams<{ key: string }>()
   const { session } = useAuth()
-  const admin = session?.admin ?? false
-  const toast = useToast()
-  const confirm = useConfirm()
-  const navigate = useNavigate()
+  const admin = canAdminWrite(session)
+  const readOnly = isReadOnlyAdmin(session)
+  // 普通 user 且 GET 已通过 ⇒ 覆盖集内（m-holder）；详情页为其开放配置编辑
+  const role = normalizeAdminRole(session?.adminRole, session?.admin ?? false)
+  const mHolder = role === 'user'
 
-  const [deleting, setDeleting] = useState(false)
+  const [tab, setTab] = useState<DetailTab>('summary')
+  useEffect(() => setTab('summary'), [routeKey])
 
   const state = useAsync(() => (routeKey ? getRepoDetail(routeKey) : Promise.resolve(null)), [routeKey])
   // virtual 仓无自身内容（usage 恒 0），不发起请求
@@ -82,6 +212,8 @@ export default function RepoDetailPage() {
     [state.status, state.data?.rclass, routeKey],
   )
 
+  const requestDelete = useRepoDelete({})
+
   if (state.status === 'loading') {
     return (
       <div data-testid="repo-detail-page">
@@ -90,16 +222,19 @@ export default function RepoDetailPage() {
     )
   }
   if (state.status === 'forbidden' && state.error) {
-    // 实测契约：/api/repositories 全面 admin-only（路由门）——非 admin 的
-    // 403 呈现无权限卡而非空白（§5.1；见工作日志契约漂移 1）
+    // CanManageRepo：admin/readonly 全量、普通 user 覆盖集内——403 即无门
     return (
       <div data-testid="repo-detail-page">
         <EmptyState
           message="无权限查看仓库"
-          hint={`仓库管理面为管理员视图（${state.error.message}）`}
+          hint={
+            mHolder
+              ? `单仓管理视图需要该仓的 manage 动作（permission target 授权）；${state.error.message}`
+              : `仓库管理面为管理员视图（${state.error.message}）`
+          }
           action={
-            <Link className="btn" to="/">
-              ← 返回仪表盘
+            <Link className="btn" to="/artifacts">
+              ← 前往制品浏览
             </Link>
           }
         />
@@ -114,7 +249,7 @@ export default function RepoDetailPage() {
             message={`仓库 ${routeKey} 不存在`}
             hint="key 可能打错，或仓库已被删除"
             action={
-              <Link className="btn" to="/repositories">
+              <Link className="btn" to="/admin/repositories/local">
                 ← 返回仓库列表
               </Link>
             }
@@ -131,79 +266,15 @@ export default function RepoDetailPage() {
   const rclass = repo.rclass as RClass
   const packageType = repo.packageType as PackageType
   const commands = clientCommands(packageType, repo.key)
-
-  const confirmDelete = async (reason?: string, presetContent = false): Promise<void> => {
-    const holder = { typed: '', deleteContent: presetContent }
-    const body: ReactNode = (
-      <>
-        {reason && (
-          <div className="server-reason" data-testid="repo-delete-reason" lang="en">
-            HTTP 400：{reason}
-          </div>
-        )}
-        <p>
-          将删除仓库 <b className="mono" lang="en">{repo.key}</b>
-          （{repo.rclass} / {repo.packageType}）。制品不可变，删除<b>没有撤销</b>。
-        </p>
-        <label className="check-row">
-          <input
-            type="checkbox"
-            checked={holder.deleteContent}
-            onChange={(e) => {
-              holder.deleteContent = e.target.checked
-            }}
-            data-testid="repo-delete-content"
-          />
-          同时删除内容（deleteContent）
-        </label>
-        <div className="field" style={{ maxWidth: 'none', marginBottom: 0 }}>
-          <label htmlFor="del-confirm">
-            输入仓库 key <b className="mono" lang="en">{repo.key}</b> 以确认：
-          </label>
-          <input
-            id="del-confirm"
-            className="confirm-input"
-            autoComplete="off"
-            onChange={(e) => {
-              holder.typed = e.target.value
-            }}
-            data-testid="repo-delete-confirm-key"
-            lang="en"
-          />
-        </div>
-      </>
-    )
-    const ok = await confirm({
-      title: '删除仓库',
-      body,
-      danger: true,
-      confirmLabel: deleting ? '删除中…' : '删除仓库',
-      confirmDisabled: () => holder.typed !== repo.key,
-    })
-    if (!ok) return
-    setDeleting(true)
-    try {
-      const text = await deleteRepo(repo.key, holder.deleteContent)
-      toast.success(text)
-      navigate('/repositories')
-    } catch (err) {
-      const apiErr = err instanceof ApiError ? err : new ApiError(0, errText(err))
-      if (apiErr.status === 400 && apiErr.message.includes('deleteContent') && !presetContent) {
-        setDeleting(false)
-        // 非空仓未勾内容删除：把 400 原因（含制品数）带回对话框，预勾选重试
-        await confirmDelete(apiErr.message, true)
-        return
-      }
-      toast.error(`删除失败：${apiErr.message}`)
-    } finally {
-      setDeleting(false)
-    }
-  }
+  // 配置编辑位：readonly 禁用；admin 与 m-holder 开放（文件头注的门语义）
+  const canEditConfig = !readOnly
+  // 危险区：删除是 CapRepoWrite（仅全量 admin）——L4 预收敛
+  const canDelete = admin
 
   return (
     <div data-testid="repo-detail-page">
       <p style={{ margin: '0 0 var(--bf-sp-2)' }}>
-        <Link to="/repositories">← 仓库</Link>
+        <Link to={`/admin/repositories/${rclass}`}>← 仓库</Link>
       </p>
       <div className="detail-head">
         <span className="key" lang="en">
@@ -212,86 +283,206 @@ export default function RepoDetailPage() {
         <CopyButton value={repo.key} label={`仓库 key ${repo.key}`} />
         <span className="badge neutral">{repo.rclass}</span>
         <span className="badge neutral">{repo.packageType}</span>
+        <div className="detail-head-actions">
+          <Link className="btn" to={`/artifacts/${repo.key}`} data-testid="repo-goto-tree">
+            浏览制品 →
+          </Link>
+          {canEditConfig && (
+            <Link className="btn primary" to={`/admin/repositories/${repo.key}/edit`} data-testid="repo-edit-link">
+              编辑配置
+            </Link>
+          )}
+        </div>
       </div>
       {repo.description && <p className="detail-desc">{repo.description}</p>}
 
-      <nav className="tabs" aria-label="仓库视图">
-        <NavLink to={`/repositories/${repo.key}`} end className={({ isActive }) => (isActive ? 'active' : '')}>
-          概要
-        </NavLink>
-        <NavLink to={`/repositories/${repo.key}/tree`} className={({ isActive }) => (isActive ? 'active' : '')}>
-          制品
-        </NavLink>
-        <NavLink to={`/repositories/${repo.key}/settings`} className={({ isActive }) => (isActive ? 'active' : '')}>
-          设置
-        </NavLink>
-      </nav>
+      {mHolder && (
+        <p className="page-note" data-testid="repo-manage-note">
+          ⓘ 当前会话以 manage 持有者身份管理此仓（permission target 授予）：配置可编辑；删除仓库仍是全局管理面写（服务端
+          403 兜底）。
+        </p>
+      )}
+      {readOnly && (
+        <p className="page-note" data-testid="repo-detail-readonly-note">
+          ⓘ 只读管理员（readonly_admin）视角：仓库配置只读——保存走单仓管理面写（CanManageRepo write），服务端 403
+          兜底。
+        </p>
+      )}
 
-      <div className="detail-grid">
-        <div>
-          <section className="card section" data-testid="repo-commands">
-            <h3>客户端接入（{repo.packageType}）</h3>
-            {commands.map((c, i) => (
-              <div className="cmd-block" key={c.title} data-testid={`repo-cmd-${packageType}-${i}`}>
-                <header>
-                  <span>{c.title}</span>
-                  <CopyButton value={c.text} label={c.title} />
-                </header>
-                <pre lang="en">{c.text}</pre>
-                {c.note && <div className="note">{c.note}</div>}
-              </div>
-            ))}
-            <p className="field-hint">地址按当前访问 origin 生成（{window.location.origin}）；命令与 docs/user 接入文档同源。</p>
-          </section>
+      <div className="repo-tabs" role="tablist" aria-label="仓库视图">
+        {(
+          [
+            ['summary', '概要'],
+            ['config', '配置'],
+            ['replications', 'Replications'],
+          ] as [DetailTab, string][]
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={tab === id}
+            className={`repo-tab${tab === id ? ' active' : ''}`}
+            data-testid={`repo-tab-${id}`}
+            onClick={() => setTab(id)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
-          <section className="card section" data-testid="repo-usage-card">
-            <h3>统计</h3>
-            {rclass === 'virtual' ? (
-              <p className="text-2">virtual 仓不持有自身内容——用量见各成员仓库。</p>
-            ) : usage.status === 'loading' ? (
-              <Skeleton lines={2} />
-            ) : usage.status === 'ok' && usage.data ? (
-              <>
-                <QuotaLine usage={usage.data} />
-                {rclass === 'remote' && (
-                  <p className="field-hint" style={{ marginTop: 8 }}>
-                    已用 = 缓存内容逻辑字节；命中率等 remote 统计端点未开放（ux R9，显示 —）。
-                  </p>
-                )}
-                {rclass === 'local' && usage.data.quotaBytes === 0 && (
-                  <p className="field-hint" style={{ marginTop: 8 }}>
-                    配额 0 = 不限；在设置页配置 quotaBytes 后此处显示水位条。
-                  </p>
-                )}
-              </>
-            ) : (
-              <p className="text-2" title={usage.error?.message ?? ''}>
-                用量不可用（{usage.error ? `HTTP ${usage.error.status}` : '—'}）
+      {tab === 'summary' && (
+        <div className="detail-grid">
+          <div>
+            <section className="card section" data-testid="repo-commands">
+              <h3>客户端接入（{repo.packageType}）</h3>
+              {commands.map((c, i) => (
+                <div className="cmd-block" key={c.title} data-testid={`repo-cmd-${packageType}-${i}`}>
+                  <header>
+                    <span>{c.title}</span>
+                    <CopyButton value={c.text} label={c.title} />
+                  </header>
+                  <pre lang="en">{c.text}</pre>
+                  {c.note && <div className="note">{c.note}</div>}
+                </div>
+              ))}
+              <p className="field-hint">
+                地址按当前访问 origin 生成（{window.location.origin}）；命令与 docs/user 接入文档同源。
               </p>
-            )}
-          </section>
+            </section>
 
-          <section className="card section" data-testid="repo-governance-card">
-            <h3>治理</h3>
-            {rclass === 'local' ? (
-              <div>
+            <section className="card section" data-testid="repo-usage-card">
+              <h3>统计</h3>
+              {rclass === 'virtual' ? (
+                <p className="text-2">virtual 仓不持有自身内容——用量见各成员仓库。</p>
+              ) : usage.status === 'loading' ? (
+                <Skeleton lines={2} />
+              ) : usage.status === 'ok' && usage.data ? (
+                <>
+                  <QuotaLine usage={usage.data} />
+                  {rclass === 'remote' && (
+                    <p className="field-hint" style={{ marginTop: 8 }}>
+                      已用 = 缓存内容逻辑字节；命中率等 remote 统计端点未开放（ux R9，显示 —）。
+                    </p>
+                  )}
+                  {rclass === 'local' && usage.data.quotaBytes === 0 && (
+                    <p className="field-hint" style={{ marginTop: 8 }}>
+                      配额 0 = 不限；在「配置」Tab 设置 quotaBytes 后此处显示水位条。
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-2" title={usage.error?.message ?? ''}>
+                  用量不可用（{usage.error ? `HTTP ${usage.error.status}` : '—'}）
+                </p>
+              )}
+            </section>
+
+            {rclass === 'remote' && (
+              <section className="card section" data-testid="repo-remote-card">
+                <h3>上游</h3>
                 <div className="kv">
-                  <span className="k">quotaBytes</span>
-                  <span>
-                    <span className="mono">{String(cfgNum(cfg, 'quotaBytes') ?? 0)}</span>
-                    {cfgNum(cfg, 'quotaBytes') ? '' : '（不限）'}
+                  <span className="k">URL</span>
+                  <span className="mono" lang="en">
+                    {cfgStr(cfg, 'url')} <CopyButton value={cfgStr(cfg, 'url')} label="上游 URL" />
+                    <span className="badge neutral" style={{ marginLeft: 8 }}>
+                      {cfgStr(cfg, 'url').startsWith('https') ? 'https' : 'http'}
+                    </span>
                   </span>
                 </div>
                 <div className="kv">
+                  <span className="k">用户名</span>
+                  <span>{cfgStr(cfg, 'username') || '—（匿名）'}</span>
+                </div>
+                <div className="kv">
+                  <span className="k">密码</span>
+                  <span className="text-2">不回显（NFR-S14）</span>
+                </div>
+                {cfgBool(cfg, 'allowPrivateUpstream') && (
+                  <div className="warn-box" style={{ marginTop: 8 }}>
+                    ⚠ 已放行私网上游（allowPrivateUpstream）——SSRF 防线对该仓放宽。
+                  </div>
+                )}
+                <div className="kv">
+                  <span className="k">命中 / 未命中 TTL</span>
+                  <span className="mono">
+                    {cfgNum(cfg, 'retrievalCachePeriodSecs') ?? 7200}s /{' '}
+                    {cfgNum(cfg, 'missedRetrievalCachePeriodSecs') ?? 1800}s
+                  </span>
+                </div>
+                <div className="kv">
+                  <span className="k">socket 超时 / 静默期</span>
+                  <span className="mono">
+                    {cfgNum(cfg, 'socketTimeoutSecs') ?? 15}s / {cfgNum(cfg, 'assumedOfflinePeriodSecs') ?? 300}s
+                  </span>
+                </div>
+              </section>
+            )}
+
+            {rclass === 'virtual' && (
+              <section className="card section" data-testid="repo-virtual-card">
+                <h3>成员（解析顺序）</h3>
+                <ol className="mono" style={{ paddingLeft: 20 }}>
+                  {cfgStrList(cfg, 'repositories').map((m) => (
+                    <li key={m} lang="en">
+                      {m}
+                    </li>
+                  ))}
+                </ol>
+                <div className="kv" style={{ marginTop: 8 }}>
+                  <span className="k">默认部署仓库</span>
+                  <span className="mono" lang="en">
+                    {cfgStr(cfg, 'defaultDeploymentRepo') || '（未配置）'}
+                  </span>
+                </div>
+                {!cfgStr(cfg, 'defaultDeploymentRepo') && (
+                  <p className="field-hint">未配置写路由：经此仓的部署 / 删除操作将返回 405。</p>
+                )}
+              </section>
+            )}
+          </div>
+
+          {canDelete && (
+            <aside>
+              <div className="danger-zone" data-testid="repo-danger-zone">
+                <h3>危险区</h3>
+                <p>删除仓库及其（可选）全部内容。制品不可变，此操作没有撤销。</p>
+                <button
+                  type="button"
+                  className="btn danger"
+                  onClick={() => requestDelete(repo)}
+                  data-testid="repo-delete-button"
+                >
+                  删除仓库…
+                </button>
+              </div>
+            </aside>
+          )}
+        </div>
+      )}
+
+      {tab === 'config' && (
+        <div>
+          <section className="card section" data-testid="repo-governance-card">
+            <h3>治理（governance）</h3>
+            {rclass === 'local' ? (
+              <div>
+                <QuotaEditor repo={repo} disabled={!canEditConfig} onSaved={state.reload} />
+                <div className="kv">
                   <span className="k">includesPattern</span>
                   <span className="mono" lang="en">
-                    {cfgStr(cfg, 'includesPattern') || '**/*（默认）'} <CopyButton value={cfgStr(cfg, 'includesPattern') || '**/*'} label="includesPattern" />
+                    {cfgStr(cfg, 'includesPattern') || '**/*（默认）'}{' '}
+                    <CopyButton
+                      value={cfgStr(cfg, 'includesPattern') || '**/*'}
+                      label="includesPattern"
+                    />
                   </span>
                 </div>
                 <div className="kv">
                   <span className="k">excludesPattern</span>
                   <span className="mono" lang="en">
-                    {cfgStr(cfg, 'excludesPattern') || '（无）'} <CopyButton value={cfgStr(cfg, 'excludesPattern')} label="excludesPattern" />
+                    {cfgStr(cfg, 'excludesPattern') || '（无）'}{' '}
+                    <CopyButton value={cfgStr(cfg, 'excludesPattern')} label="excludesPattern" />
                   </span>
                 </div>
                 <p className="field-hint">exclude 优先于 include；仅 local 仓支持治理字段。</p>
@@ -303,87 +494,80 @@ export default function RepoDetailPage() {
             )}
           </section>
 
-          {rclass === 'remote' && (
-            <section className="card section" data-testid="repo-remote-card">
-              <h3>上游</h3>
-              <div className="kv">
-                <span className="k">URL</span>
-                <span className="mono" lang="en">
-                  {cfgStr(cfg, 'url')} <CopyButton value={cfgStr(cfg, 'url')} label="上游 URL" />
-                  <span className="badge neutral" style={{ marginLeft: 8 }}>
-                    {cfgStr(cfg, 'url').startsWith('https') ? 'https' : 'http'}
-                  </span>
-                </span>
-              </div>
-              <div className="kv">
-                <span className="k">用户名</span>
-                <span>{cfgStr(cfg, 'username') || '—（匿名）'}</span>
-              </div>
-              <div className="kv">
-                <span className="k">密码</span>
-                <span className="text-2">不回显（NFR-S14）</span>
-              </div>
-              {cfgBool(cfg, 'allowPrivateUpstream') && (
-                <div className="warn-box" style={{ marginTop: 8 }}>
-                  ⚠ 已放行私网上游（allowPrivateUpstream）——SSRF 防线对该仓放宽。
+          <section className="card section" data-testid="repo-advanced-card">
+            <h3>高级</h3>
+            <div className="kv">
+              <span className="k">优先解析</span>
+              <span>{cfgBool(cfg, 'priorityResolution') ? '是（priorityResolution）' : '否'}</span>
+            </div>
+            {rclass === 'remote' && (
+              <>
+                <div className="kv">
+                  <span className="k">hardFail</span>
+                  <span>{cfgBool(cfg, 'hardFail') ? '是（上游故障直接失败）' : '否'}</span>
                 </div>
-              )}
+                <div className="kv">
+                  <span className="k">允许私网上游</span>
+                  <span>{cfgBool(cfg, 'allowPrivateUpstream') ? '是（SSRF 防线放宽）' : '否'}</span>
+                </div>
+              </>
+            )}
+            {rclass === 'local' && packageType === 'maven' && (
+              <>
+                <div className="kv">
+                  <span className="k">handleReleases / handleSnapshots</span>
+                  <span>
+                    {cfgBool(cfg, 'handleReleases', true) ? '✓' : '—'} / {cfgBool(cfg, 'handleSnapshots', true) ? '✓' : '—'}
+                  </span>
+                </div>
+                <div className="kv">
+                  <span className="k">checksumPolicyType</span>
+                  <span className="mono" lang="en">
+                    {cfgStr(cfg, 'checksumPolicyType') || 'client-checksums'}
+                  </span>
+                </div>
+                <div className="kv">
+                  <span className="k">snapshotVersionBehavior</span>
+                  <span className="mono" lang="en">
+                    {cfgStr(cfg, 'snapshotVersionBehavior') || 'deployer'}
+                  </span>
+                </div>
+              </>
+            )}
+            {rclass === 'virtual' && (
               <div className="kv">
-                <span className="k">命中 / 未命中 TTL</span>
-                <span className="mono">
-                  {cfgNum(cfg, 'retrievalCachePeriodSecs') ?? 7200}s / {cfgNum(cfg, 'missedRetrievalCachePeriodSecs') ?? 1800}s
-                </span>
-              </div>
-              <div className="kv">
-                <span className="k">socket 超时 / 静默期</span>
-                <span className="mono">
-                  {cfgNum(cfg, 'socketTimeoutSecs') ?? 15}s / {cfgNum(cfg, 'assumedOfflinePeriodSecs') ?? 300}s
-                </span>
-              </div>
-            </section>
-          )}
-
-          {rclass === 'virtual' && (
-            <section className="card section" data-testid="repo-virtual-card">
-              <h3>成员（解析顺序）</h3>
-              <ol className="mono" style={{ paddingLeft: 20 }}>
-                {cfgStrList(cfg, 'repositories').map((m) => (
-                  <li key={m} lang="en">
-                    {m}
-                  </li>
-                ))}
-              </ol>
-              <div className="kv" style={{ marginTop: 8 }}>
                 <span className="k">默认部署仓库</span>
                 <span className="mono" lang="en">
                   {cfgStr(cfg, 'defaultDeploymentRepo') || '（未配置）'}
                 </span>
               </div>
-              {!cfgStr(cfg, 'defaultDeploymentRepo') && (
-                <p className="field-hint">未配置写路由：经此仓的部署 / 删除操作将返回 405。</p>
-              )}
-            </section>
-          )}
+            )}
+            {canEditConfig ? (
+              <p className="field-hint">
+                字段级修改走{' '}
+                <Link to={`/admin/repositories/${repo.key}/edit`} data-testid="repo-edit-link-config">
+                  编辑器
+                </Link>
+                （全量替换语义——保存时整体重写 config）。
+              </p>
+            ) : (
+              <p className="field-hint">只读呈现（readonly_admin）；编辑需全量 admin 或该仓 manage 持有者。</p>
+            )}
+          </section>
         </div>
+      )}
 
-        {admin && (
-          <aside>
-            <div className="danger-zone" data-testid="repo-danger-zone">
-              <h3>危险区</h3>
-              <p>删除仓库及其（可选）全部内容。制品不可变，此操作没有撤销。</p>
-              <button
-                type="button"
-                className="btn danger"
-                disabled={deleting}
-                onClick={() => void confirmDelete()}
-                data-testid="repo-delete-button"
-              >
-                删除仓库…
-              </button>
-            </div>
-          </aside>
-        )}
-      </div>
+      {tab === 'replications' && (
+        <section className="card section degraded" data-testid="repo-repl-degraded">
+          <h3>Replications</h3>
+          <p className="text-2">
+            本仓的复制配置由全局复制页承载（BinFlow 复制是 push 目标模型，配置不按仓分页）。
+          </p>
+          <Link className="btn" to="/admin/governance/replication" data-testid="repo-repl-goto">
+            前往复制管理 →
+          </Link>
+        </section>
+      )}
     </div>
   )
 }

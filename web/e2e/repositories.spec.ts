@@ -4,6 +4,12 @@ import { expect, test } from '@playwright/test'
 // 危险区删除（含非空仓 deleteContent 双段流）全流程；remote 凭据不回显；
 // virtual 成员序与 defaultDeploymentRepo；表单门控零写请求。
 //
+// T-240 操作流迁移：三步向导 → 单页分区表单（进页弹包类型网格
+// pkg-grid-*，选定即关闭）；步骤按钮 form-next/prev 退役，门控断言改
+// form-submit 禁用态；列表类型筛选 select 退役（三 Tab 子路由承载，
+// virtual 仓行在 /admin/repositories/virtual Tab）；详情 governance 卡
+// 自本票起在「配置」Tab（repo-tab-config 先点，锚不变）。
+//
 // 运行前提：已 `make console && make build` 的真二进制在前台 serve，
 // BASE 指向它（同 T-98 探针约定）；ADMIN_PW 默认 password（PRD §4）。
 // 对账腿走 page.evaluate fetch（同源携带 session cookie——内容面与
@@ -54,17 +60,16 @@ test('local generic full lifecycle: create with governance -> list -> edit round
   await page.goto('/binflow/ui/repositories/new')
   await login(page)
 
-  // 步骤 1（local+generic 为默认）
+  // 进页即弹包类型网格（T-240 向导第 0 步）：选 Generic 即选定关闭
+  await expect(page.locator('[data-testid="pkg-grid"]')).toBeVisible()
+  await page.click('[data-testid="pkg-grid-item-generic"]')
+  await expect(page.locator('[data-testid="pkg-grid"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="form-rclass-local"]')).toBeChecked()
-  await page.click('[data-testid="form-next"]')
 
-  // 步骤 2：key 实时校验 + 描述
+  // 单页分区表单：key 实时校验 + 描述 + governance（同一页）
   await page.fill('[data-testid="form-key"]', key)
   await expect(page.locator('[data-testid="form-key-ok"]')).toBeVisible()
   await page.fill('[data-testid="form-description"]', 'T-99 lifecycle probe')
-  await page.click('[data-testid="form-next"]')
-
-  // 步骤 3：governance 字段（quotaBytes + patterns）
   await page.fill('[data-testid="form-quota"]', '1048576')
   await page.fill('[data-testid="form-includes"]', '**/*')
   await page.fill('[data-testid="form-excludes"]', 'tmp/**')
@@ -74,7 +79,10 @@ test('local generic full lifecycle: create with governance -> list -> edit round
   await expect(page.locator('[data-testid="toast"]')).toContainText(`Successfully created repository '${key}'`)
   await expect(page).toHaveURL(new RegExp(`/binflow/ui/admin/repositories/${key}$`))
   await expect(page.locator('[data-testid="repo-detail-page"] .key')).toHaveText(key)
+  // governance 卡在「配置」Tab（T-240 三 Tab 化；锚不变）
+  await page.click('[data-testid="repo-tab-config"]')
   await expect(page.locator('[data-testid="repo-governance-card"]')).toContainText('1048576')
+  await page.click('[data-testid="repo-tab-summary"]')
   await expect(page.locator('[data-testid="repo-usage-card"]')).toBeVisible()
 
   // API 对账：packageType / governance 字段回显（AC①：建后 curl 单查对账）
@@ -87,7 +95,7 @@ test('local generic full lifecycle: create with governance -> list -> edit round
   expect(createdJson.configuration.includesPattern).toBe('**/*')
   expect(createdJson.configuration.excludesPattern).toBe('tmp/**')
 
-  // 列表：行可见 + 过滤
+  // 列表：行可见 + 过滤（T-240：local 仓行在 local Tab 子路由）
   await page.goto('/binflow/ui/repositories')
   await expect(page.locator(`[data-testid="repos-row-${key}"]`)).toBeVisible()
 
@@ -98,19 +106,15 @@ test('local generic full lifecycle: create with governance -> list -> edit round
   const clip = await page.evaluate(() => navigator.clipboard.readText())
   expect(clip).toBe(key)
 
-  await page.selectOption('[data-testid="repos-filter-type"]', 'local')
-  await expect(page.locator(`[data-testid="repos-row-${key}"]`)).toBeVisible()
   await page.fill('[data-testid="repos-filter-key"]', key)
   await expect(page.locator(`[data-testid="repos-row-${key}"]`)).toBeVisible()
   await page.fill('[data-testid="repos-filter-key"]', 'definitely-no-such-repo')
   await expect(page.locator('[data-testid="repos-empty-filtered"]')).toBeVisible()
 
-  // 编辑：rclass/packageType 锁定 + quota 修改往返（全量替换保全）
+  // 编辑：rclass/packageType 锁定 + quota 修改往返（全量替换保全；单页无步骤）
   await page.goto(`/binflow/ui/repositories/${key}/settings`)
   await expect(page.locator('[data-testid="form-rclass-local"]')).toBeDisabled()
   await expect(page.locator('[data-testid="form-package-generic"]')).toBeDisabled()
-  await page.click('[data-testid="form-next"]') // 步骤 2
-  await page.click('[data-testid="form-next"]') // 步骤 3（governance 字段所在）
   await expect(page.locator('[data-testid="form-quota"]')).toHaveValue('1048576')
   await expect(page.locator('[data-testid="form-excludes"]')).toHaveValue('tmp/**')
   await page.fill('[data-testid="form-quota"]', '2097152')
@@ -163,16 +167,15 @@ test('remote maven: url roundtrip, password never echoed, empty delete', async (
   await page.goto('/binflow/ui/repositories/new')
   await login(page)
 
+  // 网格（local 默认）先选 Maven；再切 Remote——docker 组合即禁用（FR-15-AC7）
+  await page.click('[data-testid="pkg-grid-item-maven"]')
   await page.click('[data-testid="form-rclass-remote"]')
   await expect(page.locator('[data-testid="form-package-docker"]')).toBeDisabled()
-  await page.click('[data-testid="form-package-maven"]')
-  await page.click('[data-testid="form-next"]')
 
   await page.fill('[data-testid="form-key"]', key)
   await page.fill('[data-testid="form-url"]', 'https://repo1.maven.org/maven2')
   await page.fill('[data-testid="form-username"]', 'dev')
   await page.fill('[data-testid="form-password"]', 's3cret-t99')
-  await page.click('[data-testid="form-next"]')
   await page.click('[data-testid="form-submit"]')
 
   await expect(page).toHaveURL(new RegExp(`/binflow/ui/admin/repositories/${key}$`))
@@ -188,9 +191,8 @@ test('remote maven: url roundtrip, password never echoed, empty delete', async (
   expect(json.configuration.url).toBe('https://repo1.maven.org/maven2')
   expect(json.configuration.username).toBe('dev')
 
-  // 编辑：url 预填（remote 更新必带 url，否则服务端 400）
+  // 编辑：url 预填（remote 更新必带 url，否则服务端 400）——单页直达
   await page.goto(`/binflow/ui/repositories/${key}/settings`)
-  await page.click('[data-testid="form-next"]') // 步骤 2（url/凭据所在）
   await expect(page.locator('[data-testid="form-url"]')).toHaveValue('https://repo1.maven.org/maven2')
   await expect(page.locator('[data-testid="form-password"]')).toHaveValue('')
 
@@ -213,24 +215,25 @@ test('form gating: illegal combo disabled, key/url precheck, zero write requests
     }
   })
 
+  await page.click('[data-testid="pkg-grid-item-generic"]')
+
   // Remote × Docker 组合置灰（FR-15-AC7）
   await page.click('[data-testid="form-rclass-remote"]')
   await expect(page.locator('[data-testid="form-package-docker"]')).toBeDisabled()
 
-  // key 预检：非法字符 / 保留段
-  await page.click('[data-testid="form-next"]')
+  // key 预检：非法字符 / 保留段（门控断言 = form-submit 禁用——T-240 单页化）
   await page.fill('[data-testid="form-key"]', 'Bad_Key')
   await expect(page.locator('[data-testid="form-key-error"]')).toBeVisible()
-  await expect(page.locator('[data-testid="form-next"]')).toBeDisabled()
+  await expect(page.locator('[data-testid="form-submit"]')).toBeDisabled()
   await page.fill('[data-testid="form-key"]', 'api')
   await expect(page.locator('[data-testid="form-key-error"]')).toContainText('保留段')
   await page.fill('[data-testid="form-key"]', 't99-gate-probe')
 
-  // remote 缺 url：步骤门控拦下（FR-24-AC5：零写请求）
-  await expect(page.locator('[data-testid="form-next"]')).toBeDisabled()
+  // remote 缺 url：门控拦下（FR-24-AC5：零写请求）
+  await expect(page.locator('[data-testid="form-submit"]')).toBeDisabled()
   await page.fill('[data-testid="form-url"]', 'ftp://example.com/x')
   await expect(page.locator('[data-testid="form-url-error"]')).toContainText('http')
-  await expect(page.locator('[data-testid="form-next"]')).toBeDisabled()
+  await expect(page.locator('[data-testid="form-submit"]')).toBeDisabled()
   await page.fill('[data-testid="form-url"]', '')
 
   await page.waitForTimeout(300)
@@ -252,9 +255,9 @@ test('virtual: member order roundtrip, defaultDeploymentRepo, server 400 inline'
 
   const vkey = uniq('t99v')
   await page.goto('/binflow/ui/repositories/new')
+  await page.click('[data-testid="pkg-grid-item-generic"]')
   await page.click('[data-testid="form-rclass-virtual"]')
-  await page.click('[data-testid="form-package-generic"]')
-  await page.click('[data-testid="form-next"]')
+  await expect(page.locator('[data-testid="form-package-generic"]')).toBeChecked()
   await page.fill('[data-testid="form-key"]', vkey)
   await page.check(`[data-testid="form-member-${m1}"]`)
   await page.check(`[data-testid="form-member-${m2}"]`)
@@ -262,7 +265,6 @@ test('virtual: member order roundtrip, defaultDeploymentRepo, server 400 inline'
   await page.click('[data-testid="member-up-1"]')
   await expect(page.locator('[data-testid="form-member-order"] .chip-item').first()).toContainText(m2)
   await page.selectOption('[data-testid="form-default-deploy"]', m1)
-  await page.click('[data-testid="form-next"]')
   await page.click('[data-testid="form-submit"]')
 
   await expect(page).toHaveURL(new RegExp(`/binflow/ui/admin/repositories/${vkey}$`))
@@ -275,22 +277,21 @@ test('virtual: member order roundtrip, defaultDeploymentRepo, server 400 inline'
   expect(json.configuration.defaultDeploymentRepo).toBe(m1)
 
   // review B1：列表成员浮层可开、内容可读，且点击不触发行导航
-  await page.goto('/binflow/ui/repositories')
+  //（T-240：virtual 仓行在 virtual Tab 子路由）
+  await page.goto('/binflow/ui/admin/repositories/virtual')
   await page.click(`[data-testid="repos-row-${vkey}"] .member-pop summary`)
   const pop = page.locator(`[data-testid="repos-row-${vkey}"] .member-pop .pop`)
   await expect(pop).toBeVisible()
   await expect(pop).toContainText(m2)
   await expect(pop).toContainText(m1)
-  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/local$/)
+  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/virtual$/)
 
   // review B2：取消 defaultDeploymentRepo 所指成员 → select 联动回「（未配置）」，提交不再吃 400
   await page.goto(`/binflow/ui/repositories/${vkey}/settings`)
-  await page.click('[data-testid="form-next"]') // 步骤 2（成员所在）
   await expect(page.locator(`[data-testid="form-member-${m1}"]`)).toBeChecked()
   await expect(page.locator('[data-testid="form-default-deploy"]')).toHaveValue(m1)
   await page.uncheck(`[data-testid="form-member-${m1}"]`)
   await expect(page.locator('[data-testid="form-default-deploy"]')).toHaveValue('')
-  await page.click('[data-testid="form-next"]') // 步骤 3
   await page.click('[data-testid="form-submit"]')
   await expect(page.locator('[data-testid="toast"]')).toContainText('update successfully')
   const after = await api(page, 'GET', `/api/repositories/${vkey}`)
@@ -300,10 +301,8 @@ test('virtual: member order roundtrip, defaultDeploymentRepo, server 400 inline'
 
   // 服务端 400 行内回显：编辑态成员在表单打开后被外部删除 → 保存被服务端拒
   await page.goto(`/binflow/ui/repositories/${vkey}/settings`)
-  await page.click('[data-testid="form-next"]') // 步骤 2（成员所在）
   await expect(page.locator(`[data-testid="form-member-${m2}"]`)).toBeChecked()
   await api(page, 'DELETE', `/api/repositories/${m2}`)
-  await page.click('[data-testid="form-next"]') // 步骤 3
   await page.click('[data-testid="form-submit"]')
   await expect(page.locator('[data-testid="form-error"]')).toBeVisible()
   await expect(page.locator('[data-testid="form-error"]')).toContainText(m2)

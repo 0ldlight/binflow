@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '../../app/AuthContext'
 import { CopyButton } from '../../components/CopyButton'
@@ -7,20 +7,30 @@ import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import type { RepoListItem } from '../../lib/api'
-import { isReadOnlyAdmin } from '../../lib/api'
+import { canAdminWrite, isReadOnlyAdmin } from '../../lib/api'
 import { cfgStr, cfgStrList, getRepositoriesFiltered, getRepoUsage } from '../../lib/repos'
-import { PACKAGE_TYPES, RCLASSES } from '../../lib/repos'
+import type { RClass } from '../../lib/repos'
 import { formatBytes } from '../../lib/format'
 import { useAsync } from '../../lib/useAsync'
 
-// 仓库列表（console-ux §4.3）：key（mono 主链接 + 拷贝）/ 类型 / 包类型 /
-// 上游或成员 / 已用。四态（§5.3）：骨架 8 行、两种空态（从未有数据→建仓
-// CTA；过滤后为空→清除过滤）、错误卡 + 重试。
+import './repositories.css'
+import { useRepoDelete } from './RepoDeleteConfirm'
+
+// 仓库管理列表（console-m8 §6.6 / reverse §3.4，T-240 重排）：
 //
-// 契约缺口（见工作日志）：列表项不带 node 计数与更新时间（repoListItem
-// 无此字段）→ 线框「制品/缓存」「更新时间」两列不呈现；remote assumed-
-// offline 标记无状态端点（ux R9）→ 不伪造。已用列走 usage 端点逐仓拉取
-//（量小；virtual 无自身内容恒 —，403/错误降级 — 不显示 0）。
+// - 三 Tab = 子路由（/admin/repositories/{local|remote|virtual}），Tab +
+//   「N 个仓库」计数 + 右上「添加仓库」+ 行 hover 删除图标 + 列头排序 +
+//   底部计数行——Artifactory 仓库列表的操作骨架。
+// - 列集：key（mono 链接 + 拷贝）/ 类型 / 包类型 / 上游或成员 / 已用 /
+//   描述。契约缺口（沿 T-99 登记）：列表项不带节点计数与更新时间 →
+//   「制品/缓存」「更新时间」两列不呈现；remote assumed-offline 无状态
+//   端点（ux R9）→ 不伪造。已用列走 usage 端点逐仓拉取（virtual 无自身
+//   内容恒 —，403/错误降级 — 不显示 0）。
+// - 门（router.go 实测）：GET /api/repositories = CapRepoRead——admin 与
+//   readonly_admin 全量（T-236 定案），普通 user 403 → L2 无权限卡。
+//   写入口（添加/删除）仅全量 admin（L4 预收敛，服务端 403 兜底）。
+// - 排序：key / 包类型前端列头排序（asc → desc → none 循环，§4.7）；
+//   已用列数据行级异步到达，不参与排序。
 
 const TYPE_LABEL: Record<string, string> = { local: 'Local', remote: 'Remote', virtual: 'Virtual' }
 const PKG_LABEL: Record<string, string> = {
@@ -30,6 +40,20 @@ const PKG_LABEL: Record<string, string> = {
   npm: 'npm',
   pypi: 'PyPI',
 }
+
+const TABS: { id: RClass; label: string }[] = [
+  { id: 'local', label: 'Local' },
+  { id: 'remote', label: 'Remote' },
+  { id: 'virtual', label: 'Virtual' },
+]
+
+/** 当前 Tab 自子路由段推导（本组件只挂在三条静态 Tab 路由上） */
+function tabFromPath(pathname: string): RClass {
+  const seg = pathname.split('/').filter(Boolean).pop() ?? ''
+  return seg === 'remote' || seg === 'virtual' ? (seg as RClass) : 'local'
+}
+
+type SortDir = 'asc' | 'desc'
 
 function truncate(s: string, max = 36): string {
   return s.length > max ? `${s.slice(0, max - 1)}…` : s
@@ -68,9 +92,7 @@ function UpstreamCell({ repo }: { repo: RepoListItem }) {
     // review B1：details 点击不得冒泡到 tr 的行导航——否则浮层刚开即被换页
     return (
       <details className="member-pop" onClick={(e) => e.stopPropagation()}>
-        <summary>
-          {members.length} 成员
-        </summary>
+        <summary>{members.length} 成员</summary>
         <div className="pop">
           <ol className="mono">
             {members.map((m) => (
@@ -89,99 +111,143 @@ function UpstreamCell({ repo }: { repo: RepoListItem }) {
   return <span className="text-muted">—</span>
 }
 
+/** 列头排序（§4.7 循环 none → asc → desc → none；T-237 表格基准同款） */
+function SortTh({
+  label,
+  active,
+  dir,
+  onToggle,
+  testid,
+}: {
+  label: string
+  active: boolean
+  dir: SortDir
+  onToggle: () => void
+  testid: string
+}) {
+  return (
+    // 点击承载在 th 上（热区 = 整格；内部 button 的 click 冒泡到 th，
+    // 键盘 Enter/Space 仍经 button 触发——同一冒泡路径，不双发）
+    <th
+      scope="col"
+      aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}
+      data-testid={testid}
+      onClick={onToggle}
+    >
+      <button type="button" className="th-sort">
+        {label}
+        <span className="th-sort-arrow" aria-hidden="true">
+          {active ? (dir === 'asc' ? ' ▲' : ' ▼') : ''}
+        </span>
+      </button>
+    </th>
+  )
+}
+
 export default function RepositoriesPage() {
   const { session } = useAuth()
-  const admin = session?.admin ?? false
+  const admin = canAdminWrite(session)
   const readOnly = isReadOnlyAdmin(session)
   const navigate = useNavigate()
+  const { pathname } = useLocation()
+  const tab = tabFromPath(pathname)
 
-  const [typeFilter, setTypeFilter] = useState('')
-  const [pkgFilter, setPkgFilter] = useState('')
   const [keyQuery, setKeyQuery] = useState('')
+  // Tab = 服务端 ?type= 过滤（E-04 契约形态）；key 是已加载集上的前端子串
+  const state = useAsync(() => getRepositoriesFiltered(tab, ''), [tab])
+  const reload = state.reload
 
-  // 类型/包类型走服务端过滤（E-04 ?type=&packageType=，契约形态）；
-  // key 搜索是已加载集上的前端子串（仓库量级小，无需服务端面）
-  const state = useAsync(() => getRepositoriesFiltered(typeFilter, pkgFilter), [typeFilter, pkgFilter])
+  const requestDelete = useRepoDelete({ onDeleted: reload })
+
+  const [sortKey, setSortKey] = useState<'key' | 'package' | null>(null)
+  const [sortDir, setSortDir] = useState<SortDir>('asc')
+  const toggleSort = (k: 'key' | 'package') => {
+    if (sortKey !== k) {
+      setSortKey(k)
+      setSortDir('asc')
+    } else if (sortDir === 'asc') {
+      setSortDir('desc')
+    } else {
+      setSortKey(null)
+      setSortDir('asc')
+    }
+  }
 
   const q = keyQuery.trim().toLowerCase()
   const rows = (state.data ?? []).filter((r) => (q ? r.key.toLowerCase().includes(q) : true))
-  const filtered = typeFilter !== '' || pkgFilter !== '' || q !== ''
+  const sorted = [...rows].sort((a, b) => {
+    if (!sortKey) return 0
+    const va = sortKey === 'key' ? a.key : a.packageType
+    const vb = sortKey === 'key' ? b.key : b.packageType
+    if (va === vb) return 0
+    return ((va < vb ? -1 : 1) * (sortDir === 'asc' ? 1 : -1)) as number
+  })
 
   return (
     <div data-testid="repos-page">
       <div className="page-header">
         <h2>仓库</h2>
-        {admin && (
-          <Link className="btn primary" to="/repositories/new" data-testid="repos-create">
-            ＋ 创建仓库
-          </Link>
-        )}
+        <div className="repos-head-actions">
+          <span className="repos-head-count" data-testid="repos-count">
+            {state.status === 'ok' ? `${rows.length} 个仓库` : '…'}
+          </span>
+          {admin && (
+            <Link className="btn primary" to="/admin/repositories/new" data-testid="repos-create">
+              ＋ 添加仓库
+            </Link>
+          )}
+        </div>
       </div>
 
       {readOnly && (
-        <p className="admin-note" data-testid="repos-readonly-note">
-          ⓘ 只读管理员（readonly_admin）视角：仓库配置与制品只读；创建/删除仓库与写操作是管理面写
-          （repo:write，服务端 403 兜底）。
+        <p className="page-note" data-testid="repos-readonly-note">
+          ⓘ 只读管理员（readonly_admin）视角：仓库清单与配置只读；创建/删除仓库是管理面写操作（服务端 403 兜底）。
         </p>
       )}
+
+      <nav className="repos-tabs" aria-label="仓库类型">
+        {TABS.map((t) => (
+          <Link
+            key={t.id}
+            to={`/admin/repositories/${t.id}`}
+            className={`repos-tab${tab === t.id ? ' active' : ''}`}
+            aria-current={tab === t.id ? 'page' : undefined}
+            data-testid={`repos-tab-${t.id}`}
+          >
+            {t.label}
+          </Link>
+        ))}
+      </nav>
 
       <div className="filter-bar">
         <input
           type="search"
-          placeholder="搜索 key…"
+          placeholder={`搜索 ${TYPE_LABEL[tab]} 仓 key…`}
           aria-label="搜索仓库 key"
           value={keyQuery}
           onChange={(e) => setKeyQuery(e.target.value)}
           data-testid="repos-filter-key"
         />
-        <select
-          aria-label="按类型过滤"
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-          data-testid="repos-filter-type"
-        >
-          <option value="">类型：全部</option>
-          {RCLASSES.map((t) => (
-            <option key={t} value={t}>
-              {TYPE_LABEL[t]}
-            </option>
-          ))}
-        </select>
-        <select
-          aria-label="按包类型过滤"
-          value={pkgFilter}
-          onChange={(e) => setPkgFilter(e.target.value)}
-          data-testid="repos-filter-package"
-        >
-          <option value="">包类型：全部</option>
-          {PACKAGE_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {PKG_LABEL[t]}
-            </option>
-          ))}
-        </select>
-        <span className="count" data-testid="repos-count">
-          共 {rows.length} 个仓库
-        </span>
       </div>
 
       {state.status === 'loading' && <Skeleton lines={8} />}
       {state.status === 'error' && state.error && <ErrorCard error={state.error} onRetry={state.reload} />}
       {state.status === 'forbidden' && state.error && (
-        <EmptyState message="无权限查看仓库列表" hint={state.error.message} />
+        <EmptyState
+          message="无权限查看仓库列表"
+          hint="仓库清单是管理面读端点（admin 与只读管理员可见）。制品访问请使用制品浏览、搜索或仓库直链。"
+        />
       )}
       {state.status === 'ok' &&
         (rows.length === 0 ? (
-          filtered ? (
+          q !== '' ? (
             <EmptyState
-              message={`无匹配的仓库（${keyQuery ? `「${keyQuery}」` : ''}${typeFilter ? ` ${TYPE_LABEL[typeFilter]}` : ''}${pkgFilter ? ` ${PKG_LABEL[pkgFilter]}` : ''}）`}
+              message={`无匹配的仓库（「${keyQuery}」）`}
               action={
                 <button
                   type="button"
                   className="btn"
                   onClick={() => {
-                    setTypeFilter('')
-                    setPkgFilter('')
                     setKeyQuery('')
                   }}
                 >
@@ -192,72 +258,105 @@ export default function RepositoriesPage() {
             />
           ) : admin ? (
             <EmptyState
-              message="还没有仓库"
+              message={`还没有 ${TYPE_LABEL[tab]} 仓库`}
               action={
-                <Link className="btn primary" to="/repositories/new">
-                  创建第一个仓库
+                <Link className="btn primary" to={`/admin/repositories/new${tab !== 'local' ? `?rclass=${tab}` : ''}`}>
+                  创建第一个{TYPE_LABEL[tab]}仓库
                 </Link>
               }
-              hint="建议从 local 仓开始（generic 适配任意文件；协议仓按客户端接入文档选型）"
+              hint={
+                tab === 'local'
+                  ? '建议从 generic 起步（适配任意文件；协议仓按客户端接入文档选型）'
+                  : tab === 'remote'
+                    ? 'Remote 仓代理上游（如 repo1.maven.org），制品按需缓存'
+                    : 'Virtual 仓聚合多个 local/remote 成员，统一团队出口'
+              }
               testid="repos-empty"
             />
           ) : (
-            <EmptyState message="还没有仓库" hint="仓库由管理员创建" testid="repos-empty" />
+            <EmptyState message={`还没有 ${TYPE_LABEL[tab]} 仓库`} hint="仓库由管理员创建" testid="repos-empty" />
           )
         ) : (
-          <table className="table" data-testid="repos-table">
-            <thead>
-              <tr>
-                <th scope="col">key</th>
-                <th scope="col">类型</th>
-                <th scope="col">包类型</th>
-                <th scope="col">上游 / 成员</th>
-                <th scope="col">已用</th>
-                <th scope="col">描述</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((repo) => (
-                <tr
-                  key={repo.key}
-                  data-testid={`repos-row-${repo.key}`}
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => navigate(`/repositories/${repo.key}`)}
-                >
-                  <td>
-                    <Link
-                      className="row-link mono"
-                      to={`/repositories/${repo.key}`}
-                      onClick={(e) => e.stopPropagation()}
-                      lang="en"
-                    >
-                      {repo.key}
-                    </Link>{' '}
-                    {/* review B1：拷贝按钮包隔离层（页面级，不动共享 CopyButton——
-                        T-101/T-102 并行在途），点击/键盘触发都不再触发行导航 */}
-                    <span onClick={(e) => e.stopPropagation()}>
-                      <CopyButton value={repo.key} label={`仓库 key ${repo.key}`} />
-                    </span>
-                  </td>
-                  <td>
-                    <span className="badge neutral">{TYPE_LABEL[repo.type] ?? repo.type}</span>
-                  </td>
-                  <td>
-                    <span className="badge neutral">{PKG_LABEL[repo.packageType] ?? repo.packageType}</span>
-                  </td>
-                  <td>
-                    <UpstreamCell repo={repo} />
-                  </td>
-                  <td>
-                    <UsageCell repoKey={repo.key} rclass={repo.type} />
-                  </td>
-                  <td className="wrap" style={{ maxWidth: 260, color: 'var(--bf-text-2)' }}>
-                    {repo.description || '—'}
-                  </td>
+          <>
+            <table className="table" data-testid="repos-table">
+              <thead>
+                <tr>
+                  <SortTh label="Repository Key" active={sortKey === 'key'} dir={sortDir} onToggle={() => toggleSort('key')} testid="repos-sort-key" />
+                  <SortTh label="包类型" active={sortKey === 'package'} dir={sortDir} onToggle={() => toggleSort('package')} testid="repos-sort-package" />
+                  <th scope="col">类型</th>
+                  <th scope="col">上游 / 成员</th>
+                  <th scope="col">已用</th>
+                  <th scope="col">描述</th>
+                  {admin && (
+                    <th scope="col" className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>
+                      操作
+                    </th>
+                  )}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {sorted.map((repo) => (
+                  <tr
+                    key={repo.key}
+                    data-testid={`repos-row-${repo.key}`}
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => navigate(`/admin/repositories/${repo.key}`)}
+                  >
+                    <td>
+                      <Link
+                        className="row-link mono"
+                        to={`/admin/repositories/${repo.key}`}
+                        onClick={(e) => e.stopPropagation()}
+                        lang="en"
+                      >
+                        {repo.key}
+                      </Link>{' '}
+                      {/* review B1：拷贝按钮包隔离层（点击/键盘触发都不触发行导航） */}
+                      <span onClick={(e) => e.stopPropagation()}>
+                        <CopyButton value={repo.key} label={`仓库 key ${repo.key}`} />
+                      </span>
+                    </td>
+                    <td>
+                      <span className="badge neutral">{PKG_LABEL[repo.packageType] ?? repo.packageType}</span>
+                    </td>
+                    <td>
+                      <span className="badge neutral">{TYPE_LABEL[repo.type] ?? repo.type}</span>
+                    </td>
+                    <td>
+                      <UpstreamCell repo={repo} />
+                    </td>
+                    <td>
+                      <UsageCell repoKey={repo.key} rclass={repo.type} />
+                    </td>
+                    <td className="wrap" style={{ maxWidth: 260, color: 'var(--bf-text-2)' }}>
+                      {repo.description || '—'}
+                    </td>
+                    {admin && (
+                      <td>
+                        <button
+                          type="button"
+                          className="row-del"
+                          aria-label={`删除仓库 ${repo.key}`}
+                          title={`删除仓库 ${repo.key}`}
+                          data-testid={`repos-delete-${repo.key}`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            requestDelete({ key: repo.key, rclass: repo.type, packageType: repo.packageType })
+                          }}
+                        >
+                          删除
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="table-foot" data-testid="repos-pager">
+              显示 {sorted.length === 0 ? 0 : 1} – {sorted.length} / 共 {sorted.length} 项
+              {q !== '' && `（按「${keyQuery}」过滤）`}
+            </p>
+          </>
         ))}
     </div>
   )
