@@ -46,10 +46,13 @@
 - **T-217** [P0] FR-65 REST `role:dev-go-core` — **done 2026-08-23（双视角 review 双 REQUEST_CHANGES 独立收敛 B1 → 返修红绿闭环 → conductor 复验；提交 `04f88fb`）**
   manage wire + 族 4 例外门（handler 覆盖臂，守卫 26→24 精确两处）+ service 门放宽（Create/Update authenticated、Delete 保 admin；非测试调用点仅 httpapi——零提权 grep 证实）+ usage ∨-臂（m-无-r 翻转 403→200）+ **B1 修复**：替换臂 union(body, 存量) ⊆ 覆盖集（对抗探针实证的跨覆盖集吊销洞闭合，矩阵腿 403+清单字节不变钉死）。矩阵 EXPECT=1 零偏差；三包 race 绿 + lint 0。偏离（路由字面量迁移）裁可：§7.1 族 4 行明文预载。挂账：principal 名字枚举面（M8 裁量）；PM 回写勘误 1（POST/201+字段拼写）成立、勘误 2 可选。日志 reports/agents/T-217.md / T-217-review-a.md / T-217-review-c.md。
 
-#### 波 5（T-221 done；T-218/T-219 在途）+ 波 6 前置（T-223 已派）+ 环境票 T-230（用户 VM 纳管）
+#### 波 6（T-223 done；T-220 待 T-219；T-226 待 T-230 收尾+扩盘）
 
-- **T-230** [P2] 用户 VM 纳管：Ubuntu 24.04 systemd 部署烟测 + docker 就绪 `role:release-engineer` `area:deploy/ 产物复验 + VM（仓外）` `dep:—` — **doing 2026-08-23**
-  用户提供 VMware Ubuntu 24.04 VM（172.16.58.129；2C/5.7G/7.8G 空闲/无 docker）。任务：SSH 密钥固化（后续 agent 免密消费）→ M5 systemd 部署矩阵真机复验（linux/amd64 构建 + unit + ping/建仓/客户端烟测 + 优雅停机）→ docker 就绪（T-226 MinIO 腿前置）。**凭据只在会话/派单内，禁入仓库文件**。Artifactory 不装（磁盘紧，真实腿维持 dep:用户环境 等用户定）。
+- **T-223** [P1] M7 文档 I：RBAC 指南 + 上传续传说明 `role:tech-writer` — **done 2026-08-23（conductor 直审通过；提交 `24259fb`）**
+  新页 admin/rbac-roles.md（三值模型+矩阵+wire 用法+覆盖集规则+审计+readonly_group 键）+ docker-registry.md 续传节（ADR-0028 口径、S3 限制如实、curl 全链）+ 四处既有补齐 + docs-site 重建零断链。**文档内全部 curl 逐条 scratch 实跑验证**；双探针复跑 GREEN。遗留归位：FAQ/console/step-up → T-225/T-218。日志 reports/agents/T-223.md。
+
+#### 环境票（在途）
+- **T-230** [P2] 用户 VM 纳管 `role:release-engineer` — **doing 2026-08-23**（SSH 密钥固化 + M5 systemd 真机复验 + docker/MinIO 就绪；**收尾清单含客体侧扩盘 growpart+resize2fs**——用户已确认宿主侧扩至 100G，扩完 T-228 真实 Artifactory 腿改派本机，`dep:用户环境` 解除）。凭据禁入仓库。
 - **T-218** [P1] FR-66 控制台角色与权限管理扩展 + read-only 只读态 `role:dev-frontend` `area:web/src` `dep:T-215,T-217 ✅` — **doing 2026-08-23**（含 T-215 移交 governance.ts 词表补 `user.role.change`）
 - **T-219** [P2] FR-68 step-up：SSO session 铸管理 Token 二次认证 `role:dev-go-core` `area:internal/httpapi(token) + internal/auth + internal/config` `dep:T-215 ✅,T-214 ✅` — **doing 2026-08-23**（契约 = ADR-0027 修订版；含 T-215 移交 token handler p.Admin → CanManage 统一）
 - **T-221** [P1] M7 验收 I `role:qa-engineer` — **done 2026-08-23（PASS 16/16 零缺陷；qa 报告 `cf4c16a`）**
@@ -79,9 +82,7 @@
 
 #### 波 6（待波 5）
 - **T-220** [P2] FR-70 技术债打包（**Close 段与 N2 已拆 T-229 提前**）：N3 ctx 窄窗 + internal/auth 53 条 lint + sql 行尾 `role:dev-go-core` `area:internal/storage + internal/auth + internal/metadata/migrations + internal/httpapi(仅测试)` `dep:T-214,T-216,T-217,T-219,T-229`
-  全仓 lint 0（auth 53 条逐条处置留档）；N3 钉死测试（Append 全量 EOF 后注入 ctx 取消 → 会话不毒化、SetState 已落库，context.WithoutCancel；变异验证）；全仓 race 绿。
-- **T-223** [P1] M7 文档 I：RBAC 指南 + 上传续传说明 `role:tech-writer` `area:docs/user + docs-site` `dep:T-214,T-216,T-217`
-  RBAC 指南（三值模型/adminRole curl 用法/manage 派生/矩阵表）；续传说明（措辞严格按 ADR-0028 终裁、S3 限制如实、docker CLI 不续传注记）；make docs 同步。
+  全仓 lint 0（auth 53 条逐条处置留档）；N3 钉死测试（Append 全量 EOF 后注入 ctx 取消 → 会话不毒化、SetState 已落库，context.WithoutCancel；变异验证）；全仓 race 绿。**并入 T-212 review 移交**：TestSessionTTLAbsoluteCapWins 墙钟 flake 放宽。
 - **T-226** [P2] M7 等价口径回归：MinIO + Artifactory OSS 容器复跑 M6 基线（V29） `role:qa-engineer` `area:QA 验收面` `dep:T-217`
   M6 H01~H05 + H63/H67 在 M7 代码上复跑；差异逐条归档定性。
 
