@@ -124,9 +124,9 @@ virtual / remote 仓请求 → 400（`only supported on local repositories`）�
 
 ## 控制台对应操作
 
-安全组页面与上述 API 一一对应（`/security/groups`、`/security/users`、`/security/permissions/:name`）：
+安全域页面与上述 API 一一对应（M8 起位于管理模式「用户与权限」分组：`/admin/security/groups`、`/admin/security/users`、`/admin/security/permissions[/:name]`；M7 及以前的 `/security/*` 旧路径自动重定向）：
 
-- 权限编辑器主体矩阵为 **users + groups 双栏**，组行带图标前缀；
+- 权限编辑器为单页分区形态（名称 / 资源 / 用户 / 组）+ **两步资源对话框**（`编辑仓库…` → ① 选仓库〔双列穿梭〕→ ② 可选 include/exclude patterns）；主体矩阵为 **users + groups 双栏**，组行带图标前缀；
 - **模式测试器**：输入任意路径即时显示每条 include/exclude 的命中与最终判定（exclude 优先）——判定向量从服务端 ACL 的 table-driven 用例导出 fixtures 生成（CI 漂移即红），与保存后的实际判定同源；
 - 保存前弹**变更摘要 diff**（逐条「+ 授予 / − 移除」），确认后才提交；
 - 移出组后在另一浏览器上下文立刻复验 403（W33b 验收手法，可用于自证即时生效）。
@@ -156,5 +156,5 @@ virtual / remote 仓请求 → 400（`only supported on local repositories`）�
 
 - 角色（user/readonly_admin/admin）与 `manage` 派生的仓库级管理员：[RBAC 角色与仓库级管理员](rbac-roles.md)
 - 仓库级治理字段与配额：[治理指南](governance.md)
-- 控制台安全页走查：[Web 控制台使用指南](../console.md)
+- 控制台安全页走查：[Web 控制台使用指南](../console.md)；Artifactory 操作路径对照：[对照表](../artifactory-path-map.md)
 - 权限语义总览与 Artifactory 对照：[FAQ](../faq.md)

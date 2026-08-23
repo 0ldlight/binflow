@@ -84,18 +84,13 @@ bf-migrate migrate --passwords-out ./migrated-passwords.txt --resume
 4. **用户口令分发**：`migrated-passwords.txt`（0600）安全渠道分发，强制首次登录轮换。
 5. **virtual 成员与 local 仓 patterns 复核**：见下节已知缺口。
 
-## 已知缺口（如实，写脚本时留意）
+## 已知缺口与行为注记（如实，写脚本时留意）
 
-- **virtual 成员与 local 仓 includes/excludes patterns 当前会丢**：CLI 依赖的 `internal/client` 建仓请求体用 `members`/`includes`/`excludes` 拼写，而服务端读 `repositories`/`includesPattern`/`excludesPattern`（T-191 对齐票在路上）。对齐前，迁移完的 virtual 仓是空的、patterns 未带上——用 REST 直接 PUT 补齐：
-
-```bash
-curl -su admin:$PW -X PUT $BINFLOW_SERVER_URL/binflow/api/repositories/libs-virtual \
-  -H 'Content-Type: application/json' \
-  -d '{"rclass":"virtual","packageType":"generic","repositories":["libs-generic","libs-release"]}'
-```
-
+- ~~virtual 成员与 local 仓 patterns 会丢~~ **已修复**（M6 起建仓请求体按服务端拼写 `repositories` / `includesPattern` / `excludesPattern` 发送）——迁移完的 virtual 仓成员与 patterns 正常带上。仍建议迁移后按「手工收尾清单」第 5 条复核一遍。
+- **maven 仓重迁轮 `maven-metadata.xml` 会被目标重算**：merge/create-or-replace 重跑时，jar/pom 再上传会触发 BinFlow 按 maven 语义**服务端重算** metadata（`<lastUpdated>` 等字段变化、节点 sha 随之不同）——这与源侧「平面复制」不同，是设计行为（V28 真实源迁移 R-7 实证）。比对迁移前后字节时以构件本体（jar/pom）为准，metadata 差异可忽略。
+- **源为 Artifactory OSS 时的能力边界**：OSS 7.x 无 docker registry 与 npm 协议面（`/v2/`、`/api/npm/{repo}/**` 全 404）——docker/npm 仓只能 **config-only 迁移**（报告记 "artifacts left behind"），与网络连通性无关；协议制品迁移须 Pro/企业版源（V28 R-2 实证）。
 - **制品本体不在三阶段内**：仓库定义就位后另行搬运（通用做法：源侧按 `GET /api/storage/<repo>/<path>` 清单遍历 + 目标侧 PUT；或暂用双仓并行、客户端切源）。此面为后续票据范围。
-- 真实 Artifactory 整体验收为条件腿（Q9）——先 `--dry-run`、小仓试点、再全量。
+- 真实 Artifactory 整体验收为条件腿（Q9，已执行——实录与差异清单见[附录 V28](../admin/real-env-appendix.md#v28真实-artifactory-迁移实腿dep用户环境)）；先 `--dry-run`、小仓试点、再全量。
 
 ## 常见报错对照
 
@@ -110,5 +105,5 @@ curl -su admin:$PW -X PUT $BINFLOW_SERVER_URL/binflow/api/repositories/libs-virt
 ## 下一步
 
 - 目标侧配置：[bf CLI](bf-cli.md)（建仓/发 Token 的脚本面）
-- 差异总览：[FAQ · 从 Artifactory 迁移](../faq.md#从-artifactory-迁移对照表)
+- 差异总览：[FAQ · 从 Artifactory 迁移](../faq.md#从-artifactory-迁移对照表)；控制台操作路径对照：[Artifactory → BinFlow 操作路径对照表](../artifactory-path-map.md)
 - 各协议客户端切源：[客户端接入](../README.md)

@@ -5,17 +5,17 @@
       "plugin": "138e0e15"
     }
   },
-  "/binflow/docs/-696": {
+  "/binflow/docs/-c4e": {
     "__comp": "5e95c892",
     "__context": {
       "plugin": "aba21aa0"
     }
   },
-  "/binflow/docs/-c8e": {
+  "/binflow/docs/-34f": {
     "__comp": "a7bd4aaa",
     "__props": "05bda79c"
   },
-  "/binflow/docs/-56e": {
+  "/binflow/docs/-4c7": {
     "__comp": "a94703ab"
   },
   "/binflow/docs/admin-d45": {
@@ -53,6 +53,10 @@
   "/binflow/docs/api-reference-f00": {
     "__comp": "17896441",
     "content": "073b4d85"
+  },
+  "/binflow/docs/artifactory-path-map-5f3": {
+    "__comp": "17896441",
+    "content": "48029b12"
   },
   "/binflow/docs/console-ebc": {
     "__comp": "17896441",

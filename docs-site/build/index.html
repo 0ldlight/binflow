@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">BinFlow 帮助文档中心 | BinFlow 帮助文档</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:url" content="http://localhost:8080/binflow/docs/"><meta data-rh="true" property="og:locale" content="zh"><meta data-rh="true" name="docusaurus_locale" content="zh"><meta data-rh="true" name="docsearch:language" content="zh"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="BinFlow 帮助文档中心 | BinFlow 帮助文档"><meta data-rh="true" name="description" content="tech-writer 维护。每篇头部标注适用版本。结构如下，未写篇目随里程碑补齐。"><meta data-rh="true" property="og:description" content="tech-writer 维护。每篇头部标注适用版本。结构如下，未写篇目随里程碑补齐。"><link data-rh="true" rel="icon" href="/binflow/docs/img/favicon.svg"><link data-rh="true" rel="canonical" href="http://localhost:8080/binflow/docs/"><link data-rh="true" rel="alternate" href="http://localhost:8080/binflow/docs/" hreflang="zh"><link data-rh="true" rel="alternate" href="http://localhost:8080/binflow/docs/" hreflang="x-default"><script data-rh="true">function insertBanner(){var n=document.createElement("div");n.id="__docusaurus-base-url-issue-banner-container";n.innerHTML='\n<div id="__docusaurus-base-url-issue-banner" style="border: thick solid red; background-color: rgb(255, 230, 179); margin: 20px; padding: 20px; font-size: 20px;">\n   <p style="font-weight: bold; font-size: 30px;">Your Docusaurus site did not load properly.</p>\n   <p>A very common reason is a wrong site <a href="https://docusaurus.io/docs/docusaurus.config.js/#baseUrl" style="font-weight: bold;">baseUrl configuration</a>.</p>\n   <p>Current configured baseUrl = <span style="font-weight: bold; color: red;">/binflow/docs/</span> </p>\n   <p>We suggest trying baseUrl = <span id="__docusaurus-base-url-issue-banner-suggestion-container" style="font-weight: bold; color: green;"></span></p>\n</div>\n',document.body.prepend(n);var e=document.getElementById("__docusaurus-base-url-issue-banner-suggestion-container"),o=window.location.pathname,s="/"===o.substr(-1)?o:o+"/";e.textContent=s}document.addEventListener("DOMContentLoaded",function(){void 0===window.docusaurus&&insertBanner()})</script><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"文档中心首页","item":"http://localhost:8080/binflow/docs/"}]}</script><link rel="stylesheet" href="/binflow/docs/assets/css/styles.a8422308.css">
-<script src="/binflow/docs/assets/js/runtime~main.4bcc4a21.js" defer="defer"></script>
-<script src="/binflow/docs/assets/js/main.d93c66f9.js" defer="defer"></script>
+<script src="/binflow/docs/assets/js/runtime~main.97c313c3.js" defer="defer"></script>
+<script src="/binflow/docs/assets/js/main.dac2f7a9.js" defer="defer"></script>
 </head>
 <body>
 <svg style="display: none;"><defs>
@@ -48,9 +48,10 @@
 <li class="">CI 集成：GitHub Actions / GitLab CI / Jenkins 用作依赖源与镜像源</li>
 </ul>
 </li>
-<li class=""><strong>Web 控制台</strong> — M4<!-- -->
+<li class=""><strong>Web 控制台</strong> — M8（新信息架构）<!-- -->
 <ul>
-<li class=""><a class="" href="/binflow/docs/console">控制台使用指南</a>（登录与会话/TTL 语义、仓库/树/搜索/安全/治理五组页面、角色可见性、浏览器兼容）</li>
+<li class=""><a class="" href="/binflow/docs/console">控制台使用指南</a>（双模式导航、跨仓制品树、Set Me Up 与 Deploy 对话框、管理域五分组、旧路径重定向、角色可见性、浏览器兼容）</li>
+<li class=""><a class="" href="/binflow/docs/artifactory-path-map">Artifactory → BinFlow 操作路径对照表</a>（建仓/建用户/配权限/找制品/Set Me Up/GC/备份等逐任务路径对照；无对应面如实登记）</li>
 </ul>
 </li>
 <li class=""><strong>管理指南</strong>（<code>admin/</code>）<!-- -->
@@ -60,7 +61,7 @@
 <li class=""><a class="" href="/binflow/docs/admin/governance">治理：审计、GC 与配额</a>（审计查询与词表、GC dry-run→apply 与互斥 409、quotaBytes 413 语义、includes/excludes 409/404 双值码）— M4</li>
 <li class=""><a class="" href="/binflow/docs/admin/backup-restore">备份与恢复手册</a>（export/import CLI、产物 0700 保管告警、<code>--verify spot/full</code>、无钥 fail-fast 恢复链、停机强一致可选）— M4</li>
 <li class=""><a class="" href="/binflow/docs/admin/rbac-roles">RBAC 角色与仓库级管理员</a>（角色三值模型与能力矩阵、adminRole wire、manage 派生与覆盖集、user.role.change 审计、IdP readonly 组映射）— M7</li>
-<li class=""><a class="" href="/binflow/docs/admin/token-step-up">Token 铸造二次认证 step-up</a>（<code>auth.token_step_up</code> 开关与 TTL 域、作用域与豁免臂、本地/LDAP 口令腿与 OIDC mint grant 腿、审计维度）— M7</li>
+<li class=""><a class="" href="/binflow/docs/admin/token-step-up">Token 铸造二次认证 step-up</a>（<code>auth.token_step_up</code> 开关与 TTL 域、作用域与豁免臂、本地/LDAP 口令腿与 OIDC mint grant 腿、  审计维度）— M7</li>
 <li class=""><a class="" href="/binflow/docs/admin/real-env-appendix">附录：条件腿真实环境验收</a>（V27 真实 AWS S3 / V28 真实 Artifactory 证据归档模板 + MinIO/OSS 等价口径）— M7</li>
 </ul>
 </li>
@@ -78,7 +79,7 @@
 <li class=""><a class="" href="/binflow/docs/faq">FAQ 与故障排查</a>（401/403/404/409/413 信封解读、高 QPS 用 Token、M4 不兼容清单、Artifactory 迁移对照表）</li>
 </ul>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="从-artifactory-迁移">从 Artifactory 迁移<a href="#从-artifactory-迁移" class="hash-link" aria-label="从 Artifactory 迁移的直接链接" title="从 Artifactory 迁移的直接链接" translate="no">​</a></h2>
-<p>概念一一对应：local/remote/virtual 仓库、repo key、node、checksum、部署/解析权限——术语不变。
+<p>概念一 一对应：local/remote/virtual 仓库、repo key、node、checksum、部署/解析权限——术语不变。
 对照表见 <a class="" href="/binflow/docs/faq">faq.md</a>。</p></div></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="文件选项卡"><a class="pagination-nav__link pagination-nav__link--next" href="/binflow/docs/integrations"><div class="pagination-nav__sublabel">下一页</div><div class="pagination-nav__label">客户端接入</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#导航" class="table-of-contents__link toc-highlight">导航</a></li><li><a href="#从-artifactory-迁移" class="table-of-contents__link toc-highlight">从 Artifactory 迁移</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="footer__bottom text--center"><div class="footer__copyright">BinFlow 帮助文档 — 随二进制交付，离线可用（ADR-0011）</div></div></div></footer></div>
 </body>
 </html>

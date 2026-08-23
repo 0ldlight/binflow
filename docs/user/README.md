@@ -23,8 +23,9 @@
   - [PyPI](integrations/pypi.md)（pip.conf + twine、hash 对账、PEP 691）— M3
   - [Generic / 任意文件](integrations/generic.md)（curl roundtrip）
   - CI 集成：GitHub Actions / GitLab CI / Jenkins 用作依赖源与镜像源
-- **Web 控制台** — M4
-  - [控制台使用指南](console.md)（登录与会话/TTL 语义、仓库/树/搜索/安全/治理五组页面、角色可见性、浏览器兼容）
+- **Web 控制台** — M8（新信息架构）
+  - [控制台使用指南](console.md)（双模式导航、跨仓制品树、Set Me Up 与 Deploy 对话框、管理域五分组、旧路径重定向、角色可见性、浏览器兼容）
+  - [Artifactory → BinFlow 操作路径对照表](artifactory-path-map.md)（建仓/建用户/配权限/找制品/Set Me Up/GC/备份等逐任务路径对照；无对应面如实登记）
 - **管理指南**（`admin/`）
   - [remote / virtual 仓库管理](admin/remote-virtual.md)（建仓字段表、缓存/负缓存/assumed-offline、强刷、SSRF 放行指引、凭据密钥部署、M3 不兼容清单与报错码汇总）— M3
   - [用户组与权限管理](admin/groups-permissions.md)（三步授权流、并集与即时生效、组 CRUD 与 409 保护、`?permissions` 视图、组无 admin 位）— M4

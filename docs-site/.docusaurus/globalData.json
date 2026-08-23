@@ -51,6 +51,11 @@
               "sidebar": "main"
             },
             {
+              "id": "artifactory-path-map",
+              "path": "/binflow/docs/artifactory-path-map",
+              "sidebar": "main"
+            },
+            {
               "id": "console",
               "path": "/binflow/docs/console",
               "sidebar": "main"

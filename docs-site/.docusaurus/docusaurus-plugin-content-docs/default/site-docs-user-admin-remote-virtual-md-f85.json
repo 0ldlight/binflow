@@ -17,8 +17,8 @@
   },
   "sidebar": "main",
   "previous": {
-    "title": "Web 控制台使用指南",
-    "permalink": "/binflow/docs/console"
+    "title": "Artifactory → BinFlow 操作路径对照表",
+    "permalink": "/binflow/docs/artifactory-path-map"
   },
   "next": {
     "title": "用户组与权限管理",

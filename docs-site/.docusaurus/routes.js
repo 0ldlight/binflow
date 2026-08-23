@@ -9,15 +9,15 @@ export default [
   },
   {
     path: '/binflow/docs/',
-    component: ComponentCreator('/binflow/docs/', '696'),
+    component: ComponentCreator('/binflow/docs/', 'c4e'),
     routes: [
       {
         path: '/binflow/docs/',
-        component: ComponentCreator('/binflow/docs/', 'c8e'),
+        component: ComponentCreator('/binflow/docs/', '34f'),
         routes: [
           {
             path: '/binflow/docs/',
-            component: ComponentCreator('/binflow/docs/', '56e'),
+            component: ComponentCreator('/binflow/docs/', '4c7'),
             routes: [
               {
                 path: '/binflow/docs/admin',
@@ -70,6 +70,12 @@ export default [
               {
                 path: '/binflow/docs/api-reference',
                 component: ComponentCreator('/binflow/docs/api-reference', 'f00'),
+                exact: true,
+                sidebar: "main"
+              },
+              {
+                path: '/binflow/docs/artifactory-path-map',
+                component: ComponentCreator('/binflow/docs/artifactory-path-map', '5f3'),
                 exact: true,
                 sidebar: "main"
               },

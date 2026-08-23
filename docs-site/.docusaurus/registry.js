@@ -13,6 +13,7 @@ export default {
   "1b51bba7": [() => import(/* webpackChunkName: "1b51bba7" */ "@site/../docs/user/admin/governance.md"), "@site/../docs/user/admin/governance.md", require.resolveWeak("@site/../docs/user/admin/governance.md")],
   "22713efb": [() => import(/* webpackChunkName: "22713efb" */ "@generated/docusaurus-plugin-content-docs/default/p/binflow-docs-guides-43e.json"), "@generated/docusaurus-plugin-content-docs/default/p/binflow-docs-guides-43e.json", require.resolveWeak("@generated/docusaurus-plugin-content-docs/default/p/binflow-docs-guides-43e.json")],
   "24e5edad": [() => import(/* webpackChunkName: "24e5edad" */ "@site/../docs/user/install/k8s.md"), "@site/../docs/user/install/k8s.md", require.resolveWeak("@site/../docs/user/install/k8s.md")],
+  "48029b12": [() => import(/* webpackChunkName: "48029b12" */ "@site/../docs/user/artifactory-path-map.md"), "@site/../docs/user/artifactory-path-map.md", require.resolveWeak("@site/../docs/user/artifactory-path-map.md")],
   "5e8d1b2e": [() => import(/* webpackChunkName: "5e8d1b2e" */ "@site/../docs/user/faq.md"), "@site/../docs/user/faq.md", require.resolveWeak("@site/../docs/user/faq.md")],
   "5e95c892": [() => import(/* webpackChunkName: "5e95c892" */ "@theme/DocsRoot"), "@theme/DocsRoot", require.resolveWeak("@theme/DocsRoot")],
   "636e20e5": [() => import(/* webpackChunkName: "636e20e5" */ "@site/../docs/user/integrations/generic.md"), "@site/../docs/user/integrations/generic.md", require.resolveWeak("@site/../docs/user/integrations/generic.md")],

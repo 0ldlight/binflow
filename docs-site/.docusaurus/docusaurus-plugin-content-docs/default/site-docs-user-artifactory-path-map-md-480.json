@@ -1,0 +1,27 @@
+{
+  "id": "artifactory-path-map",
+  "title": "Artifactory → BinFlow 操作路径对照表",
+  "description": "适用版本：M8（控制台新信息架构，对齐 Artifactory 7.84 操作流）。",
+  "source": "@site/../docs/user/artifactory-path-map.md",
+  "sourceDirName": ".",
+  "slug": "/artifactory-path-map",
+  "permalink": "/binflow/docs/artifactory-path-map",
+  "draft": false,
+  "unlisted": false,
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 31,
+  "frontMatter": {
+    "title": "Artifactory → BinFlow 操作路径对照表",
+    "sidebar_position": 31
+  },
+  "sidebar": "main",
+  "previous": {
+    "title": "Web 控制台使用指南",
+    "permalink": "/binflow/docs/console"
+  },
+  "next": {
+    "title": "remote / virtual 仓库管理",
+    "permalink": "/binflow/docs/admin/remote-virtual"
+  }
+}

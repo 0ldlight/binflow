@@ -41,8 +41,9 @@ M4 审计动作全集（可作 `action=` 过滤值；M7 增补 `user.role.change
 | 安全 | `group.create`、`group.update`、`group.delete`、`group.member`（成员集变更）、`permission.create`、`permission.update`、`permission.delete`、`password.change`、`user.role.change`（M7：角色分配/升降，detail 含 user/old/new） |
 | 治理 | `gc.run`、`quota.exceeded`、`export.run`、`import.run` |
 | 会话 | `login.success`、`login.failed` |
+| token | `token.issue`、`token.revoke`（detail 含指纹/subject/TTL；step-up 路径的 `token.issue` 另含 `step_up` 维度，见 [step-up 指南](token-step-up.md#审计)） |
 
-**已知缺口**：`token.issue` / `token.revoke` 在词表中定义，但 token 签发/吊销当前**不落审计**（M4 登记缺口，签发无留痕——排障时以服务端日志为准）。
+历史注记：M4 曾登记「token 签发/吊销不落审计」缺口，现已修复（`token.issue` / `token.revoke` 均落审计，scratch 实例 2026-08-24 实测）。
 
 脱敏红线（QA 全量导出 grep 验证）：口令字面量、token 明文、`Authorization` 头**零命中**——审计里永远看不到这些值。
 
@@ -169,7 +170,7 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/tiny/b.bin --data-binary @800b.bin
 
 ## 控制台对应页面
 
-审计页（过滤 + 游标加载更多）、GC 页（stats + dry-run 面板 + 输入实例名确认 apply）、配额页（每仓水位条 80% 黄/100% 红 + 行内编辑）均消费与本文相同的 REST 面——脚本与界面行为可互证（页面测试即 API 测试）。
+M8 起治理域位于管理模式「治理」分组：审计日志 `/admin/governance/audit`（过滤 + 游标加载更多）、维护（GC）`/admin/governance/gc`（stats + dry-run 面板 + 输入实例名确认 apply）、配额 `/admin/governance/quotas`（每仓水位条 80% 黄/100% 红 + 行内编辑）、复制 `/admin/governance/replication`、备份/恢复 `/admin/governance/backup`——均消费与本文相同的 REST 面，脚本与界面行为可互证（页面测试即 API 测试）。页面走查见[控制台指南](../console.md#管理模式各域)；M7 及以前的 `/governance/*`、`/audit` 旧路径自动重定向（M9 移除）。
 
 ## 用户管理
 
@@ -303,17 +304,16 @@ curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/security/token/revoke \
 
 ### Token 审计现状
 
-**M4 已知缺口**：
-- `token.issue` 动作在审计词表中定义，但签发**不落审计事件**（无留痕）
-- `token.revoke` 有日志输出，但同样不落审计表
-- 排障时以服务端结构化日志为准（WARN 级 `token revoked` 事件）
-
-令牌的签发与吊销是高风险操作，M4 登记为 P2 债务，后续将补齐审计事件。过渡期排障发布：
+`token.issue` / `token.revoke` **均落审计事件**（M4 曾登记缺口，已修复并实测）：
 
 ```bash
-# 查看服务端日志中 token 操作
-grep -E 'token.issue|token.revoke' /var/log/binflow/*.log
+# 签发事件（detail 含指纹 fingerprint、subject、ttl_seconds；step-up 路径另含 step_up/step_up_method）
+curl -su admin:$ADMIN_PW "$BASE/binflow/api/v1/audit?action=token.issue&limit=2"
+# 吊销事件（detail 含 token_id）
+curl -su admin:$ADMIN_PW "$BASE/binflow/api/v1/audit?action=token.revoke&limit=2"
 ```
+
+服务端结构化日志同时保留 token 操作行（WARN 级 `token revoked` 事件）——日志与审计双留痕。
 
 ### Docker Token 与 Token 同表
 

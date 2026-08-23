@@ -5,7 +5,7 @@ sidebar_position: 90
 
 # FAQ 与故障排查
 
-> 适用版本：M1~M7（各条目标注引入里程碑）。码值与文案以 M4（PRD milestone-4 v1.2）为基线，全部经 QA 真机验证（T-103/T-105 验收基线）；M7 增补条目（RBAC 只读短路 / S3 续传 404 / token step-up）以 ADR-0026/0027/0028 与 PRD milestone-7 v1.1 为准，命令经 scratch 实例复跑（2026-08-23）。
+> 适用版本：M1~M8（各条目标注引入里程碑）。码值与文案以 M4（PRD milestone-4 v1.2）为基线，全部经 QA 真机验证（T-103/T-105 验收基线）；M7 增补条目（RBAC 只读短路 / S3 续传 404 / token step-up）以 ADR-0026/0027/0028 与 PRD milestone-7 v1.1 为准；M8 增补（控制台新路径重定向 / npm 发布权限语义）经 scratch 实例复跑（2026-08-24）。
 
 ## 状态码信封解读
 
@@ -32,7 +32,7 @@ sidebar_position: 90
 | 场景 | 表现 | 处置 |
 |---|---|---|
 | 无 write 权限的路径上传 | 403 `permission denied`（各协议 verbatim 渲染） | 找 admin 加 permission target；组授权即时生效无需重启 |
-| 覆盖已有制品但无 delete 权限 | 403 | 覆盖 = 对旧文件的删除，需 delete 权限 |
+| 覆盖已有制品但无 delete 权限 | 403 | 覆盖 = 对旧文件的删除，需 delete 权限。**npm 例外（M8 起）**：发布新版本/dist-tag 移动仅需 write（[npm 发布权限语义](integrations/npm.md#发布权限语义m8-起)） |
 | **控制台会话 + 跨站 Origin 的写请求** | 403（E-01，CSRF Origin 防线） | 同源页面操作即可；curl/CI **不受影响**（Basic/token 免疫） |
 | 非 admin 访问管理面（用户/组/权限/审计/GC/token/仓库列表） | 403 | 管理面恒为 admin-only；**组授予不能提权到 admin**（M4 有意设计） |
 | 全局关匿名后的匿名读 | 401 + 挑战头（内容路径）/ 403（个别面） | 提供凭据 |
@@ -119,7 +119,7 @@ curl -s -H "Authorization: Bearer <access_token>" $BASE/binflow/api/v1/storage/u
 
 ## 从 Artifactory 迁移对照表
 
-概念一一对应，术语不变：
+概念一一对应，术语不变；**逐任务的控制台操作路径对照**（建仓/建用户/配权限/找制品/Set Me Up/GC/备份……）见 [Artifactory → BinFlow 操作路径对照表](artifactory-path-map.md)：
 
 | Artifactory | BinFlow | 说明 |
 |---|---|---|
@@ -132,11 +132,12 @@ curl -s -H "Authorization: Bearer <access_token>" $BASE/binflow/api/v1/storage/u
 | `binflow_session` 控制台会话 | （本产品新增） | server-side session + CSRF Origin 校验；Artifactory 无对应面 |
 | System YAML / storage GC / backup | `binflow.yaml` / `POST /api/v1/system/gc` / `export`/`import` CLI | GC 语义（mark-sweep + grace=mtime）同构 |
 
-迁移注意事项（高频三问）：
+迁移注意事项（高频四问）：
 
 1. **「我的 404 为什么在 Artifactory 是 200？」**——先查 BinFlow 仓库的 `excludesPattern`（拦截下载与 miss 同文案）与 remote 仓负缓存/assumed-offline（`X-Binflow-Cache` / `X-Binflow-Upstream-Error` 响应头）。
 2. **「docker push 为什么报错别的协议都好？」**——docker 固定根级 `/v2`，前置反代必须原样直通（不能 rewrite 进 `/binflow`）；明文 HTTP 需配 daemon 的 insecure-registries。
 3. **「脚本 401 但浏览器正常？」**——浏览器是会话 cookie，脚本用 Basic/token；确认没有把控制台 cookie 混进 CI（cookie 过期不受你控制）。
+4. **「收藏夹里的 BinFlow 控制台旧路径失效了吗？（M8）」**——M8 路由重排后旧路径**自动重定向**到新路径（如 `/security/users` → `/admin/security/users`），书签仍可用；重定向是 M8 兼容窗口、**M9 计划移除**，完整映射表见[控制台指南 · 旧路径 → 新路径](console.md#旧路径--新路径m8-兼容窗口)。
 
 ## 排障信息收集
 
@@ -397,10 +398,10 @@ twine upload --repository binflow dist/*
 | 错误 | 原因 | 解决 |
 |---|---|---|
 | `permission denied`（制品上传） | 无 write 权限 | 找 admin 加 permission target |
-| 覆盖已有制品 403 | 覆盖 = 删除旧文件，需 delete 权限 | 加 delete 权限 |
+| 覆盖已有制品 403 | 覆盖 = 删除旧文件，需 delete 权限（npm 追加新版本例外，M8 起仅 write） | 加 delete 权限；npm 见[发布权限语义](integrations/npm.md#发布权限语义m8-起) |
 | 管理面 403（非 admin 用户） | 管理面恒为 admin-only | 组授予不能提权到 admin；换 admin 账号 |
 | 控制台 + 跨站 Origin 写 403 | CSRF Origin 防线 | 同源页面操作；curl/CI 不受影响 |
-| npm 同版本重复 publish 403 | `Cannot modify pre-existing version` | 升版本或先 unpublish |
+| npm 同版本重复 publish 403 | `Cannot modify pre-existing version` | 升版本或先 unpublish（连发新版本 M8 起仅需 write——若你的 CI 连发 403，实例为旧版，见[npm 接入](integrations/npm.md#发布权限语义m8-起)） |
 | 全局关匿名后的匿名读 | 403 或 401 + 挑战 | 提供凭据 |
 
 ### 404 不存在类
@@ -483,3 +484,5 @@ curl -s -D - -o /dev/null $BASE/binflow/<repo>/<path>
 1. **概念对齐**：仓库模型（local/remote/virtual）、权限模型（permission target × path × principal）、checksum 去重——概念一一对应，术语不变。
 2. **URL 映射**：`/artifactory/api/...` → `/binflow/api/...`；`/artifactory/<repo>/<path>` → `/binflow/<repo>/<path>`；docker 端 `/v2/` 地址不变。
 3. **差异复核**：见上文「M4 有意不兼容清单」与各协议指南的「有意不兼容」小节——404 的搜索端点、404 的 REST export/import、组无 admin 位是三件最高频的差异点。
+
+工具与实证：定义/用户/token 台账批量搬迁走 [bf-migrate](guides/migrate-artifactory.md)；真实 Artifactory OSS 源（7.84.10 + PostgreSQL）的整场迁移实录与差异清单见[附录 V28](admin/real-env-appendix.md#v28真实-artifactory-迁移实腿dep用户环境)。

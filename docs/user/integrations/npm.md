@@ -5,7 +5,7 @@ sidebar_position: 21
 
 # npm 接入
 
-> 适用版本：M3（publish/packument/dist-tags/unpublish/login + remote/virtual；PRD milestone-3 v1.2）。
+> 适用版本：M3（publish/packument/dist-tags/unpublish/login + remote/virtual；PRD milestone-3 v1.2）；**M8 起发布权限语义更新**（见「发布权限语义」节——npm CLI 连发多版本实测 npm 10.9.8 / node 22，T-249）。
 > 本文核心链在 M3 QA 基线（commit `0f86229`，T-74/T-76 验收产物）上复跑：`.npmrc`（registry 限定 `_auth` 形态）publish、缓存清空重装、whoami 均退出码 0（复跑记录见 `reports/agents/T-77.md`）；scoped/dist-tag/unpublish/remote 代理/virtual 聚合取自 T-74/T-76 验收记录。客户端锚定 npm 10.x（10.9.8 实测，node 22）。
 
 把 BinFlow 当作私有 npm registry：`.npmrc` 一处配置，`npm publish` 发内部包、`npm install` 装内部与上游包——registry 协议按 npm 官方规范实现，scoped 包、dist-tag、unpublish 开箱可用。
@@ -105,6 +105,21 @@ unpublish 内部的 `PUT .../-rev/<rev>` 步骤 BinFlow 恒回 `200 {"ok":"updat
 
 `npm login`（npm ≥ 9 需 legacy 形态）：`npm login --auth-type=legacy`，签发的 token 与管理面 token 同表可吊销；日常用 `.npmrc _auth`（Basic）等效。
 
+## 发布权限语义（M8 起）
+
+CI 账号的 permission target 该授什么？按操作分臂（T-249 转换感知判定，实测 npm 10.9.8）：
+
+| 操作 | 所需权限 | 说明 |
+|---|---|---|
+| 发布新版本（含包的第二个及以后版本） | **仅 `write`** | 追加新版本 / dist-tags 与 time 等文档级簿记变化 = 标准发布路径，走 write 臂——**无需 delete**（与 npmjs.org 语义对齐） |
+| `npm dist-tag add/rm`（版本数据不动） | **仅 `write`** | dist-tag 移动是簿记操作 |
+| 改既有版本数据：`npm deprecate`、篡改 manifest 字段、删除版本（`-rev` PUT 缩减 `versions`） | **需 `delete`**（无则 403） | 已发布版本数据的重写保持「覆写 = 删除」权限对 |
+| 重发同版本（tarball 已存在，内容无论改没改） | **无条件 403**（有 delete 也拒） | `Cannot modify pre-existing version '<v>'`——版本不可变 |
+
+**给 CI 发布仓配权的最短答案**：`read` + `write` 即可满足日常连发（`npm publish` 任意多版本 + dist-tag）；仅当流程需要 `npm deprecate` 或改写已发布版本元数据时才补 `delete`。
+
+> 历史注记：M8 之前包的第二个版本发布会误命中「覆写需 DELETE」臂（T-247 在真实 Jenkins 流水线发现）——M8 的 T-249 修复后按上表语义执行。若你的实例仍是旧版本，CI 退避方案是给 principal 补 `delete`（对制品不可变面无实际风险：tarball 层的同版本重发仍无条件 403）。
+
 ## remote / virtual 仓的用法
 
 - **remote 仓**（代理上游）：`.npmrc` 的 registry 指向 `$BASE/binflow/api/npm/npm-remote/`，packument 与 tarball 经 BinFlow 回源缓存；上游不回显、二次安装零上游流量。
@@ -139,6 +154,7 @@ unpublish 内部的 `PUT .../-rev/<rev>` 步骤 BinFlow 恒回 `200 {"ok":"updat
 |---|---|---|
 | `npm error Invalid auth configuration found: '_auth' must be renamed to ...` | 项目级 `.npmrc` 用了裸 `_auth` | 凭据行改 `//<host>/<路径>/:_auth` 限定形态（上文第 2 步） |
 | publish E403 `Cannot modify pre-existing version '1.0.0'` | 同版本已发布（不允许覆盖） | `npm version` 升版本后重发；或先 `npm unpublish` |
+| 连发第二个版本 E403（仅旧实例） | M8 之前的实例把 packument 追加误判为覆写（T-247 发现，T-249 修复） | 升级到 M8；过渡期给 CI principal 补 `delete` |
 | publish E400 `Conflict between integrity from metadata and tarball` | packument integrity 与 tarball 内容不符（BinFlow 强制校验） | 重新 `npm pack` 生成一致的元数据 |
 | install 报 404 / 装到了公网同名包 | 当前目录没有 `.npmrc`，registry 缺省走 npmjs | 每个项目目录都放 `.npmrc`（或写用户级） |
 | 401 `authentication required` | 匿名 publish，或全局关匿名后未配 `_auth` | 配置 `_auth` |

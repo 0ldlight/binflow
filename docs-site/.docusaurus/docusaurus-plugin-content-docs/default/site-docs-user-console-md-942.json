@@ -1,7 +1,7 @@
 {
   "id": "console",
   "title": "Web 控制台使用指南",
-  "description": "适用版本：M4（Web 控制台 + 会话认证；PRD milestone-4 v1.2、ADR-0014 勘误后、console-ux v1.2）。",
+  "description": "适用版本：M8（新信息架构：双模式壳 / 跨仓制品树 / 管理域五分组 / Set Me Up 与 Deploy 对话框族；设计规格 docs/design/console-m8.md）。",
   "source": "@site/../docs/user/console.md",
   "sourceDirName": ".",
   "slug": "/console",
@@ -21,7 +21,7 @@
     "permalink": "/binflow/docs/admin"
   },
   "next": {
-    "title": "remote / virtual 仓库管理",
-    "permalink": "/binflow/docs/admin/remote-virtual"
+    "title": "Artifactory → BinFlow 操作路径对照表",
+    "permalink": "/binflow/docs/artifactory-path-map"
   }
 }

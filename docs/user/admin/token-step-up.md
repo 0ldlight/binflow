@@ -171,7 +171,7 @@ curl -s -b $JAR -X POST $A/api/security/token \
 OIDC 用户**没有本地口令**，口令腿对其恒不可用。三条现实路径：
 
 1. **脚本驱动 re-auth 流**（上文 curl 全链的形态）：cookie jar 持有 OIDC session，脚本完成 IdP 表单 POST 拿 grant 后立即铸造——全程可自动化，实测可用。
-2. **浏览器完成 re-auth，取 fragment 里的 grant**：callback 落到 `/binflow/ui/#step_up_grant=<grant>`，从地址栏复制 grant 后**在同一浏览器会话**内完成铸造。注意控制台铸造页（读取 hash 自动续铸、二次密码框）尚未落地（Access Tokens 页现为占位）——落地前以本形态过渡。
+2. **浏览器完成 re-auth，取 fragment 里的 grant**：callback 落到 `/binflow/ui/#step_up_grant=<grant>`，从地址栏复制 grant 后**在同一浏览器会话**内完成铸造。M8 起控制台的 [Set Me Up 对话框](../console.md#set-me-up客户端接入向导)已是铸币位（本地/LDAP 腿的 step-up 口令重验已内联），但 **OIDC 腿的 grant 自动续铸尚未接入控制台**——SSO 用户仍以本形态过渡（浏览器取 grant + 同会话 curl/CLI 完成铸造）。
 3. **admin 代铸**：admin 可指名替目标用户签发（`grant_type=client_credentials&username=<目标>`，admin 臂免 step-up）——「给 SSO 同事发一枚 Token」的最短路径。
 
 ## 401 `step_up_invalid` 的全部场景
@@ -214,5 +214,6 @@ curl -su admin:<口令> "$BASE/binflow/api/v1/audit?action=token.issue&limit=6" 
 ## 下一步
 
 - Token 的日常使用与高 QPS 建议：[FAQ](../faq.md)
+- 控制台铸币位（Set Me Up 对话框的内联 step-up）：[Web 控制台使用指南](../console.md#set-me-up客户端接入向导)
 - 角色模型与 readonly_admin 边界：[RBAC 角色与仓库级管理员](rbac-roles.md)
 - OIDC / LDAP 配置全解：[OIDC 配置](../guides/oidc-config.md) · [LDAP 配置](../guides/ldap-config.md)

@@ -87,6 +87,8 @@ M7 的全部 P0/P1 验收**不以真实环境为前提**——容器等价腿已
 
 交叉引用：执行日志全文与七份迁移报告、等价腿对照表、清理保留清单见 `reports/agents/T-228-qa.md`；D-1 修复与矩阵证据见 `reports/agents/T-231.md`；B-1 收口见 `reports/agents/T-233.md`。
 
+迁移相关文档：概念与差异总览 [FAQ · 从 Artifactory 迁移](../faq.md#从-artifactory-迁移对照表)；逐任务操作路径 [Artifactory → BinFlow 操作路径对照表](../artifactory-path-map.md)；批量搬迁工具 [bf-migrate 指南](../guides/migrate-artifactory.md)；控制台全貌 [Web 控制台使用指南](../console.md)。
+
 ## 执行注记
 
 - 归档位置：本页 + `reports/agents/T-227.md`（或 T-228/T-228-qa.md）执行日志互链；BOARD/迭代报告登记执行状态（V30 口径：到位→证据链接；未到位→等价口径注记与延后去向）。

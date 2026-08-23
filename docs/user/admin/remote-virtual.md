@@ -189,7 +189,7 @@ M3 起 BinFlow 从「纯内网服务」变为**出网客户端**（架构规范 
 | virtual 高级治理（成员排除模式、per-user 视图） | 仅解析顺序 + 可选写路由 | M4 |
 | remote 缓存手动管理面（按路径 evict REST、缓存浏览） | 仅 `DELETE /binflow/<remote>/<path>`；stats REST P2 未提供 | M4 |
 | virtual DELETE 透传成员删除 | 405（防误删上游缓存；对成员仓直接操作） | M4 评估 |
-| 每协议 Web 控制台视图 | M3 无 UI | M4 |
+| 每协议 Web 控制台视图 | 树对五种 packageType 统一按路径呈现，docker 仓带 tag 徽标/摘要列（M8 跨仓树）；npm 包目录、pypi 归一名视图、maven metadata 只读面板仍为登记后续项（见[控制台指南](../console.md#制品树浏览器artifacts)） | 部分交付 |
 
 ## 常见报错码对照（跨域汇总，v1.2 定案码）
 

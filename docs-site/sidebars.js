@@ -46,6 +46,7 @@ const sidebars = {
       },
       items: [
         'console',
+        'artifactory-path-map', // M8 (T-245): Artifactory → BinFlow operation-path map.
         'admin/remote-virtual',
         'admin/groups-permissions',
         'admin/governance',
