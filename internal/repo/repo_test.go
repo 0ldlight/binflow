@@ -256,13 +256,21 @@ func TestRepoCRUDRequiresAdmin(t *testing.T) {
 			}
 		})
 		t.Run(tt.name+" / non-admin", func(t *testing.T) {
-			// Reads (get/list) only demand authentication and succeed for
-			// any authenticated principal; the mutating calls demand admin.
+			// T-217 (FR-65, ADR-0026 decision 3 / architecture section 7.1):
+			// the service no longer re-checks admin on the create/update use
+			// cases — httpapi owns those doors (family 6's CapRepoWrite
+			// create-arm branch and family 7's repoManage write gate, which
+			// manage holders pass through Can(repo, "", m)); the REST-level
+			// m-holder pins live in internal/httpapi (t215/t217 suites). A
+			// DIRECT service call by any authenticated principal therefore
+			// succeeds for create/update. Reads only ever demanded
+			// authentication. DeleteRepo KEEPS its service-level admin door
+			// (family 6's destructive extreme is never delegated).
 			err := tt.call(alice())
 			switch tt.name {
-			case "get", "list":
+			case "get", "list", "create", "update":
 				if err != nil {
-					t.Fatalf("authenticated read error = %v", err)
+					t.Fatalf("authenticated %s error = %v (the httpapi gate owns the authorization)", tt.name, err)
 				}
 			default:
 				if !errors.Is(err, repo.ErrForbidden) {

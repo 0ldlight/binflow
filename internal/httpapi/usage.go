@@ -11,11 +11,14 @@ import (
 //
 // usedBytes is the same logical-byte total the quota gate enforces against
 // (repo_usage, maintained same-transaction with node writes); quotaBytes is
-// the configured ceiling, 0 meaning unlimited. Access is "admin OR an
-// authenticated principal holding a read grant on the repository" — the
-// route demands authentication, the service use case owns the admin-or-read
-// decision so the denial renders 403 (not a 401 challenge) for an
-// authenticated non-reader.
+// the configured ceiling, 0 meaning unlimited. Access is the family-7 OR
+// formula (architecture section 7.1, K11; T-217 added the second arm):
+// CanManageRepo(read) ∨ Can(r) — admin and readonly_admin pass through the
+// role's global read, a plain user passes with a read grant OR the manage
+// bit on the repository (a repo admin who may set quotaBytes may not be
+// blind to the usage). The route demands authentication; the service use
+// case owns the OR decision so the denial renders 403 (not a 401 challenge)
+// for an authenticated non-reader.
 
 // usageBody is the GE-06 response shape; the field spellings are the PRD's
 // ({repo, usedBytes, quotaBytes}).

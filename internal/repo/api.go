@@ -158,11 +158,15 @@ var reservedRepoKeys = map[string]bool{
 }
 
 // Authorization actions (architecture section 3.4). Aliased from auth so
-// repo and auth can never drift apart on the action vocabulary.
+// repo and auth can never drift apart on the action vocabulary. ActionManage
+// (M7, ADR-0026) is the repo-scoped admin bit: it never participates in
+// content writes — the content plane keeps consuming r/w/d only — and its
+// consumer here is the Usage observability gate's OR arm (family 7, T-217).
 const (
 	ActionRead   = auth.ActionRead
 	ActionWrite  = auth.ActionWrite
 	ActionDelete = auth.ActionDelete
+	ActionManage = auth.ActionManage
 )
 
 // Audit actions emitted by this package (architecture section 3.5),
@@ -330,7 +334,10 @@ type Service interface {
 	List(ctx context.Context, p *Principal, repoKey, prefix string) ([]*metadata.Node, error)
 
 	// CreateRepo validates and persists a new repository configuration.
-	// Admin only in M1 (repository management is an admin-plane operation).
+	// Authentication is demanded here; the AUTHORIZATION door is the caller's
+	// (T-217/FR-65: httpapi's family-6 create-arm CapRepoWrite branch —
+	// repository creation is not delegated to manage holders). Direct
+	// callers must gate themselves.
 	CreateRepo(ctx context.Context, p *Principal, r *metadata.Repo) (*metadata.Repo, error)
 	// GetRepo returns one repository configuration (any authenticated
 	// principal).
@@ -345,22 +352,28 @@ type Service interface {
 	// error"), the semantics M1's E-04 already promised.
 	ListReposFiltered(ctx context.Context, p *Principal, repoType, packageType string) ([]*metadata.Repo, error)
 	// UpdateRepo updates description/config; type and package type are
-	// immutable. Admin only.
+	// immutable. Authentication is demanded here; the AUTHORIZATION door is
+	// the caller's (T-217/FR-65: httpapi's family-7 repoManage write gate,
+	// which manage holders pass through Can(repo, "", m)). Direct callers
+	// must gate themselves.
 	UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo) (*metadata.Repo, error)
 	// DeleteRepo removes the repository. Non-empty repositories require
 	// deleteContent=true (ErrRepoNotEmpty names the flag otherwise); with it,
-	// every node is removed first. Admin only.
+	// every node is removed first. Admin only — this method KEEPS the
+	// service-level admin door (family 6: deletion is never delegated to
+	// manage holders, T-217).
 	DeleteRepo(ctx context.Context, p *Principal, repoKey string, deleteContent bool) error
 
 	// Usage reports one repository's quota observability state (GE-06/W26b,
 	// FR-31): UsedBytes is the repo_usage logical total (the same number the
 	// quota gate enforces against), QuotaBytes the configured ceiling (0 =
-	// unlimited, the default). Admin principals and authenticated principals
-	// holding a read grant on the repository pass; everyone else answers
-	// ErrForbidden (ErrUnauthorized anonymous). Works for every repository
-	// class: a remote answers its (unmetered, Q2) counter state — typically
-	// the 005 migration snapshot — and a virtual zero, since virtual writes
-	// route onto a local member and are metered there.
+	// unlimited, the default). The gate is the family-7 OR formula
+	// (T-217/K11): a read grant OR the manage bit on the repository, with
+	// admin/readonly_admin passing through the role's global read; everyone
+	// else answers ErrForbidden (ErrUnauthorized anonymous). Works for every
+	// repository class: a remote answers its (unmetered, Q2) counter state —
+	// typically the 005 migration snapshot — and a virtual zero, since
+	// virtual writes route onto a local member and are metered there.
 	Usage(ctx context.Context, p *Principal, repoKey string) (*UsageReport, error)
 
 	// ---- Adapter SPI face (architecture section 5.4) ----

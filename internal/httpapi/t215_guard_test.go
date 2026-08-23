@@ -18,12 +18,16 @@ import (
 )
 
 // t215RouteGates is the migration's full extent (architecture section 7.1
-// [M7] inventory, T-214 final): 26 global capability gates plus 4
-// single-repo manage gates, over the 30 routes that carried admin:true.
-// Editing this constant is a deliberate route-gate change — update the
-// inventory table with it.
+// [M7] inventory, T-214 final): 24 global capability gates plus 4
+// single-repo manage gates. T-215 left 26 + 4; T-217 (FR-65, the family-4
+// exception the same inventory table documents) moved the two
+// permission-write routes' gate into their handlers — the OR of
+// CapSecurityWrite with the m-holder coverage arm is body-dependent, so the
+// route literals carry only required:true and the regex below no longer
+// sees them. Editing this constant is a deliberate route-gate change —
+// update the inventory table with it.
 const (
-	t215ManageGates    = 26
+	t215ManageGates    = 24
 	t215RepoManageBits = 4
 )
 

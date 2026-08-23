@@ -115,9 +115,9 @@ test-m7-resume-sigterm:
 	scripts/m7-resume-probe.sh --stop sigterm
 
 ## test-m7-rbac-matrix: FR-64 role x endpoint status matrix on a throwaway
-## instance (roles admin/user run; read-only-admin SKIPs until T-215 wires
-## the role field). Observational by default — pass EXPECT=1 for the PRD M7
-## target-table verdict (exit 1 on deviations; flip on after T-215).
+## instance (admin/user/readonly_admin columns all run — the adminRole wire
+## landed with T-215). Observational by default — pass EXPECT=1 for the PRD
+## M7 target-table verdict (exit 1 on deviations).
 test-m7-rbac-matrix:
 	scripts/m7-rbac-matrix.sh $(if $(EXPECT),--expect)
 

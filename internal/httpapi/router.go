@@ -289,10 +289,13 @@ func withRootPrincipal(r *http.Request, p *auth.Principal) *http.Request {
 // /binflow/api/** demands authentication, and the operations beyond
 // self-service demand a closed-set capability (auth.CanManage) or the
 // single-repo manage gate (auth.CanManageRepo) — see the section 7.1
-// inventory. Where the write is additionally destructive, the terminal
-// handler still re-checks (repo.Service's requireAdmin, the GC and
-// replication create/delete guards) — the route gate alone would let any
-// gate-passing principal through a later route edit.
+// inventory. Two families carry their gate deeper than the route literal:
+// the permission writes (family 4's exception — the OR of CapSecurityWrite
+// with the m-holder coverage arm is body-dependent, permissions.go owns it)
+// and the repository create arm (family 6 splits inside handleRepoPut,
+// which knows whether the key exists). Where the write is additionally
+// destructive the service layer still re-checks (repo.Service's DeleteRepo
+// admin door, the GC and replication create/delete guards).
 func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string) {
 	switch {
 	case rest == "system/ping" && r.Method == http.MethodGet:
@@ -409,17 +412,23 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		s.enforce(w, r, routeAuth{required: true}, s.handleSessionDelete)
 
 	// ---- /api/v1/permissions (E-24; security plane) ----
-	// Write verbs sit on security:write; FR-65/T-217 will add the m-holder
-	// coverage arm inside the handlers (CapSecurityWrite ∨ target.repos ⊆
-	// the caller's manage coverage). The read verb is security:read —
-	// readonly_admin sees the grant map, a plain user does not (the targets
-	// enumerate principals and their action distribution).
+	// The read verb is security:read — readonly_admin sees the grant map, a
+	// plain user does not (the targets enumerate principals and their action
+	// distribution).
+	//
+	// The WRITE verbs carry the section 7.1 family-4 EXCEPTION (T-217,
+	// ADR-0026 decision 3 / FR-65): the gate is the body-dependent OR
+	// "CapSecurityWrite ∨ target.repos ⊆ the caller's manage coverage",
+	// evaluated inside the handlers (permissions.go) — the route therefore
+	// demands only authentication, and the capability check moved there with
+	// the coverage arm. Manage holders edit exactly the targets inside their
+	// coverage; everyone else keeps the 403.
 	case rest == "v1/permissions" && r.Method == http.MethodPost:
-		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite}, s.handlePermissionCreate)
+		s.enforce(w, r, routeAuth{required: true}, s.handlePermissionCreate)
 	case rest == "v1/permissions" && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityRead}, s.handlePermissionList)
 	case strings.HasPrefix(rest, "v1/permissions/") && r.Method == http.MethodDelete:
-		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite},
+		s.enforce(w, r, routeAuth{required: true},
 			s.withName(rest, "v1/permissions/", s.handlePermissionDelete))
 
 	// ---- /api/repositories (E-04..E-08) ----

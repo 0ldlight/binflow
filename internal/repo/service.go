@@ -90,7 +90,13 @@ func requireAuthenticated(p *Principal) error {
 	return nil
 }
 
-// requireAdmin gates admin-plane operations (repository CRUD in M1).
+// requireAdmin gates the admin-plane operations that keep a service-level
+// backstop after T-217 (FR-65/ADR-0026 decision 3): CreateRepo and UpdateRepo
+// now trust the httpapi management gates (family 6's CapRepoWrite branch and
+// family 7's repoManage write gate respectively — the m action reaches those
+// routes by design), while DeleteRepo keeps this second door: repository
+// deletion is the destructive extreme of family 6, stays global-admin-only,
+// and no behavior depends on relaxing it.
 func requireAdmin(p *Principal) error {
 	if err := requireAuthenticated(p); err != nil {
 		return err
@@ -1656,7 +1662,15 @@ func (s *service) DeleteRepoDocker(ctx context.Context, repoKey string) (int64, 
 // order). Every validation runs BEFORE the first write so a refused create
 // leaves no partial state.
 func (s *service) CreateRepo(ctx context.Context, p *Principal, r *metadata.Repo) (*metadata.Repo, error) {
-	if err := requireAdmin(p); err != nil {
+	// T-217 (FR-65, ADR-0026 decision 3 / architecture section 7.1 family 6):
+	// repository creation is NOT delegated to manage holders, and the httpapi
+	// create-arm branch (handleRepoPut's CapRepoWrite check) is the ONLY gate
+	// on it — the pre-M7 service backstop was relaxed so the two doors cannot
+	// drift apart. The discriminating pin is t215_create_arm_gate_test.go:
+	// a manage holder whose ghost target lists the key being created must be
+	// refused by THAT branch, not here. Authentication itself is still
+	// non-negotiable (ADR-0009: writes are never anonymous).
+	if err := requireAuthenticated(p); err != nil {
 		return nil, err
 	}
 	if r == nil {
@@ -1892,7 +1906,13 @@ func (s *service) ListReposFiltered(ctx context.Context, p *Principal, repoType,
 // config keeps it, so description-only updates never touch members or
 // credentials.
 func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo) (*metadata.Repo, error) {
-	if err := requireAdmin(p); err != nil {
+	// T-217 (FR-65, ADR-0026 decision 3 / architecture section 7.1 family 7):
+	// the single-repo configuration family's gate lives in httpapi — the
+	// repoManage write route gate, which a manage holder passes through
+	// Can(repo, "", m). The pre-M7 admin re-check here would veto exactly the
+	// delegation that gate implements, so the service trusts it (authentication
+	// is still demanded; ADR-0009).
+	if err := requireAuthenticated(p); err != nil {
 		return nil, err
 	}
 	if r == nil {
@@ -2055,6 +2075,11 @@ func (s *service) sealPassword(ctx context.Context, repoKey, password string) st
 // additionally count their manifest index as content and tear the three
 // docker tables down before the row goes (FR-7-AC5).
 func (s *service) DeleteRepo(ctx context.Context, p *Principal, repoKey string, deleteContent bool) error {
+	// Family 6's other half stays double-doored ON PURPOSE (T-217): the route
+	// gate is CapRepoWrite (admin-only, not delegated to m holders), and this
+	// service-level backstop survives for the destructive extreme — every
+	// production caller reaches DeleteRepo only through the gated httpapi
+	// handler, so the second door is unobservable, pure defense in depth.
 	if err := requireAdmin(p); err != nil {
 		return err
 	}
@@ -2162,9 +2187,13 @@ func (s *service) DeleteRepo(ctx context.Context, p *Principal, repoKey string, 
 
 // Usage implements Service.Usage (GE-06/W26b, FR-31): the repository's
 // metered total against its configured ceiling, for the observability
-// endpoint /api/v1/storage/usage/{repo}. The read gate is "admin or a read
-// grant on the repository" (PRD GE-06): repository volume is operational
-// data, but a reader of the repository may see how much of it there is.
+// endpoint /api/v1/storage/usage/{repo}. The gate is the family-7 OR formula
+// (architecture section 7.1, K11/T-214 P9): CanManageRepo(read) ∨ Can(r) —
+// admin and readonly_admin pass through their role arms (the global read),
+// a plain user passes with either a read grant OR the manage bit on the
+// repository (a repo admin who may set quotaBytes may not be blind to the
+// usage; before T-217 the manage arm was unreachable because no REST seam
+// granted m). A principal with neither answers ErrForbidden.
 func (s *service) Usage(ctx context.Context, p *Principal, repoKey string) (*UsageReport, error) {
 	if err := requireAuthenticated(p); err != nil {
 		return nil, err
@@ -2173,7 +2202,7 @@ func (s *service) Usage(ctx context.Context, p *Principal, repoKey string) (*Usa
 	if err != nil {
 		return nil, err
 	}
-	if !s.allow(ctx, p, repoKey, "", ActionRead) {
+	if !s.allow(ctx, p, repoKey, "", ActionRead) && !s.allow(ctx, p, repoKey, "", ActionManage) {
 		return nil, fmt.Errorf("read %s: %w", repoKey, ErrForbidden)
 	}
 	u, err := s.md.Usage().Get(ctx, repoKey)

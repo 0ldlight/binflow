@@ -825,7 +825,11 @@ func TestPermissionsCRUD(t *testing.T) {
 			{"missing repos", `{"name":"x1"}`, http.StatusBadRequest},
 			{"unknown repo", `{"name":"x2","repos":["ghost"]}`, http.StatusBadRequest},
 			{"unknown user", `{"name":"x3","repos":["generic-local"],"principals":{"users":{"ghost":["read"]}}}`, http.StatusBadRequest},
-			{"unknown action", `{"name":"x4","repos":["generic-local"],"principals":{"users":{"ci-bot":["manage"]}}}`, http.StatusBadRequest},
+			// "manage" left this ladder with T-217 (PRD M7 section 5.6
+			// reversal table: the action set gains manage); the genuinely
+			// unknown spellings keep refusing — annotate is the spec's
+			// next action word and deliberately NOT followed.
+			{"unknown action", `{"name":"x4","repos":["generic-local"],"principals":{"users":{"ci-bot":["annotate"]}}}`, http.StatusBadRequest},
 		} {
 			resp := h.do(http.MethodPost, "/binflow/api/v1/permissions", adminUser, adminPass,
 				[]byte(tc.body), map[string]string{"Content-Type": "application/json"})
