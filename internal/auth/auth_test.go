@@ -322,16 +322,6 @@ func (m *authenticatorMockOIDCProvider) addResolvedUser(providerID string, u aut
 	m.resolved[providerID] = u
 }
 
-// mockUserCreator captures the last user passed to Create and returns success.
-type authenticatorMockUserCreator struct {
-	created []auth.NewUserParams
-}
-
-func (m *authenticatorMockUserCreator) Create(ctx context.Context, params auth.NewUserParams) error {
-	m.created = append(m.created, params)
-	return nil
-}
-
 // TestAuthenticateOIDCValidToken: a valid OIDC ID Token is accepted and
 // produces the correct Principal with Source=oidc.
 func TestAuthenticateOIDCValidToken(t *testing.T) {
@@ -529,7 +519,7 @@ type simpleUserCreator struct {
 	created []auth.NewUserParams
 }
 
-func (c *simpleUserCreator) Create(ctx context.Context, params auth.NewUserParams) error {
+func (c *simpleUserCreator) Create(_ context.Context, params auth.NewUserParams) error {
 	c.created = append(c.created, params)
 	return nil
 }

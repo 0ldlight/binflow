@@ -9,11 +9,12 @@ import (
 )
 
 // mockOIDCProvider implements auth.IdentityProvider for testing the OIDC
-// Bearer arm. It validates tokens against a hard-coded set of valid tokens
-// and returns the corresponding claims.
+// Bearer arm's empty-map behavior (unknown token, unresolved providerID).
+// Tests that need a populated provider use authenticatorMockOIDCProvider
+// (auth_test.go), which is the same shape with live setters.
 type mockOIDCProvider struct {
-	tokens     map[string]*auth.Claims // valid token -> claims
-	resolved   map[string]auth.ProviderUser // providerID -> existing user
+	tokens   map[string]*auth.Claims      // valid token -> claims
+	resolved map[string]auth.ProviderUser // providerID -> existing user
 }
 
 func newMockOIDCProvider() *mockOIDCProvider {
@@ -46,14 +47,6 @@ func (m *mockOIDCProvider) Resolve(_ context.Context, provider auth.Provider, pr
 		IsAdmin:  u.IsAdmin,
 		Enabled:  u.Enabled,
 	}, nil
-}
-
-func (m *mockOIDCProvider) addValidToken(token string, claims *auth.Claims) {
-	m.tokens[token] = claims
-}
-
-func (m *mockOIDCProvider) addResolvedUser(providerID string, u auth.ProviderUser) {
-	m.resolved[providerID] = u
 }
 
 func TestIdentityProviderInterface(t *testing.T) {

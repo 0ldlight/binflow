@@ -9,6 +9,8 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -39,9 +41,9 @@ func newStepUpFixture(t *testing.T, wireLDAP bool) *stepUpFixture {
 	t.Cleanup(func() { _ = st.Close() })
 
 	// local row WITH a password, ldap row (empty hash, DN-bound), oidc row.
-	makeUser(t, ctx, st.Users(), "loc", "loc-pw", false, "local", "")
-	makeUser(t, ctx, st.Users(), "jdoe", "", false, "ldap", "uid=jdoe,dc=example,dc=com")
-	makeUser(t, ctx, st.Users(), "ssouser", "", false, "oidc", "oidc-sub-1")
+	makeUser(ctx, t, st.Users(), "loc", "loc-pw", false, "local", "")
+	makeUser(ctx, t, st.Users(), "jdoe", "", false, "ldap", "uid=jdoe,dc=example,dc=com")
+	makeUser(ctx, t, st.Users(), "ssouser", "", false, "oidc", "oidc-sub-1")
 
 	svc := auth.NewFromStore(st, false)
 	if wireLDAP {
@@ -215,5 +217,51 @@ func TestStepUpLedgerSharedAcrossWithClones(t *testing.T) {
 	}
 	if !f.svc.ConsumeStepUpGrant(grant, "ssouser", "sess") {
 		t.Error("grant issued via a clone was not consumable via the original service")
+	}
+}
+
+// TestStepUpGrantConcurrentDoubleSubmitBurn pins the T-219 review handoff ②
+// (independently probe-verified there, made permanent by T-220): 64 racing
+// goroutines each submit the SAME grant twice — a double-click storm against
+// the mint endpoint — and across all 128 settle attempts exactly ONE wins.
+// Single-use must hold under concurrency, not just sequentially: the
+// consume-and-burn has to be one locked transaction (a check-then-delete
+// split would let two racers both see the live row and both mint).
+func TestStepUpGrantConcurrentDoubleSubmitBurn(t *testing.T) {
+	f := newStepUpFixture(t, false)
+	const (
+		user    = "ssouser"
+		session = "sess-storm"
+		racers  = 64
+	)
+	grant, err := f.svc.IssueStepUpGrant(f.ctx, user, session, 5*time.Minute)
+	if err != nil {
+		t.Fatalf("IssueStepUpGrant: %v", err)
+	}
+
+	var wins atomic.Int64
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := 0; i < racers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start // maximize the collision window
+			for attempt := 0; attempt < 2; attempt++ {
+				if f.svc.ConsumeStepUpGrant(grant, user, session) {
+					wins.Add(1)
+				}
+			}
+		}()
+	}
+	close(start)
+	wg.Wait()
+
+	if got := wins.Load(); got != 1 {
+		t.Fatalf("%d racing double-submits produced %d accepted consumptions, want exactly 1", racers, got)
+	}
+	// And after the storm the grant stays dead — a latecomer gets nothing.
+	if f.svc.ConsumeStepUpGrant(grant, user, session) {
+		t.Error("grant accepted after the concurrent burn; single-use must survive the race")
 	}
 }

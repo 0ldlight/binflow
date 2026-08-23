@@ -18,7 +18,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -330,39 +329,8 @@ func GeneratePKCEPair() (verifier, challenge string, err error) {
 	return verifier, challenge, nil
 }
 
-// ------ JSON helpers for raw claims ------
-
-// oidcClaims is a holder for structured claims from the ID Token. It is used
-// inside Authenticate to map standard and custom claims.
-type oidcClaims struct {
-	Subject        string   `json:"sub"`
-	PreferredName  string   `json:"preferred_username"`
-	Name           string   `json:"name"`
-	Email          string   `json:"email"`
-	EmailVerified  *bool    `json:"email_verified,omitempty"`
-	Groups         []string `json:"groups"`
-	RealmAccess    *realmAccess
-	ResourceAccess map[string]resourceAccess `json:"resource_access,omitempty"`
-}
-
-type realmAccess struct {
-	Roles []string `json:"roles"`
-}
-
-type resourceAccess struct {
-	Roles []string `json:"roles"`
-}
-
-// unmarshalClaims decodes the raw claims JSON from an ID Token into a map and
-// also into the structured oidcClaims type. It is exported for tests.
-func unmarshalClaims(raw []byte) (map[string]any, *oidcClaims, error) {
-	var rawMap map[string]any
-	if err := json.Unmarshal(raw, &rawMap); err != nil {
-		return nil, nil, fmt.Errorf("auth: oidc claims json: %w", err)
-	}
-	var structured oidcClaims
-	if err := json.Unmarshal(raw, &structured); err != nil {
-		return rawMap, nil, fmt.Errorf("auth: oidc structured claims: %w", err)
-	}
-	return rawMap, &structured, nil
-}
+// There is deliberately no structured claims type here: Authenticate maps
+// claims through the configured user_claim/group_claim keys over the raw
+// JSON map (extractClaim/extractGroups), so a Keycloak-shaped struct with
+// realm_access/resource_access holders had nothing to bind to and was
+// removed (T-220 dead-scaffolding cleanup).

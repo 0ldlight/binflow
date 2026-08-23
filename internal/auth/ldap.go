@@ -187,22 +187,27 @@ type LDAPConn interface {
 // LDAPConnWrapper wraps a real *ldap.Conn to satisfy LDAPConn.
 type LDAPConnWrapper struct{ conn *ldap.Conn }
 
+// Bind authenticates the connection against the directory (see *ldap.Conn.Bind).
 func (w *LDAPConnWrapper) Bind(username, password string) error {
 	return w.conn.Bind(username, password)
 }
 
+// Search performs a directory search (see *ldap.Conn.Search).
 func (w *LDAPConnWrapper) Search(searchRequest *ldap.SearchRequest) (*ldap.SearchResult, error) {
 	return w.conn.Search(searchRequest)
 }
 
+// StartTLS upgrades the plaintext connection to TLS (see *ldap.Conn.StartTLS).
 func (w *LDAPConnWrapper) StartTLS(config *tls.Config) error {
 	return w.conn.StartTLS(config)
 }
 
+// Close tears the connection down (see *ldap.Conn.Close).
 func (w *LDAPConnWrapper) Close() error {
 	return w.conn.Close()
 }
 
+// SetTimeout applies the per-operation timeout (see *ldap.Conn.SetTimeout).
 func (w *LDAPConnWrapper) SetTimeout(timeout time.Duration) {
 	w.conn.SetTimeout(timeout)
 }
@@ -217,7 +222,7 @@ type LDAPDialer func(ctx context.Context, urlStr string, opts ...ldap.DialOpt) (
 // else wraps ErrProviderUnreachable — the login path folds them into
 // provider_error / tls_handshake audit reasons while the caller still sees
 // the uniform 401.
-func defaultDialer(ctx context.Context, urlStr string, opts ...ldap.DialOpt) (LDAPConn, error) {
+func defaultDialer(_ context.Context, urlStr string, opts ...ldap.DialOpt) (LDAPConn, error) {
 	conn, err := ldap.DialURL(urlStr, opts...)
 	if err != nil {
 		// Two %w verbs: the sentinel carries the classification, the
@@ -462,7 +467,7 @@ func (p *LDAPProvider) ProviderName() Provider { return ProviderLDAP }
 // Authenticate always returns ErrInvalidCredentials because LDAP does not
 // support Bearer token authentication (ADR-0020). LDAP authentication happens
 // only at the login endpoint via the Bind method.
-func (p *LDAPProvider) Authenticate(ctx context.Context, token string) (*Claims, error) {
+func (p *LDAPProvider) Authenticate(_ context.Context, _ string) (*Claims, error) {
 	return nil, fmt.Errorf("auth: ldap does not support bearer tokens: %w", ErrInvalidCredentials)
 }
 
@@ -537,25 +542,27 @@ func (p *LDAPProvider) Bind(ctx context.Context, username, password string) (*Cl
 	// Step 3: Determine the user ID attribute value from the search result.
 	// If we performed a search (BindDN mode), we already have the user entry.
 	// If we used direct DN construction, we search again bound as the user.
-	userID := p.extractUserID(conn, username, userDN)
+	userID := p.extractUserID(conn, username)
 
-	// Step 4: Search for group memberships.
+	// Step 4: Search for group memberships. A failure here is non-fatal: the
+	// user identity returns without group memberships, and the role check
+	// below runs against the empty group list.
 	var groups []string
 	if p.config.GroupFilter != "" {
 		groups, err = p.searchGroups(conn, username, userDN)
 		if err != nil {
-			// Group search failure is non-fatal: return the user identity
-			// without group memberships. The admin flag check below still
-			// runs against the empty group list.
+			slog.Debug("auth: ldap group search failed; continuing without groups",
+				slog.String("user", username),
+				slog.String("error", err.Error()))
 		}
 	}
 
 	// Step 5: Determine the group-inferred role (ADR-0026 decision 6):
 	// admin_group membership > readonly_group membership > user.
 	role := RoleUser
-	if p.config.AdminGroup != "" && p.isGroupMember(conn, userDN, groups, p.config.AdminGroup) {
+	if p.config.AdminGroup != "" && p.isGroupMember(conn, groups, p.config.AdminGroup) {
 		role = RoleAdmin
-	} else if p.config.ReadOnlyGroup != "" && p.isGroupMember(conn, userDN, groups, p.config.ReadOnlyGroup) {
+	} else if p.config.ReadOnlyGroup != "" && p.isGroupMember(conn, groups, p.config.ReadOnlyGroup) {
 		role = RoleReadOnlyAdmin
 	}
 
@@ -618,7 +625,7 @@ func (p *LDAPProvider) resolveUserDN(conn LDAPConn, username string) (string, er
 // extractUserID returns the value of the configured UserIDAttr from the user
 // entry. When BindDN is not configured, the user is already bound so we search
 // for the user entry to get the attribute value.
-func (p *LDAPProvider) extractUserID(conn LDAPConn, username, userDN string) string {
+func (p *LDAPProvider) extractUserID(conn LDAPConn, username string) string {
 	// If BindDN was used, we already searched for the user entry during
 	// resolveUserDN. However, we need to search again because the connection
 	// was rebound as the user. We search for the user by DN to get the
@@ -689,7 +696,7 @@ func (p *LDAPProvider) searchGroups(conn LDAPConn, username, userDN string) ([]s
 // generalized admin-group check, reused for the readonly group by T-212). It
 // first checks the groups list from the group search; if not found there, it
 // performs a direct check against the group DN.
-func (p *LDAPProvider) isGroupMember(conn LDAPConn, userDN string, groups []string, group string) bool {
+func (p *LDAPProvider) isGroupMember(conn LDAPConn, groups []string, group string) bool {
 	// Check if the group appears in the already-resolved group names.
 	for _, g := range groups {
 		if g == group || strings.EqualFold(g, group) {

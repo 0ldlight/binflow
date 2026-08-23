@@ -169,9 +169,17 @@ func TestSessionRejections(t *testing.T) {
 // TestSessionTTLAbsoluteCapWins: the sliding heartbeat can never extend a
 // session past created_at + TTL (ADR-0014 decision 2, erratum 3). A session
 // used shortly before its cap still dies at the cap.
+//
+// Timing margins (T-220 de-flake): the mid-life heartbeat must land inside
+// the TTL window, and under load the fixture setup plus the sleep can burn
+// most of a short window (observed ~2/20 red at ttl=1200ms, where the
+// heartbeat only had ~900ms of margin). The TTL is therefore wide (5s) and
+// the heartbeat runs 100ms in, leaving ~4.9s of margin; the past-cap leg
+// sleeps ttl+slack from AFTER the heartbeat, so it can only land beyond the
+// cap. The assertion intent is unchanged.
 func TestSessionTTLAbsoluteCapWins(t *testing.T) {
 	f := newFixture(t, true)
-	ttl := 1200 * time.Millisecond
+	ttl := 5 * time.Second
 	sess, err := f.svc.IssueSession(f.ctx, "ci-bot", ttl)
 	if err != nil {
 		t.Fatalf("IssueSession: %v", err)
@@ -180,7 +188,7 @@ func TestSessionTTLAbsoluteCapWins(t *testing.T) {
 	// Heartbeat well inside the window: the request succeeds and records
 	// last_used (throttled to one write per minute, so this row's stamp is
 	// the issuance stamp — the authenticate leg still proves liveness).
-	time.Sleep(300 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	if _, err := f.svc.Authenticate(f.ctx, sessionReq(sess.ID)); err != nil {
 		t.Fatalf("mid-life Authenticate: %v", err)
 	}
@@ -194,7 +202,7 @@ func TestSessionTTLAbsoluteCapWins(t *testing.T) {
 
 	// Past the absolute cap the session is dead even though the idle window
 	// (last_used + ttl) would still be open — the cap dominates.
-	time.Sleep(ttl)
+	time.Sleep(ttl + 600*time.Millisecond)
 	if _, err := f.svc.Authenticate(f.ctx, sessionReq(sess.ID)); !errors.Is(err, auth.ErrInvalidCredentials) {
 		t.Fatalf("past-cap Authenticate: %v, want invalid credentials", err)
 	}

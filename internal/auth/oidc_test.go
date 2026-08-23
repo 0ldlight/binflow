@@ -59,33 +59,42 @@ func newMockOIDCServer(t *testing.T) *mockOIDCServer {
 func (m *mockOIDCServer) Close() { m.srv.Close() }
 
 func (m *mockOIDCServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	switch {
-	case r.URL.Path == "/.well-known/openid-configuration":
+	switch r.URL.Path {
+	case "/.well-known/openid-configuration":
 		m.serveDiscovery(w, r)
-	case r.URL.Path == "/keys":
+	case "/keys":
 		m.serveKeys(w, r)
-	case r.URL.Path == "/token":
+	case "/token":
 		m.serveToken(w, r)
 	default:
 		http.Error(w, "not found", http.StatusNotFound)
 	}
 }
 
-func (m *mockOIDCServer) serveDiscovery(w http.ResponseWriter, r *http.Request) {
-	disc := map[string]any{
-		"issuer":                                 m.issuer,
-		"authorization_endpoint":                 m.issuer + "/auth",
-		"token_endpoint":                         m.issuer + "/token",
-		"jwks_uri":                               m.issuer + "/keys",
-		"response_types_supported":               []string{"code"},
-		"subject_types_supported":                []string{"public"},
-		"id_token_signing_alg_values_supported":  []string{"RS256"},
+// writeJSON encodes v into w; a mock-server write failure is a broken test
+// fixture, so it panics loudly instead of failing every downstream assertion
+// with a confusing decode error.
+func writeJSON(w http.ResponseWriter, v any) {
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		panic("oidc mock: encode response: " + err.Error())
 	}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(disc)
 }
 
-func (m *mockOIDCServer) serveKeys(w http.ResponseWriter, r *http.Request) {
+func (m *mockOIDCServer) serveDiscovery(w http.ResponseWriter, _ *http.Request) {
+	disc := map[string]any{
+		"issuer":                                m.issuer,
+		"authorization_endpoint":                m.issuer + "/auth",
+		"token_endpoint":                        m.issuer + "/token",
+		"jwks_uri":                              m.issuer + "/keys",
+		"response_types_supported":              []string{"code"},
+		"subject_types_supported":               []string{"public"},
+		"id_token_signing_alg_values_supported": []string{"RS256"},
+	}
+	w.Header().Set("Content-Type", "application/json")
+	writeJSON(w, disc)
+}
+
+func (m *mockOIDCServer) serveKeys(w http.ResponseWriter, _ *http.Request) {
 	set := &jose.JSONWebKeySet{
 		Keys: []jose.JSONWebKey{
 			{
@@ -97,7 +106,7 @@ func (m *mockOIDCServer) serveKeys(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(set)
+	writeJSON(w, set)
 }
 
 func (m *mockOIDCServer) serveToken(w http.ResponseWriter, r *http.Request) {
@@ -109,7 +118,7 @@ func (m *mockOIDCServer) serveToken(w http.ResponseWriter, r *http.Request) {
 	if m.tokenErrorCode != "" {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{
+		writeJSON(w, map[string]string{
 			"error":             m.tokenErrorCode,
 			"error_description": "mock token error",
 		})
@@ -124,13 +133,13 @@ func (m *mockOIDCServer) serveToken(w http.ResponseWriter, r *http.Request) {
 	idToken := m.signIDToken(claims)
 
 	resp := map[string]any{
-		"access_token":  "mock-access-token",
-		"token_type":    "Bearer",
-		"id_token":      idToken,
-		"expires_in":    3600,
+		"access_token": "mock-access-token",
+		"token_type":   "Bearer",
+		"id_token":     idToken,
+		"expires_in":   3600,
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	writeJSON(w, resp)
 }
 
 func (m *mockOIDCServer) defaultClaims() string {
@@ -208,7 +217,7 @@ func newMockResolver() *mockResolver {
 	return &mockResolver{users: make(map[string]*auth.ProviderUser)}
 }
 
-func (r *mockResolver) GetByProvider(_ context.Context, prov auth.Provider, providerID string) (*auth.ProviderUser, error) {
+func (r *mockResolver) GetByProvider(_ context.Context, _ auth.Provider, providerID string) (*auth.ProviderUser, error) {
 	u, ok := r.users[providerID]
 	if !ok {
 		return nil, auth.ErrProviderUserNotFound
@@ -810,4 +819,3 @@ func TestOIDCProvider_Authenticate_DisabledUser(t *testing.T) {
 		t.Fatal("Enabled should be false for disabled user")
 	}
 }
-

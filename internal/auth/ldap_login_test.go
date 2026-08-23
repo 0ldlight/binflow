@@ -36,14 +36,14 @@ func TestLDAPLoginFallback(t *testing.T) {
 	t.Cleanup(func() { _ = st.Close() })
 
 	// Seed a local user (normal password).
-	makeUser(t, ctx, st.Users(), "local-user", "local-pass", false, "local", "")
+	makeUser(ctx, t, st.Users(), "local-user", "local-pass", false, "local", "")
 
 	// Seed an LDAP user (empty password_hash, provider='ldap',
 	// provider_id='uid=alice,dc=example,dc=com').
-	makeUser(t, ctx, st.Users(), "alice", "", false, "ldap", "uid=alice,dc=example,dc=com")
+	makeUser(ctx, t, st.Users(), "alice", "", false, "ldap", "uid=alice,dc=example,dc=com")
 
 	// Seed another LDAP user for fallback without local provider.
-	makeUser(t, ctx, st.Users(), "bob", "", false, "ldap", "uid=bob,dc=example,dc=com")
+	makeUser(ctx, t, st.Users(), "bob", "", false, "ldap", "uid=bob,dc=example,dc=com")
 
 	// Build the LDAP mock directory.
 	mock := newMockLDAPConn()
@@ -62,7 +62,7 @@ func TestLDAPLoginFallback(t *testing.T) {
 	})
 
 	dialCount := 0
-	dialer := func(_ context.Context, urlStr string, opts ...ldap.DialOpt) (auth.LDAPConn, error) {
+	dialer := func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
 		dialCount++
 		mock.bound = false
 		mock.boundDN = ""
@@ -181,7 +181,7 @@ func TestLDAPLoginNoLDAPProvider(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = st.Close() })
 
-	makeUser(t, ctx, st.Users(), "local-user", "local-pass", false, "local", "")
+	makeUser(ctx, t, st.Users(), "local-user", "local-pass", false, "local", "")
 
 	svc := auth.NewFromStore(st, false)
 
@@ -230,7 +230,7 @@ func TestLDAPLoginAutoCreate(t *testing.T) {
 		"objectClass": {"posixAccount"},
 	})
 
-	dialer := func(_ context.Context, urlStr string, opts ...ldap.DialOpt) (auth.LDAPConn, error) {
+	dialer := func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
 		mock.bound = false
 		mock.boundDN = ""
 		mock.closed = false
@@ -298,7 +298,7 @@ func TestLDAPLoginAutoCreate(t *testing.T) {
 
 // makeUser is a test helper that creates a user row with the given provider
 // and provider_id fields. It assembles the metadata.User struct directly.
-func makeUser(t *testing.T, ctx context.Context, store metadata.UserStore,
+func makeUser(ctx context.Context, t *testing.T, store metadata.UserStore,
 	username, passwordHash string, admin bool, provider, providerID string) {
 	t.Helper()
 	now := metadata.Now()
@@ -341,7 +341,7 @@ func TestLDAPLoginLocalUserWithLdapPass(t *testing.T) {
 	t.Cleanup(func() { _ = st.Close() })
 
 	// Seed a local user with the same username as an LDAP user.
-	makeUser(t, ctx, st.Users(), "shared-user", "local-pass", false, "local", "")
+	makeUser(ctx, t, st.Users(), "shared-user", "local-pass", false, "local", "")
 
 	mock := newMockLDAPConn()
 	mock.addUser("cn=admin,dc=example,dc=com", "adminpass", map[string][]string{
@@ -351,7 +351,7 @@ func TestLDAPLoginLocalUserWithLdapPass(t *testing.T) {
 		"uid": {"shared-user"},
 	})
 
-	dialer := func(_ context.Context, urlStr string, opts ...ldap.DialOpt) (auth.LDAPConn, error) {
+	dialer := func(_ context.Context, _ string, _ ...ldap.DialOpt) (auth.LDAPConn, error) {
 		mock.bound = false
 		mock.boundDN = ""
 		mock.closed = false
@@ -427,8 +427,8 @@ func TestLDAPResolverGetByProvider(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = st.Close() })
 
-	makeUser(t, ctx, st.Users(), "alice", "", false, "ldap", "uid=alice,dc=example,dc=com")
-	makeUser(t, ctx, st.Users(), "admin-local", "admin-pass", true, "local", "")
+	makeUser(ctx, t, st.Users(), "alice", "", false, "ldap", "uid=alice,dc=example,dc=com")
+	makeUser(ctx, t, st.Users(), "admin-local", "admin-pass", true, "local", "")
 
 	resolver := auth.NewLDAPResolver(st.Users())
 

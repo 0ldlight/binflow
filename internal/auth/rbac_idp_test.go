@@ -106,7 +106,7 @@ func TestOIDCReadOnlyGroupMapping(t *testing.T) {
 	cfg.ReadOnlyGroup = "auditors"
 
 	// Local rows exist so the arm resolves instead of auto-creating.
-	makeUser(t, f.ctx, f.st.Users(), "mapper", "", false, "oidc", "map-sub")
+	makeUser(f.ctx, t, f.st.Users(), "mapper", "", false, "oidc", "map-sub")
 	prov := m.newProvider(f.ctx, t, cfg, auth.NewOIDCResolver(f.st.Users()))
 	svc := f.svc.WithOIDC(prov, nil)
 
@@ -145,7 +145,7 @@ func TestOIDCRoleRefreshAuthoritative(t *testing.T) {
 
 	loginAs := func(t *testing.T, claims *auth.Claims, storedRole string) *auth.Principal {
 		t.Helper()
-		makeUser(t, f.ctx, f.st.Users(), claims.Name, "", storedRole == string(auth.RoleAdmin), "oidc", claims.ProviderID)
+		makeUser(f.ctx, t, f.st.Users(), claims.Name, "", storedRole == string(auth.RoleAdmin), "oidc", claims.ProviderID)
 		prov := newAuthenticatorMockOIDCProvider()
 		prov.addValidToken("tok-"+claims.Name, claims)
 		prov.addResolvedUser(claims.ProviderID, auth.ProviderUser{
@@ -312,7 +312,7 @@ func TestLDAPReadOnlyGroupMapping(t *testing.T) {
 // row and the login principal carries readonly_admin end to end.
 func TestLDAPLoginRoleRefresh(t *testing.T) {
 	f := newFixture(t, false)
-	makeUser(t, f.ctx, f.st.Users(), "alice", "", false, "ldap", "uid=alice,dc=example,dc=com")
+	makeUser(f.ctx, t, f.st.Users(), "alice", "", false, "ldap", "uid=alice,dc=example,dc=com")
 
 	mock := newMockLDAPConn()
 	mock.addUser("cn=admin,dc=example,dc=com", "adminpass", map[string][]string{

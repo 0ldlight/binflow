@@ -51,7 +51,7 @@ func groupsOf(t *testing.T, st metadata.Store, username string) []string {
 // resolves, plus the local groups the claims will reference.
 func seedOIDCUser(t *testing.T, f *fixture, username, sub string, admin bool) {
 	t.Helper()
-	makeUser(t, f.ctx, f.st.Users(), username, "", admin, "oidc", sub)
+	makeUser(f.ctx, t, f.st.Users(), username, "", admin, "oidc", sub)
 }
 
 // TestOIDCGroupsSyncToUserGroups is the core D4 fix: the Bearer arm's claims
@@ -291,7 +291,7 @@ func TestLDAPLoginSyncsGroups(t *testing.T) {
 	f := newFixture(t, true)
 	makeGroup(t, f.st, "developers")
 	makeGroup(t, f.st, "binflow-admins")
-	makeUser(t, f.ctx, f.st.Users(), "jdoe", "", false, "ldap", "uid=jdoe,ou=people,dc=example,dc=org")
+	makeUser(f.ctx, t, f.st.Users(), "jdoe", "", false, "ldap", "uid=jdoe,ou=people,dc=example,dc=org")
 
 	mock := newMockLDAPConn()
 	mock.addUser("uid=jdoe,ou=people,dc=example,dc=org", "jdoe-secret-42", map[string][]string{

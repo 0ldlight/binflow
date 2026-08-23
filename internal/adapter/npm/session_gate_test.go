@@ -302,8 +302,8 @@ func TestCouchLoginStormThroughGate(t *testing.T) {
 
 	t.Logf("storm of %d couch logins (gate=1): %s total, single derivation >= %s (%.1fx)",
 		n, elapsed, single, float64(elapsed)/float64(single))
-	if min := time.Duration(0.6 * float64(n) * float64(single)); elapsed < min {
+	if minElapsed := time.Duration(0.6 * float64(n) * float64(single)); elapsed < minElapsed {
 		t.Fatalf("storm elapsed %s < %s (0.6 x %d x single derivation): derivations ran in parallel, the login is not gated",
-			elapsed, min, n)
+			elapsed, minElapsed, n)
 	}
 }

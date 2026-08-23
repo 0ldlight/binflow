@@ -86,7 +86,14 @@ func (s *uploadSession) Append(ctx context.Context, r io.Reader) (int64, error) 
 	// crash between the data write and this update is harmless). A failure
 	// here poisons the session: on-disk bookkeeping diverged from the data
 	// file, and a resumed session must not trust either.
-	if err := s.persistStateLocked(ctx); err != nil {
+	//
+	// The bookkeeping write is detached from the caller's cancellation
+	// (N3, T-220): the data bytes are already on disk once the copy reached
+	// EOF, so a cancellation landing in the window between EOF and this
+	// SetState — a client disconnecting right after the last byte — must not
+	// fail the write and poison a complete session. Cancellation during the
+	// copy itself still poisons (a partial write diverges file and digests).
+	if err := s.persistStateLocked(context.WithoutCancel(ctx)); err != nil {
 		s.poison(s, err)
 		return 0, fmt.Errorf("storage: append session %s: %w", s.id, err)
 	}
