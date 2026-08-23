@@ -97,13 +97,36 @@ step() {
     echo "---- $1"
 }
 
-# ---- build (or reuse) ------------------------------------------------------
+# ---- build (or reuse a FRESH binary) ---------------------------------------
+#
+# T-222 task 0 (T-216 review carry-over): the stale-binary trap. Reusing an
+# existing $BIN unconditionally let the probe testify for an OLD build while
+# the source tree had moved on. Now the binary is only reused when it is
+# newer than every Go build input (cmd/, internal/ — including the embedded
+# console/dist and docs/dist payloads —, go.mod, go.sum, tools.go); any input
+# with a newer mtime forces a rebuild. An explicit binary outside $ROOT is
+# honored as an operator choice, with its unchecked status printed.
+
+BUILD_INPUTS="$ROOT/cmd $ROOT/internal $ROOT/go.mod $ROOT/go.sum $ROOT/tools.go"
 
 if [ "$BIN" = "" ]; then
     BIN="$ROOT/bin/binflow-server"
 fi
+NEEDS_BUILD=0
 if [ ! -x "$BIN" ]; then
     step "binary $BIN not found; building via make build"
+    NEEDS_BUILD=1
+elif [ "${BIN#"$ROOT"/}" != "$BIN" ]; then
+    # BIN lives under this checkout: enforce freshness against its sources.
+    STALE_SRC=$(find $BUILD_INPUTS -type f -newer "$BIN" -print 2>/dev/null | head -n 1)
+    if [ -n "$STALE_SRC" ]; then
+        step "stale binary: '$STALE_SRC' is newer than $BIN; rebuilding via make build"
+        NEEDS_BUILD=1
+    fi
+else
+    echo "note: explicit binary outside the repo ($BIN); freshness NOT checked"
+fi
+if [ "$NEEDS_BUILD" = "1" ]; then
     (cd "$ROOT" && make build) || fail_infra "make build"
 fi
 [ -x "$BIN" ] || fail_infra "binary $BIN missing after build"
