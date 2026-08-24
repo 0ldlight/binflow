@@ -3,7 +3,9 @@ package auth_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -206,5 +208,132 @@ func TestDeleteUserUnwired(t *testing.T) {
 	bare := auth.New(nil, nil, nil, true)
 	if err := bare.DeleteUser(context.Background(), "admin", "plain"); err == nil {
 		t.Fatal("unwired delete succeeded, want fail-closed error")
+	}
+}
+
+// ---- T-273: the census folded into the cascade transaction ----
+
+// t273ForcingUserStore delegates every method to the real users store but
+// answers DeleteCascade with the in-transaction census refusal — simulating
+// the exact instant the guarded DELETE catches what the service pre-check
+// missed (the race window T-273 closed).
+type t273ForcingUserStore struct {
+	metadata.UserStore
+}
+
+func (f t273ForcingUserStore) DeleteCascade(_ context.Context, username string) error {
+	return fmt.Errorf("metadata: users delete-cascade (%s): %w", username, metadata.ErrLastAdmin)
+}
+
+// t273ForcingStore swaps only the Users() facet; every other store method
+// rides the embedded real store.
+type t273ForcingStore struct {
+	metadata.Store
+	users metadata.UserStore
+}
+
+func (f t273ForcingStore) Users() metadata.UserStore { return f.users }
+
+// TestDeleteUserStoreCensusSurfacesAsLastAdmin pins the adapter mapping: when
+// the store's in-transaction census refuses a delete the service pre-check
+// approved, DeleteUser still answers the last-admin sentinel — the wire
+// renders the same 400 either check produces.
+func TestDeleteUserStoreCensusSurfacesAsLastAdmin(t *testing.T) {
+	ctx := context.Background()
+	svc, st := newDeleteService(t)
+	seedDeleteUser(ctx, t, st, "adm-x", string(auth.RoleAdmin))
+	seedDeleteUser(ctx, t, st, "adm-y", string(auth.RoleAdmin))
+
+	forcing := t273ForcingStore{Store: st, users: t273ForcingUserStore{UserStore: st.Users()}}
+	wired := auth.NewFromStore(forcing, false)
+
+	// The pre-check approves (adm-y would survive) — only the store refuses.
+	if err := wired.DeleteUser(ctx, "adm-y", "adm-x"); !errors.Is(err, auth.ErrDeleteLastAdmin) {
+		t.Fatalf("DeleteUser under a forced store census refusal = %v, want ErrDeleteLastAdmin", err)
+	}
+	if _, err := st.Users().Get(ctx, "adm-x"); err != nil {
+		t.Fatalf("adm-x must survive the refused delete: %v", err)
+	}
+	// The plain service over the same store still deletes it for real.
+	if err := svc.DeleteUser(ctx, "adm-y", "adm-x"); err != nil {
+		t.Fatalf("DeleteUser without the forced refusal: %v", err)
+	}
+}
+
+// TestDeleteUserConcurrentMutualAdminDelete is the T-273 race window leg at
+// the service level: with the built-in admin demoted and exactly two
+// admin-role accounts left, two callers concurrently deleting EACH OTHER's
+// account must never end with zero admins. Before the census moved into the
+// cascade transaction, both legs could pass the out-of-transaction census
+// and both cascades land — an unrecoverable state (the demoted seed row
+// blocks the BINFLOW_ADMIN_PASSWORD recovery path). Every leg must answer
+// nil, the last-admin refusal, a 404-class loss, or transient store
+// contention; never can BOTH legs succeed.
+func TestDeleteUserConcurrentMutualAdminDelete(t *testing.T) {
+	ctx := context.Background()
+	svc, st := newDeleteService(t)
+	if err := st.Users().SetRole(ctx, "admin", string(auth.RoleUser)); err != nil {
+		t.Fatalf("demote built-in admin: %v", err)
+	}
+
+	adminRows := func() int {
+		t.Helper()
+		users, err := st.Users().List(ctx)
+		if err != nil {
+			t.Fatalf("list users: %v", err)
+		}
+		n := 0
+		for _, u := range users {
+			if u.Role == string(auth.RoleAdmin) {
+				n++
+			}
+		}
+		return n
+	}
+
+	const iterations = 25
+	for i := 0; i < iterations; i++ {
+		for _, name := range []string{"race-a", "race-b"} {
+			if _, err := st.Users().Get(ctx, name); errors.Is(err, metadata.ErrUserNotFound) {
+				seedDeleteUser(ctx, t, st, name, string(auth.RoleAdmin))
+			} else if err != nil {
+				t.Fatalf("probe %s: %v", name, err)
+			}
+		}
+
+		legs := []struct{ actor, target string }{
+			{"race-a", "race-b"}, // each admin deletes the OTHER
+			{"race-b", "race-a"},
+		}
+		start := make(chan struct{})
+		errs := make([]error, 2)
+		var wg sync.WaitGroup
+		for leg, l := range legs {
+			wg.Add(1)
+			go func(leg int, actor, target string) {
+				defer wg.Done()
+				<-start
+				errs[leg] = svc.DeleteUser(ctx, actor, target)
+			}(leg, l.actor, l.target)
+		}
+		close(start)
+		wg.Wait()
+
+		for leg, err := range errs {
+			switch {
+			case err == nil,
+				errors.Is(err, auth.ErrDeleteLastAdmin),
+				errors.Is(err, auth.ErrUserNotFound),
+				metadata.IsStoreBusy(err): // transient contention: rolled back, fail-closed
+			default:
+				t.Fatalf("iteration %d leg %d: unsanctioned error: %v", i, leg, err)
+			}
+		}
+		if errs[0] == nil && errs[1] == nil {
+			t.Fatalf("iteration %d: both mutual admin deletes committed — the census guard did not fire", i)
+		}
+		if got := adminRows(); got < 1 {
+			t.Fatalf("iteration %d: admin-role rows = %d, want >= 1 (instance stranded admin-less)", i, got)
+		}
 	}
 }

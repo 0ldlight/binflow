@@ -113,13 +113,18 @@ func (a userDeleteAdapter) AdminRoleUsers(ctx context.Context) ([]string, error)
 	return out, nil
 }
 
-// DeleteCascade implements userDeleteSource, mapping the store sentinel onto
-// the auth spelling (they alias the same value; the wrap keeps the message
-// context).
+// DeleteCascade implements userDeleteSource, mapping the store sentinels onto
+// the auth spellings (they alias the same values; the wraps keep the message
+// context). The in-transaction census refusal (T-273, metadata.ErrLastAdmin)
+// surfaces as the SAME last-admin 400 the service pre-check would have
+// answered — the wire cannot tell the two checks apart.
 func (a userDeleteAdapter) DeleteCascade(ctx context.Context, username string) error {
 	if err := a.s.DeleteCascade(ctx, username); err != nil {
-		if isNotFound(err, metadata.ErrUserNotFound) {
+		switch {
+		case isNotFound(err, metadata.ErrUserNotFound):
 			return fmt.Errorf("auth: delete cascade %q: %w", username, ErrUserNotFound)
+		case errors.Is(err, metadata.ErrLastAdmin):
+			return fmt.Errorf("auth: delete cascade %q: %w", username, ErrDeleteLastAdmin)
 		}
 		return err
 	}

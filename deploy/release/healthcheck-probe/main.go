@@ -24,12 +24,21 @@ func main() {
 		fmt.Fprintf(os.Stderr, "healthcheck: %v\n", err)
 		os.Exit(1)
 	}
-	defer resp.Body.Close() //nolint:errcheck // the probe exits right after
+	// The verdict is the status line alone; the body is drained only as
+	// keep-alive hygiene for the server side, so drain/close failures are
+	// reported on stderr but never change the exit code. Handling them here
+	// is the whole point: `//nolint:errcheck` does not silence gosec G104,
+	// and an ignored error in the container HEALTHCHECK is how a wedged
+	// probe goes unnoticed (T-275, DEFECT-2).
+	if _, derr := io.Copy(io.Discard, resp.Body); derr != nil {
+		fmt.Fprintf(os.Stderr, "healthcheck: drain: %v\n", derr)
+	}
+	if cerr := resp.Body.Close(); cerr != nil {
+		fmt.Fprintf(os.Stderr, "healthcheck: close: %v\n", cerr)
+	}
 	if resp.StatusCode != http.StatusOK {
-		io.Copy(io.Discard, resp.Body) //nolint:errcheck // drain only
 		fmt.Fprintf(os.Stderr, "healthcheck: status %d\n", resp.StatusCode)
 		os.Exit(1)
 	}
-	io.Copy(io.Discard, resp.Body) //nolint:errcheck // drain only
 	os.Exit(0)
 }

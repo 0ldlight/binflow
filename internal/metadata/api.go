@@ -18,6 +18,13 @@ var ErrRepoNotFound = errors.New("metadata: repository not found")
 // ErrUserNotFound is returned by UserStore methods for missing users.
 var ErrUserNotFound = errors.New("metadata: user not found")
 
+// ErrLastAdmin is returned by UserStore.DeleteCascade when the guarded
+// delete refused to remove the last admin-role account (T-273): the census
+// rides the cascade transaction itself, so two concurrent deletes can never
+// strand the instance admin-less. The auth layer maps it onto its own
+// last-admin delete sentinel (the 400 the wire answers).
+var ErrLastAdmin = errors.New("metadata: deleting the last admin-role user is refused")
+
 // ErrTokenNotFound is returned by TokenStore methods for missing tokens.
 var ErrTokenNotFound = errors.New("metadata: token not found")
 
@@ -471,10 +478,16 @@ type UserStore interface {
 	// cascade user_groups, tokens and web_sessions (verify re-resolves the
 	// owner row per request, so the drop is an immediate credential kill,
 	// ADR-0025 guardrail 3). audit_events rows are actor-named text and
-	// deliberately survive. ErrUserNotFound when the account does not exist;
-	// the probe rides the same transaction, so a missing user leaves zero
-	// side effects (an orphan user-typed ACE row of the same name is NOT
-	// stripped in that case).
+	// deliberately survive.
+	//
+	// The users-row delete is census-guarded in the same statement (T-273):
+	// it only removes an admin-role row while another admin-role row would
+	// survive, so the last admin can never be deleted no matter what the
+	// caller checked beforehand. ErrUserNotFound when the account does not
+	// exist and ErrLastAdmin when the census predicate refused the row; both
+	// probes ride the same transaction, so either refusal leaves zero side
+	// effects (an orphan user-typed ACE row of the same name is NOT stripped
+	// in those cases).
 	DeleteCascade(ctx context.Context, username string) error
 	Delete(ctx context.Context, username string) error
 	List(ctx context.Context) ([]*User, error)

@@ -62,8 +62,12 @@ type userDeleteSource interface {
 	AdminRoleUsers(ctx context.Context) ([]string, error)
 	// DeleteCascade strips the user's permission_principals ACE rows and
 	// deletes the account (FKs cascade user_groups/tokens/web_sessions) in
-	// one transaction. ErrUserNotFound when the account does not exist,
-	// with zero side effects.
+	// one transaction. The users-row delete is census-guarded inside that
+	// transaction (T-273): an admin-role row only goes while another
+	// admin-role row survives, so the guard holds even when this service's
+	// pre-check raced a concurrent delete. ErrUserNotFound when the account
+	// does not exist, ErrDeleteLastAdmin when the in-transaction census
+	// refused the row — both with zero side effects.
 	DeleteCascade(ctx context.Context, username string) error
 }
 
@@ -81,12 +85,15 @@ var errUserDeleteUnwired = errors.New("auth: user deletion is not wired on this 
 //	ErrDeleteLastAdmin  -> 400 (target is the only admin-role account)
 //	ErrDeleteSelf       -> 400 (actor names itself)
 //
-// The last-admin census is read-then-delete: a concurrent delete of the
-// OTHER admin in the window between census and cascade can still strand the
-// instance admin-less. BinFlow's single-instance, single-writer deployment
-// shape (architecture section 9) makes that window theoretical; the census
-// running inside the guard chain (not inside the store transaction) keeps
-// the store seam single-purpose.
+// The last-admin guard is enforced twice. The census here is the wire-facing
+// pre-check: it answers the spec's 400 wording in the common case and orders
+// correctly against the self-delete guard. The authoritative check rides the
+// cascade transaction itself (T-273): the store's DELETE only removes an
+// admin-role row while another admin-role row would survive, so two CONCURRENT
+// deletes of the last two admins cannot both land — the losing leg surfaces
+// the same ErrDeleteLastAdmin from the store, never a stranded admin-less
+// instance (which no BINFLOW_ADMIN_PASSWORD re-seed can repair once the
+// seeded row exists but is demoted).
 func (s *Service) DeleteUser(ctx context.Context, actor, username string) error {
 	if s.userDelete == nil {
 		// Fail closed before touching any collaborator: a bare-New service

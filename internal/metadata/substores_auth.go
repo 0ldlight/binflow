@@ -163,9 +163,21 @@ func (s *userStore) SetEnabled(ctx context.Context, username string, enabled boo
 // transaction strips the account's user-typed permission_principals rows
 // (the table carries no FK to users — the ACE strip of gap-endpoints section
 // 2.2 step 2 is this explicit DELETE) and then drops the users row, whose FKs
-// cascade user_groups, tokens and web_sessions. The existence probe is the
-// users-row rowcount itself: a missing account rolls the transaction back,
-// so the 404 path leaves zero side effects.
+// cascade user_groups, tokens and web_sessions.
+//
+// The users-row delete is the census-guarded form of T-273: an admin-role
+// row is only removed while another admin-role row would survive, as a
+// single statement inside the transaction. The guard lives here — not in
+// the caller's pre-check — because the pre-check's census reads outside the
+// write transaction: two concurrent mutual deletes of the last two admins
+// could both pass it and both land, stranding the instance admin-less (an
+// unrecoverable state once the seeded admin row has been demoted; the
+// BINFLOW_ADMIN_PASSWORD re-seed only fires on a missing row). SQLite
+// serializes the two write transactions, so the guarded DELETE re-evaluates
+// the census against the committed state and the losing leg answers
+// ErrLastAdmin with zero side effects. The existence probe is the users-row
+// rowcount itself: a missing account rolls the transaction back, so the 404
+// path also leaves zero side effects.
 func (s *userStore) DeleteCascade(ctx context.Context, username string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -177,14 +189,39 @@ func (s *userStore) DeleteCascade(ctx context.Context, username string) error {
 		username); err != nil {
 		return wrapExec("users delete-cascade strip-aces", username, err)
 	}
-	res, err := tx.ExecContext(ctx, `DELETE FROM users WHERE username = ?`, username)
+	res, err := tx.ExecContext(ctx,
+		`DELETE FROM users
+		WHERE username = ?
+		  AND (role <> 'admin'
+		       OR EXISTS (SELECT 1 FROM users survivor
+		                  WHERE survivor.role = 'admin' AND survivor.username <> ?))`,
+		username, username)
 	if err != nil {
 		return wrapExec("users delete-cascade", username, err)
 	}
 	if n, err := res.RowsAffected(); err != nil {
 		return wrapExec("users delete-cascade rows", username, err)
 	} else if n == 0 {
-		return fmt.Errorf("users delete-cascade %s: %w", username, ErrUserNotFound)
+		// Zero rows is one of two refusals; the probe below tells them apart
+		// inside the same transaction (whose rollback keeps both paths
+		// side-effect free): a missing account is the 404; a surviving
+		// admin-role row means the census predicate is what refused it.
+		var role string
+		switch perr := tx.QueryRowContext(ctx,
+			`SELECT role FROM users WHERE username = ?`, username).Scan(&role); {
+		case errors.Is(perr, sql.ErrNoRows):
+			return fmt.Errorf("users delete-cascade %s: %w", username, ErrUserNotFound)
+		case perr != nil:
+			return wrapExec("users delete-cascade probe", username, perr)
+		case role == RoleAdmin:
+			return fmt.Errorf("users delete-cascade %s: %w", username, ErrLastAdmin)
+		default:
+			// Unreachable through this store's own statements (a non-admin
+			// row always matches the first predicate arm); only a concurrent
+			// role rewrite between DELETE and probe can land here. Fail
+			// closed: the transaction rolls back either way.
+			return fmt.Errorf("users delete-cascade %s: census guard refused a role %q row", username, role)
+		}
 	}
 	if err := tx.Commit(); err != nil {
 		return wrapExec("users delete-cascade commit", username, err)
