@@ -724,6 +724,12 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
   取数按角色分流（user→filter=manage 恰 1 次）；L2 卡对 m-holder 退役/user 保留；name-entry 降级保锚。wire 校准：空覆盖集结构上不可达 200-[]（落 403 角色分流友好空态）；删除覆盖集内实为 204。日志 reports/agents/T-259.md。
 - **T-264** [P1] web 工具链债 `role:dev-frontend` — **done 2026-08-25（token 扫描 9 css 注释感知有牙验证 + 双 spec 缺省自洽 + env 覆盖反证；裸全量 174/0〔唯一 failed 定证为 T-266 在途腿非回归〕；提交 `b169462`）**
   日志 reports/agents/T-264.md。
+- **T-266** [P2] 共享层微清理 `role:dev-frontend` — **done 2026-08-25（对比度类退役等价实证〔六组合 4.93~6.16:1 双配方同过门〕+ deploy readonly 预收敛双保险；全量 176/0 零失败终验；提交 `1a54d0d`）——B8 全清**
+  遗留：BASE 端口探针归 T-268 顺带；.status-pill 82% 微差未来收敛。日志 reports/agents/T-266.md。
+
+#### M9 B9（在途——收官前倒数第二波）
+- **T-267** [P1] 锚册口径统一 + 死锚 112 退役 `role:ux-designer` — **doing 2026-08-25（audit 单一权威化 + 终态断言 unregistered=0/broken=0）**
+- **T-268** [P0] e2e 默认并发恢复 `role:devops-engineer` — **doing 2026-08-25（AC3：≥4 workers 连续 3 轮全绿 + BASE 探针顺带 + theme-smoke 预算复测）**
 - **T-263** [P1] 旧路由 redirect 全量移除 `role:dev-frontend` — **done 2026-08-24（19 条 404 断言 + 17 spec 80 处 goto 同票携带 + 全量 R3 168/0；提交 `848f822`）**
   Q3 终裁执行完毕。遗留：docs-site 重建归 T-271；theme-smoke axe 30s 脆弱性归 T-268 预算评估；设计规格措辞回写归 architect 触点。日志 reports/agents/T-263.md。
 - **T-265** [P1] 树过滤复位 + 顶栏搜索框 `role:dev-frontend` — **done 2026-08-25（作用域语义论证 + 7 腿 spec + 约定环境全量 175/0；提交 `a9d623d`〔重写后 `8acbf6b`〕）**
