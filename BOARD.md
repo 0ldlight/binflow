@@ -703,9 +703,15 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **T-256** [P0] GC 接线收口 `role:dev-go-core` — **done 2026-08-24（t94 复绿 + t134-g32 受害 spec 绿 + 压力腿 5 连零 flake + CI 压力步就位 + 闸门 0 偏离；conductor 复验；提交 `bfc0846`）——GC 根治链引擎+接线双落**
   五路径 release（两路径刻意不接有 refcount 论证）+ IsReferenced 单点 Live + REST 面迁 GCSweep（legacy 调用面删除）+ serve.lock 跨进程门 + `--grace-seconds`（待追认）+ TTL 配置链 + CI 压力步（T-268 硬前置达成）。遗留：storage legacy `Engine.GC` 物理删除（7 测试文件引用）归后续 storage 触点；Playwright 形态压力腿待 e2e CI job。日志 reports/agents/T-256.md。
 
-#### M9 B2（agent-done，合并提交 `a87250d`；review 在途 + fake 桩补丁在途）
-- **T-251** [P0] users 域端点 `role:dev-go-core` — agent done（三护栏检查序 + 单事务级联 + 404 零副作用 + user.delete 审计；闸门 0 偏离）。**待裁**：DELETE 404 文本形态 vs 高置信无 body；重复删除 404 vs 幂等。
-- **T-253** [P0] usage 批量端点 `role:dev-go-storage` — agent done（E1 bare array + 零泄露 + N+1 闸 + 18ms 基线；闸门 0 偏离）。**破口**：UsageBatch 漏更新 docker fake → 桩补丁已派返修。
+#### M9 B2（done 2026-08-24）
+- **T-251** [P0] users 域端点 `role:dev-go-core` — **done（review APPROVE 0 阻塞；合并 `a87250d` + 桩 `4c8af8d` + review `983c6db`）**
+  三护栏/级联/审计全过安全 review。**三裁定采纳**：DELETE 404 保持文本体（家族一致，wire 偏差 T-271 登记）；重复删除保持确定性 404（有意非幂等，T-257/T-271 写明）；**last-admin 竞窗为真**（census 在事务外，并发互删可致零 admin 且重种不生效须 sqlite 手术）→ **T-273 [P2] 候选**：census 折入单事务 + 措辞修正。日志 T-251.md / T251-253-review.md。
+- **T-253** [P0] usage 批量端点 `role:dev-go-storage` — **done（同 review 通过；N+1 闸经突变实证；18ms 基线）**。接口加宽 fake 桩教训：全树 vet 必做。日志 T-253.md。
+
+#### M9 B3'（在途——原 B3 的 T-256 已提前，现为 T-252 + 前置已绿的 T-260）
+- **T-252** [P0] E5 组成员查询 `role:dev-go-core` — **doing 2026-08-24**
+- **T-260** [P1] OIDC step-up 控制台腿 `role:dev-frontend` — **doing 2026-08-24（deps 全绿提前入波）**
+- **T-273** [P2] last-admin census 折入事务（review 裁定派生） — todo（M9 尾批或 T-272 前插入）
 - **B2**：T-251 [P0] E2/E3/E4 users 域端点（加宽+enabled 回显+DELETE 全链护栏级联）｜ T-253 [P0] E1 usage 批量端点
 - **B3**：T-252 [P0] E5 组成员 ?includeUsers ｜ T-256 [P0] GC 接线收口（五路径 ReleaseGCHold+serve.lock+压力 spec 进 CI——**顺序硬规则：先于 T-268**）
 - **B4**：T-254 [P0] E9/E6 ManageCoverage seam+permissions ?filter=manage ｜ T-257 [P0] users/groups 页消费（N+1 退役）
