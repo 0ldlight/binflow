@@ -61,7 +61,7 @@ func newHarness(t *testing.T) *harness { return newHarnessCfg(t, nil, nil) }
 // protocol handlers behind the standard two (M3 seam tests inject fake
 // npm/pypi handlers this way; the default stack stays at M2's surface).
 func newHarnessCfg(t *testing.T, mutate func(*config.Config), users [][2]string, extra ...adapter.Handler) *harness {
-	return newHarnessAuth(t, mutate, nil, users, extra...)
+	return newHarnessAuth(t, mutate, nil, nil, users, extra...)
 }
 
 // newHarnessAuth is newHarnessCfg plus a seam over the auth service
@@ -69,7 +69,10 @@ func newHarnessCfg(t *testing.T, mutate func(*config.Config), users [][2]string,
 // the stack should use (T-192 injects a lowered argon2 gate for the
 // disconnect-storm regression; nil keeps the default assembly). It runs
 // BEFORE repo/adapter wiring so every consumer sees the same service.
-func newHarnessAuth(t *testing.T, mutate func(*config.Config), authMutate func(*auth.Service) *auth.Service, users [][2]string, extra ...adapter.Handler) *harness {
+// storeMutate is the same seam one layer down (T-252 injects a
+// query-counting GroupStore for the E5 N+1 gate); it wraps the store
+// BEFORE auth/repo/httpapi wiring, again so every consumer sees one store.
+func newHarnessAuth(t *testing.T, mutate func(*config.Config), authMutate func(*auth.Service) *auth.Service, storeMutate func(metadata.Store) metadata.Store, users [][2]string, extra ...adapter.Handler) *harness {
 	t.Helper()
 	ctx := context.Background()
 	dataDir := t.TempDir()
@@ -85,6 +88,9 @@ func newHarnessAuth(t *testing.T, mutate func(*config.Config), authMutate func(*
 		t.Fatalf("metadata.Open: %v", err)
 	}
 	t.Cleanup(func() { _ = md.Close() })
+	if storeMutate != nil {
+		md = storeMutate(md)
+	}
 
 	cfg := config.Defaults()
 	cfg.Storage.DataDir = dataDir

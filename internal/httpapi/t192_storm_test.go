@@ -112,7 +112,7 @@ func drainAndClose(t *testing.T, resp *http.Response) {
 func TestT192AuthStormAnonymousPingNotStarved(t *testing.T) {
 	h := newHarnessAuth(t, nil, func(s *auth.Service) *auth.Service {
 		return s.WithHashConcurrency(1)
-	}, nil)
+	}, nil, nil)
 	seedT192User(t, h)
 	client := t192Client()
 	defer client.CloseIdleConnections()

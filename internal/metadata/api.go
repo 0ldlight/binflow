@@ -696,6 +696,14 @@ type GroupStore interface {
 	// pay). Users without memberships simply have no map entry; the caller
 	// renders []. Names within one user's set are ordered by group name.
 	MembershipsByUser(ctx context.Context) (map[string][]string, error)
+	// MembershipsByGroup resolves ONE group's member usernames in a single
+	// JOIN statement (M9, ADR-0030 E5 — the userNames[] of GET
+	// /api/security/groups/{name}?includeUsers=true), the group-side mirror
+	// of MembershipsByUser's family: the whole member set is one aggregated
+	// query whatever its size, never a per-user walk. Usernames come back
+	// ordered; a member-less group returns an empty slice, not an error —
+	// existence is Get's question, which the caller runs first for the 404.
+	MembershipsByGroup(ctx context.Context, group string) ([]string, error)
 }
 
 // WebSessionStore is browser-session persistence (schema 004, ADR-0014:

@@ -216,6 +216,36 @@ func (s *groupStore) MembershipsByUser(ctx context.Context) (map[string][]string
 	return out, nil
 }
 
+// MembershipsByGroup implements GroupStore.MembershipsByGroup (M9, ADR-0030
+// E5): one group's member set in ONE join — the group-side mirror of
+// MembershipsByUser (section 14.1 pins the data source as a user_groups
+// single-group query, so the statement filters by name instead of walking
+// the whole table). Usernames come back ordered; a member-less group (or a
+// name with no row — the handler's Get already answered that 404) yields a
+// nil slice, not an error — the caller renders [].
+func (s *groupStore) MembershipsByGroup(ctx context.Context, group string) ([]string, error) {
+	const stmt = `SELECT ug.username
+		FROM user_groups ug JOIN groups g ON g.id = ug.group_id
+		WHERE g.name = ? ORDER BY ug.username`
+	rows, err := s.db.QueryContext(ctx, stmt, group)
+	if err != nil {
+		return nil, wrapExec("groups memberships-by-group", group, err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []string
+	for rows.Next() {
+		var username string
+		if err := rows.Scan(&username); err != nil {
+			return nil, wrapExec("groups memberships-by-group scan", group, err)
+		}
+		out = append(out, username)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, wrapExec("groups memberships-by-group rows", group, err)
+	}
+	return out, nil
+}
+
 // ---- WebSessionStore (004, ADR-0014) ----
 
 type webSessionStore struct{ db *sql.DB }

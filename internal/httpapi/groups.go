@@ -6,7 +6,9 @@
 // and one-word messages so a calibration is a narrow edit):
 //
 //   - GET    /api/security/groups          200 [{name, uri, description}]
-//   - GET    /api/security/groups/{name}   200 {name, uri, description} | 404
+//   - GET    /api/security/groups/{name}   200 {name, uri, description} | 404;
+//     M9 (T-252/E5, ADR-0030): ?includeUsers=true widens the body with
+//     userNames — see handleGroupGet
 //   - PUT    /api/security/groups/{name}   201 no body (create) / 200 no body
 //     (update of an existing group); body {name, description}, body name
 //     mismatching the path is a 400
@@ -16,6 +18,13 @@
 //     referenced by a permission target is NOT deletable — 409 listing the
 //     referencing target names (PRD K3: refuse rather than silently strip
 //     members of their grants); success cascades membership teardown (FK)
+//
+// M9/K19: the LIST stays unwidened — no membersCount, no per-entry
+// userNames. The member census has ONE source of truth (the user_groups
+// rows), projected two ways on demand: the users list's groups[] (E2,
+// client-side derivation) and this file's ?includeUsers=true per-group
+// read. A list-side count would be a second materialization of the same
+// fact and drift; architecture 14.1 E5 pins the decision.
 //
 // Errors are the user-management plain-text layer (PRD section 5.1 split);
 // the admin gate itself renders the route plane's envelope like every
@@ -63,6 +72,19 @@ type groupListItem struct {
 	Description string `json:"description"`
 }
 
+// groupDetailWithUsers is the ?includeUsers=true body (M9, T-252/E5,
+// ADR-0030): the plain detail's three fields plus userNames — the same
+// field name Artifactory's Get Group Details carries (rbac-model 1.2, high
+// confidence). userNames ALWAYS renders when the parameter asked for it,
+// empty member set included (empty is [], never null — the E2 family
+// convention); the parameterless body stays the plain groupListItem, so the
+// pre-M9 rendering survives byte-for-byte (the additive contract's hard
+// edge, section 14.1 E5).
+type groupDetailWithUsers struct {
+	groupListItem
+	UserNames []string `json:"userNames"`
+}
+
 // validateGroupName answers "" when name is acceptable, else the plain-text
 // 400 message (K1 provisional wording).
 func validateGroupName(name string) string {
@@ -99,7 +121,17 @@ func (s *Server) handleGroupList(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleGroupGet serves GET /api/security/groups/{name}: one group's
-// observable facts (W17's description round-trip).
+// observable facts (W17's description round-trip). M9 (T-252/E5,
+// ADR-0030): ?includeUsers=true additionally renders userNames, the group's
+// member usernames from ONE aggregated join (GroupStore.MembershipsByGroup
+// — never a per-user walk). The gate is unchanged (CapSecurityRead) and
+// every non-"true" spelling of the parameter — absent, "false", junk —
+// renders the plain three-field body exactly as before: E5 adds a body arm,
+// never a status code, to this route (the 404 for an unknown name keeps
+// today's wording and precedence, decided before the member lookup runs).
+// The literal is the high-confidence spelling the spec pins
+// (rbac-model 1.2: "?includeUsers=true"); no other value is specified, so
+// none is interpreted — strict-equal or off is the least inventive reading.
 func (s *Server) handleGroupGet(w http.ResponseWriter, r *http.Request, name string) {
 	g, err := s.deps.Metadata.Groups().Get(r.Context(), name)
 	if err != nil {
@@ -110,7 +142,20 @@ func (s *Server) handleGroupGet(w http.ResponseWriter, r *http.Request, name str
 		writePlainError(w, http.StatusInternalServerError, "get group: "+err.Error())
 		return
 	}
-	writeJSONBody(w, http.StatusOK, groupListItem{Name: g.Name, URI: groupURI(r, g.Name), Description: g.Description})
+	base := groupListItem{Name: g.Name, URI: groupURI(r, g.Name), Description: g.Description}
+	if r.URL.Query().Get("includeUsers") != "true" {
+		writeJSONBody(w, http.StatusOK, base)
+		return
+	}
+	members, err := s.deps.Metadata.Groups().MembershipsByGroup(r.Context(), name)
+	if err != nil {
+		writePlainError(w, http.StatusInternalServerError, "resolve group members: "+err.Error())
+		return
+	}
+	if members == nil {
+		members = []string{} // E5 pins empty as [], never null
+	}
+	writeJSONBody(w, http.StatusOK, groupDetailWithUsers{groupListItem: base, UserNames: members})
 }
 
 // handleGroupPut serves PUT /api/security/groups/{name} (SE-02): create
