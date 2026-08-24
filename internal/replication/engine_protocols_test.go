@@ -38,7 +38,6 @@ import (
 	"github.com/lzwzzy/binflow/internal/config"
 	"github.com/lzwzzy/binflow/internal/httpapi"
 	"github.com/lzwzzy/binflow/internal/metadata"
-	"github.com/lzwzzy/binflow/internal/remote"
 	"github.com/lzwzzy/binflow/internal/replication"
 	"github.com/lzwzzy/binflow/internal/repo"
 	"github.com/lzwzzy/binflow/internal/storage"
@@ -110,60 +109,11 @@ func newBinFlowFull(t *testing.T, name, adminPw string, repos []*metadata.Repo) 
 
 // startReplication wires one engine on the source instance toward the target
 // repository, with the metadata seam the protocol planes select on. Returns
-// the store for task polling.
+// the store for task polling. Credentials are the target's admin — the
+// T-262 non-admin leg uses startReplicationAs.
 func startReplication(t *testing.T, a *binflow, target *binflow, sourceRepo, targetRepo string) replication.Store {
 	t.Helper()
-	ctx := context.Background()
-	store := a.replicationStore(t)
-
-	key := bytes.Repeat([]byte{9}, 32)
-	cipher, err := remote.NewCipher(key)
-	if err != nil {
-		t.Fatalf("NewCipher: %v", err)
-	}
-	encPw, err := cipher.Encrypt(target.adminPw)
-	if err != nil {
-		t.Fatalf("Encrypt: %v", err)
-	}
-	if _, err := store.CreateConfig(ctx, &replication.ReplicationConfig{
-		Name:              "dr-" + sourceRepo + "-to-" + targetRepo,
-		SourceRepo:        sourceRepo,
-		TargetURL:         target.url,
-		TargetRepo:        targetRepo,
-		TargetUsername:    "admin",
-		TargetPasswordEnc: encPw,
-		Enabled:           true,
-		CreatedAt:         metadata.Now(),
-		UpdatedAt:         metadata.Now(),
-	}); err != nil {
-		t.Fatalf("CreateConfig: %v", err)
-	}
-
-	engine, err := replication.NewEngine(store, a.st, replication.EngineOptions{
-		Cipher: cipher,
-		Audit:  audit.New(a.md, true),
-		Meta:   replication.NewStoreMetaSource(a.md),
-	})
-	if err != nil {
-		t.Fatalf("NewEngine: %v", err)
-	}
-	repo.AttachReplicator(a.svc, engine)
-	runCtx, cancel := context.WithCancel(ctx)
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		_ = engine.Run(runCtx)
-	}()
-	t.Cleanup(func() {
-		cancel()
-		select {
-		case <-done:
-		case <-time.After(10 * time.Second):
-			t.Error("engine Run did not return after cancel")
-		}
-		engine.CloseIdleConnections()
-	})
-	return store
+	return startReplicationAs(t, a, target, sourceRepo, targetRepo, "admin", target.adminPw)
 }
 
 // waitForAllTasksSuccess polls until the config holds n successful tasks
