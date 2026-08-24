@@ -1,0 +1,22 @@
+# BinFlow RBAC matrix deviation whitelist (T-250, ADR-0030 / architecture 14.5-1).
+#
+# The M9 "additive only" machine gate: scripts/m7-rbac-matrix.sh --expect diffs
+# every observed (role, face, row, status) cell against the frozen contract
+# baseline in scripts/m7-rbac-matrix.baseline (the M8 tail state). Any mismatch
+# fails the run — UNLESS the exact tuple is registered here first. M9 opens
+# with an EMPTY registry: no deviation is pre-approved, which is the point.
+#
+# Entry format (one tuple per line; a trailing " # T-xxx/ADR-xxx: reason"
+# comment is stripped before matching):
+#
+#   role|face|row|status   # T-xxx (ADR-xxx): why this flip is deliberate
+#
+# Rules:
+#   - role: admin | user | readonly_admin (a matrix column)
+#   - face: read | write ; row: the matrix row id (R01.. / W01..)
+#   - status: the OBSERVED code the entry tolerates (e.g. 200, 403, 501)
+#   - an entry whose deviation stops happening is reported WL-STALE and still
+#     fails the run — delete dead entries, do not let the registry rot
+#   - rewriting the baseline itself is NOT done via this file: an ADR must
+#     register the flip first, then scripts/m7-rbac-matrix.sh --record --force
+#     re-freezes it (per-milestone evolution, architecture 14.5-1)

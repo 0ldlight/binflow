@@ -1,0 +1,65 @@
+# BinFlow RBAC matrix contract baseline (T-250, ADR-0030 / architecture 14.5-1).
+# Frozen: commit 6a9efb9, 2026-08-24T03:36:09Z, from a clean ephemeral instance (the script's default boot mode).
+# Recorded by: scripts/m7-rbac-matrix.sh --record [--force] (default role set).
+#
+# Line format: role|face|row|status   (face = read|write; SKIP = column skipped)
+# Consumed by: scripts/m7-rbac-matrix.sh --expect (verdict B — deviations must be
+# registered in scripts/m7-rbac-matrix.whitelist to pass; rewriting this file needs
+# an ADR first).
+readonly_admin|read|R01|200
+readonly_admin|read|R02|200
+readonly_admin|read|R03|200
+readonly_admin|read|R04|200
+readonly_admin|read|R05|200
+readonly_admin|read|R06|200
+readonly_admin|read|R07|200
+readonly_admin|read|R08|200
+readonly_admin|read|R09|200
+readonly_admin|read|R10|200
+readonly_admin|read|R11|200
+readonly_admin|read|R12|501
+readonly_admin|write|W01|403
+readonly_admin|write|W02|403
+readonly_admin|write|W03|403
+readonly_admin|write|W04|403
+readonly_admin|write|W05|403
+readonly_admin|write|W06|403
+readonly_admin|write|W07|403
+user|read|R01|403
+user|read|R02|403
+user|read|R03|403
+user|read|R04|403
+user|read|R05|403
+user|read|R06|403
+user|read|R07|403
+user|read|R08|403
+user|read|R09|403
+user|read|R10|403
+user|read|R11|403
+user|read|R12|403
+user|write|W01|403
+user|write|W02|403
+user|write|W03|403
+user|write|W04|403
+user|write|W05|403
+user|write|W06|403
+user|write|W07|403
+admin|read|R01|200
+admin|read|R02|200
+admin|read|R03|200
+admin|read|R04|200
+admin|read|R05|200
+admin|read|R06|200
+admin|read|R07|200
+admin|read|R08|200
+admin|read|R09|200
+admin|read|R10|200
+admin|read|R11|200
+admin|read|R12|501
+admin|write|W01|200
+admin|write|W02|201
+admin|write|W03|200
+admin|write|W04|201
+admin|write|W05|200
+admin|write|W06|200
+admin|write|W07|200

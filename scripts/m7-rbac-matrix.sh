@@ -35,10 +35,30 @@
 # feature is honestly unwired (architecture 7.1; a plain user collects 403
 # on the same rows, which is what tells the two apart).
 #
+# [T-250] M9 CONTRACT-BASELINE MODE (ADR-0030 "additive only", architecture
+# 14.5-1): --expect additionally diffs every observed (role, face, row,
+# status) cell against the frozen baseline file scripts/m7-rbac-matrix.baseline
+# (the M8 tail state, recorded via --record from a clean ephemeral instance)
+# and consults scripts/m7-rbac-matrix.whitelist — the explicit deviation
+# registry, EMPTY when M9 opens. Any status flip on an existing cell that is
+# not whitelisted fails the run: that is the machine gate of "new endpoints
+# must not break existing ones". Registering a whitelist entry requires a
+# ticket/ADR reference in the entry's comment; rewriting the baseline file
+# itself requires an ADR first (per-milestone evolution), and --record refuses
+# to overwrite without --force. A whitelist entry whose deviation no longer
+# happens is reported WL-STALE and still fails — the registry stays honest.
+# The PRD-table verdict (verdict A, the semantic floor) is kept below the
+# baseline diff (verdict B): it also catches a corrupt re-record of the
+# baseline from a broken build. Baseline verdicts are only meaningful in the
+# default clean-instance boot; with --base the caller owns the instance state.
+#
 # Usage: scripts/m7-rbac-matrix.sh [--roles admin,user,readonly_admin]
-#                                  [--expect] [path-to-binary]
-#          (add --base URL --admin-pw PW to run against an already-running
-#           instance instead of booting one; the script then never stops it)
+#                                  [--expect] [--record] [--force]
+#                                  [--baseline FILE] [--whitelist FILE]
+#                                  [path-to-binary]
+#          (--record and --expect are mutually exclusive; add --base URL
+#           --admin-pw PW to run against an already-running instance instead
+#           of booting one; the script then never stops it)
 #
 # POSIX sh (macOS bash-3.2-as-sh / dash / busybox ash); macOS + Linux.
 
@@ -52,6 +72,10 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 
 ROLES="readonly_admin,user,admin"
 EXPECT=0
+RECORD=0
+FORCE=0
+BASELINE=""
+WHITELIST=""
 BIN=""
 BASE=""
 ADMIN_PW=""
@@ -68,6 +92,32 @@ while [ $# -gt 0 ]; do
         ;;
     --expect)
         EXPECT=1
+        shift
+        ;;
+    --record)
+        RECORD=1
+        shift
+        ;;
+    --force)
+        FORCE=1
+        shift
+        ;;
+    --baseline)
+        [ $# -ge 2 ] || { echo "m7-rbac-matrix: --baseline needs a value" >&2; exit 2; }
+        BASELINE=$2
+        shift 2
+        ;;
+    --baseline=*)
+        BASELINE=${1#--baseline=}
+        shift
+        ;;
+    --whitelist)
+        [ $# -ge 2 ] || { echo "m7-rbac-matrix: --whitelist needs a value" >&2; exit 2; }
+        WHITELIST=$2
+        shift 2
+        ;;
+    --whitelist=*)
+        WHITELIST=${1#--whitelist=}
         shift
         ;;
     --base)
@@ -89,7 +139,7 @@ while [ $# -gt 0 ]; do
         shift
         ;;
     -h|--help)
-        sed -n '2,42p' "$0"
+        sed -n '2,61p' "$0"
         exit 0
         ;;
     -*)
@@ -104,6 +154,12 @@ while [ $# -gt 0 ]; do
 done
 
 [ -n "$ROLES" ] || { echo "m7-rbac-matrix: --roles is empty" >&2; exit 2; }
+[ "$EXPECT" = "0" ] || [ "$RECORD" = "0" ] || {
+    echo "m7-rbac-matrix: --record and --expect are mutually exclusive" >&2
+    exit 2
+}
+[ -n "$BASELINE" ] || BASELINE="$ROOT/scripts/m7-rbac-matrix.baseline"
+[ -n "$WHITELIST" ] || WHITELIST="$ROOT/scripts/m7-rbac-matrix.whitelist"
 
 FIX_REPO="m7-matrix"
 FIX_WREPO="m7-matrix-w"
@@ -494,16 +550,70 @@ render_face write "$WRITE_ROWS"
 echo "† = 404 on a governance read: the route is absent on this build (E-26 envelope) — with the T-214① v1.1 row set no read row should carry one."
 echo "$GUARD"
 
+# ---- record mode (T-250: freeze the contract baseline) -----------------------
+#
+# Writes the observed (role|face|row|status) table to the baseline file. The
+# baseline must be recorded from a CLEAN ephemeral instance (the default boot
+# mode) with the default role set; --force is required to overwrite an
+# existing file, and per architecture 14.5-1 an ADR must register the flip
+# before a re-record ever happens.
+
+if [ "$RECORD" = "1" ]; then
+    step "record baseline -> $BASELINE"
+    if [ -e "$BASELINE" ] && [ "$FORCE" != "1" ]; then
+        fail "baseline $BASELINE already exists — re-recording needs --force AND an ADR registering the flip (architecture 14.5-1)"
+    fi
+    GIT_SHA=$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo "unknown")
+    ORIGIN="clean ephemeral instance (the script's default boot mode)"
+    [ "$EXTERNAL" = "0" ] || ORIGIN="EXTERNAL instance via --base (caller-owned state — not the frozen posture)"
+    {
+        echo "# BinFlow RBAC matrix contract baseline (T-250, ADR-0030 / architecture 14.5-1)."
+        echo "# Frozen: commit $GIT_SHA, $(date -u '+%Y-%m-%dT%H:%M:%SZ'), from a $ORIGIN."
+        echo "# Recorded by: scripts/m7-rbac-matrix.sh --record [--force] (default role set)."
+        echo "#"
+        echo "# Line format: role|face|row|status   (face = read|write; SKIP = column skipped)"
+        echo "# Consumed by: scripts/m7-rbac-matrix.sh --expect (verdict B — deviations must be"
+        echo "# registered in scripts/m7-rbac-matrix.whitelist to pass; rewriting this file needs"
+        echo "# an ADR first)."
+        for c in $COLS; do
+            for face in read write; do
+                rows=$READ_ROWS
+                [ "$face" = "write" ] && rows=$WRITE_ROWS
+                n=0
+                printf '%s\n' "$rows" | while IFS='|' read -r row_id _rest; do
+                    n=$((n + 1))
+                    code=$(sed -n "${n}p" "$WORK/$c.$face")
+                    echo "$c|$face|$row_id|$code"
+                done
+            done
+        done
+    } > "$BASELINE"
+    cells=$(grep -c -v '^#' "$BASELINE")
+    echo "m7-rbac-matrix: baseline recorded ($cells cells) -> $BASELINE"
+    echo "m7-rbac-matrix: run complete"
+    exit 0
+fi
+
 # ---- verdict mode ------------------------------------------------------------
 #
-# Row-aware: every code line maps to its row id, because the pass-gate
-# posture is per row — R12 storage/migration answers 501 once the gate
-# passed on a build without dual-write (a plain user's 403 on the same row
-# is what proves the gate decided). The zero-side-effect guard's verdicts
-# count as deviations too.
+# Verdict A (PRD M7 target table — the semantic floor): row-aware, every code
+# line maps to its row id, because the pass-gate posture is per row — R12
+# storage/migration answers 501 once the gate passed on a build without
+# dual-write (a plain user's 403 on the same row is what proves the gate
+# decided). The zero-side-effect guard's verdicts count as deviations too.
+# The floor also catches a corrupt re-record of the baseline from a broken
+# build (e.g. a user column suddenly answering 200 on a write row).
+#
+# Verdict B (M9 contract baseline + whitelist — T-250, the machine gate):
+# every observed cell is diffed against the frozen baseline; a mismatch (or a
+# cell with no baseline entry) is a DEViation unless the exact tuple is
+# registered in the whitelist, in which case it is reported WL. A whitelist
+# entry whose deviation no longer happens (observed == baseline again, or the
+# observed status never materializes) is WL-STALE and also fails — the
+# registry must not accumulate dead entries.
 
 if [ "$EXPECT" = "1" ]; then
-    step "verdict (--expect: PRD M7 target table)"
+    step "verdict A (--expect: PRD M7 target table — semantic floor)"
     dev=0
     check_col() {
         crole=$1
@@ -553,17 +663,114 @@ EOF
         check_col "$c" read
         check_col "$c" write
     done
+    dev_table=$dev
+
+    step "verdict B (--expect: M9 contract baseline $BASELINE + whitelist $WHITELIST)"
+    [ -f "$BASELINE" ] || fail "baseline $BASELINE missing — record one first: scripts/m7-rbac-matrix.sh --record"
+    [ -f "$WHITELIST" ] || fail "whitelist $WHITELIST missing — restore it (an absent registry must never pass the gate)"
+    if [ -n "$(grep -v '^#' "$BASELINE" | grep -v '^$' | awk -F'|' 'NF != 4')" ]; then
+        fail "baseline $BASELINE has malformed lines (want role|face|row|status)"
+    fi
+
+    # Whitelist pre-pass: strip trailing comments/blanks so both the grep
+    # lookup and the staleness walk see bare tuples.
+    WL_STRIPPED="$WORK/whitelist.stripped"
+    sed 's/#.*//' "$WHITELIST" | sed 's/[[:space:]]*$//' | grep -v '^$' > "$WL_STRIPPED" || true
+
+    whitelisted() {
+        # whitelisted ROLE FACE ROW STATUS — 0 iff the tuple is registered.
+        grep -q "^$1|$2|$3|$4\$" "$WL_STRIPPED"
+    }
+
+    dev_base=0
+    wl_hits=0
+    diff_col() {
+        crole=$1
+        cface=$2
+        [ -f "$WORK/$crole.$cface" ] || return 0
+        rows=$READ_ROWS
+        [ "$cface" = "write" ] && rows=$WRITE_ROWS
+        line_no=0
+        while IFS='|' read -r row_a row_b row_c; do
+            line_no=$((line_no + 1))
+            base=$(grep -m1 "^$crole|$cface|$row_a|" "$BASELINE" | cut -d'|' -f4)
+            code=$(sed -n "${line_no}p" "$WORK/$crole.$cface")
+            if [ -z "$base" ]; then
+                if whitelisted "$crole" "$cface" "$row_a" "$code"; then
+                    echo "  WL $crole $cface $row_a: no baseline entry, observed $code (whitelisted)"
+                    wl_hits=$((wl_hits + 1))
+                else
+                    echo "  DEV $crole $cface $row_a: no baseline entry (row added to the matrix? re-record with an ADR), observed $code"
+                    dev_base=$((dev_base + 1))
+                fi
+                continue
+            fi
+            [ "$code" = "$base" ] && continue
+            if whitelisted "$crole" "$cface" "$row_a" "$code"; then
+                echo "  WL $crole $cface $row_a: baseline $base -> observed $code (whitelisted deviation)"
+                wl_hits=$((wl_hits + 1))
+            else
+                echo "  DEV $crole $cface $row_a: baseline $base, got $code"
+                dev_base=$((dev_base + 1))
+            fi
+        done <<EOF
+$rows
+EOF
+    }
+    for c in $COLS; do
+        diff_col "$c" read
+        diff_col "$c" write
+    done
+
+    # Staleness walk: every registry entry must correspond to a live deviation
+    # in THIS run (observed == registered status, differing from baseline).
+    while IFS='|' read -r w_role w_face w_row w_status; do
+        [ -n "$w_role" ] || continue
+        case " $COLS " in
+        *" $w_role "*) ;;
+        *) continue ;; # entry for a role not in this run — not evaluable
+        esac
+        case "$w_face" in
+        read|write) ;;
+        *)
+            echo "  WL-STALE $w_role $w_face $w_row: malformed face in whitelist entry"
+            dev_base=$((dev_base + 1))
+            continue
+            ;;
+        esac
+        rows=$READ_ROWS
+        [ "$w_face" = "write" ] && rows=$WRITE_ROWS
+        w_ln=$(printf '%s\n' "$rows" | awk -F'|' -v r="$w_row" '$1 == r { print NR; exit }')
+        if [ -z "$w_ln" ]; then
+            echo "  WL-STALE $w_role $w_face $w_row: unknown row id in whitelist entry"
+            dev_base=$((dev_base + 1))
+            continue
+        fi
+        obs=$(sed -n "${w_ln}p" "$WORK/$w_role.$w_face")
+        [ "$obs" = "SKIP" ] && continue # SKIP already counted as DEV above
+        base=$(grep -m1 "^$w_role|$w_face|$w_row|" "$BASELINE" | cut -d'|' -f4)
+        if [ "$obs" = "$w_status" ] && [ "$obs" != "$base" ]; then
+            : # live deviation — reported as WL in the diff pass above
+        else
+            echo "  WL-STALE $w_role $w_face $w_row: entry expects $w_status, observed ${obs:-none} (baseline ${base:-none}) — delete the dead entry"
+            dev_base=$((dev_base + 1))
+        fi
+    done < "$WL_STRIPPED"
+
+    dev_guard=0
     case "$GUARD" in
     *VIOLATION*)
         echo "  DEV zero-side-effect guard: $GUARD"
-        dev=$((dev + 1))
+        dev_guard=1
         ;;
     esac
+
+    dev=$((dev_table + dev_base + dev_guard))
     if [ "$dev" -gt 0 ]; then
-        echo "m7-rbac-matrix: $dev deviation(s) from the M7 target table"
+        echo "m7-rbac-matrix: $dev deviation(s) (verdict A table: $dev_table, verdict B baseline: $dev_base, guard: $dev_guard)"
         exit 1
     fi
-    echo "m7-rbac-matrix: 0 deviations (SKIP columns excluded)"
+    echo "m7-rbac-matrix: 0 deviations — PRD table clean, contract baseline clean ($wl_hits whitelisted)"
 fi
 
 echo "m7-rbac-matrix: run complete"
