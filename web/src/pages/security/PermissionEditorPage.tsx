@@ -881,7 +881,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
               ))}
               <div className="verdict">
                 <span
-                  className={`badge ${evaluation.match ? 'perm-verdict-success' : 'perm-verdict-danger'}`}
+                  className={`badge ${evaluation.match ? 'success' : 'danger'}`}
                   data-testid="perm-pattern-verdict"
                 >
                   {evaluation.match ? '✓ 匹配' : '✗ 不匹配'}

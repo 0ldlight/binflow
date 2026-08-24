@@ -46,8 +46,9 @@ function roleBadge(item: UserListItem) {
 }
 
 function RoleLabel({ role }: { role: AdminRole }) {
-  // role-warning：本页面组自持类（security.css）——亮主题对比度收口
-  if (role === 'admin') return <span className="badge role-warning">admin</span>
+  // 共享语义 badge（T-266：T-237 自持 role-warning 回退——base.css 家族
+  // 双主题 ≥4.59:1 后冗余）
+  if (role === 'admin') return <span className="badge warning">admin</span>
   if (role === 'readonly_admin') return <span className="badge neutral">readonly_admin</span>
   return <span className="badge neutral">user</span>
 }

@@ -434,3 +434,75 @@ test('keyboard: dialog Enter/Space/Esc cycle, matrix Space toggle, Enter on Save
   expect(t.principals.users[user]).toEqual(['read', 'write'])
   expect(t.includePatterns).toContain('kb/**')
 })
+
+// ---- T-266 对比度类回退的复扫腿（两主题 × 判定两态 + 用户页角色徽章） -------
+// perm-verdict-* / role-warning 自持类已回退共享 .badge.{success,danger,
+// warning}（T-244 把修法上收到 base.css 后冗余）。判定徽章只在测试器求值后
+// 渲染——a11y-sweep 的静态路由扫不到该面，本腿显式驱动两态，light/dark 双
+// 主题 axe 复扫 serious=0（等价门 = §8 语义色文字 ≥4.5:1 两主题，两配方实测
+// 5.0~6.2:1，数值表见 reports/agents/T-266.md）；用户页 admin 行徽章同族面
+// 附 computed 配方快照作等价性证据（ADR-0029 决策 3 允许的 token 存在性校验）。
+
+test('contrast rollback (T-266): shared-badge verdict states + role badge axe-clean in both themes', async ({
+  page,
+}, testInfo) => {
+  await loginAs(page, 'admin')
+  const repo = uniq('t266r')
+  expect((await sessionApi(page, 'PUT', `/api/repositories/${repo}`, { rclass: 'local', packageType: 'generic' })).status).toBe(200)
+
+  const verdict = page.locator('[data-testid="perm-pattern-verdict"]')
+  for (const theme of ['light', 'dark'] as const) {
+    // 主题显式落盘后重进（a11y-sweep 同款——不依赖上一腿翻转残留；编辑器
+    // 表单是组件本地态，重建而非切题）
+    await page.goto('/binflow/ui/admin/security/permissions/new')
+    await page.evaluate((t) => localStorage.setItem('binflow-console-theme', t), theme)
+    await page.goto('/binflow/ui/admin/security/permissions/new')
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+
+    // 备料（不保存——纯本地态）：两步对话框加 include qa/** / exclude qa/tmp/**
+    await page.fill('[data-testid="perm-form-name"]', uniq('t266t'))
+    await page.click('[data-testid="perm-repo-add"]')
+    await page.click(`[data-testid="perm-repo-pick-${repo}"]`)
+    await page.click('[data-testid="perm-res-next"]')
+    await page.fill('[data-testid="perm-pattern-input-include"]', 'qa/**')
+    await page.click('[data-testid="perm-pattern-add-include"]')
+    await page.fill('[data-testid="perm-pattern-input-exclude"]', 'qa/tmp/**')
+    await page.click('[data-testid="perm-pattern-add-exclude"]')
+    await page.click('[data-testid="perm-res-ok"]')
+
+    // 命中 → 共享 .badge.success（perm-verdict-success 退役，类名实证）
+    await page.fill('[data-testid="perm-pattern-test"]', 'qa/builds/app.bin')
+    await expect(verdict).toContainText('匹配')
+    await expect(verdict).toHaveClass(/badge success/)
+    await expect(verdict).not.toHaveClass(/perm-verdict/)
+    await expectA11yClean(page, testInfo, { include: '[data-testid="perm-pattern-result"]' })
+
+    // 未命中（exclude 优先）→ 共享 .badge.danger
+    await page.fill('[data-testid="perm-pattern-test"]', 'qa/tmp/x.bin')
+    await expect(verdict).toContainText('不匹配')
+    await expect(verdict).toHaveClass(/badge danger/)
+    await expectA11yClean(page, testInfo, { include: '[data-testid="perm-pattern-result"]' })
+  }
+
+  // 用户页角色徽章（role-warning → badge warning）：内置 admin 行在场即渲染
+  // 该面；双主题 computed 配方快照（token 存在性——非像素断言）
+  const snapshots: Record<string, unknown> = {}
+  for (const theme of ['light', 'dark'] as const) {
+    await page.goto('/binflow/ui/admin/security/users')
+    await page.evaluate((t) => localStorage.setItem('binflow-console-theme', t), theme)
+    await page.goto('/binflow/ui/admin/security/users')
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+    const adminBadge = page.locator('[data-testid="user-row-admin"] .badge.warning')
+    await expect(adminBadge).toHaveCount(1)
+    await expect(adminBadge).toHaveText('admin')
+    snapshots[theme] = await adminBadge.evaluate((el) => {
+      const cs = getComputedStyle(el)
+      return { color: cs.color, backgroundColor: cs.backgroundColor }
+    })
+    await expectA11yClean(page, testInfo, { include: '[data-testid="users-table"]' })
+  }
+  await testInfo.attach('t266-role-badge-computed', {
+    body: JSON.stringify(snapshots, null, 2),
+    contentType: 'application/json',
+  })
+})

@@ -76,14 +76,6 @@
   padding: var(--bf-sp-1) var(--bf-sp-2);
 }
 
-/* 角色徽章对比度收口（axe serious=0，T-237）：base 的 .badge.warning 亮主题
-   实测 4.26:1（#946200 on 18% tint）差一线——本页面组用自持类：15% 底 +
-   向正文色收敛的文字。base.css 是共享层（R6 边界），不动；全局收口另票。 */
-.badge.role-warning {
-  background: color-mix(in srgb, var(--bf-warning) 15%, transparent);
-  color: color-mix(in srgb, var(--bf-warning) 82%, var(--bf-text));
-}
-
 .transfer-item {
   display: flex;
   align-items: center;
@@ -531,22 +523,10 @@
   font-family: var(--bf-mono);
 }
 
-/* 模式测试器判定徽章对比度收口（axe serious=0，T-241）：base 的
-   .badge.success/.badge.danger 亮主题实测 4.14:1 / 4.07:1（语义色 15%
-   tint 上语义色文字——shared 层缺陷，与 T-237 发现的 .badge.warning
-   4.26:1 同族）。本页面组自持类：底保持 15% 语义 tint，文字向正文色
-   收敛 18%（实测 ≥5:1 两主题）；base.css 是共享层（R6 边界）不动，
-   全局收口归共享层小票（T-237 §2.4 建议合并）。 */
-
-.badge.perm-verdict-success {
-  background: color-mix(in srgb, var(--bf-success) 15%, transparent);
-  color: color-mix(in srgb, var(--bf-success) 82%, var(--bf-text));
-}
-
-.badge.perm-verdict-danger {
-  background: color-mix(in srgb, var(--bf-danger) 15%, transparent);
-  color: color-mix(in srgb, var(--bf-danger) 82%, var(--bf-text));
-}
+/* T-266 注：T-237 role-warning / T-241 perm-verdict-* 自持对比度类已
+   回退——T-244 把同款修法上收到 base.css 语义 badge 家族（warning/success/
+   danger 双主题 ≥4.59:1），页面组自持副本冗余删除；判定徽章直接用
+   .badge.success / .badge.danger。 */
 
 /* ============================================================
  * T-257 增补区块（M9 UI 消费波：E2/E3 Status 徽章 + E4 删除危险区）：
@@ -556,10 +536,9 @@
 /* Status 徽章（E2/E3 enabled 真值）：自持 status-pill 类——不复用 .badge
    基类（用户行内 .badge 语义位已被角色徽章与组 chips 占用，m8 套件的
    行级 .badge 锚按视图唯一计，ADR-0029 决策 3——加一个 .badge 即破其
-   strict-mode 唯一性）。视觉配方对齐 .badge（base.css §441）+ 对比度
-   收口沿 role-warning / perm-verdict-* 同款（语义色 15% tint 底 + 文字
-   向正文色收敛 82%，两主题实测 ≥5:1——base 的 .badge.success/.danger
-   亮主题 4.1x:1 是共享层已知缺陷，R6 边界不动 base.css）。 */
+   strict-mode 唯一性；T-266 对比度类回退不含此类）。视觉配方对齐
+   .badge（base.css）+ 对比度同款收口（语义色 15% tint 底 + 文字向
+   正文色收敛 82%，两主题实测 ≥4.9:1）。 */
 
 .status-pill {
   display: inline-flex;

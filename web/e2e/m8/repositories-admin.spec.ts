@@ -228,6 +228,11 @@ test('readonly_admin: full list visible, write entries gone; detail/config read-
   await expect(page.locator('[data-testid="repos-readonly-note"]')).toBeVisible()
   await expect(page.locator('[data-testid="repos-create"]')).toHaveCount(0)
   await expect(page.locator(`[data-testid="repos-delete-${key}"]`)).toHaveCount(0)
+  // 浏览器部署入口预收敛（T-266，tree-deploy 语义平移）：禁用态 + tooltip
+  // 说明——不再是「可点开、上传后 403 行内兜底」的迟到收敛
+  const rowDeploy = page.locator(`[data-testid="repos-deploy-${key}"]`)
+  await expect(rowDeploy).toBeDisabled()
+  await expect(rowDeploy).toHaveAttribute('title', '只读管理员不可写（服务端 403 兜底）')
 
   // 详情：三 Tab 可见；配置 Tab quota 行内编辑禁用；无危险区（删除 = CapRepoWrite）
   await page.goto(`/binflow/ui/admin/repositories/${key}`)
@@ -235,6 +240,13 @@ test('readonly_admin: full list visible, write entries gone; detail/config read-
   await expect(page.locator('[data-testid="repo-detail-readonly-note"]')).toBeVisible()
   await expect(page.locator('[data-testid="repo-danger-zone"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="repo-edit-link"]')).toHaveCount(0)
+  // 详情头 Deploy 同款预收敛（T-266）：禁用 + tooltip + 禁用钮不可触发
+  // （disabled 控件非可激活态——DOM click 也不产生 click 激活，对话框不开）
+  const detailDeploy = page.locator('[data-testid="repo-deploy"]')
+  await expect(detailDeploy).toBeDisabled()
+  await expect(detailDeploy).toHaveAttribute('title', '只读管理员不可写（服务端 403 兜底）')
+  await detailDeploy.evaluate((el) => (el as HTMLButtonElement).click())
+  await expect(page.locator('[data-testid="deploy-dialog"]')).toHaveCount(0)
   await page.click('[data-testid="repo-tab-config"]')
   await expect(page.locator('[data-testid="repo-governance-card"]')).toContainText('10240')
   await expect(page.locator('[data-testid="repo-quota-input"]')).toBeDisabled()
@@ -267,6 +279,13 @@ test('readonly_admin: full list visible, write entries gone; detail/config read-
   expect(w.status).toBe(403)
   const r = await sessionApi(page, 'GET', `/api/repositories/${key}`)
   expect(r.status).toBe(200) // 读面存活（只读态不是 403 姿态）
+
+  // 双保险第二臂（T-266）：内容写面（Deploy 的真实上传臂 PUT
+  // /binflow/{repo}/{path}）兜底仍在——预收敛禁用只是呈现层收敛
+  const put = await sessionApi(page, 'PUT', `/${key}/e2e/ro-probe.bin`, 'probe\n')
+  expect(put.status).toBe(403)
+  // 未落任何内容（无绕过）：读面复核该路径不存在（artifacts-tree gone 臂同款）
+  expect((await sessionApi(page, 'GET', `/api/storage/${key}/e2e/ro-probe.bin`)).status).toBe(404)
 
   // 收尾
   await client.request('DELETE', `/binflow/api/repositories/${key}?deleteContent=true`)

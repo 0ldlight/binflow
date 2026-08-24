@@ -311,7 +311,7 @@ export default function RepositoriesPage() {
 
       {readOnly && (
         <p className="page-note" data-testid="repos-readonly-note">
-          ⓘ 只读管理员（readonly_admin）视角：仓库清单与配置只读；创建/删除仓库是管理面写操作（服务端 403 兜底）。
+          ⓘ 只读管理员（readonly_admin）视角：仓库清单与配置只读；创建/删除仓库与浏览器部署（Deploy）等写操作已禁用——服务端一律 403 兜底。
         </p>
       )}
 
@@ -460,7 +460,12 @@ export default function RepositoriesPage() {
                             type="button"
                             className="btn"
                             data-testid={`repos-deploy-${repo.key}`}
-                            title={`部署到 ${repo.key}（浏览器上传）`}
+                            disabled={readOnly}
+                            title={
+                              readOnly
+                                ? '只读管理员不可写（服务端 403 兜底）'
+                                : `部署到 ${repo.key}（浏览器上传）`
+                            }
                             onClick={() => setDeployKey(repo.key)}
                           >
                             部署

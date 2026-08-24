@@ -284,7 +284,8 @@ export default function RepoDetailPage() {
               type="button"
               className="btn"
               data-testid="repo-deploy"
-              title="部署到本仓（浏览器上传）"
+              disabled={readOnly}
+              title={readOnly ? '只读管理员不可写（服务端 403 兜底）' : '部署到本仓（浏览器上传）'}
               onClick={() => setDeployOpen(true)}
             >
               ⬆ 部署 Deploy
@@ -310,8 +311,8 @@ export default function RepoDetailPage() {
       )}
       {readOnly && (
         <p className="page-note" data-testid="repo-detail-readonly-note">
-          ⓘ 只读管理员（readonly_admin）视角：仓库配置只读——保存走单仓管理面写（CanManageRepo write），服务端 403
-          兜底。
+          ⓘ 只读管理员（readonly_admin）视角：仓库配置只读、浏览器部署（Deploy）已禁用——配置保存走单仓管理面写
+          （CanManageRepo write）、部署走制品写面，服务端一律 403 兜底。
         </p>
       )}
 
