@@ -106,9 +106,11 @@ test('search: keyboard chain query -> count subtitle -> row Enter deep-links the
   const { repo, file, marker } = await seedSearchFixture()
   await loginAs(page, 'admin')
 
-  // 顶栏搜索入口落 SearchPage（T-235 壳结构 + 本票 autoFocus 回显）
+  // 顶栏搜索入口落 SearchPage（T-235 壳结构；T-265 起顶栏是真输入框——
+  // 空词 Enter 保留「纯入口跳 /search」通道，本页 autoFocus 回显维持）
   await page.goto('/binflow/ui/dashboard')
-  await page.click('[data-testid="topbar-search"]')
+  await page.focus('[data-testid="topbar-search"]')
+  await page.keyboard.press('Enter')
   await expect(page).toHaveURL(/\/binflow\/ui\/search$/)
   await expect(page.locator('[data-testid="search-input"]')).toBeFocused()
 

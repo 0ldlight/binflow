@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '../app/AuthContext'
@@ -21,7 +22,9 @@ import { errText, isReadOnlyAdmin } from '../lib/api'
 //
 // 模式切换 = 侧栏底部常驻项（应用模式显「管理」，管理模式显「返回应用」；
 // readonly_admin 可见——M7 语义保留清单 §7.3，含会话徽章「只读」）。
-// 顶栏（§2.1）：面包屑/标题 · 搜索制品 · 帮助 · 主题 · 用户菜单（Quick
+// 顶栏（§2.1）：面包屑/标题 · 搜索制品（T-265 起真输入框——Enter 提交跳
+// /search?q=、Esc 清空、最近词下拉沿搜索页 recentSearches，FR-82-AC9）·
+// 帮助 · 主题 · 用户菜单（Quick
 // 动作 = §2.3；仅全量 admin 渲染写入口，readonly_admin 不见快速建仓）。
 // 「不建」清单零影子入口（ADR-0029 决策 5）：无 Proxies/包索引/独立
 // 产品入口；单实例无范围下拉（§1.2 单值不渲染口径）。
@@ -164,6 +167,35 @@ function appTitle(pathname: string): string {
   return 'BinFlow'
 }
 
+// ---- 顶栏 recentSearches（FR-82-AC9 / T-265） ------------------------------
+// 与 pages/search/SearchPage 共用同一 localStorage 键与语义（reverse §4.5：
+// 最近 8 条、去重置顶、隐私模式降级会话内）——顶栏提交即入列，搜索页聚焦
+// 即见。pages/search 不在本票 area，两处实现暂各自持有（键与上限必须保持
+// 一致）；收敛为共享 lib 归后续共享层票（T-266 邻域）。
+
+const RECENT_SEARCH_KEY = 'binflow-console-recent-searches'
+const RECENT_SEARCH_MAX = 8
+
+function loadRecentSearches(): string[] {
+  try {
+    const raw: unknown = JSON.parse(window.localStorage.getItem(RECENT_SEARCH_KEY) ?? '[]')
+    if (!Array.isArray(raw)) return []
+    return raw.filter((v): v is string => typeof v === 'string' && v.trim() !== '').slice(0, RECENT_SEARCH_MAX)
+  } catch {
+    return []
+  }
+}
+
+function commitRecentSearch(term: string): string[] {
+  const next = [term, ...loadRecentSearches().filter((v) => v !== term)].slice(0, RECENT_SEARCH_MAX)
+  try {
+    window.localStorage.setItem(RECENT_SEARCH_KEY, JSON.stringify(next))
+  } catch {
+    // localStorage 不可用：最近搜索退化为会话内（与搜索页同款降级）
+  }
+  return next
+}
+
 export default function AppShell() {
   const { status, session, logout } = useAuth()
   const { theme, toggle } = useTheme()
@@ -176,6 +208,77 @@ export default function AppShell() {
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
   const sessionToggleRef = useRef<HTMLButtonElement>(null)
+
+  // 顶栏搜索（console-m8 §2.1 / FR-82-AC9，T-265 升真输入框）：
+  //   Enter → /search?q=<词>（顶栏提交即写入 recentSearches——与搜索页
+  //   同键联动）；空词 Enter = 纯入口跳 /search（沿 T-235 前身「点进搜索
+  //   页」的通道，/search 自身的 autoFocus 回显行为维持不变）。
+  //   Esc 两段：先收最近词下拉，再清空 + 失焦。
+  //   最近词下拉沿 SearchPage 既有 recentSearches 语义：按当前词子串过滤、
+  //   ↑↓ 循环 + Enter 应用、一键清除历史。
+  const topbarSearchRef = useRef<HTMLInputElement>(null)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [recent, setRecent] = useState<string[]>(() => loadRecentSearches())
+  const [recentOpen, setRecentOpen] = useState(false)
+  const [recentActive, setRecentActive] = useState(-1)
+  // 按当前词子串过滤（空词 = 全量历史；无匹配即不渲染下拉）
+  const recentList = recent.filter((q) => q.toLowerCase().includes(searchTerm.trim().toLowerCase()))
+
+  const submitTopbarSearch = (raw: string) => {
+    const term = raw.trim()
+    setRecentOpen(false)
+    setRecentActive(-1)
+    if (term === '') {
+      navigate('/search')
+      return
+    }
+    setRecent(commitRecentSearch(term))
+    setSearchTerm(term)
+    navigate(`/search?q=${encodeURIComponent(term)}`)
+  }
+
+  const onTopbarSearchKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown' && recentList.length > 0) {
+      e.preventDefault() // 光标移动让位给历史导航
+      setRecentOpen(true)
+      setRecentActive((i) => Math.min(i + 1, recentList.length - 1))
+      return
+    }
+    if (e.key === 'ArrowUp' && recentOpen && recentList.length > 0) {
+      e.preventDefault()
+      setRecentActive((i) => Math.max(i - 1, 0))
+      return
+    }
+    if (e.key === 'Escape') {
+      // 两段 Esc：可见下拉在（recentList 非空）先收它；否则清空 + 失焦。
+      // 判据用「实际呈现的下拉」而非 recentOpen——子串无匹配时下拉本就
+      // 不渲染，此时 Esc 直接走清空（不可见的状态不该吞掉一次按键）。
+      if (recentOpen && recentList.length > 0) {
+        setRecentOpen(false)
+        setRecentActive(-1)
+      } else {
+        setSearchTerm('')
+        topbarSearchRef.current?.blur()
+      }
+      return
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      if (recentOpen && recentActive >= 0 && recentList[recentActive]) submitTopbarSearch(recentList[recentActive])
+      else submitTopbarSearch(searchTerm)
+    }
+  }
+
+  const clearTopbarRecent = () => {
+    try {
+      window.localStorage.removeItem(RECENT_SEARCH_KEY)
+    } catch {
+      // localStorage 不可用：仅清会话内副本
+    }
+    setRecent([])
+    setRecentOpen(false)
+    setRecentActive(-1)
+  }
 
   // Set Me Up 全局入口（T-244 收口 quick-set-me-up 占位接线——T-242 遗留）：
   // 用户菜单 → 快速建仓 → Set Me Up 直接开全局对话框（无仓库上下文 →
@@ -206,7 +309,8 @@ export default function AppShell() {
   const mode: 'app' | 'admin' = inAdminArea && canSeeAdmin ? 'admin' : 'app'
 
   // 全局搜索快捷键（console-m8 §3.4）：⌘K / Ctrl+K / 「/」（输入框内
-  // 不劫持）；modal（危险确认框等）打开时让位（review N2）。
+  // 不劫持）；modal（危险确认框等）打开时让位（review N2）。T-265 起顶栏
+  // 是真输入框——快捷键聚焦它（⌘K 附带全选，便于直接覆写），Enter 即提交。
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (document.querySelector('[role="dialog"], .modal-backdrop')) return
@@ -214,15 +318,16 @@ export default function AppShell() {
       const inField = !!el?.closest('input, textarea, select, [contenteditable="true"]')
       if ((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
-        navigate('/search')
+        topbarSearchRef.current?.focus()
+        topbarSearchRef.current?.select()
       } else if (e.key === '/' && !inField) {
         e.preventDefault()
-        navigate('/search')
+        topbarSearchRef.current?.focus()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [navigate])
+  }, [])
 
   // 用户菜单：点击外部关闭 + Esc 关闭（§3.4 键盘清单）
   useEffect(() => {
@@ -344,16 +449,67 @@ export default function AppShell() {
             <span className="page-title">{appTitle(location.pathname)}</span>
           )}
           <span className="spacer" />
-          <button
-            type="button"
-            className="search-entry"
-            data-testid="topbar-search"
-            onClick={() => navigate('/search')}
-          >
-            <span aria-hidden="true">⌕</span> 搜索制品
-            <span className="spacer" />
-            <kbd>⌘K</kbd>
-          </button>
+          {/* 顶栏搜索（§2.1 / FR-82-AC9）：真输入框 + 最近词下拉（样式与
+              搜索页 .search-recent 同形，但自持于 base.css——页面 css 随
+              懒加载分片，顶栏不可依赖）。输入框不加 aria-expanded /
+              aria-autocomplete：role=searchbox 不容这两个属性（axe
+              aria-allowed-attr），完整 combobox 模式（aria-controls +
+              listbox/option）随搜索页一并归后续票统一 */}
+          <div className="search-entry" role="search">
+            <span aria-hidden="true">⌕</span>
+            <input
+              ref={topbarSearchRef}
+              type="search"
+              placeholder="搜索制品…"
+              aria-label="搜索制品"
+              data-testid="topbar-search"
+              autoComplete="off"
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value)
+                setRecentOpen(true)
+              }}
+              onFocus={() => setRecentOpen(true)}
+              onBlur={() => {
+                setRecentOpen(false)
+                setRecentActive(-1)
+              }}
+              onKeyDown={onTopbarSearchKeyDown}
+            />
+            <kbd aria-hidden="true">⌘K</kbd>
+            {recentOpen && recentList.length > 0 && (
+              <div className="topbar-search-recent" data-testid="topbar-search-recent">
+                <div className="search-recent-head">
+                  <span>最近搜索</span>
+                  <button
+                    type="button"
+                    className="copy-btn"
+                    data-testid="topbar-search-recent-clear"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={clearTopbarRecent}
+                  >
+                    清除历史
+                  </button>
+                </div>
+                <ul className="search-recent-list" aria-label="最近搜索">
+                  {recentList.map((q, i) => (
+                    <li key={q}>
+                      <button
+                        type="button"
+                        className={i === recentActive ? 'active' : ''}
+                        data-testid={`topbar-search-recent-item-${i}`}
+                        lang="en"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => submitTopbarSearch(q)}
+                      >
+                        {q}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
           <a
             className="topbar-help"
             href="/binflow/docs/"

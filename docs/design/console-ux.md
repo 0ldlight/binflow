@@ -23,6 +23,7 @@
 | v1.5 | 2026-08-23 | T-237 用户/组页重排（console-m8 §6.9/§6.10 落地）：① §10.3 安全组增补 T-237 批次锚（列表排序头/计数行、分区表单按钮族、穿梭列容器、成员/权限汇总矩阵、组计数与管理徽章）——T-101 冻结锚**零改名**（`user-form-group-<name>` 等穿梭化后语义不变）；② `user-form-admin`（admin 布尔复选）退役——创建表单角色改三值下拉，与编辑态同走 `user-form-role`（wire 不变：创建走一致对 admin+adminRole，编辑只走 adminRole）；③ `user-perms`/`user-facts` 分卡承载权限矩阵与账户信息（`user-facts-role` 不变） |
 | v1.6 | 2026-08-24 | T-240 仓库管理域重排（console-m8 §6.6~§6.8 落地）：① §10.5 增补 T-240 批次锚 24 枚（三 Tab 导航/列头排序/行删除入口/计数行/包类型网格/表单按钮族/详情三 Tab/quota 行内编辑/readonly 与 m-holder 注记/Replications 降位）；② 退役 4 枚——`repos-filter-{type,package}`（类型过滤由三 Tab 子路由承载）、`form-prev`/`form-next`（三步向导 → 单页分区式，§4.4 定案）；③ `repo-governance-card` 移入配置 Tab（锚不变、+1 步 Tab 切换）；④ 编辑态 `form-key` 输入框改锁定展示（门控语义不变）——T-99 冻结锚零改名 |
 | v1.7 | 2026-08-24 | T-244 键盘可达 + 共享层债收口的锚册回写（收 T-243 缺陷 D-1~D-4 + T-242 待扫锚）：① **T-238 存储批 12 锚入册**（D-1）+ §10.5 路由表 `/admin/monitoring/storage` 行回写；② **T-242 对话框批 48 锚入册**（smu-* / deploy-* / 三入口族）；③ **散锚入册**（D-2：browser-intro / migration-readonly-note / perm-res-back / repo-advanced-card / perms-sort 族 + 审计新溯的历史散锚：T-158 SSO、T-160 迁移面板补遗、T-218 readonly 注记族、T-241 权限编辑器批、transfer-* 显名、tag-badge、topbar-help、settings-{version,license} 等）；④ **显式退役条目**（D-3）：`settings-password` + 本票树页双 Deploy 入口收敛退役的 `tree-upload` 与 `upload-*` 族 15 枚；⑤ 新增 **§10.6 死锚登记**（D-4：src 侧 115 家族零 spec 消费——`web/scripts/anchor-audit.mjs` 册↔src↔spec 三方对账器为底稿与常设工具）。本版起锚总量按家族口径核算（src 423 家族 / 493 落点） |
+| v1.8 | 2026-08-24 | T-265 树过滤复位 + 顶栏搜索框（FR-82-AC2/AC9）：① §10.5 增补 **T-265 批 4 锚**（`tree-filter-clear` + 顶栏最近词下拉族 `topbar-search-recent{-item-<i>,-clear}`）；② `topbar-search` 锚名不变、载体自按钮升真输入框（Enter → `/search?q=`，空词 Enter 保留纯入口；⌘K / `/` 改为聚焦顶栏框）；③ `tree-filter` / `tree-repo-filter` 锚不变，新增 (repo, dir) 作用域复位语义（QA-3 跨层/跨仓残留收口） |
 
 ---
 
@@ -1136,6 +1137,23 @@ tree-upload 平移）。
 `e2e/repositories.spec.ts` 同步 +2 行）；`repo-detail-page .key` 类锚与危险区
 `repo-danger-zone`/`repo-delete-button` 留在概要 Tab；编辑表单编辑态 key 由输入
 框改为锁定展示（`form-key` 仅创建态渲染——门控语义不变）。
+
+**T-265 树过滤复位 + 顶栏搜索框新锚（4 枚，先入本清单再落码流程兑现；FR-82
+AC2/AC9，消费 spec = web/e2e/m9 本票新增腿）**：
+
+```
+树过滤空态：tree-filter-clear（「过滤当前层」过滤后为空的标准清除钮——QA-3 /
+            §3.1 空「过滤后为空 ≠ 没有内容」；连「只看文件」一并复位）
+顶栏搜索：  topbar-search-recent（顶栏最近词下拉容器——FR-82-AC9 真输入框
+            配套，数据沿搜索页 recentSearches 同键 localStorage）
+            topbar-search-recent-item-<i>（历史项；↑↓ 导航 + Enter 应用）
+            topbar-search-recent-clear（清除历史——与搜索页同键同效）
+```
+
+变更注记（T-265，dev-frontend 回写）：`topbar-search` 锚名不变、载体自按钮换
+真输入框（§2.1 线框裁定——Enter → `/search?q=`、Esc 清空失焦、空词 Enter 保留
+纯入口跳 `/search`；⌘K / `/` 自「跳 /search」改为聚焦顶栏框）；`tree-filter` /
+`tree-repo-filter` 锚不变，新增复位语义（(repo, dir) 作用域变化清空——QA-3）。
 
 **锚总量复核口径（v1.4 实测）**：`grep -rn "data-testid" web/src/` = **293 落点 / 29 文件**（v1.2 基线 242 之后，T-104~T-234 各票陆续增锚至 HEAD 的 283 落点——ADR-0029 原写 283 即此原始 grep 数）；T-235 净变化 = 壳**删 0 改 0、新增 10**（AppShell 10 → 20），占位路由新增 0（复用 `placeholder-page`）。另：`web/src/styles/theme-smoke.spec.ts`（7 处选择器引用，非锚）随 T-232 遗留①迁出 `src/` 至 `e2e/m8/theme-smoke.spec.ts`，不再计入 src 侧 grep。
 

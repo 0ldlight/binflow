@@ -41,6 +41,8 @@ import {
 // - 左树：仓库为顶层节点（rclass×packageType 图标区分）+ 懒展开一层 +
 //   「过滤仓库」前端过滤（仅已加载集）；URL 即状态（/artifacts/<repo>/
 //   <path>，文件选中进 ?focus=），深链自动展开祖先并滚动定位（§4.3）。
+//   两个过滤词都按作用域复位（QA-3 / FR-82-AC2）：跨层/跨仓导航清空，
+//   同层内（?focus=、树展开）保留——语义论证见过滤状态声明处注释。
 // - 右列：详情面板（仓库/目录/文件三形态 Tab：常规 + 有效权限）+ 当前层
 //   children 表（目录在前，客户端分页 100/页「加载更多」）。
 // - 右键菜单（console-m8 C3 的 BinFlow 对齐面）：文件=复制路径/下载/
@@ -234,6 +236,24 @@ export default function ArtifactsBrowser() {
   const [filesOnly, setFilesOnly] = useState(false)
   const [visible, setVisible] = useState(PAGE)
   useEffect(() => setVisible(PAGE), [filter, filesOnly, dir])
+
+  // 过滤复位（QA-3 / FR-82-AC2，T-246 终验观察）：「过滤当前层」是对特定
+  // (repo, dir) 已加载 children 集合的谓词——词是用户对着那一层敲进去的。
+  // 跨层导航（下钻 / 面包屑上跳 / 左树跳兄弟层）或跨仓切换后，旧词落在一
+  // 个它从未针对过的新集合上，命中与否纯属巧合，空结果会被误读成「这一层
+  // 没有东西」（QA-3 空树误导）；因此 (repo, dir) 任一维变化即清空。同层
+  // 内导航（?focus= 换选中文件、树节点展开/收起）不动 children 集合，词
+  // 的语义完整——保留。「只看文件」是跨层稳定的视图偏好、不是针对单层的
+  // 词，跨层保留（仅它收窄出的空态文案单独呈现，见下方空态分支）。
+  useEffect(() => {
+    setFilter('')
+  }, [repoKey, dir])
+  // 「过滤仓库」在跨仓边界同界复位：进入某仓后保留它，当前仓分支会被从
+  // 左树上滤掉（所在位置从树里消失——与 QA-3 同款的误导）；切回跨仓根
+  // 也回到全量选择语境。
+  useEffect(() => {
+    setRepoFilter('')
+  }, [repoKey])
 
   const cur = repoKey ? dirState[ck(repoKey, dir)] : undefined
   const rows = useMemo(() => {
@@ -739,8 +759,47 @@ export default function ArtifactsBrowser() {
                           ) : undefined
                         }
                       />
+                    ) : filter.trim() !== '' ? (
+                      // QA-3 / §3.1 空态：过滤后为空 ≠ 这一层没有内容——标准
+                      // 文案 + 清除过滤（连「只看文件」一并复位，保证非空回呈现）
+                      <EmptyState
+                        message={`无匹配「${filter}」的条目`}
+                        hint={
+                          filesOnly
+                            ? '过滤只作用于当前层已加载的条目，且「只看文件」正在一并收窄范围。'
+                            : '过滤只作用于当前层已加载的条目。'
+                        }
+                        action={
+                          <button
+                            type="button"
+                            className="btn"
+                            data-testid="tree-filter-clear"
+                            onClick={() => {
+                              setFilter('')
+                              setFilesOnly(false)
+                            }}
+                          >
+                            清除过滤
+                          </button>
+                        }
+                      />
                     ) : (
-                      <EmptyState message={`无匹配「${filter}」的条目`} hint="过滤只作用于当前层已加载的条目。" />
+                      // 仅「只看文件」收窄出的空（无过滤词）：按实际谓词呈现，
+                      // 不误报「无匹配」
+                      <EmptyState
+                        message="当前层没有文件（只有目录）"
+                        hint="「只看文件」正在收窄列表。"
+                        action={
+                          <button
+                            type="button"
+                            className="btn"
+                            data-testid="tree-filter-clear"
+                            onClick={() => setFilesOnly(false)}
+                          >
+                            清除「只看文件」
+                          </button>
+                        }
+                      />
                     )
                   ) : (
                     <>
