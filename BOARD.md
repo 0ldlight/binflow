@@ -700,7 +700,12 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
   57 格契约基线冻结（M8 尾态清档实测）+ 零登记白名单 + verdict A/B 双裁决（负向 ×4 证明咬合）+ seed-m9（50 仓/20 用户/10 组/4 覆盖集 fixture，幂等）+ e2e/m9 骨架（m9 项目段无双跑）。**M9 期常跑口径**：`make test-m7-rbac-matrix EXPECT=1`（偏离须白名单登记；改基线须先 ADR）。遗留：CI 接线随 T-272 裁量；种子无内容文件（T-253 需要时扩展）。日志 reports/agents/T-250.md。
 - **T-255** [P0] GC 并发安全引擎层 `role:dev-go-storage` — **done 2026-08-24（T-232 竞态复现腿 -race×5 零误删 + 门序不变量钉死；conductor 复验；提交 `8748a3b`）**
   holdSet（refcount+TTL）+ Commit 先 acquire 后可见（锚定不变量）+ GCSweep 双删除门（hold→Live）+ 三引擎同构。**排序耦合**：repo 接线前 t94 三例/gc.spec 暂红 → **T-256 立即接续**。两处 ADR 字面偏离论证待 architect 复核（additive GCSweep；BeginSession 注册与 ADR 生命周期冲突采 ADR）。残窗登记（dedup 命中型/微秒级门-unlink 间隙——候选 C 根除）。日志 reports/agents/T-255.md。
-- **T-256** [P0] GC 接线收口 `role:dev-go-core` — **doing 2026-08-24（立即接续：五路径 release + t94/gc.spec 复绿 + serve.lock + TTL 键 + 压力 spec 进 CI〔T-268 前置〕）**
+- **T-256** [P0] GC 接线收口 `role:dev-go-core` — **done 2026-08-24（t94 复绿 + t134-g32 受害 spec 绿 + 压力腿 5 连零 flake + CI 压力步就位 + 闸门 0 偏离；conductor 复验；提交 `bfc0846`）——GC 根治链引擎+接线双落**
+  五路径 release（两路径刻意不接有 refcount 论证）+ IsReferenced 单点 Live + REST 面迁 GCSweep（legacy 调用面删除）+ serve.lock 跨进程门 + `--grace-seconds`（待追认）+ TTL 配置链 + CI 压力步（T-268 硬前置达成）。遗留：storage legacy `Engine.GC` 物理删除（7 测试文件引用）归后续 storage 触点；Playwright 形态压力腿待 e2e CI job。日志 reports/agents/T-256.md。
+
+#### M9 B2（在途）
+- **T-251** [P0] users 域端点（E2 加宽/E3 enabled 回显/E4 DELETE 全链护栏级联） `role:dev-go-core` — **doing 2026-08-24**
+- **T-253** [P0] usage 批量端点（E1 bare array + 可见集过滤） `role:dev-go-storage` — **doing 2026-08-24**
 - **B2**：T-251 [P0] E2/E3/E4 users 域端点（加宽+enabled 回显+DELETE 全链护栏级联）｜ T-253 [P0] E1 usage 批量端点
 - **B3**：T-252 [P0] E5 组成员 ?includeUsers ｜ T-256 [P0] GC 接线收口（五路径 ReleaseGCHold+serve.lock+压力 spec 进 CI——**顺序硬规则：先于 T-268**）
 - **B4**：T-254 [P0] E9/E6 ManageCoverage seam+permissions ?filter=manage ｜ T-257 [P0] users/groups 页消费（N+1 退役）
