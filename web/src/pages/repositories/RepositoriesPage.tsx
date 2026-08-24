@@ -409,6 +409,7 @@ export default function RepositoriesPage() {
                 {sorted.map((repo) => (
                   <tr
                     key={repo.key}
+                    data-testid={`repos-row-${repo.key}`}
                     style={{ cursor: 'pointer' }}
                     tabIndex={0}
                     onClick={() => navigate(`/admin/repositories/${repo.key}`)}
@@ -447,6 +448,7 @@ export default function RepositoriesPage() {
                         <button
                           type="button"
                           className="btn"
+                          data-testid={`repos-setmeup-${repo.key}`}
                           title={`Set Me Up：${repo.key} 的客户端接入向导`}
                           onClick={() => setSmuKey(repo.key)}
                         >
@@ -456,6 +458,7 @@ export default function RepositoriesPage() {
                           <button
                             type="button"
                             className="btn"
+                            data-testid={`repos-deploy-${repo.key}`}
                             disabled={readOnly}
                             title={
                               readOnly
@@ -471,6 +474,7 @@ export default function RepositoriesPage() {
                           <button
                             type="button"
                             className="row-del"
+                            data-testid={`repos-delete-${repo.key}`}
                             aria-label={`删除仓库 ${repo.key}`}
                             title={`删除仓库 ${repo.key}`}
                             onClick={(e) => {

@@ -218,7 +218,7 @@ export default function UserDetailPage() {
                   data-testid="user-form-role"
                 >
                   {ADMIN_ROLES.map((r) => (
-                    <option key={r} value={r}>
+                    <option key={r} value={r} data-testid={`user-form-role-${r}`}>
                       {ROLE_LABEL[r]}
                     </option>
                   ))}
@@ -295,6 +295,7 @@ export default function UserDetailPage() {
                     }
                     availableLabel="可选组"
                     selectedLabel="已选组"
+                    itemTestid={(g) => `user-form-group-${g}`}
                   />
                 </div>
               )}

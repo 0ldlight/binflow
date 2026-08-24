@@ -5,8 +5,9 @@
 //   src   第一方渲染 DOM 的锚落点：web/src 全量（data-testid="…" / testid="…"
 //         prop / prop 缺省值 / itemTestid 回调 / 'data-testid' 对象键条件展开）
 //         + web/scripts/mock-idp.mjs（第一方 IdP 模拟页——idp-login-* 锚的真身）
-//   spec  web/e2e 全量 .ts 引用（[data-testid=…] / getByTestId / testid:；
-//         README 等 .md 不在口径内）
+//   spec  web/e2e 全量 .ts 引用（[data-testid=…] 三种引号 × ^=/$=/*= 算子 ×
+//         ${} 模板 / getByTestId / testid: / toHaveAttribute·toMatch·toBe 值
+//         断言形；README 等 .md 不在口径内）
 //   册    docs/design/console-ux.md §10 全部锚名（{a|b} 备选展开、<动态段>
 //         家族化）；§10.4 未落地白名单与 §10.6 退役总表由 --ledger 从册解析
 //
@@ -71,14 +72,14 @@ const srcFiles = [...walk(SRC_DIRS[0], ['.tsx', '.ts']), ...SRC_FILES]
 for (const f of srcFiles) {
   const text = readFileSync(f, 'utf8')
   const rel = f.slice(ROOT.length + 1)
-  // 注：值类一律排除换行——注释里折行的 data-testid 字面量不得进家族集
-  for (const m of text.matchAll(/(?:data-testid|testid)=\{?["'`]([^"'`\n]+)["'`]/g)) {
+  // 注：值类一律排除换行——注释里折行的 data-testid 字面量不得进家族集。
+  // T-274 补形：原正则 = 后不允许空白且值类沿用旧引号集，两形态漏收——
+  // ① `const testid = \`repos-usage-${repoKey}\`` 变量模板赋值（渲染位
+  //    data-testid={testid}，运行时锚真实存在，T-267 期双向隐形）；
+  // ② prop 缺省 `testid = 'empty-state'`（原由第二条正则单独承载，现并入，
+  //    避免同落点双计）。
+  for (const m of text.matchAll(/(?:data-testid|testid)\s*=\s*\{?["'`]([^"'`\n]+)["'`]/g)) {
     addSrc(toFamily(m[1]), rel)
-  }
-  // prop 缺省值形态：testid = 'empty-state'（解构缺省，渲染位在 data-testid={testid}）。
-  // 负向后顾排除 data-testid="…"（其内含的 testid 子串不得重复计数）
-  for (const m of text.matchAll(/(?<![-a-z])testid\s*=\s*['"`]([a-z0-9-]+)['"`]/g)) {
-    addSrc(m[1], rel)
   }
   // itemTestid 回调形态（TransferBox：条目 testid 由回调拼出）
   for (const m of text.matchAll(/itemTestid=\{[^`]*`([^`\n]+)`/g)) {
@@ -99,19 +100,53 @@ addSrc('perm-matrix', 'pages/security/PermissionEditorPage.tsx (kind===users 臂
 addSrc('perm-matrix-groups', 'pages/security/PermissionEditorPage.tsx (kind===groups 臂)')
 
 // ---- spec 引用 ----
+// T-274 补形（DEFECT-1 根因①）：原正则只认双引号字面 `data-testid="x"` 且排除
+// `$`——e2e 的两大主流引用形态对其不可见：模板串 `[data-testid="repos-row-${key}"]`
+// （外层反引号、内层引号 + 插值）与前缀选择器 `[data-testid^="repos-row-"]`。
+// 全部 19 活族 / 数十处动态引用隐形 → T-267 按 dead 桶误杀（T-274 回填）。
+// 现覆盖六种形态：
+//   S1 属性选择器：三种引号 × ^=/$=/*= 算子 × ${} 插值段（模板值由 toFamily
+//      在首个动态段截断；前缀算子的截值按前缀命中家族）
+//   S2 getByTestId(…)（含模板串）
+//   S3 testid: 选项形
+//   S4 toHaveAttribute('data-testid', 值)——属性值断言也是消费（usage-fanout
+//      的排序腿靠它锁 repos-row-*）
+//   S5 toMatch(/^前缀-) 值比对（keyboard 腿对 activeElement testid 的前缀断言）
+//   S6 (not.)toBe(`前缀-${…}`) 模板值比对（同上，窄门：前缀含连字符，防普通
+//      字符串断言进桶制造伪 broken）
+// 纯透传形（值以 `${` 开头，如 helper 的 `[data-testid="${anchor}"]`）跳过：
+// 锚名来自调用方实参，本文件不可解析，计入只会制造伪 broken。
+const REF_RES = [
+  /data-testid\s*(?:\^|\*|\$)?=\s*(["'`])([^"'`\n]+)\1/g,
+  /getByTestId\(\s*(["'`])([^'"`\n]+)\1/g,
+  /testid:\s*(["'`])([^'"`\n]+)\1/g,
+  /toHaveAttribute\(\s*(['"])data-testid\1\s*,\s*(["`])([^'"`\n]+)\2/g,
+  /\.toMatch\(\s*\/\^([a-z][a-z0-9]*(?:-[a-z0-9]+)*-)/g,
+  /\.\s*(?:not\s*\.)?toBe\(\s*([`"'])([a-z][a-z0-9]*(?:-[a-z0-9]+)*-\$\{[^`"']*)\1/g,
+]
+
+/** spec 侧家族归一：模板/动态名走 toFamily；前缀形（^= 截值与 toMatch 前缀，
+ *  特征 = 尾连字符）归一为 `前缀-*`，与 dead/broken 的前缀命中语义一致。 */
+function specFamily(raw) {
+  if (raw.endsWith('-')) return raw.slice(0, -1) + '-*'
+  return toFamily(raw)
+}
+
 const specRefs = new Set()
 const specRaw = []
 for (const dir of E2E) {
   for (const f of walk(dir, ['.ts'])) {
     const text = readFileSync(f, 'utf8')
     const rel = f.slice(ROOT.length + 1)
-    for (const m of text.matchAll(
-      /(?:data-testid="([^"$]+)"|getByTestId\(\s*['"`]([^'"`$][^'"`]*)['"`]|testid:\s*['"`]([^'"`$][^'"`]*)['"`])/g,
-    )) {
-      const raw = m[1] ?? m[2] ?? m[3]
-      if (!raw) continue
-      specRaw.push({ raw, spec: rel })
-      specRefs.add(toFamily(raw))
+    for (const re of REF_RES) {
+      re.lastIndex = 0
+      for (const m of text.matchAll(re)) {
+        // 各形态的捕获组位置不同：S1/S2/S3/S4/S6 取最后一个「值」组，S5 单组
+        const raw = m[3] ?? m[2] ?? m[1]
+        if (!raw || raw.startsWith('${')) continue
+        specRaw.push({ raw, spec: rel })
+        specRefs.add(specFamily(raw))
+      }
     }
   }
 }

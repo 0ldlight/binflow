@@ -267,6 +267,7 @@ function GroupEditor({
               onToggle={(u, next) => setMembers((p) => (next ? [...(p ?? []), u] : (p ?? []).filter((x) => x !== u)))}
               availableLabel="可选用户"
               selectedLabel="已选成员"
+              itemTestid={(u) => `group-form-member-${u}`}
             />
           </div>
         )}
@@ -517,7 +518,7 @@ export default function GroupsPage() {
                             {r.grants.length}
                           </span>
                           {r.grants.some((g) => g.actions.includes('manage')) && (
-                            <span className="badge neutral mono" lang="en" title="组在至少一个 permission target 上持有 manage（仓库配置派生权）——BinFlow 无 Artifactory 组级 adminPrivileges 字段（有意不跟进，rbac-model §5）">
+                            <span className="badge neutral mono" lang="en" data-testid={`group-manage-badge-${r.group.name}`} title="组在至少一个 permission target 上持有 manage（仓库配置派生权）——BinFlow 无 Artifactory 组级 adminPrivileges 字段（有意不跟进，rbac-model §5）">
                               manage
                             </span>
                           )}

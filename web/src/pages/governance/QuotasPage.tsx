@@ -37,7 +37,7 @@ function WaterBar({ usage }: { usage: RepoUsage }) {
   const pct = Math.min(100, (usage.usedBytes / quota) * 100)
   const cls = usage.usedBytes >= quota ? 'full' : pct >= 80 ? 'warn' : ''
   return (
-    <div className="quota-bar">
+    <div className="quota-bar" data-testid={`quota-bar-${usage.repo}`}>
       <div
         className={`water-bar${cls ? ` ${cls}` : ''}`}
         role="progressbar"
@@ -105,7 +105,7 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
   }
 
   return (
-    <tr>
+    <tr data-testid={`quota-row-${repo.key}`}>
       <td>
         <Link className="row-link mono" to={`/admin/repositories/${repo.key}`} lang="en">
           {repo.key}
@@ -138,6 +138,7 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
               aria-label={`${repo.key} 的新配额（字节）`}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
+              data-testid={`quota-input-${repo.key}`}
               lang="en"
             />{' '}
             <span className="text-muted" style={{ fontSize: 'var(--bf-fs-aux)' }}>
@@ -161,6 +162,7 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
               className="btn"
               disabled={saving}
               onClick={() => void save()}
+              data-testid={`quota-save-${repo.key}`}
             >
               {saving ? '保存中…' : '保存'}
             </button>{' '}
@@ -189,6 +191,7 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
                   disabled={readOnly}
                   title={readOnly ? '只读管理员：配额写是管理面写操作（服务端 403 兜底）' : undefined}
                   onClick={startEdit}
+                  data-testid={`quota-edit-${repo.key}`}
                 >
                   编辑上限
                 </button>

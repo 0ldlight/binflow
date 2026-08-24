@@ -216,11 +216,12 @@ function AuditCard() {
               </tr>
             </thead>
             <tbody>
-              {events.map((ev) => {
+              {events.map((ev, i) => {
                 const target = auditTarget(ev)
                 return (
                   <tr
                     key={ev.id}
+                    data-testid={`dashboard-audit-row-${i}`}
                     tabIndex={target ? 0 : undefined}
                     onClick={target ? () => navigate(target) : undefined}
                     onKeyDown={

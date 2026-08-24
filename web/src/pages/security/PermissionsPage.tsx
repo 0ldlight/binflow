@@ -171,6 +171,7 @@ export default function PermissionsPage() {
                           <span
                             className="badge neutral mono"
                             lang="en"
+                            data-testid={`perm-manage-badge-${t.name}`}
                             title="该 target 的某主体行携带 manage（仓库配置派生权；不隐含读写删）"
                           >
                             manage

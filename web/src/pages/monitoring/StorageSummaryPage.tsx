@@ -249,7 +249,7 @@ export default function StorageSummaryPage() {
                     const virtual = r.type === 'virtual'
                     const pct = !virtual && u && totalUsed > 0 ? (u.usedBytes / totalUsed) * 100 : null
                     return (
-                      <tr key={r.key}>
+                      <tr key={r.key} data-testid={`storage-row-${r.key}`}>
                         <td>
                           <Link className="row-link mono" to={repoLink(r.key)} lang="en">
                             {r.key}

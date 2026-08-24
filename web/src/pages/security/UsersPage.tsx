@@ -219,6 +219,7 @@ function CreateUserForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
               }
               availableLabel="可选组"
               selectedLabel="已选组"
+              itemTestid={(name) => `user-form-group-${name}`}
             />
           </div>
         )}
