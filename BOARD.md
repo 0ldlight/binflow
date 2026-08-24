@@ -720,7 +720,9 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **T-257** [P0] users/groups 页消费 `role:dev-frontend` — **done 2026-08-24（21→1 请求 + knownEnabled hack 退役 + 强确认删除面 + 6 腿×3 轮零 flake + m8 锚兼容自持 status-pill；conductor 复验；提交 `79a97f3`）**
   E2 列表单源/E3 真值/E5 按需穿梭（选型论证）/governance 词表。有效口径 171/0/6。漂移登记：强确认升格（§4.6 回写队列）；无 Cache-Control 观察。日志 reports/agents/T-257.md。
 - **T-258** [P0] repos 已用列注水 — **done（冷首屏批量恰 1 + ≤3 硬断言 + 50 行对账；`a96ed17`）**——扇出根治双侧闭环。
-- **T-259** [P0] m-holder 编辑器可达 `role:dev-frontend` — **doing 2026-08-24（双前提齐即派；L2 卡对 m-holder 退役/user 保留）**
+- **T-259** [P0] m-holder 编辑器可达 `role:dev-frontend` — **done 2026-08-24（全量 168/0 零失败；conductor 复验；提交 `b610116`）——UI 消费波全清**
+  取数按角色分流（user→filter=manage 恰 1 次）；L2 卡对 m-holder 退役/user 保留；name-entry 降级保锚。wire 校准：空覆盖集结构上不可达 200-[]（落 403 角色分流友好空态）；删除覆盖集内实为 204。日志 reports/agents/T-259.md。
+- **T-263** [P1] 旧路由 redirect 全量移除 `role:dev-frontend` — **doing 2026-08-24（Q3 终裁执行：20 条 LegacyRedirect 删除 + 断言反转 404 + 文档改写）**
 - **T-261** [P1] npm packument 转义收敛 `role:dev-registry-adapter` — **done 2026-08-24（三重零变化证据 + 判别性 npm install 转义 URL 腿；conductor 复验；提交 `f30aede`）**
   两消费点收敛至 client.EscapePathSegments（import 单向无环论证）。**area 外登记**：remote JoinURL 裸拼接 = D-1 同类候选票；-rev 回显塌缩语义票。日志 reports/agents/T-261.md。
 - **T-262** [P1] push_npm 覆写臂自查 `role:dev-go-core` — **doing 2026-08-24（三场景推演：无包/追加/真覆写 vs T-249 判定表；无风险钉死或按镜像语义修复）**
