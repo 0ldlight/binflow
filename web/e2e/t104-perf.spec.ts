@@ -123,9 +123,10 @@ test('NFR-P20 P1: 50 concurrent logins, no session cross-talk', async ({ page })
   page.on('response', (r) => {
     if (r.status() >= 500) errors.push(`${r.status()} ${r.url()}`)
   })
-  // page 初始 url 为 about:blank（origin 不可用）——base 取配置面
-  const base = process.env.BASE ?? new URL(page.url()).origin
+  // T-264 (FR-82-AC3)：base 缺省自洽——先 goto 再取 page 真实 origin（about:blank
+  // 阶段 origin 不可用，裸跑曾因此 Invalid URL）；env 覆盖仍优先。
   await page.goto('/binflow/ui/')
+  const base = process.env.BASE ?? new URL(page.url()).origin
   await login(page)
 
   // 3 个探针用户轮转 × 50 并发登录（API 上下文 = 独立 cookie jar）

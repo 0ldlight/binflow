@@ -9,8 +9,10 @@ import { test, expect } from '@playwright/test'
 // test.beforeAll is intentionally skipped — this spec runs against an
 // already-running instance (started by the QA script).
 
+// T-264 (FR-82-AC3)：缺省口令回退标准 scratch 口令，裸全量单命令可跑；
+// docs QA 专用实例仍以 env 覆盖（ADMIN_PW=docsqa-test-pw-146 优先于缺省）。
 const ADMIN = process.env.ADMIN_USER ?? 'admin'
-const ADMIN_PW = process.env.ADMIN_PW ?? 'docsqa-test-pw-146'
+const ADMIN_PW = process.env.ADMIN_PW ?? 'password'
 
 async function login(page: import('@playwright/test').Page) {
   await page.fill('[data-testid="login-username"]', ADMIN)
