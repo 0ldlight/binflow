@@ -727,7 +727,9 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
   两消费点收敛至 client.EscapePathSegments（import 单向无环论证）。**area 外登记**：remote JoinURL 裸拼接 = D-1 同类候选票；-rev 回显塌缩语义票。日志 reports/agents/T-261.md。
 - **T-262** [P1] push_npm 覆写臂自查 `role:dev-go-core` — **done 2026-08-24（裁定无风险钉死：引擎不发整包 PUT，T-249 修复天然覆盖复制面；四场景表 + 全栈非 admin 腿；conductor 复验；提交 `2750caf`）**
   遗留登记：场景 3 静默分歧无观测面（WARN/audit 候选票）；T-249 §8.2 可关账。日志 reports/agents/T-262.md。
-- **T-269** [P1] git 瘦身 dry-run+手册 `role:release-engineer` — **doing 2026-08-24（【零远端触碰】三巨 blob 定位 + filter-repo 试验场 + 执行手册〔用户授权点显式〕）**
+- **T-269** [P1] git 瘦身 dry-run+手册 `role:release-engineer` — **done 2026-08-24（三 lab 实测：clone 70MB→8MB〔−89%〕、tag 映射全分析、手册含授权点；提交 `1e3c077`；零远端零主仓改动）**
+  **口径修正**：实为 2 个 BOARD blob + 1 个误提交二进制（体积大头 57%）；推荐 `--strip-blobs-with-ids + --prune-empty never`。**执行待用户授权 force-push**。登记：docs-site/build 入 tracked 是另一体积候选票。日志 reports/agents/T-269.md。
+- **T-270** [P1] CI 多架构镜像 `role:release-engineer` — **doing 2026-08-24（goreleaser 双架构交叉编译 + manifest 本地口径 + VM dogfood 推送；qemu 不可行则字段校验承载）**
 - **T-273** [P2] last-admin census 折入事务 — todo（M9 尾批）
 - **B2**：T-251 [P0] E2/E3/E4 users 域端点（加宽+enabled 回显+DELETE 全链护栏级联）｜ T-253 [P0] E1 usage 批量端点
 - **B3**：T-252 [P0] E5 组成员 ?includeUsers ｜ T-256 [P0] GC 接线收口（五路径 ReleaseGCHold+serve.lock+压力 spec 进 CI——**顺序硬规则：先于 T-268**）
