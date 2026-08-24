@@ -636,7 +636,7 @@
 
 ## ADR-0030: M9 SE 域端点群与权限位扩展——扇出收口 / m-holder 可达性 / 用户域补全（新增不破坏）
 
-- 状态: Proposed（草案——conductor 审定 M9 PRD v1.0 时一并终裁；PRD §5.5 K18~K21 校准随本 ADR 落定回写。展开契约 = architecture §14.1）
+- 状态: Accepted（2026-08-24 转正——conductor 终审通过 M9 PRD v1.0 + §14.1 契约 + gap-endpoints 规格；三处口径差已裁：**K20 取 bare array**（集合列表裸数组，PRD 暂行 map 形作废）/ **E7 repos 侧过滤列表延后 M10** / **DELETE users 自删拒删纳入护栏**。展开契约 = architecture §14.1）
 - 日期: 2026-08-24
 - 背景: M8 契约冻结（ADR-0029 决策 4）随 `m8-done` 结束，熔断线排队的服务端缺口集中兑现：① 用户域（T-237 漂移①②③）——`enabled` 只写不读（T-208）、无 `DELETE /api/security/users/{name}`（auth-model §1 高置信：Artifactory 有，200 text 逐字文案在案）、组无成员查询（rbac-model §1.2 `?includeUsers=true` 高置信）——users/groups 页 N+1 逐用户汇总（T-246 QA-4b 实测）；② 扇出（T-99 缺口 + T-246 QA-4a）——repos 列表「已用」列 per-repo usage ≈ 170 请求/首屏；③ m-holder 可达性（T-241 §3.1 / ADR-0026 §11.30 登记）——`GET /api/v1/permissions` 为 CapSecurityRead 闭集，持 manage 的普通 user 只能走 API 路径，控制台 L2 边界卡兜底。M9 解冻基调（conductor 定）：**新增不破坏——既有端点行为零变，REST 既有 (调用者×动词×路径) 状态码组合零翻转**。
 - 候选方案（主争议轴：m-holder 可达性的交付形态，PRD §7 Q3）:
@@ -663,7 +663,7 @@
 
 ## ADR-0031: GC 并发安全模型——在途持有集 + 删除前引用复核（A+B 组合），graceHours=0 零误删
 
-- 状态: Proposed（草案——方案选型供 conductor/PM 确认；PRD FR-80 只钉行为不变量，本 ADR 定机制。展开契约 = architecture §14.2）
+- 状态: Accepted（2026-08-24 转正——conductor 采信 A+B 组合（关 W-1/W-2 两窗口）；**顺序硬规则**：压力 spec 进 CI（T-256）必须先于 --workers=1 解除（T-268）。展开契约 = architecture §14.2）
 - 日期: 2026-08-24
 - 背景: T-232 实测：e2e 并行全量下 `graceHours=0` 的 gc apply 与其他 spec 的上传/删除语义互斥——`manifest PUT 500 blob not found`（t134-g32，GC 物理删除了并行 docker 推送的在途层）；权宜 = 全量验收 `--workers=1`，成为一切并行验证的系统性瓶颈。竞态解剖为两窗：**W-1 引用前窗口**（blob-first 落盘序：rename 进 blobs/（T1）→ 元数据 node 行提交（T2）；mark 快照落在 (T1,T2) 则 blob 无引用可见。docker「先传层后传 manifest」把毫秒窗放大到秒级）；**W-2 快照陈旧窗口**（单次 GC 内 mark 快照（T0）→ 目录遍历删除（T1），(T0,T1) 间完成全链提交的 blob 对快照不可见）。正常态两窗均被 mtime grace 兜底；`graceHours=0`（handler 映射亚秒时长，「无宽限期」是 W24 既有菜谱的显式合法值）击穿之。
 - 候选方案:
