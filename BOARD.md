@@ -708,10 +708,12 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
   三护栏/级联/审计全过安全 review。**三裁定采纳**：DELETE 404 保持文本体（家族一致，wire 偏差 T-271 登记）；重复删除保持确定性 404（有意非幂等，T-257/T-271 写明）；**last-admin 竞窗为真**（census 在事务外，并发互删可致零 admin 且重种不生效须 sqlite 手术）→ **T-273 [P2] 候选**：census 折入单事务 + 措辞修正。日志 T-251.md / T251-253-review.md。
 - **T-253** [P0] usage 批量端点 `role:dev-go-storage` — **done（同 review 通过；N+1 闸经突变实证；18ms 基线）**。接口加宽 fake 桩教训：全树 vet 必做。日志 T-253.md。
 
-#### M9 B3'（在途——原 B3 的 T-256 已提前，现为 T-252 + 前置已绿的 T-260）
-- **T-252** [P0] E5 组成员查询 `role:dev-go-core` — **doing 2026-08-24**
-- **T-260** [P1] OIDC step-up 控制台腿 `role:dev-frontend` — **doing 2026-08-24（deps 全绿提前入波）**
-- **T-273** [P2] last-admin census 折入事务（review 裁定派生） — todo（M9 尾批或 T-272 前插入）
+#### M9 B3'（T-252 done；T-260 在途）+ B4 开工
+- **T-252** [P0] E5 组成员查询 `role:dev-go-core` — **done 2026-08-24（conductor 复验：vet 全树 0 + 定向 race 绿 + 闸门 0 偏离；提交 `83bd336`）**
+  MembershipsByGroup 单语句 JOIN + ?includeUsers（userNames 恒渲染空=[]）+ **K19 纠偏**：groups 列表不加宽（派单笔误，agent 按 ADR 权威执行并测试钉死）。E2/E5 两视图十组交叉一致。日志 reports/agents/T-252.md。
+- **T-260** [P1] OIDC step-up 控制台腿 `role:dev-frontend` — **doing（第七次熔断复活后推进）**
+- **T-254** [P0] E9/E6 ManageCoverage + permissions ?filter=manage `role:dev-go-core` — **doing 2026-08-24（T-252 落地解锁即派；Q3 终裁路线：门不变+过滤分支；m-holder 可达性服务端前提）**
+- **T-273** [P2] last-admin census 折入事务 — todo（M9 尾批）
 - **B2**：T-251 [P0] E2/E3/E4 users 域端点（加宽+enabled 回显+DELETE 全链护栏级联）｜ T-253 [P0] E1 usage 批量端点
 - **B3**：T-252 [P0] E5 组成员 ?includeUsers ｜ T-256 [P0] GC 接线收口（五路径 ReleaseGCHold+serve.lock+压力 spec 进 CI——**顺序硬规则：先于 T-268**）
 - **B4**：T-254 [P0] E9/E6 ManageCoverage seam+permissions ?filter=manage ｜ T-257 [P0] users/groups 页消费（N+1 退役）
