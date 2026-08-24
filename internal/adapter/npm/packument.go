@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lzwzzy/binflow/internal/client"
 	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/repo"
 	"github.com/lzwzzy/binflow/internal/storage"
@@ -461,8 +462,10 @@ func copyManifest(m map[string]any) map[string]any { return copyDoc(m) }
 // dist.tarball rewritten to this registry's /api/npm mount (spec section
 // 2.4: unconditionally rewritten — a stored or relayed absolute URL reduces
 // to its BinFlow-relative path first, the canonical layout path when it
-// cannot), and — under the SLIM Accept — reduced to the installer-only
-// whitelist with the negotiated content type.
+// cannot) with the path percent-escaped by the single wire-side contract
+// client.EscapePathSegments (T-261, FR-82-AC5 — this package's former private
+// copy was the third isomorph), and — under the SLIM Accept — reduced to the
+// installer-only whitelist with the negotiated content type.
 func renderPackument(doc map[string]any, name, scheme, host, baseURL, repoKey string, slim bool) ([]byte, string, error) {
 	out := copyDoc(doc)
 	delete(out, "_attachments")
@@ -477,7 +480,7 @@ func renderPackument(doc map[string]any, name, scheme, host, baseURL, repoKey st
 			continue
 		}
 		rel := versionDistTarball(name, v, dist)
-		dist["tarball"] = prefix + escapePathSegments(rel)
+		dist["tarball"] = prefix + client.EscapePathSegments(rel)
 	}
 	ct := "application/json"
 	if slim {
@@ -497,17 +500,6 @@ func packumentURLPrefix(scheme, host, baseURL, repoKey string) string {
 		base = scheme + "://" + host
 	}
 	return strings.TrimSuffix(base, "/") + "/binflow/api/npm/" + repoKey + "/"
-}
-
-// escapePathSegments percent-encodes each path segment of rel, keeping the
-// "/" separators: scoped tarball paths carry their scope as literal segments
-// (registry.npmjs.org spells them the same way).
-func escapePathSegments(rel string) string {
-	segs := strings.Split(rel, "/")
-	for i, s := range segs {
-		segs[i] = url.PathEscape(s)
-	}
-	return strings.Join(segs, "/")
 }
 
 // slimTopKeep/slimVersionKeep are the SLIM ("corgi") whitelists: everything

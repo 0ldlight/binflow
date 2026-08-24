@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lzwzzy/binflow/internal/client"
 	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/repo"
 )
@@ -139,7 +140,7 @@ func (h *Handler) serveVersion(ctx context.Context, w http.ResponseWriter, r *ht
 	out := copyManifest(m)
 	if dist := distOf(out); dist != nil {
 		dist["tarball"] = packumentURLPrefix(requestScheme(r), r.Host, h.opts.BaseURL, repoKey) +
-			escapePathSegments(versionDistTarball(name, version, dist))
+			client.EscapePathSegments(versionDistTarball(name, version, dist))
 	}
 	body, err := encodeDoc(out)
 	if err != nil {
