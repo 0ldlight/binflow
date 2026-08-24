@@ -114,6 +114,12 @@
   margin-bottom: var(--bf-sp-2);
 }
 
+/* step-up 面板是 surface-2 抬升面：muted 色在此底上不足 4.5:1（T-260
+ * axe 实测），面板内的提示文字统一升到 text-2（token 注记即 ≥4.5:1）。 */
+.smu-stepup .field-hint {
+  color: var(--bf-text-2);
+}
+
 .smu-error-inline {
   color: var(--bf-danger);
   font-size: var(--bf-fs-aux);

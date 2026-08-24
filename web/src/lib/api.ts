@@ -114,6 +114,10 @@ export interface Whoami {
   /** M7 RBAC 闭集角色回显（wire snake 值，与 users.role 列同拼——ADR-0026
    *  决策 6）。旧二进制无此字段：归一化回退 admin 布尔镜像。 */
   adminRole?: string
+  /** 身份属主（local/ldap/oidc，FR-56-AC1/H36）——step-up 腿分流依据
+   *  （ADR-0027 决策 3：oidc → mint grant，其余 → step_up_password）。
+   *  旧二进制无此字段：回退口令腿（local/LDAP 形态）。 */
+  source?: string
 }
 
 // ---- RBAC 角色闭集（M7 FR-64/FR-66；唯一事实源 internal/auth/rbac.go） ----

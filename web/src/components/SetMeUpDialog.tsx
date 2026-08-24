@@ -10,6 +10,16 @@ import { Skeleton } from './Skeleton'
 import { ApiError, apiJSON, errText, getRepositories } from '../lib/api'
 import { getRepoDetail, PACKAGE_TYPES } from '../lib/repos'
 import type { PackageType, RepoDetail } from '../lib/repos'
+import {
+  GRANT_TTL_HINT_SECONDS,
+  readPendingMint,
+  savePendingMint,
+  settleStepUpInvalid,
+  settleStepUpMinted,
+  stepUpGrantValue,
+  useStepUp,
+} from '../lib/stepUpGrant'
+import type { PendingMint } from '../lib/stepUpGrant'
 import { useAsync } from '../lib/useAsync'
 import {
   CLIENT_PKG_META,
@@ -40,6 +50,16 @@ import './dialogs.css'
 //   Artifactory「Incorrect password」形态——不出第二个对话框）；正确 →
 //   续铸成功。mint 请求走 silent401：step-up 的 401 是对话语义，不是会话
 //   死亡（不能触发全局「登录过期」跳转）。
+// - **OIDC 腿（T-260 / FR-81，ADR-0027 决策 8 后半的真身——T-242 期的
+//   过渡注记至此收编）**：whoami source=oidc 的会话无本地口令可言——
+//   401 step_up_required 不出口令框，改示「重新认证」引导：存 pending-mint
+//   （sessionStorage bf.pendingMint，上下文 = {pkg, repo, 发起时刻}）→
+//   全页跳转 /api/v1/oidc/login?purpose=step_up（服务端 302 IdP 且强制
+//   prompt=login）→ 回跳 fragment #step_up_grant=<grant>（main.tsx 挂载期
+//   提取即抹除，lib/stepUpGrant）→ AppShell 以 resume 形态重开本对话框 →
+//   挂载即自动续铸（body 携 step_up_grant）。401 step_up_invalid（过期/
+//   复用/身份不符）→ 清 grant + pending（单次消费——绝不以旧 grant 重试）
+//   + 内联 ADR 逐字文案 + 重新认证按钮（重走 init）。
 // - 契约注记：端点无 description 字段（Artifactory 的
 //   `MavenClient[SetMeUp]` 描述无 wire 位）——面板改示 token_id。
 //
@@ -52,6 +72,14 @@ import './dialogs.css'
 /** Artifactory Set Me Up 令牌默认 24h（reverse §3.18：SetMeUp token 默认 24h 过期） */
 const TOKEN_TTL_SECONDS = 24 * 60 * 60
 
+/**
+ * OIDC step-up 重认证入口（T-219 服务端契约：GET → 302 IdP authorize 且
+ * 强制 prompt=login；要求活跃 console session；disabled 实例 404）。
+ * 服务端固定回跳 /binflow/ui/#step_up_grant=<grant>——无 return 参数
+ * （防开放重定向），续铸上下文由 sessionStorage pending-mint 承载。
+ */
+const OIDC_STEP_UP_LOGIN_URL = '/binflow/api/v1/oidc/login?purpose=step_up'
+
 interface MintResponse {
   access_token: string
   token_type: string
@@ -61,13 +89,14 @@ interface MintResponse {
 }
 
 /** POST /api/security/token（JSON projection，E-17 BinFlow 扩展形态） */
-function mintToken(expiresIn: number, stepUpPassword?: string): Promise<MintResponse> {
+function mintToken(expiresIn: number, stepUpPassword?: string, stepUpGrant?: string): Promise<MintResponse> {
   return apiJSON<MintResponse>('/security/token', {
     method: 'POST',
     body: {
       grant_type: 'client_credentials',
       expires_in: expiresIn,
       ...(stepUpPassword ? { step_up_password: stepUpPassword } : {}),
+      ...(stepUpGrant ? { step_up_grant: stepUpGrant } : {}),
     },
     // step-up 的 401 是预期的对话分支（ADR-0027 决策 5 的 OAuth 形错误体），
     // 不得触发全局「会话过期」监听——这里按预期 401 豁免
@@ -94,12 +123,18 @@ type MintState =
   | { phase: 'idle' }
   | { phase: 'minting' }
   | { phase: 'need-password'; error: string | null; raw: string | null; submitting: boolean }
+  /** OIDC 腿（T-260）：无口令可输——重认证引导面板（error = 上次 invalid 的
+   *  ADR 逐字文案；busy = 已发起跳转、页面即将卸载） */
+  | { phase: 'need-reauth'; error: string | null; raw: string | null; busy: boolean }
   | { phase: 'done'; token: string; tokenId: string; expiresIn?: number }
   | { phase: 'error'; message: string; status: number }
 
 export interface SetMeUpDialogProps {
   /** 入口仓库上下文（树选中仓/列表行/详情头）——有值则直达主对话框 */
   preselectedRepo?: string
+  /** 回跳续铸态（T-260）：fragment grant 到手后 AppShell 以此重开本对话
+   *  框——跳过网格恢复 {pkg, repo} 上下文，挂载即自动携 grant 续铸 */
+  resume?: PendingMint | null
   onClose: () => void
 }
 
@@ -109,9 +144,14 @@ interface MiniRepo {
   type: string
 }
 
-export default function SetMeUpDialog({ preselectedRepo, onClose }: SetMeUpDialogProps) {
+export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetMeUpDialogProps) {
   const { session } = useAuth()
   const admin = !!session?.admin
+  // step-up 腿分流（ADR-0027 决策 3）：oidc → mint grant（重认证）；
+  // local/ldap/未知回退 → 口令腿（T-242 形态，旧行为原样）
+  const oidcLeg = session?.source === 'oidc'
+  // 续铸倒计时基准（grant 到手时刻；settle 后归零——届时面板已离开续铸态）
+  const stepUp = useStepUp()
 
   // 仓库全集（包类型并集 + 下拉数据源）；403 时已知 key 走单仓详情兜底
   const list = useAsync(() => getRepositories(), [])
@@ -140,7 +180,13 @@ export default function SetMeUpDialog({ preselectedRepo, onClose }: SetMeUpDialo
   useEffect(() => {
     if (resolving || initRef.current) return
     initRef.current = true
-    const pre = preselectedRepo ? repos.find((r) => r.key === preselectedRepo) : undefined
+    // 续铸态（T-260）：pending 上下文即事实源——即便仓库清单兜底未及/仓库
+    // 已被删，也按原上下文开主对话框（命令块依赖上下文，铸造不依赖）
+    const pre = resume
+      ? { packageType: resume.pkg, key: resume.repo }
+      : preselectedRepo
+        ? repos.find((r) => r.key === preselectedRepo)
+        : undefined
     if (pre) {
       setPkg(pre.packageType as PackageType)
       setRepoKey(pre.key)
@@ -165,24 +211,38 @@ export default function SetMeUpDialog({ preselectedRepo, onClose }: SetMeUpDialo
     if (mint.phase === 'need-password' && !mint.error) passwordRef.current?.focus()
   }, [mint])
 
-  const runMint = async (stepUpPassword?: string) => {
+  const runMint = async (opts: { password?: string; grant?: string } = {}) => {
     setMint(
       mint.phase === 'need-password'
         ? { phase: 'need-password', error: mint.error, raw: mint.raw, submitting: true }
         : { phase: 'minting' },
     )
     try {
-      const res = await mintToken(TOKEN_TTL_SECONDS, stepUpPassword)
+      const res = await mintToken(TOKEN_TTL_SECONDS, opts.password, opts.grant)
+      if (opts.grant) settleStepUpMinted() // grant 已消费铸出令牌：清 grant + pending
       setMint({ phase: 'done', token: res.access_token, tokenId: res.token_id, expiresIn: res.expires_in })
     } catch (err) {
       const oauth = oauthErrorOf(err)
       if (err instanceof ApiError && err.status === 401 && oauth) {
         if (oauth.code === 'step_up_required') {
-          // §7.4：口令框聚焦重输——内联呈现，不弹第二层对话框
-          setMint({ phase: 'need-password', error: null, raw: err.raw, submitting: false })
+          if (oidcLeg) {
+            // OIDC 腿（T-260）：无口令可输——重认证引导，不弹口令框
+            setMint({ phase: 'need-reauth', error: null, raw: err.raw, busy: false })
+          } else {
+            // §7.4：口令框聚焦重输——内联呈现，不弹第二层对话框
+            setMint({ phase: 'need-password', error: null, raw: err.raw, submitting: false })
+          }
         } else if (oauth.code === 'step_up_invalid') {
+          // 单次消费 UX（T-260）：grant 过期/复用/身份不符——立即清 grant +
+          // pending，绝不以旧 grant 重试（重走 init 由用户显式发起）
+          if (opts.grant) settleStepUpInvalid()
           // 错误文案 ADR-0027 决策 5 逐字（error_description）
-          setMint({ phase: 'need-password', error: oauth.description || err.message, raw: err.raw, submitting: false })
+          const invalid = { error: oauth.description || err.message, raw: err.raw } as const
+          setMint(
+            oidcLeg
+              ? { phase: 'need-reauth', ...invalid, busy: false }
+              : { phase: 'need-password', ...invalid, submitting: false },
+          )
         } else {
           setMint({ phase: 'error', message: oauth.description || err.message, status: err.status })
         }
@@ -191,6 +251,27 @@ export default function SetMeUpDialog({ preselectedRepo, onClose }: SetMeUpDialo
       setMint({ phase: 'error', message: errText(err), status: err instanceof ApiError ? err.status : 0 })
     }
   }
+
+  // ---- OIDC 腿：重认证发起（T-260，§14.3-1）----
+  const onReauth = () => {
+    if (mint.phase !== 'need-reauth' || mint.busy) return
+    if (!pkg || !repoKey) return // 主对话框内两值恒有——防御式收口
+    setMint({ phase: 'need-reauth', error: mint.error, raw: mint.raw, busy: true })
+    // 上下文先落 sessionStorage（同 tab 跨导航存活；grant 值绝不入此结构）
+    savePendingMint({ pkg, repo: repoKey, startedAt: Date.now() })
+    // 全页跳转：服务端 302 → IdP（prompt=login）；页面即将卸载，busy 态防双发
+    window.location.assign(OIDC_STEP_UP_LOGIN_URL)
+  }
+
+  // ---- 回跳续铸（T-260，§14.3-2）：挂载即自动携 grant 重发 mint ----
+  const resumeFiredRef = useRef(false)
+  useEffect(() => {
+    if (!resume || resumeFiredRef.current) return
+    resumeFiredRef.current = true
+    const grant = stepUpGrantValue()
+    if (grant) void runMint({ grant })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 续铸仅在挂载时发一次
+  }, [resume])
 
   // ---- 命令块凭据：铸币前占位、成功后回填（token 仅明文面板期存在） ----
   const creds: ClientCreds = useMemo(() => {
@@ -414,7 +495,20 @@ export default function SetMeUpDialog({ preselectedRepo, onClose }: SetMeUpDialo
             {tab === 'configure' ? (
               <div role="tabpanel" data-testid="smu-pane-configure">
                 {session && (
-                  <TokenArea mint={mint} admin={admin} username={session.username} password={password} setPassword={setPassword} passwordRef={passwordRef} onGenerate={() => void runMint()} onSubmitPassword={() => void runMint(password)} />
+                  <TokenArea
+                    mint={mint}
+                    admin={admin}
+                    username={session.username}
+                    oidcLeg={oidcLeg}
+                    resuming={!!resume}
+                    grantAt={resume ? stepUp.grantAt : null}
+                    password={password}
+                    setPassword={setPassword}
+                    passwordRef={passwordRef}
+                    onGenerate={() => void runMint()}
+                    onSubmitPassword={() => void runMint({ password })}
+                    onReauth={onReauth}
+                  />
                 )}
                 {configureBlocks.map((c, i) => (
                   <CmdBlock key={c.title} block={c} testid={`smu-cmd-conf-${pkg}-${i}`} />
@@ -461,26 +555,66 @@ function CmdBlock({ block, testid }: { block: CommandBlock; testid: string }) {
   )
 }
 
-/** Token 生成区：直接铸币 + step-up 401 内联口令重验 + 一次性明文面板 */
+/** 续铸倒计时（提示性质：服务端 TTL 无查询端点，按默认 300s 呈现） */
+function useGrantCountdown(grantAt: number | null): number {
+  const [left, setLeft] = useState(0)
+  useEffect(() => {
+    if (!grantAt) {
+      setLeft(0)
+      return
+    }
+    const tick = () => setLeft(Math.max(0, GRANT_TTL_HINT_SECONDS - Math.floor((Date.now() - grantAt) / 1000)))
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [grantAt])
+  return left
+}
+
+function mmss(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
+/** Token 生成区：直接铸币 + step-up 双腿（local/ldap 内联口令重验、oidc
+ * 重认证引导 + 回跳续铸）+ 一次性明文面板 */
 function TokenArea({
   mint,
   admin,
   username,
+  oidcLeg,
+  resuming,
+  grantAt,
   password,
   setPassword,
   passwordRef,
   onGenerate,
   onSubmitPassword,
+  onReauth,
 }: {
   mint: MintState
   admin: boolean
   username: string
+  /** OIDC 会话（whoami source=oidc）——step-up 走重认证腿 */
+  oidcLeg: boolean
+  /** 回跳续铸态（挂载即自动携 grant 续铸） */
+  resuming: boolean
+  /** grant 到手时刻（倒计时基准；非续铸态为 null） */
+  grantAt: number | null
   password: string
   setPassword: (v: string) => void
   passwordRef: RefObject<HTMLInputElement | null>
   onGenerate: () => void
   onSubmitPassword: () => void
+  onReauth: () => void
 }) {
+  const ttlLeft = useGrantCountdown(grantAt)
+  // 「等待重认证完成」提示：pending 存在但 grant 未到手（IdP 侧取消/中断的
+  // 半途流程）——只对 OIDC 腿呈现，idle 态提示可重新发起
+  const pending = oidcLeg && mint.phase === 'idle' ? readPendingMint() : null
+  const pendingAgeMin = pending ? Math.max(1, Math.round((Date.now() - pending.startedAt) / 60000)) : 0
+
   return (
     <section data-testid="smu-token-area" style={{ margin: '12px 0' }}>
       {mint.phase === 'done' ? (
@@ -543,8 +677,47 @@ function TokenArea({
             </button>
           </div>
         </div>
+      ) : mint.phase === 'need-reauth' ? (
+        // OIDC 腿（T-260 / FR-81）：无本地口令——重认证引导，替代口令框
+        <div className="smu-stepup" data-testid="smu-oidc-stepup">
+          <p className="field-hint" style={{ marginBottom: 8 }}>
+            服务端要求重新认证（step-up）：SSO 会话铸造令牌需到身份提供方重新登录一次。点击后将跳转登录页
+            （强制重新输入 IdP 凭据），完成后自动返回此处继续铸币——本对话框的上下文会被记住。
+          </p>
+          {mint.error && (
+            <p className="smu-error-inline" role="alert" data-testid="smu-reauth-error" lang="en">
+              {mint.error}
+            </p>
+          )}
+          {mint.error && (
+            <p className="field-hint">重认证凭证已失效（过期、已使用或身份不符）——需重新走一次登录，不会以旧凭证重试。</p>
+          )}
+          <details>
+            <summary className="field-hint">服务端原文</summary>
+            <pre className="smu-error-raw" lang="en">
+              {mint.raw ?? ''}
+            </pre>
+          </details>
+          <div style={{ marginTop: 8 }}>
+            <button
+              type="button"
+              className="btn primary"
+              data-testid="smu-reauth"
+              disabled={mint.busy}
+              onClick={onReauth}
+            >
+              {mint.busy ? '等待重认证完成…' : '重新认证并继续'}
+            </button>
+          </div>
+        </div>
       ) : (
         <>
+          {resuming && mint.phase === 'minting' && (
+            // 回跳续铸 in-flight（§14.3-2）：grant 已到手、mint 自动重发中
+            <p className="field-hint" data-testid="smu-resuming" style={{ marginBottom: 8 }} role="status">
+              重认证完成——正在自动续铸令牌…（重认证凭证约 {mmss(ttlLeft)} 内有效）
+            </p>
+          )}
           <div style={{ marginBottom: 8 }}>
             <button
               type="button"
@@ -559,7 +732,14 @@ function TokenArea({
           <p className="field-hint">
             {admin
               ? `以 ${username}（管理员会话）自铸 24 小时令牌——管理员臂免二次口令（ADR-0027 决策 1）。`
-              : `以 ${username} 身份自铸 24 小时令牌（仅本人、TTL 有上限）；实例开启 step-up 时需口令重验。`}
+              : oidcLeg
+                ? `以 ${username}（SSO 会话）自铸 24 小时令牌（仅本人、TTL 有上限）；实例开启 step-up 时需到 IdP 重新认证。`
+                : `以 ${username} 身份自铸 24 小时令牌（仅本人、TTL 有上限）；实例开启 step-up 时需口令重验。`}
+            {pending && (
+              <span className="field-hint" data-testid="smu-pending-hint" style={{ display: 'block' }}>
+                有一笔铸造正在等待重认证完成…（{pendingAgeMin} 分钟前发起；若已在登录页取消，直接重新生成即可再次发起）
+              </span>
+            )}
             {mint.phase === 'error' && (
               <span className="smu-error-inline" role="alert" data-testid="smu-mint-error" style={{ display: 'block' }}>
                 铸币失败（HTTP {mint.status}）：{mint.message}

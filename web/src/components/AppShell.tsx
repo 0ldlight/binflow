@@ -6,6 +6,8 @@ import { useTheme } from '../app/ThemeContext'
 import { useToast } from '../app/ToastContext'
 import { useConfirm } from './ConfirmDialog'
 import SetMeUpDialog from './SetMeUpDialog'
+import { abandonStepUp, useStepUp } from '../lib/stepUpGrant'
+import type { PendingMint } from '../lib/stepUpGrant'
 import { useVersion } from '../lib/useVersion'
 import { errText, isReadOnlyAdmin } from '../lib/api'
 
@@ -179,6 +181,22 @@ export default function AppShell() {
   // 用户菜单 → 快速建仓 → Set Me Up 直接开全局对话框（无仓库上下文 →
   // 步骤 0 包类型网格）；关闭回焦菜单钮（焦点回到开启者，§8）。
   const [smuOpen, setSmuOpen] = useState(false)
+
+  // OIDC step-up 回跳续铸（T-260 / architecture §14.3-2）：main.tsx 挂载期
+  // 已消费 #step_up_grant= fragment（提取即抹除）——grant 到手即在此重开
+  // Set Me Up 于「续铸」态（恢复 pending 上下文、自动携 grant 重发 mint）。
+  // resumeOpen 独立于 grant 生命周期：mint 结算（成功/invalid）后 grant 清
+  // 空但视图保留（令牌面板/内联错误仍须可见）；关闭 = 放弃（清 grant +
+  // pending——绝不以旧 grant 重试）。会话死于 IdP 往返的边角不重开（登录
+  // 守卫先行）。
+  const stepUp = useStepUp()
+  const [resumeOpen, setResumeOpen] = useState(false)
+  const resumeCtxRef = useRef<PendingMint | null>(null)
+  useEffect(() => {
+    if (!stepUp.grant || !stepUp.pending) return
+    resumeCtxRef.current = stepUp.pending
+    setResumeOpen(true)
+  }, [stepUp.grant, stepUp.pending])
 
   const admin = session?.admin ?? false
   const readOnlyAdmin = isReadOnlyAdmin(session)
@@ -485,11 +503,18 @@ export default function AppShell() {
           <Outlet />
         </main>
       </div>
-      {/* 全局 Set Me Up 入口承载（quick-set-me-up 接线，T-244）——modal
-          层 fixed 定位不随壳布局；关闭回焦菜单钮 */}
-      {smuOpen && (
+      {/* 全局 Set Me Up 入口承载（quick-set-me-up 接线，T-244）+ OIDC
+          step-up 回跳续铸承载（T-260）——modal 层 fixed 定位不随壳布局；
+          关闭回焦菜单钮（续铸态关闭 = 放弃 grant + pending） */}
+      {(smuOpen || (resumeOpen && status === 'authenticated')) && (
         <SetMeUpDialog
+          preselectedRepo={resumeOpen ? resumeCtxRef.current?.repo : undefined}
+          resume={resumeOpen ? resumeCtxRef.current : null}
           onClose={() => {
+            if (resumeOpen) {
+              abandonStepUp()
+              setResumeOpen(false)
+            }
             setSmuOpen(false)
             sessionToggleRef.current?.focus()
           }}

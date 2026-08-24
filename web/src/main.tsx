@@ -6,10 +6,17 @@ import { AuthProvider } from './app/AuthContext'
 import { ConfirmProvider } from './components/ConfirmDialog'
 import { ThemeProvider } from './app/ThemeContext'
 import { ToastProvider } from './app/ToastContext'
+import { consumeStepUpFragment } from './lib/stepUpGrant'
 import './styles/tokens.css'
 import './styles/base.css'
 import './styles/pages.css'
 import './styles/governance.css'
+
+// OIDC step-up 回跳 fragment 消费（T-260 / architecture §14.3-2）：必须在
+// React 树渲染前同步完成——grant 提取入内存 + history.replaceState 抹除
+// fragment（不入历史、刷新不重放）；AppShell 经 useStepUp 感知后重开续铸
+// 视图。无该 fragment 时零副作用。
+consumeStepUpFragment()
 
 // 路由表（console-m8 §1.3/§1.4——M8 IA 重排，T-235）。basename =
 // vite base = /binflow/ui（ADR-0014，不变）。双模式：应用模式
