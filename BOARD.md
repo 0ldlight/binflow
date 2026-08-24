@@ -730,7 +730,11 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 #### M9 B9（在途——收官前倒数第二波）
 - **T-267** [P1] 锚册口径统一 + 死锚退役 `role:ux-designer` — **done 2026-08-25（§10.6 单一权威 + --ledger 四断言 PASS 双零；100 死家族退役/1 自消费保留；conductor 代跑验证咬出两潜伏 parser 缺陷并修〔角括号截断盲区 + A3 基名归一〕；提交 `3295181`）**
   「无 shell 交棒 + conductor 代跑」模式首次实战。112 手抄值证伪（实 100）。日志 reports/agents/T-267.md。
-- **T-268** [P0] e2e 默认并发恢复 `role:devops-engineer` — **doing 2026-08-25（AC3：≥4 workers 连续 3 轮全绿 + BASE 探针顺带 + theme-smoke 预算复测）**
+- **T-268** [P0] e2e 默认并发恢复 `role:devops-engineer` — **done 2026-08-25（三轮 176/0 @4 workers + BASE 探针三臂 + t134-g32 18/18 与 grace=0 apply 同实例并发——ADR-0031 在原伤口条件下验证；conductor 复验；提交 `89690db`）——B9 全清**
+  config 钉 4 的下限论证；九腿加固各带语义理由（GC 对账单调化）；CI 压力步顺序规则标记常设。遗留：a11y 预算观测；matrix 层探针覆盖。日志 reports/agents/T-268.md。
+
+#### M9 B11'（在途——终验前最后一张）
+- **T-271** [P1] M9 文档四项 `role:tech-writer` — **doing 2026-08-25（SSO 铸币/增删闭环/旧书签/npm 口径 + api-reference 六端点 + T-273 运营提醒顺带）**
 - **T-263** [P1] 旧路由 redirect 全量移除 `role:dev-frontend` — **done 2026-08-24（19 条 404 断言 + 17 spec 80 处 goto 同票携带 + 全量 R3 168/0；提交 `848f822`）**
   Q3 终裁执行完毕。遗留：docs-site 重建归 T-271；theme-smoke axe 30s 脆弱性归 T-268 预算评估；设计规格措辞回写归 architect 触点。日志 reports/agents/T-263.md。
 - **T-265** [P1] 树过滤复位 + 顶栏搜索框 `role:dev-frontend` — **done 2026-08-25（作用域语义论证 + 7 腿 spec + 约定环境全量 175/0；提交 `a9d623d`〔重写后 `8acbf6b`〕）**
