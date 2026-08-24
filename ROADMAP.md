@@ -84,18 +84,22 @@
 - [x] FR-77 M8 债券收编（T-231/T-233/T-249 三豁免票 + 六项复核全绿：percent-encode 5×2 / --skip-users / CI -timeout 20m / V28 附录 / dialer 样板 / UI 打磨）
 - [x] QA：U01~U15 + 零学习成本剧本 8/8 + W 锚迁移回归 + M1~M7 P0 复跑全绿（T-246）；文档 T-245（console.md 改版 + artifactory-path-map 24 任务对照）；CI/CD 双线 T-247/T-248（Jenkins 三级 + dogfood 闭环）
 
-### M9 — 服务端缺口收口与运营硬化（PRD v1.0 草案，2026-08-24，待 conductor 审）
-需求基线：docs/prd/milestone-9.md（PRD v1.0 草案；M8 契约冻结〔ADR-0029 决策 4 熔断线〕排队的服务端缺口集中兑现 + T-232 GC 竞态 + T-242 OIDC 腿遗留 + ADR-0025 Q7 replica 处置〔PM 建议 M10〕+ M8 债券池 28 条全处置〔收编 18 / 延后 3 / 关闭 7〕；FR-78~FR-83 六条需求，契约矩阵 10 条〔兼容 4 / v1 自有 4 / 有意不兼容 2〕，N01~N28 验收命令，开放问题 Q1~Q6 带暂行）
-- [ ] conductor 审定 PRD v1.0（含 Q1~Q6 暂行口径、Q5 replica 延后 M10 建议与 Q1 git force-push 授权门）
-- [ ] 前置产物：ADR-0030（SE 域端点群 wire 定案：DELETE users 语义 / enabled 回显落点 / groups includeUsers 与列表扩宽 / usage 批量 / permissions 过滤参数，含 K18~K21 校准）+ ADR-0031 候选（GC 引用原子化方案，architect）
-- [ ] FR-78 用户与组域端点补全：enabled 回显 / DELETE users（护栏+审计+即时失效）/ groups ?includeUsers + 列表扩宽——users 页 N+1 根治（P0，种子 A + T-237 漂移①②③）
-- [ ] FR-79 管理面扇出与 m-holder 可达性：/api/v1/storage/usage 批量（repos 页 ~171 请求 → ≤3）+ /api/v1/permissions?filter=manage 覆盖集过滤（m-holder 控制台编辑器可达，L2 边界卡退役）（P0，种子 A + T-241 §3.1 + T-246 QA-4）
-- [ ] FR-80 GC graceHours=0 并行竞态根治：apply 引用原子化零误删；e2e 解除 --workers=1 兜底，默认并发 3 连绿（P0，种子 B + T-232）
-- [ ] FR-81 OIDC step-up 控制台腿：mint grant + prompt=login 回跳续铸（消费 ADR-0027 既有契约，服务端零改动；mock IdP 全链 + 单次性）（P1，种子 C + T-242 §7）
-- [ ] FR-82 控制台与工程债包：旧路由 redirect 移除〔Q3 终裁〕/ QA-3 过滤复位 / QA-5 e2e 缺省 / assert-tokens 扩面 / packument 转义收敛 / push_npm 自查 / 锚册口径统一+死锚退役 / 顶栏搜索框升级 / 文档措辞与 deprecate 口径〔PM 裁定维持严格〕/ pass-gate 登记 / U20 勘误（P1）
-- [ ] FR-83 运营与发布 chores：git 历史瘦身 dry-run+手册〔**force-push 须用户单独授权**〕/ CI 多架构镜像（amd64+arm64 manifest）/ 用户实例 18080 刷新提议〔dep:用户环境，非硬 DoD〕（P1）
-- [ ] QA：N 序列 + 扇出/竞态量化门槛实测 + M1~M8 P0 回归（契约变更面 100% 归属 M9 豁免票审计）；tech-writer（SSO 铸 Token 路径 / npm 权限口径 / 用户管理闭环 / 旧书签失效公告）
-- [ ] F 池对账：28 条处置落地核对；延后 3 项（E-04 扩列 / R2 搜索契约 / R6 Tokens 页）登记入 M10+ 候选池
+### M9 — 服务端缺口收口与运营硬化（**完结 2026-08-25**，PRD v1.0 + ADR-0030/0031 Accepted；26 票全 done，DoD 八条全绿〔终验 PASS 含修复窗 T-274/T-275〕；`m9-done` tag 已推）
+- [x] conductor 审定 PRD v1.0（含 Q1~Q6 暂行口径、Q5 replica 延后 M10 建议与 Q1 git force-push 授权门）
+- [x] 前置产物：ADR-0030（SE 域端点群 wire 定案：DELETE users 语义 / enabled 回显落点 / groups includeUsers 与列表扩宽 / usage 批量 / permissions 过滤参数，含 K18~K21 校准）+ ADR-0031 候选（GC 引用原子化方案，architect）
+- [x] FR-78 用户与组域端点补全：enabled 回显 / DELETE users（护栏+审计+即时失效）/ groups ?includeUsers + 列表扩宽——users 页 N+1 根治（P0，种子 A + T-237 漂移①②③）
+- [x] FR-79 管理面扇出与 m-holder 可达性：/api/v1/storage/usage 批量（repos 页 ~171 请求 → ≤3）+ /api/v1/permissions?filter=manage 覆盖集过滤（m-holder 控制台编辑器可达，L2 边界卡退役）（P0，种子 A + T-241 §3.1 + T-246 QA-4）
+- [x] FR-80 GC graceHours=0 并行竞态根治：apply 引用原子化零误删；e2e 解除 --workers=1 兜底，默认并发 3 连绿（P0，种子 B + T-232）
+- [x] FR-81 OIDC step-up 控制台腿：mint grant + prompt=login 回跳续铸（消费 ADR-0027 既有契约，服务端零改动；mock IdP 全链 + 单次性）（P1，种子 C + T-242 §7）
+- [x] FR-82 控制台与工程债包：旧路由 redirect 移除〔Q3 终裁〕/ QA-3 过滤复位 / QA-5 e2e 缺省 / assert-tokens 扩面 / packument 转义收敛 / push_npm 自查 / 锚册口径统一+死锚退役 / 顶栏搜索框升级 / 文档措辞与 deprecate 口径〔PM 裁定维持严格〕/ pass-gate 登记 / U20 勘误（P1）
+- [x] FR-83 运营与发布 chores：git 历史瘦身 dry-run+手册〔**force-push 须用户单独授权**〕/ CI 多架构镜像（amd64+arm64 manifest）/ 用户实例 18080 刷新提议〔dep:用户环境，非硬 DoD〕（P1）
+- [x] QA：N 序列 + 扇出/竞态量化门槛实测 + M1~M8 P0 回归（契约变更面 100% 归属 M9 豁免票审计）；tech-writer（SSO 铸 Token 路径 / npm 权限口径 / 用户管理闭环 / 旧书签失效公告）
+- [x] F 池对账：28 条处置落地核对；延后 3 项（E-04 扩列 / R2 搜索契约 / R6 Tokens 页）登记入 M10+ 候选池
+
+### M10 — 候选池（未立项；2026-08-25 M9 终验归档）
+- [ ] 延后 3 项（F 池）：E-04 repos 列表扩列 / R2 搜索契约 / R6 Tokens 页
+- [ ] Q5 replica 隔离（ADR-0025 决策 1 遗留）/ E7 repos 侧过滤列表（ADR-0030）
+- [ ] 票级遗留 17 条：remote JoinURL 转义（D-1 同类候选）/ -rev 回显塌缩 / scenario-3 观测面 / 复制管理专篇 / console-m8 §4.1/§6.9 回写 / SearchPage q-sync 微票 / recents 双实现收敛 / a11y 预算观测 / matrix 层探针 / .status-pill 收敛 / counts 实体列 / docs-site/build 体积 / legacy Engine.GC 物理删除 / Playwright 压力腿形态 / t104 matrix workers / T-251.md 遗留 5 措辞
 
 ## 里程碑完成定义（DoD）
 
