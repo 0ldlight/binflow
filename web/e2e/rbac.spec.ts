@@ -67,7 +67,7 @@ function msgOf(r: { json: unknown; text: string }): string {
 
 test('V12: admin sets a user to readonly_admin in the UI; API echoes adminRole (snake) + audit trail', async ({ page }) => {
   const user = uniq('alice')
-  await page.goto('/binflow/ui/security/users')
+  await page.goto('/binflow/ui/admin/security/users')
   await login(page, ADMIN, ADMIN_PW)
 
   // 备料：普通用户（wire 初始态 user / admin:false）
@@ -84,7 +84,7 @@ test('V12: admin sets a user to readonly_admin in the UI; API echoes adminRole (
   ).toBe(201)
 
   // GET 回显：下拉值 = wire snake（user）
-  await page.goto(`/binflow/ui/security/users/${user}`)
+  await page.goto(`/binflow/ui/admin/security/users/${user}`)
   const role = page.locator('[data-testid="user-form-role"]')
   await expect(role).toBeVisible()
   await expect(role).toHaveValue('user')
@@ -165,38 +165,38 @@ test('V13: readonly_admin walk — admin pages visible, no write entry, replayed
   await expect(ro.locator('[data-testid="session-readonly-badge"]')).toBeVisible()
 
   // 仓库页：列表可见、只读注记、无「创建仓库」入口
-  await ro.goto(`${origin}/binflow/ui/repositories`)
+  await ro.goto(`${origin}/binflow/ui/admin/repositories/local`)
   await expect(ro.locator('[data-testid="repos-page"]')).toBeVisible()
   await expect(ro.locator('[data-testid="repos-readonly-note"]')).toBeVisible()
   await expect(ro.locator('[data-testid="repos-create"]')).toHaveCount(0)
 
   // 用户页：列表可见、只读注记、无「创建用户」入口
-  await ro.goto(`${origin}/binflow/ui/security/users`)
+  await ro.goto(`${origin}/binflow/ui/admin/security/users`)
   await expect(ro.locator('[data-testid="users-readonly-note"]')).toBeVisible()
   await expect(ro.locator('[data-testid="users-create"]')).toHaveCount(0)
   await expect(ro.locator(`[data-testid="user-row-${roName}"]`)).toBeVisible()
   await expect(ro.locator(`[data-testid="user-row-${roName}"] .badge`, { hasText: 'readonly_admin' })).toBeVisible()
 
   // 用户详情：GET 回显只读呈现——角色下拉禁用且值 = readonly_admin，保存禁用
-  await ro.goto(`${origin}/binflow/ui/security/users/${roName}`)
+  await ro.goto(`${origin}/binflow/ui/admin/security/users/${roName}`)
   await expect(ro.locator('[data-testid="user-form-role"]')).toHaveValue('readonly_admin')
   await expect(ro.locator('[data-testid="user-form-role"]')).toBeDisabled()
   await expect(ro.locator('[data-testid="user-form-submit"]')).toBeDisabled()
   await expect(ro.locator('[data-testid="user-form-readonly-note"]')).toBeVisible()
 
   // 组页：可见、无创建/编辑/删除入口
-  await ro.goto(`${origin}/binflow/ui/security/groups`)
+  await ro.goto(`${origin}/binflow/ui/admin/security/groups`)
   await expect(ro.locator('[data-testid="groups-readonly-note"]')).toBeVisible()
   await expect(ro.locator('[data-testid="groups-create"]')).toHaveCount(0)
   await expect(ro.locator(`[data-testid="group-row-${group}"]`)).toBeVisible()
   await expect(ro.locator(`[data-testid="group-delete-${group}"]`)).toHaveCount(0)
 
   // 权限页 + 编辑器深链：可见、只读呈现（矩阵复选禁用、无保存/删除）
-  await ro.goto(`${origin}/binflow/ui/security/permissions`)
+  await ro.goto(`${origin}/binflow/ui/admin/security/permissions`)
   await expect(ro.locator('[data-testid="perms-readonly-note"]')).toBeVisible()
   await expect(ro.locator('[data-testid="perms-create"]')).toHaveCount(0)
   await expect(ro.locator(`[data-testid="perm-row-${target}"]`)).toBeVisible()
-  await ro.goto(`${origin}/binflow/ui/security/permissions/${target}`)
+  await ro.goto(`${origin}/binflow/ui/admin/security/permissions/${target}`)
   await expect(ro.locator('[data-testid="perm-editor-readonly-note"]')).toBeVisible()
   await expect(ro.locator('[data-testid="perm-save"]')).toHaveCount(0)
   await expect(ro.locator('[data-testid="perm-danger-zone"]')).toHaveCount(0)
@@ -204,7 +204,7 @@ test('V13: readonly_admin walk — admin pages visible, no write entry, replayed
   await expect(ro.locator(`[data-testid="perm-matrix-cell-user-${roName}-manage"]`)).toBeDisabled()
 
   // 审计页：可见（system:read）；词表含 user.role.change（T-215 移交项的前端镜像）
-  await ro.goto(`${origin}/binflow/ui/audit`)
+  await ro.goto(`${origin}/binflow/ui/admin/governance/audit`)
   await expect(ro.locator('[data-testid="audit-table"], [data-testid="empty-state"]').first()).toBeVisible()
   await expect(ro.locator('[data-testid="audit-filter-action"] option[value="user.role.change"]')).toHaveCount(1)
 
@@ -265,7 +265,7 @@ test('V14: manage checkbox round-trip in the principals matrix; API echoes the m
   ).toBe(201)
 
   // 编辑器：矩阵含 manage 列；勾选 manage → diff 确认 → 保存
-  await page.goto(`/binflow/ui/security/permissions/${target}`)
+  await page.goto(`/binflow/ui/admin/security/permissions/${target}`)
   await expect(page.locator('[data-testid="perm-matrix"] th', { hasText: 'manage' })).toHaveCount(1)
   await expect(page.locator(`[data-testid="perm-matrix-cell-user-${carol}-read"]`)).toBeChecked()
   await expect(page.locator(`[data-testid="perm-matrix-cell-user-${carol}-manage"]`)).not.toBeChecked()
@@ -286,6 +286,6 @@ test('V14: manage checkbox round-trip in the principals matrix; API echoes the m
   expect(t!.principals.users[carol]).toEqual(['read', 'manage'])
 
   // UI 回显（reload 后 manage 复选仍勾——wire 往返而非本地态）
-  await page.goto(`/binflow/ui/security/permissions/${target}`)
+  await page.goto(`/binflow/ui/admin/security/permissions/${target}`)
   await expect(page.locator(`[data-testid="perm-matrix-cell-user-${carol}-manage"]`)).toBeChecked()
 })

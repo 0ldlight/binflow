@@ -69,7 +69,7 @@ test('W33 three-step flow: group -> user membership -> target matrix, tester + d
   const user = uniq('bob')
   const target = uniq('tgt')
   const repo = uniq('t101a')
-  await page.goto('/binflow/ui/security/groups')
+  await page.goto('/binflow/ui/admin/security/groups')
   await login(page, ADMIN, ADMIN_PW)
 
   // 准备一个 local generic 仓（target 的 repos 引用面；PUT 建与更均 200——后端事实）
@@ -85,7 +85,7 @@ test('W33 three-step flow: group -> user membership -> target matrix, tester + d
   await expect(page.locator(`[data-testid="group-row-${group}"]`)).toBeVisible()
 
   // 第二步：建用户入组
-  await page.goto('/binflow/ui/security/users')
+  await page.goto('/binflow/ui/admin/security/users')
   await page.click('[data-testid="users-create"]')
   await page.fill('[data-testid="user-form-name"]', user)
   await page.fill('[data-testid="user-form-email"]', `${user}@example.com`)
@@ -97,7 +97,7 @@ test('W33 three-step flow: group -> user membership -> target matrix, tester + d
   await expect(page.locator(`[data-testid="user-row-${user}"]`)).toContainText(group)
 
   // 第三步：建 target（repo / patterns / principals 双栏 r/w/d）
-  await page.goto('/binflow/ui/security/permissions/new')
+  await page.goto('/binflow/ui/admin/security/permissions/new')
   await page.fill('[data-testid="perm-form-name"]', target)
   // 两步资源对话框（T-241，console-m8 §4.5）：① 穿梭选仓 → ② pattern → 确定
   await page.click('[data-testid="perm-repo-add"]')
@@ -219,7 +219,7 @@ test('W33b: group grant effective for a second session; UI removal is immediate 
   expect(put1.status).toBe(201)
 
   // UI 移出组（admin 上下文）
-  await page.goto(`/binflow/ui/security/users/${user}`)
+  await page.goto(`/binflow/ui/admin/security/users/${user}`)
   await expect(page.locator(`[data-testid="user-form-group-${group}"]`)).toBeChecked()
   await page.uncheck(`[data-testid="user-form-group-${group}"]`)
   await page.click('[data-testid="user-form-submit"]')
@@ -237,7 +237,7 @@ test('W33c: deleting a referenced group is refused (409) naming targets; unlink 
   const group = uniq('w33c')
   const target = uniq('tgt')
   const repo = uniq('t101c')
-  await page.goto('/binflow/ui/security/groups')
+  await page.goto('/binflow/ui/admin/security/groups')
   await login(page, ADMIN, ADMIN_PW)
 
   expect((await api(page, 'PUT', `/api/repositories/${repo}`, { rclass: 'local', packageType: 'generic' })).status).toBe(200)
@@ -275,7 +275,7 @@ test('W33c: deleting a referenced group is refused (409) naming targets; unlink 
   await expect(page.locator('[data-testid="toast"]').filter({ hasText: `permission target ${target} 已保存` })).toBeVisible({ timeout: 8000 })
 
   // 解除后可删（服务端纯文本文案）
-  await page.goto('/binflow/ui/security/groups')
+  await page.goto('/binflow/ui/admin/security/groups')
   await page.click(`[data-testid="group-delete-${group}"]`)
   await page.click('[data-testid="confirm-accept"]')
   await expect(page.locator('[data-testid="toast"]').filter({ hasText: 'has been removed successfully' })).toBeVisible({ timeout: 8000 })
@@ -288,7 +288,7 @@ test('W33c dotted target name: 409 panel parses and links the full name (review 
   const group = uniq('w33d')
   const dotted = uniq('qa.build') // 含点 target 名——permissions.go 仅校验非空，完全可达
   const repo = uniq('t101d')
-  await page.goto('/binflow/ui/security/groups')
+  await page.goto('/binflow/ui/admin/security/groups')
   await login(page, ADMIN, ADMIN_PW)
 
   expect((await api(page, 'PUT', `/api/repositories/${repo}`, { rclass: 'local', packageType: 'generic' })).status).toBe(200)
@@ -339,7 +339,7 @@ test('W33c dotted target name: 409 panel parses and links the full name (review 
   await expect(page.locator('[data-testid="perm-diff"]')).toContainText(`撤销组 ${group} read`)
   await page.click('[data-testid="confirm-accept"]')
   await expect(page.locator('[data-testid="toast"]').filter({ hasText: `permission target ${dotted} 已保存` })).toBeVisible({ timeout: 8000 })
-  await page.goto('/binflow/ui/security/groups')
+  await page.goto('/binflow/ui/admin/security/groups')
   await page.click(`[data-testid="group-delete-${group}"]`)
   await page.click('[data-testid="confirm-accept"]')
   await expect(page.locator('[data-testid="toast"]').filter({ hasText: 'has been removed successfully' })).toBeVisible({ timeout: 8000 })
@@ -348,7 +348,7 @@ test('W33c dotted target name: 409 panel parses and links the full name (review 
 test('users: edit roundtrip, reset-password entry, server 400 inline, 404s, non-admin L2 collapse', async ({ page, browser }) => {
   const group = uniq('d')
   const user = uniq('dave')
-  const origin0 = '/binflow/ui/security/users'
+  const origin0 = '/binflow/ui/admin/security/users'
   await page.goto(origin0)
   await login(page, ADMIN, ADMIN_PW)
   expect((await api(page, 'PUT', `/api/security/groups/${group}`, { name: group, description: 'd-probe' })).status).toBe(201)
@@ -369,7 +369,7 @@ test('users: edit roundtrip, reset-password entry, server 400 inline, 404s, non-
   await page.click('[data-testid="user-form-submit"]')
   await expect(page.locator('[data-testid="toast"]').filter({ hasText: `用户 ${user} 已创建` })).toBeVisible({ timeout: 8000 })
 
-  await page.goto(`/binflow/ui/security/users/${user}`)
+  await page.goto(`/binflow/ui/admin/security/users/${user}`)
   await page.fill('[data-testid="user-form-email"]', `${user}-new@example.com`)
   // 重置口令入口（无需旧口令）；T-237 起表单带确认口令位（console-m8 §6.9）——两处都填
   await page.fill('[data-testid="user-form-password"]', 'd-probe-pw-2')
@@ -392,27 +392,27 @@ test('users: edit roundtrip, reset-password entry, server 400 inline, 404s, non-
   // 非 admin L2 收敛：安全导航组隐藏；直链 → 无权限卡（empty-state 缺省锚）
   await expect(p2.locator('.nav-group-label', { hasText: '安全' })).toHaveCount(0)
   await expect(p2.locator('.nav-group-label', { hasText: '治理' })).toHaveCount(0)
-  await p2.goto(`${origin}/binflow/ui/security/users`)
+  await p2.goto(`${origin}/binflow/ui/admin/security/users`)
   await expect(p2.locator('[data-testid="users-page"] [data-testid="empty-state"]')).toBeVisible()
   await expect(p2.locator('[data-testid="users-page"] [data-testid="empty-state"]')).toContainText('无权限')
-  await p2.goto(`${origin}/binflow/ui/settings`)
+  await p2.goto(`${origin}/binflow/ui/admin/general/settings`)
   await expect(p2.locator('[data-testid="settings-health"]')).toHaveCount(0) // 403 驱动隐藏（v1.1 N1）
   await ctx.close()
 
   // admin 的 settings-health 锚在（同一 403 驱动姿态的可见面）
-  await page.goto('/binflow/ui/settings')
+  await page.goto('/binflow/ui/admin/general/settings')
   await expect(page.locator('[data-testid="settings-health"]')).toBeVisible()
 
   // 404 分支
   const ghost = uniq('ghost')
-  await page.goto(`/binflow/ui/security/users/${ghost}`)
+  await page.goto(`/binflow/ui/admin/security/users/${ghost}`)
   await expect(page.locator('[data-testid="user-detail-page"]')).toContainText('不存在')
-  await page.goto(`/binflow/ui/security/permissions/${ghost}`)
+  await page.goto(`/binflow/ui/admin/security/permissions/${ghost}`)
   await expect(page.locator('[data-testid="perm-editor-page"]')).toContainText('不存在')
 })
 
 test('groups: name precheck + edit description roundtrip', async ({ page }) => {
-  await page.goto('/binflow/ui/security/groups')
+  await page.goto('/binflow/ui/admin/security/groups')
   await login(page, ADMIN, ADMIN_PW)
 
   // 前端预检：保留字与非法字符（FR-27-AC9 同口径，零写请求）

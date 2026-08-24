@@ -23,6 +23,6 @@ test('SPA shell is served at /binflow/ui/ with the #root mount point', async ({ 
 })
 
 test('deep link refreshes to the SPA shell (history fallback, in-segment)', async ({ page }) => {
-  await page.goto('/binflow/ui/repositories')
+  await page.goto('/binflow/ui/admin/repositories/local')
   await expect(page.locator('#root')).toBeAttached()
 })

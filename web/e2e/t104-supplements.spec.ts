@@ -85,7 +85,7 @@ test('W10: UI form creates docker-ui-local (local+docker); REST packageType reco
   // 自愈收口：前次运行残留先清（幂等）
   await api(page, 'DELETE', `/api/repositories/${DOCKER_REPO}?deleteContent=true`)
 
-  await page.goto('/binflow/ui/repositories/new')
+  await page.goto('/binflow/ui/admin/repositories/new')
   // T-240 向导：进页弹包类型网格，选 Docker 即选定关闭（local 默认）
   await expect(page.locator('[data-testid="pkg-grid"]')).toBeVisible()
   await page.click('[data-testid="pkg-grid-item-docker"]')
@@ -98,7 +98,7 @@ test('W10: UI form creates docker-ui-local (local+docker); REST packageType reco
   await expect(page).toHaveURL(new RegExp(`/binflow/ui/admin/repositories/${DOCKER_REPO}$`))
 
   // UI 列表行可见
-  await page.goto('/binflow/ui/repositories')
+  await page.goto('/binflow/ui/admin/repositories/local')
   await expect(page.locator(`[data-testid="repos-row-${DOCKER_REPO}"]`)).toBeVisible()
 
   // REST 对账（AC①：curl GET packageType=="docker" 的浏览器等价腿）
@@ -111,7 +111,7 @@ test('W10: UI form creates docker-ui-local (local+docker); REST packageType reco
   // P6：docker 仓不走浏览器上传，以接入命令块替代（tree-commands）。
   // T-244 双 Deploy 入口收敛后语义承载改写：页头 Deploy 对话框的候选仓
   // 下拉（local × {generic,maven}）不含 docker 仓。
-  await page.goto(`/binflow/ui/repositories/${DOCKER_REPO}/tree`)
+  await page.goto(`/binflow/ui/artifacts/${DOCKER_REPO}`)
   await expect(page.locator('[data-testid="tree-commands"]')).toBeVisible()
   await page.click('[data-testid="tree-deploy"]')
   await expect(page.locator('[data-testid="deploy-dialog"]')).toBeVisible()
@@ -150,7 +150,7 @@ test('W12c + W11: docker tree shows manifest node; non-empty delete two-stage; c
   test.skip(seeded !== 200, 'docker seed missing (dind leg skipped) — record as degraded')
 
   // W12c（P1，统一路径树形态）：docker 仓树可见 image 目录与 manifest node
-  await page.goto(`/binflow/ui/repositories/${DOCKER_REPO}/tree`)
+  await page.goto(`/binflow/ui/artifacts/${DOCKER_REPO}`)
   await expect(page.locator('[data-testid="tree-row-t104img"]')).toBeVisible({ timeout: 15_000 })
   await page.click('[data-testid="tree-row-t104img"]')
   await expect(page.locator('[data-testid="tree-row-manifests"]')).toBeVisible({ timeout: 15_000 })
@@ -164,7 +164,7 @@ test('W12c + W11: docker tree shows manifest node; non-empty delete two-stage; c
   expect(hexRows.length).toBeGreaterThanOrEqual(1)
 
   // W11 两段流（非空仓）：不勾 deleteContent → 400 原因可见；勾选 → 成功
-  await page.goto(`/binflow/ui/repositories/${DOCKER_REPO}`)
+  await page.goto(`/binflow/ui/admin/repositories/${DOCKER_REPO}`)
   await page.click('[data-testid="repo-delete-button"]')
   await page.fill('[data-testid="repo-delete-confirm-key"]', DOCKER_REPO)
   await page.click('[data-testid="confirm-accept"]')
@@ -201,7 +201,7 @@ test('W10b: UI edits remote url; REST round-trips new value; password never echo
   await page.goto('/binflow/ui/')
   await login(page)
 
-  await page.goto('/binflow/ui/repositories/new')
+  await page.goto('/binflow/ui/admin/repositories/new')
   // T-240 向导：进页弹包类型网格（generic 选定即关）；再切 Remote；单页表单
   await page.click('[data-testid="pkg-grid-item-generic"]')
   await page.click('[data-testid="form-rclass-remote"]')
@@ -218,7 +218,7 @@ test('W10b: UI edits remote url; REST round-trips new value; password never echo
   expect(JSON.parse(got.text).configuration.url).toBe(url1)
 
   // W10b：UI 改 url → 保存 → REST 单查回显新值（单页直达，无步骤钮）
-  await page.goto(`/binflow/ui/repositories/${key}/settings`)
+  await page.goto(`/binflow/ui/admin/repositories/${key}/edit`)
   await expect(page.locator('[data-testid="form-url"]')).toHaveValue(url1)
   await page.fill('[data-testid="form-url"]', url2)
   await page.click('[data-testid="form-submit"]')
@@ -267,7 +267,7 @@ test('W34: audit page actor filter matches REST result set', async ({ page }) =>
   expect(events.every((e) => e.actor === user)).toBe(true)
 
   // UI：actor 过滤（防抖）→ 行集与 REST 一致
-  await page.goto('/binflow/ui/audit')
+  await page.goto('/binflow/ui/admin/governance/audit')
   await expect(page.locator('[data-testid="audit-table"] tbody tr').first()).toBeVisible()
   await page.fill('[data-testid="audit-filter-actor"]', user)
   await page.waitForTimeout(700)
@@ -306,7 +306,7 @@ test('W23b UI leg: audit page DOM carries no token plaintext / password literal'
 
   // UI：审计页按 action 收窄到 auth.failed（行确实被渲染，脱敏断言不空转；
   // 词汇对齐 T-187：服务端自 M6 起认证失败只发 auth.failed 一词）
-  await page.goto('/binflow/ui/audit')
+  await page.goto('/binflow/ui/admin/governance/audit')
   await page.selectOption('[data-testid="audit-filter-action"]', 'auth.failed')
   await page.waitForTimeout(700)
   await expect(page.locator('[data-testid="audit-table"] tbody tr').first()).toContainText('auth.failed')

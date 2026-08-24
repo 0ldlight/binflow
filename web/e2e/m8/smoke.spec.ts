@@ -82,7 +82,7 @@ async function keyboardLoginShellLogout(page: Page, role: (typeof roles)[number]
   // Step 9 — back on /login; the session is revoked server-side, so a
   // protected deep link bounces to the guard again (auth-shell precedent).
   await expect(page).toHaveURL(/\/login/)
-  await page.goto('/binflow/ui/repositories')
+  await page.goto('/binflow/ui/admin/repositories/local')
   await expect(page).toHaveURL(/\/login\?return=/)
 }
 

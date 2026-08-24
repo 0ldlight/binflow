@@ -83,7 +83,7 @@ test('audit: filters, keyset load-more, path client-filter, REST parity', async 
   test.setTimeout(60_000)
   const errors = watchServerErrors(page)
   const key = uniq('t102a')
-  await page.goto('/binflow/ui/audit')
+  await page.goto('/binflow/ui/admin/governance/audit')
   await login(page)
 
   // 造数：建仓 + 105 个 deploy（首屏 100 + 第二页）
@@ -202,7 +202,7 @@ test('audit: filters, keyset load-more, path client-filter, REST parity', async 
 test('gc: dry-run -> typed confirm apply -> zero candidates after, gc.run audited', async ({ page }) => {
   const errors = watchServerErrors(page)
   const key = uniq('t102g')
-  await page.goto('/binflow/ui/governance/gc')
+  await page.goto('/binflow/ui/admin/governance/gc')
   await login(page)
 
   // 造孤儿：上传后删节点（blob 留存）。默认 grace 24h 内不是候选——
@@ -276,7 +276,7 @@ test('gc: dry-run -> typed confirm apply -> zero candidates after, gc.run audite
 test('quotas: water levels warn/full, inline edit roundtrip, 413 at ceiling', async ({ page }) => {
   const errors = watchServerErrors(page)
   const key = uniq('t102q')
-  await page.goto('/binflow/ui/governance/quotas')
+  await page.goto('/binflow/ui/admin/governance/quotas')
   await login(page)
 
   // quota 10240B：8KB（80% 黄）→ +2KB（100% 红）→ 再写 413。
@@ -350,7 +350,7 @@ test('non-admin: governance nav hidden (L1), deep links show no-access card (L2)
   const ctx = await browser.newContext()
   const p2 = await ctx.newPage()
   const errors2 = watchServerErrors(p2)
-  await p2.goto('/binflow/ui/audit')
+  await p2.goto('/binflow/ui/admin/governance/audit')
   await login(p2, viewer, 't102-viewer-pw')
 
   // L1：治理分组（含审计/GC/备份/配额）与安全分组整体隐藏
@@ -360,11 +360,11 @@ test('non-admin: governance nav hidden (L1), deep links show no-access card (L2)
   // L2：直链渲染页面壳 + 单张无权限卡（不留空白壳）
   await expect(p2.locator('[data-testid="audit-page"] [data-testid="empty-state"]')).toBeVisible()
   await expect(p2.locator('[data-testid="audit-page"]')).toContainText('无权限查看审计日志')
-  await p2.goto('/binflow/ui/governance/gc')
+  await p2.goto('/binflow/ui/admin/governance/gc')
   await expect(p2.locator('[data-testid="gc-page"]')).toContainText('无权限查看存储概况')
   // L4：写入口（危险区）不渲染
   await expect(p2.locator('[data-testid="gc-danger-zone"]')).toHaveCount(0)
-  await p2.goto('/binflow/ui/governance/quotas')
+  await p2.goto('/binflow/ui/admin/governance/quotas')
   await expect(p2.locator('[data-testid="quotas-page"]')).toContainText('无权限查看配额')
 
   await ctx.close()

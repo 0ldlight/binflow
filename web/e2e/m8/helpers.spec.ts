@@ -79,7 +79,7 @@ test('clipboard: UI copy lands the FULL value on the OS clipboard', async ({ pag
   const key = uniq('m8clip')
   await seedRepos(m8Client(), [{ key }])
   await loginAs(page, 'admin')
-  await page.goto('/binflow/ui/repositories')
+  await page.goto('/binflow/ui/admin/repositories/local')
   await expect(page.locator(`[data-testid="repos-row-${key}"]`)).toBeVisible()
 
   await expectCopied(page, page.locator(`[data-testid="repos-row-${key}"] button[aria-label="复制 仓库 key ${key}"]`), key)
@@ -114,7 +114,7 @@ test('timing: first-interactive + tree-expand collect numbers on a seeded level'
   await recordTiming(testInfo, 'first-interactive', first)
 
   await loginAs(page, 'admin')
-  await page.goto(`/binflow/ui/repositories/${key}/tree`)
+  await page.goto(`/binflow/ui/artifacts/${key}`)
   const root = page.locator('[data-testid="tree-node-perf"]')
   await expect(root).toBeVisible()
   const expand = await measureTreeExpand(page, root, `[data-testid^="tree-node-perf/"]`)

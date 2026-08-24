@@ -6,7 +6,7 @@ sidebar_position: 30
 # Web 控制台使用指南
 
 > 适用版本：M8（新信息架构：双模式壳 / 跨仓制品树 / 管理域五分组 / Set Me Up 与 Deploy 对话框族；设计规格 `docs/design/console-m8.md`）。
-> 本篇全部 UI 路径与对话框行为在 HEAD（`89b27ce` 构建，含内嵌控制台）的 scratch 实例（127.0.0.1:18091，七仓种子覆盖全部五种包类型）上以 Playwright 走查验证（11/11 通过：双模式导航、树深链、对话框族、管理域路由、10 条旧路径重定向）；登录/会话/CSRF 段沿用 M4 QA 基线（T-103/T-105，报告 `reports/agents/T-103-qa.md` / `T-105-qa.md`），M8 未改动服务端会话语义。浏览器矩阵依据 T-104 与 T-120 修复后的跨引擎复核。
+> 本篇全部 UI 路径与对话框行为在 HEAD（`89b27ce` 构建，含内嵌控制台）的 scratch 实例（127.0.0.1:18091，七仓种子覆盖全部五种包类型）上以 Playwright 走查验证（11/11 通过：双模式导航、树深链、对话框族、管理域路由、10 条旧路径重定向〔M8 兼容窗口；M9 起已移除，见下节〕）；登录/会话/CSRF 段沿用 M4 QA 基线（T-103/T-105，报告 `reports/agents/T-103-qa.md` / `T-105-qa.md`），M8 未改动服务端会话语义。浏览器矩阵依据 T-104 与 T-120 修复后的跨引擎复核。
 
 M4 起单二进制自带 Web 控制台（go:embed，零外部依赖、断网可用）。**M8 起控制台的信息架构与操作流对齐 Artifactory**（同一个动作在同样的位置、走同样的步骤——从 Artifactory 迁移的用户零学习成本；逐任务的操作路径对照见 [Artifactory → BinFlow 操作路径对照表](artifactory-path-map.md)）。控制台仍是**管理面**——CI 与脚本继续走 REST/token，两者同一 API、同一权限模型。
 
@@ -195,24 +195,23 @@ curl -s -b jar.txt -X PUT $BASE/binflow/generic-local/a/f.txt \
 
 401 与 403 在界面上分流：401 一律「登录已过期」toast + 重定向登录页；403 按层级收敛（导航/按钮不渲染、页面级无权限卡、卡片级隐藏、写入口不渲染）——403 只表达权限，不用于表达「功能不存在」。
 
-## 旧路径 → 新路径（M8 兼容窗口）
+## 旧路径 → 新路径（M9 起不再重定向）
 
-M8 路由重排后，M7 及以前的控制台路径**自动客户端重定向**（保留查询串与编码），已收录的映射：
+M8 路由重排曾为 M7 及以前的控制台路径提供**自动客户端重定向**兼容窗口；**M9 起该窗口已全量移除**（ADR-0029 Q3 终裁）。旧路径直链现在落在 **404 页**（保留导航壳，回显请求的地址并提供「回主页」链接）——**书签、内部 wiki 与自动化脚本里引用的旧路径请按下表更新**：
 
-| 旧路径 | 新路径 |
+| 旧路径（已失效） | 新路径 |
 |---|---|
-| `/`（首页） | `/artifacts` |
 | `/repositories` | `/admin/repositories/local` |
-| `/repositories/:key/tree/<path…>` | `/artifacts/:key/<path…>` |
+| `/repositories/new` | `/admin/repositories/new` |
 | `/repositories/:key` | `/admin/repositories/:key` |
 | `/repositories/:key/settings` | `/admin/repositories/:key/edit` |
-| `/repositories/new` | `/admin/repositories/new` |
-| `/settings` | `/admin/general/settings`（改密块移 `/profile`） |
+| `/repositories/:key/tree/<path…>` | `/artifacts/:key/<path…>`（树深链的 `?focus=` 参数原样可用） |
+| `/settings` | `/admin/general/settings`（改密块在 `/profile`） |
 | `/security/users*`、`/security/groups*`、`/security/permissions*`、`/security/tokens` | `/admin/security/…` 同名尾段 |
 | `/audit` | `/admin/governance/audit` |
 | `/governance/gc` / `/governance/quotas` / `/governance/replication` / `/governance/backup` | `/admin/governance/…` 同名尾段 |
 
-> **M9 移除计划**：重定向是 e2e 兼容窗口（console-m8 §1.4 / Q3 终裁），M9 计划移除——书签、内部 wiki 与自动化脚本里引用旧路径的，请在 M8 期间更新为新路径。
+> 首页 `/` 不受影响：登录后的落点仍是 `/artifacts`——这不是兼容窗口，是控制台的固定首页语义。
 
 ## 浏览器兼容
 

@@ -48,7 +48,7 @@ test('chain 2: tree browse (repo -> dir -> file row with size)', async ({ page, 
     { key },
   )
 
-  await page.goto(`/binflow/ui/repositories/${key}/tree`)
+  await page.goto(`/binflow/ui/artifacts/${key}`)
   await expect(page.locator('[data-testid="tree-row-acme"]')).toBeVisible({ timeout: 15_000 })
   await page.click('[data-testid="tree-row-acme"]')
   await expect(page.locator('[data-testid="tree-row-xb.bin"]')).toBeVisible({ timeout: 15_000 })
@@ -76,7 +76,7 @@ test('chain 3: upload via dialog, row completes with checksum badge', async ({ p
     })
   }, key)
 
-  await page.goto(`/binflow/ui/repositories/${key}/tree`)
+  await page.goto(`/binflow/ui/artifacts/${key}`)
   await page.click('[data-testid="tree-deploy"]')
   await expect(page.locator('[data-testid="deploy-dialog"]')).toBeVisible()
   await page.fill('[data-testid="deploy-target"]', 'up/')

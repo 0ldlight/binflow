@@ -6,11 +6,12 @@ import { m8Client, roleFixturesFromEnv, seedRepos } from './support/seed'
 //   1. 三角色 × 双模式导航可达性（应用侧栏 2 条目 / 管理侧栏五分组 12 条目；
 //      readonly_admin 见「管理」入口；普通用户无入口且 /admin/** 直链保持
 //      应用侧栏 + 页面 L2 收敛——§2.2 姿态不变）。
-//   2. 旧路由 20 条映射表驱动 redirect（console-m8 §1.4 兼容窗口，Q3 终裁
-//      M9 移除）——URL 落新路由 + 页面锚到达（功能等价）；查询串保真。
+//   2. 旧路由终态（T-263，Q3 终裁）：console-m8 §1.4 的 20 条映射全量移除
+//      ——旧路径不再重定向，直链落 NotFound（原始路径回显 + 回主页，
+//      T-239 形态）；查询串不复活重定向。首页 `/` 的 index 落点保留。
 //   3. 键盘导航：模式切换 / 用户菜单 Quick 动作全键盘驱动（§3.4）。
 // 锚口径 = ADR-0029 决策 3：锚不随路由改名；URL 断言仅出现在外部前缀与
-// 本兼容窗口两处（README §2.1）。
+// 本终态腿两处（README §2.1；决策 6：路径断言随路由表改，同票携带）。
 
 const REPO = 'm8-shell-legacy-local'
 
@@ -151,60 +152,68 @@ test('admin: user-menu quick actions are keyboard reachable', async ({ page }) =
   await expect(page.locator('[data-testid="repo-form-page"]')).toBeVisible()
 })
 
-// ---- 旧路由兼容窗口：20 条映射表驱动（console-m8 §1.4）----------------------
-// 实体腿先种（幂等）：仓库 + 根文件；用户/权限 target 来自 provisionRoles。
+// ---- 旧路由终态（console-m8 §1.4 映射表随 T-263 全量移除）------------------
+// 20 条映射中的 19 条旧路径不再重定向：直链落 NotFound——404 页保留导航壳、
+// 深链状态回显原始路径（not-found-path）+ 回主页（not-found-home）。第 20
+// 条 `/` 是 index 落点（console-m8 §1.1 登录落点），不属于兼容窗口，保留。
+// URL 断言 = 「未发生跳转」的精确匹配；锚零改名——not-found 族沿用 T-239。
 
-const LEGACY_ROUTES: { from: string; to: RegExp; anchor: string }[] = [
-  { from: '/', to: /\/binflow\/ui\/artifacts$/, anchor: 'tree-page' },
-  { from: '/repositories', to: /\/binflow\/ui\/admin\/repositories\/local$/, anchor: 'repos-page' },
-  { from: '/repositories/new', to: /\/binflow\/ui\/admin\/repositories\/new$/, anchor: 'repo-form-page' },
-  { from: `/repositories/${REPO}`, to: new RegExp(`/binflow/ui/admin/repositories/${REPO}$`), anchor: 'repo-detail-page' },
-  { from: `/repositories/${REPO}/settings`, to: new RegExp(`/binflow/ui/admin/repositories/${REPO}/edit$`), anchor: 'repo-form-page' },
-  { from: `/repositories/${REPO}/tree`, to: new RegExp(`/binflow/ui/artifacts/${REPO}$`), anchor: 'tree-page' },
-  { from: `/repositories/${REPO}/tree/perf`, to: new RegExp(`/binflow/ui/artifacts/${REPO}/perf$`), anchor: 'tree-page' },
-  { from: '/security/users', to: /\/binflow\/ui\/admin\/security\/users$/, anchor: 'users-page' },
-  { from: `/security/users/${roleFixturesFromEnv().user.name}`, to: new RegExp(`/binflow/ui/admin/security/users/${roleFixturesFromEnv().user.name}$`), anchor: 'user-detail-page' },
-  { from: '/security/groups', to: /\/binflow\/ui\/admin\/security\/groups$/, anchor: 'groups-page' },
-  { from: '/security/permissions', to: /\/binflow\/ui\/admin\/security\/permissions$/, anchor: 'perms-page' },
-  { from: '/security/permissions/new', to: /\/binflow\/ui\/admin\/security\/permissions\/new$/, anchor: 'perm-editor-page' },
-  { from: '/security/permissions/m8-e2e-read', to: /\/binflow\/ui\/admin\/security\/permissions\/m8-e2e-read$/, anchor: 'perm-editor-page' },
-  { from: '/security/tokens', to: /\/binflow\/ui\/admin\/security\/tokens$/, anchor: 'placeholder-page' },
-  { from: '/audit', to: /\/binflow\/ui\/admin\/governance\/audit$/, anchor: 'audit-page' },
-  { from: '/governance/gc', to: /\/binflow\/ui\/admin\/governance\/gc$/, anchor: 'gc-page' },
-  { from: '/governance/quotas', to: /\/binflow\/ui\/admin\/governance\/quotas$/, anchor: 'quotas-page' },
-  { from: '/governance/replication', to: /\/binflow\/ui\/admin\/governance\/replication$/, anchor: 'repl-page' },
-  { from: '/governance/backup', to: /\/binflow\/ui\/admin\/governance\/backup$/, anchor: 'backup-page' },
-  { from: '/settings', to: /\/binflow\/ui\/admin\/general\/settings$/, anchor: 'settings' },
+const LEGACY_PATHS = [
+  '/repositories',
+  '/repositories/new',
+  `/repositories/${REPO}`,
+  `/repositories/${REPO}/settings`,
+  `/repositories/${REPO}/tree`,
+  `/repositories/${REPO}/tree/perf`,
+  '/security/users',
+  `/security/users/${roleFixturesFromEnv().user.name}`,
+  '/security/groups',
+  '/security/permissions',
+  '/security/permissions/new',
+  '/security/permissions/m8-e2e-read',
+  '/security/tokens',
+  '/audit',
+  '/governance/gc',
+  '/governance/quotas',
+  '/governance/replication',
+  '/governance/backup',
+  '/settings',
 ]
 
-test('legacy routes: all 20 console-m8 §1.4 redirects land on the new route with the page mounted', async ({
+test('legacy routes: all console-m8 §1.4 paths land NotFound (redirect window removed)', async ({
   page,
 }) => {
-  expect(LEGACY_ROUTES).toHaveLength(20)
-  const client = m8Client()
-  await seedRepos(client, [{ key: REPO }])
-  // 树深链腿的根文件（空仓库根目录也是合法树态，但带一个文件让形态更真实）
-  const put = await client.request('PUT', `/binflow/${REPO}/seed.txt`, {
-    raw: true,
-    headers: { 'Content-Type': 'application/octet-stream' },
-    body: 'shell redirect fixture\n',
-  })
-  expect(put.status).toBeLessThan(300)
+  expect(LEGACY_PATHS).toHaveLength(19)
+  await loginAs(page, 'admin')
 
+  // 首页 index 落点不受移除影响（§1.1 登录落点，非兼容窗口）
   await page.goto('/binflow/ui/')
-  await page.fill('[data-testid="login-username"]', roleFixturesFromEnv().admin.name)
-  await page.fill('[data-testid="login-password"]', roleFixturesFromEnv().admin.password)
-  await page.click('[data-testid="login-submit"]')
-  await expect(page.locator('[data-testid="app-nav"]')).toBeVisible()
+  await expect(page).toHaveURL(/\/binflow\/ui\/artifacts$/)
+  await expect(page.locator('[data-testid="tree-page"]')).toBeVisible()
 
-  for (const { from, to, anchor } of LEGACY_ROUTES) {
+  for (const from of LEGACY_PATHS) {
     await page.goto(`/binflow/ui${from}`)
-    await expect(page, `redirect: ${from}`).toHaveURL(to)
-    await expect(page.locator(`[data-testid="${anchor}"]`).first(), `anchor after ${from}`).toBeVisible()
+    // 未发生客户端跳转：URL 原地不动 + 404 形态（壳内）+ 原始路径回显
+    await expect(page, `404: ${from}`).toHaveURL(`/binflow/ui${from}`)
+    await expect(page.locator('[data-testid="not-found"]'), `not-found after ${from}`).toBeVisible()
+    await expect(
+      page.locator('[data-testid="not-found-path"]'),
+      `path echo after ${from}`,
+    ).toHaveText(from)
   }
 
-  // 查询串保真（树页 ?focus= 深链锚定依赖——T-231 编码矩阵同通道）
+  // 查询串不复活重定向（原「查询串保真」腿反转）：旧树路径 + ?focus= 同落 404
   await page.goto(`/binflow/ui/repositories/${REPO}/tree?focus=seed.txt`)
-  await expect(page).toHaveURL(new RegExp(`/binflow/ui/artifacts/${REPO}\\?focus=seed\\.txt$`))
-  await expect(page.locator('[data-testid="node-detail"]')).toBeVisible()
+  await expect(page).toHaveURL(
+    new RegExp(`/binflow/ui/repositories/${REPO}/tree\\?focus=seed\\.txt$`),
+  )
+  await expect(page.locator('[data-testid="not-found"]')).toBeVisible()
+  await expect(page.locator('[data-testid="not-found-path"]')).toHaveText(
+    `/repositories/${REPO}/tree`,
+  )
+
+  // 404 页深链回主页（T-239 已备：主行动回应用模式首页 /artifacts）
+  await page.click('[data-testid="not-found-home"]')
+  await expect(page).toHaveURL(/\/binflow\/ui\/artifacts$/)
+  await expect(page.locator('[data-testid="tree-page"]')).toBeVisible()
 })

@@ -87,7 +87,7 @@ test('FR-25-AC6: 1GB UI upload completes; server RSS delta < 256MB', async ({ pa
     }
   }, 1_000)
 
-  await page.goto(`/binflow/ui/repositories/${key}/tree`)
+  await page.goto(`/binflow/ui/artifacts/${key}`)
   await page.click('[data-testid="tree-deploy"]')
   await page.fill('[data-testid="deploy-target"]', 'bulk/')
   // 本版 Playwright 的 FilePayload 仅收 buffer——1GB 走路径形态（文件名取

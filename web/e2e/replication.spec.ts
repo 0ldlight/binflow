@@ -161,7 +161,7 @@ const FULL_STATUS = {
 
 test('renders target list and event list with counts, badges and copy anchors', async ({ page }) => {
   await installMocks(page, { replication: () => ({ status: 200, body: FULL_STATUS }) })
-  await page.goto('/binflow/ui/governance/replication')
+  await page.goto('/binflow/ui/admin/governance/replication')
 
   const targets = page.locator('[data-testid="repl-targets"]')
   await expect(targets).toBeVisible()
@@ -225,7 +225,7 @@ test('auto-refreshes every 10s and reflects new state', async ({ page }) => {
             body: { targets: [target({ failed: 1 })], events: [] },
           },
   })
-  await page.goto('/binflow/ui/governance/replication')
+  await page.goto('/binflow/ui/admin/governance/replication')
 
   const row = page.locator('[data-testid="repl-target-0"]')
   // 首帧：无任务 → 正常
@@ -242,7 +242,7 @@ test('auto-refreshes every 10s and reflects new state', async ({ page }) => {
 
 test('empty payload degrades to empty states without tables', async ({ page }) => {
   await installMocks(page, { replication: () => ({ status: 200, body: { targets: [], events: [] } }) })
-  await page.goto('/binflow/ui/governance/replication')
+  await page.goto('/binflow/ui/admin/governance/replication')
 
   await expect(page.locator('[data-testid="repl-empty-targets"]')).toBeVisible()
   await expect(page.locator('[data-testid="repl-empty-events"]')).toBeVisible()
@@ -260,7 +260,7 @@ test('501 (replication disabled) degrades to hint', async ({ page }) => {
   await installMocks(page, {
     replication: () => ({ status: 501, body: { errors: [{ message: 'replication is not configured' }] } }),
   })
-  await page.goto('/binflow/ui/governance/replication')
+  await page.goto('/binflow/ui/admin/governance/replication')
 
   const hint = page.locator('[data-testid="repl-unavailable"]')
   await expect(hint).toBeVisible()
@@ -274,7 +274,7 @@ test('404 (endpoint not bridged yet) degrades to hint', async ({ page }) => {
   await installMocks(page, {
     replication: () => ({ status: 404, body: { errors: [{ message: 'not found' }] } }),
   })
-  await page.goto('/binflow/ui/governance/replication')
+  await page.goto('/binflow/ui/admin/governance/replication')
 
   const hint = page.locator('[data-testid="repl-unavailable"]')
   await expect(hint).toBeVisible()
@@ -291,7 +291,7 @@ test('non-admin (403) shows permission empty state', async ({ page }) => {
     admin: false,
     replication: () => ({ status: 403, body: { errors: [{ message: 'forbidden' }] } }),
   })
-  await page.goto('/binflow/ui/governance/replication')
+  await page.goto('/binflow/ui/admin/governance/replication')
 
   await expect(page.locator('[data-testid="empty-state"]')).toContainText('无权限查看复制状态')
   await expect(page.locator('[data-testid="repl-targets"]')).toHaveCount(0)
@@ -309,7 +309,7 @@ test('transient poll failure keeps last good data with inline hint', async ({ pa
         ? { status: 200, body: FULL_STATUS }
         : { status: 500, body: { errors: [{ message: 'boom: metadata db is closed' }] } },
   })
-  await page.goto('/binflow/ui/governance/replication')
+  await page.goto('/binflow/ui/admin/governance/replication')
 
   const row = page.locator('[data-testid="repl-target-0"]')
   await expect(row).toContainText('复制中')

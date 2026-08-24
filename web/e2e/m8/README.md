@@ -50,7 +50,7 @@ await expect(page.locator('.ag-grid-row')).toHaveCount(5)       // 组件实现�
 - 锚**不随路由改名**（ADR-0029 转正勘误 + console-m8 §1.4）：T-235 把
   `/repositories` 挪到 `/admin/repositories/local` 后，`repos-page`、`repos-row-<key>`
   等锚原样保留——**路径断言随路由表改，锚断言不动**。URL 断言只在外部前缀
-  （`/binflow/ui/`）与重定向兼容窗口（旧路由 20 条）两处出现。
+  （`/binflow/ui/`）与旧路由终态腿（T-263 起兼容窗口移除，断言 404 形态）两处出现。
 - 动态段：实体用原值（`repos-row-<repoKey>`）；**类段防碰撞**——主体有多类时
   名段前加 `{user|group}`（`perm-matrix-cell-user-alice-read`）。
 - 锚唯一性按**视图**计：同名锚（如 `repos-empty` 同时在仪表盘与仓库页）必须
@@ -162,7 +162,7 @@ expect((got.json as { adminRole: string }).adminRole).toBe('readonly_admin')
 （三角色键盘冒烟）/ `theme-smoke.spec.ts`（T-234 皮肤冒烟，T-232 遗留①
 自 `src/styles/` 迁入，`playwright.styles.config.ts` 随迁删除——登录改用
 `loginAs`）/ `shell.spec.ts`（T-235 双模式壳：三角色 × 双模式导航可达性 +
-20 条旧路由映射表 redirect + 键盘模式切换/Quick 动作）/
+旧路由 404 终态断言〔T-263 按 Q3 终裁移除重定向窗口〕+ 键盘模式切换/Quick 动作）/
 `auxiliary.spec.ts`（T-239 应用模式辅助页：仪表盘三角色 + 审计行深链 +
 搜索全链（Enter/recentSearches/?q= 深链回显/行 Enter 跳树）+ 登录错误态
 return 回跳 + 404 + /profile 拆分形态）。
@@ -175,8 +175,8 @@ return 回跳 + 404 + /profile 拆分形态）。
 
 1. 新页面组**先补 console-ux §10 锚清单再落码**（console-m8 §1.4 流程）；
    spec 只断言清单内锚。
-2. 旧路由兼容窗口的重定向腿写在 T-235 的映射表驱动 spec 里，其余 spec
-   一律走新路由 + 锚。
+2. 旧路由兼容窗口已按 Q3 终裁随 T-263 移除：旧路径的 404 终态腿写在
+   shell.spec（URL 未跳转 + not-found 族锚），其余 spec 一律走新路由 + 锚。
 3. 任何「像素/截图」提案 = 违 ADR-0029，直接拒。
 4. 契约冻结（决策 4）：spec 不得为断言方便要求新端点——表达不了的走
    PM 出 FR 的独立票。

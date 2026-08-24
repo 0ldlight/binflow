@@ -1,6 +1,6 @@
 import { StrictMode, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 
 import { AuthProvider } from './app/AuthContext'
 import { ConfirmProvider } from './components/ConfirmDialog'
@@ -22,8 +22,9 @@ consumeStepUpFragment()
 // vite base = /binflow/ui（ADR-0014，不变）。双模式：应用模式
 // （/dashboard /artifacts /search /profile）+ 管理模式（/admin/** 五分组：
 // 仓库/用户与权限/治理/监控/常规）。页面组件原样挂载（B3/B4 域票再重排
-// 页内形态）；旧路由按 console-m8 §1.4 的 20 条映射做客户端 replace
-// 重定向（Q3 终裁：M8 全量保留兼容窗口，M9 移除）。
+// 页内形态）。M8 的旧路由兼容窗口（20 条映射）已按 Q3 终裁在 M9 移除
+// （T-263）：M7 及以前的旧路径不再重定向，一律落 * 通配的 NotFound
+// （404 页保留导航壳 + 深链回主页，T-239 形态）。
 // testid 242 锚不随路由改名（ADR-0029 决策 3 / console-ux §10.5）。
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
@@ -61,32 +62,6 @@ const AppShell = lazy(() => import('./components/AppShell'))
 
 function RouteFallback() {
   return <div className="route-fallback">加载中…</div>
-}
-
-// ---- 旧路由兼容窗口（console-m8 §1.4；Q3 终裁 M9 移除）--------------------
-// 客户端 replace 重定向。对 raw pathname 做前缀/后缀改写而非按 params 重组：
-// 保真 percent-encode 形态（T-231 矩阵的 %/#/?/空格/UTF-8 段不二次编解码），
-// 并保留查询串（树页 ?focus= 深链锚定依赖）。
-
-type PathRewrite = (pathname: string) => string
-
-/** 前缀改写：/security/* → /admin/security/* 这类平移 */
-function prefix(from: string, to: string): PathRewrite {
-  return (p) => to + p.slice(from.length)
-}
-
-/** 仓内树 → 跨仓树：/repositories/<key>/tree[/<path…>] → /artifacts/<key>[/<path…>] */
-const TREE_REWRITE: PathRewrite = (p) =>
-  p.replace(/^\/repositories\/([^/]+)\/tree(?:\/(.*))?$/, (_m, key: string, rest: string) =>
-    rest ? `/artifacts/${key}/${rest}` : `/artifacts/${key}`,
-  )
-
-/** 编辑仓后缀改写：…/settings → …/edit（/settings 让位 /admin/general/settings） */
-const EDIT_REWRITE: PathRewrite = (p) => p.replace(/\/settings$/, '/edit')
-
-function LegacyRedirect({ rewrite }: { rewrite: PathRewrite }) {
-  const { pathname, search } = useLocation()
-  return <Navigate to={rewrite(pathname) + search} replace />
 }
 
 createRoot(document.getElementById('root')!).render(
@@ -166,42 +141,8 @@ createRoot(document.getElementById('root')!).render(
                     <Route path="admin/monitoring/storage" element={<StorageSummaryPage />} />
                     <Route path="admin/general/settings" element={<SystemInfoPage />} />
 
-                    {/* —— 旧路由兼容窗口（console-m8 §1.4 的 20 条映射；
-                         8 条路由承载——security/* 与 governance/* 前缀平移
-                         各自覆盖一族）—— */}
-                    <Route
-                      path="repositories"
-                      element={<LegacyRedirect rewrite={() => '/admin/repositories/local'} />}
-                    />
-                    <Route
-                      path="repositories/:key/tree/*"
-                      element={<LegacyRedirect rewrite={TREE_REWRITE} />}
-                    />
-                    <Route
-                      path="repositories/:key/settings"
-                      element={<LegacyRedirect rewrite={EDIT_REWRITE} />}
-                    />
-                    <Route
-                      path="repositories/*"
-                      element={<LegacyRedirect rewrite={prefix('/repositories', '/admin/repositories')} />}
-                    />
-                    <Route
-                      path="settings"
-                      element={<LegacyRedirect rewrite={() => '/admin/general/settings'} />}
-                    />
-                    <Route
-                      path="security/*"
-                      element={<LegacyRedirect rewrite={prefix('/security', '/admin/security')} />}
-                    />
-                    <Route
-                      path="audit"
-                      element={<LegacyRedirect rewrite={() => '/admin/governance/audit'} />}
-                    />
-                    <Route
-                      path="governance/*"
-                      element={<LegacyRedirect rewrite={prefix('/governance', '/admin/governance')} />}
-                    />
-
+                    {/* 未匹配 → 404 页（T-263 起旧路由兼容窗口不再兜底：
+                         M7 及以前的旧路径同样落这里） */}
                     <Route path="*" element={<NotFoundPage />} />
                   </Route>
                 </Routes>

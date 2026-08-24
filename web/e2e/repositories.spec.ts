@@ -57,7 +57,7 @@ function uniq(prefix: string): string {
 
 test('local generic full lifecycle: create with governance -> list -> edit roundtrip -> delete with content', async ({ page }) => {
   const key = uniq('t99a')
-  await page.goto('/binflow/ui/repositories/new')
+  await page.goto('/binflow/ui/admin/repositories/new')
   await login(page)
 
   // 进页即弹包类型网格（T-240 向导第 0 步）：选 Generic 即选定关闭
@@ -96,7 +96,7 @@ test('local generic full lifecycle: create with governance -> list -> edit round
   expect(createdJson.configuration.excludesPattern).toBe('tmp/**')
 
   // 列表：行可见 + 过滤（T-240：local 仓行在 local Tab 子路由）
-  await page.goto('/binflow/ui/repositories')
+  await page.goto('/binflow/ui/admin/repositories/local')
   await expect(page.locator(`[data-testid="repos-row-${key}"]`)).toBeVisible()
 
   // review B1：行内拷贝不触发行导航（隔离层），且剪贴板拿到完整 key
@@ -112,7 +112,7 @@ test('local generic full lifecycle: create with governance -> list -> edit round
   await expect(page.locator('[data-testid="repos-empty-filtered"]')).toBeVisible()
 
   // 编辑：rclass/packageType 锁定 + quota 修改往返（全量替换保全；单页无步骤）
-  await page.goto(`/binflow/ui/repositories/${key}/settings`)
+  await page.goto(`/binflow/ui/admin/repositories/${key}/edit`)
   await expect(page.locator('[data-testid="form-rclass-local"]')).toBeDisabled()
   await expect(page.locator('[data-testid="form-package-generic"]')).toBeDisabled()
   await expect(page.locator('[data-testid="form-quota"]')).toHaveValue('1048576')
@@ -135,7 +135,7 @@ test('local generic full lifecycle: create with governance -> list -> edit round
   const put = await api(page, 'PUT', `/${key}/release/app.bin`, 't99-probe-payload')
   expect(put.status).toBe(201)
 
-  await page.goto(`/binflow/ui/repositories/${key}`)
+  await page.goto(`/binflow/ui/admin/repositories/${key}`)
   await page.click('[data-testid="repo-delete-button"]')
   await expect(page.locator('[data-testid="confirm-dialog"]')).toBeVisible()
 
@@ -164,7 +164,7 @@ test('local generic full lifecycle: create with governance -> list -> edit round
 
 test('remote maven: url roundtrip, password never echoed, empty delete', async ({ page }) => {
   const key = uniq('t99b')
-  await page.goto('/binflow/ui/repositories/new')
+  await page.goto('/binflow/ui/admin/repositories/new')
   await login(page)
 
   // 网格（local 默认）先选 Maven；再切 Remote——docker 组合即禁用（FR-15-AC7）
@@ -192,12 +192,12 @@ test('remote maven: url roundtrip, password never echoed, empty delete', async (
   expect(json.configuration.username).toBe('dev')
 
   // 编辑：url 预填（remote 更新必带 url，否则服务端 400）——单页直达
-  await page.goto(`/binflow/ui/repositories/${key}/settings`)
+  await page.goto(`/binflow/ui/admin/repositories/${key}/edit`)
   await expect(page.locator('[data-testid="form-url"]')).toHaveValue('https://repo1.maven.org/maven2')
   await expect(page.locator('[data-testid="form-password"]')).toHaveValue('')
 
   // 空仓删除：不勾 deleteContent 直接成功
-  await page.goto(`/binflow/ui/repositories/${key}`)
+  await page.goto(`/binflow/ui/admin/repositories/${key}`)
   await page.click('[data-testid="repo-delete-button"]')
   await page.fill('[data-testid="repo-delete-confirm-key"]', key)
   await page.click('[data-testid="confirm-accept"]')
@@ -205,7 +205,7 @@ test('remote maven: url roundtrip, password never echoed, empty delete', async (
 })
 
 test('form gating: illegal combo disabled, key/url precheck, zero write requests', async ({ page }) => {
-  await page.goto('/binflow/ui/repositories/new')
+  await page.goto('/binflow/ui/admin/repositories/new')
   await login(page)
 
   const writes: string[] = []
@@ -254,7 +254,7 @@ test('virtual: member order roundtrip, defaultDeploymentRepo, server 400 inline'
   })
 
   const vkey = uniq('t99v')
-  await page.goto('/binflow/ui/repositories/new')
+  await page.goto('/binflow/ui/admin/repositories/new')
   await page.click('[data-testid="pkg-grid-item-generic"]')
   await page.click('[data-testid="form-rclass-virtual"]')
   await expect(page.locator('[data-testid="form-package-generic"]')).toBeChecked()
@@ -287,7 +287,7 @@ test('virtual: member order roundtrip, defaultDeploymentRepo, server 400 inline'
   await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/virtual$/)
 
   // review B2：取消 defaultDeploymentRepo 所指成员 → select 联动回「（未配置）」，提交不再吃 400
-  await page.goto(`/binflow/ui/repositories/${vkey}/settings`)
+  await page.goto(`/binflow/ui/admin/repositories/${vkey}/edit`)
   await expect(page.locator(`[data-testid="form-member-${m1}"]`)).toBeChecked()
   await expect(page.locator('[data-testid="form-default-deploy"]')).toHaveValue(m1)
   await page.uncheck(`[data-testid="form-member-${m1}"]`)
@@ -300,7 +300,7 @@ test('virtual: member order roundtrip, defaultDeploymentRepo, server 400 inline'
   expect(afterJson.configuration.defaultDeploymentRepo).toBeUndefined()
 
   // 服务端 400 行内回显：编辑态成员在表单打开后被外部删除 → 保存被服务端拒
-  await page.goto(`/binflow/ui/repositories/${vkey}/settings`)
+  await page.goto(`/binflow/ui/admin/repositories/${vkey}/edit`)
   await expect(page.locator(`[data-testid="form-member-${m2}"]`)).toBeChecked()
   await api(page, 'DELETE', `/api/repositories/${m2}`)
   await page.click('[data-testid="form-submit"]')

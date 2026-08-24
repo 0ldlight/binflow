@@ -175,7 +175,7 @@ test('G32a-1: zero /v2/* requests during docker tree browsing', async ({ page })
   const searchBeforeTree = searchReqs.count()
 
   // Browse to the docker repo tree
-  await page.goto(`/binflow/ui/repositories/${key}/tree`)
+  await page.goto(`/binflow/ui/artifacts/${key}`)
   await expect(page.locator('[data-testid="tree-page"]')).toBeVisible()
 
   // Navigate into the image directory
@@ -213,7 +213,7 @@ test('G32a-2: tag badges rendered on manifest digest rows', async ({ page }) => 
   const { manifestDigest: manifestDigest2 } = await pushManifest(page, key, 'app', 'v1')
 
   // Browse to manifests/
-  await page.goto(`/binflow/ui/repositories/${key}/tree/app/manifests`)
+  await page.goto(`/binflow/ui/artifacts/${key}/app/manifests`)
   await expect(page.locator('[data-testid="tree-page"]')).toBeVisible()
 
   // Check tag badges for the "latest" tagged manifest
@@ -250,7 +250,7 @@ test('G32a-3: data consistency — tree tag set matches crane tags/list', async 
   const expectedTags = tagsList.tags ?? []
 
   // Browse to manifests/
-  await page.goto(`/binflow/ui/repositories/${key}/tree/app/manifests`)
+  await page.goto(`/binflow/ui/artifacts/${key}/app/manifests`)
   await expect(page.locator('[data-testid="tree-page"]')).toBeVisible()
 
   // Verify each expected tag is rendered as a badge
@@ -278,7 +278,7 @@ test('G32b-1: docker tree columns — digest column header "摘要"', async ({ p
   const { manifestDigest } = await pushManifest(page, key, 'app', 'latest')
 
   // Browse to manifests/
-  await page.goto(`/binflow/ui/repositories/${key}/tree/app/manifests`)
+  await page.goto(`/binflow/ui/artifacts/${key}/app/manifests`)
   await expect(page.locator('[data-testid="tree-page"]')).toBeVisible()
 
   // Docker tree should show "摘要" column header instead of "sha256"
@@ -311,7 +311,7 @@ test('G32b-2: docker root level — image directory listing with zero regression
   await pushManifest(page, key, 'app2', 'v1')
 
   // Browse to root
-  await page.goto(`/binflow/ui/repositories/${key}/tree`)
+  await page.goto(`/binflow/ui/artifacts/${key}`)
   await expect(page.locator('[data-testid="tree-page"]')).toBeVisible()
 
   // Root should show image directories (app1, app2) as folders

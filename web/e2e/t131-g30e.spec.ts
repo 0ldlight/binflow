@@ -79,7 +79,7 @@ test('G30e-1: zero /api/search requests during tree browse (upload + mkdir + nav
   await api(page, 'PUT', `/api/repositories/${key}`, { rclass: 'local', packageType: 'generic' })
 
   // 上传文件到嵌套目录（触发 materializeAncestors）
-  await page.goto(`/binflow/ui/repositories/${key}/tree`)
+  await page.goto(`/binflow/ui/artifacts/${key}`)
   await page.click('[data-testid="tree-deploy"]')
   await page.fill('[data-testid="deploy-target"]', 'deep/nested/')
   await page.setInputFiles('[data-testid="deploy-file-input"]', [
@@ -124,7 +124,7 @@ test('G30e-2: typo deep-link renders 404 EmptyState for non-root dir (NB1 struct
   // 直接深链到不存在的路径（非根目录 404）
   // 之前 searchListing 兜底会吞噬这个 404 并尝试搜索面重构
   // 现在应该直接渲染 EmptyState "路径不存在"
-  await page.goto(`/binflow/ui/repositories/${key}/tree/nosuch/dir`)
+  await page.goto(`/binflow/ui/artifacts/${key}/nosuch/dir`)
   await expect(page.locator('[data-testid="tree-page"]')).toBeVisible()
   await expect(page.locator('[data-testid="tree-page"]')).toContainText('路径不存在')
 
@@ -157,7 +157,7 @@ test('G30e-3: mkdir single-segment regression — one PUT per directory', async 
     await route.continue().catch(() => {})
   })
 
-  await page.goto(`/binflow/ui/repositories/${key}/tree/deep/nested`)
+  await page.goto(`/binflow/ui/artifacts/${key}/deep/nested`)
   await page.click('[data-testid="tree-mkdir"]')
   await page.fill('[data-testid="tree-mkdir-input"]', 'child')
   await page.click('[data-testid="confirm-accept"]')
@@ -187,7 +187,7 @@ test('G30e-4: large directory pagination regression — listChildren works with 
     await api(page, 'PUT', `/${key}/${dir}/f${i.toString().padStart(3, '0')}.bin`, `payload-${i}`)
   }
 
-  await page.goto(`/binflow/ui/repositories/${key}/tree/${dir}`)
+  await page.goto(`/binflow/ui/artifacts/${key}/${dir}`)
   await page.waitForSelector('[data-testid="tree-list"] tbody tr', { timeout: 10_000 })
 
   const rowCount = await page.locator('[data-testid="tree-list"] tbody tr').count()

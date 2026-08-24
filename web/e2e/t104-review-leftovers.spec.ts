@@ -107,7 +107,7 @@ test('upload 403 (write denied) renders inline guidance for read-only user (T-10
   await login(page, roUser, roPW)
 
   // 树页上传（ro 有 read → 树可见；write 拒 → 403 行内指引）
-  await page.goto(`/binflow/ui/repositories/${key}/tree`)
+  await page.goto(`/binflow/ui/artifacts/${key}`)
   await page.click('[data-testid="tree-deploy"]')
   await expect(page.locator('[data-testid="deploy-dialog"]')).toBeVisible()
   await page.fill('[data-testid="deploy-target"]', 'denied/')
@@ -153,7 +153,7 @@ test('B1 residual arm: close during hashing phase emits zero PUT (fix 77718cc)',
   if (!existsSync(bigPath)) {
     execSync(`mkdir -p ${TMP} && dd if=/dev/urandom of=${bigPath} bs=1048576 count=128 2>/dev/null`)
   }
-  await page.goto(`/binflow/ui/repositories/${key}/tree`)
+  await page.goto(`/binflow/ui/artifacts/${key}`)
   await page.click('[data-testid="tree-deploy"]')
   await page.fill('[data-testid="deploy-target"]', 'big/')
   await page.setInputFiles('[data-testid="deploy-file-input"]', bigPath)

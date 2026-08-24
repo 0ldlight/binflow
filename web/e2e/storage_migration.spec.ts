@@ -110,7 +110,7 @@ test('running migration renders progress bar and auto-refreshes every 5s', async
       },
     }),
   })
-  await page.goto('/binflow/ui/governance/gc')
+  await page.goto('/binflow/ui/admin/governance/gc')
 
   const panel = page.locator('[data-testid="migration-panel"]')
   await expect(panel).toBeVisible()
@@ -154,7 +154,7 @@ test('completed migration with failures shows done state, error row and red bar'
       },
     }),
   })
-  await page.goto('/binflow/ui/governance/gc')
+  await page.goto('/binflow/ui/admin/governance/gc')
 
   const panel = page.locator('[data-testid="migration-panel"]')
   await expect(panel).toBeVisible()
@@ -179,7 +179,7 @@ test('501 (migration not configured) degrades to hint without progress bar', asy
       body: { errors: [{ message: 'migration is not configured' }] },
     }),
   })
-  await page.goto('/binflow/ui/governance/gc')
+  await page.goto('/binflow/ui/admin/governance/gc')
 
   const panel = page.locator('[data-testid="migration-panel"]')
   await expect(panel).toBeVisible()
@@ -200,7 +200,7 @@ test('non-admin (403) hides the migration panel entirely', async ({ page }) => {
     statsStatus: 403,
     migration: () => ({ status: 403, body: { errors: [{ message: 'forbidden' }] } }),
   })
-  await page.goto('/binflow/ui/governance/gc')
+  await page.goto('/binflow/ui/admin/governance/gc')
 
   await expect(page.locator('[data-testid="migration-panel"]')).toHaveCount(0)
   // 同页存储概况卡走既有的无权限呈现（非 admin 不渲染一排红卡）
@@ -221,7 +221,7 @@ test('transient poll failure keeps last good data with inline hint', async ({ pa
           }
         : { status: 500, body: { errors: [{ message: 'boom: storage engine offline' }] } },
   })
-  await page.goto('/binflow/ui/governance/gc')
+  await page.goto('/binflow/ui/admin/governance/gc')
 
   const panel = page.locator('[data-testid="migration-panel"]')
   await expect(panel.locator('[data-testid="migration-pct"]')).toHaveText('40.0%')
@@ -263,7 +263,7 @@ test('start migration: confirm dialog (impact notes + YES gate) posts and merges
       body: JSON.stringify(runningBody),
     })
   })
-  await page.goto('/binflow/ui/governance/gc')
+  await page.goto('/binflow/ui/admin/governance/gc')
 
   const panel = page.locator('[data-testid="migration-panel"]')
   await expect(panel.locator('[data-testid="migration-start"]')).toBeVisible()
@@ -301,7 +301,7 @@ test('start migration: cancel exits dialog without posting', async ({ page }) =>
     startCalls++
     return route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify(NEVER_STARTED) })
   })
-  await page.goto('/binflow/ui/governance/gc')
+  await page.goto('/binflow/ui/admin/governance/gc')
 
   const panel = page.locator('[data-testid="migration-panel"]')
   await expect(panel.locator('[data-testid="migration-start"]')).toBeVisible()
@@ -333,7 +333,7 @@ test('start migration: 409 conflict shows inline rejection panel', async ({ page
       body: JSON.stringify({ errors: [{ message: 'storage: migration: migration is not enabled' }] }),
     }),
   )
-  await page.goto('/binflow/ui/governance/gc')
+  await page.goto('/binflow/ui/admin/governance/gc')
 
   const panel = page.locator('[data-testid="migration-panel"]')
   await panel.locator('[data-testid="migration-start"]').click()

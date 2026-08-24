@@ -170,7 +170,7 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/tiny/b.bin --data-binary @800b.bin
 
 ## 控制台对应页面
 
-M8 起治理域位于管理模式「治理」分组：审计日志 `/admin/governance/audit`（过滤 + 游标加载更多）、维护（GC）`/admin/governance/gc`（stats + dry-run 面板 + 输入实例名确认 apply）、配额 `/admin/governance/quotas`（每仓水位条 80% 黄/100% 红 + 行内编辑）、复制 `/admin/governance/replication`、备份/恢复 `/admin/governance/backup`——均消费与本文相同的 REST 面，脚本与界面行为可互证（页面测试即 API 测试）。页面走查见[控制台指南](../console.md#管理模式各域)；M7 及以前的 `/governance/*`、`/audit` 旧路径自动重定向（M9 移除）。
+M8 起治理域位于管理模式「治理」分组：审计日志 `/admin/governance/audit`（过滤 + 游标加载更多）、维护（GC）`/admin/governance/gc`（stats + dry-run 面板 + 输入实例名确认 apply）、配额 `/admin/governance/quotas`（每仓水位条 80% 黄/100% 红 + 行内编辑）、复制 `/admin/governance/replication`、备份/恢复 `/admin/governance/backup`——均消费与本文相同的 REST 面，脚本与界面行为可互证（页面测试即 API 测试）。页面走查见[控制台指南](../console.md#管理模式各域)；M7 及以前的 `/governance/*`、`/audit` 旧路径已随 M9 移除重定向窗口而失效——请改用上述新路径（对照表见[控制台指南 · 旧路径 → 新路径](../console.md#旧路径--新路径m9-起不再重定向)）。
 
 ## 用户管理
 

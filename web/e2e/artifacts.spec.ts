@@ -65,7 +65,7 @@ test('W12/W12b/W13 generic tree: upload -> browse -> detail/download sha match -
   await api(page, 'PUT', `/api/repositories/${key}`, { rclass: 'local', packageType: 'generic' })
 
   // 空树（W12 空态）
-  await page.goto(`/binflow/ui/repositories/${key}/tree`)
+  await page.goto(`/binflow/ui/artifacts/${key}`)
   await expect(page.locator('[data-testid="tree-page"]')).toBeVisible()
   await expect(page.locator('[data-testid="tree-empty-dir"]')).toContainText('此目录为空')
 
@@ -183,7 +183,7 @@ test('W12d read-only user: browse allowed, delete 403 reason inline with guidanc
   await login(page, roUser, roPW)
 
   // 浏览 OK（内容面按路径 ACL）；仓库元数据为 admin 面 → 降级提示而非空白
-  await page.goto(`/binflow/ui/repositories/${key}/tree/d`)
+  await page.goto(`/binflow/ui/artifacts/${key}/d`)
   await expect(page.locator('[data-testid="tree-row-keep.bin"]')).toBeVisible()
   await expect(page.locator('.tree-page .warn-box')).toContainText('管理员视图')
 
@@ -215,7 +215,7 @@ test('W12a on upload UI: 409 pattern and 413 quota messages surface verbatim', a
   })
 
   // 409：excludesPattern 拒绝（message 含两侧 pattern，原样呈现）
-  await page.goto(`/binflow/ui/repositories/${patKey}/tree`)
+  await page.goto(`/binflow/ui/artifacts/${patKey}`)
   await page.click('[data-testid="tree-deploy"]')
   await page.fill('[data-testid="deploy-target"]', 'tmp/')
   await page.setInputFiles('[data-testid="deploy-file-input"]', [
@@ -228,7 +228,7 @@ test('W12a on upload UI: 409 pattern and 413 quota messages surface verbatim', a
   await expect(row409).toContainText('tmp/**')
 
   // 413：quota 超限（message 含 used/quota 双值）
-  await page.goto(`/binflow/ui/repositories/${quoKey}/tree`)
+  await page.goto(`/binflow/ui/artifacts/${quoKey}`)
   await page.click('[data-testid="tree-deploy"]')
   await page.setInputFiles('[data-testid="deploy-file-input"]', [
     { name: 'big.bin', mimeType: 'application/octet-stream', buffer: Buffer.alloc(64, 7) },
@@ -246,7 +246,7 @@ test('maven upload form: GAV generates layout path, precheck blocks bad input wi
   await login(page)
   await api(page, 'PUT', `/api/repositories/${key}`, { rclass: 'local', packageType: 'maven' })
 
-  await page.goto(`/binflow/ui/repositories/${key}/tree`)
+  await page.goto(`/binflow/ui/artifacts/${key}`)
   await page.click('[data-testid="tree-deploy"]')
   await expect(page.locator('[data-testid="deploy-dialog"]')).toBeVisible()
 
@@ -347,7 +347,7 @@ test('upload dialog close stops the queue: remaining files never PUT (review B1)
     await route.continue().catch(() => {})
   })
 
-  await page.goto(`/binflow/ui/repositories/${key}/tree`)
+  await page.goto(`/binflow/ui/artifacts/${key}`)
   await page.click('[data-testid="tree-deploy"]')
   await page.fill('[data-testid="deploy-target"]', 'q/')
   await page.setInputFiles('[data-testid="deploy-file-input"]', [
@@ -400,7 +400,7 @@ test('large directory: client-side load-more pagination (ux R1 fallback)', async
     { key, n: 220 },
   )
 
-  await page.goto(`/binflow/ui/repositories/${key}/tree`)
+  await page.goto(`/binflow/ui/artifacts/${key}`)
   await expect(page.locator('[data-testid="tree-list"] tbody tr')).toHaveCount(100, { timeout: 20_000 })
   // 过滤只作用于已加载集（§6.3）
   await page.fill('[data-testid="tree-filter"]', 'f0001')

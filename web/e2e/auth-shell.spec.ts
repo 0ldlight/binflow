@@ -64,7 +64,7 @@ test('login lands on shell; dashboard cards arrive; theme toggles; 404 keeps she
   await expect(page.locator('[data-testid="dashboard-health-card"] .stat-row .v')).toHaveText(/^(ok|error)$/)
 
   // 仓库页深链（T-99 已交付）：真实列表页挂载且壳保留
-  await page.goto('/binflow/ui/repositories')
+  await page.goto('/binflow/ui/admin/repositories/local')
   await expect(page.locator('[data-testid="repos-page"]')).toBeVisible()
   await expect(page.locator('[data-testid="app-nav"]')).toBeVisible()
   // 搜索页深链（T-100 已交付）：真实搜索页挂载（空关键词引导态）
@@ -108,7 +108,7 @@ test('logout revokes the session server-side and re-entry requires login', async
   await expect(page).toHaveURL(/\/login/)
 
   // 会话已吊销：回退受保护路由再次被守卫拦下
-  await page.goto('/binflow/ui/settings')
+  await page.goto('/binflow/ui/admin/general/settings')
   await expect(page).toHaveURL(/\/login\?return=/)
 })
 

@@ -137,7 +137,7 @@ curl -s -H "Authorization: Bearer <access_token>" $BASE/binflow/api/v1/storage/u
 1. **「我的 404 为什么在 Artifactory 是 200？」**——先查 BinFlow 仓库的 `excludesPattern`（拦截下载与 miss 同文案）与 remote 仓负缓存/assumed-offline（`X-Binflow-Cache` / `X-Binflow-Upstream-Error` 响应头）。
 2. **「docker push 为什么报错别的协议都好？」**——docker 固定根级 `/v2`，前置反代必须原样直通（不能 rewrite 进 `/binflow`）；明文 HTTP 需配 daemon 的 insecure-registries。
 3. **「脚本 401 但浏览器正常？」**——浏览器是会话 cookie，脚本用 Basic/token；确认没有把控制台 cookie 混进 CI（cookie 过期不受你控制）。
-4. **「收藏夹里的 BinFlow 控制台旧路径失效了吗？（M8）」**——M8 路由重排后旧路径**自动重定向**到新路径（如 `/security/users` → `/admin/security/users`），书签仍可用；重定向是 M8 兼容窗口、**M9 计划移除**，完整映射表见[控制台指南 · 旧路径 → 新路径](console.md#旧路径--新路径m8-兼容窗口)。
+4. **「收藏夹里的 BinFlow 控制台旧路径失效了吗？（M8 引入 / M9 收紧）」**——M8 路由重排后旧路径曾**自动重定向**到新路径（如 `/security/users` → `/admin/security/users`）；**M9 起重定向已移除**（ADR-0029 Q3 终裁），旧路径直链落 404 页（提供「回主页」链接）——请按映射表更新书签，见[控制台指南 · 旧路径 → 新路径](console.md#旧路径--新路径m9-起不再重定向)。
 
 ## 排障信息收集
 
