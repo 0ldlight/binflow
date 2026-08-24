@@ -27,3 +27,4 @@ reverse-engineer 在此产出 **clean-room 行为规格**——让实现者不�
 | `metrics.md` | 内部指标框架、可观测性日志服务、Prometheus 集成现状 | M6 |
 | `rbac-model.md` | 实例级/Projects 域两层授权模型、角色闭集、组 CRUD 与 effective admin | M7 |
 | `console-ui.md` | 控制台 UI 行为规格：全局 IA、页面骨架、交互流、状态矩阵、OSS 缺位（活体 7.84.10 取证） | M8 |
+| `gap-endpoints.md` | M9 服务端缺口群：users 回显字段级（无 enabled 布尔，status 枚举）、DELETE user 级联与守卫、组成员暴露面（includeUsers / UI 扇出 / Access v2 members）、permission 列表无过滤面、仓库用量走 /api/storageinfo 扇出 | M9 |
