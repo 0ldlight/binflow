@@ -1,6 +1,6 @@
 # PRD — M8 控制台对齐 Artifactory（IA 重构 / 制品浏览器 / 管理面形态 / 皮肤与 token / 债务收编）
 
-> **PRD 状态：v1.0 草案（待 conductor 审）**。主轴来自用户指令（2026-08-23 原话）：「前端 UI 和交互逻辑要求和 JFrog 一样」。conductor 执行口径（BOARD 状态区，可推翻）：对齐 = **信息架构 + 交互逻辑 + 操作流**（Artifactory 用户零学习成本），视觉近似但**自有皮肤**；clean-room 铁律（ADR-0001）对 UI 生效——产出只能是行为规格，JFrog 图标/样式/代码零复制；**服务端契约零改动**（M7 的 RBAC/manage/step-up/续传语义全保留）；范围 = BinFlow 已有功能面。
+> **PRD 状态：v1.1（v1.0 经 conductor 终审定案——ADR-0029 Accepted；2026-08-24 §0 勘误两则；里程碑已完结 `m8-done`）**。主轴来自用户指令（2026-08-23 原话）：「前端 UI 和交互逻辑要求和 JFrog 一样」。conductor 执行口径（BOARD 状态区，可推翻）：对齐 = **信息架构 + 交互逻辑 + 操作流**（Artifactory 用户零学习成本），视觉近似但**自有皮肤**；clean-room 铁律（ADR-0001）对 UI 生效——产出只能是行为规格，JFrog 图标/样式/代码零复制；**服务端契约零改动**（M7 的 RBAC/manage/step-up/续传语义全保留）；范围 = BinFlow 已有功能面。
 
 | 项 | 值 |
 |---|---|
@@ -17,6 +17,7 @@
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | v1.0 | 2026-08-23 | 初版草案（待 conductor 审）：M8 范围（用户指令 + conductor 五条口径 + M8 债券七项全覆盖）、FR-71~FR-77（IA 双模式壳 / 制品浏览器 / 管理面表格与编辑器 / 导航与面包屑 / 键盘与批量 / 自有皮肤与 token / 债务包打包）、UI 兼容矩阵 24 条（对齐 8 / 形态不同 3 / 子集 8 / 有意差异 5）、U01~U24 验收命令骨架（Playwright 交互断言为主，明确非像素对比判定口径）、开放问题 Q1~Q6 带暂行 |
+| v1.1 | 2026-08-24 | §0 勘误两则（M9 PRD 发稿随稿登记；源：T-246-qa §八 #26 + ADR-0029 转正勘误）：① **U20 curl 骨架预编码姿势**——`%`/空格（及 `#`/`?` 截断族）路径腿在 curl 侧一律预编码（`a%25b`/`a%20b`/`a%23b`/`a%3Fb`），字面直传为 curl 自伤（000/400/路径截断），**非服务端行为**（§5.4 命令已按此改写；UI 腿 setInputFiles 用字面原名，不受影响）；② **spec 目录取现役 `web/e2e/m8/`**（原 `web/tests/m8/` 与现役 testDir 冲突——ADR-0029 转正勘误既定项）。行为断言与验收口径零变化 |
 
 ---
 
@@ -105,7 +106,7 @@ M1~M7 交付了完整的制品仓库能力面（五协议、remote/virtual、RBA
 
 ## 4. 功能需求
 
-约定：`BASE=http://localhost:8080`，控制台挂 `/binflow/`（不变）；Playwright spec 放 `web/tests/m8/`；`data-testid` 沿用 console-ux §10 命名规则，新增锚随票登记。**服务端契约零改动是全 FR 公共前置**——任何 AC 不得要求新端点/新字段。
+约定：`BASE=http://localhost:8080`，控制台挂 `/binflow/`（不变）；Playwright spec 放 `web/e2e/m8/`（v1.1 勘误：原 `web/tests/m8/` 与现役 testDir 冲突）；`data-testid` 沿用 console-ux §10 命名规则，新增锚随票登记。**服务端契约零改动是全 FR 公共前置**——任何 AC 不得要求新端点/新字段。
 
 ### 4.1 IA 重构（种子 A，P0）
 
@@ -294,7 +295,7 @@ M1~M7 交付了完整的制品仓库能力面（五协议、remote/virtual、RBA
 
 ### 5.4 M8 核心验收命令（U 序列骨架，QA 直接引用）
 
-> **判定口径（头注）**：视觉「近似」以行为规格核对判（组件存在/分区位置关系/交互步骤/四态），截图仅归档；**任何 AC 不得以像素 diff 或截图逐位对比作判据**。spec 置 `web/tests/m8/`，`-g` 过滤。
+> **判定口径（头注）**：视觉「近似」以行为规格核对判（组件存在/分区位置关系/交互步骤/四态），截图仅归档；**任何 AC 不得以像素 diff 或截图逐位对比作判据**。spec 置 `web/e2e/m8/`（v1.1 勘误），`-g` 过滤。
 
 ```bash
 # ========== IA（FR-71） ==========
@@ -331,10 +332,10 @@ git ls-files 'web/public/**/*.{png,jpg,gif,ico}'               # 期望空（图
 #   + axe 扫描主要页面，serious 违例 = 0
 
 # ========== 债务包（FR-77） ==========
-# U20 T-231 percent-encode 矩阵（5×2）：
-for name in 'a%b' 'a#b' 'a?b' 'a b' '中文文件'; do
+# U20 T-231 percent-encode 矩阵（5×2；v1.1 勘误：curl 腿一律预编码——% / 空格 / # / ? 字面直传为 curl 侧自伤，非服务端行为）：
+for name in 'a%25b' 'a%23b' 'a%3Fb' 'a%20b' '中文文件'; do
   curl -su admin:$ADMIN_PW -T /tmp/f "$BASE/binflow/generic-local/enc/$name" -o /dev/null -w "%{http_code} $name\n"; done  # 5×201
-#   UI 腿：playwright setInputFiles 文件名同矩阵 → 树可见+下载 cmp 一致+checksum 一致
+#   UI 腿：playwright setInputFiles 文件名用字面原名（a%b / a#b / a?b / a b / 中文文件）→ 树可见+下载 cmp 一致+checksum 一致
 # U21 bf-migrate --skip-users（B-1）：输出含降级告警、用户面未迁移；无旗标腿零回归
 # U22 CI -timeout 20m：主干 run 链接归档（绿）
 # U23 V28 附录移植：docs/user/ 附录存在且与 T-228 归档件交叉引用

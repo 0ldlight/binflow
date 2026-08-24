@@ -1,4 +1,4 @@
-# BinFlow 架构设计（M1 定稿；M2~M6 增量已并入，M7 增量标注 [M7]，M8 控制台对齐约束见 §13 [M8]）
+# BinFlow 架构设计（M1 定稿；M2~M6 增量已并入，M7 增量标注 [M7]，M8 控制台对齐约束见 §13 [M8]，M9 服务端解冻约束见 §14 [M9]）
 
 > architect 维护。本文件在 ADR-0001~0027 基线上给出可并行开发的实现蓝图：包边界 = 并行开发 area 边界。
 > 标注 **[M2+]** / **[M3+]** / **[M6+]** / **[M7]** 的内容当期不实现，只保证接口缝存在；标注「待逆向规格确认」的行为以 `docs/reverse/` 规格为准，规格冲突时先回 ADR。
@@ -196,6 +196,9 @@ type Engine interface {
     // grace <= 0 视为 DefaultGCGrace(24h)——零值不是「立即回收」，要无宽限期须显式传亚秒
     // 时长（回写项 J）。Close 后返回 ErrEngineClosed。
     // 注：引用集全量驻内存（1M nodes ≈ 100MB 量级），M6+ 大库需流式接口变体（回写项 A 注记）。
+    // [M9] ADR-0031：referenced 参数升级为 GCMarker 接口（Mark 快照 + Live 单点复核），
+    // 旧 func 形态以适配器兼容；engine 另增 ReleaseGCHold(sha256)（Commit 注册的在途
+    // 持有集之释放缝，repo.Service 五条落库路径接线）——见 §14.2。
     GC(ctx context.Context, referenced func() (map[string]struct{}, error), grace time.Duration, apply bool) ([]string, error)
     // Close 关闭引擎：停止接受新会话与变更、排空在途 Append/Commit、保留未过期会话
     // （upload_sessions 行 + uploads/<id>/ 数据文件原样保留——干净停机后续传成立，
@@ -1227,16 +1230,20 @@ CREATE INDEX idx_upload_sessions_expiry ON upload_sessions(expires_at);
   POST   /binflow/api/v1/storage/migration/start    触发后台迁移（admin；幂等——已在运行中时重复调用即返回
                                                  当前状态，202 + 上述状态体；启动被拒 409。盘点 +
                                                  SkipIfExists 拷贝、中断重启续跑——T-164 语义）
-  POST   /binflow/api/v1/auth/oidc/init              [M6] OIDC 登录初始化（接受 JSON {"provider"} 或 URL query
-                                                 ?provider=，返回 {"redirect_url"}——前端/CLI 重定向到 OIDC
-                                                 Provider 的授权端点；state 参数由服务端生成并存入临时
-                                                 cookie `binflow_oidc_state`，HttpOnly+SameSite=Lax，TTL 10min）
-  GET    /binflow/api/v1/auth/oidc/callback           [M6] OIDC 回调端点（OIDC Provider 授权后回跳终点；
-                                                 验证 state 参数 ↔ `binflow_oidc_state` cookie → 用 code 换
-                                                 ID Token → 验证 JWT 签名与 claims → 签发本地 session/token；
-                                                 登录成功 → 302 到 /binflow/ui/；失败 → 302 到 /binflow/ui/login?error=）
-  GET    /binflow/api/v1/auth/oidc/providers          [M6] 列出已配置的 OIDC Provider 列表（公开端点，匿名可读：
-                                                 [{"name","display_name","icon_url"}]，不暴露 client_id/secret）
+  GET    /binflow/api/v1/oidc/login                    [M6] OIDC 登录入口（浏览器导航；实际注册点——本行原记
+                                                 POST /api/v1/auth/oidc/init 系 M6 规划名未落地，[M9] 勘误
+                                                 2026-08-24。state+PKCE 对存事务 cookie `binflow_oidc_tx`
+                                                 〔HttpOnly+SameSite=Lax、Path=/binflow/api/v1/oidc、TTL
+                                                 10min〕，302 到 IdP 授权端点；?purpose=step_up 分支 =
+                                                 ADR-0027 决策 4〔要求活跃 console session、authorize URL
+                                                 强制 prompt=login〕，M7 T-219 已实现）
+  GET    /binflow/api/v1/oidc/callback                 [M6] OIDC 回调（验 state↔事务 cookie + PKCE → code 换
+                                                 ID Token → 验 JWT → 签发 binflow_session，302 到
+                                                 /binflow/ui/；purpose=step_up 分支不建新会话，改发单次
+                                                 mint grant，302 到 /binflow/ui/#step_up_grant=<grant>
+                                                 〔fragment 承载〕——UI 消费契约见 §14.3）
+  （原 GET /api/v1/auth/oidc/providers 行删除：无独立路由，能力发现走 GET /api/v1/auth/methods
+                                                 〔T-179，匿名〕——[M9] 勘误 2026-08-24，同上）
   GET    /binflow/api/v1/replications                 [M6] 列出全部复制配置（admin；bare JSON array——沿
                                                  /api/v1/permissions 惯例；行形 = 配置行减密码字段：
                                                  {id,name,source_repo,target_url,target_repo,
@@ -1396,6 +1403,8 @@ storage:
   data_dir: "./data"             # disk 后端的数据目录（s3 后端时忽略）；env 扁便捷拼写 BINFLOW_DATA_DIR
   session_ttl_hours: 24          # 零值 = 默认 24h（T-9 回写项 J）
   gc_grace_hours: 24             # 零值 = 默认 24h；grace 基准 = blob 文件 mtime（§4.4 硬约束）
+  gc_hold_ttl_seconds: 600       # [M9] ADR-0031 在途持有集 TTL 兜底（Commit 注册 → 元数据
+                                 # 提交后 release；崩溃残留行经此过期）；下限 60，显式零值取默认
   s3:                            # [M6] S3 对象存储后端配置（backend=s3 时必填；ADR-0019）
     bucket: ""
     prefix: ""                   # 对象 key 前缀，多实例共享桶时使用
@@ -1586,6 +1595,10 @@ logging:
 
 35. **[M8] 契约冻结的张力登记**：行为规格（docs/reverse/console-ui.md）产出后，预期存在「Artifactory 操作流在 BinFlow 既有 API 面上表达不了」的缺口（候选：dashboard 聚合卡片、仓库列表的过滤/排序参数、Set Me Up 的上下文数据）。ADR-0029 决策 4 的例外通道（PM 出 FR + architect 评审独立票）是唯一出口；若 M8 PRD 立项的聚合端点超过 ~3 个，应视为 IA 对齐口径过宽的信号，回本节重评（对齐「BinFlow 已有功能面」的呈现，不为想象中的操作流扩后端）。
 
+36. **[M9] m-holder 的 repos 侧过滤列表延后**（§14.1.7 评估定案）：`GET /api/repositories` 维持 CapRepoRead 闭集（ADR-0026 §11.30 原判）；M8 现役 DeployDialog 双 403 降级臂继续承载 m-holder 的仓库面可达性。permissions 侧已由 `?filter=manage`（§14.1.6）兑现，repos 侧的可见性与 usage 批量可见集 / remote-virtual 授 m 呈现的交互留待独立设计。触发条件：PM FR / 用户负反馈 / M10 复制硬化立项时顺带评估。
+
+37. **[M9] 存储 migration pass-gate 501 架构事实登记**（T-246-qa §八-19 / PRD FR-82-AC11 收口）：`GET|POST /api/v1/storage/migration*` 对「未装配双写」的实例（backend≠s3、migration.enabled≠true、或已置 completed）返回 **501 `migration is not configured` 而非 404** 是有意架构事实（§7.1 既有契约），非缺陷——端点仅在 dual-write 装配时接线（T-178），throwaway/单后端配置下 501 语义上准确表达「本实例不承载该能力」，且与「路由存在但未接线」的 replication 501 先例（§7.1）同族。RBAC 矩阵断言口径：readonly_admin 对该端点按「过门后 501」判定（§7.1 [M7] 注记），不按 200。
+
 ## 12. 待逆向规格确认清单（阻塞点挂 docs/reverse/）
 
 | # | 问题 | 规格文件 | 影响面 |
@@ -1663,3 +1676,267 @@ logging:
 ### 13.6 M8 债券的架构挂点（与 ADR-0029 正交，PRD 排期）
 
 T-231（internal/client 上传路径 percent-encode 缺陷，含 %/#/?/空格/UTF-8 回归矩阵）属 Go 客户端面、与 UI 重排零耦合；UI 打磨 4 条若与 IA 重排同域，应并入对应 UI 票消化而非单独立票（避免同 area 双写）；其余（B-1 / CI timeout / V28 证据移植 / ROADMAP 勾账 / dialer 样板）均不触本节约束。
+
+---
+
+## 14. [M9] 服务端解冻——缺口端点群 / GC 并发安全 / step-up OIDC 腿 / Q7 评估（ADR-0030/0031 展开）
+
+> 定性：M8 契约冻结（ADR-0029 决策 4）随 `m8-done` 结束；M9 起服务端解冻，基调 =
+> **新增不破坏**——既有端点行为零变：不删不改名既有字段、不翻转任何
+> （调用者 × 动词 × 路径）的既有状态码。m-holder 可达性经 **E6 的新可选查询参数**
+> （`?filter=manage`，无 filter 分支字节不变）交付而非门扩——门扩方案（CapSecurityRead ∨
+> 覆盖集非空）会使既有 403 翻转为 200，违反本基调，已在 ADR-0030 候选对比中否决；
+> repos 侧过滤列表（原候选 E7）定案延后 M10+（§14.1.7）。本节是 M9 服务端票
+> （A/B/C/D 组种子）的约束源；债券池（F 组）逐条取舍归 PM，不在本节。
+
+### 14.0 ADR-0029 五不变量的 M9 边界盘点
+
+| # | M8 冻结面 | M9 处置 |
+|---|---|---|
+| 1 | REST wire（`/api/v1/**`、兼容层 `/api/security/**`、`/v2/**`、session 族） | **解冻，新增不破坏**：新路由（E1）/ 既有资源上的新动词（E4 DELETE users）/ 既有端点的新可选查询参数（E5 includeUsers、E6 filter）/ additive 回显字段（E2/E3）允许；既有字段不删不改名；无 filter / 无参数分支行为字节不变——全 M9 **零既有状态码翻转**（守护断言零改动的强口径） |
+| 2 | RBAC 判定（ADR-0026 角色闭集/六能力/m 语义） | 判定内核零变；新增 `auth.ManageCoverage` 求值缝供 E6 的 filter 分支与族 4 写臂覆盖集共用（§14.1.9）——读面新分支在 handler，不动 CanManage/CanManageRepo 求值链 |
+| 3 | step-up（ADR-0027） | 服务端契约零变（M7 T-219 已全量落地：purpose=step_up / prompt=login / fragment 承载）；M9 只补 console 消费面（§14.3） |
+| 4 | 上传/续传语义（ADR-0028、§5.3.1） | 零触碰；GC 安全模型（§14.2）只收紧「物理删除」面，落盘/会话/续传协议不动 |
+| 5 | 挂载与资源前缀、go:embed 构建链（ADR-0014/0011） | 零触碰 |
+
+### 14.1 A 组端点契约（ADR-0030 展开）
+
+**通则（对齐既有 REST 风格）**：安全面兼容段（`/api/security/**`）错误用纯文本层、治理
+自有面（`/api/v1/**`）用 `errors[]` 信封；列表族一律 **bare JSON array、无分页参数**
+（用户/组/权限目标/仓是千级小集合；audit 那类大集合才用 cursor——新增列表不引入分页）；
+时间戳 RFC3339；wire camelCase；权限位沿用 §7.1 [M7] 清点表的族语义。
+
+#### E1 `GET /api/v1/storage/usage`（新路由——usage/{repo} 的集合化，扇出收口①）
+
+- **门**：route `required: true` + handler 逐仓判定 `CanManageRepo(read) ∨ Can(r)`
+  （usage/{repo} 的 family-7 OR 公式，W26b 语义原样集合化）。admin/readonly_admin 全量；
+  普通 user = 可读子集；空集 → `200 []`（集合端点对合法认证主体恒 200 过滤视图，非 403）；
+  匿名 401 照旧。
+- **响应**：`[{"repo":"generic-local","usedBytes":123,"quotaBytes":0}, …]`——行形与
+  usageBody 逐字段同构（前端共用类型）。
+- **数据源**：`repo_usage` JOIN `repositories`（一次查询；quotaBytes 取
+  repositories.config.quotaBytes）。
+- **可选 `?include=counts`**：行增 `nodeCount`（GROUP BY nodes.repo_key，文件 node 计数，
+  folder 哨兵行不计）与 `updatedAt`（repositories.updated_at = **配置**变更时刻，非「最新
+  制品时间」——语义在文档钉死）。是否随列表默认携带归 PM 裁量（T-246-qa §八-10 折叠项）；
+  默认不含（零成本路径）。
+- **UI 消费**：repos 列表「已用」列 1 请求收口（原 N 仓 = N 请求，实测 ~170）。
+
+#### E2 `GET /api/security/users` 列表项扩字段（既有端点 additive，扇出收口②）
+
+- **门不变**（CapSecurityRead）。
+- userListItem 增 `email: string`、`adminRole: string`（snake 三值闭集）、`enabled: bool`
+  （恒渲染）、`groups: []string`（成员集，空 = `[]`）。Artifactory 列表项仅
+  `{name,uri,realm}`（auth-model §1.2 高置信）——BinFlow `source` 超集先例（T-185）同族，
+  登记为自有超集；兼容面消费方忽略未知字段，零破坏。
+- **数据源**：users LEFT JOIN user_groups（一次查询聚合成每组 []string；表名 `user_groups`，
+  T-108 勘误口径——勿沿用早期草图名 group_members）。
+- **UI 消费**：users 页 N+1 收口；groups 页成员/计数 = 本列表客户端过滤（1 请求全量推导）。
+
+#### E3 `GET /api/security/users/{name}` 增 `enabled` 回显（additive；T-208 写侧收口）
+
+- 门不变（CapSecurityRead）；userDetail 增 `enabled: bool` 恒渲染（读侧与写侧 *bool 语义
+  对齐：DB 行事实，无「本页写过才已知」的 UI 兜底需求）。
+
+#### E4 `DELETE /api/security/users/{name}`（新动词；Artifactory 有，auth-model §1.2 高置信）
+
+- **门**：CapSecurityWrite（§7.1 族 4，无覆盖集臂——用户不是仓库域主体）。
+- **成功**：200 纯文本 `The user: '<name>' has been removed successfully.`（auth-model §1
+  高置信，逐字对齐）；审计 `user.delete`。
+- **守卫（全 400 纯文本，BinFlow 增强）**：
+  - 404 `User not found`（未知名，与组面同族）；
+  - **内置 admin 不可删**：400 `Cannot delete the built-in admin user.`（种子账号是最终
+    恢复路径——其口令可经 `BINFLOW_ADMIN_PASSWORD` 重置〔仅当用户不存在时种入的既有
+    语义〕，删除会使该路径失明）；
+  - **最后一个 admin 不可删**：删除后系统将无任何 `admin` 角色用户 → 400 `Cannot delete
+    user '<name>'. There must be at least one user configured with admin privileges.`
+    （rbac-model §1.2.2 组面同款文案族与状态码——组侧实测 400 非 409，用户侧镜像）；
+  - **自删不可**：400 `Cannot delete the current authenticated user.`——人员离场的既定
+    路径是禁用（T-208 `enabled:false`，可逆、可审计），自删无增量价值且会使活跃会话在
+    请求中途被吊销（后续 UI 401 循环形似缺陷）。PRD Q2 暂行（自删 4xx）依此转正。
+- **级联（同事务）**：permission_principals 该用户行删除（删号即撤其全部授权——与组面
+  「被 target 引用 409」的区别记入契约注记：组是多成员策略对象，静默剥夺全员授权故拒绝；
+  用户是单主体，级联即删除意图本身）；user_groups FK 级联；tokens 全量删除（Verify 缝
+  即时失效——ADR-0025 护栏③同源）；web_sessions 全量 revoke。审计历史（audit_events）
+  保留不删（追责面）。
+
+#### E5 `GET /api/security/groups/{name}?includeUsers=true`（既有端点 additive 查询参数）
+
+- 门不变（CapSecurityRead）；带参时响应增 `userNames: []string`（rbac-model §1.2 高置信：
+  Artifactory 同名参数同名字段）；不带参行为字节不变。数据源 = user_groups 单组查询。
+- **groups 列表不加宽（K19 定案）**：`GET /api/security/groups` 维持现形——成员汇总的
+  数据源统一为 E2 用户列表的 `groups[]`（客户端一次过滤推导）+ 本参数按需取单组成员。
+  不加 `membersCount` 的理由：membersCount（groups 行）与 groups[]（users 行）是同一
+  事实的两个物化面，双写必漂移；单一事实源（user_groups 行 → users.groups 投影）消灭
+  该面。组编辑器穿梭 = E5；users 页 Groups 列 = E2。
+
+#### E6 `GET /api/v1/permissions?filter=manage`（既有端点新可选参数——m-holder 可达性交付面）
+
+- **无 filter：行为字节不变**——CapSecurityRead 闭集（admin/readonly_admin 全量、
+  其余含 m-holder 一律 403），route 门与错误体零改动（T-241 e2e「m-holder GET 列表
+  403」腿**原样保留**，不翻转）。
+- **`filter=manage` 分支（handler 内，route 门维持 required-only）**：
+  - CapSecurityRead（admin/readonly_admin）→ 全量（与无 filter 响应等价）；
+  - 普通用户且 m 覆盖集非空 → 仅返回 `target.repos ⊆ 覆盖集` 的 target 子集（条目字段
+    与全量列表一致）；**部分覆盖的 target 隐藏**——B1 替换臂要求 union(body, 存量) ⊆
+    覆盖集，部分覆盖的 target 本就不可替换，展示只会诱导必败操作；**信息隔离硬约束**
+    （NFR-S49）：覆盖集外 target 的任何元数据不出现在响应；
+  - 覆盖集为空 → 403（与无 filter 同形——无 m 的普通 user 在两分支行为一致，零新增
+    可区分面）。
+  - `filter` 值 ∉ {manage} → 400（errors[] 信封，治理族惯例——未知过滤值显式拒绝，
+    不静默忽略）。
+- 定性：M7 族 4 写臂例外（POST/DELETE 已有覆盖集臂）的**读臂对称补全**，经新参数而非
+  门扩交付（候选对比与门扩/security:read 降门两方案的否决理由见 ADR-0030）。
+- **m-holder 编辑器注水面 = E6 + 主体名手动录入**：users/groups 枚举端点维持
+  CapSecurityRead 闭集不开放（账号存在性隐藏是 §7.1 ?permissions B2 族安全姿态，放宽需
+  独立 FR）；POST body 主体名校验（unknown → 400）已是服务端事实，name-entry 形态可用。
+
+#### E7 `GET /api/repositories` 的 m-holder 过滤列表——评估定案：**延后 M10+**（不落 M9）
+
+- 维持 ADR-0026 §11.30 repos 侧原判（m-holder 不获全局/过滤列表）；conductor M9 种子
+  只点名 permissions 侧可达性，repos 侧过滤是范围外新增（PRD §2.2 Non-goal）。
+- 依据：① m-holder 的主用例（权限编辑器）已被 E6 完整覆盖，repos 侧过滤的增量消费面
+  仅剩「仓库配置页只看我管的仓」——M8 现役 DeployDialog 双 403 降级臂已承载，无阻塞
+  诉求；② repos 列表行的可见性语义与 CapRepoRead 全量视图、E1 usage 批量可见集、
+  remote/virtual 仓在覆盖集中的呈现（m 只判 repos[]，remote/virtual 仓可被授 m）三者的
+  交互需要独立设计，不宜在 M9 变更面（已含 E1~E6 + GC 根治）上叠加；③ 零票回灌信号
+  （M7/M8 两里程碑）。
+- 触发条件（满足其一即重开 §11.36 债券评估）：PM 出 FR；控制台仓库页对
+  m-holder 的降级臂收到真实用户负反馈；M10「复制硬化」若立项顺带评估。
+- 落地时的形态预留：`?filter=manage` 同款参数（CapRepoRead ∨ 覆盖集非空分支），复用
+  E9 的 ManageCoverage——本节不留任何预实现代码。
+
+#### E8 组 `adminPrivileges` 字段——评估定案：**不做**
+
+- 维持 rbac-model §5 / ADR-0026「groups 不引入角色语义」的有意不兼容；UI 以「组在至少
+  一个 target 持 manage」徽章同构（M8 T-237 已落地，零新端点）。
+- 依据：组级 admin 布尔会造出**第二条提权路径**（绕开 users.role 闭集与「无提权链」
+  不变量），Role(3)×能力 QA 矩阵失去可枚举性；Artifactory 该字段是其历史角色模型残留，
+  BinFlow 的 role 闭集已是更严格的表达；无用户诉求信号。差异定级 D（有意差异）。
+
+#### E9 `auth.ManageCoverage` seam（E6 filter 分支与族 4 写臂覆盖集的共用单决策点；E7 若 M10+ 兑现同缝）
+
+`auth.ManageCoverage(ctx, p Principal) (map[string]struct{}, bool)`——遍历 principal
+（含其组）持 `m` 的 target 并其 repos。O(targets×principals) 每请求一次求值（千级规模
+可接受，缓存留缝不实现）；permissions 写臂 handler 现存的覆盖集求值收敛到同一函数。
+**零迁移**：E1~E8 全部基于现存表（users.enabled 列 T-208 已落、user_groups /
+repo_usage / permission_principals 均在）——ADR-0030 无 schema 变更、无新配置键。
+
+### 14.2 GC 并发安全模型（ADR-0031 展开；T-232 竞态根治）
+
+**竞态解剖**（T-232 发现：`graceHours=0` apply 与并行写面的语义竞态，`--workers=1` 权宜）。
+两个窗口，正常态均被 mtime grace 兜底，被显式 grace=0（handler 映射 1ns，§7.1 语义：
+「无宽限期」是显式合法值）击穿：
+
+- **W-1 引用前窗口**：blob-first 落盘序 = rename 进 `blobs/`（T1）→ 元数据 node 行提交
+  （T2），T2−T1 毫秒级。mark 快照落在 (T1,T2) → blob 无引用可见。docker 的「先传层后
+  传 manifest」把窗口放大到秒级——层 blob 落盘到 manifest node 行提交之间全程无引用；
+  t134 的 `manifest PUT 500 blob not found` 即 GC 在该窗口物理删除了在途层。
+- **W-2 快照陈旧窗口**：单次 GC 内 referenced() 快照（T0）→ 目录遍历删除（T1），
+  (T0,T1) 间完成全链提交的 blob 对快照不可见（handler 的 dry→apply 双 pass 各自重新
+  取快照，只在单 pass 内部存在该窗口）。
+
+**候选对比**：
+
+| 候选 | 机制 | 关 W-1 | 关 W-2 | 代价 |
+|---|---|---|---|---|
+| A 引用集复核（删除前单点复查） | apply 删除前对每个候选查 `nodes ∪ docker_refs` 单点存在性 | ✗（node 行未提交，复查仍未见） | ✓ | 每候选一次索引查询；metadata 增 IsReferenced 助手 |
+| B 在途持有集（engine hold set） | `Commit`（rename / CompleteMultipartUpload 时刻）注册 sha256 进程内持有集；repo.Service 元数据事务成功后 Release；TTL 兜底 | ✓ | ✗（release 后快照陈旧仍在） | Engine 新 Release seam × 五条写路径接线；漏 release 的最坏后果 = 该 blob 延迟 TTL 可回收，正确性无损 |
+| C apply 前置 drain（写面静默） | BeginSession 拒新（503）+ 在途会话有界排空后 mark-sweep，完成后恢复 | ✓ | ✓ | 可用性代价 + 写者状态机 + 排空超时策略（10GB 在途层悬着怎么办）+ 与同步 REST 执行模型叠加——为一个 admin 触发、已持数据目录锁的维护操作不成比例 |
+| （评）grace 下限拒绝 apply | apply 拒绝 grace < 下限 | ✓ | ✓ | 破坏 W24 既有菜谱（upload → 删 node → graceHours:0 收）与 REST 契约（graceHours:0 显式合法）——否决 |
+
+**决策：A+B 组合（W-1/W-2 各归其位），C 否决**。契约要点：
+
+1. **hold set 生命周期**：`Commit` 注册 → 元数据提交成功后 `ReleaseGCHold(sha256)`
+   （repo.Service 五条落库路径接线：Put / PutFromBlob / PutLandedBlob / PutManifest /
+   remote pull-through）→ TTL 过期兜底。release 是尽力而为的加速，TTL 是正确性兜底
+   （进程崩溃在两者之间只会让 GC 暂时保守，不会 wedged）。TTL 键
+   `storage.gc_hold_ttl_seconds`，默认 600、下限 60（显式零值取默认——grace 同款语义）。
+2. **GC 候选判定加两道闸**：hold 集命中 → 跳过（不看 grace）；apply 删除前 `Live(sha)`
+   复核命中 → 跳过。dry-run 候选列表同样排除 hold 中 blob（安全方向；静默实例的
+   grace=0 菜谱不受影响——上传完成后 hold 已 release，W24 行为不变）。
+3. **referenced 参数升级为两方法接口** `GCMarker{ Mark() (map[string]struct{}, error);
+   Live(sha string) (bool, error) }`——旧 func 形态以适配器兼容；engine / S3Engine /
+   MigrationEngine 三个实现同步（S3 的 Live 走 bucket inventory 单点查询）。
+4. **跨进程面**：REST GC 与 serve 同进程 → hold 集可见，全保护（e2e governance 腿即此
+   面，`--workers=1` 解除的前置）；CLI gc 独立进程看不到 serve 的 hold 集 → 增 **serve
+   心跳锁** `<data>/serve.lock`（进程生命周期 flock）：CLI gc **apply** 且显式
+   grace < 60s 且探测到 serve 持锁 → 拒绝执行、退出非 0（提示走 REST 面或停服窗口）；
+   默认 grace 的 CLI 运行不受限（mtime 窗口本就覆盖毫秒级窗口）；CLI dry-run 不拒绝
+   （无破坏面——但跨进程看不见 hold 集，候选可**多报**（K22 口径）：报告顶部标注
+   「serve 运行中、在途上传不可见」，不做精确排除）。
+5. **REST gc 响应形状零变**（candidateCount/candidateBytes/deletedCount）；候选计数可能
+   因 hold 排除而变小——语义变化方向 = 更保守，登记即可。
+6. **压力回归 spec**（`--workers=1` 解除的验收锚）：并行 docker push 流 + grace=0 apply
+   循环 → 零 `blob not found`、零在途层误删（钉 W-1）；并发「上传→删 node」流 +
+   grace=0 apply → 已提交 blob 零误删（钉 W-2）。
+
+### 14.3 OIDC step-up 控制台腿——UI 消费契约（服务端 M7 已落地，M9 补消费面）
+
+**服务端事实**（internal/httpapi/oidc.go，T-219 / ADR-0027 决策 4，零改动）：
+`GET /api/v1/oidc/login?purpose=step_up`（要求活跃 console session；authorize URL 强制
+`prompt=login`）→ IdP 重认证 → callback 验 state/PKCE、校验重认证身份与会话属主一致 →
+签发单次 mint grant（绑定 {user, session}，TTL `auth.token_step_up_grant_ttl_seconds`
+默认 300s）→ **302 到固定内部路径 `/binflow/ui/#step_up_grant=<grant>`**（fragment 承载
+——不到服务器/代理日志/Referer；固定路径防开放重定向，UI 侧无 return 参数）。
+
+**前端契约（web/，M9 交付面）**：
+
+1. **pending-mint 上下文**：铸造发起（SetMeUp/token 面）收到 401 `step_up_required` 且
+   whoami `source=oidc` → 不弹口令框（那是 local/ldap 腿，T-242 已交付内联形态）；将
+   `{发起视图, 上下文参数(repo/expires_in…), 发起时刻}` 存 **sessionStorage**（键
+   `bf.pendingMint`；同 tab 跨导航存活、随 tab 关闭消失——grant 载体永不落
+   localStorage）→ 全页跳转 login URL（`purpose=step_up`）。
+2. **fragment 处理**（AppShell 挂载期、早于路由渲染）：`location.hash` 前缀
+   `#step_up_grant=` → 提取 grant 到内存 → 立即 `history.replaceState` 抹除 fragment
+   （防刷新重放/分享泄漏；孤儿 fragment 同样抹除）→ 读 sessionStorage 恢复 pending-mint
+   → 重开铸造视图于「续铸」态 → 自动重发 mint POST（body 携 `step_up_grant`）。
+   sessionStorage 缺失/过期 → 静默丢弃 grant，正常启动。
+3. **一次性消费 UX 规则**：grant 仅存 JS 内存；提交按钮 in-flight 禁用（防双发——第二
+   发必 401 invalid，单次性即消费）；401 `step_up_invalid`（过期/已用/身份不符）→ 内联
+   呈现 ADR-0027 决策 5 逐字文案 + 「重新认证」按钮（重新走 init，**绝不以旧 grant
+   重试**）；TTL 倒计时提示（默认 300s）。
+4. **日志卫生**：前端错误上报/结构化输出一律剥离 `location.hash`（grant 明文仅存续于
+   fragment 与请求体两处）。
+5. **e2e**：mock 腿（注入 fragment + 断言 POST body、抹除后 URL、双发防护）+ 真实例腿
+   （OIDC stub provider 的 armed 实例，T-242 §1.5-4 探针模式同款）。
+6. 若 UX 验证要求回跳深链（现固定落 `/binflow/ui/` 根），可加同源校验的 `return` 参数
+   （前缀 `/binflow/ui/**`，防开放重定向）——additive 服务端增强、单独裁量，非本契约
+   前置。
+
+### 14.4 Q7 replica 隔离落法评估——建议：**延后**（维持 ADR-0025 决策 1 的已接受限制）
+
+依据三条：
+1. **威胁面狭窄**：backing local 的内容写需 w 授权，权限模型 default-deny，默认姿态零
+   授权；实际能直写的只有 admin 与被显式授 w 者——admin 本就能写一切（含门面 virtual
+   的成员与配置），对其设隔离是防呆而非安全边界；真实越权场景（管理员误写 backing）
+   属运维纪律。
+2. **正确做法是新语义而非配置约定**：`replication-owned` backing 标记（写门 = 仅复制
+   服务主体可写、四协议直写拒绝文案、console 锁徽章、复制配置建/删联动）是横跨
+   repo/auth/httpapi/console 的特性（估 2~3 票）；M9 主轴（A/B/C）无此容量，塞入即
+   挤占熔断线排队的缺口端点群。
+3. **零需求信号**：M6 交付至今（M7/M8 两里程碑）无票回灌该缺口；ADR-0025 明示「已接受」。
+
+**触发条件**（满足其一即重开，届时新 ADR）：真实多站点消费方提出；PM 出 FR；安全评审
+在共享 admin 部署中标记直写滥用。**临时姿态**（tech-writer chore）：复制指南写明
+「backing 仓不应授予任何人 w；对外的读写一律走门面 virtual」。**未来草图**：
+repositories.config 增 `replication_owned: true`（由复制配置创建/删除事务维护）→
+内容写判定对 owned 仓追加「principal = 复制服务账号」硬门 → 审计 `replication.write`。
+
+### 14.5 守护测试建议（「既有端点行为零变」的可执行化，M9 回归硬门槛增量）
+
+1. **角色×路由矩阵基线冻结**：`m7-rbac-matrix.sh --expect` 升级为「契约基线 + 差异白名
+   单」——M9 目标白名单为**空**（零既有状态码翻转），任何 (角色, 路由, 状态码) 组合偏离
+   基线即 CI 红；矩阵脚本以期望文件逐版本演进，未来里程碑需翻转时必须在 ADR 登记后
+   才能改期望文件。
+2. **wire 形状 golden 快照**：userListItem / userDetail / groupDetail / permissions
+   列表行 / usageBody 增 httptest golden（字段集增删或改名即红；新增字段需同票更新
+   golden 并票面登记——review 可见；无 filter / 无 includeUsers 分支的响应与 M8 基线
+   逐字节 golden 对照）。
+3. **GC 候选语义锚**：§14.2-6 压力 spec + 既有 W24 菜谱复跑（静默实例行为不变锚）。
+4. **真实客户端腿**：M1~M8 P0 序列复跑维持常设门槛；新增端点 curl 腿入 M9 N/V 序列——
+   E6 双臂对照（m-holder 无 filter 403 原样 + filter=manage 过滤 200 + 越界 target 负向
+   grep）、无 m 用户两分支均 403 锚、DELETE user 级联断言（护栏 400 ×3 / 审计 / Token
+   即时 401）。
+5. **e2e 并行恢复顺序**：先落地 §14.2 根治 + 压力 spec 进 CI，后解除 `--workers=1`
+   （独立 chore 票，顺序不可倒——先解除等于把竞态重新暴露给全量套件）。

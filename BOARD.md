@@ -17,7 +17,7 @@
 
 ## 📥 待办（todo）
 
-> **M7 完结（closure）· M8 规划落地**（2026-08-23）。M7 22 票 21 done（唯 T-227 真实 AWS 腿 `dep:用户环境` 插队制不阻塞）；DoD 七条全绿；`m7-done` tag 本地已打（push 须用户授权）。**M8 = 控制台对齐 Artifactory**（用户指令；IA/交互/操作流对齐 + 自有皮肤，clean-room 行为规格制）——规划四件套已交付（PRD v1.0 / console-ui 行为规格〔活体观察 VM 真实 OSS〕 / console-m8 设计规格 / ADR-0029），tech-lead 分票 **T-231~T-246 共 16 票 6 波**已录板（见下）。conductor 终裁：Q1 基线=7.84.10 实例；**Q2 默认主题=亮色**（对齐 Artifactory 默认观感，暗色可切换——推翻 console-ux P4 暗色优先）；Q3 redirect 全量映射 M9 移除；Q4 Governance 保留 BinFlow 分组；Q5 前端栈维持现役 React/Vite（NFR-P36 体积门兜底）；Q6 UI 打磨并入域票 AC。M6 已完结：tag `m5-done`/`m6-done` 已随用户授权推送 origin。
+> **M8 完结 · M9 规划落地**（2026-08-24）。M8 22 票全 done、DoD 八条全绿（零学习成本剧本 8/8、契约终审零违约、axe 52 扫全零、回归 150/0）；`m7-done`/`m8-done` 已随**用户常态 push 授权**（2026-08-24 起，记忆 `standing-push-authorization`）推送 origin。**M9 = 服务端补面与运营硬化**：23 票 T-250~T-272、12 批宽 2（配额纪律内建）；FR-78~83（用户组端点补全/扇出与 m-holder 可达/GC 竞态根治 P0/OIDC 控制台腿/债包/运营 chores）。conductor 终裁：Q2 自删拒删**纳入**（safety）+ K20 取 bare array + E7 repos 过滤延后 M10；Q3 过滤端点分支（CapSecurityRead 闭集零改动）；Q4 adminPrivileges 维持不做；Q5 replica 延后 M10；Q6 goreleaser 预编译双架构（arm64 qemu 不可行时 manifest 字段校验承载）。ADR-0030/0031 转 Accepted（`2dcab44` 同批）。**事故记录**：BOARD 两次同款 index 切片损坏（M7/M8 closure 各一，52/70/55MB 三巨 blob 入历史）——T-269 瘦身价值上升；此后 BOARD 编辑**仅限 Edit 工具唯一锚点**。用户实例 18080 = M8（~/binflow-local/）。
 
 ### M7 票据（T-211~T-228，tech-lead 2026-08-23 分解；AC 全文见 docs/prd/milestone-7.md）
 
@@ -111,8 +111,9 @@ DoD 七条全达成（PRD §9 对证）：P0/P1 全绿（T-221 16/16 / T-222 192
 - **T-244** [P1] 键盘可达 + 共享层债收口 `role:dev-frontend` — **done 2026-08-24（六债全收 + 键盘 6/6 + 全量 147/0 + 对账器终态 423/0/0；conductor 复验 TS+audit；提交 `74f4f08`）——B5 全清，M8 实现票全部落地**
   对比度家族 ≥4.59:1 双主题三承载面（审计新抓 info/danger 暗角）；死样式清除；quick-setmeup 全局入口；quota helper 合一；双 Deploy 收敛（UploadDialog 退役+锚显式注销+反向依赖消除）；锚册 v1.7 + **anchor-audit.mjs 三方对账器**（断链=0 实证）。键盘共享件接入 Tab/表格/三对话框。遗留：repos-deploy readonly 预收敛；两页自持对比度类可回退。日志 reports/agents/T-244.md。
 
-#### B6 终验（在途——M8 最后一票）
-- **T-246** [P0] M8 终验 `role:qa-engineer` — **doing 2026-08-24（U01~U15 + 剧本×8 + NFR + 回归硬门槛 + DoD 八条 + 三豁免票溯源终审）**
+#### B6 终验（done）
+- **T-246** [P0] M8 终验 `role:qa-engineer` — **done 2026-08-24（六段 PASS；报告 `75490e6`；DoD 1/2 经 fix-forward `32313eb` 补绿——axe 52 扫全零 + NodeDetail Tab 连带真缺陷修复；全量 150/0）——M8 完结，DoD 八条全绿**
+  U01~U15 + 剧本 8/8 零卡壳（1.05~1.68s）+ NFR 全绿 + 回归硬门槛（契约终审 31 文件 100% 归属三豁免票/锚 423/0/0/双臂/矩阵零偏差）。M9 候选 28 条归档 §八。`m8-done` tag 已打（`9a44168`）并随用户常态授权推送。日志 reports/agents/T-246-qa.md / T-244.md §8。
 - **T-245** [P1] M8 文档改版 `role:tech-writer` — **done 2026-08-24（击落-恢复后收口；scratch 栈走查 11/11 + T-249 四臂活体复验 + make docs 零告警；提交 `a88b728`）**
   console.md 新 IA 重写 + artifactory-path-map.md（24 任务两列）+ 七页路径修订 + 两处过时事实实测修正 + 三向交叉链接。**发现**：用户 18080 实例为 M7 期构建（指纹核验，零触碰）——M8 收官后提议刷新。遗留：T-244 合入后三处回写注记。日志 reports/agents/T-245.md。
 - **T-237** [P0] 用户与组管理重排 `role:dev-frontend` — **done 2026-08-23（4/4 三角色 spec + 锚守卫 23/23 + 只读完备 grep 零裸写；提交 `c5eb748`）**
@@ -691,6 +692,24 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 - **T-206** [P1] 修复 T-203 D-6 启动 sweep 未建 bucket 冷启动硬失败 `role:conductor` — done 2026-08-22（conductor 直接修复）
   全仓统一复跑暴露 `cmd/binflow-server` 6 测试失败（openStack s3/dual-write/migration-completed + TestExportS3×3）：`OpenS3Engine` 无条件执行 `sweepOrphanUploads → ListMultipartUploads`，目标 bucket 未建（新部署首启/测试冷启动）时 S3 兼容存储返回 `NoSuchBucket`，链路未区分「bucket 不存在」与「真列举错误」导致引擎整体失败。**修复**：`listIncompleteUploads` 容忍 `NoSuchBucket`（或空 code+404）按空清单处理；新增回归测试 `TestS3StartupSweepToleratesMissingBucket`（mock flag `listMultipartNoSuchBucket`）。**自测实跑**：gofmt/vet 空、6 原失败测试 + storage S3/sweep 定向 `-race` ok、`cmd/binflow-server` 全量 `-race` ok 98.151s、`storage` 全量 `-race` ok 195.768s（含新回归）、`go build ./...` exit 0、**全仓统一复跑 `-race -count=1 ./...` 全绿 exit 0**（23 包，storage 417.8s/httpapi 527.3s/repo 418.6s）。日志 reports/agents/T-206.md。
+
+## M9 票据（T-250~T-272，tech-lead 2026-08-24 分解；AC 全文见 docs/prd/milestone-9.md）
+
+**批次（全宽 2）**：
+- **B1（在途）**：T-250 [P0] 守护基线与种子脚手架（RBAC 矩阵契约基线冻结+扇出种子+e2e/m9 骨架）devops ｜ T-255 [P0] GC 并发安全引擎层（hold set+GCMarker 三引擎，ADR-0031 A+B）dev-go-storage
+- **B2**：T-251 [P0] E2/E3/E4 users 域端点（加宽+enabled 回显+DELETE 全链护栏级联）｜ T-253 [P0] E1 usage 批量端点
+- **B3**：T-252 [P0] E5 组成员 ?includeUsers ｜ T-256 [P0] GC 接线收口（五路径 ReleaseGCHold+serve.lock+压力 spec 进 CI——**顺序硬规则：先于 T-268**）
+- **B4**：T-254 [P0] E9/E6 ManageCoverage seam+permissions ?filter=manage ｜ T-257 [P0] users/groups 页消费（N+1 退役）
+- **B5**：T-258 [P0] repos 已用列单请求注水（~171→≤3）｜ T-259 [P0] m-holder 编辑器可达（L2 卡退役）
+- **B6**：T-260 [P1] OIDC step-up 控制台腿 ｜ T-261 [P1] npm packument 第三份转义收敛
+- **B7**：T-262 [P1] push_npm 覆写臂自查 ｜ T-263 [P1] 旧路由 redirect 全量移除
+- **B8**：T-264 [P1] web 工具链 chores ｜ T-265 [P1] 树过滤复位+顶栏搜索框
+- **B9**：T-267 [P1] 锚册口径统一+死锚 112 退役（ux；不可派发时 architect 承接）｜ T-268 [P0] e2e 默认并发恢复（**须 T-256 先行**）
+- **B10**：T-266 [P2] 共享层微清理 ｜ T-269 [P1] git 瘦身 dry-run+手册【force-push 须用户单独授权】
+- **B11**：T-270 [P1] CI 多架构镜像 ｜ T-271 [P1] M9 文档四项
+- **B12**：T-272 [P0] M9 终验（N01~N24+契约变更面审计+F 池对账）
+
+**关键路径**：T-250→251→252→254→259→272（A 组三波串行）与 T-255→256→268→272（GC 链含硬序）。
 
 ## 🚫 阻塞（blocked）
 

@@ -129,6 +129,8 @@ wire 模型即用户配置类本身（同一类同时用于 PUT/POST 请求体�
 |---|---|---|
 | 列表元素字段 | 闭集 6 个：`key`、`description`、`type`（local/remote/virtual/federated）、`url`、`packageType`、`configuration`（仅 remote 共享配置仓带）。**没有** size/usedSpace/filesCount/itemsCount 等任何用量或统计字段 | 高 |
 | 既有过滤参数 | 仅 `type` / `packageType` / `project`（见 rest-api.md §2），与用量无关 | 高 |
+| 非法过滤值 | `type` 非闭集值或 `packageType` 大小写不匹配（Generic 特例）→ **不报 400，返回空数组** | 高（代码直读，复核确认） |
+| 数据来源与缓存头 | 列表完全由仓库**配置**组装，不触碰任何存储统计；响应带 `Cache-Control: no-store` 头 | 高（代码直读，复核确认） |
 
 ### 5.2 用量走独立 storage summary 端点
 
@@ -165,7 +167,7 @@ wire 模型即用户配置类本身（同一类同时用于 PUT/POST 请求体�
 | 1 | DELETE user 的**最后 admin 守卫**（删掉最后一个 admin 用户是否被拒、错误码与文案）——Artifactory 侧代码不可见，预期在 Access 服务侧 | 缺位（低） | 活体 Artifactory：造两个 admin，删至最后一个再删，记录响应 |
 | 2 | DELETE user 的**自删行为**（REST 面）：REST 处理器无自删守卫（UI 面有），Access 服务侧是否兜底拒绝未知 | 低 | 活体：admin 用自己凭据 DELETE 自己 |
 | 3 | DELETE 内置 `admin` / `anonymous` 的行为与错误码 | 低 | 活体直测 |
-| 4 | `GET /api/repositories/{repoKey}/storage`（单仓用量）——官方文档记载，但 7.161 反编译代码未定位路由（可能已移除或由未逆向模块承载） | 低 | 活体 curl 确认存在性；若存在补回本规格 |
+| 4 | `GET /api/repositories/{repoKey}/storage`（单仓用量）——官方文档记载，但 7.161 反编译代码未定位路由（可能已移除或由未逆向模块承载）。复核二次检索（枚举 `RepositoriesResource` 全部子路由、`SystemResource`→`StorageResource` 全部子路由、全局 `Path("storage")`/按 repoKey 的 summary 服务名搜索）仍未定位 | 低（缺位已加固：两轮独立检索均负） | 活体 curl 确认存在性；若存在补回本规格 |
 | 5 | `groups`/`disableUIAccess`/`lastLoggedIn` 为空/缺省时 GET user 响应的精确 JSON 形态（字段缺失 vs null vs 空集合——取决于全局 Jackson NON_NULL 配置，未逆向序列化配置层） | 中 | 活体 GET 对照 |
 | 6 | Access API v2 `GET /access/api/v2/groups/{name}` 的 `members` 字段精确形态（官方文档页本环境未能直接拉取，经搜索摘要印证） | 中 | 活体 / 官方文档复核 |
 | 7 | `GET /api/v2/security/permissions` 对非 admin 已认证用户的实际可见内容（路由角色放行 admin+user，实现层无二次过滤可见——需确认非 admin 是否真能拿到全量列表） | 中 | 活体：普通用户 token 调用 |

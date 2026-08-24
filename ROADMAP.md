@@ -2,7 +2,7 @@
 
 > 由 product-manager 维护；tech-lead 据此把当前里程碑分解为 ticket。
 
-## 当前里程碑：M8（PRD v1.0 草案，待 conductor 审）
+## 当前里程碑：M9（PRD v1.0 草案，待 conductor 审）
 
 ### M0 — 团队启动（已完成）
 - [x] 产品愿景 PRODUCT.md（BinFlow）
@@ -73,16 +73,29 @@
 - [x] Q1~Q7 已按 ADR-0026~0028 收敛，推翻出口保留（Q1 角色闭集 / Q2 read-only 边界 / Q3 干净停机语义 / Q5 step-up 形态与默认值已定案；Q4 S3 续传 / Q7 replica 隔离归属维持暂行待用户终裁；Q6 条件腿执行收口——T-228 真实 OSS 7.84.10 实腿完成并归档、V28 证据移植 docs 为 M8 债券〔FR-77〕，T-227 真实 AWS 仍 dep:用户环境，插队制不阻塞 DoD）
 - [x] tech-lead 分票完成（T-211~T-228 已录板）
 
-### M8 — 控制台对齐 Artifactory（PRD v1.0 草案，2026-08-23，待 conductor 审）
-需求基线：docs/prd/milestone-8.md（PRD v1.0 草案；用户指令「前端 UI 和交互逻辑要求和 JFrog 一样」——对齐 = IA + 交互逻辑 + 操作流，自有皮肤，clean-room 行为规格制，服务端契约零改动；FR-71~FR-77 七条需求，UI 对齐矩阵 24 条〔对齐 8 / 形态不同 3 / 子集 8 / 有意差异 5〕，U01~U24 验收命令，开放问题 Q1~Q6 带暂行）
-- [ ] conductor 审定 PRD v1.0（含 Q1~Q6 暂行口径）并定案基线版本（Q1 暂行 = T-228 保留的 Artifactory OSS 7.84.10）
-- [ ] 前置产物：docs/reverse/ui-console.md（reverse-engineer，UI 行为规格：布局/交互流/组件清单/状态矩阵，JFrog 资产零复制）+ 前端重排 ADR（architect，ADR-0029+ 候选）+ console-ux v2.0（ux-designer）
-- [ ] FR-71 双模式壳与导航树重排（Application/Administration、URL 深链、旧路由 redirect 映射，P0）
-- [ ] FR-72 制品浏览器左树右详情（rclass 分组/树内过滤/checksum 拷贝/packageType 特化视图迁入，P0）
-- [ ] FR-73 管理面统一表格与编辑器 + Set-Me-Up 式对话框（P0；字段集 = 既有面零增减）
-- [ ] FR-74 面包屑/全局搜索/深链状态保持；FR-75 键盘可达与批量动作；FR-76 自有皮肤与设计 token（零复制合规 + 非像素判定口径）（P1）
-- [ ] FR-77 M8 债券收编（T-231 percent-encode 5×2 矩阵 / B-1 bf-migrate --skip-users / UI 打磨 4 条 / CI -timeout 20m / V28 附录移植 docs / dialer 样板 13 处；「ROADMAP M7 勾账同步」已随 M8 PRD 发稿完成）
-- [ ] QA：U 序列 + 8 个零学习成本剧本 + W 序列锚迁移回归 + M1~M7 P0 序列复跑（服务端零改动硬门槛）；tech-writer 控制台指南改版 + 操作路径对照表
+### M8 — 控制台对齐 Artifactory（已完成，`m8-done`，2026-08-24；PRD v1.0）
+需求基线：docs/prd/milestone-8.md（PRD v1.1 = v1.0 + 2026-08-24 §0 勘误〔U20 curl 预编码姿势 + spec 目录取现役 web/e2e/m8/〕；ADR-0029 Accepted 转正〔Q1~Q6 终裁：基线 7.84.10 实例 / 默认亮色 / redirect 全量映射 M9 移除 / Governance 保留 / 前端栈维持现役 / UI 打磨并入域票〕；UI 对齐矩阵 24 条〔对齐 8 / 形态不同 3 / 子集 8 / 有意差异 5〕；QA 终验 T-246 PASS——QA-1/QA-2 经 T-244 §8 fix-forward 收口，axe 52 扫描全零、回归 150/0、契约终审 31 文件 100% 归属三豁免票）
+- [x] conductor 审定 PRD v1.0 并定案基线版本（Q1 = T-228 保留的 Artifactory OSS 7.84.10；ADR-0029 Accepted）
+- [x] 前置产物：docs/reverse/console-ui.md 冻结 + ADR-0029 + console-ux v1.7（实际版本号，v2.0 口径分歧已备案收口）
+- [x] FR-71 双模式壳与导航树重排 + 20 条旧路由 redirect（T-235）
+- [x] FR-72 制品浏览器左树右详情（T-236：10,291 节点实测首屏 p95 734ms / 层展开 144ms）
+- [x] FR-73 管理面统一表格与编辑器 + Set-Me-Up 对话框（T-237/T-240/T-241/T-242/T-243）
+- [x] FR-74/75/76 导航搜索/键盘可达/自有皮肤与 token（T-239/T-244；gzip 192.6KB〔预算 54%〕、axe 双主题全零、零复制扫描三件套）
+- [x] FR-77 M8 债券收编（T-231/T-233/T-249 三豁免票 + 六项复核全绿：percent-encode 5×2 / --skip-users / CI -timeout 20m / V28 附录 / dialer 样板 / UI 打磨）
+- [x] QA：U01~U15 + 零学习成本剧本 8/8 + W 锚迁移回归 + M1~M7 P0 复跑全绿（T-246）；文档 T-245（console.md 改版 + artifactory-path-map 24 任务对照）；CI/CD 双线 T-247/T-248（Jenkins 三级 + dogfood 闭环）
+
+### M9 — 服务端缺口收口与运营硬化（PRD v1.0 草案，2026-08-24，待 conductor 审）
+需求基线：docs/prd/milestone-9.md（PRD v1.0 草案；M8 契约冻结〔ADR-0029 决策 4 熔断线〕排队的服务端缺口集中兑现 + T-232 GC 竞态 + T-242 OIDC 腿遗留 + ADR-0025 Q7 replica 处置〔PM 建议 M10〕+ M8 债券池 28 条全处置〔收编 18 / 延后 3 / 关闭 7〕；FR-78~FR-83 六条需求，契约矩阵 10 条〔兼容 4 / v1 自有 4 / 有意不兼容 2〕，N01~N28 验收命令，开放问题 Q1~Q6 带暂行）
+- [ ] conductor 审定 PRD v1.0（含 Q1~Q6 暂行口径、Q5 replica 延后 M10 建议与 Q1 git force-push 授权门）
+- [ ] 前置产物：ADR-0030（SE 域端点群 wire 定案：DELETE users 语义 / enabled 回显落点 / groups includeUsers 与列表扩宽 / usage 批量 / permissions 过滤参数，含 K18~K21 校准）+ ADR-0031 候选（GC 引用原子化方案，architect）
+- [ ] FR-78 用户与组域端点补全：enabled 回显 / DELETE users（护栏+审计+即时失效）/ groups ?includeUsers + 列表扩宽——users 页 N+1 根治（P0，种子 A + T-237 漂移①②③）
+- [ ] FR-79 管理面扇出与 m-holder 可达性：/api/v1/storage/usage 批量（repos 页 ~171 请求 → ≤3）+ /api/v1/permissions?filter=manage 覆盖集过滤（m-holder 控制台编辑器可达，L2 边界卡退役）（P0，种子 A + T-241 §3.1 + T-246 QA-4）
+- [ ] FR-80 GC graceHours=0 并行竞态根治：apply 引用原子化零误删；e2e 解除 --workers=1 兜底，默认并发 3 连绿（P0，种子 B + T-232）
+- [ ] FR-81 OIDC step-up 控制台腿：mint grant + prompt=login 回跳续铸（消费 ADR-0027 既有契约，服务端零改动；mock IdP 全链 + 单次性）（P1，种子 C + T-242 §7）
+- [ ] FR-82 控制台与工程债包：旧路由 redirect 移除〔Q3 终裁〕/ QA-3 过滤复位 / QA-5 e2e 缺省 / assert-tokens 扩面 / packument 转义收敛 / push_npm 自查 / 锚册口径统一+死锚退役 / 顶栏搜索框升级 / 文档措辞与 deprecate 口径〔PM 裁定维持严格〕/ pass-gate 登记 / U20 勘误（P1）
+- [ ] FR-83 运营与发布 chores：git 历史瘦身 dry-run+手册〔**force-push 须用户单独授权**〕/ CI 多架构镜像（amd64+arm64 manifest）/ 用户实例 18080 刷新提议〔dep:用户环境，非硬 DoD〕（P1）
+- [ ] QA：N 序列 + 扇出/竞态量化门槛实测 + M1~M8 P0 回归（契约变更面 100% 归属 M9 豁免票审计）；tech-writer（SSO 铸 Token 路径 / npm 权限口径 / 用户管理闭环 / 旧书签失效公告）
+- [ ] F 池对账：28 条处置落地核对；延后 3 项（E-04 扩列 / R2 搜索契约 / R6 Tokens 页）登记入 M10+ 候选池
 
 ## 里程碑完成定义（DoD）
 

@@ -633,3 +633,49 @@
   6. **前端应用内路由可变 + 外部前缀不变**：IA 重排若需要改应用内路径（console-ux §3.2 路由表），允许；约束 = 路由表全量同步 console-ux、深链回归覆盖、e2e 路径断言同票更新。外部可见 URL 面（`/binflow/ui/...` 前缀、资源段）一律不动。
 - 理由: C 是用户指令（「交互逻辑一样」指向行为层）与 ADR-0001（表达层不复制）的唯一交集——「一样」的可交付诠释是「Artifactory 用户不读文档即可在 BinFlow 完成全部操作」，该目标由 IA/交互/操作流三层完整承载，视觉皮肤不是学习成本的主要来源且是唯一有版权硬风险的层。行为规格制直接复用 ADR-0001 已验证七里程碑的「规格与实现分离」流程；交互断言复用 console-ux §10 已落地的 data-testid 体系，验收面零新工具、零新依赖。契约冻结使 M8 的回归面收敛为「前端不破后端」单向验证，M1~M7 的 REST 测试资产原样充当守卫。
 - 后果: reverse-engineer 新产出 docs/reverse/console-ui.md（M8 UI 票的前置依赖，置信度标注制）；console-ux.md 升 v2（IA 重排后的信息架构/线框/交互四态，§7 视觉 token 节保留并演进）；architecture.md 增 §13 [M8]（承载层重排约束 + web/src 存量存留判定，供 tech-lead 分票）；web/src 存量处置三档——逻辑层保留（lib/api.ts 等）、页面与导航重构、皮肤层重做（判定表见 architecture §13.4）；e2e 既有 18 spec 的断言迁移分两类（testid/交互断言沿用、路径断言随路由表改）；QA 新增「Artifactory 操作流对照验收表」形态（以行为规格为锚）；ADR-0014 的 session/CSRF/挂载决策全部维持；Xray/Pipelines 入口不出现；M8 债券（T-231 percent-encode、B-1 migrate 降级等）与本 ADR 正交，入 PRD 排期。
+
+## ADR-0030: M9 SE 域端点群与权限位扩展——扇出收口 / m-holder 可达性 / 用户域补全（新增不破坏）
+
+- 状态: Proposed（草案——conductor 审定 M9 PRD v1.0 时一并终裁；PRD §5.5 K18~K21 校准随本 ADR 落定回写。展开契约 = architecture §14.1）
+- 日期: 2026-08-24
+- 背景: M8 契约冻结（ADR-0029 决策 4）随 `m8-done` 结束，熔断线排队的服务端缺口集中兑现：① 用户域（T-237 漂移①②③）——`enabled` 只写不读（T-208）、无 `DELETE /api/security/users/{name}`（auth-model §1 高置信：Artifactory 有，200 text 逐字文案在案）、组无成员查询（rbac-model §1.2 `?includeUsers=true` 高置信）——users/groups 页 N+1 逐用户汇总（T-246 QA-4b 实测）；② 扇出（T-99 缺口 + T-246 QA-4a）——repos 列表「已用」列 per-repo usage ≈ 170 请求/首屏；③ m-holder 可达性（T-241 §3.1 / ADR-0026 §11.30 登记）——`GET /api/v1/permissions` 为 CapSecurityRead 闭集，持 manage 的普通 user 只能走 API 路径，控制台 L2 边界卡兜底。M9 解冻基调（conductor 定）：**新增不破坏——既有端点行为零变，REST 既有 (调用者×动词×路径) 状态码组合零翻转**。
+- 候选方案（主争议轴：m-holder 可达性的交付形态，PRD §7 Q3）:
+  - A) **既有端点新可选参数 `?filter=manage`**：无 filter 分支字节不变（CapSecurityRead 闭集，m-holder 403 原样）；filter 分支在 handler 内判「CapSecurityRead → 全量 ∨ m 覆盖集非空 → ⊆ 覆盖集子集 ∨ 空集 → 403 同形」。优点：零既有行为差（守护断言零改动）、与族 4 写臂「handler 内覆盖集臂」同构（POST/DELETE permissions 已有先例）、信息隔离边界（NFR-S49）收敛在新分支内。缺点：控制台必须显式携参（m-holder 直链与 admin 全量两条取数路径）。
+  - B) **门扩（CapSecurityRead ∨ 覆盖集非空）**：m-holder 裸 GET 即得过滤子集，控制台单一路径。缺点：翻转既有 403 → 200——违反 M9「新增不破坏」基调；无 filter 与有 filter 不可区分，调用方无法声明「我要的就是全量」（m-holder 永远拿不到明确失败信号）；降门扩大管理面读语义的风险不对称（PRD Q3 暂行同理由）。
+  - C) **security:read 降门给 m-holder**：能力语义动 RBAC 内核（ADR-0026 闭集被凿穿——m-holder 可读全部 users/groups/token 面），账号存在性隐藏（§7.1 ?permissions B2 族安全姿态）被牺牲。否决。
+- 决策: **选 A**。端点群定案（新端点/变更清单表，K18~K21 校准含其中）：
+
+  | # | 端点 / 契约面 | 形态 | 门 | 层级 | 来源 |
+  |---|---|---|---|---|---|
+  | E1 | `GET /api/v1/storage/usage`（**新路由**；`?repos=a,b,c` 点名可选、`?include=counts` 可选） | bare array，行形与 usage/{repo} 同构 `{repo,usedBytes,quotaBytes}`；include 时增 `{nodeCount,updatedAt}`（updatedAt=配置变更时刻，语义文档钉死） | required + handler 逐仓 `CanManageRepo(read) ∨ Can(r)` **服务端过滤可见集**；空集 `200 []` 非 403；被排除仓零泄露 | C 自有 | FR-79.1 / K20 |
+  | E2 | `GET /api/security/users` 列表 additive 加宽 | 增 `email`/`adminRole`（snake 三值闭集）/`enabled`（恒渲染）/`groups: []string`（空 = `[]`）；Artifactory 瘦回显 `{name,uri,realm}` 之上的自有超集（`source` 字段 T-185 先例） | CapSecurityRead 不变 | A 兼容（additive） | FR-78.1 / K19 |
+  | E3 | `GET /api/security/users/{name}` 增 `enabled` 回显 | additive bool 恒渲染——与 T-208 写侧 *bool 闭环 | CapSecurityRead 不变 | A | FR-78.1 |
+  | E4 | `DELETE /api/security/users/{name}`（**新动词**） | 成功 200 纯文本 `The user: '<name>' has been removed successfully.`（auth-model §1 逐字）；护栏全 **400**：内置 admin / 删除后无 admin 角色（`Cannot delete user '<name>'. There must be at least one user configured with admin privileges.`——组侧 rbac-model §1.2.2 同族文案与状态码镜像）/ **自删**（`Cannot delete the current authenticated user.`，离场路径=禁用 T-208）；同事务级联：permission_principals 行删、user_groups FK、tokens 全删（Verify 缝即时 401）、web_sessions 全 revoke；审计 `user.delete`（audit_events 保留） | CapSecurityWrite（无覆盖集臂——用户非仓库域主体） | A 兼容（护栏为自有增强） | FR-78.2 / K18 |
+  | E5 | `GET /api/security/groups/{name}?includeUsers=true`（additive 参数） | 带参增 `userNames: []string`；不带参行为字节不变；**groups 列表不加宽**（membersCount 不落 wire——成员汇总单一事实源 = E2 的 users.groups 客户端推导 + 本参数按需） | CapSecurityRead 不变 | A | FR-78.3 / K19 |
+  | E6 | `GET /api/v1/permissions?filter=manage`（additive 参数） | 候选 A 形态（上表外详述见 §14.1.6）：无 filter 字节不变；filter=manage → CapSecurityRead 全量 ∨ 覆盖集非空得 ⊆ 覆盖集子集（部分覆盖 target 隐藏）∨ 空集 403 同形；filter 值 ∉ {manage} → 400 errors[] 信封 | filter 分支 handler 判（route 维持 required-only） | C 自有 | FR-79.2 / K21 |
+  | E7 | `GET /api/repositories` m-holder 过滤列表 | **延后 M10+**（PRD §2.2 Non-goal；CapRepoRead 维持，DeployDialog 双 403 降级臂继续承载；§11.36 债券登记 + 触发条件） | — | — | PRD Q5 关联 |
+  | E8 | 组 `adminPrivileges` 字段 | **不做**：组级 admin 布尔 = 绕开 users.role 闭集的第二条提权路径，摧毁 Role(3)×能力 QA 矩阵可枚举性；UI 以 manage 持有徽章同构（T-237 已落） | — | D 有意差异 | PRD EP-05/Q4 |
+  | E9 | `auth.ManageCoverage(ctx, p) (map[string]struct{}, bool)` | Go seam（无 wire）：principal（含组）持 m 的 target 并其 repos；E6 filter 分支与族 4 写臂现存覆盖集求值收敛到同一函数（单决策点）；O(targets×principals) 每请求一次，缓存留缝不实现 | — | 内部 | E6/族 4 |
+
+  **K18~K21 校准**（PRD §5.5 回写）：K18 = 200 text 逐字 + 三护栏全 400（自删拒删——PRD Q2 暂行转正，理由：离场既有禁用路径、自删使会话中途吊销形似缺陷、无用户诉求）；K19 = 加宽字段清单如 E2/E5，groups 列表不加宽（防 membersCount/groups[] 双事实源漂移）；K20 = **bare array**（PRD 暂行 map 形否决——bare array 是 /api/v1 列表族既有惯例：permissions、replications 两先例；PRD N06 的 `jq '.repos[...]'` 示例需按 `.[] | select(.repo==...)'` 调整，归 PM 一行勘误）+ `?repos=` 逗号分隔点名；K21 = `filter=manage` 定案、值闭集单值。**零 schema 变更、零新配置键、零迁移**（users.enabled T-208 已落、user_groups/repo_usage/permission_principals 均在）。
+- 理由: A 是「m-holder 可达性」与「M9 新增不破坏基调」的唯一交集——B 的可达性收益与 A 完全等价（过滤子集 + 越界隐藏），代价却是既有断言翻转与全量/子集不可区分；C 动安全内核。E1~E5 全部为 additive 或新路由，兼容矩阵 A 4 条（EP-01~04）/ C 3 条（EP-06/07 + E9 内部）/ D 2 条（EP-05/09 关联）与 PRD §5.2 对齐。E4 护栏取 400 非 409：镜像组侧 last-admin 保护的实测状态码（rbac-model §1.2.2），同族文案降低 Artifactory 用户学习成本。
+- 后果: 实现分区——FR-78（internal/auth + httpapi security.go 族）与 FR-79-79.1（storage/repo 域 usage 聚合查询）与 FR-79-79.2（permissions filter 分支 + auth.ManageCoverage）area 不重叠可并行；审计新增 `user.delete`；T-241 e2e「m-holder GET 列表 403」腿**原样保留**（新增 filter=manage 腿另立，非翻转）；T-240 repos 列表 403 L2 腿零改动（E7 延后）；守护测试按 §14.5（RBAC 矩阵白名单为空 + wire golden 快照 + 无参数分支逐字节对照）；UI 消费面——repos 页「已用」列单请求注水、users 页 Status 列回显驱动、L2 边界说明卡退役（换 filter 取数路径，编辑器内 B1 注记维持）；PRD 回写项三处（N06 jq 形态、§5.5 K18~K21 落定、Q2/Q3 暂行转正）。
+
+## ADR-0031: GC 并发安全模型——在途持有集 + 删除前引用复核（A+B 组合），graceHours=0 零误删
+
+- 状态: Proposed（草案——方案选型供 conductor/PM 确认；PRD FR-80 只钉行为不变量，本 ADR 定机制。展开契约 = architecture §14.2）
+- 日期: 2026-08-24
+- 背景: T-232 实测：e2e 并行全量下 `graceHours=0` 的 gc apply 与其他 spec 的上传/删除语义互斥——`manifest PUT 500 blob not found`（t134-g32，GC 物理删除了并行 docker 推送的在途层）；权宜 = 全量验收 `--workers=1`，成为一切并行验证的系统性瓶颈。竞态解剖为两窗：**W-1 引用前窗口**（blob-first 落盘序：rename 进 blobs/（T1）→ 元数据 node 行提交（T2）；mark 快照落在 (T1,T2) 则 blob 无引用可见。docker「先传层后传 manifest」把毫秒窗放大到秒级）；**W-2 快照陈旧窗口**（单次 GC 内 mark 快照（T0）→ 目录遍历删除（T1），(T0,T1) 间完成全链提交的 blob 对快照不可见）。正常态两窗均被 mtime grace 兜底；`graceHours=0`（handler 映射亚秒时长，「无宽限期」是 W24 既有菜谱的显式合法值）击穿之。
+- 候选方案:
+  - A) **引用集复核（删除前单点复查）**：apply 对每个候选在物理删除前查 `nodes ∪ docker_refs` 单点存在性（新增 metadata `IsReferenced(sha)` 助手，走既有 idx_nodes_blob/idx_docker_refs_blob 索引）。关 W-2 ✓；关 W-1 ✗——node 行尚未提交，复查仍未见（docker 层-_manifest 窗口正是此形）。代价：每候选一次索引查询。
+  - B) **在途持有集（engine hold set）**：`Commit`（disk rename / S3 CompleteMultipartUpload 时刻）把 sha256 注册进进程内持有集；repo.Service 元数据事务成功后 `ReleaseGCHold(sha256)`；TTL 过期兜底。关 W-1 ✓（落盘即持有，与引用可见性解耦）；关 W-2 ✗（release 后快照陈旧仍在）。代价：Engine 新 seam × 五条落库路径接线（Put/PutFromBlob/PutLandedBlob/PutManifest/remote pull-through）；漏 release 最坏后果 = blob 延迟 TTL 可回收——**保守方向的失败**，正确性无损。
+  - C) **apply 前置 drain（写面静默）**：BeginSession 拒新（503）+ 在途会话有界排空后 mark-sweep。两窗全关 ✓。代价：可用性面（写者状态机 + 排空超时策略——10GB 在途层悬着怎么办）+ 与同步 REST 执行模型叠加——为一个 admin 触发、已持数据目录维护锁（ADR-0015 勘误③）的维护操作引入停写语义，不成比例。否决。
+  - （评）**grace 下限拒绝 apply**：apply 拒绝 grace < 下限。两窗全关 ✓ 但破坏 W24 既有菜谱（upload → 删 node → graceHours:0 收）与 REST 契约（graceHours:0 显式合法值）。否决。
+- 决策: **A+B 组合（W-1 归 B、W-2 归 A），C 否决**。要点：
+  1. hold set 生命周期：`Commit` 注册 → 元数据提交成功后 release → TTL 兜底（`storage.gc_hold_ttl_seconds` 默认 600、下限 60，显式零值取默认——grace 同款零值语义）。release 是加速、TTL 是正确性兜底：进程崩溃在两者之间只会让 GC 暂时保守，不会 wedged。
+  2. GC 候选判定两道闸：hold 集命中 → 跳过（不看 grace）；apply 删除前 `Live(sha)` 复核命中 → 跳过。dry-run 同样排除 hold 中 blob（安全方向；静默实例 grace=0 菜谱不受影响——上传完成后 hold 已 release，W24 行为不变）。K22 口径：同进程 dry-run 精确排除；CLI 跨进程 dry-run 可多报（无破坏面，报告标注「serve 运行中、在途上传不可见」）。
+  3. 接口升级：`Engine.GC` 的 `referenced` 参数升级为 `GCMarker{ Mark() (map[string]struct{}, error); Live(sha string) (bool, error) }` 两方法接口（旧 func 形态适配器兼容）；DiskEngine/S3Engine/MigrationEngine 三实现同步（S3 的 Live 走单点 HeadObject）；`ReleaseGCHold(sha256) error` 进 Engine 公开面（§3.1 [M9] 注记）。
+  4. 跨进程面：REST GC 与 serve 同进程 → hold 集可见全保护（e2e governance 腿即此面，`--workers=1` 解除的前置）；CLI gc 独立进程不可见 → 增 serve 心跳锁 `<data>/serve.lock`（进程生命周期 flock）：CLI **apply** 且显式 grace < 60s 且探测到 serve 持锁 → 拒绝执行退出非 0（提示走 REST 面或停服窗口）；默认 grace 的 CLI 运行不受限。
+  5. REST gc 响应形状零变（candidateCount/candidateBytes/deletedCount）；候选计数可能因 hold 排除变小——语义方向 = 更保守，登记即可。无并发时的 dry-run/apply 结果与 M4~M8 逐字节同源（候选判定、审计、stats 口径零回归）。
+- 理由: 两窗口成因不同（W-1 是「引用尚未存在」——任何基于引用的复核都看不见；W-2 是「引用已存在但快照太旧」——单点复查恰好覆盖），单一机制无法同时关两窗，A+B 各击其一且失败模式均为保守方向；C 用停写换正确性，在「GC 已持数据目录锁、admin 显式触发」的语境下过度；grace 下限则直接违约既有契约。hold set 的进程内形态依赖单实例部署事实（§9 多副本本就禁止/实验性），不引入跨进程协调复杂度——serve.lock 只做「拒绝」不做「协调」。
+- 后果: `internal/storage` Engine 接口签名变更（GCMarker + ReleaseGCHold，§3.1 [M9] 注记）；repo.Service 五条落库路径接线 release（漏接 = 保守，可容忍但 review 清点）；新配置键 `storage.gc_hold_ttl_seconds`（§8）；CLI gc 增 serve.lock 探测；压力回归 spec（并行 docker push × grace=0 apply 循环零 blob-not-found 钉 W-1；并发「上传→删 node」× grace=0 apply 零误删钉 W-2）进 CI 后才允许解除 `--workers=1`（§14.5-5 顺序硬规则）；`go test -race ./internal/storage/... ./internal/repo/...` 全绿为 P0 验收；e2e 默认并发 3 连绿（FR-80-AC2）后 Makefile/脚本/文档的 `--workers=1` 约定降级为历史注记。
