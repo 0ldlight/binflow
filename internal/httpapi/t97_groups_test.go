@@ -314,19 +314,42 @@ func TestGroupMembershipViaUsers(t *testing.T) {
 		}
 	})
 
-	t.Run("list stays the simple shape (W40: 双端点分工)", func(t *testing.T) {
+	// T-251 (M9, ADR-0030 E2) superseded W40's thin list posture: the entry
+	// set widens additively with email/adminRole/enabled/groups. What the
+	// widening still bans: the admin BOOLEAN (adminRole is the role
+	// spelling the list carries) and any password-shaped field, exactly as
+	// before.
+	t.Run("list carries the widened E2 shape, still no admin boolean or password", func(t *testing.T) {
 		resp := h.do(http.MethodGet, "/binflow/api/security/users", adminUser, adminPass, nil, nil)
 		defer func() { _ = resp.Body.Close() }()
 		var items []map[string]any
 		if err := json.NewDecoder(resp.Body).Decode(&items); err != nil {
 			t.Fatalf("decode: %v", err)
 		}
+		var jane map[string]any
 		for _, it := range items {
-			for _, banned := range []string{"email", "groups", "admin", "password"} {
+			for _, banned := range []string{"admin", "password"} {
 				if _, ok := it[banned]; ok {
 					t.Fatalf("list entry carries %q: %+v", banned, it)
 				}
 			}
+			for _, required := range []string{"email", "adminRole", "enabled", "groups"} {
+				if _, ok := it[required]; !ok {
+					t.Fatalf("list entry misses the widened field %q: %+v", required, it)
+				}
+			}
+			if it["name"] == "jane" {
+				jane = it
+			}
+		}
+		if jane == nil {
+			t.Fatalf("jane missing from %+v", items)
+		}
+		// The flow above cleared jane's membership (groups:[]), so her list
+		// entry must render the empty set as a JSON ARRAY — null would break
+		// every consumer that ranges over it.
+		if groups, ok := jane["groups"].([]any); !ok || len(groups) != 0 {
+			t.Fatalf("jane groups = %#v, want [] (array, not null)", jane["groups"])
 		}
 	})
 }

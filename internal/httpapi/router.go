@@ -317,6 +317,15 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		// read-capability question since M7 — a plain user must not learn
 		// repository volume, readonly_admin may (the auditor's dashboard).
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleV1StorageStats)
+	case rest == "v1/storage/usage" && r.Method == http.MethodGet:
+		// Batch quota usage (M9 E1, ADR-0030 / section 14.1, T-253): the
+		// set form of the per-repo endpoint below — one request for the
+		// whole "used" column (bare array, K20). The route demands
+		// authentication; visibility (the same family-7 OR formula, per
+		// repository) is the use case's, and its denied arm is silent
+		// exclusion: an authenticated caller always receives a filtered 200
+		// view (empty set = []), never a 403.
+		s.enforce(w, r, routeAuth{required: true}, s.handleStorageUsageBatch)
 	case strings.HasPrefix(rest, "v1/storage/usage/"):
 		// Per-repository quota usage (GE-06/W26b, T-95; family 7): one
 		// segment after the prefix is the repo key. The route demands
@@ -559,6 +568,14 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		// by order — its exact-match case precedes this prefix case.
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite},
 			s.withName(rest, "security/users/", s.handleUserUpdatePost))
+	case strings.HasPrefix(rest, "security/users/") && r.Method == http.MethodDelete:
+		// E4 (M9, T-251, ADR-0030): the delete verb on the users family.
+		// CapSecurityWrite with NO manage-coverage arm — users are not
+		// repo-domain principals, so the family-4 exception never applied
+		// here; the guard chain (built-in/self/last-admin) lives in the
+		// use case behind the facet.
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite},
+			s.withName(rest, "security/users/", s.handleUserDelete))
 
 	// ---- /api/security/groups (SE-01..04, T-97; security plane) ----
 	// Errors inside the handlers are the user-management plain-text layer;

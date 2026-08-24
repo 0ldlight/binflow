@@ -301,6 +301,24 @@ type RepoUsage struct {
 	UpdatedAt    string
 }
 
+// UsageRow is one row of the E1 batch aggregate (M9, ADR-0030 / architecture
+// section 14.1 E1, FR-79.1): repository identity and config moment joined
+// with the metered total, the single-query data source behind
+// GET /api/v1/storage/usage. UsedBytes repeats RepoUsage.LogicalBytes under
+// the endpoint's spelling; a repository without a repo_usage row answers 0
+// (the Get single-repo semantics, set-shaped). NodeCount is filled only when
+// the caller asked for counts (the ?include=counts arm) and counts FILE nodes
+// only — folder sentinel rows (FolderMarkerSHA) are directory markers, not
+// artifacts, and never inflate the count.
+type UsageRow struct {
+	RepoKey   string
+	Type      string // repository class ('local' | 'remote' | 'virtual')
+	Config    string // the raw config blob (quotaBytes lives here for local)
+	UpdatedAt string // repositories.updated_at — the CONFIG change moment
+	UsedBytes int64
+	NodeCount int64 // 0 unless the caller requested counts
+}
+
 // UploadSession is one upload_sessions row (010, T-209): the persisted state
 // of a local-filestore upload session. The disk storage engine owns the
 // lifecycle; State is opaque JSON owned by the engine (the metadata layer
@@ -445,6 +463,19 @@ type UserStore interface {
 	// when the user does not exist. Consumers: the idp_sync authoritative
 	// rewrite (every provider authentication) and the adminRole wire field.
 	SetRole(ctx context.Context, username string, role string) error
+	// DeleteCascade removes the account and every dependent row in ONE
+	// transaction (M9, ADR-0030 E4): the permission_principals rows naming
+	// the account as a USER principal go first (permission_principals has no
+	// DB-level FK to users, so the ACE strip is explicit — gap-endpoints
+	// section 2.2 step 2), then the users row itself, whose foreign keys
+	// cascade user_groups, tokens and web_sessions (verify re-resolves the
+	// owner row per request, so the drop is an immediate credential kill,
+	// ADR-0025 guardrail 3). audit_events rows are actor-named text and
+	// deliberately survive. ErrUserNotFound when the account does not exist;
+	// the probe rides the same transaction, so a missing user leaves zero
+	// side effects (an orphan user-typed ACE row of the same name is NOT
+	// stripped in that case).
+	DeleteCascade(ctx context.Context, username string) error
 	Delete(ctx context.Context, username string) error
 	List(ctx context.Context) ([]*User, error)
 }
@@ -659,6 +690,12 @@ type GroupStore interface {
 	// — the authentication-time fill of Principal.Groups (architecture 3.4).
 	// An unknown or group-less user returns an empty slice, not an error.
 	GroupsOfUser(ctx context.Context, username string) ([]*Group, error)
+	// MembershipsByUser returns every user's group-name set in ONE query
+	// (M9, ADR-0030 E2 — the groups[] widening of GET /api/security/users;
+	// one aggregated walk replaces the per-user N+1 the users page used to
+	// pay). Users without memberships simply have no map entry; the caller
+	// renders []. Names within one user's set are ordered by group name.
+	MembershipsByUser(ctx context.Context) (map[string][]string, error)
 }
 
 // WebSessionStore is browser-session persistence (schema 004, ADR-0014:
@@ -722,6 +759,18 @@ type UsageStore interface {
 	// Get returns the repository's usage row; a repository without a row
 	// answers a zero total, not an error (an empty repository uses 0 bytes).
 	Get(ctx context.Context, repoKey string) (*RepoUsage, error)
+	// List returns the usage aggregate of EVERY repository in one query (M9,
+	// ADR-0030 / architecture section 14.1 E1): repositories LEFT JOIN
+	// repo_usage ordered by repo_key — the batch endpoint's data source. One
+	// statement (two with counts), never N per-repo round trips: the E1
+	// fan-out collapse exists precisely because per-repo Usage().Get loops
+	// are the ~170-requests-per-page posture the endpoint retires. Repos
+	// without a repo_usage row answer UsedBytes 0 (Get's zero-total
+	// semantics, set-shaped). includeCounts adds the per-repo FILE node
+	// count (folder sentinel rows excluded); callers that will not render
+	// counts pass false and skip the aggregation entirely (the zero-cost
+	// default path).
+	List(ctx context.Context, includeCounts bool) ([]UsageRow, error)
 	// PutNodeWithUsage upserts the node exactly like NodeStore.Put and, in
 	// the SAME transaction, adjusts repo_usage by the size difference against
 	// the row the upsert replaces (new node: +size; overwrite: +new-old;

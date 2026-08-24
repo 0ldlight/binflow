@@ -5,6 +5,7 @@
 // (the seed-m8.mjs discipline; makeClient is imported from it).
 //
 //   repos   PUT /binflow/api/repositories/{key}       x50  m9-r00..m9-r49
+//   files   PUT /binflow/{key}/m9-seed/usage.bin      x50  non-zero usage (T-253)
 //   groups  PUT /binflow/api/security/groups/{name}   x10  m9-g01..m9-g10
 //   users   PUT /binflow/api/security/users/{name}    x20  u1..u20 (2 per group)
 //   targets POST /binflow/api/v1/permissions          x4   create-if-absent
@@ -18,6 +19,14 @@
 //   t-out   u9 READ ONLY, repos m9-r02/m9-r03 — outside the coverage: zero
 //           appearance in the filtered list, POST/DELETE stay 403.
 //   t-grp   GROUP m9-g01 (u1, u11) manage — the E9 ManageCoverage group arm.
+//
+// Usage content (T-253, the seed-m8 putFile pattern): one deterministic
+// file lands in every repository so usedBytes starts NON-zero — the E1
+// legs (batch consistency, the console "used" column) need metered rows,
+// not zeros. The body is a pure function of the repo key, so every
+// consumer can compute the expected total (usageSeedBody(key).length);
+// re-running re-PUTs identical bytes, which the write plane treats as an
+// idempotent redeploy (delta 0) — the seed stays convergent.
 //
 // Passwords follow the PRD N-sequence skeleton (u9 -> pw-u9-123). Everything
 // converges on re-run: PUT repos/groups/users replace with identical bodies,
@@ -109,6 +118,33 @@ export function m9Targets(keys = repoKeys()) {
   ]
 }
 
+// ---- non-zero usage content (T-253, the seed-m8 putFile pattern) -------------
+
+/** Where the usage fixture lands in every repository (one level below the
+ * root; the u8 probe path 'seed-probe.txt' is deliberately elsewhere so the
+ * 404-probe semantics stay intact). */
+export const USAGE_SEED_PATH = 'm9-seed/usage.bin'
+
+/** Deterministic per-repo body: same bytes every run, so expected
+ * usedBytes = usageSeedBody(key).length and a re-run is an idempotent
+ * redeploy (delta 0), never double-metering. */
+export function usageSeedBody(key) {
+  return `binflow-m9-usage-seed:${key}\n`
+}
+
+/** One content-plane deploy per repository (admin credentials — the seed
+ * client is admin). Returns the number of files landed. */
+export async function seedUsageContent(client, keys) {
+  for (const key of keys) {
+    await client.request('PUT', `/binflow/${key}/${USAGE_SEED_PATH}`, {
+      raw: true,
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: usageSeedBody(key),
+    })
+  }
+  return keys.length
+}
+
 // ---- idempotent ensure helpers ----------------------------------------------
 
 export async function ensureGroup(client, name, description) {
@@ -150,7 +186,8 @@ export async function ensureTarget(client, def) {
 
 /** Order matters: repos before targets (a target naming an unknown repository
  * is a 400), groups before users (membership rides the user body), users
- * before targets (principal validation demands known users/groups). */
+ * before targets (principal validation demands known users/groups), content
+ * after repos (the metered writes need their repository rows). */
 export async function seedM9(client, { plan = M9_PLAN } = {}) {
   const started = Date.now()
   const keys = repoKeys(plan)
@@ -165,6 +202,7 @@ export async function seedM9(client, { plan = M9_PLAN } = {}) {
     })
     repos.push({ key, status: r.status })
   }
+  const usageFiles = await seedUsageContent(client, keys)
   const groups = []
   for (const g of groupNames(plan)) {
     groups.push({ name: g, status: await ensureGroup(client, g) })
@@ -180,6 +218,7 @@ export async function seedM9(client, { plan = M9_PLAN } = {}) {
   return {
     base: client.base,
     repos,
+    usageFiles,
     groups,
     users,
     targets,
@@ -205,9 +244,22 @@ async function probeStatus(base, username, password, method, path, body) {
   return res.status
 }
 
+/** Non-throwing GET returning { status, text } — the usage probe needs the
+ * BODY, not just the status, and must tolerate the pre-T-253 404 without
+ * throwing. */
+async function probeGet(base, username, password, path) {
+  const auth = Buffer.from(`${username}:${password}`).toString('base64')
+  const res = await httpFetch(`${base}${path}`, {
+    headers: { Authorization: `Basic ${auth}` },
+  })
+  return { status: res.status, text: await res.text() }
+}
+
 /** Assert the seed took and the coverage fixtures behave (M8-tail semantics).
- * Returns { ok, problems, evidence } — problems [] means green. */
-export async function verifyM9(client, { plan = M9_PLAN } = {}) {
+ * Returns { ok, problems, evidence } — problems [] means green. adminPassword
+ * is only used by the E1 usage probe's ADMIN leg (makeClient keeps the
+ * credential private; the documented evaluation default applies). */
+export async function verifyM9(client, { plan = M9_PLAN, adminPassword = 'password' } = {}) {
   const problems = []
   const evidence = {}
   const keys = repoKeys(plan)
@@ -270,6 +322,48 @@ export async function verifyM9(client, { plan = M9_PLAN } = {}) {
     problems.push(`u9 t-out POST (outside coverage) want 403, got ${evidence.u9.uncovered}`)
   }
 
+  // E1 batch usage probe (T-253): admin sees every metered row, u8 sees
+  // exactly its readable ten with the non-greedy totals, and none of the
+  // other forty keys leak into u8's body. A pre-T-253 build answers 404 —
+  // recorded as 'absent', not a failure (the seed stays runnable against
+  // M8-tail binaries for its original legs).
+  const expectedBytes = usageSeedBody(keys[0]).length
+  evidence.usage = { expectedBytes, admin: null, u8: null }
+  const adminUsage = await probeGet(client.base, 'admin', adminPassword, '/binflow/api/v1/storage/usage')
+  if (adminUsage.status === 200) {
+    const rows = JSON.parse(adminUsage.text)
+    const byKey = new Map(rows.map((r) => [r.repo, r]))
+    evidence.usage.admin = { rows: rows.length, seeded: keys.filter((k) => byKey.has(k)).length }
+    if (!Array.isArray(rows) || evidence.usage.admin.seeded !== keys.length) {
+      problems.push(`admin usage batch carries ${evidence.usage.admin.seeded} of ${keys.length} seeded repos`)
+    } else {
+      const wrong = keys.filter((k) => byKey.get(k).usedBytes !== expectedBytes)
+      if (wrong.length > 0) {
+        problems.push(`admin usage batch usedBytes != ${expectedBytes} for: ${wrong.slice(0, 5).join(', ')}`)
+      }
+    }
+    const u8Usage = await probeGet(client.base, 'u8', userPassword('u8'), '/binflow/api/v1/storage/usage')
+    if (u8Usage.status !== 200) {
+      problems.push(`u8 usage batch want 200, got ${u8Usage.status}`)
+    } else {
+      const u8rows = JSON.parse(u8Usage.text)
+      const u8keys = u8rows.map((r) => r.repo)
+      evidence.usage.u8 = { rows: u8rows.length, sample: u8keys.slice(0, 3) }
+      const wanted = keys.slice(0, 10)
+      if (u8keys.length !== wanted.length || wanted.some((k, i) => u8keys[i] !== k)) {
+        problems.push(`u8 usage batch rows [${u8keys.join(',')}], want exactly [${wanted.join(',')}]`)
+      }
+      const leaked = keys.slice(10).filter((k) => u8Usage.text.includes(k))
+      if (leaked.length > 0) {
+        problems.push(`u8 usage batch leaks invisible keys: ${leaked.slice(0, 5).join(', ')}`)
+      }
+    }
+  } else if (adminUsage.status === 404) {
+    evidence.usage.admin = 'absent (pre-T-253 build)'
+  } else {
+    problems.push(`admin usage batch want 200 or 404, got ${adminUsage.status}`)
+  }
+
   return { ok: problems.length === 0, problems, evidence }
 }
 
@@ -307,20 +401,23 @@ if (process.argv[1] && process.argv[1].endsWith('seed-m9.mjs')) {
   }
 
   const env = process.env
+  const adminName = typeof admin === 'string' && admin ? admin : env.ADMIN_USER || 'admin'
+  const adminPw = typeof password === 'string' && password ? password : env.ADMIN_PW || env.ADMIN_PASSWORD || 'password'
   const client = makeClient({
     base: typeof base === 'string' && base ? base : env.BASE || 'http://127.0.0.1:8080',
-    username: typeof admin === 'string' && admin ? admin : env.ADMIN_USER || 'admin',
-    password: typeof password === 'string' && password ? password : env.ADMIN_PW || env.ADMIN_PASSWORD || 'password',
+    username: adminName,
+    password: adminPw,
   })
 
   seedM9(client)
     .then(async (r) => {
       console.log(
-        `seed-m9: ${r.repos.length} repos / ${r.users.length} users / ${r.groups.length} groups / ${r.targets.length} targets in ${Math.round(r.elapsedMs / 100) / 10}s (${r.base})`,
+        `seed-m9: ${r.repos.length} repos / ${r.usageFiles} usage files / ${r.users.length} users / ${r.groups.length} groups / ${r.targets.length} targets in ${Math.round(r.elapsedMs / 100) / 10}s (${r.base})`,
       )
       const summary = {
         base: r.base,
         repos: r.repos.length,
+        usageFiles: r.usageFiles,
         users: r.users.length,
         groups: r.groups.length,
         targets: r.targets,
@@ -329,14 +426,14 @@ if (process.argv[1] && process.argv[1].endsWith('seed-m9.mjs')) {
         console.log(JSON.stringify(summary))
         return
       }
-      const v = await verifyM9(client)
+      const v = await verifyM9(client, { adminPassword: adminPw })
       console.log(JSON.stringify({ ...summary, verify: v }))
       if (!v.ok) {
         console.error(`seed-m9: VERIFICATION FAILED — ${v.problems.length} problem(s)`)
         for (const p of v.problems) console.error(`  - ${p}`)
         process.exit(1)
       }
-      console.log('seed-m9: verification green (counts + u8 partial-read + u9 m-coverage probes)')
+      console.log('seed-m9: verification green (counts + u8 partial-read + u9 m-coverage + E1 usage probes)')
     })
     .catch((e) => {
       console.error(`seed-m9: ${e.message}`)

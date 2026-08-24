@@ -74,6 +74,65 @@ func (s *usageStore) Get(ctx context.Context, repoKey string) (*RepoUsage, error
 	return u, nil
 }
 
+// usageListStmt is the E1 aggregate without counts (architecture section
+// 14.1 E1): one scan of repositories LEFT JOIN repo_usage, so a repository
+// with no metered row yet still reports (COALESCE 0) instead of vanishing
+// from the set — Get's zero-total semantics, set-shaped.
+const usageListStmt = `SELECT r.repo_key, r.type, r.config, r.updated_at, COALESCE(u.logical_bytes, 0)
+	FROM repositories r
+	LEFT JOIN repo_usage u ON u.repo_key = r.repo_key
+	ORDER BY r.repo_key`
+
+// usageListCountsStmt adds the per-repo FILE node count (?include=counts):
+// the derived table groups nodes by repo once, excluding the shared folder
+// sentinel (FolderMarkerSHA — directory markers, not artifacts), and the
+// LEFT JOIN keeps empty repositories in the result with count 0.
+const usageListCountsStmt = `SELECT r.repo_key, r.type, r.config, r.updated_at, COALESCE(u.logical_bytes, 0),
+	COALESCE(c.file_count, 0)
+	FROM repositories r
+	LEFT JOIN repo_usage u ON u.repo_key = r.repo_key
+	LEFT JOIN (
+		SELECT repo_key, COUNT(*) AS file_count FROM nodes
+		WHERE sha256 <> ? GROUP BY repo_key
+	) c ON c.repo_key = r.repo_key
+	ORDER BY r.repo_key`
+
+// List implements UsageStore.List (E1, FR-79.1).
+func (s *usageStore) List(ctx context.Context, includeCounts bool) ([]UsageRow, error) {
+	var (
+		stmt string
+		args []any
+	)
+	if includeCounts {
+		stmt, args = usageListCountsStmt, []any{FolderMarkerSHA}
+	} else {
+		stmt = usageListStmt
+	}
+	rows, err := s.db.QueryContext(ctx, stmt, args...)
+	if err != nil {
+		return nil, wrapExec("repo_usage list", "", err)
+	}
+	defer func() { _ = rows.Close() }()
+	out := make([]UsageRow, 0, 16)
+	for rows.Next() {
+		var u UsageRow
+		var err error
+		if includeCounts {
+			err = rows.Scan(&u.RepoKey, &u.Type, &u.Config, &u.UpdatedAt, &u.UsedBytes, &u.NodeCount)
+		} else {
+			err = rows.Scan(&u.RepoKey, &u.Type, &u.Config, &u.UpdatedAt, &u.UsedBytes)
+		}
+		if err != nil {
+			return nil, wrapExec("repo_usage list scan", "", err)
+		}
+		out = append(out, u)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, wrapExec("repo_usage list rows", "", err)
+	}
+	return out, nil
+}
+
 func (s *usageStore) PutNodeWithUsage(ctx context.Context, n *Node, updatedAt string) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {

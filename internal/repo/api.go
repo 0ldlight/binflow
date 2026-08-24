@@ -376,6 +376,24 @@ type Service interface {
 	// virtual writes route onto a local member and are metered there.
 	Usage(ctx context.Context, p *Principal, repoKey string) (*UsageReport, error)
 
+	// UsageBatch reports the usage view of EVERY repository the principal may
+	// see (M9 E1, ADR-0030 / architecture section 14.1, FR-79.1): the set
+	// form of Usage for the fan-out collapse behind
+	// GET /api/v1/storage/usage. The data source is ONE aggregate query
+	// (Usage().List); visibility is the SAME family-7 OR formula applied per
+	// repository — CanManageRepo(read) ∨ Can(r), W26b verbatim, so the batch
+	// row set can never disagree with the single-repo endpoint's decision.
+	// Repositories the caller cannot read are absent from the result, not
+	// errors: the endpoint answers a filtered view (empty set = empty slice,
+	// never ErrForbidden — the caller is legitimately authenticated), and an
+	// invisible repository's existence is not leaked (a point-named key that
+	// is unknown OR invisible is silently missing, indistinguishably).
+	// q.Repos nil means "every visible repository"; a non-nil slice
+	// point-names a subset (duplicates and empties collapse). Anonymous
+	// answers ErrUnauthorized. q.IncludeCounts fills NodeCount/UpdatedAt on
+	// every returned row.
+	UsageBatch(ctx context.Context, p *Principal, q UsageBatchQuery) ([]*UsageBatchReport, error)
+
 	// ---- Adapter SPI face (architecture section 5.4) ----
 	//
 	// The seams protocol adapters program against, beyond the public
@@ -533,6 +551,36 @@ type UsageReport struct {
 	RepoKey    string
 	UsedBytes  int64
 	QuotaBytes int64 // 0 = unlimited (the default)
+}
+
+// UsageBatchQuery carries E1's two optional knobs (architecture section 14.1
+// E1): the point-named repository subset and the counts arm. The zero query
+// is "every visible repository, base fields only".
+type UsageBatchQuery struct {
+	// Repos nil means no ?repos= parameter: every repository in the caller's
+	// visibility set. A non-nil slice point-names keys (the ?repos=a,b,c
+	// form): the result is the intersection with the existing-and-visible
+	// rows, so unknown, duplicated or invisible keys simply contribute
+	// nothing — no error, no existence signal.
+	Repos []string
+	// IncludeCounts is the ?include=counts arm: every row additionally
+	// carries NodeCount (FILE nodes only) and UpdatedAt (the repository
+	// CONFIG change moment, repositories.updated_at — not the newest
+	// artifact time; the semantic is pinned in architecture section 14.1).
+	IncludeCounts bool
+}
+
+// UsageBatchReport is one E1 row: the single-repo UsageReport fields (the
+// wire row stays field-for-field isomorphic with the usage/{repo} body) plus
+// the two ?include=counts extras, zero-valued when counts were not requested.
+type UsageBatchReport struct {
+	UsageReport
+	// NodeCount is the repository's FILE node count (folder sentinel rows
+	// excluded); meaningful only when the query asked for counts.
+	NodeCount int64
+	// UpdatedAt is repositories.updated_at, the configuration change
+	// moment; meaningful only when the query asked for counts.
+	UpdatedAt string
 }
 
 // PutOptions tunes PutWithOptions for the regenerable-content family

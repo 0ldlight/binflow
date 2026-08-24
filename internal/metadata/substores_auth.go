@@ -159,6 +159,39 @@ func (s *userStore) SetEnabled(ctx context.Context, username string, enabled boo
 	return nil
 }
 
+// DeleteCascade implements UserStore.DeleteCascade (M9, ADR-0030 E4): one
+// transaction strips the account's user-typed permission_principals rows
+// (the table carries no FK to users — the ACE strip of gap-endpoints section
+// 2.2 step 2 is this explicit DELETE) and then drops the users row, whose FKs
+// cascade user_groups, tokens and web_sessions. The existence probe is the
+// users-row rowcount itself: a missing account rolls the transaction back,
+// so the 404 path leaves zero side effects.
+func (s *userStore) DeleteCascade(ctx context.Context, username string) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return wrapExec("users delete-cascade begin", username, err)
+	}
+	defer func() { _ = tx.Rollback() }() // no-op after commit
+	if _, err := tx.ExecContext(ctx,
+		`DELETE FROM permission_principals WHERE principal_type = 'user' AND principal = ?`,
+		username); err != nil {
+		return wrapExec("users delete-cascade strip-aces", username, err)
+	}
+	res, err := tx.ExecContext(ctx, `DELETE FROM users WHERE username = ?`, username)
+	if err != nil {
+		return wrapExec("users delete-cascade", username, err)
+	}
+	if n, err := res.RowsAffected(); err != nil {
+		return wrapExec("users delete-cascade rows", username, err)
+	} else if n == 0 {
+		return fmt.Errorf("users delete-cascade %s: %w", username, ErrUserNotFound)
+	}
+	if err := tx.Commit(); err != nil {
+		return wrapExec("users delete-cascade commit", username, err)
+	}
+	return nil
+}
+
 func (s *userStore) Delete(ctx context.Context, username string) error {
 	res, err := s.db.ExecContext(ctx, `DELETE FROM users WHERE username = ?`, username)
 	if err != nil {

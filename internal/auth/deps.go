@@ -91,6 +91,41 @@ func (a userStoreAdapter) SetRole(ctx context.Context, username string, role Rol
 	return nil
 }
 
+// userDeleteAdapter adapts metadata.UserStore onto the userDeleteSource seam
+// (M9, ADR-0030 E4): the admin census over the role column and the store's
+// same-transaction cascade delete.
+type userDeleteAdapter struct{ s metadata.UserStore }
+
+// AdminRoleUsers implements userDeleteSource: every username whose stored
+// role is the admin spelling (the 011 column is authoritative; the is_admin
+// mirror moves in lockstep with it, so one predicate suffices).
+func (a userDeleteAdapter) AdminRoleUsers(ctx context.Context) ([]string, error) {
+	users, err := a.s.List(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("auth: list users for admin census: %w", err)
+	}
+	var out []string
+	for _, u := range users {
+		if u.Role == metadata.RoleAdmin {
+			out = append(out, u.Username)
+		}
+	}
+	return out, nil
+}
+
+// DeleteCascade implements userDeleteSource, mapping the store sentinel onto
+// the auth spelling (they alias the same value; the wrap keeps the message
+// context).
+func (a userDeleteAdapter) DeleteCascade(ctx context.Context, username string) error {
+	if err := a.s.DeleteCascade(ctx, username); err != nil {
+		if isNotFound(err, metadata.ErrUserNotFound) {
+			return fmt.Errorf("auth: delete cascade %q: %w", username, ErrUserNotFound)
+		}
+		return err
+	}
+	return nil
+}
+
 // tokenStoreAdapter adapts metadata.TokenStore.
 type tokenStoreAdapter struct{ s metadata.TokenStore }
 
@@ -276,6 +311,10 @@ func NewFromStore(st metadata.Store, anonymousRead bool) *Service {
 	// widened to the closed role set, ADR-0026 decision 6).
 	svc.groupSync = groups
 	svc.roleWriter = users
+	// The E4 delete seam (M9, T-251): guards live on the service, the census
+	// and cascade ride the same users store every other account operation
+	// uses.
+	svc.userDelete = userDeleteAdapter{s: st.Users()}
 	return svc
 }
 

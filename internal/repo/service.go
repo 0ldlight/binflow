@@ -2284,3 +2284,70 @@ func (s *service) Usage(ctx context.Context, p *Principal, repoKey string) (*Usa
 	}
 	return &UsageReport{RepoKey: repoKey, UsedBytes: u.LogicalBytes, QuotaBytes: quota}, nil
 }
+
+// UsageBatch implements Service.UsageBatch (M9 E1, ADR-0030 / architecture
+// section 14.1, FR-79.1): the set form of Usage behind
+// GET /api/v1/storage/usage. One aggregate query feeds the whole response —
+// the per-repo Usage().Get loop this replaces is the ~170-requests-per-page
+// fan-out the endpoint exists to collapse. Visibility reuses Usage's exact
+// family-7 OR decision per repository (allow(read) ∨ allow(m) at path ""),
+// evaluated through the same allow seam, so a batch row can never appear
+// where the single-repo endpoint would answer 403; the denied arm here is
+// SILENT EXCLUSION rather than ErrForbidden because a set endpoint owes a
+// filtered view to any legitimately authenticated caller (200 [] on an empty
+// visibility set), while invisible repositories leak nothing — not their
+// usage, not their existence.
+func (s *service) UsageBatch(ctx context.Context, p *Principal, q UsageBatchQuery) ([]*UsageBatchReport, error) {
+	if err := requireAuthenticated(p); err != nil {
+		return nil, err
+	}
+	rows, err := s.md.Usage().List(ctx, q.IncludeCounts)
+	if err != nil {
+		return nil, fmt.Errorf("usage list: %w", err)
+	}
+	var named map[string]struct{}
+	if q.Repos != nil {
+		named = make(map[string]struct{}, len(q.Repos))
+		for _, key := range q.Repos {
+			named[key] = struct{}{}
+		}
+	}
+	out := make([]*UsageBatchReport, 0, len(rows))
+	for _, row := range rows {
+		if named != nil {
+			if _, ok := named[row.RepoKey]; !ok {
+				continue
+			}
+		}
+		// The family-7 OR gate, verbatim from Usage: read grant OR the
+		// manage bit, admin/readonly_admin passing through the role arms
+		// inside allow. Invisible rows are dropped before any projection.
+		if !s.allow(ctx, p, row.RepoKey, "", ActionRead) && !s.allow(ctx, p, row.RepoKey, "", ActionManage) {
+			continue
+		}
+		quota := int64(0)
+		if row.Type == TypeLocal {
+			// quotaBytes is a local-repository field (Usage's probe rule):
+			// remote/virtual rows never carry a ceiling, hand-seeded local
+			// rows answer whatever their config says.
+			quota = parseGovernance(row.Config).quotaBytes
+		}
+		row2 := &UsageBatchReport{
+			UsageReport: UsageReport{
+				RepoKey:    row.RepoKey,
+				UsedBytes:  row.UsedBytes,
+				QuotaBytes: quota,
+			},
+		}
+		if q.IncludeCounts {
+			// The counts extras carry meaning only when asked for; a plain
+			// query answers them zeroed (the handler then does not render
+			// the fields at all — half-filled rows would be a lie two
+			// layers deep).
+			row2.NodeCount = row.NodeCount
+			row2.UpdatedAt = row.UpdatedAt
+		}
+		out = append(out, row2)
+	}
+	return out, nil
+}

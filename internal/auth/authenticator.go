@@ -55,6 +55,10 @@ type Service struct {
 	// provider is the authority on every authentication, not just the
 	// first). nil = inert.
 	roleWriter roleWriter
+	// userDelete backs the user-delete use case (M9, ADR-0030 E4; see
+	// user_delete.go): the admin census and the same-transaction cascade.
+	// nil = DeleteUser fails closed (bare New services, unit fakes).
+	userDelete userDeleteSource
 	// hashGate bounds concurrent argon2 derivations across this service's
 	// password paths (T-192 / T-172 D-1; see hashgate.go). Never nil after
 	// New; WithHashConcurrency replaces it with a differently sized copy.

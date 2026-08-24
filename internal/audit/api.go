@@ -154,6 +154,12 @@ const (
 	// Detail carries {"user", "old", "new"}; old is empty when the account
 	// was created directly with a non-default role.
 	ActionUserRoleChange = "user.role.change"
+	// ActionUserDelete records one account deletion (M9, FR-78.2 /
+	// ADR-0030 E4 — NFR-S48: the delete leaves a trail; the cascade killed
+	// every credential the account held). Detail carries {"user"}. Only
+	// successful deletions land here: the guard rejections (built-in,
+	// self, last admin) are decisions, not deletions.
+	ActionUserDelete = "user.delete"
 )
 
 // Actions returns the full M1~M4 action vocabulary (GE-02): every action
@@ -169,7 +175,7 @@ func Actions() []string {
 		ActionPasswordChange,
 		ActionGroupCreate, ActionGroupUpdate, ActionGroupDelete,
 		ActionGroupMember,
-		ActionUserRoleChange,
+		ActionUserRoleChange, ActionUserDelete,
 		ActionPermissionCreate, ActionPermissionUpdate, ActionPermissionDelete,
 		ActionGCRun, ActionExportRun, ActionImportRun,
 		ActionQuotaExceeded,

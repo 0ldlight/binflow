@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -531,16 +532,23 @@ func parseID(v string) (int64, error) {
 
 // ---- users (E-19) ----
 
-// userListItem is one GET /api/security/users entry (auth-model.md 1.2):
-// name, uri (the item's own API link), realm — plus BinFlow's superset
-// field source, the owning identity provider (T-185 / T-174 D1: "local",
-// "oidc" or "ldap"; PRD FR-54-AC2/FR-55-AC2 assert it). Never a password
-// field.
+// userListItem is one GET /api/security/users entry. Artifactory's list is
+// the thin three-field echo {name, uri, realm} (auth-model.md 1.2, high
+// confidence) plus BinFlow's superset source field (T-185). M9 (T-251/E2,
+// ADR-0030) widens it additively with email, adminRole, enabled (always
+// rendered) and the groups membership set (empty = [], never null) — a
+// BinFlow-owned superset in the T-185 source precedent's family: the users
+// page derives its Groups column and the group-member census from this one
+// request (the N+1 fan-out FR-78 exists to kill). Never a password field.
 type userListItem struct {
-	Name   string `json:"name"`
-	URI    string `json:"uri"`
-	Realm  string `json:"realm"`
-	Source string `json:"source"`
+	Name      string   `json:"name"`
+	URI       string   `json:"uri"`
+	Realm     string   `json:"realm"`
+	Source    string   `json:"source"`
+	Email     string   `json:"email"`
+	AdminRole string   `json:"adminRole"`
+	Enabled   bool     `json:"enabled"`
+	Groups    []string `json:"groups"`
 }
 
 // userDetail is the single-user body: the observable account facts, never a
@@ -550,12 +558,15 @@ type userListItem struct {
 // tracked. Source mirrors the list entry's provider field (T-185/D1).
 // AdminRole (M7/RB-02, FR-64) echoes the closed-set role of the account —
 // snake values user/readonly_admin/admin, the same spelling as the wire
-// input and the DB column (ADR-0026 decision 6: wire=DB=constant).
+// input and the DB column (ADR-0026 decision 6: wire=DB=constant). Enabled
+// (M9, T-251/E3) always renders — the read-side closure of the T-208 *bool
+// write seam: the row's DB fact, no "written-here-so-known" UI fallback.
 type userDetail struct {
 	Name                     string   `json:"name"`
 	Email                    string   `json:"email"`
 	Admin                    bool     `json:"admin"`
 	AdminRole                string   `json:"adminRole"`
+	Enabled                  bool     `json:"enabled"`
 	Groups                   []string `json:"groups"`
 	LastLoggedIn             string   `json:"lastLoggedIn,omitempty"`
 	Realm                    string   `json:"realm"`
@@ -643,28 +654,47 @@ func resolveCreateRole(adminRole string, admin bool) (auth.Role, string) {
 	return role, ""
 }
 
-// handleUserList serves GET /api/security/users (admin): the name/uri/realm
-// entries of every account.
+// handleUserList serves GET /api/security/users (admin): the widened
+// entries of every account (E2). The membership sets come from ONE
+// aggregated query (GroupStore.MembershipsByUser) — the whole list costs two
+// queries regardless of user count, which is the point of the widening: the
+// users page's Groups column and the group-member census fan out from this
+// single request instead of one GET per user.
 func (s *Server) handleUserList(w http.ResponseWriter, r *http.Request) {
 	users, err := s.deps.Metadata.Users().List(r.Context())
 	if err != nil {
 		writePlainError(w, http.StatusInternalServerError, "list users: "+err.Error())
 		return
 	}
+	memberships, err := s.deps.Metadata.Groups().MembershipsByUser(r.Context())
+	if err != nil {
+		writePlainError(w, http.StatusInternalServerError, "resolve user groups: "+err.Error())
+		return
+	}
 	items := make([]userListItem, 0, len(users))
 	for _, u := range users {
+		groups := memberships[u.Username]
+		if groups == nil {
+			groups = []string{} // E2 pins empty as [], never null
+		}
 		items = append(items, userListItem{
-			Name:   u.Username,
-			URI:    requestBase(r) + "/binflow/api/security/users/" + u.Username,
-			Realm:  providerRealm(u.Provider),
-			Source: providerSource(u.Provider),
+			Name:      u.Username,
+			URI:       requestBase(r) + "/binflow/api/security/users/" + u.Username,
+			Realm:     providerRealm(u.Provider),
+			Source:    providerSource(u.Provider),
+			Email:     u.Email,
+			AdminRole: string(roleFromStored(u.Role)),
+			Enabled:   u.Enabled,
+			Groups:    groups,
 		})
 	}
 	writeJSONBody(w, http.StatusOK, items)
 }
 
 // handleUserGet serves GET /api/security/users/{name} (admin): the single
-// user with the 004 email round-trip (W40) and the M4 groups echo (SE-05).
+// user with the 004 email round-trip (W40), the M4 groups echo (SE-05) and
+// the M9 enabled echo (E3, T-251: the read-side closure of T-208's write
+// seam).
 func (s *Server) handleUserGet(w http.ResponseWriter, r *http.Request, name string) {
 	u, err := s.deps.Metadata.Users().Get(r.Context(), name)
 	if err != nil {
@@ -689,6 +719,7 @@ func (s *Server) handleUserGet(w http.ResponseWriter, r *http.Request, name stri
 		Email:            u.Email,
 		Admin:            u.IsAdmin,
 		AdminRole:        string(roleFromStored(u.Role)),
+		Enabled:          u.Enabled,
 		Groups:           groups,
 		Realm:            providerRealm(u.Provider),
 		Source:           providerSource(u.Provider),
@@ -1026,3 +1057,55 @@ func (s *Server) handleUserUpdatePost(w http.ResponseWriter, r *http.Request, na
 
 // nowRFC3339UTC stamps a metadata timestamp.
 func nowRFC3339UTC() string { return time.Now().UTC().Format(time.RFC3339) }
+
+// ---- DELETE /api/security/users/{name} (E4, T-251) ----
+
+// userDeleter is the user-delete facet of Deps.Auth (M9, T-251/E4): the real
+// auth.Service carries the guard chain and same-transaction cascade
+// (auth.Service.DeleteUser); a bare Authenticator fake stays facet-less and
+// the route answers 503 rather than panicking — the same discovery posture
+// as the session, permission-view and step-up facets.
+type userDeleter interface {
+	DeleteUser(ctx context.Context, actor, username string) error
+}
+
+// handleUserDelete serves DELETE /api/security/users/{name} (E4, ADR-0030 /
+// architecture 14.1): 200 plain text on success — the auth-model section 1
+// wording verbatim — and 400 for every guard. Users are NOT the group face:
+// a user referenced by a permission target is deletable, and the cascade
+// strips the ACE rows in the same transaction (deleting IS the intent to
+// revoke everything the account held; the group's 409 exists because a group
+// is a multi-member policy object). The 404 wording follows the users plane
+// family ("User not found", the GET single-user spelling) — architecture
+// 14.1 pins it over Artifactory's bodyless 404 (gap-endpoints 2.1).
+func (s *Server) handleUserDelete(w http.ResponseWriter, r *http.Request, name string) {
+	if s.userDelete == nil {
+		writePlainError(w, http.StatusServiceUnavailable, "user deletion is not available on this assembly")
+		return
+	}
+	p := principalFrom(r.Context())
+	if err := s.userDelete.DeleteUser(r.Context(), p.Name, name); err != nil {
+		switch {
+		case errors.Is(err, auth.ErrUserNotFound):
+			writePlainError(w, http.StatusNotFound, "User not found")
+		case errors.Is(err, auth.ErrDeleteBuiltIn):
+			writePlainError(w, http.StatusBadRequest, "Cannot delete the built-in admin user.")
+		case errors.Is(err, auth.ErrDeleteSelf):
+			writePlainError(w, http.StatusBadRequest, "Cannot delete the current authenticated user.")
+		case errors.Is(err, auth.ErrDeleteLastAdmin):
+			writePlainError(w, http.StatusBadRequest, fmt.Sprintf(
+				"Cannot delete user '%s'. There must be at least one user configured with admin privileges.", name))
+		default:
+			s.log.Error("httpapi: user delete failed", "error", err.Error())
+			writePlainError(w, http.StatusInternalServerError, "delete user: "+err.Error())
+		}
+		return
+	}
+	s.audit.Record(r.Context(), audit.Event{
+		Actor:      p.Name,
+		Action:     audit.ActionUserDelete,
+		RemoteAddr: r.RemoteAddr,
+		Detail:     auditDetail("user", name),
+	})
+	writeText(w, http.StatusOK, "The user: '"+name+"' has been removed successfully.")
+}

@@ -138,6 +138,11 @@ type Server struct {
 	// auth.Service (unit fakes) — an auth.token_step_up=on stack then fails
 	// CLOSED at the mint gate instead of minting past the facet.
 	stepUp stepUpRegistry
+	// userDelete is the user-delete facet of Deps.Auth (M9, T-251/E4,
+	// ADR-0030); nil when the injected authenticator is not the full
+	// auth.Service (unit fakes) — DELETE /api/security/users/{name} then
+	// answers 503 instead of panicking on a missing collaborator.
+	userDelete userDeleter
 	// metrics is the instrumentation built from Deps.Metrics (T-163): the
 	// four family handles, the request-counting middleware and the scrape-
 	// time snapshot sources. nil when Deps.Metrics is nil.
@@ -201,6 +206,12 @@ func New(deps Deps, log *slog.Logger) *Server {
 	// Authenticator fake stays facet-less and the step-up gate fails closed.
 	if su, ok := deps.Auth.(stepUpRegistry); ok {
 		s.stepUp = su
+	}
+	// User-delete facet discovery (M9, T-251/E4): the real auth.Service
+	// carries the guard chain and cascade; a bare Authenticator fake stays
+	// facet-less and the endpoint answers 503 instead of panicking.
+	if ud, ok := deps.Auth.(userDeleter); ok {
+		s.userDelete = ud
 	}
 	// The audit recorder for the login plane: same store, same enabled
 	// toggle and the same redaction chain every other audited surface uses.

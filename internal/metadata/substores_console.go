@@ -189,6 +189,33 @@ func (s *groupStore) GroupsOfUser(ctx context.Context, username string) ([]*Grou
 	return out, nil
 }
 
+// MembershipsByUser implements GroupStore.MembershipsByUser (M9, ADR-0030
+// E2): the whole membership table as one username -> group-names map, each
+// set ordered by group name. Users without memberships have no map entry —
+// the caller renders [] (the wire contract pins empty as [], never null).
+func (s *groupStore) MembershipsByUser(ctx context.Context) (map[string][]string, error) {
+	const stmt = `SELECT ug.username, g.name
+		FROM user_groups ug JOIN groups g ON g.id = ug.group_id
+		ORDER BY ug.username, g.name`
+	rows, err := s.db.QueryContext(ctx, stmt)
+	if err != nil {
+		return nil, wrapExec("groups memberships-by-user", "", err)
+	}
+	defer func() { _ = rows.Close() }()
+	out := map[string][]string{}
+	for rows.Next() {
+		var username, group string
+		if err := rows.Scan(&username, &group); err != nil {
+			return nil, wrapExec("groups memberships-by-user scan", "", err)
+		}
+		out[username] = append(out[username], group)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, wrapExec("groups memberships-by-user rows", "", err)
+	}
+	return out, nil
+}
+
 // ---- WebSessionStore (004, ADR-0014) ----
 
 type webSessionStore struct{ db *sql.DB }
