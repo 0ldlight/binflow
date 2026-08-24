@@ -5,8 +5,8 @@ sidebar_position: 45
 
 # Token 铸造二次认证（step-up）
 
-> 适用版本：M7（PRD milestone-7 v1.1 FR-68、ADR-0027 Accepted）。
-> 本文全部命令在本机 scratch 实例（2026-08-23，`make build` 产物；Keycloak 26.2.5 + OpenLDAP 容器实腿）上复跑：本地/LDAP/OIDC 三腿三态、豁免臂（Basic/Bearer/admin session/docker token）、grant 单次消费/过期/重启丢失、TTL 越界拒启动（开关双态）、env 双拼写、审计维度均按预期。
+> 适用版本：M7 起（PRD milestone-7 v1.1 FR-68、ADR-0027 Accepted）；**M9 增补**：OIDC 腿的控制台消费落地（T-260）——Set Me Up 对话框对 SSO 用户走 IdP 重认证并自动续铸（见「SSO 用户 CLI 铸 Token 的路径」）。
+> 本文全部命令在本机 scratch 实例（2026-08-23，`make build` 产物；Keycloak 26.2.5 + OpenLDAP 容器实腿）上复跑：本地/LDAP/OIDC 三腿三态、豁免臂（Basic/Bearer/admin session/docker token）、grant 单次消费/过期/重启丢失、TTL 越界拒启动（开关双态）、env 双拼写、审计维度均按预期。M9 控制台 OIDC 臂在自起 armed 栈（`auth.token_step_up: true` + mock IdP，2026-08-25 HEAD 构建）上经浏览器全链复验：401 引导 → `purpose=step_up` 跳转（IdP 侧实证 `prompt=login`）→ fragment 回跳即抹除 → 自动续铸 200 → 重放 401 逐字 → 审计 `step_up_method=oidc_reauth`。
 
 ## 这解决什么问题
 
@@ -170,9 +170,11 @@ curl -s -b $JAR -X POST $A/api/security/token \
 
 OIDC 用户**没有本地口令**，口令腿对其恒不可用。三条现实路径：
 
-1. **脚本驱动 re-auth 流**（上文 curl 全链的形态）：cookie jar 持有 OIDC session，脚本完成 IdP 表单 POST 拿 grant 后立即铸造——全程可自动化，实测可用。
-2. **浏览器完成 re-auth，取 fragment 里的 grant**：callback 落到 `/binflow/ui/#step_up_grant=<grant>`，从地址栏复制 grant 后**在同一浏览器会话**内完成铸造。M8 起控制台的 [Set Me Up 对话框](../console.md#set-me-up客户端接入向导)已是铸币位（本地/LDAP 腿的 step-up 口令重验已内联），但 **OIDC 腿的 grant 自动续铸尚未接入控制台**——SSO 用户仍以本形态过渡（浏览器取 grant + 同会话 curl/CLI 完成铸造）。
+1. **控制台直接铸（M9 起推荐）**：[Set Me Up 对话框](../console.md#set-me-up客户端接入向导)按 whoami 的 `source` 自动分腿——SSO 用户（`source=oidc`）点「生成令牌」遇到 401 `step_up_required` 时**不出口令框**，改出「重新认证并继续」引导：全页跳转 `/binflow/api/v1/oidc/login?purpose=step_up`（强制 `prompt=login`），IdP 重认证后回跳 `/binflow/ui/#step_up_grant=<grant>`。grant 由控制台在**应用引导期**消费（fragment 立即从地址栏与历史抹除，不进服务端/代理日志），Set Me Up 视图自动重开并**自动续铸**（铸造请求体携 `step_up_grant`，恰发一次）。grant 单次即焚：过期/复用 → 内联呈现服务端 `error_description` 原文 + 「重新认证」按钮，**绝不以旧 grant 重试**。铸造面板的 TTL 倒计时按默认 300s 呈现（实例配置不外露，以服务端裁决为准）。armed 全链在自起 mock IdP 栈上浏览器复验通过（`prompt=login` 实证 + 真 grant 单次消费 + 审计 `oidc_reauth`）。
+2. **脚本驱动 re-auth 流**（上文 curl 全链的形态）：cookie jar 持有 OIDC session，脚本完成 IdP 表单 POST 拿 grant 后立即铸造——全程可自动化，实测可用。适合无浏览器的 headless 场景。
 3. **admin 代铸**：admin 可指名替目标用户签发（`grant_type=client_credentials&username=<目标>`，admin 臂免 step-up）——「给 SSO 同事发一枚 Token」的最短路径。
+
+> M8 期本节曾以「浏览器取 fragment 里的 grant + 同会话 curl」为 SSO 用户的过渡形态——M9（T-260）起该过渡退役，路径 1 即正式形态。armed 配置样例见 [OIDC 配置 · 与 step-up 联合部署](../guides/oidc-config.md#与-token-step-up-联合部署armed-形态)。
 
 ## 401 `step_up_invalid` 的全部场景
 

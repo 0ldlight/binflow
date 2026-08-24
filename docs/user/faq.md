@@ -5,7 +5,7 @@ sidebar_position: 90
 
 # FAQ 与故障排查
 
-> 适用版本：M1~M8（各条目标注引入里程碑）。码值与文案以 M4（PRD milestone-4 v1.2）为基线，全部经 QA 真机验证（T-103/T-105 验收基线）；M7 增补条目（RBAC 只读短路 / S3 续传 404 / token step-up）以 ADR-0026/0027/0028 与 PRD milestone-7 v1.1 为准；M8 增补（控制台新路径重定向 / npm 发布权限语义）经 scratch 实例复跑（2026-08-24）。
+> 适用版本：M1~M9（各条目标注引入里程碑）。码值与文案以 M4（PRD milestone-4 v1.2）为基线，全部经 QA 真机验证（T-103/T-105 验收基线）；M7 增补条目（RBAC 只读短路 / S3 续传 404 / token step-up）以 ADR-0026/0027/0028 与 PRD milestone-7 v1.1 为准；M8 增补（控制台新路径重定向 / npm 发布权限语义）经 scratch 实例复跑（2026-08-24）；M9 增补（用户删除闭环 / npm 复制同口径）经 HEAD 构建 scratch 实例复验（2026-08-25）。
 
 ## 状态码信封解读
 
@@ -102,6 +102,16 @@ curl -s -H "Authorization: Bearer <access_token>" $BASE/binflow/api/v1/storage/u
 3. **错误码**：`step_up_required` = 所欠凭据缺失（本地/LDAP 缺 `step_up_password`、OIDC 缺 `step_up_grant`；**交了错腿的凭据也算缺失**）；`step_up_invalid` = 口令错 / grant 过期（TTL 默认 300s）/ **grant 已用过**（单次消费即删，第二次铸造即烧）/ 服务重启（grant 台账在进程内存）。
 4. **另一种 401**：文案为 `The user: '...' can only create user token with expires in larger than 0 and smaller than 31536000 seconds ...` 的 401 是 **TTL 护栏**（非 admin 上限 365d），与 step-up 无关——step-up 已通过，调低 `expires_in` 即可。
 
+## M9 增补两问（用户删除 / npm 复制凭据）
+
+### 删除用户的脚本第二次跑同一条 DELETE，404 是失败吗？
+
+**不是失败，是终态**。M9 起 `DELETE /api/security/users/{name}` 为**有意非幂等**：首次成功 200（纯文本 `The user: '<name>' has been removed successfully.`），对象已删后再发**确定性 404**（`User not found` 文本体）——调用方应把第二次 404 读作「已删除」，不要重试、不要当告警（Artifactory「重复删视为成功」的幂等形态是其并发窗口产物，BinFlow 不复刻）。四道护栏（不存在 404 / 内置 admin / 最后一个 admin / 自删，全 400）与级联语义见[治理指南 · 删除用户](admin/governance.md#删除用户m9-起)。
+
+### 给 npm 复制任务配目标仓凭据，要授 delete 吗？
+
+**不用**。复制引擎只发「目标所缺版本的单版本发布文档」与单 tag PUT，从不整包覆写——与 CI 连发同口径：`read` + `write` 即可（M8 起追加新版本仅需 write）；改既有版本数据（deprecate/篡改）才需要 `delete`，而复制引擎构造不出这种写（同版本不同数据按 first-write-wins 目标幸存）。见[npm 接入 · 发布权限语义](integrations/npm.md#发布权限语义m8-起)。
+
 ## M4 有意不兼容清单（里程碑级汇总）
 
 从 Artifactory 迁移时的差异点（各域细节见对应指南；M1~M3 清单见 [remote/virtual 管理](admin/remote-virtual.md#m3-有意不兼容清单汇总)）：
@@ -127,7 +137,7 @@ curl -s -H "Authorization: Bearer <access_token>" $BASE/binflow/api/v1/storage/u
 | repo key / node / checksum | 同名 | node = 制品节点；checksum 族 sha256/sha1/md5 |
 | deployment / resolution | 上传 / 解析 | UI 与文档保留 deployment 原词 |
 | permission target、include/exclude patterns | 同名同构 | M4 起 principals 支持 groups；`?permissions` 视图同形（key=主体名、value=r/w/d 字母集） |
-| groups / users / access tokens | 同名 | 组删除的 409 保护、`Unable to find group by name '<g>'.` 文案同款 |
+| groups / users / access tokens | 同名 | 组删除的 409 保护、`Unable to find group by name '<g>'.` 文案同款；用户删除（M9）三护栏 + 级联撤权、**重复删除 404**（Artifactory 视为成功——幂等 vs 有意非幂等） |
 | （无内置实例级只读管理员；管理面 admin 为布尔） | `adminRole` 三值角色（`user`/`readonly_admin`/`admin`） | M7 起；`admin=true ⇔ adminRole=admin` 两写法等价。readonly_admin 为 BinFlow 自有（Artifactory 近似能力 = target 只授 read，无管理面只读） |
 | `binflow_session` 控制台会话 | （本产品新增） | server-side session + CSRF Origin 校验；Artifactory 无对应面 |
 | System YAML / storage GC / backup | `binflow.yaml` / `POST /api/v1/system/gc` / `export`/`import` CLI | GC 语义（mark-sweep + grace=mtime）同构 |

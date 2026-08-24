@@ -5,7 +5,7 @@ sidebar_position: 31
 
 # Artifactory → BinFlow 操作路径对照表
 
-> 适用版本：M8（控制台新信息架构，对齐 Artifactory 7.84 操作流）。
+> 适用版本：M8（控制台新信息架构，对齐 Artifactory 7.84 操作流）；M9 增补删用户对照行。
 > Artifactory 侧路径依据活体行为规格 `docs/reverse/console-ui.md`（OSS 7.84.10，clean-room 产出——行为描述，无 JFrog 资产复制）；BinFlow 侧全部路径在 HEAD（`89b27ce` 构建）scratch 实例上 Playwright 走查验证。概念层的术语对照（local/remote/virtual、permission target、checksum 等）见 [FAQ · 从 Artifactory 迁移对照表](faq.md#从-artifactory-迁移对照表)；数据搬迁工具见 [bf-migrate 迁移指南](guides/migrate-artifactory.md)。
 
 M8 起 BinFlow 控制台与 Artifactory **同一动作在同样的位置、走同样的步骤**——本表逐任务给出两侧路径，帮助 Artifactory 用户零学习成本切换。BinFlow 路径均为登录后控制台内路径（前缀 `$BASE/binflow/ui`）。
@@ -32,6 +32,7 @@ M8 起 BinFlow 控制台与 Artifactory **同一动作在同样的位置、走�
 | 编辑仓库 | 列表行 → Edit | 列表行 → 编辑页（`/admin/repositories/:key/edit`） | BinFlow 编辑态锁定 rclass/包类型 |
 | 删仓 | 列表行垃圾桶 → Delete 对话框 | 列表行删除图标 / 详情页危险区（`/admin/repositories/:key`） | BinFlow 更强确认：非空仓须勾选「同时删除内容」+ **输入 repo key** |
 | 建用户 | User Management → Users → New User | 管理 → 用户与权限 → 用户 → `+ 新建用户`（`/admin/security/users`） | 编辑表单同构（设置/选项/口令/相关组穿梭/权限矩阵）；BinFlow 角色下拉三值（Artifactory 无对应面，见 FAQ） |
+| 删用户 | User Management → Users → 行 Delete（对话框确认） | 用户列表行删除 / 编辑页危险区（M9 起；**输入用户名强确认**） | 两侧均不可逆；关键差异：BinFlow 三护栏 400（内置 admin / 最后一个 admin / 自删——Artifactory REST 面这些守卫在逆向规格中低置信/不可见）、级联吊销 token/会话；**重复删除 BinFlow 404、Artifactory 视为成功**（幂等 vs 有意非幂等，见[治理指南](admin/governance.md#删除用户m9-起)）；禁用（`enabled:false`）是离场的可逆路径 |
 | 建组 | User Management → Groups → New Group | 组 → `+ 新建组`（`/admin/security/groups`） | BinFlow 组无 admin 位（防组内自提权） |
 | 配权限 | User Management → Permissions → Create Permission → Edit Repositories（两步） | 权限 → `+ 新建权限` → 分区编辑器 → `编辑仓库…` 两步对话框（`/admin/security/permissions`） | 动作列：Artifactory 五列（含 Annotate），BinFlow 四列 `read/write/delete/manage`；BinFlow 增模式测试器与保存前 diff |
 | 找制品 | Artifactory → Artifacts 树（`/ui/repos/tree/...`）或顶栏搜索 | 应用 → 制品 树（`/artifacts/<repo>/<path>`）或顶栏搜索（`/search`） | 同为 URL 即状态、深链自动展开、树懒加载、`Filter repositories` 过滤 |

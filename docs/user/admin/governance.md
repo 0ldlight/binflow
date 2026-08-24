@@ -5,8 +5,8 @@ sidebar_position: 42
 
 # 治理：审计、GC 与配额
 
-> 适用版本：M4（治理面；PRD milestone-4 v1.2 FR-29/30/31/24、ADR-0015 勘误后）。
-> 本文全部命令在本机 scratch 实例（commit `7593d8e`）上复跑：审计过滤/词表、GC dry-run→apply 与互斥 409、pattern 409 双态、配额 413 与幂等重传豁免均按预期（蓝本 T-103 W22~W27/W12a，报告见 `reports/agents/T-103-qa.md` §2.2/§2.5~§2.7）。
+> 适用版本：M4（治理面；PRD milestone-4 v1.2 FR-29/30/31/24、ADR-0015 勘误后）；**M9 增补**：用户删除闭环（DELETE 三护栏/级联/确定性 404，T-251/T-257）与 last-admin 竞窗运营提醒（T-273 候选背景）。
+> 本文全部命令在本机 scratch 实例（commit `7593d8e`）上复跑：审计过滤/词表、GC dry-run→apply 与互斥 409、pattern 409 双态、配额 413 与幂等重传豁免均按预期（蓝本 T-103 W22~W27/W12a，报告见 `reports/agents/T-103-qa.md` §2.2/§2.5~§2.7）。M9 用户删除链（成功/四护栏/重复删 404/token 即时 401/user.delete 审计/级联组员清空）在 HEAD 构建的 scratch 实例（2026-08-25）上 curl 复验全过。
 
 治理四件事：**审计**（谁在何时动了什么）、**GC**（回收无引用 blob）、**配额**（仓库容量上限）、**路径模式**（仓库接纳哪些路径）。前三个都有控制台页面；本文以 REST/CLI 为主面（脚本可完全等效），页面走查见[控制台指南](../console.md)。
 
@@ -38,7 +38,7 @@ M4 审计动作全集（可作 `action=` 过滤值；M7 增补 `user.role.change
 |---|---|
 | 制品 | `deploy`（上传/发布）、`download`、`delete` |
 | 仓库 | `repo.create`、`repo.update`、`repo.delete` |
-| 安全 | `group.create`、`group.update`、`group.delete`、`group.member`（成员集变更）、`permission.create`、`permission.update`、`permission.delete`、`password.change`、`user.role.change`（M7：角色分配/升降，detail 含 user/old/new） |
+| 安全 | `group.create`、`group.update`、`group.delete`、`group.member`（成员集变更）、`permission.create`、`permission.update`、`permission.delete`、`password.change`、`user.role.change`（M7：角色分配/升降，detail 含 user/old/new）、`user.delete`（M9：仅成功删除记录，detail 含 user） |
 | 治理 | `gc.run`、`quota.exceeded`、`export.run`、`import.run` |
 | 会话 | `login.success`、`login.failed` |
 | token | `token.issue`、`token.revoke`（detail 含指纹/subject/TTL；step-up 路径的 `token.issue` 另含 `step_up` 维度，见 [step-up 指南](token-step-up.md#审计)） |
@@ -187,9 +187,9 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/security/users/jane \
 curl -su admin:$ADMIN_PW $BASE/binflow/api/security/users/jane
 # {"name":"jane","email":"jane@example.com","admin":false,"groups":[],"realm":"internal",...}
 
-# 用户列表
+# 用户列表（M9 加宽：email/adminRole/enabled/groups 恒渲染）
 curl -su admin:$ADMIN_PW $BASE/binflow/api/security/users
-# [{"name":"admin","uri":"...","realm":"internal"},{"name":"jane",...}]
+# [{"name":"admin","uri":"...","realm":"internal","source":"local","email":"","adminRole":"admin","enabled":true,"groups":[]}, ...]
 
 # 部分更新（POST；指针区分缺省与显式空）
 curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/security/users/jane \
@@ -202,9 +202,43 @@ curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/security/users/jane \
 |---|---|
 | 创建 | `email` **必填**（缺省 400）；`groups` 引用未知组 → 400 |
 | 替换 | `PUT users` 已存在 → 201（create-or-replace），覆盖所有字段；未提供的字段不保留旧值 |
-| 列表 | 简形态 `[{name, uri, realm}]`——email/groups 仅在单查端点出现 |
-| 删除 | **M4 未提供**（DELETE 端点未做，登记 P2） |
+| 列表 | **M9 加宽**：条目含 `email`/`adminRole`/`enabled`/`groups`（恒渲染，空组 `[]`）——控制台用户页单请求成表 |
+| 删除 | **M9 起提供**（三护栏/级联/确定性 404，见下节） |
+| 禁用/复启 | `POST /api/security/users/{name}` body `{"enabled":false\|true}`——人员离场的**既定路径是禁用**（可逆、可审计），不是删除 |
 | 改密 | 自己改：`PUT /api/security/password`；admin 改别人：`POST /api/security/users/{name}` 带 `password` 字段 |
+
+### 删除用户（M9 起）
+
+```bash
+# 删除（admin only；成功 200 纯文本）
+curl -su admin:$ADMIN_PW -X DELETE $BASE/binflow/api/security/users/victim
+# The user: 'victim' has been removed successfully.
+
+# 重复删除 → 确定性 404（有意非幂等）
+curl -su admin:$ADMIN_PW -X DELETE $BASE/binflow/api/security/users/victim -w '\n%{http_code}\n'
+# User not found
+# 404
+```
+
+四道护栏（检查序固定，全 400 纯文本；第 1 道为 404 文本体——与 GET 单用户同形，**不是**无 body 404）：
+
+| 护栏 | 文案（逐字） |
+|---|---|
+| 目标不存在 | 404 `User not found` |
+| 内置 `admin` | 400 `Cannot delete the built-in admin user.`（种子账号是最终恢复路径，删除会使 `BINFLOW_ADMIN_PASSWORD` 重置路径失明） |
+| 最后一个 admin | 400 `Cannot delete user '<name>'. There must be at least one user configured with admin privileges.` |
+| 自删 | 400 `Cannot delete the current authenticated user.`（离场走禁用） |
+
+**级联（同事务，不可恢复）**：剥该用户在全部 permission target 的授权行 → 删用户行 → 组员关系清空、**全部 token 与 web session 即时吊销**（已持有的 Bearer 下一次请求即 401，实测）；审计历史保留并新增 `user.delete` 事件（护栏拒绝不落审计）。与组删除的 409 保护是**有意不对称**：组是多成员策略对象，静默剥夺全员授权故拒绝；用户是单主体，级联即删除意图本身。
+
+**重复删除 404 = 有意非幂等**（review 裁定）：Artifactory「重复删视为成功」的幂等形态是其并发窗口产物；BinFlow 取确定性 pre-probe——第二次 DELETE 得 404 就意味着「对象已被删」，调用方不要重试、不要把它当失败告警。控制台对应面为**输入用户名强确认**（列表行 + 编辑页危险区，文案明示级联不可恢复与非幂等），见[控制台指南](../console.md#用户与权限adminsecurity)。
+
+### 用户管理风险：last-admin 竞窗（运营提醒）
+
+「最后一个 admin 不可删」护栏的清点（census）在删除事务**之外**执行——两个 admin **并发互删**时，双方清点都看到「还有另一个 admin」，两笔删除可同时通过并提交，实例进入**零 admin** 状态（已登记 T-273 候选：census 折入单事务根治）。运营注意两点：
+
+- **事前**：删除 admin 账号的变更窗口串行化（一次只删一个，删后确认仍有 admin 登录再进行下一笔）；日常避免把「唯一 admin」当常态。
+- **事后恢复**：零 admin 后 `BINFLOW_ADMIN_PASSWORD` **重种无效**——种子逻辑只在 `admin` 行不存在时插入，既有行（即便已降权）永不覆盖。可恢复路径有二：① 停机后对元数据库做带外手术（SQLite：`UPDATE users SET role='admin', is_admin=1 WHERE username='admin';` 后重启，操作前先按[备份手册](backup-restore.md)留档）；② 从最近一次 export 备份恢复到空目录（用户/token/授权随行，会话需重登）。
 
 > **重要**：用户详情响应**不含口令字段**（明文或哈希均不出现）。不存在 `hashedPassword` 字段。
 
@@ -232,6 +266,10 @@ curl -su admin:$ADMIN_PW -X DELETE $BASE/binflow/api/security/groups/devs \
   -w '\n%{http_code}\n'
 # 被权限引用 → 409: Cannot delete group 'devs': it is referenced by permission target(s): ...
 # 无引用 → 200: The group: 'devs' has been removed successfully.
+
+# 组员花名册（M9：单组按需查；字面 true 才开，空组 [] 恒非 null）
+curl -su admin:$ADMIN_PW "$BASE/binflow/api/security/groups/devs?includeUsers=true"
+# {"name":"devs","uri":"...","description":"...","userNames":["jane","u1"]}
 ```
 
 组名规则：`[a-z][a-z0-9._-]*`（小写字母开头）；保留字 `anonymous` / `_system_` → 400。

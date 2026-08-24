@@ -100,10 +100,10 @@ curl -su admin:$ADMIN_PW -X DELETE $BASE/binflow/api/v1/permissions/devs-rw -o /
 | 操作 | 请求 | 行为 |
 |---|---|---|
 | 建用户/替换 | `PUT /api/security/users/{name}` | create-or-replace，两态皆 **201 无 body**；`email` **必填**（缺省 400 `Please provide a valid user email.`）；`groups` 引用未知组 → 400 `Unable to find group by name '<g>'.` |
-| 部分更新 | `POST /api/security/users/{name}` | 指针字段区分缺省/显式空：`"groups":[]` 清成员、缺 `groups` 不动 |
-| 用户详情 | `GET /api/security/users/{name}` | `{name, email, admin, adminRole, groups[], realm, ...}`——**无口令字段** |
-| 用户列表 | `GET /api/security/users` | 简形态 `[{name, uri, realm}]`（email/groups 仅单查端点） |
-| 删除用户 | — | M4 未提供（DELETE 端点未做，登记 P2） |
+| 部分更新 | `POST /api/security/users/{name}` | 指针字段区分缺省/显式空：`"groups":[]` 清成员、缺 `groups` 不动；M9 起 `enabled` 同为指针字段（显式 `false` 禁用登录） |
+| 用户详情 | `GET /api/security/users/{name}` | `{name, email, admin, adminRole, enabled, groups[], realm, ...}`——**无口令字段**（M9 起恒回显 `enabled`） |
+| 用户列表 | `GET /api/security/users` | **M9 加宽**：`[{name, uri, realm, source, email, adminRole, enabled, groups}]`——单请求即含列表所需全部字段 |
+| 删除用户 | `DELETE /api/security/users/{name}` | **M9 起提供**：admin only；三护栏 400（内置 admin / 最后一个 admin / 自删）、级联撤权吊销 token、成功 200 纯文本、**重复删除确定性 404**（有意非幂等）——语义全解见[治理指南 · 删除用户](governance.md#删除用户m9-起) |
 
 M7 起用户行携带**角色**字段（仅 admin 可写）：
 

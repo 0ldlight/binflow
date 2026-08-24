@@ -1,7 +1,7 @@
 {
   "id": "integrations/npm",
   "title": "npm 接入",
-  "description": "适用版本：M3（publish/packument/dist-tags/unpublish/login + remote/virtual；PRD milestone-3 v1.2）；M8 起发布权限语义更新（见「发布权限语义」节——npm CLI 连发多版本实测 npm 10.9.8 / node 22，T-249）。",
+  "description": "适用版本：M3（publish/packument/dist-tags/unpublish/login + remote/virtual；PRD milestone-3 v1.2）；M8 起发布权限语义更新（见「发布权限语义」节——npm CLI 连发多版本实测 npm 10.9.8 / node 22，T-249）；M9 复核：复制引擎同口径钉死（T-262——目标凭据 read+write 即可，见该节末）。",
   "source": "@site/../docs/user/integrations/npm.md",
   "sourceDirName": "integrations",
   "slug": "/integrations/npm",

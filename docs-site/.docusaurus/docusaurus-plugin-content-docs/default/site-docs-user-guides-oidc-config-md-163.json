@@ -1,7 +1,7 @@
 {
   "id": "guides/oidc-config",
   "title": "OIDC 单点登录配置",
-  "description": "适用版本：M6（ADR-0020；auth.oidc 段 + /api/v1/oidc/* 端点）。",
+  "description": "适用版本：M6 起（ADR-0020；auth.oidc 段 + /api/v1/oidc/ 端点）；M9 增补*：purpose=step_up 重认证与 token step-up 联合部署（armed 形态）注记（T-260）。",
   "source": "@site/../docs/user/guides/oidc-config.md",
   "sourceDirName": "guides",
   "slug": "/guides/oidc-config",

@@ -5,8 +5,8 @@ sidebar_position: 30
 
 # Web 控制台使用指南
 
-> 适用版本：M8（新信息架构：双模式壳 / 跨仓制品树 / 管理域五分组 / Set Me Up 与 Deploy 对话框族；设计规格 `docs/design/console-m8.md`）。
-> 本篇全部 UI 路径与对话框行为在 HEAD（`89b27ce` 构建，含内嵌控制台）的 scratch 实例（127.0.0.1:18091，七仓种子覆盖全部五种包类型）上以 Playwright 走查验证（11/11 通过：双模式导航、树深链、对话框族、管理域路由、10 条旧路径重定向〔M8 兼容窗口；M9 起已移除，见下节〕）；登录/会话/CSRF 段沿用 M4 QA 基线（T-103/T-105，报告 `reports/agents/T-103-qa.md` / `T-105-qa.md`），M8 未改动服务端会话语义。浏览器矩阵依据 T-104 与 T-120 修复后的跨引擎复核。
+> 适用版本：M8（新信息架构：双模式壳 / 跨仓制品树 / 管理域五分组 / Set Me Up 与 Deploy 对话框族；设计规格 `docs/design/console-m8.md`）；**M9 增补**：Set Me Up 的 OIDC 重认证腿（T-260）、用户/组页的 Status 真值与删除面（T-257）、旧路径重定向窗口全量移除（T-263，见[旧路径 → 新路径](#旧路径--新路径m9-起不再重定向)）。
+> 本篇全部 UI 路径与对话框行为在 HEAD（`89b27ce` 构建，含内嵌控制台）的 scratch 实例（127.0.0.1:18091，七仓种子覆盖全部五种包类型）上以 Playwright 走查验证（11/11 通过：双模式导航、树深链、对话框族、管理域路由、10 条旧路径重定向〔M8 兼容窗口；M9 起已移除，见下节〕）；登录/会话/CSRF 段沿用 M4 QA 基线（T-103/T-105，报告 `reports/agents/T-103-qa.md` / `T-105-qa.md`），M8 未改动服务端会话语义。浏览器矩阵依据 T-104 与 T-120 修复后的跨引擎复核。M9 增补面在 HEAD 构建的自起 scratch/armed 栈（2026-08-25）复验：shell 旧路径 19 条 404 断言、users-groups 6 腿、oidc-stepup 4 腿全绿。
 
 M4 起单二进制自带 Web 控制台（go:embed，零外部依赖、断网可用）。**M8 起控制台的信息架构与操作流对齐 Artifactory**（同一个动作在同样的位置、走同样的步骤——从 Artifactory 迁移的用户零学习成本；逐任务的操作路径对照见 [Artifactory → BinFlow 操作路径对照表](artifactory-path-map.md)）。控制台仍是**管理面**——CI 与脚本继续走 REST/token，两者同一 API、同一权限模型。
 
@@ -133,9 +133,10 @@ curl -s -b jar.txt -X PUT $BASE/binflow/generic-local/a/f.txt \
 2. **主对话框**「配置 `<PackageType>` 客户端」：仓库下拉（预选当前仓，只列该包类型仓）+ `配置 Configure` / `部署 Deploy` 两个 Tab——
    - **配置**：解析/拉取侧指令（docker login+pull、settings.xml、pom repositories、`.npmrc`、pip.conf、curl 下载校验）；**部署**：发布侧指令（curl -T、docker build/push、mvn deploy、npm publish、.pypirc+twine）。每块独立 Copy；内容与 docs/user 各[接入指南](integrations/npm.md)同源（UI 不发明命令）。
    - 凭据位：铸币前显示 `<USERNAME>` / `<TOKEN 或口令>` 占位；生成令牌成功后自动回填。
-3. **生成令牌**（控制台铸币位）：
+3. **生成令牌**（控制台铸币位）——非 admin 会话按 whoami 的 `source` 自动分腿：
    - **admin 会话**：直接点「生成令牌并创建指引」——管理员臂免二次口令（ADR-0027 决策 1，界面有说明行）。
-   - **非 admin 会话**：生成区含**口令框**；`auth.token_step_up` 开启时，无凭据请求被服务端 401 `step_up_required` 拒绝 → 对话框内联口令重验表单（自动聚焦）；口令错误 401 `step_up_invalid` → 内联错误（服务端原文，不出第二层对话框）；正确口令续铸成功。语义全解见 [Token 铸造二次认证（step-up）](admin/token-step-up.md)。
+   - **本地 / LDAP 用户**（`source=local|ldap`，M8 起）：生成区含**口令框**；`auth.token_step_up` 开启时，无凭据请求被服务端 401 `step_up_required` 拒绝 → 对话框内联口令重验表单（自动聚焦）；口令错误 401 `step_up_invalid` → 内联错误（服务端原文，不出第二层对话框）；正确口令续铸成功。
+   - **SSO 用户**（`source=oidc`，M9 起）：**不出口令框**——401 `step_up_required` 时改出「重新认证并继续」引导面板，点击后全页跳转 `/binflow/api/v1/oidc/login?purpose=step_up`（IdP 强制重认证）；回跳的 `#step_up_grant=` fragment 由控制台在应用引导期消费（URL 即抹除，不进历史与日志），Set Me Up 自动重开并自动续铸；grant 单次即焚，失败内联 `error_description` 原文 + 重新认证入口。IdP 侧取消/中断的半途流程在下次打开对话框时给出「等待重认证完成」提示。语义全解见 [Token 铸造二次认证（step-up）](admin/token-step-up.md)。
    - 成功 → **「令牌已生成」一次性面板**：token 明文（mono + Copy + 「关闭后不可再查看」提示）+ 24 小时过期与 token_id 说明。签发走 `POST /api/security/token`（默认 `expires_in=86400`）。
 
 ## Deploy：浏览器上传对话框
@@ -160,9 +161,10 @@ curl -s -b jar.txt -X PUT $BASE/binflow/generic-local/a/f.txt \
 
 ### 用户与权限（`/admin/security/*`）
 
-- **用户**：列表（Name/Email/Groups/Role/Status）→ 编辑页分区表单（用户设置〔含**角色三值下拉** `user/readonly_admin/admin`，仅 admin 可改〕/ 选项 / 口令 / 相关组双列穿梭 / 权限矩阵）。角色语义见 [RBAC 角色与仓库级管理员](admin/rbac-roles.md)。
-- **组**：列表 + 表单（组设置 + 成员穿梭 + 组权限矩阵）。
-- **权限 target**：列表 → 单页分区编辑器（名称 / 资源 / 用户 / 组）+ **两步资源对话框**（`编辑仓库…` → ① 选仓库 → ② 可选 include/exclude patterns）+ 四动作矩阵（read/write/delete/manage）+ **模式测试器**（输入路径即时显示逐条命中与最终判定）+ 保存前 diff 确认。完整操作与 curl 对账见[用户组与权限管理](admin/groups-permissions.md)。
+- **用户**：列表（Name/Email/Groups/Role/**Status**）——M9 起列表为**单请求**数据源（`GET /api/security/users` 一条已含 email/adminRole/enabled/groups，无逐用户扇出），Status 列徽章（启用/禁用）真值即服务端 `enabled` 回显 → 编辑页分区表单（用户设置〔含**角色三值下拉** `user/readonly_admin/admin`，仅 admin 可改〕/ 选项 / 口令 / 相关组双列穿梭 / 权限矩阵；账户信息卡含 Status 行——「本页写过才已知」的旧兜底已随回显落地退役）。角色语义见 [RBAC 角色与仓库级管理员](admin/rbac-roles.md)。
+- **删除用户**（M9 起，列表行按钮 + 编辑页危险区双入口）：**输入用户名强确认**（逐字匹配才解禁）+ 不可恢复级联文案（组员/授权/token/会话同事务删除、审计保留、**重复删除 404 非幂等**）。自删与内置 admin 行 UI 预禁用并述因；last-admin 与 404（已被他人删）不预判，服务端原文如实呈现。REST 语义与三护栏见[治理指南 · 删除用户](admin/governance.md#删除用户m9-起)。
+- **组**：列表 + 表单（组设置 + 成员穿梭 + 组权限矩阵）——M9 起成员计数/花名册由用户列表**客户端过滤**推导（单请求全量新鲜）；编辑器打开的瞬间按需取 `GET /api/security/groups/{name}?includeUsers=true`（恰一次，用户/组列表不重拉），穿梭两侧与用户页 groups 列同源（user_groups 行的两视图）。组成员写侧仍走逐用户组集替换（组侧写端点未开）。
+- **权限 target**：列表 → 单页分区编辑器（名称 / 资源 / 用户 / 组）+ **两步资源对话框**（`编辑仓库…` → ① 选仓库 → ② 可选 include/exclude patterns）+ 四动作矩阵（read/write/delete/manage）+ **模式测试器**（输入路径即时显示逐条命中与最终判定）+ 保存前 diff 确认。完整操作与 curl 对账见[用户组与权限管理](admin/groups-permissions.md)。仓库级管理员（manage 持有者）M9 起经 `GET /api/v1/permissions?filter=manage` 可达本编辑器（覆盖集内 target，见 [RBAC 指南](admin/rbac-roles.md#manage-能做什么--不能做什么)）。
 - **Access Tokens**：占位页（签发引导 + 输入 token_id 吊销）；控制台日常铸币走 [Set Me Up](#set-me-up客户端接入向导) 对话框。
 
 ### 治理（`/admin/governance/*`）

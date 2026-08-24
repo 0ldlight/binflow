@@ -1,7 +1,7 @@
 {
   "id": "admin/governance",
   "title": "治理：审计、GC 与配额",
-  "description": "适用版本：M4（治理面；PRD milestone-4 v1.2 FR-29/30/31/24、ADR-0015 勘误后）。",
+  "description": "适用版本：M4（治理面；PRD milestone-4 v1.2 FR-29/30/31/24、ADR-0015 勘误后）；M9 增补：用户删除闭环（DELETE 三护栏/级联/确定性 404，T-251/T-257）与 last-admin 竞窗运营提醒（T-273 候选背景）。",
   "source": "@site/../docs/user/admin/governance.md",
   "sourceDirName": "admin",
   "slug": "/admin/governance",

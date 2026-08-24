@@ -1,7 +1,7 @@
 {
   "id": "console",
   "title": "Web 控制台使用指南",
-  "description": "适用版本：M8（新信息架构：双模式壳 / 跨仓制品树 / 管理域五分组 / Set Me Up 与 Deploy 对话框族；设计规格 docs/design/console-m8.md）。",
+  "description": "适用版本：M8（新信息架构：双模式壳 / 跨仓制品树 / 管理域五分组 / Set Me Up 与 Deploy 对话框族；设计规格 docs/design/console-m8.md）；M9 增补：Set Me Up 的 OIDC 重认证腿（T-260）、用户/组页的 Status 真值与删除面（T-257）、旧路径重定向窗口全量移除（T-263，见旧路径 → 新路径）。",
   "source": "@site/../docs/user/console.md",
   "sourceDirName": ".",
   "slug": "/console",

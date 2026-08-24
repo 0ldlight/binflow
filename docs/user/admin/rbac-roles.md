@@ -5,7 +5,7 @@ sidebar_position: 44
 
 # RBAC 角色与仓库级管理员
 
-> 适用版本：M7（角色三值模型 + `manage` 动作；PRD milestone-7 v1.1 FR-64/FR-65、ADR-0026/ADR-0028）。
+> 适用版本：M7（角色三值模型 + `manage` 动作；PRD milestone-7 v1.1 FR-64/FR-65、ADR-0026/ADR-0028）；**M9 增补**：`?filter=manage` 读臂与 usage 批量端点的 m-holder 可见集（能力表已随注）。
 > 本文全部命令在本机 scratch 实例（2026-08-23，`make build` 产物）上复跑：分配/回显/冲突、读面与变更面矩阵、数据面短路、同 Token 即时生效、manage 派生与覆盖集边界、审计、续传 curl 链均按预期（蓝本 T-221 QA V01~V11 全绿 + `make test-m7-resume` / `test-m7-resume-sigterm` 双臂 GREEN）。
 
 M7 起权限模型分三层，各归其位：
@@ -190,9 +190,10 @@ DELETE 臂同理：被删 target 的 repo 集取自存量行，越界 → 403。
 | 能（覆盖集内） | 不能（全部 403） |
 |---|---|
 | 读单仓配置 `GET /api/repositories/{key}` | **建仓**（PUT 而 repo 不存在）与**删仓**（DELETE）——全局 admin-only |
-| 编辑仓配置/配额（`POST /api/repositories/{key}`、PUT 替换臂） | 全局仓库列表 `GET /api/repositories`（过滤列表 M8+ 评估） |
+| 编辑仓配置/配额（`POST /api/repositories/{key}`、PUT 替换臂） | 全局仓库列表 `GET /api/repositories`（过滤列表延后 M10+） |
 | 编辑 ⊆ 覆盖集的 permission target（增删人、调权限） | 管理面一切：用户/组/角色写、token 吊销、GC（含 dry-run）、复制写 |
-| 读配额用量 `GET /api/v1/storage/usage/{repo}` | — |
+| **读覆盖集内 target 清单 `GET /api/v1/permissions?filter=manage`**（M9：与全量列表同字段；admin/readonly_admin 带参与无参逐字节一致；未知 filter 值 400）——控制台权限编辑器由此对 m-holder 可达 | `GET /api/v1/permissions`（无 filter 的全量清单——门不变，仍 CapSecurityRead 闭集） |
+| 读配额用量 `GET /api/v1/storage/usage/{repo}`、批量 `GET /api/v1/storage/usage`（M9，read ∨ manage 可见集） | — |
 | 读制品授权位 `?permissions` 视图（字母集含 `m`；路径探针本身仍需内容 read） | — |
 
 **`manage` 不是数据面权限**：不隐含 read/write/delete——制品读写仍需显式授予（与 Artifactory 动作正交语义一致）。仅授 manage 的用户：

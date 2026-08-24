@@ -1,7 +1,7 @@
 {
   "id": "artifactory-path-map",
   "title": "Artifactory → BinFlow 操作路径对照表",
-  "description": "适用版本：M8（控制台新信息架构，对齐 Artifactory 7.84 操作流）。",
+  "description": "适用版本：M8（控制台新信息架构，对齐 Artifactory 7.84 操作流）；M9 增补删用户对照行。",
   "source": "@site/../docs/user/artifactory-path-map.md",
   "sourceDirName": ".",
   "slug": "/artifactory-path-map",

@@ -1,7 +1,7 @@
 {
   "id": "admin/token-step-up",
   "title": "Token 铸造二次认证（step-up）",
-  "description": "适用版本：M7（PRD milestone-7 v1.1 FR-68、ADR-0027 Accepted）。",
+  "description": "适用版本：M7 起（PRD milestone-7 v1.1 FR-68、ADR-0027 Accepted）；M9 增补：OIDC 腿的控制台消费落地（T-260）——Set Me Up 对话框对 SSO 用户走 IdP 重认证并自动续铸（见「SSO 用户 CLI 铸 Token 的路径」）。",
   "source": "@site/../docs/user/admin/token-step-up.md",
   "sourceDirName": "admin",
   "slug": "/admin/token-step-up",

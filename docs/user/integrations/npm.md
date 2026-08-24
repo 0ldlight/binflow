@@ -5,7 +5,7 @@ sidebar_position: 21
 
 # npm 接入
 
-> 适用版本：M3（publish/packument/dist-tags/unpublish/login + remote/virtual；PRD milestone-3 v1.2）；**M8 起发布权限语义更新**（见「发布权限语义」节——npm CLI 连发多版本实测 npm 10.9.8 / node 22，T-249）。
+> 适用版本：M3（publish/packument/dist-tags/unpublish/login + remote/virtual；PRD milestone-3 v1.2）；**M8 起发布权限语义更新**（见「发布权限语义」节——npm CLI 连发多版本实测 npm 10.9.8 / node 22，T-249）；**M9 复核**：复制引擎同口径钉死（T-262——目标凭据 `read`+`write` 即可，见该节末）。
 > 本文核心链在 M3 QA 基线（commit `0f86229`，T-74/T-76 验收产物）上复跑：`.npmrc`（registry 限定 `_auth` 形态）publish、缓存清空重装、whoami 均退出码 0（复跑记录见 `reports/agents/T-77.md`）；scoped/dist-tag/unpublish/remote 代理/virtual 聚合取自 T-74/T-76 验收记录。客户端锚定 npm 10.x（10.9.8 实测，node 22）。
 
 把 BinFlow 当作私有 npm registry：`.npmrc` 一处配置，`npm publish` 发内部包、`npm install` 装内部与上游包——registry 协议按 npm 官方规范实现，scoped 包、dist-tag、unpublish 开箱可用。
@@ -117,6 +117,8 @@ CI 账号的 permission target 该授什么？按操作分臂（T-249 转换感�
 | 重发同版本（tarball 已存在，内容无论改没改） | **无条件 403**（有 delete 也拒） | `Cannot modify pre-existing version '<v>'`——版本不可变 |
 
 **给 CI 发布仓配权的最短答案**：`read` + `write` 即可满足日常连发（`npm publish` 任意多版本 + dist-tag）；仅当流程需要 `npm deprecate` 或改写已发布版本元数据时才补 `delete`。
+
+**复制引擎同口径（M9 钉死）**：`push_npm` 复制对目标仓的写只有两种形态——「目标所缺版本的**单版本发布文档**」与「单 tag 的 dist-tag PUT」，**从不整包覆写** packument。因此上表对复制目标侧 principal 同样成立：**`read` + `write` 即可承载镜像同步，无需 `delete`**（T-262 全栈实测：write-only 凭据全新包/追加版本双绿，同版本不同数据走 first-write-wins 目标幸存，竞态对撞落 403 终态）。给复制任务配凭据时照 CI 口径配即可。
 
 > 历史注记：M8 之前包的第二个版本发布会误命中「覆写需 DELETE」臂（T-247 在真实 Jenkins 流水线发现）——M8 的 T-249 修复后按上表语义执行。若你的实例仍是旧版本，CI 退避方案是给 principal 补 `delete`（对制品不可变面无实际风险：tarball 层的同版本重发仍无条件 403）。
 

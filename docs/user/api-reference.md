@@ -5,7 +5,7 @@ sidebar_position: 70
 
 # API 参考
 
-> 适用版本：M1~M7（端点引入里程碑标注于各表；M7 增补：用户角色字段 `adminRole`、permission target 动作 `manage`、docker 上传状态腿跨重启、token 铸造 step-up 可选门）。Artifactory 兼容端点基于 REST 逆向规格 `docs/reverse/rest-api.md`（置信度高）。
+> 适用版本：M1~M9（端点引入里程碑标注于各表；M7 增补：用户角色字段 `adminRole`、permission target 动作 `manage`、docker 上传状态腿跨重启、token 铸造 step-up 可选门；**M9 增补**：usage 批量端点、users 列表加宽/enabled 回显/DELETE、groups `?includeUsers`、permissions `?filter=manage`——速览见[下文](#m9-增补速览)）。Artifactory 兼容端点基于 REST 逆向规格 `docs/reverse/rest-api.md`（置信度高）。
 > BinFlow 自有端点以 `/api/v1` 前缀标记。
 
 BinFlow 的 API 分为两个面：
@@ -91,22 +91,23 @@ BinFlow 的 API 分为两个面：
 
 | 方法 | 路径 | 语义 | 里程碑 |
 |---|---|---|---|
-| GET | `/binflow/api/security/users` | 用户列表（简洁形态） | M1 |
-| GET | `/binflow/api/security/users/{name}` | 用户详情（无口令字段；M7 起回显 `adminRole`） | M1 |
+| GET | `/binflow/api/security/users` | 用户列表（**M9 加宽**：条目增 `email`/`adminRole`/`enabled`/`groups`〔恒渲染，空组 `[]`〕，一次请求含全部列表所需字段） | M1 |
+| GET | `/binflow/api/security/users/{name}` | 用户详情（无口令字段；M7 起回显 `adminRole`，**M9 起恒回显 `enabled`**） | M1 |
 | PUT | `/binflow/api/security/users/{name}` | 创建或替换用户（create-or-replace，两态 201；M7 起 body 可含 `adminRole`，仅 admin 可写） | M1 |
-| POST | `/binflow/api/security/users/{name}` | 部分更新用户（email/password/admin/groups/adminRole） | M4 |
+| POST | `/binflow/api/security/users/{name}` | 部分更新用户（email/password/admin/groups/adminRole/enabled——`enabled` 为指针语义，显式 `false` 禁用登录） | M4 |
+| DELETE | `/binflow/api/security/users/{name}` | **删除用户**（M9：三护栏 400、同事务级联、200 纯文本；重复删除**确定性 404**——见[M9 增补速览](#m9-增补速览)） | M9 |
 | PUT | `/binflow/api/security/password` | 当前用户改密 | M1 |
 | POST | `/binflow/api/security/users/authorization/changePassword` | 别名改密端点 | M4 |
 | GET | `/binflow/api/security/groups` | 组列表 | M4 |
-| GET | `/binflow/api/security/groups/{name}` | 组详情 | M4 |
+| GET | `/binflow/api/security/groups/{name}` | 组详情（**M9 增 `?includeUsers=true`**：响应附 `userNames: []`；字面 `true` 才开，其余拼法回无参形态；groups 列表端点不加宽） | M4 |
 | PUT | `/binflow/api/security/groups/{name}` | 创建或更新组（创建 201 / 更新 200） | M4 |
 | POST | `/binflow/api/security/groups/{name}` | 改描述 | M4 |
 | DELETE | `/binflow/api/security/groups/{name}` | 删组（被 target 引用 → 409） | M4 |
 | POST | `/binflow/api/security/token` | 签发 Access Token（admin 为任意用户签发；非 admin 限本人——M6 起；M7 起实例可开 step-up 二次认证，见 [step-up 指南](admin/token-step-up.md)） | M1 |
 | POST | `/binflow/api/security/token/revoke` | 吊销 Token（admin only） | M1 |
 | POST | `/binflow/api/v1/permissions` | 创建 Permission Target（create-or-replace；M7 起动作集含 `manage`，manage 持有者可编辑覆盖集内的 target） | M1 |
-| GET | `/binflow/api/v1/permissions` | 列出 Permission Targets（M7 起 principals 回显 `manage` 位） | M4 |
-| DELETE | `/binflow/api/v1/permissions/{name}` | 删除 Permission Target | M1 |
+| GET | `/binflow/api/v1/permissions` | 列出 Permission Targets（M7 起 principals 回显 `manage` 位；**M9 增 `?filter=manage`**：manage 持有者可达的覆盖集内 target 子集——admin/readonly_admin 带参与无参响应逐字节一致；未知 filter 值 400） | M4 |
+| DELETE | `/binflow/api/v1/permissions/{name}` | 删除 Permission Target（**204** 无 body；被删 target 的 repo 集取自存量行，manage 覆盖越界 → 403） | M1 |
 
 ### SR: 搜索域
 
@@ -136,6 +137,7 @@ BinFlow 的 API 分为两个面：
 | GET | `/binflow/api/v1/health` | 健康面板（admin / readonly_admin） | M1 |
 | GET | `/binflow/api/v1/storage/stats` | 全实例存储统计（admin / readonly_admin） | M1 |
 | GET | `/binflow/api/v1/storage/usage/{repo}` | 单仓配额用量（admin / readonly_admin / 对该仓有 `read` **或** `manage` 授权者——M7 起 manage ∨-臂） | M4 |
+| GET | `/binflow/api/v1/storage/usage` | **批量用量**（M9：bare array，行形与单仓同构；按调用者可见集过滤；`?repos=` 点名、`?include=counts` 附 `nodeCount`/`updatedAt`——见[M9 增补速览](#m9-增补速览)） | M9 |
 | GET | `/binflow/api/v1/audit` | 审计日志查询（admin / readonly_admin） | M4 |
 | POST | `/binflow/api/v1/system/gc` | 触发 GC（admin only；readonly_admin 403 **含 dry-run**） | M4 |
 
@@ -158,6 +160,66 @@ BinFlow 的 API 分为两个面：
 
 ---
 
+## M9 增补速览
+
+六条 M9 端点/加宽的关键 wire 事实（全部在 HEAD 构建的 scratch 实例上 curl 实测，2026-08-25）：
+
+### E1 · `GET /api/v1/storage/usage`（usage 批量）
+
+- **bare array**（无信封、无分页；空可见集 `200 []` 恒非 null）；行形与单仓端点逐字段同构：`{"repo","usedBytes","quotaBytes"}`。
+- **可见集**：admin / readonly_admin 全量；普通 user = 对该仓有 `read` **或** `manage` 的子集（与单仓端点同一 ∨-臂）；匿名 401。点名未知名的仓与点名无权限的仓**同形静默缺失**（无存在性信号）。
+
+```bash
+curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/storage/usage
+# [{"repo":"g-local","usedBytes":10,"quotaBytes":0}, ...]
+
+curl -su admin:$ADMIN_PW "$BASE/binflow/api/v1/storage/usage?repos=g-local,no-such"   # 未知名静默缺失
+# [{"repo":"g-local","usedBytes":10,"quotaBytes":0}]
+
+curl -su admin:$ADMIN_PW "$BASE/binflow/api/v1/storage/usage?include=counts"
+# 行增 {"nodeCount":1,"updatedAt":"2026-08-24T20:37:26Z"}
+#   nodeCount 只计文件 node；updatedAt = 仓库配置变更时刻（非「最新制品时间」）
+
+curl -su admin:$ADMIN_PW "$BASE/binflow/api/v1/storage/usage?include=bogus"          # 未知值显式拒绝
+# 400 {"errors":[{"status":400,"message":"include must be \"counts\" (unknown include value: \"bogus\")"}]}
+```
+
+### E2/E3 · users 列表加宽与 `enabled` 回显
+
+- 列表条目从 `{name,uri,realm,source}` 加宽为 `{name,uri,realm,source,email,adminRole,enabled,groups}`——`enabled`/`groups` 恒渲染（空组 `[]` 非 null）；控制台用户页由此单请求成表（M8 期 21 请求扇出退役）。
+- 单查端点 `GET /api/security/users/{name}` 增 `enabled: bool` 恒渲染（DB 行事实）。写侧：`POST /api/security/users/{name}` body `{"enabled":false}` 禁用（禁用后该用户登录/既有会话 401），`{"enabled":true}` 复启——显式传值才生效，缺省不动。
+
+### E4 · `DELETE /api/security/users/{name}`（删除用户）
+
+**admin only**（`CapSecurityWrite`；非 admin 403、匿名 401）。成功 **200 纯文本**（`The user: '<name>' has been removed successfully.`），四道护栏全 **400 纯文本**，检查序固定：
+
+| 序 | 护栏 | 响应（逐字） |
+|---|---|---|
+| 1 | 目标不存在 | **404** `User not found`（文本体，与 GET 单用户同形——注意不是 Artifactory 的无 body 404） |
+| 2 | 内置 `admin` | 400 `Cannot delete the built-in admin user.` |
+| 3 | 最后一个 admin | 400 `Cannot delete user '<name>'. There must be at least one user configured with admin privileges.` |
+| 4 | 自删 | 400 `Cannot delete the current authenticated user.` |
+
+- **级联（同事务）**：剥该用户在全部 permission target 的授权行（ACE）→ 删用户行 → FK 级联清组员关系、**吊销全部 token 与 web session**（已持有的 Bearer 即刻 401，实测）；审计历史保留。与组删除的 409 保护是**有意不对称**：组是多成员策略对象（静默剥夺全员授权 → 拒绝），用户是单主体（级联即删除意图本身）。
+- **重复删除 = 确定性 404（有意非幂等）**：删除成功后同一请求再发得 404 `User not found` 文本体——不是 Artifactory「吞 404 视为成功」的幂等形态（那是其并发窗口产物）。调用方应把第二次 404 理解为「对象已被删」，不要重试。
+- 审计：成功删除落 `user.delete`（detail 含 `user`）；**护栏拒绝不落审计**。
+- 控制台对应面（M9）：列表行 + 编辑页危险区双入口，**输入用户名强确认**——见[控制台指南](console.md#用户与权限adminsecurity)。
+
+### E5 · `GET /api/security/groups/{name}?includeUsers=true`
+
+- 带参（字面 `true`，大小写敏感）：三字段之上附 `userNames: []string`（空组 `[]` 恒非 null）；其余拼法（`false`/`junk`/`TRUE`）回无参三字段形态 200，**不发明 400**。未知组带参 → 404 `Group not found`（与无参同文案）。
+- `GET /api/security/groups` **列表不加宽**（K19 定案）：成员汇总的单一事实源是 user_groups 行 → users 列表 `groups[]` 投影（客户端过滤）+ 本参数按需取单组。
+
+### E6 · `GET /api/v1/permissions?filter=manage`
+
+- **无 filter：行为字节不变**（admin/readonly_admin 全量；其余含 manage 持有者一律 403 `administrator privileges required`）。
+- `filter=manage` 三臂：admin/readonly_admin → 全量（与无参响应**逐字节一致**，实测 diff 为空）；manage 持有者且覆盖集非空 → 仅 `repos ⊆ 覆盖集` 的 target（条目字段与全量一致；**部分覆盖的 target 隐藏**）；覆盖集为空 → 403（与无参门同形同字节）。`?filter=`（空值）= 无 ask；未知值 → **400 errors[] 信封**（`filter must be "manage" (unknown filter value: "bogus")`）。
+- 用途：仓库级管理员（manage 持有者）经此端点在控制台可达权限编辑器——见 [RBAC 指南](admin/rbac-roles.md#manage-能做什么--不能做什么)。
+
+---
+
+---
+
 ## `/api/v1` 自有端点
 
 BinFlow 在 Artifactory 兼容端点之外增加了一批自有端点（以 `/api/v1` 前缀标记），实现差异化能力：
@@ -167,10 +229,11 @@ BinFlow 在 Artifactory 兼容端点之外增加了一批自有端点（以 `/ap
 | `/binflow/api/v1/health` | GET | 实例健康详情（admin / readonly_admin） |
 | `/binflow/api/v1/storage/stats` | GET | 全实例 blob/字节统计（admin / readonly_admin） |
 | `/binflow/api/v1/storage/usage/{repo}` | GET | 单仓配额用量（admin / readonly_admin / 该仓 read 或 manage 授权者） |
+| `/binflow/api/v1/storage/usage` | GET | 批量配额用量（M9：可见集过滤的 bare array，替代逐仓 N 次轮询） |
 | `/binflow/api/v1/audit` | GET | 审计日志查询（admin / readonly_admin） |
 | `/binflow/api/v1/system/gc` | POST | 触发 GC（同步执行，dry-run/apply；admin only） |
-| `/binflow/api/v1/session` | POST/GET/DELETE | 控制台会话管理（whoami/登录回显 `adminRole`） |
-| `/binflow/api/v1/permissions` | POST/GET/DELETE | Permission Target CRUD（动作集 r/w/d/manage） |
+| `/binflow/api/v1/session` | POST/GET/DELETE | 控制台会话管理（whoami/登录回显 `adminRole` 与 `source`） |
+| `/binflow/api/v1/permissions` | POST/GET/DELETE | Permission Target CRUD（动作集 r/w/d/manage；GET 带 `?filter=manage` 时 manage 持有者可达覆盖集内子集——M9） |
 
 ---
 
@@ -333,6 +396,9 @@ HTTP/1.1 409 Conflict
 Content-Type: text/plain; charset=utf-8
 
 Cannot delete group 'devs': it is referenced by permission target(s): devs-rw, jane-rd. Remove the group from those targets first.
+
+# M9 起：DELETE /api/security/users/{name} 同属纯文本家族
+# 成功 200 / 护栏 400 / 不存在 404（文本体「User not found」）——全部文案逐字见「M9 增补速览」E4
 ```
 
 ### 3. OAuth 风格错误（Token 端点和 docker 域）
