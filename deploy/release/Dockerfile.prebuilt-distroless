@@ -1,0 +1,45 @@
+# BinFlow GA release image — distroless variant, PREBUILT binary injection
+# (T-270, FR-83-AC2 / M9 Q6; runtime base per ADR-0017 K2: static-debian13).
+#
+# Same prebuilt contract as Dockerfile.prebuilt-alpine: goreleaser's
+# linux/<arch> binflow-server injected verbatim, ZERO RUN instructions in
+# the runtime stage, per-arch base resolved by digest so the plain
+# `docker build` path is platform-correct without buildx/qemu. The
+# HEALTHCHECK agent is deploy/release/healthcheck-probe (cross-compiled per
+# arch by the script) because distroless ships no shell and no wget.
+#
+# Build context (staged by deploy/release/build-release.sh):
+#   binflow-server     goreleaser binary for the TARGET arch
+#   healthcheck-probe  the /readyz probe binary for the TARGET arch
+#   rootfs/var/lib/binflow/  data dir placeholder (ownership via --chown)
+#
+#   docker build -f Dockerfile.prebuilt-distroless \
+#     --build-arg DISTROLESS_BASE=<ref>@sha256:<target-arch-manifest-digest> \
+#     -t binflow:<VER>-distroless-<arch> <ctx>
+#
+# DISTROLESS_BASE defaults to the DaoCloud mirror of
+# gcr.io/distroless/static-debian13:nonroot (gcr.io is unreachable from the
+# build environments in play); override with the gcr.io ref on open networks.
+
+ARG DISTROLESS_BASE=gcr.m.daocloud.io/distroless/static-debian13:nonroot
+FROM ${DISTROLESS_BASE}
+
+# Distroless nonroot already carries the CA bundle; the data dir must exist
+# with nonroot (65532) ownership — anonymous volumes copy it at create time.
+COPY --chown=65532:65532 rootfs/var/lib/binflow/ /var/lib/binflow/
+
+ENV BINFLOW_DATA_DIR=/var/lib/binflow
+
+COPY binflow-server /usr/local/bin/binflow-server
+COPY healthcheck-probe /usr/local/bin/healthcheck-probe
+
+USER nonroot:nonroot
+
+EXPOSE 8080
+VOLUME /var/lib/binflow
+
+HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=5 \
+  CMD ["/usr/local/bin/healthcheck-probe"]
+
+ENTRYPOINT ["/usr/local/bin/binflow-server"]
+CMD ["serve"]

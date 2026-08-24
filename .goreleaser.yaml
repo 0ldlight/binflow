@@ -1,5 +1,10 @@
 # BinFlow release pipeline (T-127, FR-34 / PB-01 / PB-02).
 #
+# T-270 (FR-83-AC2 / M9 Q6): the linux/amd64 + linux/arm64 archives this
+# config produces are ALSO the multi-arch Docker release chain's binary
+# source — deploy/release/build-release.sh injects them verbatim into
+# zero-RUN per-arch images (no qemu anywhere; see deploy/release/).
+#
 # Driven exclusively through the Makefile (single entrypoint):
 #   make release-snapshot   six-platform snapshot build + checksums (CI face)
 #   make release            final-form local archive (pre-release rehearsal)

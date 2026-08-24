@@ -1,0 +1,28 @@
+# BinFlow release chain — native assets stage (T-270, FR-83-AC2 / M9 Q6).
+#
+# The multi-arch release images assemble WITHOUT emulation: goreleaser
+# cross-compiles the per-arch binflow-server on the build host
+# (.goreleaser.yaml, CGO_ENABLED=0) and only arch-INDEPENDENT runtime assets
+# (CA bundle, tzdata, passwd/group entries) are produced inside Docker —
+# always for the BUILD HOST's native platform, so the RUN below never needs
+# qemu/binfmt handlers (verified on the 2C CI VM: docker 29 legacy builder,
+# no buildx plugin, empty binfmt_misc).
+#
+# deploy/release/build-release.sh materializes these files into each
+# per-arch build context via `docker create` + `docker cp`; the per-arch
+# Dockerfiles (Dockerfile.prebuilt-alpine / -distroless) then COPY them in
+# with zero RUN instructions.
+#
+# Build args:
+#   ALPINE_SRC  base image ref. Defaults to the DaoCloud mirror of
+#               docker.io/library/alpine:3.24 because the build environments
+#               in play cannot reach registry-1.docker.io directly; override
+#               with plain alpine:3.24 on unrestricted networks.
+#   APK_MIRROR  apk repository mirror hostname (e.g. the CI VM needs
+#               mirrors.tuna.tsinghua.edu.cn). Empty = default dl-cdn.
+
+ARG ALPINE_SRC=docker.m.daocloud.io/library/alpine:3.24
+FROM ${ALPINE_SRC}
+ARG APK_MIRROR=
+RUN if [ -n "$APK_MIRROR" ]; then sed -i "s|dl-cdn.alpinelinux.org|${APK_MIRROR}|g" /etc/apk/repositories; fi \
+ && apk add --no-cache ca-certificates tzdata

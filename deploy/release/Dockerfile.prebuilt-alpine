@@ -1,0 +1,62 @@
+# BinFlow GA release image — alpine variant, PREBUILT binary injection
+# (T-270, FR-83-AC2 / M9 Q6 final ruling).
+#
+# Unlike Dockerfile.alpine (the T-132 full-source buildx chain: console/docs/
+# Go stages compiled INSIDE Docker, arm64 requires qemu), this image consumes
+# the goreleaser linux/<arch> binflow-server verbatim. The runtime stage has
+# ZERO RUN instructions, so an arm64 image assembles on an amd64-only host
+# with no buildx, no qemu, no binfmt_misc (the 2C CI VM builds it with the
+# docker 29 legacy builder).
+#
+# Build context (staged by deploy/release/build-release.sh):
+#   binflow-server   goreleaser binary for the TARGET arch
+#   rootfs/etc/...   arch-independent assets from Dockerfile.assets
+#                    (passwd/group with the binflow user, CA bundle, tzdata)
+#   rootfs/var/lib/binflow/, rootfs/etc/binflow/
+#                    data + config dirs (ownership via COPY --chown)
+#
+# Build (the script resolves the per-arch base digest; digest-pinning is what
+# makes the plain `docker build` path platform-correct without --platform):
+#
+#   docker build -f Dockerfile.prebuilt-alpine \
+#     --build-arg ALPINE_BASE=<alpine-ref>@sha256:<target-arch-manifest-digest> \
+#     -t binflow:<VER>-alpine-<arch> <ctx>
+#
+# ALPINE_BASE defaults to the plain multi-arch tag for humans running the
+# Dockerfile by hand with buildx; the script always pins a digest.
+
+ARG ALPINE_BASE=docker.m.daocloud.io/library/alpine:3.24
+FROM ${ALPINE_BASE}
+
+# passwd/group REPLACE the base's own (same base family + the binflow user
+# appended by the script), so USER names resolve at run time.
+COPY rootfs/etc/passwd /etc/passwd
+COPY rootfs/etc/group /etc/group
+
+# Outbound TLS (M3 remote repos) and honest timestamps — arch-independent
+# data files lifted from the native assets image.
+COPY rootfs/etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY rootfs/usr/share/zoneinfo/ /usr/share/zoneinfo/
+
+# Data + config drop dirs, owned by the runtime user (10001) so the server
+# can write its data dir on anonymous volumes / fresh mounts.
+COPY --chown=10001:10001 rootfs/var/lib/binflow/ /var/lib/binflow/
+COPY --chown=10001:10001 rootfs/etc/binflow/ /etc/binflow/
+
+ENV BINFLOW_DATA_DIR=/var/lib/binflow
+
+COPY binflow-server /usr/local/bin/binflow-server
+
+USER binflow:binflow
+
+EXPOSE 8080
+VOLUME /var/lib/binflow
+
+# HEALTHCHECK on the unauthenticated /readyz (busybox wget ships with the
+# alpine base). On a non-arm64 host without qemu the arm64 image cannot run
+# at all — the check only fires for containers that actually start.
+HEALTHCHECK --interval=10s --timeout=3s --start-period=5s --retries=5 \
+  CMD wget -q -O /dev/null http://127.0.0.1:8080/readyz || exit 1
+
+ENTRYPOINT ["/usr/local/bin/binflow-server"]
+CMD ["serve"]
