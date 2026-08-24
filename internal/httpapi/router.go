@@ -435,7 +435,18 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	case rest == "v1/permissions" && r.Method == http.MethodPost:
 		s.enforce(w, r, routeAuth{required: true}, s.handlePermissionCreate)
 	case rest == "v1/permissions" && r.Method == http.MethodGet:
-		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityRead}, s.handlePermissionList)
+		// E6 (M9, T-254, ADR-0030 / architecture 14.1.6): the filter arm's
+		// gate is QUERY-dependent (CapSecurityRead full list ∨ non-empty
+		// manage coverage filtered subset ∨ empty coverage the same 403),
+		// so it is evaluated inside the handler — the write verbs' pattern
+		// one section up. The route split is itself the only dispatch
+		// change: a request without a non-empty filter value keeps the
+		// frozen route and handler verbatim, byte for byte.
+		if permissionManageFilterPresent(r) {
+			s.enforce(w, r, routeAuth{required: true}, s.handlePermissionListManage)
+		} else {
+			s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityRead}, s.handlePermissionList)
+		}
 	case strings.HasPrefix(rest, "v1/permissions/") && r.Method == http.MethodDelete:
 		s.enforce(w, r, routeAuth{required: true},
 			s.withName(rest, "v1/permissions/", s.handlePermissionDelete))

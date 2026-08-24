@@ -194,6 +194,25 @@ func (a permissionStoreAdapter) PrincipalsFor(ctx context.Context, repoKey strin
 	return out, nil
 }
 
+// Principals implements coverageRowsSource (M9 E9, T-254): the unkeyed
+// all-rows read ManageCoverage walks, one store-backed facet method.
+func (a permissionStoreAdapter) Principals(ctx context.Context) ([]PermissionRow, error) {
+	ps, err := a.s.Principals(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]PermissionRow, len(ps))
+	for i, p := range ps {
+		out[i] = PermissionRow{
+			ID: p.ID, TargetName: p.TargetName, Principal: p.Principal,
+			PrincipalType: p.PrincipalType,
+			CanRead:       p.CanRead, CanWrite: p.CanWrite, CanDelete: p.CanDelete,
+			CanManage: p.CanManage,
+		}
+	}
+	return out, nil
+}
+
 // isNotFound reports whether err wraps want (sentinel from metadata).
 func isNotFound(err, want error) bool { return errors.Is(err, want) }
 

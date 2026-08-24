@@ -20,7 +20,10 @@
 
 package auth
 
-import "context"
+import (
+	"context"
+	"log/slog"
+)
 
 // Role is the closed set of system roles (users.role, migration 011). The
 // closed set is code constants, not DB rows — adding a role is an
@@ -203,6 +206,100 @@ func (s *Service) CanManageRepo(ctx context.Context, p *Principal, repoKey strin
 type ManagementAuthorizer interface {
 	CanManage(ctx context.Context, p *Principal, capability ManagementCapability) bool
 	CanManageRepo(ctx context.Context, p *Principal, repoKey string, write bool) bool
+}
+
+// coverageRowsSource is the optional full-rows facet of the permission
+// source (M9 E9, T-254): every principal row of every target in one call,
+// the shape ManageCoverage's single-pass evaluation needs. It rides a type
+// assertion like every other optional facet so permissionSource's existing
+// implementations (unit fakes predating the seam) keep compiling; a source
+// without the facet simply cannot answer coverage questions and
+// ManageCoverage denies.
+type coverageRowsSource interface {
+	Principals(ctx context.Context) ([]PermissionRow, error)
+}
+
+// ManageCoverage answers "which repositories does this principal hold the
+// manage bit on" — E9's single decision point (M9, ADR-0030 / architecture
+// section 14.1.9): E6's filter branch and the family-4 write arms both ride
+// this function, so the read arm and the write arms can never disagree on
+// what a holder covers. The evaluation is the EffectiveRole-family union:
+// for every permission target carrying a can_manage row that addresses the
+// principal — its own user row (case-insensitive name, Can's rule) or a
+// group row naming one of Principal.Groups (the SE-07 union) — the target's
+// whole repos list joins the set. Includes/excludes never participate:
+// manage has no path subdomain (ADR-0026 decision 3).
+//
+// The boolean is the UNIVERSE sentinel: an admin's coverage is unbounded —
+// the role bypass grants m on every repository, present and future, which
+// no enumerable set can express — so the map is nil whenever the boolean is
+// true and callers must treat that combination as "covers everything" (a
+// subset test against a nil map alone would deny an admin, the footgun the
+// sentinel exists to prevent). readonly_admin holds no manage bit anywhere
+// (Can denies m for the role), so its coverage is the empty, non-universe
+// set — CanManageRepo's write arm denies it exactly the same way.
+//
+// Failure posture mirrors Can: store errors log and deny — the empty,
+// non-universe set — because a broken permission table must never widen
+// access. The cost is O(targets+rows) over exactly two store reads per
+// call; the caching seam is deliberately left unimplemented (section
+// 14.1.9's budget: a thousand-row instance evaluates fine, once per
+// request).
+func (s *Service) ManageCoverage(ctx context.Context, p *Principal) (map[string]struct{}, bool) {
+	if p == nil {
+		// Uniform with every other non-universe answer: a usable (empty)
+		// set, never nil — only the universe sentinel nils the map.
+		return map[string]struct{}{}, false
+	}
+	switch p.EffectiveRole() {
+	case RoleAdmin:
+		return nil, true
+	case RoleReadOnlyAdmin:
+		return map[string]struct{}{}, false
+	}
+	src, ok := s.permissions.(coverageRowsSource)
+	if !ok {
+		slog.ErrorContext(ctx, "auth: permission source lacks the rows facet, denying manage coverage",
+			slog.String("user", p.Name))
+		return map[string]struct{}{}, false
+	}
+	rows, err := src.Principals(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "auth: manage coverage rows failed, denying",
+			slog.String("user", p.Name), slog.String("error", err.Error()))
+		return map[string]struct{}{}, false
+	}
+	targets, err := s.permissions.ListTargets(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "auth: manage coverage target listing failed, denying",
+			slog.String("user", p.Name), slog.String("error", err.Error()))
+		return map[string]struct{}{}, false
+	}
+	// One pass over the rows: which targets carry m for THIS principal.
+	holdsManage := make(map[string]bool, len(rows))
+	for _, row := range rows {
+		if row.CanManage && rowCoversPrincipal(row, p) {
+			holdsManage[row.TargetName] = true
+		}
+	}
+	coverage := make(map[string]struct{})
+	for _, t := range targets {
+		if !holdsManage[t.Name] {
+			continue
+		}
+		repos, _, _, err := decodeTarget(t)
+		if err != nil {
+			// Malformed JSON columns skip the target (fail closed), Can's
+			// posture for the same rows.
+			slog.ErrorContext(ctx, "auth: malformed permission target, skipping",
+				slog.String("target", t.Name), slog.String("error", err.Error()))
+			continue
+		}
+		for _, repoKey := range repos {
+			coverage[repoKey] = struct{}{}
+		}
+	}
+	return coverage, false
 }
 
 // compile-time proof that the single decision point carries the facet.

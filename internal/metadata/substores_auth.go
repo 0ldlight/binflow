@@ -474,6 +474,37 @@ func (s *permissionStore) PrincipalsFor(ctx context.Context, repoKey string) ([]
 	return out, nil
 }
 
+// Principals implements PermissionStore.Principals (M9 E9, T-254): every
+// row of every target in one query, the same JOIN PrincipalsFor uses so an
+// orphaned row (target deleted out from under it — impossible through the
+// store's own transactions, reachable only by direct DB surgery) never
+// reaches auth's coverage walk.
+func (s *permissionStore) Principals(ctx context.Context) ([]*PermissionPrincipal, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT p.id, p.target_name, p.principal, p.principal_type, p.can_read, p.can_write, p.can_delete, p.can_manage
+		FROM permission_principals p
+		JOIN permission_targets t ON t.name = p.target_name
+		ORDER BY p.target_name, p.principal`)
+	if err != nil {
+		return nil, wrapExec("permission principals", "", err)
+	}
+	defer func() { _ = rows.Close() }()
+	var out []*PermissionPrincipal
+	for rows.Next() {
+		p := &PermissionPrincipal{}
+		var canRead, canWrite, canDelete, canManage int
+		if err := rows.Scan(&p.ID, &p.TargetName, &p.Principal, &p.PrincipalType, &canRead, &canWrite, &canDelete, &canManage); err != nil {
+			return nil, wrapExec("permission principals scan", "", err)
+		}
+		p.CanRead, p.CanWrite, p.CanDelete, p.CanManage = canRead != 0, canWrite != 0, canDelete != 0, canManage != 0
+		out = append(out, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, wrapExec("permission principals rows", "", err)
+	}
+	return out, nil
+}
+
 func escapeLike(s string) string {
 	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 	return r.Replace(s)

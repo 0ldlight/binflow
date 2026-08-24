@@ -502,6 +502,14 @@ type PermissionStore interface {
 	// PrincipalsFor returns every principal row of every target whose repos
 	// JSON array lists repoKey (auth evaluates patterns in memory).
 	PrincipalsFor(ctx context.Context, repoKey string) ([]*PermissionPrincipal, error)
+	// Principals returns every principal row of every target in ONE query
+	// (M9 E9, T-254): the unkeyed companion of PrincipalsFor. auth's
+	// ManageCoverage walks all targets without a repo key in hand, and the
+	// only alternative over the existing seams — PrincipalsFor per distinct
+	// repo — would scale the query count with the repository count (the
+	// N+1 the coverage evaluation is gated against). Rows whose target row
+	// disappeared are excluded by the same JOIN PrincipalsFor uses.
+	Principals(ctx context.Context) ([]*PermissionPrincipal, error)
 	// GroupReferences returns the names of every permission target carrying
 	// a group principal row for the named group (T-97, SE-04's delete
 	// guard): deleting a referenced group would silently strip its members
