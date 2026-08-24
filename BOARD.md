@@ -713,7 +713,12 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
   MembershipsByGroup 单语句 JOIN + ?includeUsers（userNames 恒渲染空=[]）+ **K19 纠偏**：groups 列表不加宽（派单笔误，agent 按 ADR 权威执行并测试钉死）。E2/E5 两视图十组交叉一致。日志 reports/agents/T-252.md。
 - **T-260** [P1] OIDC step-up 控制台腿 `role:dev-frontend` — **done 2026-08-24（armed 全链 4/4×3 轮零 flake + 服务端日志零 grant 明文 grep 自证 + 合并对清 161/0；conductor 复验 TS/build；提交 `1e9da1e`）**
   fragment 模块作用域消费（票面 AppShell 措辞已纠）/pending-mint/单次 grant/mock-idp.mjs（Docker-free）。漂移登记：authorize 路径笔误按真契约实现；§14.3-2 措辞回写建议；auth.oidc.* 子键 YAML-only 注记（文档）。日志 reports/agents/T-260.md。
-- **T-254** [P0] E9/E6 ManageCoverage + permissions ?filter=manage `role:dev-go-core` — **doing 2026-08-24（T-252 落地解锁即派；Q3 终裁路线：门不变+过滤分支；m-holder 可达性服务端前提）**
+- **T-254** [P0] E9/E6 ManageCoverage + permissions ?filter=manage `role:dev-go-core` — **done 2026-08-24（无 filter 字节级 golden 钉死 + 零泄露 grep + u9 session 可达性腿〔T-259 前提〕；conductor 复验；提交 `6bf486f`）——A 组六端点全齐**
+  派单两处口径差按权威契约纠正（§14.1.6 全字段 vs「name 轻量」；§14.1.9 签名）。族 4 写臂收敛至 seam（2N→2）。日志 reports/agents/T-254.md。
+
+#### M9 UI 消费波（在途）
+- **T-257** [P0] users/groups 页消费（N+1 退役 + Status 真值 + 删除面 + 词表） `role:dev-frontend` — **doing 2026-08-24**
+- **T-258** [P0] repos 已用列单请求注水（≤3 请求硬断言） `role:dev-frontend` — **doing 2026-08-24**
 - **T-273** [P2] last-admin census 折入事务 — todo（M9 尾批）
 - **B2**：T-251 [P0] E2/E3/E4 users 域端点（加宽+enabled 回显+DELETE 全链护栏级联）｜ T-253 [P0] E1 usage 批量端点
 - **B3**：T-252 [P0] E5 组成员 ?includeUsers ｜ T-256 [P0] GC 接线收口（五路径 ReleaseGCHold+serve.lock+压力 spec 进 CI——**顺序硬规则：先于 T-268**）
