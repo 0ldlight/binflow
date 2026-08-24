@@ -728,7 +728,8 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
   遗留：BASE 端口探针归 T-268 顺带；.status-pill 82% 微差未来收敛。日志 reports/agents/T-266.md。
 
 #### M9 B9（在途——收官前倒数第二波）
-- **T-267** [P1] 锚册口径统一 + 死锚 112 退役 `role:ux-designer` — **doing 2026-08-25（audit 单一权威化 + 终态断言 unregistered=0/broken=0）**
+- **T-267** [P1] 锚册口径统一 + 死锚退役 `role:ux-designer` — **done 2026-08-25（§10.6 单一权威 + --ledger 四断言 PASS 双零；100 死家族退役/1 自消费保留；conductor 代跑验证咬出两潜伏 parser 缺陷并修〔角括号截断盲区 + A3 基名归一〕；提交 `3295181`）**
+  「无 shell 交棒 + conductor 代跑」模式首次实战。112 手抄值证伪（实 100）。日志 reports/agents/T-267.md。
 - **T-268** [P0] e2e 默认并发恢复 `role:devops-engineer` — **doing 2026-08-25（AC3：≥4 workers 连续 3 轮全绿 + BASE 探针顺带 + theme-smoke 预算复测）**
 - **T-263** [P1] 旧路由 redirect 全量移除 `role:dev-frontend` — **done 2026-08-24（19 条 404 断言 + 17 spec 80 处 goto 同票携带 + 全量 R3 168/0；提交 `848f822`）**
   Q3 终裁执行完毕。遗留：docs-site 重建归 T-271；theme-smoke axe 30s 脆弱性归 T-268 预算评估；设计规格措辞回写归 architect 触点。日志 reports/agents/T-263.md。
