@@ -468,6 +468,13 @@ func (f *fakeService) Usage(_ context.Context, _ *Principal, _ string) (*repo.Us
 	return nil, errUnimplementedFake
 }
 
+// UsageBatch is the E1 batch twin of the stub above (T-253): the docker
+// blob plane never touches the usage views, so the fake keeps answering
+// errUnimplementedFake — it exists only to satisfy the widened interface.
+func (f *fakeService) UsageBatch(_ context.Context, _ *Principal, _ repo.UsageBatchQuery) ([]*repo.UsageBatchReport, error) {
+	return nil, errUnimplementedFake
+}
+
 var errUnimplementedFake = fmt.Errorf("unimplemented in the blob-domain fake")
 
 // newBlobHarness assembles the handler with the real storage engine (the

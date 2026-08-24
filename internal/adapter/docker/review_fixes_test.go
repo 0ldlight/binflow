@@ -382,6 +382,12 @@ func (s *countingGetService) Usage(ctx context.Context, p *Principal, repoKey st
 	return s.inner.Usage(ctx, p, repoKey)
 }
 
+// UsageBatch delegates like the rest (the T-253/E1 interface addition's
+// test-only ripple on this wrapper — the same shape as Usage above).
+func (s *countingGetService) UsageBatch(ctx context.Context, p *Principal, q repo.UsageBatchQuery) ([]*repo.UsageBatchReport, error) {
+	return s.inner.UsageBatch(ctx, p, q)
+}
+
 // ---- B4: registration failure renders 5xx, retry heals ----
 
 // TestRegistrationFailureIs5xx (review B4): when Commit succeeds but the

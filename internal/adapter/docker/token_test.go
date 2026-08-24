@@ -110,6 +110,16 @@ func (f *fakeUsers) SetEnabled(_ context.Context, _ string, _ bool) error { retu
 // forgets.
 func (f *fakeUsers) SetRole(_ context.Context, _ string, _ string) error { return nil }
 
+// DeleteCascade is the E4 widening stub (mechanical wave through the
+// package's UserStore fake, T-251 compile fix — same posture as SetRole in
+// T-212): the token flow never deletes accounts. It mirrors the fake's own
+// Delete (drop the row, report success) so the fake's one semantic — rows
+// reflect the seed — survives the widened interface.
+func (f *fakeUsers) DeleteCascade(_ context.Context, name string) error {
+	delete(f.rows, name)
+	return nil
+}
+
 func (f *fakeUsers) List(_ context.Context) ([]*metadata.User, error) { return nil, nil }
 
 func (f *fakeUsers) GetByPasswordHash(_ context.Context, _ string) (*metadata.User, error) {
