@@ -696,7 +696,9 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 ## M9 票据（T-250~T-272，tech-lead 2026-08-24 分解；AC 全文见 docs/prd/milestone-9.md）
 
 **批次（全宽 2）**：
-- **B1（在途）**：T-250 [P0] 守护基线与种子脚手架（RBAC 矩阵契约基线冻结+扇出种子+e2e/m9 骨架）devops ｜ T-255 [P0] GC 并发安全引擎层（hold set+GCMarker 三引擎，ADR-0031 A+B）dev-go-storage
+- **T-250** [P0] 守护基线与种子脚手架 `role:devops-engineer` — **done 2026-08-24（conductor 亲跑闸门 0 deviations；提交 `2ddd030`）**
+  57 格契约基线冻结（M8 尾态清档实测）+ 零登记白名单 + verdict A/B 双裁决（负向 ×4 证明咬合）+ seed-m9（50 仓/20 用户/10 组/4 覆盖集 fixture，幂等）+ e2e/m9 骨架（m9 项目段无双跑）。**M9 期常跑口径**：`make test-m7-rbac-matrix EXPECT=1`（偏离须白名单登记；改基线须先 ADR）。遗留：CI 接线随 T-272 裁量；种子无内容文件（T-253 需要时扩展）。日志 reports/agents/T-250.md。
+- **B1（余）**：T-255 [P0] GC 并发安全引擎层（hold set+GCMarker 三引擎，ADR-0031 A+B）dev-go-storage — **doing**
 - **B2**：T-251 [P0] E2/E3/E4 users 域端点（加宽+enabled 回显+DELETE 全链护栏级联）｜ T-253 [P0] E1 usage 批量端点
 - **B3**：T-252 [P0] E5 组成员 ?includeUsers ｜ T-256 [P0] GC 接线收口（五路径 ReleaseGCHold+serve.lock+压力 spec 进 CI——**顺序硬规则：先于 T-268**）
 - **B4**：T-254 [P0] E9/E6 ManageCoverage seam+permissions ?filter=manage ｜ T-257 [P0] users/groups 页消费（N+1 退役）
