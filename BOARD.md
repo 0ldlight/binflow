@@ -17,7 +17,7 @@
 
 ## 📥 待办（todo）
 
-> **M8 完结 · M9 规划落地**（2026-08-24）。M8 22 票全 done、DoD 八条全绿（零学习成本剧本 8/8、契约终审零违约、axe 52 扫全零、回归 150/0）；`m7-done`/`m8-done` 已随**用户常态 push 授权**（2026-08-24 起，记忆 `standing-push-authorization`）推送 origin。**M9 = 服务端补面与运营硬化**：23 票 T-250~T-272、12 批宽 2（配额纪律内建）；FR-78~83（用户组端点补全/扇出与 m-holder 可达/GC 竞态根治 P0/OIDC 控制台腿/债包/运营 chores）。conductor 终裁：Q2 自删拒删**纳入**（safety）+ K20 取 bare array + E7 repos 过滤延后 M10；Q3 过滤端点分支（CapSecurityRead 闭集零改动）；Q4 adminPrivileges 维持不做；Q5 replica 延后 M10；Q6 goreleaser 预编译双架构（arm64 qemu 不可行时 manifest 字段校验承载）。ADR-0030/0031 转 Accepted（`2dcab44` 同批）。**事故记录**：BOARD 两次同款 index 切片损坏（M7/M8 closure 各一，52/70/55MB 三巨 blob 入历史）——T-269 瘦身价值上升；此后 BOARD 编辑**仅限 Edit 工具唯一锚点**。用户实例 18080 = M8（~/binflow-local/）。
+> **M9 完结（closure）**（2026-08-25）。26 票全 done（23 规划 + 修复窗 T-274/T-275 + T-273 收编）；终验 **PASS**（首验 FAIL 抓 P0 锚误杀 → 修复窗 → 复验 DoD 八条全绿：e2e 176/0 默认并发 / lint 0 / ledger 六形态诚实 PASS / 契约审计 100% 归属 / F 池对账一致〔T-273 本里程碑修复〕）。**`m9-done` tag 已打并随常态授权推送双远端**。M10 候选池已录 ROADMAP（延后 3 + Q5/E7 + 票级遗留 17）。历史瘦身已执行（clone 70→8MB）。九个里程碑链 m1~m9 全交付。用户实例 18080 刷新到 M9 由 conductor 收官时执行。
 
 ### M7 票据（T-211~T-228，tech-lead 2026-08-23 分解；AC 全文见 docs/prd/milestone-7.md）
 
@@ -737,8 +737,12 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **T-271** [P1] M9 文档四项 `role:tech-writer` — **done 2026-08-25（四项全落 + 六端点速览 + T-273 运营提醒；HEAD 构建活体验证；提交 `fb31325`）——M9 全部实现票落地（22/23）**
   顺带修正 oidc-config env 例外清单漏项；复制管理专篇建议 M10。日志 reports/agents/T-271.md。
 
-#### M9 B12 终验（在途——最后一票）
-- **T-272** [P0] M9 终验 `role:qa-engineer` — **doing 2026-08-25（N01~N24 + 回归硬门槛 + 契约变更面审计 + F 池对账 + DoD 八条 + T-273 定夺建议）**
+#### M9 B12 终验 + 修复窗（全 done）
+- **T-272** [P0] M9 终验 `role:qa-engineer` — **done 2026-08-25（首验 FAIL→修复窗→复验 PASS；DoD 八条全绿；报告 `cf7e75b` + 终态节）**
+  首验抓 **DEFECT-1 [P0]**（T-267 锚误杀 19 活族——audit 正则盲区三环链）+ DEFECT-2（gosec）+ T-273 建议；复验红面逐门翻转（176/0、lint 0、ledger 诚实 PASS、repos-row 33/33 吻合）。日志 reports/agents/T-272-qa.md。
+- **T-274** [P0] 修复：19 族回填 + audit 六形态 `role:dev-frontend` — **done（`6f9673e`；引用计数对照自证 + repos-usage 漏网族补录 + §10.6 工具局限史条款）**
+- **T-275** [P1] 修复：gosec 真修 + census 折入事务 `role:dev-go-core` — **done（`af52fae`；受戒 DELETE + ErrLastAdmin + 并发双删红面双向；EXISTS 纠 review off-by-one）——T-273 同票收编**
+- **T-273** last-admin census — **done（随 T-275，F 池 #9 收口）**
 - **T-263** [P1] 旧路由 redirect 全量移除 `role:dev-frontend` — **done 2026-08-24（19 条 404 断言 + 17 spec 80 处 goto 同票携带 + 全量 R3 168/0；提交 `848f822`）**
   Q3 终裁执行完毕。遗留：docs-site 重建归 T-271；theme-smoke axe 30s 脆弱性归 T-268 预算评估；设计规格措辞回写归 architect 触点。日志 reports/agents/T-263.md。
 - **T-265** [P1] 树过滤复位 + 顶栏搜索框 `role:dev-frontend` — **done 2026-08-25（作用域语义论证 + 7 腿 spec + 约定环境全量 175/0；提交 `a9d623d`〔重写后 `8acbf6b`〕）**
