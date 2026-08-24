@@ -716,10 +716,12 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **T-254** [P0] E9/E6 ManageCoverage + permissions ?filter=manage `role:dev-go-core` — **done 2026-08-24（无 filter 字节级 golden 钉死 + 零泄露 grep + u9 session 可达性腿〔T-259 前提〕；conductor 复验；提交 `6bf486f`）——A 组六端点全齐**
   派单两处口径差按权威契约纠正（§14.1.6 全字段 vs「name 轻量」；§14.1.9 签名）。族 4 写臂收敛至 seam（2N→2）。日志 reports/agents/T-254.md。
 
-#### M9 UI 消费波（T-258 done；T-257 在途）
-- **T-258** [P0] repos 已用列注水 `role:dev-frontend` — **done 2026-08-24（冷首屏批量恰 1 + ≤3 硬断言白名单钉死 + 50 行对账 + ×5 轮零 flake；conductor 复验；提交 `a96ed17`）——扇出根治 UI 侧闭环**
-  四态 UsageCell（virtual 行如实 `—` 不伪造 0）；u8 L2 卡 + wire 恰 10 行。遗留：counts 升格实体列待 ux；计数器 idiom 收敛待 T-257 落定。日志 reports/agents/T-258.md。
-- **T-257** [P0] users/groups 页消费 `role:dev-frontend` — **doing（击落-复活后收尾验证段）**
+#### M9 UI 消费波（全 done）+ 债票穿插
+- **T-257** [P0] users/groups 页消费 `role:dev-frontend` — **done 2026-08-24（21→1 请求 + knownEnabled hack 退役 + 强确认删除面 + 6 腿×3 轮零 flake + m8 锚兼容自持 status-pill；conductor 复验；提交 `79a97f3`）**
+  E2 列表单源/E3 真值/E5 按需穿梭（选型论证）/governance 词表。有效口径 171/0/6。漂移登记：强确认升格（§4.6 回写队列）；无 Cache-Control 观察。日志 reports/agents/T-257.md。
+- **T-258** [P0] repos 已用列注水 — **done（冷首屏批量恰 1 + ≤3 硬断言 + 50 行对账；`a96ed17`）**——扇出根治双侧闭环。
+- **T-259** [P0] m-holder 编辑器可达 `role:dev-frontend` — **doing 2026-08-24（双前提齐即派；L2 卡对 m-holder 退役/user 保留）**
+- **T-261** [P1] npm packument 转义收敛 `role:dev-registry-adapter` — **doing 2026-08-24（deps 全绿债票穿插；第三份同构体收敛行为零变化）**
 - **T-273** [P2] last-admin census 折入事务 — todo（M9 尾批）
 - **B2**：T-251 [P0] E2/E3/E4 users 域端点（加宽+enabled 回显+DELETE 全链护栏级联）｜ T-253 [P0] E1 usage 批量端点
 - **B3**：T-252 [P0] E5 组成员 ?includeUsers ｜ T-256 [P0] GC 接线收口（五路径 ReleaseGCHold+serve.lock+压力 spec 进 CI——**顺序硬规则：先于 T-268**）
