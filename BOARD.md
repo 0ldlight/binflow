@@ -721,7 +721,9 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
   E2 列表单源/E3 真值/E5 按需穿梭（选型论证）/governance 词表。有效口径 171/0/6。漂移登记：强确认升格（§4.6 回写队列）；无 Cache-Control 观察。日志 reports/agents/T-257.md。
 - **T-258** [P0] repos 已用列注水 — **done（冷首屏批量恰 1 + ≤3 硬断言 + 50 行对账；`a96ed17`）**——扇出根治双侧闭环。
 - **T-259** [P0] m-holder 编辑器可达 `role:dev-frontend` — **doing 2026-08-24（双前提齐即派；L2 卡对 m-holder 退役/user 保留）**
-- **T-261** [P1] npm packument 转义收敛 `role:dev-registry-adapter` — **doing 2026-08-24（deps 全绿债票穿插；第三份同构体收敛行为零变化）**
+- **T-261** [P1] npm packument 转义收敛 `role:dev-registry-adapter` — **done 2026-08-24（三重零变化证据 + 判别性 npm install 转义 URL 腿；conductor 复验；提交 `f30aede`）**
+  两消费点收敛至 client.EscapePathSegments（import 单向无环论证）。**area 外登记**：remote JoinURL 裸拼接 = D-1 同类候选票；-rev 回显塌缩语义票。日志 reports/agents/T-261.md。
+- **T-262** [P1] push_npm 覆写臂自查 `role:dev-go-core` — **doing 2026-08-24（三场景推演：无包/追加/真覆写 vs T-249 判定表；无风险钉死或按镜像语义修复）**
 - **T-273** [P2] last-admin census 折入事务 — todo（M9 尾批）
 - **B2**：T-251 [P0] E2/E3/E4 users 域端点（加宽+enabled 回显+DELETE 全链护栏级联）｜ T-253 [P0] E1 usage 批量端点
 - **B3**：T-252 [P0] E5 组成员 ?includeUsers ｜ T-256 [P0] GC 接线收口（五路径 ReleaseGCHold+serve.lock+压力 spec 进 CI——**顺序硬规则：先于 T-268**）
