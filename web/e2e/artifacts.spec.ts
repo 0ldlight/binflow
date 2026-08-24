@@ -110,9 +110,12 @@ test('W12/W12b/W13 generic tree: upload -> browse -> detail/download sha match -
 
   // 下载 sha 对账（W13）：本地流式哈希 vs item info checksums.sha256
   // （有效权限自 T-236 起是详情面板的第二个 Tab——console-m8 §3.3 C4；
-  //   锚不变，操作流多一步 Tab 切换）
+  //   锚不变，操作流多一步 Tab 切换。verify 块在常规 Tab——断言完权限 Tab
+  //   后显式切回；此前该腿隐性依赖「后台数据到达把 Tab 弹回常规」的缺陷，
+  //   T-244 修复 target identity 重置后按显式切换书写）
   await page.click('[data-testid="node-tab-perms"]')
   await expect(page.locator('[data-testid="node-perms"]')).toBeVisible() // admin 面（?permissions）
+  await page.click('[data-testid="node-tab-general"]')
   await page.click('[data-testid="node-download"]')
   await expect(page.locator('[data-testid="node-download-verify"]')).toContainText('✓ 下载落盘 sha256 与服务端一致', {
     timeout: 15_000,

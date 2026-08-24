@@ -553,7 +553,8 @@ export default function ArtifactsBrowser() {
                     <span>{c.title}</span>
                     <CopyButton value={c.text} label={c.title} />
                   </header>
-                  <pre lang="en">{c.text}</pre>
+                  {/* tabIndex：可滚动区键盘可达（QA-1 同款，树页命令块同形面） */}
+                  <pre lang="en" tabIndex={0}>{c.text}</pre>
                   {c.note && <div className="note">{c.note}</div>}
                 </div>
               ))}

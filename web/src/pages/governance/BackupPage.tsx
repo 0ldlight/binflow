@@ -52,7 +52,8 @@ export default function BackupPage() {
               <span>{b.title}</span>
               <CopyButton value={b.text} label={b.title} />
             </header>
-            <pre lang="en">{b.text}</pre>
+            {/* tabIndex：可滚动区键盘可达（QA-1 同款，cmd 块同形面） */}
+            <pre lang="en" tabIndex={0}>{b.text}</pre>
             {b.note && <div className="note">{b.note}</div>}
           </div>
         ))}

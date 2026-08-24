@@ -54,7 +54,12 @@ export default function NodeDetail({
   const { session } = useAuth()
   const admin = session?.admin ?? false
   const [tab, setTab] = useState<'general' | 'perms'>('general')
-  useEffect(() => setTab('general'), [target])
+  // target 是父组件每次渲染新建的对象（identity 不稳定）——Tab 重置改由
+  // 稳定键驱动：否则后台数据到达引发的父重渲染会把用户正在看的 Tab
+  // 弹回「常规」（T-246 终验 fix-forward 期间由键盘腿时序暴露的真缺陷）
+  const targetKey =
+    target.kind === 'repo' ? `repo:${target.repoKey}` : `node:${target.repoKey}/${target.node.path}`
+  useEffect(() => setTab('general'), [targetKey])
 
   // 节点元数据（文件/目录）在顶层取——头部「下载并校验」按钮的对账源
   // （checksums.sha256）与常规 Tab 共用一次请求。

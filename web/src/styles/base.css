@@ -567,6 +567,14 @@ a:hover {
   font-size: var(--bf-fs-aux);
 }
 
+/* hint 内的正文链接（如 GC 页「审计日志」/ 详情「权限 target」）：恒下划线
+ * ——与弱化色正文之间不得仅靠颜色区分（WCAG 1.4.1 link-in-text-block，
+ * T-246 终验 QA-2 fix-forward；全局 a 只在 hover 下划线的基线在 muted
+ * 文字段里不够）。 */
+.field-hint a {
+  text-decoration: underline;
+}
+
 .btn {
   display: inline-flex;
   align-items: center;

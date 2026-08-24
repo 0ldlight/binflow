@@ -353,7 +353,10 @@ export default function RepoDetailPage() {
                     <span>{c.title}</span>
                     <CopyButton value={c.text} label={c.title} />
                   </header>
-                  <pre lang="en">{c.text}</pre>
+                  {/* tabIndex：命令块 pre 实际溢出（overflow-x auto）——可滚动
+                      区须键盘可达（WCAG 2.1 axe scrollable-region-focusable，
+                      T-246 终验 QA-1 fix-forward；焦点环走全局 :focus-visible） */}
+                  <pre lang="en" tabIndex={0}>{c.text}</pre>
                   {c.note && <div className="note">{c.note}</div>}
                 </div>
               ))}

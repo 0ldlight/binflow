@@ -249,6 +249,7 @@ test('keyboard: dialog focus trap wraps, Esc closes, disabled buttons do not bre
 // ---- 6. axe 双主题复扫（badge 对比度家族修复后 serious=0 维持）------------------
 
 test('axe: badge-heavy pages clean in both themes after the contrast family fix', async ({ page }, testInfo) => {
+  test.setTimeout(90_000) // 8 次扫描 + 8 次显式主题装载/导航（长寿命实例的数据量会让默认 30s 吃紧）
   const key = uniq('kb-axe')
   const client = m8Client()
   await seedRepos(client, [{ key }])
