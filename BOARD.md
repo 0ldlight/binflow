@@ -731,7 +731,8 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
   遗留登记：场景 3 静默分歧无观测面（WARN/audit 候选票）；T-249 §8.2 可关账。日志 reports/agents/T-262.md。
 - **T-269** [P1] git 瘦身 dry-run+手册 `role:release-engineer` — **done 2026-08-24（三 lab 实测：clone 70MB→8MB〔−89%〕、tag 映射全分析、手册含授权点；提交 `1e3c077`；零远端零主仓改动）**
   **口径修正**：实为 2 个 BOARD blob + 1 个误提交二进制（体积大头 57%）；推荐 `--strip-blobs-with-ids + --prune-empty never`。**执行待用户授权 force-push**。登记：docs-site/build 入 tracked 是另一体积候选票。日志 reports/agents/T-269.md。
-- **T-270** [P1] CI 多架构镜像 `role:release-engineer` — **doing 2026-08-24（goreleaser 双架构交叉编译 + manifest 本地口径 + VM dogfood 推送；qemu 不可行则字段校验承载）**
+- **T-270** [P1] CI 多架构镜像 `role:release-engineer` — **done 2026-08-25（Jenkins #9 全绿 ~2.5min + manifest 双 platform + Mac qemu arm64 真运行腿；提交 `96faf7b`）**
+  Q6 兑现：全程零 qemu（goreleaser 预编译注入，legacy builder 4~12s/镜像）；**BinFlow 首次托管自身多架构 manifest list**（dogfood：index push→children 完整性→pull-by-list 全链）。arm64 双轨验证（VM qemu 不可行→字段承载；Mac qemu→真运行）。遗留：overlay stage 提交后撤除；digest 缓存可省 80s。日志 reports/agents/T-270.md。
 - **T-273** [P2] last-admin census 折入事务 — todo（M9 尾批）
 - **B2**：T-251 [P0] E2/E3/E4 users 域端点（加宽+enabled 回显+DELETE 全链护栏级联）｜ T-253 [P0] E1 usage 批量端点
 - **B3**：T-252 [P0] E5 组成员 ?includeUsers ｜ T-256 [P0] GC 接线收口（五路径 ReleaseGCHold+serve.lock+压力 spec 进 CI——**顺序硬规则：先于 T-268**）
