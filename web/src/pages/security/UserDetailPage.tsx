@@ -218,7 +218,7 @@ export default function UserDetailPage() {
                   data-testid="user-form-role"
                 >
                   {ADMIN_ROLES.map((r) => (
-                    <option key={r} value={r} data-testid={`user-form-role-${r}`}>
+                    <option key={r} value={r}>
                       {ROLE_LABEL[r]}
                     </option>
                   ))}
@@ -295,7 +295,6 @@ export default function UserDetailPage() {
                     }
                     availableLabel="可选组"
                     selectedLabel="已选组"
-                    itemTestid={(g) => `user-form-group-${g}`}
                   />
                 </div>
               )}
@@ -312,7 +311,7 @@ export default function UserDetailPage() {
               </div>
             )}
             <div className="form-actions">
-              <Link className="btn" to="/admin/security/users" data-testid="user-form-cancel">
+              <Link className="btn" to="/admin/security/users">
                 取消
               </Link>
               <button
@@ -320,7 +319,6 @@ export default function UserDetailPage() {
                 className="btn"
                 disabled={!dirty || submitting}
                 onClick={() => d && setF(editFromDetail(d))}
-                data-testid="user-form-reset"
               >
                 重置
               </button>

@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 文档 | `docs/design/console-ux.md` |
-| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记） |
-| 状态 | v1.7（2026-08-24） |
+| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账） |
+| 状态 | v1.9（2026-08-25） |
 | 维护者 | ux-designer |
 | 上游依据 | PRODUCT.md（Web 控制台/治理/Non-goals）、ROADMAP.md M4 节、docs/prd/milestone-1/2/3/4.md（端点矩阵与已定案行为）、docs/user/docker-registry.md（用户面口径）、docs/design/architecture.md §7（路由/console 挂载点）、internal/httpapi/router.go（路由门事实——§3.6.2 矩阵逐一核对）、reports/agents/T-98.md · T-99.md（漂移登记与 testid 素材）、reports/agents/T-98-review.md（N1 收敛建议）、BOARD.md（T-85 PRD / T-97 存在性不泄露裁决） |
 | 下游消费者 | T-86（架构：console 包/session/前端工程结构）、tech-lead（M4 拆票）、前端 dev（页面组票）、qa-engineer（控制台验收） |
@@ -24,6 +24,7 @@
 | v1.6 | 2026-08-24 | T-240 仓库管理域重排（console-m8 §6.6~§6.8 落地）：① §10.5 增补 T-240 批次锚 24 枚（三 Tab 导航/列头排序/行删除入口/计数行/包类型网格/表单按钮族/详情三 Tab/quota 行内编辑/readonly 与 m-holder 注记/Replications 降位）；② 退役 4 枚——`repos-filter-{type,package}`（类型过滤由三 Tab 子路由承载）、`form-prev`/`form-next`（三步向导 → 单页分区式，§4.4 定案）；③ `repo-governance-card` 移入配置 Tab（锚不变、+1 步 Tab 切换）；④ 编辑态 `form-key` 输入框改锁定展示（门控语义不变）——T-99 冻结锚零改名 |
 | v1.7 | 2026-08-24 | T-244 键盘可达 + 共享层债收口的锚册回写（收 T-243 缺陷 D-1~D-4 + T-242 待扫锚）：① **T-238 存储批 12 锚入册**（D-1）+ §10.5 路由表 `/admin/monitoring/storage` 行回写；② **T-242 对话框批 48 锚入册**（smu-* / deploy-* / 三入口族）；③ **散锚入册**（D-2：browser-intro / migration-readonly-note / perm-res-back / repo-advanced-card / perms-sort 族 + 审计新溯的历史散锚：T-158 SSO、T-160 迁移面板补遗、T-218 readonly 注记族、T-241 权限编辑器批、transfer-* 显名、tag-badge、topbar-help、settings-{version,license} 等）；④ **显式退役条目**（D-3）：`settings-password` + 本票树页双 Deploy 入口收敛退役的 `tree-upload` 与 `upload-*` 族 15 枚；⑤ 新增 **§10.6 死锚登记**（D-4：src 侧 115 家族零 spec 消费——`web/scripts/anchor-audit.mjs` 册↔src↔spec 三方对账器为底稿与常设工具）。本版起锚总量按家族口径核算（src 423 家族 / 493 落点） |
 | v1.8 | 2026-08-24 | T-265 树过滤复位 + 顶栏搜索框（FR-82-AC2/AC9）：① §10.5 增补 **T-265 批 4 锚**（`tree-filter-clear` + 顶栏最近词下拉族 `topbar-search-recent{-item-<i>,-clear}`）；② `topbar-search` 锚名不变、载体自按钮升真输入框（Enter → `/search?q=`，空词 Enter 保留纯入口；⌘K / `/` 改为聚焦顶栏框）；③ `tree-filter` / `tree-repo-filter` 锚不变，新增 (repo, dir) 作用域复位语义（QA-3 跨层/跨仓残留收口） |
+| v1.9 | 2026-08-25 | T-267 锚家族口径统一 + 死锚全量退役（FR-82-AC7）：① **§10.6 重构为单一权威口径**——家族=选择器前缀归一、掩蔽语义、src/spec 口径（含 IdP 模拟页与对象键展开两个盲区修复、组件逻辑自消费）、四桶定义；死锚清单退出册（对账器输出即视图），退役以 §10.6 总表为权威（v1.5~v1.7 显式退役 17 条合并收录 + T-267 死锚处置 101 条〔99 家族，`perm-matrix-remove` 与 `backup-cmd` 各按静态展开计 2〕= **总表 118 条**）；② **死锚 99 家族 src 清理**（零 spec 消费且册上有登记——`smu-tab-configure` 因 Tab 焦点选择器自消费保留除外）；③ **M9 消费波散锚 15 枚入册**（T-257/T-259/T-260 批 + `user-status-<name>` 盲区显形 + `idp-login-page` 测试基建锚；T-260 的 `smu-resuming` 零 spec 消费、随死锚处置退役）；④ 对账器加 **`--ledger` 模式**（A1~A4 断言，qa 硬门） |
 
 ---
 
@@ -996,6 +997,23 @@ T-242 对话框族批（v1.7 入册，48 枚——Set Me Up + Deploy + 三入口
   入口钮：tree-setmeup  tree-deploy（树页头动作区）
     repos-setmeup-<key>  repos-deploy-<key>（列表行操作列）
     repo-setmeup  repo-deploy（详情头动作区）
+M9 消费波批（v1.9 入册——T-257/T-259/T-260 落地时 area 不含本册的散锚收口，
+  共 15 枚；含对账器盲区修复后显形的 2 族，见 §10.6）：
+  T-257 users/groups 消费批：users-sort-status（状态列排序头——enabled 回显
+            列的 aria-sort 三态，T-237 四头之外的第五头）
+            user-status-<name>（行内状态徽章——对象键条件展开形态，T-267 前
+            对账器不可见）  user-delete  user-delete-<name>（详情删除钮 + 列表
+            行删除入口）  user-danger-zone（详情危险区卡）
+            user-delete-confirm-name（强确认删除对话框的键入名回显）
+  T-259 m-holder 编辑器批：perms-manage-note  perm-editor-manage-note（列表/
+            编辑器的 m-holder 身份注记——L2 卡对 m-holder 退役的替换形态）
+            perm-repo-entry-input  perm-repo-entry-add（资源对话框选仓名录
+            降级：键入 + 添加——perm-repo-pick-* 退役的替换形态）
+  T-260 OIDC 重认证批：smu-oidc-stepup（OIDC 腿容器——与 smu-stepup 平行）
+            smu-reauth  smu-reauth-error（第二身份回跳链接/错误行）
+            smu-pending-hint（等待重认证完成的铸造提示）
+  测试基建锚：idp-login-page（web/scripts 下 IdP 模拟页页根——第一方渲染
+            DOM，src 口径收录该文件；M9 OIDC spec 断言）
 ```
 
 v1.1 → v1.2 差异注记（核对基准 = v1.1 §10.3 预定清单 vs 源码）：
@@ -1003,8 +1021,8 @@ v1.1 → v1.2 差异注记（核对基准 = v1.1 §10.3 预定清单 vs 源码�
 - **树页/上传**：预定锚全落。增补 `tree-breadcrumb` / `tree-filter` / `tree-refresh` / `tree-mkdir` / `tree-mkdir-input` / `tree-upload` / `tree-commands` / `tree-empty-dir` / `delete-error` / `node-download` / `node-download-verify` / `node-perms` / `upload-file-input` / `upload-verify-<i>` 与 maven 表单族（`upload-gav-*` / `upload-maven-preview` / `upload-maven-input`）。`node-copy-<field>` 的 field 域实证为 sha256|sha1|md5。
 - **树页命令卡复用 `repo-cmd-<packageType>-<i>`**（§10.2 锚名，不带 tree 前缀）——断言须 scope 到 `tree-page`，防与仓库详情页同名碰撞（§10.1 视图内唯一规则）。
 - **搜索页**：**`search-filter-{package|type}` 删除**——R2 类型化过滤未落地，实现仅 repo 过滤（csv 传参）；R2 落地时回填本节。增补 `search-count`、`search-results`（结果表容器，grep 补记——T-100 日志未列）。
-- **安全组**：**`perm-matrix-cell` 细化**——`<principal>-<action>` 前插 `{user|group}` 类段（T-101 遗留 2，用户/组同名碰撞），同族 `perm-matrix-remove-{user|group}-<name>` 一致。token 族锚未落（P2 占位页，§10.4）。`perm-pattern-{input,add}-{include,exclude}` 无 `<i>` 下标（每栏一个输入/添加位），仅 `perm-pattern-remove` 与 chip 本体带 `<i>`——对码实证，勿按 v1.1 手写体例臆造下标。`perm-pattern-{include|exclude}-<i>`（chip 本体）为 grep 补记（T-101 日志 shorthand 未单列）。
-- **治理组**：预定锚全落（`audit-export` 除外，P2，§10.4）。时间窗过滤落为 `audit-filter-since` / `audit-filter-until` 两个独立锚（v1.1 预定清单未含时间窗）；其余增补见上（`gc-danger-zone` / `gc-grace-hours` / `gc-confirm-text` / `gc-error` / `gc-empty-ok` / `audit-count` / `audit-table` / `audit-empty{,-filtered}` / `quota-bar|input|save|cancel|error-<repoKey>` / `quotas-table` / `quotas-empty` / `backup-page` / `backup-cmd-{export|import}`）。
+- **安全组**：**`perm-matrix-cell` 细化**——`<principal>-<action>` 前插 `{user|group}` 类段（T-101 遗留 2，用户/组同名碰撞），同族 `perm-matrix-remove-{user|group}-<name>` 一致。token 族锚未落（P2 占位页，§10.4）。`perm-pattern-input-*` 与 `perm-pattern-add-*` 无 `<i>` 下标（每栏一个输入/添加位），仅 `perm-pattern-remove-*` 与 chip 本体带 `<i>`——对码实证，勿按 v1.1 手写体例臆造下标。`perm-pattern-{include|exclude}-<i>`（chip 本体）为 grep 补记（T-101 日志 shorthand 未单列）。
+- **治理组**：预定锚全落（`audit-export` 除外，P2，§10.4）。时间窗过滤落为 `audit-filter-since` / `audit-filter-until` 两个独立锚（v1.1 预定清单未含时间窗）；其余增补见上（`gc-danger-zone` / `gc-grace-hours` / `gc-confirm-text` / `gc-error` / `gc-empty-ok` / `audit-count` / `audit-table` / `audit-empty{,-filtered}` / `quota-input-*` / `quota-save-*` / `quota-cancel-*` / `quota-error-*` / `quota-bar-*` / `quotas-table` / `quotas-empty` / `backup-page` / `backup-cmd-{export|import}`）。
 
 ### 10.4 未落地锚（T-104 不得断言；落地时回写本节并升版本）
 
@@ -1101,7 +1119,7 @@ search.css`（T-236 登记的归位收口）。
 分区表单：  form-cancel  form-reset（底部 取消/重置/创建|保存 族——单页分区式）
             repo-form-readonly-note（readonly_admin 表单只读注记——T-218 债收口：
             文案走 CanManageRepo write 语义）
-详情三 Tab：repo-tab-{summary,config,replications}（概要/配置/Replications）
+详情三 Tab：repo-tab-{summary|config|replications}（概要/配置/Replications）
             repo-quota-{input|save|cancel|error}（配置 Tab 行内配额编辑——
             CanManageRepo：admin 与 m-holder 可写、readonly 禁用）
             repo-detail-readonly-note（readonly_admin 详情只读注记）
@@ -1159,60 +1177,102 @@ AC2/AC9，消费 spec = web/e2e/m9 本票新增腿）**：
 
 **锚总量（v1.2 核对基准）**：`grep -rn "data-testid" web/src/` = **242 处落点 / 27 文件**；动态族计一名约 **230 锚**（§10.2 + §10.3 合计）。v1.1 预定锚转正流程至此闭环（v1.1 文末「落码后回写本节并升 v1.2」约定兑现）。
 
-### 10.6 死锚登记与三方对账器（v1.6 新增，T-244——T-243 缺陷 D-4 收口）
+### 10.6 锚家族口径与对账（v1.6 立·T-244；v1.9 重构——T-267 口径单一权威化）
 
-**对账器**：`web/scripts/anchor-audit.mjs`（node 直跑，零依赖）——册（本文档 §10，
-`{a|b}` 备选展开 + `<动态段>` 家族化）↔ src（`web/src` 全量 `data-testid` / `testid`
-prop / prop 缺省值 / `itemTestid` 回调 / 三元双臂）↔ spec（`web/e2e` 全量引用）三方
-对账，输出四张表：`unregistered`（src 有册无）/ `retired`（册有 src 无，§10.4 未
-落地锚白名单豁免）/ `dead`（src 有、spec 零消费）/ `broken`（spec 引用 src 无——
-断链，必须修）。**broken = 0 是硬门**，其余三表为登记底稿。
+**单一权威口径**：锚「家族」与四桶的定义以本节为唯一权威，
+`web/scripts/anchor-audit.mjs` 是该口径的可执行实现（两者不一致视为对账器缺陷）。
+§10.2/§10.3/§10.5 的批次清单是**人写叙事**（锚的意图史与裁定记录），状态判定
+一律以本节口径 + 对账器输出为准：**死锚清单不落册**（对账器实时输出即视图），
+**退役以本节总表为权威**。v1.9 教训：v1.7 手抄死锚清单（112/115 两个自相矛盾
+的数字并存）与实态漂移——其中十余条实际已有 spec 消费（如 deploy 主族、
+transfer-*、user-row-*、perm-row-*），另有 v1.7 后新增的零消费锚；手抄视图必然
+腐化，视图必须可重算。
 
-**v1.7 实测基线**（本票终态，`node web/scripts/anchor-audit.mjs` 复现）：src
-**423 家族 / 493 落点**；spec 引用 **372 家族**（1,356 具体引用）；册 **482**；
-四表终态 = **unregistered 0 / broken 0**（入册与断链双清零）——retired 表恰为
-已登记退役集（v1.5 `user-form-admin`、v1.6 `repos-filter-{type,package}`、
-v1.7 `settings-password` + `tree-upload`/`upload-*` 族）；**死锚 112 家族**（占
-src 家族 26%——主体为 m7-done 前的「先落锚后补断言」欠账，M8 未丢失既有覆盖，
-T-243 §二溯源结论维持）。死锚全量清单（按域分组，对账器随时可重出）：
+**口径定义**：
+
+- **家族 = 选择器前缀归一**。模板/动态段（`${…}`、`<…>`）在首个动态段处截断
+  归一为 `前缀-*`：`tree-node-${n.path}`（src）/ `tree-node-<path>`（册）/
+  `tree-node-perf`（spec 具体引用）同属家族 `tree-node-*`。
+- **掩蔽语义**：动态族前缀覆盖同前缀的一切具体名——族内任一具体引用（src 落点
+  或 spec 引用）即视为消费全族。例：`group-delete-reason` 的 spec 引用使家族
+  `group-delete-*` 记为已消费（其行删除入口 `group-delete-<name>` 随族存活）；
+  `user-delete-confirm-name` 同理掩护 `user-delete-<name>`。
+- **已知生成器/选择器族**（保持登记、不作死锚处置）：
+  `form-*`（建仓表单远程参数生成器 `form-${k}`，k 闭集 =
+  retrievalCachePeriodSecs / missedRetrievalCachePeriodSecs / socketTimeoutSecs /
+  assumedOfflinePeriodSecs，覆盖 §10.2 四个具名锚）；`smu-tab-*`（Tab 焦点管理
+  的 querySelector 模板，非渲染锚）；`tree-repo-*` / `tree-node-*`（树深链滚动
+  定位选择器 + 模板落点）。
+- **src 口径 = 第一方渲染 DOM 的锚落点**：`web/src` 全量（`data-testid="…"` /
+  `testid="…"` prop / prop 缺省值 / `itemTestid` 回调 / `'data-testid'` 对象键
+  条件展开——后者为 T-267 盲区修复，`user-status-<name>` 自此可见）+
+  `web/scripts` 下的 IdP 模拟页（`idp-login-page` 真身）。组件逻辑自消费：
+  src 内 querySelector 选择器引用的锚（模板选择器按字面前缀）不计死锚——
+  移除会破坏运行时行为（`smu-tab-configure` 因此保留）。
+- **spec 口径 = `web/e2e` 全量 `.ts` 引用**（`[data-testid=…]` / `getByTestId` /
+  `testid:`）；README 等 `.md` 内的示例不计。
+
+**分桶与处置**：
+
+- `unregistered`：src 有、册无——**硬违规 = 0**（先入册再落码）。
+- `broken`：spec 引用、src 家族无——**硬门 = 0**（spec 对空断言必失败）。
+- `retired`：册有、src 无——每族必须落入下方退役总表或 §10.4 白名单
+  （**禁止静默退役**）。
+- `dead`：src 有、spec 零消费——处置队列底稿：retire（登记总表 + src 移除）或
+  补 spec 消费；清单不落册，对账器实时输出即视图。
+- 册侧 `registered` = 册有 ∧ src 有（§10.2/§10.3/§10.5 批次承载）；
+  册侧 `planned` = §10.4 白名单（册有 src 无 = 设计态未落地，落地时回写）。
+
+**对账器与 `--ledger` 模式**（node 直跑，零依赖）：
 
 ```
-壳/全局：app-boot  toast-stack  error-retry
-仪表盘：dashboard-audit-table  dashboard-audit-row-<i>  repos-empty（仪表盘臂）
-树页：  browser-toolbar  tree-refresh  tree-empty-instance  tree-footer-stats
-        node-copy-<sha256|sha1|md5>  node-tab-general  node-tags
-仓库域：repo-commands  repo-cmd-<pkg>-<i>  repo-usage-bar  repo-advanced-card
-        repo-goto-tree  repo-edit-link-config  repo-quota-cancel  repo-quota-error
-        repos-delete-<key>  repos-sort-package  form-summary  form-cancel
-        form-allow-private  form-private-warn  form-member-pick  form-priority
-        form-handle-releases  form-handle-snapshots  form-checksum-policy
-        form-snapshot-behavior  form-hard-fail  member-down-<i>
-安全域：user-row-<name>  user-facts  user-form-cancel  user-form-reset
-        user-form-group-<name>  user-form-role-<role>  user-perm-row-<target>
-        group-row-<name>  group-edit-<name>  group-delete-dismiss
-        group-form-cancel  group-form-error  group-form-reset  group-form-member-<user>
-        group-perms-<name>  group-members-<name>  group-manage-badge-<name>
-        group-perm-row-<target>  perm-row-<name>  perms-sort-{users|groups|repos|patterns}
-        perm-delete-button  perm-repo-remove-<key>  perm-repo-pick-<key>
-        perm-matrix-cell-<kind>-<principal>-<action>  perm-matrix-remove-<kind>-<name>
-        perm-manage-badge-<name>  perm-patterns-summary  perm-res-back
-        perm-editor-readonly-note  transfer-available  transfer-selected
-治理域：backup-page  backup-cmd-{export,import}  gc-error  quotas-table  quotas-empty
-        quota-row-<repoKey>  quota-bar-<repoKey>  quota-edit-<repoKey>
-        quota-input-<repoKey>  quota-save-<repoKey>  quota-cancel-<repoKey>
-        quota-error-<repoKey>  migration-readonly-note  repl-page
-监控域：storage-row-<repoKey>  storage-summary-blobs  storage-empty  storage-partial
-        storage-progress
-搜索页：search-results（结果表容器）
-壳菜单：quick-new-group  quick-new-repo-{local|remote|virtual}
-对话框：smu-close  smu-grid-denied  smu-grid-empty  smu-mint-error  smu-token-area
-        smu-cmd-conf-<pt>-<i>  deploy-close  deploy-empty  deploy-file-input
-        deploy-rows  deploy-row-<name>  deploy-echo-<name>  deploy-verify-<name>
-        deploy-retry-<name>  deploy-target  deploy-target-echo  deploy-gav-<field>
-        deploy-maven-preview
+node web/scripts/anchor-audit.mjs            # 四表输出（dead 为视图）
+node web/scripts/anchor-audit.mjs --ledger   # 册↔实态断言，违例 exit 1（qa 硬门）
 ```
 
-**守卫规矩（建议入后续票 AC）**：① 新票锚**消费下限**——新批次锚的 spec 消费率
-≥80%（T-243 实测新批次 7~8 成即达线；跌破线须在票内说明）；② `anchor-audit.mjs`
-的 `broken` 表必须为空才可过 qa；③ 死锚清单每大版本回归时重出一次，连续两个大
-版本零消费的锚按退役流程处置（显式条目，不得静默删除）。
+`--ledger` 断言：A1 `unregistered = 0`；A2 `broken = 0`；A3 retired 桶 ⊆ 退役
+总表 ∪ §10.4 白名单（静默退役即 FAIL）；A4 退役总表条目 ∩ src 家族 = ∅（按
+家族精确名判，退役条目不得仍在 src）。
+
+**选型论证（audit 解析册 vs 册由 audit 生成，T-267 裁定取前者）**：① 册是规范
+性文档——「先入册再落码」要求意图先于实现，权威在册侧人写批次叙事，工具只能
+消费不能产生规范；② 反向生成会把规范性来源变成工具输出，§10.2/§10.3 的批次
+叙事（裁定、替换形态、冻结语义）无法由工具生成，混排必然漂移；③ 解析面收敛为
+两张表的首列反引号锚名（§10.4 白名单 + §10.6 退役总表），**格式即契约**——破格
+会让 `--ledger` 直接失败（fail loud），漂移无法静默累积。
+
+**退役总表（权威；v1.9 = v1.5~v1.7 显式退役 17 条合并收录 + T-267 死锚处置
+101 条〔99 家族，静态展开计〕。复活 = 从本表删除 + 回写 §10.3，走 conductor）**：
+
+| 退役锚（家族） | 原承载 | 批次/退役 | 原因·去向 |
+|---|---|---|---|
+| `user-form-admin` | 用户表单 admin 复选 | T-98 / v1.5 | 角色三值下拉 `user-form-role` |
+| `repos-filter-type` `repos-filter-package` | 仓库列表类型/包类型筛选 | T-99 / v1.6 | 三 Tab 子路由承载 |
+| `form-prev` `form-next` | 建仓三步向导步骤钮 | T-99 / v1.6 | 单页分区式（console-m8 §4.4） |
+| `settings-password` | 设置页改密卡 | T-98 / v1.7 | `/profile` 拆分（`profile-password` + `password-*` 迁址） |
+| `tree-upload` | 树页面包屑位上传入口 | T-100 / v1.7 | 页头 `tree-deploy` 唯一入口 |
+| `upload-dialog` `upload-target` `upload-drop` `upload-file-input` `upload-file-*` `upload-retry-*` `upload-verify-*` `upload-gav-*` `upload-maven-preview` `upload-maven-input` | UploadDialog 全家 | T-100 / v1.7 | `deploy-*` 族承载（T-244 收敛） |
+| `app-boot` `toast-stack` `error-retry` | 壳基元（启动根/Toast 栈/错误重试钮） | T-98 / v1.9 | 零 spec 消费（README 示例不计）；元素保留、仅锚移除 |
+| `topbar-search-recent-clear` | 顶栏最近词清除钮 | T-265 / v1.9 | 零 spec 消费（同批其余 3 枚在册存活）；复活走回册流程 |
+| `quick-new-repo-local` `quick-new-repo-virtual` `quick-new-group` | 用户菜单快捷项 | T-235 / v1.9 | 零 spec 消费（`quick-new-repo-remote` / `quick-new-user` / `quick-new-perm` 三兄弟存活） |
+| `repos-empty` | 仪表盘仓库卡空态 + 仓库列表空态 | T-98/T-99 / v1.9 | 零 spec 消费；空态回落缺省 `empty-state`（`repos-empty-filtered` 存活） |
+| `dashboard-audit-table` `dashboard-audit-row-*` | 仪表盘审计卡表体/行 | T-98 / v1.9 | 零 spec 消费（深链设计未获断言消费，复活时随 `dashboard-audit-row-<i>` 回册） |
+| `browser-toolbar` `tree-refresh` `tree-empty-instance` `tree-footer-stats` `tree-manage-repos` `browser-intro` | 树页容器族（页头动作区/刷新/空实例引导/页脚标语/管理入口/跨仓引导卡） | T-236 等 / v1.9 | 零 spec 消费 |
+| `node-copy-*` `node-tags` | 校验和拷贝钮 / docker tag 容器 | T-100/T-134 / v1.9 | 拷贝钮按 §10.1 走 aria-label；tag 徽标本体 `tag-badge-*` 存活 |
+| `repos-sort-package` `repos-row-*` `repos-setmeup-*` `repos-deploy-*` `repos-delete-*` | 仓库列表行族（包类型排序头/行/行内三入口） | T-99~T-242 / v1.9 | 零 spec 消费（行操作经详情页入口覆盖：`repo-setmeup` / `repo-deploy` 存活） |
+| `form-summary` `form-cancel` `form-allow-private` `form-private-warn` `form-member-pick` `form-priority` `form-handle-releases` `form-handle-snapshots` `form-checksum-policy` `form-snapshot-behavior` `form-hard-fail` `member-down-*` | 建仓表单静态件（摘要卡/取消钮/私网开关与警示/成员选择/优先级/maven 发布策略族/下移钮） | T-99 / v1.9 | 零 spec 消费；生成器族 `form-*`（远程参数四键）存活 |
+| `repo-usage-bar` `repo-advanced-card` `repo-goto-tree` `repo-edit-link-config` `repo-quota-cancel` `repo-quota-error` `repo-cmd-*` | 仓库详情（用量条/高级卡/浏览入口/配置 Tab 编辑入口/配额取消与错误/命令卡条目） | T-99/T-240 / v1.9 | 零 spec 消费（`repo-edit-link` / `repo-quota-input` / `repo-quota-save` / `repo-commands` 存活） |
+| `user-form-cancel` `user-form-reset` `user-form-role-*` `user-form-group-*` `users-sort-email` `users-sort-groups` `users-sort-role` | 用户域（表单按钮/角色下拉项/穿梭条目/排序头三枝） | T-101/T-237 / v1.9 | 零 spec 消费（`users-sort-name` / `users-sort-status` 存活） |
+| `group-form-cancel` `group-form-error` `group-form-reset` `group-form-member-*` `group-delete-dismiss` `groups-sort-perms` `groups-sort-members` `group-perms-*` `group-manage-badge-*` | 组域（表单族/冲突面板关闭/排序头两枝/计数格/管理徽章） | T-101/T-237 / v1.9 | 零 spec 消费（`group-delete-reason` 掩蔽 `group-delete-*` 族存活；`groups-sort-name` 存活） |
+| `perms-sort-users` `perms-sort-groups` `perms-sort-repos` `perms-sort-patterns` `perm-manage-badge-*` `perm-res-back` `perm-repo-remove-*` `perm-repo-pick-*` `perm-matrix-remove-user-*` `perm-matrix-remove-group-*` `user-perm-row-*` `group-perm-row-*` | 权限域（排序头四枝/管理徽章/资源对话框返回/移除钮族/穿梭选仓/矩阵移除钮/只读汇总行） | T-101~T-241 / v1.9 | 零 spec 消费；`perm-repo-pick-*` 的替换形态 `perm-repo-entry-input` 与 `perm-repo-entry-add` 在册（T-259） |
+| `backup-cmd-export` `backup-cmd-import` `gc-error` `quotas-table` `quotas-empty` `quota-row-*` `quota-bar-*` `quota-edit-*` `quota-input-*` `quota-save-*` `quota-cancel-*` `quota-error-*` `migration-readonly-note` `audit-empty` | 治理域（备份命令块/GC 错误行/配额表与行内编辑族/迁移只读注记/审计未过滤空态） | T-102~T-160 / v1.9 | 零 spec 消费（`audit-empty-filtered` / `quotas-page` / `gc-page` 等页面根存活） |
+| `storage-row-*` `storage-summary-blobs` `storage-empty` `storage-partial` `storage-progress` | 存储概要（逐仓行/二进制计数/空态/部分数据标注/进度提示） | T-238 / v1.9 | 零 spec 消费 |
+| `search-results` | 搜索结果表容器 | T-100 / v1.9 | 零 spec 消费（行族 `search-result-*` 存活） |
+| `smu-close` `smu-grid-denied` `smu-grid-empty` `smu-mint-error` `smu-token-area` `smu-cmd-conf-*` `smu-done` `smu-resuming` | Set Me Up（关闭/网格降级两态/铸造错误/Token 区/配置命令块/完成/恢复中） | T-242 / v1.9 | 零 spec 消费；`smu-tab-configure` 因 Tab 焦点选择器自消费**保留**（见口径·组件逻辑自消费） |
+| `deploy-empty` `deploy-target-echo` `deploy-retry-*` | Deploy（空态/目标回显/重试钮族） | T-242 / v1.9 | 零 spec 消费（`deploy-*` 主族存活） |
+
+**守卫规矩（入票 AC）**：① 新票锚**消费下限**——新批次锚的 spec 消费率 ≥80%
+（跌破线须在票内说明；T-265 批 3/4 = 75%，`topbar-search-recent-clear` 已按零消费
+退役并在 T-265 日志补记）；② `--ledger` 通过是 qa 硬门（蕴含 unregistered /
+broken 双零与退役表一致）；③ 死锚处置随大版本回归进行——零消费锚要么补 spec
+消费、要么进退役总表，**不得静默删除、不得长期滞留**（A3/A4 断言兜底）。

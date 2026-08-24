@@ -48,7 +48,7 @@ export function SortTh<K extends string>({
   sortKey: K
   sort: SortState<K>
   onToggle: (key: K) => void
-  testid: string
+  testid?: string
 }) {
   const active = sort.key === sortKey
   const ariaSort = active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'
@@ -107,7 +107,7 @@ export function PermSummaryTable({
       </thead>
       <tbody>
         {rows.map((r) => (
-          <tr key={r.target} data-testid={`${rowTestidPrefix}-row-${r.target}`}>
+          <tr key={r.target}>
             <td>
               <Link className="row-link mono" to={`/admin/security/permissions/${encodeURIComponent(r.target)}`} lang="en">
                 {r.target}

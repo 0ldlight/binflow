@@ -296,7 +296,6 @@ export default function AuditPage() {
             <EmptyState
               message="暂无审计事件"
               hint="登录、建仓、上传等操作会记录在这里"
-              testid="audit-empty"
             />
           )
         ) : (

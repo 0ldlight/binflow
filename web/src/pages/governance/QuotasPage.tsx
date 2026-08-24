@@ -37,7 +37,7 @@ function WaterBar({ usage }: { usage: RepoUsage }) {
   const pct = Math.min(100, (usage.usedBytes / quota) * 100)
   const cls = usage.usedBytes >= quota ? 'full' : pct >= 80 ? 'warn' : ''
   return (
-    <div data-testid={`quota-bar-${usage.repo}`} className="quota-bar">
+    <div className="quota-bar">
       <div
         className={`water-bar${cls ? ` ${cls}` : ''}`}
         role="progressbar"
@@ -105,7 +105,7 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
   }
 
   return (
-    <tr data-testid={`quota-row-${repo.key}`}>
+    <tr>
       <td>
         <Link className="row-link mono" to={`/admin/repositories/${repo.key}`} lang="en">
           {repo.key}
@@ -138,7 +138,6 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
               aria-label={`${repo.key} 的新配额（字节）`}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              data-testid={`quota-input-${repo.key}`}
               lang="en"
             />{' '}
             <span className="text-muted" style={{ fontSize: 'var(--bf-fs-aux)' }}>
@@ -162,7 +161,6 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
               className="btn"
               disabled={saving}
               onClick={() => void save()}
-              data-testid={`quota-save-${repo.key}`}
             >
               {saving ? '保存中…' : '保存'}
             </button>{' '}
@@ -171,12 +169,11 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
               className="btn"
               disabled={saving}
               onClick={() => setEditing(false)}
-              data-testid={`quota-cancel-${repo.key}`}
             >
               取消
             </button>
             {editErr && (
-              <div className="field-error" role="alert" data-testid={`quota-error-${repo.key}`}>
+              <div className="field-error" role="alert">
                 {editErr}
               </div>
             )}
@@ -192,7 +189,6 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
                   disabled={readOnly}
                   title={readOnly ? '只读管理员：配额写是管理面写操作（服务端 403 兜底）' : undefined}
                   onClick={startEdit}
-                  data-testid={`quota-edit-${repo.key}`}
                 >
                   编辑上限
                 </button>
@@ -249,10 +245,9 @@ export default function QuotasPage() {
                 创建第一个仓库
               </Link>
             }
-            testid="quotas-empty"
           />
         ) : (
-          <table className="table" data-testid="quotas-table">
+          <table className="table">
             <thead>
               <tr>
                 <th scope="col">仓库</th>

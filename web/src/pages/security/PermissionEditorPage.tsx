@@ -279,7 +279,6 @@ function ResourceDialog({
                     onToggle={(k, next) => setRepos((p) => (next ? [...p, k] : p.filter((x) => x !== k)))}
                     availableLabel="可选仓库"
                     selectedLabel="已选仓库"
-                    itemTestid={(k) => `perm-repo-pick-${k}`}
                   />
                   <div className="pattern-add">
                     <input
@@ -320,7 +319,6 @@ function ResourceDialog({
                     onToggle={(k, next) => setRepos((p) => (next ? [...p, k] : p.filter((x) => x !== k)))}
                     availableLabel="可选仓库"
                     selectedLabel="已选仓库"
-                    itemTestid={(k) => `perm-repo-pick-${k}`}
                   />
                   <p className="admin-note">
                     ⓘ Artifactory 的 Any Local / Any Remote 通配桶不建：BinFlow 契约 repos[] 必须逐个指名现存仓库
@@ -341,7 +339,7 @@ function ResourceDialog({
             取消
           </button>
           {step === 2 && (
-            <button type="button" className="btn" data-testid="perm-res-back" onClick={() => setStep(1)}>
+            <button type="button" className="btn" onClick={() => setStep(1)}>
               ← 上一步
             </button>
           )}
@@ -683,7 +681,6 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
                       aria-label={`移除主体 ${name}`}
                       disabled={readOnly}
                       onClick={() => removePrincipal(kind, name)}
-                      data-testid={`perm-matrix-remove-${cellKind}-${name}`}
                     >
                       ✕
                     </button>
@@ -784,7 +781,6 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
                     aria-label={`移除仓库 ${r}`}
                     disabled={readOnly}
                     onClick={() => setF((p) => ({ ...p, repos: p.repos.filter((x) => x !== r) }))}
-                    data-testid={`perm-repo-remove-${r}`}
                   >
                     ✕
                   </button>

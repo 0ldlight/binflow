@@ -3,8 +3,8 @@ import type { ReactNode } from 'react'
 // 双列穿梭（console-m8 §3.3 C5，对齐 reverse §4.11 Available/Selected 形态）：
 // 左「可选」右「已选」，各带计数；空侧显示「未选择项」（No Items Selected
 // 语义）。BinFlow 皮肤下条目本体是 checkbox——勾选即移入右侧、取消即移回，
-// 键盘（Tab + Space）天然可达，且沿用 T-101 冻结的 checkbox 锚
-// （user-form-group-<name> / group-form-member-<name>）。
+// 键盘（Tab + Space）天然可达。条目 testid（itemTestid prop）自 T-267 死锚
+// 退役后无在册消费者，调用方均不再传；后续批次需要时经 §10 入册再启用。
 //
 // 本文件仅服务本票三页（Users/UserDetail/Groups）——area 目录内的新助手，
 // 不触碰共享组件层（改共享层需另开票）。
@@ -34,8 +34,8 @@ export function TransferBox({
   disabled?: boolean
   availableLabel?: string
   selectedLabel?: string
-  /** 条目 checkbox 的 testid（冻结锚：user-form-group-<name> 等） */
-  itemTestid: (name: string) => string
+  /** 条目 checkbox 的 testid（可选——T-267 死锚退役后调用方均不再传，保留 prop 供后续批次复用） */
+  itemTestid?: (name: string) => string
   /** 已选侧的附加说明（如组 → 成员数之外的用法）；默认同 available 侧 */
   renderNote?: (item: TransferItem) => ReactNode
 }) {
@@ -50,7 +50,7 @@ export function TransferBox({
         checked={checked}
         disabled={disabled}
         onChange={(e) => onToggle(item.name, e.target.checked)}
-        data-testid={itemTestid(item.name)}
+        data-testid={itemTestid?.(item.name)}
       />
       <span className="mono" lang="en">
         {item.name}

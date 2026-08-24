@@ -158,7 +158,7 @@ export default function StorageSummaryPage() {
             <section className="card section" data-testid="storage-summary">
               <div className="kv">
                 <span className="k">blob 计数</span>
-                <span className="mono" data-testid="storage-summary-blobs" lang="en">
+                <span className="mono" lang="en">
                   {formatCount(stats.data.blobs)}
                 </span>
               </div>
@@ -195,7 +195,7 @@ export default function StorageSummaryPage() {
           )}
 
           {usage.status === 'loading' && usage.total > 0 && (
-            <p className="field-hint" data-testid="storage-progress">
+            <p className="field-hint">
               正在拉取仓库用量（<span className="mono" lang="en">{usage.done}/{usage.total}</span>，串行）…
             </p>
           )}
@@ -209,7 +209,6 @@ export default function StorageSummaryPage() {
                   创建第一个仓库
                 </Link>
               }
-              testid="storage-empty"
             />
           ) : (
             measured.length > 0 && (
@@ -250,7 +249,7 @@ export default function StorageSummaryPage() {
                     const virtual = r.type === 'virtual'
                     const pct = !virtual && u && totalUsed > 0 ? (u.usedBytes / totalUsed) * 100 : null
                     return (
-                      <tr key={r.key} data-testid={`storage-row-${r.key}`}>
+                      <tr key={r.key}>
                         <td>
                           <Link className="row-link mono" to={repoLink(r.key)} lang="en">
                             {r.key}
@@ -298,7 +297,7 @@ export default function StorageSummaryPage() {
           )}
 
           {partial && usage.status === 'ok' && (
-            <p className="field-hint" data-testid="storage-partial">
+            <p className="field-hint">
               部分数据
               {usage.failed.length > 0 && (
                 <>

@@ -62,7 +62,7 @@ function QuotaLine({ usage }: { usage: RepoUsage }) {
   const pct = quota > 0 ? Math.min(100, (used / quota) * 100) : 0
   const cls = used >= quota ? 'full' : pct >= 80 ? 'warn' : ''
   return (
-    <div data-testid="repo-usage-bar">
+    <div>
       <div
         className={`water-bar${cls ? ` ${cls}` : ''}`}
         role="progressbar"
@@ -155,13 +155,12 @@ function QuotaEditor({
             setDraft(null)
             setError(null)
           }}
-          data-testid="repo-quota-cancel"
         >
           取消
         </button>
       </div>
       {error && (
-        <p className="field-error" role="alert" data-testid="repo-quota-error">
+        <p className="field-error" role="alert">
           {error}
         </p>
       )}
@@ -291,7 +290,7 @@ export default function RepoDetailPage() {
               ⬆ 部署 Deploy
             </button>
           )}
-          <Link className="btn" to={`/artifacts/${repo.key}`} data-testid="repo-goto-tree">
+          <Link className="btn" to={`/artifacts/${repo.key}`}>
             浏览制品 →
           </Link>
           {canEditConfig && (
@@ -348,8 +347,8 @@ export default function RepoDetailPage() {
           <div>
             <section className="card section" data-testid="repo-commands">
               <h3>客户端接入（{repo.packageType}）</h3>
-              {commands.map((c, i) => (
-                <div className="cmd-block" key={c.title} data-testid={`repo-cmd-${packageType}-${i}`}>
+              {commands.map((c) => (
+                <div className="cmd-block" key={c.title}>
                   <header>
                     <span>{c.title}</span>
                     <CopyButton value={c.text} label={c.title} />
@@ -509,7 +508,7 @@ export default function RepoDetailPage() {
             )}
           </section>
 
-          <section className="card section" data-testid="repo-advanced-card">
+          <section className="card section">
             <h3>高级</h3>
             <div className="kv">
               <span className="k">优先解析</span>
@@ -560,7 +559,7 @@ export default function RepoDetailPage() {
             {canEditConfig ? (
               <p className="field-hint">
                 字段级修改走{' '}
-                <Link to={`/admin/repositories/${repo.key}/edit`} data-testid="repo-edit-link-config">
+                <Link to={`/admin/repositories/${repo.key}/edit`}>
                   编辑器
                 </Link>
                 （全量替换语义——保存时整体重写 config）。

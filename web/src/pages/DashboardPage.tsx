@@ -138,7 +138,6 @@ function ReposCard() {
             ) : undefined
           }
           hint="建议从 local + generic 起步（任意文件）；协议仓选型见 docs/user 接入文档"
-          testid="repos-empty"
         />
       ) : (
         <>
@@ -207,7 +206,7 @@ function AuditCard() {
         (events.length === 0 ? (
           <EmptyState message="暂无审计事件" hint="登录、建仓、上传等操作会记录在这里" />
         ) : (
-          <table className="table" data-testid="dashboard-audit-table">
+          <table className="table">
             <thead>
               <tr>
                 <th scope="col">时间</th>
@@ -217,12 +216,11 @@ function AuditCard() {
               </tr>
             </thead>
             <tbody>
-              {events.map((ev, i) => {
+              {events.map((ev) => {
                 const target = auditTarget(ev)
                 return (
                   <tr
                     key={ev.id}
-                    data-testid={`dashboard-audit-row-${i}`}
                     tabIndex={target ? 0 : undefined}
                     onClick={target ? () => navigate(target) : undefined}
                     onKeyDown={

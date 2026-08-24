@@ -338,7 +338,7 @@ export default function MigrationPanel() {
             {starting ? '启动中…' : '启动迁移'}
           </button>
           {readOnly ? (
-            <span className="text-2" data-testid="migration-readonly-note" style={{ fontSize: 'var(--bf-fs-aux)' }}>
+            <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>
               只读管理员：启动迁移为管理面写操作（system:write），入口已禁用——服务端 403 兜底。
             </span>
           ) : (

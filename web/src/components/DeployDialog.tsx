@@ -336,7 +336,6 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
             <EmptyState
               message="没有可经浏览器上传的仓库"
               hint="浏览器上传面向 local 的 Generic / Maven 仓；docker / npm / pypi 协议请用对应客户端发布（仓库详情页有接入命令）。"
-              testid="deploy-empty"
               action={
                 admin ? (
                   <Link className="btn" to="/admin/repositories/new">
@@ -420,7 +419,7 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                     />
                     <CopyButton value={normalizeDir(target)} label="目标路径" />
                   </div>
-                  <div className="field-hint deploy-echo" data-testid="deploy-target-echo" lang="en">
+                  <div className="field-hint deploy-echo" lang="en">
                     请求编码回显：{repoKey}/{encodedPath(normalizeDir(target), rows[0]?.fileName ?? '<文件名>')}
                   </div>
                 </div>
@@ -566,7 +565,6 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                             <button
                               type="button"
                               className="btn"
-                              data-testid={`deploy-retry-${r.fileName}`}
                               onClick={() => retry(r)}
                             >
                               重试

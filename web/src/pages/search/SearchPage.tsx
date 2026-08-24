@@ -299,7 +299,7 @@ export default function SearchPage() {
         />
       ) : (
         <>
-          <table className="table" data-testid="search-results">
+          <table className="table">
             <thead>
               <tr>
                 <th>仓库</th>

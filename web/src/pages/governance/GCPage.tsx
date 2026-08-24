@@ -272,7 +272,7 @@ export default function GCPage() {
           </div>
 
           {runError && (
-            <div className="gc-error" role="alert" data-testid="gc-error">
+            <div className="gc-error" role="alert">
               <div className="headline">
                 <span aria-hidden="true">✗</span>
                 {runError.status === 409

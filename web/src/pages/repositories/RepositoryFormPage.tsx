@@ -619,13 +619,12 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 type="checkbox"
                 checked={f.allowPrivateUpstream}
                 onChange={(e) => set('allowPrivateUpstream', e.target.checked)}
-                data-testid="form-allow-private"
                 disabled={locked}
               />
               允许私网上游（allowPrivateUpstream）
             </label>
             {f.allowPrivateUpstream && (
-              <div className="warn-box" data-testid="form-private-warn">
+              <div className="warn-box">
                 ⚠ 已放行私网上游：SSRF 防线对该仓放宽，变更会记录审计（NFR-S14）。
               </div>
             )}
@@ -642,7 +641,7 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 <p className="field-hint">没有可用的 local/remote 仓可作为成员——先创建成员仓库。</p>
               )}
               {memberOptions.length > 0 && (
-                <div className="member-pick" data-testid="form-member-pick">
+                <div className="member-pick">
                   {memberOptions.map((o: RepoListItem) => (
                     <label key={o.key}>
                       <input
@@ -699,7 +698,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                           aria-label={`下移 ${m}`}
                           disabled={i === f.members.length - 1 || locked}
                           onClick={() => moveMember(i, 1)}
-                          data-testid={`member-down-${i}`}
                         >
                           ↓
                         </button>
@@ -740,7 +738,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 type="checkbox"
                 checked={f.handleReleases}
                 onChange={(e) => set('handleReleases', e.target.checked)}
-                data-testid="form-handle-releases"
                 disabled={locked}
               />
               接受 release 部署（handleReleases）
@@ -750,7 +747,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 type="checkbox"
                 checked={f.handleSnapshots}
                 onChange={(e) => set('handleSnapshots', e.target.checked)}
-                data-testid="form-handle-snapshots"
                 disabled={locked}
               />
               接受 SNAPSHOT 部署（handleSnapshots）
@@ -761,7 +757,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 id="f-checksum"
                 value={f.checksumPolicyType}
                 onChange={(e) => set('checksumPolicyType', e.target.value)}
-                data-testid="form-checksum-policy"
                 disabled={locked}
               >
                 <option value="client-checksums">client-checksums（客户端声明严格校验，默认）</option>
@@ -774,7 +769,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 id="f-snapshot"
                 value={f.snapshotVersionBehavior}
                 onChange={(e) => set('snapshotVersionBehavior', e.target.value)}
-                data-testid="form-snapshot-behavior"
                 disabled={locked}
               >
                 <option value="deployer">deployer（按上传名存储，默认）</option>
@@ -868,7 +862,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                   type="checkbox"
                   checked={f.hardFail}
                   onChange={(e) => set('hardFail', e.target.checked)}
-                  data-testid="form-hard-fail"
                   disabled={locked}
                 />
                 hardFail（上游故障时直接失败，不降级）
@@ -880,7 +873,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
               type="checkbox"
               checked={f.priorityResolution}
               onChange={(e) => set('priorityResolution', e.target.checked)}
-              data-testid="form-priority"
               disabled={locked}
             />
             优先解析（priorityResolution：作为 virtual 成员时优先桶标记）
@@ -942,7 +934,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
               type="button"
               className="btn"
               onClick={() => navigate(mode === 'create' ? `/admin/repositories/${f.rclass}` : `/admin/repositories/${routeKey}`)}
-              data-testid="form-cancel"
             >
               取消
             </button>
@@ -970,7 +961,7 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
           </div>
         </section>
 
-        <aside className="card summary-box" data-testid="form-summary">
+        <aside className="card summary-box">
           <h3>摘要（实时）</h3>
           {summaryRows.map(([k, v]) => (
             <div className="kv" key={k}>

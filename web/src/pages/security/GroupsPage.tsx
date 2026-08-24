@@ -267,7 +267,6 @@ function GroupEditor({
               onToggle={(u, next) => setMembers((p) => (next ? [...(p ?? []), u] : (p ?? []).filter((x) => x !== u)))}
               availableLabel="可选用户"
               selectedLabel="已选成员"
-              itemTestid={(u) => `group-form-member-${u}`}
             />
           </div>
         )}
@@ -293,13 +292,13 @@ function GroupEditor({
         </div>
       )}
       {serverError && (
-        <div className="form-error" data-testid="group-form-error" role="alert">
+        <div className="form-error" role="alert">
           <div className="headline">{editMode ? '保存失败' : '创建失败'}</div>
           <div className="raw">{serverError.message}</div>
         </div>
       )}
       <div className="form-actions">
-        <button type="button" className="btn" onClick={onCancel} data-testid="group-form-cancel">
+        <button type="button" className="btn" onClick={onCancel}>
           取消
         </button>
         <button
@@ -311,7 +310,6 @@ function GroupEditor({
             setDescription(seed.description)
             setMembers(initialMembers)
           }}
-          data-testid="group-form-reset"
         >
           重置
         </button>
@@ -456,7 +454,7 @@ export default function GroupsPage() {
                 </span>
               </Link>
             ))}
-            <button type="button" className="btn" onClick={() => setConflict(null)} data-testid="group-delete-dismiss">
+            <button type="button" className="btn" onClick={() => setConflict(null)}>
               稍后再试
             </button>
           </div>
@@ -487,8 +485,8 @@ export default function GroupsPage() {
               <thead>
                 <tr>
                   <SortTh label="组名" sortKey="name" sort={sort} onToggle={toggle} testid="groups-sort-name" />
-                  <SortTh label="权限数" sortKey="perms" sort={sort} onToggle={toggle} testid="groups-sort-perms" />
-                  <SortTh label="成员数" sortKey="members" sort={sort} onToggle={toggle} testid="groups-sort-members" />
+                  <SortTh label="权限数" sortKey="perms" sort={sort} onToggle={toggle} />
+                  <SortTh label="成员数" sortKey="members" sort={sort} onToggle={toggle} />
                   {admin && <th scope="col">操作</th>}
                 </tr>
               </thead>
@@ -515,11 +513,11 @@ export default function GroupsPage() {
                         <span className="text-muted">—</span>
                       ) : (
                         <span className="cell-inline">
-                          <span className="text-2" data-testid={`group-perms-${r.group.name}`}>
+                          <span className="text-2">
                             {r.grants.length}
                           </span>
                           {r.grants.some((g) => g.actions.includes('manage')) && (
-                            <span className="badge neutral mono" lang="en" title="组在至少一个 permission target 上持有 manage（仓库配置派生权）——BinFlow 无 Artifactory 组级 adminPrivileges 字段（有意不跟进，rbac-model §5）" data-testid={`group-manage-badge-${r.group.name}`}>
+                            <span className="badge neutral mono" lang="en" title="组在至少一个 permission target 上持有 manage（仓库配置派生权）——BinFlow 无 Artifactory 组级 adminPrivileges 字段（有意不跟进，rbac-model §5）">
                               manage
                             </span>
                           )}

@@ -339,7 +339,6 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
         <EmptyState
           message="无权限列出仓库"
           hint="仓库清单是管理面读端点（admin 与只读管理员可见）。请从具体仓库的详情页或制品树打开 Set Me Up。"
-          testid="smu-grid-denied"
         />
       )
     }
@@ -348,7 +347,6 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
         <EmptyState
           message="这个实例还没有仓库"
           hint="Set Me Up 按已有仓库的包类型生成接入指引——先创建仓库。"
-          testid="smu-grid-empty"
           action={
             admin ? (
               <Link className="btn primary" to="/admin/repositories/new">
@@ -429,7 +427,7 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
             <p className="text-2">选择包类型，了解如何向 BinFlow 解析与部署制品。</p>
             {resolving ? <Skeleton lines={3} /> : renderGrid()}
             <div className="modal-actions">
-              <button type="button" className="btn" data-testid="smu-close" onClick={onClose}>
+              <button type="button" className="btn" onClick={onClose}>
                 关闭
               </button>
             </div>
@@ -510,8 +508,8 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
                     onReauth={onReauth}
                   />
                 )}
-                {configureBlocks.map((c, i) => (
-                  <CmdBlock key={c.title} block={c} testid={`smu-cmd-conf-${pkg}-${i}`} />
+                {configureBlocks.map((c) => (
+                  <CmdBlock key={c.title} block={c} />
                 ))}
               </div>
             ) : (
@@ -523,7 +521,7 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
             )}
 
             <div className="modal-actions">
-              <button type="button" className="btn primary" data-testid="smu-done" onClick={onClose}>
+              <button type="button" className="btn primary" onClick={onClose}>
                 完成
               </button>
             </div>
@@ -538,7 +536,7 @@ function pkgReposOf(pt: PackageType, repos: MiniRepo[]): MiniRepo[] {
   return repos.filter((r) => r.packageType === pt)
 }
 
-function CmdBlock({ block, testid }: { block: CommandBlock; testid: string }) {
+function CmdBlock({ block, testid }: { block: CommandBlock; testid?: string }) {
   return (
     <div className="cmd-block" data-testid={testid}>
       <header>
@@ -616,7 +614,7 @@ function TokenArea({
   const pendingAgeMin = pending ? Math.max(1, Math.round((Date.now() - pending.startedAt) / 60000)) : 0
 
   return (
-    <section data-testid="smu-token-area" style={{ margin: '12px 0' }}>
+    <section style={{ margin: '12px 0' }}>
       {mint.phase === 'done' ? (
         <div className="smu-token-panel" data-testid="smu-token-panel">
           <div>
@@ -714,7 +712,7 @@ function TokenArea({
         <>
           {resuming && mint.phase === 'minting' && (
             // 回跳续铸 in-flight（§14.3-2）：grant 已到手、mint 自动重发中
-            <p className="field-hint" data-testid="smu-resuming" style={{ marginBottom: 8 }} role="status">
+            <p className="field-hint" style={{ marginBottom: 8 }} role="status">
               重认证完成——正在自动续铸令牌…（重认证凭证约 {mmss(ttlLeft)} 内有效）
             </p>
           )}
@@ -741,7 +739,7 @@ function TokenArea({
               </span>
             )}
             {mint.phase === 'error' && (
-              <span className="smu-error-inline" role="alert" data-testid="smu-mint-error" style={{ display: 'block' }}>
+              <span className="smu-error-inline" role="alert" style={{ display: 'block' }}>
                 铸币失败（HTTP {mint.status}）：{mint.message}
               </span>
             )}

@@ -53,7 +53,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={{ success, error }}>
       {children}
-      <div className="toast-stack" data-testid="toast-stack" aria-live="polite">
+      <div className="toast-stack" aria-live="polite">
         {items.map((t) => (
           <div key={t.id} className={`toast ${t.kind}`} data-testid="toast" role={t.kind === 'error' ? 'alert' : 'status'}>
             <span aria-hidden="true">{t.kind === 'success' ? '✓' : '✗'}</span>

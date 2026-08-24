@@ -137,10 +137,10 @@ export default function PermissionsPage() {
               <thead>
                 <tr>
                   <SortTh label="权限名" sortKey="name" sort={sort} onToggle={toggle} testid="perms-sort-name" />
-                  <SortTh label="仓库数" sortKey="repos" sort={sort} onToggle={toggle} testid="perms-sort-repos" />
-                  <SortTh label="patterns" sortKey="patterns" sort={sort} onToggle={toggle} testid="perms-sort-patterns" />
-                  <SortTh label="用户数" sortKey="users" sort={sort} onToggle={toggle} testid="perms-sort-users" />
-                  <SortTh label="组数" sortKey="groups" sort={sort} onToggle={toggle} testid="perms-sort-groups" />
+                  <SortTh label="仓库数" sortKey="repos" sort={sort} onToggle={toggle} />
+                  <SortTh label="patterns" sortKey="patterns" sort={sort} onToggle={toggle} />
+                  <SortTh label="用户数" sortKey="users" sort={sort} onToggle={toggle} />
+                  <SortTh label="组数" sortKey="groups" sort={sort} onToggle={toggle} />
                 </tr>
               </thead>
               <tbody>
@@ -172,7 +172,6 @@ export default function PermissionsPage() {
                             className="badge neutral mono"
                             lang="en"
                             title="该 target 的某主体行携带 manage（仓库配置派生权；不隐含读写删）"
-                            data-testid={`perm-manage-badge-${t.name}`}
                           >
                             manage
                           </span>

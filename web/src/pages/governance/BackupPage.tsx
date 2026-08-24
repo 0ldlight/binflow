@@ -47,7 +47,7 @@ export default function BackupPage() {
           （REST GC 409 / CLI 非零退出码），不会排队等待。
         </p>
         {BLOCKS.map((b) => (
-          <div className="cmd-block" key={b.title} data-testid={`backup-cmd-${b.title.startsWith('导出') ? 'export' : 'import'}`}>
+          <div className="cmd-block" key={b.title}>
             <header>
               <span>{b.title}</span>
               <CopyButton value={b.text} label={b.title} />

@@ -364,7 +364,7 @@ export default function AppShell() {
 
   if (status === 'checking') {
     return (
-      <div className="boot-screen" data-testid="app-boot">
+      <div className="boot-screen">
         正在验证会话…
       </div>
     )
@@ -484,7 +484,6 @@ export default function AppShell() {
                   <button
                     type="button"
                     className="copy-btn"
-                    data-testid="topbar-search-recent-clear"
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={clearTopbarRecent}
                   >
@@ -594,7 +593,6 @@ export default function AppShell() {
                     </button>
                     <Link
                       role="menuitem"
-                      data-testid="quick-new-repo-local"
                       to="/admin/repositories/new?rclass=local"
                       onClick={() => setMenuOpen(false)}
                     >
@@ -610,7 +608,6 @@ export default function AppShell() {
                     </Link>
                     <Link
                       role="menuitem"
-                      data-testid="quick-new-repo-virtual"
                       to="/admin/repositories/new?rclass=virtual"
                       onClick={() => setMenuOpen(false)}
                     >
@@ -622,7 +619,7 @@ export default function AppShell() {
                     <Link role="menuitem" data-testid="quick-new-user" to="/admin/security/users" onClick={() => setMenuOpen(false)}>
                       新建用户
                     </Link>
-                    <Link role="menuitem" data-testid="quick-new-group" to="/admin/security/groups" onClick={() => setMenuOpen(false)}>
+                    <Link role="menuitem" to="/admin/security/groups" onClick={() => setMenuOpen(false)}>
                       新建组
                     </Link>
                     <Link

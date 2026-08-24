@@ -26,7 +26,7 @@ export function ErrorCard({ error, onRetry }: { error: ApiError; onRetry?: () =>
       )}
       {onRetry && (
         <div style={{ marginTop: 8 }}>
-          <button type="button" className="btn" onClick={onRetry} data-testid="error-retry">
+          <button type="button" className="btn" onClick={onRetry}>
             重试
           </button>
         </div>

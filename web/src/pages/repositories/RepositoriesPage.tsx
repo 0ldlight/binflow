@@ -227,7 +227,7 @@ function SortTh({
   active: boolean
   dir: SortDir
   onToggle: () => void
-  testid: string
+  testid?: string
 }) {
   return (
     // 点击承载在 th 上（热区 = 整格；内部 button 的 click 冒泡到 th，
@@ -385,10 +385,9 @@ export default function RepositoriesPage() {
                     ? 'Remote 仓代理上游（如 repo1.maven.org），制品按需缓存'
                     : 'Virtual 仓聚合多个 local/remote 成员，统一团队出口'
               }
-              testid="repos-empty"
             />
           ) : (
-            <EmptyState message={`还没有 ${TYPE_LABEL[tab]} 仓库`} hint="仓库由管理员创建" testid="repos-empty" />
+            <EmptyState message={`还没有 ${TYPE_LABEL[tab]} 仓库`} hint="仓库由管理员创建" />
           )
         ) : (
           <>
@@ -396,7 +395,7 @@ export default function RepositoriesPage() {
               <thead>
                 <tr>
                   <SortTh label="Repository Key" active={sortKey === 'key'} dir={sortDir} onToggle={() => toggleSort('key')} testid="repos-sort-key" />
-                  <SortTh label="包类型" active={sortKey === 'package'} dir={sortDir} onToggle={() => toggleSort('package')} testid="repos-sort-package" />
+                  <SortTh label="包类型" active={sortKey === 'package'} dir={sortDir} onToggle={() => toggleSort('package')} />
                   <th scope="col">类型</th>
                   <th scope="col">上游 / 成员</th>
                   <th scope="col">已用</th>
@@ -410,7 +409,6 @@ export default function RepositoriesPage() {
                 {sorted.map((repo) => (
                   <tr
                     key={repo.key}
-                    data-testid={`repos-row-${repo.key}`}
                     style={{ cursor: 'pointer' }}
                     tabIndex={0}
                     onClick={() => navigate(`/admin/repositories/${repo.key}`)}
@@ -449,7 +447,6 @@ export default function RepositoriesPage() {
                         <button
                           type="button"
                           className="btn"
-                          data-testid={`repos-setmeup-${repo.key}`}
                           title={`Set Me Up：${repo.key} 的客户端接入向导`}
                           onClick={() => setSmuKey(repo.key)}
                         >
@@ -459,7 +456,6 @@ export default function RepositoriesPage() {
                           <button
                             type="button"
                             className="btn"
-                            data-testid={`repos-deploy-${repo.key}`}
                             disabled={readOnly}
                             title={
                               readOnly
@@ -477,7 +473,6 @@ export default function RepositoriesPage() {
                             className="row-del"
                             aria-label={`删除仓库 ${repo.key}`}
                             title={`删除仓库 ${repo.key}`}
-                            data-testid={`repos-delete-${repo.key}`}
                             onClick={(e) => {
                               e.stopPropagation()
                               requestDelete({ key: repo.key, rclass: repo.type, packageType: repo.packageType })

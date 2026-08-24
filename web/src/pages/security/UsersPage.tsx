@@ -219,7 +219,6 @@ function CreateUserForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
               }
               availableLabel="可选组"
               selectedLabel="已选组"
-              itemTestid={(name) => `user-form-group-${name}`}
             />
           </div>
         )}
@@ -239,10 +238,10 @@ function CreateUserForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
         </div>
       )}
       <div className="form-actions">
-        <button type="button" className="btn" onClick={onCancel} data-testid="user-form-cancel">
+        <button type="button" className="btn" onClick={onCancel}>
           取消
         </button>
-        <button type="button" className="btn" onClick={() => setF(CREATE_INITIAL)} data-testid="user-form-reset">
+        <button type="button" className="btn" onClick={() => setF(CREATE_INITIAL)}>
           重置
         </button>
         <button type="button" className="btn primary" disabled={!canSubmit} onClick={() => void submit()} data-testid="user-form-submit">
@@ -327,9 +326,9 @@ export default function UsersPage() {
               <thead>
                 <tr>
                   <SortTh label="用户名" sortKey="name" sort={sort} onToggle={toggle} testid="users-sort-name" />
-                  <SortTh label="Email" sortKey="email" sort={sort} onToggle={toggle} testid="users-sort-email" />
-                  <SortTh label="组" sortKey="groups" sort={sort} onToggle={toggle} testid="users-sort-groups" />
-                  <SortTh label="角色" sortKey="role" sort={sort} onToggle={toggle} testid="users-sort-role" />
+                  <SortTh label="Email" sortKey="email" sort={sort} onToggle={toggle} />
+                  <SortTh label="组" sortKey="groups" sort={sort} onToggle={toggle} />
+                  <SortTh label="角色" sortKey="role" sort={sort} onToggle={toggle} />
                   <SortTh label="Status" sortKey="status" sort={sort} onToggle={toggle} testid="users-sort-status" />
                   {admin && <th scope="col">操作</th>}
                 </tr>

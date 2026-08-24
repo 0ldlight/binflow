@@ -439,7 +439,7 @@ export default function ArtifactsBrowser() {
   return (
     <div data-testid="tree-page" className="tree-page browser-page">
       {/* 页头动作区（console-m8 §6.3[1]：Set Me Up / Deploy / 管理仓库） */}
-      <div className="browser-toolbar" data-testid="browser-toolbar">
+      <div className="browser-toolbar">
         <div className="browser-actions">
           <button
             type="button"
@@ -461,7 +461,7 @@ export default function ArtifactsBrowser() {
             ⬆ 部署 Deploy
           </button>
           {admin && (
-            <Link className="btn" to="/admin/repositories/local" data-testid="tree-manage-repos">
+            <Link className="btn" to="/admin/repositories/local">
               管理仓库 →
             </Link>
           )}
@@ -485,7 +485,7 @@ export default function ArtifactsBrowser() {
       </div>
 
       {emptyInstance ? (
-        <section className="card section" data-testid="tree-empty-instance">
+        <section className="card section">
           <h3>这个实例还没有仓库</h3>
           <p className="text-2">创建第一个仓库后，全部制品会以跨仓树的形式展示在这里。</p>
           <p>
@@ -535,7 +535,7 @@ export default function ArtifactsBrowser() {
               <span className="text-2">在左侧选择仓库开始浏览</span>
             )}
             <span className="spacer" />
-            <button type="button" className="btn" data-testid="tree-refresh" onClick={refresh} title="重新加载当前视图">
+            <button type="button" className="btn" onClick={refresh} title="重新加载当前视图">
               ↻ 刷新
             </button>
             {mkdirable && (
@@ -567,8 +567,8 @@ export default function ArtifactsBrowser() {
                   : `${packageType} 的发布协议是 multipart/packument 形态——请用对应客户端发布。`}
                 以下命令与仓库详情页同源：
               </p>
-              {commands.map((c, i) => (
-                <div className="cmd-block" key={c.title} data-testid={`repo-cmd-${packageType}-${i}`}>
+              {commands.map((c) => (
+                <div className="cmd-block" key={c.title}>
                   <header>
                     <span>{c.title}</span>
                     <CopyButton value={c.text} label={c.title} />
@@ -683,7 +683,7 @@ export default function ArtifactsBrowser() {
                   onDelete={(n) => void confirmDelete(repoKey, n)}
                 />
               ) : (
-                <section className="card section node-detail" data-testid="browser-intro">
+                <section className="card section node-detail">
                   <h3>制品浏览器</h3>
                   <p className="text-2">
                     左侧是全部仓库的树：单击选中（此处联动详情），Enter 或展开箭头进入下一层。选中路径会进入
@@ -927,7 +927,7 @@ export default function ArtifactsBrowser() {
 
           {/* 页脚标语行（§6.3[6]，对齐 Artifactory "Happily serving" 行） */}
           {stats.status === 'ok' && stats.data && (
-            <p className="browser-footer" data-testid="tree-footer-stats">
+            <p className="browser-footer">
               已服务 {stats.data.blobs.toLocaleString()} 个 blob · 逻辑容量 {formatBytes(stats.data.logical_bytes)}
             </p>
           )}

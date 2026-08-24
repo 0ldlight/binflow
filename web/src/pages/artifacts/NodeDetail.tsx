@@ -311,7 +311,7 @@ function NodeGeneral({
                 <div className="kv" key={algo}>
                   <span className="k">{algo}</span>
                   <span className="mono" lang="en">
-                    <span data-testid={`node-copy-${algo}`}>
+                    <span>
                       {v.length > 24 ? `${v.slice(0, 20)}…${v.slice(-8)}` : v}
                       <CopyButton value={v} label={algo} />
                     </span>
@@ -331,7 +331,7 @@ function NodeGeneral({
         )}
         {/* docker 特化：manifest digest 行的 tag 徽标（T-134 G32a） */}
         {!node.folder && node.tags && node.tags.length > 0 && (
-          <div className="kv" data-testid="node-tags">
+          <div className="kv">
             <span className="k">tags</span>
             <span>
               {node.tags.map((tag) => (
