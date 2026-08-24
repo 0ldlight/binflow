@@ -725,7 +725,9 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **T-263** [P1] 旧路由 redirect 全量移除 `role:dev-frontend` — **doing 2026-08-24（Q3 终裁执行：20 条 LegacyRedirect 删除 + 断言反转 404 + 文档改写）**
 - **T-261** [P1] npm packument 转义收敛 `role:dev-registry-adapter` — **done 2026-08-24（三重零变化证据 + 判别性 npm install 转义 URL 腿；conductor 复验；提交 `f30aede`）**
   两消费点收敛至 client.EscapePathSegments（import 单向无环论证）。**area 外登记**：remote JoinURL 裸拼接 = D-1 同类候选票；-rev 回显塌缩语义票。日志 reports/agents/T-261.md。
-- **T-262** [P1] push_npm 覆写臂自查 `role:dev-go-core` — **doing 2026-08-24（三场景推演：无包/追加/真覆写 vs T-249 判定表；无风险钉死或按镜像语义修复）**
+- **T-262** [P1] push_npm 覆写臂自查 `role:dev-go-core` — **done 2026-08-24（裁定无风险钉死：引擎不发整包 PUT，T-249 修复天然覆盖复制面；四场景表 + 全栈非 admin 腿；conductor 复验；提交 `2750caf`）**
+  遗留登记：场景 3 静默分歧无观测面（WARN/audit 候选票）；T-249 §8.2 可关账。日志 reports/agents/T-262.md。
+- **T-269** [P1] git 瘦身 dry-run+手册 `role:release-engineer` — **doing 2026-08-24（【零远端触碰】三巨 blob 定位 + filter-repo 试验场 + 执行手册〔用户授权点显式〕）**
 - **T-273** [P2] last-admin census 折入事务 — todo（M9 尾批）
 - **B2**：T-251 [P0] E2/E3/E4 users 域端点（加宽+enabled 回显+DELETE 全链护栏级联）｜ T-253 [P0] E1 usage 批量端点
 - **B3**：T-252 [P0] E5 组成员 ?includeUsers ｜ T-256 [P0] GC 接线收口（五路径 ReleaseGCHold+serve.lock+压力 spec 进 CI——**顺序硬规则：先于 T-268**）
