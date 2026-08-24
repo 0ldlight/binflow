@@ -306,9 +306,22 @@ func (e *MigrationEngine) Delete(ctx context.Context, sha256 string) error {
 	return e.disk.Delete(ctx, sha256)
 }
 
-// GC runs mark-sweep on the active backend(s). In dual-write mode, it runs on
-// both.
+// GC implements the legacy face: adapt and delegate to GCSweep (ADR-0031).
 func (e *MigrationEngine) GC(ctx context.Context, referenced func() (map[string]struct{}, error), grace time.Duration, apply bool) ([]string, error) {
+	if referenced == nil {
+		return nil, errors.New("storage: migration: gc: referenced callback is nil")
+	}
+	return e.GCSweep(ctx, ReferencedFunc(referenced), grace, apply)
+}
+
+// GCSweep runs mark-sweep on the active backend(s). In dual-write mode it
+// runs on both, passing the SAME marker down — m.Mark() is therefore invoked
+// once per backend pass (plus the apply-phase refresh for legacy-form
+// markers); the GCMarker contract allows multiple calls. Each backend
+// applies its own hold set and delete gates: dual-write sessions register
+// the sha on both engines at Commit, and each engine's sweep protects what
+// it would delete (see ReleaseGCHold below).
+func (e *MigrationEngine) GCSweep(ctx context.Context, m GCMarker, grace time.Duration, apply bool) ([]string, error) {
 	if err := e.checkOpen(); err != nil {
 		return nil, fmt.Errorf("storage: migration: gc: %w", err)
 	}
@@ -318,13 +331,13 @@ func (e *MigrationEngine) GC(ctx context.Context, referenced func() (map[string]
 	e.mu.RUnlock()
 
 	if cfg.Completed {
-		return e.s3.GC(ctx, referenced, grace, apply)
+		return e.s3.GCSweep(ctx, m, grace, apply)
 	}
 
 	if cfg.Enabled {
 		// Run GC on both backends; merge results.
-		diskCandidates, errDisk := e.disk.GC(ctx, referenced, grace, apply)
-		s3Candidates, errS3 := e.s3.GC(ctx, referenced, grace, apply)
+		diskCandidates, errDisk := e.disk.GCSweep(ctx, m, grace, apply)
+		s3Candidates, errS3 := e.s3.GCSweep(ctx, m, grace, apply)
 
 		merged := mergeCandidates(diskCandidates, s3Candidates)
 		if errDisk != nil {
@@ -336,7 +349,24 @@ func (e *MigrationEngine) GC(ctx context.Context, referenced func() (map[string]
 		return merged, nil
 	}
 
-	return e.disk.GC(ctx, referenced, grace, apply)
+	return e.disk.GCSweep(ctx, m, grace, apply)
+}
+
+// ReleaseGCHold implements Engine.ReleaseGCHold across both wrapped engines.
+// A dual-write Commit registers the sha on disk AND S3 (two independent hold
+// sets), so the release must reach both; in bypass and completed modes one
+// side releases an unknown sha, which is a no-op. The disk engine's own
+// release is infallible, so in practice this never errors — the wrap keeps
+// the seam honest for future backends.
+func (e *MigrationEngine) ReleaseGCHold(sha256 string) error {
+	var firstErr error
+	if err := e.disk.ReleaseGCHold(sha256); err != nil && firstErr == nil {
+		firstErr = fmt.Errorf("storage: migration: release gc hold (disk): %w", err)
+	}
+	if err := e.s3.ReleaseGCHold(sha256); err != nil && firstErr == nil {
+		firstErr = fmt.Errorf("storage: migration: release gc hold (s3): %w", err)
+	}
+	return firstErr
 }
 
 // Close shuts down both engines.
@@ -589,27 +619,19 @@ func (e *MigrationEngine) copyBlob(ctx context.Context, sha256 string) error {
 	return nil
 }
 
-// diskList returns all blob sha256 values on disk.
+// diskList returns all blob sha256 values on disk, bypassing every GC
+// candidacy gate (holds included — the migration inventory is a diff input,
+// not a reclamation decision; a sha held by an in-flight upload must still
+// be copied if it predates dual-write, and the restart re-scan catches
+// anything a live hold defers).
 func (e *MigrationEngine) diskList(ctx context.Context) ([]string, error) {
-	// Use the disk engine's GC with an empty referenced set and no grace period
-	// to get all blobs. Passing 1 nanosecond effectively skips the grace period
-	// (a zero grace triggers DefaultGCGrace of 24h per the Engine contract).
-	allDisk := func() (map[string]struct{}, error) {
-		return map[string]struct{}{}, nil
-	}
-	candidates, err := e.disk.GC(ctx, allDisk, 1, false)
-	if err != nil {
-		return nil, err
-	}
-	return candidates, nil
+	return listAllBlobs(ctx, e.disk)
 }
 
-// s3Set returns a set of all blob sha256 values on S3.
+// s3Set returns a set of all blob sha256 values on S3 (gates bypassed, same
+// as diskList).
 func (e *MigrationEngine) s3Set(ctx context.Context) (map[string]struct{}, error) {
-	allS3 := func() (map[string]struct{}, error) {
-		return map[string]struct{}{}, nil
-	}
-	candidates, err := e.s3.GC(ctx, allS3, 1, false)
+	candidates, err := listAllBlobs(ctx, e.s3)
 	if err != nil {
 		return nil, err
 	}
@@ -618,6 +640,24 @@ func (e *MigrationEngine) s3Set(ctx context.Context) (map[string]struct{}, error
 		set[sha] = struct{}{}
 	}
 	return set, nil
+}
+
+// listAllBlobs enumerates every blob in eng's store with the hold gate and
+// the grace window disabled. The concrete engines expose an internal
+// gcList; a foreign Engine implementation falls back to the legacy GC face
+// with an empty set and a sub-second grace, where holds still apply — the
+// conservative direction for an assembly this package does not know.
+func listAllBlobs(ctx context.Context, eng Engine) ([]string, error) {
+	switch e := eng.(type) {
+	case *engine:
+		return e.gcList(ctx)
+	case *S3Engine:
+		return e.gcList(ctx)
+	default:
+		return eng.GC(ctx, func() (map[string]struct{}, error) {
+			return map[string]struct{}{}, nil
+		}, time.Nanosecond, false)
+	}
 }
 
 // mergeCandidates returns the union of two sorted sha256 candidate lists.

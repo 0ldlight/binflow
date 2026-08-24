@@ -127,6 +127,8 @@ func (s *uploadSession) poison(_ *uploadSession, cause error) {
 // Commit finalizes the session. Protocol (ADR-0006, order fixed):
 //
 //  1. verify expected digests against the streamed content
+//     1a. [M9] ADR-0031: acquire the GC hold for the sha256 — BEFORE any step
+//     that could make the blob visible to a sweep (see below)
 //  2. fsync(session data)
 //  3. singleflight on sha256: if the blob already exists, discard the
 //     session and return the existing ref (idempotent dedup); else
@@ -136,6 +138,18 @@ func (s *uploadSession) poison(_ *uploadSession, cause error) {
 // The metadata transaction is deliberately out of scope: this method's
 // contract ends at "blob in place" (architecture section 3.3 makes the
 // ordering blob-first a hard rule). The session row is deleted on success.
+//
+// [M9] The hold acquired at step 1a is what closes the pre-reference window
+// (W-1): between the rename (4) and the caller's metadata commit the blob is
+// on disk but referenced nowhere, and an explicit grace=0 sweep would
+// otherwise collect it (the T-232 t134 race). Acquire-before-rename is the
+// anchoring invariant — a scan that can see the blob necessarily started
+// after the acquire, so the hold gate of gcDeleteGate cannot miss it. The
+// hold is kept on success for the caller to release via
+// Engine.ReleaseGCHold once its reference has landed; failed Commits
+// release it immediately. A dedup hit (step 3 early return) also keeps the
+// hold: the winner's registration may already be gone, and this Commit's
+// caller has its own metadata transaction ahead of it.
 func (s *uploadSession) Commit(ctx context.Context, expect BlobRef) (BlobRef, error) {
 	if s == nil {
 		return BlobRef{}, errors.New("storage: commit: nil session")
@@ -185,6 +199,18 @@ func (s *uploadSession) Commit(ctx context.Context, expect BlobRef) (BlobRef, er
 		}
 	}
 
+	// Step 1a [M9]: acquire the in-flight hold. It must be in place before
+	// the rename can publish the blob (step 4); a failed Commit releases it
+	// via the deferred complement, a successful one keeps it for the
+	// caller's ReleaseGCHold. See the method godoc and hold.go.
+	s.eng.holds.acquire(actual.Sha256)
+	holdKept := false
+	defer func() {
+		if !holdKept {
+			s.eng.holds.release(actual.Sha256)
+		}
+	}()
+
 	// Step 2: make the temp bytes durable before the rename publishes them.
 	if err := s.file.Sync(); err != nil {
 		s.failLocked()
@@ -229,7 +255,10 @@ func (s *uploadSession) Commit(ctx context.Context, expect BlobRef) (BlobRef, er
 	}
 
 	// Success: the data file is gone (renamed) or obsolete (dedup hit);
-	// close the fd and drop the session directory and DB row.
+	// close the fd and drop the session directory and DB row. The GC hold
+	// stays registered — releasing it is the caller's step, after the
+	// metadata transaction that makes this blob referenced.
+	holdKept = true
 	s.finishLocked()
 	return actual, nil
 }

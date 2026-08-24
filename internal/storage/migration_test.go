@@ -73,6 +73,9 @@ func (h *migrationTestHarness) putOnDisk(content string) BlobRef {
 	if err != nil {
 		h.t.Fatalf("commit disk session: %v", err)
 	}
+	if err := h.disk.ReleaseGCHold(ref.Sha256); err != nil {
+		h.t.Fatalf("release disk gc hold: %v", err)
+	}
 	return ref
 }
 
@@ -91,6 +94,9 @@ func (h *migrationTestHarness) putViaMigration(content string) BlobRef {
 	ref, err := sess.Commit(ctx, BlobRef{})
 	if err != nil {
 		h.t.Fatalf("commit migration session: %v", err)
+	}
+	if err := h.me.ReleaseGCHold(ref.Sha256); err != nil {
+		h.t.Fatalf("release migration gc hold: %v", err)
 	}
 	return ref
 }

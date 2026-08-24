@@ -60,6 +60,11 @@ type Options struct {
 	// SessionTTL bounds the age of an upload session before the startup sweep
 	// deletes it. Zero means DefaultSessionTTL.
 	SessionTTL time.Duration
+	// GCHoldTTL bounds how long an unreleased GC hold protects a sha
+	// ([M9] ADR-0031; the storage.gc_hold_ttl_seconds key, wired by the
+	// assembler). Zero means DefaultGCHoldTTL (600s); values below
+	// MinGCHoldTTL (60s) clamp up — see hold.go.
+	GCHoldTTL time.Duration
 	// Now overrides the clock (tests only). Nil uses time.Now.
 	Now func() time.Time
 	// Sessions is the persistence seam for upload sessions (metadata
@@ -95,6 +100,7 @@ type engine struct {
 	root     string
 	opts     Options
 	sf       singleflight
+	holds    *holdSet
 	mu       sync.RWMutex // guards closed and sessions
 	closed   bool
 	sessions map[string]*uploadSession
@@ -127,7 +133,13 @@ func OpenEngine(root string, opts Options) (Engine, error) {
 			return nil, fmt.Errorf("storage: open: create %s: %w", dir, err)
 		}
 	}
-	e := &engine{root: abs, opts: opts, sessions: make(map[string]*uploadSession)}
+	e := &engine{
+		root:     abs,
+		opts:     opts,
+		sf:       singleflight{},
+		holds:    newHoldSet(opts.GCHoldTTL, opts.Now),
+		sessions: make(map[string]*uploadSession),
+	}
 	if err := e.sweepSessions(time.Now()); err != nil {
 		// Fail the open, but never modify on-disk data in response to a sweep
 		// failure: the error may be a transient DB fault (e.g. SQLITE_BUSY)

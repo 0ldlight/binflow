@@ -85,12 +85,65 @@ type Session interface {
 	Abort(ctx context.Context) error
 }
 
+// GCMarker is the two-method reference oracle behind Engine.GCSweep
+// ([M9] ADR-0031, architecture section 14.2 point 3). Mark is the sweep's
+// snapshot; Live is the per-candidate, pre-delete recheck that closes the
+// stale-snapshot window (W-2).
+//
+// Contract for implementors:
+//
+//   - Mark must return every sha256 currently referenced by metadata
+//     (nodes ∪ docker_refs). It may be invoked several times per sweep —
+//     once for the candidacy snapshot and, for markers without a real
+//     single-point Live, once more as the apply-phase refresh.
+//   - Live must answer "is this sha referenced RIGHT NOW" with a bounded
+//     single-point query (metadata's indexed existence probe), NOT a full
+//     set rebuild. The pre-delete gate relies on Live reflecting every
+//     reference committed before the call: it is the freshness boundary of
+//     the whole soundness argument (see Engine.GCSweep).
+//
+// ReferencedFunc adapts the legacy single-snapshot callback to this
+// interface; engines detect it and substitute one apply-phase re-snapshot
+// for its Live (see gcRecheck).
+type GCMarker interface {
+	// Mark returns the snapshot of all referenced sha256 values.
+	Mark() (map[string]struct{}, error)
+	// Live reports whether sha256 is referenced as of this call.
+	Live(sha256 string) (bool, error)
+}
+
+// ReferencedFunc adapts the pre-M9 single-snapshot GC callback to GCMarker.
+// Its Live re-runs the callback and checks membership: correct standalone,
+// but O(referenced-set) per call — callers routing through Engine.GCSweep
+// never pay that, because the engine recognizes the legacy form and serves
+// its delete gate from one refreshed snapshot per apply pass instead.
+type ReferencedFunc func() (map[string]struct{}, error)
+
+// Mark implements GCMarker.
+func (f ReferencedFunc) Mark() (map[string]struct{}, error) { return f() }
+
+// Live implements GCMarker by re-snapshoting (see the type doc).
+func (f ReferencedFunc) Live(sha256 string) (bool, error) {
+	set, err := f()
+	if err != nil {
+		return false, err
+	}
+	_, ok := set[sha256]
+	return ok, nil
+}
+
 // Engine is the checksum-addressed blob engine (architecture section 3.1).
 //
 // GC deviation from architecture section 3.1: the referenced callback takes
 // the full referenced set (map) instead of being invoked per checksum. The
 // ticket T-9 contract specifies the set form, which also avoids one query
 // per blob; recorded for architect write-back.
+//
+// [M9] ADR-0031: the two-method form of that callback is GCMarker, carried
+// by GCSweep; the original GC signature stays for the M4~M8 callers (CLI,
+// REST seam, tests) and delegates to GCSweep via ReferencedFunc, so every
+// caller gets the hold-set and delete-recheck protection regardless of
+// which face it calls.
 type Engine interface {
 	// BeginSession creates a new upload session; directories are created as
 	// needed.
@@ -137,7 +190,31 @@ type Engine interface {
 	// immediate-collect request; callers wanting no grace must pass a
 	// sub-second duration explicitly. Returns an error wrapping
 	// ErrEngineClosed after Close.
+	//
+	// [M9] ADR-0031: this is the legacy face. It delegates to GCSweep with a
+	// ReferencedFunc adapter, so hold-set exclusion and the apply-phase
+	// delete recheck apply here too; new callers should prefer GCSweep with
+	// a marker whose Live is a true single-point query (the REST face's
+	// full W-2 closure needs it).
 	GC(ctx context.Context, referenced func() (map[string]struct{}, error), grace time.Duration, apply bool) ([]string, error)
+	// GCSweep is the [M9] mark-sweep face (ADR-0031): the referenced
+	// callback upgraded into the two-method GCMarker. Candidacy gained a
+	// hold-set gate (an in-flight sha is never a candidate, grace is not
+	// consulted for it), and apply gained per-candidate delete gates — the
+	// hold set re-checked immediately before the delete, then Live. Dry-run
+	// and apply semantics are otherwise those of GC; see the implementing
+	// engines for the full happens-before argument.
+	GCSweep(ctx context.Context, m GCMarker, grace time.Duration, apply bool) ([]string, error)
+	// ReleaseGCHold drops one in-flight registration for sha256 — the seam
+	// repo.Service calls after the metadata transaction referencing the
+	// blob has committed ([M9] ADR-0031; the five landing paths are wired
+	// outside this package). Commits acquire the hold themselves; this
+	// method only ever releases. It cannot fail the caller's operation:
+	// unknown shas, double releases, post-TTL releases and post-Close
+	// releases are all no-ops returning nil (a hold is acceleration for
+	// reclamation, never a correctness obligation on the caller — the TTL
+	// backstops anything missed).
+	ReleaseGCHold(sha256 string) error
 	// Close shuts the engine down: it stops accepting mutations (BeginSession,
 	// Delete, GC fail with ErrEngineClosed), drains the in-memory session
 	// registry (closing live sessions' data fds — no leaks) and PRESERVES

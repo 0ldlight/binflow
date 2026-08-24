@@ -601,7 +601,9 @@ func newS3Engine(t *testing.T) (*S3Engine, *mockS3Server, string) {
 	return s3e, mock, bucket
 }
 
-// putS3 uploads content in one shot via the S3 engine and returns the Commit result.
+// putS3 uploads content in one shot via the S3 engine and returns the Commit
+// result. ReleaseGCHold after success mirrors repo.Service's contract
+// ([M9] ADR-0031); hold-set tests commit via raw sessions instead.
 func putS3(t *testing.T, eng Engine, content []byte) BlobRef {
 	t.Helper()
 	s, err := eng.BeginSession(context.Background())
@@ -614,6 +616,9 @@ func putS3(t *testing.T, eng Engine, content []byte) BlobRef {
 	ref, err := s.Commit(context.Background(), BlobRef{})
 	if err != nil {
 		t.Fatalf("Commit: %v", err)
+	}
+	if err := eng.ReleaseGCHold(ref.Sha256); err != nil {
+		t.Fatalf("ReleaseGCHold: %v", err)
 	}
 	return ref
 }

@@ -31,6 +31,7 @@ type S3Engine struct {
 	bucket       string
 	bucketPrefix string // prepended to every object key; empty means root
 	partSize     int64  // session Append flush threshold; see resolveS3PartSize
+	holds        *holdSet
 
 	mu       sync.RWMutex
 	closed   bool
@@ -100,6 +101,11 @@ type S3EngineOptions struct {
 	// SessionTTL bounds the age of an orphaned multipart upload before the
 	// startup sweep aborts it (T-203 D-6). Zero means DefaultSessionTTL.
 	SessionTTL time.Duration
+	// GCHoldTTL bounds how long an unreleased GC hold protects a sha
+	// ([M9] ADR-0031; the storage.gc_hold_ttl_seconds key, wired by the
+	// assembler). Zero means DefaultGCHoldTTL; values below MinGCHoldTTL
+	// clamp up — see hold.go.
+	GCHoldTTL time.Duration
 	// Now overrides the clock (tests only). Nil uses time.Now.
 	Now func() time.Time
 }
@@ -133,6 +139,7 @@ func OpenS3Engine(core *minio.Core, bucket string, opts *S3EngineOptions) (Engin
 		bucket:       bucket,
 		bucketPrefix: opts.BucketPrefix,
 		partSize:     resolveS3PartSize(opts.PartSize),
+		holds:        newHoldSet(opts.GCHoldTTL, opts.Now),
 		sessions:     make(map[string]*s3Session),
 		clock:        opts.Now,
 	}
@@ -328,10 +335,39 @@ func (e *S3Engine) Delete(ctx context.Context, sha256 string) error {
 	return nil
 }
 
-// GC implements mark-sweep GC over the S3 bucket.
+// GC implements the legacy Engine.GC face over the S3 bucket: it adapts the
+// callback form to GCMarker and delegates to GCSweep (ADR-0031).
 func (e *S3Engine) GC(ctx context.Context, referenced func() (map[string]struct{}, error), grace time.Duration, apply bool) ([]string, error) {
 	if referenced == nil {
 		return nil, errors.New("storage: s3: gc: referenced callback is nil")
+	}
+	return e.GCSweep(ctx, ReferencedFunc(referenced), grace, apply)
+}
+
+// ReleaseGCHold implements Engine.ReleaseGCHold (in-memory, infallible; the
+// disk twin documents the semantics).
+func (e *S3Engine) ReleaseGCHold(sha256 string) error {
+	e.holds.release(sha256)
+	return nil
+}
+
+// GCSweep implements Engine.GCSweep over the S3 bucket: the [M9] ADR-0031
+// gates applied to the object listing. The candidacy hold gate and the
+// per-candidate delete gates (hold re-check, then Live — that order is the
+// soundness invariant, see gc.go's gcDeleteGate) wrap the pre-existing
+// grace logic unchanged. A held sha is skipped regardless of grace; the
+// hold is acquired by s3Session.Commit before the CopyObject that publishes
+// the blob key, which is this backend's visibility moment (the counterpart
+// of the disk engine's pre-rename acquire).
+func (e *S3Engine) GCSweep(ctx context.Context, m GCMarker, grace time.Duration, apply bool) ([]string, error) {
+	return e.gcSweep(ctx, m, grace, apply, true)
+}
+
+// gcSweep is GCSweep with the hold-gate switch the background migration's
+// inventory listing turns off (see the disk engine's gcList).
+func (e *S3Engine) gcSweep(ctx context.Context, m GCMarker, grace time.Duration, apply, countHolds bool) ([]string, error) {
+	if m == nil {
+		return nil, errors.New("storage: s3: gc: marker is nil")
 	}
 	if grace <= 0 {
 		grace = DefaultGCGrace
@@ -343,9 +379,14 @@ func (e *S3Engine) GC(ctx context.Context, referenced func() (map[string]struct{
 		return nil, fmt.Errorf("storage: s3: gc: %w", err)
 	}
 
-	refs, err := referenced()
+	refs, err := m.Mark()
 	if err != nil {
 		return nil, fmt.Errorf("storage: s3: gc: referenced set: %w", err)
+	}
+
+	var gate *gcDeleteGate
+	if apply {
+		gate = &gcDeleteGate{holds: e.holds, recheck: newGCRecheck(m)}
 	}
 
 	now := e.timeNow()
@@ -370,6 +411,9 @@ func (e *S3Engine) GC(ctx context.Context, referenced func() (map[string]struct{
 		if _, ok := refs[sha]; ok {
 			continue // mark hit: keep
 		}
+		if countHolds && e.holds.held(sha) {
+			continue // in-flight upload owns this sha: keep, grace aside
+		}
 		// The grace clock is the blob's creation time as recorded in its
 		// "blob-created-at" user metadata, falling back to LastModified when the
 		// metadata is absent (e.g. blobs imported via mc or older deployments).
@@ -389,6 +433,13 @@ func (e *S3Engine) GC(ctx context.Context, referenced func() (map[string]struct{
 		}
 		candidates = append(candidates, sha)
 		if apply {
+			skip, liveErr := gate.skip(sha)
+			if liveErr != nil {
+				return candidates, fmt.Errorf("storage: s3: gc: live recheck %s: %w", sha, liveErr)
+			}
+			if skip {
+				continue
+			}
 			if err := e.api().RemoveObject(ctx, e.bucket, obj.Key, minio.RemoveObjectOptions{}); err != nil {
 				return candidates, fmt.Errorf("storage: s3: gc: delete %s: %w", sha, err)
 			}
@@ -402,6 +453,12 @@ func (e *S3Engine) GC(ctx context.Context, referenced func() (map[string]struct{
 		return deleted, nil
 	}
 	return candidates, nil
+}
+
+// gcList enumerates every blob key with all GC candidacy gates disabled —
+// the raw inventory the background migration diffing needs (holds included).
+func (e *S3Engine) gcList(ctx context.Context) ([]string, error) {
+	return e.gcSweep(ctx, emptyMarker{}, time.Nanosecond, false, false)
 }
 
 // blobCreatedAtFromMeta resolves a blob's creation time from its S3
@@ -742,11 +799,27 @@ func (s *s3Session) Commit(ctx context.Context, expect BlobRef) (BlobRef, error)
 
 	targetKey := s.eng.objectKey(actual.Sha256)
 
+	// [M9] ADR-0031 W-1: acquire the in-flight hold before anything below can
+	// publish the blob key (the CopyObject of step 3 is this backend's
+	// visibility moment — the counterpart of the disk engine's rename). The
+	// S3 multipart machinery itself needs no separate protection: in-flight
+	// parts live under the sessions/ prefix, which no GC sweep scans. Every
+	// failure path releases the hold via the deferred complement; every
+	// success path keeps it for the caller's ReleaseGCHold.
+	s.eng.holds.acquire(actual.Sha256)
+	holdKept := false
+	defer func() {
+		if !holdKept {
+			s.eng.holds.release(actual.Sha256)
+		}
+	}()
+
 	// Check if the blob already exists (idempotent dedup).
 	_, err := s.eng.api().StatObject(ctx, s.eng.bucket, targetKey, minio.StatObjectOptions{})
 	if err == nil {
 		// Blob already exists — abort the multipart upload to clean up.
 		_ = s.eng.core.AbortMultipartUpload(context.Background(), s.eng.bucket, s.uploadKey, s.uploadID)
+		holdKept = true
 		s.finishLocked()
 		return actual, nil
 	}
@@ -773,6 +846,7 @@ func (s *s3Session) Commit(ctx context.Context, expect BlobRef) (BlobRef, error)
 			s.failLocked()
 			return BlobRef{}, err
 		}
+		holdKept = true
 		s.finishLocked()
 		return actual, nil
 	}
@@ -784,6 +858,7 @@ func (s *s3Session) Commit(ctx context.Context, expect BlobRef) (BlobRef, error)
 		_, statErr := s.eng.api().StatObject(context.Background(), s.eng.bucket, targetKey, minio.StatObjectOptions{})
 		if statErr == nil {
 			// Blob exists — another goroutine won the race.
+			holdKept = true
 			s.finishLocked()
 			return actual, nil
 		}
@@ -820,6 +895,7 @@ func (s *s3Session) Commit(ctx context.Context, expect BlobRef) (BlobRef, error)
 	// Step 4: Delete the source (upload key).
 	_ = s.eng.api().RemoveObject(context.Background(), s.eng.bucket, s.uploadKey, minio.RemoveObjectOptions{})
 
+	holdKept = true
 	s.finishLocked()
 	return actual, nil
 }

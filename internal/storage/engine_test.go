@@ -38,6 +38,12 @@ func put(t *testing.T, eng Engine, content []byte) BlobRef {
 	return putExpect(t, eng, content, BlobRef{})
 }
 
+// putExpect uploads content in one shot and returns the Commit result. After
+// a successful Commit it calls ReleaseGCHold, mirroring repo.Service's
+// contract ([M9] ADR-0031: Commit registers the in-flight hold, the metadata
+// landing releases it). Tests that want to model an in-flight or crashed
+// upload — the hold-set behavior itself — commit via a raw session and skip
+// the release (see gc_hold_test.go).
 func putExpect(t *testing.T, eng Engine, content []byte, expect BlobRef) BlobRef {
 	t.Helper()
 	s, err := eng.BeginSession(context.Background())
@@ -50,6 +56,9 @@ func putExpect(t *testing.T, eng Engine, content []byte, expect BlobRef) BlobRef
 	ref, err := s.Commit(context.Background(), expect)
 	if err != nil {
 		t.Fatalf("Commit: %v", err)
+	}
+	if err := eng.ReleaseGCHold(ref.Sha256); err != nil {
+		t.Fatalf("ReleaseGCHold: %v", err)
 	}
 	return ref
 }
@@ -211,6 +220,8 @@ func TestCommitAcceptsUppercaseExpectation(t *testing.T) {
 }
 
 // putExpect2 is putExpect without the test-fatal helper (returns the error).
+// Like putExpect it releases the GC hold after a successful Commit (the
+// repo.Service contract, [M9] ADR-0031).
 func putExpect2(eng Engine, content []byte, expect BlobRef) (BlobRef, error) {
 	s, err := eng.BeginSession(context.Background())
 	if err != nil {
@@ -219,7 +230,14 @@ func putExpect2(eng Engine, content []byte, expect BlobRef) (BlobRef, error) {
 	if _, err := s.Append(context.Background(), bytes.NewReader(content)); err != nil {
 		return BlobRef{}, err
 	}
-	return s.Commit(context.Background(), expect)
+	ref, err := s.Commit(context.Background(), expect)
+	if err != nil {
+		return BlobRef{}, err
+	}
+	if err := eng.ReleaseGCHold(ref.Sha256); err != nil {
+		return BlobRef{}, err
+	}
+	return ref, nil
 }
 
 func TestAbortZeroResidue(t *testing.T) {
