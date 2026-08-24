@@ -29,11 +29,12 @@ type raw struct {
 		GracefulTimeoutSeconds *int     `yaml:"graceful_timeout_seconds"`
 	} `yaml:"server"`
 	Storage *struct {
-		DataDir         *string `yaml:"data_dir"`
-		Backend         *string `yaml:"backend"`
-		SessionTTLHours *int    `yaml:"session_ttl_hours"`
-		GCGraceHours    *int    `yaml:"gc_grace_hours"`
-		S3              *struct {
+		DataDir          *string `yaml:"data_dir"`
+		Backend          *string `yaml:"backend"`
+		SessionTTLHours  *int    `yaml:"session_ttl_hours"`
+		GCGraceHours     *int    `yaml:"gc_grace_hours"`
+		GCHoldTTLSeconds *int    `yaml:"gc_hold_ttl_seconds"`
+		S3               *struct {
 			Bucket            *string `yaml:"bucket"`
 			Region            *string `yaml:"region"`
 			Endpoint          *string `yaml:"endpoint"`
@@ -286,6 +287,12 @@ func build(r *raw, env map[string]string) (*Config, error) {
 		if r.Storage.GCGraceHours != nil {
 			c.Storage.GCGrace = time.Duration(*r.Storage.GCGraceHours) * time.Hour
 		}
+		// [M9] ADR-0031: the hold-TTL backstop. An explicit 0 stays 0 — the
+		// sentinel the engine maps onto its default (the same zero-value
+		// reading grace's key documents); the [60s, ∞) domain is Validate's.
+		if r.Storage.GCHoldTTLSeconds != nil {
+			c.Storage.GCHoldTTL = time.Duration(*r.Storage.GCHoldTTLSeconds) * time.Second
+		}
 		if r.Storage.S3 != nil {
 			if r.Storage.S3.Bucket != nil {
 				c.Storage.S3.Bucket = *r.Storage.S3.Bucket
@@ -503,6 +510,10 @@ func defaults() *Config {
 			Backend:    DefaultStorageBackend,
 			SessionTTL: DefaultTTL,
 			GCGrace:    DefaultTTL,
+			// GCHoldTTL stays the 0 sentinel — DefaultGCHoldTTL (600s) is
+			// applied by the storage engine, the zero-value semantics
+			// storage.gc_hold_ttl_seconds documents ([M9] ADR-0031).
+			GCHoldTTL: 0,
 			S3: S3Config{
 				UploadPartSize:    DefaultS3UploadPartSize,
 				UploadConcurrency: DefaultS3UploadConcurrency,
@@ -743,6 +754,10 @@ func setEnvValue(c *Config, path []string, kind envKind, value, name string) err
 			c.Storage.SessionTTL = time.Duration(n) * time.Hour
 		case "storage.gc_grace_hours":
 			c.Storage.GCGrace = time.Duration(n) * time.Hour
+		case "storage.gc_hold_ttl_seconds":
+			// [M9] ADR-0031: positive int seconds; the domain check is
+			// Validate's (floor 60s refuses the boot).
+			c.Storage.GCHoldTTL = time.Duration(n) * time.Second
 		case "storage.s3.upload_part_size":
 			c.Storage.S3.UploadPartSize = int64(n)
 		case "storage.s3.upload_concurrency":

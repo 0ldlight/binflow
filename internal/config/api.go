@@ -40,12 +40,18 @@ const (
 
 // StorageConfig is the blob engine surface.
 type StorageConfig struct {
-	DataDir    string          // root for blobs/, sessions/, binflow.db (disk only)
-	Backend    string          // "disk" (default) | "s3" — storage backend selection
-	SessionTTL time.Duration   // expired upload sessions are reaped at startup
-	GCGrace    time.Duration   // unreferenced blobs younger than this survive GC
-	S3         S3Config        // S3 backend configuration (only used when Backend=s3)
-	Migration  MigrationConfig // disk-to-S3 migration configuration
+	DataDir    string        // root for blobs/, sessions/, binflow.db (disk only)
+	Backend    string        // "disk" (default) | "s3" — storage backend selection
+	SessionTTL time.Duration // expired upload sessions are reaped at startup
+	GCGrace    time.Duration // unreferenced blobs younger than this survive GC
+	// GCHoldTTL is how long an unreleased in-flight GC hold protects a blob
+	// ([M9] ADR-0031: storage.gc_hold_ttl_seconds — the TTL backstop for a
+	// Commit whose metadata rows never landed, crash or unwired consumer).
+	// 0 = sentinel-default (the engine applies DefaultGCHoldTTL, 600s); a
+	// configured value below MinGCHoldTTL (60s) refuses the boot.
+	GCHoldTTL time.Duration
+	S3        S3Config        // S3 backend configuration (only used when Backend=s3)
+	Migration MigrationConfig // disk-to-S3 migration configuration
 }
 
 // S3Config holds the S3-compatible object storage configuration. The

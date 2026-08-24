@@ -353,6 +353,15 @@ type Store interface {
 	WebSessions() WebSessionStore
 	UploadSessions() UploadSessionStore
 	Usage() UsageStore
+	// IsReferenced reports whether any node row or docker ref row currently
+	// points at sha256 ([M9] ADR-0031 mechanism A): the single-point Live
+	// oracle behind the GC sweep's pre-delete recheck. It spans two sub-stores
+	// (nodes ∪ docker_refs, architecture sections 4.4 and 11.12), which is why
+	// it lives on the aggregate instead of either sub-store. Callers must not
+	// use it to rebuild the referenced set — Mark-shaped walks keep their own
+	// listing form; this method is the bounded freshness probe and nothing
+	// else.
+	IsReferenced(ctx context.Context, sha256 string) (bool, error)
 	// Ping verifies liveness for health endpoints.
 	Ping(ctx context.Context) error
 	// Close releases the underlying handle.

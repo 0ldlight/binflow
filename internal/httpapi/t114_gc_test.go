@@ -46,13 +46,13 @@ type t114BlockingGC struct {
 	proceed  chan struct{}
 }
 
-func (g *t114BlockingGC) GC(ctx context.Context, referenced func() (map[string]struct{}, error),
+func (g *t114BlockingGC) GCSweep(ctx context.Context, m storage.GCMarker,
 	grace time.Duration, apply bool) ([]string, error) {
 	if apply {
 		g.applyCtx <- ctx
 		<-g.proceed
 	}
-	return g.inner.GC(ctx, referenced, grace, apply)
+	return g.inner.GCSweep(ctx, m, grace, apply)
 }
 
 // TestT114ApplySurvivesClientDisconnect drives an apply whose client hangs

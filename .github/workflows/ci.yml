@@ -71,6 +71,21 @@ jobs:
       - name: Test
         run: make test TEST_TIMEOUT=20m
 
+      # GC concurrency stress (ADR-0031 / architecture section 14.2 point 6
+      # and section 14.5-5): the T-232 race legs — uploads (and
+      # upload→delete streams) racing grace=0 APPLY sweeps, invariant = a
+      # committed reference's blob is never physically deleted. These run
+      # with repetition as their OWN step so a flaky interleave cannot hide
+      # inside the bulk suite. ORDERING HARD RULE: this gate must be in
+      # place BEFORE e2e default parallelism is restored (T-268 lifts the
+      # --workers=1 convention; removing this step requires removing that
+      # lift in the same change set).
+      - name: GC concurrency stress (ADR-0031 §14.2-6)
+        run: >
+          go test -race -count=3 -timeout 20m
+          -run 'TestGCApplyRacingUploadsZeroGraceNeverDeletesReferenced|TestGCInFlightUploadMidSweepHold|TestGCHoldRefcountSurvivesConcurrentDedup|TestGCHeldBlobSurvivesZeroGraceApply|TestRepoUploadsRacingZeroGraceSweep'
+          ./internal/storage/ ./internal/repo/
+
       - name: Build (zero CGo, ADR-0005)
         run: |
           CGO_ENABLED=0 go build ./...

@@ -43,6 +43,21 @@ func (c *Config) Validate() error {
 	if c.Storage.GCGrace <= 0 {
 		return fmt.Errorf("config: storage.gc_grace_hours must be positive, got %s", c.Storage.GCGrace)
 	}
+	// [M9] ADR-0031 / architecture section 8: the GC hold TTL's domain is
+	// [MinGCHoldTTL, ∞) with 0 as the documented "default" sentinel (the
+	// engine maps 0 onto DefaultGCHoldTTL). A CONFIGURED sub-floor value
+	// refuses the boot rather than clamping: the operator spelled an intent,
+	// and a TTL shorter than the Commit-to-metadata-commit window would
+	// silently re-open the W-1 race the hold set exists to close — the same
+	// strict-schema posture token_step_up_grant_ttl_seconds set.
+	if c.Storage.GCHoldTTL < 0 {
+		return fmt.Errorf("config: storage.gc_hold_ttl_seconds must be a non-negative integer (0 = default %d seconds), got %s",
+			int(DefaultGCHoldTTL.Seconds()), c.Storage.GCHoldTTL)
+	}
+	if c.Storage.GCHoldTTL > 0 && c.Storage.GCHoldTTL < MinGCHoldTTL {
+		return fmt.Errorf("config: storage.gc_hold_ttl_seconds must be at least %d seconds (0 = default %d seconds), got %s",
+			int(MinGCHoldTTL.Seconds()), int(DefaultGCHoldTTL.Seconds()), c.Storage.GCHoldTTL)
+	}
 	if c.Server.GracefulTimeout <= 0 {
 		return fmt.Errorf("config: server.graceful_timeout_seconds must be positive, got %s", c.Server.GracefulTimeout)
 	}

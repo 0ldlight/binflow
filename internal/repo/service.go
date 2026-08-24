@@ -326,6 +326,15 @@ func (s *service) getRemote(ctx context.Context, p *Principal, repoKey, path str
 		}
 		return nil, nil, fmt.Errorf("remote fetch %s/%s: %w", repoKey, path, err)
 	}
+	// [M9] ADR-0031 (the remote pull-through release, the fifth landing
+	// path): a MISS is the only cache state that landed a blob in THIS call —
+	// land()'s session Commit registered the in-flight GC hold — and the node
+	// row referencing it is committed by the time Fetch returns, so the
+	// hold's job is done. HIT/STALE served an already-referenced copy and own
+	// no hold; releasing there would strip a concurrent lander's refcount.
+	if res.CacheState == remote.CacheMiss && res.Node != nil {
+		s.releaseGCHold(ctx, res.Node.Sha256)
+	}
 	s.audit(ctx, AuditEvent{Actor: actor(p), Action: AuditActionDownload, Repo: repoKey, Path: path})
 	return res.Body, res.Node, nil
 }
@@ -412,6 +421,13 @@ func (s *service) PutWithOptions(ctx context.Context, p *Principal, repoKey, pat
 		if err != nil {
 			return nil, err
 		}
+		// [M9] ADR-0031: the node row is durably committed, so the hold
+		// commitBlob's session Commit registered is released here (release is
+		// acceleration; ordering after the metadata commit is the W-1 soundness
+		// requirement). A failure on any earlier step returns WITHOUT
+		// releasing — the unreferenced blob stays protected until the TTL
+		// backstop, the conservative failure direction the ADR registered.
+		s.releaseGCHold(ctx, committed.Sha256)
 		s.audit(ctx, AuditEvent{
 			Actor: p.Name, Action: AuditActionDeploy, Repo: repoKey, Path: path,
 			Detail: fmt.Sprintf(`{"sha256":%q,"size":%d,"idempotent":%t}`, n.Sha256, n.Size, idempotent),
@@ -498,6 +514,15 @@ func (s *service) notifyReplicator(ctx context.Context, repoKey, path, sha256 st
 // ErrOrphanBlob: the node is refused rather than materialized with a
 // digest record that would stay incomplete forever (BlobStore.Put is
 // DO-NOTHING on conflict and never back-fills).
+//
+// [M9] ADR-0031 note: this path runs NO session Commit — the blob it
+// references was committed by an earlier call whose hold was already
+// released with ITS metadata — so it also calls no ReleaseGCHold. The hold
+// set is refcounted, not owner-tagged: a release here would decrement a
+// hold owned by a CONCURRENT in-flight upload of identical bytes and strip
+// its W-1 protection. This path's freshness protection is mechanism A
+// alone (the apply-phase Live recheck sees the node row the moment it
+// commits).
 func (s *service) PutFromBlob(ctx context.Context, p *Principal, repoKey, path string, ref storage.BlobRef, mime string) (*metadata.Node, error) {
 	if err := requireAuthenticated(p); err != nil {
 		return nil, err
@@ -689,6 +714,13 @@ func (s *service) PutLandedBlob(ctx context.Context, p *Principal, repoKey, path
 	if err != nil {
 		return nil, err
 	}
+	// [M9] ADR-0031 (the landed-blob release — the docker layer/config
+	// finalize and pypi upload path): the hold this call's caller acquired
+	// with its session Commit is released once the ledger + node rows above
+	// are durably committed. The acquire belongs to the adapter's Commit, the
+	// release to the service that knows when the metadata landed — the exact
+	// pairing ADR-0031 prescribes for the double-node docker finalize.
+	s.releaseGCHold(ctx, ref.Sha256)
 	s.audit(ctx, AuditEvent{
 		Actor: p.Name, Action: AuditActionDeploy, Repo: repoKey, Path: path,
 		Detail: fmt.Sprintf(`{"sha256":%q,"size":%d,"idempotent":%t,"landedBlob":true}`, n.Sha256, n.Size, idempotent),
@@ -941,6 +973,30 @@ func (s *service) commitBlob(ctx context.Context, body io.Reader, expect storage
 	return ref, nil
 }
 
+// releaseGCHold drops the in-flight GC hold a successful session Commit
+// registered for sha256 ([M9] ADR-0031, architecture section 14.2 point 1).
+// Every caller runs it strictly AFTER the metadata rows referencing the blob
+// have committed — releasing earlier would re-open the W-1 window the hold
+// exists to close. The engine contract makes ReleaseGCHold a no-op that
+// cannot fail the caller's operation (unknown sha, double release and
+// post-TTL release are all nil); the WARN exists so a future engine that
+// does report something stays observable instead of silently swallowed.
+//
+// Of the five ADR-0031 landing paths, exactly the ones whose call CHAINS own
+// a session Commit release here: Put (its own commitBlob), PutLandedBlob and
+// the remote pull-through (the adapter's / engine's Commit). PutFromBlob and
+// PutManifest deliberately do NOT: see their doc comments — a release
+// without a matching acquire would strip a concurrent uploader's hold
+// (holdSet is refcounted, not owner-tagged).
+func (s *service) releaseGCHold(ctx context.Context, sha256 string) {
+	if sha256 == "" || sha256 == emptyFolderSHA {
+		return // folder markers ride no physical blob; nothing was acquired
+	}
+	if err := s.st.ReleaseGCHold(sha256); err != nil {
+		slog.WarnContext(ctx, "repo: release gc hold failed", "sha256", sha256, "error", err.Error())
+	}
+}
+
 // countReader drains r counting bytes; used only for the must-be-empty
 // folder-deploy body.
 func countReader(r io.Reader) (int64, error) {
@@ -1191,6 +1247,16 @@ func dockerPermPath(image string) string { return image + "/" }
 // Permission pair: write on the image grants a publish; overwriting the node
 // path of a DIFFERENT digest (impossible for a compliant push, possible for
 // a forged internal call) additionally requires delete, mirroring Put.
+//
+// [M9] ADR-0031 note: no ReleaseGCHold here, by design. The manifest body's
+// blob was committed by the adapter's step-1 svc.Put — WHICH ALREADY RELEASED
+// its hold once the <image>/blobs/<hex> node row landed — and the layer
+// blobs below were landed by earlier PutLandedBlob calls that released their
+// own. This method owns zero acquires; releasing the manifest digest again
+// would strip a concurrent repush's in-flight hold (holdSet is refcounted,
+// not owner-tagged). The premise — every PutManifest caller lands the body
+// through the blob plane first — is the service contract documented above
+// and the only in-tree caller shape (the docker adapter's two-step).
 func (s *service) PutManifest(ctx context.Context, p *Principal, repoKey, image, digest, tag, mediaType string, size int64, refs []*metadata.DockerRef) (*PutManifestResult, error) {
 	if err := requireAuthenticated(p); err != nil {
 		return nil, err

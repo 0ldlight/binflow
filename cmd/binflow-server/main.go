@@ -113,6 +113,10 @@ Flags for gc:
 	--grace-days    Override storage.gc_grace for this run (positive integer)
 	--grace-hours   Override storage.gc_grace with sub-day precision
 	                (positive integer; wins over --grace-days)
+	--grace-seconds Override storage.gc_grace with sub-minute precision
+	                (positive integer; wins over --grace-hours. An --apply
+	                run below 60s is refused while serve holds serve.lock —
+	                use the REST gc face or a maintenance window instead)
 
 Flags for export:
 
@@ -222,6 +226,20 @@ func runServe(args []string, stderr io.Writer) error {
 		return err
 	}
 	slog.SetDefault(logger)
+
+	// The serve heartbeat lock ([M9] ADR-0031 / architecture section 14.2
+	// point 4): held for the process lifetime so the gc CLI can tell "a
+	// serve owns this data directory" from outside and refuse its
+	// cross-process no-window apply. Held before anything else opens the
+	// directory; the kernel drops it on exit or crash — that drop IS the
+	// heartbeat, no cleanup path exists or needs one. A second serve on the
+	// same data directory fails here with a pointed refusal (multi-instance
+	// on one data directory is already forbidden, architecture section 9).
+	serveLock, err := acquireServeLock(cfg.Storage.DataDir)
+	if err != nil {
+		return fmt.Errorf("serve: %w", err)
+	}
+	defer func() { _ = serveLock.release() }()
 
 	logger.Info("binflow starting",
 		"version", version,
@@ -853,6 +871,7 @@ func openStorageEngine(ctx context.Context, cfg *config.Config, logger *slog.Log
 		}
 		st, err := storage.OpenEngine(cfg.Storage.DataDir, storage.Options{
 			SessionTTL: cfg.Storage.SessionTTL,
+			GCHoldTTL:  cfg.Storage.GCHoldTTL,
 			Sessions:   md.UploadSessions(),
 		})
 		if err != nil {
@@ -870,6 +889,7 @@ func openStorageEngine(ctx context.Context, cfg *config.Config, logger *slog.Log
 	if mig.Enabled && !mig.Completed {
 		diskEngine, derr := storage.OpenEngine(cfg.Storage.DataDir, storage.Options{
 			SessionTTL: cfg.Storage.SessionTTL,
+			GCHoldTTL:  cfg.Storage.GCHoldTTL,
 			Sessions:   md.UploadSessions(),
 		})
 		if derr != nil {
@@ -939,6 +959,7 @@ func openS3Engine(ctx context.Context, cfg *config.Config) (storage.Engine, erro
 	eng, err := storage.OpenS3EngineWithClient(client, sc.Bucket, &storage.S3EngineOptions{
 		BucketPrefix: sc.BucketPrefix,
 		PartSize:     sc.UploadPartSize,
+		GCHoldTTL:    cfg.Storage.GCHoldTTL,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("opening s3 engine: sweep orphan uploads in %s: %w", sc.Bucket, err)
@@ -1018,7 +1039,10 @@ func warnDefaultAdminPassword(ctx context.Context, s *stack, logger *slog.Logger
 // → defaults cascade); --grace-hours overrides the configured grace with
 // sub-day precision and, when both are given, wins over --grace-days —
 // "hours" is the strictly more precise spelling of the same override, so
-// there is no ambiguity to reject.
+// there is no ambiguity to reject. --grace-seconds ([M9] ADR-0031) is the
+// sub-minute spelling of the same ladder and wins over --grace-hours; it is
+// what makes an explicit no-window CLI run expressible, which is exactly the
+// run the serve.lock gate below guards.
 func runGC(args []string, stderr io.Writer) error {
 	fs := flag.NewFlagSet("gc", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -1026,6 +1050,7 @@ func runGC(args []string, stderr io.Writer) error {
 	apply := fs.Bool("apply", false, "delete blobs instead of dry-run listing")
 	graceDays := fs.Int("grace-days", 0, "override storage.gc_grace for this run in days (positive integer, 0 = use config)")
 	graceHours := fs.Int("grace-hours", 0, "override storage.gc_grace for this run in hours, sub-day precision (positive integer, 0 = use config; wins over --grace-days)")
+	graceSeconds := fs.Int("grace-seconds", 0, "override storage.gc_grace for this run in seconds, sub-minute precision (positive integer, 0 = use config; wins over --grace-hours)")
 	if err := fs.Parse(args); err != nil {
 		return fmt.Errorf("parsing gc flags: %w", err)
 	}
@@ -1038,6 +1063,9 @@ func runGC(args []string, stderr io.Writer) error {
 	if *graceHours < 0 {
 		return fmt.Errorf("gc: --grace-hours must be a positive integer, got %d", *graceHours)
 	}
+	if *graceSeconds < 0 {
+		return fmt.Errorf("gc: --grace-seconds must be a positive integer, got %d", *graceSeconds)
+	}
 
 	ctx := context.Background()
 
@@ -1045,14 +1073,6 @@ func runGC(args []string, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
-
-	// Data-directory maintenance lock: held for the whole run (mark, sweep,
-	// ledger cleanup) — export is refused while gc works and vice versa.
-	lock, err := storage.AcquireDataLock(cfg.Storage.DataDir, storage.DataLockOpGC)
-	if err != nil {
-		return fmt.Errorf("gc: %w", err)
-	}
-	defer func() { _ = lock.Release() }()
 
 	// graceOverride remembers whether an explicit flag overrode the
 	// configured grace: the gc.run audit detail carries graceHours as null
@@ -1068,6 +1088,39 @@ func runGC(args []string, stderr io.Writer) error {
 		grace = time.Duration(*graceHours) * time.Hour
 		graceOverride = true
 	}
+	if *graceSeconds > 0 {
+		grace = time.Duration(*graceSeconds) * time.Second
+		graceOverride = true
+	}
+
+	// The serve.lock cross-process gate ([M9] ADR-0031 / architecture
+	// section 14.2 point 4): an APPLY run with an explicit sub-minute grace
+	// while a serve process holds the data directory's heartbeat lock is
+	// refused before anything is opened. The CLI process cannot see serve's
+	// in-flight hold set (it is in-process state by design, section 9's
+	// single-instance precondition), so a no-window sweep here could delete
+	// a blob whose reference is still being written — the T-232 race, W-1
+	// half. Default-grace runs are unrestricted (the mtime window covers the
+	// millisecond-scale pre-reference gap); dry runs are unrestricted (no
+	// destructive face) and get the K22 annotation below instead.
+	if *apply && grace < storage.MinGCHoldTTL && serveRunning(cfg.Storage.DataDir) {
+		return fmt.Errorf(
+			"gc: refusing --apply with grace %s while serve is running on %s: a cross-process sweep cannot see serve's in-flight uploads (serve.lock held); use the REST gc endpoint (POST /binflow/api/v1/system/gc — it shares serve's in-flight hold set) or stop serve and rerun in a maintenance window",
+			grace, cfg.Storage.DataDir)
+	}
+	// K22 wording: while serve runs, this process's candidate list can
+	// over-report (in-flight uploads are invisible cross-process — their
+	// holds live in serve). The dry-run report says so up front instead of
+	// pretending precision it cannot have.
+	serveLive := serveRunning(cfg.Storage.DataDir)
+
+	// Data-directory maintenance lock: held for the whole run (mark, sweep,
+	// ledger cleanup) — export is refused while gc works and vice versa.
+	lock, err := storage.AcquireDataLock(cfg.Storage.DataDir, storage.DataLockOpGC)
+	if err != nil {
+		return fmt.Errorf("gc: %w", err)
+	}
+	defer func() { _ = lock.Release() }()
 
 	logger := slog.New(slog.NewTextHandler(stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
 	// Metadata opens first so the storage engine can hand its upload_sessions
@@ -1084,6 +1137,7 @@ func runGC(args []string, stderr io.Writer) error {
 
 	st, err := storage.OpenEngine(cfg.Storage.DataDir, storage.Options{
 		SessionTTL: cfg.Storage.SessionTTL,
+		GCHoldTTL:  cfg.Storage.GCHoldTTL,
 		Sessions:   md.UploadSessions(),
 	})
 	if err != nil {
@@ -1091,19 +1145,20 @@ func runGC(args []string, stderr io.Writer) error {
 	}
 	defer func() { _ = st.Close() }()
 
-	referenced := func() (map[string]struct{}, error) {
-		set, err := liveChecksumSet(ctx, md)
-		if err != nil {
-			return nil, fmt.Errorf("gc: referenced set: %w", err)
-		}
-		return set, nil
-	}
+	marker := cliGCMarker{ctx: ctx, md: md}
 
 	// Pass 1 is always the dry pass — the same two-pass shape the REST face
 	// runs (T-94): it yields the candidate list and, while every file still
 	// exists, their on-disk bytes for the report and the gc.run audit.
 	// --apply sweeps for real as pass 2 over a freshly recomputed mark set.
-	candidates, err := st.GC(ctx, referenced, grace, false)
+	// Since T-256 both passes ride GCSweep with the real GCMarker — the
+	// per-candidate Live recheck (ADR-0031 mechanism A) works cross-process
+	// too, because it reads the shared metadata store.
+	if serveLive {
+		writeCLIReport(stderr, "gc: note: serve is running on %s; this cross-process run cannot see in-flight uploads — candidates may over-report\n",
+			cfg.Storage.DataDir)
+	}
+	candidates, err := st.GCSweep(ctx, marker, grace, false)
 	if err != nil {
 		return fmt.Errorf("gc: %w", err)
 	}
@@ -1114,7 +1169,7 @@ func runGC(args []string, stderr io.Writer) error {
 
 	var deleted []string
 	if *apply {
-		deleted, err = st.GC(ctx, referenced, grace, true)
+		deleted, err = st.GCSweep(ctx, marker, grace, true)
 		if err != nil {
 			return fmt.Errorf("gc: %w", err)
 		}
@@ -1176,6 +1231,34 @@ func runGC(args []string, stderr io.Writer) error {
 		Detail: string(detail),
 	})
 	return nil
+}
+
+// cliGCMarker is the CLI gc's storage.GCMarker ([M9] ADR-0031 decision 3):
+// Mark is the liveChecksumSet walk below, Live is the metadata store's
+// single-point IsReferenced probe — the per-candidate pre-delete recheck
+// that closes the stale-snapshot window (W-2). The engine calls both
+// synchronously inside one GCSweep, so the run's context rides along here.
+type cliGCMarker struct {
+	ctx context.Context
+	md  metadata.Store
+}
+
+// Mark implements storage.GCMarker.
+func (m cliGCMarker) Mark() (map[string]struct{}, error) {
+	set, err := liveChecksumSet(m.ctx, m.md)
+	if err != nil {
+		return nil, fmt.Errorf("gc: referenced set: %w", err)
+	}
+	return set, nil
+}
+
+// Live implements storage.GCMarker.
+func (m cliGCMarker) Live(sha256 string) (bool, error) {
+	live, err := m.md.IsReferenced(m.ctx, sha256)
+	if err != nil {
+		return false, fmt.Errorf("gc: reference recheck %s: %w", sha256, err)
+	}
+	return live, nil
 }
 
 // liveChecksumSet returns the GC mark set: every sha256 referenced by any

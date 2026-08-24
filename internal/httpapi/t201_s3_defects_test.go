@@ -193,7 +193,7 @@ type fakeGCEngine struct {
 	candidates []string
 }
 
-func (f *fakeGCEngine) GC(_ context.Context, _ func() (map[string]struct{}, error), _ time.Duration, _ bool) ([]string, error) {
+func (f *fakeGCEngine) GCSweep(_ context.Context, _ storage.GCMarker, _ time.Duration, _ bool) ([]string, error) {
 	return f.candidates, nil
 }
 

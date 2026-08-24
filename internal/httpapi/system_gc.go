@@ -1,8 +1,10 @@
 package httpapi
 
 // POST /binflow/api/v1/system/gc — the managed GC face (T-94, PRD FR-30 /
-// GE-03, ADR-0015 erratum ① and ③). The mark-sweep kernel is storage.GC's
-// existing contract and is reused with zero semantic change; this file adds
+// GE-03, ADR-0015 erratum ① and ③). The mark-sweep kernel is storage's
+// GCSweep ([M9] ADR-0031: this REST face runs in the serve process, so the
+// engine's in-flight hold set is directly visible and the gcMarker's
+// single-point Live closes the stale-snapshot window); this file adds
 // only the REST management plane: body parsing with a dry-run default, the
 // data-directory maintenance lock shared with the gc/export CLIs (409 on
 // contention, never a queue), the response shape, the gc.run audit event
@@ -37,13 +39,44 @@ import (
 // carries at sizing time (deleted by a racing writer or foreign sweep).
 var ErrBlobNotListed = errors.New("blob missing from the engine inventory")
 
-// GarbageCollector is the consumer-side seam over storage.Engine's GC face
-// (the interface method the engine already implements — no new storage
-// surface was added for this endpoint). cmd wires the opened engine; the
-// test harness wires the same real engine. Assemblies without one leave it
-// nil and the endpoint answers 503 rather than pretending a run happened.
+// GarbageCollector is the consumer-side seam over storage.Engine's
+// mark-sweep face ([M9] ADR-0031: the GCMarker-carrying GCSweep; the legacy
+// single-callback GC face was retired from this call surface with the same
+// change — the interface method the engine already implements, no adapter
+// in between). cmd wires the opened engine; the test harness wires the same
+// real engine. Assemblies without one leave it nil and the endpoint answers
+// 503 rather than pretending a run happened.
 type GarbageCollector interface {
-	GC(ctx context.Context, referenced func() (map[string]struct{}, error), grace time.Duration, apply bool) ([]string, error)
+	GCSweep(ctx context.Context, m storage.GCMarker, grace time.Duration, apply bool) ([]string, error)
+}
+
+// gcMarker is the REAL GCMarker the REST face runs with since T-256
+// (ADR-0031 decision 3 / architecture section 14.2 point 3): Mark is the
+// liveChecksumSet walk, Live is the metadata store's single-point
+// IsReferenced probe — the per-candidate freshness oracle that closes W-2.
+// The engine invokes both synchronously inside one GCSweep call, so the
+// sweep's detached context rides along here.
+type gcMarker struct {
+	ctx context.Context
+	md  metadata.Store
+}
+
+// Mark implements storage.GCMarker (the liveChecksumSet snapshot).
+func (m gcMarker) Mark() (map[string]struct{}, error) {
+	set, err := liveChecksumSet(m.ctx, m.md)
+	if err != nil {
+		return nil, fmt.Errorf("gc: referenced set: %w", err)
+	}
+	return set, nil
+}
+
+// Live implements storage.GCMarker (the single-point recheck).
+func (m gcMarker) Live(sha256 string) (bool, error) {
+	live, err := m.md.IsReferenced(m.ctx, sha256)
+	if err != nil {
+		return false, fmt.Errorf("gc: reference recheck %s: %w", sha256, err)
+	}
+	return live, nil
 }
 
 // maxGCHours bounds an explicit graceHours (100 years). Beyond it the
@@ -157,24 +190,17 @@ func (s *Server) handleSystemGC(w http.ResponseWriter, r *http.Request) {
 	// only the cancellation: one HTTP connection's lifespan must not bound a
 	// maintenance run that already holds the data-directory lock. If the
 	// client is gone the response write fails silently, which is the honest
-	// outcome — the run itself completed and was audited. The storage.GC
+	// outcome — the run itself completed and was audited. The storage.GCSweep
 	// kernel is untouched.
 	sweepCtx := context.WithoutCancel(r.Context())
-
-	referenced := func() (map[string]struct{}, error) {
-		set, err := liveChecksumSet(sweepCtx, s.deps.Metadata)
-		if err != nil {
-			return nil, fmt.Errorf("gc: referenced set: %w", err)
-		}
-		return set, nil
-	}
+	marker := gcMarker{ctx: sweepCtx, md: s.deps.Metadata}
 
 	// Pass 1 is always the dry pass: it yields the candidate list (and,
 	// while every file still exists, their on-disk bytes). apply runs a
 	// second sweep that deletes — the counts then describe what the
 	// pre-pass saw vs what the sweep freed.
 	started := time.Now()
-	candidates, err := s.deps.GC.GC(sweepCtx, referenced, grace, false)
+	candidates, err := s.deps.GC.GCSweep(sweepCtx, marker, grace, false)
 	if err != nil {
 		s.log.ErrorContext(sweepCtx, "httpapi: gc sweep failed", "error", err.Error())
 		writeError(w, http.StatusInternalServerError, "gc: "+err.Error())
@@ -200,7 +226,7 @@ func (s *Server) handleSystemGC(w http.ResponseWriter, r *http.Request) {
 
 	var deleted []string
 	if body.Apply {
-		deleted, err = s.deps.GC.GC(sweepCtx, referenced, grace, true)
+		deleted, err = s.deps.GC.GCSweep(sweepCtx, marker, grace, true)
 		if err != nil {
 			s.log.ErrorContext(sweepCtx, "httpapi: gc apply pass failed", "error", err.Error())
 			writeError(w, http.StatusInternalServerError, "gc: "+err.Error())

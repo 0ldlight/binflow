@@ -21,6 +21,16 @@ const (
 	DefaultGracefulTimeout = 30 * time.Second
 	// DefaultTTL applies to both upload session expiry and GC grace.
 	DefaultTTL = 24 * time.Hour
+	// DefaultGCHoldTTL and MinGCHoldTTL bound
+	// storage.gc_hold_ttl_seconds ([M9] ADR-0031 / architecture section 8:
+	// default 600, floor 60). The floor is enforced at boot — a hold TTL
+	// shorter than the Commit-to-metadata-commit window would silently
+	// re-open the W-1 race the hold set exists to close. The resolved Config
+	// carries 0 for "unset" (the sentinel-default pattern of
+	// auth.hash_concurrency): the storage engine maps 0 to the default, so
+	// the two spellings of "not configured" stay one value.
+	DefaultGCHoldTTL = 600 * time.Second
+	MinGCHoldTTL     = 60 * time.Second
 	// DefaultArgon2MemoryMB is the argon2id m=64MB parameter.
 	DefaultArgon2MemoryMB = 64
 	// DefaultTokenTTL is the default API token lifetime (30 days).
@@ -203,6 +213,10 @@ func splitEnvKey(upper string) (path []string, kind envKind, ok bool) {
 	case "storage.data_dir":
 		return parts, envString, true
 	case "storage.session_ttl_hours", "storage.gc_grace_hours":
+		return parts, envIntPos, true
+	case "storage.gc_hold_ttl_seconds":
+		// [M9] ADR-0031: same reachability as the YAML key; the 60s floor is
+		// Validate's (an out-of-domain override refuses the boot).
 		return parts, envIntPos, true
 	case "storage.backend":
 		return parts, envString, true

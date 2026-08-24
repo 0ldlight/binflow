@@ -297,6 +297,22 @@ func (s *sqliteStore) Ping(ctx context.Context) error {
 	return nil
 }
 
+// IsReferenced answers "does any node row or docker ref row point at sha256
+// RIGHT NOW" with one bounded query (ADR-0031 mechanism A / architecture
+// section 14.2 point 3): it is the GCMarker.Live oracle the sweep's
+// pre-delete recheck consults, so it must stay a single-point existence
+// probe — never a rebuild of the referenced set. Both halves ride their
+// dedicated indexes (idx_nodes_blob, idx_docker_refs_blob).
+func (s *sqliteStore) IsReferenced(ctx context.Context, sha256 string) (bool, error) {
+	const stmt = `SELECT EXISTS(SELECT 1 FROM nodes WHERE sha256 = ?)
+		OR EXISTS(SELECT 1 FROM docker_refs WHERE blob_digest = ?)`
+	var referenced bool
+	if err := s.db.QueryRowContext(ctx, stmt, sha256, sha256).Scan(&referenced); err != nil {
+		return false, wrapExec("nodes/docker_refs is-referenced", "", err)
+	}
+	return referenced, nil
+}
+
 func (s *sqliteStore) Close() error {
 	if err := s.db.Close(); err != nil {
 		return fmt.Errorf("metadata: closing %s: %w", s.path, err)
