@@ -7,7 +7,8 @@ import { m8Client, sessionApi } from './support/seed'
 
 // T-241（FR-73 / console-m8 §4.5+§6.11 / UI-14）：权限 target 编辑器重排的
 // 交互断言——两步资源对话框全链 / 四动作矩阵（r·w·d·m）/ 模式测试器 /
-// m-holder 覆盖集腿（内 201 外 403，T-217 B1）/ readonly 只读腿 + 键盘流 + axe。
+// m-holder 覆盖集腿（内 201 外 403，T-217 B1；控制台面 T-259 起按
+// filter=manage 可达形态改写——L2 边界卡退役）/ readonly 只读腿 + 键盘流 + axe。
 //
 // 断言口径 = ADR-0029 决策 3（交互断言制；锚 = data-testid，不随路由改名）。
 // 锚源：console-ux §10.3 冻结的 perm-* 族（perm-repo-add 自 T-241 起是两步
@@ -222,7 +223,7 @@ test('readonly_admin: read-only walk (matrix disabled, no save/delete), write re
   expect(r.status).toBe(200)
 })
 
-test('m-holder: coverage-in 201 / coverage-out 403 (body + B1 union), console stays L2 with boundary note', async ({ page, browser }) => {
+test('m-holder: coverage-in 201 / coverage-out 403 (body + B1 union), console lists the covered set (T-259)', async ({ page, browser }) => {
   await loginAs(page, 'admin')
   const repoA = uniq('t241a')
   const repoB = uniq('t241b')
@@ -322,11 +323,20 @@ test('m-holder: coverage-in 201 / coverage-out 403 (body + B1 union), console st
   const delOut = await sessionApi(mh, 'DELETE', `/api/v1/permissions/${tEnt}`)
   expect(delOut.status).toBe(403)
 
-  // 控制台呈现（m-holder 视角）：列表/编辑器 deep link 均 L2——UI 不自行
-  // 判定覆盖集，边界说明如实呈现（API 臂可用、覆盖集外 403）
+  // 控制台呈现（m-holder 视角，T-259 形态——L2 边界卡对 m-holder 退役）：
+  // 列表走 ?filter=manage 渲染覆盖集内子集（carol 的覆盖集 = {repoA}，故
+  // tManage 在列、tEnt/repoB 侧零出现——服务端信息隔离的 UI 面）；编辑器
+  // 对覆盖集内 target 全字段可达，覆盖集外深链（tEnt）= notFound 形态的
+  // 边界说明（T-241 的「双页 L2」腿随 L2 卡退役按新形态改写，边界语义
+  // 保留在列表注记 + 覆盖集外深链文案两处）
   await mh.goto('/binflow/ui/admin/security/permissions')
-  await expect(mh.locator('[data-testid="perms-page"] [data-testid="empty-state"]')).toBeVisible()
-  await expect(mh.locator('[data-testid="perms-page"]')).toContainText('manage 覆盖集')
+  await expect(mh.locator(`[data-testid="perm-row-${tManage}"]`)).toBeVisible()
+  await expect(mh.locator(`[data-testid="perm-row-${tEnt}"]`)).toHaveCount(0)
+  await expect(mh.locator('[data-testid="perms-page"]')).not.toContainText(repoB)
+  await expect(mh.locator('[data-testid="perms-manage-note"]')).toBeVisible()
+  await expect(mh.locator('[data-testid="perms-page"] [data-testid="empty-state"]')).toHaveCount(0)
+  await mh.goto(`/binflow/ui/admin/security/permissions/${tManage}`)
+  await expect(mh.locator(`[data-testid="perm-matrix-cell-user-${carol}-manage"]`)).toBeChecked()
   await mh.goto(`/binflow/ui/admin/security/permissions/${tEnt}`)
   await expect(mh.locator('[data-testid="perm-editor-page"] [data-testid="empty-state"]')).toBeVisible()
   await expect(mh.locator('[data-testid="perm-editor-page"]')).toContainText('manage 覆盖集')

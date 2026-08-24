@@ -211,6 +211,20 @@ export function listPermissionTargets(): Promise<PermissionTarget[]> {
   return apiJSON<PermissionTarget[]>('/v1/permissions')
 }
 
+/** E6 `GET /api/v1/permissions?filter=manage`（T-254 / ADR-0030 §14.1.6）：
+ *  m-holder（普通 user 持 manage）的可达读臂——族 4 写臂（覆盖集内 POST/
+ *  DELETE）的读臂对称补全。**条目字段与全量列表一致**（name/repos/
+ *  patterns/principals 全渲染——编辑器注水面）。服务端三分支：
+ *  admin/readonly_admin → 全量（与无 filter 响应等价）；普通用户且 manage
+ *  覆盖集非空 → 仅 repos ⊆ 覆盖集 的 target 子集（**部分覆盖的 target
+ *  隐藏**——B1 替换臂必败不诱导；覆盖集外元数据零出现，NFR-S49）；
+ *  覆盖集为空 → 403（与无 filter 同形同文案，零新增可区分面）——调用方
+ *  （列表页/编辑器）以 403 收敛 L2，即「无 manage / 覆盖集空」的普通 user
+ *  形态；200 空数组 = 覆盖集非空但无完全落入的 target（友好空态）。 */
+export function listPermissionTargetsManaged(): Promise<PermissionTarget[]> {
+  return apiJSON<PermissionTarget[]>('/v1/permissions?filter=manage')
+}
+
 /** 保存（POST /v1/permissions，create-or-replace——201 无 body） */
 export function savePermissionTarget(body: PermissionTargetBody): Promise<string> {
   return apiText('/v1/permissions', { method: 'POST', body })

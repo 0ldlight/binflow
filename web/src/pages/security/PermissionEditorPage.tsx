@@ -8,10 +8,10 @@ import { useConfirm } from '../../components/ConfirmDialog'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
-import { ApiError, canAdminWrite, errText, getRepositories, isReadOnlyAdmin } from '../../lib/api'
+import { ApiError, errText, getRepositories, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
 import { useAsync } from '../../lib/useAsync'
 import './security.css'
-import { PERM_ACTIONS, deletePermissionTarget, listGroups, listPermissionTargets, listUsers, savePermissionTarget } from './api'
+import { PERM_ACTIONS, deletePermissionTarget, listGroups, listPermissionTargets, listPermissionTargetsManaged, listUsers, savePermissionTarget } from './api'
 import type { PermAction } from './api'
 import { evaluatePath } from './pathmatch'
 import { buildTargetDiff, sameSnapshot } from './targetdiff'
@@ -33,12 +33,19 @@ import { TransferBox } from './TransferBox'
 //   ② 设置模式（可选；include/exclude 逐行 chip）→ 确定 回填
 // 危险区：删除 target（连带全部授权行，单事务）。
 //
-// 覆盖集语义（任务项 4，T-217 B1 / console-m8 §7.2/§7.10）：manage 持有者
-// （非 admin）在服务端可经 API 编辑「引用仓库全部落在其 manage 覆盖集内」
-// 的 target（POST 是 create-or-replace，校验 union(body, 存量) ⊆ 覆盖集），
-// 超出即 403——UI 不自行判定覆盖集，仅：① 保存/删除的 403 服务端原文行内
-// 如实呈现（form-error / toast）；② 普通用户视角的 L2 卡说明该边界（控制台
-// 编辑器需要 security:read——列表与主体枚举面是管理面读端点）。
+// 覆盖集语义（任务项 4，T-217 B1 / console-m8 §7.2/§7.10；T-259 起控制台
+// 可达）：manage 持有者（非 admin）可编辑「引用仓库全部落在其 manage 覆盖集
+// 内」的 target（POST 是 create-or-replace，校验 union(body, 存量) ⊆ 覆盖集
+// ），超出即 403——UI 不自行判定覆盖集，仅：① 保存/删除的 403 服务端原文
+// 行内如实呈现（form-error / toast）；② m-holder 的注水走 E6
+// `?filter=manage`（条目字段与全量一致），列表外/部分覆盖的 target 不在
+// 呈现面（服务端信息隔离）。
+//
+// m-holder 注水形态（§14.1.6「E6 + 主体名手动录入」）：仓库目录
+// （/api/repositories）与用户/组枚举（/api/security/{users,groups}）维持
+// CapSecurityRead/CapRepoRead 闭集——m-holder 会话一律 403，故编辑器的
+// 添加位降级为**手动录入**（仓库名/主体名 text entry），存在性与覆盖集
+// 由服务端终裁（unknown → 400；覆盖集外 → 403）。
 //
 // readonly_admin（M7 FR-66）：编辑器可见但全控件只读（security:read 过 GET，
 // 写端点 403——服务端是唯一守门，UI 只呈现）。
@@ -132,6 +139,7 @@ function ResourceDialog({
   const [excludes, setExcludes] = useState<string[]>([...initialExcludes])
   const [includeInput, setIncludeInput] = useState('')
   const [excludeInput, setExcludeInput] = useState('')
+  const [repoEntry, setRepoEntry] = useState('')
   const rootRef = useRef<HTMLDivElement>(null)
   const cancelRef = useRef<HTMLButtonElement>(null)
 
@@ -171,6 +179,15 @@ function ResourceDialog({
       setExcludes((p) => (p.includes(v) ? p : [...p, v]))
       setExcludeInput('')
     }
+  }
+
+  /** 手动录入仓库名（m-holder 分支）：目录 403 下的加入面——服务端终裁
+   *  （unknown repository → 400；覆盖集外保存 → 403） */
+  const addRepoEntry = () => {
+    const v = repoEntry.trim()
+    if (v === '') return
+    setRepos((p) => (p.includes(v) ? p : [...p, v]))
+    setRepoEntry('')
   }
 
   /** pattern 编辑列（§4.9 锚：perm-pattern-{input,add,remove}-{include|exclude}） */
@@ -252,6 +269,49 @@ function ResourceDialog({
                 <p className="field-error">仓库列表不可用——关闭后重试（编辑器保存仍需至少一个仓库）。</p>
               ) : reposStatus === 'loading' ? (
                 <p className="field-hint">仓库列表加载中…</p>
+              ) : reposStatus === 'forbidden' ? (
+                // m-holder（§14.1.6「E6 + 手动录入」）：仓库目录 403——已选
+                // 仓可摘除（穿梭右列），新增走手动录入，服务端终裁
+                <>
+                  <TransferBox
+                    items={[...new Set(repos)].map((k) => ({ name: k }))}
+                    selected={repos}
+                    onToggle={(k, next) => setRepos((p) => (next ? [...p, k] : p.filter((x) => x !== k)))}
+                    availableLabel="可选仓库"
+                    selectedLabel="已选仓库"
+                    itemTestid={(k) => `perm-repo-pick-${k}`}
+                  />
+                  <div className="pattern-add">
+                    <input
+                      value={repoEntry}
+                      onChange={(e) => setRepoEntry(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          addRepoEntry()
+                        }
+                      }}
+                      placeholder="仓库名（服务端校验）"
+                      aria-label="手动录入仓库名"
+                      data-testid="perm-repo-entry-input"
+                      lang="en"
+                    />
+                    <button
+                      type="button"
+                      className="btn"
+                      disabled={repoEntry.trim() === ''}
+                      onClick={addRepoEntry}
+                      data-testid="perm-repo-entry-add"
+                    >
+                      添加仓库
+                    </button>
+                  </div>
+                  <p className="admin-note">
+                    ⓘ 仓库目录是管理面读端点（本会话 403）——无法浏览候选仓库；手动录入仓库名加入，服务端终裁
+                    （unknown repository → 400；覆盖集外保存 → 403）。Artifactory 的 Any Local / Any Remote 通配桶不建：
+                    repos[] 必须逐个指名现存仓库。
+                  </p>
+                </>
               ) : (
                 <>
                   <TransferBox
@@ -308,13 +368,20 @@ function ResourceDialog({
 export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit' }) {
   const { name: routeName = '' } = useParams<{ name: string }>()
   const { session } = useAuth()
-  const admin = canAdminWrite(session)
   const readOnly = isReadOnlyAdmin(session)
+  // 普通 user = 潜在 m-holder（判定形态沿 RepositoriesPage/PermissionsPage
+  // 既有）：是否真持有 manage 由 filter=manage 的 200/403 判定，UI 不预判
+  const mHolder = normalizeAdminRole(session?.adminRole, session?.admin ?? false) === 'user'
   const toast = useToast()
   const confirm = useConfirm()
   const navigate = useNavigate()
 
-  const targets = useAsync(listPermissionTargets, [])
+  // 编辑器注水：m-holder 走 E6 覆盖集过滤列表（字段与全量一致）——403 即
+  // L2（无 manage/覆盖集空），200 空数组时深链名不在列表 → notFound 呈现
+  const targets = useAsync(
+    () => (mHolder ? listPermissionTargetsManaged() : listPermissionTargets()),
+    [mHolder],
+  )
   const reposState = useAsync(getRepositories, [])
   const usersState = useAsync(listUsers, [])
   const groupsState = useAsync(listGroups, [])
@@ -364,6 +431,11 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
   const repoKeys = (reposState.data ?? []).map((r) => r.key).sort()
   const userOptions = (usersState.data ?? []).map((u) => u.name).filter((n) => !(n in f.users))
   const groupOptions = (groupsState.data ?? []).map((g) => g.name).filter((n) => !(n in f.groups))
+  // m-holder 的三个枚举端点（仓库目录/用户/组）一律 403（闭集不开放，
+  // §14.1.6）——主体添加位据此降级为手动录入（仓库目录的 forbidden 分支
+  // 在 ResourceDialog 内按 reposStatus 处理），服务端终裁
+  const usersForbidden = usersState.status === 'forbidden'
+  const groupsForbidden = groupsState.status === 'forbidden'
 
   const toggleAction = (kind: 'users' | 'groups', name: string, action: PermAction) => {
     setF((p) => {
@@ -388,15 +460,23 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
     })
   }
 
-  if (!admin && !readOnly) {
+  // m-holder 的 create 臂保持 L4（「＋ 新建权限」入口仅 admin 渲染；控制台
+  // 的 m-holder 编辑入口是列表项）。深链 /new 如实说明，不放大入口——
+  // POST 本身是族 4 覆盖集内写（服务端终裁），API 臂不受影响。
+  if (mHolder && mode === 'create') {
     return (
       <div data-testid="perm-editor-page">
         <div className="page-header">
-          <h2>{mode === 'create' ? '新建权限' : `权限 · ${routeName}`}</h2>
+          <h2>新建权限</h2>
         </div>
         <EmptyState
-          message="无权限"
-          hint={`控制台权限编辑器需要 security:read（target 列表与主体枚举都是管理面读端点）；当前用户 ${session?.username} 不是管理员。若你持有 manage（仓库配置派生权），仍可经 API 在 manage 覆盖集内创建/编辑 target（POST /api/v1/permissions；引用覆盖集外仓库——含替换前的存量——服务端 403）。`}
+          message="新建 permission target 是管理员入口"
+          hint={`当前用户 ${session?.username} 不是管理员。manage 持有者的控制台编辑入口是权限列表项（仓库全部落在 manage 覆盖集内的 target）；新建也可经 API（POST /api/v1/permissions，覆盖集内 201，引用覆盖集外仓库——含替换前的存量——服务端 403）。`}
+          action={
+            <Link className="btn" to="/admin/security/permissions">
+              ← 返回权限列表
+            </Link>
+          }
         />
       </div>
     )
@@ -418,23 +498,46 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
       )
     }
     if (targets.status === 'forbidden' && targets.error) {
+      // m-holder：filter=manage 403 = 无 manage/覆盖集空（与无 filter 同形，
+      // 零新增可区分面）——普通 user 的 L2 保留面
       return (
         <div data-testid="perm-editor-page">
-          <EmptyState message="无权限访问权限管理" hint={targets.error.message} />
+          <EmptyState
+            message="无权限访问权限管理"
+            hint={
+              mHolder
+                ? `当前会话无 manage 覆盖集（由携带 manage 的 permission target 授予）——列表与编辑器对无覆盖集的普通用户不可用（${targets.error.message}）。`
+                : targets.error.message
+            }
+          />
         </div>
       )
     }
     if (notFound) {
       return (
         <div data-testid="perm-editor-page">
-          <EmptyState
-            message={`permission target ${routeName} 不存在`}
-            action={
-              <Link className="btn" to="/admin/security/permissions">
-                ← 返回权限列表
-              </Link>
-            }
-          />
+          {mHolder ? (
+            // m-holder：过滤列表不含此名 = 覆盖集外/部分覆盖（服务端信息隔离
+            // 下与不存在同形）——边界说明的常驻位（T-241 L2 卡的退役承接面）
+            <EmptyState
+              message={`permission target ${routeName} 不在 manage 覆盖集内（或不存在）`}
+              hint="manage 持有者可编辑的 target 需引用仓库全部落在覆盖集内（部分覆盖的由服务端隐藏）；覆盖集外的维护经 API（服务端 403 兜底）。"
+              action={
+                <Link className="btn" to="/admin/security/permissions">
+                  ← 返回权限列表
+                </Link>
+              }
+            />
+          ) : (
+            <EmptyState
+              message={`permission target ${routeName} 不存在`}
+              action={
+                <Link className="btn" to="/admin/security/permissions">
+                  ← 返回权限列表
+                </Link>
+              }
+            />
+          )}
         </div>
       )
     }
@@ -638,6 +741,13 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
         </p>
       )}
 
+      {mHolder && (
+        <p className="admin-note" data-testid="perm-editor-manage-note">
+          ⓘ 当前会话以 manage 持有者身份编辑（注水 = manage 覆盖集过滤列表）：仓库目录与用户/组枚举是管理面读端点
+          （本会话 403）——新增仓库与主体走手动录入，服务端终裁（unknown → 400；覆盖集外保存/删除 → 403）。
+        </p>
+      )}
+
       <section className="card perm-section">
         <h3>目标信息</h3>
         <div className="field">
@@ -796,24 +906,54 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
         <p className="field-hint">选择用户及其在所选资源上的动作（§6.11[3]）。</p>
         {renderMatrixTable('users')}
         <div className="matrix-add">
-          <select
-            value={addUser}
-            disabled={readOnly}
-            onChange={(e) => setAddUser(e.target.value)}
-            aria-label="选择要添加的用户"
-            data-testid="perm-add-user"
+          {usersForbidden ? (
+            // name-entry（§14.1.6）：用户枚举对 m-holder 403——手动录入用户名，
+            // 存在性由服务端终裁（unknown → 400）。perm-add-user 冻结锚随控件
+            // 形态迁移（select → input，admin/readonly 路径零变——T-241
+            // perm-repo-add 语义滑移同款纪律）
+            <input
+              value={addUser}
+              disabled={readOnly}
+              onChange={(e) => setAddUser(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  addPrincipal('users', addUser.trim())
+                }
+              }}
+              placeholder="输入用户名（服务端校验）"
+              aria-label="输入要添加的用户名"
+              data-testid="perm-add-user"
+              lang="en"
+            />
+          ) : (
+            <select
+              value={addUser}
+              disabled={readOnly}
+              onChange={(e) => setAddUser(e.target.value)}
+              aria-label="选择要添加的用户"
+              data-testid="perm-add-user"
+            >
+              <option value="">＋ 添加用户…</option>
+              {userOptions.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          )}
+          <button
+            type="button"
+            className="btn"
+            disabled={addUser.trim() === '' || readOnly}
+            onClick={() => addPrincipal('users', addUser.trim())}
           >
-            <option value="">＋ 添加用户…</option>
-            {userOptions.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-          <button type="button" className="btn" disabled={addUser === '' || readOnly} onClick={() => addPrincipal('users', addUser)}>
             添加用户
           </button>
         </div>
+        {usersState.status === 'forbidden' && (
+          <p className="field-hint">用户枚举是管理面读端点（本会话 403）——手动录入用户名，服务端校验（unknown → 400）。</p>
+        )}
         {usersState.status === 'error' && (
           <p className="field-hint">用户列表不可用（{usersState.error?.message ?? '未知错误'}）——可刷新重试。</p>
         )}
@@ -824,31 +964,58 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
         <p className="field-hint">选择组及其在所选资源上的动作（组成员 = 动作并集）。</p>
         {renderMatrixTable('groups')}
         <div className="matrix-add">
-          <select
-            value={addGroup}
-            disabled={readOnly}
-            onChange={(e) => setAddGroup(e.target.value)}
-            aria-label="选择要添加的组"
-            data-testid="perm-add-group"
+          {groupsForbidden ? (
+            // name-entry 同用户区块：组枚举 403 → 手动录入组名（服务端终裁）
+            <input
+              value={addGroup}
+              disabled={readOnly}
+              onChange={(e) => setAddGroup(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  addPrincipal('groups', addGroup.trim())
+                }
+              }}
+              placeholder="输入组名（服务端校验）"
+              aria-label="输入要添加的组名"
+              data-testid="perm-add-group"
+              lang="en"
+            />
+          ) : (
+            <select
+              value={addGroup}
+              disabled={readOnly}
+              onChange={(e) => setAddGroup(e.target.value)}
+              aria-label="选择要添加的组"
+              data-testid="perm-add-group"
+            >
+              <option value="">＋ 添加组…</option>
+              {groupOptions.map((n) => (
+                <option key={n} value={n}>
+                  👥 {n}
+                </option>
+              ))}
+            </select>
+          )}
+          <button
+            type="button"
+            className="btn"
+            disabled={addGroup.trim() === '' || readOnly}
+            onClick={() => addPrincipal('groups', addGroup.trim())}
           >
-            <option value="">＋ 添加组…</option>
-            {groupOptions.map((n) => (
-              <option key={n} value={n}>
-                👥 {n}
-              </option>
-            ))}
-          </select>
-          <button type="button" className="btn" disabled={addGroup === '' || readOnly} onClick={() => addPrincipal('groups', addGroup)}>
             添加组
           </button>
         </div>
+        {groupsState.status === 'forbidden' && (
+          <p className="field-hint">组枚举是管理面读端点（本会话 403）——手动录入组名，服务端校验（unknown → 400）。</p>
+        )}
         {groupsState.status === 'error' && (
           <p className="field-hint">组列表不可用（{groupsState.error?.message ?? '未知错误'}）——可刷新重试。</p>
         )}
         <p className="admin-note">
           ⓘ admin 隐式拥有全部权限，不列入矩阵；无动作的主体不会提交（空 r/w/d/m ≡ 未授权）。manage =
           仓库级 admin（可编辑其 manage 覆盖集内的 target、读写该仓配置族；不含建/删仓与安全面）——manage
-          持有者经 API 编辑 target 时，服务端要求其引用的全部仓库（含替换前的存量，T-217 B1）落在覆盖集内，超出即 403。
+          持有者（控制台或 API）编辑 target 时，服务端要求其引用的全部仓库（含替换前的存量，T-217 B1）落在覆盖集内，超出即 403。
         </p>
       </section>
 
