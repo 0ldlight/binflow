@@ -74,6 +74,27 @@
   opacity: 1;
 }
 
+/* 已用列失败态（T-258 四态之一）：灰显 — + tooltip 原因，点击/键盘重试。
+ * 对比度纪律与 .row-del 同款——text-2 而非 muted（axe color-contrast），
+ * 不用 opacity 弱化。 */
+.usage-failed {
+  all: unset;
+  cursor: pointer;
+  color: var(--bf-text-2);
+  font-size: var(--bf-fs-body);
+  padding: 2px 4px;
+  border-radius: var(--bf-r-sm);
+}
+
+.usage-failed:hover {
+  color: var(--bf-danger);
+  background: var(--bf-surface-2);
+}
+
+.usage-failed:focus-visible {
+  outline: 2px solid var(--bf-accent);
+}
+
 /* 列头排序按钮（§4.7；security.css 同款语义，本域自持） */
 .th-sort {
   all: unset;

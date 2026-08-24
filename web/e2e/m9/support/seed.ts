@@ -10,6 +10,7 @@ import {
   seedM9,
   userNames,
   userPassword,
+  usageSeedBody,
   verifyM9,
 } from '../../../scripts/seed-m9.mjs'
 import { makeClient } from '../../../scripts/seed-m8.mjs'
@@ -19,6 +20,8 @@ import { makeClient } from '../../../scripts/seed-m8.mjs'
 // for the TS world and adds the in-spec idiom the M8 suite established:
 //   m9Client()  admin REST client from the same env the harness uses
 // (BASE / ADMIN_USER / ADMIN_PW — the smoke.sh convention).
+// usageSeedBody re-exported since T-258 (the usage-fanout spec computes its
+// expected usedBytes oracle from the same deterministic body the seed PUTs).
 
 export {
   M9_PLAN,
@@ -32,6 +35,7 @@ export {
   seedM9,
   userNames,
   userPassword,
+  usageSeedBody,
   verifyM9,
 }
 

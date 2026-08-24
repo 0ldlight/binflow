@@ -121,6 +121,30 @@ export function getRepoUsage(key: string): Promise<RepoUsage> {
   return apiJSON<RepoUsage>(`/v1/storage/usage/${encodeURIComponent(key)}`)
 }
 
+/** E1 批量行形（GET /api/v1/storage/usage，T-253）：与单仓 usageBody 逐字段
+ *  同构（architecture §14.1 E1），bare array、无分页。counts 形态两字段
+ *  恒渲染（缺省形态零出现）。 */
+export interface RepoUsageRow {
+  repo: string
+  usedBytes: number
+  quotaBytes: number
+  /** ?include=counts：文件 node 计数（folder 哨兵行不计，迁移 007 口径） */
+  nodeCount?: number
+  /** ?include=counts：repositories.updated_at = **配置**变更时刻（非「最新
+   *  制品时间」——E1 钉死语义，UI 不得当制品时间呈现） */
+  updatedAt?: string
+}
+
+/**
+ * 已用量批量（E1，T-253 / T-258 消费）：默认无参 = 全量可见集（服务端按
+ * 会话过滤——admin/readonly_admin 全量、普通 user 恰可读子集，前端不判权），
+ * 一次请求覆盖整页「已用」列（N 仓 N 请求的扇出退役为 1）。includeCounts
+ * 时行增 nodeCount/updatedAt（文件数提示用；未知 include 值服务端 400）。
+ */
+export function getUsageBatch(includeCounts = false): Promise<RepoUsageRow[]> {
+  return apiJSON<RepoUsageRow[]>(`/v1/storage/usage${includeCounts ? '?include=counts' : ''}`)
+}
+
 /** 创建（PUT；成功体纯文本 "Successfully created repository '<key>'"） */
 export function createRepo(key: string, body: RepoConfigBody): Promise<string> {
   return apiText(`/repositories/${encodeURIComponent(key)}`, { method: 'PUT', body })

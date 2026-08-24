@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '../../app/AuthContext'
@@ -8,11 +8,12 @@ import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import SetMeUpDialog from '../../components/SetMeUpDialog'
 import { Skeleton } from '../../components/Skeleton'
+import { ApiError } from '../../lib/api'
 import type { RepoListItem } from '../../lib/api'
 import { canAdminWrite, isReadOnlyAdmin } from '../../lib/api'
-import { cfgStr, cfgStrList, getRepositoriesFiltered, getRepoUsage } from '../../lib/repos'
-import type { RClass } from '../../lib/repos'
-import { formatBytes } from '../../lib/format'
+import { cfgStr, cfgStrList, getRepositoriesFiltered, getUsageBatch } from '../../lib/repos'
+import type { RepoUsageRow, RClass } from '../../lib/repos'
+import { formatBytes, formatCount } from '../../lib/format'
 import { onTableRowKeys, onTablistKeys } from '../../lib/keys'
 import { useAsync } from '../../lib/useAsync'
 
@@ -27,8 +28,11 @@ import { useRepoDelete } from './RepoDeleteConfirm'
 // - 列集：key（mono 链接 + 拷贝）/ 类型 / 包类型 / 上游或成员 / 已用 /
 //   描述。契约缺口（沿 T-99 登记）：列表项不带节点计数与更新时间 →
 //   「制品/缓存」「更新时间」两列不呈现；remote assumed-offline 无状态
-//   端点（ux R9）→ 不伪造。已用列走 usage 端点逐仓拉取（virtual 无自身
-//   内容恒 —，403/错误降级 — 不显示 0）。
+//   端点（ux R9）→ 不伪造。已用列 = usage 批量端点**单请求注水**（T-258，
+//   E1 GET /api/v1/storage/usage?include=counts——N 仓 N 请求的扇出退役
+//   为整页 1 趟；E1 counts 的 nodeCount 以行 tooltip 呈现，不破坏既有列集；
+//   updatedAt 是配置时刻，不当「最新制品时间」用）；virtual 无自身内容
+//   恒 —；批量缺行/失败降级 — 不显示 0。
 // - 门（router.go 实测）：GET /api/repositories = CapRepoRead——admin 与
 //   readonly_admin 全量（T-236 定案），普通 user 403 → L2 无权限卡。
 //   写入口（添加/删除）仅全量 admin（L4 预收敛，服务端 403 兜底）。
@@ -62,21 +66,118 @@ function truncate(s: string, max = 36): string {
   return s.length > max ? `${s.slice(0, max - 1)}…` : s
 }
 
-/** 行内已用列：独立请求独立到达（§5.2 卡片级思路的行级版） */
-function UsageCell({ repoKey, rclass }: { repoKey: string; rclass: string }) {
-  const state = useAsync(() => getRepoUsage(repoKey), [repoKey])
-  if (rclass === 'virtual') return <span className="text-muted">—</span>
-  if (state.status === 'loading') {
-    return <span className="cell-pending" role="progressbar" aria-label="用量加载中" />
-  }
-  if (state.status !== 'ok' || !state.data) {
+/** usage 批量索引：repo key → 行（T-258 单请求注水的内存消费面） */
+type UsageIndex = Map<string, RepoUsageRow>
+
+interface UsageState {
+  status: 'loading' | 'ok' | 'error'
+  index: UsageIndex | null
+  error: ApiError | null
+  /** 失败态行内重试：重跑一次批量请求 */
+  reload: () => void
+}
+
+/**
+ * 已用列批量注水（T-258，E1）：整页恰一次 GET /api/v1/storage/usage?
+ * include=counts——排序/筛选是纯前端态，永不触发再请求（~171 请求 → ≤3
+ * 的 usage 腿）。仅列表 ok 后发起：列表 403（普通 user 的 L2 无权限卡）/
+ * 失败时无行可注水，不发孤儿请求；列表重载（删除/上传收尾）走
+ * loading→ok 变迁，用量随之一并刷新（不另做跨挂载缓存——上传后陈旧值
+ * 比多一趟请求更糟）。
+ */
+function useUsageBatch(enabled: boolean): UsageState {
+  const [tick, setTick] = useState(0)
+  const [state, setState] = useState<Omit<UsageState, 'reload'>>({
+    status: 'loading',
+    index: null,
+    error: null,
+  })
+
+  useEffect(() => {
+    if (!enabled) return
+    // 闭包 alive 旗标（useAsync 同款）：卸载/禁用后晚到响应丢弃
+    let alive = true
+    setState({ status: 'loading', index: null, error: null })
+    getUsageBatch(true)
+      .then((rows) => {
+        if (alive)
+          setState({ status: 'ok', index: new Map(rows.map((r) => [r.repo, r])), error: null })
+      })
+      .catch((err: unknown) => {
+        if (!alive) return
+        setState({
+          status: 'error',
+          index: null,
+          error: err instanceof ApiError ? err : new ApiError(0, String(err)),
+        })
+      })
+    return () => {
+      alive = false
+    }
+  }, [enabled, tick])
+
+  const reload = useCallback(() => setTick((t) => t + 1), [])
+  return { ...state, reload }
+}
+
+/**
+ * 行内已用列（T-258）：状态由页面级单请求承载，行只查索引。四态：
+ * ok = mono 值 + 文件数 tooltip（E1 counts，替代 T-99 登记的「制品/缓存」
+ * 列缺口的信息面——tooltip 承载，不破坏既有列集）；加载 = 暂 `—`；
+ * 失败 = 灰显 `—` + tooltip 原因、点击重试（键盘可达）；virtual 恒 `—`
+ * （无自身内容）；批量缺行 = `—`（不伪造 0）。
+ */
+function UsageCell({ repoKey, rclass, usage }: { repoKey: string; rclass: string; usage: UsageState }) {
+  const testid = `repos-usage-${repoKey}`
+  if (rclass === 'virtual') {
     return (
-      <span className="text-muted" title={state.error?.message ?? '用量不可用'}>
+      <span className="text-muted" data-testid={testid}>
         —
       </span>
     )
   }
-  return <span className="mono">{formatBytes(state.data.usedBytes)}</span>
+  if (usage.status === 'loading') {
+    return (
+      <span className="text-muted" data-testid={testid}>
+        —
+      </span>
+    )
+  }
+  if (usage.status === 'error') {
+    return (
+      <button
+        type="button"
+        className="usage-failed"
+        data-testid={testid}
+        title={`${usage.error?.message ?? '用量不可用'}（点击重试）`}
+        aria-label={`仓库 ${repoKey} 用量加载失败，点击重试`}
+        onClick={(e) => {
+          // 行点击是导航——重试不得冒泡（CopyButton 隔离层同款）
+          e.stopPropagation()
+          usage.reload()
+        }}
+      >
+        —
+      </button>
+    )
+  }
+  const row = usage.index?.get(repoKey)
+  if (!row) {
+    return (
+      <span className="text-muted" data-testid={testid}>
+        —
+      </span>
+    )
+  }
+  return (
+    <span
+      className="mono"
+      data-testid={testid}
+      title={row.nodeCount !== undefined ? `${formatCount(row.nodeCount)} 个文件` : undefined}
+    >
+      {formatBytes(row.usedBytes)}
+    </span>
+  )
 }
 
 function UpstreamCell({ repo }: { repo: RepoListItem }) {
@@ -159,6 +260,8 @@ export default function RepositoriesPage() {
   // Tab = 服务端 ?type= 过滤（E-04 契约形态）；key 是已加载集上的前端子串
   const state = useAsync(() => getRepositoriesFiltered(tab, ''), [tab])
   const reload = state.reload
+  // 已用列注水（T-258）：仅列表 ok 后发一次批量；排序/筛选（纯前端态）零触发
+  const usage = useUsageBatch(state.status === 'ok')
 
   const requestDelete = useRepoDelete({ onDeleted: reload })
 
@@ -337,7 +440,7 @@ export default function RepositoriesPage() {
                       <UpstreamCell repo={repo} />
                     </td>
                     <td>
-                      <UsageCell repoKey={repo.key} rclass={repo.type} />
+                      <UsageCell repoKey={repo.key} rclass={repo.type} usage={usage} />
                     </td>
                     <td className="wrap" style={{ maxWidth: 260, color: 'var(--bf-text-2)' }}>
                       {repo.description || '—'}

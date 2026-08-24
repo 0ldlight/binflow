@@ -64,3 +64,7 @@ export declare function ensureM9User(client: SeedClient, name: string, groups?: 
 export declare function ensureTarget(client: SeedClient, def: TargetDef): Promise<'created' | 'present'>
 export declare function seedM9(client: SeedClient, opts?: { plan?: M9Plan }): Promise<SeedM9Result>
 export declare function verifyM9(client: SeedClient, opts?: { plan?: M9Plan }): Promise<VerifyM9Result>
+// T-253 usage-content exports (consumed by the T-258 usage-fanout spec)
+export declare const USAGE_SEED_PATH: string
+export declare function usageSeedBody(key: string): string
+export declare function seedUsageContent(client: SeedClient, keys: string[]): Promise<number>
