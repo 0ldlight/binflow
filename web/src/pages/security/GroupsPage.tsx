@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { useAuth } from '../../app/AuthContext'
@@ -15,11 +15,11 @@ import { TransferBox } from './TransferBox'
 import { PermSummaryTable, SortTh, applySort, useTableSort } from './widgets'
 import {
   deleteGroup,
+  getGroupWithUsers,
   grantsOfGroup,
   listGroups,
   listPermissionTargets,
   listUsers,
-  getUser,
   parseReferencedTargets,
   putGroup,
   updateUser,
@@ -27,25 +27,30 @@ import {
 } from './api'
 import type { GroupListItem, PermissionTarget } from './api'
 
-// 组管理（console-m8 §6.10，T-237 重排）：列表（Name〔描述副行〕│ 权限数
-// 〔+ manage 徽章〕│ 成员数）+ 同形态分区编辑器（组设置 / 成员穿梭 /
-// 编辑态组权限矩阵）。
+// 组管理（console-m8 §6.10，T-237 重排；T-257 数据源换 E2/E5 单源）：
+// 列表（Name〔描述副行〕│ 权限数〔+ manage 徽章〕│ 成员数）+ 同形态分区
+// 编辑器（组设置 / 成员穿梭 / 编辑态组权限矩阵）。
 //
 // adminPrivileges 徽章：BinFlow 组模型无 Artifactory 的 adminPrivileges
 // 布尔（rbac-model §5 有意不跟进——组不承载角色语义）；徽章呈现的是
 // 「组在至少一个 target 上持有 manage」——manage（仓库配置派生权，
 // ADR-0026）是其最小诚实同构，数据源 = 权限 target 列表（零新端点）。
 //
-// 成员数/成员列表：无按组查询端点（GET group 仅 name/uri/description；
-// Artifactory 的 ?includeUsers=true 不存在）——契约漂移②：前端以
-// listUsers + 逐用户 getUser 汇总（T-99「逐仓拉取」先例，行级失败降级）。
-// 成员变更经各用户的部分更新臂落盘（POST groups 全量替换该用户组集）。
+// 成员单源（T-257，ADR-0030 K19/§14.1 E5）：成员汇总的事实源 = user_groups
+// 行，仅经两个服务端视图物化——**E2** users 列表内嵌 groups[]（本页成员
+// 数列/穿梭候选全集一次请求推导；T-237 期的「listUsers + 逐用户 getUser」
+// N+1〔20 用户 = 21 请求〕退役，契约漂移②随 E5 落地销账）与 **E5**
+// `GET groups/{name}?includeUsers=true`（编辑器打开瞬间的按需单组读，
+// userNames 种入穿梭已选列——比页面级 E2 快照新鲜）。两视图同源，e2e
+// 交叉断言。groups 列表端点不加宽（K19：membersCount 与 groups[] 双物化
+// 面必漂移）。成员变更仍经各用户的部分更新臂落盘（POST groups 全量替换
+// 该用户组集——组侧写端点无票承载，gap-endpoints §3.2）。
 //
 // W33c 核心：删除被 permission target 引用的组 → 409，message 列 target
 // 名。UI 呈现：行内冲突面板（服务端原文 mono + 解析出的 target 名链接到
 // 权限编辑器，解除引用后重删即成——「不撞墙」）。
 
-/** 成员扫描快照：用户 → 其组集（组页成员数与穿梭数据源） */
+/** 成员扫描快照（E2 单源）：users 列表项内嵌 groups[] 的双索引投影 */
 interface MembershipSnapshot {
   /** user → groups */
   userGroups: Record<string, string[]>
@@ -53,20 +58,22 @@ interface MembershipSnapshot {
   groupMembers: Record<string, string[]>
 }
 
-async function scanMembership(): Promise<MembershipSnapshot> {
-  const users = await listUsers()
-  const details = await Promise.all(users.map((u) => getUser(u.name).catch(() => null)))
+/** E2 列表 → 双索引（成员数列 + 穿梭候选全集 + 成员落盘的当前组集） */
+function snapshotFromUsers(users: readonly { name: string; groups: string[] }[]): MembershipSnapshot {
   const userGroups: Record<string, string[]> = {}
   const groupMembers: Record<string, string[]> = {}
-  for (let i = 0; i < users.length; i++) {
-    const d = details[i]
-    if (!d) continue
-    userGroups[d.name] = d.groups
-    for (const g of d.groups) {
-      ;(groupMembers[g] ??= []).push(d.name)
+  for (const u of users) {
+    userGroups[u.name] = u.groups
+    for (const g of u.groups) {
+      ;(groupMembers[g] ??= []).push(u.name)
     }
   }
   return { userGroups, groupMembers }
+}
+
+/** 单请求成员扫描：GET /security/users（E2 加宽列表）——与用户数无关 */
+async function scanMembership(): Promise<MembershipSnapshot> {
+  return snapshotFromUsers(await listUsers())
 }
 
 interface GroupRowModel {
@@ -105,18 +112,33 @@ function GroupEditor({
   const editMode = seed.mode === 'edit'
   const [name, setName] = useState(seed.name)
   const [description, setDescription] = useState(seed.description)
-  const [members, setMembers] = useState<string[]>(editMode ? (snapshot?.groupMembers[seed.name] ?? []) : [])
+  // 编辑态选区 = E5 按需单组读（userNames）；null = 取数中/不可用。
+  // 创建态无选区初值（空串组）。
+  const e5 = useAsync(
+    () => (editMode ? getGroupWithUsers(seed.name) : Promise.resolve(null)),
+    [editMode, seed.name],
+  )
+  const e5Members = e5.status === 'ok' && e5.data ? e5.data.userNames : null
+  const [members, setMembers] = useState<string[] | null>(editMode ? null : [])
+  useEffect(() => {
+    if (e5Members) setMembers(e5Members)
+  }, [e5Members])
   const [submitting, setSubmitting] = useState(false)
   const [serverError, setServerError] = useState<ApiError | null>(null)
 
-  const initialMembers = editMode ? (snapshot?.groupMembers[seed.name] ?? []) : []
+  const initialMembers = e5Members ?? []
+  const membersReady = !editMode || e5Members !== null
   const nameErr = editMode ? null : validateGroupName(name.trim())
-  const memberAdded = members.filter((m) => !initialMembers.includes(m))
-  const memberRemoved = initialMembers.filter((m) => !members.includes(m))
-  const canSubmit = editMode || (name.trim() !== '' && nameErr === null)
-  const dirty = editMode ? description !== seed.description || memberAdded.length > 0 || memberRemoved.length > 0 : true
+  const memberAdded = (members ?? []).filter((m) => !initialMembers.includes(m))
+  const memberRemoved = initialMembers.filter((m) => !(members ?? []).includes(m))
+  const canSubmit = (editMode || (name.trim() !== '' && nameErr === null)) && membersReady
+  const dirty = editMode
+    ? (description !== seed.description || memberAdded.length > 0 || memberRemoved.length > 0) && membersReady
+    : true
 
-  /** 成员落盘：逐用户替换组集（add → 追加本组；remove → 去掉本组） */
+  /** 成员落盘：逐用户替换组集（add → 追加本组；remove → 去掉本组）。
+   *  幂等护栏：E5 视图与 E2 快照之间带外并发下，已入组用户跳过追加
+   *  （避免重复组名）；移除臂的 filter 天然幂等。 */
   const applyMembership = async (group: string) => {
     if (!snapshot) return
     const failures: string[] = []
@@ -126,6 +148,7 @@ function GroupEditor({
         failures.push(m)
         continue
       }
+      if (current.includes(group)) continue // 视图竞窗外已在组——收敛而非重复追加
       try {
         await updateUser(m, { groups: [...current, group] })
       } catch {
@@ -232,19 +255,26 @@ function GroupEditor({
       <div className="form-section">
         <h4>成员</h4>
         <p className="field-hint">勾选即加入（右列）；保存后即时生效——移出即失去该组授权，无需重登。</p>
-        {snapshot ? (
+        {!snapshot ? (
+          <p className="field-hint">成员数据不可用（用户列表加载失败）——可先保存组，稍后维护成员。</p>
+        ) : !membersReady ? (
+          <Skeleton lines={2} />
+        ) : (
           <div data-testid="group-form-members">
             <TransferBox
               items={userItems}
-              selected={members}
-              onToggle={(u, next) => setMembers((p) => (next ? [...p, u] : p.filter((x) => x !== u)))}
+              selected={members ?? []}
+              onToggle={(u, next) => setMembers((p) => (next ? [...(p ?? []), u] : (p ?? []).filter((x) => x !== u)))}
               availableLabel="可选用户"
               selectedLabel="已选成员"
               itemTestid={(u) => `group-form-member-${u}`}
             />
           </div>
-        ) : (
-          <p className="field-hint">成员数据不可用（用户/组扫描失败）——可先保存组，稍后维护成员。</p>
+        )}
+        {e5.status === 'error' && e5.error && (
+          <p className="field-error" role="alert">
+            组成员读取失败（{e5.error.message}）——组可能已被删除或更名。
+          </p>
         )}
       </div>
       {editMode && (
@@ -305,7 +335,8 @@ export default function GroupsPage() {
   const readOnly = isReadOnlyAdmin(session)
   const toast = useToast()
   const confirm = useConfirm()
-  // 一次链式取数：组列表 + 成员扫描（N+1，行级降级）+ 权限 target 列表
+  // 一次链式取数（三请求，与用户数无关）：组列表 + 成员扫描（E2 单请求）
+  // + 权限 target 列表；成员扫描/targets 行级降级（null）不阻塞组列表
   const state = useAsync(async () => {
     const [groups, membership, targets] = await Promise.all([
       listGroups(),

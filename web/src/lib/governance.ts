@@ -48,6 +48,7 @@ export const AUDIT_ACTIONS: readonly string[] = [
   'group.delete',
   'group.member',
   'user.role.change', // M7 PRD FR-64：角色指派/变更审计（T-212 recordRoleChange 落点）
+  'user.delete', // M9 E4（T-251）：DELETE /api/security/users/{name} 成功删除审计
   'permission.create',
   'permission.update',
   'permission.delete',

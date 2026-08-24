@@ -547,3 +547,59 @@
   background: color-mix(in srgb, var(--bf-danger) 15%, transparent);
   color: color-mix(in srgb, var(--bf-danger) 82%, var(--bf-text));
 }
+
+/* ============================================================
+ * T-257 增补区块（M9 UI 消费波：E2/E3 Status 徽章 + E4 删除危险区）：
+ * 只追加新类，不改上方已交区块的任何类名。
+ * ============================================================ */
+
+/* Status 徽章（E2/E3 enabled 真值）：自持 status-pill 类——不复用 .badge
+   基类（用户行内 .badge 语义位已被角色徽章与组 chips 占用，m8 套件的
+   行级 .badge 锚按视图唯一计，ADR-0029 决策 3——加一个 .badge 即破其
+   strict-mode 唯一性）。视觉配方对齐 .badge（base.css §441）+ 对比度
+   收口沿 role-warning / perm-verdict-* 同款（语义色 15% tint 底 + 文字
+   向正文色收敛 82%，两主题实测 ≥5:1——base 的 .badge.success/.danger
+   亮主题 4.1x:1 是共享层已知缺陷，R6 边界不动 base.css）。 */
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: var(--bf-r-sm);
+  font-size: var(--bf-fs-aux);
+  line-height: 1.4;
+}
+
+.status-pill.status-on {
+  background: color-mix(in srgb, var(--bf-success) 15%, transparent);
+  color: color-mix(in srgb, var(--bf-success) 82%, var(--bf-text));
+}
+
+.status-pill.status-off {
+  background: color-mix(in srgb, var(--bf-danger) 15%, transparent);
+  color: color-mix(in srgb, var(--bf-danger) 82%, var(--bf-text));
+}
+
+/* 删用户危险区（console-m8 §6.14 危险区模式的用户编辑页实例）：红边
+   分区 + 影响面摘要 + 强确认入口（确认对话框本体在共享 ConfirmDialog）。 */
+
+.sec-danger-zone {
+  margin-top: var(--bf-sp-4);
+  padding: var(--bf-sp-3) var(--bf-sp-4);
+  border: 1px solid color-mix(in srgb, var(--bf-danger) 45%, transparent);
+  border-radius: var(--bf-r-md);
+  background: color-mix(in srgb, var(--bf-danger) 6%, transparent);
+}
+
+.sec-danger-zone .dz-head {
+  color: var(--bf-danger);
+  font-weight: 600;
+  margin-bottom: var(--bf-sp-1);
+}
+
+.sec-danger-zone .dz-note {
+  font-size: var(--bf-fs-aux);
+  color: var(--bf-text-2);
+  margin: 0 0 var(--bf-sp-2);
+  max-width: 72ch;
+}

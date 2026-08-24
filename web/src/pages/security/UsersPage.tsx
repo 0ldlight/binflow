@@ -13,44 +13,36 @@ import { onTableRowKeys } from '../../lib/keys'
 import { useAsync } from '../../lib/useAsync'
 import './security.css'
 import { TransferBox } from './TransferBox'
-import { SortTh, applySort, useTableSort } from './widgets'
-import { createUser, getUser, listGroups, listUsers, validateUserName } from './api'
-import type { UserDetail, UserListItem } from './api'
+import { SortTh, StatusLabel, applySort, useTableSort, useUserDelete } from './widgets'
+import { createUser, listGroups, listUsers, validateUserName } from './api'
+import type { UserListItem } from './api'
 
-// 用户列表 + 新建（console-m8 §6.9，T-237 重排）。
+// 用户列表 + 新建（console-m8 §6.9，T-237 重排；T-257 数据源换 E2 加宽）。
 //
 // 列集：Name │ Email │ Groups（计数 | 明细，Artifactory "1 | readers" 形态）
-// │ Role（三值 badge）。Realm/Last Login/Admin 布尔列不建（§6.9[1]）；
-// Status 列**暂缺**——契约漂移①：GET /security/users 与 /{name} 均无
-// enabled 回显（T-208 只落了写侧 seam），无数据不伪造列。
+// │ Role（三值 badge）│ **Status**（E2 enabled 真值——禁用徽章形态；T-237
+// 期的「暂缺（无回显不伪造列）」随 E2 落地退役）│ 操作（admin）。Realm/
+// Last Login/Admin 布尔列不建（§6.9[1]）。
 //
-// 列表端点是简形态 {name,uri,realm}；email/角色/组员在详情端点——沿用
-// T-99「逐仓拉取」先例行级独立到达（这里折为一次链式并发），单行失败
-// 降级 —（不伪造）。排序 = 前端列头排序（§4.7 asc/desc/none 循环），
-// 全量数据在端上无分页（用户数 = 实例账号规模）；底部计数行对齐
-// 「用户总数： N」。
+// 数据源 = **单请求** GET /security/users（E2 列表项已含 email/adminRole/
+// enabled/groups——T-251）。T-237 期的「listUsers + 逐用户 getUser」
+// N+1 扇出退役（20 用户 = 21 请求 → 1 请求，FR-78/PRD N01）。
+// 排序 = 前端列头排序（§4.7 asc/desc/none 循环），全量数据在端上无分页
+// （用户数 = 实例账号规模）；底部计数行对齐「用户总数： N」。
 //
-// 403 收敛（§3.6）：L2——列表 403 呈现无权限卡；L4——创建按钮仅 admin
-// 渲染。readonly_admin：读面全通 + users-readonly-note（M7 §7.3）。
+// 删除（T-257，E4）：行内 Delete（admin）——自删/内置 admin 两态 UI 预禁用
+// （服务端 400 终裁兜底）；其余护栏（last-admin 400、404 已删）由服务端
+// 原文如实呈现。强确认 = 输入用户名（widgets.useUserDelete）。
+//
+// 403 收敛（§3.6）：L2——列表 403 呈现无权限卡；L4——创建/删除按钮仅
+// admin 渲染。readonly_admin：读面全通 + users-readonly-note（M7 §7.3）。
 
-/** 列表行模型：简形态 + 详情（可缺失——行级降级） */
-interface UserRowModel {
-  item: UserListItem
-  detail: UserDetail | null
-}
+type UserSortKey = 'name' | 'email' | 'groups' | 'role' | 'status'
 
-/** 拉全量行模型：列表 + 逐用户详情并发（行级失败降级 null） */
-async function fetchUserRows(): Promise<UserRowModel[]> {
-  const items = await listUsers()
-  const details = await Promise.all(items.map((u) => getUser(u.name).catch(() => null)))
-  return items.map((item, i) => ({ item, detail: details[i] }))
-}
-
-type UserSortKey = 'name' | 'email' | 'groups' | 'role'
-
-function roleBadge(detail: UserDetail | null) {
-  if (!detail) return <span className="text-muted">—</span>
-  return <RoleLabel role={normalizeAdminRole(detail.adminRole, detail.admin)} />
+function roleBadge(item: UserListItem) {
+  // E2 列表项无 admin 布尔（W40 禁）——adminRole 恒渲染，闭集外回退
+  // false（fail-safe 不放大，normalizeAdminRole 同口径）
+  return <RoleLabel role={normalizeAdminRole(item.adminRole, false)} />
 }
 
 function RoleLabel({ role }: { role: AdminRole }) {
@@ -265,20 +257,24 @@ export default function UsersPage() {
   const navigate = useNavigate()
   const admin = canAdminWrite(session)
   const readOnly = isReadOnlyAdmin(session)
-  const state = useAsync(fetchUserRows, [])
+  // 单请求（E2 加宽列表）——行模型 = 列表项本体，无逐用户详情扇出
+  const state = useAsync(listUsers, [])
   const [creating, setCreating] = useState(false)
   const { sort, toggle } = useTableSort<UserSortKey>({ key: 'name', dir: 'asc' })
+  const { openDialog: deleteUser } = useUserDelete({ onDeleted: () => state.reload() })
 
   const rows = applySort(state.data ?? [], sort as { key: string | null; dir: 'asc' | 'desc' }, (r) => {
     switch (sort.key) {
       case 'email':
-        return r.detail?.email ?? null
+        return r.email
       case 'groups':
-        return r.detail ? r.detail.groups.length : null
+        return r.groups.length
       case 'role':
-        return r.detail ? normalizeAdminRole(r.detail.adminRole, r.detail.admin) : null
+        return normalizeAdminRole(r.adminRole, false)
+      case 'status':
+        return r.enabled ? 1 : 0
       default:
-        return r.item.name
+        return r.name
     }
   })
 
@@ -333,56 +329,71 @@ export default function UsersPage() {
                   <SortTh label="Email" sortKey="email" sort={sort} onToggle={toggle} testid="users-sort-email" />
                   <SortTh label="组" sortKey="groups" sort={sort} onToggle={toggle} testid="users-sort-groups" />
                   <SortTh label="角色" sortKey="role" sort={sort} onToggle={toggle} testid="users-sort-role" />
+                  <SortTh label="Status" sortKey="status" sort={sort} onToggle={toggle} testid="users-sort-status" />
+                  {admin && <th scope="col">操作</th>}
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
-                  <tr
-                    key={r.item.name}
-                    data-testid={`user-row-${r.item.name}`}
-                    tabIndex={0}
-                    onKeyDown={(e) =>
-                      onTableRowKeys(e, () =>
-                        navigate(`/admin/security/users/${encodeURIComponent(r.item.name)}`),
-                      )
-                    }
-                  >
-                    <td>
-                      <Link className="row-link mono" to={`/admin/security/users/${encodeURIComponent(r.item.name)}`} lang="en">
-                        {r.item.name}
-                      </Link>{' '}
-                      <CopyButton value={r.item.name} label={`用户名 ${r.item.name}`} />
-                    </td>
-                    <td>
-                      {r.detail ? (
-                        <span className="text-2">{r.detail.email}</span>
-                      ) : (
-                        <span className="text-muted" title="详情不可用">
-                          —
-                        </span>
-                      )}
-                    </td>
-                    <td className="wrap" style={{ maxWidth: 360 }}>
-                      {!r.detail ? (
-                        <span className="text-muted">—</span>
-                      ) : r.detail.groups.length === 0 ? (
-                        <span className="text-muted">—</span>
-                      ) : (
-                        <span title={r.detail.groups.join(', ')}>
-                          <span className="badge neutral">{r.detail.groups.length}</span>{' '}
-                          <span className="sec-chips">
-                            {r.detail.groups.map((g) => (
-                              <span key={g} className="badge neutral mono" lang="en">
-                                {g}
-                              </span>
-                            ))}
+                {rows.map((r) => {
+                  // 自删/内置 admin：UI 预禁用（服务端 400 终裁；title 述因）
+                  const self = session?.username === r.name
+                  const builtin = r.name === 'admin'
+                  const deleteBlocked = self ? '不能删除当前登录用户（服务端 400 护栏）' : builtin ? '不能删除内置 admin 用户（服务端 400 护栏）' : undefined
+                  return (
+                    <tr
+                      key={r.name}
+                      data-testid={`user-row-${r.name}`}
+                      tabIndex={0}
+                      onKeyDown={(e) =>
+                        onTableRowKeys(e, () => navigate(`/admin/security/users/${encodeURIComponent(r.name)}`))
+                      }
+                    >
+                      <td>
+                        <Link className="row-link mono" to={`/admin/security/users/${encodeURIComponent(r.name)}`} lang="en">
+                          {r.name}
+                        </Link>{' '}
+                        <CopyButton value={r.name} label={`用户名 ${r.name}`} />
+                      </td>
+                      <td>
+                        <span className="text-2">{r.email}</span>
+                      </td>
+                      <td className="wrap" style={{ maxWidth: 360 }}>
+                        {r.groups.length === 0 ? (
+                          <span className="text-muted">—</span>
+                        ) : (
+                          <span title={r.groups.join(', ')}>
+                            <span className="badge neutral">{r.groups.length}</span>{' '}
+                            <span className="sec-chips">
+                              {r.groups.map((g) => (
+                                <span key={g} className="badge neutral mono" lang="en">
+                                  {g}
+                                </span>
+                              ))}
+                            </span>
                           </span>
-                        </span>
+                        )}
+                      </td>
+                      <td>{roleBadge(r)}</td>
+                      <td>
+                        <StatusLabel enabled={r.enabled} name={r.name} />
+                      </td>
+                      {admin && (
+                        <td>
+                          <button
+                            type="button"
+                            className="btn danger"
+                            disabled={deleteBlocked !== undefined}
+                            title={deleteBlocked}
+                            onClick={() => void deleteUser(r.name)}
+                            data-testid={`user-delete-${r.name}`}
+                          >
+                            删除
+                          </button>
+                        </td>
                       )}
-                    </td>
-                    <td>{roleBadge(r.detail)}</td>
-                  </tr>
-                ))}
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
             <p className="table-foot" data-testid="users-count">

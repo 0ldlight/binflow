@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { useAuth } from '../../app/AuthContext'
 import { useToast } from '../../app/ToastContext'
@@ -7,28 +7,30 @@ import { CopyButton } from '../../components/CopyButton'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
-import { ADMIN_ROLES, ApiError, errText, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
+import { ADMIN_ROLES, ApiError, canAdminWrite, errText, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
 import type { AdminRole } from '../../lib/api'
 import { useAsync } from '../../lib/useAsync'
 import './security.css'
 import { TransferBox } from './TransferBox'
-import { PermSummaryTable } from './widgets'
+import { PermSummaryTable, StatusLabel, useUserDelete } from './widgets'
 import { getUser, grantsOfUser, listGroups, listPermissionTargets, updateUser } from './api'
 import type { UserDetail, UserUpdateBody } from './api'
 
-// 用户编辑器（console-m8 §6.9 编辑态，T-237 重排）：分区形态 = 用户设置 /
-// 选项（状态）/ 口令 / 相关组（双列穿梭）/ 用户权限矩阵（只读汇总）。
+// 用户编辑器（console-m8 §6.9 编辑态，T-237 重排；T-257 数据源换 E3/E4）：
+// 分区形态 = 用户设置 / 选项（状态）/ 口令 / 相关组（双列穿梭）/ 用户权限
+// 矩阵（只读汇总）/ 账户信息（含危险区）。
 //
 // 角色（M7 FR-66 / §7.1）：三值下拉，仅走 adminRole 通道（与 admin 布尔
 // 混发不一致 → 服务端 400）；readonly_admin 视角禁用 + 说明行。
 //
 // enabled 翻转（§7.5 / T-224 非缺陷②）：表单全量提交形态——保存体总是
-// 携带 enabled（POST 部分更新臂的指针语义：携带即写入）。契约漂移①：
-// GET 无 enabled 回显，控件按「默认启用」呈现（建号即启用 + 极少禁用），
-// 以勾选态为准写入，漂移已登记（后端补 echo 后本控件改回显驱动）。
+// 携带 enabled（POST 部分更新臂的指针语义：携带即写入）。控件**回显驱动**
+// （E3 enabled 恒渲染，T-251）——T-237 期的 knownEnabled 本地回显 hack
+// （「本页写过的值即已知值」+ 默认启用假设）及其漂移注记随本票退役。
 //
-// 删除用户：后端无 DELETE /security/users/{name}（SE 域仅 GET/PUT/POST，
-// 契约冻结）——§6.9 Actions 菜单不建，不伪造入口。
+// 删除用户（E4，T-257）：账户信息卡内危险区（admin）——自删/内置 admin
+// 预禁用，其余护栏（last-admin 400 / 404 已删）服务端原文如实呈现；成功
+// 后回列表。§6.9 线框的「Actions ▾」菜单不建（单动作不设菜单壳）。
 //
 // readonly_admin 进入本页 = 只读呈现：全部编辑面禁用（服务端 403 兜底，
 // UI 无绕过——服务端是唯一守门）。
@@ -48,13 +50,12 @@ interface EditState {
   password2: string
 }
 
-/** 编辑初值：enabled 无回显（漂移①）——按 knownEnabled（本页写过的值，
- *  未写过 = 默认启用假设）；保存时显式落盘 */
-function editFromDetail(d: UserDetail, enabled: boolean): EditState {
+/** 编辑初值：E3 回显驱动（enabled 恒渲染）——DB 行事实直入表单 */
+function editFromDetail(d: UserDetail): EditState {
   return {
     email: d.email,
     role: normalizeAdminRole(d.adminRole, d.admin),
-    enabled,
+    enabled: d.enabled,
     groups: [...d.groups],
     password: '',
     password2: '',
@@ -65,20 +66,23 @@ export default function UserDetailPage() {
   const { name = '' } = useParams<{ name: string }>()
   const { session } = useAuth()
   const readOnly = isReadOnlyAdmin(session)
+  const admin = canAdminWrite(session)
   const toast = useToast()
+  const navigate = useNavigate()
   const detail = useAsync(() => getUser(name), [name])
   const groups = useAsync(listGroups, [])
   const targets = useAsync(listPermissionTargets, [])
   const [f, setF] = useState<EditState | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [serverError, setServerError] = useState<ApiError | null>(null)
-  // enabled 的本地回显：GET 无该字段（漂移①）——本页写过的值即已知值，
-  // 未写过按「建号即启用」假设。带外变更（CLI/迁移）不可见，已登记漂移。
-  const [knownEnabled, setKnownEnabled] = useState(true)
+  // 删除成功（或 404 已被他人删）→ 回列表（详情页的对象已不存在）
+  const { openDialog: deleteUser } = useUserDelete({
+    onDeleted: () => navigate('/admin/security/users'),
+  })
 
   useEffect(() => {
-    if (detail.status === 'ok' && detail.data) setF(editFromDetail(detail.data, knownEnabled))
-  }, [detail.status, detail.data, knownEnabled])
+    if (detail.status === 'ok' && detail.data) setF(editFromDetail(detail.data))
+  }, [detail.status, detail.data])
 
   if (detail.status === 'loading') {
     return (
@@ -115,6 +119,14 @@ export default function UserDetailPage() {
 
   const d = detail.data
   const baseRole = d ? normalizeAdminRole(d.adminRole, d.admin) : null
+  // 自删/内置 admin：UI 预禁用（与列表行同口径；服务端 400 终裁）
+  const self = session?.username === name
+  const builtin = name === 'admin'
+  const deleteBlocked = self
+    ? '不能删除当前登录用户（服务端 400 护栏）'
+    : builtin
+      ? '不能删除内置 admin 用户（服务端 400 护栏）'
+      : undefined
   const groupsEqual = (a: readonly string[], b: readonly string[]) =>
     JSON.stringify([...a].sort()) === JSON.stringify([...b].sort())
   const dirty =
@@ -122,7 +134,7 @@ export default function UserDetailPage() {
     !!d &&
     (f.email.trim() !== d.email ||
       f.role !== baseRole ||
-      f.enabled !== knownEnabled ||
+      f.enabled !== d.enabled ||
       !groupsEqual(f.groups, d.groups) ||
       f.password !== '')
   const passMismatch = !!f && f.password !== '' && f.password !== f.password2
@@ -141,7 +153,6 @@ export default function UserDetailPage() {
       if (!groupsEqual(f.groups, d.groups)) body.groups = f.groups
       if (f.password !== '') body.password = f.password
       await updateUser(d.name, body)
-      if (body.enabled !== undefined) setKnownEnabled(body.enabled) // 本地回显（漂移①的 UI 侧补）
       toast.success(`用户 ${d.name} 已更新`)
       setF((p) => (p ? { ...p, password: '', password2: '' } : p))
       detail.reload()
@@ -230,9 +241,7 @@ export default function UserDetailPage() {
                 />
                 启用（取消勾选 = 禁用账号——登录与写面全部拒绝）
               </label>
-              <p className="field-hint">
-                服务端暂无 enabled 回显（契约漂移已登记）：本控件按默认启用呈现，保存时以勾选状态写入。
-              </p>
+              <p className="field-hint">勾选态 = 服务端 enabled 回显（E3，DB 行事实）；保存总是携带该位写入。</p>
             </div>
             <div className="form-section">
               <h4>口令</h4>
@@ -310,7 +319,7 @@ export default function UserDetailPage() {
                 type="button"
                 className="btn"
                 disabled={!dirty || submitting}
-                onClick={() => d && setF(editFromDetail(d, knownEnabled))}
+                onClick={() => d && setF(editFromDetail(d))}
                 data-testid="user-form-reset"
               >
                 重置
@@ -361,6 +370,10 @@ export default function UserDetailPage() {
           </span>
         </div>
         <div className="kv">
+          <span className="k">Status</span>
+          <span>{d ? <StatusLabel enabled={d.enabled} /> : '—'}</span>
+        </div>
+        <div className="kv">
           <span className="k">最近登录</span>
           <span>{d?.lastLoggedIn ? <span className="mono" lang="en">{d.lastLoggedIn}</span> : '—（尚未登录）'}</span>
         </div>
@@ -370,10 +383,24 @@ export default function UserDetailPage() {
             {d ? `/binflow/api/security/users/${d.name}` : '—'}
           </span>
         </div>
-        <p className="admin-note">
-          ⓘ 删除用户当前无 API 面（SE 域未定义 DELETE 端点，契约冻结）——如需移除访问，先清空其组员并撤回
-          permission target 中的授权，或禁用账号（选项区）。
-        </p>
+        {admin && (
+          <div className="sec-danger-zone" data-testid="user-danger-zone">
+            <div className="dz-head">危险区</div>
+            <p className="dz-note">
+              删除不可恢复（组员/授权/token/会话同事务级联；审计保留）。人员离场的可逆路径是
+              <b>禁用</b>（选项区）——删除仅用于账号彻底清退。
+            </p>
+            {deleteBlocked ? (
+              <button type="button" className="btn danger" disabled title={deleteBlocked} data-testid="user-delete">
+                删除用户
+              </button>
+            ) : (
+              <button type="button" className="btn danger" onClick={() => void deleteUser(name)} data-testid="user-delete">
+                删除用户
+              </button>
+            )}
+          </div>
+        )}
       </section>
     </div>
   )

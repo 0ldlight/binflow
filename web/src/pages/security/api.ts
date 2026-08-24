@@ -1,13 +1,24 @@
 // 安全域 API（T-101；契约源 internal/httpapi/security.go + groups.go +
-// permissions.go，T-97 定案形态）：
+// permissions.go，T-97 定案形态；M9 ADR-0030 E2~E5 加宽/新增面随 T-251/252
+// 落地，本文件 T-257 消费）：
 //
-// - users：GET 列表简形态 {name,uri,realm} / GET {name} 全量回显
-//   （email/admin/groups，无口令字段）；PUT {name} = create-or-replace
-//   （201 无 body 两态——口令必填，适合建用户）；POST {name} = 部分更新
-//   （email/password/admin/groups 指针语义：absent = 保持，groups:[] = 清空
-//   ——组员维护与口令重置走这条，不需旧口令，admin 路由门）。
-// - groups：GET/PUT(201 建 / 200 更新 描述)/POST(仅描述)/DELETE（被
-//   permission target 引用 → 409，message 列 target 名；成功文案纯文本）。
+// - users：GET 列表 **E2 加宽形态** {name,uri,realm,source,email,adminRole,
+//   enabled,groups}（enabled 恒渲染；groups 空成员集 = [] 恒非 null）——
+//   users 页列表与 groups 页成员推导的单请求数据源（FR-78 N+1 退役）；
+//   GET {name} 全量回显 + **E3 enabled**（DB 行事实，读侧闭环 T-208 写侧）；
+//   PUT {name} = create-or-replace（201 无 body 两态——口令必填，适合建
+//   用户）；POST {name} = 部分更新（email/password/admin/groups 指针语义：
+//   absent = 保持，groups:[] = 清空——组员维护与口令重置走这条，不需旧
+//   口令，admin 路由门）；DELETE {name} = **E4**（200 纯文本成功文案；
+//   404 User not found 纯文本——重复删除是确定性 404〔有意非幂等，ADR-0030
+//   §14.1 E4 pre-probe 形态〕；内置 admin / 最后一个 admin / 自删 = 400
+//   纯文本护栏；级联：组员/授权/token/会话同事务删除，审计保留）。
+// - groups：GET/PUT(201 建 / 200 更新 描述)/DELETE（被 permission target
+//   引用 → 409，message 列 target 名；成功文案纯文本）；GET {name} 的
+//   **E5 ?includeUsers=true** 增 userNames[]（恒渲染，空组 = []；字面
+//   `true` 才开，其余拼法按 off 处理）——组编辑器穿梭的按需单组读。
+//   groups 列表不加宽（ADR-0030 K19：membersCount/groups[] 双物化面必
+//   漂移；成员汇总单源 = user_groups 行 → E2 users.groups 投影 + E5 按需）。
 // - permissions：GET 列表（principals.users/groups 双栏回显）/ POST
 //   （create-or-replace，201）/ DELETE {name}（204）。无单查端点——编辑器
 //   从列表过滤。
@@ -24,6 +35,15 @@ export interface UserListItem {
   name: string
   uri: string
   realm: string
+  /** E2 加宽（T-251，恒渲染）：列表行全量事实——users 页单请求渲染的依据 */
+  source: string
+  email: string
+  /** snake 三值闭集；与 admin 布尔一致（admin ⇔ adminRole=admin） */
+  adminRole: string
+  /** DB 行事实恒渲染（T-208 写侧的读侧闭环）——Status 列真值 */
+  enabled: boolean
+  /** 成员集，空 = [] 恒非 null（groups 页成员计数的客户端推导源，K19） */
+  groups: string[]
 }
 
 export interface UserDetail {
@@ -32,6 +52,8 @@ export interface UserDetail {
   admin: boolean
   /** M7 闭集角色回显（snake 三值；与 admin 布尔一致：admin ⇔ adminRole=admin） */
   adminRole: string
+  /** E3 回显（T-251，恒渲染）：DB 行事实——编辑器 enabled 控件回显驱动 */
+  enabled: boolean
   groups: string[]
   lastLoggedIn?: string
   realm: string
@@ -87,6 +109,15 @@ export function updateUser(name: string, body: UserUpdateBody): Promise<string> 
   return apiText(`/security/users/${encodeURIComponent(name)}`, { method: 'POST', body })
 }
 
+/** 删除用户（E4，DELETE /{name}，200 纯文本 `The user: '<name>' has been
+ *  removed successfully.`）。护栏 400/404 均纯文本体经 ApiError.message
+ *  原样上浮：未知名/已被他人删除 → 404 `User not found`（重复删除是有意的
+ *  确定性 404，非幂等——ADR-0030 §14.1 E4）；内置 admin / 最后一个 admin /
+ *  自删 → 400 各自文案（调用方如实呈现，UI 侧仅对自删/内置预禁用入口）。 */
+export function deleteUser(name: string): Promise<string> {
+  return apiText(`/security/users/${encodeURIComponent(name)}`, { method: 'DELETE' })
+}
+
 // ---- groups（SE-01~04） ----
 
 export interface GroupListItem {
@@ -101,6 +132,20 @@ export function listGroups(): Promise<GroupListItem[]> {
 
 export function getGroup(name: string): Promise<GroupListItem> {
   return apiJSON<GroupListItem>(`/security/groups/${encodeURIComponent(name)}`)
+}
+
+/** E5 带参形态（T-252）：`?includeUsers=true` 增 `userNames`（恒渲染，空组
+ *  = [] 恒非 null；服务端仅字面 `true` 开，其余拼法按 off 处理——本函数恒
+ *  开）。组编辑器成员穿梭的按需单组读（ADR-0030 §14.1 E5：组编辑器穿梭
+ *  = E5；users 页 Groups 列 = E2）。未知组 404 `Group not found`。 */
+export interface GroupDetailWithUsers extends GroupListItem {
+  userNames: string[]
+}
+
+export function getGroupWithUsers(name: string): Promise<GroupDetailWithUsers> {
+  return apiJSON<GroupDetailWithUsers>(
+    `/security/groups/${encodeURIComponent(name)}?includeUsers=true`,
+  )
 }
 
 /** 创建或更新描述（PUT：新建 201 / 已存在 200，均无 body） */
