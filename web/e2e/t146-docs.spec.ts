@@ -40,6 +40,10 @@ test('G18-2: 301 redirect from /binflow/docs to /binflow/docs/', async ({ reques
 
 test('G18-3: no external host references in page source (offline-ready)', async ({ page }) => {
   await page.goto('/binflow/docs/')
+  // Docusaurus 路由未匹配的过渡兜底视图内含 docusaurus.io 外链（自定义 404
+  // 是代码分割 chunk，并发争用下加载可滞后）——一次性 content() 采样会捕到
+  // 该瞬态（T-268 轮 A 实测 647ms 误红）。先等兜底外链清零再取样。
+  await expect(page.locator('a[href*="docusaurus.io"]')).toHaveCount(0, { timeout: 15_000 })
   const html = await page.content()
   // All script and link src/href should be relative or point to /binflow/docs/
   const externalRefs = html.match(/(?:src|href)="https?:\/\/(?!localhost|127\.0\.0\.1)[^"]+"/g)
@@ -50,12 +54,22 @@ test('G18-4: search bar is present and functional', async ({ page }) => {
   await page.goto('/binflow/docs/')
   // The search input should be visible
   await expect(page.locator('input.navbar__search-input')).toBeVisible()
-  // Type a search term and verify results appear
-  await page.locator('input.navbar__search-input').fill('docker')
-  // Wait for search results to appear
-  await page.waitForTimeout(1000)
-  // If search works, we should see the query in the interface
-  expect(await page.locator('input.navbar__search-input').inputValue()).toBe('docker')
+  // Type a search term and verify it sticks. Docusaurus hydration can replace
+  // the input AFTER the fill under CPU contention (default parallelism, T-268:
+  // value observed wiped to "" in 2/2 rounds) — a fixed sleep + one-shot read
+  // races it. Re-fill until the value survives a settling window; the
+  // assertion itself is unchanged.
+  const input = page.locator('input.navbar__search-input')
+  for (let attempt = 0; attempt < 5; attempt++) {
+    await input.fill('docker')
+    try {
+      await expect(input).toHaveValue('docker', { timeout: 3_000 })
+      break
+    } catch {
+      // hydration reset the field — refill and retry
+    }
+  }
+  await expect(input).toHaveValue('docker')
 })
 
 test('G18-5: all navigation links are clickable without 404', async ({ page }) => {

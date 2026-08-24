@@ -23,9 +23,6 @@ function uniq(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
 }
 
-/** en-US 千分位（formatCount 的同契约镜像——blob 计数对账用） */
-const countFmt = new Intl.NumberFormat('en-US')
-
 test.beforeEach(async ({ request }) => {
   const probe = await request.get('/binflow/ui/')
   test.skip(probe.status() === 404, 'console segment not mounted by this binary yet')
@@ -79,12 +76,23 @@ test('admin: governance 5 pages + storage summary + system info; storage table A
   await expect(page.locator('[data-testid="storage-table"]')).toBeVisible({ timeout: 15_000 })
   await expect(page.locator('[data-testid="storage-total-row"]')).toContainText('100%')
 
-  // 汇总卡 API 对账：blob 计数与 stats 一致（formatCount 同契约千分位）
+  // 汇总卡 API 对账：blob 计数与 stats 同源（formatCount 同契约千分位）。
+  // 默认并发（T-268）下 API 读与 UI 渲染之间其他 worker 仍在写——精确相等
+  // 结构性不可达（轮 7 实测 API 1,452 / UI 1,601 跨读偏斜），改单调性对账：
+  // UI 计数 ≥ API 读值（blob 在轮内只增），wiring/字段错位仍会红（错面显示
+  // 0、— 或非千分位形态）。
   const stats = await sessionApi(page, 'GET', '/api/v1/storage/stats')
   expect(stats.status).toBe(200)
   const blobs = (stats.json as { blobs: number }).blobs
   expect(blobs).toBeGreaterThan(0)
-  await expect(page.locator('[data-testid="storage-summary"]')).toContainText(countFmt.format(blobs))
+  // 数值面异步到达（负载下可滞后标签渲染）：先重试等待「计数」后随数字再读。
+  const summary = page.locator('[data-testid="storage-summary"]')
+  await expect(summary).toContainText(/blob 计数[\d,]/, { timeout: 30_000 })
+  const summaryText = await summary.innerText()
+  // innerText 在标签与数值间有换行（布局分隔），\s* 吸收后再取数。
+  const uiBlobs = Number((summaryText.match(/blob 计数\s*([\d,]+)/)?.[1] ?? '').replace(/,/g, ''))
+  expect(Number.isFinite(uiBlobs) && uiBlobs > 0, `汇总卡 blob 计数不可解析: ${summaryText}`).toBe(true)
+  expect(uiBlobs, 'UI blob 计数低于 API 读值（跨读应单调不减）').toBeGreaterThanOrEqual(blobs)
 
   // 种子仓行：仓型/包类型 badge（wire 原值，不翻译）+ 配额列（1 MiB → MB
   // 量级）+ 用量列非空
@@ -92,7 +100,9 @@ test('admin: governance 5 pages + storage summary + system info; storage table A
   await expect(row).toBeVisible()
   await expect(row.locator('.badge', { hasText: 'local' })).toBeVisible()
   await expect(row).toContainText('generic')
-  await expect(row).toContainText('MB')
+  // 数值面（配额/占用/占比）随存储摘要聚合适终一致；默认并发下摘要计算可
+  // 落后行渲染 >5s（T-268 轮 3 实测整行「———」），放宽本行等待窗口。
+  await expect(row).toContainText('MB', { timeout: 30_000 })
   await expect(row.locator('td').nth(4)).toHaveText(/^\d+(\.\d+)? (B|KB|MB|GB|TB)$/)
 
   // 行用量 API 对账：usedBytes ≥ 制品字节、quotaBytes 回显
@@ -155,16 +165,18 @@ test('readonly_admin: governance read faces visible, write entries disabled + no
   // 迁移面板读面照常（未配置实例 501 → 降级提示；面板不因只读隐藏）
   await expect(page.locator('[data-testid="migration-panel"]')).toBeVisible()
 
-  // 配额页：行内编辑禁用（T-218 落地）+ 页级只读注记（T-238 推广）
+  // 配额页：行内编辑禁用（T-218 落地）+ 页级只读注记（T-238 推广）。
+  // 行级断言放宽到 30s：配额/存储表是 100+ 仓的异步聚合面，默认并发（T-268）
+  // 下行渲染可 >5s 默认窗口（轮 4 实测 quota 行 not-found）。
   await page.goto('/binflow/ui/admin/governance/quotas')
   await expect(page.locator('[data-testid="quotas-readonly-note"]')).toBeVisible()
-  await expect(page.locator(`[data-testid="quota-edit-${repo}"]`)).toBeDisabled()
+  await expect(page.locator(`[data-testid="quota-edit-${repo}"]`)).toBeDisabled({ timeout: 30_000 })
 
   // 存储概要 + 系统信息：readonly_admin 读面全通（system:read）
   await page.goto('/binflow/ui/admin/monitoring/storage')
   await expect(page.locator('[data-testid="storage-page"]')).toBeVisible()
   await expect(page.locator('[data-testid="storage-summary"]')).toBeVisible()
-  await expect(page.locator(`[data-testid="storage-row-${repo}"]`)).toBeVisible()
+  await expect(page.locator(`[data-testid="storage-row-${repo}"]`)).toBeVisible({ timeout: 30_000 })
   await page.goto('/binflow/ui/admin/general/settings')
   await expect(page.locator('[data-testid="settings-health"]')).toBeVisible()
 

@@ -63,8 +63,10 @@ test('admin: package-type grid wizard full chain (?rclass= preset, combo gating,
   await expect(page.locator('[data-testid="form-submit"]')).toBeEnabled()
   await page.click('[data-testid="form-submit"]')
 
-  await expect(page).toHaveURL(new RegExp(`/binflow/ui/admin/repositories/${key}$`))
+  // toast 是 5s TTL 瞬态（ToastContext SUCCESS_TTL_MS）：默认并发下重定向可
+  // 慢于 TTL，先验 toast 再验 URL（T-268 轮 4：URL 断言吃尽 TTL，toast 已消隐）。
   await expect(page.locator('[data-testid="toast"]')).toContainText(`Successfully created repository '${key}'`)
+  await expect(page).toHaveURL(new RegExp(`/binflow/ui/admin/repositories/${key}$`))
   await expect(page.locator('[data-testid="repo-detail-page"] .key')).toHaveText(key)
   // remote 上游卡在「概要」Tab（锚不变）
   await expect(page.locator('[data-testid="repo-remote-card"]')).toContainText('repo1.maven.org')
@@ -112,10 +114,13 @@ test('admin: three-tab subroutes, per-type rows, column sort, count + pager, fil
 
   await loginAs(page, 'admin')
 
-  // local Tab：本 Tab 行可见、virtual 行不可见（Tab = 类型过滤）
+  // local Tab：本 Tab 行可见、virtual 行不可见（Tab = 类型过滤）。
+  // 正向行断言放宽 30s：长寿命实例（种子 + 历轮夹具累积）行渲染在默认并发
+  // （T-268）下可超 5s 默认窗口（轮 7 实测 not-found）；负向 toHaveCount(0)
+  // 在正向行可见后即确定，不需放宽。
   await page.goto('/binflow/ui/admin/repositories/local')
   await expect(page.locator('[data-testid="repos-page"]')).toBeVisible()
-  await expect(page.locator(`[data-testid="repos-row-${local}"]`)).toBeVisible()
+  await expect(page.locator(`[data-testid="repos-row-${local}"]`)).toBeVisible({ timeout: 30_000 })
   await expect(page.locator(`[data-testid="repos-row-${remote}"]`)).toHaveCount(0)
   await expect(page.locator('[data-testid="repos-create"]')).toBeVisible()
   await expect(page.locator('[data-testid="repos-readonly-note"]')).toHaveCount(0)
@@ -123,11 +128,11 @@ test('admin: three-tab subroutes, per-type rows, column sort, count + pager, fil
   // remote / virtual Tab 子路由 + aria-current
   await page.click('[data-testid="repos-tab-remote"]')
   await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/remote$/)
-  await expect(page.locator(`[data-testid="repos-row-${remote}"]`)).toBeVisible()
+  await expect(page.locator(`[data-testid="repos-row-${remote}"]`)).toBeVisible({ timeout: 30_000 })
   await expect(page.locator(`[data-testid="repos-row-${local}"]`)).toHaveCount(0)
   await expect(page.locator('[data-testid="repos-tab-remote"]')).toHaveAttribute('aria-current', 'page')
   await page.click('[data-testid="repos-tab-virtual"]')
-  await expect(page.locator(`[data-testid="repos-row-${virtual}"]`)).toBeVisible()
+  await expect(page.locator(`[data-testid="repos-row-${virtual}"]`)).toBeVisible({ timeout: 30_000 })
   // virtual 行 = 成员浮层（沿 T-99 形态）
   await page.click(`[data-testid="repos-row-${virtual}"] .member-pop summary`)
   await expect(page.locator(`[data-testid="repos-row-${virtual}"] .member-pop .pop`)).toContainText(local)

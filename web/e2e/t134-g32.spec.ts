@@ -253,9 +253,10 @@ test('G32a-3: data consistency — tree tag set matches crane tags/list', async 
   await page.goto(`/binflow/ui/artifacts/${key}/app/manifests`)
   await expect(page.locator('[data-testid="tree-page"]')).toBeVisible()
 
-  // Verify each expected tag is rendered as a badge
+  // Verify each expected tag is rendered as a badge（默认并发下树面 tag 映射
+  // 渲染可超 5s——T-268 轮 7 实测 not-found，放宽到 15s）
   for (const tag of expectedTags) {
-    await expect(page.locator(`[data-testid="tag-badge-${tag}"]`)).toBeVisible({ timeout: 5_000 })
+    await expect(page.locator(`[data-testid="tag-badge-${tag}"]`)).toBeVisible({ timeout: 15_000 })
   }
 
   // Verify the manifest digest row is visible

@@ -76,6 +76,9 @@ test('默认亮色（Q2 终裁）；根节点自有 token 已应用且切换为�
 })
 
 test('亮色主题：核心页 axe serious=0', async ({ page }) => {
+  // axe 预算 = config 全局 180s（T-263 登记负载脆弱、T-268 并发复现后统一
+  // 上调；本腿串行态 5~7s、并发实测 33.9s——超时形态是 analyze 超时而非
+  // 违规项）。
   await loginAs(page, 'admin')
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
   await expectAxeClean(page, 'dashboard(light)')
@@ -91,6 +94,7 @@ test('亮色主题：核心页 axe serious=0', async ({ page }) => {
 })
 
 test('暗色主题：核心页 axe serious=0', async ({ page }) => {
+  // 同亮色腿：预算走 config 全局 180s（T-268 轮 1 的 33.9s 超时即本腿）。
   // 预置持久化偏好 → 暗色
   await page.addInitScript(() => {
     try {

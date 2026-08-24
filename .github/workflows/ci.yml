@@ -76,10 +76,12 @@ jobs:
       # upload→delete streams) racing grace=0 APPLY sweeps, invariant = a
       # committed reference's blob is never physically deleted. These run
       # with repetition as their OWN step so a flaky interleave cannot hide
-      # inside the bulk suite. ORDERING HARD RULE: this gate must be in
-      # place BEFORE e2e default parallelism is restored (T-268 lifts the
-      # --workers=1 convention; removing this step requires removing that
-      # lift in the same change set).
+      # inside the bulk suite. ORDERING HARD RULE (satisfied, then permanent):
+      # this gate landed BEFORE T-268 restored e2e default parallelism
+      # (--workers=1 convention lifted 2026-08-25). The coupling is permanent
+      # — removing or weakening this step requires re-serializing e2e in the
+      # same change set. NOTE: e2e itself has no CI job (local/QA posture);
+      # this step is the Go-level proxy that keeps the race gated in CI.
       - name: GC concurrency stress (ADR-0031 §14.2-6)
         run: >
           go test -race -count=3 -timeout 20m

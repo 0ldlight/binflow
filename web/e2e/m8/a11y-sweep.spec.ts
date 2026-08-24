@@ -36,7 +36,7 @@ test('a11y sweep: login page in both themes', async ({ page }, testInfo) => {
 })
 
 test('a11y sweep: all console routes in both themes (serious/critical = 0)', async ({ page }, testInfo) => {
-  test.setTimeout(300_000)
+  test.setTimeout(600_000) // 52 面（26 路由 × 双主题）导航+axe；串行态 ~3m，默认并发（T-268）实测 5.1m（超 300s）~8.2m（超 480s，机上有并行验证负载），抬到 10m
   const key = uniq('a11y')
   const client = m8Client()
   await seedRepos(client, [{ key }])

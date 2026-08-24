@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Locator } from '@playwright/test'
 import { loginAs, provisionRoles } from './support/roles'
 import { m8Client, roleFixturesFromEnv } from './support/seed'
 import { expectA11yClean } from './support/a11y'
@@ -43,7 +43,7 @@ async function seedSearchFixture(): Promise<{ repo: string; file: string; marker
 // ---- 仪表盘（§6.2）：三角色数据面 + 快捷入口 + 审计行深链 ------------------
 
 test('admin: dashboard full data face, quick entries, audit row deep-links the tree', async ({ page }) => {
-  const { repo, file } = await seedSearchFixture()
+  const { repo, file, marker } = await seedSearchFixture()
   await loginAs(page, 'admin')
   await page.goto('/binflow/ui/dashboard')
 
@@ -58,13 +58,39 @@ test('admin: dashboard full data face, quick entries, audit row deep-links the t
   await expect(create).toBeVisible()
   await expect(page.locator('[data-testid="dashboard-readonly-note"]')).toHaveCount(0)
 
-  // 审计行点击进对象（§6.2 线框 [5]）：upload 事件行 → 树深链自动展开
-  const row = page.locator('[data-testid^="dashboard-audit-row-"]').filter({ hasText: file }).first()
-  await expect(row).toBeVisible({ timeout: 10_000 })
-  await row.click()
-  await expect(page).toHaveURL(new RegExp(`/binflow/ui/artifacts/${repo}/acme\\?focus=${file}$`))
+  // 审计行点击进对象（§6.2 线框 [5]）：upload 事件行 → 树深链自动展开。
+  // 卡片窗口 = getRecentAudit(8)（最新 8 条）；默认并发（T-268）下其他
+  // worker 的事件流会在本腿读卡前把目标行挤出窗口——等待无解，改「补种
+  // 新唯一文件（新 audit 事件）+ 重读」重试：断言的仍是窗口内可见的那条
+  // upload 行与其深链，语义不弱化。
+  const client = m8Client()
+  let visible = ''
+  let row: Locator | null = null
+  for (let attempt = 0; attempt < 6 && row === null; attempt++) {
+    const name = attempt === 0 ? file : `${marker}-r${attempt}.bin`
+    if (attempt > 0) {
+      const put = await client.request('PUT', `/binflow/${repo}/acme/${name}`, {
+        raw: true,
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: 't239 search fixture\n',
+      })
+      expect(put.status).toBeLessThan(300)
+      await page.goto('/binflow/ui/dashboard')
+    }
+    const candidate = page.locator('[data-testid^="dashboard-audit-row-"]').filter({ hasText: name }).first()
+    try {
+      await expect(candidate).toBeVisible({ timeout: 8_000 })
+      visible = name
+      row = candidate
+    } catch {
+      // 窗口又被并行事件推走——下一轮补种重读
+    }
+  }
+  expect(row, '6 轮补种后 upload 行仍未进入最新 8 条窗口').not.toBeNull()
+  await row!.click()
+  await expect(page).toHaveURL(new RegExp(`/binflow/ui/artifacts/${repo}/acme\\?focus=${visible}$`))
   await expect(page.locator('[data-testid="tree-page"]')).toBeVisible()
-  await expect(page.locator('[data-testid="node-detail"]')).toContainText(file)
+  await expect(page.locator('[data-testid="node-detail"]')).toContainText(visible)
 
   // 「查看全部 →」直达审计页（新路由，不再依赖旧路由 redirect 兜底）
   await page.goto('/binflow/ui/dashboard')

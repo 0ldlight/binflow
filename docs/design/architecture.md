@@ -1938,5 +1938,8 @@ repositories.config 增 `replication_owned: true`（由复制配置创建/删除
    E6 双臂对照（m-holder 无 filter 403 原样 + filter=manage 过滤 200 + 越界 target 负向
    grep）、无 m 用户两分支均 403 锚、DELETE user 级联断言（护栏 400 ×3 / 审计 / Token
    即时 401）。
-5. **e2e 并行恢复顺序**：先落地 §14.2 根治 + 压力 spec 进 CI，后解除 `--workers=1`
-   （独立 chore 票，顺序不可倒——先解除等于把竞态重新暴露给全量套件）。
+5. **e2e 并行恢复顺序**（已执行，T-268 / 2026-08-25）：先落地 §14.2 根治 + 压力 spec 进
+   CI（T-255/T-256），后解除 `--workers=1`（独立 chore 票，顺序不可倒——先解除等于把竞态
+   重新暴露给全量套件）。现状 = playwright 默认并发（workers 不设钳制，验收机 ≥4），
+   `--workers=1` 降级为历史注记；ci.yml 压力步与默认并发姿态的耦合为常设
+   （撤压力步须同票回串行）。
