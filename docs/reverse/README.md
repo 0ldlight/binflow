@@ -28,3 +28,8 @@ reverse-engineer 在此产出 **clean-room 行为规格**——让实现者不�
 | `rbac-model.md` | 实例级/Projects 域两层授权模型、角色闭集、组 CRUD 与 effective admin | M7 |
 | `console-ui.md` | 控制台 UI 行为规格：全局 IA、页面骨架、交互流、状态矩阵、OSS 缺位（活体 7.84.10 取证） | M8 |
 | `gap-endpoints.md` | M9 服务端缺口群：users 回显字段级（无 enabled 布尔，status 枚举）、DELETE user 级联与守卫、组成员暴露面（includeUsers / UI 扇出 / Access v2 members）、permission 列表无过滤面、仓库用量走 /api/storageinfo 扇出 | M9 |
+| `inv-1-core.md` | 全量功能盘点·分区1（batch1-core 核心服务面）：安全信任/存储/仓库模型/配置集群/搜索/元数据/生命周期治理/运维观测/集成面，约 120 条功能目录 + BinFlow 覆盖对照 | 全量盘点 |
+| `inv-2-surface.md` | 全量功能盘点·分区2（REST + features + 描述符表面）：357 resource 类 ≈1,866 方法级操作清点、80 项 AddonType 许可门控、26 默认 layout、≈120 system.properties 开关 | 全量盘点 |
+| `inv-3-protocols.md` | 全量功能盘点·分区3（协议与包型）：57 包型逐项、横切协议能力（矩阵参数/checksum 部署三头/路径归一化中枢等 22 项）、25 条内置 layout | 全量盘点 |
+| `inv-4-addons.md` | 全量功能盘点·分区4（Addon/企业功能）：HA/Xray/Distribution/Build-info/Projects/复制/联邦/插件/事件/许可/DB/存储后端等 91 条 + 外部依赖标注 | 全量盘点 |
+| `artifactory-full-feature-matrix.md` | **主矩阵（M10+ 路线图骨干）**：四分区去重合并的全量功能对照——213 条、十大高价值缺口、依赖外部产品项单列、待验证清单汇总 | 全量盘点 |
