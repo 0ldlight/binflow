@@ -40,6 +40,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/adapter"
 	"github.com/lzwzzy/binflow/internal/adapter/docker"
 	"github.com/lzwzzy/binflow/internal/adapter/generic"
+	"github.com/lzwzzy/binflow/internal/adapter/goproxy"
 	"github.com/lzwzzy/binflow/internal/adapter/maven"
 	"github.com/lzwzzy/binflow/internal/adapter/npm"
 	"github.com/lzwzzy/binflow/internal/adapter/pypi"
@@ -331,6 +332,13 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// registries under one literal; the upload plane rides the storage
 	// engine seam (PutLandedBlob's late-path-binding shape, T-64).
 	pypiHandler := pypi.Register(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.st)
+	// goproxy (M10/T-285, the Go pilot package type): mounting is the whole
+	// wiring — the content plane dispatches on package_type="go", and the
+	// provider registration is what teaches the remote pull-through engine
+	// the !lower upstream escaping plus the expirable-marker TTL split
+	// (docs/reverse/goproxy.md sections 3.1/3.2). The addons.Go() slot in
+	// the manifest below carries the pro-tier gating (T-282/T-283).
+	goproxyHandler := goproxy.Register(stack.svc, stack.md.Repos(), stack.md.Blobs())
 	// The addon registry (M10 T-282, ADR-0033 / section 15.2.1): the
 	// COMPILE-TIME ASSEMBLY MANIFEST — one literal slice, the
 	// META-INF/addon.{xml,properties} behavior pattern in Go form. This is
@@ -354,7 +362,7 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 		GC:       stack.st,
 		DataDir:  cfg.Storage.DataDir,
 		Console:  console.Handler(),
-		Adapters: []adapter.Handler{stack.genericHandler, dockerHandler, mavenHandler, npmHandler, pypiHandler},
+		Adapters: []adapter.Handler{stack.genericHandler, dockerHandler, mavenHandler, npmHandler, pypiHandler, goproxyHandler},
 		// The process metric registry (T-163, ADR-0022): one per serve; the
 		// /metrics endpoint and the request-counting middleware ride it.
 		Metrics: metrics.NewRegistry(),

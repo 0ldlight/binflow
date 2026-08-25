@@ -461,6 +461,11 @@ func (e *Engine) attempt(ctx context.Context, row *metadata.Repo, cfg *metadata.
 func (e *Engine) contactUpstream(ctx context.Context, row *metadata.Repo, cfg *metadata.RemoteConfig, pol repoPolicy, repoKey, path string, staleNode *metadata.Node) (*FetchResult, error) {
 	start := time.Now() // wall clock: the log duration, never the injectable TTL clock
 	kind := classifyPath(row.PackageType, path)
+	// The upstream request path: storage-form unless the protocol's
+	// provider rewrites it (goproxy's escape facet, T-285). Cache keys,
+	// landed nodes and the singleflight slot all keep the STORAGE path —
+	// only the outbound hop sees the wire spelling.
+	upPath := upstreamPathFor(row.PackageType, path)
 	host := e.upstreamHost(cfg)
 	client, err := e.clientFor(repoKey, cfg, pol)
 	if err != nil {
@@ -471,7 +476,7 @@ func (e *Engine) contactUpstream(ctx context.Context, row *metadata.Repo, cfg *m
 		// Buffered class (packument, simple index, maven-metadata.xml): the
 		// 64MB cap applies and an over-limit response is a 502 (NFR-S13
 		// point 5) — never an offline mark, the upstream did answer.
-		res, ferr := client.Fetch(ctx, Request{Path: path})
+		res, ferr := client.Fetch(ctx, Request{Path: upPath})
 		if ferr != nil {
 			out, merr := e.mapTransportFault(ctx, repoKey, path, cfg, pol, staleNode, ferr)
 			return out, merr
@@ -491,7 +496,7 @@ func (e *Engine) contactUpstream(ctx context.Context, row *metadata.Repo, cfg *m
 
 	// Streaming class (artifacts): unbounded and byte-counted (FR-20-AC11 —
 	// a 1GB body must cross with a flat heap).
-	res, ferr := client.Stream(ctx, Request{Path: path})
+	res, ferr := client.Stream(ctx, Request{Path: upPath})
 	if ferr != nil {
 		out, merr := e.mapTransportFault(ctx, repoKey, path, cfg, pol, staleNode, ferr)
 		return out, merr

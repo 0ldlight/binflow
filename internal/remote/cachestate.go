@@ -92,6 +92,34 @@ func classifyPath(packageType, path string) string {
 	return metadata.RemoteCacheKindContent
 }
 
+// upstreamPathEscaper is the OPTIONAL MetadataProvider facet for protocols
+// whose UPSTREAM wire path differs from the storage path (M10 T-285's
+// goproxy: the !lower case encoding means storage paths are decoded while
+// upstream paths are re-escaped, and the list/latest cache markers do not
+// even share a spelling with the documents they stand for). It is a
+// consumer-side optional interface — not a MetadataProvider method — so the
+// SPI stays frozen for the five core protocols (a provider that does not
+// implement it keeps the identity mapping; the facet is invisible to every
+// existing registration).
+type upstreamPathEscaper interface {
+	// UpstreamPath maps one storage-form repository path onto the path to
+	// request from the upstream. Implementations must be pure functions of
+	// the path (concurrent use, no side effects — the provider contract).
+	UpstreamPath(relPath string) string
+}
+
+// upstreamPathFor resolves the upstream request path of one storage path:
+// the registered provider's escaper facet when the protocol implements it,
+// the identity otherwise.
+func upstreamPathFor(packageType, path string) string {
+	if p, ok := adapter.ForProtocol(packageType); ok {
+		if e, ok := p.(upstreamPathEscaper); ok {
+			return e.UpstreamPath(path)
+		}
+	}
+	return path
+}
+
 // ttlFor maps a cache kind onto the repository's TTL field: artifacts take
 // the long content TTL, protocol documents the short metadata TTL (both live
 // on the remote_configs row; the service writes the product defaults 7200/600,
