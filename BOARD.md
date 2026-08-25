@@ -819,7 +819,8 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
   发现登记：go1.26 GOPRIVATE='*' 经 GONOPROXY 默认绕过 GOPROXY——操作形态 GOPROXY+BOSUMDB=off 已固化测试。日志 reports/agents/T-285.md。
 - **T-288** [P1] 控制台 License 页 `role:dev-frontend` — **done 2026-08-26（5 腿 spec + 全量 185/0 + ledger PASS + HEAD 复验；提交 `93f2e3b`）**
   可见性按 FR-86-AC5（readonly 只读可见——派单「不可见」与其冲突已登记终裁）。licensed 形态 UI 腿待 T-281 keygen+形态。日志 reports/agents/T-288.md。
-- **B5（余）**：T-287 [P1] NuGet 试点（在途） 页
+- **T-287** [P1] NuGet 试点 `role:dev-registry-adapter` — **done 2026-08-26（5103 行 + dotnet 8 真实全链 + LIVE 公网腿〔Newtonsoft 经 binflow 拉取运行〕+ 门控全链 + 不变量 0 偏差；提交 `c283bea`）——B5 全清**
+  **如实披露**：T-280 规格票实际从未跑（nuget.md 不存在）——实现依据官方 NuGet API 文档 + PRD + 活体探针（公开规范协议的 clean-room 合规路径）；7 项自有裁定标 T-287 ruling 待复核。**发现**：dotnet 8 直推 PackagePublish 无 id/version + multipart 单 part（官方规范未写、测试钉死）。遗留：T-280 规格补票或并入 T-293。日志 reports/agents/T-287.md。 页
 - **B6**：T-289 [P1] MPU REST 六端点（S3 专属 filestore 501）｜ T-290 [P1] smart remote 字段子集
 - **B7**：T-291 [P1] Properties Tab FE｜ T-292 [P1] 规格批次二（RPM/Helm）
 - **B8**：T-293 [P1] as-built 回写（四处 PRD↔ADR 分歧收口）｜ T-294 [P2] Cargo 条件票
