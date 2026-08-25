@@ -794,6 +794,23 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **✅ 盘点已完成（2026-08-25，`dd51a1f`）**：`docs/reverse/artifactory-full-feature-matrix.md`（213 条目 × 覆盖终判：**已有 20 / 部分 50 / 缺失 133 / 不适用 10**——对标 Artifactory 7.161.11）+ 四分区目录（inv-1~4，809 行）。**十大高价值缺口**：① 制品属性系统（矩阵参数+?properties——所有客户端的横切基座）② AQL+13 老搜索 ③ Trash can 回收站 ④ Cleanup/Retention 策略引擎 ⑤ 制品操作族（copy/move/zap/zip/归档浏览）⑥ Webhook 事件总线（36 事件可整体平移）⑦ 包型第一梯队 9 种（NuGet/Conan/Cargo/Go/Debian/RPM/Helm/Terraform/GitLFS）⑧ 运维纵深（Support Bundle/Live Logs/限流/流量记账）⑨ Build-info 域 ⑩ 快赢包（MPU REST/smart remote 字段/versions API）。外部依赖项 9 条已单列（Xray/Distribution/Access 等——只做集成面）。
 
+
+## M10 票据（T-277~T-297，tech-lead 2026-08-25 分解；AC 全文见 docs/prd/milestone-10.md；ADR-0032/0033 Accepted `e56dd8d`）
+
+**批次（全宽 2）**：
+- **B0（在途）**：T-277 [P0] 守护基线（e2e/m10 + L 骨架 + **无 license≡m9-done 不变量闸门** + 五档位编排）devops ｜ T-278 [P0] Go 规格reverse（GOPROXY 公开规范锚点优先）
+- **B1**：T-279 [P0] license 核心包（文档 v1/验签/档位/Manager + 012 表 + REST 三端点）｜ T-280 [P1] NuGet 规格
+- **B2**：T-281 [P0] bf license keygen/issue/inspect 签发 CLI｜ T-282 [P0] addon 注册表 + GET /api/v1/addons（五核心 retro-fit community 地板）
+- **B3**：T-283 [P0] 门控织入三缝 + addons.disabled 熔断（D1~D7）｜ T-284 [P1] 规格批次一（Conan/Cargo/Debian）
+- **B4**：T-285 [P0] Go 试点 adapter（goproxy local/remote/virtual + go build 全链）｜ T-286 [P0] 属性系统 BE（SplitMatrixParams + node_props + ?properties）
+- **B5**：T-287 [P1] NuGet 试点｜ T-288 [P1] 控制台 License & Add-ons 页
+- **B6**：T-289 [P1] MPU REST 六端点（S3 专属 filestore 501）｜ T-290 [P1] smart remote 字段子集
+- **B7**：T-291 [P1] Properties Tab FE｜ T-292 [P1] 规格批次二（RPM/Helm）
+- **B8**：T-293 [P1] as-built 回写（四处 PRD↔ADR 分歧收口）｜ T-294 [P2] Cargo 条件票
+- **B9**：T-295 [P1] 部署接线（charts configmap 显式枚举——T-183 教训）｜ T-296 [P1] 文档五项
+- **B10**：T-297 [P0] 终验（L01~L30 + 真实客户端矩阵 + DoD 八条）
+
+**关键路径**：T-279→282→283→285/286→288→297（基座链）。
 ## 🚫 阻塞（blocked）
 
 （空）
