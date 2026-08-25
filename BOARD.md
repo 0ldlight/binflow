@@ -808,7 +808,8 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
   遗留：repo/validate 枚举扩 dynamic 归 T-283（矩阵 T05/T06 翻 2xx 前提）；§7.1 路由表归 T-293；console 归 T-288。**矩阵脚本不查 bin/ 新鲜度**（T-279 四格欠账已补登白名单）——终验前先 make build。日志 reports/agents/T-282.md。
 - **T-283** [P0] 门控织入三缝 + addons.disabled 熔断 `role:dev-go-core` — **done 2026-08-25（D1~D7 逐行验证 + architect 风险 1 双面钉死〔pull-through 内部写在 DENIED 门下成功〕+ 228 并发无撕裂；五形态矩阵重冻 + 不变量双绿；conductor 复验；提交 `98404cf`）——M10 基座三票齐装**
   遗留：矩阵 pro 形态 T05/T06 翻 2xx 等 T-281 keygen + license-dir；PRD 85.3 disabled 读 403 与 D1 冲突按 D1 落（T-293 终裁）。日志 reports/agents/T-283.md。
-- **B2 余（在途）**：**T-281 [P0] bf license keygen/issue/inspect（已派）**
+- **T-281** [P0] bf license 签发 CLI `role:dev-go-core` — **done 2026-08-25（三命令 + 首发换常量流程 + e2e 全链〔装 license → go 仓 200 → 篡改 D7〕；conductor 复验；提交 `38315e6`）**
+  遗留：首发换 verifykey 常量 + 矩阵重冻归发布流程（--as-go-const 已备）；私钥规程归文档 §11.38。日志 reports/agents/T-281.md。
 - **B2（余）**：T-281 [P0] bf license keygen/issue/inspect（deps T-279✅——待宽度穿插）
 - **B1（余）**：T-280 [P1] NuGet 规格（deps 无——穿插时机由宽度定）
 - **B2**：T-281 [P0] bf license keygen/issue/inspect 签发 CLI｜ T-282 [P0] addon 注册表 + GET /api/v1/addons（五核心 retro-fit community 地板）
