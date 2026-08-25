@@ -786,6 +786,12 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - `artifactory.addons.disabled` 等价的全局禁用开关 + `/api/system/licenses` 等价的管理 REST 面
 - 进 M10 规划的 PM/architect 输入清单（与十大缺口并列优先）
 
+**用户追加指令（2026-08-25 11:15）**：「后续的规划中，也需要补齐剩余的协议，例如 golang，huggingface 等，这也是 license 控制的功能，和 Artifactory 一样使用 addon 的方式加入进来」——口径：
+- **52 个缺失包型全部纳入后续规划**（第一梯队 9 种〔含 Go〕+ 中使用率 ~16 + AI/ML 生态 13 型〔HuggingFace 含 xet CAS 子协议〕等，见主矩阵分组一）——多里程碑分期承载
+- **包型 = addon 门控单元**（对齐 Artifactory 行为模式：每包型一个 addon 槽位，按 license 档位解锁——基础包型入基础档、AI/ML 等生态型入高档）
+- **addon 装配形态**（对标 META-INF/addon.{xml,properties} 的行为模式，BinFlow 自定注册机制——Go 编译期注册表/装配清单，clean-room 不复制格式）
+- license 门控 × 包型 addon × 十大缺口 → M10+ 规划完整输入集
+
 **✅ 盘点已完成（2026-08-25，`dd51a1f`）**：`docs/reverse/artifactory-full-feature-matrix.md`（213 条目 × 覆盖终判：**已有 20 / 部分 50 / 缺失 133 / 不适用 10**——对标 Artifactory 7.161.11）+ 四分区目录（inv-1~4，809 行）。**十大高价值缺口**：① 制品属性系统（矩阵参数+?properties——所有客户端的横切基座）② AQL+13 老搜索 ③ Trash can 回收站 ④ Cleanup/Retention 策略引擎 ⑤ 制品操作族（copy/move/zap/zip/归档浏览）⑥ Webhook 事件总线（36 事件可整体平移）⑦ 包型第一梯队 9 种（NuGet/Conan/Cargo/Go/Debian/RPM/Helm/Terraform/GitLFS）⑧ 运维纵深（Support Bundle/Live Logs/限流/流量记账）⑨ Build-info 域 ⑩ 快赢包（MPU REST/smart remote 字段/versions API）。外部依赖项 9 条已单列（Xray/Distribution/Access 等——只做集成面）。
 
 ## 🚫 阻塞（blocked）
