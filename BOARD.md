@@ -804,7 +804,10 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
   遗留：CI 接线裁量（+40s）；T-281 keygen 后 `BINFLOW_M10_LICENSE_DIR` 注入重冻基线（ADR-0032 依据）。日志 reports/agents/T-277.md。
 - **T-279** [P0] license 核心包 `role:dev-go-core` — **done 2026-08-25（验签链/三端点/无撕裂/fail-safe/redact 全过；不变量闸门维持 0 deviations；conductor 复验；提交 `90929f9`）**
   自有 ed25519 文档 v1 + 档位闭集 + Manager（atomic 快照 + 每日 ticker + disabled CSV）+ 012 表 + REST 三端点。四处自有裁定注释+测试固化（leeway 1h/空 addons≡缺省/State 读时时钟/内嵌公钥 bootstrap 对私钥即毁——stock 二进制恒 community 地板）。遗留：addons.disabled 键接线归 T-283；audit 词表三词归 owner；首发前换权威钥对（T-281）。日志 reports/agents/T-279.md。
-- **B2（在途）**：T-281 [P0] bf license keygen/issue/inspect（deps T-279✅）｜ **T-282 [P0] addon 注册表（已派）**
+- **T-282** [P0] addon 注册表 `role:dev-go-core` — **done 2026-08-25（11 槽位 + 五核心 retro-fit 不变量证明 + 动态建仓谓词验证；不变量闸门 0 deviations；conductor 复验；提交 `157591b`）**
+  遗留：repo/validate 枚举扩 dynamic 归 T-283（矩阵 T05/T06 翻 2xx 前提）；§7.1 路由表归 T-293；console 归 T-288。**矩阵脚本不查 bin/ 新鲜度**（T-279 四格欠账已补登白名单）——终验前先 make build。日志 reports/agents/T-282.md。
+- **B3（在途）**：**T-283 [P0] 门控织入三缝 + addons.disabled 熔断（已派）** ｜ T-284 [P1] 规格批次一（待宽度）
+- **B2（余）**：T-281 [P0] bf license keygen/issue/inspect（deps T-279✅——待宽度穿插）
 - **B1（余）**：T-280 [P1] NuGet 规格（deps 无——穿插时机由宽度定）
 - **B2**：T-281 [P0] bf license keygen/issue/inspect 签发 CLI｜ T-282 [P0] addon 注册表 + GET /api/v1/addons（五核心 retro-fit community 地板）
 - **B3**：T-283 [P0] 门控织入三缝 + addons.disabled 熔断（D1~D7）｜ T-284 [P1] 规格批次一（Conan/Cargo/Debian）
