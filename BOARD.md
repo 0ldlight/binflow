@@ -802,7 +802,10 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
   票面 goproxy/ 路径段按 PRD 87.1 澄清（基础路径为 /binflow/<repoKey>）。日志 reports/agents/T-278.md。
 - **T-277** [P0] 守护基线 `role:devops-engineer` — **done 2026-08-25（不变量闸门亲验 0 deviations + 五形态姿态矩阵负向四臂咬合 + 存量 `;` 种子幂等；conductor 双闸门复跑绿；提交 `83c1d80`）——B0 全清**
   遗留：CI 接线裁量（+40s）；T-281 keygen 后 `BINFLOW_M10_LICENSE_DIR` 注入重冻基线（ADR-0032 依据）。日志 reports/agents/T-277.md。
-- **B1**：T-279 [P0] license 核心包（文档 v1/验签/档位/Manager + 012 表 + REST 三端点）｜ T-280 [P1] NuGet 规格
+- **T-279** [P0] license 核心包 `role:dev-go-core` — **done 2026-08-25（验签链/三端点/无撕裂/fail-safe/redact 全过；不变量闸门维持 0 deviations；conductor 复验；提交 `90929f9`）**
+  自有 ed25519 文档 v1 + 档位闭集 + Manager（atomic 快照 + 每日 ticker + disabled CSV）+ 012 表 + REST 三端点。四处自有裁定注释+测试固化（leeway 1h/空 addons≡缺省/State 读时时钟/内嵌公钥 bootstrap 对私钥即毁——stock 二进制恒 community 地板）。遗留：addons.disabled 键接线归 T-283；audit 词表三词归 owner；首发前换权威钥对（T-281）。日志 reports/agents/T-279.md。
+- **B2（在途）**：T-281 [P0] bf license keygen/issue/inspect（deps T-279✅）｜ **T-282 [P0] addon 注册表（已派）**
+- **B1（余）**：T-280 [P1] NuGet 规格（deps 无——穿插时机由宽度定）
 - **B2**：T-281 [P0] bf license keygen/issue/inspect 签发 CLI｜ T-282 [P0] addon 注册表 + GET /api/v1/addons（五核心 retro-fit community 地板）
 - **B3**：T-283 [P0] 门控织入三缝 + addons.disabled 熔断（D1~D7）｜ T-284 [P1] 规格批次一（Conan/Cargo/Debian）
 - **B4**：T-285 [P0] Go 试点 adapter（goproxy local/remote/virtual + go build 全链）｜ T-286 [P0] 属性系统 BE（SplitMatrixParams + node_props + ?properties）
