@@ -814,7 +814,9 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **B1（余）**：T-280 [P1] NuGet 规格（deps 无——穿插时机由宽度定）
 - **B2**：T-281 [P0] bf license keygen/issue/inspect 签发 CLI｜ T-282 [P0] addon 注册表 + GET /api/v1/addons（五核心 retro-fit community 地板）
 - **B3**：T-283 [P0] 门控织入三缝 + addons.disabled 熔断（D1~D7）｜ T-284 [P1] 规格批次一（Conan/Cargo/Debian）
-- **B4**：T-285 [P0] Go 试点 adapter（goproxy local/remote/virtual + go build 全链）｜ T-286 [P0] 属性系统 BE（SplitMatrixParams + node_props + ?properties）
+- **T-286** [P0] 属性系统 BE `role:dev-go-core` — **done 2026-08-26（矩阵参数单点 + node_props + ?properties 三动词；五个存量 `;` fixture 逐字节回归 + 不变量双绿；提交 `d9db164`+补交 `d305e82`——补交教训：untracked 新文件漏 add，流程已改 HEAD 后复验）**
+- **T-285** [P0] Go 试点 adapter `role:dev-registry-adapter` — **done 2026-08-26（3915 行 goproxy：!lower 三态/checksum 链/三态 rclass；真实 go1.26 build 全链含大写模块；门控全链 D3→pro→D1→降级；不变量 0 偏差；提交 `18eeabd`）——B4 全清，首个包型 addon 全链贯通**
+  发现登记：go1.26 GOPRIVATE='*' 经 GONOPROXY 默认绕过 GOPROXY——操作形态 GOPROXY+BOSUMDB=off 已固化测试。日志 reports/agents/T-285.md。
 - **B5**：T-287 [P1] NuGet 试点｜ T-288 [P1] 控制台 License & Add-ons 页
 - **B6**：T-289 [P1] MPU REST 六端点（S3 专属 filestore 501）｜ T-290 [P1] smart remote 字段子集
 - **B7**：T-291 [P1] Properties Tab FE｜ T-292 [P1] 规格批次二（RPM/Helm）
