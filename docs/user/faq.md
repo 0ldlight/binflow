@@ -496,3 +496,7 @@ curl -s -D - -o /dev/null $BASE/binflow/<repo>/<path>
 3. **差异复核**：见上文「M4 有意不兼容清单」与各协议指南的「有意不兼容」小节——404 的搜索端点、404 的 REST export/import、组无 admin 位是三件最高频的差异点。
 
 工具与实证：定义/用户/token 台账批量搬迁走 [bf-migrate](guides/migrate-artifactory.md)；真实 Artifactory OSS 源（7.84.10 + PostgreSQL）的整场迁移实录与差异清单见[附录 V28](admin/real-env-appendix.md#v28真实-artifactory-迁移实腿dep用户环境)。
+
+## 持续部署链验证标记（T-298）
+
+本节由 T-298 持续部署链的演示提交写入：push 到测试链后，Jenkins 自动构建并把本页连同整个文档站嵌入二进制部署到测试环境——你现在读到的这一行，就是部署生效的证据。标记：T298-CD-DEMO-MARK。
