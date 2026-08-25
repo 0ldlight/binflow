@@ -780,6 +780,12 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - 盘点产物 = M10+ 路线图骨干（缺口按价值/成本排序分期，PM/architect 后续规划）
 - 四路并行清点（core 服务面 / REST+features 表面 / 协议包型 / addons+描述符）→ 合成主矩阵
 
+**用户追加指令（2026-08-25 11:05）**：「binflow 也需要拥有和 Artifactory 一样的 license 控制，例如控制高可用等」——**license/entitlement 体系为 M10 核心组件**：
+- 自有 license 格态（BinFlow 自己的密钥/签名体系——**clean-room：不复制 JFrog 的 license 密钥格式或校验算法**，只对齐「功能分级门控」这一行为模式）
+- 分级门控（对标 AddonType 80 项三档 oss/pro/ent 的行为模式，BinFlow 自定档位）——HA、Xray 集成面、distribution 等企业功能按档位解锁
+- `artifactory.addons.disabled` 等价的全局禁用开关 + `/api/system/licenses` 等价的管理 REST 面
+- 进 M10 规划的 PM/architect 输入清单（与十大缺口并列优先）
+
 **✅ 盘点已完成（2026-08-25，`dd51a1f`）**：`docs/reverse/artifactory-full-feature-matrix.md`（213 条目 × 覆盖终判：**已有 20 / 部分 50 / 缺失 133 / 不适用 10**——对标 Artifactory 7.161.11）+ 四分区目录（inv-1~4，809 行）。**十大高价值缺口**：① 制品属性系统（矩阵参数+?properties——所有客户端的横切基座）② AQL+13 老搜索 ③ Trash can 回收站 ④ Cleanup/Retention 策略引擎 ⑤ 制品操作族（copy/move/zap/zip/归档浏览）⑥ Webhook 事件总线（36 事件可整体平移）⑦ 包型第一梯队 9 种（NuGet/Conan/Cargo/Go/Debian/RPM/Helm/Terraform/GitLFS）⑧ 运维纵深（Support Bundle/Live Logs/限流/流量记账）⑨ Build-info 域 ⑩ 快赢包（MPU REST/smart remote 字段/versions API）。外部依赖项 9 条已单列（Xray/Distribution/Access 等——只做集成面）。
 
 ## 🚫 阻塞（blocked）
