@@ -679,3 +679,39 @@
   5. REST gc 响应形状零变（candidateCount/candidateBytes/deletedCount）；候选计数可能因 hold 排除变小——语义方向 = 更保守，登记即可。无并发时的 dry-run/apply 结果与 M4~M8 逐字节同源（候选判定、审计、stats 口径零回归）。
 - 理由: 两窗口成因不同（W-1 是「引用尚未存在」——任何基于引用的复核都看不见；W-2 是「引用已存在但快照太旧」——单点复查恰好覆盖），单一机制无法同时关两窗，A+B 各击其一且失败模式均为保守方向；C 用停写换正确性，在「GC 已持数据目录锁、admin 显式触发」的语境下过度；grace 下限则直接违约既有契约。hold set 的进程内形态依赖单实例部署事实（§9 多副本本就禁止/实验性），不引入跨进程协调复杂度——serve.lock 只做「拒绝」不做「协调」。
 - 后果: `internal/storage` Engine 接口签名变更（GCMarker + ReleaseGCHold，§3.1 [M9] 注记）；repo.Service 五条落库路径接线 release（漏接 = 保守，可容忍但 review 清点）；新配置键 `storage.gc_hold_ttl_seconds`（§8）；CLI gc 增 serve.lock 探测；压力回归 spec（并行 docker push × grace=0 apply 循环零 blob-not-found 钉 W-1；并发「上传→删 node」× grace=0 apply 零误删钉 W-2）进 CI 后才允许解除 `--workers=1`（§14.5-5 顺序硬规则）；`go test -race ./internal/storage/... ./internal/repo/...` 全绿为 P0 验收；e2e 默认并发 3 连绿（FR-80-AC2）后 Makefile/脚本/文档的 `--workers=1` 约定降级为历史注记。
+
+## ADR-0032: license/entitlement 体系与门控模型——自有 ed25519 文档、三档闭集、数据面单点门控
+
+- 状态: Proposed
+- 日期: 2026-08-25
+- 背景: 用户指令（2026-08-25 原话）：「binflow 也需要拥有和 Artifactory 的 license 控制，例如控制高可用等」——对标其功能分级门控行为模式（inv-2 §3：SubscriptionType 十档 × AddonType 80 项注解门控 + `artifactory.addons.disabled` 全局禁用 + `/api/system/licenses` 管理面 + 无订阅 403 映射〔inv-4 O5 实证〕）。clean-room 硬边界：不复制 JFrog license 密钥格式/校验算法/激活协议，只对齐行为模式。约束：M9 刚收口的端点族与 RBAC（ADR-0026/0030）不可破坏；ADR-0005 依赖准入（默认 stdlib）；单二进制零外部服务（无 callhome——inv-4 J4 明确不适用）。
+- 候选方案:
+  - 文档格式: A) **自有 JSON 载荷 + ed25519 签名（JWS compact 最小子集，stdlib 自实现 ≈80 行）**——`crypto/ed25519` 是 stdlib，零新依赖；签名对象 = payload 原文字节（免 canonicalization）；字段全部自有（clean-room 直接满足）。B) JWT（RFC 7519 EdDSA）经 golang-jwt/jwt——解析器成熟但引外部依赖破 ADR-0005 白名单，且 JWT 的 token 心智（短时效/aud 校验）与 license 文档（长效/逐字段语义）错位。C) X.509/PKCS#7——证书层级重武器，单签发方场景（一个 vendor → N 实例）用不上，且把格式复杂度变成攻击面。
+  - 档位模型: A) 对标十档全量复制——无自有商业分层，多数档位（pro_xray/enterprise_plus 等）是 JFrog 产品线的映射，复制即谎报；B) **三档闭集 community/pro/enterprise**（行为模式对齐 oss/pro/ent 的「地板/中档/高档」结构，命名自有）；C) 二档（免费/商业）——表达不了「HA 等 ent 能力 vs 包型等 pro 能力」的用户明示分层需求。
+  - 门控织入: A) middleware 拦截（路由前缀 → addon 映射）——门控判定是数据依赖（repo 行 package_type）+ 动词依赖（读放行/写拒绝）+ 状态依赖（tier），前缀映射三者皆表达不了；/v2 根级例外与 dispatchAPIProtocolMount 族绕出映射表——拦不住旁路的门 = 没有门；且给 §7.2 链序新增环节，违背 M9 不破坏基调。B) **能力注册表查询**（license.Manager 单点，三个既有决策缝之后插入：dispatchContent 写动词臂 / repo 建仓校验链 / feature addon handler 首行）。C) 编译期裁剪（build tag 决定编不编）——单二进制差异化被破坏（一个产物一个档），且 license 安装无法在线升级能力。
+- 决策: **文档 A + 档位 B + 织入 B**。要点：
+  1. **文档 v1** = `<base64url(payloadJSON)>.<base64url(ed25519Sig)>`；payload 字段 typ/alg/kid/ver/licenseId/licensee/tier/issuedAt/notBefore/expiresAt（community 可 null=永久）/addons（可选显式白名单）/limits（预留）——全部自有（architecture §15.1.1 定稿）。**签发链**：`bf license keygen/issue` 离线子命令，私钥 `--key`/env 注入永不入库；**验签公钥编译期内嵌**（kid→公钥单元素表，多 kid 轮换缝预留），测试经 Manager 构造注入测试钥对。
+  2. **校验链**（安装/启动/每日 ticker 三处同一函数）：parse → typ/alg/kid 静态校验 → ed25519.Verify(payloadBytes) → 时间窗（leeway 1h）→ licenses 表落库（单行单证模型，**新验通过才替换**）；运行期 State 为 atomic 快照，expiry 跨越由每日 ticker 降级（无需重启）；全程离线。
+  3. **降级行为闭集 D1~D7**（architecture §15.1.3）：读路径放行（数据不劫持）/ 写动词 403 + `X-Binflow-License-Required` 头 / 建仓 400 点名 / feature REST 403 / console 可见带徽章 / 到期即降无 grace / 安装失败不动现状态——闭集可表驱动枚举（QA 矩阵锚）。
+  4. **REST 面**：`GET/POST/DELETE /api/system/license`（单数——单实例单证；Artifactory 复数 + activate/licenseChanged 是 HA 多证语义，随 HA addon 届时扩）；GET = CapSystemRead、POST/DELETE = CapSystemWrite；审计 license.install/delete/invalid。
+  5. **不破坏论证**：门恒在 RBAC 之后（无权者仍收 RBAC 401/403，既有角色×路由矩阵零翻转）；五核心包型钉 community 地板恒过门（未装 license = 与 m9-done 逐字节一致）；routeAuth/enforce/authorize 零改动，license 以 Deps 注入不进链。
+- 理由: ed25519 stdlib 是 ADR-0005 依赖纪律下唯一「零成本密码学」选项，自有格式让 clean-room 从根上成立（格式即设计而非抄写）；三档闭集对齐行为模式而不谎报产品线，闭集可枚举验证（ADR-0026 同哲学）；数据面单点门控以最小表面积织入——三个缝都是既有决策汇点（contentAction 的写标志、repo 校验链、handler 首行），零 middleware/路由结构改动是「新增不破坏」的结构性保证。
+- 后果: 新增 `internal/license` 包（Manager/文档解析/验签/ticker，零外部依赖）；migration 012 含 licenses 表（双方言）；`bf` 增 license keygen/issue 子命令族（签发工具链，私钥管理规程归 tech-writer + §11.38）；§7.1 路由表增三端点（族 1/2）；config 增 `addons.disabled`（与 ADR-0033 共享）；守护面 = 无 license 实例跑 M9 基线矩阵期望文件零改动（§15.6-1）+ Tier×Addon×面 全表驱动；license 过期的邮件预警不做（无邮件子系统，§11 登记）；档位-能力矩阵是代码常量非数据（改档 = 发版，不建可运行时篡改的许可面）。
+
+## ADR-0033: addon 注册表与包型 addon 化——编译期显式装配清单、Addon 描述符、五核心 retro-fit
+
+- 状态: Proposed
+- 日期: 2026-08-25
+- 背景: 用户指令（2026-08-25 原话）：「补齐剩余的协议，例如 golang，huggingface 等，这也是 license 控制的功能，和 Artifactory 一样使用 addon 的方式加入进来」——52 缺失包型全部纳入后续规划、多里程碑分期，**包型 = addon 门控单元**。对标行为模式 = META-INF/addon.{xml,properties}（静态装配单元 + 描述元数据 + 档位标注，inv-2 §3/§4）与 AddonType 80 项「功能 → 档位」权威表；形态自有（clean-room 不复制 Spring bean 集格式）。架构前提：既有 adapter registry 已确立「显式 RegisterX 由 cmd 装配调用、no package-level singletons」约定（internal/adapter/registry.go 注释），addon 注册机制必须与之同构。
+- 候选方案:
+  - 注册机制: A) 各包 `init()` 自注册——Go 社区惯用，但与本 codebase 既有约定冲突（adapter registry 明示弃用 init：装配时序藏进导入图、依赖注入面无法进入——license.Manager 必须能到达每个 addon 的求值）。B) **显式装配清单**——每 addon 包导出描述符构造函数，cmd/binflow-server 装配处汇聚 literal slice；对标 addon.{xml,properties} 的行为模式（静态装配单元），形态 = Go slice。C) `go:generate` 生成清单文件——为静态可 grep 的清单引入生成步骤，生成物与源码两份事实、漂移风险。
+  - 存量五包型: A) **retro-fit 为 community 地板 addon**（统一模型，MinTier=community 恒解锁）；B) 五核心豁免（分发直通、新型过门）——ForPackageType 对五型返回 ok=false 的特判散落 + 建仓校验两套清单，为省五张描述符造长期双轨。
+  - Addon 形态: A) **单一描述符 struct + Kind 二分（package-type/feature）+ 可选行为接口**——差异在消费缝不在类型层；B) 大接口（Addon interface 含 Enable/Routes/Metadata 全家桶）——Java 式抽象层（PRODUCT 明示不做），feature addon 的 REST 挂载在 M10 没有真实样本，接口先行即想象买单。
+- 决策: **注册 B + 五核心 A + 形态 A**。要点：
+  1. **`internal/addons` 包**：`Addon{ID, Kind, MinTier, PackageType, DisplayName, Description}` 描述符 + `Registry`（New/ByID/ForPackageType/PackageTypeAddons/FeatureAddons）；装配期断言（重复 ID、Kind 字段错置、PackageType ≠ adapter.Protocol()）→ panic 启动期暴露（adapter.Register 同款姿态）。装配清单 = cmd 里 literal slice（§15.2.1 示意）。
+  2. **包型 addon 与功能 addon 统一**：包型 addon 的行为载体 = adapter.Handler（既有注册与分发零改动，§5.1「新协议 = 新增子包 + Register，零改动核心」承诺保持）；feature addon（ha/xray-integration/distribution 等）M10 只落描述符 + 门控 seam + /api/v1/addons 可见性，**本体不实现**（首个真实样本 HA 归 M11+，届时 REST 挂载走既有 router 装配 + handler 首行 license.Require，不新增挂载框架）。依赖方向：`addons → license`（仅 Tier 类型）；license 不 import addons（AddonsEnabled 取原语参数防环）。
+  3. **档位 × addon 解锁矩阵实现位** = `license.Manager.AddonEnabled(ctx, id, minTier)` 单一求值点：disabled config 命中 → false；tier ≥ minTier（community<pro<enterprise 全序）→ true（地板档不受 addons 白名单约束）；显式白名单存在且不含 id → false；档位不足 → D1~D7 降级闭集。**矩阵是代码不是数据**（MinTier 是描述符常量；调档 = 改代码发版）——运行时可改的许可面是安全审计的敌人。
+  4. **五核心 retro-fit**：community 地板、行为零变化；`GET /api/v1/addons`（CapSystemRead，bare array：id/kind/minTier/enabled/reason/displayName/description）统一呈现，enabled/reason 与门控同源求值（可见性与执行不可能分叉，?permissions 视图先例）。
+  5. **试点包型（M10 种子 C，建议 Go + Cargo）**：`internal/adapter/goproxy`（包名避开 go 关键字，Protocol()="go"，GOPROXY 协议以 golang.org 官方规范为基准）与 `internal/adapter/cargo`；MinTier 缺省 pro（档位归属 PM 终裁）；挂载与五包型完全同构；NuGet 移 M11（双协议栈三票量级，做试点会挤压基座验证信号）。试点验收锚 = 「注册→门控→license 缺失行为」全链（无证建仓 400 / 预置仓 push 403+头 / pull 200 / 装 pro 证全通）。
+- 理由: 显式装配与本 codebase 的 adapter 约定同构（一个 codebase 一种习惯）、编译期完备（漏注册 = 编译错误）、可 grep 可 diff——对标 addon.{xml,properties} 的「静态装配单元」行为模式而形态自有；五核心 retro-fit 让「包型 = addon」成为无例外的单一模型，分发/建仓校验/console 呈现各只维护一条路径；矩阵代码化 + 单求值点沿袭 Can/ManageCoverage 的「单决策点」先例，闭集可枚举验证。
+- 后果: 新增 `internal/addons` 包；五包型各增 `Addon()` 描述符导出（一次性小票）；config 增 `addons.disabled`（CSV，含五核心 id 时 WARN 但生效——排障旋钮，ADR-0032 共享）；console 建仓对话框与 addons 管理卡片消费 /api/v1/addons（console-ux 增补，档位徽章交互见 §11.41）；52 缺失包型的档位归属表（哪些 pro/哪些 enterprise——HuggingFace 含 xet CAS 等 AI/ML 13 型的建议归属）归 PM 以本 ADR 的 MinTier 机制填充，逐里程碑随实现票生效；试点票验收必须含真实客户端（go list -m / cargo build --registry）命令级证据。

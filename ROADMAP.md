@@ -2,7 +2,7 @@
 
 > 由 product-manager 维护；tech-lead 据此把当前里程碑分解为 ticket。
 
-## 当前里程碑：M10（规划中——Artifactory 全功能对齐，主矩阵已备）
+## 当前里程碑：M10（Artifactory 全功能对齐第一程——门控基座 + addon 注册表 + 试点 + 属性系统；PRD v1.0 草案待 conductor 审）
 
 ### M0 — 团队启动（已完成）
 - [x] 产品愿景 PRODUCT.md（BinFlow）
@@ -96,10 +96,27 @@
 - [x] QA：N 序列 + 扇出/竞态量化门槛实测 + M1~M8 P0 回归（契约变更面 100% 归属 M9 豁免票审计）；tech-writer（SSO 铸 Token 路径 / npm 权限口径 / 用户管理闭环 / 旧书签失效公告）
 - [x] F 池对账：28 条处置落地核对；延后 3 项（E-04 扩列 / R2 搜索契约 / R6 Tokens 页）登记入 M10+ 候选池
 
-### M10 — 候选池（未立项；2026-08-25 M9 终验归档）
-- [ ] 延后 3 项（F 池）：E-04 repos 列表扩列 / R2 搜索契约 / R6 Tokens 页
-- [ ] Q5 replica 隔离（ADR-0025 决策 1 遗留）/ E7 repos 侧过滤列表（ADR-0030）
-- [ ] 票级遗留 17 条：remote JoinURL 转义（D-1 同类候选）/ -rev 回显塌缩 / scenario-3 观测面 / 复制管理专篇 / console-m8 §4.1/§6.9 回写 / SearchPage q-sync 微票 / recents 双实现收敛 / a11y 预算观测 / matrix 层探针 / .status-pill 收敛 / counts 实体列 / docs-site/build 体积 / legacy Engine.GC 物理删除 / Playwright 压力腿形态 / t104 matrix workers / T-251.md 遗留 5 措辞
+### M10 — Artifactory 对齐第一程：license 门控基座 + addon 注册表 + 试点包型 + 属性系统（PRD v1.0 草案待 conductor 审，2026-08-25）
+需求基线：docs/prd/milestone-10.md（PRD v1.0 草案；FR-84~FR-91 八条需求；契约矩阵 12 条〔A 6 / C 5 / D 1〕+ **档位 × addon 解锁矩阵〔核心，11 槽 × 3 档暂行〕**；L01~L30 验收命令骨架；开放问题 Q1~Q7 带暂行）
+来源链：用户三指令（2026-08-25：全功能对齐 / license 分级门控 / 包型 addon 化补协议）→ docs/reverse/artifactory-full-feature-matrix.md（213 条目主矩阵，范围裁定唯一依据）+ inv-1~4 分区目录；M9 §4.7 候选池处置（滚入 M11+）
+- [ ] conductor 审定 PRD v1.0（含 Q1~Q7 暂行终裁；ADR-0032/0033 立项）
+- [ ] 前置产物：ADR-0032（license 文档/档位/门控织入/addon 注册表——clean-room：自有 ed25519 文档格式与 Go 编译期注册形态）+ ADR-0033（属性系统与矩阵参数路径归一）
+- [ ] FR-84 自有 license 文档、档位模型（community/pro/enterprise 暂行）与离线签发工具（`bf license generate/inspect`）（P0）
+- [ ] FR-85 entitlement 门控织入 + 全局 addons 禁用开关（三入口门控/降级不劫持/无撕裂切换/审计与指标）（P0）
+- [ ] FR-86 addon 编译期注册表 + 档位×addon 解锁矩阵 + `GET /api/v1/addons` 与控制台 License & Add-ons 页（P0）
+- [ ] FR-87 Go 包型 addon 试点（GOPROXY local/remote/virtual，go 真实客户端全链）（P0）
+- [ ] FR-88 NuGet 包型 addon 试点（v3 主面 + v2 FindPackagesById 最小集，dotnet 真实客户端；Cargo 余量第三试点非硬门）（P1）
+- [ ] FR-89 制品属性系统（矩阵参数 `;k=v` 部署 + `?properties` 读写 + Properties Tab——十大缺口之首）（P0）
+- [ ] FR-90 快赢包：MPU REST 化（/api/v1/uploads 六端点，S3 专属）+ smart remote 生效字段子集（P1/P2 按余量）
+- [ ] FR-91 第一梯队包型规格预研 5 份（Conan/Cargo/Debian/RPM/Helm；Terraform/GitLFS 余量；试点 Go/NuGet 规格另计先行）（P1，不实现）
+- [ ] QA：L01~L30 + 两试点真实客户端矩阵 + M1~M9 P0 回归（无 license 默认实例五包型零变化）；tech-writer（license 指南/addon 矩阵/属性用法/Go、NuGet 接入/api-reference E-09 反转）
+- [ ] M9 候选池对账：延后 3 + Q5/E7 + 票级 17 条滚入 M11+（见下「M10 未纳入项」）
+
+### M10 未纳入项（滚入 M11+ 候选池；2026-08-25 M9 终验归档后由 M10 PRD §2.2/§4.7 处置）
+- 延后 3 项（F 池）：E-04 repos 列表扩列 / R2 搜索契约 / R6 Tokens 页
+- Q5 replica 隔离（ADR-0025 决策 1 遗留）→ **建议并入 M11「复制硬化」**（与 smart remote contentSynchronisation/属性同步同域，消费 M10 属性系统成果）/ E7 repos 侧过滤列表（ADR-0030）
+- 票级遗留 17 条：remote JoinURL 转义（D-1 同类候选）/ -rev 回显塌缩 / scenario-3 观测面 / 复制管理专篇 / console-m8 §4.1/§6.9 回写 / SearchPage q-sync 微票 / recents 双实现收敛 / a11y 预算观测 / matrix 层探针 / .status-pill 收敛 / counts 实体列 / docs-site/build 体积 / legacy Engine.GC 物理删除 / Playwright 压力腿形态 / t104 matrix workers / T-251.md 遗留 5 措辞
+- M11+ 主轴候选（主矩阵十大缺口分期）：AQL + 13 老搜索 / Trash can / Cleanup-Retention / 制品操作族（copy/move/zip/archive!/）/ Webhook 事件总线 / 第一梯队包型批量实现（消费 FR-91 规格）/ 运维纵深 / Build-info 域 / Go 深化（sumdb 代理 + external 重定向）/ HuggingFace 等 AI/ML 13 型
 
 ## 里程碑完成定义（DoD）
 

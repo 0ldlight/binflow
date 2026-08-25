@@ -1,6 +1,6 @@
-# BinFlow 架构设计（M1 定稿；M2~M6 增量已并入，M7 增量标注 [M7]，M8 控制台对齐约束见 §13 [M8]，M9 服务端解冻约束见 §14 [M9]）
+# BinFlow 架构设计（M1 定稿；M2~M6 增量已并入，M7 增量标注 [M7]，M8 控制台对齐约束见 §13 [M8]，M9 服务端解冻约束见 §14 [M9]，M10 license/addon/属性基座见 §15 [M10]）
 
-> architect 维护。本文件在 ADR-0001~0027 基线上给出可并行开发的实现蓝图：包边界 = 并行开发 area 边界。
+> architect 维护。本文件在 ADR-0001~0033 基线上给出可并行开发的实现蓝图：包边界 = 并行开发 area 边界。
 > 标注 **[M2+]** / **[M3+]** / **[M6+]** / **[M7]** 的内容当期不实现，只保证接口缝存在；标注「待逆向规格确认」的行为以 `docs/reverse/` 规格为准，规格冲突时先回 ADR。
 > 文档中文，标识符/表名/字段英文。代码规范：错误 wrap 带上下文、显式 context、table-driven 测试、依赖注入。
 
@@ -1541,6 +1541,8 @@ logging:
 | Access（用户/权限） | auth + users/tokens/permission_targets(+principals) 表 | 本地用户+token+命名 permission target ACL | M1 无组、无 SSO |
 | Access 动作集 read/write/annotate/delete/manage（auth-model §4，高置信） | r/w/d + **[M7] m（manage）**（§3.4a） | manage 动作对齐 = 仓库级 admin（CanManageRepo 消费）；m 只判 repos[]、无路径子域 | annotate/distribute/managedXrayMeta 不做；Artifactory 无 read-only admin 角色——BinFlow `users.role` 闭集的 `readonly_admin` 是 Q4 需求的自有扩展（**有意差异**，ADR-0026） |
 | `/api/` REST | 兼容子集 + `/api/v1` | 高频端点 | 全量兼容明确不做（PRODUCT）；统一挂 `/binflow` 前缀，不用 `/artifactory` 前缀、不做根路径镜像（ADR-0008） |
+| SubscriptionType 十档 + AddonType 80 项注解门控（inv-2 §3） | `license.Tier` 三档闭集 + `addons.Addon` 描述符（[M10]，ADR-0032/0033） | 功能分级门控的行为模式：档位 × 能力解锁矩阵、全局禁用开关、安装/查询/卸载 REST、无订阅 403 映射 | 档位命名/文档格式/签名算法/注册形态全部自有（ed25519 + 编译期装配清单）；license REST 取单数 `/api/system/license`（复数多证相加属 HA 语义）；门控织入数据面非路由面（§15.1.5） |
+| 矩阵参数（`;k=v` 剥离→部署属性）+ `?properties` 读写（rest-api §3） | `SplitMatrixParams` 单点 + `node_props` 表 + `?properties` 三动词（[M10]，§15.3） | 属性随 PUT 落库、键校验 400、GET/PUT/DELETE REST 族 | 非 k=v 形 `;` 保持字面路径（存量兼容，Artifactory 严格 400——§11.39）；PUT 取同名键值集替换的自有 merge 语义（§11.40）；属性搜索/AQL 归 M11+ |
 
 ## 11. 已知妥协（技术债台账）
 
@@ -1599,6 +1601,14 @@ logging:
 
 37. **[M9] 存储 migration pass-gate 501 架构事实登记**（T-246-qa §八-19 / PRD FR-82-AC11 收口）：`GET|POST /api/v1/storage/migration*` 对「未装配双写」的实例（backend≠s3、migration.enabled≠true、或已置 completed）返回 **501 `migration is not configured` 而非 404** 是有意架构事实（§7.1 既有契约），非缺陷——端点仅在 dual-write 装配时接线（T-178），throwaway/单后端配置下 501 语义上准确表达「本实例不承载该能力」，且与「路由存在但未接线」的 replication 501 先例（§7.1）同族。RBAC 矩阵断言口径：readonly_admin 对该端点按「过门后 501」判定（§7.1 [M7] 注记），不按 200。
 
+38. **[M10] license 私钥管理与签发工具链**（ADR-0032）：私钥离线持有永不入库；`bf license keygen/issue` 是签发面；生产验签公钥编译期内嵌（单元素表预留多 kid 轮换缝），轮换流程（新 kid → 双公钥并存 → 旧证退役）M11+ 出操作手册前不承诺。测试钥经 Manager 构造注入——**测试钥对不得进生产装配路径**（review 清点项）。
+
+39. **[M10] 矩阵参数剥离的存量 ';' 路径兼容**（§15.3.1）：BinFlow 取「含 `;` 但非 k=v 语法 → 字面路径」的宽松回退（Artifactory 任何 `;` 均按矩阵参数处理）——代价是两条语法路径并存、`file;name.jar` 与 `file;k=v` 语义分叉；存量五包型含 `;` 路径的可达性以此保全。若 M11+ 规格校准推翻（Artifactory 严格模式更优），翻转为严格 400 需新勘误 + 存量路径迁移评估。
+
+40. **[M10] 属性 PUT 语义为自有定义待校准**（§15.3.3）：merge/同名键值集替换/204 是 BinFlow 确定性优先的自有语义；Artifactory 的精确 merge/append 行为与响应码（200 消息体?）未双证——rest-api 规格票（M10-F 预研或 M11）以真实 curl 对照后回写，翻转点已隔离在 handler 单点。
+
+41. **[M10] gated addon 的 console 入口可见性与 ADR-0029 决策 5 的张力**（§15.1.3 D5）：「不出现无功能对应的入口」 vs 「gated 入口带档位徽章可见」——裁定依据 = gated 入口有真实功能对应（已编译、被门控），与 Xray 空壳占位不同；console-ux 增补「档位徽章 + 不可选态」交互规格后生效。若 QA 发现徽章态被误读为可用，回本条重评（届时考虑隐藏 + 管理页集中呈现两形态）。
+
 ## 12. 待逆向规格确认清单（阻塞点挂 docs/reverse/）
 
 | # | 问题 | 规格文件 | 影响面 |
@@ -1618,6 +1628,8 @@ logging:
 | 13 [M6] | Artifactory Prometheus/expvar 指标名命名惯例（metric name prefix、label 命名风格）——作为 ADR-0022 的对齐参考（非块——Prometheus 无厂商标准，仅一致性佐证） | metrics.md（新） | §7.1 |
 | 14 [M7] | ~~Artifactory `manage` 动作的精确边界（是否路径作用域、对 REST 仓库配置端点的实际映射）；group 是否可承载 admin/角色语义（BinFlow role 用户级 only 的对齐佐证）；Artifactory 是否存在 read-only admin 等价物（readonly_admin 有意差异的取证）~~ **已回答**（2026-08-23，rbac-model.md，M7 种子 A 校准规格：实例级无角色层/无 read-only admin〔#1/#2 高置信〕、组级 adminPrivileges 存在但 BinFlow 有意不跟进、manage 为 ACE 动作〔auth-model §4〕而仓库级 admin 正式对应物在 project 域——BinFlow 无 projects，target 的 m 是最小诚实同构，rbac-model §5 建议 2 背书） | rbac-model.md（已交付）+ auth-model.md §4 | §3.4a / §10 / ADR-0026（T-214 收口） |
 | 15 [M8] | Artifactory 控制台的 IA / 交互流 / 操作流行为规格（导航分组与页面归属、Artifacts 树+详情双栏行为、Set Me Up 面板数据、权限矩阵编辑动线、四态与确认对话时机）——**M8 全部 UI 票的前置依赖**；产出限定 = 行为规格（布局描述/交互流表/组件清单/状态矩阵 + 置信度），素材边界见 ADR-0029 决策 2（官方文档 + 本地 OSS 容器行为观察；禁止产物拆解与像素取证） | console-ui.md（新，reverse-engineer） | §13 全节 / ADR-0029 |
+| 16 [M10] | Artifactory 属性 REST 的精确语义（PUT 的 merge/append/replace、recursive 语义、响应码与消息体、矩阵参数在 GET/DELETE 的参与度、`:properties` 旧路径 409 形态）；矩阵参数剥离的严格模式（任何 `;` 均矩阵参数 + 非法键 400）vs BinFlow 宽松回退（§15.3.1）的对照取证——**M10 属性票的行为校准源**，翻转 §11.39/40 需以此为据 | rest-api.md §3 增补（reverse-engineer，官方文档双证优先） | §15.3 全节 |
+| 17 [M10] | GOPROXY / Cargo 协议在 Artifactory 包型下的行为差异面（Go sumdb 代理与 external deps 重定向的触发语义、cargo 内部 sparse 索引与 git 索引兼容开关）——M10-F 规格预研票产出；有官方规范的以 golang.org modules 规范 / crates.io 官方文档为准，逆向只补空白 | inv-3-protocols.md §2.3 存续增补 | §15.2.4 试点票 / ADR-0033 |
 
 ---
 
@@ -1943,3 +1955,416 @@ repositories.config 增 `replication_owned: true`（由复制配置创建/删除
    重新暴露给全量套件）。现状 = playwright 默认并发（workers 不设钳制，验收机 ≥4），
    `--workers=1` 降级为历史注记；ci.yml 压力步与默认并发姿态的耦合为常设
    （撤压力步须同票回串行）。
+
+---
+
+## 15. [M10] license/entitlement 基座、addon 注册表与制品属性系统（ADR-0032/0033 展开）
+
+> 定性：M10 = **门控基座 + addon 注册表 + 首批高价值缺口**（conductor 裁定：基座不稳则 52
+> 缺失包型与十大缺口全无挂载点）。本节是 M10 服务端票（种子 A/B/C/D，快赢 E、规格预研 F
+> 只记挂点）的约束源；ADR-0032/0033 为 Proposed——PRD 定稿转正时可带勘误（§13 先例）。
+> clean-room 边界（BOARD 2026-08-25 用户指令）：license 文档格式、签名方案、档位命名、
+> addon 注册形态全部自有设计，只对齐「功能分级门控 + 包型 addon 化」**行为模式**；不复制
+> JFrog license 密钥格式/校验算法/META-INF/addon.{xml,properties} 形态。
+>
+> 三条不变量（M9「新增不破坏」基调的延续，违反 = 拒绝合并）：
+> 1. **无 license = 现状**：community 档 ≡ 现有全部能力（五核心包型 + M1~M9 全部端点族）；
+>   未安装 license 的实例行为与 m9-done 逐字节一致（零配置零行为变化，守护断言锚 §15.6）。
+> 2. **门控不进 middleware 链**：§7.2 链序（requestID→accessLog→recover→CORS→
+>   authenticator→authorizer→handler）不变，license 判定织入在**数据面单点**（§15.1.5）；
+>   RBAC 判定链（Can/CanManage/CanManageRepo）与 `routeAuth` 结构零改动。
+> 3. **路由常在、数据面门控**：addon 的协议/REST 路由编译期常驻，不随 license 安装/卸载
+>   flapping；门控发生在数据写与配置操作上——行为锚 = inv-4 O5（无订阅的 Curation 端点
+>   403 映射而非 404）与 §7.1 replication「路由在、未接线 501」先例。
+
+### 15.1 license 框架（internal/license，ADR-0032）
+
+#### 15.1.1 license 文档格式（自有 ed25519 签名方案，v1）
+
+**候选对比**（选型论证，详见 ADR-0032）：A) JWT（RFC 7519，EdDSA）经 golang-jwt/jwt——
+语义成熟但引入外部依赖，且 JWT 的 token 心智（短时效、受众校验）与 license 文档（长效、
+逐字段语义）错位；B) **自有 JSON 载荷 + ed25519 签名（JWS compact 序列化的最小自实现）**——
+`crypto/ed25519` 是 stdlib（Go 1.13+），序列化 ≈80 行，零新依赖；C) X.509/PKCS#7——为
+证书层级设计的重武器，license 单签发方场景用不上。**选 B**（ADR-0005 依赖准入的直接结论）。
+
+**文档形态**（单行文本，两段点号分隔——JWS compact 的最小子集，字段自有）：
+
+```
+<base64url(payloadJSON)>.<base64url(ed25519Signature)>
+```
+
+payload JSON（wire camelCase；签名对象 = **payload 原文字节**，不做再规范化——消灭
+canonicalization 歧义）：
+
+```json
+{
+  "typ": "binflow-license",     // 固定；不匹配拒绝
+  "alg": "EdDSA",               // 固定；不匹配拒绝
+  "kid": "bf-lic-2026",         // 验签密钥 id（与内嵌公钥常量的标识一致才验签）
+  "ver": 1,
+  "licenseId": "0f1e…-uuid",
+  "licensee": "Acme Corp",      // 被授权方名称（回显用）
+  "tier": "pro",                // 'community' | 'pro' | 'enterprise' 闭集
+  "issuedAt": "2026-08-25T00:00:00Z",
+  "notBefore": "2026-09-01T00:00:00Z",
+  "expiresAt": "2027-09-01T00:00:00Z",   // community 档允许 null = 永久；pro/ent 必填
+  "addons": ["ha", "xray-integration"],  // 可选显式解锁白名单；缺省/null = 档位全解锁
+  "limits": {}                  // 预留（maxUsers 等），M10 不消费、原样回显
+}
+```
+
+**密钥体系**：签发私钥离线持有（`bf license keygen`/`bf license issue` 子命令生成与签发，
+私钥经 `--key <file>` 或 env 注入、**永不入库永不入二进制**——安全底线）；验签公钥以
+编译期常量内嵌 `internal/license/verifykey.go`（`kid` → 公钥的单元素表，预留多 kid 轮换缝）。
+依赖注入缝：`Manager` 构造收 `VerifyKeys map[string]ed25519.PublicKey`——生产装配传内嵌
+常量，单测注入测试钥对（不 build-tag、不碰生产常量）。
+
+#### 15.1.2 校验链（安装时 + 启动时 + 运行期）
+
+```
+安装（POST /api/system/license）
+  parse 两段 → base64url decode → unmarshal → typ/alg/kid 静态校验
+  → ed25519.Verify(公钥[kid], payloadBytes, sig)      // 失败 → 400 LICENSE_INVALID，现状态不变
+  → 时间窗校验（notBefore ≤ now ≤ expiresAt，leeway 1h——license 天粒度，时钟毫秒级偏差免疫）
+  → 写 licenses 表（单行模型，新验通过才替换旧行——原子替换，无中间态）
+  → 刷新内存态 + 审计 license.install
+
+启动
+  读 licenses 行 → 重跑同一验签链（升级换钥/文档被篡改 → 状态失效按 community 处理
+  + 启动 WARN + 审计 license.invalid）→ 内存态就绪
+
+运行期（缓存与过期）
+  State 为 atomic.Pointer 快照，读路径零锁；expiry 跨越是运行期事件——每日 ticker
+  重求值（过期即降级，无需重启）；Install/Uninstall 即时刷新。全程离线（无 callhome
+  /phone-home：inv-4 J4 明确不适用），时钟信任服务器本地 UTC。
+```
+
+持久化（migration 012，单 license 模型）：`licenses(id INTEGER PRIMARY KEY CHECK (id=1),
+license_id, tier, licensee, doc, issued_at, not_before, expires_at, installed_at)`——doc
+存原文（重验签的事实源），派生列供查询；Artifactory 的多 license 相加形态（HA 三节点
+license）属 HA addon 范畴，届时随 HA ADR 扩表，M10 不预留假缝。
+
+#### 15.1.3 档位闭集与降级行为闭集
+
+**档位闭集**（对标 oss/pro/ent 行为模式，命名自有）：`community < pro < enterprise`
+（代码常量 `license.Tier`，比较语义 = 全序；新增档位 = 架构变更新 ADR）。五核心包型
+（generic/docker/maven/npm/pypi）钉在 **community 地板**——恒解锁（不变量 1 的落点）。
+
+**降级行为闭集**（license 缺失/过期/无效/档位不足时，gated 能力的行为枚举——全闭集，
+QA 可表驱动枚举）：
+
+| # | 面 | 行为 |
+|---|---|---|
+| D1 | 已有仓库**读路径**（内容 GET/HEAD、协议读、item/list/properties 读） | **放行**——数据不劫持（对齐 Artifactory「license 过期不切断已有数据」的行为模式） |
+| D2 | gated 包型/能力的**写动词**（协议 PUT/POST/DELETE、属性写、上传会话开始） | **403** errors[] 信封 `license required: addon '<id>' needs tier '<t>' (current: <tier\|none>)` + 响应头 `X-Binflow-License-Required: <addonID>`（console/CI 可编程识别） |
+| D3 | 建仓/改仓（package_type 属 gated addon） | **400** 点名（配置校验面：`package type '<t>' is not available on this instance (license tier '<cur>' < '<need>')`——repo.Service 校验链的既有 400 家族，非许可 403） |
+| D4 | gated 功能 addon 的 REST 面（M10 仅 seam，首个真实消费方 M11+） | handler 首行 `license.Require` 一致 **403**（同 D2 形） |
+| D5 | console 可见性 | addon 入口**可见但带档位徽章**（`GET /api/v1/addons` 消费）——与 ADR-0029 决策 5「无功能对应的入口不出现」的有意差异：gated 入口**有**功能对应（功能已编译在、被门控），登记 §11.41 |
+| D6 | license 过期瞬间 | 每日 ticker 求值降级（无 grace 期——Artifactory 行为模式：到期即降；邮件预警属邮件子系统缺失项，§11 登记） |
+| D7 | license 安装失败 | 400 LICENSE_INVALID / LICENSE_EXPIRED，**现状态不变**（旧 license 继续生效） |
+
+#### 15.1.4 REST 面（安装/查询/卸载）
+
+Artifactory 面 = `/api/system/licenses`（复数 + activate/licenseChanged，inv-4 J1——HA
+传播腿）。BinFlow 单实例单文档模型取**单数**（多 license 相加是 HA 语义，随 HA addon 走）；
+行为模式对齐（安装/查询/卸载三动词 + admin 门），路径拼写不复制——差异记 §10 对齐表。
+
+| 端点 | 门 | 语义 |
+|---|---|---|
+| `GET /api/system/license` | CapSystemRead | 回显 `{licensed, tier, licenseId, licensee, issuedAt, notBefore, expiresAt, perpetual, daysToExpiry, addons:[解锁的 addonID 清单], limits}`；未装 = `{licensed:false, tier:"community", …}`；**不回显 doc 原文** |
+| `POST /api/system/license` | CapSystemWrite | body = 纯文本 license 文档；验签链全过才替换落库（201）；失败 400（不触碰现状态）；审计 `license.install` |
+| `DELETE /api/system/license` | CapSystemWrite | 卸载 → community 地板；200 纯文本 `License removed successfully.`；审计 `license.delete` |
+
+错误体走 errors[] 信封（治理族惯例）；路由登记 §7.1（族 1/2 追加行，PRD 定稿回写）。
+
+#### 15.1.5 门控点织入模式——能力注册表查询，非 middleware（伪代码）
+
+**候选对比**：A) middleware 拦截——按「路由前缀 → addon」映射在链上拦。否决理由：门控
+判定是**数据依赖**（repo 行的 package_type）+ **动词依赖**（读放行/写拒绝）+ **状态依赖**
+（license tier），路由前缀映射三者都表达不了；且 /v2 根级例外、dispatchAPIProtocolMount
+（router.go 既有协议挂载段）等非前缀族会绕出映射表——一个拦不住旁路的门 = 没有门。
+B) **能力注册表查询**——`license.Manager` 作为被查询的单点，在三个既有决策缝之后插入。
+**选 B**。
+
+**织入点 1：内容写动词（httpapi dispatchContent，repo 行查询之后、adapter 分发之前）**：
+
+```go
+// router.go dispatchContent inner（§7.1 dispatch 既有缝，伪代码）：
+row, err := s.deps.Repos.Get(r.Context(), repoKey)        // 既有
+...
+if a, gated := s.deps.Addons.ForPackageType(row.PackageType); gated {
+    if !s.deps.License.AddonEnabled(r.Context(), a) && required /* contentAction 的写标志 */ {
+        w.Header().Set("X-Binflow-License-Required", a.ID)
+        writeError(w, 403, "license required: addon '"+a.ID+"' …")   // D2
+        return
+    }
+}
+h.ServeHTTP(w, withStrippedPrefix(r, p))                   // 既有；读动词（required=false）直达 = D1
+```
+
+关键事实：`required` 是 `contentAction(r.Method)` 的既有返回值（写动词标志）——license
+门**复用**它，零新判定逻辑；判定位于 repo 行查询之后（无权者早在 authorizer 被拦，门控
+不泄漏 repo 行存在性——与 T-14 RepoLookup 缝同一安全姿态）。
+
+**织入点 2：建仓/改仓校验（repo.Service 校验链）**：
+
+```go
+// repo.Service Create/Update 校验链（package_type 合法性检查的扩展，D3）：
+if !license.PackageTypeAvailable(ctx, packageType) {
+    return fmt.Errorf("package type %q is not available on this instance (license tier %q < %q)", …)
+}   // 消费方经小接口注入（consumer-side: type PackageTypeGate interface { … }），repo 不 import license 包
+```
+
+**织入点 3：feature addon 的 REST handler 首行（M10 仅 seam）**：
+
+```go
+func (s *Server) handleClusterDump(w, r) {                 // M11+ HA addon 的端点示例
+    if !license.Require(w, r, "ha", license.TierEnterprise) { return }  // 一致 403 D2/D4
+    …
+}
+```
+
+**不破坏 M9 已收口端点族与 RBAC 的论证**（三条）：
+1. 判定序 = 认证 → RBAC 门/内容 action → license 门 → handler——license 门恒在 RBAC
+   **之后**：无权者收到的是 401/403（RBAC），持权者越权面才可能收到 403（license）——
+   既有 (角色×路由×状态码) 矩阵不翻转（license 门只在「gated addon 的写面」这一 M9 不存在
+   的面上产生新 403）。
+2. 五核心包型 community 地板恒过门（`AddonEnabled` 对 MinTier=community 恒 true，含未装
+   license）——M9 全部内容路径与建仓校验零行为差（§15.6 守护断言）。
+3. `routeAuth` 结构、`enforce()` 链、`authorize()` middleware 零改动——license 依赖以
+   `Deps` 注入（httpapi 既有装配模式），不进链。
+
+### 15.2 addon 注册表（internal/addons，ADR-0033）
+
+#### 15.2.1 注册机制选型：显式装配清单（对标 addon.{xml,properties} 行为模式，Go 形态）
+
+**候选对比**：A) 各包 `init()` 自注册——Go 社区惯用，但 BinFlow 既有约定反对（adapter
+registry.go 注释明示：显式 RegisterX 由 cmd 装配调用，「no package-level singletons」，
+架构 §2 边界规则 3）；init 注册把装配时序藏进包导入图，依赖注入面（license.Manager 等）
+无法进入。B) **显式装配清单**——每 addon 包导出描述符构造函数，`cmd/binflow-server`
+装配处汇聚成编译期 slice。C) `go:generate` 生成清单文件——为静态可 grep 的清单引入
+生成步骤与漂移风险（生成物 vs 源码两份事实）。**选 B**：对齐 adapter registry 既有约定
+（同一 codebase 同一习惯）；「装配清单 = main 里一个 literal slice」对标
+META-INF/addon.{xml,properties} 的行为模式（**静态装配单元 + 描述元数据 + 档位标注**），
+形态自有（Go slice vs Spring bean 集）；编译期完备（漏注册 = 编译错误而非运行时缺功能）、
+可 grep、可 diff。
+
+```go
+// cmd/binflow-server/main.go 装配段（示意）：
+rego := addons.New(
+    generic.Addon(), docker.Addon(), maven.Addon(), npm.Addon(), pypi.Addon(), // 五核心 retro-fit（§15.2.4）
+    goproxy.Addon(), cargo.Addon(),            // M10 试点（c 种子）
+    // ha.Addon(),                             // M11+ feature addon 挂点（预留注释位）
+)
+```
+
+#### 15.2.2 Addon 描述符（struct + 可选接口，非大接口）
+
+```go
+// internal/addons/api.go
+type Kind string
+const (
+    KindPackageType Kind = "package-type"  // 包型 addon：槽位 = repositories.package_type 的一个合法值
+    KindFeature     Kind = "feature"       // 功能 addon：HA / Xray 集成面 / distribution 等横切能力
+)
+
+type Addon struct {
+    ID          string       // 稳定标识 = 包型 addon 时 ≡ package_type（"go"/"cargo"/…）；feature addon 自有命名（"ha"）
+    Kind        Kind
+    MinTier     license.Tier // 解锁所需最低档位；五核心 = license.TierCommunity（地板恒解锁）
+    PackageType string       // Kind=package-type 必填、须与 adapter.Handler.Protocol() 同值（装配期断言）；Kind=feature 必须为空
+    DisplayName string       // console 元数据（建仓对话框/管理页）
+    Description string
+}
+
+type Registry struct{ /* byID map + 两个有序 slice，构造后只读 */ }
+func New(items ...Addon) *Registry          // 重复 ID / package-type 与 feature 字段错置 / PackageType 与 Protocol 不一致 → panic（启动期装配错误，adapter.Register 同款姿态）
+func (r *Registry) ByID(id string) (Addon, bool)
+func (r *Registry) ForPackageType(pt string) (Addon, bool)   // gated = ok && MinTier > community
+func (r *Registry) PackageTypeAddons() []Addon               // /api/v1/addons 与建仓校验消费
+func (r *Registry) FeatureAddons() []Addon
+```
+
+**包型 addon 与功能 addon 的统一形态**：同一 `Addon` 描述符 + Kind 二分——两者的差异全部
+在**消费缝**上：包型 addon 的行为载体 = adapter.Handler（既有五包型同构注册，§5.1 零改动
+承诺保持），feature addon 的行为载体 = 包自身的服务与 REST（M11+ 首个真实样本 HA；M10 只
+落描述符 + 门控 seam + 可见性，不实现任何 feature addon 本体——「刚好够用」）。feature
+addon 未来需要挂 REST 时走既有 router 装配（织入点 3 的 handler 首行门），不新增挂载框架。
+
+**依赖方向**：`addons → license`（仅 Tier 类型）；`httpapi / repo → addons + license`（经
+consumer-side 小接口）；`license 不 import addons`（门控求值取原语参数，防环）——
+`AddonEnabled(ctx, id string, minTier license.Tier) bool`。
+
+#### 15.2.3 档位 × addon 解锁矩阵的实现位（单一求值点）
+
+```go
+// internal/license/manager.go —— 唯一求值点（对齐 auth.Can「单决策点」先例）：
+func (m *Manager) AddonEnabled(ctx context.Context, id string, minTier Tier) bool {
+    if m.disabledSet[id] { return false }        // config addons.disabled CSV（对标 artifactory.addons.disabled 行为模式）
+    st := m.State(ctx)
+    if st.Tier >= minTier {                      // 全序比较：community < pro < enterprise
+        if minTier == TierCommunity { return true }              // 地板档不受白名单约束
+        if len(st.AddonAllowlist) > 0 && !contains(st.AddonAllowlist, id) { return false }
+        return true
+    }
+    return false                                  // 档位不足：D1~D5 降级闭集接管
+}
+```
+
+矩阵本体 = `addons.Registry` 的静态描述（每 addon 的 MinTier）× 运行期 `State.Tier`——
+**矩阵不是数据、是代码**（MinTier 是描述符字段即代码常量；调档位 = 改代码发版，不建表）。
+理由：档位-能力映射是产品决策非用户数据，建表会造出「运行时可改的许可面」（安全审计敌）；
+且 QA 可静态枚举 Role×Tier×Addon 全表（对齐 ADR-0026 闭集可枚举验证的哲学）。
+
+#### 15.2.4 存量五包型 retro-fit 与试点包型的挂载关系
+
+**五核心 retro-fit 为 community 地板 addon**（一次性小票，非可选）：统一「包型 = addon」
+模型（用户指令口径），单一分发路径（ForPackageType 对五型返回 MinTier=community → 恒过
+门）、console 建仓对话框与 /api/v1/addons 统一列出全部包型（五核心无徽章、gated 型带档位
+徽章）。行为零变化（地板恒解锁），风险面 = 漏挂描述符 → 装配期 panic 兜底。
+**不 retro-fit 的代价**（否决案）：分发路径双轨（五型直通 + 新型过门）= ForPackageType
+对五型返回 ok=false 的特判散落 + 建仓校验两套清单——为省一张描述符造长期分叉。
+
+**试点包型（种子 C，建议 Go + Cargo）**：
+- `internal/adapter/goproxy`（**包名不可用 `go` 关键字**，Protocol()="go"）：GOPROXY 协议
+  （`@v/list`、`@v/{ver}.info/.mod/.zip`、`@latest`——golang.org 官方 modules 规范为行为
+  基准，reverse 仅补空白）；sumdb 代理与 external deps 重定向 P2（inv-3 §2.3 Go 行）。
+  MinTier 定 pro（第一梯队高需求型入中档——档位归属 PM 终裁，ADR-0033 给缺省建议）。
+- `internal/adapter/cargo`（Protocol()="cargo"）：api/v1/crates + sparse 索引（官方文档
+  为准）。MinTier 缺省 pro。
+- NuGet 建议移 M11（v2 OData + v3 + symbol server 双协议栈是三票量级，做试点会挤压基座
+  验证——试点目的是验证「注册→门控→license 缺失行为」全链，协议复杂度越小信号越纯）。
+- 挂载关系：与五包型**完全同构**——adapter.Register（cmd 装配显式调用）+ addons.New
+  描述符 + dispatchContent 既有分发；**零 httpapi/repo 核心改动**（§5.1「新协议接入 =
+  新增子包 + Register」承诺保持）。门控行为验收锚：无 license 时建 go 仓 → 400（D3）；
+  预置 go 仓后 push → 403 + X-Binflow-License-Required（D2）；pull 已有内容 → 200（D1）；
+  装 pro license 后全通。
+
+#### 15.2.5 状态可见性（REST + console）
+
+`GET /api/v1/addons`（bare array，治理族惯例；门 = CapSystemRead）：
+
+```json
+[ { "id":"go", "kind":"package-type", "minTier":"pro", "enabled":false,
+    "reason":"license tier community < pro", "displayName":"Go Modules", "description":"…" },
+  { "id":"generic", "kind":"package-type", "minTier":"community", "enabled":true, … } ]
+```
+
+`enabled/reason` 由 license.Manager 单点求值（与门控同源——可见性与执行不可能分叉，
+`?permissions` 视图与 targetCovers 同构先例）；disabled config 命中时 reason =
+`disabled by configuration`。console 消费：建仓对话框 package-type 下拉（admin 视角全列 +
+gated 徽章 + 不可选态）、管理页 License 与 Addons 卡片（ux-designer 面，console-ux 增补）。
+
+### 15.3 制品属性系统（种子 D——十大缺口之首，横切基座）
+
+#### 15.3.1 矩阵参数剥离的路径归一单点（calculateRepoPath 等价）
+
+**扩展点定位**：BinFlow 的路径归一链 = `httpapi dispatchContent → withStrippedPrefix
+→ adapter.Layout → splitRepoPath/validateRelPath`（internal/adapter/layout.go）——
+layout.go 的 package 注释明示 M1 语义「no matrix parameters（';' 是普通路径字符）」，即
+本条是**预留缝的兑现**，不是新开缝。单点 = `Layout()` 内、`splitRepoPath` 之前：
+
+```go
+// internal/adapter/layout.go 增量（伪代码）：
+func Layout(r *http.Request) (string, string, error) {
+    decoded := …                                        // 既有解码链
+    decoded, matrix, err := SplitMatrixParams(decoded)  // 新增单点（下述语法）
+    props, err := ParseMatrixProps(matrix)              // 键校验失败 → wrap ErrBadRequestPath → 400
+    // props 经 request context 注入 adapter（adapter.WithDeployProps——与 WithPrincipal 同构）；
+    // GET/HEAD/DELETE 剥离后仅用于寻址（属性不参与 lookup），PUT 族由 adapter 转交 repo.PutOpts
+    return splitRepoPath(decoded)                       // 既有
+}
+```
+
+**剥离语法（自有定义，向后兼容优先）**：取 decoded 路径中**首个 `;`**，其后缀若整体匹配
+`;k=v(;k2=v2)*`（每段含 `=`）则剥离为矩阵参数——键 `[A-Za-z][A-Za-z0-9_.-]{0,63}`
+（PropertyNameValidator 等价），值无控制字节、≤1024B，对数 ≤64；**键校验失败 → 400**
+（对齐 Artifactory 非法键 400 行为）。**兼容回退**：含 `;` 但后缀不匹配 k=v 语法（如
+`file;name.jar`）→ 维持 M1 字面路径语义（不 400）——保住存量五包型含 `;` 路径的可达性；
+与 Artifactory「任何 `;` 都按矩阵参数处理」的差异有节登记 §10 对齐表 + §12 校准点。
+**适用面**：generic/maven/npm/pypi 内容路径（Layout 链消费方）；docker 豁免（`/v2` 协议
+路径无矩阵参数语义，客户端不发——协议差异登记）；folder 路径尾斜杠在剥离后保留。
+**属性随 PUT 落库**：adapter 把 context 中的 props 填进 `PutOptions.Properties`（既有
+PutOpts SPI 缝〔T-67〕顺势承载）；Put/PutFromBlob/PutLandedBlob 全族同链（配额族先例
+§11.17——防旁路清点）；remote pull-through 不产生矩阵属性（上游 URL 无此语义）。
+
+#### 15.3.2 存储模型：node_props 关联表（migration 012）
+
+**候选对比**：A) **nodes 关联表 `node_props`**——Artifactory 同构（inv-4 B6 实证其
+node_props 表）；多值 = 多行天然表达（属性值是集合）；可索引可查询（M11+ 属性搜索
+search/props、清理策略、复制属性同步的共同基座）；nodes 行零改动（热行不放大）。
+B) nodes 加 `properties TEXT` JSON 列——零新表但属性查询退化为全扫 JSON_like、多值语义
+应用层自管、nodes 行每次属性变更重写（与 node 写放大耦合）、M11+ 每个消费方重造解析。
+**选 A**：关联表是属性作为**一等查询维度**（搜索/清理/复制同步三大后续消费方已在主矩阵
+排队）的唯一可持续承载；B 省一张表赌「属性永远只是附注」——与主矩阵把属性系列为十大
+缺口之首的判断直接矛盾。
+
+```sql
+-- 012_license_props.sql（双方言同步）
+CREATE TABLE node_props (
+  repo_key TEXT NOT NULL REFERENCES repositories(repo_key) ON DELETE CASCADE,
+  path     TEXT NOT NULL,                    -- FK 逻辑指向 nodes(repo_key,path)（复合 FK 到含
+                                             -- folder 行的既有主键，方言内实现；级联语义服务层兜底）
+  name     TEXT NOT NULL,                    -- 键，[A-Za-z][A-Za-z0-9_.-]{0,63}
+  value    TEXT NOT NULL,                    -- 多值 = 多行（同名多 value 行的集合语义）
+  PRIMARY KEY (repo_key, path, name, value)
+);
+CREATE INDEX idx_node_props_name ON node_props(name, value);   -- 属性维度反查（M11+ 搜索面已备）
+-- 上限（服务层 enforce）：每节点 ≤64 键、每键 ≤32 值——超限 400 PROPERTIES_LIMIT
+```
+
+node 删除（Delete/DeleteByPrefix）同事务清 node_props；export/import 快照自然含该表
+（manifest 引用集不含它——属性不产生 blob 引用）；folder 行可挂属性（REST 面对 folder
+path 的 PUT 同样生效）。
+
+#### 15.3.3 ?properties 读写 REST（兼容层既有路径上的新参数臂——E-09 面）
+
+挂 `/api/storage/{repo}/{path}?properties…`（router 既有 `storage/` 分支追加参数臂，
+与 `?list`/`?permissions` 同族——**无参数分支字节不变**，M9 基调延续）：
+
+| 端点 | 门 | 契约 |
+|---|---|---|
+| `GET …?properties=k1,k2*` | 内容面语义（routeAuth{}，匿名读跟随 anonymous_access——item-info 同门） | 200 `{"properties":{"k1":["v1","v2"],"k2*":…}}`（命中键展开；`*` 尾通配按前缀匹配键；无命中 = `{}`；node 不存在 = 404 信封）；无 filter（`?properties` 空）= 全量键 |
+| `PUT …?properties=k=v&k2=v21,v22[&recursive=1]` | required + 该 path `w`（属性写不动物理内容，**不要求 d**——与覆盖写检查解耦） | merge 语义：**同名键值集替换、异名键保留**（自有定义，BinFlow 确定性优先；Artifactory 精确 merge/append 行为待 rest-api 规格票校准，§12-16）；node 须存在（404）；folder + recursive=1 递归应用；成功 204 |
+| `DELETE …?properties=k1,k2*&[recursive=1]` | 同 PUT | 删命中键；`properties=*` 全删；幂等（不存在的键 204）；成功 204 |
+
+多值在 query 里逗号分隔（`k=v1,v2`）；值含逗号/等号时客户端须 URL encode——encode 后的
+分隔语义文档钉死（tech-writer 面）。审计：`props.write`/`props.delete`（repo/path/键清单
+摘要入 detail）。旧 `:props`/`:properties` 路径形态不提供（Artifactory 已 409 之，无兼容
+价值）。搜索面（search/props、AQL）**不在 M10**——idx_node_props_name 是它的预留索引，
+兑现归 M11 查询面。
+
+### 15.4 快赢包挂点（种子 E，按余量取舍——只记挂点不展开）
+
+- **MPU REST 化**（主矩阵「客户端断点续传 REST」）：`/api/v1/uploads/{create,config,
+  urlPart,status,complete,abort}` 六端点（L3 端点集，行为模式对标；路径拼写随 PM）。
+  挂点 = httpapi 新 handler 族 + **复用 storage.Session/ResumeSession 既有面**（T-209/
+  ADR-0028 已备：disk 会话表 + 重哈希恢复；S3 走 multipart）——零存储层改动；门 =
+  required + 目标仓 `w`；会话 id capability 语义与 §5.3.1 契约 4 同源。
+- **smart remote 字段面**（F5）：remote_configs 扩列（contentSynchronisation 族字段
+  003 迁移同款续作——仅余 calculate/aggregation 语义归 PM）；无架构增量。
+
+### 15.5 migration 012 与配置面增量
+
+- migration 012 = `licenses` + `node_props` 两表（§15.1.2/§15.3.2），双方言同步；
+  迁移器既有链（ADR-0007）零改动。
+- 配置面（§8 增量）：`addons.disabled: []`（CSV/env `BINFLOW_ADDONS__DISABLED`——全局
+  禁用某 addon，对标 artifactory.addons.disabled 行为模式；含五核心 id 时启动 WARN 但生效
+  ——排障/降级旋钮，不拦）。license 本体零配置（安装走 REST、密钥内嵌、无 callhome）。
+- 依赖：零新外部依赖（ed25519 = stdlib；§15.3 全 SQL）——ADR-0005 白名单不动。
+
+### 15.6 守护测试与验收锚（M10 回归硬门槛增量）
+
+1. **无 license = M9 基线**：license 未装实例上跑 `m7-rbac-matrix.sh --expect` 与
+   M9 守护面（§14.5-1/2）——期望文件**零改动**全绿（不变量 1 的可执行化）。
+2. **降级闭集表驱动**：Tier(3+无) × Addon(五核心/试点/feature seam) × 面(读/写/建仓/
+   REST/console) 全表断言（D1~D7 逐格）；403 形（信封 + X-Binflow-License-Required）
+   golden 快照。
+3. **license 生命周期 e2e**：keygen/issue（测试钥注入）→ 安装（错签名 400/旧证继续）→
+   档位解锁（go 建仓→push→pull 全通）→ 过期（fake clock / 短效测试证）→ 降级（写 403/
+   读 200）→ 卸载 → community。
+4. **属性系统真实客户端腿**：curl 矩阵参数部署（`;env=prod;team=x`）→ GET ?properties
+   断言 → PUT merge/DELETE 幂等 → `go list -m` 拉取带属性制品（属性不污染协议路径）；
+   存量含 `;` 非 k=v 路径回归（字面语义不破）。
+5. **wire golden**：/api/v1/addons、/api/system/license 三端点、?properties 三动词
+   响应形状；无参数分支与 M9 基线逐字节对照。
