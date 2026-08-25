@@ -43,6 +43,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/adapter/goproxy"
 	"github.com/lzwzzy/binflow/internal/adapter/maven"
 	"github.com/lzwzzy/binflow/internal/adapter/npm"
+	"github.com/lzwzzy/binflow/internal/adapter/nuget"
 	"github.com/lzwzzy/binflow/internal/adapter/pypi"
 	"github.com/lzwzzy/binflow/internal/addons"
 	"github.com/lzwzzy/binflow/internal/audit"
@@ -339,6 +340,15 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// (docs/reverse/goproxy.md sections 3.1/3.2). The addons.Go() slot in
 	// the manifest below carries the pro-tier gating (T-282/T-283).
 	goproxyHandler := goproxy.Register(stack.svc, stack.md.Repos(), stack.md.Blobs())
+	// nuget (M10/T-287, the NuGet pilot package type): same wiring story
+	// as goproxy — the content plane dispatches on package_type="nuget",
+	// and the provider registration teaches the remote pull-through
+	// engine the flatcontainer/registration upstream prefixes plus the
+	// metadata TTL split. The /binflow/api/nuget/{v3,v2} mount is the
+	// router's plane-aware api mount (PRD FR-88's spellings); the
+	// addons.NuGet() slot carries the pro-tier gating (T-282/T-283).
+	nugetHandler := nuget.Register(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.md.Remote(),
+		nuget.Options{BaseURL: cfg.Server.BaseURL})
 	// The addon registry (M10 T-282, ADR-0033 / section 15.2.1): the
 	// COMPILE-TIME ASSEMBLY MANIFEST — one literal slice, the
 	// META-INF/addon.{xml,properties} behavior pattern in Go form. This is
@@ -362,7 +372,7 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 		GC:       stack.st,
 		DataDir:  cfg.Storage.DataDir,
 		Console:  console.Handler(),
-		Adapters: []adapter.Handler{stack.genericHandler, dockerHandler, mavenHandler, npmHandler, pypiHandler, goproxyHandler},
+		Adapters: []adapter.Handler{stack.genericHandler, dockerHandler, mavenHandler, npmHandler, pypiHandler, goproxyHandler, nugetHandler},
 		// The process metric registry (T-163, ADR-0022): one per serve; the
 		// /metrics endpoint and the request-counting middleware ride it.
 		Metrics: metrics.NewRegistry(),

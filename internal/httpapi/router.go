@@ -685,12 +685,23 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 // apiProtocolMounts lists the protocols that also mount under the reserved
 // /binflow/api segment (architecture sections 5.4.2/5.4.3): npm and pypi
 // clients address the registry API prefix (…/api/npm/<repo>/<pkg>,
-// …/api/pypi/<repo>/simple/…) rather than bare content paths. The list is
-// CLOSED by design: the api segment primarily hosts REST routes, so a
-// protocol earns a mount only through its own ticket — maven mounts content
-// paths with zero httpapi changes, and look-alikes (…/api/pypi-ui/**) stay
-// on the E-26 404 permanently.
-var apiProtocolMounts = []string{"npm", "pypi"}
+// …/api/pypi/<repo>/simple/…) rather than bare content paths, and nuget's
+// v3/v2 planes live at …/api/nuget/{v3,v2}/<repo>/… (the Artifactory-
+// compatible spellings PRD FR-88 fixes). The list is CLOSED by design:
+// the api segment primarily hosts REST routes, so a protocol earns a
+// mount only through its own ticket — maven mounts content paths with
+// zero httpapi changes, and look-alikes (…/api/pypi-ui/**) stay on the
+// E-26 404 permanently.
+var apiProtocolMounts = []string{"npm", "pypi", "nuget"}
+
+// apiPlaneMounts lists the protocols whose api mount carries a PLANE
+// segment before the repository key (nuget's v3/v2). For these the
+// rewrite is plane-aware: /binflow/api/nuget/v3/<repo>/<rest> rewrites to
+// /binflow/<repo>/v3/<rest>, so the content dispatch's repo lookup, the
+// addon gate and the adapter dispatch all run on the repository key
+// exactly once, and the plane stays part of the repository's own path
+// namespace (the adapter's route grammar).
+var apiPlaneMounts = map[string]bool{"nuget": true}
 
 // dispatchAPIProtocolMount serves /binflow/api/<proto>/** by REWRITING the
 // request onto the content plane — /binflow/api/npm/<repo>/<rest> becomes
@@ -719,10 +730,67 @@ func (s *Server) dispatchAPIProtocolMount(w http.ResponseWriter, r *http.Request
 			return false
 		}
 		tail := strings.TrimPrefix(rest, proto+"/")
+		if apiPlaneMounts[proto] {
+			// The plane-aware arm (nuget): tail = {plane}/{repoKey}/{rest},
+			// the rewrite swaps the two front segments so the content
+			// dispatch sees the repository key first. An absent or unknown
+			// plane is not this mount's grammar — false leaves the E-26
+			// envelope 404.
+			r2, ok := withAPIPlanePrefix(r, proto, tail)
+			if !ok {
+				return false
+			}
+			s.dispatchContent(w, r2, "")
+			return true
+		}
 		s.dispatchContent(w, withAPIProtocolPrefix(r, proto, tail), "")
 		return true
 	}
 	return false
+}
+
+// withAPIPlanePrefix rewrites /binflow/api/<proto>/{plane}/{repo}/{rest}
+// to /binflow/{repo}/{plane}/{rest} (the plane-segment twin of
+// withAPIProtocolPrefix, preserving the ESCAPED spelling verbatim:
+// RawPath carries the raw bytes so percent-encodings keep their client
+// case and dot segments survive untouched to adapter.Layout). ok is
+// false when the tail does not carry the two front segments (or the
+// plane segment is not a plausible plane spelling — the nuget adapter's
+// own grammar owns the final word; the router only moves the front two
+// apart).
+func withAPIPlanePrefix(r *http.Request, proto, tail string) (*http.Request, bool) {
+	plane, after, found := strings.Cut(tail, "/")
+	if !found || plane == "" {
+		return nil, false
+	}
+	repoKey, rest, found := strings.Cut(after, "/")
+	if !found || repoKey == "" || rest == "" {
+		return nil, false
+	}
+	// Plane spellings are short lowercase literals (v2/v3); a segment
+	// with escapes or unusual length is not one, and passing it through
+	// would address a repository key in the plane slot.
+	if len(plane) > 8 {
+		return nil, false
+	}
+	for i := 0; i < len(plane); i++ {
+		if c := plane[i]; c < 'a' || c > 'z' {
+			if c < '0' || c > '9' {
+				return nil, false
+			}
+		}
+	}
+	escaped := prefix + "/" + repoKey + "/" + plane + "/" + rest
+	decodedPrefix := prefix + "/api/" + proto + "/" + plane + "/" + repoKey
+	decoded := prefix + "/" + repoKey + "/" + plane + strings.TrimPrefix(r.URL.Path, decodedPrefix)
+	u := *r.URL
+	u.Path = decoded
+	u.RawPath = escaped
+	r2 := new(http.Request)
+	*r2 = *r
+	r2.URL = &u
+	r2.RequestURI = r.RequestURI
+	return r2, true
 }
 
 // withAPIProtocolPrefix rewrites the request URL from
