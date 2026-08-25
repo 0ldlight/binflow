@@ -9,15 +9,22 @@ JFrog Artifactory——仓库、存储、权限、REST 语义一一对应，Arti
 chart）、Maven、npm、PyPI**——每种协议都支持 **local / remote（代理缓存）/
 virtual（聚合）** 三种仓型，并内嵌 Web 控制台。
 
-M6（当前里程碑）在其上补齐企业层：OIDC / LDAP 单点登录、S3 对象存储后端
-与本地→S3 在线迁移、单向 push 复制、Prometheus `/metrics` 指标端点、
-`bf` CLI 与 Artifactory 迁移工具（`bf-migrate`）。
+M6 在其上补齐企业层：OIDC / LDAP 单点登录、S3 对象存储后端与本地→S3
+在线迁移、单向 push 复制、Prometheus `/metrics` 指标端点、`bf` CLI 与
+Artifactory 迁移工具（`bf-migrate`）。M7~M9 把它硬化到 pre-GA 完整形态：
+细粒度 RBAC（`user` / `readonly_admin` / `admin` 三值角色 + `manage` 动作
+下放仓库级管理权）、docker blob 上传**跨重启续传**（含 kill -9）、信息架构
+与操作流**对齐 Artifactory 的 Web 控制台**——同一动作在同一位置，随附
+24 任务操作路径对照表。服务端同步收口：用户/组生命周期端点、存储用量批量
+查询、manage 过滤的权限列表、并发安全的 GC、OIDC 用户的 step-up 铸 Token；
+发布镜像双架构（linux/amd64 + linux/arm64）。
 
 | 内容 | 位置 |
 |---|---|
 | 产品愿景与范围 | [`PRODUCT.md`](PRODUCT.md) |
-| 里程碑（M1 内核 → M6 企业就绪，M1–M5 已完成） | [`ROADMAP.md`](ROADMAP.md) |
-| M6 需求（PRD v1.2：S3 / OIDC+LDAP / 复制 / 指标 / `bf` / `bf-migrate`） | [`docs/prd/milestone-6.md`](docs/prd/milestone-6.md) |
+| 里程碑（M1 内核 → M9 硬化收口，全部完成） | [`ROADMAP.md`](ROADMAP.md) |
+| M9 需求（PRD v1.0：users/groups 端点 / usage 批量 / permissions 过滤 / GC 竞态根治） | [`docs/prd/milestone-9.md`](docs/prd/milestone-9.md) |
+| Artifactory 全量功能对照矩阵（213 条目——M10+ 路线图骨干） | [`docs/reverse/artifactory-full-feature-matrix.md`](docs/reverse/artifactory-full-feature-matrix.md) |
 | 帮助文档中心（安装 / 接入 / 管理 / API / FAQ） | [`docs/user/README.md`](docs/user/README.md) |
 | 架构规范 | [`docs/design/architecture.md`](docs/design/architecture.md) |
 | 逆向行为规格 | [`docs/reverse/`](docs/reverse/) |
@@ -70,8 +77,8 @@ curl -s $BASE/binflow/api/system/ping
 ```
 
 默认：监听 `:8080`，数据落在 `./data`（按需创建；sqlite + `blobs/` +
-`sessions/` 都在里面）。用配置文件或环境变量覆盖——见
-[配置](#配置)。`Ctrl-C` 优雅退出（exit 0）。
+`uploads/` 都在里面——上传会话本身是 sqlite 里的行）。用配置文件或
+环境变量覆盖——见[配置](#配置)。`Ctrl-C` 优雅退出（exit 0）。
 另有一个一次性自测脚本：`scripts/smoke.sh` 起临时实例并跑
 ping → 建仓 → 上传 → 下载 链路。
 
@@ -156,7 +163,7 @@ docker compose -f deploy/dev/docker-compose.yml down -v    # 清空数据
 - 上传是原子的（中断的上传永不可见），blob 按 sha256 内容寻址、跨路径
   跨仓去重，删除幂等。
 
-## 不止 curl：M6 能力与延伸阅读
+## 不止 curl：M6~M9 能力与延伸阅读
 
 同一个实例无需改变形态即可长成企业面：
 
@@ -199,6 +206,97 @@ docker compose -f deploy/dev/docker-compose.yml down -v    # 清空数据
   全新 BinFlow（先 `--dry-run` 摸底，中断后 `--resume` 续传，产出
   `migration_report.json`）。指南：
   [从 Artifactory 迁移](docs/user/guides/migrate-artifactory.md)。
+
+### M7 —— 细粒度 RBAC、跨重启续传、step-up 铸 Token
+
+- **三值角色**——每个用户携带 `user` / `readonly_admin` / `admin`
+  （wire 字段 `adminRole`）。`readonly_admin` 可读全部管理面但永远
+  不写；角色变更对该用户的**存量 Token 即时生效**（无需换发、无需
+  重启）。角色分配仅 admin 可为。
+
+  ```bash
+  curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/security/users/auditor \
+    -H 'Content-Type: application/json' \
+    -d '{"name":"auditor","email":"auditor@t.io","password":"auditor-pw-1","adminRole":"readonly_admin"}' \
+    -o /dev/null -w '%{http_code}\n'
+  # 201
+  curl -su admin:$ADMIN_PW $BASE/binflow/api/security/users/auditor | jq '{name,adminRole,enabled}'
+  # {"name":"auditor","adminRole":"readonly_admin","enabled":true}
+  ```
+
+- **`manage` = 仓库级管理员**——permission target 的第四个动作。在某条
+  target 上授出 `manage`，持有者即可管理覆盖到的仓库（编辑 target、
+  配额、仓库配置），而无需是平台 admin：
+
+  ```bash
+  curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/security/users/carol \
+    -H 'Content-Type: application/json' \
+    -d '{"name":"carol","email":"carol@t.io","password":"carol-pw-123"}' -o /dev/null
+  curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/app-local \
+    -H 'Content-Type: application/json' \
+    -d '{"rclass":"local","packageType":"generic"}' -o /dev/null
+  curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/permissions \
+    -H 'Content-Type: application/json' \
+    -d '{"name":"t-app","repos":["app-local"],"includePatterns":["**"],
+         "principals":{"users":{"carol":["read","write","delete","manage"]}}}' \
+    -o /dev/null -w '%{http_code}\n'
+  # 201 —— carol 自此管理 app-local（她授出的权限即时生效，全程不惊动平台 admin）
+  ```
+
+  指南：[RBAC 角色与仓库级管理员](docs/user/admin/rbac-roles.md)。
+- **docker 上传跨重启续传**——分块 blob 上传被 `kill -9`、SIGTERM 或
+  `docker compose restart` 打断后，服务端回来时从最后收到的字节继续
+  （三条路径行为对称）。
+- **Token 铸造 step-up**（可选，**默认关闭**）——开启后从控制台会话
+  铸 Token 需要第二因子：本地/LDAP 用户重输口令，OIDC 用户走一次全新
+  的 IdP 认证（`prompt=login`）。指南：
+  [Token 铸造二次认证](docs/user/admin/token-step-up.md)。
+
+### M8 —— 控制台对齐 Artifactory
+
+- Web 控制台的信息架构与操作流跟随 Artifactory：双模式壳
+  （应用 / 管理）、跨仓制品树与深链、Set Me Up 与 Deploy 对话框、
+  全程键盘可达——自有皮肤，零复制资产。Artifactory 用户落地即知道
+  每个东西在哪；逐任务的操作路径对照（24 个常见任务）见
+  [Artifactory → BinFlow 操作路径对照表](docs/user/artifactory-path-map.md)，
+  控制台指南见 [Web 控制台使用指南](docs/user/console.md)。
+
+### M9 —— 服务端缺口收口
+
+- **用户与组生命周期**——`enabled` 在所有读取面回显；
+  `DELETE /binflow/api/security/users/{name}` 删除用户并全链级联（其
+  API Token 与会话即刻 401；内置 admin 与自删被拒）；
+  `GET /api/security/groups/{name}?includeUsers=true` 返回成员清单。
+
+  ```bash
+  curl -su admin:$ADMIN_PW -X DELETE $BASE/binflow/api/security/users/auditor \
+    -o /dev/null -w '%{http_code}\n'
+  # 200
+  curl -su admin:$ADMIN_PW -X DELETE $BASE/binflow/api/security/users/admin
+  # Cannot delete the built-in admin user.
+  ```
+
+- **一次请求代替 N 次**——`GET /api/v1/storage/usage` 一次拿全「已用」
+  列（150 仓实例过去要发约 170 个请求）；`GET /api/v1/permissions?filter=manage`
+  让 manage 持有者拿到恰好是自己在管、可编辑的 target——用上面 M7 例
+  子里的 carol：
+
+  ```bash
+  curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/storage/usage | jq length
+  # 2 —— 你可见的全部仓库，一次请求（generic-local + app-local）
+  curl -su carol:carol-pw-123 "$BASE/binflow/api/v1/permissions?filter=manage" | jq '.[].name'
+  # ["t-app"]
+  curl -su carol:carol-pw-123 $BASE/binflow/api/v1/permissions -o /dev/null -w '%{http_code}\n'
+  # 403 —— 不带 filter 的列表仍仅 admin/readonly_admin 可读
+  ```
+
+- **并发安全的 GC**——`gc --apply` 在每次物理删除前即时复核引用：
+  并行 CI 推送与 `graceHours=0` 回收不再互相踩踏（验证套件恢复默认
+  并发，`--workers=1` 权宜退役）。
+- **npm CI 发布只需 `write`**——连发任意多新版本（含 dist-tag 移动）
+  是标准路径、不需要 `delete`；仅 `npm deprecate` / 覆写已发布元数据
+  才需要。指南：[npm 接入](docs/user/integrations/npm.md)。
+  发布镜像双架构（linux/amd64 + linux/arm64 manifest）。
 
 每种部署方式的安装指南（单二进制 / Docker / compose / Helm / K8s 清单 /
 systemd / 离线 air-gapped / 升级）：[`docs/user/install/`](docs/user/install/)。
@@ -261,7 +359,7 @@ BINFLOW_SERVER__LISTEN=:9090 ./bin/binflow-server     # 单旋钮覆盖
 server:
   listen: ":8080"
 storage:
-  data_dir: "./data"        # blobs + sessions + sqlite 都在这里
+  data_dir: "./data"        # blobs + uploads + sqlite 都在这里
   backend: "local"          # "s3" + storage.s3 段 → 对象存储（见 S3 指南）
 security:
   anonymous_access: true    # 见安全须知
@@ -284,7 +382,9 @@ auth:
 ```
 
 `gc` 只删除无节点引用且超出宽限窗口（默认 24h）的 blob——中断的上传
-不残留，删除制品的空间在宽限期后回收。备份/恢复手册：
+不残留，删除制品的空间在宽限期后回收。M9 起 `--apply` 并发安全（每次
+物理删除前即时复核引用），可与 CI 并行推送同时运行（`graceHours=0`
+亦然）。备份/恢复手册：
 [`docs/user/admin/backup-restore.md`](docs/user/admin/backup-restore.md)。
 
 ## 开发
@@ -316,11 +416,14 @@ make dev   # vet + lint + test + build，push 前门禁
 （`binflow-server`、`bf`、`bf-migrate`）架在 `internal/` 各包之上
 （`config`、`storage`、`metadata`、`auth`、`audit`、`repo`、`remote`、
 `adapter`、`replication`、`migrate`、`metrics`、`client`、`httpapi`、
-`console`）；业务包之间绝不互摸内部。CI（`.github/workflows/ci.yml`）
-跑同一套 Makefile 目标——本地与 CI 同一入口。
+`console`、`docs`）；业务包之间绝不互摸内部。CI
+（`.github/workflows/ci.yml`）跑同一套 Makefile 目标——本地与 CI
+同一入口。
 
 ## 许可 / 状态
 
-积极开发中的 pre-GA 软件（M6）。M1–M5 已完成并打 tag（`m1-done` …
-`m5-done`）；里程碑规划见 `ROADMAP.md`，当前进行中的工作见 `BOARD.md`，
-每轮迭代报告见 `reports/`。
+pre-GA 软件。九个里程碑全部完成并打 tag（`m1-done` … `m9-done`）；
+里程碑规划见 `ROADMAP.md`，当前进行中的工作见 `BOARD.md`，每轮迭代
+报告见 `reports/`。下一程——对齐 Artifactory 全量功能面——按条目跟踪
+于 [`docs/reverse/artifactory-full-feature-matrix.md`](docs/reverse/artifactory-full-feature-matrix.md)
+（M9 时点 213 条：已有 20 / 部分 50 / 缺失 133 / 设计上不做 10）。

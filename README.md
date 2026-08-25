@@ -11,16 +11,25 @@ binary, zero external dependencies, five package ecosystems served natively:
 Maven, npm and PyPI** — each across **local, remote (pull-through proxy cache)
 and virtual (aggregating)** repository types, with an embedded web console.
 
-M6 (current milestone) adds the enterprise layer on top: OIDC / LDAP SSO,
-S3-backed blob storage with online local→S3 migration, one-way push
-replication, a Prometheus `/metrics` endpoint, a `bf` CLI and an Artifactory
-migration tool (`bf-migrate`).
+M6 added the enterprise layer (OIDC / LDAP SSO, S3 blob storage with online
+migration, push replication, Prometheus metrics, `bf` CLI, `bf-migrate`).
+M7–M9 hardened that into the full pre-GA shape: fine-grained RBAC
+(`user` / `readonly_admin` / `admin` roles plus a `manage` action that
+delegates repo-level administration), docker blob uploads that resume
+across server restarts (kill -9 included), and a web console whose
+information architecture and workflows align with Artifactory — same
+action, same place, backed by a 24-task operation-path map. The server
+side closed its own gaps (user/group lifecycle endpoints, batch storage
+usage, manage-filtered permission lists, a concurrency-safe GC, step-up
+token minting for OIDC users), and release images are dual-arch
+(linux/amd64 + linux/arm64).
 
 | What | Where |
 |---|---|
 | Product vision & scope | [`PRODUCT.md`](PRODUCT.md) |
-| Milestones (M1 kernel → M6 enterprise, M1–M5 done) | [`ROADMAP.md`](ROADMAP.md) |
-| M6 requirements (PRD v1.2: S3 / OIDC+LDAP / replication / metrics / `bf` / `bf-migrate`) | [`docs/prd/milestone-6.md`](docs/prd/milestone-6.md) |
+| Milestones (M1 kernel → M9 hardening, all done) | [`ROADMAP.md`](ROADMAP.md) |
+| M9 requirements (PRD v1.0: users/groups endpoints, usage batch, permissions filter, GC race fix) | [`docs/prd/milestone-9.md`](docs/prd/milestone-9.md) |
+| Artifactory full-feature matrix (213 entries — the M10+ roadmap backbone) | [`docs/reverse/artifactory-full-feature-matrix.md`](docs/reverse/artifactory-full-feature-matrix.md) |
 | Help documentation center (install / integrations / admin / API / FAQ) | [`docs/user/README.md`](docs/user/README.md) |
 | Architecture spec | [`docs/design/architecture.md`](docs/design/architecture.md) |
 | Reverse-engineered behavior specs | [`docs/reverse/`](docs/reverse/) |
@@ -75,7 +84,8 @@ curl -s $BASE/binflow/api/system/ping
 ```
 
 Defaults: listens on `:8080`, data in `./data` (created on demand; sqlite +
-`blobs/` + `sessions/` live there). Override with a config file or env — see
+`blobs/` + `uploads/` live there — upload sessions themselves are rows in
+the sqlite store). Override with a config file or env — see
 [Configuration](#configuration). `Ctrl-C` stops it gracefully (exit 0).
 A throwaway self-test exists: `scripts/smoke.sh` boots an ephemeral instance
 and runs the ping → create → upload → download chain.
@@ -164,7 +174,7 @@ docker compose -f deploy/dev/docker-compose.yml down -v    # wipe data
   are content-addressed by sha256 and deduplicated across every path and
   repo, and deletes are idempotent.
 
-## Beyond curl: what M6 brings and where to read
+## Beyond curl: what M6–M9 bring and where to read
 
 The same instance grows into the enterprise surface without changing shape:
 
@@ -208,6 +218,107 @@ The same instance grows into the enterprise surface without changing shape:
   Artifactory instance into a fresh BinFlow (`--dry-run` first, `--resume`
   after interruptions, `migration_report.json` at the end). Guide:
   [从 Artifactory 迁移](docs/user/guides/migrate-artifactory.md) (中文).
+
+### M7 — fine-grained RBAC, restart-resumable docker uploads, step-up tokens
+
+- **Three-valued roles** — every user carries `user`, `readonly_admin` or
+  `admin` (the `adminRole` wire field). `readonly_admin` reads every
+  management surface but never writes; role changes bind the user's
+  existing API tokens immediately (no re-issue, no restart). Only admins
+  may assign roles.
+
+  ```bash
+  curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/security/users/auditor \
+    -H 'Content-Type: application/json' \
+    -d '{"name":"auditor","email":"auditor@t.io","password":"auditor-pw-1","adminRole":"readonly_admin"}' \
+    -o /dev/null -w '%{http_code}\n'
+  # 201
+  curl -su admin:$ADMIN_PW $BASE/binflow/api/security/users/auditor | jq '{name,adminRole,enabled}'
+  # {"name":"auditor","adminRole":"readonly_admin","enabled":true}
+  ```
+
+- **`manage` = repo-level administration** — a fourth permission-target
+  action. Grant it on a target and the holder administers the covered
+  repositories (edit targets, quotas, repo config) without being a
+  platform admin:
+
+  ```bash
+  curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/security/users/carol \
+    -H 'Content-Type: application/json' \
+    -d '{"name":"carol","email":"carol@t.io","password":"carol-pw-123"}' -o /dev/null
+  curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/app-local \
+    -H 'Content-Type: application/json' \
+    -d '{"rclass":"local","packageType":"generic"}' -o /dev/null
+  curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/permissions \
+    -H 'Content-Type: application/json' \
+    -d '{"name":"t-app","repos":["app-local"],"includePatterns":["**"],
+         "principals":{"users":{"carol":["read","write","delete","manage"]}}}' \
+    -o /dev/null -w '%{http_code}\n'
+  # 201 — carol now administers app-local (targets she grants take effect
+  # immediately, no platform admin involved)
+  ```
+
+  Guide: [`docs/user/admin/rbac-roles.md`](docs/user/admin/rbac-roles.md) (中文).
+- **Docker uploads survive restarts** — a chunked blob upload interrupted
+  by `kill -9`, SIGTERM or `docker compose restart` resumes from the last
+  received byte once the server is back (three paths, symmetric behavior).
+- **Token minting step-up** (optional, **off by default**) — minting a
+  token from a console session then requires a second factor: password
+  re-entry for local/LDAP users, a fresh IdP round-trip (`prompt=login`)
+  for OIDC. Guide: [`docs/user/admin/token-step-up.md`](docs/user/admin/token-step-up.md) (中文).
+
+### M8 — the console speaks Artifactory
+
+- The web console's information architecture and interaction flows follow
+  Artifactory's: a dual-mode shell (application / administration), the
+  cross-repository artifact tree with deep links, Set Me Up and Deploy
+  dialogs, keyboard-accessible throughout — in BinFlow's own skin with
+  zero copied assets. An Artifactory user lands and knows where everything
+  is; the task-by-task operation path map (24 common tasks) lives at
+  [`docs/user/artifactory-path-map.md`](docs/user/artifactory-path-map.md) (中文),
+  the console guide at [`docs/user/console.md`](docs/user/console.md) (中文).
+
+### M9 — server-side gap closure
+
+- **User & group lifecycle** — `enabled` echoes on every read surface;
+  `DELETE /binflow/api/security/users/{name}` removes a user with full
+  cascade (their API tokens and sessions answer 401 from that moment on;
+  the built-in admin and self-deletion are refused);
+  `GET /api/security/groups/{name}?includeUsers=true` returns the member
+  list.
+
+  ```bash
+  curl -su admin:$ADMIN_PW -X DELETE $BASE/binflow/api/security/users/auditor \
+    -o /dev/null -w '%{http_code}\n'
+  # 200
+  curl -su admin:$ADMIN_PW -X DELETE $BASE/binflow/api/security/users/admin
+  # Cannot delete the built-in admin user.
+  ```
+
+- **One request instead of N** — `GET /api/v1/storage/usage` fills the
+  whole "used" column in one call (a 150-repo instance used to fire ~170
+  requests for it); `GET /api/v1/permissions?filter=manage` hands a
+  manage-holder exactly their editable targets — carol from the M7
+  example:
+
+  ```bash
+  curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/storage/usage | jq length
+  # 2 — every repo you can see, one request (generic-local + app-local)
+  curl -su carol:carol-pw-123 "$BASE/binflow/api/v1/permissions?filter=manage" | jq '.[].name'
+  # ["t-app"]
+  curl -su carol:carol-pw-123 $BASE/binflow/api/v1/permissions -o /dev/null -w '%{http_code}\n'
+  # 403 — the unfiltered list stays admin/readonly_admin-only
+  ```
+
+- **Concurrency-safe GC** — `gc --apply` re-verifies references
+  immediately before every physical delete: parallel CI pushes and
+  `graceHours=0` collections no longer race (verification suites run at
+  default parallelism again, no `--workers=1` crutch).
+- **npm CI publishing needs only `write`** — publishing any number of new
+  versions (plus dist-tag moves) is the standard path and needs no
+  `delete`; only `npm deprecate` / overwriting published metadata does.
+  Guide: [`docs/user/integrations/npm.md`](docs/user/integrations/npm.md) (中文).
+  Release images are dual-arch (linux/amd64 + linux/arm64 manifests).
 
 Per-deployment install guides (binary, Docker, compose, Helm, K8s manifests,
 systemd, offline/air-gapped, upgrade): [`docs/user/install/`](docs/user/install/).
@@ -274,7 +385,7 @@ BINFLOW_SERVER__LISTEN=:9090 ./bin/binflow-server     # single-knob override
 server:
   listen: ":8080"
 storage:
-  data_dir: "./data"        # blobs + sessions + sqlite all live here
+  data_dir: "./data"        # blobs + uploads + sqlite all live here
   backend: "local"          # "s3" + storage.s3 section → object storage (see S3 guide)
 security:
   anonymous_access: true    # see Security notes
@@ -298,7 +409,10 @@ auth:
 
 `gc` only ever deletes blobs that no node references and that are older than
 the grace window (24h by default) — interrupted uploads leave nothing
-behind, and a deleted artifact's space comes back after grace. The
+behind, and a deleted artifact's space comes back after grace. Since M9
+`--apply` is concurrency-safe (references are re-verified immediately
+before each physical delete), so it can run alongside active CI pushes
+even with `graceHours=0`. The
 backup/restore handbook: [`docs/user/admin/backup-restore.md`](docs/user/admin/backup-restore.md).
 
 ## Development
@@ -330,12 +444,18 @@ Common targets (`make help` lists them all):
 Layout follows `docs/design/architecture.md` §2: `cmd/` (`binflow-server`,
 `bf`, `bf-migrate`) over the `internal/` packages (`config`, `storage`,
 `metadata`, `auth`, `audit`, `repo`, `remote`, `adapter`, `replication`,
-`migrate`, `metrics`, `client`, `httpapi`, `console`); business packages
-never reach into each other's internals. CI (`.github/workflows/ci.yml`)
-runs the same Makefile targets — local and CI share one entrypoint.
+`migrate`, `metrics`, `client`, `httpapi`, `console`, `docs`); business
+packages never reach into each other's internals. CI
+(`.github/workflows/ci.yml`) runs the same Makefile targets — local and
+CI share one entrypoint.
 
 ## License / status
 
-Pre-GA software under active development (M6). M1–M5 are done and tagged
-(`m1-done` … `m5-done`); see `ROADMAP.md` for the milestone plan, `BOARD.md`
-for what is currently being worked on, and `reports/` for iteration reports.
+Pre-GA software. All nine milestones are done and tagged (`m1-done` …
+`m9-done`); see `ROADMAP.md` for the milestone plan, `BOARD.md` for what
+is currently being worked on, and `reports/` for iteration reports. The
+next leg — aligning the full Artifactory feature surface — is tracked
+entry by entry in
+[`docs/reverse/artifactory-full-feature-matrix.md`](docs/reverse/artifactory-full-feature-matrix.md)
+(213 entries as of M9: 20 present, 50 partial, 133 missing, 10 n/a by
+design).
