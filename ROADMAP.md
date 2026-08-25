@@ -2,7 +2,7 @@
 
 > 由 product-manager 维护；tech-lead 据此把当前里程碑分解为 ticket。
 
-## 当前里程碑：M9（PRD v1.0 草案，待 conductor 审）
+## 当前里程碑：M10（规划中——Artifactory 全功能对齐，主矩阵已备）
 
 ### M0 — 团队启动（已完成）
 - [x] 产品愿景 PRODUCT.md（BinFlow）
