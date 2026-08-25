@@ -321,6 +321,16 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleLicenseInstall)
 	case rest == "system/license" && r.Method == http.MethodDelete:
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleLicenseDelete)
+
+	// ---- /api/v1/addons (M10 T-282, ADR-0033 / section 15.2.5) ----
+	// The slot manifest with live unlock evaluation: one bare-array GET on
+	// system:read (readonly_admin sees the matrix, FR-86-AC1; a plain user
+	// 403s at the capability door). Every other verb — POST/PUT/DELETE
+	// /api/v1/addons, or any sub-path — falls to the E-26 404: the addon
+	// plane has no write surface (licenses are installed on
+	// /api/system/license; slot tiers are code, not data).
+	case rest == "v1/addons" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleAddonsList)
 	case rest == "v1/health" && r.Method == http.MethodGet:
 		// Management plane (C28a is `-sfu admin` for a reason): the health
 		// dashboard exposes instance internals, so it sits behind the

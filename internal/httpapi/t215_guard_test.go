@@ -29,10 +29,13 @@ import (
 // are not repo-domain principals). T-279 (M10, ADR-0032 / architecture
 // section 15.1.4) added 26..28: GET /api/system/license on CapSystemRead
 // and POST/DELETE /api/system/license on CapSystemWrite — the section 7.1
-// family-1/2 rows the ADR registers. Editing this constant is a deliberate
-// route-gate change — update the inventory table with it.
+// family-1/2 rows the ADR registers. T-282 (M10, ADR-0033 / architecture
+// section 15.2.5) added the 29th: GET /api/v1/addons on CapSystemRead (the
+// addon status plane; readonly_admin sees the matrix, a plain user 403s).
+// Editing this constant is a deliberate route-gate change — update the
+// inventory table with it.
 const (
-	t215ManageGates    = 28
+	t215ManageGates    = 29
 	t215RepoManageBits = 4
 )
 

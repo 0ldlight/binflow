@@ -394,6 +394,16 @@ func (s *Server) handleRepoPut(w http.ResponseWriter, r *http.Request, key strin
 		writeError(w, http.StatusForbidden, "administrator privileges required")
 		return
 	}
+	// M10 T-282 (FR-86.5's enum half): with the addon registry mounted, the
+	// package-type legality question reads the assembly's DYNAMIC slot set —
+	// a newly registered package-type addon is a creatable type with zero
+	// further branch edits. The 400/403 order is unchanged for every caller:
+	// this runs after the capability door, exactly where repo.Service's own
+	// enum rejection used to be the only check. The unlock half (a
+	// known-but-gated slot's refusal) is T-283's weave.
+	if !s.checkAddonPackageType(w, stored.PackageType) {
+		return
+	}
 	created, err := s.deps.ReposSvc.CreateRepo(r.Context(), p, stored)
 	if err != nil {
 		s.writeRepoSvcError(w, err)
@@ -451,6 +461,15 @@ func (s *Server) handleRepoDelete(w http.ResponseWriter, r *http.Request, key st
 		return
 	}
 	writeText(w, http.StatusOK, fmt.Sprintf("Repository %s deleted successfully.\n", key))
+}
+
+// unknownPackageTypeMessage renders the addon-registry plane's unknown-type
+// 400: the legal set is the registry's dynamic slot list (M10 T-282), so the
+// message derives from the same source — a newly assembled slot appears in
+// the guidance without a wording edit.
+func unknownPackageTypeMessage(packageType string, known []string) string {
+	return fmt.Sprintf("package type %q is not a registered addon slot on this instance; must be one of %s",
+		packageType, strings.Join(known, ", "))
 }
 
 // writeRepoSvcError maps repo.Service sentinels onto envelope statuses.

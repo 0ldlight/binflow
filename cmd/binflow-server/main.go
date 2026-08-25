@@ -43,6 +43,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/adapter/maven"
 	"github.com/lzwzzy/binflow/internal/adapter/npm"
 	"github.com/lzwzzy/binflow/internal/adapter/pypi"
+	"github.com/lzwzzy/binflow/internal/addons"
 	"github.com/lzwzzy/binflow/internal/audit"
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/config"
@@ -330,6 +331,14 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// registries under one literal; the upload plane rides the storage
 	// engine seam (PutLandedBlob's late-path-binding shape, T-64).
 	pypiHandler := pypi.Register(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.st)
+	// The addon registry (M10 T-282, ADR-0033 / section 15.2.1): the
+	// COMPILE-TIME ASSEMBLY MANIFEST — one literal slice, the
+	// META-INF/addon.{xml,properties} behavior pattern in Go form. This is
+	// the whole registration ceremony: a new slot is a constructor in
+	// internal/addons/slots.go plus one line here, and the gate, the
+	// /api/v1/addons view and the repo-create legal set all pick it up with
+	// zero further branch edits (FR-86-AC2). No init() self-registration —
+	// the explicit-assembly convention internal/adapter established.
 	deps := httpapi.Deps{
 		Config:    cfg,
 		Auth:      stack.authSvc,
@@ -348,7 +357,11 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 		Adapters: []adapter.Handler{stack.genericHandler, dockerHandler, mavenHandler, npmHandler, pypiHandler},
 		// The process metric registry (T-163, ADR-0022): one per serve; the
 		// /metrics endpoint and the request-counting middleware ride it.
-		Metrics:  metrics.NewRegistry(),
+		Metrics: metrics.NewRegistry(),
+		// The addon manifest (M10 T-282): the compile-time assembly literal
+		// slice (see addonManifest — the one function to touch when a slot
+		// lands). httpapi.New asserts every adapter above carries a slot.
+		Addons:   addonManifest(),
 		Version:  version,
 		Revision: revision,
 	}
@@ -389,6 +402,29 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// T-283 weave points, not by these routes.
 	deps.License = stack.licenseMgr
 	return httpapi.New(deps, logger)
+}
+
+// addonManifest is THE assembly list (M10 T-282, ADR-0033 / section 15.2.1):
+// the compile-time addon manifest as one literal slice — the
+// META-INF/addon.{xml,properties} behavior pattern in Go form. Adding a
+// slot is one constructor in internal/addons/slots.go plus one line here;
+// the gate, the /api/v1/addons view and the repo-create legal set pick it
+// up with zero further branch edits (FR-86-AC2). No init()
+// self-registration — the explicit-assembly convention internal/adapter
+// established (no package-level singletons, everything injectable).
+func addonManifest() *addons.Registry {
+	return addons.New(
+		// Five-core retro-fit (§15.2.4): community floor, zero behavior
+		// change — MinTier=TierCommunity passes every gate on every
+		// instance, licensed or not.
+		addons.Generic(), addons.Docker(), addons.Maven(), addons.Npm(), addons.Pypi(),
+		// Gated pilot package-type slots (pro; the adapters land with their
+		// own tickets — the slots exist so gate/view/legal-set are complete).
+		addons.Go(), addons.NuGet(), addons.Cargo(),
+		// Feature slots: properties on the floor, the enterprise
+		// placeholders visible with their M11+ reservation notes.
+		addons.Properties(), addons.HA(), addons.XrayIntegration(),
+	)
 }
 
 // replicationCipherSeam decides the httpapi Deps.ReplicationCipher injection

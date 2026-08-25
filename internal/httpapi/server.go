@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/lzwzzy/binflow/internal/adapter"
+	"github.com/lzwzzy/binflow/internal/addons"
 	"github.com/lzwzzy/binflow/internal/audit"
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/config"
@@ -112,7 +113,15 @@ type Deps struct {
 	// honest community-floor body (license.go's Docs-handler precedent)
 	// and the two mutating verbs at 503 — pre-M10 unit stacks only; every
 	// assembled server wires the real Manager.
-	License  LicenseManager
+	License LicenseManager
+	// Addons is the assembled addon registry (M10 T-282, ADR-0033): the
+	// compile-time literal slice cmd builds. Nil keeps GET /api/v1/addons
+	// at an honest empty array and the repo-create plane on repo.Service's
+	// static enum (pre-M10 unit stacks); every assembled server wires the
+	// full manifest, and httpapi.New then asserts every mounted adapter
+	// protocol carries a package-type slot (the §15.2.4 missing-descriptor
+	// panic).
+	Addons   *addons.Registry
 	Version  string
 	Revision string
 }
@@ -153,7 +162,13 @@ type Server struct {
 	// four family handles, the request-counting middleware and the scrape-
 	// time snapshot sources. nil when Deps.Metrics is nil.
 	metrics *instrumentation
-	srv     *http.Server
+	// addonsEval is the license facets the addon status view consumes (M10
+	// T-282): the Manager's gate + state, discovered from Deps.License so
+	// cmd's wiring stays untouched (the session/permView facet precedent).
+	// nil — a bare LicenseManager fake, or no license collaborator at all —
+	// evaluates the manifest on the community floor.
+	addonsEval addons.Evaluator
+	srv        *http.Server
 }
 
 // New assembles the server. deps.Console may be nil (a bare console
@@ -189,6 +204,21 @@ func New(deps Deps, log *slog.Logger) *Server {
 	for _, h := range deps.Adapters {
 		adapters[h.Protocol()] = h
 	}
+	// The five-core retro-fit's assembly guard (M10 T-282, §15.2.4): with a
+	// registry mounted, every mounted adapter protocol MUST carry a
+	// package-type slot — a mounted package type without a descriptor would
+	// be the one capability outside the addon model, invisible to
+	// /api/v1/addons and ungated by the T-283 weave. An assembly bug panics
+	// here at startup, never at request time (adapter.Register's posture).
+	if deps.Addons != nil {
+		for _, h := range deps.Adapters {
+			if _, ok := deps.Addons.ForPackageType(h.Protocol()); !ok {
+				panic(fmt.Sprintf(
+					"httpapi: adapter protocol %q has no addon slot in the assembled registry — every mounted package type must carry a descriptor (ADR-0033 five-core retro-fit)",
+					h.Protocol()))
+			}
+		}
+	}
 	s := &Server{deps: deps, log: log, adapters: adapters}
 	// Instrumentation (T-163) attaches before route() runs below — the
 	// mounted /metrics handler and the base chain both read s.metrics.
@@ -218,6 +248,13 @@ func New(deps Deps, log *slog.Logger) *Server {
 	// facet-less and the endpoint answers 503 instead of panicking.
 	if ud, ok := deps.Auth.(userDeleter); ok {
 		s.userDelete = ud
+	}
+	// Addon-evaluation facet discovery (M10, T-282): the real Manager
+	// carries the gate and state the addon status view joins; a bare
+	// LicenseManager fake stays facet-less and the view evaluates the
+	// community floor.
+	if ev, ok := deps.License.(addons.Evaluator); ok {
+		s.addonsEval = ev
 	}
 	// The audit recorder for the login plane: same store, same enabled
 	// toggle and the same redaction chain every other audited surface uses.

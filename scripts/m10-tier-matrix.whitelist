@@ -27,3 +27,25 @@
 #   - rewriting the baseline itself is NOT done via this file: an ADR must
 #     register the flip first, then scripts/m10-tier-matrix.sh --record
 #     --force re-freezes it (per-milestone evolution)
+
+# --- registered deviations -----------------------------------------------
+# The license plane landing (T-279, ADR-0032 / §15.1.4): GET
+# /api/system/license serves the effective state on every bootable form.
+# The route landed with commit 90929f9; the flip stayed unregistered (a
+# stale pre-T-279 bin/ binary masked it in the T-279 gate run) and is
+# booked here by T-282's gate leg, which re-built the binary and re-ran
+# the gate before touching anything.
+community|T01|200   # T-279 (ADR-0032 §15.1.4): GET api/system/license landed (booked by T-282's gate leg)
+pro|T01|200         # T-279 (ADR-0032 §15.1.4): GET api/system/license landed (booked by T-282's gate leg)
+enterprise|T01|200  # T-279 (ADR-0032 §15.1.4): GET api/system/license landed (booked by T-282's gate leg)
+expired|T01|200     # T-279 (ADR-0032 §15.1.4): GET api/system/license landed (booked by T-282's gate leg)
+
+# The addon registry + status plane landing (T-282, ADR-0033 / §15.2.5):
+# GET /api/v1/addons serves the slot manifest with live evaluation. The
+# gated pilot rows T05/T06 are deliberately UNTOUCHED (still 400 — the
+# slots are registered but adapterless; the gate weave is T-283 and the go
+# adapter is T-285), so no entries for them.
+community|T02|200   # T-282 (ADR-0033 §15.2.5): GET api/v1/addons landed (11-slot manifest, floor evaluation)
+pro|T02|200         # T-282 (ADR-0033 §15.2.5): GET api/v1/addons landed (un-installed posture without --license-dir)
+enterprise|T02|200  # T-282 (ADR-0033 §15.2.5): GET api/v1/addons landed (un-installed posture without --license-dir)
+expired|T02|200     # T-282 (ADR-0033 §15.2.5): GET api/v1/addons landed (un-installed posture without --license-dir)
