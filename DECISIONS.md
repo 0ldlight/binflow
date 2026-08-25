@@ -682,7 +682,7 @@
 
 ## ADR-0032: license/entitlement 体系与门控模型——自有 ed25519 文档、三档闭集、数据面单点门控
 
-- 状态: Proposed
+- 状态: Accepted（2026-08-25 转正——conductor 终审通过 M10 规划三件套（PRD v1.0 + architecture §15 + 主矩阵）；四处 PRD↔ADR 分歧按「以 ADR 为准」裁定并路由 T-293 as-built 收口）
 - 日期: 2026-08-25
 - 背景: 用户指令（2026-08-25 原话）：「binflow 也需要拥有和 Artifactory 的 license 控制，例如控制高可用等」——对标其功能分级门控行为模式（inv-2 §3：SubscriptionType 十档 × AddonType 80 项注解门控 + `artifactory.addons.disabled` 全局禁用 + `/api/system/licenses` 管理面 + 无订阅 403 映射〔inv-4 O5 实证〕）。clean-room 硬边界：不复制 JFrog license 密钥格式/校验算法/激活协议，只对齐行为模式。约束：M9 刚收口的端点族与 RBAC（ADR-0026/0030）不可破坏；ADR-0005 依赖准入（默认 stdlib）；单二进制零外部服务（无 callhome——inv-4 J4 明确不适用）。
 - 候选方案:
@@ -700,7 +700,7 @@
 
 ## ADR-0033: addon 注册表与包型 addon 化——编译期显式装配清单、Addon 描述符、五核心 retro-fit
 
-- 状态: Proposed
+- 状态: Accepted（2026-08-25 转正——conductor 终审通过 M10 规划三件套（PRD v1.0 + architecture §15 + 主矩阵）；五核心 retro-fit 为 community 地板——M1~M9 既有能力零降级）
 - 日期: 2026-08-25
 - 背景: 用户指令（2026-08-25 原话）：「补齐剩余的协议，例如 golang，huggingface 等，这也是 license 控制的功能，和 Artifactory 一样使用 addon 的方式加入进来」——52 缺失包型全部纳入后续规划、多里程碑分期，**包型 = addon 门控单元**。对标行为模式 = META-INF/addon.{xml,properties}（静态装配单元 + 描述元数据 + 档位标注，inv-2 §3/§4）与 AddonType 80 项「功能 → 档位」权威表；形态自有（clean-room 不复制 Spring bean 集格式）。架构前提：既有 adapter registry 已确立「显式 RegisterX 由 cmd 装配调用、no package-level singletons」约定（internal/adapter/registry.go 注释），addon 注册机制必须与之同构。
 - 候选方案:
