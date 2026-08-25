@@ -26,10 +26,13 @@ import (
 // route literals carry only required:true and the regex below no longer
 // sees them. T-251 (M9, ADR-0030 E4) added the 25th: DELETE
 // /api/security/users/{name} on CapSecurityWrite, no coverage arm (users
-// are not repo-domain principals). Editing this constant is a deliberate
+// are not repo-domain principals). T-279 (M10, ADR-0032 / architecture
+// section 15.1.4) added 26..28: GET /api/system/license on CapSystemRead
+// and POST/DELETE /api/system/license on CapSystemWrite — the section 7.1
+// family-1/2 rows the ADR registers. Editing this constant is a deliberate
 // route-gate change — update the inventory table with it.
 const (
-	t215ManageGates    = 25
+	t215ManageGates    = 28
 	t215RepoManageBits = 4
 )
 

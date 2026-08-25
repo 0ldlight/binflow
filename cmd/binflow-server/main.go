@@ -48,6 +48,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/config"
 	"github.com/lzwzzy/binflow/internal/console"
 	"github.com/lzwzzy/binflow/internal/httpapi"
+	"github.com/lzwzzy/binflow/internal/license"
 	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/metrics"
 	"github.com/lzwzzy/binflow/internal/remote"
@@ -276,6 +277,11 @@ func runServe(args []string, stderr io.Writer) error {
 	// stop — before the storage engine closes underneath it.
 	drainReplication := stack.startReplication(ctx, logger)
 
+	// The license daily re-evaluation loop (ADR-0032 / D6): expiry is a
+	// runtime event, the downgrade needs no restart. Cancellation rides
+	// the same signal context as the HTTP drain.
+	go stack.licenseMgr.Run(ctx)
+
 	err = srv.Run(ctx)
 	if err != nil {
 		drainReplication()
@@ -378,6 +384,10 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// auth service's Bearer arm verifies against; a nil Deps.OIDC keeps both
 	// browser routes at the E-26 404 (FR-54-AC6/H29).
 	deps.OIDC = oidcLoginSeam(stack.oidcProv)
+	// The license plane (M10 T-279): /api/system/license rides the manager
+	// openStack loaded; its gate facet (AddonEnabled) is consumed by the
+	// T-283 weave points, not by these routes.
+	deps.License = stack.licenseMgr
 	return httpapi.New(deps, logger)
 }
 
@@ -536,6 +546,13 @@ type stack struct {
 	replEngine *replication.Engine
 	replCipher *remote.Cipher
 
+	// licenseMgr is the entitlement manager (M10 T-279, ADR-0032): built
+	// and loaded in openStack; its daily re-evaluation ticker starts with
+	// the signal context in runServe and simply exits with it (no drain
+	// semantics — a mid-tick cancellation leaves the snapshot consistent,
+	// the next boot's Load re-derives it from the stored row).
+	licenseMgr *license.Manager
+
 	dataDir string
 	closed  bool
 }
@@ -670,6 +687,40 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 	}
 	repo.AttachReplicator(svc, replEngine)
 
+	// The entitlement manager (M10 T-279, ADR-0032): embedded verify keys,
+	// the 012 licenses row as fact source, the community floor until a
+	// document verifies. Load re-runs the chain synchronously — a stored
+	// row that stopped verifying (rotation, tampering) degrades to the
+	// floor with a WARN and never blocks the boot (NFR-S53). The daily
+	// re-evaluation ticker is a LIFECYCLE concern: runServe launches it
+	// with the signal context, startLicenseTicker below.
+	licenseKeys, err := license.EmbeddedVerifyKeys()
+	if err != nil {
+		_ = replDB.Close()
+		_ = st.Close()
+		_ = md.Close()
+		return nil, fmt.Errorf("license verify keys: %w", err)
+	}
+	licenseMgr, err := license.New(license.Options{
+		Store:       md.Licenses(),
+		VerifyKeys:  licenseKeys,
+		DisabledCSV: "", // addons.disabled config key lands with T-283's gate weaving
+		Audit:       audit.BestEffort(auditLog),
+		Log:         logger,
+	})
+	if err != nil {
+		_ = replDB.Close()
+		_ = st.Close()
+		_ = md.Close()
+		return nil, fmt.Errorf("license manager: %w", err)
+	}
+	if err := licenseMgr.Load(ctx); err != nil {
+		_ = replDB.Close()
+		_ = st.Close()
+		_ = md.Close()
+		return nil, fmt.Errorf("loading stored license: %w", err)
+	}
+
 	return &stack{
 		md:             md,
 		st:             st,
@@ -683,6 +734,7 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 		replDB:         replDB,
 		replEngine:     replEngine,
 		replCipher:     replCipher,
+		licenseMgr:     licenseMgr,
 		dataDir:        cfg.Storage.DataDir,
 	}, nil
 }

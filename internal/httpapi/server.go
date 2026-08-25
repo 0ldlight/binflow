@@ -106,7 +106,13 @@ type Deps struct {
 	// (T-163, ADR-0022). cmd constructs exactly one per process; nil keeps
 	// the endpoint at 503 and the metrics middleware out of the chain — the
 	// pre-M6 posture for stacks that did not ask for instrumentation.
-	Metrics  *metrics.Registry
+	Metrics *metrics.Registry
+	// License is the entitlement manager behind GET/POST/DELETE
+	// /api/system/license (M10 T-279, ADR-0032). Nil keeps GET at the
+	// honest community-floor body (license.go's Docs-handler precedent)
+	// and the two mutating verbs at 503 — pre-M10 unit stacks only; every
+	// assembled server wires the real Manager.
+	License  LicenseManager
 	Version  string
 	Revision string
 }

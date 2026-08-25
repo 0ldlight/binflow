@@ -59,6 +59,9 @@ one-to-one when the dialect lands):
   'admin' backfill (is_admin stays as the compatibility mirror, same-statement
   maintenance, removal M8) + permission_principals.can_manage INTEGER (the 'm'
   action bit, repo-scoped). Statements are dialect-common (ADR-0026).
+- 012_license: the licenses row (M10, ADR-0032 / architecture 15.1.2) —
+  single-license model (id CHECK-pinned to 1), doc verbatim + derived
+  columns, expires_at NULL = perpetual. Statements are dialect-common.
 
 The migrator currently embeds `migrations/sqlite/*.sql` only
 (see ../migrate.go).

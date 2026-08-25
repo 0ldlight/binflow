@@ -305,6 +305,22 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		// anonymous readers (rest-api.md section 5); BinFlow M1 keeps it
 		// open — it reveals only the product name and build id.
 		s.enforce(w, r, routeAuth{}, s.handleVersion)
+
+	// ---- /api/system/license (M10 T-279, ADR-0032 / section 15.1.4) ----
+	// The singular license plane: install/query/uninstall over the single
+	// document. GET rides system:read (readonly_admin sees the state);
+	// the mutating verbs ride system:write (readonly_admin 403,
+	// FR-84-AC7). The Artifactory plural path (/api/system/licenses) has
+	// no route on purpose (LC-02 deliberate divergence: the E-26 404
+	// below is the guidance — a JFrog-format document has zero chance of
+	// installing), and every other verb on the singular path falls to the
+	// same E-26 404.
+	case rest == "system/license" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleLicenseGet)
+	case rest == "system/license" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleLicenseInstall)
+	case rest == "system/license" && r.Method == http.MethodDelete:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleLicenseDelete)
 	case rest == "v1/health" && r.Method == http.MethodGet:
 		// Management plane (C28a is `-sfu admin` for a reason): the health
 		// dashboard exposes instance internals, so it sits behind the

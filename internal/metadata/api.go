@@ -338,6 +338,26 @@ type UploadSession struct {
 	ExpiresAt string // RFC3339 UTC; startup sweep deletes rows past this
 }
 
+// LicenseRecord is the single licenses row (012, M10 T-279 / ADR-0032).
+// The single-license model is the table's contract: id is CHECK-pinned to
+// 1 and PutLicense replaces the row atomically. Doc carries the document
+// text verbatim — it is the fact source the license.Manager re-verifies
+// (startup and daily ticker) — while the remaining columns are derived
+// projections for query/render. ExpiresAt is ” for a perpetual
+// (community-tier) license, mirroring the column's NULL. The tier value is
+// the license package's closed-set spelling stored verbatim; this layer
+// does not interpret it.
+type LicenseRecord struct {
+	LicenseID   string
+	Tier        string
+	Licensee    string
+	Doc         string // the exact two-segment document text
+	IssuedAt    string // RFC3339 UTC
+	NotBefore   string // RFC3339 UTC
+	ExpiresAt   string // RFC3339 UTC; '' = perpetual
+	InstalledAt string // RFC3339 UTC
+}
+
 // AuditQuery is the full-parameter audit filter (GE-01, M4). Every field is
 // optional; the zero query returns the newest events. Since and Until are
 // RFC3339 UTC text forming a closed-open interval on the event time
@@ -378,6 +398,7 @@ type Store interface {
 	WebSessions() WebSessionStore
 	UploadSessions() UploadSessionStore
 	Usage() UsageStore
+	Licenses() LicenseStore
 	// IsReferenced reports whether any node row or docker ref row currently
 	// points at sha256 ([M9] ADR-0031 mechanism A): the single-point Live
 	// oracle behind the GC sweep's pre-delete recheck. It spans two sub-stores
@@ -774,6 +795,24 @@ type UploadSessionStore interface {
 	// expires_at then id for determinism — the startup sweep candidates.
 	// limit<=0 means all.
 	ListExpired(ctx context.Context, now string, limit int) ([]*UploadSession, error)
+}
+
+// LicenseStore is the single-row licenses persistence seam (012, M10
+// T-279 / ADR-0032). The license.Manager is the consumer; the metadata
+// layer stores and returns rows without interpreting tier spellings or the
+// document text.
+type LicenseStore interface {
+	// GetLicense returns the stored license row, or (nil, nil) when no
+	// license is installed (the community floor — an absent row is a
+	// state, not an error).
+	GetLicense(ctx context.Context) (*LicenseRecord, error)
+	// PutLicense atomically replaces the single row: delete + insert in
+	// ONE transaction, so a replacement either lands whole or leaves the
+	// previous license fully in force (the D7 install contract).
+	PutLicense(ctx context.Context, rec *LicenseRecord) error
+	// DeleteLicense removes the row. Idempotent: deleting an empty table
+	// succeeds (the floor is already in force).
+	DeleteLicense(ctx context.Context) error
 }
 
 // UsageStore is the quota accounting seam over repo_usage (004; ADR-0015
