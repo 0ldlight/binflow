@@ -54,6 +54,9 @@ Commands:
 	artifact upload    Upload a file into a repository
 	user create        Create a user
 	token create       Create an API token (value shown once)
+	license keygen     Generate an ed25519 license key pair (offline)
+	license issue      Sign a license document (offline)
+	license inspect    Parse and verify a license document (offline)
 	help               Show this help text
 
 Global flags:
@@ -292,6 +295,10 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return ignoreHelp(runUser(rest[1:], opts, stdout))
 	case "token":
 		return ignoreHelp(runToken(rest[1:], opts, stdout))
+	case "license":
+		// Offline family (T-281): no client runtime, no profile — the
+		// global flags parse but carry nothing for these verbs.
+		return ignoreHelp(runLicense(rest[1:], stdout, stderr))
 	default:
 		return fmt.Errorf("unknown command %q, see --help for usage", rest[0])
 	}

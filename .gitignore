@@ -37,6 +37,9 @@ internal/docs/dist/*
 !.env.example
 *.pem
 *.key
+# bf license keygen 的默认私钥输出（T-281）：*.pem 已覆盖，这里显式留名——
+# 改名时同步改 cmd/bf/license.go 的 defaultLicenseKeyFile，别让权威私钥进 git
+/binflow-license-private.pem
 
 # 部署产物（Chart 打包、镜像导出）
 charts/*.tgz
