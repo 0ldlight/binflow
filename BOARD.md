@@ -798,7 +798,9 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 ## M10 票据（T-277~T-297，tech-lead 2026-08-25 分解；AC 全文见 docs/prd/milestone-10.md；ADR-0032/0033 Accepted `e56dd8d`）
 
 **批次（全宽 2）**：
-- **B0（在途）**：T-277 [P0] 守护基线（e2e/m10 + L 骨架 + **无 license≡m9-done 不变量闸门** + 五档位编排）devops ｜ T-278 [P0] Go 规格reverse（GOPROXY 公开规范锚点优先）
+- **T-278** [P0] GOPROXY 行为规格 `role:reverse-engineer` — **done 2026-08-25（十节 299 行：!lower 转义三态/版本文法/checksum 链/三态 rclass/客户端矩阵；go.dev/ref/mod 官方锚点优先 + 13 条反编译补充逐条标注；4 条待验证不阻塞 T-285；提交 `0d6d952`）**
+  票面 goproxy/ 路径段按 PRD 87.1 澄清（基础路径为 /binflow/<repoKey>）。日志 reports/agents/T-278.md。
+- **B0（余）**：T-277 [P0] 守护基线 `role:devops-engineer` — **doing**（无 license≡m9-done 不变量闸门 + 五档位编排）
 - **B1**：T-279 [P0] license 核心包（文档 v1/验签/档位/Manager + 012 表 + REST 三端点）｜ T-280 [P1] NuGet 规格
 - **B2**：T-281 [P0] bf license keygen/issue/inspect 签发 CLI｜ T-282 [P0] addon 注册表 + GET /api/v1/addons（五核心 retro-fit community 地板）
 - **B3**：T-283 [P0] 门控织入三缝 + addons.disabled 熔断（D1~D7）｜ T-284 [P1] 规格批次一（Conan/Cargo/Debian）
