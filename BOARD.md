@@ -817,7 +817,9 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **T-286** [P0] 属性系统 BE `role:dev-go-core` — **done 2026-08-26（矩阵参数单点 + node_props + ?properties 三动词；五个存量 `;` fixture 逐字节回归 + 不变量双绿；提交 `d9db164`+补交 `d305e82`——补交教训：untracked 新文件漏 add，流程已改 HEAD 后复验）**
 - **T-285** [P0] Go 试点 adapter `role:dev-registry-adapter` — **done 2026-08-26（3915 行 goproxy：!lower 三态/checksum 链/三态 rclass；真实 go1.26 build 全链含大写模块；门控全链 D3→pro→D1→降级；不变量 0 偏差；提交 `18eeabd`）——B4 全清，首个包型 addon 全链贯通**
   发现登记：go1.26 GOPRIVATE='*' 经 GONOPROXY 默认绕过 GOPROXY——操作形态 GOPROXY+BOSUMDB=off 已固化测试。日志 reports/agents/T-285.md。
-- **B5**：T-287 [P1] NuGet 试点｜ T-288 [P1] 控制台 License & Add-ons 页
+- **T-288** [P1] 控制台 License 页 `role:dev-frontend` — **done 2026-08-26（5 腿 spec + 全量 185/0 + ledger PASS + HEAD 复验；提交 `93f2e3b`）**
+  可见性按 FR-86-AC5（readonly 只读可见——派单「不可见」与其冲突已登记终裁）。licensed 形态 UI 腿待 T-281 keygen+形态。日志 reports/agents/T-288.md。
+- **B5（余）**：T-287 [P1] NuGet 试点（在途） 页
 - **B6**：T-289 [P1] MPU REST 六端点（S3 专属 filestore 501）｜ T-290 [P1] smart remote 字段子集
 - **B7**：T-291 [P1] Properties Tab FE｜ T-292 [P1] 规格批次二（RPM/Helm）
 - **B8**：T-293 [P1] as-built 回写（四处 PRD↔ADR 分歧收口）｜ T-294 [P2] Cargo 条件票
