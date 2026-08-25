@@ -9,9 +9,10 @@ import { defineConfig, devices } from '@playwright/test'
 // `cd web && npx playwright test`. CI wiring for the browsers lands with the
 // QA tickets; this config is the stable seam.
 //
-// Two projects: `chromium` = the M1~M8 suite (everything outside e2e/m9/),
-// `m9` = the M9 milestone legs (T-250 skeleton; select with --project=m9).
-// A bare `npx playwright test` runs both — every spec exactly once.
+// Three projects: `chromium` = the M1~M8 suite (everything outside e2e/m9/
+// and e2e/m10/), `m9` = the M9 milestone legs (T-250 skeleton), `m10` = the
+// M10 milestone legs (T-277 skeleton; select with --project=m10).
+// A bare `npx playwright test` runs all three — every spec exactly once.
 //
 // Concurrency (T-268, FR-80-AC2/AC3): default parallelism is RESTORED — the
 // T-232 --workers=1 stopgap is retired. Its root cause (gc graceHours=0
@@ -55,16 +56,22 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
-      // The M9 suite (T-250) lives in its own project so in-flight milestone
-      // legs run selectively (`npx playwright test --project=m9`); the base
+      // The M9 suite (T-250) and the M10 suite (T-277) live in their own
+      // projects so in-flight milestone legs run selectively
+      // (`npx playwright test --project=m9` / `--project=m10`); the base
       // project keeps the M1~M8 suite unchanged and never double-runs the
-      // m9/ directory.
-      testIgnore: /(^|\/)m9\//,
+      // m9/ or m10/ directories.
+      testIgnore: /(^|\/)(m9|m10)\//,
     },
     {
       name: 'm9',
       use: { ...devices['Desktop Chrome'] },
       testMatch: /(^|\/)m9\/.*\.spec\.ts$/,
+    },
+    {
+      name: 'm10',
+      use: { ...devices['Desktop Chrome'] },
+      testMatch: /(^|\/)m10\/.*\.spec\.ts$/,
     },
   ],
 })

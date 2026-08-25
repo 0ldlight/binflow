@@ -25,7 +25,8 @@ export GOTOOLCHAIN
 
 .PHONY: all build test lint fmt vet tidy run dev clean tools check-size docs docs-size console console-size \
 	check-deps goreleaser-check release-snapshot release release-verify \
-	test-m7-resume test-m7-resume-sigterm test-m7-rbac-matrix lint-baseline help
+	test-m7-resume test-m7-resume-sigterm test-m7-rbac-matrix lint-baseline \
+	test-m10-matrix test-m10-invariant help
 
 all: build
 
@@ -133,6 +134,38 @@ test-m7-rbac-matrix:
 ## Archive, not gate: exit 0 with issues; `make lint` stays the gate.
 lint-baseline:
 	scripts/lint-baseline.sh
+
+# ---- M10 acceptance scaffolding (T-277) --------------------------------------
+
+# The five orchestrated instance forms (narrow with FORMS=community etc.).
+FORMS ?= community,pro,enterprise,expired,disabled
+
+## test-m10-matrix: M10 tier x addon-gate posture matrix (PRD milestone-10
+## §5.2) on five ephemeral instance forms — community (no license) / pro /
+## enterprise / expired / disabled (the addons.disabled circuit breaker).
+## License documents are injected, never generated: pass
+## BINFLOW_M10_LICENSE_DIR=<dir with pro.lic/enterprise.lic/expired.lic>
+## once the T-281 keygen toolchain lands; without it the license forms
+## record their un-installed posture honestly. Observational by default —
+## EXPECT=1 runs the contract-baseline verdict (frozen baseline + deviation
+## whitelist, the T-250 discipline; exit 1 on deviations). FORMS=community
+## narrows the run (the invariant arm). BINFLOW_M10_LICENSE_DIR flows through
+## from the invoking shell — deliberately NOT re-exported here: the server
+## rejects unknown BINFLOW_* env keys (fail-closed config hygiene), so an
+## empty assignment would kill every boot.
+test-m10-matrix:
+	scripts/m10-tier-matrix.sh --forms "$(FORMS)" $(if $(EXPECT),--expect)
+
+## test-m10-invariant: the "no license == m9-done" machine proof (T-277,
+## architecture 15.6-1 / ADR-0032): the M9 guard surfaces on a NO-LICENSE
+## instance — the RBAC contract baseline (expectation files UNTOUCHED, the
+## §14.5-1 anchor) plus the M10 community posture floor. Zero deviations or
+## red; this gate must stay green across all of M10.
+test-m10-invariant:
+	@echo "=== m10 invariant leg 1/2: M9 RBAC contract baseline (no-license instance) ==="
+	@$(MAKE) --no-print-directory test-m7-rbac-matrix EXPECT=1
+	@echo "=== m10 invariant leg 2/2: M10 community posture floor ==="
+	@$(MAKE) --no-print-directory test-m10-matrix EXPECT=1 FORMS=community
 
 ## lint: golangci-lint over the whole module (config in .golangci.yml).
 lint:

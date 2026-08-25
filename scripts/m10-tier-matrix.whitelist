@@ -1,0 +1,29 @@
+# BinFlow M10 tier-matrix deviation whitelist (T-277, ADR-0032/0033 /
+# architecture 15.6 — the T-250 discipline applied to the tier x addon plane).
+#
+# The M10 machine gate: scripts/m10-tier-matrix.sh --expect diffs every
+# observed (form, row, status) cell against the frozen contract baseline in
+# scripts/m10-tier-matrix.baseline (the m9-done opening posture: license and
+# addons planes absent, pilot package types unknown, the disabled form's
+# config key rejected by the strict YAML loader). Any mismatch fails the run
+# — UNLESS the exact tuple is registered here first. M10 opens with an EMPTY
+# registry: no deviation is pre-approved, which is the point. Landing tickets
+# (FR-84/85/86...) flip cells deliberately; each flip gets its entry HERE,
+# with the ticket/ADR reference, so the gate stays green while the change
+# stays attributed.
+#
+# Entry format (one tuple per line; a trailing " # T-xxx/ADR-xxx: reason"
+# comment is stripped before matching):
+#
+#   form|row|status   # T-xxx (ADR-xxx): why this flip is deliberate
+#
+# Rules:
+#   - form: community | pro | enterprise | expired | disabled
+#   - row: T01..T06 (see the script header for the row table)
+#   - status: the OBSERVED code the entry tolerates (e.g. 200, 400, 403,
+#     BOOTFAIL)
+#   - an entry whose deviation stops happening is reported WL-STALE and still
+#     fails the run — delete dead entries, do not let the registry rot
+#   - rewriting the baseline itself is NOT done via this file: an ADR must
+#     register the flip first, then scripts/m10-tier-matrix.sh --record
+#     --force re-freezes it (per-milestone evolution)

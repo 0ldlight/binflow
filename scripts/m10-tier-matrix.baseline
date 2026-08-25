@@ -1,0 +1,41 @@
+# BinFlow M10 tier matrix contract baseline (T-277, ADR-0032/0033 / architecture 15.6).
+# Frozen: commit 37dcf6e, 2026-08-25T04:53:41Z, from ephemeral instances
+# (the script's default boot mode; license forms recorded in their un-installed
+# posture until --license-dir carries T-281 keygen output).
+# Recorded by: scripts/m10-tier-matrix.sh --record [--force] (default form set).
+#
+# Line format: form|row|status   (BOOTFAIL = the form's config cannot boot on this
+# build — an honest posture, not a skip)
+# Consumed by: scripts/m10-tier-matrix.sh --expect (verdict B — deviations must be
+# registered in scripts/m10-tier-matrix.whitelist to pass; rewriting this file needs
+# an ADR first).
+community|T01|404
+community|T02|404
+community|T03|200
+community|T04|200
+community|T05|400
+community|T06|400
+pro|T01|404
+pro|T02|404
+pro|T03|200
+pro|T04|200
+pro|T05|400
+pro|T06|400
+enterprise|T01|404
+enterprise|T02|404
+enterprise|T03|200
+enterprise|T04|200
+enterprise|T05|400
+enterprise|T06|400
+expired|T01|404
+expired|T02|404
+expired|T03|200
+expired|T04|200
+expired|T05|400
+expired|T06|400
+disabled|T01|BOOTFAIL
+disabled|T02|BOOTFAIL
+disabled|T03|BOOTFAIL
+disabled|T04|BOOTFAIL
+disabled|T05|BOOTFAIL
+disabled|T06|BOOTFAIL
