@@ -833,5 +833,10 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - 部署纪律：数据目录不动（只换二进制）；部署后跑 m7 矩阵不变量腿作为部署烟测的一部分（可选）
 
 ## 🚫 阻塞（blocked）
+## T-298（done 2026-08-25，提交 `375d856`）
+
+**持续部署链全形态落地**：binflow-deploy job（smoke SUCCESS 门控）→ console+docs+build 版本注入 → VM 备份(留5)→原子换二进制→探针 60s→**失败自动回滚**→烟测全链+docs 面。docs 站嵌入二进制（单产物原子部署）。双回滚臂+红 smoke 拒绝接力+release dogfood 形态全实测。**首战立功**：T-283 漏 add 文件致 VM 编译红 → deploy 门拦截 → 补提交后链自愈（版本 ci.e32c63f→ci.375d856，docs 演示标记上站）。遗留：L2 release 镜像 docs 占位；L3 m7 矩阵腿归 nightly。日志 reports/agents/T-298.md。
+
+
 
 （空）
