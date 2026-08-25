@@ -772,6 +772,14 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **关键路径**：T-250→251→252→254→259→272（A 组三波串行）与 T-255→256→268→272（GC 链含硬序）。
 
+## 用户方向指令（2026-08-25）：M10+ 主轴 = Artifactory 全功能对齐
+
+**「继续对比 artifactory 的反编译代码，要它的所有功能」**（用户原话）。conductor 执行口径：
+- **第一步 = 全量功能盘点**：reverse-src/（13,365 Java 文件 / 262MB，三批：batch1-core 218M / batch2-protocol 20M / batch3-addons 23M）全面清点 Artifactory 功能面 → `docs/reverse/artifactory-full-feature-matrix.md`（功能 × BinFlow 覆盖列：已有/部分/缺失 × 证据位置 × 置信度）
+- clean-room 铁律不变：行为规格制产出，代码零复制
+- 盘点产物 = M10+ 路线图骨干（缺口按价值/成本排序分期，PM/architect 后续规划）
+- 四路并行清点（core 服务面 / REST+features 表面 / 协议包型 / addons+描述符）→ 合成主矩阵
+
 ## 🚫 阻塞（blocked）
 
 （空）
