@@ -55,22 +55,39 @@ func validateRepoKey(key string) error {
 	return nil
 }
 
+// validateRclass checks the repository-class closed set (the piece of
+// validateRepoType the T-283 dynamic overlay reuses — a registry-known
+// package type still demands one of the three classes).
+func validateRclass(rclass string) error {
+	if rclass != TypeLocal && rclass != TypeRemote && rclass != TypeVirtual {
+		return fmt.Errorf("%w %q: must be one of local, remote, virtual", ErrInvalidRepoType, rclass)
+	}
+	return nil
+}
+
+// errClassNotSupported is the M3 class-matrix refusal (docker on
+// remote/virtual, FR-15-AC7) — shared by the static path and the dynamic
+// overlay so the two can never drift on the wording.
+func errClassNotSupported(rclass, packageType string) error {
+	return fmt.Errorf("%w: %s %s repositories are not supported in M3 (docker is local-only; PRD Q4)",
+		ErrRepoTypeNotSupported, rclass, packageType)
+}
+
 // validateRepoType checks rclass and package type. A syntactically unknown
 // value is ErrInvalidRepoType; the M3 matrix leaves exactly one
 // valid-but-unserved combination — docker on remote or virtual — which is
 // ErrRepoTypeNotSupported with "not supported in M3" wording (FR-15-AC7) so
 // httpapi can surface the reason.
 func validateRepoType(rclass, packageType string) error {
-	if rclass != TypeLocal && rclass != TypeRemote && rclass != TypeVirtual {
-		return fmt.Errorf("%w %q: must be one of local, remote, virtual", ErrInvalidRepoType, rclass)
+	if err := validateRclass(rclass); err != nil {
+		return err
 	}
 	if !knownPackageTypes[packageType] {
 		return fmt.Errorf("%w %q: must be one of generic, docker, maven, npm, pypi",
 			ErrInvalidRepoType, packageType)
 	}
 	if !supportedPackageTypes[rclass][packageType] {
-		return fmt.Errorf("%w: %s %s repositories are not supported in M3 (docker is local-only; PRD Q4)",
-			ErrRepoTypeNotSupported, rclass, packageType)
+		return errClassNotSupported(rclass, packageType)
 	}
 	return nil
 }

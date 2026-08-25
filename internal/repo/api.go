@@ -116,6 +116,15 @@ var (
 	// values); this sentinel is its cause so callers can branch without
 	// string matching.
 	ErrQuotaExceeded = errors.New("quota exceeded")
+	// ErrPackageTypeNotAvailable: the package type's addon slot is registered
+	// but not unlocked on this instance (M10 T-283, ADR-0032's D3: an
+	// insufficient license tier, an allowlist that does not name it, or the
+	// addons.disabled circuit breaker). The CONFIGURATION-plane refusal of
+	// the closed degradation set — httpapi maps it to 400 (the repo
+	// validation 400 family, deliberately not a licensing 403; the PRD
+	// wanted 403 here, the divergence is registered for T-293's K25
+	// final ruling).
+	ErrPackageTypeNotAvailable = errors.New("package type not available")
 )
 
 // Repository types and package types (architecture section 6 DDL).
@@ -184,6 +193,17 @@ const (
 	// AuditActionQuotaExceeded is appended (with a WARN log) every time a
 	// write is refused by the repository's quotaBytes ceiling (GE-05/W26).
 	AuditActionQuotaExceeded = audit.ActionQuotaExceeded
+
+	// AuditActionAddonDenied records one addon-gate refusal on the
+	// configuration plane (M10 T-283, PRD FR-85.4: "变更面——建仓拒绝逐条").
+	// The spelling is the ticket's license.* vocabulary — the PRD's
+	// "addon.gate.deny" and the header name it pairs with are a registered
+	// divergence; this constant is the one spelling both emitters (this
+	// package's D3 refusals and httpapi's D2/D4 refusals) share. Detail
+	// carries {"addon", "refusal"}; Actor/Repo/Path carry the request's.
+	// Adding it to audit.Actions()' picker list is the audit owner's
+	// one-liner (the license.* words' T-279 note).
+	AuditActionAddonDenied = "license.addon.denied"
 )
 
 // Principal is the caller identity (architecture section 3.4). It is the
@@ -737,4 +757,57 @@ func AttachReplicator(s Service, r Replicator) {
 		return
 	}
 	impl.repl = r
+}
+
+// PackageTypeVerdict is the addon plane's answer for one package-type value
+// (M10 T-283, ADR-0032 weave point 2 / ADR-0033): whether the instance
+// registers a slot for it, and whether repositories of that type may be
+// created right now. The refusal clause arrives pre-rendered ("license tier
+// 'community' < 'pro'", "disabled by configuration (addons.disabled) …") so
+// this package stays free of the license and addons imports — the verdict's
+// derivation lives at the assembly point where both collaborators meet.
+type PackageTypeVerdict struct {
+	// Known reports whether a package-type addon slot is registered for the
+	// value on this instance (the dynamic legal set — the static five-type
+	// enum's extension, T-282 leftover 2).
+	Known bool
+	// Unlocked reports whether the slot may be used right now: tier
+	// sufficiency, the document's addon allowlist and the addons.disabled
+	// breaker all agreeing (license.Manager.AddonEnabled's single
+	// evaluation, reached through the assembly adapter).
+	Unlocked bool
+	// Refusal is the pointed clause when Known && !Unlocked ("" otherwise
+	// and when unknown) — D3's parenthetical, e.g.
+	// `license tier 'community' < 'pro'`.
+	Refusal string
+}
+
+// PackageTypeGate is the consumer-side seam CreateRepo/UpdateRepo/DeleteRepo
+// consult (architecture section 15.1.5 weave point 2: "消费方经小接口注入，
+// repo 不 import license 包"). Satisfied by the cmd assembly's adapter over
+// addons.Registry + license.Manager; nil (every pre-M10 stack and the
+// unwired test posture) keeps the static five-type enum as the whole
+// legality check — byte-identical M9 behavior.
+type PackageTypeGate interface {
+	// Verdict answers for one package-type value. Implementations must be
+	// safe for concurrent use and side-effect free (the license snapshot is
+	// an atomic read; D6's expiry and install/uninstall flips are observed
+	// per call with no tearing).
+	Verdict(ctx context.Context, packageType string) PackageTypeVerdict
+}
+
+// AttachPackageTypeGate wires the addon-plane verdict seam onto a Service
+// built by New/NewWithClock (the AttachReplicator precedent: the constructor
+// signature stays stable for every existing caller). Call it during
+// assembly, BEFORE the first request is served. A non-concrete Service (a
+// test fake) is skipped with a WARN — best-effort at the wiring layer,
+// never a startup hazard. With no gate attached the static enum rules alone
+// (the pre-M10 posture, invariant 1).
+func AttachPackageTypeGate(s Service, g PackageTypeGate) {
+	impl, ok := s.(*service)
+	if !ok {
+		slog.Warn("repo: AttachPackageTypeGate: service is not the concrete implementation; package-type gate not wired")
+		return
+	}
+	impl.pkgGate = g
 }

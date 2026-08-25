@@ -41,6 +41,11 @@ type service struct {
 	// (replication not configured, the M1~M5 default) makes the Put-tail
 	// hook a no-op.
 	repl Replicator
+	// pkgGate is the addon-plane package-type verdict seam (M10 T-283,
+	// ADR-0032 weave point 2): wired by AttachPackageTypeGate after New.
+	// nil keeps the static five-type enum as the whole legality check —
+	// the pre-M10 posture, byte-identical M9 behavior (invariant 1).
+	pkgGate PackageTypeGate
 }
 
 // newService wires the collaborators; New is the public constructor with the
@@ -78,6 +83,62 @@ func actor(p *Principal) string {
 		return "anonymous"
 	}
 	return p.Name
+}
+
+// validateRepoTypeDyn is validateRepoType with the T-283 dynamic overlay
+// (architecture section 15.1.5 weave point 2): with a package-type gate
+// wired, a REGISTRY-KNOWN slot extends the legal package-type set — the
+// static enum's "must be one of generic, docker, maven, npm, pypi" no longer
+// rejects the assembled pilot types (T-282 leftover 2) — while the static
+// five keep their own M3 class rulings (docker stays local-only) and a
+// known-but-locked slot answers the D3 refusal. A nil gate, or a value the
+// registry does not know, keeps validateRepoType verbatim.
+//
+// p and repoKey feed the D3 refusal's audit row; the read paths never come
+// here (D1 — the content plane's license gate is the HTTP verb face's,
+// never this service's).
+func (s *service) validateRepoTypeDyn(ctx context.Context, p *Principal, repoKey, rclass, packageType string) error {
+	if s.pkgGate == nil {
+		return validateRepoType(rclass, packageType)
+	}
+	v := s.pkgGate.Verdict(ctx, packageType)
+	if !v.Known {
+		return validateRepoType(rclass, packageType)
+	}
+	if err := validateRclass(rclass); err != nil {
+		return err
+	}
+	if knownPackageTypes[packageType] && !supportedPackageTypes[rclass][packageType] {
+		return errClassNotSupported(rclass, packageType)
+	}
+	if !v.Unlocked {
+		return s.denyPackageType(ctx, p, repoKey, "", packageType, v.Refusal)
+	}
+	return nil
+}
+
+// denyPackageType answers the D3 refusal and records the license.addon.denied
+// audit row (PRD FR-85.4: config-plane refusals are audited one row each).
+// refusal is the verdict's pointed clause (e.g. `license tier 'community' <
+// 'pro'`); member, when non-empty, names the virtual-member face of the
+// refusal (FR-85.1④) so the message says whose package type locked it.
+func (s *service) denyPackageType(ctx context.Context, p *Principal, repoKey, member, packageType, refusal string) error {
+	detail, err := json.Marshal(map[string]string{"addon": packageType, "refusal": refusal})
+	if err != nil {
+		detail = []byte("{}") // unreachable: a flat string map always marshals
+	}
+	s.audit(ctx, AuditEvent{
+		Actor:  actor(p),
+		Action: AuditActionAddonDenied,
+		Repo:   repoKey,
+		Detail: string(detail),
+	})
+	if member != "" {
+		return fmt.Errorf("%w on this instance: virtual repository member '%s' uses package type '%s' (%s)",
+			ErrPackageTypeNotAvailable, member, packageType, refusal)
+	}
+	return fmt.Errorf("%w on this instance: package type '%s' is not available (%s)",
+		ErrPackageTypeNotAvailable, packageType, refusal)
 }
 
 // requireAuthenticated rejects anonymous principals for write-path
@@ -1745,7 +1806,10 @@ func (s *service) CreateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 	if err := validateRepoKey(r.RepoKey); err != nil {
 		return nil, err
 	}
-	if err := validateRepoType(r.Type, r.PackageType); err != nil {
+	// M10 T-283 (D3, weave point 2): the legality question rides the
+	// dynamic overlay — registry-known slots extend the static enum, and a
+	// known-but-locked slot refuses the create with the pointed clause.
+	if err := s.validateRepoTypeDyn(ctx, p, r.RepoKey, r.Type, r.PackageType); err != nil {
 		return nil, err
 	}
 
@@ -1786,7 +1850,7 @@ func (s *service) CreateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 		if perr != nil {
 			return nil, perr
 		}
-		if verr := s.validateVirtualMembers(ctx, r.RepoKey, vc); verr != nil {
+		if verr := s.validateVirtualMembers(ctx, p, r.RepoKey, vc); verr != nil {
 			return nil, verr
 		}
 		members = vc.Repositories
@@ -1871,7 +1935,12 @@ func (s *service) CreateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 // of the members AND that member must be a LOCAL repository
 // (repo-semantics section 8.2: the write route targets a local deployment
 // repository; a remote member cannot accept deploys).
-func (s *service) validateVirtualMembers(ctx context.Context, virtualKey string, cfg virtualConfig) error {
+//
+// M10 T-283 (FR-85.1④): a member whose package type's addon slot is locked
+// refuses the create/update too — a virtual may not gain a gated member the
+// instance cannot serve. Existing virtuals keep reading (D1: member
+// resolution is a read path, never gated).
+func (s *service) validateVirtualMembers(ctx context.Context, p *Principal, virtualKey string, cfg virtualConfig) error {
 	seen := make(map[string]bool, len(cfg.Repositories))
 	for _, m := range cfg.Repositories {
 		if m == virtualKey {
@@ -1899,6 +1968,15 @@ func (s *service) validateVirtualMembers(ctx context.Context, virtualKey string,
 			return fmt.Errorf(
 				"%w: defaultDeploymentRepo %q must be a local repository member, not %s",
 				ErrInvalidRepoConfig, cfg.DefaultDeploymentRepo, row.Type)
+		}
+		// The addon-plane member rule (FR-85.1④): only the REGISTRY-KNOWN
+		// and locked shape refuses — an ungated member (the static five on
+		// the floor) never meets the question, so pre-M10 stacks and
+		// five-core virtuals are untouched.
+		if s.pkgGate != nil {
+			if v := s.pkgGate.Verdict(ctx, row.PackageType); v.Known && !v.Unlocked {
+				return s.denyPackageType(ctx, p, virtualKey, m, row.PackageType, v.Refusal)
+			}
 		}
 	}
 	if cfg.DefaultDeploymentRepo != "" && !seen[cfg.DefaultDeploymentRepo] {
@@ -2002,6 +2080,15 @@ func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 		return nil, fmt.Errorf("%w: package type is immutable (%q → %q)",
 			ErrInvalidRepoType, current.PackageType, r.PackageType)
 	}
+	// M10 T-283 (D3's 改仓 half): the configuration write on a repository
+	// whose (immutable) package type slot is locked refuses with the same
+	// pointed clause as the create — description-only updates included, the
+	// closed set's literal reading. The CONTENT of an existing repository
+	// stays untouched by this (D1 owns the read plane; the write plane's
+	// gate is httpapi's verb face).
+	if err := s.validateRepoTypeDyn(ctx, p, current.RepoKey, current.Type, current.PackageType); err != nil {
+		return nil, err
+	}
 
 	var (
 		remote         *remoteConfig
@@ -2046,7 +2133,7 @@ func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 			if perr != nil {
 				return nil, perr
 			}
-			if verr := s.validateVirtualMembers(ctx, current.RepoKey, vc); verr != nil {
+			if verr := s.validateVirtualMembers(ctx, p, current.RepoKey, vc); verr != nil {
 				return nil, verr
 			}
 			members = vc.Repositories
@@ -2155,6 +2242,14 @@ func (s *service) DeleteRepo(ctx context.Context, p *Principal, repoKey string, 
 			return fmt.Errorf("repo %q: %w", repoKey, ErrRepoNotFound)
 		}
 		return fmt.Errorf("repo %q: %w", repoKey, err)
+	}
+	// M10 T-283 (the ticket's 删仓同 ruling, D3's form): deleting a
+	// repository whose package type slot is locked refuses with the same
+	// clause — PRD 85.3's "数据与仓配置零删除" read literally (the breaker
+	// must leave the configuration in place for the restart that restores
+	// it). Reads of the repository's content are unaffected (D1).
+	if err := s.validateRepoTypeDyn(ctx, p, repoRow.RepoKey, repoRow.Type, repoRow.PackageType); err != nil {
+		return err
 	}
 	nodes, err := s.md.Nodes().ListByPrefix(ctx, repoKey, "")
 	if err != nil {

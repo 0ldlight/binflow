@@ -482,6 +482,13 @@ func (s *Server) writeRepoSvcError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, repo.ErrRepoTypeNotSupported):
 		writeError(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, repo.ErrPackageTypeNotAvailable):
+		// M10 T-283 (ADR-0032 D3): the addon-plane refusal is a
+		// CONFIGURATION validation 400 — the repo validation family's
+		// shape, deliberately not a licensing 403 (the PRD↔ADR divergence
+		// registered for T-293's K25 ruling). No X-Binflow-License-Required
+		// header here: that marker is the data-plane 403's (D2).
+		writeError(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, repo.ErrRepoExists):
 		writeError(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, repo.ErrRepoNotEmpty):

@@ -262,6 +262,10 @@ func splitEnvKey(upper string) (path []string, kind envKind, ok bool) {
 		return parts, envBool, true
 	case "replication.allow_private_target":
 		return parts, envBool, true
+	case "addons.disabled":
+		// M10 T-283 (ADR-0032 / section 15.5): the circuit-breaker CSV, same
+		// reachability as its YAML key (BINFLOW_ADDONS__DISABLED).
+		return parts, envString, true
 	case "security.anonymous_access", "auth.anonymous_read":
 		return parts, envBool, true
 	case "audit.enabled":

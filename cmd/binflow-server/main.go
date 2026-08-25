@@ -361,7 +361,9 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 		// The addon manifest (M10 T-282): the compile-time assembly literal
 		// slice (see addonManifest — the one function to touch when a slot
 		// lands). httpapi.New asserts every adapter above carries a slot.
-		Addons:   addonManifest(),
+		// The ONE instance openStack built — the repo-create gate seam reads
+		// the same registry (T-283).
+		Addons:   stack.addonsReg,
 		Version:  version,
 		Revision: revision,
 	}
@@ -425,6 +427,45 @@ func addonManifest() *addons.Registry {
 		// placeholders visible with their M11+ reservation notes.
 		addons.Properties(), addons.HA(), addons.XrayIntegration(),
 	)
+}
+
+// packageTypeGate joins the assembled addon manifest with the license
+// Manager into repo.Service's consumer-side verdict seam (M10 T-283,
+// architecture section 15.1.5 weave 2: "消费方经小接口注入，repo 不 import
+// license 包" — this adapter is the one place both collaborators meet).
+//
+// The refusal clause mirrors addons view.statusOf's derivation ORDER
+// exactly (the disabled config first, then the tier floor, then the
+// allowlist), so the D3 message always names the DECIDING clause, never a
+// plausible one — the same single-source rule the /api/v1/addons view and
+// the content-plane gate follow.
+type packageTypeGate struct {
+	reg *addons.Registry
+	ev  addons.Evaluator // *license.Manager
+}
+
+// Verdict implements repo.PackageTypeGate.
+func (g packageTypeGate) Verdict(ctx context.Context, packageType string) repo.PackageTypeVerdict {
+	st, ok := g.reg.StatusOf(ctx, g.ev, packageType)
+	if !ok {
+		return repo.PackageTypeVerdict{}
+	}
+	v := repo.PackageTypeVerdict{Known: true, Unlocked: st.Enable}
+	if !st.Enable {
+		v.Refusal = g.refusal(ctx, st)
+	}
+	return v
+}
+
+// refusal renders the pointed clause for a known-but-locked slot.
+func (g packageTypeGate) refusal(ctx context.Context, st addons.Status) string {
+	if !g.ev.AddonEnabled(ctx, st.Addon.ID, license.TierCommunity) {
+		return "disabled by configuration (addons.disabled) — remove the entry and restart to restore"
+	}
+	if state := g.ev.State(); state.Tier < st.Addon.MinTier {
+		return fmt.Sprintf("license tier '%s' < '%s'", state.Tier, st.Addon.MinTier)
+	}
+	return "not named in the license addon allowlist"
 }
 
 // replicationCipherSeam decides the httpapi Deps.ReplicationCipher injection
@@ -589,6 +630,12 @@ type stack struct {
 	// the next boot's Load re-derives it from the stored row).
 	licenseMgr *license.Manager
 
+	// addonsReg is the assembled addon manifest (M10 T-282/T-283): ONE
+	// registry per process — the repo-create gate seam (openStack, weave 2)
+	// and the HTTP surface's Deps.Addons (newAssembledServer) read the same
+	// instance, so the two consumers can never drift apart on the slot set.
+	addonsReg *addons.Registry
+
 	dataDir string
 	closed  bool
 }
@@ -740,7 +787,7 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 	licenseMgr, err := license.New(license.Options{
 		Store:       md.Licenses(),
 		VerifyKeys:  licenseKeys,
-		DisabledCSV: "", // addons.disabled config key lands with T-283's gate weaving
+		DisabledCSV: cfg.Addons.Disabled, // the addons.disabled breaker (M10 T-283, ADR-0032 / section 15.5): restart-effective, deletes nothing
 		Audit:       audit.BestEffort(auditLog),
 		Log:         logger,
 	})
@@ -757,6 +804,16 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 		return nil, fmt.Errorf("loading stored license: %w", err)
 	}
 
+	// The D3 weave (M10 T-283, architecture section 15.1.5 weave 2):
+	// repo.Service's package-type legality question now rides the addon
+	// manifest joined with the license Manager — the packageTypeGate adapter
+	// is the one place both collaborators meet (repo imports neither
+	// package; it consumes the consumer-side PackageTypeGate seam).
+	// Attached after the Manager loaded so the very first request already
+	// sees the stored document's verdict.
+	addonsReg := addonManifest()
+	repo.AttachPackageTypeGate(svc, packageTypeGate{reg: addonsReg, ev: licenseMgr})
+
 	return &stack{
 		md:             md,
 		st:             st,
@@ -771,6 +828,7 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 		replEngine:     replEngine,
 		replCipher:     replCipher,
 		licenseMgr:     licenseMgr,
+		addonsReg:      addonsReg,
 		dataDir:        cfg.Storage.DataDir,
 	}, nil
 }

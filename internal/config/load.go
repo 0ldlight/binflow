@@ -110,6 +110,11 @@ type raw struct {
 	Replication *struct {
 		AllowPrivateTarget *bool `yaml:"allow_private_target"`
 	} `yaml:"replication"`
+	// Addons is the M10 circuit-breaker section (T-283, ADR-0032 / section
+	// 15.5): disabled is a CSV of addon ids, restart-effective.
+	Addons *struct {
+		Disabled *string `yaml:"disabled"`
+	} `yaml:"addons"`
 }
 
 // Load reads the YAML file at path, applies BINFLOW_-prefixed environment
@@ -470,6 +475,13 @@ func build(r *raw, env map[string]string) (*Config, error) {
 		c.Replication.AllowPrivateTarget = *r.Replication.AllowPrivateTarget
 	}
 
+	// M10 T-283 (ADR-0032 / section 15.5): the addons.disabled CSV passes
+	// through verbatim — the license Manager owns the parsing, the trimming
+	// and the core-id WARN, so the key's semantics have one owner.
+	if r.Addons != nil && r.Addons.Disabled != nil {
+		c.Addons.Disabled = *r.Addons.Disabled
+	}
+
 	// The anonymous toggle has two equivalent keys; resolve them with a
 	// conflict check before env overrides apply on top of the merged value.
 	anon, err := resolveAnonymous(r, DefaultAnonymousAccess)
@@ -554,6 +566,9 @@ func defaults() *Config {
 		// ADR-0025 decision 4): private targets stay allowed so existing
 		// deployments that replicate over private networks are unchanged.
 		Replication: ReplicationConfig{AllowPrivateTarget: DefaultAllowPrivateTarget},
+		// addons.disabled defaults to empty (M10 T-283, ADR-0032): nothing
+		// is switched off unless the operator spells it.
+		Addons: AddonsConfig{},
 	}
 }
 
@@ -723,6 +738,10 @@ func setEnvValue(c *Config, path []string, kind envKind, value, name string) err
 			c.Auth.OIDC.ReadOnlyGroup = value
 		case "auth.ldap.readonly_group":
 			c.Auth.LDAP.ReadOnlyGroup = value
+		case "addons.disabled":
+			// M10 T-283: the CSV rides through verbatim (the license
+			// Manager owns its parsing).
+			c.Addons.Disabled = value
 		case "logging.level":
 			l := strings.ToLower(value)
 			if !allowedLogLevels()[l] {

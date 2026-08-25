@@ -17,10 +17,30 @@ type Config struct {
 	Console     ConsoleConfig
 	Metrics     MetricsConfig
 	Replication ReplicationConfig
+	// Addons is the addon circuit-breaker section (M10 T-283, ADR-0032 /
+	// architecture section 15.5 — the artifactory.addons.disabled behavior
+	// pattern in BinFlow's own spelling).
+	Addons AddonsConfig
 
 	// AdminPassword carries BINFLOW_ADMIN_PASSWORD (empty when unset). It is
 	// env-only: the YAML schema rejects any key that looks like a secret.
 	AdminPassword string
+}
+
+// AddonsConfig is the addons.disabled plane (M10 T-283, ADR-0032 / section
+// 15.5): the operator's global breaker over the addon slots, including the
+// five core package types (a core id in the list is a degradation knob —
+// WARNed by the license Manager, honored anyway). Restart-effective: the
+// value is consumed once at assembly (license.Manager's disabled set), so
+// removing an entry and restarting restores everything; nothing is ever
+// deleted by the breaker.
+type AddonsConfig struct {
+	// Disabled is the CSV of addon ids to switch off ("" = nothing
+	// disabled). CSV, not a YAML list: one string spells the whole set in
+	// every surface (YAML scalar and BINFLOW_ADDONS__DISABLED), matching
+	// Artifactory's addons.disabled form. Values are trimmed by the
+	// consumer; addon ids are case-sensitive registry keys.
+	Disabled string
 }
 
 // ServerConfig is the HTTP listener surface.

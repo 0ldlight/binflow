@@ -1,5 +1,16 @@
 # BinFlow M10 tier matrix contract baseline (T-277, ADR-0032/0033 / architecture 15.6).
-# Frozen: commit 37dcf6e, 2026-08-25T04:53:41Z, from ephemeral instances
+# RE-FROZEN by T-283 (ADR-0032 / architecture 15.5 is the registering ADR): the
+# addons.disabled config key the ADR carries makes the disabled form BOOTABLE,
+# flipping its six BOOTFAIL cells to the real posture (npm=400 under the
+# breaker, generic=200, the gated pilots 400 at the community floor). The same
+# re-freeze absorbs the T-279 (T01) and T-282 (T02) whitelist flips into the
+# baseline — their entries left the whitelist registry (absorbed, not
+# withdrawn). T05/T06 stay 400 on every form while the license forms run
+# UN-INSTALLED (no --license-dir documents; the stock binary's embedded verify
+# key has no signer by design) — the pro-tier 2xx premise is proven by the
+# constructor-injection legs in internal/httpapi/t283_gate_test.go
+# (TestT283CreateGateD3), not by this matrix, until T-281's keygen lands.
+# Frozen: commit e32c63f, 2026-08-25T14:24:38Z, from ephemeral instances
 # (the script's default boot mode; license forms recorded in their un-installed
 # posture until --license-dir carries T-281 keygen output).
 # Recorded by: scripts/m10-tier-matrix.sh --record [--force] (default form set).
@@ -9,33 +20,33 @@
 # Consumed by: scripts/m10-tier-matrix.sh --expect (verdict B — deviations must be
 # registered in scripts/m10-tier-matrix.whitelist to pass; rewriting this file needs
 # an ADR first).
-community|T01|404
-community|T02|404
+community|T01|200
+community|T02|200
 community|T03|200
 community|T04|200
 community|T05|400
 community|T06|400
-pro|T01|404
-pro|T02|404
+pro|T01|200
+pro|T02|200
 pro|T03|200
 pro|T04|200
 pro|T05|400
 pro|T06|400
-enterprise|T01|404
-enterprise|T02|404
+enterprise|T01|200
+enterprise|T02|200
 enterprise|T03|200
 enterprise|T04|200
 enterprise|T05|400
 enterprise|T06|400
-expired|T01|404
-expired|T02|404
+expired|T01|200
+expired|T02|200
 expired|T03|200
 expired|T04|200
 expired|T05|400
 expired|T06|400
-disabled|T01|BOOTFAIL
-disabled|T02|BOOTFAIL
-disabled|T03|BOOTFAIL
-disabled|T04|BOOTFAIL
-disabled|T05|BOOTFAIL
-disabled|T06|BOOTFAIL
+disabled|T01|200
+disabled|T02|200
+disabled|T03|200
+disabled|T04|400
+disabled|T05|400
+disabled|T06|400

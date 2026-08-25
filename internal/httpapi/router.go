@@ -119,6 +119,13 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if h, ok := s.adapters["docker"]; ok {
+			// Weave 1's /v2 arm (M10 T-283, license_gate.go): the registry
+			// plane bypasses the /binflow prefix, so the addon gate must
+			// live HERE or the docker slot would stand outside it. The
+			// token endpoint is an auth plane, never a gated write.
+			if !s.gateV2Write(w, r, path) {
+				return
+			}
 			h.ServeHTTP(w, withRootPrincipal(r, principalFrom(r.Context())))
 			return
 		}
@@ -789,6 +796,15 @@ func (s *Server) dispatchContent(w http.ResponseWriter, r *http.Request, _ strin
 		row, err := s.deps.Repos.Get(r.Context(), repoKey)
 		if err != nil {
 			s.writeRepoLookupError(w, repoKey, err)
+			return
+		}
+		// The entitlement gate, weave point 1 (M10 T-283, section 15.1.5's
+		// pseudocode site): WRITE verbs only — `required` is contentAction's
+		// own write flag, reused verbatim — and strictly after the RBAC arm
+		// that wrapped this inner handler. Reads fall straight through
+		// (D1); the adapter-internal writes behind this point (a remote
+		// pull-through landing its copy) never re-ask the question.
+		if required && !s.gateAddonWrite(w, r, repoKey, row.PackageType) {
 			return
 		}
 		h, ok := s.adapters[row.PackageType]

@@ -21,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lzwzzy/binflow/internal/license"
 	"github.com/lzwzzy/binflow/internal/metrics"
 	"github.com/lzwzzy/binflow/internal/replication"
 )
@@ -38,6 +39,15 @@ const (
 	metricStorageBlobBytes  = "binflow_storage_blob_bytes"
 	metricAuthLoginsTotal   = "binflow_auth_logins_total"
 	metricReplicationTasks  = "binflow_replication_tasks"
+	// M10 T-283 (PRD FR-85.4, ADR-0032): the entitlement plane's three
+	// families — the effective tier as a gauge over the closed tier order
+	// (community=0, pro=1, enterprise=2; unlicensed IS community, the
+	// floor), the addon gate's decision counter, and the per-slot unlock
+	// level refreshed from the SAME evaluation /api/v1/addons serves
+	// (visibility and execution cannot diverge).
+	metricLicenseTier    = "binflow_license_tier"
+	metricAddonGateTotal = "binflow_addon_gate_requests_total"
+	metricAddonsEnabled  = "binflow_addons_enabled"
 )
 
 // metricsContentType is the Prometheus text exposition format version 0.0.4
@@ -58,6 +68,20 @@ type instrumentation struct {
 	// replTasks is nil unless Deps.Replication is wired: FR-61-AC4 keeps the
 	// family unexposed (not merely zero) when replication is disabled.
 	replTasks *metrics.Gauge
+	// licTier is the effective license tier as the closed order's ordinal
+	// (M10 T-283); refreshed at scrape time from the license snapshot —
+	// install/uninstall/expiry flip it on the next scrape, never a restart.
+	licTier *metrics.Gauge
+	// addonGates counts the addon gate's decisions (allow/deny) per slot on
+	// the CONTENT plane (weave 1: gated-slot write verbs) and the feature
+	// seam (RequireAddon). The CONFIGURATION plane's D3 refusals are the
+	// audit trail's rows, not this counter — a 400 validation refusal is
+	// not a gated request.
+	addonGates *metrics.Counter
+	// addonsOn is nil unless Deps.Addons is wired (the replTasks
+	// precedent): one 0/1 series per slot, refreshed at scrape time from
+	// the same evaluation the /api/v1/addons view serves.
+	addonsOn *metrics.Gauge
 }
 
 // newInstrumentation registers the four families on reg and pre-seeds the
@@ -82,6 +106,30 @@ func newInstrumentation(deps Deps) *instrumentation {
 		"Stored blob bytes by storage engine: physical bytes under blobs/ on disk or, on s3, summed blob object bytes from the engine's bucket listing.")
 	ins.authLogins = mustCounter(reg, metricAuthLoginsTotal,
 		"Console logins by identity provider source.")
+
+	// The entitlement plane (M10 T-283): tier gauge seeded at the community
+	// floor (the honest pre-first-scrape state of an unlicensed instance)
+	// and the decision counter pre-seeded per slot so the family is visible
+	// before the first gated request. The per-slot unlock gauge rides the
+	// registry's presence like replTasks rides the replication store.
+	ins.licTier = mustGauge(reg, metricLicenseTier,
+		"Effective license tier as the closed order's ordinal: 0=community (the unlicensed floor), 1=pro, 2=enterprise.")
+	ins.addonGates = mustCounter(reg, metricAddonGateTotal,
+		"Addon entitlement gate decisions on the content plane (gated-slot write verbs) and the feature-addon seam, by addon and decision.")
+	ins.licTier.Set(float64(license.TierCommunity))
+
+	if deps.Addons != nil {
+		ins.addonsOn = mustGauge(reg, metricAddonsEnabled,
+			"Addon slot unlock level (1=enabled) at scrape time, from the same evaluation GET /api/v1/addons serves.")
+		for _, a := range deps.Addons.PackageTypeAddons() {
+			ins.addonGates.Add(0, "addon", a.ID, "decision", gateDecisionAllow)
+			ins.addonGates.Add(0, "addon", a.ID, "decision", gateDecisionDeny)
+		}
+		for _, a := range deps.Addons.FeatureAddons() {
+			ins.addonGates.Add(0, "addon", a.ID, "decision", gateDecisionAllow)
+			ins.addonGates.Add(0, "addon", a.ID, "decision", gateDecisionDeny)
+		}
+	}
 
 	ins.httpInFlt.Set(0)
 	ins.stBlobs.Set(0, "engine", ins.engineLabel)
@@ -175,6 +223,17 @@ func (ins *instrumentation) countLogin(source string) {
 	ins.authLogins.Inc("source", source)
 }
 
+// countAddonGate records one addon-gate decision (M10 T-283): the counter is
+// the gate's ONLY always-on observer — audit rows carry the refusals'
+// context, the counter carries both directions' volume. Metrics-less stacks
+// (Deps.Metrics nil) count nothing, gate exactly the same.
+func (s *Server) countAddonGate(id, decision string) {
+	if s.metrics == nil {
+		return
+	}
+	s.metrics.addonGates.Inc("addon", id, "decision", decision)
+}
+
 // metricsHandler assembles GET /metrics (root level, the /healthz-family
 // probe exemption — ADR-0022 design 1, PRD FR-61). Anonymous by default;
 // metrics.require_auth=true adds the authenticator plus a principal gate
@@ -238,6 +297,31 @@ func (s *Server) refreshMetricsSnapshots(ctx context.Context) {
 	}
 	if s.deps.Replication != nil && ins.replTasks != nil {
 		s.refreshReplication(ctx)
+	}
+	s.refreshLicenseMetrics(ctx)
+}
+
+// refreshLicenseMetrics pulls the entitlement gauges (M10 T-283): the
+// effective tier and, when the registry is mounted, every slot's unlock
+// level — read from the SAME single evaluation the /api/v1/addons view and
+// the enforcement gates consult (s.addonsEval), so a scrape can never
+// disagree with a refusal the instance just answered.
+func (s *Server) refreshLicenseMetrics(ctx context.Context) {
+	ins := s.metrics
+	tier := license.TierCommunity
+	if s.addonsEval != nil {
+		tier = s.addonsEval.State().Tier
+	}
+	ins.licTier.Set(float64(tier))
+	if s.deps.Addons == nil || ins.addonsOn == nil {
+		return
+	}
+	for _, row := range s.deps.Addons.Statuses(ctx, s.addonsEval) {
+		level := float64(0)
+		if row.Enable {
+			level = 1
+		}
+		ins.addonsOn.Set(level, "addon", row.Addon.ID)
 	}
 }
 
