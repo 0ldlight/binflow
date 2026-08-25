@@ -15,7 +15,11 @@ import { apiJSON, apiText } from './api'
 import type { RepoListItem } from './api'
 
 export type RClass = 'local' | 'remote' | 'virtual'
-export type PackageType = 'generic' | 'docker' | 'maven' | 'npm' | 'pypi'
+// M10 T-288：联合扩入门控包型（go/nuget/cargo——license 档位解锁，建仓合法
+// 集 = GET /api/v1/addons 的 package-type 槽位，动态）。PACKAGE_TYPES 常量
+// 仍 = 五核心静态枚举（community 地板，既有消费方〔SetMeUpDialog 仓库下拉
+// 等〕语义不变）；建仓对话框/表单的可选集改由 addons API 实时驱动。
+export type PackageType = 'generic' | 'docker' | 'maven' | 'npm' | 'pypi' | 'go' | 'nuget' | 'cargo'
 
 export const RCLASSES: RClass[] = ['local', 'remote', 'virtual']
 export const PACKAGE_TYPES: PackageType[] = ['generic', 'docker', 'maven', 'npm', 'pypi']

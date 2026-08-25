@@ -3,7 +3,8 @@ import { loginAs, provisionRoles } from './support/roles'
 import { m8Client, roleFixturesFromEnv, seedRepos } from './support/seed'
 
 // T-235 双模式壳与路由重排（console-m8 §1/§2；FR-71 AC1~AC3）：
-//   1. 三角色 × 双模式导航可达性（应用侧栏 2 条目 / 管理侧栏五分组 12 条目；
+//   1. 三角色 × 双模式导航可达性（应用侧栏 2 条目 / 管理侧栏五分组 13 条目
+//      〔M8 基线 12 + M10 T-288 的「常规」分组 License & Add-ons 项〕；
 //      readonly_admin 见「管理」入口；普通用户无入口且 /admin/** 直链保持
 //      应用侧栏 + 页面 L2 收敛——§2.2 姿态不变）。
 //   2. 旧路由终态（T-263，Q3 终裁）：console-m8 §1.4 的 20 条映射全量移除
@@ -21,7 +22,7 @@ test.beforeEach(async ({ request }) => {
   await provisionRoles()
 })
 
-/** 管理模式侧栏五分组 × 12 条目（console-m8 §1.3 全图） */
+/** 管理模式侧栏五分组 × 13 条目（console-m8 §1.3 全图 + M10 T-288 增量） */
 const ADMIN_GROUPS = ['仓库', '用户与权限', '治理', '监控', '常规'] as const
 
 const ADMIN_ENTRIES: [string, string][] = [
@@ -37,9 +38,10 @@ const ADMIN_ENTRIES: [string, string][] = [
   ['备份 / 恢复', 'backup-page'],
   ['存储', 'storage-page'], // T-238 落真身（原 placeholder-page 占位）
   ['系统信息', 'settings'],
+  ['License & Add-ons', 'license-page'], // M10 T-288（FR-86-AC5）
 ]
 
-test('admin: app-mode sidebar (2 entries) -> admin mode (5 groups / 12 entries) -> back, all keyboard', async ({
+test('admin: app-mode sidebar (2 entries) -> admin mode (5 groups / 13 entries) -> back, all keyboard', async ({
   page,
 }) => {
   await seedRepos(m8Client(), [{ key: REPO }])
@@ -69,11 +71,11 @@ test('admin: app-mode sidebar (2 entries) -> admin mode (5 groups / 12 entries) 
   for (const g of ADMIN_GROUPS) {
     await expect(nav.locator('.nav-group-label', { hasText: g })).toBeVisible()
   }
-  await expect(nav.locator('a.nav-item')).toHaveCount(12)
+  await expect(nav.locator('a.nav-item')).toHaveCount(13)
   // 面包屑（§1.3：管理页层级表达）
   await expect(page.locator('[data-testid="topbar-breadcrumb"]')).toContainText('仓库')
 
-  // 12 条目逐项可达（URL 均落 /admin/** + 页面锚到达）
+  // 13 条目逐项可达（URL 均落 /admin/** + 页面锚到达）
   for (const [label, anchor] of ADMIN_ENTRIES) {
     await page.click(`[data-testid="app-nav"] a.nav-item:text-is("${label}")`)
     await expect(page).toHaveURL(/\/binflow\/ui\/admin\//)

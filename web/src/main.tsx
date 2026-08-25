@@ -58,6 +58,9 @@ const BackupPage = lazy(() => import('./pages/governance/BackupPage'))
 const StorageSummaryPage = lazy(() => import('./pages/monitoring/StorageSummaryPage'))
 // 系统信息（T-238 落真身；§6.19——只读展示，改密块归 /profile 的 T-239 拆分）
 const SystemInfoPage = lazy(() => import('./pages/admin/SystemInfoPage'))
+// License & Add-ons（M10 T-288，FR-84 FE 腿 / FR-86-AC5：license 装卸 + 档位
+// × addon 解锁矩阵 + 建仓门控的可见性面）
+const LicenseAddonsPage = lazy(() => import('./pages/admin/LicenseAddonsPage'))
 const AppShell = lazy(() => import('./components/AppShell'))
 
 function RouteFallback() {
@@ -137,9 +140,11 @@ createRoot(document.getElementById('root')!).render(
                     <Route path="admin/governance/backup" element={<BackupPage />} />
 
                     {/* —— 管理模式：监控 / 常规（T-238 落真身：存储概要 +
-                         系统信息；占位/设置页挂载让位，路由结构不变）—— */}
+                         系统信息；占位/设置页挂载让位，路由结构不变。
+                         T-288 增 License & Add-ons 页）—— */}
                     <Route path="admin/monitoring/storage" element={<StorageSummaryPage />} />
                     <Route path="admin/general/settings" element={<SystemInfoPage />} />
+                    <Route path="admin/general/license" element={<LicenseAddonsPage />} />
 
                     {/* 未匹配 → 404 页（T-263 起旧路由兼容窗口不再兜底：
                          M7 及以前的旧路径同样落这里） */}

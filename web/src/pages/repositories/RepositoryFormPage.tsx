@@ -9,8 +9,9 @@ import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import { ApiError, canAdminWrite, errText, getRepositories, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
 import type { RepoListItem } from '../../lib/api'
+import { getAddons, lockedHint, packageTypeOptions, tierBadgeClass } from '../../lib/addons'
+import type { PkgTypeOption } from '../../lib/addons'
 import {
-  PACKAGE_TYPES,
   RCLASSES,
   comboAllowed,
   createRepo,
@@ -61,7 +62,9 @@ const REMOTE_TTL_DEFAULTS = {
 
 const RCLASS_LABEL: Record<RClass, string> = { local: 'Local', remote: 'Remote', virtual: 'Virtual' }
 
-/** 包类型网格五项（C7：现役五类，不照搬 33 项全集） */
+/** 包类型网格五核心静态元数据（C7；门控型 go/nuget/cargo 等自 addons API
+ *  动态并入——M10 T-288：可选集与徽章/锁定态都吃注册表实时数据，前端不
+ *  复制槽位清单） */
 const PKG_ITEMS: { id: PackageType; label: string; desc: string; icon: string }[] = [
   { id: 'generic', label: 'Generic', desc: '任意文件（curl 上传 / 下载）', icon: '◈' },
   { id: 'docker', label: 'Docker', desc: 'OCI 镜像（docker push / pull，仅 Local）', icon: '◆' },
@@ -69,6 +72,39 @@ const PKG_ITEMS: { id: PackageType; label: string; desc: string; icon: string }[
   { id: 'npm', label: 'npm', desc: 'Node 包（npm publish / install）', icon: '◇' },
   { id: 'pypi', label: 'PyPI', desc: 'Python 包（twine / pip）', icon: '▫' },
 ]
+
+/** 门控型网格项的通用图标（displayName/描述来自注册表行——不复制） */
+const GATED_PKG_ICON = '✦'
+
+/** 建仓面的包型可选集（M10 T-288）：五核心静态项 + addons API 的门控槽位。
+ *  加载中/请求失败 = 仅五核心（community 地板恒合法；门控型缺席不误放，
+ *  服务端 D3 建仓门终裁——UI 预收敛而已）。 */
+interface PkgChoice {
+  id: PackageType
+  label: string
+  desc: string
+  icon: string
+  /** addons 槽位行（五核心在注册表栈上有行；undefined = 无行，按地板放行） */
+  opt?: PkgTypeOption
+}
+
+function buildPkgChoices(options: PkgTypeOption[]): PkgChoice[] {
+  const items: PkgChoice[] = PKG_ITEMS.map((p) => ({ ...p, opt: options.find((o) => o.id === p.id) }))
+  for (const o of options) {
+    if (PKG_ITEMS.some((p) => p.id === o.id)) continue
+    items.push({ id: o.id as PackageType, label: o.displayName, desc: o.description, icon: GATED_PKG_ICON, opt: o })
+  }
+  return items
+}
+
+/** 单项可选取舍：组合矩阵（docker 仅 local）× 槽位解锁态；返回禁用原因
+ *  （null = 可选）。槽位禁用优先呈现（addons.disabled 熔断高于组合约束的
+ *  信息量——它对 admin 是可行动的）。 */
+function pkgChoiceBlock(rclass: RClass, c: PkgChoice): string | null {
+  if (c.opt && !c.opt.enabled) return lockedHint(c.opt)
+  if (!comboAllowed(rclass, c.id)) return `${rclass} × ${c.id} 不受支持（docker 仅 local）`
+  return null
+}
 
 interface FormState {
   rclass: RClass
@@ -130,9 +166,10 @@ function prefillFromDetail(d: {
   const f: FormState = {
     ...CREATE_INITIAL,
     rclass: (RCLASSES as string[]).includes(d.rclass) ? (d.rclass as RClass) : 'local',
-    packageType: (PACKAGE_TYPES as string[]).includes(d.packageType)
-      ? (d.packageType as PackageType)
-      : 'generic',
+    // M10 T-288：wire 值由服务端注册表终裁过（存量仓的 packageType 必为
+    // 已装配槽位），直接收窄——旧「五核心静态枚举守卫」会把门控仓（go
+    // 等）静默改写成 generic，全量替换提交即错仓型。
+    packageType: (d.packageType || 'generic') as PackageType,
     key: d.key,
     description: d.description,
   }
@@ -249,13 +286,18 @@ function formValid(f: FormState, mode: 'create' | 'edit'): { ok: boolean; reason
   return { ok: true }
 }
 
-/** 建仓向导第 0 步：包类型网格对话框（§4.4 进页即弹；单选即选定关闭） */
+/** 建仓向导第 0 步：包类型网格对话框（§4.4 进页即弹；单选即选定关闭）。
+ *  M10 T-288：每型带档位徽章（community 地板无徽章；pro/enterprise 徽章），
+ *  未解锁型禁用 + 提示「需要 N 档」——D5 可见性口径（入口可见带徽章，
+ *  不是隐藏）。 */
 function PackageTypeGrid({
   rclass,
+  choices,
   onPick,
   onCancel,
 }: {
   rclass: RClass
+  choices: PkgChoice[]
   onPick: (pt: PackageType) => void
   onCancel: () => void
 }) {
@@ -285,24 +327,32 @@ function PackageTypeGrid({
           新建 <b>{RCLASS_LABEL[rclass]}</b> 仓库的第一步——包类型决定协议路由与客户端接入命令，创建后不可更改。
         </p>
         <div className="pkg-grid-items" role="radiogroup" aria-label="包类型">
-          {PKG_ITEMS.map((p) => {
-            const allowed = comboAllowed(rclass, p.id)
+          {choices.map((c) => {
+            const block = pkgChoiceBlock(rclass, c)
+            const badgeTier = c.opt && c.opt.minTier !== 'community' ? c.opt.minTier : null
             return (
               <button
                 type="button"
-                key={p.id}
+                key={c.id}
                 role="radio"
                 aria-checked={false}
-                disabled={!allowed}
-                title={allowed ? undefined : `${rclass} × ${p.id} 不受支持（docker 仅 local）`}
-                data-testid={`pkg-grid-item-${p.id}`}
-                onClick={() => onPick(p.id)}
+                disabled={block !== null}
+                title={block ?? undefined}
+                data-testid={`pkg-grid-item-${c.id}`}
+                onClick={() => onPick(c.id)}
               >
                 <span className="pkg-icon" aria-hidden="true">
-                  {p.icon}
+                  {c.icon}
                 </span>
-                <span className="pkg-name">{p.label}</span>
-                <span className="pkg-desc">{allowed ? p.desc : `${p.desc}·不可用`}</span>
+                <span className="pkg-name">
+                  {c.label}
+                  {badgeTier && (
+                    <span className={tierBadgeClass(badgeTier)} data-testid={`pkg-tier-${c.id}`} lang="en">
+                      {badgeTier}
+                    </span>
+                  )}
+                </span>
+                <span className="pkg-desc">{block ?? c.desc}</span>
               </button>
             )
           })}
@@ -362,6 +412,11 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
     const list = candidates.data ?? []
     return list.filter((r) => r.type !== 'virtual' && r.key !== f.key)
   }, [candidates.data, f.key])
+
+  // 包型可选集（M10 T-288）：addons 注册表实时数据（徽章/锁定态与 License
+  // 页同源）。加载中/403/失败 = 仅五核心地板项——门控型不误放，服务端终裁。
+  const addons = useAsync(getAddons, [])
+  const pkgChoices = useMemo(() => buildPkgChoices(packageTypeOptions(addons.data ?? [])), [addons.data])
 
   // —— 门（§3.6 / CanManageRepo 语义，见文件头注）——
   if (mode === 'create' && !admin) {
@@ -490,24 +545,26 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
             ))}
           </div>
           <div className="radio-row" role="radiogroup" aria-label="包类型">
-            {PACKAGE_TYPES.map((pt) => {
-              const allowed = comboAllowed(f.rclass, pt)
+            {pkgChoices.map((c) => {
+              const block = pkgChoiceBlock(f.rclass, c)
+              const badgeTier = c.opt && c.opt.minTier !== 'community' ? c.opt.minTier : null
               return (
-                <label
-                  key={pt}
-                  className={allowed ? '' : 'disabled'}
-                  title={allowed ? undefined : `${f.rclass} × ${pt} 不受支持（docker 仅 local）`}
-                >
+                <label key={c.id} className={block ? 'disabled' : ''} title={block ?? undefined}>
                   <input
                     type="radio"
                     name="packageType"
-                    value={pt}
-                    checked={f.packageType === pt}
-                    disabled={mode === 'edit' || !allowed || locked}
-                    onChange={() => set('packageType', pt)}
-                    data-testid={`form-package-${pt}`}
+                    value={c.id}
+                    checked={f.packageType === c.id}
+                    disabled={mode === 'edit' || block !== null || locked}
+                    onChange={() => set('packageType', c.id)}
+                    data-testid={`form-package-${c.id}`}
                   />
-                  {pt}
+                  {c.label}
+                  {badgeTier && (
+                    <span className={tierBadgeClass(badgeTier)} data-testid={`pkg-tier-${c.id}`} lang="en">
+                      {badgeTier}
+                    </span>
+                  )}
                 </label>
               )
             })}
@@ -975,6 +1032,7 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
       {pkgOpen && mode === 'create' && (
         <PackageTypeGrid
           rclass={f.rclass}
+          choices={pkgChoices}
           onPick={(pt) => {
             // 网格选定的包类型进入基线（重置不退回进页默认 generic）
             setF((prev) => ({ ...prev, packageType: pt }))

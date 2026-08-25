@@ -48,7 +48,10 @@ async function raw(
   const res = await fetch(BASE + path, {
     method,
     headers: { Authorization: `Basic ${auth}` },
-    body,
+    // Node fetch at runtime accepts Buffer bodies; the BodyInit lib typings
+    // (this @types/node line) do not — widen at the single seam, no behavior
+    // change (T-288 pre-existing typecheck-baseline fix).
+    body: body as BodyInit | undefined,
   })
   const headers: Record<string, string> = {}
   res.headers.forEach((v, k) => (headers[k] = v))

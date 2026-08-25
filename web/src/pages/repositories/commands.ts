@@ -55,6 +55,19 @@ export const CLIENT_PKG_META: { id: PackageType; label: string; icon: string; de
   { id: 'pypi', label: 'PyPI', icon: '⬓', desc: 'Python 包（pip.conf / twine）' },
 ]
 
+/** 门控包型回退块（M10 T-288）：命令块内容与 docs/user 同源（文件头注），
+ *  go/nuget/cargo 的接入文档随文档票（T-296 面）落地——UI 不发明命令，
+ *  给指路块兜底（旧穷尽 switch 在门控仓上落 undefined 会击穿渲染）。 */
+function gatedPkgBlock(packageType: PackageType, repoKey: string): CommandBlock[] {
+  return [
+    {
+      title: '客户端接入',
+      lang: 'bash',
+      text: [`# ${packageType} 仓库 ${repoKey}：接入命令暂未收入控制台，见帮助文档（docs/user）。`].join('\n'),
+    },
+  ]
+}
+
 /** Configure 侧（解析/拉取）：把客户端指向 BinFlow 并完成登录 */
 export function smuConfigureCommands(packageType: PackageType, repoKey: string, creds: ClientCreds): CommandBlock[] {
   const origin = window.location.origin
@@ -141,6 +154,8 @@ export function smuConfigureCommands(packageType: PackageType, repoKey: string, 
           note: '一次性用法：pip install --index-url <index-url> <包名>。',
         },
       ]
+    default:
+      return gatedPkgBlock(packageType, repoKey)
   }
 }
 
@@ -208,6 +223,8 @@ export function smuDeployCommands(packageType: PackageType, repoKey: string, cre
           note: '上传：pip wheel . -w dist/（或 python -m build）→ twine upload --repository binflow dist/*。',
         },
       ]
+    default:
+      return gatedPkgBlock(packageType, repoKey)
   }
 }
 
@@ -327,5 +344,7 @@ export function clientCommands(packageType: PackageType, repoKey: string): Comma
           text: [`pip wheel . -w dist/    # 或 python -m build`, `twine upload --repository binflow dist/*`].join('\n'),
         },
       ]
+    default:
+      return gatedPkgBlock(packageType, repoKey)
   }
 }

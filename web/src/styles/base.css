@@ -562,6 +562,20 @@ a:hover {
   color: color-mix(in srgb, var(--bf-danger) 78%, var(--bf-text));
 }
 
+/* 档位徽章三色（M10 T-288，license 档位闭集）：community = .badge.neutral
+ * （中性灰，地板）；pro = 蓝（info 语义底）；enterprise = 金（warning 语义底，
+ * 18% 底与 warning 同配比——金读作「更高档」而非「告警」，文字色沿语义色
+ * 收敛 22% 家族，双主题 ≥4.5:1）。 */
+.badge.tier-pro {
+  background: color-mix(in srgb, var(--bf-info) 15%, transparent);
+  color: color-mix(in srgb, var(--bf-info) 78%, var(--bf-text));
+}
+
+.badge.tier-enterprise {
+  background: color-mix(in srgb, var(--bf-warning) 18%, transparent);
+  color: color-mix(in srgb, var(--bf-warning) 78%, var(--bf-text));
+}
+
 /* 状态点（不以颜色为唯一信号：配文字，§8） */
 .status-dot {
   display: inline-block;

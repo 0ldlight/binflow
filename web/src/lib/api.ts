@@ -37,6 +37,9 @@ export interface RequestOptions {
   method?: string
   /** JSON 序列化的请求体（Content-Type 自动置 application/json） */
   body?: unknown
+  /** 原样字节体（M10 license 装载：POST /api/system/license 的 body 就是
+   *  license 文档全文，不是 JSON——T-288 起的纯文本写面共享同一信封）。 */
+  rawBody?: string
   signal?: AbortSignal
   /** 预期可能 401 的调用（whoami 探活、登录提交）不触发全局会话过期处理 */
   silent401?: boolean
@@ -71,7 +74,10 @@ async function rawRequest(path: string, opts: RequestOptions = {}): Promise<Resp
     credentials: 'same-origin',
     signal: opts.signal,
   }
-  if (opts.body !== undefined) {
+  if (opts.rawBody !== undefined) {
+    headers['Content-Type'] = 'text/plain;charset=utf-8'
+    init.body = opts.rawBody
+  } else if (opts.body !== undefined) {
     headers['Content-Type'] = 'application/json'
     init.body = JSON.stringify(opts.body)
   }

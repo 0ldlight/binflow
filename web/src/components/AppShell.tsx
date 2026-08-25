@@ -53,8 +53,9 @@ const APP_NAV: NavGroup[] = [
   },
 ]
 
-/** 管理模式侧栏（console-m8 §1.3 全图：五分组 12 条目；分组标题是
- * 标签不是折叠项——沿 console-ux §3.1 纪律） */
+/** 管理模式侧栏（console-m8 §1.3 全图：五分组 12 条目 + M10 T-288 的
+ * 「常规」分组 License & Add-ons = 13 条目；分组标题是标签不是折叠项
+ * ——沿 console-ux §3.1 纪律） */
 const ADMIN_NAV: NavGroup[] = [
   {
     title: '仓库',
@@ -85,7 +86,12 @@ const ADMIN_NAV: NavGroup[] = [
   },
   {
     title: '常规',
-    entries: [{ label: '系统信息', to: '/admin/general/settings' }],
+    entries: [
+      { label: '系统信息', to: '/admin/general/settings' },
+      // M10 T-288：License & Add-ons（FR-86-AC5——readonly_admin 只读可见，
+      // 写入口页内按角色收敛；普通 user 不入管理面）
+      { label: 'License & Add-ons', to: '/admin/general/license' },
+    ],
   },
 ]
 
@@ -152,7 +158,10 @@ function adminCrumbs(pathname: string): Crumb[] {
     return [{ label: '监控', to: '/admin/monitoring/storage' }, { label: '存储' }]
   }
   if (pathname.startsWith('/admin/general/')) {
-    return [{ label: '常规', to: '/admin/general/settings' }, { label: '系统信息' }]
+    // M10 T-288：常规分组两页（系统信息 / License & Add-ons）
+    const seg = pathname.slice('/admin/general/'.length).split('/')[0]
+    const label = seg === 'license' ? 'License & Add-ons' : '系统信息'
+    return [{ label: '常规', to: '/admin/general/settings' }, { label }]
   }
   if (pathname === '/admin') return [{ label: '管理' }]
   return [{ label: '管理' }]

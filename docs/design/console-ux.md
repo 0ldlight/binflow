@@ -25,6 +25,7 @@
 | v1.7 | 2026-08-24 | T-244 键盘可达 + 共享层债收口的锚册回写（收 T-243 缺陷 D-1~D-4 + T-242 待扫锚）：① **T-238 存储批 12 锚入册**（D-1）+ §10.5 路由表 `/admin/monitoring/storage` 行回写；② **T-242 对话框批 48 锚入册**（smu-* / deploy-* / 三入口族）；③ **散锚入册**（D-2：browser-intro / migration-readonly-note / perm-res-back / repo-advanced-card / perms-sort 族 + 审计新溯的历史散锚：T-158 SSO、T-160 迁移面板补遗、T-218 readonly 注记族、T-241 权限编辑器批、transfer-* 显名、tag-badge、topbar-help、settings-{version,license} 等）；④ **显式退役条目**（D-3）：`settings-password` + 本票树页双 Deploy 入口收敛退役的 `tree-upload` 与 `upload-*` 族 15 枚；⑤ 新增 **§10.6 死锚登记**（D-4：src 侧 115 家族零 spec 消费——`web/scripts/anchor-audit.mjs` 册↔src↔spec 三方对账器为底稿与常设工具）。本版起锚总量按家族口径核算（src 423 家族 / 493 落点） |
 | v1.8 | 2026-08-24 | T-265 树过滤复位 + 顶栏搜索框（FR-82-AC2/AC9）：① §10.5 增补 **T-265 批 4 锚**（`tree-filter-clear` + 顶栏最近词下拉族 `topbar-search-recent{-item-<i>,-clear}`）；② `topbar-search` 锚名不变、载体自按钮升真输入框（Enter → `/search?q=`，空词 Enter 保留纯入口；⌘K / `/` 改为聚焦顶栏框）；③ `tree-filter` / `tree-repo-filter` 锚不变，新增 (repo, dir) 作用域复位语义（QA-3 跨层/跨仓残留收口） |
 | v1.9.1 | 2026-08-25 | T-274 修正 T-267 锚退役误杀（T-272-qa DEFECT-1，option a 最小面）：① 对账器 **spec 抽取正则补形**——属性选择器三引号 × `^=/$=/*=` 算子 × `${}` 模板段 + 值断言形（`toHaveAttribute` / `toMatch` / `(not.)toBe` 模板），65+ 处动态/前缀引用自隐形转可见（`repos-row-*` 0→33 自证）；② 对账器 **src 侧补收变量模板形态**并**补录** `repos-usage-*`（T-253「已用」列，双向隐形漏网）；③ **19 活族回填** src（21 落点 / 9 文件，git 对照 `3295181^` 逐点恢复）+ 退役总表摘除 19 族（表记名 118→98——`perm-matrix-remove-{user,group}` 两记合一族），回归在册——§10.6 新增回填记录；④ §10.6 口径新增**工具局限史**条款（退役前置「工具可见性自证」义务：全文本 grep 前缀非零即停手） |
+| v1.10 | 2026-08-26 | T-288 License & Add-ons 页 + 建仓对话框包型档位徽章（M10 FR-84 FE 腿 / FR-86-AC5）：① §10.5 路由表新增 `/admin/general/license` 行（「常规」分组第二页）；② **T-288 批 16 名锚入册**（12 静态 + 4 动态族：license-page 族 + addons-* 矩阵族 + 建仓面 `pkg-tier-*` 档位徽章族——D5 门控入口可见性口径：断言入口存在 + 徽章锚存在，不断言视觉）；③ 档位徽章三色基元 `.badge.tier-{pro,enterprise}` 入 §7.1 徽章家族（community = 既有 `.badge.neutral`，地板无徽章）；④ 建仓可选集改 addons API 实时驱动（`form-package-<pt>` 族锚不变、动态段扩门控型；`PACKAGE_TYPES` 静态常量仍 = 五核心，既有消费方零变化） |
 | v1.9 | 2026-08-25 | T-267 锚家族口径统一 + 死锚全量退役（FR-82-AC7）：① **§10.6 重构为单一权威口径**——家族=选择器前缀归一、掩蔽语义、src/spec 口径（含 IdP 模拟页与对象键展开两个盲区修复、组件逻辑自消费）、四桶定义；死锚清单退出册（对账器输出即视图），退役以 §10.6 总表为权威（v1.5~v1.7 显式退役 17 条合并收录 + T-267 死锚处置 101 条〔99 家族，`perm-matrix-remove` 与 `backup-cmd` 各按静态展开计 2〕= **总表 118 条**）；② **死锚 99 家族 src 清理**（零 spec 消费且册上有登记——`smu-tab-configure` 因 Tab 焦点选择器自消费保留除外）；③ **M9 消费波散锚 15 枚入册**（T-257/T-259/T-260 批 + `user-status-<name>` 盲区显形 + `idp-login-page` 测试基建锚；T-260 的 `smu-resuming` 零 spec 消费、随死锚处置退役）；④ 对账器加 **`--ledger` 模式**（A1~A4 断言，qa 硬门） |
 
 ---
@@ -1050,6 +1051,7 @@ M8 路由表（console-m8 §1.4）重排后，§10.2/§10.3 的 **242 锚零改�
 | `/admin/governance/{audit\|gc\|quotas\|replication\|backup}` | `audit-*` `gc-*` `quota-*` `repl-*` `backup-*` 族 | 原 `/audit` `/governance/*` |
 | `/admin/monitoring/storage` | `storage-page` 族（T-238 批，v1.7 入册——D-1 收口） | 新路由；原行 `placeholder-page（新页归 T-238）` 已过时 |
 | `/admin/general/settings` | `settings` + `settings-instance` + `settings-health`（T-238 `SystemInfoPage` 承接；改密已迁 `/profile`——T-239） | 原 `/settings` |
+| `/admin/general/license` | `license-page` 族 + `addons-*` 矩阵族（T-288 批，v1.10 入册——见下） | M10 新增：「常规」分组第二页（license 状态 + addons 矩阵；导航项与页头同文案） |
 
 **T-235 壳新锚（10 枚，先入本清单再落码流程兑现）**：
 
@@ -1173,6 +1175,37 @@ AC2/AC9，消费 spec = web/e2e/m9 本票新增腿）**：
 真输入框（§2.1 线框裁定——Enter → `/search?q=`、Esc 清空失焦、空词 Enter 保留
 纯入口跳 `/search`；⌘K / `/` 自「跳 /search」改为聚焦顶栏框）；`tree-filter` /
 `tree-repo-filter` 锚不变，新增复位语义（(repo, dir) 作用域变化清空——QA-3）。
+
+**T-288 license 状态页与建仓档位徽章新锚（16 名/12 静态+4 动态族，先入本清单
+再落码流程兑现；M10 FR-84 FE 腿 / FR-86-AC5，消费 spec = web/e2e/m10 本票
+新增腿〔T-288 填充的 L27 console spec〕）**：
+
+```
+页面（/admin/general/license）：
+  license-page（页根）  license-card（状态卡）  license-tier（档位徽章——
+    文本 = 档位闭集 wire 值 community|pro|enterprise，非文案）
+  license-licensee（被授权方行——未授权态反断言）
+  license-floor（community 地板说明块——licensed=false 时呈现）
+  license-doc-input（装载文本域）/ license-install（装载钮）/
+    license-install-error（400 拒绝原文呈现——mono，含 LICENSE_* wire 码）/
+    license-uninstall（卸载钮，仅 licensed 态渲染）/
+    license-readonly-note（readonly_admin 只读注记）
+矩阵（GET /api/v1/addons 装配序）：
+  addons-card（矩阵卡）  addons-table（矩阵表）  addons-row-<addonId>（行——
+    锁定/禁用行灰显+⊘）/ addons-tier-<addonId>（最低档位格——地板 = 「—」
+    无徽章）/ addons-state-<addonId>（状态格：已解锁|锁定 需要 N 档|⊘ 已禁用）
+建仓面（对话框与表单共享）：
+  pkg-tier-<packageType>（包型档位徽章——地板型无此锚〔反断言〕；
+    对话框 pkg-grid-item-<pt> 与表单 form-package-<pt> 两承载面同族）
+```
+
+变更注记（T-288，dev-frontend 回写）：门控入口**可见带徽章**（D5——m10 README
+§2.4：断言入口存在 + 徽章锚存在，不断言视觉/颜色）；`pkg-grid-item-<pt>` /
+`form-package-<pt>` 族锚不变，动态段自五核心扩至 addons 注册表包型槽位全集
+（`PACKAGE_TYPES` 静态常量仍 = 五核心，SetMeUpDialog 等既有消费方零变化）；
+licensed 态的 licensee/有效期/倒计时行随 license 装卸出现——community 形态
+（默认测试形态）只有 licensee 反断言腿，expiry/days 行不设锚（免死锚）；
+addons 空数组（pre-M10 单元栈）走缺省 `empty-state` 锚，无新锚。
 
 **锚总量复核口径（v1.4 实测）**：`grep -rn "data-testid" web/src/` = **293 落点 / 29 文件**（v1.2 基线 242 之后，T-104~T-234 各票陆续增锚至 HEAD 的 283 落点——ADR-0029 原写 283 即此原始 grep 数）；T-235 净变化 = 壳**删 0 改 0、新增 10**（AppShell 10 → 20），占位路由新增 0（复用 `placeholder-page`）。另：`web/src/styles/theme-smoke.spec.ts`（7 处选择器引用，非锚）随 T-232 遗留①迁出 `src/` 至 `e2e/m8/theme-smoke.spec.ts`，不再计入 src 侧 grep。
 
