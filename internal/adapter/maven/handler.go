@@ -64,7 +64,7 @@ func (h *Handler) Layout(r *http.Request) (string, string, error) {
 // renders every failure as the errors[] JSON envelope itself (the three
 // protocol adapters share that body shape, maven-npm-pypi.md section 0).
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	repoKey, relPath, err := h.Layout(r)
+	repoKey, relPath, props, err := adapter.ResolveContent(r)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -85,7 +85,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ctx := r.Context()
+	// The matrix-parameter peel lands here like on the generic plane
+	// (T-286, architecture section 15.3.1): the ";k=v" set boxed into the
+	// context reaches putFile through repo.PutOptions.Properties; reads
+	// and deletes address the stripped path only.
+	ctx := adapter.WithDeployProps(r.Context(), props)
 	p := adapter.PrincipalFrom(ctx)
 	switch r.Method {
 	case http.MethodPut:
@@ -322,6 +326,11 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error, method, re
 	case errors.Is(err, repo.ErrRepoNotFound):
 		writeError(w, http.StatusNotFound, fmt.Sprintf("Failed to find the repository '%s' specified in the request.", repoKey))
 	case errors.Is(err, repo.ErrInvalidPath):
+		writeError(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, repo.ErrInvalidProperties):
+		// Deploy properties rejected by the closed rules (defensive: the
+		// matrix parse refuses them before the service — the service-side
+		// guard is the no-bypass backstop, T-286).
 		writeError(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, repo.ErrUnauthorized):
 		w.Header().Set("WWW-Authenticate", `Basic realm="BinFlow Realm"`)

@@ -420,6 +420,12 @@ func (s *service) PutWithOptions(ctx context.Context, p *Principal, repoKey, pat
 	if err := validateNodePath(path); err != nil {
 		return nil, err
 	}
+	// Deploy properties are validated before anything is gated or drained:
+	// an illegal matrix set must die as a 400 with zero side effects (the
+	// atomic-rejection posture every other input shape upholds).
+	if err := propSetGuard(repoKey, path, opts.Properties); err != nil {
+		return nil, err
+	}
 	if mime == "" {
 		mime = "application/octet-stream"
 	}
@@ -478,7 +484,7 @@ func (s *service) PutWithOptions(ctx context.Context, p *Principal, repoKey, pat
 		if err := s.checkQuota(ctx, p, gov, repoKey, path, committed.Size, replaced); err != nil {
 			return nil, err
 		}
-		n, err := s.putNode(ctx, p, repoKey, path, false, committed, mime)
+		n, err := s.putNode(ctx, p, repoKey, path, false, committed, mime, opts.Properties)
 		if err != nil {
 			return nil, err
 		}
@@ -516,7 +522,7 @@ func (s *service) PutWithOptions(ctx context.Context, p *Principal, repoKey, pat
 		// "0 bytes then error" must not pass as an empty body.
 		return nil, fmt.Errorf("folder deploy %s/%s: %w: body must be empty", repoKey, path, ErrInvalidPath)
 	}
-	n, err := s.putNode(ctx, p, repoKey, path, true, storage.BlobRef{}, mime)
+	n, err := s.putNode(ctx, p, repoKey, path, true, storage.BlobRef{}, mime, opts.Properties)
 	if err != nil {
 		return nil, err
 	}
@@ -681,7 +687,7 @@ func (s *service) PutFromBlob(ctx context.Context, p *Principal, repoKey, path s
 		return nil, err
 	}
 
-	n, err := s.putNode(ctx, p, repoKey, path, false, committed, mime)
+	n, err := s.putNode(ctx, p, repoKey, path, false, committed, mime, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -771,7 +777,7 @@ func (s *service) PutLandedBlob(ctx context.Context, p *Principal, repoKey, path
 	}
 
 	committed := storage.BlobRef{Sha256: ref.Sha256, Sha1: ref.Sha1, Md5: ref.Md5, Size: phys.Size}
-	n, err := s.putNode(ctx, p, repoKey, path, false, committed, mime)
+	n, err := s.putNode(ctx, p, repoKey, path, false, committed, mime, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -845,10 +851,9 @@ func (s *service) authorizeContentPut(ctx context.Context, p *Principal, repoKey
 	return false, existing, nil
 }
 
-// putNode persists blob + node in the mandated order (architecture sections
-// 3.2/3.3): the blobs row first, then the node row that references it; the
-// nodes.sha256 FK is the crash backstop. Both writes happen only after the
-// physical blob exists.
+// putNode's storage contract (architecture sections 3.2/3.3): the blobs row
+// first, then the node row that references it; the nodes.sha256 FK is the
+// crash backstop. Both writes happen only after the physical blob exists.
 //
 // Since T-95 the node write rides Usage().PutNodeWithUsage — the node row
 // and the repo_usage logical-bytes counter land in ONE transaction
@@ -873,7 +878,16 @@ func (s *service) ensureFolderLedger(ctx context.Context) error {
 	})
 }
 
-func (s *service) putNode(ctx context.Context, p *Principal, repoKey, path string, folder bool, ref storage.BlobRef, mime string) (*metadata.Node, error) {
+// putNode persists blob + node in the mandated order (architecture sections
+// 3.2/3.3) and lands the deploy-time properties (M10 T-286): the props
+// parameter is the matrix set the adapter peeled off the PUT path, applied
+// to the TARGET node only (materialized ancestors are derived state and
+// carry none) with the store's merge semantics — same-key value-set
+// replace, other keys kept. The application sits in the shared tail of the
+// whole landing family (Put/PutWithOptions/PutFromBlob/PutLandedBlob,
+// section 15.3.1's "全族同链"), so no landing path can bypass it; callers
+// without matrix props pass nil and write nothing.
+func (s *service) putNode(ctx context.Context, p *Principal, repoKey, path string, folder bool, ref storage.BlobRef, mime string, props map[string][]string) (*metadata.Node, error) {
 	// Ancestors first (ADR-0016): every ancestor directory row lands BEFORE
 	// the target row, for file and folder targets alike. A crash past this
 	// point can only leave benign empty folder rows behind — never a file
@@ -882,7 +896,11 @@ func (s *service) putNode(ctx context.Context, p *Principal, repoKey, path strin
 		return nil, err
 	}
 	if folder {
-		return s.putFolderRow(ctx, p, repoKey, path, mime)
+		n, err := s.putFolderRow(ctx, p, repoKey, path, mime)
+		if err != nil {
+			return nil, err
+		}
+		return n, s.applyDeployProps(ctx, repoKey, path, props)
 	}
 
 	existing, err := s.md.Nodes().Get(ctx, repoKey, path)
@@ -897,7 +915,7 @@ func (s *service) putNode(ctx context.Context, p *Principal, repoKey, path strin
 			if err := s.md.Usage().PutNodeWithUsage(ctx, existing, s.now()); err != nil {
 				return nil, fmt.Errorf("idempotent redeploy %s/%s: %w", repoKey, path, err)
 			}
-			return existing, nil
+			return existing, s.applyDeployProps(ctx, repoKey, path, props)
 		}
 	case errors.Is(err, metadata.ErrNodeNotFound):
 		// new node below
@@ -929,7 +947,23 @@ func (s *service) putNode(ctx context.Context, p *Principal, repoKey, path strin
 	if err := s.md.Usage().PutNodeWithUsage(ctx, n, s.now()); err != nil {
 		return nil, fmt.Errorf("node %s/%s: %w", repoKey, path, err)
 	}
-	return n, nil
+	return n, s.applyDeployProps(ctx, repoKey, path, props)
+}
+
+// applyDeployProps lands a deploy's matrix properties on the node that just
+// committed. nil/empty is the common no-op (every non-matrix deploy). A
+// store failure fails the deploy's outcome honestly: the node (and blob)
+// are already durable — the same residue posture a post-landing quota
+// refusal leaves, with GC owning the blob side — but the caller learns the
+// annotation did not land instead of silently losing it.
+func (s *service) applyDeployProps(ctx context.Context, repoKey, path string, props map[string][]string) error {
+	if len(props) == 0 {
+		return nil
+	}
+	if err := s.md.NodeProps().Merge(ctx, repoKey, path, props); err != nil {
+		return fmt.Errorf("deploy properties %s/%s: %w", repoKey, path, err)
+	}
+	return nil
 }
 
 // folderMime is the mime column materialized ancestor folder rows carry. The
@@ -1431,7 +1465,7 @@ func (s *service) PutManifest(ctx context.Context, p *Principal, repoKey, image,
 	// plus this node (the crash-recovery order mirrors Put's blob-first
 	// rule with the blob already committed).
 	n, err := s.putNode(ctx, p, repoKey, nodePath, false,
-		storage.BlobRef{Sha256: digest, Size: size}, mediaType)
+		storage.BlobRef{Sha256: digest, Size: size}, mediaType, nil)
 	if err != nil {
 		return nil, err
 	}

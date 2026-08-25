@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/lzwzzy/binflow/internal/metadata"
 )
 
 // Layout implements the generic layout (architecture section 5.1): the
@@ -22,9 +24,29 @@ import (
 // stripped (httpapi's job). Both r.URL.Path (pre-decoded by net/http) and
 // r.URL.EscapedPath() are consulted: decoding EscapedPath ourselves makes
 // the normalization independent of which form the router passed through.
+//
+// Since M10 (T-286, architecture section 15.3.1) the decode chain also
+// runs SplitMatrixParams: a paired ";k=v" trailing sequence is peeled off
+// the path (the M1 "no matrix parameters" reservation's redemption). The
+// properties are VALIDATED here — a k=v-shaped suffix with an illegal key
+// is a 400 on every verb — but Layout itself discards them: reads use the
+// stripped path for addressing only, while the PUT family switches to
+// ResolveContent so the properties reach repo.PutOptions.
 func Layout(r *http.Request) (string, string, error) {
+	key, rel, _, err := ResolveContent(r)
+	return key, rel, err
+}
+
+// ResolveContent is Layout's full form: the path-normalization single
+// point with the peeled matrix parameters surfaced as deploy properties
+// (architecture section 15.3.1's calculateRepoPath equivalent). The PUT
+// family of every content adapter consumes it — ServeHTTP resolves once,
+// boxes the properties into the request context (WithDeployProps, the
+// WithPrincipal twin) and the put handlers hand them to
+// repo.PutOptions.Properties.
+func ResolveContent(r *http.Request) (string, string, DeployProps, error) {
 	if r == nil || r.URL == nil {
-		return "", "", fmt.Errorf("%w: empty request URL", ErrBadRequestPath)
+		return "", "", nil, fmt.Errorf("%w: empty request URL", ErrBadRequestPath)
 	}
 	raw := r.URL.EscapedPath()
 	if raw == "" {
@@ -32,16 +54,26 @@ func Layout(r *http.Request) (string, string, error) {
 	}
 	decoded, err := url.PathUnescape(raw)
 	if err != nil {
-		return "", "", fmt.Errorf("%w: malformed percent-encoding in %q: %w", ErrBadRequestPath, raw, err)
+		return "", "", nil, fmt.Errorf("%w: malformed percent-encoding in %q: %w", ErrBadRequestPath, raw, err)
 	}
-	return splitRepoPath(decoded)
+	clean, matrix := SplitMatrixParams(decoded)
+	props, err := ParseMatrixProps(matrix)
+	if err != nil {
+		return "", "", nil, err
+	}
+	key, rel, err := splitRepoPath(clean)
+	if err != nil {
+		return "", "", nil, err
+	}
+	return key, rel, props, nil
 }
 
 // splitRepoPath splits a decoded path into (repoKey, relPath) and applies
 // the generic layout rules:
 //
-//   - no query strings, no matrix parameters (BinFlow M1 semantic; ';'
-//     stays an ordinary path character);
+//   - no query strings; matrix parameters are peeled upstream
+//     (SplitMatrixParams, M10) — a non-paired ';' stays an ordinary path
+//     character (the M1 legacy semantics, decision 11.39);
 //   - repository key: non-empty, no '/', bounded by MaxRepoKeyLen;
 //   - artifact path: no "." or ".." segments anywhere (decoded!), no empty
 //     segments (double slashes), no leading '/', at most MaxRelPathLen
@@ -113,6 +145,74 @@ func validateRelPath(rel string) error {
 
 // isControlByte reports whether r is a control character (C0 range, DEL).
 func isControlByte(r rune) bool { return r < 0x20 || r == 0x7f }
+
+// ---- matrix parameters (M10 T-286, architecture section 15.3.1) ----
+
+// SplitMatrixParams is the single point of the matrix-parameter peel: it
+// takes the DECODED content path (repo key included — the whole path is the
+// stripping domain, inv-3 section 3.1) and returns the cleaned path plus
+// the raw matrix region ("" when there is none).
+//
+// Grammar (BinFlow's own, backward compatibility first): everything from
+// the FIRST ';' is a matrix region iff every ';'-separated segment of it
+// contains '=' (the ";k=v(;k2=v2)*" shape). A region that matches is peeled
+// wholesale; a region that does not — "file;name.jar", "x;y;z.txt", a ';'
+// in a folder segment — leaves the path byte-identical to M1~M9 (the
+// legacy fallback, decision 11.39: five seeded ';' fixtures keep their
+// literal reachability forever). Key/value legality is ParseMatrixProps'
+// question and only runs on a region that matched, so a legacy path can
+// never 400 here.
+//
+// A trailing slash survives the peel ("dir/;k=v" -> "dir/"), matching the
+// folder-addressing rule of validateRelPath.
+func SplitMatrixParams(decoded string) (clean, matrix string) {
+	i := strings.IndexByte(decoded, ';')
+	if i < 0 {
+		return decoded, ""
+	}
+	region := decoded[i:]
+	for _, seg := range strings.Split(strings.TrimPrefix(region, ";"), ";") {
+		if !strings.Contains(seg, "=") {
+			// Not the k=v grammar: M1 literal-path semantics (the legacy
+			// compatibility fallback — never an error).
+			return decoded, ""
+		}
+	}
+	return decoded[:i], region
+}
+
+// ParseMatrixProps validates and parses the matrix region SplitMatrixParams
+// peeled off: each ";k=v" segment contributes one value to key k (repeated
+// keys accumulate, the multi-value rule), and the closed property rules
+// (metadata.ValidateProp*) guard charset, sizes and cardinality. A
+// violation wraps ErrBadRequestPath — the 400 the deploy plane answers
+// (Artifactory's illegal-key posture, rest-api.md section 1.3).
+func ParseMatrixProps(matrix string) (DeployProps, error) {
+	if matrix == "" {
+		return nil, nil
+	}
+	props := DeployProps{}
+	for _, seg := range strings.Split(strings.TrimPrefix(matrix, ";"), ";") {
+		key, value, found := strings.Cut(seg, "=")
+		if !found {
+			// Unreachable through SplitMatrixParams (the region matched the
+			// k=v shape); kept defensive so the two halves may also be used
+			// apart without a silent no-op.
+			return nil, fmt.Errorf("%w: matrix parameter %q carries no '='", ErrBadRequestPath, seg)
+		}
+		if err := metadata.ValidatePropKey(key); err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrBadRequestPath, err)
+		}
+		if err := metadata.ValidatePropValue(key, value); err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrBadRequestPath, err)
+		}
+		props[key] = append(props[key], value)
+	}
+	if err := metadata.ValidatePropSet(props); err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrBadRequestPath, err)
+	}
+	return props, nil
+}
 
 // NormalizeRelPath is the exported one-liner other protocol adapters (M2+
 // docker subpaths, M3 maven) can reuse for their own relPath validation

@@ -399,6 +399,7 @@ type Store interface {
 	UploadSessions() UploadSessionStore
 	Usage() UsageStore
 	Licenses() LicenseStore
+	NodeProps() NodePropStore
 	// IsReferenced reports whether any node row or docker ref row currently
 	// points at sha256 ([M9] ADR-0031 mechanism A): the single-point Live
 	// oracle behind the GC sweep's pre-delete recheck. It spans two sub-stores
@@ -813,6 +814,34 @@ type LicenseStore interface {
 	// DeleteLicense removes the row. Idempotent: deleting an empty table
 	// succeeds (the floor is already in force).
 	DeleteLicense(ctx context.Context) error
+}
+
+// NodePropStore is the artifact-properties persistence seam (013, M10
+// T-286 / ADR-0033, architecture section 15.3.2). Consumers are the deploy
+// chain (repo.Service's PutOptions.Properties tail) and the ?properties
+// REST family (httpapi). The store keeps the SET semantics — one row per
+// (repo, path, key, value) — and the merge law of section 11.40 (same-key
+// value-set replace, other keys kept); legality (charset, sizes,
+// cardinality) is repo.ValidatePropSet's question and never re-checked
+// here. Rows cascade on node and repository deletes through the 013 FKs,
+// so the store carries no delete-cascade method of its own.
+type NodePropStore interface {
+	// List returns every property of one node: key -> value set, values
+	// ordered (the primary key's value arm gives a deterministic order). A
+	// node without properties answers an empty map, not an error — the
+	// caller owns the node's existence question.
+	List(ctx context.Context, repoKey, path string) (map[string][]string, error)
+	// Merge applies the section-11.40 merge to ONE node in a single
+	// transaction: every key in props has its value set REPLACED, keys not
+	// named keep their rows, other nodes are untouched. An empty props map
+	// is a no-op. The node must exist (the composite FK refuses orphan
+	// annotations; callers resolve the 404 first).
+	Merge(ctx context.Context, repoKey, path string, props map[string][]string) error
+	// Delete drops the named keys of one node in a single transaction. A
+	// nil/empty keys slice (the REST `properties=*` form) drops every key
+	// of the node; naming keys it does not carry is not an error
+	// (delete is idempotent — the caller answers 204 either way).
+	Delete(ctx context.Context, repoKey, path string, keys []string) error
 }
 
 // UsageStore is the quota accounting seam over repo_usage (004; ADR-0015

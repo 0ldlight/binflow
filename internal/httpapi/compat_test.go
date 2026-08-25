@@ -423,9 +423,11 @@ func TestStorageItemInfo(t *testing.T) {
 
 	t.Run("unimplemented query arms are E-26 404", func(t *testing.T) {
 		// T-97 R5 flip: ?permissions left this list (SE-08 routes it now —
-		// TestStoragePermissionsView pins the routed posture); the remaining
-		// arms stay E-26 residents until their own tickets open them.
-		for _, q := range []string{"properties", "stats", "lastModified"} {
+		// TestStoragePermissionsView pins the routed posture). T-286's flip:
+		// ?properties left it too (FR-89 routes the three verbs —
+		// TestStorageProperties pins the family); the remaining arms stay
+		// E-26 residents until their own tickets open them.
+		for _, q := range []string{"propertiesXml", "stats", "lastModified"} {
 			resp := h.do(http.MethodGet, "/binflow/api/storage/generic-local/acme/artifact.bin?"+q, adminUser, adminPass, nil, nil)
 			eb := decodeError(t, resp)
 			if resp.StatusCode != http.StatusNotFound {

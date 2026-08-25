@@ -50,13 +50,19 @@ func (h *Handler) Layout(r *http.Request) (string, string, error) {
 // scaffolding, error envelope injection) is httpapi's; this handler only
 // owns protocol semantics and renders every failure as the errors[] JSON
 // envelope itself, so a bare mount still never leaks an HTML error page.
+//
+// Since M10 (T-286) the path resolves through adapter.ResolveContent: a
+// paired ";k=v" trailing sequence is peeled off as deploy properties and
+// boxed into the request context (adapter.WithDeployProps) — reads use
+// the stripped path for addressing only, the PUT arm hands the set to
+// repo.PutOptions.Properties.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	repoKey, relPath, err := h.Layout(r)
+	repoKey, relPath, props, err := adapter.ResolveContent(r)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	ctx := r.Context()
+	ctx := adapter.WithDeployProps(r.Context(), props)
 	p := adapter.PrincipalFrom(ctx)
 
 	switch r.Method {
@@ -111,7 +117,15 @@ func (h *Handler) handlePut(ctx context.Context, w http.ResponseWriter, r *http.
 		return
 	}
 
-	node, err := h.svc.Put(ctx, p, repoKey, relPath, r.Body, expect, mime)
+	// Deploy properties ride the options seam (T-286, architecture section
+	// 15.3.1): the matrix set ServeHTTP boxed off the path lands with the
+	// node. A path without matrix parameters passes the zero options — the
+	// plain-Put behavior, byte for byte.
+	var opts repo.PutOptions
+	if props := adapter.DeployPropsFrom(ctx); len(props) > 0 {
+		opts.Properties = map[string][]string(props)
+	}
+	node, err := h.svc.PutWithOptions(ctx, p, repoKey, relPath, r.Body, expect, mime, opts)
 	if err != nil {
 		h.writeServiceError(w, err, r.Method, repoKey, relPath)
 		return
@@ -409,6 +423,11 @@ func (h *Handler) writeServiceError(w http.ResponseWriter, err error, method, re
 	case errors.Is(err, repo.ErrRepoNotFound):
 		writeError(w, http.StatusNotFound, fmt.Sprintf("Failed to find the repository '%s' specified in the request.", repoKey))
 	case errors.Is(err, repo.ErrInvalidPath):
+		writeError(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, repo.ErrInvalidProperties):
+		// Deploy properties rejected by the closed rules (defensive: the
+		// matrix parse refuses them before the service — the service-side
+		// guard is the no-bypass backstop, T-286).
 		writeError(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, repo.ErrUnauthorized):
 		w.Header().Set("WWW-Authenticate", `Basic realm="BinFlow Realm"`)

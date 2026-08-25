@@ -557,6 +557,35 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 				})
 			return
 		}
+		if _, ok := r.URL.Query()["properties"]; ok {
+			// FR-89 (M10 T-286, architecture section 15.3.3): the property
+			// read/write family — the E-09 gap's redemption, riding the same
+			// route as a third query arm. GET keeps the item-info read gate
+			// (content-plane semantics, anonymous follows the flag); the
+			// mutating verbs demand authentication at the route and the
+			// path's `w` inside the handler (the same Authorizer the
+			// content plane consults — properties are metadata, not content,
+			// so no overwrite/`d` coupling). Every other verb on the arm
+			// falls to the E-26 404 below, the family's frozen posture for
+			// spellings it does not define.
+			switch r.Method {
+			case http.MethodGet:
+				s.enforce(w, r, routeAuth{}, func(w http.ResponseWriter, r *http.Request) {
+					s.handleStoragePropertiesGet(w, r, repoKey, rel)
+				})
+			case http.MethodPut:
+				s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+					s.handleStoragePropertiesPut(w, r, repoKey, rel)
+				})
+			case http.MethodDelete:
+				s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+					s.handleStoragePropertiesDelete(w, r, repoKey, rel)
+				})
+			default:
+				notImplemented(w, "/binflow/api/"+rest)
+			}
+			return
+		}
 		if r.Method == http.MethodGet {
 			s.enforce(w, r, routeAuth{}, func(w http.ResponseWriter, r *http.Request) {
 				s.handleStorageItem(w, r, repoKey, rel)

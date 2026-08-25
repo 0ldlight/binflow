@@ -193,13 +193,14 @@ func (h *Handler) putFile(ctx context.Context, w http.ResponseWriter, r *http.Re
 	// documents are freely rewritable — every mvn deploy re-PUTs them with
 	// changed bytes, which must not demand DELETE on the old node (the
 	// T-67 leftover this closes). The write grant still applies.
-	var node *metadata.Node
+	//
+	// Deploy matrix properties (T-286) ride the same options either way:
+	// the ";k=v" set ServeHTTP boxed off the path lands with the node.
+	opts := repo.PutOptions{Properties: deployPropsOf(ctx)}
 	if l.Kind == KindMetadata {
-		node, err = h.svc.PutWithOptions(ctx, p, repoKey, relPath, body, declared, mime,
-			repo.PutOptions{SkipOverwriteCheck: true})
-	} else {
-		node, err = h.svc.Put(ctx, p, repoKey, relPath, body, declared, mime)
+		opts.SkipOverwriteCheck = true
 	}
+	node, err := h.svc.PutWithOptions(ctx, p, repoKey, relPath, body, declared, mime, opts)
 	if err != nil {
 		h.writeServiceError(w, err, http.MethodPut, repoKey, relPath)
 		return
@@ -299,6 +300,15 @@ func (h *Handler) putSidecar(ctx context.Context, w http.ResponseWriter, r *http
 
 // maxSidecarBytes is the checksum-file size ceiling (rest-api.md 1.5).
 const maxSidecarBytes = 1024
+
+// deployPropsOf lifts the request's matrix-parameter set into the option
+// shape (nil for a path without any — the plain-deploy options).
+func deployPropsOf(ctx context.Context) map[string][]string {
+	if props := adapter.DeployPropsFrom(ctx); len(props) > 0 {
+		return map[string][]string(props)
+	}
+	return nil
+}
 
 // suspiciousSidecarMessage renders the fixed refusal wording.
 func suspiciousSidecarMessage(n int64) string {

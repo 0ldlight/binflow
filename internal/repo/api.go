@@ -606,7 +606,9 @@ type UsageBatchReport struct {
 // PutOptions tunes PutWithOptions for the regenerable-content family
 // (T-68's adapter SPI exemption, repo-semantics section 3's high-confidence
 // rule: "checksum sidecar files (.sha1 etc.) and maven-metadata.xml never
-// trigger the overwrite check — freely rewritable").
+// trigger the overwrite check — freely rewritable") and carries the
+// deploy-time properties of the M10 matrix-parameter peel (T-286,
+// architecture section 15.3.1: "既有 PutOpts SPI 缝〔T-67〕顺势承载").
 type PutOptions struct {
 	// SkipOverwriteCheck exempts the write from the OVERWRITE half of the
 	// permission pair: a pre-existing node at the path with a DIFFERENT
@@ -616,6 +618,14 @@ type PutOptions struct {
 	// delete-permission demand is lifted, exactly the freedom the spec
 	// grants the freely-rewritable family.
 	SkipOverwriteCheck bool
+	// Properties are deploy-time matrix properties ("PUT r/a.bin;k=v"):
+	// they land on the deployed node with the SAME merge semantics as the
+	// REST ?properties PUT (same-key value-set replace, other keys kept —
+	// architecture section 11.40), so a redeploy annotates rather than
+	// clobbers. nil/empty (every non-matrix deploy) writes nothing —
+	// existing properties survive a plain re-PUT. ValidatePropSet guards
+	// the shape; adapters only ever pass sets ParseMatrixProps produced.
+	Properties map[string][]string
 }
 
 // StatusError is a service-level failure that already knows its exact

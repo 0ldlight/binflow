@@ -18,9 +18,10 @@ import (
 // Artifactory-compatible item info and file listing (rest-api.md section 3;
 // PRD E-09/E-10). GET /api/storage/{repo}/{path} answers FileInfo for files
 // and FolderInfo for directories; the ?list family returns a flat file
-// listing; ?permissions answers the effective-permission view (SE-08, T-97).
-// Everything else under ?properties/?stats/?lastModified is deliberately
-// unimplemented and falls to the E-26 404.
+// listing; ?permissions answers the effective-permission view (SE-08, T-97);
+// ?properties answers the property read/write family (FR-89, T-286 —
+// properties.go). Everything else under ?propertiesXml/?stats/?lastModified
+// is deliberately unimplemented and falls to the E-26 404.
 //
 // Read authorization follows the content plane (the endpoint exposes exactly
 // what a content GET exposes, metadata flavor): anonymous reads pass when
@@ -49,6 +50,11 @@ type fileInfoBody struct {
 	// ?docker_tags query parameter is set on a docker repository FolderInfo GET.
 	// The field is omitted entirely when empty (no Docker repo or no tags).
 	DockerTags map[string][]string `json:"dockerTags,omitempty"`
+	// Properties is the node's property set (M10 T-286, FR-89.3: the detail
+	// body carries it additively). Omitted when the node has none — the
+	// pre-M10 wire form stays byte-identical for property-less nodes (the
+	// M9-frozen assertions must keep passing untouched).
+	Properties map[string][]string `json:"properties,omitempty"`
 }
 
 // checksumTriple is the sha1/md5/sha256 digest object (fields omitted when
@@ -88,11 +94,13 @@ func isoMillisUTC(stored string) string {
 // its direct children sorted by name (rest-api.md section 3). relPath is the
 // decoded repo-relative path ("" = the repository root).
 func (s *Server) handleStorageItem(w http.ResponseWriter, r *http.Request, repoKey, relPath string) {
-	// Unimplemented query arms (E-09 scope): properties/stats/lastModified
+	// Unimplemented query arms (E-09 scope): propertiesXml/stats/lastModified
 	// answer the E-26 404 rather than silently returning the plain item
 	// body. (?permissions left this list in T-97 — SE-08 routes it to
-	// handleStoragePermissions before this handler runs.)
-	for _, q := range []string{"properties", "propertiesXml", "stats", "lastModified"} {
+	// handleStoragePermissions before this handler runs; ?properties left
+	// it in T-286 — FR-89 routes the three verbs to the properties family
+	// before this handler runs.)
+	for _, q := range []string{"propertiesXml", "stats", "lastModified"} {
 		if _, ok := r.URL.Query()[q]; ok {
 			notImplemented(w, "/binflow/api/storage item query '"+q+"'")
 			return
@@ -357,9 +365,30 @@ func (s *Server) fileInfoOf(ctx context.Context, base, repoKey string, node *met
 
 // writeFileInfo renders the file body: the full field set with digests from
 // the node plus the blob ledger (sha256 on the node, sha1/md5 keyed by the
-// blob, ADR-0006).
+// blob, ADR-0006), plus the node's properties when it carries any (the
+// additive detail-body echo of FR-89.3 — filled HERE, not in fileInfoOf, so
+// the search planes sharing fileInfoOf keep their lean field set).
 func (s *Server) writeFileInfo(w http.ResponseWriter, r *http.Request, repoKey string, node *metadata.Node) {
-	writeJSONBody(w, http.StatusOK, s.fileInfoOf(r.Context(), requestBase(r), repoKey, node))
+	body := s.fileInfoOf(r.Context(), requestBase(r), repoKey, node)
+	body.Properties = s.nodePropsOf(r.Context(), node)
+	writeJSONBody(w, http.StatusOK, body)
+}
+
+// nodePropsOf reads one node's property set for the detail-body echo. A
+// node without properties (the overwhelming default) answers nil — the
+// field omits — and a store failure degrades the same way with a log
+// line: the item body's core facts never hostage to the annotation plane.
+func (s *Server) nodePropsOf(ctx context.Context, node *metadata.Node) map[string][]string {
+	props, err := s.deps.Metadata.NodeProps().List(ctx, node.RepoKey, node.Path)
+	if err != nil {
+		s.log.ErrorContext(ctx, "httpapi: detail-body properties read failed",
+			"repo", node.RepoKey, "path", node.Path, "error", err.Error())
+		return nil
+	}
+	if len(props) == 0 {
+		return nil
+	}
+	return props
 }
 
 // mimeOrDefault defaults an absent stored mime (FR-4-AC13 posture).
@@ -419,6 +448,11 @@ func (s *Server) writeFolderInfoBody(w http.ResponseWriter, r *http.Request, rep
 	}
 	if len(dockerTags) > 0 {
 		body.DockerTags = dockerTags
+	}
+	if node != nil {
+		// Folder rows are property carriers like files (section 15.3.2);
+		// the repository root (node == nil) has no node row and no echo.
+		body.Properties = s.nodePropsOf(r.Context(), node)
 	}
 	writeJSONBody(w, http.StatusOK, body)
 }
