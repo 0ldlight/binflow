@@ -825,6 +825,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 「后续的每一次变更要通过 jenkins 持续部署到 172.16.58.129，作为测试环境」——口径：
 - **触发链**：git push（origin/vm）→ Jenkins smoke/发布 job → **部署到 VM 测试环境**（现有 systemd BinFlow 实例 :8080 升级替换——T-230 路径）+ 烟测（ping/建仓/上传/下载）
 - **现有基础**：T-248 三级流水线（smoke/nightly/release）+ T-270 多架构已在 VM Jenkins；缺的是 **deploy 阶段**（发布→VM 实例滚动替换 + 部署后烟测）
+- **追加（2026-08-25 17:40）**：「文档站也要随功能变更及时更新，也需要通过 jenkins 持续部署到 172.16.58.129」——docs-site（Docusaurus 构建产物）与二进制同链部署：deploy job 增 docs 阶段（make docs → 产物上 VM → 服务形态二选一：嵌入二进制 /binflow/docs/ 自带〔make build 已 embed〕或 nginx 静态托管独立端口——按 T-298 选型一并论证）；**docs 变更及时性**：docs/ 目录变更触发同链（Jenkinsfile 检测路径或简单全量——每次全量最简）
 - 落为 **T-298** [P0]：Jenkins deploy 阶段（job 或 release job 增 deploy-to-vm stage：构建→scp→systemd 重启→烟测→失败回滚保留旧二进制）+ 服务端就绪探针（部署门）
 - 部署纪律：数据目录不动（只换二进制）；部署后跑 m7 矩阵不变量腿作为部署烟测的一部分（可选）
 
