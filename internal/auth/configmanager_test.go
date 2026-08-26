@@ -170,20 +170,19 @@ func TestAuthConfigSectionRoundTripAndMasking(t *testing.T) {
 				t.Fatalf("GET echo drifts from the PUT echo:\n%s\n%s", echoStr, got)
 			}
 
-			// The sentinel write-back KEEPS the stored secret (write-only
-			// mode, ADR-0035 decision 5).
+			// The sentinel write-back is REFUSED (Artifactory posture,
+			// auth-integration §1.6; user ruling 2026-08-27 00:15 flipping
+			// T-305's initial accept-and-keep merge): the stored secret
+			// survives the refusal untouched.
 			if tt.secret != "" {
 				sentinelBody := strings.Replace(tt.body, tt.secret, auth.MaskedSecretEcho, 1)
-				echo2, _, err := m.PutAuthSection(ctx, tt.section, []byte(sentinelBody), "admin")
-				if err != nil {
-					t.Fatalf("PutAuthSection(sentinel): %v", err)
-				}
-				if !strings.Contains(string(echo2), auth.MaskedSecretEcho) {
-					t.Fatalf("sentinel write-back lost the secret (echo carries no sentinel): %s", echo2)
+				_, _, err := m.PutAuthSection(ctx, tt.section, []byte(sentinelBody), "admin")
+				if err == nil {
+					t.Fatalf("PutAuthSection(sentinel): expected refusal, got success")
 				}
 				rec2, _ := st.AuthConfigs().GetAuthConfig(ctx, tt.section)
 				if rec2 == nil || !strings.Contains(rec2.Doc, "enc:v1:") {
-					t.Fatalf("sentinel write-back dropped the secret: %v", rec2)
+					t.Fatalf("refused sentinel write dropped the secret: %v", rec2)
 				}
 
 				// An explicit empty string CLEARS the secret.
