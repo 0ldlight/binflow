@@ -407,6 +407,16 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 			deps.BlobInventory = inv
 		}
 	}
+	// The MPU REST seam (M10 T-289, FR-90.1 / architecture section 15.4):
+	// /api/v1/uploads rides the engine's multipart-session capability —
+	// only the pure-S3 engine carries it. Every other backend (filestore,
+	// and dual-write whose MigrationEngine fronts the disk path) leaves
+	// the seam nil and the six endpoints answer the honest plain-text 501
+	// (FR-90-AC3): MPU-to-S3 through a dual-write stack would bypass its
+	// disk half, so the absence is semantics, not a gap.
+	if mpu, ok := stack.st.(storage.MultipartUploads); ok {
+		deps.Uploads = mpu
+	}
 	// The push-replication plane (T-180, ADR-0021): the store the REST
 	// handlers and the engine share, and the cipher that seals target
 	// passwords at create time. openStack owns both; a stack that failed to

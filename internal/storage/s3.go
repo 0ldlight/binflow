@@ -82,6 +82,11 @@ func resolveS3PartSize(n int64) int64 {
 	}
 }
 
+// The S3 engine carries the MultipartUploads capability (T-289); the disk
+// engine deliberately does not — the discovery failure is what makes the
+// /api/v1/uploads plane's 501 on filestore instances honest.
+var _ MultipartUploads = (*S3Engine)(nil)
+
 // api returns the high-level minio client. minio.Core shadows several method
 // names (GetObject, PutObject, CopyObject, ListObjects, ...) with lower-level
 // signatures of its own, so the embedded Client must be selected explicitly
@@ -215,6 +220,21 @@ func (e *S3Engine) timeNow() time.Time {
 // BeginSession creates a new multipart upload session. The session ID is a
 // uuid; the S3 upload ID is stored internally.
 func (e *S3Engine) BeginSession(ctx context.Context) (Session, error) {
+	return e.beginSession(ctx, e.partSize)
+}
+
+// BeginMultipartSession implements MultipartUploads (T-289, FR-90.1): the
+// same multipart session BeginSession opens, with the per-session part size
+// the /api/v1/uploads create/config verbs carry. The size resolves through
+// the same default/clamp table (resolveS3PartSize), so a REST-declared 1 MiB
+// becomes the S3-legal 5 MiB floor here at begin time — fail-fast at the
+// session's birth instead of an EntityTooSmall at complete.
+func (e *S3Engine) BeginMultipartSession(ctx context.Context, partSize int64) (Session, error) {
+	return e.beginSession(ctx, resolveS3PartSize(partSize))
+}
+
+// beginSession is the shared body of BeginSession/BeginMultipartSession.
+func (e *S3Engine) beginSession(ctx context.Context, partSize int64) (Session, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("storage: s3: begin session: %w", err)
 	}
@@ -241,7 +261,7 @@ func (e *S3Engine) BeginSession(ctx context.Context) (Session, error) {
 		id:        id,
 		uploadID:  uploadID,
 		uploadKey: uploadKey,
-		partSize:  e.partSize,
+		partSize:  partSize,
 		digests:   newDigesters(),
 		createdAt: e.timeNow(),
 	}
@@ -928,12 +948,20 @@ func (s *s3Session) Abort(ctx context.Context) error {
 	}
 	_ = ctx.Err() // accepted: Abort must clean up regardless of cancellation
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.done {
+		s.mu.Unlock()
 		return nil
 	}
 	s.finishLocked()
-	return nil
+	// B5 (T-289 review): finalizing the session must also reclaim its
+	// S3-side multipart state — done+forget alone left the in-progress
+	// upload (and every uploaded part) billable in the bucket until some
+	// later restart's orphan sweep caught it. Best-effort, the Commit
+	// dedup arm's pattern: the error surfaces to the caller, the session
+	// is terminal either way.
+	err := s.eng.core.AbortMultipartUpload(ctx, s.eng.bucket, s.uploadKey, s.uploadID)
+	s.mu.Unlock()
+	return err
 }
 
 // abortMultipart is the engine-shutdown path: abort the S3 multipart upload.
@@ -961,8 +989,18 @@ func (s *s3Session) finishLocked() {
 	s.eng.forgetSession(s)
 }
 
+// failLocked is every Commit failure path's reclamation: poison the
+// session, then — B5 (T-289 review) — abort the S3 multipart upload too.
+// A failed commit can never complete later, so leaving its MPU (and the
+// parts already streamed) alive was pure bucket residue; the best-effort
+// AbortMultipartUpload runs on Background because the failing request's
+// own context is not a reason to keep paying for storage (the same ruling
+// as sweepOrphanUploads' abort arm).
 func (s *s3Session) failLocked() {
 	s.poisoned = true
+	if !s.done {
+		_ = s.eng.core.AbortMultipartUpload(context.Background(), s.eng.bucket, s.uploadKey, s.uploadID)
+	}
 	s.finishLocked()
 }
 

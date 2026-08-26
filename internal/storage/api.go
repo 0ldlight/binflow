@@ -85,6 +85,27 @@ type Session interface {
 	Abort(ctx context.Context) error
 }
 
+// MultipartUploads is the optional capability an engine may carry for the
+// /api/v1/uploads REST plane (T-289, FR-90.1 / architecture section 15.4):
+// beginning an upload session with an EXPLICIT per-session part size, the
+// knob the REST create/config verbs expose. The S3 engine implements it
+// (multipart is its native session form); the disk engine deliberately does
+// not — a filestore instance discovers no seam and the REST plane answers
+// its honest 501 (FR-90-AC3: no inert face). This is a capability DISCOVERY
+// type, not a second session API: the returned Session is the same
+// interface every other upload path drives (Append/Commit/Abort), and
+// ResumeSession semantics are untouched (S3 keeps the hard-404 contract of
+// section 5.3.1 contract 5; restart-resume of S3 multipart sessions stays
+// the §11.31 M8+ debt).
+type MultipartUploads interface {
+	// BeginMultipartSession creates a new upload session whose Append
+	// flushes a part every partSize bytes. partSize <= 0 takes the engine
+	// default; values below the S3 multipart minimum (MinS3PartSize) clamp
+	// up — the resolved value is observable through the REST plane's echo
+	// of the effective size, never silently guessed at complete time.
+	BeginMultipartSession(ctx context.Context, partSize int64) (Session, error)
+}
+
 // GCMarker is the two-method reference oracle behind Engine.GCSweep
 // ([M9] ADR-0031, architecture section 14.2 point 3). Mark is the sweep's
 // snapshot; Live is the per-candidate, pre-delete recheck that closes the

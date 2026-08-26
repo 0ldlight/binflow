@@ -15,6 +15,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"encoding/xml"
 	"errors"
 	"fmt"
@@ -31,6 +32,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lzwzzy/binflow/internal/adapter"
 	"github.com/lzwzzy/binflow/internal/config"
 	"github.com/lzwzzy/binflow/internal/httpapi"
 	"github.com/lzwzzy/binflow/internal/metadata"
@@ -632,4 +634,161 @@ func TestOpenStorageEngineDiskDefaultZeroRegression(t *testing.T) {
 	if data, err := os.ReadFile(path); err != nil || string(data) != "disk-blob" {
 		t.Fatalf("disk blob at %s: read = %v (%q)", path, err, data)
 	}
+}
+
+// ---- T-289: the MPU REST seam's assembly wiring ----
+
+// mpuTestServer builds the HTTP surface over a real openStack result with
+// the T-289 Deps entry wired the way newAssembledServer does (the
+// full-assembly-once constraint keeps this on the light Deps shape —
+// metrics_wiring_test.go's note).
+func mpuTestServer(t *testing.T, cfg *config.Config, st *stack) *httptest.Server {
+	t.Helper()
+	deps := httpapi.Deps{
+		Config: cfg, Auth: st.authSvc, Authz: st.authSvc,
+		Metadata: st.md, Repos: st.md.Repos(), ReposSvc: st.svc,
+		Passwords: st.authSvc, Tokens: st.authSvc,
+		GC: st.st, DataDir: cfg.Storage.DataDir,
+		// The stack's own generic handler — the complete leg's artifact GET
+		// rides the content plane (npm/maven/pypi stay unmounted: the
+		// process-wide registry cannot register them twice in one process).
+		Adapters: []adapter.Handler{st.genericHandler},
+	}
+	if mpu, ok := st.st.(storage.MultipartUploads); ok {
+		deps.Uploads = mpu
+	}
+	s := httpapi.New(deps, testSlogLogger(t))
+	ts := httptest.NewServer(s.Handler())
+	t.Cleanup(ts.Close)
+	return ts
+}
+
+// TestMPUSeamWiringS3ChainAndDisk501 pins the seam's presence rule where
+// it is decided: a pure-S3 stack carries storage.MultipartUploads and the
+// /api/v1/uploads plane drives a whole create->part->complete chain whose
+// blob lands IN THE BUCKET; a disk stack discovers no seam and the same
+// endpoints answer the honest plain-text 501 (FR-90-AC3). A dual-write
+// MigrationEngine is covered by the type assertion's miss arm on the disk
+// leg — it fronts the disk path and deliberately does not implement the
+// capability.
+func TestMPUSeamWiringS3ChainAndDisk501(t *testing.T) {
+	// --- S3 leg ---
+	mock := newS3Mock(t, "binflow")
+	withEnv(t, map[string]string{config.S3SecretEnvVar: "test-secret"})
+	cfg := s3TestConfig(t, mock.endpoint(), "binflow")
+	st := testStack(t, cfg)
+
+	if _, ok := st.st.(storage.MultipartUploads); !ok {
+		t.Fatal("pure-S3 stack does not carry storage.MultipartUploads")
+	}
+	ts := mpuTestServer(t, cfg, st)
+
+	// Repository through the real REST plane.
+	code, body := httpDo(t, ts, http.MethodPut, "/binflow/api/repositories/mpu-s3",
+		`{"rclass":"local","packageType":"generic"}`)
+	if code != http.StatusOK {
+		t.Fatalf("PUT repository = %d: %s", code, body)
+	}
+
+	// create: 201 with the clamped part size.
+	code, body = httpDo(t, ts, http.MethodPost, "/binflow/api/v1/uploads/create",
+		`{"repoKey":"mpu-s3","path":"deep/large.bin","partSizeMB":2}`)
+	if code != http.StatusCreated {
+		t.Fatalf("create = %d: %s", code, body)
+	}
+	var created struct {
+		SessionID     string `json:"sessionId"`
+		PartSizeBytes int64  `json:"partSizeBytes"`
+	}
+	if err := json.Unmarshal([]byte(body), &created); err != nil {
+		t.Fatalf("create body: %v", err)
+	}
+	if created.PartSizeBytes != 5<<20 {
+		t.Fatalf("partSizeBytes = %d, want the 5MiB clamp", created.PartSizeBytes)
+	}
+
+	// One short final part (the only part may be short, S3 contract).
+	payload := []byte("mpu!")
+	code, body = httpDoRaw(t, ts, http.MethodPut,
+		"/binflow/api/v1/uploads/part/"+created.SessionID+"/1", payload)
+	if code != http.StatusAccepted {
+		t.Fatalf("part PUT = %d: %s", code, body)
+	}
+
+	// complete: sha256 gate + node landing.
+	sum := sha256.Sum256(payload)
+	code, body = httpDo(t, ts, http.MethodPost, "/binflow/api/v1/uploads/complete/"+created.SessionID,
+		`{"sha256":"`+hex.EncodeToString(sum[:])+`"}`)
+	if code != http.StatusCreated {
+		t.Fatalf("complete = %d: %s", code, body)
+	}
+	sha := hex.EncodeToString(sum[:])
+	if got := mock.object("binflow", blobKey(sha)); string(got) != "mpu!" {
+		t.Fatalf("bucket object = %q, want the uploaded content at %s", got, blobKey(sha))
+	}
+	code, body = httpDoRaw(t, ts, http.MethodGet, "/binflow/mpu-s3/deep/large.bin", nil)
+	if code != http.StatusOK || string(body) != "mpu!" {
+		t.Fatalf("artifact GET = %d (%q), want 200 mpu!", code, body)
+	}
+
+	// --- disk leg: the honest 501 ---
+	diskCfg := config.Defaults()
+	diskCfg.Storage.DataDir = t.TempDir()
+	diskSt := testStack(t, diskCfg)
+	if _, ok := diskSt.st.(storage.MultipartUploads); ok {
+		t.Fatal("disk stack must NOT carry storage.MultipartUploads")
+	}
+	diskTS := mpuTestServer(t, diskCfg, diskSt)
+	code, body = httpDo(t, diskTS, http.MethodPost, "/binflow/api/v1/uploads/create",
+		`{"repoKey":"any","path":"a.bin"}`)
+	if code != http.StatusNotImplemented || !strings.Contains(body, "not supported on this backend") {
+		t.Fatalf("disk create = %d: %s, want the plain-text 501", code, body)
+	}
+}
+
+// httpDo issues a JSON-body request with the default admin credential and
+// returns (status, body).
+func httpDo(t *testing.T, ts *httptest.Server, method, path, body string) (int, string) {
+	t.Helper()
+	resp, err := doRawRequest(ts, method, path, []byte(body))
+	if err != nil {
+		t.Fatalf("%s %s: %v", method, path, err)
+	}
+	return resp.StatusCode, resp.Body
+}
+
+// httpDoRaw is httpDo for raw payloads (empty body when nil).
+func httpDoRaw(t *testing.T, ts *httptest.Server, method, path string, body []byte) (int, string) {
+	t.Helper()
+	resp, err := doRawRequest(ts, method, path, body)
+	if err != nil {
+		t.Fatalf("%s %s: %v", method, path, err)
+	}
+	return resp.StatusCode, resp.Body
+}
+
+// doRawRequest performs the round trip with Basic admin credentials.
+func doRawRequest(ts *httptest.Server, method, path string, body []byte) (*struct {
+	StatusCode int
+	Body       string
+}, error) {
+	var rdr io.Reader
+	if body != nil {
+		rdr = bytes.NewReader(body)
+	}
+	req, err := http.NewRequest(method, ts.URL+path, rdr)
+	if err != nil {
+		return nil, err
+	}
+	req.SetBasicAuth("admin", "password")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	raw, _ := io.ReadAll(resp.Body)
+	return &struct {
+		StatusCode int
+		Body       string
+	}{resp.StatusCode, string(raw)}, nil
 }

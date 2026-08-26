@@ -73,6 +73,14 @@ func newHarnessCfg(t *testing.T, mutate func(*config.Config), users [][2]string,
 // query-counting GroupStore for the E5 N+1 gate); it wraps the store
 // BEFORE auth/repo/httpapi wiring, again so every consumer sees one store.
 func newHarnessAuth(t *testing.T, mutate func(*config.Config), authMutate func(*auth.Service) *auth.Service, storeMutate func(metadata.Store) metadata.Store, users [][2]string, extra ...adapter.Handler) *harness {
+	return newHarnessFull(t, mutate, authMutate, storeMutate, nil, users, extra...)
+}
+
+// newHarnessFull is newHarnessAuth plus the httpapi.Deps seam injection
+// (T-289): depsMutate adjusts the assembled Deps before httpapi.New — the
+// MPU tests wire Deps.Uploads to a fake storage.MultipartUploads the way
+// the pure-S3 cmd assembly wires the real engine.
+func newHarnessFull(t *testing.T, mutate func(*config.Config), authMutate func(*auth.Service) *auth.Service, storeMutate func(metadata.Store) metadata.Store, depsMutate func(*httpapi.Deps), users [][2]string, extra ...adapter.Handler) *harness {
 	t.Helper()
 	ctx := context.Background()
 	dataDir := t.TempDir()
@@ -129,7 +137,7 @@ func newHarnessAuth(t *testing.T, mutate func(*config.Config), authMutate func(*
 		}, logger).
 		WithStorage(st, md.Blobs())
 	mounted := append([]adapter.Handler{genericHandler, dockerHandler}, extra...)
-	s := httpapi.New(httpapi.Deps{
+	deps := httpapi.Deps{
 		Config:    cfg,
 		Auth:      authSvc,
 		Authz:     authSvc,
@@ -144,7 +152,11 @@ func newHarnessAuth(t *testing.T, mutate func(*config.Config), authMutate func(*
 		Adapters:  mounted,
 		Version:   "1.0.0-test",
 		Revision:  "abc123",
-	}, logger)
+	}
+	if depsMutate != nil {
+		depsMutate(&deps)
+	}
+	s := httpapi.New(deps, logger)
 
 	ts := httptest.NewServer(s.Handler())
 	t.Cleanup(ts.Close)

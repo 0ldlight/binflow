@@ -415,6 +415,40 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite},
 			s.withName(rest, "v1/replications/", s.handleReplicationDelete))
 
+	// ---- /api/v1/uploads (M10 T-289, FR-90.1 / architecture §15.4) ----
+	// The MPU REST plane: create/config/urlPart/status/complete/abort plus
+	// the urlPart contract's PUT target (part). Gate = required at the
+	// route + the target repository path's `w` inside the handler (the
+	// section 15.4 ruling — a content-plane door, not a management
+	// capability); a backend without storage.MultipartUploads (filestore,
+	// dual-write) answers the honest plain-text 501 on every arm, never a
+	// 404 disguised as "no such route" (FR-90-AC3). The bare status form
+	// is the list view (BinFlow's own arm, the inv-4 L3 set's status
+	// endpoint answering the whole instance).
+	case rest == "v1/uploads/create" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true}, s.handleUploadsCreate)
+	case rest == "v1/uploads/config" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true}, s.handleUploadsConfig)
+	case rest == "v1/uploads/status" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+			s.handleUploadsStatus(w, r, "")
+		})
+	case strings.HasPrefix(rest, "v1/uploads/status/") && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true},
+			s.withUploadsID(rest, "v1/uploads/status/", s.handleUploadsStatus))
+	case strings.HasPrefix(rest, "v1/uploads/urlPart/") && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true},
+			s.withUploadsPart(rest, "v1/uploads/urlPart/", s.handleUploadsURLPart))
+	case strings.HasPrefix(rest, "v1/uploads/complete/") && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true},
+			s.withUploadsID(rest, "v1/uploads/complete/", s.handleUploadsComplete))
+	case strings.HasPrefix(rest, "v1/uploads/abort/") && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true},
+			s.withUploadsID(rest, "v1/uploads/abort/", s.handleUploadsAbort))
+	case strings.HasPrefix(rest, "v1/uploads/part/") && r.Method == http.MethodPut:
+		s.enforce(w, r, routeAuth{required: true},
+			s.withUploadsPart(rest, "v1/uploads/part/", s.handleUploadsPart))
+
 	// ---- /api/v1/replication/status (T-159/T-180) ----
 	// The panel polls this every 10s; the data shape is pinned to the T-159
 	// contract assumptions (see replication.go's header).

@@ -19,6 +19,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/metrics"
 	"github.com/lzwzzy/binflow/internal/replication"
 	"github.com/lzwzzy/binflow/internal/repo"
+	"github.com/lzwzzy/binflow/internal/storage"
 )
 
 // RepoLookup is the consumer-side repository-metadata seam the router
@@ -66,6 +67,13 @@ type Deps struct {
 	// walk — its data dir still carries every blob); nil preserves the M1
 	// disk behavior.
 	BlobInventory BlobInventory
+	// Uploads is the S3 multipart-session seam behind /api/v1/uploads (M10
+	// T-289, FR-90.1 / architecture section 15.4): cmd wires it exactly
+	// when the assembly's engine carries storage.MultipartUploads (the pure
+	// S3 backend). Nil — filestore and dual-write stacks — keeps all six
+	// endpoints at the honest plain-text 501 (FR-90-AC3): the feature is
+	// absent on that backend, not the route.
+	Uploads storage.MultipartUploads
 	// Replication is the push-replication store seam (T-180, ADR-0021):
 	// the /api/v1/replications CRUD and /api/v1/replication/status ride it.
 	// Nil leaves those endpoints at 501 — the console panel's "replication
@@ -168,7 +176,12 @@ type Server struct {
 	// nil — a bare LicenseManager fake, or no license collaborator at all —
 	// evaluates the manifest on the community floor.
 	addonsEval addons.Evaluator
-	srv        *http.Server
+	// uploads is the /api/v1/uploads session registry (M10 T-289): the
+	// process-side id -> session table the six endpoints resolve through.
+	// Always built (harmless on stacks without the seam — every endpoint
+	// answers the 501 before it ever consults the registry).
+	uploads *mpuRegistry
+	srv     *http.Server
 }
 
 // New assembles the server. deps.Console may be nil (a bare console
@@ -219,7 +232,7 @@ func New(deps Deps, log *slog.Logger) *Server {
 			}
 		}
 	}
-	s := &Server{deps: deps, log: log, adapters: adapters}
+	s := &Server{deps: deps, log: log, adapters: adapters, uploads: newMPURegistry()}
 	// Instrumentation (T-163) attaches before route() runs below — the
 	// mounted /metrics handler and the base chain both read s.metrics.
 	if deps.Metrics != nil {
