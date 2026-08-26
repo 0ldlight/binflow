@@ -949,5 +949,10 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **CD 链改挂 develop**：VM Jenkins `binflow-ci-smoke` + `binflow-deploy` 已改 `*/develop`（容器 config.xml + 仓库 groovy 源同步，Jenkins 已重启重载）——满足「每一次变更持续部署」；`binflow-release` 维持 main（release 形态从 main 出）
 - subagent 工作方式不变（不 git 提交，conductor 统一提交——仅提交目标从 main 改为 feature→develop）
 - 存量：main 当前 = `95a8f9a`（含 m10-done tag）；下一次 develop→main 合并发生在 M11 首个批次收口或里程碑收官
+- **合并时机自动决策口径（用户 2026-08-27 授权 conductor 自裁，不再逐案请示）**：
+  1. **feature → develop（--no-ff）**：ticket 过 conductor 验证后**立即**合入，不等批次/里程碑收尾——每个已验证 ticket 即时进 VM CD 链，并杜绝 T-309 式「后行票阻塞先行完成票」的提交交织。
+  2. **develop → main（--no-ff）**：M11 首个批次收口或里程碑收官（m11-done tag）时执行一次——触发 CircleCI/UAT 链（52.79.109.153，含文档服务）；中途不逐票 release，避免 UAT 高频换装。
+  3. **hotfix/**：自 main 切出，修完双回（main --no-ff → 回并 develop）。
+  4. **交织例外顺序合入**：文件共写时（slots.go/main.go/router.go 按 13 槽共写），「先完成票先合、后行票紧随」顺序 --no-ff；当前 T-309（已验）暂缓即此例——T-308 收口后 T-308 先、T-309 紧随。
 
 （空）
