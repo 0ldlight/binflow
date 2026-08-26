@@ -680,6 +680,7 @@ export default function ArtifactsBrowser() {
                   onDownload={(n, sha) => void doDownload(repoKey, n, sha)}
                   onClose={() => selectFile(null)}
                   canDelete={!readOnly}
+                  canWriteProps={!readOnly}
                   onDelete={(n) => void confirmDelete(repoKey, n)}
                 />
               ) : (

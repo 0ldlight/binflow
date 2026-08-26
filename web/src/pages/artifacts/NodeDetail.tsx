@@ -10,17 +10,20 @@ import { getRepoDetail, getRepoUsage } from '../../lib/repos'
 import { useAsync } from '../../lib/useAsync'
 import { getItem, getItemPermissions } from './lib'
 import type { ChildNode, ItemInfo } from './lib'
+import PropertiesTab from './PropertiesTab'
 
 // 详情面板（console-m8 §3.3 C4 / §6.3[2]——跨仓树右联）：
 //
 // - 三形态：仓库（getRepoDetail + usage）/ 目录（FolderInfo）/ 文件
-//   （FileInfo 全字段）；Tab = 常规 + 有效权限（admin 渲染——admin 位仅做
-//   预收敛省掉明知 403 的请求，§3.6.3）。
+//   （FileInfo 全字段）；Tab = 常规 + 属性（节点形态，T-291 MUI 首票——
+//   ?properties 读读写族）+ 有效权限（admin 渲染——admin 位仅做预收敛
+//   省掉明知 403 的请求，§3.6.3）。
 // - 字段序对齐 reverse §3.2：名称 → 包类型 → Repository Path → File URL
 //   → 计数/大小 → 部署者/Created；文件附 Checksums 块（sha256/sha1/md5
 //   各带「（上传时提供：一致）」徽标——映射 originalChecksums 比对）。
 // - docker 特化：manifest digest 行的 tag 徽标（T-134 G32a 随迁）。
-// - Properties / Followers / Xray Tab 不建（无后端 / Non-goal）。
+// - Followers / Xray Tab 不建（Non-goal）；仓库根形态无属性页签（属性
+//   挂在节点上，§15.3.2）。
 
 export interface DownloadState {
   path: string
@@ -41,6 +44,7 @@ export default function NodeDetail({
   onDownload,
   onClose,
   canDelete,
+  canWriteProps,
   onDelete,
 }: {
   target: DetailTarget
@@ -49,11 +53,14 @@ export default function NodeDetail({
   onClose: () => void
   /** 删除入口可见性（readonly_admin 预收敛禁用；普通用户走服务端 403） */
   canDelete: boolean
+  /** 属性写姿态（与 canDelete 同源：readonly_admin 预收敛禁用，普通用户
+   *  保留入口由服务端 403 兜底——属性写权限是路径 `w`，非管理面能力） */
+  canWriteProps: boolean
   onDelete: (node: ChildNode) => void
 }) {
   const { session } = useAuth()
   const admin = session?.admin ?? false
-  const [tab, setTab] = useState<'general' | 'perms'>('general')
+  const [tab, setTab] = useState<'general' | 'props' | 'perms'>('general')
   // target 是父组件每次渲染新建的对象（identity 不稳定）——Tab 重置改由
   // 稳定键驱动：否则后台数据到达引发的父重渲染会把用户正在看的 Tab
   // 弹回「常规」（T-246 终验 fix-forward 期间由键盘腿时序暴露的真缺陷）
@@ -127,7 +134,20 @@ export default function NodeDetail({
         className="node-tabs"
         role="tablist"
         aria-label="详情视图"
-        onKeyDown={(e) => onTablistKeys(e, admin ? ['general', 'perms'] : ['general'], tab, setTab)}
+        onKeyDown={(e) =>
+          onTablistKeys(
+            e,
+            target.kind === 'node'
+              ? admin
+                ? ['general', 'props', 'perms']
+                : ['general', 'props']
+              : admin
+                ? ['general', 'perms']
+                : ['general'],
+            tab,
+            setTab,
+          )
+        }
       >
         <button
           type="button"
@@ -139,6 +159,18 @@ export default function NodeDetail({
         >
           常规
         </button>
+        {target.kind === 'node' && (
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'props'}
+            className={`node-tab${tab === 'props' ? ' active' : ''}`}
+            data-testid="node-tab-props"
+            onClick={() => setTab('props')}
+          >
+            属性
+          </button>
+        )}
         {admin && (
           <button
             type="button"
@@ -159,6 +191,16 @@ export default function NodeDetail({
         ) : (
           <NodeGeneral node={target.node} repoKey={target.repoKey} item={item} itemStatus={nodeItem.status} itemError={nodeItem.error} download={download} />
         )
+      ) : tab === 'props' && target.kind === 'node' ? (
+        // 属性页签（T-291）：目录/文件节点均可挂属性（§15.3.2）；仓库根形态
+        // 不渲染该 Tab。folder 行的存储拼写带尾斜杠——?properties 面按
+        // storageNode 寻址，folder 需带尾斜杠（与目录删除同款 isFolderNode
+        // 分支口径）。
+        <PropertiesTab
+          repoKey={target.repoKey}
+          path={target.node.folder ? `${target.node.path}/` : target.node.path}
+          canWrite={canWriteProps}
+        />
       ) : (
         <PermsTab target={target} />
       )}

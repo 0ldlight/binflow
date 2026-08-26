@@ -4,6 +4,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 
 import { AuthProvider } from './app/AuthContext'
 import { ConfirmProvider } from './components/ConfirmDialog'
+import { MuiProvider } from './app/MuiProvider'
 import { ThemeProvider } from './app/ThemeContext'
 import { ToastProvider } from './app/ToastContext'
 import { consumeStepUpFragment } from './lib/stepUpGrant'
@@ -70,6 +71,9 @@ function RouteFallback() {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ThemeProvider>
+      {/* MUI 主题桥（T-291 首票）：palette 对齐 tokens.css、深浅色跟随
+          ThemeContext；仅 MUI 组件消费，存量页面样式零改动 */}
+      <MuiProvider>
       <ToastProvider>
         <BrowserRouter basename="/binflow/ui">
           <AuthProvider>
@@ -156,6 +160,7 @@ createRoot(document.getElementById('root')!).render(
           </AuthProvider>
         </BrowserRouter>
       </ToastProvider>
+      </MuiProvider>
     </ThemeProvider>
   </StrictMode>,
 )

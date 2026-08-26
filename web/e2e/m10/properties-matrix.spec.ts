@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test'
+import type { APIRequestContext, Page } from '@playwright/test'
 
+import { loginAs } from '../m8/support/roles'
 import {
   M10_PLAN,
   fixtureBody,
@@ -11,9 +13,11 @@ import {
 import { m10Client } from './support/seed'
 
 // T-286 fill (M10 B4, FR-89 BE): the properties-system legs L18/L19/L20/
-// L22 (L21 is the FE ticket's Properties Tab). Assertion posture per
-// e2e/m10/README §2.3 — deploy-and-readback accounting against the REAL
-// content/REST plane; no UI, no pixel claims.
+// L22; T-291 fills L21 (the FE Properties Tab — the console's first MUI
+// face). REST legs' assertion posture per e2e/m10/README §2.3 — deploy-and-
+// readback accounting against the REAL content/REST plane; the L21 browser
+// legs follow §2.4 (anchors from console-ux §10 v1.11, no pixel claims,
+// readonly = disabled + counter-assertions).
 //
 // Grammar anchors (ADR-0033 / architecture §15.3):
 //   - matrix peel: paired ";k=v" trailing sequence strips; non-paired ';'
@@ -178,4 +182,145 @@ test('L22 — legacy semicolon regression (seed-m10 fixtures, FR-89-AC4)', async
   const again = await call('GET', `/binflow/${repo}/legacy/app.bin;build=77`)
   expect(again.status).toBe(200)
   expect(again.text).toBe('paired')
+})
+
+// ---- L21 — Properties Tab UI legs (T-291, console-ux §10 v1.11 anchors) ----
+//
+// Target artifacts live under props-ui/ (exclusive to these legs — the REST
+// legs above own ci/ l19/ l20/ legacy/), ONE FILE PER LEG: the suite runs
+// fullyParallel and every leg resets its file's property state through the
+// REST plane first, so a shared file would race (L21a's empty-state window
+// vs L21b's seed write — observed, then split).
+
+const L21_REPO = M10_PLAN.repoGeneric
+
+async function l21Reset(file: string) {
+  await call('PUT', `/binflow/${L21_REPO}/props-ui/${file}`, { body: `l21-ui-tab:${file}` })
+  await call('DELETE', `/binflow/api/storage/${L21_REPO}/props-ui/${file}?properties=*`)
+}
+
+/** Login through the real login page (the m10 seed users — loginAs covers
+ *  only the M8 role fixtures, and the 403 leg needs m10-e2e-user's READ-only
+ *  grant on the legacy repo, which only seedM10 provisions). */
+async function loginDirect(page: Page, username: string, password: string) {
+  await page.goto('/binflow/ui/')
+  await expect(page.locator('[data-testid="login-page"]')).toBeVisible()
+  await page.fill('[data-testid="login-username"]', username)
+  await page.fill('[data-testid="login-password"]', password)
+  await page.click('[data-testid="login-submit"]')
+  await expect(page.locator('[data-testid="app-nav"]')).toBeVisible()
+}
+
+async function openPropsTab(page: Page, file: string) {
+  await page.goto(`/binflow/ui/artifacts/${L21_REPO}/props-ui?focus=${encodeURIComponent(file)}`)
+  await expect(page.locator('[data-testid="node-detail"]')).toBeVisible()
+  await page.click('[data-testid="node-tab-props"]')
+  await expect(page.locator('[data-testid="node-props"]')).toBeVisible()
+}
+
+/** UI legs need the console segment mounted; the REST legs above do not —
+ *  the probe stays scoped to L21 instead of a file-wide beforeEach. */
+async function skipIfNoConsole(request: APIRequestContext) {
+  const probe = await request.get('/binflow/ui/')
+  test.skip(probe.status() === 404, 'console segment not mounted by this binary yet')
+}
+
+test('L21a — admin: empty state, add/edit/delete, inline validation, merge keeps siblings', async ({ page, request }) => {
+  await skipIfNoConsole(request)
+  const file = 'l21a.bin'
+  const path = `props-ui/${file}`
+  await l21Reset(file)
+  await loginAs(page, 'admin')
+  await openPropsTab(page, file)
+
+  // Empty state: no properties guidance (four-states posture).
+  await expect(page.locator('[data-testid="node-props-empty"]')).toBeVisible()
+  await expect(page.locator('[data-testid="node-props-table"]')).toHaveCount(0)
+
+  // Illegal key = immediate feedback + save disabled (server-side closed
+  // charset mirrored client-side; zero bad requests leave the browser).
+  await page.click('[data-testid="node-props-add"]')
+  await expect(page.locator('[data-testid="node-props-row-new"]')).toBeVisible()
+  await page.fill('[data-testid="node-props-key-input"]', 'bad key')
+  await expect(page.getByText('键须匹配', { exact: false })).toBeVisible()
+  await expect(page.locator('[data-testid="node-props-save"]')).toBeDisabled()
+
+  // Fix the key; the draft values input re-keys to the typed name.
+  await page.fill('[data-testid="node-props-key-input"]', 'qa')
+  await page.fill('[data-testid="node-props-values-input-qa"]', 'passed, rc1')
+  await expect(page.locator('[data-testid="node-props-save"]')).toBeEnabled()
+  await page.click('[data-testid="node-props-save"]')
+  const row = page.locator('[data-testid="node-props-row-qa"]')
+  await expect(row).toBeVisible()
+  await expect(row).toContainText('passed, rc1')
+
+  // Wire form: multi-value landed as a real value set (§15.3.3 wrapped body).
+  const wire = JSON.parse((await call('GET', `/binflow/api/storage/${L21_REPO}/${path}?properties=qa`)).text)
+  expect(wire).toEqual({ properties: { qa: ['passed', 'rc1'] } })
+
+  // Edit = PUT single-key replace; OTHER keys survive (the §11.40 merge law
+  // — the semantics the tab's hint line states to the user).
+  await call('PUT', `/binflow/api/storage/${L21_REPO}/${path}?properties=owner=team-a`)
+  await page.reload()
+  await expect(page.locator('[data-testid="node-tab-props"]')).toBeVisible()
+  await page.click('[data-testid="node-tab-props"]')
+  await expect(page.locator('[data-testid="node-props-row-owner"]')).toBeVisible()
+  await page.click('[data-testid="node-props-edit-qa"]')
+  await page.fill('[data-testid="node-props-values-input-qa"]', 'released')
+  await page.click('[data-testid="node-props-save"]')
+  await expect(page.locator('[data-testid="node-props-row-qa"]')).toContainText('released')
+  await expect(page.locator('[data-testid="node-props-row-qa"]')).not.toContainText('passed')
+  await expect(page.locator('[data-testid="node-props-row-owner"]')).toContainText('team-a')
+
+  // Delete is the light interaction (no confirm dialog, Artifactory parity);
+  // deleting every key returns the empty state.
+  await page.click('[data-testid="node-props-delete-qa"]')
+  await expect(page.locator('[data-testid="node-props-row-qa"]')).toHaveCount(0)
+  await page.click('[data-testid="node-props-delete-owner"]')
+  await expect(page.locator('[data-testid="node-props-empty"]')).toBeVisible()
+  expect(JSON.parse((await call('GET', `/binflow/api/storage/${L21_REPO}/${path}?properties`)).text)).toEqual({
+    properties: {},
+  })
+})
+
+test('L21b — plain user with read-only grant: reads rows, write faces the 403 envelope', async ({ page, request }) => {
+  await skipIfNoConsole(request)
+  const file = 'l21b.bin'
+  const path = `props-ui/${file}`
+  await l21Reset(file)
+  await call('PUT', `/binflow/api/storage/${L21_REPO}/${path}?properties=qa=passed`)
+  await loginDirect(page, M10_PLAN.user.name, M10_PLAN.user.password)
+  await openPropsTab(page, file)
+
+  // Read rides the item-info gate — the granted user SEES the property.
+  await expect(page.locator('[data-testid="node-props-row-qa"]')).toBeVisible()
+  // Plain user keeps the write entries (W12d posture — the server is the
+  // gate, not the UI): counter-assertion against the readonly leg below.
+  await expect(page.locator('[data-testid="node-props-add"]')).toBeEnabled()
+  await expect(page.locator('[data-testid="node-props-edit-qa"]')).toBeEnabled()
+
+  // The write attempt surfaces the server's 403 envelope inline.
+  await page.click('[data-testid="node-props-edit-qa"]')
+  await page.fill('[data-testid="node-props-values-input-qa"]', 'hijack')
+  await page.click('[data-testid="node-props-save"]')
+  const err = page.locator('[data-testid="node-props-error"]')
+  await expect(err).toBeVisible()
+  await expect(err).toContainText('403')
+  // The stored set never moved.
+  expect(JSON.parse((await call('GET', `/binflow/api/storage/${L21_REPO}/${path}?properties=qa`)).text)).toEqual({
+    properties: { qa: ['passed'] },
+  })
+})
+
+test('L21c — readonly_admin: write entries disabled (pre-convergence posture)', async ({ page, request }) => {
+  await skipIfNoConsole(request)
+  await l21Reset('l21c.bin')
+  await call('PUT', `/binflow/api/storage/${L21_REPO}/props-ui/l21c.bin?properties=qa=passed`)
+  await loginDirect(page, M10_PLAN.readonlyAdmin.name, M10_PLAN.readonlyAdmin.password)
+  await openPropsTab(page, 'l21c.bin')
+
+  await expect(page.locator('[data-testid="node-props-row-qa"]')).toBeVisible()
+  await expect(page.locator('[data-testid="node-props-add"]')).toBeDisabled()
+  await expect(page.locator('[data-testid="node-props-edit-qa"]')).toBeDisabled()
+  await expect(page.locator('[data-testid="node-props-delete-qa"]')).toBeDisabled()
 })

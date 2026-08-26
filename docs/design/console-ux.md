@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 文档 | `docs/design/console-ux.md` |
-| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账） |
-| 状态 | v1.9（2026-08-25） |
+| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账）/ T-291（v1.11：Properties 页签锚册——MUI 首票） |
+| 状态 | v1.11（2026-08-26） |
 | 维护者 | ux-designer |
 | 上游依据 | PRODUCT.md（Web 控制台/治理/Non-goals）、ROADMAP.md M4 节、docs/prd/milestone-1/2/3/4.md（端点矩阵与已定案行为）、docs/user/docker-registry.md（用户面口径）、docs/design/architecture.md §7（路由/console 挂载点）、internal/httpapi/router.go（路由门事实——§3.6.2 矩阵逐一核对）、reports/agents/T-98.md · T-99.md（漂移登记与 testid 素材）、reports/agents/T-98-review.md（N1 收敛建议）、BOARD.md（T-85 PRD / T-97 存在性不泄露裁决） |
 | 下游消费者 | T-86（架构：console 包/session/前端工程结构）、tech-lead（M4 拆票）、前端 dev（页面组票）、qa-engineer（控制台验收） |
@@ -26,6 +26,7 @@
 | v1.8 | 2026-08-24 | T-265 树过滤复位 + 顶栏搜索框（FR-82-AC2/AC9）：① §10.5 增补 **T-265 批 4 锚**（`tree-filter-clear` + 顶栏最近词下拉族 `topbar-search-recent{-item-<i>,-clear}`）；② `topbar-search` 锚名不变、载体自按钮升真输入框（Enter → `/search?q=`，空词 Enter 保留纯入口；⌘K / `/` 改为聚焦顶栏框）；③ `tree-filter` / `tree-repo-filter` 锚不变，新增 (repo, dir) 作用域复位语义（QA-3 跨层/跨仓残留收口） |
 | v1.9.1 | 2026-08-25 | T-274 修正 T-267 锚退役误杀（T-272-qa DEFECT-1，option a 最小面）：① 对账器 **spec 抽取正则补形**——属性选择器三引号 × `^=/$=/*=` 算子 × `${}` 模板段 + 值断言形（`toHaveAttribute` / `toMatch` / `(not.)toBe` 模板），65+ 处动态/前缀引用自隐形转可见（`repos-row-*` 0→33 自证）；② 对账器 **src 侧补收变量模板形态**并**补录** `repos-usage-*`（T-253「已用」列，双向隐形漏网）；③ **19 活族回填** src（21 落点 / 9 文件，git 对照 `3295181^` 逐点恢复）+ 退役总表摘除 19 族（表记名 118→98——`perm-matrix-remove-{user,group}` 两记合一族），回归在册——§10.6 新增回填记录；④ §10.6 口径新增**工具局限史**条款（退役前置「工具可见性自证」义务：全文本 grep 前缀非零即停手） |
 | v1.10 | 2026-08-26 | T-288 License & Add-ons 页 + 建仓对话框包型档位徽章（M10 FR-84 FE 腿 / FR-86-AC5）：① §10.5 路由表新增 `/admin/general/license` 行（「常规」分组第二页）；② **T-288 批 16 名锚入册**（12 静态 + 4 动态族：license-page 族 + addons-* 矩阵族 + 建仓面 `pkg-tier-*` 档位徽章族——D5 门控入口可见性口径：断言入口存在 + 徽章锚存在，不断言视觉）；③ 档位徽章三色基元 `.badge.tier-{pro,enterprise}` 入 §7.1 徽章家族（community = 既有 `.badge.neutral`，地板无徽章）；④ 建仓可选集改 addons API 实时驱动（`form-package-<pt>` 族锚不变、动态段扩门控型；`PACKAGE_TYPES` 静态常量仍 = 五核心，既有消费方零变化） |
+| v1.11 | 2026-08-26 | T-291 制品 Properties 页签（M10 FR-89 FE 腿——控制台首个 MUI 面，BOARD 2026-08-26 指令「前端 UI 框架使用 MUI、交互逻辑按 Artifactory」）：① **T-291 批 12 名锚入册**（node-props 面板根 + 四态/表格/行族/行内操作族）；② `node-tab-{general|perms}` 扩为 `node-tab-{general|props|perms}`（Tab 族扩展，既有两名零改名）；③ 页签仅挂节点形态（§15.3.2 folder 可载属性，仓库根无此 Tab）；④ MUI 仅组件层（palette 对齐 §5 token、深浅色跟随既有 ThemeContext），交互四态/权限姿态沿本册 §2.4 与 §3.6 口径——readonly = disabled + 反断言 |
 | v1.9 | 2026-08-25 | T-267 锚家族口径统一 + 死锚全量退役（FR-82-AC7）：① **§10.6 重构为单一权威口径**——家族=选择器前缀归一、掩蔽语义、src/spec 口径（含 IdP 模拟页与对象键展开两个盲区修复、组件逻辑自消费）、四桶定义；死锚清单退出册（对账器输出即视图），退役以 §10.6 总表为权威（v1.5~v1.7 显式退役 17 条合并收录 + T-267 死锚处置 101 条〔99 家族，`perm-matrix-remove` 与 `backup-cmd` 各按静态展开计 2〕= **总表 118 条**）；② **死锚 99 家族 src 清理**（零 spec 消费且册上有登记——`smu-tab-configure` 因 Tab 焦点选择器自消费保留除外）；③ **M9 消费波散锚 15 枚入册**（T-257/T-259/T-260 批 + `user-status-<name>` 盲区显形 + `idp-login-page` 测试基建锚；T-260 的 `smu-resuming` 零 spec 消费、随死锚处置退役）；④ 对账器加 **`--ledger` 模式**（A1~A4 断言，qa 硬门） |
 
 ---
@@ -1077,11 +1078,29 @@ tree-empty-instance（空实例引导卡：创建仓库 + 跳过）
 tree-footer-stats（页脚标语行——stats admin 门）
 tree-manage-repos（页头「管理仓库 →」链接；admin/readonly 可见）
 browser-tree（左树容器）  browser-toolbar（页头动作区容器）
-node-tab-{general|perms}（详情面板 Tab——C4：常规 + 有效权限〔admin〕）
+node-tab-{general|props|perms}（详情面板 Tab——C4：常规 + 属性〔T-291，节点形态〕+ 有效权限〔admin〕）
 node-tags（docker manifest 详情的 tag 徽标块）
 ```
 
 变更注记（T-236，dev-frontend 回写）：`/artifacts` 根由 `placeholder-page` 换为跨仓树真身（`tree-page` 族 + 上表新锚）；`node-perms` 自本票起藏于 `node-tab-perms` 之后（C4 Tab 式详情——**锚不变、操作流多一步 Tab 切换**，`e2e/artifacts.spec.ts` W12 腿同步 +1 行）；`tree.css` 留驻 `pages/repositories/tree/`（搜索页同引的共享文件，归位归 T-239/T-240）。
+
+**T-291 Properties 页签新锚（12 名，M10 FR-89 FE 腿——控制台首个 MUI 面；
+先入册再落码，v1.11）：**
+
+```
+node-props（属性页签面板根——四态同根：loading/空/错误/数据）
+node-props-empty（空态引导块：无属性说明 + 矩阵参数/REST 写入提示）
+node-props-error（错误态块：GET 失败重试面 / 写操作 403·4xx 信封呈现）
+node-props-table（key→值集表格——MUI Table，值以逗号分隔如实呈现多值）
+node-props-row-<key>（属性行；草稿行 = node-props-row-new）
+node-props-add（「+ 新增属性」——readonly_admin disabled + title 预收敛）
+node-props-key-input（草稿行键输入——校验闭集：字母开头，字母/数字/下划线/点/连字符，≤64 字符）
+node-props-values-input-<key>（值集输入，逗号分隔多值；草稿行后缀 = 已敲键或 new）
+node-props-save  node-props-cancel（行内保存/取消——单编辑行约束下静态锚唯一）
+node-props-edit-<key>  node-props-delete-<key>（行内编辑/删除——逐属性操作流，Artifactory 对齐）
+```
+
+变更注记（T-291，dev-frontend 回写）：Properties 页签仅挂节点形态（目录/文件——§15.3.2 folder 可载属性；仓库根无此 Tab）；保存语义 = PUT 单键值集替换（§11.40 合并律）+ DELETE 单键，与 Artifactory 逐属性 add/remove 效果面一致，页签内常驻说明行；MUI 仅组件层（BOARD 2026-08-26 指令），交互四态与权限姿态沿本册（readonly = disabled + 反断言，§2.4 口径）。
 
 **T-239 应用模式辅助页新锚（17 枚，先入本清单再落码流程兑现；§10.5 表
 `/search` `/profile` 行的承载锚随之改写）**：

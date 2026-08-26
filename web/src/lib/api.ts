@@ -233,3 +233,80 @@ export function getRepositories(): Promise<RepoListItem[]> {
 export function getRecentAudit(limit = 8): Promise<AuditPage> {
   return apiJSON<AuditPage>(`/v1/audit?limit=${limit}`)
 }
+
+// ---- 制品属性（?properties 家族，M10 T-286 后端 / T-291 FE） ---------------
+
+/** §15.3.3 表体：{"properties":{k:[v…],…}}（GET 空命中 = 200 空表） */
+export interface NodePropertiesView {
+  properties: Record<string, string[]>
+}
+
+/**
+ * /api/storage/{repo}/{path} 的路径编码（与 pages/artifacts/lib.ts 的
+ * storagePath 同形——那是 storage 元数据族的既有落点，本族按票面落在
+ * 统一请求层，编码器就地复刻并互指）。
+ */
+function storagePropsPath(repoKey: string, path: string): string {
+  const rel = path
+    .split('/')
+    .filter((s) => s !== '')
+    .map((s) => encodeURIComponent(s))
+    .join('/')
+  return `/storage/${encodeURIComponent(repoKey)}${rel ? `/${rel}` : ''}`
+}
+
+/**
+ * 写集 → 逗号文法 raw query 值（§15.3.3 一处钉死的文法）：RAW 逗号是
+ * 段分隔符；含 = 的段开键，不含 = 的段续前键值集。键/值各自
+ * encodeURIComponent——值内逗号变 %2C 后在服务端按内容解回（encode 语义）。
+ * 例：{qa:['passed','v2'],owner:['team-a']} → qa=passed,v2,owner=team-a
+ */
+export function encodePropsQuery(props: Record<string, string[]>): string {
+  const segs: string[] = []
+  for (const [k, vs] of Object.entries(props)) {
+    if (vs.length === 0) continue
+    segs.push(`${encodeURIComponent(k)}=${encodeURIComponent(vs[0])}`)
+    for (const v of vs.slice(1)) segs.push(encodeURIComponent(v))
+  }
+  return segs.join(',')
+}
+
+/** 读属性：keys 过滤（尾 * 通配）；缺省 = 全量键 */
+export function getNodeProperties(
+  repoKey: string,
+  path: string,
+  keys?: string[],
+): Promise<Record<string, string[]>> {
+  const q = keys && keys.length > 0 ? `?properties=${keys.map((k) => encodeURIComponent(k)).join(',')}` : '?properties'
+  return apiJSON<NodePropertiesView>(`${storagePropsPath(repoKey, path)}${q}`).then(
+    (v) => v.properties ?? {},
+  )
+}
+
+/**
+ * 写属性（PUT，合并语义 §11.40：同名键值集整体替换、异名键保留）。
+ * 204 无体。节点须存在（404）；无该路径 w 权限 → 403。
+ *
+ * 契约漂移注记（T-291）：docs/user/api-reference.md 列有
+ * `POST …?properties=k=v`（增量）一行，但 router 的 properties 臂只挂了
+ * GET/PUT/DELETE——POST 落 E-26 404（T-286 日志「三动词」）。FE 的增量
+ * 编辑全部走 PUT：merge 语义下单键写即「替换该键值集、保留他键」，与
+ * Artifactory 逐属性 add/remove 的效果面一致，无需 POST。
+ */
+export function putNodeProperties(
+  repoKey: string,
+  path: string,
+  props: Record<string, string[]>,
+): Promise<void> {
+  return apiJSON<void>(`${storagePropsPath(repoKey, path)}?properties=${encodePropsQuery(props)}`, {
+    method: 'PUT',
+  })
+}
+
+/** 删属性：选键列表；`'*'` = 全删（properties=*）。幂等 204 */
+export function deleteNodeProperties(repoKey: string, path: string, keys: string[] | '*'): Promise<void> {
+  const raw = keys === '*' ? '*' : keys.map((k) => encodeURIComponent(k)).join(',')
+  return apiJSON<void>(`${storagePropsPath(repoKey, path)}?properties=${raw}`, {
+    method: 'DELETE',
+  })
+}
