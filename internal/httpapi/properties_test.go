@@ -388,3 +388,36 @@ func TestStoragePropertiesRoutePosture(t *testing.T) {
 		t.Fatalf("plain item GET = %d %s", item.StatusCode, mustGet(t, item))
 	}
 }
+
+// TestStoragePropertiesNodeKeyCapBoundary pins the per-node key cap's merge
+// arithmetic (T-297 finding): the post-merge count is the write set plus the
+// SURVIVING existing keys — never the write set twice. Before the fix, a
+// fresh node's single 64-key PUT computed merged=64+64=128 and was refused
+// with "more than 64" (so anything past 32 keys in one PUT failed).
+func TestStoragePropertiesNodeKeyCapBoundary(t *testing.T) {
+	h := newHarness(t)
+	seedRepo(t, h, "generic-local")
+	putContent(t, h, "/binflow/generic-local/cap/app.bin", "app")
+
+	const base = "/binflow/api/storage/generic-local/cap/app.bin"
+
+	pairs := make([]string, 0, 64)
+	for i := 0; i < 64; i++ {
+		pairs = append(pairs, fmt.Sprintf("k%02d=v", i))
+	}
+	if s := doProps(t, h, http.MethodPut, base+"?properties="+strings.Join(pairs, ","), adminUser, adminPass); s != http.StatusNoContent {
+		t.Fatalf("fresh-node 64-key PUT status = %d", s)
+	}
+	_, props := getProps(t, h, base+"?properties", adminUser, adminPass)
+	if len(props) != 64 {
+		t.Fatalf("stored keys = %d, want 64", len(props))
+	}
+	// The 65th distinct key is over the cap either way (write exceeds).
+	if s := doProps(t, h, http.MethodPut, base+"?properties=kx=v", adminUser, adminPass); s != http.StatusBadRequest {
+		t.Fatalf("65th key PUT status = %d", s)
+	}
+	// Replacing within the cap stays legal: 64 same-key writes merge in place.
+	if s := doProps(t, h, http.MethodPut, base+"?properties=k00=w", adminUser, adminPass); s != http.StatusNoContent {
+		t.Fatalf("same-key replace PUT status = %d", s)
+	}
+}

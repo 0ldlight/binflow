@@ -157,15 +157,20 @@ func (s *Server) handleStoragePropertiesPut(w http.ResponseWriter, r *http.Reque
 	for _, t := range targets {
 		// Merge-view caps: the WRITE set is validated first, then the
 		// post-merge cardinality (the merge law replaces same-key sets, so
-		// the only cross-check the store cannot do is the key COUNT).
+		// the only cross-check the store cannot do is the key COUNT):
+		// every written key plus every surviving existing key the write
+		// does not name. (T-297 finding: this loop used to walk props
+		// counting fresh keys on top of len(props) — double-counting the
+		// write set, so a fresh node refused anything over 32 keys in one
+		// PUT while claiming "more than 64".)
 		merged := len(props)
 		existing, err := s.deps.Metadata.NodeProps().List(r.Context(), t.repo, t.path)
 		if err != nil {
 			s.writePropsStoreError(w, err)
 			return
 		}
-		for k := range props {
-			if _, ok := existing[k]; !ok {
+		for k := range existing {
+			if _, ok := props[k]; !ok {
 				merged++
 			}
 		}
