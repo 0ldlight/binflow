@@ -900,4 +900,15 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **Q8 默认值族：全部照 Artifactory**——RP-2 calculateYumMetadata=true / TL-4 关闭 / HL-2 relative urls=true / CN-1 v1 收窄 / CG-2 失败形态全按 Artifactory 默认；**唯一例外 TL-5 rpm 校验算法留 SHA-256**（安全向，Artifactory 亦支持，理由留痕）
 - 其余 Q3（SAML 配置面先行）/ Q4（DB 配置面权威）/ Q5（独立文件优先+内嵌 WARN）/ Q7（Trash 余量票）维持暂行，终裁归 ADR-0035/0036 与余量触发
 
+## 用户指令（2026-08-26 20:45）：所有研发按 gitflow 规则提交
+
+「所有研发按照gitflow规则提交代码」——**分支模型即日切换**（conductor 落地口径）：
+- **main = release-only**：仅接收 release 合并（develop → main --no-ff）与 hotfix；里程碑 tag 继续（m1~m10-done 既有 tag 不动）
+- **develop = 集成分支**（2026-08-26 自 main@`95a8f9a` 切出，双远端已推）：票据提交、sprint 报告、chore 全部进 develop
+- **feature/T-<id>-<slug>**：每票一个特性分支，票过 qa 后由 conductor `--no-ff` 合入 develop（ticket 提交信息维持 conventional commits）
+- **hotfix/***：自 main 切出，修完双回（main + develop）
+- **CD 链改挂 develop**：VM Jenkins `binflow-ci-smoke` + `binflow-deploy` 已改 `*/develop`（容器 config.xml + 仓库 groovy 源同步，Jenkins 已重启重载）——满足「每一次变更持续部署」；`binflow-release` 维持 main（release 形态从 main 出）
+- subagent 工作方式不变（不 git 提交，conductor 统一提交——仅提交目标从 main 改为 feature→develop）
+- 存量：main 当前 = `95a8f9a`（含 m10-done tag）；下一次 develop→main 合并发生在 M11 首个批次收口或里程碑收官
+
 （空）
