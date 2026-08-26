@@ -116,7 +116,7 @@
 - 延后 3 项（F 池）：E-04 repos 列表扩列 / R2 搜索契约 / R6 Tokens 页
 - Q5 replica 隔离（ADR-0025 决策 1 遗留）→ **建议并入 M11「复制硬化」**（与 smart remote contentSynchronisation/属性同步同域，消费 M10 属性系统成果）/ E7 repos 侧过滤列表（ADR-0030）
 - 票级遗留 17 条：remote JoinURL 转义（D-1 同类候选）/ -rev 回显塌缩 / scenario-3 观测面 / 复制管理专篇 / console-m8 §4.1/§6.9 回写 / SearchPage q-sync 微票 / recents 双实现收敛 / a11y 预算观测 / matrix 层探针 / .status-pill 收敛 / counts 实体列 / docs-site/build 体积 / legacy Engine.GC 物理删除 / Playwright 压力腿形态 / t104 matrix workers / T-251.md 遗留 5 措辞
-- M11+ 主轴候选（主矩阵十大缺口分期）：AQL + 13 老搜索 / Trash can / Cleanup-Retention / 制品操作族（copy/move/zip/archive!/）/ Webhook 事件总线 / 第一梯队包型批量实现（消费 FR-91 规格）/ 运维纵深 / Build-info 域 / Go 深化（sumdb 代理 + external 重定向）/ HuggingFace 等 AI/ML 13 型
+- M11+ 主轴候选（主矩阵十大缺口分期）：AQL + 13 老搜索 / Trash can / Cleanup-Retention / 制品操作族（copy/move/zip/archive!/）/ Webhook 事件总线 / 第一梯队包型批量实现（消费 FR-91 规格）/ **HA 高可用本体**（M10 仅占位槽位，未实现）/ **NuGet symbol server**（.pdb/GUID 路径）/ **制品 license 识别**（licences.xml 91 模式，inv-4 J3）/ **冷存储分层**（Cleanup-Retention 内单列）/ Build-info 域 / Go 深化（sumdb 代理 + external 重定向）/ HuggingFace 等 AI/ML 13 型（T-297 终验 DoD-7 补词：原四处弱登记显式化，2026-08-26）
 
 ## 里程碑完成定义（DoD）
 
