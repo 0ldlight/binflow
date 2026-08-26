@@ -862,6 +862,15 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - 适用于所有后续 FE 票；dev-frontend 角色卡与 T-291 派发单同步注入本口径
 - **重申后的落地升级（2026-08-26 11:22）**：存量页面 MUI 化从「M10 后补票」升格为显式迁移票组——**T-299 [P1] 存量页面 MUI 化批次一**（登录/壳层/仓库列表与表单——高频面优先，MuiProvider 已就位无二次引入成本）+ **T-300 [P2] 批次二**（制品浏览树/搜索/安全与治理页/admin 余面），排期：T-297 终验后立即开（不进 M10 DoD，进 M11 首批）；每批验收 = 交互逻辑零变化（console-ux 册锚零改动，仅组件层换 MUI）+ anchor-audit ledger PASS + 全量 playwright 绿 + assert-tokens 零硬编码
 
+## 用户指令（2026-08-26 11:45）：存储配置独立文件化（参考 Artifactory binarystore.xml，应对多种存储方案）
+
+「S3等存储配置要参考Artifactory，使用单独的存储配置文件，以应对多种存储配置方案」——口径：
+- **形态**：存储配置从 binflow.yaml 主配置中独立为**专用存储配置文件**（对齐 Artifactory `$JFROG_HOME/var/etc/artifactory/binarystore.xml` 的行为模式——主配置之外的专门文件，定义存储链）
+- **行为基准**：`docs/reverse/config-formats.md` §1（binarystore.xml blob 存储链规格——已有：文件位置/provider 链/模板体系）+ `docs/reverse/s3-storage-layout.md`；**格式自由**（BinFlow 可用 YAML 而非 XML——clean-room 只对齐行为：独立文件、链式多方案、provider 模板语义），拆票前 reverse-engineer 复核 config-formats §1 完整度
+- **多方案目标**：filestore（默认）/ S3 / dual-write 迁移链 /（远期 cache-fs 层、Azure/GS 等按主矩阵缺口）——现 internal/config 已有 disk|s3|dual-write 三形态（API 面不动，只换承载文件与链式表达）
+- **落地**：M11 立项——拆票建议：BE 票（专用存储配置文件解析 + 链式表达 + binflow.yaml 向后兼容〔内嵌 storage 段继续生效或迁移提示〕+ 启动 fail-fast 校验）+ 文档票（部署矩阵三形态的存储配置示例）；**迁移纪律**：现网 VM（172.16.58.129）data 目录不动，配置切换走 CD 链验证
+- 与 T-295 的关系：T-295 按现状（binflow.yaml storage 段）接线不受影响；本指令为 M11 变更，届时 charts/deploy 同步演进
+
 ## 用户指令（2026-08-26 11:35）：OAuth2/LDAP 等认证配置前端可配置，行为严格对齐 Artifactory
 
 「oauth2和ldap等认证配置要放到前端页面可配置，诸如此类的配置要和artifactory的行为严格保持一致」——口径：
