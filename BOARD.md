@@ -897,7 +897,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **Q1 HA/Xray 本体：不进 M11**——「行为逐项对齐」指令对齐的是行为，本体解锁须修订 PRODUCT.md；M12+ 单列里程碑
 - **Q2 HelmOCI：单列条件票（P1，非 DoD 硬门）**——四包型 P0/P1 收官且余量足则执行
 - **Q6 GPG keypair：进 M11**（P1 条件票 + debian/rpm 各一张签名小票；DoD 不含签名腿）
-- **Q8 默认值族：全部照 Artifactory**——RP-2 calculateYumMetadata=true / TL-4 关闭 / HL-2 relative urls=true / CN-1 v1 收窄 / CG-2 失败形态全按 Artifactory 默认；**唯一例外 TL-5 rpm 校验算法留 SHA-256**（安全向，Artifactory 亦支持，理由留痕）
+- **Q8 默认值族：全部照 Artifactory 实际值**（2026-08-26 20:55 用户二次裁定修正转写错误）——RP-2 calculateYumMetadata=**false**（上传仅存储，repodata 由 reindex/显式开启触发）/ TL-4 debian 架构族=**i386,amd64 强制生成**（空 Packages 亦生成）/ HL-2 relative urls=**true** / **CG-2 cargo publish 失败形态=200+errors[]（照 Artifactory 双轨，翻转 T-294 as-built 统一 4xx/5xx——断言与规格随票回写；成功形态两方案一致=200 无 errors 键）** / **CN-1 conan v1=全量十七端点（推翻 v1.1 收窄裁定，面积上浮 T-308）**；**唯一例外 TL-5 rpm 校验算法留 SHA-256**（安全向，Artifactory 亦支持，理由留痕）
 - 其余 Q3（SAML 配置面先行）/ Q4（DB 配置面权威）/ Q5（独立文件优先+内嵌 WARN）/ Q7（Trash 余量票）维持暂行，终裁归 ADR-0035/0036 与余量触发
 
 ## 用户指令（2026-08-26 20:45）：所有研发按 gitflow 规则提交
