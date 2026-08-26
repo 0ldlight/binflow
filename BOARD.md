@@ -822,6 +822,8 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **T-287** [P1] NuGet 试点 `role:dev-registry-adapter` — **done 2026-08-26（5103 行 + dotnet 8 真实全链 + LIVE 公网腿〔Newtonsoft 经 binflow 拉取运行〕+ 门控全链 + 不变量 0 偏差；提交 `c283bea`）——B5 全清**
   **如实披露**：T-280 规格票实际从未跑（nuget.md 不存在）——实现依据官方 NuGet API 文档 + PRD + 活体探针（公开规范协议的 clean-room 合规路径）；7 项自有裁定标 T-287 ruling 待复核。**发现**：dotnet 8 直推 PackagePublish 无 id/version + multipart 单 part（官方规范未写、测试钉死）。遗留：T-280 规格补票或并入 T-293。日志 reports/agents/T-287.md。 页
 - **B6**：T-289 [P1] MPU REST 六端点（S3 专属 filestore 501）｜ T-290 [P1] smart remote 字段子集
+  - **T-289 → review 2026-08-26**（自测全绿：全树 race 15 包 + m7/m10 矩阵与不变量 0 deviations 白名单零登记 + MinIO/curl/docker dind 真实全链〔3 片对账/错 sha 409/abort 回收/20MiB 镜像 digest 回环〕+ filestore 八臂 501；五项裁定待复核：BinFlow URL 非 presigned/限 generic local/AC2 不做/config 保 id/dual-write 501。**conductor 裁定：AC2（S3 kill -9 续传）归 M11 债〔upload ID 落 upload_sessions + ListParts 重建，§11.31〕，分歧措辞归 T-293 收口**。日志 reports/agents/T-289.md）
+  - **T-290 → review 2026-08-26**（自测全绿：27 包 ok + repo/remote/metadata 三包 race + 不变量双绿 + 真实栈五腿含负缓存窗/亚秒超时探针；四处自有裁定待复核：P1 三字段按 PRD FR-90 终版〔enableTokenAuthentication→M11〕/missedRetrieval 双拼写 canonical 留 Artifactory/unused-cleanup 仅落库引擎 M11/no-inert 按名 400 保 scenario-D；migration 014 双方言。日志 reports/agents/T-290.md）
 - **B7**：T-291 [P1] Properties Tab FE｜ T-292 [P1] 规格批次二（RPM/Helm）
 - **B8**：T-293 [P1] as-built 回写（四处 PRD↔ADR 分歧收口）｜ T-294 [P2] Cargo 条件票
 - **B9**：T-295 [P1] 部署接线（charts configmap 显式枚举——T-183 教训）｜ T-296 [P1] 文档五项
