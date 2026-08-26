@@ -71,6 +71,9 @@ const ADMIN_NAV: NavGroup[] = [
       { label: '组', to: '/admin/security/groups' },
       { label: '权限', to: '/admin/security/permissions' },
       { label: 'Access Tokens', to: '/admin/security/tokens' },
+      // M11 T-307：认证配置（FR-92——LDAP/OAuth/SAML 三协议；readonly_admin
+      // 只读可见，普通 user 不入管理面）
+      { label: '认证配置', to: '/admin/security/auth/ldap' },
     ],
   },
   {
@@ -134,6 +137,7 @@ function adminCrumbs(pathname: string): Crumb[] {
     groups: '组',
     permissions: '权限',
     tokens: 'Access Tokens',
+    auth: '认证配置',
   }
   if (pathname.startsWith('/admin/security/')) {
     const rest = pathname.slice('/admin/security/'.length).split('/')
@@ -142,8 +146,11 @@ function adminCrumbs(pathname: string): Crumb[] {
       { label: '用户与权限', to: '/admin/security/users' },
       { label, to: `/admin/security/${rest[0]}` },
     ]
-    if (rest[1] && rest[1] !== 'new') crumbs.push({ label: safeDecode(rest[1]) })
-    if (rest[1] === 'new') crumbs.push({ label: '新建' })
+    // 认证配置三协议段显名（ldap/oauth/saml → Tab 名；T-307）
+    const proto: Record<string, string> = { ldap: 'LDAP', oauth: 'OAuth (OIDC)', saml: 'SAML SSO' }
+    if (rest[0] === 'auth' && proto[rest[1]]) crumbs.push({ label: proto[rest[1]] })
+    else if (rest[1] && rest[1] !== 'new') crumbs.push({ label: safeDecode(rest[1]) })
+    else if (rest[1] === 'new') crumbs.push({ label: '新建' })
     return crumbs
   }
   const gov: Record<string, string> = {

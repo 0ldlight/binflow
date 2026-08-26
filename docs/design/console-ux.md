@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 文档 | `docs/design/console-ux.md` |
-| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账）/ T-291（v1.11：Properties 页签锚册——MUI 首票） |
-| 状态 | v1.11（2026-08-26） |
+| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账）/ T-291（v1.11：Properties 页签锚册——MUI 首票）/ T-307（v1.12：认证配置页组锚册——admin/security/auth 域） |
+| 状态 | v1.12（2026-08-27） |
 | 维护者 | ux-designer |
 | 上游依据 | PRODUCT.md（Web 控制台/治理/Non-goals）、ROADMAP.md M4 节、docs/prd/milestone-1/2/3/4.md（端点矩阵与已定案行为）、docs/user/docker-registry.md（用户面口径）、docs/design/architecture.md §7（路由/console 挂载点）、internal/httpapi/router.go（路由门事实——§3.6.2 矩阵逐一核对）、reports/agents/T-98.md · T-99.md（漂移登记与 testid 素材）、reports/agents/T-98-review.md（N1 收敛建议）、BOARD.md（T-85 PRD / T-97 存在性不泄露裁决） |
 | 下游消费者 | T-86（架构：console 包/session/前端工程结构）、tech-lead（M4 拆票）、前端 dev（页面组票）、qa-engineer（控制台验收） |
@@ -28,6 +28,7 @@
 | v1.10 | 2026-08-26 | T-288 License & Add-ons 页 + 建仓对话框包型档位徽章（M10 FR-84 FE 腿 / FR-86-AC5）：① §10.5 路由表新增 `/admin/general/license` 行（「常规」分组第二页）；② **T-288 批 16 名锚入册**（12 静态 + 4 动态族：license-page 族 + addons-* 矩阵族 + 建仓面 `pkg-tier-*` 档位徽章族——D5 门控入口可见性口径：断言入口存在 + 徽章锚存在，不断言视觉）；③ 档位徽章三色基元 `.badge.tier-{pro,enterprise}` 入 §7.1 徽章家族（community = 既有 `.badge.neutral`，地板无徽章）；④ 建仓可选集改 addons API 实时驱动（`form-package-<pt>` 族锚不变、动态段扩门控型；`PACKAGE_TYPES` 静态常量仍 = 五核心，既有消费方零变化） |
 | v1.11 | 2026-08-26 | T-291 制品 Properties 页签（M10 FR-89 FE 腿——控制台首个 MUI 面，BOARD 2026-08-26 指令「前端 UI 框架使用 MUI、交互逻辑按 Artifactory」）：① **T-291 批 12 名锚入册**（node-props 面板根 + 四态/表格/行族/行内操作族）；② `node-tab-{general|perms}` 扩为 `node-tab-{general|props|perms}`（Tab 族扩展，既有两名零改名）；③ 页签仅挂节点形态（§15.3.2 folder 可载属性，仓库根无此 Tab）；④ MUI 仅组件层（palette 对齐 §5 token、深浅色跟随既有 ThemeContext），交互四态/权限姿态沿本册 §2.4 与 §3.6 口径——readonly = disabled + 反断言 |
 | v1.9 | 2026-08-25 | T-267 锚家族口径统一 + 死锚全量退役（FR-82-AC7）：① **§10.6 重构为单一权威口径**——家族=选择器前缀归一、掩蔽语义、src/spec 口径（含 IdP 模拟页与对象键展开两个盲区修复、组件逻辑自消费）、四桶定义；死锚清单退出册（对账器输出即视图），退役以 §10.6 总表为权威（v1.5~v1.7 显式退役 17 条合并收录 + T-267 死锚处置 101 条〔99 家族，`perm-matrix-remove` 与 `backup-cmd` 各按静态展开计 2〕= **总表 118 条**）；② **死锚 99 家族 src 清理**（零 spec 消费且册上有登记——`smu-tab-configure` 因 Tab 焦点选择器自消费保留除外）；③ **M9 消费波散锚 15 枚入册**（T-257/T-259/T-260 批 + `user-status-<name>` 盲区显形 + `idp-login-page` 测试基建锚；T-260 的 `smu-resuming` 零 spec 消费、随死锚处置退役）；④ 对账器加 **`--ledger` 模式**（A1~A4 断言，qa 硬门） |
+| v1.12 | 2026-08-27 | T-307 认证配置页组（M11 FR-92 FE 腿——LDAP/OAuth(OIDC)/SAML 三协议 Tab，`admin/security/auth` 域入「用户与权限」分组）：① §10.5 路由表新增 `/admin/security/auth/{ldap\|oauth\|saml}` 行；② **T-307 批 64 名锚入册**（三 Tab + 共享表单/测试连接块 + 三段字段全量——authcfg-* 前缀族）；③ 敏感字段交互入册口径：GET 哨兵回显→表单留空 + placeholder「留空保持不变」、提交时空值自 payload 剔除（哨兵回传是 400 红线，网络层断言） |
 
 ---
 
@@ -1049,6 +1050,7 @@ M8 路由表（console-m8 §1.4）重排后，§10.2/§10.3 的 **242 锚零改�
 | `/admin/repositories/new` `?rclass=` | `repo-form-page` + `form-*` 族 | Quick 建仓入口的参数形态（T-240 消费） |
 | `/admin/repositories/:key[/edit]` | `repo-detail-page` 族 / `repo-form-page` | 原 `/repositories/:key[/settings]` |
 | `/admin/security/{users\|groups\|permissions\|tokens}[/:name\|/new]` | `users-*` `user-*` `groups-*` `perm-*` 族 / `placeholder-page` | 原 `/security/*` |
+| `/admin/security/auth/{ldap\|oauth\|saml}` | `authcfg-page` 族（T-307 批，v1.12 入册——见下） | M11 新增：「用户与权限」分组第五页（认证配置三 Tab；索引 `/admin/security/auth` 重定向 ldap） |
 | `/admin/governance/{audit\|gc\|quotas\|replication\|backup}` | `audit-*` `gc-*` `quota-*` `repl-*` `backup-*` 族 | 原 `/audit` `/governance/*` |
 | `/admin/monitoring/storage` | `storage-page` 族（T-238 批，v1.7 入册——D-1 收口） | 新路由；原行 `placeholder-page（新页归 T-238）` 已过时 |
 | `/admin/general/settings` | `settings` + `settings-instance` + `settings-health`（T-238 `SystemInfoPage` 承接；改密已迁 `/profile`——T-239） | 原 `/settings` |
@@ -1226,6 +1228,68 @@ licensed 态的 licensee/有效期/倒计时行随 license 装卸出现——com
 （默认测试形态）只有 licensee 反断言腿，expiry/days 行不设锚（免死锚）；
 addons 空数组（pre-M10 单元栈）走缺省 `empty-state` 锚，无新锚。
 
+**T-307 认证配置页组新锚（64 名，M11 FR-92 FE 腿——LDAP/OAuth(OIDC)/SAML
+三协议 Tab；先入册再落码，v1.12；消费 spec = web/e2e/ 认证配置 spec 组
+〔本票新增〕）：**
+
+```
+页面与 Tab（/admin/security/auth/{ldap|oauth|saml}，Tab=子路由——repos 三
+  Tab 同款形态）：
+  authcfg-page（页根——四态同根：loading/forbidden/错误/数据）
+  authcfg-tab-{ldap|oauth|saml}（Tab 导航项，aria-current=page）
+共享表单与动作：
+  authcfg-save  authcfg-reset（保存/还原为服务端当前值）
+  authcfg-error（PUT 400 errors[] 信封原文呈现——mono）
+  authcfg-note-effect（「保存即生效，无需重启」常驻说明行）
+  authcfg-readonly-note（readonly_admin 只读注记）
+测试连接块（POST …/test 双形态）：
+  authcfg-test（块根）
+  authcfg-test-username  authcfg-test-password（LDAP §1.6 测试信封——
+    两半齐备才可发候选探测，任一半填了另一半空 = 候选钮禁用）
+  authcfg-test-run（候选探测=当前表单值随体提交）
+  authcfg-test-stored（存量探测=空体，探已保存配置）
+  authcfg-test-report（TestReport 呈现——成功/失败消息原文照 BE，phase/
+    category 徽标 mono）
+LDAP 段（逆向规格 v2 §1.1/§1.2 字段序 + BinFlow 运行时扩展组）：
+  authcfg-ldap-key（锁定展示——单段模型 key 恒 "ldap"，PUT 携其他值被拒）
+  authcfg-ldap-enabled  authcfg-ldap-url  authcfg-ldap-autocreate
+  authcfg-ldap-allowprofile  authcfg-ldap-paging  authcfg-ldap-userdn
+  authcfg-ldap-emailattr
+  authcfg-ldap-search-filter  authcfg-ldap-search-base
+  authcfg-ldap-poisoning（Secure LDAP Search——wire 在段顶层、呈现归
+    Search 子组，§6 字段序）  authcfg-ldap-search-subtree
+  authcfg-ldap-manager-dn  authcfg-ldap-manager-pw
+  authcfg-ldap-manager-set（GET 哨兵 → 「已设置」提示行——表单留空 +
+    placeholder「留空保持不变」；空值自 PUT payload 剔除，哨兵回传 400）
+  authcfg-ldap-starttls  authcfg-ldap-skiptls  authcfg-ldap-group-basedn
+  authcfg-ldap-group-filter  authcfg-ldap-group-nameattr
+  authcfg-ldap-admin-group  authcfg-ldap-readonly-group
+  authcfg-ldap-poolsize
+OAuth(OIDC) 段（BinFlow C 级 issuer 发现式 wire——T-305 漂移 1 对齐）：
+  authcfg-oauth-enabled  authcfg-oauth-issuer  authcfg-oauth-client-id
+  authcfg-oauth-client-secret  authcfg-oauth-secret-set（哨兵提示行）
+  authcfg-oauth-redirect  authcfg-oauth-scopes（逗号分隔↔wire 数组）
+  authcfg-oauth-user-claim  authcfg-oauth-group-claim
+  authcfg-oauth-admin-group  authcfg-oauth-readonly-group
+  authcfg-oauth-autocreate（auto_create_users=persistUsers 对应位）
+SAML 段（§3.1 13 字段 verbatim + 空态引导）：
+  authcfg-saml-enabled  authcfg-saml-encrypted  authcfg-saml-spname
+  authcfg-saml-login-url  authcfg-saml-logout-url  authcfg-saml-cert
+  authcfg-saml-syncgroups  authcfg-saml-groupattr  authcfg-saml-emailattr
+  authcfg-saml-autocreate（正语义复选「Auto Create Users」——wire=
+    noAutoUserCreation 反义，勾选=自动创建；§3.4 命名陷阱 FE 侧表达）
+  authcfg-saml-allowprofile  authcfg-saml-autoredirect
+  authcfg-saml-verify-audience
+  authcfg-saml-empty（GET 空态 {} 的引导块——§3.2；保存后消失）
+```
+
+变更注记（T-307，dev-frontend 回写）：OAuth Tab 字段集 = T-305 落地的
+BinFlow OIDC issuer 发现式单段模型（snake_case wire），非 Artifactory
+oauthSettings 多 provider 模型（defaultNpm/providers/pkce 无承载——漂移
+随 T-305 登记，FE 按契约实态渲染）；SAML Tab 无 secret（IdP 证书是公开
+材料，BE 不脱敏），哨兵语义只挂 LDAP managerPassword 与 OAuth client_secret
+两处；SAML 多配置（name 字段）不在本版面（v2 §3.1 注记）。
+
 **锚总量复核口径（v1.4 实测）**：`grep -rn "data-testid" web/src/` = **293 落点 / 29 文件**（v1.2 基线 242 之后，T-104~T-234 各票陆续增锚至 HEAD 的 283 落点——ADR-0029 原写 283 即此原始 grep 数）；T-235 净变化 = 壳**删 0 改 0、新增 10**（AppShell 10 → 20），占位路由新增 0（复用 `placeholder-page`）。另：`web/src/styles/theme-smoke.spec.ts`（7 处选择器引用，非锚）随 T-232 遗留①迁出 `src/` 至 `e2e/m8/theme-smoke.spec.ts`，不再计入 src 侧 grep。
 
 **锚总量（v1.2 核对基准）**：`grep -rn "data-testid" web/src/` = **242 处落点 / 27 文件**；动态族计一名约 **230 锚**（§10.2 + §10.3 合计）。v1.1 预定锚转正流程至此闭环（v1.1 文末「落码后回写本节并升 v1.2」约定兑现）。
@@ -1363,7 +1427,11 @@ src 侧变量模板形态的补收均载于 `web/scripts/anchor-audit.mjs` 头�
 （MUI 批次一）src 侧补形**：对象键形态 `'data-testid': …` 的值类自仅反引号
 模板扩至引号字面量——MUI 迁移后锚经 slotProps 对象下沉到 input/select 本体
 （如 `{ htmlInput: { 'data-testid': 'login-username' } }`），字面量成为主流
-落点（对称教训：域外**落点**会让「册有 src 无」假阳性，A3 误伤）。
+落点（对称教训：域外**落点**会让「册有 src 无」假阳性，A3 误伤）。**T-307
+补形**：字段册属性形态 `anchor: 'name'`（authconfig/sections.ts——数据驱动
+表单的锚以对象属性字面量落点，渲染位 `data-testid={field.anchor}` 经变量
+透传；`setAnchor` 同理）——'anchor' 键全库仅该文件使用（grep 自证），域外
+零外溢。
 
 **守卫规矩（入票 AC）**：① 新票锚**消费下限**——新批次锚的 spec 消费率 ≥80%
 （跌破线须在票内说明；T-265 批 3/4 = 75%，`topbar-search-recent-clear` 已按零消费
