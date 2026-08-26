@@ -2,7 +2,7 @@
 
 > 由 product-manager 维护；tech-lead 据此把当前里程碑分解为 ticket。
 
-## 当前里程碑：M11（Artifactory 对齐第二程——配置域指令兑现 + 第一梯队包型批量 + 行为逐项对齐制度化；PRD v1.0 草案待 conductor 审，2026-08-26）
+## 当前里程碑：M11（Artifactory 对齐第二程——配置域指令兑现 + 第一梯队包型批量 + 行为逐项对齐制度化；PRD v1.1 已审定（Q1/Q2/Q6/Q8 用户裁定），2026-08-26）
 
 ### M0 — 团队启动（已完成）
 - [x] 产品愿景 PRODUCT.md（BinFlow）

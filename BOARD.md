@@ -892,4 +892,12 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **红线保留**（ADR-0001 不变，用户知情确认）：不逐行翻译 Java→Go——reverse-src 是 JFrog 版权反编译产物，BinFlow 对外发布镜像/二进制，逐行翻译 = 版权代码进入发布物；license 文档格式维持自有 ed25519（其可观测行为面已对齐：安装/查询/卸载/变更即生效/addon 重载/档位矩阵）
 - **既有自有裁定的回头看**：M10 各票的自有裁定清单（T-287 七项/T-289 五项/T-290 四项/T-294 七项/T-293 已终裁项）在 M11 规划时按本口径逐条复核——凡「等价设计」类若与 Artifactory 有可观测差异，改回 Artifactory 形态
 
+## 用户裁定（2026-08-26 20:35，M11 PRD v1.0 开放问题定案四项）
+
+- **Q1 HA/Xray 本体：不进 M11**——「行为逐项对齐」指令对齐的是行为，本体解锁须修订 PRODUCT.md；M12+ 单列里程碑
+- **Q2 HelmOCI：单列条件票（P1，非 DoD 硬门）**——四包型 P0/P1 收官且余量足则执行
+- **Q6 GPG keypair：进 M11**（P1 条件票 + debian/rpm 各一张签名小票；DoD 不含签名腿）
+- **Q8 默认值族：全部照 Artifactory**——RP-2 calculateYumMetadata=true / TL-4 关闭 / HL-2 relative urls=true / CN-1 v1 收窄 / CG-2 失败形态全按 Artifactory 默认；**唯一例外 TL-5 rpm 校验算法留 SHA-256**（安全向，Artifactory 亦支持，理由留痕）
+- 其余 Q3（SAML 配置面先行）/ Q4（DB 配置面权威）/ Q5（独立文件优先+内嵌 WARN）/ Q7（Trash 余量票）维持暂行，终裁归 ADR-0035/0036 与余量触发
+
 （空）
