@@ -842,6 +842,14 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **持续部署链全形态落地**：binflow-deploy job（smoke SUCCESS 门控）→ console+docs+build 版本注入 → VM 备份(留5)→原子换二进制→探针 60s→**失败自动回滚**→烟测全链+docs 面。docs 站嵌入二进制（单产物原子部署）。双回滚臂+红 smoke 拒绝接力+release dogfood 形态全实测。**首战立功**：T-283 漏 add 文件致 VM 编译红 → deploy 门拦截 → 补提交后链自愈（版本 ci.e32c63f→ci.375d856，docs 演示标记上站）。遗留：L2 release 镜像 docs 占位；L3 m7 矩阵腿归 nightly。日志 reports/agents/T-298.md。
 
+## 用户指令（2026-08-25，本轮补录）：前端 UI 框架使用 MUI，交互逻辑仍按 Artifactory
 
+「前端UI框架使用MUI，但是前端交互逻辑还是要按照Artifactory来」（中途回合下达）——口径：
+- **组件层**：web 控制台引入 **MUI（@mui/material + emotion）** 作为 UI 组件框架；现栈 React 19 + Vite 不变，MUI 以增量方式接入
+- **交互层**：信息架构、操作流、四态、布局语义仍以 M8 控制台 UI 规范（docs/design/，Artifactory 对齐）为准——**MUI 只换皮肤组件，不换交互逻辑**
+- **落地节奏（conductor 裁定，M10 稳定性优先）**：
+  1. **T-291（Properties Tab FE，B7）为首个 MUI 票**：引入 @mui/material 依赖 + 主题桥接（Artifactory 视觉 token→MUI theme），Properties 交互仍按 Artifactory（表格 + 行内增删 + key/value 校验 + 权限门控）
+  2. **存量页面 MUI 化**：M10 收口后补迁移票（按页面组分批），不与 M10 在途 10 票混流
+- 适用于所有后续 FE 票；dev-frontend 角色卡与 T-291 派发单同步注入本口径
 
 （空）
