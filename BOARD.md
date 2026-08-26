@@ -826,7 +826,9 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
   - **T-289 → done 2026-08-26（提交 `4ef0972`）——B6 全清**：评审 REQUEST_CHANGES 5 blocker 修复轮全落地（B1 锁序 snapshot-then-relock + 锁外 remove/B2 411 信封保真+测试/B3 移位前 400 门/B4 裸列表过 writeGate/B5 Abort+failLocked 补 AbortMultipartUpload + 探针 mc --incomplete 三段断言）+ 3 条顺手清（hex 大写归一/注释/文案）；conductor 复验（五处修复点抽查 + build/lint 0/目标测试/双矩阵 0 deviations/不变量双绿 + HEAD-build stash 验证三包绿）。AC2 descope M11 债已留痕。日志 reports/agents/T-289.md + T-289-review.md。
   - **T-288 补交 fixup `913c5ba`（第三例漏 add）**：`93f2e3b` 漏了页面本体三新文件（LicenseAddonsPage.tsx/addons.ts/license.css）——路由在而页面缺，干净检出 vite 构建会红；fixup 提交 + 干净 HEAD npm build 亲验绿。**流程追加：含新 FE 文件的提交，HEAD 侧 npm run build 一并验**。
   - **T-290 → done 2026-08-26（提交 `6b93e7e`）**：评审 APPROVE（0 blocker，四处裁定全维持）+ 修复轮清 2 minor（别名显式 0=缺席语义、尾随垃圾严格拒绝）+ conductor 复验（build/lint 0/T290 三包/三核心包全量/不变量双绿 + HEAD-build stash 验证）；minor 溢出上界归 M11 台账。日志 reports/agents/T-290.md + T-290-review.md。
-- **B7**：T-291 [P1] Properties Tab FE｜ T-292 [P1] 规格批次二（RPM/Helm）— **双票已派 2026-08-26 09:50**（T-291 = **首个 MUI 票**：引入 @mui/material + 主题桥接，交互按 Artifactory；T-292 批次一 T-284 同款结构，产 rpm.md/helm.md）
+- **B7**：T-291 [P1] Properties Tab FE｜ T-292 [P1] 规格批次二（RPM/Helm）— 双票已派 2026-08-26 09:34（勘误：原记 09:50 系笔误）
+  - **T-292 → done 2026-08-26（提交 `94c88ae`）——FR-91 覆盖集 5/5 齐**：rpm.md 247 行（15 端点/自动 repodata 重算链/GPG/3 代历史）+ helm.md 251 行（12 端点 + HelmOCI×docker v2 八机制复用表/index.yaml 改写算法/虚仓缓存键）；官方锚点（repomd 社区规范+dnf.conf(5)+JFrog reindex REST；helm.sh 两页+JFrog Helm 仓页）+ 反编译补充各 14 条逐条标注；置信度零低项。**FR-91-AC3 tech-lead 就绪度确认已派**（15 裁决点消化 + T-294 拆票要点）。日志 reports/agents/T-292.md。
+  - T-291（MUI 首票）在途。
 - **B8**：T-293 [P1] as-built 回写（四处 PRD↔ADR 分歧收口）｜ T-294 [P2] Cargo 条件票
 - **B9**：T-295 [P1] 部署接线（charts configmap 显式枚举——T-183 教训）｜ T-296 [P1] 文档五项
 - **B10**：T-297 [P0] 终验（L01~L30 + 真实客户端矩阵 + DoD 八条）
