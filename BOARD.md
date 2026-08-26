@@ -813,7 +813,8 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **B2（余）**：T-281 [P0] bf license keygen/issue/inspect（deps T-279✅——待宽度穿插）
 - **B1（余）**：T-280 [P1] NuGet 规格（deps 无——穿插时机由宽度定）
 - **B2**：T-281 [P0] bf license keygen/issue/inspect 签发 CLI｜ T-282 [P0] addon 注册表 + GET /api/v1/addons（五核心 retro-fit community 地板）
-- **B3**：T-283 [P0] 门控织入三缝 + addons.disabled 熔断（D1~D7）｜ T-284 [P1] 规格批次一（Conan/Cargo/Debian）— **T-284 漏跑补派 2026-08-26 09:20**（与 T-280 同款配额乱窗漏跑——B3 槽位从未执行；T-294 Cargo 条件票依赖其 cargo.md；width 空位穿插，与 T-289 修复轮并行，area=docs/reverse/ 零重叠）
+- **B3**：T-283 [P0] 门控织入三缝 + addons.disabled 熔断（D1~D7）｜ T-284 [P1] 规格批次一（Conan/Cargo/Debian）— **T-284 done 2026-08-26（漏跑补派当日收口；conan.md 216 行 35 端点/cargo.md 205 行 13 端点/debian.md 239 行 12 端点；官方锚点优先〔Cargo Book/Debian wiki/GitLab Conan v2〕+ 反编译补充逐条标注 12/8/12 条；置信度零低项；三份 M11 可拆 + 8 点 tech-lead 裁决待 T-294/M11 拆票时消化；conductor clean-room 抽查过；提交 `3e5db97`）**
+  漏跑根因与 T-280 同款（配额乱窗 B3 槽位静默丢失）；T-294 Cargo 条件票规格依赖已解除。日志 reports/agents/T-284.md。
 - **T-286** [P0] 属性系统 BE `role:dev-go-core` — **done 2026-08-26（矩阵参数单点 + node_props + ?properties 三动词；五个存量 `;` fixture 逐字节回归 + 不变量双绿；提交 `d9db164`+补交 `d305e82`——补交教训：untracked 新文件漏 add，流程已改 HEAD 后复验）**
 - **T-285** [P0] Go 试点 adapter `role:dev-registry-adapter` — **done 2026-08-26（3915 行 goproxy：!lower 三态/checksum 链/三态 rclass；真实 go1.26 build 全链含大写模块；门控全链 D3→pro→D1→降级；不变量 0 偏差；提交 `18eeabd`）——B4 全清，首个包型 addon 全链贯通**
   发现登记：go1.26 GOPRIVATE='*' 经 GONOPROXY 默认绕过 GOPROXY——操作形态 GOPROXY+BOSUMDB=off 已固化测试。日志 reports/agents/T-285.md。
