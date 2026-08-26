@@ -916,7 +916,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
   - T-302：规格 v2 全量重写 367 行——23 端点/58 字段**逐条双出处**（代码+官方文档）；**两低置信区推翻**（OAuth batch3 完整实装/SAML 齐备但 license-gated）；**变更即生效=保存即生效高置信**（descriptor 链+Access 回调+懒初始化兜底；边界：会话不失效/300s 认证缓存）；FE 四陷阱显式（SAML noAutoUserCreation 反语义等）；缺项清单空。日志 reports/agents/T-301.md / T-302.md
 - **B1**：T-303 [P0] config-formats §1 复核 + 规格尾巴两处｜ T-299 [P0] MUI 批一
   - **T-303 → done 2026-08-26（`bc456d2`）**：§1 逐条三证（代码/官方/反证）——**模板体系分歧门关**：模板=固定注册表展开+自描述标签，**无 dual 模板/provider**（Artifactory 迁移走 eventual `_add` 符号链接非链内原语）→ ADR-0036 migration.mode 为 BinFlow 自有拼写**已登记**；模板展开器不在 reverse-src（取证边界声明防误引）；两尾巴修毕（goproxy GOPRIVATE 勘误 ×6——正确配方 GOPROXY+GONOSUMDB；cargo §9 四档路径 ×3）；置信 高21/中6/低3；T-306 六消费点五齐两登记。日志 reports/agents/T-303.md。
-  - T-299（MUI 批一）在途——树上已有 muiAtoms.ts 等产物推进中。
+  - **T-299 → done 2026-08-26（`d06d6e1`，gitflow 三航）——B1 全清**：Login/壳层/仓库列表+表单迁 MUI（组件层 only，交互语法零变化——锚挂 input 本体经 slotProps、⌘K/方向键/Enter 链路原样）；四闸门绿（tsc/lint 0/build/ledger PASS〔anchor-audit 补引号字面量 sx 形态〕）+ 全量 playwright **188/0** + axe 双主题 serious=0（自擒一处真对比度违例并修）+ SPA +3.57%（预算 25%）；批次二边界项登记（session 菜单/侧栏/badge 因零变化红线未迁，归 T-300 派单裁定）。conductor 复验：build/tsc/lint/ledger 全绿。日志 reports/agents/T-299.md。
 - **B2**：T-304 [P0] FR-95 回头看裁决票（23+ 基线项逐条复核；Q8 六项登记归位；CG-2 失败分类出处锚定供 T-316）architect｜ T-305 [P0] FR-92 BE 认证配置 REST+变更即生效≤1s+双源（dep T-301/302）dev-go-core
 - **B3**：T-306 [P0] FR-93 BE binstore.yaml 三链解析+装配+fail-fast（dep T-301/303）dev-go-storage｜ T-307 [P1] FR-92 FE admin 认证配置页组 MUI（dep T-305）dev-frontend
 - **B4**：T-308 [P0] conan local——**v2 全量 17 端点 + v1 全量数据面（CN-1 终裁推翻收窄，本票升 M11 最重适配票，窗口独占）**（TL-2/TL-3 能力头/.timestamp）dev-go-core｜ T-309 [P0] helm 经典仓 local（HL-1/2 挂载与 relative=true；.prov；reindex 双端点）dev-registry-adapter
