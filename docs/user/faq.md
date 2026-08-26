@@ -5,7 +5,7 @@ sidebar_position: 90
 
 # FAQ 与故障排查
 
-> 适用版本：M1~M9（各条目标注引入里程碑）。码值与文案以 M4（PRD milestone-4 v1.2）为基线，全部经 QA 真机验证（T-103/T-105 验收基线）；M7 增补条目（RBAC 只读短路 / S3 续传 404 / token step-up）以 ADR-0026/0027/0028 与 PRD milestone-7 v1.1 为准；M8 增补（控制台新路径重定向 / npm 发布权限语义）经 scratch 实例复跑（2026-08-24）；M9 增补（用户删除闭环 / npm 复制同口径）经 HEAD 构建 scratch 实例复验（2026-08-25）。
+> 适用版本：M1~M9（各条目标注引入里程碑）。码值与文案以 M4（PRD milestone-4 v1.2）为基线，全部经 QA 真机验证（T-103/T-105 验收基线）；M7 增补条目（RBAC 只读短路 / S3 续传 404 / token step-up）以 ADR-0026/0027/0028 与 PRD milestone-7 v1.1 为准；M8 增补（控制台新路径重定向 / npm 发布权限语义）经 scratch 实例复跑（2026-08-24）；M9 增补（用户删除闭环 / npm 复制同口径）经 HEAD 构建 scratch 实例复验（2026-08-25）；**M10 增补三问**（license 降级行为 / 属性两入口 / S3 与 filestore 的 MPU 差异）以 ADR-0032/0033 as-built 与 T-285/T-287/T-289/T-294 实测为据（2026-08-26）。
 
 ## 状态码信封解读
 
@@ -111,6 +111,42 @@ curl -s -H "Authorization: Bearer <access_token>" $BASE/binflow/api/v1/storage/u
 ### 给 npm 复制任务配目标仓凭据，要授 delete 吗？
 
 **不用**。复制引擎只发「目标所缺版本的单版本发布文档」与单 tag PUT，从不整包覆写——与 CI 连发同口径：`read` + `write` 即可（M8 起追加新版本仅需 write）；改既有版本数据（deprecate/篡改）才需要 `delete`，而复制引擎构造不出这种写（同版本不同数据按 first-write-wins 目标幸存）。见[npm 接入 · 发布权限语义](integrations/npm.md#发布权限语义m8-起)。
+
+## M10 增补三问（license / 属性 / MPU）
+
+### 无 license（或 license 过期）时，pro 功能会怎么样？
+
+**不装 license 的实例 = community 地板，一切照常**：五核心包型（generic/docker/maven/npm/pypi）与属性系统恒解锁，M1~M9 全部行为与未引入 license 前逐字节一致。**pro 槽位（go/nuget/cargo）与 enterprise 槽位（ha/xray-integration）锁定**，三种拒绝形态各有定式：
+
+| 面 | 表现 |
+|---|---|
+| 建仓/改仓/删仓/virtual 成员 | **400** `package type 'go' is not available (license tier 'community' < 'pro')` |
+| 写动词（push/PUT/DELETE） | **403** + 响应头 `X-Binflow-License-Required: <addonID>`（信封文案 `license required: addon '<id>' needs tier '<t>' (current: none)`） |
+| 读（GET/HEAD） | **恒 200**——降级不劫持数据；remote pull-through 的内部落盘同样豁免 |
+
+**过期即降级、无宽限期**：每日 ticker 检测到过期立刻降回 community（无需重启，`GET /api/system/license` 的 `daysToExpiry` 变负数即已降级）；装新 license 即刻恢复，已写数据全程可读。门控拒绝落审计 `license.addon.denied`。注意区分：403 但**不带** `X-Binflow-License-Required` 头、文案点名 `addons.disabled` 的是**配置熔断**（装 license 救不了，删条目重启才恢复）。完整语义见 [License 与 Add-ons 管理](admin/license.md)。
+
+### 属性（properties）和矩阵参数（matrix parameters）有什么区别？
+
+同一存储（节点属性表）的两个**入口**，不是两套数据：
+
+- **矩阵参数 = 部署时的语法糖**：内容 PUT 路径尾随成对 `;k=v` 序列被剥离为部署属性，一次请求完成上传+打标（`PUT .../app.bin;build=77;env=prod`）。序列里有任何非成对分段（如 `;v1.2`）则整段保留为文件名字面——M1~M9 的含 `;` 路径永久可达。
+- **`?properties` = 事后的 REST 管理族**：挂在 `GET/PUT/DELETE /api/storage/{repo}/{path}` 上——GET 过滤读取（尾 `*` 通配、`atomic=true` 门禁）、PUT 合并写入（同名键值集整体替换、异名键保留）、DELETE 删键（`*` 全删）。发布脚本核对、QA 回写、目录级 `recursive=1` 批量打标走这里。
+
+典型分工（CI 场景）：流水线用矩阵参数**部署即打标**，发布脚本用 `?properties=build,env&atomic=true` **核对齐备**，QA 用 PUT `?properties=qa=passed` **回写结论**。值域闭集两入口同一套（键 `[A-Za-z][A-Za-z0-9_.-]{0,63}`、值非空 ≤1KiB、单键 ≤32 值、节点 ≤64 键）。完整用法见 [属性系统](properties.md)。
+
+### S3 后端和本地 filestore 的 MPU（/api/v1/uploads）有什么差异？
+
+分块上传 REST 面（`POST /api/v1/uploads/create|config|complete/{id}|abort/{id}`、`GET .../status[/{id}]|urlPart/{id}/{n}`、`PUT .../part/{id}/{n}`）**只在纯 S3 后端的实例上存在**：
+
+| | S3 后端 | 本地 filestore / 双写 |
+|---|---|---|
+| 端点可用性 | 全族可用——**BinFlow 中继**：分片 PUT 到 BinFlow 的 URL，服务端转投 S3 multipart，客户端不需要任何 S3 凭据、桶端点保持私有 | **恒 501 纯文本**（不是 404——「该后端没有此能力」与「不是 BinFlow 端点」可区分） |
+| 提交校验 | `complete` 是 checksum 门：sha256 必填，sha1/md5 可选；错配 409 | 同左（无会话可开） |
+| 跨重启续传 | **不支持**（登记债 §11.43，M11 评估）：会话是进程态，重启后 status 查询 404，客户端从头再来；S3 侧残留由启动孤儿清扫回收 | 不适用 |
+| 普通上传 | 内容 PUT 单发即可，两后端无差异——MPU 是大文件的**可选**通道 | 同左 |
+
+docker `/v2` 面的分块上传是**另一个平面**（其跨重启续传策略见上文 M7 问），与 `/api/v1/uploads` 互不相干。端点契约见 [API 参考 · M10 新增端点速览](api-reference.md#m10-新增端点速览t-296)。
 
 ## M4 有意不兼容清单（里程碑级汇总）
 

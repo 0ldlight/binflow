@@ -30,6 +30,10 @@ const sidebars = {
         'integrations/maven',
         'integrations/npm',
         'integrations/pypi',
+        // M10 (T-296): pro-tier pilot package types — go / nuget / cargo.
+        'integrations/golang',
+        'integrations/nuget',
+        'integrations/cargo',
         // generic(raw) 接入篇 lands with T-141 (FR-41 内容矩阵).
       ],
     },
@@ -54,6 +58,7 @@ const sidebars = {
         'admin/rbac-roles', // M7 (T-223): roles + manage delegation guide.
         'admin/token-step-up', // M7 (T-225): token-mint step-up guide.
         'admin/real-env-appendix', // M7 (T-225): V27/V28 conditional-leg evidence template.
+        'admin/license', // M10 (T-296): license & add-ons management guide.
       ],
     },
 
@@ -76,6 +81,10 @@ const sidebars = {
         'metrics/prometheus-reference',
       ],
     },
+
+    // M10 (T-296): the properties system usage guide (matrix params +
+    // ?properties family) — community-floor cross-cutting feature.
+    'properties',
 
     'faq',
 

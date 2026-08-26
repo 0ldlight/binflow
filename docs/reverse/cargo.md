@@ -23,7 +23,7 @@ git index 卹议（`cargoGitIndexEnabled`）**已弃用**：仓未开 sparse（c
 | GET | `index/config.json`（Artifactory 另映射仓根 GET 同义） | sparse 入口配置 | 200 JSON（§3.1） | git 弃用闸门 404 | 高（官方 + 代码） |
 | GET | `index/{pkgPath}` | 索引文件（每版本一行 JSON，NDJSON） | 200 `text/plain` 索引行流；应支持 `ETag`/`Last-Modified` + `If-None-Match`/`If-Modified-Since` → 304（官方缓存语义） | 不存在 404/410/451（官方允许三码；BinFlow 取 404） | 高（官方 + 代码） |
 | GET | `v1/crates/{name}/{version}/download` | 下载 `.crate` | 200 crate 流 | 404 `{"errors":[{"detail":"unable to download crate"}]}` | 高（官方 + 代码） |
-| PUT | `api/v1/crates/new` | publish（wire 见 §5.1） | 200 `{"warnings":{...},"errors":[]}`（无 warnings 可省） | 见 §5.3 | 高（官方 + 代码） |
+| PUT | `api/v1/crates/new` | publish（wire 见 §5.1） | 200 `{"warnings":{...}}`（无 warnings 可省；**不得含 `errors` 键**——R-1 修订 2026-08-26：cargo 1.98 真机实测 errors 键**存在即判失败**，即使空数组，客户端报 `the remote server responded with an error: `（空 detail）；warnings-only / `{}` / 空体均通过。依据 T-294 D-1 偏差登记与本行原画的 `"errors":[]` 成员冲突，以真机为准修订） | 见 §5.3 | 高（官方 + 代码；**成功体形态 = 真机实证**） |
 | DELETE | `api/v1/crates/{name}/{version}/yank` | yank | 200 `{"ok":true}` | 401（匿名）/ 403（无权限）`{"errors":[{"detail":"unauthorized user"\|"forbidden"}]}`；**crate 或版本不存在 → 404 + errors 信封**（TL-6 定案，T-293 补行 2026-08-26——官方未列该分支，BinFlow 取 404 而非幂等 200） | 高 |
 | PUT | `api/v1/crates/{name}/{version}/unyank` | unyank | 200 `{"ok":true}` | 同上（401/403 同形；不存在 → **404 + errors 信封**，TL-6） | 高 |
 | GET | `api/v1/crates?q=<q>&per_page=<n>` | search（**官方：不带 Authorization**） | 200 `{"crates":[{"name","max_version","description"}],"meta":{"total":N}}` | — | 高（官方；Artifactory 亦不鉴权） |
@@ -31,7 +31,7 @@ git index 卹议（`cargoGitIndexEnabled`）**已弃用**：仓未开 sparse（c
 
 管理端点（Artifactory `/api/cargo/<repoKey>/...`；BinFlow 归自有 API 面）：`POST reindex`（重建索引，MANAGE 权限）、`POST init`（git 遗留，不做）。中。
 
-错误信封统一（官方）：`{"errors":[{"detail":"<msg>"}]}`；**200 + errors 体也会被 cargo 展示为失败**（官方明文）。高。
+错误信封统一（官方）：`{"errors":[{"detail":"<msg>"}]}`；**200 + errors 体也会被 cargo 展示为失败**（官方明文；cargo 1.98 实测进一步收窄：**errors 键存在即失败，即使空数组**——服务端成功体绝不能携带该键，见 §2 publish 行 R-1 修订）。高。
 
 ## 3. sparse 索引协议
 
@@ -94,7 +94,7 @@ git index 卹议（`cargoGitIndexEnabled`）**已弃用**：仓未开 sparse（c
 3. 无写权限 → 401/403（错误信封）。
 4. 落盘 crate + 属性（§4）+ `.cargo` 长元数据；存储层实测 sha256/sha1/md5 入库。
 5. 异步：生成/重写索引行（§3.3）。
-6. 响应 200；**处理失败（如解帧 IO 错误）时 Artifactory 返回 200 + errors 体**（cargo 侧按失败展示）——BinFlow 建议对齐官方：4xx/5xx + errors 信封为主，IO 类可保留 200+errors 形态以最大兼容（登记拆票裁决）。中。
+6. 响应 200（体不含 `errors` 键，见 §2 R-1 修订）；**处理失败一律 4xx/5xx + errors 信封，禁 200+errors 双轨**——CG-2 裁决（T-294 落地，D-2 拆分：解帧/元数据畸形（客户端输入）→ 400+信封；body 读 IO/落盘失败 → 500+信封；Artifactory 的 200+errors 兼容形态**不采纳**——成功体与失败体在 HTTP 状态层即分离）。as-built 2026-08-26。高（裁决 + 真机）。
 
 ### 5.3 校验链
 
@@ -195,7 +195,7 @@ curl -s -o /dev/null -w '%{http_code}\n' "$BASE/binflow/cargo-remote/v1/crates/s
 ## 12. M11 拆票就绪度自评
 
 - **可直接拆票**：端点表（§2）、config.json 合成（§3.1）、索引路径与行 schema（§3.2/§3.3）、存储布局（§4）、publish wire 与校验链（§5）、yank 语义（§6）、search（§7）、local 全量、客户端命令（§9）。与 LC-10（`api/v1/crates` + sparse 索引，crates.io 规范为准）完全对齐。
-- **拆票时需裁决三点**：① 虚仓索引去重策略（S5 低置信项，建议首见成员去重）；② publish IO 类错误 200+errors vs 4xx/5xx；③ 重复版本拒绝码（建议 409）。
+- **拆票时需裁决三点**：① 虚仓索引去重策略（S5 低置信项，建议首见成员去重——remote/virtual 票时仍需裁决）；② publish IO 类错误 200+errors vs 4xx/5xx——**已裁**（CG-2：4xx/5xx + errors 信封，禁 200+errors；as-built 见 §5.2-6）；③ 重复版本拒绝码——**已裁**（CG-3：409，忽略 build metadata；T-294 落地）。
 - **依赖提示**：索引行生成依赖制品属性系统（FR-89 已落）；`cksum` 必须取存储实测 sha256（复用既有内容面实测链）。
 
 ### 待验证清单

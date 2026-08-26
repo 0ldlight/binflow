@@ -6,7 +6,7 @@ sidebar_position: 70
 # API 参考
 
 > 适用版本：M1~M9（端点引入里程碑标注于各表；M7 增补：用户角色字段 `adminRole`、permission target 动作 `manage`、docker 上传状态腿跨重启、token 铸造 step-up 可选门；**M9 增补**：usage 批量端点、users 列表加宽/enabled 回显/DELETE、groups `?includeUsers`、permissions `?filter=manage`——速览见[下文](#m9-增补速览)）。Artifactory 兼容端点基于 REST 逆向规格 `docs/reverse/rest-api.md`（置信度高）。
-> **M10 增补（T-293 部分回写，2026-08-26）**：`?properties` 族反转为 **GET/PUT/DELETE 三动词**（POST 增量动词不做——其余动词落 404 冻结姿态；原 M5 期表格把属性动词标为 M4/M1 系陈旧勘误）；上传路径 matrix 参数 M10 生效。M10 其余新端点（license/addons/uploads、Go/NuGet 接入面）归 M10 文档票（T-296）补齐。
+> **M10 增补（T-293 部分回写，2026-08-26）**：`?properties` 族反转为 **GET/PUT/DELETE 三动词**（POST 增量动词不做——其余动词落 404 冻结姿态；原 M5 期表格把属性动词标为 M4/M1 系陈旧勘误）；上传路径 matrix 参数 M10 生效。M10 其余新端点（license/addons/uploads、Go/NuGet/Cargo 接入面）已随 T-296 补齐——速览见[下文](#m10-新增端点速览t-296)。
 > BinFlow 自有端点以 `/api/v1` 前缀标记。
 
 BinFlow 的 API 分为两个面：
@@ -215,6 +215,51 @@ curl -su admin:$ADMIN_PW "$BASE/binflow/api/v1/storage/usage?include=bogus"     
 - **无 filter：行为字节不变**（admin/readonly_admin 全量；其余含 manage 持有者一律 403 `administrator privileges required`）。
 - `filter=manage` 三臂：admin/readonly_admin → 全量（与无参响应**逐字节一致**，实测 diff 为空）；manage 持有者且覆盖集非空 → 仅 `repos ⊆ 覆盖集` 的 target（条目字段与全量一致；**部分覆盖的 target 隐藏**）；覆盖集为空 → 403（与无参门同形同字节）。`?filter=`（空值）= 无 ask；未知值 → **400 errors[] 信封**（`filter must be "manage" (unknown filter value: "bogus")`）。
 - 用途：仓库级管理员（manage 持有者）经此端点在控制台可达权限编辑器——见 [RBAC 指南](admin/rbac-roles.md#manage-能做什么--不能做什么)。
+
+---
+
+## M10 新增端点速览（T-296）
+
+license / addons / uploads 三族与三个门控包型的接入面（依据 ADR-0032/0033/0034 as-built + T-285/T-287/T-289/T-294 实测，2026-08-26）：
+
+### license 域（**单数**路径）
+
+| 方法 | 路径 | 语义 | 里程碑 |
+|---|---|---|---|
+| GET | `/binflow/api/system/license` | 状态查询（CapSystemRead——admin/readonly_admin；body 永不含文档原文/签名） | M10 |
+| POST | `/binflow/api/system/license` | 安装（body = 文档原文；成功 **201**；验签拒 **400**，wire 码 `LICENSE_EXPIRED`/`LICENSE_INVALID`，现证不动；CapSystemWrite） | M10 |
+| DELETE | `/binflow/api/system/license` | 卸载（幂等 **200 纯文本** `License removed successfully.`；CapSystemWrite；降级不劫持数据） | M10 |
+| * | `/binflow/api/system/licenses`（复数） | **404** 有意不做（Artifactory HA 多证语义不采纳；404 即引导） | M10 |
+
+### addon 域
+
+| 方法 | 路径 | 语义 | 里程碑 |
+|---|---|---|---|
+| GET | `/binflow/api/v1/addons` | 11 槽位清单实时求值（bare array：`id`/`kind`/`minTier`/`enabled`/`reason`/`displayName`/`description`；CapSystemRead；**无写面**——其余动词 404） | M10 |
+
+### uploads 域（MPU；**仅纯 S3 后端**——filestore/双写实例全族 **501 纯文本**，非 404）
+
+| 方法 | 路径 | 语义 | 里程碑 |
+|---|---|---|---|
+| POST | `/binflow/api/v1/uploads/create` | 开会话（认证 + 目标仓路径 `w`；路径不得带矩阵参数） | M10 |
+| POST | `/binflow/api/v1/uploads/config` | 无字节会话重分片 | M10 |
+| GET | `/binflow/api/v1/uploads/urlPart/{id}/{n}` | 第 n 片的上传 URL（BinFlow URL；会话 id = 不可猜测 capability） | M10 |
+| GET | `/binflow/api/v1/uploads/status[/{id}]` | 单会话 / 清单形态 | M10 |
+| PUT | `/binflow/api/v1/uploads/part/{id}/{n}` | 传片（服务端中继进 S3 multipart；checksum 服务端实测；客户端无 S3 凭据） | M10 |
+| POST | `/binflow/api/v1/uploads/complete/{id}` | 提交落节点（sha256 必填、sha1/md5 可选；错配 409） | M10 |
+| POST | `/binflow/api/v1/uploads/abort/{id}` | 弃置会话 | M10 |
+
+会话为**进程态**：重启即忘（status → 404）；S3 跨重启续传为登记债（architecture §11.43，M11 评估）。
+
+### 门控包型接入面（pro 档槽位）
+
+| 包型 | 挂载面 | 详见 |
+|---|---|---|
+| go | 内容面 `/binflow/<repoKey>/<module>/@v/...`（GET 五端点 + PUT 三件套厂商扩展；与五核心包型同构，无额外路径段） | [Go Modules 接入](integrations/golang.md) |
+| nuget | 管理面 `/binflow/api/nuget/{v3,v2}/<repoKey>/...`（plane-aware 重写进 dispatchContent 链，ADR-0034） | [NuGet 接入](integrations/nuget.md) |
+| cargo | 内容面 `/binflow/<repoKey>/`（`index/` sparse 索引 + `v1/crates/` 下载 + `api/v1/crates/` Web API） | [Cargo 接入](integrations/cargo.md) |
+
+门控拒绝闭集（D1 读放行 / D2 写 403 + `X-Binflow-License-Required` / D3 建仓 400 / D6 到期即降级）与 `addons.disabled` 熔断见 [License 与 Add-ons 管理](admin/license.md)。
 
 ---
 
@@ -544,6 +589,6 @@ Docker-Distribution-Api-Version: registry/2.0
 
 ## 下一步
 
-- 各协议接入指南：[Docker](docker-registry.md) · [Maven](integrations/maven.md) · [npm](integrations/npm.md) · [PyPI](integrations/pypi.md)
-- 管理操作：[治理指南](admin/governance.md) · [权限管理](admin/groups-permissions.md) · [RBAC 角色与仓库级管理员](admin/rbac-roles.md) · [Token 铸造 step-up](admin/token-step-up.md) · [备份恢复](admin/backup-restore.md)
+- 各协议接入指南：[Docker](docker-registry.md) · [Maven](integrations/maven.md) · [npm](integrations/npm.md) · [PyPI](integrations/pypi.md) · [Go](integrations/golang.md) · [NuGet](integrations/nuget.md) · [Cargo](integrations/cargo.md)
+- 管理操作：[治理指南](admin/governance.md) · [权限管理](admin/groups-permissions.md) · [RBAC 角色与仓库级管理员](admin/rbac-roles.md) · [Token 铸造 step-up](admin/token-step-up.md) · [备份恢复](admin/backup-restore.md) · [License 与 Add-ons](admin/license.md) · [属性系统](properties.md)
 - 常见问题与排障：[FAQ](faq.md)

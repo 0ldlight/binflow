@@ -21,8 +21,13 @@
   - [Maven](integrations/maven.md)（settings.xml + deploy/resolve、snapshot/-U、checksum 策略、mirror 收口）— M3
   - [npm](integrations/npm.md)（.npmrc + _auth、publish/install、dist-tag/unpublish、上游边界、发布权限语义〔M8 起；M9 复制同口径〕）— M3
   - [PyPI](integrations/pypi.md)（pip.conf + twine、hash 对账、PEP 691）— M3
+  - [Go Modules](integrations/golang.md)（GOPROXY/GOSUMDB 配置、PUT 三件套发布、!lower 转义、remote/virtual、go build 全链〔go 1.26 实测〕）— M10（pro 档）
+  - [NuGet](integrations/nuget.md)（nuget.config 源映射 + 凭据、push/restore/run、flatcontainer/v3 行为、v2 最小面、符号服务器边界〔dotnet 8 实测〕）— M10（pro 档）
+  - [Cargo](integrations/cargo.md)（.cargo/config.toml alternate registry、token、publish/add/build/yank/search 全链、cksum 对账〔cargo 1.98 实测〕）— M10（pro 档）
   - [Generic / 任意文件](integrations/generic.md)（curl roundtrip）
   - CI 集成：GitHub Actions / GitLab CI / Jenkins 用作依赖源与镜像源
+- **属性系统** — M10
+  - [属性系统用法](properties.md)（矩阵参数 `;k=v` 部署打标、?properties 三动词、控制台 Properties 页签、CI 打标场景；community 地板恒解锁）
 - **Web 控制台** — M8（新信息架构；M9 增补 Set Me Up OIDC 臂与用户删除面）
   - [控制台使用指南](console.md)（双模式导航、跨仓制品树、Set Me Up 与 Deploy 对话框、管理域五分组、旧路径迁移对照、角色可见性、浏览器兼容）
   - [Artifactory → BinFlow 操作路径对照表](artifactory-path-map.md)（建仓/建用户/删用户/配权限/找制品/Set Me Up/GC/备份等逐任务路径对照；无对应面如实登记）
@@ -33,6 +38,7 @@
   - [备份与恢复手册](admin/backup-restore.md)（export/import CLI、产物 0700 保管告警、`--verify spot/full`、无钥 fail-fast 恢复链、停机强一致可选）— M4
   - [RBAC 角色与仓库级管理员](admin/rbac-roles.md)（角色三值模型与能力矩阵、adminRole wire、manage 派生与覆盖集、`?filter=manage` 可达性〔M9〕、user.role.change 审计、IdP readonly 组映射）— M7
   - [Token 铸造二次认证 step-up](admin/token-step-up.md)（`auth.token_step_up` 开关与 TTL 域、作用域与豁免臂、本地/LDAP 口令腿与 OIDC mint grant 腿〔M9 起控制台自动续铸〕、审计维度）— M7
+  - [License 与 Add-ons 管理](admin/license.md)（三档语义、安装/查询/卸载、11 槽位 × 档位矩阵、addons.disabled 熔断、`bf license` 离线签发工具）— M10
   - [附录：条件腿真实环境验收](admin/real-env-appendix.md)（V27 真实 AWS S3 / V28 真实 Artifactory 证据归档模板 + MinIO/OSS 等价口径）— M7
 - **专题指南**（`guides/`）— M6
   - [OIDC 单点登录配置](guides/oidc-config.md)（auth.oidc 段、PKCE 登录流、组/管理员映射、step-up 联合部署 armed 形态、Keycloak 实例）
@@ -42,7 +48,7 @@
   - [从 Artifactory 迁移（bf-migrate）](guides/migrate-artifactory.md)（三阶段、--dry-run/--resume、口令与 token 不可导出策略）
   - [Prometheus 指标参考](metrics/prometheus-reference.md)（/metrics 端点、四类指标族、path 基数防护、PromQL 示例）
 - **API 参考**（`api-reference.md`）：Artifactory 兼容子集 + `/api/v1`（M9 六端点速览：usage 批量 / users 加宽与 enabled / DELETE users / groups includeUsers / permissions filter=manage）
-- [FAQ 与故障排查](faq.md)（401/403/404/409/413 信封解读、高 QPS 用 Token、M4 不兼容清单、Artifactory 迁移对照表、M9 增补两问）
+- [FAQ 与故障排查](faq.md)（401/403/404/409/413 信封解读、高 QPS 用 Token、M4 不兼容清单、Artifactory 迁移对照表、M9 增补两问、M10 增补三问〔license 降级 / 属性两入口 / MPU 后端差异〕）
 
 ## 从 Artifactory 迁移
 
