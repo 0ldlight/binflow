@@ -136,7 +136,7 @@ REG="$BASE/binflow/cargo-local"                    # 例 http://localhost:8080/b
 
 # L-r1 手工探针
 curl -s "$REG/index/config.json"
-curl -s "$REG/index/3/m/mycrate"                    # 404 或索引行
+curl -s "$REG/index/my/cr/mycrate"                  # 404 或索引行（§3.2：7 字符名 → my/cr/；3 字符名才是 3/{首字符}/{name}）
 curl -s -o /dev/null -w '%{http_code}\n' "$REG/v1/crates/mycrate/0.1.0/download"
 
 # L-r2 ~/.cargo/config.toml
@@ -151,7 +151,7 @@ cargo login --registry binflow                      # 输入 token（BinFlow 用
 cargo new mycrate --lib && cd mycrate
 echo 'description = "demo"' >> Cargo.toml
 cargo publish --registry binflow                    # PUT api/v1/crates/new
-sleep 2 && curl -s "$REG/index/3/m/mycrate"         # 索引行出现（cksum 对账）
+sleep 2 && curl -s "$REG/index/my/cr/mycrate"       # 索引行出现（cksum 对账；§3.2 四档规则）
 
 # L-r4 消费（隔离 CARGO_HOME）
 cd .. && cargo new consumer && cd consumer
@@ -160,7 +160,7 @@ CARGO_NET_GIT_FETCH_WITH_CLI=false cargo build      # 走 sparse 索引 + downlo
 
 # L-r5 yank/unyank
 cargo yank --registry binflow mycrate@0.1.0
-curl -s "$REG/index/3/m/mycrate"                    # 行内 "yanked":true
+curl -s "$REG/index/my/cr/mycrate"                  # 行内 "yanked":true（§3.2 四档规则）
 cargo unyank --registry binflow mycrate@0.1.0
 
 # L-r6 search
