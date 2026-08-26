@@ -836,7 +836,11 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **B9**：T-295 [P1] 部署接线（charts configmap 显式枚举——T-183 教训）｜ T-296 [P1] 文档五项
   - **T-295 → done 2026-08-26（提交 `a646503`）**：7 键全接入（addons.disabled 主键 + replication/gc-hold/step-up 对/oidc-ldap readonly）；license config 键确认**无**（BINFLOW_M10_LICENSE_DIR 是矩阵测试 env，四部署面加「设到 server 会被严格 env 扫描拒启」警示）；helm lint 0 + schema 域反例咬合 + 三变体真服烟测（community 地板/K24 容错〔未知槽位清理 + core docker 禁用 honored + WARN〕/制品 roundtrip）；contrib/systemd 有意未动（写区外，留后续票）。经第 15 次熔断 + ENOTFOUND 双恢复后当日收口。日志 reports/agents/T-295.md。
   - **T-296 → done 2026-08-26（提交 `be89008`）——B9 全清**：五项 889 行（license 指南 232/属性用法 158/go 171/nuget 160/cargo 168）+ FAQ 三目 + cargo.md R-1×4 点 + api-reference M10 端点速览收口 + 侧栏挂页；命令全取各票实测日志（go 1.26.6/dotnet 8.0.412/cargo 1.98.0）；**license 安装动词按 as-built 写 POST**（派单笔误 PUT，已登记）；docs-site build SUCCESS 五路由全生成（conductor 复跑绿）。遗留登记：goproxy.md GOPRIVATE 勘误归 reverse-engineer；cargo.md §9 四档路径示例待规格复核；`make docs` 归终验。日志 reports/agents/T-296.md。
-- **B10**：T-297 [P0] 终验（L01~L30 + 真实客户端矩阵 + DoD 八条）
+- **B10**：T-297 [P0] 终验（L01~L30 + 真实客户端矩阵 + DoD 八条）— **done 2026-08-26（提交 `39f1fa8`）——M10 全清 21/21**
+  - **总裁定 PASS**：L01~L30 = 28 ✅ + 2 ⚠️（L05/L22 文面登记态分歧，行为面安全）+ 0 ❌；真实客户端八面全绿（go 1.26.6 / dotnet 8.0.412〔live 公网腿环境性降级 + hermetic 全链替代〕/ cargo 1.98.0 / npm 10.9.8 / maven 3.9.9 / pip 26.1.2 / docker 29.7.2 dind 20MiB 真实 multipart 回环 / curl）；四闸门 0 deviations + anchor ledger PASS + make docs 产物一致；**抓获 P0×1（属性键上限差一——conductor 修复 `7b84a71` + 边界复验绿）**；`make test` 修复前 28/28 绿，修复后两处墙钟断言抖动（隔离复跑绿，环境性归因链在报告 §3）
+  - DoD 八条：1~7 全 PASS；**第 8 条 tag `m10-done` 由 conductor 执行**（本提交后）
+  - 登记项移交：D-3 nuget 文档一行（M11 tech-writer）；D-6 matrix_params 逃生开关 conductor 裁定**不实现**（Artifactory 无此开关——按「行为对齐」新指令维持无开关，PRD AC4 存量臂绿）；D-8 boot footprint 138MB（M11 候选）；D-9 e2e seed 竞态 + verifyM10 硬编码口令（测试基建票）；PRD v1.2 三处措辞勘误已随笔落
+  - 历经 16 次配额熔断 + ENOTFOUND/流停滞 ×4 + VM 失联 3 小时，当日收口零损坏。日志 reports/agents/T-297.md（34.4KB）
 
 **关键路径**：T-279→282→283→285/286→288→297（基座链）。
 ## 用户指令（2026-08-25 17:35）：持续部署——每次变更经 Jenkins 部署到 172.16.58.129 测试环境
