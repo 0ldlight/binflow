@@ -457,6 +457,21 @@ BASE=http://127.0.0.1:8080; ADMIN=admin:password
 | K28 | NuGet v2 最小集 as-built（T-287）：`FindPackagesById()?id=`（OData Atom，未知 id = 空 feed）+ `$metadata`（EDMX，老客户端可发现性）+ v2 push `{id}/{version}` + LegacyGallery 别名；**`Search()`/`Packages()Id=`/`$count` 不做**（404）；T-287 七项自有裁定（L1~L7：DELETE 硬删无 listed 位/search=存储事实/上游前缀常量/512MiB 上限/版本键官方归一化/virtual search 贡献=local+已落地缓存）经 T-293 复核**全部维持**。T-280 规格缺失处置见 88.4 登记（建议免补票，conductor 终裁） | 本表 + FR-88.4 登记；architecture §12-18 |
 | K29 | scope 等价物 as-built = **认证 + 目标仓写门**（routeAuth required + handler 内 path `w`）；会话 id = 不可猜测 capability（§5.3.1 契约 4 同源，无 BinFlow token scope 模型故无更细粒度）；complete 校验链 = `sha256` 必填 + `sha1`/`md5` 可选、错 sha256 → **409** 且会话消费；Commit 后建 node 失败 → 5xx safe-to-retry | ADR-0032 **as-built 定案段**②；architecture §15.4.1（八臂全契约） |
 
+**Q8 六项终值登记（T-304 归位，2026-08-26 20:35 用户裁定 + 20:55 二次修正转写错误——M11 PRD Q8 的正式回写锚）**
+
+> 依据 BOARD 19:05「行为逐项对齐」指令与 20:35/20:55 裁定；出处为 reverse-src 反编译默认值/artifactory.xsd/ConstantValues 与 docs/reverse 规格（逐条锚定见 `reports/agents/T-304.md` §1.5）。**两处翻转路由确认**：CG-2→T-316（BOARD B8 行含「T-294 断言反转 + 规格回写；dep T-304 出处锚定」）、CN-1→T-308（B4 行「CN-1 终裁推翻收窄，窗口独占」）；RP-2/TL-4/TL-5 已入 T-310/T-311 票面、HL-2 已入 T-309 票面。
+
+| # | 项 | 暂行值（tl-fr91-ac3） | **终值（20:55）** | Artifactory 出处 | 承载票 |
+|---|---|---|---|---|---|
+| RP-2 | calculateYumMetadata | true | **false**（上传仅存储，repodata 由 reindex/显式开启触发） | `artifactory.xsd:402` default="false"；`YumPackageTypeConfigMapper` | T-311 |
+| TL-4 | debian 架构族 | 关闭 | **i386,amd64 强制生成**（空 Packages 亦生成） | `artifactory.xsd:1408` default="i386,amd64"；`ConstantValues debian.default.architectures` | T-310 |
+| HL-2 | helm relative urls | true | **true**（维持暂行） | helm.md §4 L105（JFrog 新版默认 relative，helm 3+） | T-309 |
+| TL-5 | rpm 校验算法 | SHA-256 | **SHA-256（唯一例外，安全向留痕——Artifactory 默认 SHA-1 但支持 SHA-256）** | rpm.md §2.2 L48（`enableSha256` 默认 false） | T-311 |
+| CN-1 | conan v1 | 收窄握手三端点 | **全量十七端点（推翻收窄）** | conan.md §3.2 v1 族全表（高置信逐行） | **T-308**（翻转） |
+| CG-2 | cargo publish 失败形态 | 统一 4xx/5xx | **200+errors[] 双轨（照 Artifactory；成功形态两方案一致=200 无 errors 键）**——精确载荷=200+`warnings.other`（T-304 §3 分类锚定表，T-316 硬前置） | `CargoLocalRepoHandler.publish` + `CargoResponseUtils`/`CargoPublishResponse` | **T-316**（翻转） |
+
+**T-304 回头看增补注记（2026-08-26）**：M10 各票自有裁定 23 项 + Q8 六项 + matrix_params 先例共 30 行已逐条复核（维持 10 / 改回-既有票 5 / 改回-新票候选 4 / 已上 BOARD 裁定 9 / 待用户裁决 2），全文见 `reports/agents/T-304.md` §1；改回路由表与 PM 转交清单（M11 PRD v1.2 勘误三处：§2.2 v1 行、§2.2 CG-2 行+Q8/K35 联动、LC-18 及「CN-1 收窄」字样清理）见同日志 §5。新发现可观测差异两束（NuGet 面对齐 bundle、MPU 对齐 A/B+面形状束）按 19:05 口径列「待用户裁决」上 BOARD，未自裁。
+
 ---
 
 ## 6. 非功能需求（NFR）
