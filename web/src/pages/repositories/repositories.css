@@ -51,49 +51,10 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* 行尾删除入口（§6.6[2]：行级删除，仅 admin 渲染；弱化常显 + hover 强调）。
- * 注意不用 opacity 弱化——会把 --bf-text-2 压到 4.5:1 以下（axe
- * color-contrast serious；T-236 tree.css 同款坑），密度靠字号承载。 */
-.row-del {
-  all: unset;
-  cursor: pointer;
-  color: var(--bf-text-2);
-  font-size: var(--bf-fs-aux);
-  padding: 2px 6px;
-  border-radius: var(--bf-r-sm);
-}
-
-.row-del:hover {
-  color: var(--bf-danger);
-  background: var(--bf-surface-2);
-  opacity: 1;
-}
-
-.row-del:focus-visible {
-  outline: 2px solid var(--bf-accent);
-  opacity: 1;
-}
-
-/* 已用列失败态（T-258 四态之一）：灰显 — + tooltip 原因，点击/键盘重试。
- * 对比度纪律与 .row-del 同款——text-2 而非 muted（axe color-contrast），
- * 不用 opacity 弱化。 */
-.usage-failed {
-  all: unset;
-  cursor: pointer;
-  color: var(--bf-text-2);
-  font-size: var(--bf-fs-body);
-  padding: 2px 4px;
-  border-radius: var(--bf-r-sm);
-}
-
-.usage-failed:hover {
-  color: var(--bf-danger);
-  background: var(--bf-surface-2);
-}
-
-.usage-failed:focus-visible {
-  outline: 2px solid var(--bf-accent);
-}
+/* 行尾删除入口与已用列失败重试（§6.6[2] / T-258 四态之一）已随 T-299
+ * 批次一迁 MUI Button（lib/muiAtoms 的 quietBtnSx——text-2 常态 / danger
+ * 悬停 / surface-2 悬停底，对比度纪律原样：不用 opacity 弱化，密度靠
+ * 字号承载）。 */
 
 /* 列头排序按钮（§4.7；security.css 同款语义，本域自持） */
 .th-sort {

@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
+import type { ComponentPropsWithoutRef, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
+
+import InputBase from '@mui/material/InputBase'
+import IconButton from '@mui/material/IconButton'
 
 import { useAuth } from '../app/AuthContext'
 import { useTheme } from '../app/ThemeContext'
@@ -466,13 +469,22 @@ export default function AppShell() {
               listbox/option）随搜索页一并归后续票统一 */}
           <div className="search-entry" role="search">
             <span aria-hidden="true">⌕</span>
-            <input
-              ref={topbarSearchRef}
+            {/* T-299 批次一：输入本体迁 MUI InputBase（无边框原语）——容器
+                的 surface-3 形态、Esc 两段/↑↓/Enter 键盘链路、⌘K focus+select
+                （inputRef 直指 input）全部零变化 */}
+            <InputBase
+              inputRef={topbarSearchRef}
               type="search"
               placeholder="搜索制品…"
-              aria-label="搜索制品"
-              data-testid="topbar-search"
-              autoComplete="off"
+              slotProps={{
+                // data-testid 落 input 本体（topbar-search 锚）；MUI v7 的
+                // slot 类型不容 data-* 属性，按 input 元素 props 断言放行
+                input: {
+                  'data-testid': 'topbar-search',
+                  'aria-label': '搜索制品',
+                  autoComplete: 'off',
+                } as ComponentPropsWithoutRef<'input'>,
+              }}
               value={searchTerm}
               onChange={(e) => {
                 setSearchTerm(e.target.value)
@@ -484,6 +496,7 @@ export default function AppShell() {
                 setRecentActive(-1)
               }}
               onKeyDown={onTopbarSearchKeyDown}
+              sx={{ flex: 1, minWidth: 0, fontSize: 'var(--bf-fs-body)' }}
             />
             <kbd aria-hidden="true">⌘K</kbd>
             {recentOpen && recentList.length > 0 && (
@@ -528,16 +541,25 @@ export default function AppShell() {
           >
             <span aria-hidden="true">?</span> 帮助
           </a>
-          <button
-            type="button"
-            className="icon-btn"
+          {/* 主题切换（T-299 批次一迁 MUI IconButton）：title 原生 tooltip、
+              aria-label、字形与 ThemeContext 翻转链路零变化；32px 密度带与
+              text-2→text 悬停经 token 收口 */}
+          <IconButton
             aria-label={theme === 'dark' ? '切换亮色主题' : '切换暗色主题'}
             title={theme === 'dark' ? '切换亮色主题' : '切换暗色主题'}
             data-testid="topbar-theme-toggle"
             onClick={() => void toggle()}
+            sx={{
+              width: 32,
+              height: 32,
+              borderRadius: 'var(--bf-r-md)',
+              color: 'var(--bf-text-2)',
+              fontSize: 'var(--bf-fs-h3)',
+              '&:hover': { color: 'var(--bf-text)', backgroundColor: 'var(--bf-surface-2)' },
+            }}
           >
             {theme === 'dark' ? '◐' : '◑'}
-          </button>
+          </IconButton>
           {/* 用户菜单（§2.3）：Quick 动作仅全量 admin（readonly_admin 不见
               快速建仓等写入口——L4 预收敛，服务端 403 兜底） */}
           <div className="session-box topbar-session" ref={menuRef}>
