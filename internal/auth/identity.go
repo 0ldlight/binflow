@@ -136,16 +136,18 @@ type IdentityProvider interface {
 var ErrProviderUserNotFound = errors.New("auth: provider user not found")
 
 // OIDCWired reports whether the OIDC Bearer arm is active on this service
-// (WithOIDC was called with a provider). It is the capability facet the
+// (WithOIDC was called with a provider, or — T-305 — the live config
+// snapshot's OIDC section is enabled). It is the capability facet the
 // public auth-methods endpoint consumes (T-179): the HTTP layer discovers it
 // by type assertion on the injected Authenticator, the same consumer-side
 // pattern as the session and permission facets.
-func (s *Service) OIDCWired() bool { return s.oidcProvider != nil }
+func (s *Service) OIDCWired() bool { return s.currentOIDC() != nil }
 
 // LDAPWired reports whether the LDAP login fallback arm is active on this
-// service (WithLDAP was called with a provider). See OIDCWired for the facet
+// service (WithLDAP was called with a provider, or — T-305 — the live
+// snapshot's LDAP section is enabled). See OIDCWired for the facet
 // contract.
-func (s *Service) LDAPWired() bool { return s.ldapProvider != nil }
+func (s *Service) LDAPWired() bool { return s.currentLDAP() != nil }
 
 // errProviderUserNotFound wraps a provider-specific error as
 // ErrProviderUserNotFound for internal use.

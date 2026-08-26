@@ -46,6 +46,18 @@ type OIDCLoginFlow interface {
 	OAuth2Config() *oauth2.Config
 }
 
+// activeOIDCConfig resolves the login flow's CURRENT OAuth2 config. A nil
+// answer means the OIDC plane is not active: an unwired Deps.OIDC (the M6
+// static posture) OR a hot config-manager seam whose live section is
+// disabled/absent (T-305: cmd wires a delegating seam; a nil config keeps
+// the FR-54-AC6 "endpoint does not exist" 404, per-configuration).
+func (s *Server) activeOIDCConfig() *oauth2.Config {
+	if s.deps.OIDC == nil {
+		return nil
+	}
+	return s.deps.OIDC.OAuth2Config()
+}
+
 const (
 	// oidcTxCookieName carries the login-flow transaction (state + PKCE
 	// verifier). "tx" = one in-flight authorization request, not a session.
@@ -84,8 +96,10 @@ const (
 // here, before the IdP round trip: the flow's payout is bound to that
 // session, so a sessionless run could never finish.
 func (s *Server) handleOIDCLogin(w http.ResponseWriter, r *http.Request) {
-	if s.deps.OIDC == nil {
+	if s.activeOIDCConfig() == nil {
 		// oidc.enabled=false: the endpoint does not exist (FR-54-AC6/H29).
+		// T-305: "enabled" is the LIVE config snapshot's verdict — a PUT on
+		// the auth-config plane flips these routes on the next request.
 		notImplemented(w, "/binflow/api/v1/oidc/login")
 		return
 	}
@@ -145,7 +159,7 @@ func (s *Server) handleOIDCLogin(w http.ResponseWriter, r *http.Request) {
 		// the step-up leg (ADR-0027: prompt=login, not a freshness window).
 		authParams = append(authParams, oauth2.SetAuthURLParam("prompt", "login"))
 	}
-	http.Redirect(w, r, s.deps.OIDC.OAuth2Config().AuthCodeURL(state, authParams...), http.StatusFound)
+	http.Redirect(w, r, s.activeOIDCConfig().AuthCodeURL(state, authParams...), http.StatusFound)
 }
 
 // handleOIDCCallback serves GET /binflow/api/v1/oidc/callback (OD-02):
@@ -154,7 +168,7 @@ func (s *Server) handleOIDCLogin(w http.ResponseWriter, r *http.Request) {
 // the ID Token through the shared OIDC Bearer arm, then mint the console
 // session exactly like a password login and land the browser on /binflow/ui/.
 func (s *Server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
-	if s.deps.OIDC == nil {
+	if s.activeOIDCConfig() == nil {
 		notImplemented(w, "/binflow/api/v1/oidc/callback")
 		return
 	}
@@ -222,7 +236,7 @@ func (s *Server) handleOIDCCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tok, err := s.deps.OIDC.OAuth2Config().Exchange(r.Context(), code,
+	tok, err := s.activeOIDCConfig().Exchange(r.Context(), code,
 		oauth2.SetAuthURLParam("code_verifier", verifier))
 	if err != nil {
 		s.log.ErrorContext(r.Context(), "httpapi: oidc code exchange failed", "error", err.Error())

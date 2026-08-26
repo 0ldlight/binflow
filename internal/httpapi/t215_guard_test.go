@@ -32,10 +32,16 @@ import (
 // family-1/2 rows the ADR registers. T-282 (M10, ADR-0033 / architecture
 // section 15.2.5) added the 29th: GET /api/v1/addons on CapSystemRead (the
 // addon status plane; readonly_admin sees the matrix, a plain user 403s).
+// T-305 (M11, ADR-0035 / FR-92) added 30..38: the auth-config plane's nine
+// routes — GET on CapSecurityRead x3 (ldap/oauth/saml config), PUT on
+// CapSecurityWrite x3, and the three test-connection POSTs on
+// CapSecurityWrite (they open outbound connections against admin-supplied
+// targets; the M3 Guard screens them and the write gate keeps probing an
+// admin action).
 // Editing this constant is a deliberate route-gate change — update the
 // inventory table with it.
 const (
-	t215ManageGates    = 29
+	t215ManageGates    = 38
 	t215RepoManageBits = 4
 )
 

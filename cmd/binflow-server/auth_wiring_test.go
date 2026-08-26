@@ -1,9 +1,10 @@
-// T-179 acceptance surface, cmd arm (AC 2/AC 5): the config-driven assembly
-// of the identity providers — wireAuthProviders (disabled → nils; enabled →
-// constructed providers; unreachable OIDC issuer → fail-fast boot) and the
-// enabled/disabled smoke through the real openStack → newAssembledServer
-// chain, including Deps.OIDC's nil posture (disabled → the E-26 404 routes)
-// and the /api/v1/auth/methods body both ways.
+// T-179/T-305 acceptance surface, cmd arm: the config-driven assembly of
+// the authentication plane — wireAuthConfigManager (disabled → inert
+// snapshot; enabled → live providers; unreachable seeded OIDC issuer →
+// fail-fast boot; first-boot seeding + the override WARN) and the
+// enabled/disabled smoke through the real openStack → assembled Deps
+// chain, including the login seam's nil posture (disabled → the E-26 404
+// routes) and the /api/v1/auth/methods body both ways.
 
 package main
 
@@ -21,6 +22,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/config"
 	"github.com/lzwzzy/binflow/internal/httpapi"
 	"github.com/lzwzzy/binflow/internal/metadata"
+	"github.com/lzwzzy/binflow/internal/remote"
 )
 
 // discoveryIDP is the minimal OIDC discovery surface NewOIDCProvider needs
@@ -92,75 +94,118 @@ func oidcEnabledConfig(t *testing.T, issuer string) *config.Config {
 	return cfg
 }
 
-// TestWireAuthProvidersDisabled (AC 2, disabled → nils): the default config
-// yields no providers — the pre-M6 posture, zero behavior change.
-func TestWireAuthProvidersDisabled(t *testing.T) {
+// TestWireAuthConfigManagerDisabled (AC 2, disabled → inert): the default
+// config yields no live providers — the pre-M6 posture, zero behavior
+// change, and nothing seeds the DB (an unset section is not "configured").
+func TestWireAuthConfigManagerDisabled(t *testing.T) {
 	cfg := config.Defaults()
 	cfg.Storage.DataDir = t.TempDir()
 	md := openTestMetadata(t)
-	oidcProv, ldapProv, err := wireAuthProviders(context.Background(), cfg, md)
+
+	mgr, err := wireAuthConfigManager(context.Background(), cfg, md,
+		slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
-		t.Fatalf("wireAuthProviders(defaults) = %v, want nil error", err)
+		t.Fatalf("wireAuthConfigManager(defaults) = %v, want nil error", err)
 	}
-	if oidcProv != nil || ldapProv != nil {
-		t.Fatalf("providers = %v/%v, want nil/nil on the default config", oidcProv, ldapProv)
+	if mgr.CurrentOIDC() != nil || mgr.CurrentLDAP() != nil {
+		t.Fatalf("live providers = %v/%v, want nil/nil on the default config",
+			mgr.CurrentOIDC(), mgr.CurrentLDAP())
+	}
+	rows, err := md.AuthConfigs().ListAuthConfigs(context.Background())
+	if err != nil {
+		t.Fatalf("ListAuthConfigs: %v", err)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("default config seeded %d rows, want 0", len(rows))
 	}
 }
 
-// TestWireAuthProvidersOIDC (AC 2): an enabled section constructs the
-// provider (discovery round trip included) and the env secret rides the
-// belt-and-braces read when the config field is empty (hand-built configs).
-func TestWireAuthProvidersOIDC(t *testing.T) {
+// testMasterKey is a valid 32-byte base64 master key for the enc:v1 chain
+// (tests only — a fixed value keeps the sealed-doc assertions stable).
+const testMasterKey = "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+
+// TestWireAuthConfigManagerOIDCSeeds (K31 rule ②): an enabled file section
+// seeds the DB row (secret sealed enc:v1), the live provider answers, and
+// the second Load over the same store WARNs instead of re-seeding (rule ①:
+// DB wins).
+func TestWireAuthConfigManagerOIDCSeeds(t *testing.T) {
 	idp := discoveryIDP(t)
-	withEnv(t, map[string]string{config.OIDCClientSecretEnvVar: "env-secret-1"})
-
+	withEnv(t, map[string]string{
+		config.OIDCClientSecretEnvVar: "env-secret-1",
+		remote.CredentialsEnvVar:      testMasterKey,
+	})
 	md := openTestMetadata(t)
-	oidcProv, ldapProv, err := wireAuthProviders(context.Background(),
-		oidcEnabledConfig(t, idp.URL), md)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	mgr, err := wireAuthConfigManager(context.Background(),
+		oidcEnabledConfig(t, idp.URL), md, logger)
 	if err != nil {
-		t.Fatalf("wireAuthProviders(oidc) = %v, want nil", err)
+		t.Fatalf("wireAuthConfigManager(oidc) = %v, want nil", err)
 	}
-	if oidcProv == nil {
-		t.Fatal("oidc provider nil, want constructed")
+	if mgr.CurrentOIDC() == nil {
+		t.Fatal("live oidc provider nil, want constructed from the seed")
 	}
-	if ldapProv != nil {
-		t.Fatal("ldap provider non-nil, want nil (section disabled)")
+	if got := mgr.CurrentOIDC().OAuth2Config().ClientID; got != "binflow-test-client" {
+		t.Errorf("ClientID = %q, want binflow-test-client", got)
 	}
-	if got := oidcProv.ProviderName(); got != auth.ProviderOIDC {
-		t.Errorf("ProviderName() = %q, want %q", got, auth.ProviderOIDC)
+
+	// The stored row exists, the secret is sealed, and no plaintext rides it.
+	rec, err := md.AuthConfigs().GetAuthConfig(context.Background(), auth.SectionOIDC)
+	if err != nil || rec == nil {
+		t.Fatalf("GetAuthConfig(oidc) = %v, %v; want the seeded row", rec, err)
 	}
-	// The OAuth2 surface carries the config (the login handler's seam).
-	oc := oidcProv.OAuth2Config()
-	if oc.ClientID != "binflow-test-client" {
-		t.Errorf("ClientID = %q, want binflow-test-client", oc.ClientID)
+	if !strings.Contains(rec.Doc, "enc:v1:") {
+		t.Fatalf("seeded doc carries no enc:v1 secret: %s", rec.Doc)
 	}
-	if oc.RedirectURL != "http://binflow.example.com/binflow/api/v1/oidc/callback" {
-		t.Errorf("RedirectURL = %q, want the configured callback", oc.RedirectURL)
+	if strings.Contains(rec.Doc, "env-secret-1") {
+		t.Fatalf("seeded doc leaks the plaintext secret: %s", rec.Doc)
+	}
+	if rec.UpdatedBy != "system-seed" {
+		t.Errorf("seed UpdatedBy = %q, want system-seed", rec.UpdatedBy)
+	}
+
+	// Second boot: the row exists, so the file section is OVERRIDDEN (WARN)
+	// — not re-seeded, not fail-fast. The row is byte-identical.
+	before := rec.Doc
+	mgr2, err := wireAuthConfigManager(context.Background(),
+		oidcEnabledConfig(t, idp.URL), md, logger)
+	if err != nil {
+		t.Fatalf("second wireAuthConfigManager = %v, want the override posture (WARN, not an error)", err)
+	}
+	if mgr2.CurrentOIDC() == nil {
+		t.Fatal("second boot live oidc provider nil, want the DB-backed provider")
+	}
+	rec2, err := md.AuthConfigs().GetAuthConfig(context.Background(), auth.SectionOIDC)
+	if err != nil || rec2 == nil {
+		t.Fatalf("GetAuthConfig(oidc, second boot): %v %v", rec2, err)
+	}
+	if rec2.Doc != before {
+		t.Fatalf("second boot rewrote the doc (rule ① violation):\n%s\n%s", before, rec2.Doc)
 	}
 }
 
-// TestWireAuthProvidersOIDCFailFast (AC 2, error leg): an enabled section
-// with an unreachable issuer refuses the boot with a pointed error instead
-// of constructing a half-provider.
-func TestWireAuthProvidersOIDCFailFast(t *testing.T) {
+// TestWireAuthConfigManagerOIDCFailFast (M6 posture preserved): an enabled
+// section with an unreachable issuer refuses the boot with a pointed error
+// instead of constructing a half-provider.
+func TestWireAuthConfigManagerOIDCFailFast(t *testing.T) {
 	withEnv(t, map[string]string{config.OIDCClientSecretEnvVar: ""})
 	md := openTestMetadata(t)
 	// Port 1 on localhost: reserved, nothing listens there — discovery
 	// cannot succeed.
-	_, _, err := wireAuthProviders(context.Background(),
-		oidcEnabledConfig(t, "http://127.0.0.1:1"), md)
+	_, err := wireAuthConfigManager(context.Background(),
+		oidcEnabledConfig(t, "http://127.0.0.1:1"), md,
+		slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err == nil {
-		t.Fatal("wireAuthProviders(unreachable issuer) = nil, want fail-fast error")
+		t.Fatal("wireAuthConfigManager(unreachable issuer) = nil, want fail-fast error")
 	}
-	if !strings.Contains(err.Error(), "wiring auth.oidc") {
-		t.Errorf("error = %v, want it wrapped by the oidc wiring context", err)
+	if !strings.Contains(err.Error(), "wiring auth config") {
+		t.Errorf("error = %v, want it wrapped by the auth-config wiring context", err)
 	}
 }
 
-// TestWireAuthProvidersLDAP (AC 2): an enabled section constructs the LDAP
-// provider (lazy pool — no directory round trip at boot) and Close is
-// idempotent.
-func TestWireAuthProvidersLDAP(t *testing.T) {
+// TestWireAuthConfigManagerLDAPSeeds: an enabled LDAP section seeds and the
+// live provider answers; Close is idempotent.
+func TestWireAuthConfigManagerLDAPSeeds(t *testing.T) {
 	cfg := config.Defaults()
 	cfg.Storage.DataDir = t.TempDir()
 	cfg.Auth.LDAP = config.LDAPConfig{
@@ -170,24 +215,26 @@ func TestWireAuthProvidersLDAP(t *testing.T) {
 		BindDN:   "cn=binflow,dc=example,dc=com",
 		PoolSize: 7,
 	}
-	withEnv(t, map[string]string{config.LDAPBindPasswordEnvVar: "env-bind-pw"})
-
+	withEnv(t, map[string]string{
+		config.LDAPBindPasswordEnvVar: "env-bind-pw",
+		remote.CredentialsEnvVar:      testMasterKey,
+	})
 	md := openTestMetadata(t)
-	oidcProv, ldapProv, err := wireAuthProviders(context.Background(), cfg, md)
+
+	mgr, err := wireAuthConfigManager(context.Background(), cfg, md,
+		slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
-		t.Fatalf("wireAuthProviders(ldap) = %v, want nil", err)
+		t.Fatalf("wireAuthConfigManager(ldap) = %v, want nil", err)
 	}
-	if oidcProv != nil {
-		t.Fatal("oidc provider non-nil, want nil (section disabled)")
+	live := mgr.CurrentLDAP()
+	if live == nil {
+		t.Fatal("live ldap provider nil, want constructed")
 	}
-	if ldapProv == nil {
-		t.Fatal("ldap provider nil, want constructed")
-	}
-	if got := ldapProv.ProviderName(); got != auth.ProviderLDAP {
+	if got := live.ProviderName(); got != auth.ProviderLDAP {
 		t.Errorf("ProviderName() = %q, want %q", got, auth.ProviderLDAP)
 	}
-	ldapProv.Close()
-	ldapProv.Close() // idempotent
+	mgr.Close()
+	mgr.Close() // idempotent
 }
 
 // authTestServer builds the HTTP surface over a real openStack result the
@@ -195,52 +242,66 @@ func TestWireAuthProvidersLDAP(t *testing.T) {
 // cannot run twice in one test process (the process-wide adapter registry
 // panics on the second npm/maven registration — T-168's known full-suite
 // red, same workaround s3_stack_test.go uses); this assembly carries every
-// auth-relevant Deps (Config/Auth/Authz/Metadata/Repos/OIDC) without
-// touching the registry, so both wiring states are smoke-testable.
+// auth-relevant Deps (Config/Auth/Authz/Metadata/Repos/OIDC/AuthConfigs)
+// without touching the registry, so both wiring states are smoke-testable.
 func authTestServer(t *testing.T, cfg *config.Config, st *stack) *httptest.Server {
 	t.Helper()
 	s := httpapi.New(httpapi.Deps{
-		Config:   cfg,
-		Auth:     st.authSvc,
-		Authz:    st.authSvc,
-		Metadata: st.md,
-		Repos:    st.md.Repos(),
-		OIDC:     oidcLoginSeam(st.oidcProv),
+		Config:      cfg,
+		Auth:        st.authSvc,
+		Authz:       st.authSvc,
+		Metadata:    st.md,
+		Repos:       st.md.Repos(),
+		OIDC:        hotOIDCLoginSeam(st.authCfg),
+		AuthConfigs: st.authCfg,
 	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	ts := httptest.NewServer(s.Handler())
 	t.Cleanup(ts.Close)
 	return ts
 }
 
-// TestOIDCLoginSeamNilGuard: the load-bearing typed-nil guard — a nil
-// provider must yield a NIL interface (the login handlers' `Deps.OIDC ==
-// nil` check decides the 404 posture), a real provider a non-nil one.
-func TestOIDCLoginSeamNilGuard(t *testing.T) {
-	if got := oidcLoginSeam(nil); got != nil {
-		t.Fatalf("oidcLoginSeam(nil) = %v, want a nil interface (typed nil would 500 the routes)", got)
+// TestHotOIDCLoginSeamNilGuard: the load-bearing typed-nil guard — a nil
+// manager must yield a NIL interface; a manager whose live section is
+// disabled yields a NIL config (httpapi's activeOIDCConfig decides the 404
+// posture); an enabled one yields the OAuth2 surface.
+func TestHotOIDCLoginSeamNilGuard(t *testing.T) {
+	if got := hotOIDCLoginSeam(nil); got != nil {
+		t.Fatalf("hotOIDCLoginSeam(nil) = %v, want a nil interface", got)
+	}
+	cfg := config.Defaults()
+	cfg.Storage.DataDir = t.TempDir()
+	md := openTestMetadata(t)
+	mgr, err := wireAuthConfigManager(context.Background(), cfg, md,
+		slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatalf("wireAuthConfigManager: %v", err)
+	}
+	if got := hotOIDCLoginSeam(mgr).OAuth2Config(); got != nil {
+		t.Fatalf("disabled section OAuth2Config() = %v, want nil (the 404 posture)", got)
 	}
 	idp := discoveryIDP(t)
-	prov, err := auth.NewOIDCProvider(context.Background(), &auth.OIDCConfig{
-		IssuerURL: idp.URL, ClientID: "c", RedirectURL: "http://binflow.example.com/cb",
-	}, nil)
+	mgr2, err := wireAuthConfigManager(context.Background(),
+		oidcEnabledConfig(t, idp.URL), openTestMetadata(t),
+		slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
-		t.Fatalf("NewOIDCProvider: %v", err)
+		t.Fatalf("wireAuthConfigManager(oidc): %v", err)
 	}
-	if got := oidcLoginSeam(prov); got == nil {
-		t.Fatal("oidcLoginSeam(provider) = nil, want the wired seam")
+	if got := hotOIDCLoginSeam(mgr2).OAuth2Config(); got == nil {
+		t.Fatal("enabled section OAuth2Config() = nil, want the wired config")
 	}
 }
 
 // TestServeAuthMethodsSmokeDisabled (AC 2/AC 5, disabled leg): the default
 // stack serves the password-only methods body and keeps the two OIDC
-// browser routes at the E-26 404 (Deps.OIDC nil — the typed-nil guard).
+// browser routes at the E-26 404 (nil live config).
 func TestServeAuthMethodsSmokeDisabled(t *testing.T) {
 	cfg := config.Defaults()
 	cfg.Storage.DataDir = t.TempDir()
 	st := testStack(t, cfg)
 
-	if st.oidcProv != nil || st.ldapProv != nil {
-		t.Fatalf("stack providers = %v/%v, want nil/nil", st.oidcProv, st.ldapProv)
+	if st.authCfg.CurrentOIDC() != nil || st.authCfg.CurrentLDAP() != nil {
+		t.Fatalf("live providers = %v/%v, want nil/nil",
+			st.authCfg.CurrentOIDC(), st.authCfg.CurrentLDAP())
 	}
 	if st.authSvc.OIDCWired() || st.authSvc.LDAPWired() {
 		t.Fatal("default stack reports a wired provider facet, want both inert")
@@ -258,17 +319,16 @@ func TestServeAuthMethodsSmokeDisabled(t *testing.T) {
 	}
 }
 
-// TestServeAuthMethodsSmokeOIDCEnabled (AC 2/AC 5, enabled leg): the enabled
-// stack arms the Bearer arm (facet), injects Deps.OIDC (the login route
-// answers 302, not 404/500 — the typed-nil guard's positive leg) and the
-// methods body advertises oidc.
+// TestServeAuthMethodsSmokeOIDCEnabled (AC 2/AC 5, enabled leg): the seeded
+// stack arms the Bearer arm (facet), injects the login seam (the login
+// route answers 302, not 404/500) and the methods body advertises oidc.
 func TestServeAuthMethodsSmokeOIDCEnabled(t *testing.T) {
 	idp := discoveryIDP(t)
 	cfg := oidcEnabledConfig(t, idp.URL)
 	st := testStack(t, cfg)
 
-	if st.oidcProv == nil {
-		t.Fatal("stack.oidcProv nil, want the wired provider")
+	if st.authCfg.CurrentOIDC() == nil {
+		t.Fatal("live oidc provider nil, want the seeded provider")
 	}
 	if !st.authSvc.OIDCWired() {
 		t.Fatal("auth service OIDC facet false, want the Bearer arm armed")
