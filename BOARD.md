@@ -834,6 +834,8 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **B8**：T-293 [P1] as-built 回写（四处 PRD↔ADR 分歧收口）｜ T-294 [P2] Cargo 条件票
   - **FR-91-AC3 通过 2026-08-26（`3dc47e7`）**：tech-lead 5/5 可拆、六要素 30/30、23 裁决点（改判 2 均收紧：conan v1 收至握手三端点/cargo 失败统一 4xx5xx 废双轨）、缺项 4 条 0 阻塞（GPG keypair 条件前置票 + 2 ADR 补记 + helm/cargo 规格建议修订 2 处）；跨规格定案：管理面走 dispatchAPI 族、绝对 URL 复用 server.base_url 零新配置、rpm 校验默认 SHA-256。报告 reports/agents/tl-fr91-ac3.md。**T-294 提前穿插派发 10:10**（AC 草案直取该报告 §3；local 全量，remote/virtual M11 单票 dep 本票；area=internal/adapter/cargo 与 T-291 web/ 零重叠）；T-293 待 T-291 收口后补位（as-built 回写宜晚收全部分歧输入）。
 - **B9**：T-295 [P1] 部署接线（charts configmap 显式枚举——T-183 教训）｜ T-296 [P1] 文档五项
+  - **T-295 → done 2026-08-26（提交 `a646503`）**：7 键全接入（addons.disabled 主键 + replication/gc-hold/step-up 对/oidc-ldap readonly）；license config 键确认**无**（BINFLOW_M10_LICENSE_DIR 是矩阵测试 env，四部署面加「设到 server 会被严格 env 扫描拒启」警示）；helm lint 0 + schema 域反例咬合 + 三变体真服烟测（community 地板/K24 容错〔未知槽位清理 + core docker 禁用 honored + WARN〕/制品 roundtrip）；contrib/systemd 有意未动（写区外，留后续票）。经第 15 次熔断 + ENOTFOUND 双恢复后当日收口。日志 reports/agents/T-295.md。
+  - T-296（文档五项）在途：2/5 项落盘（license.md/properties.md），第 3 项 Go 指南续写中。
 - **B10**：T-297 [P0] 终验（L01~L30 + 真实客户端矩阵 + DoD 八条）
 
 **关键路径**：T-279→282→283→285/286→288→297（基座链）。
