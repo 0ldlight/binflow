@@ -2,7 +2,7 @@
 
 > 由 product-manager 维护；tech-lead 据此把当前里程碑分解为 ticket。
 
-## 当前里程碑：M10（Artifactory 全功能对齐第一程——门控基座 + addon 注册表 + 试点 + 属性系统；PRD v1.0 草案待 conductor 审）
+## 当前里程碑：M11（Artifactory 对齐第二程——配置域指令兑现 + 第一梯队包型批量 + 行为逐项对齐制度化；PRD v1.0 草案待 conductor 审，2026-08-26）
 
 ### M0 — 团队启动（已完成）
 - [x] 产品愿景 PRODUCT.md（BinFlow）
@@ -96,21 +96,39 @@
 - [x] QA：N 序列 + 扇出/竞态量化门槛实测 + M1~M8 P0 回归（契约变更面 100% 归属 M9 豁免票审计）；tech-writer（SSO 铸 Token 路径 / npm 权限口径 / 用户管理闭环 / 旧书签失效公告）
 - [x] F 池对账：28 条处置落地核对；延后 3 项（E-04 扩列 / R2 搜索契约 / R6 Tokens 页）登记入 M10+ 候选池
 
-### M10 — Artifactory 对齐第一程：license 门控基座 + addon 注册表 + 试点包型 + 属性系统（PRD v1.0 草案待 conductor 审，2026-08-25）
-需求基线：docs/prd/milestone-10.md（PRD v1.0 草案；FR-84~FR-91 八条需求；契约矩阵 12 条〔A 6 / C 5 / D 1〕+ **档位 × addon 解锁矩阵〔核心，11 槽 × 3 档暂行〕**；L01~L30 验收命令骨架；开放问题 Q1~Q7 带暂行）
-来源链：用户三指令（2026-08-25：全功能对齐 / license 分级门控 / 包型 addon 化补协议）→ docs/reverse/artifactory-full-feature-matrix.md（213 条目主矩阵，范围裁定唯一依据）+ inv-1~4 分区目录；M9 §4.7 候选池处置（滚入 M11+）
-- [ ] conductor 审定 PRD v1.0（含 Q1~Q7 暂行终裁；ADR-0032/0033 立项）
-- [ ] 前置产物：ADR-0032（license 文档/档位/门控织入/addon 注册表——clean-room：自有 ed25519 文档格式与 Go 编译期注册形态）+ ADR-0033（属性系统与矩阵参数路径归一）
-- [ ] FR-84 自有 license 文档、档位模型（community/pro/enterprise 暂行）与离线签发工具（`bf license generate/inspect`）（P0）
-- [ ] FR-85 entitlement 门控织入 + 全局 addons 禁用开关（三入口门控/降级不劫持/无撕裂切换/审计与指标）（P0）
-- [ ] FR-86 addon 编译期注册表 + 档位×addon 解锁矩阵 + `GET /api/v1/addons` 与控制台 License & Add-ons 页（P0）
-- [ ] FR-87 Go 包型 addon 试点（GOPROXY local/remote/virtual，go 真实客户端全链）（P0）
-- [ ] FR-88 NuGet 包型 addon 试点（v3 主面 + v2 FindPackagesById 最小集，dotnet 真实客户端；Cargo 余量第三试点非硬门）（P1）
-- [ ] FR-89 制品属性系统（矩阵参数 `;k=v` 部署 + `?properties` 读写 + Properties Tab——十大缺口之首）（P0）
-- [ ] FR-90 快赢包：MPU REST 化（/api/v1/uploads 六端点，S3 专属）+ smart remote 生效字段子集（P1/P2 按余量）
-- [ ] FR-91 第一梯队包型规格预研 5 份（Conan/Cargo/Debian/RPM/Helm；Terraform/GitLFS 余量；试点 Go/NuGet 规格另计先行）（P1，不实现）
-- [ ] QA：L01~L30 + 两试点真实客户端矩阵 + M1~M9 P0 回归（无 license 默认实例五包型零变化）；tech-writer（license 指南/addon 矩阵/属性用法/Go、NuGet 接入/api-reference E-09 反转）
-- [ ] M9 候选池对账：延后 3 + Q5/E7 + 票级 17 条滚入 M11+（见下「M10 未纳入项」）
+### M10 — Artifactory 对齐第一程：license 门控基座 + addon 注册表 + 试点包型 + 属性系统（**完结 2026-08-26**，PRD v1.2 正式版；21/21 票全 done，DoD 八条全绿〔T-297 终验 PASS：L01~L30 = 28✅+2⚠️+0❌，真实客户端八面全绿，抓获 P0×1 修复 `7b84a71`〕；`m10-done` tag 已推）
+需求基线：docs/prd/milestone-10.md（PRD v1.2 正式版；FR-84~FR-91 八条需求；契约矩阵 12 条〔A 6 / C 5 / D 1〕+ 档位 × addon 解锁矩阵〔11 槽 × 3 档〕；L01~L30；Q1~Q7 随 §5.6.1 as-built 校准收口；ADR-0032/0033/0034 Accepted）
+来源链：用户三指令（2026-08-25：全功能对齐 / license 分级门控 / 包型 addon 化补协议）→ docs/reverse/artifactory-full-feature-matrix.md（213 条目主矩阵）+ inv-1~4 分区目录；M9 §4.7 候选池处置（滚入 M11+）
+- [x] conductor 审定 PRD（v1.0→v1.1 as-built→v1.2 终验转正；ADR-0032/0033 Accepted `e56dd8d` + ADR-0034 随 T-293 落）
+- [x] 前置产物：ADR-0032（license）+ ADR-0033（addon 注册表与包型 addon 化——属性系统契约承载 = architecture §15.3）+ ADR-0034（五协议管理面 dispatchAPI + server.base_url 统一）
+- [x] FR-84 license 核心包（T-279：ed25519 文档 v1/三端点/无撕裂/fail-safe）
+- [x] FR-85 门控织入 + addons.disabled 熔断（T-283：D1~D7 逐行验证 + 228 并发无撕裂）
+- [x] FR-86 addon 注册表 11 槽 + GET /api/v1/addons + 控制台页（T-282/T-288）
+- [x] FR-87 Go 试点（T-285：3915 行，go1.26 真实全链）+ FR-88 NuGet 试点（T-287：5103 行，dotnet 8 全链；T-280 规格缺失按官方文档路径合规处置）+ Cargo 条件票实做（T-294，含 auth 裸 token 臂）
+- [x] FR-89 属性系统（T-286 BE：矩阵参数单点 + node_props + 三动词；T-291 FE：首个 MUI 面 Properties Tab）
+- [x] FR-90 快赢包：MPU REST 六端点（T-289；AC2 S3 kill -9 续传 descope M11 债）+ smart remote 字段子集（T-290；unused-cleanup 引擎收窄 M11）
+- [x] FR-91 规格五份（T-284/T-292：conan/cargo/debian/rpm/helm 1158 行零低置信）+ tech-lead 就绪度确认（tl-fr91-ac3：5/5 可拆、23 裁决点、缺项 0 阻塞）
+- [x] QA：T-297 终验 PASS（四闸门 0 deviations + 真实客户端八面 + DoD 1~7 全 PASS）；T-295 部署接线 + T-296 文档五项
+- [x] M9 候选池对账：滚入 M11+（见下「M10 未纳入项」；M11 PRD §2.2 收编 C 组点名项）
+
+### M11 — Artifactory 对齐第二程：配置域指令兑现 + 第一梯队包型批量实现 + 行为逐项对齐制度化（PRD v1.0 草案待 conductor 审，2026-08-26）
+需求基线：docs/prd/milestone-11.md（FR-92~FR-102 十一条需求；契约矩阵 18 条〔A 14 / C 2 / D 1 / 待裁 1〕+ 档位 × addon 矩阵扩展 5 槽；L01~L45；开放问题 Q1~Q8 带暂行）
+来源链：用户指令日志最近四条（2026-08-26 11:22 MUI 迁移 T-299/T-300、11:35 认证配置前端化、11:45 存储配置独立文件化、**19:05 行为逐项对齐**——全程工作方式条款）→ conductor 种子 A~D；FR-91 五份规格 + tl-fr91-ac3 23 裁决点；M10 §2.2 滚入项 + M9 Q5 复制硬化
+- [ ] conductor 审定 PRD v1.0（Q1~Q8 暂行终裁；ADR-0035/0036 立项）
+- [ ] 前置产物：ADR-0035（认证配置面 REST/持久化/变更即生效/双源优先级）+ ADR-0036（存储配置独立文件与链式 schema）；规格复核票两份（auth-integration.md / config-formats.md §1——逐条附 Artifactory 行为出处）+ R-1/R-2 规格修订
+- [ ] FR-92 认证配置前端化：OAuth2/LDAP/SAML 管理面 REST + 测试连接 + 变更即生效 + 控制台页组（MUI）（P0；SAML 运行时深度 Q3）
+- [ ] FR-93 存储配置独立文件化：链式 provider 表达（filestore/S3/dual-write）+ 兼容窗 + 部署矩阵演进 + CD 链验证（P0）
+- [ ] FR-94 存量控制台 MUI 化两批：T-299 批次一（P0）/ T-300 批次二（P1）——交互逻辑零变化四闸门
+- [ ] FR-95 M10 自有裁定回头看：基线 23 项 + tl 裁决差异点（RP-2/TL-5/TL-4/HL-2 等→Q8）逐条复核——维持附出处/改回验证/分歧上 BOARD（P0，规划期完成）
+- [ ] FR-96 conan 包型：v2 local 全量 + v1 握手三端点（P0）+ remote/virtual（P1）
+- [ ] FR-97 debian 包型：automatic local 主票（P0）+ virtual/remote（P1）+ trivial P2；GPG K-1 条件票（Q6）
+- [ ] FR-98 rpm 包型：local 管线含 header 解析器（P0）+ reindex 七分支 + remote/virtual（P1）+ modules P2
+- [ ] FR-99 helm 经典仓 local（P0）+ virtual/remote（P1）；HelmOCI 条件票（Q2，HL-3）
+- [ ] FR-100 cargo remote pull-through + virtual（P1，dep T-294——cargo 家族三态齐装）
+- [ ] FR-101 复制硬化：enableTokenAuthentication/contentSynchronisation 生效 + 属性复制同步 + replica 隔离终裁执行（P1）
+- [ ] FR-102 工程债打包：S3 MPU kill -9 续传复活 / unused-cleanup 引擎 / D-8 footprint ≤100MB / D-9 测试基建 / 文档尾巴三处（P1/P2）
+- [ ] QA：L01~L45 + 四包型真实客户端矩阵（conan/apt/dnf/helm）+ M1~M10 P0 回归双形态 + 两处断言反转审计；tech-writer 五类文档；Trash can 余量条件票（Q7）
+- [ ] 「M10 未纳入项」对账：D 组（Cleanup-Retention 策略引擎/制品操作族/Webhook/AQL）建议 M12+，滚入「M11 未纳入项」登记
 
 ### M10 未纳入项（滚入 M11+ 候选池；2026-08-25 M9 终验归档后由 M10 PRD §2.2/§4.7 处置）
 - 延后 3 项（F 池）：E-04 repos 列表扩列 / R2 搜索契约 / R6 Tokens 页
