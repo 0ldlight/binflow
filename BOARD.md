@@ -900,9 +900,30 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **Q8 默认值族：全部照 Artifactory 实际值**（2026-08-26 20:55 用户二次裁定修正转写错误）——RP-2 calculateYumMetadata=**false**（上传仅存储，repodata 由 reindex/显式开启触发）/ TL-4 debian 架构族=**i386,amd64 强制生成**（空 Packages 亦生成）/ HL-2 relative urls=**true** / **CG-2 cargo publish 失败形态=200+errors[]（照 Artifactory 双轨，翻转 T-294 as-built 统一 4xx/5xx——断言与规格随票回写；成功形态两方案一致=200 无 errors 键）** / **CN-1 conan v1=全量十七端点（推翻 v1.1 收窄裁定，面积上浮 T-308）**；**唯一例外 TL-5 rpm 校验算法留 SHA-256**（安全向，Artifactory 亦支持，理由留痕）
 - 其余 Q3（SAML 配置面先行）/ Q4（DB 配置面权威）/ Q5（独立文件优先+内嵌 WARN）/ Q7（Trash 余量票）维持暂行，终裁归 ADR-0035/0036 与余量触发
 
-## 用户指令（2026-08-26 20:45）：所有研发按 gitflow 规则提交
+## M11 票据（T-299/T-300 既定 + T-301~T-330，tech-lead 2026-08-26 拆票；AC 全文见 tech-lead 拆票交付〔本节压缩录〕+ docs/prd/milestone-11.md v1.1；Q8 终值 20:35+20:55 已并入票面）
 
-「所有研发按照gitflow规则提交代码」——**分支模型即日切换**（conductor 落地口径）：
+**批次（全宽 2）**：
+- **B0**：T-301 [P0] 前置 ADR 包（ADR-0035 认证配置面/ADR-0036 存储配置文件/keypair ADR+openpgp 选型白名单）architect｜ T-302 [P0] auth-integration.md 复核票（逐条附 Artifactory 出处；OAuth stub/SAML 缺失两低置信区边界）reverse-engineer
+- **B1**：T-303 [P0] config-formats §1 复核 + 规格尾巴两处（goproxy GOPRIVATE/cargo §9 路径）reverse｜ T-299 [P0] MUI 批一（Login/壳/仓库组；四闸门+交互零变化）dev-frontend
+- **B2**：T-304 [P0] FR-95 回头看裁决票（23+ 基线项逐条复核；Q8 六项登记归位；CG-2 失败分类出处锚定供 T-316）architect｜ T-305 [P0] FR-92 BE 认证配置 REST+变更即生效≤1s+双源（dep T-301/302）dev-go-core
+- **B3**：T-306 [P0] FR-93 BE binstore.yaml 三链解析+装配+fail-fast（dep T-301/303）dev-go-storage｜ T-307 [P1] FR-92 FE admin 认证配置页组 MUI（dep T-305）dev-frontend
+- **B4**：T-308 [P0] conan local——**v2 全量 17 端点 + v1 全量数据面（CN-1 终裁推翻收窄，本票升 M11 最重适配票，窗口独占）**（TL-2/TL-3 能力头/.timestamp）dev-go-core｜ T-309 [P0] helm 经典仓 local（HL-1/2 挂载与 relative=true；.prov；reindex 双端点）dev-registry-adapter
+- **B5**：T-310 [P0] debian automatic local（TL-4=i386,amd64 强制；debPUT 坐标；索引直写 403）dev-go-core（dep T-304）｜ T-311 [P0] rpm local 管线（RP-2=false；header 解析器自研；reindex 七分支矩阵；TL-5=SHA-256）dev-registry-adapter（dep T-304）
+- **B6**：T-312 [P1] conan remote+virtual（dep T-308）｜ T-313 [P1] helm virtual+remote（URL 改写/_external）（dep T-309）
+- **B7**：T-314 [P1] deb remote+virtual（含 trivial P2 余量段）（dep T-310）｜ T-315 [P1] rpm remote+virtual（含 modules P2 余量段；RP-3 收紧）（dep T-311）
+- **B8**：T-316 [P1] cargo remote（CG-2 确定臂：失败恢复 200+errors[] 双轨 + T-294 断言反转 + 规格回写；**dep T-304 出处锚定，不可提前**）｜ T-300 [P1] MUI 批二（dep T-299/T-307）
+- **B9**：T-317 [P1] 复制硬化（两字段生效反转 L25 按名 400；属性同步端到端；replica 隔离）｜ T-318 [P1] cargo virtual（dep T-316 同 area 串行）
+- **B10**：T-319 [P1] GPG keypair 体系（票内先补 mini 规格；openpgp 零 CGO；dep T-301）｜ T-320 [P1·条件 Q2] HelmOCI 分发（dep T-309；未触发非 DoD 缺口）
+- **B11**：T-321 [P1] debian 签名腿（dep T-319/T-310）｜ T-322 [P1] rpm 签名腿（dep T-319/T-311）
+- **B12**：T-323 [P1] S3 MPU kill -9 续传复活（upload ID 落表+ListParts 重建；探针断言翻转）｜ T-324 [P1] unused-cleanup 引擎（cron+审计+零孤儿）
+- **B13**：T-325 [P1] 部署矩阵演进+CD 链验证（dep T-306；VM 数据零触碰）｜ T-326 [P2] D-8 footprint ≤100MB + D-9 测试基建（seed 竞态/verifyM10 口令外置）
+- **B14**：T-327 [P1] 中期回归（L01~L11+L18~L31 首跑+双形态全 P0 复跑+契约归属审计 m10-done..HEAD）｜ T-328 [P1] 文档五类（认证/存储/四包型接入/api 增量含 L25 反转/FAQ）
+- **B15**：T-329 [P0] 终验（L01~L45 全量+四包型客户端矩阵+DoD 八条+两断言反转 PRD 回写核实；L19 口径=v1 全量）
+- **波外条件票**：T-330 [P1·条件 Q7] Trash can（票内先补 mini 规格）
+
+**关键路径**：T-301/302 → T-305/306 → T-308~311（四包型 local）→ T-312~315 → T-327 → T-329；T-304 为 T-310/311/316 裁决前置。**转交**：PRD v1.2 勘误三处（§2.2 v1 行/§5.6.1 CN-1・CG-2/LC-18）随 T-304 完成转 PM。
+
+**风险登记**：② auth-integration OAuth/SAML 基线缺口（T-302 判定）；③ K-1 mini 规格+openpgp 准入；④ cmd 装配缝 T-305/T-306 各动己方 wire 函数；⑤ dev-go-core 9 票负载（T-308 加重后 B4 窗口独占）；⑥ conan 1.x 活体可得性（curl 等价+留痕路径）。「所有研发按照gitflow规则提交代码」——**分支模型即日切换**（conductor 落地口径）：
 - **main = release-only**：仅接收 release 合并（develop → main --no-ff）与 hotfix；里程碑 tag 继续（m1~m10-done 既有 tag 不动）
 - **develop = 集成分支**（2026-08-26 自 main@`95a8f9a` 切出，双远端已推）：票据提交、sprint 报告、chore 全部进 develop
 - **feature/T-<id>-<slug>**：每票一个特性分支，票过 qa 后由 conductor `--no-ff` 合入 develop（ticket 提交信息维持 conventional commits）
