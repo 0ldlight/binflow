@@ -122,6 +122,12 @@ type Deps struct {
 	// and the two mutating verbs at 503 — pre-M10 unit stacks only; every
 	// assembled server wires the real Manager.
 	License LicenseManager
+	// AuthConfigs is the authentication-configuration manager behind the
+	// /api/v1/admin/security/{ldap,oauth,saml/config} plane (M11 T-305,
+	// ADR-0035 / FR-92). Nil keeps all nine endpoints at the honest 503 —
+	// unit stacks only; every assembled server wires the ConfigManager
+	// (whose snapshot also feeds the auth service's hot arms).
+	AuthConfigs AuthConfigPlane
 	// Addons is the assembled addon registry (M10 T-282, ADR-0033): the
 	// compile-time literal slice cmd builds. Nil keeps GET /api/v1/addons
 	// at an honest empty array and the repo-create plane on repo.Service's

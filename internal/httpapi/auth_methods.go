@@ -49,7 +49,7 @@ func (s *Server) handleAuthMethods(w http.ResponseWriter, _ *http.Request) {
 	}
 	writeJSONBody(w, http.StatusOK, authMethodsBody{
 		Password: true,
-		OIDC:     s.deps.OIDC != nil,
+		OIDC:     s.activeOIDCConfig() != nil,
 		LDAP:     ldap,
 	})
 }

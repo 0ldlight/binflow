@@ -366,6 +366,28 @@ type LicenseRecord struct {
 	InstalledAt string // RFC3339 UTC
 }
 
+// AuthConfigRecord is one protocol section of the authentication
+// configuration descriptor (015, M11 T-305 / ADR-0035 decision 2). Doc is the
+// section's JSON text under the write path's strict schema; secrets inside
+// Doc are always 'enc:v1:'-sealed by the auth ConfigManager before they
+// reach this layer — the store never interprets the payload.
+type AuthConfigRecord struct {
+	Section   string // closed set: 'ldap' | 'oidc' | 'saml'
+	Doc       string // section JSON (secrets sealed)
+	UpdatedAt string // RFC3339 UTC
+	UpdatedBy string // principal name of the last writer
+}
+
+// AuthConfigStore is the section-granularity authentication-configuration
+// seam (015). PutAuthConfig is an integral replacement — no field-level
+// merge; disabling a section is the enabled flag inside the doc, not a row
+// delete.
+type AuthConfigStore interface {
+	GetAuthConfig(ctx context.Context, section string) (*AuthConfigRecord, error)
+	PutAuthConfig(ctx context.Context, rec *AuthConfigRecord) error
+	ListAuthConfigs(ctx context.Context) ([]*AuthConfigRecord, error)
+}
+
 // AuditQuery is the full-parameter audit filter (GE-01, M4). Every field is
 // optional; the zero query returns the newest events. Since and Until are
 // RFC3339 UTC text forming a closed-open interval on the event time
@@ -408,6 +430,7 @@ type Store interface {
 	Usage() UsageStore
 	Licenses() LicenseStore
 	NodeProps() NodePropStore
+	AuthConfigs() AuthConfigStore
 	// IsReferenced reports whether any node row or docker ref row currently
 	// points at sha256 ([M9] ADR-0031 mechanism A): the single-point Live
 	// oracle behind the GC sweep's pre-delete recheck. It spans two sub-stores

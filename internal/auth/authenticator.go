@@ -71,6 +71,74 @@ type Service struct {
 	// ADR-0027 decision 4; see stepup.go). Initialized by New and shared by
 	// every With* clone of this service — one process, one ledger.
 	stepUpGrants *stepUpLedger
+	// hot is the live auth-configuration source (M11 T-305, ADR-0035
+	// decision 3): when set, the OIDC/LDAP arms resolve their provider PER
+	// REQUEST through it (the ConfigManager's atomic snapshot) instead of
+	// the construction-time fields, and the section policy facets gate
+	// first-login auto-create. nil keeps the static ADR-0020 wiring
+	// byte-for-byte.
+	hot ConfigHotSource
+}
+
+// ConfigHotSource is the ConfigManager facet the arms consume per
+// request (defined here at the consumer, per project convention). The
+// current-provider getters answer nil for an absent/disabled section — the
+// arm's inert posture, identical to the unwired pre-M6 service — so a
+// config PUT that flips enabled=false deactivates the arm on the NEXT
+// request without any restart.
+type ConfigHotSource interface {
+	// CurrentOIDC returns the live OIDC provider, or nil when inactive.
+	CurrentOIDC() *OIDCProvider
+	// CurrentLDAP returns the live LDAP provider, or nil when inactive.
+	CurrentLDAP() IdentityProvider
+	// OIDCAutoCreate/LDAPAutoCreate gate first-login auto-create on the
+	// section flags (default true — the M6 wired posture).
+	OIDCAutoCreate() bool
+	LDAPAutoCreate() bool
+}
+
+// WithAuthConfig arms both external arms for hot configuration (M11 T-305):
+// the providers come from the manager's snapshot per request and the
+// section's auto-create flags are honored. The static oidcProvider/
+// ldapProvider fields are bypassed (not mutated), so unwiring is a matter
+// of not calling this. userCreator is untouched — the auto-create SEAM
+// stays whatever NewFromStore/WithOIDC wired.
+func (s *Service) WithAuthConfig(hot ConfigHotSource) *Service {
+	clone := *s
+	clone.hot = hot
+	return &clone
+}
+
+// currentOIDC resolves the OIDC arm's provider for THIS request: the hot
+// snapshot when the manager is wired, the static field otherwise.
+func (s *Service) currentOIDC() IdentityProvider {
+	if s.hot != nil {
+		if p := s.hot.CurrentOIDC(); p != nil {
+			return p
+		}
+		return nil
+	}
+	return s.oidcProvider
+}
+
+// currentLDAP resolves the LDAP arm's provider for THIS request.
+func (s *Service) currentLDAP() IdentityProvider {
+	if s.hot != nil {
+		return s.hot.CurrentLDAP()
+	}
+	return s.ldapProvider
+}
+
+// oidcAutoCreate is the live auto_create_users verdict (default true —
+// the M6 wired posture an unconfigured boot keeps byte-for-byte).
+func (s *Service) oidcAutoCreate() bool {
+	return s.hot == nil || s.hot.OIDCAutoCreate()
+}
+
+// ldapAutoCreate is the live autoCreateUser verdict (§1.1 #6, default
+// true).
+func (s *Service) ldapAutoCreate() bool {
+	return s.hot == nil || s.hot.LDAPAutoCreate()
 }
 
 // userSource is the consumer-side slice of metadata.UserStore the
@@ -280,9 +348,12 @@ func (s *Service) authenticate(ctx context.Context, r *http.Request) (*Principal
 		}
 		// Second arm (M6, ADR-0020): OIDC ID Token. Only when the
 		// provider is wired — an unwired service treats the unknown
-		// bearer token as a rejected credential (not anonymous).
-		if s.oidcProvider != nil {
-			return s.authenticateOIDC(ctx, tok)
+		// bearer token as a rejected credential (not anonymous). The
+		// provider resolves per request (T-305: a hot config PUT that
+		// enables/disables the section flips this arm on the next
+		// request).
+		if prov := s.currentOIDC(); prov != nil {
+			return s.authenticateOIDC(ctx, prov, tok)
 		}
 		return nil, verr
 	}
@@ -395,8 +466,12 @@ func (s *Service) authenticateBasic(ctx context.Context, username, password stri
 //     ProviderOIDC, provider_id=claims.ProviderID, enabled=true. The
 //     Principal is then built from the claims.
 //  4. If not found and userCreator is nil, the token is rejected.
-func (s *Service) authenticateOIDC(ctx context.Context, token string) (*Principal, error) {
-	claims, err := s.oidcProvider.Authenticate(ctx, token)
+//
+// T-305: prov is the request-scoped provider (the hot snapshot's current
+// frame — a login flow finishing across a config swap keeps ITS frame for
+// the rest of the request; the next request walks the new one).
+func (s *Service) authenticateOIDC(ctx context.Context, prov IdentityProvider, token string) (*Principal, error) {
+	claims, err := prov.Authenticate(ctx, token)
 	if err != nil {
 		// The provider wraps its own errors; ensure they satisfy
 		// ErrInvalidCredentials for the HTTP layer — and classify for the
@@ -426,7 +501,7 @@ func (s *Service) authenticateOIDC(ctx context.Context, token string) (*Principa
 	}
 
 	// Try to resolve an existing user.
-	pu, err := s.oidcProvider.Resolve(ctx, ProviderOIDC, claims.ProviderID)
+	pu, err := prov.Resolve(ctx, ProviderOIDC, claims.ProviderID)
 	if err == nil {
 		if !pu.Enabled {
 			return nil, newFailure(ProviderOIDC, ReasonUserDisabled,
@@ -448,8 +523,9 @@ func (s *Service) authenticateOIDC(ctx context.Context, token string) (*Principa
 		return nil, fmt.Errorf("auth: oidc user resolve: %w", err)
 	}
 
-	// User not found — auto-create if the creator is wired.
-	if s.userCreator == nil {
+	// User not found — auto-create if the creator is wired (and the live
+	// section allows it, T-305: auto_create_users defaults true).
+	if s.userCreator == nil || !s.oidcAutoCreate() {
 		return nil, newFailure(ProviderOIDC, ReasonUserNotFound,
 			fmt.Errorf("auth: oidc user %q not found (auto-create disabled)", claims.Name))
 	}
@@ -488,7 +564,11 @@ func (s *Service) authenticateOIDC(ctx context.Context, token string) (*Principa
 //     (username=claims.Name, password_hash empty, provider='ldap',
 //     provider_id=claims.ProviderID, enabled=true).
 //  4. If not found and userCreator is nil, reject the credential.
-func (s *Service) authenticateLDAP(ctx context.Context, bindFn interface {
+//
+// T-305: resolveProv is the request-scoped provider frame (Resolve rides
+// it); bindFn is the same object narrowed to the Bind method the flow
+// starts from. They arrive as one identity from the same snapshot.
+func (s *Service) authenticateLDAP(ctx context.Context, resolveProv IdentityProvider, bindFn interface {
 	Bind(ctx context.Context, username, password string) (*Claims, error)
 }, username, password string) (*Principal, error) {
 	claims, err := bindFn.Bind(ctx, username, password)
@@ -523,10 +603,10 @@ func (s *Service) authenticateLDAP(ctx context.Context, bindFn interface {
 			errors.New("auth: ldap claims missing username"))
 	}
 
-	// s.ldapProvider is guaranteed non-nil by the caller (AuthenticateCredentials
-	// only calls this when ldapProvider != nil). It satisfies IdentityProvider
-	// which has a Resolve method.
-	pu, err := s.ldapProvider.Resolve(ctx, ProviderLDAP, claims.ProviderID)
+	// resolveProv is guaranteed non-nil by the caller (AuthenticateCredentials
+	// only calls this when the current LDAP provider exists). It satisfies
+	// IdentityProvider which has a Resolve method.
+	pu, err := resolveProv.Resolve(ctx, ProviderLDAP, claims.ProviderID)
 	if err == nil {
 		if !pu.Enabled {
 			return nil, newFailure(ProviderLDAP, ReasonUserDisabled,
@@ -547,8 +627,9 @@ func (s *Service) authenticateLDAP(ctx context.Context, bindFn interface {
 		return nil, fmt.Errorf("auth: ldap user resolve: %w", err)
 	}
 
-	// User not found locally: auto-create if the creator is wired.
-	if s.userCreator != nil {
+	// User not found locally: auto-create if the creator is wired (and the
+	// live section allows it, T-305: autoCreateUser defaults true).
+	if s.userCreator != nil && s.ldapAutoCreate() {
 		role := claimsRole(claims)
 		if err := s.userCreator.Create(ctx, NewUserParams{
 			Username:     claims.Name,

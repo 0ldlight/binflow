@@ -286,9 +286,21 @@ func (p *ldapPool) get(ctx context.Context) (LDAPConn, error) {
 }
 
 // put returns a connection to the pool. If the pool is full, the connection
-// is closed instead.
+// is closed instead. The lock makes the return safe against a concurrent
+// Close: a provider replaced by a hot config swap (T-305, ADR-0035) drains
+// its pool while in-flight binds — captured on the previous snapshot — are
+// still finishing, and their deferred put must never send on a closed
+// channel (auth-integration §5.2 boundary: config changes do not cancel
+// in-flight work).
 func (p *ldapPool) put(conn LDAPConn) {
 	if conn == nil {
+		return
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.closed {
+		// Lost the race with Close: the pool no longer accepts returns.
+		_ = conn.Close()
 		return
 	}
 	select {

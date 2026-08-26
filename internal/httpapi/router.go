@@ -467,6 +467,45 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	case rest == "v1/oidc/callback" && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{}, s.handleOIDCCallback)
 
+	// ---- /api/v1/admin/security/{ldap,oauth,saml/config} (M11 T-305,
+	// ADR-0035 / FR-92) ----
+	// The authentication-configuration plane: one read/write/test trio
+	// per protocol section (dispatchAPI explicit routes, errors[]
+	// envelope — the ADR-0034 management-face posture). Reads sit on
+	// CapSecurityRead (readonly_admin sees the masked sections, 92.4);
+	// writes and test connections on CapSecurityWrite. The test verbs
+	// are writes because they OPEN OUTBOUND CONNECTIONS against
+	// operator-supplied targets (the M3 Guard machine screens them —
+	// NFR-S60's "zero new SSRF face" rides the guard, and the tighter
+	// gate keeps probing an admin action).
+	case rest == "v1/admin/security/ldap" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityRead},
+			s.handleAuthConfigGet(auth.SectionLDAP))
+	case rest == "v1/admin/security/ldap" && r.Method == http.MethodPut:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite},
+			s.handleAuthConfigPut(auth.SectionLDAP))
+	case rest == "v1/admin/security/ldap/test" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite},
+			s.handleAuthConfigTest(auth.SectionLDAP))
+	case rest == "v1/admin/security/oauth" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityRead},
+			s.handleAuthConfigGet(auth.SectionOIDC))
+	case rest == "v1/admin/security/oauth" && r.Method == http.MethodPut:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite},
+			s.handleAuthConfigPut(auth.SectionOIDC))
+	case rest == "v1/admin/security/oauth/test" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite},
+			s.handleAuthConfigTest(auth.SectionOIDC))
+	case rest == "v1/admin/security/saml/config" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityRead},
+			s.handleAuthConfigGet(auth.SectionSAML))
+	case rest == "v1/admin/security/saml/config" && r.Method == http.MethodPut:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite},
+			s.handleAuthConfigPut(auth.SectionSAML))
+	case rest == "v1/admin/security/saml/config/test" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite},
+			s.handleAuthConfigTest(auth.SectionSAML))
+
 	// ---- /api/v1/auth/methods (T-179; anonymous capability discovery) ----
 	// The login page's entry-point map: which of password/oidc/ldap this
 	// instance offers. Anonymous by design (see auth_methods.go); every
