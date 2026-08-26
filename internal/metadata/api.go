@@ -238,6 +238,14 @@ type RemoteConfig struct {
 	MetadataTTLSeconds   int64 // metadata cache TTL (DDL default 600)
 	AllowPrivateUpstream bool  // SSRF chain exemption (admin-set, audited; ADR-0012)
 	BlockedOut           bool  // manual mask (ADR-0012 decision 2)
+
+	// Smart remote effective fields (014, T-290 / FR-90.2). Zero means
+	// "unset" everywhere: the fetcher falls back to the legacy
+	// repositories.config JSON field and then the product default, so
+	// pre-014 rows keep their exact behavior.
+	SocketTimeoutMs              int64 // upstream IO timeout, ms granularity (0 = legacy secs path)
+	MetadataRetrievalTimeoutSecs int64 // per-repo metadata singleflight wait cap (0 = 60s)
+	UnusedCleanupPeriodHours     int64 // unused-artifact cleanup period (0 = off; engine is M11)
 }
 
 // Remote cache entry kinds (ADR-0012 TTL split): artifacts carry the long

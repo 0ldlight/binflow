@@ -103,19 +103,35 @@ type RepoStats struct {
 	CachedBytes   int64 // sum of cached node sizes
 }
 
-// repoPolicy is the remote policy that lives only in the canonical
+// repoPolicy is the remote policy that lives in the canonical
 // repositories.config JSON (T-64 handover note 2): the remote_configs row
-// carries url/username/password/dual TTL/exemption/mask, these four ride the
-// JSON. The field spellings MUST stay in sync with repo.remoteConfig's tags.
+// carries url/username/password/dual TTL/exemption/mask, the policy knobs
+// ride the JSON. The field spellings MUST stay in sync with
+// repo.remoteConfig's tags.
+//
+// T-290 (FR-90.2) adds the ms-granularity socket timeout, the per-repo
+// metadata wait cap and the (M11-engine) unused-cleanup period. The row
+// columns of 014 are the AUTHORITATIVE source when set (> 0); the JSON
+// fields are the fallback for rows written before 014 or by hand — the
+// effective* resolvers below are the single place that order lives.
 type repoPolicy struct {
 	MissedRetrievalCachePeriodSecs int64 `json:"missedRetrievalCachePeriodSecs"`
+	SocketTimeoutMs                int64 `json:"socketTimeoutMs"`
 	SocketTimeoutSecs              int64 `json:"socketTimeoutSecs"`
+	MetadataRetrievalTimeoutSecs   int64 `json:"metadataRetrievalTimeoutSecs"`
+	UnusedCleanupPeriodHours       int64 `json:"unusedArtifactsCleanupPeriodHours"`
 	AssumedOfflinePeriodSecs       int64 `json:"assumedOfflinePeriodSecs"`
 	HardFail                       bool  `json:"hardFail"`
 }
 
 // defaultPolicy mirrors the PRD v1.2 C4 product defaults, used for rows
-// whose config JSON predates a field or omits it.
+// whose config JSON predates a field or omits it. loadRemote seeds a fresh
+// repoPolicy from this value and then UNMARSHALS the row's JSON over it —
+// keys absent from the JSON keep the seed — so the T-290 fields
+// (SocketTimeoutMs / MetadataRetrievalTimeoutSecs /
+// UnusedCleanupPeriodHours) MUST stay zero here: seeding them would let the
+// engine default shadow a legacy row's socketTimeoutSecs. Their defaults
+// resolve at the single consumption point (the effective* resolvers).
 var defaultPolicy = repoPolicy{
 	MissedRetrievalCachePeriodSecs: 1800,
 	SocketTimeoutSecs:              15,
@@ -123,10 +139,43 @@ var defaultPolicy = repoPolicy{
 }
 
 // defaultMetadataWait is the singleflight wait cap for metadata-class paths
-// (repo-semantics 7.1, metadataRetrievalTimeoutSecs 60): a waitor blocked
-// that long falls back to the stale copy / unfound answer instead of
-// queueing behind a stuck winner.
+// when the repository carries no value (repo-semantics 7.1,
+// metadataRetrievalTimeoutSecs 60): a waitor blocked that long falls back to
+// the stale copy / unfound answer instead of queueing behind a stuck winner.
 const defaultMetadataWait = 60 * time.Second
+
+// effectiveSocketTimeoutMs resolves the upstream IO timeout: the 014 row
+// column wins, then the canonical JSON's ms field, then the legacy
+// socketTimeoutSecs JSON field, then the 15000ms product default (in that
+// order — rows and JSON are written together by repo.Service, so the
+// fallbacks only matter for pre-014 or hand-mangled rows).
+func effectiveSocketTimeoutMs(cfg *metadata.RemoteConfig, pol repoPolicy) int64 {
+	switch {
+	case cfg != nil && cfg.SocketTimeoutMs > 0:
+		return cfg.SocketTimeoutMs
+	case pol.SocketTimeoutMs > 0:
+		return pol.SocketTimeoutMs
+	case pol.SocketTimeoutSecs > 0:
+		return pol.SocketTimeoutSecs * 1000
+	default:
+		// The seed's SocketTimeoutSecs (15s) is the product default in ms.
+		return defaultPolicy.SocketTimeoutSecs * 1000
+	}
+}
+
+// effectiveMetadataWait resolves the metadata singleflight wait cap the same
+// way: the 014 row column, the canonical JSON field, then the engine-level
+// default (60s, or the constructor override the tests inject).
+func (e *Engine) effectiveMetadataWait(cfg *metadata.RemoteConfig, pol repoPolicy) time.Duration {
+	switch {
+	case cfg != nil && cfg.MetadataRetrievalTimeoutSecs > 0:
+		return time.Duration(cfg.MetadataRetrievalTimeoutSecs) * time.Second
+	case pol.MetadataRetrievalTimeoutSecs > 0:
+		return time.Duration(pol.MetadataRetrievalTimeoutSecs) * time.Second
+	default:
+		return e.metaWait
+	}
+}
 
 // waitReason names what ended a singleflight wait.
 type waitReason int
@@ -413,7 +462,10 @@ func (e *Engine) attempt(ctx context.Context, row *metadata.Repo, cfg *metadata.
 	if done, won := e.acquireFlight(flightKey); !won {
 		limit := time.Duration(1 << 62)
 		if classifyPath(row.PackageType, path) == metadata.RemoteCacheKindMetadata {
-			limit = e.metaWait
+			// metadataRetrievalTimeoutSecs is per-repository since T-290
+			// (FR-90.2): the row column, then the JSON field, then the
+			// engine default — one resolution point.
+			limit = e.effectiveMetadataWait(cfg, pol)
 		}
 		switch e.waitFlight(ctx, done, limit) {
 		case waitDone:
@@ -885,7 +937,9 @@ func (e *Engine) loadRepo(ctx context.Context, repoKey string) (*metadata.Repo, 
 			return nil, nil, repoPolicy{}, fmt.Errorf("remote %s: config policy: %w", repoKey, err)
 		}
 		// Zero fields keep the defaults (explicit-zero-is-default matches
-		// the create-time rule T-64 pinned).
+		// the create-time rule T-64 pinned). The T-290 fields resolve their
+		// own defaults at consumption (effective* resolvers), so they need
+		// no normalization here.
 		if pol.MissedRetrievalCachePeriodSecs == 0 {
 			pol.MissedRetrievalCachePeriodSecs = defaultPolicy.MissedRetrievalCachePeriodSecs
 		}
@@ -910,7 +964,7 @@ func (e *Engine) clientFor(repoKey string, cfg *metadata.RemoteConfig, pol repoP
 	}
 	sig := strings.Join([]string{
 		cfg.URL, cfg.Username, password,
-		fmt.Sprintf("%d", pol.SocketTimeoutSecs), fmt.Sprintf("%t", cfg.AllowPrivateUpstream),
+		fmt.Sprintf("%d", effectiveSocketTimeoutMs(cfg, pol)), fmt.Sprintf("%t", cfg.AllowPrivateUpstream),
 	}, "\x00")
 	e.mu.Lock()
 	cached := e.clients[repoKey]
@@ -924,7 +978,7 @@ func (e *Engine) clientFor(repoKey string, cfg *metadata.RemoteConfig, pol repoP
 		Username:             cfg.Username,
 		Password:             password,
 		AllowPrivateUpstream: cfg.AllowPrivateUpstream,
-		SocketTimeout:        time.Duration(pol.SocketTimeoutSecs) * time.Second,
+		SocketTimeout:        time.Duration(effectiveSocketTimeoutMs(cfg, pol)) * time.Millisecond,
 		Logger:               e.log,
 		Resolve:              e.resolve,
 	})

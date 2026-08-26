@@ -16,12 +16,15 @@ var _ RemoteStore = (*remoteStore)(nil)
 
 func (s *remoteStore) CreateConfig(ctx context.Context, c *RemoteConfig) error {
 	const stmt = `INSERT INTO remote_configs
-		(repo_key, url, username, password, content_ttl_seconds, metadata_ttl_seconds, allow_private_upstream, blocked_out)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+		(repo_key, url, username, password, content_ttl_seconds, metadata_ttl_seconds,
+		 allow_private_upstream, blocked_out,
+		 socket_timeout_ms, metadata_retrieval_timeout_secs, unused_cleanup_period_hours)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	if _, err := s.db.ExecContext(ctx, stmt,
 		c.RepoKey, c.URL, c.Username, c.Password,
 		c.ContentTTLSeconds, c.MetadataTTLSeconds,
-		boolToInt(c.AllowPrivateUpstream), boolToInt(c.BlockedOut)); err != nil {
+		boolToInt(c.AllowPrivateUpstream), boolToInt(c.BlockedOut),
+		c.SocketTimeoutMs, c.MetadataRetrievalTimeoutSecs, c.UnusedCleanupPeriodHours); err != nil {
 		return wrapExec("remote configs create", c.RepoKey, err)
 	}
 	return nil
@@ -31,12 +34,15 @@ func (s *remoteStore) UpdateConfig(ctx context.Context, c *RemoteConfig) error {
 	const stmt = `UPDATE remote_configs
 		SET url = ?, username = ?, password = ?,
 		    content_ttl_seconds = ?, metadata_ttl_seconds = ?,
-		    allow_private_upstream = ?, blocked_out = ?
+		    allow_private_upstream = ?, blocked_out = ?,
+		    socket_timeout_ms = ?, metadata_retrieval_timeout_secs = ?, unused_cleanup_period_hours = ?
 		WHERE repo_key = ?`
 	res, err := s.db.ExecContext(ctx, stmt,
 		c.URL, c.Username, c.Password,
 		c.ContentTTLSeconds, c.MetadataTTLSeconds,
-		boolToInt(c.AllowPrivateUpstream), boolToInt(c.BlockedOut), c.RepoKey)
+		boolToInt(c.AllowPrivateUpstream), boolToInt(c.BlockedOut),
+		c.SocketTimeoutMs, c.MetadataRetrievalTimeoutSecs, c.UnusedCleanupPeriodHours,
+		c.RepoKey)
 	if err != nil {
 		return wrapExec("remote configs update", c.RepoKey, err)
 	}
@@ -50,13 +56,15 @@ func (s *remoteStore) UpdateConfig(ctx context.Context, c *RemoteConfig) error {
 
 func (s *remoteStore) GetConfig(ctx context.Context, repoKey string) (*RemoteConfig, error) {
 	const stmt = `SELECT repo_key, url, username, password,
-			content_ttl_seconds, metadata_ttl_seconds, allow_private_upstream, blocked_out
+			content_ttl_seconds, metadata_ttl_seconds, allow_private_upstream, blocked_out,
+			socket_timeout_ms, metadata_retrieval_timeout_secs, unused_cleanup_period_hours
 		FROM remote_configs WHERE repo_key = ?`
 	row := s.db.QueryRowContext(ctx, stmt, repoKey)
 	c := &RemoteConfig{}
 	var allowPrivate, blockedOut int
 	err := row.Scan(&c.RepoKey, &c.URL, &c.Username, &c.Password,
-		&c.ContentTTLSeconds, &c.MetadataTTLSeconds, &allowPrivate, &blockedOut)
+		&c.ContentTTLSeconds, &c.MetadataTTLSeconds, &allowPrivate, &blockedOut,
+		&c.SocketTimeoutMs, &c.MetadataRetrievalTimeoutSecs, &c.UnusedCleanupPeriodHours)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("remote configs get %s: %w", repoKey, ErrRemoteConfigNotFound)
 	}

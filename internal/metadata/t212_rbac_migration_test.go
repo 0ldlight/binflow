@@ -35,10 +35,19 @@ func liveDB(t *testing.T, path string) *sql.DB {
 // to the M7 build.
 func rewindToPreRBAC(t *testing.T, db *sql.DB) {
 	t.Helper()
+	// The rewind models "a database from before 011": the ledger rows of
+	// every later migration go, and their column DDL reverts (the CREATE
+	// TABLE migrations re-create idempotently; the ALTER families would
+	// fail on duplicate columns). 014's remote tuning columns belong here
+	// the day they land (T-290) — extend this list with each new
+	// post-011 ALTER migration.
 	for _, stmt := range []string{
 		`DELETE FROM schema_migrations WHERE version >= 11`,
 		`ALTER TABLE users DROP COLUMN role`,
 		`ALTER TABLE permission_principals DROP COLUMN can_manage`,
+		`ALTER TABLE remote_configs DROP COLUMN socket_timeout_ms`,
+		`ALTER TABLE remote_configs DROP COLUMN metadata_retrieval_timeout_secs`,
+		`ALTER TABLE remote_configs DROP COLUMN unused_cleanup_period_hours`,
 	} {
 		if _, err := db.Exec(stmt); err != nil {
 			t.Fatalf("rewind (%q): %v", stmt, err)

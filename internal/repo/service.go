@@ -1938,6 +1938,13 @@ func (s *service) CreateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 			ContentTTLSeconds:    remote.RetrievalCachePeriodSecs,
 			MetadataTTLSeconds:   defaultMetadataTTLSeconds,
 			AllowPrivateUpstream: remote.AllowPrivateUpstream,
+			// T-290 (FR-90.2): the smart remote effective columns mirror the
+			// canonical JSON the same way content_ttl_seconds mirrors
+			// retrievalCachePeriodSecs — the fetcher reads the row, GET
+			// echoes the JSON, both are written by this one call.
+			SocketTimeoutMs:              remote.SocketTimeoutMs,
+			MetadataRetrievalTimeoutSecs: remote.MetadataRetrievalTimeoutSecs,
+			UnusedCleanupPeriodHours:     remote.UnusedCleanupPeriodHours,
 		}); err != nil {
 			return nil, fmt.Errorf("remote config %q: %w", r.RepoKey, err)
 		}
@@ -2199,6 +2206,10 @@ func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 			ContentTTLSeconds:    remote.RetrievalCachePeriodSecs,
 			MetadataTTLSeconds:   defaultMetadataTTLSeconds,
 			AllowPrivateUpstream: remote.AllowPrivateUpstream,
+			// T-290 (FR-90.2): same mirror contract as the create arm above.
+			SocketTimeoutMs:              remote.SocketTimeoutMs,
+			MetadataRetrievalTimeoutSecs: remote.MetadataRetrievalTimeoutSecs,
+			UnusedCleanupPeriodHours:     remote.UnusedCleanupPeriodHours,
 		}
 		if err := s.md.Remote().UpdateConfig(ctx, row); err != nil {
 			if !errors.Is(err, metadata.ErrRemoteConfigNotFound) {

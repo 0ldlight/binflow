@@ -71,6 +71,25 @@ type repoConfig struct {
 	AssumedOfflinePeriodSecs       *int64 `json:"assumedOfflinePeriodSecs,omitempty"`
 	HardFail                       *bool  `json:"hardFail,omitempty"`
 	AllowPrivateUpstream           *bool  `json:"allowPrivateUpstream,omitempty"`
+
+	// ---- T-290 smart remote effective subset (FR-90.2; PRD/LC-12 and
+	// artifactory.xsd spellings — aliases resolve inside repo.Service, an
+	// M11-ruled name is refused there with a 400) ----
+
+	SocketTimeoutMs                   *int64 `json:"socketTimeoutMs,omitempty"`     // ms granularity; wins over socketTimeoutSecs
+	SocketTimeoutMillis               *int64 `json:"socketTimeoutMillis,omitempty"` // artifactory.xsd spelling of socketTimeoutMs
+	MetadataRetrievalTimeoutSecs      *int64 `json:"metadataRetrievalTimeoutSecs,omitempty"`
+	MissRetrievalCachePeriodSecs      *int64 `json:"missRetrievalCachePeriodSecs,omitempty"`      // PRD spelling; alias of missedRetrievalCachePeriodSecs
+	UnusedArtifactsCleanupPeriodHours *int64 `json:"unusedArtifactsCleanupPeriodHours,omitempty"` // field-only (engine M11)
+
+	// The M11-ruled smart remote names (T-290, FR-90.2's no-inert-fields
+	// rule) are TRANSPORT-ONLY: they ride through to repo.Service so the
+	// single refusal point there can answer 400 naming the field, instead
+	// of this layer silently dropping them (which would read as acceptance
+	// to the caller). RawMessage so any JSON value shape forwards.
+	EnableTokenAuthentication *json.RawMessage `json:"enableTokenAuthentication,omitempty"`
+	ContentSynchronisation    *json.RawMessage `json:"contentSynchronisation,omitempty"`
+
 	// PriorityResolution is the per-repository virtual-resolution mark
 	// (PRD C3's two-bucket order); legal on local and remote members.
 	PriorityResolution *bool `json:"priorityResolution,omitempty"`
@@ -114,6 +133,14 @@ func setBool(m map[string]any, key string, v *bool) {
 	}
 }
 
+// setRawJSON collects one raw-JSON transport field into the config map (the
+// M11 refusal pair rides verbatim so repo.Service sees the exact key).
+func setRawJSON(m map[string]any, key string, v *json.RawMessage) {
+	if v != nil {
+		m[key] = *v
+	}
+}
+
 // configJSON renders the request body's type-relevant fields into the config
 // blob repo.Service parses. rclass is the EFFECTIVE class (the body's value,
 // defaulted from the stored row by the caller); the map keeps only the
@@ -133,6 +160,13 @@ func (c repoConfig) configJSON(rclass string) (string, error) {
 		setI64(m, "missedRetrievalCachePeriodSecs", c.MissedRetrievalCachePeriodSecs)
 		setI64(m, "socketTimeoutSecs", c.SocketTimeoutSecs)
 		setI64(m, "assumedOfflinePeriodSecs", c.AssumedOfflinePeriodSecs)
+		setI64(m, "socketTimeoutMs", c.SocketTimeoutMs)
+		setI64(m, "socketTimeoutMillis", c.SocketTimeoutMillis)
+		setI64(m, "metadataRetrievalTimeoutSecs", c.MetadataRetrievalTimeoutSecs)
+		setI64(m, "missRetrievalCachePeriodSecs", c.MissRetrievalCachePeriodSecs)
+		setI64(m, "unusedArtifactsCleanupPeriodHours", c.UnusedArtifactsCleanupPeriodHours)
+		setRawJSON(m, "enableTokenAuthentication", c.EnableTokenAuthentication)
+		setRawJSON(m, "contentSynchronisation", c.ContentSynchronisation)
 		setBool(m, "hardFail", c.HardFail)
 		setBool(m, "allowPrivateUpstream", c.AllowPrivateUpstream)
 		setBool(m, "priorityResolution", c.PriorityResolution)

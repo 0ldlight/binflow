@@ -62,6 +62,13 @@ one-to-one when the dialect lands):
 - 012_license: the licenses row (M10, ADR-0032 / architecture 15.1.2) —
   single-license model (id CHECK-pinned to 1), doc verbatim + derived
   columns, expires_at NULL = perpetual. Statements are dialect-common.
+- 013_node_props: the artifact properties table (M10 T-286, ADR-0033) —
+  multi-value-as-multi-row set semantics, composite FKs cascade node and
+  repository deletes. Statements are dialect-common.
+- 014_remote_tuning: remote_configs smart remote effective fields (M10
+  T-290, FR-90.2) — socket_timeout_ms / metadata_retrieval_timeout_secs /
+  unused_cleanup_period_hours, all 0 = unset (no backfill; the fetcher
+  falls back to the legacy JSON fields). Statements are dialect-common.
 
 The migrator currently embeds `migrations/sqlite/*.sql` only
 (see ../migrate.go).

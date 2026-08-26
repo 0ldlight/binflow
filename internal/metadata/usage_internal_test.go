@@ -82,6 +82,11 @@ func TestUsageBackfillMigration(t *testing.T) {
 		`DROP INDEX IF EXISTS idx_replications_source`,
 		`DROP TABLE upload_sessions`,
 		`DROP INDEX IF EXISTS idx_upload_sessions_expiry`,
+		// 014 (T-290): the ALTER family is not statement-idempotent, so the
+		// columns leave with the ledger rows the >= 5 cut removed.
+		`ALTER TABLE remote_configs DROP COLUMN socket_timeout_ms`,
+		`ALTER TABLE remote_configs DROP COLUMN metadata_retrieval_timeout_secs`,
+		`ALTER TABLE remote_configs DROP COLUMN unused_cleanup_period_hours`,
 	} {
 		if _, err := db.Exec(stmt); err != nil {
 			t.Fatalf("rewind (%q): %v", stmt, err)

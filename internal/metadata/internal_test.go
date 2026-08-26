@@ -366,6 +366,12 @@ func TestDockerUpgradeFromM1Database(t *testing.T) {
 		`ALTER TABLE remote_configs DROP COLUMN allow_private_upstream`,
 		`ALTER TABLE remote_configs DROP COLUMN metadata_ttl_seconds`,
 		`ALTER TABLE remote_configs DROP COLUMN content_ttl_seconds`,
+		// 014 (T-290): the smart remote tuning columns leave too, or the
+		// re-application dies on the duplicate (plain ALTERs, unlike 012/
+		// 013's CREATE IF NOT EXISTS).
+		`ALTER TABLE remote_configs DROP COLUMN socket_timeout_ms`,
+		`ALTER TABLE remote_configs DROP COLUMN metadata_retrieval_timeout_secs`,
+		`ALTER TABLE remote_configs DROP COLUMN unused_cleanup_period_hours`,
 		`DELETE FROM schema_migrations WHERE version > 1`,
 	} {
 		if _, err := db2.ExecContext(ctx, stmt); err != nil {
