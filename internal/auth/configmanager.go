@@ -763,7 +763,15 @@ func (m *ConfigManager) mergeSecrets(ctx context.Context, section string, body [
 		}
 		switch plain {
 		case MaskedSecretEcho:
-			// Sentinel echoed back: keep the stored secret (write-only mode).
+			// The sentinel echoed back is REFUSED, not merged: Artifactory's
+			// posture (auth-integration §1.6 — the 20-star placeholder PUT
+			// earns a 400; the client re-enters or omits the field, and
+			// omitted/empty means "keep" here only via the absent arm).
+			// User ruling 2026-08-27 00:15, flipping T-305's initial
+			// accept-the-sentinel merge.
+			return nil, fmt.Errorf(
+				"auth config: field %q: refusing the masked placeholder — leave the field empty to keep the stored secret, or re-enter the value",
+				field)
 		case "":
 			effective = ""
 		default:
