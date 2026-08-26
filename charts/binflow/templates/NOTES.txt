@@ -106,6 +106,22 @@ NOTE: these sections require a server build with the M6 auth wiring
 by design.
 {{- end }}
 
+{{- if .Values.config.addons.disabled }}
+-------------------------------------------------------------------------------
+  Addon circuit breaker ACTIVE (M10 T-283 / ADR-0032 section 15.5)
+-------------------------------------------------------------------------------
+
+The following addon ids are switched OFF (config.addons.disabled,
+restart-effective; removing the entry and re-deploying restores them):
+
+  {{ .Values.config.addons.disabled }}
+
+Repositories of a disabled package type refuse new creates with
+"disabled by configuration"; existing artifacts stay readable. Core ids
+(generic, docker, maven, npm, pypi) are honored too — the server WARNs at
+boot (degradation knob, not a licensing decision).
+{{- end }}
+
 -------------------------------------------------------------------------------
   Notes
 -------------------------------------------------------------------------------

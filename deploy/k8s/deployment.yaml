@@ -136,6 +136,21 @@ spec:
             # - name: BINFLOW_AUTH__LDAP__START_TLS
             #   value: "true"
 
+            # ── Addon circuit breaker (M10 T-283, ADR-0032 section 15.5) ──
+            # OFF by default (unset = nothing disabled). Uncomment to switch
+            # addon slots off globally: CSV of addon ids, values trimmed,
+            # unknown ids tolerated (inert), case-sensitive. Restart-effective
+            # — removing the entry and restarting restores everything; the
+            # breaker never deletes data. Core ids (generic, docker, maven,
+            # npm, pypi) are a degradation knob: the server WARNs at boot and
+            # honors them anyway. Slots: go, nuget, cargo, properties, ha,
+            # xray. There is NO license-related config key;
+            # BINFLOW_M10_LICENSE_DIR is a tier-matrix TEST variable — the
+            # strict env scan refuses the boot on it, so it never gets set
+            # here.
+            # - name: BINFLOW_ADDONS__DISABLED
+            #   value: "nuget,go"
+
           ports:
             - name: http
               containerPort: 8080

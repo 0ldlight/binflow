@@ -119,6 +119,18 @@ services:
       # server build yet — uncommenting them in .env before that release
       # would refuse to boot, which is the intended fail-fast posture.
 
+      # ---- addon circuit breaker (M10 T-283, ADR-0032 section 15.5) -------------
+      # OFF by default (empty = nothing disabled). Uncomment to switch addon
+      # slots off globally: CSV of addon ids, values trimmed, unknown ids
+      # tolerated, case-sensitive. Restart-effective — removing the entry
+      # and restarting restores everything; the breaker never deletes data.
+      # Core ids (generic, docker, maven, npm, pypi) are a degradation knob:
+      # the server WARNs at boot and honors them anyway. Slots: go, nuget,
+      # cargo, properties, ha, xray. There is NO license-related config key;
+      # BINFLOW_M10_LICENSE_DIR is a tier-matrix TEST variable and must NOT
+      # be set on the server (the strict env scan refuses the boot on it).
+      #BINFLOW_ADDONS__DISABLED: ${BINFLOW_ADDONS__DISABLED:-nuget,go}
+
       # argon2id memory parameter (MB)
       BINFLOW_AUTH__ARGON2_MEMORY_MB: ${BINFLOW_AUTH__ARGON2_MEMORY_MB:-64}
 

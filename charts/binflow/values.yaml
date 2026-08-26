@@ -201,6 +201,9 @@ config:
     # -- Group whose members are granted admin; empty = no claim-inferred
     #    admin mapping.
     adminGroup: ""
+    # -- Group whose members are granted readonly_admin (M7, ADR-0026
+    #    decision 6); empty = no mapping.
+    readOnlyGroup: ""
     # -- Name of an existing Secret with key BINFLOW_AUTH_OIDC_CLIENT_SECRET.
     #    Required when oidc.enabled=true.
     existingSecret: ""
@@ -234,6 +237,9 @@ config:
     groupNameAttr: ""
     # -- DN of a group whose members are granted admin; empty = no mapping.
     adminGroup: ""
+    # -- DN of a group whose members are granted readonly_admin (M7,
+    #    ADR-0026 decision 6); empty = no mapping.
+    readOnlyGroup: ""
     # -- Idle LDAP connection pool size (server default 5).
     poolSize: 5
     # -- StartTLS on ldap:// connections (ignored for ldaps://).
@@ -245,6 +251,57 @@ config:
     # -- Name of an existing Secret with key BINFLOW_AUTH_LDAP_BIND_PASSWORD.
     #    Required when ldap.enabled=true.
     existingSecret: ""
+
+  # -- Addon circuit breaker (M10 T-283, ADR-0032 / architecture section
+  #    15.5): the operator's global breaker over the addon slots, including
+  #    the five core package types (a core id in the list is a degradation
+  #    knob — the server WARNs at boot and honors it anyway). Rendered into
+  #    the mounted binflow.yaml as addons.disabled.
+  addons:
+    # -- CSV of addon ids to switch off ("" = nothing disabled). CSV, not a
+    #    list: one string spells the whole set, matching Artifactory's
+    #    addons.disabled form. Values are trimmed; unknown ids are tolerated
+    #    (inert set entries); addon ids are case-sensitive. Restart-effective:
+    #    the value is consumed once at startup, so removing an entry and
+    #    restarting restores everything — the breaker never deletes data.
+    #    Addon ids: core = generic, docker, maven, npm, pypi; slots = go,
+    #    nuget, cargo, properties, ha, xray.
+    disabled: ""
+
+  # -- Push-replication SSRF posture (T-210 / ADR-0025 decision 4). Rendered
+  #    into the mounted binflow.yaml as replication.allow_private_target.
+  replication:
+    # -- Allow replication target URLs that resolve to private (RFC 1918 /
+    #    loopback / link-local) hosts. Default true — every realistic
+    #    replication target (datacenter-to-datacenter, same-host) is a
+    #    private address. Setting false is an explicit opt-in to the tighter
+    #    posture: the engine then rejects private target URLs while still
+    #    enforcing scheme/host sanity and re-screening per hop. This key only
+    #    toggles the private-address leg of the SSRF screening list.
+    allowPrivateTarget: true
+
+  # -- Storage GC knobs beyond the basics. Rendered into the mounted
+  #    binflow.yaml under the storage section.
+  storage:
+    # -- GC hold TTL in seconds (M9 T-256 / ADR-0031): how long an
+    #    unreleased in-flight GC hold protects a blob. Domain [60, infinity)
+    #    enforced at boot (out-of-domain refuses the boot). Default 600 =
+    #    the server default; 0 would mean "engine default" — the chart
+    #    always spells the effective value explicitly (T-183 lesson).
+    gcHoldTtlSeconds: 600
+
+  # -- Auth token-minting posture (M7 T-219 / ADR-0027). Rendered into the
+  #    mounted binflow.yaml under the auth section.
+  auth:
+    # -- Arm the second-factor gate on POST /api/security/token: a non-admin
+    #    web-session caller must then present step_up_password (local/LDAP)
+    #    or step_up_grant (OIDC). Default false — an unconfigured boot keeps
+    #    the pre-M7 posture byte-for-byte; enterprise deployments are
+    #    advised to enable it.
+    tokenStepUp: false
+    # -- Lifetime of one OIDC mint grant, in seconds. Domain [60, 3600]
+    #    enforced at boot regardless of the step-up switch. Default 300.
+    tokenStepUpGrantTtlSeconds: 300
 
 # -- Admin password for the initial admin user. This is stored in a Kubernetes
 #    Secret and injected as the BINFLOW_ADMIN_PASSWORD environment variable.

@@ -140,6 +140,7 @@
             "userClaim": { "type": "string" },
             "groupClaim": { "type": "string" },
             "adminGroup": { "type": "string" },
+            "readOnlyGroup": { "type": "string" },
             "existingSecret": { "type": "string" }
           }
         },
@@ -157,10 +158,52 @@
             "groupBaseDn": { "type": "string" },
             "groupNameAttr": { "type": "string" },
             "adminGroup": { "type": "string" },
+            "readOnlyGroup": { "type": "string" },
             "poolSize": { "type": "integer", "minimum": 1 },
             "startTls": { "type": "boolean" },
             "skipTlsVerify": { "type": "boolean" },
             "existingSecret": { "type": "string" }
+          }
+        },
+        "addons": {
+          "type": "object",
+          "description": "Addon circuit breaker (M10 T-283, ADR-0032 section 15.5). Rendered as addons.disabled — CSV, restart-effective, deletes nothing.",
+          "properties": {
+            "disabled": {
+              "type": "string",
+              "description": "CSV of addon ids to switch off ('' = nothing disabled). Values trimmed; unknown ids tolerated; case-sensitive."
+            }
+          }
+        },
+        "replication": {
+          "type": "object",
+          "description": "Push-replication SSRF posture (T-210 / ADR-0025 decision 4). Rendered as replication.allow_private_target.",
+          "properties": {
+            "allowPrivateTarget": { "type": "boolean" }
+          }
+        },
+        "storage": {
+          "type": "object",
+          "description": "Storage GC knobs beyond dataDir (the chart's config.storage block).",
+          "properties": {
+            "gcHoldTtlSeconds": {
+              "type": "integer",
+              "minimum": 60,
+              "description": "storage.gc_hold_ttl_seconds (M9 T-256 / ADR-0031). Domain [60, infinity); the server refuses to boot below 60."
+            }
+          }
+        },
+        "auth": {
+          "type": "object",
+          "description": "Auth token-minting posture (M7 T-219 / ADR-0027). Rendered under the auth section alongside oidc/ldap.",
+          "properties": {
+            "tokenStepUp": { "type": "boolean" },
+            "tokenStepUpGrantTtlSeconds": {
+              "type": "integer",
+              "minimum": 60,
+              "maximum": 3600,
+              "description": "auth.token_step_up_grant_ttl_seconds — domain [60, 3600] enforced at boot."
+            }
           }
         }
       }
