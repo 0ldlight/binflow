@@ -94,6 +94,13 @@ for (const f of srcFiles) {
   for (const m of text.matchAll(/['"]data-testid['"]\s*:\s*(['"`])([^'"`\n]+)\1/g)) {
     addSrc(toFamily(m[2]), rel)
   }
+  // T-307 补形：字段册属性形态（authconfig/sections.ts 的 anchor: 'name' ——
+  // 数据驱动表单的锚以对象属性字面量落点，渲染位 data-testid={field.anchor}
+  // 经变量透传，前三条正则均不可见；setAnchor 同理（secret「已设置」提示行
+  // 的独立锚）。'anchor' 键全库仅该文件使用（grep 自证）——域外零外溢。
+  for (const m of text.matchAll(/\b(?:anchor|setAnchor)\s*:\s*(['"`])([^'"`\n]+)\1/g)) {
+    addSrc(toFamily(m[2]), rel)
+  }
 }
 // widgets.PermSummaryTable 的 ${rowTestidPrefix} 动态前缀：调用方实参
 // group-perm / user-perm（GroupsPage/UserDetailPage），拼出 §10.3 在册三族

@@ -62,6 +62,9 @@ const SystemInfoPage = lazy(() => import('./pages/admin/SystemInfoPage'))
 // License & Add-ons（M10 T-288，FR-84 FE 腿 / FR-86-AC5：license 装卸 + 档位
 // × addon 解锁矩阵 + 建仓门控的可见性面）
 const LicenseAddonsPage = lazy(() => import('./pages/admin/LicenseAddonsPage'))
+// 认证配置（M11 T-307，FR-92 FE 腿：LDAP/OAuth(OIDC)/SAML 三协议 Tab =
+// 子路由；索引重定向 ldap，非法段同收敛）
+const AuthConfigPage = lazy(() => import('./pages/admin/authconfig/AuthConfigPage'))
 const AppShell = lazy(() => import('./components/AppShell'))
 
 function RouteFallback() {
@@ -135,6 +138,13 @@ createRoot(document.getElementById('root')!).render(
                       path="admin/security/tokens"
                       element={<PlaceholderPage title="Access Tokens" ticket="P2" adminOnly />}
                     />
+                    {/* 认证配置（T-307）：三协议 Tab = 同组件按段参数化；
+                         非法段在组件内重定向 ldap */}
+                    <Route
+                      path="admin/security/auth"
+                      element={<Navigate to="/admin/security/auth/ldap" replace />}
+                    />
+                    <Route path="admin/security/auth/:proto" element={<AuthConfigPage />} />
 
                     {/* —— 管理模式：治理 —— */}
                     <Route path="admin/governance/audit" element={<AuditPage />} />
