@@ -38,6 +38,7 @@ import (
 	"time"
 
 	"github.com/lzwzzy/binflow/internal/adapter"
+	"github.com/lzwzzy/binflow/internal/adapter/cargo"
 	"github.com/lzwzzy/binflow/internal/adapter/docker"
 	"github.com/lzwzzy/binflow/internal/adapter/generic"
 	"github.com/lzwzzy/binflow/internal/adapter/goproxy"
@@ -349,6 +350,17 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// addons.NuGet() slot carries the pro-tier gating (T-282/T-283).
 	nugetHandler := nuget.Register(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.md.Remote(),
 		nuget.Options{BaseURL: cfg.Server.BaseURL})
+	// cargo (M11/T-294, the Rust crates package type): same wiring story
+	// as goproxy/nuget — the content plane dispatches on
+	// package_type="cargo" and the provider registration classifies the
+	// sparse-index files as regenerable metadata for the future remote
+	// hop. LOCAL repositories only: the remote pull-through and virtual
+	// aggregation are their own M11 tickets (spec sections 8/S4/S5). The
+	// NodeProps seam carries the protocol's own yank state (the
+	// crate.yanked node property IS the yank flag); the addons.Cargo()
+	// slot carries the pro-tier gating (T-282/T-283).
+	cargoHandler := cargo.Register(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.md.NodeProps(),
+		cargo.Options{BaseURL: cfg.Server.BaseURL, AnonymousAccess: cfg.Security.AnonymousAccess})
 	// The addon registry (M10 T-282, ADR-0033 / section 15.2.1): the
 	// COMPILE-TIME ASSEMBLY MANIFEST — one literal slice, the
 	// META-INF/addon.{xml,properties} behavior pattern in Go form. This is
@@ -372,7 +384,7 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 		GC:       stack.st,
 		DataDir:  cfg.Storage.DataDir,
 		Console:  console.Handler(),
-		Adapters: []adapter.Handler{stack.genericHandler, dockerHandler, mavenHandler, npmHandler, pypiHandler, goproxyHandler, nugetHandler},
+		Adapters: []adapter.Handler{stack.genericHandler, dockerHandler, mavenHandler, npmHandler, pypiHandler, goproxyHandler, nugetHandler, cargoHandler},
 		// The process metric registry (T-163, ADR-0022): one per serve; the
 		// /metrics endpoint and the request-counting middleware ride it.
 		Metrics: metrics.NewRegistry(),

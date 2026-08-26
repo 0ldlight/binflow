@@ -286,6 +286,24 @@ func (s *Service) authenticate(ctx context.Context, r *http.Request) (*Principal
 		}
 		return nil, verr
 	}
+	// Bare-token arm (M11/T-294, cargo's sparse HTTP registries): a
+	// SCHEME-LESS Authorization value — `Authorization: <token>` — is
+	// the official wire form cargo sends for registry tokens (the
+	// crates.io compatibility shape; probed live, cargo 1.98). Every
+	// space-scheme spelling was consumed above, so a value with no plain
+	// space can only be this form; a bare value that fails verification
+	// is a REJECTED credential, never a downgrade to anonymous (the
+	// presented-but-rejected posture, unchanged). A no-space value that
+	// carries OTHER whitespace (a tab where a scheme separator should
+	// be — `Bearer\t<tok>`, `foo\tbar`) is neither a scheme form nor a
+	// legal token and is refused as malformed here: T-294 review M1 —
+	// letting it fall through to anonymous drifted the posture basicAuth
+	// upheld before the bare arm existed.
+	if tok, malformed := bareTokenHeader(r); tok != "" {
+		return s.verifier.Verify(ctx, tok)
+	} else if malformed {
+		return nil, invalidf("auth: malformed Authorization header")
+	}
 	// Third arm, last in precedence: the binflow_session cookie. Only when
 	// the arm is wired — an unwired service treats the cookie as a non-
 	// credential (anonymous), matching pre-M4 behavior. A wired arm treats
@@ -561,7 +579,11 @@ func basicAuth(r *http.Request) (username, password string, ok bool, err error) 
 	}
 	scheme, rest, found := strings.Cut(h, " ")
 	if !found {
-		return "", "", false, invalidf("auth: malformed Authorization header")
+		// No scheme at all: NOT basic's to reject (T-294) — the
+		// bare-token arm downstream owns the scheme-less form; a value
+		// that fails verification is rejected THERE, keeping the
+		// presented-but-rejected posture for garbage spellings.
+		return "", "", false, nil
 	}
 	if !strings.EqualFold(scheme, "Basic") {
 		return "", "", false, nil // other schemes handled elsewhere
@@ -594,6 +616,34 @@ func bearerHeader(r *http.Request) string {
 		return ""
 	}
 	return strings.TrimSpace(rest)
+}
+
+// bareTokenHeader reads the scheme-less credential (the cargo arm above).
+// Three answers: a legal bare token (tok, false); "" when no Authorization
+// value exists or the value carries a plain space (a scheme-shaped
+// spelling the earlier arms already judged — `Digest xyz` keeps its
+// historical anonymous fall-through); and ("" , true) for a no-space value
+// carrying OTHER whitespace (tab, CR, …) — the malformed family the caller
+// refuses.
+func bareTokenHeader(r *http.Request) (tok string, malformed bool) {
+	h := strings.TrimSpace(r.Header.Get("Authorization"))
+	if h == "" || strings.Contains(h, " ") {
+		return "", false
+	}
+	if strings.ContainsFunc(h, isHeaderWhitespace) {
+		return "", true
+	}
+	return h, false
+}
+
+// isHeaderWhitespace reports the whitespace a header value may smuggle
+// that is not the plain space the scheme grammar separates on.
+func isHeaderWhitespace(r rune) bool {
+	switch r {
+	case '\t', '\n', '\r', '\v', '\f':
+		return true
+	}
+	return false
 }
 
 // invalidf builds a credential-rejection error. The message must never

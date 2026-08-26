@@ -144,6 +144,15 @@ func TestAuthenticate(t *testing.T) {
 		{"api key garbage", "", "not-a-token", "", false, false, true},
 		{"bearer token", "Bearer " + tok.AccessToken, "", "ci-bot", false, true, false},
 		{"bearer garbage", "Bearer not-a-token", "", "", false, false, true},
+		// The cargo sparse-registry form (M11/T-294): a SCHEME-LESS
+		// Authorization value is the registry token, verbatim.
+		{"bare token (cargo sparse form)", tok.AccessToken, "", "ci-bot", false, true, false},
+		{"bare garbage is rejected, never anonymous", "not-a-token-either", "", "", false, false, true},
+		// T-294 review M1: a no-space value carrying other whitespace is
+		// the malformed family — refused, never a silent anonymous
+		// fall-through (the pre-bare-arm posture).
+		{"bare tab value is malformed, never anonymous", "foo\tbar", "", "", false, false, true},
+		{"bearer with tab separator is malformed", "Bearer\t" + tok.AccessToken, "", "", false, false, true},
 		{"unknown scheme falls to api key", "Digest xyz", tok.AccessToken, "ci-bot", false, true, false},
 		{"anonymous", "", "", "", false, false, false},
 		{"unknown scheme no other credential", "Digest xyz", "", "", false, false, false},
