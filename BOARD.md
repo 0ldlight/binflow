@@ -830,7 +830,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
   - **T-292 → done 2026-08-26（提交 `94c88ae`）——FR-91 覆盖集 5/5 齐**：rpm.md 247 行（15 端点/自动 repodata 重算链/GPG/3 代历史）+ helm.md 251 行（12 端点 + HelmOCI×docker v2 八机制复用表/index.yaml 改写算法/虚仓缓存键）；官方锚点（repomd 社区规范+dnf.conf(5)+JFrog reindex REST；helm.sh 两页+JFrog Helm 仓页）+ 反编译补充各 14 条逐条标注；置信度零低项。**FR-91-AC3 tech-lead 就绪度确认已派**（15 裁决点消化 + T-294 拆票要点）。日志 reports/agents/T-292.md。
   - **T-291 → done 2026-08-26（提交 `d72a508`）——B7 全清**：**首个 MUI 面**（@mui/material v7 + emotion 三包 lockfile 钉版；MuiProvider 主题桥双模式复刻 tokens.css + ThemeContext 翻转重建；无 icons/x-data-grid）；Properties 页签按 Artifactory 交互语法（行内增删/键校验/PUT merge/readonly=disabled+反断言）；console-ux v1.11 入册 12 锚（票面不碰 docs 与 ledger 硬门冲突——按 §2.4 先入册纪律纯增量，**conductor 追认**）；playwright L21a/b/c + 全量 **188/0** + anchor-audit ledger PASS + 真栈六腿 + 双主题确定性断言；conductor 复验（build/tsc/lint/ledger/7 腿 + **HEAD 侧 Go+web 双语构建验证**——正是抓 T-288 类漏交的检查）。**契约发现**：api-reference.md:35 POST ?properties 行陈旧（router 三动词冻结）→ T-293。verifyM10 硬编码密码致改密实例 L22 必 401（一行修复归后续 BE/QA 票）。日志 reports/agents/T-291.md。
   - **T-293 → done 2026-08-26（提交 `3fcd74f`）**：11/11 分歧收口（9 终裁落档——items 5/6/7 维持 T-289/290 自有裁定并回写规范；T-287 L1~L7 全维持）+ K23~K29 校准 7/7（K26/K27/K28/K29 以 architecture §15.3/15.4 + 实现为契约源）+ **ADR-0034 新增**（五协议管理面 dispatchAPI 族 + 绝对 URL 统一 server.base_url）+ PRD **v1.1 as-built 收口稿**。**conductor 三终裁**：① T-280 免补票（官方文档路径合规 + M11 NuGet 硬化票随票补 as-built 规格）② PRD 转正随 T-297 终验 ③ license 公钥 config 覆盖未实现仅记录（M11+ 需求走新 ADR）。日志 reports/agents/T-293.md。
-  - **T-294 → review（REQUEST_CHANGES，修复轮在途 11:05 起）**：**auth 裸 token 臂复核通过**（臂序/拒绝姿态/无侧信道）；**D-1~D-7 七偏差评审独立实证全成立**（D-1 用最小 registry + cargo 1.98 重测五形态——200+errors[] 确使 exit 101）；唯一 blocker B1 = index.go 索引重写丢更新竞争（评审探针 8 并发 publish 后剩 2 行）→ 修复轮派（per-(repo,crate) 互斥 + 并发回归腿）；M1 tab 漂移 + M2 注释反了顺手清。R-1 规格修订（D-1 落册）归 conductor/T-296。日志 reports/agents/T-294.md + T-294-review.md。
+  - **T-294 → done 2026-08-26（提交 `6069845`）——B8 全清**：评审 REQUEST_CHANGES 修复轮全落地（B1 引用计数 per-(repo,crate) 互斥集串行索引重写 + **并发回归两腿**〔8 goroutine×3 轮断言行数==版本数 + yank 混合〕/M1 裸 token 臂畸形形态拒绝不降匿名/M2 注释修正）；auth 裸 token 臂与七偏差 D-1~D-7 评审独立实证全通过；真实 cargo 1.98 L-r1~L-r6 + 门控全链（D3→pro→卸载 D1/D2）；conductor 复验（互斥实现与 M1 姿态代码抽查 + 并发腿/race 双包/双矩阵 0 偏差 + HEAD-build 验证）。**M10 第三个包型 addon 全链贯通**（go/nuget/cargo）。M3~M9 七条 non-blocking 留登记。日志 reports/agents/T-294.md + T-294-review.md。
 - **B8**：T-293 [P1] as-built 回写（四处 PRD↔ADR 分歧收口）｜ T-294 [P2] Cargo 条件票
   - **FR-91-AC3 通过 2026-08-26（`3dc47e7`）**：tech-lead 5/5 可拆、六要素 30/30、23 裁决点（改判 2 均收紧：conan v1 收至握手三端点/cargo 失败统一 4xx5xx 废双轨）、缺项 4 条 0 阻塞（GPG keypair 条件前置票 + 2 ADR 补记 + helm/cargo 规格建议修订 2 处）；跨规格定案：管理面走 dispatchAPI 族、绝对 URL 复用 server.base_url 零新配置、rpm 校验默认 SHA-256。报告 reports/agents/tl-fr91-ac3.md。**T-294 提前穿插派发 10:10**（AC 草案直取该报告 §3；local 全量，remote/virtual M11 单票 dep 本票；area=internal/adapter/cargo 与 T-291 web/ 零重叠）；T-293 待 T-291 收口后补位（as-built 回写宜晚收全部分歧输入）。
 - **B9**：T-295 [P1] 部署接线（charts configmap 显式枚举——T-183 教训）｜ T-296 [P1] 文档五项
@@ -861,5 +861,12 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
   2. **存量页面 MUI 化**：M10 收口后补迁移票（按页面组分批），不与 M10 在途 10 票混流
 - 适用于所有后续 FE 票；dev-frontend 角色卡与 T-291 派发单同步注入本口径
 - **重申后的落地升级（2026-08-26 11:22）**：存量页面 MUI 化从「M10 后补票」升格为显式迁移票组——**T-299 [P1] 存量页面 MUI 化批次一**（登录/壳层/仓库列表与表单——高频面优先，MuiProvider 已就位无二次引入成本）+ **T-300 [P2] 批次二**（制品浏览树/搜索/安全与治理页/admin 余面），排期：T-297 终验后立即开（不进 M10 DoD，进 M11 首批）；每批验收 = 交互逻辑零变化（console-ux 册锚零改动，仅组件层换 MUI）+ anchor-audit ledger PASS + 全量 playwright 绿 + assert-tokens 零硬编码
+
+## 用户指令（2026-08-26 11:35）：OAuth2/LDAP 等认证配置前端可配置，行为严格对齐 Artifactory
+
+「oauth2和ldap等认证配置要放到前端页面可配置，诸如此类的配置要和artifactory的行为严格保持一致」——口径：
+- **范围**：OAuth2 / LDAP / SAML 等外部认证集成的配置面——**控制台 admin 页面可配置**（Admin > Security 域，Artifactory 同构），非仅配置文件
+- **行为对齐**：配置模型/字段/优先级/测试连接/启停语义以 `docs/reverse/auth-integration.md`（既有逆向规格）为准——**严格**一致（用户原话）；该规格写于 M6 前后，M11 拆票前 reverse-engineer 复核一轮
+- **落地**：M11 立项——拆票建议：BE 票（internal/auth 配置面 REST + **变更即生效**〔Artifactory 语义，不重启〕）+ FE 票（admin 认证配置页组，**MUI 组件层**〔上条指令〕+ Artifactory 交互层）；新配置面收敛进既有认证多臂链（Basic/api-key/Bearer+OIDC/裸 token/cookie），不另起炉灶
 
 （空）
