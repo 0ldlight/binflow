@@ -880,4 +880,12 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **行为对齐**：配置模型/字段/优先级/测试连接/启停语义以 `docs/reverse/auth-integration.md`（既有逆向规格）为准——**严格**一致（用户原话）；该规格写于 M6 前后，M11 拆票前 reverse-engineer 复核一轮
 - **落地**：M11 立项——拆票建议：BE 票（internal/auth 配置面 REST + **变更即生效**〔Artifactory 语义，不重启〕）+ FE 票（admin 认证配置页组，**MUI 组件层**〔上条指令〕+ Artifactory 交互层）；新配置面收敛进既有认证多臂链（Basic/api-key/Bearer+OIDC/裸 token/cookie），不另起炉灶
 
+## 用户指令（2026-08-26 19:05）：license 门控功能与 Artifactory 严格对齐——「不要有太多自己的想法」
+
+「license控制的功能注意要和artifactory对齐，不要有太多自己的想法，所有的功能直接照搬artifactory的代码就好，只是把java转为golang」——**经用户裁决，口径落为「行为逐项对齐」**（2026-08-26 19:07 AskUserQuestion 确认）：
+- **执行口径**：license 门控功能（含 M11 全部：ha/xray 槽位、剩余包型、认证配置、存储配置等）的**可观测行为/命名/语义/错误码/交互 100% 照 Artifactory**；反编译代码作为行为参考精读（对照到行为规格粒度）
+- **自有裁定权收归用户**：M11 起任何与 Artifactory 的行为分歧必须上 BOARD 请用户裁决——conductor/architect/tech-lead **不再自裁**；规格票必须逐条给出「Artifactory 行为出处（反编译类/方法 + 行为描述）」而非「等价设计」
+- **红线保留**（ADR-0001 不变，用户知情确认）：不逐行翻译 Java→Go——reverse-src 是 JFrog 版权反编译产物，BinFlow 对外发布镜像/二进制，逐行翻译 = 版权代码进入发布物；license 文档格式维持自有 ed25519（其可观测行为面已对齐：安装/查询/卸载/变更即生效/addon 重载/档位矩阵）
+- **既有自有裁定的回头看**：M10 各票的自有裁定清单（T-287 七项/T-289 五项/T-290 四项/T-294 七项/T-293 已终裁项）在 M11 规划时按本口径逐条复核——凡「等价设计」类若与 Artifactory 有可观测差异，改回 Artifactory 形态
+
 （空）
