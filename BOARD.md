@@ -830,6 +830,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
   - **T-292 → done 2026-08-26（提交 `94c88ae`）——FR-91 覆盖集 5/5 齐**：rpm.md 247 行（15 端点/自动 repodata 重算链/GPG/3 代历史）+ helm.md 251 行（12 端点 + HelmOCI×docker v2 八机制复用表/index.yaml 改写算法/虚仓缓存键）；官方锚点（repomd 社区规范+dnf.conf(5)+JFrog reindex REST；helm.sh 两页+JFrog Helm 仓页）+ 反编译补充各 14 条逐条标注；置信度零低项。**FR-91-AC3 tech-lead 就绪度确认已派**（15 裁决点消化 + T-294 拆票要点）。日志 reports/agents/T-292.md。
   - T-291（MUI 首票）在途。
 - **B8**：T-293 [P1] as-built 回写（四处 PRD↔ADR 分歧收口）｜ T-294 [P2] Cargo 条件票
+  - **FR-91-AC3 通过 2026-08-26（`3dc47e7`）**：tech-lead 5/5 可拆、六要素 30/30、23 裁决点（改判 2 均收紧：conan v1 收至握手三端点/cargo 失败统一 4xx5xx 废双轨）、缺项 4 条 0 阻塞（GPG keypair 条件前置票 + 2 ADR 补记 + helm/cargo 规格建议修订 2 处）；跨规格定案：管理面走 dispatchAPI 族、绝对 URL 复用 server.base_url 零新配置、rpm 校验默认 SHA-256。报告 reports/agents/tl-fr91-ac3.md。**T-294 提前穿插派发 10:10**（AC 草案直取该报告 §3；local 全量，remote/virtual M11 单票 dep 本票；area=internal/adapter/cargo 与 T-291 web/ 零重叠）；T-293 待 T-291 收口后补位（as-built 回写宜晚收全部分歧输入）。
 - **B9**：T-295 [P1] 部署接线（charts configmap 显式枚举——T-183 教训）｜ T-296 [P1] 文档五项
 - **B10**：T-297 [P0] 终验（L01~L30 + 真实客户端矩阵 + DoD 八条）
 
