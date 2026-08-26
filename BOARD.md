@@ -900,10 +900,20 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **Q8 默认值族：全部照 Artifactory 实际值**（2026-08-26 20:55 用户二次裁定修正转写错误）——RP-2 calculateYumMetadata=**false**（上传仅存储，repodata 由 reindex/显式开启触发）/ TL-4 debian 架构族=**i386,amd64 强制生成**（空 Packages 亦生成）/ HL-2 relative urls=**true** / **CG-2 cargo publish 失败形态=200+errors[]（照 Artifactory 双轨，翻转 T-294 as-built 统一 4xx/5xx——断言与规格随票回写；成功形态两方案一致=200 无 errors 键）** / **CN-1 conan v1=全量十七端点（推翻 v1.1 收窄裁定，面积上浮 T-308）**；**唯一例外 TL-5 rpm 校验算法留 SHA-256**（安全向，Artifactory 亦支持，理由留痕）
 - 其余 Q3（SAML 配置面先行）/ Q4（DB 配置面权威）/ Q5（独立文件优先+内嵌 WARN）/ Q7（Trash 余量票）维持暂行，终裁归 ADR-0035/0036 与余量触发
 
+## 用户指令（2026-08-26 21:10~21:20）：CircleCI 流水线 + UAT 环境 52.79.109.153（含文档服务）
+
+「新增circleci的ci/cd流水线，最终部署在52.79.109.153这台服务器上作为uat环境，注意文档服务也部署在这里」+ 用户提供服务器 RSA 密钥与 CircleCI 项目信息（project id `eaa9da69-…`）——落地记录：
+- **gitflow 映射**：develop → Jenkins/VM 测试环境（既有）；**main → CircleCI/UAT**（新链）
+- **已完成（当日）**：`.circleci/config.yml`（build：console+docs+build+vet+lint+短测 → deploy_uat：SSH 部署+双面烟测，main 过滤）+ `deploy/ci/uat-deploy.sh`（分阶段换装/5 备份/60s 探针/失败自动回滚——deploy-vm.sh 同语义）；**UAT 服务器已开通并首部署实测**（/opt/binflow-uat + systemd binflow-uat + hardened unit；/healthz 200、/binflow/docs/ 200、license 面 401 community 地板——21.3MB linux/amd64 单二进制含嵌入文档站）
+- **密钥纪律**：RSA 私钥仅存本机 `~/.ssh/binflow-uat.pem`（600）——**绝不入仓库**；CircleCI 侧需用户在 Project Settings > SSH Keys 上传同钥并把指纹填入 config.yml 的 `REPLACE_WITH_UAT_KEY_FINGERPRINT` 占位（add_ssh_keys 不支持 env 插值）
+- **触发**：config 已在 develop；首个 CircleCI 流水将在下次 develop→main 合并（M11 首批收口）时自然触发，或用户在 CircleCI UI 手动触发 main 管道
+
 ## M11 票据（T-299/T-300 既定 + T-301~T-330，tech-lead 2026-08-26 拆票；AC 全文见 tech-lead 拆票交付〔本节压缩录〕+ docs/prd/milestone-11.md v1.1；Q8 终值 20:35+20:55 已并入票面）
 
 **批次（全宽 2）**：
-- **B0**：T-301 [P0] 前置 ADR 包（ADR-0035 认证配置面/ADR-0036 存储配置文件/keypair ADR+openpgp 选型白名单）architect｜ T-302 [P0] auth-integration.md 复核票（逐条附 Artifactory 出处；OAuth stub/SAML 缺失两低置信区边界）reverse-engineer
+- **B0**：T-301 [P0] 前置 ADR 包｜ T-302 [P0] auth-integration.md 复核票——**双票 done 2026-08-26（B0 全清，gitflow 首航：feature 分支 --no-ff 合入 develop `4950675`/`103ffce`）**
+  - T-301：ADR-0035（auth_configs 表 + license Manager 三要素复用〔快照/验后替换/回放〕实现变更即生效；K31 DB 权威终裁；enc:v1 密封 + 脱敏哨兵）/ ADR-0036（binstore.yaml 有序 provider 链 + Q5 精确化：语义分歧才 fail-fast、等价 WARN）/ ADR-0038（keypair 双列 enc:v1；RSA-4096 暂行）/ **openpgp = ProtonMail/go-crypto v1.4.1**（三平台零 CGO 实测；keybase 冻结 2020 淘汰）。预登记分歧 2 处（模板体系归 T-303/生成默认归 T-319 mini 规格）
+  - T-302：规格 v2 全量重写 367 行——23 端点/58 字段**逐条双出处**（代码+官方文档）；**两低置信区推翻**（OAuth batch3 完整实装/SAML 齐备但 license-gated）；**变更即生效=保存即生效高置信**（descriptor 链+Access 回调+懒初始化兜底；边界：会话不失效/300s 认证缓存）；FE 四陷阱显式（SAML noAutoUserCreation 反语义等）；缺项清单空。日志 reports/agents/T-301.md / T-302.md
 - **B1**：T-303 [P0] config-formats §1 复核 + 规格尾巴两处（goproxy GOPRIVATE/cargo §9 路径）reverse｜ T-299 [P0] MUI 批一（Login/壳/仓库组；四闸门+交互零变化）dev-frontend
 - **B2**：T-304 [P0] FR-95 回头看裁决票（23+ 基线项逐条复核；Q8 六项登记归位；CG-2 失败分类出处锚定供 T-316）architect｜ T-305 [P0] FR-92 BE 认证配置 REST+变更即生效≤1s+双源（dep T-301/302）dev-go-core
 - **B3**：T-306 [P0] FR-93 BE binstore.yaml 三链解析+装配+fail-fast（dep T-301/303）dev-go-storage｜ T-307 [P1] FR-92 FE admin 认证配置页组 MUI（dep T-305）dev-frontend
