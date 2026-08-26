@@ -1,0 +1,27 @@
+/* License & Add-ons 页（M10 T-288；页面级样式——徽章/表格基元在 base.css） */
+
+/* 页级只读注记（security.css / repositories.css 同款语义，本域自持——
+ * 懒加载分片不跨页依赖） */
+.license-note {
+  color: var(--bf-text-muted);
+  font-size: var(--bf-fs-aux);
+  margin: var(--bf-sp-2) 0;
+}
+
+/* 装载块：文本域 + 动作行的纵排容器（与治理页危险区块同密度） */
+.license-install-block {
+  margin-top: var(--bf-sp-4);
+  padding-top: var(--bf-sp-4);
+  border-top: 1px solid var(--bf-border);
+}
+
+/* 矩阵行锁定/禁用态：灰显（信息仍在——锁定不是缺失，D5 可见性口径） */
+.addons-table tr.is-locked,
+.addons-table tr.is-disabled {
+  color: var(--bf-text-2);
+}
+
+.addons-table tr.is-locked .mono,
+.addons-table tr.is-disabled .mono {
+  color: inherit;
+}
