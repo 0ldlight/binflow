@@ -6,6 +6,7 @@ sidebar_position: 70
 # API 参考
 
 > 适用版本：M1~M9（端点引入里程碑标注于各表；M7 增补：用户角色字段 `adminRole`、permission target 动作 `manage`、docker 上传状态腿跨重启、token 铸造 step-up 可选门；**M9 增补**：usage 批量端点、users 列表加宽/enabled 回显/DELETE、groups `?includeUsers`、permissions `?filter=manage`——速览见[下文](#m9-增补速览)）。Artifactory 兼容端点基于 REST 逆向规格 `docs/reverse/rest-api.md`（置信度高）。
+> **M10 增补（T-293 部分回写，2026-08-26）**：`?properties` 族反转为 **GET/PUT/DELETE 三动词**（POST 增量动词不做——其余动词落 404 冻结姿态；原 M5 期表格把属性动词标为 M4/M1 系陈旧勘误）；上传路径 matrix 参数 M10 生效。M10 其余新端点（license/addons/uploads、Go/NuGet 接入面）归 M10 文档票（T-296）补齐。
 > BinFlow 自有端点以 `/api/v1` 前缀标记。
 
 BinFlow 的 API 分为两个面：
@@ -24,17 +25,16 @@ BinFlow 的 API 分为两个面：
 
 | 方法 | 路径 | 语义 | 里程碑 |
 |---|---|---|---|
-| PUT | `/binflow/{repoKey}/{path}` | 上传文件（body 为内容），matrix 参数与 checksum 头支持 | M1 |
+| PUT | `/binflow/{repoKey}/{path}` | 上传文件（body 为内容），checksum 头支持；**matrix 参数（`;k=v` 尾随成对序列剥离为部署属性）M10 起生效**——非成对 `;` 维持文件名字面 | M1/M10 |
 | PUT | `/binflow/{repoKey}/{path}/` | 创建目录（尾斜杠） | M1 |
 | PUT | `/binflow/{repoKey}/{path}.sha1\|.md5\|.sha256` | 上传校验和旁车文件 | M1 |
 | GET | `/binflow/{repoKey}/{path}` | 下载文件（支持 Range/If-None-Match/ETag） | M1 |
 | HEAD | `/binflow/{repoKey}/{path}` | 文件元信息（响应头同 GET 无 body） | M1 |
 | DELETE | `/binflow/{repoKey}/{path}` | 删除文件或目录树 | M1 |
-| DELETE | `/binflow/{repoKey}/{path}?properties=k1,k2` | 删除制品属性 | M4 |
-| PUT | `/binflow/api/storage/{repoKey}/{path}?properties=k=v` | 设置制品属性 | M4 |
-| POST | `/binflow/api/storage/{repoKey}/{path}?properties=k=v` | 增量修改制品属性 | M4 |
+| DELETE | `/binflow/api/storage/{repoKey}/{path}?properties=k1,k2[&recursive=1]` | 删属性（幂等，不存在的键 204；`properties=*` 全删；folder + `recursive=1` 递归） | M10 |
+| PUT | `/binflow/api/storage/{repoKey}/{path}?properties=k=v1,v2[&recursive=1]` | 写属性——**merge 语义**：同名键值集整体替换、异名键保留；node 须存在（404） | M10 |
 | GET | `/binflow/api/storage/{repoKey}/{path}` | 取 FileInfo / FolderInfo JSON | M1 |
-| GET | `/binflow/api/storage/{repoKey}/{path}?properties=K1,K2*` | 取属性（key 过滤 + 通配） | M1 |
+| GET | `/binflow/api/storage/{repoKey}/{path}?properties=K1,K2*` | 取属性（key 过滤 + 尾 `*` 通配；无命中 = 200 `{"properties":{}}`——BinFlow 自有裁定，非 Artifactory 的 404；node 不存在 = 404） | M10 |
 | GET | `/binflow/api/storage/{repoKey}/{path}?stats` | 取下载统计 | M1 |
 | GET | `/binflow/api/storage/{repoKey}/{path}?lastModified` | 取目录最新修改时间 | M1 |
 | GET | `/binflow/api/storage/{repoKey}/{path}?permissions` | 取有效权限视图（admin only，仅 local 仓） | M4 |

@@ -24,8 +24,8 @@ git index 卹议（`cargoGitIndexEnabled`）**已弃用**：仓未开 sparse（c
 | GET | `index/{pkgPath}` | 索引文件（每版本一行 JSON，NDJSON） | 200 `text/plain` 索引行流；应支持 `ETag`/`Last-Modified` + `If-None-Match`/`If-Modified-Since` → 304（官方缓存语义） | 不存在 404/410/451（官方允许三码；BinFlow 取 404） | 高（官方 + 代码） |
 | GET | `v1/crates/{name}/{version}/download` | 下载 `.crate` | 200 crate 流 | 404 `{"errors":[{"detail":"unable to download crate"}]}` | 高（官方 + 代码） |
 | PUT | `api/v1/crates/new` | publish（wire 见 §5.1） | 200 `{"warnings":{...},"errors":[]}`（无 warnings 可省） | 见 §5.3 | 高（官方 + 代码） |
-| DELETE | `api/v1/crates/{name}/{version}/yank` | yank | 200 `{"ok":true}` | 401（匿名）/ 403（无权限）`{"errors":[{"detail":"unauthorized user"\|"forbidden"}]}` | 高 |
-| PUT | `api/v1/crates/{name}/{version}/unyank` | unyank | 200 `{"ok":true}` | 同上 | 高 |
+| DELETE | `api/v1/crates/{name}/{version}/yank` | yank | 200 `{"ok":true}` | 401（匿名）/ 403（无权限）`{"errors":[{"detail":"unauthorized user"\|"forbidden"}]}`；**crate 或版本不存在 → 404 + errors 信封**（TL-6 定案，T-293 补行 2026-08-26——官方未列该分支，BinFlow 取 404 而非幂等 200） | 高 |
+| PUT | `api/v1/crates/{name}/{version}/unyank` | unyank | 200 `{"ok":true}` | 同上（401/403 同形；不存在 → **404 + errors 信封**，TL-6） | 高 |
 | GET | `api/v1/crates?q=<q>&per_page=<n>` | search（**官方：不带 Authorization**） | 200 `{"crates":[{"name","max_version","description"}],"meta":{"total":N}}` | — | 高（官方；Artifactory 亦不鉴权） |
 | GET | `api/v1/crates/{name}/owners` 族 | owners 管理（官方四端点） | — | — | **M11 不做**（§9）；收到按未知路径 404 |
 
@@ -41,7 +41,7 @@ git index 卹议（`cargoGitIndexEnabled`）**已弃用**：仓未开 sparse（c
 {"dl": "<api>/v1/crates", "api": "<api>"}
 ```
 
-- BinFlow 合成规则：`dl`/`api` 指向自身仓面；无 `{crate}` 等占位符 → cargo 自动追加 `/{crate}/{version}/download`。
+- BinFlow 合成规则：`dl`/`api` 指向自身仓面；无 `{crate}` 等占位符 → cargo 自动追加 `/{crate}/{version}/download`。**base 取值 = `server.base_url`（空则按请求 scheme+host 推导，X-Forwarded-Proto 认可）——ADR-0034/TL-1 统一定案（npm packument / nuget service index 同款先例），不新增 per-protocol 配置键（T-293 合入 2026-08-26）**。
 - `auth-required: true`：当该仓禁匿名（读需认证）时输出——cargo 会先裸取 config.json，收到 401 后带凭据重试（官方 sparse 认证握手）。BinFlow 默认匿名可读 → 不输出该键。
 - 服务端应支持 config.json 的条件请求（cargo 每会话首取）。
 

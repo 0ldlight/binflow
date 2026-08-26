@@ -125,7 +125,7 @@ remote 缓存仓：
 2. **聚合流程**（JFrog 文档口径 + 代码一致）：查虚仓缓存（§3 键：contextUrl 哈希 + 权限集哈希）→ 未命中/过期则逐成员取 index.yaml 抽 entries → 逐 chart 合并版本集（同名同版本按成员序 first-wins—— LinkedHashSet 语义，中）→ **URL 改写** → 重新序列化写缓存并返回。JFrog 行为细节：合并进行中其它同权限请求**等待既有计算**（锁等待默认 6 分钟，回退参数 `artifactory.virtual.repo.metadata.merge.lock.timeout.sec.HELM=120`）；缓存新鲜期 = 元数据检索缓存期（JFrog 文档称默认 6 分钟、建议 ≥60s）。
 3. **URL 改写算法**（此条补充公开规范；高——改写器逐分支）：
    - local 成员条目：`urls[0]` ← `<对外 base>/<localRepoKey>/<仓内路径>`（absolute 模式）或 `<仓内路径>`（relative 模式）；
-   - remote 成员条目：以该仓 chartsBaseUrl 为前缀替换为虚仓 URL `<base>/api/helm/<virtualKey>/<路径>`；条目 URL 指向 chartsBaseUrl 之外的**允许清单命中**的外部地址 → 改写为 `<虚仓URL>/_external/https/<host/path>`（协议 `://` 折叠为 `/`）；命中上游 `_external` 前缀 → 改写为 `_transitive`；允许清单未命中 → **保持原 URL**（客户端直连外部）；`oci://` 前缀条目默认改写，开启 `helm.preserve.oci.urls`（默认 false）则保留原样。
+   - remote 成员条目：以该仓 chartsBaseUrl 为前缀替换为虚仓 URL `<base>/<virtualKey>/<路径>`（**主面 = 内容面**——与 §1.1 BinFlow 定案一致；Artifactory 原始形态为 `<base>/api/helm/<virtKey>/<路径>`，BinFlow 的 `api/helm` 仅为只读别名、不进聚合 index 的下载 URL，否则 index 内 URL 与主面不一致——**TL 验收 HL-1 附带修订，T-293 合入 2026-08-26**）；条目 URL 指向 chartsBaseUrl 之外的**允许清单命中**的外部地址 → 改写为 `<虚仓URL>/_external/https/<host/path>`（协议 `://` 折叠为 `/`）；命中上游 `_external` 前缀 → 改写为 `_transitive`；允许清单未命中 → **保持原 URL**（客户端直连外部）；`oci://` 前缀条目默认改写，开启 `helm.preserve.oci.urls`（默认 false）则保留原样。
 4. **namespace 模式**（虚仓开关，默认关）：entries 键与下载路径以 `<成员仓key>/` 前缀区分（`/<virt>/<成员>/<chart>.tgz`）；可选再开 `helm.modify.chart.name.with.namespace`（默认 false）把 chart 名本身改为 `<成员>/<chart>`。
 5. HEAD index.yaml：有成员仓即 200（不实际聚合）；无成员 404。
 6. PUT 到 virtual：通用 defaultDeploymentRepoRef 路由（405 语义）。

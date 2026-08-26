@@ -120,6 +120,16 @@ repo 配置字段 `checksumPolicyType`，两个合法值：
 
 （`maxUniqueSnapshots`、`remoteRepoLayoutRef`、`synchronizeProperties`、`contentSynchronisation` 为进阶项，M3 不依赖。）
 
+> **BinFlow as-built 对照（M10 T-290/T-293，2026-08-26 追加）**：BinFlow 已落地的 smart remote
+> 生效子集 = `socketTimeoutMs`（**毫秒粒度**，canonical 接受本表 `socketTimeoutMillis` 拼写为
+> 输入别名——0=缺席、非零分歧 400）+ `metadataRetrievalTimeoutSecs`（per-repo 化等待上限）+
+> `missedRetrievalCachePeriodSecs`（canonical **保留本表拼写**，PRD 的 `missRetrieval...` 为
+> 输入别名）+ `unusedArtifactsCleanupPeriodHours`（**仅字段落库，清理引擎 M11**）。其余本表
+> 字段维持 M3 未承载（`shareConfiguration`/`storeArtifactsLocally` 等不做）；
+> `enableTokenAuthentication`/`contentSynchronisation` 对外**按名 400**（M11 复制硬化后再承载），
+> 其余未知字段维持容忍丢弃。完整契约见 architecture §15.4.1 与
+> docs/user/admin/remote-virtual.md 字段表。
+
 ### 7.2 pull-through 读取流程（GET/HEAD 统一）
 
 对 `{repoKey}/{path}` 的未命中请求，按序（`RemoteRepoBase#getInfo` → `internalGetInfo`）：

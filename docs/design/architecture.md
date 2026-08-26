@@ -1301,6 +1301,27 @@ CREATE INDEX idx_upload_sessions_expiry ON upload_sessions(expires_at);
                                                  targetCovers 谓词、与 Authorizer.Can 不可能分叉——T-122
                                                  补行：T-97 草案②迟未落地，径按定案形态书写（草案②「匿名
                                                  同门」门位亦被 B2 admin 门取代）
+  [M10] GET/POST/DELETE /binflow/api/system/license
+                                                 license 安装/查询/卸载三动词（T-279；**单数**——单实例单证，
+                                                 Artifactory 复数路径 /api/system/licenses 无路由 = E-26 404 引导
+                                                 〔LC-02〕；GET=CapSystemRead、POST/DELETE=CapSystemWrite；wire 见
+                                                 §15.1.4——PRD LC-01 的 /api/v1/ 前缀拼写系笔误，as-built 在
+                                                 api 兼容族非 v1 自有族）
+  [M10] GET    /binflow/api/v1/addons            addon 槽位清单 + 实时解锁求值（T-282；bare array，CapSystemRead；
+                                                 其余动词/子路径 = E-26 404——槽位档位是代码非数据，无写面）
+  [M10] ?properties=k1,k2* 三参数臂（GET/PUT/DELETE）
+                                                 挂 /api/storage/{repo}/{path} 既有路由的第三 query 臂（T-286，
+                                                 §15.3.3——E-09 缺口的赎回）；GET 走内容面读门，PUT/DELETE =
+                                                 required + 该 path w；其余动词（POST）= E-26 404 冻结姿态
+  [M10] POST /binflow/api/v1/uploads/{create,config}、GET …/status[/{id}]、
+        GET …/urlPart/{id}/{n}、POST …/complete/{id}、POST …/abort/{id}、
+        PUT …/part/{id}/{n}                        MPU REST 八臂（T-289，§15.4 as-built；routeAuth required +
+                                                 handler 内目标仓 w；filestore/dual-write 未接线 = 501 纯文本）
+  [M10] /binflow/api/nuget/{v3,v2}/<repoKey>/<rest>
+                                                 NuGet 协议挂载（T-287）：apiProtocolMounts += nuget + plane-aware
+                                                 rewrite（→ /binflow/<repo>/{v3|v2}/<rest>）——RBAC/repo 查询/
+                                                 addon 门/adapter 分发与内容面同链单次；go 包型（T-285）走内容面
+                                                 原生分发，零路由增量
 /binflow/api/...    *     Artifactory 兼容子集 [按 docs/reverse/rest-api.md 逐步]（注意：兼容层路径不带 /artifactory 前缀，直接映射 /binflow/api/...）
 /binflow/<repo>/... *     内容路径：按 repo.package_type 分发到 adapter（M1 = generic）
 /binflow/assets/**  *     SPA 指纹资产（/binflow/assets/<hash>.js|css，immutable 缓存 [M4]）
@@ -1344,6 +1365,30 @@ false）开启时要求二次证明，腿由 `users.provider` 决定：local →
 默认 300s，绑定 user+session，进程内台账）。缺失 → 401 OAuth 形 `step_up_required`；失验/过期/复用 →
 401 `step_up_invalid`。豁免：admin session、Basic、Bearer（token）、`/v2/token`、匿名（401 挑战照旧）。
 中间件级通用 step-up 层与 OIDC 腿 body `id_token` 新鲜窗口两方案均否决（候选对比见 ADR-0027 修订版）。
+
+**[M10] 门位增量与门控织入 as-built 清点（T-293，2026-08-26——T-279/282/283/285/286/287/289 票后
+router.go 实况；ADR-0032/0033/0034 展开）**：
+
+- **M7 清点表增补**（族归属，不改上表原行）：族 1（系统观测读）+= `GET /api/v1/addons`（T-282）、
+  `GET /api/system/license`（T-279，回显档位/期限元数据——doc 原文不回显）；族 2（系统变更写）+=
+  `POST`/`DELETE /api/system/license`（license 安装/卸载——readonly_admin 403）。
+- **内容面族新增**：`/api/v1/uploads/**` 八臂 = `routeAuth{required}` + handler 内目标仓 `w`
+  （会话 id 为不可猜测 capability，§5.3.1 契约 4 同源——scope 等价物问题的 as-built 答案，
+  K29/ADR-0032 as-built 定案段）；裸 `GET /api/v1/uploads/status` 列表形态逐会话过同一 write 门
+  （无权者静默空列表，B4 复审定案）。`?properties` GET = 内容面读门（匿名随 anonymous_access）、
+  PUT/DELETE = required + path `w`（§15.3.3）。
+- **addon 门控织入（非 middleware，§15.1.5）四处 as-built**：① dispatchContent 写动词臂
+  （`gateAddonWrite`，repo 行查询后、adapter 分发前——读动词不问门）；② `/v2` 根级例外臂
+  （`gateV2Write`，PUT/POST/PATCH/DELETE——docker 槽的地板档决定该臂只在 addons.disabled 熔断时触发）；
+  ③ 建仓/改仓/删仓/virtual 成员面（repo.Service 经 `PackageTypeGate` 消费侧接口，D3 400）；
+  ④ feature REST handler 首行（`RequireAddon` seam，D4）。门恒在 RBAC 之后（不变量 2 验证：
+  plain user 在 gated 仓收 RBAC 403/401，无 license 头泄漏）。
+- **动态建仓谓词（T-283，ADR-0033 as-built 附注 2）**：`validateRepoTypeDyn`——gate 已接线且
+  registry-known 的包型三 rclass 全开；静态五型保留 M3 class 裁定（docker 仍 local-only）；unknown
+  包型走静态枚举 400；槽位未解锁/被熔断 → 400 `ErrPackageTypeNotAvailable`（D3 形）。既有
+  `packageType` 枚举校验语义对无 license 实例逐字节不变（不变量 1）。
+
+
 
 **路由解析位置（T-14 review RepoLookup 缝终判）**：repo key → repo 行查询位于**授权门之后**；RepoLookup 用 `metadata.Get` 是有意为之的匿名读前置缝——安全面成立（无权者在查询前即被拦截，repo 行不泄漏给未授权请求）。`PackageTypeOf(ctx, key)` 收回服务层列 T-15/M2 非阻断重构项。
 
@@ -1609,6 +1654,10 @@ logging:
 
 41. **[M10] gated addon 的 console 入口可见性与 ADR-0029 决策 5 的张力**（§15.1.3 D5）：「不出现无功能对应的入口」 vs 「gated 入口带档位徽章可见」——裁定依据 = gated 入口有真实功能对应（已编译、被门控），与 Xray 空壳占位不同；console-ux 增补「档位徽章 + 不可选态」交互规格后生效。若 QA 发现徽章态被误读为可用，回本条重评（届时考虑隐藏 + 管理页集中呈现两形态）。
 
+42. **[M10] smart remote 字段的 M11 余量**（T-290 as-built，§15.4）：`enableTokenAuthentication`/`contentSynchronisation` 对外**按名 400**（错误体点名字段 + M11 指引）而非全局「未知字段 400」——M3 scenario-D 迁移脚本的未知字段容忍契约（`TestM02bRemoteConfigValidation` 钉死）优先，PRD 90.2「未知字段 400 不变」的字面措辞按此收窄；`unusedArtifactsCleanupPeriodHours` 本里程碑仅字段落库（migration 014）+ 配置面，清理引擎 M11；`socketTimeoutSecs≈MaxInt64` 经 ×1000 换算的溢出上界未设防（conductor 裁定 M11 台账）；legacy `socketTimeoutSecs` 字段退役评估 M11。
+
+43. **[M10] MPU REST 的 BinFlow 中继 URL 与 AC2 续传 descope**（T-289 as-built，§15.4）：urlPart 返回的 PUT 目标是 **BinFlow capability URL**（字节经服务端中继进 `Session.Append`→S3 PutObjectPart），非 S3 presigned 直传——零存储内核改动 + 客户端零 S3 凭据 + bucket endpoint 不暴露的代价是服务端带宽中继；若 M11+ 要求字面 presigned 直传需新 ADR（引 SSRF/凭据面）。`kill -9` 跨重启续传（PRD FR-90-AC2）已 conductor 裁定 **descope M11**：技术路径 = §11.31 既有债（upload ID 落 `upload_sessions` 表 + S3 ResumeSession 经 ListParts 重建），探针把 status 404 现状钉为断言、付债时翻转。
+
 ## 12. 待逆向规格确认清单（阻塞点挂 docs/reverse/）
 
 | # | 问题 | 规格文件 | 影响面 |
@@ -1630,6 +1679,7 @@ logging:
 | 15 [M8] | Artifactory 控制台的 IA / 交互流 / 操作流行为规格（导航分组与页面归属、Artifacts 树+详情双栏行为、Set Me Up 面板数据、权限矩阵编辑动线、四态与确认对话时机）——**M8 全部 UI 票的前置依赖**；产出限定 = 行为规格（布局描述/交互流表/组件清单/状态矩阵 + 置信度），素材边界见 ADR-0029 决策 2（官方文档 + 本地 OSS 容器行为观察；禁止产物拆解与像素取证） | console-ui.md（新，reverse-engineer） | §13 全节 / ADR-0029 |
 | 16 [M10] | Artifactory 属性 REST 的精确语义（PUT 的 merge/append/replace、recursive 语义、响应码与消息体、矩阵参数在 GET/DELETE 的参与度、`:properties` 旧路径 409 形态）；矩阵参数剥离的严格模式（任何 `;` 均矩阵参数 + 非法键 400）vs BinFlow 宽松回退（§15.3.1）的对照取证——**M10 属性票的行为校准源**，翻转 §11.39/40 需以此为据 | rest-api.md §3 增补（reverse-engineer，官方文档双证优先） | §15.3 全节 |
 | 17 [M10] | GOPROXY / Cargo 协议在 Artifactory 包型下的行为差异面（Go sumdb 代理与 external deps 重定向的触发语义、cargo 内部 sparse 索引与 git 索引兼容开关）——M10-F 规格预研票产出；有官方规范的以 golang.org modules 规范 / crates.io 官方文档为准，逆向只补空白 | inv-3-protocols.md §2.3 存续增补 | §15.2.4 试点票 / ADR-0033 |
+| 18 [M10] | **NuGet 行为规格缺失的处置**（T-280 规格票因配额乱窗静默丢失未执行；T-287 实现锚 learn.microsoft.com/nuget/api 官方规范 + PRD + 活体探针——clean-room 铁律「有公开规范的协议以官方文档为准」的合规路径，7 项自有裁定已在 T-293 逐项复核维持）。**architect 建议：免补规格票**；M11 NuGet remote/virtual 硬化或 symbol server 立项时随票补 as-built 规格（届时有实现可对照）——conductor 终裁 | （暂无文件；若补 → docs/reverse/nuget.md 随 M11 票产） | §15.2.4 试点 / FR-88 |
 
 ---
 
@@ -2334,6 +2384,16 @@ path 的 PUT 同样生效）。
 价值）。搜索面（search/props、AQL）**不在 M10**——idx_node_props_name 是它的预留索引，
 兑现归 M11 查询面。
 
+**as-built 注记（T-293，2026-08-26）**：动词闭集 = **GET/PUT/DELETE 三动词冻结**——POST
+`?properties` 落 E-26 notImplemented 404（router 冻结姿态；PUT 的 merge 语义下单键写即
+「替换该键值集、保留他键」，与 Artifactory 逐属性 add/remove 效果面一致，无需 POST 增量
+动词——T-286/T-291 落地事实）。GET 空命中 = 200 `{"properties":{}}`（BinFlow 自有裁定，
+Artifactory 为 404——FE 空态面按此实现，登记为有意差异）。docs/user/api-reference.md 的
+陈旧 POST 行已随本票勘误。上限 as-built（K27 终裁）：键 `[A-Za-z][A-Za-z0-9_.-]{0,63}`、
+值 ≤1024B 无控制字符、单键 ≤32 值、每节点 ≤64 键（`internal/metadata/props.go` 常量；
+PRD 89.3 暂行的「per-node ≤500」未采用——64 键与 §15.3.1 矩阵参数对数上限同值，攻击面
+收窄）。
+
 ### 15.4 快赢包挂点（种子 E，按余量取舍——只记挂点不展开）
 
 - **MPU REST 化**（主矩阵「客户端断点续传 REST」）：`/api/v1/uploads/{create,config,
@@ -2343,6 +2403,46 @@ path 的 PUT 同样生效）。
   required + 目标仓 `w`；会话 id capability 语义与 §5.3.1 契约 4 同源。
 - **smart remote 字段面**（F5）：remote_configs 扩列（contentSynchronisation 族字段
   003 迁移同款续作——仅余 calculate/aggregation 语义归 PM）；无架构增量。
+
+#### 15.4.1 as-built 契约（T-289/T-290 落地后回写，T-293 收口——上两行是规划挂点，以本块为准）
+
+**MPU REST（T-289，`/api/v1/uploads` 八路由臂）**：
+
+- 端点集：`POST /create`（`{repoKey,path,partSizeMB?,mimeType?}` → 201 会话 + URL 族；
+  partSizeMB<5MiB **clamp 至 5MiB 并如实回显**（S3 最小分片），>5GiB 400 fail-fast）；
+  `POST /config`（仅零字节会话可重定分片——有字节 409；换引擎会话、**REST id 保持不变**）；
+  `GET /urlPart/{id}/{n}`（PUT 目标 URL + 期望起始 offset）；`GET /status/{id}` 与裸
+  `GET /status`（bare array 列表形态，逐会话过 write 门——无权者静默空列表）；
+  `POST /complete/{id}`（`{sha256 必填, sha1?, md5?}` → Commit 校验 + PutLandedBlob 建
+  node → 201；**错 sha256 → 409** 且会话消费）；`POST /abort/{id}`（204，会话离表——
+  后续 status/再 abort 404）；`PUT /part/{id}/{n}`（urlPart 的目标：严格顺序 n=parts+1
+  否则 409；缺 Content-Length → **411**；超 partSize 400 预拒；短 part = 终结片）。
+- **part URL 是 BinFlow capability URL，非 S3 presigned**（裁定 A，评审维持）：字节经
+  服务端中继进 `Session.Append`→S3 PutObjectPart——客户端零 S3 凭据、bucket endpoint
+  不暴露、checksum 链服务端计算，与既有上传路径同构（PRD 90.1「(presigned)」按行为
+  模式对齐为 capability-by-id；字面 presigned 直传需新 ADR，§11.43）。create 限
+  **generic local** 仓（协议仓 layout 归 adapter 管，400 点名）。
+- **filestore/dual-write 诚实 501**：`Deps.Uploads` 未接线时八臂全部 501 text/plain
+  （body 含 `not supported on this backend` 与 `S3`）——路由认证门在前（匿名 401 先于
+  能力答复）。能力发现缝 = `storage.MultipartUploads` 接口（disk 有意不实现）。
+- 会话生命周期 `active → awaiting-complete → completed`（失败 → `failed`，abort 回收）；
+  空闲 24h 后台 sweep（TTL/48 频率）；S3 侧 Abort/failLocked best-effort
+  `AbortMultipartUpload`（B5——探针以 `mc ls --incomplete` 三段断言零残留）。AC2
+  （kill -9 续传）descope M11（§11.31/§11.43）。
+
+**smart remote 生效字段子集（T-290，migration 014 + per-repo 配置面）**：
+
+- 落地四字段（canonical 拼写）：`socketTimeoutMs`（默认 15000；另收 artifactory.xsd
+  拼写 `socketTimeoutMillis` 为**输入别名**——0=缺席，非零分歧 400）；`metadataRetrievalTimeoutSecs`
+  （默认 60；fetcher singleflight 等待上限 per-repo 化）；`missedRetrievalCachePeriodSecs`
+  （canonical **保留 Artifactory 拼写**〔含 ed〕，PRD 拼写 `missRetrievalCachePeriodSecs`
+  为输入别名，双拼写分歧 400——clean-room 公开规范优先）；`unusedArtifactsCleanupPeriodHours`
+  （默认 0=关；**仅字段落库 + 配置面，清理引擎 M11**，§11.42）。
+- 回显规则：canonical 恒出 + 派生 `socketTimeoutSecs`（= ceil(ms/1000)，永不虚报更长
+  超时）；别名拼写**只进不出**。消费优先级单一解析点（fetcher）：014 列（>0）> canonical
+  JSON > legacy `socketTimeoutSecs` > 产品默认——pre-014 行为零回填零变化（M11 字段
+  `enableTokenAuthentication`/`contentSynchronisation` 按名 400 + M11 指引，scenario-D
+  未知字段容忍不变）。
 
 ### 15.5 migration 012 与配置面增量
 

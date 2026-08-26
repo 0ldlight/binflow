@@ -1,12 +1,12 @@
 # PRD — M10 Artifactory 对齐第一程：license 门控基座 + addon 注册表 + 试点包型 + 制品属性系统
 
-> **PRD 状态：v1.0 草案（待 conductor 审）**。主轴来源：用户三指令（BOARD 2026-08-25——①「继续对比 artifactory 的反编译代码，要它的所有功能」②「binflow 也需要拥有和 Artifactory 一样的 license 控制，例如控制高可用等」③「补齐剩余的协议，例如 golang，huggingface 等，这也是 license 控制的功能，和 Artifactory 一样使用 addon 的方式加入进来」）+ conductor 裁定 M10 定位「**门控基座 + addon 注册表 + 首批高价值缺口——不贪多**」。范围裁定唯一依据：`docs/reverse/artifactory-full-feature-matrix.md`（213 条目主矩阵）。**clean-room 两处关键应用**：license 文档格式与签名算法为 BinFlow 自有设计（不复制 JFrog license 格式/算法，只对齐「功能分级门控」行为模式）；addon 注册形态为自有 Go 编译期机制（对标 META-INF/addon.{xml,properties} 的行为模式，不复制格式）。**新端点全部走 PM FR + ADR 流程（ADR-0032 起）**。
+> **PRD 状态：v1.1 as-built 收口稿（T-293，2026-08-26；待 conductor 终审转正——architect 建议：随 M10 终验 T-297 一并定稿）**。v1.0 主轴来源：用户三指令（BOARD 2026-08-25——①「继续对比 artifactory 的反编译代码，要它的所有功能」②「binflow 也需要拥有和 Artifactory 一样的 license 控制，例如控制高可用等」③「补齐剩余的协议，例如 golang，huggingface 等，这也是 license 控制的功能，和 Artifactory 一样使用 addon 的方式加入进来」）+ conductor 裁定 M10 定位「**门控基座 + addon 注册表 + 首批高价值缺口——不贪多**」。范围裁定唯一依据：`docs/reverse/artifactory-full-feature-matrix.md`（213 条目主矩阵）。**clean-room 两处关键应用**：license 文档格式与签名算法为 BinFlow 自有设计（不复制 JFrog license 格式/算法，只对齐「功能分级门控」行为模式）；addon 注册形态为自有 Go 编译期机制（对标 META-INF/addon.{xml,properties} 的行为模式，不复制格式）。**新端点全部走 PM FR + ADR 流程（ADR-0032 起）**。v1.1 为 as-built 回写（§0 修订记录 + §5.6.1 校准表；历史文本不动，分歧以 ADR 侧为准收口——依据 conductor「PRD↔ADR 分歧以 ADR 为准」裁定）。
 
 | 项 | 值 |
 |---|---|
 | 文档 | `docs/prd/milestone-10.md` |
 | 里程碑 | M10 — Artifactory 对齐第一程（license/entitlement 基座 + addon 注册表 + Go/NuGet 试点 + 属性系统 + 快赢包 + 规格预研） |
-| 状态 | **v1.0 草案，待 conductor 审**（FR-84~FR-91 八条需求；契约矩阵 12 条〔A 6 / C 5 / D 1〕+ **档位 × addon 解锁矩阵〔核心，11 槽 × 3 档〕**；L01~L30 验收命令骨架；开放问题 Q1~Q7 带暂行） |
+| 状态 | **v1.1 as-built 收口稿（T-293，2026-08-26），待 conductor 终审转正**（FR-84~FR-91 八条需求；契约矩阵 12 条〔A 6 / C 5 / D 1〕+ **档位 × addon 解锁矩阵〔核心，11 槽 × 3 档〕**；L01~L30 验收命令骨架；开放问题 Q1~Q7 带暂行——v1.1 起 §5.6.1 校准回写表取代「待校准」状态，实施分歧全部按 ADR 侧收口） |
 | 上游依据 | PRODUCT.md（Non-goals 不越界：HA/Xray 本体仍不做，M10 只交付门控基座）、BOARD.md「用户方向指令（2026-08-25）」节（三指令 + conductor 口径 + 盘点成果 213 条目〔已有 20/部分 50/缺失 133/不适用 10〕+ 十大缺口）、主矩阵（一/1.2 GO·NUGET·CARGO 行、一/3.1 矩阵参数行、一/3.2 MPU 行、六 Smart Remote 行、七 REST 属性行、五/J1 产品许可 REST、十 Addon 装配框架行、§十大缺口 1/7/10）、inv-2 §3（AddonType 80 项三档 + `artifactory.addons.disabled`）、inv-3 §2.3/§3.1/§3.2（GO/NUGET/CARGO 协议、矩阵参数、MPU）、inv-4 §J1/J2（licenses REST 与 SubscriptionType 模型）、docs/prd/milestone-9.md（§9 体例 + Q5 复制硬化延后建议 + M10 候选池）、ADR-0025/0026~0031（体例与豁免票模式） |
 | 下游消费者 | tech-lead（拆票——分票提示 §1.3，**宽度 ≤2 内建**）、architect（**ADR-0032**：license 文档/档位/门控/addon 注册表；**ADR-0033**：属性系统与矩阵参数路径归一）、dev-go-core（internal/license 新包 + 属性 REST + metadata migration 012+）、dev-registry-adapter（internal/adapter/{go,nuget} + MPU REST）、reverse-engineer（FR-91 规格预研）、web 前端 dev（License & Add-ons 管理页 + Properties Tab）、qa-engineer（L 序列 + 真实客户端矩阵）、tech-writer（license 指南/属性用法/新包型接入）、conductor（tag m10-done；license 根密钥交付形态确认） |
 
@@ -17,6 +17,7 @@
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | v1.0 | 2026-08-25 | 初版草案（待 conductor 审）：M10 范围（conductor 种子 A~F 全承载）、FR-84~FR-91（license 框架 / 门控织入 / addon 注册表 / Go 试点 / NuGet 试点〔Cargo 余量〕 / 属性系统 / 快赢包 / 规格预研）、档位 × addon 解锁矩阵（核心）、契约矩阵 12 条、L01~L30 验收命令骨架、开放问题 Q1~Q7 带暂行；随稿完成 ROADMAP M10 段补实（原候选池条目滚入「M10 未纳入项」） |
+| v1.1 | 2026-08-26 | **as-built 回写（T-293，docs-only 收口票）**：11 项「暂行值 vs 落地」分歧终裁并回写——①85.3 disabled 读 403 作废、D1 优先（ADR-0032 as-built 定案段）②K23~K29 校准全部兑现回写（§5.6.1——K26/K27/K29 校准事实落 architecture §15.3/§15.4 非 ADR-0033，见该表说明）③LC-01 license 路径拼写勘误（as-built `/api/system/license`，非 `/api/v1/`）④90.1「(presigned)」按行为模式对齐为 BinFlow capability URL ⑤90.2 未知字段 400 收窄为按名 400（scenario-D 容忍优先）⑥AC2（S3 kill -9 续传）conductor 裁定 descope M11（§11.31 债路径）⑦AC4 未知字段语义同⑤、L07 install 403 同①勘误 ⑧K28 NuGet v2 边界按 T-287 as-built 定案（T-280 规格缺失记「官方文档路径合规」，architect 建议免补票，conductor 终裁）⑨E-09 反转已同步 api-reference.md（含 POST 陈旧行勘误）。历史正文不改写，分歧注记就地追加；ADR-0032/0033 as-built 附注 + 新 ADR-0034（五协议管理面/URL base 横切定案）随本版落 DECISIONS.md |
 
 ---
 
@@ -154,6 +155,7 @@ M1~M9 已交付五包型（generic/docker/maven/npm/pypi）全链、RBAC、部�
 - **85.1 门控点（覆盖率指标的对象）**：① 建仓面——`packageType` 属未解锁/禁用槽位 → 403（errors[] 信封，指名 addon id 与所需档位）；② 内容面——未解锁槽位的仓 push/publish 403，**既有内容 pull 200**（降级不劫持数据，场景 F）；③ 回显面——`GET /api/v1/addons` 与仓库列表的槽位状态一致；④ virtual 成员校验——virtual 含未解锁 addon 包型成员 → 建仓 403。门控检查位于认证之后、内容处理之前（织入位置归 ADR-0032，须不破坏 M9 收口的端点族与 RBAC——既有端点的门语义零变化）。
 - **85.2 即时生效与无撕裂**：license 安装/卸载为进程内原子切换（per-request 读快照）；并发请求不得观察到中间态（一半门开一半门关）。
 - **85.3 全局禁用开关（对标 `artifactory.addons.disabled` 行为模式）**：config 键（暂行名 `addons.disabled`，CSV；ADR-0032 终裁）可禁用**任意**槽位（含五基础包型——运维熔断语义）：该包型建仓/读/写全部 403（错误体指明 disabled 与恢复方法），**数据与仓配置零删除**，去开关重启后全量恢复。重启生效（config 静态加载，README 明示）。
+  【T-293 as-built 勘误（2026-08-26）】：本条「读 403」**作废**——与 ADR-0032 D1（读路径恒放行）冲突，按 conductor「以 ADR 为准」裁定 **D1 优先**（ADR-0032 as-built 定案段）：breaker 拒绝面 = 写动词 403 + 建仓/改仓/删仓/virtual 成员 400，读 GET/HEAD 恒 200（含 pull-through 内部写豁免——npm install 等读客户端熔断期照常工作；breaker 403 不带 `X-Binflow-License-Required` 头，文案点名旋钮与恢复路径）。证据 T-283：`TestT283DisabledBreaker`/`TestT283ServiceWritesBypassGate`。】
 - **85.4 审计与指标**：审计 `addon.gate.deny`（变更面——建仓/写拒绝逐条；读面拒绝仅计数）；metrics：`binflow_license_tier`、`binflow_license_expiry_days`、`binflow_addon_gates_total{addon,decision}`。
 
 验收标准（AC）：
@@ -162,6 +164,7 @@ M1~M9 已交付五包型（generic/docker/maven/npm/pypi）全链、RBAC、部�
 - **AC2（降级不劫持）**：pro 期建 go 仓并上传制品 → 卸载 license → pull 该制品 200、push 新版本 403、删仓 403（变更面拒绝）。
 - **AC3（无撕裂）**：并发 50 goroutine 交替调「建 go 仓 + 建 generic 仓」的同时执行 license 装/卸循环 ×10 → 每个请求结果与最终档位一致（无既非 403 又非 200 的中间态错乱）、generic 仓操作全程零失败（门控不误伤未门控槽位）。
 - **AC4（熔断与恢复）**：`addons.disabled: npm` 重启 → npm 建仓/publish/install 全 403、`GET /api/v1/addons` 显示 npm=disabled；generic 仓不受影响；去开关重启 → npm 全量恢复且既有制品逐字节可下载（sha256 对账）。
+  【T-293 as-built 勘误：install（读面）= **200 非 403**（D1 优先，同 85.3 勘误）；熔断期既有缓存照常服务。L07 验收命令同理——写面（建仓/publish）403、读面 200。】
 - **AC5（virtual 校验）**：community 实例建含 go 成员的 virtual → 403；装 pro 后同请求 200。
 - **AC6（RBAC 零回归）**：M7 角色矩阵（V01~V10 口径）+ M9 N 序列 SE 域复跑绿——门控织入不改变任何既有端点的授权语义。
 - **AC7（观测）**：`/metrics` 含三个新指标；审计流含 `license.install`/`license.delete`/`addon.gate.deny` 行。
@@ -220,6 +223,7 @@ M1~M9 已交付五包型（generic/docker/maven/npm/pypi）全链、RBAC、部�
 - **88.2 rclass**：local + remote（pull-through nuget.org）+ virtual（聚合）。
 - **88.3 门控**：槽位 `nuget`（pro），同 FR-85。
 - **88.4 Cargo 余量试点（P2，明确非 DoD 硬门）**：若 NuGet 提前收官且余量足，按其规格预研实现最小面（`api/v1/crates` publish/download + sparse `config.json` 索引，cargo 真实客户端）——否则槽位占位（FR-86-86.2）+ 规格交付。
+  【T-293 登记（2026-08-26）】：前置规格票 **T-280 实际从未执行**（nuget.md 不存在——配额乱窗静默丢失，与 T-284 同款根因）；T-287 实现依据 = 官方 NuGet API 规范（learn.microsoft.com/nuget/api）+ 本 PRD + 活体探针——即 clean-room 铁律「有公开规范的协议以官方文档为准」的合规路径（7 项自有裁定经 T-293 逐项复核全部维持，见 §5.6.1 K28 行）。**architect 建议：免补规格票**（补一份 retro 规格对已验证实现无增量信息；M11 NuGet remote/virtual 硬化或 symbol server 立项时随票补 as-built 规格），登记 architecture §12-18——conductor 终裁。】
 
 验收标准（AC）：
 
@@ -262,15 +266,19 @@ M1~M9 已交付五包型（generic/docker/maven/npm/pypi）全链、RBAC、部�
 行为规格：
 
 - **90.1 MPU REST（对齐主矩阵一/3.2 六端点行为模式，E-26 前缀口径）**：`/api/v1/uploads` 的 create/config/urlPart/complete/status/abort——create 携带 repoKey/path/partSizeMB 返回分片 URL 集（presigned）；complete 携带 checksum 校验落盘建 node；status 按会话查；abort 清理。**仅 S3 后端生效**：本地 filestore 返回 501 + 明确错误体（诚实不做 inert 面）。scope 等价物（Artifactory `internal:mpu:x`）归 ADR-0032 定裁（BinFlow token 无 scope 模型，暂行按 write 门）。
+  【T-293 as-built（T-289）：「(presigned)」按**行为模式对齐**为 BinFlow capability URL——urlPart 返回的 PUT 目标是 BinFlow URL，字节经服务端中继进 S3 multipart（客户端零 S3 凭据、bucket endpoint 不暴露、checksum 链服务端计算），非字面 S3 presigned 直传（裁定 A，评审维持；字面直传需新 ADR——SSRF/凭据面，architecture §15.4.1/§11.43）。K29 scope 等价物 as-built = 认证 + 目标仓写门（required + path `w`）、会话 id 为不可猜测 capability、complete 校验链 sha256 必填 + sha1/md5 可选错配 409。create 限 generic local 仓；partSizeMB<5MiB clamp 至 5MiB 并如实回显。】
 - **90.2 smart remote 生效子集（主矩阵六/Smart Remote 行字段集裁剪）**：M10 只落可真实生效的字段——`socketTimeoutMs`、`metadataRetrievalTimeoutSecs`、`missRetrievalCachePeriodSecs`（接受+回显+行为生效）；`unusedArtifactsCleanupPeriodHours`（P2：缓存清理 cron 最小实现）。**不做 inert 字段**：`enableTokenAuthentication`/`contentSynchronisation` 归 M11 复制硬化（config 严格 schema 维持——未知字段 400 不变）。
+  【T-293 as-built（T-290）勘误①】：「未知字段 400 不变」收窄为**仅对两个 M11 字段按名 400**（错误体点名字段 + M11 指引）——M3 实况是未知字段**丢弃容忍**（scenario-D 迁移脚本契约，`TestM02bRemoteConfigValidation` 钉死），逐字全局 400 会破 AC5 回归红线；这正是 90.1「诚实不做 inert 面」的同款精神（architecture §11.42）。勘误②：拼写终裁——canonical `socketTimeoutMs`（PRD 拼写）+ 输入别名 `socketTimeoutMillis`（artifactory.xsd 拼写，只进不出，非零分歧 400）；`missedRetrievalCachePeriodSecs` canonical **保留 Artifactory 拼写**（含 ed，repo-semantics §7.1/repo-semantics 高置信公开拼写），本 PRD 的 `missRetrievalCachePeriodSecs` 拼写降为输入别名。勘误③：`unusedArtifactsCleanupPeriodHours` P2 收窄为**仅字段落库 + 配置面**（清理引擎 M11——conductor 派单收窄留痕）；`socketTimeoutSecs`（M3 legacy 字段）保留接受、消费优先级低于 ms 拼写。字段表 as-built 见 docs/user/admin/remote-virtual.md。】
 - **90.3 既有 seam 复用**：S3 multipart 机制（M6）与 upload_sessions 台账（T-209）不动内核，只加 REST 面。
 
 验收标准（AC）：
 
 - **AC1（MPU 全链，MinIO 栈）**：create → 按 urlPart PUT 3×5MiB → status 进度正确 → complete（sha256 对账）→ 制品 GET 逐字节一致；abort 后 blob 零残留、status 404；分片重传幂等。
 - **AC2（断点）**：PUT 2 片后 kill -9 重启 → status 保留 → 续传 complete 成功（对齐 M9 续传验收口径）。
+  【T-293 as-built：**descope M11**——conductor 已裁定（BOARD sprint 654 留痕）：S3 后端跨重启续传受 §11.31 既有债约束（upload ID 落 `upload_sessions` 表 + S3 ResumeSession 经 ListParts 重建），「零存储层改动」契约下不可达；as-built = kill -9 后 status 404（探针钉死断言 + 翻转条件注释），已 complete 制品仍 200，S3 侧孤儿由启动 sweep + TTL 回收。付债路径归 M11，届时本 AC 随之复活。】
 - **AC3（filestore 诚实）**：本地 filestore 实例调 create → 501 + 错误体明示仅 S3。
 - **AC4（smart-remote 字段）**：PUT remote 配置含三字段 → 回显一致 + 行为生效探针（socketTimeout 短值触发超时臂 / missRetrievalCachePeriod 控制未命中缓存窗）；未知字段（含 contentSynchronisation）→ 400 维持。
+  【T-293 as-built 勘误：「未知字段 400」语义 = **contentSynchronisation/enableTokenAuthentication 按名 400**（AC4 字面达成）；其余未知字段维持 M3 scenario-D 容忍（见 90.2 勘误①）。】
 - **AC5（回归）**：M6 S3 序列（H 族）+ M3 remote 回归绿。
 
 ### 4.6 规格预研（种子 F，P1，不实现）
@@ -412,6 +420,14 @@ BASE=http://127.0.0.1:8080; ADMIN=admin:password
 # L30 冷启动 <2s / RSS <100MB 维持（license 加载与注册表不破基线）
 ```
 
+> **T-293 as-built 勘误（2026-08-26，QA 引用时以本注为准）**：① L02/L03 的 license 端点路径
+> as-built 为 `/binflow/api/system/license`（**单数、api 兼容族**）——LC-01 与本节 `/api/v1/system/license`
+> 拼写系笔误（ADR-0032 决策 4 / architecture §7.1）；`/api/system/licenses` 复数路径 = 404 引导
+> （非 400，K25 终裁）。② L07 的 install 403 → **200**（D1 优先，85.3 勘误）；写面 403 不变。
+> ③ L25 的「contentSynchronisation 等未知字段 → 400 维持」→ **仅该两 M11 字段按名 400**
+> （AC4 勘误）；「`missRetrievalCachePeriodSecs`」按 90.2 勘误②以别名接受、canonical 为
+> `missedRetrievalCachePeriodSecs`。④ L23 的「urlPart PUT ×3」目标为 BinFlow URL（90.1 勘误）。
+
 ### 5.6 待校准项（ADR-0032/0033 落地后回写）
 
 | # | 项 | v1.0 暂行值 | 校准来源 |
@@ -423,6 +439,22 @@ BASE=http://127.0.0.1:8080; ADMIN=admin:password
 | K27 | 属性键字符集/长度上限/per-node 上限 | `[A-Za-z0-9_-]+`、键 ≤64、值 ≤1KB、≤500 | ADR-0033 |
 | K28 | NuGet v2 最小集边界（FindPackagesById 之外是否含 `Packages()Id=`/`$count`） | 仅 FindPackagesById() | ADR-0032 |
 | K29 | MPU scope 等价物（Artifactory `internal:mpu:x`）与 complete 校验链 | 按 write 门 + sha256 | ADR-0032 |
+
+### 5.6.1 校准回写（T-293 as-built 终裁，2026-08-26——上表七项全部收口）
+
+> 说明：本 PRD §9-4 原期望「K26/K27 归 ADR-0033（属性系统与矩阵参数）」——实际 ADR-0033 槽位
+> 被「addon 注册表与包型 addon 化」占用，属性系统的契约承载 = **architecture §15.3（全节）+ 实现**；
+> K28/K29 同理未入 ADR-0032 正文。校准事实以 T-293 回写落点为准（下表第三列），效力等同 ADR 校准。
+
+| # | 终裁（as-built） | 回写落点 |
+|---|---|---|
+| K23 | license 文档 v1 = `<b64url(payloadJSON)>.<b64url(ed25519Sig)>`，payload 字段 typ/alg/kid/ver/licenseId/licensee/tier/issuedAt/notBefore/expiresAt/addons/limits；验签公钥**编译期内嵌**（kid 单元素表 + 多 kid 轮换缝），测试经 Manager 构造注入——**「config 可覆盖公钥」未实现**（Q1 暂行的 air-gapped 自签场景不成立；如需运行时换钥，M11+ 出新 ADR）；leeway 1h、State atomic 快照、每日 ticker 降级 | ADR-0032 决策 1/2 + architecture §15.1.1/15.1.2（契约正文）；本行补记公钥不可覆盖事实 |
+| K24 | 键名定案 `addons.disabled`（CSV 标量，env `BINFLOW_ADDONS__DISABLED`）；严格 schema（未知子键/列表形拒绝）；含五核心 id 时 WARN 但生效；**重启生效**（静态装配消费） | ADR-0032/0033 后果 + architecture §15.5 |
+| K25 | D2 拒绝形 = 403 errors[] 信封 + 头 `X-Binflow-License-Required: <addonID>`（allowlist 收窄形专用措辞；disabled 熔断形**不带头**）；织入位置 = 三既有决策缝（dispatchContent 写臂 / repo 校验链 / handler 首行）+ /v2 根级写臂，恒在 RBAC 后；`/api/system/licenses` 旧路径 = **E-26 404**（非 400） | ADR-0032 决策 3/4 + **as-built 定案段**（D1 优先一并定案）；architecture §15.1.3/15.1.5 + §7.1 [M10] 清点 |
+| K26 | 剥离规则 = **首个 `;` 起的后缀整体匹配 `;k=v(;k2=v2)*` 才剥离**（成对判定），键 `[A-Za-z][A-Za-z0-9_.-]{0,63}`、值 ≤1024B 无控制字节、对数 ≤64；非 k=v 形 `;` 维持字面路径（§11.39 兼容债）；repoKey 段同样剥离；`storage.matrix_params` 默认 **on**（逃生开关）；docker 豁免（/v2 无矩阵参数语义） | architecture §15.3.1（契约正文）+ §11.39；T-286 实现 |
+| K27 | 键 `[A-Za-z][A-Za-z0-9_.-]{0,63}`（**首字符须字母**——PRD 暂行 `[A-Za-z0-9_-]+` 作废）；值非空 ≤1024B 无控制字符；单键 ≤32 值；每节点 ≤64 键（PRD 暂行「≤500」作废——与矩阵参数对数上限同值收窄攻击面）；PUT = 同名键值集替换/异名保留的自有 merge（§11.40 待 Artifactory 双证校准） | architecture §15.3.2 + **§15.3.3 as-built 注记**；`internal/metadata/props.go` 常量 |
+| K28 | NuGet v2 最小集 as-built（T-287）：`FindPackagesById()?id=`（OData Atom，未知 id = 空 feed）+ `$metadata`（EDMX，老客户端可发现性）+ v2 push `{id}/{version}` + LegacyGallery 别名；**`Search()`/`Packages()Id=`/`$count` 不做**（404）；T-287 七项自有裁定（L1~L7：DELETE 硬删无 listed 位/search=存储事实/上游前缀常量/512MiB 上限/版本键官方归一化/virtual search 贡献=local+已落地缓存）经 T-293 复核**全部维持**。T-280 规格缺失处置见 88.4 登记（建议免补票，conductor 终裁） | 本表 + FR-88.4 登记；architecture §12-18 |
+| K29 | scope 等价物 as-built = **认证 + 目标仓写门**（routeAuth required + handler 内 path `w`）；会话 id = 不可猜测 capability（§5.3.1 契约 4 同源，无 BinFlow token scope 模型故无更细粒度）；complete 校验链 = `sha256` 必填 + `sha1`/`md5` 可选、错 sha256 → **409** 且会话消费；Commit 后建 node 失败 → 5xx safe-to-retry | ADR-0032 **as-built 定案段**②；architecture §15.4.1（八臂全契约） |
 
 ---
 
@@ -438,6 +470,12 @@ BASE=http://127.0.0.1:8080; ADMIN=admin:password
 | ADR-0025 决策 1（replica 暂行）+ M9 Q5 | 复制硬化归属 | 建议 M11 立项（与 smart-remote contentSynchronisation 同域，消费 M10 属性成果） | M11 规划输入 |
 | 主矩阵五/J1（licenses REST） | Artifactory licenses 面在开源对标下标「不适用」 | BinFlow 依用户指令引入等价行为模式（分级门控），载体全自有 | 本 PRD §5.2/5.3 留痕 |
 | gap-endpoints E-09（?properties 404） | 显式 404 归档将被反转 | FR-89 落地后反转，回归表 §5.4 登记 | tech-writer 同步 api-reference |
+
+> **T-293 as-built（2026-08-26）**：E-09 反转已落地并回写——api-reference.md 的 `?properties`
+> 行族修正为 **GET/PUT/DELETE 三动词**（M10）：删除 M5 期即存在的两条陈旧行（内容面路径的
+> DELETE ?properties——as-built 属性动词仅挂 `/api/storage` 族；POST 增量行——router 三动词
+> 冻结，POST 落 E-26 404）；`PUT {path};k=v` 矩阵参数标注 M10 生效。M10 全量文档面（license/
+> addons/uploads/Go/NuGet 接入指南）归 T-296 文档五项票。
 
 ### 6.2 性能（M10 增量）
 
