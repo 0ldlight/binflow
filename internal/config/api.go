@@ -25,6 +25,14 @@ type Config struct {
 	// AdminPassword carries BINFLOW_ADMIN_PASSWORD (empty when unset). It is
 	// env-only: the YAML schema rejects any key that looks like a secret.
 	AdminPassword string
+
+	// StartupWarnings collects non-fatal configuration findings the loader
+	// wants on the operator's console at boot (T-306, ADR-0036): the
+	// compatibility-window hints of the binstore coexistence branches and the
+	// ignored chain-scoped env leftovers. The loader itself never logs — the
+	// cmd assembly drains this list through the real logger right after
+	// construction, so the format and destination stay in one place.
+	StartupWarnings []string
 }
 
 // AddonsConfig is the addons.disabled plane (M10 T-283, ADR-0032 / section
@@ -72,6 +80,31 @@ type StorageConfig struct {
 	GCHoldTTL time.Duration
 	S3        S3Config        // S3 backend configuration (only used when Backend=s3)
 	Migration MigrationConfig // disk-to-S3 migration configuration
+	// Chain is the resolved provider chain's self-describing label (T-306,
+	// ADR-0036 decision 7): the ordered provider types, the chain-level
+	// migration mode, and which source declared them. For a chain that came
+	// from a binstore.yaml this is the DECLARED chain (a bypass chain keeps
+	// its pre-declared s3 member visible); for the embedded spelling it is
+	// the ASSEMBLED chain — what the boot actually runs. BinFlow has no
+	// template layer, so there is no template name to report: the joined
+	// provider list IS the storage-type label (the binarystore-2 decision
+	// recorded in binstore.go; Artifactory's explicit-chain template value
+	// was never located).
+	Chain StorageChain
+}
+
+// StorageChain is the blob engine's provider-chain label (T-306, ADR-0036):
+// one INFO line of honest observability, credentials excluded by
+// construction (the secret is env-only and never part of any chain source).
+type StorageChain struct {
+	// Providers is the provider type list, declared order (filestore, s3).
+	Providers []string
+	// Mode is the chain-level migration mode: "", "bypass", "dual-write" or
+	// "completed". It is non-empty only for the two-member chain.
+	Mode string
+	// Source is either ChainSourceEmbedded ("embedded") or the absolute
+	// path of the binstore.yaml that declared the chain.
+	Source string
 }
 
 // S3Config holds the S3-compatible object storage configuration. The

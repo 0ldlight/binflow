@@ -258,6 +258,25 @@ func runServe(args []string, stderr io.Writer) error {
 		"driver", cfg.Metadata.Driver,
 	)
 
+	// T-306 (ADR-0036 decision 7): the storage chain shape in one INFO line
+	// — provider order, migration mode, declaring source. Credentials are
+	// structurally absent: the secret is env-only and no chain source
+	// carries it. The joined provider list IS the storage-type label
+	// (BinFlow has no template layer; the binarystore-2 decision recorded
+	// in internal/config/binstore.go).
+	if chain := cfg.Storage.Chain; len(chain.Providers) > 0 {
+		logger.Info("storage chain resolved",
+			"providers", strings.Join(chain.Providers, ","),
+			"mode", chain.Mode,
+			"source", chain.Source)
+	}
+	// The loader's non-fatal findings (the binstore compatibility-window
+	// hints and the ignored chain-scoped env leftovers) drain through the
+	// real logger here — the config package itself never logs.
+	for _, w := range cfg.StartupWarnings {
+		logger.Warn(w)
+	}
+
 	stack, err := openStack(context.Background(), cfg, logger)
 	if err != nil {
 		return err
@@ -594,6 +613,17 @@ func loadServeConfig(explicit string) (*config.Config, error) {
 	if err := applyEnvDefaults(cfg); err != nil {
 		return nil, err
 	}
+	// T-306 (ADR-0036 decision 1): even a boot without any binflow.yaml
+	// discovers binstore.yaml through the same resolution order —
+	// ./binstore.yaml, then $BINFLOW_HOME/binstore.yaml — so the default
+	// form keeps "binstore.yaml next to where binflow.yaml would be". The
+	// temp-file roundtrip above may have recorded branch-① hints against a
+	// temp directory that never had a binstore.yaml; the real discovery
+	// below re-derives the whole warning set, so start it clean.
+	cfg.StartupWarnings = nil
+	if err := config.ApplyBinstoreForDefaultBoot(cfg, home); err != nil {
+		return nil, err
+	}
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
@@ -641,6 +671,16 @@ func resolveHome(cfg *config.Config, home string) *config.Config {
 
 // homeDir reads the cmd-reserved environment variable.
 func homeDir() string { return os.Getenv(homeEnv) }
+
+// writeStartupWarnings drains the config loader's non-fatal findings onto a
+// CLI subcommand's stderr (T-306, ADR-0036). serve does not use this — it
+// drains the same list through its real structured logger right after
+// construction, so each surface has exactly one destination.
+func writeStartupWarnings(w io.Writer, cfg *config.Config) {
+	for _, msg := range cfg.StartupWarnings {
+		writeCLIReport(w, "%s\n", msg)
+	}
+}
 
 // configDefaults is the test-side spelling of config.Defaults (kept here so
 // tests read as assembly code, not package internals).
@@ -1357,6 +1397,9 @@ func runGC(args []string, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
+	// T-306: the loader's non-fatal findings (binstore coexistence hints)
+	// reach the CLI surface here — gc's logger only exists deeper in.
+	writeStartupWarnings(stderr, cfg)
 
 	// graceOverride remembers whether an explicit flag overrode the
 	// configured grace: the gc.run audit detail carries graceHours as null

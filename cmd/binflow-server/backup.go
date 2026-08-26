@@ -107,6 +107,10 @@ func runExport(args []string, stderr io.Writer) error {
 		return err
 	}
 	logger := slog.New(slog.NewTextHandler(stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	// T-306: the binstore coexistence hints ride the same logger.
+	for _, msg := range cfg.StartupWarnings {
+		logger.Warn(msg)
+	}
 
 	out, err := filepath.Abs(*output)
 	if err != nil {
@@ -322,6 +326,10 @@ func runImport(args []string, stderr io.Writer) error {
 		return err
 	}
 	logger := slog.New(slog.NewTextHandler(stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	// T-306: the binstore coexistence hints ride the same logger.
+	for _, msg := range cfg.StartupWarnings {
+		logger.Warn(msg)
+	}
 
 	// B2: import restores a file-level SQLite snapshot; any other driver
 	// has no file to restore (and a postgres URL would otherwise be treated
