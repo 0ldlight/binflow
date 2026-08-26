@@ -1,6 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+
+import Alert from '@mui/material/Alert'
+import Button from '@mui/material/Button'
+import Checkbox from '@mui/material/Checkbox'
+import FormControlLabel from '@mui/material/FormControlLabel'
+import IconButton from '@mui/material/IconButton'
+import Radio from '@mui/material/Radio'
+import Select from '@mui/material/Select'
+import TextField from '@mui/material/TextField'
 
 import { useAuth } from '../../app/AuthContext'
 import { useToast } from '../../app/ToastContext'
@@ -9,6 +18,7 @@ import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import { ApiError, canAdminWrite, errText, getRepositories, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
 import type { RepoListItem } from '../../lib/api'
+import { denseInputSx } from '../../lib/muiAtoms'
 import { getAddons, lockedHint, packageTypeOptions, tierBadgeClass } from '../../lib/addons'
 import type { PkgTypeOption } from '../../lib/addons'
 import {
@@ -52,6 +62,12 @@ import './repositories.css'
 //   读通写拒（表单禁用 + repo-form-readonly-note，T-218 文案收口）；普通
 //   user 持该仓 manage（m 动作）即可编辑——GET 通过即覆盖集内，403 → L2。
 //   UI 不自行判定覆盖集（§7.10：403 驱动）。
+//
+// T-299 批次一：控件层迁 MUI（TextField/Radio/Checkbox/原生 select 保留在
+// MUI 组合内/FormControlLabel/Button/IconButton/Alert），密度与配色经
+// lib/muiAtoms 收口。交互逻辑零变化：锚点全部落在 input/select/button 本体
+// （fill/check/selectOption/click 直达）；radiogroup/label 结构保持
+// （m10 的 `label:has(input)` 断言形态）；键位、门控、预填与提交链路不动。
 
 const REMOTE_TTL_DEFAULTS = {
   retrievalCachePeriodSecs: '7200',
@@ -289,7 +305,9 @@ function formValid(f: FormState, mode: 'create' | 'edit'): { ok: boolean; reason
 /** 建仓向导第 0 步：包类型网格对话框（§4.4 进页即弹；单选即选定关闭）。
  *  M10 T-288：每型带档位徽章（community 地板无徽章；pro/enterprise 徽章），
  *  未解锁型禁用 + 提示「需要 N 档」——D5 可见性口径（入口可见带徽章，
- *  不是隐藏）。 */
+ *  不是隐藏）。
+ *  T-299：网格项保持原生 button（radiogroup 语义 + pkg-grid 卡片形态），
+ *  取消钮迁 MUI；焦点/Esc 管理零变化。 */
 function PackageTypeGrid({
   rclass,
   choices,
@@ -358,9 +376,9 @@ function PackageTypeGrid({
           })}
         </div>
         <div className="modal-actions">
-          <button type="button" className="btn" data-testid="pkg-grid-cancel" onClick={onCancel}>
+          <Button variant="outlined" size="small" data-testid="pkg-grid-cancel" onClick={onCancel}>
             取消
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -452,9 +470,9 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
             <EmptyState
               message={`仓库 ${routeKey} 不存在`}
               action={
-                <Link className="btn" to="/admin/repositories/local">
+                <Button component={Link} to="/admin/repositories/local" variant="outlined" size="small">
                   ← 返回仓库列表
-                </Link>
+                </Button>
               }
             />
           ) : (
@@ -475,9 +493,9 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 : detail.error.message
             }
             action={
-              <Link className="btn" to="/admin/repositories/local">
+              <Button component={Link} to="/admin/repositories/local" variant="outlined" size="small">
                 ← 返回仓库列表
-              </Link>
+              </Button>
             }
           />
         </div>
@@ -527,21 +545,25 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
           <h3>常规设置</h3>
           <div className="radio-row" role="radiogroup" aria-label="仓型">
             {RCLASSES.map((rc) => (
-              <label key={rc} className={mode === 'edit' ? 'disabled' : ''}>
-                <input
-                  type="radio"
-                  name="rclass"
-                  value={rc}
-                  checked={f.rclass === rc}
-                  disabled={mode === 'edit' || locked}
-                  onChange={() => {
-                    set('rclass', rc)
-                    if (rc !== 'local' && f.packageType === 'docker') set('packageType', 'generic')
-                  }}
-                  data-testid={`form-rclass-${rc}`}
-                />
-                {rc === 'local' ? 'Local（本地存储）' : rc === 'remote' ? 'Remote（代理上游）' : 'Virtual（聚合）'}
-              </label>
+              <FormControlLabel
+                key={rc}
+                className={mode === 'edit' ? 'disabled' : undefined}
+                disabled={mode === 'edit' || locked}
+                control={
+                  <Radio
+                    size="small"
+                    checked={f.rclass === rc}
+                    onChange={() => {
+                      set('rclass', rc)
+                      if (rc !== 'local' && f.packageType === 'docker') set('packageType', 'generic')
+                    }}
+                    value={rc}
+                    name="rclass"
+                    slotProps={{ input: { 'data-testid': `form-rclass-${rc}` } as ComponentPropsWithoutRef<'input'> }}
+                  />
+                }
+                label={rc === 'local' ? 'Local（本地存储）' : rc === 'remote' ? 'Remote（代理上游）' : 'Virtual（聚合）'}
+              />
             ))}
           </div>
           <div className="radio-row" role="radiogroup" aria-label="包类型">
@@ -549,23 +571,32 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
               const block = pkgChoiceBlock(f.rclass, c)
               const badgeTier = c.opt && c.opt.minTier !== 'community' ? c.opt.minTier : null
               return (
-                <label key={c.id} className={block ? 'disabled' : ''} title={block ?? undefined}>
-                  <input
-                    type="radio"
-                    name="packageType"
-                    value={c.id}
-                    checked={f.packageType === c.id}
-                    disabled={mode === 'edit' || block !== null || locked}
-                    onChange={() => set('packageType', c.id)}
-                    data-testid={`form-package-${c.id}`}
-                  />
-                  {c.label}
-                  {badgeTier && (
-                    <span className={tierBadgeClass(badgeTier)} data-testid={`pkg-tier-${c.id}`} lang="en">
-                      {badgeTier}
-                    </span>
-                  )}
-                </label>
+                <FormControlLabel
+                  key={c.id}
+                  className={block ? 'disabled' : undefined}
+                  title={block ?? undefined}
+                  disabled={mode === 'edit' || block !== null || locked}
+                  control={
+                    <Radio
+                      size="small"
+                      checked={f.packageType === c.id}
+                      onChange={() => set('packageType', c.id)}
+                      value={c.id}
+                      name="packageType"
+                      slotProps={{ input: { 'data-testid': `form-package-${c.id}` } as ComponentPropsWithoutRef<'input'> }}
+                    />
+                  }
+                  label={
+                    <>
+                      {c.label}
+                      {badgeTier && (
+                        <span className={tierBadgeClass(badgeTier)} data-testid={`pkg-tier-${c.id}`} lang="en">
+                          {badgeTier}
+                        </span>
+                      )}
+                    </>
+                  }
+                />
               )
             })}
           </div>
@@ -575,16 +606,16 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
           {mode === 'create' && (
             <div className="field">
               <label htmlFor="f-key">Repository key *</label>
-              <input
+              <TextField
                 id="f-key"
-                className="mono-input"
+                size="small"
                 value={f.key}
                 onChange={(e) => set('key', e.target.value)}
                 placeholder="maven-remote"
-                aria-invalid={!!keyErr}
-                data-testid="form-key"
-                lang="en"
+                error={!!keyErr}
                 disabled={locked}
+                sx={denseInputSx}
+                slotProps={{ htmlInput: { className: 'mono-input', 'data-testid': 'form-key', lang: 'en' } }}
               />
               {keyErr ? (
                 <p className="field-error" data-testid="form-key-error" role="alert">
@@ -609,13 +640,16 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
           )}
           <div className="field">
             <label htmlFor="f-desc">描述</label>
-            <textarea
+            <TextField
               id="f-desc"
+              multiline
+              minRows={2}
               value={f.description}
               onChange={(e) => set('description', e.target.value)}
               placeholder="用途、负责人、团队…"
-              data-testid="form-description"
               disabled={locked}
+              sx={denseInputSx}
+              slotProps={{ htmlInput: { 'data-testid': 'form-description' } }}
             />
           </div>
         </section>
@@ -625,16 +659,16 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
             <h3>来源（Remote）</h3>
             <div className="field">
               <label htmlFor="f-url">上游 URL *</label>
-              <input
+              <TextField
                 id="f-url"
-                className="mono-input"
+                size="small"
                 value={f.url}
                 onChange={(e) => set('url', e.target.value)}
                 placeholder="https://repo1.maven.org/maven2"
-                aria-invalid={!!urlErr}
-                data-testid="form-url"
-                lang="en"
+                error={!!urlErr}
                 disabled={locked}
+                sx={denseInputSx}
+                slotProps={{ htmlInput: { className: 'mono-input', 'data-testid': 'form-url', lang: 'en' } }}
               />
               {urlErr ? (
                 <p className="field-error" data-testid="form-url-error" role="alert">
@@ -646,40 +680,47 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
             </div>
             <div className="field">
               <label htmlFor="f-user">用户名（上游认证，可选）</label>
-              <input
+              <TextField
                 id="f-user"
+                size="small"
                 value={f.username}
                 onChange={(e) => set('username', e.target.value)}
-                data-testid="form-username"
                 disabled={locked}
+                sx={denseInputSx}
+                slotProps={{ htmlInput: { 'data-testid': 'form-username' } }}
               />
             </div>
             <div className="field">
               <label htmlFor="f-pass">密码（上游认证，可选）</label>
-              <input
+              <TextField
                 id="f-pass"
+                size="small"
                 type="password"
                 autoComplete="new-password"
                 value={f.password}
                 onChange={(e) => set('password', e.target.value)}
                 placeholder="永不回显"
-                data-testid="form-password"
                 disabled={locked}
+                sx={denseInputSx}
+                slotProps={{ htmlInput: { 'data-testid': 'form-password' } }}
               />
               <p className="field-hint">
                 密码不回显（NFR-S14）。注意：保存为<b>全量替换</b>语义——留空保存会
                 <b>清除</b>已存凭据；需要保留请重新输入。
               </p>
             </div>
-            <label className="check-row">
-              <input
-                type="checkbox"
-                checked={f.allowPrivateUpstream}
-                onChange={(e) => set('allowPrivateUpstream', e.target.checked)}
-                disabled={locked}
-              />
-              允许私网上游（allowPrivateUpstream）
-            </label>
+            <FormControlLabel
+              className="check-row"
+              disabled={locked}
+              control={
+                <Checkbox
+                  size="small"
+                  checked={f.allowPrivateUpstream}
+                  onChange={(e) => set('allowPrivateUpstream', e.target.checked)}
+                />
+              }
+              label="允许私网上游（allowPrivateUpstream）"
+            />
             {f.allowPrivateUpstream && (
               <div className="warn-box">
                 ⚠ 已放行私网上游：SSRF 防线对该仓放宽，变更会记录审计（NFR-S14）。
@@ -700,32 +741,39 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
               {memberOptions.length > 0 && (
                 <div className="member-pick">
                   {memberOptions.map((o: RepoListItem) => (
-                    <label key={o.key}>
-                      <input
-                        type="checkbox"
-                        checked={f.members.includes(o.key)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            set('members', [...f.members, o.key])
-                          } else {
-                            set('members', f.members.filter((m) => m !== o.key))
-                            // review B2：被取消的成员恰是默认部署仓时联动清空，
-                            // 否则 state 残留旧值、select 显示空白，提交吃服务端
-                            // 400 "not a member"（service.go validateVirtualMembers）
-                            if (f.defaultDeploymentRepo === o.key) set('defaultDeploymentRepo', '')
-                          }
-                        }}
-                        data-testid={`form-member-${o.key}`}
-                        disabled={locked}
-                      />
-                      <span className="mono" lang="en">
-                        {o.key}
-                      </span>
-                      <span className="badge neutral">{o.type}</span>
-                      {cfgBool(o.configuration, 'priorityResolution') && (
-                        <span className="badge warning">优先解析</span>
-                      )}
-                    </label>
+                    <FormControlLabel
+                      key={o.key}
+                      disabled={locked}
+                      control={
+                        <Checkbox
+                          size="small"
+                          checked={f.members.includes(o.key)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              set('members', [...f.members, o.key])
+                            } else {
+                              set('members', f.members.filter((m) => m !== o.key))
+                              // review B2：被取消的成员恰是默认部署仓时联动清空，
+                              // 否则 state 残留旧值、select 显示空白，提交吃服务端
+                              // 400 "not a member"（service.go validateVirtualMembers）
+                              if (f.defaultDeploymentRepo === o.key) set('defaultDeploymentRepo', '')
+                            }
+                          }}
+                          slotProps={{ input: { 'data-testid': `form-member-${o.key}` } as ComponentPropsWithoutRef<'input'> }}
+                        />
+                      }
+                      label={
+                        <>
+                          <span className="mono" lang="en">
+                            {o.key}
+                          </span>{' '}
+                          <span className="badge neutral">{o.type}</span>
+                          {cfgBool(o.configuration, 'priorityResolution') && (
+                            <span className="badge warning">优先解析</span>
+                          )}
+                        </>
+                      }
+                    />
                   ))}
                 </div>
               )}
@@ -741,23 +789,23 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                         {m}
                       </span>
                       <span className="chip-btns">
-                        <button
-                          type="button"
+                        <IconButton
+                          size="small"
                           aria-label={`上移 ${m}`}
                           disabled={i === 0 || locked}
                           onClick={() => moveMember(i, -1)}
                           data-testid={`member-up-${i}`}
                         >
-                          ↑
-                        </button>
-                        <button
-                          type="button"
+                          <span aria-hidden="true">↑</span>
+                        </IconButton>
+                        <IconButton
+                          size="small"
                           aria-label={`下移 ${m}`}
                           disabled={i === f.members.length - 1 || locked}
                           onClick={() => moveMember(i, 1)}
                         >
-                          ↓
-                        </button>
+                          <span aria-hidden="true">↓</span>
+                        </IconButton>
                       </span>
                     </div>
                   ))}
@@ -766,12 +814,27 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
             )}
             <div className="field">
               <label htmlFor="f-deploy">默认部署仓库（可选，仅 local 成员）</label>
-              <select
+              {/* native select（真实 <select>/<option>）：selectOption/toHaveValue
+                  锚链路零变化；MUI 只承载外形（OutlinedInput 包裹 + 箭头） */}
+              <TextField
                 id="f-deploy"
+                select
+                size="small"
                 value={f.defaultDeploymentRepo}
                 onChange={(e) => set('defaultDeploymentRepo', e.target.value)}
                 disabled={localMembers.length === 0 || locked}
-                data-testid="form-default-deploy"
+                sx={{ ...denseInputSx, width: 300 }}
+                slotProps={{
+                  select: {
+                    native: true,
+                    // data-testid 经 inputProps 下沉到 <select> 本体（slot
+                    // 根 props 落在 MUI Select 的根 div 上——selectOption 锚
+                    // 必须在真 select 元素上）
+                    inputProps: {
+                      'data-testid': 'form-default-deploy',
+                    } as ComponentPropsWithoutRef<'select'>,
+                  } as ComponentPropsWithoutRef<typeof Select>,
+                }}
               >
                 <option value="">（未配置——写操作将返回 405）</option>
                 {localMembers.map((m) => (
@@ -779,7 +842,7 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                     {m}
                   </option>
                 ))}
-              </select>
+              </TextField>
               {f.defaultDeploymentRepo && (
                 <p className="field-hint">经此 virtual 仓的部署将写入 {f.defaultDeploymentRepo}。</p>
               )}
@@ -790,48 +853,62 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
         {f.rclass === 'local' && f.packageType === 'maven' && (
           <section className="repo-form-section" aria-label="Maven 策略">
             <h3>Maven 策略</h3>
-            <label className="check-row">
-              <input
-                type="checkbox"
-                checked={f.handleReleases}
-                onChange={(e) => set('handleReleases', e.target.checked)}
-                disabled={locked}
-              />
-              接受 release 部署（handleReleases）
-            </label>
-            <label className="check-row">
-              <input
-                type="checkbox"
-                checked={f.handleSnapshots}
-                onChange={(e) => set('handleSnapshots', e.target.checked)}
-                disabled={locked}
-              />
-              接受 SNAPSHOT 部署（handleSnapshots）
-            </label>
+            <FormControlLabel
+              className="check-row"
+              disabled={locked}
+              control={
+                <Checkbox
+                  size="small"
+                  checked={f.handleReleases}
+                  onChange={(e) => set('handleReleases', e.target.checked)}
+                />
+              }
+              label="接受 release 部署（handleReleases）"
+            />
+            <FormControlLabel
+              className="check-row"
+              disabled={locked}
+              control={
+                <Checkbox
+                  size="small"
+                  checked={f.handleSnapshots}
+                  onChange={(e) => set('handleSnapshots', e.target.checked)}
+                />
+              }
+              label="接受 SNAPSHOT 部署（handleSnapshots）"
+            />
             <div className="field">
               <label htmlFor="f-checksum">checksum 策略</label>
-              <select
+              <TextField
                 id="f-checksum"
+                select
+                size="small"
                 value={f.checksumPolicyType}
                 onChange={(e) => set('checksumPolicyType', e.target.value)}
                 disabled={locked}
+                sx={{ ...denseInputSx, width: 420 }}
+                slotProps={{ select: { native: true } as ComponentPropsWithoutRef<typeof Select> }}
               >
                 <option value="client-checksums">client-checksums（客户端声明严格校验，默认）</option>
                 <option value="server-generated-checksums">server-generated-checksums（服务端实测覆盖）</option>
-              </select>
+              </TextField>
             </div>
             <div className="field">
               <label htmlFor="f-snapshot">SNAPSHOT 行为</label>
-              <select
+              <TextField
                 id="f-snapshot"
+                select
+                size="small"
                 value={f.snapshotVersionBehavior}
                 onChange={(e) => set('snapshotVersionBehavior', e.target.value)}
                 disabled={locked}
+                sx={{ ...denseInputSx, width: 420 }}
+                slotProps={{ select: { native: true } as ComponentPropsWithoutRef<typeof Select> }}
               >
                 <option value="deployer">deployer（按上传名存储，默认）</option>
                 <option value="non-unique">non-unique</option>
                 <option value="unique">unique（unique 改写为 P2，行为同 deployer）</option>
-              </select>
+              </TextField>
             </div>
           </section>
         )}
@@ -841,43 +918,43 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
             <h3>治理（governance）</h3>
             <div className="field">
               <label htmlFor="f-quota">配额 quotaBytes（字节）</label>
-              <input
+              <TextField
                 id="f-quota"
-                className="mono-input"
-                inputMode="numeric"
+                size="small"
                 value={f.quotaBytes}
                 onChange={(e) => set('quotaBytes', e.target.value)}
-                aria-invalid={!isNonNegInt(f.quotaBytes)}
-                data-testid="form-quota"
+                error={!isNonNegInt(f.quotaBytes)}
                 disabled={locked}
+                sx={denseInputSx}
+                slotProps={{ htmlInput: { className: 'mono-input', 'data-testid': 'form-quota', inputMode: 'numeric' } }}
               />
               <p className="field-hint">正整数；0 = 不限（默认）。超限写入收到 413（message 含 used/quota）。</p>
             </div>
             <div className="field">
               <label htmlFor="f-includes">includesPattern</label>
-              <input
+              <TextField
                 id="f-includes"
-                className="mono-input"
+                size="small"
                 value={f.includesPattern}
                 onChange={(e) => set('includesPattern', e.target.value)}
                 placeholder="**/*"
-                data-testid="form-includes"
-                lang="en"
                 disabled={locked}
+                sx={denseInputSx}
+                slotProps={{ htmlInput: { className: 'mono-input', 'data-testid': 'form-includes', lang: 'en' } }}
               />
               <p className="field-hint">逗号分隔多值；留空 / **/* = 匹配全部路径（保存为全量替换）。</p>
             </div>
             <div className="field">
               <label htmlFor="f-excludes">excludesPattern</label>
-              <input
+              <TextField
                 id="f-excludes"
-                className="mono-input"
+                size="small"
                 value={f.excludesPattern}
                 onChange={(e) => set('excludesPattern', e.target.value)}
                 placeholder="（无）"
-                data-testid="form-excludes"
-                lang="en"
                 disabled={locked}
+                sx={denseInputSx}
+                slotProps={{ htmlInput: { className: 'mono-input', 'data-testid': 'form-excludes', lang: 'en' } }}
               />
               <p className="field-hint">
                 exclude 优先于 include；留空 = 无排除。不匹配 includes 或命中 excludes 的上传收到 409（message 含双
@@ -902,38 +979,44 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
               ).map(([k, label]) => (
                 <div className="field" key={k}>
                   <label htmlFor={`f-${k}`}>{label}</label>
-                  <input
+                  <TextField
                     id={`f-${k}`}
-                    className="mono-input"
-                    inputMode="numeric"
+                    size="small"
                     value={f[k]}
                     onChange={(e) => set(k, e.target.value)}
-                    aria-invalid={!isNonNegInt(f[k])}
-                    data-testid={`form-${k}`}
+                    error={!isNonNegInt(f[k])}
                     disabled={locked}
+                    sx={denseInputSx}
+                    slotProps={{ htmlInput: { className: 'mono-input', 'data-testid': `form-${k}`, inputMode: 'numeric' } }}
                   />
                 </div>
               ))}
-              <label className="check-row">
-                <input
-                  type="checkbox"
-                  checked={f.hardFail}
-                  onChange={(e) => set('hardFail', e.target.checked)}
-                  disabled={locked}
-                />
-                hardFail（上游故障时直接失败，不降级）
-              </label>
+              <FormControlLabel
+                className="check-row"
+                disabled={locked}
+                control={
+                  <Checkbox
+                    size="small"
+                    checked={f.hardFail}
+                    onChange={(e) => set('hardFail', e.target.checked)}
+                  />
+                }
+                label="hardFail（上游故障时直接失败，不降级）"
+              />
             </>
           )}
-          <label className="check-row">
-            <input
-              type="checkbox"
-              checked={f.priorityResolution}
-              onChange={(e) => set('priorityResolution', e.target.checked)}
-              disabled={locked}
-            />
-            优先解析（priorityResolution：作为 virtual 成员时优先桶标记）
-          </label>
+          <FormControlLabel
+            className="check-row"
+            disabled={locked}
+            control={
+              <Checkbox
+                size="small"
+                checked={f.priorityResolution}
+                onChange={(e) => set('priorityResolution', e.target.checked)}
+              />
+            }
+            label="优先解析（priorityResolution：作为 virtual 成员时优先桶标记）"
+          />
         </section>
       </>
     )
@@ -977,26 +1060,31 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
         <section>
           {renderSection()}
           {serverError && (
-            <div className="form-error" data-testid="form-error" role="alert">
-              <div className="headline">
+            <Alert
+              severity="error"
+              data-testid="form-error"
+              role="alert"
+              sx={{ mt: 'var(--bf-sp-4)' }}
+            >
+              <div>
                 保存失败（HTTP {serverError.status || '网络'}）
               </div>
-              <div className="raw" lang="en">
+              <div className="mono" lang="en" style={{ fontSize: 'var(--bf-fs-aux)' }}>
                 {serverError.message}
               </div>
-            </div>
+            </Alert>
           )}
           <div className="form-actions">
-            <button
-              type="button"
-              className="btn"
+            <Button
+              variant="outlined"
+              size="small"
               onClick={() => navigate(mode === 'create' ? `/admin/repositories/${f.rclass}` : `/admin/repositories/${routeKey}`)}
             >
               取消
-            </button>
-            <button
-              type="button"
-              className="btn"
+            </Button>
+            <Button
+              variant="outlined"
+              size="small"
               onClick={() => {
                 setF(baseline)
                 setServerError(null)
@@ -1004,17 +1092,17 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
               data-testid="form-reset"
             >
               重置
-            </button>
-            <button
-              type="button"
-              className="btn primary"
+            </Button>
+            <Button
+              variant="contained"
+              size="small"
               disabled={!canSubmit}
               title={locked ? '只读管理员不可写（服务端 403 兜底）' : gate.reason}
               onClick={() => void doSubmit()}
               data-testid="form-submit"
             >
               {submitting ? '保存中…' : mode === 'create' ? `创建 ${RCLASS_LABEL[f.rclass]} 仓库` : '保存'}
-            </button>
+            </Button>
           </div>
         </section>
 
