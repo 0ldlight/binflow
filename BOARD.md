@@ -914,7 +914,9 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **B0**：T-301 [P0] 前置 ADR 包｜ T-302 [P0] auth-integration.md 复核票——**双票 done 2026-08-26（B0 全清，gitflow 首航：feature 分支 --no-ff 合入 develop `4950675`/`103ffce`）**
   - T-301：ADR-0035（auth_configs 表 + license Manager 三要素复用〔快照/验后替换/回放〕实现变更即生效；K31 DB 权威终裁；enc:v1 密封 + 脱敏哨兵）/ ADR-0036（binstore.yaml 有序 provider 链 + Q5 精确化：语义分歧才 fail-fast、等价 WARN）/ ADR-0038（keypair 双列 enc:v1；RSA-4096 暂行）/ **openpgp = ProtonMail/go-crypto v1.4.1**（三平台零 CGO 实测；keybase 冻结 2020 淘汰）。预登记分歧 2 处（模板体系归 T-303/生成默认归 T-319 mini 规格）
   - T-302：规格 v2 全量重写 367 行——23 端点/58 字段**逐条双出处**（代码+官方文档）；**两低置信区推翻**（OAuth batch3 完整实装/SAML 齐备但 license-gated）；**变更即生效=保存即生效高置信**（descriptor 链+Access 回调+懒初始化兜底；边界：会话不失效/300s 认证缓存）；FE 四陷阱显式（SAML noAutoUserCreation 反语义等）；缺项清单空。日志 reports/agents/T-301.md / T-302.md
-- **B1**：T-303 [P0] config-formats §1 复核 + 规格尾巴两处（goproxy GOPRIVATE/cargo §9 路径）reverse｜ T-299 [P0] MUI 批一（Login/壳/仓库组；四闸门+交互零变化）dev-frontend
+- **B1**：T-303 [P0] config-formats §1 复核 + 规格尾巴两处｜ T-299 [P0] MUI 批一
+  - **T-303 → done 2026-08-26（`bc456d2`）**：§1 逐条三证（代码/官方/反证）——**模板体系分歧门关**：模板=固定注册表展开+自描述标签，**无 dual 模板/provider**（Artifactory 迁移走 eventual `_add` 符号链接非链内原语）→ ADR-0036 migration.mode 为 BinFlow 自有拼写**已登记**；模板展开器不在 reverse-src（取证边界声明防误引）；两尾巴修毕（goproxy GOPRIVATE 勘误 ×6——正确配方 GOPROXY+GONOSUMDB；cargo §9 四档路径 ×3）；置信 高21/中6/低3；T-306 六消费点五齐两登记。日志 reports/agents/T-303.md。
+  - T-299（MUI 批一）在途——树上已有 muiAtoms.ts 等产物推进中。
 - **B2**：T-304 [P0] FR-95 回头看裁决票（23+ 基线项逐条复核；Q8 六项登记归位；CG-2 失败分类出处锚定供 T-316）architect｜ T-305 [P0] FR-92 BE 认证配置 REST+变更即生效≤1s+双源（dep T-301/302）dev-go-core
 - **B3**：T-306 [P0] FR-93 BE binstore.yaml 三链解析+装配+fail-fast（dep T-301/303）dev-go-storage｜ T-307 [P1] FR-92 FE admin 认证配置页组 MUI（dep T-305）dev-frontend
 - **B4**：T-308 [P0] conan local——**v2 全量 17 端点 + v1 全量数据面（CN-1 终裁推翻收窄，本票升 M11 最重适配票，窗口独占）**（TL-2/TL-3 能力头/.timestamp）dev-go-core｜ T-309 [P0] helm 经典仓 local（HL-1/2 挂载与 relative=true；.prov；reindex 双端点）dev-registry-adapter
