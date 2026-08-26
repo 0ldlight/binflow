@@ -823,9 +823,10 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **T-287** [P1] NuGet 试点 `role:dev-registry-adapter` — **done 2026-08-26（5103 行 + dotnet 8 真实全链 + LIVE 公网腿〔Newtonsoft 经 binflow 拉取运行〕+ 门控全链 + 不变量 0 偏差；提交 `c283bea`）——B5 全清**
   **如实披露**：T-280 规格票实际从未跑（nuget.md 不存在）——实现依据官方 NuGet API 文档 + PRD + 活体探针（公开规范协议的 clean-room 合规路径）；7 项自有裁定标 T-287 ruling 待复核。**发现**：dotnet 8 直推 PackagePublish 无 id/version + multipart 单 part（官方规范未写、测试钉死）。遗留：T-280 规格补票或并入 T-293。日志 reports/agents/T-287.md。 页
 - **B6**：T-289 [P1] MPU REST 六端点（S3 专属 filestore 501）｜ T-290 [P1] smart remote 字段子集
-  - **T-289 → review（REQUEST_CHANGES，修复轮在途 09:15 起）**：评审 5 blocker——B1 锁序倒置死锁面/B2 411 吞错误体+零覆盖/B3 partSizeMB 溢出绕 5GiB 门/B4 裸 status 列表越权/B5 S3 MPU 未回收（abort/sweep/错 sha 清理主张证伪，conductor 裁定选「修」：AbortMultipartUpload best-effort + failLocked 同补）；五项裁定全站住（AC2 已正式 descope M11+T-293）；3 条廉价 non-blocking 顺手清。日志 reports/agents/T-289.md + T-289-review.md。
+  - **T-289 → done 2026-08-26（提交 `4ef0972`）——B6 全清**：评审 REQUEST_CHANGES 5 blocker 修复轮全落地（B1 锁序 snapshot-then-relock + 锁外 remove/B2 411 信封保真+测试/B3 移位前 400 门/B4 裸列表过 writeGate/B5 Abort+failLocked 补 AbortMultipartUpload + 探针 mc --incomplete 三段断言）+ 3 条顺手清（hex 大写归一/注释/文案）；conductor 复验（五处修复点抽查 + build/lint 0/目标测试/双矩阵 0 deviations/不变量双绿 + HEAD-build stash 验证三包绿）。AC2 descope M11 债已留痕。日志 reports/agents/T-289.md + T-289-review.md。
+  - **T-288 补交 fixup `913c5ba`（第三例漏 add）**：`93f2e3b` 漏了页面本体三新文件（LicenseAddonsPage.tsx/addons.ts/license.css）——路由在而页面缺，干净检出 vite 构建会红；fixup 提交 + 干净 HEAD npm build 亲验绿。**流程追加：含新 FE 文件的提交，HEAD 侧 npm run build 一并验**。
   - **T-290 → done 2026-08-26（提交 `6b93e7e`）**：评审 APPROVE（0 blocker，四处裁定全维持）+ 修复轮清 2 minor（别名显式 0=缺席语义、尾随垃圾严格拒绝）+ conductor 复验（build/lint 0/T290 三包/三核心包全量/不变量双绿 + HEAD-build stash 验证）；minor 溢出上界归 M11 台账。日志 reports/agents/T-290.md + T-290-review.md。
-- **B7**：T-291 [P1] Properties Tab FE｜ T-292 [P1] 规格批次二（RPM/Helm）
+- **B7**：T-291 [P1] Properties Tab FE｜ T-292 [P1] 规格批次二（RPM/Helm）— **双票已派 2026-08-26 09:50**（T-291 = **首个 MUI 票**：引入 @mui/material + 主题桥接，交互按 Artifactory；T-292 批次一 T-284 同款结构，产 rpm.md/helm.md）
 - **B8**：T-293 [P1] as-built 回写（四处 PRD↔ADR 分歧收口）｜ T-294 [P2] Cargo 条件票
 - **B9**：T-295 [P1] 部署接线（charts configmap 显式枚举——T-183 教训）｜ T-296 [P1] 文档五项
 - **B10**：T-297 [P0] 终验（L01~L30 + 真实客户端矩阵 + DoD 八条）
