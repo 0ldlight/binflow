@@ -925,6 +925,9 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
   - **T-306 → done 2026-08-27（`022ecfb`）**：binstore.yaml 三链解析（闭集+保留名拒启）+ Q5 三分支（语义分歧 fail-fast 指名两文件/等价 WARN）+ fail-fast 四形态实测（坏 YAML 指路径行/明文 secret 指名 env/保留名/双源分歧）+ **MinIO 真容器三链 roundtrip 全对账**（dual-write 双 store）+ 存量内嵌零破坏 + WARN；**conductor 裁定**：boot 拒绝路径的审计 = 结构化 stderr 日志即记录（成功路径才落 audit 事件）；票内两决策落注释。差异 6 条登记（含 mc 镜像 tag 失效归 T-325）。
   - **T-307 → done 2026-08-27（`c03d3bc`）——B3 全清**：三 Tab MUI 页组（字段册驱动，v2 逐字段——LDAP 23 锚/SAML 十三字段反语义/OAuth 映射 OIDC wire）；**哨兵留空剔除网络层断言**（00:15 裁定落地）；console-ux v1.12 先入册 **64 锚**；全量 **195/0** + axe serious=0（自擒修三）+ SPA +3.25%；**新缺口登记**：SAML 证书三端点（key/public/regenerate，v2 §3.2）BE 未落 → **T-331 [P2] 补票**（B9 后 slack 窗口，dev-go-core）。
   - **B4 双票在途 01:10 起**：T-308 conan local（v2 全量 + v1 全量 CN-1 终裁，窗口独占）/ T-309 helm 经典仓 local（relative=true 终裁）。
+  - **T-309 → review→已验待合 2026-08-27**：实现+自测全绿（sprint 752 验收）；提交暂缓——接线踩 conan+helm 双包型 13 槽共写（slots.go/main.go/router.go），按合并时机口径第 4 条「T-308 先、T-309 紧随」顺序 --no-ff。
+  - **429 熔断事件 01:52~01:54**：T-308/T-311 双双击落，配额复位 04:38:48；conductor 编译态预验（754 轮）全绿。
+  - **双票续跑 10:23 起（复位后恢复）**：T-308（conan 1.66 live leg 门控测试收尾）/ T-311（rpm 适配器主体，参考 helm 接线模式）。宽度满 2，不派第三票。
 - **B4**：T-308 [P0] conan local——**v2 全量 17 端点 + v1 全量数据面（CN-1 终裁推翻收窄，本票升 M11 最重适配票，窗口独占）**（TL-2/TL-3 能力头/.timestamp）dev-go-core｜ T-309 [P0] helm 经典仓 local（HL-1/2 挂载与 relative=true；.prov；reindex 双端点）dev-registry-adapter
 - **B5**：T-310 [P0] debian automatic local（TL-4=i386,amd64 强制；debPUT 坐标；索引直写 403）dev-go-core（dep T-304）｜ T-311 [P0] rpm local 管线（RP-2=false；header 解析器自研；reindex 七分支矩阵；TL-5=SHA-256）dev-registry-adapter（dep T-304）
 - **B6**：T-312 [P1] conan remote+virtual（dep T-308）｜ T-313 [P1] helm virtual+remote（URL 改写/_external）（dep T-309）
