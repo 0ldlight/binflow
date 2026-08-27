@@ -910,6 +910,14 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 ## M11 票据（T-299/T-300 既定 + T-301~T-330，tech-lead 2026-08-26 拆票；AC 全文见 tech-lead 拆票交付〔本节压缩录〕+ docs/prd/milestone-11.md v1.1；Q8 终值 20:35+20:55 已并入票面）
 
+> **里程碑收口清单新增两条（用户 2026-08-27 指令，全里程碑适用）**：每次 milestone 收口（m<N>-done tag 前）必查 ① **README**（含 zh-CN 镜像）是否随新能力过时——支持矩阵/包型/配置面/里程碑行；② **文档站**（docs/user/ → docs-site）是否需更新。检查结论（更新了什么/为何无需更新）写入收口报告留痕。
+>
+> **M11 收口时的已知欠账（conductor 2026-08-27 14:10 摸底）**：
+> - README：仍写「五大包型」「M1→M9 all done」——需补 M10/M11 十二包型矩阵、license/addon 门控章、auth 配置面与 binstore.yaml 提及、里程碑行刷新（README.zh-CN.md 同步）。
+> - docs/user/integrations/：缺 conan/helm/rpm/debian 四篇接入指南（随 T-312~T-315 落地写；helm 注意与 install/helm.md〔Chart 部署〕命名区分）。
+> - docs/user/admin/：缺 LDAP/OAuth/SAML 前端配置指南（T-305 面）与 binstore.yaml 存储配置指南（T-306 面）。
+> - 派发时机：宽度空窗时派 tech-writer（README+admin 两票可先做，integrations 四篇等 B6/B7 合入）。
+
 **批次（全宽 2）**：
 - **B0**：T-301 [P0] 前置 ADR 包｜ T-302 [P0] auth-integration.md 复核票——**双票 done 2026-08-26（B0 全清，gitflow 首航：feature 分支 --no-ff 合入 develop `4950675`/`103ffce`）**
   - T-301：ADR-0035（auth_configs 表 + license Manager 三要素复用〔快照/验后替换/回放〕实现变更即生效；K31 DB 权威终裁；enc:v1 密封 + 脱敏哨兵）/ ADR-0036（binstore.yaml 有序 provider 链 + Q5 精确化：语义分歧才 fail-fast、等价 WARN）/ ADR-0038（keypair 双列 enc:v1；RSA-4096 暂行）/ **openpgp = ProtonMail/go-crypto v1.4.1**（三平台零 CGO 实测；keybase 冻结 2020 淘汰）。预登记分歧 2 处（模板体系归 T-303/生成默认归 T-319 mini 规格）
