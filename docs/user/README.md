@@ -24,6 +24,10 @@
   - [Go Modules](integrations/golang.md)（GOPROXY/GOSUMDB 配置、PUT 三件套发布、!lower 转义、remote/virtual、go build 全链〔go 1.26 实测〕）— M10（pro 档）
   - [NuGet](integrations/nuget.md)（nuget.config 源映射 + 凭据、push/restore/run、flatcontainer/v3 行为、v2 最小面、符号服务器边界〔dotnet 8 实测〕）— M10（pro 档）
   - [Cargo](integrations/cargo.md)（.cargo/config.toml alternate registry、token、publish/add/build/yank/search 全链、cksum 对账〔cargo 1.98 实测〕）— M10（pro 档）
+  - [Conan](integrations/conan.md)（v1/v2 客户端、修订链与 latest 解析、remote/virtual、reindex〔conan 2.31 / 1.66 实测〕）— M11（pro 档）
+  - [Helm Chart 仓库](integrations/helm-charts.md)（index.yaml 自动重算、.prov clearsign 验签、remote 代理与 virtual 聚合 URL 改写、_external〔helm 4.2 实测〕；Chart 部署 BinFlow 见 [install/helm](install/helm.md)）— M11（pro 档）
+  - [RPM](integrations/rpm.md)（.rpm 上传 + repodata 引擎、dnf 配置、gpgcheck/repomd 签名、remote/virtual 聚合〔Rocky 9 dnf 实测〕）— M11（pro 档）
+  - [Debian](integrations/debian.md)（debPUT 坐标矩阵参数、Packages/Release/by-hash 自动生成、apt 配置、InRelease/signed-by 签名、remote/virtual〔bookworm apt 实测〕）— M11（pro 档）
   - [Generic / 任意文件](integrations/generic.md)（curl roundtrip）
   - CI 集成：GitHub Actions / GitLab CI / Jenkins 用作依赖源与镜像源
 - **属性系统** — M10
@@ -38,7 +42,9 @@
   - [备份与恢复手册](admin/backup-restore.md)（export/import CLI、产物 0700 保管告警、`--verify spot/full`、无钥 fail-fast 恢复链、停机强一致可选）— M4
   - [RBAC 角色与仓库级管理员](admin/rbac-roles.md)（角色三值模型与能力矩阵、adminRole wire、manage 派生与覆盖集、`?filter=manage` 可达性〔M9〕、user.role.change 审计、IdP readonly 组映射）— M7
   - [Token 铸造二次认证 step-up](admin/token-step-up.md)（`auth.token_step_up` 开关与 TTL 域、作用域与豁免臂、本地/LDAP 口令腿与 OIDC mint grant 腿〔M9 起控制台自动续铸〕、审计维度）— M7
-  - [License 与 Add-ons 管理](admin/license.md)（三档语义、安装/查询/卸载、11 槽位 × 档位矩阵、addons.disabled 熔断、`bf license` 离线签发工具）— M10
+  - [License 与 Add-ons 管理](admin/license.md)（三档语义、安装/查询/卸载、15 槽位 × 档位矩阵、addons.disabled 熔断、`bf license` 离线签发工具）— M10（M11 增补四包型槽位）
+  - [认证配置（LDAP / OIDC / SAML）](admin/auth-config.md)（控制台三 Tab + REST 九端点、保存即生效、secret 哨兵语义与 enc:v1 密封、测试连接、首启种子与主密钥）— M11
+  - [存储配置（binstore.yaml）](admin/storage-config.md)（有序 provider 链 schema、三分支并存裁决、fail-fast 四形态、凭据纪律与 env 优先级、升级路径）— M11
   - [附录：条件腿真实环境验收](admin/real-env-appendix.md)（V27 真实 AWS S3 / V28 真实 Artifactory 证据归档模板 + MinIO/OSS 等价口径）— M7
 - **专题指南**（`guides/`）— M6
   - [OIDC 单点登录配置](guides/oidc-config.md)（auth.oidc 段、PKCE 登录流、组/管理员映射、step-up 联合部署 armed 形态、Keycloak 实例）
@@ -47,8 +53,8 @@
   - [bf CLI 使用指南](guides/bf-cli.md)（四子命令、~/.bf/config.yaml 多 profile、密钥 env 引用制）
   - [从 Artifactory 迁移（bf-migrate）](guides/migrate-artifactory.md)（三阶段、--dry-run/--resume、口令与 token 不可导出策略）
   - [Prometheus 指标参考](metrics/prometheus-reference.md)（/metrics 端点、四类指标族、path 基数防护、PromQL 示例）
-- **API 参考**（`api-reference.md`）：Artifactory 兼容子集 + `/api/v1`（M9 六端点速览：usage 批量 / users 加宽与 enabled / DELETE users / groups includeUsers / permissions filter=manage）
-- [FAQ 与故障排查](faq.md)（401/403/404/409/413 信封解读、高 QPS 用 Token、M4 不兼容清单、Artifactory 迁移对照表、M9 增补两问、M10 增补三问〔license 降级 / 属性两入口 / MPU 后端差异〕）
+- **API 参考**（`api-reference.md`）：Artifactory 兼容子集 + `/api/v1`（M9 六端点速览：usage 批量 / users 加宽与 enabled / DELETE users / groups includeUsers / permissions filter=manage；M10 license/addons/uploads；**M11 增补速览**：认证配置面 / keypair 族 / cleanup / 四包型 reindex / smart remote 两字段生效）
+- [FAQ 与故障排查](faq.md)（401/403/404/409/413 信封解读、高 QPS 用 Token、M4 不兼容清单、Artifactory 迁移对照表、M9 增补两问、M10 增补三问〔license 降级 / 属性两入口 / MPU 后端差异〕、M11 增补四问〔四包型 tier / 降级数据安全 / remote·virtual 差异 / 存储与认证新面〕）
 
 ## 从 Artifactory 迁移
 

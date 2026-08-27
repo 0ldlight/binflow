@@ -6,10 +6,10 @@ BinFlow is a cloud-native artifact repository written from scratch in Go, with
 an architecture and concept model aligned with JFrog Artifactory —
 repositories, storage, permissions and REST semantics map one-to-one, so an
 Artifactory shop can migrate without relearning the vocabulary. One static
-binary, zero external dependencies, five package ecosystems served natively:
-**Generic (raw HTTP), Docker Registry v2 (images/OCI, Helm charts via oras),
-Maven, npm and PyPI** — each across **local, remote (pull-through proxy cache)
-and virtual (aggregating)** repository types, with an embedded web console.
+binary, zero external dependencies, **twelve package ecosystems** served
+natively — see the matrix below — each across **local, remote (pull-through
+proxy cache) and virtual (aggregating)** repository types (cargo's
+remote/virtual pending), with an embedded web console.
 
 M6 added the enterprise layer (OIDC / LDAP SSO, S3 blob storage with online
 migration, push replication, Prometheus metrics, `bf` CLI, `bf-migrate`).
@@ -24,11 +24,36 @@ usage, manage-filtered permission lists, a concurrency-safe GC, step-up
 token minting for OIDC users), and release images are dual-arch
 (linux/amd64 + linux/arm64).
 
+M10 introduced the **license & add-on tier system** (community floor /
+pro / enterprise; gate on repo creation and write verbs, reads never
+held hostage) with go/nuget/cargo as the first gated package types plus
+the artifact-properties system. M11 widens the matrix to twelve package
+types (conan, helm, rpm, debian join at pro), adds the **runtime auth
+configuration plane** (LDAP/OIDC/SAML editable in the console or over
+REST, effective on save — no restart), the standalone
+**`binstore.yaml` storage-chain file** (ordered provider chain with
+fail-fast coexistence rules), GPG **keypair signing** for debian/rpm
+repository metadata, and the remote-cache **unused-cleanup engine**.
+
+## Package type matrix (with tiers)
+
+| Tier | Package types | Notes |
+|---|---|---|
+| **community** (floor — runs with no license at all) | generic, docker, maven, npm, pypi | The five core types: all M1–M9 capability, plus the properties system |
+| **pro** | go, nuget, cargo (M10) · conan, helm, rpm, debian (M11) | Repo creation and pushes require a pro-or-higher license; existing artifacts stay readable when a license lapses |
+| **enterprise** | (feature slots: ha, xray-integration) | Placeholder slots; the bodies land M12+ |
+
+Tier semantics in one line: **reads are never held hostage** — an expired or
+missing license only closes repo-creation (400) and write verbs
+(403 + `X-Binflow-License-Required: <addon>`); `GET /binflow/api/v1/addons`
+shows the live per-slot verdict. Full guide:
+[`docs/user/admin/license.md`](docs/user/admin/license.md).
+
 | What | Where |
 |---|---|
 | Product vision & scope | [`PRODUCT.md`](PRODUCT.md) |
-| Milestones (M1 kernel → M9 hardening, all done) | [`ROADMAP.md`](ROADMAP.md) |
-| M9 requirements (PRD v1.0: users/groups endpoints, usage batch, permissions filter, GC race fix) | [`docs/prd/milestone-9.md`](docs/prd/milestone-9.md) |
+| Milestones (M1 kernel → M11 alignment, M1–M10 done) | [`ROADMAP.md`](ROADMAP.md) |
+| M11 requirements (PRD: config planes, four package types, keypair, cleanup) | [`docs/prd/milestone-11.md`](docs/prd/milestone-11.md) |
 | Artifactory full-feature matrix (213 entries — the M10+ roadmap backbone) | [`docs/reverse/artifactory-full-feature-matrix.md`](docs/reverse/artifactory-full-feature-matrix.md) |
 | Help documentation center (install / integrations / admin / API / FAQ) | [`docs/user/README.md`](docs/user/README.md) |
 | Architecture spec | [`docs/design/architecture.md`](docs/design/architecture.md) |
@@ -320,10 +345,50 @@ The same instance grows into the enterprise surface without changing shape:
   Guide: [`docs/user/integrations/npm.md`](docs/user/integrations/npm.md) (中文).
   Release images are dual-arch (linux/amd64 + linux/arm64 manifests).
 
+### M10/M11 — tier gating, four more package types, config planes
+
+- **License & add-on tiers** — the matrix above. Install a license by
+  pasting it in the console (License & Add-ons) or
+  `POST /binflow/api/system/license`; `GET /binflow/api/v1/addons` reports
+  the live per-slot verdict. Guide (中文):
+  [`docs/user/admin/license.md`](docs/user/admin/license.md).
+- **Four M11 package types (pro)** — verified with real clients
+  (conan 2.31/1.66, helm 4.2, Rocky 9 dnf, debian bookworm apt):
+
+  ```bash
+  # conan: conan remote add + upload/install with revision chains
+  conan remote add binflow $BASE/binflow/conan-local && conan remote login binflow admin -p "$ADMIN_PW"
+  # helm: classic chart repo with automatic index.yaml
+  helm repo add binflow $BASE/binflow/helm-local && helm install my-rel binflow/mychart
+  # rpm/debian: repodata / dists index engines + GPG-signed metadata
+  dnf install -y <pkg>   # baseurl=$BASE/binflow/rpm-local
+  ```
+
+  Guides (中文): [Conan](docs/user/integrations/conan.md) ·
+  [Helm](docs/user/integrations/helm-charts.md) ·
+  [RPM](docs/user/integrations/rpm.md) ·
+  [Debian](docs/user/integrations/debian.md).
+- **Auth configuration plane** — LDAP/OIDC/SAML sections editable at
+  runtime (console `/admin/security/auth` or
+  `GET/PUT /binflow/api/v1/admin/security/{ldap,oauth,saml/config}`),
+  effective on the next request; secrets are write-only (masked echo) and
+  sealed with the instance master key. Guide (中文):
+  [`docs/user/admin/auth-config.md`](docs/user/admin/auth-config.md).
+- **`binstore.yaml`** — the storage provider chain as a standalone file
+  next to `binflow.yaml` (`[filestore]`, `[s3]`, or the `[filestore, s3]`
+  dual-write migration chain); coexistence with the embedded
+  `storage:` section is fail-fast on divergence. Guide (中文):
+  [`docs/user/admin/storage-config.md`](docs/user/admin/storage-config.md).
+- **GPG keypair signing & unused-cleanup** — server-side keypair
+  management signs debian `InRelease`/`Release.gpg` and rpm
+  `repomd.xml.asc`/`.key` (real apt/dnf gpgcheck chains verified); the
+  cleanup engine reclaims idle remote-cache artifacts on an hourly cron
+  (`POST /binflow/api/v1/system/cleanup` for manual dry-run/apply).
+
 Per-deployment install guides (binary, Docker, compose, Helm, K8s manifests,
 systemd, offline/air-gapped, upgrade): [`docs/user/install/`](docs/user/install/).
-Per-protocol client integration (docker/mvn/npm/pip settings snippets):
-[`docs/user/`](docs/user/README.md). API reference: [`docs/user/api-reference.md`](docs/user/api-reference.md).
+Per-protocol client integration (docker/mvn/npm/pip/go/nuget/cargo/conan/helm/rpm/deb
+settings snippets): [`docs/user/`](docs/user/README.md). API reference: [`docs/user/api-reference.md`](docs/user/api-reference.md).
 FAQ & troubleshooting incl. the Artifactory→BinFlow concept mapping table:
 [`docs/user/faq.md`](docs/user/faq.md).
 
@@ -386,16 +451,30 @@ server:
   listen: ":8080"
 storage:
   data_dir: "./data"        # blobs + uploads + sqlite all live here
-  backend: "local"          # "s3" + storage.s3 section → object storage (see S3 guide)
+  backend: "local"          # "s3" + storage.s3 section → object storage (see S3 guide);
+                            #   M11+: prefer a binstore.yaml chain file next to this file
 security:
   anonymous_access: true    # see Security notes
 logging:
   level: "info"             # debug | info | warn | error
   format: "json"
 auth:
-  oidc: {}                  # auth.oidc section → SSO (see OIDC guide)
+  oidc: {}                  # auth.oidc section → SSO (see OIDC guide; seeds the
+                            #   runtime config plane on first boot)
   ldap: {}                  # auth.ldap section → directory login (see LDAP guide)
 ```
+
+Two M11 planes live outside this file:
+
+- **`binstore.yaml`** (same directory) — the ordered storage provider chain:
+  `[filestore]`, `[s3]`, or `[filestore, s3]` with a `migration.mode` of
+  `bypass | dual-write | completed`. Absent file = zero behavior change;
+  divergence with the embedded `storage:` chain keys refuses to boot.
+  Guide: [`docs/user/admin/storage-config.md`](docs/user/admin/storage-config.md) (中文).
+- **Auth sections at runtime** — after first boot the authoritative LDAP /
+  OIDC / SAML configuration is the DB-backed plane (console or REST),
+  edited live without restarts. Guide:
+  [`docs/user/admin/auth-config.md`](docs/user/admin/auth-config.md) (中文).
 
 ## Operations
 
@@ -451,11 +530,10 @@ CI share one entrypoint.
 
 ## License / status
 
-Pre-GA software. All nine milestones are done and tagged (`m1-done` …
-`m9-done`); see `ROADMAP.md` for the milestone plan, `BOARD.md` for what
-is currently being worked on, and `reports/` for iteration reports. The
-next leg — aligning the full Artifactory feature surface — is tracked
-entry by entry in
-[`docs/reverse/artifactory-full-feature-matrix.md`](docs/reverse/artifactory-full-feature-matrix.md)
-(213 entries as of M9: 20 present, 50 partial, 133 missing, 10 n/a by
-design).
+Pre-GA software. Milestones M1–M10 are done and tagged (`m1-done` …
+`m10-done`); M11 (twelve-package-type matrix, license gating, runtime
+config planes, keypair signing, cleanup engine) is in final verification —
+see `ROADMAP.md` for the milestone plan, `BOARD.md` for what is currently
+being worked on, and `reports/` for iteration reports. The alignment of
+the full Artifactory feature surface is tracked entry by entry in
+[`docs/reverse/artifactory-full-feature-matrix.md`](docs/reverse/artifactory-full-feature-matrix.md).
