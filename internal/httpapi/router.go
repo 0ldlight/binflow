@@ -801,6 +801,31 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		}
 		notImplemented(w, "/binflow/api/"+rest)
 
+	// ---- /api/deb/reindex/{repoKey} (M11 T-310, ADR-0034 / debian.md
+	// section 4.3) ----
+	// The Debian management plane: the dispatchAPI EXPLICIT family, gated
+	// authentication + the single-repo manage bit (CanManageRepo — the
+	// ADR's management-face posture, the /api/yum shape). The Artifactory
+	// spelling puts reindex BEFORE the key; the bare /api/deb/reindex
+	// spelling answers the blank-key 400 branch. Every other /api/deb
+	// spelling falls to the E-26 404.
+	case rest == "deb/reindex" || rest == "deb/reindex/":
+		if r.Method == http.MethodPost {
+			s.enforce(w, r, routeAuth{required: true}, s.handleDebReindexBlankKey)
+			return
+		}
+		notImplemented(w, "/binflow/api/"+rest)
+	case strings.HasPrefix(rest, "deb/reindex/"):
+		key := strings.TrimPrefix(rest, "deb/reindex/")
+		if r.Method == http.MethodPost && key != "" {
+			s.enforce(w, r, routeAuth{required: true, repoManage: &repoManageGate{repo: key, write: true}},
+				func(w http.ResponseWriter, r *http.Request) {
+					s.handleDebReindex(w, r, key)
+				})
+			return
+		}
+		notImplemented(w, "/binflow/api/"+rest)
+
 	// ---- /api/conan/…/reindex (M11 T-308, ADR-0034 / conan.md 3.1) ----
 	// The conan management plane rides a self-contained adapter handler
 	// (conan.ManagementHandler): the router only authenticates — the

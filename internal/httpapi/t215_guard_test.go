@@ -42,7 +42,7 @@ import (
 // inventory table with it.
 const (
 	t215ManageGates    = 38
-	t215RepoManageBits = 7 // +2: T-309's helm reindex family; +1: T-311's yum reindex (CanManageRepo, ADR-0034)
+	t215RepoManageBits = 8 // +2: T-309's helm reindex family; +1: T-311's yum reindex; +1: T-310's deb reindex (CanManageRepo, ADR-0034)
 )
 
 func t215MustRead(t *testing.T, name string) string {
