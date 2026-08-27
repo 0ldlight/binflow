@@ -394,6 +394,19 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	case rest == "v1/system/gc" && r.Method == http.MethodPost:
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleSystemGC)
 
+	// ---- /api/v1/system/cleanup (M11 T-324, FR-102.2; sync, lock-guarded)
+	// ----
+	// POST triggers one run (dry-run default, the gc family's posture —
+	// apply is the explicit step after reviewing the dry report); GET is
+	// the live status face (schedule, counters, last report, per-repo
+	// policy). Gate = system:write / system:read respectively, the same
+	// no-dry-run-exception rule as gc (T-214①). Every other spelling
+	// falls to the E-26 404.
+	case rest == "v1/system/cleanup" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleSystemCleanupPOST)
+	case rest == "v1/system/cleanup" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleSystemCleanupGET)
+
 	// ---- /api/v1/storage/migration (T-164) ----
 	case rest == "v1/storage/migration" && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleMigrationStatus)

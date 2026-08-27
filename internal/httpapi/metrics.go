@@ -48,6 +48,15 @@ const (
 	metricLicenseTier    = "binflow_license_tier"
 	metricAddonGateTotal = "binflow_addon_gate_requests_total"
 	metricAddonsEnabled  = "binflow_addons_enabled"
+	// M11 T-324 (PRD FR-102.2 / §9 metrics row): the cleanup engine's two
+	// cumulative observability families — artifacts removed and logical
+	// bytes reclaimed by the unused-cleanup policy since process start.
+	// Gauge-typed at scrape time (the replTasks snapshot precedent): the
+	// engine owns the counters, /metrics only reads them, so a scrape can
+	// never miss or double-count a run. The `_total` suffix stays off —
+	// Prometheus reserves it for counter-typed families.
+	metricCleanupObjects = "binflow_cleanup_objects"
+	metricCleanupBytes   = "binflow_cleanup_bytes"
 )
 
 // metricsContentType is the Prometheus text exposition format version 0.0.4
@@ -82,6 +91,11 @@ type instrumentation struct {
 	// precedent): one 0/1 series per slot, refreshed at scrape time from
 	// the same evaluation the /api/v1/addons view serves.
 	addonsOn *metrics.Gauge
+	// cleanupObjs / cleanupBytes are nil unless Deps.Cleanup is wired (the
+	// replTasks precedent, T-324): cumulative policy-pass totals refreshed
+	// at scrape time from the engine's own counters.
+	cleanupObjs  *metrics.Gauge
+	cleanupBytes *metrics.Gauge
 }
 
 // newInstrumentation registers the four families on reg and pre-seeds the
@@ -148,6 +162,14 @@ func newInstrumentation(deps Deps) *instrumentation {
 		} {
 			ins.replTasks.Set(0, "status", status)
 		}
+	}
+	if deps.Cleanup != nil {
+		ins.cleanupObjs = mustGauge(reg, metricCleanupObjects,
+			"Artifacts removed by the unused-cleanup policy since process start (cumulative).")
+		ins.cleanupBytes = mustGauge(reg, metricCleanupBytes,
+			"Logical artifact bytes reclaimed by the unused-cleanup policy since process start (cumulative).")
+		ins.cleanupObjs.Set(0)
+		ins.cleanupBytes.Set(0)
 	}
 	return ins
 }
@@ -297,6 +319,11 @@ func (s *Server) refreshMetricsSnapshots(ctx context.Context) {
 	}
 	if s.deps.Replication != nil && ins.replTasks != nil {
 		s.refreshReplication(ctx)
+	}
+	if s.deps.Cleanup != nil && ins.cleanupObjs != nil {
+		st := s.deps.Cleanup.Stats()
+		ins.cleanupObjs.Set(float64(st.ObjectsCleaned))
+		ins.cleanupBytes.Set(float64(st.BytesReclaimed))
 	}
 	s.refreshLicenseMetrics(ctx)
 }

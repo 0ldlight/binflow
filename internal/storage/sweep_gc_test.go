@@ -106,7 +106,7 @@ func TestSweepKeepsLiveSessions(t *testing.T) {
 
 	// The sweep must skip it because it is registered as live.
 	e := eng.(*engine)
-	if err := e.sweepSessions(time.Now().Add(time.Hour)); err != nil {
+	if _, err := e.sweepSessions(time.Now().Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	if got := countSessionDirs(t, root); got != 1 {
@@ -118,7 +118,7 @@ func TestSweepKeepsLiveSessions(t *testing.T) {
 
 	// Once aborted (unregistered), the same sweep removes it.
 	_ = s.Abort(context.Background())
-	if err := e.sweepSessions(time.Now().Add(time.Hour)); err != nil {
+	if _, err := e.sweepSessions(time.Now().Add(time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	if got := countSessionDirs(t, root); got != 0 {

@@ -57,6 +57,13 @@ type Deps struct {
 	// T-94). Nil on stacks assembled without an engine — the endpoint
 	// answers 503 rather than pretending a run happened.
 	GC GarbageCollector
+	// Cleanup is the unused-cleanup engine (M11 T-324, FR-102.2): the
+	// cron-driven remote-cache policy face behind POST/GET
+	// /api/v1/system/cleanup. Nil keeps POST at the honest 503 and GET at
+	// the engine-less status body — unit stacks only; every assembled
+	// server wires the engine (its Run loop is a cmd lifecycle concern,
+	// the licenseMgr precedent).
+	Cleanup CleanupEngine
 	// Migration is the optional S3 migration engine (T-164). Nil when
 	// migration is not configured — the endpoints answer 501.
 	Migration MigrationStarter

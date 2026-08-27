@@ -142,6 +142,11 @@ const (
 	ActionExportRun        = "export.run"
 	ActionImportRun        = "import.run"
 	ActionQuotaExceeded    = "quota.exceeded"
+	// ActionCleanupRun records one unused-cleanup engine run (T-324,
+	// FR-102.2): the remote-cache policy pass plus the GC/session legs it
+	// drove, manual (REST) or scheduled (cron). The audit trail is the
+	// run-history surface, same posture as gc.run (ADR-0015 erratum ②).
+	ActionCleanupRun = "cleanup.run"
 	// ActionGroupMember records one membership-set change of a user (the
 	// groups[] field of PUT/POST /api/security/users/{name}). Defined by
 	// T-97 per its dispatch note (the T-93 vocabulary covers group CRUD but
@@ -178,7 +183,7 @@ func Actions() []string {
 		ActionUserRoleChange, ActionUserDelete,
 		ActionPermissionCreate, ActionPermissionUpdate, ActionPermissionDelete,
 		ActionGCRun, ActionExportRun, ActionImportRun,
-		ActionQuotaExceeded,
+		ActionQuotaExceeded, ActionCleanupRun,
 	}
 }
 
