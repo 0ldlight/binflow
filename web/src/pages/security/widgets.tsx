@@ -2,9 +2,17 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
+import Chip from '@mui/material/Chip'
+import Table from '@mui/material/Table'
+import TableBody from '@mui/material/TableBody'
+import TableCell from '@mui/material/TableCell'
+import TableHead from '@mui/material/TableHead'
+import TableRow from '@mui/material/TableRow'
+
 import { useConfirm } from '../../components/ConfirmDialog'
 import { useToast } from '../../app/ToastContext'
 import { ApiError, errText } from '../../lib/api'
+import { badgeChipSx } from '../../lib/muiAtoms'
 import { deleteUser } from './api'
 import { PERM_ACTIONS } from './api'
 import type { PermAction, PrincipalGrantRow } from './api'
@@ -36,7 +44,9 @@ export function useTableSort<K extends string>(initial: SortState<K> = { key: nu
   return { sort, toggle }
 }
 
-/** 排序表头：button 承载点击与键盘，aria-sort 同步（§8 语义标签） */
+/** 排序表头：button 承载点击与键盘，aria-sort 同步（§8 语义标签）。
+ *  T-300 批次二换 MUI TableCell（component="th"）——aria-sort/点击承载/
+ *  锚仍在 th 本体，内部键盘按钮保持原生（.th-sort 既有焦点环） */
 export function SortTh<K extends string>({
   label,
   sortKey,
@@ -55,14 +65,14 @@ export function SortTh<K extends string>({
   return (
     // 点击承载在 th 上（热区 = 整格；内部 button 的 click 冒泡到 th，
     // 键盘 Enter/Space 仍经 button 触发——同一冒泡路径，不双发）
-    <th scope="col" aria-sort={ariaSort} data-testid={testid} onClick={() => onToggle(sortKey)}>
+    <TableCell component="th" scope="col" aria-sort={ariaSort} data-testid={testid} onClick={() => onToggle(sortKey)}>
       <button type="button" className="th-sort">
         {label}
         <span className="th-sort-arrow" aria-hidden="true">
           {active ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ''}
         </span>
       </button>
-    </th>
+    </TableCell>
   )
 }
 
@@ -93,43 +103,39 @@ export function PermSummaryTable({
     return <p className="text-muted perm-summary-empty">{emptyHint}</p>
   }
   return (
-    <table className="table perm-summary" data-testid={`${rowTestidPrefix}-matrix`}>
-      <thead>
-        <tr>
-          <th scope="col">Permission Name</th>
-          <th scope="col">应用途径</th>
+    <Table className="table perm-summary" data-testid={`${rowTestidPrefix}-matrix`}>
+      <TableHead>
+        <TableRow>
+          <TableCell component="th" scope="col">Permission Name</TableCell>
+          <TableCell component="th" scope="col">应用途径</TableCell>
           {PERM_ACTIONS.map((a) => (
-            <th key={a} scope="col" className="th-action" title={a === 'manage' ? 'manage = 仓库配置派生权（不隐含读写删）' : undefined}>
+            <TableCell key={a} component="th" scope="col" className="th-action" title={a === 'manage' ? 'manage = 仓库配置派生权（不隐含读写删）' : undefined}>
               {a}
-            </th>
+            </TableCell>
           ))}
-        </tr>
-      </thead>
-      <tbody>
+        </TableRow>
+      </TableHead>
+      <TableBody>
         {rows.map((r) => (
-          <tr key={r.target}>
-            <td>
+          <TableRow key={r.target}>
+            <TableCell>
               <Link className="row-link mono" to={`/admin/security/permissions/${encodeURIComponent(r.target)}`} lang="en">
                 {r.target}
               </Link>
-            </td>
-            <td>
+            </TableCell>
+            <TableCell>
               <span className="sec-chips">
                 {r.sources.map((s) =>
                   s === 'direct' ? (
-                    <span key="direct" className="badge neutral">
-                      直接
-                    </span>
+                    <Chip key="direct" size="small" className="badge neutral" label="直接" sx={badgeChipSx} />
                   ) : (
-                    <span key={s} className="badge neutral mono" lang="en">
-                      {s}
-                    </span>
+                    <Chip key={s} size="small" className="badge neutral mono" label={s} sx={badgeChipSx} />
                   ),
                 )}
               </span>
-            </td>
+            </TableCell>
             {PERM_ACTIONS.map((a) => (
-              <td key={a} className="td-mark">
+              <TableCell key={a} className="td-mark">
                 {r.actions.includes(a as PermAction) ? (
                   <span className="mark-on" aria-label={`${a} 已授予`}>
                     ✓
@@ -139,12 +145,12 @@ export function PermSummaryTable({
                     —
                   </span>
                 )}
-              </td>
+              </TableCell>
             ))}
-          </tr>
+          </TableRow>
         ))}
-      </tbody>
-    </table>
+      </TableBody>
+    </Table>
   )
 }
 
@@ -152,17 +158,14 @@ export function PermSummaryTable({
 
 /** 启用/禁用徽章——自持 status-pill 类（不挂 .badge 基类：用户行内
  *  .badge 锚位已被角色徽章/组 chips 占用，加挂会破 m8 套件行级 .badge
- *  锚的视图唯一性，ADR-0029 决策 3）。name 可空（详情页无行锚需求）。 */
+ *  锚的视图唯一性，ADR-0029 决策 3）。name 可空（详情页无行锚需求）。
+ *  T-300 批次二换 MUI Chip（className 续挂——CSS 视觉与锚不动）。 */
 export function StatusLabel({ enabled, name }: { enabled: boolean; name?: string }) {
   const testid = name ? { 'data-testid': `user-status-${name}` } : {}
   return enabled ? (
-    <span className="status-pill status-on" {...testid}>
-      启用
-    </span>
+    <Chip size="small" className="status-pill status-on" label="启用" sx={badgeChipSx} {...testid} />
   ) : (
-    <span className="status-pill status-off" {...testid}>
-      禁用
-    </span>
+    <Chip size="small" className="status-pill status-off" label="禁用" sx={badgeChipSx} {...testid} />
   )
 }
 

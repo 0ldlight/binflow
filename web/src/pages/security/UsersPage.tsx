@@ -1,5 +1,19 @@
 import { useState } from 'react'
+import type { ComponentPropsWithoutRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+
+import Alert from '@mui/material/Alert'
+import Button from '@mui/material/Button'
+import Checkbox from '@mui/material/Checkbox'
+import Chip from '@mui/material/Chip'
+import FormControlLabel from '@mui/material/FormControlLabel'
+import Select from '@mui/material/Select'
+import Table from '@mui/material/Table'
+import TableBody from '@mui/material/TableBody'
+import TableCell from '@mui/material/TableCell'
+import TableHead from '@mui/material/TableHead'
+import TableRow from '@mui/material/TableRow'
+import TextField from '@mui/material/TextField'
 
 import { useAuth } from '../../app/AuthContext'
 import { useToast } from '../../app/ToastContext'
@@ -9,6 +23,7 @@ import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import { ADMIN_ROLES, ApiError, canAdminWrite, errText, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
 import type { AdminRole } from '../../lib/api'
+import { badgeChipSx, dangerBtnSx, denseInputSx, rowBtnSx } from '../../lib/muiAtoms'
 import { onTableRowKeys } from '../../lib/keys'
 import { useAsync } from '../../lib/useAsync'
 import './security.css'
@@ -47,10 +62,11 @@ function roleBadge(item: UserListItem) {
 
 function RoleLabel({ role }: { role: AdminRole }) {
   // 共享语义 badge（T-266：T-237 自持 role-warning 回退——base.css 家族
-  // 双主题 ≥4.59:1 后冗余）
-  if (role === 'admin') return <span className="badge warning">admin</span>
-  if (role === 'readonly_admin') return <span className="badge neutral">readonly_admin</span>
-  return <span className="badge neutral">user</span>
+  // 双主题 ≥4.59:1 后冗余）。T-300 批次二换 MUI Chip（类续挂，视觉不动）
+  if (role === 'admin') return <Chip size="small" className="badge warning" label="admin" sx={badgeChipSx} />
+  if (role === 'readonly_admin')
+    return <Chip size="small" className="badge neutral" label="readonly_admin" sx={badgeChipSx} />
+  return <Chip size="small" className="badge neutral" label="user" sx={badgeChipSx} />
 }
 
 interface CreateState {
@@ -118,16 +134,16 @@ function CreateUserForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
         <h4>用户设置</h4>
         <div className="field">
           <label htmlFor="uf-name">用户名 *</label>
-          <input
+          <TextField
             id="uf-name"
-            className="mono-input"
+            size="small"
             value={f.name}
             onBlur={() => setTouched((p) => ({ ...p, name: true }))}
             onChange={(e) => setF((p) => ({ ...p, name: e.target.value }))}
             placeholder="bob"
-            aria-invalid={!!nameErr}
-            data-testid="user-form-name"
-            lang="en"
+            error={!!nameErr}
+            sx={{ ...denseInputSx, width: 320 }}
+            slotProps={{ htmlInput: { className: 'mono-input', 'data-testid': 'user-form-name', lang: 'en' } }}
           />
           {nameErr ? (
             <p className="field-error" role="alert">
@@ -139,15 +155,17 @@ function CreateUserForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
         </div>
         <div className="field">
           <label htmlFor="uf-email">Email *</label>
-          <input
+          <TextField
             id="uf-email"
+            size="small"
             type="email"
             value={f.email}
             onBlur={() => setTouched((p) => ({ ...p, email: true }))}
             onChange={(e) => setF((p) => ({ ...p, email: e.target.value }))}
             placeholder="bob@example.com"
-            aria-invalid={!!emailErr}
-            data-testid="user-form-email"
+            error={!!emailErr}
+            sx={{ ...denseInputSx, width: 320 }}
+            slotProps={{ htmlInput: { 'data-testid': 'user-form-email' } }}
           />
           {emailErr && (
             <p className="field-error" role="alert">
@@ -157,46 +175,59 @@ function CreateUserForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
         </div>
         <div className="field" style={{ maxWidth: 480 }}>
           <label htmlFor="uf-role">角色（三值闭集，M7 FR-66）</label>
-          <select
+          <TextField
             id="uf-role"
+            select
+            size="small"
             value={f.role}
             onChange={(e) => setF((p) => ({ ...p, role: e.target.value as AdminRole }))}
-            data-testid="user-form-role"
+            sx={{ ...denseInputSx, width: 320 }}
+            slotProps={{
+              select: {
+                native: true,
+                inputProps: { 'data-testid': 'user-form-role' } as ComponentPropsWithoutRef<'select'>,
+              } as ComponentPropsWithoutRef<typeof Select>,
+            }}
           >
             {ADMIN_ROLES.map((r) => (
               <option key={r} value={r}>
                 {r}
               </option>
             ))}
-          </select>
+          </TextField>
           <p className="field-hint">user=按 permission target 授权；readonly_admin=管理面只读；admin=管理面全权。</p>
         </div>
       </div>
       <div className="form-section">
         <h4>选项</h4>
-        <label className="check-row">
-          <input
-            type="checkbox"
-            checked={f.enabled}
-            onChange={(e) => setF((p) => ({ ...p, enabled: e.target.checked }))}
-            data-testid="user-form-enabled"
-          />
-          启用（取消勾选 = 禁用账号——禁用后登录与写面全部拒绝）
-        </label>
+        <FormControlLabel
+          className="check-row"
+          control={
+            <Checkbox
+              size="small"
+              checked={f.enabled}
+              onChange={(e) => setF((p) => ({ ...p, enabled: e.target.checked }))}
+              slotProps={{ input: { 'data-testid': 'user-form-enabled' } as ComponentPropsWithoutRef<'input'> }}
+            />
+          }
+          label="启用（取消勾选 = 禁用账号——禁用后登录与写面全部拒绝）"
+        />
       </div>
       <div className="form-section">
         <h4>口令</h4>
         <div className="field">
           <label htmlFor="uf-pass">初始口令 *</label>
-          <input
+          <TextField
             id="uf-pass"
+            size="small"
             type="password"
             autoComplete="new-password"
             value={f.password}
             onBlur={() => setTouched((p) => ({ ...p, password: true }))}
             onChange={(e) => setF((p) => ({ ...p, password: e.target.value }))}
-            aria-invalid={!!passErr}
-            data-testid="user-form-password"
+            error={!!passErr}
+            sx={{ ...denseInputSx, width: 320 }}
+            slotProps={{ htmlInput: { 'data-testid': 'user-form-password' } }}
           />
           {passErr && (
             <p className="field-error" role="alert">
@@ -231,23 +262,29 @@ function CreateUserForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
         )}
       </div>
       {serverError && (
-        <div className="form-error" data-testid="user-form-error" role="alert">
+        <Alert severity="error" data-testid="user-form-error">
           <div className="headline">创建失败（HTTP {serverError.status || '网络'}）</div>
           <div className="raw" lang="en">
             {serverError.message}
           </div>
-        </div>
+        </Alert>
       )}
       <div className="form-actions">
-        <button type="button" className="btn" onClick={onCancel}>
+        <Button variant="outlined" size="small" sx={rowBtnSx} onClick={onCancel}>
           取消
-        </button>
-        <button type="button" className="btn" onClick={() => setF(CREATE_INITIAL)}>
+        </Button>
+        <Button variant="outlined" size="small" sx={rowBtnSx} onClick={() => setF(CREATE_INITIAL)}>
           重置
-        </button>
-        <button type="button" className="btn primary" disabled={!canSubmit} onClick={() => void submit()} data-testid="user-form-submit">
+        </Button>
+        <Button
+          variant="contained"
+          size="small"
+          disabled={!canSubmit}
+          onClick={() => void submit()}
+          data-testid="user-form-submit"
+        >
           {submitting ? '创建中…' : '创建用户'}
-        </button>
+        </Button>
       </div>
     </section>
   )
@@ -284,9 +321,9 @@ export default function UsersPage() {
       <div className="page-header">
         <h2>用户</h2>
         {admin && (
-          <button type="button" className="btn primary" onClick={() => setCreating((v) => !v)} data-testid="users-create">
+          <Button variant="contained" size="small" onClick={() => setCreating((v) => !v)} data-testid="users-create">
             {creating ? '收起表单' : '＋ 新建用户'}
-          </button>
+          </Button>
         )}
       </div>
 
@@ -323,25 +360,25 @@ export default function UsersPage() {
           )
         ) : (
           <>
-            <table className="table" data-testid="users-table">
-              <thead>
-                <tr>
+            <Table className="table" data-testid="users-table">
+              <TableHead>
+                <TableRow>
                   <SortTh label="用户名" sortKey="name" sort={sort} onToggle={toggle} testid="users-sort-name" />
                   <SortTh label="Email" sortKey="email" sort={sort} onToggle={toggle} />
                   <SortTh label="组" sortKey="groups" sort={sort} onToggle={toggle} />
                   <SortTh label="角色" sortKey="role" sort={sort} onToggle={toggle} />
                   <SortTh label="Status" sortKey="status" sort={sort} onToggle={toggle} testid="users-sort-status" />
-                  {admin && <th scope="col">操作</th>}
-                </tr>
-              </thead>
-              <tbody>
+                  {admin && <TableCell component="th" scope="col">操作</TableCell>}
+                </TableRow>
+              </TableHead>
+              <TableBody>
                 {rows.map((r) => {
                   // 自删/内置 admin：UI 预禁用（服务端 400 终裁；title 述因）
                   const self = session?.username === r.name
                   const builtin = r.name === 'admin'
                   const deleteBlocked = self ? '不能删除当前登录用户（服务端 400 护栏）' : builtin ? '不能删除内置 admin 用户（服务端 400 护栏）' : undefined
                   return (
-                    <tr
+                    <TableRow
                       key={r.name}
                       data-testid={`user-row-${r.name}`}
                       tabIndex={0}
@@ -349,54 +386,61 @@ export default function UsersPage() {
                         onTableRowKeys(e, () => navigate(`/admin/security/users/${encodeURIComponent(r.name)}`))
                       }
                     >
-                      <td>
+                      <TableCell>
                         <Link className="row-link mono" to={`/admin/security/users/${encodeURIComponent(r.name)}`} lang="en">
                           {r.name}
                         </Link>{' '}
                         <CopyButton value={r.name} label={`用户名 ${r.name}`} />
-                      </td>
-                      <td>
+                      </TableCell>
+                      <TableCell>
                         <span className="text-2">{r.email}</span>
-                      </td>
-                      <td className="wrap" style={{ maxWidth: 360 }}>
+                      </TableCell>
+                      <TableCell className="wrap" sx={{ maxWidth: 360 }}>
                         {r.groups.length === 0 ? (
                           <span className="text-muted">—</span>
                         ) : (
                           <span title={r.groups.join(', ')}>
-                            <span className="badge neutral">{r.groups.length}</span>{' '}
+                            <Chip size="small" className="badge neutral" label={r.groups.length} sx={badgeChipSx} />{' '}
                             <span className="sec-chips">
                               {r.groups.map((g) => (
-                                <span key={g} className="badge neutral mono" lang="en">
-                                  {g}
-                                </span>
+                                <Chip
+                                  key={g}
+                                  size="small"
+                                  className="badge neutral mono"
+                                  label={g}
+                                  sx={badgeChipSx}
+                                  lang="en"
+                                />
                               ))}
                             </span>
                           </span>
                         )}
-                      </td>
-                      <td>{roleBadge(r)}</td>
-                      <td>
+                      </TableCell>
+                      <TableCell>{roleBadge(r)}</TableCell>
+                      <TableCell>
                         <StatusLabel enabled={r.enabled} name={r.name} />
-                      </td>
+                      </TableCell>
                       {admin && (
-                        <td>
-                          <button
-                            type="button"
-                            className="btn danger"
+                        <TableCell>
+                          <Button
+                            variant="outlined"
+                            color="error"
+                            size="small"
+                            sx={dangerBtnSx}
                             disabled={deleteBlocked !== undefined}
                             title={deleteBlocked}
                             onClick={() => void deleteUser(r.name)}
                             data-testid={`user-delete-${r.name}`}
                           >
                             删除
-                          </button>
-                        </td>
+                          </Button>
+                        </TableCell>
                       )}
-                    </tr>
+                    </TableRow>
                   )
                 })}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
             <p className="table-foot" data-testid="users-count">
               用户总数： {rows.length}
             </p>

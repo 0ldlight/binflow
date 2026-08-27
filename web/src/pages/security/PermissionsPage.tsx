@@ -1,11 +1,20 @@
 import { Link, useNavigate } from 'react-router-dom'
 
+import Button from '@mui/material/Button'
+import Chip from '@mui/material/Chip'
+import Table from '@mui/material/Table'
+import TableBody from '@mui/material/TableBody'
+import TableCell from '@mui/material/TableCell'
+import TableHead from '@mui/material/TableHead'
+import TableRow from '@mui/material/TableRow'
+
 import { useAuth } from '../../app/AuthContext'
 import { CopyButton } from '../../components/CopyButton'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import { canAdminWrite, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
+import { badgeChipSx } from '../../lib/muiAtoms'
 import { onTableRowKeys } from '../../lib/keys'
 import { useAsync } from '../../lib/useAsync'
 import './security.css'
@@ -76,9 +85,15 @@ export default function PermissionsPage() {
       <div className="page-header">
         <h2>权限</h2>
         {admin && (
-          <Link className="btn primary" to="/admin/security/permissions/new" data-testid="perms-create">
+          <Button
+            variant="contained"
+            size="small"
+            component={Link}
+            to="/admin/security/permissions/new"
+            data-testid="perms-create"
+          >
             ＋ 新建权限
-          </Link>
+          </Button>
         )}
       </div>
 
@@ -116,9 +131,9 @@ export default function PermissionsPage() {
               message="还没有 permission target"
               hint="target = 仓库 × 路径 pattern × 主体（用户/组）× 动作（read/write/delete/manage）；授权并集、即时生效。"
               action={
-                <Link className="btn primary" to="/admin/security/permissions/new">
+                <Button variant="contained" size="small" component={Link} to="/admin/security/permissions/new">
                   创建第一个 target
-                </Link>
+                </Button>
               }
             />
           ) : mHolder ? (
@@ -133,22 +148,22 @@ export default function PermissionsPage() {
           )
         ) : (
           <>
-            <table className="table" data-testid="perms-table">
-              <thead>
-                <tr>
+            <Table className="table" data-testid="perms-table">
+              <TableHead>
+                <TableRow>
                   <SortTh label="权限名" sortKey="name" sort={sort} onToggle={toggle} testid="perms-sort-name" />
                   <SortTh label="仓库数" sortKey="repos" sort={sort} onToggle={toggle} />
                   <SortTh label="patterns" sortKey="patterns" sort={sort} onToggle={toggle} />
                   <SortTh label="用户数" sortKey="users" sort={sort} onToggle={toggle} />
                   <SortTh label="组数" sortKey="groups" sort={sort} onToggle={toggle} />
-                </tr>
-              </thead>
-              <tbody>
+                </TableRow>
+              </TableHead>
+              <TableBody>
                 {sorted.map((t) => (
-                  <tr
+                  <TableRow
                     key={t.name}
                     data-testid={`perm-row-${t.name}`}
-                    style={{ cursor: 'pointer' }}
+                    sx={{ cursor: 'pointer' }}
                     tabIndex={0}
                     onClick={() => navigate(`/admin/security/permissions/${encodeURIComponent(t.name)}`)}
                     onKeyDown={(e) =>
@@ -157,7 +172,7 @@ export default function PermissionsPage() {
                       )
                     }
                   >
-                    <td>
+                    <TableCell>
                       <span className="cell-inline">
                         <Link
                           className="row-link mono"
@@ -168,41 +183,42 @@ export default function PermissionsPage() {
                           {t.name}
                         </Link>
                         {holdsManage(t) && (
-                          <span
+                          <Chip
+                            size="small"
                             className="badge neutral mono"
+                            label="manage"
+                            sx={badgeChipSx}
                             lang="en"
                             data-testid={`perm-manage-badge-${t.name}`}
                             title="该 target 的某主体行携带 manage（仓库配置派生权；不隐含读写删）"
-                          >
-                            manage
-                          </span>
+                          />
                         )}
                         <CopyButton value={t.name} label={`target ${t.name}`} />
                       </span>
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       <span className="text-2" title={t.repos.join(', ')}>
                         {t.repos.length}
                       </span>
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       <span
                         className="mono"
                         title={`include: ${t.includePatterns.join(', ') || '（空 = 全部）'}\nexclude: ${t.excludePatterns.join(', ') || '（无）'}`}
                       >
                         +{t.includePatterns.length} / −{t.excludePatterns.length}
                       </span>
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       <span className="text-2">{Object.keys(t.principals.users).length}</span>
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       <span className="text-2">{Object.keys(t.principals.groups).length}</span>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
             <p className="table-foot" data-testid="perms-count">
               {mHolder ? '管理范围内的权限 target：' : '权限 target 总数：'} {sorted.length}
             </p>

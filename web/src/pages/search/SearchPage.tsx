@@ -2,11 +2,20 @@ import { useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 
+import Button from '@mui/material/Button'
+import Table from '@mui/material/Table'
+import TableBody from '@mui/material/TableBody'
+import TableCell from '@mui/material/TableCell'
+import TableHead from '@mui/material/TableHead'
+import TableRow from '@mui/material/TableRow'
+import TextField from '@mui/material/TextField'
+
 import { CopyButton } from '../../components/CopyButton'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { apiJSON } from '../../lib/api'
 import { formatBytes } from '../../lib/format'
+import { denseInputSx, monoInputSx, rowBtnSx } from '../../lib/muiAtoms'
 import { useAsync } from '../../lib/useAsync'
 
 import './search.css'
@@ -217,12 +226,14 @@ export default function SearchPage() {
 
       <div className="filter-bar">
         <div className="search-box">
-          <input
+          {/* T-300 批次二迁 MUI TextField：锚/combobox 语义属性（aria-expanded
+              / aria-autocomplete）经 htmlInput 落 input 本体；最近词下拉
+              （search-recent 族）保持原生——顶栏同款零变化红线 */}
+          <TextField
             type="search"
-            placeholder="搜索制品：名称或路径包含…"
-            aria-label="搜索关键词"
-            data-testid="search-input"
+            size="small"
             autoFocus
+            placeholder="搜索制品：名称或路径包含…"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             onFocus={() => setRecentOpen(true)}
@@ -231,8 +242,16 @@ export default function SearchPage() {
               setRecentActive(-1)
             }}
             onKeyDown={onInputKeyDown}
-            aria-expanded={recent.length > 0 ? recentOpen : undefined}
-            aria-autocomplete="list"
+            sx={{ ...denseInputSx, ...monoInputSx, width: 420 }}
+            slotProps={{
+              htmlInput: {
+                'data-testid': 'search-input',
+                'aria-label': '搜索关键词',
+                className: 'mono',
+                'aria-expanded': recent.length > 0 ? recentOpen : undefined,
+                'aria-autocomplete': 'list',
+              },
+            }}
           />
           {/* 展开条件：聚焦 + 有历史 +（关键词为空 或 ↑↓ 显式导航中）——
               有关键词且不在导航态时不遮挡结果表 */}
@@ -269,13 +288,14 @@ export default function SearchPage() {
             </div>
           )}
         </div>
-        <input
+        <TextField
           type="search"
+          size="small"
           placeholder="仓库过滤（逗号分隔 key）"
-          aria-label="按仓库过滤"
-          data-testid="search-filter-repo"
           value={repoFilter}
           onChange={(e) => setRepoFilter(e.target.value)}
+          sx={{ ...denseInputSx, ...monoInputSx, width: 240 }}
+          slotProps={{ htmlInput: { 'data-testid': 'search-filter-repo', 'aria-label': '按仓库过滤', className: 'mono' } }}
         />
       </div>
 
@@ -299,21 +319,21 @@ export default function SearchPage() {
         />
       ) : (
         <>
-          <table className="table">
-            <thead>
-              <tr>
-                <th>仓库</th>
-                <th>路径 / 语义</th>
-                <th>大小</th>
-                <th>修改时间</th>
-                <th>sha256</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="table">
+            <TableHead>
+              <TableRow>
+                <TableCell component="th" scope="col">仓库</TableCell>
+                <TableCell component="th" scope="col">路径 / 语义</TableCell>
+                <TableCell component="th" scope="col">大小</TableCell>
+                <TableCell component="th" scope="col">修改时间</TableCell>
+                <TableCell component="th" scope="col">sha256</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {rows.slice(0, visible).map((r, i) => {
                 const sub = semanticOf(r.path)
                 return (
-                  <tr
+                  <TableRow
                     key={`${r.repo}${r.path}`}
                     data-testid={`search-result-${i}`}
                     tabIndex={0}
@@ -322,8 +342,8 @@ export default function SearchPage() {
                       if (e.key === 'Enter') gotoNode(r)
                     }}
                   >
-                    <td className="mono" lang="en">{r.repo}</td>
-                    <td className="wrap">
+                    <TableCell className="mono" lang="en">{r.repo}</TableCell>
+                    <TableCell className="wrap">
                       <div className="mono row-link" lang="en">{r.path}</div>
                       <div className="search-result-sub">
                         {sub ? (
@@ -336,10 +356,10 @@ export default function SearchPage() {
                           )
                         )}
                       </div>
-                    </td>
-                    <td className="mono">{formatBytes(Number(r.size) || 0)}</td>
-                    <td className="mono">{r.lastModified ? r.lastModified.replace('T', ' ').slice(0, 19) : '—'}</td>
-                    <td className="mono" title={r.checksums?.sha256 ?? ''}>
+                    </TableCell>
+                    <TableCell className="mono">{formatBytes(Number(r.size) || 0)}</TableCell>
+                    <TableCell className="mono">{r.lastModified ? r.lastModified.replace('T', ' ').slice(0, 19) : '—'}</TableCell>
+                    <TableCell className="mono" title={r.checksums?.sha256 ?? ''}>
                       {r.checksums?.sha256 ? (
                         <>
                           {`${r.checksums.sha256.slice(0, 10)}…`}
@@ -348,20 +368,26 @@ export default function SearchPage() {
                       ) : (
                         '—'
                       )}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 )
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
           <div className="search-footer" data-testid="search-pager">
             <span>
               显示 1 – {shown} / 共 {rows.length} 项
             </span>
             {visible < rows.length && (
-              <button type="button" className="btn" data-testid="search-more" onClick={() => setVisible((v) => v + PAGE)}>
+              <Button
+                variant="outlined"
+                size="small"
+                sx={rowBtnSx}
+                data-testid="search-more"
+                onClick={() => setVisible((v) => v + PAGE)}
+              >
                 加载更多
-              </button>
+              </Button>
             )}
           </div>
         </>

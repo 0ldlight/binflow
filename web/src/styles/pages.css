@@ -21,21 +21,11 @@
   white-space: nowrap;
 }
 
-.filter-bar input[type='search'],
-.filter-bar select {
-  min-height: 32px;
-  padding: 0 var(--bf-sp-2);
-  background: var(--bf-surface-3);
-  border: 1px solid var(--bf-border);
-  border-radius: var(--bf-r-sm);
-  color: var(--bf-text);
-  font-size: var(--bf-fs-body);
-}
-
-.filter-bar input[type='search'] {
-  min-width: 200px;
-  font-family: var(--bf-mono);
-}
+/* T-300 批次二：过滤栏输入全部迁 MUI TextField（T-299 仓库页 + 本批
+ * 树/搜索/审计页）——原生 input/select 的皮肤规则退役（外框由
+ * muiAtoms.denseInputSx 承载；mono 字体随 htmlInput className 落 input
+ * 本体）。连带修复：批一仓库页 TextField 的内层 input 曾与本规则叠出
+ * 双边框（内框 + OutlinedInput fieldset）。 */
 
 /* ---------- 表格行内元素 ---------- */
 
@@ -462,7 +452,7 @@ legend.field-label {
   max-width: 560px;
 }
 
-.field textarea {
+.field > textarea {
   min-height: 64px;
   padding: var(--bf-sp-2) var(--bf-sp-3);
   background: var(--bf-surface-3);

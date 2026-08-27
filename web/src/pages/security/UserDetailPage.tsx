@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react'
+import type { ComponentPropsWithoutRef } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+
+import Alert from '@mui/material/Alert'
+import Button from '@mui/material/Button'
+import Checkbox from '@mui/material/Checkbox'
+import FormControlLabel from '@mui/material/FormControlLabel'
+import Select from '@mui/material/Select'
+import TextField from '@mui/material/TextField'
 
 import { useAuth } from '../../app/AuthContext'
 import { useToast } from '../../app/ToastContext'
@@ -9,6 +17,7 @@ import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import { ADMIN_ROLES, ApiError, canAdminWrite, errText, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
 import type { AdminRole } from '../../lib/api'
+import { dangerBtnSx, denseInputSx, rowBtnSx } from '../../lib/muiAtoms'
 import { useAsync } from '../../lib/useAsync'
 import './security.css'
 import { TransferBox } from './TransferBox'
@@ -98,9 +107,9 @@ export default function UserDetailPage() {
           <EmptyState
             message={`用户 ${name} 不存在`}
             action={
-              <Link className="btn" to="/admin/security/users">
+              <Button variant="outlined" size="small" sx={rowBtnSx} component={Link} to="/admin/security/users">
                 ← 返回用户列表
-              </Link>
+              </Button>
             }
           />
         ) : (
@@ -171,9 +180,9 @@ export default function UserDetailPage() {
         <h2>
           编辑用户 · <span className="mono" lang="en">{name}</span>
         </h2>
-        <Link className="btn" to="/admin/security/users">
+        <Button variant="outlined" size="small" sx={rowBtnSx} component={Link} to="/admin/security/users">
           ← 返回列表
-        </Link>
+        </Button>
       </div>
 
       <section className="card inline-form" data-testid="user-form" aria-label="编辑用户">
@@ -198,31 +207,41 @@ export default function UserDetailPage() {
               </div>
               <div className="field">
                 <label htmlFor="ud-email">Email</label>
-                <input
+                <TextField
                   id="ud-email"
+                  size="small"
                   type="email"
                   value={f.email}
                   disabled={readOnly}
                   onChange={(e) => setF((p) => (p ? { ...p, email: e.target.value } : p))}
-                  data-testid="user-form-email"
+                  sx={{ ...denseInputSx, width: 320 }}
+                  slotProps={{ htmlInput: { 'data-testid': 'user-form-email' } }}
                 />
                 {f.email.trim() === '' && <p className="field-error">email 不能为空（服务端 400）</p>}
               </div>
               <div className="field" style={{ maxWidth: 480 }}>
                 <label htmlFor="ud-role">角色（三值闭集——wire 值即选项值）</label>
-                <select
+                <TextField
                   id="ud-role"
+                  select
+                  size="small"
                   value={f.role}
                   disabled={readOnly}
                   onChange={(e) => setF((p) => (p ? { ...p, role: e.target.value as AdminRole } : p))}
-                  data-testid="user-form-role"
+                  sx={{ ...denseInputSx, width: 420 }}
+                  slotProps={{
+                    select: {
+                      native: true,
+                      inputProps: { 'data-testid': 'user-form-role' } as ComponentPropsWithoutRef<'select'>,
+                    } as ComponentPropsWithoutRef<typeof Select>,
+                  }}
                 >
                   {ADMIN_ROLES.map((r) => (
                     <option key={r} value={r} data-testid={`user-form-role-${r}`}>
                       {ROLE_LABEL[r]}
                     </option>
                   ))}
-                </select>
+                </TextField>
                 <p className="field-hint">
                   角色变更即时生效并落 <span className="mono" lang="en">user.role.change</span> 审计；只读管理员对
                   permission target 短路（组合无效而非非法）。
@@ -231,45 +250,52 @@ export default function UserDetailPage() {
             </div>
             <div className="form-section">
               <h4>选项</h4>
-              <label className="check-row">
-                <input
-                  type="checkbox"
-                  checked={f.enabled}
-                  disabled={readOnly}
-                  onChange={(e) => setF((p) => (p ? { ...p, enabled: e.target.checked } : p))}
-                  data-testid="user-form-enabled"
-                />
-                启用（取消勾选 = 禁用账号——登录与写面全部拒绝）
-              </label>
+              <FormControlLabel
+                className="check-row"
+                control={
+                  <Checkbox
+                    size="small"
+                    checked={f.enabled}
+                    disabled={readOnly}
+                    onChange={(e) => setF((p) => (p ? { ...p, enabled: e.target.checked } : p))}
+                    slotProps={{ input: { 'data-testid': 'user-form-enabled' } as ComponentPropsWithoutRef<'input'> }}
+                  />
+                }
+                label="启用（取消勾选 = 禁用账号——登录与写面全部拒绝）"
+              />
               <p className="field-hint">勾选态 = 服务端 enabled 回显（E3，DB 行事实）；保存总是携带该位写入。</p>
             </div>
             <div className="form-section">
               <h4>口令</h4>
               <div className="field">
                 <label htmlFor="ud-pass">重置口令（可选——留空不改动；无需旧口令）</label>
-                <input
+                <TextField
                   id="ud-pass"
+                  size="small"
                   type="password"
                   autoComplete="new-password"
                   placeholder="（不改动）"
                   value={f.password}
                   disabled={readOnly}
                   onChange={(e) => setF((p) => (p ? { ...p, password: e.target.value } : p))}
-                  data-testid="user-form-password"
+                  sx={{ ...denseInputSx, width: 320 }}
+                  slotProps={{ htmlInput: { 'data-testid': 'user-form-password' } }}
                 />
               </div>
               <div className="field">
                 <label htmlFor="ud-pass2">确认口令</label>
-                <input
+                <TextField
                   id="ud-pass2"
+                  size="small"
                   type="password"
                   autoComplete="new-password"
                   placeholder="（再输入一次）"
                   value={f.password2}
                   disabled={readOnly}
                   onChange={(e) => setF((p) => (p ? { ...p, password2: e.target.value } : p))}
-                  aria-invalid={passMismatch}
-                  data-testid="user-form-password2"
+                  error={passMismatch}
+                  sx={{ ...denseInputSx, width: 320 }}
+                  slotProps={{ htmlInput: { 'data-testid': 'user-form-password2' } }}
                 />
                 {passMismatch && (
                   <p className="field-error" role="alert">
@@ -304,35 +330,36 @@ export default function UserDetailPage() {
               )}
             </div>
             {serverError && (
-              <div className="form-error" data-testid="user-form-error" role="alert">
+              <Alert severity="error" data-testid="user-form-error">
                 <div className="headline">保存失败（HTTP {serverError.status || '网络'}）</div>
                 <div className="raw" lang="en">
                   {serverError.message}
                 </div>
-              </div>
+              </Alert>
             )}
             <div className="form-actions">
-              <Link className="btn" to="/admin/security/users">
+              <Button variant="outlined" size="small" sx={rowBtnSx} component={Link} to="/admin/security/users">
                 取消
-              </Link>
-              <button
-                type="button"
-                className="btn"
+              </Button>
+              <Button
+                variant="outlined"
+                size="small"
+                sx={rowBtnSx}
                 disabled={!dirty || submitting}
                 onClick={() => d && setF(editFromDetail(d))}
               >
                 重置
-              </button>
-              <button
-                type="button"
-                className="btn primary"
+              </Button>
+              <Button
+                variant="contained"
+                size="small"
                 disabled={!dirty || f.email.trim() === '' || passMismatch || submitting || readOnly}
                 title={readOnly ? '只读管理员：用户编辑是管理面写操作（服务端 403）' : undefined}
                 onClick={() => void submit()}
                 data-testid="user-form-submit"
               >
                 {submitting ? '保存中…' : '保存'}
-              </button>
+              </Button>
             </div>
           </>
         )}
@@ -390,13 +417,28 @@ export default function UserDetailPage() {
               <b>禁用</b>（选项区）——删除仅用于账号彻底清退。
             </p>
             {deleteBlocked ? (
-              <button type="button" className="btn danger" disabled title={deleteBlocked} data-testid="user-delete">
+              <Button
+                variant="outlined"
+                color="error"
+                size="small"
+                sx={dangerBtnSx}
+                disabled
+                title={deleteBlocked}
+                data-testid="user-delete"
+              >
                 删除用户
-              </button>
+              </Button>
             ) : (
-              <button type="button" className="btn danger" onClick={() => void deleteUser(name)} data-testid="user-delete">
+              <Button
+                variant="outlined"
+                color="error"
+                size="small"
+                sx={dangerBtnSx}
+                onClick={() => void deleteUser(name)}
+                data-testid="user-delete"
+              >
                 删除用户
-              </button>
+              </Button>
             )}
           </div>
         )}
