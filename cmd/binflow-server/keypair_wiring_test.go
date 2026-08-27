@@ -40,12 +40,15 @@ func TestWireKeypairManagerBootsEmpty(t *testing.T) {
 	md := t319OpenStore(t)
 	t.Cleanup(func() { _ = md.Close() })
 
-	mgr, err := wireKeypairManager(ctx, md, t319Logger())
+	mgr, svc, err := wireKeypairManager(ctx, md, t319Logger())
 	if err != nil {
 		t.Fatalf("wireKeypairManager: %v", err)
 	}
 	if mgr == nil {
 		t.Fatalf("wireKeypairManager returned a nil manager")
+	}
+	if svc == nil {
+		t.Fatalf("wireKeypairManager returned a nil signing service")
 	}
 }
 
@@ -66,7 +69,7 @@ func TestWireKeypairManagerFailsFastOnSealedRowsWithoutKey(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("PutKeypair: %v", err)
 	}
-	if _, err := wireKeypairManager(ctx, md, t319Logger()); err == nil ||
+	if _, _, err := wireKeypairManager(ctx, md, t319Logger()); err == nil ||
 		!strings.Contains(err.Error(), "no master key") {
 		t.Fatalf("wireKeypairManager with sealed rows and no key err = %v, want the fail-fast", err)
 	}
@@ -78,7 +81,7 @@ func TestWireKeypairManagerWithKeyServesSealedRows(t *testing.T) {
 	t.Cleanup(func() { _ = md.Close() })
 
 	t.Setenv("BINFLOW_REMOTE_CREDENTIALS_KEY", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=") // base64 of 32 bytes
-	if _, err := wireKeypairManager(ctx, md, t319Logger()); err != nil {
+	if _, _, err := wireKeypairManager(ctx, md, t319Logger()); err != nil {
 		t.Fatalf("wireKeypairManager with key: %v", err)
 	}
 }
