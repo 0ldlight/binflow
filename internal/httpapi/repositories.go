@@ -109,6 +109,39 @@ type repoConfig struct {
 	// write plane it governs is the local one.
 	QuotaBytes *int64 `json:"quotaBytes,omitempty"`
 
+	// ---- T-327R deb/rpm policy transport (the D-B unlock) ----
+	//
+	// The index-engine policy keys the deb/rpm adapters read verbatim off
+	// the config blob (their RepoConfig probes; debian.md sections 3-5 /
+	// rpm.md sections 2.4, 3.2 and 4). The spellings are the Artifactory
+	// flat field names — no sub-object, matching both the adapters' probes
+	// and the maven policy family's long-standing posture on this struct.
+	// Like that family, the keys ride the LOCAL arm only (the deb/rpm index
+	// engines serve local repositories; the reindex family refuses remote,
+	// and virtual resolution reads the members' own trees). POINTER fields
+	// keep an explicit false/0 distinct from absent — load-bearing for
+	// calculateYumMetadata, whose product default IS false (RP-2): the
+	// flip-off update must survive the round trip, or the 409 branch could
+	// never be turned off again.
+	//
+	// Validation posture stays the architecture's: this plane transports,
+	// the config blob stays caller-owned and repo.Service only type-checks
+	// its own cross-cutting fields. Typing rides the decode (a mistyped
+	// value fails the body decode with the field named, 400); value
+	// semantics (the byHash enum, normalization to spec defaults) belong to
+	// the adapters' own normalized() reads.
+	ByHash                          string   `json:"byHash,omitempty"`                          // deb: ALL / SHA256 / NONE (default NONE)
+	OptionalIndexCompressionFormats []string `json:"optionalIndexCompressionFormats,omitempty"` // deb: xz / lzma spellings
+	DebianDefaultArchitectures      string   `json:"debianDefaultArchitectures,omitempty"`      // deb: TL-4 forced families (default i386,amd64; "none" opts out)
+	HistoryCycles                   *int64   `json:"historyCycles,omitempty"`                   // deb: by-hash generations to keep (default 3)
+	Origin                          string   `json:"origin,omitempty"`                          // deb: Release Origin (default: repo key)
+	Label                           string   `json:"label,omitempty"`                           // deb: Release Label (default: repo key)
+
+	CalculateYumMetadata    *bool  `json:"calculateYumMetadata,omitempty"`    // rpm: the RP-2 opt-in (default false)
+	YumRootDepth            *int64 `json:"yumRootDepth,omitempty"`            // rpm: repodata root depth (default 0 = repository root)
+	EnableFileListsIndexing *bool  `json:"enableFileListsIndexing,omitempty"` // rpm: the filelists index switch (default false)
+	YumGroupFileNames       string `json:"yumGroupFileNames,omitempty"`       // rpm: comps group file list (default comps.xml)
+
 	// Configuration is the GET-only echo of the stored canonical config (the
 	// service hands it back already masked, NFR-S14); it is never an input.
 	Configuration any `json:"configuration,omitempty"`
@@ -138,6 +171,15 @@ func setBool(m map[string]any, key string, v *bool) {
 func setRawJSON(m map[string]any, key string, v *json.RawMessage) {
 	if v != nil {
 		m[key] = *v
+	}
+}
+
+// setStrSlice collects one string-slice transport field into the config map
+// (nil = the field was absent; an explicit empty array still lands, the same
+// absent-vs-empty split every pointer field on this struct keeps).
+func setStrSlice(m map[string]any, key string, v []string) {
+	if v != nil {
+		m[key] = v
 	}
 }
 
@@ -185,6 +227,11 @@ func (c repoConfig) configJSON(rclass string) (string, error) {
 		// (T-95) ride the same passthrough: includesPattern/excludesPattern
 		// (the struct's long-standing transport fields, finally forwarded)
 		// and quotaBytes — repo.Service validates and the gates enforce.
+		// T-327R (the D-B unlock): the deb/rpm index-engine policy keys ride
+		// the same verbatim passthrough — package-type-agnostic like the
+		// maven family (a debian key on an rpm repository is stored and
+		// ignored, the caller-owned blob posture), read by exactly the
+		// adapter whose repository it is.
 		setBool(m, "priorityResolution", c.PriorityResolution)
 		setBool(m, "handleReleases", c.HandleReleases)
 		setBool(m, "handleSnapshots", c.HandleSnapshots)
@@ -193,6 +240,16 @@ func (c repoConfig) configJSON(rclass string) (string, error) {
 		setStr(m, "includesPattern", c.IncludesPattern)
 		setStr(m, "excludesPattern", c.ExcludesPattern)
 		setI64(m, "quotaBytes", c.QuotaBytes)
+		setStr(m, "byHash", c.ByHash)
+		setStrSlice(m, "optionalIndexCompressionFormats", c.OptionalIndexCompressionFormats)
+		setStr(m, "debianDefaultArchitectures", c.DebianDefaultArchitectures)
+		setI64(m, "historyCycles", c.HistoryCycles)
+		setStr(m, "origin", c.Origin)
+		setStr(m, "label", c.Label)
+		setBool(m, "calculateYumMetadata", c.CalculateYumMetadata)
+		setI64(m, "yumRootDepth", c.YumRootDepth)
+		setBool(m, "enableFileListsIndexing", c.EnableFileListsIndexing)
+		setStr(m, "yumGroupFileNames", c.YumGroupFileNames)
 	}
 	if len(m) == 0 {
 		return "", nil
