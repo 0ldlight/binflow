@@ -928,6 +928,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
   - **T-309 → review→已验待合 2026-08-27**：实现+自测全绿（sprint 752 验收）；提交暂缓——接线踩 conan+helm 双包型 13 槽共写（slots.go/main.go/router.go），按合并时机口径第 4 条「T-308 先、T-309 紧随」顺序 --no-ff。
   - **429 熔断事件 01:52~01:54**：T-308/T-311 双双击落，配额复位 04:38:48；conductor 编译态预验（754 轮）全绿。
   - **双票续跑 10:23 起（复位后恢复）**：T-308（conan 1.66 live leg 门控测试收尾）/ T-311（rpm 适配器主体，参考 helm 接线模式）。宽度满 2，不派第三票。
+  - **T-308 → 已验待合 2026-08-27 10:44**：agent 交付全量（v2 17 端点+v1 全量数据面+能力头+reindex 业务体+门控三缝；**真实 conan 2.31.2 与 1.66.0 双客户端活体 E2E 全绿**——login/create/upload 两修订/清缓存 install 全远端下载链/list/remove；`-race` 双包 ok；M10 不变量 0 deviations）。conductor 复验：build/vet/addons+conan+cmd 测试全绿。遗留：conan reindex 两个 dispatchAPI case 由 conductor 波次合流时接线（片段在 T-308.md §5-D9）；规格修订建议 2 条交 reverse-engineer；`forceConanAuthentication` 仓配置字段未落（默认 false 行为已备）。合入锚点 = B4+B5 波次 PR（分支模型第 6 条）。
 - **B4**：T-308 [P0] conan local——**v2 全量 17 端点 + v1 全量数据面（CN-1 终裁推翻收窄，本票升 M11 最重适配票，窗口独占）**（TL-2/TL-3 能力头/.timestamp）dev-go-core｜ T-309 [P0] helm 经典仓 local（HL-1/2 挂载与 relative=true；.prov；reindex 双端点）dev-registry-adapter
 - **B5**：T-310 [P0] debian automatic local（TL-4=i386,amd64 强制；debPUT 坐标；索引直写 403）dev-go-core（dep T-304）｜ T-311 [P0] rpm local 管线（RP-2=false；header 解析器自研；reindex 七分支矩阵；TL-5=SHA-256）dev-registry-adapter（dep T-304）
 - **B6**：T-312 [P1] conan remote+virtual（dep T-308）｜ T-313 [P1] helm virtual+remote（URL 改写/_external）（dep T-309）
@@ -957,5 +958,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
   2. **develop → main（--no-ff）**：M11 首个批次收口或里程碑收官（m11-done tag）时执行一次——触发 CircleCI/UAT 链（52.79.109.153，含文档服务）；中途不逐票 release，避免 UAT 高频换装。
   3. **hotfix/**：自 main 切出，修完双回（main --no-ff → 回并 develop）。
   4. **交织例外顺序合入**：文件共写时（slots.go/main.go/router.go 按 13 槽共写），「先完成票先合、后行票紧随」顺序 --no-ff；当前 T-309（已验）暂缓即此例——T-308 收口后 T-308 先、T-309 紧随。
+  5. **PR 化合并（用户 2026-08-27 10:55 指令「你自己在合适的时机创建github pr」）**：自本条起 feature→develop 与 develop→main 均经 GitHub PR（conductor gh 自建自合；`gh pr create` → `gh pr merge --merge`，--merge 等价 --no-ff 保合并提交；PR 描述含票号+验证摘要）；时机沿用第 1/2 条口径。develop→main 的 release PR 在 CircleCI SSH key fingerprint 占位符（`REPLACE_WITH_UAT_KEY_FINGERPRINT`）被用户填妥前**只建不合**。
+  6. **三票全交织裁定（2026-08-27 10:52，第 4 条扩展）**：T-311 续跑期间主动改写 main.go/router.go（rpm import/yum case），接线文件成 T-308/T-309/T-311 三票共写且无法按票序独立编译（先行提交必携带后行包）。裁定：T-311 落地全绿后以 **B4+B5 波次单 PR 一次合入**，三票逐项归因（票号→文件清单→验证摘要）写入 PR 描述；票状态以 PR 合并为 done 锚点。快照保险：/tmp/snap-b45-1052/。
 
 （空）
