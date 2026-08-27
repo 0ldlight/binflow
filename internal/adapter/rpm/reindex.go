@@ -10,10 +10,8 @@ package rpm
 //
 // One root's run, in the spec's order:
 //
-//  1. clear the legacy *.sqlite.bz2 metadata and any stale repomd.xml.asc
-//     / .key pair (unsigned mode — no keypair system yet, K-1 pending; a
-//     surviving old signature would let clients "verify" a new repomd
-//     against it);
+//  1. clear the legacy *.sqlite.bz2 metadata (the signature pair's
+//     lifecycle moved to the post-write leg — sign.go);
 //  2. parse every .rpm under the root (the .rpmcache answers unchanged
 //     packages without re-reading bytes);
 //  3. render the trio (filelists only with enableFileListsIndexing),
@@ -23,7 +21,10 @@ package rpm
 //     promote reuses the staged blob (checksum-deploy semantics), and the
 //     client never observes a half-written generation: new digest names
 //     coexist with the old ones until repomd.xml itself flips last;
-//  5. write the new repomd.xml (plus the comps group chain's two entries);
+//  5. write the new repomd.xml (plus the comps group chain's two entries),
+//     then sign — repomd.xml.asc + repomd.xml.key land at their fixed
+//     names beside it (T-322, sign.go; the unsigned posture sweeps the
+//     stale pair instead);
 //  6. keep the newest N generations per index type (default 3), delete
 //     older and stale-spelling files, drop the staging directory.
 
@@ -269,6 +270,15 @@ func (h *Handler) reindexRootLocked(ctx context.Context, p *repo.Principal, repo
 		return fmt.Errorf("write repomd: %w", err)
 	}
 
+	// 5b. The signature pair (T-322, sign.go): repomd.xml is the flip
+	// point — the detached signature and the public key land at their
+	// FIXED names right beside it, so a rotation overwrites in place (a
+	// signed repository stays signed across generations); the unsigned
+	// posture sweeps the stale pair instead (rpm.md section 4.3).
+	if err := h.landRepomdSignatures(ctx, p, repoKey, root, repomdBody); err != nil {
+		return err
+	}
+
 	// 6. Retention: keep the newest generations per index type, drop the
 	// stale group spellings, clean the staging tree.
 	if err := h.pruneGenerationsLocked(ctx, p, repoKey, repodataRel, cfg, dataEls); err != nil {
@@ -284,9 +294,12 @@ func (h *Handler) reindexRootLocked(ctx context.Context, p *repo.Principal, repo
 	return nil
 }
 
-// cleanupRepodataLocked deletes the legacy sqlite metadata and the stale
-// signature pair of the PREVIOUS generation (unsigned mode — section 4.3:
-// no key means no signature, and an old signature must not survive).
+// cleanupRepodataLocked deletes the legacy sqlite metadata of the
+// PREVIOUS generation (section 2.2). The signature pair's lifecycle is
+// NOT swept here: its fixed names overwrite in place after the repomd
+// write and only the unsigned posture removes them (sign.go's landing
+// leg) — deleting up front would leave a signed repository serving its
+// OLD repomd unsigned for the whole run.
 func (h *Handler) cleanupRepodataLocked(ctx context.Context, p *repo.Principal, repoKey, repodataRel string) error {
 	nodes, err := h.svc.List(ctx, p, repoKey, repodataRel)
 	if err != nil {
@@ -296,17 +309,7 @@ func (h *Handler) cleanupRepodataLocked(ctx context.Context, p *repo.Principal, 
 		return fmt.Errorf("list %s: %w", repodataRel, err)
 	}
 	for _, n := range nodes {
-		base := path.Base(n.Path)
-		drop := false
-		switch {
-		case strings.HasSuffix(base, ".sqlite.bz2"):
-			drop = true
-		case repodataRel == dirRepodata && (n.Path == fileRepomd+".asc" || n.Path == fileRepomd+".key"):
-			drop = true
-		case repodataRel != dirRepodata && (n.Path == repodataRel+"/repomd.xml.asc" || n.Path == repodataRel+"/repomd.xml.key"):
-			drop = true
-		}
-		if drop {
+		if strings.HasSuffix(path.Base(n.Path), ".sqlite.bz2") {
 			if err := h.svc.Delete(ctx, p, repoKey, n.Path); err != nil && !errors.Is(err, repo.ErrNodeNotFound) {
 				return fmt.Errorf("delete stale metadata %s: %w", n.Path, err)
 			}

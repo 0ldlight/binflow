@@ -67,6 +67,11 @@ type Options struct {
 	AggTTL time.Duration
 	// Now overrides the clock (tests).
 	Now func() time.Time
+	// Signer is the GPG repomd signing seam (T-322, sign.go): cmd
+	// assembles the concrete keypair.SigningService and injects it here.
+	// nil keeps every repository unsigned (the unsigned posture, never a
+	// content-plane failure).
+	Signer RepomdSigner
 }
 
 // Handler is the RPM adapter. It owns the wire protocol only.
@@ -77,6 +82,7 @@ type Handler struct {
 	props    NodeProps
 	cache    *rpmCache
 	opts     Options
+	signer   RepomdSigner // nil = unsigned mode (Options.Signer)
 	rewrites indexMutexes // per-repoKey serialization of the repodata rewrites
 	aggs     virtualAggs  // the virtual aggregates' in-process cache (RP-3)
 }
@@ -92,7 +98,7 @@ func New(svc repo.Service, repos repo.ClassReader, blobs BlobLedger, opts Option
 // writes through (cmd assembly's T-315 call — the one-line diff the
 // ticket report hands the conductor).
 func NewWithProps(svc repo.Service, repos repo.ClassReader, blobs BlobLedger, props NodeProps, opts Options) *Handler {
-	return &Handler{svc: svc, repos: repos, blobs: blobs, props: props, cache: newRpmCache(opts.DataDir), opts: opts}
+	return &Handler{svc: svc, repos: repos, blobs: blobs, props: props, cache: newRpmCache(opts.DataDir), opts: opts, signer: opts.Signer}
 }
 
 // Register builds the handler and enters both the handler registry and
@@ -319,7 +325,7 @@ func (h *Handler) serveIndexFace(ctx context.Context, w http.ResponseWriter, r *
 func repomdContentType(rel string) string {
 	switch {
 	case strings.HasSuffix(rel, ".asc"), strings.HasSuffix(rel, ".key"):
-		return "text/plain; charset=utf-8"
+		return ctypeRepomdSignature
 	default:
 		return "text/xml"
 	}

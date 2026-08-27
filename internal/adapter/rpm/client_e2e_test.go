@@ -230,6 +230,158 @@ func runDocker(t *testing.T, share, image, script string) string {
 	return string(out)
 }
 
+// tryDocker is runDocker for the EXPECTED-FAILURE legs: the command's
+// error is returned, not fatalled (the refusal evidence is the output).
+func tryDocker(t *testing.T, share, image, script string) (string, error) {
+	t.Helper()
+	cmd := exec.Command("docker", "run", "--rm",
+		"-v", share+":/e2e",
+		"--add-host=host.docker.internal:host-gateway",
+		image, "bash", "-c", script)
+	out, err := cmd.CombinedOutput()
+	return string(out), err
+}
+
+// TestClientE2EDnfGpgContainer is the T-322 REAL-client leg (see the
+// gate): a genuine rpmbuild-made .rpm in a repo whose recompute SIGNS
+// repomd.xml (repomd.xml.asc + repomd.xml.key through the real keypair
+// plane), then the dnf repo_gpgcheck=1 chain inside Rocky Linux 9 —
+// the negative control first (no key imported → makecache REFUSED),
+// then the key fetched from the served repomd.xml.key and imported →
+// makecache/repoquery/install pass with the signature verified.
+func TestClientE2EDnfGpgContainer(t *testing.T) {
+	if os.Getenv("BINFLOW_RPM_E2E_GPG") != "1" {
+		t.Skip("set BINFLOW_RPM_E2E_GPG=1 to run the container dnf gpg leg (needs docker)")
+	}
+	if _, err := exec.LookPath("docker"); err != nil {
+		t.Skipf("docker unavailable: %v", err)
+	}
+
+	s := newStack(t)
+	s.generateSignKey(t, "t322-dnf")
+	s.seedRepo(t, "rpm-gpg", repo.TypeLocal, `{"keyPairName":"t322-dnf"}`)
+	host := "http://host.docker.internal:" + portOf(t, s.srv.URL)
+
+	share := t.TempDir()
+	spec := `Name:           binflow-e2e-gpg
+Version:        1.0
+Release:        1%{?dist}
+Summary:        BinFlow T-322 signed-repomd verification package
+License:        MIT
+BuildArch:      noarch
+
+%description
+A genuine rpmbuild-made package served behind a signed repomd.xml.
+
+%prep
+:
+
+%build
+:
+
+%install
+mkdir -p %{buildroot}/opt/binflow-e2e-gpg
+echo "binflow t322 gpg" > %{buildroot}/opt/binflow-e2e-gpg/hello.txt
+
+%files
+/opt/binflow-e2e-gpg/hello.txt
+`
+	if err := os.WriteFile(filepath.Join(share, "gpg.spec"), []byte(spec), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Step 1: build the genuine rpm inside the container.
+	build := []string{
+		"set -e",
+		"dnf install -y rpm-build >/dev/null",
+		`mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS}`,
+		"cp /e2e/gpg.spec ~/rpmbuild/SPECS/",
+		"rpmbuild -bb ~/rpmbuild/SPECS/gpg.spec >/dev/null",
+		"cp ~/rpmbuild/RPMS/noarch/*.rpm /e2e/",
+		"ls /e2e/*.rpm",
+	}
+	runDocker(t, share, "rockylinux:9", strings.Join(build, "\n"))
+	pkg := firstRpm(t, share)
+
+	// Step 2: upload + synchronous reindex (the recompute signs the
+	// repomd — assert the pair serves before the client legs).
+	up := []string{
+		"set -e",
+		"command -v curl >/dev/null || dnf install -y curl-minimal >/dev/null",
+		fmt.Sprintf(`curl -sf -u admin:password -T /e2e/%s %s/binflow/rpm-gpg/%s -o /dev/null -w 'PUT %%{http_code}\n'`, pkg, host, pkg),
+		fmt.Sprintf(`curl -sf -u admin:password -X POST '%s/binflow/api/yum/rpm-gpg?async=0' -w 'REINDEX %%{http_code}\n'`, host),
+		fmt.Sprintf(`curl -sf %s/binflow/rpm-gpg/repodata/repomd.xml.asc | head -1`, host),
+		fmt.Sprintf(`curl -sf %s/binflow/rpm-gpg/repodata/repomd.xml.key | head -1`, host),
+	}
+	out := runDocker(t, share, "rockylinux:9", strings.Join(up, "\n"))
+	if !strings.Contains(out, "PUT 201") || !strings.Contains(out, "REINDEX 200") {
+		t.Fatalf("upload/reindex leg failed:\n%s", out)
+	}
+	if !strings.Contains(out, "-----BEGIN PGP SIGNATURE-----") || !strings.Contains(out, "-----BEGIN PGP PUBLIC KEY BLOCK-----") {
+		t.Fatalf("the signed repo does not serve the armor pair:\n%s", out)
+	}
+	t.Logf("container upload+reindex (signed):\n%s", out)
+
+	repoFile := fmt.Sprintf("printf '[binflow]\\nname=BinFlow GPG\\nbaseurl=%s/binflow/rpm-gpg\\nenabled=1\\ngpgcheck=0\\nrepo_gpgcheck=1\\ngpgkey=file:///etc/pki/rpm-gpg/binflow.asc\\n' > /etc/yum.repos.d/binflow.repo", host)
+
+	// Step 3: the NEGATIVE control — repo_gpgcheck=1 with the key file
+	// absent must REFUSE the metadata (verification genuinely on, not
+	// silently trusted). No `set -e`: the refusal is the expected outcome
+	// and is marked explicitly.
+	refuse := []string{
+		repoFile,
+		"dnf clean all >/dev/null 2>&1",
+		"if dnf makecache -y --disablerepo='*' --enablerepo=binflow >/tmp/mk.log 2>&1; then echo 'MAKECACHE UNEXPECTEDLY OK'; else echo 'MAKECACHE REFUSED AS EXPECTED'; fi",
+		"grep -iE 'gpg|pubkey|key' /tmp/mk.log | head -5",
+	}
+	outR, errR := tryDocker(t, share, "rockylinux:9", strings.Join(refuse, "\n"))
+	t.Logf("negative control (no key imported):\n%s", outR)
+	if errR != nil {
+		t.Logf("refusal container exited non-zero (fine — markers below carry the evidence): %v", errR)
+	}
+	if !strings.Contains(outR, "MAKECACHE REFUSED AS EXPECTED") {
+		t.Errorf("repo_gpgcheck=1 without the key did not refuse makecache:\n%s", outR)
+	}
+	if !strings.Contains(strings.ToLower(outR), "gpg") && !strings.Contains(strings.ToLower(outR), "key") {
+		t.Errorf("refusal output carries no GPG evidence:\n%s", outR)
+	}
+
+	// Step 4: import the SERVED public key, then the full chain passes
+	// with the repomd signature verified. Every metadata-verifying dnf
+	// call carries -y: the gpgkey import confirmation is a prompt, and a
+	// prompt on a pipe answers EOF→no (which librepo then reports as the
+	// misleading "Bad GPG signature" — the debug run's finding).
+	dnf := []string{
+		"set -e",
+		"mkdir -p /etc/pki/rpm-gpg",
+		fmt.Sprintf(`curl -sf %s/binflow/rpm-gpg/repodata/repomd.xml.key -o /etc/pki/rpm-gpg/binflow.asc`, host),
+		"rpm --import /etc/pki/rpm-gpg/binflow.asc",
+		repoFile,
+		"dnf clean all >/dev/null",
+		"dnf makecache -y --disablerepo='*' --enablerepo=binflow -v >/tmp/mk2.log 2>&1",
+		"grep -iE 'gpg|key' /tmp/mk2.log | head -3",
+		"grep -c 'Metadata cache created' /tmp/mk2.log",
+		"echo '--- repoquery ---'",
+		"dnf repoquery -y --repo binflow binflow-e2e-gpg",
+		"echo '--- install ---'",
+		"dnf install -y --disablerepo='*' --enablerepo=binflow binflow-e2e-gpg",
+		"rpm -q binflow-e2e-gpg",
+		"cat /opt/binflow-e2e-gpg/hello.txt",
+	}
+	out = runDocker(t, share, "rockylinux:9", strings.Join(dnf, "\n"))
+	t.Logf("container dnf gpg chain:\n%s", out)
+	for _, want := range []string{
+		"binflow-e2e-gpg-0:",
+		"binflow-e2e-gpg-1.0-1.el9.noarch",
+		"binflow t322 gpg",
+		"Complete!",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("dnf gpg chain output missing %q:\n%s", want, out)
+		}
+	}
+}
+
 // TestClientE2EDnfRemoteVirtual is the T-315 REAL-client leg (see the
 // gate): a genuine rpmbuild-made .rpm served through a REMOTE mirror of a
 // local origin (the dispatch note's 本地起源 allowance — the mirror

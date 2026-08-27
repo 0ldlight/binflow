@@ -74,9 +74,10 @@ const (
 var errNotAggregatable = errors.New("rpm: fewer than two members carry repodata")
 
 // msgVirtualUnsigned answers the repomd signature family on a virtual
-// repository: the aggregate is unsigned (RP-3) and a MEMBER's signature
-// would not verify against the merged repomd anyway.
-const msgVirtualUnsigned = "The aggregated repomd of virtual repository '%s' is not signed in this BinFlow release (the GPG keypair system lands with its own ticket); serve signed repodata from a member repository."
+// repository: the aggregate is unsigned (RP-3 — a virtual repository
+// cannot carry a keyPairName association, and a MEMBER's signature would
+// not verify against the merged repomd anyway).
+const msgVirtualUnsigned = "The aggregated repomd of virtual repository '%s' is not signed (GPG metadata signing is a local-repository behavior and a member's signature would not verify against the merged repomd); serve signed repodata from a member repository."
 
 // aggFile is one merged index body at its wire path.
 type aggFile struct {

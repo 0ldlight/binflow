@@ -431,8 +431,10 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// final ruling — uploads store, repodata recomputes on demand).
 	// T-315: the NodeProps seam feeds the remote .rpm rpm.metadata.*
 	// backfill; remote and virtual classes serve (handler.go RepoTypes).
+	// T-322: the Signer seam signs repomd.xml.asc/.key on every local
+	// recompute (stack.signer, the same keypair.SigningService deb rides).
 	rpmHandler := rpm.RegisterWithProps(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.md.NodeProps(),
-		rpm.Options{DataDir: cfg.Storage.DataDir})
+		rpm.Options{DataDir: cfg.Storage.DataDir, Signer: stack.signer})
 	// deb (M11/T-310, the Debian/apt package type): same wiring story as
 	// rpm — the content plane dispatches on package_type="debian" and the
 	// provider registration classifies the dists/ tree as regenerable
