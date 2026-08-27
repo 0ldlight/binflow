@@ -13,14 +13,17 @@ import Typography from '@mui/material/Typography'
 
 import { useAuth } from '../../../app/AuthContext'
 import { useToast } from '../../../app/ToastContext'
+import { useConfirm } from '../../../components/ConfirmDialog'
+import { CopyButton } from '../../../components/CopyButton'
 import { EmptyState } from '../../../components/EmptyState'
 import { ErrorCard } from '../../../components/ErrorCard'
 import { Skeleton } from '../../../components/Skeleton'
-import { ApiError, canAdminWrite, errText, getAuthSection, isReadOnlyAdmin, putAuthSection, testAuthSection } from '../../../lib/api'
+import { ApiError, canAdminWrite, errText, getAuthSection, getSamlSpCertificate, isReadOnlyAdmin, putAuthSection, regenerateSamlSpKey, testAuthSection } from '../../../lib/api'
 import type { AuthSection, AuthTestReport } from '../../../lib/api'
 import { denseInputSx } from '../../../lib/muiAtoms'
 import { onTablistKeys } from '../../../lib/keys'
 import { useAsync } from '../../../lib/useAsync'
+import { Sha256 } from '../../artifacts/sha256'
 import {
   SECTION_ORDER,
   SECTIONS,
@@ -50,6 +53,11 @@ import './authconfig.css'
 // CapSecurityWrite（仅全量 admin）——readonly 控件 disabled + 反断言，
 // 普通 user 导航不可达 + 直链 L2 无权限卡。PUT 是全量替换：非 secret 字段
 // 逐字段回传（漏发会被服务端归一成默认值）。保存即生效（无需重启）页内明示。
+//
+// T-307R（T-307 遗留 1 收口）：SAML Tab 增 SP 加密证书卡（SamlCertCard）——
+// 公钥下载 + 重生成（danger 确认；旧证书失效后果提示），BE = T-331 三端点
+// （key/public[/regenerate]，text/plain）。未生成 404 = 锚定空态：下载禁用、
+// 重生成兼作生成入口；指纹 SHA-256 over DER（openssl 可比对）+ 一键拷贝。
 
 const MONO_INPUT = 'mono-input'
 
@@ -217,6 +225,184 @@ function TestReportBox({ report }: { report: AuthTestReport | { errorStatus: num
   )
 }
 
+/** PEM（CERTIFICATE 块）→ SHA-256 指纹（over DER——openssl x509 -fingerprint
+ *  可比对；冒号分隔大写 hex）。PEM 体即 DER 的 base64，无需 ASN.1 解析。
+ *  复用 artifacts 的零依赖流式实现而非 crypto.subtle：后者要求安全上下文，
+ *  局域网 http 部署（console 的常见形态）下不可用。 */
+function pemSha256Fingerprint(pem: string): string | null {
+  try {
+    const b64 = pem.replace(/-----[A-Z ]+-----/g, '').replace(/\s+/g, '')
+    const bin = atob(b64)
+    const der = new Uint8Array(bin.length)
+    for (let i = 0; i < bin.length; i++) der[i] = bin.charCodeAt(i)
+    const hex = new Sha256().update(der).digest()
+    return (hex.match(/../g) ?? []).map((h) => h.toUpperCase()).join(':')
+  } catch {
+    return null // 非 PEM 形态——指纹行静默缺位，下载仍可用
+  }
+}
+
+/** 公钥证书落盘（Blob + a[download]；无跨页跳转、无后端耦合） */
+function downloadPem(pem: string): void {
+  const blob = new Blob([pem.endsWith('\n') ? pem : `${pem}\n`], { type: 'application/x-pem-file' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'binflow-saml-sp.crt'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
+/**
+ * SAML SP 加密证书卡（T-307R——T-307 遗留 1 的 FE 接线，BE = T-331 三端点）。
+ * Artifactory 姿态（§3.2/§6 UI 流）：下载即得 PEM；重生成 force 一对一替换、
+ * 旧证书即刻失效——强确认对话框承载后果提示。权限分野：下载走
+ * CapSecurityRead（readonly_admin 可用——公钥是给 IdP 的公开材料），重生成
+ * 走 CapSecurityWrite（readonly 禁用 + 反断言，服务端 403 终裁）。
+ * 未生成（GET 404）= 锚定空态：下载禁用；重生成兼作「生成」入口（勾选
+ * Use EncryptedAssertion 保存时服务端也会自动生成——§3.3，卡内明示）。
+ */
+function SamlCertCard({ canWrite }: { canWrite: boolean }) {
+  const toast = useToast()
+  const confirm = useConfirm()
+  const [cert, setCert] = useState<string | null>(null)
+  const [missing, setMissing] = useState(false)
+  const [loadError, setLoadError] = useState<ApiError | null>(null)
+  const [busy, setBusy] = useState<'load' | 'rotate' | null>(null)
+
+  const load = async () => {
+    setBusy('load')
+    setLoadError(null)
+    try {
+      setCert(await getSamlSpCertificate())
+      setMissing(false)
+    } catch (err) {
+      const e = err instanceof ApiError ? err : new ApiError(0, errText(err))
+      if (e.status === 404) {
+        setCert(null)
+        setMissing(true) // 锚定空态：密钥对尚未生成（非错误）
+      } else {
+        setLoadError(e)
+      }
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  useEffect(() => {
+    void load()
+    // 挂载即取——证书面独立于段配置 doc（保留行不在 GET 回显里）
+  }, [])
+
+  const fingerprint = useMemo(() => (cert ? pemSha256Fingerprint(cert) : null), [cert])
+
+  const regenerate = async () => {
+    const ok = await confirm({
+      title: missing ? '生成 SP 加密证书' : '重新生成 SP 加密证书',
+      body: missing ? (
+        <>
+          将生成全新的服务提供方（SP）加密密钥对并立即生效。生成后须把公钥证书导入 IdP，加密断言（Use
+          Encrypted Assertion）才能完成解密。
+        </>
+      ) : (
+        <>
+          重新生成将创建<b>全新密钥对</b>——<b>旧公钥证书即刻失效</b>：已导入旧证书的 IdP
+          在重新导入新证书前，无法完成加密断言的解密，期间 SAML 加密登录会失败。
+          <br />
+          新证书生成后即可下载导入；此操作不可撤销。
+        </>
+      ),
+      confirmLabel: missing ? '生成证书' : '重新生成',
+      danger: !missing, // 替换在用证书是破坏性操作；首生成不是
+    })
+    if (!ok) return
+    setBusy('rotate')
+    try {
+      const pem = await regenerateSamlSpKey() // 响应体即新证书（D-5）——直接刷新展示
+      setCert(pem)
+      setMissing(false)
+      toast.success(
+        missing
+          ? 'SAML SP 加密证书已生成——下载公钥证书导入 IdP 后即可使用加密断言'
+          : 'SAML SP 证书已重新生成——旧证书即刻失效，请把新证书导入 IdP',
+      )
+    } catch (err) {
+      const e = err instanceof ApiError ? err : new ApiError(0, errText(err))
+      toast.error(`证书${missing ? '生成' : '重生成'}失败（HTTP ${e.status || '网络'}）：${e.message}`)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const readonlyTitle = '只读管理员不可写（服务端 403 兜底）；公钥证书可下载'
+
+  return (
+    <div className="authcfg-group">
+      <h3>SP 加密证书（服务提供方公钥）</h3>
+      <p className="authcfg-group-hint">
+        Use Encrypted Assertion 需要 IdP 持有本服务的公钥证书（勾选保存时若未生成，服务端会自动生成一份）。私钥由服务端密封保存、永不外发——这里只有公钥面。
+      </p>
+      {/* 四态：loading 只出骨架（禁用态按钮的 MUI 灰对比度不达标——
+          控件待数据到达再上，与 SectionPanel 的 Skeleton 先行同语言）；
+          错误出错误卡 + 重试；数据态分「未生成/已生成」两呈现 */}
+      {busy === 'load' && <Skeleton lines={1} />}
+      {loadError && <ErrorCard error={loadError} onRetry={() => void load()} />}
+      {!loadError && busy !== 'load' && (
+        <>
+          {missing && (
+            <p className="authcfg-cert-status">
+              <span aria-hidden="true">○</span> 未生成——服务端尚无 SP 加密密钥对；可立即生成，或留待保存加密断言配置时自动生成。
+            </p>
+          )}
+          {cert && (
+            <p className="authcfg-cert-status">
+              <span aria-hidden="true">🔒</span> 已生成——指纹（SHA-256）：
+            </p>
+          )}
+          {fingerprint && (
+            <div className="authcfg-cert-fp">
+              <span className="mono" lang="en">
+                {fingerprint}
+              </span>
+              <CopyButton value={fingerprint} label="证书指纹" />
+            </div>
+          )}
+          <div className="authcfg-cert-actions">
+            {/* 无证书即无下载物——按钮不渲染（空态唯一动作是生成） */}
+            {cert && (
+              <Button
+                size="small"
+                variant="contained"
+                disabled={busy !== null}
+                data-testid="authcfg-saml-spkey-download"
+                onClick={() => downloadPem(cert)}
+              >
+                下载公钥证书（PEM）
+              </Button>
+            )}
+            <Tooltip title={canWrite ? '创建全新密钥对——旧证书即刻失效（有确认）' : readonlyTitle} enterDelay={600}>
+              <span>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  color="error"
+                  disabled={!canWrite || busy !== null}
+                  data-testid="authcfg-saml-spkey-regenerate"
+                  onClick={() => void regenerate()}
+                >
+                  {busy === 'rotate' ? '生成中…' : missing ? '生成证书' : '重新生成证书'}
+                </Button>
+              </span>
+            </Tooltip>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 function SectionPanel({ def, canWrite }: { def: SectionDef; canWrite: boolean }) {
   const toast = useToast()
   const q = useAsync(() => getAuthSection<unknown>(def.id), [def.id])
@@ -231,6 +417,9 @@ function SectionPanel({ def, canWrite }: { def: SectionDef; canWrite: boolean })
   const [report, setReport] = useState<AuthTestReport | { errorStatus: number; errorText: string } | null>(null)
   const [testUser, setTestUser] = useState('')
   const [testPass, setTestPass] = useState('')
+  // SAML：保存（useEncryptedAssertion=true）可能让服务端自动生出密钥对
+  // （§3.3）——保存成功即重挂证书卡（key 变化 → 重新 GET，展示跟上实态）
+  const [certTick, setCertTick] = useState(0)
 
   // GET 到达 → 表单初始化（secret 一律空；SAML {} 空态引导）
   useEffect(() => {
@@ -264,6 +453,7 @@ function SectionPanel({ def, canWrite }: { def: SectionDef; canWrite: boolean })
       setSecretsSet(set)
       setNeverSaved(false)
       setReport(null)
+      if (def.id === 'saml') setCertTick((t) => t + 1)
       q.reload()
     } catch (err) {
       setSaveError(err instanceof ApiError ? err : new ApiError(0, errText(err)))
@@ -330,6 +520,10 @@ function SectionPanel({ def, canWrite }: { def: SectionDef; canWrite: boolean })
               </div>
             </div>
           ))}
+
+          {/* SAML 专属：SP 加密证书卡（下载/重生成——T-331 三端点接线，
+              紧邻 useEncryptedAssertion 所在的表单卡） */}
+          {def.id === 'saml' && <SamlCertCard key={certTick} canWrite={canWrite} />}
 
           {/* 测试连接（POST …/test 双形态：候选 = 当前表单值；存量 = 空体探已保存配置） */}
           <div className="authcfg-group" data-testid="authcfg-test">
