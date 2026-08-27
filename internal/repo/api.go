@@ -145,6 +145,17 @@ const (
 	PackageMaven = "maven"
 	PackageNpm   = "npm"
 	PackagePypi  = "pypi"
+	// PackageHelm is the classic Helm chart repository face (M11 T-309):
+	// index.yaml + tgz on LOCAL repositories; the registry-v2 HelmOCI face
+	// is a SEPARATE package type (HL-3 — the docker adapter serves it), and
+	// the two families never share one virtual repository (the
+	// validateHelmFamilyMix rule).
+	PackageHelm = "helm"
+	// PackageHelmOCI is the registry-v2 Helm face (HL-3): adapter routing
+	// reuses docker's /v2 plane; the slot and adapter land with their own
+	// ticket. Declared here so the virtual member-mix rule (T-309) and the
+	// future adapter share one spelling.
+	PackageHelmOCI = "helmoci"
 )
 
 // Reserved repo keys (ADR-0008, union finalized by the T-108 errata at the
