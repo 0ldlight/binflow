@@ -5,7 +5,7 @@ sidebar_position: 90
 
 # FAQ 与故障排查
 
-> 适用版本：M1~M9（各条目标注引入里程碑）。码值与文案以 M4（PRD milestone-4 v1.2）为基线，全部经 QA 真机验证（T-103/T-105 验收基线）；M7 增补条目（RBAC 只读短路 / S3 续传 404 / token step-up）以 ADR-0026/0027/0028 与 PRD milestone-7 v1.1 为准；M8 增补（控制台新路径重定向 / npm 发布权限语义）经 scratch 实例复跑（2026-08-24）；M9 增补（用户删除闭环 / npm 复制同口径）经 HEAD 构建 scratch 实例复验（2026-08-25）；**M10 增补三问**（license 降级行为 / 属性两入口 / S3 与 filestore 的 MPU 差异）以 ADR-0032/0033 as-built 与 T-285/T-287/T-289/T-294 实测为据（2026-08-26）。
+> 适用版本：M1~M11（各条目标注引入里程碑）。码值与文案以 M4（PRD milestone-4 v1.2）为基线，全部经 QA 真机验证（T-103/T-105 验收基线）；M7 增补条目（RBAC 只读短路 / S3 续传 404 / token step-up）以 ADR-0026/0027/0028 与 PRD milestone-7 v1.1 为准；M8 增补（控制台新路径重定向 / npm 发布权限语义）经 scratch 实例复跑（2026-08-24）；M9 增补（用户删除闭环 / npm 复制同口径）经 HEAD 构建 scratch 实例复验（2026-08-25）；M10 增补三问（license 降级行为 / 属性两入口 / S3 与 filestore 的 MPU 差异）以 ADR-0032/0033 as-built 与 T-285/T-287/T-289/T-294 实测为据（2026-08-26）；**M11 增补四问**（四包型 tier / 降级数据安全 / 四包型 remote·virtual 差异 / 存储与认证新面）以 T-305~T-324 各票实测与 ADR-0035/0036/0038 为据（2026-08-28）。
 
 ## 状态码信封解读
 
@@ -148,6 +148,44 @@ curl -s -H "Authorization: Bearer <access_token>" $BASE/binflow/api/v1/storage/u
 
 docker `/v2` 面的分块上传是**另一个平面**（其跨重启续传策略见上文 M7 问），与 `/api/v1/uploads` 互不相干。端点契约见 [API 参考 · M10 新增端点速览](api-reference.md#m10-新增端点速览t-296)。
 
+## M11 增补四问（四包型 tier / 门控 / 存储·认证新面）
+
+### conan / helm / rpm / debian 是什么档位？community 实例建仓报错怎么办？
+
+M11 后 BinFlow 共**十二个包型**，档位分布（`GET /api/v1/addons` 实时可见）：
+
+| 档位 | 包型 | 说明 |
+|---|---|---|
+| **community**（地板，不装 license 也有） | generic / docker / maven / npm / pypi | 五核心，M1~M9 全部能力 |
+| **pro** | go / nuget / cargo（M10）+ **conan / helm / rpm / debian**（M11） | 建仓/上传需 pro 及以上 license |
+| **enterprise** | （功能槽位 ha / xray-integration——本体 M12+，非包型） | 槽位占位可见 |
+
+community 实例建这七个 pro 档仓 → **400** `package type '<t>' is not available (license tier 'community' < 'pro')`（错误体点名包型与所需档位）；装 license 即解。license 的 addons 白名单可收窄（`--addons "conan"` 的 pro 文档只解锁 conan——被收窄的包型报 `not named in the license addon allowlist`）。
+
+### license 卸载/过期后，已上传的 chart/rpm/deb 还能拉吗？CI 的 403 是数据丢了吗？
+
+数据没丢。降级闭集与 M10 相同，对四包型逐条成立：**读恒 200**（`helm pull` / `dnf install` / `apt-get install` / `conan install` 照常）；**写动词 403** + 响应头 `X-Binflow-License-Required: <conan|helm|rpm|debian>`（CI 可按此头分支）；**建仓面 400**。装回 license 即刻恢复写入。区分：403 但**无**该头、文案点名 `addons.disabled` 的是配置熔断——装 license 救不了，删条目重启才恢复（见 [License 与 Add-ons 管理](admin/license.md)）。
+
+### 四包型的 remote/virtual 和五核心的行为差异，哪里要留意？
+
+三类仓型语义（pull-through 缓存/负缓存/写路由）与五核心一致，差异集中在各协议自己的索引面：
+
+| 差异点 | 行为 |
+|---|---|
+| conan remote 的 `conan search` | **不代理**（404 诚实文案）——用 `conan list '<ref>#*'` 或精确 `install --requires` |
+| conan 1.x 客户端 | 仅 local 仓可用（remote/virtual 上 v1 数据面 → 400 `Unsupported Conan v1 repository request`） |
+| rpm / debian 的 virtual 聚合 | **不出 GPG 签名**（成员签名对合并索引必验不过——`.asc`/`InRelease` 404；rpm 虚仓客户端关 `repo_gpgcheck`，debian 虚仓用 `trusted=yes`）；签名是 local 仓行为（keypair 关联） |
+| rpm 的 repodata | 上传**默认不自动重算**（`POST /api/yum/<repo>?async=0` 显式触发或仓配置 opt-in）；remote 仓原样镜像上游 repodata |
+| debian 虚仓的 by-hash | 404（apt 自动回退正名文件） |
+| helm 虚仓 | 聚合 index 按请求现算；外部 URL 经 `_external` 受控 egress；helm 与 helmoci 不混仓 |
+
+### binstore.yaml 和认证配置页是 M11 新面——旧的 binflow.yaml storage 段 / auth 段还认吗？
+
+都认，且**升级零动作**：
+
+- **存储**：内嵌 `storage.*` 链键继续生效（分支①，每次启动 WARN 提示迁移窗）；建了 binstore.yaml 就以文件为准——与内嵌链键**等价** = 文件生效 + WARN，**分歧** = 拒启（防静默择路）。`data_dir`/`gc_*` 恒以 binflow.yaml 为准。见[存储配置](admin/storage-config.md)。
+- **认证**：`binflow.yaml` 的 `auth.oidc`/`auth.ldap` 段在**首启**种子进 DB，此后权威源是 DB 配置面（控制台「认证配置」页或 REST）——改完**保存即生效**，无需重启。注意带 secret 的文件段首启种子需要 `BINFLOW_REMOTE_CREDENTIALS_KEY`。见[认证配置](admin/auth-config.md)。
+
 ## M4 有意不兼容清单（里程碑级汇总）
 
 从 Artifactory 迁移时的差异点（各域细节见对应指南；M1~M3 清单见 [remote/virtual 管理](admin/remote-virtual.md#m3-有意不兼容清单汇总)）：
@@ -161,7 +199,7 @@ docker `/v2` 面的分块上传是**另一个平面**（其跨重启续传策略
 | REST export/import | 404——备份恢复仅 CLI | M4 定案（高危操作带外） |
 | 异步 GC 作业 / GC 状态端点 | 同步执行、无 `GET /api/v1/system/gc`（上次运行查审计 `gc.run`） | M4；异步框架 M6+ |
 | 审计 CSV 导出 / token 列表 UI / `--tar` 备份单文件 | 控制台不渲染；CLI 显式报未实现 | M4 P2 债务 |
-| SAML 登录、洞察报表、漏洞扫描 | 不做（产品 Non-goal）；OIDC/LDAP 登录 M6 已交付（见[专题指南](guides/oidc-config.md)/[LDAP](guides/ldap-config.md)） | SAML/报表/扫描永不 |
+| SAML 运行时登录、洞察报表、漏洞扫描 | SAML 的**配置面** M11 已交付（三 Tab 之一，字段可存可测——见[认证配置](admin/auth-config.md)），但 SP 断言消费（真正登录）不在 M11 交付面；OIDC/LDAP 登录 M6 已交付（见[专题指南](guides/oidc-config.md)/[LDAP](guides/ldap-config.md)） | 报表/扫描 Non-goal；SAML 运行时随票 |
 
 ## 从 Artifactory 迁移对照表
 

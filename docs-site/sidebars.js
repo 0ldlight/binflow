@@ -34,6 +34,11 @@ const sidebars = {
         'integrations/golang',
         'integrations/nuget',
         'integrations/cargo',
+        // M11 (T-328): the four M11 package types — conan / helm / rpm / debian.
+        'integrations/conan',
+        'integrations/helm-charts',
+        'integrations/rpm',
+        'integrations/debian',
         // generic(raw) 接入篇 lands with T-141 (FR-41 内容矩阵).
       ],
     },
@@ -59,6 +64,8 @@ const sidebars = {
         'admin/token-step-up', // M7 (T-225): token-mint step-up guide.
         'admin/real-env-appendix', // M7 (T-225): V27/V28 conditional-leg evidence template.
         'admin/license', // M10 (T-296): license & add-ons management guide.
+        'admin/auth-config', // M11 (T-328): auth config plane (LDAP/OIDC/SAML).
+        'admin/storage-config', // M11 (T-328): binstore.yaml storage chain.
       ],
     },
 
