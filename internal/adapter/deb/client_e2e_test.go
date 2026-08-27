@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -343,6 +344,103 @@ func TestClientE2ERemoteVirtualAptContainer(t *testing.T) {
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("virtual apt chain missing %q:\n%s", want, out)
+		}
+	}
+}
+
+// TestClientE2EAptContainerSigned is the T-321 REAL-client leg (same
+// docker gate as the unsigned legs): the full signing chain with GPG
+// VERIFICATION ON — a keypair generated through the plane, the
+// repository associated, the recompute signing InRelease/Release.gpg,
+// and apt-get update + install inside a Debian container under
+// [signed-by=...] with NO trusted-anywhere. The negative control runs
+// first: the same repository without the trust anchor must FAIL
+// (NO_PUBKEY) — proving the verification is actually engaged, not a
+// silently-trusted fallback.
+func TestClientE2EAptContainerSigned(t *testing.T) {
+	if os.Getenv("BINFLOW_DEB_E2E_APT") != "1" {
+		t.Skip("set BINFLOW_DEB_E2E_APT=1 to run the container apt leg (needs docker)")
+	}
+	if _, err := exec.LookPath("docker"); err != nil {
+		t.Skipf("docker unavailable: %v", err)
+	}
+
+	// The signing chain's server side: a generated pair (the plane's own
+	// generate face), the association in the repository config, the
+	// debPUT-driven recompute that signs.
+	s := newStack(t)
+	public := s.generateSignKey(t, "apt-key")
+	s.seedRepo(t, "deb-signed", repo.TypeLocal, `{"keyPairName":"apt-key"}`)
+	host := "http://host.docker.internal:" + portOf(s.srv.URL)
+
+	share := t.TempDir()
+	if err := os.WriteFile(filepath.Join(share, "public.asc"), []byte(public), 0o600); err != nil {
+		t.Fatalf("write public key to the share: %v", err)
+	}
+
+	// A genuine package, built with dpkg-deb's own toolchain.
+	build := []string{
+		"set -e",
+		"mkdir -p /pkg/DEBIAN /pkg/usr/bin",
+		"printf 'Package: binflow-signed\\nVersion: 1.0-1\\nArchitecture: amd64\\nMaintainer: BinFlow <t@binflow.dev>\\nDescription: BinFlow T-321 signed-repository verification package\\n' > /pkg/DEBIAN/control",
+		"printf '#!/bin/sh\\necho binflow t321 signed\\n' > /pkg/usr/bin/binflow-signed",
+		"chmod 0755 /pkg/usr/bin/binflow-signed",
+		"dpkg-deb --build /pkg /e2e/binflow-signed_1.0-1_amd64.deb >/dev/null",
+	}
+	out := runDockerDeb(t, share, "debian:bookworm", strings.Join(build, "\n"))
+	t.Logf("container build:\n%s", out)
+
+	up := []string{
+		"set -e",
+		"command -v curl >/dev/null || apt-get update >/dev/null 2>&1 && apt-get install -y curl >/dev/null 2>&1 || true",
+		`curl -sf -u admin:password -T /e2e/binflow-signed_1.0-1_amd64.deb \
+		 -o /dev/null -w 'PUT %{http_code}\n' \
+		 '` + host + `/binflow/deb-signed/pool/main/b/binflow-signed/binflow-signed_1.0-1_amd64.deb;deb.distribution=stable;deb.component=main;deb.architecture=amd64'`,
+	}
+	out = runDockerDeb(t, share, "debian:bookworm", strings.Join(up, "\n"))
+	if !strings.Contains(out, "PUT 201") {
+		t.Fatalf("container debPUT failed:\n%s", out)
+	}
+
+	// The signature pair lands after the Release (the signing step); the
+	// InRelease is the chain's last artifact.
+	s.waitIndex(t, "/binflow/deb-signed/dists/stable/InRelease")
+	s.waitIndex(t, "/binflow/deb-signed/dists/stable/Release.gpg")
+
+	apt := []string{
+		"set -e",
+		// Negative control: no trust anchor, no trusted=yes — the update
+		// must FAIL (the verification this leg exists to prove).
+		"printf 'deb " + host + "/binflow/deb-signed stable main\\n' > /etc/apt/sources.list.d/binflow.list",
+		"if apt-get update >/tmp/neg.log 2>&1; then echo 'NEGATIVE-CONTROL-FAILED'; else grep -m1 -o 'NO_PUBKEY [0-9A-F]*' /tmp/neg.log || echo 'refused without the key (other wording)'; fi",
+		"rm -f /etc/apt/sources.list.d/binflow.list",
+		// Positive: the server's public key becomes the trust anchor —
+		// dearmored into a keyring (the DebianRepository/UseThirdParty
+		// posture; the base image carries no gpg, so gnupg comes in from
+		// the mirror first, like the curl bootstrap above).
+		"command -v gpg >/dev/null 2>&1 || { apt-get update >/dev/null 2>&1 && apt-get install -y gnupg >/dev/null 2>&1; }",
+		"gpg --dearmor -o /usr/share/keyrings/binflow.gpg /e2e/public.asc",
+		"printf 'deb [signed-by=/usr/share/keyrings/binflow.gpg] " + host + "/binflow/deb-signed stable main\\n' > /etc/apt/sources.list.d/binflow.list",
+		"apt-get update 2>&1 | tail -3",
+		"apt-get install -y --no-install-recommends binflow-signed 2>&1 | tail -3",
+		"dpkg -s binflow-signed | grep -E '^(Status|Version)'",
+		"binflow-signed",
+	}
+	out = runDockerDeb(t, share, "debian:bookworm", strings.Join(apt, "\n"))
+	t.Logf("container signed apt chain:\n%s", out)
+	if strings.Contains(out, "NEGATIVE-CONTROL-FAILED") {
+		t.Fatalf("apt updated a signed repository with NO trust anchor — verification is not engaged:\n%s", out)
+	}
+	if !strings.Contains(out, "NO_PUBKEY") {
+		t.Errorf("negative control did not report NO_PUBKEY (the unsigned-miss wording apt uses):\n%s", out)
+	}
+	for _, want := range []string{
+		"Status: install ok installed",
+		"Version: 1.0-1",
+		"binflow t321 signed",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("signed apt chain output missing %q:\n%s", want, out)
 		}
 	}
 }

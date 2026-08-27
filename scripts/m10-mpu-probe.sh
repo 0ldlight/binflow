@@ -17,9 +17,15 @@
 #     complete: wrong sha256 -> 409 (checksum gate), right sha256 -> 201,
 #               artifact GET sha256-reconciled byte for byte
 #     abort: mid-upload session discarded, status 404, artifact 404
-#     kill -9 + restart: status 404 — the PINNED §11.31 posture (S3
-#               sessions are process state; restart-resume is registered
-#               M11 debt, flipping this assertion requires paying it)
+#     kill -9 + restart: status 404 — the REST-plane registry posture.
+#               The §11.31 ENGINE debt is PAID (T-323: upload ids land in
+#               upload_sessions and S3Engine.ResumeSession rebuilds via
+#               ListParts); what still 404s here is the /api/v1/uploads
+#               plane's in-process mpuRegistry (protocol state — repo/path/
+#               part accounting — has no persisted home yet, the T-209
+#               N6/O-2-class visibility gap). Flipping THIS leg needs the
+#               httpapi lazy-rebuild + the assembler's Sessions wiring; see
+#               reports/agents/T-323.md's intersection register.
 #     docker push of a 20MiB image (> the 16MiB default part size, so the
 #               layer lands as a real multipart upload) + pull roundtrip
 #
@@ -407,8 +413,8 @@ CODE=$(curl -sS -o /dev/null -w '%{http_code}' -u "admin:$ADMIN_PW" \
 assert_incomplete_gone "$AB_ID" "abort (B5: Session.Abort reclaims)"
 echo "abort -> 204, status 404, artifact 404"
 
-# --- leg 4: kill -9 restart — the PINNED §11.31 posture ----------------------
-step "kill -9 + restart: status 404 (the pinned §11.31 posture — S3 sessions are process state)"
+# --- leg 4: kill -9 restart — the REST registry posture (see header) ---------
+step "kill -9 + restart: status 404 (REST registry is process state; engine-side resume landed with T-323)"
 RST_ID=$(mpu_create "big/restart.bin" 5)
 put_part "$RST_ID" 1 "$WORK/p1.bin"
 kill -9 "$S3_PID" 2>/dev/null || true; wait "$S3_PID" 2>/dev/null || true; S3_PID=""
@@ -424,15 +430,18 @@ done
 [ "$n" -lt 300 ] || fail_infra "S3 server never answered ping after restart"
 CODE=$(curl -sS -o /dev/null -w '%{http_code}' -u "admin:$ADMIN_PW" \
     "$BASE/binflow/api/v1/uploads/status/$RST_ID" || true)
-# The assertion direction is DELIBERATE: today the honest answer is 404
-# (architecture §5.3.1 contract 5 / §11.31 — S3 ResumeSession is a hard
-# miss by frozen contract). When that debt is paid this leg flips to the
-# resume assertion and this probe changes with it.
-[ "$CODE" = "404" ] || red "post-restart status = $CODE, want the pinned 404 (§11.31)"
+# The assertion direction is DELIBERATE and still honest post-T-323: the
+# engine-level §11.31 debt is paid (upload ids in upload_sessions +
+# ResumeSession via ListParts — proven by the kill -9 leg of the storage
+# suite), but THIS plane's mpuRegistry is process state and its protocol
+# coordinates (repoKey/path/part accounting) have no persisted home. The
+# 404 flips when the httpapi lazy-rebuild + assembler Sessions wiring land
+# (the registered T-323 intersection).
+[ "$CODE" = "404" ] || red "post-restart status = $CODE, want the REST-registry 404 (see T-323 intersection register)"
 CODE=$(curl -sS -o /dev/null -w '%{http_code}' -u "admin:$ADMIN_PW" \
     "$BASE/binflow/$REPO/big/blob.bin" || true)
 [ "$CODE" = "200" ] || red "committed artifact missing after restart: $CODE"
-echo "post-restart: session 404 (pinned), committed artifact still 200"
+echo "post-restart: session 404 (REST registry posture), committed artifact still 200"
 
 # End-of-run B5 audit: with the kill -9 orphan documented, the ONLY
 # in-progress multipart upload left in the bucket is that restarted
@@ -450,7 +459,7 @@ if [ -n "$MC" ]; then
     if [ "$LEAK" != "0" ]; then
         red "end-of-run audit: $LEAK in-progress MPU(s) beyond the kill -9 orphan: $OUT"
     fi
-    echo "in-progress MPUs at end of run: $COUNT (the documented §11.31 orphan $RST_ID only)"
+    echo "in-progress MPUs at end of run: $COUNT (the documented restart orphan $RST_ID only)"
 fi
 
 # --- leg 5: docker push of a >part-size image (multipart regression) ---------
@@ -503,4 +512,4 @@ PY
 fi
 
 echo ""
-echo "m10-mpu-probe: GREEN — filestore 501 matrix + S3 full chain + abort + pinned-restart + docker legs all passed (FR-90-AC1/AC3)"
+echo "m10-mpu-probe: GREEN — filestore 501 matrix + S3 full chain + abort + restart-posture + docker legs all passed (FR-90-AC1/AC3)"

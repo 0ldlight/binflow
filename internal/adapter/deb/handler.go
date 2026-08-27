@@ -70,6 +70,12 @@ type Options struct {
 	// Now overrides the clock (tests — the Release Date field and the
 	// by-hash retention order key on it).
 	Now func() time.Time
+	// Signer is the GPG release-signing seam (T-321, sign.go): cmd
+	// assembles keypair.NewSigningService over the same store/cipher/repo
+	// collaborators the keypair REST plane uses and injects it here. nil
+	// = unsigned mode (every repository degrades to the unsigned posture,
+	// never a content-plane failure).
+	Signer ReleaseSigner
 }
 
 // Handler is the Debian adapter. It owns the wire protocol only.
@@ -79,12 +85,14 @@ type Handler struct {
 	blobs    BlobLedger
 	props    NodeProps
 	opts     Options
+	signer   ReleaseSigner
 	rewrites indexMutexes // per-repoKey serialization of the index rewrites
 }
 
-// New wires the handler. props may be nil (see NodeProps).
+// New wires the handler. props may be nil (see NodeProps); a nil
+// opts.Signer keeps the repository unsigned (see Options.Signer).
 func New(svc repo.Service, repos repo.ClassReader, blobs BlobLedger, props NodeProps, opts Options) *Handler {
-	return &Handler{svc: svc, repos: repos, blobs: blobs, props: props, opts: opts}
+	return &Handler{svc: svc, repos: repos, blobs: blobs, props: props, opts: opts, signer: opts.Signer}
 }
 
 // Register builds the handler and enters both the handler registry and
@@ -246,9 +254,22 @@ func indexContentType(rel string) string {
 		return "application/x-xz"
 	case strings.HasSuffix(rel, ".lzma"):
 		return "application/x-lzma"
+	case finalSegment(rel) == "Release.gpg":
+		// The detached signature (T-321): its registered media type, the
+		// RFC 4880 armor InRelease stays the text default.
+		return ctypeReleaseGpg
 	default:
 		return "text/plain; charset=utf-8"
 	}
+}
+
+// finalSegment is the path's last '/'-delimited piece (the whole path at
+// the root).
+func finalSegment(p string) string {
+	if i := strings.LastIndexByte(p, '/'); i >= 0 {
+		return p[i+1:]
+	}
+	return p
 }
 
 // methodNotAllowed renders the 405 with Allow.

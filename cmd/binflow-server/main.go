@@ -444,7 +444,7 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// The debPUT chain recomputes automatically (FR-97.1) — no opt-in
 	// switch — with the TL-4 forced architecture families on by default.
 	debHandler := deb.Register(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.md.NodeProps(),
-		deb.Options{})
+		deb.Options{Signer: stack.signer})
 	// The addon registry (M10 T-282, ADR-0033 / section 15.2.1): the
 	// COMPILE-TIME ASSEMBLY MANIFEST — one literal slice, the
 	// META-INF/addon.{xml,properties} behavior pattern in Go form. This is
@@ -773,6 +773,9 @@ type stack struct {
 	auditLog       audit.Logger
 	svc            repo.Service
 	genericHandler *generic.Handler
+	// signer is the GPG signing seam (T-319's SigningService, fed to the
+	// deb/rpm adapters' release-signing Options by the adapter phase).
+	signer *keypair.SigningService
 	// oidcProv/ldapProv were the config-driven identity providers (T-179,
 	// ADR-0020). T-305 (ADR-0035) replaced them with authCfg, the
 	// ConfigManager: the three protocol sections live in auth_configs
@@ -861,7 +864,7 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 	// once sealed keypairs cannot silently degrade to serving them
 	// unsealable (the static-secret family posture of auth_configs and
 	// replication).
-	keypairMgr, err := wireKeypairManager(ctx, md, logger)
+	keypairMgr, keypairSigner, err := wireKeypairManager(ctx, md, logger)
 	if err != nil {
 		_ = md.Close()
 		return nil, err
@@ -1005,6 +1008,7 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 		genericHandler: generic.New(svc, md.Blobs()),
 		authCfg:        authCfgMgr,
 		keypairs:       keypairMgr,
+		signer:         keypairSigner,
 		replStore:      replStore,
 		replDB:         replDB,
 		replEngine:     replEngine,
@@ -1054,10 +1058,10 @@ func openReplicationDB(ctx context.Context, path string) (*sql.DB, error) {
 // without the master key fail the boot. The signing seam T-321/T-322
 // consume assembles from the same store + cipher + repo source
 // (keypair.NewSigningService) inside their adapter wiring.
-func wireKeypairManager(ctx context.Context, md metadata.Store, logger *slog.Logger) (*keypair.Manager, error) {
+func wireKeypairManager(ctx context.Context, md metadata.Store, logger *slog.Logger) (*keypair.Manager, *keypair.SigningService, error) {
 	cipher, err := replicationCipher()
 	if err != nil {
-		return nil, fmt.Errorf("keypair master key: %w", err)
+		return nil, nil, fmt.Errorf("keypair master key: %w", err)
 	}
 	mgr, err := keypair.NewManager(keypair.Options{
 		Store:  md.GpgKeypairs(),
@@ -1066,12 +1070,19 @@ func wireKeypairManager(ctx context.Context, md metadata.Store, logger *slog.Log
 		Log:    logger,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("keypair manager: %w", err)
+		return nil, nil, fmt.Errorf("keypair manager: %w", err)
 	}
 	if err := mgr.BootCheck(ctx); err != nil {
-		return nil, fmt.Errorf("wiring keypair plane: %w", err)
+		return nil, nil, fmt.Errorf("wiring keypair plane: %w", err)
 	}
-	return mgr, nil
+	// The signing seam (T-321/T-322): assembled from the same store +
+	// cipher + repo source so the adapters' signatures and the REST plane
+	// resolve one identical key universe.
+	svc, err := keypair.NewSigningService(md.GpgKeypairs(), cipherSeam(cipher), md.Repos())
+	if err != nil {
+		return nil, nil, fmt.Errorf("keypair signing service: %w", err)
+	}
+	return mgr, svc, nil
 }
 
 // replicationCipher builds the credential cipher from the same
@@ -1322,7 +1333,7 @@ func openStorageEngine(ctx context.Context, cfg *config.Config, logger *slog.Log
 		return st, nil
 	}
 
-	s3Engine, err := openS3Engine(ctx, cfg)
+	s3Engine, err := openS3Engine(ctx, cfg, md)
 	if err != nil {
 		return nil, err
 	}
@@ -1361,7 +1372,7 @@ func openStorageEngine(ctx context.Context, cfg *config.Config, logger *slog.Log
 // S3Config.SecretAccessKey; the direct os.Getenv here is the belt-and-braces
 // read for hand-built configs (config.S3SecretEnvVar is the one spelling of
 // the name, case per the config package's env mapping).
-func openS3Engine(ctx context.Context, cfg *config.Config) (storage.Engine, error) {
+func openS3Engine(ctx context.Context, cfg *config.Config, md metadata.Store) (storage.Engine, error) {
 	sc := cfg.Storage.S3
 	secret := sc.SecretAccessKey
 	if secret == "" {
@@ -1402,6 +1413,11 @@ func openS3Engine(ctx context.Context, cfg *config.Config) (storage.Engine, erro
 		BucketPrefix: sc.BucketPrefix,
 		PartSize:     sc.UploadPartSize,
 		GCHoldTTL:    cfg.Storage.GCHoldTTL,
+		// T-323: the upload_sessions rows carry the MPU ids for
+		// kill-9 resume (ListParts rebuild); the TTL clock is shared
+		// with the orphan-MPU sweep — the disk arm's own posture.
+		Sessions:   md.UploadSessions(),
+		SessionTTL: cfg.Storage.SessionTTL,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("opening s3 engine: sweep orphan uploads in %s: %w", sc.Bucket, err)

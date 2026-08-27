@@ -63,8 +63,7 @@ func TestNpmClientSuite(t *testing.T) {
 		}
 		if err := os.WriteFile(filepath.Join(dir, ".npmrc"), []byte(
 			"registry="+regURL+"\n"+
-				fmt.Sprintf("//%s/binflow/api/npm/npm-local/:_auth=%s\n", srv.Listener.Addr().String(), adminAuth)+
-				"always-auth=true\n"), 0o644); err != nil {
+				fmt.Sprintf("//%s/binflow/api/npm/npm-local/:_auth=%s\n", srv.Listener.Addr().String(), adminAuth)), 0o644); err != nil {
 			t.Fatalf(".npmrc: %v", err)
 		}
 		return dir
