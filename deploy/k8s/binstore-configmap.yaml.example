@@ -1,0 +1,76 @@
+# BinFlow binstore.yaml — standalone storage-chain ConfigMap (M11 T-306 /
+# ADR-0036, deploy-matrix evolution T-325).
+#
+# This file is an EXAMPLE and is deliberately NOT listed in
+# kustomization.yaml: the base stays on the embedded (env-declared) storage
+# chain until you opt in. To activate:
+#
+#   1. copy this file to binstore-configmap.yaml, edit the chain below;
+#   2. kubectl apply -f binstore-configmap.yaml
+#   3. uncomment the three marked blocks in deployment.yaml
+#      (BINFLOW_HOME env + volumeMount + volume);
+#   4. kubectl apply -k deploy/k8s/
+#
+# Legal chains (closed set, ADR-0036 decision 2):
+#   [filestore]                       disk on the PVC
+#   [s3]                              S3/MinIO only
+#   [filestore, s3] + migration       the dual migration chain — filestore
+#                                     MUST come first; the migration block
+#                                     is required here and illegal on any
+#                                     other chain
+# Reserved provider slots (cache-fs, azure, gs) refuse the boot with an
+# honest "not implemented" — never a silent ignore.
+#
+# PRIORITIES while this file owns the chain (Q5 three branches,
+# ADR-0036 decisions 5/6) — read before mixing sources:
+#   - every chain-scoped env var on the Deployment
+#     (BINFLOW_STORAGE__BACKEND, BINFLOW_STORAGE__S3__*) is IGNORED with a
+#     WARN at boot — declare bucket/endpoint/... HERE, not in env;
+#   - BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY still applies: the env-only
+#     secret (ADR-0009) ALWAYS reaches the live S3 provider, even when
+#     every other chain-scoped env override is ignored;
+#   - no plaintext secret key is legal anywhere in this file (recursive
+#     scan — a secret-looking key refuses the boot, naming the env escape
+#     hatch);
+#   - storage.data_dir / session_ttl / gc_* are NOT chain keys: they stay
+#     with binflow.yaml/env and never participate in the coexistence
+#     verdict;
+#   - if a binflow.yaml ALSO spells embedded chain keys
+#     (storage.backend/storage.s3/storage.migration), the two sources are
+#     compared after normalization: equivalent → file wins + WARN;
+#     semantic divergence → the boot REFUSES, naming both files. Keep one
+#     spelling of the truth.
+#
+# ConfigMap-mounted files are 0644 by default; the server WARNs about modes
+# wider than 0600 as a hygiene reminder (the file carries no secrets by
+# policy) — expected in Kubernetes, safe to leave.
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: binflow-binstore
+  labels:
+    app.kubernetes.io/name: binflow
+    app.kubernetes.io/component: server
+data:
+  # The dual migration chain (filestore first, migration block required).
+  # For [filestore] alone: keep only the filestore entry and delete the
+  # migration block. For [s3] alone: keep only the s3 entry (no migration
+  # block — it is illegal on single-provider chains).
+  binstore.yaml: |
+    version: 1
+    chain:
+      - type: filestore
+      - type: s3
+        bucket: binflow
+        region: us-east-1
+        endpoint: http://minio.minio.svc.cluster.local:9000
+        access_key_id: binflow
+        use_path_style: true
+        # optional knobs (defaults shown by their absence):
+        # bucket_prefix: binflow-prod
+        # upload_part_size: 5242880
+        # upload_concurrency: 4
+    migration:
+      mode: dual-write        # bypass | dual-write | completed
+      # concurrency: 4        # positive int; omit for the server default

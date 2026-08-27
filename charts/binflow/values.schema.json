@@ -193,6 +193,51 @@
             }
           }
         },
+        "binstore": {
+          "type": "object",
+          "description": "Standalone binstore.yaml storage chain (M11 T-306 / ADR-0036). Mutually exclusive with config.s3.enabled.",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "providers": {
+              "type": "array",
+              "description": "Ordered provider chain: [filestore], [s3] or [filestore, s3] (dual migration chain, filestore first). Anything else is refused at render time and again at boot.",
+              "items": { "type": "string", "enum": ["filestore", "s3"] },
+              "minItems": 1,
+              "maxItems": 2
+            },
+            "migration": {
+              "type": "object",
+              "description": "Migration block — legal on and required by the dual [filestore, s3] chain only.",
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "enum": ["", "bypass", "dual-write", "completed"],
+                  "description": "migration.mode (empty = no migration block rendered; required on the dual chain)."
+                },
+                "concurrency": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "migration.concurrency (positive; 0 = omit and take the server default)."
+                }
+              }
+            },
+            "s3": {
+              "type": "object",
+              "description": "S3 provider parameters (read when the chain includes s3). secret_access_key is env-only via existingSecret (ADR-0009).",
+              "properties": {
+                "bucket": { "type": "string" },
+                "region": { "type": "string" },
+                "endpoint": { "type": "string" },
+                "accessKeyId": { "type": "string" },
+                "usePathStyle": { "type": "boolean" },
+                "bucketPrefix": { "type": "string" },
+                "uploadPartSize": { "type": "integer", "minimum": 1 },
+                "uploadConcurrency": { "type": "integer", "minimum": 1 },
+                "existingSecret": { "type": "string" }
+              }
+            }
+          }
+        },
         "auth": {
           "type": "object",
           "description": "Auth token-minting posture (M7 T-219 / ADR-0027). Rendered under the auth section alongside oidc/ldap.",
@@ -212,6 +257,16 @@
       "type": "object",
       "properties": {
         "password": { "type": "string" }
+      }
+    },
+    "masterKey": {
+      "type": "object",
+      "description": "Instance master key BINFLOW_REMOTE_CREDENTIALS_KEY (M11, env-only): seals remote credentials, replication secrets, auth_configs and GPG keypairs (enc:v1).",
+      "properties": {
+        "existingSecret": {
+          "type": "string",
+          "description": "Name of an existing Secret carrying key BINFLOW_REMOTE_CREDENTIALS_KEY. Empty = not injected (fine for a fresh, unsealed instance)."
+        }
       }
     }
   }

@@ -1,3 +1,7 @@
+{{- /* M11 T-306 / ADR-0036 render-time guards (see _helpers.tpl — invoked
+      here AND in configmap.yaml because Helm's render order is not
+      guaranteed). */}}
+{{- include "binflow.binstoreValidate" . }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -51,6 +55,27 @@ spec:
             # the mount was inert decoration.
             - name: BINFLOW_HOME
               value: /etc/binflow
+            {{- if .Values.masterKey.existingSecret }}
+            # Instance master key (M11, env-only): seals remote-repository
+            # credentials, replication secrets, auth_configs and GPG
+            # keypairs as enc:v1 rows (T-305/T-319). Once any sealed row
+            # exists the boot fail-fasts without the same key.
+            - name: BINFLOW_REMOTE_CREDENTIALS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.masterKey.existingSecret }}
+                  key: BINFLOW_REMOTE_CREDENTIALS_KEY
+            {{- end }}
+            {{- if and .Values.config.binstore.enabled (has "s3" .Values.config.binstore.providers) }}
+            # S3 secret key for the binstore.yaml chain — env-only
+            # (ADR-0009 decision 4): the secret always reaches the live S3
+            # provider even though binstore.yaml owns every other S3 knob.
+            - name: BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "config.binstore.s3.existingSecret is required when the binstore chain includes s3 — create it with: kubectl create secret generic binflow-s3 --from-literal=BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY=<key>" .Values.config.binstore.s3.existingSecret }}
+                  key: BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY
+            {{- end }}
             {{- if .Values.config.s3.enabled }}
             # S3 secret key — env-only (ADR-0009), never in the ConfigMap.
             - name: BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY
@@ -77,9 +102,10 @@ spec:
             {{- end }}
           {{- /*
             ADR-0009: secrets (admin password, S3 secret key, OIDC client
-            secret, LDAP bind password) ride env vars sourced from Secrets;
-            the ConfigMap (binflow.yaml) mounted at /etc/binflow carries only
-            non-secret configuration (T-170: storage.s3 + auth.oidc/ldap).
+            secret, LDAP bind password, instance master key) ride env vars
+            sourced from Secrets; the ConfigMap (binflow.yaml + binstore.yaml)
+            mounted at /etc/binflow carries only non-secret configuration
+            (T-170: storage.s3 + auth.oidc/ldap; T-325: binstore chain).
           */}}
           livenessProbe:
             httpGet:
@@ -106,6 +132,16 @@ spec:
               mountPath: /etc/binflow/binflow.yaml
               subPath: binflow.yaml
               readOnly: true
+            {{- if .Values.config.binstore.enabled }}
+            # binstore.yaml (M11 T-306 / ADR-0036): mounted next to
+            # binflow.yaml — BINFLOW_HOME=/etc/binflow above is what makes
+            # the server discover it there. It owns the storage chain; the
+            # chart renders no chain keys into binflow.yaml while it exists.
+            - name: config
+              mountPath: /etc/binflow/binstore.yaml
+              subPath: binstore.yaml
+              readOnly: true
+            {{- end }}
       volumes:
         - name: data
           {{- if .Values.persistence.enabled }}

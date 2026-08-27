@@ -55,7 +55,12 @@ spec:
                 secretKeyRef:
                   name: binflow-secret
                   key: BINFLOW_ADMIN_PASSWORD
-            # Remote credentials key (optional).
+            # Remote credentials key / instance master key (M11: seals
+            # remote-repository credentials AND replication secrets AND
+            # auth_configs AND GPG keypairs as enc:v1 rows — T-305/T-319).
+            # Optional on a fresh instance; once any sealed row exists the
+            # boot fail-fasts without the SAME key. base64, 32 bytes:
+            #   openssl rand -base64 32
             - name: BINFLOW_REMOTE_CREDENTIALS_KEY
               valueFrom:
                 secretKeyRef:
@@ -151,6 +156,23 @@ spec:
             # - name: BINFLOW_ADDONS__DISABLED
             #   value: "nuget,go"
 
+            # ── binstore.yaml storage chain (M11 T-306 / ADR-0036) ────────
+            # Hand the storage chain to a standalone binstore.yaml mounted
+            # next to the (env-only or mounted) binflow.yaml. Three pieces,
+            # all or none — see binstore-configmap.yaml.example in this
+            # directory for the file shape and the full priority notes:
+            #   1. this BINFLOW_HOME env (file discovery root);
+            #   2. the volumeMount + volume at the bottom of this file;
+            #   3. the ConfigMap from binstore-configmap.yaml.example.
+            # PRIORITIES while the file owns the chain (ADR-0036 d5/d6):
+            #   - the S3 env block above is IGNORED with a WARN — declare
+            #     bucket/endpoint/... in binstore.yaml instead;
+            #   - BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY still applies (the
+            #     env-only secret always reaches the live S3 provider);
+            #   - data_dir/session_ttl/gc_* are not chain keys and stay put.
+            # - name: BINFLOW_HOME
+            #   value: /etc/binflow
+
           ports:
             - name: http
               containerPort: 8080
@@ -159,6 +181,15 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/binflow
+            # binstore.yaml chain (M11 T-306) — uncomment together with the
+            # BINFLOW_HOME env above and the config volume at the bottom of
+            # this file; shape + priority notes in
+            # binstore-configmap.yaml.example (not in kustomization.yaml on
+            # purpose: the base stays chain-embedded until you opt in).
+            #- name: binstore
+            #  mountPath: /etc/binflow/binstore.yaml
+            #  subPath: binstore.yaml
+            #  readOnly: true
 
           # ── Probes (distroless — no shell, use exec probes) ─────────
           # K8s runs the healthcheck-probe binary that ships inside the
@@ -203,6 +234,13 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: binflow-data
+        # binstore.yaml chain (M11 T-306) — uncomment together with the
+        # mount above and BINFLOW_HOME; apply the ConfigMap from
+        # binstore-configmap.yaml.example first (kubectl apply -f
+        # binstore-configmap.yaml.example after editing).
+        #- name: binstore
+        #  configMap:
+        #    name: binflow-binstore
 
       # ── Termination grace period (aligns with server graceful_timeout) ─
       terminationGracePeriodSeconds: 35

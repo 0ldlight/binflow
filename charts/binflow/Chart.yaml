@@ -2,7 +2,7 @@ apiVersion: v2
 name: binflow
 description: BinFlow — A cloud-native binary repository manager (single-binary Go alternative to JFrog Artifactory).
 type: application
-version: "1.1.0"
+version: "1.2.0"
 appVersion: "1.0.0"
 home: https://github.com/lzwzzy/binflow
 icon: https://raw.githubusercontent.com/lzwzzy/binflow/main/docs/user/assets/logo.png
@@ -21,6 +21,8 @@ maintainers:
     email: maintainers@binflow.dev
 annotations:
   artifacthub.io/changes: |
+    - "config.binstore — standalone binstore.yaml storage chain (M11 T-306 / ADR-0036): [filestore] / [s3] / [filestore, s3] + migration mode, rendered as a second ConfigMap key mounted next to binflow.yaml; mutually exclusive with config.s3 (Q5 divergence refused at render time)"
+    - "masterKey.existingSecret — instance master key BINFLOW_REMOTE_CREDENTIALS_KEY (M11): seals remote credentials, replication, auth_configs and GPG keypairs (enc:v1)"
     - "config.addons.disabled — the M10 addon circuit breaker (T-295, ADR-0032 section 15.5), rendered explicitly into the ConfigMap"
     - "config.replication.allowPrivateTarget, config.storage.gcHoldTtlSeconds, config.auth.tokenStepUp(+GrantTtlSeconds), config.oidc/ldap.readOnlyGroup — post-M6 config-plane catch-up (T-295)"
   artifacthub.io/prerelease: "false"
