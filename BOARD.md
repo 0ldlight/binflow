@@ -910,6 +910,8 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 ## M11 票据（T-299/T-300 既定 + T-301~T-330，tech-lead 2026-08-26 拆票；AC 全文见 tech-lead 拆票交付〔本节压缩录〕+ docs/prd/milestone-11.md v1.1；Q8 终值 20:35+20:55 已并入票面）
 
+> **CircleCI build #3 红根因与修复（2026-08-28 00:5x）**：唯一失败步「Vet+lint+fast tests」中两个 npm 客户端套件——CI 镜像 npm **11.17.0** 对测试 .npmrc 已废弃的 `always-auth`（npm 9 移除）逐命令打 warn 进 stdout，污染 M26 重复发布的 403 族匹配与 M55 `npm view --json` 解析（本地 npm 10.9.8 无此告警故全绿）。修复：三处测试 .npmrc 删 `always-auth`（`a4c6ae7`，本地复跑 npm 包 75s 绿）。**main 已带修复重触发**（用户经 PR #2 自合 develop→main〔83f3231〕；conductor 基于 origin/main 再合 batch 2 release `5b8f084`）。**API 排查通道确立**：项目级 token 的 slug 反查不通（`circleci/<org-id>/<uuid>` 形态 v2 API 500/404），但 v1.1 端点 `/api/v1.1/project/circleci/<org-id>/<project-uuid>/<build#>` + action 的 presigned output_url 可拉全量日志——CI 日志获取路径固化为此。
+
 > **里程碑收口清单新增两条（用户 2026-08-27 指令，全里程碑适用）**：每次 milestone 收口（m<N>-done tag 前）必查 ① **README**（含 zh-CN 镜像）是否随新能力过时——支持矩阵/包型/配置面/里程碑行；② **文档站**（docs/user/ → docs-site）是否需更新。检查结论（更新了什么/为何无需更新）写入收口报告留痕。
 >
 > **首个 M11 批次 release 已合 main 2026-08-27 14:2x（merge `1d440ea`，main `95a8f9a`→`1d440ea`）**：CircleCI/UAT 链首次点火——指纹 `75:f5:48:…:d1:fc`（由 ~/.ssh/binflow-uat.pem 推导 MD5 公钥指纹，与 CircleCI Settings 显示值核对）已填 `4776dcc`；build=console+docs+server 内嵌全量构建+vet/lint/-short 测试，deploy_uat=uat-deploy.sh（分阶换装/5 份回滚备份/healthz 探针/双面烟测含 /binflow/docs/）。干净检出编译已在本地 worktree 验证（CI build 同构）。release 合并经临时 worktree 执行（主工作树被在途 T-313 的 helm/harness_test.go 改动占据，checkout 阻断——worktree 路线确立为在途期的 release 标准程序）。流水线结果待 CircleCI 侧观察。
