@@ -1322,7 +1322,7 @@ func openStorageEngine(ctx context.Context, cfg *config.Config, logger *slog.Log
 		return st, nil
 	}
 
-	s3Engine, err := openS3Engine(ctx, cfg)
+	s3Engine, err := openS3Engine(ctx, cfg, md)
 	if err != nil {
 		return nil, err
 	}
@@ -1361,7 +1361,7 @@ func openStorageEngine(ctx context.Context, cfg *config.Config, logger *slog.Log
 // S3Config.SecretAccessKey; the direct os.Getenv here is the belt-and-braces
 // read for hand-built configs (config.S3SecretEnvVar is the one spelling of
 // the name, case per the config package's env mapping).
-func openS3Engine(ctx context.Context, cfg *config.Config) (storage.Engine, error) {
+func openS3Engine(ctx context.Context, cfg *config.Config, md metadata.Store) (storage.Engine, error) {
 	sc := cfg.Storage.S3
 	secret := sc.SecretAccessKey
 	if secret == "" {
@@ -1402,6 +1402,11 @@ func openS3Engine(ctx context.Context, cfg *config.Config) (storage.Engine, erro
 		BucketPrefix: sc.BucketPrefix,
 		PartSize:     sc.UploadPartSize,
 		GCHoldTTL:    cfg.Storage.GCHoldTTL,
+		// T-323: the upload_sessions rows carry the MPU ids for
+		// kill-9 resume (ListParts rebuild); the TTL clock is shared
+		// with the orphan-MPU sweep — the disk arm's own posture.
+		Sessions:   md.UploadSessions(),
+		SessionTTL: cfg.Storage.SessionTTL,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("opening s3 engine: sweep orphan uploads in %s: %w", sc.Bucket, err)

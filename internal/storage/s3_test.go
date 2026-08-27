@@ -43,6 +43,20 @@ type mockS3Server struct {
 	// return a NoSuchBucket error for every bucket — simulating a cold-start
 	// engine whose target bucket has not been provisioned yet.
 	listMultipartNoSuchBucket bool
+
+	// listPartsPageSize caps each ListParts response (0 = one page),
+	// forcing the engine's pagination loop through marker round trips
+	// (T-323 resume tests).
+	listPartsPageSize int
+
+	// failNextComplete makes the next CompleteMultipartUpload answer a
+	// non-retryable 400 InvalidPart instead of assembling (T-323): with
+	// completeHook set, the failure models the publish race — another
+	// writer lands the blob while this session's complete is in flight and
+	// errors. (A 5xx would be retried away by minio-go's own retry loop and
+	// never surface to the engine's error path.)
+	failNextComplete int
+	completeHook     func(b *mockBucket)
 }
 
 // mockPartRecord is one observed PutObjectPart call.
@@ -83,6 +97,7 @@ type partInfo struct {
 	number int
 	data   []byte
 	etag   string
+	size   int // durable size even when discardPartBodies nils the data (ListParts)
 }
 
 func newMockS3Server() *mockS3Server {
@@ -148,6 +163,8 @@ func (m *mockS3Server) handle(w http.ResponseWriter, r *http.Request) {
 		m.handleListObjectsV2(w, r, b)
 	case r.Method == "GET" && key == "" && query.Has("uploads"):
 		m.handleListMultipartUploads(w, r, b)
+	case r.Method == "GET" && key != "" && uploadID != "":
+		m.handleListObjectParts(w, r, b, key, uploadID)
 	case r.Method == "GET" && key != "":
 		m.handleGetObject(w, r, b, key)
 	case r.Method == "POST" && key != "" && query.Has("uploads"):
@@ -332,7 +349,7 @@ func (m *mockS3Server) handlePutObjectPart(w http.ResponseWriter, r *http.Reques
 	if m.discardPartBodies {
 		stored = nil // keep the mock's footprint flat for memory-gate tests
 	}
-	upload.parts = append(upload.parts, partInfo{number: partNum, data: stored, etag: etag})
+	upload.parts = append(upload.parts, partInfo{number: partNum, data: stored, etag: etag, size: len(data)})
 	m.mu.Unlock()
 
 	m.partLogMu.Lock()
@@ -345,6 +362,16 @@ func (m *mockS3Server) handlePutObjectPart(w http.ResponseWriter, r *http.Reques
 
 func (m *mockS3Server) handleCompleteMultipartUpload(w http.ResponseWriter, _ *http.Request, b *mockBucket, key, uploadID string) {
 	m.mu.Lock()
+	if m.failNextComplete > 0 {
+		m.failNextComplete--
+		if m.completeHook != nil {
+			m.completeHook(b)
+		}
+		m.mu.Unlock()
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?><Error><Code>InvalidPart</Code><Message>injected complete failure</Message></Error>`))
+		return
+	}
 	upload, ok := b.uploads[uploadID]
 	if !ok {
 		m.mu.Unlock()
@@ -371,6 +398,66 @@ func (m *mockS3Server) handleCompleteMultipartUpload(w http.ResponseWriter, _ *h
 	w.Header().Set("Content-Type", "application/xml")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?><CompleteMultipartUploadResult><Location>/` + key + `</Location><Bucket>bucket</Bucket><Key>` + key + `</Key><ETag>` + etag + `</ETag></CompleteMultipartUploadResult>`))
+}
+
+// handleListObjectParts serves GET /{bucket}/{key}?uploadId=... — the S3
+// ListParts call ResumeSession rebuilds a crashed session's part list with
+// (T-323). Unknown upload ids answer the NoSuchUpload error shape so the
+// fresh-MPU arm is exercisable against the mock. listPartsPageSize (when > 0)
+// truncates the response like a real paginated listing.
+func (m *mockS3Server) handleListObjectParts(w http.ResponseWriter, r *http.Request, b *mockBucket, key, uploadID string) {
+	m.mu.Lock()
+	upload, ok := b.uploads[uploadID]
+	if !ok {
+		m.mu.Unlock()
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?><Error><Code>NoSuchUpload</Code><Message>Upload not found</Message></Error>`))
+		return
+	}
+	_ = key
+	parts := make([]partInfo, len(upload.parts))
+	copy(parts, upload.parts)
+	pageSize := m.listPartsPageSize
+	m.mu.Unlock()
+
+	sort.Slice(parts, func(i, j int) bool { return parts[i].number < parts[j].number })
+	marker := 0
+	if v := r.URL.Query().Get("part-number-marker"); v != "" {
+		if _, err := fmt.Sscanf(v, "%d", &marker); err != nil {
+			http.Error(w, "bad part-number-marker", http.StatusBadRequest)
+			return
+		}
+	}
+	kept := parts[:0]
+	for _, p := range parts {
+		if p.number > marker {
+			kept = append(kept, p)
+		}
+	}
+	parts = kept
+	truncated := false
+	next := 0
+	if pageSize > 0 && len(parts) > pageSize {
+		parts = parts[:pageSize]
+		truncated = true
+		next = parts[len(parts)-1].number
+	}
+
+	var buf bytes.Buffer
+	buf.WriteString(`<?xml version="1.0" encoding="UTF-8"?><ListPartsResult>`)
+	buf.WriteString(`<PartNumberMarker>` + fmt.Sprintf("%d", marker) + `</PartNumberMarker>`)
+	buf.WriteString(`<NextPartNumberMarker>` + fmt.Sprintf("%d", next) + `</NextPartNumberMarker>`)
+	buf.WriteString(`<MaxParts>1000</MaxParts><IsTruncated>` + fmt.Sprintf("%t", truncated) + `</IsTruncated>`)
+	for _, p := range parts {
+		buf.WriteString(`<Part><PartNumber>` + fmt.Sprintf("%d", p.number) + `</PartNumber>`)
+		buf.WriteString(`<LastModified>` + time.Now().UTC().Format(time.RFC3339Nano) + `</LastModified>`)
+		buf.WriteString(`<ETag>` + p.etag + `</ETag>`)
+		buf.WriteString(`<Size>` + fmt.Sprintf("%d", p.size) + `</Size></Part>`)
+	}
+	buf.WriteString(`</ListPartsResult>`)
+	w.Header().Set("Content-Type", "application/xml")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(buf.Bytes())
 }
 
 func (m *mockS3Server) handleAbortMultipartUpload(w http.ResponseWriter, _ *http.Request, b *mockBucket, _, uploadID string) {
@@ -820,7 +907,14 @@ func TestS3MultipleAppendsAccumulate(t *testing.T) {
 	}
 }
 
-func TestS3ResumeSessionNotSupported(t *testing.T) {
+// TestS3ResumeSessionStoreless keeps the pre-T-323 hard-404 posture pinned
+// where it still holds: an engine with NO Sessions store (the blob-only GC
+// assembly) persists no upload ids, so ResumeSession stays
+// ErrSessionNotFound — the store-less arm of the resume contract. The
+// wired arm (rows + ListParts rebuild) is TestS3ResumeSessionRebuilds* in
+// s3_resume_test.go, which flipped this test's original assertion when the
+// section 11.31 debt was paid.
+func TestS3ResumeSessionStoreless(t *testing.T) {
 	eng, _, _ := newS3Engine(t)
 	s, err := eng.BeginSession(context.Background())
 	if err != nil {
