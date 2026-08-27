@@ -62,6 +62,9 @@ type Options struct {
 	// DataDir roots the .rpmcache parse cache (rpm.md section 2.4); ""
 	// disables the cache (parse on demand).
 	DataDir string
+	// AggTTL overrides the virtual aggregate cache's short TTL (RP-3;
+	// tests shrink it). 0 keeps the 30s default.
+	AggTTL time.Duration
 	// Now overrides the clock (tests).
 	Now func() time.Time
 }
@@ -71,21 +74,38 @@ type Handler struct {
 	svc      repo.Service
 	repos    repo.ClassReader
 	blobs    BlobLedger
+	props    NodeProps
 	cache    *rpmCache
 	opts     Options
 	rewrites indexMutexes // per-repoKey serialization of the repodata rewrites
+	aggs     virtualAggs  // the virtual aggregates' in-process cache (RP-3)
 }
 
-// New wires the handler.
+// New wires the handler (the T-311 seam, kept compiling for the cmd
+// assembly until the T-315 wiring lands: props nil means the remote .rpm
+// property backfill degrades to its skip).
 func New(svc repo.Service, repos repo.ClassReader, blobs BlobLedger, opts Options) *Handler {
-	return &Handler{svc: svc, repos: repos, blobs: blobs, cache: newRpmCache(opts.DataDir), opts: opts}
+	return NewWithProps(svc, repos, blobs, nil, opts)
+}
+
+// NewWithProps is New with the node-property seam the remote backfill
+// writes through (cmd assembly's T-315 call — the one-line diff the
+// ticket report hands the conductor).
+func NewWithProps(svc repo.Service, repos repo.ClassReader, blobs BlobLedger, props NodeProps, opts Options) *Handler {
+	return &Handler{svc: svc, repos: repos, blobs: blobs, props: props, cache: newRpmCache(opts.DataDir), opts: opts}
 }
 
 // Register builds the handler and enters both the handler registry and
 // the metadata-provider registry under one literal (the pypi/cargo
 // convention; cmd assembly calls it exactly once).
 func Register(svc repo.Service, repos repo.ClassReader, blobs BlobLedger, opts Options) *Handler {
-	h := New(svc, repos, blobs, opts)
+	return RegisterWithProps(svc, repos, blobs, nil, opts)
+}
+
+// RegisterWithProps is Register with the node-property seam (cmd's T-315
+// wiring).
+func RegisterWithProps(svc repo.Service, repos repo.ClassReader, blobs BlobLedger, props NodeProps, opts Options) *Handler {
+	h := NewWithProps(svc, repos, blobs, props, opts)
 	adapter.Register(h)
 	RegisterMetadata()
 	return h
@@ -94,10 +114,13 @@ func Register(svc repo.Service, repos repo.ClassReader, blobs BlobLedger, opts O
 // Protocol implements adapter.Handler.
 func (h *Handler) Protocol() string { return Protocol }
 
-// RepoTypes implements adapter.Handler: T-311 serves LOCAL in full — the
-// remote pull-through and the virtual aggregation are their own M11
-// tickets; the class door refuses them until they land.
-func (h *Handler) RepoTypes() []string { return []string{repo.TypeLocal} }
+// RepoTypes implements adapter.Handler: LOCAL in full (T-311), REMOTE as
+// the pull-through mirror with the expirable-set classification and the
+// property backfill (T-315, remote.go), VIRTUAL as the aggregated
+// repodata plus the first-hit member downloads (T-315, virtual.go).
+func (h *Handler) RepoTypes() []string {
+	return []string{repo.TypeLocal, repo.TypeRemote, repo.TypeVirtual}
+}
 
 // Layout implements adapter.Handler (see layout.go).
 func (h *Handler) Layout(r *http.Request) (string, string, error) { return layout(r) }
@@ -119,8 +142,9 @@ func errRepoNotFound(repoKey string) error {
 	return fmt.Errorf("repository %s: %w", repoKey, repo.ErrRepoNotFound)
 }
 
-// msgClassNotServed is the not-yet-landed class refusal.
-const msgClassNotServed = "rpm %s repositories are not served by this BinFlow release (the local pipeline ships here; remote and virtual land with their own tickets)"
+// msgClassNotServed is the unserved-class refusal (the defensive arm for
+// a class value outside the three this adapter serves).
+const msgClassNotServed = "rpm %s repositories are not served by this BinFlow release (the local, remote and virtual faces ship here)"
 
 // msgServerGenerated is the direct-write refusal on the generated family
 // (the DB-3 posture this plane borrows: a hand-written index could break
@@ -130,9 +154,10 @@ const msgServerGenerated = "'%s' is server-generated (the yum repository index);
 // msgStagingReserved refuses client writes into the reindex staging area.
 const msgStagingReserved = "'%s' is the rpm reindex staging area; direct writes are not permitted"
 
-// ServeHTTP dispatches on the parsed wire target. Error bodies are PLAIN
-// TEXT on this face (the storage-path family's posture; dnf only consumes
-// the status).
+// ServeHTTP dispatches on the parsed wire target and the repository CLASS
+// (T-315: local in full, remote the pull-through mirror, virtual the
+// aggregated repodata). Error bodies are PLAIN TEXT on this face (the
+// storage-path family's posture; dnf only consumes the status).
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	repoKey, rel, err := h.Layout(r)
 	if err != nil {
@@ -140,15 +165,19 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
+	p := adapter.PrincipalFrom(ctx)
 
 	rt := parseRoute(rel)
+	var class string
 	if rt.kind != kindRoot {
-		class, err := h.classOf(ctx, repoKey)
+		class, err = h.classOf(ctx, repoKey)
 		if err != nil {
 			h.writeError(w, err, repoKey, rel)
 			return
 		}
-		if class != repo.TypeLocal {
+		switch class {
+		case repo.TypeLocal, repo.TypeRemote, repo.TypeVirtual:
+		default:
 			writeText(w, http.StatusNotFound, fmt.Sprintf(msgClassNotServed, class))
 			return
 		}
@@ -165,11 +194,23 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case kindRpm:
 		switch r.Method {
 		case http.MethodGet, http.MethodHead:
+			if class == repo.TypeRemote {
+				h.serveRemoteRpm(ctx, w, r, p, repoKey, rel)
+				return
+			}
+			// Local and virtual: the local node / the first-hit member
+			// resolution are the same svc.Get read.
 			h.serveStoredFile(ctx, w, r, repoKey, rel, "application/x-rpm")
 		case http.MethodPut:
+			if class == repo.TypeRemote {
+				h.serveRemoteWrite(ctx, w, r, p, repoKey, rel, "application/x-rpm")
+				return
+			}
+			// Virtual routes onto the deployment member inside the
+			// service (an un-routed virtual answers the C5 405 there).
 			h.serveUploadRpm(ctx, w, r, repoKey, rel)
 		case http.MethodDelete:
-			h.serveDeleteRpm(w, r, repoKey, rel)
+			h.serveDeleteRpm(w, r, p, repoKey, rel, class)
 		default:
 			h.methodNotAllowed(w, r, "GET, HEAD, PUT, DELETE")
 		}
@@ -181,23 +222,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.methodNotAllowed(w, r, "GET, HEAD")
 		}
 	case kindRepomd:
-		switch r.Method {
-		case http.MethodGet, http.MethodHead:
-			h.serveStoredFile(ctx, w, r, repoKey, rel, repomdContentType(rel))
-		default:
-			writeText(w, http.StatusForbidden, fmt.Sprintf(msgServerGenerated, rel))
-		}
+		h.serveRepomdFace(ctx, w, r, p, repoKey, rel, class)
 	case kindIndex:
-		switch r.Method {
-		case http.MethodGet, http.MethodHead:
-			ctype := "application/gzip"
-			if strings.HasSuffix(rel, ".sqlite.bz2") {
-				ctype = "application/x-bzip2"
-			}
-			h.serveStoredFile(ctx, w, r, repoKey, rel, ctype)
-		default:
-			writeText(w, http.StatusForbidden, fmt.Sprintf(msgServerGenerated, rel))
-		}
+		h.serveIndexFace(ctx, w, r, p, repoKey, rel, class)
 	case kindGroup:
 		h.servePlainFile(ctx, w, r, repoKey, rel, "text/xml")
 	case kindRepodata:
@@ -213,6 +240,78 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.servePlainFile(ctx, w, r, repoKey, rel, "application/octet-stream")
 	default:
 		writeText(w, http.StatusNotFound, "not found")
+	}
+}
+
+// serveRepomdFace serves the metadata three-piece's GET/HEAD and refuses
+// its writes: local and virtual keep the server-generated 403 (a virtual
+// write into a member's repodata could poison the member's index); remote
+// routes onto the service's uniform write arms (PUT the RE-05 405, DELETE
+// the RE-06 eviction). The virtual repomd.xml itself is the AGGREGATE
+// (virtual.go); the signature pair stays unsigned (RP-3) — a member's
+// signature would not verify against the merged document.
+func (h *Handler) serveRepomdFace(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, rel, class string) {
+	switch r.Method {
+	case http.MethodGet, http.MethodHead:
+		if class == repo.TypeVirtual {
+			root, tail, _ := splitRepodata(rel)
+			if tail == "repomd.xml" {
+				h.serveVirtualRepomd(ctx, w, r, repoKey, root, rel)
+				return
+			}
+			writeText(w, http.StatusNotFound, fmt.Sprintf(msgVirtualUnsigned, repoKey))
+			return
+		}
+		h.serveStoredFile(ctx, w, r, repoKey, rel, repomdContentType(rel))
+	case http.MethodPut:
+		if class == repo.TypeRemote {
+			h.serveRemoteWrite(ctx, w, r, p, repoKey, rel, repomdContentType(rel))
+			return
+		}
+		writeText(w, http.StatusForbidden, fmt.Sprintf(msgServerGenerated, rel))
+	case http.MethodDelete:
+		if class == repo.TypeRemote {
+			h.serveRemoteEvict(ctx, w, p, repoKey, rel)
+			return
+		}
+		writeText(w, http.StatusForbidden, fmt.Sprintf(msgServerGenerated, rel))
+	default:
+		h.methodNotAllowed(w, r, "GET, HEAD")
+	}
+}
+
+// serveIndexFace serves the digest-prefixed index family: the virtual
+// consults the aggregate's own files first (its digests name merged
+// bodies no member carries); local and remote stream the stored node (a
+// remote read IS the engine's pull-through with the artifact-semantics
+// TTL the classification gives these immutable-by-digest files).
+func (h *Handler) serveIndexFace(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, rel, class string) {
+	ctype := "application/gzip"
+	if strings.HasSuffix(rel, ".sqlite.bz2") {
+		ctype = "application/x-bzip2"
+	}
+	switch r.Method {
+	case http.MethodGet, http.MethodHead:
+		if class == repo.TypeVirtual {
+			root, _, _ := splitRepodata(rel)
+			h.serveVirtualIndex(ctx, w, r, repoKey, root, rel, ctype)
+			return
+		}
+		h.serveStoredFile(ctx, w, r, repoKey, rel, ctype)
+	case http.MethodPut:
+		if class == repo.TypeRemote {
+			h.serveRemoteWrite(ctx, w, r, p, repoKey, rel, ctype)
+			return
+		}
+		writeText(w, http.StatusForbidden, fmt.Sprintf(msgServerGenerated, rel))
+	case http.MethodDelete:
+		if class == repo.TypeRemote {
+			h.serveRemoteEvict(ctx, w, p, repoKey, rel)
+			return
+		}
+		writeText(w, http.StatusForbidden, fmt.Sprintf(msgServerGenerated, rel))
+	default:
+		h.methodNotAllowed(w, r, "GET, HEAD")
 	}
 }
 
@@ -319,27 +418,36 @@ func (h *Handler) serveUploadRpm(ctx context.Context, w http.ResponseWriter, r *
 		return
 	}
 
-	// The parse cache and the opt-in recompute (RP-2): only a real
-	// recompute trigger reloads the configuration; the property
-	// registration above already happened for every parseable body.
+	// The parse cache and the opt-in recompute (RP-2) target the
+	// repository that HOLDS the package — a virtual PUT's bytes land in
+	// the routed deployment member (node.RepoKey), and the recompute
+	// decision is the MEMBER's own configuration, never the virtual's.
+	landKey := repoKey
+	if node != nil && node.RepoKey != "" {
+		landKey = node.RepoKey
+	}
 	if hdr != nil {
-		h.cache.store(repoKey, rel, node.Sha256, node.Size, hdr)
-		h.maybeRecompute(ctx, p, repoKey, rel)
+		h.cache.store(landKey, rel, node.Sha256, node.Size, hdr)
+		h.maybeRecompute(ctx, p, landKey, rel)
 	}
 	h.writeCreated(w, rel, node)
 }
 
-// serveDeleteRpm is the DELETE chain: remove the node, drop the parse
-// cache entry, then (opt-in) recompute the root.
-func (h *Handler) serveDeleteRpm(w http.ResponseWriter, r *http.Request, repoKey, rel string) {
+// serveDeleteRpm is the DELETE chain. The service owns the class posture
+// verbatim: local removes and recomputes (the chain below), remote is the
+// RE-06 cache eviction, virtual the RE-08 never-propagates 405 — the
+// local-only steps (parse-cache drop, recompute trigger) run on the local
+// class alone.
+func (h *Handler) serveDeleteRpm(w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, rel, class string) {
 	ctx := r.Context()
-	p := adapter.PrincipalFrom(ctx)
 	if err := h.svc.Delete(ctx, p, repoKey, rel); err != nil {
 		h.writeError(w, err, repoKey, rel)
 		return
 	}
-	h.cache.remove(repoKey, rel)
-	h.maybeRecompute(ctx, p, repoKey, rel)
+	if class == repo.TypeLocal {
+		h.cache.remove(repoKey, rel)
+		h.maybeRecompute(ctx, p, repoKey, rel)
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 

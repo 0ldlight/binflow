@@ -15,9 +15,11 @@ package httpapi
 //	anonymous              → 401 (the route's required gate)
 //	no MANAGE permission   → 403 (the route's repoManage gate)
 //	repo missing / non-rpm → 404 "Unable to find repository '<key>'."
-//	virtual/remote class   → 400 (the virtual 202/200 arms land with the
-//	                          virtual aggregation's own ticket — registered
-//	                          divergence, T-311 report)
+//	virtual class          → 200/202 the virtual arms (T-315: invalidate the
+//	                          aggregate, the next read re-merges; path
+//	                          auto-appends /repodata)
+//	remote class           → 400 the unserved wording (a remote mirrors its
+//	                          upstream's repodata verbatim)
 //	async=1                → 202 "YUM metadata calculation for repository
 //	                          '<key>' accepted." (scheduled in background)
 //	async=0 + auto-calc on → 409 "Unable to perform immediate YUM metadata
@@ -36,6 +38,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/repo"
@@ -65,11 +68,13 @@ func (s *Server) yumReindex() (yumReindexer, bool) {
 
 // The pinned wordings (rpm.md section 3.2).
 const (
-	msgYumBlankKey      = "Target repository key cannot be blank"
-	msgYumAccepted      = "YUM metadata calculation for repository '%s' accepted."
-	msgYumAutoAsync     = "Unable to perform immediate YUM metadata calculation on a repository with auto-async calculation enabled."
-	msgYumRepoUnfind    = "Unable to find repository '%s'."
-	msgYumClassUnserved = "Repository '%s' is a %s repository; YUM metadata calculation on virtual repositories lands with the virtual aggregation's own BinFlow ticket (local repositories are served here)."
+	msgYumBlankKey         = "Target repository key cannot be blank"
+	msgYumAccepted         = "YUM metadata calculation for repository '%s' accepted."
+	msgYumAutoAsync        = "Unable to perform immediate YUM metadata calculation on a repository with auto-async calculation enabled."
+	msgYumRepoUnfind       = "Unable to find repository '%s'."
+	msgYumClassUnserved    = "Repository '%s' is a %s repository; YUM metadata calculation serves local and virtual repositories (a remote mirrors its upstream's repodata verbatim)."
+	msgYumVirtualScheduled = "yum metadata calculation on path %s in virtual repo %s scheduled to run."
+	msgYumVirtualCompleted = "yum metadata calculation on path %s in virtual repo %s completed."
 )
 
 // handleYumReindexBlankKey answers POST /binflow/api/yum[/] — the blank
@@ -79,6 +84,12 @@ func (s *Server) handleYumReindexBlankKey(w http.ResponseWriter, _ *http.Request
 }
 
 // handleYumReindex serves POST /binflow/api/yum/{repoKey}.
+
+// yumVirtualInvalidator is the virtual branch's re-merge trigger seam (the
+// rpm adapter's own method, T-315): invalidating the cached aggregate makes
+// the next read rebuild it from the member set.
+type yumVirtualInvalidator interface{ InvalidateVirtual(repoKey string) }
+
 func (s *Server) handleYumReindex(w http.ResponseWriter, r *http.Request, repoKey string) {
 	ri, ok := s.yumReindex()
 	if !ok {
@@ -94,17 +105,36 @@ func (s *Server) handleYumReindex(w http.ResponseWriter, r *http.Request, repoKe
 		writePlainText(w, http.StatusNotFound, fmt.Sprintf(msgYumRepoUnfind, repoKey))
 		return
 	}
-	if row.Type != repo.TypeLocal {
-		writePlainText(w, http.StatusBadRequest, fmt.Sprintf(msgYumClassUnserved, repoKey, row.Type))
-		return
-	}
 	// async: absent or 0 = synchronous; 1 = asynchronous; anything else is
-	// a malformed request.
+	// a malformed request. Validated before the class branches so a bad
+	// value answers 400 for virtual repos too (rpm.md section 3.2).
 	async := r.URL.Query().Get("async")
 	switch async {
 	case "", "0", "1":
 	default:
 		writeError(w, http.StatusBadRequest, "async must be 0 or 1")
+		return
+	}
+	// The virtual branch (T-315, rpm.md section 3.2): invalidate the
+	// aggregate and answer the scheduled/completed posture — the next read
+	// re-merges. The path form auto-appends /repodata.
+	if row.Type == repo.TypeVirtual {
+		path := r.URL.Query().Get("path")
+		if path != "" && !strings.HasSuffix(path, "/repodata") {
+			path += "/repodata"
+		}
+		if vi, ok := ri.(yumVirtualInvalidator); ok {
+			vi.InvalidateVirtual(repoKey)
+		}
+		if async == "1" {
+			writePlainText(w, http.StatusAccepted, fmt.Sprintf(msgYumVirtualScheduled, path, repoKey))
+			return
+		}
+		writePlainText(w, http.StatusOK, fmt.Sprintf(msgYumVirtualCompleted, path, repoKey))
+		return
+	}
+	if row.Type != repo.TypeLocal {
+		writePlainText(w, http.StatusBadRequest, fmt.Sprintf(msgYumClassUnserved, repoKey, row.Type))
 		return
 	}
 	if async == "1" {

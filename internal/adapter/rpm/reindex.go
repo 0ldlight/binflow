@@ -243,6 +243,17 @@ func (h *Handler) reindexRootLocked(ctx context.Context, p *repo.Principal, repo
 		}
 	}
 
+	// The modules.yaml pass-through (section 4.5, the T-311 leftover the
+	// P2 segment lands): the newest *modules.yaml upload re-gzips under
+	// its digest name and registers as the repomd's modules entry.
+	if mod, merr := h.processModulesLocked(ctx, p, repoKey, repodataRel); merr != nil {
+		return merr
+	} else if mod != nil {
+		if err := stage(mod); err != nil {
+			return err
+		}
+	}
+
 	// 5. Promote everything under <root>/repodata/, then repomd.xml LAST
 	// (the atomic flip: until this write, the previous generation keeps
 	// serving, and the new digest-named files are invisible to clients).
@@ -505,6 +516,46 @@ func (h *Handler) dropStaleGroupSpellings(ctx context.Context, p *repo.Principal
 	return nil
 }
 
+// processModulesLocked runs the modules.yaml pass-through (section 4.5):
+// the most recently modified *modules.yaml under repodata — the user's
+// upload spelling; a prior run's own <digest>-modules.yaml.gz spelling
+// never matches the pattern, and a digest-prefixed UNcompressed spelling
+// is a mirrored artifact, not a feed — gzips under its digest name for
+// the repomd's modules entry. Idempotent by construction (deterministic
+// gzip: identical content → identical digest → identical path); the
+// source upload stays (the chain is a pass-through, not a rename).
+func (h *Handler) processModulesLocked(ctx context.Context, p *repo.Principal, repoKey, repodataRel string) (*dataEntry, error) {
+	nodes, err := h.svc.List(ctx, p, repoKey, repodataRel)
+	if err != nil {
+		return nil, fmt.Errorf("list %s: %w", repodataRel, err)
+	}
+	var newest *metadata.Node
+	for i := range nodes {
+		n := nodes[i]
+		if strings.HasSuffix(n.Path, "/") {
+			continue
+		}
+		base := path.Base(n.Path)
+		if !strings.HasSuffix(base, "modules.yaml") {
+			continue
+		}
+		if _, ok := stripDigestPrefix(base); ok {
+			continue
+		}
+		if newest == nil || n.UpdatedAt > newest.UpdatedAt {
+			newest = n
+		}
+	}
+	if newest == nil {
+		return nil, nil
+	}
+	body, err := h.readNode(ctx, p, repoKey, newest.Path)
+	if err != nil {
+		return nil, err
+	}
+	return dataEntryFile("modules", "modules.yaml.gz", body)
+}
+
 // pruneGenerationsLocked enforces the per-index-type retention (newest N
 // by node UpdatedAt) and the filelists all-clear when the indexing is off
 // (section 2.3's closing rule).
@@ -530,9 +581,32 @@ func (h *Handler) pruneGenerationsLocked(ctx context.Context, p *repo.Principal,
 		if typ == "filelists" && !cfg.EnableFileListsIndexing {
 			keep = 0 // the all-clear: every filelists generation goes
 		}
-		sort.Slice(files, func(i, j int) bool { return files[i].UpdatedAt > files[j].UpdatedAt })
-		for i, n := range files {
-			if i < keep || currentNames[path.Base(n.Path)] {
+		// Deterministic order: recency first, the path as the tiebreak —
+		// the node timestamps carry second granularity and fast successive
+		// runs tie (an arbitrary tie order could strand the CURRENT
+		// generation outside the window and leave N+1 files behind).
+		sort.Slice(files, func(i, j int) bool {
+			if files[i].UpdatedAt != files[j].UpdatedAt {
+				return files[i].UpdatedAt > files[j].UpdatedAt
+			}
+			return files[i].Path > files[j].Path
+		})
+		// The current generation is protected AND consumes a keep slot —
+		// the window bounds the TYPE's total generations, not the stale
+		// ones (the all-clear shape relies on this too: budget 0 minus
+		// the current count drives every stale file out).
+		budget := keep
+		for _, n := range files {
+			if currentNames[path.Base(n.Path)] {
+				budget--
+			}
+		}
+		for _, n := range files {
+			if currentNames[path.Base(n.Path)] {
+				continue
+			}
+			if budget > 0 {
+				budget--
 				continue
 			}
 			if err := h.svc.Delete(ctx, p, repoKey, n.Path); err != nil && !errors.Is(err, repo.ErrNodeNotFound) {
@@ -555,6 +629,8 @@ func indexTypeOf(base string) string {
 		return "filelists"
 	case strings.HasSuffix(rest, "modules.yaml.gz"):
 		return "modules"
+	case strings.HasSuffix(rest, "updateinfo.xml.gz"):
+		return "updateinfo"
 	case strings.HasSuffix(rest, ".xml.gz"):
 		return "group_gz"
 	case strings.HasSuffix(rest, ".xml"):

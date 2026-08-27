@@ -9,10 +9,14 @@ import (
 // The RPM metadata provider (the adapter SPI's per-protocol member,
 // architecture section 5.4). Consumers:
 //
-//   - Classify feeds the remote cache's dual TTL split (the M11 remote
-//     ticket's engine hop): everything under a repodata/ segment is the
-//     regenerable protocol document family (metadata class); every .rpm
-//     and every other file is immutable content.
+//   - Classify feeds the remote cache's dual TTL split (the S10 expirable
+//     set, T-315): the EXPIRABLE family — repomd.xml, the repodata files
+//     WITHOUT a digest prefix (group files, modules uploads) and the
+//     key-class spellings anywhere (gpg/rsa/asc/pem/crt/cer/key/dsa
+//     extensions, the extension-less names containing "gpg") — refresh on
+//     the metadata TTL; the digest-prefixed index generations cache with
+//     artifact semantics (immutable by construction: a new generation
+//     means a NEW digest name), and every .rpm is plain content.
 //   - PackageName is the identity a path belongs to. RPM identity is
 //     HEADER-carried, not path-carried — the path form is the conventional
 //     <name>-<version>-<release>.<arch>.rpm, so the best-effort arm splits
@@ -38,12 +42,38 @@ func RegisterMetadata() {
 // Protocol implements adapter.MetadataProvider.
 func (provider) Protocol() string { return Protocol }
 
-// Classify implements adapter.MetadataProvider.
+// keyClassExtensions are the key-material spellings the expirable set
+// refreshes on the metadata TTL (S10: rotated keys must not serve stale
+// past the metadata window).
+var keyClassExtensions = []string{".gpg", ".rsa", ".asc", ".pem", ".crt", ".cer", ".key", ".dsa"}
+
+// Classify implements adapter.MetadataProvider: the S10 expirable set.
 func (provider) Classify(relPath string) adapter.MetadataKind {
-	if _, _, ok := splitRepodata(relPath); ok {
+	base := relPath
+	if i := strings.LastIndexByte(relPath, '/'); i >= 0 {
+		base = relPath[i+1:]
+	}
+	for _, ext := range keyClassExtensions {
+		if strings.HasSuffix(base, ext) {
+			return adapter.KindMetadata
+		}
+	}
+	// The extension-less "gpg" names (RPM-GPG-KEY-* and friends).
+	if !strings.Contains(base, ".") && strings.Contains(strings.ToLower(base), "gpg") {
 		return adapter.KindMetadata
 	}
-	return adapter.KindContent
+	_, tail, ok := splitRepodata(relPath)
+	if !ok || tail == "" {
+		return adapter.KindContent
+	}
+	if isDigestPrefixed(base) {
+		// The historical index generations: artifact semantics (immutable
+		// by construction — a new generation means a new digest name).
+		return adapter.KindContent
+	}
+	// repomd.xml (every spelling) and the non-digest-prefixed repodata
+	// files (group files, modules uploads): the expirable metadata window.
+	return adapter.KindMetadata
 }
 
 // PackageName implements adapter.MetadataProvider (the best-effort

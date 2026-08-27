@@ -230,6 +230,143 @@ func runDocker(t *testing.T, share, image, script string) string {
 	return string(out)
 }
 
+// TestClientE2EDnfRemoteVirtual is the T-315 REAL-client leg (see the
+// gate): a genuine rpmbuild-made .rpm served through a REMOTE mirror of a
+// local origin (the dispatch note's 本地起源 allowance — the mirror
+// pull-throughs repomd, the digest-named indexes and the .rpm), and a
+// VIRTUAL aggregating the remote member with a second local member (dnf
+// sees BOTH members' packages through the merged primary).
+func TestClientE2EDnfRemoteVirtual(t *testing.T) {
+	if os.Getenv("BINFLOW_RPM_E2E_REMOTE") != "1" {
+		t.Skip("set BINFLOW_RPM_E2E_REMOTE=1 to run the remote+virtual dnf container leg (needs docker)")
+	}
+	if _, err := exec.LookPath("docker"); err != nil {
+		t.Skipf("docker unavailable: %v", err)
+	}
+
+	s := newStack(t)
+	// The origin (the remote's upstream) and the second local member; the
+	// remote mirrors the origin through this very server (loopback
+	// upstream, the conan/helm fixture posture).
+	s.seedRepo(t, "rpm-org", repo.TypeLocal, "{}")
+	s.seedRepo(t, "rpm-l2", repo.TypeLocal, "{}")
+	s.seedRemoteRepo(t, "rpm-r", s.srv.URL+"/binflow/rpm-org")
+	s.seedVirtualRepo(t, "rpm-v", "", []string{"rpm-l2", "rpm-r"}, nil)
+	host := "http://host.docker.internal:" + portOf(t, s.srv.URL)
+
+	share := t.TempDir()
+	// Step 1: two genuine packages inside the container.
+	build := []string{"set -e", "dnf install -y rpm-build >/dev/null",
+		`mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS}`}
+	for _, name := range []string{"binflow-rmt", "binflow-virt"} {
+		spec := fmt.Sprintf(`Name:           %s
+Version:        1.0
+Release:        1%%{?dist}
+Summary:        BinFlow T-315 %s package
+License:        MIT
+BuildArch:      noarch
+
+%%description
+A genuine rpmbuild-made package exercising BinFlow's rpm remote and virtual faces.
+
+%%prep
+:
+
+%%build
+:
+
+%%install
+mkdir -p %%{buildroot}/opt/%s
+echo "%s" > %%{buildroot}/opt/%s/hello.txt
+
+%%files
+/opt/%s/hello.txt
+`, name, name, name, name, name, name)
+		if err := os.WriteFile(filepath.Join(share, name+".spec"), []byte(spec), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		build = append(build,
+			fmt.Sprintf("cp /e2e/%s.spec ~/rpmbuild/SPECS/", name),
+			fmt.Sprintf("rpmbuild -bb ~/rpmbuild/SPECS/%s.spec >/dev/null", name))
+	}
+	build = append(build, "cp ~/rpmbuild/RPMS/noarch/*.rpm /e2e/", "ls /e2e/*.rpm")
+	runDocker(t, share, "rockylinux:9", strings.Join(build, "\n"))
+	rmt, virt := rpmByName(t, share, "binflow-rmt"), rpmByName(t, share, "binflow-virt")
+
+	// Step 2: seed the origin and the second member (the curl face).
+	seed := []string{"set -e",
+		fmt.Sprintf(`curl -sf -u admin:password -T /e2e/%[1]s %[2]s/binflow/rpm-org/%[1]s -o /dev/null -w 'ORIGIN %%{http_code}\n'`, rmt, host),
+		fmt.Sprintf(`curl -sf -u admin:password -X POST '%s/binflow/api/yum/rpm-org?async=0' -o /dev/null -w 'REINDEX-ORG %%{http_code}\n'`, host),
+		fmt.Sprintf(`curl -sf -u admin:password -T /e2e/%[1]s %[2]s/binflow/rpm-l2/%[1]s -o /dev/null -w 'L2 %%{http_code}\n'`, virt, host),
+		fmt.Sprintf(`curl -sf -u admin:password -X POST '%s/binflow/api/yum/rpm-l2?async=0' -o /dev/null -w 'REINDEX-L2 %%{http_code}\n'`, host),
+	}
+	out := runDocker(t, share, "rockylinux:9", strings.Join(seed, "\n"))
+	for _, want := range []string{"ORIGIN 201", "REINDEX-ORG 200", "L2 201", "REINDEX-L2 200"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("seed leg missing %q:\n%s", want, out)
+		}
+	}
+
+	// Step 3: the REMOTE leg — makecache/repoquery/install through the
+	// mirror's pull-through chain, then a second makecache off the cache.
+	remoteLeg := []string{"set -e",
+		fmt.Sprintf("printf '[binflow-r]\\nname=BinFlow Remote\\nbaseurl=%s/binflow/rpm-r\\nenabled=1\\ngpgcheck=0\\nrepo_gpgcheck=0\\n' > /etc/yum.repos.d/binflow-r.repo", host),
+		"dnf clean all >/dev/null",
+		"dnf makecache --disablerepo='*' --enablerepo=binflow-r -v 2>&1 | grep -E 'binflow-r.*(repo|primary)' | head -3",
+		"echo '--- remote repoquery ---'",
+		"dnf repoquery --repo binflow-r binflow-rmt",
+		"echo '--- remote install ---'",
+		"dnf install -y --disablerepo='*' --enablerepo=binflow-r binflow-rmt",
+		"rpm -q binflow-rmt",
+		"echo '--- second makecache (cached) ---'",
+		"dnf clean expire-cache >/dev/null",
+		"dnf makecache --disablerepo='*' --enablerepo=binflow-r 2>&1 | tail -1",
+		"dnf repoquery --repo binflow-r binflow-rmt",
+	}
+	out = runDocker(t, share, "rockylinux:9", strings.Join(remoteLeg, "\n"))
+	t.Logf("container remote leg:\n%s", out)
+	for _, want := range []string{"binflow-rmt-0:", "binflow-rmt-1.0-1.el9.noarch"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("remote leg output missing %q:\n%s", want, out)
+		}
+	}
+
+	// Step 4: the VIRTUAL leg — the aggregate carries BOTH members'
+	// packages; install the second member's package through the virtual.
+	virtualLeg := []string{"set -e",
+		fmt.Sprintf("printf '[binflow-v]\\nname=BinFlow Virtual\\nbaseurl=%s/binflow/rpm-v\\nenabled=1\\ngpgcheck=0\\nrepo_gpgcheck=0\\n' > /etc/yum.repos.d/binflow-v.repo", host),
+		"dnf clean all >/dev/null",
+		"dnf makecache --disablerepo='*' --enablerepo=binflow-v >/dev/null",
+		"echo '--- virtual repoquery (both members) ---'",
+		"dnf repoquery --repo binflow-v | grep -E 'binflow-(rmt|virt)' | sort",
+		"echo '--- virtual install (the local member package) ---'",
+		"dnf install -y --disablerepo='*' --enablerepo=binflow-v binflow-virt",
+		"rpm -q binflow-virt",
+		// The remote member's package also resolves through the virtual.
+		"dnf repoquery --repo binflow-v binflow-rmt",
+	}
+	out = runDocker(t, share, "rockylinux:9", strings.Join(virtualLeg, "\n"))
+	t.Logf("container virtual leg:\n%s", out)
+	for _, want := range []string{
+		"binflow-rmt-0:1.0-1.el9.noarch", // the aggregate's remote-member entry (repoquery spelling)
+		"binflow-virt-1.0-1.el9.noarch",  // the local member's package, installed through the virtual
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("virtual leg output missing %q:\n%s", want, out)
+		}
+	}
+}
+
+// rpmByName finds one built package file by its name prefix.
+func rpmByName(t *testing.T, dir, name string) string {
+	t.Helper()
+	matches, err := filepath.Glob(filepath.Join(dir, name+"-*.rpm"))
+	if err != nil || len(matches) == 0 {
+		t.Fatalf("no %s rpm built in %s (err %v)", name, dir, err)
+	}
+	return filepath.Base(matches[0])
+}
+
 // portOf extracts the httptest server's port.
 func portOf(t *testing.T, url string) string {
 	t.Helper()
