@@ -23,8 +23,12 @@ package deb
 //  3. write by-hash mirrors first, then the canonical files, then the
 //     Release (section 5's ordering: an apt mid-update reads either the
 //     old canonical name or the new by-hash address, never a torn one);
-//  4. unsigned sweep: delete stale Release.gpg / InRelease (DB-1 — an
-//     old signature must not outlive the Release it signed);
+//  3b. the signature pair (T-321, sign.go): a repository whose keypair
+//     seam resolves writes InRelease (clearsign) + Release.gpg (detached
+//     armor) of the Release just landed;
+//  4. signature sweep: an unsigned (or rotated) recompute deletes stale
+//     Release.gpg / InRelease (DB-1 — an old signature must not outlive
+//     the Release it signed; the freshly written pair is exempt);
 //  5. retention: keep the newest historyCycles by-hash digests per
 //     algorithm directory (section 5: the current plus history), drop
 //     canonical files the new generation no longer names.
@@ -511,7 +515,7 @@ func (h *Handler) reindexDistLocked(ctx context.Context, p *repo.Principal, repo
 	// (a Release advertising zero components would serve apt nothing but
 	// confusion).
 	if len(comps) == 0 {
-		if err := h.sweepDist(ctx, p, repoKey, distRoot, nil, indexFile{}, cfg); err != nil {
+		if err := h.sweepDist(ctx, p, repoKey, distRoot, nil, indexFile{}, nil, cfg); err != nil {
 			return err
 		}
 		slog.InfoContext(ctx, "deb: emptied distribution swept",
@@ -567,8 +571,28 @@ func (h *Handler) reindexDistLocked(ctx context.Context, p *repo.Principal, repo
 		return err
 	}
 
-	// 4-5. The unsigned sweep and the retention/stale sweep.
-	if err := h.sweepDist(ctx, p, repoKey, distRoot, files, release, cfg); err != nil {
+	// 3b. The signature pair (T-321): the Release is the commit point, the
+	// signatures land beside it. The unsigned posture writes nothing here
+	// and lets the sweep clear whatever stale signatures remain (DB-1).
+	var sigs []indexFile
+	inRel, relGpg, signed, serr := h.releaseSignatures(ctx, repoKey, release.body)
+	if serr != nil {
+		return serr
+	}
+	if signed {
+		sigs = append(sigs,
+			newIndexFile(distRoot+"/InRelease", inRel, ctypeInRelease),
+			newIndexFile(distRoot+"/Release.gpg", []byte(relGpg), ctypeReleaseGpg),
+		)
+		for _, f := range sigs {
+			if err := h.writeIndexFile(ctx, p, repoKey, f); err != nil {
+				return err
+			}
+		}
+	}
+
+	// 4-5. The signature sweep and the retention/stale sweep.
+	if err := h.sweepDist(ctx, p, repoKey, distRoot, files, release, sigs, cfg); err != nil {
 		return err
 	}
 
@@ -698,12 +722,13 @@ func (h *Handler) writeByHashCopies(ctx context.Context, p *repo.Principal, repo
 	return nil
 }
 
-// sweepDist runs the unsigned signature sweep and the stale-file
-// retention: canonical family files the new generation does not name go,
-// by-hash digests keep the newest historyCycles per algorithm directory
-// (and whole by-hash trees of vanished index directories go), and stale
-// signature files never survive an unsigned recompute.
-func (h *Handler) sweepDist(ctx context.Context, p *repo.Principal, repoKey, distRoot string, files []indexFile, release indexFile, cfg RepoConfig) error {
+// sweepDist runs the signature sweep and the stale-file retention: the
+// freshly written signature pair (sigs) survives, stale signature files
+// never outlive an unsigned or rotated recompute (DB-1), canonical family
+// files the new generation does not name go, and by-hash digests keep the
+// newest historyCycles per algorithm directory (and whole by-hash trees
+// of vanished index directories go).
+func (h *Handler) sweepDist(ctx context.Context, p *repo.Principal, repoKey, distRoot string, files []indexFile, release indexFile, sigs []indexFile, cfg RepoConfig) error {
 	nodes, err := h.svc.List(ctx, p, repoKey, distRoot)
 	if err != nil {
 		return fmt.Errorf("list %s: %w", distRoot, err)
@@ -714,20 +739,23 @@ func (h *Handler) sweepDist(ctx context.Context, p *repo.Principal, repoKey, dis
 		current[f.path] = true
 		liveDirs[parentDir(f.path)] = true
 	}
+	for _, s := range sigs {
+		current[s.path] = true // this generation's signatures survive; an unsigned recompute passes nil here
+	}
 	byHashBuckets := map[string][]*metadata.Node{} // the by-hash/<ALGO> directory -> its digest files
 	for _, n := range nodes {
 		if strings.HasSuffix(n.Path, "/") {
 			continue
 		}
 		switch {
+		case current[n.Path]:
+			continue
 		case n.Path == distRoot+"/Release.gpg" || n.Path == distRoot+"/InRelease":
-			// DB-1: unsigned mode — a stale signature must not outlive the
-			// Release it signed.
+			// DB-1: an unsigned (or rotated) recompute — a stale signature
+			// must not outlive the Release it signed.
 			if err := h.svc.Delete(ctx, p, repoKey, n.Path); err != nil && !errors.Is(err, repo.ErrNodeNotFound) {
 				return fmt.Errorf("sweep stale signature %s: %w", n.Path, err)
 			}
-		case current[n.Path]:
-			continue
 		case inByHash(n.Path):
 			algoDir := parentDir(n.Path) // .../<index-dir>/by-hash/<ALGO>
 			indexDir := dirOf(dirOf(algoDir))

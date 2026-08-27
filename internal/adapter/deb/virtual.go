@@ -24,11 +24,16 @@ package deb
 //     its bytes. A member's copy reads in ANY served spelling (plain,
 //     .gz, .xz, .bz2, .lzma — decoded on the fly: mirrors ship
 //     differing compression sets, and the virtual re-renders its own).
-//   - the signature family (InRelease / Release.gpg) and by-hash
-//     addresses answer 404: a member's signature does not cover the
-//     re-rendered aggregate, and the virtual keeps no by-hash history;
-//     apt degrades to the canonical unsigned Release (trusted=yes) and
-//     to canonical names (the official by-hash fallback). Registered.
+//   - the signature family (InRelease / Release.gpg, T-321) signs the
+//     re-rendered aggregate through the repository's own keypair seam —
+//     but a managed-path virtual cannot carry the association (the repo
+//     config validation refuses keyPairName on non-local classes), so
+//     the practical posture is the registered unsigned one: 404, apt
+//     degrades to the canonical unsigned Release (trusted=yes). A
+//     member's signature never serves here — it covers the member's
+//     Release, not the aggregate's bytes. By-hash addresses answer 404
+//     too: the virtual keeps no digest history (apt degrades to the
+//     canonical names, the official by-hash fallback). Registered.
 //   - writes: debPUT rides the shared arms — the service routes a
 //     configured defaultDeploymentRepo onto the member (the un-routed
 //     C5 405 answers there), and the background recompute targets the
@@ -59,6 +64,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ulikunitz/xz"
 	"github.com/ulikunitz/xz/lzma"
@@ -79,7 +85,7 @@ type indexTarget struct {
 	comp      string // "" on the Release family
 	arch      string // the binary-<arch> axis (Packages only)
 	family    string // "Release" | "Packages" | "Sources"
-	signature bool   // InRelease / Release.gpg (never served here)
+	signature bool   // InRelease / Release.gpg (signed on demand, virtual.go)
 	ext       string // "" | one of indexCompressions
 }
 
@@ -214,11 +220,15 @@ func (h *Handler) serveVirtual(ctx context.Context, w http.ResponseWriter, r *ht
 // grammar above; anything unservable is the plain 404).
 func (h *Handler) serveVirtualIndex(ctx context.Context, w http.ResponseWriter, r *http.Request, virtualKey, rel string) {
 	t, ok := parseIndexTarget(rel)
-	if !ok || t.signature {
+	if !ok {
 		writeText(w, http.StatusNotFound, fmt.Sprintf("'%s/%s' not found", virtualKey, rel))
 		return
 	}
 	if t.family == "Release" {
+		if t.signature {
+			h.serveVirtualSignature(ctx, w, r, virtualKey, rel, t)
+			return
+		}
 		h.serveVirtualRelease(ctx, w, r, virtualKey, t)
 		return
 	}
@@ -497,23 +507,45 @@ func familyAxes(families []string) (comps, arches []string) {
 	return sortedKeys(compSet), archLine(sortedKeys(archSet), nil)
 }
 
-// serveVirtualRelease recomputes the meta-index at the virtual root:
-// the members' Release inventories union into the family set, every
-// family re-renders merged (plus the compression set the VIRTUAL's own
-// deb section configures — plain + .gz mandatory), and the checksum
-// sections describe the aggregate's own bytes. Unsigned by
-// construction (the registered no-signature posture) — no
-// Acquire-By-Hash line either: the virtual keeps no digest history.
+// serveVirtualRelease serves the aggregate meta-index (see
+// virtualReleaseBody for the computation).
 func (h *Handler) serveVirtualRelease(ctx context.Context, w http.ResponseWriter, r *http.Request, virtualKey string, t indexTarget) {
+	releasePath := t.familyPath()
+	body, ok, err := h.virtualReleaseBody(ctx, virtualKey, t)
+	if err != nil {
+		h.writeError(w, err, virtualKey, releasePath)
+		return
+	}
+	if !ok {
+		writeText(w, http.StatusNotFound, fmt.Sprintf("'%s/%s' not found", virtualKey, releasePath))
+		return
+	}
+	h.writeRendered(w, r, body, indexContentType("Release"))
+}
+
+// virtualReleaseBody recomputes the meta-index at the virtual root: the
+// members' Release inventories union into the family set, every family
+// re-renders merged (plus the compression set the VIRTUAL's own deb
+// section configures — plain + .gz mandatory), and the checksum sections
+// describe the aggregate's own bytes. The render is DETERMINISTIC per
+// member generation: the Date field rides the newest member Release's
+// own Date (not the render clock), so the Release served in one request
+// and the signature pair served in the next are bytes-compatible — apt's
+// Release+Release.gpg fallback verifies exactly when InRelease would.
+// ok=false with a nil error is the plain 404 (no member serves the
+// distribution); err is the surfaced classified failure. No
+// Acquire-By-Hash line: the virtual keeps no digest history
+// (registered).
+func (h *Handler) virtualReleaseBody(ctx context.Context, virtualKey string, t indexTarget) ([]byte, bool, error) {
 	order, err := h.svc.VirtualMemberOrder(ctx, virtualKey)
 	if err != nil {
-		h.writeError(w, err, virtualKey, t.familyPath())
-		return
+		return nil, false, err
 	}
 	releasePath := t.familyPath()
 	familySet := map[string]bool{}
 	contributed := 0
 	var failure aggregationFailure
+	var newestMemberDate time.Time
 	for _, m := range order {
 		raw, ok, merr := h.memberFile(ctx, virtualKey, m.Key, releasePath)
 		if merr != nil {
@@ -521,24 +553,24 @@ func (h *Handler) serveVirtualRelease(ctx context.Context, w http.ResponseWriter
 				tolerateVirtualMemberFailure(ctx, virtualKey, m.Key, releasePath, merr)
 				continue
 			}
-			h.writeError(w, merr, virtualKey, releasePath)
-			return
+			return nil, false, merr
 		}
 		if !ok {
 			continue // the member does not serve this distribution
 		}
 		contributed++
+		if d, derr := time.Parse(releaseDateFormat, releaseDateOf(raw)); derr == nil && d.After(newestMemberDate) {
+			newestMemberDate = d
+		}
 		for fam := range releaseFamilies(raw) {
 			familySet[fam] = true
 		}
 	}
 	if contributed == 0 {
 		if failure.err != nil {
-			h.writeError(w, failure.err, virtualKey, releasePath)
-			return
+			return nil, false, failure.err
 		}
-		writeText(w, http.StatusNotFound, fmt.Sprintf("'%s/%s' not found", virtualKey, releasePath))
-		return
+		return nil, false, nil
 	}
 
 	// The virtual's own deb section feeds the compression set and the
@@ -546,8 +578,7 @@ func (h *Handler) serveVirtualRelease(ctx context.Context, w http.ResponseWriter
 	// renderer's).
 	cfg, err := h.configFor(ctx, virtualKey)
 	if err != nil {
-		h.writeError(w, err, virtualKey, releasePath)
-		return
+		return nil, false, err
 	}
 
 	families := sortedKeys(familySet)
@@ -555,8 +586,7 @@ func (h *Handler) serveVirtualRelease(ctx context.Context, w http.ResponseWriter
 	for _, fam := range families {
 		docs, found, aerr := h.virtualAggregate(ctx, virtualKey, order, dirDists+"/"+t.dist+"/"+fam)
 		if aerr != nil {
-			h.writeError(w, aerr, virtualKey, releasePath)
-			return
+			return nil, false, aerr
 		}
 		if !found {
 			continue // an inventory/file drift mid-aggregation: the family simply does not serve
@@ -578,6 +608,14 @@ func (h *Handler) serveVirtualRelease(ctx context.Context, w http.ResponseWriter
 	if label == "" {
 		label = virtualKey
 	}
+	// The deterministic Date: the newest member's own Release Date (the
+	// render stays byte-identical across requests within one member
+	// generation — see the function comment), the render clock only when
+	// no member carried a parseable Date.
+	date := newestMemberDate
+	if date.IsZero() {
+		date = h.now()
+	}
 	body := renderReleaseBody(releaseDoc{
 		dist:       t.dist,
 		components: comps,
@@ -585,12 +623,60 @@ func (h *Handler) serveVirtualRelease(ctx context.Context, w http.ResponseWriter
 		policy:     byHashNone, // no by-hash history on the aggregate (registered)
 		origin:     origin,
 		label:      label,
-		date:       h.now(),
+		date:       date,
 		files:      files,
 	})
-	h.writeRendered(w, r, body, indexContentType("Release"))
 	slog.DebugContext(ctx, "deb: virtual Release rendered",
 		"virtual", virtualKey, "dist", t.dist, "families", len(families), "members", contributed)
+	return body, true, nil
+}
+
+// releaseDateOf reads one Release body's Date field ("" when absent) —
+// the aggregate determinism input (see virtualReleaseBody).
+func releaseDateOf(release []byte) string {
+	for _, ln := range strings.Split(string(release), "\n") {
+		if v, ok := strings.CutPrefix(ln, "Date: "); ok {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
+}
+
+// serveVirtualSignature serves the aggregate's signature family (T-321):
+// the re-rendered aggregate Release, signed through the virtual's own
+// keypair seam. A member's signature never serves here — it covers the
+// member's Release, not the aggregate's bytes — and the managed-path
+// virtual carries no association (the repo config validation refuses
+// keyPairName on non-local classes), so the practical posture is the
+// registered unsigned one: 404, apt degrades to the canonical unsigned
+// Release (trusted=yes).
+func (h *Handler) serveVirtualSignature(ctx context.Context, w http.ResponseWriter, r *http.Request, virtualKey, rel string, t indexTarget) {
+	notFound := func() {
+		writeText(w, http.StatusNotFound, fmt.Sprintf("'%s/%s' not found", virtualKey, rel))
+	}
+	body, ok, err := h.virtualReleaseBody(ctx, virtualKey, t)
+	if err != nil {
+		h.writeError(w, err, virtualKey, rel)
+		return
+	}
+	if !ok {
+		notFound()
+		return
+	}
+	inRel, relGpg, signed, serr := h.releaseSignatures(ctx, virtualKey, body)
+	if serr != nil {
+		h.writeError(w, serr, virtualKey, rel)
+		return
+	}
+	if !signed {
+		notFound()
+		return
+	}
+	if strings.HasSuffix(rel, "/InRelease") {
+		h.writeRendered(w, r, inRel, ctypeInRelease)
+		return
+	}
+	h.writeRendered(w, r, []byte(relGpg), ctypeReleaseGpg)
 }
 
 // ---- the Packages/Sources aggregate ----
