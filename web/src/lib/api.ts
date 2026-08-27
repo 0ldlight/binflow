@@ -310,3 +310,130 @@ export function deleteNodeProperties(repoKey: string, path: string, keys: string
     method: 'DELETE',
   })
 }
+
+// ---- 认证配置面（M11 T-307 / FR-92，契约 = internal/httpapi/authconfig.go） ----
+//
+// 九端点里的三 GET/PUT + 三 test：段闭集 ldap/oauth/saml（wire 段名），REST
+// 家族挂在 /v1/admin/security/{ldap|oauth|saml/config}。GET 回显是脱敏哨兵
+// 形态（已设置 secret = 20 星，未设置 = ""）；PUT 对 secret 是 write-only：
+// 键缺省 = 保持库存值、"" = 清除、新明文 = 替换、**回传哨兵 = 400 拒绝**
+// （用户 2026-08-27 裁定照 Artifactory）——FE 的「留空保持不变」= 提交时把
+// 空的 secret 字段从 payload 整个剔除，绝不回传哨兵。
+
+/** 三协议段（wire 段名；REST 路径映射 saml → saml/config） */
+export type AuthSection = 'ldap' | 'oauth' | 'saml'
+
+/** GET 对已设置 secret 的固定 20 星哨兵（auth-integration §1.6） */
+export const AUTH_SECRET_SENTINEL = '********************'
+
+/** LDAP 段 wire 模型（§1.1/§1.2 + BinFlow 运行时扩展；camelCase） */
+export interface LdapAuthConfig {
+  key: string
+  enabled: boolean
+  ldapUrl: string
+  userDnPattern: string
+  search: {
+    searchFilter: string
+    searchBase: string
+    searchSubTree: boolean
+    managerDn: string
+    /** GET = 哨兵（已设置）或 ""（未设置）；PUT = 新明文（空=剔除） */
+    managerPassword: string
+  }
+  autoCreateUser: boolean
+  emailAttribute: string
+  allowUserToAccessProfile: boolean
+  pagingSupportEnabled: boolean
+  ldapPoisoningProtection: boolean
+  groupFilter: string
+  groupBaseDn: string
+  groupNameAttribute: string
+  adminGroup: string
+  readOnlyGroup: string
+  startTls: boolean
+  skipTlsVerify: boolean
+  poolSize: number
+}
+
+/** OAuth 段 wire 模型（BinFlow C 级 OIDC issuer 发现式；snake_case） */
+export interface OidcAuthConfig {
+  enabled: boolean
+  issuer_url: string
+  client_id: string
+  /** GET = 哨兵（已设置）或 ""（未设置）；PUT = 新明文（空=剔除） */
+  client_secret: string
+  redirect_url: string
+  scopes: string[]
+  user_claim: string
+  group_claim: string
+  admin_group: string
+  readonly_group: string
+  auto_create_users: boolean
+}
+
+/** SAML 段 wire 模型（§3.1 13 字段 verbatim；camelCase；无 secret） */
+export interface SamlAuthConfig {
+  enableIntegration: boolean
+  loginUrl: string
+  logoutUrl: string
+  serviceProviderName: string
+  certificate: string
+  useEncryptedAssertion: boolean
+  syncGroups: boolean
+  groupAttribute: string
+  emailAttribute: string
+  /** 命名陷阱（§3.4）：wire 是否定式且默认 true（= 默认不自动建用户） */
+  noAutoUserCreation: boolean
+  allowUserToAccessProfile: boolean
+  autoRedirect: boolean
+  verifyAudienceRestriction: boolean
+}
+
+function authSectionPath(section: AuthSection): string {
+  return section === 'saml' ? '/v1/admin/security/saml/config' : `/v1/admin/security/${section}`
+}
+
+/** 读一段（未存储段：LDAP/OAuth 回默认形、SAML 回锚定空对象 {} ——§3.2） */
+export function getAuthSection<T>(section: AuthSection): Promise<T> {
+  return apiJSON<T>(authSectionPath(section))
+}
+
+/** 保存一段（全量替换；成功回应脱敏回显——可直接用于重置表单） */
+export function putAuthSection<T>(section: AuthSection, body: unknown): Promise<T> {
+  return apiJSON<T>(authSectionPath(section), { method: 'PUT', body })
+}
+
+/** TestReport（internal/auth.TestReport；探测失败也是这个体，只是 HTTP 400） */
+export interface AuthTestReport {
+  ok: boolean
+  phase?: string
+  category?: string
+  message?: string
+}
+
+/**
+ * 测试连接（POST …/test）。body 缺省 = 探存量（空体）；候选 = 表单当前值
+ * 随体提交（LDAP 另携 testUsername/testPassword 两探针参数，§1.6 信封）。
+ *
+ * 探测失败是 HTTP 400 + TestReport 体（不是 errors[] 信封）——通用层会把
+ * 它折成 ApiError，这里从 raw 解回报告原文呈现；其余非 2xx（403/503/5xx）
+ * 保持抛 ApiError。
+ */
+export async function testAuthSection(section: AuthSection, body?: unknown): Promise<AuthTestReport> {
+  try {
+    return await apiJSON<AuthTestReport>(`${authSectionPath(section)}/test`, {
+      method: 'POST',
+      ...(body === undefined ? {} : { body }),
+    })
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 400 && err.raw) {
+      try {
+        const parsed = JSON.parse(err.raw) as AuthTestReport
+        if (typeof parsed?.ok === 'boolean') return parsed
+      } catch {
+        // 不是报告体（strict-schema 400 信封）——按通用错误抛
+      }
+    }
+    throw err
+  }
+}

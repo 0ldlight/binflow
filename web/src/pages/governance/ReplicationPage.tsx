@@ -1,10 +1,18 @@
 import { useEffect, useState } from 'react'
 
+import Chip from '@mui/material/Chip'
+import Table from '@mui/material/Table'
+import TableBody from '@mui/material/TableBody'
+import TableCell from '@mui/material/TableCell'
+import TableHead from '@mui/material/TableHead'
+import TableRow from '@mui/material/TableRow'
+
 import { CopyButton } from '../../components/CopyButton'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import { ApiError, apiJSON, errText } from '../../lib/api'
+import { badgeChipSx } from '../../lib/muiAtoms'
 import { formatAuditTime, formatCount } from '../../lib/format'
 
 // 复制面板（T-159）：push 复制状态 + 事件列表（治理组「复制」页）。
@@ -170,61 +178,61 @@ function ReplicationBody({ data, staleError }: { data: ReplicationStatus; staleE
             testid="repl-empty-targets"
           />
         ) : (
-          <table className="table" data-testid="repl-targets-table">
-            <thead>
-              <tr>
-                <th scope="col">状态</th>
-                <th scope="col">目标</th>
-                <th scope="col">URL</th>
-                <th scope="col">仓库（源 → 目标）</th>
-                <th scope="col" lang="en">
+          <Table className="table" data-testid="repl-targets-table">
+            <TableHead>
+              <TableRow>
+                <TableCell component="th" scope="col">状态</TableCell>
+                <TableCell component="th" scope="col">目标</TableCell>
+                <TableCell component="th" scope="col">URL</TableCell>
+                <TableCell component="th" scope="col">仓库（源 → 目标）</TableCell>
+                <TableCell component="th" scope="col" lang="en">
                   pending
-                </th>
-                <th scope="col">进行中</th>
-                <th scope="col">失败</th>
-                <th scope="col">累计成功</th>
-                <th scope="col">上次成功</th>
-              </tr>
-            </thead>
-            <tbody>
+                </TableCell>
+                <TableCell component="th" scope="col">进行中</TableCell>
+                <TableCell component="th" scope="col">失败</TableCell>
+                <TableCell component="th" scope="col">累计成功</TableCell>
+                <TableCell component="th" scope="col">上次成功</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {data.targets.map((t, i) => {
                 const st = targetState(t)
                 return (
-                  <tr key={t.id} data-testid={`repl-target-${i}`}>
-                    <td>
+                  <TableRow key={t.id} data-testid={`repl-target-${i}`}>
+                    <TableCell>
                       <span className={`status-dot ${st.dot}`} aria-hidden="true" /> {st.label}
-                    </td>
-                    <td lang="en">{t.name}</td>
-                    <td className="mono wrap" style={{ maxWidth: 240 }} lang="en">
+                    </TableCell>
+                    <TableCell lang="en">{t.name}</TableCell>
+                    <TableCell className="mono wrap" sx={{ maxWidth: 240 }} lang="en">
                       {t.target_url} <CopyButton value={t.target_url} label={`目标 URL ${t.name}`} />
-                    </td>
-                    <td className="mono" lang="en">
+                    </TableCell>
+                    <TableCell className="mono" lang="en">
                       {t.source_repo} → {t.target_repo}
-                    </td>
-                    <td className="mono" lang="en">
+                    </TableCell>
+                    <TableCell className="mono" lang="en">
                       {formatCount(t.pending)}
-                    </td>
-                    <td className="mono" lang="en">
+                    </TableCell>
+                    <TableCell className="mono" lang="en">
                       {formatCount(t.in_progress)}
-                    </td>
-                    <td
+                    </TableCell>
+                    <TableCell
                       className="mono"
                       lang="en"
-                      style={t.failed > 0 ? { color: 'var(--bf-danger)' } : undefined}
+                      sx={t.failed > 0 ? { color: 'var(--bf-danger)' } : undefined}
                     >
                       {formatCount(t.failed)}
-                    </td>
-                    <td className="mono" lang="en">
+                    </TableCell>
+                    <TableCell className="mono" lang="en">
                       {formatCount(t.succeeded)}
-                    </td>
-                    <td className="mono" title={t.last_success_at || undefined}>
+                    </TableCell>
+                    <TableCell className="mono" title={t.last_success_at || undefined}>
                       {t.last_success_at ? formatAuditTime(t.last_success_at) : '—'}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 )
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         )}
         {staleError && (
           <p className="field-error" data-testid="repl-stale" role="alert">
@@ -246,49 +254,53 @@ function ReplicationBody({ data, staleError }: { data: ReplicationStatus; staleE
             testid="repl-empty-events"
           />
         ) : (
-          <table className="table" data-testid="repl-events-table">
-            <thead>
-              <tr>
-                <th scope="col">时间</th>
-                <th scope="col">状态</th>
-                <th scope="col">制品</th>
-                <th scope="col">sha256</th>
-                <th scope="col">尝试</th>
-                <th scope="col">错误</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="table" data-testid="repl-events-table">
+            <TableHead>
+              <TableRow>
+                <TableCell component="th" scope="col">时间</TableCell>
+                <TableCell component="th" scope="col">状态</TableCell>
+                <TableCell component="th" scope="col">制品</TableCell>
+                <TableCell component="th" scope="col">sha256</TableCell>
+                <TableCell component="th" scope="col">尝试</TableCell>
+                <TableCell component="th" scope="col">错误</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {data.events.map((ev, i) => {
                 const repo = repoOf.get(ev.replication_id)
                 const artifact = repo ? `${repo}/${ev.node_path}` : ev.node_path
                 return (
-                  <tr key={ev.id} data-testid={`repl-event-${i}`}>
-                    <td className="mono audit-time" title={ev.created_at}>
+                  <TableRow key={ev.id} data-testid={`repl-event-${i}`}>
+                    <TableCell className="mono audit-time" title={ev.created_at}>
                       {formatAuditTime(ev.created_at)}
-                    </td>
-                    <td>
-                      <span className={`badge ${TASK_BADGE[ev.status] ?? 'neutral'}`} lang="en">
-                        {ev.status}
-                      </span>
-                    </td>
-                    <td className="mono wrap" style={{ maxWidth: 320 }} lang="en">
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        size="small"
+                        className={`badge ${TASK_BADGE[ev.status] ?? 'neutral'}`}
+                        label={ev.status}
+                        sx={badgeChipSx}
+                        lang="en"
+                      />
+                    </TableCell>
+                    <TableCell className="mono wrap" sx={{ maxWidth: 320 }} lang="en">
                       {artifact} <CopyButton value={artifact} label={`制品路径 ${artifact}`} />
-                    </td>
-                    <td className="mono" lang="en" title={ev.blob_sha256}>
+                    </TableCell>
+                    <TableCell className="mono" lang="en" title={ev.blob_sha256}>
                       {shortSha(ev.blob_sha256)}{' '}
                       <CopyButton value={ev.blob_sha256} label={`sha256 ${ev.blob_sha256}`} />
-                    </td>
-                    <td className="mono" lang="en">
+                    </TableCell>
+                    <TableCell className="mono" lang="en">
                       {formatCount(ev.attempts)}
-                    </td>
-                    <td className="mono wrap" style={{ maxWidth: 320 }}>
+                    </TableCell>
+                    <TableCell className="mono wrap" sx={{ maxWidth: 320 }}>
                       {ev.last_error || <span className="text-muted">—</span>}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 )
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         )}
         <p className="field-hint" style={{ marginBottom: 0 }}>
           事件为最近的推送尝试（时间倒序，全目标合并）；排队 / 进行中为未决任务，失败行保留最近一次错误原因。

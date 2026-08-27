@@ -209,15 +209,17 @@ pseudo-version: vX.0.0-yyyymmddhhmmss-abcdefabcdef
 | 变量 | 作用 | BinFlow 场景 |
 |---|---|---|
 | `GOPROXY` | 代理 URL 列表，逗号（仅 404/410 回退）/ 管道（任何错误回退） | `GOPROXY=$BASE/binflow/go-local`；多源 `GOPROXY=$BASE/binflow/go-virt,https://proxy.golang.org,direct` |
-| `GOPRIVATE` | 私有模块 glob；**同时是 GONOPROXY/GONOSUMDB 的默认值** | 私有全走 BinFlow：`GOPRIVATE='*'`（AC2 用法）；精确：`GOPRIVATE=example.com/*` |
+| `GOPRIVATE` | 私有模块 glob；**同时是 GONOPROXY/GONOSUMDB 的默认值** | ~~`GOPRIVATE='*'`~~ **（T-285 勘误，勿用）**：`'*'` 经 GONOPROXY 默认值反把全部模块踢出 GOPROXY 直连 VCS；仅「跳过代理直连 VCS」场景使用（BinFlow 无此场景→不设） |
 | `GONOPROXY` | 不走代理、直连 VCS 的模块 | 一般不用（BinFlow 是唯一源） |
 | `GONOSUMDB` | 不对 sum.golang.org 校验的模块 | 私有模块前缀，如 `GONOSUMDB=example.com`（官方「Private proxy serving all modules」配方） |
 | `GOSUMDB` | `off` 完全关闭 sumdb（air-gapped QA 用） | 断网环境必设，否则 sumdb 校验卡死 |
-| `GOINSECURE` | 允许 http 明文拉取的模块前缀；**不关闭 sumdb**（常见坑：http 实例需同时 `GOPRIVATE` 或 `GOSUMDB=off`） | `GOINSECURE=$HOST`（http dev 实例） |
+| `GOINSECURE` | 允许 http 明文拉取的模块前缀；**不关闭 sumdb**（常见坑：http 实例需同时 `GONOSUMDB='*'` 或 `GOSUMDB=off`——勿用 GOPRIVATE，见下方勘误） | `GOINSECURE=$HOST`（http dev 实例） |
 | `GOFLAGS` | 附加旗标（如 `-modcacherw`） | 无 go 协议特有旗标 |
 | `.netrc` | 代理 HTTP basic 认证（`machine <host>` + `login`/`password`）；或 URL userinfo `GOPROXY=http://user:pass@host/binflow/go-local` | BinFlow 需支持 basic auth（内容面 GET 默认匿名 ADR-0009，PUT 必须鉴权） |
 
 命名勘误（防实现票踩坑）：**`GONOSUMCHECK` 不是真实 go 环境变量**（历史讹传），真实面是 `GONOSUMDB`/`GOPRIVATE`/`GOSUMDB`；`-insecure` 是已废弃的 `go get` 旗标（不是 GOFLAGS 值），现代替代 `GOINSECURE`。
+
+GOPRIVATE 勘误（T-285，2026-08-26）：本节原推荐 `GOPRIVATE='*'` 让私有模块全走 BinFlow——**错误**。官方语义（go.dev/ref/mod）：GONOPROXY 未设时默认取 GOPRIVATE；模块路径被 GONOPROXY 匹配时 go 命令**忽略 GOPROXY** 直接从 VCS 拉取。故 `GOPRIVATE='*'` ⇒ 有效 GONOPROXY=`'*'` ⇒ 一切模块绕过 BinFlow 直连 example.com 等 VCS 而失败。「BinFlow 是唯一源」的正确配方 = 官方「Private proxy serving all modules」：`GOPROXY=$BASE/binflow/go-local` + `GONOSUMDB='*'`（断网 QA 亦可 `GOSUMDB=off`），**不设 GOPRIVATE**。置信度高（官方文档直证，T-285 动态复现）。
 
 ### 7.2 命令清单
 
@@ -232,7 +234,7 @@ curl -su $ADMIN "$BASE/binflow/go-local/example.com/mymod/@v/v1.0.2.info"     # 
 curl -su $ADMIN "$BASE/binflow/go-local/example.com/!my!mod/@v/v1.0.2.info"
 
 # L11 真实客户端 local（scratch module）
-export GOPROXY="$BASE/binflow/go-local" GOPRIVATE='*'
+export GOPROXY="$BASE/binflow/go-local" GONOSUMDB='*'   # T-285 勘误：勿用 GOPRIVATE（连带绕过 GOPROXY）
 go mod init example.com/scratch
 go mod edit -require=example.com/mymod@v1.0.2 && go mod download example.com/mymod@v1.0.2
 cat > main.go <<'EOF'
@@ -252,7 +254,7 @@ go mod download example.com/mymod@v1.0.2     # 命中 local
 go mod download golang.org/x/mod@v0.17.0     # 未命中走 remote
 
 # http 明文实例补充（dev 环境）
-export GOINSECURE="$HOST" GOPRIVATE='*'      # 或 GOSUMDB=off
+export GOINSECURE="$HOST" GONOSUMDB='*'      # 或 GOSUMDB=off（T-285 勘误：勿用 GOPRIVATE）
 ```
 
 客户端请求时序（qa 断言可依据，官方）：解析 latest 时先 `@v/list` 后 `@latest`（list 无可用版本才请求 @latest）；选定版本后 `.info` → `.mod` → `.zip`。显式版本（`@v1.0.2`）不触发 @latest。
@@ -281,7 +283,7 @@ BinFlow 明确不采纳的 Artifactory 行为：remote 直连 400 阻断（§6.2
 
 ## 9. 显式不做（M11+ 登记，PRD §2.2）
 
-1. **sumdb 代理**：`sumdb/sum.golang.org/{supported,lookup/*,tile/*}` 三端点不实现（收到按未知路径 404）。影响：客户端不能把 `GONOSUMDB` 指到 BinFlow 做校验库镜像；私有模块用 `GOPRIVATE`/`GONOSUMDB` 前缀跳过公网 sumdb。
+1. **sumdb 代理**：`sumdb/sum.golang.org/{supported,lookup/*,tile/*}` 三端点不实现（收到按未知路径 404）。影响：客户端不能把 `GONOSUMDB` 指到 BinFlow 做校验库镜像；私有模块用 `GONOSUMDB` 前缀跳过公网 sumdb（注意 `GOPRIVATE` 会连带绕过 GOPROXY，BinFlow 场景勿用，见 §7.1 勘误）。
 2. **external dependencies 重定向**：virtual 仓按模式分流到独立远端仓（GoExternalDependenciesHelper 行为面）不做；BinFlow virtual 只做成员序聚合。
 3. **VCS git 直连 remote**（GitHub/GitLab fetcher 家族、`.jfrog/<module>/commits|tags` 缓存、cache cleanup 任务）：不做，remote 仅 GOPROXY registry 上游模式。
 4. **curation/Xray 版本过滤**（curated version selection）：不做。

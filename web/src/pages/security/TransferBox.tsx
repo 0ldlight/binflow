@@ -1,4 +1,7 @@
-import type { ReactNode } from 'react'
+import type { ComponentPropsWithoutRef, ReactNode } from 'react'
+
+import Checkbox from '@mui/material/Checkbox'
+import FormControlLabel from '@mui/material/FormControlLabel'
 
 // 双列穿梭（console-m8 §3.3 C5，对齐 reverse §4.11 Available/Selected 形态）：
 // 左「可选」右「已选」，各带计数；空侧显示「未选择项」（No Items Selected
@@ -9,6 +12,10 @@ import type { ReactNode } from 'react'
 //
 // 本文件仅服务本票三页（Users/UserDetail/Groups）——area 目录内的新助手，
 // 不触碰共享组件层（改共享层需另开票）。
+//
+// T-300 批次二：checkbox 迁 MUI（FormControlLabel + Checkbox，锚经
+// slotProps.input 落 input 本体）；.transfer-item 的行布局类续挂
+// （security.css 压过 MUI 默认），勾选/禁用/键盘链路零变化。
 
 export interface TransferItem {
   /** 条目键（用户/组名——锚与提交体都用它） */
@@ -45,19 +52,27 @@ export function TransferBox({
   const note = renderNote ?? ((i: TransferItem) => (i.note ? <span className="text-muted">{i.note}</span> : null))
 
   const row = (item: TransferItem, checked: boolean) => (
-    <label key={item.name} className="transfer-item">
-      <input
-        type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        onChange={(e) => onToggle(item.name, e.target.checked)}
-        data-testid={itemTestid?.(item.name)}
-      />
-      <span className="mono" lang="en">
-        {item.name}
-      </span>
-      {note(item)}
-    </label>
+    <FormControlLabel
+      key={item.name}
+      className="transfer-item"
+      disabled={disabled}
+      control={
+        <Checkbox
+          size="small"
+          checked={checked}
+          onChange={(e) => onToggle(item.name, e.target.checked)}
+          slotProps={{ input: { 'data-testid': itemTestid?.(item.name) } as ComponentPropsWithoutRef<'input'> }}
+        />
+      }
+      label={
+        <>
+          <span className="mono" lang="en">
+            {item.name}
+          </span>
+          {note(item)}
+        </>
+      }
+    />
   )
 
   return (

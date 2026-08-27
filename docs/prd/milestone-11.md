@@ -1,12 +1,12 @@
 # PRD — M11 Artifactory 对齐第二程：配置域指令兑现 + 第一梯队包型批量实现 + 行为逐项对齐制度化
 
-> **PRD 状态：v1.0 草案（2026-08-26，待 conductor 审）**。主轴来源：BOARD 用户指令日志 7 条中的最近四条（2026-08-26 11:22 MUI 迁移〔T-299/T-300 已定名〕、11:35 认证配置前端化、11:45 存储配置独立文件化、**19:05 license 门控「行为逐项对齐」**——最后一条改变 M11 起的全部工作方式）+ conductor M11 范围种子（A 指令兑现 / B 包型批量 / C 债务 / D 候选池裁量）。范围消费：M10 FR-91 五份规格（tech-lead 就绪度确认 reports/agents/tl-fr91-ac3.md——23 裁决点 + K-1/R-1/R-2 缺项）、M10 PRD §2.2/§4.7 滚入项、M9 Q5 复制硬化建议、ROADMAP「M10 未纳入项」。**新端点全部走 PM FR + ADR 流程（ADR-0035 起）**。
+> **PRD 状态：v1.2.1 勘误版（2026-08-27，T-304 转交勘误三处 + LC-18 扩面随笔；版本沿革见 §0）**。主轴来源：BOARD 用户指令日志 7 条中的最近四条（2026-08-26 11:22 MUI 迁移〔T-299/T-300 已定名〕、11:35 认证配置前端化、11:45 存储配置独立文件化、**19:05 license 门控「行为逐项对齐」**——最后一条改变 M11 起的全部工作方式）+ conductor M11 范围种子（A 指令兑现 / B 包型批量 / C 债务 / D 候选池裁量）。范围消费：M10 FR-91 五份规格（tech-lead 就绪度确认 reports/agents/tl-fr91-ac3.md——23 裁决点 + K-1/R-1/R-2 缺项）、M10 PRD §2.2/§4.7 滚入项、M9 Q5 复制硬化建议、ROADMAP「M10 未纳入项」。**新端点全部走 PM FR + ADR 流程（ADR-0035 起）**。
 
 | 项 | 值 |
 |---|---|
 | 文档 | `docs/prd/milestone-11.md` |
 | 里程碑 | M11 — Artifactory 对齐第二程（认证/存储配置化 + 存量 MUI 迁移 + 自有裁定回头看 + conan/debian/rpm/helm 四包型 + cargo 补齐 + 复制硬化与工程债） |
-| 状态 | v1.0 草案（FR-92~FR-102 十一条需求；契约矩阵 18 条〔A 14 / C 2 / D 1 / 待裁 1〕+ 档位 × addon 矩阵扩展 5 槽；L01~L45 验收命令骨架；开放问题 Q1~Q8 带暂行） |
+| 状态 | v1.2.1 勘误版（FR-92~FR-102 十一条需求；契约矩阵 18 条〔A 14 / C 2 / D 1 / 待裁 1〕+ 档位 × addon 矩阵扩展 5 槽；L01~L45 验收命令骨架；开放问题 Q1~Q8 带暂行） |
 | 上游依据 | PRODUCT.md（Non-goals 不越界：HA/Xray 本体仍不做——Q1 待用户终裁）、BOARD.md 用户指令日志（2026-08-25 三条主轴指令 + 持续部署 T-298〔已兑现〕+ 2026-08-26 四条新指令）、docs/reverse/artifactory-full-feature-matrix.md（213 条目主矩阵 §十大缺口）、docs/reverse/{conan,cargo,debian,rpm,helm}.md（FR-91 产出 + tl-fr91-ac3 23 裁决点）、docs/reverse/auth-integration.md（FR-92 行为基准——M11 前置复核）、docs/reverse/config-formats.md §1 + s3-storage-layout.md（FR-93 行为基准——M11 前置复核）、docs/reverse/replication.md（FR-101）、docs/prd/milestone-10.md（§2.2 滚入项 + §5.6.1 as-built 校准表 + DoD 体例）、ADR-0032/0033/0034（license/属性/五协议管理面横切——DB-4/TL-1 已由 ADR-0034 承载，tl 报告 K-3 收口） |
 | 下游消费者 | tech-lead（拆票——tl-fr91-ac3 23 裁决点随票消化 + 本 PRD §1.3 分票提示，宽度 ≤2 内建）、architect（**ADR-0035**：认证配置面 REST/持久化/变更即生效；**ADR-0036**：存储配置独立文件与链式 schema；视需要 ADR-0037 复制硬化语义）、reverse-engineer（两份复核票 + R-1/R-2 规格修订）、dev-go-core（internal/auth 配置面 + internal/adapter/{conan,deb} + 复制硬化）、dev-registry-adapter（internal/adapter/{rpm,helm,cargo}）、dev-go-storage（存储配置链 + S3 续传债）、dev-frontend（T-299/T-300 + 认证配置页）、qa-engineer（L 序列 + 四包型真实客户端矩阵）、tech-writer（认证/存储配置指南 + 四包型接入 + 回头看文档同步）、release-engineer（部署矩阵演进 + CD 链验证）、conductor（裁决入口 + tag m11-done） |
 
@@ -17,6 +17,7 @@
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | v1.0 | 2026-08-26 | 初版草案（待 conductor 审）：M11 范围（conductor 种子 A~D 全承载）、FR-92~FR-102（认证配置前端化 / 存储配置文件化 / MUI 两批 / 回头看 / conan / debian / rpm / helm / cargo remote+virtual / 复制硬化 / 工程债）、档位 × addon 矩阵扩展、契约矩阵 18 条、L01~L45、开放问题 Q1~Q8 带暂行；随稿完成 ROADMAP M11 段补实 |
+| v1.2.1 | 2026-08-27 | **T-304 转交勘误（Q8 终值 20:35+20:55 用户裁定的 PRD 侧回写，非范围变更；30 项复核结论见 reports/agents/T-304.md）**：① CN-1 终裁推翻 tl-fr91-ac3 v1.1 收窄裁定——conan v1 全量数据面（十七端点）进 FR-96 范围（T-308 承载），§2.2 原 Non-goals 行改写留痕，§2.1/96.2/AC2/LC-18/L19/§8 剧本同步扩面；② CG-2 终裁翻转 T-294 统一 4xx/5xx——cargo publish 失败形态照 Artifactory **200+errors[] 双轨**（成功形态=200 无 errors 键；精确 wire=200+`warnings.other`，见 T-304 §3 分类锚定表，勿造顶层 errors 键），§2.2 cargo 行改写留痕，T-316 承载断言反转 + cargo.md §5.3 规格回写；③ §5.6.1 增 CN-1/CG-2 终值条目，转正引用 M10 PRD §5.6.1 Q8 六项登记块（RP-2/TL-5/TL-4/HL-2 已入 T-309/310/311 票面，LC-24 归位随票回写）；④ LC-18 随 CN-1 扩面改写（T-304 结论非「维持原文」）。版本沿革注：本文件正文自 v1.0 后无整版修订（BOARD 拆票引用之「v1.1」为 conductor 审定态留痕），本次按 conductor 转交口径（BOARD「PRD v1.2 勘误三处」）记 v1.2.1 |
 
 ---
 
@@ -81,7 +82,7 @@ M10 交付了 license 门控基座、addon 注册表、三个包型 addon（go/n
 | A | 用户指令 11:45 + config-formats.md §1 | FR-93（存储配置独立文件化：链式 provider 表达 + 兼容窗 + 部署矩阵演进） | P0 |
 | A | 用户指令 11:22（MUI） | FR-94（存量控制台 MUI 化两批：T-299 批次一 / T-300 批次二——交互逻辑零变化） | P0（批一）/ P1（批二） |
 | A | 用户指令 19:05 | FR-95（M10 自有裁定回头看：对齐审计——基线 23 项 + tl 裁决差异点逐条复核） | P0 |
-| B | 用户指令③ + FR-91 规格 + tl-fr91-ac3 | FR-96（conan 包型：v2 local 全量 + v1 握手三端点 + remote/virtual） | P0（local）/ P1 |
+| B | 用户指令③ + FR-91 规格 + tl-fr91-ac3 | FR-96（conan 包型：v2 local 全量 + v1 全量数据面〔十七端点，CN-1 终裁——T-308〕 + remote/virtual） | P0（local）/ P1 |
 | B | 同上 | FR-97（debian 包型：automatic local 主票 + virtual/remote + trivial P2 增量） | P0（local）/ P1 |
 | B | 同上 | FR-98（rpm 包型：local 管线〔header 解析器〕+ reindex 端点族 + remote/virtual） | P0（local）/ P1 |
 | B | 同上 + Q2 | FR-99（helm 经典仓：local + virtual/remote；HelmOCI 条件票） | P0（local）/ P1 |
@@ -111,8 +112,8 @@ M10 交付了 license 门控基座、addon 注册表、三个包型 addon（go/n
 | NuGet symbol server | M12+（T-293 终裁：立项时随票补 as-built 规格） |
 | 制品 license 识别（licences.xml 91 模式）/ 冷存储分层 | M12+（ROADMAP DoD-7 补词显式条目） |
 | HuggingFace 等 AI/ML 13 型 | M12+ 分期（用户指令③远期主体） |
-| conan v1 files 直传通道（及 v1 其余数据面） | **不做**（CN-1 改判收窄：仅握手三端点；conan 1.x EOL，qa 提出兼容诉求再立项）——按未知路由 404 |
-| cargo 失败「200+errors」双轨形态 | **不做**（CG-2 改判：统一 4xx/5xx + errors 信封） |
+| conan v1 数据面（v1.0 曾列不做：CN-1 收窄仅握手三端点） | **移出 Non-goals（v1.2.1）**：CN-1 终裁（20:35+20:55）推翻收窄——v1 全量数据面（十七端点）进 FR-96 范围，T-308 承载；本行留痕防再议 |
+| cargo 失败「200+errors」双轨形态（v1.0 曾列不做：CG-2 改判统一 4xx/5xx） | **移出 Non-goals（v1.2.1）**：CG-2 终裁翻转 T-294——失败形态照 Artifactory 200+errors[] 双轨（成功=200 无 errors 键；精确 wire=200+warnings.other），T-316 承载断言反转；本行留痕防再议 |
 | license 公钥 config 覆盖（运行时换钥） | M12+（T-293 终裁③：需求走新 ADR，不入 M11） |
 | 逐行翻译 Java→Go / 复制 JFrog license 密钥格式 | **永久不做**（ADR-0001；19:05 指令用户知情确认保留） |
 | M10 未纳入项其余（票级遗留 17 条、E-04/R2/R6 等） | 滚入 M12+ 候选池（ROADMAP 已列；M11 仅收编 C 组点名项） |
@@ -241,7 +242,7 @@ M10 交付了 license 门控基座、addon 注册表、三个包型 addon（go/n
 行为规格：
 
 - **96.1 local v2 全量（conan.md §3.1 17 端点）**：recipe/package 全 CRUD + revisions 降序 + index.json 修订索引（同构响应体）+ `.timestamp`（TL-3：首写定终身，latest 排序以 index.json `time` 为准；`conan.timestamp.override` 配置位不暴露文档）+ `<ref>` 语法与 `_` 占位（S12）。
-- **96.2 v1 握手三端点（CN-1 收窄）**：`ping` / `users/authenticate` / `users/check_credentials`（conan 2.x 硬依赖）；v1 files 直传通道不做（未知路由 404）。
+- **96.2 v1 全量数据面（CN-1 终裁推翻收窄：十七端点，T-308 承载）**：conan.md §3.2 v1 族全表（search / digest / download_urls / upload_urls / snapshot / delete 族 / files 直传等，逐端点以规格行为准）+ 握手三端点 `ping` / `users/authenticate` / `users/check_credentials`（conan 2.x 硬依赖）；conan 1.x 活体不可得处按 curl 等价 + BOARD 留痕验收。
 - **96.3 能力头（TL-2）**：`X-Conan-Server-Version` 恒 `0.20.0`；`X-Conan-Server-Capabilities` 按 rclass 输出（local：complex_search,checksum_deploy,revisions,matrix_params；remote/virtual 追加 only_v2）。
 - **96.4 remote pull-through（P1）**：默认 conan.center 代理；复用 remote 缓存/SSRF/上游故障降级语义。
 - **96.5 virtual（P1，S11 最小实现）**：time 归并 + files 并集 + first-found；`conan install` 经虚仓兜底验收。
@@ -250,7 +251,7 @@ M10 交付了 license 门控基座、addon 注册表、三个包型 addon（go/n
 验收标准（AC）：
 
 - **AC1（真实客户端 local）**：conan 2.x `remote add` → `conan upload`（多包多版本带 revisions）→ `conan install` / `conan list` 全绿；index.json 与修订链 curl 断言齐。
-- **AC2（v1 握手）**：三端点 curl 形态断言（conan 1.x 环境可得则活体腿；不可得则 curl 等价 + BOARD 留痕——不许只测 happy path 的负面臂照跑）。
+- **AC2（v1 全量数据面）**：十七端点逐端点 curl 形态断言（conan 1.x 环境可得则活体腿；不可得则 curl 等价 + BOARD 留痕——不许只测 happy path 的负面臂照跑）。
 - **AC3（能力头）**：三 rclass 能力头值断言（TL-2 逐字）。
 - **AC4（remote）**：`conan install` 公共包经 BinFlow 拉取 + 二次命中缓存断言。
 - **AC5（virtual）**：本地优先命中本地 / 未命中走 remote / time 归并正确（三腿）。
@@ -417,7 +418,7 @@ Trash can：**余量条件票**（Q7）——全部 P0/P1 收官且余量足时�
 | LC-15 | SAML 配置面字段集（运行时深度 Q3） | Artifactory samlSettings（auth-integration.md §3 低置信区——复核票补齐） | A | P0 | 复核后 | L02/L05 |
 | LC-16 | 存储配置独立文件（filestore/S3/dual-write 链式 provider 表达 + fail-fast） | binarystore.xml 行为模式（config-formats.md §1；载体自有 YAML） | C | P0 | 高（行为） | L08~L10 |
 | LC-17 | conan v2 内容面（17 端点 + index.json 修订索引 + `.timestamp`） | conan v2 API（GitLab 官方文档锚点优先 + conan.md） | A | P0 | 高 | L18 |
-| LC-18 | conan v1 握手三端点（files 通道不做——CN-1 收窄） | conan 1.x API（EOL，收窄子集） | A | P0 | 高 | L19 |
+| LC-18 | conan v1 全量数据面（十七端点——CN-1 终裁推翻收窄，T-308） | conan v1 API（conan.md §3.2 v1 族全表对齐；1.x EOL 不减面） | A | P0 | 高 | L19 |
 | LC-19 | conan 能力头族（Version/Capabilities 按 rclass） | Artifactory 实测值（TL-2 定案） | A | P0 | 中→定案 | L20 |
 | LC-20 | 五协议管理面 reindex 族（`$BASE/binflow/api/<proto>/...`，dispatchAPI） | Artifactory `/api/conan|deb|yum|helm/...` 同构（DB-4 统一；**ADR-0034 已承载**） | A | P0/P1 | 高 | L28/L32 |
 | LC-21 | debian apt 内容面（Packages/Sources/Release/InRelease/压缩集/By-Hash） | Debian repository 规范（Debian wiki 锚点优先 + debian.md） | A | P0 | 高 | L23 |
@@ -477,7 +478,7 @@ BASE=http://127.0.0.1:8080; ADMIN=admin:password
 
 # ========== FR-96 conan ==========
 # L18 local v2：conan 2.x remote add → upload（revisions 多版本）→ install → list；index.json/修订链 curl 断言
-# L19 v1 握手：curl ping/users/authenticate/users/check_credentials 形态断言（活体或 curl 等价 + 留痕）
+# L19 v1 全量数据面：conan.md §3.2 十七端点逐端点 curl 形态断言（含握手 ping/users/authenticate/users/check_credentials；活体或 curl 等价 + 留痕）
 # L20 能力头：三 rclass X-Conan-Server-Version/Capabilities 逐字断言（TL-2）
 # L21 remote + virtual：conan install 公共包经 remote + 二次缓存；虚仓本地优先/未命中走 remote/time 归并
 # L22 门控全链：community 建仓 403 → pro 200 → 卸载 pull 200/push 403
@@ -536,13 +537,15 @@ BASE=http://127.0.0.1:8080; ADMIN=admin:password
 | K36 | GPG keypair 体系形态（CRUD/存储/口令/repoKey 关联——debian/rpm 共用） | K-1 条件票进 M11（Q6） | Q6 → 新 ADR |
 | K37 | contentSynchronisation 子字段集与统计同步语义 | replication.md + artifactory.xsd 锚定 | 复核 + ADR-0037（如需） |
 
-### 5.6.1 回头看回写表（FR-95 裁决后填——v1.0 占位）
+### 5.6.1 回头看回写表（FR-95 裁决后填——v1.0 占位；v1.2.1 起 CN-1/CG-2 按 T-304 终值填实，其余基线项结论在案〔T-304 §1 共 30 项〕待浓缩回写）
 
 | 基线项 | 结论（维持/改回/上 BOARD） | 出处或改回动作 | 回写落点 |
 |---|---|---|---|
 | T-287 L1~L7（NuGet ×7） | 待裁决（M10 已按 T-293 复核维持——新口径重审） | — | 本表 + 各域票 |
 | T-289 ×5 / T-290 ×4 / T-294 ×7 | 待裁决 | — | 同上 |
-| tl 裁决差异点（RP-2/TL-5/TL-4/HL-2/CN-1/CG-2 等） | 待裁决（Q8） | — | 本表 + LC-24 归位 |
+| tl 裁决差异点（RP-2/TL-5/TL-4/HL-2——Q8 六项已终裁并登记 M10 PRD §5.6.1；四项已入 T-309/310/311 票面） | **已终裁**（20:35 定案 + 20:55 终值修正） | M10 §5.6.1 Q8 六项登记块（出处逐行见 T-304 §1.5） | 本表 + LC-24 随票归位 |
+| CN-1（conan v1 支持面） | **终裁翻转收窄**：v1 全量数据面（十七端点）进范围 | conan.md §3.2 v1 族全表（高置信逐行；握手三端点为 conan 2.x 硬依赖）；推翻 tl-fr91-ac3 v1.1 收窄裁定 | §2.2/§2.1/96.2/AC2/LC-18/L19 随 v1.2.1 改写；T-308 承载（窗口独占） |
+| CG-2（cargo publish 失败形态） | **终裁翻转 T-294 统一 4xx/5xx**：失败=200+errors[] 双轨照 Artifactory；成功=200 无 errors 键 | CargoLocalRepoHandler.publish + CargoResponseUtils/CargoPublishResponse（T-304 §3 分类锚定表——精确 wire=200+warnings.other，勿造顶层 errors 键） | §2.2 随 v1.2.1 改写；T-316 承载（断言反转 + cargo.md §5.3 规格回写） |
 | D-6 matrix_params 无开关 | **维持**（先例已裁） | Artifactory 无此开关（19:05 口径首次应用） | LC-30 |
 
 ---
@@ -613,7 +616,7 @@ BASE=http://127.0.0.1:8080; ADMIN=admin:password
 2. **认证配置域**：L01（复核票走查）→ L02（REST 往返 + 脱敏）→ L03（变更即生效双臂）→ L04（测试连接）→ L05（控制台）→ L06（认证回归 + 审计）。
 3. **存储配置域**：L07 → L08（三形态 roundtrip）→ L09（链式语义）→ L10（兼容/fail-fast）→ L11（CD 链 VM 实腿）。
 4. **MUI 与回头看**：L12/L13（两批四闸门）→ L14（契约 diff=0）→ L15~L17（清单裁决完备 + 改回验证 + 出处审计）。
-5. **conan**：L18~L21（local v2 真实客户端 → v1 握手 → 能力头 → remote/virtual）+ L22 门控。
+5. **conan**：L18~L21（local v2 真实客户端 → v1 全量数据面十七端点 → 能力头 → remote/virtual）+ L22 门控。
 6. **debian**：L23~L25（debPUT+apt 全链 → 拒绝面 → virtual/remote）+ L26 门控（+K-1 条件腿）。
 7. **rpm**：L27~L29（local 管线+dnf → reindex 七分支 → virtual/remote）+ L30 门控（+modules 条件腿）。
 8. **helm**：L31~L33（经典仓全链 → 拒绝/别名 → virtual/remote）+ L34 HelmOCI 条件腿 + L35 门控。

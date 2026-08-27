@@ -1,6 +1,6 @@
 // binflow-deploy — T-298 continuous deploy to the BinFlow test environment.
 //
-// Chain: git push vm main -> binflow-ci-smoke (pollSCM <=1min, 21s warm)
+// Chain: git push vm develop -> binflow-ci-smoke (pollSCM <=1min, 21s warm)
 //        -> [this job, upstream SUCCESS trigger] -> build -> staged swap on
 //        the VM systemd instance (:8080) -> readiness probe -> deploy smoke.
 //
@@ -63,7 +63,7 @@ pipeline {
     stage('checkout') {
       steps {
         checkout([$class: 'GitSCM',
-                  branches: [[name: '*/main']],
+                  branches: [[name: '*/develop']], // gitflow: CD tracks integration (2026-08-26 user directive)
                   userRemoteConfigs: [[url: '/home/lzw/binflow.git']],
                   extensions: [[$class: 'CleanBeforeCheckout']]])
         sh 'git log -1 --oneline && echo CHECKOUT_OK'

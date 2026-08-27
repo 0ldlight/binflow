@@ -111,6 +111,13 @@ type Deps struct {
 	// 5.1: cmd passes adapter.All(); tests inject per-stack instances so
 	// the process-wide registry never couples test cases together).
 	Adapters []adapter.Handler
+	// MgmtHandlers are the adapters' management-plane mounts (ADR-0034's
+	// dispatchAPI family) keyed by protocol name — self-gated faces the
+	// router only authenticates before delegating (the conan reindex
+	// family, T-308: the handler carries its own CanManageRepo(write)
+	// walk, the class check and both reindex spellings). An absent key
+	// keeps those routes at the E-26 404 — unit stacks without the face.
+	MgmtHandlers map[string]http.Handler
 	// Metrics is the Prometheus registry behind root-level GET /metrics
 	// (T-163, ADR-0022). cmd constructs exactly one per process; nil keeps
 	// the endpoint at 503 and the metrics middleware out of the chain — the
@@ -122,6 +129,12 @@ type Deps struct {
 	// and the two mutating verbs at 503 — pre-M10 unit stacks only; every
 	// assembled server wires the real Manager.
 	License LicenseManager
+	// AuthConfigs is the authentication-configuration manager behind the
+	// /api/v1/admin/security/{ldap,oauth,saml/config} plane (M11 T-305,
+	// ADR-0035 / FR-92). Nil keeps all nine endpoints at the honest 503 —
+	// unit stacks only; every assembled server wires the ConfigManager
+	// (whose snapshot also feeds the auth service's hot arms).
+	AuthConfigs AuthConfigPlane
 	// Addons is the assembled addon registry (M10 T-282, ADR-0033): the
 	// compile-time literal slice cmd builds. Nil keeps GET /api/v1/addons
 	// at an honest empty array and the repo-create plane on repo.Service's
@@ -139,6 +152,9 @@ type Server struct {
 	deps     Deps
 	log      *slog.Logger
 	adapters map[string]adapter.Handler // package type -> handler
+	// mgmt holds the adapters' management faces (Deps.MgmtHandlers keyed
+	// by protocol); the conan reindex routes reach for "conan" here.
+	mgmt map[string]http.Handler
 	// sessions is the console-session facet of Deps.Auth (nil when the
 	// injected authenticator is not a full auth.Service — unit-test fakes).
 	// Discovered by assertion so cmd's Deps wiring stays untouched: the
@@ -217,6 +233,12 @@ func New(deps Deps, log *slog.Logger) *Server {
 	for _, h := range deps.Adapters {
 		adapters[h.Protocol()] = h
 	}
+	// The management mounts copy verbatim (nil-safe): an assembly without
+	// a face simply leaves the map empty and the routes stay E-26.
+	mgmt := make(map[string]http.Handler, len(deps.MgmtHandlers))
+	for proto, h := range deps.MgmtHandlers {
+		mgmt[proto] = h
+	}
 	// The five-core retro-fit's assembly guard (M10 T-282, §15.2.4): with a
 	// registry mounted, every mounted adapter protocol MUST carry a
 	// package-type slot — a mounted package type without a descriptor would
@@ -232,7 +254,7 @@ func New(deps Deps, log *slog.Logger) *Server {
 			}
 		}
 	}
-	s := &Server{deps: deps, log: log, adapters: adapters, uploads: newMPURegistry()}
+	s := &Server{deps: deps, log: log, adapters: adapters, mgmt: mgmt, uploads: newMPURegistry()}
 	// Instrumentation (T-163) attaches before route() runs below — the
 	// mounted /metrics handler and the base chain both read s.metrics.
 	if deps.Metrics != nil {

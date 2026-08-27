@@ -291,6 +291,9 @@ func (s *sqliteStore) UploadSessions() UploadSessionStore {
 func (s *sqliteStore) Usage() UsageStore        { return &usageStore{db: s.db} }
 func (s *sqliteStore) Licenses() LicenseStore   { return &licenseStore{db: s.db} }
 func (s *sqliteStore) NodeProps() NodePropStore { return &nodePropStore{db: s.db} }
+func (s *sqliteStore) AuthConfigs() AuthConfigStore {
+	return &authConfigStore{db: s.db}
+}
 
 func (s *sqliteStore) Ping(ctx context.Context) error {
 	if err := s.db.PingContext(ctx); err != nil {

@@ -121,6 +121,10 @@ type raw struct {
 // overrides, fills defaults, and validates the result. Any problem — missing
 // file, malformed YAML, unknown key, bad enum, unwritable data_dir — is a
 // returned error; the caller must refuse to start on it (fail-fast).
+//
+// T-306 (ADR-0036): between decoding and building, Load resolves the
+// binstore.yaml that sits next to path and applies the coexistence rules
+// (three branches + divergence fail-fast); see binstore.go.
 func Load(path string) (*Config, error) {
 	src, err := os.ReadFile(path) // operator-provided config path by design (G304 excluded globally)
 	if err != nil {
@@ -130,7 +134,65 @@ func Load(path string) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("config: parse %s: %w", path, err)
 	}
-	return build(r, environ())
+	return buildWithBinstore(r, path, environ())
+}
+
+// buildWithBinstore is Load's assembly: the binstore three-branch verdict
+// first (a divergent pair refuses before anything else runs), then the
+// normal build — with the chain-scoped env keys skipped when the file owns
+// the chain (decision 6) — then the overlay and a re-validation, so a
+// binstore-declared [s3] with missing parameters refuses exactly like the
+// embedded spelling always did.
+func buildWithBinstore(r *raw, mainPath string, env map[string]string) (*Config, error) {
+	overlay, err := loadBinstoreNextTo(mainPath)
+	if err != nil {
+		return nil, err
+	}
+	if overlay == nil {
+		// No binstore.yaml: zero behavior change (ADR-0036 decision 1).
+		// Branch ① — chain keys explicitly set somewhere in the embedded
+		// plane (YAML or env) — adds the every-boot migration hint.
+		c, err := build(r, env)
+		if err != nil {
+			return nil, err
+		}
+		if embeddedChainDeclared(r) || len(chainEnvNames(env)) > 0 {
+			where := "binflow.yaml's embedded storage section (storage.backend/storage.s3/storage.migration)"
+			if !embeddedChainDeclared(r) {
+				where = "the chain-scoped environment variable(s) " + strings.Join(chainEnvNames(env), ", ")
+			}
+			c.StartupWarnings = append(c.StartupWarnings, legacyChainWarning(where))
+		}
+		fillChainFromConfig(c)
+		return c, nil
+	}
+
+	// binstore.yaml present. Branch ② (embedded chain keys absent) is the
+	// clean form — the file simply wins. Branch ③ compares the normalized
+	// chains: equivalent → file wins + WARN; divergent → refuse, naming
+	// both sources and the divergent keys. "The file wins" must never mean
+	// "the file silently picks a side the other file contradicts".
+	if embeddedChainDeclared(r) {
+		if diffs := diffChains(embeddedChainView(r), overlay.chain.view()); len(diffs) > 0 {
+			return nil, fmt.Errorf(
+				"config: refusing to start: binstore.yaml %s and the embedded storage section in %s declare storage chains that would assemble differently (%s); align the two files or delete the legacy embedded storage.backend/storage.s3/storage.migration keys from %s",
+				overlay.path, mainPath, strings.Join(diffs, "; "), mainPath)
+		}
+	}
+	c, err := buildWithOptions(r, env, buildOpts{skipChainEnv: true})
+	if err != nil {
+		return nil, err
+	}
+	overlay.apply(c)
+	if embeddedChainDeclared(r) {
+		c.StartupWarnings = append(c.StartupWarnings, fmt.Sprintf(
+			"config: binstore.yaml %s and the embedded storage section in %s declare equivalent storage chains; binstore.yaml is in effect — remove the legacy embedded storage.backend/storage.s3/storage.migration keys",
+			overlay.path, mainPath))
+	}
+	if err := c.Validate(); err != nil {
+		return nil, err
+	}
+	return c, nil
 }
 
 // decodeRaw unmarshals YAML strictly: unknown keys and duplicate keys are
@@ -246,23 +308,42 @@ func rejectSecrets(m *yaml.Node) error {
 // bind_password only ever LDAP's, secret_access_key only ever S3's).
 // Everything else falls back to the admin-password spelling.
 func secretYAMLErr(path string) error {
-	hint := SecretEnvVar
-	switch {
-	case strings.Contains(path, "oidc"), strings.Contains(path, "client_secret"), strings.Contains(path, "clientsecret"):
-		hint = OIDCClientSecretEnvVar
-	case strings.Contains(path, "ldap"), strings.Contains(path, "bind_password"), strings.Contains(path, "bindpassword"):
-		hint = LDAPBindPasswordEnvVar
-	case strings.Contains(path, "s3"), strings.Contains(path, "secret_access_key"):
-		hint = S3SecretEnvVar
-	}
 	return fmt.Errorf(
 		"config: key %q looks like a secret; secrets must not be written into the YAML file — use the environment variable %s instead",
-		path, hint)
+		path, secretEnvHint(path))
+}
+
+// secretEnvHint picks the env escape hatch for a rejected secret-ish key by
+// its (dotted) location or spelling. Shared by the main-file scan and the
+// binstore.yaml scan (T-306).
+func secretEnvHint(path string) string {
+	switch {
+	case strings.Contains(path, "oidc"), strings.Contains(path, "client_secret"), strings.Contains(path, "clientsecret"):
+		return OIDCClientSecretEnvVar
+	case strings.Contains(path, "ldap"), strings.Contains(path, "bind_password"), strings.Contains(path, "bindpassword"):
+		return LDAPBindPasswordEnvVar
+	case strings.Contains(path, "s3"), strings.Contains(path, "secret_access_key"):
+		return S3SecretEnvVar
+	}
+	return SecretEnvVar
 }
 
 // build resolves raw YAML plus environment into a Config with defaults
 // applied. Env wins over YAML; YAML wins over defaults.
 func build(r *raw, env map[string]string) (*Config, error) {
+	return buildWithOptions(r, env, buildOpts{})
+}
+
+// buildOpts carries the binstore-dependent env behavior through the build
+// (T-306, ADR-0036 decision 6): when a binstore.yaml owns the chain, the
+// chain-scoped env overrides are skipped with a WARN instead of applied —
+// deployment-pipeline leftovers must not block an upgrade, and the secret
+// env var stays effective either way.
+type buildOpts struct {
+	skipChainEnv bool
+}
+
+func buildWithOptions(r *raw, env map[string]string, o buildOpts) (*Config, error) {
 	c := defaults()
 
 	if r.Server != nil {
@@ -490,7 +571,7 @@ func build(r *raw, env map[string]string) (*Config, error) {
 	}
 	c.Security.AnonymousAccess = anon
 
-	if err := applyEnv(c, env); err != nil {
+	if err := applyEnvWithOptions(c, env, o); err != nil {
 		return nil, err
 	}
 	// AdminPassword is assigned inside applyEnv/setEnvValue together with
@@ -611,9 +692,11 @@ func environ() map[string]string {
 	return out
 }
 
-// applyEnv walks BINFLOW_-prefixed variables in deterministic order, applies
-// the known ones, and collects the unknown ones into a single error.
-func applyEnv(c *Config, env map[string]string) error {
+// applyEnvWithOptions walks BINFLOW_-prefixed variables in deterministic
+// order, applies the known ones, and collects the unknown ones into a single
+// error. Chain-scoped keys (never the secrets) are dropped with a WARN when
+// a binstore.yaml owns the chain (T-306, ADR-0036 decision 6).
+func applyEnvWithOptions(c *Config, env map[string]string, o buildOpts) error {
 	names := make([]string, 0, len(env))
 	for name := range env {
 		names = append(names, name)
@@ -640,6 +723,11 @@ func applyEnv(c *Config, env map[string]string) error {
 		path, kind, ok := splitEnvKey(strings.TrimPrefix(upper, "BINFLOW_"))
 		if !ok {
 			unknown = append(unknown, name)
+			continue
+		}
+		if o.skipChainEnv && kind != envSecret && isChainEnvPath(strings.Join(path, ".")) {
+			c.StartupWarnings = append(c.StartupWarnings, fmt.Sprintf(
+				"config: %s is set but ignored: a binstore.yaml owns the storage chain (secret environment variables still apply)", name))
 			continue
 		}
 		if err := setEnvValue(c, path, kind, env[name], name); err != nil {
@@ -830,15 +918,22 @@ func parseBool(value string) (bool, error) {
 // as a security boundary. Concurrent Load calls are harmless: the probe is
 // create-then-remove, so racing writers at worst observe a stale-file error
 // for a file that is about to disappear.
+//
+// The gosec G703 nolints below are a false positive of the taint rule, not
+// a new exposure: the "tainted" dir is storage.data_dir as decoded from the
+// operator's own config files (Load's and, since T-306, binstore.yaml's
+// neighbor reads make gosec's taint tracker follow the file-content source).
+// This probe is boot-time hygiene on operator-declared state (see above) —
+// the same ruling .golangci.yml records for the config loader's G304.
 func ensureDataDir(dir string) error {
-	if err := os.MkdirAll(dir, 0o750); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil { //nolint:gosec // G703 taint false positive — dir is the operator-declared storage.data_dir, see the comment above
 		return fmt.Errorf("create data_dir %s: %w", dir, err)
 	}
 	probe := filepath.Join(dir, ".config-write-probe")
-	if err := os.WriteFile(probe, nil, 0o600); err != nil {
+	if err := os.WriteFile(probe, nil, 0o600); err != nil { //nolint:gosec // G703 taint false positive — same operator-declared data_dir probe
 		return fmt.Errorf("data_dir %s not writable: %w", dir, err)
 	}
-	if err := os.Remove(probe); err != nil {
+	if err := os.Remove(probe); err != nil { //nolint:gosec // G703 taint false positive — removing this function's own probe file
 		return fmt.Errorf("data_dir %s: remove write probe: %w", dir, err)
 	}
 	return nil

@@ -1,11 +1,15 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import Button from '@mui/material/Button'
+import Chip from '@mui/material/Chip'
+
 import { useAuth } from '../../app/AuthContext'
 import { CopyButton } from '../../components/CopyButton'
 import { Skeleton } from '../../components/Skeleton'
 import { formatBytes } from '../../lib/format'
 import { onTablistKeys } from '../../lib/keys'
+import { badgeChipSx, dangerBtnSx, rowBtnSx } from '../../lib/muiAtoms'
 import { getRepoDetail, getRepoUsage } from '../../lib/repos'
 import { useAsync } from '../../lib/useAsync'
 import { getItem, getItemPermissions } from './lib'
@@ -96,18 +100,22 @@ export default function NodeDetail({
         <div className="node-detail-actions">
           {isFile && target.kind === 'node' && (
             <>
-              <button
-                type="button"
-                className="btn"
+              <Button
+                variant="outlined"
+                size="small"
+                sx={rowBtnSx}
                 disabled={download?.path === target.node.path && download.phase === 'loading'}
                 data-testid="node-download"
                 onClick={() => onDownload(target.node, item?.checksums?.sha256 ?? target.node.sha256 ?? '')}
                 title="下载并做 sha256 对账"
               >
                 {download?.path === target.node.path && download.phase === 'loading' ? '下载中…' : '下载并校验'}
-              </button>
-              <a
-                className="btn"
+              </Button>
+              <Button
+                variant="outlined"
+                size="small"
+                sx={rowBtnSx}
+                component="a"
                 href={`/binflow/${encodeURIComponent(target.repoKey)}/${target.node.path
                   .split('/')
                   .map((s) => encodeURIComponent(s))
@@ -116,17 +124,24 @@ export default function NodeDetail({
                 title="大文件建议直接下载（不经浏览器 sha256 对账）"
               >
                 直接下载
-              </a>
+              </Button>
             </>
           )}
           {target.kind === 'node' && canDelete && (
-            <button type="button" className="btn danger" data-testid="delete-node-button" onClick={() => onDelete(target.node)}>
+            <Button
+              variant="outlined"
+              color="error"
+              size="small"
+              sx={dangerBtnSx}
+              data-testid="delete-node-button"
+              onClick={() => onDelete(target.node)}
+            >
               删除
-            </button>
+            </Button>
           )}
-          <button type="button" className="btn" onClick={onClose}>
+          <Button variant="outlined" size="small" sx={rowBtnSx} onClick={onClose}>
             关闭
-          </button>
+          </Button>
         </div>
       </header>
 
@@ -236,8 +251,8 @@ function RepoGeneral({ repoKey }: { repoKey: string }) {
         <div className="kv">
           <span className="k">包类型</span>
           <span>
-            <span className="badge neutral">{m.packageType}</span>{' '}
-            <span className="badge neutral">{m.rclass}</span>
+            <Chip size="small" className="badge neutral" label={m.packageType} sx={badgeChipSx} />{' '}
+            <Chip size="small" className="badge neutral" label={m.rclass} sx={badgeChipSx} />
           </span>
         </div>
         <div className="kv">
@@ -377,9 +392,15 @@ function NodeGeneral({
             <span className="k">tags</span>
             <span>
               {node.tags.map((tag) => (
-                <span key={tag} className="badge neutral" data-testid={`tag-badge-${tag}`} title={`tag: ${tag}`}>
-                  {tag}
-                </span>
+                <Chip
+                  key={tag}
+                  size="small"
+                  className="badge neutral"
+                  label={tag}
+                  sx={badgeChipSx}
+                  data-testid={`tag-badge-${tag}`}
+                  title={`tag: ${tag}`}
+                />
               ))}
             </span>
           </div>

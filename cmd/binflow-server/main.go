@@ -33,19 +33,26 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
+	"golang.org/x/oauth2"
+
 	"github.com/lzwzzy/binflow/internal/adapter"
 	"github.com/lzwzzy/binflow/internal/adapter/cargo"
+	"github.com/lzwzzy/binflow/internal/adapter/conan"
+	"github.com/lzwzzy/binflow/internal/adapter/deb"
 	"github.com/lzwzzy/binflow/internal/adapter/docker"
 	"github.com/lzwzzy/binflow/internal/adapter/generic"
 	"github.com/lzwzzy/binflow/internal/adapter/goproxy"
+	"github.com/lzwzzy/binflow/internal/adapter/helm"
 	"github.com/lzwzzy/binflow/internal/adapter/maven"
 	"github.com/lzwzzy/binflow/internal/adapter/npm"
 	"github.com/lzwzzy/binflow/internal/adapter/nuget"
 	"github.com/lzwzzy/binflow/internal/adapter/pypi"
+	"github.com/lzwzzy/binflow/internal/adapter/rpm"
 	"github.com/lzwzzy/binflow/internal/addons"
 	"github.com/lzwzzy/binflow/internal/audit"
 	"github.com/lzwzzy/binflow/internal/auth"
@@ -255,6 +262,25 @@ func runServe(args []string, stderr io.Writer) error {
 		"driver", cfg.Metadata.Driver,
 	)
 
+	// T-306 (ADR-0036 decision 7): the storage chain shape in one INFO line
+	// — provider order, migration mode, declaring source. Credentials are
+	// structurally absent: the secret is env-only and no chain source
+	// carries it. The joined provider list IS the storage-type label
+	// (BinFlow has no template layer; the binarystore-2 decision recorded
+	// in internal/config/binstore.go).
+	if chain := cfg.Storage.Chain; len(chain.Providers) > 0 {
+		logger.Info("storage chain resolved",
+			"providers", strings.Join(chain.Providers, ","),
+			"mode", chain.Mode,
+			"source", chain.Source)
+	}
+	// The loader's non-fatal findings (the binstore compatibility-window
+	// hints and the ignored chain-scoped env leftovers) drain through the
+	// real logger here — the config package itself never logs.
+	for _, w := range cfg.StartupWarnings {
+		logger.Warn(w)
+	}
+
 	stack, err := openStack(context.Background(), cfg, logger)
 	if err != nil {
 		return err
@@ -361,6 +387,59 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// slot carries the pro-tier gating (T-282/T-283).
 	cargoHandler := cargo.Register(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.md.NodeProps(),
 		cargo.Options{BaseURL: cfg.Server.BaseURL, AnonymousAccess: cfg.Security.AnonymousAccess})
+	// conan (M11/T-308, the C/C++ package type): same wiring story as
+	// cargo — the content plane dispatches on package_type="conan" and the
+	// provider registration classifies the index.json/.timestamp nodes as
+	// regenerable metadata for the future remote hop (T-312). LOCAL
+	// repositories only here; the TokenIssuer seam carries the v1
+	// users/authenticate mint (the npm login posture); the addons.Conan()
+	// slot carries the pro-tier gating (T-282/T-283). The reindex
+	// management face (ADR-0034 dispatchAPI family) is
+	// conan.NewManagementHandler — its router cases land with the assembly
+	// wire-up this ticket registered (the ticket report carries the exact
+	// snippet); the handler itself ships in the adapter package.
+	conanHandler := conan.Register(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.authSvc,
+		conan.Options{BaseURL: cfg.Server.BaseURL})
+	// The conan reindex management face (the deferred T-308 §5-D9 wire-up,
+	// landed with the B4/B5 assembly): a self-gated handler — the router's
+	// conan cases only authenticate and delegate; the CanManageRepo(write)
+	// walk, the local-only class check and both reindex spellings live in
+	// the adapter package (reindex_test.go pinned them direct-mount).
+	conanMgmt := conan.NewManagementHandler(stack.svc, stack.md.Repos(), stack.authSvc)
+	// helm (M11/T-309, the classic Helm chart repository package type):
+	// mounting is the whole content-plane wiring — dispatch keys on
+	// package_type="helm" — and the provider registration classifies the
+	// repo-root index.yaml as regenerable metadata for the future remote
+	// hop (T-313's family). LOCAL repositories only here; the read-only
+	// /binflow/api/helm alias and the reindex management family live in
+	// the router (ADR-0034's two clauses); the NodeProps seam carries the
+	// chart.* facts (the delete-event index removal's identity key); the
+	// addons.Helm() slot carries the pro-tier gating (T-282/T-283).
+	helmHandler := helm.Register(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.md.NodeProps(),
+		helm.Options{BaseURL: cfg.Server.BaseURL})
+	// rpm (M11/T-311, the RPM/YUM package type): same wiring story as
+	// cargo/helm — the content plane dispatches on package_type="rpm" and
+	// the provider registration classifies the repodata family as
+	// regenerable metadata for the future remote hop. LOCAL repositories
+	// only here; the /binflow/api/yum reindex family lives in the router
+	// (ADR-0034's dispatchAPI posture); the DataDir seam roots the
+	// .rpmcache parse cache; the addons.Rpm() slot carries the pro-tier
+	// gating (T-282/T-283). calculateYumMetadata defaults FALSE (RP-2's
+	// final ruling — uploads store, repodata recomputes on demand).
+	rpmHandler := rpm.Register(stack.svc, stack.md.Repos(), stack.md.Blobs(),
+		rpm.Options{DataDir: cfg.Storage.DataDir})
+	// deb (M11/T-310, the Debian/apt package type): same wiring story as
+	// rpm — the content plane dispatches on package_type="debian" and the
+	// provider registration classifies the dists/ tree as regenerable
+	// metadata for the future remote hop. LOCAL repositories only here;
+	// the /binflow/api/deb/reindex family lives in the router (ADR-0034's
+	// dispatchAPI posture); the NodeProps seam carries the deb.*/dsc.*
+	// coordinate registration (the index engine's source of truth); the
+	// addons.Debian() slot carries the pro-tier gating (T-282/T-283).
+	// The debPUT chain recomputes automatically (FR-97.1) — no opt-in
+	// switch — with the TL-4 forced architecture families on by default.
+	debHandler := deb.Register(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.md.NodeProps(),
+		deb.Options{})
 	// The addon registry (M10 T-282, ADR-0033 / section 15.2.1): the
 	// COMPILE-TIME ASSEMBLY MANIFEST — one literal slice, the
 	// META-INF/addon.{xml,properties} behavior pattern in Go form. This is
@@ -384,7 +463,11 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 		GC:       stack.st,
 		DataDir:  cfg.Storage.DataDir,
 		Console:  console.Handler(),
-		Adapters: []adapter.Handler{stack.genericHandler, dockerHandler, mavenHandler, npmHandler, pypiHandler, goproxyHandler, nugetHandler, cargoHandler},
+		Adapters: []adapter.Handler{stack.genericHandler, dockerHandler, mavenHandler, npmHandler, pypiHandler, goproxyHandler, nugetHandler, cargoHandler, conanHandler, helmHandler, rpmHandler, debHandler},
+		// The adapters' management mounts (ADR-0034): conan's reindex
+		// family today; helm/yum serve their faces through the router's
+		// own handlers (the adapter-seam pattern) instead.
+		MgmtHandlers: map[string]http.Handler{"conan": conanMgmt},
 		// The process metric registry (T-163, ADR-0022): one per serve; the
 		// /metrics endpoint and the request-counting middleware ride it.
 		Metrics: metrics.NewRegistry(),
@@ -435,10 +518,16 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// open them never reaches assembly.
 	deps.Replication = stack.replStore
 	deps.ReplicationCipher = replicationCipherSeam(stack.replCipher)
-	// The OIDC login seam (T-157/T-179) rides the SAME provider instance the
-	// auth service's Bearer arm verifies against; a nil Deps.OIDC keeps both
-	// browser routes at the E-26 404 (FR-54-AC6/H29).
-	deps.OIDC = oidcLoginSeam(stack.oidcProv)
+	// The OIDC login seam (T-157/T-179) rides the SAME live provider the
+	// auth service's Bearer arm verifies against — through the config
+	// manager's snapshot (T-305): the seam answers the CURRENT OAuth2
+	// config, and a disabled live section yields a nil config (httpapi's
+	// activeOIDCConfig keeps both browser routes at the E-26 404,
+	// FR-54-AC6/H29, per-configuration).
+	deps.OIDC = hotOIDCLoginSeam(stack.authCfg)
+	// The auth-config plane (T-305): the nine /api/v1/admin/security/*
+	// routes ride the same manager that feeds the arms.
+	deps.AuthConfigs = stack.authCfg
 	// The license plane (M10 T-279): /api/system/license rides the manager
 	// openStack loaded; its gate facet (AddonEnabled) is consumed by the
 	// T-283 weave points, not by these routes.
@@ -462,7 +551,7 @@ func addonManifest() *addons.Registry {
 		addons.Generic(), addons.Docker(), addons.Maven(), addons.Npm(), addons.Pypi(),
 		// Gated pilot package-type slots (pro; the adapters land with their
 		// own tickets — the slots exist so gate/view/legal-set are complete).
-		addons.Go(), addons.NuGet(), addons.Cargo(),
+		addons.Go(), addons.NuGet(), addons.Cargo(), addons.Conan(), addons.Helm(), addons.Rpm(), addons.Debian(),
 		// Feature slots: properties on the floor, the enterprise
 		// placeholders visible with their M11+ reservation notes.
 		addons.Properties(), addons.HA(), addons.XrayIntegration(),
@@ -521,18 +610,29 @@ func replicationCipherSeam(c *remote.Cipher) httpapi.CredentialEncryptor {
 	return c
 }
 
-// oidcLoginSeam decides the httpapi Deps.OIDC injection (T-179): a nil
-// provider must produce a NIL interface, never a typed nil — the login
-// handlers test `Deps.OIDC == nil` to keep the two browser routes at the
-// E-26 404 (FR-54-AC6/H29), and assigning a nil *auth.OIDCProvider directly
-// would make the interface non-nil and flip those routes to a 500 handler.
-// The helper is the single point that owns the guard.
-func oidcLoginSeam(p *auth.OIDCProvider) httpapi.OIDCLoginFlow {
-	if p == nil {
+// hotOIDCLoginSeam adapts the auth ConfigManager onto the login-flow seam
+// (T-305): nil manager → nil interface; otherwise the OAuth2 config of the
+// CURRENT provider (nil when the live section is disabled — httpapi's
+// activeOIDCConfig turns that into the E-26 404 posture).
+func hotOIDCLoginSeam(m *auth.ConfigManager) httpapi.OIDCLoginFlow {
+	if m == nil {
 		return nil
 	}
-	return p
+	return hotOIDCLogin{m: m}
 }
+
+type hotOIDCLogin struct{ m *auth.ConfigManager }
+
+func (h hotOIDCLogin) OAuth2Config() *oauth2.Config {
+	if p := h.m.CurrentOIDC(); p != nil {
+		return p.OAuth2Config()
+	}
+	return nil
+}
+
+// oidcLoginSeam's typed-nil guard (T-179) moved into hotOIDCLoginSeam
+// (T-305): the seam now delegates to the config manager's live provider,
+// with the same nil-interface contract.
 
 // loadServeConfig resolves the config path and loads it. An explicitly
 // passed -c path must exist (fail fast); the default lookup falls back to
@@ -572,6 +672,17 @@ func loadServeConfig(explicit string) (*config.Config, error) {
 	// overrides and validates, so the result is fully populated.
 	cfg := config.Defaults()
 	if err := applyEnvDefaults(cfg); err != nil {
+		return nil, err
+	}
+	// T-306 (ADR-0036 decision 1): even a boot without any binflow.yaml
+	// discovers binstore.yaml through the same resolution order —
+	// ./binstore.yaml, then $BINFLOW_HOME/binstore.yaml — so the default
+	// form keeps "binstore.yaml next to where binflow.yaml would be". The
+	// temp-file roundtrip above may have recorded branch-① hints against a
+	// temp directory that never had a binstore.yaml; the real discovery
+	// below re-derives the whole warning set, so start it clean.
+	cfg.StartupWarnings = nil
+	if err := config.ApplyBinstoreForDefaultBoot(cfg, home); err != nil {
 		return nil, err
 	}
 	if err := cfg.Validate(); err != nil {
@@ -622,6 +733,16 @@ func resolveHome(cfg *config.Config, home string) *config.Config {
 // homeDir reads the cmd-reserved environment variable.
 func homeDir() string { return os.Getenv(homeEnv) }
 
+// writeStartupWarnings drains the config loader's non-fatal findings onto a
+// CLI subcommand's stderr (T-306, ADR-0036). serve does not use this — it
+// drains the same list through its real structured logger right after
+// construction, so each surface has exactly one destination.
+func writeStartupWarnings(w io.Writer, cfg *config.Config) {
+	for _, msg := range cfg.StartupWarnings {
+		writeCLIReport(w, "%s\n", msg)
+	}
+}
+
 // configDefaults is the test-side spelling of config.Defaults (kept here so
 // tests read as assembly code, not package internals).
 func configDefaults() *config.Config { return config.Defaults() }
@@ -644,12 +765,14 @@ type stack struct {
 	auditLog       audit.Logger
 	svc            repo.Service
 	genericHandler *generic.Handler
-	// oidcProv/ldapProv are the config-driven identity providers (T-179,
-	// ADR-0020): nil when the section is disabled. oidcProv feeds BOTH the
-	// auth service's OIDC Bearer arm and httpapi's login-flow seam;
-	// ldapProv owns a connection pool closed in close().
-	oidcProv *auth.OIDCProvider
-	ldapProv *auth.LDAPProvider
+	// oidcProv/ldapProv were the config-driven identity providers (T-179,
+	// ADR-0020). T-305 (ADR-0035) replaced them with authCfg, the
+	// ConfigManager: the three protocol sections live in auth_configs
+	// (migration 015), the file sections are first-boot seeds only, and the
+	// providers are rebuilt per config PUT — the auth service's external
+	// arms resolve their provider per request through the manager's
+	// snapshot (change-effective-immediately, no restart).
+	authCfg *auth.ConfigManager
 	// The push-replication collaborators (T-180, ADR-0021): replStore is
 	// the REST plane's seam (never nil on an opened stack), replDB its own
 	// pooled connection (closed after the storage engine in close), and
@@ -703,25 +826,17 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 		return nil, fmt.Errorf("opening metadata: %w", err)
 	}
 
-	// Identity providers (T-179, ADR-0020) construct between metadata and
-	// storage: they need md's user store for their resolve seams, and an
-	// early failure (unreachable OIDC issuer) tears down only metadata.
-	oidcProv, ldapProv, err := wireAuthProviders(ctx, cfg, md)
+	// The auth-configuration plane (T-305, ADR-0035 / FR-92) constructs
+	// between metadata and storage: it needs md's user store for the
+	// provider resolve seams, and an early failure (a stored secret without
+	// a master key, an unreachable seeded OIDC issuer) tears down only
+	// metadata. Load resolves the dual-source rules (DB row authoritative,
+	// file section first-boot seed, WARN on override) and replays the
+	// stored rows into the opening snapshot.
+	authCfgMgr, err := wireAuthConfigManager(ctx, cfg, md, logger)
 	if err != nil {
 		_ = md.Close()
 		return nil, err
-	}
-	if oidcProv != nil {
-		logger.Info("oidc authentication active", "issuer", cfg.Auth.OIDC.IssuerURL)
-	}
-	if ldapProv != nil {
-		// start_tls rides the startup line so the TLS posture of the login
-		// arm is visible without digging through the config (T-186 / QA H35;
-		// ldaps:// URLs and skip_tls_verify already log their own WARNs
-		// inside NewLDAPProvider).
-		logger.Info("ldap authentication active",
-			"url", cfg.Auth.LDAP.URL, "base_dn", cfg.Auth.LDAP.BaseDN,
-			"start_tls", cfg.Auth.LDAP.StartTLS)
 	}
 
 	st, err := openStorageEngine(ctx, cfg, logger, md)
@@ -752,16 +867,15 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 	if cfg.Auth.HashConcurrency > 0 {
 		authSvc = authSvc.WithHashConcurrency(cfg.Auth.HashConcurrency)
 	}
-	// Arm the external providers. WithOIDC's creator parameter REPLACES the
-	// creator NewFromStore wired, so cmd passes the exported store-backed
-	// constructor — the T-157 leftover-2 fix; passing nil here would silently
-	// disable first-login auto-create. WithLDAP keeps the existing creator.
-	if oidcProv != nil {
-		authSvc = authSvc.WithOIDC(oidcProv, auth.NewUserCreator(md.Users()))
-	}
-	if ldapProv != nil {
-		authSvc = authSvc.WithLDAP(ldapProv)
-	}
+	// Arm the external provider arms through the live config snapshot
+	// (T-305, ADR-0035): the OIDC Bearer arm and the LDAP login fallback
+	// resolve their provider per request from the manager — a config PUT is
+	// effective on the next authentication, no restart. The auto-create
+	// seam stays whatever NewFromStore wired (the store-backed creator);
+	// the section flags (auto_create_users / autoCreateUser, default true)
+	// gate it live. The pre-T-305 static wiring (WithOIDC/WithLDAP over
+	// construction-time providers) is gone — the file sections are seeds.
+	authSvc = authSvc.WithAuthConfig(authCfgMgr)
 	auditLog := audit.New(md, cfg.Audit.Enabled)
 	svc := repo.New(st, md, authSvc, auditLog)
 
@@ -861,8 +975,7 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 		auditLog:       auditLog,
 		svc:            svc,
 		genericHandler: generic.New(svc, md.Blobs()),
-		oidcProv:       oidcProv,
-		ldapProv:       ldapProv,
+		authCfg:        authCfgMgr,
 		replStore:      replStore,
 		replDB:         replDB,
 		replEngine:     replEngine,
@@ -954,70 +1067,155 @@ func (s *stack) startReplication(ctx context.Context, logger *slog.Logger) (drai
 	}
 }
 
-// wireAuthProviders constructs the external identity providers the config
-// asks for (T-179, ADR-0020): auth.oidc.enabled builds an OIDCProvider (its
-// construction performs OIDC discovery, so an unreachable issuer fails the
-// boot with a pointed error instead of 500-ing on the first login);
-// auth.ldap.enabled builds an LDAPProvider (its pool dials lazily — no
-// directory round trip at boot; a broken directory surfaces at login per
-// FR-55-AC5). Disabled sections yield nil providers, the pre-M6 posture.
+// wireAuthConfigManager builds and loads the auth-configuration plane
+// (T-305, ADR-0035 / FR-92): the ConfigManager over the 015 auth_configs
+// rows, the enc:v1 cipher from the instance master key
+// (BINFLOW_REMOTE_CREDENTIALS_KEY — the same key replication seals with),
+// and the M3-Guard-backed outbound seams every probe and every OIDC
+// discovery rides (zero new SSRF surface; the private-address posture is
+// the ADR-0025 decision-4 default: IdPs and directories realistically sit
+// on internal networks, non-private categories — Teredo, malformed — still
+// refuse).
 //
-// The secrets are belt-and-braces reads: config.Load already resolves the
-// env names into the config fields, the direct os.Getenv covers hand-built
-// configs (the same posture openS3Engine keeps for its secret).
-func wireAuthProviders(ctx context.Context, cfg *config.Config, md metadata.Store) (*auth.OIDCProvider, *auth.LDAPProvider, error) {
-	var oidcProv *auth.OIDCProvider
-	if oc := cfg.Auth.OIDC; oc.Enabled {
-		secret := oc.ClientSecret
-		if secret == "" {
-			secret = os.Getenv(config.OIDCClientSecretEnvVar)
-		}
-		p, err := auth.NewOIDCProvider(ctx, &auth.OIDCConfig{
-			IssuerURL:     oc.IssuerURL,
-			ClientID:      oc.ClientID,
-			ClientSecret:  secret,
-			RedirectURL:   oc.RedirectURL,
-			Scopes:        oc.Scopes,
-			UserClaim:     oc.UserClaim,
-			GroupClaim:    oc.GroupClaim,
-			AdminGroup:    oc.AdminGroup,
-			ReadOnlyGroup: oc.ReadOnlyGroup,
-		}, auth.NewOIDCResolver(md.Users()))
-		if err != nil {
-			return nil, nil, fmt.Errorf("wiring auth.oidc: %w", err)
-		}
-		oidcProv = p
+// Load resolves the dual-source rules (K31): stored rows win (the leftover
+// file sections WARN), missing rows plus configured file sections seed the
+// DB once (secrets sealed from the env values), then the snapshot replays
+// with provider rebuilds — an enabled OIDC section whose issuer does not
+// answer discovery fails the boot, exactly the M6 fail-fast posture.
+func wireAuthConfigManager(ctx context.Context, cfg *config.Config, md metadata.Store, logger *slog.Logger) (*auth.ConfigManager, error) {
+	cipher, err := replicationCipher()
+	if err != nil {
+		return nil, fmt.Errorf("auth config master key: %w", err)
 	}
+	guard := remote.NewGuard(remote.GuardOptions{
+		RepoKey:              "auth-config",
+		AllowPrivateUpstream: true,
+		Logger:               logger,
+	})
+	dial := guard.Dialer(10 * time.Second)
+	client := &http.Client{Transport: &http.Transport{DialContext: dial}} //nolint:gosec // probe posture: short-lived, body-capped reads
+	mgr, err := auth.NewAuthConfigManager(auth.ConfigOptions{
+		Store:        auth.NewConfigStoreAdapter(md.AuthConfigs()),
+		Cipher:       cipherSeam(cipher),
+		LDAPResolver: auth.NewLDAPResolver(md.Users()),
+		OIDCResolver: auth.NewOIDCResolver(md.Users()),
+		HTTPClient:   client,
+		Screen:       guard.CheckURL,
+		Dial:         dial,
+		Log:          logger,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("auth config manager: %w", err)
+	}
+	if err := mgr.Load(ctx, authConfigSeeds(cfg)); err != nil {
+		return nil, fmt.Errorf("wiring auth config: %w", err)
+	}
+	return mgr, nil
+}
 
-	var ldapProv *auth.LDAPProvider
-	if lc := cfg.Auth.LDAP; lc.Enabled {
-		bindPassword := lc.BindPassword
-		if bindPassword == "" {
-			bindPassword = os.Getenv(config.LDAPBindPasswordEnvVar)
-		}
-		p, err := auth.NewLDAPProvider(&auth.LDAPConfig{
-			Enabled:       true,
-			URL:           lc.URL,
-			BaseDN:        lc.BaseDN,
-			BindDN:        lc.BindDN,
-			BindPassword:  bindPassword,
-			UserFilter:    lc.UserFilter,
-			UserIDAttr:    lc.UserIDAttr,
-			GroupFilter:   lc.GroupFilter,
-			GroupBaseDN:   lc.GroupBaseDN,
-			GroupNameAttr: lc.GroupNameAttr,
-			AdminGroup:    lc.AdminGroup,
-			ReadOnlyGroup: lc.ReadOnlyGroup,
-			PoolSize:      lc.PoolSize,
-			StartTLS:      lc.StartTLS,
-			SkipTLSVerify: lc.SkipTLSVerify,
-		}, auth.NewLDAPResolver(md.Users()), nil)
-		if err != nil {
-			return nil, nil, fmt.Errorf("wiring auth.ldap: %w", err)
-		}
-		ldapProv = p
+// cipherSeam hands the *remote.Cipher to the manager as auth's consumer-side
+// SecretCipher — a nil *remote.Cipher must produce a NIL interface (the
+// manager's nil check decides the no-master-key posture).
+func cipherSeam(c *remote.Cipher) auth.SecretCipher {
+	if c == nil {
+		return nil
 	}
-	return oidcProv, ldapProv, nil
+	return c
+}
+
+// authConfigSeeds derives the first-boot seed docs from the binflow.yaml
+// auth sections (K31 rule ②). Secrets ride in plaintext from the env reads
+// (config.Load already resolved the env names into the fields; the direct
+// os.Getenv covers hand-built configs — the same belt-and-braces posture
+// the static M6 wiring kept); Load seals them into the row. Every doc is
+// CANONICALIZED through the section decoder (defaults applied) so an
+// all-default section equals the "unset" shape — Load's configured test
+// then correctly leaves it unseeded.
+func authConfigSeeds(cfg *config.Config) map[string][]byte {
+	seeds := map[string][]byte{}
+
+	oc := cfg.Auth.OIDC
+	secret := oc.ClientSecret
+	if secret == "" {
+		secret = os.Getenv(config.OIDCClientSecretEnvVar)
+	}
+	seeds[auth.SectionOIDC] = canonicalSeed(auth.SectionOIDC, &auth.OIDCSection{
+		Enabled:         oc.Enabled,
+		IssuerURL:       oc.IssuerURL,
+		ClientID:        oc.ClientID,
+		ClientSecret:    secret,
+		RedirectURL:     oc.RedirectURL,
+		Scopes:          oc.Scopes,
+		UserClaim:       oc.UserClaim,
+		GroupClaim:      oc.GroupClaim,
+		AdminGroup:      oc.AdminGroup,
+		ReadOnlyGroup:   oc.ReadOnlyGroup,
+		AutoCreateUsers: true,
+	})
+
+	lc := cfg.Auth.LDAP
+	bindPassword := lc.BindPassword
+	if bindPassword == "" {
+		bindPassword = os.Getenv(config.LDAPBindPasswordEnvVar)
+	}
+	seeds[auth.SectionLDAP] = canonicalSeed(auth.SectionLDAP, &auth.LDAPSection{
+		Key:     auth.SectionLDAP,
+		Enabled: lc.Enabled,
+		LDAPURL: ldapSeedURL(lc.URL, lc.BaseDN),
+		Search: auth.LDAPSearchSection{
+			SearchFilter:    seedFilter(lc.UserFilter),
+			SearchSubTree:   true,
+			ManagerDN:       lc.BindDN,
+			ManagerPassword: bindPassword,
+		},
+		AutoCreateUser:          true,
+		EmailAttribute:          "mail",
+		PagingSupportEnabled:    true,
+		LDAPPoisoningProtection: true,
+		GroupFilter:             seedFilter(lc.GroupFilter),
+		GroupBaseDN:             lc.GroupBaseDN,
+		GroupNameAttribute:      lc.GroupNameAttr,
+		AdminGroup:              lc.AdminGroup,
+		ReadOnlyGroup:           lc.ReadOnlyGroup,
+		StartTLS:                lc.StartTLS,
+		SkipTLSVerify:           lc.SkipTLSVerify,
+		PoolSize:                lc.PoolSize,
+	})
+	return seeds
+}
+
+// canonicalSeed marshals one section struct and round-trips it through the
+// strict decoder so the stored/compared form carries the full defaults.
+func canonicalSeed(section string, v any) []byte {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return nil
+	}
+	if dec, err := auth.DecodeAuthSection(section, b); err == nil {
+		if b2, err := json.Marshal(dec); err == nil {
+			return b2
+		}
+	}
+	return b
+}
+
+// ldapSeedURL folds the search base DN into the ldapUrl path (the §1.1 #3
+// wire shape the section plane speaks).
+func ldapSeedURL(urlStr, baseDN string) string {
+	if urlStr == "" {
+		return ""
+	}
+	baseDN = strings.Trim(baseDN, "/ ,")
+	if baseDN == "" {
+		return urlStr
+	}
+	return strings.TrimSuffix(urlStr, "/") + "/" + baseDN
+}
+
+// seedFilter converts the runtime's %s placeholder spelling into the wire's
+// {0} (the boundary conversion, §7's naming-trap note).
+func seedFilter(f string) string {
+	return strings.ReplaceAll(f, "%s", "{0}")
 }
 
 // sqlitePath resolves the sqlite DSN: an explicit metadata.dsn wins;
@@ -1160,10 +1358,11 @@ func (s *stack) close(logger *slog.Logger) {
 		return
 	}
 	s.closed = true
-	// The LDAP provider's connection pool dials outside both engines, so it
-	// drains first (the auth plane closes before the data plane).
-	if s.ldapProv != nil {
-		s.ldapProv.Close()
+	// The auth-configuration manager owns the live LDAP pool (T-305); it
+	// dials outside both engines, so it drains first (the auth plane closes
+	// before the data plane).
+	if s.authCfg != nil {
+		s.authCfg.Close()
 	}
 	if s.st != nil {
 		if err := s.st.Close(); err != nil {
@@ -1259,6 +1458,9 @@ func runGC(args []string, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
+	// T-306: the loader's non-fatal findings (binstore coexistence hints)
+	// reach the CLI surface here — gc's logger only exists deeper in.
+	writeStartupWarnings(stderr, cfg)
 
 	// graceOverride remembers whether an explicit flag overrode the
 	// configured grace: the gc.run audit detail carries graceHours as null

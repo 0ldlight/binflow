@@ -130,20 +130,10 @@
   color: var(--bf-warning);
 }
 
-/* ---------- 右键上下文菜单（C3；shadow-2 浮层） ---------- */
-
-.context-menu {
-  position: fixed;
-  z-index: 80; /* z-dropdown */
-  min-width: 180px;
-  padding: var(--bf-sp-1);
-  display: flex;
-  flex-direction: column;
-  background: var(--bf-surface-1);
-  border: 1px solid var(--bf-border);
-  border-radius: var(--bf-r-md);
-  box-shadow: var(--bf-shadow-2);
-}
+/* ---------- 右键上下文菜单（C3）----------
+ * T-300 批次二：菜单壳迁 MUI Menu（portal/backdrop/Esc/定位），壳的
+ * surface/border/shadow 经 ArtifactsBrowser 的 sx 复刻——.context-menu
+ * 定位块退役；条目仍是原生 button（spec 断言 button 计数），样式保留。 */
 
 .context-item {
   appearance: none;

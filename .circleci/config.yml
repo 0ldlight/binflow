@@ -1,0 +1,104 @@
+# BinFlow — CircleCI pipeline (UAT track)
+#
+# Directive (BOARD 2026-08-26 21:10): CircleCI CI/CD deploying to
+# 52.79.109.153 as the UAT environment, docs service included (embedded
+# in the binary — single-artifact deploys, same posture as the Jenkins
+# test-env chain).
+#
+# Gitflow mapping (BOARD 2026-08-26 20:45):
+#   develop -> Jenkins on the VM test env (172.16.58.129)
+#   main    -> this pipeline -> UAT (52.79.109.153)
+#
+# Prerequisites configured in CircleCI project settings (user actions):
+#   - Project linked to github.com/lzwzzy/binflow
+#   - SSH key for the UAT host uploaded; its fingerprint in $UAT_SSH_FP
+#   - $UAT_HOST (default 52.79.109.153), $UAT_USER (default ubuntu),
+#     $UAT_HOME (default /opt/binflow-uat)
+
+version: 2.1
+
+orbs:
+  ssh: circleci/ssh@1.2.0
+
+executors:
+  go:
+    docker:
+      - image: cimg/go:1.26-node
+    resource_class: medium
+  node:
+    docker:
+      - image: cimg/node:22.16
+    resource_class: medium
+
+commands:
+  checkout_full:
+    steps:
+      - checkout
+
+jobs:
+  build:
+    executor: go
+    steps:
+      - checkout_full
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+      - run:
+          name: Download Go modules
+          command: go mod download
+      - save_cache:
+          key: go-mod-v1-{{ checksum "go.sum" }}
+          paths: ["/go/pkg/mod"]
+      - run:
+          name: Build console + docs + server (embedded)
+          command: |
+            make console
+            make docs
+            make build
+      - run:
+          name: Vet + lint + fast tests
+          command: |
+            go vet ./...
+            make lint
+            go test ./internal/... ./cmd/... -count=1 -short
+      - run:
+          name: Version stamp
+          command: |
+            echo "export BINFLOW_VERSION=uat.${CIRCLE_SHA1:0:7}" >> "$BASH_ENV"
+      - persist_to_workspace:
+          root: .
+          paths: [bin/]
+
+  deploy_uat:
+    executor: go
+    steps:
+      - checkout_full
+      - attach_workspace:
+          at: .
+      - add_ssh_keys:
+          fingerprints:
+            # MD5 fingerprint of the UAT deploy key (uploaded in Project
+            # Settings > SSH Keys; derived from ~/.ssh/binflow-uat.pem):
+            - "75:f5:48:d5:62:1c:01:d6:48:3e:69:98:ea:86:d1:fc"
+      - run:
+          name: Ship binary + systemd unit + smoke to UAT
+          command: |
+            bash deploy/ci/uat-deploy.sh \
+              "${UAT_HOST:-52.79.109.153}" \
+              "${UAT_USER:-ubuntu}" \
+              "${UAT_HOME:-/opt/binflow-uat}" \
+              "uat.${CIRCLE_SHA1:0:7}"
+
+workflows:
+  version: 2
+  uat:
+    jobs:
+      - build:
+          filters:
+            branches:
+              only: [main]
+      - deploy_uat:
+          requires: [build]
+          filters:
+            branches:
+              only: [main]

@@ -467,6 +467,45 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	case rest == "v1/oidc/callback" && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{}, s.handleOIDCCallback)
 
+	// ---- /api/v1/admin/security/{ldap,oauth,saml/config} (M11 T-305,
+	// ADR-0035 / FR-92) ----
+	// The authentication-configuration plane: one read/write/test trio
+	// per protocol section (dispatchAPI explicit routes, errors[]
+	// envelope — the ADR-0034 management-face posture). Reads sit on
+	// CapSecurityRead (readonly_admin sees the masked sections, 92.4);
+	// writes and test connections on CapSecurityWrite. The test verbs
+	// are writes because they OPEN OUTBOUND CONNECTIONS against
+	// operator-supplied targets (the M3 Guard machine screens them —
+	// NFR-S60's "zero new SSRF face" rides the guard, and the tighter
+	// gate keeps probing an admin action).
+	case rest == "v1/admin/security/ldap" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityRead},
+			s.handleAuthConfigGet(auth.SectionLDAP))
+	case rest == "v1/admin/security/ldap" && r.Method == http.MethodPut:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite},
+			s.handleAuthConfigPut(auth.SectionLDAP))
+	case rest == "v1/admin/security/ldap/test" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite},
+			s.handleAuthConfigTest(auth.SectionLDAP))
+	case rest == "v1/admin/security/oauth" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityRead},
+			s.handleAuthConfigGet(auth.SectionOIDC))
+	case rest == "v1/admin/security/oauth" && r.Method == http.MethodPut:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite},
+			s.handleAuthConfigPut(auth.SectionOIDC))
+	case rest == "v1/admin/security/oauth/test" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite},
+			s.handleAuthConfigTest(auth.SectionOIDC))
+	case rest == "v1/admin/security/saml/config" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityRead},
+			s.handleAuthConfigGet(auth.SectionSAML))
+	case rest == "v1/admin/security/saml/config" && r.Method == http.MethodPut:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite},
+			s.handleAuthConfigPut(auth.SectionSAML))
+	case rest == "v1/admin/security/saml/config/test" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite},
+			s.handleAuthConfigTest(auth.SectionSAML))
+
 	// ---- /api/v1/auth/methods (T-179; anonymous capability discovery) ----
 	// The login page's entry-point map: which of password/oidc/ldap this
 	// instance offers. Anonymous by design (see auth_methods.go); every
@@ -703,6 +742,108 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite},
 			s.withName(rest, "security/groups/", s.handleGroupDelete))
 
+	// ---- /api/helm/{repoKey}/reindex[/{path}] (M11 T-309, ADR-0034
+	// clause 1 / helm.md section 5.2) ----
+	// The classic-Helm management plane: the dispatchAPI EXPLICIT family,
+	// gated authentication + the single-repo manage bit (CanManageRepo —
+	// the ADR's management-face posture, NOT the apiProtocolMounts content
+	// alias below). The bare form schedules the whole-repository async
+	// rebuild; the /{path} form runs the partial rebuild synchronously.
+	// Every other /api/helm spelling falls through to the content alias.
+	case strings.HasPrefix(rest, "helm/"):
+		key, tail := splitAPIName(rest, "helm/")
+		switch {
+		case tail == "reindex" && r.Method == http.MethodPost && key != "":
+			s.enforce(w, r, routeAuth{required: true, repoManage: &repoManageGate{repo: key, write: true}},
+				func(w http.ResponseWriter, r *http.Request) {
+					s.handleHelmReindex(w, r, key)
+				})
+		case strings.HasPrefix(tail, "reindex/") && r.Method == http.MethodPost && key != "":
+			nodePath, ok := splitHelmReindexPath(tail)
+			if !ok {
+				notImplemented(w, "/binflow/api/"+rest)
+				return
+			}
+			s.enforce(w, r, routeAuth{required: true, repoManage: &repoManageGate{repo: key, write: true}},
+				func(w http.ResponseWriter, r *http.Request) {
+					s.handleHelmReindexPath(w, r, key, nodePath)
+				})
+		default:
+			// The content alias (GET/HEAD only) or the E-26 404.
+			if s.dispatchAPIProtocolMount(w, r, rest) {
+				return
+			}
+			notImplemented(w, "/binflow/api/"+rest)
+		}
+
+	// ---- /api/yum/{repoKey} (M11 T-311, ADR-0034 / rpm.md section 3.2) ----
+	// The YUM management plane: the dispatchAPI EXPLICIT family, gated
+	// authentication + the single-repo manage bit (CanManageRepo — the
+	// ADR's management-face posture). The bare /api/yum spelling answers
+	// the blank-key 400 branch; async=1 schedules the whole-repository
+	// recomputation in the background, async=0 runs it synchronously (or
+	// hits the 409 auto-async conflict). Every other /api/yum spelling
+	// falls to the E-26 404.
+	case rest == "yum" || rest == "yum/":
+		if r.Method == http.MethodPost {
+			s.enforce(w, r, routeAuth{required: true}, s.handleYumReindexBlankKey)
+			return
+		}
+		notImplemented(w, "/binflow/api/"+rest)
+	case strings.HasPrefix(rest, "yum/"):
+		key, tail := splitAPIName(rest, "yum/")
+		if tail == "" && r.Method == http.MethodPost && key != "" {
+			s.enforce(w, r, routeAuth{required: true, repoManage: &repoManageGate{repo: key, write: true}},
+				func(w http.ResponseWriter, r *http.Request) {
+					s.handleYumReindex(w, r, key)
+				})
+			return
+		}
+		notImplemented(w, "/binflow/api/"+rest)
+
+	// ---- /api/deb/reindex/{repoKey} (M11 T-310, ADR-0034 / debian.md
+	// section 4.3) ----
+	// The Debian management plane: the dispatchAPI EXPLICIT family, gated
+	// authentication + the single-repo manage bit (CanManageRepo — the
+	// ADR's management-face posture, the /api/yum shape). The Artifactory
+	// spelling puts reindex BEFORE the key; the bare /api/deb/reindex
+	// spelling answers the blank-key 400 branch. Every other /api/deb
+	// spelling falls to the E-26 404.
+	case rest == "deb/reindex" || rest == "deb/reindex/":
+		if r.Method == http.MethodPost {
+			s.enforce(w, r, routeAuth{required: true}, s.handleDebReindexBlankKey)
+			return
+		}
+		notImplemented(w, "/binflow/api/"+rest)
+	case strings.HasPrefix(rest, "deb/reindex/"):
+		key := strings.TrimPrefix(rest, "deb/reindex/")
+		if r.Method == http.MethodPost && key != "" {
+			s.enforce(w, r, routeAuth{required: true, repoManage: &repoManageGate{repo: key, write: true}},
+				func(w http.ResponseWriter, r *http.Request) {
+					s.handleDebReindex(w, r, key)
+				})
+			return
+		}
+		notImplemented(w, "/binflow/api/"+rest)
+
+	// ---- /api/conan/…/reindex (M11 T-308, ADR-0034 / conan.md 3.1) ----
+	// The conan management plane rides a self-contained adapter handler
+	// (conan.ManagementHandler): the router only authenticates — the
+	// handler itself walks the CanManageRepo(write) gate, the local-only
+	// class check and both reindex spellings (the whole-repository form
+	// with repoKey in query/body, and the path form
+	// /api/conan/{repoKey}[/{sub}]/reindex). The two spellings intercept
+	// before the generic protocol mount below; every other /api/conan
+	// spelling stays the data plane's.
+	case rest == "conan/reindex" ||
+		(strings.HasPrefix(rest, "conan/") && strings.HasSuffix(rest, "/reindex")):
+		h, ok := s.mgmt["conan"]
+		if !ok {
+			notImplemented(w, "/binflow/api/"+rest)
+			return
+		}
+		s.enforce(w, r, routeAuth{required: true}, h.ServeHTTP)
+
 	default:
 		// /binflow/api/<proto>/** protocol mounts (npm, pypi — the §5.4
 		// reserved slot M1 promised): dispatched only when the protocol is
@@ -721,12 +862,23 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 // clients address the registry API prefix (…/api/npm/<repo>/<pkg>,
 // …/api/pypi/<repo>/simple/…) rather than bare content paths, and nuget's
 // v3/v2 planes live at …/api/nuget/{v3,v2}/<repo>/… (the Artifactory-
-// compatible spellings PRD FR-88 fixes). The list is CLOSED by design:
-// the api segment primarily hosts REST routes, so a protocol earns a
-// mount only through its own ticket — maven mounts content paths with
-// zero httpapi changes, and look-alikes (…/api/pypi-ui/**) stay on the
-// E-26 404 permanently.
-var apiProtocolMounts = []string{"npm", "pypi", "nuget"}
+// compatible spellings PRD FR-88 fixes); helm (T-309, HL-1) mounts its
+// read-only download alias …/api/helm/<repo>/… for Artifactory-habituated
+// `helm repo add` URLs (see apiReadOnlyMounts). The list is CLOSED by
+// design: the api segment primarily hosts REST routes, so a protocol
+// earns a mount only through its own ticket — maven mounts content paths
+// with zero httpapi changes, and look-alikes (…/api/pypi-ui/**) stay on
+// the E-26 404 permanently.
+var apiProtocolMounts = []string{"npm", "pypi", "nuget", "helm"}
+
+// apiReadOnlyMounts lists the protocols whose api/<proto> alias is
+// READ-ONLY (T-309 / HL-1): the classic-Helm alias serves the
+// Artifactory-habituated download face (api/helm/<repo>/index.yaml and
+// chart paths for `helm repo add`), while every UPLOAD addresses the
+// content plane — the exact curl -T posture JFrog documents. A write verb
+// through the alias answers 405 (Allow: GET, HEAD) before the rewrite,
+// so the alias can never become a second upload entrance.
+var apiReadOnlyMounts = map[string]bool{"helm": true}
 
 // apiPlaneMounts lists the protocols whose api mount carries a PLANE
 // segment before the repository key (nuget's v3/v2). For these the
@@ -762,6 +914,15 @@ func (s *Server) dispatchAPIProtocolMount(w http.ResponseWriter, r *http.Request
 			// E-01/E-26 envelope 404. The route's assertions flip in the
 			// protocol ticket that registers the handler (R5), not here.
 			return false
+		}
+		if apiReadOnlyMounts[proto] && r.Method != http.MethodGet && r.Method != http.MethodHead {
+			// The read-only alias's 405 (HL-1): uploads address the content
+			// plane; the api/<proto> spelling never becomes a second write
+			// entrance.
+			w.Header().Set("Allow", "GET, HEAD")
+			writeError(w, http.StatusMethodNotAllowed,
+				"The /binflow/api/"+proto+" alias is read-only; upload and delete address the content plane (/binflow/<repository>/...).")
+			return true
 		}
 		tail := strings.TrimPrefix(rest, proto+"/")
 		if apiPlaneMounts[proto] {

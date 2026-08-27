@@ -1,4 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { ComponentPropsWithoutRef } from 'react'
+
+import Button from '@mui/material/Button'
+import Select from '@mui/material/Select'
+import Table from '@mui/material/Table'
+import TableBody from '@mui/material/TableBody'
+import TableCell from '@mui/material/TableCell'
+import TableHead from '@mui/material/TableHead'
+import TableRow from '@mui/material/TableRow'
+import TextField from '@mui/material/TextField'
 
 import { CopyButton } from '../../components/CopyButton'
 import { EmptyState } from '../../components/EmptyState'
@@ -7,6 +17,7 @@ import { Skeleton } from '../../components/Skeleton'
 import { ApiError, getRepositories } from '../../lib/api'
 import type { AuditEvent } from '../../lib/api'
 import { formatAuditTime } from '../../lib/format'
+import { denseInputSx, monoInputSx, rowBtnSx } from '../../lib/muiAtoms'
 import {
   AUDIT_ACTIONS,
   AUDIT_PAGE_SIZE,
@@ -186,36 +197,56 @@ export default function AuditPage() {
       </div>
 
       <div className="filter-bar">
-        <input
-          type="text"
-          list="audit-repo-options"
+        <TextField
+          size="small"
           placeholder="仓库 key（精确）"
-          aria-label="按仓库过滤（精确匹配）"
-          className="mono"
           value={repo}
           onChange={(e) => setRepo(e.target.value)}
-          data-testid="audit-filter-repo"
-          lang="en"
+          sx={{ ...denseInputSx, ...monoInputSx, width: 180 }}
+          slotProps={{
+            htmlInput: {
+              list: 'audit-repo-options',
+              'aria-label': '按仓库过滤（精确匹配）',
+              'data-testid': 'audit-filter-repo',
+              lang: 'en',
+              className: 'mono',
+            },
+          }}
         />
         <datalist id="audit-repo-options">
           {repoOptions.map((k) => (
             <option key={k} value={k} />
           ))}
         </datalist>
-        <input
-          type="text"
+        <TextField
+          size="small"
           placeholder="操作者（精确）"
-          aria-label="按操作者过滤（精确匹配）"
           value={actor}
           onChange={(e) => setActor(e.target.value)}
-          data-testid="audit-filter-actor"
-          lang="en"
+          sx={{ ...denseInputSx, width: 160 }}
+          slotProps={{
+            htmlInput: {
+              'aria-label': '按操作者过滤（精确匹配）',
+              'data-testid': 'audit-filter-actor',
+              lang: 'en',
+            },
+          }}
         />
-        <select
-          aria-label="按动作过滤"
+        <TextField
+          select
+          size="small"
           value={action}
           onChange={(e) => setAction(e.target.value)}
-          data-testid="audit-filter-action"
+          sx={{ ...denseInputSx, width: 180 }}
+          slotProps={{
+            select: {
+              native: true,
+              inputProps: {
+                'aria-label': '按动作过滤',
+                'data-testid': 'audit-filter-action',
+              } as ComponentPropsWithoutRef<'select'>,
+            } as ComponentPropsWithoutRef<typeof Select>,
+          }}
         >
           <option value="">动作：全部</option>
           {AUDIT_ACTIONS.map((a) => (
@@ -223,41 +254,49 @@ export default function AuditPage() {
               {a}
             </option>
           ))}
-        </select>
+        </TextField>
         <label className="time-field">
           <span>起（含）</span>
-          <input
+          <TextField
+            size="small"
             type="datetime-local"
-            aria-label="起始时间（含）"
             value={sinceLocal}
             onChange={(e) => setSinceLocal(e.target.value)}
-            data-testid="audit-filter-since"
+            sx={{ ...denseInputSx, width: 200 }}
+            slotProps={{ htmlInput: { 'aria-label': '起始时间（含）', 'data-testid': 'audit-filter-since' } }}
           />
         </label>
         <label className="time-field">
           <span>止（不含）</span>
-          <input
+          <TextField
+            size="small"
             type="datetime-local"
-            aria-label="截止时间（不含）"
             value={untilLocal}
             onChange={(e) => setUntilLocal(e.target.value)}
-            data-testid="audit-filter-until"
+            sx={{ ...denseInputSx, width: 200 }}
+            slotProps={{ htmlInput: { 'aria-label': '截止时间（不含）', 'data-testid': 'audit-filter-until' } }}
           />
         </label>
-        <input
+        <TextField
           type="search"
+          size="small"
           placeholder="对象路径包含（仅已加载）"
-          aria-label="按对象路径过滤（仅已加载条目）"
-          className="mono"
           value={path}
           onChange={(e) => setPath(e.target.value)}
-          data-testid="audit-filter-path"
-          lang="en"
+          sx={{ ...denseInputSx, ...monoInputSx, width: 200 }}
+          slotProps={{
+            htmlInput: {
+              'aria-label': '按对象路径过滤（仅已加载条目）',
+              'data-testid': 'audit-filter-path',
+              lang: 'en',
+              className: 'mono',
+            },
+          }}
         />
         {hasFilter && (
-          <button type="button" className="btn" onClick={clearFilters}>
+          <Button variant="outlined" size="small" sx={rowBtnSx} onClick={clearFilters}>
             清除过滤
-          </button>
+          </Button>
         )}
         <span className="count" data-testid="audit-count">
           已加载 {rows.length} 条{pathQ ? '（路径过滤仅作用于已加载集）' : ''}
@@ -286,9 +325,9 @@ export default function AuditPage() {
               message="当前过滤条件下无匹配事件"
               hint="仓库 / 操作者为精确匹配；时间窗为闭开区间（起含、止不含）。"
               action={
-                <button type="button" className="btn" onClick={clearFilters}>
+                <Button variant="outlined" size="small" sx={rowBtnSx} onClick={clearFilters}>
                   清除过滤
-                </button>
+                </Button>
               }
               testid="audit-empty-filtered"
             />
@@ -300,38 +339,38 @@ export default function AuditPage() {
           )
         ) : (
           <>
-            <table className="table" data-testid="audit-table">
-              <thead>
-                <tr>
-                  <th scope="col">时间</th>
-                  <th scope="col">操作者</th>
-                  <th scope="col">动作</th>
-                  <th scope="col">对象</th>
-                  <th scope="col">来源</th>
-                  <th scope="col">详情</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="table" data-testid="audit-table">
+              <TableHead>
+                <TableRow>
+                  <TableCell component="th" scope="col">时间</TableCell>
+                  <TableCell component="th" scope="col">操作者</TableCell>
+                  <TableCell component="th" scope="col">动作</TableCell>
+                  <TableCell component="th" scope="col">对象</TableCell>
+                  <TableCell component="th" scope="col">来源</TableCell>
+                  <TableCell component="th" scope="col">详情</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
                 {rows.map((ev, i) => {
                   const target = ev.repo ? `${ev.repo}/${ev.path}` : ev.path
                   const json = detailJSON(ev.detail)
                   const remote = detailRemoteAddr(ev.detail)
                   return (
-                    <tr key={ev.id} data-testid={`audit-row-${i}`}>
-                      <td className="mono audit-time" title={ev.time}>
+                    <TableRow key={ev.id} data-testid={`audit-row-${i}`}>
+                      <TableCell className="mono audit-time" title={ev.time}>
                         {formatAuditTime(ev.time)}
-                      </td>
-                      <td>{ev.actor}</td>
-                      <td className="mono" lang="en">
+                      </TableCell>
+                      <TableCell>{ev.actor}</TableCell>
+                      <TableCell className="mono" lang="en">
                         {ev.action}
-                      </td>
-                      <td className="mono wrap" style={{ maxWidth: 360 }} lang="en">
+                      </TableCell>
+                      <TableCell className="mono wrap" sx={{ maxWidth: 360 }} lang="en">
                         {target || '—'} {target && <CopyButton value={target} label={`审计对象 ${target}`} />}
-                      </td>
-                      <td className="mono" lang="en">
+                      </TableCell>
+                      <TableCell className="mono" lang="en">
                         {remote || '—'}
-                      </td>
-                      <td>
+                      </TableCell>
+                      <TableCell>
                         {json ? (
                           <details className="detail-pop">
                             <summary>detail</summary>
@@ -340,23 +379,24 @@ export default function AuditPage() {
                         ) : (
                           <span className="text-muted">—</span>
                         )}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   )
                 })}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
             <div className="more-row">
               {nextCursor !== '' ? (
-                <button
-                  type="button"
-                  className="btn"
+                <Button
+                  variant="outlined"
+                  size="small"
+                  sx={rowBtnSx}
                   disabled={loadingMore}
                   onClick={() => void loadMore()}
                   data-testid="audit-more"
                 >
                   {loadingMore ? '加载中…' : `加载更多（已加载 ${events.length} 条）`}
-                </button>
+                </Button>
               ) : (
                 <span className="text-muted" style={{ fontSize: 'var(--bf-fs-aux)' }}>
                   共 {events.length} 条（已到末页）

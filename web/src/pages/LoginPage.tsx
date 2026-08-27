@@ -2,8 +2,13 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 
+import Alert from '@mui/material/Alert'
+import Button from '@mui/material/Button'
+import TextField from '@mui/material/TextField'
+
 import { useAuth } from '../app/AuthContext'
 import { ApiError, errText } from '../lib/api'
+import { denseInputSx } from '../lib/muiAtoms'
 
 // 登录页（console-ux §4.1 / FR-23 W09；T-158 增 SSO）：独立布局（无侧
 // 导航壳）；用户名 + 口令；行内 401 错误（文案不泄露存在性——服务端本来
@@ -18,6 +23,12 @@ import { ApiError, errText } from '../lib/api'
 //
 // LDAP（AC②）：目录用户与本地用户共用下面同一张表单，后端先本地后
 // LDAP 回退（T-156/T-157）；前端零分支、零提示差异。
+//
+// T-299 批次一：组件层迁 MUI（TextField/Button/Alert/Paper，密度与配色
+// 经 lib/muiAtoms 收口到 --bf-* token）——交互逻辑零变化：Tab 序（用户名
+// → 密码直连，两输入间无可聚焦元素）、Enter 隐式提交（提交钮显式
+// type="submit"——MUI Button 默认 type="button"，必须覆写）、探测/复核
+// 状态机、锚点全部不动（login-* 落在 input 按钮本体上）。
 
 /** SSO 浏览器入口（后端契约：GET → 302 IdP；disabled → 404 E-26） */
 const OIDC_LOGIN_URL = '/binflow/api/v1/oidc/login'
@@ -136,63 +147,78 @@ export default function LoginPage() {
         </h1>
         <p>制品仓库控制台</p>
       </div>
+      {/* 表单本体保持原生 <form>（Enter 隐式提交链路零变化）；卡片面继续
+          由 .login-card 承载（MUI 的输入/按钮/错误面在卡内逐个替换） */}
       <form className="login-card" onSubmit={(e) => void onSubmit(e)}>
         <div className="field">
           <label htmlFor="login-username">用户名</label>
-          <input
+          <TextField
             id="login-username"
-            className="mono"
-            data-testid="login-username"
+            size="small"
+            fullWidth
             name="username"
             autoComplete="username"
             autoFocus
-            spellCheck={false}
             value={username}
             onChange={(e) => setUsername(e.target.value)}
+            sx={denseInputSx}
+            slotProps={{ htmlInput: { className: 'mono', 'data-testid': 'login-username', spellCheck: false } }}
           />
         </div>
         <div className="field">
           <label htmlFor="login-password">密码</label>
-          <input
+          <TextField
             id="login-password"
-            data-testid="login-password"
+            size="small"
+            fullWidth
             name="password"
             type="password"
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            sx={denseInputSx}
+            slotProps={{ htmlInput: { 'data-testid': 'login-password' } }}
           />
         </div>
         {error && (
-          <p className="field-error" data-testid="login-error" role="alert">
+          <Alert severity="error" data-testid="login-error" role="alert" sx={{ mt: 'var(--bf-sp-2)' }}>
             {error}
-          </p>
+          </Alert>
         )}
         <div className="actions">
-          <button type="submit" className="btn primary" data-testid="login-submit" disabled={!canSubmit}>
+          <Button
+            type="submit"
+            variant="contained"
+            size="small"
+            fullWidth
+            data-testid="login-submit"
+            disabled={!canSubmit}
+          >
             {submitting ? '登录中…' : '登录'}
-          </button>
+          </Button>
         </div>
         {sso === 'on' && (
           <>
             <div className="login-divider" aria-hidden="true">
               或
             </div>
-            <button
+            <Button
               type="button"
-              className="btn"
+              variant="outlined"
+              size="small"
+              fullWidth
               data-testid="login-sso"
               disabled={ssoBusy}
               onClick={() => void onSSO()}
             >
               {ssoBusy ? '正在跳转…' : '使用 SSO 登录'}
-            </button>
+            </Button>
           </>
         )}
         {ssoError && (
-          <p className="field-error login-sso-error" data-testid="sso-error" role="alert">
+          <Alert severity="error" data-testid="sso-error" role="alert" sx={{ mt: 'var(--bf-sp-3)' }}>
             {ssoError}
-          </p>
+          </Alert>
         )}
       </form>
       {/* 常驻说明 + 文档链接（console-m8 §6.1 [6]）。链接带下划线：弱化色

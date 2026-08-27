@@ -897,7 +897,83 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **Q1 HA/Xray 本体：不进 M11**——「行为逐项对齐」指令对齐的是行为，本体解锁须修订 PRODUCT.md；M12+ 单列里程碑
 - **Q2 HelmOCI：单列条件票（P1，非 DoD 硬门）**——四包型 P0/P1 收官且余量足则执行
 - **Q6 GPG keypair：进 M11**（P1 条件票 + debian/rpm 各一张签名小票；DoD 不含签名腿）
-- **Q8 默认值族：全部照 Artifactory**——RP-2 calculateYumMetadata=true / TL-4 关闭 / HL-2 relative urls=true / CN-1 v1 收窄 / CG-2 失败形态全按 Artifactory 默认；**唯一例外 TL-5 rpm 校验算法留 SHA-256**（安全向，Artifactory 亦支持，理由留痕）
+- **Q8 默认值族：全部照 Artifactory 实际值**（2026-08-26 20:55 用户二次裁定修正转写错误）——RP-2 calculateYumMetadata=**false**（上传仅存储，repodata 由 reindex/显式开启触发）/ TL-4 debian 架构族=**i386,amd64 强制生成**（空 Packages 亦生成）/ HL-2 relative urls=**true** / **CG-2 cargo publish 失败形态=200+errors[]（照 Artifactory 双轨，翻转 T-294 as-built 统一 4xx/5xx——断言与规格随票回写；成功形态两方案一致=200 无 errors 键）** / **CN-1 conan v1=全量十七端点（推翻 v1.1 收窄裁定，面积上浮 T-308）**；**唯一例外 TL-5 rpm 校验算法留 SHA-256**（安全向，Artifactory 亦支持，理由留痕）
 - 其余 Q3（SAML 配置面先行）/ Q4（DB 配置面权威）/ Q5（独立文件优先+内嵌 WARN）/ Q7（Trash 余量票）维持暂行，终裁归 ADR-0035/0036 与余量触发
+
+## 用户指令（2026-08-26 21:10~21:20）：CircleCI 流水线 + UAT 环境 52.79.109.153（含文档服务）
+
+「新增circleci的ci/cd流水线，最终部署在52.79.109.153这台服务器上作为uat环境，注意文档服务也部署在这里」+ 用户提供服务器 RSA 密钥与 CircleCI 项目信息（project id `eaa9da69-…`）——落地记录：
+- **gitflow 映射**：develop → Jenkins/VM 测试环境（既有）；**main → CircleCI/UAT**（新链）
+- **已完成（当日）**：`.circleci/config.yml`（build：console+docs+build+vet+lint+短测 → deploy_uat：SSH 部署+双面烟测，main 过滤）+ `deploy/ci/uat-deploy.sh`（分阶段换装/5 备份/60s 探针/失败自动回滚——deploy-vm.sh 同语义）；**UAT 服务器已开通并首部署实测**（/opt/binflow-uat + systemd binflow-uat + hardened unit；/healthz 200、/binflow/docs/ 200、license 面 401 community 地板——21.3MB linux/amd64 单二进制含嵌入文档站）
+- **密钥纪律**：RSA 私钥仅存本机 `~/.ssh/binflow-uat.pem`（600）——**绝不入仓库**；CircleCI 侧需用户在 Project Settings > SSH Keys 上传同钥并把指纹填入 config.yml 的 `REPLACE_WITH_UAT_KEY_FINGERPRINT` 占位（add_ssh_keys 不支持 env 插值）
+- **触发**：config 已在 develop；首个 CircleCI 流水将在下次 develop→main 合并（M11 首批收口）时自然触发，或用户在 CircleCI UI 手动触发 main 管道
+
+## M11 票据（T-299/T-300 既定 + T-301~T-330，tech-lead 2026-08-26 拆票；AC 全文见 tech-lead 拆票交付〔本节压缩录〕+ docs/prd/milestone-11.md v1.1；Q8 终值 20:35+20:55 已并入票面）
+
+> **里程碑收口清单新增两条（用户 2026-08-27 指令，全里程碑适用）**：每次 milestone 收口（m<N>-done tag 前）必查 ① **README**（含 zh-CN 镜像）是否随新能力过时——支持矩阵/包型/配置面/里程碑行；② **文档站**（docs/user/ → docs-site）是否需更新。检查结论（更新了什么/为何无需更新）写入收口报告留痕。
+>
+> **M11 收口时的已知欠账（conductor 2026-08-27 14:10 摸底）**：
+> - README：仍写「五大包型」「M1→M9 all done」——需补 M10/M11 十二包型矩阵、license/addon 门控章、auth 配置面与 binstore.yaml 提及、里程碑行刷新（README.zh-CN.md 同步）。
+> - docs/user/integrations/：缺 conan/helm/rpm/debian 四篇接入指南（随 T-312~T-315 落地写；helm 注意与 install/helm.md〔Chart 部署〕命名区分）。
+> - docs/user/admin/：缺 LDAP/OAuth/SAML 前端配置指南（T-305 面）与 binstore.yaml 存储配置指南（T-306 面）。
+> - 派发时机：宽度空窗时派 tech-writer（README+admin 两票可先做，integrations 四篇等 B6/B7 合入）。
+
+**批次（全宽 2）**：
+- **B0**：T-301 [P0] 前置 ADR 包｜ T-302 [P0] auth-integration.md 复核票——**双票 done 2026-08-26（B0 全清，gitflow 首航：feature 分支 --no-ff 合入 develop `4950675`/`103ffce`）**
+  - T-301：ADR-0035（auth_configs 表 + license Manager 三要素复用〔快照/验后替换/回放〕实现变更即生效；K31 DB 权威终裁；enc:v1 密封 + 脱敏哨兵）/ ADR-0036（binstore.yaml 有序 provider 链 + Q5 精确化：语义分歧才 fail-fast、等价 WARN）/ ADR-0038（keypair 双列 enc:v1；RSA-4096 暂行）/ **openpgp = ProtonMail/go-crypto v1.4.1**（三平台零 CGO 实测；keybase 冻结 2020 淘汰）。预登记分歧 2 处（模板体系归 T-303/生成默认归 T-319 mini 规格）
+  - T-302：规格 v2 全量重写 367 行——23 端点/58 字段**逐条双出处**（代码+官方文档）；**两低置信区推翻**（OAuth batch3 完整实装/SAML 齐备但 license-gated）；**变更即生效=保存即生效高置信**（descriptor 链+Access 回调+懒初始化兜底；边界：会话不失效/300s 认证缓存）；FE 四陷阱显式（SAML noAutoUserCreation 反语义等）；缺项清单空。日志 reports/agents/T-301.md / T-302.md
+- **B1**：T-303 [P0] config-formats §1 复核 + 规格尾巴两处｜ T-299 [P0] MUI 批一
+  - **T-303 → done 2026-08-26（`bc456d2`）**：§1 逐条三证（代码/官方/反证）——**模板体系分歧门关**：模板=固定注册表展开+自描述标签，**无 dual 模板/provider**（Artifactory 迁移走 eventual `_add` 符号链接非链内原语）→ ADR-0036 migration.mode 为 BinFlow 自有拼写**已登记**；模板展开器不在 reverse-src（取证边界声明防误引）；两尾巴修毕（goproxy GOPRIVATE 勘误 ×6——正确配方 GOPROXY+GONOSUMDB；cargo §9 四档路径 ×3）；置信 高21/中6/低3；T-306 六消费点五齐两登记。日志 reports/agents/T-303.md。
+  - **T-299 → done 2026-08-26（`d06d6e1`，gitflow 三航）——B1 全清**：Login/壳层/仓库列表+表单迁 MUI（组件层 only，交互语法零变化——锚挂 input 本体经 slotProps、⌘K/方向键/Enter 链路原样）；四闸门绿（tsc/lint 0/build/ledger PASS〔anchor-audit 补引号字面量 sx 形态〕）+ 全量 playwright **188/0** + axe 双主题 serious=0（自擒一处真对比度违例并修）+ SPA +3.57%（预算 25%）；批次二边界项登记（session 菜单/侧栏/badge 因零变化红线未迁，归 T-300 派单裁定）。conductor 复验：build/tsc/lint/ledger 全绿。日志 reports/agents/T-299.md。
+- **B2**：T-304 [P0] FR-95 回头看裁决票｜ T-305 [P0] FR-92 BE 认证配置 REST+变更即生效≤1s+双源（dep T-301/302）
+  - **T-304 → done 2026-08-26（`ac15110`）**：30 项复核（维持 10 附出处/改回-既有票 5/改回-新票候选 4/已裁 9/**待用户裁决 2**）；**CG-2 十一类失败形态锚定**（权限/重复类=401匿名·403实名+errors 信封；IOException 族=200+错误串入 warnings.other〔CargoPublishResponse 无顶层 errors——与 20:55 终值吻合〕；无 409；帧前缀畸形 500 穿透降级声明）；Q8 六项归位 + 两翻转路由核对（CG-2→T-316 ✓/CN-1→T-308 ✓）；PM 转交 PRD v1.2 勘误三处待执行。日志 reports/agents/T-304.md。
+  - **待用户裁决（T-304 上交，19:05 口径）**：① NuGet 对齐 bundle（v2 全面/remote search 代理/service index 动态解析/virtual 合并——M11 无承载票）② MPU 面形状（A 中继 vs presigned 需新 ADR；B create 范围；连带发现：Artifactory 六端点全 POST+QueryParam、complete?sha1 回 202、status 异步任务模型）。**不阻塞 B2/B3 流**，T-316/T-323 派发前收口。
+- **B3**：T-306 [P0] FR-93 BE binstore.yaml 三链解析+装配+fail-fast（dep T-301/303）dev-go-storage｜ T-307 [P1] FR-92 FE admin 认证配置页组 MUI（dep T-305）dev-frontend
+  - **T-305 → done 2026-08-27（`914dd67` + 哨兵翻转 `acab44a`）——B2 全清**：migration 015 + AuthConfigStore + ConfigManager（license 三要素复用）；**热缝**——OIDC Bearer/LDAP 登录臂逐请求取快照（无热源时字节等同旧静态装配）；**自擒真缺陷**：ldapPool put/Close 竞态（热换帧排空旧池时在途 Bind 归还向已关闭 channel 发送）；九端点 + 审计 redact + Keycloak 活体腿（issuer 翻转全链）PASS；conductor 复验（build/lint 0/TestAuthConfig/双矩阵 0 偏差）。**哨兵语义用户裁定（2026-08-27 00:15）：照 Artifactory 400 拒**——conductor 即时翻转（accept-and-keep → refuse-and-keep-stored；FE 交互=留空保持）。差异登记 5 条载日志。遗留：audit 词表两词/userDnPattern 消费缺位/带秘密文件段种子需主密钥（文档归 T-328）。
+  - **T-306 → done 2026-08-27（`022ecfb`）**：binstore.yaml 三链解析（闭集+保留名拒启）+ Q5 三分支（语义分歧 fail-fast 指名两文件/等价 WARN）+ fail-fast 四形态实测（坏 YAML 指路径行/明文 secret 指名 env/保留名/双源分歧）+ **MinIO 真容器三链 roundtrip 全对账**（dual-write 双 store）+ 存量内嵌零破坏 + WARN；**conductor 裁定**：boot 拒绝路径的审计 = 结构化 stderr 日志即记录（成功路径才落 audit 事件）；票内两决策落注释。差异 6 条登记（含 mc 镜像 tag 失效归 T-325）。
+  - **T-307 → done 2026-08-27（`c03d3bc`）——B3 全清**：三 Tab MUI 页组（字段册驱动，v2 逐字段——LDAP 23 锚/SAML 十三字段反语义/OAuth 映射 OIDC wire）；**哨兵留空剔除网络层断言**（00:15 裁定落地）；console-ux v1.12 先入册 **64 锚**；全量 **195/0** + axe serious=0（自擒修三）+ SPA +3.25%；**新缺口登记**：SAML 证书三端点（key/public/regenerate，v2 §3.2）BE 未落 → **T-331 [P2] 补票**（B9 后 slack 窗口，dev-go-core）。
+  - **B4 双票在途 01:10 起**：T-308 conan local（v2 全量 + v1 全量 CN-1 终裁，窗口独占）/ T-309 helm 经典仓 local（relative=true 终裁）。
+  - **T-309 → review→已验待合 2026-08-27**：实现+自测全绿（sprint 752 验收）；提交暂缓——接线踩 conan+helm 双包型 13 槽共写（slots.go/main.go/router.go），按合并时机口径第 4 条「T-308 先、T-309 紧随」顺序 --no-ff。
+  - **429 熔断事件 01:52~01:54**：T-308/T-311 双双击落，配额复位 04:38:48；conductor 编译态预验（754 轮）全绿。
+  - **双票续跑 10:23 起（复位后恢复）**：T-308（conan 1.66 live leg 门控测试收尾）/ T-311（rpm 适配器主体，参考 helm 接线模式）。宽度满 2，不派第三票。
+  - **T-308 → 已验待合 2026-08-27 10:44**：agent 交付全量（v2 17 端点+v1 全量数据面+能力头+reindex 业务体+门控三缝；**真实 conan 2.31.2 与 1.66.0 双客户端活体 E2E 全绿**——login/create/upload 两修订/清缓存 install 全远端下载链/list/remove；`-race` 双包 ok；M10 不变量 0 deviations）。conductor 复验：build/vet/addons+conan+cmd 测试全绿。遗留：conan reindex 两个 dispatchAPI case 由 conductor 波次合流时接线（片段在 T-308.md §5-D9）；规格修订建议 2 条交 reverse-engineer；`forceConanAuthentication` 仓配置字段未落（默认 false 行为已备）。合入锚点 = B4+B5 波次 PR（分支模型第 6 条）。
+  - **B4+B5 波次合入 2026-08-27 12:4x（`4c3f70d` + merge `d03b0f3`）——T-308/T-309/T-311 三票 done**：conductor 全量验证后按第 6 条裁定单波合入（PR 化因 gh/token 缺位暂不可用，回退 --no-ff 本地程序，feature 分支留 origin 审计）。conductor 随波接线 conan §5-D9 遗留：`Deps.MgmtHandlers` 缝（server.go）+ `/api/conan/…/reindex` 两 case（router.go）+ `t308_conan_mgmt_test.go` 钉 router 契约（401 前置/两拼写达面/数据面不串/E-26 未挂载态）。全树 31 包 ok + lint 0 + M10 矩阵 0 deviations。**PR 化待办**：gh 安装 + 认证后启用（用户侧一次性动作）。
+  - **T-310 派发 2026-08-27（12:4x，dev-go-core）**：debian automatic local（TL-4=i386,amd64 强制/deb PUT 坐标/索引直写 403）；参考 rpm/helm 模式；第 15 槽。宽度：T-310 + T-300（MUI 批二在途）。
+- **B4**：T-308 [P0] conan local——**v2 全量 17 端点 + v1 全量数据面（CN-1 终裁推翻收窄，本票升 M11 最重适配票，窗口独占）**（TL-2/TL-3 能力头/.timestamp）dev-go-core｜ T-309 [P0] helm 经典仓 local（HL-1/2 挂载与 relative=true；.prov；reindex 双端点）dev-registry-adapter
+- **B5**：T-310 [P0] debian automatic local（TL-4=i386,amd64 强制；debPUT 坐标；索引直写 403）dev-go-core（dep T-304）｜ T-311 [P0] rpm local 管线（RP-2=false；header 解析器自研；reindex 七分支矩阵；TL-5=SHA-256）dev-registry-adapter（dep T-304）
+  - **T-310 → done 2026-08-27 14:0x（feature/T-310 merge `5b4c54f` 前序）**：`internal/adapter/deb`（15 文件）——矩阵坐标 debPUT 链/ar-tar-xz control 解析（新依赖 ulikunitz/xz 留痕）/确定性 Packages-Sources-Release/By-Hash 引擎（代数保留+无符号清扫）/dpkg 版本比较器；管理面 `POST /api/deb/reindex/{repoKey}`（§4.3 矩阵+逐字拒语）；Debian() 第 15 槽（pro）；repoManage 门 7→8、槽计数 14→15。**真实 apt 链 E2E**（debian:bookworm 容器 52.7s PASS）：dpkg-deb 现造→debPUT 201→apt-get update（apt 自验 Release-SHA256）→install→二进制可跑；TL-4 空 i386/amd64 Packages 生成断言过。全树 32 包 ok + lint 0 + M10 双跑 0 deviations；conductor 复验绿。遗留：bz2/xz/lzma 索引压缩未实现（plain+gz 对 apt 全功能实证；`normalized()` 一处翻转即回）；remote 豁免缝留 T-314；snapshot 族 §10 缓议。日志 reports/agents/T-310.md。
+  - **PRD v1.2.1 勘误落盘 2026-08-27（`docs(prd):` commit）**：T-304 转交三处+LC-18 完成（CN-1 族 7 处/CG-2 两处含 warnings.other 精度注保护 T-316/§5.6.1 三行）；版本沿革注记避免跳号误读。**待另转交**：§5.6.1 其余 28 项基线浓缩填实（T-287×7/T-289×5/T-290×4/T-294×7 占位行）。
+  - **B6 双票派发 2026-08-27 14:1x**：T-312 conan remote+virtual（dev-go-core）/ T-313 helm virtual+remote（URL 改写/_external 核心）（dev-registry-adapter）；并行协调条款入派单（各自 adapter 包内自洽，接线预计零改）。
+  - **T-313 首实例 14:00 被 API 内容过滤误杀（1301 假阳性，SSRF/proxy 术语触发）**：死于探索期零写入，14:02 中性措辞重派（同一票面；「远端拉取一律走既有 internal/remote 客户端与内置防护」表述 + 报告语言平实化条款）。经验登记：涉安全面票的派单措辞避免渲染攻击面细节。
+- **B6**：T-312 [P1] conan remote+virtual（dep T-308）｜ T-313 [P1] helm virtual+remote（URL 改写/_external）（dep T-309）
+- **B7**：T-314 [P1] deb remote+virtual（含 trivial P2 余量段）（dep T-310）｜ T-315 [P1] rpm remote+virtual（含 modules P2 余量段；RP-3 收紧）（dep T-311）
+- **B8**：T-316 [P1] cargo remote（CG-2 确定臂：失败恢复 200+errors[] 双轨 + T-294 断言反转 + 规格回写；**dep T-304 出处锚定，不可提前**）｜ T-300 [P1] MUI 批二（dep T-299/T-307）→ **提前至 756 轮派发（10:57，dev-frontend）**：宽度补位（Go 侧新票均撞 B4+B5 未提交交织面）；批一边界项 session 菜单/侧栏/badge 派单裁定=迁；T-316 仍被 NuGet 对齐捆绑未决用户裁决卡住
+  - **T-300 → done 2026-08-27 13:5x（feature/T-300 `23 文件` merge `b76e3ac`）**：四组页面 + 批一边界项全迁（22 web/src 文件 +1559/−1086）；七闸门全绿——tsc/lint 0、build、ledger PASS（锚册零改动）、axe 24 扫零、assert-tokens 0、SPA **+3.12% < +3.25% cap**、playwright 9 轮 186–192 passed（8 个负载 flake spec 全部串行复跑绿，零确定性失败；N01 +2 请求 trace 实证为登录落地页既有行为非回归）。conductor 复验 tsc/lint/build/ledger 四闸门绿。样式层发现登记：emotion 注入序在 base.css 后——单类平手 MUI 赢，续挂须复合类或显式 sx（修正 T-299 表述）；.field input→.field > input 连带修复批一 TextField 双边框。**批次三候选登记**：RepoDetailPage/Dashboard/Profile/Placeholder/NotFound、共享组件六件套、最近词 combobox 统一化；QA de-flake 票（N01 straddle + 负载 flake 家族）并入 T-327 评估。agent 自愈：误删 console/dist/placeholder.html 已恢复（终态 dist diff=0，干净检出可编译）。日志 reports/agents/T-300.md。
+- **B9**：T-317 [P1] 复制硬化（两字段生效反转 L25 按名 400；属性同步端到端；replica 隔离）｜ T-318 [P1] cargo virtual（dep T-316 同 area 串行）
+- **B10**：T-319 [P1] GPG keypair 体系（票内先补 mini 规格；openpgp 零 CGO；dep T-301）｜ T-320 [P1·条件 Q2] HelmOCI 分发（dep T-309；未触发非 DoD 缺口）
+- **B11**：T-321 [P1] debian 签名腿（dep T-319/T-310）｜ T-322 [P1] rpm 签名腿（dep T-319/T-311）
+- **B12**：T-323 [P1] S3 MPU kill -9 续传复活（upload ID 落表+ListParts 重建；探针断言翻转）｜ T-324 [P1] unused-cleanup 引擎（cron+审计+零孤儿）
+- **B13**：T-325 [P1] 部署矩阵演进+CD 链验证（dep T-306；VM 数据零触碰）｜ T-326 [P2] D-8 footprint ≤100MB + D-9 测试基建（seed 竞态/verifyM10 口令外置）
+- **B14**：T-327 [P1] 中期回归（L01~L11+L18~L31 首跑+双形态全 P0 复跑+契约归属审计 m10-done..HEAD）｜ T-328 [P1] 文档五类（认证/存储/四包型接入/api 增量含 L25 反转/FAQ）
+- **B15**：T-329 [P0] 终验（L01~L45 全量+四包型客户端矩阵+DoD 八条+两断言反转 PRD 回写核实；L19 口径=v1 全量）
+- **波外条件票**：T-330 [P1·条件 Q7] Trash can（票内先补 mini 规格）
+
+**关键路径**：T-301/302 → T-305/306 → T-308~311（四包型 local）→ T-312~315 → T-327 → T-329；T-304 为 T-310/311/316 裁决前置。**转交**：PRD v1.2 勘误三处（§2.2 v1 行/§5.6.1 CN-1・CG-2/LC-18）随 T-304 完成转 PM。
+
+**风险登记**：② auth-integration OAuth/SAML 基线缺口（T-302 判定）；③ K-1 mini 规格+openpgp 准入；④ cmd 装配缝 T-305/T-306 各动己方 wire 函数；⑤ dev-go-core 9 票负载（T-308 加重后 B4 窗口独占）；⑥ conan 1.x 活体可得性（curl 等价+留痕路径）。「所有研发按照gitflow规则提交代码」——**分支模型即日切换**（conductor 落地口径）：
+- **main = release-only**：仅接收 release 合并（develop → main --no-ff）与 hotfix；里程碑 tag 继续（m1~m10-done 既有 tag 不动）
+- **develop = 集成分支**（2026-08-26 自 main@`95a8f9a` 切出，双远端已推）：票据提交、sprint 报告、chore 全部进 develop
+- **feature/T-<id>-<slug>**：每票一个特性分支，票过 qa 后由 conductor `--no-ff` 合入 develop（ticket 提交信息维持 conventional commits）
+- **hotfix/***：自 main 切出，修完双回（main + develop）
+- **CD 链改挂 develop**：VM Jenkins `binflow-ci-smoke` + `binflow-deploy` 已改 `*/develop`（容器 config.xml + 仓库 groovy 源同步，Jenkins 已重启重载）——满足「每一次变更持续部署」；`binflow-release` 维持 main（release 形态从 main 出）
+- subagent 工作方式不变（不 git 提交，conductor 统一提交——仅提交目标从 main 改为 feature→develop）
+- 存量：main 当前 = `95a8f9a`（含 m10-done tag）；下一次 develop→main 合并发生在 M11 首个批次收口或里程碑收官
+- **合并时机自动决策口径（用户 2026-08-27 授权 conductor 自裁，不再逐案请示）**：
+  1. **feature → develop（--no-ff）**：ticket 过 conductor 验证后**立即**合入，不等批次/里程碑收尾——每个已验证 ticket 即时进 VM CD 链，并杜绝 T-309 式「后行票阻塞先行完成票」的提交交织。
+  2. **develop → main（--no-ff）**：M11 首个批次收口或里程碑收官（m11-done tag）时执行一次——触发 CircleCI/UAT 链（52.79.109.153，含文档服务）；中途不逐票 release，避免 UAT 高频换装。
+  3. **hotfix/**：自 main 切出，修完双回（main --no-ff → 回并 develop）。
+  4. **交织例外顺序合入**：文件共写时（slots.go/main.go/router.go 按 13 槽共写），「先完成票先合、后行票紧随」顺序 --no-ff；当前 T-309（已验）暂缓即此例——T-308 收口后 T-308 先、T-309 紧随。
+  5. **PR 化合并（用户 2026-08-27 10:55 指令「你自己在合适的时机创建github pr」）**：自本条起 feature→develop 与 develop→main 均经 GitHub PR（conductor gh 自建自合；`gh pr create` → `gh pr merge --merge`，--merge 等价 --no-ff 保合并提交；PR 描述含票号+验证摘要）；时机沿用第 1/2 条口径。develop→main 的 release PR 在 CircleCI SSH key fingerprint 占位符（`REPLACE_WITH_UAT_KEY_FINGERPRINT`）被用户填妥前**只建不合**。
+  6. **三票全交织裁定（2026-08-27 10:52，第 4 条扩展）**：T-311 续跑期间主动改写 main.go/router.go（rpm import/yum case），接线文件成 T-308/T-309/T-311 三票共写且无法按票序独立编译（先行提交必携带后行包）。裁定：T-311 落地全绿后以 **B4+B5 波次单 PR 一次合入**，三票逐项归因（票号→文件清单→验证摘要）写入 PR 描述；票状态以 PR 合并为 done 锚点。快照保险：/tmp/snap-b45-1052/。
 
 （空）

@@ -29,8 +29,8 @@ import (
 // tier marks — the FR-86-AC1 guard at the source of truth.
 func TestT282ManifestComplete(t *testing.T) {
 	r := addonManifest()
-	if r.Len() != 11 {
-		t.Fatalf("manifest carries %d slots, want 11", r.Len())
+	if r.Len() != 15 {
+		t.Fatalf("manifest carries %d slots, want 15", r.Len())
 	}
 	want := map[string]struct {
 		kind addons.Kind
@@ -44,6 +44,10 @@ func TestT282ManifestComplete(t *testing.T) {
 		"go":               {addons.KindPackageType, license.TierPro},
 		"nuget":            {addons.KindPackageType, license.TierPro},
 		"cargo":            {addons.KindPackageType, license.TierPro},
+		"conan":            {addons.KindPackageType, license.TierPro}, // T-308
+		"helm":             {addons.KindPackageType, license.TierPro}, // T-309
+		"rpm":              {addons.KindPackageType, license.TierPro}, // T-311
+		"debian":           {addons.KindPackageType, license.TierPro}, // T-310
 		"properties":       {addons.KindFeature, license.TierCommunity},
 		"ha":               {addons.KindFeature, license.TierEnterprise},
 		"xray-integration": {addons.KindFeature, license.TierEnterprise},
@@ -108,8 +112,8 @@ func TestT282AddonsServedOnRealStack(t *testing.T) {
 	if err := json.Unmarshal(body, &rows); err != nil {
 		t.Fatalf("addons body not a bare array: %v (%s)", err, body)
 	}
-	if len(rows) != 11 {
-		t.Fatalf("real-stack addons carries %d slots, want 11: %s", len(rows), body)
+	if len(rows) != 15 {
+		t.Fatalf("real-stack addons carries %d slots, want 15: %s", len(rows), body)
 	}
 	unlocked := map[string]bool{"generic": true, "docker": true, "maven": true, "npm": true, "pypi": true, "properties": true}
 	for _, row := range rows {

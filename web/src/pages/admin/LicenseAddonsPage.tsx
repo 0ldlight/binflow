@@ -1,6 +1,16 @@
 import { useState } from 'react'
 import type { ReactNode } from 'react'
 
+import Alert from '@mui/material/Alert'
+import Button from '@mui/material/Button'
+import Chip from '@mui/material/Chip'
+import Table from '@mui/material/Table'
+import TableBody from '@mui/material/TableBody'
+import TableCell from '@mui/material/TableCell'
+import TableHead from '@mui/material/TableHead'
+import TableRow from '@mui/material/TableRow'
+import TextField from '@mui/material/TextField'
+
 import { useAuth } from '../../app/AuthContext'
 import { useToast } from '../../app/ToastContext'
 import { useConfirm } from '../../components/ConfirmDialog'
@@ -19,6 +29,7 @@ import {
 } from '../../lib/addons'
 import type { AddonRow, LicenseStatus } from '../../lib/addons'
 import { useAsync } from '../../lib/useAsync'
+import { badgeChipSx, dangerBtnSx, denseInputSx } from '../../lib/muiAtoms'
 
 import './license.css'
 
@@ -164,9 +175,14 @@ function LicenseCard({ rev, onChanged }: { rev: number; onChanged: () => void })
           <div className="kv">
             <span className="k">当前档位</span>
             <span>
-              <span className={tierBadgeClass(state.data.tier)} data-testid="license-tier" lang="en">
-                {normalizeTier(state.data.tier)}
-              </span>
+              <Chip
+                size="small"
+                className={tierBadgeClass(state.data.tier)}
+                label={normalizeTier(state.data.tier)}
+                sx={badgeChipSx}
+                data-testid="license-tier"
+                lang="en"
+              />
               <span className="text-2" style={{ marginLeft: 8 }}>
                 {state.data.licensed ? '已授权' : '未安装 license'}
               </span>
@@ -213,49 +229,58 @@ function LicenseCard({ rev, onChanged }: { rev: number; onChanged: () => void })
             <div className="license-install-block">
               <div className="field" style={{ marginBottom: 0 }}>
                 <label htmlFor="license-doc">安装 license 文档</label>
-                <textarea
+                <TextField
                   id="license-doc"
-                  className="mono-input"
-                  rows={5}
+                  size="small"
+                  multiline
+                  minRows={5}
                   value={doc}
                   onChange={(e) => setDoc(e.target.value)}
                   placeholder="粘贴 license 文档全文（.lic）——验签失败会被原样拒绝，当前 license 不受影响"
-                  data-testid="license-doc-input"
-                  lang="en"
-                  spellCheck={false}
+                  sx={{ ...denseInputSx, width: '100%', maxWidth: 720 }}
+                  slotProps={{
+                    htmlInput: {
+                      'data-testid': 'license-doc-input',
+                      lang: 'en',
+                      className: 'mono-input',
+                      spellCheck: false,
+                    },
+                  }}
                 />
                 <p className="field-hint">
                   装载即刻生效（进程内原子切换，无撕裂）；GET 永不回显文档原文（NFR-S52）。
                 </p>
               </div>
               {installError && (
-                <div className="form-error" data-testid="license-install-error" role="alert">
+                <Alert severity="error" data-testid="license-install-error">
                   <div className="headline">装载被拒（HTTP {installError.status || '网络'}）</div>
                   <div className="raw" lang="en">
                     {installError.message}
                   </div>
-                </div>
+                </Alert>
               )}
               <div className="form-actions" style={{ marginTop: 12 }}>
-                <button
-                  type="button"
-                  className="btn primary"
+                <Button
+                  variant="contained"
+                  size="small"
                   disabled={doc.trim() === '' || busy}
                   data-testid="license-install"
                   onClick={() => void doInstall()}
                 >
                   {busy ? '处理中…' : '装载 license'}
-                </button>
+                </Button>
                 {state.data.licensed && (
-                  <button
-                    type="button"
-                    className="btn danger"
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    size="small"
+                    sx={dangerBtnSx}
                     disabled={busy}
                     data-testid="license-uninstall"
                     onClick={() => void doUninstall(state.data!)}
                   >
                     卸载 license
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>
@@ -271,28 +296,24 @@ function AddonTableRow({ row }: { row: AddonRow }) {
   const disabledCfg = isDisabledByConfig(row)
   const rowClass = row.enabled ? '' : disabledCfg ? 'is-disabled' : 'is-locked'
   return (
-    <tr className={rowClass} data-testid={`addons-row-${row.id}`}>
-      <td className="mono" lang="en">
+    <TableRow className={rowClass} data-testid={`addons-row-${row.id}`}>
+      <TableCell className="mono" lang="en">
         {row.id}
-      </td>
-      <td>{row.displayName}</td>
-      <td>
-        <span className="badge neutral mono" lang="en">
-          {row.kind}
-        </span>
-      </td>
-      <td data-testid={`addons-tier-${row.id}`}>
+      </TableCell>
+      <TableCell>{row.displayName}</TableCell>
+      <TableCell>
+        <Chip size="small" className="badge neutral mono" label={row.kind} sx={badgeChipSx} />
+      </TableCell>
+      <TableCell data-testid={`addons-tier-${row.id}`}>
         {tier === 'community' ? (
           <span className="text-2" title="community 地板：无 license 也解锁">
             —
           </span>
         ) : (
-          <span className={tierBadgeClass(tier)} lang="en">
-            {tier}
-          </span>
+          <Chip size="small" className={tierBadgeClass(tier)} label={tier} sx={badgeChipSx} />
         )}
-      </td>
-      <td data-testid={`addons-state-${row.id}`}>
+      </TableCell>
+      <TableCell data-testid={`addons-state-${row.id}`}>
         {row.enabled ? (
           <>
             <span className="status-dot ok" aria-hidden="true" />
@@ -300,7 +321,7 @@ function AddonTableRow({ row }: { row: AddonRow }) {
           </>
         ) : disabledCfg ? (
           <>
-            <span className="badge warning">⊘ 已禁用</span>
+            <Chip size="small" className="badge warning" label="⊘ 已禁用" sx={badgeChipSx} />
             <span className="text-2" style={{ marginLeft: 6 }} title={row.reason ?? ''}>
               配置熔断（addons.disabled）
             </span>
@@ -313,8 +334,8 @@ function AddonTableRow({ row }: { row: AddonRow }) {
             </span>
           </>
         )}
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   )
 }
 
@@ -366,22 +387,22 @@ export default function LicenseAddonsPage() {
         )}
         {addons.status === 'ok' && rows.length > 0 && (
           <>
-            <table className="table addons-table" data-testid="addons-table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>名称</th>
-                  <th>类型</th>
-                  <th>最低档位</th>
-                  <th>状态</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table className="table addons-table" data-testid="addons-table">
+              <TableHead>
+                <TableRow>
+                  <TableCell component="th" scope="col">ID</TableCell>
+                  <TableCell component="th" scope="col">名称</TableCell>
+                  <TableCell component="th" scope="col">类型</TableCell>
+                  <TableCell component="th" scope="col">最低档位</TableCell>
+                  <TableCell component="th" scope="col">状态</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
                 {rows.map((row) => (
                   <AddonTableRow key={row.id} row={row} />
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
             <p className="field-hint" style={{ marginBottom: 0 }}>
               Enabled 由 license 档位与 addons.disabled 配置决定，不可手动切换；锁定槽位在装对应档位
               license 后即刻解锁。

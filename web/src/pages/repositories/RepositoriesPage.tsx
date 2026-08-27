@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 
+import Button from '@mui/material/Button'
+import Table from '@mui/material/Table'
+import TableBody from '@mui/material/TableBody'
+import TableCell from '@mui/material/TableCell'
+import TableHead from '@mui/material/TableHead'
+import TableRow from '@mui/material/TableRow'
+import TextField from '@mui/material/TextField'
+
 import { useAuth } from '../../app/AuthContext'
 import { CopyButton } from '../../components/CopyButton'
 import DeployDialog from '../../components/DeployDialog'
@@ -11,6 +19,7 @@ import { Skeleton } from '../../components/Skeleton'
 import { ApiError } from '../../lib/api'
 import type { RepoListItem } from '../../lib/api'
 import { canAdminWrite, isReadOnlyAdmin } from '../../lib/api'
+import { denseInputSx, quietBtnSx } from '../../lib/muiAtoms'
 import { cfgStr, cfgStrList, getRepositoriesFiltered, getUsageBatch } from '../../lib/repos'
 import type { RepoUsageRow, RClass } from '../../lib/repos'
 import { formatBytes, formatCount } from '../../lib/format'
@@ -38,6 +47,14 @@ import { useRepoDelete } from './RepoDeleteConfirm'
 //   写入口（添加/删除）仅全量 admin（L4 预收敛，服务端 403 兜底）。
 // - 排序：key / 包类型前端列头排序（asc → desc → none 循环，§4.7）；
 //   已用列数据行级异步到达，不参与排序。
+//
+// T-299 批次一：表格/输入/按钮迁 MUI（Table 家族 / TextField / Button）。
+// 交互逻辑零变化：行 = TableRow 上的 onClick+onKeyDown+tabIndex（↑↓/Enter
+// 行导航共享件原样）；列头排序点击承载在 th 本体（aria-sort 三态锚不
+// 动）；member-pop 仍是原生 details/summary（零 JS 浮层）；锚点全部保持
+// 在与旧 DOM 同型的元素上（tr/th/input/button）。`.table` 类继续挂在 MUI
+// Table 根上——base.css 的表格密度（32px 行带/边框/hover）按特异性压过
+// MUI 默认，双主题观感与迁移前一致。
 
 const TYPE_LABEL: Record<string, string> = { local: 'Local', remote: 'Remote', virtual: 'Virtual' }
 const PKG_LABEL: Record<string, string> = {
@@ -47,6 +64,19 @@ const PKG_LABEL: Record<string, string> = {
   npm: 'npm',
   pypi: 'PyPI',
 }
+
+/** 行内小按钮（Set Me Up / 部署）：outline 主色（accent）在表格 hover 行
+ * surface-2 上 4.48:1（差 0.02 不过 axe 门——repositories.css 的 .row-link
+ * 同款坑），文字/边框显式走 text/border token，悬停底升 surface-3（同
+ * token 家族，全承载面 ≥4.5:1）。 */
+const rowBtnSx = {
+  color: 'var(--bf-text)',
+  borderColor: 'var(--bf-border)',
+  '&:hover': {
+    borderColor: 'var(--bf-border-strong)',
+    backgroundColor: 'var(--bf-surface-3)',
+  },
+} as const
 
 const TABS: { id: RClass; label: string }[] = [
   { id: 'local', label: 'Local' },
@@ -145,9 +175,12 @@ function UsageCell({ repoKey, rclass, usage }: { repoKey: string; rclass: string
   }
   if (usage.status === 'error') {
     return (
-      <button
+      <Button
         type="button"
-        className="usage-failed"
+        variant="text"
+        color="inherit"
+        size="small"
+        sx={quietBtnSx}
         data-testid={testid}
         title={`${usage.error?.message ?? '用量不可用'}（点击重试）`}
         aria-label={`仓库 ${repoKey} 用量加载失败，点击重试`}
@@ -158,7 +191,7 @@ function UsageCell({ repoKey, rclass, usage }: { repoKey: string; rclass: string
         }}
       >
         —
-      </button>
+      </Button>
     )
   }
   const row = usage.index?.get(repoKey)
@@ -215,7 +248,9 @@ function UpstreamCell({ repo }: { repo: RepoListItem }) {
   return <span className="text-muted">—</span>
 }
 
-/** 列头排序（§4.7 循环 none → asc → desc → none；T-237 表格基准同款） */
+/** 列头排序（§4.7 循环 none → asc → desc → none；T-237 表格基准同款）。
+ *  T-299：th 换 MUI TableCell（component="th"）——aria-sort/点击承载/
+ *  锚仍在 th 本体，内部键盘按钮保持原生（.th-sort 既有焦点环） */
 function SortTh({
   label,
   active,
@@ -232,11 +267,13 @@ function SortTh({
   return (
     // 点击承载在 th 上（热区 = 整格；内部 button 的 click 冒泡到 th，
     // 键盘 Enter/Space 仍经 button 触发——同一冒泡路径，不双发）
-    <th
+    <TableCell
+      component="th"
       scope="col"
       aria-sort={active ? (dir === 'asc' ? 'ascending' : 'descending') : 'none'}
       data-testid={testid}
       onClick={onToggle}
+      sx={{ whiteSpace: 'nowrap' }}
     >
       <button type="button" className="th-sort">
         {label}
@@ -244,7 +281,7 @@ function SortTh({
           {active ? (dir === 'asc' ? ' ▲' : ' ▼') : ''}
         </span>
       </button>
-    </th>
+    </TableCell>
   )
 }
 
@@ -302,9 +339,15 @@ export default function RepositoriesPage() {
             {state.status === 'ok' ? `${rows.length} 个仓库` : '…'}
           </span>
           {admin && (
-            <Link className="btn primary" to="/admin/repositories/new" data-testid="repos-create">
+            <Button
+              component={Link}
+              to="/admin/repositories/new"
+              variant="contained"
+              size="small"
+              data-testid="repos-create"
+            >
               ＋ 添加仓库
-            </Link>
+            </Button>
           )}
         </div>
       </div>
@@ -334,13 +377,16 @@ export default function RepositoriesPage() {
       </nav>
 
       <div className="filter-bar">
-        <input
+        <TextField
           type="search"
           placeholder={`搜索 ${TYPE_LABEL[tab]} 仓 key…`}
-          aria-label="搜索仓库 key"
           value={keyQuery}
           onChange={(e) => setKeyQuery(e.target.value)}
-          data-testid="repos-filter-key"
+          size="small"
+          sx={{ ...denseInputSx, width: 260 }}
+          slotProps={{
+            htmlInput: { 'data-testid': 'repos-filter-key', 'aria-label': '搜索仓库 key', className: 'mono' },
+          }}
         />
       </div>
 
@@ -358,15 +404,15 @@ export default function RepositoriesPage() {
             <EmptyState
               message={`无匹配的仓库（「${keyQuery}」）`}
               action={
-                <button
-                  type="button"
-                  className="btn"
+                <Button
+                  variant="outlined"
+                  size="small"
                   onClick={() => {
                     setKeyQuery('')
                   }}
                 >
                   清除过滤
-                </button>
+                </Button>
               }
               testid="repos-empty-filtered"
             />
@@ -374,9 +420,14 @@ export default function RepositoriesPage() {
             <EmptyState
               message={`还没有 ${TYPE_LABEL[tab]} 仓库`}
               action={
-                <Link className="btn primary" to={`/admin/repositories/new${tab !== 'local' ? `?rclass=${tab}` : ''}`}>
+                <Button
+                  component={Link}
+                  to={`/admin/repositories/new${tab !== 'local' ? `?rclass=${tab}` : ''}`}
+                  variant="contained"
+                  size="small"
+                >
                   创建第一个{TYPE_LABEL[tab]}仓库
-                </Link>
+                </Button>
               }
               hint={
                 tab === 'local'
@@ -391,31 +442,36 @@ export default function RepositoriesPage() {
           )
         ) : (
           <>
-            <table className="table" data-testid="repos-table">
-              <thead>
-                <tr>
+            <Table className="table" data-testid="repos-table" sx={{ '& .MuiTableCell-root': { fontSize: 'var(--bf-fs-body)' } }}>
+              <TableHead>
+                <TableRow>
                   <SortTh label="Repository Key" active={sortKey === 'key'} dir={sortDir} onToggle={() => toggleSort('key')} testid="repos-sort-key" />
                   <SortTh label="包类型" active={sortKey === 'package'} dir={sortDir} onToggle={() => toggleSort('package')} />
-                  <th scope="col">类型</th>
-                  <th scope="col">上游 / 成员</th>
-                  <th scope="col">已用</th>
-                  <th scope="col">描述</th>
-                  <th scope="col" className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>
+                  <TableCell component="th" scope="col">类型</TableCell>
+                  <TableCell component="th" scope="col">上游 / 成员</TableCell>
+                  <TableCell component="th" scope="col">已用</TableCell>
+                  <TableCell component="th" scope="col">描述</TableCell>
+                  <TableCell
+                    component="th"
+                    scope="col"
+                    className="text-2"
+                    sx={{ fontSize: 'var(--bf-fs-aux)' }}
+                  >
                     操作
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
+                  </TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
                 {sorted.map((repo) => (
-                  <tr
+                  <TableRow
                     key={repo.key}
                     data-testid={`repos-row-${repo.key}`}
-                    style={{ cursor: 'pointer' }}
+                    sx={{ cursor: 'pointer' }}
                     tabIndex={0}
                     onClick={() => navigate(`/admin/repositories/${repo.key}`)}
                     onKeyDown={(e) => onTableRowKeys(e, () => navigate(`/admin/repositories/${repo.key}`))}
                   >
-                    <td>
+                    <TableCell>
                       <Link
                         className="row-link mono"
                         to={`/admin/repositories/${repo.key}`}
@@ -428,68 +484,72 @@ export default function RepositoriesPage() {
                       <span onClick={(e) => e.stopPropagation()}>
                         <CopyButton value={repo.key} label={`仓库 key ${repo.key}`} />
                       </span>
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       <span className="badge neutral">{PKG_LABEL[repo.packageType] ?? repo.packageType}</span>
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       <span className="badge neutral">{TYPE_LABEL[repo.type] ?? repo.type}</span>
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       <UpstreamCell repo={repo} />
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       <UsageCell repoKey={repo.key} rclass={repo.type} usage={usage} />
-                    </td>
-                    <td className="wrap" style={{ maxWidth: 260, color: 'var(--bf-text-2)' }}>
+                    </TableCell>
+                    <TableCell className="wrap" sx={{ maxWidth: 260, color: 'var(--bf-text-2)' }}>
                       {repo.description || '—'}
-                    </td>
-                    <td onClick={(e) => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          className="btn"
-                          data-testid={`repos-setmeup-${repo.key}`}
-                          title={`Set Me Up：${repo.key} 的客户端接入向导`}
-                          onClick={() => setSmuKey(repo.key)}
+                    </TableCell>
+                    <TableCell onClick={(e) => e.stopPropagation()}>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        sx={rowBtnSx}
+                        data-testid={`repos-setmeup-${repo.key}`}
+                        title={`Set Me Up：${repo.key} 的客户端接入向导`}
+                        onClick={() => setSmuKey(repo.key)}
+                      >
+                        Set Me Up
+                      </Button>{' '}
+                      {repo.type === 'local' && (repo.packageType === 'generic' || repo.packageType === 'maven') && (
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          sx={rowBtnSx}
+                          data-testid={`repos-deploy-${repo.key}`}
+                          disabled={readOnly}
+                          title={
+                            readOnly
+                              ? '只读管理员不可写（服务端 403 兜底）'
+                              : `部署到 ${repo.key}（浏览器上传）`
+                          }
+                          onClick={() => setDeployKey(repo.key)}
                         >
-                          Set Me Up
-                        </button>{' '}
-                        {repo.type === 'local' && (repo.packageType === 'generic' || repo.packageType === 'maven') && (
-                          <button
-                            type="button"
-                            className="btn"
-                            data-testid={`repos-deploy-${repo.key}`}
-                            disabled={readOnly}
-                            title={
-                              readOnly
-                                ? '只读管理员不可写（服务端 403 兜底）'
-                                : `部署到 ${repo.key}（浏览器上传）`
-                            }
-                            onClick={() => setDeployKey(repo.key)}
-                          >
-                            部署
-                          </button>
-                        )}{' '}
-                        {admin && (
-                          <button
-                            type="button"
-                            className="row-del"
-                            data-testid={`repos-delete-${repo.key}`}
-                            aria-label={`删除仓库 ${repo.key}`}
-                            title={`删除仓库 ${repo.key}`}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              requestDelete({ key: repo.key, rclass: repo.type, packageType: repo.packageType })
-                            }}
-                          >
-                            删除
-                          </button>
-                        )}
-                      </td>
-                  </tr>
+                          部署
+                        </Button>
+                      )}{' '}
+                      {admin && (
+                        <Button
+                          variant="text"
+                          color="inherit"
+                          size="small"
+                          sx={quietBtnSx}
+                          data-testid={`repos-delete-${repo.key}`}
+                          aria-label={`删除仓库 ${repo.key}`}
+                          title={`删除仓库 ${repo.key}`}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            requestDelete({ key: repo.key, rclass: repo.type, packageType: repo.packageType })
+                          }}
+                        >
+                          删除
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
             <p className="table-foot" data-testid="repos-pager">
               显示 {sorted.length === 0 ? 0 : 1} – {sorted.length} / 共 {sorted.length} 项
               {q !== '' && `（按「${keyQuery}」过滤）`}

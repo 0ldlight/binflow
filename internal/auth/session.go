@@ -203,18 +203,20 @@ func (s *Service) AuthenticateCredentials(ctx context.Context, username, passwor
 	}
 
 	// LDAP fallback: only when the provider is wired and the basic auth failed
-	// (which includes LDAP users with empty password_hash).
-	if s.ldapProvider != nil {
-		ldapProv, ok := s.ldapProvider.(interface {
+	// (which includes LDAP users with empty password_hash). The provider
+	// resolves per request (T-305: a config PUT swapping the directory takes
+	// effect on the very next login, no restart).
+	if lp := s.currentLDAP(); lp != nil {
+		bindFn, ok := lp.(interface {
 			Bind(ctx context.Context, username, password string) (*Claims, error)
 		})
 		if ok {
-			lp, lerr := s.authenticateLDAP(ctx, ldapProv, username, password)
+			pr, lerr := s.authenticateLDAP(ctx, lp, bindFn, username, password)
 			if lerr != nil {
 				return nil, s.classifyLoginFailure(ctx, username, lerr)
 			}
-			s.fillGroups(ctx, lp)
-			return lp, nil
+			s.fillGroups(ctx, pr)
+			return pr, nil
 		}
 	}
 

@@ -86,9 +86,20 @@ for (const f of srcFiles) {
     addSrc(toFamily(m[1]), rel)
   }
   // 对象键条件展开形态（widgets：{ 'data-testid': `user-status-${name}` }——
-  // T-267 盲区修复：三元双臂以对象键铺开时前两条正则均不可见）
-  for (const m of text.matchAll(/['"]data-testid['"]\s*:\s*`([^`\n]+)`/g)) {
-    addSrc(toFamily(m[1]), rel)
+  // T-267 盲区修复：三元双臂以对象键铺开时前两条正则均不可见）。
+  // T-299 补形：值类从仅反引号模板扩至引号字面量——MUI 迁移后锚经
+  // slotProps 对象下沉到 input/select 本体（{ htmlInput: { 'data-testid':
+  // 'login-username' } }），字面量形态成为主流落点（工具局限史同款教训：
+  // 判定域外的锚会让「册有 src 无」假阳性）。
+  for (const m of text.matchAll(/['"]data-testid['"]\s*:\s*(['"`])([^'"`\n]+)\1/g)) {
+    addSrc(toFamily(m[2]), rel)
+  }
+  // T-307 补形：字段册属性形态（authconfig/sections.ts 的 anchor: 'name' ——
+  // 数据驱动表单的锚以对象属性字面量落点，渲染位 data-testid={field.anchor}
+  // 经变量透传，前三条正则均不可见；setAnchor 同理（secret「已设置」提示行
+  // 的独立锚）。'anchor' 键全库仅该文件使用（grep 自证）——域外零外溢。
+  for (const m of text.matchAll(/\b(?:anchor|setAnchor)\s*:\s*(['"`])([^'"`\n]+)\1/g)) {
+    addSrc(toFamily(m[2]), rel)
   }
 }
 // widgets.PermSummaryTable 的 ${rowTestidPrefix} 动态前缀：调用方实参

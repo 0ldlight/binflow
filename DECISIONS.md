@@ -71,6 +71,10 @@
 	  - `github.com/coreos/go-oidc/v3`（纯 Go OIDC 客户端，ADR-0020 选型）
 	  - `github.com/go-ldap/ldap/v3`（纯 Go LDAP 客户端，ADR-0020 选型）
 	  - 新依赖白名单完整列表：`modernc.org/sqlite`、`go.yaml.in/yaml/v3`、`golang.org/x/crypto`、`minio-go/v7`、`go-oidc/v3`、`go-ldap/ldap/v3`
+	- **M11 准入（T-301，2026-08-26）**：以下依赖由 ADR-0038 批准，`go get` 解析 + `CGO_ENABLED=0` 三平台（darwin/arm64、linux/amd64、windows/amd64）构建验证通过（goproxy.cn 镜像，2026-08-26 实测）：
+	  - `github.com/ProtonMail/go-crypto`（纯 Go OpenPGP 实现，ADR-0038 选型；`golang.org/x/crypto/openpgp` 已弃用〔Go proposal #44226〕的活跃继任）
+	  - 随行传递依赖一并准入：`github.com/cloudflare/circl`（纯 Go，Ed448/X448/Curve25519 互操作）；`golang.org/x/crypto`、`golang.org/x/sys` 已在树
+	  - 白名单现行全集（截至 M11 规划期）：`modernc.org/sqlite`、`go.yaml.in/yaml/v3`、`golang.org/x/crypto`、`minio-go/v7`、`go-oidc/v3`、`go-ldap/ldap/v3`、`ProtonMail/go-crypto`（+ circl）
 - 理由: 6 平台矩阵下无 CGo 是硬收益；BinFlow 元数据负载是小事务 OLTP 而非分析查询，modernc 的写性能折损可接受；YAML 选官方继任 fork 迁移成本最低且持续收安全修复；M1 路由需求是「前缀挂载 + 少量 REST 模式」，1.22+ ServeMux 足够，少一个依赖就少一分供应链风险。
 - 后果: 所有构建环境无 C 工具链要求；受限网络下需配置 `GOPROXY` 镜像（验证时 goproxy.cn 可用、proxy.golang.org 超时——devops-engineer 需在 CI 与文档中体现）；若 M3 npm/Maven 出现 ServeMux 表达不了的匹配需求，再评估引入路由库（届时新 ADR）；性能基准（M5）若显示 SQLite 写瓶颈再评估驱动替换。
 
@@ -733,3 +737,80 @@
   2. 全部新协议的对外绝对 URL（config.json 的 dl/api、upload/download_urls、index urls〔absolute 模式〕、Location 类响应头）统一取 `server.base_url`，空值回退请求推导（TL-1 定案）；不新增配置项、不各协议自造。 Helm `api/helm` 别名（HL-1）是**内容面**别名，走 `apiProtocolMounts` 加 "helm"——与第 1 条的管理面不冲突，两者是不同清单、不同语义。
 - 理由: 两个定案都是「同一 codebase 一种习惯」的执行——npm/nuget/docker 先例已把 `Options.BaseURL` 注入和 dispatchAPI 族各自的正确用途演示在案，本 ADR 只是把先例升格为对新协议的强制契约，消灭逐票重裁；管理/内容两清单的语义分界借此钉死（管理 = handler + CanManageRepo，内容 = 重写 + adapter 分发），后续 review 有单点可引。
 - 后果: M11 五协议拆票（T-294 Cargo local 起算）的 AC 直接引用本 ADR 两条；`apiProtocolMounts` 的扩容仍需各自协议票（封闭清单纪律不变）；helm.md §1.1/§7.3、cargo.md §3.1/§8 的规格建议修订已随 T-293 合入；`server.base_url` 成为多协议共用契约键，改其语义（如强制非空）需回本 ADR 评估。
+
+## ADR-0035: 认证配置管理面——DB 配置描述符、license 式原子快照变更即生效、双源优先级（K31 终裁）、脱敏与测试连接边界
+
+- 状态: Accepted（2026-08-26，M11 规划期 T-301 交付；REST 路径字面量/信封字段拼写/三协议字段集**以 T-302 复核版 auth-integration.md 锚点为唯一基准**——本 ADR 定机制不定字段枚举，见「行为对齐条款」）
+- 日期: 2026-08-26
+- 背景: 用户指令 2026-08-26 11:35（认证配置前端化）→ FR-92：OAuth2(OIDC)/LDAP/SAML 三协议配置段 REST 读/写 + 测试连接 + **变更即生效**（写成功后 ≤1s 下一次认证走新配置，不重启）+ 控制台页组。现状（internal/config/api.go + internal/auth）：三协议配置是 binflow.yaml 静态段（`auth.oidc`/`auth.ldap`，ADR-0020），装配期一次性注入 `OIDCProvider`/`LDAPProvider`——oidc.go 明示「All fields are populated at construction time and remain immutable afterward」，改配置 = 改文件 + 重启；SAML 无配置面（auth-integration §3 低置信区，复核票补齐）。敏感字段（client_secret/bind_password）env-only、YAML 中出现即拒收（rejectSecrets）。约束：五臂（Basic / api-key / Bearer+OIDC / 裸 token / cookie）行为零变化（92.5，M6/M7 回归硬门槛）；19:05 行为对齐条款；Artifactory 侧行为基准 = 配置描述符中心（config-formats §2 高置信：7.x 配置存 DB 的 `configs` 表而非 config.xml，UI/REST 写入权威）+ `GET/POST /api/system/configuration` 段族（LC-13，A 级）；BinFlow 已有运行时可变状态的管理先例 = license Manager（ADR-0032：DB 单行描述符 + 验后替换 + atomic.Pointer 快照）。
+- 候选方案:
+  - 配置承载: A) 维持 YAML 静态段 + 文件热重载（fsnotify 监听）；B) **DB 配置描述符权威 + 文件段首启种子**（Artifactory config descriptor 行为模式）；C) 双源分字段合并（文件管连接参数、DB 管凭据之类）。
+  - 生效机制: A) 每次认证现读 DB（无缓存）；B) **license Manager 同款原子快照**——写路径验后（strict 校验 + OIDC discovery 探测）→ 落库 → 重建 provider → atomic.Pointer 换帧，读路径无锁取帧；C) 重启/SIGHUP 重载。
+  - 测试连接: A) 专用裸 dialer（探测是 admin 配置的、非用户输入——但配置面经 REST 可达后即为攻击者可达面）；B) **复用 M3 SSRF Guard 机器 + ADR-0025 决策 4 私网姿态**；C) 新增独立豁免配置键族。
+- 决策: **承载 B + 生效 B + 测试 B**。要点七条：
+  1. **REST 挂载（K30）**：认证配置管理面走 `dispatchAPI` 显式路由族（ADR-0034 先例——管理面 = handler + routeAuth，**非** apiProtocolMounts），全部位于 `/binflow/api/` 下；门 = GET 族 `CapSecurityRead`（readonly_admin 可见，92.4 只读态）、写族与测试连接 `CapSecurityWrite`；错误体 errors[] 信封。**路径字面量、段名拼写、信封形态以 T-302 复核票锚点为准**（LC-13 A 级面：Artifactory `GET/POST /api/system/configuration` 的 ldapSettings/oauthSettings/samlSettings 段族 + Access 配置面）；T-305 开工暂行形态 = 每协议段独立读/写端点 + 测试连接端点（BinFlow C 级面，机制条款不变）——若 T-302 锚定 Artifactory 整文档面（单端点全描述符读/写），A 级面以 additive 端点补齐、不改本 ADR 机制。启停 = 段内 enabled 字段走同一写路径（立即生效）；不设独立开关端点，锚点另示则从锚点。
+  2. **DB 模型**：migration 015（双方言）新表 **`auth_configs(section TEXT PRIMARY KEY, doc TEXT NOT NULL, updated_at TEXT NOT NULL, updated_by TEXT NOT NULL)`**；section 闭集 = 三协议段（BinFlow 内部名 `ldap`/`oidc`/`saml`，wire 段名随 T-302 锚点映射）；doc = 该段 JSON 文本，**写路径 strict schema 校验**（未知键拒收，与 config 包 decodeRaw 同姿态；校验器由 T-302 字段表生成）。整段原子替换（PutLicense 同语义）——不做字段级 merge。
+  3. **变更即生效 = license Manager 原子快照模式复用**。可复用论证——license Manager 三要素与本场景逐点对应：①运行时状态 = 无锁读 immutable snapshot（`State` ↔ 重建后的 provider 组）；②写路径 = 验后替换（Install 先 VerifyDocument 再 PutLicense + 换帧 ↔ 配置写先 strict 校验 + OIDC discovery 探测成功才落库 + 重建 + 换帧，失败 400 且**现配置继续生效**——D7 同构）；③持久化 = 单行描述符 + 启动 Load 回放（boot 从 auth_configs 重建快照）。auth 侧新增 ConfigManager（暂名，归 T-305）：认证臂逐请求取当前快照（不缓存于长生命周期对象）；OIDC 登录流在单请求生命周期内持旧帧完成（跨帧切换语义 = 下一次请求走新帧，文档化）；LDAP provider 构造无网络副作用、重建即时。换帧后下一次认证即新配置——≤1s 门槛由「无重启、无 ticker」结构性满足。**五臂不变量**：本配置面只改配置来源与 provider 生命周期，臂序/判定/错误语义零变化。
+  4. **双源优先级（K31，Q4 暂行转正）**：①DB 段行存在 → **DB 权威**，binflow.yaml 同段（含对应 env secret）被覆盖 → 每次启动 WARN（点名段名 + REST 迁移路径），不 fail-fast（升级实例不应被遗留段卡死）；②DB 段行不存在 + 文件段已配置（enabled 或任一非默认键）→ **首启种子**：落库（secret 从 env 取值加密入库）、INFO 日志，此后该段归 DB；③段粒度权威，无字段级合并；④种子后的段禁用/修改只能走 REST——删文件段不影响 DB 段（文件段已被覆盖就不再有运行期语义）；⑤**边界条款**：非 IdP 的 auth.* 键（argon2 参数、token TTL 族、step-up 族、hash_concurrency）维持文件/env 承载，不入 DB 描述符——运行时可变面收敛于三协议段，段边界以 T-302 复核为准。ADR-0020 机制本体（provider/臂/登录流）不推翻，其「配置面新增 auth.oidc/auth.ldap 段」的承载语义由本条升级为兼容窗种子。
+  5. **敏感字段纪律**：client_secret / LDAP manager（bind）password / SAML 私钥材料——DB 内一律 `enc:v1:`（AES-256-GCM，ADR-0012 决策 4 的机器与密钥**复用**：`BINFLOW_REMOTE_CREDENTIALS_KEY`——replication 先例〔cmd replicationCipher〕，该 env 文档语义升格为「实例级静态 secret 主密钥」，名字历史沿用）。POSTURE 同 remote creds：无主密钥 + 无含 secret 段行 → 正常启动；无主密钥 + 写入含 secret 配置 → 写路径拒绝；存量段行含 secret 而无主密钥 → 启动 fail-fast。**回显脱敏**：GET 对敏感字段回**固定脱敏哨兵**（形态随 T-302——Artifactory 回显形态优先）；PUT 语义 = 字段缺省或回传哨兵原值 → 保持不变，新明文 → 替换（write-only 模式，AC2「明文 grep 零命中」由此成立）；明文不落日志、不进审计——`auth.config.update` detail = actor/段名/变更键摘要，值恒 redact（92.6/AC7）。
+  6. **测试连接边界（K32）**：测试连接端点对候选配置（body 携带或已存段）执行一次出站探测——LDAP：manager bind + searchFilter 试搜；OIDC：discovery fetch；SAML：metadata URL fetch。**零新 SSRF 面**（NFR-S60）：探测 client 复用 M3 Guard 机器（scheme 白名单按协议〔ldap(s)/http(s)〕、blockedRanges 分类清单、连接期 Control 钩子重检 + DNS rebinding pinning、缓冲型响应 64MB 上限〔ADR-0012 勘误二 ③ 同款〕、短超时），私网姿态沿 ADR-0025 决策 4——**默认放行**（IdP/目录的现实位置就是内网；Teredo/畸形地址等非私网类别仍拒），**不新增豁免配置键**。错误文案可诊断（阶段 + 类别词）不含凭据、不回显目标 URL 的 userinfo；测试动作记审计 `auth.config.test`（actor/段名/结果类别）。
+  7. **SAML 边界（Q3 维持）**：配置面字段集照 T-302 锚定的 samlSettings 落地（含证书材料），测试连接 = metadata 拉取校验；SP 断言消费登录运行时不在 FR-92 DoD——字段持久化、可校验、可审计，运行时消费位留缝（复核票若证 Artifactory SAML 行为可低成本对齐且用户要求，进 M11 须置换）。
+- 理由: 承载 B 是 Artifactory 行为模式（描述符中心、UI/REST 写入权威）与 BinFlow 已验证机制（licenses 单行描述符）的交集；A 的文件热重载引入 fsnotify 依赖与「谁改了文件、何时生效」的第二事实源——恰是本 FR 要消灭的 SSH 改 YAML 心智；C 的分字段合并使两源都半权威，排障不可判定，被 ③ 段粒度规则替代。生效 B 把「变更即生效」从轮询/重载问题化为单指针换帧问题，license Manager 的验后替换吸收了 OIDC discovery 的网络副作用（探测失败 = 写失败，绝不半切换）；五臂只换配置来源使 M6/M7 回归面收敛为零。测试 B 是 NFR-S60 的字面执行：复用已审计的 Guard 机器零新面，私网默认放行镜像 replication 的现实姿态判定（两者目标拓扑同构：均为运维显式配置的内网端点）。
+- 后果: migration 015 auth_configs（双方言，两方言同步义务沿 ADR-0007）；internal/auth 增 ConfigManager + 认证臂快照消费缝、metadata 增 auth_configs sub-store、httpapi security 族增三段读/写 + 测试连接路由（dispatchAPI 族，T-305 area：internal/auth + httpapi + metadata）；config 包 `auth.oidc`/`auth.ldap` 段进入兼容窗（K31 规则②③）；审计词 `auth.config.update`/`auth.config.test` 入 audit.Actions picker；`BINFLOW_REMOTE_CREDENTIALS_KEY` 文档升格实例级主密钥（tech-writer 同步，T-328）；启动日志增「认证配置来源（DB/文件种子）」一行（§6.4）；控制台页组（T-307）消费本面（admin 可写、readonly_admin 只读、敏感框 write-only）；M6 H 序列抽样 + M7 RBAC 矩阵零回归 = DoD 硬门槛（AC6）。**行为对齐条款**：字段枚举、段名拼写、脱敏哨兵形态、REST 路径字面量以 T-302 复核版锚点为唯一基准（效力序：用户裁决 > 复核版规格 > 本 ADR > PRD 暂行值）；机制条款（表模型/快照/双源规则/SSRF 边界/加密链）不随锚点翻转。
+- clean-room 边界: 设计依据 = docs/reverse/auth-integration.md（§1 LdapSetting/SearchPattern/LdapGroupSetting 字段与两种认证模式、§2 OAuth addon 形态、§5 密码加密线索）+ T-302 复核增补的 Artifactory 行为出处；实现不引用反编译类结构（三段 Go 形态由复核票字段表生成，不逐字段翻译 Java 访问器栈）；密码/secret 存储加密对齐「存在主密钥加密机制」的行为事实（§5 低置信 → 复核确认），算法与格式自有（enc:v1 链）。
+
+## ADR-0036: 独立存储配置文件 binstore.yaml——链式 provider 表达、并存三分支与 fail-fast（K33/Q5 终裁）
+
+- 状态: Accepted（2026-08-26，M11 规划期 T-301 交付；链式 provider 语义与模板体系的行为出处以 T-303 复核版 config-formats.md §1 锚点为准——分歧按 19:05 上 BOARD，见「模板条款」）
+- 日期: 2026-08-26
+- 背景: 用户指令 2026-08-26 11:45（存储配置独立文件化）→ FR-93：对齐 Artifactory `$JFROG_HOME/var/etc/artifactory/binarystore.xml` 行为模式——存储链与主配置解耦，一份文件表达 filestore / S3 / dual-write 迁移链（远期 cache-fs、Azure/GS 留扩展位）。现状（internal/config/api.go StorageConfig）：`backend` 枚举 disk|s3 + `storage.s3` 段 + `storage.migration` 段（Enabled/Completed 二布尔编码 M6 三模式 bypass/dual-write/completed；storage/migration.go 证实迁移状态是**运维声明**——引擎从不回写配置文件，StartMigration 幂等重扫）；凭据纪律：secret_access_key env-only、YAML 出现即拒收（rejectSecrets 递归 storage.s3）。约束：存量 binflow.yaml 内嵌段实例零破坏（AC4 第一臂）；storage REST / 迁移端点 / 备份恢复行为零变化（93.6——迁移端点本就不写配置文件）；部署矩阵三形态同步 + CD 链数据目录零触碰（93.5，T-325）；格式自由（YAML——clean-room 只对齐行为：独立文件、链式多方案、provider 语义，PRD 93.1）；坏文件拒启须指明文件与行号（AC4）。
+- 候选方案:
+  - 文件定位: A) 固定 `$BINFLOW_HOME/binstore.yaml`（home 相对，忽略 -c）；B) **与已解析生效的主配置文件同目录的 `binstore.yaml`**；C) 独立 `-binstore` flag / env 指定路径。
+  - schema 形态: A) 扁平键平移（backend/s3/migration 三段原样搬入新文件）；B) **有序 provider 链 + 链级 migration 模式**（链为一等公民）；C) Artifactory 模板速记体系全量对齐（`<chain template="...">` 的预设展开语义）。
+  - 并存处置: A) 独立文件权威 + 内嵌段静默忽略（仅 WARN 不分情形）；B) **等价 WARN / 语义分歧 fail-fast 三分支**；C) 并存即 fail-fast（不分等价与否）。
+- 决策: **定位 B + schema B + 并存 B**。要点七条：
+  1. **文件与解析（K33）**：文件名 `binstore.yaml`，位置 = **与已解析生效的主配置文件同目录**（跟随 serve 的 -c 解析序：`./binflow.yaml` → `$BINFLOW_HOME/binflow.yaml`；默认形态下两者同一目录，即 `$BINFLOW_HOME/binstore.yaml`——对齐 binarystore.xml「与实例配置同处」的行为）；不新增 flag/env。文件**缺席 = 零行为变化**（内嵌段照旧，存量实例升级零感知）。
+  2. **schema 骨架（canonical 形态 = 显式链）**：
+     ```yaml
+     version: 1
+     chain:                      # 有序 provider 链，声明序即链序
+       - type: filestore         # 本地盘 provider（M11 无参数；dir 覆盖键为扩展位不实现）
+       - type: s3                # 参数 = 现有 storage.s3 键族平移（bucket/region/endpoint/
+         ...                     #   access_key_id/use_path_style/upload_part_size/upload_concurrency/
+                                 #   bucket_prefix；精确键名归 T-306 对照 T-303）
+     migration:                  # 仅当 chain = [filestore, s3] 时合法且必填
+       mode: dual-write          # 闭集 bypass | dual-write | completed（M6 三模式的一等拼写）
+       concurrency: 5
+     ```
+     type 闭集 = `filestore` | `s3`；**保留名** `cache-fs`/`azure`/`gs`——出现即拒启动、文案点名「保留位未实现」（诚实拒绝：不静默忽略、不假装支持）。链形校验：filestore/s3 各至多一次；M11 合法链形 = `[filestore]` / `[s3]` / `[filestore, s3]`（其余序与重复拒启）；`migration` 块仅双员链合法且必填（无迁移意图的 filestore+s3 并存是 cache-fs 语义，未实现故不存在该形态）。
+  3. **三链映射（AC2/AC3）**：`[filestore]` ≡ 现状 backend=disk；`[s3]` ≡ backend=s3（S3-only，含迁移完成后的终态等价形态）；`[filestore, s3] + mode`：`bypass` ≡ 仅 disk 生效、S3 参数前置声明（预配置位）；`dual-write` ≡ migration.enabled（双写 + 读 S3 先磁盘兜底 + 后台拷贝——M6 H 序列口径复跑）；`completed` ≡ enabled+completed（S3 单写）。**API 面不动（93.6）**：`/api/v1/storage/migration/start|status` 行为零变化；配置文件所有权维持运维声明模型（系统不改写 binstore.yaml，同 binarystore.xml 由运维/部署工具编辑的行为面）。
+  4. **凭据纪律维持（93.4，NFR-S58）**：binstore.yaml **不接受任何明文 secret 键**——rejectSecrets 扫描对 binstore.yaml 全文件生效（含 s3 provider 子树），出现 `secret_access_key` 或 secret 形键 → 拒启动，错误指明文件 + 行 + env 逃生口（`BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY` 恒注入生效链的 S3 provider）；文件权限宽于 0600 → 启动 WARN（非拒启——文件内本无 secret，0600 为部署文档建议）。
+  5. **并存与冲突（K33/Q5 暂行转正——三分支）**：以「链键」= 内嵌 `backend`/`s3`/`migration` 三组键（binstore.yaml 所能表达的全部内容；data_dir/session_ttl/gc_* 恒以 binflow.yaml 为准、不参与并存规则）为判定对象：①**无 binstore.yaml + 链键显式设置** → 照常起 + 每启 WARN（迁移提示——兼容窗，AC4 第一臂）；②**binstore.yaml 在 + 内嵌链键缺席或全默认** → 干净形态、无 WARN；③**binstore.yaml 在 + 内嵌链键语义等价**（归一化到决策 3 三链映射后链形与参数一致，非文本比较）→ 文件生效 + WARN（迁移提示）；**语义分歧**（会装配出不同链）→ **fail-fast 拒启动**，错误指明两处来源文件与分歧键。「独立文件优先」只吞并等价遗留、不吞并分歧——分歧 = 运维改错文件或双手编辑，静默择一会让实例在非预期后端上启动（数据可见性事故，场景 B 的反面）。
+  6. **env 覆盖语义**：binstore.yaml 生效时，链相关 env 覆盖键（`BINFLOW_STORAGE__BACKEND` 及 storage.s3.*/migration.* 族）**忽略 + WARN**（部署管道遗留值不阻塞升级——三分支同理对升级温和）；secret env 恒生效。
+  7. **坏文件 fail-fast 指位（AC4）**：YAML 语法错 / 未知键 / 未知或保留 type / 非法链形 / migration 块误配 / 明文 secret → 一律拒启动；错误信息含 binstore.yaml 绝对路径 + 行号（strict decode 的 yaml.Node 定位，decodeRaw 同机制）+ 违规键名。启动成功打一行「存储链形态」INFO（provider 链摘要、凭据 redact，§6.4）；加载失败腿 WARN + 审计 `storage.config.load`。
+  - **模板条款（template 速记不进 M11）**：canonical 显式链已覆盖三链全部表达力，模板层在恰有三种链的阶段是零收益词汇；Artifactory 模板体系（模板展开的隐含 provider/默认参数/组合规则）行为等价性以 T-303 复核结论为准——若模板语义存在可观测差异，按 19:05 上 BOARD 裁决后再以 additive 速记层补齐（不推翻本 ADR 的 canonical 形态）。
+- 理由: 定位 B 让 -c 显式部署与默认部署同一心智（「binstore.yaml 就在 binflow.yaml 旁边」），C 为尚不存在的多文件部署形态加旋钮；schema B 把「链」表达为一等公民——dual-write 本就是链语义而非单选枚举，扁平平移（A）表达不出扩展位、全量模板（C）在三种链阶段为想象买单（PRD 93.2 已预留按需裁剪 + 分歧上 BOARD）；并存 B 把 Q5 暂行的两句（优先+WARN / 冲突 fail-fast）精确化为可断言三分支——等价/分歧分界使兼容窗温和（遗留段不卡升级）且安全（真分歧不静默择路），C 的无条件 fail-fast 会把「搬完文件忘删旧段」的等价遗留全部变成升级阻塞。
+- 后果: internal/config 增 binstore 加载器（strict decode + 链形校验 + 三分支并存裁决 + secret 扫描）、cmd 装配改为消费归一化链形（T-306 area：internal/config + storage 装配）；deploy/charts 三形态存储配置示例同步 + CD 链 VM 切换验证（T-325，数据目录零触碰）；L08~L10 断言锚（三链 roundtrip / 双写降级 / 三分支并存 + 坏文件拒启）；M6 S3/迁移 + M1 存储 + M10 MPU/smart-remote 回归零变化（AC6）；存量实例升级路径 = 什么都不做（分支①）或建等价 binstore.yaml（分支③）。
+- clean-room 边界: 行为依据 = docs/reverse/config-formats.md §1（文件位置/chain 模板/provider 可配置点，高置信）+ T-303 复核增补出处；**格式自有**（YAML 载体，PRD 93.1 明示 clean-room 只对齐行为）——不复制 binarystore.xml 的 XML 载体与模板展开器结构；provider 语义以复核票锚点校准（模板条款即为此预留的分歧门）。
+
+<!-- ADR-0037 编号预留给复制硬化域（FR-101 / K37：contentSynchronisation 子字段集与 replica 隔离终裁执行——触点 T-317，票内落笔），本文档跳过该号不预写。 -->
+
+## ADR-0038: GPG keypair 体系——CRUD/密封存储、repoKey 关联、openpgp 库选型 ProtonMail/go-crypto（K36）
+
+- 状态: Accepted（2026-08-26，M11 规划期 T-301 交付，Q6 用户已裁进 M11；CRUD wire 字面量与 Artifactory 行为出处以 T-319 票内 mini 规格锚点为准——本 ADR 定机制与选型不定端点字面量）
+- 日期: 2026-08-26
+- 背景: FR-97/FR-98 签名腿（debian Release/InRelease、rpm repomd.asc）的前置 K-1（BOARD B10 T-319：票内先补 mini 规格）。需求：GPG keypair 生成/导入/查询/删除、口令保护私钥、按 repoKey 关联（debian/rpm 共用池；helm 不含——HL-4 已裁 `.prov` 走普通文件存储不经 keypair）。约束：ADR-0005 零 CGo 硬门（Makefile 全构建 `CGO_ENABLED=0` + cgo_deps 审计门；六平台 goreleaser；e2e/CD 链纯 Go 构建）；`golang.org/x/crypto/openpgp` **已弃用**（Go proposal #44226，2021 冻结——官方文档自述「unmaintained except for security fixes; unsafe by design」，缺 Ed25519/ECC、v5/v6、AEAD 等现代能力）；实例静态 secret 纪律已有先例（`enc:v1:` AES-256-GCM 链，remote〔ADR-0012 决策 4〕与 replication 共用 `BINFLOW_REMOTE_CREDENTIALS_KEY`）。
+- 候选方案:
+  - openpgp 库: A) `github.com/ProtonMail/go-crypto`（x/crypto/openpgp 的活跃继任 fork，API 兼容、import 直换）；B) `github.com/keybase/go-crypto`（早期流行 fork）；C) 维持 `golang.org/x/crypto/openpgp`（x/crypto 已在 go.mod，零新依赖）；D) 自实现 OpenPGP 消息子集（Clearsign/detach armor + RSA 签名）。
+  - 私钥存储: A) 明文列、仅依赖 keypair 自带口令 S2K；B) **enc:v1 整封**（armored 私钥块与口令两列均以实例主密钥 AES-256-GCM 密封）；C) 口令不存、签名时运维重输（无人值守运行时，不可行）。
+  - repoKey 关联: A) keypair 行内嵌 repoKey 列表（keypair 拥有仓）；B) **repo 配置正向引用 keypair id**（仓声明签名意图）。
+- 决策: **库 A + 存储 B + 关联 B**。要点六条：
+  1. **选型 = `github.com/ProtonMail/go-crypto`（现行 v1.4.1，2026-03-18 发布），准入 ADR-0005 白名单（M11 准入段）**。验证证据（2026-08-26 实测，goproxy.cn 镜像——proxy.golang.org 在本环境超时，ADR-0005 既知）：`go get`/`go list -m` 解析 v1.4.1 OK；`CGO_ENABLED=0` 构建全过（darwin/arm64、linux/amd64、windows/amd64 三平台 trivial-import 探针）；传递依赖 = `github.com/cloudflare/circl` v1.6.2（纯 Go，Ed448/X448/Curve25519 互操作）+ `golang.org/x/crypto`/`x/sys`（已在树）——净新增两模块。淘汰理由：**keybase/go-crypto** `@latest` = 伪版本 **2020-01-23**、六年余零 tag 零演进（生态迁出求证在案：terraform-provider-aws#27214、go-git、Helm 迁移轨迹均指向 ProtonMail fork）；**x/crypto/openpgp** 官方弃用标记 + 现代算法缺口（本库需处理的导入件可能含 Ed25519/ECC 密钥）；**D 自实现** OpenPGP 消息格式（S2K/压缩/armor/canonical text mode）的正确性面远超收益，安全件不自写。
+  2. **存储模型**：新表 **`gpg_keypairs(keypair_id TEXT PRIMARY KEY, public_key TEXT NOT NULL, private_key_enc TEXT NOT NULL, passphrase_enc TEXT NOT NULL, algorithm TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, updated_by TEXT NOT NULL)`**（migration 015+，与 auth_configs 各自编号、先到先得，归实现票；双方言）。public_key = armored 公钥明文（公开物）；private_key_enc = **导入/生成原样的 armored 私钥块**（内部口令 S2K 保护保留）再整封 `enc:v1:`；passphrase_enc = 口令 `enc:v1:`。双列皆封的理由：S2K 口令不是静态密封的等价物——弱口令可被离线爆破，DB 泄露场景下实例主密钥是独立第二道防线（与 NFR-S57/S58 同向；ADR-0012「永不存明文」纪律的彻底执行）。POSTURE 沿实例静态 secret 族：无主密钥 → keypair 写路径拒绝；存量行存在而无主密钥 → 启动 fail-fast。
+  3. **CRUD 面**：生成（服务端 keygen）与导入双入口；GET 回显公钥 + 元数据（keypair_id/algorithm/时间/被引用仓清单），**私钥与口令永不出库**（无导出端点——导出诉求出现走新裁决，边界留痕）；DELETE 护栏：被仓引用中的 keypair → 400（文案点名引用仓清单）。REST 路径/信封字面量与 Artifactory 行为出处（生成默认参数、回显形态）以 **T-319 mini 规格**锚定；门 = CapSecurityWrite（GET 族 CapSecurityRead）；审计 `keypair.create|delete`（detail 不含任何密钥材料）。
+  4. **签名时序**：取行 → 主密钥解封 → openpgp open（口令）→ 签名 → 即弃；密钥材料零日志、零响应体。openpgp 库承担 keypair 解析与 OpenPGP 消息签名：debian Release.gpg（detached armor）/ InRelease（clearsign）、rpm repomd.asc（detached armor）。**M11 范围 = 仓库元数据签名**；RPM 包体头部签名（若远期需要，RPM 自有格式非 OpenPGP 消息）从同一私钥提取 RSA 材料另走格式实现——不进本 ADR。
+  5. **repoKey 关联（K36）**：repo 配置增 keypair 引用字段（拼写随 T-319 mini 规格与 FR-97/98 票面）；**local debian/rpm 仓接受**；建/改仓校验引用存在（400）；一 keypair 多仓共用（共享池，含跨 debian/rpm 同钥）；helm 包型不接受该字段（未知键 400——HL-4）；virtual/remote 不接受（签名是 local 写路径行为）。未配 keypair 的 deb/rpm 仓维持 unsigned 行为零变化（签名 opt-in——AC4/AC7 的 unsigned 默认验收不受影响）。
+  6. **生成默认（暂行待锚定，19:05 口径照 Artifactory 实际值）**：RSA-4096（apt/dnf 旧客户端最大兼容）、不含过期、主钥 + 签名子钥标准结构；导入接受 Ed25519/ECC 密钥（ProtonMail 库原生支持）。T-319 mini 规格若给出 Artifactory 生成默认的出处且与此不同 → 按 Q8 先例照 Artifactory 翻转并留痕（本 ADR 机制条款不变）。
+- 理由: 库 A 是唯一同时满足「活跃维护 + 零 CGO + API 兼容 + 现代算法」的选项（x/crypto/openpgp 弃用文档与社区迁移轨迹共同指向它），三平台探针实证零 CGo；存储 B 以零新机制成本（同一 Cipher）把 DB 泄露的爆破面从 S2K 口令强度叠加到主密钥保管，且「导入原样保存」免二次编码错误面；关联 B 让所有权单向（仓声明签名意图），建仓校验与删除护栏天然可查——A 的反向列表在多仓共用下是双向维护的漂移源。
+- 后果: go.mod 增 `github.com/ProtonMail/go-crypto` + `github.com/cloudflare/circl`（ADR-0005 M11 准入段留痕）；gpg_keypairs 迁移（双方言）；T-319 实现（CRUD + keygen/import + 关联校验 + mini 规格锚定 wire）、T-321/T-322 消费（debian/rpm 签名腿——apt 无 `[trusted=yes]`、dnf repo_gpgcheck=1 验收）；二进制体积增量预计 <1.5MB（净增两纯 Go 模块；check-size 实测归 T-319）；unsigned 回归零变化。
+- clean-room 边界: 本 ADR 不依赖 reverse-src 取证——OpenPGP 消息格式 = RFC 4880 系公开规范，以规范为准（ADR-0001 既有红线）；Artifactory keypair 管理面的行为出处（端点族/字段/生成默认）由 T-319 票内 mini 规格补齐后锚定，锚定前不逐字承诺 wire 形态；机制条款（存储/密封/关联/护栏/选型）不随锚点翻转。
