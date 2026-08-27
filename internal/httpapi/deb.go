@@ -24,9 +24,11 @@ package httpapi
 //	async=0                → 200 the same wording (synchronous completion)
 //
 // X-GPG-PASSPHRASE is accepted and ignored in this release: unsigned
-// mode (DB-1 — the instance keypair system is K-1, not yet landed); the
-// stale Release.gpg/InRelease cleanup the unsigned posture demands runs
-// inside every recompute.
+// mode (DB-1 — the instance keypair system landed as T-319, but the
+// debian signing leg is T-321 and BinFlow stores the passphrase with the
+// key pair, never per request — docs/design/gpg-keypair.md divergence
+// D-8); the stale Release.gpg/InRelease cleanup the unsigned posture
+// demands runs inside every recompute.
 //
 // The debPUT chain is the AUTOMATIC face (unlike yum's RP-2 opt-in): a
 // repository upload already recomputes the affected distributions in the

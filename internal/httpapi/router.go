@@ -506,6 +506,48 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite},
 			s.handleAuthConfigTest(auth.SectionSAML))
 
+	// ---- /api/security/keypair* and the keypair association faces
+	// (M11 T-319, ADR-0038 / docs/design/gpg-keypair.md) ----
+	// The Artifactory-compatible instance keypair family plus the
+	// BinFlow-native generation endpoint and the v2 repository-association
+	// face. Reads sit on CapSecurityRead, every write and the verify verb
+	// on CapSecurityWrite (spec divergence D-1: BinFlow's RBAC posture —
+	// public-key distribution rides the content plane files, not these
+	// endpoints). Literal routes precede the /{pairName} prefix arm so
+	// "verify" and the public-key family can never be read as pair names.
+	case rest == "security/keypair" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite}, s.handleKeypairImport)
+	case rest == "security/keypair" && r.Method == http.MethodPut:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite}, s.handleKeypairUpdate)
+	case rest == "security/keypair" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityRead}, s.handleKeypairList)
+	case rest == "security/keypair/verify" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite}, s.handleKeypairVerify)
+	case strings.HasPrefix(rest, "security/keypair/public/repositories/") && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityRead},
+			s.withName(rest, "security/keypair/public/repositories/", s.handleKeypairPublicByRepo))
+	case strings.HasPrefix(rest, "security/keypair/") && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityRead},
+			s.withName(rest, "security/keypair/", s.handleKeypairGet))
+	case strings.HasPrefix(rest, "security/keypair/") && r.Method == http.MethodDelete:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite},
+			s.withName(rest, "security/keypair/", s.handleKeypairDelete))
+
+	// ---- /api/v1/admin/security/keypair/generate (T-319; the BinFlow
+	// native keygen — Artifactory publishes no generation REST, spec
+	// section 2.2) ----
+	case rest == "v1/admin/security/keypair/generate" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite}, s.handleKeypairGenerate)
+
+	// ---- /api/v2/repositories/{repoKey}/keyPairs (T-319; the Artifactory
+	// 7.19 association face: plain-text body carries the pair name; the
+	// write rides the repository update path, so the class/package-type
+	// matrix and the reference-existence rule apply verbatim) ----
+	case strings.HasPrefix(rest, "v2/repositories/") && strings.HasSuffix(rest, "/keyPairs") && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite}, s.routeKeypairAssociate(rest))
+	case strings.HasPrefix(rest, "v2/repositories/") && strings.Contains(rest, "/keyPairs/") && r.Method == http.MethodDelete:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite}, s.routeKeypairDisassociate(rest))
+
 	// ---- /api/v1/auth/methods (T-179; anonymous capability discovery) ----
 	// The login page's entry-point map: which of password/oidc/ldap this
 	// instance offers. Anonymous by design (see auth_methods.go); every
