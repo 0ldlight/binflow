@@ -123,9 +123,12 @@ func TestHandshakeTrio(t *testing.T) {
 	}
 }
 
-// TestClassDoorS6: the v1 plane on a remote or virtual repository answers
-// the pinned 400 (S6, verbatim); v2 on those classes answers the honest
-// not-served refusal carrying only_v2 in the capability list.
+// TestClassDoorS6: the v1 DATA plane on a remote or virtual repository
+// answers the pinned 400 (S6, verbatim); the handshake trio stays
+// class-independent (a conan client discovers the only_v2 capability
+// through it — spec section 2's table applied to the remote/virtual rows);
+// the v2 search arm answers its class face (remote: the T-287 refusal,
+// virtual: the stored-facts union).
 func TestClassDoorS6(t *testing.T) {
 	s := newStack(t)
 	s.seedRepo(t, "cn-local", repo.TypeLocal)
@@ -133,31 +136,49 @@ func TestClassDoorS6(t *testing.T) {
 	s.seedRepo(t, "cn-virt", repo.TypeVirtual)
 
 	for _, key := range []string{"cn-remote", "cn-virt"} {
+		// The handshake trio is served on every class, caps carry only_v2.
 		code, body, hdr := s.get(v1(key, "ping"))
-		if code != http.StatusBadRequest {
-			t.Errorf("%s: v1/ping = %d, want 400", key, code)
-		}
-		if want := msgV1LocalOnly(key); body != want {
-			t.Errorf("%s: v1/ping body = %q, want %q", key, body, want)
+		if code != http.StatusOK || body != "" {
+			t.Errorf("%s: v1/ping = (%d, %q), want (200, \"\")", key, code, body)
 		}
 		if got := hdr.Get(hdrServerCaps); got != capsLocal+","+capsOnlyV2 {
 			t.Errorf("%s: capabilities = %q, want %q", key, got, capsLocal+","+capsOnlyV2)
 		}
+		code, tok, _ := s.do(http.MethodGet, v1(key, "users/authenticate"), adminUser, adminPass, nil, nil)
+		if code != http.StatusOK || strings.TrimSpace(tok) == "" {
+			t.Errorf("%s: v1 authenticate = (%d, %q), want (200, token)", key, code, tok)
+		}
+		code, _, _ = s.get(repoPath(key) + "/" + segV2 + "/" + segPing)
+		if code != http.StatusOK {
+			t.Errorf("%s: v2/ping = %d, want 200", key, code)
+		}
 
-		code, _, _ = s.do(http.MethodGet, v1(key, "users/authenticate"), adminUser, adminPass, nil, nil)
-		if code != http.StatusBadRequest {
-			t.Errorf("%s: v1 authenticate = %d, want 400", key, code)
+		// The v1 DATA family keeps S6's pinned 400.
+		for _, tc := range []struct{ method, path string }{
+			{http.MethodGet, v1(key, "conans/search")},
+			{http.MethodGet, v1(key, "conans/hello/1.0/_/_")},
+			{http.MethodDelete, v1(key, "conans/hello/1.0/_/_")},
+			{http.MethodGet, v1(key, "files/_/hello/1.0/_/0/export/conanfile.py")},
+		} {
+			code, body, _ = s.do(tc.method, tc.path, adminUser, adminPass, nil, nil)
+			if code != http.StatusBadRequest {
+				t.Errorf("%s: %s %s = %d, want 400", key, tc.method, tc.path, code)
+			}
+			if want := msgV1LocalOnly(key); body != want {
+				t.Errorf("%s: %s %s body = %q, want %q", key, tc.method, tc.path, body, want)
+			}
 		}
-		code, _, _ = s.do(http.MethodDelete, v1(key, "conans/hello/1.0/_/_"), adminUser, adminPass, nil, nil)
-		if code != http.StatusBadRequest {
-			t.Errorf("%s: v1 delete = %d, want 400", key, code)
-		}
+	}
 
-		// v2 arms: the honest not-yet-landed refusal.
-		code, body, _ = s.get(v2(key, "search?q=*"))
-		if code != http.StatusNotFound || !strings.Contains(body, "remote pull-through") {
-			t.Errorf("%s: v2 search = (%d, %q), want the not-served 404", key, code, body)
-		}
+	// v2 search: the remote class names the T-287 boundary; the virtual
+	// class answers the (empty) stored-facts union.
+	code, body, _ := s.get(v2("cn-remote", "search?q=*"))
+	if code != http.StatusNotFound || body != msgRemoteSearch {
+		t.Errorf("remote v2 search = (%d, %q), want (404, the T-287 refusal)", code, body)
+	}
+	code, body, _ = s.get(v2("cn-virt", "search?q=*"))
+	if code != http.StatusOK || strings.TrimSpace(body) != `{"results":[]}` {
+		t.Errorf("virtual v2 search = (%d, %q), want (200, empty results)", code, body)
 	}
 }
 

@@ -131,10 +131,13 @@ func Register(svc repo.Service, repos repo.ClassReader, blobs BlobLedger, toks T
 // Protocol implements adapter.Handler.
 func (h *Handler) Protocol() string { return Protocol }
 
-// RepoTypes implements adapter.Handler: T-308 serves LOCAL in full — the
-// remote pull-through and virtual aggregation are their own M11 tickets
-// (spec section 7) and the class door refuses them until they land.
-func (h *Handler) RepoTypes() []string { return []string{repo.TypeLocal} }
+// RepoTypes implements adapter.Handler: all three classes (spec section
+// 7) — local in full (T-308), remote through the pull-through engine
+// inside svc.Get plus the marker-document faces (remote.go), virtual
+// through the member-order aggregations (virtual.go).
+func (h *Handler) RepoTypes() []string {
+	return []string{repo.TypeLocal, repo.TypeRemote, repo.TypeVirtual}
+}
 
 // Layout implements adapter.Handler (see layout.go).
 func (h *Handler) Layout(r *http.Request) (string, string, error) { return layout(r) }
@@ -158,8 +161,12 @@ func errRepoNotFound(repoKey string) error {
 
 // ServeHTTP dispatches on the parsed wire target. The capability header
 // family rides EVERY response (spec section 2), so every path writes
-// through a capWriter; the class door runs before every family (the v1 arm
-// with the S6 wording, the v2 arm with the not-yet-landed refusal).
+// through a capWriter; the class door runs before every family — the v1
+// DATA plane is local-only (S6's pinned 400), the handshake trio is
+// class-independent (it is how a client discovers the only_v2 capability
+// the remote/virtual rows of section 2's table advertise), and the v2
+// plane splits into the local, remote (remote.go) and virtual (virtual.go)
+// faces.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	repoKey, rel, err := h.Layout(r)
 	if err != nil {
@@ -183,15 +190,20 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	cw := h.cap(w, r, class)
 
 	if class != repo.TypeLocal {
-		if isV1Family(rt.kind) {
-			// S6: the pinned 400 (spec section 1, code-explicit branch).
+		if isV1DataFamily(rt.kind) {
+			// S6: the pinned 400 (spec section 1, code-explicit branch) —
+			// the v1 DATA plane is local-only.
 			writePlain(cw, http.StatusBadRequest, msgV1LocalOnly(repoKey))
 			return
 		}
-		// v2 on remote/virtual: T-312's ground. The honest refusal names
-		// the boundary (the cargo class-door posture).
-		writePlain(cw, http.StatusNotFound, fmt.Sprintf(
-			"conan %s repositories are not served by this BinFlow release (remote pull-through and virtual aggregation land with their own tickets)", class))
+		switch class {
+		case repo.TypeRemote:
+			h.serveRemote(ctx, cw, r, p, repoKey, rt)
+		case repo.TypeVirtual:
+			h.serveVirtual(ctx, cw, r, p, repoKey, rt)
+		default:
+			writePlain(cw, http.StatusNotFound, "not found")
+		}
 		return
 	}
 
@@ -368,14 +380,18 @@ func (h *Handler) requireMethod(cw *capWriter, r *http.Request, allowed ...strin
 	return false
 }
 
-// isV1Family reports whether the route belongs to the v1 plane (the S6
-// branch's predicate — every kind the v1 grammar produces).
-func isV1Family(k routeKind) bool {
+// isV1DataFamily reports whether the route belongs to the v1 DATA plane —
+// the S6 branch's predicate. The handshake trio (ping, authenticate,
+// check_credentials — reachable under BOTH version prefixes) is
+// deliberately NOT in this set: it is the class-independent capability
+// negotiation (spec section 2's table applied to the remote/virtual rows,
+// whose advertised capabilities include only_v2 — a client could never
+// learn that from a class that refuses the probe).
+func isV1DataFamily(k routeKind) bool {
 	switch k {
-	case kindV1Ping, kindV1Authenticate, kindV1CheckCredentials, kindV1Search,
-		kindV1RecipeSnapshot, kindV1RefSearch, kindV1Digest, kindV1DownloadURLs,
-		kindV1UploadURLs, kindV1RemoveFiles, kindV1PkgSnapshot, kindV1PackagesDelete,
-		kindV1Files:
+	case kindV1Search, kindV1RecipeSnapshot, kindV1RefSearch, kindV1Digest,
+		kindV1DownloadURLs, kindV1UploadURLs, kindV1RemoveFiles, kindV1PkgSnapshot,
+		kindV1PackagesDelete, kindV1Files:
 		return true
 	}
 	return false
