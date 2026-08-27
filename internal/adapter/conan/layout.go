@@ -57,6 +57,17 @@ const (
 	dirPackage      = "package"
 	recipeIndexFile = "index.json"
 	timestampFile   = ".timestamp"
+	// filesListFile and refSearchFile are the REMOTE hop's two internal
+	// document markers (the goproxy .versionList posture): the v2 files
+	// listing and the packageId metadata search are wire DOCUMENTS with no
+	// storage shape of their own, so the pull-through caches the upstream
+	// body under these names and provider.UpstreamPath maps the marker back
+	// onto the wire endpoint it stands for. They sit at the revision roots
+	// (siblings of .timestamp), never inside the export/ trees, and only
+	// ever land in REMOTE repositories — the local plane serves both faces
+	// from its own facts.
+	filesListFile = ".files.json"
+	refSearchFile = ".search.json"
 	// revDefaultV1 is the v1 files channel's default revision segment.
 	revDefaultV1 = "0"
 
@@ -627,4 +638,25 @@ func pkgFile(root, rrev, pid, prev, name string) string {
 // pkgFilePrefix lists the package file tree.
 func pkgFilePrefix(root, rrev, pid, prev string) string {
 	return pkgDir(root, rrev, pid) + "/" + prev + "/"
+}
+
+// ---- the remote hop's document markers (layout.go's storage addressing,
+// spec section 7's remote row) ----
+
+// recipeFilesMarker is the recipe files-listing document's cache path (the
+// upstream .../revisions/<rRev>/files body).
+func recipeFilesMarker(root, rrev string) string {
+	return root + "/" + rrev + "/" + filesListFile
+}
+
+// pkgFilesMarker is the package files-listing document's cache path (the
+// upstream .../packages/<pid>/revisions/<pRev>/files body).
+func pkgFilesMarker(root, rrev, pid, prev string) string {
+	return pkgDir(root, rrev, pid) + "/" + prev + "/" + filesListFile
+}
+
+// refSearchMarker is the packageId-metadata document's cache path (the
+// upstream .../revisions/<rRev>/search body).
+func refSearchMarker(root, rrev string) string {
+	return root + "/" + rrev + "/" + refSearchFile
 }

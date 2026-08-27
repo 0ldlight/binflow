@@ -1,8 +1,7 @@
-// Package conan is the Conan adapter (M11/T-308, PRD FR-96): the v2
-// revision-aware protocol in full plus the complete v1 data plane, LOCAL
-// repositories only. Remote pull-through and virtual aggregation are their
-// own M11 tickets (spec section 7's remote/virtual rows) and answer the
-// honest refusals here until they land.
+// Package conan is the Conan adapter (M11/T-308+T-312, PRD FR-96): the v2
+// revision-aware protocol in full plus the complete v1 data plane on LOCAL
+// repositories, the REMOTE pull-through face (remote.go) and the VIRTUAL
+// aggregation face (virtual.go).
 //
 // # Behavior basis
 //
@@ -23,8 +22,31 @@
 //     scheme+host (X-Forwarded-Proto honored — the npm/nuget posture);
 //   - S12: the `_` placeholder user/channel segments are stored literally
 //     and matched literally;
-//   - S6: the v1 plane is local-only — a remote or virtual repository
-//     answers 400 with the pinned wording.
+//   - S6: the v1 DATA plane is local-only — a remote or virtual repository
+//     answers 400 with the pinned wording. The handshake trio
+//     (ping/authenticate/check_credentials, both version prefixes) stays
+//     class-independent: it is how a client discovers the only_v2
+//     capability those classes advertise (spec section 2's table applied
+//     to the remote/virtual rows).
+//
+// # The three classes (spec section 7)
+//
+// LOCAL serves both planes in full (v2.go/v1.go). REMOTE serves v2 reads
+// through repo.Service's pull-through engine — the upstream hop translates
+// the storage grammar onto the v2 wire grammar through the provider's
+// UpstreamPath facet (provider.go), the index documents fetch as their
+// isomorphic revisions bodies, and the two document faces without a
+// storage shape of their own (the files listing, the packageId search)
+// cache under the layout's marker paths (.files.json/.search.json) and
+// serve verbatim; writes answer the BinFlow-wide read-only 405 (remote
+// search is not proxied — the T-287 query-in-URL constraint). VIRTUAL
+// aggregates: revisions merge time-descending with first-seen dedupe,
+// file listings and packageId rows union, file bodies resolve
+// first-found through svc.Get, search answers the local members' stored
+// facts, PUT routes onto the configured defaultDeploymentRepo (the index
+// read-modify-write is member-targeted so a routed write never copies the
+// other members' chains into the target), and DELETE answers the
+// no-propagation 405.
 //
 // # Wire (after the /binflow prefix strip httpapi performs)
 //
@@ -64,10 +86,16 @@
 //
 //	<user>/<name>/<version>/<channel>/index.json          recipe revision index
 //	<user>/<name>/<version>/<channel>/<rRev>/.timestamp   first-write marker
+//	<user>/<name>/<version>/<channel>/<rRev>/.files.json  files-listing marker (remote)
+//	<user>/<name>/<version>/<channel>/<rRev>/.search.json pid-metadata marker (remote)
 //	<user>/<name>/<version>/<channel>/<rRev>/export/…     recipe files
 //	<user>/<name>/<version>/<channel>/<rRev>/package/<pid>/index.json
 //	<user>/<name>/<version>/<channel>/<rRev>/package/<pid>/<pRev>/.timestamp
 //	<user>/<name>/<version>/<channel>/<rRev>/package/<pid>/<pRev>/…
+//
+// The two remote-hop markers exist only in REMOTE repositories (the local
+// plane serves both faces from its own facts); they ride the metadata TTL
+// class and map back onto their wire endpoints at the upstream hop.
 //
 // The v1 files channel addresses the same trees through the default
 // revision segment `0` (getExportPathDefaultRevision's shape): a v1 PUT

@@ -158,6 +158,83 @@ func (h *Handler) readPkgIndex(ctx context.Context, p *repo.Principal, repoKey, 
 // beyond this is a runaway client's work, not a package's life).
 const maxIndexBytes = 8 << 20
 
+// ---- the write plane's member-targeted index reads (T-312) ----
+
+// readRecipeIndexForWrite is the WRITE plane's recipe-index loader: on a
+// routed virtual repository it reads the DEPLOYMENT TARGET member's own
+// index through the ungated aggregation seam — never the merged view —
+// because the write lands in that member and appending onto another
+// member's chain would copy the other members' revisions into the target
+// (the npm loadPackumentForWrite rule, restated for this plane). Every
+// other class reads itself.
+func (h *Handler) readRecipeIndexForWrite(ctx context.Context, p *repo.Principal, repoKey, root string) (*recipeIndexDoc, error) {
+	if member, ok := h.virtualWriteTarget(ctx, repoKey); ok {
+		return h.memberRecipeIndex(ctx, repoKey, member, root)
+	}
+	return h.readRecipeIndex(ctx, p, repoKey, root)
+}
+
+// readPkgIndexForWrite is the package plane's twin of the above.
+func (h *Handler) readPkgIndexForWrite(ctx context.Context, p *repo.Principal, repoKey, root, rrev, pid string) (*pkgIndexDoc, error) {
+	if member, ok := h.virtualWriteTarget(ctx, repoKey); ok {
+		return h.memberPkgIndex(ctx, repoKey, member, root, rrev, pid)
+	}
+	return h.readPkgIndex(ctx, p, repoKey, root, rrev, pid)
+}
+
+// virtualWriteTarget resolves the deployment member a write on a ROUTED
+// virtual repository lands in ("" , false on every other shape — the
+// un-routed virtual answers the service's C5 405 before the tail runs).
+func (h *Handler) virtualWriteTarget(ctx context.Context, repoKey string) (string, bool) {
+	if h.repos == nil {
+		return "", false
+	}
+	row, err := h.repos.Get(ctx, repoKey)
+	if err != nil || row.Type != repo.TypeVirtual {
+		return "", false
+	}
+	if target := conanDeploymentTarget(row.Config); target != "" {
+		return target, true
+	}
+	return "", false
+}
+
+// memberRecipeIndex reads one member's own recipe index through the
+// aggregation seam (a missing member copy is the empty chain — a fresh
+// package in the target, not an error).
+func (h *Handler) memberRecipeIndex(ctx context.Context, virtualKey, member, root string) (*recipeIndexDoc, error) {
+	raw, err := h.memberDoc(ctx, virtualKey, member, recipeIndex(root))
+	if err != nil {
+		return nil, err
+	}
+	if raw == nil {
+		return &recipeIndexDoc{Reference: "", Revisions: nil}, nil
+	}
+	var doc recipeIndexDoc
+	if jerr := json.Unmarshal(raw, &doc); jerr != nil {
+		return &recipeIndexDoc{Reference: "", Revisions: nil}, nil
+	}
+	sortRevisions(doc.Revisions)
+	return &doc, nil
+}
+
+// memberPkgIndex reads one member's own package index the same way.
+func (h *Handler) memberPkgIndex(ctx context.Context, virtualKey, member, root, rrev, pid string) (*pkgIndexDoc, error) {
+	raw, err := h.memberDoc(ctx, virtualKey, member, pkgIndex(root, rrev, pid))
+	if err != nil {
+		return nil, err
+	}
+	if raw == nil {
+		return &pkgIndexDoc{Reference: "", Revisions: nil}, nil
+	}
+	var doc pkgIndexDoc
+	if jerr := json.Unmarshal(raw, &doc); jerr != nil {
+		return &pkgIndexDoc{Reference: "", Revisions: nil}, nil
+	}
+	sortRevisions(doc.Revisions)
+	return &doc, nil
+}
+
 // latestOf returns the newest revision entry; ok is false on an empty
 // chain.
 func latestOf(revs []revEntry) (revEntry, bool) {
@@ -255,7 +332,7 @@ func (h *Handler) registerRecipeRevisionLocked(ctx context.Context, p *repo.Prin
 	if err != nil {
 		return err
 	}
-	doc, err := h.readRecipeIndex(ctx, p, repoKey, root)
+	doc, err := h.readRecipeIndexForWrite(ctx, p, repoKey, root)
 	if err != nil {
 		return err
 	}
@@ -298,7 +375,7 @@ func (h *Handler) registerPkgRevisionLocked(ctx context.Context, p *repo.Princip
 	if err != nil {
 		return err
 	}
-	doc, err := h.readPkgIndex(ctx, p, repoKey, root, rrev, pid)
+	doc, err := h.readPkgIndexForWrite(ctx, p, repoKey, root, rrev, pid)
 	if err != nil {
 		return err
 	}
