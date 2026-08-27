@@ -2,6 +2,10 @@ import { useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
+import Alert from '@mui/material/Alert'
+import Button from '@mui/material/Button'
+import TextField from '@mui/material/TextField'
+
 import { useAuth } from '../../app/AuthContext'
 import { useToast } from '../../app/ToastContext'
 import { useConfirm } from '../../components/ConfirmDialog'
@@ -10,6 +14,7 @@ import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import { ApiError, canAdminWrite, errText, getStorageStats, isReadOnlyAdmin } from '../../lib/api'
 import { dedupRatio, formatBytes, formatCount } from '../../lib/format'
+import { dangerBtnSx, denseInputSx, rowBtnSx } from '../../lib/muiAtoms'
 import { GC_MAX_GRACE_HOURS, runGC } from '../../lib/governance'
 import type { GCRunResult } from '../../lib/governance'
 import { useAsync } from '../../lib/useAsync'
@@ -226,16 +231,16 @@ export default function GCPage() {
               <label htmlFor="gc-grace">
                 graceHours（小时，0 = 无宽限窗口；留空 = 实例配置缺省）
               </label>
-              <input
+              <TextField
                 id="gc-grace"
-                className="mono"
+                size="small"
                 inputMode="numeric"
                 autoComplete="off"
                 value={graceInput}
                 onChange={(e) => setGraceInput(e.target.value)}
                 disabled={readOnly}
-                data-testid="gc-grace-hours"
-                lang="en"
+                sx={{ ...denseInputSx, width: 200 }}
+                slotProps={{ htmlInput: { 'data-testid': 'gc-grace-hours', lang: 'en', className: 'mono' } }}
               />
               {grace === 'invalid' && (
                 <span className="field-error">需为 0~{GC_MAX_GRACE_HOURS} 的整数</span>
@@ -244,26 +249,29 @@ export default function GCPage() {
           </details>
 
           <div className="gc-actions">
-            <button
-              type="button"
-              className="btn"
+            <Button
+              variant="outlined"
+              size="small"
+              sx={rowBtnSx}
               disabled={grace === 'invalid' || running !== '' || readOnly}
               onClick={() => void doDryRun()}
               data-testid="gc-dryrun"
               title={readOnly ? '只读管理员：GC 试运行是 system:write（服务端 403 兜底）' : undefined}
             >
               {running === 'dry' ? '试运行中…' : '试运行（dry-run）'}
-            </button>
-            <button
-              type="button"
-              className="btn danger"
+            </Button>
+            <Button
+              variant="outlined"
+              color="error"
+              size="small"
+              sx={dangerBtnSx}
               disabled={!canApply || readOnly}
               onClick={() => void doApply()}
               data-testid="gc-apply"
               title={readOnly ? '只读管理员：GC 执行是 system:write（服务端 403 兜底）' : dryStale ? '参数已变更，请重新试运行' : canApply ? '' : '先完成一次当前参数下的试运行'}
             >
               {running === 'apply' ? '执行中…' : '执行 GC（apply）'}
-            </button>
+            </Button>
             {dryStale && (
               <span className="field-error" role="alert">
                 试运行结果基于已变更的 grace 参数——请重新试运行
@@ -272,7 +280,7 @@ export default function GCPage() {
           </div>
 
           {runError && (
-            <div className="gc-error" role="alert">
+            <Alert severity="error" icon={false} className="gc-error">
               <div className="headline">
                 <span aria-hidden="true">✗</span>
                 {runError.status === 409
@@ -286,7 +294,7 @@ export default function GCPage() {
                 </div>
               )}
               <pre lang="en">{runError.raw || runError.message}</pre>
-            </div>
+            </Alert>
           )}
 
           {latest && (

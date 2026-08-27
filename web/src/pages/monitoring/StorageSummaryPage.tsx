@@ -1,12 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import Button from '@mui/material/Button'
+import Chip from '@mui/material/Chip'
+import Table from '@mui/material/Table'
+import TableBody from '@mui/material/TableBody'
+import TableCell from '@mui/material/TableCell'
+import TableHead from '@mui/material/TableHead'
+import TableRow from '@mui/material/TableRow'
+
 import { CopyButton } from '../../components/CopyButton'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import { getRepositories, getStorageStats } from '../../lib/api'
 import { dedupRatio, formatBytes, formatCount } from '../../lib/format'
+import { badgeChipSx, rowBtnSx } from '../../lib/muiAtoms'
 import { getRepoUsage } from '../../lib/repos'
 import type { RepoUsage } from '../../lib/repos'
 import { useAsync } from '../../lib/useAsync'
@@ -130,16 +139,17 @@ export default function StorageSummaryPage() {
             {fetchedAt ? fetchedAt.toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC') : '—'}
           </span>
         </span>
-        <button
-          type="button"
-          className="btn"
+        <Button
+          variant="outlined"
+          size="small"
+          sx={rowBtnSx}
           onClick={doRefresh}
           data-testid="storage-refresh"
           disabled={usage.status === 'loading'}
           title={usage.status === 'loading' ? '正在拉取仓库用量' : '重新拉取汇总与逐仓用量'}
         >
           {usage.status === 'loading' ? '刷新中…' : '刷新'}
-        </button>
+        </Button>
       </div>
 
       {repos.status === 'loading' && <Skeleton lines={8} />}
@@ -205,65 +215,65 @@ export default function StorageSummaryPage() {
               message="还没有仓库"
               hint="存储概要按仓库聚合用量——创建第一个仓库并上传制品后，这里会呈现汇总与逐仓明细。"
               action={
-                <Link className="btn primary" to="/admin/repositories/new">
+                <Button variant="contained" size="small" component={Link} to="/admin/repositories/new">
                   创建第一个仓库
-                </Link>
+                </Button>
               }
             />
           ) : (
             measured.length > 0 && (
-              <table className="table" data-testid="storage-table">
-                <thead>
-                  <tr>
-                    <th scope="col">仓库</th>
-                    <th scope="col">仓型</th>
-                    <th scope="col">包类型</th>
-                    <th scope="col">占比</th>
-                    <th scope="col">制品大小</th>
-                    <th scope="col">配额</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr className="storage-total" data-testid="storage-total-row">
-                    <td>
+              <Table className="table" data-testid="storage-table">
+                <TableHead>
+                  <TableRow>
+                    <TableCell component="th" scope="col">仓库</TableCell>
+                    <TableCell component="th" scope="col">仓型</TableCell>
+                    <TableCell component="th" scope="col">包类型</TableCell>
+                    <TableCell component="th" scope="col">占比</TableCell>
+                    <TableCell component="th" scope="col">制品大小</TableCell>
+                    <TableCell component="th" scope="col">配额</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  <TableRow className="storage-total" data-testid="storage-total-row">
+                    <TableCell>
                       <b>TOTAL</b>
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       <span className="text-muted">—</span>
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       <span className="text-muted">—</span>
-                    </td>
-                    <td className="mono" lang="en">
+                    </TableCell>
+                    <TableCell className="mono" lang="en">
                       100%
-                    </td>
-                    <td className="mono" lang="en">
+                    </TableCell>
+                    <TableCell className="mono" lang="en">
                       {formatBytes(totalUsed)}
-                    </td>
-                    <td className="mono" lang="en">
+                    </TableCell>
+                    <TableCell className="mono" lang="en">
                       {quotaSum > 0 ? formatBytes(quotaSum) : '—'}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                   {list.map((r) => {
                     const u = usage.map[r.key]
                     const virtual = r.type === 'virtual'
                     const pct = !virtual && u && totalUsed > 0 ? (u.usedBytes / totalUsed) * 100 : null
                     return (
-                      <tr key={r.key} data-testid={`storage-row-${r.key}`}>
-                        <td>
+                      <TableRow key={r.key} data-testid={`storage-row-${r.key}`}>
+                        <TableCell>
                           <Link className="row-link mono" to={repoLink(r.key)} lang="en">
                             {r.key}
                           </Link>{' '}
                           <CopyButton value={r.key} label={`仓库 key ${r.key}`} />
-                        </td>
-                        <td>
-                          <span className="badge neutral">{r.type}</span>
-                        </td>
-                        <td lang="en">{r.packageType}</td>
-                        <td className="mono" lang="en">
+                        </TableCell>
+                        <TableCell>
+                          <Chip size="small" className="badge neutral" label={r.type} sx={badgeChipSx} />
+                        </TableCell>
+                        <TableCell lang="en">{r.packageType}</TableCell>
+                        <TableCell className="mono" lang="en">
                           {pct !== null ? `${pct.toFixed(0)}%` : <span className="text-muted">—</span>}
-                        </td>
-                        <td className="mono" lang="en">
+                        </TableCell>
+                        <TableCell className="mono" lang="en">
                           {virtual ? (
                             <span className="text-muted" title="聚合视图，无自身内容">
                               —
@@ -278,8 +288,8 @@ export default function StorageSummaryPage() {
                               —
                             </span>
                           )}
-                        </td>
-                        <td className="mono" lang="en">
+                        </TableCell>
+                        <TableCell className="mono" lang="en">
                           {virtual ? (
                             <span className="text-muted">—</span>
                           ) : u ? (
@@ -287,12 +297,12 @@ export default function StorageSummaryPage() {
                           ) : (
                             <span className="text-muted">—</span>
                           )}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     )
                   })}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             )
           )}
 

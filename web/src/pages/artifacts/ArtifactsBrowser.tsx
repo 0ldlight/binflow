@@ -1,6 +1,19 @@
-import { forwardRef, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { ComponentPropsWithoutRef, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+
+import Alert from '@mui/material/Alert'
+import Button from '@mui/material/Button'
+import Checkbox from '@mui/material/Checkbox'
+import Chip from '@mui/material/Chip'
+import FormControlLabel from '@mui/material/FormControlLabel'
+import Menu from '@mui/material/Menu'
+import Table from '@mui/material/Table'
+import TableBody from '@mui/material/TableBody'
+import TableCell from '@mui/material/TableCell'
+import TableHead from '@mui/material/TableHead'
+import TableRow from '@mui/material/TableRow'
+import TextField from '@mui/material/TextField'
 
 import { useAuth } from '../../app/AuthContext'
 import { useConfirm } from '../../components/ConfirmDialog'
@@ -13,6 +26,7 @@ import { useToast } from '../../app/ToastContext'
 import { ApiError, getRepositories, getStorageStats, isReadOnlyAdmin } from '../../lib/api'
 import type { RepoListItem } from '../../lib/api'
 import { formatBytes } from '../../lib/format'
+import { badgeChipSx, dangerBtnSx, denseInputSx, monoInputSx, rowBtnSx } from '../../lib/muiAtoms'
 import { getRepoDetail } from '../../lib/repos'
 import type { PackageType } from '../../lib/repos'
 import { useAsync } from '../../lib/useAsync'
@@ -55,6 +69,13 @@ import {
 //   普通用户写入口保留（服务端 403 行内呈现，W12d）。
 // - 协议特化（P6 随迁）：docker 两级 + tag 徽标 + digest 列（T-134 G32a）；
 //   上传入口仅 generic/maven local，docker/npm/pypi 以接入命令块替代。
+//
+// T-300 批次二：控件层迁 MUI（Table 家族 / TextField / Button / Checkbox /
+// Chip 徽章 / Alert / 右键菜单 Menu）。交互逻辑零变化：树键盘语义（↑↓→←
+// Enter/Shift+F10）与行导航、URL 即状态、过滤复位语义、锚点（tree-* 族）
+// 全部原样；右键菜单项保持原生 button（artifacts-tree.spec 断言
+// [data-testid="tree-context-menu"] button 计数——MenuItem 是 li，会断言
+// 断链）。
 
 const PAGE = 100
 const BIG_DIR = 2000
@@ -275,24 +296,9 @@ export default function ArtifactsBrowser() {
   const [deployOpen, setDeployOpen] = useState(false)
   const [deleteError, setDeleteError] = useState<{ path: string; err: ApiError } | null>(null)
   const [download, setDownload] = useState<DownloadState | null>(null)
+  // 右键菜单目标（T-300 批次二迁 MUI Menu：Esc/backdrop 关闭与首项聚焦由
+  // Menu 原生承载，坐标钳制仍在前端）
   const [menu, setMenu] = useState<{ x: number; y: number; target: MenuTarget } | null>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!menu) return
-    const onDown = (e: globalThis.MouseEvent) => {
-      if (!menuRef.current?.contains(e.target as Node)) setMenu(null)
-    }
-    const onKey = (e: globalThis.KeyboardEvent) => {
-      if (e.key === 'Escape') setMenu(null)
-    }
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [menu])
 
   const openMenuAt = useCallback((x: number, y: number, target: MenuTarget) => {
     // 视口边缘钳制（菜单宽 ~200px / 高 ~160px）
@@ -441,45 +447,53 @@ export default function ArtifactsBrowser() {
       {/* 页头动作区（console-m8 §6.3[1]：Set Me Up / Deploy / 管理仓库） */}
       <div className="browser-toolbar">
         <div className="browser-actions">
-          <button
-            type="button"
-            className="btn"
+          <Button
+            variant="outlined"
+            size="small"
+            sx={rowBtnSx}
             data-testid="tree-setmeup"
             title="客户端接入向导（按包类型生成接入命令与令牌）"
             onClick={() => setSmuOpen(true)}
           >
             Set Me Up
-          </button>
-          <button
-            type="button"
-            className="btn primary"
+          </Button>
+          <Button
+            variant="contained"
+            size="small"
             data-testid="tree-deploy"
             disabled={readOnly}
             title={readOnly ? '只读管理员不可写（服务端 403 兜底）' : '浏览器上传（local Generic / Maven 仓）'}
             onClick={() => setDeployOpen(true)}
           >
             ⬆ 部署 Deploy
-          </button>
+          </Button>
           {admin && (
-            <Link className="btn" to="/admin/repositories/local">
+            <Button variant="outlined" size="small" sx={rowBtnSx} component={Link} to="/admin/repositories/local">
               管理仓库 →
-            </Link>
+            </Button>
           )}
         </div>
         <div className="browser-filter">
-          <input
+          <TextField
             type="search"
+            size="small"
             placeholder="过滤仓库…"
-            aria-label="过滤仓库（仅已加载集）"
-            data-testid="tree-repo-filter"
             value={repoFilter}
             onChange={(e) => setRepoFilter(e.target.value)}
             disabled={reposQuery.status !== 'ok'}
+            sx={{ ...denseInputSx, width: 200 }}
+            slotProps={{ htmlInput: { 'data-testid': 'tree-repo-filter', 'aria-label': '过滤仓库（仅已加载集）' } }}
           />
           {repoFilter && (
-            <button type="button" className="btn" data-testid="tree-repo-filter-clear" onClick={() => setRepoFilter('')}>
+            <Button
+              variant="outlined"
+              size="small"
+              sx={rowBtnSx}
+              data-testid="tree-repo-filter-clear"
+              onClick={() => setRepoFilter('')}
+            >
               清除
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -490,20 +504,21 @@ export default function ArtifactsBrowser() {
           <p className="text-2">创建第一个仓库后，全部制品会以跨仓树的形式展示在这里。</p>
           <p>
             {admin && (
-              <Link className="btn primary" to="/admin/repositories/new">
+              <Button variant="contained" size="small" component={Link} to="/admin/repositories/new">
                 创建仓库
-              </Link>
+              </Button>
             )}{' '}
-            <button
-              type="button"
-              className="btn"
+            <Button
+              variant="outlined"
+              size="small"
+              sx={rowBtnSx}
               onClick={() => {
                 localStorage.setItem('bf-skip-onboarding', '1')
                 setOnboardSkipped(true)
               }}
             >
               跳过
-            </button>
+            </Button>
           </p>
         </section>
       ) : (
@@ -535,20 +550,21 @@ export default function ArtifactsBrowser() {
               <span className="text-2">在左侧选择仓库开始浏览</span>
             )}
             <span className="spacer" />
-            <button type="button" className="btn" onClick={refresh} title="重新加载当前视图">
+            <Button variant="outlined" size="small" sx={rowBtnSx} onClick={refresh} title="重新加载当前视图">
               ↻ 刷新
-            </button>
+            </Button>
             {mkdirable && (
-              <button
-                type="button"
-                className="btn"
+              <Button
+                variant="outlined"
+                size="small"
+                sx={rowBtnSx}
                 data-testid="tree-mkdir"
                 disabled={readOnly}
                 title={readOnly ? '只读管理员不可写（服务端 403 兜底）' : undefined}
                 onClick={() => void doMkdir()}
               >
                 + 目录
-              </button>
+              </Button>
             )}
           </div>
 
@@ -591,7 +607,11 @@ export default function ArtifactsBrowser() {
           )}
 
           {deleteError && (
-            <div className="form-error" data-testid="delete-error" role="alert">
+            <Alert
+              severity="error"
+              data-testid="delete-error"
+              sx={{ mt: 2, '& .MuiAlert-message': { width: '100%' } }}
+            >
               <div className="headline">
                 删除 <span className="mono" lang="en">{deleteError.path}</span> 失败（HTTP {deleteError.err.status}）
               </div>
@@ -613,11 +633,11 @@ export default function ArtifactsBrowser() {
                 </div>
               )}
               <div style={{ marginTop: 8 }}>
-                <button type="button" className="btn" onClick={() => setDeleteError(null)}>
+                <Button variant="outlined" size="small" sx={rowBtnSx} onClick={() => setDeleteError(null)}>
                   知道了
-                </button>
+                </Button>
               </div>
-            </div>
+            </Alert>
           )}
 
           <div className="tree-layout browser-layout">
@@ -634,9 +654,9 @@ export default function ArtifactsBrowser() {
                     hint="仓库清单是管理员/只读管理员视图（HTTP 403）。可以用搜索定位制品，或用已知仓库 key 的链接直达。"
                     testid="tree-root-denied"
                     action={
-                      <Link className="btn" to="/search">
+                      <Button variant="outlined" size="small" sx={rowBtnSx} component={Link} to="/search">
                         去搜索
-                      </Link>
+                      </Button>
                     }
                   />
                 )}
@@ -699,18 +719,26 @@ export default function ArtifactsBrowser() {
               {repoKey && (
                 <>
                   <div className="filter-bar">
-                    <input
+                    <TextField
                       type="search"
+                      size="small"
                       placeholder="过滤当前层（仅已加载集）…"
-                      aria-label="过滤当前层"
-                      data-testid="tree-filter"
                       value={filter}
                       onChange={(e) => setFilter(e.target.value)}
+                      sx={{ ...denseInputSx, ...monoInputSx, width: 240 }}
+                      slotProps={{ htmlInput: { 'data-testid': 'tree-filter', 'aria-label': '过滤当前层', className: 'mono' } }}
                     />
-                    <label className="check-row">
-                      <input type="checkbox" checked={filesOnly} onChange={(e) => setFilesOnly(e.target.checked)} />
-                      只看文件
-                    </label>
+                    <FormControlLabel
+                      className="check-row"
+                      control={
+                        <Checkbox
+                          size="small"
+                          checked={filesOnly}
+                          onChange={(e) => setFilesOnly(e.target.checked)}
+                        />
+                      }
+                      label="只看文件"
+                    />
                     <span className="count">
                       {total > 0 && <>共 {total} 项 · 已显示 {Math.min(visible, rows.length)}</>}
                     </span>
@@ -723,9 +751,9 @@ export default function ArtifactsBrowser() {
                       message="无权限浏览此目录"
                       hint={`内容面按路径 ACL 判定（${cur.error.message}）。可回到有权限的层级，或用搜索定位制品。`}
                       action={
-                        <Link className="btn" to="/search">
+                        <Button variant="outlined" size="small" sx={rowBtnSx} component={Link} to="/search">
                           去搜索
-                        </Link>
+                        </Button>
                       }
                     />
                   ) : cur.status === 'error' && cur.error.status === 404 ? (
@@ -733,9 +761,9 @@ export default function ArtifactsBrowser() {
                       message="路径不存在"
                       hint="节点可能已被删除，或链接里的路径有误。"
                       action={
-                        <button type="button" className="btn" onClick={() => goTo(repoKey, '')}>
+                        <Button variant="outlined" size="small" sx={rowBtnSx} onClick={() => goTo(repoKey, '')}>
                           ← 回仓库根
-                        </button>
+                        </Button>
                       }
                     />
                   ) : cur.status === 'error' && cur.error ? (
@@ -748,15 +776,15 @@ export default function ArtifactsBrowser() {
                         testid="tree-empty-dir"
                         action={
                           uploadable && !readOnly ? (
-                            <button
-                              type="button"
-                              className="btn primary"
+                            <Button
+                              variant="contained"
+                              size="small"
                               onClick={() => {
                                 setDeployOpen(true)
                               }}
                             >
                               上传第一个制品
-                            </button>
+                            </Button>
                           ) : undefined
                         }
                       />
@@ -771,9 +799,10 @@ export default function ArtifactsBrowser() {
                             : '过滤只作用于当前层已加载的条目。'
                         }
                         action={
-                          <button
-                            type="button"
-                            className="btn"
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            sx={rowBtnSx}
                             data-testid="tree-filter-clear"
                             onClick={() => {
                               setFilter('')
@@ -781,7 +810,7 @@ export default function ArtifactsBrowser() {
                             }}
                           >
                             清除过滤
-                          </button>
+                          </Button>
                         }
                       />
                     ) : (
@@ -791,14 +820,15 @@ export default function ArtifactsBrowser() {
                         message="当前层没有文件（只有目录）"
                         hint="「只看文件」正在收窄列表。"
                         action={
-                          <button
-                            type="button"
-                            className="btn"
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            sx={rowBtnSx}
                             data-testid="tree-filter-clear"
                             onClick={() => setFilesOnly(false)}
                           >
                             清除「只看文件」
-                          </button>
+                          </Button>
                         }
                       />
                     )
@@ -810,20 +840,20 @@ export default function ArtifactsBrowser() {
                           <Link to="/search">搜索</Link> 定位制品。
                         </div>
                       )}
-                      <table className="table tree-table" data-testid="tree-list">
-                        <thead>
-                          <tr>
-                            <th>名称</th>
-                            {isDockerRepo ? <th>标签</th> : <th>类型</th>}
-                            <th>大小</th>
-                            <th>修改时间</th>
-                            <th>{isDockerRepo ? '摘要' : 'sha256'}</th>
-                            <th>操作</th>
-                          </tr>
-                        </thead>
-                        <tbody>
+                      <Table className="table tree-table" data-testid="tree-list">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell component="th" scope="col">名称</TableCell>
+                            {isDockerRepo ? <TableCell component="th" scope="col">标签</TableCell> : <TableCell component="th" scope="col">类型</TableCell>}
+                            <TableCell component="th" scope="col">大小</TableCell>
+                            <TableCell component="th" scope="col">修改时间</TableCell>
+                            <TableCell component="th" scope="col">{isDockerRepo ? '摘要' : 'sha256'}</TableCell>
+                            <TableCell component="th" scope="col">操作</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
                           {rows.slice(0, visible).map((n) => (
-                            <tr
+                            <TableRow
                               key={n.name}
                               data-testid={`tree-row-${n.name}`}
                               className={focus === n.name ? 'selected' : ''}
@@ -844,79 +874,84 @@ export default function ArtifactsBrowser() {
                                 }
                               }}
                             >
-                              <td className="wrap">
+                              <TableCell className="wrap">
                                 <span aria-hidden="true">{n.folder ? '◻' : '◾'}</span>{' '}
                                 <span className={n.folder ? 'row-link mono' : 'mono'} lang="en">
                                   {n.name}
                                 </span>
-                              </td>
+                              </TableCell>
                               {isDockerRepo ? (
-                                <td>
+                                <TableCell>
                                   {n.tags && n.tags.length > 0
                                     ? n.tags.map((tag) => (
-                                        <span
+                                        <Chip
                                           key={tag}
+                                          size="small"
                                           className="badge neutral"
+                                          label={tag}
+                                          sx={badgeChipSx}
                                           data-testid={`tag-badge-${tag}`}
                                           title={`tag: ${tag}`}
-                                        >
-                                          {tag}
-                                        </span>
+                                        />
                                       ))
                                     : !n.folder
-                                      ? <span className="badge warning">untagged</span>
+                                      ? <Chip size="small" className="badge warning" label="untagged" sx={badgeChipSx} />
                                       : '—'}
-                                </td>
+                                </TableCell>
                               ) : (
-                                <td>{n.folder ? '目录' : '文件'}</td>
+                                <TableCell>{n.folder ? '目录' : '文件'}</TableCell>
                               )}
-                              <td className="mono">{n.folder ? '—' : n.size !== null ? formatBytes(n.size) : '—'}</td>
-                              <td className="mono">{n.lastModified ? n.lastModified.replace('T', ' ').slice(0, 19) : '—'}</td>
-                              <td className="mono" title={n.sha256}>
+                              <TableCell className="mono">{n.folder ? '—' : n.size !== null ? formatBytes(n.size) : '—'}</TableCell>
+                              <TableCell className="mono">{n.lastModified ? n.lastModified.replace('T', ' ').slice(0, 19) : '—'}</TableCell>
+                              <TableCell className="mono" title={n.sha256}>
                                 {n.sha256 ? `${n.sha256.slice(0, 10)}…` : '—'}
-                              </td>
-                              <td onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                              </TableCell>
+                              <TableCell onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                                 {!n.folder && (
-                                  <button type="button" className="btn" onClick={() => selectFile(n.name)} title="展开详情面板">
+                                  <Button variant="outlined" size="small" sx={rowBtnSx} onClick={() => selectFile(n.name)} title="展开详情面板">
                                     详情
-                                  </button>
+                                  </Button>
                                 )}
                                 {!n.folder && (
-                                  <button
-                                    type="button"
-                                    className="btn"
+                                  <Button
+                                    variant="outlined"
+                                    size="small"
+                                    sx={rowBtnSx}
                                     onClick={() => void doDownload(repoKey, n, n.sha256)}
                                     disabled={download?.path === n.path && download.phase === 'loading'}
                                     title="下载并做 sha256 对账"
                                   >
                                     下载
-                                  </button>
+                                  </Button>
                                 )}
-                                <button
-                                  type="button"
-                                  className="btn danger"
+                                <Button
+                                  variant="outlined"
+                                  color="error"
+                                  size="small"
+                                  sx={dangerBtnSx}
                                   data-testid="delete-node-button"
                                   disabled={readOnly}
                                   title={readOnly ? '只读管理员不可删（服务端 403 兜底）' : undefined}
                                   onClick={() => void confirmDelete(repoKey, n)}
                                 >
                                   删除
-                                </button>
-                              </td>
-                            </tr>
+                                </Button>
+                              </TableCell>
+                            </TableRow>
                           ))}
-                        </tbody>
-                      </table>
+                        </TableBody>
+                      </Table>
                       {visible < rows.length && (
                         <div style={{ marginTop: 12 }}>
-                          <button
-                            type="button"
-                            className="btn"
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            sx={rowBtnSx}
                             data-testid="tree-load-more"
                             onClick={() => setVisible((v) => v + PAGE)}
                           >
                             加载更多（{Math.min(visible, rows.length)}/{rows.length}）
-                          </button>
+                          </Button>
                         </div>
                       )}
                     </>
@@ -937,7 +972,6 @@ export default function ArtifactsBrowser() {
 
       {menu && (
         <TreeContextMenu
-          ref={menuRef}
           menu={menu}
           readOnly={readOnly}
           canSeeAdmin={admin}
@@ -1243,6 +1277,12 @@ function onTreeKeys(
 }
 
 // ---- 右键上下文菜单（console-m8 C3；键盘可达 §3.4） --------------------------
+//
+// T-300 批次二迁 MUI Menu：壳（portal/backdrop/Esc/首项聚焦/↑↓ 循环——
+// MenuList 的 moveFocus 对无 tabindex 的非交互子元素自动跳过）交 MUI；
+// 菜单项保持原生 button——artifacts-tree.spec 断言
+// `[data-testid="tree-context-menu"] button` 计数，MenuItem（li）会断链。
+// 视觉沿 .context-item（browser.css），壳的 surface/border/shadow 经 sx 复刻。
 
 interface MenuItem {
   id: string
@@ -1252,24 +1292,29 @@ interface MenuItem {
   run: () => void
 }
 
-const TreeContextMenu = forwardRef<
-  HTMLDivElement,
-  {
-    menu: { x: number; y: number; target: MenuTarget }
-    readOnly: boolean
-    canSeeAdmin: boolean
-    repoRclass?: string
-    onClose: () => void
-    onCopyPath: (value: string) => void
-    onDownload: (repo: string, node: ChildNode) => void
-    onDelete: (repo: string, node: ChildNode) => void
-    onRefresh: (repo: string) => void
-    onOpenAdmin: (repo: string) => void
-  }
->(function TreeContextMenu(
-  { menu, readOnly, canSeeAdmin, repoRclass, onClose, onCopyPath, onDownload, onDelete, onRefresh, onOpenAdmin },
-  ref,
-) {
+function TreeContextMenu({
+  menu,
+  readOnly,
+  canSeeAdmin,
+  repoRclass,
+  onClose,
+  onCopyPath,
+  onDownload,
+  onDelete,
+  onRefresh,
+  onOpenAdmin,
+}: {
+  menu: { x: number; y: number; target: MenuTarget }
+  readOnly: boolean
+  canSeeAdmin: boolean
+  repoRclass?: string
+  onClose: () => void
+  onCopyPath: (value: string) => void
+  onDownload: (repo: string, node: ChildNode) => void
+  onDelete: (repo: string, node: ChildNode) => void
+  onRefresh: (repo: string) => void
+  onOpenAdmin: (repo: string) => void
+}) {
   const t = menu.target
   const readonlyTitle = '只读管理员不可删（服务端 403 兜底）'
   const items: MenuItem[] =
@@ -1305,25 +1350,26 @@ const TreeContextMenu = forwardRef<
             },
           ]
 
-  const onMenuKey = (e: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
-    e.preventDefault()
-    const focusables = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('button:not([disabled])'))
-    if (focusables.length === 0) return
-    const i = focusables.indexOf(document.activeElement as HTMLButtonElement)
-    const next = e.key === 'ArrowDown' ? focusables[(i + 1) % focusables.length] : focusables[(i - 1 + focusables.length) % focusables.length]
-    next?.focus()
-  }
-
   return (
-    <div
-      ref={ref}
-      className="context-menu"
-      role="menu"
-      aria-label="操作菜单"
-      data-testid="tree-context-menu"
-      style={{ left: menu.x, top: menu.y }}
-      onKeyDown={onMenuKey}
+    <Menu
+      open
+      onClose={onClose}
+      anchorReference="anchorPosition"
+      anchorPosition={{ left: menu.x, top: menu.y }}
+      slotProps={{
+        list: { 'aria-label': '操作菜单' } as ComponentPropsWithoutRef<'ul'>,
+        paper: {
+          sx: {
+            background: 'var(--bf-surface-1)',
+            border: '1px solid var(--bf-border)',
+            borderRadius: 'var(--bf-r-md)',
+            boxShadow: 'var(--bf-shadow-2)',
+            padding: 'var(--bf-sp-1)',
+            minWidth: 200,
+          },
+          'data-testid': 'tree-context-menu',
+        } as ComponentPropsWithoutRef<'div'>,
+      }}
     >
       {items.map((item, i) => (
         <button
@@ -1334,15 +1380,18 @@ const TreeContextMenu = forwardRef<
           data-testid={`tree-context-${item.id}`}
           disabled={item.disabled}
           title={item.title}
+          // tabIndex={-1}：显式 tabindex 让 MenuList.moveFocus 视为可聚焦项
+          // （原生 button 无 tabindex 属性会被跳过）；-1 不进 Tab 序
+          tabIndex={-1}
           autoFocus={i === 0}
           onClick={item.run}
         >
           {item.label}
         </button>
       ))}
-    </div>
+    </Menu>
   )
-})
+}
 
 function TreeSkeleton() {
   return (

@@ -1,6 +1,16 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import Alert from '@mui/material/Alert'
+import Button from '@mui/material/Button'
+import Chip from '@mui/material/Chip'
+import Table from '@mui/material/Table'
+import TableBody from '@mui/material/TableBody'
+import TableCell from '@mui/material/TableCell'
+import TableHead from '@mui/material/TableHead'
+import TableRow from '@mui/material/TableRow'
+import TextField from '@mui/material/TextField'
+
 import { useAuth } from '../../app/AuthContext'
 import { useToast } from '../../app/ToastContext'
 import { useConfirm } from '../../components/ConfirmDialog'
@@ -9,6 +19,7 @@ import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import { ApiError, canAdminWrite, errText, isReadOnlyAdmin } from '../../lib/api'
+import { badgeChipSx, dangerBtnSx, denseInputSx, rowBtnSx } from '../../lib/muiAtoms'
 import { useAsync } from '../../lib/useAsync'
 import './security.css'
 import { TransferBox } from './TransferBox'
@@ -222,16 +233,16 @@ function GroupEditor({
         <h4>组设置</h4>
         <div className="field">
           <label htmlFor="gf-name">组名{editMode ? '（不可变）' : ' *'}</label>
-          <input
+          <TextField
             id="gf-name"
-            className="mono-input"
+            size="small"
             value={editMode ? seed.name : name}
             disabled={editMode}
             onChange={(e) => setName(e.target.value)}
             placeholder="qa-team"
-            aria-invalid={!!nameErr}
-            data-testid="group-form-name"
-            lang="en"
+            error={!!nameErr}
+            sx={{ ...denseInputSx, width: 320 }}
+            slotProps={{ htmlInput: { className: 'mono-input', 'data-testid': 'group-form-name', lang: 'en' } }}
           />
           {nameErr ? (
             <p className="field-error" role="alert">
@@ -243,12 +254,16 @@ function GroupEditor({
         </div>
         <div className="field">
           <label htmlFor="gf-desc">描述</label>
-          <textarea
+          <TextField
             id="gf-desc"
+            size="small"
+            multiline
+            minRows={2}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="用途、负责人…"
-            data-testid="group-form-description"
+            sx={{ ...denseInputSx, width: 480 }}
+            slotProps={{ htmlInput: { 'data-testid': 'group-form-description' } }}
           />
         </div>
       </div>
@@ -293,18 +308,19 @@ function GroupEditor({
         </div>
       )}
       {serverError && (
-        <div className="form-error" role="alert">
+        <Alert severity="error">
           <div className="headline">{editMode ? '保存失败' : '创建失败'}</div>
           <div className="raw">{serverError.message}</div>
-        </div>
+        </Alert>
       )}
       <div className="form-actions">
-        <button type="button" className="btn" onClick={onCancel}>
+        <Button variant="outlined" size="small" sx={rowBtnSx} onClick={onCancel}>
           取消
-        </button>
-        <button
-          type="button"
-          className="btn"
+        </Button>
+        <Button
+          variant="outlined"
+          size="small"
+          sx={rowBtnSx}
           disabled={!dirty || submitting}
           onClick={() => {
             setName(seed.name)
@@ -313,16 +329,16 @@ function GroupEditor({
           }}
         >
           重置
-        </button>
-        <button
-          type="button"
-          className="btn primary"
+        </Button>
+        <Button
+          variant="contained"
+          size="small"
           disabled={!canSubmit || !dirty || submitting}
           onClick={() => void submit()}
           data-testid="group-form-submit"
         >
           {submitting ? '保存中…' : editMode ? '保存' : '创建组'}
-        </button>
+        </Button>
       </div>
     </section>
   )
@@ -410,14 +426,14 @@ export default function GroupsPage() {
       <div className="page-header">
         <h2>组</h2>
         {admin && (
-          <button
-            type="button"
-            className="btn primary"
+          <Button
+            variant="contained"
+            size="small"
             onClick={() => setForm({ mode: 'create', name: '', description: '' })}
             data-testid="groups-create"
           >
             ＋ 新建组
-          </button>
+          </Button>
         )}
       </div>
 
@@ -449,15 +465,22 @@ export default function GroupsPage() {
           <div className="targets">
             {conflict.targets.length > 0 && <span className="text-2">解除引用（编辑后移除该组主体）：</span>}
             {conflict.targets.map((t) => (
-              <Link key={t} className="btn" to={`/admin/security/permissions/${encodeURIComponent(t)}`}>
+              <Button
+                key={t}
+                variant="outlined"
+                size="small"
+                sx={rowBtnSx}
+                component={Link}
+                to={`/admin/security/permissions/${encodeURIComponent(t)}`}
+              >
                 <span className="mono" lang="en">
                   {t}
                 </span>
-              </Link>
+              </Button>
             ))}
-            <button type="button" className="btn" onClick={() => setConflict(null)}>
+            <Button variant="outlined" size="small" sx={rowBtnSx} onClick={() => setConflict(null)}>
               稍后再试
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -482,19 +505,19 @@ export default function GroupsPage() {
           )
         ) : (
           <>
-            <table className="table" data-testid="groups-table">
-              <thead>
-                <tr>
+            <Table className="table" data-testid="groups-table">
+              <TableHead>
+                <TableRow>
                   <SortTh label="组名" sortKey="name" sort={sort} onToggle={toggle} testid="groups-sort-name" />
                   <SortTh label="权限数" sortKey="perms" sort={sort} onToggle={toggle} />
                   <SortTh label="成员数" sortKey="members" sort={sort} onToggle={toggle} />
-                  {admin && <th scope="col">操作</th>}
-                </tr>
-              </thead>
-              <tbody>
+                  {admin && <TableCell component="th" scope="col">操作</TableCell>}
+                </TableRow>
+              </TableHead>
+              <TableBody>
                 {sorted.map((r) => (
-                  <tr key={r.group.name} data-testid={`group-row-${r.group.name}`}>
-                    <td>
+                  <TableRow key={r.group.name} data-testid={`group-row-${r.group.name}`}>
+                    <TableCell>
                       <div className="cell-stack">
                         <span>
                           <span className="mono" lang="en">
@@ -508,8 +531,8 @@ export default function GroupsPage() {
                           </span>
                         )}
                       </div>
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       {targets === null ? (
                         <span className="text-muted">—</span>
                       ) : (
@@ -518,14 +541,20 @@ export default function GroupsPage() {
                             {r.grants.length}
                           </span>
                           {r.grants.some((g) => g.actions.includes('manage')) && (
-                            <span className="badge neutral mono" lang="en" data-testid={`group-manage-badge-${r.group.name}`} title="组在至少一个 permission target 上持有 manage（仓库配置派生权）——BinFlow 无 Artifactory 组级 adminPrivileges 字段（有意不跟进，rbac-model §5）">
-                              manage
-                            </span>
+                            <Chip
+                              size="small"
+                              className="badge neutral mono"
+                              label="manage"
+                              sx={badgeChipSx}
+                              lang="en"
+                              data-testid={`group-manage-badge-${r.group.name}`}
+                              title="组在至少一个 permission target 上持有 manage（仓库配置派生权）——BinFlow 无 Artifactory 组级 adminPrivileges 字段（有意不跟进，rbac-model §5）"
+                            />
                           )}
                         </span>
                       )}
-                    </td>
-                    <td>
+                    </TableCell>
+                    <TableCell>
                       {r.memberCount === null ? (
                         <span className="text-muted">—</span>
                       ) : (
@@ -533,33 +562,36 @@ export default function GroupsPage() {
                           {r.memberCount}
                         </span>
                       )}
-                    </td>
+                    </TableCell>
                     {admin && (
-                      <td>
+                      <TableCell>
                         <span style={{ display: 'inline-flex', gap: 8 }}>
-                          <button
-                            type="button"
-                            className="btn"
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            sx={rowBtnSx}
                             onClick={() => setForm({ mode: 'edit', name: r.group.name, description: r.group.description })}
                             data-testid={`group-edit-${r.group.name}`}
                           >
                             编辑
-                          </button>
-                          <button
-                            type="button"
-                            className="btn danger"
+                          </Button>
+                          <Button
+                            variant="outlined"
+                            color="error"
+                            size="small"
+                            sx={dangerBtnSx}
                             onClick={() => void doDelete(r.group.name, r.group.description)}
                             data-testid={`group-delete-${r.group.name}`}
                           >
                             删除
-                          </button>
+                          </Button>
                         </span>
-                      </td>
+                      </TableCell>
                     )}
-                  </tr>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
             <p className="table-foot" data-testid="groups-count">
               组总数： {sorted.length}
             </p>

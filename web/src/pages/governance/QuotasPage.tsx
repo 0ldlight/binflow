@@ -1,6 +1,15 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import Button from '@mui/material/Button'
+import Chip from '@mui/material/Chip'
+import Table from '@mui/material/Table'
+import TableBody from '@mui/material/TableBody'
+import TableCell from '@mui/material/TableCell'
+import TableHead from '@mui/material/TableHead'
+import TableRow from '@mui/material/TableRow'
+import TextField from '@mui/material/TextField'
+
 import { useAuth } from '../../app/AuthContext'
 import { useToast } from '../../app/ToastContext'
 import { CopyButton } from '../../components/CopyButton'
@@ -10,6 +19,7 @@ import { Skeleton } from '../../components/Skeleton'
 import { getRepositories, isReadOnlyAdmin } from '../../lib/api'
 import type { RepoListItem } from '../../lib/api'
 import { errText } from '../../lib/api'
+import { badgeChipSx, denseInputSx, monoInputSx, rowBtnSx } from '../../lib/muiAtoms'
 import { formatBytes } from '../../lib/format'
 import { buildLocalQuotaBody, cfgNum, getRepoDetail, getRepoUsage, updateRepo } from '../../lib/repos'
 import type { RepoUsage } from '../../lib/repos'
@@ -105,17 +115,17 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
   }
 
   return (
-    <tr data-testid={`quota-row-${repo.key}`}>
-      <td>
+    <TableRow data-testid={`quota-row-${repo.key}`}>
+      <TableCell>
         <Link className="row-link mono" to={`/admin/repositories/${repo.key}`} lang="en">
           {repo.key}
         </Link>{' '}
         <CopyButton value={repo.key} label={`仓库 key ${repo.key}`} />
-      </td>
-      <td>
-        <span className="badge neutral">{repo.type}</span>
-      </td>
-      <td>
+      </TableCell>
+      <TableCell>
+        <Chip size="small" className="badge neutral" label={repo.type} sx={badgeChipSx} />
+      </TableCell>
+      <TableCell>
         {repo.type === 'virtual' ? (
           <span className="text-muted">—（聚合视图，无自身内容）</span>
         ) : usage.status === 'loading' ? (
@@ -127,19 +137,25 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
             —
           </span>
         )}
-      </td>
-      <td>
+      </TableCell>
+      <TableCell>
         {editing ? (
           <>
-            <input
-              className="mono quota-input"
+            <TextField
+              size="small"
               inputMode="numeric"
               autoComplete="off"
-              aria-label={`${repo.key} 的新配额（字节）`}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              data-testid={`quota-input-${repo.key}`}
-              lang="en"
+              sx={{ ...denseInputSx, ...monoInputSx, width: 140, display: 'inline-flex' }}
+              slotProps={{
+                htmlInput: {
+                  'aria-label': `${repo.key} 的新配额（字节）`,
+                  'data-testid': `quota-input-${repo.key}`,
+                  lang: 'en',
+                  className: 'mono quota-input',
+                },
+              }}
             />{' '}
             <span className="text-muted" style={{ fontSize: 'var(--bf-fs-aux)' }}>
               {/^\d+$/.test(draft.trim()) && Number(draft) > 0 ? `≈ ${formatBytes(Number(draft))}` : '0 = 不限'}
@@ -150,30 +166,32 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
         ) : (
           <span className="text-muted">—（仅 local 仓支持）</span>
         )}
-      </td>
-      <td className="quota-bar-cell">
+      </TableCell>
+      <TableCell className="quota-bar-cell">
         {usage.status === 'ok' && u ? <WaterBar usage={u} /> : <span className="text-muted">—</span>}
-      </td>
-      <td>
+      </TableCell>
+      <TableCell>
         {editing ? (
           <>
-            <button
-              type="button"
-              className="btn"
+            <Button
+              variant="outlined"
+              size="small"
+              sx={rowBtnSx}
               disabled={saving}
               onClick={() => void save()}
               data-testid={`quota-save-${repo.key}`}
             >
               {saving ? '保存中…' : '保存'}
-            </button>{' '}
-            <button
-              type="button"
-              className="btn"
+            </Button>{' '}
+            <Button
+              variant="outlined"
+              size="small"
+              sx={rowBtnSx}
               disabled={saving}
               onClick={() => setEditing(false)}
             >
               取消
-            </button>
+            </Button>
             {editErr && (
               <div className="field-error" role="alert">
                 {editErr}
@@ -185,24 +203,25 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
             {local &&
               usage.status === 'ok' &&
               u && (
-                <button
-                  type="button"
-                  className="btn"
+                <Button
+                  variant="outlined"
+                  size="small"
+                  sx={rowBtnSx}
                   disabled={readOnly}
                   title={readOnly ? '只读管理员：配额写是管理面写操作（服务端 403 兜底）' : undefined}
                   onClick={startEdit}
                   data-testid={`quota-edit-${repo.key}`}
                 >
                   编辑上限
-                </button>
+                </Button>
               )}{' '}
             <Link className="text-2" to={`/admin/repositories/${repo.key}/edit`} style={{ fontSize: 'var(--bf-fs-aux)' }}>
               仓库设置 →
             </Link>
           </>
         )}
-      </td>
-    </tr>
+      </TableCell>
+    </TableRow>
   )
 }
 
@@ -244,29 +263,29 @@ export default function QuotasPage() {
             message="还没有仓库"
             hint="配额在创建 local 仓库时或仓库设置页配置（quotaBytes，0 = 不限）"
             action={
-              <Link className="btn primary" to="/admin/repositories/new">
+              <Button variant="contained" size="small" component={Link} to="/admin/repositories/new">
                 创建第一个仓库
-              </Link>
+              </Button>
             }
           />
         ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th scope="col">仓库</th>
-                <th scope="col">类型</th>
-                <th scope="col">已用</th>
-                <th scope="col">配额</th>
-                <th scope="col">水位</th>
-                <th scope="col">操作</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table className="table">
+            <TableHead>
+              <TableRow>
+                <TableCell component="th" scope="col">仓库</TableCell>
+                <TableCell component="th" scope="col">类型</TableCell>
+                <TableCell component="th" scope="col">已用</TableCell>
+                <TableCell component="th" scope="col">配额</TableCell>
+                <TableCell component="th" scope="col">水位</TableCell>
+                <TableCell component="th" scope="col">操作</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {list.map((r) => (
                 <QuotaRow key={r.key} repo={r} onChanged={repos.reload} />
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         ))}
       <p className="field-hint" style={{ marginTop: 12 }}>
         计量为 repo_usage.logical_bytes（与节点写入同事务）；quotaBytes 仅 local 仓生效，

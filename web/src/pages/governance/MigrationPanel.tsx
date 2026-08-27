@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 
+import Alert from '@mui/material/Alert'
+import Button from '@mui/material/Button'
+
 import { useAuth } from '../../app/AuthContext'
 import { useToast } from '../../app/ToastContext'
 import { useConfirm } from '../../components/ConfirmDialog'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import { ApiError, apiJSON, errText, isReadOnlyAdmin } from '../../lib/api'
+import { dangerBtnSx } from '../../lib/muiAtoms'
 import { formatAuditTime, formatCount } from '../../lib/format'
 
 // 存储迁移面板（T-160 进度呈现 + T-177 启动入口）：
@@ -327,16 +331,18 @@ export default function MigrationPanel() {
       {okData && <MigrationBody data={okData} staleError={phase.kind === 'error' ? phase.message : undefined} />}
       {canStart && (
         <div className="gc-actions">
-          <button
-            type="button"
-            className="btn danger"
+          <Button
+            variant="outlined"
+            color="error"
+            size="small"
+            sx={dangerBtnSx}
             disabled={starting || readOnly}
             onClick={() => void doStart()}
             data-testid="migration-start"
             title={readOnly ? '只读管理员：迁移启动是 system:write（服务端 403 兜底）' : undefined}
           >
             {starting ? '启动中…' : '启动迁移'}
-          </button>
+          </Button>
           {readOnly ? (
             <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>
               只读管理员：启动迁移为管理面写操作（system:write），入口已禁用——服务端 403 兜底。
@@ -349,7 +355,7 @@ export default function MigrationPanel() {
         </div>
       )}
       {startError && (
-        <div className="gc-error" role="alert" data-testid="migration-start-error">
+        <Alert severity="error" icon={false} className="gc-error" data-testid="migration-start-error">
           <div className="headline">
             <span aria-hidden="true">✗</span>
             {startError.status === 409
@@ -363,7 +369,7 @@ export default function MigrationPanel() {
             </div>
           )}
           <pre lang="en">{startError.message}</pre>
-        </div>
+        </Alert>
       )}
     </section>
   )

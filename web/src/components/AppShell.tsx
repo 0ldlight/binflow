@@ -1,9 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ComponentPropsWithoutRef, KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { Link, NavLink, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
+import Button from '@mui/material/Button'
+import Chip from '@mui/material/Chip'
+import Divider from '@mui/material/Divider'
 import InputBase from '@mui/material/InputBase'
 import IconButton from '@mui/material/IconButton'
+import Menu from '@mui/material/Menu'
+import MenuItem from '@mui/material/MenuItem'
 
 import { useAuth } from '../app/AuthContext'
 import { useTheme } from '../app/ThemeContext'
@@ -14,6 +19,7 @@ import { abandonStepUp, useStepUp } from '../lib/stepUpGrant'
 import type { PendingMint } from '../lib/stepUpGrant'
 import { useVersion } from '../lib/useVersion'
 import { errText, isReadOnlyAdmin } from '../lib/api'
+import { badgeChipSx } from '../lib/muiAtoms'
 
 // 双模式壳（console-m8 §1/§2，T-235——Artifactory 对齐 IA 重排）：
 //
@@ -225,7 +231,6 @@ export default function AppShell() {
   const version = useVersion()
 
   const [menuOpen, setMenuOpen] = useState(false)
-  const menuRef = useRef<HTMLDivElement>(null)
   const sessionToggleRef = useRef<HTMLButtonElement>(null)
 
   // 顶栏搜索（console-m8 §2.1 / FR-82-AC9，T-265 升真输入框）：
@@ -348,22 +353,9 @@ export default function AppShell() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  // 用户菜单：点击外部关闭 + Esc 关闭（§3.4 键盘清单）
-  useEffect(() => {
-    if (!menuOpen) return
-    const onDown = (e: MouseEvent) => {
-      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false)
-    }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMenuOpen(false)
-    }
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [menuOpen])
+  // 用户菜单（T-300 批次二迁 MUI Menu）：Esc 关闭 / 点击外部（backdrop）关
+  // 闭 / ↑↓ 循环由 Menu+MenuList 原生承载（原自定义 role=menu 键盘清单的
+  // 等价面）；焦点语义按 MUI 惯例——开菜单即聚焦首项、关闭回焦锚钮。
 
   const doLogout = async () => {
     setMenuOpen(false)
@@ -411,32 +403,61 @@ export default function AppShell() {
             <div key={group.title}>
               <div className={`nav-group-label${gi === 0 ? ' first' : ''}`}>{group.title}</div>
               {group.entries.map((entry) => (
-                <NavLink
+                // T-300 批次二：nav 条目换 MUI Button（DOM 仍是 NavLink 渲
+                // 染的 <a class="nav-item active">——shell.spec 的 a.nav-item
+                // 计数断言与 .nav-item 视觉（base.css 后载压过 MUI 默认密
+                // 度）零变化；active 类由 NavLink 字符串形态自动追加
+                // （isActive 函数形态的等价面）
+                <Button
                   key={entry.to}
+                  variant="text"
+                  component={NavLink}
                   to={entry.to}
                   end={entry.end}
-                  className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+                  className="nav-item"
+                  sx={{
+                    justifyContent: 'flex-start',
+                    textTransform: 'none',
+                    width: '100%',
+                    // 密度带回归 §7.2 的 32px（MUI Button 默认 ~35px）
+                    height: 32,
+                    minHeight: 32,
+                    padding: '0 var(--bf-sp-3)',
+                    color: 'var(--bf-sidebar-text)',
+                    '&:hover': { backgroundColor: 'var(--bf-sidebar-2)' },
+                  }}
                 >
                   {entry.label}
-                </NavLink>
+                </Button>
               ))}
             </div>
           ))}
         </div>
         <div className="app-nav-footer">
-          {/* 模式切换（§1.1）：侧栏底部常驻项；admin / readonly_admin 可见 */}
+          {/* 模式切换（§1.1）：侧栏底部常驻项；admin / readonly_admin 可见。
+              T-300 批次二换 MUI Button（className 续挂——.nav-item 计数与
+              aria-current/键盘链路不变） */}
           {canSeeAdmin && (
-            <button
-              type="button"
+            <Button
+              variant="text"
               className="nav-item nav-mode-switch"
               data-testid="nav-mode-switch"
               aria-current={mode === 'admin' ? 'true' : undefined}
               title={mode === 'admin' ? '返回应用模式' : '进入管理模式（/admin）'}
               onClick={() => navigate(mode === 'admin' ? APP_HOME : ADMIN_HOME)}
+              sx={{
+                justifyContent: 'flex-start',
+                textTransform: 'none',
+                height: 32,
+                minHeight: 32,
+                padding: '0 var(--bf-sp-3)',
+                color: 'var(--bf-sidebar-text)',
+                '&:hover': { backgroundColor: 'var(--bf-sidebar-2)' },
+              }}
             >
               <span aria-hidden="true">{mode === 'admin' ? '↩' : '⚙'}</span>
               {mode === 'admin' ? '返回应用' : '管理'}
-            </button>
+            </Button>
           )}
           {/* 许可行（§1.1）：版本来自 /api/system/version（nav-version 锚不变） */}
           <div className="app-nav-license">
@@ -568,126 +589,137 @@ export default function AppShell() {
             {theme === 'dark' ? '◐' : '◑'}
           </IconButton>
           {/* 用户菜单（§2.3）：Quick 动作仅全量 admin（readonly_admin 不见
-              快速建仓等写入口——L4 预收敛，服务端 403 兜底） */}
-          <div className="session-box topbar-session" ref={menuRef}>
-            <button
-              type="button"
+              快速建仓等写入口——L4 预收敛，服务端 403 兜底）。T-300 批次二
+              迁 MUI Menu/MenuItem——Esc/backdrop 关闭、↑↓ 循环、关闭回焦锚
+              钮均为 Menu 原生；锚（session-toggle / quick-* / menu-edit-profile
+              / logout-button）全部保持。 */}
+          <div className="session-box topbar-session">
+            <Button
+              variant="text"
               ref={sessionToggleRef}
               className="session-toggle"
               aria-haspopup="menu"
               aria-expanded={menuOpen}
               data-testid="session-toggle"
               onClick={() => setMenuOpen((v) => !v)}
+              sx={{
+                justifyContent: 'flex-start',
+                textTransform: 'none',
+                minWidth: 0,
+                height: 32,
+                minHeight: 32,
+                padding: '0 var(--bf-sp-2)',
+              }}
             >
               <span aria-hidden="true">▣</span>
               <span className="who" data-testid="session-user">
                 {session?.username ?? ''}
               </span>
-              {admin && !readOnlyAdmin && <span className="badge neutral">admin</span>}
+              {admin && !readOnlyAdmin && (
+                <Chip size="small" className="badge neutral" label="admin" sx={badgeChipSx} slots={{ root: 'span' }} />
+              )}
               {readOnlyAdmin && (
-                <span
+                <Chip
+                  size="small"
                   className="badge neutral"
+                  label="只读"
+                  sx={badgeChipSx}
+                  slots={{ root: 'span' }}
                   data-testid="session-readonly-badge"
                   title="readonly_admin：管理面只读（服务端 403 兜底）"
-                >
-                  只读
-                </span>
+                />
               )}
               <span aria-hidden="true">▾</span>
-            </button>
-            {menuOpen && (
-              <div
-                className="session-menu"
-                role="menu"
-                onKeyDown={(e) => {
-                  // §3.4 键盘清单：菜单 ↑/↓ 循环移动菜单项（role=menu 语义）
-                  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
-                  e.preventDefault()
-                  const items = Array.from(
-                    menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') ?? [],
-                  )
-                  if (items.length === 0) return
-                  const i = items.indexOf(document.activeElement as HTMLElement)
-                  const next =
-                    e.key === 'ArrowDown' ? items[(i + 1) % items.length] : items[(i - 1 + items.length) % items.length]
-                  next?.focus()
-                }}
+            </Button>
+            <Menu
+              open={menuOpen}
+              onClose={() => setMenuOpen(false)}
+              anchorEl={sessionToggleRef.current}
+              anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+              transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+              slotProps={{
+                paper: {
+                  // .session-menu 同形复刻：surface-1 底 / border 边框 /
+                  // shadow-2（原 CSS 块随迁移退役，定位交 MUI Popover）
+                  sx: {
+                    background: 'var(--bf-surface-1)',
+                    border: '1px solid var(--bf-border)',
+                    borderRadius: 'var(--bf-r-md)',
+                    boxShadow: 'var(--bf-shadow-2)',
+                    minWidth: 230,
+                    p: 'var(--bf-sp-1)',
+                    '& .MuiMenuItem-root': {
+                      minHeight: 32,
+                      fontSize: 'var(--bf-fs-body)',
+                      color: 'var(--bf-text)',
+                      borderRadius: 'var(--bf-r-sm)',
+                      px: 'var(--bf-sp-3)',
+                      '&:hover': { background: 'var(--bf-surface-2)' },
+                    },
+                  },
+                },
+              }}
+            >
+              {admin && !readOnlyAdmin && (
+                <>
+                  <div className="menu-label" role="presentation">
+                    快速建仓
+                  </div>
+                  <MenuItem
+                    data-testid="quick-set-me-up"
+                    onClick={() => {
+                      setMenuOpen(false)
+                      setSmuOpen(true)
+                    }}
+                  >
+                    Set Me Up
+                  </MenuItem>
+                  <MenuItem component={Link} to="/admin/repositories/new?rclass=local" onClick={() => setMenuOpen(false)}>
+                    新建 Local 仓库
+                  </MenuItem>
+                  <MenuItem
+                    component={Link}
+                    data-testid="quick-new-repo-remote"
+                    to="/admin/repositories/new?rclass=remote"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    新建 Remote 仓库
+                  </MenuItem>
+                  <MenuItem component={Link} to="/admin/repositories/new?rclass=virtual" onClick={() => setMenuOpen(false)}>
+                    新建 Virtual 仓库
+                  </MenuItem>
+                  <div className="menu-label" role="presentation">
+                    新建
+                  </div>
+                  <MenuItem component={Link} data-testid="quick-new-user" to="/admin/security/users" onClick={() => setMenuOpen(false)}>
+                    新建用户
+                  </MenuItem>
+                  <MenuItem component={Link} to="/admin/security/groups" onClick={() => setMenuOpen(false)}>
+                    新建组
+                  </MenuItem>
+                  <MenuItem
+                    component={Link}
+                    data-testid="quick-new-perm"
+                    to="/admin/security/permissions/new"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    新建权限
+                  </MenuItem>
+                  <Divider component="div" role="presentation" sx={{ my: 'var(--bf-sp-1)' }} />
+                </>
+              )}
+              <MenuItem component={Link} data-testid="menu-edit-profile" to="/profile" onClick={() => setMenuOpen(false)}>
+                编辑档案
+              </MenuItem>
+              <MenuItem onClick={() => void toggle()}>{theme === 'dark' ? '切换亮色主题' : '切换暗色主题'}</MenuItem>
+              <MenuItem
+                data-testid="logout-button"
+                onClick={() => void doLogout()}
+                sx={{ color: 'var(--bf-danger)', '&:hover': { background: 'var(--bf-surface-2)' } }}
               >
-                {admin && !readOnlyAdmin && (
-                  <>
-                    <div className="menu-label" role="presentation">
-                      快速建仓
-                    </div>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      data-testid="quick-set-me-up"
-                      onClick={() => {
-                        setMenuOpen(false)
-                        setSmuOpen(true)
-                      }}
-                    >
-                      Set Me Up
-                    </button>
-                    <Link
-                      role="menuitem"
-                      to="/admin/repositories/new?rclass=local"
-                      onClick={() => setMenuOpen(false)}
-                    >
-                      新建 Local 仓库
-                    </Link>
-                    <Link
-                      role="menuitem"
-                      data-testid="quick-new-repo-remote"
-                      to="/admin/repositories/new?rclass=remote"
-                      onClick={() => setMenuOpen(false)}
-                    >
-                      新建 Remote 仓库
-                    </Link>
-                    <Link
-                      role="menuitem"
-                      to="/admin/repositories/new?rclass=virtual"
-                      onClick={() => setMenuOpen(false)}
-                    >
-                      新建 Virtual 仓库
-                    </Link>
-                    <div className="menu-label" role="presentation">
-                      新建
-                    </div>
-                    <Link role="menuitem" data-testid="quick-new-user" to="/admin/security/users" onClick={() => setMenuOpen(false)}>
-                      新建用户
-                    </Link>
-                    <Link role="menuitem" to="/admin/security/groups" onClick={() => setMenuOpen(false)}>
-                      新建组
-                    </Link>
-                    <Link
-                      role="menuitem"
-                      data-testid="quick-new-perm"
-                      to="/admin/security/permissions/new"
-                      onClick={() => setMenuOpen(false)}
-                    >
-                      新建权限
-                    </Link>
-                    <div className="menu-sep" role="presentation" />
-                  </>
-                )}
-                <Link role="menuitem" data-testid="menu-edit-profile" to="/profile" onClick={() => setMenuOpen(false)}>
-                  编辑档案
-                </Link>
-                <button type="button" role="menuitem" onClick={() => void toggle()}>
-                  {theme === 'dark' ? '切换亮色主题' : '切换暗色主题'}
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="danger"
-                  data-testid="logout-button"
-                  onClick={() => void doLogout()}
-                >
-                  登出
-                </button>
-              </div>
-            )}
+                登出
+              </MenuItem>
+            </Menu>
           </div>
         </header>
         <main className="app-content">
