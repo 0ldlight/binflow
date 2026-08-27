@@ -22,7 +22,7 @@
 // unsigned mode (the instance keypair system is K-1; stale signature
 // files are swept instead of written).
 //
-// LOCAL repositories only here; the remote pull-through (with the
-// path-normalization and indexCached family) and the virtual stanza
-// aggregation land with their own M11 tickets (T-314).
+// LOCAL repositories carry the automatic pipeline above (T-310); the
+// REMOTE class is the pull-through mirror and the VIRTUAL class the
+// per-request stanza aggregation (T-314, remote.go / virtual.go).
 package deb

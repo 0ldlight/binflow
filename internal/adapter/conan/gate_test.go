@@ -108,7 +108,9 @@ func TestGateProLifecycle(t *testing.T) {
 }
 
 // TestProviderRegistration: the metadata provider classifies the index
-// documents as regenerable metadata and the content trees as content.
+// documents as regenerable metadata and the content trees as content, and
+// maps the storage grammar onto the upstream v2 wire grammar (the remote
+// hop's translation facet).
 func TestProviderRegistration(t *testing.T) {
 	if _, ok := parseRouteProbe(); !ok {
 		t.Fatal("provider probe failed")
@@ -119,6 +121,12 @@ func TestProviderRegistration(t *testing.T) {
 	}
 	if got := p.Classify("u/n/1.0/c/abc/.timestamp"); got != "metadata" {
 		t.Errorf("Classify(.timestamp) = %v", got)
+	}
+	if got := p.Classify("u/n/1.0/c/abc/.files.json"); got != "metadata" {
+		t.Errorf("Classify(.files.json) = %v", got)
+	}
+	if got := p.Classify("u/n/1.0/c/abc/.search.json"); got != "metadata" {
+		t.Errorf("Classify(.search.json) = %v", got)
 	}
 	if got := p.Classify("u/n/1.0/c/abc/export/conanfile.py"); got != "content" {
 		t.Errorf("Classify(export file) = %v", got)
@@ -134,15 +142,54 @@ func TestProviderRegistration(t *testing.T) {
 	}
 }
 
+// TestProviderUpstreamPath pins the storage -> upstream wire grammar: the
+// coordinate order swaps, the index documents become their revisions
+// endpoints, and the two markers become the listing/search endpoints.
+func TestProviderUpstreamPath(t *testing.T) {
+	rrev, pid, prev := "ab"+strings.Repeat("0", 62), "cd"+strings.Repeat("0", 38), "ef"+strings.Repeat("0", 62)
+	cases := []struct{ storage, wire string }{
+		// recipe plane
+		{"myuser/hello/1.0/stable/index.json", "v2/conans/hello/1.0/myuser/stable/revisions"},
+		{"myuser/hello/1.0/stable/" + rrev + "/.files.json", "v2/conans/hello/1.0/myuser/stable/revisions/" + rrev + "/files"},
+		{"myuser/hello/1.0/stable/" + rrev + "/.search.json", "v2/conans/hello/1.0/myuser/stable/revisions/" + rrev + "/search"},
+		{"myuser/hello/1.0/stable/" + rrev + "/export/conanfile.py", "v2/conans/hello/1.0/myuser/stable/revisions/" + rrev + "/files/conanfile.py"},
+		{"myuser/hello/1.0/stable/" + rrev + "/export/sub/dir/patch.diff", "v2/conans/hello/1.0/myuser/stable/revisions/" + rrev + "/files/sub/dir/patch.diff"},
+		// package plane
+		{"myuser/hello/1.0/stable/" + rrev + "/package/" + pid + "/index.json",
+			"v2/conans/hello/1.0/myuser/stable/revisions/" + rrev + "/packages/" + pid + "/revisions"},
+		{"myuser/hello/1.0/stable/" + rrev + "/package/" + pid + "/" + prev + "/.files.json",
+			"v2/conans/hello/1.0/myuser/stable/revisions/" + rrev + "/packages/" + pid + "/revisions/" + prev + "/files"},
+		{"myuser/hello/1.0/stable/" + rrev + "/package/" + pid + "/" + prev + "/conan_package.tgz",
+			"v2/conans/hello/1.0/myuser/stable/revisions/" + rrev + "/packages/" + pid + "/revisions/" + prev + "/files/conan_package.tgz"},
+		// unknown shapes pass through (the generic posture)
+		{"stray.txt", "stray.txt"},
+		{"myuser/hello/1.0/stable/" + rrev + "/.timestamp", "myuser/hello/1.0/stable/" + rrev + "/.timestamp"},
+		{"u/n/1.0/c/XYZ/not-a-revision/export/f", "u/n/1.0/c/XYZ/not-a-revision/export/f"},
+	}
+	p := provider{}
+	for _, tc := range cases {
+		if got := p.UpstreamPath(tc.storage); got != tc.wire {
+			t.Errorf("UpstreamPath(%q) = %q, want %q", tc.storage, got, tc.wire)
+		}
+	}
+}
+
 // parseRouteProbe is a compile-time canary for the route grammar's
 // availability (the provider legs above ride the same package).
 func parseRouteProbe() (route, bool) { return parseRoute("v2/conans/search") }
 
-// TestRepoTypesLocalOnly: the adapter's declared classes.
-func TestRepoTypesLocalOnly(t *testing.T) {
+// TestRepoTypesServedClasses: the adapter's declared classes (spec section
+// 7 — local in full, remote pull-through, virtual aggregation).
+func TestRepoTypesServedClasses(t *testing.T) {
 	h := New(nil, nil, nil, nil, Options{})
 	types := h.RepoTypes()
-	if len(types) != 1 || types[0] != repo.TypeLocal {
-		t.Errorf("RepoTypes = %v, want [local]", types)
+	want := []string{repo.TypeLocal, repo.TypeRemote, repo.TypeVirtual}
+	if len(types) != len(want) {
+		t.Fatalf("RepoTypes = %v, want %v", types, want)
+	}
+	for i := range want {
+		if types[i] != want[i] {
+			t.Errorf("RepoTypes[%d] = %q, want %q", i, types[i], want[i])
+		}
 	}
 }

@@ -19,6 +19,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -54,9 +57,10 @@ type stack struct {
 
 // stackOptions tunes the assembly (see newStackOpt).
 type stackOptions struct {
-	baseURL string // Options.BaseURL (server.base_url); "" = request-derived
-	addons  *addonsRegistrySeam
-	keys    *licenseKeys
+	baseURL     string // Options.BaseURL (server.base_url); "" = request-derived
+	addons      *addonsRegistrySeam
+	keys        *licenseKeys
+	extPatterns []string // Options.ExternalPatterns (nil = the "**" default)
 }
 
 // newStack builds the default stack: anonymous reads on, no addon
@@ -114,9 +118,10 @@ func newStackOpt(t *testing.T, opt stackOptions) *stack {
 	// stays OUT of the global adapter registry — httpapi mounts
 	// Deps.Adapters explicitly.
 	RegisterMetadata()
-	handler := New(svc, md.Repos(), md.Blobs(), md.NodeProps(), Options{
-		BaseURL: opt.baseURL,
-		Now:     func() time.Time { return time.Now() },
+	handler := New(svc, md.Repos(), md.Blobs(), md.NodeProps(), md.Remote(), Options{
+		BaseURL:          opt.baseURL,
+		ExternalPatterns: opt.extPatterns,
+		Now:              func() time.Time { return time.Now() },
 	})
 
 	deps := httpapi.Deps{
@@ -156,6 +161,109 @@ func (s *stack) seedRepo(t *testing.T, key, class, config string) {
 	}); err != nil {
 		t.Fatalf("seed repo %s: %v", key, err)
 	}
+}
+
+// seedRemoteRepo writes one REMOTE helm repository row plus its
+// remote_configs row directly through the metadata store (the creation
+// validation matrix — the helm package type's enum/gate family — is not
+// under test here; the licensed gate legs live in gate_test.go). The
+// loopback upstream the tests use demands the admin-set private-upstream
+// exemption, the same flag a production administrator grants for an
+// internal mirror. The TTLs carry the DDL defaults (86400/600); what
+// matters is a non-zero window so a landed copy serves its HITs.
+func (s *stack) seedRemoteRepo(t *testing.T, key, upstream string) {
+	t.Helper()
+	if err := s.md.Repos().Create(context.Background(), &metadata.Repo{
+		RepoKey: key, Type: repo.TypeRemote, PackageType: Protocol, Config: "{}",
+	}); err != nil {
+		t.Fatalf("seed remote repo %s: %v", key, err)
+	}
+	if err := s.md.Remote().CreateConfig(context.Background(), &metadata.RemoteConfig{
+		RepoKey: key, URL: strings.TrimRight(upstream, "/"),
+		ContentTTLSeconds:    86400,
+		MetadataTTLSeconds:   600,
+		AllowPrivateUpstream: true,
+	}); err != nil {
+		t.Fatalf("seed remote config %s: %v", key, err)
+	}
+}
+
+// seedVirtualRepo writes one VIRTUAL helm repository row plus its member
+// ledger directly through the metadata store (the same direct-seed posture
+// as seedRemoteRepo). The member rows must exist; deployment names the
+// defaultDeploymentRepo when non-empty. Position = declaration order (the
+// two-bucket rest bucket; no priority marks in these fixtures).
+func (s *stack) seedVirtualRepo(t *testing.T, key, deployment string, members ...string) {
+	t.Helper()
+	cfg := `{"repositories":[` + quoteJoin(members) + `]`
+	if deployment != "" {
+		cfg += `,"defaultDeploymentRepo":"` + deployment + `"`
+	}
+	cfg += `}`
+	if err := s.md.Repos().Create(context.Background(), &metadata.Repo{
+		RepoKey: key, Type: repo.TypeVirtual, PackageType: Protocol, Config: cfg,
+	}); err != nil {
+		t.Fatalf("seed virtual repo %s: %v", key, err)
+	}
+	if err := s.md.Virtual().SetMembers(context.Background(), key, members); err != nil {
+		t.Fatalf("seed virtual members %s: %v", key, err)
+	}
+}
+
+// quoteJoin renders ["a","b"] for the member-list config.
+func quoteJoin(ss []string) string {
+	quoted := make([]string, len(ss))
+	for i, v := range ss {
+		quoted[i] = `"` + v + `"`
+	}
+	return strings.Join(quoted, ",")
+}
+
+// chartUpstream is one loopback upstream chart repository: fixed file
+// bodies plus a request counter per path (the MISS/HIT assertions read
+// it).
+type chartUpstream struct {
+	srv   *httptest.Server
+	files map[string]string
+	hits  map[string]*atomic.Int64
+	mu    sync.Mutex
+}
+
+// newChartUpstream starts one upstream over the given path->body map.
+func newChartUpstream(t *testing.T, files map[string]string) *chartUpstream {
+	t.Helper()
+	up := &chartUpstream{files: files, hits: map[string]*atomic.Int64{}}
+	up.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		up.mu.Lock()
+		c := up.hits[r.URL.Path]
+		if c == nil {
+			c = &atomic.Int64{}
+			up.hits[r.URL.Path] = c
+		}
+		up.mu.Unlock()
+		c.Add(1)
+		body, ok := up.files[r.URL.Path]
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		if strings.HasSuffix(r.URL.Path, ".yaml") {
+			w.Header().Set("Content-Type", "text/yaml")
+		}
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(up.srv.Close)
+	return up
+}
+
+// hitCount reports one path's upstream request count.
+func (u *chartUpstream) hitCount(path string) int64 {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	if c := u.hits[path]; c != nil {
+		return c.Load()
+	}
+	return 0
 }
 
 // do issues one request; user != "" adds Basic auth. The response body is

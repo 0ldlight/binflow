@@ -557,14 +557,16 @@ func TestDebReindexAsync(t *testing.T) {
 
 // ---- class doors and the plain faces ----
 
-// TestClassDoors: remote/virtual content addressing answers the unserved
-// class wording; the root probe and plain files behave.
+// TestClassDoors: the class doors behave — a memberless virtual answers
+// the plain not-found (the aggregate face serves since T-314, an empty
+// member set aggregates nothing), the root probe and the unknown-repo
+// door keep their shapes.
 func TestClassDoors(t *testing.T) {
 	s := newStack(t)
 	s.seedRepo(t, "deb-virtual", repo.TypeVirtual, `{}`)
 	s.seedRepo(t, "deb-local", repo.TypeLocal, `{}`)
 	status, body, _ := s.get("/binflow/deb-virtual/dists/stable/Release")
-	if status != http.StatusNotFound || !strings.Contains(body, "remote pull-through and the virtual") {
+	if status != http.StatusNotFound || !strings.Contains(body, "'deb-virtual/dists/stable/Release' not found") {
 		t.Fatalf("virtual content = (%d, %s)", status, body)
 	}
 	// The root probe on a live local repository.

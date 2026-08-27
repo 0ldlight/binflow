@@ -27,6 +27,7 @@ type fakeMeta struct {
 	pkg   map[string]string                           // repoKey -> package type
 	nodes map[string]map[string]*replication.NodeMeta // repoKey -> path -> meta
 	tags  map[string][]string                         // repoKey+"/"+image+"/"+hex -> tags
+	props map[string]map[string][]string              // repoKey+"/"+path -> properties (T-317)
 }
 
 func (f *fakeMeta) PackageType(_ context.Context, repoKey string) (string, error) {
@@ -45,6 +46,10 @@ func (f *fakeMeta) Node(_ context.Context, repoKey, path string) (*replication.N
 
 func (f *fakeMeta) DockerTags(_ context.Context, repoKey, image, digestHex string) ([]string, error) {
 	return f.tags[repoKey+"/"+image+"/"+digestHex], nil
+}
+
+func (f *fakeMeta) NodeProps(_ context.Context, repoKey, path string) (map[string][]string, error) {
+	return f.props[repoKey+"/"+path], nil
 }
 
 // protoTarget records one request against a scripted protocol target.

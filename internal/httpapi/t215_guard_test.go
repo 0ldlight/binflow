@@ -41,8 +41,13 @@ import (
 // Editing this constant is a deliberate route-gate change — update the
 // inventory table with it.
 const (
-	t215ManageGates    = 38
+	t215ManageGates    = 48
 	t215RepoManageBits = 8 // +2: T-309's helm reindex family; +1: T-311's yum reindex; +1: T-310's deb reindex (CanManageRepo, ADR-0034)
+	// t215ManageGates +10 (M11 T-319, ADR-0038): the instance GPG keypair
+	// plane — /api/security/keypair {POST,PUT,GET,verify POST,public GET,
+	// {pairName} GET+DELETE}, /api/v1/admin/security/keypair/generate POST,
+	// and the v2 repository association POST+DELETE (CapSecurityRead reads /
+	// CapSecurityWrite writes, docs/design/gpg-keypair.md section 3.4).
 )
 
 func t215MustRead(t *testing.T, name string) string {

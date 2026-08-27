@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -53,6 +54,7 @@ type stack struct {
 // stackOptions tunes the assembly (see newStackOpt).
 type stackOptions struct {
 	dataDir string // Options.DataDir (the .rpmcache root); "" = disabled
+	aggTTL  time.Duration
 	addons  *addonsRegistrySeam
 	keys    *licenseKeys
 }
@@ -110,13 +112,14 @@ func newStackOpt(t *testing.T, opt stackOptions) *stack {
 		}
 	}
 
-	// The provider registration feeds the future remote engine's TTL
-	// split; the duplicate guard makes repeated stacks safe. The handler
-	// stays OUT of the global adapter registry — httpapi mounts
-	// Deps.Adapters explicitly.
+	// The provider registration feeds the remote engine's TTL split; the
+	// duplicate guard makes repeated stacks safe. The handler stays OUT of
+	// the global adapter registry — httpapi mounts Deps.Adapters
+	// explicitly.
 	RegisterMetadata()
-	handler := New(svc, md.Repos(), md.Blobs(), Options{
+	handler := NewWithProps(svc, md.Repos(), md.Blobs(), md.NodeProps(), Options{
 		DataDir: dataDir,
+		AggTTL:  opt.aggTTL,
 		Now:     func() time.Time { return time.Now() },
 	})
 
@@ -156,6 +159,79 @@ func (s *stack) seedRepo(t *testing.T, key, class, config string) {
 		RepoKey: key, Type: class, PackageType: Protocol, Config: config,
 	}); err != nil {
 		t.Fatalf("seed repo %s: %v", key, err)
+	}
+}
+
+// seedRemoteRepo writes one REMOTE rpm repository row plus its remote
+// config (the helm fixture posture): the loopback upstream the engine
+// fetches, the default TTL pair and the private-upstream allowance the
+// test-origin loopback needs.
+func (s *stack) seedRemoteRepo(t *testing.T, key, upstream string) {
+	t.Helper()
+	if err := s.md.Repos().Create(context.Background(), &metadata.Repo{
+		RepoKey: key, Type: repo.TypeRemote, PackageType: Protocol, Config: "{}",
+	}); err != nil {
+		t.Fatalf("seed remote repo %s: %v", key, err)
+	}
+	if err := s.md.Remote().CreateConfig(context.Background(), &metadata.RemoteConfig{
+		RepoKey:              key,
+		URL:                  strings.TrimRight(upstream, "/"),
+		ContentTTLSeconds:    86400,
+		MetadataTTLSeconds:   600,
+		AllowPrivateUpstream: true,
+	}); err != nil {
+		t.Fatalf("seed remote config %s: %v", key, err)
+	}
+}
+
+// seedVirtualRepo writes one VIRTUAL rpm repository row plus its member
+// ledger directly through the metadata store. The member rows must
+// exist; deployment names the defaultDeploymentRepo when non-empty;
+// priorities maps member keys marked priorityResolution=true.
+func (s *stack) seedVirtualRepo(t *testing.T, key, deployment string, members []string, priorities map[string]bool) {
+	t.Helper()
+	cfg := `{"repositories":[`
+	for i, m := range members {
+		if i > 0 {
+			cfg += ","
+		}
+		cfg += `"` + m + `"`
+	}
+	cfg += `]`
+	if deployment != "" {
+		cfg += `,"defaultDeploymentRepo":"` + deployment + `"`
+	}
+	cfg += `}`
+	if err := s.md.Repos().Create(context.Background(), &metadata.Repo{
+		RepoKey: key, Type: repo.TypeVirtual, PackageType: Protocol, Config: cfg,
+	}); err != nil {
+		t.Fatalf("seed virtual repo %s: %v", key, err)
+	}
+	// The member LEDGER drives resolution (the config JSON's repositories
+	// array is the REST plane's input shape; the store's own face is
+	// SetMembers).
+	if err := s.md.Virtual().SetMembers(context.Background(), key, members); err != nil {
+		t.Fatalf("seed virtual members %s: %v", key, err)
+	}
+	for m, on := range priorities {
+		if !on {
+			continue
+		}
+		row, err := s.md.Repos().Get(context.Background(), m)
+		if err != nil {
+			t.Fatalf("load member %s for priority mark: %v", m, err)
+		}
+		// Splice the mark into the member's config blob (the order seam's
+		// tolerant probe only reads the one flag).
+		switch row.Config {
+		case "", "{}":
+			row.Config = `{"priorityResolution":true}`
+		default:
+			row.Config = strings.TrimSuffix(row.Config, "}") + `,"priorityResolution":true}`
+		}
+		if err := s.md.Repos().Update(context.Background(), row); err != nil {
+			t.Fatalf("mark member %s priority: %v", m, err)
+		}
 	}
 }
 

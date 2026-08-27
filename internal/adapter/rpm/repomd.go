@@ -269,13 +269,19 @@ func renderOther(entries []pkgEntry) []byte {
 // dataEntryFor gzips one body and names the file after its compressed
 // digest (the checksum-prefixed naming, rpm.md section 2.1).
 func dataEntryFor(typ string, body []byte) (*dataEntry, error) {
+	return dataEntryFile(typ, typ+".xml.gz", body)
+}
+
+// dataEntryFile is dataEntryFor with an explicit file tail — the index
+// families whose name is not "<type>.xml.gz" (modules.yaml.gz).
+func dataEntryFile(typ, tail string, body []byte) (*dataEntry, error) {
 	gz, err := gzipBytes(body)
 	if err != nil {
 		return nil, fmt.Errorf("gzip %s: %w", typ, err)
 	}
 	return &dataEntry{
 		typ:  typ,
-		href: "repodata/" + sha256Hex(gz) + "-" + typ + ".xml.gz",
+		href: "repodata/" + sha256Hex(gz) + "-" + tail,
 		body: gz,
 		open: body,
 	}, nil

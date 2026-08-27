@@ -897,6 +897,14 @@ func (e *Engine) packageType(ctx context.Context, repoKey string) (string, error
 //  2. PUT the blob bytes with the declared X-Checksum-Sha256 — the target
 //     verifies the digest during ingest (a 409 means the source bytes no
 //     longer match their own checksum, a not-retryable fault).
+//  3. Property carry (T-317, FR-101.2): after EITHER success arm, the
+//     source node's properties (read at push time) merge onto the target
+//     node through the target instance's property face — replication.md
+//     2.1's syncProperties=true default posture, so an idempotent re-push
+//     also converges properties that landed after the first transfer.
+//     Protocol planes (docker/npm/pypi) build their target nodes through
+//     protocol faces whose property semantics belong to those adapters —
+//     the carry is the generic plane's (generic/maven), T-317 report.
 func (e *Engine) pushGeneric(ctx context.Context, cfg *ReplicationConfig, sha256, nodePath string) error {
 	u, err := e.targetURL(cfg, nodePath)
 	if err != nil {
@@ -919,7 +927,10 @@ func (e *Engine) pushGeneric(ctx context.Context, cfg *ReplicationConfig, sha256
 		} else {
 			_ = resp.Body.Close()
 			if strings.EqualFold(sum, sha256) {
-				return nil // idempotent hit: the target already holds these bytes
+				// Idempotent hit: the target already holds these bytes —
+				// the property carry still runs (late-tagged properties
+				// converge on the re-push).
+				return e.syncPropertiesOnce(ctx, cfg, what, nodePath)
 			}
 			return notRetryable(fmt.Errorf(
 				"%s: conflict: target holds sha256 %s at the path, source sha256 is %s; target left untouched (Q7 interim)",
@@ -950,9 +961,97 @@ func (e *Engine) pushGeneric(ctx context.Context, cfg *ReplicationConfig, sha256
 		if sum != "" && !strings.EqualFold(sum, sha256) {
 			return notRetryable(fmt.Errorf("%s: target confirmed sha256 %s, expected %s", what, strings.ToLower(sum), sha256))
 		}
-		return nil
+		return e.syncPropertiesOnce(ctx, cfg, what, nodePath)
 	default:
 		return fmt.Errorf("%s: %w", what, classify(resp, what))
+	}
+}
+
+// propsTargetURL builds the target instance's property-merge address for
+// one node path: {TargetURL}/binflow/api/storage/{TargetRepo}/{path} — the
+// INSTANCE-level API mount, not the content mount — with the RAW properties
+// query pre-rendered (the value grammar below). Same base validation and
+// segment-escaping contract as targetURL/planeURL.
+func (e *Engine) propsTargetURL(cfg *ReplicationConfig, nodePath string, rawQuery string) (*url.URL, error) {
+	base, err := e.targetBase(cfg)
+	if err != nil {
+		return nil, err
+	}
+	segments := strings.Split(nodePath, "/")
+	for i, seg := range segments {
+		if seg == "" || seg == "." || seg == ".." {
+			return nil, notRetryable(fmt.Errorf("config %q: node path %q: illegal segment %q", cfg.Name, nodePath, seg))
+		}
+		segments[i] = url.PathEscape(seg)
+	}
+	u := *base
+	u.Path = strings.TrimRight(base.Path, "/") + "/binflow/api/storage/" + cfg.TargetRepo + "/" + strings.Join(segments, "/")
+	u.RawQuery = rawQuery
+	return &u, nil
+}
+
+// renderPropsQuery renders one property map as the target's ?properties=
+// raw value (the comma grammar the M10 property plane parses): RAW commas
+// separate segments, a segment with '=' opens a key, one without continues
+// the previous key's value set — so values are percent-encoded (a %2C
+// survives as content) and keys ride verbatim (the validated key charset
+// has no reserved characters). Keys and values render in sorted order for
+// deterministic requests.
+func renderPropsQuery(props map[string][]string) string {
+	keys := make([]string, 0, len(props))
+	for k := range props {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	segs := make([]string, 0, len(props)*2)
+	for _, k := range keys {
+		values := append([]string(nil), props[k]...)
+		sort.Strings(values)
+		segs = append(segs, k+"="+url.QueryEscape(values[0]))
+		for _, v := range values[1:] {
+			segs = append(segs, url.QueryEscape(v))
+		}
+	}
+	return strings.Join(segs, ",")
+}
+
+// syncPropertiesOnce is the property carry of one push attempt (T-317,
+// FR-101.2): read the SOURCE node's properties at push time and merge them
+// onto the TARGET node. A node without properties is a clean skip (no
+// request); a property-plane failure is an ordinary push failure — the
+// retry re-enters pushGeneric, the blob arm answers idempotently and the
+// property arm gets the attempt budget (the carry folds into the attempt
+// loop instead of trailing it as best-effort: a property the operator
+// tagged MUST arrive, or the task must say why it did not).
+func (e *Engine) syncPropertiesOnce(ctx context.Context, cfg *ReplicationConfig, what, nodePath string) error {
+	if e.cfg.meta == nil {
+		return nil
+	}
+	props, err := e.cfg.meta.NodeProps(ctx, cfg.SourceRepo, nodePath)
+	if err != nil {
+		return fmt.Errorf("%s: source properties: %w", what, err)
+	}
+	if len(props) == 0 {
+		return nil
+	}
+	u, err := e.propsTargetURL(cfg, nodePath, "properties="+renderPropsQuery(props))
+	if err != nil {
+		return err
+	}
+	resp, err := e.do(ctx, http.MethodPut, u, cfg, nil, 0, nil)
+	if err != nil {
+		return fmt.Errorf("%s: property carry: %w", what, err)
+	}
+	switch resp.StatusCode {
+	case http.StatusOK, http.StatusCreated, http.StatusNoContent:
+		_ = resp.Body.Close()
+		return nil
+	case http.StatusBadRequest, http.StatusConflict:
+		// The target rejected the write itself (invalid set, conflicting
+		// state): deterministic, not worth the backoff schedule.
+		return notRetryable(fmt.Errorf("%s: property carry: %w", what, classify(resp, what)))
+	default:
+		return fmt.Errorf("%s: property carry: %w", what, classify(resp, what))
 	}
 }
 

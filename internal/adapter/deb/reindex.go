@@ -41,10 +41,14 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/ulikunitz/xz"
+	"github.com/ulikunitz/xz/lzma"
 
 	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/repo"
@@ -70,11 +74,14 @@ type RepoConfig struct {
 	ByHash string `json:"byHash"`
 	// OptionalIndexCompressionFormats are the optional compression
 	// spellings beyond the mandatory plain + .gz (section 2.1: default
-	// ["bz2"]). DIVERGENCE (registered, T-310 report): this release
-	// writes plain + .gz only — no bz2/xz/lzma writer exists in the
-	// dependency set and the network-isolated build cannot add one; the
-	// names parse, the recompute logs one WARN, apt needs only one index
-	// form (the format marks every compression optional).
+	// ["bz2"]). T-314 restored the renderable subset: xz and lzma write
+	// through the ulikunitz/xz dependency already on the deb parse path.
+	// DIVERGENCE (carried from T-310, still registered): bz2 has no writer
+	// in the dependency set and the network-isolated build cannot add one
+	// (dsnet/compress absent from the module cache) — a configured "bz2"
+	// degrades away with one WARN, and the default set (["bz2"]) therefore
+	// still renders plain + .gz only. apt needs any ONE index form (the
+	// format marks every compression optional).
 	OptionalIndexCompressionFormats []string `json:"optionalIndexCompressionFormats"`
 	// DefaultArchitectures is TL-4's forced architecture family set:
 	// these families' Packages files generate for every component even
@@ -92,10 +99,9 @@ type RepoConfig struct {
 
 // config defaults.
 const (
-	defaultByHash          = byHashNone
-	defaultArchitectures   = "i386,amd64"
-	defaultHistoryCycles   = 3
-	defaultOptionalFormats = "bz2"
+	defaultByHash        = byHashNone
+	defaultArchitectures = "i386,amd64"
+	defaultHistoryCycles = 3
 )
 
 // maxIndexReadBytes bounds one stored body read (the control member
@@ -114,9 +120,10 @@ func parseRepoConfig(config string) RepoConfig {
 }
 
 // normalized returns the config with defaults applied. The optional
-// compression set collapses to EMPTY — the registered divergence: no
-// bz2/xz/lzma writer ships in this release (see the field comment), and
-// a name that parses but cannot render would produce broken companion
+// compression set filters to the RENDERABLE spellings (xz / lzma since
+// T-314); "bz2" still carries no writer in this dependency set and is
+// dropped here (the registered divergence, see the field comment) — a
+// name that parses but cannot render would produce broken companion
 // files, so the default ["bz2"] degrades to the mandatory plain + .gz
 // pair every apt accepts.
 func (c RepoConfig) normalized() RepoConfig {
@@ -133,8 +140,41 @@ func (c RepoConfig) normalized() RepoConfig {
 	if strings.TrimSpace(c.DefaultArchitectures) == "" {
 		c.DefaultArchitectures = defaultArchitectures
 	}
-	c.OptionalIndexCompressionFormats = nil
+	c.OptionalIndexCompressionFormats = c.renderableCompanions()
 	return c
+}
+
+// renderableCompanions keeps the configured optional compression names
+// this release can actually render (deterministic order: the spellings
+// sorted), silently dropping duplicates and unknown or unrenderable
+// spellings — the bz2 gap is WARN-logged at config load (configFor), not
+// per file.
+func (c RepoConfig) renderableCompanions() []string {
+	var out []string
+	for _, f := range c.OptionalIndexCompressionFormats {
+		name := strings.TrimSpace(f)
+		if _, ok := companionWriters[name]; !ok {
+			continue
+		}
+		if !slices.Contains(out, name) {
+			out = append(out, name)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// droppedCompanions lists the configured optional spellings that cannot
+// render in this release (the WARN set).
+func (c RepoConfig) droppedCompanions() []string {
+	var out []string
+	for _, f := range c.OptionalIndexCompressionFormats {
+		name := strings.TrimSpace(f)
+		if _, ok := companionWriters[name]; !ok && name != "" {
+			out = append(out, name)
+		}
+	}
+	return out
 }
 
 // forcedArches splits DefaultArchitectures into the sorted forced set
@@ -153,16 +193,15 @@ func (c RepoConfig) forcedArches() []string {
 	return out
 }
 
-// bz2Enabled reports whether the optional companion family renders —
-// always false in this release (normalized() collapses the set; the
-// registered divergence the field comment carries).
-func (c RepoConfig) bz2Enabled() bool {
-	for _, f := range c.OptionalIndexCompressionFormats {
-		if strings.TrimSpace(f) == defaultOptionalFormats {
-			return true
-		}
-	}
-	return false
+// companionWriters are the optional index compression spellings this
+// release can render (deterministic output: same body in, same bytes
+// out — the by-hash digests key on that). xz and lzma ride the
+// ulikunitz/xz dependency the .deb parse path already carries; bz2 stays
+// the registered gap (no writer in the dependency set, network-isolated
+// build).
+var companionWriters = map[string]func([]byte) []byte{
+	"xz":   xzBody,
+	"lzma": lzmaBody,
 }
 
 // byHashEnabled reports the Acquire-By-Hash posture (any policy but
@@ -380,7 +419,10 @@ func (h *Handler) recomputeDists(ctx context.Context, p *repo.Principal, repoKey
 	}()
 }
 
-// configFor loads the repository row and its deb section.
+// configFor loads the repository row and its deb section. A configured
+// optional compression spelling this release cannot render (bz2, the
+// registered gap) degrades away with one WARN per run — never a broken
+// companion file.
 func (h *Handler) configFor(ctx context.Context, repoKey string) (RepoConfig, error) {
 	row, err := h.repos.Get(ctx, repoKey)
 	if err != nil {
@@ -389,7 +431,12 @@ func (h *Handler) configFor(ctx context.Context, repoKey string) (RepoConfig, er
 		}
 		return RepoConfig{}, fmt.Errorf("load repository %s: %w", repoKey, err)
 	}
-	return parseRepoConfig(row.Config).normalized(), nil
+	cfg := parseRepoConfig(row.Config)
+	for _, name := range cfg.droppedCompanions() {
+		slog.WarnContext(ctx, "deb: optional index compression has no writer in this release — degraded (plain + .gz always render)",
+			slog.String("repo", repoKey), slog.String("format", name))
+	}
+	return cfg.normalized(), nil
 }
 
 // reindexDistLocked runs one distribution's full recomputation. di may
@@ -441,20 +488,20 @@ func (h *Handler) reindexDistLocked(ctx context.Context, p *repo.Principal, repo
 			entries := sortableEntries(di.bins, comp, arch)
 			base := distRoot + "/" + comp + "/binary-" + arch
 			body := renderPackagesBody(entries)
-			add(base+"/Packages", body, "text/plain; charset=utf-8")
-			add(base+"/Packages.gz", gzipBody(body), "application/gzip")
-			if cfg.bz2Enabled() {
-				add(base+"/Packages.bz2", bz2Body(body), "application/x-bzip2")
+			add(base+"/Packages", body, indexContentType("Packages"))
+			add(base+"/Packages.gz", gzipBody(body), indexContentType("Packages.gz"))
+			for _, name := range cfg.OptionalIndexCompressionFormats {
+				add(base+"/Packages."+name, companionBody(name, body), indexContentType("Packages."+name))
 			}
 		}
 		if srcs := di.srcs[comp]; len(srcs) > 0 {
 			sort.Slice(srcs, func(i, j int) bool { return srcs[i].path < srcs[j].path })
 			base := distRoot + "/" + comp + "/" + archSource
 			body := renderSourcesBody(srcs)
-			add(base+"/Sources", body, "text/plain; charset=utf-8")
-			add(base+"/Sources.gz", gzipBody(body), "application/gzip")
-			if cfg.bz2Enabled() {
-				add(base+"/Sources.bz2", bz2Body(body), "application/x-bzip2")
+			add(base+"/Sources", body, indexContentType("Sources"))
+			add(base+"/Sources.gz", gzipBody(body), indexContentType("Sources.gz"))
+			for _, name := range cfg.OptionalIndexCompressionFormats {
+				add(base+"/Sources."+name, companionBody(name, body), indexContentType("Sources."+name))
 			}
 		}
 	}
@@ -569,11 +616,48 @@ func gzipBody(body []byte) []byte {
 	return buf.Bytes()
 }
 
-// bz2Body is the optional-companion stub: no bz2 writer in the
-// dependency set (the registered divergence); normalized() collapses the
-// set, so this arm is unreachable in this release and exists only so
-// the follow-up writer ticket flips normalized() alone.
-func bz2Body(_ []byte) []byte { return nil }
+// companionBody renders one optional compression spelling (normalized()
+// has already filtered the set to companionWriters' keys).
+func companionBody(name string, body []byte) []byte {
+	if fn, ok := companionWriters[name]; ok {
+		return fn(body)
+	}
+	return nil
+}
+
+// xzBody renders the .xz companion (deterministic: the xz stream header
+// carries no timestamp; same body in, same bytes out).
+func xzBody(body []byte) []byte {
+	var buf bytes.Buffer
+	zw, err := xz.NewWriter(&buf)
+	if err != nil {
+		return nil // unreachable: a bytes.Buffer constructor never fails
+	}
+	if _, err := zw.Write(body); err != nil {
+		return nil // unreachable: see above
+	}
+	if err := zw.Close(); err != nil {
+		return nil // unreachable: see above
+	}
+	return buf.Bytes()
+}
+
+// lzmaBody renders the .lzma companion (the LZMA-alone format, the
+// legacy apt spelling; deterministic like xzBody).
+func lzmaBody(body []byte) []byte {
+	var buf bytes.Buffer
+	zw, err := lzma.NewWriter(&buf)
+	if err != nil {
+		return nil // unreachable: see xzBody
+	}
+	if _, err := zw.Write(body); err != nil {
+		return nil // unreachable: see xzBody
+	}
+	if err := zw.Close(); err != nil {
+		return nil // unreachable: see xzBody
+	}
+	return buf.Bytes()
+}
 
 // writeIndexFile lands one rendered file at its canonical path (the
 // regenerable-content posture: SkipOverwriteCheck, measured digest).

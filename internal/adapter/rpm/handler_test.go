@@ -277,7 +277,11 @@ func TestReindexMatrix(t *testing.T) {
 		{"no manage", http.MethodPost, "/binflow/api/yum/rpm-plain?async=0", "plain", "plain-pass", 403, ""},
 		{"repo missing", http.MethodPost, "/binflow/api/yum/rpm-nothere", adminUser, adminPass, 404, "Unable to find repository 'rpm-nothere'."},
 		{"non-rpm repo", http.MethodPost, "/binflow/api/yum/gen-local", adminUser, adminPass, 404, "Unable to find repository 'gen-local'."},
-		{"virtual unserved", http.MethodPost, "/binflow/api/yum/virt-rpm?async=0", adminUser, adminPass, 400, "virtual"},
+		{"virtual sync completes", http.MethodPost, "/binflow/api/yum/virt-rpm?async=0", adminUser, adminPass, 200,
+			"yum metadata calculation on path  in virtual repo virt-rpm completed."},
+		{"virtual async scheduled", http.MethodPost, "/binflow/api/yum/virt-rpm?async=1", adminUser, adminPass, 202,
+			"yum metadata calculation on path  in virtual repo virt-rpm scheduled to run."},
+		{"virtual bad async", http.MethodPost, "/binflow/api/yum/virt-rpm?async=9", adminUser, adminPass, 400, ""},
 		{"async1 accepted", http.MethodPost, "/binflow/api/yum/rpm-plain?async=1", adminUser, adminPass, 202,
 			"YUM metadata calculation for repository 'rpm-plain' accepted."},
 		{"sync auto-calc conflict", http.MethodPost, "/binflow/api/yum/rpm-auto?async=0", adminUser, adminPass, 409,
@@ -558,14 +562,21 @@ func TestChecksumHeaderGates(t *testing.T) {
 	}
 }
 
-// TestClassDoors: remote/virtual rpm rows answer the not-served 404 on
-// the content plane.
+// TestClassDoors: a class outside the three this adapter serves answers
+// the not-served 404; the served classes answer their own faces (the
+// virtual aggregation and the remote pull-through own their test files).
 func TestClassDoors(t *testing.T) {
 	s := newStack(t)
+	seedRepoRow(t, s, "rpm-fed", "federated", Protocol)
+	status, body, _ := s.get("/binflow/rpm-fed/anything.rpm")
+	if status != http.StatusNotFound || !strings.Contains(body, "federated") {
+		t.Errorf("federated content = (%d, %s), want the class refusal", status, body)
+	}
+	// A virtual without repodata-carrying members passthroughs to the
+	// first-hit miss — NOT the class refusal.
 	seedRepoRow(t, s, "rpm-virt", repo.TypeVirtual, Protocol)
-	status, body, _ := s.get("/binflow/rpm-virt/anything.rpm")
-	if status != http.StatusNotFound || !strings.Contains(body, "virtual") {
-		t.Errorf("virtual content = (%d, %s), want the class refusal", status, body)
+	if status, body, _ = s.get("/binflow/rpm-virt/anything.rpm"); status != http.StatusNotFound || strings.Contains(body, "not served") {
+		t.Errorf("virtual content = (%d, %s), want the miss 404, not the class refusal", status, body)
 	}
 }
 

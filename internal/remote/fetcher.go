@@ -122,6 +122,30 @@ type repoPolicy struct {
 	UnusedCleanupPeriodHours       int64 `json:"unusedArtifactsCleanupPeriodHours"`
 	AssumedOfflinePeriodSecs       int64 `json:"assumedOfflinePeriodSecs"`
 	HardFail                       bool  `json:"hardFail"`
+	// T-317 (FR-101.1): the smart remote replication pair, consumed here
+	// like HardFail — straight off the canonical JSON (false = the product
+	// default, so pre-T-317 rows read "off" with no migration).
+	EnableTokenAuthentication bool             `json:"enableTokenAuthentication"`
+	ContentSync               contentSyncState `json:"contentSynchronisation"`
+}
+
+// contentSyncState is the contentSynchronisation slice of the policy (the
+// K37 sub-field set — see repo.ContentSynchronisation, whose shape this
+// mirrors). Only enabled && propertiesEnabled has a behavior today: the
+// pull-side property attach (syncUpstreamProperties); statisticsEnabled and
+// sourceOrigin are accepted-and-echoed policy with deliberately no
+// transport (no statistics substrate, no origin-marking spec — T-317
+// deviation register).
+type contentSyncState struct {
+	Enabled           bool `json:"enabled"`
+	StatisticsEnabled bool `json:"statisticsEnabled"`
+	PropertiesEnabled bool `json:"propertiesEnabled"`
+	SourceOrigin      bool `json:"sourceOrigin"`
+}
+
+// propertiesSyncOn is the single gate of the pull-side property attach.
+func (p repoPolicy) propertiesSyncOn() bool {
+	return p.ContentSync.Enabled && p.ContentSync.PropertiesEnabled
 }
 
 // defaultPolicy mirrors the PRD v1.2 C4 product defaults, used for rows
@@ -643,6 +667,15 @@ func (e *Engine) land(ctx context.Context, repoKey, path, kind string, cfg *meta
 		return nil, fmt.Errorf("remote %s: cache state %s: %w", repoKey, path, err)
 	}
 
+	// T-317 (FR-101.1): contentSynchronisation.propertiesEnabled — the
+	// pull-side property attach, content-class nodes only (the smart
+	// remote's governance data rides with the artifact, not with
+	// regenerable metadata). Best-effort by contract: a property problem
+	// must never fail or stall the artifact fetch.
+	if kind == metadata.RemoteCacheKindContent && pol.propertiesSyncOn() {
+		e.syncUpstreamProperties(ctx, cfg, pol, repoKey, path)
+	}
+
 	// Original-checksum registration (M3: log only, never reject).
 	if declared := hdr.Get("X-Checksum-Sha256"); declared != "" && !strings.EqualFold(declared, ref.Sha256) {
 		e.log.Warn("remote: upstream declared checksum differs from the measured one (registered, not enforced)",
@@ -965,6 +998,7 @@ func (e *Engine) clientFor(repoKey string, cfg *metadata.RemoteConfig, pol repoP
 	sig := strings.Join([]string{
 		cfg.URL, cfg.Username, password,
 		fmt.Sprintf("%d", effectiveSocketTimeoutMs(cfg, pol)), fmt.Sprintf("%t", cfg.AllowPrivateUpstream),
+		fmt.Sprintf("%t", pol.EnableTokenAuthentication),
 	}, "\x00")
 	e.mu.Lock()
 	cached := e.clients[repoKey]
@@ -977,6 +1011,7 @@ func (e *Engine) clientFor(repoKey string, cfg *metadata.RemoteConfig, pol repoP
 		BaseURL:              cfg.URL,
 		Username:             cfg.Username,
 		Password:             password,
+		TokenAuth:            pol.EnableTokenAuthentication,
 		AllowPrivateUpstream: cfg.AllowPrivateUpstream,
 		SocketTimeout:        time.Duration(effectiveSocketTimeoutMs(cfg, pol)) * time.Millisecond,
 		Logger:               e.log,
@@ -993,6 +1028,96 @@ func (e *Engine) clientFor(repoKey string, cfg *metadata.RemoteConfig, pol repoP
 		old.client.CloseIdleConnections()
 	}
 	return client, nil
+}
+
+// upstreamPropsURL derives the upstream instance's property-query address
+// for one (repository URL, storage path) pair: a remote repository URL is
+// instance-mount-plus-repo-key on BOTH sides BinFlow speaks ({base}/binflow/
+// {repo} and Artifactory's {base}/artifactory/{repo}), so the LAST path
+// segment of the configured URL is the upstream repo key and everything
+// before it is the instance mount — {mount}/api/storage/{repo}/{path}?properties=
+// is then the correct query face on either. A URL with no repo segment
+// (bare host) has nothing derivable and reports ok=false.
+func upstreamPropsURL(base, path string) (string, bool) {
+	u, err := url.Parse(strings.TrimSpace(base))
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return "", false
+	}
+	full := strings.TrimRight(u.Path, "/")
+	idx := strings.LastIndex(full, "/")
+	mount, repoKey := "", full
+	if idx >= 0 {
+		mount, repoKey = full[:idx], full[idx+1:]
+	}
+	if repoKey == "" {
+		return "", false
+	}
+	segments := strings.Split(path, "/")
+	for i, seg := range segments {
+		if seg == "" || seg == "." || seg == ".." {
+			return "", false
+		}
+		segments[i] = url.PathEscape(seg)
+	}
+	out := url.URL{
+		Scheme: u.Scheme, Host: u.Host,
+		Path:     mount + "/api/storage/" + repoKey + "/" + strings.Join(segments, "/"),
+		RawQuery: "properties=",
+	}
+	return out.String(), true
+}
+
+// syncUpstreamProperties is the contentSynchronisation property attach
+// (T-317, FR-101.1): after one content-class node lands, query the upstream
+// instance's property face for the same path and MERGE what it serves onto
+// the cached node. Best-effort end to end — any failure logs a WARN and the
+// artifact fetch proceeds untouched; properties are governance metadata,
+// never a delivery dependency. The query rides the repository's own client
+// (its credential mode — Basic or the enableTokenAuthentication bearer —
+// applies) and passes the full SSRF chain like every outbound hop.
+func (e *Engine) syncUpstreamProperties(ctx context.Context, cfg *metadata.RemoteConfig, pol repoPolicy, repoKey, path string) {
+	raw, ok := upstreamPropsURL(cfg.URL, path)
+	if !ok {
+		e.log.Warn("remote: content synchronisation: upstream url carries no repository segment; properties not queried",
+			"repo", repoKey, "path", path, "url", cfg.URL)
+		return
+	}
+	client, err := e.clientFor(repoKey, cfg, pol)
+	if err != nil {
+		e.log.Warn("remote: content synchronisation: no outbound client", "repo", repoKey, "path", path, "error", err.Error())
+		return
+	}
+	header := http.Header{}
+	header.Set("Accept", "application/json")
+	res, err := client.Fetch(ctx, Request{URL: raw, Header: header})
+	if err != nil {
+		e.log.Warn("remote: content synchronisation: property query failed", "repo", repoKey, "path", path, "error", err.Error())
+		return
+	}
+	if res.StatusCode != http.StatusOK {
+		e.log.Warn("remote: content synchronisation: property query answered", "repo", repoKey, "path", path, "status", res.StatusCode)
+		return
+	}
+	var body struct {
+		Properties map[string][]string `json:"properties"`
+	}
+	if err := json.Unmarshal(res.Body, &body); err != nil {
+		e.log.Warn("remote: content synchronisation: property body malformed", "repo", repoKey, "path", path, "error", err.Error())
+		return
+	}
+	if len(body.Properties) == 0 {
+		return // nothing upstream: the node simply carries no properties
+	}
+	if err := metadata.ValidatePropSet(body.Properties); err != nil {
+		e.log.Warn("remote: content synchronisation: property set rejected", "repo", repoKey, "path", path, "error", err.Error())
+		return
+	}
+	if err := e.md.NodeProps().Merge(ctx, repoKey, path, body.Properties); err != nil {
+		e.log.Warn("remote: content synchronisation: property merge failed", "repo", repoKey, "path", path, "error", err.Error())
+		return
+	}
+	e.log.Info("remote: content synchronisation attached upstream properties",
+		"repo", repoKey, "path", path, "keys", len(body.Properties))
 }
 
 // markOffline opens the assumed-offline window (the light circuit breaker of

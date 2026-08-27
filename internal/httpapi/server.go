@@ -135,6 +135,14 @@ type Deps struct {
 	// unit stacks only; every assembled server wires the ConfigManager
 	// (whose snapshot also feeds the auth service's hot arms).
 	AuthConfigs AuthConfigPlane
+	// Keypairs is the instance GPG keypair manager behind the
+	// /api/security/keypair family, the repo association face and the
+	// generation endpoint (M11 T-319, ADR-0038 / docs/design/
+	// gpg-keypair.md). Nil keeps the plane at the honest 503 — unit stacks
+	// only; every assembled server wires the keypair.Manager (the signing
+	// seam the deb/rpm legs consume is assembled in cmd from the same
+	// store + cipher).
+	Keypairs KeypairPlane
 	// Addons is the assembled addon registry (M10 T-282, ADR-0033): the
 	// compile-time literal slice cmd builds. Nil keeps GET /api/v1/addons
 	// at an honest empty array and the repo-create plane on repo.Service's

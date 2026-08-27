@@ -196,8 +196,6 @@ func TestIndexDirectWriteRefused(t *testing.T) {
 func TestLocalRefusals(t *testing.T) {
 	s := newStack(t)
 	s.seedRepo(t, "helm-local", repo.TypeLocal, "{}")
-	s.seedRepo(t, "helm-remote-ish", repo.TypeRemote, "{}")
-	s.seedRepo(t, "helm-virt", repo.TypeVirtual, "{}")
 
 	// _external/_transitive: the remote family's local 400.
 	for _, p := range []string{"/binflow/helm-local/_external/https/example.com/x.tgz", "/binflow/helm-local/_transitive/https/example.com/x.tgz"} {
@@ -205,11 +203,16 @@ func TestLocalRefusals(t *testing.T) {
 			t.Fatalf("%s = (%d, %s), want 400", p, status, body)
 		}
 	}
-	// The class door: remote/virtual rows answer the not-served refusal.
-	for _, p := range []string{"/binflow/helm-remote-ish/index.yaml", "/binflow/helm-virt/index.yaml"} {
-		if status, body, _ := s.get(p); status != http.StatusNotFound || !strings.Contains(body, "not served by this BinFlow release") {
-			t.Fatalf("%s = (%d, %s), want the class-door 404", p, status, body)
-		}
+	// The remote-family write verbs on a local repository: 405 + Allow.
+	if status, _, hdr := s.delete("/binflow/helm-local/_external/https/example.com/x.tgz"); status != http.StatusMethodNotAllowed || hdr.Get("Allow") != "GET" {
+		t.Fatalf("local _external DELETE = %d (Allow %q), want the GET-only 405", status, hdr.Get("Allow"))
+	}
+	// A remote repository with no upstream config row is the honest 500
+	// family (the crash-window residue the engine names); the class door
+	// itself now serves all three classes (T-313).
+	s.seedRepo(t, "helm-remote-ish", repo.TypeRemote, "{}")
+	if status, _, _ := s.get("/binflow/helm-remote-ish/mychart-0.1.0.tgz"); status != http.StatusInternalServerError {
+		t.Fatalf("config-less remote chart GET = %d, want 500 (the engine's missing-row refusal)", status)
 	}
 	// The repository-root probe.
 	if status, _, _ := s.get("/binflow/helm-local/"); status != http.StatusOK {
