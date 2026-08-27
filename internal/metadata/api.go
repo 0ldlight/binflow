@@ -388,6 +388,40 @@ type AuthConfigStore interface {
 	ListAuthConfigs(ctx context.Context) ([]*AuthConfigRecord, error)
 }
 
+// GpgKeypairRecord is one instance-level GPG signing key pair (016, M11
+// T-319, ADR-0038 decision 2). PairName is the Artifactory wire identifier
+// (KeyPairInput.pairName) and the table's primary key in one. PublicKey is
+// the armored public-key block verbatim (a public artifact); PrivateKeyEnc
+// and PassphraseEnc are ALWAYS 'enc:v1:'-sealed (the armored private-key
+// block as imported/generated, sealed whole under the instance master key)
+// — plaintext key material never lands in this table, and neither sealed
+// column is ever echoed by any read path (the private key and the
+// passphrase never leave the store).
+type GpgKeypairRecord struct {
+	PairName      string // PK; [a-zA-Z][a-zA-Z0-9_-]{0,63} (validated upstream)
+	PairType      string // closed set: 'GPG' (M11; the RSA PEM family is out of scope)
+	Alias         string // display alias, echoed in KeyPairSummary
+	PublicKey     string // armored public-key block (plaintext by design)
+	PrivateKeyEnc string // enc:v1-sealed armored private-key block
+	PassphraseEnc string // enc:v1-sealed passphrase ('' sealed is legal: no-passphrase keys)
+	Algorithm     string // key material summary, e.g. 'RSA-4096' or 'Ed25519'
+	CreatedAt     string // RFC3339 UTC
+	UpdatedAt     string // RFC3339 UTC
+	UpdatedBy     string // principal name of the last writer
+}
+
+// GpgKeypairStore is the instance keypair seam (016). PutKeypair is the
+// integral replacement of one pair (create, update and rotation all land
+// here — there is no field-level merge); DeleteKeypair removes the row
+// (the service layer owns the in-use guard that refuses while any
+// repository references the pair).
+type GpgKeypairStore interface {
+	GetKeypair(ctx context.Context, pairName string) (*GpgKeypairRecord, error)
+	PutKeypair(ctx context.Context, rec *GpgKeypairRecord) error
+	DeleteKeypair(ctx context.Context, pairName string) error
+	ListKeypairs(ctx context.Context) ([]*GpgKeypairRecord, error)
+}
+
 // AuditQuery is the full-parameter audit filter (GE-01, M4). Every field is
 // optional; the zero query returns the newest events. Since and Until are
 // RFC3339 UTC text forming a closed-open interval on the event time
@@ -431,6 +465,7 @@ type Store interface {
 	Licenses() LicenseStore
 	NodeProps() NodePropStore
 	AuthConfigs() AuthConfigStore
+	GpgKeypairs() GpgKeypairStore
 	// IsReferenced reports whether any node row or docker ref row currently
 	// points at sha256 ([M9] ADR-0031 mechanism A): the single-point Live
 	// oracle behind the GC sweep's pre-delete recheck. It spans two sub-stores

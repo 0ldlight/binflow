@@ -1869,7 +1869,13 @@ func (s *service) CreateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 		if err := validateLocalConfig(config); err != nil {
 			return nil, err
 		}
+		if err := s.validateLocalKeypairRef(ctx, r.PackageType, config); err != nil {
+			return nil, err
+		}
 	case TypeRemote:
+		if err := rejectKeypairRefOnNonLocal(r.Type, config); err != nil {
+			return nil, err
+		}
 		rc, password, perr := parseRemoteConfig(config)
 		if perr != nil {
 			return nil, perr
@@ -1880,6 +1886,9 @@ func (s *service) CreateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 			return nil, err
 		}
 	case TypeVirtual:
+		if err := rejectKeypairRefOnNonLocal(r.Type, config); err != nil {
+			return nil, err
+		}
 		vc, perr := parseVirtualConfig(config)
 		if perr != nil {
 			return nil, perr
@@ -2201,7 +2210,13 @@ func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 			if err := validateLocalConfig(config); err != nil {
 				return nil, err
 			}
+			if err := s.validateLocalKeypairRef(ctx, current.PackageType, config); err != nil {
+				return nil, err
+			}
 		case TypeRemote:
+			if err := rejectKeypairRefOnNonLocal(current.Type, r.Config); err != nil {
+				return nil, err
+			}
 			rc, password, perr := parseRemoteConfig(r.Config)
 			if perr != nil {
 				return nil, perr
@@ -2222,6 +2237,9 @@ func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 				privateFrom = &from
 			}
 		case TypeVirtual:
+			if err := rejectKeypairRefOnNonLocal(current.Type, r.Config); err != nil {
+				return nil, err
+			}
 			vc, perr := parseVirtualConfig(r.Config)
 			if perr != nil {
 				return nil, perr

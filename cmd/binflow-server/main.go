@@ -59,6 +59,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/config"
 	"github.com/lzwzzy/binflow/internal/console"
 	"github.com/lzwzzy/binflow/internal/httpapi"
+	"github.com/lzwzzy/binflow/internal/keypair"
 	"github.com/lzwzzy/binflow/internal/license"
 	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/metrics"
@@ -532,6 +533,9 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// The auth-config plane (T-305): the nine /api/v1/admin/security/*
 	// routes ride the same manager that feeds the arms.
 	deps.AuthConfigs = stack.authCfg
+	// The instance GPG keypair plane (T-319, ADR-0038): the /api/security/
+	// keypair family, the generation endpoint and the v2 association face.
+	deps.Keypairs = stack.keypairs
 	// The license plane (M10 T-279): /api/system/license rides the manager
 	// openStack loaded; its gate facet (AddonEnabled) is consumed by the
 	// T-283 weave points, not by these routes.
@@ -777,6 +781,14 @@ type stack struct {
 	// arms resolve their provider per request through the manager's
 	// snapshot (change-effective-immediately, no restart).
 	authCfg *auth.ConfigManager
+	// keypairs is the instance GPG keypair plane (T-319, ADR-0038): the
+	// /api/security/keypair family plus generation and the repo association
+	// face. Built over the 016 gpg_keypairs rows, the same enc:v1 cipher
+	// replication seals with (nil cipher = writes refuse; BootCheck fails
+	// the boot when rows exist without the key), and the repositories'
+	// configs for the in-use guard. The signing seam (the deb/rpm legs of
+	// T-321/T-322) assembles from the same collaborators.
+	keypairs *keypair.Manager
 	// The push-replication collaborators (T-180, ADR-0021): replStore is
 	// the REST plane's seam (never nil on an opened stack), replDB its own
 	// pooled connection (closed after the storage engine in close), and
@@ -838,6 +850,18 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 	// file section first-boot seed, WARN on override) and replays the
 	// stored rows into the opening snapshot.
 	authCfgMgr, err := wireAuthConfigManager(ctx, cfg, md, logger)
+	if err != nil {
+		_ = md.Close()
+		return nil, err
+	}
+
+	// The instance GPG keypair plane (T-319, ADR-0038): the 016
+	// gpg_keypairs rows sealed under the same enc:v1 master key. BootCheck
+	// fails the boot when rows exist without the key — an instance that
+	// once sealed keypairs cannot silently degrade to serving them
+	// unsealable (the static-secret family posture of auth_configs and
+	// replication).
+	keypairMgr, err := wireKeypairManager(ctx, md, logger)
 	if err != nil {
 		_ = md.Close()
 		return nil, err
@@ -980,6 +1004,7 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 		svc:            svc,
 		genericHandler: generic.New(svc, md.Blobs()),
 		authCfg:        authCfgMgr,
+		keypairs:       keypairMgr,
 		replStore:      replStore,
 		replDB:         replDB,
 		replEngine:     replEngine,
@@ -1018,6 +1043,35 @@ func openReplicationDB(ctx context.Context, path string) (*sql.DB, error) {
 		return nil, fmt.Errorf("pinging replication store %s: %w", path, err)
 	}
 	return db, nil
+}
+
+// wireKeypairManager builds the instance GPG keypair plane (T-319,
+// ADR-0038 / docs/design/gpg-keypair.md): the Manager over the 016
+// gpg_keypairs rows, the enc:v1 cipher from the same instance master key
+// the auth-config and replication planes seal with, and the repositories'
+// configs (the delete guard's reference scan and the repo-keyed public-key
+// lookup). BootCheck enforces the static-secret posture: sealed rows
+// without the master key fail the boot. The signing seam T-321/T-322
+// consume assembles from the same store + cipher + repo source
+// (keypair.NewSigningService) inside their adapter wiring.
+func wireKeypairManager(ctx context.Context, md metadata.Store, logger *slog.Logger) (*keypair.Manager, error) {
+	cipher, err := replicationCipher()
+	if err != nil {
+		return nil, fmt.Errorf("keypair master key: %w", err)
+	}
+	mgr, err := keypair.NewManager(keypair.Options{
+		Store:  md.GpgKeypairs(),
+		Cipher: cipherSeam(cipher),
+		Repos:  md.Repos(),
+		Log:    logger,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("keypair manager: %w", err)
+	}
+	if err := mgr.BootCheck(ctx); err != nil {
+		return nil, fmt.Errorf("wiring keypair plane: %w", err)
+	}
+	return mgr, nil
 }
 
 // replicationCipher builds the credential cipher from the same
