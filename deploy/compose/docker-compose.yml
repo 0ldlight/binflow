@@ -45,6 +45,13 @@
 #   - BINFLOW_ADMIN_PASSWORD uses the :? mandatory syntax — the compose
 #     invocation will error out if the variable is unset or empty. There is
 #     no default value and no silent fallback (ADR-0009).
+#
+# M11 additions (T-325): the instance master key
+# (BINFLOW_REMOTE_CREDENTIALS_KEY — seals remote credentials, replication,
+# auth_configs and GPG keypairs as enc:v1) rides .env; an optional
+# binstore.yaml (standalone storage-chain file, T-306/ADR-0036) mounts at
+# /etc/binflow and owns the storage chain when present — see the volumes
+# section for the env-vs-file priority notes.
 
 name: binflow
 
@@ -131,6 +138,25 @@ services:
       # be set on the server (the strict env scan refuses the boot on it).
       #BINFLOW_ADDONS__DISABLED: ${BINFLOW_ADDONS__DISABLED:-nuget,go}
 
+      # ---- instance master key (M11 T-319/T-305, env-only) ----------------------
+      # BINFLOW_REMOTE_CREDENTIALS_KEY is the AES-256-GCM instance master key
+      # (base64, 32 bytes; openssl rand -base64 32) that seals, as enc:v1
+      # rows: remote-repository credentials (ADR-0012), replication secrets,
+      # admin-managed auth_configs (T-305) and GPG keypairs (T-319, ADR-0038).
+      # Generate it ONCE in .env and back it up: a fresh instance boots fine
+      # without it, but once any sealed row exists the boot fail-fasts until
+      # the SAME key returns. Never commit it (ADR-0009).
+      BINFLOW_REMOTE_CREDENTIALS_KEY: ${BINFLOW_REMOTE_CREDENTIALS_KEY:-}
+
+      # ---- config/data file resolution root --------------------------------------
+      # Steers file discovery only (./binflow.yaml → $BINFLOW_HOME/binflow.yaml,
+      # ./binstore.yaml → $BINFLOW_HOME/binstore.yaml); the image pins
+      # BINFLOW_DATA_DIR=/var/lib/binflow explicitly, so the named volume
+      # above stays the data home regardless of this value. Uncomment the
+      # ./binstore.yaml volume mount below together with a binstore.yaml
+      # next to this compose file to hand the storage chain to the file.
+      BINFLOW_HOME: /etc/binflow
+
       # argon2id memory parameter (MB)
       BINFLOW_AUTH__ARGON2_MEMORY_MB: ${BINFLOW_AUTH__ARGON2_MEMORY_MB:-64}
 
@@ -155,6 +181,33 @@ services:
       - "${BINFLOW_BIND_ADDR:-127.0.0.1}:${BINFLOW_BIND_PORT:-8080}:8080"
     volumes:
       - binflow-data:/var/lib/binflow
+      # ---- binstore.yaml storage chain (M11 T-306 / ADR-0036) -------------------
+      # Uncomment to hand the storage chain to a standalone file (discovered
+      # via BINFLOW_HOME=/etc/binflow above; the image ships an empty
+      # /etc/binflow owned by the runtime user). PRIORITIES while the file
+      # owns the chain (ADR-0036 decisions 5/6):
+      #   - every chain-scoped env var above (BINFLOW_STORAGE__BACKEND,
+      #     BINFLOW_STORAGE__S3__*) is IGNORED with a WARN — set them in the
+      #     file, not in .env;
+      #   - BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY still applies (env-only
+      #     secret always reaches the live S3 provider, ADR-0009);
+      #   - data_dir/session_ttl/gc_* are NOT chain keys: they stay env/
+      #     binflow.yaml and never participate in the coexistence verdict;
+      #   - spelling chain keys BOTH in the file and in a binflow.yaml is a
+      #     semantic divergence → the boot refuses, naming both files (Q5).
+      # Minimal file (legal chains: [filestore], [s3], [filestore, s3] with
+      # a migration block; the dual chain requires mode and filestore first):
+      #   version: 1
+      #   chain:
+      #     - type: filestore
+      #     - type: s3
+      #       bucket: binflow
+      #       endpoint: http://minio:9000
+      #       access_key_id: binflow
+      #       use_path_style: true
+      #   migration:
+      #     mode: dual-write
+      #- ./binstore.yaml:/etc/binflow/binstore.yaml:ro
     healthcheck:
       # /readyz = metadata ping + storage writable, unauthenticated by
       # design (architecture 7.1). The alpine variant uses wget (busybox);

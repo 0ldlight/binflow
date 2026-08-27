@@ -35,7 +35,10 @@ scp -o StrictHostKeyChecking=accept-new bin/binflow-server \
 ${SSH} "systemctl show ${UNIT} -p ActiveState -p ExecMainStartTimestamp || true"
 
 # 2. Staged swap with backup + bounded probe + auto-rollback.
-${SSH} "sudo bash -s" <<'REMOTE'
+#    (T-325 fix: the heredoc-fed `sudo bash -s` originally read $1/$2 which
+#    were ALWAYS empty — no arguments were passed and the script died at
+#    `cd ""`. Arguments now ride the command line after `--`.)
+${SSH} "sudo bash -s -- ${HOME_} ${LABEL}" <<'REMOTE'
 set -euo pipefail
 UNIT=binflow-uat; HOME_DIR="$1"; LABEL="$2"
 cd "${HOME_DIR}"
@@ -67,10 +70,15 @@ if [ "${ok}" != 1 ]; then
 fi
 echo "deployed ${LABEL}"
 REMOTE
-# shellcheck disable=SC2034
-REMOTE_ARGS="${HOME_} ${LABEL}"
 
-# 3. Post-deploy smoke: binary face + embedded docs face both answer.
-${SSH} "curl -fsS -m 5 http://127.0.0.1:8080/healthz"
+# 3. Post-deploy smoke: binary face + version stamp + embedded docs face.
+#    (T-325: version assertion added — same "proves the swap actually took"
+#    gate the Jenkins chain has; requires the version stamp in the CircleCI
+#    build job, added in the same change.)
+v=$(${SSH} "curl -fsS -m 5 http://127.0.0.1:8080/binflow/api/system/version")
+echo "version: ${v}"
+case "${v}" in *"${LABEL}"*) ;; *)
+    echo "VERSION MISMATCH: expected ${LABEL}, got ${v}"; exit 1 ;;
+esac
 ${SSH} "curl -fsS -m 5 -o /dev/null -w 'docs:%{http_code}\n' http://127.0.0.1:8080/binflow/docs/"
 echo "== UAT deploy ${LABEL} GREEN"

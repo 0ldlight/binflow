@@ -43,6 +43,10 @@ resources:
   - service.yaml
   # Uncomment once you have filled in ingress.yaml:
   # - ingress.yaml
+  # binstore.yaml chain (M11 T-306): NOT active by default. Copy
+  # binstore-configmap.yaml.example, edit, apply, and uncomment — plus the
+  # three marked blocks in deployment.yaml (BINFLOW_HOME + mount + volume).
+  # - binstore-configmap.yaml
 
 # Common labels applied to all selected resources.
 labels:
