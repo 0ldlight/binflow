@@ -11,10 +11,12 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/lzwzzy/binflow/internal/adapter"
@@ -148,6 +150,55 @@ func (s *stack) seedRepo(t *testing.T, key, class, config string) {
 	}); err != nil {
 		t.Fatalf("seed repo %s: %v", key, err)
 	}
+}
+
+// seedRemoteConfig attaches one remote_configs row (loopback upstreams
+// need the SSRF exemption — the conan/goproxy harness posture).
+func (s *stack) seedRemoteConfig(t *testing.T, key, url string) {
+	t.Helper()
+	s.seedRemoteConfigExempt(t, key, url, true)
+}
+
+// seedRemoteConfigExempt is seedRemoteConfig with the SSRF exemption
+// switchable (the refused-upstream legs seed false).
+func (s *stack) seedRemoteConfigExempt(t *testing.T, key, url string, exempt bool) {
+	t.Helper()
+	if err := s.md.Remote().CreateConfig(context.Background(), &metadata.RemoteConfig{
+		RepoKey: key, URL: url, AllowPrivateUpstream: exempt,
+		ContentTTLSeconds: 7200, MetadataTTLSeconds: 600,
+	}); err != nil {
+		t.Fatalf("seed remote config %s: %v", key, err)
+	}
+}
+
+// seedVirtualRepo writes one virtual repository row carrying the member
+// list and (when non-empty) the write route in its config JSON (the
+// raw-seeded shape the service's tolerant readers accept), plus the
+// member ledger rows.
+func (s *stack) seedVirtualRepo(t *testing.T, key string, members []string, deploy string) {
+	t.Helper()
+	cfg := fmt.Sprintf(`{"repositories":[%s]`, quoteJoinDeb(members))
+	if deploy != "" {
+		cfg += `,"defaultDeploymentRepo":"` + deploy + `"`
+	}
+	cfg += "}"
+	if err := s.md.Repos().Create(context.Background(), &metadata.Repo{
+		RepoKey: key, Type: repo.TypeVirtual, PackageType: Protocol, Config: cfg,
+	}); err != nil {
+		t.Fatalf("seed virtual %s: %v", key, err)
+	}
+	if err := s.md.Virtual().SetMembers(context.Background(), key, members); err != nil {
+		t.Fatalf("seed members %s <- %v: %v", key, members, err)
+	}
+}
+
+// quoteJoinDeb renders one JSON string-array body.
+func quoteJoinDeb(items []string) string {
+	quoted := make([]string, len(items))
+	for i, it := range items {
+		quoted[i] = `"` + it + `"`
+	}
+	return strings.Join(quoted, ",")
 }
 
 // do issues one request; user != "" adds Basic auth. The response body is
