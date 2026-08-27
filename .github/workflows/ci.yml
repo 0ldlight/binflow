@@ -3,12 +3,14 @@
 # unreachable from this network (ADR-0005); the mirror is a fetch fallback only,
 # the dependency set itself is gated by the ADR-0005 whitelist.
 # Go version here must match the `go` directive in go.mod (kept in sync by T-7).
+# Trigger policy (user directive 2026-08-28, synced with .circleci/config.yml):
+# main-branch pushes ONLY — pull_request events were removed so both CI
+# systems fire on exactly the same surface.
 name: ci
 
 on:
   push:
     branches: [main]
-  pull_request:
 
 env:
   GOPROXY: https://goproxy.cn,direct
