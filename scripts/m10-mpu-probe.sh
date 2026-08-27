@@ -17,15 +17,14 @@
 #     complete: wrong sha256 -> 409 (checksum gate), right sha256 -> 201,
 #               artifact GET sha256-reconciled byte for byte
 #     abort: mid-upload session discarded, status 404, artifact 404
-#     kill -9 + restart: status 404 — the REST-plane registry posture.
-#               The §11.31 ENGINE debt is PAID (T-323: upload ids land in
-#               upload_sessions and S3Engine.ResumeSession rebuilds via
-#               ListParts); what still 404s here is the /api/v1/uploads
-#               plane's in-process mpuRegistry (protocol state — repo/path/
-#               part accounting — has no persisted home yet, the T-209
-#               N6/O-2-class visibility gap). Flipping THIS leg needs the
-#               httpapi lazy-rebuild + the assembler's Sessions wiring; see
-#               reports/agents/T-323.md's intersection register.
+#     kill -9 + restart: the session SURVIVES — status 200 with the
+#               persisted coordinates and the durable offset (T-323R: the
+#               /api/v1/uploads plane persists its protocol coordinates in
+#               the engine's upload_sessions row and lazily re-materializes
+#               the session through ResumeSessionContext, the docker T-216
+#               posture; T-323 paid the engine-side §11.31 debt). The leg
+#               then finishes the upload on the restarted process: parts
+#               2+3, complete 201, byte-for-byte GET reconciliation.
 #     docker push of a 20MiB image (> the 16MiB default part size, so the
 #               layer lands as a real multipart upload) + pull roundtrip
 #
@@ -34,9 +33,12 @@
 #   reclamation through `mc ls --incomplete` — an object listing cannot
 #   see in-progress MPUs, the review's finding against the first round's
 #   evidence. The wrong-sha complete and the abort legs must leave ZERO
-#   in-progress upload for their session id, and at end of run the ONLY
-#   in-progress upload in the bucket is the kill -9 leg's documented
-#   orphan (reclaimed by the engine's TTL sweep after restart). Run
+#   in-progress upload for their session id, and at end of run the bucket
+#   holds NO in-progress upload at all: since T-323R the kill -9 leg's
+#   session is resumed and COMPLETED on the restarted process (the
+#   documented orphan of the pre-T-323R posture is gone), and no sessions/
+#   temp object survives either (the publish path removes them; the
+#   age-gated sweep of T-323R reclaims any crash-window stragglers). Run
 #   against a FRESH bucket: pre-existing orphans from older builds fail
 #   the end-of-run assertion honestly.
 #
@@ -413,10 +415,11 @@ CODE=$(curl -sS -o /dev/null -w '%{http_code}' -u "admin:$ADMIN_PW" \
 assert_incomplete_gone "$AB_ID" "abort (B5: Session.Abort reclaims)"
 echo "abort -> 204, status 404, artifact 404"
 
-# --- leg 4: kill -9 restart — the REST registry posture (see header) ---------
-step "kill -9 + restart: status 404 (REST registry is process state; engine-side resume landed with T-323)"
+# --- leg 4: kill -9 restart — the session survives and completes (T-323R) ----
+step "kill -9 + restart: status 200 (lazy resume), parts 2+3, complete 201, byte reconciliation"
 RST_ID=$(mpu_create "big/restart.bin" 5)
 put_part "$RST_ID" 1 "$WORK/p1.bin"
+assert_incomplete_has "$RST_ID" "kill -9 leg before the crash"
 kill -9 "$S3_PID" 2>/dev/null || true; wait "$S3_PID" 2>/dev/null || true; S3_PID=""
 BINFLOW_ADMIN_PASSWORD="$ADMIN_PW" \
 BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY="$SECRET" \
@@ -428,38 +431,64 @@ n=0; while [ "$n" -lt 300 ]; do
     n=$((n + 1)); sleep 0.1
 done
 [ "$n" -lt 300 ] || fail_infra "S3 server never answered ping after restart"
+
+# The flipped assertion (was the pre-T-323R 404): the restarted process
+# lazily re-materializes the session from the engine's persisted row —
+# status 200 with the persisted coordinates, the durable offset (the last
+# FLUSHED part boundary; pending-buffer bytes die with the process) and
+# the derived part accounting.
+CODE=$(curl -sS -o "$WORK/rst-status.body" -w '%{http_code}' -u "admin:$ADMIN_PW" \
+    "$BASE/binflow/api/v1/uploads/status/$RST_ID" || true)
+[ "$CODE" = "200" ] || red "post-restart status = $CODE, want 200 (T-323R lazy resume): $(cat "$WORK/rst-status.body")"
+GOT=$(status_field "$RST_ID" receivedBytes)
+[ "$GOT" = "$PART_BYTES" ] || red "post-restart receivedBytes = $GOT, want $PART_BYTES (the durable offset)"
+GOT=$(status_field "$RST_ID" state)
+[ "$GOT" = "active" ] || red "post-restart state = $GOT, want active"
+GOT=$(status_field "$RST_ID" partsReceived)
+[ "$GOT" = "1" ] || red "post-restart partsReceived = $GOT, want 1"
+GOT=$(status_field "$RST_ID" repoKey)
+[ "$GOT" = "$REPO" ] || red "post-restart repoKey = $GOT, want $REPO (the persisted coordinates)"
+GOT=$(status_field "$RST_ID" path)
+[ "$GOT" = "big/restart.bin" ] || red "post-restart path = $GOT, want big/restart.bin"
+echo "post-restart: status 200, receivedBytes=$PART_BYTES, coordinates re-materialized"
+
+# Finish the upload on the restarted process.
+put_part "$RST_ID" 2 "$WORK/p2.bin"
+put_part "$RST_ID" 3 "$WORK/p3.bin"
+CODE=$(curl -sS -o "$WORK/rst-complete.body" -w '%{http_code}' \
+    -u "admin:$ADMIN_PW" -X POST "$BASE/binflow/api/v1/uploads/complete/$RST_ID" \
+    -H 'Content-Type: application/json' \
+    -d '{"sha256":"'"$WHOLE_SHA"'"}' || true)
+[ "$CODE" = "201" ] || red "post-restart complete = $CODE, want 201: $(cat "$WORK/rst-complete.body")"
+curl -sS -u "admin:$ADMIN_PW" -o "$WORK/rst-download.bin" \
+    "$BASE/binflow/$REPO/big/restart.bin" || red "post-restart artifact GET failed"
+cmp -s "$WORK/rst-download.bin" "$WORK/whole.bin" \
+    || red "post-restart downloaded bytes differ from the 11MiB upload"
+DL_SHA=$(python3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$WORK/rst-download.bin")
+[ "$DL_SHA" = "$WHOLE_SHA" ] || red "post-restart downloaded sha256 $DL_SHA != uploaded $WHOLE_SHA"
 CODE=$(curl -sS -o /dev/null -w '%{http_code}' -u "admin:$ADMIN_PW" \
     "$BASE/binflow/api/v1/uploads/status/$RST_ID" || true)
-# The assertion direction is DELIBERATE and still honest post-T-323: the
-# engine-level §11.31 debt is paid (upload ids in upload_sessions +
-# ResumeSession via ListParts — proven by the kill -9 leg of the storage
-# suite), but THIS plane's mpuRegistry is process state and its protocol
-# coordinates (repoKey/path/part accounting) have no persisted home. The
-# 404 flips when the httpapi lazy-rebuild + assembler Sessions wiring land
-# (the registered T-323 intersection).
-[ "$CODE" = "404" ] || red "post-restart status = $CODE, want the REST-registry 404 (see T-323 intersection register)"
-CODE=$(curl -sS -o /dev/null -w '%{http_code}' -u "admin:$ADMIN_PW" \
-    "$BASE/binflow/$REPO/big/blob.bin" || true)
-[ "$CODE" = "200" ] || red "committed artifact missing after restart: $CODE"
-echo "post-restart: session 404 (REST registry posture), committed artifact still 200"
+[ "$CODE" = "404" ] || red "status after the resumed complete = $CODE, want 404"
+assert_incomplete_gone "$RST_ID" "kill -9 leg (B5: the resumed complete reclaims)"
+echo "resumed upload completed on the restarted process: 201 + sha256 + bytes reconciled"
 
-# End-of-run B5 audit: with the kill -9 orphan documented, the ONLY
-# in-progress multipart upload left in the bucket is that restarted
-# session's — every other leg (wrong-sha complete, abort, complete) must
-# have reclaimed its MPU. Pre-existing orphans from older builds fail
-# here honestly: run against a fresh bucket.
+# End-of-run B5 audit: NOTHING in-progress may remain — the kill -9 leg's
+# session was resumed and completed, every other leg reclaimed its MPU,
+# and no sessions/ temp object survives the publish (or the age-gated
+# sweep of T-323R would take the crash-window stragglers). Pre-existing
+# orphans from older builds fail here honestly: run against a fresh bucket.
 if [ -n "$MC" ]; then
-    step "end-of-run audit: only the kill -9 leg's orphan MPU remains"
+    step "end-of-run audit: zero in-progress MPUs, zero sessions/ residue"
     OUT=$(incomplete_list)
     COUNT=$(printf '%s\n' "$OUT" | grep -c . || true)
-    if [ "$COUNT" = "0" ]; then
-        red "end-of-run audit: expected the kill -9 leg's orphan MPU, found none — the orphan premise itself broke"
+    if [ "$COUNT" != "0" ]; then
+        red "end-of-run audit: $COUNT in-progress MPU(s) survived: $OUT"
     fi
-    LEAK=$(printf '%s\n' "$OUT" | grep -v "$RST_ID" | grep -c . || true)
-    if [ "$LEAK" != "0" ]; then
-        red "end-of-run audit: $LEAK in-progress MPU(s) beyond the kill -9 orphan: $OUT"
+    SESS=$($MC ls --recursive "local/$BUCKET" 2>/dev/null | grep -c "sessions/" || true)
+    if [ "$SESS" != "0" ]; then
+        red "end-of-run audit: sessions/ temp objects survived: $($MC ls --recursive "local/$BUCKET" | grep "sessions/")"
     fi
-    echo "in-progress MPUs at end of run: $COUNT (the documented restart orphan $RST_ID only)"
+    echo "in-progress MPUs at end of run: 0; sessions/ residue: 0"
 fi
 
 # --- leg 5: docker push of a >part-size image (multipart regression) ---------
@@ -512,4 +541,4 @@ PY
 fi
 
 echo ""
-echo "m10-mpu-probe: GREEN — filestore 501 matrix + S3 full chain + abort + restart-posture + docker legs all passed (FR-90-AC1/AC3)"
+echo "m10-mpu-probe: GREEN — filestore 501 matrix + S3 full chain + abort + kill-9 restart-resume + docker legs all passed (FR-90-AC1/AC3, T-323R)"
