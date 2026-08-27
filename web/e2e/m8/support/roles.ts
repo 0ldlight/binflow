@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
-import { ensureReadGrant, ensureUser, m8Client, roleFixturesFromEnv, seedRepos } from './seed'
+import { converge, ensureReadGrant, ensureUser, m8Client, roleFixturesFromEnv, seedRepos } from './seed'
 
 // T-232: three-role session helper (ADR-0026 closed set). loginAs(role) is
 // the ONE login path M8 specs use — anchors come from the frozen console-ux
@@ -8,10 +8,14 @@ import { ensureReadGrant, ensureUser, m8Client, roleFixturesFromEnv, seedRepos }
 // session-user), which ADR-0029 decision 3 keeps stable across the IA rework:
 // anchors do not follow routes.
 //
-// Provisioning is idempotent (same body PUT converges), so parallel workers
-// calling loginAs('user') at once are safe: one 201 creates, the rest replace
-// with the identical body. Set M8_SKIP_PROVISION=1 on a known-seeded instance
-// to skip the REST leg entirely.
+// Provisioning is idempotent (same body PUT converges) — but only ONCE THE
+// ROW EXISTS. On a fresh instance N parallel workers calling loginAs at once
+// first-create the same rows concurrently and the server's create-or-replace
+// PUT is a read-modify-write, so the losers surface the UNIQUE collision as a
+// 5xx (T-297's D-9 evidence: "one 201 creates, the rest replace" held only
+// for the serialized case). T-326 D-9①: every step rides converge(), whose
+// retry converges on the winner's row. Set M8_SKIP_PROVISION=1 on a
+// known-seeded instance to skip the REST leg entirely.
 
 export type M8Role = keyof ReturnType<typeof roleFixturesFromEnv>
 
@@ -22,10 +26,10 @@ export async function provisionRoles(): Promise<void> {
   const roles = roleFixturesFromEnv()
   const client = m8Client()
   for (const role of ['user', 'readonly_admin'] as const) {
-    await ensureUser(client, roles[role])
+    await converge(() => ensureUser(client, roles[role]))
   }
-  await seedRepos(client, [{ key: 'm8-perf-local' }])
-  await ensureReadGrant(client, roles.user.name, 'm8-perf-local')
+  await converge(() => seedRepos(client, [{ key: 'm8-perf-local' }]))
+  await converge(() => ensureReadGrant(client, roles.user.name, 'm8-perf-local'))
 }
 
 export interface RoleSession {

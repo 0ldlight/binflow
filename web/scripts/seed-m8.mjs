@@ -34,8 +34,10 @@
 // `fetch` is a Node >= 18 global; the eslint globals block for scripts/ does
 // not declare it, so reach through globalThis to stay lint-clean without
 // touching the shared config (area discipline). Buffer comes in as an
-// explicit node: import for the same reason.
+// explicit node: import for the same reason; node:timers feeds converge()'s
+// backoff (setTimeout is likewise not in that globals block).
 import { Buffer } from 'node:buffer'
+import { setTimeout as setTimeoutForBackoff } from 'node:timers'
 
 const httpFetch = globalThis.fetch
 
@@ -94,11 +96,72 @@ export function makeClient({ base, username, password }) {
     })
     const text = await res.text()
     if (!res.ok) {
-      throw new Error(`seed: ${method} ${path} -> ${res.status}: ${text.slice(0, 300)}`)
+      // .status lets converge() (below) distinguish the transient
+      // concurrent-first-create collision shape from a real 4xx contract
+      // problem without string-matching the message (T-326 D-9①).
+      const err = new Error(`seed: ${method} ${path} -> ${res.status}: ${text.slice(0, 300)}`)
+      err.status = res.status
+      throw err
     }
     return { status: res.status, text }
   }
-  return { base: root, request }
+  /** Non-throwing authenticated GET — verify legs NEED non-2xx statuses as
+   * observations (their own problem accounting decides what a 401/404 means),
+   * and riding the client's credential means a verify pass can neither bake
+   * nor receive an instance password (T-326 D-9②: the seed-m9 "keeps its own
+   * credential private" posture inverted into "the client lends its identity
+   * to its own probes"). */
+  async function probeGet(path) {
+    const res = await httpFetch(`${root}${path}`, {
+      headers: { Authorization: `Basic ${auth}` },
+    })
+    return { status: res.status, text: await res.text() }
+  }
+  return { base: root, request, probeGet }
+}
+
+/** Bounded retry for idempotent ensure steps under concurrent first-create
+ * (T-326 D-9①). Playwright runs fullyParallel (4 workers, per-worker
+ * beforeAll/provisioning), so on a fresh instance N workers can first-create
+ * the SAME fixture row at once; the server's create-or-replace PUT is a
+ * read-modify-write and the losing concurrent first-PUTs surface the UNIQUE
+ * collision as a 5xx (T-297's D-9 evidence: 2 flaked specs, "复跑即绿" — the
+ * rerun won because the winner had committed). Retrying is convergent: the
+ * winner's row exists, so the retry replaces (200) instead of inserting.
+ * Only 5xx/409/429 shapes retry — a 4xx is a real contract problem and must
+ * fail fast. */
+export async function converge(fn, { attempts = 4, baseDelayMs = 120 } = {}) {
+  let lastErr
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await fn()
+    } catch (e) {
+      lastErr = e
+      const status = e?.status ?? 0
+      if (!(status >= 500 || status === 409 || status === 429)) throw e
+      if (attempt === attempts) break
+      // Exponential backoff + jitter: colliding workers that retry in
+      // lockstep would just collide again.
+      await new Promise((resolve) => {
+        setTimeoutForBackoff(resolve, baseDelayMs * 2 ** (attempt - 1) + Math.random() * baseDelayMs)
+      })
+    }
+  }
+  throw lastErr
+}
+
+/** Single source for the instance-admin credential across the seed/spec
+ * surface (T-326 D-9②): env first (ADMIN_USER / ADMIN_PW / ADMIN_PASSWORD —
+ * the smoke.sh convention every harness rides), then the compose/dev
+ * instance default M8_ROLE_USERS.admin carries. m10Client(), the seed-m10
+ * CLI and the m10 spec's own fetch helper all resolve through here so no
+ * call site re-hardcodes the default (grep `'password'` over the m10 surface
+ * stays at zero). */
+export function adminCredential(env = process.env) {
+  return {
+    username: env.ADMIN_USER ?? M8_ROLE_USERS.admin.name,
+    password: env.ADMIN_PW ?? env.ADMIN_PASSWORD ?? M8_ROLE_USERS.admin.password,
+  }
 }
 
 /** Idempotent user upsert (full replace body — the M7 7.5 wire posture). */

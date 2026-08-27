@@ -61,8 +61,9 @@
 // touching the shared config (area discipline). Buffer comes in as an
 // explicit node: import for the same reason.
 import { Buffer } from 'node:buffer'
+import { setTimeout as setTimeoutRaced } from 'node:timers'
 
-import { makeClient } from './seed-m8.mjs'
+import { adminCredential, converge, makeClient } from './seed-m8.mjs'
 
 const httpFetch = globalThis.fetch
 
@@ -136,24 +137,38 @@ export async function ensureM10User(client, def) {
 }
 
 /** Create-if-absent READ grant for the plain user on both legacy repos
- * (permissions have no PUT; re-POST of an existing name is a replace). */
+ * (permissions have no PUT; re-POST of an existing name is a replace).
+ * Race-aware (T-326 D-9①): the GET-then-POST is a check-then-act, and two
+ * fullyParallel workers provisioning a fresh instance can both see "absent"
+ * and both POST; whatever the loser's shape (5xx collision or 409), the
+ * re-check on the next attempt finds the winner's row and reports
+ * 'present-raced' — evidence the convergence path actually fired. */
 export async function ensureM10ReadGrant(client, plan = M10_PLAN) {
   const name = plan.grantTarget
-  const list = await client.request('GET', '/binflow/api/v1/permissions')
-  const targets = JSON.parse(list.text)
-  if (Array.isArray(targets) && targets.some((t) => t.name === name)) {
-    return 'present'
+  for (let attempt = 1; ; attempt += 1) {
+    const list = await client.request('GET', '/binflow/api/v1/permissions')
+    const targets = JSON.parse(list.text)
+    if (Array.isArray(targets) && targets.some((t) => t.name === name)) {
+      return attempt === 1 ? 'present' : 'present-raced'
+    }
+    try {
+      await client.request('POST', '/binflow/api/v1/permissions', {
+        body: {
+          name,
+          repos: [plan.repoGeneric, plan.repoMaven],
+          includePatterns: ['**'],
+          excludePatterns: [],
+          principals: { users: { [plan.user.name]: ['read'] }, groups: {} },
+        },
+      })
+      return 'created'
+    } catch (e) {
+      if (attempt >= 4 || !((e?.status ?? 0) >= 500 || e?.status === 409 || e?.status === 429)) throw e
+      await new Promise((resolve) => {
+        setTimeoutRaced(resolve, 120 * 2 ** (attempt - 1) + Math.random() * 120)
+      })
+    }
   }
-  await client.request('POST', '/binflow/api/v1/permissions', {
-    body: {
-      name,
-      repos: [plan.repoGeneric, plan.repoMaven],
-      includePatterns: ['**'],
-      excludePatterns: [],
-      principals: { users: { [plan.user.name]: ['read'] }, groups: {} },
-    },
-  })
-  return 'created'
 }
 
 /** Deploy one legacy artifact at its literal path. */
@@ -169,21 +184,26 @@ async function putFixture(client, fx) {
 
 /** Order matters: repos before the grant (a target naming an unknown
  * repository is a 400), users before the grant (principal validation demands
- * known users), fixtures last (the content plane needs its repository rows). */
+ * known users), fixtures last (the content plane needs its repository rows).
+ * Every step rides converge() (T-326 D-9①): Playwright's fullyParallel
+ * workers each run this seed from their own beforeAll, and on a fresh
+ * instance the concurrent first-creates collide at the UNIQUE constraint —
+ * T-297's D-9 flake (2 specs, rerun-green). The steps are idempotent
+ * full-replace PUTs, so the loser's retry converges on the winner's row. */
 export async function seedM10(client, { plan = M10_PLAN } = {}) {
   const started = Date.now()
   const repos = []
   for (const def of legacyRepos(plan)) {
-    repos.push({ key: def.key, status: await ensureRepo(client, def) })
+    repos.push({ key: def.key, status: await converge(() => ensureRepo(client, def)) })
   }
   const users = [
-    { role: 'user', name: plan.user.name, status: await ensureM10User(client, plan.user) },
-    { role: 'readonly_admin', name: plan.readonlyAdmin.name, status: await ensureM10User(client, plan.readonlyAdmin) },
+    { role: 'user', name: plan.user.name, status: await converge(() => ensureM10User(client, plan.user)) },
+    { role: 'readonly_admin', name: plan.readonlyAdmin.name, status: await converge(() => ensureM10User(client, plan.readonlyAdmin)) },
   ]
   const grant = await ensureM10ReadGrant(client, plan)
   const files = []
   for (const fx of legacyFixtures(plan)) {
-    await putFixture(client, fx)
+    await converge(() => putFixture(client, fx))
     files.push(fx.path)
   }
   return { base: client.base, repos, users, grant, files, elapsedMs: Date.now() - started }
@@ -192,8 +212,10 @@ export async function seedM10(client, { plan = M10_PLAN } = {}) {
 // ---- verification ------------------------------------------------------------
 
 /** Non-throwing GET returning { status, text } — probes NEED the denied and
- * the not-yet-existing statuses without throwing. */
-async function probeGet(base, username, password, path) {
+ * the not-yet-existing statuses without throwing. Used ONLY for the
+ * fixture-user leg: those credentials are seed-owned fixtures, not instance
+ * secrets. Admin legs ride client.probeGet instead (T-326 D-9②). */
+async function probeGetAs(base, username, password, path) {
   const auth = Buffer.from(`${username}:${password}`).toString('base64')
   const res = await httpFetch(`${base}${path}`, {
     headers: { Authorization: `Basic ${auth}` },
@@ -205,13 +227,19 @@ async function probeGet(base, username, password, path) {
  * { ok, problems, evidence } — problems [] means green. The byte-readback of
  * every fixture is the HARD gate; the ?properties posture is evidence only
  * (404 pre-FR-89 / 200 after — the E-09 flip must never fail this seed).
- * adminPassword feeds the admin-leg probes only (makeClient keeps its own
- * credential private — the seed-m9 verifyM9 posture). */
-export async function verifyM10(client, { plan = M10_PLAN, adminPassword = 'password' } = {}) {
+ *
+ * T-326 D-9②: NO admin credential is baked here anymore — the admin legs
+ * ride client.probeGet, so the verify pass inherits whatever credential the
+ * CALLER'S client was built with (m10Client()/the CLI resolve it env-first:
+ * ADMIN_PW / ADMIN_PASSWORD, dev default last, via adminCredential()). A
+ * password-changed instance therefore verifies green with ADMIN_PW exported
+ * instead of dying on a silent hardcoded 401 (the T-291 registration). The
+ * former `adminPassword` option is gone: verifyM10 cannot even RECEIVE an
+ * instance password anymore. */
+export async function verifyM10(client, { plan = M10_PLAN } = {}) {
   const problems = []
   const evidence = {}
   const fixtures = legacyFixtures(plan)
-  const admin = () => adminPassword
 
   const repoList = JSON.parse((await client.request('GET', '/binflow/api/repositories')).text)
   const present = new Set((Array.isArray(repoList) ? repoList : []).map((r) => r.key))
@@ -235,7 +263,7 @@ export async function verifyM10(client, { plan = M10_PLAN, adminPassword = 'pass
   // exact seeded bytes. This must hold on m9-done AND on every FR-89 build.
   evidence.readback = []
   for (const fx of fixtures) {
-    const r = await probeGet(client.base, 'admin', admin(), `/binflow/${fx.repo}/${fx.path}`)
+    const r = await client.probeGet(`/binflow/${fx.repo}/${fx.path}`)
     evidence.readback.push({ path: `${fx.repo}/${fx.path}`, shape: fx.shape, status: r.status, bytes: r.status === 200 ? r.text === fixtureBody(fx.repo, fx.path) : false })
     if (r.status !== 200) {
       problems.push(`legacy fixture ${fx.repo}/${fx.path} (${fx.shape}) want GET 200 at literal path, got ${r.status}`)
@@ -245,9 +273,10 @@ export async function verifyM10(client, { plan = M10_PLAN, adminPassword = 'pass
   }
 
   // Plain-user visibility leg: the read grant makes the literal path pass
-  // authz (200 with bytes) — the L21 readonly arm's data bottom.
+  // authz (200 with bytes) — the L21 readonly arm's data bottom. Fixture
+  // credential (seed-owned), not an instance secret.
   const first = fixtures[0]
-  const userRead = await probeGet(client.base, plan.user.name, plan.user.password, `/binflow/${first.repo}/${first.path}`)
+  const userRead = await probeGetAs(client.base, plan.user.name, plan.user.password, `/binflow/${first.repo}/${first.path}`)
   evidence.userReadback = { path: `${first.repo}/${first.path}`, status: userRead.status }
   if (userRead.status !== 200 || userRead.text !== fixtureBody(first.repo, first.path)) {
     problems.push(`plain-user read of ${first.repo}/${first.path} want 200 + bytes, got ${userRead.status}`)
@@ -255,7 +284,7 @@ export async function verifyM10(client, { plan = M10_PLAN, adminPassword = 'pass
 
   // ?properties posture — RECORDED, not gated (E-09: 404 today, 200 after
   // FR-89; both are correct for their build).
-  const props = await probeGet(client.base, 'admin', admin(), `/binflow/api/storage/${first.repo}/${first.path}?properties=build`)
+  const props = await client.probeGet(`/binflow/api/storage/${first.repo}/${first.path}?properties=build`)
   evidence.propertiesPosture = { path: `${first.repo}/${first.path}`, status: props.status }
 
   return { ok: problems.length === 0, problems, evidence }
@@ -293,8 +322,11 @@ if (process.argv[1] && process.argv[1].endsWith('seed-m10.mjs')) {
   }
 
   const env = process.env
-  const adminName = typeof admin === 'string' && admin ? admin : env.ADMIN_USER || 'admin'
-  const adminPw = typeof password === 'string' && password ? password : env.ADMIN_PW || env.ADMIN_PASSWORD || 'password'
+  // T-326 D-9②: flags first, then the shared env→dev-default chain in
+  // adminCredential() — the CLI no longer hardcodes the default either.
+  const fallback = adminCredential(env)
+  const adminName = typeof admin === 'string' && admin ? admin : fallback.username
+  const adminPw = typeof password === 'string' && password ? password : fallback.password
   const client = makeClient({
     base: typeof base === 'string' && base ? base : env.BASE || 'http://127.0.0.1:8080',
     username: adminName,
@@ -311,7 +343,7 @@ if (process.argv[1] && process.argv[1].endsWith('seed-m10.mjs')) {
         console.log(JSON.stringify(summary))
         return
       }
-      const v = await verifyM10(client, { adminPassword: adminPw })
+      const v = await verifyM10(client)
       console.log(JSON.stringify({ ...summary, verify: v }))
       if (!v.ok) {
         console.error(`seed-m10: VERIFICATION FAILED — ${v.problems.length} problem(s)`)

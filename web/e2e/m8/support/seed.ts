@@ -1,6 +1,8 @@
 import type { Page } from '@playwright/test'
 import {
   M8_ROLE_USERS,
+  adminCredential,
+  converge,
   countTreeNodes,
   ensureReadGrant,
   ensureUser,
@@ -19,7 +21,20 @@ import {
 //   sessionApi()  same-origin fetch riding the PAGE's session cookie — the
 //                 reconcile idiom every existing spec uses (rbac.spec V12+)
 
-export { M8_ROLE_USERS, countTreeNodes, ensureReadGrant, ensureUser, makeClient, plannedNodeCount, roleFixturesFromEnv, seedAll, seedRepos, seedTree }
+export {
+  M8_ROLE_USERS,
+  adminCredential,
+  converge,
+  countTreeNodes,
+  ensureReadGrant,
+  ensureUser,
+  makeClient,
+  plannedNodeCount,
+  roleFixturesFromEnv,
+  seedAll,
+  seedRepos,
+  seedTree,
+}
 
 /** Admin client pointed at the same base the Playwright harness targets
  * (config default http://127.0.0.1:8080, BASE overridable). */

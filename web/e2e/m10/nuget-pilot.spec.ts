@@ -6,6 +6,8 @@ import { join } from 'node:path'
 
 import { expect, test } from '@playwright/test'
 
+import { adminCredential } from './support/seed'
+
 // T-287 fill (FR-88, L14~L17; behavior basis = the official NuGet API
 // specifications + PRD 88.1 — docs/reverse/nuget.md (T-280) did NOT exist
 // at implementation time; the grounding order and the live probes are
@@ -41,6 +43,11 @@ const V3 = (repo: string) => `/binflow/api/nuget/v3/${repo}` // repo-relative; r
 const V2 = (repo: string) => `/binflow/api/nuget/v2/${repo}`
 const ABS = (path: string) => `${BASE}${path}` // absolute form (nuget.config sources)
 
+// T-326 D-9②: env-first admin credential via the shared resolver — no
+// hardcoded dev default in this spec (the nuget.config ClearTextPassword
+// block below rides the same pair).
+const ADMIN = adminCredential()
+
 /** One admin-authenticated raw request against $BASE (statuses + bodies
  * for reconciliation; never文案 assertions). */
 async function raw(
@@ -49,9 +56,7 @@ async function raw(
   body?: Buffer | string,
   contentType?: string,
 ): Promise<{ status: number; text: string; headers: Record<string, string> }> {
-  const auth = Buffer.from(
-    `${process.env.ADMIN_USER ?? 'admin'}:${process.env.ADMIN_PW ?? process.env.ADMIN_PASSWORD ?? 'password'}`,
-  ).toString('base64')
+  const auth = Buffer.from(`${ADMIN.username}:${ADMIN.password}`).toString('base64')
   const res = await fetch(BASE + path, {
     method,
     headers: {
@@ -280,8 +285,8 @@ test('L15 real client: dotnet pack → nuget push → add package --source → r
   </packageSources>
   <packageSourceCredentials>
     <binflow>
-      <add key="Username" value="${process.env.ADMIN_USER ?? 'admin'}" />
-      <add key="ClearTextPassword" value="${process.env.ADMIN_PW ?? process.env.ADMIN_PASSWORD ?? 'password'}" />
+      <add key="Username" value="${ADMIN.username}" />
+      <add key="ClearTextPassword" value="${ADMIN.password}" />
     </binflow>
   </packageSourceCredentials>
 </configuration>
