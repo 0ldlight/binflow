@@ -29,9 +29,10 @@ package deb
 //  4. signature sweep: an unsigned (or rotated) recompute deletes stale
 //     Release.gpg / InRelease (DB-1 — an old signature must not outlive
 //     the Release it signed; the freshly written pair is exempt);
-//  5. retention: keep the newest historyCycles by-hash digests per
-//     algorithm directory (section 5: the current plus history), drop
-//     canonical files the new generation no longer names.
+//  5. retention: keep the newest historyCycles by-hash GENERATIONS per
+//     algorithm directory (section 5: the current plus history; the
+//     current generation never prunes), drop canonical files the new
+//     generation no longer names.
 //
 // The per-repository index lock (the helm/rpm posture) serializes runs
 // against concurrent uploads and management reindexes.
@@ -695,9 +696,12 @@ func (h *Handler) writeIndexFile(ctx context.Context, p *repo.Principal, repoKey
 	return nil
 }
 
-// writeByHashCopies lands one index file's digest-named mirrors beside
-// it (same directory; the blob layer dedupes the identical bytes).
-func (h *Handler) writeByHashCopies(ctx context.Context, p *repo.Principal, repoKey string, f indexFile, policy string) error {
+// byHashAddresses lists one index file's digest-named mirror addresses
+// beside it (same directory). The policy owns the algorithm set: SHA256
+// serves the SHA256 family only (debian.md section 5). The sweep's
+// current-generation protection derives the same addresses (T-327G) —
+// one spelling of the path grammar, never two.
+func byHashAddresses(f indexFile, policy string) []string {
 	dir := parentDir(f.path)
 	algos := []struct {
 		name string
@@ -710,8 +714,17 @@ func (h *Handler) writeByHashCopies(ctx context.Context, p *repo.Principal, repo
 	if policy == byHashSHA256 {
 		algos = algos[2:]
 	}
+	out := make([]string, 0, len(algos))
 	for _, a := range algos {
-		path := dir + "/" + dirByHash + "/" + a.name + "/" + a.hex
+		out = append(out, dir+"/"+dirByHash+"/"+a.name+"/"+a.hex)
+	}
+	return out
+}
+
+// writeByHashCopies lands one index file's digest-named mirrors beside
+// it (same directory; the blob layer dedupes the identical bytes).
+func (h *Handler) writeByHashCopies(ctx context.Context, p *repo.Principal, repoKey string, f indexFile, policy string) error {
+	for _, path := range byHashAddresses(f, policy) {
 		ref := storage.BlobRef{Sha256: f.digests.sha256}
 		if _, err := h.svc.PutWithOptions(ctx, p, repoKey, path,
 			bytes.NewReader(f.body), ref, f.ctype,
@@ -726,8 +739,9 @@ func (h *Handler) writeByHashCopies(ctx context.Context, p *repo.Principal, repo
 // freshly written signature pair (sigs) survives, stale signature files
 // never outlive an unsigned or rotated recompute (DB-1), canonical family
 // files the new generation does not name go, and by-hash digests keep the
-// newest historyCycles per algorithm directory (and whole by-hash trees
-// of vanished index directories go).
+// newest historyCycles GENERATIONS per algorithm directory (the current
+// generation never prunes; whole by-hash trees of vanished index
+// directories go).
 func (h *Handler) sweepDist(ctx context.Context, p *repo.Principal, repoKey, distRoot string, files []indexFile, release indexFile, sigs []indexFile, cfg RepoConfig) error {
 	nodes, err := h.svc.List(ctx, p, repoKey, distRoot)
 	if err != nil {
@@ -738,6 +752,19 @@ func (h *Handler) sweepDist(ctx context.Context, p *repo.Principal, repoKey, dis
 	for _, f := range files {
 		current[f.path] = true
 		liveDirs[parentDir(f.path)] = true
+	}
+	// The current generation's by-hash addresses (T-327G): the digests
+	// this run just wrote, spelled exactly as writeByHashCopies writes
+	// them. Under a disabled policy nothing was written, so nothing is
+	// protected — the dormant tree of a flipped-off policy ages out
+	// through the stale generations like any other history.
+	currentGen := map[string]bool{}
+	if byHashEnabled(cfg.ByHash) {
+		for _, f := range files {
+			for _, path := range byHashAddresses(f, cfg.ByHash) {
+				currentGen[path] = true
+			}
+		}
 	}
 	for _, s := range sigs {
 		current[s.path] = true // this generation's signatures survive; an unsigned recompute passes nil here
@@ -775,20 +802,67 @@ func (h *Handler) sweepDist(ctx context.Context, p *repo.Principal, repoKey, dis
 			}
 		}
 	}
-	// By-hash retention: keep the newest historyCycles digests per
-	// algorithm directory (the current one is the newest write).
+	// By-hash retention (T-327G): the unit is the GENERATION, not the
+	// entry — one run lands a whole index family's compression spellings
+	// (plain + .gz + the optional set) into each by-hash/<ALGO> directory,
+	// so the entry-count window this sweep used before could prune the
+	// CURRENT generation's copies whenever historyCycles fell below the
+	// spelling count (the registered T-327R defect: apt mid-update loses a
+	// digest the Release still advertises).
 	for _, ns := range byHashBuckets {
-		sort.Slice(ns, func(i, j int) bool { return ns[i].UpdatedAt > ns[j].UpdatedAt })
-		for i, n := range ns {
-			if i < cfg.HistoryCycles {
-				continue
-			}
+		for _, n := range byHashPrunePlan(ns, currentGen, cfg.HistoryCycles) {
 			if err := h.svc.Delete(ctx, p, repoKey, n.Path); err != nil && !errors.Is(err, repo.ErrNodeNotFound) {
 				return fmt.Errorf("prune by-hash %s: %w", n.Path, err)
 			}
 		}
 	}
 	return nil
+}
+
+// byHashPrunePlan returns one algorithm directory's by-hash entries the
+// retention window drops (debian.md section 5: the current version must
+// stay fetchable; history keeps historyCycles generations, oldest beyond
+// the window pruned — the generation-count implementation is the spec's
+// medium-confidence arm).
+//
+// The current generation (current, keyed by digest address) never prunes,
+// however low historyCycles runs — and it consumes one slot: the window
+// bounds the directory's TOTAL generations, so cycles=1 keeps the current
+// generation alone and every stale entry goes. The stale entries group
+// into generations by their write timestamp: node timestamps are RFC3339
+// seconds, so one run's copies share one (the grouping key); fast
+// successive runs inside a second MERGE — one generation counted as two
+// would over-prune, two as one merely keeps extra history, the safe
+// direction. historyCycles <= 0 (only reachable by direct call; the
+// engine's config floor normalizes it) keeps none of the stale entries.
+func byHashPrunePlan(ns []*metadata.Node, current map[string]bool, historyCycles int) []*metadata.Node {
+	stale := make([]*metadata.Node, 0, len(ns))
+	for _, n := range ns {
+		if !current[n.Path] {
+			stale = append(stale, n)
+		}
+	}
+	// Deterministic order: recency first, the path as the tiebreak —
+	// second-granularity timestamps tie fast successive runs (the rpm
+	// posture).
+	sort.Slice(stale, func(i, j int) bool {
+		if stale[i].UpdatedAt != stale[j].UpdatedAt {
+			return stale[i].UpdatedAt > stale[j].UpdatedAt
+		}
+		return stale[i].Path > stale[j].Path
+	})
+	var prune []*metadata.Node
+	gen := 0 // 0 = the newest stale generation
+	for i, n := range stale {
+		if i > 0 && n.UpdatedAt != stale[i-1].UpdatedAt {
+			gen++
+		}
+		if gen < historyCycles-1 {
+			continue
+		}
+		prune = append(prune, n)
+	}
+	return prune
 }
 
 // inByHash reports whether a path sits inside a by-hash/ tree.
