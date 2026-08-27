@@ -6,6 +6,8 @@ import { join } from 'node:path'
 
 import { expect, test } from '@playwright/test'
 
+import { adminCredential } from './support/seed'
+
 // T-285 fill (FR-87, L10~L13; behavior basis = docs/reverse/goproxy.md over
 // go.dev/ref/mod). The exhaustive protocol matrix lives in the Go harness
 // (internal/adapter/goproxy, incl. the license lifecycle and the strict
@@ -35,6 +37,10 @@ const REPO_REMOTE = process.env.BINFLOW_M10_GO_REMOTE_REPO ?? 'go-remote'
 const REPO_VIRTUAL = process.env.BINFLOW_M10_GO_VIRTUAL_REPO ?? 'go-virt'
 const BASE = process.env.BASE ?? 'http://127.0.0.1:8080'
 
+// T-326 D-9②: env-first admin credential via the shared resolver — no
+// hardcoded dev default in this spec.
+const ADMIN = adminCredential()
+
 /** One admin-authenticated raw request against $BASE (statuses are the
  * asserted object; bodies only for reconciliation). */
 async function raw(
@@ -42,9 +48,7 @@ async function raw(
   path: string,
   body?: Buffer | string,
 ): Promise<{ status: number; text: string; headers: Record<string, string> }> {
-  const auth = Buffer.from(
-    `${process.env.ADMIN_USER ?? 'admin'}:${process.env.ADMIN_PW ?? process.env.ADMIN_PASSWORD ?? 'password'}`,
-  ).toString('base64')
+  const auth = Buffer.from(`${ADMIN.username}:${ADMIN.password}`).toString('base64')
   const res = await fetch(BASE + path, {
     method,
     headers: { Authorization: `Basic ${auth}` },

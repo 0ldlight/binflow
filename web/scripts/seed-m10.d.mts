@@ -29,7 +29,9 @@ export interface SeedM10Result {
   base: string
   repos: { key: string; status: number }[]
   users: { role: string; name: string; status: number }[]
-  grant: 'created' | 'present'
+  /** 'present-raced' = a concurrent worker's first-create won and this
+   * worker converged on it (T-326 D-9①). */
+  grant: 'created' | 'present' | 'present-raced'
   files: string[]
   elapsedMs: number
 }
@@ -56,6 +58,8 @@ export declare function ensureM10User(
   client: SeedClient,
   def: { name: string; password: string; adminRole: string },
 ): Promise<number>
-export declare function ensureM10ReadGrant(client: SeedClient, plan?: M10Plan): Promise<'created' | 'present'>
+export declare function ensureM10ReadGrant(client: SeedClient, plan?: M10Plan): Promise<'created' | 'present' | 'present-raced'>
 export declare function seedM10(client: SeedClient, opts?: { plan?: M10Plan }): Promise<SeedM10Result>
-export declare function verifyM10(client: SeedClient, opts?: { plan?: M10Plan; adminPassword?: string }): Promise<VerifyM10Result>
+/** T-326 D-9②: no admin credential is accepted or baked — the admin legs
+ * ride client.probeGet and inherit the caller's client identity. */
+export declare function verifyM10(client: SeedClient, opts?: { plan?: M10Plan }): Promise<VerifyM10Result>

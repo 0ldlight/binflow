@@ -10,7 +10,7 @@ import {
   seedM10,
   verifyM10,
 } from './support/seed'
-import { m10Client } from './support/seed'
+import { adminCredential, m10Client } from './support/seed'
 
 // T-286 fill (M10 B4, FR-89 BE): the properties-system legs L18/L19/L20/
 // L22; T-291 fills L21 (the FE Properties Tab — the console's first MUI
@@ -31,12 +31,18 @@ import { m10Client } from './support/seed'
 
 const BASE = process.env.BASE ?? 'http://127.0.0.1:8080'
 
+// T-326 D-9②: the instance-admin credential resolves env-first
+// (ADMIN_USER/ADMIN_PW/ADMIN_PASSWORD → dev default) through the shared
+// adminCredential() — this spec no longer hardcodes 'password' either, so a
+// password-changed instance runs the whole L18~L22 matrix with ADMIN_PW set.
+const ADMIN = adminCredential()
+
 /** Authenticated raw fetch — the legs NEED non-2xx statuses, so unlike
  * makeClient this never throws on them. */
 async function call(
   method: string,
   path: string,
-  { user = 'admin', password = process.env.ADMIN_PW ?? 'password', body }: {
+  { user = ADMIN.username, password = ADMIN.password, body }: {
     user?: string
     password?: string
     body?: string
