@@ -82,8 +82,7 @@ func TestNpmVirtualClientSuite(t *testing.T) {
 		}
 		if err := os.WriteFile(filepath.Join(dir, ".npmrc"), []byte(
 			"registry="+regURL+"\n"+
-				fmt.Sprintf("//%s/binflow/api/npm/npmv-virt/:_auth=%s\n", srv.Listener.Addr().String(), adminAuth)+
-				"always-auth=true\n"), 0o644); err != nil {
+				fmt.Sprintf("//%s/binflow/api/npm/npmv-virt/:_auth=%s\n", srv.Listener.Addr().String(), adminAuth)), 0o644); err != nil {
 			t.Fatalf(".npmrc: %v", err)
 		}
 		return dir
@@ -105,8 +104,7 @@ func TestNpmVirtualClientSuite(t *testing.T) {
 	}
 	if err := os.WriteFile(filepath.Join(pkgDir, ".npmrc"), []byte(
 		"registry="+seedReg+"\n"+
-			fmt.Sprintf("//%s/binflow/api/npm/npmv-loc/:_auth=%s\n", srv.Listener.Addr().String(), adminAuth)+
-			"always-auth=true\n"), 0o644); err != nil {
+			fmt.Sprintf("//%s/binflow/api/npm/npmv-loc/:_auth=%s\n", srv.Listener.Addr().String(), adminAuth)), 0o644); err != nil {
 		t.Fatalf("seed .npmrc: %v", err)
 	}
 	if out, err := runClient(t, npmBin, pkgDir, "publish", "--access", "public"); err != nil {
