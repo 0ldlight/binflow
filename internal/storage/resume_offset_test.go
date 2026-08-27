@@ -265,9 +265,10 @@ func TestResumeSessionExpiredFailClosed(t *testing.T) {
 }
 
 // TestS3SessionOffsetTracksAppends covers the S3 leg of the Offset contract:
-// an in-flight multipart session reports its received bytes. S3 sessions are
-// never re-materialized (ResumeSession is a hard ErrSessionNotFound, section
-// 5.3.1 contract 5 — pinned separately by TestS3ResumeSessionNotSupported).
+// an in-flight multipart session reports its received bytes. Rebuilt
+// (resumed) sessions' Offset is covered by the resume suite in
+// s3_resume_test.go; the store-less ResumeSession posture is pinned by
+// TestS3ResumeSessionStoreless.
 func TestS3SessionOffsetTracksAppends(t *testing.T) {
 	eng, _, _ := newS3Engine(t)
 	s, err := eng.BeginSession(context.Background())

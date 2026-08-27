@@ -94,9 +94,10 @@ type Session interface {
 // its honest 501 (FR-90-AC3: no inert face). This is a capability DISCOVERY
 // type, not a second session API: the returned Session is the same
 // interface every other upload path drives (Append/Commit/Abort), and
-// ResumeSession semantics are untouched (S3 keeps the hard-404 contract of
-// section 5.3.1 contract 5; restart-resume of S3 multipart sessions stays
-// the §11.31 M8+ debt).
+// ResumeSession semantics are the Engine's own — the S3 arm's restart
+// resume landed with T-323 (upload id rows + ListParts rebuild; see
+// s3_resume.go), so both backends now resume wherever a Sessions store is
+// wired.
 type MultipartUploads interface {
 	// BeginMultipartSession creates a new upload session whose Append
 	// flushes a part every partSize bytes. partSize <= 0 takes the engine
@@ -170,18 +171,21 @@ type Engine interface {
 	// needed.
 	BeginSession(ctx context.Context) (Session, error)
 	// ResumeSession re-materializes an in-progress session from its persisted
-	// row and on-disk data file: the partial bytes are re-hashed to rebuild
+	// row and backend state: the partial bytes are re-processed to rebuild
 	// the digest chain and the session is returned ready for further Append,
-	// with Offset reporting the re-derived data-file length. A missing row —
+	// with Offset reporting the re-derived durable byte count. A missing row —
 	// or one already expired but not yet swept — yields ErrSessionNotFound
 	// (fail-closed, architecture sections 3.1 [M7] and 5.3.1 contract 3: an
 	// expired session is unknown, and the sweep is the row's only legitimate
 	// reclamation path). A missing data file under a surviving unexpired row
 	// is recreated empty and the session resumes from offset 0. Requires a
 	// Sessions store in Options; without one this always yields
-	// ErrSessionNotFound. The S3 engine never resumes (multipart state lives
-	// server-side, never in upload_sessions) and always yields
-	// ErrSessionNotFound — the hard-404 contract of section 5.3.1 contract 5.
+	// ErrSessionNotFound. The S3 engine resumes the same way since T-323 paid
+	// the section 11.31 debt: the row carries the multipart upload id, the
+	// parts and durable offset are rebuilt via ListParts, and (an S3 fact:
+	// in-progress parts are unreadable) a rebuilt session's Commit verifies
+	// through a streaming readback of the assembled object instead of the
+	// in-memory digest chain — see s3_resume.go.
 	ResumeSession(ctx context.Context, id string) (Session, error)
 	// Open opens a blob for reading; the caller must Close it. Missing blobs
 	// yield ErrBlobNotFound wrapped. The returned BlobRef carries Sha256 and

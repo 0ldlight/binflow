@@ -8,12 +8,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/minio/minio-go/v7"
+
+	"github.com/lzwzzy/binflow/internal/metadata"
 )
 
 // S3Engine implements the Engine interface using an S3-compatible object store
@@ -25,6 +28,14 @@ import (
 // Session Appends stream in bounded memory: at most one part buffer per
 // session is resident, independent of upload size (T-202, QA T-173 D-4).
 //
+// Restart resume (T-323, the §11.31 debt): when a Sessions store is
+// configured, every session persists its S3 upload id to an upload_sessions
+// row, so a kill -9'd upload survives as (row + server-side MPU) and
+// ResumeSession re-materializes it via ListParts — the disk arm's T-209
+// posture on the S3 side. Without a store the engine keeps its historical
+// shape: ResumeSession is a hard ErrSessionNotFound and Close aborts live
+// multipart uploads.
+//
 // S3Engine is safe for concurrent use.
 type S3Engine struct {
 	core         *minio.Core // Core has Client embedded + multipart primitives
@@ -32,6 +43,15 @@ type S3Engine struct {
 	bucketPrefix string // prepended to every object key; empty means root
 	partSize     int64  // session Append flush threshold; see resolveS3PartSize
 	holds        *holdSet
+	// rows is the upload_sessions persistence seam (nil = the pre-T-323
+	// in-process-only posture; see S3EngineOptions.Sessions).
+	rows metadata.UploadSessionStore
+	// log receives the Close retention INFO (the ADR-0028 posture's one
+	// line). Nil means slog.Default().
+	log *slog.Logger
+	// ttl is the resolved session TTL: the row-expiry clock and the orphan
+	// MPU sweep's age cutoff share one number, like the disk arm's Options.ttl.
+	ttl time.Duration
 
 	mu       sync.RWMutex
 	closed   bool
@@ -111,6 +131,19 @@ type S3EngineOptions struct {
 	// assembler). Zero means DefaultGCHoldTTL; values below MinGCHoldTTL
 	// clamp up — see hold.go.
 	GCHoldTTL time.Duration
+	// Sessions is the persistence seam over upload_sessions for the S3 arm
+	// (T-323, paying the architecture §11.31 debt): BeginSession records one
+	// row carrying the S3 upload id, ResumeSession re-materializes a crashed
+	// upload from that row plus ListParts, and the startup sweep reclaims
+	// expired rows together with their server-side multipart state. Nil —
+	// the blob-only GC assembly — keeps the pre-T-323 posture: ResumeSession
+	// answers ErrSessionNotFound and Close aborts live multipart uploads
+	// (nothing would be resumable without rows, so eager reclamation wins).
+	Sessions metadata.UploadSessionStore
+	// Logger receives the Close retention INFO line (the disk arm's
+	// ADR-0028 posture, mirrored for wired engines). Nil means
+	// slog.Default().
+	Logger *slog.Logger
 	// Now overrides the clock (tests only). Nil uses time.Now.
 	Now func() time.Time
 }
@@ -126,9 +159,11 @@ func (o *S3EngineOptions) sessionTTL() time.Duration {
 
 // OpenS3Engine creates an S3Engine backed by the given minio Core, bucket and
 // optional prefix. Callers must ensure the bucket exists before calling
-// OpenS3Engine. On success the engine has swept in-progress multipart uploads
-// that predate the session TTL (orphans from interrupted/crashed uploads), the
-// S3 counterpart of the disk engine's startup session sweep (T-203 D-6).
+// OpenS3Engine. On success the engine has swept expired upload-session state:
+// rows past the session TTL (and their server-side multipart uploads) plus
+// in-progress multipart uploads that predate the TTL (orphans from
+// interrupted/crashed uploads no row tracks) — the S3 counterpart of the disk
+// engine's startup session sweep (T-203 D-6, widened for rows by T-323).
 func OpenS3Engine(core *minio.Core, bucket string, opts *S3EngineOptions) (Engine, error) {
 	if core == nil {
 		return nil, errors.New("storage: s3: core is nil")
@@ -145,11 +180,14 @@ func OpenS3Engine(core *minio.Core, bucket string, opts *S3EngineOptions) (Engin
 		bucketPrefix: opts.BucketPrefix,
 		partSize:     resolveS3PartSize(opts.PartSize),
 		holds:        newHoldSet(opts.GCHoldTTL, opts.Now),
+		rows:         opts.Sessions,
+		log:          opts.Logger,
+		ttl:          opts.sessionTTL(),
 		sessions:     make(map[string]*s3Session),
 		clock:        opts.Now,
 	}
-	if err := e.sweepOrphanUploads(context.Background(), opts.sessionTTL()); err != nil {
-		return nil, fmt.Errorf("storage: s3: open: sweep orphan uploads: %w", err)
+	if err := e.sweepSessions(context.Background(), opts.sessionTTL()); err != nil {
+		return nil, fmt.Errorf("storage: s3: open: sweep sessions: %w", err)
 	}
 	return e, nil
 }
@@ -256,6 +294,7 @@ func (e *S3Engine) beginSession(ctx context.Context, partSize int64) (Session, e
 		return nil, fmt.Errorf("storage: s3: begin session: create multipart upload: %w", err)
 	}
 
+	createdAt := e.timeNow()
 	s := &s3Session{
 		eng:       e,
 		id:        id,
@@ -263,12 +302,35 @@ func (e *S3Engine) beginSession(ctx context.Context, partSize int64) (Session, e
 		uploadKey: uploadKey,
 		partSize:  partSize,
 		digests:   newDigesters(),
-		createdAt: e.timeNow(),
+		createdAt: createdAt,
+	}
+
+	// Persist the row (T-323): the upload id is the one fact about this
+	// session no in-process registry survives a kill -9 with — the S3-side
+	// MPU does, and the row is what lets ResumeSession find it again. Row
+	// order mirrors the disk arm's dir-then-row-then-file sequence: MPU
+	// first (the resource), row second (the handle); a crash in between
+	// leaves an MPU no row tracks, which the startup orphan sweep reclaims
+	// by age. A row failure aborts the fresh MPU — fail the begin rather
+	// than ship a session nothing can resume.
+	if e.rows != nil {
+		if err := e.rows.Create(ctx, &metadata.UploadSession{
+			ID:        id,
+			State:     marshalS3SessionState(s.sessionStateLocked()),
+			CreatedAt: createdAt.UTC().Format(time.RFC3339),
+			ExpiresAt: createdAt.Add(e.ttl).UTC().Format(time.RFC3339),
+		}); err != nil {
+			_ = e.core.AbortMultipartUpload(context.Background(), e.bucket, uploadKey, uploadID)
+			return nil, fmt.Errorf("storage: s3: begin session %s: persist: %w", id, err)
+		}
 	}
 
 	e.mu.Lock()
 	if e.closed {
 		e.mu.Unlock()
+		if e.rows != nil {
+			_ = e.rows.Delete(context.Background(), id)
+		}
 		_ = e.core.AbortMultipartUpload(context.Background(), e.bucket, uploadKey, uploadID)
 		return nil, fmt.Errorf("storage: s3: begin session %s: %w", id, ErrEngineClosed)
 	}
@@ -277,13 +339,12 @@ func (e *S3Engine) beginSession(ctx context.Context, partSize int64) (Session, e
 	return s, nil
 }
 
-// ResumeSession returns ErrSessionNotFound. S3 multipart uploads are not
-// resumable in this implementation: multipart state lives server-side and is
-// never persisted to upload_sessions, so an expired id is indistinguishable
-// from an unknown one — the hard-404 contract of architecture section 5.3.1
-// contract 5, pinned by TestS3ResumeSessionNotSupported.
-func (e *S3Engine) ResumeSession(_ context.Context, id string) (Session, error) {
-	return nil, fmt.Errorf("storage: s3: resume session %s: %w", id, ErrSessionNotFound)
+// ResumeSession re-materializes a crashed/in-progress multipart session from
+// its persisted row plus the server-side upload state (T-323). See
+// s3_resume.go for the full contract; the no-store engine keeps the
+// historical hard-404.
+func (e *S3Engine) ResumeSession(ctx context.Context, id string) (Session, error) {
+	return e.resumeSession(ctx, id)
 }
 
 // Open returns an io.ReadCloser over the blob body. The returned reader is a
@@ -523,7 +584,15 @@ func extractSha256FromKey(key string) string {
 	return sha
 }
 
-// Close aborts all live sessions and marks the engine unusable. Idempotent.
+// Close marks the engine unusable and drains the in-memory session registry.
+// With a Sessions store configured it PRESERVES live sessions (ADR-0028
+// parity, T-323): the multipart upload and its row survive a graceful
+// SIGTERM shutdown so the restart resumes exactly like a kill -9 would —
+// the startup sweep + TTL remains the only reclamation path, and one INFO
+// line reports the preserved count + ids. Without a store nothing is
+// resumable, so Close keeps the historical eager reclamation: every live
+// session's multipart upload is aborted. Open/Stat keep serving committed
+// blobs. Idempotent.
 func (e *S3Engine) Close() error {
 	e.mu.Lock()
 	if e.closed {
@@ -532,19 +601,31 @@ func (e *S3Engine) Close() error {
 	}
 	e.closed = true
 	live := make([]*s3Session, 0, len(e.sessions))
-	for _, s := range e.sessions {
+	ids := make([]string, 0, len(e.sessions))
+	for id, s := range e.sessions {
 		live = append(live, s)
+		ids = append(ids, id)
 	}
 	e.sessions = nil
 	e.mu.Unlock()
 
-	var firstErr error
-	for _, s := range live {
-		if err := s.abortMultipart(context.Background()); err != nil && firstErr == nil {
-			firstErr = fmt.Errorf("storage: s3: close: session %s: %w", s.id, err)
+	if e.rows == nil {
+		var firstErr error
+		for _, s := range live {
+			if err := s.abortMultipart(context.Background()); err != nil && firstErr == nil {
+				firstErr = fmt.Errorf("storage: s3: close: session %s: %w", s.id, err)
+			}
 		}
+		return firstErr
 	}
-	return firstErr
+	// Detach (not abort): release nothing server-side, just finalize the
+	// in-process handles. detach runs without e.mu held (lock ordering,
+	// the disk arm's rule).
+	for _, s := range live {
+		s.detach()
+	}
+	logPreservedSessions(e.log, ids)
+	return nil
 }
 
 // forgetSession unregisters a session.
@@ -608,7 +689,6 @@ func (e *S3Engine) sweepOrphanUploads(ctx context.Context, ttl time.Duration) er
 	now := e.timeNow()
 	cutoff := now.Add(-ttl)
 	var firstErr error
-	reclaimed := 0
 	for _, u := range uploads {
 		if u.Initiated.After(cutoff) {
 			continue // still within TTL: a recent upload, leave it alone
@@ -621,7 +701,80 @@ func (e *S3Engine) sweepOrphanUploads(ctx context.Context, ttl time.Duration) er
 			}
 			continue
 		}
-		reclaimed++
+		// T-323: an aged-out MPU takes its row with it when one exists (the
+		// key embeds the session id) — an orphaned row would answer resumes
+		// for an upload that no longer exists (the fresh-MPU arm handles the
+		// rare race, but the row should not outlive its MPU by a TTL).
+		if e.rows != nil {
+			if id := sessionIDFromUploadKey(u.Key); id != "" {
+				_ = e.rows.Delete(ctx, id) // absent row: nothing to do
+			}
+		}
+	}
+	return firstErr
+}
+
+// sessionIDFromUploadKey extracts the session id from a multipart upload key
+// of the shape <prefix>/sessions/<uuid>/data (the trailing segment is
+// stripped and the basename taken, so any future tail shape keeps working).
+// It returns "" when the key does not end in a segment under the sessions
+// prefix.
+func sessionIDFromUploadKey(key string) string {
+	idx := strings.LastIndex(key, "/")
+	if idx < 0 || idx+1 >= len(key) {
+		return ""
+	}
+	head := key[:idx]
+	idx2 := strings.LastIndex(head, "/")
+	if idx2 < 0 || idx2+1 >= len(head) {
+		return ""
+	}
+	return head[idx2+1:]
+}
+
+// sweepSessions is the T-323 open-time reclamation pass: expired
+// upload_sessions rows (and their server-side multipart state) first, then
+// the pre-existing orphan-MPU scan by age. Row expiry and MPU age share the
+// same TTL clock, so the two passes converge on the same sessions; ordering
+// rows first keeps a resumed-then-forgotten row from blocking on an MPU the
+// second pass is about to abort anyway (both aborts are idempotent
+// best-effort — a NoSuchUpload is not an error here). Without a Sessions
+// store only the orphan-MPU pass runs (the pre-T-323 behavior, T-203 D-6).
+func (e *S3Engine) sweepSessions(ctx context.Context, ttl time.Duration) error {
+	var firstErr error
+	if e.rows != nil {
+		nowStr := e.timeNow().UTC().Format(time.RFC3339)
+		rows, err := e.rows.ListExpired(ctx, nowStr, 0)
+		if err != nil {
+			return fmt.Errorf("storage: s3: sweep sessions: list expired: %w", err)
+		}
+		for _, row := range rows {
+			// An expired row's MPU is reclaimed with it: parse the upload
+			// coordinates from the state blob (a state too damaged to parse
+			// still loses its row — the MPU then ages into the orphan pass).
+			st := unmarshalS3SessionState(row.State)
+			uploadID := st.UploadID
+			uploadKey := st.UploadKey
+			if uploadKey == "" {
+				uploadKey = e.uploadKeyPrefix() + row.ID + "/data"
+			}
+			if uploadID != "" {
+				if err := e.core.AbortMultipartUpload(ctx, e.bucket, uploadKey, uploadID); err != nil {
+					if resp := minio.ToErrorResponse(err); resp.Code != "NoSuchUpload" {
+						if firstErr == nil {
+							firstErr = fmt.Errorf("storage: s3: sweep sessions: abort %s: %w", row.ID, err)
+						}
+						continue
+					}
+				}
+			}
+			if err := e.rows.Delete(ctx, row.ID); err != nil && firstErr == nil {
+				firstErr = fmt.Errorf("storage: s3: sweep sessions: delete row %s: %w", row.ID, err)
+			}
+		}
+	}
+	if err := e.sweepOrphanUploads(ctx, ttl); err != nil && firstErr == nil {
+		firstErr = err
 	}
 	return firstErr
 }
@@ -643,19 +796,31 @@ type s3Session struct {
 	partBuf  []byte               // pending bytes not yet uploaded; len < partSize
 	partSize int64                // flush threshold for partBuf; resolved at BeginSession
 	received int64
-	done     bool
-	poisoned bool
-	cause    error
+	// preResumed is the byte count that was already durable server-side
+	// when ResumeSession rebuilt this session — bytes the in-memory digest
+	// chain has NOT seen (an in-progress MPU's parts cannot be read back;
+	// MinIO/S3 answer NoSuchKey on partNumber GETs before completion). A
+	// positive value switches Commit to the complete-then-verify readback
+	// gate of s3_resume.go: the assembled temp object is the only readable
+	// form of the full content, so it — not the partial in-memory chain —
+	// is the verification source. Zero for every session that lived in one
+	// process.
+	preResumed int64
+	done       bool
+	poisoned   bool
+	cause      error
 }
 
 // ID returns the session uuid.
 func (s *s3Session) ID() string { return s.id }
 
 // Offset returns the cumulative bytes received so far (committed parts plus
-// the pending part buffer). S3 sessions are never re-materialized — this
-// engine's ResumeSession is a hard ErrSessionNotFound (architecture section
-// 5.3.1 contract 5) — so Offset only ever describes a live in-process
-// session. Reads serialize against Append/Commit via s.mu.
+// the pending part buffer). For a resumed session the initial value is the
+// ListParts-derived durable byte count — the resumable offset, which may be
+// BELOW the last offset a pre-crash caller observed: bytes that lived only
+// in the pending part buffer die with the process. Callers must treat this
+// value as the authoritative resume anchor (the [M7] offset rule). Reads
+// serialize against Append/Commit via s.mu.
 func (s *s3Session) Offset() int64 {
 	if s == nil {
 		return 0
@@ -746,6 +911,12 @@ func (s *s3Session) Append(ctx context.Context, r io.Reader) (int64, error) {
 // multipart upload and resets the buffer for reuse. PutObjectPart is
 // synchronous — the body (a bytes.Reader of a known size) is fully consumed
 // before it returns — so reusing the buffer's storage afterwards is safe.
+// After the part lands it persists the session row (T-323): the upload id
+// and the durable byte count stay in sync with the server, keeping the row
+// the honest crash handle ResumeSession needs. The persist is detached from
+// the caller's cancellation (the bytes are already durable server-side once
+// PutObjectPart returns, the disk arm's N3 window); its failure poisons the
+// session — fail-closed parity with the disk arm's persistStateLocked.
 // Callers hold s.mu.
 func (s *s3Session) flushPartLocked(ctx context.Context) error {
 	if len(s.partBuf) == 0 {
@@ -763,6 +934,13 @@ func (s *s3Session) flushPartLocked(ctx context.Context) error {
 		ETag:       uploadInfo.ETag,
 	})
 	s.partBuf = s.partBuf[:0]
+	// partBuf is empty here, so received == the durable parts sum: the
+	// exact moment the row can tell the truth without arithmetic.
+	if s.eng.rows != nil {
+		if err := s.eng.rows.SetState(context.WithoutCancel(ctx), s.id, marshalS3SessionState(s.sessionStateLocked())); err != nil {
+			return fmt.Errorf("storage: s3: session %s: persist state after part %d: %w", s.id, partNumber, err)
+		}
+	}
 	return nil
 }
 
@@ -772,6 +950,12 @@ func (s *s3Session) flushPartLocked(ctx context.Context) error {
 //     CompleteMultipartUpload (or PutObject for empty/zero-part payloads).
 //  3. Copy the result to the final blob key with metadata {"blob-created-at"}.
 //  4. Delete the temp upload key.
+//
+// A session rebuilt by ResumeSession with parts already durable server-side
+// (preResumed > 0) cannot run step 1's in-memory gate — its digest chain
+// covers only the post-resume bytes — and instead takes the readback gate of
+// commitRebuiltLocked (s3_resume.go): complete, stream-verify the assembled
+// temp object, publish only on a match.
 func (s *s3Session) Commit(ctx context.Context, expect BlobRef) (BlobRef, error) {
 	if s == nil {
 		return BlobRef{}, errors.New("storage: s3: commit: nil session")
@@ -788,6 +972,9 @@ func (s *s3Session) Commit(ctx context.Context, expect BlobRef) (BlobRef, error)
 	if err := ctx.Err(); err != nil {
 		s.failLocked()
 		return BlobRef{}, fmt.Errorf("storage: s3: commit session %s: %w", s.id, err)
+	}
+	if s.preResumed > 0 {
+		return s.commitRebuiltLocked(ctx, expect)
 	}
 
 	sums := s.digests.sums()
@@ -877,7 +1064,12 @@ func (s *s3Session) Commit(ctx context.Context, expect BlobRef) (BlobRef, error)
 		// and written the blob already. Check if the target exists.
 		_, statErr := s.eng.api().StatObject(context.Background(), s.eng.bucket, targetKey, minio.StatObjectOptions{})
 		if statErr == nil {
-			// Blob exists — another goroutine won the race.
+			// Blob exists — another goroutine won the race. The complete
+			// reported failure, so this session's own MPU may still be
+			// in-progress: abort it best-effort (a completed upload answers
+			// NoSuchUpload, which is the no-op we want) rather than leave it
+			// for the TTL sweep (B5's ruling, applied to this arm too).
+			_ = s.eng.core.AbortMultipartUpload(context.Background(), s.eng.bucket, s.uploadKey, s.uploadID)
 			holdKept = true
 			s.finishLocked()
 			return actual, nil
@@ -940,7 +1132,10 @@ func (s *s3Session) putEmptyBlob(ctx context.Context, targetKey string, actual B
 	return nil
 }
 
-// Abort discards the session and aborts the multipart upload. Idempotent and
+// Abort discards the session, its multipart upload and — when one exists —
+// its persisted row (T-323: a row outliving its upload would answer resumes
+// for state nothing can rebuild; the fresh-MPU arm tolerates the race, but
+// the explicit discard is the honest terminal state). Idempotent and
 // nil-receiver safe.
 func (s *s3Session) Abort(ctx context.Context) error {
 	if s == nil {
@@ -964,7 +1159,8 @@ func (s *s3Session) Abort(ctx context.Context) error {
 	return err
 }
 
-// abortMultipart is the engine-shutdown path: abort the S3 multipart upload.
+// abortMultipart is the store-less engine-shutdown path: abort the S3
+// multipart upload (with a store, Close detaches instead — see detach).
 func (s *s3Session) abortMultipart(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -974,6 +1170,22 @@ func (s *s3Session) abortMultipart(ctx context.Context) error {
 	s.done = true
 	s.poisoned = true
 	return s.eng.core.AbortMultipartUpload(ctx, s.eng.bucket, s.uploadKey, s.uploadID)
+}
+
+// detach finalizes the session WITHOUT touching S3 or the row: the
+// engine-Close preservation path (ADR-0028 parity, T-323). The multipart
+// upload and its upload_sessions row survive for the restart's
+// ResumeSession; every later Append/Commit/Abort on this handle is a no-op
+// ("already finalized"). Callers must NOT hold e.mu (the disk arm's lock
+// ordering rule).
+func (s *s3Session) detach() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.done {
+		return
+	}
+	s.done = true
+	s.partBuf = nil // release the bounded part buffer promptly
 }
 
 func (s *s3Session) poison(cause error) {
@@ -986,6 +1198,13 @@ func (s *s3Session) poison(cause error) {
 func (s *s3Session) finishLocked() {
 	s.done = true
 	s.partBuf = nil // release the bounded part buffer promptly
+	// T-323: the terminal verbs own their row — a finished session must not
+	// answer a later resume (best-effort delete, the disk arm's
+	// deleteRowLocked posture: an absent row is a no-op and the startup
+	// sweep is the backstop).
+	if s.eng.rows != nil {
+		_ = s.eng.rows.Delete(context.Background(), s.id)
+	}
 	s.eng.forgetSession(s)
 }
 
