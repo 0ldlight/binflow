@@ -8,10 +8,11 @@ package repo_test
 //	missRetrievalCachePeriodSecs            (PRD alias of missedRetrieval…)
 //	unusedArtifactsCleanupPeriodHours       (P2 field-only; engine M11)
 //
-// and the M11 refusal pair (enableTokenAuthentication /
-// contentSynchronisation) that must never park as inert accepted fields.
-// Every rule lives in repo.Service/config.go; this file pins acceptance,
-// canonical echo, the 014 row mirror and the refusal family.
+// and the M11 pair (enableTokenAuthentication / contentSynchronisation) —
+// refused by name through M10 (the no-inert-fields posture), ACCEPTED and
+// effective since T-317 (FR-101.1). Every rule lives in repo.Service/
+// config.go; this file pins acceptance, canonical echo, the 014 row mirror
+// and the refusal family.
 
 import (
 	"context"
@@ -180,10 +181,11 @@ func TestT290SmartRemoteValidation(t *testing.T) {
 		{"miss alias zero + value resolves to value", `{"url":"http://u","missedRetrievalCachePeriodSecs":0,"missRetrievalCachePeriodSecs":90}`, ""},
 		{"miss alias value + zero resolves to value", `{"url":"http://u","missRetrievalCachePeriodSecs":0,"missedRetrievalCachePeriodSecs":60}`, ""},
 		{"non-zero disagreement still refuses", `{"url":"http://u","socketTimeoutMs":1500,"socketTimeoutMillis":2500}`, "disagree"},
-		// Review minor 2: trailing garbage is malformed JSON — the
-		// by-name M11 refusal must not be bypassable by appending junk
-		// after the object (and a clean blob keeps parsing).
-		{"trailing garbage after M11 field refuses", `{"url":"http://u","contentSynchronisation":true}garbage`, "remote repository config"},
+		// Review minor 2 (T-290) + T-317 inversion: trailing garbage is
+		// malformed JSON — the strict single-value gate must not be
+		// bypassable by appending junk after the object (the M11 field now
+		// legal inside it), and a clean blob keeps parsing.
+		{"trailing garbage after M11 field refuses", `{"url":"http://u","contentSynchronisation":{"enabled":true}}garbage`, "trailing data"},
 		{"trailing garbage on a clean blob refuses", `{"url":"http://u"}garbage`, "trailing data"},
 		{"second JSON value refuses", `{"url":"http://u"}{"url":"http://u"}`, "trailing data"},
 		{"trailing whitespace is fine", "{\"url\":\"http://u\"}  \n", ""},
@@ -211,41 +213,48 @@ func TestT290SmartRemoteValidation(t *testing.T) {
 	}
 }
 
-// TestT290M11FieldsRefused: enableTokenAuthentication and
-// contentSynchronisation are refused BY NAME (FR-90.2's no-inert-fields
-// rule) while the scenario-D tolerance for other unknown Artifactory fields
-// keeps holding.
-func TestT290M11FieldsRefused(t *testing.T) {
-	for _, field := range []string{"enableTokenAuthentication", "contentSynchronisation"} {
-		t.Run(field, func(t *testing.T) {
-			e := newEnv(t)
-			_, err := e.svc.CreateRepo(context.Background(), admin(), &metadata.Repo{
-				RepoKey: "m11-remote", Type: repo.TypeRemote, PackageType: repo.PackageGeneric,
-				Config: `{"url":"http://u","` + field + `":true}`,
-			})
-			if !errors.Is(err, repo.ErrInvalidRepoConfig) {
-				t.Fatalf("error = %v, want ErrInvalidRepoConfig", err)
-			}
-			if !strings.Contains(err.Error(), field) {
-				t.Fatalf("error %q does not name %q", err, field)
-			}
-			if !strings.Contains(err.Error(), "M11") {
-				t.Fatalf("error %q does not point at the M11 plan", err)
-			}
-		})
-	}
-	// Presence, not truthiness: a null value is still a configured field.
+// TestT290M11FieldsAccepted (inverted by T-317 / FR-101.1): the M10-era
+// by-name 400 of enableTokenAuthentication / contentSynchronisation is
+// RETIRED — both fields are accepted, effective (consumed by internal/
+// remote's repoPolicy) and echoed canonically. The no-inert-fields rule of
+// FR-90.2 stays satisfied by their consumers, not by refusal.
+func TestT290M11FieldsAccepted(t *testing.T) {
 	e := newEnv(t)
 	_, err := e.svc.CreateRepo(context.Background(), admin(), &metadata.Repo{
-		RepoKey: "m11-null", Type: repo.TypeRemote, PackageType: repo.PackageGeneric,
-		Config: `{"url":"http://u","contentSynchronisation":null}`,
+		RepoKey: "m11-remote", Type: repo.TypeRemote, PackageType: repo.PackageGeneric,
+		Config: `{"url":"http://u","enableTokenAuthentication":true,` +
+			`"contentSynchronisation":{"enabled":true,"propertiesEnabled":true}}`,
 	})
-	if !errors.Is(err, repo.ErrInvalidRepoConfig) {
-		t.Fatalf("null contentSynchronisation: error = %v, want ErrInvalidRepoConfig", err)
+	if err != nil {
+		t.Fatalf("create with both fields: %v", err)
 	}
-	// The scenario-D tolerance arm (M3 contract) still passes.
+	cfg := remoteCfgOf(t, mustGetRepo(t, e, "m11-remote"))
+	if cfg["enableTokenAuthentication"] != true {
+		t.Fatalf("enableTokenAuthentication = %v, want true", cfg["enableTokenAuthentication"])
+	}
+	cs, ok := cfg["contentSynchronisation"].(map[string]any)
+	if !ok {
+		t.Fatalf("contentSynchronisation = %v (%T), want an object", cfg["contentSynchronisation"], cfg["contentSynchronisation"])
+	}
+	for k, v := range map[string]any{
+		"enabled": true, "statisticsEnabled": false, "propertiesEnabled": true, "sourceOrigin": false,
+	} {
+		if cs[k] != v {
+			t.Fatalf("contentSynchronisation[%s] = %v, want %v", k, cs[k], v)
+		}
+	}
+	// A null value is ABSENT (the explicit-null-is-default read every other
+	// nullable field gets), and the scenario-D tolerance arm (M3 contract)
+	// still passes.
 	e2 := newEnv(t)
 	if _, err := e2.svc.CreateRepo(context.Background(), admin(), &metadata.Repo{
+		RepoKey: "m11-null", Type: repo.TypeRemote, PackageType: repo.PackageGeneric,
+		Config: `{"url":"http://u","contentSynchronisation":null}`,
+	}); err != nil {
+		t.Fatalf("null contentSynchronisation refused: %v", err)
+	}
+	e3 := newEnv(t)
+	if _, err := e3.svc.CreateRepo(context.Background(), admin(), &metadata.Repo{
 		RepoKey: "scen-d", Type: repo.TypeRemote, PackageType: repo.PackageGeneric,
 		Config: `{"url":"http://u","proxyRef":"","shareConfiguration":false,"maxUniqueSnapshots":5}`,
 	}); err != nil {

@@ -1,13 +1,13 @@
 package httpapi_test
 
-// T-290 (FR-90.2-AC4 / L25): the smart remote effective-field subset across
-// the REST plane — PUT /api/repositories/{key} carries the PRD/LC-12 and
-// artifactory.xsd spellings through to repo.Service, GET echoes the
-// canonical form, and the M11-ruled field names answer 400 by name while
-// the M3 scenario-D tolerance for other unknown fields holds.
+// T-290 (FR-90.2-AC4 / L25) + T-317 (FR-101.1) inversion: the smart remote
+// effective-field subset across the REST plane — PUT /api/repositories/{key}
+// carries the PRD/LC-12 and artifactory.xsd spellings through to
+// repo.Service, GET echoes the canonical form, and the M11 pair
+// (enableTokenAuthentication / contentSynchronisation) is ACCEPTED since
+// T-317 while the M3 scenario-D tolerance for other unknown fields holds.
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -75,24 +75,53 @@ func TestT290SmartRemoteDefaultsOnWire(t *testing.T) {
 	}
 }
 
-// TestT290M11FieldRefusedOnWire: enableTokenAuthentication /
-// contentSynchronisation answer 400 naming the field (the no-inert-fields
-// rule); the xsd ms spelling and the scenario-D tolerance arm both keep
-// working.
-func TestT290M11FieldRefusedOnWire(t *testing.T) {
-	for _, field := range []string{"contentSynchronisation", "enableTokenAuthentication"} {
-		t.Run(field, func(t *testing.T) {
-			h := newHarness(t)
-			status, body := putRepoStatus(t, h, "m11-remote", fmt.Sprintf(
-				`{"rclass":"remote","packageType":"generic","url":"http://127.0.0.1:9099","%s":true}`, field))
-			if status != http.StatusBadRequest {
-				t.Fatalf("status = %d, want 400; body=%s", status, body)
-			}
-			if !strings.Contains(body, field) {
-				t.Fatalf("body %q does not name the refused field", body)
-			}
-		})
+// TestT290M11FieldAcceptedOnWire (inverted by T-317 / FR-101.1 — the M10
+// L25 by-name 400 is retired): PUT carrying enableTokenAuthentication and
+// contentSynchronisation answers 200 and GET echoes the canonical form. A
+// mistyped contentSynchronisation still answers 400 naming the field; the
+// xsd ms spelling and the scenario-D tolerance arm keep working.
+func TestT290M11FieldAcceptedOnWire(t *testing.T) {
+	h := newHarness(t)
+	status, body := putRepoStatus(t, h, "m11-remote", `{
+		"rclass":"remote","packageType":"generic",
+		"url":"http://127.0.0.1:9099",
+		"enableTokenAuthentication":true,
+		"contentSynchronisation":{"enabled":true,"propertiesEnabled":true}
+	}`)
+	if status != http.StatusOK {
+		t.Fatalf("create status = %d, want 200; body=%s", status, body)
 	}
+	_, cfg := getRepoJSON(t, h, "m11-remote")
+	conf, ok := cfg["configuration"].(map[string]any)
+	if !ok {
+		t.Fatalf("configuration missing: %v", cfg)
+	}
+	if conf["enableTokenAuthentication"] != true {
+		t.Fatalf("enableTokenAuthentication = %v, want true", conf["enableTokenAuthentication"])
+	}
+	cs, ok := conf["contentSynchronisation"].(map[string]any)
+	if !ok {
+		t.Fatalf("contentSynchronisation = %v (%T), want an object", conf["contentSynchronisation"], conf["contentSynchronisation"])
+	}
+	for k, v := range map[string]any{
+		"enabled": true, "statisticsEnabled": false, "propertiesEnabled": true, "sourceOrigin": false,
+	} {
+		if cs[k] != v {
+			t.Fatalf("contentSynchronisation[%s] = %v, want %v", k, cs[k], v)
+		}
+	}
+	t.Run("mistyped contentSynchronisation refused by name", func(t *testing.T) {
+		h := newHarness(t)
+		status, body := putRepoStatus(t, h, "m11-bad", `{
+			"rclass":"remote","packageType":"generic",
+			"url":"http://127.0.0.1:9099","contentSynchronisation":true}`)
+		if status != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400; body=%s", status, body)
+		}
+		if !strings.Contains(body, "contentSynchronisation") {
+			t.Fatalf("body %q does not name the field", body)
+		}
+	})
 	t.Run("xsd ms spelling accepted", func(t *testing.T) {
 		h := newHarness(t)
 		status, body := putRepoStatus(t, h, "xsd-remote",

@@ -64,11 +64,19 @@ type Options struct {
 	RepoKey string
 	// BaseURL is the upstream base; Request.Path is joined onto it.
 	BaseURL string
-	// Username and Password are Basic credentials, passed through as-is —
-	// decryption from at-rest storage is the fetcher's concern (T-66,
-	// ADR-0012 decision 4). Both empty means anonymous.
+	// Username and Password are the upstream credential, passed through
+	// as-is — decryption from at-rest storage is the fetcher's concern
+	// (T-66, ADR-0012 decision 4). Both empty means anonymous.
 	Username string
 	Password string
+	// TokenAuth is the remote repository's enableTokenAuthentication
+	// (T-317, FR-101.1; repo-semantics 7.1 "enableTokenAuthentication 切
+	// token 头"): when true the Password is a bearer TOKEN and travels as
+	// "Authorization: Bearer <password>" instead of the Basic pair — the
+	// smart-remote posture of authenticating to the upstream with a
+	// reference token. It changes only the header spelling; the SSRF
+	// chain, per-hop re-screening and credential-leak rules are identical.
+	TokenAuth bool
 	// AllowPrivateUpstream is the NFR-S13 exemption; it is granted at the
 	// repository layer (admin-only, audited — T-64) and merely flows
 	// through here.
@@ -217,7 +225,7 @@ type Request struct {
 	// URL is an absolute-URL override; it is still fully guard-checked.
 	URL string
 	// Header carries extra upstream headers (conditional-GET validators
-	// from the fetcher, Accept negotiation, ...). A repository's Basic
+	// from the fetcher, Accept negotiation, ...). A repository's
 	// credentials, when configured, overwrite any Authorization entry.
 	Header http.Header
 }
@@ -502,8 +510,18 @@ func (c *Client) targetURL(req Request) (string, error) {
 }
 
 // applyBasicAuth sets the Authorization header from the repository's stored
-// credentials — pass-through only (decryption is the fetcher's, T-66).
+// credentials — pass-through only (decryption is the fetcher's, T-66). With
+// Options.TokenAuth (enableTokenAuthentication, T-317) the password IS the
+// token and rides as a Bearer credential; a token-auth repository without a
+// password stays anonymous (there is no token to present).
 func (c *Client) applyBasicAuth(h http.Header) {
+	if c.opts.TokenAuth {
+		if c.opts.Password == "" {
+			return
+		}
+		h.Set("Authorization", "Bearer "+c.opts.Password)
+		return
+	}
 	if c.opts.Username == "" && c.opts.Password == "" {
 		return
 	}
