@@ -82,11 +82,11 @@ type repoConfig struct {
 	MissRetrievalCachePeriodSecs      *int64 `json:"missRetrievalCachePeriodSecs,omitempty"`      // PRD spelling; alias of missedRetrievalCachePeriodSecs
 	UnusedArtifactsCleanupPeriodHours *int64 `json:"unusedArtifactsCleanupPeriodHours,omitempty"` // field-only (engine M11)
 
-	// The M11-ruled smart remote names (T-290, FR-90.2's no-inert-fields
-	// rule) are TRANSPORT-ONLY: they ride through to repo.Service so the
-	// single refusal point there can answer 400 naming the field, instead
-	// of this layer silently dropping them (which would read as acceptance
-	// to the caller). RawMessage so any JSON value shape forwards.
+	// The smart remote replication pair (T-317, FR-101.1 — the M10-era
+	// by-name 400 is retired) stays RawMessage transport: any JSON value
+	// shape rides through verbatim so repo.Service's single validation
+	// point owns the typing (a non-object contentSynchronisation answers
+	// its 400 naming the field there).
 	EnableTokenAuthentication *json.RawMessage `json:"enableTokenAuthentication,omitempty"`
 	ContentSynchronisation    *json.RawMessage `json:"contentSynchronisation,omitempty"`
 
@@ -134,7 +134,7 @@ func setBool(m map[string]any, key string, v *bool) {
 }
 
 // setRawJSON collects one raw-JSON transport field into the config map (the
-// M11 refusal pair rides verbatim so repo.Service sees the exact key).
+// smart remote pair rides verbatim so repo.Service sees the exact shape).
 func setRawJSON(m map[string]any, key string, v *json.RawMessage) {
 	if v != nil {
 		m[key] = *v

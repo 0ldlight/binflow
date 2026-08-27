@@ -52,6 +52,11 @@ type MetaSource interface {
 	// DockerTags returns the tag names currently pointing at the manifest
 	// digest hex within one image (empty when none do — a digest-only push).
 	DockerTags(ctx context.Context, repoKey, image, digestHex string) ([]string, error)
+	// NodeProps returns every property of one node (the M10 property
+	// system; T-317, FR-101.2). A node without properties answers an empty
+	// map — the push plane reads this at PUSH time, so properties attached
+	// between landing and the drain ride the same task.
+	NodeProps(ctx context.Context, repoKey, path string) (map[string][]string, error)
 }
 
 // StoreMetaSource implements MetaSource over an opened metadata store. It is
@@ -106,4 +111,16 @@ func (s *StoreMetaSource) DockerTags(ctx context.Context, repoKey, image, digest
 		}
 	}
 	return out, nil
+}
+
+// NodeProps implements MetaSource (T-317, FR-101.2): the node's property
+// map off the M10 node_props store. The store answers an empty map for a
+// node without properties; a store fault surfaces as a transient error so
+// the task's retry schedule owns it.
+func (s *StoreMetaSource) NodeProps(ctx context.Context, repoKey, path string) (map[string][]string, error) {
+	props, err := s.md.NodeProps().List(ctx, repoKey, path)
+	if err != nil {
+		return nil, fmt.Errorf("node properties %s/%s: %w", repoKey, path, err)
+	}
+	return props, nil
 }

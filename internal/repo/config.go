@@ -64,6 +64,49 @@ type remoteConfig struct {
 	HardFail                       bool   `json:"hardFail"`
 	AllowPrivateUpstream           bool   `json:"allowPrivateUpstream"`
 	PriorityResolution             bool   `json:"priorityResolution"`
+	// T-317 (FR-101.1 / K37): the smart remote replication fields, effective
+	// since M11 — enableTokenAuthentication switches the fetcher's upstream
+	// credential to a Bearer token (repo-semantics 7.1 "切 token 头"), and
+	// contentSynchronisation carries the pull-side content-sync policy
+	// (sub-field set per artifactory.xsd via inv-4 F5; propertiesEnabled
+	// attaches upstream properties to cached nodes). Both echo CANONICALLY
+	// (always present, like hardFail — the Artifactory full-config echo
+	// posture); consumption lives in internal/remote's repoPolicy, which
+	// reads this same JSON (the hardFail precedent — no remote_configs
+	// columns: booleans default false = product default, so pre-T-317 rows
+	// read as "off" with zero migration surface).
+	EnableTokenAuthentication bool                   `json:"enableTokenAuthentication"`
+	ContentSynchronisation    ContentSynchronisation `json:"contentSynchronisation"`
+}
+
+// ContentSynchronisation is the smart remote content-sync policy (T-317,
+// FR-101.1 — the K37 sub-field set anchored to artifactory.xsd via
+// docs/reverse/inv-4-addons.md F5). Four booleans, all default false:
+//
+//   - enabled: the master switch — every sub-behavior is gated on it.
+//   - propertiesEnabled: the pull-through fetcher attaches the upstream
+//     instance's node properties to the cached node (internal/remote).
+//   - statisticsEnabled: accepted + echoed; statistics transport is a
+//     deliberate no-op — BinFlow has no download-statistics substrate
+//     (the ?stats family is an unimplemented E-09 arm) and the inbound
+//     reporting protocol has no public specification (replication.md's
+//     own low-confidence list). Registered in the T-317 report.
+//   - sourceOrigin: accepted + echoed; no behavior until an origin-marking
+//     spec lands (same low-confidence registration).
+type ContentSynchronisation struct {
+	Enabled           bool `json:"enabled"`
+	StatisticsEnabled bool `json:"statisticsEnabled"`
+	PropertiesEnabled bool `json:"propertiesEnabled"`
+	SourceOrigin      bool `json:"sourceOrigin"`
+}
+
+// contentSyncInput is the wire shape of contentSynchronisation (pointer
+// fields keep absent distinct from an explicit false).
+type contentSyncInput struct {
+	Enabled           *bool `json:"enabled"`
+	StatisticsEnabled *bool `json:"statisticsEnabled"`
+	PropertiesEnabled *bool `json:"propertiesEnabled"`
+	SourceOrigin      *bool `json:"sourceOrigin"`
 }
 
 // remoteConfigInput mirrors remoteConfig with the input-only extras: the
@@ -89,45 +132,32 @@ type remoteConfig struct {
 //   - metadataRetrievalTimeoutSecs and unusedArtifactsCleanupPeriodHours
 //     round out the FR-90.2 subset (defaults 60 and 0/off).
 type remoteConfigInput struct {
-	URL                               *string `json:"url"`
-	Username                          string  `json:"username"`
-	Password                          string  `json:"password"` // accepted, never persisted (T-66 owns the encrypted form)
-	RetrievalCachePeriodSecs          *int64  `json:"retrievalCachePeriodSecs"`
-	MissedRetrievalCachePeriodSecs    *int64  `json:"missedRetrievalCachePeriodSecs"`
-	MissRetrievalCachePeriodSecs      *int64  `json:"missRetrievalCachePeriodSecs"` // alias of the field above
-	SocketTimeoutSecs                 *int64  `json:"socketTimeoutSecs"`
-	SocketTimeoutMs                   *int64  `json:"socketTimeoutMs"`     // ms-granularity, wins over secs
-	SocketTimeoutMillis               *int64  `json:"socketTimeoutMillis"` // artifactory.xsd spelling of socketTimeoutMs
-	MetadataRetrievalTimeoutSecs      *int64  `json:"metadataRetrievalTimeoutSecs"`
-	UnusedArtifactsCleanupPeriodHours *int64  `json:"unusedArtifactsCleanupPeriodHours"`
-	AssumedOfflinePeriodSecs          *int64  `json:"assumedOfflinePeriodSecs"`
-	HardFail                          *bool   `json:"hardFail"`
-	AllowPrivateUpstream              *bool   `json:"allowPrivateUpstream"`
-	PriorityResolution                *bool   `json:"priorityResolution"`
+	URL                               *string          `json:"url"`
+	Username                          string           `json:"username"`
+	Password                          string           `json:"password"` // accepted, never persisted (T-66 owns the encrypted form)
+	RetrievalCachePeriodSecs          *int64           `json:"retrievalCachePeriodSecs"`
+	MissedRetrievalCachePeriodSecs    *int64           `json:"missedRetrievalCachePeriodSecs"`
+	MissRetrievalCachePeriodSecs      *int64           `json:"missRetrievalCachePeriodSecs"` // alias of the field above
+	SocketTimeoutSecs                 *int64           `json:"socketTimeoutSecs"`
+	SocketTimeoutMs                   *int64           `json:"socketTimeoutMs"`     // ms-granularity, wins over secs
+	SocketTimeoutMillis               *int64           `json:"socketTimeoutMillis"` // artifactory.xsd spelling of socketTimeoutMs
+	MetadataRetrievalTimeoutSecs      *int64           `json:"metadataRetrievalTimeoutSecs"`
+	UnusedArtifactsCleanupPeriodHours *int64           `json:"unusedArtifactsCleanupPeriodHours"`
+	AssumedOfflinePeriodSecs          *int64           `json:"assumedOfflinePeriodSecs"`
+	HardFail                          *bool            `json:"hardFail"`
+	AllowPrivateUpstream              *bool            `json:"allowPrivateUpstream"`
+	PriorityResolution                *bool            `json:"priorityResolution"`
+	EnableTokenAuthentication         *bool            `json:"enableTokenAuthentication"`
+	ContentSynchronisation            *json.RawMessage `json:"contentSynchronisation"`
 }
 
-// m11RemoteFields are the smart remote fields PRD FR-90.2 rules OUT of M10
-// (enableTokenAuthentication / contentSynchronisation belong to M11
-// "replication hardening"). The M3 posture tolerates unknown Artifactory
-// fields (scenario D migration scripts), but silently DROPPING these two
-// would let an admin believe a replica-token or content-sync policy took
-// effect when nothing consumed it — the inert-field trap the PRD refuses.
-// They are refused by name with a 400 naming the milestone instead, while
-// every other unknown field keeps the scenario-D tolerance.
-var m11RemoteFields = []string{"enableTokenAuthentication", "contentSynchronisation"}
-
-// rejectM11RemoteFields refuses the M11-ruled field names when they appear
-// as keys in the raw config blob (presence check, not value check: a null
-// value is still a configured field).
-//
-// The blob must be exactly ONE JSON value: trailing garbage after the
-// object (`{"...":true}garbage`) is a malformed config and refuses here
-// with 400 — json.Unmarshal's trailing-data error must not read as "not our
-// shape, let it pass" (the typed decode below uses Decoder.Decode, which
-// silently ignores whatever follows the first value, so this is the only
-// strict gate). An EMPTY blob (io.EOF) passes through: the typed decode
-// owns the "url is required" refusal for it.
-func rejectM11RemoteFields(config string) error {
+// validateRemoteConfigShape is the strict single-JSON-value gate of the
+// remote config blob. T-290 introduced it as the refusal arm of the M11
+// field pair; T-317 (FR-101.1) inverted that refusal — the two fields are
+// ACCEPTED and effective now — but the strictness the gate added stays:
+// the blob must be exactly ONE JSON value, because the typed decode below
+// (Decoder.Decode) silently ignores whatever follows the first value.
+func validateRemoteConfigShape(config string) error {
 	dec := json.NewDecoder(strings.NewReader(config))
 	var raw map[string]json.RawMessage
 	if err := dec.Decode(&raw); err != nil {
@@ -141,14 +171,40 @@ func rejectM11RemoteFields(config string) error {
 		return fmt.Errorf(
 			"%w: remote repository config: trailing data after the JSON object", ErrInvalidRepoConfig)
 	}
-	for _, f := range m11RemoteFields {
-		if _, ok := raw[f]; ok {
-			return fmt.Errorf(
-				"%w: remote repository config: %q is not supported yet (planned for M11 replication hardening); remove it or migrate after M11",
-				ErrInvalidRepoConfig, f)
-		}
-	}
 	return nil
+}
+
+// parseContentSynchronisation validates the contentSynchronisation input
+// (T-317, FR-101.1 / K37). A nil or JSON-null value counts as ABSENT (all
+// four booleans keep the false default — the same explicit-null-is-absent
+// read every other nullable config field gets); an OBJECT decodes the four
+// anchored sub-fields (unknown sub-fields drop, the scenario-D tolerance at
+// one level down); any other JSON shape refuses naming the field, so a
+// boolean or string cannot silently masquerade as the policy object.
+func parseContentSynchronisation(raw *json.RawMessage) (ContentSynchronisation, error) {
+	if raw == nil || string(*raw) == "null" {
+		return ContentSynchronisation{}, nil
+	}
+	var in contentSyncInput
+	if err := json.Unmarshal(*raw, &in); err != nil {
+		return ContentSynchronisation{}, fmt.Errorf(
+			"%w: remote repository config: contentSynchronisation must be an object of booleans (enabled, statisticsEnabled, propertiesEnabled, sourceOrigin): %w",
+			ErrInvalidRepoConfig, err)
+	}
+	var out ContentSynchronisation
+	if in.Enabled != nil {
+		out.Enabled = *in.Enabled
+	}
+	if in.StatisticsEnabled != nil {
+		out.StatisticsEnabled = *in.StatisticsEnabled
+	}
+	if in.PropertiesEnabled != nil {
+		out.PropertiesEnabled = *in.PropertiesEnabled
+	}
+	if in.SourceOrigin != nil {
+		out.SourceOrigin = *in.SourceOrigin
+	}
+	return out, nil
 }
 
 // parseRemoteConfig validates one remote repository config blob and returns
@@ -167,11 +223,13 @@ func rejectM11RemoteFields(config string) error {
 // Unknown fields are DROPPED, not rejected: the M3 field set is a subset of
 // Artifactory's (PRD scenario D — migration scripts keep their full config
 // bodies and only swap the URL prefix), so tolerance is the compatible
-// posture while the canonical form stays exactly what M3 serves. The one
-// carve-out (T-290, FR-90.2's "no inert fields" rule) is the M11-ruled
-// smart remote names, refused by name — see m11RemoteFields.
+// posture while the canonical form stays exactly what M3 serves. The
+// T-290-era refusal of the smart remote pair (enableTokenAuthentication /
+// contentSynchronisation) is retired by T-317 (FR-101.1): both are ACCEPTED
+// and effective — the no-inert-fields rule is satisfied by their consumers
+// in internal/remote (Bearer token auth, pull-side property attach).
 func parseRemoteConfig(config string) (remoteConfig, string, error) {
-	if err := rejectM11RemoteFields(config); err != nil {
+	if err := validateRemoteConfigShape(config); err != nil {
 		return remoteConfig{}, "", err
 	}
 	var in remoteConfigInput
@@ -288,6 +346,18 @@ func parseRemoteConfig(config string) (remoteConfig, string, error) {
 	if in.PriorityResolution != nil {
 		out.PriorityResolution = *in.PriorityResolution
 	}
+	// T-317 (FR-101.1): the smart remote pair — a mistyped
+	// enableTokenAuthentication fails the typed decode above with the field
+	// named in the json error; contentSynchronisation gets its own shape
+	// gate so a non-object value names the field precisely.
+	if in.EnableTokenAuthentication != nil {
+		out.EnableTokenAuthentication = *in.EnableTokenAuthentication
+	}
+	cs, csErr := parseContentSynchronisation(in.ContentSynchronisation)
+	if csErr != nil {
+		return remoteConfig{}, "", csErr
+	}
+	out.ContentSynchronisation = cs
 	return out, in.Password, nil
 }
 
