@@ -352,6 +352,46 @@ func (e *MigrationEngine) GCSweep(ctx context.Context, m GCMarker, grace time.Du
 	return e.disk.GCSweep(ctx, m, grace, apply)
 }
 
+// SweepExpiredSessions implements SessionSweeper (T-324): the open-time
+// reclamation rerun on the maintenance clock, fanned out with GCSweep's
+// mode shape — completed mode delegates to S3, dual-write runs BOTH
+// backends (each sweeps its own rows and backend state; the count sums the
+// session rows), bypass mode the disk engine alone. The wrapped engines
+// are interface-typed, so the capability is asserted per backend and a
+// backend without it is a LOUD error, never a silent skip.
+func (e *MigrationEngine) SweepExpiredSessions(ctx context.Context) (int, error) {
+	sweepOf := func(name string, eng Engine) (int, error) {
+		sw, ok := eng.(SessionSweeper)
+		if !ok {
+			return 0, fmt.Errorf("storage: migration: sweep sessions: %s backend lacks the SessionSweeper capability", name)
+		}
+		return sw.SweepExpiredSessions(ctx)
+	}
+	if err := e.checkOpen(); err != nil {
+		return 0, fmt.Errorf("storage: migration: sweep sessions: %w", err)
+	}
+
+	e.mu.RLock()
+	cfg := e.config
+	e.mu.RUnlock()
+
+	if cfg.Completed {
+		return sweepOf("s3", e.s3)
+	}
+	if cfg.Enabled {
+		diskN, errDisk := sweepOf("disk", e.disk)
+		s3N, errS3 := sweepOf("s3", e.s3)
+		if errDisk != nil {
+			return diskN + s3N, fmt.Errorf("storage: migration: sweep sessions (disk): %w", errDisk)
+		}
+		if errS3 != nil {
+			return diskN + s3N, fmt.Errorf("storage: migration: sweep sessions (s3): %w", errS3)
+		}
+		return diskN + s3N, nil
+	}
+	return sweepOf("disk", e.disk)
+}
+
 // ReleaseGCHold implements Engine.ReleaseGCHold across both wrapped engines.
 // A dual-write Commit registers the sha on disk AND S3 (two independent hold
 // sets), so the release must reach both; in bypass and completed modes one

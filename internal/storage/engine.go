@@ -140,7 +140,7 @@ func OpenEngine(root string, opts Options) (Engine, error) {
 		holds:    newHoldSet(opts.GCHoldTTL, opts.Now),
 		sessions: make(map[string]*uploadSession),
 	}
-	if err := e.sweepSessions(time.Now()); err != nil {
+	if _, err := e.sweepSessions(time.Now()); err != nil {
 		// Fail the open, but never modify on-disk data in response to a sweep
 		// failure: the error may be a transient DB fault (e.g. SQLITE_BUSY)
 		// while the root still holds resumable upload dirs protected by
@@ -406,8 +406,9 @@ func syncDir(dir string) error {
 // between MkdirAll and row Create (no row to age them out). Sessions that are
 // live in this process are never removed. With no Sessions store configured,
 // the orphan scan still runs (crash residue is still reclaimable) but no rows
-// are consulted.
-func (e *engine) sweepSessions(now time.Time) error {
+// are consulted. The returned count is session ROWS reclaimed (orphan dirs are
+// additional residue with no row to count).
+func (e *engine) sweepSessions(now time.Time) (int, error) {
 	ss := e.opts.Sessions
 	// A failing sweep fails the Open that triggered it (OpenEngine returns
 	// the error) but never deletes on-disk data in response: expired sessions
@@ -417,9 +418,10 @@ func (e *engine) sweepSessions(now time.Time) error {
 	if ss != nil {
 		rows, err := ss.ListExpired(context.Background(), nowStr, 0)
 		if err != nil {
-			return fmt.Errorf("storage: sweep sessions: %w", err)
+			return 0, fmt.Errorf("storage: sweep sessions: %w", err)
 		}
 		var firstErr error
+		reclaimed := 0
 		for _, row := range rows {
 			if e.isLiveSession(row.ID) {
 				continue
@@ -431,16 +433,34 @@ func (e *engine) sweepSessions(now time.Time) error {
 			}
 			if err := ss.Delete(context.Background(), row.ID); err != nil && firstErr == nil {
 				firstErr = fmt.Errorf("storage: sweep sessions: delete row %s: %w", row.ID, err)
+				continue
 			}
+			reclaimed++
 		}
 		// orphan-dir scan: dirs under uploads/ with no surviving row are
 		// residue from a crash before the row landed, reclaimed now.
 		if err := e.sweepOrphanDirs(ss); err != nil && firstErr == nil {
 			firstErr = err
 		}
-		return firstErr
+		return reclaimed, firstErr
 	}
-	return e.sweepOrphanDirs(nil)
+	return 0, e.sweepOrphanDirs(nil)
+}
+
+// SweepExpiredSessions implements SessionSweeper (T-324): the open-time pass
+// rerun on the maintenance clock, so a serve process that stays up for weeks
+// still reclaims expired sessions. Honors ctx for the row queries; the file
+// removals inside stay context-ignorant exactly like the open-time pass (a
+// half-removed dir is reclaimed by the next sweep either way).
+func (e *engine) SweepExpiredSessions(ctx context.Context) (int, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, fmt.Errorf("storage: sweep sessions: %w", err)
+	}
+	n, err := e.sweepSessions(time.Now())
+	if err != nil {
+		return n, fmt.Errorf("storage: sweep sessions: %w", err)
+	}
+	return n, nil
 }
 
 // sweepOrphanDirs removes any directory under uploads/ that is neither a live

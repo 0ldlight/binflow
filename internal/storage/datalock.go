@@ -94,6 +94,12 @@ const (
 	// it holds the lock for its whole run so a concurrent gc can never
 	// build a database inside a target import is restoring into).
 	DataLockOpImport = "import"
+	// DataLockOpCleanup is the op of the unused-cleanup engine (T-324,
+	// FR-102.2): its run deletes node rows AND drives a GCSweep apply over
+	// the same blob tree the gc/export family guards, so it joins the one
+	// mutual-exclusion set — a cleanup run refuses (409 on the REST face)
+	// while a gc, export or import holds the lock, and vice versa.
+	DataLockOpCleanup = "cleanup"
 )
 
 // MaintenanceLockName exposes the lock file's name to co-located maintenance

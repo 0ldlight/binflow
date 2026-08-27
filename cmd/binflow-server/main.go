@@ -312,6 +312,9 @@ func runServe(args []string, stderr io.Writer) error {
 	// runtime event, the downgrade needs no restart. Cancellation rides
 	// the same signal context as the HTTP drain.
 	go stack.licenseMgr.Run(ctx)
+	// The unused-cleanup cron (T-324, FR-102.2): one pass per hour, apply
+	// mode. Exits with the signal context.
+	go stack.cleanupEng.Run(ctx)
 
 	err = srv.Run(ctx)
 	if err != nil {
@@ -431,8 +434,10 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// final ruling — uploads store, repodata recomputes on demand).
 	// T-315: the NodeProps seam feeds the remote .rpm rpm.metadata.*
 	// backfill; remote and virtual classes serve (handler.go RepoTypes).
+	// T-322: the Signer seam signs repomd.xml.asc/.key on every local
+	// recompute (stack.signer, the same keypair.SigningService deb rides).
 	rpmHandler := rpm.RegisterWithProps(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.md.NodeProps(),
-		rpm.Options{DataDir: cfg.Storage.DataDir})
+		rpm.Options{DataDir: cfg.Storage.DataDir, Signer: stack.signer})
 	// deb (M11/T-310, the Debian/apt package type): same wiring story as
 	// rpm — the content plane dispatches on package_type="debian" and the
 	// provider registration classifies the dists/ tree as regenerable
@@ -540,6 +545,9 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// openStack loaded; its gate facet (AddonEnabled) is consumed by the
 	// T-283 weave points, not by these routes.
 	deps.License = stack.licenseMgr
+	// The unused-cleanup engine (M11 T-324): POST/GET /api/v1/system/cleanup
+	// and the cleanup metrics gauges ride it.
+	deps.Cleanup = stack.cleanupEng
 	return httpapi.New(deps, logger)
 }
 
@@ -812,6 +820,14 @@ type stack struct {
 	// the next boot's Load re-derives it from the stored row).
 	licenseMgr *license.Manager
 
+	// cleanupEng is the unused-cleanup engine (M11 T-324, FR-102.2): built
+	// in openStack over the same store/engine/audit collaborators; its
+	// hourly Run loop is a LIFECYCLE concern runServe starts with the
+	// signal context (the licenseMgr precedent — no drain semantics: a run
+	// already holding the maintenance lock completes detached from the
+	// cancellation, see RunOnce's WithoutCancel).
+	cleanupEng *repo.CleanupEngine
+
 	// addonsReg is the assembled addon manifest (M10 T-282/T-283): ONE
 	// registry per process — the repo-create gate seam (openStack, weave 2)
 	// and the HTTP surface's Deps.Addons (newAssembledServer) read the same
@@ -989,6 +1005,24 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 		return nil, fmt.Errorf("loading stored license: %w", err)
 	}
 
+	// The unused-cleanup engine (M11 T-324, FR-102.2): the remote-cache
+	// policy pass over the same engine + audit the service uses. Built
+	// here so the first scheduled tick already sees the opened stack.
+	cleanupEng, err := repo.NewCleanupEngine(repo.CleanupOptions{
+		Store:        md,
+		Engine:       st,
+		Audit:        auditLog,
+		AuditEnabled: cfg.Audit.Enabled,
+		DataDir:      cfg.Storage.DataDir,
+		Grace:        cfg.Storage.GCGrace,
+	})
+	if err != nil {
+		_ = replDB.Close()
+		_ = st.Close()
+		_ = md.Close()
+		return nil, fmt.Errorf("cleanup engine: %w", err)
+	}
+
 	// The D3 weave (M10 T-283, architecture section 15.1.5 weave 2):
 	// repo.Service's package-type legality question now rides the addon
 	// manifest joined with the license Manager — the packageTypeGate adapter
@@ -1014,6 +1048,7 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 		replEngine:     replEngine,
 		replCipher:     replCipher,
 		licenseMgr:     licenseMgr,
+		cleanupEng:     cleanupEng,
 		addonsReg:      addonsReg,
 		dataDir:        cfg.Storage.DataDir,
 	}, nil

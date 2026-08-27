@@ -246,9 +246,13 @@ func TestNpmClientSuite(t *testing.T) {
 		if err == nil {
 			t.Fatalf("duplicate npm publish must fail; output: %s", out)
 		}
-		// npm 10 surfaces the server's 403 generically (E403); the pinned
-		// message is asserted on the direct PUT below.
-		if !strings.Contains(out, "E403") && !strings.Contains(out, "403") {
+		// npm 10 surfaces the server's 403 generically (E403); npm 11
+		// refuses client-side once the served packument already lists the
+		// version (no request leaves) — both wordings count as "duplicate
+		// refused"; the pinned server contract is asserted on the direct
+		// PUT below.
+		if !strings.Contains(out, "E403") && !strings.Contains(out, "403") &&
+			!strings.Contains(out, "cannot publish over the previously published version") {
 			t.Fatalf("duplicate publish error not the 403 family: %s", out)
 		}
 		// Direct curl-equivalent: PUT the served document back -> 403 E-01.

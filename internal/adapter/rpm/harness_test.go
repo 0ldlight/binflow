@@ -26,8 +26,10 @@ import (
 	"github.com/lzwzzy/binflow/internal/config"
 	"github.com/lzwzzy/binflow/internal/console"
 	"github.com/lzwzzy/binflow/internal/httpapi"
+	"github.com/lzwzzy/binflow/internal/keypair"
 	"github.com/lzwzzy/binflow/internal/license"
 	"github.com/lzwzzy/binflow/internal/metadata"
+	"github.com/lzwzzy/binflow/internal/remote"
 	"github.com/lzwzzy/binflow/internal/repo"
 	"github.com/lzwzzy/binflow/internal/storage"
 )
@@ -41,14 +43,15 @@ func init() { _ = os.Unsetenv("BINFLOW_ADMIN_PASSWORD") }
 
 // stack is one assembled test environment.
 type stack struct {
-	t       *testing.T
-	srv     *httptest.Server
-	st      storage.Engine
-	md      metadata.Store
-	svc     repo.Service
-	auth    *auth.Service    // the real chain (token issuance for client legs)
-	license *license.Manager // non-nil on the licensed assembly
-	dataDir string
+	t        *testing.T
+	srv      *httptest.Server
+	st       storage.Engine
+	md       metadata.Store
+	svc      repo.Service
+	auth     *auth.Service    // the real chain (token issuance for client legs)
+	license  *license.Manager // non-nil on the licensed assembly
+	keypairs *keypair.Manager // the real keypair plane (T-322); the signing seam assembles from the same rows
+	dataDir  string
 }
 
 // stackOptions tunes the assembly (see newStackOpt).
@@ -57,6 +60,10 @@ type stackOptions struct {
 	aggTTL  time.Duration
 	addons  *addonsRegistrySeam
 	keys    *licenseKeys
+	// signer overrides the signing seam (T-322 legs that drive the error
+	// taxonomy); nil assembles the real keypair.SigningService over the
+	// stack's own rows and cipher.
+	signer RepomdSigner
 }
 
 // newStack builds the default stack: anonymous reads on, no addon
@@ -112,6 +119,32 @@ func newStackOpt(t *testing.T, opt stackOptions) *stack {
 		}
 	}
 
+	// The signing seam (T-322, sign.go): the real keypair plane over the
+	// stack's own rows — the same collaborators cmd wires (the manager's
+	// REST faces and the SigningService assemble from one store/cipher/
+	// repo triple), with a fixed test master key. opt.signer overrides the
+	// seam for the error-taxonomy legs.
+	kcipher, err := remote.NewCipher([]byte("t322-rpm-signing-master-key-0000")) // 32 bytes
+	if err != nil {
+		t.Fatalf("remote.NewCipher: %v", err)
+	}
+	kpMgr, err := keypair.NewManager(keypair.Options{
+		Store:  md.GpgKeypairs(),
+		Cipher: kcipher,
+		Repos:  md.Repos(),
+	})
+	if err != nil {
+		t.Fatalf("keypair.NewManager: %v", err)
+	}
+	signSvc, err := keypair.NewSigningService(md.GpgKeypairs(), kcipher, md.Repos())
+	if err != nil {
+		t.Fatalf("keypair.NewSigningService: %v", err)
+	}
+	var signer RepomdSigner = signSvc
+	if opt.signer != nil {
+		signer = opt.signer
+	}
+
 	// The provider registration feeds the remote engine's TTL split; the
 	// duplicate guard makes repeated stacks safe. The handler stays OUT of
 	// the global adapter registry — httpapi mounts Deps.Adapters
@@ -121,6 +154,7 @@ func newStackOpt(t *testing.T, opt stackOptions) *stack {
 		DataDir: dataDir,
 		AggTTL:  opt.aggTTL,
 		Now:     func() time.Time { return time.Now() },
+		Signer:  signer,
 	})
 
 	deps := httpapi.Deps{
@@ -147,7 +181,7 @@ func newStackOpt(t *testing.T, opt stackOptions) *stack {
 	ts := httptest.NewServer(s.Handler())
 	t.Cleanup(ts.Close)
 
-	return &stack{t: t, srv: ts, st: st, md: md, svc: svc, auth: authSvc, license: mgr, dataDir: dataDir}
+	return &stack{t: t, srv: ts, st: st, md: md, svc: svc, auth: authSvc, license: mgr, keypairs: kpMgr, dataDir: dataDir}
 }
 
 // seedRepo writes a repository row directly through the metadata store
