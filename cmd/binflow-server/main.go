@@ -428,7 +428,9 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// .rpmcache parse cache; the addons.Rpm() slot carries the pro-tier
 	// gating (T-282/T-283). calculateYumMetadata defaults FALSE (RP-2's
 	// final ruling — uploads store, repodata recomputes on demand).
-	rpmHandler := rpm.Register(stack.svc, stack.md.Repos(), stack.md.Blobs(),
+	// T-315: the NodeProps seam feeds the remote .rpm rpm.metadata.*
+	// backfill; remote and virtual classes serve (handler.go RepoTypes).
+	rpmHandler := rpm.RegisterWithProps(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.md.NodeProps(),
 		rpm.Options{DataDir: cfg.Storage.DataDir})
 	// deb (M11/T-310, the Debian/apt package type): same wiring story as
 	// rpm — the content plane dispatches on package_type="debian" and the

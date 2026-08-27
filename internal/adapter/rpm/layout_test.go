@@ -6,6 +6,7 @@ package rpm
 import (
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/lzwzzy/binflow/internal/adapter"
@@ -90,14 +91,45 @@ func TestYumRootOf(t *testing.T) {
 
 func TestProviderClassify(t *testing.T) {
 	p := provider{}
-	if p.Classify("repodata/repomd.xml") != adapter.KindMetadata {
-		t.Error("repomd not metadata class")
+	// The expirable family (S10): repomd and its signature pair, the
+	// non-digest-prefixed repodata files, the key-class spellings.
+	for _, path := range []string{
+		"repodata/repomd.xml",
+		"repodata/repomd.xml.asc",
+		"repodata/repomd.xml.key",
+		"el/9/repodata/repomd.xml",
+		"repodata/comps.xml",          // the un-prefixed group spelling
+		"repodata/modules.yaml",       // the modules upload spelling
+		"RPM-GPG-KEY-binflow",         // extension-less gpg name
+		"keys/fedora.gpg",             // key-class extension
+		"some/dir/RPM-GPG-KEY-centos", // deep extension-less gpg name
+	} {
+		if p.Classify(path) != adapter.KindMetadata {
+			t.Errorf("Classify(%q) not the expirable metadata class", path)
+		}
 	}
+	// The artifact/content family: .rpm packages and the digest-prefixed
+	// index generations (immutable by construction — a new generation
+	// means a new digest name).
+	digest := strings.Repeat("a", 64)
+	for _, path := range []string{
+		"mypkg-1.0-1.noarch.rpm",
+		"Packages/m/mypkg-1.0-1.noarch.rpm",
+		"repodata/" + digest + "-primary.xml.gz",
+		"el/9/repodata/" + digest + "-other.xml.gz",
+		"repodata/" + digest + "-modules.yaml.gz",
+		"repodata/" + digest + "-comps.xml",
+		"readme.txt", // a non-key bare file: content
+	} {
+		if p.Classify(path) != adapter.KindContent {
+			t.Errorf("Classify(%q) not the artifact content class", path)
+		}
+	}
+	// The non-digest-prefixed index spelling the old test pinned (a
+	// hand-uploaded or mirrored index without the checksum prefix stays
+	// expirable).
 	if p.Classify("el/9/repodata/x-primary.xml.gz") != adapter.KindMetadata {
-		t.Error("deep index not metadata class")
-	}
-	if p.Classify("mypkg-1.0-1.noarch.rpm") != adapter.KindContent {
-		t.Error("rpm not content class")
+		t.Error("deep un-prefixed index not metadata class")
 	}
 }
 
