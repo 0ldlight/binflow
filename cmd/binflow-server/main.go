@@ -42,13 +42,16 @@ import (
 
 	"github.com/lzwzzy/binflow/internal/adapter"
 	"github.com/lzwzzy/binflow/internal/adapter/cargo"
+	"github.com/lzwzzy/binflow/internal/adapter/conan"
 	"github.com/lzwzzy/binflow/internal/adapter/docker"
 	"github.com/lzwzzy/binflow/internal/adapter/generic"
 	"github.com/lzwzzy/binflow/internal/adapter/goproxy"
+	"github.com/lzwzzy/binflow/internal/adapter/helm"
 	"github.com/lzwzzy/binflow/internal/adapter/maven"
 	"github.com/lzwzzy/binflow/internal/adapter/npm"
 	"github.com/lzwzzy/binflow/internal/adapter/nuget"
 	"github.com/lzwzzy/binflow/internal/adapter/pypi"
+	"github.com/lzwzzy/binflow/internal/adapter/rpm"
 	"github.com/lzwzzy/binflow/internal/addons"
 	"github.com/lzwzzy/binflow/internal/audit"
 	"github.com/lzwzzy/binflow/internal/auth"
@@ -383,6 +386,47 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// slot carries the pro-tier gating (T-282/T-283).
 	cargoHandler := cargo.Register(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.md.NodeProps(),
 		cargo.Options{BaseURL: cfg.Server.BaseURL, AnonymousAccess: cfg.Security.AnonymousAccess})
+	// conan (M11/T-308, the C/C++ package type): same wiring story as
+	// cargo — the content plane dispatches on package_type="conan" and the
+	// provider registration classifies the index.json/.timestamp nodes as
+	// regenerable metadata for the future remote hop (T-312). LOCAL
+	// repositories only here; the TokenIssuer seam carries the v1
+	// users/authenticate mint (the npm login posture); the addons.Conan()
+	// slot carries the pro-tier gating (T-282/T-283). The reindex
+	// management face (ADR-0034 dispatchAPI family) is
+	// conan.NewManagementHandler — its router cases land with the assembly
+	// wire-up this ticket registered (the ticket report carries the exact
+	// snippet); the handler itself ships in the adapter package.
+	conanHandler := conan.Register(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.authSvc,
+		conan.Options{BaseURL: cfg.Server.BaseURL})
+	// The conan reindex management face (the deferred T-308 §5-D9 wire-up,
+	// landed with the B4/B5 assembly): a self-gated handler — the router's
+	// conan cases only authenticate and delegate; the CanManageRepo(write)
+	// walk, the local-only class check and both reindex spellings live in
+	// the adapter package (reindex_test.go pinned them direct-mount).
+	conanMgmt := conan.NewManagementHandler(stack.svc, stack.md.Repos(), stack.authSvc)
+	// helm (M11/T-309, the classic Helm chart repository package type):
+	// mounting is the whole content-plane wiring — dispatch keys on
+	// package_type="helm" — and the provider registration classifies the
+	// repo-root index.yaml as regenerable metadata for the future remote
+	// hop (T-313's family). LOCAL repositories only here; the read-only
+	// /binflow/api/helm alias and the reindex management family live in
+	// the router (ADR-0034's two clauses); the NodeProps seam carries the
+	// chart.* facts (the delete-event index removal's identity key); the
+	// addons.Helm() slot carries the pro-tier gating (T-282/T-283).
+	helmHandler := helm.Register(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.md.NodeProps(),
+		helm.Options{BaseURL: cfg.Server.BaseURL})
+	// rpm (M11/T-311, the RPM/YUM package type): same wiring story as
+	// cargo/helm — the content plane dispatches on package_type="rpm" and
+	// the provider registration classifies the repodata family as
+	// regenerable metadata for the future remote hop. LOCAL repositories
+	// only here; the /binflow/api/yum reindex family lives in the router
+	// (ADR-0034's dispatchAPI posture); the DataDir seam roots the
+	// .rpmcache parse cache; the addons.Rpm() slot carries the pro-tier
+	// gating (T-282/T-283). calculateYumMetadata defaults FALSE (RP-2's
+	// final ruling — uploads store, repodata recomputes on demand).
+	rpmHandler := rpm.Register(stack.svc, stack.md.Repos(), stack.md.Blobs(),
+		rpm.Options{DataDir: cfg.Storage.DataDir})
 	// The addon registry (M10 T-282, ADR-0033 / section 15.2.1): the
 	// COMPILE-TIME ASSEMBLY MANIFEST — one literal slice, the
 	// META-INF/addon.{xml,properties} behavior pattern in Go form. This is
@@ -406,7 +450,11 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 		GC:       stack.st,
 		DataDir:  cfg.Storage.DataDir,
 		Console:  console.Handler(),
-		Adapters: []adapter.Handler{stack.genericHandler, dockerHandler, mavenHandler, npmHandler, pypiHandler, goproxyHandler, nugetHandler, cargoHandler},
+		Adapters: []adapter.Handler{stack.genericHandler, dockerHandler, mavenHandler, npmHandler, pypiHandler, goproxyHandler, nugetHandler, cargoHandler, conanHandler, helmHandler, rpmHandler},
+		// The adapters' management mounts (ADR-0034): conan's reindex
+		// family today; helm/yum serve their faces through the router's
+		// own handlers (the adapter-seam pattern) instead.
+		MgmtHandlers: map[string]http.Handler{"conan": conanMgmt},
 		// The process metric registry (T-163, ADR-0022): one per serve; the
 		// /metrics endpoint and the request-counting middleware ride it.
 		Metrics: metrics.NewRegistry(),
@@ -490,7 +538,7 @@ func addonManifest() *addons.Registry {
 		addons.Generic(), addons.Docker(), addons.Maven(), addons.Npm(), addons.Pypi(),
 		// Gated pilot package-type slots (pro; the adapters land with their
 		// own tickets — the slots exist so gate/view/legal-set are complete).
-		addons.Go(), addons.NuGet(), addons.Cargo(),
+		addons.Go(), addons.NuGet(), addons.Cargo(), addons.Conan(), addons.Helm(), addons.Rpm(),
 		// Feature slots: properties on the floor, the enterprise
 		// placeholders visible with their M11+ reservation notes.
 		addons.Properties(), addons.HA(), addons.XrayIntegration(),

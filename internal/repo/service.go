@@ -1884,7 +1884,7 @@ func (s *service) CreateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 		if perr != nil {
 			return nil, perr
 		}
-		if verr := s.validateVirtualMembers(ctx, p, r.RepoKey, vc); verr != nil {
+		if verr := s.validateVirtualMembers(ctx, p, r.RepoKey, r.PackageType, vc); verr != nil {
 			return nil, verr
 		}
 		members = vc.Repositories
@@ -1981,7 +1981,7 @@ func (s *service) CreateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 // refuses the create/update too — a virtual may not gain a gated member the
 // instance cannot serve. Existing virtuals keep reading (D1: member
 // resolution is a read path, never gated).
-func (s *service) validateVirtualMembers(ctx context.Context, p *Principal, virtualKey string, cfg virtualConfig) error {
+func (s *service) validateVirtualMembers(ctx context.Context, p *Principal, virtualKey, virtualPackageType string, cfg virtualConfig) error {
 	seen := make(map[string]bool, len(cfg.Repositories))
 	for _, m := range cfg.Repositories {
 		if m == virtualKey {
@@ -1992,6 +1992,7 @@ func (s *service) validateVirtualMembers(ctx context.Context, p *Principal, virt
 		}
 		seen[m] = true
 	}
+	memberRows := make([]*metadata.Repo, 0, len(cfg.Repositories))
 	for _, m := range cfg.Repositories {
 		row, err := s.md.Repos().Get(ctx, m)
 		if err != nil {
@@ -2000,6 +2001,7 @@ func (s *service) validateVirtualMembers(ctx context.Context, p *Principal, virt
 			}
 			return fmt.Errorf("virtual member %q: %w", m, err)
 		}
+		memberRows = append(memberRows, row)
 		if row.Type == TypeVirtual {
 			return fmt.Errorf(
 				"%w: virtual repository member %q is itself virtual (nested virtual repositories are not supported)",
@@ -2020,10 +2022,60 @@ func (s *service) validateVirtualMembers(ctx context.Context, p *Principal, virt
 			}
 		}
 	}
+	if err := validateHelmFamilyMix(virtualPackageType, memberRows); err != nil {
+		return err
+	}
 	if cfg.DefaultDeploymentRepo != "" && !seen[cfg.DefaultDeploymentRepo] {
 		return fmt.Errorf(
 			"%w: defaultDeploymentRepo %q is not a member of the virtual repository",
 			ErrInvalidRepoConfig, cfg.DefaultDeploymentRepo)
+	}
+	return nil
+}
+
+// helmFamilyOf maps one package type onto the classic-Helm protocol
+// family: "helm" (this repository) and "helmoci" (the registry-v2 face
+// the docker adapter serves, HL-3) are the two spellings; everything else
+// — "" included — is family-free.
+func helmFamilyOf(packageType string) string {
+	switch packageType {
+	case PackageHelm, PackageHelmOCI:
+		return packageType
+	}
+	return ""
+}
+
+// validateHelmFamilyMix enforces the Helm/HelmOCI no-mixing rule (helm.md
+// section 8.2's closing note: the two protocol families cannot share one
+// virtual repository — one serves index.yaml chart repos, the other the
+// registry-v2 manifest plane; a mixed virtual would resolve one family's
+// URLs through the other's grammar). The VIRTUAL's own package type joins
+// the member set: a helm virtual with a helmoci member is the same mix.
+// T-309 owns the check; the virtual implementation itself is T-313's.
+func validateHelmFamilyMix(virtualPackageType string, memberRows []*metadata.Repo) error {
+	var sawHelm, sawHelmOCI string
+	check := func(packageType, owner string) {
+		switch helmFamilyOf(packageType) {
+		case PackageHelm:
+			if sawHelm == "" {
+				sawHelm = owner
+			}
+		case PackageHelmOCI:
+			if sawHelmOCI == "" {
+				sawHelmOCI = owner
+			}
+		}
+	}
+	if helmFamilyOf(virtualPackageType) != "" {
+		check(virtualPackageType, "(the virtual repository itself)")
+	}
+	for _, row := range memberRows {
+		check(row.PackageType, row.RepoKey)
+	}
+	if sawHelm != "" && sawHelmOCI != "" {
+		return fmt.Errorf(
+			"%w: virtual repository cannot mix the Helm and HelmOCI protocol families (helm repositories serve classic chart indexes, helmoci repositories serve the registry v2 plane); first helm member %q, first helmoci member %q",
+			ErrInvalidRepoConfig, sawHelm, sawHelmOCI)
 	}
 	return nil
 }
@@ -2174,7 +2226,7 @@ func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 			if perr != nil {
 				return nil, perr
 			}
-			if verr := s.validateVirtualMembers(ctx, p, current.RepoKey, vc); verr != nil {
+			if verr := s.validateVirtualMembers(ctx, p, current.RepoKey, current.PackageType, vc); verr != nil {
 				return nil, verr
 			}
 			members = vc.Repositories

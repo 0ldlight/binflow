@@ -121,6 +121,49 @@ func Cargo() Addon {
 	}
 }
 
+// Conan is the gated slot for package type "conan" (C/C++ packages, the
+// v1+v2 revision-chain protocol; the local adapter lands with M11's T-308,
+// the remote/virtual faces with their own tickets).
+func Conan() Addon {
+	return Addon{
+		ID:          "conan",
+		Kind:        KindPackageType,
+		MinTier:     license.TierPro,
+		PackageType: "conan",
+		DisplayName: "Conan (C/C++)",
+		Description: "Conan v2 revision protocol plus the full v1 data plane on local repositories; remote and virtual land with their own tickets.",
+	}
+}
+
+// Helm is the gated slot for package type "helm" (the CLASSIC chart
+// repository face — index.yaml + tgz; M11/T-309). The HelmOCI face rides
+// the docker package type separately (HL-3) and never this slot.
+func Helm() Addon {
+	return Addon{
+		ID:          "helm",
+		Kind:        KindPackageType,
+		MinTier:     license.TierPro,
+		PackageType: "helm",
+		DisplayName: "Helm Charts",
+		Description: "Classic Helm chart repositories: index.yaml calculation, chart and provenance upload, repo add/update/pull.",
+	}
+}
+
+// Rpm is the gated slot for package type "rpm" (the YUM/repomd repository
+// face — .rpm upload with header parsing plus the repodata engine;
+// M11/T-311). Local repositories only here; the remote pull-through and
+// the virtual aggregation land with their own tickets.
+func Rpm() Addon {
+	return Addon{
+		ID:          "rpm",
+		Kind:        KindPackageType,
+		MinTier:     license.TierPro,
+		PackageType: "rpm",
+		DisplayName: "RPM (Yum)",
+		Description: "YUM repositories: .rpm upload with RPM header parsing, repodata calculation (primary/filelists/other) and the reindex family; remote and virtual land with their own tickets.",
+	}
+}
+
 // Properties is the artifact properties feature slot (community by design:
 // the cross-cutting base of the M10 deliverable, not an upsell).
 func Properties() Addon {
