@@ -43,6 +43,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/adapter"
 	"github.com/lzwzzy/binflow/internal/adapter/cargo"
 	"github.com/lzwzzy/binflow/internal/adapter/conan"
+	"github.com/lzwzzy/binflow/internal/adapter/deb"
 	"github.com/lzwzzy/binflow/internal/adapter/docker"
 	"github.com/lzwzzy/binflow/internal/adapter/generic"
 	"github.com/lzwzzy/binflow/internal/adapter/goproxy"
@@ -427,6 +428,18 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// final ruling — uploads store, repodata recomputes on demand).
 	rpmHandler := rpm.Register(stack.svc, stack.md.Repos(), stack.md.Blobs(),
 		rpm.Options{DataDir: cfg.Storage.DataDir})
+	// deb (M11/T-310, the Debian/apt package type): same wiring story as
+	// rpm — the content plane dispatches on package_type="debian" and the
+	// provider registration classifies the dists/ tree as regenerable
+	// metadata for the future remote hop. LOCAL repositories only here;
+	// the /binflow/api/deb/reindex family lives in the router (ADR-0034's
+	// dispatchAPI posture); the NodeProps seam carries the deb.*/dsc.*
+	// coordinate registration (the index engine's source of truth); the
+	// addons.Debian() slot carries the pro-tier gating (T-282/T-283).
+	// The debPUT chain recomputes automatically (FR-97.1) — no opt-in
+	// switch — with the TL-4 forced architecture families on by default.
+	debHandler := deb.Register(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.md.NodeProps(),
+		deb.Options{})
 	// The addon registry (M10 T-282, ADR-0033 / section 15.2.1): the
 	// COMPILE-TIME ASSEMBLY MANIFEST — one literal slice, the
 	// META-INF/addon.{xml,properties} behavior pattern in Go form. This is
@@ -450,7 +463,7 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 		GC:       stack.st,
 		DataDir:  cfg.Storage.DataDir,
 		Console:  console.Handler(),
-		Adapters: []adapter.Handler{stack.genericHandler, dockerHandler, mavenHandler, npmHandler, pypiHandler, goproxyHandler, nugetHandler, cargoHandler, conanHandler, helmHandler, rpmHandler},
+		Adapters: []adapter.Handler{stack.genericHandler, dockerHandler, mavenHandler, npmHandler, pypiHandler, goproxyHandler, nugetHandler, cargoHandler, conanHandler, helmHandler, rpmHandler, debHandler},
 		// The adapters' management mounts (ADR-0034): conan's reindex
 		// family today; helm/yum serve their faces through the router's
 		// own handlers (the adapter-seam pattern) instead.
@@ -538,7 +551,7 @@ func addonManifest() *addons.Registry {
 		addons.Generic(), addons.Docker(), addons.Maven(), addons.Npm(), addons.Pypi(),
 		// Gated pilot package-type slots (pro; the adapters land with their
 		// own tickets — the slots exist so gate/view/legal-set are complete).
-		addons.Go(), addons.NuGet(), addons.Cargo(), addons.Conan(), addons.Helm(), addons.Rpm(),
+		addons.Go(), addons.NuGet(), addons.Cargo(), addons.Conan(), addons.Helm(), addons.Rpm(), addons.Debian(),
 		// Feature slots: properties on the floor, the enterprise
 		// placeholders visible with their M11+ reservation notes.
 		addons.Properties(), addons.HA(), addons.XrayIntegration(),

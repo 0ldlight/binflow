@@ -164,6 +164,23 @@ func Rpm() Addon {
 	}
 }
 
+// Debian is the gated slot for package type "debian" (the apt repository
+// face — debPUT with coordinate matrix parameters plus the automatic
+// Packages/Sources/Release/By-Hash engine; M11/T-310). Local
+// repositories only here; the remote pull-through (with the path
+// normalization family) and the virtual stanza aggregation land with
+// their own tickets.
+func Debian() Addon {
+	return Addon{
+		ID:          "debian",
+		Kind:        KindPackageType,
+		MinTier:     license.TierPro,
+		PackageType: "debian",
+		DisplayName: "Debian",
+		Description: "Debian repositories: debPUT with distribution/component/architecture coordinates, automatic Packages/Sources index calculation with By-Hash support, Release generation and the reindex family; remote and virtual land with their own tickets.",
+	}
+}
+
 // Properties is the artifact properties feature slot (community by design:
 // the cross-cutting base of the M10 deliverable, not an upsell).
 func Properties() Addon {

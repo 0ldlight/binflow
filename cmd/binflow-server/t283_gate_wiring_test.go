@@ -61,8 +61,8 @@ func TestT283PackageTypeGateAttached(t *testing.T) {
 	}
 	defer st.close(logger)
 
-	if st.addonsReg == nil || st.addonsReg.Len() != 14 {
-		t.Fatalf("stack.addonsReg = %v, want the 14-slot manifest", st.addonsReg)
+	if st.addonsReg == nil || st.addonsReg.Len() != 15 {
+		t.Fatalf("stack.addonsReg = %v, want the 15-slot manifest", st.addonsReg)
 	}
 	admin := &repo.Principal{Name: "admin", Admin: true}
 	_, err = st.svc.CreateRepo(context.Background(), admin, &metadata.Repo{
