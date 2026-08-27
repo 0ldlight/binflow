@@ -69,7 +69,9 @@ helm 的验证器要求 `.prov` 是 **clearsign 文档**且正文为两段式（
 
 ```bash
 # 构造 clearsign payload：Chart.yaml 内容 + 空行 + files 块
-{ cat mychart/Chart.yaml; echo; printf 'files:\n  %s: sha256:%s\n' \
+# 注意两段之间必须有一行字面 "..."（helm 4.x 的解析器按 "\n...\n" 切段——
+# 缺了它会报 "message block must have at least two parts"）
+{ cat mychart/Chart.yaml; echo; printf '...\nfiles:\n  %s: sha256:%s\n' \
     mychart-0.1.0.tgz "$(shasum -a 256 mychart-0.1.0.tgz | cut -d' ' -f1)"; } > prov-payload.txt
 gpg --clearsign prov-payload.txt                # 产出 prov-payload.txt.asc
 curl -su admin:$ADMIN_PW -T prov-payload.txt.asc \
