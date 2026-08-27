@@ -25,6 +25,7 @@ package helm
 // full gated run.
 
 import (
+	"context"
 	"net/http"
 	"os"
 	"os/exec"
@@ -32,7 +33,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/repo"
+	"github.com/lzwzzy/binflow/internal/storage"
 )
 
 func TestHelmClientEndToEnd(t *testing.T) {
@@ -239,4 +242,177 @@ func readFile(t *testing.T, path string) []byte {
 // oneLine flattens command output for the log.
 func oneLine(s string) string {
 	return strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(s, "\n", " | "), "\r", ""))
+}
+
+// TestHelmRemoteVirtualClientEndToEnd drives the REAL helm client through
+// the T-313 faces (helm.md section 9's L-h7 matrix): a REMOTE repository
+// proxying an upstream chart repository (repo add/update/search/pull, the
+// second-hit cache) and a VIRTUAL repository aggregating the local and
+// remote members (the rewritten download urls, the _external dependency
+// leg, first-wins). Environment-gated like the T-309 matrix
+// (BINFLOW_T313_CLIENT_E2E=1); the gate skips silently so
+// toolchain-less CI stays green.
+func TestHelmRemoteVirtualClientEndToEnd(t *testing.T) {
+	if os.Getenv("BINFLOW_T313_CLIENT_E2E") != "1" {
+		t.Skip("set BINFLOW_T313_CLIENT_E2E=1 (with helm on PATH) to run the remote+virtual client matrix")
+	}
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Fatalf("helm unavailable on PATH: %v", err)
+	}
+
+	s := newStack(t)
+	// The upstream chart repository: a BinFlow LOCAL helm repo (a real
+	// chart repository by construction). upchart lands through the normal
+	// PUT chain; the ext host is the dependency carrier OUTSIDE the
+	// upstream's urls.
+	s.seedRepo(t, "helm-upstream", repo.TypeLocal, "{}")
+	upchart := fixtureChart(t, "upchart", defaultChartYAML("upchart", "0.1.0"), nil)
+	if status, body, _ := s.put("/binflow/helm-upstream/upchart-0.1.0.tgz", upchart, nil); status != http.StatusCreated {
+		t.Fatalf("upstream chart PUT = (%d, %s)", status, body)
+	}
+	extchart := fixtureChart(t, "extchart", defaultChartYAML("extchart", "1.0.0"), nil)
+	ext := newChartUpstream(t, map[string]string{"/extchart-1.0.0.tgz": string(extchart)})
+
+	// The upstream index carries one RELATIVE-urls entry (the mirror shape
+	// whose downloads flow through the proxy) plus one entry pointing at
+	// the external host (the dependency-rewrite input) plus a shared
+	// name+version that the virtual's LOCAL member shadows (first-wins).
+	// The service-level write the client plane refuses does the seeding
+	// (the TestReindexEndpoints posture).
+	sharedLocal := fixtureChart(t, "shared", defaultChartYAML("shared", "1.0.0"), nil)
+	s.seedRepo(t, "helm-l", repo.TypeLocal, "{}")
+	if status, body, _ := s.put("/binflow/helm-l/shared-1.0.0.tgz", sharedLocal, nil); status != http.StatusCreated {
+		t.Fatalf("local member chart PUT = (%d, %s)", status, body)
+	}
+	upstreamIndex := "apiVersion: v1\nentries:\n" +
+		"  upchart:\n  - name: upchart\n    version: \"0.1.0\"\n    digest: " + sha256Hex(upchart) + "\n    created: \"2026-08-27T00:00:00Z\"\n    urls:\n    - upchart-0.1.0.tgz\n" +
+		"  extchart:\n  - name: extchart\n    version: \"1.0.0\"\n    digest: " + sha256Hex(extchart) + "\n    created: \"2026-08-27T00:00:00Z\"\n    urls:\n    - " + ext.srv.URL + "/extchart-1.0.0.tgz\n" +
+		"  shared:\n  - name: shared\n    version: \"1.0.0\"\n    digest: " + strings.Repeat("ab", 32) + "\n    created: \"2026-08-27T00:00:00Z\"\n    urls:\n    - " + s.srv.URL + "/binflow/helm-upstream/shared-1.0.0.tgz\n"
+	if _, err := s.svc.Put(context.Background(), &auth.Principal{Name: adminUser, Admin: true},
+		"helm-upstream", "index.yaml", strings.NewReader(upstreamIndex),
+		storage.BlobRef{Sha256: sha256Hex([]byte(upstreamIndex))}, "text/yaml"); err != nil {
+		t.Fatalf("seed the upstream index: %v", err)
+	}
+
+	s.seedRemoteRepo(t, "helm-remote", s.srv.URL+"/binflow/helm-upstream")
+	s.seedVirtualRepo(t, "helm-virt", "helm-l", "helm-l", "helm-remote")
+
+	work := t.TempDir()
+	helmEnv := []string{
+		"HELM_CONFIG_HOME=" + filepath.Join(work, "helm"),
+		"HELM_CACHE_HOME=" + filepath.Join(work, "helm"),
+		"HELM_DATA_HOME=" + filepath.Join(work, "helm"),
+	}
+	run := func(dir string, args ...string) string {
+		t.Helper()
+		cmd := exec.Command("helm", args...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(), helmEnv...)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("helm %s: %v\n%s", strings.Join(args, " "), err, out)
+		}
+		return string(out)
+	}
+
+	// ---- R1: the remote repository (repo add → update → search → pull,
+	// the second-hit cache) ----
+	run(work, "repo", "add", "bf-remote", s.srv.URL+"/binflow/helm-remote")
+	out := run(work, "repo", "update")
+	t.Logf("R1 helm repo update (remote): %s", oneLine(out))
+	out = run(work, "search", "repo", "bf-remote/upchart")
+	if !strings.Contains(out, "upchart") {
+		t.Fatalf("R1 search = %q", out)
+	}
+	// The cache assertions at the exact path the client addresses.
+	status, _, hdr := s.get("/binflow/helm-remote/upchart-0.1.0.tgz")
+	if status != http.StatusOK || hdr.Get("X-BinFlow-Cache") != "MISS" {
+		t.Fatalf("R1 first chart fetch = (%d, cache %q), want 200/MISS", status, hdr.Get("X-BinFlow-Cache"))
+	}
+	pullDir := filepath.Join(work, "r1")
+	if err := os.MkdirAll(pullDir, 0o750); err != nil {
+		t.Fatalf("mk pull dir: %v", err)
+	}
+	run(pullDir, "pull", "bf-remote/upchart", "--version", "0.1.0")
+	if got := readFile(t, filepath.Join(pullDir, "upchart-0.1.0.tgz")); sha256Hex(got) != sha256Hex(upchart) {
+		t.Fatalf("R1 pulled digest mismatch: %s vs %s", sha256Hex(got), sha256Hex(upchart))
+	}
+	if status, _, hdr = s.get("/binflow/helm-remote/upchart-0.1.0.tgz"); status != http.StatusOK || hdr.Get("X-BinFlow-Cache") != "HIT" {
+		t.Fatalf("R1 second chart fetch = (%d, cache %q), want 200/HIT (AC4)", status, hdr.Get("X-BinFlow-Cache"))
+	}
+
+	// ---- V1: the virtual repository (aggregate + the S8 rewrites) ----
+	run(work, "repo", "add", "bf-virt", s.srv.URL+"/binflow/helm-virt")
+	out = run(work, "repo", "update")
+	t.Logf("V1 helm repo update (virtual): %s", oneLine(out))
+	for _, chart := range []string{"upchart", "extchart", "shared"} {
+		if out = run(work, "search", "repo", "bf-virt/"+chart); !strings.Contains(out, chart) {
+			t.Fatalf("V1 search %s = %q", chart, out)
+		}
+	}
+	// The rewritten urls land in the index the client consumed: the
+	// relative mirror path, the folded _external form, the first-wins
+	// local digest.
+	status, index, _ := s.get("/binflow/helm-virt/index.yaml")
+	if status != http.StatusOK {
+		t.Fatalf("V1 index = %d", status)
+	}
+	for _, want := range []string{
+		"- upchart-0.1.0.tgz",
+		"- _external/http/" + hostOf(ext.srv.URL) + "/extchart-1.0.0.tgz",
+		"- shared-1.0.0.tgz",
+		"digest: " + sha256Hex(sharedLocal),
+	} {
+		if !strings.Contains(index, want+"\n") {
+			t.Errorf("V1 index missing %q:\n%s", want, index)
+		}
+	}
+	if strings.Contains(index, strings.Repeat("ab", 32)) {
+		t.Errorf("V1 first-wins lost: the shadowed member's digest survived:\n%s", index)
+	}
+	// Pulls through the virtual: the mirror chart (member pull-through)
+	// and the external dependency (the _external egress).
+	vDir := filepath.Join(work, "v1")
+	if err := os.MkdirAll(vDir, 0o750); err != nil {
+		t.Fatalf("mk pull dir: %v", err)
+	}
+	run(vDir, "pull", "bf-virt/upchart", "--version", "0.1.0")
+	if got := readFile(t, filepath.Join(vDir, "upchart-0.1.0.tgz")); sha256Hex(got) != sha256Hex(upchart) {
+		t.Fatalf("V1 pulled upchart digest mismatch")
+	}
+	run(vDir, "pull", "bf-virt/extchart", "--version", "1.0.0")
+	if got := readFile(t, filepath.Join(vDir, "extchart-1.0.0.tgz")); sha256Hex(got) != sha256Hex(extchart) {
+		t.Fatalf("V1 pulled extchart digest mismatch (the _external leg)")
+	}
+	// First-wins on the wire: the LOCAL member's bytes serve.
+	run(vDir, "pull", "bf-virt/shared", "--version", "1.0.0")
+	if got := readFile(t, filepath.Join(vDir, "shared-1.0.0.tgz")); sha256Hex(got) != sha256Hex(sharedLocal) {
+		t.Fatalf("V1 first-wins lost: the served bytes are not the local member's")
+	}
+	if n := ext.hitCount("/extchart-1.0.0.tgz"); n < 1 {
+		t.Errorf("V1 _external leg never reached the external host (hits %d)", n)
+	}
+
+	// ---- V2: the Artifactory-habituated alias on the virtual face ----
+	run(work, "repo", "add", "bf-virt-alias", s.srv.URL+"/binflow/api/helm/helm-virt")
+	if out = run(work, "search", "repo", "bf-virt-alias/upchart"); !strings.Contains(out, "upchart") {
+		t.Fatalf("V2 alias search = %q", out)
+	}
+
+	// ---- R2/V3: helm install against a live cluster (its own gate: the
+	// legs need a reachable kube context) — the remote repository's chart
+	// (the pull-through download path) and the virtual repository's
+	// external dependency (the _external egress path under install). ----
+	if os.Getenv("BINFLOW_T313_KIND") == "1" {
+		for _, spec := range []struct{ release, repoRef, chart, version string }{
+			{"t313-remote", "bf-remote/upchart", "upchart", "0.1.0"},
+			{"t313-virt", "bf-virt/extchart", "extchart", "1.0.0"},
+		} {
+			out = run(work, "install", spec.release, spec.repoRef, "--version", spec.version,
+				"--namespace", "default", "--wait")
+			t.Logf("helm install %s: %s", spec.release, oneLine(out))
+			out = run(work, "uninstall", spec.release, "--namespace", "default")
+			t.Logf("helm uninstall %s: %s", spec.release, oneLine(out))
+		}
+	}
 }

@@ -406,16 +406,18 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// walk, the local-only class check and both reindex spellings live in
 	// the adapter package (reindex_test.go pinned them direct-mount).
 	conanMgmt := conan.NewManagementHandler(stack.svc, stack.md.Repos(), stack.authSvc)
-	// helm (M11/T-309, the classic Helm chart repository package type):
-	// mounting is the whole content-plane wiring — dispatch keys on
+	// helm (M11/T-309 + T-313, the classic Helm chart repository package
+	// type): mounting is the whole content-plane wiring — dispatch keys on
 	// package_type="helm" — and the provider registration classifies the
-	// repo-root index.yaml as regenerable metadata for the future remote
-	// hop (T-313's family). LOCAL repositories only here; the read-only
-	// /binflow/api/helm alias and the reindex management family live in
-	// the router (ADR-0034's two clauses); the NodeProps seam carries the
-	// chart.* facts (the delete-event index removal's identity key); the
+	// repo-root index.yaml as regenerable metadata for the remote hop. All
+	// three classes serve: LOCAL (T-309), the REMOTE pull-through and the
+	// VIRTUAL aggregation (T-313, the RemoteConfigs seam feeds the member
+	// upstream URLs the index rewriting recognizes and the _external
+	// egress policy); the read-only /binflow/api/helm alias and the
+	// reindex management family live in the router (ADR-0034's two
+	// clauses); the NodeProps seam carries the chart.* facts; the
 	// addons.Helm() slot carries the pro-tier gating (T-282/T-283).
-	helmHandler := helm.Register(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.md.NodeProps(),
+	helmHandler := helm.Register(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.md.NodeProps(), stack.md.Remote(),
 		helm.Options{BaseURL: cfg.Server.BaseURL})
 	// rpm (M11/T-311, the RPM/YUM package type): same wiring story as
 	// cargo/helm — the content plane dispatches on package_type="rpm" and

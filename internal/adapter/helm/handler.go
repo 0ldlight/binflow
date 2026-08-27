@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -53,12 +54,18 @@ type NodeProps interface {
 type Options struct {
 	// BaseURL is the externally visible origin (server.base_url; TL-1).
 	// The RELATIVE urls default (HL-2) never cites it — only the reserved
-	// absolute mode does.
+	// absolute mode and the virtual rewriting's member-plane recognition
+	// do.
 	BaseURL string
 	// AbsoluteURLs is the reserved absolute-urls seat (HL-2 ruled relative
 	// the default; the zero value IS the product posture — no config key
 	// exposes this).
 	AbsoluteURLs bool
+	// ExternalPatterns is the external-dependency allow list (Ant-style,
+	// helm.md section 6). Nil/empty means the product default "**" — no
+	// repository-config seat for it exists yet, so this is the plug point
+	// tests (and a future config key) set.
+	ExternalPatterns []string
 	// Now overrides the clock (tests).
 	Now func() time.Time
 }
@@ -66,26 +73,28 @@ type Options struct {
 // Handler is the classic Helm chart repository adapter. It owns the wire
 // protocol only; every content operation goes through repo.Service.
 type Handler struct {
-	svc      repo.Service
-	repos    repo.ClassReader
-	blobs    BlobLedger
-	props    NodeProps
-	opts     Options
-	rewrites indexMutexes // per-repoKey serialization of the index rewrites
+	svc        repo.Service
+	repos      repo.ClassReader
+	blobs      BlobLedger
+	props      NodeProps
+	remotes    RemoteConfigs
+	opts       Options
+	rewrites   indexMutexes  // per-repoKey serialization of the index rewrites
+	extClients extClientPool // the _external egress clients (remote.go)
 }
 
-// New wires the handler. props may be nil (a bare fake stack: the delete
-// event degrades to the warn-and-skip, the duplicate search to its
-// filename arm).
-func New(svc repo.Service, repos repo.ClassReader, blobs BlobLedger, props NodeProps, opts Options) *Handler {
-	return &Handler{svc: svc, repos: repos, blobs: blobs, props: props, opts: opts}
+// New wires the handler. props and remotes may be nil (a bare fake stack:
+// the delete event degrades to the warn-and-skip, the duplicate search to
+// its filename arm, remote-member URL recognition to the external branch).
+func New(svc repo.Service, repos repo.ClassReader, blobs BlobLedger, props NodeProps, remotes RemoteConfigs, opts Options) *Handler {
+	return &Handler{svc: svc, repos: repos, blobs: blobs, props: props, remotes: remotes, opts: opts}
 }
 
 // Register builds the handler and enters both the handler registry and
 // the metadata-provider registry under one literal (the pypi/cargo
 // convention; cmd assembly calls it exactly once).
-func Register(svc repo.Service, repos repo.ClassReader, blobs BlobLedger, props NodeProps, opts Options) *Handler {
-	h := New(svc, repos, blobs, props, opts)
+func Register(svc repo.Service, repos repo.ClassReader, blobs BlobLedger, props NodeProps, remotes RemoteConfigs, opts Options) *Handler {
+	h := New(svc, repos, blobs, props, remotes, opts)
 	adapter.Register(h)
 	RegisterMetadata()
 	return h
@@ -94,11 +103,17 @@ func Register(svc repo.Service, repos repo.ClassReader, blobs BlobLedger, props 
 // Protocol implements adapter.Handler.
 func (h *Handler) Protocol() string { return Protocol }
 
-// RepoTypes implements adapter.Handler: T-309 serves LOCAL in full — the
-// remote pull-through and the virtual aggregation are their own M11
-// tickets (T-313 and siblings); the class door refuses them until they
-// land. HelmOCI never routes here (HL-3: the docker adapter serves it).
-func (h *Handler) RepoTypes() []string { return []string{repo.TypeLocal} }
+// RepoTypes implements adapter.Handler: the classic protocol serves all
+// three classes — LOCAL in full (T-309), REMOTE as the pull-through proxy
+// and the dependency faces (T-313, remote.go), VIRTUAL as the aggregated
+// index plus the member-resolved downloads (T-313, virtual.go). HelmOCI
+// never routes here (HL-3: the docker adapter serves it).
+func (h *Handler) RepoTypes() []string {
+	return []string{repo.TypeLocal, repo.TypeRemote, repo.TypeVirtual}
+}
+
+// externalPatterns resolves the effective allow list off the options.
+func (h *Handler) externalPatterns() []string { return externalPatterns(h.opts.ExternalPatterns) }
 
 // Layout implements adapter.Handler (see layout.go).
 func (h *Handler) Layout(r *http.Request) (string, string, error) { return layout(r) }
@@ -120,8 +135,9 @@ func errRepoNotFound(repoKey string) error {
 	return fmt.Errorf("repository %s: %w", repoKey, repo.ErrRepoNotFound)
 }
 
-// msgClassNotServed is the not-yet-landed class refusal.
-const msgClassNotServed = "helm %s repositories are not served by this BinFlow release (the classic local repository ships here; remote and virtual land with their own tickets)"
+// msgClassNotServed is the unserved-class refusal (the defensive arm for
+// a class value outside the three this adapter serves).
+const msgClassNotServed = "helm %s repositories are not served by this BinFlow release (the classic local, remote and virtual faces ship here)"
 
 // msgExternalLocal is the remote-family refusal on a local repository
 // (helm.md section 2: local → 400).
@@ -129,10 +145,12 @@ const msgExternalLocal = "external dependency downloads (_external/_transitive) 
 
 // msgIndexServerGenerated is the direct-write refusal on the index (the
 // DB-3 posture: a hand-written index could break the digest/urls
-// reconciliation).
+// reconciliation — the virtual aggregate and the remote's cached upstream
+// copy are equally server-owned).
 const msgIndexServerGenerated = "'%s' is server-generated (the chart index); direct writes are not permitted (upload charts with PUT <chart>.tgz)"
 
-// ServeHTTP dispatches on the parsed wire target. Error bodies are PLAIN
+// ServeHTTP dispatches on the parsed wire target and the repository
+// CLASS. Error bodies are PLAIN
 // TEXT on this face (helm surfaces the body verbatim; Artifactory's helm
 // errors are plain strings — the one pinned wording, the Enforce Layout
 // 403s, is plain text by construction).
@@ -146,14 +164,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p := adapter.PrincipalFrom(ctx)
 
 	rt := parseRoute(rel)
+	var class string
 	if rt.kind != kindRoot {
-		class, err := h.classOf(ctx, repoKey)
+		class, err = h.classOf(ctx, repoKey)
 		if err != nil {
 			h.writeError(w, err, repoKey, rel)
-			return
-		}
-		if class != repo.TypeLocal {
-			writeText(w, http.StatusNotFound, fmt.Sprintf(msgClassNotServed, class))
 			return
 		}
 	}
@@ -169,7 +184,19 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case kindIndex:
 		switch r.Method {
 		case http.MethodGet, http.MethodHead:
-			h.serveIndex(ctx, w, r, p, repoKey)
+			switch class {
+			case repo.TypeLocal:
+				h.serveIndex(ctx, w, r, p, repoKey)
+			case repo.TypeRemote:
+				// The pull-through engine owns the fetch (the provider
+				// classifies the repo-root index as regenerable metadata:
+				// short TTL, revalidated).
+				h.serveStoredFile(ctx, w, r, p, repoKey, rel, "text/yaml")
+			case repo.TypeVirtual:
+				h.serveVirtualIndex(ctx, w, r, repoKey)
+			default:
+				writeText(w, http.StatusNotFound, fmt.Sprintf(msgClassNotServed, class))
+			}
 		case http.MethodPut, http.MethodDelete, http.MethodPost:
 			writeText(w, http.StatusForbidden, fmt.Sprintf(msgIndexServerGenerated, rel))
 		default:
@@ -178,9 +205,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case kindChart:
 		switch r.Method {
 		case http.MethodGet, http.MethodHead:
+			// Every class: svc.Get is the local node read, the remote
+			// pull-through and the virtual first-hit member resolution.
 			h.serveStoredFile(ctx, w, r, p, repoKey, rel, "application/x-gzip")
 		case http.MethodPut:
-			h.serveUploadChart(ctx, w, r, p, repoKey, rel)
+			// A virtual write routes onto the deployment member inside
+			// the service; a remote write meets the read-only 405 there.
+			h.serveUploadChart(ctx, w, r, p, repoKey, rel, class)
 		case http.MethodDelete:
 			h.serveDeleteChart(ctx, w, p, repoKey, rel)
 		default:
@@ -189,6 +220,18 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case kindTarGz:
 		h.servePlainFile(ctx, w, r, p, repoKey, rel, "application/x-gzip")
 	case kindProv, kindBareContent:
+		// The virtual's aggregated index lives ONLY at the repository
+		// root (helm.md section 2): a sub-path index.yaml request is the
+		// pinned 404, not a member probe.
+		if class == repo.TypeVirtual && strings.HasSuffix(rel, "/"+fileIndex) {
+			switch r.Method {
+			case http.MethodGet, http.MethodHead:
+				writeText(w, http.StatusNotFound, fmt.Sprintf(msgIndexUnsupportedLocation, repoKey))
+			default:
+				h.methodNotAllowed(w, r, "GET, HEAD")
+			}
+			return
+		}
 		ctype := "application/octet-stream"
 		if rt.kind == kindProv {
 			ctype = "text/plain; charset=utf-8"
@@ -196,10 +239,27 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.servePlainFile(ctx, w, r, p, repoKey, rel, ctype)
 	case kindExternal, kindTransitive:
 		switch r.Method {
-		case http.MethodGet, http.MethodHead:
-			writeText(w, http.StatusBadRequest, msgExternalLocal)
+		case http.MethodGet:
+			switch class {
+			case repo.TypeLocal:
+				writeText(w, http.StatusBadRequest, msgExternalLocal)
+			case repo.TypeRemote:
+				if rt.kind == kindExternal {
+					h.serveRemoteExternal(ctx, w, repoKey, rel)
+					return
+				}
+				h.serveRemoteTransitive(ctx, w, r, p, repoKey, rel)
+			case repo.TypeVirtual:
+				if rt.kind == kindExternal {
+					h.serveVirtualExternal(ctx, w, repoKey, rel)
+					return
+				}
+				h.serveVirtualTransitive(ctx, w, r, p, repoKey, rel)
+			default:
+				writeText(w, http.StatusNotFound, fmt.Sprintf(msgClassNotServed, class))
+			}
 		default:
-			h.methodNotAllowed(w, r, "GET, HEAD")
+			h.methodNotAllowed(w, r, http.MethodGet)
 		}
 	default:
 		writeText(w, http.StatusNotFound, "not found")
@@ -272,7 +332,22 @@ func (h *Handler) servePlainFile(ctx context.Context, w http.ResponseWriter, r *
 // serveUploadChart is the PUT <path>.tgz chain (helm.md section 4):
 // spool → parse → Enforce Layout → checksum-gated landing with chart.*
 // properties → the index read-modify-write → 201.
-func (h *Handler) serveUploadChart(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, rel string) {
+//
+// class routes the policy and index targets: a VIRTUAL write's bytes land
+// in the configured deployment member inside the service, so the Enforce
+// Layout judgment and the index recompute address the MEMBER (the policy
+// is the member's own switch pair; the index is the member's stored
+// document). A REMOTE write never gets this far past the service's
+// read-only door.
+func (h *Handler) serveUploadChart(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, rel, class string) {
+	// The member the policy and index steps address: the addressed key on
+	// local/remote, the configured deployment member on virtual ("" when
+	// un-routed — the service's own 405 then owns the refusal).
+	target := repoKey
+	if class == repo.TypeVirtual {
+		target = h.virtualWriteTarget(ctx, repoKey)
+	}
+
 	spoolPath, err := spoolBody(r.Body)
 	if err != nil {
 		writeText(w, http.StatusInternalServerError, fmt.Sprintf("spool request body: %v", err))
@@ -288,15 +363,18 @@ func (h *Handler) serveUploadChart(ctx context.Context, w http.ResponseWriter, r
 		arc = nil
 	}
 
-	// The Enforce Layout hook (section 4.3): judged BEFORE any byte lands.
-	if err := h.enforceUpload(ctx, p, repoKey, rel, arc); err != nil {
-		var policy enforceLayoutError
-		if errors.As(err, &policy) {
-			writeText(w, http.StatusForbidden, policy.Error())
+	// The Enforce Layout hook (section 4.3): judged BEFORE any byte lands,
+	// against the repository the chart will live in.
+	if target != "" {
+		if err := h.enforceUpload(ctx, p, target, rel, arc); err != nil {
+			var policy enforceLayoutError
+			if errors.As(err, &policy) {
+				writeText(w, http.StatusForbidden, policy.Error())
+				return
+			}
+			h.writeError(w, err, repoKey, rel)
 			return
 		}
-		h.writeError(w, err, repoKey, rel)
-		return
 	}
 
 	expect, err := declaredDigests(r.Header)
@@ -317,19 +395,50 @@ func (h *Handler) serveUploadChart(ctx context.Context, w http.ResponseWriter, r
 		return
 	}
 
-	// The index step (section 4.1): same name+version replaces its entry;
+	// The index step (section 4.1) targets the repository that HOLDS the
+	// chart — the service's routing already answered that (node.RepoKey
+	// is the landing member's key). Same name+version replaces its entry;
 	// an unparsable chart never indexes (parseErr logged for the operator).
+	indexKey := node.RepoKey
+	if indexKey == "" {
+		indexKey = target
+	}
 	if _, _, ok := arc.identity(); ok {
-		if err := h.withIndexLock(repoKey, func() error {
-			return h.indexChartLocked(ctx, p, repoKey, rel, node.Sha256, arc)
+		if err := h.withIndexLock(indexKey, func() error {
+			return h.indexChartLocked(ctx, p, indexKey, rel, node.Sha256, arc)
 		}); err != nil {
 			writeText(w, http.StatusInternalServerError, fmt.Sprintf("index update: %v", err))
 			return
 		}
 	} else if parseErr != nil {
-		slogWarnUnindexed(ctx, repoKey, rel, parseErr)
+		slogWarnUnindexed(ctx, indexKey, rel, parseErr)
 	}
 	h.writeCreated(w, rel, node)
+}
+
+// virtualWriteTarget resolves a virtual repository's write route off its
+// config blob (the tolerant probe of the service's own virtualRouteTarget
+// — the three Artifactory spellings; a hand-mangled blob answers "" and
+// the service's C5 405 renders).
+func (h *Handler) virtualWriteTarget(ctx context.Context, repoKey string) string {
+	row, err := h.repos.Get(ctx, repoKey)
+	if err != nil {
+		return ""
+	}
+	var probe struct {
+		DefaultDeploymentRepo    string `json:"defaultDeploymentRepo"`
+		DefaultDeploymentRepoRef string `json:"defaultDeploymentRepoRef"`
+		DeploymentRepository     string `json:"deploymentRepository"`
+	}
+	if err := json.Unmarshal([]byte(row.Config), &probe); err != nil {
+		return ""
+	}
+	for _, alias := range []string{probe.DefaultDeploymentRepo, probe.DefaultDeploymentRepoRef, probe.DeploymentRepository} {
+		if alias != "" {
+			return alias
+		}
+	}
+	return ""
 }
 
 // serveDeleteChart is the DELETE chain: the node's chart.* identity first
