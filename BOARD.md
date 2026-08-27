@@ -974,6 +974,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
   - **T-319 补遗二**（`72bf3ee`）：两个漏网测试文件（repo 引用矩阵 3 测 + httpapi 门控/CRUD/关联 5 测）+ 两报告修订——收敛「正式通知晚于提交」的清单时差问题。
 - **B13**：T-325 [P1] 部署矩阵演进+CD 链验证（dep T-306；VM 数据零触碰）｜ T-326 [P2] D-8 footprint ≤100MB + D-9 测试基建（seed 竞态/verifyM10 口令外置）
 - **B14**：T-327 [P1] 中期回归（L01~L11+L18~L31 首跑+双形态全 P0 复跑+契约归属审计 m10-done..HEAD）｜ T-328 [P1] 文档五类（认证/存储/四包型接入/api 增量含 L25 反转/FAQ）
+  - **T-328 → done 2026-08-28 01:4x（merge `8defc0b`）**：文档五类全交付——六新篇（auth-config/storage-config/conan/helm-charts〔与 install/helm.md 辨析〕/rpm/debian）+ api-reference M11 速览（L25/keypair 九端点/cleanup/四 reindex 族）+ remote-virtual 字段表 + license 槽位矩阵 11→15（三源漂移消除）+ FAQ 四问 + **README 双语刷新**（十二包型矩阵带 tier/license·addon 门控段/里程碑行——里程碑收口欠账「README」项就此清偿）；scratch 实例实测（哨兵三态/binstore 五次 boot 全 fail-fast 形/keypair/L25/cleanup）；make docs SUCCESS 3.94MB 零断链。遗留四项回刷登记（SAML 登录腿/T-320/T-316·318/bz2）。日志 reports/agents/T-328.md。
 - **B15**：T-329 [P0] 终验（L01~L45 全量+四包型客户端矩阵+DoD 八条+两断言反转 PRD 回写核实；L19 口径=v1 全量）
 - **波外条件票**：T-330 [P1·条件 Q7] Trash can（票内先补 mini 规格）
 
