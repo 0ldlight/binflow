@@ -10,9 +10,11 @@ import { loginAs } from '../m8/support/roles'
 // (no license installed — README §1 "起被测实例（无 license = community 形态）";
 // the pro/enterprise/expired/disabled forms belong to the tier-matrix script,
 // not the browser suite). On this form:
-//   GET /api/v1/addons = 11 slots (T-282 manifest): five core + properties
-//   unlocked, go/nuget/cargo locked (pro), ha/xray-integration locked
-//   (enterprise); the stock verify key's private half was destroyed at
+//   GET /api/v1/addons = 15 slots (T-327F ruling; the T-282 manifest's 11
+//   grown by the M11 package-type tickets): five core + properties
+//   unlocked, SEVEN gated package types locked (pro: go/nuget/cargo +
+//   conan/helm/rpm/debian), ha/xray-integration locked (enterprise); the
+//   stock verify key's private half was destroyed at
 //   bootstrap (ADR-0032), so ANY posted document answers 400
 //   LICENSE_INVALID — the install-error leg needs no key material.
 //
@@ -23,7 +25,11 @@ import { loginAs } from '../m8/support/roles'
 // no visual/pixel assertions; readonly = disabled + counter-assertions.
 
 const CORE_PKG = ['generic', 'docker', 'maven', 'npm', 'pypi'] as const
-const PRO_PKG = ['go', 'nuget', 'cargo'] as const
+// T-327F（L27a 裁定）：门控包型自 T-282 的 3 扩至 7——M11 新四型
+// conan/helm/rpm/debian（internal/addons/slots.go，Kind=package-type、
+// MinTier=pro）。PRO_PKG 扩容同时作用于建仓面（L27d 同 wire 注册表）。
+const PRO_PKG = ['go', 'nuget', 'cargo', 'conan', 'helm', 'rpm', 'debian'] as const
+const NEW_PRO_PKG = ['conan', 'helm', 'rpm', 'debian'] as const
 const ENT_FEATURES = ['ha', 'xray-integration'] as const
 
 test.beforeEach(async ({ request }) => {
@@ -54,10 +60,10 @@ test('L27a: admin — nav entry, community floor card, live addons matrix', asyn
   // 空文档装载钮禁用（表单零坏请求）
   await expect(page.locator('[data-testid="license-install"]')).toBeDisabled()
 
-  // 矩阵：装配序全槽位（AC1 ≥10；T-282 manifest = 11）
+  // 矩阵：装配序全槽位（AC1 ≥10；T-327F 裁定后 = 15）
   await expect(page.locator('[data-testid="addons-card"]')).toBeVisible()
   const rows = page.locator('[data-testid="addons-table"] tbody tr')
-  await expect(rows).toHaveCount(11)
+  await expect(rows).toHaveCount(15)
   for (const id of [...CORE_PKG, ...PRO_PKG, ...ENT_FEATURES, 'properties']) {
     await expect(page.locator(`[data-testid="addons-row-${id}"]`)).toBeVisible()
   }
@@ -78,6 +84,11 @@ test('L27a: admin — nav entry, community floor card, live addons matrix', asyn
   // Kind 徽章 = wire 值（package-type | feature）
   await expect(page.locator('[data-testid="addons-row-go"] .badge', { hasText: 'package-type' })).toBeVisible()
   await expect(page.locator('[data-testid="addons-row-properties"] .badge', { hasText: 'feature' })).toBeVisible()
+  // T-327F：M11 新四包型行逐行补——kind 徽章 = package-type（minTier=pro
+  // 由上方 PRO_PKG 循环的 addons-tier/addons-state 断言覆盖）
+  for (const id of NEW_PRO_PKG) {
+    await expect(page.locator(`[data-testid="addons-row-${id}"] .badge`, { hasText: 'package-type' })).toBeVisible()
+  }
 })
 
 test('L27b: install refused — the 400 wire verdict renders verbatim, floor intact', async ({ page }) => {
