@@ -912,6 +912,8 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 > **里程碑收口清单新增两条（用户 2026-08-27 指令，全里程碑适用）**：每次 milestone 收口（m<N>-done tag 前）必查 ① **README**（含 zh-CN 镜像）是否随新能力过时——支持矩阵/包型/配置面/里程碑行；② **文档站**（docs/user/ → docs-site）是否需更新。检查结论（更新了什么/为何无需更新）写入收口报告留痕。
 >
+> **首个 M11 批次 release 已合 main 2026-08-27 14:2x（merge `1d440ea`，main `95a8f9a`→`1d440ea`）**：CircleCI/UAT 链首次点火——指纹 `75:f5:48:…:d1:fc`（由 ~/.ssh/binflow-uat.pem 推导 MD5 公钥指纹，与 CircleCI Settings 显示值核对）已填 `4776dcc`；build=console+docs+server 内嵌全量构建+vet/lint/-short 测试，deploy_uat=uat-deploy.sh（分阶换装/5 份回滚备份/healthz 探针/双面烟测含 /binflow/docs/）。干净检出编译已在本地 worktree 验证（CI build 同构）。release 合并经临时 worktree 执行（主工作树被在途 T-313 的 helm/harness_test.go 改动占据，checkout 阻断——worktree 路线确立为在途期的 release 标准程序）。流水线结果待 CircleCI 侧观察。
+>
 > **M11 收口时的已知欠账（conductor 2026-08-27 14:10 摸底）**：
 > - README：仍写「五大包型」「M1→M9 all done」——需补 M10/M11 十二包型矩阵、license/addon 门控章、auth 配置面与 binstore.yaml 提及、里程碑行刷新（README.zh-CN.md 同步）。
 > - docs/user/integrations/：缺 conan/helm/rpm/debian 四篇接入指南（随 T-312~T-315 落地写；helm 注意与 install/helm.md〔Chart 部署〕命名区分）。
