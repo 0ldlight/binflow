@@ -77,9 +77,9 @@ jobs:
           at: .
       - add_ssh_keys:
           fingerprints:
-            # Literal fingerprint required (no env interpolation) — fill after
-            # uploading the UAT key in Project Settings > SSH Keys:
-            - "REPLACE_WITH_UAT_KEY_FINGERPRINT"
+            # MD5 fingerprint of the UAT deploy key (uploaded in Project
+            # Settings > SSH Keys; derived from ~/.ssh/binflow-uat.pem):
+            - "75:f5:48:d5:62:1c:01:d6:48:3e:69:98:ea:86:d1:fc"
       - run:
           name: Ship binary + systemd unit + smoke to UAT
           command: |
