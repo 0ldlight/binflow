@@ -983,6 +983,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
   - **T-327F → done 2026-08-28 06:1x（merge `c6db774`）**：L27a 裁定执行——spec 11→15 + PRO_PKG 七型循环自动覆盖四新包型 + NEW_PRO_PKG kind 徽章断言 + L27c/d 连带；锚册零改动（动态族锚已覆盖）；m10 spec 5 测绿（fresh 实例）。
   - **T-327R → done 2026-08-28 06:3x（merge `2f9c6a9`）——D-B 闭合**：repoConfig 传输结构体补 deb/rpm 十策略键（Artifactory 平铺拼写/指针保 explicit false/setStrSlice 落显式空）；**409 分支逐字钉文案 + by-hash 树真测**（SHA256 驱动——票面 byHash=strong 非法按规格枚举改）+ filelists 自动重算 + xz 伴生 + 强制架构族。新登记：**by-hash 保留桶缺陷**（historyCycles < 每代拼写数可裁当前代——默认值此前掩护，REST 解锁暴露）→ T-327G 小票；byHash 值域枚举校验归 repo.Service 待裁定；web 仓表单跟进。日志 reports/agents/T-327R.md。
   - **T-327G → done 2026-08-28 06:2x（merge `54edc75`）**：by-hash 保留按代裁剪——byHashAddresses 单一拼写源（写/保护共用）+ 当代保护集（不看时间戳永不裁）+ byHashPrunePlan 纯函数（保留 newest historyCycles-1 组，rpm 同款「当代占一槽」语义）；cycles=0 折叠默认（规格开放项，0=全不保违反官方历史地板——理由留痕）。引擎腿（cycles=1+ALL+xz：当代全拼写 200 byte 一致/旧代 404）+ 纯函数 8 例 + T-327R 四断言回归绿。登记：同秒代合并（安全向）/ALL→NONE 遗留树老化。日志 reports/agents/T-327G.md。
+  - **T-323R → done 2026-08-28 07:0x（merge `2ec7bbf`）**：MPU REST 重启可见性——坐标随行不透明 caller blob（自持表方案排除留痕）+ MultipartUploadContexts 能力对 + per-id single-flight 懒重建（锁序保持）+ 部件账从引擎 Offset 推导；caller-less 行 fail-closed；**T-323 §5-3 随票落地**（crash 窗口 sessions/ 对象超 TTL 清扫两臂）。**探针 leg 4 翻转 GREEN**（真 MinIO 双跑：200+5MiB 坐标重建→续传→complete→对账→零残件）；kill-9 腿 -race 复验。8 并发恰 1 次 resume。登记：config swap 重分片会话不跨重启（无损重建，begin-with-id 另票）；裸列表懒视图。日志 reports/agents/T-323R.md。
 - **B15**：T-329 [P0] 终验（L01~L45 全量+四包型客户端矩阵+DoD 八条+两断言反转 PRD 回写核实；L19 口径=v1 全量）
 - **波外条件票**：T-330 [P1·条件 Q7] Trash can（票内先补 mini 规格）
 
