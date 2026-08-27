@@ -32,6 +32,7 @@ import (
 
 	"github.com/lzwzzy/binflow/internal/audit"
 	"github.com/lzwzzy/binflow/internal/metadata"
+	"github.com/lzwzzy/binflow/internal/repo"
 	"github.com/lzwzzy/binflow/internal/storage"
 )
 
@@ -381,55 +382,17 @@ func sumBlobFileSizes(dataDir string, shas []string) (int64, error) {
 // liveChecksumSet computes the GC mark set: every sha256 referenced by any
 // node row UNION every blob_digest referenced by any docker_refs row
 // (architecture sections 4.4 and 11.12 — "SELECT DISTINCT sha256 FROM nodes
-// UNION SELECT DISTINCT blob_digest FROM docker_refs"). It is the same
-// consumer-side walk cmd/binflow-server's gc performs over the public
-// store surfaces: storage never reads metadata by design and metadata
-// offers no DISTINCT helper, so every GC caller builds the set itself —
-// keep the two walks in sync (same shape, same skips).
+// UNION SELECT DISTINCT blob_digest FROM docker_refs"). Since T-324 the
+// ONE in-tree copy of the walk lives in internal/repo (LiveChecksumSet —
+// the cleanup engine needed the same marker, and three drifting copies of
+// a load-bearing reference walk is the bug this wrapper now prevents);
+// this local name stays as the gc face's call site. cmd's CLI gc keeps
+// its own copy (main.go dedup rides the T-324 wiring note).
 //
 // Folder marker rows are skipped (T-124, same exclusion as the snapshot
 // manifest boundary): their sha256 is the shared metadata.FolderMarkerSHA
 // sentinel with no physical file behind it, so no sweep decision changes —
 // the skip keeps the mark set exactly "physical blob shas".
 func liveChecksumSet(ctx context.Context, md metadata.Store) (map[string]struct{}, error) {
-	set := map[string]struct{}{}
-
-	repos, err := md.Repos().List(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("listing repositories: %w", err)
-	}
-	for _, r := range repos {
-		nodes, err := md.Nodes().ListByPrefix(ctx, r.RepoKey, "")
-		if err != nil {
-			return nil, fmt.Errorf("listing nodes of %s: %w", r.RepoKey, err)
-		}
-		for _, n := range nodes {
-			if n.Sha256 != "" && n.Sha256 != metadata.FolderMarkerSHA {
-				set[n.Sha256] = struct{}{}
-			}
-		}
-
-		images, err := md.Docker().ListImages(ctx, r.RepoKey, "", 0)
-		if err != nil {
-			return nil, fmt.Errorf("listing docker images of %s: %w", r.RepoKey, err)
-		}
-		for _, image := range images {
-			manifests, err := md.Docker().ListManifestsByImage(ctx, r.RepoKey, image)
-			if err != nil {
-				return nil, fmt.Errorf("listing manifests of %s/%s: %w", r.RepoKey, image, err)
-			}
-			for _, m := range manifests {
-				refs, err := md.Docker().ListRefsByManifest(ctx, r.RepoKey, image, m.Digest)
-				if err != nil {
-					return nil, fmt.Errorf("listing refs of %s/%s@%s: %w", r.RepoKey, image, m.Digest, err)
-				}
-				for _, ref := range refs {
-					if ref.BlobDigest != "" {
-						set[ref.BlobDigest] = struct{}{}
-					}
-				}
-			}
-		}
-	}
-	return set, nil
+	return repo.LiveChecksumSet(ctx, md)
 }

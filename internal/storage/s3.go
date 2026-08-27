@@ -186,7 +186,7 @@ func OpenS3Engine(core *minio.Core, bucket string, opts *S3EngineOptions) (Engin
 		sessions:     make(map[string]*s3Session),
 		clock:        opts.Now,
 	}
-	if err := e.sweepSessions(context.Background(), opts.sessionTTL()); err != nil {
+	if _, err := e.sweepSessions(context.Background(), opts.sessionTTL()); err != nil {
 		return nil, fmt.Errorf("storage: s3: open: sweep sessions: %w", err)
 	}
 	return e, nil
@@ -740,13 +740,14 @@ func sessionIDFromUploadKey(key string) string {
 // second pass is about to abort anyway (both aborts are idempotent
 // best-effort — a NoSuchUpload is not an error here). Without a Sessions
 // store only the orphan-MPU pass runs (the pre-T-323 behavior, T-203 D-6).
-func (e *S3Engine) sweepSessions(ctx context.Context, ttl time.Duration) error {
+func (e *S3Engine) sweepSessions(ctx context.Context, ttl time.Duration) (int, error) {
 	var firstErr error
+	reclaimed := 0
 	if e.rows != nil {
 		nowStr := e.timeNow().UTC().Format(time.RFC3339)
 		rows, err := e.rows.ListExpired(ctx, nowStr, 0)
 		if err != nil {
-			return fmt.Errorf("storage: s3: sweep sessions: list expired: %w", err)
+			return 0, fmt.Errorf("storage: s3: sweep sessions: list expired: %w", err)
 		}
 		for _, row := range rows {
 			// An expired row's MPU is reclaimed with it: parse the upload
@@ -768,15 +769,31 @@ func (e *S3Engine) sweepSessions(ctx context.Context, ttl time.Duration) error {
 					}
 				}
 			}
-			if err := e.rows.Delete(ctx, row.ID); err != nil && firstErr == nil {
-				firstErr = fmt.Errorf("storage: s3: sweep sessions: delete row %s: %w", row.ID, err)
+			if err := e.rows.Delete(ctx, row.ID); err != nil {
+				if firstErr == nil {
+					firstErr = fmt.Errorf("storage: s3: sweep sessions: delete row %s: %w", row.ID, err)
+				}
+				continue
 			}
+			reclaimed++
 		}
 	}
 	if err := e.sweepOrphanUploads(ctx, ttl); err != nil && firstErr == nil {
 		firstErr = err
 	}
-	return firstErr
+	return reclaimed, firstErr
+}
+
+// SweepExpiredSessions implements SessionSweeper (T-324): the open-time
+// row-plus-orphan-MPU reclamation rerun on the maintenance clock. The row
+// count is session ROWS reclaimed; orphaned uploads aborted by the second
+// pass have no row and are not counted.
+func (e *S3Engine) SweepExpiredSessions(ctx context.Context) (int, error) {
+	n, err := e.sweepSessions(ctx, e.ttl)
+	if err != nil {
+		return n, fmt.Errorf("storage: s3: sweep sessions: %w", err)
+	}
+	return n, nil
 }
 
 // ---------------------------------------------------------------------------

@@ -107,6 +107,24 @@ type MultipartUploads interface {
 	BeginMultipartSession(ctx context.Context, partSize int64) (Session, error)
 }
 
+// SessionSweeper is the optional capability an engine may carry to rerun
+// its open-time expired-session reclamation on demand (T-324): the
+// unused-cleanup engine's periodic driver invokes it so a long-running
+// serve process reclaims expired upload-session rows and their temp files
+// without waiting for a restart (the startup sweep + TTL remained the only
+// reclamation path through M10 — architecture section 5.3.1 contract 7's
+// "startup sweep" wording widens from "at Open" to "at Open and on the
+// maintenance clock", the same reclamation, no new caller). Both real
+// engines implement it; test fakes need not — the capability is discovered
+// by type assertion and its absence simply skips the leg.
+type SessionSweeper interface {
+	// SweepExpiredSessions reclaims expired upload sessions (rows plus
+	// backend state: uploads/<id>/ dirs on disk, orphaned multipart uploads
+	// on S3) and returns the number of session ROWS removed. Live sessions
+	// of this process are never reclaimed.
+	SweepExpiredSessions(ctx context.Context) (int, error)
+}
+
 // GCMarker is the two-method reference oracle behind Engine.GCSweep
 // ([M9] ADR-0031, architecture section 14.2 point 3). Mark is the sweep's
 // snapshot; Live is the per-candidate, pre-delete recheck that closes the
