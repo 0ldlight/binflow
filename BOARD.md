@@ -933,7 +933,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **B5**：T-310 [P0] debian automatic local（TL-4=i386,amd64 强制；debPUT 坐标；索引直写 403）dev-go-core（dep T-304）｜ T-311 [P0] rpm local 管线（RP-2=false；header 解析器自研；reindex 七分支矩阵；TL-5=SHA-256）dev-registry-adapter（dep T-304）
 - **B6**：T-312 [P1] conan remote+virtual（dep T-308）｜ T-313 [P1] helm virtual+remote（URL 改写/_external）（dep T-309）
 - **B7**：T-314 [P1] deb remote+virtual（含 trivial P2 余量段）（dep T-310）｜ T-315 [P1] rpm remote+virtual（含 modules P2 余量段；RP-3 收紧）（dep T-311）
-- **B8**：T-316 [P1] cargo remote（CG-2 确定臂：失败恢复 200+errors[] 双轨 + T-294 断言反转 + 规格回写；**dep T-304 出处锚定，不可提前**）｜ T-300 [P1] MUI 批二（dep T-299/T-307）
+- **B8**：T-316 [P1] cargo remote（CG-2 确定臂：失败恢复 200+errors[] 双轨 + T-294 断言反转 + 规格回写；**dep T-304 出处锚定，不可提前**）｜ T-300 [P1] MUI 批二（dep T-299/T-307）→ **提前至 756 轮派发（10:57，dev-frontend）**：宽度补位（Go 侧新票均撞 B4+B5 未提交交织面）；批一边界项 session 菜单/侧栏/badge 派单裁定=迁；T-316 仍被 NuGet 对齐捆绑未决用户裁决卡住
 - **B9**：T-317 [P1] 复制硬化（两字段生效反转 L25 按名 400；属性同步端到端；replica 隔离）｜ T-318 [P1] cargo virtual（dep T-316 同 area 串行）
 - **B10**：T-319 [P1] GPG keypair 体系（票内先补 mini 规格；openpgp 零 CGO；dep T-301）｜ T-320 [P1·条件 Q2] HelmOCI 分发（dep T-309；未触发非 DoD 缺口）
 - **B11**：T-321 [P1] debian 签名腿（dep T-319/T-310）｜ T-322 [P1] rpm 签名腿（dep T-319/T-311）
