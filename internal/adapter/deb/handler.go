@@ -100,11 +100,16 @@ func Register(svc repo.Service, repos repo.ClassReader, blobs BlobLedger, props 
 // Protocol implements adapter.Handler.
 func (h *Handler) Protocol() string { return Protocol }
 
-// RepoTypes implements adapter.Handler: T-310 serves LOCAL in full — the
-// remote pull-through (with the path normalization and the indexCached
-// family) and the virtual stanza aggregation are their own M11 tickets
-// (T-314); the class door refuses them until they land.
-func (h *Handler) RepoTypes() []string { return []string{repo.TypeLocal} }
+// RepoTypes implements adapter.Handler: the content plane serves all
+// three classes — LOCAL in full (T-310), REMOTE as the pull-through
+// proxy mirror (T-314, remote.go: every read rides repo.Service's
+// FR-20 engine, writes refuse), VIRTUAL as the stanza-aggregated index
+// face (T-314, virtual.go: Packages/Sources merged across members with
+// the Release recomputed at the virtual root, downloads first-found,
+// debPUT routed).
+func (h *Handler) RepoTypes() []string {
+	return []string{repo.TypeLocal, repo.TypeRemote, repo.TypeVirtual}
+}
 
 // Layout implements adapter.Handler (see layout.go — the debPUT matrix
 // coordinates ride the shared peel, so the adapter contract's two-value
@@ -131,8 +136,9 @@ func errRepoNotFound(repoKey string) error {
 	return fmt.Errorf("repository %s: %w", repoKey, repo.ErrRepoNotFound)
 }
 
-// msgClassNotServed is the not-yet-landed class refusal.
-const msgClassNotServed = "debian %s repositories are not served by this BinFlow release (the local automatic pipeline ships here; the remote pull-through and the virtual aggregation land with their own tickets)"
+// msgClassNotServed is the unserved-class refusal (the defensive arm for
+// a class value outside the three this adapter serves).
+const msgClassNotServed = "debian %s repositories are not served by this BinFlow release (the local automatic pipeline, the remote pull-through mirror and the virtual stanza aggregation are the served faces)"
 
 // msgServerGenerated is the direct-write refusal on the generated family
 // (DB-3's posture: a hand-written index would break the checksum chain
@@ -148,9 +154,10 @@ const msgMissingCoordinates = "uploading a .deb to an automatic debian repositor
 // face stays store-and-warn per the rpm parity).
 const msgNotADsc = "the .dsc body does not carry a parseable source paragraph (Source/Version fields are required)"
 
-// ServeHTTP dispatches on the parsed wire target. Error bodies are PLAIN
-// TEXT on this face (the storage-path family's posture; apt only consumes
-// the status).
+// ServeHTTP dispatches on the parsed wire target and the repository
+// CLASS (local / remote / virtual — each class's face lives in its own
+// file). Error bodies are PLAIN TEXT on this face (the storage-path
+// family's posture; apt only consumes the status).
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	repoKey, rel, props, err := layout(r)
 	if err != nil {
@@ -160,16 +167,25 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	rt := parseRoute(rel)
+	class := repo.TypeLocal
 	if rt.kind != kindRoot {
-		class, err := h.classOf(ctx, repoKey)
+		class, err = h.classOf(ctx, repoKey)
 		if err != nil {
 			h.writeError(w, err, repoKey, rel)
 			return
 		}
-		if class != repo.TypeLocal {
-			writeText(w, http.StatusNotFound, fmt.Sprintf(msgClassNotServed, class))
-			return
-		}
+	}
+	switch class {
+	case repo.TypeRemote:
+		h.serveRemote(ctx, w, r, repoKey, rel, rt)
+		return
+	case repo.TypeVirtual:
+		h.serveVirtual(ctx, w, r, repoKey, rel, rt, props)
+		return
+	case repo.TypeLocal:
+	default:
+		writeText(w, http.StatusNotFound, fmt.Sprintf(msgClassNotServed, class))
+		return
 	}
 
 	switch rt.kind {
@@ -185,7 +201,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		case http.MethodGet, http.MethodHead:
 			h.serveStoredFile(ctx, w, r, repoKey, rel, "application/vnd.debian.binary-package")
 		case http.MethodPut:
-			h.serveUploadDeb(ctx, w, r, repoKey, rel, props)
+			h.serveUploadDeb(ctx, w, r, repoKey, rel, props, repoKey)
 		case http.MethodDelete:
 			h.serveDeleteTracked(ctx, w, repoKey, rel, "deb")
 		default:
@@ -196,7 +212,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		case http.MethodGet, http.MethodHead:
 			h.serveStoredFile(ctx, w, r, repoKey, rel, "text/plain; charset=utf-8")
 		case http.MethodPut:
-			h.serveUploadDsc(ctx, w, r, repoKey, rel, props)
+			h.serveUploadDsc(ctx, w, r, repoKey, rel, props, repoKey)
 		case http.MethodDelete:
 			h.serveDeleteTracked(ctx, w, repoKey, rel, "dsc")
 		default:
@@ -228,6 +244,8 @@ func indexContentType(rel string) string {
 		return "application/x-bzip2"
 	case strings.HasSuffix(rel, ".xz"):
 		return "application/x-xz"
+	case strings.HasSuffix(rel, ".lzma"):
+		return "application/x-lzma"
 	default:
 		return "text/plain; charset=utf-8"
 	}
@@ -287,8 +305,11 @@ func (h *Handler) servePlainFile(ctx context.Context, w http.ResponseWriter, r *
 // an unparsable body still stores, the indexer skips it with a WARN, the
 // rpm parity) → land with the coordinate properties → the background
 // recompute of the affected distributions → 201 (never blocked on the
-// index).
-func (h *Handler) serveUploadDeb(ctx context.Context, w http.ResponseWriter, r *http.Request, repoKey, rel string, props adapter.DeployProps) {
+// index). recomputeRepo is the repository whose index the recompute
+// targets: the addressed key on the local class, the write-routed MEMBER
+// on the virtual class (the service routes the landing itself; the index
+// belongs to the member).
+func (h *Handler) serveUploadDeb(ctx context.Context, w http.ResponseWriter, r *http.Request, repoKey, rel string, props adapter.DeployProps, recomputeRepo string) {
 	coords := debCoordinates(props)
 	if !coords.complete() {
 		writeText(w, http.StatusBadRequest, msgMissingCoordinates)
@@ -344,7 +365,7 @@ func (h *Handler) serveUploadDeb(ctx context.Context, w http.ResponseWriter, r *
 		return
 	}
 	p := adapter.PrincipalFrom(ctx)
-	h.recomputeDists(ctx, p, repoKey, dists)
+	h.recomputeDists(ctx, p, recomputeRepo, dists)
 	h.writeCreated(w, rel, node)
 }
 
@@ -352,8 +373,9 @@ func (h *Handler) serveUploadDeb(ctx context.Context, w http.ResponseWriter, r *
 // architecture axis is the server's — source), a body that must carry a
 // parseable source paragraph (a .dsc is the index's only input; a broken
 // one is refused, unlike the .deb's store-and-warn), the same property
-// registration and background recompute.
-func (h *Handler) serveUploadDsc(ctx context.Context, w http.ResponseWriter, r *http.Request, repoKey, rel string, props adapter.DeployProps) {
+// registration and background recompute. recomputeRepo carries the
+// virtual-class write route (see serveUploadDeb).
+func (h *Handler) serveUploadDsc(ctx context.Context, w http.ResponseWriter, r *http.Request, repoKey, rel string, props adapter.DeployProps, recomputeRepo string) {
 	coords := dscCoordinates(props)
 	if !coords.complete() {
 		writeText(w, http.StatusBadRequest, msgMissingCoordinates)
@@ -393,7 +415,7 @@ func (h *Handler) serveUploadDsc(ctx context.Context, w http.ResponseWriter, r *
 		return
 	}
 	p := adapter.PrincipalFrom(ctx)
-	h.recomputeDists(ctx, p, repoKey, dists)
+	h.recomputeDists(ctx, p, recomputeRepo, dists)
 	h.writeCreated(w, rel, node)
 }
 

@@ -243,6 +243,110 @@ func TestClientE2EAptContainer(t *testing.T) {
 	}
 }
 
+// TestClientE2ERemoteVirtualAptContainer is the REAL-client leg of the
+// T-314 faces (same gate as the local leg): the same dpkg-deb-built
+// package serves an apt update+install THROUGH a remote repository
+// (the pull-through mirror of the local origin) and, with a second
+// package in a second member, THROUGH a virtual repository (the merged
+// Release/Packages plus first-found downloads across a remote AND a
+// local member).
+func TestClientE2ERemoteVirtualAptContainer(t *testing.T) {
+	if os.Getenv("BINFLOW_DEB_E2E_APT") != "1" {
+		t.Skip("set BINFLOW_DEB_E2E_APT=1 to run the container apt leg (needs docker)")
+	}
+	if _, err := exec.LookPath("docker"); err != nil {
+		t.Skipf("docker unavailable: %v", err)
+	}
+
+	s := newStack(t)
+	s.seedRepo(t, "deb-apt", repo.TypeLocal, `{"byHash":"ALL"}`)
+	s.seedRepo(t, "deb-apt2", repo.TypeLocal, `{}`)
+	s.seedRepo(t, "deb-mirror", repo.TypeRemote, `{}`)
+	s.seedRemoteConfig(t, "deb-mirror", s.srv.URL+"/binflow/deb-apt")
+	s.seedVirtualRepo(t, "deb-virt", []string{"deb-mirror", "deb-apt2"}, "")
+	host := "http://host.docker.internal:" + portOf(s.srv.URL)
+
+	share := t.TempDir()
+
+	// Two genuine packages, one per member, built with dpkg-deb's own
+	// toolchain.
+	build := []string{
+		"set -e",
+		"mkdir -p /p1/DEBIAN /p1/usr/bin /p2/DEBIAN /p2/usr/bin /e2e",
+		"printf 'Package: binflow-e2e\\nVersion: 1.0-1\\nArchitecture: amd64\\nMaintainer: BinFlow <t@binflow.dev>\\nDescription: BinFlow T-314 remote leg package\\n' > /p1/DEBIAN/control",
+		"printf '#!/bin/sh\\necho binflow t314 remote\\n' > /p1/usr/bin/binflow-e2e && chmod 0755 /p1/usr/bin/binflow-e2e",
+		"dpkg-deb --build /p1 /e2e/binflow-e2e_1.0-1_amd64.deb >/dev/null",
+		"printf 'Package: binflow-virt\\nVersion: 2.0-1\\nArchitecture: amd64\\nMaintainer: BinFlow <t@binflow.dev>\\nDescription: BinFlow T-314 virtual member package\\n' > /p2/DEBIAN/control",
+		"printf '#!/bin/sh\\necho binflow t314 virtual\\n' > /p2/usr/bin/binflow-virt && chmod 0755 /p2/usr/bin/binflow-virt",
+		"dpkg-deb --build /p2 /e2e/binflow-virt_2.0-1_amd64.deb >/dev/null",
+	}
+	out := runDockerDeb(t, share, "debian:bookworm", strings.Join(build, "\n"))
+	t.Logf("container build:\n%s", out)
+
+	// Seed the members: the origin local (the remote's upstream) gets
+	// binflow-e2e; the second local member gets binflow-virt.
+	up := []string{
+		"set -e",
+		"command -v curl >/dev/null || apt-get update >/dev/null 2>&1 && apt-get install -y curl >/dev/null 2>&1 || true",
+		"curl -sf -u admin:password -T /e2e/binflow-e2e_1.0-1_amd64.deb -o /dev/null -w 'PUT1 %{http_code}\\n' '" + host + "/binflow/deb-apt/pool/main/b/binflow-e2e/binflow-e2e_1.0-1_amd64.deb;deb.distribution=stable;deb.component=main;deb.architecture=amd64'",
+		"curl -sf -u admin:password -T /e2e/binflow-virt_2.0-1_amd64.deb -o /dev/null -w 'PUT2 %{http_code}\\n' '" + host + "/binflow/deb-apt2/pool/main/v/binflow-virt/binflow-virt_2.0-1_amd64.deb;deb.distribution=stable;deb.component=main;deb.architecture=amd64'",
+	}
+	out = runDockerDeb(t, share, "debian:bookworm", strings.Join(up, "\n"))
+	for _, want := range []string{"PUT1 201", "PUT2 201"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("container seeding failed (%s missing):\n%s", want, out)
+		}
+	}
+	s.waitIndex(t, "/binflow/deb-apt/dists/stable/Release")
+	s.waitIndex(t, "/binflow/deb-apt2/dists/stable/Release")
+
+	// ---- the remote leg: update + install through the mirror ----
+	remoteApt := []string{
+		"set -e",
+		"printf 'deb [trusted=yes] " + host + "/binflow/deb-mirror stable main\\n' > /etc/apt/sources.list.d/binflow.list",
+		"apt-get update 2>&1 | tail -2",
+		"apt-get install -y --no-install-recommends binflow-e2e 2>&1 | tail -2",
+		"dpkg -s binflow-e2e | grep -E '^(Status|Version)'",
+		"binflow-e2e",
+		"rm -f /etc/apt/sources.list.d/binflow.list",
+	}
+	out = runDockerDeb(t, share, "debian:bookworm", strings.Join(remoteApt, "\n"))
+	t.Logf("container remote apt chain:\n%s", out)
+	for _, want := range []string{
+		"Status: install ok installed",
+		"Version: 1.0-1",
+		"binflow t314 remote",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("remote apt chain missing %q:\n%s", want, out)
+		}
+	}
+
+	// ---- the virtual leg: one update serving BOTH members (a fresh
+	// container), both packages installed through the aggregate ----
+	virtApt := []string{
+		"set -e",
+		"printf 'deb [trusted=yes] " + host + "/binflow/deb-virt stable main\\n' > /etc/apt/sources.list.d/binflow.list",
+		"apt-get update 2>&1 | tail -2",
+		"apt-get install -y --no-install-recommends binflow-virt binflow-e2e 2>&1 | tail -2",
+		"dpkg -s binflow-virt | grep -E '^(Status|Version)'",
+		"dpkg -s binflow-e2e | grep -E '^(Status|Version)'",
+		"binflow-virt && binflow-e2e",
+	}
+	out = runDockerDeb(t, share, "debian:bookworm", strings.Join(virtApt, "\n"))
+	t.Logf("container virtual apt chain:\n%s", out)
+	for _, want := range []string{
+		"Status: install ok installed",
+		"Version: 2.0-1",
+		"binflow t314 virtual",
+		"binflow t314 remote",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("virtual apt chain missing %q:\n%s", want, out)
+		}
+	}
+}
+
 // runDockerDeb runs one container command with the share mounted.
 func runDockerDeb(t *testing.T, share, image, script string) string {
 	t.Helper()

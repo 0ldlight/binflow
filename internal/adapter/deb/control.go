@@ -84,7 +84,15 @@ func (d *controlDoc) fieldsOf() []controlField {
 // next blank line or EOF (the .dsc Files/Checksums sections are
 // continuation lines of their field, not separate paragraphs).
 func parseControlParagraph(r io.Reader, limit int64) (*controlDoc, error) {
-	br := newLineReader(io.LimitReader(r, limit))
+	return readControlParagraph(newLineReader(io.LimitReader(r, limit)))
+}
+
+// readControlParagraph is parseControlParagraph over a caller-owned
+// lineReader: multi-paragraph documents (a Packages index — the virtual
+// aggregation's merge input) parse stanza after stanza off ONE reader,
+// which a fresh parseControlParagraph per stanza cannot do (each call
+// would buffer ahead and skip stanzas).
+func readControlParagraph(br *lineReader) (*controlDoc, error) {
 	doc := &controlDoc{index: map[string]int{}}
 	var cur *controlField
 	for {
