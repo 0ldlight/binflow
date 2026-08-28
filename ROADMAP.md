@@ -2,7 +2,7 @@
 
 > 由 product-manager 维护；tech-lead 据此把当前里程碑分解为 ticket。
 
-## 当前里程碑：M11（Artifactory 对齐第二程——配置域指令兑现 + 第一梯队包型批量 + 行为逐项对齐制度化；PRD v1.2.2 收口，**m11-done 2026-08-28**）
+## 当前里程碑：M12（Artifactory 对齐第三程——NuGet 面补全 + 制品生命周期域 + 行为债收口；PRD v1.0 草案待 conductor 审，2026-08-28；M11 已收官 `m11-done 2026-08-28`）
 
 ### M0 — 团队启动（已完成）
 - [x] 产品愿景 PRODUCT.md（BinFlow）
@@ -130,6 +130,26 @@
 - [ ] QA：L01~L45 + 四包型真实客户端矩阵（conan/apt/dnf/helm）+ M1~M10 P0 回归双形态 + 两处断言反转审计；tech-writer 五类文档；Trash can 余量条件票（Q7）
 - [ ] 「M10 未纳入项」对账：D 组（Cleanup-Retention 策略引擎/制品操作族/Webhook/AQL）建议 M12+，滚入「M11 未纳入项」登记
 
+### M12 — Artifactory 对齐第三程：NuGet 面补全 + 制品生命周期域（操作族/回收站）+ 行为债收口（PRD v1.0 草案待 conductor 审，2026-08-28）
+需求基线：docs/prd/milestone-12.md（PRD v1.0：FR-103~FR-113 十一条需求；契约矩阵 15 条〔A 13 / C 1 / D 1〕+ 档位矩阵增量 2 行〔trashcan 新槽 Q3 / helmoci 转正〕；L01~L35；开放问题 Q1~Q7 带暂行）
+来源链：用户三项裁决 2026-08-28 07:5x（① NuGet 对齐 bundle 立项 + ③ D-A dual-write fail-open 补实现）+ 收口裁定⑤（D-8R 瘦身票 M12 承载）+ T-329 登记（D-F）+ ROADMAP「M11 未纳入项」PM 聚类（Trash can/HelmOCI/MUI 批三/回写批/遗留小票收编）+ 主轴增量选题（制品操作族——PM 定，§2.2 滚程留痕）
+- [ ] conductor 审定 PRD v1.0（Q1~Q7 暂行终裁；ADR-0040〔dual-write fail-open〕立项，视 Q3 终裁 ADR-0041）
+- [ ] 前置产物：nuget.md 规格票（**新建**——as-built + 增量出处双段，M10 T-293「立项随票补」口径兑现）+ repo-operations.md mini 规格 + Trash can mini 规格随票（T-330 模式）
+- [ ] FR-103/104 NuGet 对齐 bundle（裁决①）：v2 路由全集（L2）+ publish 重复臂（409+canDelete 覆盖）+ v3 search 上游代理（L3-remote/L7）+ service index 动态解析（L4）——T-304 §1.1/§4.1 规格出处直取（P0）
+- [ ] FR-105 制品操作族：copy/move（树级/dryRun/flat/属性与索引随行——主矩阵缺口 5；P0）+ `archive!/`/目录 zip/exploded 解包（M10 X-Explode 400 拒绝反转；P1）
+- [ ] FR-106 Trash can 回收站（Q7 兑现，T-330 转正：auto-trashcan 内置仓 + trash 四元组打标 + 保留期 14 天 + restore/empty/clean + 控制台最小面；P1；与 Cleanup-Retention 策略引擎分界——策略引擎 M13+）
+- [ ] FR-107 dual-write S3 停机 fail-open（裁决③：本地优先写 + 异步重试队列 + 排空对账；M6 FR-50 文面维持；dep ADR-0040；P1）
+- [ ] FR-108 空载 RSS 瘦身（D-8R 收口裁定⑤：懒加载 embed，`make footprint` 门红→绿 138.7MB→≤100MB；P0）
+- [ ] FR-109 HelmOCI 分发（Q2 承接 T-320 未派 + oci:// 透传 D-5 + chartsBaseUrl D-2 P2 + `_external` 落盘缓存 D-3 architect 评估 Q6；P1）
+- [ ] FR-110 包型收尾小票包：conan（D-F `_/_` 坐标 delete 200 + forceConanAuthentication + Artifactory 活体互证条件腿 Q5）+ cargo（死上游 search 409 R-3/4 + `.cargo/**` DELETE 收敛）（P1/P2）
+- [ ] FR-111 MUI 批次三（T-300 候选清单：RepoDetailPage/Dashboard/Profile/Placeholder/NotFound + 共享组件六件套 + combobox 统一化——交互零变化四闸门；P1）
+- [ ] FR-112 架构/规格回写批（architecture §15.4/§23〔T-332 转交〕+ cargo.md §8〔T-318〕+ conan.md D1/D5/D7/D8 升置信〔T-312〕+ D-G/D-H 落位校验；P1）
+- [ ] FR-113 配置与治理域遗留小票（T-290-2 socketTimeoutMillis / byHash 枚举 + web 策略键表单〔T-327R〕/ checksum-deploy token 窄域化〔T-332〕/ auth 尾巴〔T-305〕/ env 缺键拒启序〔T-325〕/ CI 专用 runner de-flake〔T-327 §7〕；P1/P2）
+- [ ] QA：L01~L35 + M1~M11 P0 双形态全量回归 + 契约归属审计（m11-done..HEAD）+ **三处断言反转**（nuget v2 404→路由全集 / virtual search 缓存→上游代理 / X-Explode 400→接受）+ footprint 红→绿；tech-writer 五类增量；release 部署烟测 + UAT 链
+- [ ] 条件票：NuGet symbol server（Q2 余量——mini as-built 规格随票）/ conan 活体互证（Q5 dep:用户环境）/ `_external` 落盘缓存（Q6 architect 评估）——未触发 BOARD 留痕非 DoD 缺口
+
+
+
 ### M11 未纳入项（滚入 M12+ 候选池；2026-08-28 T-329 终验归档后由 M11 PRD §2.2/§4.8 + 用户三项裁决〔07:5x〕+ 票级遗留登记处置；DoD#7 对账）
 
 - **用户裁决落定 M12 项（BOARD 2026-08-28 07:5x 三项裁决 + 收口裁定）**：
@@ -150,7 +170,7 @@
   - 前端与测试：MUI 批次三候选（T-300：RepoDetailPage/Dashboard/Profile/Placeholder/NotFound + 共享组件六件套 + combobox 统一化）；e2e 负载 flake 族 CI 专用 runner（T-327 §7 协议 + T-329 观察④重申）；deb 满载并行抖动（T-318/T-329 同族，隔离绿）
   - keypair T-319 D-1~D-8 / SAML T-331 D-1~D-5 差异登记（各票报告在档，随域票消化）
 - **规格/架构回写转交**：architecture.md §15.4/§23 回写转 architect（T-332 登记；§15.4.1 remote 字段落 canonical JSON as-built〔T-317 差异 1〕同批）；cargo.md（reverse）§8 virtual 行 as-built 回刷（T-318 遗留 → reverse-engineer，随 T-329 D-G 文档回刷）
-- **M12+ 主轴候选（沿 M11 PRD §2.2 既定 + M10 未纳入项续滚）**：AQL + 13 老搜索 / Cleanup-Retention 策略引擎 / 制品操作族（copy/move/zip/`archive!/`/explode）/ Webhook 统一事件总线（36 事件）/ **HA 高可用本体**（Q1 终裁 M12+ 单列）+ Xray 集成面本体 / Build-info 域 / Go 深化（sumdb 代理 + external 重定向）/ Terraform / GitLFS / NuGet symbol server（随 NuGet bundle 域，立项时随票补 as-built 规格——T-293 终裁）/ 制品 license 识别（licences.xml 91 模式）+ 冷存储分层 / HuggingFace 等 AI/ML 13 型 / license 公钥 config 覆盖（T-293 终裁③，走新 ADR）/ M10 未纳入项其余（E-04 / R2 搜索契约 / R6 Tokens 页 + 票级遗留 17 条）
+- **M12+ 主轴候选（沿 M11 PRD §2.2 既定 + M10 未纳入项续滚；2026-08-28 M12 PRD §2.2 主轴重排——**已收编 M12**：制品操作族〔FR-105〕/ Trash can〔FR-106〕/ NuGet symbol server〔余量条件票 Q2〕/ HelmOCI〔FR-109〕；**余者滚 M13+**，PM 排期留痕见 M12 PRD §2.2）**：**HA 高可用本体**（Q1 终裁 M12+ 单列——M12 PRD Q1 暂行建议 **M13 专程**，须 PRODUCT.md 修订解禁）+ Xray 集成面本体（同族处置）/ AQL + 13 老搜索（搜索基建专程）/ Cleanup-Retention 策略引擎（与 FR-106 回收站分界留痕）/ Webhook 统一事件总线（36 事件）/ Build-info 域 / Go 深化（sumdb 代理 + external 重定向）/ Terraform / GitLFS / 制品 license 识别（licences.xml 91 模式）+ 冷存储分层 / HuggingFace 等 AI/ML 13 型 / license 公钥 config 覆盖（T-293 终裁③，走新 ADR）/ M10 未纳入项其余（E-04 / R2 搜索契约 / R6 Tokens 页 + 票级遗留 17 条）
 
 ### M10 未纳入项（滚入 M11+ 候选池；2026-08-25 M9 终验归档后由 M10 PRD §2.2/§4.7 处置）
 - 延后 3 项（F 池）：E-04 repos 列表扩列 / R2 搜索契约 / R6 Tokens 页
