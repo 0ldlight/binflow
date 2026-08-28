@@ -83,11 +83,14 @@ type versionsDocument struct {
 func (h *Handler) serveVersions(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, class string, rt route) {
 	switch class {
 	case repo.TypeRemote:
-		// Pull-through at the identity path: the engine's cache, TTLs,
-		// negative cache and stale downgrade all apply unmodified.
-		rc, node, err := h.svc.Get(ctx, p, repoKey, rt.path)
+		// Pull-through at the dynamically resolved upstream path (the
+		// section 9.3 .nuGetV3 marker): the engine's cache, TTLs, negative
+		// cache and stale downgrade all apply unmodified.
+		read := h.v3RepoReader(ctx, p, repoKey)
+		flat := v3ResolveUpstreamIndex(read).flatPath()
+		rc, node, err := h.svc.Get(ctx, p, repoKey, v3CachePath(flat, versionsPath(rt.id)))
 		if err != nil {
-			h.writeError(w, err, repoKey, rt.path)
+			h.writeError(w, err, repoKey, rt.id)
 			return
 		}
 		h.serveNode(ctx, w, r, node, rc, "application/json")
@@ -112,8 +115,9 @@ func (h *Handler) serveVersions(ctx context.Context, w http.ResponseWriter, r *h
 	}
 }
 
-// servePackageFile renders the package-file trio. The storage path is the
-// identity mapping on every class.
+// servePackageFile renders the package-file trio. The remote class joins
+// the dynamically resolved upstream flatcontainer base (the .nuGetV3
+// marker); every other class keeps the identity storage mapping.
 func (h *Handler) servePackageFile(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, class string, rt route) {
 	ref := pkgRef{id: rt.id, version: rt.version}
 	var path string
@@ -129,6 +133,22 @@ func (h *Handler) servePackageFile(ctx context.Context, w http.ResponseWriter, r
 		return
 	}
 
+	if class == repo.TypeRemote {
+		// The remote arm addresses the upstream document family directly —
+		// a missing sha512 is the upstream's honest 404 (no synthesis on
+		// the remote class, the T-287 posture).
+		read := h.v3RepoReader(ctx, p, repoKey)
+		flat := v3ResolveUpstreamIndex(read).flatPath()
+		marker := v3CachePath(flat, path)
+		rc, node, err := h.svc.Get(ctx, p, repoKey, marker)
+		if err != nil {
+			h.writeError(w, err, repoKey, marker)
+			return
+		}
+		h.serveNode(ctx, w, r, node, rc, contentTypeOfPackageFile(rt.file))
+		return
+	}
+
 	// The sha512 sidecar has a synthesis fallback: a package whose sidecar
 	// is missing (a bare-content upload that skipped push, or a remote
 	// upstream without the file) still answers — the digest is computed
@@ -140,11 +160,44 @@ func (h *Handler) servePackageFile(ctx context.Context, w http.ResponseWriter, r
 	}
 
 	rc, node, err := h.svc.Get(ctx, p, repoKey, path)
-	if err != nil {
-		h.writeError(w, err, repoKey, path)
+	if err == nil {
+		h.serveNode(ctx, w, r, node, rc, contentTypeOfPackageFile(rt.file))
 		return
 	}
-	h.serveNode(ctx, w, r, node, rc, contentTypeOfPackageFile(rt.file))
+	if class == repo.TypeVirtual {
+		// The service's first-hit resolution serves local members and
+		// nuget.org-family remote members at the canonical path; behind its
+		// miss, the REMOTE members' dynamically resolved markers answer
+		// (the heterogeneous-upstream hop the service-level walk cannot
+		// express — the adapter owns the resolution).
+		if rc, node, ok := h.virtualRemotePackageFile(ctx, repoKey, path); ok {
+			h.serveNode(ctx, w, r, node, rc, contentTypeOfPackageFile(rt.file))
+			return
+		}
+	}
+	h.writeError(w, err, repoKey, path)
+}
+
+// virtualRemotePackageFile walks one package-file canonical path through
+// the VIRTUAL's remote members under their dynamically resolved
+// flatcontainer markers (first hit wins; authorization rides the member
+// seam).
+func (h *Handler) virtualRemotePackageFile(ctx context.Context, repoKey, path string) (io.ReadSeekCloser, *metadata.Node, bool) {
+	order, err := h.svc.VirtualMemberOrder(ctx, repoKey)
+	if err != nil {
+		return nil, nil, false
+	}
+	for _, m := range order {
+		if m.Type != repo.TypeRemote {
+			continue
+		}
+		read := h.v3MemberReader(ctx, repoKey, m.Key)
+		marker := v3CachePath(v3ResolveUpstreamIndex(read).flatPath(), path)
+		if rc, node, gerr := h.svc.ReadVirtualMember(ctx, repoKey, m.Key, marker); gerr == nil {
+			return rc, node, true
+		}
+	}
+	return nil, nil, false
 }
 
 // serveSha512Sidecar serves the stored sidecar when it exists, and the
@@ -293,6 +346,10 @@ func (h *Handler) warnSidecar(ctx context.Context, repoKey, path string, err err
 
 // writePushError renders the validation-family refusal.
 func (h *Handler) writePushError(w http.ResponseWriter, err error) {
+	if errors.Is(err, errMissingPackageField) {
+		writePlain(w, http.StatusBadRequest, msgMissingPackageField)
+		return
+	}
 	if errors.Is(err, errInvalidPackage) {
 		writePlain(w, http.StatusBadRequest, err.Error())
 		return
@@ -300,13 +357,20 @@ func (h *Handler) writePushError(w http.ResponseWriter, err error) {
 	writePlain(w, http.StatusInternalServerError, err.Error())
 }
 
+// msgMissingPackageField is the publish refusal's exact wording (nuget.md
+// section 2 #17: the form-data body without the package field).
+const msgMissingPackageField = "Unable to find 'package' field in request form data."
+
+// errMissingPackageField is the sentinel behind the exact-wording refusal.
+var errMissingPackageField = errors.New(msgMissingPackageField) //nolint:staticcheck // ST1005: the protocol's exact wording (nuget.md section 2 #17) ends with a period
+
 // packageBodyReader unwraps the push body: the dotnet client (8.x
 // verified live, T-287 — and Artifactory's FormDataMultiParam publish
 // route before it) sends the package as a ONE-PART multipart/form-data
 // body (name=package, filename=package.nupkg), while the curl surface
-// and nuget.exe-era clients PUT the raw octet stream. The first part of
-// a multipart body IS the package (there is nothing else to send); the
-// raw spelling passes through untouched.
+// and nuget.exe-era clients PUT the raw octet stream. A form-data body
+// whose parts carry no field NAMED "package" is the exact-wording 400;
+// the raw spelling passes through untouched.
 func packageBodyReader(r *http.Request) (io.Reader, func(), error) {
 	mediaType, params, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || mediaType != "multipart/form-data" {
@@ -317,11 +381,21 @@ func packageBodyReader(r *http.Request) (io.Reader, func(), error) {
 		return nil, nil, fmt.Errorf("%w: multipart push body carries no boundary", errInvalidPackage)
 	}
 	mr := multipart.NewReader(r.Body, boundary)
-	part, err := mr.NextPart()
-	if err != nil {
-		return nil, nil, fmt.Errorf("%w: multipart push body carries no package part: %w", errInvalidPackage, err)
+	for {
+		part, err := mr.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, nil, fmt.Errorf("%w: multipart push body unreadable: %w", errInvalidPackage, err)
+		}
+		if part.FormName() != "package" {
+			_ = part.Close() //nolint:errcheck // read-only part fd
+			continue
+		}
+		return part, func() { _ = part.Close() }, nil //nolint:errcheck // read-only part fd
 	}
-	return part, func() { _ = part.Close() }, nil //nolint:errcheck // read-only part fd
+	return nil, nil, fmt.Errorf("%w: %w", errInvalidPackage, errMissingPackageField)
 }
 
 // serveDelete implements the unlist verb as a hard delete of the version

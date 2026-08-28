@@ -23,6 +23,14 @@ import (
 	"github.com/lzwzzy/binflow/internal/storage"
 )
 
+// ReplayStatsSource is the fail-open engine's stats face (M12 T-338,
+// ADR-0040's observability clause): the seven replay series refresh at
+// scrape time. It lives beside CleanupEngine — the consumer-side
+// narrow-interface precedent.
+type ReplayStatsSource interface {
+	ReplayStats() storage.ReplayStats
+}
+
 // CleanupEngine is the consumer-side seam over repo.CleanupEngine the
 // router + handlers need: one scoped or full run, and the read faces. cmd
 // wires the real engine; the test harness wires the same. Assemblies

@@ -57,6 +57,17 @@ const (
 	// Prometheus reserves it for counter-typed families.
 	metricCleanupObjects = "binflow_cleanup_objects"
 	metricCleanupBytes   = "binflow_cleanup_bytes"
+	// The fail-open replay family (M12 T-338, ADR-0040 observability):
+	// queue depth and window state are gauges of the present; the five
+	// totals are cumulative counters published as gauges refreshed at
+	// scrape time (the cleanup precedent — the engine owns the counts).
+	metricReplayQueueDepth   = "binflow_replay_queue_depth"
+	metricReplayWindowOpen   = "binflow_replay_window_open"
+	metricReplayDrained      = "binflow_replay_drained_total"
+	metricReplayFailedRetry  = "binflow_replay_failed_retry_total"
+	metricReplayFailedPerm   = "binflow_replay_failed_permanent_total"
+	metricReplaySourceGone   = "binflow_replay_source_gone_total"
+	metricReplayReadFallback = "binflow_replay_read_fallback_total"
 )
 
 // metricsContentType is the Prometheus text exposition format version 0.0.4
@@ -96,6 +107,14 @@ type instrumentation struct {
 	// at scrape time from the engine's own counters.
 	cleanupObjs  *metrics.Gauge
 	cleanupBytes *metrics.Gauge
+	// replay* are nil unless Deps.Replay is wired (dual-write only).
+	replayQD     *metrics.Gauge
+	replayWin    *metrics.Gauge
+	replayDrain  *metrics.Gauge
+	replayRetry  *metrics.Gauge
+	replayPerm   *metrics.Gauge
+	replayGone   *metrics.Gauge
+	replayReadFB *metrics.Gauge
 }
 
 // newInstrumentation registers the four families on reg and pre-seeds the
@@ -170,6 +189,26 @@ func newInstrumentation(deps Deps) *instrumentation {
 			"Logical artifact bytes reclaimed by the unused-cleanup policy since process start (cumulative).")
 		ins.cleanupObjs.Set(0)
 		ins.cleanupBytes.Set(0)
+	}
+	if deps.Replay != nil {
+		ins.replayQD = mustGauge(reg, metricReplayQueueDepth,
+			"Blobs queued for S3 replay by the dual-write fail-open window (gauge).")
+		ins.replayWin = mustGauge(reg, metricReplayWindowOpen,
+			"1 while the dual-write S3 failure window is open, else 0.")
+		ins.replayDrain = mustGauge(reg, metricReplayDrained,
+			"Blobs confirmed on S3 by replay drains since process start (cumulative).")
+		ins.replayRetry = mustGauge(reg, metricReplayFailedRetry,
+			"Replay copy attempts that failed and will retry (cumulative).")
+		ins.replayPerm = mustGauge(reg, metricReplayFailedPerm,
+			"Replay entries exhausted to permanent failure — still queued, accounted (cumulative).")
+		ins.replayGone = mustGauge(reg, metricReplaySourceGone,
+			"Replay entries dropped because the source blob vanished (cumulative).")
+		ins.replayReadFB = mustGauge(reg, metricReplayReadFallback,
+			"Reads served from disk after S3 missed or errored (cumulative).")
+		for _, g := range []*metrics.Gauge{ins.replayQD, ins.replayWin, ins.replayDrain,
+			ins.replayRetry, ins.replayPerm, ins.replayGone, ins.replayReadFB} {
+			g.Set(0)
+		}
 	}
 	return ins
 }
@@ -324,6 +363,16 @@ func (s *Server) refreshMetricsSnapshots(ctx context.Context) {
 		st := s.deps.Cleanup.Stats()
 		ins.cleanupObjs.Set(float64(st.ObjectsCleaned))
 		ins.cleanupBytes.Set(float64(st.BytesReclaimed))
+	}
+	if s.deps.Replay != nil && ins.replayQD != nil {
+		rs := s.deps.Replay.ReplayStats()
+		ins.replayQD.Set(float64(rs.QueueDepth))
+		ins.replayWin.Set(boolFloat(rs.WindowOpen))
+		ins.replayDrain.Set(float64(rs.DrainedTotal))
+		ins.replayRetry.Set(float64(rs.FailedRetry))
+		ins.replayPerm.Set(float64(rs.FailedPermanent))
+		ins.replayGone.Set(float64(rs.SourceGone))
+		ins.replayReadFB.Set(float64(rs.ReadFallbackTotal))
 	}
 	s.refreshLicenseMetrics(ctx)
 }
@@ -499,4 +548,12 @@ func normalizeAPIPath(segs []string) string {
 		return tail(2, ":rest")
 	}
 	return literal()
+}
+
+// boolFloat renders a boolean gauge value.
+func boolFloat(b bool) float64 {
+	if b {
+		return 1
+	}
+	return 0
 }

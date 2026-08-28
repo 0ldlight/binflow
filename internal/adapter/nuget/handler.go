@@ -58,6 +58,7 @@ type Handler struct {
 	blobs  BlobLedger
 	remote RemoteConfigReader
 	opts   Options
+	egress v3egressPool // the v3 search direct-egress clients (v3remote.go)
 }
 
 // New wires the handler. remote may be nil (the remote face's rewrite
@@ -194,28 +195,63 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.serveRegistrationPage(ctx, w, r, p, repoKey, class, rt)
+	case kindRegistrationLeaf:
+		if !h.requireMethod(w, r, http.MethodGet, http.MethodHead) {
+			return
+		}
+		h.serveRegistrationLeaf(ctx, w, r, p, repoKey, class, rt)
 	case kindSearch:
 		if !h.requireMethod(w, r, http.MethodGet, http.MethodHead) {
 			return
 		}
 		h.serveSearch(ctx, w, r, p, repoKey, class)
-	case kindV2Feed:
-		if !h.requireMethod(w, r, http.MethodGet, http.MethodHead) {
-			return
+	case kindV2ServiceDoc:
+		switch r.Method {
+		case http.MethodGet, http.MethodHead:
+			h.serveV2ServiceDoc(w, r, repoKey)
+		case http.MethodPut:
+			h.serveV2Publish(ctx, w, r, p, repoKey, class, rt)
+		default:
+			w.Header().Set("Allow", "GET, HEAD, PUT")
+			writePlain(w, http.StatusMethodNotAllowed, "method "+r.Method+" is not supported on the v2 base")
 		}
-		h.serveV2Feed(ctx, w, r, p, repoKey, class)
 	case kindV2Metadata:
 		if !h.requireMethod(w, r, http.MethodGet, http.MethodHead) {
 			return
 		}
 		h.serveV2Metadata(w, r, repoKey)
-	case kindV2Push:
-		if r.Method != http.MethodPut {
-			w.Header().Set("Allow", "PUT")
-			writePlain(w, http.StatusMethodNotAllowed, "method "+r.Method+" is not supported on the v2 publish target")
+	case kindV2Search, kindV2FindPackages, kindV2Packages, kindV2GetUpdates:
+		if !h.requireMethod(w, r, http.MethodGet, http.MethodHead) {
 			return
 		}
-		h.servePush(ctx, w, r, p, repoKey, class, rt)
+		h.serveV2Collection(ctx, w, r, p, repoKey, class, rt)
+	case kindV2Batch:
+		if r.Method != http.MethodPost {
+			w.Header().Set("Allow", "POST")
+			writePlain(w, http.StatusMethodNotAllowed, "method "+r.Method+" is not supported on $batch")
+			return
+		}
+		h.serveV2Batch(ctx, w, r, p, repoKey, class)
+	case kindV2Download:
+		if !h.requireMethod(w, r, http.MethodGet, http.MethodHead) {
+			return
+		}
+		h.serveV2Download(ctx, w, r, p, repoKey, class, rt)
+	case kindV2BareNupkg:
+		if !h.requireMethod(w, r, http.MethodGet, http.MethodHead) {
+			return
+		}
+		h.serveV2BareNupkg(ctx, w, r, p, repoKey, rt.path)
+	case kindV2Push:
+		switch r.Method {
+		case http.MethodPut:
+			h.serveV2Publish(ctx, w, r, p, repoKey, class, rt)
+		case http.MethodDelete:
+			h.serveV2Delete(ctx, w, p, repoKey, class, rt)
+		default:
+			// The path form carries no read face — the unknown-resource 404.
+			writePlain(w, http.StatusNotFound, "not found")
+		}
 	case kindBareContent:
 		h.serveBareContent(ctx, w, r, p, repoKey, rel)
 	default:
@@ -324,6 +360,12 @@ func flatBase(origin, repoKey string) string {
 // regBase is the registration resource base (trailing slash).
 func regBase(origin, repoKey string) string {
 	return apiBase(origin, planeV3, repoKey) + "/" + segRegistration + "/"
+}
+
+// regSemVer2Base is the SemVer2 registration family's base (nuget.md
+// section 9.1: RegistrationsBaseUrl/3.6.0|Versioned announce here).
+func regSemVer2Base(origin, repoKey string) string {
+	return apiBase(origin, planeV3, repoKey) + "/" + segRegistrationSemVer + "/"
 }
 
 // v2Base is the v2 feed base (no trailing slash).

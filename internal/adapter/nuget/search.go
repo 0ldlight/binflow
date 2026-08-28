@@ -12,18 +12,20 @@ import (
 	"github.com/lzwzzy/binflow/internal/repo"
 )
 
-// The search face (the official Search Query Service spec) — the minimal
-// q/take/skip/prerelease set PRD 88.1 scopes.
+// The search face (the official Search Query Service spec) — the
+// q/take/skip/prerelease/semVerLevel set.
 //
-// BinFlow's search answers from STORED FACTS: the local class's packages,
-// the remote class's landed pull-through copies, and the virtual class's
-// local members (a remote member's uncached catalogue is not listable
-// through the member seam — the discovery convenience only; restore and
-// add-package-with-explicit-version never consult search). The upstream's
-// own search service (azuresearch on nuget.org) lives on a different host
-// from the configured upstream base and carries its query state in the
-// URL, neither of which the engine's path-joined upstream hop can
-// address. T-287 ruling, registered for the spec ticket.
+// LOCAL repositories answer from STORED FACTS (the T-287 posture, the
+// T-304 L3 local-half ruling: unchanged). REMOTE repositories answer from
+// the UPSTREAM'S OWN SEARCH SERVICE in real time (nuget.md section 8.1 —
+// the T-304 L3'/L7 ruling): the SearchQueryService @id resolved through
+// the cached upstream service index, queried directly, the answer's URLs
+// rewritten onto this instance; every failure of that chain degrades to
+// the repository's landed facts (the offline arm — never a 5xx).
+// VIRTUAL repositories merge the two (section 8.2): local members'
+// metadata facts and remote members' live upstream candidates in the
+// same priority bucket, id-level putIfAbsent across buckets, pagination
+// in memory over the merged set (v3virtual.go).
 
 // searchResponse is the query body.
 type searchResponse struct {
@@ -47,6 +49,11 @@ type searchHit struct {
 	TotalDownloads int64              `json:"totalDownloads"`
 	Verified       bool               `json:"verified"`
 	Versions       []searchHitVersion `json:"versions"`
+	// Registration is the hit's registration-index URL (section 8.2-6: the
+	// output's registration base — the -semver2 spelling when the request
+	// carried semVerLevel). Empty on local facts rows before the virtual
+	// merge annotates them.
+	Registration string `json:"registration,omitempty"`
 }
 
 // searchHitVersion is one version row of a hit.
@@ -70,24 +77,41 @@ func (h *Handler) serveSearch(ctx context.Context, w http.ResponseWriter, r *htt
 	skip := parseBounded(q.Get("skip"), 0)
 	includePrerelease := q.Get("prerelease") == "true"
 
-	packages, err := h.searchIndex(ctx, p, repoKey, class)
-	if err != nil {
-		h.writeError(w, err, repoKey, "")
-		return
+	switch class {
+	case repo.TypeRemote:
+		// Section 8.1's live proxy; the landed-facts walk behind it.
+		sq := v3SearchQuery{term: term, skip: skip, take: take, prerelease: includePrerelease, semVerLevel: q.Get("semVerLevel")}
+		if body, ok := h.v3RemoteSearchBody(ctx, r, p, repoKey, sq); ok {
+			writeJSON(w, http.StatusOK, body)
+			return
+		}
+		h.serveSearchFacts(ctx, w, p, repoKey, term, take, skip, includePrerelease, true)
+	case repo.TypeVirtual:
+		h.serveV3VirtualSearch(ctx, w, r, repoKey, v3SearchQuery{
+			term: term, skip: skip, take: take, prerelease: includePrerelease, semVerLevel: q.Get("semVerLevel"),
+		})
+	default:
+		h.serveSearchFacts(ctx, w, p, repoKey, term, take, skip, includePrerelease, false)
 	}
+}
 
+// serveSearchFacts renders the stored-facts answer (the local class, and
+// the remote class's offline degradation). deep widens the remote walk to
+// every stored nupkg-shaped node — the .nuGetV3 markers land packages
+// outside the canonical tree.
+func (h *Handler) serveSearchFacts(ctx context.Context, w http.ResponseWriter, p *repo.Principal, repoKey, term string, take, skip int, includePrerelease, deep bool) {
+	packages := h.searchFacts(ctx, p, repoKey, term, includePrerelease, deep)
 	hits := make([]*searchHit, 0, len(packages))
 	for _, pkg := range packages {
-		if term != "" && !strings.Contains(pkg.id, term) {
-			continue
-		}
-		if !renderableFacts(pkg.facts, includePrerelease) {
-			continue
-		}
 		hits = append(hits, renderSearchHit(pkg, includePrerelease))
 	}
-	sort.Slice(hits, func(i, j int) bool { return hits[i].ID < hits[j].ID })
+	h.writeSearchPage(w, hits, skip, take)
+}
 
+// writeSearchPage sorts, pages and renders one hit set (totalHits = the
+// full size, section 8.2-5).
+func (h *Handler) writeSearchPage(w http.ResponseWriter, hits []*searchHit, skip, take int) {
+	sort.Slice(hits, func(i, j int) bool { return hits[i].ID < hits[j].ID })
 	total := len(hits)
 	lo, hi := skip, skip+take
 	if lo > total {
@@ -104,61 +128,55 @@ func (h *Handler) serveSearch(ctx context.Context, w http.ResponseWriter, r *htt
 	writeJSON(w, http.StatusOK, body)
 }
 
-// searchPackage is one package's fact bundle.
-type searchPackage struct {
-	id    string
-	facts []versionFacts
-}
-
-// searchIndex collects the repository's package facts.
-func (h *Handler) searchIndex(ctx context.Context, p *repo.Principal, repoKey, class string) ([]*searchPackage, error) {
+// searchFacts collects the stored-facts package rows (the term and
+// prerelease filters applied). deep selects the any-node identity walk
+// (the remote degradation); the local class keeps the strict canonical
+// walk (sidecar noise and foreign files never surface).
+func (h *Handler) searchFacts(ctx context.Context, p *repo.Principal, repoKey, term string, includePrerelease, deep bool) []*searchPackage {
 	var grouped map[string][]*metadata.Node
-	switch class {
-	case repo.TypeVirtual:
-		order, err := h.svc.VirtualMemberOrder(ctx, repoKey)
+	if deep {
+		nodes, err := h.svc.List(ctx, p, repoKey, "")
 		if err != nil {
-			return nil, err
+			return nil // the local-only listing seam: a remote walk degrades to empty
 		}
 		grouped = map[string][]*metadata.Node{}
-		seen := map[string]bool{}
-		for _, m := range order {
-			if m.Type != repo.TypeLocal {
-				continue // the member seam refuses remote listings (doc.go's note)
-			}
-			nodes, lerr := h.svc.ListVirtualMember(ctx, repoKey, m.Key, "")
-			if lerr != nil {
-				continue
-			}
-			for _, n := range nodes {
-				id, _, ok := splitNupkgPath(n.Path)
-				if !ok || seen[n.Path] {
-					continue
-				}
-				seen[n.Path] = true
+		for _, n := range nodes {
+			if id, _, ok := splitAnyNupkgNode(n.Path); ok {
 				grouped[id] = append(grouped[id], n)
 			}
 		}
-	default:
+	} else {
 		nodes, err := h.svc.List(ctx, p, repoKey, "")
 		if err != nil {
-			return nil, err
+			return nil
 		}
 		grouped = groupNodesByPackage(nodes)
 	}
-
 	out := make([]*searchPackage, 0, len(grouped))
 	for id, nodes := range grouped {
+		if term != "" && !strings.Contains(id, term) {
+			continue
+		}
 		facts := make([]versionFacts, 0, len(nodes))
 		for _, n := range nodes {
-			_, version, _ := splitNupkgPath(n.Path)
+			_, version, _ := splitAnyNupkgNode(n.Path)
 			facts = append(facts, versionFacts{ref: pkgRef{id: id, version: version}, node: n})
+		}
+		if !renderableFacts(facts, includePrerelease) {
+			continue
 		}
 		sort.Slice(facts, func(i, j int) bool {
 			return compareNuGetVersions(facts[i].ref.version, facts[j].ref.version) < 0
 		})
 		out = append(out, &searchPackage{id: id, facts: facts})
 	}
-	return out, nil
+	return out
+}
+
+// searchPackage is one package's fact bundle.
+type searchPackage struct {
+	id    string
+	facts []versionFacts
 }
 
 // groupNodesByPackage groups one node listing by package id (the nupkg

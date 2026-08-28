@@ -57,6 +57,10 @@ type Deps struct {
 	// T-94). Nil on stacks assembled without an engine — the endpoint
 	// answers 503 rather than pretending a run happened.
 	GC GarbageCollector
+	// Replay is the dual-write fail-open engine's stats face (M12 T-338,
+	// ADR-0040): present only on dual-write assemblies; nil keeps the
+	// replay metric family unregistered (the CleanupEngine precedent).
+	Replay ReplayStatsSource
 	// Cleanup is the unused-cleanup engine (M11 T-324, FR-102.2): the
 	// cron-driven remote-cache policy face behind POST/GET
 	// /api/v1/system/cleanup. Nil keeps POST at the honest 503 and GET at
