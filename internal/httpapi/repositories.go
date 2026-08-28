@@ -142,6 +142,21 @@ type repoConfig struct {
 	EnableFileListsIndexing *bool  `json:"enableFileListsIndexing,omitempty"` // rpm: the filelists index switch (default false)
 	YumGroupFileNames       string `json:"yumGroupFileNames,omitempty"`       // rpm: comps group file list (default comps.xml)
 
+	// ---- T-329 D-E helm enforce layout transport (the D-E unlock) ----
+	//
+	// The helm Enforce Layout switch pair (helm.md section 4.3 / S5; the
+	// adapter probe parseEnforcePolicy reads the Artifactory flat spellings
+	// verbatim off the config blob). T-327R carried the deb/rpm policy keys
+	// but missed this pair, so a PUT answered 200 and silently dropped them
+	// — enforce could never be switched on over REST (T-329's L32 arm).
+	// Same posture as the deb/rpm family: flat POINTER fields (an explicit
+	// false must survive the round trip so the flip-off update works — both
+	// product defaults ARE false), LOCAL arm only (the policy judges the
+	// local upload hook), package-type-agnostic storage, typing rides the
+	// decode (a mistyped value is a 400 naming the field).
+	ForceMetadataNameVersion *bool `json:"forceMetadataNameVersion,omitempty"` // helm: Enforce Chart Name and Version (default false)
+	ForceNonDuplicateChart   *bool `json:"forceNonDuplicateChart,omitempty"`   // helm: Prevent Duplicate Chart Paths (default false)
+
 	// Configuration is the GET-only echo of the stored canonical config (the
 	// service hands it back already masked, NFR-S14); it is never an input.
 	Configuration any `json:"configuration,omitempty"`
@@ -250,6 +265,11 @@ func (c repoConfig) configJSON(rclass string) (string, error) {
 		setI64(m, "yumRootDepth", c.YumRootDepth)
 		setBool(m, "enableFileListsIndexing", c.EnableFileListsIndexing)
 		setStr(m, "yumGroupFileNames", c.YumGroupFileNames)
+		// T-329 D-E: the helm enforce layout pair rides the same verbatim
+		// passthrough (the adapter's parseEnforcePolicy reads these exact
+		// spellings off the stored blob).
+		setBool(m, "forceMetadataNameVersion", c.ForceMetadataNameVersion)
+		setBool(m, "forceNonDuplicateChart", c.ForceNonDuplicateChart)
 	}
 	if len(m) == 0 {
 		return "", nil
