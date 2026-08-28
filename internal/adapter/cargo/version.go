@@ -192,10 +192,20 @@ func compareInt(a, b int) int {
 // version, ignoring build metadata, may not be listed twice"). Unparsable
 // spellings fall back to plain string equality.
 func sameVersionIgnoringBuild(a, b string) bool {
-	sa, errA := parseSemver(a)
-	sb, errB := parseSemver(b)
-	if errA != nil || errB != nil {
-		return a == b
+	return normalizeVersionKey(a) == normalizeVersionKey(b)
+}
+
+// normalizeVersionKey renders one version's uniqueness key: major.minor.
+// patch-pre with build metadata stripped (the sameVersionIgnoringBuild
+// rule, as a map key). Unparsable spellings key on the raw string.
+func normalizeVersionKey(v string) string {
+	s, err := parseSemver(v)
+	if err != nil {
+		return v
 	}
-	return sa.major == sb.major && sa.minor == sb.minor && sa.patch == sb.patch && sa.pre == sb.pre
+	key := fmt.Sprintf("%d.%d.%d", s.major, s.minor, s.patch)
+	if s.pre != "" {
+		key += "-" + s.pre
+	}
+	return key
 }

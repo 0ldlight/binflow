@@ -1,6 +1,7 @@
 package cargo
 
 import (
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -47,6 +48,19 @@ const (
 	suffixCrate = ".crate"
 	// suffixMetaJSON is the metadata sidecar's file suffix.
 	suffixMetaJSON = ".json"
+
+	// fileOriginalConfig is the remote cache's verbatim copy of the
+	// UPSTREAM config.json (spec section 8 / S4: cached at the repository
+	// root, preserved in its original form so the upstream dl/api bases
+	// stay inspectable; BinFlow's own served config.json is synthesized
+	// self-pointing either way).
+	fileOriginalConfig = "config.original.json"
+	// dirSearchCache is the remote cache's directory of upstream search
+	// responses, keyed by the hex of the verbatim query string (the
+	// marker-document posture: a wire document with no storage shape of
+	// its own caches under a synthetic path the provider's UpstreamPath
+	// facet maps back onto the query-carrying endpoint).
+	dirSearchCache = dirMeta + "/search"
 
 	// propName … are the .crate node's protocol properties (spec section 4).
 	propName        = "crate.name"
@@ -376,4 +390,51 @@ func splitCrateNode(path string) (string, string, bool) {
 		return "", "", false
 	}
 	return name, version, true
+}
+
+// ---- the remote cache's synthetic paths (spec section 8 / S4) ----
+
+// searchCachePath renders the storage path one upstream search response
+// caches under: .cargo/search/<hex of the verbatim query>.json. The hex
+// keeps the key path-legal and collision-free while staying a PURE,
+// reversible encoding — the provider's UpstreamPath facet decodes it back
+// into the query-carrying upstream endpoint.
+func searchCachePath(rawQuery string) string {
+	return dirSearchCache + "/" + hex.EncodeToString([]byte(rawQuery)) + suffixMetaJSON
+}
+
+// searchQueryOf decodes one search-cache storage path back into its
+// verbatim query string; ok is false for every other shape.
+func searchQueryOf(path string) (string, bool) {
+	if !strings.HasPrefix(path, dirSearchCache+"/") {
+		return "", false
+	}
+	name, ok := strings.CutSuffix(strings.TrimPrefix(path, dirSearchCache+"/"), suffixMetaJSON)
+	if !ok || name == "" {
+		return "", false
+	}
+	raw, err := hex.DecodeString(name)
+	if err != nil {
+		return "", false
+	}
+	return string(raw), true
+}
+
+// derivedPathCrate resolves the crate a server-derived storage path
+// belongs to — the index family by its pkgPath grammar, the metadata
+// sidecar family by its crate directory. ok is false for paths outside
+// both families (the caller's index convergence simply skips them).
+func derivedPathCrate(path string) (string, bool) {
+	if rest, found := strings.CutPrefix(path, segIndex+"/"); found {
+		if name, ok := indexPkgPathName(rest); ok {
+			return name, true
+		}
+		return "", false
+	}
+	if rest, found := strings.CutPrefix(path, dirMeta+"/"+dirCrates+"/"); found {
+		if name, _, ok := strings.Cut(rest, "/"); ok && validCrateName(name) {
+			return name, true
+		}
+	}
+	return "", false
 }

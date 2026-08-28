@@ -161,6 +161,19 @@ func (s *stack) seedVirtualMembers(t *testing.T, virtual string, members ...stri
 	}
 }
 
+// seedRemoteConfig attaches one remote_configs row (loopback upstreams
+// need the SSRF exemption — the admin-set flag ADR-0012 defines; the
+// goproxy/conan harness posture).
+func (s *stack) seedRemoteConfig(t *testing.T, key, url string) {
+	t.Helper()
+	if err := s.md.Remote().CreateConfig(context.Background(), &metadata.RemoteConfig{
+		RepoKey: key, URL: url, AllowPrivateUpstream: true,
+		ContentTTLSeconds: 7200, MetadataTTLSeconds: 600,
+	}); err != nil {
+		t.Fatalf("seed remote config %s: %v", key, err)
+	}
+}
+
 // do issues one request; user != "" adds Basic auth. The response body is
 // fully read and returned.
 func (s *stack) do(method, path, user, pass string, body io.Reader, hdr map[string]string) (int, string, http.Header) {

@@ -7,9 +7,13 @@ import (
 	"testing"
 )
 
-// The deframer table (spec section 5.1's byte-for-byte frame): the legal
-// frame round-trips; every truncation, length misalignment and trailing
-// byte is the client's errInvalidPackage.
+// The deframer table (spec section 5.1's byte-for-byte frame), under
+// CG-2's two failure families: the legal frame round-trips; the SHAPE
+// defects (a truncated length prefix, an absurd declared length, trailing
+// bytes) are errFramingDefect (the 500 family, Artifactory's uncaught
+// RuntimeException); every truncation the stream's own END produces (a
+// frame that declares more than the body carries) is the plain-error
+// IOException track (the 200 + warnings.other arm).
 func TestDecodePublishFrame(t *testing.T) {
 	meta := `{"name":"mycrate","vers":"0.1.0"}`
 	crate := []byte("pretend this is a gzipped tarball")
@@ -46,24 +50,15 @@ func TestDecodePublishFrame(t *testing.T) {
 		}
 	})
 
-	cases := []struct {
+	defects := []struct {
 		name string
 		body []byte
 	}{
 		{"empty body", nil},
 		{"truncated metadata length prefix", uint32le(9)[:2]},
-		{"metadata length overshoots body", func() []byte {
-			b := uint32le(uint32(len(meta)))
-			return append(b, meta[:len(meta)-3]...)
-		}()},
 		{"missing crate length prefix", func() []byte {
 			b := uint32le(uint32(len(meta)))
 			return append(b, meta...)
-		}()},
-		{"crate length overshoots body", func() []byte {
-			b := append(uint32le(uint32(len(meta))), meta...)
-			b = append(b, uint32le(uint32(len(crate)+10))...)
-			return append(b, crate...)
 		}()},
 		{"trailing byte after crate", func() []byte {
 			b := publishBody(meta, crate)
@@ -73,11 +68,37 @@ func TestDecodePublishFrame(t *testing.T) {
 			return append(uint32le(uint32(maxMetaJSON+1)), make([]byte, 16)...)
 		}()},
 	}
-	for _, tc := range cases {
+	for _, tc := range defects {
 		t.Run(tc.name, func(t *testing.T) {
 			_, spool, err := decodePublishFrame(bytes.NewReader(tc.body))
-			if !errors.Is(err, errInvalidPackage) {
-				t.Fatalf("decodePublishFrame err = %v, want errInvalidPackage", err)
+			if !errors.Is(err, errFramingDefect) {
+				t.Fatalf("decodePublishFrame err = %v, want errFramingDefect (the 500 family)", err)
+			}
+			if spool != "" {
+				t.Errorf("spool = %q, want empty on failure", spool)
+			}
+		})
+	}
+
+	truncations := []struct {
+		name string
+		body []byte
+	}{
+		{"metadata length overshoots body", func() []byte {
+			b := uint32le(uint32(len(meta)))
+			return append(b, meta[:len(meta)-3]...)
+		}()},
+		{"crate length overshoots body", func() []byte {
+			b := append(uint32le(uint32(len(meta))), meta...)
+			b = append(b, uint32le(uint32(len(crate)+10))...)
+			return append(b, crate...)
+		}()},
+	}
+	for _, tc := range truncations {
+		t.Run(tc.name, func(t *testing.T) {
+			_, spool, err := decodePublishFrame(bytes.NewReader(tc.body))
+			if err == nil || errors.Is(err, errFramingDefect) {
+				t.Fatalf("decodePublishFrame err = %v, want a plain truncation error (the 200 family)", err)
 			}
 			if spool != "" {
 				t.Errorf("spool = %q, want empty on failure", spool)
