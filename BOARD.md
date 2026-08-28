@@ -1021,6 +1021,9 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 （空）
 
+## M12 票据（进度行）
+  - **B0 → 全清 2026-08-28 18:4x**：T-333 ADR-0040（PR #18——八决策+九 AC 锚+**新发现第三缺陷**〔Commit 反删已落盘 blob〕）/ T-334 nuget.md 活化（PR #19——258 行/18 端点/45 高置信锚，T-280 缺失就此补上）。
+  - **B1 派发 2026-08-28 18:4x**：T-338 fail-open 实现（dev-go-storage，AC-A1~G 逐条）/ T-337 NuGet v2 大票（dev-go-core，窗口独占，消费要点 11 条）。
 ## M12 票据（T-333~T-357，tech-lead 2026-08-28 拆票；AC 全文见 docs/prd/milestone-12.md v1.0；拆票日志 reports/agents/M12-SPLIT.md；Q1~Q7 暂行口径已入票面，终裁点随票上 BOARD）
 
 > **拆票基线**：PRD §1.3 估 22~28 票，实拆 **25 票**（P0×8 / P1×14 / P2×3，另含波外条件票 T-357 计入 P2）——四裁决/裁定承载票（裁决① NuGet bundle / 裁决③ D-A fail-open / 裁定⑤ D-8R 瘦身 / T-329 D-F 收尾）全部置顶 B0~B3；全宽 2 沿 M11 口径；协议/行为面实现票全部 dep 对应规格票（clean-room 铁律）。**转正映射**：T-330（Trash can 条件票）→ T-345/T-352 承载；T-320（HelmOCI 条件票，未派）→ T-342 承载——票号沿用与否 conductor 收口时定（PRD §1.3 既定票条款）。
