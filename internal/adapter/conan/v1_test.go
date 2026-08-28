@@ -300,6 +300,67 @@ func TestV1Deletes(t *testing.T) {
 	}
 }
 
+// TestV1PackagesDeleteForms: the batch is idempotent per packageId (D-F —
+// spec section 3.2's row has no 404 arm, unlike the recipe-delete row).
+// Both coordinate spellings answer 200: the conan-2 `_/_` upload form and
+// the conan-1 user/channel form; a pid with no tree under the resolved
+// revision (the live fixture's leftover binary) skips instead of failing
+// the whole batch after the earlier trees are already gone. The unknown-ref
+// 404 and the illegal-pid 400 arms stay.
+func TestV1PackagesDeleteForms(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		r    ref
+	}{
+		{name: "underscore form (conan-2 upload shape)", r: ref{name: "hello", version: "1.0", user: "_", channel: "_"}},
+		{name: "user/channel form (conan-1 wire)", r: ref{name: "hello", version: "1.0", user: "myuser", channel: "stable"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := newStack(t)
+			s.seedRepo(t, "cn-local", repo.TypeLocal)
+			rev, pid := fixtureRev(2), fixturePID(4)
+			if code, body, _ := s.putRecipeFile("cn-local", tc.r, rev, "conanfile.py", []byte("recipe")); code != http.StatusCreated {
+				t.Fatalf("recipe PUT = %d (body %s)", code, body)
+			}
+			if code, body, _ := s.putPkgFile("cn-local", tc.r, rev, pid, fixtureRev(6), "conan_package.tgz", []byte("tgz")); code != http.StatusCreated {
+				t.Fatalf("pkg PUT = %d (body %s)", code, body)
+			}
+			v1Ref := "conans/" + tc.r.name + "/" + tc.r.version + "/" + tc.r.user + "/" + tc.r.channel
+			v2Ref := tc.r.name + "/" + tc.r.version + "/" + tc.r.user + "/" + tc.r.channel
+
+			// The D-F wire: one live pid plus one stale pid in the batch.
+			code, body, _ := s.post(v1("cn-local", v1Ref+"/packages/delete"),
+				[]byte(`{"package_ids":["`+pid+`","`+fixturePID(7)+`"]}`), nil)
+			if code != http.StatusOK || body != "" {
+				t.Fatalf("packages/delete mixed batch = (%d, %q), want (200, \"\")", code, body)
+			}
+			// The live pid's tree is gone.
+			if code, _, _ = s.get(v2("cn-local", v2Ref+"/revisions/"+rev+"/packages/"+pid+"/revisions")); code != http.StatusNotFound {
+				t.Errorf("post-delete live pid = %d, want 404", code)
+			}
+			// A single stale pid alone stays a clean 200.
+			if code, body, _ = s.post(v1("cn-local", v1Ref+"/packages/delete"),
+				[]byte(`{"package_ids":["`+fixturePID(9)+`"]}`), nil); code != http.StatusOK || body != "" {
+				t.Errorf("packages/delete stale-only = (%d, %q), want (200, \"\")", code, body)
+			}
+		})
+	}
+
+	// The unknown ref keeps the family 404; the illegal pid keeps the 400.
+	s := newStack(t)
+	s.seedRepo(t, "cn-local", repo.TypeLocal)
+	r := ref{name: "hello", version: "1.0", user: "myuser", channel: "stable"}
+	s.putRecipeFile("cn-local", r, fixtureRev(1), "conanfile.py", []byte("x"))
+	if code, body, _ := s.post(v1("cn-local", "conans/missing/1.0/_/_/packages/delete"),
+		[]byte(`{"package_ids":["`+fixturePID(3)+`"]}`), nil); code != http.StatusNotFound || body != msgPathNotFound {
+		t.Errorf("unknown-ref packages/delete = (%d, %q), want (404, %q)", code, body, msgPathNotFound)
+	}
+	if code, _, _ := s.post(v1("cn-local", "conans/hello/1.0/myuser/stable/packages/delete"),
+		[]byte(`{"package_ids":["not!!"]}`), nil); code != http.StatusBadRequest {
+		t.Errorf("illegal pid packages/delete = %d, want 400", code)
+	}
+}
+
 // TestV1Search: the v1 search shares the v2 implementation and shape.
 func TestV1Search(t *testing.T) {
 	s := newStack(t)
