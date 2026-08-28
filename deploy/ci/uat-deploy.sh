@@ -26,12 +26,13 @@ set -euo pipefail
 HOST="$1"; USER_="$2"; HOME_="$3"; LABEL="$4"
 UNIT="binflow-uat"
 
-# Offer EXACTLY the injected deploy key (the add_ssh_keys file is the
-# only id_rsa_* in ~/.ssh). Without IdentitiesOnly the ssh agent offers
-# every key it holds first — the server's MaxAuthTries then rejects the
-# connection before the right key gets its turn, which made deploys
-# fail intermittently (builds #8/#10/#12 vs green #9/#11).
-DEPLOY_KEY="$(ls "${HOME}/.ssh/id_rsa_"* 2>/dev/null | head -1 || true)"
+# Offer EXACTLY the injected deploy key. Without IdentitiesOnly the ssh
+# agent offers every key it holds first — the server's MaxAuthTries then
+# rejects the connection before the right key gets its turn, which made
+# deploys fail intermittently (builds #8/#10/#12 vs green #9/#11).
+# Match id_<type>_<fingerprint> (any key type: rsa, ed25519, ecdsa…)
+# but NOT the bare checkout key (id_rsa / id_ed25519 with no fingerprint).
+DEPLOY_KEY="$(ls "${HOME}/.ssh/id_"*_* 2>/dev/null | grep -v '\.pub$' | head -1 || true)"
 KEY_OPTS=(-o IdentitiesOnly=yes)
 if [ -n "${DEPLOY_KEY}" ]; then
     KEY_OPTS+=(-i "${DEPLOY_KEY}")
