@@ -82,10 +82,11 @@ jobs:
       - attach_workspace:
           at: .
       - add_ssh_keys:
-          fingerprints:
-            # MD5 fingerprint of the UAT deploy key (uploaded in Project
-            # Settings > SSH Keys; derived from ~/.ssh/binflow-uat.pem):
-            - "$SSH_KEY_FINGERPRINT_UAT"
+          # No fingerprint filter: add_ssh_keys does not expand env vars in
+          # the fingerprints list, so "$SSH_KEY_FINGERPRINT_UAT" would be
+          # treated as a literal string and match nothing. Omitting the filter
+          # loads all SSH keys uploaded to the project (only the UAT deploy
+          # key exists), which is equivalent and always correct.
       - run:
           name: Ship binary + systemd unit + smoke to UAT
           command: |
