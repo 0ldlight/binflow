@@ -591,9 +591,11 @@ func addonManifest() *addons.Registry {
 		// Gated pilot package-type slots (pro; the adapters land with their
 		// own tickets — the slots exist so gate/view/legal-set are complete).
 		addons.Go(), addons.NuGet(), addons.Cargo(), addons.Conan(), addons.Helm(), addons.Rpm(), addons.Debian(),
-		// Feature slots: properties on the floor, the enterprise
-		// placeholders visible with their M11+ reservation notes.
-		addons.Properties(), addons.HA(), addons.XrayIntegration(),
+		// Feature slots: properties on the floor, repo-operations at pro
+		// (the Q4 final ruling — the copy/move/archive family mirrors
+		// Artifactory's entitlement posture), the enterprise placeholders
+		// visible with their M11+ reservation notes.
+		addons.Properties(), addons.RepoOperations(), addons.HA(), addons.XrayIntegration(),
 	)
 }
 

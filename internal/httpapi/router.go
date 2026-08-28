@@ -769,6 +769,31 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		}
 		notImplemented(w, "/binflow/api/"+rest)
 
+	// ---- /api/copy, /api/move (M12 T-339, FR-105.1 / repo-operations.md
+	// sections 0/1) ----
+	// POST is the only verb with a route; the bare and keyless spellings
+	// still reach the handler so IT can answer the spec's 400 parameter
+	// messages ("Source repository key is empty"), not the E-26 404. The
+	// route demands authentication (RolesAllowed admin,user — the family's
+	// per-item chain is the real permission matrix); the license gate is
+	// the handler's first line (Q4: the family rides the pro slot).
+	case rest == "copy" || rest == "copy/" || strings.HasPrefix(rest, "copy/"):
+		if r.Method != http.MethodPost {
+			notImplemented(w, "/binflow/api/"+rest)
+			return
+		}
+		s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+			s.handleCopyMove(w, r, "copy", rest)
+		})
+	case rest == "move" || rest == "move/" || strings.HasPrefix(rest, "move/"):
+		if r.Method != http.MethodPost {
+			notImplemented(w, "/binflow/api/"+rest)
+			return
+		}
+		s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+			s.handleCopyMove(w, r, "move", rest)
+		})
+
 	// ---- /api/search (SR-01/SR-02, T-92) ----
 	// Exactly two entrances open the M1 E-26 search domain (PRD M4: the
 	// domain opens artifact + checksum only); every other family member —

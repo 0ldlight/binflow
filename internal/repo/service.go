@@ -46,6 +46,13 @@ type service struct {
 	// nil keeps the static five-type enum as the whole legality check —
 	// the pre-M10 posture, byte-identical M9 behavior (invariant 1).
 	pkgGate PackageTypeGate
+	// cmObserver is the copy-side index-recompute seam (M12 T-339,
+	// repo-operations section 1.4's "copy triggers the async metadata
+	// recalculation over the candidate directories"): wired by
+	// AttachCopyMoveObserver after New. nil (the default, and every stack
+	// until the adapters' reindex kernels are wired at cmd assembly)
+	// keeps the trigger a no-op.
+	cmObserver CopyMoveObserver
 }
 
 // newService wires the collaborators; New is the public constructor with the

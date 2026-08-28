@@ -832,3 +832,19 @@ func AttachPackageTypeGate(s Service, g PackageTypeGate) {
 	}
 	impl.pkgGate = g
 }
+
+// AttachCopyMoveObserver wires the copy-side index-recompute seam onto a
+// Service built by New/NewWithClock (M12 T-339, the AttachReplicator
+// precedent). The observer fires asynchronously after every completed
+// non-dry COPY (move does not trigger the recalculation — repo-operations
+// section 1.4) with the target repository and the candidate directory set.
+// Call it during assembly, BEFORE the first request is served; a
+// non-concrete Service is skipped with a WARN.
+func AttachCopyMoveObserver(s Service, o CopyMoveObserver) {
+	impl, ok := s.(*service)
+	if !ok {
+		slog.Warn("repo: AttachCopyMoveObserver: service is not the concrete implementation; copy observer not wired")
+		return
+	}
+	impl.cmObserver = o
+}
