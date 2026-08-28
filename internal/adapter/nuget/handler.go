@@ -58,6 +58,7 @@ type Handler struct {
 	blobs  BlobLedger
 	remote RemoteConfigReader
 	opts   Options
+	egress v3egressPool // the v3 search direct-egress clients (v3remote.go)
 }
 
 // New wires the handler. remote may be nil (the remote face's rewrite
@@ -194,6 +195,11 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h.serveRegistrationPage(ctx, w, r, p, repoKey, class, rt)
+	case kindRegistrationLeaf:
+		if !h.requireMethod(w, r, http.MethodGet, http.MethodHead) {
+			return
+		}
+		h.serveRegistrationLeaf(ctx, w, r, p, repoKey, class, rt)
 	case kindSearch:
 		if !h.requireMethod(w, r, http.MethodGet, http.MethodHead) {
 			return
@@ -354,6 +360,12 @@ func flatBase(origin, repoKey string) string {
 // regBase is the registration resource base (trailing slash).
 func regBase(origin, repoKey string) string {
 	return apiBase(origin, planeV3, repoKey) + "/" + segRegistration + "/"
+}
+
+// regSemVer2Base is the SemVer2 registration family's base (nuget.md
+// section 9.1: RegistrationsBaseUrl/3.6.0|Versioned announce here).
+func regSemVer2Base(origin, repoKey string) string {
+	return apiBase(origin, planeV3, repoKey) + "/" + segRegistrationSemVer + "/"
 }
 
 // v2Base is the v2 feed base (no trailing slash).

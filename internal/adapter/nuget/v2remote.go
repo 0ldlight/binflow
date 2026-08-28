@@ -311,7 +311,16 @@ func (h *Handler) serveV2VirtualDownload(ctx context.Context, w http.ResponseWri
 				}
 				continue
 			}
-			// The remote member's alternative-download hop (5.3).
+			// The remote member's dynamic flatcontainer marker (the
+			// heterogeneous-upstream hop the service-level canonical
+			// resolution cannot express), then the alternative-download
+			// hop (5.3).
+			read := h.v3MemberReader(ctx, repoKey, m.Key)
+			marker := v3CachePath(v3ResolveUpstreamIndex(read).flatPath(), canonical)
+			if rc, node, gerr := h.svc.ReadVirtualMember(ctx, repoKey, m.Key, marker); gerr == nil {
+				serve(rc, node)
+				return
+			}
 			if rc, node, gerr := h.svc.ReadVirtualMember(ctx, repoKey, m.Key, v2DownloadCachePath(rt.id, rt.version)); gerr == nil {
 				serve(rc, node)
 				return

@@ -11,35 +11,21 @@ import (
 //
 //   - Classify feeds the remote cache's dual TTL split: the nupkg and its
 //     per-version sidecars are immutable content (the same version
-//     spellings the same bytes — the official immutability duty); the
-//     versions document and the registration markers are regenerable
-//     protocol documents (metadata class, short TTL, revalidated).
+//     spellings the same bytes — the official immutability duty); the v2
+//     markers and the whole .nuGetV3/ family are regenerable protocol
+//     documents (metadata class, short TTL, revalidated — nuget.md
+//     section 9.3's cache layout).
 //   - PackageName feeds the virtual metadata aggregation's skip rule
 //     (the leading id segment owns the aggregation identity).
 //   - UpstreamPath is the OPTIONAL facet internal/remote consumes at the
-//     upstream hop: BinFlow's storage layout IS the official
-//     flatcontainer layout, so package files map identity onto the
-//     upstream flatcontainer prefix, and the two internal registration
-//     markers translate back onto the document endpoints they stand for.
-//
-// The upstream prefixes are nuget.org's CURRENT service-index spellings
-// (probed live, August 2026: PackageBaseAddress =
-// https://api.nuget.org/v3-flatcontainer/, RegistrationsBaseUrl/3.6.0 =
-// https://api.nuget.org/v3/registration5-gz-semver2/). nuget.org has
-// re-spelled these over the years (registration3, registration5-…); a
-// repository whose upstream uses a different spelling configures the
-// base URL that makes the join right, and the constants below are the
-// one place to update when the public index moves again. T-287 ruling,
-// registered for the spec ticket.
-
-const (
-	// upstreamFlatPrefix is the flatcontainer path prefix under the
-	// configured upstream base.
-	upstreamFlatPrefix = "v3-flatcontainer"
-	// upstreamRegistrationPrefix is the registration path prefix under
-	// the configured upstream base.
-	upstreamRegistrationPrefix = "v3/registration5-gz-semver2"
-)
+//     upstream hop. The v3 document family rides the .nuGetV3/ markers:
+//     the marker carries the upstream path VERBATIM (dynamically resolved
+//     off the upstream service index at request time — the T-304 L4
+//     ruling), so the facet is the identity strip. The canonical
+//     flatcontainer spelling (the local layout's identity) keeps the
+//     v3-flatcontainer join — the nuget.org-family default the v2 faces'
+//     canonical probes and the service-level virtual resolution still
+//     ride; the v2 markers translate onto the upstream v2 faces.
 
 // provider is the NuGet MetadataProvider.
 type provider struct{}
@@ -76,11 +62,16 @@ func (provider) Classify(relPath string) adapter.MetadataKind {
 	if strings.HasPrefix(relPath, v2CacheDir+"/") {
 		return adapter.KindMetadata
 	}
+	// The .nuGetV3/ family: the cached upstream service index and every
+	// registration document revalidate on the metadata TTL (nuget.md
+	// section 9.3 — "复用 remote 仓缓存到期语义").
+	if strings.HasPrefix(relPath, v3CacheDir+"/") {
+		return adapter.KindMetadata
+	}
 	// Everything else on this layout is a regenerable document: the
-	// versions index, the registration marker and the page markers.
-	if strings.HasSuffix(relPath, "/"+fileIndex) ||
-		strings.HasSuffix(relPath, "/"+regMarkerName) ||
-		strings.Contains(relPath, "/"+pageMarkerSeg+"/") {
+	// versions index (the canonical identity path local repositories
+	// serve by and the v2 canonical probes fetch).
+	if strings.HasSuffix(relPath, "/"+fileIndex) {
 		return adapter.KindMetadata
 	}
 	return adapter.KindContent
@@ -106,13 +97,18 @@ type comparator struct{}
 func (comparator) CompareVersions(a, b string) int { return compareNuGetVersions(a, b) }
 
 // UpstreamPath maps one STORAGE-form repository path onto the UPSTREAM
-// path (internal/remote's optional facet): package files join onto the
-// flatcontainer prefix, the registration markers translate onto their
-// document endpoints, the v2 markers (nuget.md sections 5.3/7.1) translate
-// onto the upstream v2 faces (the feed context path api/v2 — the xsd
-// default — for the search family, api/v2/package for the alternative
-// download), and unknown shapes pass through verbatim (the generic
-// posture — no provider facet, no rewriting).
+// path (internal/remote's optional facet):
+//
+//   - .nuGetV3/<upstream-path> → <upstream-path> (the identity strip —
+//     the marker was built from the dynamically resolved service-index
+//     @id, nuget.md section 9.3);
+//   - .nuget-v2/<hex>.xml → api/v2/<resource> and .nuget-v2/dl/<pkg> →
+//     api/v2/package/<id>/<version> (sections 7.1/5.3);
+//   - the canonical flatcontainer spelling joins the v3-flatcontainer
+//     prefix (the nuget.org-family default — the identity the local
+//     layout and the service-level member resolution share);
+//   - unknown shapes pass through verbatim (the generic posture — no
+//     provider facet, no rewriting).
 func (provider) UpstreamPath(relPath string) string {
 	// The v2 alternative-download marker first (it carries no package id
 	// segment at the front, so the flat walk below never sees it).
@@ -128,23 +124,30 @@ func (provider) UpstreamPath(relPath string) string {
 	if resource, ok := v2ResourceOfCachePath(relPath); ok {
 		return v2FeedContextPath + "/" + resource
 	}
+	// The cached upstream service index translates onto the v3 feed path
+	// (the xsd default v3FeedUrl's relative spelling — the ONE fixed join
+	// of the dynamic family; every other resource resolves through this
+	// document).
+	if relPath == v3FeedMarker {
+		return v3FeedUpstreamPath
+	}
+	// The v3 dynamic-marker family: the upstream path rides the marker.
+	if rest, found := strings.CutPrefix(relPath, v3CacheDir+"/"); found && rest != "" {
+		return rest
+	}
 	id, rest, found := strings.Cut(relPath, "/")
 	if !found || !validPackageID(id) {
 		return relPath
 	}
-	switch {
-	case rest == fileIndex:
-		return upstreamFlatPrefix + "/" + id + "/" + fileIndex
-	case rest == regMarkerName:
-		return upstreamRegistrationPrefix + "/" + id + "/" + fileIndex
-	case strings.HasPrefix(rest, pageMarkerSeg+"/"):
-		return upstreamRegistrationPrefix + "/" + id + "/" + rest
+	switch rest {
+	case fileIndex:
+		return v3FallbackFlatPath + "/" + id + "/" + fileIndex
 	default:
 		// Everything else under a valid package id is the per-version
 		// file family (<id>/<version>/<id>.<version>.{nupkg,nupkg.sha512,nuspec}):
 		// it joins identity onto the flatcontainer prefix. The engine
 		// only requests paths this adapter addressed, so the shape is
 		// already validated at the route layer.
-		return upstreamFlatPrefix + "/" + relPath
+		return v3FallbackFlatPath + "/" + relPath
 	}
 }

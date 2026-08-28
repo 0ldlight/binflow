@@ -23,9 +23,14 @@ const (
 	planeV2 = "v2"
 
 	// segFlat/segRegistration/segQuery are the v3 sub-route literals.
-	segFlat         = "flatcontainer"
-	segRegistration = "registration"
-	segQuery        = "query"
+	segFlat = "flatcontainer"
+	// segRegistration/segRegistrationSemVer2 are the two registration
+	// shapes the service index announces (nuget.md section 9.1: the
+	// unversioned family and /3.4.0 → registration/, the SemVer2 family
+	// /3.6.0|Versioned → registration-semver2/).
+	segRegistration       = "registration"
+	segRegistrationSemVer = "registration-semver2"
+	segQuery              = "query"
 
 	// fileIndex is the versions-document and service-index file name.
 	fileIndex = "index.json"
@@ -52,11 +57,14 @@ const (
 	v2IDProp      = "Id"      // the single projection the wire carries
 
 	// sidecar suffixes.
-	suffixNupkg   = ".nupkg"
-	suffixSha512  = ".nupkg.sha512"
-	suffixNuspec  = ".nuspec"
-	pageMarkerSeg = ".page"
-	regMarkerName = ".registration"
+	suffixNupkg  = ".nupkg"
+	suffixSha512 = ".nupkg.sha512"
+	suffixNuspec = ".nuspec"
+	// segPage is the registration page wire segment (the official catalog
+	// page spelling, nuget.md section 9.1's page @id family). The legacy
+	// dotless-ignored spelling (".page", the T-287 marker) keeps routing —
+	// one release's cached documents may still cite it.
+	segPage = "page"
 )
 
 // routeKind enumerates the routable wire targets.
@@ -69,8 +77,9 @@ const (
 	kindPackageFile                // v3 flatcontainer/<id>/<ver>/<id>.<ver>.{nupkg,nupkg.sha512,nuspec}
 	kindPush                       // v3 flatcontainer/<id>/<ver> (PUT/DELETE)
 	kindPushDirect                 // v3 flatcontainer itself (PUT, identity from the nuspec)
-	kindRegistration               // v3 registration/<id>/index.json
-	kindRegistrationPage           // v3 registration/<id>/page/<file>
+	kindRegistration               // v3 registration[-semver2]/<id>/index.json
+	kindRegistrationPage           // v3 registration[-semver2]/<id>/page/<file>
+	kindRegistrationLeaf           // v3 registration[-semver2]/<id>/<version>.json (the display-template family)
 	kindSearch                     // v3 query
 	kindV2ServiceDoc               // v2 base root: GET service document / PUT publish (nuget.md section 2 #1/#17)
 	kindV2Metadata                 // v2 $metadata
@@ -91,7 +100,9 @@ type route struct {
 	id      string // package id key, lowercase (flatcontainer family)
 	version string // version key, normalized lowercase where applicable
 	file    string // packageFile: "nupkg" | "sha512" | "nuspec"; page: the file name
-	path    string // the bare-content storage path / marker storage path / v2 path argument
+	path    string // the bare-content storage path / v2 path argument
+
+	semver2 bool // the registration-semver2 shape (nuget.md section 9.1)
 
 	// The v2 OData family's modifiers (nuget.md section 2).
 	count        bool   // the /$count suffix
@@ -218,8 +229,8 @@ func parseV3(rest string, found bool) (route, bool) {
 			return route{kind: kindPushDirect}, true
 		}
 		return parseFlatContainer(tail, more)
-	case segRegistration:
-		return parseRegistration(tail, more)
+	case segRegistration, segRegistrationSemVer:
+		return parseRegistration(tail, more, seg == segRegistrationSemVer)
 	default:
 		return route{}, false
 	}
@@ -266,8 +277,12 @@ func parseFlatContainer(tail string, more bool) (route, bool) {
 	}
 }
 
-// parseRegistration parses registration/<…>.
-func parseRegistration(tail string, more bool) (route, bool) {
+// parseRegistration parses registration[-semver2]/<…>: the index document,
+// the catalog pages (the official "page" spelling plus the legacy dotless
+// marker), and the single-version leaf (the display-template family,
+// nuget.md section 9.1). semver2 selects the SemVer2 resource family's
+// upstream resolution (section 9.2's ladder).
+func parseRegistration(tail string, more bool, semver2 bool) (route, bool) {
 	if !more || tail == "" {
 		return route{}, false
 	}
@@ -280,19 +295,26 @@ func parseRegistration(tail string, more bool) (route, bool) {
 		return route{}, false
 	}
 	if rest == fileIndex {
-		return route{kind: kindRegistration, id: id, path: regMarker(id)}, true
+		return route{kind: kindRegistration, id: id, semver2: semver2}, true
 	}
 	pageSeg, file, isPage := strings.Cut(rest, "/")
-	if pageSeg != pageMarkerSeg || !isPage || file == "" {
-		return route{}, false
+	if isPage && (pageSeg == segPage || pageSeg == "."+segPage) && file != "" {
+		// Page files are the upstream pagination slugs (lo/hi version
+		// pairs); the segment walk has already rejected dot/empty segments,
+		// and the charset is bounded by the same rules.
+		if len(file) > 128 || strings.ContainsFunc(file, isControlRune) {
+			return route{}, false
+		}
+		return route{kind: kindRegistrationPage, id: id, file: file, semver2: semver2}, true
 	}
-	// Page files are the upstream pagination slugs (lo/hi version pairs);
-	// the segment walk has already rejected dot/empty segments, and the
-	// charset is bounded by the same rules.
-	if len(file) > 128 || strings.ContainsFunc(file, isControlRune) {
-		return route{}, false
+	// The single-version leaf: <version>.json (the version spellings the
+	// upstream keys leaves by are the normalized lowercase ones).
+	if stem, isJSON := strings.CutSuffix(rest, ".json"); isJSON && !strings.Contains(stem, "/") {
+		if norm, ok := normalizeNuGetVersion(stem); ok {
+			return route{kind: kindRegistrationLeaf, id: id, version: norm, semver2: semver2}, true
+		}
 	}
-	return route{kind: kindRegistrationPage, id: id, file: file, path: pageMarker(id, file)}, true
+	return route{}, false
 }
 
 // parseV2 parses the v2 face: nuget.md section 2's 18-endpoint table. The
@@ -463,15 +485,9 @@ func (p pkgRef) nupkg() string  { return p.dir() + "/" + p.id + "." + p.version 
 func (p pkgRef) sha512() string { return p.dir() + "/" + p.id + "." + p.version + suffixSha512 }
 func (p pkgRef) nuspec() string { return p.dir() + "/" + p.id + "." + p.version + suffixNuspec }
 
-// versionsPath is the flatcontainer versions document's storage path (the
-// identity mapping: remote caches live exactly where the wire asks).
+// versionsPath is the flatcontainer versions document's identity tail (the
+// canonical storage spelling local repositories serve by).
 func versionsPath(id string) string { return id + "/" + fileIndex }
-
-// regMarker is the remote registration index's internal cache path.
-func regMarker(id string) string { return id + "/" + regMarkerName }
-
-// pageMarker is a remote registration page's cache path.
-func pageMarker(id, file string) string { return id + "/" + pageMarkerSeg + "/" + file }
 
 // versionOfNupkgNode extracts the version key of one stored nupkg node,
 // verifying the whole flatcontainer spelling (the file name must be

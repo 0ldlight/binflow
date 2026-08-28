@@ -956,20 +956,22 @@ func v2NotFoundMsg(id, version, repoKey string) string {
 }
 
 // serveV2Download renders GET Download/{id}/{version}: the three-level
-// resolution per class (sections 5.3/6). The remote class adds the
-// alternative-download hop — section 5.3's upstream URL
-// <base>/<downloadContextPath>/<id>/<version> (default api/v2/package, the
-// xsd value) — through the engine's marker cache.
+// resolution per class (sections 5.3/6). The remote class walks the
+// dynamically resolved flatcontainer marker first (the section 9.4
+// packageContent rewrite cites THIS face — the v3-cached copy must serve
+// here), then the canonical probe, then the alternative-download hop —
+// section 5.3's upstream URL <base>/<downloadContextPath>/<id>/<version>
+// (default api/v2/package, the xsd value) — through the engine's marker
+// cache.
 func (h *Handler) serveV2Download(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, class string, rt route) {
 	switch class {
 	case repo.TypeRemote:
-		if rc, node, err := h.svc.Get(ctx, p, repoKey, pkgRef{id: rt.id, version: rt.version}.nupkg()); err == nil {
-			h.serveNode(ctx, w, r, node, rc, "application/octet-stream")
-			return
-		}
-		if rc, node, err := h.svc.Get(ctx, p, repoKey, v2DownloadCachePath(rt.id, rt.version)); err == nil {
-			h.serveNode(ctx, w, r, node, rc, "application/octet-stream")
-			return
+		ref := pkgRef{id: rt.id, version: rt.version}
+		for _, path := range []string{h.v3FlatMarkerPath(ctx, p, repoKey, ref.nupkg()), ref.nupkg(), v2DownloadCachePath(rt.id, rt.version)} {
+			if rc, node, err := h.svc.Get(ctx, p, repoKey, path); err == nil {
+				h.serveNode(ctx, w, r, node, rc, "application/octet-stream")
+				return
+			}
 		}
 		writePlain(w, http.StatusNotFound, v2NotFoundMsg(rt.id, rt.version, repoKey))
 	case repo.TypeVirtual:

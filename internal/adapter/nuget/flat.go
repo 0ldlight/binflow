@@ -83,11 +83,14 @@ type versionsDocument struct {
 func (h *Handler) serveVersions(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, class string, rt route) {
 	switch class {
 	case repo.TypeRemote:
-		// Pull-through at the identity path: the engine's cache, TTLs,
-		// negative cache and stale downgrade all apply unmodified.
-		rc, node, err := h.svc.Get(ctx, p, repoKey, rt.path)
+		// Pull-through at the dynamically resolved upstream path (the
+		// section 9.3 .nuGetV3 marker): the engine's cache, TTLs, negative
+		// cache and stale downgrade all apply unmodified.
+		read := h.v3RepoReader(ctx, p, repoKey)
+		flat := v3ResolveUpstreamIndex(read).flatPath()
+		rc, node, err := h.svc.Get(ctx, p, repoKey, v3CachePath(flat, versionsPath(rt.id)))
 		if err != nil {
-			h.writeError(w, err, repoKey, rt.path)
+			h.writeError(w, err, repoKey, rt.id)
 			return
 		}
 		h.serveNode(ctx, w, r, node, rc, "application/json")
@@ -112,8 +115,9 @@ func (h *Handler) serveVersions(ctx context.Context, w http.ResponseWriter, r *h
 	}
 }
 
-// servePackageFile renders the package-file trio. The storage path is the
-// identity mapping on every class.
+// servePackageFile renders the package-file trio. The remote class joins
+// the dynamically resolved upstream flatcontainer base (the .nuGetV3
+// marker); every other class keeps the identity storage mapping.
 func (h *Handler) servePackageFile(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, class string, rt route) {
 	ref := pkgRef{id: rt.id, version: rt.version}
 	var path string
@@ -129,6 +133,22 @@ func (h *Handler) servePackageFile(ctx context.Context, w http.ResponseWriter, r
 		return
 	}
 
+	if class == repo.TypeRemote {
+		// The remote arm addresses the upstream document family directly —
+		// a missing sha512 is the upstream's honest 404 (no synthesis on
+		// the remote class, the T-287 posture).
+		read := h.v3RepoReader(ctx, p, repoKey)
+		flat := v3ResolveUpstreamIndex(read).flatPath()
+		marker := v3CachePath(flat, path)
+		rc, node, err := h.svc.Get(ctx, p, repoKey, marker)
+		if err != nil {
+			h.writeError(w, err, repoKey, marker)
+			return
+		}
+		h.serveNode(ctx, w, r, node, rc, contentTypeOfPackageFile(rt.file))
+		return
+	}
+
 	// The sha512 sidecar has a synthesis fallback: a package whose sidecar
 	// is missing (a bare-content upload that skipped push, or a remote
 	// upstream without the file) still answers — the digest is computed
@@ -140,11 +160,44 @@ func (h *Handler) servePackageFile(ctx context.Context, w http.ResponseWriter, r
 	}
 
 	rc, node, err := h.svc.Get(ctx, p, repoKey, path)
-	if err != nil {
-		h.writeError(w, err, repoKey, path)
+	if err == nil {
+		h.serveNode(ctx, w, r, node, rc, contentTypeOfPackageFile(rt.file))
 		return
 	}
-	h.serveNode(ctx, w, r, node, rc, contentTypeOfPackageFile(rt.file))
+	if class == repo.TypeVirtual {
+		// The service's first-hit resolution serves local members and
+		// nuget.org-family remote members at the canonical path; behind its
+		// miss, the REMOTE members' dynamically resolved markers answer
+		// (the heterogeneous-upstream hop the service-level walk cannot
+		// express — the adapter owns the resolution).
+		if rc, node, ok := h.virtualRemotePackageFile(ctx, repoKey, path); ok {
+			h.serveNode(ctx, w, r, node, rc, contentTypeOfPackageFile(rt.file))
+			return
+		}
+	}
+	h.writeError(w, err, repoKey, path)
+}
+
+// virtualRemotePackageFile walks one package-file canonical path through
+// the VIRTUAL's remote members under their dynamically resolved
+// flatcontainer markers (first hit wins; authorization rides the member
+// seam).
+func (h *Handler) virtualRemotePackageFile(ctx context.Context, repoKey, path string) (io.ReadSeekCloser, *metadata.Node, bool) {
+	order, err := h.svc.VirtualMemberOrder(ctx, repoKey)
+	if err != nil {
+		return nil, nil, false
+	}
+	for _, m := range order {
+		if m.Type != repo.TypeRemote {
+			continue
+		}
+		read := h.v3MemberReader(ctx, repoKey, m.Key)
+		marker := v3CachePath(v3ResolveUpstreamIndex(read).flatPath(), path)
+		if rc, node, gerr := h.svc.ReadVirtualMember(ctx, repoKey, m.Key, marker); gerr == nil {
+			return rc, node, true
+		}
+	}
+	return nil, nil, false
 }
 
 // serveSha512Sidecar serves the stored sidecar when it exists, and the
