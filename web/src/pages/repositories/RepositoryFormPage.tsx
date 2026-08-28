@@ -3,6 +3,7 @@ import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
 import Alert from '@mui/material/Alert'
+import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Checkbox from '@mui/material/Checkbox'
 import FormControlLabel from '@mui/material/FormControlLabel'
@@ -622,9 +623,9 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                   {keyErr}
                 </p>
               ) : f.key.trim() !== '' ? (
-                <p className="field-hint" style={{ color: 'var(--bf-success)' }} data-testid="form-key-ok">
+                <Box component="p" className="field-hint" sx={{ color: 'success.main' }} data-testid="form-key-ok">
                   ✓ 可用
-                </p>
+                </Box>
               ) : (
                 <p className="field-hint">规则 [a-z][a-z0-9-]{'{1,62}'}，共 2~63 字符；服务端终裁。</p>
               )}

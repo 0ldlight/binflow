@@ -422,7 +422,7 @@ func cors(allowedOrigins []string) Middleware {
 				h := w.Header()
 				h.Set("Access-Control-Allow-Methods", "GET, HEAD, PUT, POST, DELETE, OPTIONS")
 				h.Set("Access-Control-Allow-Headers",
-					"Authorization, Content-Type, X-Checksum-Sha1, X-Checksum-Sha256, X-Checksum-Md5, X-Checksum-Deploy, X-JFrog-Art-Api, X-Explode-Archive")
+					"Authorization, Content-Type, X-Checksum-Sha1, X-Checksum-Sha256, X-Checksum-Md5, X-Checksum-Deploy, X-JFrog-Art-Api, X-Explode-Archive, X-Explode-Archive-Atomic")
 				w.WriteHeader(http.StatusNoContent)
 				return
 			}

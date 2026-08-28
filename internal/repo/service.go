@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/lzwzzy/binflow/internal/metadata"
@@ -46,6 +48,28 @@ type service struct {
 	// nil keeps the static five-type enum as the whole legality check —
 	// the pre-M10 posture, byte-identical M9 behavior (invariant 1).
 	pkgGate PackageTypeGate
+	// cmObserver is the copy-side index-recompute seam (M12 T-339,
+	// repo-operations section 1.4's "copy triggers the async metadata
+	// recalculation over the candidate directories"): wired by
+	// AttachCopyMoveObserver after New. nil (the default, and every stack
+	// until the adapters' reindex kernels are wired at cmd assembly)
+	// keeps the trigger a no-op.
+	cmObserver CopyMoveObserver
+	// folderCfg/folderSlots are the folder-download configuration and its
+	// concurrency semaphore (M12 T-343, repo-operations section 2.1):
+	// installed by ConfigureFolderDownload (assembly/tests), spec defaults
+	// otherwise.
+	folderMu    sync.Mutex
+	folderCfg   FolderDownloadConfig
+	folderSlots chan struct{}
+	// trashCfg/trashGate/trashRepoSeen are the trash-can state (M12 T-345,
+	// FR-106): the ZERO config is disabled — the M11 hard-delete posture
+	// every pre-T-345 stack keeps. ConfigureTrash installs it, the gate is
+	// the license seam (nil = unlocked), and trashRepoSeen memoizes the
+	// built-in repository row's first materialization.
+	trashCfg      TrashConfig
+	trashGate     TrashGate
+	trashRepoSeen atomic.Bool
 }
 
 // newService wires the collaborators; New is the public constructor with the
@@ -68,7 +92,11 @@ func newService(st storage.Engine, md metadata.Store, az Authorizer, au AuditLog
 	}
 	// The search seam rides the same store handle; see the struct field.
 	search, _ := md.Nodes().(metadata.NodeSearcher)
-	return &service{st: st, md: md, az: az, au: au, nowFn: now, remoteEng: eng, cipher: eng.Cipher(), search: search}
+	svc := &service{st: st, md: md, az: az, au: au, nowFn: now, remoteEng: eng, cipher: eng.Cipher(), search: search}
+	// The folder-download face starts at the §2.1 spec defaults (enabled
+	// off); ConfigureFolderDownload replaces them at assembly time.
+	svc.setFolderDownloadConfig(defaultFolderDownloadConfig)
+	return svc
 }
 
 var _ Service = (*service)(nil)
@@ -420,6 +448,9 @@ func (s *service) PutWithOptions(ctx context.Context, p *Principal, repoKey, pat
 	if err := validateNodePath(path); err != nil {
 		return nil, err
 	}
+	if err := guardSystemRepo(repoKey, "deploying content"); err != nil {
+		return nil, err
+	}
 	// Deploy properties are validated before anything is gated or drained:
 	// an illegal matrix set must die as a 400 with zero side effects (the
 	// atomic-rejection posture every other input shape upholds).
@@ -597,6 +628,9 @@ func (s *service) PutFromBlob(ctx context.Context, p *Principal, repoKey, path s
 	if err := validateNodePath(path); err != nil {
 		return nil, err
 	}
+	if err := guardSystemRepo(repoKey, "deploying content"); err != nil {
+		return nil, err
+	}
 	if isFolderNode(path) {
 		return nil, fmt.Errorf("folder deploy %s/%s: %w: checksum deploy targets files only", repoKey, path, ErrInvalidPath)
 	}
@@ -722,6 +756,9 @@ func (s *service) PutLandedBlob(ctx context.Context, p *Principal, repoKey, path
 		return nil, err
 	}
 	if err := validateNodePath(path); err != nil {
+		return nil, err
+	}
+	if err := guardSystemRepo(repoKey, "deploying content"); err != nil {
 		return nil, err
 	}
 	if isFolderNode(path) {
@@ -1120,11 +1157,22 @@ func isUniqueViolation(err error) bool {
 //
 // M3 (T-71): a VIRTUAL repository delete is ALWAYS the 405 — deletes do not
 // propagate through the member resolution (see refuseVirtualDelete).
+//
+// M12 (T-345, FR-106): a LOCAL repository delete is trash-captured first
+// when the feature is on (ConfigureTrash + the license gate): the node tree
+// is copied into auto-trashcan under the system identity and marked with
+// the trash five-tuple BEFORE any source row drops. A capture failure
+// aborts the delete (fail-closed); locally-generated index families are
+// skipped (trashSkipPath); the zero configuration keeps the M11 hard
+// delete byte-for-byte.
 func (s *service) Delete(ctx context.Context, p *Principal, repoKey, path string) error {
 	if err := requireAuthenticated(p); err != nil {
 		return err
 	}
 	if err := validateNodePath(path); err != nil {
+		return err
+	}
+	if err := guardSystemRepo(repoKey, "deleting content"); err != nil {
 		return err
 	}
 	row, err := s.loadRepoRow(ctx, repoKey)
@@ -1144,6 +1192,16 @@ func (s *service) Delete(ctx context.Context, p *Principal, repoKey, path string
 	}
 	if !s.allow(ctx, p, repoKey, path, ActionDelete) {
 		return fmt.Errorf("delete %s/%s: %w", repoKey, path, ErrForbidden)
+	}
+
+	// The trash capture (T-345): only LOCAL artifact content, only when
+	// the feature is live, never the regenerable index families.
+	captured := false
+	if s.trashActive(ctx) && !trashSkipPath(path) {
+		if err := s.captureIntoTrash(ctx, p, repoKey, path); err != nil {
+			return err
+		}
+		captured = true
 	}
 
 	nodes := s.md.Nodes()
@@ -1194,7 +1252,7 @@ func (s *service) Delete(ctx context.Context, p *Principal, repoKey, path string
 		}
 		s.audit(ctx, AuditEvent{
 			Actor: p.Name, Action: AuditActionDelete, Repo: repoKey, Path: path,
-			Detail: fmt.Sprintf(`{"removed":%d}`, removed),
+			Detail: fmt.Sprintf(`{"removed":%d,"trash":%t}`, removed, captured),
 		})
 		return nil
 	}
@@ -1215,7 +1273,12 @@ func (s *service) Delete(ctx context.Context, p *Principal, repoKey, path string
 	if err := s.pruneEmptyParents(ctx, repoKey, path); err != nil {
 		return err
 	}
-	s.audit(ctx, AuditEvent{Actor: p.Name, Action: AuditActionDelete, Repo: repoKey, Path: path})
+	if captured {
+		s.audit(ctx, AuditEvent{Actor: p.Name, Action: AuditActionDelete, Repo: repoKey, Path: path,
+			Detail: `{"trash":true}`})
+	} else {
+		s.audit(ctx, AuditEvent{Actor: p.Name, Action: AuditActionDelete, Repo: repoKey, Path: path})
+	}
 	return nil
 }
 
@@ -1837,6 +1900,11 @@ func (s *service) CreateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 	if r == nil {
 		return nil, fmt.Errorf("%w: repository payload is nil", ErrInvalidRepoKey)
 	}
+	// T-345: the trash can's key is system-owned — a user create squatting
+	// it would shadow the built-in.
+	if err := guardSystemRepo(r.RepoKey, "creating it"); err != nil {
+		return nil, err
+	}
 	if err := validateRepoKey(r.RepoKey); err != nil {
 		return nil, err
 	}
@@ -2011,6 +2079,12 @@ func (s *service) validateVirtualMembers(ctx context.Context, p *Principal, virt
 			return fmt.Errorf("virtual member %q: %w", m, err)
 		}
 		memberRows = append(memberRows, row)
+		if m == TrashRepoKey {
+			// T-345: the trash can never aggregates into a virtual — a
+			// member listing would expose captured (deleted) content to
+			// every reader of the virtual key.
+			return fmt.Errorf("%w: virtual repository member %q is the system trash can", ErrInvalidRepoConfig, m)
+		}
 		if row.Type == TypeVirtual {
 			return fmt.Errorf(
 				"%w: virtual repository member %q is itself virtual (nested virtual repositories are not supported)",
@@ -2163,6 +2237,9 @@ func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 	}
 	if r == nil {
 		return nil, fmt.Errorf("%w: repository payload is nil", ErrInvalidRepoKey)
+	}
+	if err := guardSystemRepo(r.RepoKey, "reconfiguring it"); err != nil {
+		return nil, err
 	}
 	if err := validateRepoKey(r.RepoKey); err != nil {
 		return nil, err
@@ -2349,6 +2426,9 @@ func (s *service) DeleteRepo(ctx context.Context, p *Principal, repoKey string, 
 	// production caller reaches DeleteRepo only through the gated httpapi
 	// handler, so the second door is unobservable, pure defense in depth.
 	if err := requireAdmin(p); err != nil {
+		return err
+	}
+	if err := guardSystemRepo(repoKey, "deleting it"); err != nil {
 		return err
 	}
 	repoRow, err := s.md.Repos().Get(ctx, repoKey)

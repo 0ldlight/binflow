@@ -2,13 +2,26 @@ import { useEffect, useRef, useState } from 'react'
 import type { ComponentPropsWithoutRef, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
+import AppBar from '@mui/material/AppBar'
+import Box from '@mui/material/Box'
+import Breadcrumbs from '@mui/material/Breadcrumbs'
 import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
+import CircularProgress from '@mui/material/CircularProgress'
+import Container from '@mui/material/Container'
 import Divider from '@mui/material/Divider'
-import InputBase from '@mui/material/InputBase'
+import Drawer from '@mui/material/Drawer'
 import IconButton from '@mui/material/IconButton'
+import InputBase from '@mui/material/InputBase'
+import MuiLink from '@mui/material/Link'
+import List from '@mui/material/List'
+import ListItemButton from '@mui/material/ListItemButton'
 import Menu from '@mui/material/Menu'
 import MenuItem from '@mui/material/MenuItem'
+import Paper from '@mui/material/Paper'
+import Toolbar from '@mui/material/Toolbar'
+import Typography from '@mui/material/Typography'
+import type { Theme } from '@mui/material/styles'
 
 import { useAuth } from '../app/AuthContext'
 import { useTheme } from '../app/ThemeContext'
@@ -19,9 +32,9 @@ import { abandonStepUp, useStepUp } from '../lib/stepUpGrant'
 import type { PendingMint } from '../lib/stepUpGrant'
 import { useVersion } from '../lib/useVersion'
 import { errText, isReadOnlyAdmin } from '../lib/api'
-import { badgeChipSx } from '../lib/muiAtoms'
 
-// 双模式壳（console-m8 §1/§2，T-235——Artifactory 对齐 IA 重排）：
+// 双模式壳（console-m8 §1/§2，T-235——Artifactory 对齐 IA 重排；T-344 批 A
+// MUI 原生壳重构，mui-native-visual §4.1）：
 //
 //   应用模式（/dashboard /artifacts /search /profile）
 //     侧栏「应用」分组：仪表盘、制品（跨仓树，T-236）。
@@ -29,12 +42,20 @@ import { badgeChipSx } from '../lib/muiAtoms'
 //     URL 进 /admin/** 即渲染管理侧栏（admin / readonly_admin）；
 //     非 admin 直链保持应用侧栏（L1 预收敛），页面自身 403 收敛（L2）。
 //
+// 骨架 = Drawer(permanent) + AppBar(sticky, elevation 0) + Toolbar(dense
+// 48px) + Container(main, maxWidth 1440) + Breadcrumbs；侧栏 List +
+// ListItemButton（NavLink 承载，DOM 仍 <a class="nav-item active">）。
+// spec 类钩子保名去规（§3.8）：.app-nav / .nav-item / .nav-group-label /
+// .nav-mode-switch / .search-entry 等类名留 DOM 作 inert 钩子，皮肤规则
+// 全部退役（base.css 壳族删除），视觉由 Drawer PaperProps sx（--bf-sidebar
+// 系 token——侧栏身份例外）与 MUI 主题承载。
+//
 // 模式切换 = 侧栏底部常驻项（应用模式显「管理」，管理模式显「返回应用」；
 // readonly_admin 可见——M7 语义保留清单 §7.3，含会话徽章「只读」）。
 // 顶栏（§2.1）：面包屑/标题 · 搜索制品（T-265 起真输入框——Enter 提交跳
 // /search?q=、Esc 清空、最近词下拉沿搜索页 recentSearches，FR-82-AC9）·
-// 帮助 · 主题 · 用户菜单（Quick
-// 动作 = §2.3；仅全量 admin 渲染写入口，readonly_admin 不见快速建仓）。
+// 帮助 · 主题 · 用户菜单（Quick 动作 = §2.3；仅全量 admin 渲染写入口，
+// readonly_admin 不见快速建仓）。
 // 「不建」清单零影子入口（ADR-0029 决策 5）：无 Proxies/包索引/独立
 // 产品入口；单实例无范围下拉（§1.2 单值不渲染口径）。
 // testid 242 锚不随路由改名（console-ux §10/§10.5——W 资产保全）。
@@ -353,9 +374,10 @@ export default function AppShell() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  // 用户菜单（T-300 批次二迁 MUI Menu）：Esc 关闭 / 点击外部（backdrop）关
-  // 闭 / ↑↓ 循环由 Menu+MenuList 原生承载（原自定义 role=menu 键盘清单的
-  // 等价面）；焦点语义按 MUI 惯例——开菜单即聚焦首项、关闭回焦锚钮。
+  // 用户菜单（MUI Menu 原生）：Esc 关闭 / 点击外部（backdrop）关闭 / ↑↓
+  // 循环由 Menu+MenuList 承载；焦点语义按 MUI 惯例——开菜单即聚焦首项、
+  // 关闭回焦锚钮。T-344 批 A 摘 paper sx 复刻块：菜单壳交 MUI 默认
+  // （elevation paper / 主题密度档）。
 
   const doLogout = async () => {
     setMenuOpen(false)
@@ -376,6 +398,7 @@ export default function AppShell() {
   if (status === 'checking') {
     return (
       <div className="boot-screen">
+        <CircularProgress size={18} aria-label="会话验证中" sx={{ mr: 'var(--bf-sp-2)' }} />
         正在验证会话…
       </div>
     )
@@ -390,342 +413,350 @@ export default function AppShell() {
   const groups = mode === 'admin' ? ADMIN_NAV : APP_NAV
   const crumbs = mode === 'admin' || inAdminArea ? adminCrumbs(location.pathname) : null
 
+  // 侧栏条目共通形态：ListItemButton 承载 NavLink（DOM = <a class="nav-item
+  // active">——NavLink 字符串形态自动追加 active 类，isActive 函数形态的
+  // 等价面）；active 视觉经 '&.active' 消费 --bf-sidebar 系 token（侧栏
+  // 身份例外）+ 主题 primary 指示条（console-m8 §2.1）。函数形态 = sx 的
+  // 主题回调（属性级 palette 消费的正确通道）。
+  const navItemSx = (t: Theme) => ({
+    color: 'var(--bf-sidebar-text)',
+    '&:hover': { backgroundColor: 'var(--bf-sidebar-2)' },
+    '&.active': {
+      backgroundColor: 'var(--bf-sidebar-3)',
+      boxShadow: `inset 2px 0 0 ${t.palette.primary.main}`,
+    },
+  })
+
   return (
-    <div className="app">
-      <nav className="app-nav" aria-label="主导航" data-testid="app-nav">
-        <div className="app-nav-brand">
-          <span className="name">
-            BinFlow <span aria-hidden="true">◆</span>
-          </span>
-        </div>
-        <div className="app-nav-items">
-          {groups.map((group, gi) => (
-            <div key={group.title}>
-              <div className={`nav-group-label${gi === 0 ? ' first' : ''}`}>{group.title}</div>
-              {group.entries.map((entry) => (
-                // T-300 批次二：nav 条目换 MUI Button（DOM 仍是 NavLink 渲
-                // 染的 <a class="nav-item active">——shell.spec 的 a.nav-item
-                // 计数断言与 .nav-item 视觉（base.css 后载压过 MUI 默认密
-                // 度）零变化；active 类由 NavLink 字符串形态自动追加
-                // （isActive 函数形态的等价面）
-                <Button
-                  key={entry.to}
-                  variant="text"
-                  component={NavLink}
-                  to={entry.to}
-                  end={entry.end}
-                  className="nav-item"
-                  sx={{
-                    justifyContent: 'flex-start',
-                    textTransform: 'none',
-                    width: '100%',
-                    // 密度带回归 §7.2 的 32px（MUI Button 默认 ~35px）
-                    height: 32,
-                    minHeight: 32,
-                    padding: '0 var(--bf-sp-3)',
-                    color: 'var(--bf-sidebar-text)',
-                    '&:hover': { backgroundColor: 'var(--bf-sidebar-2)' },
-                  }}
-                >
-                  {entry.label}
-                </Button>
-              ))}
-            </div>
-          ))}
-        </div>
-        <div className="app-nav-footer">
-          {/* 模式切换（§1.1）：侧栏底部常驻项；admin / readonly_admin 可见。
-              T-300 批次二换 MUI Button（className 续挂——.nav-item 计数与
-              aria-current/键盘链路不变） */}
-          {canSeeAdmin && (
-            <Button
-              variant="text"
-              className="nav-item nav-mode-switch"
-              data-testid="nav-mode-switch"
-              aria-current={mode === 'admin' ? 'true' : undefined}
-              title={mode === 'admin' ? '返回应用模式' : '进入管理模式（/admin）'}
-              onClick={() => navigate(mode === 'admin' ? APP_HOME : ADMIN_HOME)}
-              sx={{
-                justifyContent: 'flex-start',
-                textTransform: 'none',
-                height: 32,
-                minHeight: 32,
-                padding: '0 var(--bf-sp-3)',
-                color: 'var(--bf-sidebar-text)',
-                '&:hover': { backgroundColor: 'var(--bf-sidebar-2)' },
-              }}
-            >
-              <span aria-hidden="true">{mode === 'admin' ? '↩' : '⚙'}</span>
-              {mode === 'admin' ? '返回应用' : '管理'}
-            </Button>
-          )}
-          {/* 许可行（§1.1）：版本来自 /api/system/version（nav-version 锚不变） */}
-          <div className="app-nav-license">
-            BinFlow <span data-testid="nav-version" lang="en">{version ? `v${version.version}` : '—'}</span> · 单二进制制品仓库
-          </div>
-        </div>
-      </nav>
-      <div className="app-main">
-        <header className="app-topbar">
-          {/* 面包屑/页面标题（§2.1）：管理模式带分组层级（§1.3） */}
-          {crumbs ? (
-            <nav className="topbar-breadcrumb" data-testid="topbar-breadcrumb" aria-label="位置">
-              {crumbs.map((c, i) => (
-                <span key={`${c.label}-${i}`} className="crumb">
-                  {i > 0 && (
-                    <span className="crumb-sep" aria-hidden="true">
-                      /
-                    </span>
-                  )}
-                  {c.to && i < crumbs.length - 1 && canSeeAdmin ? (
-                    <Link to={c.to}>{c.label}</Link>
-                  ) : (
-                    <span className={i === crumbs.length - 1 ? 'crumb-current' : undefined}>{c.label}</span>
-                  )}
-                </span>
-              ))}
-            </nav>
-          ) : (
-            <span className="page-title">{appTitle(location.pathname)}</span>
-          )}
-          <span className="spacer" />
-          {/* 顶栏搜索（§2.1 / FR-82-AC9）：真输入框 + 最近词下拉（样式与
-              搜索页 .search-recent 同形，但自持于 base.css——页面 css 随
-              懒加载分片，顶栏不可依赖）。输入框不加 aria-expanded /
-              aria-autocomplete：role=searchbox 不容这两个属性（axe
-              aria-allowed-attr），完整 combobox 模式（aria-controls +
-              listbox/option）随搜索页一并归后续票统一 */}
-          <div className="search-entry" role="search">
-            <span aria-hidden="true">⌕</span>
-            {/* T-299 批次一：输入本体迁 MUI InputBase（无边框原语）——容器
-                的 surface-3 形态、Esc 两段/↑↓/Enter 键盘链路、⌘K focus+select
-                （inputRef 直指 input）全部零变化 */}
-            <InputBase
-              inputRef={topbarSearchRef}
-              type="search"
-              placeholder="搜索制品…"
-              slotProps={{
-                // data-testid 落 input 本体（topbar-search 锚）；MUI v7 的
-                // slot 类型不容 data-* 属性，按 input 元素 props 断言放行
-                input: {
-                  'data-testid': 'topbar-search',
-                  'aria-label': '搜索制品',
-                  autoComplete: 'off',
-                } as ComponentPropsWithoutRef<'input'>,
-              }}
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value)
-                setRecentOpen(true)
-              }}
-              onFocus={() => setRecentOpen(true)}
-              onBlur={() => {
-                setRecentOpen(false)
-                setRecentActive(-1)
-              }}
-              onKeyDown={onTopbarSearchKeyDown}
-              sx={{ flex: 1, minWidth: 0, fontSize: 'var(--bf-fs-body)' }}
-            />
-            <kbd aria-hidden="true">⌘K</kbd>
-            {recentOpen && recentList.length > 0 && (
-              <div className="topbar-search-recent" data-testid="topbar-search-recent">
-                <div className="search-recent-head">
-                  <span>最近搜索</span>
-                  <button
-                    type="button"
-                    className="copy-btn"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={clearTopbarRecent}
+    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+      {/* 侧栏身份保留（深底 + --bf-sidebar 系 token），实现换 MUI Drawer
+          （mui-native-visual §4.1）；nav 标签语义与 app-nav 锚不动 */}
+      <Drawer
+        variant="permanent"
+        sx={{ width: 224, flexShrink: 0 }}
+        slotProps={{
+          paper: {
+            sx: {
+              width: 224,
+              boxSizing: 'border-box',
+              bgcolor: 'var(--bf-sidebar)',
+              borderRight: '1px solid var(--bf-sidebar-border)',
+              color: 'var(--bf-sidebar-text)',
+              overflowY: 'auto',
+            },
+          },
+        }}
+      >
+        <nav className="app-nav" aria-label="主导航" data-testid="app-nav" style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+          <Box className="app-nav-brand" sx={{ display: 'flex', alignItems: 'baseline', gap: 'var(--bf-sp-2)', padding: 'var(--bf-sp-4)', borderBottom: '1px solid var(--bf-sidebar-border)' }}>
+            <Typography className="name" variant="subtitle1" sx={{ fontWeight: 600, color: 'var(--bf-sidebar-text)' }}>
+              BinFlow <span aria-hidden="true">◆</span>
+            </Typography>
+          </Box>
+          <List className="app-nav-items" component="div" disablePadding sx={{ flex: 1, padding: 'var(--bf-sp-2) var(--bf-sp-1)' }}>
+            {groups.map((group, gi) => (
+              <div key={group.title}>
+                {/* 分组标签：spec 类钩子保名（shell ×6 计数断言）；overline 观感 */}
+                <Typography className={`nav-group-label${gi === 0 ? ' first' : ''}`} variant="overline" component="div" sx={{ padding: 'var(--bf-sp-3) var(--bf-sp-3) var(--bf-sp-1)', color: 'var(--bf-sidebar-text-2)', lineHeight: 1.6, '&.first': { paddingTop: 'var(--bf-sp-1)' } }}>
+                  {group.title}
+                </Typography>
+                {group.entries.map((entry) => (
+                  <ListItemButton
+                    key={entry.to}
+                    component={NavLink}
+                    to={entry.to}
+                    end={entry.end}
+                    className="nav-item"
+                    sx={navItemSx}
                   >
-                    清除历史
-                  </button>
-                </div>
-                <ul className="search-recent-list" aria-label="最近搜索">
-                  {recentList.map((q, i) => (
-                    <li key={q}>
-                      <button
-                        type="button"
-                        className={i === recentActive ? 'active' : ''}
-                        data-testid={`topbar-search-recent-item-${i}`}
-                        lang="en"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => submitTopbarSearch(q)}
-                      >
-                        {q}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+                    {entry.label}
+                  </ListItemButton>
+                ))}
               </div>
-            )}
-          </div>
-          <a
-            className="topbar-help"
-            href="/binflow/docs/"
-            target="_blank"
-            rel="noopener noreferrer"
-            title="帮助文档（新标签页打开）"
-            data-testid="topbar-help"
-          >
-            <span aria-hidden="true">?</span> 帮助
-          </a>
-          {/* 主题切换（T-299 批次一迁 MUI IconButton）：title 原生 tooltip、
-              aria-label、字形与 ThemeContext 翻转链路零变化；32px 密度带与
-              text-2→text 悬停经 token 收口 */}
-          <IconButton
-            aria-label={theme === 'dark' ? '切换亮色主题' : '切换暗色主题'}
-            title={theme === 'dark' ? '切换亮色主题' : '切换暗色主题'}
-            data-testid="topbar-theme-toggle"
-            onClick={() => void toggle()}
-            sx={{
-              width: 32,
-              height: 32,
-              borderRadius: 'var(--bf-r-md)',
-              color: 'var(--bf-text-2)',
-              fontSize: 'var(--bf-fs-h3)',
-              '&:hover': { color: 'var(--bf-text)', backgroundColor: 'var(--bf-surface-2)' },
-            }}
-          >
-            {theme === 'dark' ? '◐' : '◑'}
-          </IconButton>
-          {/* 用户菜单（§2.3）：Quick 动作仅全量 admin（readonly_admin 不见
-              快速建仓等写入口——L4 预收敛，服务端 403 兜底）。T-300 批次二
-              迁 MUI Menu/MenuItem——Esc/backdrop 关闭、↑↓ 循环、关闭回焦锚
-              钮均为 Menu 原生；锚（session-toggle / quick-* / menu-edit-profile
-              / logout-button）全部保持。 */}
-          <div className="session-box topbar-session">
-            <Button
-              variant="text"
-              ref={sessionToggleRef}
-              className="session-toggle"
-              aria-haspopup="menu"
-              aria-expanded={menuOpen}
-              data-testid="session-toggle"
-              onClick={() => setMenuOpen((v) => !v)}
-              sx={{
-                justifyContent: 'flex-start',
-                textTransform: 'none',
-                minWidth: 0,
-                height: 32,
-                minHeight: 32,
-                padding: '0 var(--bf-sp-2)',
-              }}
-            >
-              <span aria-hidden="true">▣</span>
-              <span className="who" data-testid="session-user">
-                {session?.username ?? ''}
-              </span>
-              {admin && !readOnlyAdmin && (
-                <Chip size="small" className="badge neutral" label="admin" sx={badgeChipSx} slots={{ root: 'span' }} />
-              )}
-              {readOnlyAdmin && (
-                <Chip
-                  size="small"
-                  className="badge neutral"
-                  label="只读"
-                  sx={badgeChipSx}
-                  slots={{ root: 'span' }}
-                  data-testid="session-readonly-badge"
-                  title="readonly_admin：管理面只读（服务端 403 兜底）"
-                />
-              )}
-              <span aria-hidden="true">▾</span>
-            </Button>
-            <Menu
-              open={menuOpen}
-              onClose={() => setMenuOpen(false)}
-              anchorEl={sessionToggleRef.current}
-              anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-              transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-              slotProps={{
-                paper: {
-                  // .session-menu 同形复刻：surface-1 底 / border 边框 /
-                  // shadow-2（原 CSS 块随迁移退役，定位交 MUI Popover）
-                  sx: {
-                    background: 'var(--bf-surface-1)',
-                    border: '1px solid var(--bf-border)',
-                    borderRadius: 'var(--bf-r-md)',
-                    boxShadow: 'var(--bf-shadow-2)',
-                    minWidth: 230,
-                    p: 'var(--bf-sp-1)',
-                    '& .MuiMenuItem-root': {
-                      minHeight: 32,
-                      fontSize: 'var(--bf-fs-body)',
-                      color: 'var(--bf-text)',
-                      borderRadius: 'var(--bf-r-sm)',
-                      px: 'var(--bf-sp-3)',
-                      '&:hover': { background: 'var(--bf-surface-2)' },
-                    },
-                  },
-                },
-              }}
-            >
-              {admin && !readOnlyAdmin && (
-                <>
-                  <div className="menu-label" role="presentation">
-                    快速建仓
-                  </div>
-                  <MenuItem
-                    data-testid="quick-set-me-up"
-                    onClick={() => {
-                      setMenuOpen(false)
-                      setSmuOpen(true)
-                    }}
-                  >
-                    Set Me Up
-                  </MenuItem>
-                  <MenuItem component={Link} to="/admin/repositories/new?rclass=local" onClick={() => setMenuOpen(false)}>
-                    新建 Local 仓库
-                  </MenuItem>
-                  <MenuItem
-                    component={Link}
-                    data-testid="quick-new-repo-remote"
-                    to="/admin/repositories/new?rclass=remote"
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    新建 Remote 仓库
-                  </MenuItem>
-                  <MenuItem component={Link} to="/admin/repositories/new?rclass=virtual" onClick={() => setMenuOpen(false)}>
-                    新建 Virtual 仓库
-                  </MenuItem>
-                  <div className="menu-label" role="presentation">
-                    新建
-                  </div>
-                  <MenuItem component={Link} data-testid="quick-new-user" to="/admin/security/users" onClick={() => setMenuOpen(false)}>
-                    新建用户
-                  </MenuItem>
-                  <MenuItem component={Link} to="/admin/security/groups" onClick={() => setMenuOpen(false)}>
-                    新建组
-                  </MenuItem>
-                  <MenuItem
-                    component={Link}
-                    data-testid="quick-new-perm"
-                    to="/admin/security/permissions/new"
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    新建权限
-                  </MenuItem>
-                  <Divider component="div" role="presentation" sx={{ my: 'var(--bf-sp-1)' }} />
-                </>
-              )}
-              <MenuItem component={Link} data-testid="menu-edit-profile" to="/profile" onClick={() => setMenuOpen(false)}>
-                编辑档案
-              </MenuItem>
-              <MenuItem onClick={() => void toggle()}>{theme === 'dark' ? '切换亮色主题' : '切换暗色主题'}</MenuItem>
-              <MenuItem
-                data-testid="logout-button"
-                onClick={() => void doLogout()}
-                sx={{ color: 'var(--bf-danger)', '&:hover': { background: 'var(--bf-surface-2)' } }}
+            ))}
+          </List>
+          <Box className="app-nav-footer" sx={{ display: 'flex', flexDirection: 'column', borderTop: '1px solid var(--bf-sidebar-border)', padding: 'var(--bf-sp-2)' }}>
+            {/* 模式切换（§1.1）：侧栏底部常驻项；admin / readonly_admin 可见。
+                button 元素语义保留（aria-current + Enter 激活链路零变化） */}
+            {canSeeAdmin && (
+              <ListItemButton
+                component="button"
+                type="button"
+                className="nav-item nav-mode-switch"
+                data-testid="nav-mode-switch"
+                aria-current={mode === 'admin' ? 'true' : undefined}
+                title={mode === 'admin' ? '返回应用模式' : '进入管理模式（/admin）'}
+                onClick={() => navigate(mode === 'admin' ? APP_HOME : ADMIN_HOME)}
+                sx={(t) => ({ ...navItemSx(t), marginBottom: 'var(--bf-sp-2)' })}
               >
-                登出
-              </MenuItem>
-            </Menu>
-          </div>
-        </header>
-        <main className="app-content">
+                <span aria-hidden="true">{mode === 'admin' ? '↩' : '⚙'}</span>
+                {mode === 'admin' ? '返回应用' : '管理'}
+              </ListItemButton>
+            )}
+            {/* 许可行（§1.1）：版本来自 /api/system/version（nav-version 锚不变） */}
+            <Typography className="app-nav-license" variant="caption" sx={{ padding: 'var(--bf-sp-1) var(--bf-sp-2)', color: 'var(--bf-sidebar-text-2)' }}>
+              BinFlow <span data-testid="nav-version" lang="en">{version ? `v${version.version}` : '—'}</span> · 单二进制制品仓库
+            </Typography>
+          </Box>
+        </nav>
+      </Drawer>
+      <Box sx={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        {/* 顶栏背景必须不透明（background.default = 旧 .app-topbar 的 --bf-bg
+            同值）：axe color-contrast 在祖先链全透明时会做视觉重叠合成——
+            建仓向导「进页即弹」的 modal scrim（--bf-scrim 45%）叠进合成底，
+            顶栏文字双主题对比度假性炸裂（T-344B 回归修复）。zIndex 恢复
+            §7.2 层次（70 < dropdown 80 < modal 90）：MUI AppBar 默认 1100
+            会浮在 scrim 上，破坏模态全屏遮罩语义 */}
+        <AppBar
+          position="sticky"
+          elevation={0}
+          color="transparent"
+          className="app-topbar"
+          sx={{ backgroundColor: 'background.default', borderBottom: 1, borderColor: 'divider', zIndex: 'var(--bf-z-nav-sticky)' }}
+        >
+          <Toolbar variant="dense" disableGutters sx={{ gap: 'var(--bf-sp-4)', minHeight: 48, padding: '0 var(--bf-sp-5)' }}>
+            {/* 面包屑/页面标题（§2.1）：管理模式带分组层级（§1.3）。
+                Breadcrumbs 根即 nav 容器（topbar-breadcrumb 锚不动） */}
+            {crumbs ? (
+              <Breadcrumbs
+                data-testid="topbar-breadcrumb"
+                className="topbar-breadcrumb"
+                aria-label="位置"
+                separator={<span aria-hidden="true">/</span>}
+                sx={{ minWidth: 0, '& .MuiBreadcrumbs-li': { whiteSpace: 'nowrap' } }}
+              >
+                {crumbs.map((c, i) =>
+                  c.to && i < crumbs.length - 1 && canSeeAdmin ? (
+                    <MuiLink key={`${c.label}-${i}`} component={Link} to={c.to} underline="hover" color="inherit">
+                      {c.label}
+                    </MuiLink>
+                  ) : (
+                    <Typography
+                      key={`${c.label}-${i}`}
+                      component="span"
+                      sx={{ fontWeight: i === crumbs.length - 1 ? 600 : 400, color: i === crumbs.length - 1 ? 'text.primary' : 'text.secondary' }}
+                    >
+                      {c.label}
+                    </Typography>
+                  ),
+                )}
+              </Breadcrumbs>
+            ) : (
+              <Typography component="span" variant="h6" noWrap sx={{ fontSize: 'var(--bf-fs-h3)' }}>
+                {appTitle(location.pathname)}
+              </Typography>
+            )}
+            <Box sx={{ flexGrow: 1 }} />
+            {/* 顶栏搜索（§2.1 / FR-82-AC9）：真输入框 + 最近词下拉（MUI 文档
+                站搜索形态：Paper elevation 0 + InputBase；search-entry 类名保
+                （kbd/媒体查询布局规则）；键盘链路（Esc 两段/↑↓/Enter、⌘K
+                focus+select）零变化。输入框不加 aria-expanded /
+                aria-autocomplete：role=searchbox 不容这两个属性（axe
+                aria-allowed-attr），完整 combobox 模式随搜索页归后续票统一 */}
+            <Paper
+              component="div"
+              role="search"
+              elevation={0}
+              className="search-entry"
+              sx={{
+                position: 'relative',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 'var(--bf-sp-2)',
+                minWidth: 220,
+                maxWidth: 360,
+                padding: '0 var(--bf-sp-3)',
+                border: '1px solid',
+                borderColor: 'divider',
+                color: 'text.secondary',
+                '&:hover': { borderColor: 'text.disabled' },
+                '&:focus-within': { borderColor: 'primary.main' },
+              }}
+            >
+              <span aria-hidden="true">⌕</span>
+              <InputBase
+                inputRef={topbarSearchRef}
+                type="search"
+                placeholder="搜索制品…"
+                slotProps={{
+                  // data-testid 落 input 本体（topbar-search 锚）；MUI v7 的
+                  // slot 类型不容 data-* 属性，按 input 元素 props 断言放行
+                  input: {
+                    'data-testid': 'topbar-search',
+                    'aria-label': '搜索制品',
+                    autoComplete: 'off',
+                  } as ComponentPropsWithoutRef<'input'>,
+                }}
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value)
+                  setRecentOpen(true)
+                }}
+                onFocus={() => setRecentOpen(true)}
+                onBlur={() => {
+                  setRecentOpen(false)
+                  setRecentActive(-1)
+                }}
+                onKeyDown={onTopbarSearchKeyDown}
+                sx={{ flex: 1, minWidth: 0 }}
+              />
+              <kbd aria-hidden="true">⌘K</kbd>
+              {recentOpen && recentList.length > 0 && (
+                <div className="topbar-search-recent" data-testid="topbar-search-recent">
+                  <div className="search-recent-head">
+                    <span>最近搜索</span>
+                    <button
+                      type="button"
+                      className="copy-btn"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={clearTopbarRecent}
+                    >
+                      清除历史
+                    </button>
+                  </div>
+                  <ul className="search-recent-list" aria-label="最近搜索">
+                    {recentList.map((q, i) => (
+                      <li key={q}>
+                        <button
+                          type="button"
+                          className={i === recentActive ? 'active' : ''}
+                          data-testid={`topbar-search-recent-item-${i}`}
+                          lang="en"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => submitTopbarSearch(q)}
+                        >
+                          {q}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </Paper>
+            <a
+              className="topbar-help"
+              href="/binflow/docs/"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="帮助文档（新标签页打开）"
+              data-testid="topbar-help"
+            >
+              <span aria-hidden="true">?</span> 帮助
+            </a>
+            {/* 主题切换：title 原生 tooltip、aria-label、字形与
+                ThemeContext 翻转链路零变化；皮肤交 MUI 默认 */}
+            <IconButton
+              aria-label={theme === 'dark' ? '切换亮色主题' : '切换暗色主题'}
+              title={theme === 'dark' ? '切换亮色主题' : '切换暗色主题'}
+              data-testid="topbar-theme-toggle"
+              onClick={() => void toggle()}
+            >
+              {theme === 'dark' ? '◐' : '◑'}
+            </IconButton>
+            {/* 用户菜单（§2.3）：Quick 动作仅全量 admin（readonly_admin 不见
+                快速建仓等写入口——L4 预收敛，服务端 403 兜底）。Esc/backdrop
+                关闭、↑↓ 循环、关闭回焦锚钮均为 Menu 原生；锚
+                （session-toggle / quick-* / menu-edit-profile / logout-button）
+                全部保持。Chip 根 span（button 内禁嵌 interactive） */}
+            <div>
+              <Button
+                color="inherit"
+                ref={sessionToggleRef}
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                data-testid="session-toggle"
+                onClick={() => setMenuOpen((v) => !v)}
+                sx={{ minWidth: 0, padding: '0 var(--bf-sp-2)' }}
+              >
+                <span aria-hidden="true">▣</span>
+                <span data-testid="session-user" style={{ fontWeight: 600 }}>
+                  {session?.username ?? ''}
+                </span>
+                {admin && !readOnlyAdmin && (
+                  <Chip size="small" color="default" label="admin" component="span" />
+                )}
+                {readOnlyAdmin && (
+                  <Chip
+                    size="small"
+                    color="default"
+                    label="只读"
+                    component="span"
+                    data-testid="session-readonly-badge"
+                    title="readonly_admin：管理面只读（服务端 403 兜底）"
+                  />
+                )}
+                <span aria-hidden="true">▾</span>
+              </Button>
+              <Menu
+                open={menuOpen}
+                onClose={() => setMenuOpen(false)}
+                anchorEl={sessionToggleRef.current}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+              >
+                {admin && !readOnlyAdmin && (
+                  <>
+                    <div className="menu-label" role="presentation">
+                      快速建仓
+                    </div>
+                    <MenuItem
+                      data-testid="quick-set-me-up"
+                      onClick={() => {
+                        setMenuOpen(false)
+                        setSmuOpen(true)
+                      }}
+                    >
+                      Set Me Up
+                    </MenuItem>
+                    <MenuItem component={Link} to="/admin/repositories/new?rclass=local" onClick={() => setMenuOpen(false)}>
+                      新建 Local 仓库
+                    </MenuItem>
+                    <MenuItem
+                      component={Link}
+                      data-testid="quick-new-repo-remote"
+                      to="/admin/repositories/new?rclass=remote"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      新建 Remote 仓库
+                    </MenuItem>
+                    <MenuItem component={Link} to="/admin/repositories/new?rclass=virtual" onClick={() => setMenuOpen(false)}>
+                      新建 Virtual 仓库
+                    </MenuItem>
+                    <div className="menu-label" role="presentation">
+                      新建
+                    </div>
+                    <MenuItem component={Link} data-testid="quick-new-user" to="/admin/security/users" onClick={() => setMenuOpen(false)}>
+                      新建用户
+                    </MenuItem>
+                    <MenuItem component={Link} to="/admin/security/groups" onClick={() => setMenuOpen(false)}>
+                      新建组
+                    </MenuItem>
+                    <MenuItem
+                      component={Link}
+                      data-testid="quick-new-perm"
+                      to="/admin/security/permissions/new"
+                      onClick={() => setMenuOpen(false)}
+                    >
+                      新建权限
+                    </MenuItem>
+                    <Divider component="div" role="presentation" sx={{ my: 'var(--bf-sp-1)' }} />
+                  </>
+                )}
+                <MenuItem component={Link} data-testid="menu-edit-profile" to="/profile" onClick={() => setMenuOpen(false)}>
+                  编辑档案
+                </MenuItem>
+                <MenuItem onClick={() => void toggle()}>{theme === 'dark' ? '切换亮色主题' : '切换暗色主题'}</MenuItem>
+                <MenuItem data-testid="logout-button" color="error" onClick={() => void doLogout()}>
+                  登出
+                </MenuItem>
+              </Menu>
+            </div>
+          </Toolbar>
+        </AppBar>
+        <Container component="main" maxWidth={false} sx={{ maxWidth: 1440, px: 'var(--bf-sp-5)', py: 'var(--bf-sp-5)' }}>
           <Outlet />
-        </main>
-      </div>
+        </Container>
+      </Box>
       {/* 全局 Set Me Up 入口承载（quick-set-me-up 接线，T-244）+ OIDC
           step-up 回跳续铸承载（T-260）——modal 层 fixed 定位不随壳布局；
           关闭回焦菜单钮（续铸态关闭 = 放弃 grant + pending） */}
@@ -743,6 +774,6 @@ export default function AppShell() {
           }}
         />
       )}
-    </div>
+    </Box>
   )
 }

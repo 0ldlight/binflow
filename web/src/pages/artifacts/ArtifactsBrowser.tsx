@@ -1360,7 +1360,6 @@ function TreeContextMenu({
         list: { 'aria-label': '操作菜单' } as ComponentPropsWithoutRef<'ul'>,
         paper: {
           sx: {
-            background: 'var(--bf-surface-1)',
             border: '1px solid var(--bf-border)',
             borderRadius: 'var(--bf-r-md)',
             boxShadow: 'var(--bf-shadow-2)',

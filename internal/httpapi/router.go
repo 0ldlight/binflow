@@ -769,6 +769,75 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		}
 		notImplemented(w, "/binflow/api/"+rest)
 
+	// ---- /api/copy, /api/move (M12 T-339, FR-105.1 / repo-operations.md
+	// sections 0/1) ----
+	// POST is the only verb with a route; the bare and keyless spellings
+	// still reach the handler so IT can answer the spec's 400 parameter
+	// messages ("Source repository key is empty"), not the E-26 404. The
+	// route demands authentication (RolesAllowed admin,user — the family's
+	// per-item chain is the real permission matrix); the license gate is
+	// the handler's first line (Q4: the family rides the pro slot).
+	case rest == "copy" || rest == "copy/" || strings.HasPrefix(rest, "copy/"):
+		if r.Method != http.MethodPost {
+			notImplemented(w, "/binflow/api/"+rest)
+			return
+		}
+		s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+			s.handleCopyMove(w, r, "copy", rest)
+		})
+	case rest == "move" || rest == "move/" || strings.HasPrefix(rest, "move/"):
+		if r.Method != http.MethodPost {
+			notImplemented(w, "/binflow/api/"+rest)
+			return
+		}
+		s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+			s.handleCopyMove(w, r, "move", rest)
+		})
+
+	// ---- /api/archive/download/{repoKey}[/{path}] (M12 T-343, FR-105.3 /
+	// repo-operations.md sections 0/2) ----
+	// The folder download. GET is the only verb with a route; the route
+	// carries NO required gate — the §2.2 template's anonymous 401 carries
+	// its own spec wording inside the handler, and a route-level 401
+	// challenge would mask it. The license gate (the family's shared
+	// repo-operations slot) is the handler's first line.
+	case rest == "archive/download" || rest == "archive/download/" || strings.HasPrefix(rest, "archive/download/"):
+		if r.Method != http.MethodGet {
+			notImplemented(w, "/binflow/api/"+rest)
+			return
+		}
+		s.enforce(w, r, routeAuth{}, func(w http.ResponseWriter, r *http.Request) {
+			s.handleArchiveDownload(w, r, rest)
+		})
+
+	// ---- /api/trash (M12 T-345, FR-106 / inv-2-surface section 1.A) ----
+	// The trash family's three verbs: POST empty, POST restore/{path}
+	// (to/transaction-size ride the query), DELETE clean/{path}. Browsing
+	// is NOT a fourth route — the standing storage face serves
+	// /api/storage/auto-trashcan (item info, ?list, ?properties), the
+	// console tree's Trash Can node. The route gate is system:write (the
+	// destructive-management posture of the gc/cleanup family:
+	// readonly_admin 403); the license gate is the handler's first line
+	// (the Q3 interim: the trashcan slot rides at pro).
+	case rest == "trash/empty" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleTrashEmpty)
+	case rest == "trash/restore" || rest == "trash/restore/" || strings.HasPrefix(rest, "trash/restore/"):
+		if r.Method != http.MethodPost {
+			notImplemented(w, "/binflow/api/"+rest)
+			return
+		}
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, func(w http.ResponseWriter, r *http.Request) {
+			s.handleTrashRestore(w, r, rest)
+		})
+	case rest == "trash/clean" || rest == "trash/clean/" || strings.HasPrefix(rest, "trash/clean/"):
+		if r.Method != http.MethodDelete {
+			notImplemented(w, "/binflow/api/"+rest)
+			return
+		}
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, func(w http.ResponseWriter, r *http.Request) {
+			s.handleTrashClean(w, r, rest)
+		})
+
 	// ---- /api/search (SR-01/SR-02, T-92) ----
 	// Exactly two entrances open the M1 E-26 search domain (PRD M4: the
 	// domain opens artifact + checksum only); every other family member —
@@ -1186,7 +1255,24 @@ func contentAction(method string) (action string, required bool) {
 // by repo name and does not depend on the repo row existing — then the
 // adapter receives the request with the /binflow prefix stripped and the
 // principal in its own context seam.
+//
+// Two archive-family intercepts (M12 T-343) live on this plane because
+// their addressing is CROSS-PROTOCOL, not a package-type concern:
+//
+//   - a decoded "!/" marker addresses an ARCHIVE MEMBER (section 3) — it
+//     is split and served before the adapter dispatch, so every mounted
+//     protocol gets the family uniformly;
+//   - a PUT carrying X-Explode-Archive[: -Atomic] (section 4) is the
+//     exploded upload — intercepted inside the inner handler AFTER the
+//     RBAC write gate and the package-type gate, BEFORE the adapter
+//     dispatch (the M10 E-25 explicit 400 refusal, reversed per PRD
+//     105.3; the adapters' own refusal arm stays as their bare-mount
+//     defense, unreachable through this router).
 func (s *Server) dispatchContent(w http.ResponseWriter, r *http.Request, _ string) {
+	if tail, ok := archiveMemberTail(r); ok {
+		s.handleArchiveMember(w, r, tail)
+		return
+	}
 	action, required := contentAction(r.Method)
 	p := principalFrom(r.Context())
 
@@ -1204,6 +1290,19 @@ func (s *Server) dispatchContent(w http.ResponseWriter, r *http.Request, _ strin
 		// (D1); the adapter-internal writes behind this point (a remote
 		// pull-through landing its copy) never re-ask the question.
 		if required && !s.gateAddonWrite(w, r, repoKey, row.PackageType) {
+			return
+		}
+		// The exploded-upload intercept: the trigger headers are consumed
+		// before any adapter sees the request (section 4; the license
+		// question rides the family's shared repo-operations slot, asked
+		// after the RBAC and package-type gates above).
+		intent, explode, err := explodeIntent(r)
+		switch {
+		case err != nil:
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		case explode:
+			s.handleExplode(w, r, repoKey, intent)
 			return
 		}
 		h, ok := s.adapters[row.PackageType]

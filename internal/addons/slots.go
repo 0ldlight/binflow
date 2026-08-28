@@ -204,6 +204,26 @@ func HA() Addon {
 	}
 }
 
+// RepoOperations is the artifact-operations family's feature slot (M12
+// T-339, pro): copy/move now, the archive trio (folder zip, archive!/
+// member reads, exploded upload — T-343) on the same entitlement. The tier
+// ruling is the Q4 final decision (BOARD M12, user 2026-08-28): Artifactory
+// lists the ENTIRE operations family at pro (repo-operations.md section 6's
+// three-way evidence — the REST addon's MissingRestAddonException, the
+// Filtered-resources 403, the RestCoreAddon explode refusal), and BinFlow
+// mirrors the posture instead of keeping PRD 105.4's interim no-gate. The
+// trash-can chain's internal restore moves bypass the gate through the
+// service-layer system seam, never this slot (T-345's consumer contract).
+func RepoOperations() Addon {
+	return Addon{
+		ID:          "repo-operations",
+		Kind:        KindFeature,
+		MinTier:     license.TierPro,
+		DisplayName: "Repository Operations",
+		Description: "Copy and move artifacts across repositories with dry-run, permission checks and property carry; the archive family (folder download, archive member reads, exploded upload) joins this slot.",
+	}
+}
+
 // XrayIntegration is the enterprise Xray-integration placeholder slot.
 func XrayIntegration() Addon {
 	return Addon{
@@ -212,5 +232,26 @@ func XrayIntegration() Addon {
 		MinTier:     license.TierEnterprise,
 		DisplayName: "Xray Integration",
 		Description: "Artifact scanning integration surface (slot reserved — the feature body lands M11+).",
+	}
+}
+
+// Trashcan is the trash-can feature slot (M12 T-345, FR-106). The tier
+// marked here is PRD 106.4's INTERIM ruling (Q3's 暂行 pro+); the terminal
+// decision rides the T-345 evidence brief — the reverse-docs record shows
+// NO addon gating on the Artifactory side (inv-4's addon inventory lists
+// no trash entry; the OSS repo's rest-common carries the trash service
+// base; the OSS config template ships trashcanConfig), so flipping this
+// to TierCommunity is the recommended terminal shape and a one-line change
+// (the gate, view and delete-seam behavior follow the slot, FR-86-AC2's
+// single-source rule). Kind is KindFeature — BinFlow has no separate
+// feature-gov kind (the PRD's 暂定 naming); the governance flavor is the
+// description's, registered.
+func Trashcan() Addon {
+	return Addon{
+		ID:          "trashcan",
+		Kind:        KindFeature,
+		MinTier:     license.TierPro,
+		DisplayName: "Trash Can",
+		Description: "Soft-delete safety net: deletes are captured into the built-in auto-trashcan with provenance properties, 14-day retention, restore/empty/clean.",
 	}
 }

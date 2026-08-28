@@ -218,7 +218,7 @@ function ReplicationBody({ data, staleError }: { data: ReplicationStatus; staleE
                     <TableCell
                       className="mono"
                       lang="en"
-                      sx={t.failed > 0 ? { color: 'var(--bf-danger)' } : undefined}
+                      sx={t.failed > 0 ? { color: 'error.main' } : undefined}
                     >
                       {formatCount(t.failed)}
                     </TableCell>

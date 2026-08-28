@@ -333,6 +333,10 @@ func runServe(args []string, stderr io.Writer) error {
 	// The unused-cleanup cron (T-324, FR-102.2): one pass per hour, apply
 	// mode. Exits with the signal context.
 	go stack.cleanupEng.Run(ctx)
+	// The trash-can retention cron (T-345, FR-106.3): one pass per hour,
+	// purging entries past the retention window. Exits with the signal
+	// context (the same no-drain posture as the cleanup cron).
+	go stack.trashEng.Run(ctx)
 
 	err = srv.Run(ctx)
 	if err != nil {
@@ -591,9 +595,13 @@ func addonManifest() *addons.Registry {
 		// Gated pilot package-type slots (pro; the adapters land with their
 		// own tickets — the slots exist so gate/view/legal-set are complete).
 		addons.Go(), addons.NuGet(), addons.Cargo(), addons.Conan(), addons.Helm(), addons.Rpm(), addons.Debian(),
-		// Feature slots: properties on the floor, the enterprise
-		// placeholders visible with their M11+ reservation notes.
-		addons.Properties(), addons.HA(), addons.XrayIntegration(),
+		// Feature slots: properties on the floor, repo-operations at pro
+		// (the Q4 final ruling — the copy/move/archive family mirrors
+		// Artifactory's entitlement posture), trashcan at pro (the Q3
+		// INTERIM — T-345's evidence brief recommends community; the flip
+		// is this manifest's one tier value), the enterprise placeholders
+		// visible with their M11+ reservation notes.
+		addons.Properties(), addons.RepoOperations(), addons.Trashcan(), addons.HA(), addons.XrayIntegration(),
 	)
 }
 
@@ -851,6 +859,14 @@ type stack struct {
 	// cancellation, see RunOnce's WithoutCancel).
 	cleanupEng *repo.CleanupEngine
 
+	// trashEng is the trash-can retention engine (M12 T-345, FR-106.3):
+	// built in openStack over the same store/audit collaborators plus the
+	// trashcan slot's license verdict; its hourly Run loop starts with the
+	// signal context like the cleanup cron (node-row purges only — no
+	// maintenance lock to coordinate, blob reclamation is the standing
+	// GC's).
+	trashEng *repo.TrashEngine
+
 	// addonsReg is the assembled addon manifest (M10 T-282/T-283): ONE
 	// registry per process — the repo-create gate seam (openStack, weave 2)
 	// and the HTTP surface's Deps.Addons (newAssembledServer) read the same
@@ -1086,6 +1102,26 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 	addonsReg := addonManifest()
 	repo.AttachPackageTypeGate(svc, packageTypeGate{reg: addonsReg, ev: licenseMgr})
 
+	// The trash can (M12 T-345, FR-106): the feature configuration (spec
+	// defaults — enabled, 14-day retention; the config.yaml field is a
+	// registered follow-up) plus the license-plane gate over the trashcan
+	// slot (community keeps the M11 hard delete; pro captures), and the
+	// retention cron over the same store/audit collaborators.
+	repo.ConfigureTrash(svc, repo.DefaultTrashConfig())
+	repo.AttachTrashGate(svc, trashcanGate{reg: addonsReg, ev: licenseMgr})
+	trashEng, err := repo.NewTrashEngine(repo.TrashEngineOptions{
+		Store:         md,
+		Audit:         auditLog,
+		Gate:          trashcanGate{reg: addonsReg, ev: licenseMgr},
+		RetentionDays: repo.TrashDefaultRetentionDays,
+	})
+	if err != nil {
+		_ = replDB.Close()
+		_ = st.Close()
+		_ = md.Close()
+		return nil, fmt.Errorf("trash retention engine: %w", err)
+	}
+
 	return &stack{
 		md:             md,
 		st:             st,
@@ -1102,9 +1138,24 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 		replCipher:     replCipher,
 		licenseMgr:     licenseMgr,
 		cleanupEng:     cleanupEng,
+		trashEng:       trashEng,
 		addonsReg:      addonsReg,
 		dataDir:        cfg.Storage.DataDir,
 	}, nil
+}
+
+// trashcanGate joins the assembled addon manifest with the license Manager
+// onto repo.TrashGate (the packageTypeGate posture: the one adapter both
+// collaborators meet at; repo imports neither package).
+type trashcanGate struct {
+	reg *addons.Registry
+	ev  addons.Evaluator // *license.Manager
+}
+
+// Unlocked implements repo.TrashGate.
+func (g trashcanGate) Unlocked(ctx context.Context) bool {
+	st, ok := g.reg.StatusOf(ctx, g.ev, addons.Trashcan().ID)
+	return ok && st.Enable
 }
 
 // openReplicationDB opens the replication store's own connection pool on

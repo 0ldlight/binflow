@@ -31,6 +31,8 @@ const CORE_PKG = ['generic', 'docker', 'maven', 'npm', 'pypi'] as const
 const PRO_PKG = ['go', 'nuget', 'cargo', 'conan', 'helm', 'rpm', 'debian'] as const
 const NEW_PRO_PKG = ['conan', 'helm', 'rpm', 'debian'] as const
 const ENT_FEATURES = ['ha', 'xray-integration'] as const
+// T-339 (Q4 照搬 pro) + T-345 (Q3 暂行 pro)：第 16/17 槽
+const PRO_FEATURES = ['repo-operations', 'trashcan'] as const
 
 test.beforeEach(async ({ request }) => {
   const probe = await request.get('/binflow/ui/')
@@ -60,11 +62,11 @@ test('L27a: admin — nav entry, community floor card, live addons matrix', asyn
   // 空文档装载钮禁用（表单零坏请求）
   await expect(page.locator('[data-testid="license-install"]')).toBeDisabled()
 
-  // 矩阵：装配序全槽位（AC1 ≥10；T-327F 裁定后 = 15）
+  // 矩阵：装配序全槽位（AC1 ≥10；T-327F =15，T-339/T-345 增 repo-operations/trashcan 后 = 17）
   await expect(page.locator('[data-testid="addons-card"]')).toBeVisible()
   const rows = page.locator('[data-testid="addons-table"] tbody tr')
-  await expect(rows).toHaveCount(15)
-  for (const id of [...CORE_PKG, ...PRO_PKG, ...ENT_FEATURES, 'properties']) {
+  await expect(rows).toHaveCount(17)
+  for (const id of [...CORE_PKG, ...PRO_PKG, ...ENT_FEATURES, ...PRO_FEATURES, 'properties']) {
     await expect(page.locator(`[data-testid="addons-row-${id}"]`)).toBeVisible()
   }
   // 五核心 + properties：地板无档位徽章（「—」），状态已解锁
@@ -80,6 +82,11 @@ test('L27a: admin — nav entry, community floor card, live addons matrix', asyn
   for (const id of ENT_FEATURES) {
     await expect(page.locator(`[data-testid="addons-tier-${id}"]`)).toHaveText('enterprise')
     await expect(page.locator(`[data-testid="addons-state-${id}"]`)).toContainText('需要 enterprise')
+  }
+  // T-339/T-345 两 feature 槽同走 pro 断言
+  for (const id of PRO_FEATURES) {
+    await expect(page.locator(`[data-testid="addons-tier-${id}"]`)).toHaveText('pro')
+    await expect(page.locator(`[data-testid="addons-state-${id}"]`)).toContainText('需要 pro')
   }
   // Kind 徽章 = wire 值（package-type | feature）
   await expect(page.locator('[data-testid="addons-row-go"] .badge', { hasText: 'package-type' })).toBeVisible()

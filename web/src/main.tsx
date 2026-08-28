@@ -2,6 +2,8 @@ import { StrictMode, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 
+import CircularProgress from '@mui/material/CircularProgress'
+
 import { AuthProvider } from './app/AuthContext'
 import { ConfirmProvider } from './components/ConfirmDialog'
 import { MuiProvider } from './app/MuiProvider'
@@ -67,8 +69,14 @@ const LicenseAddonsPage = lazy(() => import('./pages/admin/LicenseAddonsPage'))
 const AuthConfigPage = lazy(() => import('./pages/admin/authconfig/AuthConfigPage'))
 const AppShell = lazy(() => import('./components/AppShell'))
 
+// 路由分片加载态（T-344 批 A 改薄，mui-native-visual §4.1）：CircularProgress
 function RouteFallback() {
-  return <div className="route-fallback">加载中…</div>
+  return (
+    <div className="route-fallback">
+      <CircularProgress size={18} aria-label="页面加载中" sx={{ mr: 'var(--bf-sp-2)' }} />
+      加载中…
+    </div>
+  )
 }
 
 createRoot(document.getElementById('root')!).render(

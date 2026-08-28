@@ -1,6 +1,8 @@
 package conan
 
 import (
+	"encoding/json"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -155,4 +157,131 @@ func requireConan1(t *testing.T) (string, string) {
 	}
 	t.Fatal("conan 1.x not found on PATH (pip install conan==1.66.0)")
 	return "", ""
+}
+
+// TestConan1PackagesDeleteUnderscoreRef drives the real conan 1.66 client's
+// packages-only remote remove against the `_/_` coordinate form (D-F). A
+// ref without user/channel serializes as `_/_` on the v1 wire
+// (client_routes: `ref.user or "_"`), and `conan remove <ref> -q ... -r` is
+// the client's POST packages/delete leg: it lists the pids through the v1
+// ref search, then posts the whole batch — a 404 there fails the command
+// outright (remover raises NotFoundException on a concrete ref).
+//
+// Legs: anonymous-ref create/upload (the conan-2-shaped `_/_` coordinate,
+// reached through the conan 1 wire), real-client packages-only remove on
+// the `_/_` form, the same on the user/channel form, and the raw D-F wire
+// (a batch mixing a live pid with a stale one) asserted at 200 + tree gone.
+func TestConan1PackagesDeleteUnderscoreRef(t *testing.T) {
+	if os.Getenv("BINFLOW_T308_CLIENT1_E2E") != "1" {
+		t.Skip("set BINFLOW_T308_CLIENT1_E2E=1 (with a conan 1.x on PATH) to run the conan 1 client matrix")
+	}
+	conanBin, _ := requireConan1(t)
+
+	s := newStack(t)
+	s.seedRepo(t, "conan-local", repo.TypeLocal)
+	home := t.TempDir()
+	run := func(t *testing.T, args ...string) string {
+		t.Helper()
+		cmd := exec.Command(conanBin, args...)
+		cmd.Env = append(os.Environ(), "CONAN_USER_HOME="+home)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("conan %s: %v\n%s", strings.Join(args, " "), err, out)
+		}
+		return string(out)
+	}
+	profiles := filepath.Join(home, ".conan", "profiles")
+	if err := os.MkdirAll(profiles, 0o755); err != nil {
+		t.Fatalf("mkdir profiles: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(profiles, "default"), []byte(conan1Profile), 0o644); err != nil {
+		t.Fatalf("write profile: %v", err)
+	}
+	run(t, "remote", "add", "binflow", s.srv.URL+"/binflow/conan-local", "--force")
+	run(t, "user", "-p", adminPass, "-r", "binflow", adminUser)
+
+	src := t.TempDir()
+	if err := os.WriteFile(filepath.Join(src, "conanfile.py"), []byte(conan1Recipe), 0o644); err != nil {
+		t.Fatalf("write recipe: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(src, "payload.txt"), []byte("anon payload"), 0o644); err != nil {
+		t.Fatalf("write payload: %v", err)
+	}
+
+	// pidOf reads the server's own v1 ref search for the named ref form.
+	pidOf := func(t *testing.T, refPath string) string {
+		t.Helper()
+		code, body, _ := s.get(v1("conan-local", refPath+"/search"))
+		if code != http.StatusOK {
+			t.Fatalf("ref search %s = (%d, %s)", refPath, code, body)
+		}
+		var meta map[string]map[string]any
+		if err := json.Unmarshal([]byte(body), &meta); err != nil || len(meta) == 0 {
+			t.Fatalf("ref search %s body %q: %v", refPath, body, err)
+		}
+		for pid := range meta {
+			return pid
+		}
+		return ""
+	}
+
+	for _, tc := range []struct {
+		name   string // subtest label
+		ref    string // client-side ref spelling
+		v1Ref  string // v1 wire path (name/version/user/channel)
+		userCh bool   // user/channel vs anonymous `_/_` spelling
+	}{
+		{name: "underscore", ref: "hello/1.0@_/_", v1Ref: "conans/hello/1.0/_/_"},
+		{name: "user-channel", ref: "hello/1.0@myuser/stable", v1Ref: "conans/hello/1.0/myuser/stable", userCh: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.userCh {
+				run(t, "create", src, "myuser/stable")
+			} else {
+				run(t, "create", src)
+			}
+			out := run(t, "upload", tc.ref, "-r", "binflow", "--all", "--confirm")
+			if !strings.Contains(out, "Uploaded conan recipe") {
+				t.Fatalf("upload output lacks the recipe confirmation:\n%s", out)
+			}
+			// The `_/_` tree is real: the v1 snapshot answers through the
+			// underscore coordinate.
+			if code, body, _ := s.get(v1("conan-local", tc.v1Ref)); code != http.StatusOK ||
+				!strings.Contains(body, "conanfile.py") {
+				t.Fatalf("post-upload snapshot = (%d, %s)", code, body)
+			}
+			pid := pidOf(t, tc.v1Ref)
+
+			// The client's packages-only remove: POST packages/delete
+			// with the pid batch. A 404 here fails the command outright
+			// (the pre-fix D-F posture).
+			out = run(t, "remove", tc.ref, "-p", pid, "-r", "binflow", "-f")
+			t.Logf("conan remove -p output:\n%s", out)
+			if code, _, _ := s.get(v1("conan-local", tc.v1Ref+"/packages/"+pid)); code != http.StatusNotFound {
+				t.Fatalf("post-remove package snapshot = %d, want 404", code)
+			}
+			// Packages-only: the recipe survives.
+			if code, _, _ := s.get(v1("conan-local", tc.v1Ref)); code != http.StatusOK {
+				t.Fatalf("post-remove recipe snapshot = %d, want 200", code)
+			}
+
+			// The raw D-F wire on the same tree shape: re-upload, then a
+			// batch mixing the live pid with a stale one (the conan-2
+			// coordinate's leftover-binary posture) — 200, live tree gone.
+			run(t, "upload", tc.ref, "-r", "binflow", "--all", "--confirm")
+			stale := strings.Repeat("ab", 20) // 40-hex pid with no tree
+			code, body, _ := s.post(v1("conan-local", tc.v1Ref+"/packages/delete"),
+				[]byte(`{"package_ids":["`+pid+`","`+stale+`"]}`), nil)
+			if code != http.StatusOK || body != "" {
+				t.Fatalf("mixed-batch packages/delete = (%d, %q), want (200, \"\")", code, body)
+			}
+			if code, _, _ = s.get(v1("conan-local", tc.v1Ref+"/packages/"+pid)); code != http.StatusNotFound {
+				t.Fatalf("post-batch package snapshot = %d, want 404", code)
+			}
+			// Cleanup: drop the coordinate for the next subtest.
+			if code, _, _ := s.delete(v1("conan-local", tc.v1Ref)); code != http.StatusOK {
+				t.Fatalf("coordinate cleanup delete = %d, want 200", code)
+			}
+		})
+	}
 }
