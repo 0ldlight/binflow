@@ -24,22 +24,29 @@ import (
 // nuspec sidecar, packageHash from the sha512 sidecar (synthesized off
 // the blob when a sidecar is missing), dependencyGroups from the nuspec.
 //
-// REMOTE repositories proxy the upstream document (cached at the marker
-// path — the engine's TTL split rides the provider facet) and REWRITE the
-// absolute URLs it embeds onto this repository's own bases: a verbatim
-// body would point the client straight at the upstream for every download
-// and the pull-through cache would never see a hit. Upstream pagination
-// survives: page @ids rewrite onto the registration page route, which
-// proxies and rewrites in turn. nuget.org's registration endpoints force
-// Content-Encoding: gzip even without negotiation (probed live, August
-// 2026); the gunzip-on-magic step below is what makes those bodies
-// servable.
+// REMOTE repositories resolve the upstream's service INDEX first (nuget.md
+// section 9.2's type ladder — the T-304 L4 ruling: upstream resources are
+// located by TYPE through the live index, never by a path-prefix constant),
+// fetch the document through the engine under the .nuGetV3/<upstream-path>/
+// marker (section 9.3's cache layout; the engine's TTL split rides the
+// provider facet), and REWRITE the absolute URLs it embeds onto this
+// repository's own faces per section 9.4: the id/registration family onto
+// the v3 registration base, packageContent onto the v2 Download face (a
+// verbatim body would point the client straight at the upstream for every
+// download and the pull-through cache would never see a hit). Upstream
+// pagination survives: page @ids rewrite onto the registration page
+// route, which proxies and rewrites in turn. nuget.org's registration
+// endpoints force Content-Encoding: gzip even without negotiation (probed
+// live, August 2026); the gunzip-on-magic step below is what makes those
+// bodies servable.
 //
 // VIRTUAL repositories merge the members: the version union in member
 // order, each version's leaf taken from the first member that carries it
 // (the two-bucket order the resolution machinery fixes), local members'
 // leaves citing the MEMBER's own download bases (first-hit resolution
-// then serves from the right member).
+// then serves from the right member); remote members' leaves arrive
+// through the member seam under the same dynamic markers and re-anchor
+// onto the member's bases the same way.
 
 // ---- the JSON shapes (field set = what the official clients read) ----
 
@@ -121,54 +128,115 @@ type dependencyJSON struct {
 
 // ---- dispatch ----
 
-// serveRegistration dispatches GET registration/<id>/index.json.
+// serveRegistration dispatches GET registration[-semver2]/<id>/index.json.
 func (h *Handler) serveRegistration(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, class string, rt route) {
 	switch class {
 	case repo.TypeRemote:
-		h.serveProxiedDocument(ctx, w, r, p, repoKey, repoKey, rt.path)
+		h.serveUpstreamRegistration(ctx, w, r, p, repoKey, rt.semver2, rt.id+"/"+fileIndex)
 	case repo.TypeVirtual:
 		h.serveVirtualRegistration(ctx, w, r, p, repoKey, rt)
 	default:
 		body, err := h.buildLocalRegistration(ctx, r, p, repoKey, rt.id)
 		if err != nil {
-			h.writeError(w, err, repoKey, rt.path)
+			h.writeError(w, err, repoKey, rt.id)
 			return
 		}
 		writeJSON(w, http.StatusOK, body)
 	}
 }
 
-// serveRegistrationPage dispatches GET registration/<id>/page/<file> —
-// the remote pagination passthrough (generated documents are single
-// inline pages and never address one).
+// serveRegistrationPage dispatches GET registration[-semver2]/<id>/
+// page/<file> — the remote pagination passthrough (generated documents
+// are single inline pages and never address one).
 func (h *Handler) serveRegistrationPage(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, class string, rt route) {
+	tail := rt.id + "/" + segPage + "/" + rt.file
 	switch class {
 	case repo.TypeRemote:
-		h.serveProxiedDocument(ctx, w, r, p, repoKey, repoKey, rt.path)
+		h.serveUpstreamRegistration(ctx, w, r, p, repoKey, rt.semver2, tail)
 	case repo.TypeVirtual:
 		// The first member whose copy answers wins (the tolerance rule).
 		order, err := h.svc.VirtualMemberOrder(ctx, repoKey)
 		if err != nil {
-			h.writeError(w, err, repoKey, rt.path)
+			h.writeError(w, err, repoKey, tail)
 			return
 		}
 		for _, m := range order {
-			rc, _, err := h.svc.ReadVirtualMember(ctx, repoKey, m.Key, rt.path)
-			if err != nil {
-				continue
-			}
-			body, rerr := io.ReadAll(io.LimitReader(rc, 64<<20))
-			_ = rc.Close() //nolint:errcheck // read-only fd
+			read := h.v3MemberReader(ctx, repoKey, m.Key)
+			body, rerr := read(v3CachePath(v3ResolveUpstreamIndex(read).registrationPath(rt.semver2), tail))
 			if rerr != nil {
 				continue
 			}
-			h.writeRewritten(w, r, h.rewriteDocument(body, h.baseURLFor(r), repoKey))
+			h.writeRewritten(w, r, v3RewriteJSON(body, h.memberRewriteTable(ctx, r, repoKey, m.Key)))
 			return
 		}
 		writePlain(w, http.StatusNotFound, "not found")
 	default:
 		writePlain(w, http.StatusNotFound, "not found")
 	}
+}
+
+// serveRegistrationLeaf dispatches GET registration[-semver2]/<id>/
+// <version>.json — the single-version display family (nuget.md section
+// 9.1's PackageVersionDisplayMetadataUriTemplate shape).
+func (h *Handler) serveRegistrationLeaf(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, class string, rt route) {
+	tail := rt.id + "/" + rt.version + ".json"
+	switch class {
+	case repo.TypeRemote:
+		h.serveUpstreamRegistration(ctx, w, r, p, repoKey, rt.semver2, tail)
+	case repo.TypeVirtual:
+		leaves, _, err := h.virtualRegistrationLeaves(ctx, repoKey, rt.id, h.baseURLFor(r))
+		if err != nil {
+			h.writeError(w, err, repoKey, tail)
+			return
+		}
+		leaf, ok := leaves[rt.version]
+		if !ok {
+			writePlain(w, http.StatusNotFound, "not found")
+			return
+		}
+		h.writeSingleLeaf(w, leaf)
+	default:
+		facts, err := h.collectLocalFacts(ctx, p, repoKey, rt.id)
+		if err != nil {
+			h.writeError(w, err, repoKey, tail)
+			return
+		}
+		for _, f := range facts {
+			if f.ref.version == rt.version {
+				origin := h.baseURLFor(r)
+				h.writeSingleLeaf(w, renderLeaf(f, flatBase(origin, repoKey), regBase(origin, repoKey)))
+				return
+			}
+		}
+		writePlain(w, http.StatusNotFound, "not found")
+	}
+}
+
+// writeSingleLeaf renders the one-leaf page document (the official
+// single-version display shape: a count-1 catalog page).
+func (h *Handler) writeSingleLeaf(w http.ResponseWriter, leaf *registrationLeaf) {
+	body, err := json.Marshal(registrationIndex{
+		Count: 1,
+		Items: []*registrationPage{{
+			ID: leaf.ID, Type: "catalog:CatalogPage", Count: 1,
+			Lower: leafVersionOr(leaf), Upper: leafVersionOr(leaf),
+			Items: []*registrationLeaf{leaf},
+		}},
+	})
+	if err != nil {
+		writePlain(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, body)
+}
+
+// leafVersionOr extracts a leaf's version for the page bounds ("" on the
+// degenerate shape).
+func leafVersionOr(leaf *registrationLeaf) string {
+	if leaf != nil && leaf.CatalogEntry != nil {
+		return leaf.CatalogEntry.Version
+	}
+	return ""
 }
 
 // ---- the local generated arm ----
@@ -354,23 +422,34 @@ func firstNonEmpty(vals ...string) string {
 	return ""
 }
 
-// ---- the remote proxy arm ----
+// ---- the remote proxy arm (dynamic: nuget.md sections 9.2–9.4) ----
 
-// serveProxiedDocument pulls one remote document through the engine's
-// cache (the marker path), gunzips and rewrites, and serves it.
-func (h *Handler) serveProxiedDocument(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, upstreamRepo, path string) {
-	rc, _, err := h.svc.Get(ctx, p, upstreamRepo, path)
+// serveUpstreamRegistration resolves the upstream registration base for
+// the requested shape (the section 9.2 ladder), pulls the document
+// through the engine's .nuGetV3 marker cache, rewrites it per section 9.4
+// and serves it.
+func (h *Handler) serveUpstreamRegistration(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey string, semver2 bool, tail string) {
+	read := h.v3RepoReader(ctx, p, repoKey)
+	idx := v3ResolveUpstreamIndex(read)
+	marker := v3CachePath(idx.registrationPath(semver2), tail)
+	body, err := read(marker)
 	if err != nil {
-		h.writeError(w, err, repoKey, path)
+		h.writeError(w, err, repoKey, marker)
 		return
 	}
-	defer func() { _ = rc.Close() }() //nolint:errcheck // read-only fd
-	body, err := io.ReadAll(io.LimitReader(rc, 64<<20))
-	if err != nil {
-		writePlain(w, http.StatusInternalServerError, fmt.Sprintf("read cached document: %v", err))
-		return
-	}
-	h.writeRewritten(w, r, h.rewriteDocument(gunzipIfNeeded(body), h.baseURLFor(r), repoKey))
+	tbl := v3BuildRewriteTable(h.baseURLFor(r), repoKey, idx, true, false)
+	h.writeRewritten(w, r, v3RewriteJSON(body, tbl))
+}
+
+// memberRewriteTable builds the section 9.4 table anchored on one MEMBER's
+// own faces (the virtual merge's remote leaves: the download stays inside
+// the member — first-hit resolution then serves from there — so the v2
+// arm of the single-repository rewrite does not apply; the deviation
+// register in the ticket log carries the nuance).
+func (h *Handler) memberRewriteTable(ctx context.Context, r *http.Request, virtualKey, member string) *v3rewriteTable {
+	read := h.v3MemberReader(ctx, virtualKey, member)
+	idx := v3ResolveUpstreamIndex(read)
+	return v3BuildRewriteTable(h.baseURLFor(r), member, idx, false, false)
 }
 
 // writeRewritten renders one rewritten document.
@@ -404,74 +483,6 @@ func gunzipIfNeeded(body []byte) []byte {
 	return decoded
 }
 
-// rewriteDocument rewrites the upstream document's embedded absolute URLs
-// onto THIS repository's own bases. The upstream host spellings vary
-// (nuget.org's documents cite api.nuget.org even when the bytes arrive
-// from a mirror), so the rewrite matches by URL PATH shape, never by
-// host: any "<scheme>://<host>/<regPrefix>/<rest>" becomes
-// "<origin>/binflow/api/nuget/v3/<repo>/registration/<rest>"; any
-// "<scheme>://<host>/v3-flatcontainer/<rest>" becomes the flatcontainer
-// equivalent. Other absolute URLs (license/project/icon) pass untouched.
-//
-// The walk runs over the JSON token stream (string literals only), so
-// every non-URL byte stays identical — no decode/re-encode of the whole
-// tree, no number reformattings.
-func (h *Handler) rewriteDocument(body []byte, origin, repoKey string) []byte {
-	if !json.Valid(body) {
-		return body
-	}
-	var b strings.Builder
-	b.Grow(len(body))
-	i := 0
-	for i < len(body) {
-		start := indexByteFrom(body, i, '"')
-		if start < 0 {
-			b.Write(body[i:])
-			break
-		}
-		end := indexByteFrom(body, start+1, '"')
-		if end < 0 {
-			b.Write(body[i:])
-			break
-		}
-		b.Write(body[i : start+1])
-		b.WriteString(rewriteOneURL(string(body[start+1:end]), origin, repoKey))
-		b.WriteByte('"')
-		i = end + 1
-	}
-	return []byte(b.String())
-}
-
-// rewriteOneURL rewrites one JSON string token when it is an upstream
-// registration or flatcontainer URL; every other token returns identical.
-func rewriteOneURL(tok, origin, repoKey string) string {
-	const (
-		schemeMark = "://"
-		flatPath   = "v3-flatcontainer/"
-	)
-	if len(tok) < len(schemeMark)+1 {
-		return tok
-	}
-	i := strings.Index(tok, schemeMark)
-	if i <= 0 {
-		return tok // not an absolute URL
-	}
-	rest := tok[i+len(schemeMark):]
-	if j := strings.IndexByte(rest, '/'); j >= 0 {
-		rest = rest[j+1:]
-	} else {
-		return tok // scheme://host with no path
-	}
-	switch {
-	case strings.HasPrefix(rest, upstreamRegistrationPrefix+"/"):
-		return regBase(origin, repoKey) + rest[len(upstreamRegistrationPrefix)+1:]
-	case strings.HasPrefix(rest, flatPath):
-		return flatBase(origin, repoKey) + rest[len(flatPath):]
-	default:
-		return tok
-	}
-}
-
 // indexByteFrom is bytes.IndexByte from an offset.
 func indexByteFrom(b []byte, from int, c byte) int {
 	for i := from; i < len(b); i++ {
@@ -485,11 +496,12 @@ func indexByteFrom(b []byte, from int, c byte) int {
 // ---- the virtual arm ----
 
 // serveVirtualVersions merges the members' version sets (member-order
-// dedup, ascending render).
+// dedup, ascending render). Remote members' documents arrive through the
+// dynamic .nuGetV3 markers.
 func (h *Handler) serveVirtualVersions(ctx context.Context, w http.ResponseWriter, repoKey string, rt route) {
 	order, err := h.svc.VirtualMemberOrder(ctx, repoKey)
 	if err != nil {
-		h.writeError(w, err, repoKey, rt.path)
+		h.writeError(w, err, repoKey, rt.id)
 		return
 	}
 	seen := map[string]bool{}
@@ -507,8 +519,10 @@ func (h *Handler) serveVirtualVersions(ctx context.Context, w http.ResponseWrite
 				}
 			}
 		} else {
-			body, ok := h.readMemberDocument(ctx, repoKey, m.Key, versionsPath(rt.id))
-			if !ok {
+			read := h.v3MemberReader(ctx, repoKey, m.Key)
+			flat := v3ResolveUpstreamIndex(read).flatPath()
+			body, rerr := read(v3CachePath(flat, versionsPath(rt.id)))
+			if rerr != nil {
 				continue
 			}
 			var doc versionsDocument
@@ -553,58 +567,19 @@ func (h *Handler) readMemberDocument(ctx context.Context, virtualKey, member, pa
 // member that carries it. Local members' leaves are rendered from facts
 // citing the MEMBER's bases (the download stays inside the member — the
 // virtual's first-hit resolution then serves it from there); remote
-// members' leaves arrive through the member seam and are re-anchored onto
-// the member's own bases the same way.
+// members' leaves arrive through the member seam under the dynamic
+// .nuGetV3 markers and are re-anchored onto the member's own bases.
 func (h *Handler) serveVirtualRegistration(ctx context.Context, w http.ResponseWriter, r *http.Request, _ *repo.Principal, repoKey string, rt route) {
-	order, err := h.svc.VirtualMemberOrder(ctx, repoKey)
+	leaves, versions, err := h.virtualRegistrationLeaves(ctx, repoKey, rt.id, h.baseURLFor(r))
 	if err != nil {
-		h.writeError(w, err, repoKey, rt.path)
+		h.writeError(w, err, repoKey, rt.id)
 		return
-	}
-	origin := h.baseURLFor(r)
-
-	leaves := map[string]*registrationLeaf{}
-	var versions []string
-	for _, m := range order {
-		if m.Type == repo.TypeLocal {
-			facts, ferr := h.collectMemberFacts(ctx, repoKey, m.Key, rt.id)
-			if ferr != nil {
-				continue
-			}
-			memberFlat, memberReg := flatBase(origin, m.Key), regBase(origin, m.Key)
-			for _, f := range facts {
-				if _, seen := leaves[f.ref.version]; !seen {
-					leaves[f.ref.version] = renderLeaf(f, memberFlat, memberReg)
-					versions = append(versions, f.ref.version)
-				}
-			}
-			continue
-		}
-		body, ok := h.readMemberDocument(ctx, repoKey, m.Key, regMarker(rt.id))
-		if !ok {
-			continue
-		}
-		var doc registrationIndex
-		if json.Unmarshal(body, &doc) != nil {
-			continue
-		}
-		for _, page := range doc.Items {
-			for _, leaf := range page.Items {
-				v, ok := leafVersion(leaf)
-				if !ok {
-					continue
-				}
-				if _, seen := leaves[v]; !seen {
-					leaves[v] = rewriteLeafOnto(leaf, origin, m.Key)
-					versions = append(versions, v)
-				}
-			}
-		}
 	}
 	if len(leaves) == 0 {
 		writePlain(w, http.StatusNotFound, "not found")
 		return
 	}
+	origin := h.baseURLFor(r)
 	sort.Slice(versions, func(i, j int) bool { return compareNuGetVersions(versions[i], versions[j]) < 0 })
 	items := make([]*registrationLeaf, 0, len(versions))
 	for _, v := range versions {
@@ -627,6 +602,58 @@ func (h *Handler) serveVirtualRegistration(ctx context.Context, w http.ResponseW
 		return
 	}
 	writeJSON(w, http.StatusOK, body)
+}
+
+// virtualRegistrationLeaves collects one package id's merged leaf set:
+// per member, local facts render onto the member's bases and remote
+// proxies re-anchor onto the member's bases; first-seen version wins.
+func (h *Handler) virtualRegistrationLeaves(ctx context.Context, repoKey, id, origin string) (map[string]*registrationLeaf, []string, error) {
+	order, err := h.svc.VirtualMemberOrder(ctx, repoKey)
+	if err != nil {
+		return nil, nil, err
+	}
+	leaves := map[string]*registrationLeaf{}
+	var versions []string
+	for _, m := range order {
+		if m.Type == repo.TypeLocal {
+			facts, ferr := h.collectMemberFacts(ctx, repoKey, m.Key, id)
+			if ferr != nil {
+				continue
+			}
+			memberFlat, memberReg := flatBase(origin, m.Key), regBase(origin, m.Key)
+			for _, f := range facts {
+				if _, seen := leaves[f.ref.version]; !seen {
+					leaves[f.ref.version] = renderLeaf(f, memberFlat, memberReg)
+					versions = append(versions, f.ref.version)
+				}
+			}
+			continue
+		}
+		read := h.v3MemberReader(ctx, repoKey, m.Key)
+		idx := v3ResolveUpstreamIndex(read)
+		body, rerr := read(v3CachePath(idx.registrationPath(false), id+"/"+fileIndex))
+		if rerr != nil {
+			continue
+		}
+		var doc registrationIndex
+		if json.Unmarshal(body, &doc) != nil {
+			continue
+		}
+		tbl := v3BuildRewriteTable(origin, m.Key, idx, false, false)
+		for _, page := range doc.Items {
+			for _, leaf := range page.Items {
+				v, ok := leafVersion(leaf)
+				if !ok {
+					continue
+				}
+				if _, seen := leaves[v]; !seen {
+					leaves[v] = rewriteLeafOnto(leaf, tbl)
+					versions = append(versions, v)
+				}
+			}
+		}
+	}
+	return leaves, versions, nil
 }
 
 // collectMemberFacts is collectLocalFacts through the member seam.
@@ -681,16 +708,16 @@ func leafVersion(leaf *registrationLeaf) (string, bool) {
 	return normalizeNuGetVersion(leaf.CatalogEntry.Version)
 }
 
-// rewriteLeafOnto re-anchors a proxied leaf's URLs onto the named
-// repository's bases.
-func rewriteLeafOnto(leaf *registrationLeaf, origin, repoKey string) *registrationLeaf {
-	if leaf == nil {
+// rewriteLeafOnto re-anchors a proxied leaf's URLs onto the table's
+// repository bases (the member-anchored virtual posture).
+func rewriteLeafOnto(leaf *registrationLeaf, tbl *v3rewriteTable) *registrationLeaf {
+	if leaf == nil || tbl == nil {
 		return leaf
 	}
-	leaf.ID = rewriteOneURL(leaf.ID, origin, repoKey)
+	leaf.ID = tbl.rewriteToken(leaf.ID)
 	if leaf.CatalogEntry != nil {
-		leaf.CatalogEntry.PackageContent = rewriteOneURL(leaf.CatalogEntry.PackageContent, origin, repoKey)
+		leaf.CatalogEntry.PackageContent = tbl.rewriteToken(leaf.CatalogEntry.PackageContent)
 	}
-	leaf.PackageContent = rewriteOneURL(leaf.PackageContent, origin, repoKey)
+	leaf.PackageContent = tbl.rewriteToken(leaf.PackageContent)
 	return leaf
 }

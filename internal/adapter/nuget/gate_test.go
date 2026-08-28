@@ -213,13 +213,16 @@ func TestGateInternalWriteExemption(t *testing.T) {
 	upSrv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hits.Add(1)
 		switch {
+		case r.URL.Path == "/v3/index.json":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write(v3UpstreamIndexFixture(t, upSrv.URL)) //nolint:gosec // live fixture
 		case strings.HasSuffix(r.URL.Path, "/"+remNupkgPath("rem.pkg", "1.0.0")):
 			w.Header().Set("Content-Type", "application/octet-stream")
 			_, _ = w.Write(pkg.body)
 		case strings.HasSuffix(r.URL.Path, "/v3-flatcontainer/rem.pkg/index.json"):
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"versions":["1.0.0"]}`))
-		case strings.HasSuffix(r.URL.Path, "/"+upstreamRegistrationPrefix+"/rem.pkg/index.json"):
+		case strings.HasSuffix(r.URL.Path, "/"+v3FallbackRegPath+"/rem.pkg/index.json"):
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write(upstreamRegistration("rem.pkg", "Rem.Pkg", "1.0.0", upSrv.URL, pkg))
 		default:
@@ -239,7 +242,9 @@ func TestGateInternalWriteExemption(t *testing.T) {
 	}
 
 	// The GET-triggered landing passes the gate by construction: two 200s,
-	// one upstream contact (the second is the cache hit).
+	// two upstream contacts on the first read (the service index and the
+	// registration — nuget.md section 8.1-1/9.3), none on the second
+	// (both cached).
 	for i := 0; i < 2; i++ {
 		status, body, _ := s.get(apiPath("ng-remote") + "/registration/rem.pkg/index.json")
 		if status != http.StatusOK || !strings.Contains(body, "\"Rem.Pkg\"") {
@@ -247,8 +252,8 @@ func TestGateInternalWriteExemption(t *testing.T) {
 				i, status, firstLine(body))
 		}
 	}
-	if n := hits.Load(); n != 1 {
-		t.Errorf("upstream contacts = %d, want 1 (second read must be the cache hit)", n)
+	if n := hits.Load(); n != 2 {
+		t.Errorf("upstream contacts = %d, want 2 (service index + registration once; the second read must be the cache hit)", n)
 	}
 
 	// The landed copy is a fact of the repository.
@@ -257,41 +262,48 @@ func TestGateInternalWriteExemption(t *testing.T) {
 		t.Fatalf("list remote nodes: %v", err)
 	}
 	found := false
+	want := v3CachePath(v3FallbackRegPath, "rem.pkg/index.json")
 	for _, n := range nodes {
-		if n.Path == regMarker("rem.pkg") {
+		if n.Path == want {
 			found = true
 		}
 	}
 	if !found {
-		t.Errorf("landed registration marker missing; nodes = %+v", nodes)
+		t.Errorf("landed registration marker %q missing; nodes = %+v", want, nodes)
 	}
 }
 
-// remNupkgPath is the upstream flatcontainer nupkg path (the prefix the
-// provider joins).
+// remNupkgPath is the upstream flatcontainer nupkg path (the base the
+// resolved service index joins).
 func remNupkgPath(id, version string) string {
-	return upstreamFlatPrefix + "/" + id + "/" + version + "/" + id + "." + version + suffixNupkg
+	return v3FallbackFlatPath + "/" + id + "/" + version + "/" + id + "." + version + suffixNupkg
 }
 
 // upstreamRegistration renders one fake upstream registration document
 // whose embedded URLs point at the fake upstream (the rewrite input).
 func upstreamRegistration(id, displayID, version, base string, pkg *nupkgFixture) []byte {
+	return upstreamRegistrationAt(base, v3FallbackRegPath, v3FallbackFlatPath, id, displayID, version, pkg)
+}
+
+// upstreamRegistrationAt is upstreamRegistration over custom resource
+// paths (the heterogeneous-upstream legs).
+func upstreamRegistrationAt(base, regPath, flatPath, id, displayID, version string, pkg *nupkgFixture) []byte {
 	doc := `{
  "count": 1,
  "items": [{
-  "@id": "` + base + `/v3/registration5-gz-semver2/` + id + `/index.json",
+  "@id": "` + base + `/` + regPath + `/` + id + `/index.json",
   "@type": "catalog:CatalogPage",
   "count": 1, "lower": "` + version + `", "upper": "` + version + `",
   "items": [{
-   "@id": "` + base + `/v3/registration5-gz-semver2/` + id + `/` + version + `.json",
+   "@id": "` + base + `/` + regPath + `/` + id + `/` + version + `.json",
    "catalogEntry": {
     "id": "` + displayID + `", "version": "` + version + `",
     "description": "upstream fixture",
-    "packageContent": "` + base + `/v3-flatcontainer/` + id + `/` + version + `/` + id + `.` + version + `.nupkg",
+    "packageContent": "` + base + `/` + flatPath + `/` + id + `/` + version + `/` + id + `.` + version + `.nupkg",
     "packageHash": "` + pkg.sha512 + `",
     "packageHashAlgorithm": "SHA512"
    },
-   "packageContent": "` + base + `/v3-flatcontainer/` + id + `/` + version + `/` + id + `.` + version + `.nupkg"
+   "packageContent": "` + base + `/` + flatPath + `/` + id + `/` + version + `/` + id + `.` + version + `.nupkg"
   }]
  }]
 }`

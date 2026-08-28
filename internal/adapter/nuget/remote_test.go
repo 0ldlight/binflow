@@ -3,6 +3,7 @@ package nuget
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -33,6 +34,14 @@ func newFakeUpstream(t *testing.T) *fakeUpstream {
 	return up
 }
 
+// serveV3Index serves the upstream service index whose @ids cite this
+// fake's base under the nuget.org spellings (the registration gz-semver2
+// base, the flatcontainer base, and /search for the search family).
+func (up *fakeUpstream) serveV3Index(t *testing.T) {
+	t.Helper()
+	up.serve(t, "/v3/index.json", v3UpstreamIndexFixture(t, up.srv.URL), "application/json")
+}
+
 // serve registers one upstream path with a canned body.
 func (up *fakeUpstream) serve(t *testing.T, path string, body []byte, ctype string) {
 	t.Helper()
@@ -48,18 +57,41 @@ func (up *fakeUpstream) serve(t *testing.T, path string, body []byte, ctype stri
 // count reports one path's hit count.
 func (up *fakeUpstream) count(path string) int { return up.paths[path] }
 
+// v3UpstreamIndexFixture renders one fake upstream service index (the
+// @id spellings the fixtures serve — the search @id lives on the same
+// host here, unlike the real nuget.org's azuresearch split, but the
+// adapter resolves it as an ABSOLUTE URL either way).
+func v3UpstreamIndexFixture(t *testing.T, base string) []byte {
+	t.Helper()
+	doc := serviceIndexDocument{Version: "3.0.0", Resources: []serviceIndexResource{
+		{ID: base + "/" + v3FallbackRegPath + "/", Type: "RegistrationsBaseUrl"},
+		{ID: base + "/" + v3FallbackRegPath + "/", Type: "RegistrationsBaseUrl/3.4.0"},
+		{ID: base + "/" + v3FallbackRegPath + "/", Type: "RegistrationsBaseUrl/3.6.0"},
+		{ID: base + "/" + v3FallbackFlatPath + "/", Type: "PackageBaseAddress/3.0.0"},
+		{ID: base + "/search", Type: "SearchQueryService"},
+	}}
+	body, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal fixture index: %v", err)
+	}
+	return body
+}
+
 // TestRemotePullThrough: the versions document, the registration index
 // (rewritten onto BinFlow bases) and the nupkg all proxy through, and the
-// SECOND read of each is the cache hit.
+// SECOND read of each is the cache hit. The upstream resources are located
+// through the upstream's own service index (nuget.md section 9.2 — the
+// .nuGetV3 markers).
 func TestRemotePullThrough(t *testing.T) {
 	s := newStack(t)
 	s.seedRepo(t, "ng-remote", repo.TypeRemote)
 
 	pkg := buildNupkg(t, "Serilog", "4.0.2", flatDeps("Serilog.AspNetCore", "8.0.0"))
 	up := newFakeUpstream(t)
+	up.serveV3Index(t)
 	up.serve(t, "/v3-flatcontainer/serilog/index.json",
 		[]byte(`{"versions":["4.0.1","4.0.2"]}`), "application/json")
-	up.serve(t, "/"+upstreamRegistrationPrefix+"/serilog/index.json",
+	up.serve(t, "/"+v3FallbackRegPath+"/serilog/index.json",
 		upstreamRegistration("serilog", "Serilog", "4.0.2", up.srv.URL, pkg), "application/json")
 	up.serve(t, "/"+remNupkgPath("serilog", "4.0.2"), pkg.body, "application/octet-stream")
 	s.seedRemoteConfig(t, "ng-remote", up.srv.URL)
@@ -74,9 +106,14 @@ func TestRemotePullThrough(t *testing.T) {
 	if n := up.count("/v3-flatcontainer/serilog/index.json"); n != 1 {
 		t.Errorf("versions upstream contacts = %d, want 1", n)
 	}
+	if n := up.count("/v3/index.json"); n != 1 {
+		t.Errorf("service index contacts = %d, want 1 (cached on the metadata TTL)", n)
+	}
 
 	// The registration: the body served is REWRITTEN — every embedded
-	// upstream URL now points into BinFlow's own bases.
+	// upstream URL now points into BinFlow's own faces (section 9.4: the
+	// id/registration family onto the v3 registration base, packageContent
+	// onto the v2 Download face).
 	status, body, _ := s.get(apiPath("ng-remote") + "/registration/serilog/index.json")
 	if status != http.StatusOK {
 		t.Fatalf("registration status = %d, body %s", status, body)
@@ -84,8 +121,11 @@ func TestRemotePullThrough(t *testing.T) {
 	if strings.Contains(body, up.srv.URL) {
 		t.Errorf("registration still cites the upstream:\n%s", body)
 	}
-	if !strings.Contains(body, "/binflow/api/nuget/v3/ng-remote/flatcontainer/serilog/4.0.2/serilog.4.0.2.nupkg") {
-		t.Errorf("packageContent was not rewritten onto BinFlow:\n%s", body)
+	if !strings.Contains(body, "/binflow/api/nuget/v3/ng-remote/registration/serilog/index.json") {
+		t.Errorf("page @id was not rewritten onto the v3 registration base:\n%s", body)
+	}
+	if !strings.Contains(body, "/binflow/api/nuget/v2/ng-remote/Download/serilog/4.0.2") {
+		t.Errorf("packageContent was not rewritten onto the v2 Download face (section 9.4):\n%s", body)
 	}
 	if !strings.Contains(body, `"dependencyGroups"`) && !strings.Contains(body, "Serilog.AspNetCore") {
 		t.Logf("note: upstream fixture carries no dependency groups (shape kept verbatim)")
@@ -113,8 +153,9 @@ func TestRemoteRegistrationGzip(t *testing.T) {
 
 	pkg := buildNupkg(t, "Zipped.Pkg", "1.0.0", flatDeps("none"))
 	up := newFakeUpstream(t)
+	up.serveV3Index(t)
 	doc := upstreamRegistration("zipped.pkg", "Zipped.Pkg", "1.0.0", up.srv.URL, pkg)
-	up.serve(t, "/"+upstreamRegistrationPrefix+"/zipped.pkg/index.json", gzipBytes(t, doc), "application/json")
+	up.serve(t, "/"+v3FallbackRegPath+"/zipped.pkg/index.json", gzipBytes(t, doc), "application/json")
 	s.seedRemoteConfig(t, "ng-remote", up.srv.URL)
 
 	status, body, _ := s.get(apiPath("ng-remote") + "/registration/zipped.pkg/index.json")
@@ -139,7 +180,8 @@ func TestVirtualAggregation(t *testing.T) {
 	// Remote member: another package upstream.
 	rem := buildNupkg(t, "Rem.Lib", "2.0.0", flatDeps("none"))
 	up := newFakeUpstream(t)
-	up.serve(t, "/"+upstreamRegistrationPrefix+"/rem.lib/index.json",
+	up.serveV3Index(t)
+	up.serve(t, "/"+v3FallbackRegPath+"/rem.lib/index.json",
 		upstreamRegistration("rem.lib", "Rem.Lib", "2.0.0", up.srv.URL, rem), "application/json")
 	up.serve(t, "/"+remNupkgPath("rem.lib", "2.0.0"), rem.body, "application/octet-stream")
 	s.seedRemoteConfig(t, "ng-remote", up.srv.URL)

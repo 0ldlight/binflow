@@ -169,7 +169,8 @@ public static class Dep
 		t.Fatalf("read packed dep: %v", err)
 	}
 	up := newFakeUpstream(t)
-	up.serve(t, "/"+upstreamRegistrationPrefix+"/t287.dep/index.json",
+	up.serveV3Index(t)
+	up.serve(t, "/"+v3FallbackRegPath+"/t287.dep/index.json",
 		upstreamRegistration("t287.dep", "T287.Dep", "2.0.0", up.srv.URL,
 			&nupkgFixture{body: body2, sha512: sha512Base64Of(t, body2)}), "application/json")
 	up.serve(t, "/v3-flatcontainer/t287.dep/index.json",
