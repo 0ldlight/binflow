@@ -32,6 +32,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -294,6 +295,23 @@ func runServe(args []string, stderr io.Writer) error {
 	defer stack.close(logger)
 
 	warnDefaultAdminPassword(context.Background(), stack, logger)
+
+	// Return the boot path's transient heap to the OS before the listener
+	// goes up (T-336, PRD milestone-12 §102.3 / D-8R): the admin seed's
+	// argon2id hash and the default-password warning's verification each
+	// derive at m=64 MiB, so a fresh boot briefly dirties ~128 MiB of heap
+	// the process never needs again — measured as 135.8 MiB dirty
+	// VM_ALLOCATE against a 100 MB idle budget (the embed FSes are lazy and
+	// blameless: gctrace shows ~2 MiB live after the boot GCs).
+	// debug.FreeOSMemory forces a full GC and hands every free span back;
+	// on darwin that drops the vmmap physical footprint the D-8 gate reads
+	// (MADV_FREE_REUSABLE pages leave the footprint at once), on Linux it
+	// drops ps RSS (MADV_DONTNEED). It runs after the last boot-time
+	// derivation and before any request can arrive, costing single-digit
+	// milliseconds against the 2 s cold-start budget. Steady-state password
+	// checks stay on the runtime's background scavenger — this is a boot
+	// seam, not a memory policy.
+	debug.FreeOSMemory()
 
 	srv := newAssembledServer(cfg, stack, logger)
 
