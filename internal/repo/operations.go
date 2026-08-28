@@ -111,10 +111,21 @@ type CopyMoveRequest struct {
 	// suppressLayouts=1 — a REGISTERED divergence, not a silent ignore.
 	SuppressLayouts bool
 	// SystemIdentity is the _system_-style internal exemption of section
-	// 1.2: the remote/virtual target refusals do not apply. In-process
-	// seam ONLY (the trash-can restore chain's future consumer); the REST
-	// face never sets it.
+	// 1.2: the remote/virtual target refusals do not apply, and the run
+	// does not fire the copy observer (internal writers reindex nothing —
+	// the trash chain's captures land in the system repository, whose
+	// content no protocol index consumes). The caller pairs it with
+	// SystemPrincipal() (the T-345 ruling: the trash chain runs as the
+	// internal system identity, the Artifactory self-exemption precedent).
+	// In-process seam ONLY; the REST face never sets it.
 	SystemIdentity bool
+	// ExactPath is the trash-restore chain's addressing mode: the target is
+	// taken VERBATIM — no unix-style into-directory adjustment, no rename
+	// (resolveTargetRoot's section 1.4 arms do not run). A folder target
+	// must carry its trailing slash; an existing file target is still the
+	// delete-then-copy override, an existing folder target still merges.
+	// In-process seam ONLY; the REST face never sets it.
+	ExactPath bool
 }
 
 // CopyMoveService is the operations-family capability face of the concrete
@@ -156,6 +167,8 @@ func (s *service) CopyOrMove(ctx context.Context, p *Principal, req CopyMoveRequ
 		// into-directory target of section 1.4) that Trim above drops.
 		tgtSlash:  strings.HasSuffix(req.TargetPath, "/"),
 		srcSlash:  strings.HasSuffix(req.SrcPath, "/"),
+		exact:     req.ExactPath,
+		system:    req.SystemIdentity,
 		allowMemo: map[cmAllowKey]bool{},
 	}
 	if err := pl.parse(); err != nil {
@@ -202,6 +215,11 @@ type cmPipeline struct {
 	tgtRepo  string
 	tgtPath  string
 	tgtSlash bool
+
+	// exact/system are the two in-process flags (CopyMoveRequest): the
+	// trash chain's verbatim-target mode and internal-identity run.
+	exact  bool
+	system bool
 
 	// resolved by resolveAndWalk:
 	srcDir  string // trailing-slash folder root ("" = repository root)
@@ -578,9 +596,24 @@ func cmJoin(dir, name string) string {
 //   - FOLDER source: an existing FILE target is the fatal folder-under-file
 //     400; an existing FOLDER target (or a trailing slash) receives the
 //     folder UNDER it; a missing target renames the folder to it.
+//
+// The ExactPath mode (the trash-restore chain's in-process flag) skips the
+// adjustment entirely: the caller's spelling IS the destination.
 func (pl *cmPipeline) resolveTargetRoot(ctx context.Context) error {
 	s := pl.svc
 	base := cmBaseName(pl.srcPath)
+
+	if pl.exact {
+		// Verbatim target: a folder keeps (or gains) its trailing slash so
+		// mapTarget's subtree mapping stays spelled right; a file target is
+		// the path as given.
+		if pl.srcIsFd {
+			pl.tgtRoot = pl.tgtPath
+			return nil
+		}
+		pl.tgtRoot = strings.TrimSuffix(pl.tgtPath, "/") + "/"
+		return nil
+	}
 
 	if pl.srcIsFd {
 		tgt := pl.tgtPath
@@ -1073,7 +1106,7 @@ func (pl *cmPipeline) sweepEmptyTargets(ctx context.Context) error {
 func (pl *cmPipeline) assemble(ctx context.Context) *CopyMoveResult {
 	verb, pp := pl.op+"ing", "copied"
 	if pl.op == OpMove {
-		pp = "moved"
+		verb, pp = "moving", "moved" // "move"+ing is not English (T-345 errata over T-339's rendering)
 	}
 	dryPrefix := ""
 	if pl.dry {
@@ -1129,7 +1162,10 @@ func (pl *cmPipeline) assemble(ctx context.Context) *CopyMoveResult {
 		Detail: fmt.Sprintf(`{"src":%q,"artifacts":%d,"folders":%d,"dry":%t}`,
 			pl.cmRepoPath(pl.srcRepo, pl.srcPathDisplay()), pl.files, pl.folders, pl.dry),
 	})
-	if pl.op == OpCopy && !pl.dry && len(pl.landedFD) > 0 {
+	if pl.op == OpCopy && !pl.dry && !pl.system && len(pl.landedFD) > 0 {
+		// Internal runs (SystemIdentity — the trash capture) never fire the
+		// copy observer: the system repository's content feeds no protocol
+		// index, and an observer must not be aimed at it.
 		pl.svc.notifyCopyObservers(ctx, pl.tgtRepo, pl.landedFD)
 	}
 	return out

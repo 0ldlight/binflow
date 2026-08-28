@@ -234,3 +234,24 @@ func XrayIntegration() Addon {
 		Description: "Artifact scanning integration surface (slot reserved — the feature body lands M11+).",
 	}
 }
+
+// Trashcan is the trash-can feature slot (M12 T-345, FR-106). The tier
+// marked here is PRD 106.4's INTERIM ruling (Q3's 暂行 pro+); the terminal
+// decision rides the T-345 evidence brief — the reverse-docs record shows
+// NO addon gating on the Artifactory side (inv-4's addon inventory lists
+// no trash entry; the OSS repo's rest-common carries the trash service
+// base; the OSS config template ships trashcanConfig), so flipping this
+// to TierCommunity is the recommended terminal shape and a one-line change
+// (the gate, view and delete-seam behavior follow the slot, FR-86-AC2's
+// single-source rule). Kind is KindFeature — BinFlow has no separate
+// feature-gov kind (the PRD's 暂定 naming); the governance flavor is the
+// description's, registered.
+func Trashcan() Addon {
+	return Addon{
+		ID:          "trashcan",
+		Kind:        KindFeature,
+		MinTier:     license.TierPro,
+		DisplayName: "Trash Can",
+		Description: "Soft-delete safety net: deletes are captured into the built-in auto-trashcan with provenance properties, 14-day retention, restore/empty/clean.",
+	}
+}
