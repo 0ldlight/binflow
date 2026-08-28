@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/ed25519"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -57,8 +58,9 @@ func newStack(t *testing.T) *stack {
 
 // stackOptions tunes the assembly (see newStackOpt).
 type stackOptions struct {
-	addons *addonsRegistrySeam
-	keys   *licenseKeys
+	addons      *addonsRegistrySeam
+	keys        *licenseKeys
+	noAnonymous bool // anonymous access off — the force-auth door's posture
 }
 
 // newStackOpt assembles the stack; a non-nil keys builds a REAL
@@ -84,6 +86,9 @@ func newStackOpt(t *testing.T, opt stackOptions) *stack {
 
 	cfg := config.Defaults()
 	cfg.Storage.DataDir = dataDir
+	if opt.noAnonymous {
+		cfg.Security.AnonymousAccess = false
+	}
 
 	authSvc := auth.NewFromStore(md, cfg.Security.AnonymousAccess)
 	svc := repo.New(st, md, authSvc, nil)
@@ -165,6 +170,45 @@ func (s *stack) seedVirtualMembers(t *testing.T, virtual string, members ...stri
 	t.Helper()
 	if err := s.md.Virtual().SetMembers(context.Background(), virtual, members); err != nil {
 		t.Fatalf("seed members %s <- %v: %v", virtual, members, err)
+	}
+}
+
+// seedUser creates one enabled non-admin account.
+func (s *stack) seedUser(t *testing.T, name, pass string) {
+	t.Helper()
+	hash, err := auth.HashPassword(pass)
+	if err != nil {
+		t.Fatalf("hash %s: %v", name, err)
+	}
+	if err := s.md.Users().Create(context.Background(), &metadata.User{
+		Username: name, PasswordHash: hash, Enabled: true,
+	}); err != nil {
+		t.Fatalf("seed user %s: %v", name, err)
+	}
+}
+
+// seedGrant writes one permission target naming this stack's nuget
+// repository with the given action bits for one user.
+func (s *stack) seedGrant(t *testing.T, target, user, repo string, canRead, canWrite, canDelete bool) {
+	t.Helper()
+	mk := func(l []string) string {
+		b, err := json.Marshal(l)
+		if err != nil {
+			t.Fatalf("marshal target list: %v", err)
+		}
+		return string(b)
+	}
+	now := metadata.Now()
+	if err := s.md.Permissions().PutTarget(context.Background(),
+		&metadata.PermissionTarget{
+			Name: target, Repos: mk([]string{repo}), Includes: mk([]string{"**"}),
+			Excludes: mk(nil), CreatedAt: now, UpdatedAt: now,
+		},
+		[]*metadata.PermissionPrincipal{{
+			TargetName: target, Principal: user, PrincipalType: "user",
+			CanRead: canRead, CanWrite: canWrite, CanDelete: canDelete,
+		}}); err != nil {
+		t.Fatalf("seed grant %s: %v", target, err)
 	}
 }
 

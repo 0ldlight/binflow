@@ -293,6 +293,10 @@ func (h *Handler) warnSidecar(ctx context.Context, repoKey, path string, err err
 
 // writePushError renders the validation-family refusal.
 func (h *Handler) writePushError(w http.ResponseWriter, err error) {
+	if errors.Is(err, errMissingPackageField) {
+		writePlain(w, http.StatusBadRequest, msgMissingPackageField)
+		return
+	}
 	if errors.Is(err, errInvalidPackage) {
 		writePlain(w, http.StatusBadRequest, err.Error())
 		return
@@ -300,13 +304,20 @@ func (h *Handler) writePushError(w http.ResponseWriter, err error) {
 	writePlain(w, http.StatusInternalServerError, err.Error())
 }
 
+// msgMissingPackageField is the publish refusal's exact wording (nuget.md
+// section 2 #17: the form-data body without the package field).
+const msgMissingPackageField = "Unable to find 'package' field in request form data."
+
+// errMissingPackageField is the sentinel behind the exact-wording refusal.
+var errMissingPackageField = errors.New(msgMissingPackageField) //nolint:staticcheck // ST1005: the protocol's exact wording (nuget.md section 2 #17) ends with a period
+
 // packageBodyReader unwraps the push body: the dotnet client (8.x
 // verified live, T-287 — and Artifactory's FormDataMultiParam publish
 // route before it) sends the package as a ONE-PART multipart/form-data
 // body (name=package, filename=package.nupkg), while the curl surface
-// and nuget.exe-era clients PUT the raw octet stream. The first part of
-// a multipart body IS the package (there is nothing else to send); the
-// raw spelling passes through untouched.
+// and nuget.exe-era clients PUT the raw octet stream. A form-data body
+// whose parts carry no field NAMED "package" is the exact-wording 400;
+// the raw spelling passes through untouched.
 func packageBodyReader(r *http.Request) (io.Reader, func(), error) {
 	mediaType, params, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || mediaType != "multipart/form-data" {
@@ -317,11 +328,21 @@ func packageBodyReader(r *http.Request) (io.Reader, func(), error) {
 		return nil, nil, fmt.Errorf("%w: multipart push body carries no boundary", errInvalidPackage)
 	}
 	mr := multipart.NewReader(r.Body, boundary)
-	part, err := mr.NextPart()
-	if err != nil {
-		return nil, nil, fmt.Errorf("%w: multipart push body carries no package part: %w", errInvalidPackage, err)
+	for {
+		part, err := mr.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, nil, fmt.Errorf("%w: multipart push body unreadable: %w", errInvalidPackage, err)
+		}
+		if part.FormName() != "package" {
+			_ = part.Close() //nolint:errcheck // read-only part fd
+			continue
+		}
+		return part, func() { _ = part.Close() }, nil //nolint:errcheck // read-only part fd
 	}
-	return part, func() { _ = part.Close() }, nil //nolint:errcheck // read-only part fd
+	return nil, nil, fmt.Errorf("%w: %w", errInvalidPackage, errMissingPackageField)
 }
 
 // serveDelete implements the unlist verb as a hard delete of the version
