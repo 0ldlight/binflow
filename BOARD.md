@@ -1020,3 +1020,124 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
   6. **三票全交织裁定（2026-08-27 10:52，第 4 条扩展）**：T-311 续跑期间主动改写 main.go/router.go（rpm import/yum case），接线文件成 T-308/T-309/T-311 三票共写且无法按票序独立编译（先行提交必携带后行包）。裁定：T-311 落地全绿后以 **B4+B5 波次单 PR 一次合入**，三票逐项归因（票号→文件清单→验证摘要）写入 PR 描述；票状态以 PR 合并为 done 锚点。快照保险：/tmp/snap-b45-1052/。
 
 （空）
+
+## M12 票据（T-333~T-357，tech-lead 2026-08-28 拆票；AC 全文见 docs/prd/milestone-12.md v1.0；拆票日志 reports/agents/M12-SPLIT.md；Q1~Q7 暂行口径已入票面，终裁点随票上 BOARD）
+
+> **拆票基线**：PRD §1.3 估 22~28 票，实拆 **25 票**（P0×8 / P1×14 / P2×3，另含波外条件票 T-357 计入 P2）——四裁决/裁定承载票（裁决① NuGet bundle / 裁决③ D-A fail-open / 裁定⑤ D-8R 瘦身 / T-329 D-F 收尾）全部置顶 B0~B3；全宽 2 沿 M11 口径；协议/行为面实现票全部 dep 对应规格票（clean-room 铁律）。**转正映射**：T-330（Trash can 条件票）→ T-345/T-352 承载；T-320（HelmOCI 条件票，未派）→ T-342 承载——票号沿用与否 conductor 收口时定（PRD §1.3 既定票条款）。
+
+**FR → 票映射**：
+
+| FR | 票（P） | 承载要点 | 裁决/登记锚 |
+|---|---|---|---|
+| 前置产物 | T-333（P0）ADR-0040 / T-334（P0）nuget.md / T-335（P0）repo-operations.md | ADR + 两规格（Trash can mini 规格随票 T-345，不单列） | §1.3 前置①②③ |
+| FR-103 | T-334（规格）→ T-337（实现，P0） | v2 路由全集 + OData 参数面 + publish 重复臂 | **用户裁决①（07:5x）**；T-304 §1.1/§4.1/§7 |
+| FR-104 | T-341（P0，dep T-334+T-337） | v3 search 上游代理 + service index 动态解析 + virtual 合并 | **用户裁决①**；T-304 §1.1-L3'/L4/L7 |
+| FR-105 | T-335（规格）→ T-339（copy/move，P0）→ T-343（归档族，P1） | 树级/dryRun/flat + 属性/校验和/索引随行；archive!/ + 目录 zip + exploded | 主矩阵缺口 5（PM 增量选题） |
+| FR-106 | T-345（BE，P1）→ T-352（FE，P1）；T-330 转正 | 统一删除 seam + trash 四元组 + 保留期 + restore/empty/clean + 最小面 | Q7 兑现；Q3 档位随票终裁 |
+| FR-107 | T-333（ADR）→ T-338（P1） | 本地优先写 + 异步重试队列 + 排空对账 | **用户裁决③（07:5x）**；T-327 D-A |
+| FR-108 | T-336（P0） | 懒加载 embed，footprint 门红→绿 | **收口裁定⑤**；T-329 D-8R |
+| FR-109 | T-342（P1，P2 段并入）；T-320 承载 | helmoci 包型 + oci:// 透传 + chartsBaseUrl + D-3 评估腿 | Q2 承接；T-313 D-2/D-3/D-5 |
+| FR-110 | T-340（P1/P2，conan+cargo 一票） | D-F 状态码 + forceConanAuthentication + cargo 409 + Q5 条件腿 | **T-329 D-F 登记**；T-316 R-3/4 |
+| FR-111 | T-344（P1） | 五页面 + 组件六件套 + combobox 统一化，交互零变化 | T-300 候选清单 |
+| FR-112 | T-347（arch，P1）+ T-348（reverse，P1） | §15.4/§23 + cargo.md §8 + conan 升置信 + D-G/D-H | T-332/T-318/T-312 转交 |
+| FR-113 | T-346（repo config+auth，P1）+ T-349（storage，P2）+ T-350（CI runner，P1）+ T-353（web 表单，P2） | T-290-2/byHash/token 窄域/auth 尾巴/拒启序/de-flake | 票级遗留按域聚类 |
+| QA/文档/发布 | T-351（中期回归）+ T-356（终验，P0）；T-354（文档）；T-355（release） | L01~L35 + DoD + 五类文档 + 烟测/UAT | §8 剧本 |
+| 条件票 | T-357（P2·条件 Q2） | NuGet symbol server 余量票 | Q2；T-293 终裁口径 |
+
+**批次（全宽 2；波内 area 互斥，跨波同 area 串行）**：
+
+- **B0（前置/规格波）**：T-333 ｜ T-334
+  - **T-333** [P0] ADR-0040 dual-write fail-open 语义定案 `role:architect` area: DECISIONS.md（docs-only）dep:—
+    AC1: ADR-0040 Accepted——停机窗 PUT/GET 形态（T-327 D-A 两处 500 修复目标：GET 存量 fallback 探测 / PUT disk 优先落盘+入队）、重试队列（持久化载体/指数退避/上限与死信/凭据纪律）、排空与对账策略、与 M6 三模式状态机交互（bypass/dual-write/completed 边界）；K43 回填 PRD §5.6。
+    AC2: 视 Q3 终裁需要出 ADR-0041 附录或并入正文（trashcan 槽位/kind 取证留痕；暂行 pro+ feature-gov）。
+  - **T-334** [P0] nuget.md 规格新建（FR-103.1/104 前置）`role:reverse-engineer` area: docs/reverse/nuget.md dep:—（T-304 §1.1/§4.1/§7 出处直取）
+    AC1: 双段交付——as-built 段（M10 v3/v2 既有面 + 7 项自有裁定维持项固化）/ 增量段（v2 路由全集逐端点〔§1.1-L2 出处列展开〕+ OData 查询参数支持面〔$filter/$orderby/$top/$skip/$inlinecount 以取证为准〕+ FeedUtils 资源类型阶梯常量表 + search 代理链），出处逐条（反编译类/方法 或 官方规范锚点）+ 置信度标定。
+    AC2: tech-lead 就绪度确认（L01 走查——FR-103-AC1 兑现）。
+- **B1**：T-335 ｜ T-336
+  - **T-335** [P0] repo-operations.md mini 规格（FR-105.1 前置）`role:reverse-engineer` area: docs/reverse/repo-operations.md dep:—（主矩阵 §C/归档族行锚点在案）
+    AC1: copy/move wire（POST /api/copy|move 树级/dryRun/flat〔dry+failFast〕/to 参数/冲突报告形态）+ `archive!/`（strictArchiveDotSlash）+ 目录 zip（folderDownloadConfig 默认关 + 1024MB/5000 文件/10 并发/匿名单独开关 + GET /api/archive/download + entry 抽取 + 计流量）+ exploded 上传（explodedArchiveExtensions=zip,tar,tar.gz,tgz + X-Explode-Archive），逐条附 Artifactory 出处。
+    AC2: **Q4 取证腿**——copy/move/归档族 Artifactory license 门复核结论上 BOARD（folderDownload 计流量面尤须查证；暂行基座不门控）。
+  - **T-336** [P0] FR-108 空载 RSS 瘦身（懒加载 embed）`role:dev-go-core` area: internal/ 重资源 embed 面（嵌入门面/大查找表/模板族；cmd 装配只读）dep:—
+    AC1: 归因清单先行（vmmap/RSS 顶源前后对照入票报告）→ `make footprint` EXIT 0（138.7MB→≤100MB **红→绿**）+ `make check-size` 六平台聚合 ≤100MiB 维持（94.13MB 基线不回归）。
+    AC2: 冷启动三连 P95 <2s + 懒加载触及路径全量 e2e 抽样绿（L20；懒加载不得以启动时延换内存）。
+- **B2**：T-337 ｜ T-338
+  - **T-337** [P0] FR-103 NuGet v2 数据面全面实装 `role:dev-go-core` area: internal/adapter/nuget（**窗口独占**）dep:T-334
+    AC1: v2 路由全集逐端点断言绿（L02：Search()±/$count、FindPackagesById()±/$count、Packages(id)(/Id)、Packages()/$count、GetUpdates()±/$count、$batch、Download nupkg sha256 对账、DELETE 200/403、PUT×2；id 小写折叠/版本归一化沿 L1/L6 维持裁定）+ **M10「v2 其余 404」负向断言反转**（归属本票豁免，PRD 回写核实归 QA）。
+    AC2: 重复臂（T-304 §7 语义）——同 id+version 二次 push → 409 CONFLICT 逐字；d 权限主体重传 → 覆盖（sha256 新值断言）（L03）。
+    AC3: 真实客户端——nuget.exe 活体腿（可得则 list/install 经 v2 源全绿；不可得 curl 等价 + BOARD 留痕，M11 conan 1.x 同款路径）+ nuget 槽三缝复跑（v2 面含内）+ M10 T-287 v3 序列零回归（L04/L05）。table-driven 单测 + dotnet 8 容器腿（v3 回归维持）。
+  - **T-338** [P1] FR-107 dual-write S3 停机 fail-open `role:dev-go-storage` area: internal/storage（dual-write 引擎停机窗 + 重试队列 + 排空对账）dep:T-333
+    AC1: MinIO stop → PUT×3 全 200（disk 优先落盘 + 队列深度+3）→ GET 新旧全 200（存量 fallback，D-A 两处 500 消除）→ MinIO start → 排空 → mc 逐对象 sha256 对账零缺（L18；T-327 D-A 证据链闭合）。
+    AC2: 停机窗内重启 → 队列幸存 → 恢复排空对账报告留票；M6 H12~H15 迁移序列复跑绿 + binstore.yaml 三链 roundtrip 零回归（L19；M6 PRD FR-50 文面零修改）。
+    AC3: 可观测——queue depth gauge + storage.replay.* 审计 + 启动日志水位一行（NFR-P57/S63；队列凭据不落明文，条目绑定 blob 坐标防重放）。
+- **B3**：T-339 ｜ T-340
+  - **T-339** [P0] FR-105 copy/move 核心 `role:dev-go-storage` area: internal/storage 树操作 + internal/httpapi（/api/copy|move 端点；router 接线交 conductor）dep:T-335
+    AC1: copy/move 全链 200 + 源/目标 sha256 对账 + ?properties 随行 + copy 源保留/move 源消失；dryRun 零副作用（GET 对照）+ flat 展开 + failFast 臂（L11/L12）。
+    AC2: 协议仓派生索引联动——deb 仓 copy .deb → 目标 Packages/by-hash 重算；conan 仓 move recipe → 目标 index.json 修订链一致（消费各 adapter 既有 reindex 内核；L13）。
+    AC3: 万节点树 copy 零 5xx + 抽样对账 + dryRun 报告 P95 <5s；目标仓写权限门 403（NFR-P54/S62）；系统内路径豁免收编为显式系统路径集（FR-97.1 DB-2 名录）。
+  - **T-340** [P1] FR-110 包型收尾（conan + cargo，票内两包串行）`role:dev-registry-adapter` area: internal/adapter/conan + internal/adapter/cargo dep:—（conan.md/cargo.md 规格在案；T-329/T-316 登记直取）
+    AC1: conan D-F——`_/_` 坐标（conan 2.x 形态）v1 packages/delete → **200** + 树删（404 复现对照脚本入票；v1.go dir 解析与删除结果码分离）+ conan 1.x 流量回归不受影响；forceConanAuthentication 字段落地——开启匿名面 401/引导登录 + GET 回显 + 关闭往返（L23）。
+    AC2: cargo R-3/R-4——死上游 search → **409 + errors 信封**（出处 T-304 §3 表 Exception 臂）+ `.cargo/**` DELETE 收敛（L24）。
+    AC3: Q5 条件腿——conan Artifactory 真实上游活体互证（dep 用户环境可得性；不可得维持 mock+自指两腿留痕，非 DoD 缺口）。
+- **B4**：T-341 ｜ T-342
+  - **T-341** [P0] FR-104 NuGet v3 search 上游代理 + service index 动态解析 + virtual 合并 `role:dev-go-core` area: internal/adapter/nuget（dep T-337 **同 area 串行**）dep:T-334,T-337
+    AC1: 自指/mock service index（自定义 @id 路径）→ flatcontainer/registration/search 三面 URL 全部由上游 service index 按阶梯常量表解析（前缀常量退役断言）；改上游 @id → 零配置跟随（L06；K39）。
+    AC2: remote 上游新发布版本（不预下载）立即可搜（dotnet package search / curl q）+ virtual 两域并见（**M10「virtual search=local+已落地缓存」断言反转**，归属本票豁免）+ 停上游降级零 5xx/恢复自动回代理（L07~L09）。
+    AC3: local 半边维持存储事实（T-304 判定，不动）+ SSRF 零新面——复用 M3 Guard 五参数 + ADR-0025 决策 4 私网开关（NFR-S64）。
+  - **T-342** [P1] FR-109 HelmOCI 分发（P2 段并入；T-320 承载）`role:dev-registry-adapter` area: internal/adapter/helm（helmoci handler + docker 面 ForRepoType 复用 + 槽位）dep:—（helm.md + HL-3 在案）
+    AC1: helm push/pull oci:// 全链（→ helm install）+ manifest 三 media type 断言 + .prov 经 OCI 面 --verify 腿 + 混仓校验 400（L21/L22）。
+    AC2: /v2 面全量回归零变化（ForRepoType 复用不改 docker 面）+ helmoci 槽三缝转正断言（community 403 → pro 200 → 卸载 pull 200/push 403）。
+    AC3: chartsBaseUrl 分体基址改写（T-313 D-2，P2）+ oci:// 透传深化（D-5 照 helm.md 增量锚点）+ D-3 `_external` 落盘缓存 **architect 评估结论 BOARD 留痕**（Q6——评估腿，未落地非 DoD 缺口）。
+- **B5**：T-343 ｜ T-344
+  - **T-343** [P1] FR-105 归档族（archive!/ + 目录 zip + exploded）`role:dev-go-storage` area: internal/storage 归档流式读取 + internal/httpapi（archive 端点；与 T-339 同域串行）dep:T-335,T-339
+    AC1: `<file>.zip!/inner/path` 按需解包成员读取（不解包落盘）字节一致 + strictArchiveDotSlash 开启后违规形态照规格（L14）。
+    AC2: 目录 zip——folderDownload 默认关断言 + 开启后 GET /api/archive/download 解包逐文件 sha256 对账 + 超限（>5000 文件）拒绝 + 计流量审计（NFR-S62 匿名默认关维持）。
+    AC3: exploded 上传——X-Explode-Archive 白名单扩展内接受+解包（**M10「显式 400 拒绝」断言反转**，归属本票豁免）/闭集外 400 维持。
+  - **T-344** [P1] FR-111 MUI 批次三 `role:dev-frontend` area: web/src（五页面 + 共享组件层；web/ 域本波独占）dep:—（T-300 候选清单在案）
+    AC1: 四闸门——console-ux 锚零改动 + anchor-audit ledger PASS + 全量 Playwright 绿 + assert-tokens 零硬编码；axe 双主题 serious=0；SPA gzip 相对 T-291 基线累计 ≤25% 维持（L25；NFR-P56）。
+    AC2: 服务端契约 git diff=0 + 交互零变化（发现 Artifactory 交互出入上 BOARD 先改册再迁移）+ 批三后旧组件栈残留页清单清零（L26）。
+- **B6**：T-345 ｜ T-346
+  - **T-345** [P1] FR-106 Trash can BE（mini 规格随票；T-330 转正承载）`role:dev-go-storage` area: internal/storage 删除统一 seam + auto-trashcan 仓/保留期 cron + internal/httpapi（trash REST 族）+ addon 槽 dep:T-339（move 底座复用——FR-105.5）
+    AC1: mini 规格随票（T-330 模式）——auto-trashcan 内置仓 + trash 四元组（trash.time/deletedBy/originalRepository/originalPath）+ 保留期默认 14 天 + empty/restore（to+transaction-size）/clean wire + 目录级批量清理（主矩阵 §B/G + config.xml trashcanConfig 锚点）；**Q3 档位取证上 BOARD 终裁**（暂行 trashcan 槽 pro+ / kind=feature-gov）。
+    AC2: DELETE 制品 → 原路径 404 + 回收站可见 + 四元组打标；restore → 原路径 200 + sha256 一致 + 属性复原 + 协议仓索引重算（L15/L16）。
+    AC3: 短保留期夹具自动清理 + 审计；POST /api/trash/empty 权限门 403 + 审计行；M1~M11 删除族断言（GC/grace/quota/cleanup T-324 三腿）回归——删除语义变化的断言翻转 100% 归属本票豁免（L17；与 Cleanup-Retention 策略引擎分界，M13+ 不混入）。
+  - **T-346** [P1] FR-113 repo config + auth 域遗留（113.1/113.2 BE/113.4）`role:dev-go-core` area: internal/repo（canonical/枚举）+ internal/auth（audit 词表/LDAP DN）dep:—（别名对已备；auth-integration.md v2 规格在案）
+    AC1: socketTimeoutMillis canonical/回显统一 + 旧拼写 socketTimeoutMs 接受为输入别名（回显新拼写）+ 文档同步（L28；**FR-113.1 落地是 T-347 §15.4.1 终态回写时序前置**）。
+    AC2: byHash 值域枚举校验归 repo.Service——PUT 非法值 400 枚举错误（值域照 debian.md/rpm.md；K45 票内定案）（L29-BE）。
+    AC3: audit picker 两词补录可见 + userDnPattern 消费按 auth-integration.md v2 规格（DN 直写模式生效或明确拒绝，腿测试断言）（L31）。
+- **B7**：T-347 ｜ T-348（回写批——docs-only，与实现票无 area 冲突）
+  - **T-347** [P1] FR-112.1 architecture.md §15.4/§23 回写 `role:architect` area: docs/design/architecture.md（docs-only）dep:T-346（**§15.4.1 remote 字段以 FR-113.1 终态回写——PRD §1.3 时序协调条款**；§23 段无依赖可先落）
+    AC1: §23 MPU 新 wire 回写（ADR-0039：六端点 POST+QueryParam / complete?sha1=202 异步任务模型 / GET /config 能力探测）+ §15.4/§15.4.1 remote 字段落 canonical JSON as-built diff 落盘 + 票报告留痕。
+    AC2: `make docs` SUCCESS 零断链（L27 组成部分）。
+  - **T-348** [P1] FR-112.2/112.3 规格回写 + D-G/D-H 校验 `role:reverse-engineer` area: docs/reverse/cargo.md + docs/reverse/conan.md dep:T-340（D-F 修正后 conan 规格行联动）
+    AC1: cargo.md §8 virtual 行 as-built 回刷（首见去重/写路由/yank 双持有者——T-318 遗留）+ conan.md D1/D5/D7/D8 升置信（复核取证或标定）。
+    AC2: D-G/D-H 四处旧措辞 grep 零残留（cargo.md 三处 / remote-virtual.md L56 / auth-config.md 边界表 / api-reference SAML 三端点）+ `make docs` SUCCESS（L27 收口）。
+- **B8**：T-349 ｜ T-350
+  - **T-349** [P2] FR-113 storage 域尾巴（113.3 token 窄域化 + 113.5 env 拒启序）`role:dev-go-storage` area: internal/storage（MPU token 权限域 + S3 env 启动链；同 area 随 T-338 后串行，无数据依赖）dep:—
+    AC1: MPU complete 后签发 token 权限域收窄到目标会话——他路径使用 403 / 原会话续传 200（L30；NFR-S63 防横向使用）。
+    AC2: S3 凭据 env 组不完整（如缺 ACCESS_KEY）→ 启动期即拒 + 错误指名缺键 + **先于 binstore.yaml 报错时序断言**（L31-AC5；T-325 登记）。
+  - **T-350** [P1] FR-113.6 CI 专用 runner / 静默窗 de-flake `role:devops-engineer` area: .circleci/ + Jenkins 配置 + e2e 编排脚本 dep:—（T-327 §7 协议 + T-329 观察④在案）
+    AC1: K46 定案落地——CI 专用 runner 就位或静默窗协议脚本 + 负载 flake 家族（N01 straddle 同族）三连零复发或隔离归因留痕（L32）。
+- **B9**：T-351 ｜ T-352
+  - **T-351** [P1] QA 中期回归 `role:qa-engineer` area: 测试矩阵（L 序列断言 + 归属审计）dep:B2~B5 主体合入（T-337~T-344）
+    AC1: NuGet 域 L02~L09 + 操作族 L11~L14 首跑（含 dotnet 8 / nuget.exe 夹具、多协议仓夹具 deb/rpm/conan/npm）+ M1~M11 P0 双形态抽样回归。
+    AC2: 三处断言反转预核实（nuget v2 404→全集 / virtual search 缓存→代理 / X-Explode 400→接受——PRD §5.4 回写核实）+ 契约变更面归属审计（m11-done..HEAD 增量）零孤儿。
+  - **T-352** [P1] FR-106 Trash can FE 最小面 `role:dev-frontend` area: web/src（回收站浏览/恢复/清空页；与 T-344 web/ 互斥分批——先后脚）dep:T-345
+    AC1: 回收站浏览/恢复/清空 MUI 面（FR-111 组件纪律）+ readonly_admin 只读断言 + Playwright 腿绿 + axe 双主题 0 + NFR-S61（回收站制品不可匿名读）FE 侧断言。
+- **B10**：T-353 ｜ T-354
+  - **T-353** [P2] FR-113.2 web 仓表单（deb/rpm 策略键）`role:dev-frontend` area: web/src 仓编辑器表单（web/ 串行链 T-344→T-352 后）dep:T-346（byHash 值域定案 K45）,T-352
+    AC1: Playwright——deb/rpm 仓编辑器设策略键（byHash/calculateYumMetadata 等全列）→ 保存 → 重开回显（L29-FE；REST 已通 T-327R/D-E，本票只加表单面）。
+  - **T-354** [P1] tech-writer 五类文档增量 `role:tech-writer` area: docs/user/（NuGet v2 接入 + 操作族指南 + 回收站管理 + HelmOCI 接入 + api-reference/FAQ）dep:对应域票合入（B6 后可启动）
+    AC1: 五类增量交付（§8-10 细目）+ 客户端命令全部实测可复跑 + `make docs` SUCCESS + 侧栏挂页（L35）。
+- **B11**：T-355
+  - **T-355** [P1] release 部署烟测 + UAT 链 `role:release-engineer` area: deploy/ + charts/ + CD 链 dep:全部实现票（B10 前）
+    AC1: 部署矩阵烟测（compose/k8s/systemd/offline 抽样）+ UAT 链（CircleCI → 52.79.109.153）绿 + 新配置键四部署面接线核验（trashcan 槽/folderDownload/fail-open 队列面——含 ADR-0040 若引入新键）。
+- **B12（收口波）**：T-356
+  - **T-356** [P0] QA 终验 `role:qa-engineer` area: 全量验收矩阵 dep:全部票 + T-355
+    AC1: L01~L35 全量（承证+增量）+ M1~M11 全 P0 双形态复跑全绿 + 契约变更面（git diff m11-done..HEAD -- internal/ cmd/）100% 归属 M12 豁免票 + 三处断言反转 + footprint 红→绿 PRD 回写核实 + DoD 八条逐条（实测数字归档）。
+    AC2: 收口检查双项（用户规程）——README 双语 + 文档站随新能力核查，结论入收口报告；总裁定 PASS → conductor git tag m12-done。
+- **波外条件票**：T-357 [P2·条件 Q2] NuGet symbol server 余量票 `role:dev-go-core` area: internal/adapter/nuget（symbol 面子域）dep:T-337,T-341 收官 + 余量条款（全部 P0/P1 收官且余量足）
+    AC1: mini as-built 规格随票（T-293 终裁口径）；.pdb/GUID 路径面 + 真实客户端腿；未触发 M13+ BOARD 留痕非 DoD 缺口。
+
+**关键路径**：T-334→T-337→T-341（NuGet bundle 主线，裁决①）→ T-356；T-333→T-338（fail-open，裁决③）→ T-351/T-356；T-335→T-339→T-343/T-345→T-352（生命周期域主线）→ T-356；T-346→T-347（回写时序耦合）；T-344→T-352→T-353（web/ 串行链）。**T-336（瘦身 P0）零依赖可任意波次穿插；T-340 零依赖可提前补位。**
+
+**风险登记（拆票日志 M12-SPLIT.md 详表）**：① Q3 trashcan 档位终裁须在 T-345 AC3 门控断言前收口（B6 前）；② Q4 操作族 license 门——T-335 取证若翻则 T-339/T-343 补三缝面；③ nuget.exe 活体可得性（curl 等价+留痕路径，M11 先例）；④ internal/storage 三票（T-338/T-339/T-343/T-345/T-349）严格波次串行 + router/slots 接线交 conductor；⑤ T-347 依赖 T-346 时序——延期则 §15.4.1 段顺延、§23 段先落；⑥ dev-go-core 负载四票错峰 B1/B2/B4/B6（窗口独占条款维持）；⑦ web/ 串行链若前端带宽受限，T-353 可并入 T-352（conductor 裁量，FR 边界留痕）。
