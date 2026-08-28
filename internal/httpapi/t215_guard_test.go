@@ -41,8 +41,8 @@ import (
 // Editing this constant is a deliberate route-gate change — update the
 // inventory table with it.
 const (
-	t215ManageGates    = 53
-	t215RepoManageBits = 8 // +2: T-309's helm reindex family; +1: T-311's yum reindex; +1: T-310's deb reindex (CanManageRepo, ADR-0034)
+	t215ManageGates    = 56 // +3: T-345's trash family (empty/restore/clean, CapSystemWrite — the gc/cleanup destructive-management posture)
+	t215RepoManageBits = 8  // +2: T-309's helm reindex family; +1: T-311's yum reindex; +1: T-310's deb reindex (CanManageRepo, ADR-0034)
 	// t215ManageGates +10 (M11 T-319, ADR-0038): the instance GPG keypair
 	// plane — /api/security/keypair {POST,PUT,GET,verify POST,public GET,
 	// {pairName} GET+DELETE}, /api/v1/admin/security/keypair/generate POST,

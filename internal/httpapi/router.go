@@ -810,6 +810,34 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 			s.handleArchiveDownload(w, r, rest)
 		})
 
+	// ---- /api/trash (M12 T-345, FR-106 / inv-2-surface section 1.A) ----
+	// The trash family's three verbs: POST empty, POST restore/{path}
+	// (to/transaction-size ride the query), DELETE clean/{path}. Browsing
+	// is NOT a fourth route — the standing storage face serves
+	// /api/storage/auto-trashcan (item info, ?list, ?properties), the
+	// console tree's Trash Can node. The route gate is system:write (the
+	// destructive-management posture of the gc/cleanup family:
+	// readonly_admin 403); the license gate is the handler's first line
+	// (the Q3 interim: the trashcan slot rides at pro).
+	case rest == "trash/empty" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleTrashEmpty)
+	case rest == "trash/restore" || rest == "trash/restore/" || strings.HasPrefix(rest, "trash/restore/"):
+		if r.Method != http.MethodPost {
+			notImplemented(w, "/binflow/api/"+rest)
+			return
+		}
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, func(w http.ResponseWriter, r *http.Request) {
+			s.handleTrashRestore(w, r, rest)
+		})
+	case rest == "trash/clean" || rest == "trash/clean/" || strings.HasPrefix(rest, "trash/clean/"):
+		if r.Method != http.MethodDelete {
+			notImplemented(w, "/binflow/api/"+rest)
+			return
+		}
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, func(w http.ResponseWriter, r *http.Request) {
+			s.handleTrashClean(w, r, rest)
+		})
+
 	// ---- /api/search (SR-01/SR-02, T-92) ----
 	// Exactly two entrances open the M1 E-26 search domain (PRD M4: the
 	// domain opens artifact + checksum only); every other family member —
