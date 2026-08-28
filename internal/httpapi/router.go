@@ -147,8 +147,19 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 		// never consume the presented credential (T-157). The
 		// presented-but-rejected-never-downgrades posture is untouched for
 		// every other route.
+		//
+		// T-332 adds the MPU CAPABILITY routes to the exemption family: the
+		// session token those endpoints take is a plane-issued capability
+		// the shared verifier cannot know, so a rejected Bearer there is the
+		// EXPECTED first leg of the flow, not an attack signal. The handler
+		// owns the verdict — every credential that is not the capability
+		// still meets the middleware's own 401 (mpuCredentialVerdict), so
+		// the never-downgrade posture survives on these routes too.
 		if isLoginEntryPoint(r.Method, path) {
 			s.log.DebugContext(r.Context(), "httpapi: rejected credential exempted on a login entry point",
+				"path", path, "reason", reason)
+		} else if isMPUCapabilityRoute(r.Method, path) {
+			s.log.DebugContext(r.Context(), "httpapi: rejected credential deferred to the MPU capability lane",
 				"path", path, "reason", reason)
 		} else {
 			// /binflow plane (and everything else): the historical hard-401
@@ -222,6 +233,23 @@ func isLoginEntryPoint(method, path string) bool {
 		return method == http.MethodGet
 	}
 	return false
+}
+
+// isMPUCapabilityRoute reports whether (method, path) is one of the MPU
+// plane's token-addressed endpoints (T-332/ADR-0039): the four per-session
+// verbs plus the part PUT target. On these routes the presented credential
+// IS the plane's session capability — a value the shared verifier rejects
+// by construction — so the dispatch-level hard-401 defers to the handler,
+// which re-renders the shared 401 for every non-capability credential.
+func isMPUCapabilityRoute(method, path string) bool {
+	switch path {
+	case prefix + "/api/v1/uploads/urlPart",
+		prefix + "/api/v1/uploads/status",
+		prefix + "/api/v1/uploads/complete",
+		prefix + "/api/v1/uploads/abort":
+		return method == http.MethodPost
+	}
+	return method == http.MethodPut && strings.HasPrefix(path, prefix+"/api/v1/uploads/part/")
 }
 
 // v2AuthFailure is the docker adapter's seam for rendering an
@@ -428,39 +456,35 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite},
 			s.withName(rest, "v1/replications/", s.handleReplicationDelete))
 
-	// ---- /api/v1/uploads (M10 T-289, FR-90.1 / architecture §15.4) ----
-	// The MPU REST plane: create/config/urlPart/status/complete/abort plus
-	// the urlPart contract's PUT target (part). Gate = required at the
-	// route + the target repository path's `w` inside the handler (the
-	// section 15.4 ruling — a content-plane door, not a management
-	// capability); a backend without storage.MultipartUploads (filestore,
-	// dual-write) answers the honest plain-text 501 on every arm, never a
-	// 404 disguised as "no such route" (FR-90-AC3). The bare status form
-	// is the list view (BinFlow's own arm, the inv-4 L3 set's status
-	// endpoint answering the whole instance).
+	// ---- /api/v1/uploads (M10 T-289, FR-90.1 / architecture §15.4; wire
+	// flipped whole to the Artifactory shape in M11 T-332 / ADR-0039) ----
+	// Six endpoints, every data verb POST with QueryParam parameters, plus
+	// the urlPart contract's PUT target (part). create and config keep the
+	// route auth gate (RolesAllowed admin,user — the principal door); the
+	// four per-session verbs and the part PUT ride the CAPABILITY lane: the
+	// session token the create verb issued is the only credential they take
+	// (the part PUT also accepts shared credentials + `w`, its manual-driver
+	// arm), which is why they carry NO enforce gate — the handler owns the
+	// verdict and renders the shared middleware's own 401 for every
+	// credential that is not the token (the dispatch-level exemption,
+	// isMPUCapabilityRoute). A backend without storage.MultipartUploads
+	// (filestore, dual-write) answers the honest plain-text 501 on the five
+	// data endpoints; config is the probe and answers 200 supported:false
+	// (FR-90-AC3 + ADR-0039).
 	case rest == "v1/uploads/create" && r.Method == http.MethodPost:
 		s.enforce(w, r, routeAuth{required: true}, s.handleUploadsCreate)
-	case rest == "v1/uploads/config" && r.Method == http.MethodPost:
+	case rest == "v1/uploads/config" && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{required: true}, s.handleUploadsConfig)
-	case rest == "v1/uploads/status" && r.Method == http.MethodGet:
-		s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
-			s.handleUploadsStatus(w, r, "")
-		})
-	case strings.HasPrefix(rest, "v1/uploads/status/") && r.Method == http.MethodGet:
-		s.enforce(w, r, routeAuth{required: true},
-			s.withUploadsID(rest, "v1/uploads/status/", s.handleUploadsStatus))
-	case strings.HasPrefix(rest, "v1/uploads/urlPart/") && r.Method == http.MethodGet:
-		s.enforce(w, r, routeAuth{required: true},
-			s.withUploadsPart(rest, "v1/uploads/urlPart/", s.handleUploadsURLPart))
-	case strings.HasPrefix(rest, "v1/uploads/complete/") && r.Method == http.MethodPost:
-		s.enforce(w, r, routeAuth{required: true},
-			s.withUploadsID(rest, "v1/uploads/complete/", s.handleUploadsComplete))
-	case strings.HasPrefix(rest, "v1/uploads/abort/") && r.Method == http.MethodPost:
-		s.enforce(w, r, routeAuth{required: true},
-			s.withUploadsID(rest, "v1/uploads/abort/", s.handleUploadsAbort))
+	case rest == "v1/uploads/urlPart" && r.Method == http.MethodPost:
+		s.handleUploadsURLPart(w, r)
+	case rest == "v1/uploads/status" && r.Method == http.MethodPost:
+		s.handleUploadsStatus(w, r)
+	case rest == "v1/uploads/complete" && r.Method == http.MethodPost:
+		s.handleUploadsComplete(w, r)
+	case rest == "v1/uploads/abort" && r.Method == http.MethodPost:
+		s.handleUploadsAbort(w, r)
 	case strings.HasPrefix(rest, "v1/uploads/part/") && r.Method == http.MethodPut:
-		s.enforce(w, r, routeAuth{required: true},
-			s.withUploadsPart(rest, "v1/uploads/part/", s.handleUploadsPart))
+		s.withUploadsPart(rest, "v1/uploads/part/", s.handleUploadsPart)(w, r)
 
 	// ---- /api/v1/replication/status (T-159/T-180) ----
 	// The panel polls this every 10s; the data shape is pinned to the T-159

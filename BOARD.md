@@ -988,6 +988,9 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
   - **T-332/T-316 派发 2026-08-28 07:5x**：T-332 MPU 面对齐（dev-go-storage）/ T-316 cargo remote（dev-registry-adapter，CG-2 确定臂+T-294 断言反转）；T-318 串行随后。**M11 收官路径**：T-316→T-318→T-332→T-329 终验→m11-done。
   - **T-316 → done 2026-08-28 08:4x（PR #5 合并，develop=`4848dec`）——首次 GitHub PR 收口流跑通**：cargo remote（引擎 pull-through/自指 sparse 上游/config 原文服务/search 代理/写拒绝 RE-06）+ **CG-2 双轨落地**（200+warnings.other 精确 wire/成功无 errors 键/帧缺陷 500/T-294 断言反转内构不动/D-3 去 409）+ 规格 §5.3 十一类全表重写 + §8.1 六差异。**真实 cargo 1.98 矩阵**（含覆盖臂 wire 重放实证、warnings.other 被 cargo 渲染为警告的 Artifactory wire 怪癖实证、**上游 DELETE 后全新项目仅凭缓存构建**）。登记：crates.io 直连双主机不支持（R-2 新票候选）/上游死 search 404 vs Artifactory 409（R-3/4）。日志 reports/agents/T-316.md。
   - **T-318 派发 2026-08-28 08:4x（dev-registry-adapter）**：cargo virtual——接 T-316 遗留①的类门位与 provider；宽度 2：T-332/T-318。
+  - **T-318 → done 2026-08-28 09:5x（PR #7 合并，develop=`f01f926`）——cargo 三仓型齐**：索引归并（裁决①首见去重+行字节逐字+SemVer 确定性；**真机侧证：cargo 1.98 完整解析合并索引并完成构建**——规格待验证清单 1 更强形式闭环）/download first-hit/search 归并/publish 写路由/yank 双持有者/裸面三态/失败容忍。六集成测 + T-294/T-316 回归门绿。差异 6 条登记；规格回写移交 reverse-engineer。日志 reports/agents/T-318.md。**收官剩 T-332（在途）+ T-329 终验**。
+  - **T-332 → done 2026-08-28 10:0x（PR #8 合并，develop=`c9e7064`）**：MPU 面 Artifactory 形翻转——**ADR-0039**（六端点表/sha1=202 异步任务/token 能力凭据/退役路径；状态词表以 jfrog-client-go 源码定案）；wire 重写（create QP+token/config 探测版本门/urlPart/status/complete?sha1=202/abort/part 200 乱序重排）；T-323R 引擎缝复用；探针/api-reference/FAQ 随翻。**真 jfrog-cli 2.122.0 全链 220MiB 9.3s**（含从真客户端修形三处）。登记：architecture.md 15.4/23 回写转 architect；checksum-deploy token 窄域化候选票。日志 reports/agents/T-332.md。
+  - **T-329 终验派发 2026-08-28 10:0x（qa-engineer）——M11 最后一张票**：L01~L45 全量（承证+增量）+四包型全形态矩阵+DoD 八条+两断言反转回写核实+里程碑 README/文档站检查（用户规程）；PASS 即 m11-done 收口（里程碑 PR 自动提交）。
 - **B15**：T-329 [P0] 终验（L01~L45 全量+四包型客户端矩阵+DoD 八条+两断言反转 PRD 回写核实；L19 口径=v1 全量）
 - **波外条件票**：T-330 [P1·条件 Q7] Trash can（票内先补 mini 规格）
 

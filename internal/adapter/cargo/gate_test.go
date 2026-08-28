@@ -129,13 +129,13 @@ func (s *stack) createCargoRepo(t *testing.T, key, rclass string) (int, string) 
 	return status, respBody
 }
 
-// TestRepoTypesServedClasses: LOCAL in full (T-294) and REMOTE (T-316);
-// the virtual class stays T-318's.
+// TestRepoTypesServedClasses: LOCAL in full (T-294), REMOTE (T-316) and
+// VIRTUAL (T-318) — all three classes.
 func TestRepoTypesServedClasses(t *testing.T) {
 	h := New(nil, nil, nil, nil, Options{})
 	got := h.RepoTypes()
-	if len(got) != 2 || got[0] != repo.TypeLocal || got[1] != repo.TypeRemote {
-		t.Fatalf("RepoTypes = %v, want [local remote]", got)
+	if len(got) != 3 || got[0] != repo.TypeLocal || got[1] != repo.TypeRemote || got[2] != repo.TypeVirtual {
+		t.Fatalf("RepoTypes = %v, want [local remote virtual]", got)
 	}
 	if h.Protocol() != Protocol {
 		t.Errorf("Protocol = %q, want %q", h.Protocol(), Protocol)

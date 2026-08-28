@@ -98,12 +98,15 @@ func Register(svc repo.Service, repos repo.ClassReader, blobs BlobLedger, props 
 // Protocol implements adapter.Handler.
 func (h *Handler) Protocol() string { return Protocol }
 
-// RepoTypes implements adapter.Handler: LOCAL in full (T-294) and the
-// REMOTE pull-through (T-316, spec section 8's remote row — the sparse
-// index and download planes ride svc.Get's engine, search proxies through
-// a query-keyed cache marker, writes refuse). The virtual aggregation is
-// T-318's and the class door still refuses it.
-func (h *Handler) RepoTypes() []string { return []string{repo.TypeLocal, repo.TypeRemote} }
+// RepoTypes implements adapter.Handler: LOCAL in full (T-294), the REMOTE
+// pull-through (T-316, spec section 8's remote row — the sparse index and
+// download planes ride svc.Get's engine, search proxies through a
+// query-keyed cache marker, writes refuse), and the VIRTUAL aggregation
+// (T-318, spec section 8's virtual row — the merged index face, first-hit
+// downloads through the member chain, the write route; virtual.go).
+func (h *Handler) RepoTypes() []string {
+	return []string{repo.TypeLocal, repo.TypeRemote, repo.TypeVirtual}
+}
 
 // Layout implements adapter.Handler (see layout.go).
 func (h *Handler) Layout(r *http.Request) (string, string, error) { return layout(r) }
@@ -155,9 +158,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		case repo.TypeRemote:
 			h.serveRemote(ctx, w, r, p, repoKey, rt)
 			return
+		case repo.TypeVirtual:
+			h.serveVirtual(ctx, w, r, p, repoKey, rt)
+			return
 		default:
 			writeEnvelope(w, http.StatusNotFound, fmt.Sprintf(
-				"cargo %s repositories are not served by this BinFlow release (the virtual aggregation is its own M11 ticket)", class))
+				"cargo %s repositories are not served by this BinFlow release", class))
 			return
 		}
 	}

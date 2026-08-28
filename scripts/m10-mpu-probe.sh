@@ -1,46 +1,52 @@
 #!/bin/sh
-# BinFlow M10 MPU REST probe (T-289, PRD FR-90 / architecture section 15.4;
-# the S3 real leg of the /api/v1/uploads six-endpoint plane).
+# BinFlow M11 MPU REST probe (T-289 born, T-332 wire-flipped per ADR-0039 /
+# the 2026-08-28 user ruling item 2; the S3 real leg of the
+# /api/v1/uploads six-endpoint plane on the Artifactory shape).
 #
 # Boots TWO scratch binflow-server instances against a running MinIO
 # (started outside the probe — see the header of the S3 leg):
 #
-#   FILESTORE instance (default disk backend): the honesty matrix — every
-#   one of the six endpoints (create/config/urlPart/status/complete/abort)
-#   plus the urlPart PUT target answers 501 text/plain
-#   "not supported on this backend", never a 404 disguise (FR-90-AC3).
+#   FILESTORE instance (default disk backend): the honesty matrix — the
+#   five data endpoints (create/urlPart/status/complete/abort) plus the
+#   urlPart PUT target answer 501 text/plain "not supported on this
+#   backend", never a 404 disguise (FR-90-AC3); GET /config — the probe —
+#   answers 200 {"supported": false} (a probe that could not say "no"
+#   would be no probe).
 #
-#   S3 instance (storage.backend=s3): the full chain (FR-90-AC1 shape) —
-#     create (partSizeMB=5, clamped-echo assertions)
-#     urlPart -> PUT 3 parts (5MiB + 5MiB + 1MiB short final)
-#     status progress after every part + the bare list form
-#     complete: wrong sha256 -> 409 (checksum gate), right sha256 -> 201,
-#               artifact GET sha256-reconciled byte for byte
+#   S3 instance (storage.backend=s3), the flipped wire end to end:
+#     config probe: the jfrog-cli version gate (2.50.0 -> false,
+#               2.62.2/2.63.1 -> true, 2.62 -> false [shorter], dev -> true
+#               [the catch arm]) + plain-agent true
+#     create: POST + QueryParam (repoKey/repoPath/partSizeMB) -> 200
+#               {"token": ...} — the capability credential
+#     the T-304 section 1.2-B flip: create on a VIRTUAL repo resolves its
+#               defaultDeploymentRepo (was the retired 400)
+#     urlPart: POST ?partNumber=2 with the token -> {"url": ...} — the
+#               URL is presigned-shaped (?token= capability)
+#     3 part PUTs (5MiB + 5MiB + 1MiB short final), 200 the S3 PutObject
+#               shape, status -> PARTS/0
+#     complete?sha1= (THE ALGORITHM FLIP): 202 Accepted, then the async
+#               task: status polls to FINISHED/100 carrying the
+#               checksum-deploy token; the artifact is NOT a node yet —
+#               the client's X-Checksum-Deploy PUT (Bearer the 5-minute
+#               token) lands it; GET reconciles sha256 + bytes
+#     wrong sha1: 202 then status NON_RETRYABLE_ERROR (the async gate; was
+#               sync 409)
 #     abort: mid-upload session discarded, status 404, artifact 404
-#     kill -9 + restart: the session SURVIVES — status 200 with the
-#               persisted coordinates and the durable offset (T-323R: the
-#               /api/v1/uploads plane persists its protocol coordinates in
-#               the engine's upload_sessions row and lazily re-materializes
-#               the session through ResumeSessionContext, the docker T-216
-#               posture; T-323 paid the engine-side §11.31 debt). The leg
-#               then finishes the upload on the restarted process: parts
-#               2+3, complete 201, byte-for-byte GET reconciliation.
+#     kill -9 + restart: the SAME token drives the restarted process
+#               (T-323R on the new wire: the binding rides the engine's
+#               persisted row) — status 200 PARTS, parts 2+3,
+#               complete, FINISHED, checksum-deploy, byte-for-byte GET
 #     docker push of a 20MiB image (> the 16MiB default part size, so the
 #               layer lands as a real multipart upload) + pull roundtrip
 #
 #   B5 assertions (T-289 review): with --mc-cmd set (e.g. "docker exec
 #   binflow-mpu-minio mc"), the probe asserts S3-SIDE multipart
-#   reclamation through `mc ls --incomplete` — an object listing cannot
-#   see in-progress MPUs, the review's finding against the first round's
-#   evidence. The wrong-sha complete and the abort legs must leave ZERO
-#   in-progress upload for their session id, and at end of run the bucket
-#   holds NO in-progress upload at all: since T-323R the kill -9 leg's
-#   session is resumed and COMPLETED on the restarted process (the
-#   documented orphan of the pre-T-323R posture is gone), and no sessions/
-#   temp object survives either (the publish path removes them; the
-#   age-gated sweep of T-323R reclaims any crash-window stragglers). Run
-#   against a FRESH bucket: pre-existing orphans from older builds fail
-#   the end-of-run assertion honestly.
+#   reclamation through `mc ls --incomplete`. The wrong-sha complete and
+#   the abort legs must leave ZERO in-progress upload for their session
+#   id, and at end of run the bucket holds NO in-progress upload at all.
+#   Run against a FRESH bucket: pre-existing orphans from older builds
+#   fail the end-of-run assertion honestly.
 #
 # Exit codes:
 #   0  GREEN — every leg passed
@@ -155,33 +161,12 @@ free_port() {
 s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()'
 }
 
-start_server() { # $1 = config file, $2 = log file; sets PID via stdout
-    PORT=$(free_port) || fail_infra "cannot pick an ephemeral port"
-    BINFLOW_ADMIN_PASSWORD="$ADMIN_PW" \
-        "$BIN" serve -c "$1" >>"$2" 2>&1 &
-    PID=$!
-    n=0
-    BASE="http://127.0.0.1:$PORT"
-    while [ "$n" -lt 200 ]; do
-        if BODY=$(curl -sf "$BASE/binflow/api/system/ping" 2>/dev/null) && [ "$BODY" = "OK" ]; then
-            return 0
-        fi
-        kill -0 "$PID" 2>/dev/null || fail_infra "server exited during boot (see $2)"
-        n=$((n + 1)); sleep 0.1
-    done
-    fail_infra "server never answered ping on $BASE (see $2)"
-}
-
 # ---- MinIO must already be up (the bucket is part of the fixture) -----------
 step "MinIO endpoint $ENDPOINT bucket $BUCKET"
 curl -sf "$ENDPOINT/minio/health/live" >/dev/null 2>&1 \
     || fail_infra "MinIO is not answering $ENDPOINT/minio/health/live (start it per the usage header)"
 
 # ---- B5 helpers: S3-side in-progress MPU visibility via mc ------------------
-# An object listing (mc ls) cannot see in-progress multipart uploads — the
-# T-289 review's finding against round 1's evidence. --incomplete lists
-# them; the assertions grep the session id out of the object key
-# (sessions/<uuid>/data). Without --mc-cmd these are no-ops (noted once).
 if [ -n "$MC" ]; then
     $MC alias set local "$MC_ENDPOINT" "$ACCESS_KEY" "$SECRET" >/dev/null 2>&1 \
         || fail_infra "mc alias set failed (is --mc-endpoint reachable from wherever mc runs?)"
@@ -213,7 +198,7 @@ assert_incomplete_gone() { # $1 = sessionId, $2 = leg — THE B5 assertion
     esac
 }
 
-# ---- filestore instance: the FR-90-AC3 honesty matrix -----------------------
+# ---- filestore instance: FR-90-AC3 honesty + the config probe ----------------
 step "boot filestore instance (the 501 matrix leg)"
 DISK_PORT=$(free_port) || fail_infra "port"
 DISK_CFG="$WORK/disk.yaml"
@@ -233,13 +218,13 @@ n=0; while [ "$n" -lt 200 ]; do
 done
 [ "$n" -lt 200 ] || fail_infra "filestore server never answered ping"
 
-step "filestore: all six endpoints + part target answer the honest 501"
-for LEG in "POST create" "POST config" "GET urlPart/some-id/1" "GET status/some-id" "GET status" "POST complete/some-id" "POST abort/some-id" "PUT part/some-id/1"; do
+step "filestore: five data endpoints + part target answer the honest 501"
+for LEG in "POST create?repoKey=r&repoPath=a.bin" "POST urlPart?partNumber=1" "POST status" "POST complete?sha1=0000000000000000000000000000000000000000" "POST abort" "PUT part/some-id/1"; do
     METHOD=${LEG%% *}; PATHPART=${LEG#* }
     CODE=$(curl -sS -o "$WORK/501.body" -w '%{http_code}' \
         -u "admin:$ADMIN_PW" -X "$METHOD" \
-        -H 'Content-Type: application/json' \
-        -d '{"repoKey":"r","path":"a.bin"}' \
+        -H 'Content-Type: application/octet-stream' \
+        --data-binary "probe" \
         "$DISK_BASE/binflow/api/v1/uploads/$PATHPART" || true)
     BODY=$(cat "$WORK/501.body")
     [ "$CODE" = "501" ] || red "filestore $METHOD /uploads/$PATHPART = $CODE, want 501 (body: $BODY)"
@@ -253,6 +238,14 @@ for LEG in "POST create" "POST config" "GET urlPart/some-id/1" "GET status/some-
     esac
     echo "  $METHOD /uploads/$PATHPART -> 501 (plain text, honest)"
 done
+
+step "filestore: GET /config answers 200 supported:false (the probe's whole point)"
+CODE=$(curl -sS -o "$WORK/cfg.body" -w '%{http_code}' \
+    -u "admin:$ADMIN_PW" "$DISK_BASE/binflow/api/v1/uploads/config" || true)
+[ "$CODE" = "200" ] || red "filestore config = $CODE, want 200: $(cat "$WORK/cfg.body")"
+grep -q '"supported": false' "$WORK/cfg.body" \
+    || red "filestore config body = $(cat "$WORK/cfg.body"), want supported:false"
+echo "  config -> 200 {\"supported\": false}"
 kill -9 "$DISK_PID" 2>/dev/null || true; wait "$DISK_PID" 2>/dev/null || true; DISK_PID=""
 
 # ---- S3 instance ------------------------------------------------------------
@@ -301,94 +294,160 @@ open(p1, "wb").write(a); open(p2, "wb").write(b); open(p3, "wb").write(c)
 open(whole, "wb").write(a + b + c)
 PY
 WHOLE_SHA=$(python3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$WORK/whole.bin")
-echo "expected sha256: $WHOLE_SHA"
+WHOLE_SHA1=$(python3 -c 'import hashlib,sys; print(hashlib.sha1(open(sys.argv[1],"rb").read()).hexdigest())' "$WORK/whole.bin")
+echo "expected sha256: $WHOLE_SHA / sha1: $WHOLE_SHA1"
 
-mpu_create() { # $1 = path, $2 = partSizeMB -> echoes sessionId
+# mpu_create: POST + QueryParam -> 200 {"token": ...} (the flipped create).
+mpu_create() { # $1 = path, $2 = partSizeMB, $3 = repo (default $REPO) -> echoes the token
+    MREPO=${3:-$REPO}
     CODE=$(curl -sS -o "$WORK/create.body" -w '%{http_code}' \
-        -u "admin:$ADMIN_PW" -X POST "$BASE/binflow/api/v1/uploads/create" \
-        -H 'Content-Type: application/json' \
-        -d "{\"repoKey\":\"$REPO\",\"path\":\"$1\",\"partSizeMB\":$2}" || true)
-    [ "$CODE" = "201" ] || red "create $1 = $CODE: $(cat "$WORK/create.body")"
-    python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["sessionId"])' "$WORK/create.body"
+        -u "admin:$ADMIN_PW" -X POST \
+        "$BASE/binflow/api/v1/uploads/create?repoKey=$MREPO&repoPath=$1&partSizeMB=$2" || true)
+    [ "$CODE" = "200" ] || red "create $1 = $CODE: $(cat "$WORK/create.body")"
+    python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["token"])' "$WORK/create.body"
 }
 
-put_part() { # $1 = sessionId, $2 = part number, $3 = file
+# mpu_sid: the session id — the token's public half (S3-side keying).
+mpu_sid() { # $1 = token
+    printf '%s' "$1" | sed 's/.*\.//'
+}
+
+# put_part: the relay target on the TOKEN lane (the client's one credential).
+put_part() { # $1 = token, $2 = part number, $3 = file
+    SID=$(mpu_sid "$1")
     CODE=$(curl -sS -o "$WORK/part.body" -w '%{http_code}' \
-        -u "admin:$ADMIN_PW" -X PUT \
+        -X PUT -H "Authorization: Bearer $1" \
         -H 'Content-Type: application/octet-stream' \
         --data-binary @"$3" \
-        "$BASE/binflow/api/v1/uploads/part/$1/$2" || true)
-    [ "$CODE" = "202" ] || red "part $2 PUT = $CODE: $(cat "$WORK/part.body")"
+        "$BASE/binflow/api/v1/uploads/part/$SID/$2" || true)
+    [ "$CODE" = "200" ] || red "part $2 PUT = $CODE: $(cat "$WORK/part.body")"
 }
 
-status_field() { # $1 = sessionId, $2 = json key
-    curl -sS -u "admin:$ADMIN_PW" "$BASE/binflow/api/v1/uploads/status/$1" \
-        | python3 -c 'import json,sys; print(json.load(sys.stdin)[sys.argv[1]])' "$2"
+# mpu_status: POST + the token -> the task body's status field.
+mpu_status() { # $1 = token
+    curl -sS -X POST -H "Authorization: Bearer $1" \
+        "$BASE/binflow/api/v1/uploads/status" \
+        | python3 -c 'import json,sys; print(json.load(sys.stdin)["status"])'
 }
 
-# --- leg 1: the checksum gate consumes the session on a wrong sha256 --------
-step "wrong-sha256 complete: 409 and the session is consumed (S3 MPU reclaimed)"
-GATE_ID=$(mpu_create "big/gate.bin" 5)
-put_part "$GATE_ID" 1 "$WORK/p3.bin" # short part closes the stream
+# mpu_wait_status: poll the task to a terminal state (the async model).
+mpu_wait_status() { # $1 = token, $2 = want ("FINISHED"|"NON_RETRYABLE_ERROR")
+    n=0
+    while [ "$n" -lt 300 ]; do
+        GOT=$(mpu_status "$1" || true)
+        [ "$GOT" = "$2" ] && { echo "$GOT"; return 0; }
+        case "$GOT" in
+        NON_RETRYABLE_ERROR|FINISHED) red "task reached $GOT, wanted $2" ;;
+        esac
+        n=$((n + 1)); sleep 0.1
+    done
+    red "status never reached $2 (last: $GOT)"
+}
+
+# --- leg 0: the config probe + the jfrog-cli version gate --------------------
+step "config probe: version gate + backend verdict"
+cfg_probe() { # $1 = user agent -> "true"/"false"
+    curl -sS -u "admin:$ADMIN_PW" -A "$1" \
+        "$BASE/binflow/api/v1/uploads/config" \
+        | python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin)["supported"]))'
+}
+for UA in "jfrog-cli-go/2.50.0:false" "jfrog-cli-go/2.62:false" \
+          "jfrog-cli-go/2.62.2:true" "jfrog-cli-go/2.63.1:true" \
+          "jfrog-cli-go/dev:true" "curl/8.0:true"; do
+    U=${UA%%:*}; WANT=${UA##*:}
+    GOT=$(cfg_probe "$U")
+    [ "$GOT" = "$WANT" ] || red "config gate for $U = $GOT, want $WANT"
+done
+echo "  version gate + backend verdict all as ruled"
+
+# --- leg 0b: the T-304 section 1.2-B flip — virtual defaultDeploymentRepo -----
+step "create on a virtual repo resolves defaultDeploymentRepo (was the retired 400)"
+CODE=$(curl -sS -o "$WORK/vm.body" -w '%{http_code}' \
+    -u "admin:$ADMIN_PW" -X PUT "$BASE/binflow/api/repositories/mpu-virtual" \
+    -H 'Content-Type: application/json' \
+    -d "{\"rclass\":\"virtual\",\"packageType\":\"generic\",\"repositories\":[\"$REPO\"],\"defaultDeploymentRepo\":\"$REPO\"}" || true)
+[ "$CODE" = "200" ] || fail_infra "create virtual repo: want 200, got $CODE: $(cat "$WORK/vm.body")"
+VTOK=$(mpu_create "via-virtual-probe.bin" 5 "mpu-virtual")
+[ -n "$VTOK" ] || red "virtual create carried no token"
+CODE=$(curl -sS -o /dev/null -w '%{http_code}' \
+    -X POST -H "Authorization: Bearer $VTOK" \
+    "$BASE/binflow/api/v1/uploads/abort" || true)
+[ "$CODE" = "204" ] || red "virtual-leg abort = $CODE, want 204 (every opened session terminates)"
+echo "  virtual -> default member resolution OK (token minted, session aborted)"
+
+# --- leg 1: the async checksum gate — wrong sha1 -> 202 then task Failed ------
+step "wrong-sha1 complete: 202, then status Failed (the async gate; S3 reclaimed)"
+GATE_TOKEN=$(mpu_create "big/gate.bin" 5)
+GATE_ID=$(mpu_sid "$GATE_TOKEN")
+put_part "$GATE_TOKEN" 1 "$WORK/p3.bin" # short part closes the stream
 assert_incomplete_has "$GATE_ID" "wrong-sha leg before complete"
 CODE=$(curl -sS -o "$WORK/gate.body" -w '%{http_code}' \
-    -u "admin:$ADMIN_PW" -X POST "$BASE/binflow/api/v1/uploads/complete/$GATE_ID" \
-    -H 'Content-Type: application/json' \
-    -d '{"sha256":"'$(python3 -c 'print("0"*64)')'"}' || true)
-[ "$CODE" = "409" ] || red "wrong-sha complete = $CODE, want 409: $(cat "$WORK/gate.body")"
+        -X POST -H "Authorization: Bearer $GATE_TOKEN" \
+        "$BASE/binflow/api/v1/uploads/complete?sha1=$(python3 -c 'print("0"*40)')" || true)
+[ "$CODE" = "202" ] || red "wrong-sha1 complete = $CODE, want 202: $(cat "$WORK/gate.body")"
+GOT=$(mpu_wait_status "$GATE_TOKEN" "NON_RETRYABLE_ERROR")
+echo "task -> $GOT"
+CODE=$(curl -sS -o /dev/null -w '%{http_code}' \
+    -X POST -H "Authorization: Bearer $GATE_TOKEN" \
+    "$BASE/binflow/api/v1/uploads/status" || true)
+[ "$CODE" = "200" ] || red "status after failed task = $CODE, want 200 (observable)"
 CODE=$(curl -sS -o /dev/null -w '%{http_code}' -u "admin:$ADMIN_PW" \
-    "$BASE/binflow/api/v1/uploads/status/$GATE_ID" || true)
-[ "$CODE" = "404" ] || red "status after failed complete = $CODE, want 404"
-assert_incomplete_gone "$GATE_ID" "wrong-sha complete (B5: failLocked reclaims)"
-echo "409 + status 404 confirmed"
+    "$BASE/binflow/$REPO/big/gate.bin" || true)
+[ "$CODE" = "404" ] || red "failed artifact GET = $CODE, want 404"
+assert_incomplete_gone "$GATE_ID" "wrong-sha1 finish (B5: the failed Commit reclaims)"
+echo "202 + task NON_RETRYABLE_ERROR + no artifact confirmed"
 
 # --- leg 2: the full good chain ----------------------------------------------
-step "create -> urlPart -> 3 parts -> progress -> complete -> byte reconciliation"
-SID=$(mpu_create "big/blob.bin" 5)
-PART_SIZE_ECHO=$(python3 -c 'import json; print(json.load(open("'"$WORK/create.body"'"))["partSizeBytes"])')
-[ "$PART_SIZE_ECHO" = "$PART_BYTES" ] || red "partSizeBytes echo = $PART_SIZE_ECHO, want $PART_BYTES"
+step "create -> urlPart -> 3 token-lane parts -> complete?sha1= 202 -> Finished -> client checksum-deploy"
+TOKEN=$(mpu_create "big/blob.bin" 5)
+SID=$(mpu_sid "$TOKEN")
 
 CODE=$(curl -sS -o "$WORK/urlpart.body" -w '%{http_code}' \
-    -u "admin:$ADMIN_PW" "$BASE/binflow/api/v1/uploads/urlPart/$SID/2" || true)
+    -X POST -H "Authorization: Bearer $TOKEN" \
+    "$BASE/binflow/api/v1/uploads/urlPart?partNumber=2" || true)
 [ "$CODE" = "200" ] || red "urlPart = $CODE: $(cat "$WORK/urlpart.body")"
 URL_ECHO=$(python3 -c 'import json; print(json.load(open("'"$WORK/urlpart.body"'"))["url"])' 2>/dev/null || true)
+# The URL is presigned-shaped: the relay path AND the capability query.
 case "$URL_ECHO" in
-*/api/v1/uploads/part/$SID/2) ;;
+*/api/v1/uploads/part/$SID/2?token=*) ;;
 "") ;;
 *) red "urlPart handed out an unexpected target: $URL_ECHO" ;;
 esac
+case "$URL_ECHO" in
+*"token="*) ;;
+*) red "urlPart URL carries no capability token: $URL_ECHO" ;;
+esac
 echo "urlPart(2) -> $URL_ECHO"
 
-put_part "$SID" 1 "$WORK/p1.bin"
-GOT=$(status_field "$SID" receivedBytes)
-[ "$GOT" = "$PART_BYTES" ] || red "progress after part 1: receivedBytes = $GOT, want $PART_BYTES"
-put_part "$SID" 2 "$WORK/p2.bin"
-GOT=$(status_field "$SID" receivedBytes)
-[ "$GOT" = "$((PART_BYTES * 2))" ] || red "progress after part 2: receivedBytes = $GOT, want $((PART_BYTES * 2))"
-put_part "$SID" 3 "$WORK/p3.bin"
-GOT=$(status_field "$SID" receivedBytes)
-[ "$GOT" = "$TOTAL_BYTES" ] || red "progress after part 3: receivedBytes = $GOT, want $TOTAL_BYTES"
-GOT=$(status_field "$SID" state)
-[ "$GOT" = "awaiting-complete" ] || red "state after the short final part = $GOT, want awaiting-complete"
-echo "progress: $PART_BYTES -> $((PART_BYTES * 2)) -> $TOTAL_BYTES bytes"
+put_part "$TOKEN" 1 "$WORK/p1.bin"
+GOT=$(mpu_status "$TOKEN")
+[ "$GOT" = "PARTS" ] || red "status after part 1 = $GOT, want PARTS"
+put_part "$TOKEN" 2 "$WORK/p2.bin"
+put_part "$TOKEN" 3 "$WORK/p3.bin"
 
-step "bare status list form"
-curl -sS -u "admin:$ADMIN_PW" "$BASE/binflow/api/v1/uploads/status" > "$WORK/list.body"
-python3 - "$WORK/list.body" "$SID" <<'PY' || red "bare status did not carry the live session: $(cat "$WORK/list.body")"
-import json, sys
-lst = json.load(open(sys.argv[1]))
-assert any(s.get("sessionId") == sys.argv[2] for s in lst), lst
-PY
-echo "list form carries the live session"
-
-step "complete (sha256 gate) -> 201"
+step "complete?sha1= -> 202 (the algorithm flip: sha1, async)"
 CODE=$(curl -sS -o "$WORK/complete.body" -w '%{http_code}' \
-    -u "admin:$ADMIN_PW" -X POST "$BASE/binflow/api/v1/uploads/complete/$SID" \
-    -H 'Content-Type: application/json' \
-    -d '{"sha256":"'"$WHOLE_SHA"'"}' || true)
-[ "$CODE" = "201" ] || red "complete = $CODE: $(cat "$WORK/complete.body")"
-SIZE_ECHO=$(python3 -c 'import json; print(json.load(open("'"$WORK/complete.body"'"))["size"])' 2>/dev/null || echo "?")
-[ "$SIZE_ECHO" = "$TOTAL_BYTES" ] || red "complete size echo = $SIZE_ECHO, want $TOTAL_BYTES"
+    -X POST -H "Authorization: Bearer $TOKEN" \
+    "$BASE/binflow/api/v1/uploads/complete?sha1=$WHOLE_SHA1" || true)
+[ "$CODE" = "202" ] || red "complete = $CODE, want 202: $(cat "$WORK/complete.body")"
+GOT=$(mpu_wait_status "$TOKEN" "FINISHED")
+echo "task -> $GOT"
+curl -sS -X POST -H "Authorization: Bearer $TOKEN" \
+    "$BASE/binflow/api/v1/uploads/status" > "$WORK/finished.body"
+PROG=$(python3 -c 'import json; print(json.load(open("'"$WORK/finished.body"'"))["progress"])')
+[ "$PROG" = "100" ] || red "Finished progress = $PROG, want 100"
+DEP_TOK=$(python3 -c 'import json; print(json.load(open("'"$WORK/finished.body"'")).get("checksumToken") or "")')
+[ -n "$DEP_TOK" ] || red "Finished status carries no checksumToken: $(cat "$WORK/finished.body")"
+
+step "the node is the CLIENT's landing: 404 before, 201 after the checksum-deploy PUT"
+CODE=$(curl -sS -o /dev/null -w '%{http_code}' -u "admin:$ADMIN_PW" \
+    "$BASE/binflow/$REPO/big/blob.bin" || true)
+[ "$CODE" = "404" ] || red "artifact before checksum-deploy = $CODE, want 404"
+CODE=$(curl -sS -o "$WORK/dep.body" -w '%{http_code}' \
+    -X PUT -H "Authorization: Bearer $DEP_TOK" \
+    -H "X-Checksum-Deploy: true" -H "X-Checksum-Sha1: $WHOLE_SHA1" \
+    "$BASE/binflow/$REPO/big/blob.bin" || true)
+[ "$CODE" = "201" ] || red "checksum-deploy PUT = $CODE, want 201: $(cat "$WORK/dep.body")"
 
 step "artifact GET: sha256 reconciliation, byte for byte"
 curl -sS -u "admin:$ADMIN_PW" -o "$WORK/download.bin" \
@@ -400,14 +459,17 @@ echo "GET $REPO/big/blob.bin: 200, sha256 + bytes reconciled"
 
 # --- leg 3: abort discards ----------------------------------------------------
 step "abort: session gone, artifact never lands (S3 MPU reclaimed)"
-AB_ID=$(mpu_create "big/gone.bin" 5)
-put_part "$AB_ID" 1 "$WORK/p1.bin"
+AB_TOKEN=$(mpu_create "big/gone.bin" 5)
+AB_ID=$(mpu_sid "$AB_TOKEN")
+put_part "$AB_TOKEN" 1 "$WORK/p1.bin"
 assert_incomplete_has "$AB_ID" "abort leg before abort"
-CODE=$(curl -sS -o /dev/null -w '%{http_code}' -u "admin:$ADMIN_PW" \
-    -X POST "$BASE/binflow/api/v1/uploads/abort/$AB_ID" || true)
+CODE=$(curl -sS -o /dev/null -w '%{http_code}' \
+    -X POST -H "Authorization: Bearer $AB_TOKEN" \
+    "$BASE/binflow/api/v1/uploads/abort" || true)
 [ "$CODE" = "204" ] || red "abort = $CODE, want 204"
-CODE=$(curl -sS -o /dev/null -w '%{http_code}' -u "admin:$ADMIN_PW" \
-    "$BASE/binflow/api/v1/uploads/status/$AB_ID" || true)
+CODE=$(curl -sS -o /dev/null -w '%{http_code}' \
+    -X POST -H "Authorization: Bearer $AB_TOKEN" \
+    "$BASE/binflow/api/v1/uploads/status" || true)
 [ "$CODE" = "404" ] || red "status after abort = $CODE, want 404"
 CODE=$(curl -sS -o /dev/null -w '%{http_code}' -u "admin:$ADMIN_PW" \
     "$BASE/binflow/$REPO/big/gone.bin" || true)
@@ -415,10 +477,11 @@ CODE=$(curl -sS -o /dev/null -w '%{http_code}' -u "admin:$ADMIN_PW" \
 assert_incomplete_gone "$AB_ID" "abort (B5: Session.Abort reclaims)"
 echo "abort -> 204, status 404, artifact 404"
 
-# --- leg 4: kill -9 restart — the session survives and completes (T-323R) ----
-step "kill -9 + restart: status 200 (lazy resume), parts 2+3, complete 201, byte reconciliation"
-RST_ID=$(mpu_create "big/restart.bin" 5)
-put_part "$RST_ID" 1 "$WORK/p1.bin"
+# --- leg 4: kill -9 restart — the SAME token drives the restarted process -----
+step "kill -9 + restart: token honored, parts 2+3, complete, Finished, checksum-deploy, byte reconciliation"
+RST_TOKEN=$(mpu_create "big/restart.bin" 5)
+RST_ID=$(mpu_sid "$RST_TOKEN")
+put_part "$RST_TOKEN" 1 "$WORK/p1.bin"
 assert_incomplete_has "$RST_ID" "kill -9 leg before the crash"
 kill -9 "$S3_PID" 2>/dev/null || true; wait "$S3_PID" 2>/dev/null || true; S3_PID=""
 BINFLOW_ADMIN_PASSWORD="$ADMIN_PW" \
@@ -432,51 +495,44 @@ n=0; while [ "$n" -lt 300 ]; do
 done
 [ "$n" -lt 300 ] || fail_infra "S3 server never answered ping after restart"
 
-# The flipped assertion (was the pre-T-323R 404): the restarted process
-# lazily re-materializes the session from the engine's persisted row —
-# status 200 with the persisted coordinates, the durable offset (the last
-# FLUSHED part boundary; pending-buffer bytes die with the process) and
-# the derived part accounting.
-CODE=$(curl -sS -o "$WORK/rst-status.body" -w '%{http_code}' -u "admin:$ADMIN_PW" \
-    "$BASE/binflow/api/v1/uploads/status/$RST_ID" || true)
-[ "$CODE" = "200" ] || red "post-restart status = $CODE, want 200 (T-323R lazy resume): $(cat "$WORK/rst-status.body")"
-GOT=$(status_field "$RST_ID" receivedBytes)
-[ "$GOT" = "$PART_BYTES" ] || red "post-restart receivedBytes = $GOT, want $PART_BYTES (the durable offset)"
-GOT=$(status_field "$RST_ID" state)
-[ "$GOT" = "active" ] || red "post-restart state = $GOT, want active"
-GOT=$(status_field "$RST_ID" partsReceived)
-[ "$GOT" = "1" ] || red "post-restart partsReceived = $GOT, want 1"
-GOT=$(status_field "$RST_ID" repoKey)
-[ "$GOT" = "$REPO" ] || red "post-restart repoKey = $GOT, want $REPO (the persisted coordinates)"
-GOT=$(status_field "$RST_ID" path)
-[ "$GOT" = "big/restart.bin" ] || red "post-restart path = $GOT, want big/restart.bin"
-echo "post-restart: status 200, receivedBytes=$PART_BYTES, coordinates re-materialized"
+# The flipped assertion: the restarted process honors the SAME token — the
+# lazy re-materialization keys off the binding persisted in the engine's
+# upload_sessions row (T-323R under the new wire).
+GOT=$(mpu_status "$RST_TOKEN" || true)
+[ "$GOT" = "PARTS" ] || red "post-restart status = $GOT, want PARTS (the token re-materializes the session)"
+echo "post-restart: token honored, session re-materialized"
 
-# Finish the upload on the restarted process.
-put_part "$RST_ID" 2 "$WORK/p2.bin"
-put_part "$RST_ID" 3 "$WORK/p3.bin"
+put_part "$RST_TOKEN" 2 "$WORK/p2.bin"
+put_part "$RST_TOKEN" 3 "$WORK/p3.bin"
 CODE=$(curl -sS -o "$WORK/rst-complete.body" -w '%{http_code}' \
-    -u "admin:$ADMIN_PW" -X POST "$BASE/binflow/api/v1/uploads/complete/$RST_ID" \
-    -H 'Content-Type: application/json' \
-    -d '{"sha256":"'"$WHOLE_SHA"'"}' || true)
-[ "$CODE" = "201" ] || red "post-restart complete = $CODE, want 201: $(cat "$WORK/rst-complete.body")"
+    -X POST -H "Authorization: Bearer $RST_TOKEN" \
+    "$BASE/binflow/api/v1/uploads/complete?sha1=$WHOLE_SHA1" || true)
+[ "$CODE" = "202" ] || red "post-restart complete = $CODE, want 202: $(cat "$WORK/rst-complete.body")"
+mpu_wait_status "$RST_TOKEN" "FINISHED" >/dev/null
+curl -sS -X POST -H "Authorization: Bearer $RST_TOKEN" \
+    "$BASE/binflow/api/v1/uploads/status" > "$WORK/rst-finished.body"
+RST_DEP=$(python3 -c 'import json; print(json.load(open("'"$WORK/rst-finished.body"'")).get("checksumToken") or "")')
+[ -n "$RST_DEP" ] || red "post-restart Finished carries no checksumToken: $(cat "$WORK/rst-finished.body")"
+CODE=$(curl -sS -o "$WORK/rst-dep.body" -w '%{http_code}' \
+    -X PUT -H "Authorization: Bearer $RST_DEP" \
+    -H "X-Checksum-Deploy: true" -H "X-Checksum-Sha1: $WHOLE_SHA1" \
+    "$BASE/binflow/$REPO/big/restart.bin" || true)
+[ "$CODE" = "201" ] || red "post-restart checksum-deploy = $CODE, want 201: $(cat "$WORK/rst-dep.body")"
 curl -sS -u "admin:$ADMIN_PW" -o "$WORK/rst-download.bin" \
     "$BASE/binflow/$REPO/big/restart.bin" || red "post-restart artifact GET failed"
 cmp -s "$WORK/rst-download.bin" "$WORK/whole.bin" \
     || red "post-restart downloaded bytes differ from the 11MiB upload"
 DL_SHA=$(python3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$WORK/rst-download.bin")
 [ "$DL_SHA" = "$WHOLE_SHA" ] || red "post-restart downloaded sha256 $DL_SHA != uploaded $WHOLE_SHA"
-CODE=$(curl -sS -o /dev/null -w '%{http_code}' -u "admin:$ADMIN_PW" \
-    "$BASE/binflow/api/v1/uploads/status/$RST_ID" || true)
-[ "$CODE" = "404" ] || red "status after the resumed complete = $CODE, want 404"
-assert_incomplete_gone "$RST_ID" "kill -9 leg (B5: the resumed complete reclaims)"
-echo "resumed upload completed on the restarted process: 201 + sha256 + bytes reconciled"
+CODE=$(curl -sS -o /dev/null -w '%{http_code}' \
+    -X POST -H "Authorization: Bearer $RST_TOKEN" \
+    "$BASE/binflow/api/v1/uploads/complete?sha1=$WHOLE_SHA1" || true)
+[ "$CODE" = "404" ] || red "complete after Finished = $CODE, want 404 (session consumed)"
+assert_incomplete_gone "$RST_ID" "kill -9 leg (B5: the resumed finish reclaims)"
+echo "resumed upload finished on the restarted process: checksum-deploy 201 + bytes reconciled"
 
-# End-of-run B5 audit: NOTHING in-progress may remain — the kill -9 leg's
-# session was resumed and completed, every other leg reclaimed its MPU,
-# and no sessions/ temp object survives the publish (or the age-gated
-# sweep of T-323R would take the crash-window stragglers). Pre-existing
-# orphans from older builds fail here honestly: run against a fresh bucket.
+# End-of-run B5 audit: NOTHING in-progress may remain. Pre-existing orphans
+# from older builds fail here honestly: run against a fresh bucket.
 if [ -n "$MC" ]; then
     step "end-of-run audit: zero in-progress MPUs, zero sessions/ residue"
     OUT=$(incomplete_list)
@@ -541,4 +597,4 @@ PY
 fi
 
 echo ""
-echo "m10-mpu-probe: GREEN — filestore 501 matrix + S3 full chain + abort + kill-9 restart-resume + docker legs all passed (FR-90-AC1/AC3, T-323R)"
+echo "m10-mpu-probe: GREEN — filestore 501+probe matrix + the flipped S3 chain (token lane, 202+async task, client checksum-deploy) + abort + kill-9 token resume + docker legs all passed (T-332/ADR-0039, T-323R)"

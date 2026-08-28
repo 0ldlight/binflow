@@ -579,8 +579,9 @@ func TestGitIndexFace(t *testing.T) {
 
 // TestRemoteVirtualClasses: the remote class serves its synthesized
 // entry document (dl/api self-pointing at the REMOTE repository — the
-// downloads then cross the cache); the virtual class keeps the honest
-// 404 until T-318 lands it.
+// downloads then cross the cache); the virtual class serves the same
+// synthesized shape pointed at the VIRTUAL repository (T-318 — downloads
+// cross the first-hit member resolution).
 func TestRemoteVirtualClasses(t *testing.T) {
 	s := newStack(t)
 	s.seedRepo(t, "cargo-local", repo.TypeLocal)
@@ -599,9 +600,12 @@ func TestRemoteVirtualClasses(t *testing.T) {
 		t.Errorf("remote config.json = %s: the upstream must never leak into the served document", body)
 	}
 
-	status, _, _ = s.get(repoPath("cargo-virtual") + "/index/config.json")
-	if status != http.StatusNotFound {
-		t.Fatalf("virtual config.json = %d, want 404 (T-318)", status)
+	status, body, _ = s.get(repoPath("cargo-virtual") + "/index/config.json")
+	if status != http.StatusOK {
+		t.Fatalf("virtual config.json = %d (body %s), want the synthesized 200", status, body)
+	}
+	if !strings.Contains(body, `"dl":"`+s.srv.URL+`/binflow/cargo-virtual/v1/crates"`) {
+		t.Errorf("virtual config.json = %s, want dl self-pointing at the virtual repository", body)
 	}
 }
 
