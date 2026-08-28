@@ -1061,7 +1061,12 @@ func withAPIPlanePrefix(r *http.Request, proto, tail string) (*http.Request, boo
 		return nil, false
 	}
 	repoKey, rest, found := strings.Cut(after, "/")
-	if !found || repoKey == "" || rest == "" {
+	// T-337: an empty rest is the service-document root — nuget v2's
+	// canonical base (/binflow/api/nuget/v2/<repo>[/] serves the doc on
+	// GET and takes the v2 direct-push PUT). The adapter owns what an
+	// empty remainder means per plane; the router only guarantees the
+	// two front segments exist.
+	if !found || repoKey == "" {
 		return nil, false
 	}
 	// Plane spellings are short lowercase literals (v2/v3); a segment

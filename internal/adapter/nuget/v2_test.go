@@ -31,7 +31,10 @@ func TestV2FindPackagesById(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("feed status = %d, body %s", status, body)
 	}
-	if ct := hdr.Get("Content-Type"); !strings.HasPrefix(ct, "application/xml") {
+	// The feed family's content type is the atom spelling (nuget.md section 2
+	// #5; live nuget.org serves application/atom+xml; type=feed; charset=utf-8
+	// — T-337 replaced the T-287 minimal face's plain application/xml).
+	if ct := hdr.Get("Content-Type"); !strings.HasPrefix(ct, "application/atom+xml") {
 		t.Errorf("feed content-type = %q", ct)
 	}
 
@@ -80,8 +83,11 @@ func TestV2FindPackagesById(t *testing.T) {
 			t.Errorf("%s = %d (%s)", variant, status, firstLine(body))
 		}
 	}
-	if status, _, _ := s.get(apiV2Path("ng-local") + "/FindPackagesById()"); status != http.StatusBadRequest {
-		t.Errorf("bare FindPackagesById = %d, want 400", status)
+	// The missing id parameter is the 404, NOT the 400 (nuget.md section 2
+	// #5 — the T-334 consumption note's "易踩" item; T-287's 400 was the
+	// minimal-face boundary this ticket flips).
+	if status, _, _ := s.get(apiV2Path("ng-local") + "/FindPackagesById()"); status != http.StatusNotFound {
+		t.Errorf("bare FindPackagesById = %d, want 404", status)
 	}
 
 	// An unknown id answers the EMPTY feed (the collection semantics).

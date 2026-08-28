@@ -70,6 +70,12 @@ func (provider) Classify(relPath string) adapter.MetadataKind {
 	if strings.HasSuffix(relPath, suffixSha512) || strings.HasSuffix(relPath, suffixNuspec) {
 		return adapter.KindContent
 	}
+	// The v2 upstream-response markers are regenerable protocol documents
+	// (search feeds revalidate on the metadata TTL; the alternative-download
+	// marker ends in .nupkg and stays content above).
+	if strings.HasPrefix(relPath, v2CacheDir+"/") {
+		return adapter.KindMetadata
+	}
 	// Everything else on this layout is a regenerable document: the
 	// versions index, the registration marker and the page markers.
 	if strings.HasSuffix(relPath, "/"+fileIndex) ||
@@ -102,9 +108,26 @@ func (comparator) CompareVersions(a, b string) int { return compareNuGetVersions
 // UpstreamPath maps one STORAGE-form repository path onto the UPSTREAM
 // path (internal/remote's optional facet): package files join onto the
 // flatcontainer prefix, the registration markers translate onto their
-// document endpoints, and unknown shapes pass through verbatim (the
-// generic posture — no provider facet, no rewriting).
+// document endpoints, the v2 markers (nuget.md sections 5.3/7.1) translate
+// onto the upstream v2 faces (the feed context path api/v2 — the xsd
+// default — for the search family, api/v2/package for the alternative
+// download), and unknown shapes pass through verbatim (the generic
+// posture — no provider facet, no rewriting).
 func (provider) UpstreamPath(relPath string) string {
+	// The v2 alternative-download marker first (it carries no package id
+	// segment at the front, so the flat walk below never sees it).
+	if _, found := strings.CutPrefix(relPath, v2CacheDir+"/dl/"); found {
+		if id, version, ok := v2DownloadCacheOf(relPath); ok {
+			// Section 5.3: non-smart upstream sources get the version's
+			// SemVer2 build metadata stripped.
+			version, _, _ = strings.Cut(version, "+")
+			return v2DownloadContextPath + "/" + id + "/" + version
+		}
+		return relPath
+	}
+	if resource, ok := v2ResourceOfCachePath(relPath); ok {
+		return v2FeedContextPath + "/" + resource
+	}
 	id, rest, found := strings.Cut(relPath, "/")
 	if !found || !validPackageID(id) {
 		return relPath
