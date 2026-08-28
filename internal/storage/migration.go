@@ -20,6 +20,12 @@ import (
 //   - Migration-complete (completed flag set): delegates to S3 only; the
 //     background migration goroutine has finished.
 //
+// In dual-write mode the engine additionally carries the ADR-0040 fail-open
+// machinery: an S3 failure window degrades writes to disk-only + replay queue
+// (never blocking or rolling back the disk commit) and reads to disk directly;
+// recovery drains the queue and reconciles the disk×S3 existence diff. See
+// failopen.go. Bypass and completed modes never touch that state.
+//
 // The background migration is initiated by StartMigration(ctx) and copies
 // existing blobs from the local DiskEngine to the S3Engine using SkipIfExists
 // idempotent semantics. It is restart-safe: on restart it re-lists both
@@ -30,6 +36,9 @@ type MigrationEngine struct {
 	disk   Engine
 	s3     Engine
 	config MigrationConfig
+
+	// fo is the dual-write fail-open state (ADR-0040); inert otherwise.
+	fo failOpenState
 
 	// Background migration state
 	migMu     sync.Mutex
@@ -138,15 +147,31 @@ func (g *statusGuard) updateSnapshotAtomically(fn func(*MigrationStatus)) {
 // When migration is disabled, it delegates to the disk engine only.
 // When migration is enabled, it enters dual-write mode.
 // When migration is completed, it delegates to S3 only.
+//
+// In dual-write mode it also arms the fail-open machinery (ADR-0040): the
+// durable replay queue is loaded from <data>/replay-queue and — when entries
+// survived a restart — the drain worker starts immediately (the boot
+// watermark INFO line reports the depth).
 func NewMigrationEngine(disk Engine, s3 Engine, cfg MigrationConfig) Engine {
 	if cfg.Concurrency <= 0 {
 		cfg.Concurrency = 5
 	}
-	return &MigrationEngine{
+	e := &MigrationEngine{
 		disk:   disk,
 		s3:     s3,
 		config: cfg,
 	}
+	if cfg.Enabled && !cfg.Completed {
+		e.initFailOpen()
+	}
+	return e
+}
+
+// isClosed reports the engine's closed flag (fail-open worker gate).
+func (e *MigrationEngine) isClosed() bool {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.closed
 }
 
 // activeEngine returns the engine(s) to use for the current operation.
@@ -190,6 +215,12 @@ func (e *MigrationEngine) checkOpen() error {
 // BeginSession creates a new upload session. In dual-write mode, it creates
 // sessions on both disk and S3 so that all data flows to both backends.
 // When migration is disabled or completed, it delegates to the active engine.
+//
+// ADR-0040 fail-open: while the failure window is open the session takes the
+// disk-only fast path (no S3 dial — no per-PUT timeout penalty) and its Commit
+// enqueues the replay debt. When the S3 arm fails to begin in the steady
+// state, the session degrades the same way instead of failing the PUT: the
+// disk arm is the floor, and the queue catches S3 up after recovery.
 func (e *MigrationEngine) BeginSession(ctx context.Context) (Session, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("storage: migration: begin session: %w", err)
@@ -208,10 +239,17 @@ func (e *MigrationEngine) BeginSession(ctx context.Context) (Session, error) {
 		if err != nil {
 			return nil, fmt.Errorf("storage: migration: begin disk session: %w", err)
 		}
+		if e.fo.windowIsOpen() {
+			// Failure window: disk-only fast path, debt enqueued at Commit.
+			return &migrationSession{disk: diskSess, eng: e}, nil
+		}
 		s3Sess, err := e.s3.BeginSession(ctx)
 		if err != nil {
-			_ = diskSess.Abort(ctx)
-			return nil, fmt.Errorf("storage: migration: begin S3 session: %w", err)
+			// S3 arm failed to begin: open the window and degrade this
+			// session to disk-only — the PUT proceeds (fail-open), never
+			// 500s with zero disk bytes.
+			e.tripWindow(err)
+			return &migrationSession{disk: diskSess, eng: e}, nil
 		}
 		return &migrationSession{
 			disk: diskSess,
@@ -231,10 +269,32 @@ func (e *MigrationEngine) ResumeSession(ctx context.Context, id string) (Session
 }
 
 // Open reads a blob. In dual-write mode, it checks S3 first and falls back to
-// disk if the blob is not yet on S3.
+// disk. ADR-0040: the fallback condition is ANY S3 error (a miss is normal
+// migration lag; an errored S3 additionally trips the failure window), and
+// while the window is open reads go straight to disk — the superset, so the
+// fallback has no holes and read-your-writes holds.
 func (e *MigrationEngine) Open(ctx context.Context, sha256 string) (io.ReadCloser, BlobRef, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, BlobRef{}, fmt.Errorf("storage: migration: open blob: %w", err)
+	}
+
+	e.mu.RLock()
+	cfg := e.config
+	e.mu.RUnlock()
+
+	if cfg.Enabled && !cfg.Completed {
+		if e.fo.windowIsOpen() {
+			return e.disk.Open(ctx, sha256)
+		}
+		rc, ref, err := e.s3.Open(ctx, sha256)
+		if err == nil {
+			return rc, ref, nil
+		}
+		if !errors.Is(err, ErrBlobNotFound) {
+			e.tripWindow(err)
+		}
+		e.fo.readFallback.Add(1)
+		return e.disk.Open(ctx, sha256)
 	}
 
 	primary, fallback := e.activeEngine(true)
@@ -253,10 +313,30 @@ func (e *MigrationEngine) Open(ctx context.Context, sha256 string) (io.ReadClose
 }
 
 // Stat verifies a blob. In dual-write mode, it checks S3 first with disk
-// fallback.
+// fallback — the mirror of Open's ADR-0040 posture (the checksum-deploy /
+// X-Checksum-Deploy path rides Stat).
 func (e *MigrationEngine) Stat(ctx context.Context, sha256 string) (BlobRef, error) {
 	if err := ctx.Err(); err != nil {
 		return BlobRef{}, fmt.Errorf("storage: migration: stat blob: %w", err)
+	}
+
+	e.mu.RLock()
+	cfg := e.config
+	e.mu.RUnlock()
+
+	if cfg.Enabled && !cfg.Completed {
+		if e.fo.windowIsOpen() {
+			return e.disk.Stat(ctx, sha256)
+		}
+		ref, err := e.s3.Stat(ctx, sha256)
+		if err == nil {
+			return ref, nil
+		}
+		if !errors.Is(err, ErrBlobNotFound) {
+			e.tripWindow(err)
+		}
+		e.fo.readFallback.Add(1)
+		return e.disk.Stat(ctx, sha256)
 	}
 
 	primary, fallback := e.activeEngine(true)
@@ -418,6 +498,11 @@ func (e *MigrationEngine) Close() error {
 	}
 	e.closed = true
 	e.mu.Unlock()
+
+	// Stop the fail-open drain worker (not waited for: the replay queue is
+	// durable, an interrupted pass resumes on the next boot — ADR-0028's
+	// close posture takes no new obligation here).
+	e.stopReplayWorker()
 
 	// Stop any running migration.
 	e.migMu.Lock()
@@ -722,11 +807,17 @@ func mergeCandidates(a, b []string) []string {
 // ---------------------------------------------------------------------------
 
 // migrationSession wraps a disk session and an S3 session so that Appends flow
-// to both backends and Commit finalizes both atomically. It implements the
-// Session interface and is used by MigrationEngine in dual-write mode.
+// to both backends and Commit finalizes both. It implements the Session
+// interface and is used by MigrationEngine in dual-write mode.
+//
+// ADR-0040 fail-open: an S3 arm that fails at ANY point of the session's life
+// (begin, mid-Append, commit) is aborted and abandoned — the session degrades
+// to disk-only (s3 == nil) and keeps going; Commit then enqueues the replay
+// debt and succeeds. The disk arm is the floor: only a disk failure fails the
+// caller, honestly.
 type migrationSession struct {
 	disk Session
-	s3   Session
+	s3   Session // nil once degraded to disk-only
 	eng  *MigrationEngine
 }
 
@@ -745,13 +836,23 @@ func (s *migrationSession) Offset() int64 {
 	return s.disk.Offset()
 }
 
-// Append streams r into both the disk and S3 sessions. The reader is consumed
-// once via io.TeeReader so memory usage is constant regardless of blob size.
-// If either backend fails, both sessions are poisoned and the error is returned.
+// Append streams r into the session. In the steady state the reader is
+// consumed once via io.TeeReader into both backends so memory usage is
+// constant regardless of blob size. A failed S3 arm aborts and detaches —
+// the disk side keeps streaming and the session degrades to disk-only
+// (fail-open); a failed disk arm poisons the session and returns the error
+// (the floor).
 func (s *migrationSession) Append(ctx context.Context, r io.Reader) (written int64, err error) {
+	if s.s3 == nil {
+		// Degraded (window fast path, failed S3 begin, or an earlier append
+		// detached the arm): plain disk append.
+		return s.disk.Append(ctx, r)
+	}
+
 	// Use a pipe to tee the data to both sessions concurrently.
 	pr, pw := io.Pipe()
-	tee := io.TeeReader(r, pw)
+	feed := &detachWriter{w: pw}
+	tee := io.TeeReader(r, feed)
 
 	// Read from tee into disk, which writes to S3 via the pipe.
 	type result struct {
@@ -762,6 +863,12 @@ func (s *migrationSession) Append(ctx context.Context, r io.Reader) (written int
 
 	go func() {
 		w, err := s.s3.Append(ctx, pr)
+		// Whether the S3 arm succeeded or failed, the pipe is finished:
+		// detaching first stops the tee from feeding it any further bytes,
+		// and the close releases a write that is already blocked inside the
+		// pipe (an abandoned reader would otherwise deadlock it).
+		feed.detach()
+		_ = pw.Close()
 		ch <- result{w, err}
 	}()
 
@@ -774,45 +881,91 @@ func (s *migrationSession) Append(ctx context.Context, r io.Reader) (written int
 	res := <-ch
 
 	if diskErr != nil {
-		// Disk failed — the S3 goroutine gets an error from the pipe too.
-		// Abort the S3 session to clean up partial multipart upload.
+		// Disk failed — the floor. The S3 goroutine gets an error from the
+		// pipe too; abort its session to clean up partial multipart upload.
 		_ = s.s3.Abort(ctx)
 		return 0, diskErr
 	}
 	if res.err != nil {
-		// S3 failed — abort the disk session to clean up.
-		_ = s.disk.Abort(ctx)
-		return 0, res.err
+		// S3 arm failed mid-flight: abort it, open the failure window and
+		// degrade to disk-only — this Append SUCCEEDS on the disk bytes
+		// already written; the replay queue carries the S3 debt.
+		_ = s.s3.Abort(ctx)
+		s.s3 = nil
+		s.eng.tripWindow(res.err)
+		return diskWritten, nil
 	}
 
-	// Both sides must agree on the cumulative offset.
+	// Both sides must agree on the cumulative offset. A disagreement means
+	// the S3 copy cannot be trusted — degrade the same way (abort the S3
+	// arm, keep the disk truth; the queued re-copy re-reads disk).
 	if diskWritten != res.w {
-		_ = s.disk.Abort(ctx)
 		_ = s.s3.Abort(ctx)
-		return 0, fmt.Errorf("storage: migration: session %s: disk and S3 offsets disagree: disk=%d s3=%d", s.ID(), diskWritten, res.w)
+		s.s3 = nil
+		s.eng.tripWindow(fmt.Errorf("storage: migration: session %s: disk and S3 offsets disagree: disk=%d s3=%d", s.ID(), diskWritten, res.w))
+		return diskWritten, nil
 	}
 
 	return diskWritten, nil
 }
 
-// Commit finalizes both sessions. It commits the disk session first to get the
-// authoritative BlobRef (which carries the sha256), then commits the S3 session
-// with the same expected ref. If the S3 commit fails, the disk blob is cleaned
-// up to maintain consistency: the caller sees an error as if the commit never
-// happened.
+// detachWriter wraps the pipe the tee feeds: once the S3 arm is gone, writes
+// become no-ops so the disk side of the tee never observes the S3 arm's
+// death. Fail-open means the S3 arm's problems must never fail the disk
+// append.
+type detachWriter struct {
+	mu   sync.Mutex
+	dead bool
+	w    io.Writer
+}
+
+func (d *detachWriter) Write(p []byte) (int, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.dead {
+		return len(p), nil
+	}
+	if _, err := d.w.Write(p); err != nil {
+		// The pipe broke underneath us (the S3 reader vanished mid-write).
+		// Swallow: the S3 goroutine reports the real error through ch.
+		d.dead = true
+	}
+	return len(p), nil
+}
+
+func (d *detachWriter) detach() {
+	d.mu.Lock()
+	d.dead = true
+	d.mu.Unlock()
+}
+
+// Commit finalizes the session: disk first (the ADR-0006 commit protocol,
+// untouched — that blob is the caller's success), then S3 with the exact
+// sha256 disk produced. ADR-0040: an S3 commit failure NEVER rolls the disk
+// blob back — the debt is enqueued, the failure window opens and the caller
+// sees success (the reverse-delete clause is abolished). Only a disk commit
+// failure fails the caller. A degraded session commits disk-only and
+// enqueues.
 func (s *migrationSession) Commit(ctx context.Context, expect BlobRef) (BlobRef, error) {
 	ref, err := s.disk.Commit(ctx, expect)
 	if err != nil {
-		_ = s.s3.Abort(ctx)
+		if s.s3 != nil {
+			_ = s.s3.Abort(ctx)
+		}
 		return BlobRef{}, err
 	}
 
+	if s.s3 == nil {
+		// Degraded session: the blob is safe on disk; queue the replay debt.
+		s.eng.enqueueReplay(ref.Sha256)
+		return ref, nil
+	}
+
 	// Commit to S3 with the exact sha256 we got from disk.
-	_, err = s.s3.Commit(ctx, BlobRef{Sha256: ref.Sha256})
-	if err != nil {
-		// S3 commit failed — clean up disk to maintain consistency.
-		_ = s.eng.disk.Delete(context.Background(), ref.Sha256)
-		return BlobRef{}, fmt.Errorf("storage: migration: s3 commit failed (disk blob rolled back): %w", err)
+	if _, err := s.s3.Commit(ctx, BlobRef{Sha256: ref.Sha256}); err != nil {
+		s.eng.tripWindow(err)
+		s.eng.enqueueReplay(ref.Sha256)
+		return ref, nil
 	}
 
 	return ref, nil
@@ -824,9 +977,10 @@ func (s *migrationSession) Abort(ctx context.Context) error {
 		return nil
 	}
 	errDisk := s.disk.Abort(ctx)
-	errS3 := s.s3.Abort(ctx)
-	if errDisk != nil {
-		return errDisk
+	if s.s3 != nil {
+		if errS3 := s.s3.Abort(ctx); errDisk == nil {
+			errDisk = errS3
+		}
 	}
-	return errS3
+	return errDisk
 }
