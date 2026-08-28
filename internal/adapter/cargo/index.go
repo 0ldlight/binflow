@@ -98,8 +98,11 @@ func (h *Handler) serveConfig(w http.ResponseWriter, r *http.Request, repoKey st
 // serveIndexFile answers GET index/{pkgPath} from the stored node: 200
 // text/plain NDJSON + ETag (= the file's sha256) + Last-Modified, with
 // If-None-Match/If-Modified-Since → 304 (spec section 5.3's cache row).
-// No node is the 404 + envelope (official allows 404/410/451; BinFlow
-// takes 404).
+// On a remote repository the node arrives through the pull-through
+// engine and the reader carries the fetch's response hints
+// (X-BinFlow-Cache and friends) — merged structurally, exactly the way
+// serveNode does for every streamed node. No node is the 404 + envelope
+// (official allows 404/410/451; BinFlow takes 404).
 func (h *Handler) serveIndexFile(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, pkgPath string) {
 	path := segIndex + "/" + pkgPath
 	rc, node, err := h.svc.Get(ctx, p, repoKey, path)
@@ -111,6 +114,13 @@ func (h *Handler) serveIndexFile(ctx context.Context, w http.ResponseWriter, r *
 	etag := `"` + node.Sha256 + `"`
 	lastMod := httpTime(node.UpdatedAt)
 	hdr := w.Header()
+	if extra, ok := rc.(interface{ ExtraHeaders() http.Header }); ok {
+		for k, vv := range extra.ExtraHeaders() {
+			for _, v := range vv {
+				hdr.Add(k, v)
+			}
+		}
+	}
 	hdr.Set("ETag", etag)
 	if lastMod != "" {
 		hdr.Set("Last-Modified", lastMod)
@@ -257,7 +267,21 @@ func (h *Handler) rewriteIndexLocked(ctx context.Context, p *repo.Principal, rep
 	if err != nil {
 		return fmt.Errorf("list %s versions: %w", name, err)
 	}
-	lines := make([]indexLine, 0, len(nodes))
+	// The official index MUST: one row per version IGNORING build
+	// metadata. The D-3 overwrite arm can land several spellings of one
+	// version (0.1.0+a over 0.1.0 are distinct storage paths), so the
+	// rewrite deduplicates on the normalized version, keeping the NEWEST
+	// node's row (latest-wins, the overwrite semantics' own reading; the
+	// equal-timestamp tie-break on the vers spelling keeps the choice
+	// deterministic). The dropped spellings' blobs stay downloadable —
+	// only the index row is unique.
+	type candidate struct {
+		line     indexLine
+		vers     string
+		updated  string
+		normVers string
+	}
+	best := map[string]candidate{}
 	for _, n := range nodes {
 		_, version, ok := splitCrateNode(n.Path)
 		if !ok {
@@ -267,10 +291,18 @@ func (h *Handler) rewriteIndexLocked(ctx context.Context, p *repo.Principal, rep
 		if err != nil {
 			return err
 		}
-		lines = append(lines, *line)
+		key := normalizeVersionKey(version)
+		c := candidate{line: *line, vers: version, updated: n.UpdatedAt, normVers: key}
+		if prev, seen := best[key]; !seen || c.updated > prev.updated || (c.updated == prev.updated && c.vers > prev.vers) {
+			best[key] = c
+		}
 	}
-	if len(lines) == 0 {
+	if len(best) == 0 {
 		return nil // nothing stored: nothing to write (a stray delete leaves the stale file)
+	}
+	lines := make([]indexLine, 0, len(best))
+	for _, c := range best {
+		lines = append(lines, c.line)
 	}
 	sort.Slice(lines, func(i, j int) bool {
 		if c := compareSemver(lines[i].Vers, lines[j].Vers); c != 0 {
