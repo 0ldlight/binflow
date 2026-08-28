@@ -52,7 +52,7 @@ shows the live per-slot verdict. Full guide:
 | What | Where |
 |---|---|
 | Product vision & scope | [`PRODUCT.md`](PRODUCT.md) |
-| Milestones (M1 kernel → M11 alignment, M1–M10 done) | [`ROADMAP.md`](ROADMAP.md) |
+| Milestones (M1 kernel → M11 alignment, M1–M11 done) | [`ROADMAP.md`](ROADMAP.md) |
 | M11 requirements (PRD: config planes, four package types, keypair, cleanup) | [`docs/prd/milestone-11.md`](docs/prd/milestone-11.md) |
 | Artifactory full-feature matrix (213 entries — the M10+ roadmap backbone) | [`docs/reverse/artifactory-full-feature-matrix.md`](docs/reverse/artifactory-full-feature-matrix.md) |
 | Help documentation center (install / integrations / admin / API / FAQ) | [`docs/user/README.md`](docs/user/README.md) |
@@ -530,7 +530,7 @@ CI share one entrypoint.
 
 ## License / status
 
-Pre-GA software. Milestones M1–M10 are done and tagged (`m1-done` …
+Pre-GA software. Milestones M1–M11 are done and tagged (`m1-done` …
 `m10-done`); M11 (twelve-package-type matrix, license gating, runtime
 config planes, keypair signing, cleanup engine) is in final verification —
 see `ROADMAP.md` for the milestone plan, `BOARD.md` for what is currently

@@ -5,7 +5,7 @@ sidebar_position: 70
 
 # API 参考
 
-> 适用版本：M1~M11（端点引入里程碑标注于各表；M7 增补：用户角色字段 `adminRole`、permission target 动作 `manage`、docker 上传状态腿跨重启、token 铸造 step-up 可选门；**M9 增补**：usage 批量端点、users 列表加宽/enabled 回显/DELETE、groups `?includeUsers`、permissions `?filter=manage`——速览见[下文](#m9-增补速览)；**M11 增补**：认证配置面、GPG keypair 族、cleanup 引擎、四包型 reindex 族与 smart remote 两字段生效——见[M11 增补速览](#m11-增补速览t-328)）。Artifactory 兼容端点基于 REST 逆向规格 `docs/reverse/rest-api.md`（置信度高）。
+> 适用版本：M1~M11（端点引入里程碑标注于各表；M7 增补：用户角色字段 `adminRole`、permission target 动作 `manage`、docker 上传状态腿跨重启、token 铸造 step-up 可选门；**M9 增补**：usage 批量端点、users 列表加宽/enabled 回显/DELETE、groups `?includeUsers`、permissions `?filter=manage`——速览见[下文](#m9-增补速览)；**M11 增补**：认证配置面（含 SAML SP 证书三端点，T-331）、GPG keypair 族、cleanup 引擎、四包型 reindex 族、smart remote 两字段生效、MPU 面整体翻转（ADR-0039）与 cargo remote/virtual 仓型——见[M11 增补速览](#m11-增补速览t-328)）。Artifactory 兼容端点基于 REST 逆向规格 `docs/reverse/rest-api.md`（置信度高）。
 > **M10 增补（T-293 部分回写，2026-08-26）**：`?properties` 族反转为 **GET/PUT/DELETE 三动词**（POST 增量动词不做——其余动词落 404 冻结姿态；原 M5 期表格把属性动词标为 M4/M1 系陈旧勘误）；上传路径 matrix 参数 M10 生效。M10 其余新端点（license/addons/uploads、Go/NuGet/Cargo 接入面）已随 T-296 补齐——速览见[下文](#m10-新增端点速览t-296)。
 > BinFlow 自有端点以 `/api/v1` 前缀标记。
 
@@ -265,9 +265,9 @@ license / addons / uploads 三族与三个门控包型的接入面（依据 ADR-
 
 ## M11 增补速览（T-328）
 
-认证配置面（T-305）、GPG keypair 族（T-319）、cleanup 引擎（T-324）、四包型 reindex 族（T-308/309/310/311）与 smart remote 两字段生效（T-317 L25 反转）。本节 curl 命令在 HEAD 构建 scratch 实例（`BINFLOW_REMOTE_CREDENTIALS_KEY` 已设）上实测（2026-08-28）；行为依据各票工作日志与 ADR-0035/0036/0038。
+认证配置面（T-305 + SAML SP 证书三端点 T-331）、GPG keypair 族（T-319）、cleanup 引擎（T-324）、四包型 reindex 族（T-308/309/310/311）与 smart remote 两字段生效（T-317 L25 反转）；另 M11 交付 **cargo remote/virtual 仓型**（T-316/T-318——REST 建仓走通用 `PUT /binflow/api/repositories/{key}`，协议面语义见 [Cargo 接入](integrations/cargo.md)）。本节 curl 命令在 HEAD 构建 scratch 实例（`BINFLOW_REMOTE_CREDENTIALS_KEY` 已设）上实测（2026-08-28）；行为依据各票工作日志与 ADR-0035/0036/0038/0039。
 
-### 认证配置域（`/api/v1/admin/security/*`；三段 × GET/PUT/test）
+### 认证配置域（`/api/v1/admin/security/*`；三段 × GET/PUT/test + SAML SP 证书三端点）
 
 | 方法 | 路径 | 门 | 语义 |
 |---|---|---|---|
@@ -276,6 +276,9 @@ license / addons / uploads 三族与三个门控包型的接入面（依据 ADR-
 | POST | `/binflow/api/v1/admin/security/ldap/test` | CapSecurityWrite | 测试连接（TestReport，见下） |
 | GET / PUT / POST …/test | `…/admin/security/oauth` | 同上 | OIDC 段（snake_case wire） |
 | GET / PUT / POST …/test | `…/admin/security/saml/config` | 同上 | SAML 段（未设置 GET 回 `{}`） |
+| GET | `/binflow/api/v1/admin/security/saml/config/key/public` | CapSecurityRead | **当前 SP 加密证书 PEM**（text/plain）；未生成 404 `saml sp encryption certificate has not been generated`（T-331，实测） |
+| PUT | `/binflow/api/v1/admin/security/saml/config/key/public/regenerate` | CapSecurityWrite | 轮换 SP 钥对（force 一对一替换、旧证书即刻失效），响应体 = 新证书 PEM |
+| POST | `/binflow/api/v1/admin/security/saml/key` | CapSecurityWrite | 生成/替换 SP 钥对（BinFlow 原生面；与 regenerate 同机、审计动作分立：`auth.config.samlkey.{generate,regenerate}`，零密材落日志） |
 
 - **secret 哨兵语义（write-only）**：GET 对已设置 secret 恒回 20 星 `********************`；PUT 键缺席 = 保持、`""` = 清除、新明文 = 替换；**回传哨兵 → 400** `refusing the masked placeholder — leave the field empty to keep the stored secret, or re-enter the value`（实测）。
 - secret 落库前 enc:v1 密封（实例主密钥 `BINFLOW_REMOTE_CREDENTIALS_KEY`）；无主密钥时 secret 写拒绝。
