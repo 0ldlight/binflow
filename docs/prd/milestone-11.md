@@ -1,12 +1,12 @@
 # PRD — M11 Artifactory 对齐第二程：配置域指令兑现 + 第一梯队包型批量实现 + 行为逐项对齐制度化
 
-> **PRD 状态：v1.2.1 勘误版（2026-08-27，T-304 转交勘误三处 + LC-18 扩面随笔；版本沿革见 §0）**。主轴来源：BOARD 用户指令日志 7 条中的最近四条（2026-08-26 11:22 MUI 迁移〔T-299/T-300 已定名〕、11:35 认证配置前端化、11:45 存储配置独立文件化、**19:05 license 门控「行为逐项对齐」**——最后一条改变 M11 起的全部工作方式）+ conductor M11 范围种子（A 指令兑现 / B 包型批量 / C 债务 / D 候选池裁量）。范围消费：M10 FR-91 五份规格（tech-lead 就绪度确认 reports/agents/tl-fr91-ac3.md——23 裁决点 + K-1/R-1/R-2 缺项）、M10 PRD §2.2/§4.7 滚入项、M9 Q5 复制硬化建议、ROADMAP「M10 未纳入项」。**新端点全部走 PM FR + ADR 流程（ADR-0035 起）**。
+> **PRD 状态：v1.2.2 收口回写版（2026-08-28，T-329 D-P1：§5.6.1 浓缩填实 + LC-24 归位；版本沿革见 §0）**。主轴来源：BOARD 用户指令日志 7 条中的最近四条（2026-08-26 11:22 MUI 迁移〔T-299/T-300 已定名〕、11:35 认证配置前端化、11:45 存储配置独立文件化、**19:05 license 门控「行为逐项对齐」**——最后一条改变 M11 起的全部工作方式）+ conductor M11 范围种子（A 指令兑现 / B 包型批量 / C 债务 / D 候选池裁量）。范围消费：M10 FR-91 五份规格（tech-lead 就绪度确认 reports/agents/tl-fr91-ac3.md——23 裁决点 + K-1/R-1/R-2 缺项）、M10 PRD §2.2/§4.7 滚入项、M9 Q5 复制硬化建议、ROADMAP「M10 未纳入项」。**新端点全部走 PM FR + ADR 流程（ADR-0035 起）**。
 
 | 项 | 值 |
 |---|---|
 | 文档 | `docs/prd/milestone-11.md` |
 | 里程碑 | M11 — Artifactory 对齐第二程（认证/存储配置化 + 存量 MUI 迁移 + 自有裁定回头看 + conan/debian/rpm/helm 四包型 + cargo 补齐 + 复制硬化与工程债） |
-| 状态 | v1.2.1 勘误版（FR-92~FR-102 十一条需求；契约矩阵 18 条〔A 14 / C 2 / D 1 / 待裁 1〕+ 档位 × addon 矩阵扩展 5 槽；L01~L45 验收命令骨架；开放问题 Q1~Q8 带暂行） |
+| 状态 | v1.2.2 收口回写版（FR-92~FR-102 十一条需求；契约矩阵 18 条〔A 15 / C 2 / D 1 / 待裁 0——LC-24 v1.2.2 归位〕+ 档位 × addon 矩阵扩展 5 槽；L01~L45 验收命令骨架；开放问题 Q1~Q8 带暂行〔Q8 已终裁〕） |
 | 上游依据 | PRODUCT.md（Non-goals 不越界：HA/Xray 本体仍不做——Q1 待用户终裁）、BOARD.md 用户指令日志（2026-08-25 三条主轴指令 + 持续部署 T-298〔已兑现〕+ 2026-08-26 四条新指令）、docs/reverse/artifactory-full-feature-matrix.md（213 条目主矩阵 §十大缺口）、docs/reverse/{conan,cargo,debian,rpm,helm}.md（FR-91 产出 + tl-fr91-ac3 23 裁决点）、docs/reverse/auth-integration.md（FR-92 行为基准——M11 前置复核）、docs/reverse/config-formats.md §1 + s3-storage-layout.md（FR-93 行为基准——M11 前置复核）、docs/reverse/replication.md（FR-101）、docs/prd/milestone-10.md（§2.2 滚入项 + §5.6.1 as-built 校准表 + DoD 体例）、ADR-0032/0033/0034（license/属性/五协议管理面横切——DB-4/TL-1 已由 ADR-0034 承载，tl 报告 K-3 收口） |
 | 下游消费者 | tech-lead（拆票——tl-fr91-ac3 23 裁决点随票消化 + 本 PRD §1.3 分票提示，宽度 ≤2 内建）、architect（**ADR-0035**：认证配置面 REST/持久化/变更即生效；**ADR-0036**：存储配置独立文件与链式 schema；视需要 ADR-0037 复制硬化语义）、reverse-engineer（两份复核票 + R-1/R-2 规格修订）、dev-go-core（internal/auth 配置面 + internal/adapter/{conan,deb} + 复制硬化）、dev-registry-adapter（internal/adapter/{rpm,helm,cargo}）、dev-go-storage（存储配置链 + S3 续传债）、dev-frontend（T-299/T-300 + 认证配置页）、qa-engineer（L 序列 + 四包型真实客户端矩阵）、tech-writer（认证/存储配置指南 + 四包型接入 + 回头看文档同步）、release-engineer（部署矩阵演进 + CD 链验证）、conductor（裁决入口 + tag m11-done） |
 
@@ -18,6 +18,7 @@
 |---|---|---|
 | v1.0 | 2026-08-26 | 初版草案（待 conductor 审）：M11 范围（conductor 种子 A~D 全承载）、FR-92~FR-102（认证配置前端化 / 存储配置文件化 / MUI 两批 / 回头看 / conan / debian / rpm / helm / cargo remote+virtual / 复制硬化 / 工程债）、档位 × addon 矩阵扩展、契约矩阵 18 条、L01~L45、开放问题 Q1~Q8 带暂行；随稿完成 ROADMAP M11 段补实 |
 | v1.2.1 | 2026-08-27 | **T-304 转交勘误（Q8 终值 20:35+20:55 用户裁定的 PRD 侧回写，非范围变更；30 项复核结论见 reports/agents/T-304.md）**：① CN-1 终裁推翻 tl-fr91-ac3 v1.1 收窄裁定——conan v1 全量数据面（十七端点）进 FR-96 范围（T-308 承载），§2.2 原 Non-goals 行改写留痕，§2.1/96.2/AC2/LC-18/L19/§8 剧本同步扩面；② CG-2 终裁翻转 T-294 统一 4xx/5xx——cargo publish 失败形态照 Artifactory **200+errors[] 双轨**（成功形态=200 无 errors 键；精确 wire=200+`warnings.other`，见 T-304 §3 分类锚定表，勿造顶层 errors 键），§2.2 cargo 行改写留痕，T-316 承载断言反转 + cargo.md §5.3 规格回写；③ §5.6.1 增 CN-1/CG-2 终值条目，转正引用 M10 PRD §5.6.1 Q8 六项登记块（RP-2/TL-5/TL-4/HL-2 已入 T-309/310/311 票面，LC-24 归位随票回写）；④ LC-18 随 CN-1 扩面改写（T-304 结论非「维持原文」）。版本沿革注：本文件正文自 v1.0 后无整版修订（BOARD 拆票引用之「v1.1」为 conductor 审定态留痕），本次按 conductor 转交口径（BOARD「PRD v1.2 勘误三处」）记 v1.2.1 |
+| v1.2.2 | 2026-08-28 | **T-329 D-P1 收口回写（终验转交项，非范围变更；终验结论见 reports/agents/T-329.md §7/§8-DoD4）**：① §5.6.1 回头看回写表浓缩填实——T-287×7 / T-289×5 / T-290×4 / T-294×7 占位行按 T-304 §1 判定 + 各承载票 as-built 终态逐票落行（T-304 共 30 项 100% 完结，占位清零，DoD#4「裁决表 100% 填实」就此兑现）；② **LC-24 归位**——Q8 终裁（08-26 20:35+20:55）落表：calculateYumMetadata 对齐 Artifactory **false**（RP-2，T-311 落地、T-327/T-329 实测）、rpm 校验算法维持 **SHA-256**（TL-5 唯一安全向有意分歧，行内留痕）——层级 待裁→A，契约计数 A 14→15 / 待裁 1→0（§5.3 行、脚注与状态行同步）；③ **新登记遗留**：T-290-2（canonical 统一 `socketTimeoutMillis`）T-304 判改回并路由 T-317，但 T-317 票面三臂不含、代码 canonical 仍 `socketTimeoutMs`（xsd 拼写为输入别名，internal/repo/config.go）——改回未承载，滚 M12 小票（随 ROADMAP「M11 未纳入项」登记）。配套：ROADMAP「M11 未纳入项」段 + FR-96 行终态（T-329 D-R1，同日 PM 执行） |
 
 ---
 
@@ -424,7 +425,7 @@ Trash can：**余量条件票**（Q7）——全部 P0/P1 收官且余量足时�
 | LC-21 | debian apt 内容面（Packages/Sources/Release/InRelease/压缩集/By-Hash） | Debian repository 规范（Debian wiki 锚点优先 + debian.md） | A | P0 | 高 | L23 |
 | LC-22 | debian 索引直写 403 + 缺坐标 400（+ 系统内路径豁免） | debian.md（DB-2/DB-3 定案；Artifactory 行为出处随规格在档） | A | P0 | 高 | L24 |
 | LC-23 | rpm repomd 内容面（repodata 三索引/comps/代数保留/_tmp_ 原子性） | repomd 社区规范 + dnf.conf(5) + rpm.md | A | P0 | 高 | L27 |
-| LC-24 | rpm 默认值族：calculateYumMetadata（true vs Artifactory false）/ 校验算法（SHA-256 vs Artifactory SHA-1） | Artifactory 默认 vs tl-fr91-ac3 RP-2/TL-5——**Q8 用户终裁** | **待裁** | P0 | 高 | L15/L27 |
+| LC-24 | rpm 默认值族：calculateYumMetadata=**false 对齐 Artifactory**（上传仅存储，repodata 由 reindex/显式开启触发——RP-2 终裁）/ 校验算法=**SHA-256 维持**（TL-5 唯一安全向有意分歧留痕：Artifactory 默认 SHA-1，SHA-256 Artifactory 亦支持） | artifactory.xsd:402（default=false）+ rpm.md §2.2，出处链 T-304 §1.5；as-built 实测 T-327 L27/L28（RP-2 默认 false、GET 缺席=Artifactory 对齐；409 分支逐字）——T-311 落地 | **A**（v1.2.2 归位；TL-5 分歧行内留痕不单列 D） | P0 | 高 | L15/L27 |
 | LC-25 | helm 经典仓内容面 + index.yaml（relative urls 默认 true——HL-2）+ api/helm 只读别名 | helm.sh 官方两页 + Artifactory 同构挂载（HL-1；R-2 修订） | A | P0/P1 | 高 | L31/L32 |
 | LC-26 | HelmOCI 分发（package_type=helmoci 复用 docker 面 + 三 media type） | Artifactory HelmOCI（HL-3 单列）——**Q2** | A | 条件 | 高 | L34 |
 | LC-27 | cargo remote（config.original.json 翻译 + search 代理）/ virtual（(name,vers) 去重） | crates.io sparse index 官方规范 + cargo.md（CG-1 去重为官方 MUST） | A | P1 | 高 | L36/L37 |
@@ -432,7 +433,7 @@ Trash can：**余量条件票**（Q7）——全部 P0/P1 收官且余量足时�
 | LC-29 | unusedArtifactsCleanupPeriodHours 清理引擎 | artifactory.xsd 字段行为（M10 仅落库 → M11 生效） | A | P1 | 高 | L41 |
 | LC-30 | `storage.matrix_params` 逃生开关 | **D（有意不兼容）**——Artifactory 无此开关（D-6 先例，19:05 口径首次应用；config 键不存在） | D | — | 高 | L17（负向） |
 
-> 计数：**18 条 = A 14（LC-13/15/17/18/19/20/21/22/23/25/26/27/28/29）+ C 2（LC-14/16）+ 待裁 1（LC-24）+ D 1（LC-30）**。待裁项终裁后归位并回写本表。既有契约面（五基础包型、go/nuget/cargo、license 族）M11 对五基础包型与 M10 as-built **零行为变化**（§5.4），新包型全部经门控三缝。
+> 计数：**18 条 = A 15（LC-13/15/17/18/19/20/21/22/23/24/25/26/27/28/29）+ C 2（LC-14/16）+ D 1（LC-30）+ 待裁 0**。LC-24 于 v1.2.2 归位（Q8 终裁 2026-08-26 20:35+20:55：RP-2 对齐 Artifactory false，TL-5 维持 SHA-256 唯一安全向例外行内留痕）。既有契约面（五基础包型、go/nuget/cargo、license 族）M11 对五基础包型与 M10 as-built **零行为变化**（§5.4），新包型全部经门控三缝。
 
 ### 5.4 回归基线（M11 不反转既有断言——无 license 默认实例 + pro 实例双形态）
 
@@ -537,16 +538,20 @@ BASE=http://127.0.0.1:8080; ADMIN=admin:password
 | K36 | GPG keypair 体系形态（CRUD/存储/口令/repoKey 关联——debian/rpm 共用） | K-1 条件票进 M11（Q6） | Q6 → 新 ADR |
 | K37 | contentSynchronisation 子字段集与统计同步语义 | replication.md + artifactory.xsd 锚定 | 复核 + ADR-0037（如需） |
 
-### 5.6.1 回头看回写表（FR-95 裁决后填——v1.0 占位；v1.2.1 起 CN-1/CG-2 按 T-304 终值填实，其余基线项结论在案〔T-304 §1 共 30 项〕待浓缩回写）
+### 5.6.1 回头看回写表（v1.2.2 全量填实——T-304 §1 共 30 项 100% 落行：判定按 T-304、终态按各承载票 as-built；DoD#4「裁决表 100% 填实」就此兑现）
 
 | 基线项 | 结论（维持/改回/上 BOARD） | 出处或改回动作 | 回写落点 |
 |---|---|---|---|
-| T-287 L1~L7（NuGet ×7） | 待裁决（M10 已按 T-293 复核维持——新口径重审） | — | 本表 + 各域票 |
-| T-289 ×5 / T-290 ×4 / T-294 ×7 | 待裁决 | — | 同上 |
-| tl 裁决差异点（RP-2/TL-5/TL-4/HL-2——Q8 六项已终裁并登记 M10 PRD §5.6.1；四项已入 T-309/310/311 票面） | **已终裁**（20:35 定案 + 20:55 终值修正） | M10 §5.6.1 Q8 六项登记块（出处逐行见 T-304 §1.5） | 本表 + LC-24 随票归位 |
-| CN-1（conan v1 支持面） | **终裁翻转收窄**：v1 全量数据面（十七端点）进范围 | conan.md §3.2 v1 族全表（高置信逐行；握手三端点为 conan 2.x 硬依赖）；推翻 tl-fr91-ac3 v1.1 收窄裁定 | §2.2/§2.1/96.2/AC2/LC-18/L19 随 v1.2.1 改写；T-308 承载（窗口独占） |
-| CG-2（cargo publish 失败形态） | **终裁翻转 T-294 统一 4xx/5xx**：失败=200+errors[] 双轨照 Artifactory；成功=200 无 errors 键 | CargoLocalRepoHandler.publish + CargoResponseUtils/CargoPublishResponse（T-304 §3 分类锚定表——精确 wire=200+warnings.other，勿造顶层 errors 键） | §2.2 随 v1.2.1 改写；T-316 承载（断言反转 + cargo.md §5.3 规格回写） |
-| D-6 matrix_params 无开关 | **维持**（先例已裁） | Artifactory 无此开关（19:05 口径首次应用） | LC-30 |
+| T-287 L1~L7（NuGet ×7） | 维持 3：L1（DELETE 硬删版本目录，无 listed 位——与 BinFlow 同构）/ L5（512MiB·4MiB 上限——资源防御界，Artifactory 无协议级上限，降级声明）/ L6（版本归一化=官方规范 + 反编译比较器双证）；**改回 4 → 上 BOARD 已裁**：L2（v2 仅 FindPackagesById → Artifactory v2 路由全集实装）/ L3-remote（search=存储事实 → 上游实时代理；local 半边维持）/ L4（上游前缀常量 → service index 资源类型阶梯动态解析）/ L7（virtual search=local+已落地缓存 → 代理合并）——四项同根 **NuGet 对齐 bundle** | T-304 §1.1（逐项 Artifactory 行为出处）+ §4.1；**用户裁决 2026-08-28 07:5x：M12 立项**（v2 全面 + remote/virtual search 上游代理 + service index 动态解析，L2/L3-remote/L4/L7 四项随批） | 本表；ROADMAP「M11 未纳入项」 |
+| T-289 A~E（MPU REST ×5） | A（urlPart 服务端中继 vs Artifactory S3 直传 URL）+ B（create 限 generic local vs 不限包型+virtual defaultDeploymentRepo 回落）——**上 BOARD 已裁**：MPU 面形状**整体翻转对齐 Artifactory**；C（AC2 kill -9 续传 descope）已裁 M11 债——**复活**；D（/config 重定分片语义）**改回**=GET 能力探测；E（dual-write 501）**维持**（自有迁移引擎面，结构性无对照，T-304 §6-6 残余附录） | T-304 §1.2/§4.2/§5.1；承载终态：**T-332 done**（ADR-0039——六端点 POST+QueryParam / complete?sha1=202 异步任务 / GET /config 版本门；jfrog-cli 2.122.0 真机 220MiB 全链 9.3s）+ **T-323 / T-323R done**（upload ID 落表 + ListParts 重建 + REST 重启可见性懒重建；探针 leg 4 翻转 GREEN，T-329 L40 双跑对账） | 本表；§5.4 L40 |
+| T-290 1~4（smart remote ×4） | 1（两字段不做）已上 BOARD——排期切分非等价设计（M10 Q7 终裁归 M11）；2（canonical=`socketTimeoutMs`、xsd 拼写只进不出）**改回未承载**（见出处）；3（未知字段容忍丢弃）**维持**（Artifactory FAIL_ON_UNKNOWN_PROPERTIES=false 同构；按名 400 为过渡态，随 1 实装后终态=接受且生效，T-317 已消）；4（014 列消费优先级）**维持**（内部解析链，不可观测，降级声明） | T-304 §1.3/§5.1（2 判改回、路由 T-317）；**T-317 票面三臂（两字段/属性同步/replica 隔离）不含 2**——代码 canonical 仍 `socketTimeoutMs`、`socketTimeoutMillis` 为输入别名（internal/repo/config.go 别名对解析）；1 的终态=T-317 done（两字段接受+回显+生效，L25 按名 400 退役，T-329 L38 独立复跑全绿） | 本表；2 滚 M12 小票（回显键统一 Artifactory 拼写）——ROADMAP「M11 未纳入项」 |
+| T-294 D-1~D-7（cargo ×7） | D-1（成功体 200 warnings-only 无 errors 键）**维持**（CargoPublishResponse 同构）；D-2（失败形态统一 4xx/5xx）已上 BOARD——CG-2 终裁翻转（见下行）；D-3（重复版本一律 409）**改回**=401（匿名）/403（实名）+ d 权限覆盖臂；D-4（索引请求内同步重写）**维持**（Artifactory=work queue 异步；时序差异=官方容忍上界，降级声明）；D-5（裸 PUT index/.cargo 403）**改回**=接受+收敛链；D-6（search 鉴权随全局匿名策略）**维持**（默认观测等价；per-repo 参数族残余登记）；D-7（remote/virtual 404 local-only）**改回**=实装 | T-304 §1.4/§3/§5.1；承载终态：**T-316 done**（D-2 双轨 + D-3 409 臂删除+唯一行收敛 + D-5 `.cargo/**` 裸 PUT 接受〔index/config.json 合成面仍拒——无落点不入 D-5；.cargo/** DELETE 收敛低危遗留登记〕；T-329 五臂独立复核全中）+ **T-318 done**（D-7 virtual：首见去重/写路由/yank 双持有者；cargo 1.98 真机侧证完整构建） | 本表；cargo.md §5.3 as-built 全表（T-316 已回写） |
+| tl 裁决差异点（RP-2/TL-5/TL-4/HL-2——Q8 六项已终裁并登记 M10 PRD §5.6.1；四项已入 T-309/310/311 票面） | **已终裁 + 全部落地**：RP-2 calculateYumMetadata=**false** / TL-4 debian 架构族=**i386,amd64 强制生成**（空 Packages 亦生成）/ HL-2 relative urls=**true**——三项照 Artifactory；TL-5 rpm 校验算法=**SHA-256 维持**（唯一安全向例外留痕） | M10 §5.6.1 Q8 六项登记块（20:35 定案 + 20:55 终值修正；出处逐行见 T-304 §1.5）；as-built：T-309/T-310/T-311 全 done，T-327 L27/L28（RP-2 默认 false、GET 缺席=Artifactory 对齐、409 分支逐字）+ TL-4 空 i386/amd64 Packages 生成断言过 | 本表；**LC-24 v1.2.2 归位（待裁→A，TL-5 行内留痕）** |
+| CN-1（conan v1 支持面） | **终裁翻转收窄 + 已落地**：v1 全量数据面（十七端点）+ 握手三端点全绿 | conan.md §3.2 v1 族全表（高置信逐行；握手三端点为 conan 2.x 硬依赖）；推翻 tl-fr91-ac3 v1.1 收窄裁定；**T-308 done**——conan 1.66.0 与 2.31.2 双客户端活体 E2E 全绿 + T-329 L19 十七端点 curl sweep（v1→remote 400 拒语逐字；D-F 状态码缺陷另登记 M12） | §2.2/§2.1/96.2/AC2/LC-18/L19 随 v1.2.1 改写；T-308 已收口 |
+| CG-2（cargo publish 失败形态） | **终裁翻转 T-294 统一 4xx/5xx + 已落地**：失败=200+errors[] 双轨照 Artifactory；成功=200 无 errors 键 | CargoLocalRepoHandler.publish + CargoResponseUtils/CargoPublishResponse（T-304 §3 分类锚定表——精确 wire=200+`warnings.other`，勿造顶层 errors 键）；**T-316 done**（CG-2 双轨 + warnings.other 精确 wire + D-3 去 409；cargo.md §5.3 十一类全表重写 + §12 裁决③终值；T-329 五臂复核全中：帧前缀畸形 500 穿透/匿名 401/实名 403） | §2.2 随 v1.2.1 改写；T-316 断言反转 + 规格回写完成 |
+| D-6 matrix_params 无开关 | **维持**（先例复核成立） | T-304 §1.6：ConstantValues.java:1662 `allowMatrixParamsForDownloadsRequests` 仅下载请求域系统参数，矩阵参数剥离是核心路径语义，**无全局启停开关**；BinFlow `storage.matrix_params` 为自有逃生键（默认 on 观测等价，仅显式关闭分歧） | LC-30（D 层级留痕） |
+
+> **改回路由闭环注（v1.2.2）**：T-304 §5.1 改回路由表六项全部闭环——T-289-D → 随 T-332 MPU 面形状整体翻转承载（GET /config 探测落地）；T-290-2 → **未承载，滚 M12 小票**（本表 T-290 行登记）；T-294-D-3 / D-5 → T-316 落地；T-294-D-7 → T-316 + T-318 落地；T-287-L2/L3'/L4/L7 → 用户裁决 M12 立项（NuGet 对齐 bundle）。残余差异附录（T-304 §6 六项维持留痕）用户可随时推翻，不构成 M11 缺口。
 
 ---
 

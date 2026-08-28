@@ -43,7 +43,7 @@ remote 缓存的 **unused-cleanup 清理引擎**。
 | 内容 | 位置 |
 |---|---|
 | 产品愿景与范围 | [`PRODUCT.md`](PRODUCT.md) |
-| 里程碑（M1 内核 → M11 对齐第二程，M1~M10 已完成） | [`ROADMAP.md`](ROADMAP.md) |
+| 里程碑（M1 内核 → M11 对齐第二程，M1~M11 已完成〔m11-done〕） | [`ROADMAP.md`](ROADMAP.md) |
 | M11 需求（PRD：配置面 / 四包型 / keypair / cleanup） | [`docs/prd/milestone-11.md`](docs/prd/milestone-11.md) |
 | Artifactory 全量功能对照矩阵（213 条目——M10+ 路线图骨干） | [`docs/reverse/artifactory-full-feature-matrix.md`](docs/reverse/artifactory-full-feature-matrix.md) |
 | 帮助文档中心（安装 / 接入 / 管理 / API / FAQ） | [`docs/user/README.md`](docs/user/README.md) |
