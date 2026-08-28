@@ -137,7 +137,7 @@ function FieldControl({
     return (
       <div className={`authcfg-field${field.full ? ' full' : ''}`}>
         {/* 锁定展示不是表单控件——非 label 元素（label 只指表单控件，axe） */}
-        <span style={{ fontSize: 'var(--bf-fs-aux)', color: 'var(--bf-text-2)' }}>{field.label}</span>
+        <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>{field.label}</span>
         <Box
           data-testid={field.anchor}
           component="span"
@@ -148,11 +148,11 @@ function FieldControl({
             padding: '5px 12px',
             minHeight: 32,
             lineHeight: '22px',
-            background: 'var(--bf-surface-2)',
+            bgcolor: 'action.hover',
             border: '1px solid var(--bf-border)',
             borderRadius: 'var(--bf-r-sm)',
             fontSize: 'var(--bf-fs-form)',
-            color: 'var(--bf-text-2)',
+            color: 'text.secondary',
           }}
         >
           {String(value ?? '')}

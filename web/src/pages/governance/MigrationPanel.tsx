@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 
 import Alert from '@mui/material/Alert'
+import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 
 import { useAuth } from '../../app/AuthContext'
@@ -184,26 +185,28 @@ function MigrationBody({ data: d, staleError }: { data: MigrationStatus; staleEr
       </div>
       <div className="kv">
         <span className="k">失败</span>
-        <span
+        <Box
+          component="span"
           className="mono"
           data-testid="migration-failed"
           lang="en"
-          style={d.failed > 0 ? { color: 'var(--bf-danger)' } : undefined}
+          sx={d.failed > 0 ? { color: 'error.main' } : undefined}
         >
           {formatCount(d.failed)}
-        </span>
+        </Box>
       </div>
       {d.error && (
         <div className="kv">
           <span className="k">错误</span>
-          <span
+          <Box
+            component="span"
             className="mono"
             data-testid="migration-error"
             lang="en"
-            style={{ color: 'var(--bf-danger)', textAlign: 'right', wordBreak: 'break-all' }}
+            sx={{ color: 'error.main', textAlign: 'right', wordBreak: 'break-all' }}
           >
             {d.error}
-          </span>
+          </Box>
         </div>
       )}
       <div className="kv">

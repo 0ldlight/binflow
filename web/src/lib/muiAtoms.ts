@@ -1,117 +1,60 @@
 import type { SxProps } from '@mui/material/styles'
 import type { Theme } from '@mui/material/styles'
 
-// MUI 组件层密度/配色收口（T-299 批次一：Login / 壳层 / 仓库域；
-// T-300 批次二：浏览树/搜索/安全治理/admin 余面——追加 rowBtnSx /
-// dangerBtnSx / badgeChipSx）。
+// MUI 组件层配方（T-344 批 A 收口，mui-native-visual §2.4）：
 //
-// BOARD 2026-08-26 指令「前端 UI 框架使用 MUI，交互逻辑按 Artifactory」——
-// 组件换 MUI，但控制台的密度带（console-ux §7.2：控件 32px / 主字号 13px）
-// 与自有皮肤（tokens.css 三阶纵深）不变。MUI 自带的 Material 密度
-// （outlined small 40px / 按钮 36px）与本规范有出入，统一在 sx 收口：
-//   - 色值一律 var(--bf-*)（assert-tokens 纪律的 TSX 侧同款口径——不在
-//     组件里写死颜色；主题翻转随 data-theme 属性即时生效，与 MuiProvider
-//     的主题重建双轨同值）；
-//   - 输入 = base.css .field input 的同形复刻（surface-3 底 / border 边
-//     框 / accent 焁焦 / 32px 控件带）；
-//   - 表单小按钮（行内/次级动作）= .btn 家族的 32px 带。
-// recipes 为纯样式对象（无组件封装）——调用侧仍是裸 MUI 组件，插槽/受控
-// 属性一望即知（锚点落在 input/select 上的纪律不被封装遮蔽）。
+//   - 压制配方退役：denseInputSx（32px 直角输入压制）/ badgeChipSx（方角
+//     徽章压制）/ dangerBtnSx（手写悬停底）按规范删除——「让 MUI 默认皮肤
+//     生效」的正解是删压制规则本身。本票起保名空对象（inert）：约 190 处
+//     页面引用点归批 B/C 换装时逐波摘除，全部摘净后删除导出（批 D 死类
+//     清扫）。视觉即时交还主题：输入 = OutlinedInput small 默认浮标形态、
+//     徽章 = Chip small 默认胶囊、危险钮 = color="error" 默认派生。
+//   - 三 btn 配方归一为 cellBtnSx：只留布局项（minWidth/minHeight/
+//     padding），色彩项删（color="error" / 默认 variant 承载）。旧名
+//     quietBtnSx / rowBtnSx 暂为别名（引用点归批 C 摘）。
+//   - monoInputSx 保留：mono 字体非皮肤诉求——emotion 注入序在 base.css
+//     之后，(0,1,0) 的 .mono 类压不过 MUI input 的 font 继承（font
+//     shorthand 覆写 font-family），显式提特异性到 (0,2,0) 落 mono 栈的
+//     修法仍必要。
+//
+// 色值纪律（assert-tokens TSX 腿）：配方内不得引用 --bf-* 色彩 token——
+// 色板一律 theme.palette（R5 双源同值）或组件默认。
 
-/** 输入族（TextField/OutlinedInput）：surface-3 底、border 边框、32px 带 */
-export const denseInputSx: SxProps<Theme> = {
-  '& .MuiOutlinedInput-root': {
-    minHeight: 32,
-    background: 'var(--bf-surface-3)',
-    color: 'var(--bf-text)',
-    fontSize: 'var(--bf-fs-form)',
-    '& fieldset': { borderColor: 'var(--bf-border)', borderRadius: 'var(--bf-r-sm)' },
-    '&:hover:not(.Mui-disabled) fieldset': { borderColor: 'var(--bf-border-strong)' },
-    '&.Mui-focused fieldset': { borderColor: 'var(--bf-accent)' },
-    '&.Mui-disabled': {
-      background: 'var(--bf-surface-3)',
-      color: 'var(--bf-text-muted)',
-      '& fieldset': { borderColor: 'var(--bf-border)' },
-    },
-  },
-  '& .MuiOutlinedInput-input': {
-    padding: '5px 12px',
-    '&::placeholder': { color: 'var(--bf-text-muted)', opacity: 1 },
-  },
-  // textarea（multiline）：`.field textarea` 的 base 样式会叠出内边框，
-  // 这里显式压平（外框由 OutlinedInput fieldset 承载）
-  '& .MuiInputBase-inputMultiline': {
-    padding: '6px 12px',
-    border: 'none',
-    background: 'transparent',
-    minHeight: 64,
-    resize: 'vertical',
-  },
-  // native select（TextField select + slotProps.select.native）：箭头图标
-  // 与 option 底色走 token
-  '& .MuiNativeSelect-select': {
-    paddingRight: '28px',
-    '&:focus': { backgroundColor: 'transparent', borderRadius: 'var(--bf-r-sm)' },
-  },
-}
+/** 压制配方退役位（inert）：密集输入皮肤已交还主题（§2.4 组件默认值 +
+ *  OutlinedInput 默认形态）。引用点批 C 摘净后删除本导出。 */
+export const denseInputSx = {} satisfies SxProps<Theme>
 
-/** 行内弱化按钮（删除入口/用量重试一类）：.row-del 同形（text-2 常态、
- * danger 悬停、surface-2 悬停底——对比度纪律见 repositories.css 注记） */
-export const quietBtnSx: SxProps<Theme> = {
-  color: 'var(--bf-text-2)',
-  fontSize: 'var(--bf-fs-aux)',
+/** 压制配方退役位（inert）：徽章皮肤已交还主题（Chip small 默认胶囊，
+ *  语义色经 color prop）。引用点批 C 摘净后删除本导出。 */
+export const badgeChipSx = {} satisfies SxProps<Theme>
+
+/** 压制配方退役位（inert）：危险钮悬停底已交还主题（color="error" 的
+ *  MUI 派生）。引用点批 C 摘净后删除本导出。 */
+export const dangerBtnSx = {} satisfies SxProps<Theme>
+
+/** 行内小按钮（表格单元格内的次级动作）：三配方归一，布局项 + 主题派生
+ *  的中性色板（palette 快捷，非 --bf-* token——断言腿合规）。outlined
+ *  primary 的主色文字在表格 hover 行（surface-2 ≈ action.hover）上实测
+ *  4.48:1（T-299 rowBtnSx 注记的坑，色彩项退役即回归）——文字/边框钉
+ *  text/divider（全承载面 ≥4.5:1），危险动作仍走使用点 color="error"。 */
+export const cellBtnSx = {
   minWidth: 0,
   minHeight: 24,
   padding: '2px 6px',
-  '&:hover': {
-    color: 'var(--bf-danger)',
-    backgroundColor: 'var(--bf-surface-2)',
-  },
-  '&:focus-visible': { outline: '2px solid var(--bf-accent)' },
-}
+  color: 'text.primary',
+  borderColor: 'divider',
+} satisfies SxProps<Theme>
 
-/** 行内 outlined 小按钮（Set Me Up / 部署 / 保存一类）：outline 主色
- *  （accent）在表格 hover 行 surface-2 上 4.48:1（差 0.02 不过 axe 门），
- *  文字/边框显式走 text/border token，悬停底升 surface-3（同 token 家族，
- *  全承载面 ≥4.5:1）。T-299 批一在 RepositoriesPage 内首立（rowBtnSx），
- *  批次二起上收到 muiAtoms 供批次二页面共享——批一页面的本地副本随下批
- *  共享层票归一（文件不重叠，不动批一页）。 */
-export const rowBtnSx: SxProps<Theme> = {
-  color: 'var(--bf-text)',
-  borderColor: 'var(--bf-border)',
-  '&:hover': {
-    borderColor: 'var(--bf-border-strong)',
-    backgroundColor: 'var(--bf-surface-3)',
-  },
-}
+/** 别名（批 C 归一过渡）：行内弱化钮 */
+export const quietBtnSx = cellBtnSx
 
-/** 危险动作钮（删除/执行 GC 一类）：.btn.danger 同义——error 色板走
- *  MuiProvider 主题（palette.error = --bf-danger 双主题对齐），悬停底
- *  由 MUI 派生色承载（对比度经主题色算得，双主题 ≥4.5:1）。 */
-export const dangerBtnSx: SxProps<Theme> = {
-  '&:hover': { backgroundColor: 'color-mix(in srgb, var(--bf-danger) 10%, transparent)' },
-}
+/** 别名（批 C 归一过渡）：行内 outlined 钮 */
+export const rowBtnSx = cellBtnSx
 
 /** mono 输入（无 .field 包裹的场景——filter-bar / 矩阵添加位等）：
- *  emotion 样式注入在 base.css 之后，(0,1,0) 的 .mono 类压不过 MUI
- *  input 的字体继承（font shorthand 覆写 font-family）——显式提特异性
- *  到 (0,2,0) 落 mono 栈。与 denseInputSx 展开合用。 */
+ *  与组件默认皮肤并用（非压制配方），(0,2,0) 落 mono 栈。 */
 export const monoInputSx = {
   '& .MuiOutlinedInput-input': {
     fontFamily: 'var(--bf-mono)',
   },
 } satisfies SxProps<Theme>
-
-/** 徽章 Chip（.badge 家族的 MUI 承载）：基类色继续由
- *  .badge/.badge.neutral|success|warning|danger 供给（className 续挂，
- *  后载样式表按同级特异性压过 MUI 默认），sx 只压密度与半径——批次二
- *  裁定 badge→Chip（组件层换装，锚与视觉语言不动）。 */
-export const badgeChipSx: SxProps<Theme> = {
-  height: 'auto',
-  minHeight: 20,
-  padding: '2px 7px',
-  borderRadius: 'var(--bf-r-sm)',
-  fontSize: 'var(--bf-fs-aux)',
-  lineHeight: 1.4,
-  '& .MuiChip-label': { padding: 0, display: 'inline-flex', alignItems: 'center', gap: '4px' },
-}

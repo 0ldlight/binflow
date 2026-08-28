@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 文档 | `docs/design/console-ux.md` |
-| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账）/ T-291（v1.11：Properties 页签锚册——MUI 首票）/ T-307（v1.12：认证配置页组锚册——admin/security/auth 域） |
-| 状态 | v1.12（2026-08-27） |
+| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账）/ T-291（v1.11：Properties 页签锚册——MUI 首票）/ T-307（v1.12：认证配置页组锚册——admin/security/auth 域）/ T-344（v1.14：密度档修订——MUI small 档，mui-native-visual §7 登记） |
+| 状态 | v1.14（2026-08-29） |
 | 维护者 | ux-designer |
 | 上游依据 | PRODUCT.md（Web 控制台/治理/Non-goals）、ROADMAP.md M4 节、docs/prd/milestone-1/2/3/4.md（端点矩阵与已定案行为）、docs/user/docker-registry.md（用户面口径）、docs/design/architecture.md §7（路由/console 挂载点）、internal/httpapi/router.go（路由门事实——§3.6.2 矩阵逐一核对）、reports/agents/T-98.md · T-99.md（漂移登记与 testid 素材）、reports/agents/T-98-review.md（N1 收敛建议）、BOARD.md（T-85 PRD / T-97 存在性不泄露裁决） |
 | 下游消费者 | T-86（架构：console 包/session/前端工程结构）、tech-lead（M4 拆票）、前端 dev（页面组票）、qa-engineer（控制台验收） |
@@ -30,6 +30,7 @@
 | v1.9 | 2026-08-25 | T-267 锚家族口径统一 + 死锚全量退役（FR-82-AC7）：① **§10.6 重构为单一权威口径**——家族=选择器前缀归一、掩蔽语义、src/spec 口径（含 IdP 模拟页与对象键展开两个盲区修复、组件逻辑自消费）、四桶定义；死锚清单退出册（对账器输出即视图），退役以 §10.6 总表为权威（v1.5~v1.7 显式退役 17 条合并收录 + T-267 死锚处置 101 条〔99 家族，`perm-matrix-remove` 与 `backup-cmd` 各按静态展开计 2〕= **总表 118 条**）；② **死锚 99 家族 src 清理**（零 spec 消费且册上有登记——`smu-tab-configure` 因 Tab 焦点选择器自消费保留除外）；③ **M9 消费波散锚 15 枚入册**（T-257/T-259/T-260 批 + `user-status-<name>` 盲区显形 + `idp-login-page` 测试基建锚；T-260 的 `smu-resuming` 零 spec 消费、随死锚处置退役）；④ 对账器加 **`--ledger` 模式**（A1~A4 断言，qa 硬门） |
 | v1.12 | 2026-08-27 | T-307 认证配置页组（M11 FR-92 FE 腿——LDAP/OAuth(OIDC)/SAML 三协议 Tab，`admin/security/auth` 域入「用户与权限」分组）：① §10.5 路由表新增 `/admin/security/auth/{ldap\|oauth\|saml}` 行；② **T-307 批 64 名锚入册**（三 Tab + 共享表单/测试连接块 + 三段字段全量——authcfg-* 前缀族）；③ 敏感字段交互入册口径：GET 哨兵回显→表单留空 + placeholder「留空保持不变」、提交时空值自 payload 剔除（哨兵回传是 400 红线，网络层断言） |
 | v1.13 | 2026-08-28 | T-307R SAML 证书管理两动作（T-307 遗留 1 × T-331 三端点就绪的 FE 接线，M11 FR-92 收口）：① **T-307R 批 2 名锚入册**（`authcfg-saml-spkey-download` / `authcfg-saml-spkey-regenerate`——SAML Tab SP 加密证书卡的下载/重生成按钮）；② 交互口径：下载即得 PEM（text/plain → Blob 落盘）、重生成经 ConfirmDialog danger 确认（旧证书即刻失效的后果提示）、未生成 404 = 锚定空态（下载禁用 + 重生成兼作生成入口）、regenerate 响应体即新证书（展示即时刷新）；③ 指纹行 SHA-256（over DER，openssl 可比对）走 §7.3 mono + CopyButton 基元，不设锚；确认对话框复用 confirm-dialog 族锚 |
+| v1.14 | 2026-08-29 | T-344 密度档修订（mui-native-visual §7 登记的回写）：① §7.2 密度行自「表格行高 32px / 导航项 32px / 控件高 32px」修订为「主字号 14px（MUI 默认档）/ MUI small 密度档（表格行 ≈33px、控件 small 带 ≈31px）」——P1 信息密度原则不变，实现档位换 MUI 原生档，手写 32px 压制随之废除；② §7.1 token 表维持（tokens.css 不动，`--bf-fs-body` 等值保留供 B/C 波退役前的残余 CSS 消费）；③ 上游依据 = docs/design/mui-native-visual.md（v1.0），逐波实施细节以该规范为准 |
 
 ---
 
@@ -759,8 +760,9 @@ permission target = `{name, repos[], includePatterns[], excludePatterns[], princ
         --bf-fs-h1:24     仅登录页品牌
 行高：正文 1.5，标题 1.25
 圆角：  --bf-r-sm:4（输入框/badge）  -md:6（按钮/卡片）  -lg:8（modal/drop zone）
-密度：  表格行高 32px；导航项 32px；控件高 32px；页面内容区左右 padding 24px
-        表格列间距 12px；危险区：1px danger 边框 + sp-4 内距
+密度：  主字号 14px（MUI 默认档，mui-native-visual §2.2）；MUI small 密度档
+        （表格行 ≈33px、控件 small 带 ≈31px——MUI 主题 components 默认值收口）
+        页面内容区左右 padding 24px；表格列间距 12px；危险区：1px danger 边框 + sp-4 内距
 层级：  z-toast 100 / z-modal 90 / z-dropdown 80 / z-nav-sticky 70
 ```
 

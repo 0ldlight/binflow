@@ -19,7 +19,7 @@ func productionManifest() []addons.Addon {
 	return []addons.Addon{
 		addons.Generic(), addons.Docker(), addons.Maven(), addons.Npm(), addons.Pypi(),
 		addons.Go(), addons.NuGet(), addons.Cargo(),
-		addons.Properties(), addons.RepoOperations(), addons.HA(), addons.XrayIntegration(),
+		addons.Properties(), addons.RepoOperations(), addons.Trashcan(), addons.HA(), addons.XrayIntegration(),
 	}
 }
 
@@ -32,7 +32,7 @@ func TestManifestShape(t *testing.T) {
 	if len(r.All()) != r.Len() {
 		t.Fatalf("All() = %d, Len() = %d", len(r.All()), r.Len())
 	}
-	if len(r.PackageTypeAddons()) != 8 || len(r.FeatureAddons()) != 4 {
+	if len(r.PackageTypeAddons()) != 8 || len(r.FeatureAddons()) != 5 {
 		t.Fatalf("kind split wrong: %d package-type / %d feature",
 			len(r.PackageTypeAddons()), len(r.FeatureAddons()))
 	}
@@ -41,7 +41,7 @@ func TestManifestShape(t *testing.T) {
 	wantOrder := []string{
 		"generic", "docker", "maven", "npm", "pypi",
 		"go", "nuget", "cargo",
-		"properties", "repo-operations", "ha", "xray-integration",
+		"properties", "repo-operations", "trashcan", "ha", "xray-integration",
 	}
 	for i, id := range wantOrder {
 		if r.All()[i].ID != id {
@@ -56,7 +56,7 @@ func TestManifestShape(t *testing.T) {
 		switch a.ID {
 		case "generic", "docker", "maven", "npm", "pypi", "properties":
 			want = license.TierCommunity
-		case "go", "nuget", "cargo", "repo-operations":
+		case "go", "nuget", "cargo", "repo-operations", "trashcan":
 			want = license.TierPro
 		case "ha", "xray-integration":
 			want = license.TierEnterprise

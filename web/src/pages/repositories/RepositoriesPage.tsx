@@ -19,7 +19,7 @@ import { Skeleton } from '../../components/Skeleton'
 import { ApiError } from '../../lib/api'
 import type { RepoListItem } from '../../lib/api'
 import { canAdminWrite, isReadOnlyAdmin } from '../../lib/api'
-import { denseInputSx, quietBtnSx } from '../../lib/muiAtoms'
+import { cellBtnSx, denseInputSx, quietBtnSx } from '../../lib/muiAtoms'
 import { cfgStr, cfgStrList, getRepositoriesFiltered, getUsageBatch } from '../../lib/repos'
 import type { RepoUsageRow, RClass } from '../../lib/repos'
 import { formatBytes, formatCount } from '../../lib/format'
@@ -65,18 +65,9 @@ const PKG_LABEL: Record<string, string> = {
   pypi: 'PyPI',
 }
 
-/** 行内小按钮（Set Me Up / 部署）：outline 主色（accent）在表格 hover 行
- * surface-2 上 4.48:1（差 0.02 不过 axe 门——repositories.css 的 .row-link
- * 同款坑），文字/边框显式走 text/border token，悬停底升 surface-3（同
- * token 家族，全承载面 ≥4.5:1）。 */
-const rowBtnSx = {
-  color: 'var(--bf-text)',
-  borderColor: 'var(--bf-border)',
-  '&:hover': {
-    borderColor: 'var(--bf-border-strong)',
-    backgroundColor: 'var(--bf-surface-3)',
-  },
-} as const
+/** 行内小按钮（Set Me Up / 部署）：T-344 批 A 起色彩交还主题（outlined
+ * variant 默认 primary 系，对比度经 palette 派生），密度走 muiAtoms 的
+ * cellBtnSx 布局档（色彩压制配方退役——mui-native-visual §2.4 归一）。 */
 
 const TABS: { id: RClass; label: string }[] = [
   { id: 'local', label: 'Local' },
@@ -497,14 +488,14 @@ export default function RepositoriesPage() {
                     <TableCell>
                       <UsageCell repoKey={repo.key} rclass={repo.type} usage={usage} />
                     </TableCell>
-                    <TableCell className="wrap" sx={{ maxWidth: 260, color: 'var(--bf-text-2)' }}>
+                    <TableCell className="wrap" sx={{ maxWidth: 260, color: 'text.secondary' }}>
                       {repo.description || '—'}
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
                       <Button
                         variant="outlined"
                         size="small"
-                        sx={rowBtnSx}
+                        sx={cellBtnSx}
                         data-testid={`repos-setmeup-${repo.key}`}
                         title={`Set Me Up：${repo.key} 的客户端接入向导`}
                         onClick={() => setSmuKey(repo.key)}
@@ -515,7 +506,7 @@ export default function RepositoriesPage() {
                         <Button
                           variant="outlined"
                           size="small"
-                          sx={rowBtnSx}
+                          sx={cellBtnSx}
                           data-testid={`repos-deploy-${repo.key}`}
                           disabled={readOnly}
                           title={

@@ -107,7 +107,7 @@ func productionManifest() *addons.Registry {
 	return addons.New(
 		addons.Generic(), addons.Docker(), addons.Maven(), addons.Npm(), addons.Pypi(),
 		addons.Go(), addons.NuGet(), addons.Cargo(),
-		addons.Properties(), addons.RepoOperations(), addons.HA(), addons.XrayIntegration(),
+		addons.Properties(), addons.RepoOperations(), addons.Trashcan(), addons.HA(), addons.XrayIntegration(),
 	)
 }
 
@@ -168,8 +168,8 @@ func TestAddonsEndpointRoles(t *testing.T) {
 	}
 	if code, body := st.do(t, http.MethodGet, p, adminUser, adminPass, ""); code != http.StatusOK {
 		t.Fatalf("admin GET = %d %s, want 200", code, body)
-	} else if rows, _ := addonRows(t, body); len(rows) != 12 {
-		t.Fatalf("admin GET carries %d slots, want 12: %s", len(rows), body)
+	} else if rows, _ := addonRows(t, body); len(rows) != 13 {
+		t.Fatalf("admin GET carries %d slots, want 13: %s", len(rows), body)
 	}
 
 	// The write verbs have no route: the addon plane is read-only (slot
@@ -187,7 +187,7 @@ func TestAddonsEndpointCommunityFloor(t *testing.T) {
 	_, body := st.do(t, http.MethodGet, "/binflow/api/v1/addons", adminUser, adminPass, "")
 	rows, byID := addonRows(t, body)
 
-	wantOrder := []string{"generic", "docker", "maven", "npm", "pypi", "go", "nuget", "cargo", "properties", "repo-operations", "ha", "xray-integration"}
+	wantOrder := []string{"generic", "docker", "maven", "npm", "pypi", "go", "nuget", "cargo", "properties", "repo-operations", "trashcan", "ha", "xray-integration"}
 	if len(rows) != len(wantOrder) {
 		t.Fatalf("slot count = %d, want %d", len(rows), len(wantOrder))
 	}
