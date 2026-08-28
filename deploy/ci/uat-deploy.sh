@@ -33,10 +33,16 @@ UNIT="binflow-uat"
 # Match id_<type>_<fingerprint> (any key type: rsa, ed25519, ecdsa…)
 # but NOT the bare checkout key (id_rsa / id_ed25519 with no fingerprint).
 DEPLOY_KEY="$(ls "${HOME}/.ssh/id_"*_* 2>/dev/null | grep -v '\.pub$' | head -1 || true)"
-KEY_OPTS=(-o IdentitiesOnly=yes)
-if [ -n "${DEPLOY_KEY}" ]; then
-    KEY_OPTS+=(-i "${DEPLOY_KEY}")
+if [ -z "${DEPLOY_KEY}" ]; then
+    echo "ERROR: no UAT deploy key found in ~/.ssh/." >&2
+    echo "  Fix option A: set UAT_SSH_KEY_B64 in CircleCI project env vars (base64-encoded private key)." >&2
+    echo "  Fix option B: upload the key via CircleCI Project Settings → SSH Keys." >&2
+    echo "  Current ~/.ssh/ contents:" >&2
+    ls -la "${HOME}/.ssh/" 2>/dev/null >&2 || echo "  (empty or missing)" >&2
+    exit 1
 fi
+echo "deploy key: ${DEPLOY_KEY}"
+KEY_OPTS=(-o IdentitiesOnly=yes -i "${DEPLOY_KEY}")
 SSH="ssh -o StrictHostKeyChecking=accept-new ${KEY_OPTS[*]} ${USER_}@${HOST}"
 
 echo "== UAT deploy ${LABEL} -> ${USER_}@${HOST}:${HOME_}"
