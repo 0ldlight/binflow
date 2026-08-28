@@ -28,6 +28,14 @@ import (
 // wires the real engine; the test harness wires the same. Assemblies
 // without one leave it nil and POST answers 503 rather than pretending a
 // run happened.
+// ReplayStatsSource is the fail-open engine's stats face (M12 T-338,
+// ADR-0040's observability clause): the seven replay series refresh at
+// scrape time. Lives here beside CleanupEngine — the consumer-side
+// narrow-interface precedent.
+type ReplayStatsSource interface {
+	ReplayStats() storage.ReplayStats
+}
+
 type CleanupEngine interface {
 	RunOnce(ctx context.Context, opts repo.CleanupRunOptions) (*repo.CleanupReport, error)
 	LastReport() *repo.CleanupReport

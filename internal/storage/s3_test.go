@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -57,6 +58,23 @@ type mockS3Server struct {
 	// never surface to the engine's error path.)
 	failNextComplete int
 	completeHook     func(b *mockBucket)
+
+	// down (T-338) makes every request answer 403 AccessDenied — a fast,
+	// non-retryable stand-in for an unavailable S3 side (minio-go retries
+	// connection errors and 5xx, which would make each failing call crawl;
+	// the ADR-0040 breaker judges errors binarily, so the specific shape is
+	// irrelevant to the engine). The real dial-refused posture is exercised
+	// by the live-MinIO leg.
+	down atomic.Bool
+}
+
+// setDown toggles the injected downtime.
+func (m *mockS3Server) setDown(v bool) {
+	if v {
+		m.down.Store(true)
+	} else {
+		m.down.Store(false)
+	}
 }
 
 // mockPartRecord is one observed PutObjectPart call.
@@ -137,6 +155,11 @@ func (m *mockS3Server) bucket(name string) *mockBucket {
 }
 
 func (m *mockS3Server) handle(w http.ResponseWriter, r *http.Request) {
+	if m.down.Load() {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?><Error><Code>AccessDenied</Code><Message>injected downtime (T-338)</Message></Error>`))
+		return
+	}
 	// Extract bucket from path: /bucket/key
 	path := strings.TrimPrefix(r.URL.Path, "/")
 	parts := strings.SplitN(path, "/", 2)

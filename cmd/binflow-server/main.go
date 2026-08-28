@@ -548,6 +548,11 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// The unused-cleanup engine (M11 T-324): POST/GET /api/v1/system/cleanup
 	// and the cleanup metrics gauges ride it.
 	deps.Cleanup = stack.cleanupEng
+	// The fail-open replay metrics (M12 T-338): only the dual-write
+	// migration engine carries the stats face.
+	if rs, ok := stack.st.(httpapi.ReplayStatsSource); ok {
+		deps.Replay = rs
+	}
 	return httpapi.New(deps, logger)
 }
 
@@ -924,6 +929,36 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 	// construction-time providers) is gone — the file sections are seeds.
 	authSvc = authSvc.WithAuthConfig(authCfgMgr)
 	auditLog := audit.New(md, cfg.Audit.Enabled)
+	// ADR-0040's audit facet (T-338 wiring 2/3): the dual-write engine
+	// emits raw ReplayEvents synchronously; the assembly maps them to the
+	// audit vocabulary (the cleanup.run precedent — storage imports no
+	// audit by layering discipline). Best-effort by the audit contract.
+	replayAudit := audit.BestEffort(auditLog)
+	if re, ok := st.(interface {
+		SetReplayEvents(func(storage.ReplayEvent))
+	}); ok {
+		re.SetReplayEvents(func(ev storage.ReplayEvent) {
+			action, detail := "storage.replay.window", map[string]any{"phase": ev.Phase}
+			switch ev.Kind {
+			case storage.ReplayEventDrained:
+				action = "storage.replay.drained"
+				detail = map[string]any{
+					"drained": ev.Drained, "source_gone": ev.SourceGone,
+					"permanent_failed":  ev.PermanentFailed,
+					"reconcile_missing": ev.ReconcileMissing, "rounds": ev.Rounds,
+				}
+			default:
+				if ev.FirstError != "" {
+					detail["first_error"] = ev.FirstError
+				}
+			}
+			if b, merr := json.Marshal(detail); merr == nil {
+				replayAudit.Record(context.Background(), audit.Event{
+					Actor: "system-replay", Action: action, Detail: string(b),
+				})
+			}
+		})
+	}
 	svc := repo.New(st, md, authSvc, auditLog)
 
 	// Push replication (T-180, ADR-0021): the store opens its own pooled
@@ -1395,6 +1430,14 @@ func openStorageEngine(ctx context.Context, cfg *config.Config, logger *slog.Log
 		}), nil
 	}
 	if mig.Completed {
+		// ADR-0040's boot gate (T-338 wiring 3/3): a completed migration
+		// with a non-empty replay queue means blobs exist that S3 never
+		// received — serving s3-only would hide them. Refuse to boot
+		// (the ADR-0036 divergence posture: divergence is a data-
+		// visibility incident, not a degraded mode).
+		if err := storage.CheckCompletedReplayQueue(cfg.Storage.DataDir); err != nil {
+			return nil, fmt.Errorf("opening storage engine: %w", err)
+		}
 		logger.Info("storage migration completed; s3 is the source of truth",
 			"bucket", cfg.Storage.S3.Bucket)
 	}
