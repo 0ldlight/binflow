@@ -2,6 +2,7 @@ package conan
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
@@ -323,7 +324,17 @@ type packagesDeleteBody struct {
 }
 
 // servePackagesDeleteIDs answers POST conans/<ref>/packages/delete: drop
-// the named packageIds under the latest revision.
+// the named packageIds under the latest revision. The batch is IDEMPOTENT:
+// spec section 3.2's row for this endpoint carries no 404 arm (unlike the
+// recipe-delete row's "200 / 404"), and the reference implementation's
+// package delete is a filesystem removal — a missing path is a silent
+// no-op. A packageId with no tree under the resolved revision (a conan-2
+// coordinate's leftover from an older upload, or a pid another operator
+// already removed) is therefore skipped, not an error; the request still
+// answers 200. D-F: the loop used to let one missing pid fail the whole
+// batch AFTER the earlier pids' trees were already gone (the "delete
+// succeeded, status said 404" posture). Only the ref itself failing to
+// resolve keeps the 404.
 func (h *Handler) servePackagesDeleteIDs(ctx context.Context, cw *capWriter, r *http.Request, p *repo.Principal, repoKey string, rf ref) {
 	var body packagesDeleteBody
 	if err := readBodyJSON(r, &body, maxURLBody); err != nil {
@@ -342,6 +353,9 @@ func (h *Handler) servePackagesDeleteIDs(ctx context.Context, cw *capWriter, r *
 		}
 		dir := pkgDir(rf.coordinateRoot(), rrev, pid) + "/"
 		if err := h.svc.Delete(ctx, p, repoKey, dir); err != nil {
+			if errors.Is(err, repo.ErrNodeNotFound) {
+				continue // already gone: the batch is idempotent
+			}
 			h.writeError(cw, err, repoKey, dir)
 			return
 		}
