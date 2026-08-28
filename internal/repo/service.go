@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/lzwzzy/binflow/internal/metadata"
@@ -53,6 +54,13 @@ type service struct {
 	// until the adapters' reindex kernels are wired at cmd assembly)
 	// keeps the trigger a no-op.
 	cmObserver CopyMoveObserver
+	// folderCfg/folderSlots are the folder-download configuration and its
+	// concurrency semaphore (M12 T-343, repo-operations section 2.1):
+	// installed by ConfigureFolderDownload (assembly/tests), spec defaults
+	// otherwise.
+	folderMu    sync.Mutex
+	folderCfg   FolderDownloadConfig
+	folderSlots chan struct{}
 }
 
 // newService wires the collaborators; New is the public constructor with the
@@ -75,7 +83,11 @@ func newService(st storage.Engine, md metadata.Store, az Authorizer, au AuditLog
 	}
 	// The search seam rides the same store handle; see the struct field.
 	search, _ := md.Nodes().(metadata.NodeSearcher)
-	return &service{st: st, md: md, az: az, au: au, nowFn: now, remoteEng: eng, cipher: eng.Cipher(), search: search}
+	svc := &service{st: st, md: md, az: az, au: au, nowFn: now, remoteEng: eng, cipher: eng.Cipher(), search: search}
+	// The folder-download face starts at the §2.1 spec defaults (enabled
+	// off); ConfigureFolderDownload replaces them at assembly time.
+	svc.setFolderDownloadConfig(defaultFolderDownloadConfig)
+	return svc
 }
 
 var _ Service = (*service)(nil)
