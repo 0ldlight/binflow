@@ -81,6 +81,22 @@ jobs:
       - checkout_full
       - attach_workspace:
           at: .
+      - run:
+          name: Install UAT SSH deploy key
+          command: |
+            # Primary path: UAT_SSH_KEY_B64 holds the base64-encoded private
+            # key (set as a CircleCI project env var — easier than the SSH
+            # Keys UI which requires a pre-uploaded fingerprint).
+            # Fallback: add_ssh_keys picks up any key uploaded via the UI.
+            # The deploy script discovers whichever file lands in ~/.ssh/.
+            if [ -n "${UAT_SSH_KEY_B64:-}" ]; then
+              mkdir -p ~/.ssh && chmod 700 ~/.ssh
+              printf '%s' "${UAT_SSH_KEY_B64}" | base64 -d > ~/.ssh/id_ed25519_uat
+              chmod 600 ~/.ssh/id_ed25519_uat
+              echo "UAT deploy key written from UAT_SSH_KEY_B64."
+            else
+              echo "UAT_SSH_KEY_B64 not set; relying on add_ssh_keys project key."
+            fi
       # No fingerprint filter: add_ssh_keys does not expand env vars in the
       # fingerprints list, so an env-var value would be treated as a literal
       # string and match nothing. Omitting the filter loads all SSH keys
