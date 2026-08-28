@@ -5,13 +5,13 @@ sidebar_position: 48
 
 # 认证配置（LDAP / OIDC / SAML）
 
-> 适用版本：M11（配置面 REST + 控制台页组随 T-305/T-307 交付；设计依据 ADR-0035，行为基准 `docs/reverse/auth-integration.md` v2）。本文的 PUT/哨兵/测试连接命令在 HEAD 构建 scratch 实例（127.0.0.1:8328，`BINFLOW_REMOTE_CREDENTIALS_KEY` 已设）上 curl 实测，2026-08-28。
+> 适用版本：M11（配置面 REST + 控制台页组随 T-305/T-307 交付；**SAML SP 加密证书三端点 + 控制台证书卡随 T-331/T-307R 补齐**；设计依据 ADR-0035，行为基准 `docs/reverse/auth-integration.md` v2）。本文的 PUT/哨兵/测试连接命令在 HEAD 构建 scratch 实例（127.0.0.1:8328，`BINFLOW_REMOTE_CREDENTIALS_KEY` 已设）上 curl 实测，2026-08-28。
 > 与专题指南的分工：[OIDC 配置](../guides/oidc-config.md)/[LDAP 配置](../guides/ldap-config.md)讲**文件配置**（`binflow.yaml` 的 `auth.oidc`/`auth.ldap` 段、IdP 侧注册、登录全链）；本文讲**运行态配置面**——控制台与 REST 直接改实例上的生效配置，改完即生效。
 
 BinFlow 的三种外部认证协议（LDAP 目录登录、OIDC 单点登录、SAML 集成）各占**一个配置段**，支持两条管理路径：
 
 - **控制台**：管理模式 → 用户与权限 → **认证配置**（路径 `/admin/security/auth`，admin / readonly_admin 可见）——三个 Tab（LDAP / OAuth / SAML），表单化编辑 + 测试连接。
-- **REST**：`/binflow/api/v1/admin/security/*` 九端点（下文）。
+- **REST**：`/binflow/api/v1/admin/security/*` 十二端点（下文，含 SAML SP 证书三端点）。
 
 核心语义（三条，先记住再操作）：
 
@@ -32,11 +32,11 @@ BinFlow 的三种外部认证协议（LDAP 目录登录、OIDC 单点登录、SA
 
 - **LDAP Tab**：`key` 锁定展示 `ldap`（单段模型——BinFlow 一协议一段，非 Artifactory 的多设置列表）；search 子组内联；`managerPassword` 为 secret 字段——已设置时表单留空 + placeholder「留空保持不变」。
 - **OAuth Tab**：字段为 BinFlow OIDC 单段 wire（`issuer_url`/`client_id`/`client_secret`/`redirect_url`/`scopes`/claims/组映射）——issuer 发现式，非 Artifactory oauthSettings 多 provider 模型。
-- **SAML Tab**：13 字段全量表单；**「Auto Create Users」复选框是正语义**（勾选 = 自动创建）——wire 字段 `noAutoUserCreation` 为反语义，提交时自动取反；从未保存过的 SAML 段 GET 回 `{}`，页内显示引导块，保存后消失。
+- **SAML Tab**：13 字段全量表单；**「Auto Create Users」复选框是正语义**（勾选 = 自动创建）——wire 字段 `noAutoUserCreation` 为反语义，提交时自动取反；从未保存过的 SAML 段 GET 回 `{}`，页内显示引导块，保存后消失；`useEncryptedAssertion` 表单卡下方挂 **SP 证书卡**（下载/重生成，见[下文专节](#saml-sp-加密证书)）。
 
 readonly_admin 打开页面时控件全部 disabled；直接调 REST PUT 由服务端 403 终裁。
 
-## REST 面（九端点）
+## REST 面（十二端点）
 
 | 方法 | 路径 | 门 | 说明 |
 |---|---|---|---|
@@ -47,6 +47,9 @@ readonly_admin 打开页面时控件全部 disabled；直接调 REST PUT 由服�
 | POST | `/binflow/api/v1/admin/security/oauth/test` | CapSecurityWrite | 测试连接（discovery 探测） |
 | GET / PUT | `/binflow/api/v1/admin/security/saml/config` | 同上 | SAML 段（未设置回 `{}`） |
 | POST | `/binflow/api/v1/admin/security/saml/config/test` | CapSecurityWrite | 测试连接（loginUrl 探测） |
+| GET | `/binflow/api/v1/admin/security/saml/config/key/public` | CapSecurityRead | 当前 SP 证书 PEM（text/plain）；未生成 404 |
+| PUT | `/binflow/api/v1/admin/security/saml/config/key/public/regenerate` | CapSecurityWrite | 轮换 SP 钥对（旧证书即刻失效），响应体 = 新证书 PEM |
+| POST | `/binflow/api/v1/admin/security/saml/key` | CapSecurityWrite | 生成/替换 SP 钥对（BinFlow 原生面） |
 
 `test` 归写门的原因：它会向配置的目标发起**出站连接**（全部经实例 SSRF 守卫缝）。PUT 是**整段替换**——非 secret 字段要逐字段全量回传，漏发的字段会被归一成默认值（控制台字段册保证全集；手写 curl 请先 GET 改后 PUT 全量发）。
 
@@ -129,6 +132,42 @@ curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/admin/security/ldap/test
 - **LDAP 附带完整用户 bind 探测**：body 带 `{"testUsername":"jane","testPassword":"…"}` 两半齐备才走用户 bind 腿（只有一半 → 400 拒绝）。
 - 控制台的「测试连接」把**当前表单值**随体发送——可以先测后存；空体则测存量配置。
 
+## SAML SP 加密证书
+
+开启 `useEncryptedAssertion` 前，IdP 需要 BinFlow 的 SP 加密公钥证书。证书由实例托管：**RSA-2048 自签**（`CN=binflow-saml-sp, O=BinFlow`，效期约 10 年、notBefore 回拨 1 小时），私钥以 enc:v1 密封落库（`auth_configs` 保留行 `saml_sp_key`）、**永不出库**；公钥证书经上表三端点管理。
+
+实测往返（T-331，scratch 实例 curl + openssl + sqlite 三方断言）：
+
+```bash
+# 1) 新实例未生成 → 404
+curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/admin/security/saml/config/key/public
+# {"errors":[{"status":404,"message":"saml sp encryption certificate has not been generated"}]}
+
+# 2) 显式生成（或保存 useEncryptedAssertion:true 触发——见行为要点）
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/admin/security/saml/key
+# -----BEGIN CERTIFICATE----- …（text/plain PEM）
+
+# 3) 下载当前证书（与生成物 byte 级一致；IdP 侧导入此文件）
+curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/admin/security/saml/config/key/public \
+  -o binflow-saml-sp.crt
+
+# 4) 指纹比对（控制台证书卡展示同一 SHA-256/DER 指纹，实测与 openssl 一致）
+openssl x509 -in binflow-saml-sp.crt -fingerprint -sha256 -noout
+
+# 5) 轮换：旧证书即刻失效，此后 GET 只服务新证书
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/v1/admin/security/saml/config/key/public/regenerate
+```
+
+行为要点：
+
+- **保存触发生成/复用**：PUT `saml/config` 带 `"useEncryptedAssertion":true` 时，已有证书**复用不变**、无证书则先生成——生成失败则整次保存拒绝（不落库）。
+- 轮换是 force 一对一替换，**旧证书即刻失效**——IdP 侧须重新导入新证书。
+- 审计 `auth.config.samlkey.generate` / `auth.config.samlkey.regenerate`（detail 值恒 redacted，零密材落日志）。
+- 证书持久跨重启；**错主钥重启 fail-fast**（`stored secret cannot be unsealed`，端口不监听）——与 ldap/oidc secret 行同款守护。
+- 加密断言的解密运行时（登录腿消费私钥）不在 M11 交付面——见已知边界。
+
+控制台（T-307R）：SAML Tab 的证书卡——未生成空态（下载按钮不渲染、重生成兼作生成入口）/ 已生成态展示 SHA-256 指纹（mono + 复制按钮）；「下载」落盘文件名 `binflow-saml-sp.crt`（与 GET byte 级一致），「重生成」走确认对话框并警示旧证书即刻失效；readonly_admin 下载可用（CapSecurityRead）、重生成禁用（REST 403 终裁）。
+
 ## 首启种子与双源
 
 `binflow.yaml` 的 `auth.oidc` / `auth.ldap` 段仍在（见专题指南）——**首次启动**时若有文件段，会被规范化种子进 DB（此后的权威源是 DB 配置面）。两条纪律：
@@ -143,13 +182,13 @@ curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/admin/security/ldap/test
 |---|---|---|
 | `auth.config.update` | 段 PUT 成功 | actor / 段名 / **变更键名列表**——值恒不落 |
 | `auth.config.test` | 测试连接 | 结果类别 |
+| `auth.config.samlkey.generate` / `auth.config.samlkey.regenerate` | SP 证书生成 / 轮换（T-331） | 结果与段名，值恒 redacted（零密材） |
 
 ## 已知边界（M11）
 
 | 项 | 现状 |
 |---|---|
-| SAML 运行时登录臂 | 13 字段已持久化 + 回显 + 校验；**SP 断言消费不在 M11 交付面**（保存的配置尚不构成可登录的 SAML IdP 接入） |
-| SAML 证书动作 | Artifactory 的公钥下载 / 再生成端点（`…/saml/config/key/*`）未落——`useEncryptedAssertion` 字段已渲染可存 |
+| SAML 运行时登录臂 | 13 字段已持久化 + 回显 + 校验；**SP 断言消费不在 M11 交付面**（保存的配置尚不构成可登录的 SAML IdP 接入）——SP 加密证书管理面已随 T-331/T-307R 交付（三端点 + 控制台证书卡，见[上文专节](#saml-sp-加密证书)） |
 | `userDnPattern` 直绑 | 未消费（绑定由 search 段驱动）；如需对齐 Artifactory 行为另开票 |
 | LDAP 多设置列表 | 单段模型——无 Artifactory 的多 LDAP 设置列表 / 拖拽排序 / 独立 DELETE |
 

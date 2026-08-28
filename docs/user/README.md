@@ -23,7 +23,7 @@
   - [PyPI](integrations/pypi.md)（pip.conf + twine、hash 对账、PEP 691）— M3
   - [Go Modules](integrations/golang.md)（GOPROXY/GOSUMDB 配置、PUT 三件套发布、!lower 转义、remote/virtual、go build 全链〔go 1.26 实测〕）— M10（pro 档）
   - [NuGet](integrations/nuget.md)（nuget.config 源映射 + 凭据、push/restore/run、flatcontainer/v3 行为、v2 最小面、符号服务器边界〔dotnet 8 实测〕）— M10（pro 档）
-  - [Cargo](integrations/cargo.md)（.cargo/config.toml alternate registry、token、publish/add/build/yank/search 全链、cksum 对账〔cargo 1.98 实测〕）— M10（pro 档）
+  - [Cargo](integrations/cargo.md)（.cargo/config.toml alternate registry、token、publish/add/build/yank/search 全链、cksum 对账、CG-2 双轨失败形态与删后重发、remote/virtual〔cargo 1.98 实测〕）— M10+M11（pro 档）
   - [Conan](integrations/conan.md)（v1/v2 客户端、修订链与 latest 解析、remote/virtual、reindex〔conan 2.31 / 1.66 实测〕）— M11（pro 档）
   - [Helm Chart 仓库](integrations/helm-charts.md)（index.yaml 自动重算、.prov clearsign 验签、remote 代理与 virtual 聚合 URL 改写、_external〔helm 4.2 实测〕；Chart 部署 BinFlow 见 [install/helm](install/helm.md)）— M11（pro 档）
   - [RPM](integrations/rpm.md)（.rpm 上传 + repodata 引擎、dnf 配置、gpgcheck/repomd 签名、remote/virtual 聚合〔Rocky 9 dnf 实测〕）— M11（pro 档）

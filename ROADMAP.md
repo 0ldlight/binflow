@@ -2,7 +2,7 @@
 
 > 由 product-manager 维护；tech-lead 据此把当前里程碑分解为 ticket。
 
-## 当前里程碑：M11（Artifactory 对齐第二程——配置域指令兑现 + 第一梯队包型批量 + 行为逐项对齐制度化；PRD v1.1 已审定（Q1/Q2/Q6/Q8 用户裁定），2026-08-26）
+## 当前里程碑：M11（Artifactory 对齐第二程——配置域指令兑现 + 第一梯队包型批量 + 行为逐项对齐制度化；PRD v1.2.2 收口，**m11-done 2026-08-28**）
 
 ### M0 — 团队启动（已完成）
 - [x] 产品愿景 PRODUCT.md（BinFlow）
@@ -112,7 +112,7 @@
 - [x] M9 候选池对账：滚入 M11+（见下「M10 未纳入项」；M11 PRD §2.2 收编 C 组点名项）
 
 ### M11 — Artifactory 对齐第二程：配置域指令兑现 + 第一梯队包型批量实现 + 行为逐项对齐制度化（PRD v1.0 草案待 conductor 审，2026-08-26）
-需求基线：docs/prd/milestone-11.md（FR-92~FR-102 十一条需求；契约矩阵 18 条〔A 14 / C 2 / D 1 / 待裁 1〕+ 档位 × addon 矩阵扩展 5 槽；L01~L45；开放问题 Q1~Q8 带暂行）
+需求基线：docs/prd/milestone-11.md（PRD v1.2.2 收口回写版：FR-92~FR-102 十一条需求；契约矩阵 18 条〔A 15 / C 2 / D 1 / 待裁 0——LC-24 归位〕+ 档位 × addon 矩阵扩展 5 槽；L01~L45；开放问题 Q1~Q8 带暂行〔Q8 已终裁〕；§5.6.1 回头看 30 项全量填实）
 来源链：用户指令日志最近四条（2026-08-26 11:22 MUI 迁移 T-299/T-300、11:35 认证配置前端化、11:45 存储配置独立文件化、**19:05 行为逐项对齐**——全程工作方式条款）→ conductor 种子 A~D；FR-91 五份规格 + tl-fr91-ac3 23 裁决点；M10 §2.2 滚入项 + M9 Q5 复制硬化
 - [ ] conductor 审定 PRD v1.0（Q1~Q8 暂行终裁；ADR-0035/0036 立项）
 - [ ] 前置产物：ADR-0035（认证配置面 REST/持久化/变更即生效/双源优先级）+ ADR-0036（存储配置独立文件与链式 schema）；规格复核票两份（auth-integration.md / config-formats.md §1——逐条附 Artifactory 行为出处）+ R-1/R-2 规格修订
@@ -120,7 +120,7 @@
 - [ ] FR-93 存储配置独立文件化：链式 provider 表达（filestore/S3/dual-write）+ 兼容窗 + 部署矩阵演进 + CD 链验证（P0）
 - [ ] FR-94 存量控制台 MUI 化两批：T-299 批次一（P0）/ T-300 批次二（P1）——交互逻辑零变化四闸门
 - [ ] FR-95 M10 自有裁定回头看：基线 23 项 + tl 裁决差异点（RP-2/TL-5/TL-4/HL-2 等→Q8）逐条复核——维持附出处/改回验证/分歧上 BOARD（P0，规划期完成）
-- [ ] FR-96 conan 包型：v2 local 全量 + v1 握手三端点（P0）+ remote/virtual（P1）
+- [ ] FR-96 conan 包型：v2 local 全量 + v1 全量数据面（十七端点——CN-1 终裁推翻收窄，T-308 承载，conan 1.66/2.31 双客户端活体验证；P0）+ remote/virtual（P1，T-312）
 - [ ] FR-97 debian 包型：automatic local 主票（P0）+ virtual/remote（P1）+ trivial P2；GPG K-1 条件票（Q6）
 - [ ] FR-98 rpm 包型：local 管线含 header 解析器（P0）+ reindex 七分支 + remote/virtual（P1）+ modules P2
 - [ ] FR-99 helm 经典仓 local（P0）+ virtual/remote（P1）；HelmOCI 条件票（Q2，HL-3）
@@ -129,6 +129,28 @@
 - [ ] FR-102 工程债打包：S3 MPU kill -9 续传复活 / unused-cleanup 引擎 / D-8 footprint ≤100MB / D-9 测试基建 / 文档尾巴三处（P1/P2）
 - [ ] QA：L01~L45 + 四包型真实客户端矩阵（conan/apt/dnf/helm）+ M1~M10 P0 回归双形态 + 两处断言反转审计；tech-writer 五类文档；Trash can 余量条件票（Q7）
 - [ ] 「M10 未纳入项」对账：D 组（Cleanup-Retention 策略引擎/制品操作族/Webhook/AQL）建议 M12+，滚入「M11 未纳入项」登记
+
+### M11 未纳入项（滚入 M12+ 候选池；2026-08-28 T-329 终验归档后由 M11 PRD §2.2/§4.8 + 用户三项裁决〔07:5x〕+ 票级遗留登记处置；DoD#7 对账）
+
+- **用户裁决落定 M12 项（BOARD 2026-08-28 07:5x 三项裁决 + 收口裁定）**：
+  - **NuGet 对齐 bundle → M12 立项**（裁决①）：v2 全面实装 + remote/virtual search 上游代理 + service index 动态解析——T-304 复核 L2/L3-remote/L4/L7 四项随批（出处与行为规格 T-304 §1.1/§4.1 齐备，规格随票可直取）
+  - **D-A dual-write S3 停机 fail-open → M12 补实现**（裁决③，T-327 登记）：本地优先写 + 异步 S3 重试队列；M6 PRD FR-50 文面维持，实现债登记 M12
+  - **D-F conan v1 delete 状态码小票**（T-329 登记）：`_/_` 坐标（conan 2.x 无 user/channel 形态）packages/delete 删树成功但回 404 而非规格 200（user/channel 形态回 200 已对照；conan 1.x 真实流量不受影响）
+  - **D-8R 空载 RSS 瘦身本体**（收口裁定⑤，BOARD 留痕）：实测 138.7MB > 100MB 门槛红（check-size 六平台聚合 94.13MB 过门）——懒加载 embed 瘦身票 M12 承载，非 m11-done 阻塞
+- **条件票未触发（BOARD 留痕非 DoD 缺口）**：HelmOCI（Q2，T-320 未派）→ M12+；Trash can（Q7，T-330 未派）→ M12+（与 Cleanup-Retention 同域立项候选）
+- **新票候选与票级遗留（收口期登记，BOARD M11 节在档）**：
+  - checksum-deploy token 窄域化候选票（T-332 登记）；conan reindex dispatchAPI 之外的 `forceConanAuthentication` 仓配置字段未落（T-308 遗留，默认 false 行为已备）；conan Artifactory 真实上游活体互证（T-312 遗留，mock+自指上游两腿留痕）+ conan 规格 D1/D5/D7/D8 升置信（交 reverse-engineer）
+  - crates.io 直连双主机不支持（T-316 R-2 新票候选）+ 上游死 search 404 vs Artifactory 409（T-316 R-3/4）；`.cargo/**` DELETE 收敛（T-316 遗留，低危）
+  - helm chartsBaseUrl 分体基址（T-313 D-2）+ `_external` 落盘缓存（D-3，architect 评估单列候选）；oci:// 透传深化（D-5，随 HelmOCI 域）；namespace 模式（D-10）
+  - deb bz2 压缩档（T-314：dsnet 依赖不可得实证，plain+gz+xz/lzma 已落地）+ deb snapshot 族（T-310 §10 缓议）
+  - T-290-2 `socketTimeoutMillis` canonical 回显键统一（T-304 判改回、路由 T-317 未承载——T-317 票面三臂不含；M11 PRD §5.6.1 v1.2.2 登记）
+  - byHash 值域枚举校验归 repo.Service（T-327R 登记）+ by-hash 同秒代合并 / ALL→NONE 遗留树老化（T-327G 登记）+ web 仓表单 deb/rpm 策略键跟进（T-327R）
+  - env-only 不完整链键组先于 binstore 拒启（T-325 登记，归 dev-go-storage）；mc 镜像 tag 维持版本锚定（T-325，registry 直连不可达）
+  - auth 域尾巴：audit 词表两词 / userDnPattern 消费缺位（T-305 遗留）；statisticsEnabled/sourceOrigin 落库无行为（T-317 差异 2，待 stats 面立项）；属性复制仅 generic 平面（T-317 差异 3，协议面归各适配器）
+  - 前端与测试：MUI 批次三候选（T-300：RepoDetailPage/Dashboard/Profile/Placeholder/NotFound + 共享组件六件套 + combobox 统一化）；e2e 负载 flake 族 CI 专用 runner（T-327 §7 协议 + T-329 观察④重申）；deb 满载并行抖动（T-318/T-329 同族，隔离绿）
+  - keypair T-319 D-1~D-8 / SAML T-331 D-1~D-5 差异登记（各票报告在档，随域票消化）
+- **规格/架构回写转交**：architecture.md §15.4/§23 回写转 architect（T-332 登记；§15.4.1 remote 字段落 canonical JSON as-built〔T-317 差异 1〕同批）；cargo.md（reverse）§8 virtual 行 as-built 回刷（T-318 遗留 → reverse-engineer，随 T-329 D-G 文档回刷）
+- **M12+ 主轴候选（沿 M11 PRD §2.2 既定 + M10 未纳入项续滚）**：AQL + 13 老搜索 / Cleanup-Retention 策略引擎 / 制品操作族（copy/move/zip/`archive!/`/explode）/ Webhook 统一事件总线（36 事件）/ **HA 高可用本体**（Q1 终裁 M12+ 单列）+ Xray 集成面本体 / Build-info 域 / Go 深化（sumdb 代理 + external 重定向）/ Terraform / GitLFS / NuGet symbol server（随 NuGet bundle 域，立项时随票补 as-built 规格——T-293 终裁）/ 制品 license 识别（licences.xml 91 模式）+ 冷存储分层 / HuggingFace 等 AI/ML 13 型 / license 公钥 config 覆盖（T-293 终裁③，走新 ADR）/ M10 未纳入项其余（E-04 / R2 搜索契约 / R6 Tokens 页 + 票级遗留 17 条）
 
 ### M10 未纳入项（滚入 M11+ 候选池；2026-08-25 M9 终验归档后由 M10 PRD §2.2/§4.7 处置）
 - 延后 3 项（F 池）：E-04 repos 列表扩列 / R2 搜索契约 / R6 Tokens 页
