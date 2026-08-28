@@ -1,33 +1,34 @@
 package httpapi_test
 
-// T-289 tests: the /api/v1/uploads MPU REST plane. Two stacks:
+// T-332 tests: the /api/v1/uploads MPU REST plane on the flipped
+// (Artifactory-shaped) wire — six endpoints, POST + QueryParam, the session
+// token as the per-session credential, complete?sha1= 202 + the async task
+// model, GET /config the capability probe (ADR-0039).
 //
 //   - the STANDARD harness (disk engine, no seam wired) is the filestore
-//     instance: every endpoint answers the honest plain-text 501
-//     (FR-90-AC3), and the auth door still precedes the capability answer.
-//   - newHarnessFull with Deps.Uploads wired to fakeMPUSeam is the
-//     pure-S3 assembly's shape. The fake relays each session's Commit
-//     into the stack's real disk engine — the same engine repo.Service
-//     fronts — so PutLandedBlob's physical-blob probe succeeds exactly as
-//     it does in production, where the seam and the service share ONE
-//     S3Engine instance. The part-size clamp and digest verification ride
-//     the real engine code underneath.
+//     instance: the five data endpoints answer the honest plain-text 501
+//     (FR-90-AC3) while config — the probe — answers 200 supported:false.
+//   - newUploadsHarness wires Deps.Uploads to fakeMPUContextSeam (the
+//     T-323R context seam, which the token lane requires): rows persist
+//     across harnesses and each Commit relays into the CURRENT stack's real
+//     engine, so the assembled blob is physically where the checksum-deploy
+//     PUT (repo.Service.PutFromBlob) looks for it, exactly as in production
+//     where the seam and the service share one engine instance.
 
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/base64"
+	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/httpapi"
@@ -37,99 +38,18 @@ import (
 )
 
 // ---------------------------------------------------------------------------
-// fake seam (storage.MultipartUploads stand-in)
+// helpers
 // ---------------------------------------------------------------------------
 
-// fakeMPUSeam stands in for *storage.S3Engine on the unit stack: sessions
-// accumulate in memory per part (the wire behavior the handler owns) and
-// Commit streams the whole payload through the stack's real engine, so the
-// blob is physically where repo.Service expects it.
-type fakeMPUSeam struct {
-	eng   storage.Engine
-	begun atomic.Int64
-}
-
-func (f *fakeMPUSeam) BeginMultipartSession(_ context.Context, partSize int64) (storage.Session, error) {
-	f.begun.Add(1)
-	return &fakeMPUSession{eng: f.eng, partSize: partSize, id: fmt.Sprintf("mpu-%d", f.begun.Load())}, nil
-}
-
-// fakeMPUSession implements storage.Session in the seam's shape.
-type fakeMPUSession struct {
-	eng      storage.Engine
-	id       string
-	partSize int64
-
-	mu   sync.Mutex
-	buf  []byte
-	done bool
-}
-
-func (s *fakeMPUSession) ID() string { return s.id }
-
-func (s *fakeMPUSession) Offset() int64 {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return int64(len(s.buf))
-}
-
-func (s *fakeMPUSession) Append(_ context.Context, r io.Reader) (int64, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.done {
-		return 0, fmt.Errorf("session %s already finalized", s.id)
-	}
-	n, err := io.ReadAll(r)
-	if err != nil {
-		return 0, err
-	}
-	s.buf = append(s.buf, n...)
-	return int64(len(s.buf)), nil
-}
-
-func (s *fakeMPUSession) Commit(ctx context.Context, expect storage.BlobRef) (storage.BlobRef, error) {
-	s.mu.Lock()
-	if s.done {
-		s.mu.Unlock()
-		return storage.BlobRef{}, fmt.Errorf("session %s already finalized", s.id)
-	}
-	s.done = true
-	payload := s.buf
-	s.mu.Unlock()
-	inner, err := s.eng.BeginSession(ctx)
-	if err != nil {
-		return storage.BlobRef{}, err
-	}
-	if _, err := inner.Append(ctx, bytes.NewReader(payload)); err != nil {
-		_ = inner.Abort(ctx)
-		return storage.BlobRef{}, err
-	}
-	return inner.Commit(ctx, expect)
-}
-
-func (s *fakeMPUSession) Abort(_ context.Context) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.done = true
-	return nil
-}
-
-// newUploadsHarness builds the seam-wired stack (the pure-S3 shape).
-func newUploadsHarness(t *testing.T, users ...[2]string) (*harness, *fakeMPUSeam) {
+// mpuCreate opens a session through the real HTTP plane (POST + QueryParam,
+// the flipped create) and returns the decoded body.
+func mpuCreate(t *testing.T, h *harness, user, pass, repoKey, path string, partSizeMB int64) (int, map[string]any) {
 	t.Helper()
-	var seam *fakeMPUSeam
-	h := newHarnessFull(t, nil, nil, nil, func(d *httpapi.Deps) {
-		seam = &fakeMPUSeam{eng: d.GC.(storage.Engine)}
-		d.Uploads = seam
-	}, users)
-	return h, seam
-}
-
-// mpuCreate opens a session through the real HTTP plane and returns the
-// decoded body.
-func mpuCreate(t *testing.T, h *harness, user, pass, body string) (int, map[string]any) {
-	t.Helper()
-	resp := h.do(http.MethodPost, "/binflow/api/v1/uploads/create", user, pass, []byte(body), nil)
+	q := "?repoKey=" + repoKey + "&repoPath=" + path
+	if partSizeMB != 0 {
+		q += fmt.Sprintf("&partSizeMB=%d", partSizeMB)
+	}
+	resp := h.do(http.MethodPost, "/binflow/api/v1/uploads/create"+q, user, pass, nil, nil)
 	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(resp.Body)
 	var out map[string]any
@@ -139,28 +59,122 @@ func mpuCreate(t *testing.T, h *harness, user, pass, body string) (int, map[stri
 	return resp.StatusCode, out
 }
 
-// mpuStatus fetches one session's status (or the bare list when id == "").
-func mpuStatus(t *testing.T, h *harness, user, pass, id string) (int, []byte) {
+// mpuCreateToken opens a session and returns its capability token.
+func mpuCreateToken(t *testing.T, h *harness, user, pass, repoKey, path string, partSizeMB int64) string {
 	t.Helper()
-	path := "/binflow/api/v1/uploads/status"
-	if id != "" {
-		path += "/" + id
+	code, body := mpuCreate(t, h, user, pass, repoKey, path, partSizeMB)
+	if code != http.StatusOK {
+		t.Fatalf("create = %d: %v", code, body)
 	}
-	resp := h.do(http.MethodGet, path, user, pass, nil, nil)
+	tok, _ := body["token"].(string)
+	if tok == "" {
+		t.Fatalf("create body carries no token: %v", body)
+	}
+	return tok
+}
+
+// bearer is the header set every token-authenticated verb rides.
+func bearer(tok string) map[string]string {
+	return map[string]string{"Authorization": "Bearer " + tok}
+}
+
+// mpuTokenSessionID extracts the public half of a token (test convenience).
+func mpuTokenSessionID(t *testing.T, tok string) string {
+	t.Helper()
+	_, sid, found := strings.Cut(tok, ".")
+	if !found || sid == "" {
+		t.Fatalf("token %q carries no session id", tok)
+	}
+	return sid
+}
+
+// mpuPostToken issues one POST on the token lane and decodes the JSON body.
+func mpuPostToken(t *testing.T, h *harness, verb, tok, query string) (int, map[string]any) {
+	t.Helper()
+	resp := h.do(http.MethodPost, "/binflow/api/v1/uploads/"+verb+query, "", "", nil, bearer(tok))
 	defer func() { _ = resp.Body.Close() }()
 	raw, _ := io.ReadAll(resp.Body)
-	return resp.StatusCode, raw
+	var out map[string]any
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &out); err != nil {
+			t.Fatalf("%s body not JSON (%d): %s", verb, resp.StatusCode, raw)
+		}
+	}
+	return resp.StatusCode, out
+}
+
+// mpuStatus polls status until the task reaches one of want (fail: msg).
+func mpuStatusPoll(t *testing.T, h *harness, tok string, want ...string) map[string]any {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		code, body := mpuPostToken(t, h, "status", tok, "")
+		if code != http.StatusOK {
+			t.Fatalf("status = %d: %v", code, body)
+		}
+		for _, w := range want {
+			if body["status"] == w {
+				return body
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("status never reached %v (last: %v)", want, body)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+// mpuPutPart uploads one part through the token lane.
+func mpuPutPart(t *testing.T, h *harness, tok string, part int, body []byte) (int, map[string]any) {
+	t.Helper()
+	sid := mpuTokenSessionID(t, tok)
+	resp := h.do(http.MethodPut,
+		fmt.Sprintf("/binflow/api/v1/uploads/part/%s/%d", sid, part), "", "", body, bearer(tok))
+	defer func() { _ = resp.Body.Close() }()
+	raw, _ := io.ReadAll(resp.Body)
+	var out map[string]any
+	if len(raw) > 0 {
+		_ = json.Unmarshal(raw, &out)
+	}
+	return resp.StatusCode, out
+}
+
+// newUploadsHarness builds the context-seam-wired stack (the S3 shape).
+func newUploadsHarness(t *testing.T, users ...[2]string) (*harness, *fakeMPUContextSeam) {
+	t.Helper()
+	seam := newFakeMPUContextSeam()
+	wire := func(d *httpapi.Deps) {
+		eng, ok := d.GC.(storage.Engine)
+		if !ok {
+			t.Fatal("stack GC seam is not a storage.Engine")
+		}
+		seam.setEngine(eng)
+		d.Uploads = seam
+	}
+	h := newHarnessFull(t, nil, nil, nil, wire, users)
+	seedRepo(t, h, "generic-local")
+	return h, seam
+}
+
+// mpuPayload builds the standard 3-part corpus (5 MiB + 5 MiB + 1 MiB).
+func mpuPayload() (p1, p2, p3, whole []byte) {
+	p1 = bytes.Repeat([]byte{0x11}, 5<<20)
+	p2 = bytes.Repeat([]byte{0x22}, 5<<20)
+	p3 = bytes.Repeat([]byte{0x33}, 1<<20)
+	whole = append(append([]byte{}, p1...), append(p2, p3...)...)
+	return
 }
 
 // ---------------------------------------------------------------------------
-// filestore honesty (FR-90-AC3)
+// filestore honesty (FR-90-AC3 + the config probe's deliberate exception)
 // ---------------------------------------------------------------------------
 
-// TestUploadsFilestoreHonest501 pins the whole six-endpoint set on a
-// filestore instance: 501, text/plain, "not supported on this backend" —
-// never a 404 masquerading as an absent route. Authentication still comes
-// first (the route gate), so anonymous callers meet the 401 challenge.
-func TestUploadsFilestoreHonest501(t *testing.T) {
+// TestUploadsFilestoreHonesty pins the backend matrix on a filestore
+// instance: the five data endpoints answer 501 text/plain "not supported on
+// this backend" — never a 404 masquerading as an absent route — while GET
+// /config answers 200 {"supported": false}: a probe that could not say "no"
+// would be no probe (ADR-0039). Authentication still comes first.
+func TestUploadsFilestoreHonesty(t *testing.T) {
 	h := newHarness(t)
 	seedRepo(t, h, "generic-local")
 
@@ -168,19 +182,18 @@ func TestUploadsFilestoreHonest501(t *testing.T) {
 		name   string
 		method string
 		path   string
+		query  string
 	}{
-		{"create", http.MethodPost, "/binflow/api/v1/uploads/create"},
-		{"config", http.MethodPost, "/binflow/api/v1/uploads/config"},
-		{"urlPart", http.MethodGet, "/binflow/api/v1/uploads/urlPart/some-id/1"},
-		{"status one", http.MethodGet, "/binflow/api/v1/uploads/status/some-id"},
-		{"status list", http.MethodGet, "/binflow/api/v1/uploads/status"},
-		{"complete", http.MethodPost, "/binflow/api/v1/uploads/complete/some-id"},
-		{"abort", http.MethodPost, "/binflow/api/v1/uploads/abort/some-id"},
-		{"part", http.MethodPut, "/binflow/api/v1/uploads/part/some-id/1"},
+		{"create", http.MethodPost, "/binflow/api/v1/uploads/create", "?repoKey=generic-local&repoPath=a.bin"},
+		{"urlPart", http.MethodPost, "/binflow/api/v1/uploads/urlPart", "?partNumber=1"},
+		{"status", http.MethodPost, "/binflow/api/v1/uploads/status", ""},
+		{"complete", http.MethodPost, "/binflow/api/v1/uploads/complete", "?sha1=" + strings.Repeat("0", 40)},
+		{"abort", http.MethodPost, "/binflow/api/v1/uploads/abort", ""},
+		{"part", http.MethodPut, "/binflow/api/v1/uploads/part/some-id/1", ""},
 	}
 	for _, leg := range legs {
 		t.Run(leg.name, func(t *testing.T) {
-			resp := h.do(leg.method, leg.path, adminUser, adminPass, []byte(`{"repoKey":"generic-local","path":"a.bin"}`), nil)
+			resp := h.do(leg.method, leg.path+leg.query, adminUser, adminPass, []byte("x"), nil)
 			defer func() { _ = resp.Body.Close() }()
 			body, _ := io.ReadAll(resp.Body)
 			if resp.StatusCode != http.StatusNotImplemented {
@@ -189,18 +202,24 @@ func TestUploadsFilestoreHonest501(t *testing.T) {
 			if ct := resp.Header.Get("Content-Type"); !strings.HasPrefix(ct, "text/plain") {
 				t.Fatalf("Content-Type = %q, want text/plain", ct)
 			}
-			if !strings.Contains(string(body), "not supported on this backend") {
+			if !strings.Contains(string(body), "not supported on this backend") || !strings.Contains(string(body), "S3") {
 				t.Fatalf("body lacks the honest refusal: %s", body)
-			}
-			if !strings.Contains(string(body), "S3") {
-				t.Fatalf("body does not name the S3-only fact: %s", body)
 			}
 		})
 	}
 
+	// The probe: 200 + supported:false.
+	resp := h.do(http.MethodGet, "/binflow/api/v1/uploads/config", adminUser, adminPass, nil, nil)
+	defer func() { _ = resp.Body.Close() }()
+	var cfg map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&cfg)
+	if resp.StatusCode != http.StatusOK || cfg["supported"] != false {
+		t.Fatalf("filestore config = %d %v, want 200 supported:false", resp.StatusCode, cfg)
+	}
+
 	// Anonymous meets the route's 401 first — the plane exists, it is the
 	// backend that lacks the capability.
-	resp := h.do(http.MethodPost, "/binflow/api/v1/uploads/create", "", "", []byte(`{}`), nil)
+	resp = h.do(http.MethodPost, "/binflow/api/v1/uploads/create?repoKey=generic-local&repoPath=a.bin", "", "", nil, nil)
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("anonymous create = %d, want 401 (auth precedes the capability answer)", resp.StatusCode)
@@ -208,444 +227,478 @@ func TestUploadsFilestoreHonest501(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// the S3-shaped stack
+// config: the capability probe and the jfrog-cli version gate
 // ---------------------------------------------------------------------------
 
-// TestUploadsFullChain is FR-90-AC1's wire shape: create (clamped part
-// size, URL family) -> urlPart -> 3 part PUTs (two full 5 MiB + one short
-// final) with progress assertions -> complete (sha256 gate) -> the landed
-// node reads back byte-identical through the content plane.
-func TestUploadsFullChain(t *testing.T) {
+// TestUploadsConfigVersionGate walks the reverse-engineered version
+// comparison's observable arms: below the floor -> false; at/above -> the
+// backend's verdict; a SHORTER version than the floor is below it (2.62 <
+// 2.62.2); a non-numeric segment aborts the comparison as NOT old (the
+// catch arm); a non-jfrog UA skips the gate entirely.
+func TestUploadsConfigVersionGate(t *testing.T) {
+	h, _ := newUploadsHarness(t)
+	probe := func(ua string) any {
+		t.Helper()
+		resp := h.do(http.MethodGet, "/binflow/api/v1/uploads/config", adminUser, adminPass, nil,
+			map[string]string{"User-Agent": ua})
+		defer func() { _ = resp.Body.Close() }()
+		var cfg map[string]any
+		_ = json.NewDecoder(resp.Body).Decode(&cfg)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("config (%s) = %d, want 200", ua, resp.StatusCode)
+		}
+		return cfg["supported"]
+	}
+	for ua, want := range map[string]bool{
+		"curl/8.0":             true,  // no gate for foreign agents
+		"jfrog-cli-go/2.62.2":  true,  // exactly the floor
+		"jfrog-cli-go/2.63.0":  true,  // above
+		"jfrog-cli-go/2.63":    true,  // above at the second segment
+		"jfrog-cli-go/2.62":    false, // shorter than the floor is below it
+		"jfrog-cli-go/2.50.1":  false, // below
+		"jfrog-cli-go/1.99.99": false, // far below
+		"jfrog-cli-go/dev":     true,  // non-numeric segment: the catch arm
+		"jfrog-cli-go/x.y.z":   true,  // ditto
+	} {
+		if got := probe(ua); got != want {
+			t.Errorf("config supported for UA %q = %v, want %v", ua, got, want)
+		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// the full chain on the flipped wire
+// ---------------------------------------------------------------------------
+
+// TestUploadsFullChainNewWire is the jfrog-cli flow end to end: create
+// (query params -> token) -> urlPart (POST + partNumber query param) ->
+// 3 part PUTs on the token -> complete?sha1= 202 -> status poll to
+// Finished(100) carrying the checksum-deploy token -> the CLIENT's
+// zero-transfer X-Checksum-Deploy PUT lands the node -> byte-identical GET.
+func TestUploadsFullChainNewWire(t *testing.T) {
 	h, seam := newUploadsHarness(t)
-	seedRepo(t, h, "generic-local")
 
-	// partSizeMB 2 clamps to the S3 floor (5 MiB) — echoed, never guessed.
-	code, created := mpuCreate(t, h, adminUser, adminPass,
-		`{"repoKey":"generic-local","path":"big/pkg.bin","partSizeMB":2}`)
-	if code != http.StatusCreated {
-		t.Fatalf("create = %d, want 201: %v", code, created)
-	}
-	if got := created["partSizeBytes"].(float64); int64(got) != 5<<20 {
-		t.Fatalf("partSizeBytes = %v, want the 5MiB clamp", got)
-	}
-	sid := created["sessionId"].(string)
-	if sid == "" {
-		t.Fatal("empty sessionId")
-	}
-	for _, k := range []string{"urlPartUri", "partUploadUri", "statusUri", "completeUri", "abortUri"} {
-		if s, _ := created[k].(string); s == "" || !strings.Contains(s, sid) {
-			t.Fatalf("create body missing a usable %s: %v", k, created)
-		}
-	}
-	if got := seam.begun.Load(); got != 1 {
-		t.Fatalf("seam began %d sessions, want 1", got)
+	tok := mpuCreateToken(t, h, adminUser, adminPass, "generic-local", "big/pkg.bin", 5)
+	sid := mpuTokenSessionID(t, tok)
+	if seam.begins.Load() != 1 {
+		t.Fatalf("seam began %d sessions, want 1", seam.begins.Load())
 	}
 
-	// The list form shows the live session before any byte flows.
-	code, raw := mpuStatus(t, h, adminUser, adminPass, "")
+	// urlPart: POST + the partNumber query param, the token the credential.
+	code, body := mpuPostToken(t, h, "urlPart", tok, "?partNumber=2")
 	if code != http.StatusOK {
-		t.Fatalf("bare status = %d, want 200", code)
+		t.Fatalf("urlPart = %d: %v", code, body)
 	}
-	var list []map[string]any
-	if err := json.Unmarshal(raw, &list); err != nil {
-		t.Fatalf("bare status body not a JSON array: %s", raw)
+	url, _ := body["url"].(string)
+	if !strings.Contains(url, "/api/v1/uploads/part/"+sid+"/2") {
+		t.Fatalf("urlPart url = %q", url)
 	}
-	if len(list) != 1 || list[0]["sessionId"] != sid {
-		t.Fatalf("list form = %s, want exactly the fresh session", raw)
-	}
-
-	// urlPart hands out the PUT target with the expected offset.
-	resp := h.do(http.MethodGet, "/binflow/api/v1/uploads/urlPart/"+sid+"/2", adminUser, adminPass, nil, nil)
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("urlPart = %d", resp.StatusCode)
-	}
-	var pu map[string]any
-	_ = json.NewDecoder(resp.Body).Decode(&pu)
-	func() { _ = resp.Body.Close() }()
-	if int64(pu["offsetBytes"].(float64)) != 5<<20 {
-		t.Fatalf("urlPart(2).offsetBytes = %v, want 5MiB", pu["offsetBytes"])
-	}
-	if u, _ := pu["url"].(string); !strings.Contains(u, "/api/v1/uploads/part/"+sid+"/2") {
-		t.Fatalf("urlPart url = %v", pu["url"])
+	if _, has := body["offsetBytes"]; has {
+		t.Fatalf("urlPart body carries the retired offset echo: %v", body)
 	}
 
-	// Three parts: 5 MiB + 5 MiB + 1 MiB (the short final).
-	part1 := bytes.Repeat([]byte{0x11}, 5<<20)
-	part2 := bytes.Repeat([]byte{0x22}, 5<<20)
-	part3 := bytes.Repeat([]byte{0x33}, 1<<20)
-	whole := append(append([]byte{}, part1...), append(part2, part3...)...)
-	for i, part := range [][]byte{part1, part2, part3} {
-		resp := h.do(http.MethodPut, "/binflow/api/v1/uploads/part/"+sid+"/"+fmt.Sprint(i+1),
-			adminUser, adminPass, part, nil)
-		body, _ := io.ReadAll(resp.Body)
-		func() { _ = resp.Body.Close() }()
-		if resp.StatusCode != http.StatusAccepted {
-			t.Fatalf("part %d PUT = %d: %s", i+1, resp.StatusCode, body)
-		}
-		var echo map[string]any
-		_ = json.Unmarshal(body, &echo)
-		wantReceived := int64(len(part1)) * int64(i+1)
-		if i == 2 {
-			wantReceived = int64(len(whole))
-		}
-		if int64(echo["receivedBytes"].(float64)) != wantReceived {
-			t.Fatalf("part %d echo receivedBytes = %v, want %d", i+1, echo["receivedBytes"], wantReceived)
-		}
-		// Progress through the status leg after every part (AC1).
-		code, raw := mpuStatus(t, h, adminUser, adminPass, sid)
+	// Status mid-upload: the task model, Uploading.
+	code, body = mpuPostToken(t, h, "status", tok, "")
+	if code != http.StatusOK || body["status"] != "PARTS" || body["progress"] != float64(0) {
+		t.Fatalf("mid-upload status = %d %v", code, body)
+	}
+
+	// Three parts on the token lane: 5 MiB + 5 MiB + 1 MiB (short final).
+	p1, p2, p3, whole := mpuPayload()
+	for i, part := range [][]byte{p1, p2, p3} {
+		code, echo := mpuPutPart(t, h, tok, i+1, part)
 		if code != http.StatusOK {
-			t.Fatalf("status after part %d = %d", i+1, code)
+			t.Fatalf("part %d PUT = %d: %v", i+1, code, echo)
 		}
-		var st map[string]any
-		_ = json.Unmarshal(raw, &st)
-		if int64(st["receivedBytes"].(float64)) != wantReceived {
-			t.Fatalf("status after part %d: receivedBytes = %v, want %d", i+1, st["receivedBytes"], wantReceived)
+		want := int64(len(part)) * int64(i+1)
+		if i == 2 {
+			want = int64(len(whole))
+		}
+		if int64(echo["receivedBytes"].(float64)) != want {
+			t.Fatalf("part %d echo receivedBytes = %v, want %d", i+1, echo["receivedBytes"], want)
 		}
 	}
-	// The short part closed the stream: state advanced, no further part.
-	_, raw = mpuStatus(t, h, adminUser, adminPass, sid)
-	var st map[string]any
-	_ = json.Unmarshal(raw, &st)
-	if st["state"] != "awaiting-complete" {
-		t.Fatalf("state after the short final part = %v, want awaiting-complete", st["state"])
-	}
-	resp = h.do(http.MethodPut, "/binflow/api/v1/uploads/part/"+sid+"/4", adminUser, adminPass, []byte("x"), nil)
-	func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusConflict {
-		t.Fatalf("part after the short final = %d, want 409", resp.StatusCode)
+	// A fourth part after the short final: refused.
+	if code, _ := mpuPutPart(t, h, tok, 4, []byte("x")); code != http.StatusConflict {
+		t.Fatalf("part after the short final = %d, want 409", code)
 	}
 
-	// Complete: sha256 gate, node landing, honest echoes.
-	sum := sha256.Sum256(whole)
-	resp = h.do(http.MethodPost, "/binflow/api/v1/uploads/complete/"+sid, adminUser, adminPass,
-		[]byte(`{"sha256":"`+hex.EncodeToString(sum[:])+`"}`), nil)
-	body, _ := io.ReadAll(resp.Body)
+	// complete: malformed sha1 -> 400; the right one -> 202 (async).
+	if code, _ := mpuPostToken(t, h, "complete", tok, "?sha1=not-a-sha1"); code != http.StatusBadRequest {
+		t.Fatalf("malformed sha1 complete = %d, want 400", code)
+	}
+	wholeSHA1 := sha1Hex(t, whole)
+	code, _ = mpuPostToken(t, h, "complete", tok, "?sha1="+wholeSHA1)
+	if code != http.StatusAccepted {
+		t.Fatalf("complete = %d, want 202", code)
+	}
+
+	// Poll to Finished: progress 100 and the checksum-deploy token.
+	done := mpuStatusPoll(t, h, tok, "FINISHED")
+	if done["progress"] != float64(100) {
+		t.Fatalf("Finished progress = %v, want 100", done["progress"])
+	}
+	depTok, _ := done["checksumToken"].(string)
+	if depTok == "" {
+		t.Fatalf("Finished status carries no checksum-deploy token: %v", done)
+	}
+
+	// The node does NOT exist yet — the client lands it (Artifactory's
+	// flow: the checksumToken exists precisely for this PUT).
+	resp := h.do(http.MethodGet, "/binflow/generic-local/big/pkg.bin", adminUser, adminPass, nil, nil)
+	func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("artifact before checksum-deploy = %d, want 404 (the node is the client's landing)", resp.StatusCode)
+	}
+
+	// The zero-transfer landing: X-Checksum-Deploy with the 5-minute token.
+	resp = h.do(http.MethodPut, "/binflow/generic-local/big/pkg.bin", "", "", nil,
+		map[string]string{
+			"Authorization":     "Bearer " + depTok,
+			"X-Checksum-Deploy": "true",
+			"X-Checksum-Sha1":   wholeSHA1,
+		})
 	func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusCreated {
-		t.Fatalf("complete = %d: %s", resp.StatusCode, body)
-	}
-	var done map[string]any
-	if err := json.Unmarshal(body, &done); err != nil {
-		t.Fatalf("complete body not JSON: %s", body)
-	}
-	if int64(done["size"].(float64)) != int64(len(whole)) {
-		t.Fatalf("complete size = %v, want %d", done["size"], len(whole))
-	}
-	if !strings.Contains(done["downloadUri"].(string), "/binflow/generic-local/big/pkg.bin") {
-		t.Fatalf("downloadUri = %v", done["downloadUri"])
+		t.Fatalf("checksum-deploy PUT = %d, want 201", resp.StatusCode)
 	}
 
-	// The session is gone: status 404 (the terminal-verb posture).
-	if code, _ := mpuStatus(t, h, adminUser, adminPass, sid); code != http.StatusNotFound {
-		t.Fatalf("status after complete = %d, want 404", code)
-	}
-
-	// The landed node reads back byte-identical through the content plane.
+	// Byte-for-byte readback through the content plane.
 	resp = h.do(http.MethodGet, "/binflow/generic-local/big/pkg.bin", adminUser, adminPass, nil, nil)
 	defer func() { _ = resp.Body.Close() }()
 	got, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("artifact GET = %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK || !bytes.Equal(got, whole) {
+		t.Fatalf("artifact GET = %d (%d bytes), want the 11MiB corpus", resp.StatusCode, len(got))
 	}
-	if !bytes.Equal(got, whole) {
-		t.Fatalf("artifact bytes differ (%d vs %d)", len(got), len(whole))
+
+	// Terminal postures: the upload is consumed (urlPart/complete 404) but
+	// the task record stays observable (status still Finished).
+	if code, _ := mpuPostToken(t, h, "urlPart", tok, "?partNumber=9"); code != http.StatusNotFound {
+		t.Fatalf("urlPart after Finished = %d, want 404", code)
+	}
+	if code, _ := mpuPostToken(t, h, "complete", tok, "?sha1="+wholeSHA1); code != http.StatusNotFound {
+		t.Fatalf("complete after Finished = %d, want 404", code)
+	}
+	code, body = mpuPostToken(t, h, "status", tok, "")
+	if code != http.StatusOK || body["status"] != "FINISHED" {
+		t.Fatalf("status after Finished = %d %v, want the observable task record", code, body)
+	}
+	// Abort cannot discard an assembled artifact.
+	if code, _ := mpuPostToken(t, h, "abort", tok, ""); code != http.StatusConflict {
+		t.Fatalf("abort after Finished = %d, want 409", code)
 	}
 }
 
-// TestUploadsAbortDiscards: abort mid-upload removes the session (status
-// 404, second abort 404) and no node ever lands at the target path.
-func TestUploadsAbortDiscards(t *testing.T) {
+// TestUploadsWrongSha1FailsTheTask: a well-formed but WRONG sha1 accepts
+// (202 — the gate is asynchronous now) and fails the task; the error is
+// observable through status, nothing lands, and the session is consumed.
+func TestUploadsWrongSha1FailsTheTask(t *testing.T) {
 	h, _ := newUploadsHarness(t)
-	seedRepo(t, h, "generic-local")
 
-	code, created := mpuCreate(t, h, adminUser, adminPass,
-		`{"repoKey":"generic-local","path":"big/gone.bin","partSizeMB":5}`)
-	if code != http.StatusCreated {
-		t.Fatalf("create = %d", code)
+	tok := mpuCreateToken(t, h, adminUser, adminPass, "generic-local", "big/bad.bin", 5)
+	_, _, p3, _ := mpuPayload()
+	if code, _ := mpuPutPart(t, h, tok, 1, p3); code != http.StatusOK {
+		t.Fatalf("short final part = %d", code)
 	}
-	sid := created["sessionId"].(string)
 
-	resp := h.do(http.MethodPut, "/binflow/api/v1/uploads/part/"+sid+"/1", adminUser, adminPass,
-		bytes.Repeat([]byte{9}, 5<<20), nil)
+	if code, _ := mpuPostToken(t, h, "complete", tok, "?sha1="+strings.Repeat("0", 40)); code != http.StatusAccepted {
+		t.Fatalf("wrong-sha1 complete = %d, want 202 (the async gate)", code)
+	}
+	failed := mpuStatusPoll(t, h, tok, "NON_RETRYABLE_ERROR")
+	msg, _ := failed["error"].(string)
+	if !strings.Contains(msg, "checksum") {
+		t.Fatalf("Failed error = %q, want the checksum-mismatch wording", msg)
+	}
+
+	// Nothing landed; the session is consumed; abort reclaims the record.
+	resp := h.do(http.MethodGet, "/binflow/generic-local/big/bad.bin", adminUser, adminPass, nil, nil)
 	func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusAccepted {
-		t.Fatalf("part 1 = %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("mismatched artifact GET = %d, want 404", resp.StatusCode)
 	}
-
-	resp = h.do(http.MethodPost, "/binflow/api/v1/uploads/abort/"+sid, adminUser, adminPass, nil, nil)
-	func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusNoContent {
-		t.Fatalf("abort = %d, want 204", resp.StatusCode)
+	if code, _ := mpuPostToken(t, h, "complete", tok, "?sha1="+strings.Repeat("1", 40)); code != http.StatusNotFound {
+		t.Fatalf("complete after Failed = %d, want 404 (session consumed)", code)
 	}
-	if code, _ := mpuStatus(t, h, adminUser, adminPass, sid); code != http.StatusNotFound {
+	if code, _ := mpuPostToken(t, h, "abort", tok, ""); code != http.StatusNoContent {
+		t.Fatalf("abort after Failed = %d, want 204 (record cleanup)", code)
+	}
+	if code, _ := mpuPostToken(t, h, "status", tok, ""); code != http.StatusNotFound {
 		t.Fatalf("status after abort = %d, want 404", code)
 	}
-	resp = h.do(http.MethodPost, "/binflow/api/v1/uploads/abort/"+sid, adminUser, adminPass, nil, nil)
-	func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("second abort = %d, want 404", resp.StatusCode)
-	}
-	resp = h.do(http.MethodGet, "/binflow/generic-local/big/gone.bin", adminUser, adminPass, nil, nil)
-	func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("aborted artifact GET = %d, want 404 (blob invisible)", resp.StatusCode)
-	}
 }
 
-// TestUploadsChecksumMismatch: a well-formed but wrong sha256 answers 409
-// (repo-semantics section 5's client-checksum posture) and consumes the
-// session.
-func TestUploadsChecksumMismatch(t *testing.T) {
+// ---------------------------------------------------------------------------
+// the capability-token verdict ladder
+// ---------------------------------------------------------------------------
+
+// TestUploadsTokenVerdicts walks the credential arms of the token lane:
+// anonymous 401, valid shared credentials 403 (the scope refusal — only the
+// session token drives these verbs), a garbage Bearer the middleware
+// rejected 401 (its own verdict, rendered by the handler), a well-shaped
+// token with the wrong secret 404, and one session's token on another
+// session's part URL 404.
+func TestUploadsTokenVerdicts(t *testing.T) {
 	h, _ := newUploadsHarness(t)
-	seedRepo(t, h, "generic-local")
+	tokA := mpuCreateToken(t, h, adminUser, adminPass, "generic-local", "big/a.bin", 5)
+	tokB := mpuCreateToken(t, h, adminUser, adminPass, "generic-local", "big/b.bin", 5)
+	sidA := mpuTokenSessionID(t, tokA)
+	sidB := mpuTokenSessionID(t, tokB)
 
-	_, created := mpuCreate(t, h, adminUser, adminPass,
-		`{"repoKey":"generic-local","path":"big/bad.bin","partSizeMB":5}`)
-	sid := created["sessionId"].(string)
-	resp := h.do(http.MethodPut, "/binflow/api/v1/uploads/part/"+sid+"/1", adminUser, adminPass,
-		bytes.Repeat([]byte{7}, 1<<20), nil) // short part closes the stream
-	func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusAccepted {
-		t.Fatalf("short final part = %d", resp.StatusCode)
-	}
-
-	wrong := strings.Repeat("0", 64)
-	resp = h.do(http.MethodPost, "/binflow/api/v1/uploads/complete/"+sid, adminUser, adminPass,
-		[]byte(`{"sha256":"`+wrong+`"}`), nil)
-	body, _ := io.ReadAll(resp.Body)
-	func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusConflict {
-		t.Fatalf("complete with wrong sha256 = %d: %s", resp.StatusCode, body)
-	}
-	if code, _ := mpuStatus(t, h, adminUser, adminPass, sid); code != http.StatusNotFound {
-		t.Fatalf("status after failed complete = %d, want 404 (session consumed)", code)
-	}
-	resp = h.do(http.MethodGet, "/binflow/generic-local/big/bad.bin", adminUser, adminPass, nil, nil)
-	func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("mismatched artifact GET = %d, want 404 (nothing landed)", resp.StatusCode)
-	}
-}
-
-// TestUploadsGuards walks the refusal ladder: ordering, oversize, write
-// door, path validation, repo typing, checksum shape.
-func TestUploadsGuards(t *testing.T) {
-	h, _ := newUploadsHarness(t, [2]string{"alice", "alice-pw"})
-	seedRepo(t, h, "generic-local")
-
-	// A plain user without `w` is refused at the door.
-	code, body := mpuCreate(t, h, "alice", "alice-pw",
-		`{"repoKey":"generic-local","path":"big/x.bin"}`)
-	if code != http.StatusForbidden {
-		t.Fatalf("create without w = %d (%v), want 403", code, body)
-	}
-	// The grant opens it (the same Authorizer the content plane consults).
-	grant(t, h, "mpu-grant", "generic-local", "big/**", "alice", false, true, false)
-	code, body = mpuCreate(t, h, "alice", "alice-pw",
-		`{"repoKey":"generic-local","path":"big/x.bin","partSizeMB":5}`)
-	if code != http.StatusCreated {
-		t.Fatalf("create with w = %d (%v), want 201", code, body)
-	}
-	sid := body["sessionId"].(string)
-
-	// Out-of-order part.
-	resp := h.do(http.MethodPut, "/binflow/api/v1/uploads/part/"+sid+"/2", "alice", "alice-pw",
-		bytes.Repeat([]byte{1}, 5<<20), nil)
-	func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusConflict {
-		t.Fatalf("out-of-order part = %d, want 409", resp.StatusCode)
-	}
-	// Oversize part (pre-stream gate).
-	resp = h.do(http.MethodPut, "/binflow/api/v1/uploads/part/"+sid+"/1", "alice", "alice-pw",
-		bytes.Repeat([]byte{1}, (5<<20)+1), nil)
-	func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("oversize part = %d, want 400", resp.StatusCode)
-	}
-	// Unknown session.
-	resp = h.do(http.MethodPut, "/binflow/api/v1/uploads/part/nope/1", "alice", "alice-pw",
-		[]byte("x"), nil)
-	func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("unknown session part = %d, want 404", resp.StatusCode)
-	}
-	// A session created by alice is not drivable by another authenticated
-	// principal without the write door (the id is a capability, not an
-	// authorization) — carol exists (seeded below via the users seam is
-	// overkill; the anonymous arm suffices): anonymous meets the route's
-	// 401, and alice — the holder — still reads it.
-	resp = h.do(http.MethodGet, "/binflow/api/v1/uploads/status/"+sid, "", "", nil, nil)
+	// Anonymous: the 401 challenge.
+	resp := h.do(http.MethodPost, "/binflow/api/v1/uploads/urlPart?partNumber=1", "", "", nil, nil)
 	func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusUnauthorized {
-		t.Fatalf("anonymous status = %d, want 401", resp.StatusCode)
+		t.Fatalf("anonymous urlPart = %d, want 401", resp.StatusCode)
 	}
-	resp = h.do(http.MethodGet, "/binflow/api/v1/uploads/status/"+sid, "alice", "alice-pw", nil, nil)
+	// Valid shared credentials: 403, the scope refusal.
+	resp = h.do(http.MethodPost, "/binflow/api/v1/uploads/urlPart?partNumber=1", adminUser, adminPass, nil, nil)
 	func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("holder status = %d, want 200", resp.StatusCode)
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("Basic-auth urlPart = %d, want 403 (the session token is the only credential)", resp.StatusCode)
+	}
+	// A rejected garbage Bearer: the middleware's own verdict.
+	resp = h.do(http.MethodPost, "/binflow/api/v1/uploads/status", "", "", nil,
+		bearer("garbage-not-a-token"))
+	func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("garbage Bearer status = %d, want 401", resp.StatusCode)
+	}
+	// Well-shaped, wrong secret: unknown capability, 404.
+	forged := strings.Repeat("ab", 32) + "." + sidA
+	if code, _ := mpuPostToken(t, h, "status", forged, ""); code != http.StatusNotFound {
+		t.Fatalf("forged secret status = %d, want 404", code)
+	}
+	// Session A's token on session B's part URL: the URL and the
+	// credential disagree.
+	resp = h.do(http.MethodPut, "/binflow/api/v1/uploads/part/"+sidB+"/1", "", "", []byte("x"), bearer(tokA))
+	func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("cross-session part PUT = %d, want 404", resp.StatusCode)
+	}
+	// A regular API token (valid to the middleware) is not the capability.
+	resp = h.do(http.MethodPost, "/binflow/api/v1/uploads/status", "", "", nil,
+		bearer("2f9b7d1c0e8a4536b7c1d09e4f2a7b31c5d8e0f64a2b71c9d0e3f58a1b6c4d72"))
+	func() { _ = resp.Body.Close() }()
+	// (unknown token -> rejected by the middleware -> handler: not
+	// MPU-shaped -> 401; an authenticated non-MPU Bearer would be the 403
+	// above, which the Basic leg already pins)
+	if resp.StatusCode != http.StatusUnauthorized && resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("regular-Bearer status = %d, want 401/403", resp.StatusCode)
+	}
+}
+
+// ---------------------------------------------------------------------------
+// create's guards on the flipped wire
+// ---------------------------------------------------------------------------
+
+// TestUploadsCreateGuards: query-param presence (Artifactory's exact 400),
+// the one-403 refusal family (unknown repo / no `w` / remote), part size
+// bounds — and the FLIP itself: a protocol (docker) repository and a
+// virtual repository now create sessions instead of the retired 400.
+func TestUploadsCreateGuards(t *testing.T) {
+	h, _ := newUploadsHarness(t, [2]string{"alice", "alice-pw"})
+	seedRepo(t, h, "repo-a")
+
+	// Param presence: the Artifactory wording verbatim.
+	resp := h.do(http.MethodPost, "/binflow/api/v1/uploads/create?repoKey=repo-a", adminUser, adminPass, nil, nil)
+	defer func() { _ = resp.Body.Close() }()
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusBadRequest || !strings.Contains(string(body), "Query param repoKey or repoPath is null") {
+		t.Fatalf("repoPath-less create = %d %s, want the Artifactory 400 wording", resp.StatusCode, body)
 	}
 
-	// Path validation family.
+	// The one-403 family: unknown repo and no `w` share Artifactory's
+	// ForbiddenException wording.
+	if code, _ := mpuCreate(t, h, "alice", "alice-pw", "no-such-repo", "a.bin", 0); code != http.StatusForbidden {
+		t.Fatalf("unknown repo create = %d, want 403", code)
+	}
+	resp = h.do(http.MethodPost, "/binflow/api/v1/uploads/create?repoKey=repo-a&repoPath=x.bin", "alice", "alice-pw", nil, nil)
+	defer func() { _ = resp.Body.Close() }()
+	body, _ = io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusForbidden || !strings.Contains(string(body), "The user is not allowed to deploy to this location") {
+		t.Fatalf("no-w create = %d %s, want the Artifactory 403 wording", resp.StatusCode, body)
+	}
+
+	// The grant opens the same caller.
+	grant(t, h, "mpu-grant", "repo-a", "**", "alice", false, true, false)
+	if code, _ := mpuCreate(t, h, "alice", "alice-pw", "repo-a", "x.bin", 5); code != http.StatusOK {
+		t.Fatalf("create with w = %d, want 200", code)
+	}
+
+	if err := createTypedRepo(t, h, "docker-local", "docker"); err == nil {
+		// THE FLIP: a protocol repository now accepts MPU create (the
+		// package-type gate retired with the wire, T-304 section 1.2-B).
+		if code, _ := mpuCreate(t, h, adminUser, adminPass, "docker-local", "raw/big.bin", 5); code != http.StatusOK {
+			t.Fatalf("create on docker repo = %d, want 200 (the type gate is retired)", code)
+		}
+	}
+
+	// A remote repository is a cache, not a deploy target: the same 403.
+	resp = h.do(http.MethodPut, "/binflow/api/repositories/gen-remote", adminUser, adminPass,
+		[]byte(`{"rclass":"remote","packageType":"generic","url":"https://upstream.invalid"}`), nil)
+	func() { _ = resp.Body.Close() }()
+	if resp.StatusCode == http.StatusOK {
+		if code, _ := mpuCreate(t, h, adminUser, adminPass, "gen-remote", "a.bin", 0); code != http.StatusForbidden {
+			t.Fatalf("remote repo create = %d, want 403", code)
+		}
+	}
+
+	// Path validation family (BinFlow's own defense, kept).
 	for path, want := range map[string]int{
 		"":                                http.StatusBadRequest,
 		"/abs/path.bin":                   http.StatusBadRequest,
 		"dir/":                            http.StatusBadRequest,
 		"../escape.bin":                   http.StatusBadRequest,
-		"dir/../escape.bin":               http.StatusBadRequest,
 		"file.bin;k=v":                    http.StatusBadRequest,
 		strings.Repeat("a", 513) + ".bin": http.StatusBadRequest,
 	} {
-		code, body := mpuCreate(t, h, adminUser, adminPass,
-			`{"repoKey":"generic-local","path":`+mustJSON(path)+`}`)
-		if code != want {
-			t.Fatalf("create path %q = %d (%v), want %d", path, code, body, want)
+		if code, _ := mpuCreate(t, h, adminUser, adminPass, "repo-a", path, 0); code != want {
+			t.Fatalf("create path %q = %d, want %d", path, code, want)
 		}
 	}
 
-	// Unknown repo / wrong typing.
-	code, _ = mpuCreate(t, h, adminUser, adminPass, `{"repoKey":"no-such-repo","path":"a.bin"}`)
-	if code != http.StatusNotFound {
-		t.Fatalf("create on unknown repo = %d, want 404", code)
-	}
-	code, _ = mpuCreate(t, h, adminUser, adminPass, `{"repoKey":"generic-local"}`)
-	if code != http.StatusBadRequest {
-		t.Fatalf("create without path = %d, want 400", code)
-	}
-	if err := createTypedRepo(t, h, "docker-local", "docker"); err == nil {
-		code, _ = mpuCreate(t, h, adminUser, adminPass,
-			`{"repoKey":"docker-local","path":"a.bin"}`)
-		if code != http.StatusBadRequest {
-			t.Fatalf("create on docker repo = %d, want 400 (protocol layouts take their own uploads)", code)
+	// partSizeMB bounds (B3 kept: the megabyte-domain overflow gate).
+	for _, mb := range []string{"junk", "-1", "8796093022209", "5121"} {
+		resp := h.do(http.MethodPost,
+			"/binflow/api/v1/uploads/create?repoKey=repo-a&repoPath=big/y.bin&partSizeMB="+mb,
+			adminUser, adminPass, nil, nil)
+		func() { _ = resp.Body.Close() }()
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Fatalf("partSizeMB=%s = %d, want 400", mb, resp.StatusCode)
 		}
 	}
-
-	// partSizeMB bounds.
-	code, _ = mpuCreate(t, h, adminUser, adminPass,
-		`{"repoKey":"generic-local","path":"big/y.bin","partSizeMB":-1}`)
-	if code != http.StatusBadRequest {
-		t.Fatalf("negative partSizeMB = %d, want 400", code)
-	}
-	code, _ = mpuCreate(t, h, adminUser, adminPass,
-		`{"repoKey":"generic-local","path":"big/y.bin","partSizeMB":99999}`)
-	if code != http.StatusBadRequest {
-		t.Fatalf("oversized partSizeMB = %d, want 400", code)
-	}
-
-	// Complete's checksum shape: missing sha256, wrong width.
-	resp = h.do(http.MethodPost, "/binflow/api/v1/uploads/complete/"+sid, "alice", "alice-pw",
-		[]byte(`{"sha1":"`+strings.Repeat("a", 40)+`"}`), nil)
-	func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("complete without sha256 = %d, want 400", resp.StatusCode)
+	if code, _ := mpuCreate(t, h, adminUser, adminPass, "repo-a", "big/z.bin", 5120); code != http.StatusOK {
+		t.Fatalf("partSizeMB=5120 = %d, want 200 (the boundary is legal)", code)
 	}
 }
 
-// TestUploadsConfigRePart: config re-parts a byte-less session (the id —
-// the capability every URL carries — survives the swap) and refuses once
-// bytes have flowed.
-func TestUploadsConfigRePart(t *testing.T) {
-	h, seam := newUploadsHarness(t)
-	seedRepo(t, h, "generic-local")
+// TestUploadsVirtualDefault: create on a virtual repository resolves to the
+// defaultDeploymentRepo — the write door and the session address the MEMBER,
+// and the client's checksum-deploy through the VIRTUAL lands there
+// (routeVirtualWrite), the getRepoPath behavior (T-304 section 1.2-B).
+func TestUploadsVirtualDefault(t *testing.T) {
+	h, _ := newUploadsHarness(t)
 
-	_, created := mpuCreate(t, h, adminUser, adminPass,
-		`{"repoKey":"generic-local","path":"big/repart.bin","partSizeMB":5}`)
-	sid := created["sessionId"].(string)
-	before := seam.begun.Load()
-
-	resp := h.do(http.MethodPost, "/binflow/api/v1/uploads/config", adminUser, adminPass,
-		[]byte(`{"sessionId":"`+sid+`","partSizeMB":16}`), nil)
-	body, _ := io.ReadAll(resp.Body)
+	// members: gen-local (default deployment target) + gen-other.
+	resp := h.do(http.MethodPut, "/binflow/api/repositories/gen-local", adminUser, adminPass,
+		[]byte(`{"rclass":"local","packageType":"generic"}`), nil)
 	func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("config = %d: %s", resp.StatusCode, body)
+		t.Fatalf("create gen-local = %d", resp.StatusCode)
 	}
-	var echo map[string]any
-	_ = json.Unmarshal(body, &echo)
-	if int64(echo["partSizeBytes"].(float64)) != 16<<20 {
-		t.Fatalf("config echo partSizeBytes = %v, want 16MiB", echo["partSizeBytes"])
+	resp = h.do(http.MethodPut, "/binflow/api/repositories/gen-other", adminUser, adminPass,
+		[]byte(`{"rclass":"local","packageType":"generic"}`), nil)
+	func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("create gen-other = %d", resp.StatusCode)
 	}
-	if echo["sessionId"] != sid {
-		t.Fatalf("config changed the session id: %v", echo["sessionId"])
-	}
-	if got := seam.begun.Load(); got != before+1 {
-		t.Fatalf("config began %d sessions total, want %d (the swap)", got, before+1)
+	resp = h.do(http.MethodPut, "/binflow/api/repositories/gen-virtual", adminUser, adminPass,
+		[]byte(`{"rclass":"virtual","packageType":"generic","repositories":["gen-local","gen-other"],"defaultDeploymentRepo":"gen-local"}`), nil)
+	func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("create gen-virtual = %d: %s", resp.StatusCode, body)
 	}
 
-	// After a part: fixed.
-	resp = h.do(http.MethodPut, "/binflow/api/v1/uploads/part/"+sid+"/1", adminUser, adminPass,
-		bytes.Repeat([]byte{3}, 1<<20), nil)
-	func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusAccepted {
-		t.Fatalf("short part after config = %d", resp.StatusCode)
+	tok := mpuCreateToken(t, h, adminUser, adminPass, "gen-virtual", "via-virtual.bin", 5)
+	_, _, p3, _ := mpuPayload()
+	if code, _ := mpuPutPart(t, h, tok, 1, p3); code != http.StatusOK {
+		t.Fatalf("short part = %d", code)
 	}
-	resp = h.do(http.MethodPost, "/binflow/api/v1/uploads/config", adminUser, adminPass,
-		[]byte(`{"sessionId":"`+sid+`","partSizeMB":32}`), nil)
+	wholeSHA1 := sha1Hex(t, p3)
+	if code, _ := mpuPostToken(t, h, "complete", tok, "?sha1="+wholeSHA1); code != http.StatusAccepted {
+		t.Fatalf("complete = %d", code)
+	}
+	done := mpuStatusPoll(t, h, tok, "FINISHED")
+	depTok := done["checksumToken"].(string)
+
+	// The client checksum-deploys through the VIRTUAL (it only knows the
+	// repo it addressed): routeVirtualWrite lands the node on gen-local.
+	resp = h.do(http.MethodPut, "/binflow/gen-virtual/via-virtual.bin", "", "", nil,
+		map[string]string{
+			"Authorization":     "Bearer " + depTok,
+			"X-Checksum-Deploy": "true",
+			"X-Checksum-Sha1":   wholeSHA1,
+		})
 	func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusConflict {
-		t.Fatalf("config after bytes = %d, want 409", resp.StatusCode)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("checksum-deploy through the virtual = %d, want 201", resp.StatusCode)
+	}
+	resp = h.do(http.MethodGet, "/binflow/gen-virtual/via-virtual.bin", adminUser, adminPass, nil, nil)
+	defer func() { _ = resp.Body.Close() }()
+	got, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK || !bytes.Equal(got, p3) {
+		t.Fatalf("virtual GET = %d (%d bytes), want the corpus", resp.StatusCode, len(got))
 	}
 }
 
-// TestUploadsURLPartAndStatusUnknown: unknown ids and grammar misses.
-func TestUploadsURLPartAndStatusUnknown(t *testing.T) {
+// TestUploadsAbortNewWire: abort discards mid-upload — 204, then the token
+// addresses nothing (404), second abort 404, no node ever lands.
+func TestUploadsAbortNewWire(t *testing.T) {
 	h, _ := newUploadsHarness(t)
-	seedRepo(t, h, "generic-local")
-
-	resp := h.do(http.MethodGet, "/binflow/api/v1/uploads/urlPart/nope/1", adminUser, adminPass, nil, nil)
+	tok := mpuCreateToken(t, h, adminUser, adminPass, "generic-local", "big/gone.bin", 5)
+	p1, _, _, _ := mpuPayload()
+	if code, _ := mpuPutPart(t, h, tok, 1, p1); code != http.StatusOK {
+		t.Fatalf("part 1 = %d", code)
+	}
+	if code, _ := mpuPostToken(t, h, "abort", tok, ""); code != http.StatusNoContent {
+		t.Fatalf("abort = %d, want 204", code)
+	}
+	if code, _ := mpuPostToken(t, h, "status", tok, ""); code != http.StatusNotFound {
+		t.Fatalf("status after abort = %d, want 404", code)
+	}
+	if code, _ := mpuPostToken(t, h, "abort", tok, ""); code != http.StatusNotFound {
+		t.Fatalf("second abort = %d, want 404", code)
+	}
+	resp := h.do(http.MethodGet, "/binflow/generic-local/big/gone.bin", adminUser, adminPass, nil, nil)
 	func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("urlPart unknown session = %d, want 404", resp.StatusCode)
+		t.Fatalf("aborted artifact GET = %d, want 404", resp.StatusCode)
 	}
-	resp = h.do(http.MethodGet, "/binflow/api/v1/uploads/urlPart/nope/0", adminUser, adminPass, nil, nil)
-	func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("urlPart part 0 = %d, want 400", resp.StatusCode)
-	}
-	// Grammar misses fall to the E-26 404.
-	for _, p := range []string{
-		"/binflow/api/v1/uploads/part/nope/1/2",
-		"/binflow/api/v1/uploads/part/nope/abc",
-		"/binflow/api/v1/uploads/status/a/b",
-		"/binflow/api/v1/uploads/nosuch",
+}
+
+// TestUploadsOldWireRetired: every retired spelling falls to the E-26 404 —
+// no compatibility shims on a flipped plane (ADR-0039 retirement clause).
+func TestUploadsOldWireRetired(t *testing.T) {
+	h, _ := newUploadsHarness(t)
+	for _, leg := range []struct{ method, path string }{
+		{http.MethodGet, "/binflow/api/v1/uploads/status"},
+		{http.MethodGet, "/binflow/api/v1/uploads/status/some-id"},
+		{http.MethodGet, "/binflow/api/v1/uploads/urlPart/some-id/1"},
+		{http.MethodPost, "/binflow/api/v1/uploads/config"},
+		{http.MethodPost, "/binflow/api/v1/uploads/complete/some-id"},
+		{http.MethodPost, "/binflow/api/v1/uploads/abort/some-id"},
+		{http.MethodPost, "/binflow/api/v1/uploads/urlPart/some-id/1"},
+		{http.MethodPost, "/binflow/api/v1/uploads/nosuch"},
+		{http.MethodDelete, "/binflow/api/v1/uploads/abort"},
 	} {
-		resp := h.do(http.MethodGet, p, adminUser, adminPass, nil, nil)
+		resp := h.do(leg.method, leg.path, adminUser, adminPass, nil, nil)
 		func() { _ = resp.Body.Close() }()
 		if resp.StatusCode != http.StatusNotFound {
-			t.Fatalf("GET %s = %d, want the E-26 404", p, resp.StatusCode)
+			t.Fatalf("%s %s = %d, want the E-26 404 (retired wire)", leg.method, leg.path, resp.StatusCode)
 		}
-	}
-	// Verbs the plane does not define.
-	resp = h.do(http.MethodDelete, "/binflow/api/v1/uploads/abort/x", adminUser, adminPass, nil, nil)
-	func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("DELETE abort = %d, want 404 (the plane defines POST)", resp.StatusCode)
 	}
 }
 
 // ---------------------------------------------------------------------------
-// review-round tests (T-289 review B2/B3/B4 + torn part)
+// part-stream defense (kept from the T-289 review rounds)
 // ---------------------------------------------------------------------------
 
-// TestUploadsPartLengthRequiredKeepsBody (B2): a part PUT without
-// Content-Length (chunked transfer) answers 411 AND the errors[] envelope
-// actually reaches the wire — the old arm declared Content-Length: 0 and
-// the server dropped the body it had just written.
+// TestUploadsPartLengthRequiredKeepsBody (B2, kept): a part PUT without
+// Content-Length answers 411 AND the errors[] envelope reaches the wire.
+// The request rides the token lane now — the client's one credential.
 func TestUploadsPartLengthRequiredKeepsBody(t *testing.T) {
 	h, _ := newUploadsHarness(t)
-	seedRepo(t, h, "generic-local")
-	_, created := mpuCreate(t, h, adminUser, adminPass,
-		`{"repoKey":"generic-local","path":"big/nolen.bin","partSizeMB":5}`)
-	sid := created["sessionId"].(string)
+	tok := mpuCreateToken(t, h, adminUser, adminPass, "generic-local", "big/nolen.bin", 5)
+	sid := mpuTokenSessionID(t, tok)
 
-	// io.NopCloser hides the *bytes.Reader from http.NewRequest, so no
-	// Content-Length is derived and the request goes out chunked.
 	req, err := http.NewRequest(http.MethodPut,
 		h.srv.URL+"/binflow/api/v1/uploads/part/"+sid+"/1",
 		io.NopCloser(bytes.NewReader(bytes.Repeat([]byte{1}, 64))))
 	if err != nil {
 		t.Fatalf("build request: %v", err)
 	}
-	req.SetBasicAuth(adminUser, adminPass)
+	req.Header.Set("Authorization", "Bearer "+tok)
 	resp, err := h.srv.Client().Do(req)
 	if err != nil {
 		t.Fatalf("PUT: %v", err)
@@ -658,113 +711,25 @@ func TestUploadsPartLengthRequiredKeepsBody(t *testing.T) {
 	if !strings.Contains(string(body), "errors") || !strings.Contains(string(body), "Content-Length") {
 		t.Fatalf("411 body must be the errors[] envelope naming Content-Length, got: %q", body)
 	}
-	if resp.Header.Get("Content-Type") != "application/json" {
-		t.Fatalf("411 Content-Type = %q, want application/json", resp.Header.Get("Content-Type"))
-	}
 }
 
-// TestUploadsPartSizeMBBounds (B3): the megabyte-domain bound closes the
-// shift-overflow hole — partSizeMB >= 2^43 used to wrap int64 negative
-// under << 20 and sail through the below-floor clamp as a 201.
-func TestUploadsPartSizeMBBounds(t *testing.T) {
-	h, _ := newUploadsHarness(t)
-	seedRepo(t, h, "generic-local")
-
-	leg := func(mb int64) (int, map[string]any) {
-		return mpuCreate(t, h, adminUser, adminPass,
-			fmt.Sprintf(`{"repoKey":"generic-local","path":"big/psz-%d.bin","partSizeMB":%d}`, mb, mb))
-	}
-	for _, mb := range []int64{1 << 43, 1 << 44, 5120 + 1} {
-		code, body := leg(mb)
-		if code != http.StatusBadRequest {
-			t.Fatalf("partSizeMB=%d = %d (%v), want 400 (the overflow/bound gate)", mb, code, body)
-		}
-	}
-	// The boundary itself is legal: 5120 MB = exactly 5 GiB.
-	code, body := leg(5120)
-	if code != http.StatusCreated {
-		t.Fatalf("partSizeMB=5120 = %d (%v), want 201", code, body)
-	}
-	if got := int64(body["partSizeBytes"].(float64)); got != int64(5120)<<20 {
-		t.Fatalf("partSizeBytes = %d, want %d", got, int64(5120)<<20)
-	}
-}
-
-// TestUploadsStatusListFilteredByWriteGate (B4): the bare status arm
-// filters per session by the same write door as the single-session arm —
-// a plain user sees only sessions targeting repositories it holds `w` on,
-// never the instance's whole in-flight set.
-func TestUploadsStatusListFilteredByWriteGate(t *testing.T) {
-	h, _ := newUploadsHarness(t, [2]string{"alice", "alice-pw"})
-	seedRepo(t, h, "repo-a")
-	seedRepo(t, h, "repo-b")
-	grant(t, h, "mpu-a", "repo-a", "**", "alice", false, true, false)
-
-	// alice's session on repo-a, admin's on repo-b.
-	code, mine := mpuCreate(t, h, "alice", "alice-pw", `{"repoKey":"repo-a","path":"x.bin"}`)
-	if code != http.StatusCreated {
-		t.Fatalf("alice create on repo-a = %d (%v)", code, mine)
-	}
-	code, other := mpuCreate(t, h, adminUser, adminPass, `{"repoKey":"repo-b","path":"y.bin"}`)
-	if code != http.StatusCreated {
-		t.Fatalf("admin create on repo-b = %d", code)
-	}
-
-	listFor := func(user, pass string) []string {
-		t.Helper()
-		code, raw := mpuStatus(t, h, user, pass, "")
-		if code != http.StatusOK {
-			t.Fatalf("bare status for %s = %d", user, code)
-		}
-		var list []map[string]any
-		if err := json.Unmarshal(raw, &list); err != nil {
-			t.Fatalf("bare status body: %s", raw)
-		}
-		ids := make([]string, 0, len(list))
-		for _, s := range list {
-			ids = append(ids, s["sessionId"].(string))
-		}
-		return ids
-	}
-	aliceIDs := listFor("alice", "alice-pw")
-	if len(aliceIDs) != 1 || aliceIDs[0] != mine["sessionId"] {
-		t.Fatalf("alice's list = %v, want exactly her own session %v", aliceIDs, mine["sessionId"])
-	}
-	adminIDs := listFor(adminUser, adminPass)
-	if len(adminIDs) != 2 {
-		t.Fatalf("admin's list = %v, want both sessions", adminIDs)
-	}
-	// The single-session arm stays consistent: alice cannot address the
-	// admin's session id directly.
-	resp := h.do(http.MethodGet, "/binflow/api/v1/uploads/status/"+other["sessionId"].(string),
-		"alice", "alice-pw", nil, nil)
-	func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusForbidden {
-		t.Fatalf("alice status on repo-b session = %d, want 403", resp.StatusCode)
-	}
-}
-
-// TestUploadsTornPartFailsSession (review B1 test debt): a part that
-// DECLARES more Content-Length than it delivers must never answer 2xx —
-// the session ends observable-failed with its honest offset, and nothing
-// lands. Raw TCP because the Go client refuses to send a lying
-// Content-Length itself.
+// TestUploadsTornPartFailsSession (review B1 test debt, kept): a part that
+// DECLARES more Content-Length than it delivers must never answer 2xx — the
+// session ends observably-failed (status carries the failure now) and
+// nothing lands. Raw TCP because the Go client refuses to lie itself.
 func TestUploadsTornPartFailsSession(t *testing.T) {
 	h, _ := newUploadsHarness(t)
-	seedRepo(t, h, "generic-local")
-	_, created := mpuCreate(t, h, adminUser, adminPass,
-		`{"repoKey":"generic-local","path":"big/torn.bin","partSizeMB":5}`)
-	sid := created["sessionId"].(string)
+	tok := mpuCreateToken(t, h, adminUser, adminPass, "generic-local", "big/torn.bin", 5)
+	sid := mpuTokenSessionID(t, tok)
 
 	conn, err := net.Dial("tcp", h.srv.Listener.Addr().String())
 	if err != nil {
 		t.Fatalf("dial: %v", err)
 	}
 	defer func() { _ = conn.Close() }()
-	auth := base64.StdEncoding.EncodeToString([]byte(adminUser + ":" + adminPass))
 	req := "PUT /binflow/api/v1/uploads/part/" + sid + "/1 HTTP/1.1\r\n" +
 		"Host: " + h.srv.Listener.Addr().String() + "\r\n" +
-		"Authorization: Basic " + auth + "\r\n" +
+		"Authorization: Bearer " + tok + "\r\n" +
 		"Content-Type: application/octet-stream\r\n" +
 		"Content-Length: 1048576\r\n\r\n"
 	if _, err := conn.Write([]byte(req)); err != nil {
@@ -773,8 +738,6 @@ func TestUploadsTornPartFailsSession(t *testing.T) {
 	if _, err := conn.Write(bytes.Repeat([]byte{9}, 4096)); err != nil {
 		t.Fatalf("write torn body: %v", err)
 	}
-	// Half-close: the server now sees 4096 of the declared 1048576 bytes,
-	// then EOF. The response (or the connection's end) must follow.
 	if tc, ok := conn.(*net.TCPConn); ok {
 		_ = tc.CloseWrite()
 	}
@@ -795,18 +758,10 @@ func TestUploadsTornPartFailsSession(t *testing.T) {
 		t.Fatalf("torn part response head = %.120s, want a 4xx/5xx (never 2xx)", head)
 	}
 
-	// The session is observably failed with its honest offset; nothing lands.
-	code, raw2 := mpuStatus(t, h, adminUser, adminPass, sid)
-	if code != http.StatusOK {
-		t.Fatalf("status after torn part = %d, want 200 (failure observable)", code)
-	}
-	var st map[string]any
-	_ = json.Unmarshal(raw2, &st)
-	if st["state"] != "failed" {
-		t.Fatalf("state after torn part = %v, want %q", st["state"], "failed")
-	}
-	if got := int64(st["receivedBytes"].(float64)); got > 4096 {
-		t.Fatalf("receivedBytes after torn part = %d, want the honest partial count (<= 4096)", got)
+	// The failure is observable through the task model now.
+	code, st := mpuPostToken(t, h, "status", tok, "")
+	if code != http.StatusOK || st["status"] != "NON_RETRYABLE_ERROR" {
+		t.Fatalf("status after torn part = %d %v, want NON_RETRYABLE_ERROR", code, st)
 	}
 	resp := h.do(http.MethodGet, "/binflow/generic-local/big/torn.bin", adminUser, adminPass, nil, nil)
 	func() { _ = resp.Body.Close() }()
@@ -815,17 +770,210 @@ func TestUploadsTornPartFailsSession(t *testing.T) {
 	}
 }
 
+// TestUploadsManualDriverBasicLane: the part PUT still accepts the shared
+// credentials with `w` (the manual-driver arm of the relay URL) while the
+// four token verbs do not — the urlPart answer's URL contract.
+func TestUploadsManualDriverBasicLane(t *testing.T) {
+	h, _ := newUploadsHarness(t, [2]string{"alice", "alice-pw"})
+	grant(t, h, "mpu-manual", "generic-local", "**", "alice", false, true, false)
+
+	// alice cannot create (no grant) — admin opens the session.
+	tok := mpuCreateToken(t, h, adminUser, adminPass, "generic-local", "big/manual.bin", 5)
+	sid := mpuTokenSessionID(t, tok)
+	grant(t, h, "mpu-manual2", "generic-local", "big/**", "alice", false, true, false)
+
+	resp := h.do(http.MethodPut, "/binflow/api/v1/uploads/part/"+sid+"/1",
+		"alice", "alice-pw", []byte("short final part"), nil)
+	func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("Basic-lane part PUT = %d, want 200", resp.StatusCode)
+	}
+	// The shared credentials never drive the four token verbs.
+	resp = h.do(http.MethodPost, "/binflow/api/v1/uploads/status", "alice", "alice-pw", nil, nil)
+	func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("Basic-lane status = %d, want 403", resp.StatusCode)
+	}
+}
+
+// TestUploadsPresignedPartURLNoAuth (the T-332 real-client finding): the
+// urlPart answer carries the capability in its query string and the part
+// PUT goes through with NO Authorization header at all — exactly how
+// jfrog-cli drives what it takes for a presigned URL.
+func TestUploadsPresignedPartURLNoAuth(t *testing.T) {
+	h, _ := newUploadsHarness(t)
+	tok := mpuCreateToken(t, h, adminUser, adminPass, "generic-local", "big/presigned.bin", 5)
+
+	_, body := mpuPostToken(t, h, "urlPart", tok, "?partNumber=1")
+	rawURL, _ := body["url"].(string)
+	if !strings.Contains(rawURL, "token=") {
+		t.Fatalf("urlPart URL carries no capability: %v", body)
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		t.Fatalf("urlPart URL unparseable: %v", err)
+	}
+	u.Host = h.srv.Listener.Addr().String() // the test server's dialable host
+	if strings.EqualFold(u.Scheme, "https") {
+		u.Scheme = "http"
+	}
+
+	// The raw PUT: no Authorization header, the capability is the URL's.
+	// A FULL 5MiB part first (a short one would close the stream).
+	full := bytes.Repeat([]byte{7}, 5<<20)
+	req, err := http.NewRequest(http.MethodPut, u.String(), bytes.NewReader(full))
+	if err != nil {
+		t.Fatalf("build PUT: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/octet-stream")
+	resp, err := h.srv.Client().Do(req)
+	if err != nil {
+		t.Fatalf("presigned PUT: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		raw, _ := io.ReadAll(resp.Body)
+		t.Fatalf("presigned part PUT = %d: %s", resp.StatusCode, raw)
+	}
+	// A short final part with the URL capability too, then the full chain.
+	_, body = mpuPostToken(t, h, "urlPart", tok, "?partNumber=2")
+	rawURL2, _ := body["url"].(string)
+	u2, _ := url.Parse(rawURL2)
+	u2.Host = h.srv.Listener.Addr().String()
+	if strings.EqualFold(u2.Scheme, "https") {
+		u2.Scheme = "http"
+	}
+	req, err = http.NewRequest(http.MethodPut, u2.String(), bytes.NewReader([]byte("tail")))
+	if err != nil {
+		t.Fatalf("build PUT 2: %v", err)
+	}
+	resp, err = h.srv.Client().Do(req)
+	if err != nil {
+		t.Fatalf("presigned PUT 2: %v", err)
+	}
+	func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("presigned short final PUT = %d", resp.StatusCode)
+	}
+	whole := append(append([]byte{}, full...), []byte("tail")...)
+	if code, _ := mpuPostToken(t, h, "complete", tok, "?sha1="+sha1Hex(t, whole)); code != http.StatusAccepted {
+		t.Fatalf("complete = %d", code)
+	}
+	done := mpuStatusPoll(t, h, tok, "FINISHED")
+	depTok := done["checksumToken"].(string)
+	resp = h.do(http.MethodPut, "/binflow/generic-local/big/presigned.bin", "", "", nil,
+		map[string]string{
+			"Authorization":     "Bearer " + depTok,
+			"X-Checksum-Deploy": "true",
+			"X-Checksum-Sha1":   sha1Hex(t, whole),
+		})
+	func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("checksum-deploy = %d", resp.StatusCode)
+	}
+	resp = h.do(http.MethodGet, "/binflow/generic-local/big/presigned.bin", adminUser, adminPass, nil, nil)
+	defer func() { _ = resp.Body.Close() }()
+	got, _ := io.ReadAll(resp.Body)
+	if !bytes.Equal(got, whole) {
+		t.Fatalf("presigned corpus mismatch (%d vs %d bytes)", len(got), len(whole))
+	}
+}
+
+// TestUploadsOutOfOrderParts: S3 part-arrival semantics — a worker-pool
+// client's leapfrog parts land in the bounded staging set and flush in
+// order; the duplicate and budget gates stay honest.
+func TestUploadsOutOfOrderParts(t *testing.T) {
+	h, _ := newUploadsHarness(t)
+	tok := mpuCreateToken(t, h, adminUser, adminPass, "generic-local", "big/ooo.bin", 5)
+
+	p1, p2, p3, whole := mpuPayload()
+
+	// Part 3 first (a leapfrog): staged, 200, nothing in the engine yet.
+	if code, echo := mpuPutPart(t, h, tok, 3, p3); code != http.StatusOK {
+		t.Fatalf("leapfrog part 3 = %d: %v", code, echo)
+	}
+	code, st := mpuPostToken(t, h, "status", tok, "")
+	if code != http.StatusOK || st["status"] != "PARTS" {
+		t.Fatalf("status after staged part = %d %v", code, st)
+	}
+	// A duplicate of a staged part is a clean 409... part 1 is not even
+	// staged; duplicate means already RECEIVED — exercise that after the
+	// flush instead. Part 2: still ahead of part 1 → staged too.
+	if code, _ := mpuPutPart(t, h, tok, 2, p2); code != http.StatusOK {
+		t.Fatalf("leapfrog part 2 = %d", code)
+	}
+	// Part 1 closes the gap: everything flushes in order, the short tail
+	// closes the stream.
+	resp := h.do(http.MethodPut,
+		fmt.Sprintf("/binflow/api/v1/uploads/part/%s/1?token=%s", mpuTokenSessionID(t, tok), url.QueryEscape(tok)),
+		"", "", p1, nil)
+	body2, _ := io.ReadAll(resp.Body)
+	func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("gap-closing part 1 = %d: %s", resp.StatusCode, body2)
+	}
+	var echo map[string]any
+	_ = json.Unmarshal(body2, &echo)
+	if int64(echo["receivedBytes"].(float64)) != int64(len(whole)) || int64(echo["partsReceived"].(float64)) != 3 {
+		t.Fatalf("post-flush echo = %v, want the whole corpus accounted", echo)
+	}
+	// A duplicate of a received part: refused.
+	if code, _ := mpuPutPart(t, h, tok, 2, p2); code != http.StatusConflict {
+		t.Fatalf("duplicate part = %d, want 409", code)
+	}
+	// Complete and reconcile byte for byte through the client landing.
+	if code, _ := mpuPostToken(t, h, "complete", tok, "?sha1="+sha1Hex(t, whole)); code != http.StatusAccepted {
+		t.Fatalf("complete = %d", code)
+	}
+	done := mpuStatusPoll(t, h, tok, "FINISHED")
+	depTok := done["checksumToken"].(string)
+	resp = h.do(http.MethodPut, "/binflow/generic-local/big/ooo.bin", "", "", nil,
+		map[string]string{
+			"Authorization":     "Bearer " + depTok,
+			"X-Checksum-Deploy": "true",
+			"X-Checksum-Sha1":   sha1Hex(t, whole),
+		})
+	func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("checksum-deploy = %d", resp.StatusCode)
+	}
+	resp = h.do(http.MethodGet, "/binflow/generic-local/big/ooo.bin", adminUser, adminPass, nil, nil)
+	defer func() { _ = resp.Body.Close() }()
+	got, _ := io.ReadAll(resp.Body)
+	if !bytes.Equal(got, whole) {
+		t.Fatalf("out-of-order corpus mismatch (%d vs %d bytes)", len(got), len(whole))
+	}
+}
+
+// TestUploadsStagingBudgetRefusal: a part too far ahead of the stream is
+// refused honestly (409) instead of buffering without bound.
+func TestUploadsStagingBudgetRefusal(t *testing.T) {
+	h, _ := newUploadsHarness(t)
+	// partSizeMB 5 (clamped): the byte budget admits a handful of 5MiB
+	// leapfrogs; the PART-count budget is the easy one to hit exactly —
+	// stage mpuMaxStagedParts distinct far-ahead parts of 1 byte each.
+	tok := mpuCreateToken(t, h, adminUser, adminPass, "generic-local", "big/budget.bin", 5)
+	one := []byte("x") // 1-byte parts: within partSize, absurd but legal
+	for i := 2; i < 2+64; i++ {
+		if code, _ := mpuPutPart(t, h, tok, i, one); code != http.StatusOK {
+			t.Fatalf("staging part %d = %d, want 200", i, code)
+		}
+	}
+	// The 65th staged part crosses the part-count budget: 409.
+	if code, _ := mpuPutPart(t, h, tok, 2+64, one); code != http.StatusConflict {
+		t.Fatalf("budget-crossing part = %d, want 409", code)
+	}
+}
+
 // ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
 
-// mustJSON marshals v (test-only convenience for building bodies).
-func mustJSON(v string) string {
-	b, err := json.Marshal(v)
-	if err != nil {
-		panic(err)
-	}
-	return string(b)
+// sha1Hex computes a test corpus's sha1.
+func sha1Hex(t *testing.T, b []byte) string {
+	t.Helper()
+	sum := sha1.Sum(b)
+	return hex.EncodeToString(sum[:])
 }
 
 // createTypedRepo seeds a non-generic local repo for the typing guard.

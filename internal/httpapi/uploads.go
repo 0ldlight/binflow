@@ -1,66 +1,98 @@
 package httpapi
 
 import (
+	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
-	"sort"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/lzwzzy/binflow/internal/auth"
+	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/repo"
 	"github.com/lzwzzy/binflow/internal/storage"
 )
 
-// The multipart-upload REST plane (M10 T-289, FR-90.1 / architecture
-// section 15.4 — the inv-4 L3 endpoint set's BinFlow carrier). Six
-// endpoints under /binflow/api/v1/uploads:
+// The multipart-upload REST plane (M10 T-289 as-built, wire flipped whole in
+// M11 T-332 / ADR-0039 to the Artifactory shape — user ruling 2026-08-28
+// item 2, evidence anchored in T-304 section 4.2). Six endpoints under
+// /binflow/api/v1/uploads, every verb POST except the config probe:
 //
-//	POST   /api/v1/uploads/create               open a session
-//	POST   /api/v1/uploads/config               re-part a byte-less session
-//	GET    /api/v1/uploads/urlPart/{id}/{n}     the part-n upload URL
-//	GET    /api/v1/uploads/status[/{id}]        one session / the list form
-//	POST   /api/v1/uploads/complete/{id}        checksum-gated node landing
-//	POST   /api/v1/uploads/abort/{id}           discard
-//	PUT    /api/v1/uploads/part/{id}/{n}        the urlPart target
+//	POST /api/v1/uploads/create?repoKey=&repoPath=&partSizeMB=  open a session
+//	GET  /api/v1/uploads/config                                 capability probe
+//	POST /api/v1/uploads/urlPart?partNumber=N                   the part-n upload URL
+//	POST /api/v1/uploads/status                                 the finish task's progress
+//	POST /api/v1/uploads/complete?sha1=                         checksum-gated assembly (202)
+//	POST /api/v1/uploads/abort                                  discard
+//	PUT  /api/v1/uploads/part/{id}/{n}                          the urlPart target
 //
-// The plane reuses the storage Session face verbatim (the section 15.4
-// ruling: BeginSession-family -> Append per part -> Commit at complete,
-// zero storage-kernel changes): every part PUT streams through
-// Session.Append — BinFlow relays the bytes into the S3 multipart upload,
-// so the client never needs S3 credentials, the bucket endpoint stays
-// private, and the checksum chain (sha256/sha1/md5) is computed server-side
-// exactly as on every other upload path. The "part URL" the urlPart verb
-// hands out is therefore a BinFlow URL whose capability is the session id
-// (the section 5.3.1 contract-4 semantics: an unguessable uuid; the
-// authorization door stays the target repository's `w`, checked per
-// request).
+// The engine seam is UNCHANGED from the T-323R posture (the flip is wire,
+// not kernel): BeginMultipartSessionContext -> Append per part -> Commit at
+// complete. Every part PUT still streams through Session.Append — BinFlow
+// relays the bytes into the S3 multipart upload, so the client never needs
+// S3 credentials and the checksum chain (sha256/sha1/md5) is computed
+// server-side exactly as on every other upload path.
 //
-// Backend honesty (FR-90-AC3): the plane exists only where the engine
-// carries storage.MultipartUploads — a pure-S3 assembly. A filestore (or
-// dual-write) instance wires no seam and EVERY endpoint answers the plain
-// -text 501 below, never a 404 masquerading as "no such route": a client
-// can tell "absent on this backend" from "not a BinFlow endpoint".
+// The session token (ADR-0039 mapping 1): Artifactory hands create's caller
+// an Access JWT whose extension carries the upload coordinates and whose
+// scope (internal:mpu:x) is the only credential the five per-session verbs
+// accept. BinFlow does not extend internal/auth for this, so the token is a
+// self-resolving capability — "<32 random bytes hex>.<session id>" — whose
+// sha256(random half) and expiry ride the engine's own persisted row inside
+// the T-323R caller blob. A token-authenticated verb resolves the id from
+// the token, re-materializes the session through ResumeSessionContext on a
+// registry miss (restart resume survives the flip) and proves possession by
+// the constant-time hash comparison; the authorization moment stays create
+// (authenticated principal + the target repository's `w`), the
+// possession-thereafter posture Artifactory's resource methods themselves
+// keep (no per-verb canDeploy check in the reverse-engineered class).
 //
-// Restart visibility (T-323R, closing the T-323 intersection register): the
-// plane's sessions survive a restart wherever the seam carries
-// storage.MultipartUploadContexts. The create verb then persists the
-// plane's protocol coordinates (repoKey/path/mime/part size/creator) as an
-// opaque blob inside the engine's own upload_sessions row, and a registry
-// miss on any per-session verb re-materializes the session through
-// ResumeSessionContext — the docker adapter's T-216 lazy-rebuild posture
-// (kill -9 and graceful SIGTERM both leave the row and the server-side
-// multipart state behind, ADR-0028). Sessions opened before the context
-// pair (or by another upload plane) carry no blob and keep the plain 404.
-// The bare status LIST stays a view of what THIS process knows: a
-// restarted session appears there only after one of its verbs has addressed
-// it. The S3-side residue of an abandoned session is reclaimed by the
-// engine's startup + maintenance sweeps (T-203 D-6, T-324) plus the idle
+// The complete verb is asynchronous on the wire (202): a finish task runs
+// the synchronous engine Commit in a background goroutine and records the
+// task state machine PARTS -> PROCESSING -> FINISHED (progress 100, the
+// checksum-deploy token minted) / NON_RETRYABLE_ERROR (error) — the
+// jfrog-client-go completionStatus vocabulary, verified against the real
+// client. The artifact NODE is landed by the CLIENT: the FINISHED status
+// carries a short-lived checksum-deploy token with which the client
+// performs the zero-transfer X-Checksum-Deploy PUT on the content plane —
+// the Artifactory flow, and the reason the checksum token exists at all.
+// A blob the client never deploys is an unreferenced blob the GC's
+// two-phase reclaim takes.
+//
+// The part PUT (the urlPart target) is S3-PutObject-shaped because that is
+// what the real client drives: the URL carries the capability in its query
+// string (protocol clients send NO Authorization header on it at all),
+// parts arrive through a worker pool in ANY order (the plane absorbs the
+// reordering with a bounded staging set, streaming the in-order fast path
+// straight into the engine), and the answer is 200 — the client treats any
+// other 2xx (202 included) as a part failure to retry away.
+//
+// Backend honesty (FR-90-AC3, unchanged): the five data endpoints exist
+// only where the engine carries storage.MultipartUploads — a filestore (or
+// dual-write) instance answers the plain-text 501, never a 404 masquerading
+// as "no such route". The config probe is the exception by design: it
+// answers 200 {"supported": false} — a probe that could not report "no"
+// would be no probe.
+//
+// Crash windows (documented in ADR-0039 consequence 4): a kill -9 during
+// part upload is the T-323R scenario — the row and the flushed parts
+// survive, the token re-materializes the session on the restarted process.
+// A kill -9 between complete's 202 and the finish task's end loses only the
+// in-process task state: the row is unconsumed, status honestly reports
+// PARTS again, and the client remedy is to re-issue complete (parts are
+// durable; Commit dedups). The S3-side residue of an abandoned session is
+// reclaimed by the engine's startup + maintenance sweeps plus the idle
 // sweep here.
 
 // mpuEndpointBase is the route prefix of the plane (under /binflow/api).
@@ -79,34 +111,97 @@ const (
 	mpuMaxSessionPath = 512             // adapter.MaxRelPathLen, restated to keep httpapi leaf-ward imports as-is
 )
 
-// Session lifecycle states of the wire body.
+// Token lifetimes, mirroring Artifactory's ConstantValues defaults
+// (multipart.upload.token.expiry.secs = 2 days,
+// multipart.checksum.deploy.token.expiry.secs = 5 minutes) — ADR-0039.
+const (
+	mpuTokenTTL          = 48 * time.Hour
+	mpuChecksumTokenTTL  = 5 * time.Minute
+	mpuTokenSecretBytes  = 32 // the unguessable half of the capability token
+	mpuTokenSecretHexLen = mpuTokenSecretBytes * 2
+	// mpuCLIMinVersion is the jfrog-cli-go version gate the config probe
+	// applies (multipart.jfrog.cli.min.required.version). Below it the
+	// probe answers supported:false so old clients fall back to monolithic
+	// PUTs instead of driving a wire they mishandle.
+	mpuCLIMinVersion = "2.62.2"
+	mpuCLIPrefix     = "jfrog-cli-go/"
+)
+
+// Out-of-order part staging bounds (the S3 part-arrival semantics emulated
+// over the engine's ordered Append stream, T-332 real-client finding):
+// jfrog-cli uploads parts through a worker pool (--split-count, default 5),
+// so part N+1 routinely arrives before part N. The plane absorbs the
+// reordering with a BOUNDED in-memory staging set — the S3 posture a
+// presigned-part client expects — while the in-order fast path keeps
+// streaming straight into Session.Append (memory independent of part size).
+// Beyond the bounds the plane refuses the leapfrog honestly (409): the
+// client remedy is a smaller split count, and the memory ceiling stays
+// independent of the artifact size.
+const (
+	mpuMaxStagedParts = 64
+	mpuMaxStagedBytes = 128 << 20
+)
+
+// Session lifecycle states of the engine-backed session (the part stream).
 const (
 	mpuStateActive   = "active"            // accepting parts
 	mpuStateFinal    = "awaiting-complete" // a short (last) part was accepted
 	mpuStateFailed   = "failed"            // append/commit broke; abort to reclaim
-	mpuStateComplete = "completed"         // landed as a node (echo bodies only)
+	mpuStateComplete = "completed"         // assembly succeeded (echo bodies only)
+)
+
+// Finish-task states of the wire's async model (complete -> status). The
+// vocabulary is ANCHORED on jfrog-client-go's public completionStatus set
+// (the real client's own parse table — T-332 real-client verification):
+// PARTS = parts still arriving (the client never polls there), PROCESSING
+// = the merge is running (the client keeps polling), FINISHED = terminal
+// success (progress 100 + the checksum-deploy token), NON_RETRYABLE_ERROR
+// = fatal (the client aborts the whole upload). The client's remaining
+// spellings — QUEUED, RETRYABLE_ERROR, ABORTED — are not emitted by this
+// plane: the finish task starts immediately (no queue), its failures are
+// never safely re-runnable (the engine session is consumed either way),
+// and an aborted session stops resolving (the plain 404). progress is a
+// PERCENT, not a byte count.
+const (
+	mpuTaskNone       = ""
+	mpuTaskParts      = "PARTS"
+	mpuTaskProcessing = "PROCESSING"
+	mpuTaskFinished   = "FINISHED"
+	mpuTaskFailed     = "NON_RETRYABLE_ERROR"
 )
 
 // mpuSession is one REST-plane upload session: the engine session plus the
-// protocol state this plane owns (part accounting, target coordinates,
-// timestamps). Every field is guarded by mu, and mu serializes the WHOLE
-// per-session operation (alignment check + Append + bookkeeping), the
-// docker liveUpload review-B1 posture: two concurrent part PUTs cannot
-// both pass the ordering gate against a stale counter.
+// protocol state this plane owns (part accounting, target coordinates, the
+// capability-token binding, the finish task). Every field is guarded by mu,
+// and mu serializes the WHOLE per-session operation (alignment check +
+// Append + bookkeeping), the docker liveUpload review-B1 posture: two
+// concurrent part PUTs cannot both pass the ordering gate against a stale
+// counter.
 type mpuSession struct {
 	mu        sync.Mutex
-	id        string // the REST session id (the engine session id at create)
+	id        string // the engine session id (the token's public half)
 	sess      storage.Session
 	repoKey   string
 	path      string
 	mime      string
 	partSize  int64
-	received  int64 // mirror; the authority is sess.Offset()
-	parts     int   // parts accepted so far
+	received  int64          // mirror; the authority is sess.Offset()
+	parts     int            // parts accepted so far
+	staged    map[int][]byte // out-of-order arrivals awaiting their turn (bounded)
+	stagedBy  int64          // total staged bytes
 	state     string
 	createdBy string
 	createdAt time.Time
 	updatedAt time.Time
+	// Capability binding (T-332): sha256 of the token's random half plus
+	// its expiry, persisted in the caller blob and re-proved on every
+	// token-authenticated verb.
+	tokenSHA256 string
+	tokenExpiry time.Time // zero = no expiry recorded (fail closed on use)
+	// Finish task (complete's async half).
+	taskState string
+	taskErr   string
+	taskToken string // the checksum-deploy token handed out at Finished
 }
 
 // mpuRegistry is the process-wide session table: id -> session. The table
@@ -114,8 +209,10 @@ type mpuSession struct {
 // resumeFromStore lazily re-materializes the session from the engine's
 // persisted row — the coordinates the create verb persisted plus the
 // server-side multipart state — which is what makes an in-flight upload
-// visible across a restart. Entries leave through complete, abort or the
-// idle sweep, and the engine's startup + maintenance sweeps remain the
+// visible across a restart. Entries leave through abort or the idle sweep
+// (complete KEEPS the entry: the finish task's state must stay observable
+// through status until the sweep reclaims it, the Artifactory task-record
+// posture), and the engine's startup + maintenance sweeps remain the
 // crash-window backstop for whatever the process lost.
 type mpuRegistry struct {
 	mu   sync.Mutex
@@ -163,14 +260,12 @@ func (r *mpuRegistry) startSweep() {
 //
 // Lock order (B1, T-289 review): the registry lock is NEVER held across a
 // session lock, and no session lock is ever held while taking the registry
-// lock — the two orders this sweep used to mix were a whole-plane deadlock
-// (config's failure arm) and a sweep that stalled every lookup/add/remove
-// for the length of one long Append. The sweep therefore only SNAPSHOTS
-// pointers under r.mu, then re-checks idleness under each session's own
-// lock: a session touched since the snapshot (or mid-terminal-verb) has a
-// fresh updatedAt and survives; an already-removed id's delete is a no-op.
-// Abort of an already-finalized session is a storage-contract no-op, so a
-// race with a legitimate complete can never destroy live state either.
+// lock. The sweep therefore only SNAPSHOTS pointers under r.mu, then
+// re-checks idleness under each session's own lock: a session touched since
+// the snapshot (or mid-terminal-verb) has a fresh updatedAt and survives;
+// an already-removed id's delete is a no-op. Abort of an already-finalized
+// session is a storage-contract no-op, so a race with a legitimate finish
+// can never destroy live state either.
 func (r *mpuRegistry) evictIdle(now time.Time) []string {
 	r.mu.Lock()
 	candidates := make([]*mpuSession, 0, len(r.byID))
@@ -286,35 +381,26 @@ func (r *mpuRegistry) resumeFromStore(ctx context.Context, seam storage.Multipar
 	return att.sess, att.err
 }
 
-// snapshot lists every live session sorted by session id (deterministic
-// wire order for the bare status arm — id order, not age: age is not a
-// claim this table makes).
-func (r *mpuRegistry) snapshot() []*mpuSession {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	out := make([]*mpuSession, 0, len(r.byID))
-	for _, s := range r.byID {
-		out = append(out, s)
-	}
-	sort.SliceStable(out, func(i, j int) bool { return out[i].id < out[j].id })
-	return out
-}
+// ---- persisted plane state (T-323R, v2 in T-332) ----
 
-// ---- persisted plane state (T-323R) ----
-
-// mpuCallerStateVersion pins the persisted coordinate blob's shape.
-const mpuCallerStateVersion = 1
+// mpuCallerStateVersion pins the persisted coordinate blob's shape. v2 adds
+// the capability-token binding (ADR-0039): v1 rows — opened by the pre-flip
+// wire — carry no binding and fail closed under the token-addressed verbs
+// (the retirement path: an in-flight session at upgrade time dies and the
+// client re-uploads).
+const mpuCallerStateVersion = 2
 
 // mpuCallerState is the protocol coordinate blob the create verb persists
 // inside the engine's upload_sessions row (opaque to the engine, verbatim
 // both ways) — the facts this plane owns that no engine state carries:
-// where a completed blob lands (repoKey/path), its mime, the resolved part
-// size the part-alignment contract judges against, and the echo telemetry
-// (createdBy/createdAt). The part ACCOUNTING is deliberately absent: parts
-// and the awaiting-complete state derive from the engine session's
-// authoritative Offset against the persisted part size (every non-final
-// part is exactly partSize; a short part closes the stream), so the row
-// can never disagree with the bytes.
+// where a completed blob's client deploy lands (repoKey/path), the resolved
+// part size the part-alignment contract judges against, the echo telemetry
+// (createdBy/createdAt) and, since T-332, the session token's sha256 half
+// and expiry. The part ACCOUNTING is deliberately absent: parts and the
+// awaiting-complete state derive from the engine session's authoritative
+// Offset against the persisted part size (every non-final part is exactly
+// partSize; a short part closes the stream), so the row can never disagree
+// with the bytes.
 type mpuCallerState struct {
 	Version   int    `json:"version"`
 	RepoKey   string `json:"repoKey"`
@@ -323,6 +409,10 @@ type mpuCallerState struct {
 	PartSize  int64  `json:"partSizeBytes"`
 	CreatedBy string `json:"createdBy,omitempty"`
 	CreatedAt string `json:"createdAt"` // RFC3339 UTC
+	// T-332 (v2): sha256 of the capability token's random half plus its
+	// expiry — what a restarted process re-proves possession against.
+	TokenSHA256 string `json:"tokenSha256"`
+	TokenExpiry string `json:"tokenExpiry"` // RFC3339 UTC
 }
 
 // mpuSessionFromStore rebuilds the plane's session view from the engine
@@ -331,8 +421,9 @@ type mpuCallerState struct {
 // back verbatim, and the idle clock restarts at the resume (the docker
 // T-216 posture — the anchor for a session this process only just
 // re-materialized). A blob this plane cannot use (wrong shape, missing
-// coordinates) fails closed with storage.ErrSessionNotFound: the session is
-// not resumable through THIS plane, whatever the engine could rebuild.
+// coordinates, missing the v2 token binding) fails closed with
+// storage.ErrSessionNotFound: the session is not drivable through THIS
+// plane's token verbs, whatever the engine could rebuild.
 func mpuSessionFromStore(id string, sess storage.Session, caller []byte) (*mpuSession, error) {
 	notFound := func(why string) error {
 		return fmt.Errorf("httpapi: mpu session %s: %w: %s", id, storage.ErrSessionNotFound, why)
@@ -344,24 +435,36 @@ func mpuSessionFromStore(id string, sess storage.Session, caller []byte) (*mpuSe
 	if cs.RepoKey == "" || cs.Path == "" || cs.PartSize <= 0 {
 		return nil, notFound("persisted plane state lacks its coordinates")
 	}
+	if cs.TokenSHA256 == "" {
+		// v1 rows (pre-T-332 wire) or foreign blobs: no token binding, no
+		// token verbs — the retirement posture, fail closed.
+		return nil, notFound("persisted plane state predates the session-token wire")
+	}
 	if cs.MimeType == "" {
 		cs.MimeType = "application/octet-stream" // the create's own default, belt for hand-seeded rows
+	}
+	tokenExpiry := time.Time{}
+	if t, err := time.Parse(time.RFC3339, cs.TokenExpiry); err == nil {
+		tokenExpiry = t
 	}
 	createdAt := time.Now().UTC()
 	if t, err := time.Parse(time.RFC3339, cs.CreatedAt); err == nil {
 		createdAt = t
 	}
 	ms := &mpuSession{
-		id:        id,
-		sess:      sess,
-		repoKey:   cs.RepoKey,
-		path:      cs.Path,
-		mime:      cs.MimeType,
-		partSize:  cs.PartSize,
-		state:     mpuStateActive,
-		createdBy: cs.CreatedBy,
-		createdAt: createdAt,
-		updatedAt: time.Now().UTC(),
+		id:          id,
+		sess:        sess,
+		repoKey:     cs.RepoKey,
+		path:        cs.Path,
+		mime:        cs.MimeType,
+		partSize:    cs.PartSize,
+		staged:      map[int][]byte{},
+		state:       mpuStateActive,
+		createdBy:   cs.CreatedBy,
+		createdAt:   createdAt,
+		updatedAt:   time.Now().UTC(),
+		tokenSHA256: cs.TokenSHA256,
+		tokenExpiry: tokenExpiry,
 	}
 	// The engine's offset is the resume authority: a restarted session
 	// resumes at the last FLUSHED part boundary (bytes that lived only in
@@ -379,31 +482,37 @@ func mpuSessionFromStore(id string, sess storage.Session, caller []byte) (*mpuSe
 	return ms, nil
 }
 
-// ---- wire shapes ----
+// ---- wire shapes (T-332, the Artifactory records) ----
 
-// mpuCreateRequest is the create/config body.
-type mpuCreateRequest struct {
-	RepoKey    string `json:"repoKey"`
-	Path       string `json:"path"`
-	PartSizeMB int64  `json:"partSizeMB"`
-	MimeType   string `json:"mimeType"`
+// mpuTokenBody is create's answer: CreateResponse(token).
+type mpuTokenBody struct {
+	Token string `json:"token"`
 }
 
-// mpuConfigRequest re-parts one session.
-type mpuConfigRequest struct {
-	SessionID  string `json:"sessionId"`
-	PartSizeMB int64  `json:"partSizeMB"`
+// mpuSupportedBody is config's answer: ConfigResponse(supported).
+type mpuSupportedBody struct {
+	Supported bool `json:"supported"`
 }
 
-// mpuCompleteRequest carries the checksums complete verifies.
-type mpuCompleteRequest struct {
-	Sha256 string `json:"sha256"`
-	Sha1   string `json:"sha1"`
-	Md5    string `json:"md5"`
+// mpuURLBody is urlPart's answer: UrlResponse(url).
+type mpuURLBody struct {
+	URL string `json:"url"`
 }
 
-// mpuSessionBody is the session echo (create/config/urlPart/status/part).
-type mpuSessionBody struct {
+// mpuStatusTaskBody is status's answer: StatusResponse(status, error,
+// progress, checksumToken) — all four keys always present, the nullable
+// ones as JSON null exactly where the record's constructors leave them.
+type mpuStatusTaskBody struct {
+	Status        string  `json:"status"`
+	Error         *string `json:"error"`
+	Progress      int     `json:"progress"`
+	ChecksumToken *string `json:"checksumToken"`
+}
+
+// mpuPartEcho is the part PUT's BinFlow echo (the relay target is BinFlow's
+// own URL contract, not one of the six Artifactory endpoints — a lean
+// session view for manual drivers; protocol clients check the 2xx).
+type mpuPartEcho struct {
 	SessionID     string `json:"sessionId"`
 	RepoKey       string `json:"repoKey"`
 	Path          string `json:"path"`
@@ -412,41 +521,11 @@ type mpuSessionBody struct {
 	ReceivedBytes int64  `json:"receivedBytes"`
 	PartsReceived int    `json:"partsReceived"`
 	NextPart      int    `json:"nextPartNumber"`
-	CreatedBy     string `json:"createdBy,omitempty"`
-	CreatedAt     string `json:"createdAt,omitempty"`
-	UpdatedAt     string `json:"updatedAt,omitempty"`
-	// URL family: filled on create/config/urlPart (the caller is bootstrapping
-	// its part loop); the status echoes stay lean.
-	URLPartURI  string `json:"urlPartUri,omitempty"`
-	PartURI     string `json:"partUploadUri,omitempty"`
-	StatusURI   string `json:"statusUri,omitempty"`
-	CompleteURI string `json:"completeUri,omitempty"`
-	AbortURI    string `json:"abortUri,omitempty"`
 }
 
-// mpuPartURLBody is the urlPart answer.
-type mpuPartURLBody struct {
-	SessionID   string `json:"sessionId"`
-	PartNumber  int    `json:"partNumber"`
-	OffsetBytes int64  `json:"offsetBytes"`
-	URL         string `json:"url"`
-}
-
-// mpuCompleteBody is the complete answer.
-type mpuCompleteBody struct {
-	SessionID   string          `json:"sessionId"`
-	RepoKey     string          `json:"repoKey"`
-	Path        string          `json:"path"`
-	State       string          `json:"state"`
-	Size        int64           `json:"size"`
-	DownloadURI string          `json:"downloadUri"`
-	Checksums   *checksumTriple `json:"checksums"`
-}
-
-// bodyOf renders one session's echo. urls controls the URL family (create,
-// config and urlPart carry them; status stays lean).
-func (s *mpuSession) bodyOf(r *http.Request, urls bool) mpuSessionBody {
-	b := mpuSessionBody{
+// bodyOf renders the lean session echo for the part PUT.
+func (s *mpuSession) bodyOf() mpuPartEcho {
+	return mpuPartEcho{
 		SessionID:     s.id,
 		RepoKey:       s.repoKey,
 		Path:          s.path,
@@ -455,19 +534,66 @@ func (s *mpuSession) bodyOf(r *http.Request, urls bool) mpuSessionBody {
 		ReceivedBytes: s.received,
 		PartsReceived: s.parts,
 		NextPart:      s.parts + 1,
-		CreatedBy:     s.createdBy,
-		CreatedAt:     s.createdAt.UTC().Format(time.RFC3339),
-		UpdatedAt:     s.updatedAt.UTC().Format(time.RFC3339),
 	}
-	if urls {
-		base := requestBase(r) + mpuEndpointBase
-		b.URLPartURI = fmt.Sprintf("%s/urlPart/%s/{partNumber}", base, s.id)
-		b.PartURI = fmt.Sprintf("%s/part/%s/{partNumber}", base, s.id)
-		b.StatusURI = base + "/status/" + s.id
-		b.CompleteURI = base + "/complete/" + s.id
-		b.AbortURI = base + "/abort/" + s.id
+}
+
+// ---- the capability token ----
+
+// mpuBearerValue extracts the Authorization: Bearer value (scheme
+// case-insensitive per RFC 7235); empty when the header carries another
+// scheme or is absent.
+func mpuBearerValue(r *http.Request) string {
+	h := r.Header.Get("Authorization")
+	if h == "" {
+		return ""
 	}
-	return b
+	scheme, rest, found := strings.Cut(h, " ")
+	if !found || !strings.EqualFold(scheme, "Bearer") {
+		return ""
+	}
+	return strings.TrimSpace(rest)
+}
+
+// parseMPUToken splits a presented credential into (secret, sessionID) when
+// it carries this plane's capability shape "<64 lowercase hex>.<id>". A
+// credential without the shape is not this plane's token — the caller falls
+// back to the shared middleware verdict.
+func parseMPUToken(tok string) (secret, sid string, ok bool) {
+	i := strings.LastIndex(tok, ".")
+	if i <= 0 || i+1 >= len(tok) {
+		return "", "", false
+	}
+	secret, sid = tok[:i], tok[i+1:]
+	if len(secret) != mpuTokenSecretHexLen || !isHexLower(secret) {
+		return "", "", false
+	}
+	if sid == "" || len(sid) > 128 || strings.ContainsAny(sid, "/%#?") {
+		return "", "", false
+	}
+	return secret, sid, true
+}
+
+// newMPUTokenSecret draws the unguessable half (crypto/rand, the tokenBytes
+// posture of internal/auth: 256 bits, no dictionary surface) and returns it
+// with its sha256 — the value the caller blob persists.
+func newMPUTokenSecret() (secret, secretSHA string, err error) {
+	buf := make([]byte, mpuTokenSecretBytes)
+	if _, err := rand.Read(buf); err != nil {
+		return "", "", fmt.Errorf("httpapi: mpu token entropy: %w", err)
+	}
+	secret = hex.EncodeToString(buf)
+	sum := sha256.Sum256([]byte(secret))
+	return secret, hex.EncodeToString(sum[:]), nil
+}
+
+// mpuTokenIssuer is the auth.Service facet create's finish task mints the
+// checksum-deploy token through (ADR-0039 mapping 2): a REAL API token the
+// shared middleware verifies, so the client's X-Checksum-Deploy PUT — an
+// ordinary content-plane request — authenticates with it. A deps.Auth
+// without the facet leaves the Finished body's checksumToken null (logged);
+// every production wiring carries *auth.Service.
+type mpuTokenIssuer interface {
+	Issue(ctx context.Context, username string, ttl time.Duration) (*auth.IssuedToken, error)
 }
 
 // ---- shared gates ----
@@ -530,52 +656,80 @@ func mpuUploadsPathError(path string) string {
 	return ""
 }
 
-// uploadsWriteGate is the plane's per-request door: the target repository
-// path's `w` through the same Authorizer the content plane consults
-// (section 15.4: "required + 目标仓 w"). Checked on create against the
-// body coordinates and on every per-session verb against the session's —
-// the id is a capability, not an authorization.
+// uploadsWriteGate is create's authorization door: the target repository
+// path's `w` through the same Authorizer the content plane consults. Under
+// the T-332 wire this is THE per-upload check — the per-session verbs ride
+// the capability (Artifactory's own posture: canDeploy at generateToken,
+// scope-thereafter).
 func (s *Server) uploadsWriteGate(r *http.Request, repoKey, path string) bool {
 	p := principalFrom(r.Context())
 	return s.deps.Authz.Can(r.Context(), p, repoKey, path, auth.ActionWrite)
 }
 
-// resolveMPUSession is the per-session verbs' shared entry: backend gate,
-// registry lookup, the lazy rebuild a restart miss triggers, write door.
-// Failures render here and return ok=false.
-func (s *Server) resolveMPUSession(w http.ResponseWriter, r *http.Request, id string) (*mpuSession, bool) {
-	if s.deps.Uploads == nil {
-		writeUploadsUnavailable(w)
-		return nil, false
+// mpuForbiddenDeploy is Artifactory's create-refusal shape: unknown repo,
+// remote repo, wrong role or no `w` all land here (ForbiddenException's
+// exact message, MultipartUploadServiceImpl.generateToken).
+const mpuForbiddenDeploy = "The user is not allowed to deploy to this location"
+
+// mpuVirtualDefault extracts a virtual repository's defaultDeploymentRepo
+// from its config blob (repo-semantics section 8.2 spelling; empty when the
+// virtual does not carry one — the caller keeps the virtual key and the
+// failure stays late, exactly Artifactory's getRepoPath behavior).
+func mpuVirtualDefault(row *metadata.Repo) string {
+	if row.Type != repo.TypeVirtual || row.Config == "" {
+		return ""
 	}
-	if id == "" {
-		writeError(w, http.StatusNotFound, "upload session not found")
-		return nil, false
+	var cfg struct {
+		DefaultDeploymentRepo    string `json:"defaultDeploymentRepo"`
+		DefaultDeploymentRepoRef string `json:"defaultDeploymentRepoRef"`
 	}
-	sess, ok := s.uploads.lookup(id)
-	if !ok {
-		var err error
-		sess, err = s.resumeMPUSession(w, r, id)
-		if err != nil {
-			return nil, false
+	if err := json.Unmarshal([]byte(row.Config), &cfg); err != nil {
+		return ""
+	}
+	if cfg.DefaultDeploymentRepo != "" {
+		return cfg.DefaultDeploymentRepo
+	}
+	return cfg.DefaultDeploymentRepoRef
+}
+
+// resolveMPUTargetRepo maps the create coordinates onto the repository the
+// session (and the write gate) address: a virtual with a
+// defaultDeploymentRepo resolves to that member; everything else keeps the
+// requested key. ok=false renders the refusal and returns the Artifactory
+// 403 (unknown repo, remote repo, member lookup failure).
+func (s *Server) resolveMPUTargetRepo(w http.ResponseWriter, r *http.Request, repoKey string) (string, bool) {
+	row, err := s.deps.Repos.Get(r.Context(), repoKey)
+	if err != nil {
+		// Artifactory's generateToken: repoExists false falls through to the
+		// same ForbiddenException as a permission refusal — an unknown repo
+		// is not a distinguished 404 on this endpoint.
+		s.log.DebugContext(r.Context(), "httpapi: mpu create on unknown repository", "repo", repoKey)
+		writeError(w, http.StatusForbidden, mpuForbiddenDeploy)
+		return "", false
+	}
+	if row.Type == repo.TypeRemote {
+		writeError(w, http.StatusForbidden, mpuForbiddenDeploy)
+		return "", false
+	}
+	if def := mpuVirtualDefault(row); def != "" && def != repoKey {
+		mrow, merr := s.deps.Repos.Get(r.Context(), def)
+		if merr != nil || mrow.Type != repo.TypeLocal {
+			writeError(w, http.StatusForbidden, mpuForbiddenDeploy)
+			return "", false
 		}
+		return def, true
 	}
-	if !s.uploadsWriteGate(r, sess.repoKey, sess.path) {
-		writeError(w, http.StatusForbidden,
-			"permission denied: multipart uploads require write access on the target path")
-		return nil, false
-	}
-	return sess, true
+	return repoKey, true
 }
 
 // resumeMPUSession is the restart-visibility lane's server half (T-323R):
 // the seam must carry storage.MultipartUploadContexts (a seam without it
-// keeps the pre-T-323R process-only posture — the plain 404), the rebuild
-// rides the registry's per-id funnel, and only the outcome rendering lives
-// here. The unknown-id wording stays the plane's one 404: a session this
-// process never saw, one whose row expired (fail-closed), one opened
-// before the context pair or by another upload plane, and an aborted
-// session are all the client's same re-create cue.
+// keeps the process-only posture — the plain 404), the rebuild rides the
+// registry's per-id funnel, and only the outcome rendering lives here. The
+// unknown-id wording stays the plane's one 404: a session this process
+// never saw, one whose row expired (fail-closed), one opened before the
+// context pair or by another upload plane, and an aborted session are all
+// the client's same re-create cue.
 func (s *Server) resumeMPUSession(w http.ResponseWriter, r *http.Request, id string) (*mpuSession, error) {
 	seam, ok := s.deps.Uploads.(storage.MultipartUploadContexts)
 	if !ok {
@@ -602,97 +756,215 @@ func (s *Server) resumeMPUSession(w http.ResponseWriter, r *http.Request, id str
 		return nil, err
 	}
 	ms.mu.Lock()
-	off, repo, path := ms.received, ms.repoKey, ms.path
+	off, repoKey, path := ms.received, ms.repoKey, ms.path
 	ms.mu.Unlock()
 	s.log.InfoContext(r.Context(), "httpapi: mpu session re-materialized from storage (restart resume)",
-		"session", id, "repo", repo, "path", path, "offset", off)
+		"session", id, "repo", repoKey, "path", path, "offset", off)
 	return ms, nil
+}
+
+// resolveMPUSessionByID is the id-keyed resolution lane the part PUT's
+// regular-credential arm keeps (Basic/API-token drivers addressing the
+// relay URL directly): registry lookup, lazy rebuild, write door.
+func (s *Server) resolveMPUSessionByID(w http.ResponseWriter, r *http.Request, id string) (*mpuSession, bool) {
+	if s.deps.Uploads == nil {
+		writeUploadsUnavailable(w)
+		return nil, false
+	}
+	if id == "" {
+		writeError(w, http.StatusNotFound, "upload session not found")
+		return nil, false
+	}
+	ms, ok := s.uploads.lookup(id)
+	if !ok {
+		var err error
+		ms, err = s.resumeMPUSession(w, r, id)
+		if err != nil {
+			return nil, false
+		}
+	}
+	if !s.uploadsWriteGate(r, ms.repoKey, ms.path) {
+		writeError(w, http.StatusForbidden,
+			"permission denied: multipart uploads require write access on the target path")
+		return nil, false
+	}
+	return ms, true
+}
+
+// mpuCredentialVerdict renders the shared middleware's own rejection for a
+// presented-but-unverifiable credential that is NOT this plane's token —
+// the dispatch-level capability-route exemption (router.go) hands the
+// verdict here, and this keeps the presented-but-rejected-never-downgrades
+// posture intact on these routes.
+func mpuCredentialVerdict(w http.ResponseWriter, anonymous bool) {
+	if anonymous {
+		w.Header().Set("WWW-Authenticate", basicChallenge)
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return
+	}
+	w.Header().Set("WWW-Authenticate", basicChallenge)
+	writeError(w, http.StatusUnauthorized, "invalid credentials")
+}
+
+// resolveMPUSessionByToken is the capability lane the four token verbs (and
+// the part PUT's Bearer arm) drive: parse the Bearer as this plane's token,
+// resolve the session (registry + lazy rebuild — restart resume), prove
+// possession against the persisted binding. The verdict ladder mirrors the
+// reverse-engineered resource: a well-formed but unknown/mismatched
+// capability is the plane's 404 (extractTokenExtension's NavigationException
+// maps NotFoundException); a non-MPU credential is the shared 401/403; an
+// expired binding is a credential refusal (401).
+func (s *Server) resolveMPUSessionByToken(w http.ResponseWriter, r *http.Request) (*mpuSession, bool) {
+	if s.deps.Uploads == nil {
+		writeUploadsUnavailable(w)
+		return nil, false
+	}
+	tok := mpuRequestToken(r)
+	if tok == "" {
+		// No token at all: anonymous on a capability route. A valid
+		// non-token credential is NOT enough for these verbs (Artifactory
+		// demands the internal:mpu:x scope) — 403 for a principal, the 401
+		// challenge for anonymous.
+		if principalFrom(r.Context()) != nil {
+			writeError(w, http.StatusForbidden,
+				"the multipart upload endpoints require the session token issued by create")
+			return nil, false
+		}
+		if _, rejected := authRejectedFrom(r.Context()); rejected {
+			mpuCredentialVerdict(w, false)
+			return nil, false
+		}
+		mpuCredentialVerdict(w, true)
+		return nil, false
+	}
+	secret, sid, ok := parseMPUToken(tok)
+	if !ok {
+		// A Bearer that is not this plane's shape: either a valid API token
+		// (the middleware resolved a principal — but it holds no session
+		// capability, the scope refusal) or a rejected credential (the
+		// middleware's own verdict).
+		if principalFrom(r.Context()) != nil {
+			writeError(w, http.StatusForbidden,
+				"the multipart upload endpoints require the session token issued by create")
+			return nil, false
+		}
+		mpuCredentialVerdict(w, false)
+		return nil, false
+	}
+	ms, ok := s.uploads.lookup(sid)
+	if !ok {
+		var err error
+		ms, err = s.resumeMPUSession(w, r, sid)
+		if err != nil {
+			return nil, false
+		}
+	}
+	ms.mu.Lock()
+	binding, expiry := ms.tokenSHA256, ms.tokenExpiry
+	ms.mu.Unlock()
+	sum := sha256.Sum256([]byte(secret))
+	if subtle.ConstantTimeCompare([]byte(hex.EncodeToString(sum[:])), []byte(binding)) != 1 {
+		// The id resolved but the credential is not its token: an unknown
+		// capability, the 404 shape.
+		writeError(w, http.StatusNotFound, "upload session not found: "+sid)
+		return nil, false
+	}
+	if !expiry.IsZero() && !time.Now().UTC().Before(expiry) {
+		w.Header().Set("WWW-Authenticate", basicChallenge)
+		writeError(w, http.StatusUnauthorized, "invalid credentials")
+		return nil, false
+	}
+	return ms, true
 }
 
 // ---- endpoint handlers ----
 
-// handleUploadsCreate serves POST /api/v1/uploads/create: open a session
-// against (repoKey, path) with an optional part size. 201 + the session
-// echo carrying the URL family.
+// handleUploadsCreate serves POST /api/v1/uploads/create?repoKey=&repoPath=
+// &partSizeMB= (ADR-0039): the parameters ride the QUERY STRING, the answer
+// is 200 with the session token. Gates in Artifactory's order — param
+// presence (400), role door, repo existence/type + the write door (the one
+// 403), part size bounds — then the engine begin with the v2 caller blob.
 func (s *Server) handleUploadsCreate(w http.ResponseWriter, r *http.Request) {
 	if s.deps.Uploads == nil {
 		writeUploadsUnavailable(w)
 		return
 	}
-	var req mpuCreateRequest
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "malformed create body: "+err.Error())
+	q := r.URL.Query()
+	repoKey := q.Get("repoKey")
+	repoPath := q.Get("repoPath")
+	if repoKey == "" || repoPath == "" {
+		// The Artifactory wording verbatim (assertRepoKeyAndPathNotNull's
+		// BadRequestException).
+		writeError(w, http.StatusBadRequest, "Query param repoKey or repoPath is null")
 		return
 	}
-	req.RepoKey = strings.TrimSpace(req.RepoKey)
-	req.Path = strings.TrimSpace(req.Path)
-	if req.RepoKey == "" {
-		writeError(w, http.StatusBadRequest, "repoKey is required")
-		return
-	}
-	if msg := mpuUploadsPathError(req.Path); msg != "" {
+	if msg := mpuUploadsPathError(repoPath); msg != "" {
 		writeError(w, http.StatusBadRequest, msg)
 		return
 	}
-	// The repository gate mirrors the storage plane's order: unknown repo
-	// 404, non-local 400, then this plane's own ruling — protocol-managed
-	// layouts (docker/maven/npm/pypi/go/nuget) take their own protocol
-	// upload paths, and an MPU landing arbitrary nodes under them would
-	// write outside the layout those adapters own. Generic local repos are
-	// the MPU plane's whole address space (T-289 ruling, see the log).
-	row, err := s.deps.Repos.Get(r.Context(), req.RepoKey)
-	if err != nil {
-		s.writeRepoLookupError(w, req.RepoKey, err)
+	partSizeMB := int64(0)
+	if raw := q.Get("partSizeMB"); raw != "" {
+		v, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "partSizeMB must be an integer number of megabytes")
+			return
+		}
+		partSizeMB = v
+	}
+	// The RolesAllowed({"admin","user"}) door: readonly_admin holds no
+	// deploy leg on this plane.
+	p := principalFrom(r.Context())
+	if p == nil || (p.EffectiveRole() != auth.RoleAdmin && p.EffectiveRole() != auth.RoleUser) {
+		writeError(w, http.StatusForbidden, mpuForbiddenDeploy)
 		return
 	}
-	if row.Type != repo.TypeLocal {
-		writeError(w, http.StatusBadRequest,
-			"multipart uploads are only supported on local repositories (requested repository type: "+row.Type+")")
+	// T-304 section 1.2-B (flipped with this wire): no package-type gate —
+	// protocol repositories take MPU writes like any local; a virtual
+	// resolves to its defaultDeploymentRepo, a virtual without one keeps
+	// the virtual key (the failure stays late, at the deploy).
+	targetRepo, ok := s.resolveMPUTargetRepo(w, r, repoKey)
+	if !ok {
 		return
 	}
-	if row.PackageType != repo.PackageGeneric {
-		writeError(w, http.StatusBadRequest,
-			"multipart uploads are only supported on generic repositories (requested package type: "+row.PackageType+"); protocol repositories take their own upload paths")
+	if !s.uploadsWriteGate(r, targetRepo, repoPath) {
+		writeError(w, http.StatusForbidden, mpuForbiddenDeploy)
 		return
 	}
-	if !s.uploadsWriteGate(r, req.RepoKey, req.Path) {
-		writeError(w, http.StatusForbidden,
-			"permission denied: multipart uploads require write access on the target path")
-		return
-	}
-	partSize, ok := resolveMPUPartSize(req.PartSizeMB)
+	partSize, ok := resolveMPUPartSize(partSizeMB)
 	if !ok {
 		writeError(w, http.StatusBadRequest, fmt.Sprintf(
 			"partSizeMB must be between 0 (engine default) and %d", mpuMaxPartSizeMB))
 		return
 	}
-	mime := strings.TrimSpace(req.MimeType)
-	if mime == "" {
-		mime = "application/octet-stream"
-	}
 
 	now := time.Now().UTC()
-	p := principalFrom(r.Context())
 	createdBy := ""
 	if p != nil {
 		createdBy = p.Name
 	}
-	// The protocol coordinates ride the engine's own session row (T-323R):
-	// the context begin persists them as an opaque blob, which is what makes
-	// the session re-materializable through this plane after a restart. A
-	// seam without the context pair (pre-T-323R shapes, narrow fakes) keeps
-	// the plain begin and the process-only posture.
+	// The capability token's secret half is drawn BEFORE the begin: its
+	// sha256 rides the caller blob the context begin persists, and the
+	// token string itself is only complete once the engine hands back the
+	// session id (secret "." id).
+	secret, secretSHA, err := newMPUTokenSecret()
+	if err != nil {
+		s.log.ErrorContext(r.Context(), "httpapi: mpu token mint failed", "error", err.Error())
+		writeError(w, http.StatusInternalServerError, "opening the multipart upload session failed")
+		return
+	}
+	tokenExpiry := now.Add(mpuTokenTTL)
 	caller, merr := json.Marshal(mpuCallerState{
-		Version:   mpuCallerStateVersion,
-		RepoKey:   req.RepoKey,
-		Path:      req.Path,
-		MimeType:  mime,
-		PartSize:  partSize,
-		CreatedBy: createdBy,
-		CreatedAt: now.UTC().Format(time.RFC3339),
+		Version:     mpuCallerStateVersion,
+		RepoKey:     targetRepo,
+		Path:        repoPath,
+		MimeType:    "application/octet-stream",
+		PartSize:    partSize,
+		CreatedBy:   createdBy,
+		CreatedAt:   now.UTC().Format(time.RFC3339),
+		TokenSHA256: secretSHA,
+		TokenExpiry: tokenExpiry.UTC().Format(time.RFC3339),
 	})
 	var sess storage.Session
-	err = merr // json.Marshal of scalars cannot fail; kept honest anyway
 	if merr == nil {
 		if cs, cok := s.deps.Uploads.(storage.MultipartUploadContexts); cok {
 			sess, err = cs.BeginMultipartSessionContext(r.Context(), partSize, caller)
@@ -704,222 +976,416 @@ func (s *Server) handleUploadsCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		s.log.ErrorContext(r.Context(), "httpapi: mpu create failed",
-			"repo", req.RepoKey, "path", req.Path, "error", err.Error())
+			"repo", targetRepo, "path", repoPath, "error", err.Error())
 		writeError(w, http.StatusInternalServerError, "opening the multipart upload session failed")
 		return
 	}
 	ms := &mpuSession{
-		id:        sess.ID(),
-		sess:      sess,
-		repoKey:   req.RepoKey,
-		path:      req.Path,
-		mime:      mime,
-		partSize:  partSize,
-		state:     mpuStateActive,
-		createdBy: createdBy,
-		createdAt: now,
-		updatedAt: now,
+		id:          sess.ID(),
+		sess:        sess,
+		repoKey:     targetRepo,
+		path:        repoPath,
+		mime:        "application/octet-stream",
+		partSize:    partSize,
+		staged:      map[int][]byte{},
+		state:       mpuStateActive,
+		createdBy:   createdBy,
+		createdAt:   now,
+		updatedAt:   now,
+		tokenSHA256: secretSHA,
+		tokenExpiry: tokenExpiry,
 	}
 	s.uploads.add(ms)
 	s.uploads.startSweep()
-	// The session is published: a racing part PUT can arrive between add and
-	// this echo, so the mutable fields bodyOf reads serialize under ms.mu
-	// like every other reader.
-	ms.mu.Lock()
-	body := ms.bodyOf(r, true)
-	ms.mu.Unlock()
-	writeJSONBody(w, http.StatusCreated, body)
+	s.log.InfoContext(r.Context(), "httpapi: mpu session opened",
+		"session", ms.id, "repo", targetRepo, "path", repoPath,
+		"partSizeBytes", partSize, "createdBy", createdBy)
+	writeJSONBody(w, http.StatusOK, mpuTokenBody{Token: secret + "." + ms.id})
 }
 
-// handleUploadsConfig serves POST /api/v1/uploads/config: re-part a
-// session that has received no bytes. The part boundary is engine-session
-// state, so the change swaps the underlying engine session (zero bytes
-// were received; the swap is semantically invisible) while the REST id —
-// the capability every URL carries — stays put.
+// handleUploadsConfig serves GET /api/v1/uploads/config (T-304 section 1.2-D
+// + ADR-0039): the capability probe. A jfrog-cli-go user agent below
+// mpuCLIMinVersion gets supported:false so the client falls back to
+// monolithic uploads; everyone else learns whether THIS backend carries the
+// MPU seam. The probe answers 200 on every backend — a probe that could not
+// say "no" would be no probe (the five data endpoints keep the honest 501).
 func (s *Server) handleUploadsConfig(w http.ResponseWriter, r *http.Request) {
-	if s.deps.Uploads == nil {
-		writeUploadsUnavailable(w)
+	if ua := r.UserAgent(); strings.HasPrefix(ua, mpuCLIPrefix) {
+		if mpuCLIVersionTooOld(strings.TrimPrefix(ua, mpuCLIPrefix)) {
+			writeJSONBody(w, http.StatusOK, mpuSupportedBody{Supported: false})
+			return
+		}
+	}
+	writeJSONBody(w, http.StatusOK, mpuSupportedBody{Supported: s.deps.Uploads != nil})
+}
+
+// mpuCLIVersionTooOld compares a dotted version against the gate in the
+// reverse-engineered resource's shape: numeric segment walk, a shorter
+// version than the gate is old (2.62 < 2.62.2), and a non-numeric segment
+// aborts the comparison as NOT old (the try/catch's catch arm) — the
+// exact arithmetic, not a library sort.
+func mpuCLIVersionTooOld(version string) bool {
+	return versionLessThan(version, mpuCLIMinVersion)
+}
+
+// versionLessThan walks two dotted numeric versions in lockstep; a parse
+// failure anywhere answers false (the caller treats it as comparable-new).
+func versionLessThan(v, target string) bool {
+	vp := strings.Split(v, ".")
+	tp := strings.Split(target, ".")
+	n := len(vp)
+	if len(tp) < n {
+		n = len(tp)
+	}
+	for i := 0; i < n; i++ {
+		a, errA := strconv.Atoi(vp[i])
+		b, errB := strconv.Atoi(tp[i])
+		if errA != nil || errB != nil {
+			return false
+		}
+		if a < b {
+			return true
+		}
+		if a > b {
+			return false
+		}
+	}
+	return len(vp) < len(tp)
+}
+
+// handleUploadsURLPart serves POST /api/v1/uploads/urlPart?partNumber=N: the
+// URL part n PUTs to. Part numbers are 1-based and strictly sequential —
+// the Session face is an ordered append stream, so this plane's contract is
+// "part n lands at offset (n-1)*partSize"; the PUT enforces it, this verb
+// only states it (a lookahead answer is a URL like any other; the ordering
+// gate lives where the bytes do).
+func (s *Server) handleUploadsURLPart(w http.ResponseWriter, r *http.Request) {
+	raw := r.URL.Query().Get("partNumber")
+	if raw == "" {
+		writeError(w, http.StatusBadRequest, "Query param partNumber is null")
 		return
 	}
-	var req mpuConfigRequest
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "malformed config body: "+err.Error())
+	part, err := strconv.Atoi(raw)
+	if err != nil || part < 1 {
+		writeError(w, http.StatusBadRequest, "partNumber must be a positive integer")
 		return
 	}
-	ms, ok := s.resolveMPUSession(w, r, strings.TrimSpace(req.SessionID))
+	ms, ok := s.resolveMPUSessionByToken(w, r)
 	if !ok {
 		return
 	}
-	partSize, ok := resolveMPUPartSize(req.PartSizeMB)
+	ms.mu.Lock()
+	state, task := ms.state, ms.taskState
+	ms.mu.Unlock()
+	if task == mpuTaskFinished || task == mpuTaskFailed {
+		// The assembly consumed the upload either way — the not-found
+		// posture, not a conflict the client could resolve.
+		writeError(w, http.StatusNotFound, "upload session not found: "+ms.id)
+		return
+	}
+	if task == mpuTaskProcessing || state == mpuStateFailed {
+		writeError(w, http.StatusConflict,
+			"the session is not accepting parts (completion in flight or failed); query status")
+		return
+	}
+	// The URL carries the capability in its query string (T-332 real-client
+	// finding): protocol clients treat this answer as S3-presigned-shaped —
+	// they PUT to it with NO Authorization header at all — so the token must
+	// ride the URL itself. The server re-echoes the very credential the
+	// caller presented (only its sha256 is persisted), and the access log
+	// records the path only, never the query — the capability does not land
+	// in the logs.
+	writeJSONBody(w, http.StatusOK, mpuURLBody{
+		URL: fmt.Sprintf("%s%s/part/%s/%d?token=%s",
+			requestBase(r), mpuEndpointBase, ms.id, part, url.QueryEscape(mpuPresentedToken(r, ms.id))),
+	})
+}
+
+// mpuPresentedToken returns the validated capability token this request
+// presented (query parameter or Bearer — the part lane accepts both
+// spellings), or "" when the request carried none for this session.
+func mpuPresentedToken(r *http.Request, sid string) string {
+	tok := mpuRequestToken(r)
+	_, tsid, ok := parseMPUToken(tok)
+	if !ok || tsid != sid {
+		return ""
+	}
+	return tok
+}
+
+// handleUploadsStatus serves POST /api/v1/uploads/status: the finish task's
+// progress model (StatusResponse's four keys). No task yet -> Uploading; a
+// task in flight -> Finishing; the terminal states carry the error or the
+// checksum-deploy token (the client's zero-transfer landing credential,
+// minted at Finished through the auth facet).
+func (s *Server) handleUploadsStatus(w http.ResponseWriter, r *http.Request) {
+	ms, ok := s.resolveMPUSessionByToken(w, r)
 	if !ok {
-		writeError(w, http.StatusBadRequest, fmt.Sprintf(
-			"partSizeMB must be between 0 (engine default) and %d", mpuMaxPartSizeMB))
+		return
+	}
+	ms.mu.Lock()
+	defer ms.mu.Unlock()
+	body := mpuStatusTaskBody{Status: mpuTaskParts, Progress: 0}
+	switch {
+	case ms.taskState == mpuTaskFinished:
+		body.Status = mpuTaskFinished
+		body.Progress = 100
+		if ms.taskToken != "" {
+			tok := ms.taskToken
+			body.ChecksumToken = &tok
+		}
+	case ms.taskState == mpuTaskFailed:
+		body.Status = mpuTaskFailed
+		msg := ms.taskErr
+		body.Error = &msg
+	case ms.taskState == mpuTaskProcessing:
+		body.Status = mpuTaskProcessing
+	case ms.state == mpuStateFailed:
+		// A session the part stream broke (engine failure, torn part): the
+		// honest task answer is the failure the next verb would hit.
+		body.Status = mpuTaskFailed
+		msg := "the session is in a failed state; abort it and start a new upload"
+		body.Error = &msg
+	}
+	writeJSONBody(w, http.StatusOK, body)
+}
+
+// handleUploadsComplete serves POST /api/v1/uploads/complete?sha1=: the
+// checksum-gated assembly, asynchronous on the wire (202, the
+// Response.accepted() shape). The declared digest is sha1 — the algorithm
+// flips with the wire (ADR-0039); sha256/sha1/md5 are all still computed
+// server-side into the blob ledger. The finish task runs the engine's
+// synchronous Commit in the background; a well-formed but WRONG sha1 fails
+// the task (status carries the error) rather than this response.
+func (s *Server) handleUploadsComplete(w http.ResponseWriter, r *http.Request) {
+	sha1Param := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("sha1")))
+	if sha1Param == "" {
+		writeError(w, http.StatusBadRequest, "Query param sha1 is null")
+		return
+	}
+	if len(sha1Param) != 40 || !isHexLower(sha1Param) {
+		writeError(w, http.StatusBadRequest, "sha1 must be exactly 40 hex characters")
+		return
+	}
+	ms, ok := s.resolveMPUSessionByToken(w, r)
+	if !ok {
 		return
 	}
 
-	// Every exit below unlocks EXPLICITLY: the failure arm must release the
-	// session lock BEFORE touching the registry (B1, T-289 review — the
-	// registry lock is never taken while a session lock is held), which a
-	// deferred unlock would make impossible.
+	// Every exit below unlocks EXPLICITLY (the B1 lock order: no registry
+	// lock under a session lock).
 	ms.mu.Lock()
-	if ms.state == mpuStateFailed {
+	if ms.state == mpuStateFailed && ms.taskState == mpuTaskNone {
 		ms.mu.Unlock()
 		writeError(w, http.StatusConflict,
 			"the session is in a failed state; abort it and start a new upload")
 		return
 	}
-	if ms.state != mpuStateActive || ms.received != 0 || ms.parts != 0 {
+	switch ms.taskState {
+	case mpuTaskProcessing:
+		// Already in flight: the outcome the caller asked for is underway —
+		// the idempotent 202 (BinFlow-defined; Artifactory's storage library
+		// arm is unverifiable, registered in the ADR).
 		ms.mu.Unlock()
-		writeError(w, http.StatusConflict,
-			"the session already carries bytes; part size is fixed once uploading starts (abort and re-create to change it)")
+		w.Header().Set("Content-Length", "0")
+		w.WriteHeader(http.StatusAccepted)
+		return
+	case mpuTaskFinished, mpuTaskFailed:
+		// The assembly consumed the session (Commit finalizes either way,
+		// the storage contract): the not-found posture.
+		ms.mu.Unlock()
+		writeError(w, http.StatusNotFound, "upload session not found: "+ms.id)
 		return
 	}
-	if partSize == ms.partSize {
-		body := ms.bodyOf(r, true)
-		ms.mu.Unlock()
-		writeJSONBody(w, http.StatusOK, body)
-		return
-	}
-	// Swap: the old engine session is discarded unconditionally (WithoutCancel
-	// — Abort is cleanup and must not die with this request), the new one
-	// opens at the requested size. An open failure marks the REST session
-	// failed and drops it — the old engine session is already gone, so the
-	// entry would only ever answer 409s. The registry remove runs AFTER the
-	// unlock (the B1 lock order).
-	_ = ms.sess.Abort(context.WithoutCancel(r.Context()))
-	sess, err := s.deps.Uploads.BeginMultipartSession(context.WithoutCancel(r.Context()), partSize)
+	ms.taskState = mpuTaskProcessing
+	ms.updatedAt = time.Now().UTC()
+	ms.mu.Unlock()
+
+	go s.mpuFinishTask(ms, sha1Param)
+	w.Header().Set("Content-Length", "0")
+	w.WriteHeader(http.StatusAccepted)
+}
+
+// mpuFinishTask is complete's background half: the engine's synchronous
+// Commit (assembly + sha1 gate + the temp->blob finalize), then the task
+// record. On success it mints the checksum-deploy token the Finished status
+// hands the client — a REAL API token through the auth facet, short-lived
+// (5 minutes), owned by the session's creator. The task runs on a detached
+// context on purpose: a client disconnect after the 202 must not kill the
+// assembly (宁可慢不可丢数据).
+func (s *Server) mpuFinishTask(ms *mpuSession, sha1Param string) {
+	ctx := context.Background()
+	ref, err := ms.sess.Commit(ctx, storage.BlobRef{Sha1: sha1Param})
+	ms.mu.Lock()
+	ms.updatedAt = time.Now().UTC()
 	if err != nil {
 		ms.state = mpuStateFailed
+		ms.taskState = mpuTaskFailed
+		if errors.Is(err, storage.ErrChecksumMismatch) {
+			ms.taskErr = fmt.Sprintf("provided checksum did not match uploaded content: %s", err.Error())
+		} else {
+			ms.taskErr = "committing the multipart upload failed: " + err.Error()
+		}
+		msg := ms.taskErr
 		ms.mu.Unlock()
-		s.uploads.remove(ms.id)
-		s.log.ErrorContext(r.Context(), "httpapi: mpu config swap failed",
-			"session", ms.id, "partSize", partSize, "error", err.Error())
-		writeError(w, http.StatusInternalServerError, "re-opening the multipart upload session failed; abort and re-create")
+		s.log.WarnContext(ctx, "httpapi: mpu finish task failed",
+			"session", ms.id, "repo", ms.repoKey, "path", ms.path, "error", msg)
 		return
 	}
-	ms.sess = sess
-	ms.partSize = partSize
-	ms.updatedAt = time.Now().UTC()
-	body := ms.bodyOf(r, true)
+	ms.state = mpuStateComplete
+	ms.received = ref.Size
 	ms.mu.Unlock()
-	writeJSONBody(w, http.StatusOK, body)
+
+	// The ledger row is the STORAGE bookkeeping half of Artifactory's
+	// completeMultipartUpload — the binary store's checksum index. It rides
+	// the exported BlobStore seam (its Put contract is verbatim "caller
+	// commits the physical blob first"; ON CONFLICT DO NOTHING keeps any
+	// pre-existing row's sha1/md5 authority, exactly right for identical
+	// bytes). The NODE is deliberately NOT written here: that is the
+	// client's checksum-deploy, and every governance gate (pattern, quota,
+	// the overwrite pair) runs on THAT call, the Artifactory position.
+	if lerr := s.deps.Metadata.Blobs().Put(ctx, &metadata.Blob{
+		Sha256:    ref.Sha256,
+		Sha1:      ref.Sha1,
+		Md5:       ref.Md5,
+		Size:      ref.Size,
+		CreatedAt: time.Now().UTC().Format(time.RFC3339),
+	}); lerr != nil {
+		ms.mu.Lock()
+		ms.taskState = mpuTaskFailed
+		ms.taskErr = "registering the assembled blob in the ledger failed: " + lerr.Error()
+		ms.state = mpuStateFailed
+		msg := ms.taskErr
+		ms.mu.Unlock()
+		s.log.ErrorContext(ctx, "httpapi: mpu ledger registration failed",
+			"session", ms.id, "sha256", ref.Sha256, "error", msg)
+		return
+	}
+
+	token := ""
+	if issuer, ok := s.deps.Auth.(mpuTokenIssuer); ok {
+		if issued, ierr := issuer.Issue(ctx, ms.createdBy, mpuChecksumTokenTTL); ierr == nil {
+			token = issued.AccessToken
+		} else {
+			s.log.WarnContext(ctx, "httpapi: mpu checksum-deploy token mint failed",
+				"session", ms.id, "owner", ms.createdBy, "error", ierr.Error())
+		}
+	} else {
+		s.log.WarnContext(ctx, "httpapi: auth facet cannot mint checksum-deploy tokens; status will carry none",
+			"session", ms.id)
+	}
+	ms.mu.Lock()
+	ms.taskState = mpuTaskFinished
+	ms.taskToken = token
+	ms.mu.Unlock()
+	s.log.InfoContext(ctx, "httpapi: mpu assembly finished",
+		"session", ms.id, "repo", ms.repoKey, "path", ms.path,
+		"size", ref.Size, "sha1", ref.Sha1, "checksumToken", token != "")
 }
 
-// handleUploadsURLPart serves GET /api/v1/uploads/urlPart/{id}/{n}: the
-// URL part n PUTs to, plus the offset the part must start at. Part numbers
-// are 1-based and strictly sequential — the Session face is an ordered
-// append stream, so this plane's contract is "part n lands at offset
-// (n-1)*partSize"; the PUT enforces it, this verb only states it (a
-// lookahead answer is a URL like any other; the ordering gate lives where
-// the bytes do).
-func (s *Server) handleUploadsURLPart(w http.ResponseWriter, r *http.Request, id string, part int) {
-	if part < 1 {
-		writeError(w, http.StatusBadRequest, "partNumber must be a positive integer")
-		return
-	}
-	ms, ok := s.resolveMPUSession(w, r, id)
+// handleUploadsAbort serves POST /api/v1/uploads/abort: discard the session
+// and its S3 multipart state. 204; an unknown (or already aborted) id is
+// the plane's 404 — abort is not idempotent on the wire because the session
+// stops resolving the moment it leaves the registry (AC1's "abort 后 status
+// 404" posture). A Finished upload refuses (409): the artifact is already
+// assembled; discarding it is not this verb's call.
+func (s *Server) handleUploadsAbort(w http.ResponseWriter, r *http.Request) {
+	ms, ok := s.resolveMPUSessionByToken(w, r)
 	if !ok {
 		return
 	}
 	ms.mu.Lock()
-	state, partSize := ms.state, ms.partSize
-	ms.mu.Unlock()
-	if state == mpuStateComplete {
+	switch ms.taskState {
+	case mpuTaskFinished:
+		ms.mu.Unlock()
 		writeError(w, http.StatusConflict, "the session is already completed")
 		return
-	}
-	base := requestBase(r) + mpuEndpointBase
-	writeJSONBody(w, http.StatusOK, mpuPartURLBody{
-		SessionID:   ms.id,
-		PartNumber:  part,
-		OffsetBytes: int64(part-1) * partSize,
-		URL:         fmt.Sprintf("%s/part/%s/%d", base, ms.id, part),
-	})
-}
-
-// handleUploadsStatus serves GET /api/v1/uploads/status/{id} (one session)
-// and the bare form (the list view). The list is FILTERED per session by
-// the same write gate the single-session arm walks (B4, T-289 review): a
-// plain authenticated caller otherwise enumerated every live session's
-// repoKey/path/createdBy — including repositories it holds no grant on,
-// below the RBAC floor the single-session arm already enforces. A caller
-// without a matching grant sees an empty list, not a 403: the arm's
-// answer is a filtered view (the /api/v1/storage/usage family's silent-
-// exclusion posture), and session ids stay unguessable capabilities.
-func (s *Server) handleUploadsStatus(w http.ResponseWriter, r *http.Request, id string) {
-	if s.deps.Uploads == nil {
-		writeUploadsUnavailable(w)
+	case mpuTaskFailed:
+		// The assembly consumed the engine session; abort here is the
+		// record's cleanup.
+	case mpuTaskProcessing:
+		ms.mu.Unlock()
+		writeError(w, http.StatusConflict,
+			"completion is in flight; query status until it settles")
 		return
 	}
-	if id == "" {
-		live := s.uploads.snapshot()
-		out := make([]mpuSessionBody, 0, len(live))
-		for _, ms := range live {
-			if !s.uploadsWriteGate(r, ms.repoKey, ms.path) {
-				continue
-			}
-			ms.mu.Lock()
-			out = append(out, ms.bodyOf(r, false))
-			ms.mu.Unlock()
-		}
-		writeJSONBody(w, http.StatusOK, out)
-		return
-	}
-	ms, ok := s.resolveMPUSession(w, r, id)
-	if !ok {
-		return
-	}
-	ms.mu.Lock()
-	defer ms.mu.Unlock()
-	writeJSONBody(w, http.StatusOK, ms.bodyOf(r, false))
+	_ = ms.sess.Abort(context.WithoutCancel(r.Context()))
+	ms.state = mpuStateFailed
+	ms.mu.Unlock()
+	s.uploads.remove(ms.id)
+	w.Header().Set("Content-Length", "0")
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // handleUploadsPart serves PUT /api/v1/uploads/part/{id}/{n} — the urlPart
-// target. Contract: parts arrive strictly in order, each exactly
+// target. Credential lanes, widest first: the capability in the URL's
+// query string (the presigned shape protocol clients actually drive — they
+// send NO Authorization header on the part PUT at all, the T-332 real-
+// client finding), the same token as a Bearer, or the shared credentials
+// with the target path's `w` (the manual-driver shape this relay URL always
+// took).
+//
+// Part arrival: S3 semantics — parts may arrive in ANY order (worker-pool
+// clients routinely leapfrog). The in-order fast path streams straight
+// into Session.Append (memory independent of part size); a leapfrog part
+// lands in a bounded staging set until its predecessors close the gap
+// (mpuMaxStagedParts/mpuMaxStagedBytes). Each part is exactly
 // partSizeBytes except the final one (which may be shorter and closes the
 // part stream), Content-Length is mandatory (the size gates run before any
 // byte reaches the engine), and the offset authority is the engine session
 // (Session.Offset), re-checked before every append.
 func (s *Server) handleUploadsPart(w http.ResponseWriter, r *http.Request, id string, part int) {
+	if s.deps.Uploads == nil {
+		writeUploadsUnavailable(w)
+		return
+	}
 	if part < 1 {
 		writeError(w, http.StatusBadRequest, "partNumber must be a positive integer")
 		return
 	}
-	ms, ok := s.resolveMPUSession(w, r, id)
-	if !ok {
-		return
+	var ms *mpuSession
+	if tok := r.URL.Query().Get("token"); tok != "" {
+		if _, sid, isMPU := parseMPUToken(tok); isMPU {
+			if sid != id {
+				writeError(w, http.StatusNotFound, "upload session not found: "+id)
+				return
+			}
+			resolved, ok := s.resolveMPUSessionByToken(w, r)
+			if !ok {
+				return
+			}
+			ms = resolved
+		}
+	}
+	if ms == nil {
+		if tok := mpuBearerValue(r); tok != "" {
+			if _, sid, isMPU := parseMPUToken(tok); isMPU {
+				if sid != id {
+					// The URL and the credential disagree: not this session.
+					writeError(w, http.StatusNotFound, "upload session not found: "+id)
+					return
+				}
+				resolved, ok := s.resolveMPUSessionByToken(w, r)
+				if !ok {
+					return
+				}
+				ms = resolved
+			} else if principalFrom(r.Context()) == nil {
+				// A non-MPU Bearer the middleware could not verify: its own
+				// verdict, rendered here (the capability-route exemption).
+				mpuCredentialVerdict(w, false)
+				return
+			}
+		}
+	}
+	if ms == nil {
+		var ok bool
+		ms, ok = s.resolveMPUSessionByID(w, r, id)
+		if !ok {
+			return
+		}
 	}
 
-	ms.mu.Lock()
-	defer ms.mu.Unlock()
-	if ms.state == mpuStateComplete {
-		writeError(w, http.StatusConflict, "the session is already completed")
-		return
-	}
-	if ms.state == mpuStateFailed {
-		writeError(w, http.StatusConflict, "the session is in a failed state; abort it and start a new upload")
-		return
-	}
-	if ms.state == mpuStateFinal {
-		writeError(w, http.StatusConflict,
-			"a short final part was already accepted; complete the session (no further parts)")
-		return
-	}
-	if want := ms.parts + 1; part != want {
-		writeError(w, http.StatusConflict, fmt.Sprintf(
-			"parts must upload in order: expected part %d, got %d", want, part))
-		return
-	}
-	// The engine's own offset is the alignment authority (the [M7] rule):
-	// the registry mirror agrees in every non-failure flow, and a drifted
-	// mirror (a truncated stream the engine rejected, an engine swap)
-	// must be caught here, not silently papered over.
-	if off := ms.sess.Offset(); off != int64(part-1)*ms.partSize {
-		writeError(w, http.StatusConflict, fmt.Sprintf(
-			"session offset drift: part %d starts at %d bytes, session is at %d; query status and re-align",
-			part, int64(part-1)*ms.partSize, off))
-		return
-	}
 	n := r.ContentLength
 	switch {
 	case n < 0:
@@ -938,6 +1404,124 @@ func (s *Server) handleUploadsPart(w http.ResponseWriter, r *http.Request, id st
 		return
 	}
 
+	ms.mu.Lock()
+	if ms.state == mpuStateComplete || ms.taskState == mpuTaskFinished {
+		ms.mu.Unlock()
+		writeError(w, http.StatusConflict, "the session is already completed")
+		return
+	}
+	if ms.taskState == mpuTaskProcessing {
+		ms.mu.Unlock()
+		writeError(w, http.StatusConflict, "completion is in flight; no further parts")
+		return
+	}
+	if ms.state == mpuStateFailed {
+		ms.mu.Unlock()
+		writeError(w, http.StatusConflict,
+			"the session is in a failed state; abort it and start a new upload")
+		return
+	}
+	if ms.state == mpuStateFinal {
+		ms.mu.Unlock()
+		writeError(w, http.StatusConflict,
+			"a short final part was already accepted; complete the session (no further parts)")
+		return
+	}
+	want := ms.parts + 1
+	if part < want {
+		ms.mu.Unlock()
+		writeError(w, http.StatusConflict, fmt.Sprintf(
+			"part %d was already received (the stream is at part %d); duplicate parts cannot be rewritten",
+			part, want))
+		return
+	}
+	// The engine's own offset is the alignment authority (the [M7] rule):
+	// the registry mirror agrees in every non-failure flow, and a drifted
+	// mirror (a truncated stream the engine rejected, an engine swap)
+	// must be caught here, not silently papered over.
+	if off := ms.sess.Offset(); off != int64(want-1)*ms.partSize {
+		ms.mu.Unlock()
+		writeError(w, http.StatusConflict, fmt.Sprintf(
+			"session offset drift: part %d starts at %d bytes, session is at %d; query status and re-align",
+			want, int64(want-1)*ms.partSize, off))
+		return
+	}
+	// In-order fast path (no staged gap ahead): stream straight into the
+	// engine — the memory stays independent of the part size.
+	if part == want && len(ms.staged) == 0 {
+		ok := s.mpuAppendPart(w, r, ms, part, n)
+		var echo mpuPartEcho
+		if ok {
+			echo = ms.bodyOf()
+		}
+		ms.mu.Unlock()
+		if ok {
+			// 200, the S3 PutObject shape: the real client treats the
+			// urlPart target as presigned and any other 2xx (202 included)
+			// as a part failure to retry away (T-332 real-client finding).
+			writeJSONBody(w, http.StatusOK, echo)
+		}
+		return
+	}
+	// Leapfrog: bound the staging set, buffer the body, then flush every
+	// contiguous prefix that opened up.
+	if len(ms.staged) >= mpuMaxStagedParts || ms.stagedBy+n > mpuMaxStagedBytes {
+		ms.mu.Unlock()
+		writeError(w, http.StatusConflict, fmt.Sprintf(
+			"part %d is too far ahead (part %d is next): the out-of-order staging budget is %d parts / %d bytes; lower the client split count",
+			part, want, mpuMaxStagedParts, mpuMaxStagedBytes))
+		return
+	}
+	ms.mu.Unlock()
+
+	buf := make([]byte, n)
+	if _, err := io.ReadFull(r.Body, buf); err != nil && err != io.EOF {
+		// Torn part: fewer bytes than the declared Content-Length arrived.
+		// Nothing reached the engine; the honest verdict is a 400 (the
+		// same torn-part posture as the in-order path).
+		ms.mu.Lock()
+		ms.state = mpuStateFailed
+		ms.updatedAt = time.Now().UTC()
+		ms.mu.Unlock()
+		s.log.WarnContext(r.Context(), "httpapi: mpu part torn before staging",
+			"session", ms.id, "part", part, "error", err.Error())
+		writeError(w, http.StatusBadRequest, fmt.Sprintf(
+			"part %d ended early (torn upload); abort the session and restart", part))
+		return
+	}
+
+	ms.mu.Lock()
+	ms.staged[part] = buf
+	ms.stagedBy += n
+	flushed := 0
+	for ms.state == mpuStateActive {
+		next, ok := ms.staged[ms.parts+1]
+		if !ok {
+			break
+		}
+		delete(ms.staged, ms.parts+1)
+		ms.stagedBy -= int64(len(next))
+		if !s.mpuAppendBuffer(w, r, ms, ms.parts+1, next) {
+			break
+		}
+		flushed++
+	}
+	echo := ms.bodyOf()
+	landed := ms.state == mpuStateActive || ms.state == mpuStateFinal
+	ms.updatedAt = time.Now().UTC()
+	ms.mu.Unlock()
+	_ = flushed
+	if !landed {
+		return // the failure arm already wrote its verdict
+	}
+	// 200, the S3 PutObject shape (see the in-order path's note).
+	writeJSONBody(w, http.StatusOK, echo)
+}
+
+// mpuAppendPart streams one IN-ORDER part from the request body into the
+// engine session. ms.mu must be held; ok=false means the verdict is
+// already written.
+func (s *Server) mpuAppendPart(w http.ResponseWriter, r *http.Request, ms *mpuSession, part int, n int64) bool {
 	written, err := ms.sess.Append(r.Context(), r.Body)
 	if err != nil {
 		// The engine session is poisoned from here (storage contract); keep
@@ -948,7 +1532,7 @@ func (s *Server) handleUploadsPart(w http.ResponseWriter, r *http.Request, id st
 			"session", ms.id, "part", part, "error", err.Error())
 		writeError(w, http.StatusInternalServerError,
 			"storing the part failed; the session must be aborted and the upload restarted")
-		return
+		return false
 	}
 	if written != int64(part-1)*ms.partSize+n {
 		// The stream ended early (Append returned at EOF with fewer bytes
@@ -961,7 +1545,7 @@ func (s *Server) handleUploadsPart(w http.ResponseWriter, r *http.Request, id st
 		writeError(w, http.StatusBadRequest, fmt.Sprintf(
 			"part %d ended early: %d of %d declared bytes arrived; abort the session and restart",
 			part, written-int64(part-1)*ms.partSize, n))
-		return
+		return false
 	}
 	ms.received = written
 	ms.parts = part
@@ -969,147 +1553,52 @@ func (s *Server) handleUploadsPart(w http.ResponseWriter, r *http.Request, id st
 	if n < ms.partSize {
 		ms.state = mpuStateFinal // a short part is by definition the last
 	}
-	writeJSONBody(w, http.StatusAccepted, ms.bodyOf(r, false))
+	return true
 }
 
-// handleUploadsComplete serves POST /api/v1/uploads/complete/{id}: the
-// checksum-gated landing. Commit verifies the declared digests against the
-// streamed content (nothing lands on a mismatch — 409, the client-checksum
-// posture of repo-semantics section 5), then repo.Service.PutLandedBlob
-// writes the ledger row plus the node exactly as a generic deploy would.
-// A registration failure after a durable Commit answers 5xx (never 201 —
-// the docker writeBlobCreated ruling B4: the retry is safe end to end).
-func (s *Server) handleUploadsComplete(w http.ResponseWriter, r *http.Request, id string) {
-	ms, ok := s.resolveMPUSession(w, r, id)
-	if !ok {
-		return
-	}
-	var req mpuCompleteRequest
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "malformed complete body: "+err.Error())
-		return
-	}
-	if err := validateMPUChecksums(&req); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	ms.mu.Lock()
-	if ms.state == mpuStateFailed {
-		ms.mu.Unlock()
-		writeError(w, http.StatusConflict, "the session is in a failed state; abort it and start a new upload")
-		return
-	}
-	if ms.state == mpuStateComplete {
-		ms.mu.Unlock()
-		writeError(w, http.StatusConflict, "the session is already completed")
-		return
-	}
-	ref, err := ms.sess.Commit(r.Context(), storage.BlobRef{
-		Sha256: req.Sha256, Sha1: req.Sha1, Md5: req.Md5,
-	})
-	// Commit finalizes the engine session either way (storage contract):
-	// the registry entry goes too, whatever happens next.
-	ms.state = mpuStateComplete
-	ms.updatedAt = time.Now().UTC()
-	ms.mu.Unlock()
-	s.uploads.remove(ms.id)
+// mpuAppendBuffer flushes one staged part into the engine session (the
+// reorder lane's engine half). ms.mu must be held; ok=false means the
+// verdict is already written.
+func (s *Server) mpuAppendBuffer(w http.ResponseWriter, r *http.Request, ms *mpuSession, part int, buf []byte) bool {
+	written, err := ms.sess.Append(r.Context(), bytes.NewReader(buf))
 	if err != nil {
-		if errors.Is(err, storage.ErrChecksumMismatch) {
-			writeError(w, http.StatusConflict, fmt.Sprintf(
-				"provided checksum did not match uploaded content: %s", err.Error()))
-			return
-		}
-		s.log.ErrorContext(r.Context(), "httpapi: mpu commit failed",
-			"session", ms.id, "error", err.Error())
-		writeError(w, http.StatusInternalServerError, "committing the multipart upload failed")
-		return
-	}
-	node, err := s.deps.ReposSvc.PutLandedBlob(r.Context(), principalFrom(r.Context()),
-		ms.repoKey, ms.path, ref, ms.mime)
-	_ = node // the body echoes the BlobRef's own facts; the row adds nothing wire-visible
-	if err != nil {
-		var se *repo.StatusError
-		if errors.As(err, &se) {
-			// A governance refusal (quota, pattern) renders verbatim — the
-			// status itself tells the client the artifact did not land.
-			s.log.WarnContext(r.Context(), "httpapi: mpu node landing refused",
-				"repo", ms.repoKey, "path", ms.path, "status", se.Code, "error", se.Message)
-			writeError(w, se.Code, se.Message)
-			return
-		}
-		// The blob is durable but no node row exists: 5xx is the retry
-		// signal, and the retry is safe (Commit dedups; the idempotent
-		// retransmit rule completes the rows).
-		s.log.ErrorContext(r.Context(), "httpapi: mpu node landing failed",
-			"repo", ms.repoKey, "path", ms.path, "error", err.Error())
+		ms.state = mpuStateFailed
+		ms.updatedAt = time.Now().UTC()
+		s.log.WarnContext(r.Context(), "httpapi: mpu staged part flush failed",
+			"session", ms.id, "part", part, "error", err.Error())
 		writeError(w, http.StatusInternalServerError,
-			"the blob is stored but its repository record could not be written; the upload is safe to retry")
-		return
+			"storing the part failed; the session must be aborted and the upload restarted")
+		return false
 	}
-	writeJSONBody(w, http.StatusCreated, mpuCompleteBody{
-		SessionID:   ms.id,
-		RepoKey:     ms.repoKey,
-		Path:        ms.path,
-		State:       mpuStateComplete,
-		Size:        ref.Size,
-		DownloadURI: requestBase(r) + "/binflow/" + ms.repoKey + "/" + ms.path,
-		Checksums: &checksumTriple{
-			Sha1:   ref.Sha1,
-			Md5:    ref.Md5,
-			Sha256: ref.Sha256,
-		},
-	})
-}
-
-// handleUploadsAbort serves POST /api/v1/uploads/abort/{id}: discard the
-// session and its S3 multipart state. 204; an unknown (or already
-// aborted/completed) id is the plane's 404 — abort is not idempotent on
-// the wire because the session id stops resolving the moment it leaves the
-// registry (AC1's "abort 后 status 404" posture).
-func (s *Server) handleUploadsAbort(w http.ResponseWriter, r *http.Request, id string) {
-	ms, ok := s.resolveMPUSession(w, r, id)
-	if !ok {
-		return
-	}
-	ms.mu.Lock()
-	_ = ms.sess.Abort(context.WithoutCancel(r.Context()))
-	ms.state = mpuStateFailed
-	ms.mu.Unlock()
-	s.uploads.remove(ms.id)
-	w.Header().Set("Content-Length", "0")
-	w.WriteHeader(http.StatusNoContent)
-}
-
-// validateMPUChecksums normalizes and checks the declared digests before
-// they reach Commit: uppercase hex is accepted and lowercased in place —
-// the engine's normalizeHex is case-insensitive, and the REST face must
-// not be stricter than the layer beneath it (T-289 review non-blocking).
-// A malformed digest is a 400; a well-formed one that disagrees with the
-// content is Commit's 409.
-func validateMPUChecksums(req *mpuCompleteRequest) error {
-	for _, chk := range []struct {
-		name  string
-		v     *string
-		width int
-	}{
-		{"sha256", &req.Sha256, 64},
-		{"sha1", &req.Sha1, 40},
-		{"md5", &req.Md5, 32},
-	} {
-		v := strings.ToLower(strings.TrimSpace(*chk.v))
-		*chk.v = v
-		if v == "" {
-			continue
-		}
-		if len(v) != chk.width || !isHexLower(v) {
-			return fmt.Errorf("%s must be exactly %d hex characters", chk.name, chk.width)
+	ms.received = written
+	ms.parts = part
+	if int64(len(buf)) < ms.partSize {
+		ms.state = mpuStateFinal
+		// A short part closes the stream by definition; anything still
+		// staged behind it is a client contract violation (S3 completeness
+		// is declared at complete, this stream's is the first short part).
+		if len(ms.staged) > 0 {
+			ms.state = mpuStateFailed
+			ms.updatedAt = time.Now().UTC()
+			s.log.WarnContext(r.Context(), "httpapi: mpu short part staged behind; session failed",
+				"session", ms.id, "part", part, "staged", len(ms.staged))
+			writeError(w, http.StatusConflict,
+				"a short final part closed the stream while later parts were still in flight; abort and restart with a uniform part size")
+			return false
 		}
 	}
-	if req.Sha256 == "" {
-		return errors.New("sha256 is required (the complete gate verifies the whole upload against it)")
+	return true
+}
+
+// mpuRequestToken returns the capability credential this request presented
+// in EITHER spelling — the ?token= query parameter (the presigned-URL
+// shape the real clients drive on part PUTs) or the Authorization Bearer
+// header (the four verb endpoints). Empty when neither is present.
+func mpuRequestToken(r *http.Request) string {
+	if tok := r.URL.Query().Get("token"); tok != "" {
+		return tok
 	}
-	return nil
+	return mpuBearerValue(r)
 }
 
 // isHexLower reports whether s is non-empty lowercase hex.
@@ -1126,24 +1615,10 @@ func isHexLower(s string) bool {
 	return true
 }
 
-// withUploadsID adapts a (w, r, id) handler to the route tail: exactly one
-// non-empty segment after prefix, anything else is the E-26 404 (the
-// withName posture — the plane's grammar, not a per-request error).
-func (s *Server) withUploadsID(rest, prefix string, h func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		id := strings.TrimPrefix(rest, prefix)
-		if id == "" || strings.Contains(id, "/") {
-			notImplemented(w, "/binflow/api/"+rest)
-			return
-		}
-		h(w, r, id)
-	}
-}
-
-// withUploadsPart is withUploadsID's two-segment twin for the
-// {id}/{partNumber} tails (urlPart and part). A missing, non-numeric or
-// extra-segment part number is the E-26 404; a numeric-but-invalid value
-// (zero, negative) reaches the handler, which owns the honest 400.
+// withUploadsPart adapts the {id}/{partNumber} tail of the part route: a
+// missing, non-numeric or extra-segment part number is the E-26 404; a
+// numeric-but-invalid value (zero, negative) reaches the handler, which
+// owns the honest 400.
 func (s *Server) withUploadsPart(rest, prefix string, h func(http.ResponseWriter, *http.Request, string, int)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		tail := strings.TrimPrefix(rest, prefix)
