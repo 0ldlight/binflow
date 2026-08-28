@@ -59,9 +59,18 @@ jobs:
             make lint
             go test ./internal/... ./cmd/... -count=1 -short
       - run:
-          name: Version stamp
+          # T-325: parity with the Jenkins chain's stamp step — bare
+          # `make build` leaves version=dev/dev (Q4/T-127), and the deploy
+          # smoke asserts the version to prove the swap took. The label is
+          # built here AND passed to uat-deploy.sh; they must stay in sync
+          # (same expression, same job).
+          name: Version stamp (uat label)
           command: |
-            echo "export BINFLOW_VERSION=uat.${CIRCLE_SHA1:0:7}" >> "$BASH_ENV"
+            LABEL="uat.${CIRCLE_SHA1:0:7}"
+            CGO_ENABLED=0 go build -trimpath \
+              -ldflags "-s -w -X main.version=${LABEL} -X main.revision=${CIRCLE_SHA1:0:7}" \
+              -o bin/binflow-server ./cmd/binflow-server
+            ./bin/binflow-server --version 2>/dev/null | head -1 || true
       - persist_to_workspace:
           root: .
           paths: [bin/]

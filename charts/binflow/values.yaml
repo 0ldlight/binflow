@@ -280,6 +280,72 @@ config:
     #    toggles the private-address leg of the SSRF screening list.
     allowPrivateTarget: true
 
+  # -- Standalone storage-chain file binstore.yaml (M11 T-306 / ADR-0036).
+  #    When enabled the chart renders a SECOND ConfigMap key, binstore.yaml,
+  #    mounted at /etc/binflow/binstore.yaml (next to the mounted
+  #    binflow.yaml — the server discovers it there, no extra wiring).
+  #    While binstore.yaml owns the storage chain:
+  #      - the embedded storage section renders NO chain keys (backend/s3) —
+  #        spelling them in both places is a semantic-divergence boot refusal
+  #        (Q5 branch ③), so this is enforced, not advised;
+  #      - every chain-scoped env var (BINFLOW_STORAGE__BACKEND,
+  #        BINFLOW_STORAGE__S3__*) would be IGNORED with a WARN — the chart
+  #        sets none of them;
+  #      - BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY still applies (env-only
+  #        secret, ADR-0009 decision 4 — it always reaches the live S3
+  #        provider);
+  #      - data_dir / gc_hold_ttl_seconds stay in binflow.yaml (they are not
+  #        chain keys and never participate in the coexistence verdict).
+  #    Mutually exclusive with config.s3.enabled.
+  binstore:
+    # -- Declare the storage chain via binstore.yaml instead of the embedded
+    #    storage section (mutually exclusive with config.s3.enabled — the
+    #    chart refuses to render both).
+    enabled: false
+    # -- Ordered provider chain: [filestore], [s3], or [filestore, s3] (the
+    #    dual migration chain — filestore must come first; any other order,
+    #    duplicate provider, or reserved slot (cache-fs/azure/gs) refuses
+    #    the boot with a line-pointed error).
+    providers: [filestore]
+    migration:
+      # -- Migration mode for the dual chain: bypass | dual-write |
+      #    completed. REQUIRED when providers=[filestore, s3]; must stay
+      #    empty for single-provider chains (the migration block is only
+      #    legal on the dual chain).
+      mode: ""
+      # -- Migration concurrency (positive integer; 0 = omit the key and
+      #    take the server default).
+      concurrency: 0
+    # -- S3 provider parameters (only read when the chain includes s3). Key
+    #    names mirror the s3 provider block of binstore.yaml, which is the
+    #    embedded storage.s3 schema verbatim (ADR-0009/0036 decision 2).
+    #    secret_access_key is env-only: create a Secret holding
+    #    BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY and point existingSecret at it
+    #    (required when the chain includes s3).
+    s3:
+      # -- Bucket name. Must already exist (the chart does not create it) —
+      #    /healthz's HeadBucket probe reports unhealthy otherwise.
+      bucket: binflow
+      # -- Region (AWS region or MinIO-compatible spelling).
+      region: us-east-1
+      # -- S3-compatible endpoint URL, e.g.
+      #    http://minio.minio.svc.cluster.local:9000 or https://s3.amazonaws.com.
+      endpoint: ""
+      # -- Access key ID (not secret; the secret key lives in existingSecret).
+      accessKeyId: ""
+      # -- Path-style addressing: true for MinIO, false for AWS virtual-host.
+      usePathStyle: true
+      # -- Optional key prefix for all stored objects.
+      bucketPrefix: ""
+      # -- Multipart upload part size in bytes (default 5 MiB).
+      uploadPartSize: 5242880
+      # -- Concurrent multipart part uploads (default 4).
+      uploadConcurrency: 4
+      # -- Name of an existing Secret with key
+      #    BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY. Required when the binstore
+      #    chain includes s3.
+      existingSecret: ""
+
   # -- Storage GC knobs beyond the basics. Rendered into the mounted
   #    binflow.yaml under the storage section.
   storage:
@@ -308,3 +374,21 @@ config:
 #    Change this in production.
 admin:
   password: "password"
+
+# -- Instance master key (M11, env-only): BINFLOW_REMOTE_CREDENTIALS_KEY,
+#    the base64 32-byte AES-256-GCM master key (openssl rand -base64 32)
+#    that seals, as enc:v1 rows, remote-repository credentials (ADR-0012),
+#    replication secrets, admin-managed auth_configs (T-305) and GPG
+#    keypairs (T-319, ADR-0038). Never a chart value (ADR-0009): point
+#    existingSecret at a Secret you created:
+#      kubectl create secret generic binflow-master-key \
+#        --from-literal=BINFLOW_REMOTE_CREDENTIALS_KEY=$(openssl rand -base64 32)
+#    Boot posture: without the key the instance still boots (nothing sealed
+#    yet), but once ANY sealed row exists the boot fail-fasts until the same
+#    key returns — set it before creating keypairs/auth configs/remote
+#    credentials, and back it up like a password you cannot reset.
+masterKey:
+  # -- Name of an existing Secret carrying key
+  #    BINFLOW_REMOTE_CREDENTIALS_KEY. Empty = the env var is not injected
+  #    (no master key; fine for a fresh, unsealed instance).
+  existingSecret: ""

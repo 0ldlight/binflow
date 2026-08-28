@@ -26,7 +26,7 @@ export GOTOOLCHAIN
 .PHONY: all build test lint fmt vet tidy run dev clean tools check-size docs docs-size console console-size \
 	check-deps goreleaser-check release-snapshot release release-verify \
 	test-m7-resume test-m7-resume-sigterm test-m7-rbac-matrix lint-baseline \
-	test-m10-matrix test-m10-invariant help
+	test-m10-matrix test-m10-invariant footprint help
 
 all: build
 
@@ -167,6 +167,26 @@ test-m10-invariant:
 	@echo "=== m10 invariant leg 2/2: M10 community posture floor ==="
 	@$(MAKE) --no-print-directory test-m10-matrix EXPECT=1 FORMS=community
 
+# ---- D-8 footprint gate (T-326, PRD milestone-11 §102.3 / AC3) ---------------
+
+# Idle window before the second RSS reading (NFR-P4's exact protocol:
+# 启动完成、无请求 60s 后). Override for quick non-evidential runs.
+FOOTPRINT_IDLE_SECS ?= 60
+
+## footprint: D-8 resource probe — boots a throwaway FRESH instance (temp
+## data dir, ephemeral port) and measures cold-start (spawn -> ping OK),
+## RSS at ready (the fresh-boot reading the 138.4MB T-297 registration took)
+## and RSS after FOOTPRINT_IDLE_SECS of zero traffic. darwin additionally
+## records vmmap "Physical footprint" — the T-147/T-297 methodology, so the
+## numbers compare with the registration. Observational by default; EXPECT=1
+## runs the PRD verdict (cold-start < 2s AND fresh-boot metric <= 100MB —
+## darwin gates on vmmap footprint, linux on ps RSS). The verdict is expected
+## RED until the boot-time allocation slimming (lazy embed touches) lands;
+## PRD §102.3's escape clause (差异归因 + 改善 >=20% + BOARD 留痕) rides on this
+## evidence. The ARTIFACT-side 100MB line lives in check-size instead.
+footprint:
+	scripts/footprint-probe.sh --idle-secs $(FOOTPRINT_IDLE_SECS) $(if $(EXPECT),--expect)
+
 ## lint: golangci-lint over the whole module (config in .golangci.yml).
 lint:
 	@test -x "$(GOLANGCI)" || { \
@@ -215,13 +235,21 @@ check-deps:
 	fi; \
 	echo "check-deps: zero CGo baseline — OK (ADR-0005)"
 
-## check-size: product budget gate (T-148), three faces:
+## check-size: product budget gate (T-148), four faces:
 ## 1. Raw binaries: bin/bf (<15MB T-148 AC2), bin/bf-migrate (<15MB),
 ##    bin/binflow-server (<40MB PRODUCT, unchanged since T-7).
 ##    WARN only — `make build` never fails on size.
 ## 2. Every compressed dist/ release archive (exit 1 when any platform
 ##    archive is over 40MB; CHECK_SIZE_WARN=1 downgrades to a warning).
-## 3. No dist/ artifacts — the common `make build` case — leaves just the
+## 3. The SIX-PLATFORM AGGREGATE of those archives <= 100MB (T-326 D-8
+##    artifact-face consolidation): the per-archive 40MB budget is the
+##    user-facing wire-cost line; the aggregate ceiling guards the
+##    distribution footprint of a full snapshot/release set (measured
+##    94.13MB at T-326: six archives 14.93–16.36MB each). NOT the D-8
+##    ruling itself — PRD milestone-11 §102.3's 100MB line is runtime idle
+##    RSS, gated separately by `make footprint` (same escape hatch:
+##    CHECK_SIZE_WARN=1 downgrades to a warning).
+## 4. No dist/ artifacts — the common `make build` case — leaves just the
 ##    per-binary report.
 check-size:
 	@echo "--- raw binaries ---"; \
@@ -253,6 +281,25 @@ check-size:
 			fi; \
 		fi; \
 	done; \
+	total=0; found=0; \
+	for f in dist/binflow_*.tar.gz dist/binflow_*.zip; do \
+		[ -e "$$f" ] || continue; \
+		found=$$((found+1)); \
+		sz=$$(wc -c < "$$f" | tr -d ' '); \
+		total=$$((total+sz)); \
+	done; \
+	if [ "$$found" -gt 0 ]; then \
+		tmb=$$(awk -v b="$$total" 'BEGIN { printf "%.2f", b/1048576 }'); \
+		echo "  TOTAL: $$tmb MB across $$found archives (budget 100 MB, T-326)"; \
+		if [ "$$total" -gt 104857600 ]; then \
+			over=1; \
+			if [ "$(CHECK_SIZE_WARN)" = "1" ]; then \
+				echo "  WARNING: six-platform aggregate exceeds the 100MB budget"; \
+			else \
+				echo "  ERROR: six-platform aggregate exceeds the 100MB budget (CHECK_SIZE_WARN=1 downgrades to a warning)"; \
+			fi; \
+		fi; \
+	fi; \
 	[ "$$over" -eq 0 ] || [ "$(CHECK_SIZE_WARN)" = "1" ] || exit 1
 
 # ---- release face (T-127, FR-34 / PB-01 / PB-02) --------------------------

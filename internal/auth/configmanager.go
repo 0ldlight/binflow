@@ -397,6 +397,12 @@ func (m *ConfigManager) Load(ctx context.Context, seeds map[string][]byte) error
 		}
 	}
 
+	// The reserved SP-encryption row fails the boot when its sealed half
+	// cannot be opened (the ErrSecretUnreadable posture — T-331).
+	if err := m.verifySAMLSPKeyAtBoot(ctx); err != nil {
+		return err
+	}
+
 	snap, err := m.rebuildSnapshot(ctx)
 	if err != nil {
 		return err
@@ -687,6 +693,16 @@ func (m *ConfigManager) PutAuthSection(ctx context.Context, section string, body
 			return nil, nil, err
 		}
 		next.saml = sec
+		// §3.3 flow 2: an encrypted-assertion save generates the SP pair
+		// when absent and reuses it when present (createStoreAndGetKeyPair
+		// (false)) — BEFORE the section row lands, so a generation refusal
+		// (no master key, entropy failure) collapses into the same
+		// "nothing saved" refusal the other verify legs produce.
+		if sec.UseEncryptedAssertion {
+			if _, err := m.ensureSAMLSPKeypairLocked(ctx, actor, false); err != nil {
+				return nil, nil, err
+			}
+		}
 	}
 
 	if err := m.store.PutAuthConfig(ctx, &StoredAuthConfig{

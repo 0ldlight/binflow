@@ -22,6 +22,14 @@ export interface SeedClient {
     path: string,
     opts?: { body?: unknown; headers?: Record<string, string>; raw?: boolean },
   ): Promise<{ status: number; text: string }>
+  /** Non-throwing authenticated GET riding the client's own credential
+   * (verify legs observe non-2xx statuses; T-326 D-9②). */
+  probeGet(path: string): Promise<{ status: number; text: string }>
+}
+
+export interface AdminCredential {
+  username: string
+  password: string
 }
 
 export interface TreePlan {
@@ -54,6 +62,8 @@ export declare const M8_ROLE_USERS: RoleFixtures
 export declare const TREE_PLAN: TreePlan
 
 export declare function roleFixturesFromEnv(env?: Record<string, string | undefined>): RoleFixtures
+export declare function adminCredential(env?: Record<string, string | undefined>): AdminCredential
+export declare function converge<T>(fn: () => Promise<T>, opts?: { attempts?: number; baseDelayMs?: number }): Promise<T>
 export declare function makeClient(opts: { base?: string; username: string; password: string }): SeedClient
 export declare function ensureUser(
   client: SeedClient,

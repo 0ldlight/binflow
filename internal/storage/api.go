@@ -107,6 +107,45 @@ type MultipartUploads interface {
 	BeginMultipartSession(ctx context.Context, partSize int64) (Session, error)
 }
 
+// MaxMultipartCallerState bounds the caller blob the /api/v1/uploads plane
+// may persist alongside a session (T-323R): the blob is protocol
+// coordinates, never content, so a small fixed ceiling keeps every
+// upload_sessions row bounded no matter what a future plane version nests
+// in it.
+const MaxMultipartCallerState = 8 << 10
+
+// MultipartUploadContexts is the optional capability the /api/v1/uploads
+// REST plane discovers on the MultipartUploads seam (T-323R, closing the
+// T-323 intersection register's REST-visibility gap): the plane's protocol
+// coordinates — target repoKey/path, mime, resolved part size, creator —
+// ride the SAME upload_sessions row the engine already persists, as an
+// opaque caller blob the engine stores verbatim at begin and hands back at
+// resume. The engine keeps owning the row's State column: it nests the blob
+// inside its own state JSON and never interprets it, which is why the
+// coordinates live here instead of a second metadata table (the plane owns
+// no schema of its own, and a parallel table could not share the row's
+// TTL/sweep lifecycle).
+//
+// ResumeSessionContext adopts ONLY rows whose state carries a caller blob:
+// a row some other upload plane opened (the docker adapter drives the plain
+// Engine.ResumeSession and writes no blob) answers ErrSessionNotFound with
+// the row untouched, so probing a foreign session id through the REST plane
+// can neither adopt its coordinates nor disturb its live handle.
+type MultipartUploadContexts interface {
+	// BeginMultipartSessionContext opens a multipart session exactly like
+	// BeginMultipartSession and persists the opaque caller blob in the
+	// session's row. caller must be non-empty and at most
+	// MaxMultipartCallerState bytes; a violation fails the begin (nothing
+	// opens server-side).
+	BeginMultipartSessionContext(ctx context.Context, partSize int64, caller []byte) (Session, error)
+	// ResumeSessionContext re-materializes an in-progress session exactly
+	// like Engine.ResumeSession and additionally returns the persisted
+	// caller blob verbatim. Every ResumeSession failure contract applies
+	// (ErrSessionNotFound for a missing, expired-but-unswept or caller-less
+	// row; fail-closed — a rejected resume never consumes the row).
+	ResumeSessionContext(ctx context.Context, id string) (Session, []byte, error)
+}
+
 // SessionSweeper is the optional capability an engine may carry to rerun
 // its open-time expired-session reclamation on demand (T-324): the
 // unused-cleanup engine's periodic driver invokes it so a long-running

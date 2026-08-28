@@ -82,3 +82,39 @@ PVC name
 {{- include "binflow.fullname" . }}
 {{- end }}
 {{- end }}
+
+{{/*
+binstore validation guard (M11 T-306 / ADR-0036, T-325).
+
+Render-time refusal for value combinations the server would reject at boot
+anyway (with line-pointed errors there, but an operator should learn about
+them in helm land). Invoked at the top of BOTH deployment.yaml and
+configmap.yaml — Helm's template render order is not guaranteed, so the
+guard must fire before any template-local `required` can mislead with a
+less precise message.
+
+Checks:
+  - config.binstore.enabled + config.s3.enabled    → Q5 semantic-divergence
+    (the two spellings of one storage chain must not coexist);
+  - providers chain shape                          → legal chains are
+    [filestore], [s3], [filestore, s3] (filestore first on the dual chain);
+  - migration.mode required on the dual chain, illegal on any other.
+*/}}
+{{- define "binflow.binstoreValidate" -}}
+{{- if .Values.config.binstore.enabled }}
+{{- if .Values.config.s3.enabled }}
+{{- fail "config.binstore.enabled and config.s3.enabled are mutually exclusive — binstore.yaml owns the storage chain when enabled; move the S3 parameters to config.binstore.s3 and set config.s3.enabled=false (rendering both is a Q5 semantic-divergence boot refusal)" }}
+{{- end }}
+{{- $declared := join "," .Values.config.binstore.providers }}
+{{- if and (ne $declared "filestore") (ne $declared "s3") (ne $declared "filestore,s3") }}
+{{- fail (printf "config.binstore.providers [%s] is not a legal chain — legal chains are [filestore], [s3] and [filestore, s3] (the dual migration chain, filestore first)" $declared) }}
+{{- end }}
+{{- $dual := eq $declared "filestore,s3" }}
+{{- if and $dual (not .Values.config.binstore.migration.mode) }}
+{{- fail "config.binstore.migration.mode is required on the [filestore, s3] chain (bypass | dual-write | completed)" }}
+{{- end }}
+{{- if and (not $dual) .Values.config.binstore.migration.mode }}
+{{- fail (printf "config.binstore.migration.mode %q is only legal on the [filestore, s3] chain — this chain is [%s]" .Values.config.binstore.migration.mode $declared) }}
+{{- end }}
+{{- end }}
+{{- end }}

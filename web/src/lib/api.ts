@@ -437,3 +437,23 @@ export async function testAuthSection(section: AuthSection, body?: unknown): Pro
     throw err
   }
 }
+
+// ---- SAML SP 加密证书族（T-307R / T-331，契约 = internal/httpapi saml key 三路由） ----
+//
+// SP（服务提供方）自己的加密密钥对的公钥面：IdP 要拿这份证书才能回发加密
+// 断言（auth-integration §3.2）。text/plain 双向；读 = CapSecurityRead
+// （readonly_admin 可下载——公钥是公开材料），写 = CapSecurityWrite。
+// 未生成时 GET 404（errors[] 信封，锚定空态）。
+
+/** 公钥证书 PEM 下载（text/plain；未生成 → 404 ApiError） */
+export function getSamlSpCertificate(): Promise<string> {
+  return apiText('/v1/admin/security/saml/config/key/public')
+}
+
+/**
+ * 重生成 SP 密钥对（force 一对一替换）：**旧证书即刻失效**（只有新证书被
+ * 服务），回应体 = 新证书 PEM（T-331 D-5）——直接用来刷新展示，无需再 GET。
+ */
+export function regenerateSamlSpKey(): Promise<string> {
+  return apiText('/v1/admin/security/saml/config/key/public/regenerate', { method: 'PUT' })
+}

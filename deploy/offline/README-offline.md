@@ -119,6 +119,12 @@ curl http://127.0.0.1:8080/readyz
 
 本离线包使用 semver 版本号（`v1.0.0`）。镜像标签、Chart 版本、二进制文件名均与此一致。如需不同版本，请重新构建离线包。
 
+## M11 配置面（T-325）
+
+- **binstore.yaml 存储链（T-306 / ADR-0036）**：air-gapped 环境同样支持把存储链交给独立文件——compose 模式下在 `compose/` 目录放一个 `binstore.yaml` 并按 `deploy/compose/docker-compose.yml` 注释挂载；helm 模式用 `config.binstore.*` values（Chart 1.2.0+）；k8s 清单见包内 `k8s/binstore-configmap.yaml.example`。文件拥有链期间，`BINFLOW_STORAGE__BACKEND` / `BINFLOW_STORAGE__S3__*` 环境变量被忽略（WARN）；`BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY` 始终生效（env-only 秘密）。
+- **实例主密钥（T-319/T-305）**：`BINFLOW_REMOTE_CREDENTIALS_KEY`（base64 32 字节）以 enc:v1 密封远程仓库凭据、复制秘密、auth_configs 与 GPG keypair。离线环境在 `.env`（compose）/ Secret（k8s/helm `masterKey.existingSecret`）中生成并备份一次——一旦存在密封行，缺失同钥会拒绝启动。
+- **镜像锚定**：compose 引用的 `minio/minio` 与 `minio/mc` 均为版本锚定 tag（非 `:latest`）。2026-08-28 实测 `RELEASE.2025-04-08T15-39-49Z`（mc）可拉取可执行（T-306 曾观察到拉取失败，判定为镜像源瞬态/探测拼写问题）；对可复现性要求高的环境请走本离线包（`docker save` 全量镜像，零外部请求）。
+
 ## 故障排除
 
 | 问题 | 检查项 |

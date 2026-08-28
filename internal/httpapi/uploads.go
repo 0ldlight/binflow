@@ -47,13 +47,21 @@ import (
 // -text 501 below, never a 404 masquerading as "no such route": a client
 // can tell "absent on this backend" from "not a BinFlow endpoint".
 //
-// Sessions are process state (the docker sessionRegistry posture): a
-// restart forgets them and status answers 404. S3 restart-resume stays the
-// registered §11.31 M8+ debt — the engine's ResumeSession keeps its frozen
-// hard-404 contract (section 5.3.1 contract 5), and this plane adds no
-// upload_sessions rows of its own (zero metadata touch, §5.3.1 contract 6).
-// The S3-side residue of a forgotten session is reclaimed by the engine's
-// startup orphan sweep (T-203 D-6) plus the idle sweep here.
+// Restart visibility (T-323R, closing the T-323 intersection register): the
+// plane's sessions survive a restart wherever the seam carries
+// storage.MultipartUploadContexts. The create verb then persists the
+// plane's protocol coordinates (repoKey/path/mime/part size/creator) as an
+// opaque blob inside the engine's own upload_sessions row, and a registry
+// miss on any per-session verb re-materializes the session through
+// ResumeSessionContext — the docker adapter's T-216 lazy-rebuild posture
+// (kill -9 and graceful SIGTERM both leave the row and the server-side
+// multipart state behind, ADR-0028). Sessions opened before the context
+// pair (or by another upload plane) carry no blob and keep the plain 404.
+// The bare status LIST stays a view of what THIS process knows: a
+// restarted session appears there only after one of its verbs has addressed
+// it. The S3-side residue of an abandoned session is reclaimed by the
+// engine's startup + maintenance sweeps (T-203 D-6, T-324) plus the idle
+// sweep here.
 
 // mpuEndpointBase is the route prefix of the plane (under /binflow/api).
 const mpuEndpointBase = "/binflow/api/v1/uploads"
@@ -101,19 +109,41 @@ type mpuSession struct {
 	updatedAt time.Time
 }
 
-// mpuRegistry is the process-wide session table: id -> session. In-memory
-// only (see the package comment); entries leave through complete, abort or
-// the idle sweep, and the engine's startup sweep is the crash-window
-// backstop for whatever the process lost.
+// mpuRegistry is the process-wide session table: id -> session. The table
+// is in-memory, but a lookup miss is no longer the answer (T-323R):
+// resumeFromStore lazily re-materializes the session from the engine's
+// persisted row — the coordinates the create verb persisted plus the
+// server-side multipart state — which is what makes an in-flight upload
+// visible across a restart. Entries leave through complete, abort or the
+// idle sweep, and the engine's startup + maintenance sweeps remain the
+// crash-window backstop for whatever the process lost.
 type mpuRegistry struct {
-	mu        sync.Mutex
-	byID      map[string]*mpuSession
+	mu   sync.Mutex
+	byID map[string]*mpuSession
+	// resuming tracks in-flight lazy rebuilds (the per-id single-flight
+	// funnel, the docker T-216 posture): the engine resolves same-id
+	// concurrent resumes last-writer-wins, so two racing first requests must
+	// not both reach it. Guarded by mu.
+	resuming  map[string]*mpuResumeAttempt
 	ttl       time.Duration
 	sweepOnce sync.Once
 }
 
+// mpuResumeAttempt is one in-flight lazy rebuild: exactly one caller (the
+// "flyer") runs ResumeSessionContext while every other request for the same
+// id waits on done and consumes the same outcome.
+type mpuResumeAttempt struct {
+	done chan struct{} // closed exactly once, after sess/err are final
+	sess *mpuSession   // set on success
+	err  error         // set on failure (may wrap storage.ErrSessionNotFound)
+}
+
 func newMPURegistry() *mpuRegistry {
-	return &mpuRegistry{byID: map[string]*mpuSession{}, ttl: mpuIdleTTL}
+	return &mpuRegistry{
+		byID:     map[string]*mpuSession{},
+		resuming: map[string]*mpuResumeAttempt{},
+		ttl:      mpuIdleTTL,
+	}
 }
 
 // startSweep launches the idle-eviction loop once per process.
@@ -174,7 +204,8 @@ func (r *mpuRegistry) add(s *mpuSession) {
 	r.byID[s.id] = s
 }
 
-// lookup resolves one id; ok=false is the plane's 404.
+// lookup resolves one id; ok=false enters the lazy-rebuild lane (see
+// resumeFromStore), not directly the plane's 404.
 func (r *mpuRegistry) lookup(id string) (*mpuSession, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -189,6 +220,72 @@ func (r *mpuRegistry) remove(id string) {
 	delete(r.byID, id)
 }
 
+// resumeFromStore is the restart-visibility lane (T-323R, the docker
+// adapter's T-216 funnel adapted to this plane): the in-registry fast path
+// first, then — on a miss — the lazy rebuild from the engine's persisted
+// row. No start-up preloading: the rebuild happens on the first request
+// that addresses the id.
+//
+// The rebuild is funneled per id for the same reason the docker registry
+// funnels its own: the engine resolves same-id concurrent resumes
+// last-writer-wins (the superseded handle's next Append fails "already
+// finalized"), so two racing first requests must not both reach it. The
+// first miss registers an attempt and becomes the single flyer; the rest
+// wait for its outcome and reuse the winner's session. The rebuild itself
+// runs OUTSIDE r.mu on purpose (ResumeSession does S3 I/O — a ListParts
+// walk — and must not stall unrelated lookups). Waiters do not bail on
+// their own request context: the flyer's rebuild is shared state.
+//
+// Error mapping: storage.ErrSessionNotFound — an unknown id, an
+// expired-but-unswept row (fail-closed), a row without plane coordinates,
+// or a seam that cannot rebuild — is returned as-is for the caller's 404.
+// Any other engine failure is returned verbatim and NOTHING is cached, so
+// the next request retries the rebuild from scratch; only a coordinate
+// blob this plane cannot use aborts the engine session (the row is this
+// plane's own — only the context begin writes a blob — and its coordinates
+// are damaged beyond interpretation).
+func (r *mpuRegistry) resumeFromStore(ctx context.Context, seam storage.MultipartUploadContexts, id string) (*mpuSession, error) {
+	if s, ok := r.lookup(id); ok {
+		return s, nil
+	}
+	r.mu.Lock()
+	// Double-check under the lock: a rebuild race's flyer may have published
+	// between the fast lookup and here.
+	if s, ok := r.byID[id]; ok {
+		r.mu.Unlock()
+		return s, nil
+	}
+	if att, ok := r.resuming[id]; ok {
+		r.mu.Unlock()
+		<-att.done // the funnel: reuse the flyer's outcome
+		return att.sess, att.err
+	}
+	att := &mpuResumeAttempt{done: make(chan struct{})}
+	r.resuming[id] = att
+	r.mu.Unlock()
+
+	// Single flyer. ctx arrives WithoutCancel from the caller: once waiters
+	// share the attempt, the rebuild must not die with the request that
+	// triggered it.
+	sess, caller, err := seam.ResumeSessionContext(ctx, id)
+	r.mu.Lock()
+	delete(r.resuming, id)
+	if err == nil {
+		ms, perr := mpuSessionFromStore(id, sess, caller)
+		if perr == nil {
+			att.sess = ms
+			r.byID[id] = ms
+		} else {
+			err = perr
+			_ = sess.Abort(ctx) // this plane's own row, its coordinates unusable
+		}
+	}
+	att.err = err
+	r.mu.Unlock()
+	close(att.done)
+	return att.sess, att.err
+}
+
 // snapshot lists every live session sorted by session id (deterministic
 // wire order for the bare status arm — id order, not age: age is not a
 // claim this table makes).
@@ -201,6 +298,85 @@ func (r *mpuRegistry) snapshot() []*mpuSession {
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].id < out[j].id })
 	return out
+}
+
+// ---- persisted plane state (T-323R) ----
+
+// mpuCallerStateVersion pins the persisted coordinate blob's shape.
+const mpuCallerStateVersion = 1
+
+// mpuCallerState is the protocol coordinate blob the create verb persists
+// inside the engine's upload_sessions row (opaque to the engine, verbatim
+// both ways) — the facts this plane owns that no engine state carries:
+// where a completed blob lands (repoKey/path), its mime, the resolved part
+// size the part-alignment contract judges against, and the echo telemetry
+// (createdBy/createdAt). The part ACCOUNTING is deliberately absent: parts
+// and the awaiting-complete state derive from the engine session's
+// authoritative Offset against the persisted part size (every non-final
+// part is exactly partSize; a short part closes the stream), so the row
+// can never disagree with the bytes.
+type mpuCallerState struct {
+	Version   int    `json:"version"`
+	RepoKey   string `json:"repoKey"`
+	Path      string `json:"path"`
+	MimeType  string `json:"mimeType"`
+	PartSize  int64  `json:"partSizeBytes"`
+	CreatedBy string `json:"createdBy,omitempty"`
+	CreatedAt string `json:"createdAt"` // RFC3339 UTC
+}
+
+// mpuSessionFromStore rebuilds the plane's session view from the engine
+// session plus the persisted coordinate blob: offset, part count and state
+// derive from the engine's Offset (the authority), the coordinates come
+// back verbatim, and the idle clock restarts at the resume (the docker
+// T-216 posture — the anchor for a session this process only just
+// re-materialized). A blob this plane cannot use (wrong shape, missing
+// coordinates) fails closed with storage.ErrSessionNotFound: the session is
+// not resumable through THIS plane, whatever the engine could rebuild.
+func mpuSessionFromStore(id string, sess storage.Session, caller []byte) (*mpuSession, error) {
+	notFound := func(why string) error {
+		return fmt.Errorf("httpapi: mpu session %s: %w: %s", id, storage.ErrSessionNotFound, why)
+	}
+	var cs mpuCallerState
+	if err := json.Unmarshal(caller, &cs); err != nil {
+		return nil, notFound("persisted plane state is unreadable")
+	}
+	if cs.RepoKey == "" || cs.Path == "" || cs.PartSize <= 0 {
+		return nil, notFound("persisted plane state lacks its coordinates")
+	}
+	if cs.MimeType == "" {
+		cs.MimeType = "application/octet-stream" // the create's own default, belt for hand-seeded rows
+	}
+	createdAt := time.Now().UTC()
+	if t, err := time.Parse(time.RFC3339, cs.CreatedAt); err == nil {
+		createdAt = t
+	}
+	ms := &mpuSession{
+		id:        id,
+		sess:      sess,
+		repoKey:   cs.RepoKey,
+		path:      cs.Path,
+		mime:      cs.MimeType,
+		partSize:  cs.PartSize,
+		state:     mpuStateActive,
+		createdBy: cs.CreatedBy,
+		createdAt: createdAt,
+		updatedAt: time.Now().UTC(),
+	}
+	// The engine's offset is the resume authority: a restarted session
+	// resumes at the last FLUSHED part boundary (bytes that lived only in
+	// the engine's pending part buffer die with the process), so the derived
+	// accounting is exact by construction — parts are ceil(offset/partSize)
+	// and a non-partSize-multiple offset means a short (final) part had
+	// been accepted.
+	ms.received = sess.Offset()
+	if ms.received > 0 {
+		ms.parts = int((ms.received + ms.partSize - 1) / ms.partSize)
+		if ms.received%ms.partSize != 0 {
+			ms.state = mpuStateFinal
+		}
+	}
+	return ms, nil
 }
 
 // ---- wire shapes ----
@@ -365,7 +541,8 @@ func (s *Server) uploadsWriteGate(r *http.Request, repoKey, path string) bool {
 }
 
 // resolveMPUSession is the per-session verbs' shared entry: backend gate,
-// registry lookup, write door. Failures render here and return ok=false.
+// registry lookup, the lazy rebuild a restart miss triggers, write door.
+// Failures render here and return ok=false.
 func (s *Server) resolveMPUSession(w http.ResponseWriter, r *http.Request, id string) (*mpuSession, bool) {
 	if s.deps.Uploads == nil {
 		writeUploadsUnavailable(w)
@@ -377,11 +554,11 @@ func (s *Server) resolveMPUSession(w http.ResponseWriter, r *http.Request, id st
 	}
 	sess, ok := s.uploads.lookup(id)
 	if !ok {
-		// The unknown-id wording deliberately matches the restart posture:
-		// a forgotten (restarted) session is indistinguishable from an
-		// aborted one, and both are the client's re-create cue.
-		writeError(w, http.StatusNotFound, "upload session not found: "+id)
-		return nil, false
+		var err error
+		sess, err = s.resumeMPUSession(w, r, id)
+		if err != nil {
+			return nil, false
+		}
 	}
 	if !s.uploadsWriteGate(r, sess.repoKey, sess.path) {
 		writeError(w, http.StatusForbidden,
@@ -389,6 +566,47 @@ func (s *Server) resolveMPUSession(w http.ResponseWriter, r *http.Request, id st
 		return nil, false
 	}
 	return sess, true
+}
+
+// resumeMPUSession is the restart-visibility lane's server half (T-323R):
+// the seam must carry storage.MultipartUploadContexts (a seam without it
+// keeps the pre-T-323R process-only posture — the plain 404), the rebuild
+// rides the registry's per-id funnel, and only the outcome rendering lives
+// here. The unknown-id wording stays the plane's one 404: a session this
+// process never saw, one whose row expired (fail-closed), one opened
+// before the context pair or by another upload plane, and an aborted
+// session are all the client's same re-create cue.
+func (s *Server) resumeMPUSession(w http.ResponseWriter, r *http.Request, id string) (*mpuSession, error) {
+	seam, ok := s.deps.Uploads.(storage.MultipartUploadContexts)
+	if !ok {
+		writeError(w, http.StatusNotFound, "upload session not found: "+id)
+		return nil, fmt.Errorf("resume unavailable")
+	}
+	// Once waiters share the attempt the rebuild must not die with the
+	// request that triggered it.
+	ms, err := s.uploads.resumeFromStore(context.WithoutCancel(r.Context()), seam, id)
+	if err != nil {
+		if errors.Is(err, storage.ErrSessionNotFound) {
+			writeError(w, http.StatusNotFound, "upload session not found: "+id)
+			return nil, err
+		}
+		s.log.ErrorContext(r.Context(), "httpapi: mpu session resume failed",
+			"session", id, "error", err.Error())
+		if errors.Is(err, storage.ErrEngineClosed) {
+			writeError(w, http.StatusServiceUnavailable,
+				"resuming the upload session failed (storage is shutting down); retry shortly")
+			return nil, err
+		}
+		writeError(w, http.StatusInternalServerError,
+			"resuming the upload session failed; retry")
+		return nil, err
+	}
+	ms.mu.Lock()
+	off, repo, path := ms.received, ms.repoKey, ms.path
+	ms.mu.Unlock()
+	s.log.InfoContext(r.Context(), "httpapi: mpu session re-materialized from storage (restart resume)",
+		"session", id, "repo", repo, "path", path, "offset", off)
+	return ms, nil
 }
 
 // ---- endpoint handlers ----
@@ -453,18 +671,42 @@ func (s *Server) handleUploadsCreate(w http.ResponseWriter, r *http.Request) {
 		mime = "application/octet-stream"
 	}
 
-	sess, err := s.deps.Uploads.BeginMultipartSession(r.Context(), partSize)
-	if err != nil {
-		s.log.ErrorContext(r.Context(), "httpapi: mpu create failed",
-			"repo", req.RepoKey, "path", req.Path, "error", err.Error())
-		writeError(w, http.StatusInternalServerError, "opening the multipart upload session failed")
-		return
-	}
 	now := time.Now().UTC()
 	p := principalFrom(r.Context())
 	createdBy := ""
 	if p != nil {
 		createdBy = p.Name
+	}
+	// The protocol coordinates ride the engine's own session row (T-323R):
+	// the context begin persists them as an opaque blob, which is what makes
+	// the session re-materializable through this plane after a restart. A
+	// seam without the context pair (pre-T-323R shapes, narrow fakes) keeps
+	// the plain begin and the process-only posture.
+	caller, merr := json.Marshal(mpuCallerState{
+		Version:   mpuCallerStateVersion,
+		RepoKey:   req.RepoKey,
+		Path:      req.Path,
+		MimeType:  mime,
+		PartSize:  partSize,
+		CreatedBy: createdBy,
+		CreatedAt: now.UTC().Format(time.RFC3339),
+	})
+	var sess storage.Session
+	err = merr // json.Marshal of scalars cannot fail; kept honest anyway
+	if merr == nil {
+		if cs, cok := s.deps.Uploads.(storage.MultipartUploadContexts); cok {
+			sess, err = cs.BeginMultipartSessionContext(r.Context(), partSize, caller)
+		} else {
+			sess, err = s.deps.Uploads.BeginMultipartSession(r.Context(), partSize)
+		}
+	} else {
+		err = merr
+	}
+	if err != nil {
+		s.log.ErrorContext(r.Context(), "httpapi: mpu create failed",
+			"repo", req.RepoKey, "path", req.Path, "error", err.Error())
+		writeError(w, http.StatusInternalServerError, "opening the multipart upload session failed")
+		return
 	}
 	ms := &mpuSession{
 		id:        sess.ID(),

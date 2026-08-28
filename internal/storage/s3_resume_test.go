@@ -971,3 +971,159 @@ func t323MinioCore(t *testing.T, endpoint string) *minio.Core {
 	}
 	return &minio.Core{Client: client}
 }
+
+// ---- T-323R: the caller-context lane (the /api/v1/uploads coordinates) ----
+
+// TestS3MultipartCallerContextRoundTrip: the context begin persists the
+// opaque caller blob inside the session row, the context resume hands it
+// back verbatim alongside the rebuilt session, the blob survives every
+// later SetState (part flushes), and the plain ResumeSession contract is
+// unchanged for caller-carrying rows (the docker adapter's lane).
+func TestS3MultipartCallerContextRoundTrip(t *testing.T) {
+	mock := newMockS3Server()
+	t.Cleanup(func() { mock.Close() })
+	bucket := "test-bucket"
+	rows := newMemUploadSessions()
+	ctx := context.Background()
+
+	first := newS3EngineWithRows(t, mock, bucket, rows, nil)
+	first.partSize = MinS3PartSize
+	caller := []byte(`{"version":1,"repoKey":"generic-local","path":"big/a.bin","mimeType":"application/x-test","partSizeBytes":5242880}`)
+	s, err := first.BeginMultipartSessionContext(ctx, MinS3PartSize, caller)
+	if err != nil {
+		t.Fatalf("BeginMultipartSessionContext: %v", err)
+	}
+	part1 := make([]byte, MinS3PartSize)
+	pending := make([]byte, 100<<10)
+	if _, err := s.Append(ctx, io.MultiReader(bytes.NewReader(part1), bytes.NewReader(pending))); err != nil {
+		t.Fatal(err)
+	}
+	id := s.ID()
+
+	// The row carries the blob, and a part FLUSH (a SetState) did not
+	// strand it: the coordinates ride every re-persist untouched.
+	row, err := rows.Get(ctx, id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := unmarshalS3SessionState(row.State).Caller; got != string(caller) {
+		t.Fatalf("row caller state = %q after a part flush, want the verbatim blob", got)
+	}
+
+	// The crash + the restarted process's context resume.
+	second := newS3EngineWithRows(t, mock, bucket, rows, nil)
+	rs, gotCaller, err := second.ResumeSessionContext(ctx, id)
+	if err != nil {
+		t.Fatalf("ResumeSessionContext: %v", err)
+	}
+	if !bytes.Equal(gotCaller, caller) {
+		t.Fatalf("resumed caller = %q, want verbatim %q", gotCaller, caller)
+	}
+	if off := rs.Offset(); off != MinS3PartSize {
+		t.Fatalf("resumed offset = %d, want %d", off, MinS3PartSize)
+	}
+
+	// The rebuilt session finishes: commit reconciles the whole content.
+	whole := append(append([]byte{}, part1...), pending...)
+	if _, err := rs.Append(ctx, bytes.NewReader(pending)); err != nil {
+		t.Fatal(err)
+	}
+	ref, err := rs.Commit(ctx, s3DigestTriple(whole))
+	if err != nil {
+		t.Fatalf("commit after context resume: %v", err)
+	}
+	if want := s3DigestTriple(whole).Sha256; ref.Sha256 != want {
+		t.Fatalf("commit sha256 = %s, want %s", ref.Sha256, want)
+	}
+
+	// The plain lane is unchanged: a caller-carrying row still resumes
+	// through Engine.ResumeSession (the docker adapter's posture).
+	s2, err := first.BeginMultipartSessionContext(ctx, MinS3PartSize, caller)
+	if err != nil {
+		t.Fatal(err)
+	}
+	third := newS3EngineWithRows(t, mock, bucket, rows, nil)
+	if _, err := third.ResumeSession(ctx, s2.ID()); err != nil {
+		t.Fatalf("plain ResumeSession on a caller-carrying row: %v", err)
+	}
+}
+
+// TestS3ResumeContextFailClosedAndBounds: the context lane refuses what it
+// must — a caller-less row (another plane's session) answers
+// ErrSessionNotFound WITHOUT consuming the row or disturbing the live
+// handle, and the begin validates the blob's presence and size before
+// anything opens server-side.
+func TestS3ResumeContextFailClosedAndBounds(t *testing.T) {
+	mock := newMockS3Server()
+	t.Cleanup(func() { mock.Close() })
+	bucket := "test-bucket"
+	rows := newMemUploadSessions()
+	ctx := context.Background()
+
+	// A caller-less row is the plain lane's shape.
+	first := newS3EngineWithRows(t, mock, bucket, rows, nil)
+	s, err := first.BeginSession(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := s.ID()
+
+	second := newS3EngineWithRows(t, mock, bucket, rows, nil)
+	if _, _, err := second.ResumeSessionContext(ctx, id); !errors.Is(err, ErrSessionNotFound) {
+		t.Fatalf("ResumeSessionContext on a caller-less row = %v, want ErrSessionNotFound", err)
+	}
+	// Fail-closed: the row survives, and the FIRST engine's live handle was
+	// neither detached nor disturbed (a REST probe of a docker-session id
+	// must not break the docker push in flight).
+	if _, err := rows.Get(ctx, id); err != nil {
+		t.Fatalf("row consumed by the refused context resume: %v", err)
+	}
+	if _, err := s.Append(ctx, bytes.NewReader(bytes.Repeat([]byte("."), 16))); err != nil {
+		t.Fatalf("live session disturbed by the refused context resume: %v", err)
+	}
+
+	// The begin bounds the blob before anything opens server-side.
+	eng := newS3EngineWithRows(t, mock, bucket, rows, nil)
+	before := mock.uploadCount(bucket)
+	if _, err := eng.BeginMultipartSessionContext(ctx, MinS3PartSize, nil); err == nil {
+		t.Fatal("empty caller accepted")
+	}
+	oversize := bytes.Repeat([]byte("x"), MaxMultipartCallerState+1)
+	if _, err := eng.BeginMultipartSessionContext(ctx, MinS3PartSize, oversize); err == nil {
+		t.Fatal("oversize caller accepted")
+	}
+	if n := mock.uploadCount(bucket) - before; n != 0 {
+		t.Fatalf("%d multipart uploads leaked by the refused begins", n)
+	}
+}
+
+// TestS3SweepReclaimsCompletedSessionObjects: the crash window between
+// CompleteMultipartUpload and the publish (CopyObject) parks a FINISHED
+// object under sessions/ that no in-progress-MPU listing can see — the
+// age-gated object sweep (T-323R's ruling on T-323 §6's registered residue)
+// reclaims it, while a fresh sessions object survives.
+func TestS3SweepReclaimsCompletedSessionObjects(t *testing.T) {
+	mock := newMockS3Server()
+	t.Cleanup(func() { mock.Close() })
+	bucket := "test-bucket"
+	_ = mock.bucket(bucket) // the fixture's bucket must exist before any engine opens
+
+	aged := "sessions/crash-window-uuid/data"
+	fresh := "sessions/mid-commit-uuid/data"
+	mock.setObject(bucket, aged, []byte("assembled but never published"))
+	mock.setObject(bucket, fresh, []byte("complete in flight"))
+	// The sweep runs one TTL later: `aged` was parked before the window and
+	// `fresh` carries the sweep-moment timestamp (a live commit's object is
+	// seconds old at the only moment it exists).
+	future := time.Now().Add(DefaultSessionTTL + time.Hour)
+	mock.setObjectLastModified(bucket, fresh, future)
+
+	_ = newS3EngineWithRows(t, mock, bucket, nil, func() time.Time { return future })
+
+	if _, ok := mock.buckets[bucket].objects[aged]; ok {
+		t.Fatal("the crash-window sessions object survived the age-gated sweep")
+	}
+	if _, ok := mock.buckets[bucket].objects[fresh]; !ok {
+		t.Fatal("the fresh sessions object was swept: a live commit window must never be touched")
+	}
+}

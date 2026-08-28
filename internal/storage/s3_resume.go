@@ -42,6 +42,11 @@ import (
 //     resumable offset is re-derived from ListParts (the pending part
 //     buffer's bytes die with the process, so the row's counter can only
 //     ever over-report — it is never trusted).
+//   - Caller (T-323R) is the /api/v1/uploads plane's opaque protocol
+//     coordinate blob, persisted verbatim at BeginMultipartSessionContext
+//     and handed back by ResumeSessionContext. The engine never interprets
+//     it; its absence simply keeps the row off the context-adoption lane
+//     (the plain ResumeSession contract is unchanged for such rows).
 type s3SessionState struct {
 	Version   int    `json:"version"`
 	ID        string `json:"id"`
@@ -50,6 +55,7 @@ type s3SessionState struct {
 	PartSize  int64  `json:"part_size"`
 	CreatedAt string `json:"created_at"` // RFC3339 UTC
 	Received  int64  `json:"received"`   // advisory; ListParts is the resume truth
+	Caller    string `json:"caller,omitempty"`
 }
 
 const s3SessionStateVersion = 1
@@ -65,6 +71,7 @@ func (s *s3Session) sessionStateLocked() s3SessionState {
 		PartSize:  s.partSize,
 		CreatedAt: s.createdAt.UTC().Format(time.RFC3339),
 		Received:  s.received,
+		Caller:    s.caller,
 	}
 }
 
@@ -92,6 +99,11 @@ func unmarshalS3SessionState(state string) s3SessionState {
 //     ErrSessionNotFound (fail-closed, the disk arm's contract: the sweep is
 //     the row's only legitimate reclamation path, and a resume must not race
 //     it or resurrect what it cannot rebuild).
+//   - requireCaller (the ResumeSessionContext lane, T-323R) additionally
+//     demands a caller blob in the state: a row without one belongs to
+//     another upload plane and answers ErrSessionNotFound BEFORE any S3
+//     call or registry attach — the REST plane can neither adopt a foreign
+//     session's coordinates nor disturb its live handle.
 //   - ListParts rebuilds the committed part list; the durable byte count —
 //     their size sum — becomes both the session offset and preResumed. The
 //     digest chain restarts empty over those bytes (see the file comment).
@@ -102,7 +114,7 @@ func unmarshalS3SessionState(state string) s3SessionState {
 //   - A live session registered under the same id is replaced
 //     last-writer-wins; the superseded handle is detached after the engine
 //     lock is released (the disk arm's lock-order rule).
-func (e *S3Engine) resumeSession(ctx context.Context, id string) (Session, error) {
+func (e *S3Engine) resumeSession(ctx context.Context, id string, requireCaller bool) (*s3Session, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("storage: s3: resume session %s: %w", id, err)
 	}
@@ -132,6 +144,13 @@ func (e *S3Engine) resumeSession(ctx context.Context, id string) (Session, error
 		return nil, fmt.Errorf("storage: s3: resume session %s: %w", id, ErrSessionNotFound)
 	}
 	st := unmarshalS3SessionState(row.State)
+	if requireCaller && st.Caller == "" {
+		// Not this lane's row (another upload plane's session, or one begun
+		// before the context pair existed): refuse before touching S3 or the
+		// session registry, leaving the row and any live handle exactly as
+		// they were.
+		return nil, fmt.Errorf("storage: s3: resume session %s: %w: persisted state carries no caller context", id, ErrSessionNotFound)
+	}
 	if st.UploadID == "" {
 		return nil, fmt.Errorf("storage: s3: resume session %s: %w: persisted state carries no upload id", id, ErrSessionNotFound)
 	}
@@ -152,6 +171,7 @@ func (e *S3Engine) resumeSession(ctx context.Context, id string) (Session, error
 		partSize:   resolveS3PartSize(st.PartSize),
 		digests:    newDigesters(),
 		createdAt:  createdAt,
+		caller:     st.Caller,
 		preResumed: 0,
 	}
 

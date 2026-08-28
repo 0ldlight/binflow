@@ -111,6 +111,37 @@
   align-items: center;
 }
 
+/* SP 加密证书卡（T-307R）：状态行 + 指纹行（mono + 一键拷贝——§7.3）+ 动作行 */
+.authcfg-cert-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--bf-fs-aux);
+  color: var(--bf-text-2);
+  margin: 0 0 var(--bf-sp-1);
+}
+
+.authcfg-cert-fp {
+  display: flex;
+  align-items: center;
+  gap: var(--bf-sp-2);
+  font-size: var(--bf-fs-form);
+  margin: 0 0 var(--bf-sp-3);
+  min-width: 0;
+}
+
+/* 95 字符冒号指纹：mono + 任意断行（窄屏不溢出卡片） */
+.authcfg-cert-fp > .mono {
+  overflow-wrap: anywhere;
+}
+
+.authcfg-cert-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bf-sp-2);
+  align-items: center;
+}
+
 .authcfg-report-meta {
   display: flex;
   gap: var(--bf-sp-2);

@@ -106,6 +106,45 @@ NOTE: these sections require a server build with the M6 auth wiring
 by design.
 {{- end }}
 
+{{- if .Values.config.binstore.enabled }}
+-------------------------------------------------------------------------------
+  Storage chain: binstore.yaml (M11 T-306 / ADR-0036)
+-------------------------------------------------------------------------------
+
+The storage chain is owned by the mounted binstore.yaml:
+
+  chain: [{{ join ", " .Values.config.binstore.providers }}]
+{{- if and (has "s3" .Values.config.binstore.providers) }}
+
+S3 endpoint: {{ .Values.config.binstore.s3.endpoint }}
+S3 bucket:   {{ .Values.config.binstore.s3.bucket }}
+Secret key from Secret "{{ .Values.config.binstore.s3.existingSecret }}"
+(key BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY — env-only; it reaches the live
+provider even though binstore.yaml owns every other S3 knob).
+{{- end }}
+{{- if eq (join "," .Values.config.binstore.providers) "filestore,s3" }}
+
+Migration mode: {{ .Values.config.binstore.migration.mode }}
+{{- end }}
+
+While binstore.yaml owns the chain, chain-scoped env vars
+(BINFLOW_STORAGE__BACKEND, BINFLOW_STORAGE__S3__*) would be ignored with
+a WARN — the chart sets none. data_dir and gc_hold_ttl_seconds stay in
+binflow.yaml (not chain keys).
+{{- end }}
+
+{{- if .Values.masterKey.existingSecret }}
+-------------------------------------------------------------------------------
+  Instance master key ACTIVE (M11, env-only)
+-------------------------------------------------------------------------------
+
+BINFLOW_REMOTE_CREDENTIALS_KEY is injected from Secret
+"{{ .Values.masterKey.existingSecret }}". It seals remote-repository
+credentials, replication secrets, auth_configs and GPG keypairs (enc:v1).
+Back it up: once sealed rows exist, the instance refuses to boot without
+the SAME key.
+{{- end }}
+
 {{- if .Values.config.addons.disabled }}
 -------------------------------------------------------------------------------
   Addon circuit breaker ACTIVE (M10 T-283 / ADR-0032 section 15.5)

@@ -5,7 +5,7 @@ sidebar_position: 70
 
 # API 参考
 
-> 适用版本：M1~M9（端点引入里程碑标注于各表；M7 增补：用户角色字段 `adminRole`、permission target 动作 `manage`、docker 上传状态腿跨重启、token 铸造 step-up 可选门；**M9 增补**：usage 批量端点、users 列表加宽/enabled 回显/DELETE、groups `?includeUsers`、permissions `?filter=manage`——速览见[下文](#m9-增补速览)）。Artifactory 兼容端点基于 REST 逆向规格 `docs/reverse/rest-api.md`（置信度高）。
+> 适用版本：M1~M11（端点引入里程碑标注于各表；M7 增补：用户角色字段 `adminRole`、permission target 动作 `manage`、docker 上传状态腿跨重启、token 铸造 step-up 可选门；**M9 增补**：usage 批量端点、users 列表加宽/enabled 回显/DELETE、groups `?includeUsers`、permissions `?filter=manage`——速览见[下文](#m9-增补速览)；**M11 增补**：认证配置面、GPG keypair 族、cleanup 引擎、四包型 reindex 族与 smart remote 两字段生效——见[M11 增补速览](#m11-增补速览t-328)）。Artifactory 兼容端点基于 REST 逆向规格 `docs/reverse/rest-api.md`（置信度高）。
 > **M10 增补（T-293 部分回写，2026-08-26）**：`?properties` 族反转为 **GET/PUT/DELETE 三动词**（POST 增量动词不做——其余动词落 404 冻结姿态；原 M5 期表格把属性动词标为 M4/M1 系陈旧勘误）；上传路径 matrix 参数 M10 生效。M10 其余新端点（license/addons/uploads、Go/NuGet/Cargo 接入面）已随 T-296 补齐——速览见[下文](#m10-新增端点速览t-296)。
 > BinFlow 自有端点以 `/api/v1` 前缀标记。
 
@@ -263,6 +263,85 @@ license / addons / uploads 三族与三个门控包型的接入面（依据 ADR-
 
 ---
 
+## M11 增补速览（T-328）
+
+认证配置面（T-305）、GPG keypair 族（T-319）、cleanup 引擎（T-324）、四包型 reindex 族（T-308/309/310/311）与 smart remote 两字段生效（T-317 L25 反转）。本节 curl 命令在 HEAD 构建 scratch 实例（`BINFLOW_REMOTE_CREDENTIALS_KEY` 已设）上实测（2026-08-28）；行为依据各票工作日志与 ADR-0035/0036/0038。
+
+### 认证配置域（`/api/v1/admin/security/*`；三段 × GET/PUT/test）
+
+| 方法 | 路径 | 门 | 语义 |
+|---|---|---|---|
+| GET | `/binflow/api/v1/admin/security/ldap` | CapSecurityRead | LDAP 段（未设置回默认形） |
+| PUT | `/binflow/api/v1/admin/security/ldap` | CapSecurityWrite | 整段替换，**保存即生效**（无需重启） |
+| POST | `/binflow/api/v1/admin/security/ldap/test` | CapSecurityWrite | 测试连接（TestReport，见下） |
+| GET / PUT / POST …/test | `…/admin/security/oauth` | 同上 | OIDC 段（snake_case wire） |
+| GET / PUT / POST …/test | `…/admin/security/saml/config` | 同上 | SAML 段（未设置 GET 回 `{}`） |
+
+- **secret 哨兵语义（write-only）**：GET 对已设置 secret 恒回 20 星 `********************`；PUT 键缺席 = 保持、`""` = 清除、新明文 = 替换；**回传哨兵 → 400** `refusing the masked placeholder — leave the field empty to keep the stored secret, or re-enter the value`（实测）。
+- secret 落库前 enc:v1 密封（实例主密钥 `BINFLOW_REMOTE_CREDENTIALS_KEY`）；无主密钥时 secret 写拒绝。
+- test 响应：`{"ok":bool,"phase":"…","category":"…","message":"…"}`，`ok:false` 时 HTTP 400（如 `{"ok":false,"phase":"dial","category":"unreachable","message":"could not connect to the target (dial failed or timed out)"}`，实测）。
+- 审计：`auth.config.update`（detail 只含变更键名，值不落）/ `auth.config.test`。
+- 字段表与控制台面：[认证配置指南](admin/auth-config.md)。
+
+### keypair 域（`/api/security/keypair*`，Artifactory 兼容 + BinFlow 原生生成）
+
+| 方法 | 路径 | 门 | 语义 |
+|---|---|---|---|
+| POST | `/binflow/api/security/keypair` | CapSecurityWrite | 导入（create-or-replace；201 回 KeyPairSummary） |
+| PUT | `/binflow/api/security/keypair` | CapSecurityWrite | 更新（不存在 → 404；轮换面） |
+| GET | `/binflow/api/security/keypair` | CapSecurityRead | 列表（bare array） |
+| GET | `/binflow/api/security/keypair/{pairName}` | CapSecurityRead | 单查（KeyPairSummary；未知名 404） |
+| DELETE | `/binflow/api/security/keypair/{pairName}` | CapSecurityWrite | 删除；200 纯文本 `OK`；**被仓引用 → 400 点名引用仓清单** |
+| POST | `/binflow/api/security/keypair/verify` | CapSecurityWrite | 200 纯文本 `Key was verified.`；body 全量材料或（BinFlow 扩展）仅 `{"pairName":…}` 校验存量密封钥（实测） |
+| GET | `/binflow/api/security/keypair/public/repositories/{repoKey}` | CapSecurityRead | 该仓关联 keypair 的 armored 公钥（text/plain） |
+| POST | `/binflow/api/v1/admin/security/keypair/generate` | CapSecurityWrite | **BinFlow 原生服务端生成**（201 回 summary；重名 409）——Artifactory 官方 REST 无 keygen，此端点为自有管理面 |
+| POST / DELETE | `/binflow/api/v2/repositories/{repoKey}/keyPairs[/{keyName}]` | CapSecurityWrite | 仓关联（text/plain body = 钥名）/解除——仅 local `debian`/`rpm` 仓接受 `keyPairName`，其余包型按名 400 |
+
+- **私钥与口令永不出库**（无导出端点）；Summary 四字段 `{pairName, pairType, alias, publicKey}` + BinFlow additive 四字段（`algorithm`/`createdAt`/`updatedAt`/`updatedBy`/`repositories`，实测回显）。
+- 生成入参：`{"pairName","alias","passphrase","keyBits","uidName","uidComment","uidEmail"}`；导入入参 = KeyPairInput（`pairName`/`pairType`("GPG")/`alias`/`privateKey`/`publicKey`/`passphrase`）。
+- `X-GPG-PASSPHRASE` 头不收（D-8：口令随钥行密封）。
+- 消费面：debian `InRelease`/`Release.gpg`、rpm `repomd.xml.asc`/`.key`（见[Debian 接入](integrations/debian.md)/[RPM 接入](integrations/rpm.md)）。
+
+### cleanup 域（unused-cleanup 引擎；remote 缓存清理）
+
+| 方法 | 路径 | 门 | 语义 |
+|---|---|---|---|
+| POST | `/binflow/api/v1/system/cleanup` | system:write（admin only） | 手动触发一次；body `{"apply":bool,"repo":string?}`——**dry-run 默认**；同步执行回 CleanupReport |
+| GET | `/binflow/api/v1/system/cleanup` | system:read | 状态面：cron 节奏、累计计数、上次报告、各 remote 仓策略行 |
+
+- 引擎三腿（单把维护锁，与 gc/export/import 互斥）：过期上传会话扫掠 → policy 删除（窗口内无下载事件的 remote 缓存 FILE node；**在用 oracle = 审计下载 trails ∪ 以该仓为成员的 virtual 仓下载**）→ GCSweep（ADR-0031 双门；grace 窗内递延计数进 `gracePending`）。
+- 策略源：remote 仓配置 `unusedArtifactsCleanupPeriodHours`（**M11 起生效**；M10 仅落库）；cron 每小时 apply 一轮。
+- `audit.enabled=false` 时 policy 腿拒绝运行（无下载痕迹就没有诚实的「未用」，宁可不删），session/gc 腿照跑。
+- 报告字段（实测）：`trigger/apply/repos[{repo,periodHours,cutoff,keptByUse,candidates,deleted,bytes}]/gracePending/gcDeleted/sessionsSwept/objectsCleaned/bytesReclaimed/ok`；审计 `cleanup.run`；指标 `binflow_cleanup_objects` / `binflow_cleanup_bytes`（gauge）。
+
+### 四包型 reindex 管理族（dispatchAPI，ADR-0034）
+
+| 端点 | 语义 |
+|---|---|
+| `POST /binflow/api/conan/reindex[?repoKey=]` / `POST /binflow/api/conan/{repoKey}/reindex` | conan 修订索引重建（仅 local；同步；CanManageRepo） |
+| `POST /binflow/api/helm/{repoKey}/reindex` / `…/reindex/{path}` | helm index.yaml 重算（异步全仓 / 同步部分） |
+| `POST /binflow/api/deb/reindex/{repoKey}?async=0\|1` | debian 索引重算（virtual/remote 类 400） |
+| `POST /binflow/api/yum/{repoKey}?path=&async=0\|1` | rpm repodata 重算；**virtual 仓 200/202 触发聚合重合并**（`path` 自动补 `/repodata`）；auto-async 仓同步请求 409 |
+
+各端点语义详见对应接入指南（[Conan](integrations/conan.md) · [Helm](integrations/helm-charts.md) · [RPM](integrations/rpm.md) · [Debian](integrations/debian.md)）。
+
+### smart remote 两字段生效（L25 反转，T-317）
+
+M10 的「按名 400」退役——remote 仓配置现在**接受 + canonical 回显 + 行为生效**（实测）：
+
+| 字段 | 类型 | 默认 | 行为 |
+|---|---|---|---|
+| `enableTokenAuthentication` | bool | false | `true` 时拉取侧对上游发 `Authorization: Bearer <password>`（无密码 = 匿名维持）；SSRF 链/凭据不泄漏规则不变 |
+| `contentSynchronisation.enabled` | bool | false | 开启拉取侧内容同步 |
+| `contentSynchronisation.propertiesEnabled` | bool | false | 内容类节点落地后从上游 `/api/storage/{repo}/{path}?properties=` 附着属性（best-effort，失败仅 WARN） |
+| `contentSynchronisation.statisticsEnabled` | bool | false | 接受 + 回显；统计上报协议无公开规格，暂无行为 |
+| `contentSynchronisation.sourceOrigin` | bool | false | 接受 + 回显；origin 标记面未落地，暂无行为 |
+
+推送侧属性携带（generic 平面）随复制引擎默认开启：源节点属性在推送时合并到目标（幂等重传触发零传输收敛）。replica 虚仓隔离维持 ADR-0025 决策 1 现状（面只读 405 + 逐字文案；backing 直写仍开放）。
+
+
+---
+
 ---
 
 ## `/api/v1` 自有端点
@@ -277,6 +356,7 @@ BinFlow 在 Artifactory 兼容端点之外增加了一批自有端点（以 `/ap
 | `/binflow/api/v1/storage/usage` | GET | 批量配额用量（M9：可见集过滤的 bare array，替代逐仓 N 次轮询） |
 | `/binflow/api/v1/audit` | GET | 审计日志查询（admin / readonly_admin） |
 | `/binflow/api/v1/system/gc` | POST | 触发 GC（同步执行，dry-run/apply；admin only） |
+| `/binflow/api/v1/system/cleanup` | POST/GET | unused-cleanup 引擎手动触发（dry-run 默认）与状态面（M11） |
 | `/binflow/api/v1/session` | POST/GET/DELETE | 控制台会话管理（whoami/登录回显 `adminRole` 与 `source`） |
 | `/binflow/api/v1/permissions` | POST/GET/DELETE | Permission Target CRUD（动作集 r/w/d/manage；GET 带 `?filter=manage` 时 manage 持有者可达覆盖集内子集——M9） |
 
@@ -589,6 +669,6 @@ Docker-Distribution-Api-Version: registry/2.0
 
 ## 下一步
 
-- 各协议接入指南：[Docker](docker-registry.md) · [Maven](integrations/maven.md) · [npm](integrations/npm.md) · [PyPI](integrations/pypi.md) · [Go](integrations/golang.md) · [NuGet](integrations/nuget.md) · [Cargo](integrations/cargo.md)
-- 管理操作：[治理指南](admin/governance.md) · [权限管理](admin/groups-permissions.md) · [RBAC 角色与仓库级管理员](admin/rbac-roles.md) · [Token 铸造 step-up](admin/token-step-up.md) · [备份恢复](admin/backup-restore.md) · [License 与 Add-ons](admin/license.md) · [属性系统](properties.md)
+- 各协议接入指南：[Docker](docker-registry.md) · [Maven](integrations/maven.md) · [npm](integrations/npm.md) · [PyPI](integrations/pypi.md) · [Go](integrations/golang.md) · [NuGet](integrations/nuget.md) · [Cargo](integrations/cargo.md) · [Conan](integrations/conan.md) · [Helm](integrations/helm-charts.md) · [RPM](integrations/rpm.md) · [Debian](integrations/debian.md)
+- 管理操作：[治理指南](admin/governance.md) · [权限管理](admin/groups-permissions.md) · [RBAC 角色与仓库级管理员](admin/rbac-roles.md) · [Token 铸造 step-up](admin/token-step-up.md) · [备份恢复](admin/backup-restore.md) · [License 与 Add-ons](admin/license.md) · [属性系统](properties.md) · [认证配置](admin/auth-config.md) · [存储配置](admin/storage-config.md)
 - 常见问题与排障：[FAQ](faq.md)

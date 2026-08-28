@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { readFileSync } from 'node:fs'
 
 import { expectA11yClean } from '../m8/support/a11y'
 import { loginAs } from '../m8/support/roles'
@@ -6,7 +7,7 @@ import { makeClient, roleFixturesFromEnv } from '../m8/support/seed'
 
 // T-307 (M11 FR-92 FE 腿): the admin authentication-configuration page group —
 // three protocol tabs over the T-305 nine-endpoint plane. Anchors from
-// console-ux §10.5 (T-307 batch, v1.12).
+// console-ux §10.5 (T-307 batch, v1.12; T-307R certificate batch, v1.13).
 //
 // Legs:
 //   CFG1  LDAP round-trip + the leave-empty-keeps-secret semantics at the
@@ -23,6 +24,13 @@ import { makeClient, roleFixturesFromEnv } from '../m8/support/seed'
 //   CFG6  postures: readonly_admin read-only (disabled + counter-assertions,
 //         REST PUT 403), plain user navigation-unreachable + direct-link L2
 //   CFG7  axe dual-theme on all three tabs, serious+critical = 0
+//   CFG8  SAML SP certificate card (T-307R over the T-331 endpoints): anchored
+//         404 empty state (download disabled, regenerate doubles as generate),
+//         regenerate via the danger confirm dialog (old-cert invalidation
+//         copy, PUT at the network layer, fingerprint refresh ≠ old), PEM
+//         download byte-identical to GET, readonly_admin posture (download
+//         enabled = CapSecurityRead, regenerate disabled + REST 403), dialog
+//         axe clean
 //
 // Shared-state note: the section model is one row per protocol per instance
 // (no DELETE), so this file runs SERIAL — parallel legs inside the file would
@@ -30,7 +38,9 @@ import { makeClient, roleFixturesFromEnv } from '../m8/support/seed'
 // /admin/security/* config plane. Restore: afterEach PUTs back the captured
 // GET docs (sentinel secrets stripped — absent = keep), with an enabled=false
 // fallback for the pristine-default LDAP doc (enabled+empty ldapUrl is not a
-// validatable write).
+// validatable write). CFG8 exception: the SP keypair is single-row
+// generate-or-replace with no restore verb — the leg leaves a generated
+// (possibly rotated) certificate behind; download/regenerate keep working.
 
 test.describe.configure({ mode: 'serial' })
 
@@ -570,4 +580,105 @@ test('CFG7: axe — three tabs scan clean at serious/critical in both themes', a
   await expectA11yClean(page, testInfo, { include: '[data-testid="authcfg-page"]' })
   await page.click('[data-testid="topbar-theme-toggle"]')
   await expect(page.locator('html')).toHaveAttribute('data-theme', before ?? 'light')
+})
+
+// ---------------------------------------------------------------------------
+// CFG8 — SAML SP certificate card (T-307R FE wiring over the T-331 endpoints)
+// ---------------------------------------------------------------------------
+
+test('CFG8: saml sp certificate — empty state, regenerate via danger confirm, PEM download, readonly posture', async ({ page, browser }, testInfo) => {
+  await loginAs(page, 'admin')
+  await page.goto('/binflow/ui/admin/security/auth/saml')
+  await expect(page.locator('[data-testid="authcfg-tab-saml"]')).toHaveAttribute('aria-current', 'page')
+
+  // 卡片 scope：以恒在的重生成按钮锚 + 卡片类名组合定位（证书卡无根锚
+  //——册内 v1.13 注记；下载按钮在未生成态不渲染）
+  const card = page.locator('.authcfg-group', { has: page.locator('[data-testid="authcfg-saml-spkey-regenerate"]') })
+  const download = page.locator('[data-testid="authcfg-saml-spkey-download"]')
+  const regenerate = page.locator('[data-testid="authcfg-saml-spkey-regenerate"]')
+  await expect(card).toBeVisible()
+
+  // REST 前置态对齐（§3.2：404 = 未生成锚定空态；200 = 已生成 + 指纹行在）
+  const probe = await page.evaluate(async () => {
+    const res = await fetch('/binflow/api/v1/admin/security/saml/config/key/public')
+    return { status: res.status, text: await res.text() }
+  })
+  const fp = card.locator('.authcfg-cert-fp > span.mono') // 限定 span——CopyButton 也带 mono 类
+  if (probe.status === 404) {
+    // 无证书即无下载物——按钮不渲染（禁用态 MUI 灰对比度不达标，册内注记）
+    await expect(download).toHaveCount(0)
+    await expect(regenerate).toBeEnabled()
+    await expect(card).toContainText('未生成')
+    await expect(fp).toHaveCount(0)
+  } else {
+    expect(probe.status).toBe(200)
+    await expect(download).toBeEnabled()
+    await expect(fp).toHaveText(/^[0-9A-F]{2}(:[0-9A-F]{2}){31}$/)
+  }
+
+  const dialog = page.locator('[data-testid="confirm-dialog"]')
+
+  /** 一轮「确认 → PUT → 指纹刷新」；dialogCopy = 该轮确认文案的锚定子串 */
+  const rotateOnce = async (dialogCopy: string): Promise<string> => {
+    await page.click('[data-testid="authcfg-saml-spkey-regenerate"]')
+    await expect(dialog).toBeVisible()
+    await expect(dialog).toContainText(dialogCopy)
+    // 开态对话框 axe（serious/critical = 0——危险确认也是可达性面）
+    await expectA11yClean(page, testInfo, { include: '[data-testid="confirm-dialog"]' })
+    const put = page.waitForRequest((r) => r.method() === 'PUT' && r.url().includes('/saml/config/key/public/regenerate'))
+    const resp = page.waitForResponse((r) => r.url().includes('/saml/config/key/public/regenerate'))
+    await page.click('[data-testid="confirm-accept"]')
+    expect((await put).method()).toBe('PUT')
+    const r = await resp
+    if (r.status() !== 200) {
+      const t = await r.text()
+      test.skip(t.includes('master key'), 'instance runs without BINFLOW_REMOTE_CREDENTIALS_KEY — SP keypair sealing needs it')
+      throw new Error(`regenerate failed: HTTP ${r.status()} ${t}`)
+    }
+    // 响应体即新证书（T-331 D-5）：指纹行刷新到位
+    await expect(fp).toHaveText(/^[0-9A-F]{2}(:[0-9A-F]{2}){31}$/)
+    return (await fp.textContent()) ?? ''
+  }
+
+  // 空态轮（fresh 实例）：重生成兼作「生成」入口——确认文案无失效后果
+  //（首生成不是破坏性操作，danger 旗标只挂替换臂）
+  if (probe.status === 404) {
+    const fp1 = await rotateOnce('全新')
+    await expect(fp1).not.toBe('')
+    await expect(download).toBeEnabled()
+  }
+
+  // 替换轮（恒跑）：确认文案承载「旧证书即刻失效」后果提示；指纹 ≠ 旧值
+  //（force 一对一替换）+ 下载解禁
+  const before = (await fp.textContent()) ?? ''
+  const after = await rotateOnce('失效')
+  expect(after).not.toBe(before)
+  await expect(download).toBeEnabled()
+
+  // 下载即得 PEM（Artifactory 姿态）：文件名 + 内容与 GET byte 级一致
+  //（regenerate 只服务新证书——下载到的就是最新一份）
+  const dlPromise = page.waitForEvent('download')
+  await page.click('[data-testid="authcfg-saml-spkey-download"]')
+  const dl = await dlPromise
+  expect(dl.suggestedFilename()).toBe('binflow-saml-sp.crt')
+  const dlPath = await dl.path()
+  expect(dlPath).toBeTruthy()
+  const pem = readFileSync(dlPath ?? '', 'utf8')
+  const cur = await page.evaluate(async () => (await fetch('/binflow/api/v1/admin/security/saml/config/key/public')).text())
+  expect(pem.trim()).toBe(cur.trim())
+  expect(pem).toContain('-----BEGIN CERTIFICATE-----')
+
+  // —— readonly_admin：下载可用（CapSecurityRead——公钥是公开材料）、
+  //    重生成禁用 + REST PUT 403 终裁（写面 = CapSecurityWrite）——
+  const ro = await (await browser.newContext()).newPage()
+  await loginAs(ro, 'readonly_admin')
+  await ro.goto('/binflow/ui/admin/security/auth/saml')
+  await expect(ro.locator('[data-testid="authcfg-saml-spkey-download"]')).toBeEnabled()
+  await expect(ro.locator('[data-testid="authcfg-saml-spkey-regenerate"]')).toBeDisabled()
+  const roPut = await ro.evaluate(async () => {
+    const res = await fetch('/binflow/api/v1/admin/security/saml/config/key/public/regenerate', { method: 'PUT' })
+    return res.status
+  })
+  expect(roPut).toBe(403)
+  await ro.close()
 })

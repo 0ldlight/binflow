@@ -21,6 +21,27 @@
 #   dist/config.yaml (or the sample shipped with the binary) as a starting
 #   point.  Environment overrides can be placed in /etc/binflow/env (optional).
 #
+# binstore.yaml storage chain (M11 T-306 / ADR-0036):
+#   A standalone /etc/binflow/binstore.yaml next to binflow.yaml owns the
+#   storage chain when present — discovered automatically (no flag, no env
+#   knob).  Legal chains: [filestore], [s3], [filestore, s3] (+ a migration
+#   block: mode bypass|dual-write|completed; filestore first on the dual
+#   chain).  While the file owns the chain, chain-scoped env overrides
+#   (BINFLOW_STORAGE__BACKEND, BINFLOW_STORAGE__S3__*) in the env file are
+#   IGNORED with a WARN — only BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY always
+#   applies.  No plaintext secret key may appear in the file (the boot
+#   refuses, naming the env escape hatch).  data_dir / session_ttl / gc_*
+#   are not chain keys and stay in binflow.yaml.
+#
+# Instance master key (M11 T-319/T-305):
+#   BINFLOW_REMOTE_CREDENTIALS_KEY in /etc/binflow/env (base64, 32 bytes;
+#   openssl rand -base64 32) seals remote-repository credentials,
+#   replication secrets, auth_configs and GPG keypairs as enc:v1 rows.
+#   Generate once and back it up: a fresh instance boots without it, but
+#   once any sealed row exists the boot fail-fasts until the SAME key
+#   returns.  /etc/binflow is ReadOnlyPaths below — put the env file there
+#   (mode 0600, root-owned; the service user only reads it).
+#
 # Security:
 #   - Runs as non-root (User=binflow)
 #   - NoNewPrivileges=yes (no setuid / capability escalation)

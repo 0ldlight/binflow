@@ -519,6 +519,29 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite},
 			s.handleAuthConfigTest(auth.SectionSAML))
 
+	// ---- /api/v1/admin/security/saml/{config/key/public…,key} (M11 T-331,
+	// the T-307 registered gap; auth-integration §3.2) ----
+	// The SAML service-provider encryption certificate family. The
+	// download/regenerate pair re-homes Artifactory's
+	// /ui/api/v1/admin/security/saml/config/key/public[/regenerate] faces
+	// (text/plain both ways, high confidence); the POST key verb is the
+	// BinFlow-native generation face — Artifactory generates the pair only
+	// implicitly on an encrypted-assertion save, and BinFlow keeps that
+	// §3.3 behavior while also exposing the explicit create-or-replace
+	// action (the GPG plane's D-1 posture). Reads ride CapSecurityRead
+	// (the certificate is public material the readonly admin may hand to
+	// the IdP); both writes force a fresh instance pair and answer the new
+	// certificate — rotation invalidates the old one atomically.
+	case rest == "v1/admin/security/saml/config/key/public" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityRead},
+			s.handleSAMLKeyPublic)
+	case rest == "v1/admin/security/saml/config/key/public/regenerate" && r.Method == http.MethodPut:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite},
+			s.handleSAMLKeyRotate(auditActionSAMLKeyRegenerate))
+	case rest == "v1/admin/security/saml/key" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSecurityWrite},
+			s.handleSAMLKeyRotate(auditActionSAMLKeyGenerate))
+
 	// ---- /api/security/keypair* and the keypair association faces
 	// (M11 T-319, ADR-0038 / docs/design/gpg-keypair.md) ----
 	// The Artifactory-compatible instance keypair family plus the

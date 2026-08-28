@@ -258,7 +258,7 @@ func (e *S3Engine) timeNow() time.Time {
 // BeginSession creates a new multipart upload session. The session ID is a
 // uuid; the S3 upload ID is stored internally.
 func (e *S3Engine) BeginSession(ctx context.Context) (Session, error) {
-	return e.beginSession(ctx, e.partSize)
+	return e.beginSession(ctx, e.partSize, "")
 }
 
 // BeginMultipartSession implements MultipartUploads (T-289, FR-90.1): the
@@ -268,11 +268,27 @@ func (e *S3Engine) BeginSession(ctx context.Context) (Session, error) {
 // becomes the S3-legal 5 MiB floor here at begin time — fail-fast at the
 // session's birth instead of an EntityTooSmall at complete.
 func (e *S3Engine) BeginMultipartSession(ctx context.Context, partSize int64) (Session, error) {
-	return e.beginSession(ctx, resolveS3PartSize(partSize))
+	return e.beginSession(ctx, resolveS3PartSize(partSize), "")
+}
+
+// BeginMultipartSessionContext implements MultipartUploadContexts (T-323R):
+// BeginMultipartSession plus the caller's opaque protocol-coordinate blob,
+// nested verbatim inside the session state the row persists. The blob rides
+// every later SetState untouched (sessionStateLocked snapshots it with the
+// rest), so a part flush never strands the coordinates an
+// Engine-kill-9-restart resume needs them for.
+func (e *S3Engine) BeginMultipartSessionContext(ctx context.Context, partSize int64, caller []byte) (Session, error) {
+	if len(caller) == 0 {
+		return nil, fmt.Errorf("storage: s3: begin session: caller context is required (the context begin is the /api/v1/uploads plane's lane)")
+	}
+	if len(caller) > MaxMultipartCallerState {
+		return nil, fmt.Errorf("storage: s3: begin session: caller context is %d bytes, over the %d-byte bound", len(caller), MaxMultipartCallerState)
+	}
+	return e.beginSession(ctx, resolveS3PartSize(partSize), string(caller))
 }
 
 // beginSession is the shared body of BeginSession/BeginMultipartSession.
-func (e *S3Engine) beginSession(ctx context.Context, partSize int64) (Session, error) {
+func (e *S3Engine) beginSession(ctx context.Context, partSize int64, caller string) (Session, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("storage: s3: begin session: %w", err)
 	}
@@ -303,6 +319,7 @@ func (e *S3Engine) beginSession(ctx context.Context, partSize int64) (Session, e
 		partSize:  partSize,
 		digests:   newDigesters(),
 		createdAt: createdAt,
+		caller:    caller,
 	}
 
 	// Persist the row (T-323): the upload id is the one fact about this
@@ -344,7 +361,18 @@ func (e *S3Engine) beginSession(ctx context.Context, partSize int64) (Session, e
 // s3_resume.go for the full contract; the no-store engine keeps the
 // historical hard-404.
 func (e *S3Engine) ResumeSession(ctx context.Context, id string) (Session, error) {
-	return e.resumeSession(ctx, id)
+	return e.resumeSession(ctx, id, false)
+}
+
+// ResumeSessionContext implements MultipartUploadContexts (T-323R): the
+// plain resume restricted to caller-carrying rows, returning the blob the
+// begin persisted. See s3_resume.go and api.go for the lane's contract.
+func (e *S3Engine) ResumeSessionContext(ctx context.Context, id string) (Session, []byte, error) {
+	s, err := e.resumeSession(ctx, id, true)
+	if err != nil {
+		return nil, nil, err
+	}
+	return s, []byte(s.caller), nil
 }
 
 // Open returns an io.ReadCloser over the blob body. The returned reader is a
@@ -781,7 +809,58 @@ func (e *S3Engine) sweepSessions(ctx context.Context, ttl time.Duration) (int, e
 	if err := e.sweepOrphanUploads(ctx, ttl); err != nil && firstErr == nil {
 		firstErr = err
 	}
+	if err := e.sweepOrphanSessionObjects(ctx, ttl); err != nil && firstErr == nil {
+		firstErr = err
+	}
 	return reclaimed, firstErr
+}
+
+// sweepOrphanSessionObjects removes COMPLETED objects under the sessions/
+// prefix whose age exceeds the TTL — the crash window every Commit path
+// leaves open: CompleteMultipartUpload assembles sessions/<uuid>/data into a
+// readable object BEFORE the publish (CopyObject to the blob key) that ends
+// with its removal, so a kill -9 in between parks a finished object no
+// in-progress-MPU listing can see (T-323 §6's registered residue; T-323R's
+// ruling: one age-gated listing closes it for both the fresh and the
+// rebuilt commit arms).
+//
+// Safety: an in-progress session has NO object at its sessions/ key (parts
+// are MPU state, unreadable until complete), and any complete overwrites the
+// key with a fresh LastModified, so an object older than the TTL is by
+// construction unrecoverable garbage — its session either completed without
+// publishing (this window) or was reclaimed by the row pass above long
+// before the object ages out. Live commits are never touched: their object
+// is seconds old at the only moment it exists.
+func (e *S3Engine) sweepOrphanSessionObjects(ctx context.Context, ttl time.Duration) error {
+	cutoff := e.timeNow().Add(-ttl)
+	objCh := e.api().ListObjects(ctx, e.bucket, minio.ListObjectsOptions{
+		Prefix:    e.uploadKeyPrefix(),
+		Recursive: true,
+	})
+	var firstErr error
+	for obj := range objCh {
+		if obj.Err != nil {
+			// A missing bucket is a benign cold start (the same tolerance
+			// listIncompleteUploads applies); anything else is a real fault.
+			if resp := minio.ToErrorResponse(obj.Err); resp.Code == "NoSuchBucket" ||
+				(resp.Code == "" && resp.StatusCode == 404) {
+				return nil
+			}
+			return fmt.Errorf("storage: s3: sweep session objects: list: %w", obj.Err)
+		}
+		if obj.LastModified.IsZero() || obj.LastModified.After(cutoff) {
+			continue // no timestamp or still within TTL: leave it alone
+		}
+		// Removal ignores ctx cancellation: orphan reclamation is best-effort
+		// housekeeping and must not be half-done once started.
+		if err := e.api().RemoveObject(context.Background(), e.bucket, obj.Key, minio.RemoveObjectOptions{}); err != nil {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("storage: s3: sweep session objects: remove %s: %w", obj.Key, err)
+			}
+			continue
+		}
+	}
+	return firstErr
 }
 
 // SweepExpiredSessions implements SessionSweeper (T-324): the open-time
@@ -813,6 +892,10 @@ type s3Session struct {
 	partBuf  []byte               // pending bytes not yet uploaded; len < partSize
 	partSize int64                // flush threshold for partBuf; resolved at BeginSession
 	received int64
+	// caller (T-323R) is the /api/v1/uploads plane's opaque protocol
+	// coordinate blob, persisted verbatim inside the session state and never
+	// interpreted here. Empty for every session the plain begin verbs open.
+	caller string
 	// preResumed is the byte count that was already durable server-side
 	// when ResumeSession rebuilt this session — bytes the in-memory digest
 	// chain has NOT seen (an in-progress MPU's parts cannot be read back;

@@ -4,10 +4,10 @@
 
 BinFlow 是一个用 Go 从零实现的**云原生制品仓库**，架构与概念模型对标
 JFrog Artifactory——仓库、存储、权限、REST 语义一一对应，Artifactory
-用户迁移过来不用重学词汇。单静态二进制、零外部依赖，原生服务五个包生态：
-**Generic（raw HTTP）、Docker Registry v2（镜像/OCI，经 oras 可承载 Helm
-chart）、Maven、npm、PyPI**——每种协议都支持 **local / remote（代理缓存）/
-virtual（聚合）** 三种仓型，并内嵌 Web 控制台。
+用户迁移过来不用重学词汇。单静态二进制、零外部依赖，原生服务**十二个
+包生态**（见下方矩阵），每种协议都支持 **local / remote（代理缓存）/
+virtual（聚合）** 三种仓型（cargo 的 remote/virtual 待交付），并内嵌
+Web 控制台。
 
 M6 在其上补齐企业层：OIDC / LDAP 单点登录、S3 对象存储后端与本地→S3
 在线迁移、单向 push 复制、Prometheus `/metrics` 指标端点、`bf` CLI 与
@@ -19,11 +19,32 @@ Artifactory 迁移工具（`bf-migrate`）。M7~M9 把它硬化到 pre-GA 完整
 查询、manage 过滤的权限列表、并发安全的 GC、OIDC 用户的 step-up 铸 Token；
 发布镜像双架构（linux/amd64 + linux/arm64）。
 
+M10 引入 **license / addon 档位体系**（community 地板 / pro / enterprise；
+门控建仓与写动词，读永不劫持），go/nuget/cargo 为首批门控包型，另交付
+属性系统。M11 把包型矩阵扩到十二个（conan/helm/rpm/debian 以 pro 档加入），
+并新增**运行态认证配置面**（LDAP/OIDC/SAML 控制台或 REST 在线编辑、保存
+即生效）、独立存储链配置文件 **`binstore.yaml`**（有序 provider 链 +
+fail-fast 并存裁决）、debian/rpm 仓库元数据的 GPG **keypair 签名**，以及
+remote 缓存的 **unused-cleanup 清理引擎**。
+
+## 包型矩阵（含档位）
+
+| 档位 | 包型 | 说明 |
+|---|---|---|
+| **community**（地板——不装 license 也有） | generic、docker、maven、npm、pypi | 五核心：M1~M9 全部能力 + 属性系统 |
+| **pro** | go、nuget、cargo（M10）· conan、helm、rpm、debian（M11） | 建仓/上传需 pro 及以上 license；license 失效后既有制品仍可读 |
+| **enterprise** | （功能槽位：ha、xray-integration） | 占位槽位；本体 M12+ |
+
+档位语义一句话：**读永不劫持**——license 缺失/过期只关闭建仓（400）与
+写动词（403 + `X-Binflow-License-Required: <addon>`）；`GET /binflow/api/v1/addons`
+返回逐槽位实时判定。完整指南：
+[`docs/user/admin/license.md`](docs/user/admin/license.md)。
+
 | 内容 | 位置 |
 |---|---|
 | 产品愿景与范围 | [`PRODUCT.md`](PRODUCT.md) |
-| 里程碑（M1 内核 → M9 硬化收口，全部完成） | [`ROADMAP.md`](ROADMAP.md) |
-| M9 需求（PRD v1.0：users/groups 端点 / usage 批量 / permissions 过滤 / GC 竞态根治） | [`docs/prd/milestone-9.md`](docs/prd/milestone-9.md) |
+| 里程碑（M1 内核 → M11 对齐第二程，M1~M10 已完成） | [`ROADMAP.md`](ROADMAP.md) |
+| M11 需求（PRD：配置面 / 四包型 / keypair / cleanup） | [`docs/prd/milestone-11.md`](docs/prd/milestone-11.md) |
 | Artifactory 全量功能对照矩阵（213 条目——M10+ 路线图骨干） | [`docs/reverse/artifactory-full-feature-matrix.md`](docs/reverse/artifactory-full-feature-matrix.md) |
 | 帮助文档中心（安装 / 接入 / 管理 / API / FAQ） | [`docs/user/README.md`](docs/user/README.md) |
 | 架构规范 | [`docs/design/architecture.md`](docs/design/architecture.md) |
@@ -298,9 +319,45 @@ docker compose -f deploy/dev/docker-compose.yml down -v    # 清空数据
   才需要。指南：[npm 接入](docs/user/integrations/npm.md)。
   发布镜像双架构（linux/amd64 + linux/arm64 manifest）。
 
+### M10/M11 —— 档位门控、四个新包型、配置面
+
+- **license / addon 档位**——见上方矩阵。控制台 License & Add-ons 页
+  粘贴装载，或 `POST /binflow/api/system/license`；
+  `GET /binflow/api/v1/addons` 返回逐槽位实时判定。指南：
+  [License 与 Add-ons 管理](docs/user/admin/license.md)。
+- **四个 M11 包型（pro 档）**——全部真实客户端验证（conan 2.31/1.66、
+  helm 4.2、Rocky 9 dnf、debian bookworm apt）：
+
+  ```bash
+  # conan：conan remote add + 修订链 upload/install
+  conan remote add binflow $BASE/binflow/conan-local && conan remote login binflow admin -p "$ADMIN_PW"
+  # helm：经典 chart 仓，index.yaml 自动重算
+  helm repo add binflow $BASE/binflow/helm-local && helm install my-rel binflow/mychart
+  # rpm/debian：repodata / dists 索引引擎 + GPG 元数据签名
+  dnf install -y <pkg>   # baseurl=$BASE/binflow/rpm-local
+  ```
+
+  指南：[Conan](docs/user/integrations/conan.md) ·
+  [Helm](docs/user/integrations/helm-charts.md) ·
+  [RPM](docs/user/integrations/rpm.md) ·
+  [Debian](docs/user/integrations/debian.md)。
+- **认证配置面**——LDAP/OIDC/SAML 三段运行态在线编辑（控制台
+  `/admin/security/auth` 或 `GET/PUT /binflow/api/v1/admin/security/{ldap,oauth,saml/config}`），
+  **保存即生效**（无需重启）；secret 只写不读（脱敏回显）并经实例主密钥
+  密封。指南：[认证配置](docs/user/admin/auth-config.md)。
+- **`binstore.yaml`**——存储 provider 链独立成文件（与 binflow.yaml 同
+  目录）：`[filestore]`、`[s3]` 或 `[filestore, s3]` 双写迁移链；与内嵌
+  `storage:` 链键**语义分歧即拒启**（防静默择路）。指南：
+  [存储配置](docs/user/admin/storage-config.md)。
+- **GPG keypair 签名与 unused-cleanup**——服务端 keypair 管理面签 debian
+  `InRelease`/`Release.gpg` 与 rpm `repomd.xml.asc`/`.key`（真实 apt/dnf
+  gpgcheck 链验证过）；cleanup 引擎按小时 cron 回收闲置 remote 缓存
+  （`POST /binflow/api/v1/system/cleanup` 手动 dry-run/apply）。
+
 每种部署方式的安装指南（单二进制 / Docker / compose / Helm / K8s 清单 /
 systemd / 离线 air-gapped / 升级）：[`docs/user/install/`](docs/user/install/)。
-每协议客户端接入（docker/mvn/npm/pip 配置片段）：[`docs/user/`](docs/user/README.md)。
+每协议客户端接入（docker/mvn/npm/pip/go/nuget/cargo/conan/helm/rpm/deb
+配置片段）：[`docs/user/`](docs/user/README.md)。
 API 参考：[`docs/user/api-reference.md`](docs/user/api-reference.md)。
 FAQ 与故障排查（含 Artifactory→BinFlow 概念对照表）：
 [`docs/user/faq.md`](docs/user/faq.md)。
@@ -360,16 +417,27 @@ server:
   listen: ":8080"
 storage:
   data_dir: "./data"        # blobs + uploads + sqlite 都在这里
-  backend: "local"          # "s3" + storage.s3 段 → 对象存储（见 S3 指南）
+  backend: "local"          # "s3" + storage.s3 段 → 对象存储（见 S3 指南）；
+                            #   M11 起建议改用同目录的 binstore.yaml 链文件
 security:
   anonymous_access: true    # 见安全须知
 logging:
   level: "info"             # debug | info | warn | error
   format: "json"
 auth:
-  oidc: {}                  # auth.oidc 段 → SSO（见 OIDC 指南）
+  oidc: {}                  # auth.oidc 段 → SSO（见 OIDC 指南；首启种子进运行态配置面）
   ldap: {}                  # auth.ldap 段 → 目录登录（见 LDAP 指南）
 ```
+
+M11 的两个配置面在此文件之外：
+
+- **`binstore.yaml`**（同目录）——有序存储 provider 链：`[filestore]`、
+  `[s3]`、或 `[filestore, s3]` + `migration.mode`（`bypass | dual-write |
+  completed`）。文件缺席 = 零行为变化；与内嵌 `storage:` 链键分歧即拒启。
+  指南：[存储配置](docs/user/admin/storage-config.md)。
+- **运行态认证配置**——首启后 LDAP / OIDC / SAML 的权威配置是 DB 配置面
+  （控制台或 REST），在线编辑即时生效。指南：
+  [认证配置](docs/user/admin/auth-config.md)。
 
 ## 运维
 
@@ -422,8 +490,9 @@ make dev   # vet + lint + test + build，push 前门禁
 
 ## 许可 / 状态
 
-pre-GA 软件。九个里程碑全部完成并打 tag（`m1-done` … `m9-done`）；
-里程碑规划见 `ROADMAP.md`，当前进行中的工作见 `BOARD.md`，每轮迭代
-报告见 `reports/`。下一程——对齐 Artifactory 全量功能面——按条目跟踪
-于 [`docs/reverse/artifactory-full-feature-matrix.md`](docs/reverse/artifactory-full-feature-matrix.md)
-（M9 时点 213 条：已有 20 / 部分 50 / 缺失 133 / 设计上不做 10）。
+pre-GA 软件。里程碑 M1~M10 已完成并打 tag（`m1-done` … `m10-done`）；
+M11（十二包型矩阵、license 门控、运行态配置面、keypair 签名、cleanup
+引擎）正在终验。里程碑规划见 `ROADMAP.md`，当前进行中的工作见
+`BOARD.md`，每轮迭代报告见 `reports/`。Artifactory 全量功能面的对齐
+按条目跟踪于
+[`docs/reverse/artifactory-full-feature-matrix.md`](docs/reverse/artifactory-full-feature-matrix.md)。

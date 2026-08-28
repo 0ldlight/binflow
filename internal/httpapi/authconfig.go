@@ -2,7 +2,9 @@ package httpapi
 
 // Authentication-configuration REST plane (M11 T-305, ADR-0035 / FR-92):
 // the three protocol sections' read/write surface plus the test-connection
-// endpoints, over auth.ConfigManager.
+// endpoints, over auth.ConfigManager — extended in T-331 with the SAML
+// service-provider certificate family (§3.2's key/public verbs and the
+// BinFlow-native generation face).
 //
 //	GET  /binflow/api/v1/admin/security/ldap           CapSecurityRead
 //	PUT  /binflow/api/v1/admin/security/ldap           CapSecurityWrite
@@ -13,6 +15,9 @@ package httpapi
 //	GET  /binflow/api/v1/admin/security/saml/config    CapSecurityRead
 //	PUT  /binflow/api/v1/admin/security/saml/config    CapSecurityWrite
 //	POST /binflow/api/v1/admin/security/saml/config/test CapSecurityWrite
+//	GET  /binflow/api/v1/admin/security/saml/config/key/public CapSecurityRead
+//	PUT  /binflow/api/v1/admin/security/saml/config/key/public/regenerate CapSecurityWrite
+//	POST /binflow/api/v1/admin/security/saml/key       CapSecurityWrite
 //
 // The path families, field names and anchored error texts follow
 // docs/reverse/auth-integration.md v2 (the T-302 baseline): the Artifactory
@@ -50,6 +55,12 @@ import (
 const (
 	auditActionAuthConfigUpdate = "auth.config.update"
 	auditActionAuthConfigTest   = "auth.config.test"
+	// T-331: the SAML SP-encryption-key verbs. generate is the BinFlow
+	// native face, regenerate the Artifactory-compat one — both force a
+	// fresh pair and are audited as distinct actions (the operator's intent
+	// differs even when the machine does not).
+	auditActionSAMLKeyGenerate   = "auth.config.samlkey.generate"
+	auditActionSAMLKeyRegenerate = "auth.config.samlkey.regenerate"
 )
 
 // authConfigMaxBodyBytes caps section payloads: a fully-populated LDAP or
@@ -57,12 +68,16 @@ const (
 // generous headroom while staying a bound.
 const authConfigMaxBodyBytes = 1 << 20
 
-// AuthConfigPlane is the consumer-side seam behind the nine endpoints (the
-// ConfigManager's management facet; nil Deps keeps them at the honest 503).
+// AuthConfigPlane is the consumer-side seam behind the section endpoints
+// (the ConfigManager's management facet; nil Deps keeps them at the honest
+// 503). The two SAML SP-key methods serve the T-331 certificate family:
+// GetSAMLSPCertificate answers "" when no pair exists yet.
 type AuthConfigPlane interface {
 	GetAuthSection(ctx context.Context, section string) (json.RawMessage, error)
 	PutAuthSection(ctx context.Context, section string, body []byte, actor string) (json.RawMessage, []string, error)
 	TestAuthSection(ctx context.Context, section string, body []byte) (auth.TestReport, error)
+	GetSAMLSPCertificate(ctx context.Context) (string, error)
+	RotateSAMLSPKeypair(ctx context.Context, actor string) (string, error)
 }
 
 // handleAuthConfigGet serves the masked echo of one section. An unset
@@ -139,6 +154,72 @@ func (s *Server) handleAuthConfigTest(section string) http.HandlerFunc {
 		}
 		writeJSONBody(w, status, report)
 	}
+}
+
+// handleSAMLKeyPublic serves GET /saml/config/key/public (auth-integration
+// §3.2, text/plain): the SP encryption certificate the operator hands the
+// IdP, verbatim PEM. No pair yet answers the 404 envelope (the Artifactory
+// failure text is not anchored — BinFlow C-level wording, registered in
+// the T-331 report).
+func (s *Server) handleSAMLKeyPublic(w http.ResponseWriter, r *http.Request) {
+	if s.deps.AuthConfigs == nil {
+		writeError(w, http.StatusServiceUnavailable, "auth configuration plane is not available on this instance")
+		return
+	}
+	cert, err := s.deps.AuthConfigs.GetSAMLSPCertificate(r.Context())
+	if err != nil {
+		s.writeAuthConfigError(w, r, "reading", "saml sp key", err)
+		return
+	}
+	if cert == "" {
+		writeError(w, http.StatusNotFound, auth.ErrSAMLSPEncryptionKeyAbsent.Error())
+		return
+	}
+	writePlainText(w, http.StatusOK, cert)
+}
+
+// handleSAMLKeyRotate serves the two forced-generation verbs (§3.2
+// regenerate: PUT …/config/key/public/regenerate; and the BinFlow-native
+// POST …/saml/key — Artifactory publishes no explicit generation REST,
+// the same D-1 posture the GPG keypair plane took). Both create or
+// replace the instance pair and answer the NEW public certificate as
+// text/plain so the rotation completes in one round trip.
+func (s *Server) handleSAMLKeyRotate(action string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if s.deps.AuthConfigs == nil {
+			writeError(w, http.StatusServiceUnavailable, "auth configuration plane is not available on this instance")
+			return
+		}
+		cert, err := s.deps.AuthConfigs.RotateSAMLSPKeypair(r.Context(), actorName(r))
+		if err != nil {
+			s.writeAuthConfigError(w, r, "rotating", "saml sp key", err)
+			return
+		}
+		s.audit.Record(r.Context(), audit.Event{
+			Actor:  actorName(r),
+			Action: action,
+			Detail: authConfigSAMLKeyDetail(action),
+		})
+		s.log.InfoContext(r.Context(), "httpapi: saml sp encryption keypair rotated",
+			"action", action, "actor", actorName(r))
+		writePlainText(w, http.StatusOK, cert)
+	}
+}
+
+// authConfigSAMLKeyDetail builds the samlkey audit payload: the verb word
+// only — no certificate bytes, fingerprints or key material ever travel
+// (ADR-0035 decision 5's zero-persistence posture).
+func authConfigSAMLKeyDetail(action string) string {
+	result := "generated"
+	if action == auditActionSAMLKeyRegenerate {
+		result = "regenerated"
+	}
+	d := map[string]string{"section": "saml", "result": result, "values": "redacted"}
+	b, err := json.Marshal(d)
+	if err != nil {
+		return "{}"
+	}
+	return string(b)
 }
 
 // readAuthConfigBody drains the (bounded) section payload.
