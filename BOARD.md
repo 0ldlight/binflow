@@ -908,6 +908,11 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **密钥纪律**：RSA 私钥仅存本机 `~/.ssh/binflow-uat.pem`（600）——**绝不入仓库**；CircleCI 侧需用户在 Project Settings > SSH Keys 上传同钥并把指纹填入 config.yml 的 `REPLACE_WITH_UAT_KEY_FINGERPRINT` 占位（add_ssh_keys 不支持 env 插值）
 - **触发**：config 已在 develop；首个 CircleCI 流水将在下次 develop→main 合并（M11 首批收口）时自然触发，或用户在 CircleCI UI 手动触发 main 管道
 
+
+> # 🏁 M11 已收官（m11-done 2026-08-28，里程碑 PR #13 已合并 main）
+>
+> **终验 PASS**（T-329：L45 全量 38✅ 零未解释红；五包型×三仓型真客户端矩阵全绿；DoD 八条兑现）。31/32 票 + 九张补票全清（T-320/T-330 条件票未触发不计 DoD，已在 ROADMAP「M11 未纳入项」留痕）。收口五项全落（①PR#11/②③④PR#12/⑤BOARD 裁定）。**里程碑检查（用户规程）**：README 双语 M1~M11 done + 文档站六新篇/配置指南——已检查并更新。M12 承载项见 ROADMAP（NuGet bundle/D-A fail-open/D-8R 瘦身/D-F/T-290-2 等）。
+
 ## M11 票据（T-299/T-300 既定 + T-301~T-330，tech-lead 2026-08-26 拆票；AC 全文见 tech-lead 拆票交付〔本节压缩录〕+ docs/prd/milestone-11.md v1.1；Q8 终值 20:35+20:55 已并入票面）
 
 > **CircleCI build #3 红根因与修复（2026-08-28 00:5x）**：唯一失败步「Vet+lint+fast tests」中两个 npm 客户端套件——CI 镜像 npm **11.17.0** 对测试 .npmrc 已废弃的 `always-auth`（npm 9 移除）逐命令打 warn 进 stdout，污染 M26 重复发布的 403 族匹配与 M55 `npm view --json` 解析（本地 npm 10.9.8 无此告警故全绿）。修复：三处测试 .npmrc 删 `always-auth`（`a4c6ae7`，本地复跑 npm 包 75s 绿）。**main 已带修复重触发**（用户经 PR #2 自合 develop→main〔83f3231〕；conductor 基于 origin/main 再合 batch 2 release `5b8f084`）。**API 排查通道确立**：项目级 token 的 slug 反查不通（`circleci/<org-id>/<uuid>` 形态 v2 API 500/404），但 v1.1 端点 `/api/v1.1/project/circleci/<org-id>/<project-uuid>/<build#>` + action 的 presigned output_url 可拉全量日志——CI 日志获取路径固化为此。
