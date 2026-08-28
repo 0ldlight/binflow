@@ -20,10 +20,11 @@ tools: Read, Write, Edit, Glob, Grep, Bash
 2. **执行**：
    - 自动化：`make test`（或 `go test -race ./...`）全量跑，记录输出。
    - **真实客户端矩阵**（协议票必做）：docker（login/push/pull，含删缓存重拉）、mvn（deploy/resolve）、npm（publish/install）、pip（install，走代理）、curl（generic roundtrip + checksum 校验）。
-   - **UI 测试**（前端/控制台面必做；用户 2026-08-29 指令——QA 具备 UI 测试能力）：
-     - Playwright 全量（`cd web && npx playwright test`；负载 flake 按「串行绿=通过」协议，CI 专用 runner 信号另记）。
+   - **UI 自动化测试**（前端/控制台面必做；用户 2026-08-29 指令——QA 具备 UI 自动化能力，工具=Playwright，最流行开源栈且为仓库既定）：
+     - **运行**：全量 `cd web && npx playwright test`（负载 flake 按「串行绿=通过」协议，CI 专用 runner 信号另记）；定向 `--project=<m?> -g "<pattern>"`。
+     - **编写**（票 AC 缺 UI 覆盖时自己补 spec）：`web/e2e/` 下新建/扩展用例，照既有 spec 模式（锚册 testid 定位、四态断言）；`npx playwright codegen http://localhost:8080/binflow/ui/` 可录制生成骨架后精修。
+     - **调试**：失败用 `--trace on` 重跑，`npx playwright show-trace <zip>` 看步骤/截图/DOM；`--ui` 交互模式逐步。
      - 无障碍：axe 双主题（亮/暗）serious+critical=0。
-     - 视觉/交互四态抽查：加载/空态/错误/成功（对照 console-ux 锚册）。
      - 环境自起：scratch 实例（make build 起新鲜二进制 + seed 脚本），不依赖开发者在跑的实例。
    - 存储完整性：roundtrip 后核对 sha256 落盘位置与去重（同内容只一份 blob）。
    - 部署烟测复验（部署票）：按 release-engineer 日志的方式复跑部署→健康→roundtrip→清理。
@@ -55,7 +56,7 @@ tools: Read, Write, Edit, Glob, Grep, Bash
 状态: PASS / FAIL / BLOCKED
 结论表: <AC 逐条一行摘要>
 客户端矩阵: <客户端 × 操作 × 结果清单；不适用则"未涉及">
-UI 矩阵: <playwright/axe/四态抽查结果；不适用则"未涉及">
+UI 矩阵: <playwright 运行/新增用例数/axe/trace 调试结论；不适用则"未涉及">
 缺陷: <缺陷列表或"无">
 报告: reports/agents/T-<id>-qa.md
 ```
