@@ -13,6 +13,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -665,12 +666,14 @@ func mpuTestServer(t *testing.T, cfg *config.Config, st *stack) *httptest.Server
 
 // TestMPUSeamWiringS3ChainAndDisk501 pins the seam's presence rule where
 // it is decided: a pure-S3 stack carries storage.MultipartUploads and the
-// /api/v1/uploads plane drives a whole create->part->complete chain whose
-// blob lands IN THE BUCKET; a disk stack discovers no seam and the same
-// endpoints answer the honest plain-text 501 (FR-90-AC3). A dual-write
-// MigrationEngine is covered by the type assertion's miss arm on the disk
-// leg — it fronts the disk path and deliberately does not implement the
-// capability.
+// /api/v1/uploads plane drives the T-332 (ADR-0039) chain — create
+// (POST + QueryParam -> the session token), one part on the relay target,
+// complete?sha1= 202, the async task polled to Finished, the client's
+// checksum-deploy landing — whose blob lands IN THE BUCKET; a disk stack
+// discovers no seam and the data endpoints answer the honest plain-text
+// 501 (FR-90-AC3). A dual-write MigrationEngine is covered by the type
+// assertion's miss arm on the disk leg — it fronts the disk path and
+// deliberately does not implement the capability.
 func TestMPUSeamWiringS3ChainAndDisk501(t *testing.T) {
 	// --- S3 leg ---
 	mock := newS3Mock(t, "binflow")
@@ -690,48 +693,104 @@ func TestMPUSeamWiringS3ChainAndDisk501(t *testing.T) {
 		t.Fatalf("PUT repository = %d: %s", code, body)
 	}
 
-	// create: 201 with the clamped part size.
-	code, body = httpDo(t, ts, http.MethodPost, "/binflow/api/v1/uploads/create",
-		`{"repoKey":"mpu-s3","path":"deep/large.bin","partSizeMB":2}`)
-	if code != http.StatusCreated {
+	// create (the flipped wire): POST + QueryParam -> 200 + the token.
+	code, body = httpDo(t, ts, http.MethodPost,
+		"/binflow/api/v1/uploads/create?repoKey=mpu-s3&repoPath=deep/large.bin&partSizeMB=2", "")
+	if code != http.StatusOK {
 		t.Fatalf("create = %d: %s", code, body)
 	}
 	var created struct {
-		SessionID     string `json:"sessionId"`
-		PartSizeBytes int64  `json:"partSizeBytes"`
+		Token string `json:"token"`
 	}
-	if err := json.Unmarshal([]byte(body), &created); err != nil {
-		t.Fatalf("create body: %v", err)
+	if err := json.Unmarshal([]byte(body), &created); err != nil || created.Token == "" {
+		t.Fatalf("create body carries no token: %v (%s)", err, body)
 	}
-	if created.PartSizeBytes != 5<<20 {
-		t.Fatalf("partSizeBytes = %d, want the 5MiB clamp", created.PartSizeBytes)
+	_, sessionID, found := strings.Cut(created.Token, ".")
+	if !found || sessionID == "" {
+		t.Fatalf("token %q carries no session id", created.Token)
 	}
 
-	// One short final part (the only part may be short, S3 contract).
+	// One short final part (the only part may be short, S3 contract) on
+	// the manual-driver lane (shared credentials + `w`). 200 — the S3
+	// PutObject shape the presigned-part clients require.
 	payload := []byte("mpu!")
 	code, body = httpDoRaw(t, ts, http.MethodPut,
-		"/binflow/api/v1/uploads/part/"+created.SessionID+"/1", payload)
-	if code != http.StatusAccepted {
+		"/binflow/api/v1/uploads/part/"+sessionID+"/1", payload)
+	if code != http.StatusOK {
 		t.Fatalf("part PUT = %d: %s", code, body)
 	}
 
-	// complete: sha256 gate + node landing.
-	sum := sha256.Sum256(payload)
-	code, body = httpDo(t, ts, http.MethodPost, "/binflow/api/v1/uploads/complete/"+created.SessionID,
-		`{"sha256":"`+hex.EncodeToString(sum[:])+`"}`)
-	if code != http.StatusCreated {
+	// complete?sha1= (the algorithm flip): 202, the task model async.
+	sum1 := sha1.Sum(payload)
+	code, body = httpDoBearer(t, ts, http.MethodPost,
+		"/binflow/api/v1/uploads/complete?sha1="+hex.EncodeToString(sum1[:]), created.Token, nil)
+	if code != http.StatusAccepted {
 		t.Fatalf("complete = %d: %s", code, body)
 	}
+
+	// Poll the task to Finished: progress 100 + the checksum-deploy token.
+	var finished struct {
+		Status        string  `json:"status"`
+		Progress      int     `json:"progress"`
+		ChecksumToken *string `json:"checksumToken"`
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		code, body = httpDoBearer(t, ts, http.MethodPost, "/binflow/api/v1/uploads/status", created.Token, nil)
+		if code != http.StatusOK {
+			t.Fatalf("status = %d: %s", code, body)
+		}
+		if err := json.Unmarshal([]byte(body), &finished); err != nil {
+			t.Fatalf("status body: %v (%s)", err, body)
+		}
+		if finished.Status == "NON_RETRYABLE_ERROR" {
+			t.Fatalf("task failed: %s", body)
+		}
+		if finished.Status == "FINISHED" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("task never finished (last: %s)", body)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if finished.Progress != 100 || finished.ChecksumToken == nil || *finished.ChecksumToken == "" {
+		t.Fatalf("Finished body = %s, want progress 100 + the checksum token", body)
+	}
+
+	// The blob is IN THE BUCKET the moment the assembly finishes; the node
+	// is the client's checksum-deploy away.
+	sum := sha256.Sum256(payload)
 	sha := hex.EncodeToString(sum[:])
 	if got := mock.object("binflow", blobKey(sha)); string(got) != "mpu!" {
 		t.Fatalf("bucket object = %q, want the uploaded content at %s", got, blobKey(sha))
+	}
+	code, _ = httpDoRaw(t, ts, http.MethodGet, "/binflow/mpu-s3/deep/large.bin", nil)
+	if code != http.StatusNotFound {
+		t.Fatalf("artifact before checksum-deploy = %d, want 404 (the node is the client's landing)", code)
+	}
+	req, err := http.NewRequest(http.MethodPut, ts.URL+"/binflow/mpu-s3/deep/large.bin", nil)
+	if err != nil {
+		t.Fatalf("build deploy request: %v", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+*finished.ChecksumToken)
+	req.Header.Set("X-Checksum-Deploy", "true")
+	req.Header.Set("X-Checksum-Sha1", hex.EncodeToString(sum1[:]))
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("checksum-deploy PUT: %v", err)
+	}
+	raw, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("checksum-deploy PUT = %d: %s", resp.StatusCode, raw)
 	}
 	code, body = httpDoRaw(t, ts, http.MethodGet, "/binflow/mpu-s3/deep/large.bin", nil)
 	if code != http.StatusOK || string(body) != "mpu!" {
 		t.Fatalf("artifact GET = %d (%q), want 200 mpu!", code, body)
 	}
 
-	// --- disk leg: the honest 501 ---
+	// --- disk leg: the honest 501 (config answers the probe's false) ---
 	diskCfg := config.Defaults()
 	diskCfg.Storage.DataDir = t.TempDir()
 	diskSt := testStack(t, diskCfg)
@@ -739,10 +798,14 @@ func TestMPUSeamWiringS3ChainAndDisk501(t *testing.T) {
 		t.Fatal("disk stack must NOT carry storage.MultipartUploads")
 	}
 	diskTS := mpuTestServer(t, diskCfg, diskSt)
-	code, body = httpDo(t, diskTS, http.MethodPost, "/binflow/api/v1/uploads/create",
-		`{"repoKey":"any","path":"a.bin"}`)
+	code, body = httpDo(t, diskTS, http.MethodPost,
+		"/binflow/api/v1/uploads/create?repoKey=any&repoPath=a.bin", "")
 	if code != http.StatusNotImplemented || !strings.Contains(body, "not supported on this backend") {
 		t.Fatalf("disk create = %d: %s, want the plain-text 501", code, body)
+	}
+	code, body = httpDo(t, diskTS, http.MethodGet, "/binflow/api/v1/uploads/config", "")
+	if code != http.StatusOK || !strings.Contains(body, `"supported": false`) {
+		t.Fatalf("disk config = %d: %s, want 200 supported:false (the probe)", code, body)
 	}
 }
 
@@ -765,6 +828,44 @@ func httpDoRaw(t *testing.T, ts *httptest.Server, method, path string, body []by
 		t.Fatalf("%s %s: %v", method, path, err)
 	}
 	return resp.StatusCode, resp.Body
+}
+
+// httpDoBearer is httpDoRaw on the MPU capability lane (the session token
+// as the Bearer credential, the T-332 wire).
+func httpDoBearer(t *testing.T, ts *httptest.Server, method, path, token string, body []byte) (int, string) {
+	t.Helper()
+	resp, err := doBearerRequest(ts, method, path, token, body)
+	if err != nil {
+		t.Fatalf("%s %s: %v", method, path, err)
+	}
+	return resp.StatusCode, resp.Body
+}
+
+// doBearerRequest is doRawRequest with the Authorization header swapped to
+// the presented capability token.
+func doBearerRequest(ts *httptest.Server, method, path, token string, body []byte) (*struct {
+	StatusCode int
+	Body       string
+}, error) {
+	var rdr io.Reader
+	if body != nil {
+		rdr = bytes.NewReader(body)
+	}
+	req, err := http.NewRequest(method, ts.URL+path, rdr)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	raw, _ := io.ReadAll(resp.Body)
+	return &struct {
+		StatusCode int
+		Body       string
+	}{resp.StatusCode, string(raw)}, nil
 }
 
 // doRawRequest performs the round trip with Basic admin credentials.

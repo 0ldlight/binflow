@@ -237,19 +237,19 @@ license / addons / uploads 三族与三个门控包型的接入面（依据 ADR-
 |---|---|---|---|
 | GET | `/binflow/api/v1/addons` | 11 槽位清单实时求值（bare array：`id`/`kind`/`minTier`/`enabled`/`reason`/`displayName`/`description`；CapSystemRead；**无写面**——其余动词 404） | M10 |
 
-### uploads 域（MPU；**仅纯 S3 后端**——filestore/双写实例全族 **501 纯文本**，非 404）
+### uploads 域（MPU；Artifactory 形——M11 T-332 整体翻转，ADR-0039；**数据端点仅纯 S3 后端**，filestore/双写实例回 **501 纯文本**非 404）
 
 | 方法 | 路径 | 语义 | 里程碑 |
 |---|---|---|---|
-| POST | `/binflow/api/v1/uploads/create` | 开会话（认证 + 目标仓路径 `w`；路径不得带矩阵参数） | M10 |
-| POST | `/binflow/api/v1/uploads/config` | 无字节会话重分片 | M10 |
-| GET | `/binflow/api/v1/uploads/urlPart/{id}/{n}` | 第 n 片的上传 URL（BinFlow URL；会话 id = 不可猜测 capability） | M10 |
-| GET | `/binflow/api/v1/uploads/status[/{id}]` | 单会话 / 清单形态 | M10 |
-| PUT | `/binflow/api/v1/uploads/part/{id}/{n}` | 传片（服务端中继进 S3 multipart；checksum 服务端实测；客户端无 S3 凭据） | M10 |
-| POST | `/binflow/api/v1/uploads/complete/{id}` | 提交落节点（sha256 必填、sha1/md5 可选；错配 409） | M10 |
-| POST | `/binflow/api/v1/uploads/abort/{id}` | 弃置会话 | M10 |
+| POST | `/binflow/api/v1/uploads/create?repoKey=&repoPath=&partSizeMB=` | 开会话（QueryParam 非 JSON 体；认证 + admin/user 角色 + 目标仓 `w`；virtual 仓回落 defaultDeploymentRepo；不限包型）。**200 `{"token": ...}`**——会话能力凭据 | M11 |
+| GET | `/binflow/api/v1/uploads/config` | 能力探测：**200 `{"supported": bool}`**（S3 栈 true / filestore **false**——探测端点不回 501）；带 jfrog-cli-go UA 版本门（低于 2.62.2 回 false） | M11 |
+| POST | `/binflow/api/v1/uploads/urlPart?partNumber=N` | 第 n 片的上传 URL（Bearer 会话 token；**200 `{"url": ...}`**——URL 查询串自带 `?token=` 能力，PUT 可免 Authorization） | M11 |
+| POST | `/binflow/api/v1/uploads/status` | 异步任务进度（Bearer）：**200 `{status, error, progress, checksumToken}`**；status ∈ PARTS/PROCESSING/**FINISHED**(progress 100 + checksumToken)/NON_RETRYABLE_ERROR | M11 |
+| PUT | `/binflow/api/v1/uploads/part/{id}/{n}?token=` | 传片（urlPart 目标；**200** S3 PutObject 形；可乱序到达——有界重排暂存；服务端中继进 S3 multipart，checksum 服务端实测） | M11 |
+| POST | `/binflow/api/v1/uploads/complete?sha1=` | 提交组装（Bearer；**sha1** 40 hex 必填）→ **202 受理**，任务异步；错配经 status 的 NON_RETRYABLE_ERROR 呈现 | M11 |
+| POST | `/binflow/api/v1/uploads/abort` | 弃置会话（Bearer）→ 204 | M11 |
 
-会话为**进程态**：重启即忘（status → 404）；S3 跨重启续传为登记债（architecture §11.43，M11 评估）。
+流程（jfrog-cli 实测 2.122.0）：create 拿 token → urlPart/PUT 分片（可并发乱序）→ `complete?sha1=` 202 → 轮询 status 至 **FINISHED** 拿 `checksumToken`（5 分钟）→ 客户端凭它做零传输 `X-Checksum-Deploy` PUT 落节点（节点由客户端落，服务端只组装+登记 blob）。会话跨重启存活：能力绑定持久化在引擎 upload_sessions 行，重启后同一 token 继续可用（T-323R 在新 wire 上保留）。旧形状（JSON 体 create/config 重分片、GET urlPart/status 清单、路径 id 四端点、complete 201/sha256）已退役 → 404。
 
 ### 门控包型接入面（pro 档槽位）
 

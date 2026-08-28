@@ -137,16 +137,16 @@ curl -s -H "Authorization: Bearer <access_token>" $BASE/binflow/api/v1/storage/u
 
 ### S3 后端和本地 filestore 的 MPU（/api/v1/uploads）有什么差异？
 
-分块上传 REST 面（`POST /api/v1/uploads/create|config|complete/{id}|abort/{id}`、`GET .../status[/{id}]|urlPart/{id}/{n}`、`PUT .../part/{id}/{n}`）**只在纯 S3 后端的实例上存在**：
+分块上传 REST 面（M11 起为 Artifactory 形状：`POST create?repoKey=&repoPath=&partSizeMB=` 回 `{"token"}`、`GET config` 能力探测、`POST urlPart?partNumber=`、`POST status`、`POST complete?sha1=` 回 202 异步、`POST abort`、`PUT part/{id}/{n}?token=`——ADR-0039）**数据端点只在纯 S3 后端的实例上存在**：
 
 | | S3 后端 | 本地 filestore / 双写 |
 |---|---|---|
-| 端点可用性 | 全族可用——**BinFlow 中继**：分片 PUT 到 BinFlow 的 URL，服务端转投 S3 multipart，客户端不需要任何 S3 凭据、桶端点保持私有 | **恒 501 纯文本**（不是 404——「该后端没有此能力」与「不是 BinFlow 端点」可区分） |
-| 提交校验 | `complete` 是 checksum 门：sha256 必填，sha1/md5 可选；错配 409 | 同左（无会话可开） |
-| 跨重启续传 | **不支持**（登记债 §11.43，M11 评估）：会话是进程态，重启后 status 查询 404，客户端从头再来；S3 侧残留由启动孤儿清扫回收 | 不适用 |
-| 普通上传 | 内容 PUT 单发即可，两后端无差异——MPU 是大文件的**可选**通道 | 同左 |
+| 端点可用性 | 全族可用——**BinFlow 中继**：分片 PUT 到 BinFlow 的 URL（URL 自带能力 token，可不带 Authorization），服务端转投 S3 multipart，客户端不需要任何 S3 凭据、桶端点保持私有 | **数据端点恒 501 纯文本**（不是 404——「该后端没有此能力」与「不是 BinFlow 端点」可区分）；`GET config` 探测恒 200 回 `{"supported": false}` |
+| 提交校验 | `complete?sha1=`（sha1 必填）202 受理后异步组装，任务态经 `POST status` 呈现（PARTS/PROCESSING/FINISHED/NON_RETRYABLE_ERROR）；错配在 status 里可见 | 同左（无会话可开） |
+| 跨重启续传 | **支持**：会话坐标与 token 绑定持久化在引擎的 upload_sessions 行，kill -9 后同一 token 在重启实例上继续传剩余分片（T-323R） | 不适用 |
+| 普通上传 | 内容 PUT 单发即可，两后端无差异——MPU 是大文件的**可选**通道（jfrog-cli 对 ≥200MiB 文件自动走此面，实测 2.122.0 全链通过） | 同左 |
 
-docker `/v2` 面的分块上传是**另一个平面**（其跨重启续传策略见上文 M7 问），与 `/api/v1/uploads` 互不相干。端点契约见 [API 参考 · M10 新增端点速览](api-reference.md#m10-新增端点速览t-296)。
+docker `/v2` 面的分块上传是**另一个平面**（其跨重启续传策略见上文 M7 问），与 `/api/v1/uploads` 互不相干。端点契约见 [API 参考 · uploads 域](api-reference.md)。
 
 ## M11 增补四问（四包型 tier / 门控 / 存储·认证新面）
 
