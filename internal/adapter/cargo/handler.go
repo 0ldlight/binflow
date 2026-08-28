@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -97,11 +98,12 @@ func Register(svc repo.Service, repos repo.ClassReader, blobs BlobLedger, props 
 // Protocol implements adapter.Handler.
 func (h *Handler) Protocol() string { return Protocol }
 
-// RepoTypes implements adapter.Handler: T-294 serves LOCAL in full — the
-// remote pull-through and virtual aggregation are their own M11 tickets
-// (spec sections 8/S4/S5) and the class door refuses them until they
-// land.
-func (h *Handler) RepoTypes() []string { return []string{repo.TypeLocal} }
+// RepoTypes implements adapter.Handler: LOCAL in full (T-294) and the
+// REMOTE pull-through (T-316, spec section 8's remote row — the sparse
+// index and download planes ride svc.Get's engine, search proxies through
+// a query-keyed cache marker, writes refuse). The virtual aggregation is
+// T-318's and the class door still refuses it.
+func (h *Handler) RepoTypes() []string { return []string{repo.TypeLocal, repo.TypeRemote} }
 
 // Layout implements adapter.Handler (see layout.go).
 func (h *Handler) Layout(r *http.Request) (string, string, error) { return layout(r) }
@@ -147,9 +149,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			h.writeError(w, err, repoKey, rel)
 			return
 		}
-		if class != repo.TypeLocal {
+		switch class {
+		case repo.TypeLocal:
+			// fall through to the local dispatch below
+		case repo.TypeRemote:
+			h.serveRemote(ctx, w, r, p, repoKey, rt)
+			return
+		default:
 			writeEnvelope(w, http.StatusNotFound, fmt.Sprintf(
-				"cargo %s repositories are not served by this BinFlow release (the sparse index ships local repositories; remote and virtual land with their own tickets)", class))
+				"cargo %s repositories are not served by this BinFlow release (the virtual aggregation is its own M11 ticket)", class))
 			return
 		}
 	}
@@ -168,23 +176,34 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Sparse only (spec section 1): the git index face answers the
 		// deprecation wording whatever the verb.
 		writeEnvelope(w, http.StatusNotFound, msgGitDeprecated)
-	case kindConfig, kindIndexFile:
-		// The index plane is read-only to clients: a write verb on a
-		// VALID index address is the server-generated 403 (the DB-3
-		// posture — a hand-written index line could break the cksum
-		// reconciliation), not the generic 405.
+	case kindConfig:
+		// config.json is synthesized per request (never a storage node):
+		// reads serve it, writes have nothing to land and stay refused.
 		switch r.Method {
 		case http.MethodGet, http.MethodHead:
-			if rt.kind == kindConfig {
-				h.serveConfig(w, r, repoKey)
-				return
-			}
-			h.serveIndexFile(ctx, w, r, p, repoKey, rt.pkgPath)
+			h.serveConfig(w, r, repoKey)
 		case http.MethodPut, http.MethodDelete, http.MethodPost:
 			writeEnvelope(w, http.StatusForbidden,
-				"'"+rel+"' is server-generated (the sparse index); direct writes are not permitted")
+				"'"+rel+"' is server-generated (the synthesized sparse entry document); direct writes are not permitted")
 		default:
 			w.Header().Set("Allow", "GET, HEAD")
+			writeEnvelope(w, http.StatusMethodNotAllowed, "method "+r.Method+" is not supported on config.json")
+		}
+	case kindIndexFile:
+		// D-5 (T-304's flip): bare writes onto the index files are
+		// ACCEPTED — the index is a derived face and the write lands
+		// through the same content plane any bare PUT rides, then the
+		// convergence rewrite restores the file from the stored facts
+		// (cksum reconciliation by recalculation, not by refusal).
+		switch r.Method {
+		case http.MethodGet, http.MethodHead:
+			h.serveIndexFile(ctx, w, r, p, repoKey, rt.pkgPath)
+		case http.MethodPut:
+			h.serveDerivedWrite(ctx, w, r, p, repoKey, segIndex+"/"+rt.pkgPath)
+		case http.MethodDelete:
+			h.serveDerivedDelete(ctx, w, p, repoKey, segIndex+"/"+rt.pkgPath)
+		default:
+			w.Header().Set("Allow", "GET, HEAD, PUT, DELETE")
 			writeEnvelope(w, http.StatusMethodNotAllowed, "method "+r.Method+" is not supported on index files")
 		}
 	case kindDownload:
@@ -252,10 +271,13 @@ func (h *Handler) serveDownload(ctx context.Context, w http.ResponseWriter, r *h
 }
 
 // serveBareContent is the raw storage face (no protocol plane): GET/HEAD
-// stream the node, PUT lands bytes verbatim EXCEPT under the two
-// server-owned prefixes (index/ and .cargo/ — a hand-written index line
-// or sidecar could break the cksum reconciliation; the DB-3 posture),
+// stream the node, PUT lands bytes verbatim (D-5: the index/ and .cargo/
+// refusals are gone — a bare write under the derived families lands, then
+// the convergence rewrite restores the index from the stored facts),
 // DELETE removes — the curl/debug reachability the other adapters give.
+// On a remote repository the same arms ride the engine: GET pulls
+// through, PUT/DELETE answer the service's read-only 405 / RE-06
+// cache-eviction semantics before any convergence could run.
 func (h *Handler) serveBareContent(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, rel string) {
 	switch r.Method {
 	case http.MethodGet, http.MethodHead:
@@ -270,22 +292,7 @@ func (h *Handler) serveBareContent(ctx context.Context, w http.ResponseWriter, r
 		}
 		h.serveNode(ctx, w, r, node, rc, ctype)
 	case http.MethodPut:
-		if strings.HasPrefix(rel, segIndex+"/") || strings.HasPrefix(rel, dirMeta+"/") {
-			writeEnvelope(w, http.StatusForbidden,
-				"'"+rel+"' is server-generated (the sparse index and the cargo metadata sidecar); direct writes are not permitted")
-			return
-		}
-		expect, err := declaredDigests(r.Header)
-		if err != nil {
-			writeEnvelope(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		if _, err := h.svc.Put(ctx, p, repoKey, rel, r.Body, expect, "application/octet-stream"); err != nil {
-			h.writeError(w, err, repoKey, rel)
-			return
-		}
-		w.Header().Set("Location", rel)
-		w.WriteHeader(http.StatusCreated)
+		h.serveDerivedWrite(ctx, w, r, p, repoKey, rel)
 	case http.MethodDelete:
 		if err := h.svc.Delete(ctx, p, repoKey, rel); err != nil {
 			h.writeError(w, err, repoKey, rel)
@@ -295,6 +302,59 @@ func (h *Handler) serveBareContent(ctx context.Context, w http.ResponseWriter, r
 	default:
 		w.Header().Set("Allow", "GET, HEAD, PUT, DELETE")
 		writeEnvelope(w, http.StatusMethodNotAllowed, "method "+r.Method+" is not supported on content paths")
+	}
+}
+
+// serveDerivedWrite lands one bare PUT (any path — the derived families
+// index/** and .cargo/** included, D-5) and then runs the index
+// convergence the CargoMetadataInterceptor chain stands for on the
+// reference: the derived file converges back to the stored facts, the
+// cksum reconciliation guaranteed by recalculation rather than refusal.
+func (h *Handler) serveDerivedWrite(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, path string) {
+	expect, err := declaredDigests(r.Header)
+	if err != nil {
+		writeEnvelope(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	mime := "application/octet-stream"
+	if strings.HasSuffix(path, suffixMetaJSON) {
+		mime = "application/json"
+	}
+	if _, err := h.svc.Put(ctx, p, repoKey, path, r.Body, expect, mime); err != nil {
+		h.writeError(w, err, repoKey, path)
+		return
+	}
+	h.convergeIndex(ctx, p, repoKey, path)
+	w.Header().Set("Location", path)
+	w.WriteHeader(http.StatusCreated)
+}
+
+// serveDerivedDelete removes one derived-family node (an index file) and
+// converges: a crate whose versions still stand gets its file
+// regenerated immediately (the afterDelete recalculation), a crate with
+// nothing stored stays deleted.
+func (h *Handler) serveDerivedDelete(ctx context.Context, w http.ResponseWriter, p *repo.Principal, repoKey, path string) {
+	if err := h.svc.Delete(ctx, p, repoKey, path); err != nil {
+		h.writeError(w, err, repoKey, path)
+		return
+	}
+	h.convergeIndex(ctx, p, repoKey, path)
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// convergeIndex reruns the whole-file index rewrite for the crate a
+// derived path belongs to (best-effort — the async recalculation's
+// posture: a convergence fault logs and the next triggering request
+// retries; it never fails the request that caused it).
+func (h *Handler) convergeIndex(ctx context.Context, p *repo.Principal, repoKey, path string) {
+	name, ok := derivedPathCrate(path)
+	if !ok {
+		return
+	}
+	if err := h.rewriteIndex(ctx, p, repoKey, name); err != nil {
+		slog.WarnContext(ctx, "cargo: index convergence after a bare write failed",
+			slog.String("repo", repoKey), slog.String("path", path),
+			slog.String("error", err.Error()))
 	}
 }
 
@@ -347,7 +407,7 @@ func (h *Handler) writeError(w http.ResponseWriter, err error, repoKey, path str
 		writeEnvelope(w, http.StatusNotFound, "not found")
 	case errors.Is(err, repo.ErrRepoNotFound):
 		writeEnvelope(w, http.StatusNotFound, fmt.Sprintf("repository %s not found", repoKey))
-	case errors.Is(err, repo.ErrInvalidPath), errors.Is(err, errInvalidChecksum), errors.Is(err, errInvalidPackage),
+	case errors.Is(err, repo.ErrInvalidPath), errors.Is(err, errInvalidChecksum),
 		errors.Is(err, metadata.ErrInvalidProperties):
 		writeEnvelope(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, repo.ErrUnauthorized):

@@ -1,18 +1,29 @@
-// Package cargo is the Rust crates adapter (M11/T-294, PRD FR-88): the
-// sparse HTTP index protocol plus the crates.io registry web API, LOCAL
-// repositories in full. Remote pull-through and virtual aggregation are
-// separate M11 tickets (the spec's S4/S5 arms) and answer the honest 404
-// here until they land.
+// Package cargo is the Rust crates adapter (M11/T-294 + T-316, PRD
+// FR-88/FR-100): the sparse HTTP index protocol plus the crates.io
+// registry web API, LOCAL repositories in full and REMOTE repositories as
+// a sparse pull-through proxy (remote.go). The virtual aggregation is
+// T-318's and answers the honest 404 until it lands.
 //
 // # Behavior basis
 //
-// docs/reverse/cargo.md (T-284) is the contract, with the TL rulings
-// folded in (reports/agents/tl-fr91-ac3.md section 3):
+// docs/reverse/cargo.md (T-284) is the contract, with the rulings folded
+// in (reports/agents/tl-fr91-ac3.md section 3, T-304's CG-2 anchor table):
 //
-//   - CG-2: every publish failure answers 4xx/5xx + the errors[] envelope —
-//     the Artifactory 200+errors dual form is NOT implemented (malformed
-//     framing is the client's 400, a server IO failure the 500);
-//   - CG-3: a duplicate name+version (build metadata ignored) answers 409;
+//   - CG-2 (final, T-316): the publish FAILURE face is Artifactory's
+//     dual track — processing failures answer 200 + warnings.other
+//     carrying "Failed to publish with error '…'" strings (NEVER a
+//     top-level errors key: cargo 1.98 reads its presence as failure),
+//     the permission family keeps 401 (anonymous) / 403 (named) + the
+//     errors[] envelope, and a length-prefix defect answers 500 (the
+//     uncaught-RuntimeException family's degraded declaration);
+//   - D-3: no conflict arm — a duplicate version the principal may delete
+//     is OVERWRITTEN (the service's repo-semantics section 3 gate), one
+//     they may not is the 401/403 refusal; the index keeps one row per
+//     version ignoring build metadata (newest spelling wins);
+//   - D-5: bare writes under index/** and .cargo/** are ACCEPTED and
+//     followed by the index convergence rewrite (cksum reconciliation by
+//     recalculation, not by refusal); the synthesized config.json stays
+//     unwritable;
 //   - TL-1: config.json's dl/api absolutes take server.base_url, falling
 //     back to the request's scheme+host (the npm/nuget injection posture);
 //   - TL-6: yank/unyank of an unknown crate or version answers 404 +
@@ -42,8 +53,12 @@
 //	.cargo/crates/<name>/<name>-<version>.json publish metadata verbatim
 //	index/{1,2,3/c,ab/cd}/<name>               index file, one line/version
 //
-// The index file is REGENERABLE (rewritten whole on publish/yank/unyank);
-// client PUTs onto index/** and .cargo/** are refused (the DB-3 posture:
-// a hand-written index line could break the cksum == measured-sha256
-// reconciliation the download contract rides on).
+// The remote cache adds two derived shapes (spec section 8 / S4):
+//
+//	config.original.json                       the upstream config.json, verbatim
+//	.cargo/search/<hex-of-query>.json          one cached upstream search response
+//
+// The index file is REGENERABLE (rewritten whole on publish/yank/unyank
+// and after every bare write under the derived families — the convergence
+// the CargoMetadataInterceptor chain stands for on the reference, D-5).
 package cargo

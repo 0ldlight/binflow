@@ -129,6 +129,19 @@ func (s *stack) createCargoRepo(t *testing.T, key, rclass string) (int, string) 
 	return status, respBody
 }
 
+// TestRepoTypesServedClasses: LOCAL in full (T-294) and REMOTE (T-316);
+// the virtual class stays T-318's.
+func TestRepoTypesServedClasses(t *testing.T) {
+	h := New(nil, nil, nil, nil, Options{})
+	got := h.RepoTypes()
+	if len(got) != 2 || got[0] != repo.TypeLocal || got[1] != repo.TypeRemote {
+		t.Fatalf("RepoTypes = %v, want [local remote]", got)
+	}
+	if h.Protocol() != Protocol {
+		t.Errorf("Protocol = %q, want %q", h.Protocol(), Protocol)
+	}
+}
+
 // TestGateD3CommunityRefusesCreate: no document installed → the cargo
 // create answers the D3 400 naming the addon and the tier gap.
 func TestGateD3CommunityRefusesCreate(t *testing.T) {

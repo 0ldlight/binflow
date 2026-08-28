@@ -207,49 +207,100 @@ func TestPublishChain(t *testing.T) {
 	}
 }
 
-// TestPublishDuplicate409: the same name+version refuses 409 — both the
-// exact retransmit and the build-metadata variant (CG-3).
-func TestPublishDuplicate409(t *testing.T) {
+// TestPublishDuplicateOverwriteArms: D-3/CG-2 — there is NO conflict arm.
+// A principal who may delete the existing node (admin here) OVERWRITES:
+// the exact retransmit answers 200, the build-metadata spelling of the
+// same version lands beside it and the index keeps ONE row for the
+// version (the official uniqueness MUST, newest spelling winning).
+func TestPublishDuplicateOverwriteArms(t *testing.T) {
 	s := newStack(t)
 	s.seedRepo(t, "cargo-local", repo.TypeLocal)
 
-	if status, body, _ := s.publish(t, "cargo-local", fixtureMeta("dup", "0.1.0"), fixtureCrate("dup", "0.1.0")); status != http.StatusOK {
+	first := fixtureCrate("dup", "0.1.0")
+	if status, body, _ := s.publish(t, "cargo-local", fixtureMeta("dup", "0.1.0"), first); status != http.StatusOK {
 		t.Fatalf("first publish = %d (%s)", status, body)
 	}
-	status, body, _ := s.publish(t, "cargo-local", fixtureMeta("dup", "0.1.0"), fixtureCrate("dup", "0.1.0"))
-	if status != http.StatusConflict {
-		t.Fatalf("exact duplicate = %d (%s), want 409", status, body)
+	status, body, _ := s.publish(t, "cargo-local", fixtureMeta("dup", "0.1.0"), first)
+	if status != http.StatusOK {
+		t.Fatalf("exact duplicate = %d (%s), want the overwrite 200 (no conflict arm)", status, body)
 	}
-	if !strings.Contains(body, `"errors":[{"detail":`) {
-		t.Errorf("409 body = %s, want the errors envelope", body)
+	if strings.Contains(body, `"errors"`) {
+		t.Errorf("overwrite body = %s: the errors key must never appear", body)
 	}
+	// A DIFFERENT body at the same version is the overwrite proper: 200,
+	// and the download serves the new bytes.
+	replacement := fixtureCrate("dup", "0.1.0-replaced")
+	status, body, _ = s.publish(t, "cargo-local", fixtureMeta("dup", "0.1.0"), replacement)
+	if status != http.StatusOK {
+		t.Fatalf("overwrite publish = %d (%s), want 200", status, body)
+	}
+	status, body, _ = s.get(repoPath("cargo-local") + "/v1/crates/dup/0.1.0/download")
+	if status != http.StatusOK || body != string(replacement) {
+		t.Fatalf("post-overwrite download = (%d, %d bytes), want the replaced bytes", status, len(body))
+	}
+
+	// The build-metadata spelling is a distinct storage path: it lands,
+	// and the index collapses both spellings to one row (newest wins).
 	status, body, _ = s.publish(t, "cargo-local", fixtureMeta("dup", "0.1.0+build.7"), fixtureCrate("dup", "0.1.0+build.7"))
-	if status != http.StatusConflict {
-		t.Fatalf("build-metadata duplicate = %d (%s), want 409 (build metadata does not distinguish versions)", status, body)
+	if status != http.StatusOK {
+		t.Fatalf("build-metadata duplicate = %d (%s), want the plain 200 (a fresh path)", status, body)
+	}
+	_, indexBody, _ := s.get(repoPath("cargo-local") + "/index/3/d/dup")
+	rows := strings.Split(strings.TrimSuffix(indexBody, "\n"), "\n")
+	if len(rows) != 1 {
+		t.Fatalf("index rows = %d (body %q), want ONE row for the version", len(rows), indexBody)
+	}
+	if !strings.Contains(rows[0], `"vers":"0.1.0+build.7"`) {
+		t.Errorf("index row = %s, want the newest spelling", rows[0])
 	}
 }
 
-// TestPublishFailureFamily: malformed framing and metadata answer the
-// 400 + envelope (CG-2's client arm); nothing lands.
+// TestPublishFailureFamily: CG-2's dual track — the processing failures
+// answer 200 + warnings.other carrying "Failed to publish with error …"
+// (never a top-level errors key), the framing defects answer 500 + the
+// envelope; nothing lands in either arm.
 func TestPublishFailureFamily(t *testing.T) {
 	s := newStack(t)
 	s.seedRepo(t, "cargo-local", repo.TypeLocal)
 
-	cases := []struct {
+	failures := []struct {
 		name string
 		body []byte
 	}{
 		{"truncated frame", publishBody(fixtureMeta("bad", "0.1.0"), fixtureCrate("bad", "0.1.0"))[:12]},
-		{"trailing byte", append(publishBody(fixtureMeta("bad", "0.1.0"), fixtureCrate("bad", "0.1.0")), 'x')},
 		{"not json", publishBody("nonsense", fixtureCrate("bad", "0.1.0"))},
 		{"bad name", publishBody(`{"name":"1bad","vers":"0.1.0"}`, fixtureCrate("bad", "0.1.0"))},
 		{"bad version", publishBody(`{"name":"bad","vers":"0.1"}`, fixtureCrate("bad", "0.1.0"))},
+		{"oversized description property", publishBody(
+			`{"name":"bad","vers":"0.1.0","description":"`+strings.Repeat("x", 1200)+`"}`,
+			fixtureCrate("bad", "0.1.0"))},
 	}
-	for _, tc := range cases {
+	for _, tc := range failures {
 		t.Run(tc.name, func(t *testing.T) {
 			status, body, _ := s.put(repoPath("cargo-local")+"/api/v1/crates/new", tc.body, nil)
-			if status != http.StatusBadRequest {
-				t.Fatalf("status = %d (body %s), want 400", status, body)
+			if status != http.StatusOK {
+				t.Fatalf("status = %d (body %s), want the CG-2 200 track", status, body)
+			}
+			if strings.Contains(body, `"errors"`) {
+				t.Errorf("body = %s: the errors key must never appear on a 200", body)
+			}
+			if !strings.Contains(body, `"other":["Failed to publish with error `) {
+				t.Errorf("body = %s, want the failure string in warnings.other", body)
+			}
+		})
+	}
+	defects := []struct {
+		name string
+		body []byte
+	}{
+		{"truncated length prefix", publishBody(fixtureMeta("bad", "0.1.0"), fixtureCrate("bad", "0.1.0"))[:2]},
+		{"trailing byte", append(publishBody(fixtureMeta("bad", "0.1.0"), fixtureCrate("bad", "0.1.0")), 'x')},
+	}
+	for _, tc := range defects {
+		t.Run(tc.name, func(t *testing.T) {
+			status, body, _ := s.put(repoPath("cargo-local")+"/api/v1/crates/new", tc.body, nil)
+			if status != http.StatusInternalServerError {
+				t.Fatalf("status = %d (body %s), want 500 (the RuntimeException family)", status, body)
 			}
 			if !strings.Contains(body, `"errors":[{"detail":`) {
 				t.Errorf("body = %s, want the errors envelope", body)
@@ -262,7 +313,7 @@ func TestPublishFailureFamily(t *testing.T) {
 	}
 	for _, n := range nodes {
 		if n.Path != "crates/" {
-			t.Errorf("refused publishes must land nothing; node %q survived", n.Path)
+			t.Errorf("failed publishes must land nothing; node %q survived", n.Path)
 		}
 	}
 }
@@ -526,26 +577,39 @@ func TestGitIndexFace(t *testing.T) {
 	}
 }
 
-// TestRemoteVirtualRefused: the non-local classes answer the honest 404
-// until their own M11 tickets land (remote = S4, virtual = S5).
-func TestRemoteVirtualRefused(t *testing.T) {
+// TestRemoteVirtualClasses: the remote class serves its synthesized
+// entry document (dl/api self-pointing at the REMOTE repository — the
+// downloads then cross the cache); the virtual class keeps the honest
+// 404 until T-318 lands it.
+func TestRemoteVirtualClasses(t *testing.T) {
 	s := newStack(t)
 	s.seedRepo(t, "cargo-local", repo.TypeLocal)
 	s.seedRepo(t, "cargo-remote", repo.TypeRemote)
 	s.seedRepo(t, "cargo-virtual", repo.TypeVirtual)
 	s.seedVirtualMembers(t, "cargo-virtual", "cargo-local")
+
 	status, body, _ := s.get(repoPath("cargo-remote") + "/index/config.json")
-	if status != http.StatusNotFound || !strings.Contains(body, "remote") {
-		t.Fatalf("remote config.json = (%d, %s), want the class 404", status, body)
+	if status != http.StatusOK {
+		t.Fatalf("remote config.json = %d (body %s), want the synthesized 200", status, body)
 	}
+	if !strings.Contains(body, `"dl":"`+s.srv.URL+`/binflow/cargo-remote/v1/crates"`) {
+		t.Errorf("remote config.json = %s, want dl self-pointing at the remote repository", body)
+	}
+	if strings.Contains(body, "cargo-local") {
+		t.Errorf("remote config.json = %s: the upstream must never leak into the served document", body)
+	}
+
 	status, _, _ = s.get(repoPath("cargo-virtual") + "/index/config.json")
 	if status != http.StatusNotFound {
-		t.Fatalf("virtual config.json = %d, want 404", status)
+		t.Fatalf("virtual config.json = %d, want 404 (T-318)", status)
 	}
 }
 
-// TestBareContentFace: the debug face serves the stored nodes, refuses
-// direct writes onto the server-owned prefixes, and 201s elsewhere.
+// TestBareContentFace: the debug face serves the stored nodes; D-5 — the
+// derived families ACCEPT bare writes and the index converges back (an
+// index write onto a stored crate is regenerated from the facts, an
+// unknown crate's hand-written file survives until facts exist; a sidecar
+// write feeds the next rewrite); a plain path outside the families 201s.
 func TestBareContentFace(t *testing.T) {
 	s := newStack(t)
 	s.seedRepo(t, "cargo-local", repo.TypeLocal)
@@ -558,13 +622,47 @@ func TestBareContentFace(t *testing.T) {
 		t.Fatalf("bare GET = (%d, %s)", status, body)
 	}
 
-	status, body, _ = s.put(repoPath("cargo-local")+"/index/my/cr/handwritten", []byte("forged row\n"), nil)
-	if status != http.StatusForbidden || !strings.Contains(body, "server-generated") {
-		t.Fatalf("index PUT = (%d, %s), want 403 + the server-generated wording", status, body)
+	// A hand-written index file for a crate WITH stored versions: the
+	// write lands (201), then the convergence rewrite restores the
+	// computed file — the forged row never survives.
+	status, body, _ = s.put(repoPath("cargo-local")+"/index/ba/re/bare", []byte("forged row\n"), nil)
+	if status != http.StatusCreated {
+		t.Fatalf("index PUT = (%d, %s), want the D-5 201", status, body)
 	}
-	status, body, _ = s.put(repoPath("cargo-local")+"/.cargo/crates/bare/bare-0.1.0.json", []byte("{}"), nil)
+	status, body, _ = s.get(repoPath("cargo-local") + "/index/ba/re/bare")
+	if status != http.StatusOK || strings.Contains(body, "forged") {
+		t.Fatalf("post-convergence index = (%d, %s), want the regenerated file", status, body)
+	}
+	if !strings.Contains(body, `"vers":"0.1.0"`) || !strings.Contains(body, `"cksum":"`+sha256hex(fixtureCrate("bare", "0.1.0"))+`"`) {
+		t.Fatalf("regenerated index = %s, want the computed row with the measured cksum", body)
+	}
+
+	// A hand-written index file for an UNKNOWN crate: no facts to converge
+	// from, so the file stands as written (the external-import shape).
+	status, _, _ = s.put(repoPath("cargo-local")+"/index/my/cr/handwritten", []byte("hand-written row\n"), nil)
+	if status != http.StatusCreated {
+		t.Fatalf("unknown-crate index PUT = %d, want 201", status)
+	}
+	status, body, _ = s.get(repoPath("cargo-local") + "/index/my/cr/handwritten")
+	if status != http.StatusOK || body != "hand-written row\n" {
+		t.Fatalf("unknown-crate index = (%d, %q), want the written bytes kept", status, body)
+	}
+
+	// A sidecar write lands and feeds the convergence of its crate.
+	status, _, _ = s.put(repoPath("cargo-local")+"/.cargo/crates/bare/bare-0.1.0.json",
+		[]byte(`{"name":"bare","vers":"0.1.0","deps":[],"features":{"rewritten":["x"]}}`), nil)
+	if status != http.StatusCreated {
+		t.Fatalf("sidecar PUT = %d, want the D-5 201", status)
+	}
+	_, body, _ = s.get(repoPath("cargo-local") + "/index/ba/re/bare")
+	if !strings.Contains(body, `"rewritten"`) {
+		t.Fatalf("post-sidecar index = %s, want the converged features", body)
+	}
+
+	// config.json stays synthesized — a write has nothing to land on.
+	status, body, _ = s.put(repoPath("cargo-local")+"/index/config.json", []byte("{}"), nil)
 	if status != http.StatusForbidden {
-		t.Fatalf("sidecar PUT = (%d, %s), want 403", status, body)
+		t.Fatalf("config.json PUT = (%d, %s), want the synthesized-face 403", status, body)
 	}
 
 	status, _, hdr := s.put(repoPath("cargo-local")+"/docs/readme.txt", []byte("hello"), nil)
