@@ -1,8 +1,9 @@
-// Package cargo is the Rust crates adapter (M11/T-294 + T-316, PRD
+// Package cargo is the Rust crates adapter (M11/T-294 + T-316 + T-318, PRD
 // FR-88/FR-100): the sparse HTTP index protocol plus the crates.io
-// registry web API, LOCAL repositories in full and REMOTE repositories as
-// a sparse pull-through proxy (remote.go). The virtual aggregation is
-// T-318's and answers the honest 404 until it lands.
+// registry web API, LOCAL repositories in full, REMOTE repositories as a
+// sparse pull-through proxy (remote.go), and VIRTUAL repositories as the
+// member-order aggregate (virtual.go — the merged index file, first-hit
+// downloads, the defaultDeploymentRepo write route).
 //
 // # Behavior basis
 //
@@ -57,6 +58,14 @@
 //
 //	config.original.json                       the upstream config.json, verbatim
 //	.cargo/search/<hex-of-query>.json          one cached upstream search response
+//
+// The VIRTUAL class serves the same wire grammar as the aggregate: reads
+// merge across the member order (index files deduplicated per
+// name+version-ignoring-build-metadata, first-seen member's row kept —
+// spec section 12's ruling ①), downloads first-hit through the member
+// chain (a remote member pulls through), and writes route onto the
+// configured defaultDeploymentRepo member. A virtual repository stores
+// nothing of its own.
 //
 // The index file is REGENERABLE (rewritten whole on publish/yank/unyank
 // and after every bare write under the derived families — the convergence
