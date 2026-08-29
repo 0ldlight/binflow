@@ -1,4 +1,4 @@
-# BinFlow 架构设计（M1 定稿；M2~M6 增量已并入，M7 增量标注 [M7]，M8 控制台对齐约束见 §13 [M8]，M9 服务端解冻约束见 §14 [M9]，M10 license/addon/属性基座见 §15 [M10]）
+# BinFlow 架构设计（M1 定稿；M2~M6 增量已并入，M7 增量标注 [M7]，M8 控制台对齐约束见 §13 [M8]，M9 服务端解冻约束见 §14 [M9]，M10 license/addon/属性基座见 §15 [M10]；M11 增量未新增章节号——票据级 as-built + ADR 承载；M12 操作域/MPU/remote 字段/可观测回写见 §15.4 与 §23 [M12]）
 
 > architect 维护。本文件在 ADR-0001~0033 基线上给出可并行开发的实现蓝图：包边界 = 并行开发 area 边界。
 > 标注 **[M2+]** / **[M3+]** / **[M6+]** / **[M7]** 的内容当期不实现，只保证接口缝存在；标注「待逆向规格确认」的行为以 `docs/reverse/` 规格为准，规格冲突时先回 ADR。
@@ -1313,10 +1313,19 @@ CREATE INDEX idx_upload_sessions_expiry ON upload_sessions(expires_at);
                                                  挂 /api/storage/{repo}/{path} 既有路由的第三 query 臂（T-286，
                                                  §15.3.3——E-09 缺口的赎回）；GET 走内容面读门，PUT/DELETE =
                                                  required + 该 path w；其余动词（POST）= E-26 404 冻结姿态
-  [M10] POST /binflow/api/v1/uploads/{create,config}、GET …/status[/{id}]、
-        GET …/urlPart/{id}/{n}、POST …/complete/{id}、POST …/abort/{id}、
-        PUT …/part/{id}/{n}                        MPU REST 八臂（T-289，§15.4 as-built；routeAuth required +
-                                                 handler 内目标仓 w；filestore/dual-write 未接线 = 501 纯文本）
+  [M10→M11] POST /binflow/api/v1/uploads/create?repoKey=&repoPath=&partSizeMB=、GET …/config、
+        POST …/urlPart?partNumber=N、POST …/status、POST …/complete?sha1=、POST …/abort、
+        PUT …/part/{id}/{n}?token=               MPU REST **Artifactory 形**六端点 + part（ADR-0039/T-332，
+                                                 §15.4——T-289 旧八臂 wire 退役：JSON 体 create/config、GET
+                                                 urlPart/status 路径 id、complete 201+sha256 同步门全部下线，
+                                                 无兼容垫片）；create/config = 常规路由门，其余四端点 + part =
+                                                 token 能力车道（dispatch 豁免 + handler 自裁）；filestore 上
+                                                 config=200 {supported:false}、其余 501 纯文本
+  [M12] POST /binflow/api/{copy,move}/{srcRepo}[/{srcPath}]?to=…、GET …/api/archive/download/
+        {repo}[/{path}]?archiveType=…、POST …/api/trash/{empty,restore/{path}}、
+        DELETE …/api/trash/clean/{path}          制品操作域 + 回收站（§15.4.2/§15.4.3；repo-operations/
+                                                 trashcan 槽 = handler 首行门——RBAC 先于 license；trash 族
+                                                 另有 manage=system:write 路由门；trash 浏览骑 storage 面）
   [M10] /binflow/api/nuget/{v3,v2}/<repoKey>/<rest>
                                                  NuGet 协议挂载（T-287）：apiProtocolMounts += nuget + plane-aware
                                                  rewrite（→ /binflow/<repo>/{v3|v2}/<rest>）——RBAC/repo 查询/
@@ -1372,11 +1381,14 @@ router.go 实况；ADR-0032/0033/0034 展开）**：
 - **M7 清点表增补**（族归属，不改上表原行）：族 1（系统观测读）+= `GET /api/v1/addons`（T-282）、
   `GET /api/system/license`（T-279，回显档位/期限元数据——doc 原文不回显）；族 2（系统变更写）+=
   `POST`/`DELETE /api/system/license`（license 安装/卸载——readonly_admin 403）。
-- **内容面族新增**：`/api/v1/uploads/**` 八臂 = `routeAuth{required}` + handler 内目标仓 `w`
-  （会话 id 为不可猜测 capability，§5.3.1 契约 4 同源——scope 等价物问题的 as-built 答案，
-  K29/ADR-0032 as-built 定案段）；裸 `GET /api/v1/uploads/status` 列表形态逐会话过同一 write 门
-  （无权者静默空列表，B4 复审定案）。`?properties` GET = 内容面读门（匿名随 anonymous_access）、
-  PUT/DELETE = required + path `w`（§15.3.3）。
+- **内容面族新增**：`?properties` GET = 内容面读门（匿名随 anonymous_access）、PUT/DELETE =
+  required + path `w`（§15.3.3）。`/api/v1/uploads/**` 的门模型经 ADR-0039 翻转后为**双车道**：
+  create/config = `routeAuth{required}` + handler 内目标仓 `w`（unknown/remote/无 `w` → 403
+  Artifactory 原文）；urlPart/status/complete/abort + part = **能力车道**——dispatch 级豁免谓词
+  `isMPUCapabilityRoute` + handler 自裁（MPU 形状 token → 能力路径，未知/失配 404；非 MPU 凭据 →
+  照中间件原判 401/403，presented-but-rejected 姿态不弱化）。T-289 旧「八臂 routeAuth + 会话 id
+  capability + bare status 列表」模型（K29/ADR-0032 as-built 定案段）随之退役——capability 语义改由
+  `<32B hex>.<sid>` 自解析 token + caller blob v2 持久化承载（§15.4）。
 - **addon 门控织入（非 middleware，§15.1.5）四处 as-built**：① dispatchContent 写动词臂
   （`gateAddonWrite`，repo 行查询后、adapter 分发前——读动词不问门）；② `/v2` 根级例外臂
   （`gateV2Write`，PUT/POST/PATCH/DELETE——docker 槽的地板档决定该臂只在 addons.disabled 熔断时触发）；
@@ -1654,9 +1666,13 @@ logging:
 
 41. **[M10] gated addon 的 console 入口可见性与 ADR-0029 决策 5 的张力**（§15.1.3 D5）：「不出现无功能对应的入口」 vs 「gated 入口带档位徽章可见」——裁定依据 = gated 入口有真实功能对应（已编译、被门控），与 Xray 空壳占位不同；console-ux 增补「档位徽章 + 不可选态」交互规格后生效。若 QA 发现徽章态被误读为可用，回本条重评（届时考虑隐藏 + 管理页集中呈现两形态）。
 
-42. **[M10] smart remote 字段的 M11 余量**（T-290 as-built，§15.4）：`enableTokenAuthentication`/`contentSynchronisation` 对外**按名 400**（错误体点名字段 + M11 指引）而非全局「未知字段 400」——M3 scenario-D 迁移脚本的未知字段容忍契约（`TestM02bRemoteConfigValidation` 钉死）优先，PRD 90.2「未知字段 400 不变」的字面措辞按此收窄；`unusedArtifactsCleanupPeriodHours` 本里程碑仅字段落库（migration 014）+ 配置面，清理引擎 M11；`socketTimeoutSecs≈MaxInt64` 经 ×1000 换算的溢出上界未设防（conductor 裁定 M11 台账）；legacy `socketTimeoutSecs` 字段退役评估 M11。
+42. **[M10] smart remote 字段的 M11 余量**（T-290 as-built，§15.4）：`enableTokenAuthentication`/`contentSynchronisation` 对外**按名 400**（错误体点名字段 + M11 指引）而非全局「未知字段 400」——M3 scenario-D 迁移脚本的未知字段容忍契约（`TestM02bRemoteConfigValidation` 钉死）优先，PRD 90.2「未知字段 400 不变」的字面措辞按此收窄；`unusedArtifactsCleanupPeriodHours` 本里程碑仅字段落库（migration 014）+ 配置面，清理引擎 M11；`socketTimeoutSecs≈MaxInt64` 经 ×1000 换算的溢出上界未设防（conductor 裁定 M11 台账）；legacy `socketTimeoutSecs` 字段退役评估 M11。**[M12 状态]**：清理引擎已落地生效（M11 T-324，§23.1）；canonical/别名拼写终态 = `socketTimeoutMillis`（T-346/FR-113.1，§15.4.1 终态回写）；`enableTokenAuthentication`/`contentSynchronisation` 按名 400 立场维持。
 
-43. **[M10] MPU REST 的 BinFlow 中继 URL 与 AC2 续传 descope**（T-289 as-built，§15.4）：urlPart 返回的 PUT 目标是 **BinFlow capability URL**（字节经服务端中继进 `Session.Append`→S3 PutObjectPart），非 S3 presigned 直传——零存储内核改动 + 客户端零 S3 凭据 + bucket endpoint 不暴露的代价是服务端带宽中继；若 M11+ 要求字面 presigned 直传需新 ADR（引 SSRF/凭据面）。`kill -9` 跨重启续传（PRD FR-90-AC2）已 conductor 裁定 **descope M11**：技术路径 = §11.31 既有债（upload ID 落 `upload_sessions` 表 + S3 ResumeSession 经 ListParts 重建），探针把 status 404 现状钉为断言、付债时翻转。
+43. **[M10] MPU REST 的 BinFlow 中继 URL 与 AC2 续传 descope**（T-289 as-built，§15.4）：urlPart 返回的 PUT 目标是 **BinFlow capability URL**（字节经服务端中继进 `Session.Append`→S3 PutObjectPart），非 S3 presigned 直传——零存储内核改动 + 客户端零 S3 凭据 + bucket endpoint 不暴露的代价是服务端带宽中继；若 M11+ 要求字面 presigned 直传需新 ADR（引 SSRF/凭据面）。`kill -9` 跨重启续传（PRD FR-90-AC2）已 conductor 裁定 **descope M11**：技术路径 = §11.31 既有债（upload ID 落 `upload_sessions` 表 + S3 ResumeSession 经 ListParts 重建），探针把 status 404 现状钉为断言、付债时翻转。**[M11→M12 状态]**：中继 URL 姿态在 ADR-0039 翻转后沿用（T-289-A 裁定不翻直传）；kill -9 续传**已兑现**——caller blob v2 持久化 token（sha256 + 48h 过期），重启后同 token 续传、complete、字节对账全绿（探针腿 4 钉死，§15.4）；presigned 直传债维持。
+
+44. **[M12] 制品操作族的协议索引联动观察者未接线**（T-339/T-343/T-345 共同遗留，§15.4.2）：copy/move 后 maven 元数据重算、deb Packages/by-hash、conan index 修订链的适配器侧 reindex 缝**未接线**——`repo.AttachCopyMoveObserver` 缝与 `repo.SystemPrincipal()` 内部身份契约均已备（§15.4.3），但三家适配器均未导出 reindex 入口（且要求 principal 参与 internal run + 照 trash 先例豁免 license 门）。BOARD T-339 AC2（协议仓索引联动）归该票承载；接线前协议仓 copy/move 后派生索引不随行重算（读侧多为惰性重建，影响面 = 首读延迟）。
+
+45. **[M12] folderDownloadConfig / trashcan 配置旋钮未进 internal/config**（T-343 遗留① + T-345 遗留②，§15.4.2/§15.4.3）：两装配缝（`ConfigureFolderDownload` / `ConfigureTrash`）已就位，但 config schema 无对应 YAML 字段——生产实例分别恒「打包下载默认关（pro 也 403）」/「恒 enabled+14d spec 默认」。需 config 域小票：字段 + cmd 装配一行 + docs/user 同步；热更新评估随票（当前重启/预服务生效）。
 
 ## 12. 待逆向规格确认清单（阻塞点挂 docs/reverse/）
 
@@ -2394,55 +2410,224 @@ Artifactory 为 404——FE 空态面按此实现，登记为有意差异）。d
 PRD 89.3 暂行的「per-node ≤500」未采用——64 键与 §15.3.1 矩阵参数对数上限同值，攻击面
 收窄）。
 
-### 15.4 快赢包挂点（种子 E，按余量取舍——只记挂点不展开）
+### 15.4 操作域与 MPU 面 as-built（种子 E 落地——M10 挂点 → M11 MPU 翻转 → M12 生命周期域扩面 [M12 T-347 回写]）
 
-- **MPU REST 化**（主矩阵「客户端断点续传 REST」）：`/api/v1/uploads/{create,config,
-  urlPart,status,complete,abort}` 六端点（L3 端点集，行为模式对标；路径拼写随 PM）。
-  挂点 = httpapi 新 handler 族 + **复用 storage.Session/ResumeSession 既有面**（T-209/
-  ADR-0028 已备：disk 会话表 + 重哈希恢复；S3 走 multipart）——零存储层改动；门 =
-  required + 目标仓 `w`；会话 id capability 语义与 §5.3.1 契约 4 同源。
-- **smart remote 字段面**（F5）：remote_configs 扩列（contentSynchronisation 族字段
-  003 迁移同款续作——仅余 calculate/aggregation 语义归 PM）；无架构增量。
+> 本节原为「快赢包挂点」两行规划（MPU REST 化自有形状 / smart remote 字段面），两者均已在 M10
+> 落地。MPU 面 M11 经 **ADR-0039** 整体翻转为 Artifactory 形（T-332——T-289 自有八臂 wire **退役**，
+> 无兼容垫片）；M12 制品操作族（T-339/T-343）、回收站（T-345）、checksum-deploy token 窄域
+> （T-349）落成。规划挂点文字与 T-289 旧 wire 描述自本回写起从本册移除（历史见 ADR-0039 与 M10
+> 收口 commit `3fcd74f`）；**本节为 as-built 权威描述**。
 
-#### 15.4.1 as-built 契约（T-289/T-290 落地后回写，T-293 收口——上两行是规划挂点，以本块为准）
+**MPU REST 面——Artifactory 形（ADR-0039 / T-332 as-built，`/binflow/api/v1/uploads`）**
 
-**MPU REST（T-289，`/api/v1/uploads` 八路由臂）**：
+- **端点集（六端点 + part）**：`POST /create?repoKey=&repoPath=&partSizeMB=`（QueryParam
+  非 JSON 体）→ 200 `{"token"}`；`GET /config` → 200 `{"supported":bool}`（能力探测 +
+  jfrog-cli UA 版本门 2.62.2——filestore 回 false，**探测端点不回 501**）；`POST
+  /urlPart?partNumber=N`（Bearer 会话 token，无路径 id）→ 200 `{"url"}`（URL 查询串自带
+  `?token=`）；`POST /complete?sha1=`（**sha1 非 sha256**——40 hex 必填，畸形/缺失 400 逐字）
+  → **202 受理空体，落点异步**；`POST /status`（Bearer）→ 200 `{status, error, progress,
+  checksumToken}`（词表 **PARTS/PROCESSING/FINISHED/NON_RETRYABLE_ERROR**，取自
+  jfrog-client-go 公开解析表——QUEUED/ABORTED 本面不发）；`POST /abort`（Bearer）→ 204。
+  part（urlPart 的目标，非六端点之一）：`PUT /part/{id}/{n}?token=` → **200** 会话回显——
+  真客户端把 urlPart 答案当 S3 presigned 用（**PUT 不带任何 Authorization**、只认 200——202 被
+  当失败重试），能力随 URL 传递（访问日志只记 path 不记 query，能力不落日志）。
+- **认证双车道**：create/config 走常规路由门；其余四端点 + part 走**能力车道**——dispatch 级
+  豁免谓词 `isMPUCapabilityRoute`（isLoginEntryPoint 同型先例）+ handler 自裁：MPU 形状
+  token → 能力路径（未知/失配/跨会话 404）；非 MPU 凭据 → 照中间件原判 401/403
+  （presented-but-rejected 姿态不弱化）。
+- **token 模型**：自解析能力 token = `<32B 随机 hex>.<会话 id>`；sha256(随机段) + 48h 过期
+  持久化进 T-323R caller blob（**v2 字段**），重启后凭 blob 复验——**kill -9 跨重启同 token
+  续传在新 wire 下成立**（探针腿 4 + TestUploadsRestartResumeUnderToken 钉死；§11.43 的
+  M11 descope 注记已兑现）；v1 行（旧 wire 在途会话）**fail-closed 404**。
+- **complete 异步任务模型**：202 即受理；后台 goroutine（detached context——客户端断连不杀
+  组装）跑引擎同步 `Session.Commit(BlobRef{Sha1})`；FINISHED 前经 `metadata.Blobs().Put`
+  （既有导出缝）落 blobs ledger 行；**节点（node 行）由客户端凭 checksum-deploy token 零传输
+  落**（治理门——pattern/quota/覆盖对——随该次 PUT 走；BinFlow generic 面
+  `X-Checksum-Deploy`/`PutFromBlob` 已备）；客户端不落 → 无引用 blob 归 ADR-0031 两阶段回收。
+  错 sha1 不再 complete 同步 409——任务态 NON_RETRYABLE_ERROR（error 载文），S3 侧回收靠引擎
+  fail-locked 合同 + sweep（`mc ls --incomplete` 零残留断言）；complete→FINISHED 窗口 kill -9
+  → 重启后 status 回 PARTS，补救 = 客户端重发 complete（parts 持久、Commit 幂等去重）。
+- **create 范围**（T-304 §1.2-B 改回）：无包型/layout 校验（generic 之外 local 仓不再 400）；
+  repoKey 指 virtual 时回落 defaultDeploymentRepo（未配的 virtual 保持原 key，写门照过、落地时
+  routeVirtualWrite 405——迟到失败对齐 Artifactory）；unknown/remote/无 `w` → **403**「The
+  user is not allowed to deploy to this location」（Artifactory 原文）；角色门 admin/user
+  （readonly_admin 403）。客户端 MPU 触发前置门 = `/api/system/version` ≥ **7.82.2**（客户端
+  自查，与 config 探测叠加）。
+- **乱序分片**：顺序快路直流 `Session.Append`（内存与制品大小无关）；跳序片进有界重排暂存
+  （**64 片/128MiB**，越界诚实 409），缺口闭合后按序 flush；短片段关流后仍有在途暂存片 →
+  会话判失败（S3 manifest 完整性 vs 流式 EOF 残余语义差，真客户端不触发）。
+- **后端边界**：`Deps.Uploads` 未接线（filestore）时除 config（200/false 探测本义）外全部
+  501 text/plain；路由认证门在前（匿名 401 先于能力答复）；能力发现缝 =
+  `storage.MultipartUploads` 接口（disk 有意不实现）。dual-write 形态的停机窗行为统一由
+  ADR-0040 fail-open 覆盖（MPU 分片免费获得——引擎缝单点，§23.2）。
+- **已知残余**（ADR-0039 后果节）：UA 版本门常量不可配置；checksum-deploy token 窄域已由 M12
+  T-349 收口（§15.4.4——原「全用户 API token 5 分钟」残余①闭账）；urlPart 答案的绝对 URL 取
+  request scheme+host 推导（`requestBase`），**未接 `server.base_url` 键**（ADR-0034 决策 2 的
+  适用面差——本面非协议 adapter，但「同一 codebase 一种习惯」原则下宜统一，登记待裁）。
 
-- 端点集：`POST /create`（`{repoKey,path,partSizeMB?,mimeType?}` → 201 会话 + URL 族；
-  partSizeMB<5MiB **clamp 至 5MiB 并如实回显**（S3 最小分片），>5GiB 400 fail-fast）；
-  `POST /config`（仅零字节会话可重定分片——有字节 409；换引擎会话、**REST id 保持不变**）；
-  `GET /urlPart/{id}/{n}`（PUT 目标 URL + 期望起始 offset）；`GET /status/{id}` 与裸
-  `GET /status`（bare array 列表形态，逐会话过 write 门——无权者静默空列表）；
-  `POST /complete/{id}`（`{sha256 必填, sha1?, md5?}` → Commit 校验 + PutLandedBlob 建
-  node → 201；**错 sha256 → 409** 且会话消费）；`POST /abort/{id}`（204，会话离表——
-  后续 status/再 abort 404）；`PUT /part/{id}/{n}`（urlPart 的目标：严格顺序 n=parts+1
-  否则 409；缺 Content-Length → **411**；超 partSize 400 预拒；短 part = 终结片）。
-- **part URL 是 BinFlow capability URL，非 S3 presigned**（裁定 A，评审维持）：字节经
-  服务端中继进 `Session.Append`→S3 PutObjectPart——客户端零 S3 凭据、bucket endpoint
-  不暴露、checksum 链服务端计算，与既有上传路径同构（PRD 90.1「(presigned)」按行为
-  模式对齐为 capability-by-id；字面 presigned 直传需新 ADR，§11.43）。create 限
-  **generic local** 仓（协议仓 layout 归 adapter 管，400 点名）。
-- **filestore/dual-write 诚实 501**：`Deps.Uploads` 未接线时八臂全部 501 text/plain
-  （body 含 `not supported on this backend` 与 `S3`）——路由认证门在前（匿名 401 先于
-  能力答复）。能力发现缝 = `storage.MultipartUploads` 接口（disk 有意不实现）。
-- 会话生命周期 `active → awaiting-complete → completed`（失败 → `failed`，abort 回收）；
-  空闲 24h 后台 sweep（TTL/48 频率）；S3 侧 Abort/failLocked best-effort
-  `AbortMultipartUpload`（B5——探针以 `mc ls --incomplete` 三段断言零残留）。AC2
-  （kill -9 续传）descope M11（§11.31/§11.43）。
+#### 15.4.1 smart remote 生效字段——终态（T-290 落地 → T-346/FR-113.1 canonical 翻转；M12 T-347 终态回写，PRD §1.3 时序条款兑现）
 
-**smart remote 生效字段子集（T-290，migration 014 + per-repo 配置面）**：
+**生效字段子集（migration 014 列 + per-repo 配置面）**：
 
-- 落地四字段（canonical 拼写）：`socketTimeoutMs`（默认 15000；另收 artifactory.xsd
-  拼写 `socketTimeoutMillis` 为**输入别名**——0=缺席，非零分歧 400）；`metadataRetrievalTimeoutSecs`
-  （默认 60；fetcher singleflight 等待上限 per-repo 化）；`missedRetrievalCachePeriodSecs`
-  （canonical **保留 Artifactory 拼写**〔含 ed〕，PRD 拼写 `missRetrievalCachePeriodSecs`
-  为输入别名，双拼写分歧 400——clean-room 公开规范优先）；`unusedArtifactsCleanupPeriodHours`
-  （默认 0=关；**仅字段落库 + 配置面，清理引擎 M11**，§11.42）。
-- 回显规则：canonical 恒出 + 派生 `socketTimeoutSecs`（= ceil(ms/1000)，永不虚报更长
-  超时）；别名拼写**只进不出**。消费优先级单一解析点（fetcher）：014 列（>0）> canonical
-  JSON > legacy `socketTimeoutSecs` > 产品默认——pre-014 行为零回填零变化（M11 字段
-  `enableTokenAuthentication`/`contentSynchronisation` 按名 400 + M11 指引，scenario-D
-  未知字段容忍不变）。
+- `socketTimeoutMillis`（**canonical = artifactory.xsd 拼写**，默认 15000；T-346 翻转——
+  T-290 期 canonical 曾为 `socketTimeoutMs`）：落库与 GET 回显**只携带新拼写**；
+  `socketTimeoutMs` 降为**输入别名**（remoteConfigInput 双拼写接受，resolveRemoteAlias 的
+  0=缺席/非零分歧 400 规则保留），别名**只进不出**。回显 = canonical + 派生
+  `socketTimeoutSecs`（= ceil(ms/1000)，永不虚报更长超时）。**行列名 `socket_timeout_ms`
+  不变**（014 列是 fetcher 消费的权威源——拼写翻转只动 JSON 面，service 写 JSON 必同行写列，
+  服务写出的行值恒 ≥15000）。
+- 消费优先级单一解析点（fetcher `effectiveSocketTimeoutMs`）：**014 列（>0）> canonical JSON >
+  legacy `socketTimeoutSecs` > 产品默认**——pre-014 行为零回填零变化。存量仓回显：T-346 之前
+  写入的行沿用落库拼写，下次 PUT 重写即翻新（**无数据迁移，append-only 姿态**）。
+- `metadataRetrievalTimeoutSecs`（默认 60；fetcher singleflight 等待上限 per-repo 化）；
+  `missedRetrievalCachePeriodSecs`（canonical **保留 Artifactory 拼写**〔含 ed〕，PRD 拼写
+  `missRetrievalCachePeriodSecs` 为输入别名，双拼写分歧 400——clean-room 公开规范优先）；
+  `unusedArtifactsCleanupPeriodHours`（默认 0=关；字段 M10 落库，**清理引擎 M11 T-324 已生效**，
+  §23.1）。
+- `enableTokenAuthentication`/`contentSynchronisation` 对外**按名 400**（M10 §11.42 立场
+  不变）；scenario-D 未知字段容忍契约不变。
+
+#### 15.4.2 制品操作域——copy/move 五段管线 + 归档族三面（T-339/T-343 as-built；规格锚 = docs/reverse/repo-operations.md）
+
+**copy/move（`POST /binflow/api/{copy,move}/{srcRepo}[/{srcPath}]?to=/{targetRepo}[/{targetPath}]`）**
+
+- 参数：`to` 必填；`dry`/`failFast` 0/1；`suppressLayouts` 默认 1（0=跨布局翻译不实现——所有
+  取值行为等同 1，分歧登记）；`atomic` 参数解析登记无专门行为（逐项管线天然部分成功姿态）；
+  `flat` 端点不实现（Artifactory 默认部署即 404，路由 E-26）；**无 202/异步任务形态**。响应
+  200 + `{"messages":[{"level","message"}]}`，Content-Type
+  `application/vnd.org.jfrog.artifactory.storage.CopyOrMoveResult+json`；status = 最后一条
+  error 携带码，error 无码 → 409 兜底，无 error → 200；errors 在前 warnings 在后（level 取
+  logback 枚举拼写）。
+- **五段管线**（`internal/repo/operations.go`，CopyMoveService 能力面）：**parse**（路径归一 +
+  逐字 400/源空路径 WARN+仓根语义）→ **precheck**（目标 remote/virtual 400 逐字；repo 不存在
+  400；同 RepoPath 400；目标首段 `.jfrog` 404）→ **validate**（顺序即优先级：源读 403 → 目标
+  include/exclude 403 → move 源删 403 → 目标已存在且无删权限 **401**（逐字 override）→ 目录落
+  文件下 400 → 目标缺写 403；BinFlow 扩展：配额逐项 413 不失败整请求〔W26 对齐〕；ACL 按
+  (repo,path,action) 记忆化——万节点树不退化为 N×3 权限查询）→ **transfer**（**零拷贝**——
+  blobs 台账引用复用，台账行数不变；created/createdBy/modified 随行〔modified_by 列不存在，
+  登记〕；properties 全量复制——覆盖=删旧再拷不残留；unix 目标进目录/改名/尾斜杠三臂调整；
+  move = 逐文件拷→删 + 目录自底向上剪除 + 父链清扫；目标空目录回收〔copy/move 共用〕）→
+  **assemble**（汇总 INFO 一条〔copying/moving + N artifacts and M folders〕+ op 级审计一行
+  artifact.copy/artifact.move；**copy-only 异步触发 CopyMoveObserver**〔候选目录=落地文件父目录
+  去重排序集；move/dry 不触发；detached ctx + recover 盾——notifyReplicator 姿态〕）。
+- **仓型语义（源侧）**：local 直读；remote = 本地缓存行树 + 文件 miss 经 FR-20 引擎落地拷贝
+  （fetchRemoteIntoCache）；virtual = 两桶序成员路由（文件取首个持有成员〔local 持有或 remote
+  缓存行〕；目录取首个持有 folder 行成员；**不穿上游**——要上游现落从 remote 仓直拷）；
+  move-from-virtual 拒绝 400（「删除不穿虚拟」同款措辞）。
+- **门控**：feature 槽 `repo-operations`（**MinTier=pro**，整族一槽——copy/move + 归档族三面
+  共用，Q4 终裁形态）；处理器首行 `RequireAddon`（weave 3；RBAC 先于 license）；community
+  形态 = 403 + `X-Binflow-License-Required: repo-operations` + errors[] 信封（**有意分歧**：
+  Artifactory 自家是 400 text/plain addon 拒绝——BinFlow 统一门渲染，分歧已登记）。
+
+**归档族三面（T-343，同槽）**
+
+- **目录/整仓打包下载**：`GET /binflow/api/archive/download/{repo}[/{path}]
+  ?archiveType=zip|tar|tar.gz|tgz`——folderDownloadConfig **六默认**（enabled=false〔**生产
+  默认关**——config 旋钮未落，§11.45〕/ enabledForAnonymous=false / maxDownloadSizeMb=1024 /
+  maxFiles=5000 / maxConcurrentRequests=10 / enabledEmptyDirectories=false；装配缝
+  `repo.ConfigureFolderDownload`，热更新未实现——重启/预服务生效）；执行序照规格逐字（匿名
+  401 → archiveType 枚举 400 → 仓资格 404 → 路径资格 404/400 → 读权限 403 → 总开关 403 →
+  预统计 → 并发槽 400〔chan 信号量，body Close 释放〕→ **io.Pipe 流式打包不落盘**）；
+  `includeChecksumFiles=true` 由 blobs 台账**生成** `.sha1/.md5/.sha256` 伴随条目（BinFlow
+  无边文件——ADR-0006，本条目的 BinFlow 语义）；审计一次 DOWNLOAD 行（Detail 带
+  archiveType/files/bytes，非逐文件）。
+- **`archive!/` 成员读取**：`GET /binflow/{repo}/{archive}!/{entry}`——dispatchContent
+  **顶层拦截**（先于 adapter 分发——`!/` 寻址是跨协议形态，不归任何包型）；解码后按**首个
+  `!/`** 切分；成员路径内再遇 `!/` 递归下钻（嵌套归档中间层有界缓冲 **256MiB**，外层恒流式）；
+  strictArchiveDotSlash 逐字匹配（`./x` 只匹配 `./x`，折叠形 404——构造性默认 true）；成员
+  checksum 后缀 `.sha1|.md5|.sha256` 按需流式计算返回裸 hex；解析骑 `svc.Get`（归档路径的
+  读门 401/403、remote 拉取、virtual 成员路由、DOWNLOAD 审计全部继承）；可读集 = zip 家族
+  （zip/jar/war/ear/nupkg/conda/apk）+ tar 家族（tar/tar.gz/tgz）；bz2/xz/7z 不支持（Go 标准库
+  无 reader，白名单外 400）；非 GET → 405 `Allow: GET`。
+- **explode 解包上传**：`PUT /binflow/{repo}/{path}` + `X-Explode-Archive[: true]` /
+  `X-Explode-Archive-Atomic[: true]`——router 在 RBAC 写门与包型门之后、adapter 之前拦截
+  两个触发头（**M10「显式 400 拒绝」断言在 router 层反转**；adapter 内 400 死臂经 router 不可达，
+  措辞清理归后续票）；头值非 true/false 拼写 → 显式 400；白名单闭集 zip,tar,tar.gz,tgz（外/
+  无扩展名 400 逐字；PUT 路径尾斜杠 → 逐字 Missing file name）；临时文件 `to_extract_*` 单遍
+  流式解包 → **逐条目经 svc.Put 落库**（权限对/配额/审计/复制钩子全链随行）→ **归档文件本身
+  不落库**（测试断言 404）；排除项 `.jfrog` 系 + 文件名含 `maven-metadata.xml`（静默跳过）；
+  **zip-slip 防御**（`../`/绝对/空段条目 → 整单 400，BinFlow 安全新增）；成功 **201 空体**
+  （V-1 文档优先定案）+ `X-Binflow-Exploded-Files: <n>` 计数头（BinFlow 新增）；默认
+  accumulate-then-answer（首个错误定响应码，部分落地保留），**Atomic = 补偿式回滚**全有或全无
+  （Put 无跨调用事务）；threads 固定 1、无 60min 旋钮（同步执行，分歧登记）。
+- **遗留缝**：CopyMoveObserver 的协议索引联动（maven/deb/conan reindex）**未接线**——
+  `repo.SystemPrincipal()` 内部身份契约已备（§15.4.3），适配器侧导出缝待票（§11.44；BOARD
+  T-339 AC2 归属）。
+
+#### 15.4.3 Trash can——`_system_` 身份与捕获语义（T-345 as-built；行为锚 = storage-layout.md §5 + inv-1 §B + inv-2 §1.A + config-formats.md trashcanConfig 行）
+
+- **内置仓与布局**：`auto-trashcan`（local/generic，Artifactory 拼写）；**懒落库**（首次捕获
+  经 `md.Repos().Create` 直写——装配数据：无校验门/无审计行/无权限主体；per-service 原子标记
+  记忆化）。捕获节点落 `auto-trashcan/<原仓 key>/<原节点 path>`（路径结构性编码出处）+ 属性
+  **五元组**逐节点冗余：`trash.time`（epoch ms）/ `trash.deletedBy` /
+  `trash.originalRepository` / `trash.originalRepositoryType`（恒 "local"）/
+  `trash.originalPath`（**本节点**的原路径）——任一子树节点可独立恢复（经 NodeProps().Merge）。
+- **捕获语义（fail-closed）**：`service.Delete` 的 local 臂、权限门之后、任何源行删除**之前**
+  插入 `captureIntoTrash`——以 `_system_` 身份 + `SystemIdentity` + `ExactPath` 跑
+  `CopyOrMove(OpCopy)`（copy + 源删除留给 Delete 既有臂——错误面与 M11 逐字节一致）；**捕获
+  失败（含逐项 error 部分捕获）即中止删除——宁可留活不可丢失**。跳过集（本地生成物不入站，
+  BinFlow 闭集——Artifactory 骑 repo-layout 元数据不可移植，分歧登记）：`.jfrog/**`、
+  `dists/**`、任一段 `repodata` 或首段 `_tmp_*`、`maven-metadata.xml[.sha1…]`。不捕获面：
+  remote 缓存失效（RE-06 逐缓存语义）/ DeleteRepo 仓拆除（管理面）/ docker DeleteManifest
+  （需 manifest/tag/refs 索引恢复语义，归独立票）。
+- **`_system_` 内部身份契约**（T-339/T-343/T-345 遗留汇聚落定）：`repo.SystemPrincipal()` =
+  `Principal{Name:"_system_", Role:RoleAdmin, Admin:true}`——**身份即豁免**（allow() 的角色
+  短路，从不咨询 Authorizer，不是一条授权）；名在用户面保留（httpapi 保留名集——审计行/属性带
+  此名不可能与人混淆）；内部跑**不触发 CopyMoveObserver**（系统仓内容不喂任何协议索引）。
+  `CopyMoveRequest` 两内部旗：`SystemIdentity`（remote/virtual 目标检查豁免）+ `ExactPath`
+  （目标逐字寻址，跳过 unix 进目录/改名臂——`<repo>/<path>` verbatim 布局是捕获/恢复的正确性
+  前提：folder 捕获不被改名、重复捕获不落嵌套）——均**仅进程内缝，REST 面永不置位**（注释钉死）。
+- **REST 面**：`POST /api/trash/empty`、`POST /api/trash/restore/{path}?to=&transaction-size=`、
+  `DELETE /api/trash/clean/{path}`；**浏览不设第四路由**——骑既有 storage 面
+  `GET /api/storage/auto-trashcan[...][?properties|?list]`（四元组断言面即 `?properties`；
+  控制台树节点 = 仓 key 本身）。路由门 = `routeAuth{required, manage: CapSystemWrite}`
+  （gc/cleanup 破坏性管理面姿态：readonly_admin 403、plain user 403、匿名 401）+ 处理器首行
+  `RequireAddon(trashcan)`（weave 3；RBAC 先于 license）。restore 复用 copy/move 的
+  messages[] + vendor CT（它就是一次 move）；empty/clean 答 JSON 摘要
+  `{removed,files,folders,bytes}`（body 无规格依据——无据设计登记）。
+- **恢复**：目的地三级（`to` 覆盖 > 属性五元组 > 路径结构首段）；`CopyOrMove(OpMove)` 反向搬
+  （`_system_` + 双旗；目标已存在同名文件 → 系统身份过 override 臂 = 覆盖，规格未载按 move 族
+  语义推导）→ 落地树**剥除 trash.\* 标记**（原属性随行保留、标记不留）；`trash.restore` 审计
+  （actor=恢复人）。`to` 指向 can 本身 400；目标仓必须 local 400；目标仓已删除 404；
+  `transaction-size` 解析校验（非正整数 400）、批语义惰性（BinFlow 逐项管线，分歧登记）。
+- **保留期引擎**：TrashEngine tick 默认 1h；`trash.time`（epoch ms）判龄，**降级回退 row
+  `updated_at`**（捕获后、打标前崩溃的裸行也有龄可判——保守删除而非永久滞留）；过期 FILE 行
+  删除 + 无文件子树的 folder 行清除；`trash.retention` 审计（actor `system-trash`，
+  ActorCleanup 先例）；锁门（license locked）或未启用 → skip 报告非错误。**不持数据目录维护锁**
+  （与 cleanup 的差异——清除产生的孤儿 blob 与普通删除同构，由常态 GC/cleanup 回收）。
+  **GC/cleanup 免疫**（负向断言钉死）：GC mark 走 `LiveChecksumSet`（含 can 的节点行）——
+  trash 内容 = 引用内容不可收；cleanup policy 腿只走 remote 仓（can 是 local，结构性免疫）。
+- **系统仓守卫**：CreateRepo/UpdateRepo/DeleteRepo 拒 `auto-trashcan`（ErrSystemRepo 400，防
+  抢注/拆除）；内容面 Put/PutFromBlob/PutLandedBlob/Delete 拒写 can（trash 族是唯一写者，400
+  指引 REST 族）；virtual 成员校验拒 can（聚合暴露面封死）；读面照常 ACL——无 permission
+  target 能点名此 key → 仅 admin/readonly_admin 可见（NFR-S61「回收站制品不可匿名读」构造性
+  成立）。
+- **门控与配置**：feature 槽 `trashcan`（**MinTier=pro 暂行**——Q3 终裁建议 community，五重
+  clean-room 取证见 T-345 §2；翻转点 = slots.go 一行 MinTier + 四处测试断言，门/视图/删除缝
+  行为全部跟随槽〔FR-86-AC2 单源〕）；**一个槽门整族**（REST 三动词 + 捕获侧 service 层
+  TrashGate + 保留期 cron）。**零值 = 关闭**——未 opt-in 的栈逐字节保持 M11 硬删（AC6 零回归
+  的构造性保证）。装配缝 `ConfigureTrash{Enabled, RetentionDays}` + `AttachTrashGate`（nil =
+  解锁的测试姿态）；config.yaml 旋钮未落（§11.45），cmd 装配用 spec 默认（enabled/14d）；
+  `restoredTime`/`allowPermDeletes`/`send.overwrites.to.trashcan` 未实现（低置信或归后续票，
+  T-345 §4 登记）。
+
+#### 15.4.4 checksum-deploy token 窄域——migration 017 + fail-closed（T-349/FR-113.3 as-built；ADR-0039 残余①闭账）
+
+- **schema**：migration 017 = `tokens.deploy_scope TEXT NOT NULL DEFAULT ''`（'' = 不受限——
+  铸造期契约）；列值是**自描述 JSON 文档** `scopeDoc{kind, repos, path}`（双方言同步）——kind
+  闭集判别器，后续窄域种类扩展文档即可、零 schema 变更（现闭集仅 `checksum-deploy` 一种）。
+- **铸造**：`auth.Service.IssueChecksumDeployScoped`——MPU finish 任务 FINISHED 时铸 5 分钟
+  token，权限域收窄到**恰好一次** checksum-deploy 落地 PUT：repos = 会话解析出的目标仓 + 经
+  virtual 创建时该 virtual key（客户端只知自己的拼写；routeVirtualWrite 落同一成员）；path =
+  会话自身 repo path。
+- **校验 fail-closed**：verifier 在 Verify 时解析 deploy_scope——**畸形 JSON / 未知 kind / 空
+  坐标 / 空 repo 拼写一律 ERROR，永不静默 nil**：损坏行绝不可能 widening 回全权凭据。
+- **执法点**：HTTP 层（middleware）在路由前执法——scoped 凭据的**唯一落地 PUT 放行，其余一切
+  请求 403**；身份（name/role/groups）仍是属主的——获准的那次请求照常过常规授权门（**窄域是
+  减法面，不是旁路**）。`Principal.DeployScope` 字段 informational only，never a grant。
+- 与 §3.4 的关系：DeployScope **不进 Authorizer 词表**——执法在 middleware 单点，
+  Authorizer.Can 契约零变化（docker scope 词表不变量 3 不受扰）；jfrog-cli 真客户端的 deploy
+  PUT 同时带原凭据 + `X-Checksum-Deploy-Token` 头（服务端忽略未知头，流程不受影响）。
 
 ### 15.5 migration 012 与配置面增量
 
@@ -2468,3 +2653,82 @@ PRD 89.3 暂行的「per-node ≤500」未采用——64 键与 §15.3.1 矩阵�
    存量含 `;` 非 k=v 路径回归（字面语义不破）。
 5. **wire golden**：/api/v1/addons、/api/system/license 三端点、?properties 三动词
    响应形状；无参数分支与 M9 基线逐字节对照。
+
+## 23. [M12] 监控与可观测 as-built——cleanup 引擎、dual-write replay 指标族、e2e CI 权威信号（T-347 回写）
+
+> **编号承接说明**：T-332 转交记录写「architecture §15.4/§23」；M11 增量以票据级 as-built + ADR
+> 承载，未新增章节号（§16~§22 空号保留）。本段固定编号 **§23** = M12 PRD FR-112.1 / BOARD
+> T-347 的监控/可观测回写锚点。§15.4/§15.4.1 的 MPU 新 wire（ADR-0039）与 remote 字段终态
+> （FR-113.1）已随本票回写（见上）；本段补 M11/M12 落地的运维可观测三面。指标实现基座 =
+> §9 既述 /metrics（stdlib expvar + 自写 Prometheus text format，ADR-0022）——本段只列
+> M11/M12 新增族与既有族的衔接。
+
+### 23.1 cleanup 引擎与指标（M11 T-324 as-built；策略源 = migration 014 字段）
+
+- **引擎三腿单锁**（与 gc/export/import 同族数据目录维护锁，互斥不并行）：① **session 腿**——
+  `SessionSweeper.SweepExpiredSessions`（open-time 扫掠的按需重跑，长运行 serve 不再等重启才
+  回收过期上传会话）；② **policy 腿**——对 `unused_cleanup_period_hours > 0` 的 remote 仓，
+  cutoff = now − period，FILE node 同时满足「窗口内无下载事件」且「updated_at ≤ cutoff（窗口内
+  未再落地）」→ 删 node 行 + remote_cache 校验行（node_props 随 FK 级联）；**「在用」oracle =
+  审计 trails**——本仓下载事件 ∪ 以本仓为成员的所有 **virtual 仓**的下载事件（virtual GET 记在
+  virtual key 下，聚合成员不得误删——「排除表」的诚实实现）；③ **gc 腿**——`storage.GCSweep`
+  apply 一遍全库（ADR-0031 双门：hold set + 单点 Live；grace 窗内 blob 保守保留计
+  `gracePending`，下次 run 回收）。
+- **零孤儿保证**（票据验收核心）：完成 run 后无残留——node/remote_cache 同失、无未引用
+  ledger 行、过期会话 0；跨仓 dedup 仍被引用的 blob 保留是正确行为非残留。policy 单路径删除
+  顺序 = node 行先、校验行后——中途 crash 留下「无 node 的校验行」是**惰性**残留（fetch 先查
+  node 才看校验行；下次 fetch 的 PutCache upsert 自愈）。
+- **REST/编排**：`POST /api/v1/system/cleanup`（**dry-run 默认**）/`GET`（system:write/read
+  门，t215 随表）；cron 每小时 apply；审计 `cleanup.run`（run-history 姿态，gc.run 先例）。
+- **指标两枚**：`binflow_cleanup_objects` / `binflow_cleanup_bytes`——进程启动以来累计清理的
+  对象数/逻辑字节数；**gauge 型 scrape 快照**（引擎自有计数，/metrics 只读——scrape 永不漏计/
+  重复计，replTasks 先例）；`_total` 后缀留给 counter 型族故不用（T-197 D5 规则：registry 拒绝
+  gauge 带 `_total` 的声明）；Deps.Cleanup 未接线 = **族不暴露**（不是暴露为零）。
+
+### 23.2 dual-write fail-open replay 指标族（M12 T-338 / ADR-0040 + 装配层三处 wiring as-built）
+
+- **七枚实名**（ADR-0040 决策 8 的草案名 `binflow_storage_replay_*` 与「三 outcome 合一
+  counter 带 label」**未采用**——as-built 前缀去 `storage` 段、outcome 拆三枚独立族，六枚变七枚；
+  本表与 `internal/httpapi/metrics.go` 为权威，ADR 文字以本表为 as-built 修正）：
+
+  | 指标 | 型 | 语义 |
+  |---|---|---|
+  | `binflow_replay_queue_depth` | gauge | 当前排队的 sha256 条目数（per-sha 幂等入队——重复 PUT 同内容不增深） |
+  | `binflow_replay_window_open` | gauge 0/1 | fail-open 断路器窗开（进程内 closed/open/half-open 三态的可见位） |
+  | `binflow_replay_drained_total` | counter\* | 恢复后排空补拷到 S3 的条目数 |
+  | `binflow_replay_failed_retry_total` | counter\* | 退避中失败计数（指数 1s×2 上限 5min，任一成功重置） |
+  | `binflow_replay_failed_permanent_total` | counter\* | 连续 16 轮全失败记账（条目保留不删——**无死信删除**） |
+  | `binflow_replay_source_gone_total` | counter\* | 排空时源 blob 已被 GC 回收的 drop 计数（不卡死收敛） |
+  | `binflow_replay_read_fallback_total` | counter\* | S3 错误回退 disk 读命中（NotFound 回退也计但**不开窗**——S3 正常应答的 miss 是迁移滞后） |
+
+  \* counter 语义以 gauge 型 scrape 快照发布（§23.1 cleanup 先例——引擎持有计数）；**dual-write
+  装配独有**（Deps.Replay 未接线 = 族不暴露）；bypass/completed 模式零新代码路径、零指标。
+- **审计两事件**（词表已入 audit.Actions() picker——T-346 补录；发射点在**装配层 facet**，
+  internal/storage 不 import audit，分层纪律）：`storage.replay.window`（detail: phase=open|close
+  + first_error 含 S3 侧完整错误链）与 `storage.replay.drained`（detail: drained /
+  skipped_source_gone / permanent_failed / reconcile_missing / rounds）。排空后**对账兜底**：
+  `diskList×s3Set` 存在性 diff（≤3 轮收敛，仍缺 permanent WARN）——能抓队列从未见过的
+  pre-migration 孤儿 blob；与 `StartMigration` 幂等重扫双通道天然收敛（都是「S3 没有才拷」）。
+- **启动水位与拒启 gate**：启动 INFO 一行队列水位（>0 附 drain=scheduled）；**completed 装配 +
+  replay-queue 非空 → 启动 fail-fast**（`storage.CheckCompletedReplayQueue`，main.go——错误
+  指名两条出路：切回 dual-write 排空 / 人工确认弃队列删目录）。
+- **既有面冻结**：migration status 端点形状**逐字节不变**（93.6 冻结——队列状态只走指标/日志/
+  审计，不进 FR-50 v1.1 信封）；GC/ADR-0031 hold 语义零变化（**队列不是引用、不是 hold**——
+  排空时源已回收 → drop 条目记 source_gone，队列积压不 pin 垃圾）。
+
+### 23.3 e2e 专用 CI job——负载 flake 家族的权威信号（T-350 / FR-113.6 / K46 定案 as-built）
+
+- **形态**（`.github/workflows/ci.yml` `e2e` job）：**专用不共享 runner**；真二进制
+  （`make console` + `make docs` + `make build`——SPA/文档站真 embed，T-89 同策略，placeholder
+  壳不进测试）以**默认参数**启动（FR-6-AC5 裸二进制形态：:8080、admin/password、无
+  binflow.yaml——顺带在 CI 里跑默认启动的存储链解析）；种子经**真 REST 面**（seed-m8/m9/m10
+  ——与 QA 相同的收敛种子）；裸 `npx playwright test` = 全部三 project（chromium + m9 + m10）
+  逐 spec 恰一次；**workers=2**（刻意低于本地地板 4——首次落在共享层 runner 硬件，给 axe 重腿
+  300s 预算留余量；升档需连续三次绿 main 作证据）；**main-only**（单 CI 面政策——PR 粒度运行
+  被刻意排除，~10+ runner 分钟成本，合并经下一次 main push 照样过本门）；timeout 45min。
+- **权威信号口径（K46 定案）**：负载 flake 家族（N01 straddle 同族——axe 扫描与轮询预算在共置
+  负载〔并行 agent/构建/其他 e2e〕下饥饿的迟到者）的**权威信号 = 本 job**——不共享 runner 正是
+  180s per-test 预算被 sizing 的环境；本地协议维持「串行重跑绿 = 过」（web/README.md）；
+  **两处分歧时 CI 胜**——本地红 = 隔离性发现，不是产品回归。
+- **与既有 gate 的互补**：Go 级 race gate（GC 并发压力腿，§14.2-6）钉引擎不变量；本 job 是
+  UI 面权威。两者互补不可互替——ci.yml 注释钉死「移除/弱化任一需与另一联动改」的永久耦合。
