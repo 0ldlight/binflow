@@ -80,23 +80,14 @@
   padding-left: 20px;
 }
 
-/* 行内用量（骨架小块 + 到值） */
-.cell-pending {
-  display: inline-block;
-  min-width: 48px;
-  height: 10px;
-  border-radius: var(--bf-r-sm);
-  background: var(--bf-surface-2);
-  animation: bf-pulse 1.2s ease-in-out infinite;
-}
+/* 行内用量（骨架小块 + 到值）——.cell-pending 族已随 T-344 批 C 退役
+ * （mui-native-visual §3.3：MUI Skeleton 换装，QuotasPage 行内位） */
 
-@media (prefers-reduced-motion: reduce) {
-  .cell-pending {
-    animation: none;
-  }
-}
-
-/* ---------- 用量 / 配额水位条（§4.11：80% 黄 / 100% 红） ---------- */
+/* ---------- 用量 / 配额水位条（§4.11：80% 黄 / 100% 红） ----------
+ * T-344 批 C：QuotasPage / 仓库详情页已换 MUI LinearProgress（根类名
+ * .water-bar + warn/full 续挂——governance spec toHaveClass 钩子）；本块
+ * 仅服务迁移面板的手作 bar（storage_migration spec 断言 fill 行内宽度，
+ * 保留手作 DOM——见 T-344D 差异登记）。 */
 
 .water-bar {
   height: 8px;
@@ -190,32 +181,10 @@
   font-size: var(--bf-fs-aux);
 }
 
-/* ---------- tab（§4.5） ---------- */
-
-.tabs {
-  display: flex;
-  gap: var(--bf-sp-1);
-  border-bottom: 1px solid var(--bf-border);
-  margin-bottom: var(--bf-sp-4);
-}
-
-.tabs a {
-  padding: var(--bf-sp-2) var(--bf-sp-3);
-  border-bottom: 2px solid transparent;
-  color: var(--bf-text-2);
-  font-size: var(--bf-fs-body);
-}
-
-.tabs a:hover {
-  color: var(--bf-text);
-  text-decoration: none;
-}
-
-.tabs a.active {
-  color: var(--bf-text);
-  border-bottom-color: var(--bf-accent);
-  font-weight: 600;
-}
+/* ---------- tab（§4.5） ----------
+ * .tabs 族已随 T-344 批 C 退役（mui-native-visual §3.3）：通用 tab 位换
+ * MUI Tabs（页内零消费者——grep 实证后整块删除；repos/repo/authcfg 三处
+ * 自持 tab 条同批退役，见 repositories.css / authconfig.css）。 */
 
 /* ---------- 详情头部 ---------- */
 

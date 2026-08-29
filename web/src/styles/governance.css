@@ -11,7 +11,9 @@
   white-space: nowrap;
 }
 
-/* 时间过滤输入（datetime-local 跟随 label 排布） */
+/* 时间过滤输入（datetime-local 跟随 label 排布）——input 皮肤规则已随
+ * T-344 批 C 退役（MUI TextField outlined 承载，denseInputSx 续挂摘除）；
+ * label 行布局留。 */
 .filter-bar .time-field {
   display: inline-flex;
   align-items: center;
@@ -19,17 +21,6 @@
   font-size: var(--bf-fs-aux);
   color: var(--bf-text-2);
   white-space: nowrap;
-}
-
-.filter-bar .time-field input {
-  min-height: 32px;
-  padding: 0 var(--bf-sp-2);
-  background: var(--bf-surface-3);
-  border: 1px solid var(--bf-border);
-  border-radius: var(--bf-r-sm);
-  color: var(--bf-text);
-  font-family: var(--bf-mono);
-  font-size: var(--bf-fs-aux);
 }
 
 /* 行内 detail JSON 折叠（mono，限高）——浮层锚定在自身 */
@@ -93,23 +84,10 @@
   max-width: 320px;
 }
 
-/* 运行失败面板（409 互斥 / 5xx）：一句人话 + 原始 message mono */
-.gc-error {
-  border: 1px solid color-mix(in srgb, var(--bf-danger) 45%, transparent);
-  border-radius: var(--bf-r-md);
-  background: color-mix(in srgb, var(--bf-danger) 7%, transparent);
-  padding: var(--bf-sp-3);
-  margin: var(--bf-sp-3) 0;
-}
-
-.gc-error .headline {
-  display: flex;
-  align-items: center;
-  gap: var(--bf-sp-2);
-  color: var(--bf-danger);
-  font-weight: 600;
-}
-
+/* 运行失败面板（409 互斥 / 5xx）——.gc-error 族已随 T-344 批 C 退役
+ * （mui-native-visual §3.4：T-300 已 MUI Alert 化续挂类名，边框/底色块
+ * 删——Alert severity=error 承载；仅留 pre 的排版行（mono + 限高折行，
+ * Alert 默认无 pre 皮肤）。 */
 .gc-error pre {
   margin: var(--bf-sp-2) 0 0;
   padding: var(--bf-sp-2);
@@ -171,21 +149,8 @@
   color: var(--bf-danger);
 }
 
-/* 行内编辑输入（字节） */
-.quota-input {
-  width: 130px;
-  min-height: 28px;
-  padding: 0 var(--bf-sp-2);
-  background: var(--bf-surface-3);
-  border: 1px solid var(--bf-border);
-  border-radius: var(--bf-r-sm);
-  color: var(--bf-text);
-  font-size: var(--bf-fs-body);
-}
-
-.quota-input:focus {
-  border-color: var(--bf-accent);
-}
+/* 行内编辑输入（字节）——.quota-input 皮肤规则已随 T-344 批 C 退役
+ * （MUI TextField small outlined + monoInputSx 承载，类名摘除）。 */
 
 /* 操作列里的错误行独占一行，不撑坏行高 */
 td .field-error {

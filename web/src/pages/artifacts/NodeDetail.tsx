@@ -9,7 +9,6 @@ import { CopyButton } from '../../components/CopyButton'
 import { Skeleton } from '../../components/Skeleton'
 import { formatBytes } from '../../lib/format'
 import { onTablistKeys } from '../../lib/keys'
-import { badgeChipSx, dangerBtnSx, rowBtnSx } from '../../lib/muiAtoms'
 import { getRepoDetail, getRepoUsage } from '../../lib/repos'
 import { useAsync } from '../../lib/useAsync'
 import { getItem, getItemPermissions } from './lib'
@@ -103,7 +102,7 @@ export default function NodeDetail({
               <Button
                 variant="outlined"
                 size="small"
-                sx={rowBtnSx}
+               
                 disabled={download?.path === target.node.path && download.phase === 'loading'}
                 data-testid="node-download"
                 onClick={() => onDownload(target.node, item?.checksums?.sha256 ?? target.node.sha256 ?? '')}
@@ -114,7 +113,7 @@ export default function NodeDetail({
               <Button
                 variant="outlined"
                 size="small"
-                sx={rowBtnSx}
+               
                 component="a"
                 href={`/binflow/${encodeURIComponent(target.repoKey)}/${target.node.path
                   .split('/')
@@ -132,14 +131,14 @@ export default function NodeDetail({
               variant="outlined"
               color="error"
               size="small"
-              sx={dangerBtnSx}
+             
               data-testid="delete-node-button"
               onClick={() => onDelete(target.node)}
             >
               删除
             </Button>
           )}
-          <Button variant="outlined" size="small" sx={rowBtnSx} onClick={onClose}>
+          <Button variant="outlined" size="small" onClick={onClose}>
             关闭
           </Button>
         </div>
@@ -251,8 +250,8 @@ function RepoGeneral({ repoKey }: { repoKey: string }) {
         <div className="kv">
           <span className="k">包类型</span>
           <span>
-            <Chip size="small" className="badge neutral" label={m.packageType} sx={badgeChipSx} />{' '}
-            <Chip size="small" className="badge neutral" label={m.rclass} sx={badgeChipSx} />
+            <Chip size="small" className="badge neutral" label={m.packageType} />{' '}
+            <Chip size="small" className="badge neutral" label={m.rclass} />
           </span>
         </div>
         <div className="kv">
@@ -397,9 +396,9 @@ function NodeGeneral({
                   size="small"
                   className="badge neutral"
                   label={tag}
-                  sx={badgeChipSx}
                   data-testid={`tag-badge-${tag}`}
                   title={`tag: ${tag}`}
+                  sx={{ mr: 0.5 }}
                 />
               ))}
             </span>

@@ -11,7 +11,6 @@ import { useConfirm } from '../../components/ConfirmDialog'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import { ApiError, apiJSON, errText, isReadOnlyAdmin } from '../../lib/api'
-import { dangerBtnSx } from '../../lib/muiAtoms'
 import { formatAuditTime, formatCount } from '../../lib/format'
 
 // 存储迁移面板（T-160 进度呈现 + T-177 启动入口）：
@@ -338,7 +337,7 @@ export default function MigrationPanel() {
             variant="outlined"
             color="error"
             size="small"
-            sx={dangerBtnSx}
+           
             disabled={starting || readOnly}
             onClick={() => void doStart()}
             data-testid="migration-start"

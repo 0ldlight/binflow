@@ -14,7 +14,6 @@ import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import { ApiError, canAdminWrite, errText, getStorageStats, isReadOnlyAdmin } from '../../lib/api'
 import { dedupRatio, formatBytes, formatCount } from '../../lib/format'
-import { dangerBtnSx, denseInputSx, rowBtnSx } from '../../lib/muiAtoms'
 import { GC_MAX_GRACE_HOURS, runGC } from '../../lib/governance'
 import type { GCRunResult } from '../../lib/governance'
 import { useAsync } from '../../lib/useAsync'
@@ -239,7 +238,7 @@ export default function GCPage() {
                 value={graceInput}
                 onChange={(e) => setGraceInput(e.target.value)}
                 disabled={readOnly}
-                sx={{ ...denseInputSx, width: 200 }}
+                sx={{ width: 200 }}
                 slotProps={{ htmlInput: { 'data-testid': 'gc-grace-hours', lang: 'en', className: 'mono' } }}
               />
               {grace === 'invalid' && (
@@ -252,7 +251,7 @@ export default function GCPage() {
             <Button
               variant="outlined"
               size="small"
-              sx={rowBtnSx}
+             
               disabled={grace === 'invalid' || running !== '' || readOnly}
               onClick={() => void doDryRun()}
               data-testid="gc-dryrun"
@@ -264,7 +263,7 @@ export default function GCPage() {
               variant="outlined"
               color="error"
               size="small"
-              sx={dangerBtnSx}
+             
               disabled={!canApply || readOnly}
               onClick={() => void doApply()}
               data-testid="gc-apply"

@@ -17,7 +17,6 @@ import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import { ADMIN_ROLES, ApiError, canAdminWrite, errText, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
 import type { AdminRole } from '../../lib/api'
-import { dangerBtnSx, denseInputSx, rowBtnSx } from '../../lib/muiAtoms'
 import { useAsync } from '../../lib/useAsync'
 import './security.css'
 import { TransferBox } from './TransferBox'
@@ -107,7 +106,7 @@ export default function UserDetailPage() {
           <EmptyState
             message={`用户 ${name} 不存在`}
             action={
-              <Button variant="outlined" size="small" sx={rowBtnSx} component={Link} to="/admin/security/users">
+              <Button variant="outlined" size="small" component={Link} to="/admin/security/users">
                 ← 返回用户列表
               </Button>
             }
@@ -180,7 +179,7 @@ export default function UserDetailPage() {
         <h2>
           编辑用户 · <span className="mono" lang="en">{name}</span>
         </h2>
-        <Button variant="outlined" size="small" sx={rowBtnSx} component={Link} to="/admin/security/users">
+        <Button variant="outlined" size="small" component={Link} to="/admin/security/users">
           ← 返回列表
         </Button>
       </div>
@@ -214,7 +213,7 @@ export default function UserDetailPage() {
                   value={f.email}
                   disabled={readOnly}
                   onChange={(e) => setF((p) => (p ? { ...p, email: e.target.value } : p))}
-                  sx={{ ...denseInputSx, width: 320 }}
+                  sx={{ width: 320 }}
                   slotProps={{ htmlInput: { 'data-testid': 'user-form-email' } }}
                 />
                 {f.email.trim() === '' && <p className="field-error">email 不能为空（服务端 400）</p>}
@@ -228,7 +227,7 @@ export default function UserDetailPage() {
                   value={f.role}
                   disabled={readOnly}
                   onChange={(e) => setF((p) => (p ? { ...p, role: e.target.value as AdminRole } : p))}
-                  sx={{ ...denseInputSx, width: 420 }}
+                  sx={{ width: 420 }}
                   slotProps={{
                     select: {
                       native: true,
@@ -278,7 +277,7 @@ export default function UserDetailPage() {
                   value={f.password}
                   disabled={readOnly}
                   onChange={(e) => setF((p) => (p ? { ...p, password: e.target.value } : p))}
-                  sx={{ ...denseInputSx, width: 320 }}
+                  sx={{ width: 320 }}
                   slotProps={{ htmlInput: { 'data-testid': 'user-form-password' } }}
                 />
               </div>
@@ -294,7 +293,7 @@ export default function UserDetailPage() {
                   disabled={readOnly}
                   onChange={(e) => setF((p) => (p ? { ...p, password2: e.target.value } : p))}
                   error={passMismatch}
-                  sx={{ ...denseInputSx, width: 320 }}
+                  sx={{ width: 320 }}
                   slotProps={{ htmlInput: { 'data-testid': 'user-form-password2' } }}
                 />
                 {passMismatch && (
@@ -338,13 +337,13 @@ export default function UserDetailPage() {
               </Alert>
             )}
             <div className="form-actions">
-              <Button variant="outlined" size="small" sx={rowBtnSx} component={Link} to="/admin/security/users">
+              <Button variant="outlined" size="small" component={Link} to="/admin/security/users">
                 取消
               </Button>
               <Button
                 variant="outlined"
                 size="small"
-                sx={rowBtnSx}
+               
                 disabled={!dirty || submitting}
                 onClick={() => d && setF(editFromDetail(d))}
               >
@@ -421,7 +420,7 @@ export default function UserDetailPage() {
                 variant="outlined"
                 color="error"
                 size="small"
-                sx={dangerBtnSx}
+               
                 disabled
                 title={deleteBlocked}
                 data-testid="user-delete"
@@ -433,7 +432,7 @@ export default function UserDetailPage() {
                 variant="outlined"
                 color="error"
                 size="small"
-                sx={dangerBtnSx}
+               
                 onClick={() => void deleteUser(name)}
                 data-testid="user-delete"
               >

@@ -23,7 +23,6 @@ import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import { ADMIN_ROLES, ApiError, canAdminWrite, errText, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
 import type { AdminRole } from '../../lib/api'
-import { badgeChipSx, dangerBtnSx, denseInputSx, rowBtnSx } from '../../lib/muiAtoms'
 import { onTableRowKeys } from '../../lib/keys'
 import { useAsync } from '../../lib/useAsync'
 import './security.css'
@@ -61,12 +60,15 @@ function roleBadge(item: UserListItem) {
 }
 
 function RoleLabel({ role }: { role: AdminRole }) {
-  // 共享语义 badge（T-266：T-237 自持 role-warning 回退——base.css 家族
-  // 双主题 ≥4.59:1 后冗余）。T-300 批次二换 MUI Chip（类续挂，视觉不动）
-  if (role === 'admin') return <Chip size="small" className="badge warning" label="admin" sx={badgeChipSx} />
+  // 共享语义 badge（T-266：T-237 自持 role-warning 回退）。T-344 批 C 起
+  // Chip 原生皮肤：admin = outlined warning（tint 配方在 MUI 亮色主题实测
+  // 3.7:1 不过 4.5 门——outlined 文字色两主题 5.2~7.2:1，见 T-344D 登记）；
+  // 其余 = filled default；类名组合续挂（spec §3.8 toHaveClass 钩子）。
+  if (role === 'admin')
+    return <Chip size="small" variant="outlined" color="warning" className="badge warning" label="admin" lang="en" />
   if (role === 'readonly_admin')
-    return <Chip size="small" className="badge neutral" label="readonly_admin" sx={badgeChipSx} />
-  return <Chip size="small" className="badge neutral" label="user" sx={badgeChipSx} />
+    return <Chip size="small" className="badge neutral" label="readonly_admin" lang="en" />
+  return <Chip size="small" className="badge neutral" label="user" lang="en" />
 }
 
 interface CreateState {
@@ -142,7 +144,7 @@ function CreateUserForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
             onChange={(e) => setF((p) => ({ ...p, name: e.target.value }))}
             placeholder="bob"
             error={!!nameErr}
-            sx={{ ...denseInputSx, width: 320 }}
+            sx={{ width: 320 }}
             slotProps={{ htmlInput: { className: 'mono-input', 'data-testid': 'user-form-name', lang: 'en' } }}
           />
           {nameErr ? (
@@ -164,7 +166,7 @@ function CreateUserForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
             onChange={(e) => setF((p) => ({ ...p, email: e.target.value }))}
             placeholder="bob@example.com"
             error={!!emailErr}
-            sx={{ ...denseInputSx, width: 320 }}
+            sx={{ width: 320 }}
             slotProps={{ htmlInput: { 'data-testid': 'user-form-email' } }}
           />
           {emailErr && (
@@ -181,7 +183,7 @@ function CreateUserForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
             size="small"
             value={f.role}
             onChange={(e) => setF((p) => ({ ...p, role: e.target.value as AdminRole }))}
-            sx={{ ...denseInputSx, width: 320 }}
+            sx={{ width: 320 }}
             slotProps={{
               select: {
                 native: true,
@@ -226,7 +228,7 @@ function CreateUserForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
             onBlur={() => setTouched((p) => ({ ...p, password: true }))}
             onChange={(e) => setF((p) => ({ ...p, password: e.target.value }))}
             error={!!passErr}
-            sx={{ ...denseInputSx, width: 320 }}
+            sx={{ width: 320 }}
             slotProps={{ htmlInput: { 'data-testid': 'user-form-password' } }}
           />
           {passErr && (
@@ -270,10 +272,10 @@ function CreateUserForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
         </Alert>
       )}
       <div className="form-actions">
-        <Button variant="outlined" size="small" sx={rowBtnSx} onClick={onCancel}>
+        <Button variant="outlined" size="small" onClick={onCancel}>
           取消
         </Button>
-        <Button variant="outlined" size="small" sx={rowBtnSx} onClick={() => setF(CREATE_INITIAL)}>
+        <Button variant="outlined" size="small" onClick={() => setF(CREATE_INITIAL)}>
           重置
         </Button>
         <Button
@@ -360,7 +362,7 @@ export default function UsersPage() {
           )
         ) : (
           <>
-            <Table className="table" data-testid="users-table">
+            <Table data-testid="users-table">
               <TableHead>
                 <TableRow>
                   <SortTh label="用户名" sortKey="name" sort={sort} onToggle={toggle} testid="users-sort-name" />
@@ -381,6 +383,7 @@ export default function UsersPage() {
                     <TableRow
                       key={r.name}
                       data-testid={`user-row-${r.name}`}
+                      hover
                       tabIndex={0}
                       onKeyDown={(e) =>
                         onTableRowKeys(e, () => navigate(`/admin/security/users/${encodeURIComponent(r.name)}`))
@@ -395,12 +398,12 @@ export default function UsersPage() {
                       <TableCell>
                         <span className="text-2">{r.email}</span>
                       </TableCell>
-                      <TableCell className="wrap" sx={{ maxWidth: 360 }}>
+                      <TableCell sx={{ maxWidth: 360, whiteSpace: 'normal', wordBreak: 'break-word' }}>
                         {r.groups.length === 0 ? (
                           <span className="text-muted">—</span>
                         ) : (
                           <span title={r.groups.join(', ')}>
-                            <Chip size="small" className="badge neutral" label={r.groups.length} sx={badgeChipSx} />{' '}
+                            <Chip size="small" className="badge neutral" label={r.groups.length} />{' '}
                             <span className="sec-chips">
                               {r.groups.map((g) => (
                                 <Chip
@@ -408,7 +411,7 @@ export default function UsersPage() {
                                   size="small"
                                   className="badge neutral mono"
                                   label={g}
-                                  sx={badgeChipSx}
+                                  sx={{ fontFamily: 'var(--bf-mono)' }}
                                   lang="en"
                                 />
                               ))}
@@ -426,7 +429,6 @@ export default function UsersPage() {
                             variant="outlined"
                             color="error"
                             size="small"
-                            sx={dangerBtnSx}
                             disabled={deleteBlocked !== undefined}
                             title={deleteBlocked}
                             onClick={() => void deleteUser(r.name)}

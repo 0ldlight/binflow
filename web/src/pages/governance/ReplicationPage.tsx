@@ -12,7 +12,6 @@ import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import { ApiError, apiJSON, errText } from '../../lib/api'
-import { badgeChipSx } from '../../lib/muiAtoms'
 import { formatAuditTime, formatCount } from '../../lib/format'
 
 // 复制面板（T-159）：push 复制状态 + 事件列表（治理组「复制」页）。
@@ -149,6 +148,15 @@ function targetState(t: ReplicationTargetStatus): { label: string; dot: string }
   return { label: '正常', dot: 'ok' }
 }
 
+/** badge 类名 → MUI Chip color（neutral = default filled；语义色走
+ *  outlined——filled 对比度见 T-344D 差异登记） */
+const TASK_COLOR: Record<string, 'success' | 'warning' | 'error' | 'default'> = {
+  success: 'success',
+  warning: 'warning',
+  danger: 'error',
+  neutral: 'default',
+}
+
 /** 任务状态 → badge 色（值原样呈现不翻译——排障要比对 API，§4.10 同口径） */
 const TASK_BADGE: Record<string, string> = {
   pending: 'warning',
@@ -178,7 +186,7 @@ function ReplicationBody({ data, staleError }: { data: ReplicationStatus; staleE
             testid="repl-empty-targets"
           />
         ) : (
-          <Table className="table" data-testid="repl-targets-table">
+          <Table data-testid="repl-targets-table">
             <TableHead>
               <TableRow>
                 <TableCell component="th" scope="col">状态</TableCell>
@@ -198,12 +206,12 @@ function ReplicationBody({ data, staleError }: { data: ReplicationStatus; staleE
               {data.targets.map((t, i) => {
                 const st = targetState(t)
                 return (
-                  <TableRow key={t.id} data-testid={`repl-target-${i}`}>
+                  <TableRow key={t.id} data-testid={`repl-target-${i}`} hover>
                     <TableCell>
                       <span className={`status-dot ${st.dot}`} aria-hidden="true" /> {st.label}
                     </TableCell>
                     <TableCell lang="en">{t.name}</TableCell>
-                    <TableCell className="mono wrap" sx={{ maxWidth: 240 }} lang="en">
+                    <TableCell className="mono" sx={{ maxWidth: 240, whiteSpace: 'normal', wordBreak: 'break-all' }} lang="en">
                       {t.target_url} <CopyButton value={t.target_url} label={`目标 URL ${t.name}`} />
                     </TableCell>
                     <TableCell className="mono" lang="en">
@@ -254,7 +262,7 @@ function ReplicationBody({ data, staleError }: { data: ReplicationStatus; staleE
             testid="repl-empty-events"
           />
         ) : (
-          <Table className="table" data-testid="repl-events-table">
+          <Table data-testid="repl-events-table">
             <TableHead>
               <TableRow>
                 <TableCell component="th" scope="col">时间</TableCell>
@@ -270,20 +278,21 @@ function ReplicationBody({ data, staleError }: { data: ReplicationStatus; staleE
                 const repo = repoOf.get(ev.replication_id)
                 const artifact = repo ? `${repo}/${ev.node_path}` : ev.node_path
                 return (
-                  <TableRow key={ev.id} data-testid={`repl-event-${i}`}>
+                  <TableRow key={ev.id} data-testid={`repl-event-${i}`} hover>
                     <TableCell className="mono audit-time" title={ev.created_at}>
                       {formatAuditTime(ev.created_at)}
                     </TableCell>
                     <TableCell>
                       <Chip
                         size="small"
+                        variant="outlined"
+                        color={TASK_COLOR[TASK_BADGE[ev.status] ?? 'neutral'] ?? 'default'}
                         className={`badge ${TASK_BADGE[ev.status] ?? 'neutral'}`}
                         label={ev.status}
-                        sx={badgeChipSx}
                         lang="en"
                       />
                     </TableCell>
-                    <TableCell className="mono wrap" sx={{ maxWidth: 320 }} lang="en">
+                    <TableCell className="mono" sx={{ maxWidth: 320, whiteSpace: 'normal', wordBreak: 'break-all' }} lang="en">
                       {artifact} <CopyButton value={artifact} label={`制品路径 ${artifact}`} />
                     </TableCell>
                     <TableCell className="mono" lang="en" title={ev.blob_sha256}>
@@ -293,7 +302,7 @@ function ReplicationBody({ data, staleError }: { data: ReplicationStatus; staleE
                     <TableCell className="mono" lang="en">
                       {formatCount(ev.attempts)}
                     </TableCell>
-                    <TableCell className="mono wrap" sx={{ maxWidth: 320 }}>
+                    <TableCell className="mono" sx={{ maxWidth: 320, whiteSpace: 'normal', wordBreak: 'break-all' }}>
                       {ev.last_error || <span className="text-muted">—</span>}
                     </TableCell>
                   </TableRow>

@@ -7,6 +7,8 @@ import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Checkbox from '@mui/material/Checkbox'
 import FormControlLabel from '@mui/material/FormControlLabel'
+import Tab from '@mui/material/Tab'
+import Tabs from '@mui/material/Tabs'
 import TextField from '@mui/material/TextField'
 import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
@@ -20,8 +22,6 @@ import { ErrorCard } from '../../../components/ErrorCard'
 import { Skeleton } from '../../../components/Skeleton'
 import { ApiError, canAdminWrite, errText, getAuthSection, getSamlSpCertificate, isReadOnlyAdmin, putAuthSection, regenerateSamlSpKey, testAuthSection } from '../../../lib/api'
 import type { AuthSection, AuthTestReport } from '../../../lib/api'
-import { denseInputSx } from '../../../lib/muiAtoms'
-import { onTablistKeys } from '../../../lib/keys'
 import { useAsync } from '../../../lib/useAsync'
 import { Sha256 } from '../../artifacts/sha256'
 import {
@@ -92,7 +92,6 @@ function FieldControl({
           placeholder={secretSet ? '留空保持不变' : '未设置——输入以设置'}
           value={String(value ?? '')}
           onChange={(e) => onChange(e.target.value)}
-          sx={denseInputSx}
           slotProps={{ htmlInput: { id: field.anchor, 'data-testid': field.anchor, className: MONO_INPUT, lang: 'en', spellCheck: false } }}
         />
         <p className="authcfg-secret-set" data-testid={field.setAnchor ?? `${field.anchor}-set`}>
@@ -174,7 +173,6 @@ function FieldControl({
         placeholder={field.placeholder}
         value={String(value ?? '')}
         onChange={(e) => onChange(e.target.value)}
-        sx={denseInputSx}
         slotProps={{
           htmlInput: {
             id: field.anchor,
@@ -541,7 +539,7 @@ function SectionPanel({ def, canWrite }: { def: SectionDef; canWrite: boolean })
                     placeholder="testUsername"
                     value={testUser}
                     onChange={(e) => setTestUser(e.target.value)}
-                    sx={{ ...denseInputSx, width: 200 }}
+                    sx={{ width: 200 }}
                     slotProps={{ htmlInput: { 'data-testid': 'authcfg-test-username', 'aria-label': '测试用户名（testUsername）', className: MONO_INPUT, lang: 'en', autoComplete: 'off', spellCheck: false } }}
                   />
                   <TextField
@@ -552,7 +550,7 @@ function SectionPanel({ def, canWrite }: { def: SectionDef; canWrite: boolean })
                     placeholder="testPassword"
                     value={testPass}
                     onChange={(e) => setTestPass(e.target.value)}
-                    sx={{ ...denseInputSx, width: 200 }}
+                    sx={{ width: 200 }}
                     slotProps={{ htmlInput: { 'data-testid': 'authcfg-test-password', 'aria-label': '测试口令（testPassword）', className: MONO_INPUT, lang: 'en', autoComplete: 'new-password', spellCheck: false } }}
                   />
                 </>
@@ -671,28 +669,27 @@ export default function AuthConfigPage() {
         </p>
       )}
 
-      <nav
-        className="authcfg-tabs"
-        role="tablist"
-        aria-label="认证协议"
-        onKeyDown={(e) =>
-          onTablistKeys(e, SECTION_ORDER, section, (id) => navigate(`/admin/security/auth/${id}`))
-        }
+      {/* T-344 批 C：Tab 条换 MUI Tabs（锚 authcfg-tab-* 落 Tab 根 <a>，
+          aria-current=page 续挂；方向键选择随焦点 = MUI 内建，替代
+          onTablistKeys） */}
+      <Tabs
+        value={section}
+        onChange={(_e, id: AuthSection) => navigate(`/admin/security/auth/${id}`)}
+        selectionFollowsFocus
+        sx={{ mb: 'var(--bf-sp-4)', borderBottom: 1, borderColor: 'divider' }}
       >
         {SECTION_ORDER.map((id) => (
-          <Link
+          <Tab
             key={id}
+            component={Link}
             to={`/admin/security/auth/${id}`}
-            className={`authcfg-tab${section === id ? ' active' : ''}`}
-            role="tab"
+            value={id}
+            label={SECTIONS[id].tab}
             aria-current={section === id ? 'page' : undefined}
-            aria-selected={section === id}
             data-testid={`authcfg-tab-${id}`}
-          >
-            {SECTIONS[id].tab}
-          </Link>
+          />
         ))}
-      </nav>
+      </Tabs>
 
       <SectionPanel def={def} canWrite={canWrite} />
     </div>

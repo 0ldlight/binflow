@@ -14,7 +14,6 @@ import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import { canAdminWrite, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
-import { badgeChipSx } from '../../lib/muiAtoms'
 import { onTableRowKeys } from '../../lib/keys'
 import { useAsync } from '../../lib/useAsync'
 import './security.css'
@@ -148,7 +147,7 @@ export default function PermissionsPage() {
           )
         ) : (
           <>
-            <Table className="table" data-testid="perms-table">
+            <Table data-testid="perms-table">
               <TableHead>
                 <TableRow>
                   <SortTh label="权限名" sortKey="name" sort={sort} onToggle={toggle} testid="perms-sort-name" />
@@ -163,6 +162,7 @@ export default function PermissionsPage() {
                   <TableRow
                     key={t.name}
                     data-testid={`perm-row-${t.name}`}
+                    hover
                     sx={{ cursor: 'pointer' }}
                     tabIndex={0}
                     onClick={() => navigate(`/admin/security/permissions/${encodeURIComponent(t.name)}`)}
@@ -187,7 +187,7 @@ export default function PermissionsPage() {
                             size="small"
                             className="badge neutral mono"
                             label="manage"
-                            sx={badgeChipSx}
+                            sx={{ fontFamily: 'var(--bf-mono)' }}
                             lang="en"
                             data-testid={`perm-manage-badge-${t.name}`}
                             title="该 target 的某主体行携带 manage（仓库配置派生权；不隐含读写删）"

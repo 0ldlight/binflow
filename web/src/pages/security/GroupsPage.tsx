@@ -19,7 +19,6 @@ import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import { ApiError, canAdminWrite, errText, isReadOnlyAdmin } from '../../lib/api'
-import { badgeChipSx, dangerBtnSx, denseInputSx, rowBtnSx } from '../../lib/muiAtoms'
 import { useAsync } from '../../lib/useAsync'
 import './security.css'
 import { TransferBox } from './TransferBox'
@@ -241,7 +240,7 @@ function GroupEditor({
             onChange={(e) => setName(e.target.value)}
             placeholder="qa-team"
             error={!!nameErr}
-            sx={{ ...denseInputSx, width: 320 }}
+            sx={{ width: 320 }}
             slotProps={{ htmlInput: { className: 'mono-input', 'data-testid': 'group-form-name', lang: 'en' } }}
           />
           {nameErr ? (
@@ -262,7 +261,7 @@ function GroupEditor({
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="用途、负责人…"
-            sx={{ ...denseInputSx, width: 480 }}
+            sx={{ width: 480 }}
             slotProps={{ htmlInput: { 'data-testid': 'group-form-description' } }}
           />
         </div>
@@ -314,13 +313,12 @@ function GroupEditor({
         </Alert>
       )}
       <div className="form-actions">
-        <Button variant="outlined" size="small" sx={rowBtnSx} onClick={onCancel}>
+        <Button variant="outlined" size="small" onClick={onCancel}>
           取消
         </Button>
         <Button
           variant="outlined"
           size="small"
-          sx={rowBtnSx}
           disabled={!dirty || submitting}
           onClick={() => {
             setName(seed.name)
@@ -457,19 +455,22 @@ export default function GroupsPage() {
       )}
 
       {conflict && (
-        <div className="conflict-panel" data-testid="group-delete-reason" role="alert">
-          <div className="headline">无法删除组 <span className="mono" lang="en">{conflict.group}</span>——它正被 permission target 引用</div>
-          <div className="raw" lang="en">
+        <Alert
+          severity="warning"
+          data-testid="group-delete-reason"
+          sx={{ mb: 2, '& .MuiAlert-message': { width: '100%' } }}
+        >
+          <div>无法删除组 <span className="mono" lang="en">{conflict.group}</span>——它正被 permission target 引用</div>
+          <div className="mono" lang="en" style={{ fontSize: 'var(--bf-fs-aux)', overflowWrap: 'anywhere' }}>
             {conflict.message}
           </div>
-          <div className="targets">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginTop: 4 }}>
             {conflict.targets.length > 0 && <span className="text-2">解除引用（编辑后移除该组主体）：</span>}
             {conflict.targets.map((t) => (
               <Button
                 key={t}
                 variant="outlined"
                 size="small"
-                sx={rowBtnSx}
                 component={Link}
                 to={`/admin/security/permissions/${encodeURIComponent(t)}`}
               >
@@ -478,11 +479,11 @@ export default function GroupsPage() {
                 </span>
               </Button>
             ))}
-            <Button variant="outlined" size="small" sx={rowBtnSx} onClick={() => setConflict(null)}>
+            <Button variant="outlined" size="small" onClick={() => setConflict(null)}>
               稍后再试
             </Button>
           </div>
-        </div>
+        </Alert>
       )}
 
       {state.status === 'loading' && <Skeleton lines={5} />}
@@ -505,7 +506,7 @@ export default function GroupsPage() {
           )
         ) : (
           <>
-            <Table className="table" data-testid="groups-table">
+            <Table data-testid="groups-table">
               <TableHead>
                 <TableRow>
                   <SortTh label="组名" sortKey="name" sort={sort} onToggle={toggle} testid="groups-sort-name" />
@@ -516,7 +517,7 @@ export default function GroupsPage() {
               </TableHead>
               <TableBody>
                 {sorted.map((r) => (
-                  <TableRow key={r.group.name} data-testid={`group-row-${r.group.name}`}>
+                  <TableRow key={r.group.name} data-testid={`group-row-${r.group.name}`} hover>
                     <TableCell>
                       <div className="cell-stack">
                         <span>
@@ -545,7 +546,7 @@ export default function GroupsPage() {
                               size="small"
                               className="badge neutral mono"
                               label="manage"
-                              sx={badgeChipSx}
+                              sx={{ fontFamily: 'var(--bf-mono)' }}
                               lang="en"
                               data-testid={`group-manage-badge-${r.group.name}`}
                               title="组在至少一个 permission target 上持有 manage（仓库配置派生权）——BinFlow 无 Artifactory 组级 adminPrivileges 字段（有意不跟进，rbac-model §5）"
@@ -569,7 +570,6 @@ export default function GroupsPage() {
                           <Button
                             variant="outlined"
                             size="small"
-                            sx={rowBtnSx}
                             onClick={() => setForm({ mode: 'edit', name: r.group.name, description: r.group.description })}
                             data-testid={`group-edit-${r.group.name}`}
                           >
@@ -579,7 +579,6 @@ export default function GroupsPage() {
                             variant="outlined"
                             color="error"
                             size="small"
-                            sx={dangerBtnSx}
                             onClick={() => void doDelete(r.group.name, r.group.description)}
                             data-testid={`group-delete-${r.group.name}`}
                           >

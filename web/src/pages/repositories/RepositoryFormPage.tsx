@@ -19,7 +19,7 @@ import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import { ApiError, canAdminWrite, errText, getRepositories, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
 import type { RepoListItem } from '../../lib/api'
-import { denseInputSx } from '../../lib/muiAtoms'
+import Chip from '@mui/material/Chip'
 import { getAddons, lockedHint, packageTypeOptions, tierBadgeClass } from '../../lib/addons'
 import type { PkgTypeOption } from '../../lib/addons'
 import {
@@ -366,9 +366,17 @@ function PackageTypeGrid({
                 <span className="pkg-name">
                   {c.label}
                   {badgeTier && (
-                    <span className={tierBadgeClass(badgeTier)} data-testid={`pkg-tier-${c.id}`} lang="en">
-                      {badgeTier}
-                    </span>
+                    <Chip
+                      component="span"
+                      size="small"
+                      variant="outlined"
+                      color={badgeTier === 'enterprise' ? 'warning' : 'info'}
+                      className={tierBadgeClass(badgeTier)}
+                      label={badgeTier}
+                      data-testid={`pkg-tier-${c.id}`}
+                      lang="en"
+                      sx={{ ml: 0.5, verticalAlign: 'middle' }}
+                    />
                   )}
                 </span>
                 <span className="pkg-desc">{block ?? c.desc}</span>
@@ -591,9 +599,17 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                     <>
                       {c.label}
                       {badgeTier && (
-                        <span className={tierBadgeClass(badgeTier)} data-testid={`pkg-tier-${c.id}`} lang="en">
-                          {badgeTier}
-                        </span>
+                        <Chip
+                          component="span"
+                          size="small"
+                          variant="outlined"
+                          color={badgeTier === 'enterprise' ? 'warning' : 'info'}
+                          className={tierBadgeClass(badgeTier)}
+                          label={badgeTier}
+                          data-testid={`pkg-tier-${c.id}`}
+                          lang="en"
+                          sx={{ ml: 0.5, verticalAlign: 'middle' }}
+                        />
                       )}
                     </>
                   }
@@ -615,7 +631,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 placeholder="maven-remote"
                 error={!!keyErr}
                 disabled={locked}
-                sx={denseInputSx}
                 slotProps={{ htmlInput: { className: 'mono-input', 'data-testid': 'form-key', lang: 'en' } }}
               />
               {keyErr ? (
@@ -649,7 +664,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
               onChange={(e) => set('description', e.target.value)}
               placeholder="用途、负责人、团队…"
               disabled={locked}
-              sx={denseInputSx}
               slotProps={{ htmlInput: { 'data-testid': 'form-description' } }}
             />
           </div>
@@ -668,7 +682,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 placeholder="https://repo1.maven.org/maven2"
                 error={!!urlErr}
                 disabled={locked}
-                sx={denseInputSx}
                 slotProps={{ htmlInput: { className: 'mono-input', 'data-testid': 'form-url', lang: 'en' } }}
               />
               {urlErr ? (
@@ -687,7 +700,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 value={f.username}
                 onChange={(e) => set('username', e.target.value)}
                 disabled={locked}
-                sx={denseInputSx}
                 slotProps={{ htmlInput: { 'data-testid': 'form-username' } }}
               />
             </div>
@@ -702,7 +714,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 onChange={(e) => set('password', e.target.value)}
                 placeholder="永不回显"
                 disabled={locked}
-                sx={denseInputSx}
                 slotProps={{ htmlInput: { 'data-testid': 'form-password' } }}
               />
               <p className="field-hint">
@@ -768,9 +779,9 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                           <span className="mono" lang="en">
                             {o.key}
                           </span>{' '}
-                          <span className="badge neutral">{o.type}</span>
+                          <Chip component="span" size="small" className="badge neutral" label={o.type} sx={{ mx: 0.5 }} />
                           {cfgBool(o.configuration, 'priorityResolution') && (
-                            <span className="badge warning">优先解析</span>
+                            <Chip component="span" size="small" variant="outlined" color="warning" className="badge warning" label="优先解析" sx={{ mx: 0.5 }} />
                           )}
                         </>
                       }
@@ -824,7 +835,7 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 value={f.defaultDeploymentRepo}
                 onChange={(e) => set('defaultDeploymentRepo', e.target.value)}
                 disabled={localMembers.length === 0 || locked}
-                sx={{ ...denseInputSx, width: 300 }}
+                sx={{ width: 300 }}
                 slotProps={{
                   select: {
                     native: true,
@@ -887,7 +898,7 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 value={f.checksumPolicyType}
                 onChange={(e) => set('checksumPolicyType', e.target.value)}
                 disabled={locked}
-                sx={{ ...denseInputSx, width: 420 }}
+                sx={{ width: 420 }}
                 slotProps={{ select: { native: true } as ComponentPropsWithoutRef<typeof Select> }}
               >
                 <option value="client-checksums">client-checksums（客户端声明严格校验，默认）</option>
@@ -903,7 +914,7 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 value={f.snapshotVersionBehavior}
                 onChange={(e) => set('snapshotVersionBehavior', e.target.value)}
                 disabled={locked}
-                sx={{ ...denseInputSx, width: 420 }}
+                sx={{ width: 420 }}
                 slotProps={{ select: { native: true } as ComponentPropsWithoutRef<typeof Select> }}
               >
                 <option value="deployer">deployer（按上传名存储，默认）</option>
@@ -926,7 +937,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 onChange={(e) => set('quotaBytes', e.target.value)}
                 error={!isNonNegInt(f.quotaBytes)}
                 disabled={locked}
-                sx={denseInputSx}
                 slotProps={{ htmlInput: { className: 'mono-input', 'data-testid': 'form-quota', inputMode: 'numeric' } }}
               />
               <p className="field-hint">正整数；0 = 不限（默认）。超限写入收到 413（message 含 used/quota）。</p>
@@ -940,7 +950,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 onChange={(e) => set('includesPattern', e.target.value)}
                 placeholder="**/*"
                 disabled={locked}
-                sx={denseInputSx}
                 slotProps={{ htmlInput: { className: 'mono-input', 'data-testid': 'form-includes', lang: 'en' } }}
               />
               <p className="field-hint">逗号分隔多值；留空 / **/* = 匹配全部路径（保存为全量替换）。</p>
@@ -954,7 +963,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 onChange={(e) => set('excludesPattern', e.target.value)}
                 placeholder="（无）"
                 disabled={locked}
-                sx={denseInputSx}
                 slotProps={{ htmlInput: { className: 'mono-input', 'data-testid': 'form-excludes', lang: 'en' } }}
               />
               <p className="field-hint">
@@ -987,7 +995,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                     onChange={(e) => set(k, e.target.value)}
                     error={!isNonNegInt(f[k])}
                     disabled={locked}
-                    sx={denseInputSx}
                     slotProps={{ htmlInput: { className: 'mono-input', 'data-testid': `form-${k}`, inputMode: 'numeric' } }}
                   />
                 </div>

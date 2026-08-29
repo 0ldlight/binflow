@@ -17,7 +17,7 @@ import { Skeleton } from '../../components/Skeleton'
 import { ApiError, getRepositories } from '../../lib/api'
 import type { AuditEvent } from '../../lib/api'
 import { formatAuditTime } from '../../lib/format'
-import { denseInputSx, monoInputSx, rowBtnSx } from '../../lib/muiAtoms'
+import { monoInputSx } from '../../lib/muiAtoms'
 import {
   AUDIT_ACTIONS,
   AUDIT_PAGE_SIZE,
@@ -202,7 +202,7 @@ export default function AuditPage() {
           placeholder="仓库 key（精确）"
           value={repo}
           onChange={(e) => setRepo(e.target.value)}
-          sx={{ ...denseInputSx, ...monoInputSx, width: 180 }}
+          sx={{ ...monoInputSx, width: 180 }}
           slotProps={{
             htmlInput: {
               list: 'audit-repo-options',
@@ -223,7 +223,7 @@ export default function AuditPage() {
           placeholder="操作者（精确）"
           value={actor}
           onChange={(e) => setActor(e.target.value)}
-          sx={{ ...denseInputSx, width: 160 }}
+          sx={{ width: 160 }}
           slotProps={{
             htmlInput: {
               'aria-label': '按操作者过滤（精确匹配）',
@@ -237,7 +237,7 @@ export default function AuditPage() {
           size="small"
           value={action}
           onChange={(e) => setAction(e.target.value)}
-          sx={{ ...denseInputSx, width: 180 }}
+          sx={{ width: 180 }}
           slotProps={{
             select: {
               native: true,
@@ -262,7 +262,7 @@ export default function AuditPage() {
             type="datetime-local"
             value={sinceLocal}
             onChange={(e) => setSinceLocal(e.target.value)}
-            sx={{ ...denseInputSx, width: 200 }}
+            sx={{ width: 200 }}
             slotProps={{ htmlInput: { 'aria-label': '起始时间（含）', 'data-testid': 'audit-filter-since' } }}
           />
         </label>
@@ -273,7 +273,7 @@ export default function AuditPage() {
             type="datetime-local"
             value={untilLocal}
             onChange={(e) => setUntilLocal(e.target.value)}
-            sx={{ ...denseInputSx, width: 200 }}
+            sx={{ width: 200 }}
             slotProps={{ htmlInput: { 'aria-label': '截止时间（不含）', 'data-testid': 'audit-filter-until' } }}
           />
         </label>
@@ -283,7 +283,7 @@ export default function AuditPage() {
           placeholder="对象路径包含（仅已加载）"
           value={path}
           onChange={(e) => setPath(e.target.value)}
-          sx={{ ...denseInputSx, ...monoInputSx, width: 200 }}
+          sx={{ ...monoInputSx, width: 200 }}
           slotProps={{
             htmlInput: {
               'aria-label': '按对象路径过滤（仅已加载条目）',
@@ -294,7 +294,7 @@ export default function AuditPage() {
           }}
         />
         {hasFilter && (
-          <Button variant="outlined" size="small" sx={rowBtnSx} onClick={clearFilters}>
+          <Button variant="outlined" size="small" onClick={clearFilters}>
             清除过滤
           </Button>
         )}
@@ -325,7 +325,7 @@ export default function AuditPage() {
               message="当前过滤条件下无匹配事件"
               hint="仓库 / 操作者为精确匹配；时间窗为闭开区间（起含、止不含）。"
               action={
-                <Button variant="outlined" size="small" sx={rowBtnSx} onClick={clearFilters}>
+                <Button variant="outlined" size="small" onClick={clearFilters}>
                   清除过滤
                 </Button>
               }
@@ -339,7 +339,7 @@ export default function AuditPage() {
           )
         ) : (
           <>
-            <Table className="table" data-testid="audit-table">
+            <Table data-testid="audit-table">
               <TableHead>
                 <TableRow>
                   <TableCell component="th" scope="col">时间</TableCell>
@@ -356,7 +356,7 @@ export default function AuditPage() {
                   const json = detailJSON(ev.detail)
                   const remote = detailRemoteAddr(ev.detail)
                   return (
-                    <TableRow key={ev.id} data-testid={`audit-row-${i}`}>
+                    <TableRow key={ev.id} data-testid={`audit-row-${i}`} hover>
                       <TableCell className="mono audit-time" title={ev.time}>
                         {formatAuditTime(ev.time)}
                       </TableCell>
@@ -364,7 +364,7 @@ export default function AuditPage() {
                       <TableCell className="mono" lang="en">
                         {ev.action}
                       </TableCell>
-                      <TableCell className="mono wrap" sx={{ maxWidth: 360 }} lang="en">
+                      <TableCell className="mono" sx={{ maxWidth: 360, whiteSpace: 'normal', wordBreak: 'break-all' }} lang="en">
                         {target || '—'} {target && <CopyButton value={target} label={`审计对象 ${target}`} />}
                       </TableCell>
                       <TableCell className="mono" lang="en">
@@ -390,7 +390,7 @@ export default function AuditPage() {
                 <Button
                   variant="outlined"
                   size="small"
-                  sx={rowBtnSx}
+                 
                   disabled={loadingMore}
                   onClick={() => void loadMore()}
                   data-testid="audit-more"

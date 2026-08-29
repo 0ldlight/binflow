@@ -15,7 +15,7 @@ import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { apiJSON } from '../../lib/api'
 import { formatBytes } from '../../lib/format'
-import { denseInputSx, monoInputSx, rowBtnSx } from '../../lib/muiAtoms'
+import { monoInputSx } from '../../lib/muiAtoms'
 import { useAsync } from '../../lib/useAsync'
 
 import './search.css'
@@ -242,7 +242,7 @@ export default function SearchPage() {
               setRecentActive(-1)
             }}
             onKeyDown={onInputKeyDown}
-            sx={{ ...denseInputSx, ...monoInputSx, width: 420 }}
+            sx={{ ...monoInputSx, width: 420 }}
             slotProps={{
               htmlInput: {
                 'data-testid': 'search-input',
@@ -294,7 +294,7 @@ export default function SearchPage() {
           placeholder="仓库过滤（逗号分隔 key）"
           value={repoFilter}
           onChange={(e) => setRepoFilter(e.target.value)}
-          sx={{ ...denseInputSx, ...monoInputSx, width: 240 }}
+          sx={{ ...monoInputSx, width: 240 }}
           slotProps={{ htmlInput: { 'data-testid': 'search-filter-repo', 'aria-label': '按仓库过滤', className: 'mono' } }}
         />
       </div>
@@ -319,7 +319,7 @@ export default function SearchPage() {
         />
       ) : (
         <>
-          <Table className="table">
+          <Table>
             <TableHead>
               <TableRow>
                 <TableCell component="th" scope="col">仓库</TableCell>
@@ -336,6 +336,7 @@ export default function SearchPage() {
                   <TableRow
                     key={`${r.repo}${r.path}`}
                     data-testid={`search-result-${i}`}
+                    hover
                     tabIndex={0}
                     onClick={() => gotoNode(r)}
                     onKeyDown={(e) => {
@@ -343,7 +344,7 @@ export default function SearchPage() {
                     }}
                   >
                     <TableCell className="mono" lang="en">{r.repo}</TableCell>
-                    <TableCell className="wrap">
+                    <TableCell sx={{ whiteSpace: 'normal', wordBreak: 'break-all' }}>
                       <div className="mono row-link" lang="en">{r.path}</div>
                       <div className="search-result-sub">
                         {sub ? (
@@ -382,7 +383,7 @@ export default function SearchPage() {
               <Button
                 variant="outlined"
                 size="small"
-                sx={rowBtnSx}
+               
                 data-testid="search-more"
                 onClick={() => setVisible((v) => v + PAGE)}
               >
