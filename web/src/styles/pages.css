@@ -161,25 +161,10 @@
   font-size: var(--bf-fs-aux);
 }
 
-/* ---------- 危险区（P5，§4.5[7]） ---------- */
-
-.danger-zone {
-  border: 1px solid var(--bf-danger);
-  border-radius: var(--bf-r-md);
-  padding: var(--bf-sp-4);
-}
-
-.danger-zone h3 {
-  margin: 0 0 var(--bf-sp-2);
-  color: var(--bf-danger);
-  font-size: var(--bf-fs-h3);
-}
-
-.danger-zone p {
-  margin: 0 0 var(--bf-sp-3);
-  color: var(--bf-text-2);
-  font-size: var(--bf-fs-aux);
-}
+/* ---------- 危险区（P5，§4.5[7]） ----------
+ * .danger-zone 族已随 T-344 批 D 退役（mui-native-visual §3.3）：两位
+ * 消费者（权限编辑器 / 仓库详情）换 Paper variant="outlined" +
+ * borderColor error.main，类名留 DOM（inert）。 */
 
 /* ---------- tab（§4.5） ----------
  * .tabs 族已随 T-344 批 C 退役（mui-native-visual §3.3）：通用 tab 位换

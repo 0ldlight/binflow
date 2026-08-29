@@ -95,26 +95,10 @@
   line-height: 1.4;
 }
 
-/* ---------- 分区表单（§4.4 单页分区式：常规/来源成员/包类型专属/高级） ---------- */
-
-.repo-form-section {
-  border: 1px solid var(--bf-border);
-  border-radius: var(--bf-r-md);
-  padding: var(--bf-sp-4) var(--bf-sp-4) var(--bf-sp-3);
-  margin-bottom: var(--bf-sp-4);
-  background: var(--bf-surface-1);
-}
-
-.repo-form-section > h3 {
-  margin: 0 0 var(--bf-sp-3);
-  font-size: var(--bf-fs-h3);
-}
-
-.repo-form-section > .section-sub {
-  margin: calc(-1 * var(--bf-sp-2)) 0 var(--bf-sp-3);
-  font-size: var(--bf-fs-aux);
-  color: var(--bf-text-2);
-}
+/* ---------- 分区表单（§4.4 单页分区式：常规/来源成员/包类型专属/高级） ----------
+ * .repo-form-section 族已随 T-344 批 D 退役（mui-native-visual §3.5）：
+ * 六处分区换 Paper + Typography subtitle2（.section-sub 附注同批 Typography
+ * 化），手作分区卡规则整块删除。 */
 
 /* 页级只读注记（M7 §7.3 推广形态；security.css 同款语义，本域自持） */
 .page-note {

@@ -428,18 +428,17 @@
 /* 两步资源对话框：base.css 的 .modal 是 440px（危险确认体量）；穿梭双列
    + pattern 双栏需要宽体——本页面组自持加宽类叠加，不动共享层。 */
 
-.modal.perm-res-modal {
-  width: min(720px, calc(100vw - 48px));
-}
-
+/* .modal.perm-res-modal 宽度行已随 T-344 批 D 退役：ResourceDialog 换
+ * MUI Dialog，720px 由 paper slotProps sx 承载。step/body 的负 margin
+ * 原是补偿 .modal 手作 padding——DialogContent 自带 20px padding，收直。 */
 .perm-res-step {
-  margin: calc(-1 * var(--bf-sp-2)) 0 var(--bf-sp-3);
+  margin: 0 0 var(--bf-sp-2);
   font-size: var(--bf-fs-aux);
   color: var(--bf-text-2);
 }
 
 .perm-res-body {
-  margin-bottom: var(--bf-sp-4);
+  margin-bottom: var(--bf-sp-2);
 }
 
 /* 编辑器 [2] 区的模式只读摘要（编辑面在对话框第 2 步——§6.11 线框）。
@@ -472,25 +471,7 @@
  * 沿袭——status-pill 仍不挂 .badge 基类）。 */
 
 /* 删用户危险区（console-m8 §6.14 危险区模式的用户编辑页实例）：红边
-   分区 + 影响面摘要 + 强确认入口（确认对话框本体在共享 ConfirmDialog）。 */
-
-.sec-danger-zone {
-  margin-top: var(--bf-sp-4);
-  padding: var(--bf-sp-3) var(--bf-sp-4);
-  border: 1px solid color-mix(in srgb, var(--bf-danger) 45%, transparent);
-  border-radius: var(--bf-r-md);
-  background: color-mix(in srgb, var(--bf-danger) 6%, transparent);
-}
-
-.sec-danger-zone .dz-head {
-  color: var(--bf-danger);
-  font-weight: 600;
-  margin-bottom: var(--bf-sp-1);
-}
-
-.sec-danger-zone .dz-note {
-  font-size: var(--bf-fs-aux);
-  color: var(--bf-text-2);
-  margin: 0 0 var(--bf-sp-2);
-  max-width: 72ch;
-}
+   分区 + 影响面摘要 + 强确认入口（确认对话框本体在共享 ConfirmDialog）。
+ * .sec-danger-zone 族已随 T-344 批 D 退役（§3.5）：Paper variant=
+ * "outlined" + borderColor error.main；dz-head/dz-note 类名随 Typography
+ * 续挂（inert）。 */

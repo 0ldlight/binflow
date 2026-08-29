@@ -4,11 +4,14 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 
 import Alert from '@mui/material/Alert'
 import Button from '@mui/material/Button'
+import Divider from '@mui/material/Divider'
+import Paper from '@mui/material/Paper'
+import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
+import Typography from '@mui/material/Typography'
 
 import { useAuth } from '../app/AuthContext'
 import { ApiError, errText } from '../lib/api'
-import { denseInputSx } from '../lib/muiAtoms'
 
 // 登录页（console-ux §4.1 / FR-23 W09；T-158 增 SSO）：独立布局（无侧
 // 导航壳）；用户名 + 口令；行内 401 错误（文案不泄露存在性——服务端本来
@@ -29,6 +32,12 @@ import { denseInputSx } from '../lib/muiAtoms'
 // → 密码直连，两输入间无可聚焦元素）、Enter 隐式提交（提交钮显式
 // type="submit"——MUI Button 默认 type="button"，必须覆写）、探测/复核
 // 状态机、锚点全部不动（login-* 落在 input 按钮本体上）。
+//
+// T-344 批 D：残面换装收口（mui-native-visual §3.2 login 行 / §4.3）——
+// 手作 .login-* 卡族退役，Stack + Paper(elevation 3) + TextField 浮标
+// label + Button(contained, medium) + Divider 承载；.login-divider 类名
+// 留 DOM（§3.8 钩子——login.spec 的 SSO 关闭态计数腿）。锚点与状态机
+// 零变化。
 
 /** SSO 浏览器入口（后端契约：GET → 302 IdP；disabled → 404 E-26） */
 const OIDC_LOGIN_URL = '/binflow/api/v1/oidc/login'
@@ -140,20 +149,37 @@ export default function LoginPage() {
   const canSubmit = username.trim() !== '' && password !== '' && !submitting
 
   return (
-    <div className="login-page" data-testid="login-page">
-      <div className="login-brand">
-        <h1>
+    <Stack
+      component="div"
+      data-testid="login-page"
+      sx={{
+        minHeight: '100vh',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 'var(--bf-sp-5)',
+        py: 'var(--bf-sp-5)',
+        px: 'var(--bf-sp-3)',
+      }}
+    >
+      <Stack sx={{ textAlign: 'center' }}>
+        <Typography variant="h5" component="h1">
           BinFlow <span aria-hidden="true">◆</span>
-        </h1>
-        <p>制品仓库控制台</p>
-      </div>
-      {/* 表单本体保持原生 <form>（Enter 隐式提交链路零变化）；卡片面继续
-          由 .login-card 承载（MUI 的输入/按钮/错误面在卡内逐个替换） */}
-      <form className="login-card" onSubmit={(e) => void onSubmit(e)}>
-        <div className="field">
-          <label htmlFor="login-username">用户名</label>
+        </Typography>
+        <Typography color="text.secondary" sx={{ mt: 'var(--bf-sp-1)' }}>
+          制品仓库控制台
+        </Typography>
+      </Stack>
+      {/* 表单本体保持原生 <form>（Enter 隐式提交链路零变化）；卡片面 =
+          Paper elevation 3（§4.3 登录页目标态） */}
+      <Paper
+        component="form"
+        elevation={3}
+        onSubmit={(e) => void onSubmit(e)}
+        sx={{ width: 'min(380px, 100%)', p: 'var(--bf-sp-5)' }}
+      >
+        <Stack sx={{ gap: 'var(--bf-sp-3)' }}>
           <TextField
-            id="login-username"
+            label="用户名"
             size="small"
             fullWidth
             name="username"
@@ -161,14 +187,10 @@ export default function LoginPage() {
             autoFocus
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            sx={denseInputSx}
             slotProps={{ htmlInput: { className: 'mono', 'data-testid': 'login-username', spellCheck: false } }}
           />
-        </div>
-        <div className="field">
-          <label htmlFor="login-password">密码</label>
           <TextField
-            id="login-password"
+            label="密码"
             size="small"
             fullWidth
             name="password"
@@ -176,54 +198,44 @@ export default function LoginPage() {
             autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            sx={denseInputSx}
             slotProps={{ htmlInput: { 'data-testid': 'login-password' } }}
           />
-        </div>
-        {error && (
-          <Alert severity="error" data-testid="login-error" role="alert" sx={{ mt: 'var(--bf-sp-2)' }}>
-            {error}
-          </Alert>
-        )}
-        <div className="actions">
-          <Button
-            type="submit"
-            variant="contained"
-            size="small"
-            fullWidth
-            data-testid="login-submit"
-            disabled={!canSubmit}
-          >
+          {error && (
+            <Alert severity="error" data-testid="login-error" role="alert">
+              {error}
+            </Alert>
+          )}
+          <Button type="submit" variant="contained" size="medium" fullWidth data-testid="login-submit" disabled={!canSubmit}>
             {submitting ? '登录中…' : '登录'}
           </Button>
-        </div>
-        {sso === 'on' && (
-          <>
-            <div className="login-divider" aria-hidden="true">
-              或
-            </div>
-            <Button
-              type="button"
-              variant="outlined"
-              size="small"
-              fullWidth
-              data-testid="login-sso"
-              disabled={ssoBusy}
-              onClick={() => void onSSO()}
-            >
-              {ssoBusy ? '正在跳转…' : '使用 SSO 登录'}
-            </Button>
-          </>
-        )}
-        {ssoError && (
-          <Alert severity="error" data-testid="sso-error" role="alert" sx={{ mt: 'var(--bf-sp-3)' }}>
-            {ssoError}
-          </Alert>
-        )}
-      </form>
+          {sso === 'on' && (
+            <>
+              <Divider className="login-divider" aria-hidden="true">
+                或
+              </Divider>
+              <Button
+                type="button"
+                variant="outlined"
+                size="medium"
+                fullWidth
+                data-testid="login-sso"
+                disabled={ssoBusy}
+                onClick={() => void onSSO()}
+              >
+                {ssoBusy ? '正在跳转…' : '使用 SSO 登录'}
+              </Button>
+            </>
+          )}
+          {ssoError && (
+            <Alert severity="error" data-testid="sso-error" role="alert">
+              {ssoError}
+            </Alert>
+          )}
+        </Stack>
+      </Paper>
       {/* 常驻说明 + 文档链接（console-m8 §6.1 [6]）。链接带下划线：弱化色
           说明文字中的链接需非色彩信号区分（axe link-in-text-block） */}
-      <p className="login-note">
+      <Typography component="p" variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
         管理面需认证。CI 与脚本请使用 API Token。
         <a
           href="/binflow/docs/api-reference"
@@ -234,7 +246,7 @@ export default function LoginPage() {
         >
           查看文档
         </a>
-      </p>
-    </div>
+      </Typography>
+    </Stack>
   )
 }

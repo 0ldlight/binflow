@@ -6,8 +6,10 @@ import Alert from '@mui/material/Alert'
 import Button from '@mui/material/Button'
 import Checkbox from '@mui/material/Checkbox'
 import FormControlLabel from '@mui/material/FormControlLabel'
+import Paper from '@mui/material/Paper'
 import Select from '@mui/material/Select'
 import TextField from '@mui/material/TextField'
+import Typography from '@mui/material/Typography'
 
 import { useAuth } from '../../app/AuthContext'
 import { useToast } from '../../app/ToastContext'
@@ -409,12 +411,21 @@ export default function UserDetailPage() {
           </span>
         </div>
         {admin && (
-          <div className="sec-danger-zone" data-testid="user-danger-zone">
-            <div className="dz-head">危险区</div>
-            <p className="dz-note">
+          /* T-344 批 D：sec-danger-zone Paper 化（§3.5 security 行）——
+             outlined + error 边，dz-head/dz-note 类名随规则退役留 DOM */
+          <Paper
+            variant="outlined"
+            className="sec-danger-zone"
+            sx={{ mt: 'var(--bf-sp-4)', p: 'var(--bf-sp-3) var(--bf-sp-4)', borderColor: 'error.main' }}
+            data-testid="user-danger-zone"
+          >
+            <Typography className="dz-head" variant="subtitle2" component="div" color="error" sx={{ mb: 0.5 }}>
+              危险区
+            </Typography>
+            <Typography className="dz-note" variant="body2" color="text.secondary" sx={{ mb: 1, maxWidth: '72ch' }}>
               删除不可恢复（组员/授权/token/会话同事务级联；审计保留）。人员离场的可逆路径是
               <b>禁用</b>（选项区）——删除仅用于账号彻底清退。
-            </p>
+            </Typography>
             {deleteBlocked ? (
               <Button
                 variant="outlined"
@@ -439,7 +450,7 @@ export default function UserDetailPage() {
                 删除用户
               </Button>
             )}
-          </div>
+          </Paper>
         )}
       </section>
     </div>

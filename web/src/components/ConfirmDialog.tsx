@@ -88,9 +88,13 @@ function ConfirmDialog({
   // （首 pass 渲染空、Portal 内容随后续 commit 才进 DOM）——挂载期
   // useEffect 里 ref 尚为 null；用回调 ref + 微任务在按钮真实落 DOM 的
   // 那个 commit 后聚焦（disableAutoFocus 让开 FocusTrap 的 paper 首焦）。
-  const focusCancel = (node: HTMLButtonElement | null) => {
+  // ref 必须 useCallback 稳定引用（T-344E 修正）：每次渲染新建函数会让
+  // React 重挂 ref（null → node），body 内输入每敲一个字符（bump 重渲染）
+  // 就把焦点抢回取消钮——fill 型 spec 不可见（一次性 input 事件），type
+  // 型键盘流实测炸（键入落进按钮）。
+  const focusCancel = useCallback((node: HTMLButtonElement | null) => {
     if (node) queueMicrotask(() => node.focus())
-  }
+  }, [])
 
   // Esc 兜底：MUI Modal 的 Esc 监听在 modal root 上（事件冒泡路径内才
   // 生效）——焦点掉到 body 时（如 body 内控件卸载）Esc 到不了 root。

@@ -16,25 +16,10 @@
  * §3.5）：MUI Tabs + Tab component={Link}——锚 authcfg-tab-* 落 Tab 根
  * （<a>）、aria-current=page 续挂，方向键/指示条交 MUI。 */
 
-/* 分组卡（§4.4 分区式表单同语言）：标题 + 提示行 + 网格字段 */
-.authcfg-group {
-  border: 1px solid var(--bf-border);
-  border-radius: var(--bf-r-md);
-  padding: var(--bf-sp-4);
-  margin-bottom: var(--bf-sp-4);
-  background: var(--bf-surface-1);
-}
-
-.authcfg-group > h3 {
-  margin: 0 0 var(--bf-sp-1);
-  font-size: var(--bf-fs-h3);
-}
-
-.authcfg-group > .authcfg-group-hint {
-  margin: 0 0 var(--bf-sp-3);
-  font-size: var(--bf-fs-aux);
-  color: var(--bf-text-2);
-}
+/* 分组卡（§4.4 分区式表单同语言）：标题 + 提示行 + 网格字段。
+ * .authcfg-group 族已随 T-344 批 D 退役（§3.5）：三处分组换 Paper +
+ * Typography（hint = body2 text.secondary）。类名留 DOM——§3.8 钩子
+ * （auth-config.spec 的 `.authcfg-group` 定位），规则删除后纯 inert。 */
 
 /* 字段网格：minmax 密度带（P1），full 字段（URL/证书/密码）撑满整行 */
 .authcfg-grid {

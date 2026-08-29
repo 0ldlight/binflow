@@ -7,6 +7,7 @@ import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Checkbox from '@mui/material/Checkbox'
 import FormControlLabel from '@mui/material/FormControlLabel'
+import Paper from '@mui/material/Paper'
 import Tab from '@mui/material/Tab'
 import Tabs from '@mui/material/Tabs'
 import TextField from '@mui/material/TextField'
@@ -337,11 +338,13 @@ function SamlCertCard({ canWrite }: { canWrite: boolean }) {
   const readonlyTitle = '只读管理员不可写（服务端 403 兜底）；公钥证书可下载'
 
   return (
-    <div className="authcfg-group">
-      <h3>SP 加密证书（服务提供方公钥）</h3>
-      <p className="authcfg-group-hint">
+    <Paper className="authcfg-group" sx={{ p: 2, mb: 2 }}>
+      <Typography variant="subtitle2" component="h3" sx={{ mb: 0.5 }}>
+        SP 加密证书（服务提供方公钥）
+      </Typography>
+      <Typography className="authcfg-group-hint" variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
         Use Encrypted Assertion 需要 IdP 持有本服务的公钥证书（勾选保存时若未生成，服务端会自动生成一份）。私钥由服务端密封保存、永不外发——这里只有公钥面。
-      </p>
+      </Typography>
       {/* 四态：loading 只出骨架（禁用态按钮的 MUI 灰对比度不达标——
           控件待数据到达再上，与 SectionPanel 的 Skeleton 先行同语言）；
           错误出错误卡 + 重试；数据态分「未生成/已生成」两呈现 */}
@@ -397,7 +400,7 @@ function SamlCertCard({ canWrite }: { canWrite: boolean }) {
           </div>
         </>
       )}
-    </div>
+    </Paper>
   )
 }
 
@@ -501,9 +504,15 @@ function SectionPanel({ def, canWrite }: { def: SectionDef; canWrite: boolean })
             </Alert>
           )}
           {def.groups.map((g) => (
-            <div className="authcfg-group" key={g.title}>
-              <h3>{g.title}</h3>
-              {g.hint && <p className="authcfg-group-hint">{g.hint}</p>}
+            <Paper className="authcfg-group" key={g.title} sx={{ p: 2, mb: 2 }}>
+              <Typography variant="subtitle2" component="h3" sx={{ mb: 0.5 }}>
+                {g.title}
+              </Typography>
+              {g.hint && (
+                <Typography className="authcfg-group-hint" variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                  {g.hint}
+                </Typography>
+              )}
               <div className="authcfg-grid">
                 {g.fields.map((f) => (
                   <FieldControl
@@ -516,7 +525,7 @@ function SectionPanel({ def, canWrite }: { def: SectionDef; canWrite: boolean })
                   />
                 ))}
               </div>
-            </div>
+            </Paper>
           ))}
 
           {/* SAML 专属：SP 加密证书卡（下载/重生成——T-331 三端点接线，
@@ -524,11 +533,13 @@ function SectionPanel({ def, canWrite }: { def: SectionDef; canWrite: boolean })
           {def.id === 'saml' && <SamlCertCard key={certTick} canWrite={canWrite} />}
 
           {/* 测试连接（POST …/test 双形态：候选 = 当前表单值；存量 = 空体探已保存配置） */}
-          <div className="authcfg-group" data-testid="authcfg-test">
-            <h3>测试连接</h3>
-            <p className="authcfg-group-hint">
+          <Paper className="authcfg-group" data-testid="authcfg-test" sx={{ p: 2, mb: 2 }}>
+            <Typography variant="subtitle2" component="h3" sx={{ mb: 0.5 }}>
+              测试连接
+            </Typography>
+            <Typography className="authcfg-group-hint" variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
               候选探测提交当前表单值（不落库）；存量探测直接探测已保存配置。LDAP 可附测试账号做真实用户绑定（§1.6——两半须齐备）。
-            </p>
+            </Typography>
             <div className="authcfg-test-actions">
               {def.testCreds && (
                 <>
@@ -588,7 +599,7 @@ function SectionPanel({ def, canWrite }: { def: SectionDef; canWrite: boolean })
               )}
             </div>
             {report && <TestReportBox report={report} />}
-          </div>
+          </Paper>
 
           {saveError && (
             <Alert
