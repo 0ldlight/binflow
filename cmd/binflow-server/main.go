@@ -49,6 +49,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/adapter/generic"
 	"github.com/lzwzzy/binflow/internal/adapter/goproxy"
 	"github.com/lzwzzy/binflow/internal/adapter/helm"
+	"github.com/lzwzzy/binflow/internal/adapter/helmoci"
 	"github.com/lzwzzy/binflow/internal/adapter/maven"
 	"github.com/lzwzzy/binflow/internal/adapter/npm"
 	"github.com/lzwzzy/binflow/internal/adapter/nuget"
@@ -445,6 +446,16 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// addons.Helm() slot carries the pro-tier gating (T-282/T-283).
 	helmHandler := helm.Register(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.md.NodeProps(), stack.md.Remote(),
 		helm.Options{BaseURL: cfg.Server.BaseURL})
+	// helmoci (M12/T-342, FR-109/HL-3): the registry-v2 Helm face. The
+	// protocol surface IS the docker /v2 plane built above — repositories
+	// with package_type=helmoci route to it through the plane's family
+	// gate — so this registration is the shell the content-plane dispatch
+	// and the addon-slot assembly guard need (internal/adapter/helmoci's
+	// package comment carries the wire surface). LOCAL repositories only;
+	// the addons.HelmOCI() slot carries the pro-tier gating, consulted by
+	// the /v2 write face's row-resolved package type (gateV2Write) and the
+	// repo-create plane (weave 2).
+	helmociHandler := helmoci.Register(dockerHandler)
 	// rpm (M11/T-311, the RPM/YUM package type): same wiring story as
 	// cargo/helm — the content plane dispatches on package_type="rpm" and
 	// the provider registration classifies the repodata family as
@@ -523,7 +534,7 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 		GC:       stack.st,
 		DataDir:  cfg.Storage.DataDir,
 		Console:  console.Handler(),
-		Adapters: []adapter.Handler{stack.genericHandler, dockerHandler, mavenHandler, npmHandler, pypiHandler, goproxyHandler, nugetHandler, cargoHandler, conanHandler, helmHandler, rpmHandler, debHandler},
+		Adapters: []adapter.Handler{stack.genericHandler, dockerHandler, mavenHandler, npmHandler, pypiHandler, goproxyHandler, nugetHandler, cargoHandler, conanHandler, helmHandler, helmociHandler, rpmHandler, debHandler},
 		// The adapters' management mounts (ADR-0034): conan's reindex
 		// family today; helm/yum serve their faces through the router's
 		// own handlers (the adapter-seam pattern) instead.
@@ -622,7 +633,7 @@ func addonManifest() *addons.Registry {
 		addons.Generic(), addons.Docker(), addons.Maven(), addons.Npm(), addons.Pypi(),
 		// Gated pilot package-type slots (pro; the adapters land with their
 		// own tickets — the slots exist so gate/view/legal-set are complete).
-		addons.Go(), addons.NuGet(), addons.Cargo(), addons.Conan(), addons.Helm(), addons.Rpm(), addons.Debian(),
+		addons.Go(), addons.NuGet(), addons.Cargo(), addons.Conan(), addons.Helm(), addons.HelmOCI(), addons.Rpm(), addons.Debian(),
 		// Feature slots: properties on the floor, repo-operations at pro
 		// (the Q4 final ruling — the copy/move/archive family mirrors
 		// Artifactory's entitlement posture), trashcan at pro (the Q3

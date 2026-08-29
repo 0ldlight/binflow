@@ -282,18 +282,26 @@ func refuseNonLocalWrite(row *metadata.Repo) error {
 	return nil
 }
 
-// loadLocalDockerRepo resolves repoKey and asserts it is a local DOCKER
-// repository — the docker use cases refuse to serve any other package type,
-// even another local one (the /v2 plane would otherwise index generic
-// content under a registry name).
+// isV2PlaneFamily reports the registry-v2 package-type family (HL-3):
+// docker itself plus helmoci, whose repositories the docker /v2 plane
+// serves through the same use cases (one stack, two package types — the
+// helmoci adapter is only the registration shell).
+func isV2PlaneFamily(packageType string) bool {
+	return packageType == PackageDocker || packageType == PackageHelmOCI
+}
+
+// loadLocalDockerRepo resolves repoKey and asserts it is a local
+// registry-v2 family repository (docker or helmoci, HL-3) — the /v2 use
+// cases refuse to serve any other package type, even another local one
+// (the plane would otherwise index generic content under a registry name).
 func (s *service) loadLocalDockerRepo(ctx context.Context, repoKey string) (*metadata.Repo, error) {
 	r, err := s.loadLocalRepo(ctx, repoKey)
 	if err != nil {
 		return nil, err
 	}
-	if r.PackageType != PackageDocker {
-		return nil, fmt.Errorf("repo %q: %w: package type is %q, not %q",
-			repoKey, ErrRepoTypeNotSupported, r.PackageType, PackageDocker)
+	if !isV2PlaneFamily(r.PackageType) {
+		return nil, fmt.Errorf("repo %q: %w: package type is %q, not one of the registry v2 family (%s, %s)",
+			repoKey, ErrRepoTypeNotSupported, r.PackageType, PackageDocker, PackageHelmOCI)
 	}
 	return r, nil
 }
@@ -2450,15 +2458,16 @@ func (s *service) DeleteRepo(ctx context.Context, p *Principal, repoKey string, 
 	if err != nil {
 		return fmt.Errorf("repo %q nodes: %w", repoKey, err)
 	}
-	// A docker repository also "holds content" through its manifest index —
-	// a repo whose nodes were pruned but whose manifests remain (digest-only
+	// A registry-v2 family repository (docker or helmoci, HL-3) also "holds
+	// content" through its manifest index — a repo whose nodes were pruned
+	// but whose manifests remain (digest-only
 	// pushes leave no folder rows, tags go under the image name) is not
 	// empty either. Counting the catalog is the cheap sufficient probe.
 	// (Tag rows cannot outlive their manifest: PutManifest writes the
 	// manifest row before the tag, and the store's delete cascade removes
 	// both in one transaction.)
 	images := 0
-	if repoRow.PackageType == PackageDocker {
+	if isV2PlaneFamily(repoRow.PackageType) {
 		rows, err := s.md.Docker().ListImages(ctx, repoKey, "", 0)
 		if err != nil {
 			return fmt.Errorf("repo %q docker catalog: %w", repoKey, err)

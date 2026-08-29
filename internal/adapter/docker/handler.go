@@ -200,9 +200,9 @@ func (h *Handler) serveNameRoute(w http.ResponseWriter, r *http.Request, path st
 			"repository lookup failed", nil)
 		return
 	}
-	if row == nil || row.PackageType() != Protocol {
+	if row == nil || !servesV2Plane(row.PackageType()) {
 		// One 404 for both causes (NAME_UNKNOWN, spec wording): "repo does
-		// not exist" and "repo is not a docker repo" must not be
+		// not exist" and "repo is not a registry-v2 family repo" must not be
 		// distinguishable to an unauthenticated caller.
 		writeSpecError(w, http.StatusNotFound, ErrCodeNameUnknown,
 			fmt.Sprintf("repository name not known to registry: %q", ref.repoKey), nil)

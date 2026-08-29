@@ -192,10 +192,15 @@ func contentAuditPath(r *http.Request, repoKey string) string {
 // "middleware cannot catch the bypasses" argument pointed at this exact
 // seam). Reads pass (D1); the token endpoint is an AUTH plane, never a
 // content write; single-segment paths are the adapter's 404 shape and skip
-// the question. The docker slot is a floor slot, so this arm only ever
-// refuses under the addons.disabled breaker — exactly the arm PRD 85.3's AC
-// describes (the registry write family spans POST-initiate, PATCH-append
-// and PUT-finalize, so the verb set is wider than contentAction's).
+// the question. The gate consults the REPOSITORY ROW's package type, not a
+// hardcoded "docker" (T-342/HL-3): the plane serves the registry-v2 family,
+// and a helmoci repository's writes must gate on the helmoci slot — with
+// the row shape, a docker repository keeps the docker floor slot verbatim
+// (identical verdicts, identical audit labels) while the family's gated
+// members get their own. A row the lookup cannot resolve passes through:
+// the adapter's own gate answers the spec-body 404/500, and the license
+// question never leaks repository existence (the same ordering the RBAC
+// door upstream upholds).
 func (s *Server) gateV2Write(w http.ResponseWriter, r *http.Request, escapedPath string) bool {
 	switch r.Method {
 	case http.MethodPut, http.MethodPost, http.MethodPatch, http.MethodDelete:
@@ -213,5 +218,12 @@ func (s *Server) gateV2Write(w http.ResponseWriter, r *http.Request, escapedPath
 	if repoKey == "" || tail == "" {
 		return true
 	}
-	return s.gateAddonWrite(w, r, repoKey, "docker")
+	row, err := s.deps.Repos.Get(r.Context(), repoKey)
+	if err != nil || row == nil {
+		// A miss or a lookup fault is not an entitlement verdict: the
+		// adapter's repo gate renders the honest spec body right behind
+		// this point (NAME_UNKNOWN for the miss, the 500 for the fault).
+		return true
+	}
+	return s.gateAddonWrite(w, r, repoKey, row.PackageType)
 }

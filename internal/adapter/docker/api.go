@@ -24,6 +24,20 @@ var _ RepoLookup = storeRepoLookup{}
 // Protocol is the package-type identifier this adapter serves.
 const Protocol = "docker"
 
+// servesV2Plane reports whether one repository package type belongs to the
+// registry-v2 family this plane serves (HL-3, helm.md section 8.2):
+// "docker" itself plus "helmoci" — the HelmOCI package type rides the SAME
+// /v2 wire surface through this handler (Artifactory's isDockerGroup =
+// {Docker, OCI, HelmOCI} is the reference posture: one docker v2 stack
+// serves the whole family, differentiated only by which repository rows
+// route to it). The helmoci package type's own adapter
+// (internal/adapter/helmoci) is the registration and content-plane shell;
+// the protocol face lives here, so the family set is a docker-plane fact,
+// not an assembly knob.
+func servesV2Plane(packageType string) bool {
+	return packageType == Protocol || packageType == repo.PackageHelmOCI
+}
+
 // ServiceID is the token-flow service name announced in the Bearer
 // challenge (ADR-0010 clause 4: service="binflow").
 const ServiceID = "binflow"

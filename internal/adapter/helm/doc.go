@@ -89,7 +89,10 @@
 // charts-base-aligned member path, the upstream's own _external face onto
 // _transitive, the allow-list-hit external URL onto the folded _external
 // proxy path, the allow-list miss kept verbatim, oci:// entries kept
-// verbatim (BinFlow's virtual serves no OCI plane). The aggregation
+// verbatim (D-5 re-evaluated with T-342: the helmoci package type serves
+// the /v2 plane on LOCAL repositories only — no OCI face stands behind
+// this virtual's oci:// entries, so the passthrough stays the honest
+// rewrite). The aggregation
 // computes PER REQUEST (the pypi/npm/maven virtual posture — no on-disk
 // .index cache; member changes and member chart uploads are visible to
 // the next request, and the S7 cache-invalidation step is vacuous). The
