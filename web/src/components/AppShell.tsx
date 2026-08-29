@@ -83,9 +83,9 @@ const APP_NAV: NavGroup[] = [
   },
 ]
 
-/** 管理模式侧栏（console-m8 §1.3 全图：五分组 12 条目 + M10 T-288 的
- * 「常规」分组 License & Add-ons = 13 条目；分组标题是标签不是折叠项
- * ——沿 console-ux §3.1 纪律） */
+/** 管理模式侧栏（console-m8 §1.3 全图：五分组；M10 T-288 License & Add-ons、
+ * M11 T-307 认证配置、M12 T-352 回收站增补后 = 15 条目；分组标题是标签
+ * 不是折叠项——沿 console-ux §3.1 纪律） */
 const ADMIN_NAV: NavGroup[] = [
   {
     title: '仓库',
@@ -111,6 +111,8 @@ const ADMIN_NAV: NavGroup[] = [
       { label: '配额', to: '/admin/governance/quotas' },
       { label: '复制', to: '/admin/governance/replication' },
       { label: '备份 / 恢复', to: '/admin/governance/backup' },
+      // M12 T-352：回收站（FR-106——浏览/恢复/清空；trashcan 槽门控态呈现）
+      { label: '回收站', to: '/admin/governance/trash' },
     ],
   },
   {
@@ -186,6 +188,7 @@ function adminCrumbs(pathname: string): Crumb[] {
     quotas: '配额',
     replication: '复制',
     backup: '备份 / 恢复',
+    trash: '回收站',
   }
   if (pathname.startsWith('/admin/governance/')) {
     const seg = pathname.slice('/admin/governance/'.length)

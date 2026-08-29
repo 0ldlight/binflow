@@ -29,7 +29,8 @@ export const EMPTY_AUDIT_FILTERS: AuditFilters = { repo: '', actor: '', action: 
 /** 审计分页大小（console-ux §6.1：与 docker API n 缺省一致） */
 export const AUDIT_PAGE_SIZE = 100
 
-/** 审计动作词表（internal/audit Actions() 的前端镜像，GE-02：选择器与断言源）。
+/** 审计动作词表（internal/audit Actions() 的前端镜像，GE-02：选择器与断言源；
+ * T-353 对 T-346（FR-113.4）后的全量 picker 逐枚对照同步——54 枚）。
  * 过滤未知动作只是匹配零行（前向兼容），不报错。 */
 export const AUDIT_ACTIONS: readonly string[] = [
   'deploy',
@@ -56,6 +57,37 @@ export const AUDIT_ACTIONS: readonly string[] = [
   'export.run',
   'import.run',
   'quota.exceeded',
+  'cleanup.run', // M12 T-324（FR-102.2）：unused-cleanup 引擎运行（手动/定时同词）
+  // ---- T-346（FR-113.4）：M6~M12 累积词表入 picker，29 枚逐枚对照 ----
+  'props.write', // M4 属性面（T-286）
+  'props.delete',
+  'replication.push', // M6 T-180 复制配置/事件面
+  'replication.push.failed',
+  'replication.config.create',
+  'replication.config.delete',
+  'keypair.create', // M11 T-319 签名密钥对
+  'keypair.update',
+  'keypair.generate',
+  'keypair.delete',
+  'keypair.verify',
+  'keypair.associate',
+  'auth.config.update', // M11 T-305 认证配置（SAML SP 密钥动词 = T-331）
+  'auth.config.test',
+  'auth.config.samlkey.generate',
+  'auth.config.samlkey.regenerate',
+  'license.install', // M10 license 面 + T-283 addon 门
+  'license.delete',
+  'license.invalid',
+  'license.addon.denied',
+  'artifact.copy', // M12 T-339/T-343 制品操作族
+  'artifact.move',
+  'artifact.explode',
+  'trash.restore', // M12 T-345 回收站
+  'trash.empty',
+  'trash.clean',
+  'trash.retention',
+  'storage.replay.window', // M12 T-338 dual-write fail-open
+  'storage.replay.drained',
 ]
 
 /** 组装 /v1/audit 查询串（空值不进参数） */

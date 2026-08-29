@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 文档 | `docs/design/console-ux.md` |
-| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账）/ T-291（v1.11：Properties 页签锚册——MUI 首票）/ T-307（v1.12：认证配置页组锚册——admin/security/auth 域）/ T-344（v1.14：密度档修订——MUI small 档，mui-native-visual §7 登记） |
-| 状态 | v1.14（2026-08-29） |
+| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账）/ T-291（v1.11：Properties 页签锚册——MUI 首票）/ T-307（v1.12：认证配置页组锚册——admin/security/auth 域）/ T-344（v1.14：密度档修订——MUI small 档，mui-native-visual §7 登记）/ T-352+T-353（v1.15：回收站页锚册 trash-* 族 + 建仓表单策略键生成器扩容） |
+| 状态 | v1.15（2026-08-29） |
 | 维护者 | ux-designer |
 | 上游依据 | PRODUCT.md（Web 控制台/治理/Non-goals）、ROADMAP.md M4 节、docs/prd/milestone-1/2/3/4.md（端点矩阵与已定案行为）、docs/user/docker-registry.md（用户面口径）、docs/design/architecture.md §7（路由/console 挂载点）、internal/httpapi/router.go（路由门事实——§3.6.2 矩阵逐一核对）、reports/agents/T-98.md · T-99.md（漂移登记与 testid 素材）、reports/agents/T-98-review.md（N1 收敛建议）、BOARD.md（T-85 PRD / T-97 存在性不泄露裁决） |
 | 下游消费者 | T-86（架构：console 包/session/前端工程结构）、tech-lead（M4 拆票）、前端 dev（页面组票）、qa-engineer（控制台验收） |
@@ -31,6 +31,7 @@
 | v1.12 | 2026-08-27 | T-307 认证配置页组（M11 FR-92 FE 腿——LDAP/OAuth(OIDC)/SAML 三协议 Tab，`admin/security/auth` 域入「用户与权限」分组）：① §10.5 路由表新增 `/admin/security/auth/{ldap\|oauth\|saml}` 行；② **T-307 批 64 名锚入册**（三 Tab + 共享表单/测试连接块 + 三段字段全量——authcfg-* 前缀族）；③ 敏感字段交互入册口径：GET 哨兵回显→表单留空 + placeholder「留空保持不变」、提交时空值自 payload 剔除（哨兵回传是 400 红线，网络层断言） |
 | v1.13 | 2026-08-28 | T-307R SAML 证书管理两动作（T-307 遗留 1 × T-331 三端点就绪的 FE 接线，M11 FR-92 收口）：① **T-307R 批 2 名锚入册**（`authcfg-saml-spkey-download` / `authcfg-saml-spkey-regenerate`——SAML Tab SP 加密证书卡的下载/重生成按钮）；② 交互口径：下载即得 PEM（text/plain → Blob 落盘）、重生成经 ConfirmDialog danger 确认（旧证书即刻失效的后果提示）、未生成 404 = 锚定空态（下载禁用 + 重生成兼作生成入口）、regenerate 响应体即新证书（展示即时刷新）；③ 指纹行 SHA-256（over DER，openssl 可比对）走 §7.3 mono + CopyButton 基元，不设锚；确认对话框复用 confirm-dialog 族锚 |
 | v1.14 | 2026-08-29 | T-344 密度档修订（mui-native-visual §7 登记的回写）：① §7.2 密度行自「表格行高 32px / 导航项 32px / 控件高 32px」修订为「主字号 14px（MUI 默认档）/ MUI small 密度档（表格行 ≈33px、控件 small 带 ≈31px）」——P1 信息密度原则不变，实现档位换 MUI 原生档，手写 32px 压制随之废除；② §7.1 token 表维持（tokens.css 不动，`--bf-fs-body` 等值保留供 B/C 波退役前的残余 CSS 消费）；③ 上游依据 = docs/design/mui-native-visual.md（v1.0），逐波实施细节以该规范为准 |
+| v1.15 | 2026-08-29 | T-352+T-353（M12 FR-106/FR-113 FE 腿，聚票）：① **T-352 批 trash-* 锚族 13 名入册**（回收站管理页 /admin/governance/trash——治理分组第六页；§10.5 路由表补行）；② 建仓表单 **`form-${k}` 生成器族键闭集扩 12 键**（deb×6 / rpm×4 / helm×2——T-353 策略键字段册 policyFields.ts，照 T-307 anchor 属性形态；无新静态锚，§10.6 生成器行同步）；③ 交互口径：trashcan 槽锁定态照 License 页先例（addons 行实时求值）、恢复 ConfirmDialog 内嵌 to 输入（confirm-input 先例）、清空 = danger + 输入 EMPTY 强确认（GC apply 同款）、浏览骑存储面（listChildren / ?properties 五元组断言面同源） |
 
 ---
 
@@ -1055,6 +1056,7 @@ M8 路由表（console-m8 §1.4）重排后，§10.2/§10.3 的 **242 锚零改�
 | `/admin/security/{users\|groups\|permissions\|tokens}[/:name\|/new]` | `users-*` `user-*` `groups-*` `perm-*` 族 / `placeholder-page` | 原 `/security/*` |
 | `/admin/security/auth/{ldap\|oauth\|saml}` | `authcfg-page` 族（T-307 批，v1.12 入册——见下） | M11 新增：「用户与权限」分组第五页（认证配置三 Tab；索引 `/admin/security/auth` 重定向 ldap） |
 | `/admin/governance/{audit\|gc\|quotas\|replication\|backup}` | `audit-*` `gc-*` `quota-*` `repl-*` `backup-*` 族 | 原 `/audit` `/governance/*` |
+| `/admin/governance/trash` | `trash-*` 族（T-352 批，v1.15 入册——见下） | M12 新增：治理分组第六页（回收站管理） |
 | `/admin/monitoring/storage` | `storage-page` 族（T-238 批，v1.7 入册——D-1 收口） | 新路由；原行 `placeholder-page（新页归 T-238）` 已过时 |
 | `/admin/general/settings` | `settings` + `settings-instance` + `settings-health`（T-238 `SystemInfoPage` 承接；改密已迁 `/profile`——T-239） | 原 `/settings` |
 | `/admin/general/license` | `license-page` 族 + `addons-*` 矩阵族（T-288 批，v1.10 入册——见下） | M10 新增：「常规」分组第二页（license 状态 + addons 矩阵；导航项与页头同文案） |
@@ -1316,6 +1318,68 @@ confirm-dialog / confirm-accept 族锚（T-98 基座）；保存
 （useEncryptedAssertion=true）触发的 §3.3 服务端自动生成由卡片重挂载
 跟上（无新锚）。
 
+**T-352 回收站管理页新锚（13 名 = 9 静态 + 4 动态族，M12 FR-106 FE 腿；
+先入册再落码，v1.15；消费 spec = web/e2e/trash-can.spec.ts〔本票新增，
+全 mock 探针——真栈 community 形态锁死，浏览/恢复/清剿面走 dist 兜底〕）：**
+
+```
+页面（/admin/governance/trash，治理分组第六页）：
+  trash-page（页根——槽态/浏览/动作四态同根）
+  trash-locked（trashcan 槽锁定卡——License 页先例：GET /api/v1/addons
+    行实时求值，锁定时整数据面不渲染〔community 删除侧不捕获，can 恒空〕）
+  trash-unused（GET /api/storage/auto-trashcan 404 的锚定空态——内置仓
+    懒落库，尚未发生过捕获）
+  trash-readonly-note（readonly_admin 只读注记——浏览只读，写动作反断言）
+  trash-summary（empty/clean 的清剿摘要块：removed/files/folders/bytes；
+    含 blob 归 GC 的如实注记）
+浏览（骑既有存储面——listChildren / ?properties 五元组断言面同源）：
+  trash-breadcrumb（can 内路径面包屑容器——Breadcrumbs + 段级下钻）
+  trash-list（当前层条目表——名称〔mono+拷贝〕/类型/大小/修改时间/操作）
+  trash-row-<path>（行——path 为 can 相对路径；行点击选中详情，目录名
+    点击下钻）
+  trash-detail（选中条目详情面板——属性五元组逐行：trash.time〔格式化
+    + epoch ms〕/deletedBy/originalRepository/originalRepositoryType/
+    originalPath，原仓/原路径/sha256/回收站路径配 CopyButton）
+  trash-refresh（刷新钮）
+动作（system:write，仅全量 admin；readonly_admin 不渲染）：
+  trash-restore-<path>（行内恢复钮 → ConfirmDialog：内嵌 to 目的地输入
+    〔confirm-input 先例〕；恢复回执 = copy/move messages 原文 toast）
+  trash-restore-to（恢复对话框的目的地覆盖输入——留空 = 按原位恢复）
+  trash-clean-<path>（行内永久清除钮 → danger 确认〔子树影响面明示〕）
+  trash-empty（清空整罐 → danger + 输入 EMPTY 强确认〔GC apply 同款〕；
+    空罐/未落库态禁用）
+  trash-empty-confirm（清空对话框的 EMPTY 键入输入）
+```
+
+变更注记（T-352，dev-frontend 回写）：恢复的 `transaction-size` 参数
+语义惰性（逐项管线——注册差异，docs/user/admin/trash-can.md），FE 不设
+旋钮无锚；捕获跳过集/保留期数字属文案断言面，无锚；`trash-restore-to`
+是嵌在 ConfirmDialog body 里的原生 input（T-288 卸载 / T-102 GC 的
+confirm-input 同款）；NFR-S61（回收站制品不可匿名读）的 FE 侧断言 =
+管理壳会话守卫腿（匿名直链重定向 login），无新锚。
+
+**T-353 建仓表单策略键批（生成器族扩容，无新静态锚；M12 FR-113.2/113.5
+FE 腿——T-327R/T-329 D-E 的 REST 透传已就位，本票只加表单面）：**
+
+```
+form-<wire> 生成器族键闭集扩 12 键（web/src/pages/repositories/
+  policyFields.ts 字段册——`anchor = form-${wire}` 渲染位模板，照 T-307
+  字段册属性形态；local × 对应包类型才呈现于「高级」分区）：
+  deb（debian）×6：byHash〔select，值域闭集 NONE/SHA256/ALL——K45〕/
+    optionalIndexCompressionFormats〔逗号列表〕/debianDefaultArchitectures/
+    historyCycles/origin/label
+  rpm ×4：calculateYumMetadata〔check，RP-2〕/yumRootDepth/
+    enableFileListsIndexing/yumGroupFileNames
+  helm ×2：forceMetadataNameVersion/forceNonDuplicateChart
+  提交纪律：check/合法 number 恒进 body（POINTER 语义——布尔摘勾更新必须
+  过 round trip，否则关不掉）；空 text 剔除归默认。
+```
+
+变更注记（T-353，dev-frontend 回写）：`PackageType` 联合同步扩
+conan/helm/rpm/debian 四型（M11 注册表实态，建仓合法集仍由 addons API
+动态驱动）；审计动作词表前端镜像同步（web/src/lib/governance.ts——
+T-346 后 54 枚逐枚对照，无锚面）。
+
 **锚总量复核口径（v1.4 实测）**：`grep -rn "data-testid" web/src/` = **293 落点 / 29 文件**（v1.2 基线 242 之后，T-104~T-234 各票陆续增锚至 HEAD 的 283 落点——ADR-0029 原写 283 即此原始 grep 数）；T-235 净变化 = 壳**删 0 改 0、新增 10**（AppShell 10 → 20），占位路由新增 0（复用 `placeholder-page`）。另：`web/src/styles/theme-smoke.spec.ts`（7 处选择器引用，非锚）随 T-232 遗留①迁出 `src/` 至 `e2e/m8/theme-smoke.spec.ts`，不再计入 src 侧 grep。
 
 **锚总量（v1.2 核对基准）**：`grep -rn "data-testid" web/src/` = **242 处落点 / 27 文件**；动态族计一名约 **230 锚**（§10.2 + §10.3 合计）。v1.1 预定锚转正流程至此闭环（v1.1 文末「落码后回写本节并升 v1.2」约定兑现）。
@@ -1343,7 +1407,9 @@ transfer-*、user-row-*、perm-row-*），另有 v1.7 后新增的零消费锚�
 - **已知生成器/选择器族**（保持登记、不作死锚处置）：
   `form-*`（建仓表单远程参数生成器 `form-${k}`，k 闭集 =
   retrievalCachePeriodSecs / missedRetrievalCachePeriodSecs / socketTimeoutSecs /
-  assumedOfflinePeriodSecs，覆盖 §10.2 四个具名锚）；`smu-tab-*`（Tab 焦点管理
+  assumedOfflinePeriodSecs，覆盖 §10.2 四个具名锚；**T-353（v1.15）扩容**：
+  policyFields.ts 策略键字段册同以 `form-${wire}` 渲染，wire 闭集 = 上文
+  T-353 批 12 键〔deb×6 / rpm×4 / helm×2〕）；`smu-tab-*`（Tab 焦点管理
   的 querySelector 模板，非渲染锚）；`tree-repo-*` / `tree-node-*`（树深链滚动
   定位选择器 + 模板落点）。
 - **src 口径 = 第一方渲染 DOM 的锚落点**：`web/src` 全量（`data-testid="…"` /
