@@ -2,11 +2,15 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import Button from '@mui/material/Button'
+import Chip from '@mui/material/Chip'
+import Tab from '@mui/material/Tab'
 import Table from '@mui/material/Table'
 import TableBody from '@mui/material/TableBody'
 import TableCell from '@mui/material/TableCell'
 import TableHead from '@mui/material/TableHead'
 import TableRow from '@mui/material/TableRow'
+import TableSortLabel from '@mui/material/TableSortLabel'
+import Tabs from '@mui/material/Tabs'
 import TextField from '@mui/material/TextField'
 
 import { useAuth } from '../../app/AuthContext'
@@ -19,11 +23,11 @@ import { Skeleton } from '../../components/Skeleton'
 import { ApiError } from '../../lib/api'
 import type { RepoListItem } from '../../lib/api'
 import { canAdminWrite, isReadOnlyAdmin } from '../../lib/api'
-import { cellBtnSx, denseInputSx, quietBtnSx } from '../../lib/muiAtoms'
+import { cellBtnSx } from '../../lib/muiAtoms'
 import { cfgStr, cfgStrList, getRepositoriesFiltered, getUsageBatch } from '../../lib/repos'
 import type { RepoUsageRow, RClass } from '../../lib/repos'
 import { formatBytes, formatCount } from '../../lib/format'
-import { onTableRowKeys, onTablistKeys } from '../../lib/keys'
+import { onTableRowKeys } from '../../lib/keys'
 import { useAsync } from '../../lib/useAsync'
 
 import './repositories.css'
@@ -171,7 +175,7 @@ function UsageCell({ repoKey, rclass, usage }: { repoKey: string; rclass: string
         variant="text"
         color="inherit"
         size="small"
-        sx={quietBtnSx}
+        sx={cellBtnSx}
         data-testid={testid}
         title={`${usage.error?.message ?? '用量不可用'}（点击重试）`}
         aria-label={`仓库 ${repoKey} 用量加载失败，点击重试`}
@@ -239,9 +243,10 @@ function UpstreamCell({ repo }: { repo: RepoListItem }) {
   return <span className="text-muted">—</span>
 }
 
-/** 列头排序（§4.7 循环 none → asc → desc → none；T-237 表格基准同款）。
- *  T-299：th 换 MUI TableCell（component="th"）——aria-sort/点击承载/
- *  锚仍在 th 本体，内部键盘按钮保持原生（.th-sort 既有焦点环） */
+/** 列头排序（§4.7 循环 none → asc → desc → none）。T-344 批 C 换
+ *  TableSortLabel（active/direction 箭头内建，ButtonBase 焦点环/涟漪）；
+ *  aria-sort 与锚仍在 th 本体（热区 = 整格点击）。label 的 onClick
+ *  stopPropagation——点 label / 点 th 空白 / 键盘三条路径都恰触发一次。 */
 function SortTh({
   label,
   active,
@@ -256,8 +261,6 @@ function SortTh({
   testid?: string
 }) {
   return (
-    // 点击承载在 th 上（热区 = 整格；内部 button 的 click 冒泡到 th，
-    // 键盘 Enter/Space 仍经 button 触发——同一冒泡路径，不双发）
     <TableCell
       component="th"
       scope="col"
@@ -266,12 +269,16 @@ function SortTh({
       onClick={onToggle}
       sx={{ whiteSpace: 'nowrap' }}
     >
-      <button type="button" className="th-sort">
+      <TableSortLabel
+        active={active}
+        direction={active ? dir : 'asc'}
+        onClick={(e) => {
+          e.stopPropagation()
+          onToggle()
+        }}
+      >
         {label}
-        <span className="th-sort-arrow" aria-hidden="true">
-          {active ? (dir === 'asc' ? ' ▲' : ' ▼') : ''}
-        </span>
-      </button>
+      </TableSortLabel>
     </TableCell>
   )
 }
@@ -349,23 +356,26 @@ export default function RepositoriesPage() {
         </p>
       )}
 
-      <nav
-        className="repos-tabs"
-        aria-label="仓库类型"
-        onKeyDown={(e) => onTablistKeys(e, TABS.map((t) => t.id), tab, (id) => navigate(`/admin/repositories/${id}`))}
+      {/* T-344 批 C：Tab 条换 MUI Tabs（锚 repos-tab-* 落 Tab 根 <a>，
+          aria-current=page 续挂；方向键选择随焦点 = MUI 内建） */}
+      <Tabs
+        value={tab}
+        onChange={(_e, id: RClass) => navigate(`/admin/repositories/${id}`)}
+        selectionFollowsFocus
+        sx={{ mb: 'var(--bf-sp-4)', borderBottom: 1, borderColor: 'divider' }}
       >
         {TABS.map((t) => (
-          <Link
+          <Tab
             key={t.id}
+            component={Link}
             to={`/admin/repositories/${t.id}`}
-            className={`repos-tab${tab === t.id ? ' active' : ''}`}
+            value={t.id}
+            label={t.label}
             aria-current={tab === t.id ? 'page' : undefined}
             data-testid={`repos-tab-${t.id}`}
-          >
-            {t.label}
-          </Link>
+          />
         ))}
-      </nav>
+      </Tabs>
 
       <div className="filter-bar">
         <TextField
@@ -374,7 +384,7 @@ export default function RepositoriesPage() {
           value={keyQuery}
           onChange={(e) => setKeyQuery(e.target.value)}
           size="small"
-          sx={{ ...denseInputSx, width: 260 }}
+          sx={{ width: 260 }}
           slotProps={{
             htmlInput: { 'data-testid': 'repos-filter-key', 'aria-label': '搜索仓库 key', className: 'mono' },
           }}
@@ -433,7 +443,7 @@ export default function RepositoriesPage() {
           )
         ) : (
           <>
-            <Table className="table" data-testid="repos-table" sx={{ '& .MuiTableCell-root': { fontSize: 'var(--bf-fs-body)' } }}>
+            <Table data-testid="repos-table">
               <TableHead>
                 <TableRow>
                   <SortTh label="Repository Key" active={sortKey === 'key'} dir={sortDir} onToggle={() => toggleSort('key')} testid="repos-sort-key" />
@@ -442,12 +452,7 @@ export default function RepositoriesPage() {
                   <TableCell component="th" scope="col">上游 / 成员</TableCell>
                   <TableCell component="th" scope="col">已用</TableCell>
                   <TableCell component="th" scope="col">描述</TableCell>
-                  <TableCell
-                    component="th"
-                    scope="col"
-                    className="text-2"
-                    sx={{ fontSize: 'var(--bf-fs-aux)' }}
-                  >
+                  <TableCell component="th" scope="col">
                     操作
                   </TableCell>
                 </TableRow>
@@ -457,6 +462,7 @@ export default function RepositoriesPage() {
                   <TableRow
                     key={repo.key}
                     data-testid={`repos-row-${repo.key}`}
+                    hover
                     sx={{ cursor: 'pointer' }}
                     tabIndex={0}
                     onClick={() => navigate(`/admin/repositories/${repo.key}`)}
@@ -477,10 +483,10 @@ export default function RepositoriesPage() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <span className="badge neutral">{PKG_LABEL[repo.packageType] ?? repo.packageType}</span>
+                      <Chip size="small" className="badge neutral" label={PKG_LABEL[repo.packageType] ?? repo.packageType} />
                     </TableCell>
                     <TableCell>
-                      <span className="badge neutral">{TYPE_LABEL[repo.type] ?? repo.type}</span>
+                      <Chip size="small" className="badge neutral" label={TYPE_LABEL[repo.type] ?? repo.type} />
                     </TableCell>
                     <TableCell>
                       <UpstreamCell repo={repo} />
@@ -488,7 +494,7 @@ export default function RepositoriesPage() {
                     <TableCell>
                       <UsageCell repoKey={repo.key} rclass={repo.type} usage={usage} />
                     </TableCell>
-                    <TableCell className="wrap" sx={{ maxWidth: 260, color: 'text.secondary' }}>
+                    <TableCell sx={{ maxWidth: 260, whiteSpace: 'normal', wordBreak: 'break-word', color: 'text.secondary' }}>
                       {repo.description || '—'}
                     </TableCell>
                     <TableCell onClick={(e) => e.stopPropagation()}>
@@ -524,7 +530,7 @@ export default function RepositoriesPage() {
                           variant="text"
                           color="inherit"
                           size="small"
-                          sx={quietBtnSx}
+                          sx={cellBtnSx}
                           data-testid={`repos-delete-${repo.key}`}
                           aria-label={`删除仓库 ${repo.key}`}
                           title={`删除仓库 ${repo.key}`}

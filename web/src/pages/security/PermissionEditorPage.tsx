@@ -21,7 +21,7 @@ import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import { ApiError, errText, getRepositories, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
-import { badgeChipSx, dangerBtnSx, denseInputSx, monoInputSx, rowBtnSx } from '../../lib/muiAtoms'
+import { monoInputSx } from '../../lib/muiAtoms'
 import { useAsync } from '../../lib/useAsync'
 import './security.css'
 import { PERM_ACTIONS, deletePermissionTarget, listGroups, listPermissionTargets, listPermissionTargetsManaged, listUsers, savePermissionTarget } from './api'
@@ -248,7 +248,7 @@ function ResourceDialog({
               }
             }}
             placeholder={isIncl ? 'ci-out/**' : 'ci-out/tmp/**'}
-            sx={{ ...denseInputSx, width: 220 }}
+            sx={{ width: 220 }}
             slotProps={{
               htmlInput: {
                 'aria-label': `添加 ${word} pattern`,
@@ -261,7 +261,7 @@ function ResourceDialog({
           <Button
             variant="outlined"
             size="small"
-            sx={rowBtnSx}
+           
             onClick={() => addPattern(kind, input)}
             data-testid={`perm-pattern-add-${word}`}
           >
@@ -323,7 +323,7 @@ function ResourceDialog({
                         }
                       }}
                       placeholder="仓库名（服务端校验）"
-                      sx={{ ...denseInputSx, width: 220 }}
+                      sx={{ width: 220 }}
                       slotProps={{
                         htmlInput: {
                           'aria-label': '手动录入仓库名',
@@ -336,7 +336,7 @@ function ResourceDialog({
                     <Button
                       variant="outlined"
                       size="small"
-                      sx={rowBtnSx}
+                     
                       disabled={repoEntry.trim() === ''}
                       onClick={addRepoEntry}
                       data-testid="perm-repo-entry-add"
@@ -375,11 +375,11 @@ function ResourceDialog({
           )}
         </div>
         <div className="modal-actions">
-          <Button ref={cancelRef} variant="outlined" size="small" sx={rowBtnSx} data-testid="perm-res-cancel" onClick={onClose}>
+          <Button ref={cancelRef} variant="outlined" size="small" data-testid="perm-res-cancel" onClick={onClose}>
             取消
           </Button>
           {step === 2 && (
-            <Button variant="outlined" size="small" sx={rowBtnSx} onClick={() => setStep(1)}>
+            <Button variant="outlined" size="small" onClick={() => setStep(1)}>
               ← 上一步
             </Button>
           )}
@@ -511,7 +511,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
           message="新建 permission target 是管理员入口"
           hint={`当前用户 ${session?.username} 不是管理员。manage 持有者的控制台编辑入口是权限列表项（仓库全部落在 manage 覆盖集内的 target）；新建也可经 API（POST /api/v1/permissions，覆盖集内 201，引用覆盖集外仓库——含替换前的存量——服务端 403）。`}
           action={
-            <Button variant="outlined" size="small" sx={rowBtnSx} component={Link} to="/admin/security/permissions">
+            <Button variant="outlined" size="small" component={Link} to="/admin/security/permissions">
               ← 返回权限列表
             </Button>
           }
@@ -561,7 +561,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
               message={`permission target ${routeName} 不在 manage 覆盖集内（或不存在）`}
               hint="manage 持有者可编辑的 target 需引用仓库全部落在覆盖集内（部分覆盖的由服务端隐藏）；覆盖集外的维护经 API（服务端 403 兜底）。"
               action={
-                <Button variant="outlined" size="small" sx={rowBtnSx} component={Link} to="/admin/security/permissions">
+                <Button variant="outlined" size="small" component={Link} to="/admin/security/permissions">
                   ← 返回权限列表
                 </Button>
               }
@@ -570,7 +570,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
             <EmptyState
               message={`permission target ${routeName} 不存在`}
               action={
-                <Button variant="outlined" size="small" sx={rowBtnSx} component={Link} to="/admin/security/permissions">
+                <Button variant="outlined" size="small" component={Link} to="/admin/security/permissions">
                   ← 返回权限列表
                 </Button>
               }
@@ -594,7 +594,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
           message="只读管理员无法创建 permission target"
           hint="创建 target 是管理面写操作（security:write，服务端 403 兜底）。"
           action={
-            <Button variant="outlined" size="small" sx={rowBtnSx} component={Link} to="/admin/security/permissions">
+            <Button variant="outlined" size="small" component={Link} to="/admin/security/permissions">
               ← 返回权限列表
             </Button>
           }
@@ -689,7 +689,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
     const cellKind: 'user' | 'group' = kind === 'users' ? 'user' : 'group'
     const names = Object.keys(f[kind]).sort()
     return (
-      <Table className="table" data-testid={kind === 'users' ? 'perm-matrix' : 'perm-matrix-groups'}>
+      <Table data-testid={kind === 'users' ? 'perm-matrix' : 'perm-matrix-groups'}>
         <TableHead>
           <TableRow>
             <TableCell component="th" scope="col">主体</TableCell>
@@ -703,7 +703,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
           {names.map((name) => {
             const actions = f[kind][name] ?? []
             return (
-              <TableRow key={`${kind}:${name}`}>
+              <TableRow key={`${kind}:${name}`} hover>
                 <TableCell>
                   <span className="matrix-user-cell">
                     {cellKind === 'group' && (
@@ -714,12 +714,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
                     <span className="mono" lang="en">
                       {name}
                     </span>
-                    <Chip
-                      size="small"
-                      className="badge neutral"
-                      label={cellKind === 'group' ? '组' : '用户'}
-                      sx={badgeChipSx}
-                    />
+                    <Chip size="small" className="badge neutral" label={cellKind === 'group' ? '组' : '用户'} />
                     <button
                       type="button"
                       className="principal-remove"
@@ -771,7 +766,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
           )}
         </h2>
         {mode === 'edit' && (
-          <Button variant="outlined" size="small" sx={rowBtnSx} component={Link} to="/admin/security/permissions">
+          <Button variant="outlined" size="small" component={Link} to="/admin/security/permissions">
             ← 返回列表
           </Button>
         )}
@@ -803,7 +798,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
             onChange={(e) => setF((p) => ({ ...p, name: e.target.value }))}
             placeholder="ci-out-rw"
             error={!nameValid}
-            sx={{ ...denseInputSx, width: 320 }}
+            sx={{ width: 320 }}
             slotProps={{ htmlInput: { className: 'mono-input', 'data-testid': 'perm-form-name', lang: 'en' } }}
           />
           {mode === 'create' &&
@@ -841,7 +836,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
             <Button
               variant="outlined"
               size="small"
-              sx={rowBtnSx}
+             
               disabled={readOnly}
               onClick={() => setResOpen(true)}
               data-testid="perm-repo-add"
@@ -863,7 +858,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
             <span className="text-muted">（空 = 匹配全部路径）</span>
           ) : (
             f.includes.map((p) => (
-              <Chip key={p} size="small" className="badge neutral mono" label={p} sx={badgeChipSx} />
+              <Chip key={p} size="small" className="badge neutral mono" label={p} sx={{ fontFamily: 'var(--bf-mono)' }} />
             ))
           )}
           <span className="text-2" style={{ marginLeft: 12 }}>exclude：</span>
@@ -871,7 +866,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
             <span className="text-muted">（无）</span>
           ) : (
             f.excludes.map((p) => (
-              <Chip key={p} size="small" className="badge neutral mono" label={p} sx={badgeChipSx} />
+              <Chip key={p} size="small" className="badge neutral mono" label={p} sx={{ fontFamily: 'var(--bf-mono)' }} />
             ))
           )}
           <span className="text-muted" style={{ fontSize: 'var(--bf-fs-aux)' }}>
@@ -889,7 +884,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
               value={testPath}
               onChange={(e) => setTestPath(e.target.value)}
               placeholder="输入任意路径即时判定，如 ci-out/builds/42/app.bin（尾 / 表示目录）"
-              sx={{ ...denseInputSx, ...monoInputSx, flex: 1 }}
+              sx={{ ...monoInputSx, flex: 1 }}
               slotProps={{
                 htmlInput: {
                   'aria-label': '模式测试器路径输入',
@@ -929,9 +924,10 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
               <div className="verdict">
                 <Chip
                   size="small"
+                  variant="outlined"
+                  color={evaluation.match ? 'success' : 'error'}
                   className={`badge ${evaluation.match ? 'success' : 'danger'}`}
                   label={evaluation.match ? '✓ 匹配' : '✗ 不匹配'}
-                  sx={badgeChipSx}
                   data-testid="perm-pattern-verdict"
                 />
                 <span className="text-2" style={{ fontWeight: 400, fontSize: 'var(--bf-fs-aux)' }}>
@@ -971,7 +967,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
                 }
               }}
               placeholder="输入用户名（服务端校验）"
-              sx={{ ...denseInputSx, ...monoInputSx, width: 260 }}
+              sx={{ ...monoInputSx, width: 260 }}
               slotProps={{
                 htmlInput: {
                   'aria-label': '输入要添加的用户名',
@@ -988,7 +984,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
               value={addUser}
               disabled={readOnly}
               onChange={(e) => setAddUser(e.target.value)}
-              sx={{ ...denseInputSx, ...monoInputSx, width: 260 }}
+              sx={{ ...monoInputSx, width: 260 }}
               slotProps={{
                 select: {
                   native: true,
@@ -1010,7 +1006,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
           <Button
             variant="outlined"
             size="small"
-            sx={rowBtnSx}
+           
             disabled={addUser.trim() === '' || readOnly}
             onClick={() => addPrincipal('users', addUser.trim())}
           >
@@ -1044,7 +1040,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
                 }
               }}
               placeholder="输入组名（服务端校验）"
-              sx={{ ...denseInputSx, ...monoInputSx, width: 260 }}
+              sx={{ ...monoInputSx, width: 260 }}
               slotProps={{
                 htmlInput: {
                   'aria-label': '输入要添加的组名',
@@ -1061,7 +1057,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
               value={addGroup}
               disabled={readOnly}
               onChange={(e) => setAddGroup(e.target.value)}
-              sx={{ ...denseInputSx, ...monoInputSx, width: 260 }}
+              sx={{ ...monoInputSx, width: 260 }}
               slotProps={{
                 select: {
                   native: true,
@@ -1083,7 +1079,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
           <Button
             variant="outlined"
             size="small"
-            sx={rowBtnSx}
+           
             disabled={addGroup.trim() === '' || readOnly}
             onClick={() => addPrincipal('groups', addGroup.trim())}
           >
@@ -1113,7 +1109,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
       )}
 
       <div className="form-actions">
-        <Button variant="outlined" size="small" sx={rowBtnSx} component={Link} to="/admin/security/permissions">
+        <Button variant="outlined" size="small" component={Link} to="/admin/security/permissions">
           {readOnly ? '返回列表' : '取消'}
         </Button>
         {!readOnly && (
@@ -1146,7 +1142,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
             variant="outlined"
             color="error"
             size="small"
-            sx={dangerBtnSx}
+           
             onClick={() => void doDelete()}
             data-testid="perm-delete-button"
           >

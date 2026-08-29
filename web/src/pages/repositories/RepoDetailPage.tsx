@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
+import Button from '@mui/material/Button'
+import Chip from '@mui/material/Chip'
+import LinearProgress from '@mui/material/LinearProgress'
+import Tab from '@mui/material/Tab'
+import Tabs from '@mui/material/Tabs'
+import TextField from '@mui/material/TextField'
+
 import { useAuth } from '../../app/AuthContext'
 import { CopyButton } from '../../components/CopyButton'
 import DeployDialog from '../../components/DeployDialog'
@@ -11,7 +18,7 @@ import { Skeleton } from '../../components/Skeleton'
 import { useToast } from '../../app/ToastContext'
 import { ApiError, canAdminWrite, errText, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
 import { formatBytes } from '../../lib/format'
-import { onTablistKeys } from '../../lib/keys'
+import { monoInputSx } from '../../lib/muiAtoms'
 import {
   buildLocalQuotaBody,
   cfgBool,
@@ -63,15 +70,16 @@ function QuotaLine({ usage }: { usage: RepoUsage }) {
   const cls = used >= quota ? 'full' : pct >= 80 ? 'warn' : ''
   return (
     <div>
-      <div
+      {/* T-344 批 C：水位条换 MUI LinearProgress（≥80% warning、≥100%
+          error；aria-label 补齐——T-344B 交接要点 9 的存量欠账） */}
+      <LinearProgress
         className={`water-bar${cls ? ` ${cls}` : ''}`}
-        role="progressbar"
-        aria-valuenow={Math.round(pct)}
-        aria-valuemin={0}
-        aria-valuemax={100}
-      >
-        <div className="fill" style={{ width: `${Math.max(used > 0 ? 2 : 0, pct)}%` }} />
-      </div>
+        variant="determinate"
+        value={Math.max(used > 0 ? 2 : 0, Math.round(pct))}
+        color={cls === 'full' ? 'error' : cls === 'warn' ? 'warning' : 'primary'}
+        aria-label={`${usage.repo ?? ''}配额水位`}
+        sx={{ height: 8, borderRadius: 'var(--bf-r-sm)' }}
+      />
       <div className="water-line" style={{ marginTop: 6 }}>
         <span className="label">
           <span className="mono">{formatBytes(used)}</span> / <span className="mono">{formatBytes(quota)}</span>
@@ -128,28 +136,36 @@ function QuotaEditor({
         </span>
       </div>
       <div className="quota-edit">
-        <input
-          className="mono-input"
+        <TextField
+          size="small"
           inputMode="numeric"
-          aria-label="配额 quotaBytes（字节）"
+          autoComplete="off"
           value={value}
           disabled={disabled}
-          aria-invalid={bad}
+          error={bad}
           onChange={(e) => setDraft(e.target.value)}
-          data-testid="repo-quota-input"
+          sx={{ ...monoInputSx, width: 160 }}
+          slotProps={{
+            htmlInput: {
+              'aria-label': '配额 quotaBytes（字节）',
+              'data-testid': 'repo-quota-input',
+              lang: 'en',
+              className: 'mono',
+            },
+          }}
         />
-        <button
-          type="button"
-          className="btn"
+        <Button
+          variant="outlined"
+          size="small"
           disabled={disabled || saving || bad || value.trim() === current}
           onClick={() => void save()}
           data-testid="repo-quota-save"
         >
           {saving ? '保存中…' : '保存配额'}
-        </button>
-        <button
-          type="button"
-          className="btn"
+        </Button>
+        <Button
+          variant="outlined"
+          size="small"
           disabled={disabled || draft === null}
           onClick={() => {
             setDraft(null)
@@ -157,7 +173,7 @@ function QuotaEditor({
           }}
         >
           取消
-        </button>
+        </Button>
       </div>
       {error && (
         <p className="field-error" role="alert">
@@ -218,9 +234,9 @@ export default function RepoDetailPage() {
               : `仓库管理面为管理员视图（${state.error.message}）`
           }
           action={
-            <Link className="btn" to="/artifacts">
+            <Button component={Link} to="/artifacts" variant="outlined" size="small">
               ← 前往制品浏览
-            </Link>
+            </Button>
           }
         />
       </div>
@@ -234,9 +250,9 @@ export default function RepoDetailPage() {
             message={`仓库 ${routeKey} 不存在`}
             hint="key 可能打错，或仓库已被删除"
             action={
-              <Link className="btn" to="/admin/repositories/local">
+              <Button component={Link} to="/admin/repositories/local" variant="outlined" size="small">
                 ← 返回仓库列表
-              </Link>
+              </Button>
             }
           />
         ) : (
@@ -266,37 +282,43 @@ export default function RepoDetailPage() {
           {repo.key}
         </span>
         <CopyButton value={repo.key} label={`仓库 key ${repo.key}`} />
-        <span className="badge neutral">{repo.rclass}</span>
-        <span className="badge neutral">{repo.packageType}</span>
+        <Chip size="small" className="badge neutral" label={repo.rclass} />
+        <Chip size="small" className="badge neutral" label={repo.packageType} />
         <div className="detail-head-actions">
-          <button
-            type="button"
-            className="btn"
+          <Button
+            variant="outlined"
+            size="small"
             data-testid="repo-setmeup"
             title="Set Me Up：客户端接入向导"
             onClick={() => setSmuOpen(true)}
           >
             Set Me Up
-          </button>
+          </Button>
           {rclass === 'local' && (packageType === 'generic' || packageType === 'maven') && (
-            <button
-              type="button"
-              className="btn"
+            <Button
+              variant="outlined"
+              size="small"
               data-testid="repo-deploy"
               disabled={readOnly}
               title={readOnly ? '只读管理员不可写（服务端 403 兜底）' : '部署到本仓（浏览器上传）'}
               onClick={() => setDeployOpen(true)}
             >
               ⬆ 部署 Deploy
-            </button>
+            </Button>
           )}
-          <Link className="btn" to={`/artifacts/${repo.key}`}>
+          <Button component={Link} variant="outlined" size="small" to={`/artifacts/${repo.key}`}>
             浏览制品 →
-          </Link>
+          </Button>
           {canEditConfig && (
-            <Link className="btn primary" to={`/admin/repositories/${repo.key}/edit`} data-testid="repo-edit-link">
+            <Button
+              component={Link}
+              variant="contained"
+              size="small"
+              to={`/admin/repositories/${repo.key}/edit`}
+              data-testid="repo-edit-link"
+            >
               编辑配置
-            </Link>
+            </Button>
           )}
         </div>
       </div>
@@ -315,11 +337,15 @@ export default function RepoDetailPage() {
         </p>
       )}
 
-      <div
-        className="repo-tabs"
-        role="tablist"
+      {/* T-344 批 C：repo-tabs 换 MUI Tabs（锚 repo-tab-* 落 Tab 根
+          <button>、aria-selected 内建；方向键选择随焦点 = MUI 内建，
+          keyboard spec tablist 腿等价覆盖） */}
+      <Tabs
+        value={tab}
+        onChange={(_e, id: DetailTab) => setTab(id)}
+        selectionFollowsFocus
         aria-label="仓库视图"
-        onKeyDown={(e) => onTablistKeys(e, ['summary', 'config', 'replications'], tab, setTab)}
+        sx={{ mb: 'var(--bf-sp-4)', borderBottom: 1, borderColor: 'divider' }}
       >
         {(
           [
@@ -328,19 +354,9 @@ export default function RepoDetailPage() {
             ['replications', 'Replications'],
           ] as [DetailTab, string][]
         ).map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            aria-selected={tab === id}
-            className={`repo-tab${tab === id ? ' active' : ''}`}
-            data-testid={`repo-tab-${id}`}
-            onClick={() => setTab(id)}
-          >
-            {label}
-          </button>
+          <Tab key={id} value={id} label={label} data-testid={`repo-tab-${id}`} />
         ))}
-      </div>
+      </Tabs>
 
       {tab === 'summary' && (
         <div className="detail-grid">
@@ -399,9 +415,12 @@ export default function RepoDetailPage() {
                   <span className="k">URL</span>
                   <span className="mono" lang="en">
                     {cfgStr(cfg, 'url')} <CopyButton value={cfgStr(cfg, 'url')} label="上游 URL" />
-                    <span className="badge neutral" style={{ marginLeft: 8 }}>
-                      {cfgStr(cfg, 'url').startsWith('https') ? 'https' : 'http'}
-                    </span>
+                    <Chip
+                      size="small"
+                      className="badge neutral"
+                      label={cfgStr(cfg, 'url').startsWith('https') ? 'https' : 'http'}
+                      sx={{ ml: 1, verticalAlign: 'middle' }}
+                    />
                   </span>
                 </div>
                 <div className="kv">
@@ -461,14 +480,15 @@ export default function RepoDetailPage() {
               <div className="danger-zone" data-testid="repo-danger-zone">
                 <h3>危险区</h3>
                 <p>删除仓库及其（可选）全部内容。制品不可变，此操作没有撤销。</p>
-                <button
-                  type="button"
-                  className="btn danger"
+                <Button
+                  variant="outlined"
+                  color="error"
+                  size="small"
                   onClick={() => requestDelete(repo)}
                   data-testid="repo-delete-button"
                 >
                   删除仓库…
-                </button>
+                </Button>
               </div>
             </aside>
           )}
@@ -577,9 +597,9 @@ export default function RepoDetailPage() {
           <p className="text-2">
             本仓的复制配置由全局复制页承载（BinFlow 复制是 push 目标模型，配置不按仓分页）。
           </p>
-          <Link className="btn" to="/admin/governance/replication" data-testid="repo-repl-goto">
+          <Button component={Link} variant="outlined" size="small" to="/admin/governance/replication" data-testid="repo-repl-goto">
             前往复制管理 →
-          </Link>
+          </Button>
         </section>
       )}
 

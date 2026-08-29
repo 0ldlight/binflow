@@ -83,18 +83,15 @@
   font-size: var(--bf-fs-aux);
 }
 
-/* ---------- Docker 仓树（T-134 G32a/G32b）：tag 徽标 + digest 行 ---------- */
+/* ---------- Docker 仓树（T-134 G32a/G32b）：tag 徽标 + digest 行 ----------
+ * T-344 批 C：tag/untagged 徽标换 MUI Chip（base.css .badge 族迁移期
+ * :not(.MuiChip-root) 排除）；.badge.warning tint 配方规则退役（Chip
+ * outlined color 承载），仅留 Chip 行间距（多 tag 行换行）。 */
 
-.tree-table td .badge {
-  display: inline-block;
+.tree-table td .MuiChip-root {
   margin-right: 4px;
   margin-bottom: 2px;
   vertical-align: middle;
-}
-
-.tree-table td .badge.warning {
-  background: color-mix(in srgb, var(--bf-warning) 15%, transparent);
-  color: var(--bf-warning);
 }
 
 /* ---------- 面包屑 + 工具行 ---------- */
