@@ -5,7 +5,7 @@ sidebar_position: 90
 
 # FAQ 与故障排查
 
-> 适用版本：M1~M11（各条目标注引入里程碑）。码值与文案以 M4（PRD milestone-4 v1.2）为基线，全部经 QA 真机验证（T-103/T-105 验收基线）；M7 增补条目（RBAC 只读短路 / S3 续传 404 / token step-up）以 ADR-0026/0027/0028 与 PRD milestone-7 v1.1 为准；M8 增补（控制台新路径重定向 / npm 发布权限语义）经 scratch 实例复跑（2026-08-24）；M9 增补（用户删除闭环 / npm 复制同口径）经 HEAD 构建 scratch 实例复验（2026-08-25）；M10 增补三问（license 降级行为 / 属性两入口 / S3 与 filestore 的 MPU 差异）以 ADR-0032/0033 as-built 与 T-285/T-287/T-289/T-294 实测为据（2026-08-26）；**M11 增补四问**（四包型 tier / 降级数据安全 / 四包型 remote·virtual 差异 / 存储与认证新面）以 T-305~T-324 各票实测与 ADR-0035/0036/0038 为据（2026-08-28）。
+> 适用版本：M1~M12（各条目标注引入里程碑）。码值与文案以 M4（PRD milestone-4 v1.2）为基线，全部经 QA 真机验证（T-103/T-105 验收基线）；M7 增补条目（RBAC 只读短路 / S3 续传 404 / token step-up）以 ADR-0026/0027/0028 与 PRD milestone-7 v1.1 为准；M8 增补（控制台新路径重定向 / npm 发布权限语义）经 scratch 实例复跑（2026-08-24）；M9 增补（用户删除闭环 / npm 复制同口径）经 HEAD 构建 scratch 实例复验（2026-08-25）；M10 增补三问（license 降级行为 / 属性两入口 / S3 与 filestore 的 MPU 差异）以 ADR-0032/0033 as-built 与 T-285/T-287/T-289/T-294 实测为据（2026-08-26）；**M11 增补四问**（四包型 tier / 降级数据安全 / 四包型 remote·virtual 差异 / 存储与认证新面）以 T-305~T-324 各票实测与 ADR-0035/0036/0038 为据（2026-08-28）；**M12 增补三问**（trash 保留期 / 操作族门控 / dual-write fail-open）以 T-339/T-343/T-345/T-338 各票实测与 ADR-0040 为据（2026-08-29）。
 
 ## 状态码信封解读
 
@@ -185,6 +185,20 @@ community 实例建这七个 pro 档仓 → **400** `package type '<t>' is not a
 
 - **存储**：内嵌 `storage.*` 链键继续生效（分支①，每次启动 WARN 提示迁移窗）；建了 binstore.yaml 就以文件为准——与内嵌链键**等价** = 文件生效 + WARN，**分歧** = 拒启（防静默择路）。`data_dir`/`gc_*` 恒以 binflow.yaml 为准。见[存储配置](admin/storage-config.md)。
 - **认证**：`binflow.yaml` 的 `auth.oidc`/`auth.ldap` 段在**首启**种子进 DB，此后权威源是 DB 配置面（控制台「认证配置」页或 REST）——改完**保存即生效**，无需重启。注意带 secret 的文件段首启种子需要 `BINFLOW_REMOTE_CREDENTIALS_KEY`。见[认证配置](admin/auth-config.md)。
+
+## M12 增补三问（trash 保留期 / 操作族门控 / fail-open）
+
+### 回收站（Trash can）的保留期怎么算？能改吗？删错了怎么救？
+
+M12 起（pro 档暂行——槽 `trashcan`）local 仓的删除先捕获进内置仓 `auto-trashcan`（布局 `auto-trashcan/<原仓key>/<原路径>`，逐节点带 `trash.time`/`trash.deletedBy`/`trash.originalRepository` 等五元组属性），**保留期默认 14 天**，小时级 cron 按 `trash.time`（epoch ms）判龄清到期条目。恢复走 `POST /api/trash/restore/{path}?to=…`（也是唯一能把东西搬回来的口）；`POST /api/trash/empty` 清空、`DELETE /api/trash/clean/{path}` 单条永久清除；浏览骑既有 `GET /api/storage/auto-trashcan` 面。**保留期暂无配置旋钮**（`trashcan.retention_days` 字段未落，配置域小票承载）——生产实例恒为 14 天。要点：① 捕获失败会**中止删除**（fail-closed，宁可留活）；② GC/cleanup 不会误收 can 里的内容（trash 内容 = 引用内容，mark 集包含 can 节点）；③ community 实例**不捕获**（删除仍是硬删）。见 [Trash can 管理](admin/trash-can.md)。
+
+### copy / move / zip / archive! / explode 也要 license？community 实例报什么？
+
+**是——整族一个 feature 槽 `repo-operations`，pro 档**（Q4 终裁照搬 Artifactory 的 pro entitlement 结构）。community / 过期实例对族内任何动词（`POST /api/copy|move`、`GET /api/archive/download`、带 `X-Explode-Archive` 头的 PUT、`archive!/` 成员读取）答 **403 + `X-Binflow-License-Required: repo-operations`**；匿名先吃 401（认证 → RBAC → license 的门序）。与 Artifactory 的差异（有意）：JFrog 自家 addon 拒绝是 400 text/plain，BinFlow 统一 403 errors[] 信封 + 头（与其余门控面一致，CI 按头分支即可）。降级只关门不碰数据——已复制/搬移/解包的制品照常可读。另一个易混点：**目录打包下载默认关**（`folderDownloadConfig.enabled=false`，配置旋钮未落）——即使 pro 实例该端点也答 403，属已知边界非 license 问题。见[制品操作族](admin/artifact-operations.md)。
+
+### dual-write（filestore+s3）实例上 S3 挂了，上传下载会怎样？
+
+**M12 起不断服（fail-open，ADR-0040）**：S3 臂任一操作失败即开进程内故障窗——窗内 **PUT 本地优先落盘成功**并把内容记入磁盘重放队列（`<data>/replay-queue/<sha256>.json`，重启幸存、per-sha 幂等），**GET 回退读磁盘**（disk 恒为超集，读己之写保持）；S3 恢复后首个成功拷贝关窗、立即排空 + 存在性对账（实测 1 秒级收敛）。三个边界要记：① **治理面（GC/Delete）在窗内仍诚实失败**——fail-open 只覆盖数据面；② 带外直读 S3 桶会看到旧集合（S3 桶是引擎私有物，滞后量 = 窗口 + 排空时长）；③ 切 `mode: completed` 时 replay-queue 非空会**拒启**（防「声明迁移完成但数据没到」）。观察窗：`/metrics` 的 `binflow_replay_*` 族 + `binflow_replay_read_fallback_total`。见[存储配置 · fail-open](admin/storage-config.md#dual-write-停机窗-fail-openm12adr-0040)。
 
 ## M4 有意不兼容清单（里程碑级汇总）
 

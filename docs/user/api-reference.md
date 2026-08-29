@@ -5,7 +5,7 @@ sidebar_position: 70
 
 # API 参考
 
-> 适用版本：M1~M11（端点引入里程碑标注于各表；M7 增补：用户角色字段 `adminRole`、permission target 动作 `manage`、docker 上传状态腿跨重启、token 铸造 step-up 可选门；**M9 增补**：usage 批量端点、users 列表加宽/enabled 回显/DELETE、groups `?includeUsers`、permissions `?filter=manage`——速览见[下文](#m9-增补速览)；**M11 增补**：认证配置面（含 SAML SP 证书三端点，T-331）、GPG keypair 族、cleanup 引擎、四包型 reindex 族、smart remote 两字段生效、MPU 面整体翻转（ADR-0039）与 cargo remote/virtual 仓型——见[M11 增补速览](#m11-增补速览t-328)）。Artifactory 兼容端点基于 REST 逆向规格 `docs/reverse/rest-api.md`（置信度高）。
+> 适用版本：M1~M12（端点引入里程碑标注于各表；M7 增补：用户角色字段 `adminRole`、permission target 动作 `manage`、docker 上传状态腿跨重启、token 铸造 step-up 可选门；**M9 增补**：usage 批量端点、users 列表加宽/enabled 回显/DELETE、groups `?includeUsers`、permissions `?filter=manage`——速览见[下文](#m9-增补速览)；**M11 增补**：认证配置面（含 SAML SP 证书三端点，T-331）、GPG keypair 族、cleanup 引擎、四包型 reindex 族、smart remote 两字段生效、MPU 面整体翻转（ADR-0039）与 cargo remote/virtual 仓型——见[M11 增补速览](#m11-增补速览t-328)；**M12 增补**：制品操作族（copy/move + 归档族）与 trash REST 族（NuGet v2 全路由/v3 代理属协议接入面，见 [NuGet 接入](integrations/nuget.md)）——见[M12 增补速览](#m12-增补速览t-347a)）。Artifactory 兼容端点基于 REST 逆向规格 `docs/reverse/rest-api.md`（置信度高）。
 > **M10 增补（T-293 部分回写，2026-08-26）**：`?properties` 族反转为 **GET/PUT/DELETE 三动词**（POST 增量动词不做——其余动词落 404 冻结姿态；原 M5 期表格把属性动词标为 M4/M1 系陈旧勘误）；上传路径 matrix 参数 M10 生效。M10 其余新端点（license/addons/uploads、Go/NuGet/Cargo 接入面）已随 T-296 补齐——速览见[下文](#m10-新增端点速览t-296)。
 > BinFlow 自有端点以 `/api/v1` 前缀标记。
 
@@ -342,8 +342,33 @@ M10 的「按名 400」退役——remote 仓配置现在**接受 + canonical �
 
 推送侧属性携带（generic 平面）随复制引擎默认开启：源节点属性在推送时合并到目标（幂等重传触发零传输收敛）。replica 虚仓隔离维持 ADR-0025 决策 1 现状（面只读 405 + 逐字文案；backing 直写仍开放）。
 
-
 ---
+
+## M12 增补速览（T-347A）
+
+三个族（行为细节与逐字报错见[制品操作族](admin/artifact-operations.md)与[Trash can 管理](admin/trash-can.md)；依据 T-339/T-343/T-345 真二进制与 httptest 真服务端栈实测）：
+
+### 制品操作域（`/api/copy|move` + `/api/archive/download` + 内容面两形态；**整族 pro 槽 `repo-operations`**）
+
+| 方法 | 路径 | 门 | 语义 |
+|---|---|---|---|
+| POST | `/binflow/api/copy/{srcRepo}[/{srcPath}]?to=/{targetRepo}[/{targetPath}]` | 认证 + 逐文件管线（源 read/目标 write）+ license | 树级复制（零拷贝）；`dry=1` 干跑；响应 200 + `messages[]`，Content-Type 为 vendor 形 `application/vnd.org.jfrog.artifactory.storage.CopyOrMoveResult+json`；状态 = 最后一条 error 的码（无码 409 兜底） |
+| POST | `/binflow/api/move/{srcRepo}[/{srcPath}]?to=…` | 同上 + 源 `delete` | 树级搬移（copy + 源删除 + 目录剪除） |
+| GET | `/binflow/api/archive/download/{repo}[/{path}]?archiveType=zip\|tar\|tar.gz\|tgz` | 读权限（匿名 401 先于参数解析） | 目录/整仓流式打包（不落盘）；`includeChecksumFiles=true` 附 checksum 伴随条目；**默认关**（folderDownloadConfig.enabled=false，配置旋钮未落——见指南已知边界） |
+| GET | `/binflow/{repo}/{archive}!/{entry}`（内容面） | 归档路径读门 | 归档内成员直读（首个 `!/` 切分、嵌套递归、`.sha1/.md5/.sha256` 后缀回裸 hex）；非 GET 405 |
+| PUT | `/binflow/{repo}/{path}` + `X-Explode-Archive[: true]`（或 `X-Explode-Archive-Atomic: true`） | 目标父目录 `w` | 解包部署：白名单 zip/tar/tar.gz/tgz；成功 **201 空体** + `X-Binflow-Exploded-Files: <n>` 计数头；归档原件不落库 |
+
+注：`/api/flat/copy|move` 不实现（404）；community 实例整族答 403 + `X-Binflow-License-Required: repo-operations`（真二进制实测）。
+
+### trash 域（`/api/trash/*`；门 = system:write（**仅全量 admin**）+ pro 槽 `trashcan`〔暂行〕）
+
+| 方法 | 路径 | 语义 |
+|---|---|---|
+| POST | `/binflow/api/trash/restore/{path}?to=&transaction-size=` | 恢复（`to` 覆盖 > 五元组 > 路径首段；剥 `trash.*` 标记、原属性保留）；响应 = copy/move 的 `messages[]` 同构 |
+| POST | `/binflow/api/trash/empty` | 清空整个 can；回 JSON 摘要 `{"removed","files","folders","bytes"}` |
+| DELETE | `/binflow/api/trash/clean/{path}` | 单条（子树）永久清除；摘要同上 |
+
+浏览不是第四路由：骑既有 `GET /api/storage/auto-trashcan[...][?properties|?list]`（五元组断言面 = `?properties`）。捕获/保留期（默认 14 天、小时 cron）语义见 [Trash can 管理](admin/trash-can.md)。
 
 ---
 

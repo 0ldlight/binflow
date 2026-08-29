@@ -5,7 +5,7 @@ sidebar_position: 49
 
 # 存储配置（binstore.yaml）
 
-> 适用版本：M11（T-306 交付；设计依据 ADR-0036，行为基准 `docs/reverse/config-formats.md` §1 复核版）。本文的启动 INFO/WARN 与四类拒启报错均在 HEAD 构建二进制上真实 boot 实测（2026-08-28）；`[s3]` / `[filestore, s3]` 双写链的 roundtrip 证据取自 T-306 的 MinIO 容器栈实测（`reports/agents/T-306.md` §自测）。
+> 适用版本：M11（T-306 交付；设计依据 ADR-0036，行为基准 `docs/reverse/config-formats.md` §1 复核版）+ **M12 增补**（T-338：dual-write 停机窗 **fail-open**——ADR-0040；证据取 T-338 真 MinIO docker stop/start 全链实测）。本文的启动 INFO/WARN 与四类拒启报错均在 HEAD 构建二进制上真实 boot 实测（2026-08-28）；`[s3]` / `[filestore, s3]` 双写链的 roundtrip 证据取自 T-306 的 MinIO 容器栈实测（`reports/agents/T-306.md` §自测）。
 > 与 [S3 指南](../guides/s3-config.md)的分工：S3 指南讲内嵌 `storage.s3` 段与在线迁移操作流（M6 交付、继续有效）；本文讲 M11 的**独立存储链配置文件**——新部署建议直接用 binstore.yaml。
 
 `binstore.yaml` 把 blob 存储链从主配置里解耦出来（对标 Artifactory 的 `binarystore.xml`，YAML 载体为 BinFlow 自有拼写）：
@@ -124,6 +124,26 @@ binflow-server: config: refusing to start: binstore.yaml /etc/binflow/binstore.y
 
 三链 roundtrip 证据（T-306 MinIO 容器栈 + 真实二进制 + curl）：filestore PUT/GET sha256 对账 + 磁盘落点对账；s3 bucket-only 姿态（无本地 blob）；dual-write 双端同 sha256 + 启动日志 `storage migration dual-write mode`。
 
+## dual-write 停机窗 fail-open（M12，ADR-0040）
+
+`[filestore, s3] + mode: dual-write` 链在 **S3 停机/故障窗内的行为（M12 起生效）**：
+
+| 面 | 停机窗内行为 |
+|---|---|
+| 写（PUT/MPU 分片/remote 落盘，单缝全覆盖） | **本地优先落盘成功**（disk-only 快路，不再拨 S3）+ 落盘内容入重放队列 `<data>/replay-queue/<sha256>.json`（per-sha 幂等——同内容重复 PUT 不增队列深度）。旧版行为（PUT 500 且磁盘零落盘）废止；**已落盘的 blob 永不因 S3 失败被回滚删除**（旧版 Commit 臂失败反删盘的条款废止） |
+| 读（GET/HEAD/Stat，含 checksum-deploy） | **回退 disk 探测**：S3 任何错误（不止 not-found）都回退读磁盘——disk 恒为超集（迁移方向 disk→S3 且 disk 副本不自动删），读己之写保持；旧版行为（存量件 GET 500）废止 |
+| 治理面（GC/Delete） | **诚实失败维持**——fail-open 只覆盖数据面 PUT/GET；管理面可重试，静默吞错反而掩盖 S3 故障 |
+| 开窗判定 | 进程内断路器：S3 臂任一操作失败（连接拒绝/超时/5xx/权限错，二分不做错误分类学）即开窗；S3 正常应答的 miss（迁移滞后）不开窗 |
+| 恢复 | 首个成功拷贝即关窗 → 立即排空队列（并发 = `migration.concurrency`，指数退避 1s×2 上限 5min）→ 排空后 **diskList × s3Set 存在性对账**（≤3 轮收敛兜底孤儿 blob）；恢复后稳态回到同步双写 |
+| 重启幸存 | 队列是磁盘文件——窗口内置债 → 重启 → 启动水位 INFO 一行（`storage: migration dual-write replay queue watermark depth=N drain=scheduled`）→ S3 恢复后 1 秒级排空（实测） |
+
+- **S3 侧滞后量 = 窗口时长 + 排空时长**：带外直读 S3 桶会看到旧集合——**S3 桶是引擎私有物**，带外读不在契约内。
+- 无死信删除：条目只在「确认 S3 已有」或「源 blob 已消失」时移除（后者记 `source_gone`）；连续 16 轮全失败 → permanent 记账（WARN + 指标），条目保留等修复后重试。人锤 = `POST /api/v1/storage/migration/start` 幂等重扫。
+- **`mode: completed` 且 replay-queue 非空 → 拒启**（错误指明两条出路：切回 dual-write 排空，或人工确认弃队列后删目录）——「声明迁移完成但数据没到」正是要防的数据可见性事故。
+- `bypass` 模式零新代码路径（S3 不在链上，行为不变）；`migration status` 端点形状**逐字节不变**（六键 `{"running","done","total","migrated","skipped","failed"}`——队列状态走指标与日志）。
+- 可观测（`/metrics`，dual-write 实例才有）：`binflow_replay_queue_depth` / `binflow_replay_window_open` / `binflow_replay_drained_total` / `binflow_replay_failed_retry_total` / `binflow_replay_failed_permanent_total` / `binflow_replay_source_gone_total` / `binflow_replay_read_fallback_total`；审计事件 `storage.replay.window{phase:open|close}` 与 `storage.replay.drained`。
+- 实测锚（T-338，真 MinIO docker stop/start + 真二进制）：停机窗内 2MiB PUT = 201 且 disk 落盘 + 队列在案；GET 新件与窗口前存量件均 200；MinIO 恢复后 1 秒关窗排空（`drained=5 rounds=1`，含对账抓到的存量），mc 侧逐对象 sha256 零缺；迁移中上传 = 201，status `skipped=12`（排空先收敛、扫描幂等跳过）。
+
 ## 常见报错对照
 
 | 症状 | 原因 | 处置 |
@@ -133,6 +153,9 @@ binflow-server: config: refusing to start: binstore.yaml /etc/binflow/binstore.y
 | 拒启 `reserved slot` | `cache-fs`/`azure`/`gs` | 从链中移除（本 build 未实现） |
 | 每启 WARN `compatibility window` | 分支①：还在用内嵌链键 | 搬迁到 binstore.yaml 收口 |
 | env 覆盖不生效 | binstore.yaml 生效时链相关 env 被忽略 | 改 binstore.yaml（secret env 除外） |
+| 拒启 `completed` + replay queue 非空 | 切了 `mode: completed` 但停机窗置的债未排 | 切回 dual-write 排空，或确认可弃后删 `<data>/replay-queue/` |
+| dual-write 下 S3 故障期 PUT/GET 仍 200（日志有 `opening fail-open window`） | M12 fail-open 行为（本地优先 + 队列重放） | 无需处置；观察 `binflow_replay_*` 指标等 S3 恢复自动排空 |
+| dual-write 下 S3 故障期 GC/Delete 失败 | 治理面诚实失败（fail-open 不覆盖治理） | 等 S3 恢复重试 |
 
 ## 下一步
 
