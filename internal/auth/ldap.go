@@ -49,15 +49,27 @@ type LDAPConfig struct {
 	// Required when Enabled=true.
 	BaseDN string
 
-	// BindDN is the DN of the service account used to bind for user search.
-	// When empty, the provider skips the search-bind step and attempts direct
-	// bind as the user (uid=<username>,<base_dn>).
+	// BindDN is the DN of the service account used to bind for the user
+	// search of the search arm. When empty, that pre-search bind is
+	// skipped and the search runs as an anonymous read-only bind
+	// (auth-integration section 1.2 #4, the managerDn-empty posture).
 	BindDN string
 
 	// BindPassword is the password for the BindDN service account. This is
 	// the value read from BINFLOW_AUTH_LDAP_BIND_PASSWORD; it is never
 	// hardcoded in YAML.
 	BindPassword string
+
+	// UserDNPattern is the direct-bind DN template (T-346 / FR-113.4, the
+	// T-305 consumption gap): auth-integration section 1.1 #4 / section 1.5
+	// rule 5. "{0}" is replaced with the RFC 4514-escaped login username and
+	// the result is used as the bind DN DIRECTLY — no manager bind, no user
+	// search. When set, the direct arm runs first; an invalid-credentials
+	// failure there falls through to the search arm (the spec's "both
+	// configured still authenticates"), and a total failure with the pattern
+	// set logs the spec's mutual-exclusion warning. Empty (the default and
+	// the AD/Entra recommendation) keeps the search-only flow untouched.
+	UserDNPattern string
 
 	// UserFilter is the LDAP filter template for searching user entries. The
 	// first %s is replaced with the login username. Example:
@@ -502,15 +514,15 @@ func (p *LDAPProvider) Resolve(ctx context.Context, provider Provider, providerI
 // Bind authenticates a user against the LDAP directory and returns Claims
 // with the user's identity, group memberships, and admin status.
 //
-// The bind flow:
-//  1. If BindDN is configured, bind as the service account to search for the
-//     user's DN. Otherwise, construct the user DN directly from the username
-//     and BaseDN.
-//  2. Bind as the user DN with the provided password to verify credentials.
-//  3. If GroupFilter is configured, search for groups the user belongs to.
-//  4. If AdminGroup/ReadOnlyGroup is configured, check group membership
+// The bind flow (auth-integration section 1.5 rule 5 — two bind modes):
+//  1. Resolve and verify the user's bind DN via bindUser: the DIRECT arm
+//     (userDnPattern — substitute {0}, bind the result, no search) when the
+//     pattern is configured, then/otherwise the SEARCH arm (manager or
+//     anonymous bind + UserFilter search, bind the found DN).
+//  2. If GroupFilter is configured, search for groups the user belongs to.
+//  3. If AdminGroup/ReadOnlyGroup is configured, check group membership
 //     (admin wins over readonly, ADR-0026 decision 6).
-//  5. Return Claims with the mapped identity and role.
+//  4. Return Claims with the mapped identity and role.
 func (p *LDAPProvider) Bind(ctx context.Context, username, password string) (*Claims, error) {
 	if username == "" || password == "" {
 		return nil, newFailure(ProviderLDAP, ReasonBadCredentials,
@@ -528,35 +540,20 @@ func (p *LDAPProvider) Bind(ctx context.Context, username, password string) (*Cl
 
 	conn.SetTimeout(p.config.RequestTimeout)
 
-	// Step 1: Resolve the user's DN.
-	userDN, err := p.resolveUserDN(conn, username)
+	// Step 1: resolve the user's DN and verify the password (the two-mode
+	// ladder — see bindUser).
+	userDN, err := p.bindUser(conn, username, password)
 	if err != nil {
-		if errors.Is(err, errNoLDAPEntries) {
-			return nil, newFailure(ProviderLDAP, ReasonUserNotFound, err)
-		}
-		// Service-bind or search failure (misconfigured service account,
-		// directory dropped mid-flow): the directory could not answer for
-		// this user — provider_error.
-		return nil, newFailure(ProviderLDAP, ReasonProviderError, err)
+		return nil, err
 	}
 
-	// Step 2: Bind as the user with the provided password.
-	if err := conn.Bind(userDN, password); err != nil {
-		// Map LDAP invalid credentials to our sentinel.
-		if ldap.IsErrorWithCode(err, ldap.LDAPResultInvalidCredentials) {
-			return nil, newFailure(ProviderLDAP, ReasonBadCredentials,
-				fmt.Errorf("auth: ldap bind: invalid credentials for %q: %w", username, ErrInvalidCredentials))
-		}
-		return nil, newFailure(ProviderLDAP, ReasonProviderError,
-			fmt.Errorf("auth: ldap bind: %w", ErrInvalidCredentials))
-	}
-
-	// Step 3: Determine the user ID attribute value from the search result.
-	// If we performed a search (BindDN mode), we already have the user entry.
-	// If we used direct DN construction, we search again bound as the user.
+	// Step 2: Determine the user ID attribute value. Both arms of the
+	// ladder leave the connection bound as the user, so one more search
+	// (the user's own read of their entry) yields the attribute; its
+	// fallback is the login username.
 	userID := p.extractUserID(conn, username)
 
-	// Step 4: Search for group memberships. A failure here is non-fatal: the
+	// Step 3: Search for group memberships. A failure here is non-fatal: the
 	// user identity returns without group memberships, and the role check
 	// below runs against the empty group list.
 	var groups []string
@@ -569,7 +566,7 @@ func (p *LDAPProvider) Bind(ctx context.Context, username, password string) (*Cl
 		}
 	}
 
-	// Step 5: Determine the group-inferred role (ADR-0026 decision 6):
+	// Step 4: Determine the group-inferred role (ADR-0026 decision 6):
 	// admin_group membership > readonly_group membership > user.
 	role := RoleUser
 	if p.config.AdminGroup != "" && p.isGroupMember(conn, groups, p.config.AdminGroup) {
@@ -589,13 +586,124 @@ func (p *LDAPProvider) Bind(ctx context.Context, username, password string) (*Cl
 
 // errNoLDAPEntries marks a user search the directory ANSWERED with zero
 // matches — the user_not_found classification, distinct from search failures
-// (provider_error). Unexported: only resolveUserDN produces it, only Bind
+// (provider_error). Unexported: only resolveUserDN produces it, only bindUser
 // matches it.
 var errNoLDAPEntries = errors.New("auth: ldap search matched no entries")
 
-// resolveUserDN finds the user's DN. When BindDN is configured, it binds as
-// the service account and searches for the user. Otherwise, it constructs the
-// DN directly from the username and BaseDN.
+// bindUser resolves the user's DN and verifies the password — the two-mode
+// ladder of auth-integration section 1.5 rule 5 (T-346 / FR-113.4 closed the
+// userDnPattern consumption gap):
+//
+//   - DIRECT arm (userDnPattern non-empty): the {0} placeholder becomes the
+//     RFC 4514-escaped username and the result is the bind DN — no manager
+//     bind, no user search. A protocol-side failure here is a provider error
+//     outright; an invalid-credentials failure FALLS THROUGH to the search
+//     arm, which is how "两者同时配置时仍可认证" reads in this ladder.
+//   - SEARCH arm (the default): the manager bind (or anonymous read-only
+//     bind when no manager is configured) plus the UserFilter search of
+//     resolveUserDN, then the bind as the found DN.
+//
+// When BOTH arms fail and the pattern was set, the spec's mutual-exclusion
+// warning is logged (direct user binding and manager-based search are
+// usually exclusive; for AD the User DN Pattern field stays empty). The
+// BinFlow projection always carries a viable search arm (the section's
+// product defaults fill filter and base), so the warning's "both configured"
+// condition reads here as "the pattern was set".
+func (p *LDAPProvider) bindUser(conn LDAPConn, username, password string) (string, error) {
+	if p.config.UserDNPattern != "" {
+		dn := directUserDN(p.config.UserDNPattern, username)
+		err := conn.Bind(dn, password)
+		switch {
+		case err == nil:
+			return dn, nil
+		case !ldap.IsErrorWithCode(err, ldap.LDAPResultInvalidCredentials):
+			return "", newFailure(ProviderLDAP, ReasonProviderError,
+				fmt.Errorf("auth: ldap bind (userDnPattern): %w", err))
+		}
+		// Invalid credentials against the pattern DN: fall through to the
+		// search arm below.
+	}
+
+	userDN, err := p.resolveUserDN(conn, username)
+	if err != nil {
+		if p.config.UserDNPattern != "" {
+			warnLDAPModesExclusive(username)
+		}
+		if errors.Is(err, errNoLDAPEntries) {
+			return "", newFailure(ProviderLDAP, ReasonUserNotFound, err)
+		}
+		// Service-bind or search failure (misconfigured service account,
+		// directory dropped mid-flow): the directory could not answer for
+		// this user — provider_error.
+		return "", newFailure(ProviderLDAP, ReasonProviderError, err)
+	}
+	if err := conn.Bind(userDN, password); err != nil {
+		if p.config.UserDNPattern != "" {
+			warnLDAPModesExclusive(username)
+		}
+		// Map LDAP invalid credentials to our sentinel.
+		if ldap.IsErrorWithCode(err, ldap.LDAPResultInvalidCredentials) {
+			return "", newFailure(ProviderLDAP, ReasonBadCredentials,
+				fmt.Errorf("auth: ldap bind: invalid credentials for %q: %w", username, ErrInvalidCredentials))
+		}
+		return "", newFailure(ProviderLDAP, ReasonProviderError,
+			fmt.Errorf("auth: ldap bind: %w", ErrInvalidCredentials))
+	}
+	return userDN, nil
+}
+
+// warnLDAPModesExclusive logs the spec's fixed wording for the both-modes
+// misconfiguration (auth-integration section 1.5 rule 5 — the message is
+// anchored verbatim; the user key rides as context).
+func warnLDAPModesExclusive(username string) {
+	slog.Warn("auth: ldap: you have configured direct user binding and manager-based search, "+
+		"which are usually mutually exclusive. For AD leave the User DN Pattern field empty.",
+		slog.String("user", username))
+}
+
+// directUserDN substitutes the {0} placeholder of a userDnPattern with the
+// username escaped for DN VALUE context — the direct arm's analog of the
+// search arm's ldap.EscapeFilter: a username carrying DN metacharacters must
+// never splice a second RDN or re-target the subtree (the LDAP-poisoning
+// posture of section 1.1 #8, applied to the DN grammar). The section
+// validator refuses a pattern without {0}; a hand-built runtime pattern
+// without it substitutes nothing and binds the literal DN.
+func directUserDN(pattern, username string) string {
+	return strings.ReplaceAll(pattern, "{0}", escapeDNValue(username))
+}
+
+// escapeDNValue escapes one DN attribute value per RFC 4514 section 2.4:
+// the escaped set (double-quote, plus, comma, semicolon, lt, gt, backslash)
+// everywhere, plus space and hash in the leading/trailing position.
+func escapeDNValue(v string) string {
+	if v == "" {
+		return ""
+	}
+	last := len(v) - 1
+	var b strings.Builder
+	b.Grow(len(v))
+	for i := 0; i < len(v); i++ {
+		c := v[i]
+		switch c {
+		case '"', '+', ',', ';', '<', '>', '\\':
+			b.WriteByte('\\')
+			b.WriteByte(c)
+		case ' ', '#':
+			if i == 0 || i == last {
+				b.WriteByte('\\')
+			}
+			b.WriteByte(c)
+		default:
+			b.WriteByte(c)
+		}
+	}
+	return b.String()
+}
+
+// resolveUserDN is the SEARCH arm's DN resolution: the manager bind when
+// configured (anonymous read-only bind otherwise — section 1.2 #4), then
+// the UserFilter search. The DIRECT arm (userDnPattern) never reaches here;
+// it lives in bindUser.
 func (p *LDAPProvider) resolveUserDN(conn LDAPConn, username string) (string, error) {
 	if p.config.BindDN != "" {
 		// Bind as the service account first.

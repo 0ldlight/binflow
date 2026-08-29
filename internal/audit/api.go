@@ -167,10 +167,63 @@ const (
 	ActionUserDelete = "user.delete"
 )
 
-// Actions returns the full M1~M4 action vocabulary (GE-02): every action
-// the audit query plane can filter on. It is the picker and assertion
-// source, not a gate — filtering on an unknown action simply matches
-// nothing (forward compatibility with future vocabulary).
+// The M6~M12 accumulated vocabulary (T-346 / FR-113.4, the audit owner's
+// one-liner every emitting ticket registered): actions that landed with
+// their own planes — spelled as local literals at the emit sites, each
+// report flagging "joins Actions() with the audit owner's follow-up". This
+// is that follow-up: the picker now carries every action the trail can
+// hold. Emit sites keep their literals (their own tests pin those); these
+// constants are the picker's single source and the anchor for future
+// emitters. Provenance per family:
+//
+//   - props.* (M4 properties plane), replication.*/keypair.* (M6 T-180 /
+//     M11 T-319 configuration planes), auth.config.* (M11 T-305; the SAML
+//     SP-key verbs are T-331), license.* (the license plane + the T-283
+//     addon gate), artifact.copy/move (M12 T-339), artifact.explode (M12
+//     T-343), trash.* (M12 T-345), storage.replay.* (M12 T-338 fail-open).
+const (
+	ActionPropsWrite  = "props.write"
+	ActionPropsDelete = "props.delete"
+
+	ActionReplicationPush       = "replication.push"
+	ActionReplicationPushFailed = "replication.push.failed"
+	ActionReplicationCfgCreate  = "replication.config.create"
+	ActionReplicationCfgDelete  = "replication.config.delete"
+
+	ActionKeypairCreate    = "keypair.create"
+	ActionKeypairUpdate    = "keypair.update"
+	ActionKeypairGenerate  = "keypair.generate"
+	ActionKeypairDelete    = "keypair.delete"
+	ActionKeypairVerify    = "keypair.verify"
+	ActionKeypairAssociate = "keypair.associate"
+
+	ActionAuthConfigUpdate = "auth.config.update"
+	ActionAuthConfigTest   = "auth.config.test"
+	ActionSAMLKeyGenerate  = "auth.config.samlkey.generate"
+	ActionSAMLKeyRegen     = "auth.config.samlkey.regenerate"
+
+	ActionLicenseInstall   = "license.install"
+	ActionLicenseDelete    = "license.delete"
+	ActionLicenseInvalid   = "license.invalid"
+	ActionLicenseAddonDeny = "license.addon.denied"
+
+	ActionArtifactCopy    = "artifact.copy"
+	ActionArtifactMove    = "artifact.move"
+	ActionArtifactExplode = "artifact.explode"
+
+	ActionTrashRestore   = "trash.restore"
+	ActionTrashEmpty     = "trash.empty"
+	ActionTrashClean     = "trash.clean"
+	ActionTrashRetention = "trash.retention"
+
+	ActionStorageReplayWindow = "storage.replay.window"
+	ActionStorageReplayDrain  = "storage.replay.drained"
+)
+
+// Actions returns the full action vocabulary (GE-02 + the T-346 sweep):
+// every action the audit query plane can filter on. It is the picker and
+// assertion source, not a gate — filtering on an unknown action simply
+// matches nothing (forward compatibility with future vocabulary).
 func Actions() []string {
 	return []string{
 		ActionDeploy, ActionDelete, ActionDownload,
@@ -184,6 +237,19 @@ func Actions() []string {
 		ActionPermissionCreate, ActionPermissionUpdate, ActionPermissionDelete,
 		ActionGCRun, ActionExportRun, ActionImportRun,
 		ActionQuotaExceeded, ActionCleanupRun,
+		// T-346 (FR-113.4): the accumulated planes, finally in the picker.
+		ActionPropsWrite, ActionPropsDelete,
+		ActionReplicationPush, ActionReplicationPushFailed,
+		ActionReplicationCfgCreate, ActionReplicationCfgDelete,
+		ActionKeypairCreate, ActionKeypairUpdate, ActionKeypairGenerate,
+		ActionKeypairDelete, ActionKeypairVerify, ActionKeypairAssociate,
+		ActionAuthConfigUpdate, ActionAuthConfigTest,
+		ActionSAMLKeyGenerate, ActionSAMLKeyRegen,
+		ActionLicenseInstall, ActionLicenseDelete, ActionLicenseInvalid,
+		ActionLicenseAddonDeny,
+		ActionArtifactCopy, ActionArtifactMove, ActionArtifactExplode,
+		ActionTrashRestore, ActionTrashEmpty, ActionTrashClean, ActionTrashRetention,
+		ActionStorageReplayWindow, ActionStorageReplayDrain,
 	}
 }
 

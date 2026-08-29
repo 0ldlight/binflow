@@ -13,6 +13,11 @@ package repo_test
 // effective since T-317 (FR-101.1). Every rule lives in repo.Service/
 // config.go; this file pins acceptance, canonical echo, the 014 row mirror
 // and the refusal family.
+//
+// T-346 (FR-113.1, the T-290-2 carryover): the canonical echo spelling is
+// socketTimeoutMillis; socketTimeoutMs is an input-only alias that the echo
+// never carries. The input bodies below deliberately keep BOTH spellings so
+// the alias acceptance and the canonical flip are each pinned on their own.
 
 import (
 	"context"
@@ -54,7 +59,7 @@ func TestT290SmartRemoteFieldRoundTrip(t *testing.T) {
 	}
 	cfg := remoteCfgOf(t, got)
 	for k, v := range map[string]any{
-		"socketTimeoutMs":                   float64(2500),
+		"socketTimeoutMillis":               float64(2500),
 		"socketTimeoutSecs":                 float64(3), // ceil of 2500ms — never over-reports
 		"metadataRetrievalTimeoutSecs":      float64(30),
 		"missedRetrievalCachePeriodSecs":    float64(45), // canonical spelling carries the alias's value
@@ -64,12 +69,17 @@ func TestT290SmartRemoteFieldRoundTrip(t *testing.T) {
 			t.Fatalf("config[%s] = %v (%T), want %v", k, cfg[k], cfg[k], v)
 		}
 	}
+	// FR-113.1: the old PRD spelling was accepted as INPUT (the body above)
+	// but the echo never carries it — canonicalized away.
+	if _, ok := cfg["socketTimeoutMs"]; ok {
+		t.Fatalf("echo carries the input-only alias socketTimeoutMs: %v", cfg)
+	}
 }
 
 // TestT290SmartRemoteDefaults: a body with just the URL materializes the
-// product defaults — socketTimeoutMs 15000 (the M3 15s, now spelled in ms),
-// metadataRetrievalTimeoutSecs 60, unusedArtifactsCleanupPeriodHours 0
-// (off — repo-semantics 7.1).
+// product defaults — socketTimeoutMillis 15000 (the M3 15s, spelled in the
+// canonical xsd form since FR-113.1), metadataRetrievalTimeoutSecs 60,
+// unusedArtifactsCleanupPeriodHours 0 (off — repo-semantics 7.1).
 func TestT290SmartRemoteDefaults(t *testing.T) {
 	ctx := context.Background()
 	e := newEnv(t)
@@ -81,7 +91,7 @@ func TestT290SmartRemoteDefaults(t *testing.T) {
 	}
 	cfg := remoteCfgOf(t, got)
 	for k, v := range map[string]any{
-		"socketTimeoutMs":                   float64(15000),
+		"socketTimeoutMillis":               float64(15000),
 		"socketTimeoutSecs":                 float64(15),
 		"metadataRetrievalTimeoutSecs":      float64(60),
 		"unusedArtifactsCleanupPeriodHours": float64(0),
@@ -100,49 +110,54 @@ func TestT290SmartRemoteDefaults(t *testing.T) {
 	}
 }
 
-// TestT290SocketTimeoutSpellings: the artifactory.xsd spelling
-// (socketTimeoutMillis) is an alias of socketTimeoutMs; either ms spelling
-// wins over the legacy socketTimeoutSecs (only ms can express sub-second
-// timeouts); agreement between the ms aliases round-trips.
+// TestT290SocketTimeoutSpellings: either ms spelling is accepted on input
+// (socketTimeoutMillis canonical since FR-113.1, socketTimeoutMs the legacy
+// PRD alias); either ms spelling wins over the legacy socketTimeoutSecs
+// (only ms can express sub-second timeouts); agreement between the ms
+// aliases round-trips; the echo always carries the canonical spelling only.
 func TestT290SocketTimeoutSpellings(t *testing.T) {
 	ctx := context.Background()
 	e := newEnv(t)
 	mustCreateRemote(t, e, "xsd-remote", `{"url":"http://u","socketTimeoutMillis":800}`)
 	cfg := remoteCfgOf(t, mustGetRepo(t, e, "xsd-remote"))
-	if cfg["socketTimeoutMs"] != float64(800) {
-		t.Fatalf("xsd spelling: socketTimeoutMs = %v, want 800", cfg["socketTimeoutMs"])
+	if cfg["socketTimeoutMillis"] != float64(800) {
+		t.Fatalf("xsd spelling: socketTimeoutMillis = %v, want 800", cfg["socketTimeoutMillis"])
+	}
+	if _, ok := cfg["socketTimeoutMs"]; ok {
+		t.Fatalf("xsd spelling: echo carries the alias socketTimeoutMs: %v", cfg)
 	}
 	if cfg["socketTimeoutSecs"] != float64(1) {
 		t.Fatalf("xsd spelling: socketTimeoutSecs = %v, want 1 (ceil of 800ms)", cfg["socketTimeoutSecs"])
 	}
 
-	// ms wins over secs when both are present (documented precedence).
+	// ms wins over secs when both are present (documented precedence); the
+	// legacy PRD spelling is the input here, the canonical one the echo.
 	mustCreateRemote(t, e, "mixed-remote", `{"url":"http://u","socketTimeoutSecs":30,"socketTimeoutMs":1500}`)
 	cfg = remoteCfgOf(t, mustGetRepo(t, e, "mixed-remote"))
-	if cfg["socketTimeoutMs"] != float64(1500) || cfg["socketTimeoutSecs"] != float64(2) {
-		t.Fatalf("mixed spellings: ms=%v secs=%v, want 1500/2", cfg["socketTimeoutMs"], cfg["socketTimeoutSecs"])
+	if cfg["socketTimeoutMillis"] != float64(1500) || cfg["socketTimeoutSecs"] != float64(2) {
+		t.Fatalf("mixed spellings: ms=%v secs=%v, want 1500/2", cfg["socketTimeoutMillis"], cfg["socketTimeoutSecs"])
 	}
 
 	// secs-only input keeps the M3 exact-second round-trip.
 	mustCreateRemote(t, e, "secs-remote", `{"url":"http://u","socketTimeoutSecs":30}`)
 	cfg = remoteCfgOf(t, mustGetRepo(t, e, "secs-remote"))
-	if cfg["socketTimeoutMs"] != float64(30000) || cfg["socketTimeoutSecs"] != float64(30) {
-		t.Fatalf("secs-only: ms=%v secs=%v, want 30000/30", cfg["socketTimeoutMs"], cfg["socketTimeoutSecs"])
+	if cfg["socketTimeoutMillis"] != float64(30000) || cfg["socketTimeoutSecs"] != float64(30) {
+		t.Fatalf("secs-only: ms=%v secs=%v, want 30000/30", cfg["socketTimeoutMillis"], cfg["socketTimeoutSecs"])
 	}
 
 	// A zero ms spelling yields back to the legacy secs field (the fetcher's
 	// fallback order reads a zero column the same way — review minor 1).
 	mustCreateRemote(t, e, "zero-ms-remote", `{"url":"http://u","socketTimeoutMs":0,"socketTimeoutSecs":30}`)
 	cfg = remoteCfgOf(t, mustGetRepo(t, e, "zero-ms-remote"))
-	if cfg["socketTimeoutMs"] != float64(30000) || cfg["socketTimeoutSecs"] != float64(30) {
-		t.Fatalf("zero-ms + secs: ms=%v secs=%v, want 30000/30", cfg["socketTimeoutMs"], cfg["socketTimeoutSecs"])
+	if cfg["socketTimeoutMillis"] != float64(30000) || cfg["socketTimeoutSecs"] != float64(30) {
+		t.Fatalf("zero-ms + secs: ms=%v secs=%v, want 30000/30", cfg["socketTimeoutMillis"], cfg["socketTimeoutSecs"])
 	}
 
 	// Alias zero-vs-value resolves to the value (not a disagreement).
 	mustCreateRemote(t, e, "zero-alias-remote", `{"url":"http://u","socketTimeoutMs":0,"socketTimeoutMillis":2500}`)
 	cfg = remoteCfgOf(t, mustGetRepo(t, e, "zero-alias-remote"))
-	if cfg["socketTimeoutMs"] != float64(2500) || cfg["socketTimeoutSecs"] != float64(3) {
-		t.Fatalf("0+2500 alias: ms=%v secs=%v, want 2500/3", cfg["socketTimeoutMs"], cfg["socketTimeoutSecs"])
+	if cfg["socketTimeoutMillis"] != float64(2500) || cfg["socketTimeoutSecs"] != float64(3) {
+		t.Fatalf("0+2500 alias: ms=%v secs=%v, want 2500/3", cfg["socketTimeoutMillis"], cfg["socketTimeoutSecs"])
 	}
 	_ = ctx
 }

@@ -531,7 +531,9 @@ func (m *ConfigManager) buildLDAPProvider(sec *LDAPSection) (*hotLDAPProvider, e
 // the ldapUrl path IS the base DN (§1.1 #3), searchFilter's {0} becomes the
 // runtime's %s, a relative searchBase is joined onto the URL base, and the
 // manager DN/password pair drives the service bind (empty DN = anonymous
-// read-only bind, §1.2 #4).
+// read-only bind, §1.2 #4). T-346 (FR-113.4) closes the userDnPattern
+// consumption gap: the direct-bind template rides through to LDAPConfig and
+// drives the direct arm of the bind ladder (ldap.go bindUser, §1.5 #5).
 func ldapConfigFromSection(sec *LDAPSection) (*LDAPConfig, error) {
 	u, err := url.Parse(sec.LDAPURL)
 	if err != nil || u.Host == "" {
@@ -549,6 +551,7 @@ func ldapConfigFromSection(sec *LDAPSection) (*LDAPConfig, error) {
 		Enabled:       true,
 		URL:           searchURL,
 		BaseDN:        effectiveBase,
+		UserDNPattern: sec.UserDNPattern,
 		BindDN:        sec.Search.ManagerDN,
 		BindPassword:  sec.Search.ManagerPassword,
 		UserFilter:    strings.ReplaceAll(sec.Search.SearchFilter, "{0}", "%s"),

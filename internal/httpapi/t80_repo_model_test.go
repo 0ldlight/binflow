@@ -100,10 +100,13 @@ func TestM02RemoteCreateAndEchoREST(t *testing.T) {
 			t.Fatalf("GET body leaks %q: %s", field, raw)
 		}
 	}
-	// The defaults ride the echo (PRD v1.2 C4).
+	// The defaults ride the echo (PRD v1.2 C4). socketTimeoutMillis is the
+	// canonical ms spelling since T-346 (FR-113.1); the legacy
+	// socketTimeoutMs never rides the echo.
 	for k, v := range map[string]any{
 		"retrievalCachePeriodSecs":       float64(7200),
 		"missedRetrievalCachePeriodSecs": float64(1800),
+		"socketTimeoutMillis":            float64(15000),
 		"socketTimeoutSecs":              float64(15),
 		"assumedOfflinePeriodSecs":       float64(300),
 		"hardFail":                       false,

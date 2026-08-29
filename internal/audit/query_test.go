@@ -329,4 +329,25 @@ func TestVocabularyQueryable(t *testing.T) {
 			t.Fatalf("M4 action %q missing from Actions()", a)
 		}
 	}
+	// T-346 (FR-113.4): the accumulated planes join the picker — every
+	// action an emit site spells is filterable now (L31's picker-visibility
+	// assertion; the families' provenance is the api.go block comment).
+	for _, a := range []string{
+		audit.ActionPropsWrite, audit.ActionPropsDelete,
+		audit.ActionReplicationPush, audit.ActionReplicationPushFailed,
+		audit.ActionReplicationCfgCreate, audit.ActionReplicationCfgDelete,
+		audit.ActionKeypairCreate, audit.ActionKeypairUpdate, audit.ActionKeypairGenerate,
+		audit.ActionKeypairDelete, audit.ActionKeypairVerify, audit.ActionKeypairAssociate,
+		audit.ActionAuthConfigUpdate, audit.ActionAuthConfigTest,
+		audit.ActionSAMLKeyGenerate, audit.ActionSAMLKeyRegen,
+		audit.ActionLicenseInstall, audit.ActionLicenseDelete, audit.ActionLicenseInvalid,
+		audit.ActionLicenseAddonDeny,
+		audit.ActionArtifactCopy, audit.ActionArtifactMove, audit.ActionArtifactExplode,
+		audit.ActionTrashRestore, audit.ActionTrashEmpty, audit.ActionTrashClean, audit.ActionTrashRetention,
+		audit.ActionStorageReplayWindow, audit.ActionStorageReplayDrain,
+	} {
+		if !seen[a] {
+			t.Fatalf("T-346 action %q missing from Actions()", a)
+		}
+	}
 }

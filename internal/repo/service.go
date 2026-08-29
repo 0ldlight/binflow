@@ -2019,7 +2019,7 @@ func (s *service) CreateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 			// canonical JSON the same way content_ttl_seconds mirrors
 			// retrievalCachePeriodSecs — the fetcher reads the row, GET
 			// echoes the JSON, both are written by this one call.
-			SocketTimeoutMs:              remote.SocketTimeoutMs,
+			SocketTimeoutMs:              remote.SocketTimeoutMillis,
 			MetadataRetrievalTimeoutSecs: remote.MetadataRetrievalTimeoutSecs,
 			UnusedCleanupPeriodHours:     remote.UnusedCleanupPeriodHours,
 		}); err != nil {
@@ -2354,7 +2354,7 @@ func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 			MetadataTTLSeconds:   defaultMetadataTTLSeconds,
 			AllowPrivateUpstream: remote.AllowPrivateUpstream,
 			// T-290 (FR-90.2): same mirror contract as the create arm above.
-			SocketTimeoutMs:              remote.SocketTimeoutMs,
+			SocketTimeoutMs:              remote.SocketTimeoutMillis,
 			MetadataRetrievalTimeoutSecs: remote.MetadataRetrievalTimeoutSecs,
 			UnusedCleanupPeriodHours:     remote.UnusedCleanupPeriodHours,
 		}
