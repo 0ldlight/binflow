@@ -1,6 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent as ReactDragEvent, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Link } from 'react-router-dom'
+import Button from '@mui/material/Button'
+import Chip from '@mui/material/Chip'
+import Dialog from '@mui/material/Dialog'
+import DialogActions from '@mui/material/DialogActions'
+import DialogContent from '@mui/material/DialogContent'
+import DialogTitle from '@mui/material/DialogTitle'
+import LinearProgress from '@mui/material/LinearProgress'
+import Stack from '@mui/material/Stack'
+import Table from '@mui/material/Table'
+import TableBody from '@mui/material/TableBody'
+import TableCell from '@mui/material/TableCell'
+import TableHead from '@mui/material/TableHead'
+import TableRow from '@mui/material/TableRow'
+import Typography from '@mui/material/Typography'
 
 import { useAuth } from '../app/AuthContext'
 import { CopyButton } from './CopyButton'
@@ -9,6 +23,7 @@ import { ErrorCard } from './ErrorCard'
 import { Skeleton } from './Skeleton'
 import { ApiError, errText, getRepositories } from '../lib/api'
 import { formatBytes } from '../lib/format'
+import { cellBtnSx } from '../lib/muiAtoms'
 import { getRepoDetail } from '../lib/repos'
 import type { PackageType, RepoDetail } from '../lib/repos'
 import { useAsync } from '../lib/useAsync'
@@ -273,32 +288,17 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
   const canDeploy =
     rows.length > 0 && !inFlight && (mode === 'generic' || mavenReady) && !allSettled
 
-  // ---- 焦点陷阱 + Esc（modal root 聚焦承载 scrollable-region-focusable） ----
-  const rootRef = useRef<HTMLDivElement>(null)
+  // ---- 焦点陷阱 + Tab 循环：T-344 批 B 起交 MUI Dialog（FocusTrap 首焦
+  //      落 paper〔tabIndex -1 承载 scrollable-region-focusable〕；Tab 循
+  //      环排除禁用钮——T-244 的禁用破口场景由 getTabbable 语义覆盖）。
+  //      Esc 兜底：MUI 的 Esc 监听在 modal root（冒泡路径内才生效），
+  //      焦点掉到 body 时到不了 root——文档级监听补位；MUI 已处理的 Esc
+  //      会 stopPropagation，不会双触发（旧壳行为 = 任意焦点下 Esc 关闭）。
   useEffect(() => {
-    rootRef.current?.focus()
-    // disabled 控件不可聚焦（部署钮在队列空/inFlight 时禁用——陷阱首尾
-    // 落在禁用钮上 focus() 无效会破口；T-244 复核收口）
-    const FOCUSABLE =
-      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        close()
-        return
-      }
-      if (e.key !== 'Tab') return
-      const nodes = Array.from(rootRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])
-      if (nodes.length === 0) return
-      const first = nodes[0]
-      const last = nodes[nodes.length - 1]
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault()
-        last.focus()
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault()
-        first.focus()
-      }
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      close()
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
@@ -310,24 +310,26 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
       ? '拖拽文件到此处，或点击选择（部署模式决定单文件替换还是多文件追加）'
       : '选择构件文件（文件名按 GAV 坐标重命名为 layout 名）'
 
+  // paper slotProps 以变量承载（data-* 的字面量过剩属性检查绕行，同
+  // ConfirmDialog 注记）；720px 宽版 modal（原 .deploy-modal 规则随本批
+  // 退役，§3.5）。
+  const paperProps = {
+    'data-testid': 'deploy-dialog',
+    sx: {
+      width: 'min(720px, calc(100vw - 48px))',
+      maxHeight: 'calc(100vh - 96px)',
+    },
+  }
+
   return (
-    <div
-      className="modal-backdrop"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) close()
-      }}
+    <Dialog
+      open
+      onClose={close}
+      aria-labelledby="deploy-dialog-title"
+      slotProps={{ paper: paperProps }}
     >
-      <div
-        ref={rootRef}
-        tabIndex={-1}
-        className="modal deploy-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label="部署制品"
-        data-testid="deploy-dialog"
-      >
-        <h2>部署 Deploy</h2>
-        <div className="modal-body">
+      <DialogTitle id="deploy-dialog-title">部署 Deploy</DialogTitle>
+      <DialogContent>
           {list.status === 'loading' || (needFallback && fallback.status === 'loading') ? (
             <Skeleton lines={3} />
           ) : list.status === 'error' && list.error ? (
@@ -338,9 +340,9 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
               hint="浏览器上传面向 local 的 Generic / Maven 仓；docker / npm / pypi 协议请用对应客户端发布（仓库详情页有接入命令）。"
               action={
                 admin ? (
-                  <Link className="btn" to="/admin/repositories/new">
+                  <Button component={Link} to="/admin/repositories/new" variant="contained" size="medium">
                     创建 Generic 仓库
-                  </Link>
+                  </Button>
                 ) : undefined
               }
             />
@@ -371,7 +373,7 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                 <div className="field">
                   <label>包类型（只读）</label>
                   <div>
-                    <span className="badge neutral">{packageType === 'maven' ? 'Maven' : 'Generic'}</span>{' '}
+                    <Chip label={packageType === 'maven' ? 'Maven' : 'Generic'} color="default" />{' '}
                     <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>
                       local 仓 · PUT 直传
                     </span>
@@ -491,31 +493,31 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
               />
 
               {rows.length > 0 && (
-                <table className="table" data-testid="deploy-rows" style={{ marginTop: 12 }}>
-                  <thead>
-                    <tr>
-                      <th style={{ width: 24 }}>#</th>
-                      <th>文件（目标路径 / 编码回显）</th>
-                      <th>大小</th>
-                      <th>sha256 / 进度</th>
-                      <th>状态</th>
-                      <th>操作</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <Table data-testid="deploy-rows" sx={{ mt: 1.5 }}>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ width: 24 }}>#</TableCell>
+                      <TableCell>文件（目标路径 / 编码回显）</TableCell>
+                      <TableCell>大小</TableCell>
+                      <TableCell>sha256 / 进度</TableCell>
+                      <TableCell>状态</TableCell>
+                      <TableCell>操作</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
                     {rows.map((r, i) => (
-                      <tr key={r.id} data-testid={`deploy-row-${r.fileName}`}>
-                        <td>{i + 1}</td>
-                        <td>
+                      <TableRow key={r.id} data-testid={`deploy-row-${r.fileName}`}>
+                        <TableCell>{i + 1}</TableCell>
+                        <TableCell>
                           <div className="mono" lang="en">
                             {r.fileName}
                           </div>
                           <div className="deploy-echo" data-testid={`deploy-echo-${r.fileName}`} lang="en">
                             {repoKey}/{encodedPath(r.targetDir, r.fileName)}
                           </div>
-                        </td>
-                        <td className="mono">{formatBytes(r.file.size)}</td>
-                        <td style={{ minWidth: 180 }}>
+                        </TableCell>
+                        <TableCell className="mono">{formatBytes(r.file.size)}</TableCell>
+                        <TableCell sx={{ minWidth: 180 }}>
                           {r.phase === 'hashing' ? (
                             <span className="text-2">正在计算本地 sha256…</span>
                           ) : r.localSha ? (
@@ -526,32 +528,31 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                             <span className="text-2">—</span>
                           )}
                           {r.phase === 'uploading' && (
-                            <div className="deploy-progress">
-                              <div className="bar">
-                                <div
-                                  className="fill"
-                                  style={{ width: `${r.total > 0 ? Math.min(100, (r.loaded / r.total) * 100) : 0}%` }}
-                                />
-                              </div>
-                              <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>
+                            <Stack direction="row" spacing={1} alignItems="center">
+                              <LinearProgress
+                                variant="determinate"
+                                value={r.total > 0 ? Math.min(100, (r.loaded / r.total) * 100) : 0}
+                                aria-label={`上传进度 ${r.fileName}`}
+                                sx={{ flex: 1 }}
+                              />
+                              <Typography variant="caption" className="text-2">
                                 {Math.round(r.total > 0 ? (r.loaded / r.total) * 100 : 0)}%
-                              </span>
-                            </div>
+                              </Typography>
+                            </Stack>
                           )}
-                        </td>
-                        <td>
+                        </TableCell>
+                        <TableCell>
                           {r.phase === 'done' ? (
-                            <span>
-                              <span className="badge success">上传完成 201</span>{' '}
+                            <Stack direction="row" spacing={0.5} alignItems="center" useFlexGap sx={{ flexWrap: 'wrap' }}>
+                              <Chip label="上传完成 201" color="success" />
                               {r.localSha && r.serverSha && (
-                                <span
-                                  className={`badge ${r.localSha === r.serverSha ? 'success' : 'danger'}`}
+                                <Chip
+                                  label={r.localSha === r.serverSha ? '✓ checksum 一致' : '✗ 不一致'}
+                                  color={r.localSha === r.serverSha ? 'success' : 'error'}
                                   data-testid={`deploy-verify-${r.fileName}`}
-                                >
-                                  {r.localSha === r.serverSha ? '✓ checksum 一致' : '✗ 不一致'}
-                                </span>
+                                />
                               )}
-                            </span>
+                            </Stack>
                           ) : r.phase === 'error' && r.error ? (
                             <DeployError err={r.error} admin={admin} />
                           ) : (
@@ -559,22 +560,18 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                               {r.phase === 'hashing' ? '哈希中' : r.phase === 'queued' ? '待部署' : '上传中'}
                             </span>
                           )}
-                        </td>
-                        <td>
+                        </TableCell>
+                        <TableCell>
                           {r.phase === 'error' && (
-                            <button
-                              type="button"
-                              className="btn"
-                              onClick={() => retry(r)}
-                            >
+                            <Button sx={cellBtnSx} onClick={() => retry(r)}>
                               重试
-                            </button>
+                            </Button>
                           )}
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               )}
 
               <label className="check-row" style={{ marginTop: 8 }}>
@@ -587,23 +584,22 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
               </label>
             </>
           )}
-        </div>
-        <div className="modal-actions">
-          <button type="button" className="btn" data-testid="deploy-close" onClick={close}>
-            关闭
-          </button>
-          <button
-            type="button"
-            className="btn primary"
-            data-testid="deploy-submit"
-            disabled={!canDeploy}
-            onClick={startDeploy}
-          >
-            部署
-          </button>
-        </div>
-      </div>
-    </div>
+      </DialogContent>
+      <DialogActions>
+        <Button data-testid="deploy-close" onClick={close}>
+          关闭
+        </Button>
+        <Button
+          variant="contained"
+          size="medium"
+          data-testid="deploy-submit"
+          disabled={!canDeploy}
+          onClick={startDeploy}
+        >
+          部署
+        </Button>
+      </DialogActions>
+    </Dialog>
   )
 }
 
@@ -612,9 +608,10 @@ function DeployError({ err, admin }: { err: ApiError; admin: boolean }) {
   return (
     <div className="deploy-error">
       <span>
-        <span className={`badge ${err.status === 403 || err.status === 413 || err.status === 409 ? 'danger' : 'neutral'}`}>
-          HTTP {err.status}
-        </span>
+        <Chip
+          label={`HTTP ${err.status}`}
+          color={err.status === 403 || err.status === 413 || err.status === 409 ? 'error' : 'default'}
+        />
       </span>
       <span className="raw" lang="en">
         {errText(err)}

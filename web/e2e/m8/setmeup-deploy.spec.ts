@@ -333,6 +333,13 @@ test('entry points: repositories list row and repo detail header open both dialo
 
 // ---- axe 结构可达性（serious/critical = 0 门；§9）----------------------------
 
+// T-344C：对话框换 MUI Dialog 后入场带 225ms Fade——axe 在动画中途采样会把
+// 半透明栈算进对比度（实测 4.48 < 4.5 假阳性）。扫描前等过渡收敛（终态
+// 断言语义不变，只是不再对动画帧求值）。
+async function settleDialog(page: Page, scope: string): Promise<void> {
+  await expect(page.locator(scope)).toHaveCSS('opacity', '1')
+}
+
 test('axe: setmeup (grid + main) and deploy dialogs scan clean', async ({ page }, testInfo) => {
   const key = uniq('m8axe')
   await seedRepos(m8Client(), [{ key }, { key: `${key}-npmpkg`, packageType: 'npm' }])
@@ -343,6 +350,7 @@ test('axe: setmeup (grid + main) and deploy dialogs scan clean', async ({ page }
   // 网格态
   await page.click('[data-testid="tree-setmeup"]')
   await expect(page.locator('[data-testid="smu-grid-item-generic"]')).toBeVisible()
+  await settleDialog(page, '[data-testid="smu-dialog"]')
   await expectA11yClean(page, testInfo, { include: '[data-testid="smu-dialog"]' })
   await page.keyboard.press('Escape')
 
@@ -350,11 +358,13 @@ test('axe: setmeup (grid + main) and deploy dialogs scan clean', async ({ page }
   await page.click(`[data-testid="tree-repo-${key}"]`)
   await page.click('[data-testid="tree-setmeup"]')
   await expect(page.locator('[data-testid="smu-repo"]')).toHaveValue(key)
+  await settleDialog(page, '[data-testid="smu-dialog"]')
   await expectA11yClean(page, testInfo, { include: '[data-testid="smu-dialog"]' })
   await page.keyboard.press('Escape')
 
   // Deploy 对话框（含拖拽区 + GAV 回显面隐藏——generic 仓）
   await page.click('[data-testid="tree-deploy"]')
   await expect(page.locator('[data-testid="deploy-drop"]')).toBeVisible()
+  await settleDialog(page, '[data-testid="deploy-dialog"]')
   await expectA11yClean(page, testInfo, { include: '[data-testid="deploy-dialog"]' })
 })

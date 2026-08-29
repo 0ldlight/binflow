@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode, RefObject } from 'react'
 import { Link } from 'react-router-dom'
+import Button from '@mui/material/Button'
+import Dialog from '@mui/material/Dialog'
+import DialogActions from '@mui/material/DialogActions'
+import DialogContent from '@mui/material/DialogContent'
+import DialogTitle from '@mui/material/DialogTitle'
 
 import { useAuth } from '../app/AuthContext'
 import { CopyButton } from './CopyButton'
@@ -296,33 +301,18 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
     tabRef.current?.querySelector<HTMLButtonElement>(`[data-testid="smu-tab-${next}"]`)?.focus()
   }
 
-  // ---- 焦点陷阱 + Esc（ConfirmDialog 同款基座；modal root 聚焦承载
-  //      scrollable-region-focusable 的可达性形态） ----
-  const rootRef = useRef<HTMLDivElement>(null)
+  // ---- 焦点陷阱 + Tab 循环：T-344 批 B 起交 MUI Dialog（FocusTrap 首焦
+  //      落 paper〔tabIndex -1 承载 scrollable-region-focusable〕；Tab 循
+  //      环排除禁用钮——口令空时 smu-password-submit 禁用的破口场景由
+  //      getTabbable 语义覆盖；关闭时 MUI 归焦启动元素——quick-set-me-up
+  //      菜单链路）。Esc 兜底：MUI 的 Esc 监听在 modal root（冒泡路径内
+  //      才生效），网格/主面板切换会把焦点元素卸载（焦点掉到 body）——
+  //      文档级监听补位；MUI 已处理的 Esc 会 stopPropagation，不会双触发。
   useEffect(() => {
-    rootRef.current?.focus()
-    // disabled 控件不可聚焦（口令空时 smu-password-submit 禁用——陷阱首尾
-    // 落在禁用钮上 focus() 无效会破口；T-244 复核收口）
-    const FOCUSABLE =
-      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        onClose()
-        return
-      }
-      if (e.key !== 'Tab') return
-      const nodes = Array.from(rootRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])
-      if (nodes.length === 0) return
-      const first = nodes[0]
-      const last = nodes[nodes.length - 1]
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault()
-        last.focus()
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault()
-        first.focus()
-      }
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      onClose()
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
@@ -349,9 +339,9 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
           hint="Set Me Up 按已有仓库的包类型生成接入指引——先创建仓库。"
           action={
             admin ? (
-              <Link className="btn primary" to="/admin/repositories/new">
+              <Button component={Link} to="/admin/repositories/new" variant="contained" size="medium">
                 创建仓库
-              </Link>
+              </Button>
             ) : undefined
           }
         />
@@ -383,6 +373,7 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
           <button
             type="button"
             key={m.id}
+            className="smu-grid-item"
             role="radio"
             aria-checked={false}
             data-testid={`smu-grid-item-${m.id}`}
@@ -405,51 +396,55 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
     )
   }
 
+  // paper slotProps 以变量承载（data-* 的字面量过剩属性检查绕行，同
+  // ConfirmDialog 注记）；720px 宽版 modal（原 .smu-modal 规则随本批
+  // 退役，§3.5）。
+  const paperProps = {
+    'data-testid': 'smu-dialog',
+    sx: {
+      width: 'min(720px, calc(100vw - 48px))',
+      maxHeight: 'calc(100vh - 96px)',
+    },
+  }
+
   return (
-    <div
-      className="modal-backdrop"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
+    <Dialog
+      open
+      onClose={onClose}
+      aria-labelledby="smu-dialog-title"
+      slotProps={{ paper: paperProps }}
     >
-      <div
-        ref={rootRef}
-        tabIndex={-1}
-        className="modal smu-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label={pkgMeta ? `配置 ${pkgMeta.label} 客户端` : '选择客户端类型'}
-        data-testid="smu-dialog"
-      >
-        {showGrid || !pkg ? (
-          <>
-            <h2>选择客户端类型</h2>
+      {showGrid || !pkg ? (
+        <>
+          <DialogTitle id="smu-dialog-title">选择客户端类型</DialogTitle>
+          <DialogContent>
             <p className="text-2">选择包类型，了解如何向 BinFlow 解析与部署制品。</p>
             {resolving ? <Skeleton lines={3} /> : renderGrid()}
-            <div className="modal-actions">
-              <button type="button" className="btn" onClick={onClose}>
-                关闭
-              </button>
-            </div>
-          </>
-        ) : (
-          <>
-            <h2>
-              配置 {pkgMeta?.label ?? pkg} 客户端
-              {repoKey && (
-                <span className="mono" lang="en" style={{ marginLeft: 8, fontSize: 'var(--bf-fs-body)' }}>
-                  {repoKey}
-                </span>
-              )}
-            </h2>
-            <button
-              type="button"
-              className="smu-back"
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={onClose}>关闭</Button>
+          </DialogActions>
+        </>
+      ) : (
+        <>
+          <DialogTitle id="smu-dialog-title" sx={{ pb: 0.5 }}>
+            配置 {pkgMeta?.label ?? pkg} 客户端
+            {repoKey && (
+              <span className="mono" lang="en" style={{ marginLeft: 8, fontSize: 'var(--bf-fs-body)' }}>
+                {repoKey}
+              </span>
+            )}
+          </DialogTitle>
+          <DialogContent>
+            <Button
+              variant="text"
+              size="small"
               data-testid="smu-back"
               onClick={() => setShowGrid(true)}
+              sx={{ px: 0, mt: -0.5, alignSelf: 'flex-start' }}
             >
               ← 选择不同的包类型
-            </button>
+            </Button>
 
             <div className="field" style={{ marginTop: 12 }}>
               <label htmlFor="smu-repo">仓库</label>
@@ -519,16 +514,15 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
                 ))}
               </div>
             )}
-
-            <div className="modal-actions">
-              <button type="button" className="btn primary" onClick={onClose}>
-                完成
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
+          </DialogContent>
+          <DialogActions>
+            <Button variant="contained" size="medium" onClick={onClose}>
+              完成
+            </Button>
+          </DialogActions>
+        </>
+      )}
+    </Dialog>
   )
 }
 
@@ -664,15 +658,15 @@ function TokenArea({
             </pre>
           </details>
           <div style={{ marginTop: 8 }}>
-            <button
-              type="button"
-              className="btn primary"
+            <Button
+              variant="contained"
+              size="medium"
               data-testid="smu-password-submit"
               disabled={mint.submitting || password === ''}
               onClick={onSubmitPassword}
             >
               {mint.submitting ? '验证中…' : '验证并生成令牌'}
-            </button>
+            </Button>
           </div>
         </div>
       ) : mint.phase === 'need-reauth' ? (
@@ -697,15 +691,15 @@ function TokenArea({
             </pre>
           </details>
           <div style={{ marginTop: 8 }}>
-            <button
-              type="button"
-              className="btn primary"
+            <Button
+              variant="contained"
+              size="medium"
               data-testid="smu-reauth"
               disabled={mint.busy}
               onClick={onReauth}
             >
               {mint.busy ? '等待重认证完成…' : '重新认证并继续'}
-            </button>
+            </Button>
           </div>
         </div>
       ) : (
@@ -717,15 +711,15 @@ function TokenArea({
             </p>
           )}
           <div style={{ marginBottom: 8 }}>
-            <button
-              type="button"
-              className="btn primary"
+            <Button
+              variant="contained"
+              size="medium"
               data-testid="smu-generate"
               disabled={mint.phase === 'minting'}
               onClick={onGenerate}
             >
               {mint.phase === 'minting' ? '生成中…' : '生成令牌并创建指引'}
-            </button>
+            </Button>
           </div>
           <p className="field-hint">
             {admin
