@@ -45,10 +45,14 @@ const prefix = "/binflow"
 //
 // csrfGuard sits between the authenticator and dispatch (T-91): it needs
 // the resolved principal and must precede every route decision.
+// deployScopeGuard (M12 T-349, FR-113.3) takes the same position for the
+// narrow checksum-deploy tokens: one pre-routing decision point, every
+// plane covered.
 func (s *Server) rootHandler() http.Handler {
 	return s.baseChain(chain(
 		authenticate(s.deps.Auth),
 		csrfGuard(s.log),
+		deployScopeGuard(s.log),
 	)(http.HandlerFunc(s.dispatch)))
 }
 

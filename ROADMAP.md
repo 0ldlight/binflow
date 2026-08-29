@@ -2,7 +2,7 @@
 
 > 由 product-manager 维护；tech-lead 据此把当前里程碑分解为 ticket。
 
-## 当前里程碑：M12（Artifactory 对齐第三程——NuGet 面补全 + 制品生命周期域 + 行为债收口；PRD v1.0 草案待 conductor 审，2026-08-28；M11 已收官 `m11-done 2026-08-28`）
+## 当前里程碑：M12（Artifactory 对齐第三程——NuGet 面补全 + 制品生命周期域 + 行为债收口；PRD v1.0 已审定；**m12-done 2026-08-30**）
 
 ### M0 — 团队启动（已完成）
 - [x] 产品愿景 PRODUCT.md（BinFlow）
@@ -177,6 +177,12 @@
 - Q5 replica 隔离（ADR-0025 决策 1 遗留）→ **建议并入 M11「复制硬化」**（与 smart remote contentSynchronisation/属性同步同域，消费 M10 属性系统成果）/ E7 repos 侧过滤列表（ADR-0030）
 - 票级遗留 17 条：remote JoinURL 转义（D-1 同类候选）/ -rev 回显塌缩 / scenario-3 观测面 / 复制管理专篇 / console-m8 §4.1/§6.9 回写 / SearchPage q-sync 微票 / recents 双实现收敛 / a11y 预算观测 / matrix 层探针 / .status-pill 收敛 / counts 实体列 / docs-site/build 体积 / legacy Engine.GC 物理删除 / Playwright 压力腿形态 / t104 matrix workers / T-251.md 遗留 5 措辞
 - M11+ 主轴候选（主矩阵十大缺口分期）：AQL + 13 老搜索 / Trash can / Cleanup-Retention / 制品操作族（copy/move/zip/archive!/）/ Webhook 事件总线 / 第一梯队包型批量实现（消费 FR-91 规格）/ **HA 高可用本体**（M10 仅占位槽位，未实现）/ **NuGet symbol server**（.pdb/GUID 路径）/ **制品 license 识别**（licences.xml 91 模式，inv-4 J3）/ **冷存储分层**（Cleanup-Retention 内单列）/ Build-info 域 / Go 深化（sumdb 代理 + external 重定向）/ HuggingFace 等 AI/ML 13 型（T-297 终验 DoD-7 补词：原四处弱登记显式化，2026-08-26）
+
+### M12 未纳入项（滚入 M13+ 候选池；2026-08-30 T-356 终验归档）
+- **票级遗留**：chartsBaseUrl 分体基址（T-313 D-2，remote 域配置票）；`_external` 落盘缓存（D-3，建议 M13 引擎 absolute-URL 缝票）；HelmOCI remote/virtual（D-5 翻转点）；folderDownloadConfig / trashcan.retention_days 两个 YAML 旋钮（缝已备）；deb bz2 压缩档；conan D8 整树删翻转票（T-348 新取证）；D-F2 布局迁移（FR-110.1 邻域）；npm registry/token 尾斜杠接入注释。
+- **P2 登记维持**：D-10 同字节幂等分歧 / flat 措辞 / L31 拒启次序解释空间（PRD AC5 与 T-349 设计冲突的文面裁定）/ 满载 flake 新成员（TestBigTreeCopyNo5xx 预算臂 raceEnabled escape）。
+- **M13+ 主轴候选**：HA 本体（Q1 终裁单列，需 PRODUCT.md 修订解禁）/ AQL + 老搜索 / Webhook 事件总线 / Build-info / Go 深化 / NuGet symbol server（M12 Q2）/ 制品 license 识别 / 冷存储分层 / AI/ML 包型扩展。
+- **运维尾巴**：trash 树常驻节点（console-m8 §6.3 推翻后的最小面补齐）；console-m8 侧栏清单过时（12/13 vs 15）。
 
 ## 里程碑完成定义（DoD）
 

@@ -50,7 +50,7 @@ M11 以 `m11-done`（2026-08-28）收官：四包型（conan/deb/rpm/helm）+ ca
 | dual-write fail-open | S3 停机窗 PUT/GET 零 5xx（T-327 D-A 两处 500 消除）+ 恢复后排空对账零缺 + 队列重启幸存 | FR-107 |
 | 资源门转绿 | `make footprint` ≤100MB（D-8R 红→绿）；`make check-size` 六平台聚合 ≤100MiB 维持；冷启动 <2s | FR-108 |
 | HelmOCI | `helm push/pull oci://` 全链绿 + manifest 三 media type 断言 + docker 面零回归 | FR-109 |
-| 包型收尾 | D-F `_/_` 坐标 delete 200；forceConanAuthentication 生效；cargo 死上游 search 409 | FR-110 |
+| 包型收尾 | D-F `_/_` 坐标 delete 200；forceConanAuthentication 生效；cargo 死上游 search 双姿态（默认 404 unfound / hardFail 409——终验修正：409 在 remote search 上游异常臂非 publish，T-355A 查证） | FR-110 |
 | MUI 批三 | 四闸门 + axe 双主题 0 + SPA gzip 相对 T-291 基线累计 ≤25% 维持 | FR-111 |
 | 回写批 | architecture §15.4/§23 + cargo.md §8 + conan 升置信三处落盘 + `make docs` 绿 + D-G/D-H grep 零残留 | FR-112 |
 | 遗留小票 | §4.11 六项逐条 AC 绿（113.1~113.6） | FR-113 |
@@ -207,7 +207,7 @@ M11 以 `m11-done`（2026-08-28）收官：四包型（conan/deb/rpm/helm）+ ca
 
 - **AC1（copy/move 全链）**：maven/npm 源仓→目标仓 `curl -X POST -u $ADMIN "$BASE/api/copy/<src>/<path>" --data-urlencode "to=/<dst>/<path>"` → 200 + 源/目标 sha256 对账 + `?properties` 随行 + copy 源保留 / move 源消失。
 - **AC2（dryRun/flat）**：dryRun → 冲突/规模报告形态 + 源/目标零变化（GET 对照）；flat 模式展开断言 + failFast 臂。
-- **AC3（协议仓索引联动）**：deb 仓 copy `.deb` → 目标 Packages/by-hash 重算；conan 仓 move recipe → 目标 index.json 修订链一致。
+- **AC3（协议仓索引联动）**：deb 仓 copy `.deb` → 目标 Packages/by-hash 重算；conan 仓 move recipe → 目标 index.json 修订链一致；trash restore 回原仓 → 索引重算（copy 与 restore 两臂，npm install 复验）。
 - **AC4（archive!/）**：PUT zip 后 `curl $BASE/binflow/<repo>/<file>.zip!/inner/path.txt` → 成员字节一致；strictArchiveDotSlash 开启后违规形态照规格。
 - **AC5（目录 zip）**：开 folderDownload → `GET /api/archive/download` → 解包逐文件 sha256 对账；默认关断言；超限（>5000 文件）拒绝形态。
 - **AC6（exploded）**：PUT 带 `X-Explode-Archive` 的 zip → 展开多文件 + sha256 对账；非白名单扩展 400 维持（断言反转登记：M10 400→白名单内接受）。
@@ -379,7 +379,7 @@ M11 以 `m11-done`（2026-08-28）收官：四包型（conan/deb/rpm/helm）+ ca
 - **AC2（byHash + 表单）**：PUT `byHash=<非法值>` → 400 枚举错误（值域照规格）；Playwright：deb/rpm 仓编辑器设策略键（byHash/calculateYumMetadata 等）→ 保存 → 重开回显。
 - **AC3（token 窄域化）**：MPU 会话 token 用于其他路径 → 403；原会话续传维持 200。
 - **AC4（auth 尾巴）**：audit picker 两词可见；userDnPattern 行为按规格断言（DN 直写登录腿）。
-- **AC5（拒启序）**：S3 env 组缺 ACCESS_KEY → 启动即拒 + 错误指名键（先于 binstore 报错——时序断言）。
+- **AC5（拒启序）**：S3 env 组缺 ACCESS_KEY 且无 binstore.yaml → 启动即拒 + 错误指名键；binstore.yaml 存在时其链语义优先（env 组缺键不先于 binstore 拒启——终验文面修正对齐 T-349 设计，D-356-4）。
 - **AC6（CI runner/de-flake）**：de-flake 协议落地（runner 就位或静默窗脚本）+ 负载 flake 家族三连零复发或隔离归因留痕。
 
 ---

@@ -56,7 +56,7 @@ type remoteConfig struct {
 	Username                       string `json:"username,omitempty"`
 	RetrievalCachePeriodSecs       int64  `json:"retrievalCachePeriodSecs"`
 	MissedRetrievalCachePeriodSecs int64  `json:"missedRetrievalCachePeriodSecs"`
-	SocketTimeoutMs                int64  `json:"socketTimeoutMs"`
+	SocketTimeoutMillis            int64  `json:"socketTimeoutMillis"`
 	SocketTimeoutSecs              int64  `json:"socketTimeoutSecs"`
 	MetadataRetrievalTimeoutSecs   int64  `json:"metadataRetrievalTimeoutSecs"`
 	UnusedCleanupPeriodHours       int64  `json:"unusedArtifactsCleanupPeriodHours"`
@@ -113,18 +113,21 @@ type contentSyncInput struct {
 // password (accepted then dropped) and pointer fields so "absent" (default)
 // is distinguishable from an explicit zero.
 //
-// T-290 (FR-90.2) adds the ms-granularity timeout spellings and the smart
-// remote effective subset:
+// T-290 (FR-90.2) added the ms-granularity timeout spellings and the smart
+// remote effective subset; T-346 (FR-113.1, the T-290-2 carryover) flipped
+// the canonical spelling:
 //
-//   - socketTimeoutMs (PRD/LC-12 spelling) and socketTimeoutMillis (the
-//     artifactory.xsd / repo-semantics 7.1 spelling) are aliases of one
-//     knob; an explicit 0 on either side counts as ABSENT (the create-time
-//     "explicit zero keeps the default" rule — resolveRemoteAlias), and
-//     two non-zero spellings that disagree refuse (the
-//     virtualConfigInput alias-disagreement rule). A non-zero ms value
-//     takes precedence over the M3 socketTimeoutSecs field — only the ms
-//     spellings can express sub-second timeouts, so the coarser legacy
-//     field yields (a zero ms spelling yields right back).
+//   - socketTimeoutMillis (the artifactory.xsd / repo-semantics 7.1
+//     spelling) is the CANONICAL form — the persisted canonical JSON and
+//     the GET echo carry it, never the ms alias. socketTimeoutMs (the
+//     PRD/LC-12 spelling) is an INPUT-ONLY alias: accepted on the write
+//     plane, canonicalized away. An explicit 0 on either side counts as
+//     ABSENT (the create-time "explicit zero keeps the default" rule —
+//     resolveRemoteAlias), and two non-zero spellings that disagree refuse
+//     (the virtualConfigInput alias-disagreement rule). A non-zero ms
+//     value takes precedence over the M3 socketTimeoutSecs field — only
+//     the ms spellings can express sub-second timeouts, so the coarser
+//     legacy field yields (a zero ms spelling yields right back).
 //   - missRetrievalCachePeriodSecs (the inv-4 F5 / PRD spelling) is an
 //     input alias of missedRetrievalCachePeriodSecs (the canonical
 //     Artifactory spelling this model keeps); the same 0-as-absent /
@@ -139,8 +142,8 @@ type remoteConfigInput struct {
 	MissedRetrievalCachePeriodSecs    *int64           `json:"missedRetrievalCachePeriodSecs"`
 	MissRetrievalCachePeriodSecs      *int64           `json:"missRetrievalCachePeriodSecs"` // alias of the field above
 	SocketTimeoutSecs                 *int64           `json:"socketTimeoutSecs"`
-	SocketTimeoutMs                   *int64           `json:"socketTimeoutMs"`     // ms-granularity, wins over secs
-	SocketTimeoutMillis               *int64           `json:"socketTimeoutMillis"` // artifactory.xsd spelling of socketTimeoutMs
+	SocketTimeoutMs                   *int64           `json:"socketTimeoutMs"`     // input-only alias (FR-113.1); canonicalized to socketTimeoutMillis
+	SocketTimeoutMillis               *int64           `json:"socketTimeoutMillis"` // canonical ms spelling (artifactory.xsd)
 	MetadataRetrievalTimeoutSecs      *int64           `json:"metadataRetrievalTimeoutSecs"`
 	UnusedArtifactsCleanupPeriodHours *int64           `json:"unusedArtifactsCleanupPeriodHours"`
 	AssumedOfflinePeriodSecs          *int64           `json:"assumedOfflinePeriodSecs"`
@@ -260,7 +263,7 @@ func parseRemoteConfig(config string) (remoteConfig, string, error) {
 		Username:                       in.Username,
 		RetrievalCachePeriodSecs:       defaultRetrievalCachePeriodSecs,
 		MissedRetrievalCachePeriodSecs: defaultMissedRetrievalCachePeriodSecs,
-		SocketTimeoutMs:                defaultSocketTimeoutSecs * 1000,
+		SocketTimeoutMillis:            defaultSocketTimeoutSecs * 1000,
 		SocketTimeoutSecs:              defaultSocketTimeoutSecs,
 		MetadataRetrievalTimeoutSecs:   defaultMetadataRetrievalTimeoutSecs,
 		UnusedCleanupPeriodHours:       0, // off (repo-semantics 7.1)
@@ -282,8 +285,9 @@ func parseRemoteConfig(config string) (remoteConfig, string, error) {
 			ErrInvalidRepoConfig, derefInt64(in.MissedRetrievalCachePeriodSecs), derefInt64(in.MissRetrievalCachePeriodSecs))
 	}
 
-	// socketTimeoutMs / socketTimeoutMillis alias pair (T-290): same knob,
-	// artifactory.xsd and PRD spellings; the same 0-as-absent rule applies.
+	// socketTimeoutMillis / socketTimeoutMs alias pair (T-290; canonical
+	// flipped to the xsd spelling by T-346 / FR-113.1): same knob, either
+	// spelling accepted on input, the same 0-as-absent rule applies.
 	socketMs, ok := resolveRemoteAlias(in.SocketTimeoutMs, in.SocketTimeoutMillis)
 	if !ok {
 		return remoteConfig{}, "", fmt.Errorf(
@@ -304,7 +308,7 @@ func parseRemoteConfig(config string) (remoteConfig, string, error) {
 	}{
 		{"retrievalCachePeriodSecs", in.RetrievalCachePeriodSecs != nil, derefInt64(in.RetrievalCachePeriodSecs)},
 		{"missedRetrievalCachePeriodSecs", missed != nil, derefInt64(missed)},
-		{"socketTimeoutMs", socketMs != nil, derefInt64(socketMs)},
+		{"socketTimeoutMillis", socketMs != nil, derefInt64(socketMs)},
 		{"socketTimeoutSecs", socketMs == nil && in.SocketTimeoutSecs != nil, derefInt64(in.SocketTimeoutSecs)},
 		{"metadataRetrievalTimeoutSecs", in.MetadataRetrievalTimeoutSecs != nil, derefInt64(in.MetadataRetrievalTimeoutSecs)},
 		{"unusedArtifactsCleanupPeriodHours", in.UnusedArtifactsCleanupPeriodHours != nil, derefInt64(in.UnusedArtifactsCleanupPeriodHours)},
@@ -322,10 +326,10 @@ func parseRemoteConfig(config string) (remoteConfig, string, error) {
 			out.RetrievalCachePeriodSecs = f.value
 		case "missedRetrievalCachePeriodSecs":
 			out.MissedRetrievalCachePeriodSecs = f.value
-		case "socketTimeoutMs":
-			out.SocketTimeoutMs = f.value
+		case "socketTimeoutMillis":
+			out.SocketTimeoutMillis = f.value
 		case "socketTimeoutSecs":
-			out.SocketTimeoutMs = f.value * 1000
+			out.SocketTimeoutMillis = f.value * 1000
 		case "metadataRetrievalTimeoutSecs":
 			out.MetadataRetrievalTimeoutSecs = f.value
 		case "unusedArtifactsCleanupPeriodHours":
@@ -336,7 +340,7 @@ func parseRemoteConfig(config string) (remoteConfig, string, error) {
 	}
 	// The legacy echo field is derived from the effective ms value (ceil, so
 	// the seconds spelling never over-reports the timeout a client gets).
-	out.SocketTimeoutSecs = (out.SocketTimeoutMs + 999) / 1000
+	out.SocketTimeoutSecs = (out.SocketTimeoutMillis + 999) / 1000
 	if in.HardFail != nil {
 		out.HardFail = *in.HardFail
 	}
@@ -475,6 +479,20 @@ func parseVirtualConfig(config string) (virtualConfig, error) {
 	return virtualConfig{Repositories: in.Repositories, DefaultDeploymentRepo: def}, nil
 }
 
+// byHashPolicies is the closed value domain of the deb by-hash policy key
+// (debian.md section 5, high confidence — the spec's code enum plus the inv-3
+// double confirmation). K45's in-ticket ruling (FR-113.2): this is THE enum;
+// rpm.md carries no byHash knob of its own (its policy keys are boolean/integer
+// typed and ride the decode-time typing), so the gate is spelled once, here,
+// for the one key that has a value domain. The check is package-type-agnostic
+// like every other validateLocalConfig rule: the key is the deb policy knob,
+// but a mistyped value never sits stored whatever the repository's type (the
+// adapter's normalized() reader keeps its unknown-reads-as-NONE arm as defense
+// in depth for hand-mangled blobs — T-327R registered exactly this split).
+var byHashPolicies = map[string]bool{
+	"ALL": true, "SHA256": true, "NONE": true,
+}
+
 // validateLocalConfig type-checks the cross-cutting fields of a LOCAL
 // repository config (M1's passthrough contract keeps the blob caller-owned;
 // only the fields this package's own consumers read are validated).
@@ -484,12 +502,25 @@ func parseVirtualConfig(config string) (virtualConfig, error) {
 // same way: quotaBytes must be a non-negative integer (0 = unlimited, the
 // default); a type error anywhere is refused at CONFIG time (the decode error
 // names the offending field), never discovered mid-upload.
+//
+// T-346 (FR-113.2, the T-327R leftover ②): byHash gains its value-domain gate
+// — an arbitrary string no longer stores verbatim to be read as NONE later;
+// the PUT refuses with the enum named (Artifactory's configure-time posture).
+// An absent or empty value stays legal (absent = the adapter default NONE).
 func validateLocalConfig(config string) error {
 	var probe struct {
 		PriorityResolution *bool   `json:"priorityResolution"`
 		QuotaBytes         *int64  `json:"quotaBytes"`
 		IncludesPattern    *string `json:"includesPattern"`
 		ExcludesPattern    *string `json:"excludesPattern"`
+		ByHash             *string `json:"byHash"`
+		// T-355A (FR-110.2, the D-5 carryover): forceConanAuthentication is
+		// the conan repo-config switch (conan.md section 2's auth gate,
+		// consumed by the conan adapter). A boolean when present — typing
+		// rides the decode like every other probe field, so a mistyped value
+		// is refused at CONFIG time with the field named, never discovered
+		// when the adapter's tolerant probe reads it as false.
+		ForceConanAuthentication *bool `json:"forceConanAuthentication"`
 	}
 	if err := json.Unmarshal([]byte(config), &probe); err != nil {
 		return fmt.Errorf("%w: local repository config: %w", ErrInvalidRepoConfig, err)
@@ -497,6 +528,10 @@ func validateLocalConfig(config string) error {
 	if probe.QuotaBytes != nil && *probe.QuotaBytes < 0 {
 		return fmt.Errorf("%w: quotaBytes must not be negative (got %d; 0 means unlimited)",
 			ErrInvalidRepoConfig, *probe.QuotaBytes)
+	}
+	if probe.ByHash != nil && *probe.ByHash != "" && !byHashPolicies[*probe.ByHash] {
+		return fmt.Errorf("%w: byHash %q is not a legal by-hash policy: must be one of ALL, SHA256, NONE (debian.md section 5)",
+			ErrInvalidRepoConfig, *probe.ByHash)
 	}
 	return nil
 }

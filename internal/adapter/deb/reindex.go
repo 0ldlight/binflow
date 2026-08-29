@@ -389,6 +389,25 @@ func (h *Handler) ReindexRepository(ctx context.Context, p *repo.Principal, repo
 	})
 }
 
+// ReindexDirs is the copy-side index recompute entry (M12 T-354, the
+// §15.4.2 leftover seam): the cmd assembly's CopyMoveObserver dispatches
+// here by the target repository's package type, running the recomputation
+// as repo.SystemPrincipal() (the trash chain's internal identity; the D1
+// server-internal license posture holds — the gate is the HTTP verb
+// face's, an in-process recompute never re-asks the question).
+//
+// The deb index is PROPERTY-coordinate driven: a package lands in every
+// distribution/component/architecture its deb.* properties name (the
+// cartesian product), so the candidate directory set — a path shape —
+// cannot name the affected distributions. The honest recompute is the
+// whole-repository run (ReindexRepository, the management plane's engine,
+// the same per-repository index lock); the dirs parameter is accepted for
+// the uniform seam and deliberately unused.
+func (h *Handler) ReindexDirs(ctx context.Context, p *repo.Principal, repoKey string, dirs []string) error {
+	_ = dirs
+	return h.ReindexRepository(ctx, p, repoKey)
+}
+
 // recomputeDists is the upload/delete chain's entry: the same engine on
 // the coordinate distributions only, dispatched in the background (the
 // async posture of section 3.3 — the PUT's 201 never waits on it).

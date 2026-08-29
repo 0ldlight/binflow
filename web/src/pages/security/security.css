@@ -102,28 +102,9 @@
   }
 }
 
-/* ---------- 列头排序（§3.3 C1 / §4.7：asc → desc → none 循环） ---------- */
-
-.th-sort {
-  all: unset;
-  cursor: pointer;
-  font: inherit;
-  color: inherit;
-}
-
-.th-sort:hover {
-  color: var(--bf-accent);
-}
-
-.th-sort:focus-visible {
-  outline: 2px solid var(--bf-accent);
-  outline-offset: 2px;
-}
-
-.th-sort-arrow {
-  font-size: 10px;
-  color: var(--bf-text-2);
-}
+/* ---------- 列头排序（§3.3 C1 / §4.7：asc → desc → none 循环） ----------
+ * .th-sort/.th-sort-arrow 族已随 T-344 批 C 退役（mui-native-visual §3.5）：
+ * MUI TableSortLabel 承载；aria-sort 三态与锚仍在 th 本体（widgets.SortTh）。 */
 
 /* ---------- 表格计数行（§6.6/§6.9 底部「共 N 项」族） ---------- */
 
@@ -203,36 +184,10 @@
   gap: 4px;
 }
 
-/* ---------- 409 冲突面板（组被 permission target 引用，W33c） ---------- */
-
-.conflict-panel {
-  border: 1px solid color-mix(in srgb, var(--bf-warning) 45%, transparent);
-  border-radius: var(--bf-r-md);
-  background: color-mix(in srgb, var(--bf-warning) 8%, transparent);
-  padding: var(--bf-sp-3) var(--bf-sp-4);
-  margin-bottom: var(--bf-sp-4);
-}
-
-.conflict-panel .headline {
-  color: var(--bf-warning);
-  font-weight: 600;
-  margin-bottom: var(--bf-sp-1);
-}
-
-.conflict-panel .raw {
-  font-family: var(--bf-mono);
-  font-size: var(--bf-fs-aux);
-  color: var(--bf-text-2);
-  overflow-wrap: anywhere;
-  margin-bottom: var(--bf-sp-2);
-}
-
-.conflict-panel .targets {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--bf-sp-2);
-  align-items: center;
-}
+/* ---------- 409 冲突面板（组被 permission target 引用，W33c） ----------
+ * .conflict-panel 族已随 T-344 批 C 退役（mui-native-visual §3.5）：
+ * MUI Alert severity="warning" 承载（group-delete-reason 锚在 Alert 根）；
+ * targets 行布局并入 Alert 内 sx（flex wrap）。 */
 
 /* ---------- 权限 target 编辑器（§4.9） ---------- */
 
@@ -281,21 +236,8 @@
   margin-top: var(--bf-sp-2);
 }
 
-.pattern-add input {
-  flex: 1;
-  min-height: 32px;
-  padding: 0 var(--bf-sp-2);
-  background: var(--bf-surface-3);
-  border: 1px solid var(--bf-border);
-  border-radius: var(--bf-r-sm);
-  color: var(--bf-text);
-  font-family: var(--bf-mono);
-  font-size: var(--bf-fs-body);
-}
-
-.pattern-add input:focus {
-  border-color: var(--bf-accent);
-}
+/* .pattern-add input 皮肤规则已随 T-344 批 C 退役（MUI TextField small
+ * outlined + monoInputSx 承载——denseInputSx 续挂摘除）。 */
 
 .pattern-chip {
   display: flex;
@@ -423,16 +365,8 @@
   margin-top: var(--bf-sp-2);
 }
 
-.matrix-add select {
-  min-height: 32px;
-  min-width: 200px;
-  padding: 0 var(--bf-sp-2);
-  background: var(--bf-surface-3);
-  border: 1px solid var(--bf-border);
-  border-radius: var(--bf-r-sm);
-  color: var(--bf-text);
-  font-size: var(--bf-fs-body);
-}
+/* .matrix-add select 皮肤规则已随 T-344 批 C 退役（MUI TextField select
+ * native + monoInputSx 承载）。 */
 
 .admin-note {
   color: var(--bf-text-muted);
@@ -494,21 +428,23 @@
 /* 两步资源对话框：base.css 的 .modal 是 440px（危险确认体量）；穿梭双列
    + pattern 双栏需要宽体——本页面组自持加宽类叠加，不动共享层。 */
 
-.modal.perm-res-modal {
-  width: min(720px, calc(100vw - 48px));
-}
-
+/* .modal.perm-res-modal 宽度行已随 T-344 批 D 退役：ResourceDialog 换
+ * MUI Dialog，720px 由 paper slotProps sx 承载。step/body 的负 margin
+ * 原是补偿 .modal 手作 padding——DialogContent 自带 20px padding，收直。 */
 .perm-res-step {
-  margin: calc(-1 * var(--bf-sp-2)) 0 var(--bf-sp-3);
+  margin: 0 0 var(--bf-sp-2);
   font-size: var(--bf-fs-aux);
   color: var(--bf-text-2);
 }
 
 .perm-res-body {
-  margin-bottom: var(--bf-sp-4);
+  margin-bottom: var(--bf-sp-2);
 }
 
-/* 编辑器 [2] 区的模式只读摘要（编辑面在对话框第 2 步——§6.11 线框） */
+/* 编辑器 [2] 区的模式只读摘要（编辑面在对话框第 2 步——§6.11 线框）。
+ * .perm-pattern-summary .badge 的 mono 规则已随 T-344 批 C 退役——Chip
+ * 换装后 (0,2,0) 类压不过 emotion 字体声明，mono 走使用点 sx
+ * fontFamily: var(--bf-mono)（monoInputSx 同款修法）。 */
 
 .perm-pattern-summary {
   display: flex;
@@ -517,10 +453,6 @@
   gap: var(--bf-sp-2);
   margin-bottom: var(--bf-sp-3);
   font-size: var(--bf-fs-body);
-}
-
-.perm-pattern-summary .badge {
-  font-family: var(--bf-mono);
 }
 
 /* T-266 注：T-237 role-warning / T-241 perm-verdict-* 自持对比度类已
@@ -533,52 +465,13 @@
  * 只追加新类，不改上方已交区块的任何类名。
  * ============================================================ */
 
-/* Status 徽章（E2/E3 enabled 真值）：自持 status-pill 类——不复用 .badge
-   基类（用户行内 .badge 语义位已被角色徽章与组 chips 占用，m8 套件的
-   行级 .badge 锚按视图唯一计，ADR-0029 决策 3——加一个 .badge 即破其
-   strict-mode 唯一性；T-266 对比度类回退不含此类）。视觉配方对齐
-   .badge（base.css）+ 对比度同款收口（语义色 15% tint 底 + 文字向
-   正文色收敛 82%，两主题实测 ≥4.9:1）。 */
-
-.status-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 7px;
-  border-radius: var(--bf-r-sm);
-  font-size: var(--bf-fs-aux);
-  line-height: 1.4;
-}
-
-.status-pill.status-on {
-  background: color-mix(in srgb, var(--bf-success) 15%, transparent);
-  color: color-mix(in srgb, var(--bf-success) 82%, var(--bf-text));
-}
-
-.status-pill.status-off {
-  background: color-mix(in srgb, var(--bf-danger) 15%, transparent);
-  color: color-mix(in srgb, var(--bf-danger) 82%, var(--bf-text));
-}
+/* Status 徽章（E2/E3 enabled 真值）——.status-pill 族已随 T-344 批 C
+ * 退役（mui-native-visual §3.5）：MUI Chip outlined color success/error
+ * 承载，类名组合原样续挂（ADR-0029 决策 3 的「行级 .badge 唯一性」语义
+ * 沿袭——status-pill 仍不挂 .badge 基类）。 */
 
 /* 删用户危险区（console-m8 §6.14 危险区模式的用户编辑页实例）：红边
-   分区 + 影响面摘要 + 强确认入口（确认对话框本体在共享 ConfirmDialog）。 */
-
-.sec-danger-zone {
-  margin-top: var(--bf-sp-4);
-  padding: var(--bf-sp-3) var(--bf-sp-4);
-  border: 1px solid color-mix(in srgb, var(--bf-danger) 45%, transparent);
-  border-radius: var(--bf-r-md);
-  background: color-mix(in srgb, var(--bf-danger) 6%, transparent);
-}
-
-.sec-danger-zone .dz-head {
-  color: var(--bf-danger);
-  font-weight: 600;
-  margin-bottom: var(--bf-sp-1);
-}
-
-.sec-danger-zone .dz-note {
-  font-size: var(--bf-fs-aux);
-  color: var(--bf-text-2);
-  margin: 0 0 var(--bf-sp-2);
-  max-width: 72ch;
-}
+   分区 + 影响面摘要 + 强确认入口（确认对话框本体在共享 ConfirmDialog）。
+ * .sec-danger-zone 族已随 T-344 批 D 退役（§3.5）：Paper variant=
+ * "outlined" + borderColor error.main；dz-head/dz-note 类名随 Typography
+ * 续挂（inert）。 */

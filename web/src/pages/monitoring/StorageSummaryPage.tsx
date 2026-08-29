@@ -15,7 +15,6 @@ import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import { getRepositories, getStorageStats } from '../../lib/api'
 import { dedupRatio, formatBytes, formatCount } from '../../lib/format'
-import { badgeChipSx, rowBtnSx } from '../../lib/muiAtoms'
 import { getRepoUsage } from '../../lib/repos'
 import type { RepoUsage } from '../../lib/repos'
 import { useAsync } from '../../lib/useAsync'
@@ -142,7 +141,7 @@ export default function StorageSummaryPage() {
         <Button
           variant="outlined"
           size="small"
-          sx={rowBtnSx}
+         
           onClick={doRefresh}
           data-testid="storage-refresh"
           disabled={usage.status === 'loading'}
@@ -222,7 +221,7 @@ export default function StorageSummaryPage() {
             />
           ) : (
             measured.length > 0 && (
-              <Table className="table" data-testid="storage-table">
+              <Table data-testid="storage-table">
                 <TableHead>
                   <TableRow>
                     <TableCell component="th" scope="col">仓库</TableCell>
@@ -234,7 +233,7 @@ export default function StorageSummaryPage() {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  <TableRow className="storage-total" data-testid="storage-total-row">
+                  <TableRow className="storage-total" data-testid="storage-total-row" hover>
                     <TableCell>
                       <b>TOTAL</b>
                     </TableCell>
@@ -259,7 +258,7 @@ export default function StorageSummaryPage() {
                     const virtual = r.type === 'virtual'
                     const pct = !virtual && u && totalUsed > 0 ? (u.usedBytes / totalUsed) * 100 : null
                     return (
-                      <TableRow key={r.key} data-testid={`storage-row-${r.key}`}>
+                      <TableRow key={r.key} data-testid={`storage-row-${r.key}`} hover>
                         <TableCell>
                           <Link className="row-link mono" to={repoLink(r.key)} lang="en">
                             {r.key}
@@ -267,7 +266,7 @@ export default function StorageSummaryPage() {
                           <CopyButton value={r.key} label={`仓库 key ${r.key}`} />
                         </TableCell>
                         <TableCell>
-                          <Chip size="small" className="badge neutral" label={r.type} sx={badgeChipSx} />
+                          <Chip size="small" className="badge neutral" label={r.type} lang="en" />
                         </TableCell>
                         <TableCell lang="en">{r.packageType}</TableCell>
                         <TableCell className="mono" lang="en">

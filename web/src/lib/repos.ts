@@ -19,7 +19,21 @@ export type RClass = 'local' | 'remote' | 'virtual'
 // 集 = GET /api/v1/addons 的 package-type 槽位，动态）。PACKAGE_TYPES 常量
 // 仍 = 五核心静态枚举（community 地板，既有消费方〔SetMeUpDialog 仓库下拉
 // 等〕语义不变）；建仓对话框/表单的可选集改由 addons API 实时驱动。
-export type PackageType = 'generic' | 'docker' | 'maven' | 'npm' | 'pypi' | 'go' | 'nuget' | 'cargo'
+// M11 起 conan/helm/rpm/debian 四型入注册表（slots.go）；M12 T-353 把
+// deb/rpm/helm 的策略键表单面接进仓库编辑器（policyFields.ts 字段册）。
+export type PackageType =
+  | 'generic'
+  | 'docker'
+  | 'maven'
+  | 'npm'
+  | 'pypi'
+  | 'go'
+  | 'nuget'
+  | 'cargo'
+  | 'conan'
+  | 'helm'
+  | 'rpm'
+  | 'debian'
 
 export const RCLASSES: RClass[] = ['local', 'remote', 'virtual']
 export const PACKAGE_TYPES: PackageType[] = ['generic', 'docker', 'maven', 'npm', 'pypi']

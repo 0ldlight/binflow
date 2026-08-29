@@ -27,13 +27,23 @@ M10 引入 **license / addon 档位体系**（community 地板 / pro / enterpris
 fail-fast 并存裁决）、debian/rpm 仓库元数据的 GPG **keypair 签名**，以及
 remote 缓存的 **unused-cleanup 清理引擎**。
 
+M12（进行中）落地**制品生命周期域**：copy/move/zip/`archive!`/explode
+**制品操作族**与 **Trash can**（local 仓删除先捕获进内置 `auto-trashcan`
+仓、逐节点带五元组溯源属性、REST 可恢复、默认 14 天保留期按小时清扫——
+两者均为 pro 功能槽）。**NuGet 面补全**（v2 OData 全路由含 `$batch`；
+v3 remote/virtual search 升为上游 SearchQueryService 实时代理 +
+service index 动态解析）；dual-write 链在 S3 停机窗 **fail-open**（本地
+优先写 + 持久重放队列、读回退磁盘超集、恢复后自动排空对账——ADR-0040）；
+分块上传 REST 面已整体翻成 **Artifactory MPU 形状**（jfrog-cli 实测）；
+控制台视觉层全面换装 **MUI 原生默认皮肤**（手写 base.css 983 → 443 行）。
+
 ## 包型矩阵（含档位）
 
 | 档位 | 包型 | 说明 |
 |---|---|---|
 | **community**（地板——不装 license 也有） | generic、docker、maven、npm、pypi | 五核心：M1~M9 全部能力 + 属性系统 |
-| **pro** | go、nuget、cargo（M10）· conan、helm、rpm、debian（M11） | 建仓/上传需 pro 及以上 license；license 失效后既有制品仍可读 |
-| **enterprise** | （功能槽位：ha、xray-integration） | 占位槽位；本体 M12+ |
+| **pro** | go、nuget、cargo（M10）· conan、helm、rpm、debian（M11）· helmoci、制品操作族 + 回收站功能槽（M12；trash 档位暂行） | 建仓/上传需 pro 及以上 license；license 失效后既有制品仍可读 |
+| **enterprise** | （功能槽位：ha、xray-integration） | 占位槽位；本体 M13+ |
 
 档位语义一句话：**读永不劫持**——license 缺失/过期只关闭建仓（400）与
 写动词（403 + `X-Binflow-License-Required: <addon>`）；`GET /binflow/api/v1/addons`
@@ -43,8 +53,8 @@ remote 缓存的 **unused-cleanup 清理引擎**。
 | 内容 | 位置 |
 |---|---|
 | 产品愿景与范围 | [`PRODUCT.md`](PRODUCT.md) |
-| 里程碑（M1 内核 → M11 对齐第二程，M1~M11 已完成〔m11-done〕） | [`ROADMAP.md`](ROADMAP.md) |
-| M11 需求（PRD：配置面 / 四包型 / keypair / cleanup） | [`docs/prd/milestone-11.md`](docs/prd/milestone-11.md) |
+| 里程碑（M1 内核 → M12 生命周期程；M1~M11 已完成〔m11-done〕） | [`ROADMAP.md`](ROADMAP.md) |
+| M12 需求（PRD：NuGet 补全 / 制品生命周期 / 行为债收口） | [`docs/prd/milestone-12.md`](docs/prd/milestone-12.md) |
 | Artifactory 全量功能对照矩阵（213 条目——M10+ 路线图骨干） | [`docs/reverse/artifactory-full-feature-matrix.md`](docs/reverse/artifactory-full-feature-matrix.md) |
 | 帮助文档中心（安装 / 接入 / 管理 / API / FAQ） | [`docs/user/README.md`](docs/user/README.md) |
 | 架构规范 | [`docs/design/architecture.md`](docs/design/architecture.md) |
@@ -354,6 +364,60 @@ docker compose -f deploy/dev/docker-compose.yml down -v    # 清空数据
   gpgcheck 链验证过）；cleanup 引擎按小时 cron 回收闲置 remote 缓存
   （`POST /binflow/api/v1/system/cleanup` 手动 dry-run/apply）。
 
+### M12 —— 制品生命周期、NuGet 补全、fail-open 双写（进行中）
+
+- **copy / move / `archive!` / explode**——操作族共用一个 pro 功能槽
+  （`repo-operations`）；树级拷贝零拷贝（blob 台账引用复用），带
+  `X-Explode-Archive: true` 的 PUT 原地解包（归档原件不落库），
+  `<archive>!/<entry>` 不解包直读归档成员。目录打包下载随
+  `folderDownloadConfig` 交付（默认关，配置旋钮未落——见指南已知边界）。
+
+  ```bash
+  # community 实例：整族答 addon 门（真二进制 curl 实测）
+  curl -u admin:$ADMIN_PW -X POST \
+    "$BASE/binflow/api/copy/generic-local/src/a.bin?to=/dst/a.bin" -i | head -4
+  # HTTP/1.1 403 Forbidden
+  # X-Binflow-License-Required: repo-operations
+  # {"errors":[{"status":403,"message":"license required: addon 'repo-operations' needs tier 'pro' (current: none)"}]}
+
+  # pro：树级拷贝 / 干跑（响应 = Artifactory 的 CopyOrMoveResult 形）
+  curl -su admin:$ADMIN_PW -X POST \
+    "$BASE/binflow/api/copy/generic-local/acme?to=/staging/acme" | jq .
+  # {"messages":[{"level":"INFO","message":"copying … completed successfully, N artifacts and M folders were copied"}]}
+
+  # explode：上传归档并原地展开（201 + 条目计数头）
+  curl -su admin:$ADMIN_PW -T bundle.zip -H 'X-Explode-Archive: true' \
+    $BASE/binflow/generic-local/acme/bundle.zip -i | head -3
+  ```
+
+  指南：[制品操作族](docs/user/admin/artifact-operations.md)。
+- **Trash can**——local 仓删除先捕获进内置 `auto-trashcan` 仓（五元组
+  溯源属性），REST 可恢复，默认 14 天保留期按小时清扫（真二进制全链 +
+  sha256 对账）：
+
+  ```bash
+  curl -su admin:$ADMIN_PW \
+    "$BASE/binflow/api/storage/auto-trashcan/vlibs/com/acme/v.jar?properties" | jq .
+  # {"properties":{"trash.time":["1787952557679"],"trash.deletedBy":["admin"],
+  #   "trash.originalRepository":["vlibs"],"trash.originalRepositoryType":["local"],
+  #   "trash.originalPath":["com/acme/v.jar"],"license":["apache-2.0"]}}
+  curl -su admin:$ADMIN_PW -X POST \
+    "$BASE/binflow/api/trash/restore/vlibs/com/acme/v.jar?transaction-size=100" | jq .
+  curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/trash/empty | jq .
+  # {"removed":2,"files":1,"folders":1,"bytes":3}
+  ```
+
+  指南：[Trash can 管理](docs/user/admin/trash-can.md)。
+- **NuGet 补全**——v2 OData 面现在服务全路由集（`Search()` / `Packages()` /
+  `GetUpdates()` / `$batch` / `Download` / DELETE / PUT 双形 + 409 重复臂）；
+  v3 remote/virtual search 升为上游 SearchQueryService 实时代理
+  （service index 动态解析、semver2 registration 路由族）。
+  指南：[NuGet 接入](docs/user/integrations/nuget.md)。
+- **fail-open 双写**——`[filestore, s3]` 链遇 S3 停机不再 500：上传本地
+  优先落盘并进持久重放队列、读回退磁盘超集、恢复后自动排空 + 对账
+  （`completed` 模式下队列非空拒启）。见
+  [存储配置 · fail-open](docs/user/admin/storage-config.md)。
+
 每种部署方式的安装指南（单二进制 / Docker / compose / Helm / K8s 清单 /
 systemd / 离线 air-gapped / 升级）：[`docs/user/install/`](docs/user/install/)。
 每协议客户端接入（docker/mvn/npm/pip/go/nuget/cargo/conan/helm/rpm/deb
@@ -490,9 +554,9 @@ make dev   # vet + lint + test + build，push 前门禁
 
 ## 许可 / 状态
 
-pre-GA 软件。里程碑 M1~M10 已完成并打 tag（`m1-done` … `m10-done`）；
-M11（十二包型矩阵、license 门控、运行态配置面、keypair 签名、cleanup
-引擎）正在终验。里程碑规划见 `ROADMAP.md`，当前进行中的工作见
+pre-GA 软件。里程碑 M1~M11 已完成并打 tag（`m1-done` … `m11-done`）；
+M12（NuGet 面补全、制品生命周期域——操作族与回收站——及行为债收口）
+进行中。里程碑规划见 `ROADMAP.md`，当前进行中的工作见
 `BOARD.md`，每轮迭代报告见 `reports/`。Artifactory 全量功能面的对齐
 按条目跟踪于
 [`docs/reverse/artifactory-full-feature-matrix.md`](docs/reverse/artifactory-full-feature-matrix.md)。

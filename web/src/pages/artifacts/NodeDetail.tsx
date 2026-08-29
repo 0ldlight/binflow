@@ -3,13 +3,13 @@ import { Link } from 'react-router-dom'
 
 import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
+import Tab from '@mui/material/Tab'
+import Tabs from '@mui/material/Tabs'
 
 import { useAuth } from '../../app/AuthContext'
 import { CopyButton } from '../../components/CopyButton'
 import { Skeleton } from '../../components/Skeleton'
 import { formatBytes } from '../../lib/format'
-import { onTablistKeys } from '../../lib/keys'
-import { badgeChipSx, dangerBtnSx, rowBtnSx } from '../../lib/muiAtoms'
 import { getRepoDetail, getRepoUsage } from '../../lib/repos'
 import { useAsync } from '../../lib/useAsync'
 import { getItem, getItemPermissions } from './lib'
@@ -103,7 +103,7 @@ export default function NodeDetail({
               <Button
                 variant="outlined"
                 size="small"
-                sx={rowBtnSx}
+               
                 disabled={download?.path === target.node.path && download.phase === 'loading'}
                 data-testid="node-download"
                 onClick={() => onDownload(target.node, item?.checksums?.sha256 ?? target.node.sha256 ?? '')}
@@ -114,7 +114,7 @@ export default function NodeDetail({
               <Button
                 variant="outlined"
                 size="small"
-                sx={rowBtnSx}
+               
                 component="a"
                 href={`/binflow/${encodeURIComponent(target.repoKey)}/${target.node.path
                   .split('/')
@@ -132,73 +132,35 @@ export default function NodeDetail({
               variant="outlined"
               color="error"
               size="small"
-              sx={dangerBtnSx}
+             
               data-testid="delete-node-button"
               onClick={() => onDelete(target.node)}
             >
               删除
             </Button>
           )}
-          <Button variant="outlined" size="small" sx={rowBtnSx} onClick={onClose}>
+          <Button variant="outlined" size="small" onClick={onClose}>
             关闭
           </Button>
         </div>
       </header>
 
-      <div
-        className="node-tabs"
-        role="tablist"
+      {/* T-344 批 D：node-tabs 换 MUI Tabs（spec §3.5 browser.css 行的 D 波
+          评估落地）。锚 node-tab-* 落 Tab 根 <button>（元素型不变）、
+          aria-selected 内建；方向键「选择随焦点」= selectionFollowsFocus
+          （T-344D 批 C 的 repos/repo/authcfg 同款——keyboard.spec §4 的
+          node-tab 腿由 MUI 行为覆盖，onTablistKeys 末位消费者随之退役）。 */}
+      <Tabs
+        value={tab}
+        onChange={(_e, id: 'general' | 'props' | 'perms') => setTab(id)}
+        selectionFollowsFocus
         aria-label="详情视图"
-        onKeyDown={(e) =>
-          onTablistKeys(
-            e,
-            target.kind === 'node'
-              ? admin
-                ? ['general', 'props', 'perms']
-                : ['general', 'props']
-              : admin
-                ? ['general', 'perms']
-                : ['general'],
-            tab,
-            setTab,
-          )
-        }
+        sx={{ borderBottom: 1, borderColor: 'divider', mb: 'var(--bf-sp-3)' }}
       >
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === 'general'}
-          className={`node-tab${tab === 'general' ? ' active' : ''}`}
-          data-testid="node-tab-general"
-          onClick={() => setTab('general')}
-        >
-          常规
-        </button>
-        {target.kind === 'node' && (
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === 'props'}
-            className={`node-tab${tab === 'props' ? ' active' : ''}`}
-            data-testid="node-tab-props"
-            onClick={() => setTab('props')}
-          >
-            属性
-          </button>
-        )}
-        {admin && (
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === 'perms'}
-            className={`node-tab${tab === 'perms' ? ' active' : ''}`}
-            data-testid="node-tab-perms"
-            onClick={() => setTab('perms')}
-          >
-            有效权限
-          </button>
-        )}
-      </div>
+        <Tab value="general" label="常规" data-testid="node-tab-general" />
+        {target.kind === 'node' && <Tab value="props" label="属性" data-testid="node-tab-props" />}
+        {admin && <Tab value="perms" label="有效权限" data-testid="node-tab-perms" />}
+      </Tabs>
 
       {tab === 'general' ? (
         target.kind === 'repo' ? (
@@ -251,8 +213,8 @@ function RepoGeneral({ repoKey }: { repoKey: string }) {
         <div className="kv">
           <span className="k">包类型</span>
           <span>
-            <Chip size="small" className="badge neutral" label={m.packageType} sx={badgeChipSx} />{' '}
-            <Chip size="small" className="badge neutral" label={m.rclass} sx={badgeChipSx} />
+            <Chip size="small" className="badge neutral" label={m.packageType} />{' '}
+            <Chip size="small" className="badge neutral" label={m.rclass} />
           </span>
         </div>
         <div className="kv">
@@ -397,9 +359,9 @@ function NodeGeneral({
                   size="small"
                   className="badge neutral"
                   label={tag}
-                  sx={badgeChipSx}
                   data-testid={`tag-badge-${tag}`}
                   title={`tag: ${tag}`}
+                  sx={{ mr: 0.5 }}
                 />
               ))}
             </span>

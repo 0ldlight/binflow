@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
@@ -6,11 +6,17 @@ import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Checkbox from '@mui/material/Checkbox'
+import Dialog from '@mui/material/Dialog'
+import DialogActions from '@mui/material/DialogActions'
+import DialogContent from '@mui/material/DialogContent'
+import DialogTitle from '@mui/material/DialogTitle'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import IconButton from '@mui/material/IconButton'
+import Paper from '@mui/material/Paper'
 import Radio from '@mui/material/Radio'
 import Select from '@mui/material/Select'
 import TextField from '@mui/material/TextField'
+import Typography from '@mui/material/Typography'
 
 import { useAuth } from '../../app/AuthContext'
 import { useToast } from '../../app/ToastContext'
@@ -19,7 +25,7 @@ import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import { ApiError, canAdminWrite, errText, getRepositories, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
 import type { RepoListItem } from '../../lib/api'
-import { denseInputSx } from '../../lib/muiAtoms'
+import Chip from '@mui/material/Chip'
 import { getAddons, lockedHint, packageTypeOptions, tierBadgeClass } from '../../lib/addons'
 import type { PkgTypeOption } from '../../lib/addons'
 import {
@@ -37,6 +43,15 @@ import {
 } from '../../lib/repos'
 import type { PackageType, RClass, RepoConfigBody } from '../../lib/repos'
 import { useAsync } from '../../lib/useAsync'
+import {
+  POLICY_FIELDS,
+  initialPolicyForm,
+  policyBodyEntries,
+  policyNumberValid,
+  policyPkg,
+  prefillPolicyForm,
+} from './policyFields'
+import type { PolicyForm } from './policyFields'
 
 import './repositories.css'
 
@@ -93,6 +108,9 @@ const PKG_ITEMS: { id: PackageType; label: string; desc: string; icon: string }[
 /** 门控型网格项的通用图标（displayName/描述来自注册表行——不复制） */
 const GATED_PKG_ICON = '✦'
 
+/** 策略键分组标题（T-353 字段册的呈现面） */
+const POLICY_GROUP_TITLE = { debian: 'Deb 索引策略', rpm: 'RPM 索引策略', helm: 'Helm 强制布局' } as const
+
 /** 建仓面的包型可选集（M10 T-288）：五核心静态项 + addons API 的门控槽位。
  *  加载中/请求失败 = 仅五核心（community 地板恒合法；门控型缺席不误放，
  *  服务端 D3 建仓门终裁——UI 预收敛而已）。 */
@@ -147,6 +165,8 @@ interface FormState {
   handleSnapshots: boolean
   checksumPolicyType: string
   snapshotVersionBehavior: string
+  /** deb/rpm/helm 策略键（T-353 字段册驱动；generic 等其余包型 = 空对象） */
+  policy: PolicyForm
 }
 
 const CREATE_INITIAL: FormState = {
@@ -170,6 +190,7 @@ const CREATE_INITIAL: FormState = {
   handleSnapshots: true,
   checksumPolicyType: 'client-checksums',
   snapshotVersionBehavior: 'deployer',
+  policy: {},
 }
 
 function prefillFromDetail(d: {
@@ -216,6 +237,9 @@ function prefillFromDetail(d: {
       f.checksumPolicyType = cfgStr(cfg, 'checksumPolicyType') || 'client-checksums'
       f.snapshotVersionBehavior = cfgStr(cfg, 'snapshotVersionBehavior') || 'deployer'
     }
+    // deb/rpm/helm 策略键逐键回显（全量替换提交的保全前提——漏发=丢配置）
+    const pkg = policyPkg(f.packageType)
+    if (pkg) f.policy = prefillPolicyForm(pkg, cfg)
   }
   return f
 }
@@ -258,6 +282,10 @@ function buildBody(f: FormState, mode: 'create' | 'edit'): RepoConfigBody {
       body.checksumPolicyType = f.checksumPolicyType
       body.snapshotVersionBehavior = f.snapshotVersionBehavior
     }
+    // deb/rpm/helm 策略键（T-353）：check/合法 number 恒进 body（POINTER 语义
+    // ——显式 false/0 必须过 round trip），空 text 剔除归默认
+    const pkg = policyPkg(f.packageType)
+    if (pkg) Object.assign(body as unknown as Record<string, unknown>, policyBodyEntries(pkg, f.policy))
     body.includesPattern = f.includesPattern.trim()
     body.excludesPattern = f.excludesPattern.trim()
     // 显式 0 = 不限（后端 quotaBytes 指针透传，0 会稳定回显）；空输入视为清除
@@ -290,6 +318,12 @@ function formValid(f: FormState, mode: 'create' | 'edit'): { ok: boolean; reason
   if (f.rclass === 'local' && !isNonNegInt(f.quotaBytes)) {
     return { ok: false, reason: 'quotaBytes 需为非负整数（字节）' }
   }
+  if (f.rclass === 'local') {
+    const pkg = policyPkg(f.packageType)
+    if (pkg && !policyNumberValid(pkg, f.policy)) {
+      return { ok: false, reason: '策略键的数值字段需为非负整数（historyCycles / yumRootDepth）' }
+    }
+  }
   if (f.rclass === 'remote') {
     for (const v of [
       f.retrievalCachePeriodSecs,
@@ -308,7 +342,10 @@ function formValid(f: FormState, mode: 'create' | 'edit'): { ok: boolean; reason
  *  未解锁型禁用 + 提示「需要 N 档」——D5 可见性口径（入口可见带徽章，
  *  不是隐藏）。
  *  T-299：网格项保持原生 button（radiogroup 语义 + pkg-grid 卡片形态），
- *  取消钮迁 MUI；焦点/Esc 管理零变化。 */
+ *  取消钮迁 MUI；焦点/Esc 管理零变化。
+ *  T-344 批 D：modal 壳 → MUI Dialog（.modal-backdrop/.modal 手作族随之
+ *  从 base.css 退役）；锚 pkg-grid 落 paper（div）、pkg-grid-item-* 仍在
+ *  原生 button 本体；Esc/backdrop 点击 = 取消（文档级兜底同批 B 对话框）。 */
 function PackageTypeGrid({
   rclass,
   choices,
@@ -320,28 +357,34 @@ function PackageTypeGrid({
   onPick: (pt: PackageType) => void
   onCancel: () => void
 }) {
-  const ref = useRef<HTMLDivElement>(null)
+  // Esc 兜底（T-344C D5）：MUI 已处理的 Esc stopPropagation，不双触发。
   useEffect(() => {
-    ref.current?.focus()
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel()
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onCancel()
+      }
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [onCancel])
 
+  const paperProps = {
+    'data-testid': 'pkg-grid',
+    sx: { width: 'min(440px, calc(100vw - 48px))' },
+  }
+
   return (
-    <div className="modal-backdrop">
-      <div
-        ref={ref}
-        tabIndex={-1}
-        className="modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label="选择包类型"
-        data-testid="pkg-grid"
-      >
-        <h2>选择包类型</h2>
+    <Dialog
+      open
+      onClose={(_, reason) => {
+        if (reason === 'escapeKeyDown' || reason === 'backdropClick') onCancel()
+      }}
+      aria-label="选择包类型"
+      slotProps={{ paper: paperProps }}
+    >
+      <DialogTitle>选择包类型</DialogTitle>
+      <DialogContent>
         <p className="text-2">
           新建 <b>{RCLASS_LABEL[rclass]}</b> 仓库的第一步——包类型决定协议路由与客户端接入命令，创建后不可更改。
         </p>
@@ -366,9 +409,17 @@ function PackageTypeGrid({
                 <span className="pkg-name">
                   {c.label}
                   {badgeTier && (
-                    <span className={tierBadgeClass(badgeTier)} data-testid={`pkg-tier-${c.id}`} lang="en">
-                      {badgeTier}
-                    </span>
+                    <Chip
+                      component="span"
+                      size="small"
+                      variant="outlined"
+                      color={badgeTier === 'enterprise' ? 'warning' : 'info'}
+                      className={tierBadgeClass(badgeTier)}
+                      label={badgeTier}
+                      data-testid={`pkg-tier-${c.id}`}
+                      lang="en"
+                      sx={{ ml: 0.5, verticalAlign: 'middle' }}
+                    />
                   )}
                 </span>
                 <span className="pkg-desc">{block ?? c.desc}</span>
@@ -376,13 +427,13 @@ function PackageTypeGrid({
             )
           })}
         </div>
-        <div className="modal-actions">
-          <Button variant="outlined" size="small" data-testid="pkg-grid-cancel" onClick={onCancel}>
-            取消
-          </Button>
-        </div>
-      </div>
-    </div>
+      </DialogContent>
+      <DialogActions>
+        <Button variant="outlined" size="small" data-testid="pkg-grid-cancel" onClick={onCancel}>
+          取消
+        </Button>
+      </DialogActions>
+    </Dialog>
   )
 }
 
@@ -410,6 +461,18 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
   const [serverError, setServerError] = useState<ApiError | null>(null)
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setF((prev) => ({ ...prev, [k]: v }))
+
+  /** 换包类型（网格选定/单选）：deb/rpm/helm 的策略键表单随之初始化——
+   *  字段册驱动，键集随包类型闭集切换（创建态唯一入口；编辑态锁定不可换） */
+  const pickPackage = (pt: PackageType) => {
+    const pkg = policyPkg(pt)
+    const policy = pkg ? initialPolicyForm(pkg) : {}
+    setF((prev) => ({ ...prev, packageType: pt, policy }))
+    setBaseline((prev) => ({ ...prev, packageType: pt, policy }))
+  }
+
+  const setPolicy = (wire: string, v: string | boolean) =>
+    setF((prev) => ({ ...prev, policy: { ...prev.policy, [wire]: v } }))
 
   // 编辑态：加载现有配置并预填（全量替换语义的保全前提）
   const detail = useAsync(
@@ -540,10 +603,16 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
   const localMembers = f.members.filter((m) => memberOptions.find((o) => o.key === m)?.type === 'local')
 
   const renderSection = (): ReactNode => {
+    // deb/rpm/helm 策略键分组（T-353）：local × 对应包类型才呈现
+    const policyDef = f.rclass === 'local' ? policyPkg(f.packageType) : null
     return (
       <>
-        <section className="repo-form-section" aria-label="常规设置">
-          <h3>常规设置</h3>
+        {/* T-344 批 D：分区卡 Paper 化（§3.5 repositories 行）——
+            .repo-form-section 手作族随本批退役 */}
+        <Paper component="section" aria-label="常规设置" sx={{ p: 2, pb: 1.5, mb: 2 }}>
+          <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
+            常规设置
+          </Typography>
           <div className="radio-row" role="radiogroup" aria-label="仓型">
             {RCLASSES.map((rc) => (
               <FormControlLabel
@@ -556,7 +625,7 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                     checked={f.rclass === rc}
                     onChange={() => {
                       set('rclass', rc)
-                      if (rc !== 'local' && f.packageType === 'docker') set('packageType', 'generic')
+                      if (rc !== 'local' && f.packageType === 'docker') pickPackage('generic')
                     }}
                     value={rc}
                     name="rclass"
@@ -581,7 +650,7 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                     <Radio
                       size="small"
                       checked={f.packageType === c.id}
-                      onChange={() => set('packageType', c.id)}
+                      onChange={() => pickPackage(c.id)}
                       value={c.id}
                       name="packageType"
                       slotProps={{ input: { 'data-testid': `form-package-${c.id}` } as ComponentPropsWithoutRef<'input'> }}
@@ -591,9 +660,17 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                     <>
                       {c.label}
                       {badgeTier && (
-                        <span className={tierBadgeClass(badgeTier)} data-testid={`pkg-tier-${c.id}`} lang="en">
-                          {badgeTier}
-                        </span>
+                        <Chip
+                          component="span"
+                          size="small"
+                          variant="outlined"
+                          color={badgeTier === 'enterprise' ? 'warning' : 'info'}
+                          className={tierBadgeClass(badgeTier)}
+                          label={badgeTier}
+                          data-testid={`pkg-tier-${c.id}`}
+                          lang="en"
+                          sx={{ ml: 0.5, verticalAlign: 'middle' }}
+                        />
                       )}
                     </>
                   }
@@ -615,7 +692,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 placeholder="maven-remote"
                 error={!!keyErr}
                 disabled={locked}
-                sx={denseInputSx}
                 slotProps={{ htmlInput: { className: 'mono-input', 'data-testid': 'form-key', lang: 'en' } }}
               />
               {keyErr ? (
@@ -649,15 +725,16 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
               onChange={(e) => set('description', e.target.value)}
               placeholder="用途、负责人、团队…"
               disabled={locked}
-              sx={denseInputSx}
               slotProps={{ htmlInput: { 'data-testid': 'form-description' } }}
             />
           </div>
-        </section>
+        </Paper>
 
         {f.rclass === 'remote' && (
-          <section className="repo-form-section" aria-label="来源">
-            <h3>来源（Remote）</h3>
+          <Paper component="section" aria-label="来源" sx={{ p: 2, pb: 1.5, mb: 2 }}>
+            <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
+              来源（Remote）
+            </Typography>
             <div className="field">
               <label htmlFor="f-url">上游 URL *</label>
               <TextField
@@ -668,7 +745,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 placeholder="https://repo1.maven.org/maven2"
                 error={!!urlErr}
                 disabled={locked}
-                sx={denseInputSx}
                 slotProps={{ htmlInput: { className: 'mono-input', 'data-testid': 'form-url', lang: 'en' } }}
               />
               {urlErr ? (
@@ -687,7 +763,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 value={f.username}
                 onChange={(e) => set('username', e.target.value)}
                 disabled={locked}
-                sx={denseInputSx}
                 slotProps={{ htmlInput: { 'data-testid': 'form-username' } }}
               />
             </div>
@@ -702,7 +777,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 onChange={(e) => set('password', e.target.value)}
                 placeholder="永不回显"
                 disabled={locked}
-                sx={denseInputSx}
                 slotProps={{ htmlInput: { 'data-testid': 'form-password' } }}
               />
               <p className="field-hint">
@@ -727,12 +801,14 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 ⚠ 已放行私网上游：SSRF 防线对该仓放宽，变更会记录审计（NFR-S14）。
               </div>
             )}
-          </section>
+          </Paper>
         )}
 
         {f.rclass === 'virtual' && (
-          <section className="repo-form-section" aria-label="成员">
-            <h3>成员（Virtual）</h3>
+          <Paper component="section" aria-label="成员" sx={{ p: 2, pb: 1.5, mb: 2 }}>
+            <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
+              成员（Virtual）
+            </Typography>
             <div className="field">
               <label>成员（可多选，↑↓ 调整解析顺序）</label>
               {candidates.status === 'loading' && <Skeleton lines={3} />}
@@ -768,9 +844,9 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                           <span className="mono" lang="en">
                             {o.key}
                           </span>{' '}
-                          <span className="badge neutral">{o.type}</span>
+                          <Chip component="span" size="small" className="badge neutral" label={o.type} sx={{ mx: 0.5 }} />
                           {cfgBool(o.configuration, 'priorityResolution') && (
-                            <span className="badge warning">优先解析</span>
+                            <Chip component="span" size="small" variant="outlined" color="warning" className="badge warning" label="优先解析" sx={{ mx: 0.5 }} />
                           )}
                         </>
                       }
@@ -824,7 +900,7 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 value={f.defaultDeploymentRepo}
                 onChange={(e) => set('defaultDeploymentRepo', e.target.value)}
                 disabled={localMembers.length === 0 || locked}
-                sx={{ ...denseInputSx, width: 300 }}
+                sx={{ width: 300 }}
                 slotProps={{
                   select: {
                     native: true,
@@ -848,12 +924,14 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 <p className="field-hint">经此 virtual 仓的部署将写入 {f.defaultDeploymentRepo}。</p>
               )}
             </div>
-          </section>
+          </Paper>
         )}
 
         {f.rclass === 'local' && f.packageType === 'maven' && (
-          <section className="repo-form-section" aria-label="Maven 策略">
-            <h3>Maven 策略</h3>
+          <Paper component="section" aria-label="Maven 策略" sx={{ p: 2, pb: 1.5, mb: 2 }}>
+            <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
+              Maven 策略
+            </Typography>
             <FormControlLabel
               className="check-row"
               disabled={locked}
@@ -887,7 +965,7 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 value={f.checksumPolicyType}
                 onChange={(e) => set('checksumPolicyType', e.target.value)}
                 disabled={locked}
-                sx={{ ...denseInputSx, width: 420 }}
+                sx={{ width: 420 }}
                 slotProps={{ select: { native: true } as ComponentPropsWithoutRef<typeof Select> }}
               >
                 <option value="client-checksums">client-checksums（客户端声明严格校验，默认）</option>
@@ -903,7 +981,7 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 value={f.snapshotVersionBehavior}
                 onChange={(e) => set('snapshotVersionBehavior', e.target.value)}
                 disabled={locked}
-                sx={{ ...denseInputSx, width: 420 }}
+                sx={{ width: 420 }}
                 slotProps={{ select: { native: true } as ComponentPropsWithoutRef<typeof Select> }}
               >
                 <option value="deployer">deployer（按上传名存储，默认）</option>
@@ -911,12 +989,14 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 <option value="unique">unique（unique 改写为 P2，行为同 deployer）</option>
               </TextField>
             </div>
-          </section>
+          </Paper>
         )}
 
         {f.rclass === 'local' && (
-          <section className="repo-form-section" aria-label="治理">
-            <h3>治理（governance）</h3>
+          <Paper component="section" aria-label="治理" sx={{ p: 2, pb: 1.5, mb: 2 }}>
+            <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
+              治理（governance）
+            </Typography>
             <div className="field">
               <label htmlFor="f-quota">配额 quotaBytes（字节）</label>
               <TextField
@@ -926,7 +1006,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 onChange={(e) => set('quotaBytes', e.target.value)}
                 error={!isNonNegInt(f.quotaBytes)}
                 disabled={locked}
-                sx={denseInputSx}
                 slotProps={{ htmlInput: { className: 'mono-input', 'data-testid': 'form-quota', inputMode: 'numeric' } }}
               />
               <p className="field-hint">正整数；0 = 不限（默认）。超限写入收到 413（message 含 used/quota）。</p>
@@ -940,7 +1019,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 onChange={(e) => set('includesPattern', e.target.value)}
                 placeholder="**/*"
                 disabled={locked}
-                sx={denseInputSx}
                 slotProps={{ htmlInput: { className: 'mono-input', 'data-testid': 'form-includes', lang: 'en' } }}
               />
               <p className="field-hint">逗号分隔多值；留空 / **/* = 匹配全部路径（保存为全量替换）。</p>
@@ -954,7 +1032,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 onChange={(e) => set('excludesPattern', e.target.value)}
                 placeholder="（无）"
                 disabled={locked}
-                sx={denseInputSx}
                 slotProps={{ htmlInput: { className: 'mono-input', 'data-testid': 'form-excludes', lang: 'en' } }}
               />
               <p className="field-hint">
@@ -962,14 +1039,18 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 pattern）。
               </p>
             </div>
-          </section>
+          </Paper>
         )}
 
-        <section className="repo-form-section" aria-label="高级">
-          <h3>高级</h3>
+        <Paper component="section" aria-label="高级" sx={{ p: 2, pb: 1.5, mb: 2 }}>
+          <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
+            高级
+          </Typography>
           {f.rclass === 'remote' && (
             <>
-              <p className="section-sub">缓存与超时（秒）——产品默认 7200 / 1800 / 15 / 300。</p>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: -1, mb: 1.5 }}>
+                缓存与超时（秒）——产品默认 7200 / 1800 / 15 / 300。
+              </Typography>
               {(
                 [
                   ['retrievalCachePeriodSecs', '命中缓存 TTL'],
@@ -987,7 +1068,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                     onChange={(e) => set(k, e.target.value)}
                     error={!isNonNegInt(f[k])}
                     disabled={locked}
-                    sx={denseInputSx}
                     slotProps={{ htmlInput: { className: 'mono-input', 'data-testid': `form-${k}`, inputMode: 'numeric' } }}
                   />
                 </div>
@@ -1018,7 +1098,95 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
             }
             label="优先解析（priorityResolution：作为 virtual 成员时优先桶标记）"
           />
-        </section>
+
+          {/* deb/rpm/helm 策略键（T-353，FR-113.2/113.5）：字段册驱动——REST
+              已透传（T-327R/T-329 D-E），表单按包类型收窄呈现；check/合法
+              number 恒提交（POINTER 语义，flip-off 必须过 round trip） */}
+          {policyDef && (
+            <>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 2, mb: 1.5 }}>
+                {POLICY_GROUP_TITLE[policyDef]}——索引引擎策略键（仅{' '}
+                {f.packageType} 仓；值域/默认值由服务端终裁）
+              </Typography>
+              {POLICY_FIELDS[policyDef].map((fd) => {
+                const anchor = `form-${fd.wire}`
+                if (fd.kind === 'check') {
+                  return (
+                    <div key={fd.wire}>
+                      <FormControlLabel
+                        className="check-row"
+                        disabled={locked}
+                        control={
+                          <Checkbox
+                            size="small"
+                            checked={f.policy[fd.wire] === true}
+                            onChange={(e) => setPolicy(fd.wire, e.target.checked)}
+                            slotProps={{ input: { 'data-testid': anchor } as ComponentPropsWithoutRef<'input'> }}
+                          />
+                        }
+                        label={fd.label}
+                      />
+                      {fd.hint && <p className="field-hint">{fd.hint}</p>}
+                    </div>
+                  )
+                }
+                if (fd.kind === 'select') {
+                  return (
+                    <div className="field" key={fd.wire}>
+                      <label htmlFor={`f-policy-${fd.wire}`}>{fd.label}</label>
+                      <TextField
+                        id={`f-policy-${fd.wire}`}
+                        select
+                        size="small"
+                        value={String(f.policy[fd.wire] ?? '')}
+                        onChange={(e) => setPolicy(fd.wire, e.target.value)}
+                        disabled={locked}
+                        sx={{ width: 420 }}
+                        slotProps={{
+                          select: {
+                            native: true,
+                            inputProps: { 'data-testid': anchor } as ComponentPropsWithoutRef<'select'>,
+                          } as ComponentPropsWithoutRef<typeof Select>,
+                        }}
+                      >
+                        {(fd.options ?? []).map((o) => (
+                          <option key={o} value={o} lang="en">
+                            {o}
+                          </option>
+                        ))}
+                      </TextField>
+                      {fd.hint && <p className="field-hint">{fd.hint}</p>}
+                    </div>
+                  )
+                }
+                return (
+                  <div className="field" key={fd.wire}>
+                    <label htmlFor={`f-policy-${fd.wire}`}>{fd.label}</label>
+                    <TextField
+                      id={`f-policy-${fd.wire}`}
+                      size="small"
+                      value={String(f.policy[fd.wire] ?? '')}
+                      onChange={(e) => setPolicy(fd.wire, e.target.value)}
+                      error={fd.kind === 'number' && !isNonNegInt(String(f.policy[fd.wire] ?? ''))}
+                      disabled={locked}
+                      placeholder={fd.placeholder}
+                      sx={{ width: 420 }}
+                      slotProps={{
+                        htmlInput: {
+                          className: 'mono-input',
+                          'data-testid': anchor,
+                          lang: 'en',
+                          ...(fd.kind === 'number' ? { inputMode: 'numeric' as const } : {}),
+                        },
+                      }}
+                    />
+                    {fd.hint && <p className="field-hint">{fd.hint}</p>}
+                  </div>
+                )
+              })}
+            </>
+          )}
+        </Paper>
       </>
     )
   }
@@ -1124,8 +1292,7 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
           choices={pkgChoices}
           onPick={(pt) => {
             // 网格选定的包类型进入基线（重置不退回进页默认 generic）
-            setF((prev) => ({ ...prev, packageType: pt }))
-            setBaseline((prev) => ({ ...prev, packageType: pt }))
+            pickPackage(pt)
             setPkgOpen(false)
           }}
           onCancel={() => navigate(`/admin/repositories/${f.rclass}`)}

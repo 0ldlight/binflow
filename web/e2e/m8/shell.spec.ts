@@ -22,7 +22,7 @@ test.beforeEach(async ({ request }) => {
   await provisionRoles()
 })
 
-/** 管理模式侧栏五分组 × 14 条目（console-m8 §1.3 全图 + M10 T-288/M11 T-307 增量） */
+/** 管理模式侧栏五分组 × 15 条目（console-m8 §1.3 全图 + M10 T-288/M11 T-307/M12 T-352 增量） */
 const ADMIN_GROUPS = ['仓库', '用户与权限', '治理', '监控', '常规'] as const
 
 const ADMIN_ENTRIES: [string, string][] = [
@@ -37,12 +37,13 @@ const ADMIN_ENTRIES: [string, string][] = [
   ['配额', 'quotas-page'],
   ['复制', 'repl-page'],
   ['备份 / 恢复', 'backup-page'],
+  ['回收站', 'trash-page'], // M12 T-352（FR-106——浏览/恢复/清空；槽门控态）
   ['存储', 'storage-page'], // T-238 落真身（原 placeholder-page 占位）
   ['系统信息', 'settings'],
   ['License & Add-ons', 'license-page'], // M10 T-288（FR-86-AC5）
 ]
 
-test('admin: app-mode sidebar (2 entries) -> admin mode (5 groups / 14 entries) -> back, all keyboard', async ({
+test('admin: app-mode sidebar (2 entries) -> admin mode (5 groups / 15 entries) -> back, all keyboard', async ({
   page,
 }) => {
   await seedRepos(m8Client(), [{ key: REPO }])
@@ -72,11 +73,11 @@ test('admin: app-mode sidebar (2 entries) -> admin mode (5 groups / 14 entries) 
   for (const g of ADMIN_GROUPS) {
     await expect(nav.locator('.nav-group-label', { hasText: g })).toBeVisible()
   }
-  await expect(nav.locator('a.nav-item')).toHaveCount(14)
+  await expect(nav.locator('a.nav-item')).toHaveCount(15)
   // 面包屑（§1.3：管理页层级表达）
   await expect(page.locator('[data-testid="topbar-breadcrumb"]')).toContainText('仓库')
 
-  // 14 条目逐项可达（URL 均落 /admin/** + 页面锚到达）
+  // 15 条目逐项可达（URL 均落 /admin/** + 页面锚到达）
   for (const [label, anchor] of ADMIN_ENTRIES) {
     await page.click(`[data-testid="app-nav"] a.nav-item:text-is("${label}")`)
     await expect(page).toHaveURL(/\/binflow\/ui\/admin\//)

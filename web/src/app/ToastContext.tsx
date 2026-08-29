@@ -1,8 +1,16 @@
 import { createContext, useCallback, useContext, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
+import Alert from '@mui/material/Alert'
+import Box from '@mui/material/Box'
+import Link from '@mui/material/Link'
+import Snackbar from '@mui/material/Snackbar'
 
 // toast（console-ux §3.5）：右下角堆叠；成功 5s 自动消失、错误常驻至
 // 手动关闭；可带一个动作链接。aria-live 播报，无需焦点抢占。
+// T-344 批 B：div.toast-stack + .toast 手作条 → Snackbar + Alert
+// （mui-native-visual §4.2）。MUI Snackbar 自带 fixed 锚位与多实例无内建
+// 堆叠——堆叠形态由容器 Box 承载，Snackbar 置 static 参与列流并保留
+// Slide 入场动效；`toast`/`toast-stack` 类名与 toast 锚原样（§3.8 钩子）。
 
 export interface ToastAction {
   label: string
@@ -53,31 +61,56 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={{ success, error }}>
       {children}
-      <div className="toast-stack" aria-live="polite">
+      <Box
+        className="toast-stack"
+        aria-live="polite"
+        sx={{
+          position: 'fixed',
+          right: 16,
+          bottom: 16,
+          zIndex: (t) => t.zIndex.snackbar,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 1,
+          maxWidth: 380,
+        }}
+      >
         {items.map((t) => (
-          <div key={t.id} className={`toast ${t.kind}`} data-testid="toast" role={t.kind === 'error' ? 'alert' : 'status'}>
-            <span aria-hidden="true">{t.kind === 'success' ? '✓' : '✗'}</span>
-            <div className="msg">
+          <Snackbar
+            key={t.id}
+            open
+            sx={{ position: 'static', left: 'auto', right: 'auto', justifyContent: 'flex-start' }}
+          >
+            <Alert
+              className={`toast ${t.kind}`}
+              data-testid="toast"
+              severity={t.kind}
+              role={t.kind === 'error' ? 'alert' : 'status'}
+              onClose={() => dismiss(t.id)}
+              closeText="关闭通知"
+              sx={{ alignItems: 'flex-start' }}
+              action={
+                t.action ? (
+                  <Link
+                    component="button"
+                    underline="hover"
+                    color="inherit"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      t.action?.onClick()
+                      dismiss(t.id)
+                    }}
+                  >
+                    {t.action.label}
+                  </Link>
+                ) : undefined
+              }
+            >
               {t.message}
-              {t.action && (
-                <a
-                  href="#"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    t.action?.onClick()
-                    dismiss(t.id)
-                  }}
-                >
-                  {t.action.label}
-                </a>
-              )}
-            </div>
-            <button type="button" className="close" aria-label="关闭通知" onClick={() => dismiss(t.id)}>
-              ×
-            </button>
-          </div>
+            </Alert>
+          </Snackbar>
         ))}
-      </div>
+      </Box>
     </ToastContext.Provider>
   )
 }

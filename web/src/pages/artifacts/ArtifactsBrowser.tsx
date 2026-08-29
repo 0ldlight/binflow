@@ -8,6 +8,7 @@ import Checkbox from '@mui/material/Checkbox'
 import Chip from '@mui/material/Chip'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import Menu from '@mui/material/Menu'
+import MuiSkeleton from '@mui/material/Skeleton'
 import Table from '@mui/material/Table'
 import TableBody from '@mui/material/TableBody'
 import TableCell from '@mui/material/TableCell'
@@ -26,7 +27,7 @@ import { useToast } from '../../app/ToastContext'
 import { ApiError, getRepositories, getStorageStats, isReadOnlyAdmin } from '../../lib/api'
 import type { RepoListItem } from '../../lib/api'
 import { formatBytes } from '../../lib/format'
-import { badgeChipSx, dangerBtnSx, denseInputSx, monoInputSx, rowBtnSx } from '../../lib/muiAtoms'
+import { cellBtnSx, monoInputSx } from '../../lib/muiAtoms'
 import { getRepoDetail } from '../../lib/repos'
 import type { PackageType } from '../../lib/repos'
 import { useAsync } from '../../lib/useAsync'
@@ -450,7 +451,7 @@ export default function ArtifactsBrowser() {
           <Button
             variant="outlined"
             size="small"
-            sx={rowBtnSx}
+            sx={cellBtnSx}
             data-testid="tree-setmeup"
             title="客户端接入向导（按包类型生成接入命令与令牌）"
             onClick={() => setSmuOpen(true)}
@@ -468,7 +469,7 @@ export default function ArtifactsBrowser() {
             ⬆ 部署 Deploy
           </Button>
           {admin && (
-            <Button variant="outlined" size="small" sx={rowBtnSx} component={Link} to="/admin/repositories/local">
+            <Button variant="outlined" size="small" sx={cellBtnSx} component={Link} to="/admin/repositories/local">
               管理仓库 →
             </Button>
           )}
@@ -481,14 +482,14 @@ export default function ArtifactsBrowser() {
             value={repoFilter}
             onChange={(e) => setRepoFilter(e.target.value)}
             disabled={reposQuery.status !== 'ok'}
-            sx={{ ...denseInputSx, width: 200 }}
+            sx={{ width: 200 }}
             slotProps={{ htmlInput: { 'data-testid': 'tree-repo-filter', 'aria-label': '过滤仓库（仅已加载集）' } }}
           />
           {repoFilter && (
             <Button
               variant="outlined"
               size="small"
-              sx={rowBtnSx}
+              sx={cellBtnSx}
               data-testid="tree-repo-filter-clear"
               onClick={() => setRepoFilter('')}
             >
@@ -511,7 +512,7 @@ export default function ArtifactsBrowser() {
             <Button
               variant="outlined"
               size="small"
-              sx={rowBtnSx}
+              sx={cellBtnSx}
               onClick={() => {
                 localStorage.setItem('bf-skip-onboarding', '1')
                 setOnboardSkipped(true)
@@ -550,14 +551,14 @@ export default function ArtifactsBrowser() {
               <span className="text-2">在左侧选择仓库开始浏览</span>
             )}
             <span className="spacer" />
-            <Button variant="outlined" size="small" sx={rowBtnSx} onClick={refresh} title="重新加载当前视图">
+            <Button variant="outlined" size="small" sx={cellBtnSx} onClick={refresh} title="重新加载当前视图">
               ↻ 刷新
             </Button>
             {mkdirable && (
               <Button
                 variant="outlined"
                 size="small"
-                sx={rowBtnSx}
+                sx={cellBtnSx}
                 data-testid="tree-mkdir"
                 disabled={readOnly}
                 title={readOnly ? '只读管理员不可写（服务端 403 兜底）' : undefined}
@@ -633,7 +634,7 @@ export default function ArtifactsBrowser() {
                 </div>
               )}
               <div style={{ marginTop: 8 }}>
-                <Button variant="outlined" size="small" sx={rowBtnSx} onClick={() => setDeleteError(null)}>
+                <Button variant="outlined" size="small" sx={cellBtnSx} onClick={() => setDeleteError(null)}>
                   知道了
                 </Button>
               </div>
@@ -654,7 +655,7 @@ export default function ArtifactsBrowser() {
                     hint="仓库清单是管理员/只读管理员视图（HTTP 403）。可以用搜索定位制品，或用已知仓库 key 的链接直达。"
                     testid="tree-root-denied"
                     action={
-                      <Button variant="outlined" size="small" sx={rowBtnSx} component={Link} to="/search">
+                      <Button variant="outlined" size="small" sx={cellBtnSx} component={Link} to="/search">
                         去搜索
                       </Button>
                     }
@@ -725,7 +726,7 @@ export default function ArtifactsBrowser() {
                       placeholder="过滤当前层（仅已加载集）…"
                       value={filter}
                       onChange={(e) => setFilter(e.target.value)}
-                      sx={{ ...denseInputSx, ...monoInputSx, width: 240 }}
+                      sx={{ ...monoInputSx, width: 240 }}
                       slotProps={{ htmlInput: { 'data-testid': 'tree-filter', 'aria-label': '过滤当前层', className: 'mono' } }}
                     />
                     <FormControlLabel
@@ -751,7 +752,7 @@ export default function ArtifactsBrowser() {
                       message="无权限浏览此目录"
                       hint={`内容面按路径 ACL 判定（${cur.error.message}）。可回到有权限的层级，或用搜索定位制品。`}
                       action={
-                        <Button variant="outlined" size="small" sx={rowBtnSx} component={Link} to="/search">
+                        <Button variant="outlined" size="small" sx={cellBtnSx} component={Link} to="/search">
                           去搜索
                         </Button>
                       }
@@ -761,7 +762,7 @@ export default function ArtifactsBrowser() {
                       message="路径不存在"
                       hint="节点可能已被删除，或链接里的路径有误。"
                       action={
-                        <Button variant="outlined" size="small" sx={rowBtnSx} onClick={() => goTo(repoKey, '')}>
+                        <Button variant="outlined" size="small" sx={cellBtnSx} onClick={() => goTo(repoKey, '')}>
                           ← 回仓库根
                         </Button>
                       }
@@ -802,7 +803,7 @@ export default function ArtifactsBrowser() {
                           <Button
                             variant="outlined"
                             size="small"
-                            sx={rowBtnSx}
+                            sx={cellBtnSx}
                             data-testid="tree-filter-clear"
                             onClick={() => {
                               setFilter('')
@@ -823,7 +824,7 @@ export default function ArtifactsBrowser() {
                           <Button
                             variant="outlined"
                             size="small"
-                            sx={rowBtnSx}
+                            sx={cellBtnSx}
                             data-testid="tree-filter-clear"
                             onClick={() => setFilesOnly(false)}
                           >
@@ -840,7 +841,7 @@ export default function ArtifactsBrowser() {
                           <Link to="/search">搜索</Link> 定位制品。
                         </div>
                       )}
-                      <Table className="table tree-table" data-testid="tree-list">
+                      <Table className="tree-table" data-testid="tree-list">
                         <TableHead>
                           <TableRow>
                             <TableCell component="th" scope="col">名称</TableCell>
@@ -857,6 +858,7 @@ export default function ArtifactsBrowser() {
                               key={n.name}
                               data-testid={`tree-row-${n.name}`}
                               className={focus === n.name ? 'selected' : ''}
+                              hover
                               onClick={() => (n.folder ? goTo(repoKey, n.path) : selectFile(n.name))}
                               onContextMenu={(e: ReactMouseEvent) => {
                                 e.preventDefault()
@@ -874,7 +876,7 @@ export default function ArtifactsBrowser() {
                                 }
                               }}
                             >
-                              <TableCell className="wrap">
+                              <TableCell sx={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
                                 <span aria-hidden="true">{n.folder ? '◻' : '◾'}</span>{' '}
                                 <span className={n.folder ? 'row-link mono' : 'mono'} lang="en">
                                   {n.name}
@@ -889,13 +891,12 @@ export default function ArtifactsBrowser() {
                                           size="small"
                                           className="badge neutral"
                                           label={tag}
-                                          sx={badgeChipSx}
                                           data-testid={`tag-badge-${tag}`}
                                           title={`tag: ${tag}`}
                                         />
                                       ))
                                     : !n.folder
-                                      ? <Chip size="small" className="badge warning" label="untagged" sx={badgeChipSx} />
+                                      ? <Chip size="small" variant="outlined" color="warning" className="badge warning" label="untagged" />
                                       : '—'}
                                 </TableCell>
                               ) : (
@@ -908,7 +909,7 @@ export default function ArtifactsBrowser() {
                               </TableCell>
                               <TableCell onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                                 {!n.folder && (
-                                  <Button variant="outlined" size="small" sx={rowBtnSx} onClick={() => selectFile(n.name)} title="展开详情面板">
+                                  <Button variant="outlined" size="small" sx={cellBtnSx} onClick={() => selectFile(n.name)} title="展开详情面板">
                                     详情
                                   </Button>
                                 )}
@@ -916,7 +917,7 @@ export default function ArtifactsBrowser() {
                                   <Button
                                     variant="outlined"
                                     size="small"
-                                    sx={rowBtnSx}
+                                    sx={cellBtnSx}
                                     onClick={() => void doDownload(repoKey, n, n.sha256)}
                                     disabled={download?.path === n.path && download.phase === 'loading'}
                                     title="下载并做 sha256 对账"
@@ -928,7 +929,7 @@ export default function ArtifactsBrowser() {
                                   variant="outlined"
                                   color="error"
                                   size="small"
-                                  sx={dangerBtnSx}
+                                 
                                   data-testid="delete-node-button"
                                   disabled={readOnly}
                                   title={readOnly ? '只读管理员不可删（服务端 403 兜底）' : undefined}
@@ -946,7 +947,7 @@ export default function ArtifactsBrowser() {
                           <Button
                             variant="outlined"
                             size="small"
-                            sx={rowBtnSx}
+                            sx={cellBtnSx}
                             data-testid="tree-load-more"
                             onClick={() => setVisible((v) => v + PAGE)}
                           >
@@ -1079,7 +1080,7 @@ function RepoBranch({
         (!st || st.status === 'loading' ? (
           <div className="tree-skel" aria-hidden="true">
             {Array.from({ length: 6 }, (_, i) => (
-              <div key={i} className="skeleton line" style={{ width: `${70 - i * 6}%` }} />
+              <MuiSkeleton key={i} variant="text" width={`${70 - i * 6}%`} sx={{ my: 0.5 }} />
             ))}
           </div>
         ) : st.status === 'forbidden' ? (
@@ -1138,7 +1139,7 @@ function TreeLevel({
     return (
       <div className="tree-skel" aria-hidden="true">
         {Array.from({ length: Math.min(6, 15 - depth * 2) }, (_, i) => (
-          <div key={i} className="skeleton line" style={{ width: `${76 - depth * 10 - i * 6}%` }} />
+          <MuiSkeleton key={i} variant="text" width={`${76 - depth * 10 - i * 6}%`} sx={{ my: 0.5 }} />
         ))}
       </div>
     )
@@ -1396,7 +1397,7 @@ function TreeSkeleton() {
   return (
     <div className="tree-skel" aria-hidden="true">
       {Array.from({ length: 8 }, (_, i) => (
-        <div key={i} className="skeleton line" style={{ width: `${80 - i * 5}%` }} />
+        <MuiSkeleton key={i} variant="text" width={`${80 - i * 5}%`} sx={{ my: 0.5 }} />
       ))}
     </div>
   )
@@ -1406,7 +1407,7 @@ function TableSkeleton() {
   return (
     <div data-testid="skeleton" aria-hidden="true" style={{ paddingTop: 8 }}>
       {Array.from({ length: 10 }, (_, i) => (
-        <div key={i} className="skeleton line" style={{ width: `${90 - i * 5}%` }} />
+        <MuiSkeleton key={i} variant="text" width={`${90 - i * 5}%`} sx={{ my: 0.5 }} />
       ))}
     </div>
   )

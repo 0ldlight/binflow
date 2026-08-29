@@ -35,8 +35,8 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/maven-remote-cent
 | `username` / `password` | 否 | 空 | 上游 Basic 认证；password 静态加密落库（见[凭据小节](#上游凭据与-binflow_remote_credentials_key)），GET 永不回显 |
 | `retrievalCachePeriodSecs` | 否 | **7200** | 缓存命中期：期内 GET 不回源；过期后下次请求触发回源 |
 | `missedRetrievalCachePeriodSecs` | 否 | **1800** | 404 负缓存期：期内同路径 404 零上游流量（防穿透）。**显式 `0` = 回落默认 1800 而非禁用**（与 Artifactory 语义一致——验证「负缓存已关」时勿用 0，直接观察 `X-Binflow-Cache`/回源流量）。**M10 起**接受 `missRetrievalCachePeriodSecs`（无 ed）为输入别名——回显恒用 canonical 拼写（与 Artifactory 一致），两拼写同时给非零且不相等 → 400 |
-| `socketTimeoutMs` | 否 | **15000** | **M10**：上游连接/读/响应头超时（毫秒粒度，可表达亚秒超时）。另接受 artifactory.xsd 拼写 `socketTimeoutMillis` 为输入别名（只进不出；两拼写非零分歧 400）；显式 `0` = 缺席（回落 `socketTimeoutSecs`/默认） |
-| `socketTimeoutSecs` | 否 | **15** | 上游连接/读超时（秒）——**legacy 字段**（M3）：`socketTimeoutMs` 非零时以 ms 为准；回显时恒附派生 `socketTimeoutSecs`（= ceil(ms/1000)，永不虚报更长超时） |
+| `socketTimeoutMillis` | 否 | **15000** | 上游连接/读/响应头超时（毫秒粒度，可表达亚秒超时）——**canonical 拼写**（artifactory.xsd，**M12 起回显统一为本拼写**，FR-113.1/T-290-2 兑现）。M10 期 PRD 拼写 `socketTimeoutMs` 仍接受为**输入别名**（只进不出，回显恒为新拼写；两拼写非零分歧 400）；显式 `0` = 缺席（回落 `socketTimeoutSecs`/默认） |
+| `socketTimeoutSecs` | 否 | **15** | 上游连接/读超时（秒）——**legacy 字段**（M3）：`socketTimeoutMillis` 非零时以 ms 为准；回显时恒附派生 `socketTimeoutSecs`（= ceil(ms/1000)，永不虚报更长超时） |
 | `metadataRetrievalTimeoutSecs` | 否 | **60** | **M10**：并发拉取同一 metadata 路径（如 `maven-metadata.xml`）时等待者的等锁上限，超时回发旧缓存副本（零回源）——per-repo 化（原为引擎级常量 60s） |
 | `unusedArtifactsCleanupPeriodHours` | 否 | **0**（关） | 未使用缓存制品的清理周期（小时）。**M11 起生效**——cleanup 引擎按窗口删除「窗口内无下载事件且未再落地」的缓存 node（在用判定含 virtual 仓聚合下载；`GET /api/v1/system/cleanup` 查状态，见 [API 参考](../api-reference.md#m11-增补速览t-328)） |
 | `enableTokenAuthentication` | 否 | **false** | **M11（L25 反转）**：`true` 时拉取侧对上游发 `Authorization: Bearer <password>`（无密码 = 匿名维持）；Basic 形态的既有仓零变化 |
@@ -46,10 +46,11 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/maven-remote-cent
 | `allowPrivateUpstream` | 否 | **false** | SSRF 私网放行开关，仅 admin 可设、写审计日志（见[SSRF 小节](#ssrf-防护与-allowprivateupstream-放行指引)） |
 | `priorityResolution` | 否 | `false` | 作为 virtual 成员时的优先解析标记（见下文） |
 
-> **smart remote 字段注意（T-290/T-317）**：① `enableTokenAuthentication` / `contentSynchronisation`
+> **smart remote 字段注意（T-290/T-317/T-346）**：① `enableTokenAuthentication` / `contentSynchronisation`
 > 自 **M11 起接受且生效**（上表；M10 期的按名 400 已退役）；**其余**未知字段维持
-> M3 的容忍丢弃语义（迁移脚本兼容）。② 别名拼写（`socketTimeoutMillis` / `missRetrievalCachePeriodSecs`）
-> 只进不出，回显恒为 canonical（`socketTimeoutMs` / `missedRetrievalCachePeriodSecs`）。
+> M3 的容忍丢弃语义（迁移脚本兼容）。② 别名拼写（`socketTimeoutMs` / `missRetrievalCachePeriodSecs`）
+> 只进不出，回显恒为 canonical（**M12 起为 `socketTimeoutMillis`**（FR-113.1 翻转）/ `missedRetrievalCachePeriodSecs`）——
+> 既有存量仓回显沿用其落库形态，下次 PUT 重写后即翻为新拼写。
 > ③ 消费优先级：新列值 > canonical JSON > legacy `socketTimeoutSecs` > 产品默认——升级既有仓
 > 零回填零行为变化。
 

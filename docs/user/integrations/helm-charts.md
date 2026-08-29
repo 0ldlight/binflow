@@ -158,7 +158,7 @@ helm install t313 bf-virt/extchart --wait        # STATUS: deployed（实测）
 | 聚合 index 缓存 | 按请求现算（成员变更下一请求即见）；`.index` 路径仍 403 防写 |
 | namespace 模式（useNamespaces） | 未实现（规格默认关） |
 | 分体 `chartsBaseUrl` 配置位 | 未实现（回源基址恒 = 仓 URL） |
-| helmoci 包型 | 另有槽位规划（当前虚仓混仓校验已就位待其落地） |
+| helmoci 包型 | 已落地（T-342，第 18 槽 pro——OCI 推拉全链；经典仓与 OCI 为两个独立包型，虚仓不可混用） |
 
 ## 常见报错对照
 

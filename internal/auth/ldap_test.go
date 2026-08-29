@@ -35,6 +35,12 @@ type mockLDAPConn struct {
 	startTLSConfig *tls.Config
 	startTLSErr    error
 
+	// binds records every attempted Bind DN in order (T-346: the two-mode
+	// ladder's exact sequence — direct pattern DN, then manager DN, then
+	// the searched user DN); searches counts Search invocations.
+	binds    []string
+	searches int
+
 	// closed tracks whether the connection has been closed.
 	closed bool
 }
@@ -67,6 +73,7 @@ func (m *mockLDAPConn) Bind(username, password string) error {
 	if m.closed {
 		return errors.New("connection closed")
 	}
+	m.binds = append(m.binds, username)
 	user, ok := m.users[username]
 	if !ok {
 		return ldap.NewError(ldap.LDAPResultInvalidCredentials,
@@ -85,6 +92,7 @@ func (m *mockLDAPConn) Search(searchRequest *ldap.SearchRequest) (*ldap.SearchRe
 	if m.closed {
 		return nil, errors.New("connection closed")
 	}
+	m.searches++
 
 	// Parse the filter to determine what we're searching for.
 	// We support simple filter patterns used by the LDAPProvider:

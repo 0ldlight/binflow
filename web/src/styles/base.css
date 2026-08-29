@@ -135,10 +135,15 @@ a:hover {
   outline-offset: -2px;
 }
 
-/* ---------- 卡片与网格（批 B 换装对象，暂留） ---------- */
+/* ---------- 卡片与网格 ---------- */
 
-/* 卡片 = 三阶最亮层；shadow-1 锚定（§5.2：暗色下弱影 + 边框补偿） */
-.card {
+/* 卡片 = 三阶最亮层；shadow-1 锚定（§5.2：暗色下弱影 + 边框补偿）。
+ * T-344 批 D：6 残面页（login/NotFound/Placeholder/Profile/Dashboard/
+ * SystemInfo）已换 MUI Paper——类名留 DOM（§3.8 .card.section 钩子 + 45
+ * 落点渐进迁移），`:not(.MuiPaper-root)` 把 Paper 根从旧配方排除（皮肤
+ * 即刻交还 Paper，批 C .badge shim 同款迁移期形态）；其余页面 div 消费
+ * 者视觉零变化，末位换装后整块删除。 */
+.card:not(.MuiPaper-root) {
   background: var(--bf-surface-1);
   border: 1px solid var(--bf-border);
   border-radius: var(--bf-r-md);
@@ -152,11 +157,11 @@ a:hover {
   font-weight: 600;
 }
 
-.card.degraded {
+.card.degraded:not(.MuiPaper-root) {
   border-color: var(--bf-warning);
 }
 
-.card.down {
+.card.down:not(.MuiPaper-root) {
   border-color: var(--bf-danger);
 }
 
@@ -197,13 +202,14 @@ a:hover {
   font-size: var(--bf-fs-aux);
 }
 
-/* 语义 badge（§7.1：语义色 15% 透明底 + 语义色文字）。文字色 = 语义色向
- * 正文色收敛 22%（T-244 对比度家族收口）：纯语义色文字在 tint 底上亮主题
- * 实测 warning 4.26 / success 4.14 / danger 4.12 / info 4.27、暗主题 danger
- * 4.20——全部 <4.5:1（§8 次要文字与语义色文字 ≥4.5:1 两主题门）。向正文
- * 色收敛 22% 后双主题 × {surface-1, surface-2（悬停行）, bg} 三承载面全
- * ≥4.59:1（T-237 role-warning / T-241 perm-verdict 自持修法的上收到 base）。 */
-.badge {
+/* 语义 badge（§7.1：语义色 15% 透明底 + 语义色文字）——T-344 批 C 起仅
+ * 服务**非 MUI 残余消费者**（components/DeployDialog 等批 D 换装对象）：
+ * 换装为 MUI Chip 的徽章类名组合原样续挂 DOM（spec §3.8 钩子：toHaveClass
+ * / hasText 定位），`:not(.MuiChip-root)` 把 Chip 根从本配方排除——皮肤
+ * 交还 Chip（语义色 outlined + 中性 filled default，mui-native-visual
+ * §3.2「保名去规」的迁移期形态；批 D 末位 span 消费者退役后整块删除）。
+ * 文字色 = 语义色向正文色收敛 22%（T-244 对比度家族收口，双主题 ≥4.59:1）。 */
+.badge:not(.MuiChip-root) {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -215,22 +221,22 @@ a:hover {
   color: color-mix(in srgb, var(--bf-info) 78%, var(--bf-text));
 }
 
-.badge.neutral {
+.badge.neutral:not(.MuiChip-root) {
   background: var(--bf-surface-2);
   color: var(--bf-text-2);
 }
 
-.badge.success {
+.badge.success:not(.MuiChip-root) {
   background: color-mix(in srgb, var(--bf-success) 15%, transparent);
   color: color-mix(in srgb, var(--bf-success) 78%, var(--bf-text));
 }
 
-.badge.warning {
+.badge.warning:not(.MuiChip-root) {
   background: color-mix(in srgb, var(--bf-warning) 18%, transparent);
   color: color-mix(in srgb, var(--bf-warning) 78%, var(--bf-text));
 }
 
-.badge.danger {
+.badge.danger:not(.MuiChip-root) {
   background: color-mix(in srgb, var(--bf-danger) 15%, transparent);
   color: color-mix(in srgb, var(--bf-danger) 78%, var(--bf-text));
 }
@@ -239,12 +245,12 @@ a:hover {
  * （中性灰，地板）；pro = 蓝（info 语义底）；enterprise = 金（warning 语义底，
  * 18% 底与 warning 同配比——金读作「更高档」而非「告警」，文字色沿语义色
  * 收敛 22% 家族，双主题 ≥4.5:1）。 */
-.badge.tier-pro {
+.badge.tier-pro:not(.MuiChip-root) {
   background: color-mix(in srgb, var(--bf-info) 15%, transparent);
   color: color-mix(in srgb, var(--bf-info) 78%, var(--bf-text));
 }
 
-.badge.tier-enterprise {
+.badge.tier-enterprise:not(.MuiChip-root) {
   background: color-mix(in srgb, var(--bf-warning) 18%, transparent);
   color: color-mix(in srgb, var(--bf-warning) 78%, var(--bf-text));
 }
@@ -358,300 +364,30 @@ a:hover {
   text-decoration: underline;
 }
 
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--bf-sp-2);
-  min-height: 32px;
-  padding: 0 var(--bf-sp-4);
-  background: var(--bf-surface-3);
-  border: 1px solid var(--bf-border);
-  border-radius: var(--bf-r-md);
-  color: var(--bf-text);
-  font-size: var(--bf-fs-body);
-  cursor: pointer;
-}
+/* .btn 族已随 T-344 批 D 退役（mui-native-visual §3.2）：末位消费者
+ * （Profile 修改口令 / Dashboard 空仓 CTA）换 MUI Button variant 谱
+ * （contained/outlined/text + color），手作按钮规则整块删除。 */
 
-.btn:hover {
-  border-color: var(--bf-border-strong);
-}
+/* ---------- 四态基元 ----------
+ * 骨架 / 错误卡 / 空态 / toast：T-344 批 B 交 MUI 原生（Skeleton.tsx =
+ * MUI Skeleton；ErrorCard = Alert + Collapse；EmptyState = Stack +
+ * Typography；Toast = Snackbar + Alert）。批 D 收口：树域/搜索页的
+ * 「skeleton line」页面直连消费已摘净（ArtifactsBrowser ×4 + SearchPage
+ * ×1 → MuiSkeleton variant=text），本族手作规则（含 bf-pulse keyframes
+ * 与 reduced-motion 块）整块退役。empty-state/.hint 与 .toast 类名仍留
+ * DOM（spec 类钩子，§3.8——inert）。
+ *
+ * 危险确认对话框族（.modal-backdrop/.modal×5）：批 B 组件域 + 批 D 页面
+ * 域（ResourceDialog / 包型网格）全部换 MUI Dialog 后整块退役。批 B 起
+ * ConfirmDialog paper 续挂 `modal` 类名（§3.8 artifacts-tree 的 fallback
+ * 选择器钩子）——规则已删，类名纯 inert。 */
 
-.btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn.primary {
-  background: var(--bf-accent);
-  border-color: var(--bf-accent);
-  color: var(--bf-accent-fg);
-  font-weight: 600;
-}
-
-.btn.danger {
-  background: var(--bf-danger);
-  border-color: var(--bf-danger);
-  color: var(--bf-danger-fg);
-  font-weight: 600;
-}
-
-/* ---------- 四态基元 ---------- */
-
-/* 骨架（§5.2：1.2s ease 循环 3% 亮度脉动） */
-.skeleton {
-  border-radius: var(--bf-r-sm);
-  background: var(--bf-surface-2);
-  animation: bf-pulse 1.2s ease-in-out infinite;
-}
-
-.skeleton.line {
-  height: 12px;
-  margin: var(--bf-sp-2) 0;
-}
-
-.skeleton.block {
-  height: 64px;
-  margin: var(--bf-sp-2) 0;
-}
-
-@keyframes bf-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.7;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .skeleton {
-    animation: none;
-  }
-}
-
-/* 错误卡（§5.1：一句人话 + 原始 message 折叠 + 重试） */
-.error-card {
-  border: 1px solid color-mix(in srgb, var(--bf-danger) 45%, transparent);
-  border-radius: var(--bf-r-md);
-  padding: var(--bf-sp-3);
-  background: color-mix(in srgb, var(--bf-danger) 7%, transparent);
-}
-
-.error-card .headline {
-  display: flex;
-  align-items: center;
-  gap: var(--bf-sp-2);
-  color: var(--bf-danger);
-  font-weight: 600;
-}
-
-.error-card details {
-  margin-top: var(--bf-sp-2);
-}
-
-.error-card summary {
-  color: var(--bf-text-2);
-  font-size: var(--bf-fs-aux);
-  cursor: pointer;
-}
-
-.error-card pre {
-  margin: var(--bf-sp-2) 0 0;
-  padding: var(--bf-sp-2);
-  background: var(--bf-bg);
-  border-radius: var(--bf-r-sm);
-  font-family: var(--bf-mono);
-  font-size: var(--bf-fs-aux);
-  white-space: pre-wrap;
-  word-break: break-all;
-  max-height: 160px;
-  overflow: auto;
-}
-
-/* 空态（§5.1：一句话 + 主行动 + 文档链接） */
-.empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--bf-sp-2);
-  padding: var(--bf-sp-4) 0;
-  color: var(--bf-text-2);
-}
-
-.empty-state .hint {
-  color: var(--bf-text-muted);
-  font-size: var(--bf-fs-aux);
-}
-
-/* ---------- toast（§3.5：右下角堆叠） ---------- */
-
-.toast-stack {
-  position: fixed;
-  right: var(--bf-sp-5);
-  bottom: var(--bf-sp-5);
-  z-index: var(--bf-z-toast);
-  display: flex;
-  flex-direction: column;
-  gap: var(--bf-sp-2);
-  max-width: 380px;
-}
-
-.toast {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--bf-sp-2);
-  padding: var(--bf-sp-3) var(--bf-sp-4);
-  border-radius: var(--bf-r-md);
-  background: var(--bf-surface-1);
-  border: 1px solid var(--bf-border);
-  box-shadow: var(--bf-shadow-2);
-  font-size: var(--bf-fs-body);
-}
-
-.toast.success {
-  border-color: color-mix(in srgb, var(--bf-success) 45%, transparent);
-}
-
-.toast.error {
-  border-color: color-mix(in srgb, var(--bf-danger) 45%, transparent);
-}
-
-.toast .msg {
-  flex: 1;
-}
-
-.toast .msg a {
-  display: block;
-  font-size: var(--bf-fs-aux);
-}
-
-.toast .close {
-  background: transparent;
-  border: none;
-  color: var(--bf-text-2);
-  cursor: pointer;
-  font-size: var(--bf-fs-h3);
-  line-height: 1;
-  padding: 0;
-}
-
-/* ---------- 危险确认对话框（§3.5：居中 modal，焦点陷阱 + Esc） ---------- */
-
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: var(--bf-z-modal);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bf-scrim);
-}
-
-/* modal = shadow-3（§5.2：modal/向导） */
-.modal {
-  width: min(440px, calc(100vw - 48px));
-  background: var(--bf-surface-1);
-  border: 1px solid var(--bf-border);
-  border-radius: var(--bf-r-lg);
-  padding: var(--bf-sp-5);
-  box-shadow: var(--bf-shadow-3);
-}
-
-.modal.danger {
-  border-color: var(--bf-danger);
-}
-
-.modal h2 {
-  margin: 0 0 var(--bf-sp-3);
-  font-size: var(--bf-fs-h3);
-}
-
-.modal .modal-body {
-  color: var(--bf-text-2);
-  margin-bottom: var(--bf-sp-5);
-}
-
-.modal .modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--bf-sp-2);
-}
-
-/* ---------- 登录页（§4.1：独立布局，无侧导航壳） ---------- */
-
-.login-page {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--bf-sp-5);
-  padding: var(--bf-sp-5);
-}
-
-.login-brand {
-  text-align: center;
-}
-
-.login-brand h1 {
-  margin: 0;
-  font-size: var(--bf-fs-h1);
-}
-
-.login-brand p {
-  margin: var(--bf-sp-1) 0 0;
-  color: var(--bf-text-2);
-}
-
-.login-card {
-  width: min(380px, 100%);
-  background: var(--bf-surface-1);
-  border: 1px solid var(--bf-border);
-  border-radius: var(--bf-r-lg);
-  padding: var(--bf-sp-5);
-}
-
-.login-card .field {
-  max-width: none;
-}
-
-.login-card .actions {
-  margin-top: var(--bf-sp-5);
-}
-
-/* T-158 SSO：登录卡内按钮通栏（密码登录与 SSO 同宽）；「或」分隔线 */
-.login-card .btn {
-  width: 100%;
-}
-
-.login-divider {
-  display: flex;
-  align-items: center;
-  gap: var(--bf-sp-3);
-  margin-top: var(--bf-sp-5);
-  color: var(--bf-text-muted);
-  font-size: var(--bf-fs-aux);
-}
-
-.login-divider::before,
-.login-divider::after {
-  content: '';
-  flex: 1;
-  border-top: 1px solid var(--bf-border);
-}
-
-.login-sso-error {
-  margin: var(--bf-sp-3) 0 0;
-}
-
-.login-note {
-  color: var(--bf-text-muted);
-  font-size: var(--bf-fs-aux);
-  text-align: center;
-}
+/* ---------- 登录页（§4.1：独立布局，无侧导航壳） ----------
+ * .login-* 手作族已随 T-344 批 D 退役（mui-native-visual §3.2/§4.3）：
+ * Stack + Paper(elevation 3) + TextField 浮标 label + Button(contained,
+ * medium) + Divider 承载。.login-divider 类名留 DOM（§3.8 钩子——login
+ * spec 的 SSO 关闭态计数腿），规则不再需要（MUI Divider 带子节点即
+ * 居中文案分隔形态）。 */
 
 /* ---------- 其他 ---------- */
 
@@ -681,6 +417,10 @@ a:hover {
   margin-bottom: var(--bf-sp-6);
 }
 
+/* 拷贝/清除小钮。T-344 批 B：CopyButton 组件已换 MUI IconButton（类名
+ * 续挂为 spec 钩子——repositories.spec:104；皮肤规则对 IconButton 是
+ * inert 的同特异性前置层）。本规则实际服务 AppShell 顶栏与 SearchPage
+ * 的「清除历史」裸文字钮（批 C/D 随页面换装退役）。 */
 .copy-btn {
   background: transparent;
   border: none;

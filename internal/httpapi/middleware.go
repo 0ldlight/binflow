@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -588,6 +589,68 @@ func sameOrigin(r *http.Request, origin string) bool {
 		return false
 	}
 	return strings.EqualFold(u.Scheme, requestScheme(r)) && strings.EqualFold(u.Host, r.Host)
+}
+
+// deployScopeGuard narrows every credential minted with a deploy scope
+// (M12 T-349, FR-113.3 / NFR-S63 — ADR-0039 residual 1 closed). It runs
+// AFTER the authenticator (the scope rides the resolved Principal) and
+// BEFORE routing — csrfGuard's position — so one decision point covers
+// every plane: content paths, protocol adapters, the /v2 registry plane and
+// the management surface alike. A scoped token (today exactly one family:
+// the MPU finish task's 5-minute checksum-deploy token) is admitted to ONE
+// request shape — a PUT whose X-Checksum-Deploy header is truthy, whose
+// first path segment is one of the scope's repo spellings (the resolved
+// target plus the virtual the client addressed, when those differ) and
+// whose tail is the session's own path — and refused with 403 everywhere
+// else: reads, other paths, other repos, the docker token exchange, the
+// management API, even the MPU plane's own verbs. The path comparison is
+// exact on the decoded coordinates (splitFirstSegment's one-door rule); a
+// different spelling of the same landing (dot segments, trailing slashes,
+// re-encoded escapes) misses the scope and fails closed. Identity, role
+// and groups stay the owner's, so the admitted PUT still runs the regular
+// write-authorization gate on top — the scope narrows, it never grants.
+func deployScopeGuard(logger *slog.Logger) Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			p := principalFrom(r.Context())
+			if p == nil || p.DeployScope == nil {
+				next.ServeHTTP(w, r)
+				return
+			}
+			if ds := p.DeployScope; ds.Kind == auth.DeployScopeChecksumDeploy &&
+				r.Method == http.MethodPut && headerTruthy(r.Header.Get("X-Checksum-Deploy")) {
+				repoKey, rel := splitFirstSegment(r)
+				decoded := rel
+				if d, err := url.PathUnescape(rel); err == nil {
+					decoded = d
+				}
+				if slices.Contains(ds.Repos, repoKey) && decoded == ds.Path {
+					next.ServeHTTP(w, r)
+					return
+				}
+			}
+			logger.WarnContext(r.Context(), "httpapi: scoped credential used outside its deploy scope",
+				slog.String("method", r.Method),
+				slog.String("path", r.URL.EscapedPath()),
+				slog.String("user", p.Name),
+				slog.String("kind", p.DeployScope.Kind),
+			)
+			writeError(w, http.StatusForbidden,
+				"this credential is scoped to the checksum deploy of one upload landing and cannot be used for anything else")
+		})
+	}
+}
+
+// headerTruthy is the X-Checksum-Deploy truthiness the content plane's own
+// handler uses (generic headerBool's vocabulary): "true", "1" or "yes",
+// case-insensitive. Everything else — absent, false-spelled, garbage — is
+// not a checksum deploy, so a scoped token presenting it fails the guard.
+func headerTruthy(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "true", "1", "yes":
+		return true
+	}
+	return false
 }
 
 // authorize enforces the route's requirement after authentication:

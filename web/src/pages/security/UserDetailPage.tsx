@@ -6,8 +6,10 @@ import Alert from '@mui/material/Alert'
 import Button from '@mui/material/Button'
 import Checkbox from '@mui/material/Checkbox'
 import FormControlLabel from '@mui/material/FormControlLabel'
+import Paper from '@mui/material/Paper'
 import Select from '@mui/material/Select'
 import TextField from '@mui/material/TextField'
+import Typography from '@mui/material/Typography'
 
 import { useAuth } from '../../app/AuthContext'
 import { useToast } from '../../app/ToastContext'
@@ -17,7 +19,6 @@ import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import { ADMIN_ROLES, ApiError, canAdminWrite, errText, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
 import type { AdminRole } from '../../lib/api'
-import { dangerBtnSx, denseInputSx, rowBtnSx } from '../../lib/muiAtoms'
 import { useAsync } from '../../lib/useAsync'
 import './security.css'
 import { TransferBox } from './TransferBox'
@@ -107,7 +108,7 @@ export default function UserDetailPage() {
           <EmptyState
             message={`用户 ${name} 不存在`}
             action={
-              <Button variant="outlined" size="small" sx={rowBtnSx} component={Link} to="/admin/security/users">
+              <Button variant="outlined" size="small" component={Link} to="/admin/security/users">
                 ← 返回用户列表
               </Button>
             }
@@ -180,7 +181,7 @@ export default function UserDetailPage() {
         <h2>
           编辑用户 · <span className="mono" lang="en">{name}</span>
         </h2>
-        <Button variant="outlined" size="small" sx={rowBtnSx} component={Link} to="/admin/security/users">
+        <Button variant="outlined" size="small" component={Link} to="/admin/security/users">
           ← 返回列表
         </Button>
       </div>
@@ -214,7 +215,7 @@ export default function UserDetailPage() {
                   value={f.email}
                   disabled={readOnly}
                   onChange={(e) => setF((p) => (p ? { ...p, email: e.target.value } : p))}
-                  sx={{ ...denseInputSx, width: 320 }}
+                  sx={{ width: 320 }}
                   slotProps={{ htmlInput: { 'data-testid': 'user-form-email' } }}
                 />
                 {f.email.trim() === '' && <p className="field-error">email 不能为空（服务端 400）</p>}
@@ -228,7 +229,7 @@ export default function UserDetailPage() {
                   value={f.role}
                   disabled={readOnly}
                   onChange={(e) => setF((p) => (p ? { ...p, role: e.target.value as AdminRole } : p))}
-                  sx={{ ...denseInputSx, width: 420 }}
+                  sx={{ width: 420 }}
                   slotProps={{
                     select: {
                       native: true,
@@ -278,7 +279,7 @@ export default function UserDetailPage() {
                   value={f.password}
                   disabled={readOnly}
                   onChange={(e) => setF((p) => (p ? { ...p, password: e.target.value } : p))}
-                  sx={{ ...denseInputSx, width: 320 }}
+                  sx={{ width: 320 }}
                   slotProps={{ htmlInput: { 'data-testid': 'user-form-password' } }}
                 />
               </div>
@@ -294,7 +295,7 @@ export default function UserDetailPage() {
                   disabled={readOnly}
                   onChange={(e) => setF((p) => (p ? { ...p, password2: e.target.value } : p))}
                   error={passMismatch}
-                  sx={{ ...denseInputSx, width: 320 }}
+                  sx={{ width: 320 }}
                   slotProps={{ htmlInput: { 'data-testid': 'user-form-password2' } }}
                 />
                 {passMismatch && (
@@ -338,13 +339,13 @@ export default function UserDetailPage() {
               </Alert>
             )}
             <div className="form-actions">
-              <Button variant="outlined" size="small" sx={rowBtnSx} component={Link} to="/admin/security/users">
+              <Button variant="outlined" size="small" component={Link} to="/admin/security/users">
                 取消
               </Button>
               <Button
                 variant="outlined"
                 size="small"
-                sx={rowBtnSx}
+               
                 disabled={!dirty || submitting}
                 onClick={() => d && setF(editFromDetail(d))}
               >
@@ -410,18 +411,27 @@ export default function UserDetailPage() {
           </span>
         </div>
         {admin && (
-          <div className="sec-danger-zone" data-testid="user-danger-zone">
-            <div className="dz-head">危险区</div>
-            <p className="dz-note">
+          /* T-344 批 D：sec-danger-zone Paper 化（§3.5 security 行）——
+             outlined + error 边，dz-head/dz-note 类名随规则退役留 DOM */
+          <Paper
+            variant="outlined"
+            className="sec-danger-zone"
+            sx={{ mt: 'var(--bf-sp-4)', p: 'var(--bf-sp-3) var(--bf-sp-4)', borderColor: 'error.main' }}
+            data-testid="user-danger-zone"
+          >
+            <Typography className="dz-head" variant="subtitle2" component="div" color="error" sx={{ mb: 0.5 }}>
+              危险区
+            </Typography>
+            <Typography className="dz-note" variant="body2" color="text.secondary" sx={{ mb: 1, maxWidth: '72ch' }}>
               删除不可恢复（组员/授权/token/会话同事务级联；审计保留）。人员离场的可逆路径是
               <b>禁用</b>（选项区）——删除仅用于账号彻底清退。
-            </p>
+            </Typography>
             {deleteBlocked ? (
               <Button
                 variant="outlined"
                 color="error"
                 size="small"
-                sx={dangerBtnSx}
+               
                 disabled
                 title={deleteBlocked}
                 data-testid="user-delete"
@@ -433,14 +443,14 @@ export default function UserDetailPage() {
                 variant="outlined"
                 color="error"
                 size="small"
-                sx={dangerBtnSx}
+               
                 onClick={() => void deleteUser(name)}
                 data-testid="user-delete"
               >
                 删除用户
               </Button>
             )}
-          </div>
+          </Paper>
         )}
       </section>
     </div>

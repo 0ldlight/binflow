@@ -141,3 +141,44 @@ func TestReindexRebuild(t *testing.T) {
 		t.Fatalf("body-form reindex = (%d, %s)", code, body)
 	}
 }
+
+// TestReindexDirsCopyObserverEntry (T-354): the copy-side entry the cmd
+// assembly dispatches onto — a hand-corrupted index under one recipe comes
+// back from the CANDIDATE DIRECTORY set alone (the parent directories of
+// landed files, trailing-slash spellings), running as the system identity;
+// the containment reduction walks one prefix for a nested set.
+func TestReindexDirsCopyObserverEntry(t *testing.T) {
+	s := newStack(t)
+	r := ref{name: "hello", version: "1.0", user: "myuser", channel: "stable"}
+	rev := fixtureRev(2)
+	s.seedRepo(t, "cn-local", repo.TypeLocal)
+	s.putRecipeFile("cn-local", r, rev, "conanfile.py", []byte("x"))
+	pid := fixturePID(3)
+	prev := fixtureRev(5)
+	s.putPkgFile("cn-local", r, rev, pid, prev, "conan_package.tgz", []byte("t"))
+
+	// Corrupt both index levels (recipe chain + package chain).
+	if err := s.handlerForTest().removeRecipeRevisionEntry(context.Background(), adminPrincipal(), "cn-local", r, rev); err != nil {
+		t.Fatalf("corrupt recipe index: %v", err)
+	}
+
+	// The candidate set a whole-recipe copy would hand over: the recipe
+	// revision root, the packageId directory and the pRev directory — the
+	// two deeper entries sit under the first (containment-reduced to ONE
+	// walk), and the trailing-slash spellings are the seam's own.
+	root := "myuser/hello/1.0/stable/" + rev + "/"
+	dirs := []string{root, root + pid + "/", root + pid + "/" + prev + "/"}
+	m := NewManagementHandler(s.svc, s.md.Repos(), s.auth)
+	if err := m.ReindexDirs(context.Background(), repo.SystemPrincipal(), "cn-local", dirs); err != nil {
+		t.Fatalf("ReindexDirs: %v", err)
+	}
+
+	code, wire, _ := s.get(v2("cn-local", "hello/1.0/myuser/stable/revisions"))
+	if code != http.StatusOK {
+		t.Fatalf("post-reindex revisions = %d, want 200", code)
+	}
+	var doc recipeIndexDoc
+	if err := json.Unmarshal([]byte(wire), &doc); err != nil || len(doc.Revisions) != 1 || doc.Revisions[0].Revision != rev {
+		t.Fatalf("post-reindex index = %s (%v), want the rebuilt row", wire, err)
+	}
+}

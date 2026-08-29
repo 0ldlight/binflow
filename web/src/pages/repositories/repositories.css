@@ -5,38 +5,10 @@
  * 色值纪律与 src/styles 一致：只经 var(--bf-*) 引色（assert-tokens 同款
  * 口径，页面 css 虽不在脚本扫描范围也遵守）。 */
 
-/* ---------- 三 Tab 子路由导航（§6.6[1]：Tab + 计数 + 添加按钮） ---------- */
-
-.repos-tabs {
-  display: flex;
-  align-items: center;
-  gap: var(--bf-sp-1);
-  border-bottom: 1px solid var(--bf-border);
-  margin-bottom: var(--bf-sp-4);
-}
-
-.repos-tab {
-  padding: var(--bf-sp-2) var(--bf-sp-4);
-  border-bottom: 2px solid transparent;
-  color: var(--bf-text-2);
-  font-size: var(--bf-fs-body);
-}
-
-.repos-tab:hover {
-  color: var(--bf-text);
-  text-decoration: none;
-}
-
-.repos-tab.active {
-  color: var(--bf-text);
-  border-bottom-color: var(--bf-accent);
-  font-weight: 600;
-}
-
-.repos-tab:focus-visible {
-  outline: 2px solid var(--bf-accent);
-  outline-offset: -2px;
-}
+/* ---------- 三 Tab 子路由导航（§6.6[1]：Tab + 计数 + 添加按钮） ----------
+ * .repos-tabs/.repos-tab 族已随 T-344 批 C 退役（mui-native-visual §3.5）：
+ * MUI Tabs + Tab component={Link} 承载——锚 repos-tab-* 落 Tab 根（<a>）、
+ * aria-current=page 续挂，方向键/指示条交 MUI（onTablistKeys 退役）。 */
 
 /* 页头右侧：计数标题 + 添加按钮（对齐 Artifactory "<N> Repositories" + Add） */
 .repos-head-actions {
@@ -56,27 +28,10 @@
  * 悬停 / surface-2 悬停底，对比度纪律原样：不用 opacity 弱化，密度靠
  * 字号承载）。 */
 
-/* 列头排序按钮（§4.7；security.css 同款语义，本域自持） */
-.th-sort {
-  all: unset;
-  cursor: pointer;
-  font: inherit;
-  color: inherit;
-}
-
-.th-sort:hover {
-  color: var(--bf-accent);
-}
-
-.th-sort:focus-visible {
-  outline: 2px solid var(--bf-accent);
-  outline-offset: 2px;
-}
-
-.th-sort-arrow {
-  font-size: 10px;
-  color: var(--bf-text-2);
-}
+/* 列头排序按钮（§4.7；security.css 同款语义，本域自持）——.th-sort/
+ * .th-sort-arrow 族已随 T-344 批 C 退役（mui-native-visual §3.5）：
+ * MUI TableSortLabel 承载（active/direction 箭头内建，ButtonBase 焦点环）；
+ * aria-sort 三态与锚仍在 th 本体（热区 = 整格点击）。 */
 
 /* 表格底部计数行（§6.6[3]「显示 a – b / 共 c 项」） */
 .table-foot {
@@ -140,26 +95,10 @@
   line-height: 1.4;
 }
 
-/* ---------- 分区表单（§4.4 单页分区式：常规/来源成员/包类型专属/高级） ---------- */
-
-.repo-form-section {
-  border: 1px solid var(--bf-border);
-  border-radius: var(--bf-r-md);
-  padding: var(--bf-sp-4) var(--bf-sp-4) var(--bf-sp-3);
-  margin-bottom: var(--bf-sp-4);
-  background: var(--bf-surface-1);
-}
-
-.repo-form-section > h3 {
-  margin: 0 0 var(--bf-sp-3);
-  font-size: var(--bf-fs-h3);
-}
-
-.repo-form-section > .section-sub {
-  margin: calc(-1 * var(--bf-sp-2)) 0 var(--bf-sp-3);
-  font-size: var(--bf-fs-aux);
-  color: var(--bf-text-2);
-}
+/* ---------- 分区表单（§4.4 单页分区式：常规/来源成员/包类型专属/高级） ----------
+ * .repo-form-section 族已随 T-344 批 D 退役（mui-native-visual §3.5）：
+ * 六处分区换 Paper + Typography subtitle2（.section-sub 附注同批 Typography
+ * 化），手作分区卡规则整块删除。 */
 
 /* 页级只读注记（M7 §7.3 推广形态；security.css 同款语义，本域自持） */
 .page-note {
@@ -168,38 +107,10 @@
   margin: var(--bf-sp-2) 0;
 }
 
-/* ---------- 详情三 Tab（概要/配置/Replications，§6.8 自有形态） ---------- */
-
-.repo-tabs {
-  display: flex;
-  gap: var(--bf-sp-1);
-  border-bottom: 1px solid var(--bf-border);
-  margin-bottom: var(--bf-sp-4);
-}
-
-.repo-tab {
-  all: unset;
-  cursor: pointer;
-  padding: var(--bf-sp-2) var(--bf-sp-3);
-  border-bottom: 2px solid transparent;
-  color: var(--bf-text-2);
-  font-size: var(--bf-fs-body);
-}
-
-.repo-tab:hover {
-  color: var(--bf-text);
-}
-
-.repo-tab.active {
-  color: var(--bf-text);
-  border-bottom-color: var(--bf-accent);
-  font-weight: 600;
-}
-
-.repo-tab:focus-visible {
-  outline: 2px solid var(--bf-accent);
-  outline-offset: -2px;
-}
+/* ---------- 详情三 Tab（概要/配置/Replications，§6.8 自有形态） ----------
+ * .repo-tabs/.repo-tab 族已随 T-344 批 C 退役：MUI Tabs（value/onChange
+ * 本地态）——锚 repo-tab-* 落 Tab 根（<button>）、方向键选择随焦点为 MUI
+ * 内建（keyboard spec 的 tablist 腿等价覆盖）。 */
 
 /* 详情头部动作区（浏览制品 / 编辑配置） */
 .detail-head-actions {
@@ -218,16 +129,10 @@
   margin-top: var(--bf-sp-2);
 }
 
-.quota-edit input {
-  width: 160px;
-}
+/* .quota-edit input 宽度规则已随 T-344 批 C 退役（输入换 MUI TextField
+ * small + monoInputSx，宽度经 sx 收口）。 */
 
-/* T-242（axe 实证，e2e/m8/repositories-admin 三 Tab 腿）：hover 行背景
- * surface-2 上的 .row-link:hover 用 accent，亮色主题 4.47:1（差 0.03 不过
- * 4.5 门）——hover 时链接色回 --bf-text 全对比度，hover 语义由下划线承载
- * （T-236 的 .on-chain 同款收口）。选择器是表格通用形态：users/groups/
- * permissions/search 表的同款配对同此修复；badge.warning 亮色 4.26:1
- * 等共享层对比度家族统一归 T-250 共享层票。 */
-.table tbody tr:hover .row-link:hover {
-  color: var(--bf-text);
-}
+/* T-242 的 hover 行 .row-link 对比度收口已随 T-344 批 C 退役：表格续挂
+ * .table 摘除后行 hover = MUI TableRow hover（action.hover 承载面），
+ * accent 链接色在其上双主题实测 ≥4.6:1（批 C 重算）；.table 族基线见
+ * base.css（Dashboard 等批 D 清扫对象仍在役）。 */

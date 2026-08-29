@@ -152,6 +152,38 @@ func (m *ManagementHandler) runReindex(cw *capWriter, r *http.Request, p *repo.P
 		"Calculated Conan index for repository '%s' (path '%s'): %d revisions reindexed.", req.RepoKey, req.Path, count))
 }
 
+// ReindexDirs is the copy-side index recompute entry (M12 T-354, the
+// §15.4.2 leftover seam): the cmd assembly's CopyMoveObserver dispatches
+// here by the target repository's package type, running the rebuild as
+// the caller-supplied principal — the assembly passes repo.SystemPrincipal()
+// (the trash chain's internal identity; the D1 server-internal license
+// posture holds — the gate is the HTTP verb face's, an in-process recompute
+// never re-asks the question).
+//
+// Every candidate directory (the parent of one landed file) is walked as
+// the rebuild prefix: the walk regenerates every recipe revision root and
+// packageId directory it finds beneath. A sorted candidate set is reduced
+// by containment first — a shallower directory's walk already covers
+// everything beneath it, so a whole-recipe copy costs one walk, not one
+// per file.
+func (m *ManagementHandler) ReindexDirs(ctx context.Context, p *repo.Principal, repoKey string, dirs []string) error {
+	var kept []string
+	for _, d := range dirs {
+		if n := len(kept); n > 0 && strings.HasPrefix(d, kept[n-1]) {
+			continue // a kept ancestor's walk covers this subtree
+		}
+		kept = append(kept, d)
+	}
+	var errs []error
+	for _, d := range kept {
+		sub := strings.Trim(d, "/")
+		if _, err := m.rebuild(ctx, p, repoKey, sub); err != nil {
+			errs = append(errs, fmt.Errorf("walk %s: %w", sub, err))
+		}
+	}
+	return errors.Join(errs...)
+}
+
 // rebuild walks the coordinate trees under sub and regenerates every
 // index.json from the stored .timestamp facts (the drift repair reindex
 // exists for): for each recipe coordinate, for each revision directory,

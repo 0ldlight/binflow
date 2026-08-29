@@ -49,6 +49,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/adapter/generic"
 	"github.com/lzwzzy/binflow/internal/adapter/goproxy"
 	"github.com/lzwzzy/binflow/internal/adapter/helm"
+	"github.com/lzwzzy/binflow/internal/adapter/helmoci"
 	"github.com/lzwzzy/binflow/internal/adapter/maven"
 	"github.com/lzwzzy/binflow/internal/adapter/npm"
 	"github.com/lzwzzy/binflow/internal/adapter/nuget"
@@ -445,6 +446,16 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// addons.Helm() slot carries the pro-tier gating (T-282/T-283).
 	helmHandler := helm.Register(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.md.NodeProps(), stack.md.Remote(),
 		helm.Options{BaseURL: cfg.Server.BaseURL})
+	// helmoci (M12/T-342, FR-109/HL-3): the registry-v2 Helm face. The
+	// protocol surface IS the docker /v2 plane built above — repositories
+	// with package_type=helmoci route to it through the plane's family
+	// gate — so this registration is the shell the content-plane dispatch
+	// and the addon-slot assembly guard need (internal/adapter/helmoci's
+	// package comment carries the wire surface). LOCAL repositories only;
+	// the addons.HelmOCI() slot carries the pro-tier gating, consulted by
+	// the /v2 write face's row-resolved package type (gateV2Write) and the
+	// repo-create plane (weave 2).
+	helmociHandler := helmoci.Register(dockerHandler)
 	// rpm (M11/T-311, the RPM/YUM package type): same wiring story as
 	// cargo/helm — the content plane dispatches on package_type="rpm" and
 	// the provider registration classifies the repodata family as
@@ -472,6 +483,34 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// switch — with the TL-4 forced architecture families on by default.
 	debHandler := deb.Register(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.md.NodeProps(),
 		deb.Options{Signer: stack.signer})
+	// The copy-side index-linkage observer (M12 T-354, architecture
+	// §15.4.2's leftover seam / §11.44): the copy/move pipeline fires
+	// repo's CopyMoveObserver after every completed non-dry COPY into a
+	// local repository (repo-operations.md section 1.4 — the maven
+	// metadata recalc's copy-only trigger shape; move and dry runs are the
+	// seam's own pinned contract), handing the target repository and the
+	// candidate directory set. The observer resolves the target row's
+	// package type and dispatches onto the adapters' reindex entries,
+	// running them as repo.SystemPrincipal() — the trash chain's internal
+	// identity, where the identity IS the exemption (allow()'s role
+	// short-circuit; the Authorizer is never consulted) — under the D1
+	// server-internal license posture (license_gate.go: the gate is the
+	// HTTP verb face's, nothing behind it re-asks the question — the same
+	// exemption the trash chain, the remote pull-through's landing and the
+	// metadata calculators ride; the copy itself already passed the family's
+	// RequireAddon at the REST face). Attached BEFORE the first request
+	// (AttachCopyMoveObserver's contract) — the same assembly slot order
+	// every Attach* seam follows.
+	repo.AttachCopyMoveObserver(stack.svc, copyMoveIndexObserver{
+		repos: stack.md.Repos(),
+		reindexers: map[string]dirReindexer{
+			maven.Protocol: mavenHandler,
+			npm.Protocol:   npmHandler,
+			deb.Protocol:   debHandler,
+			conan.Protocol: conanMgmt,
+		},
+		log: logger,
+	})
 	// The addon registry (M10 T-282, ADR-0033 / section 15.2.1): the
 	// COMPILE-TIME ASSEMBLY MANIFEST — one literal slice, the
 	// META-INF/addon.{xml,properties} behavior pattern in Go form. This is
@@ -495,7 +534,7 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 		GC:       stack.st,
 		DataDir:  cfg.Storage.DataDir,
 		Console:  console.Handler(),
-		Adapters: []adapter.Handler{stack.genericHandler, dockerHandler, mavenHandler, npmHandler, pypiHandler, goproxyHandler, nugetHandler, cargoHandler, conanHandler, helmHandler, rpmHandler, debHandler},
+		Adapters: []adapter.Handler{stack.genericHandler, dockerHandler, mavenHandler, npmHandler, pypiHandler, goproxyHandler, nugetHandler, cargoHandler, conanHandler, helmHandler, helmociHandler, rpmHandler, debHandler},
 		// The adapters' management mounts (ADR-0034): conan's reindex
 		// family today; helm/yum serve their faces through the router's
 		// own handlers (the adapter-seam pattern) instead.
@@ -594,7 +633,7 @@ func addonManifest() *addons.Registry {
 		addons.Generic(), addons.Docker(), addons.Maven(), addons.Npm(), addons.Pypi(),
 		// Gated pilot package-type slots (pro; the adapters land with their
 		// own tickets — the slots exist so gate/view/legal-set are complete).
-		addons.Go(), addons.NuGet(), addons.Cargo(), addons.Conan(), addons.Helm(), addons.Rpm(), addons.Debian(),
+		addons.Go(), addons.NuGet(), addons.Cargo(), addons.Conan(), addons.Helm(), addons.HelmOCI(), addons.Rpm(), addons.Debian(),
 		// Feature slots: properties on the floor, repo-operations at pro
 		// (the Q4 final ruling — the copy/move/archive family mirrors
 		// Artifactory's entitlement posture), trashcan at pro (the Q3
@@ -715,50 +754,26 @@ func loadServeConfig(explicit string) (*config.Config, error) {
 		return resolveHome(cfg, home), nil
 	}
 
-	// No config file anywhere: defaults + environment. Load resolves env
-	// overrides and validates, so the result is fully populated.
-	cfg := config.Defaults()
-	if err := applyEnvDefaults(cfg); err != nil {
-		return nil, err
-	}
-	// T-306 (ADR-0036 decision 1): even a boot without any binflow.yaml
-	// discovers binstore.yaml through the same resolution order —
-	// ./binstore.yaml, then $BINFLOW_HOME/binstore.yaml — so the default
-	// form keeps "binstore.yaml next to where binflow.yaml would be". The
-	// temp-file roundtrip above may have recorded branch-① hints against a
-	// temp directory that never had a binstore.yaml; the real discovery
-	// below re-derives the whole warning set, so start it clean.
-	cfg.StartupWarnings = nil
-	if err := config.ApplyBinstoreForDefaultBoot(cfg, home); err != nil {
-		return nil, err
-	}
-	if err := cfg.Validate(); err != nil {
+	// No config file anywhere: defaults + environment, with binstore.yaml
+	// resolved through the same default lookup order — ./binstore.yaml,
+	// then $BINFLOW_HOME/binstore.yaml (T-306, ADR-0036 decision 1). Since
+	// T-349 (FR-113.5) the discovery precedes the env validation inside
+	// BuildDefaultConfig, so a present binstore.yaml owns the chain and its
+	// own errors on this path too; the result is fully validated.
+	cfg, err := config.BuildDefaultConfig(home)
+	if err != nil {
 		return nil, err
 	}
 	return resolveHome(cfg, home), nil
 }
 
-// applyEnvDefaults applies BINFLOW_-prefixed environment overrides onto a
-// hand-constructed Config (the no-config-file boot path). It reuses the
-// config package's env mapping by round-tripping through an empty temp
-// file: Load(path of an empty file) = defaults + env + validation, which is
-// exactly this path's semantics without exporting config internals.
-func applyEnvDefaults(cfg *config.Config) error {
-	tmp, err := os.CreateTemp("", "binflow-empty-config-*.yaml")
-	if err != nil {
-		return fmt.Errorf("config: preparing empty config for env-only load: %w", err)
-	}
-	defer func() { _ = os.Remove(tmp.Name()) }()
-	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("config: closing empty config file: %w", err)
-	}
-	loaded, err := config.Load(tmp.Name())
-	if err != nil {
-		return err
-	}
-	*cfg = *loaded
-	return nil
-}
+// applyEnvDefaults applied BINFLOW_-prefixed environment overrides onto a
+// hand-constructed Config for the no-config-file boot path, round-tripping
+// through an empty temp file (Load of an empty file = defaults + env +
+// validation). T-349 folded the whole path into config.BuildDefaultConfig,
+// which builds in-package and orders binstore discovery before the env
+// validation — the temp-file detour (and the warning-set discard it forced)
+// is gone.
 
 // resolveHome anchors the default data directory (and the default sqlite
 // path) at $BINFLOW_HOME. Relative operator-provided paths pass through
@@ -1156,6 +1171,60 @@ type trashcanGate struct {
 func (g trashcanGate) Unlocked(ctx context.Context) bool {
 	st, ok := g.reg.StatusOf(ctx, g.ev, addons.Trashcan().ID)
 	return ok && st.Enable
+}
+
+// dirReindexer is the adapters' copy-side reindex seam (M12 T-354, the
+// consumer-side interface convention): recompute the protocol's derived
+// index for the candidate directory set — the deduplicated, sorted parent
+// directories of every landed FILE (trailing-slash folder spellings), the
+// spec's own trigger vocabulary. Implemented by maven (maven-metadata.xml
+// recalculation), npm (the packument rebuild off the stored tarballs), deb
+// (the whole-repository Packages/by-hash recompute) and conan (the index
+// chain rebuild under each candidate directory); a package type without an
+// entry in the dispatch map has no derived index to maintain (generic and
+// friends — the observer's no-op).
+type dirReindexer interface {
+	ReindexDirs(ctx context.Context, p *repo.Principal, repoKey string, dirs []string) error
+}
+
+// copyMoveIndexObserver implements repo.CopyMoveObserver over the
+// assembled adapters: resolve the target repository's package type, run
+// the matching reindex entry as the internal system identity, log (never
+// propagate) the failure — the notifyReplicator contract the seam itself
+// carries: an observer must not fail or slow the operation that triggered
+// it, and the pipeline already runs this off the request path under a
+// recover shield.
+type copyMoveIndexObserver struct {
+	repos      repo.ClassReader
+	reindexers map[string]dirReindexer
+	log        *slog.Logger
+}
+
+// AfterCopyMove implements repo.CopyMoveObserver. op is OpCopy by the
+// seam's contract (§1.4: move and dry runs never fire it); the guard is
+// defensive, not a second opinion.
+func (o copyMoveIndexObserver) AfterCopyMove(ctx context.Context, op, targetRepo string, dirs []string) {
+	if op != repo.OpCopy || len(dirs) == 0 {
+		return
+	}
+	row, err := o.repos.Get(ctx, targetRepo)
+	if err != nil {
+		o.log.WarnContext(ctx, "binflow: copy index observer: target repository unreadable",
+			slog.String("repo", targetRepo), slog.String("error", err.Error()))
+		return
+	}
+	if row.Type != repo.TypeLocal {
+		return // the pipeline's precheck already refuses remote/virtual targets
+	}
+	rx, ok := o.reindexers[row.PackageType]
+	if !ok {
+		return // no derived index for this package type
+	}
+	if err := rx.ReindexDirs(ctx, repo.SystemPrincipal(), targetRepo, dirs); err != nil {
+		o.log.WarnContext(ctx, "binflow: copy-side index recompute failed",
+			slog.String("repo", targetRepo), slog.String("type", row.PackageType),
+			slog.String("error", err.Error()))
+	}
 }
 
 // openReplicationDB opens the replication store's own connection pool on

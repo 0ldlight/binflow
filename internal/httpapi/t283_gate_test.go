@@ -483,8 +483,19 @@ func TestT283DisabledBreaker(t *testing.T) {
 // TestT283V2BreakerArm: the /v2 root exception's write arm — the registry
 // plane must not stand outside the gate (POST upload-initiate and PUT
 // finalize refuse under the breaker; the ping and the token endpoint pass).
+// Since T-342 the arm resolves the repository ROW's package type (the
+// plane serves the docker+helmoci family), so the gated write targets a
+// SEEDED docker repository; a row the lookup cannot resolve passes through
+// to the adapter's own repo gate — the 404 a missing repository answers
+// with is not an entitlement verdict (the license question never leaks row
+// existence).
 func TestT283V2BreakerArm(t *testing.T) {
 	st := newT283Stack(t, "docker", false, &t63Handler{proto: "docker"})
+	if err := st.md.Repos().Create(context.Background(), &metadata.Repo{
+		RepoKey: "myimg", Type: repo.TypeLocal, PackageType: repo.PackageDocker, Config: "{}",
+	}); err != nil {
+		t.Fatalf("seed docker repo: %v", err)
+	}
 
 	code, body, hdr := st.do(t, http.MethodPost, "/v2/myimg/blobs/uploads/", adminUser, adminPass, "")
 	if code != http.StatusForbidden || !strings.Contains(body, "disabled by configuration") {
@@ -492,6 +503,12 @@ func TestT283V2BreakerArm(t *testing.T) {
 	}
 	if code, _, _ = st.do(t, http.MethodPut, "/v2/myimg/manifests/latest", adminUser, adminPass, "{}"); code != http.StatusForbidden {
 		t.Fatalf("breaker /v2 manifest PUT = %d, want 403", code)
+	}
+	// A write naming a repository the lookup cannot resolve is the
+	// adapter's question, not the gate's: the fake answers 200 (the real
+	// adapter answers its spec 404).
+	if code, _, _ = st.do(t, http.MethodPost, "/v2/missing-repo/blobs/uploads/", adminUser, adminPass, ""); code != http.StatusOK {
+		t.Fatalf("breaker /v2 write on a missing row = %d, want the adapter's own answer (200 on the fake)", code)
 	}
 	// Reads pass (D1) — the fake adapter answers 200.
 	if code, _, _ = st.do(t, http.MethodGet, "/v2/myimg/manifests/latest", adminUser, adminPass, ""); code != http.StatusOK {

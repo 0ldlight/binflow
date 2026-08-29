@@ -17,7 +17,7 @@
 | 5 | GET | `/api/archive/download/{repoKey}/{path}` | `archiveType`（**必填**，zip/tar/tar.gz/tgz）、`includeChecksumFiles`(布尔，默认false) | 200 + 归档字节流（Content-Type 按类型） | 400/401/403/404（§4.2 逐条消息） | 高（双证；四限参错误消息仅代码，中） |
 | 6 | GET | `/api/archive/download/{repoKey}`（整仓形态，文档写 path 用空串） | 同上 | 同上 | 同上 | 高（代码双路径 + 文档「use empty string for repository root」） |
 | 7 | GET | `/{repoKey}/{archivePath}!/{entryPath}`（内容面，非 /api） | 无查询参数（矩阵参数属性照常适用） | 200 + 成员字节 | 404（成员不存在/读失败）、403（权限/无 Filtered addon）、400（§4.1） | 高（路径形状与「`!` 后必须跟 `/`」双证；错误消息细节仅代码，中） |
-| 8 | PUT | `/{repoKey}/{archivePath}` + `X-Explode-Archive: true` | 头 `X-Explode-Archive`（必填 true）、`X-Explode-Archive-Atomic`(可选) | **文档 201 / 代码 200**（见待验证 V-1） | 400（白名单外扩展名/缺文件名/坏归档）、403（无部署权限） | 高（头与类型集双证；成功码分歧入 V-1） |
+| 8 | PUT | `/{repoKey}/{archivePath}` + `X-Explode-Archive: true` | 头 `X-Explode-Archive`（必填 true）、`X-Explode-Archive-Atomic`(可选) | **201 空体**（V-1 已定案 2026-08-29 T-343：规格优先级裁决 文档 > 反编译隐式默认；BinFlow as-built 201 + `X-Binflow-Exploded-Files: <n>` 计数头〔BinFlow 新增〕） | 400（白名单外扩展名/缺文件名/坏归档）、403（无部署权限） | 高（头与类型集双证；成功码定案见 V-1） |
 | 9 | POST | `/api/archive/buildArtifacts` | 体：buildName 必填 + buildNumber XOR buildStatus、archiveType(zip/tar/tar.gz/tgz)、mappings | 200 + 归档流（计流量） | 400（校验消息 §4.4）、404（无构建产物） | 中（仅代码；属 build-info 域，本票只登记不展开） |
 
 - 认证面：#1~#6、#9 资源类标注 `RolesAllowed({admin, user})`——匿名可达性取决于实例匿名策略 + 路径权限（官方文档：copy/move「Requires a privileged user (can be anonymous)」；folder zip「privileged user with read permissions」；#7「user with 'read' permission (can be anonymous)」；#8「user with 'deploy' permissions (can be anonymous)」）。置信度高。
@@ -81,7 +81,7 @@
 - 成功（无 error 无 warning）：200，体 `{"messages":[{"level":"INFO","message":"copying <src> to <dst> completed successfully, <N> artifacts and <M> folders were copied"}]}`（dry 模式前缀 `Dry run for copying…`；move 用 moving/moved）。
 - 有 error：HTTP 状态 = 最后一条 error 携带码（>0 时），否则 **409** 兜底；体 = `{"messages":[{"level":"ERROR"|"WARN","message":…}, …]}`（全部 error 在前、warning 在后，流式输出）。
 - Content-Type：`application/vnd.org.jfrog.artifactory.storage.CopyOrMoveResult+json`（或 application/json）。
-- level 取值为 logback 枚举名：`ERROR`/`WARN`/`INFO`/`DEBUG`。中置信（大小写来自代码）。
+- level 取值为 logback 枚举名：`ERROR`/`WARN`/`INFO`/`DEBUG`。中置信（大小写来自代码；Artifactory live 验证仍开放——V-3 维持）。**BinFlow as-built（T-339）按代码证据取大写实现并测试固化**；T-343 未触及 copy/move 面，无新增证据。
 
 ### 1.6 flat 端点（#3/#4）真实语义 —— **与 PRD「扁平化」措辞有出入，需 PM/T-339 知悉**
 
@@ -162,7 +162,7 @@
 - 权限：对目标路径的部署权限（canDeploy）→ 403 `User is not authorized to deploy to specified repo path.`
 - 并行度：`artifactory.explode.archive.threads` 默认 1（顺序部署；>1 时先非 checksum 后 checksum 两批并行）；超时 `explode.archive.timeout.minutes` 默认 60 分钟。官方文档注记 7.96.3 起支持并行。
 - 失败映射：Illegal（扩展名等）→ 400；流/IO → 404 `Explode archive deployment failed. View log for more details.`；statusHolder 有错 → 按 mapper 取码（500 兜底）。
-- 成功响应码：官方文档 **201 Created**；反编译代码成功路径仅 flush（响应基类默认 200，未显式设 201）→ **V-1 待 live 验证**。BinFlow 实现取 201（对齐文档与自有 PUT 201 惯例）或 live 实测值。
+- 成功响应码：官方文档 **201 Created**；反编译代码成功路径仅 flush（响应基类默认 200，未显式设 201）。**V-1 定案（2026-08-29，T-343）**：按规格优先级「官方文档 > 反编译隐式默认」定 **201 + 空体**——与 BinFlow 自有 PUT 201 惯例一致；无活体 Artifactory 可达（环境无实例），按文档定案在此留痕，live 实测值若异再翻转。BinFlow as-built：201 空体 + `X-Binflow-Exploded-Files: <n>` 计数头（BinFlow 新增）。
 - 成功体：空（无 JSON）。
 
 ---
@@ -203,7 +203,7 @@
 ## 7. 与公开规范的差异/补充汇总
 
 - **文档未载、代码可见**（本规格补充项）：`atomic` 查询参数；`/api/flat/*` 端点及其默认 404；响应体 `messages[]` 结构与 level 枚举；逐项权限消息与 **401 override 码**；`.jfrog` 目标阻断 404；`includeChecksumFiles` 默认 false 之外的执行序与逐字错误模板；`jfrog-support-bundle` 豁免；explode 的临时目录/排除项/404 IO 码；`archive!/` 嵌套归档与成员 checksum 后缀；strictArchiveDotSlash；`archiveBrowsingEnabled` 不门控成员读取。
-- **文档与代码分歧**：explode 成功码 201(文档)/200(代码)（V-1）；explode 白名单四类(文档)/十类(代码默认)（§4.1 处置）；`archive!/` Pro 标注缺失（文档遗漏）。
+- **文档与代码分歧**：~~explode 成功码 201(文档)/200(代码)（V-1）~~ **已定案 201（文档优先，T-343 2026-08-29）**；explode 白名单四类(文档)/十类(代码默认)（§4.1 处置：维持 PRD 四类闭集）；`archive!/` Pro 标注缺失（文档遗漏）。
 - **无 202/异步任务形态**：copy/move 是同步 200 逐消息流式返回——文档与代码双证均无 202+status 任务模型（大操作仅靠流式聚合与 failFast 缓解；Artifactory 的异步面在本域只有 maven 元数据重算/explode 并行线程等内部任务）。**票面提问的「202+status 形态」结论：不存在，勿实现。**（高置信）
 
 ---
@@ -212,7 +212,7 @@
 
 | # | 项 | 现有证据 | 验证法 |
 |---|---|---|---|
-| V-1 | explode 成功响应码 201 vs 200 | 文档 201 / 代码默认 200 | `curl -X PUT -H 'X-Explode-Archive: true'` 观察状态码 |
+| ~~V-1~~ | ~~explode 成功响应码 201 vs 200~~ **已定案（2026-08-29 T-343）**：文档优先 → 201；BinFlow as-built 201 空体（+ 计数头新增）。Artifactory live 实测仍开放（非阻塞，异值再翻转） | 文档 201 / 代码默认 200 | （保留）live 实例 `curl -X PUT -H 'X-Explode-Archive: true'` 观察状态码 |
 | V-2 | 源不存在时 400 vs 200+WARN | 文档 400 / 代码存在 warning 分支 | copy 一个不存在路径 |
 | V-3 | 消息 level 大小写（`ERROR` vs `error`） | 代码 logback 枚举 name() | 读任意 copy 失败响应体 |
 | V-4 | `archive!/` 对 `.tar.bz2/.xz/.7z` 等扩展的实测支持面 | mimetypes 全集 vs 文档只提 zip 系 | PUT tar.bz2 后取成员 |

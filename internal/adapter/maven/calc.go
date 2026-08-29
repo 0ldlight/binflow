@@ -154,19 +154,27 @@ func (c *calculator) recalcSync(ctx context.Context, p *repo.Principal, t trigge
 	if c == nil || c.nodes == nil {
 		return
 	}
-	c.exec.Lock()
-	defer c.exec.Unlock()
-	var err error
-	if t.version == "" {
-		err = c.recalcModule(ctx, p, t)
-	} else {
-		err = c.recalcVersionDir(ctx, p, t)
-	}
-	if err != nil {
+	if err := c.recalc(ctx, p, t); err != nil {
 		slog.ErrorContext(ctx, "maven: metadata recalculation failed",
 			slog.String("repo", t.repoKey), slog.String("dir", t.dirPath()),
 			slog.String("error", err.Error()))
 	}
+}
+
+// recalc runs one recalculation under the execution lock and reports the
+// outcome — the error-reporting half the copy-side reindex entry (reindex.go,
+// T-354) consumes directly; the deploy-side triggers go through recalcSync's
+// log-and-continue contract instead.
+func (c *calculator) recalc(ctx context.Context, p *repo.Principal, t trigger) error {
+	if c == nil || c.nodes == nil {
+		return nil
+	}
+	c.exec.Lock()
+	defer c.exec.Unlock()
+	if t.version == "" {
+		return c.recalcModule(ctx, p, t)
+	}
+	return c.recalcVersionDir(ctx, p, t)
 }
 
 // recalcAsync runs one recalculation off the request path. The trigger

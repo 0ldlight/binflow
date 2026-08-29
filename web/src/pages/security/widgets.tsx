@@ -8,11 +8,11 @@ import TableBody from '@mui/material/TableBody'
 import TableCell from '@mui/material/TableCell'
 import TableHead from '@mui/material/TableHead'
 import TableRow from '@mui/material/TableRow'
+import TableSortLabel from '@mui/material/TableSortLabel'
 
 import { useConfirm } from '../../components/ConfirmDialog'
 import { useToast } from '../../app/ToastContext'
 import { ApiError, errText } from '../../lib/api'
-import { badgeChipSx } from '../../lib/muiAtoms'
 import { deleteUser } from './api'
 import { PERM_ACTIONS } from './api'
 import type { PermAction, PrincipalGrantRow } from './api'
@@ -44,9 +44,11 @@ export function useTableSort<K extends string>(initial: SortState<K> = { key: nu
   return { sort, toggle }
 }
 
-/** 排序表头：button 承载点击与键盘，aria-sort 同步（§8 语义标签）。
- *  T-300 批次二换 MUI TableCell（component="th"）——aria-sort/点击承载/
- *  锚仍在 th 本体，内部键盘按钮保持原生（.th-sort 既有焦点环） */
+/** 排序表头：TableSortLabel 承载点击与键盘（T-344 批 C 换装），aria-sort
+ *  仍由 th 同步（§8 语义标签）。锚与三态判定在 th 本体不动；label 的
+ *  onClick stopPropagation——鼠标点 label / 点 th 空白区 / 键盘 Enter
+ *  三条路径都恰触发一次 onToggle（ButtonBase 键盘模拟直调 onClick，
+ *  不派生冒泡 click，热区双挂不会双发）。 */
 export function SortTh<K extends string>({
   label,
   sortKey,
@@ -63,15 +65,23 @@ export function SortTh<K extends string>({
   const active = sort.key === sortKey
   const ariaSort = active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'
   return (
-    // 点击承载在 th 上（热区 = 整格；内部 button 的 click 冒泡到 th，
-    // 键盘 Enter/Space 仍经 button 触发——同一冒泡路径，不双发）
-    <TableCell component="th" scope="col" aria-sort={ariaSort} data-testid={testid} onClick={() => onToggle(sortKey)}>
-      <button type="button" className="th-sort">
+    <TableCell
+      component="th"
+      scope="col"
+      aria-sort={ariaSort}
+      data-testid={testid}
+      onClick={() => onToggle(sortKey)}
+    >
+      <TableSortLabel
+        active={active}
+        direction={active ? sort.dir : 'asc'}
+        onClick={(e) => {
+          e.stopPropagation()
+          onToggle(sortKey)
+        }}
+      >
         {label}
-        <span className="th-sort-arrow" aria-hidden="true">
-          {active ? (sort.dir === 'asc' ? ' ▲' : ' ▼') : ''}
-        </span>
-      </button>
+      </TableSortLabel>
     </TableCell>
   )
 }
@@ -103,7 +113,7 @@ export function PermSummaryTable({
     return <p className="text-muted perm-summary-empty">{emptyHint}</p>
   }
   return (
-    <Table className="table perm-summary" data-testid={`${rowTestidPrefix}-matrix`}>
+    <Table className="perm-summary" data-testid={`${rowTestidPrefix}-matrix`}>
       <TableHead>
         <TableRow>
           <TableCell component="th" scope="col">Permission Name</TableCell>
@@ -117,7 +127,7 @@ export function PermSummaryTable({
       </TableHead>
       <TableBody>
         {rows.map((r) => (
-          <TableRow key={r.target}>
+          <TableRow key={r.target} hover>
             <TableCell>
               <Link className="row-link mono" to={`/admin/security/permissions/${encodeURIComponent(r.target)}`} lang="en">
                 {r.target}
@@ -127,9 +137,16 @@ export function PermSummaryTable({
               <span className="sec-chips">
                 {r.sources.map((s) =>
                   s === 'direct' ? (
-                    <Chip key="direct" size="small" className="badge neutral" label="直接" sx={badgeChipSx} />
+                    <Chip key="direct" size="small" className="badge neutral" label="直接" />
                   ) : (
-                    <Chip key={s} size="small" className="badge neutral mono" label={s} sx={badgeChipSx} />
+                    <Chip
+                      key={s}
+                      size="small"
+                      className="badge neutral mono"
+                      label={s}
+                      sx={{ fontFamily: 'var(--bf-mono)' }}
+                      lang="en"
+                    />
                   ),
                 )}
               </span>
@@ -159,13 +176,13 @@ export function PermSummaryTable({
 /** 启用/禁用徽章——自持 status-pill 类（不挂 .badge 基类：用户行内
  *  .badge 锚位已被角色徽章/组 chips 占用，加挂会破 m8 套件行级 .badge
  *  锚的视图唯一性，ADR-0029 决策 3）。name 可空（详情页无行锚需求）。
- *  T-300 批次二换 MUI Chip（className 续挂——CSS 视觉与锚不动）。 */
+ *  T-344 批 C：Chip 原生皮肤（outlined success/error，类名续挂 inert）。 */
 export function StatusLabel({ enabled, name }: { enabled: boolean; name?: string }) {
   const testid = name ? { 'data-testid': `user-status-${name}` } : {}
   return enabled ? (
-    <Chip size="small" className="status-pill status-on" label="启用" sx={badgeChipSx} {...testid} />
+    <Chip size="small" variant="outlined" color="success" className="status-pill status-on" label="启用" {...testid} />
   ) : (
-    <Chip size="small" className="status-pill status-off" label="禁用" sx={badgeChipSx} {...testid} />
+    <Chip size="small" variant="outlined" color="error" className="status-pill status-off" label="禁用" {...testid} />
   )
 }
 

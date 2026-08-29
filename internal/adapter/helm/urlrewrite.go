@@ -171,9 +171,14 @@ type memberCtx struct {
 //     generates relative urls); an absolute URL naming the member's own
 //     content plane collapses back to that path, anything else runs the
 //     external branches;
-//   - oci:// entries stay verbatim (BinFlow's virtual serves no OCI plane
-//     in this ticket — rewriting to an unusable URL would be worse than
-//     the passthrough; registered in the ticket report).
+//   - oci:// entries stay verbatim (the T-313 D-5 posture, re-evaluated
+//     with T-342: the helmoci package type now serves the /v2 plane, but
+//     only LOCAL repositories — there is no OCI pull-through or virtual
+//     aggregation behind this index, so a rewritten oci:// URL would point
+//     at charts BinFlow cannot serve; the verbatim entry at least names a
+//     working upstream. helm.preserve.oci.urls stays meaningless until an
+//     oci://-aware remote/virtual lands — registered in both ticket
+//     reports).
 func rewriteVirtualURL(raw string, mc memberCtx, baseURL string, patterns []string) string {
 	if raw == "" || strings.HasPrefix(raw, urlPrefixOCI) {
 		return raw

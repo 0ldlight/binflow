@@ -136,8 +136,9 @@ func Conan() Addon {
 }
 
 // Helm is the gated slot for package type "helm" (the CLASSIC chart
-// repository face — index.yaml + tgz; M11/T-309). The HelmOCI face rides
-// the docker package type separately (HL-3) and never this slot.
+// repository face — index.yaml + tgz; M11/T-309). The HelmOCI face is a
+// SEPARATE package type and slot (HelmOCI below) — the two protocol
+// families never share one virtual repository.
 func Helm() Addon {
 	return Addon{
 		ID:          "helm",
@@ -146,6 +147,26 @@ func Helm() Addon {
 		PackageType: "helm",
 		DisplayName: "Helm Charts",
 		Description: "Classic Helm chart repositories: index.yaml calculation, chart and provenance upload, repo add/update/pull.",
+	}
+}
+
+// HelmOCI is the gated slot for package type "helmoci" (the registry-v2
+// Helm face — charts as OCI artifacts on helm push/pull oci://; M12/T-342,
+// FR-109/HL-3). The package type rides the docker adapter's /v2 plane
+// (helm.md section 8.2's isDockerGroup posture), so this slot's gate seam
+// is the /v2 write face and the repo-create plane, never a separate
+// handler's first line. LOCAL repositories only at this tier of the
+// roadmap: the remote pull-through and virtual aggregation are their own
+// future tickets (the Helm/HelmOCI no-mix rule already guards the virtual
+// member plane, T-309).
+func HelmOCI() Addon {
+	return Addon{
+		ID:          "helmoci",
+		Kind:        KindPackageType,
+		MinTier:     license.TierPro,
+		PackageType: "helmoci",
+		DisplayName: "Helm OCI Charts",
+		Description: "Helm charts as OCI artifacts: helm push/pull/install over oci:// references on the registry v2 plane.",
 	}
 }
 

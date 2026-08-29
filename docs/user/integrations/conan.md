@@ -145,7 +145,7 @@ curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/conan/conan-local/reindex
 | 项 | 行为 |
 |---|---|
 | remote search 代理 | 不做（引擎约束）——404 诚实文案；`install --requires` 按精确 ref 可用 |
-| `forceConanAuthentication` 仓配置 | 未实现（默认 false，普通内容面 ACL 生效） |
+| `forceConanAuthentication` 仓配置 | 已实现（默认 false 维持普通 ACL；true 时匿名全端点 401+Basic 挑战——T-355A） |
 | 缓存落点 | remote 缓存落在仓自身命名空间（无 `-cache` 独立缓存仓） |
 | v1 DELETE 语义 | 删 latest 修订链（旧修订存活） |
 

@@ -157,6 +157,20 @@ type repoConfig struct {
 	ForceMetadataNameVersion *bool `json:"forceMetadataNameVersion,omitempty"` // helm: Enforce Chart Name and Version (default false)
 	ForceNonDuplicateChart   *bool `json:"forceNonDuplicateChart,omitempty"`   // helm: Prevent Duplicate Chart Paths (default false)
 
+	// ---- T-355A conan forced-authentication transport (the D-5 unlock) ----
+	//
+	// The conan repo-config switch (conan.md section 2's auth gate: when
+	// true, an anonymous request to any conan endpoint answers 401 — the
+	// client-guiding challenge; default false keeps the ordinary content
+	// ACL). Same posture as the deb/rpm/helm families above: a flat POINTER
+	// field (an explicit false must survive the round trip so the flip-off
+	// update works — the product default IS false), LOCAL arm only (the
+	// remote/virtual canonical forms drop the key by design, and the knob's
+	// write plane is the local one), typing rides the decode (a mistyped
+	// value is a 400 naming the field). T-351's D-5 evidence was exactly
+	// the pre-fix shape: PUT 200, GET keyless, anonymous ping 200.
+	ForceConanAuthentication *bool `json:"forceConanAuthentication,omitempty"` // conan: anonymous plane demands credentials (default false)
+
 	// Configuration is the GET-only echo of the stored canonical config (the
 	// service hands it back already masked, NFR-S14); it is never an input.
 	Configuration any `json:"configuration,omitempty"`
@@ -270,6 +284,10 @@ func (c repoConfig) configJSON(rclass string) (string, error) {
 		// spellings off the stored blob).
 		setBool(m, "forceMetadataNameVersion", c.ForceMetadataNameVersion)
 		setBool(m, "forceNonDuplicateChart", c.ForceNonDuplicateChart)
+		// T-355A (D-5): the conan forced-authentication switch rides the
+		// same verbatim passthrough (the conan adapter's probe reads this
+		// exact spelling off the stored blob).
+		setBool(m, "forceConanAuthentication", c.ForceConanAuthentication)
 	}
 	if len(m) == 0 {
 		return "", nil

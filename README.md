@@ -28,20 +28,35 @@ M10 introduced the **license & add-on tier system** (community floor /
 pro / enterprise; gate on repo creation and write verbs, reads never
 held hostage) with go/nuget/cargo as the first gated package types plus
 the artifact-properties system. M11 widens the matrix to twelve package
-types (conan, helm, rpm, debian join at pro), adds the **runtime auth
+types (conan, helm, rpm, debian, helmoci join at pro), adds the **runtime auth
 configuration plane** (LDAP/OIDC/SAML editable in the console or over
 REST, effective on save — no restart), the standalone
 **`binstore.yaml` storage-chain file** (ordered provider chain with
 fail-fast coexistence rules), GPG **keypair signing** for debian/rpm
 repository metadata, and the remote-cache **unused-cleanup engine**.
 
+M12 (in progress) lands the **artifact-lifecycle domain**: a
+copy/move/zip/`archive!`/explode **operations family** and a **Trash
+Can** (local deletes are captured into the built-in `auto-trashcan`
+repository with five-tuple provenance properties, restorable over REST,
+14-day default retention swept hourly — both pro feature slots). The
+**NuGet surface completes** (the full v2 OData route set including
+`$batch`, and v3 remote/virtual search proxying the upstream
+SearchQueryService live with service-index-driven dynamic resolution),
+**dual-write turns fail-open** during an S3 outage (disk-first writes
+into a persistent replay queue, reads fall back to the disk superset,
+automatic drain + reconciliation on recovery — ADR-0040), the
+chunked-upload REST plane took the full **Artifactory MPU shape**
+(jfrog-cli verified), and the console's visual layer was re-skinned onto
+**native MUI defaults** (hand-written base.css 983 → 443 lines).
+
 ## Package type matrix (with tiers)
 
 | Tier | Package types | Notes |
 |---|---|---|
 | **community** (floor — runs with no license at all) | generic, docker, maven, npm, pypi | The five core types: all M1–M9 capability, plus the properties system |
-| **pro** | go, nuget, cargo (M10) · conan, helm, rpm, debian (M11) | Repo creation and pushes require a pro-or-higher license; existing artifacts stay readable when a license lapses |
-| **enterprise** | (feature slots: ha, xray-integration) | Placeholder slots; the bodies land M12+ |
+| **pro** | go, nuget, cargo (M10) · conan, helm, rpm, debian (M11) · helmoci, artifact-operations + trash-can feature slots (M12; trash tier provisional) | Repo creation and pushes require a pro-or-higher license; existing artifacts stay readable when a license lapses |
+| **enterprise** | (feature slots: ha, xray-integration) | Placeholder slots; the bodies land in a later milestone (M13+) |
 
 Tier semantics in one line: **reads are never held hostage** — an expired or
 missing license only closes repo-creation (400) and write verbs
@@ -52,8 +67,8 @@ shows the live per-slot verdict. Full guide:
 | What | Where |
 |---|---|
 | Product vision & scope | [`PRODUCT.md`](PRODUCT.md) |
-| Milestones (M1 kernel → M11 alignment, M1–M11 done) | [`ROADMAP.md`](ROADMAP.md) |
-| M11 requirements (PRD: config planes, four package types, keypair, cleanup) | [`docs/prd/milestone-11.md`](docs/prd/milestone-11.md) |
+| Milestones (M1 kernel → M12 lifecycle pass; M1–M11 done) | [`ROADMAP.md`](ROADMAP.md) |
+| M12 requirements (PRD: NuGet completion, artifact lifecycle, behavior-debt closure) | [`docs/prd/milestone-12.md`](docs/prd/milestone-12.md) |
 | Artifactory full-feature matrix (213 entries — the M10+ roadmap backbone) | [`docs/reverse/artifactory-full-feature-matrix.md`](docs/reverse/artifactory-full-feature-matrix.md) |
 | Help documentation center (install / integrations / admin / API / FAQ) | [`docs/user/README.md`](docs/user/README.md) |
 | Architecture spec | [`docs/design/architecture.md`](docs/design/architecture.md) |
@@ -385,6 +400,65 @@ The same instance grows into the enterprise surface without changing shape:
   cleanup engine reclaims idle remote-cache artifacts on an hourly cron
   (`POST /binflow/api/v1/system/cleanup` for manual dry-run/apply).
 
+### M12 — artifact lifecycle, NuGet completion, fail-open dual-write (in progress)
+
+- **Copy / move / `archive!` / explode** — the operations family rides one
+  pro feature slot (`repo-operations`); tree copies are zero-copy (blob
+  ledger references), `PUT` with `X-Explode-Archive: true` unpacks into
+  the repository (the archive itself is not stored), and
+  `<archive>!/<entry>` reads a member without unpacking. Directory zip
+  download ships behind `folderDownloadConfig` (default off pending its
+  config knob — see the guide).
+
+  ```bash
+  # community instance: the family answers the addon gate (real curl)
+  curl -u admin:$ADMIN_PW -X POST \
+    "$BASE/binflow/api/copy/generic-local/src/a.bin?to=/dst/a.bin" -i | head -4
+  # HTTP/1.1 403 Forbidden
+  # X-Binflow-License-Required: repo-operations
+  # {"errors":[{"status":403,"message":"license required: addon 'repo-operations' needs tier 'pro' (current: none)"}]}
+
+  # pro: tree copy / dry run (response = Artifactory's CopyOrMoveResult)
+  curl -su admin:$ADMIN_PW -X POST \
+    "$BASE/binflow/api/copy/generic-local/acme?to=/staging/acme" | jq .
+  # {"messages":[{"level":"INFO","message":"copying … completed successfully, N artifacts and M folders were copied"}]}
+
+  # explode: upload an archive and expand it in place (201 + count header)
+  curl -su admin:$ADMIN_PW -T bundle.zip -H 'X-Explode-Archive: true' \
+    $BASE/binflow/generic-local/acme/bundle.zip -i | head -3
+  ```
+
+  Guide: [`docs/user/admin/artifact-operations.md`](docs/user/admin/artifact-operations.md) (中文).
+- **Trash can** — local deletes are captured into the built-in
+  `auto-trashcan` repository (five-tuple provenance properties), restorable
+  over REST, 14-day default retention swept hourly (real-binary roundtrip,
+  sha256-verified):
+
+  ```bash
+  curl -su admin:$ADMIN_PW \
+    "$BASE/binflow/api/storage/auto-trashcan/vlibs/com/acme/v.jar?properties" | jq .
+  # {"properties":{"trash.time":["1787952557679"],"trash.deletedBy":["admin"],
+  #   "trash.originalRepository":["vlibs"],"trash.originalRepositoryType":["local"],
+  #   "trash.originalPath":["com/acme/v.jar"],"license":["apache-2.0"]}}
+  curl -su admin:$ADMIN_PW -X POST \
+    "$BASE/binflow/api/trash/restore/vlibs/com/acme/v.jar?transaction-size=100" | jq .
+  curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/trash/empty | jq .
+  # {"removed":2,"files":1,"folders":1,"bytes":3}
+  ```
+
+  Guide: [`docs/user/admin/trash-can.md`](docs/user/admin/trash-can.md) (中文).
+- **NuGet completion** — the v2 OData plane now serves the full route set
+  (`Search()` / `Packages()` / `GetUpdates()` / `$batch` / `Download` /
+  DELETE / dual-form PUT with the 409-already-exists arm), and v3
+  remote/virtual search proxies the upstream SearchQueryService live
+  (service-index dynamic resolution, semver2 registration family).
+  Guide: [`docs/user/integrations/nuget.md`](docs/user/integrations/nuget.md) (中文).
+- **Fail-open dual-write** — an S3 outage no longer 500s a `[filestore, s3]`
+  chain: uploads land disk-first and enter a persistent replay queue,
+  reads fall back to the disk superset, and recovery drains + reconciles
+  automatically (`completed` mode refuses to boot on a non-empty queue).
+  See [存储配置 · fail-open](docs/user/admin/storage-config.md) (中文).
+
 Per-deployment install guides (binary, Docker, compose, Helm, K8s manifests,
 systemd, offline/air-gapped, upgrade): [`docs/user/install/`](docs/user/install/).
 Per-protocol client integration (docker/mvn/npm/pip/go/nuget/cargo/conan/helm/rpm/deb
@@ -531,9 +605,10 @@ CI share one entrypoint.
 ## License / status
 
 Pre-GA software. Milestones M1–M11 are done and tagged (`m1-done` …
-`m10-done`); M11 (twelve-package-type matrix, license gating, runtime
-config planes, keypair signing, cleanup engine) is in final verification —
-see `ROADMAP.md` for the milestone plan, `BOARD.md` for what is currently
-being worked on, and `reports/` for iteration reports. The alignment of
-the full Artifactory feature surface is tracked entry by entry in
+`m11-done`); M12 (NuGet surface completion, artifact lifecycle domain —
+operations family and trash can — and behavior-debt closure) is in
+progress — see `ROADMAP.md` for the milestone plan, `BOARD.md` for what
+is currently being worked on, and `reports/` for iteration reports. The
+alignment of the full Artifactory feature surface is tracked entry by
+entry in
 [`docs/reverse/artifactory-full-feature-matrix.md`](docs/reverse/artifactory-full-feature-matrix.md).

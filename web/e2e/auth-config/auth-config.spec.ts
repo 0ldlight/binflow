@@ -270,9 +270,18 @@ test('CFG1: admin — LDAP tab round-trip, empty secret omitted from PUT, sentin
   const body2 = await put2
   expect((body2.search as Record<string, unknown>).managerPassword).toBe('wire-secret-307')
 
-  const refused = page.locator('[data-testid="authcfg-error"]')
-  if (await refused.isVisible()) {
-    const text = (await refused.textContent()) ?? ''
+  // T-344E：skip 探测收敛——错误面是 PUT 往返后的异步渲染，一次性
+  // isVisible() 会在错误到达前误判「无错误」继续走成功断言（净实例偶发
+  // 红而非正确 skip）。改为等「已设置」或错误面二择到达再判。
+  const sealed1 = page.locator('[data-testid="authcfg-ldap-manager-set"]', { hasText: '已设置' })
+  const refused1 = page.locator('[data-testid="authcfg-error"]')
+  if (
+    (await Promise.race([
+      sealed1.waitFor({ state: 'visible' }).then(() => 'sealed'),
+      refused1.waitFor({ state: 'visible' }).then(() => 'refused'),
+    ])) === 'refused'
+  ) {
+    const text = (await refused1.textContent()) ?? ''
     test.skip(text.includes('no master key'), 'instance runs without BINFLOW_REMOTE_CREDENTIALS_KEY — secret-sealing legs need it')
   }
 
@@ -368,9 +377,18 @@ test('CFG3: oauth tab — snake_case round-trip, secret omission, discovery refu
   await page.click('[data-testid="authcfg-save"]')
   const body2 = await put2
   expect(body2.client_secret).toBe('oauth-secret-307')
-  const refused = page.locator('[data-testid="authcfg-error"]')
-  if (await refused.isVisible()) {
-    const text = (await refused.textContent()) ?? ''
+  // T-344E：skip 探测收敛（与 CFG1 同款修法）——一次性 isVisible() 与异步
+  // 错误渲染竞态：净实例上错误面在探测后才到达，spec 便红而非 skip。
+  // 等「已设置」或错误面二择到达再判。
+  const sealed2 = page.locator('[data-testid="authcfg-oauth-secret-set"]', { hasText: '已设置' })
+  const refused2 = page.locator('[data-testid="authcfg-error"]')
+  if (
+    (await Promise.race([
+      sealed2.waitFor({ state: 'visible' }).then(() => 'sealed'),
+      refused2.waitFor({ state: 'visible' }).then(() => 'refused'),
+    ])) === 'refused'
+  ) {
+    const text = (await refused2.textContent()) ?? ''
     test.skip(text.includes('no master key'), 'instance runs without BINFLOW_REMOTE_CREDENTIALS_KEY — secret-sealing legs need it')
   }
   await expect(secret).toHaveValue('')

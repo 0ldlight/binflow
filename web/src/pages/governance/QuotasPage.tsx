@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 
 import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
+import LinearProgress from '@mui/material/LinearProgress'
+import MuiSkeleton from '@mui/material/Skeleton'
 import Table from '@mui/material/Table'
 import TableBody from '@mui/material/TableBody'
 import TableCell from '@mui/material/TableCell'
@@ -19,7 +21,7 @@ import { Skeleton } from '../../components/Skeleton'
 import { getRepositories, isReadOnlyAdmin } from '../../lib/api'
 import type { RepoListItem } from '../../lib/api'
 import { errText } from '../../lib/api'
-import { badgeChipSx, denseInputSx, monoInputSx, rowBtnSx } from '../../lib/muiAtoms'
+import { monoInputSx } from '../../lib/muiAtoms'
 import { formatBytes } from '../../lib/format'
 import { buildLocalQuotaBody, cfgNum, getRepoDetail, getRepoUsage, updateRepo } from '../../lib/repos'
 import type { RepoUsage } from '../../lib/repos'
@@ -48,16 +50,17 @@ function WaterBar({ usage }: { usage: RepoUsage }) {
   const cls = usage.usedBytes >= quota ? 'full' : pct >= 80 ? 'warn' : ''
   return (
     <div className="quota-bar" data-testid={`quota-bar-${usage.repo}`}>
-      <div
+      {/* T-344 批 C：水位条换 MUI LinearProgress（根续挂 .water-bar + warn/
+          full 类名——governance spec toHaveClass 钩子；≥80% warning、≥100%
+          error，aria 属性 LinearProgress 内建） */}
+      <LinearProgress
         className={`water-bar${cls ? ` ${cls}` : ''}`}
-        role="progressbar"
+        variant="determinate"
+        value={Math.max(usage.usedBytes > 0 ? 2 : 0, Math.round(pct))}
+        color={cls === 'full' ? 'error' : cls === 'warn' ? 'warning' : 'primary'}
         aria-label={`${usage.repo} 配额水位`}
-        aria-valuenow={Math.round(pct)}
-        aria-valuemin={0}
-        aria-valuemax={100}
-      >
-        <div className="fill" style={{ width: `${Math.max(usage.usedBytes > 0 ? 2 : 0, pct)}%` }} />
-      </div>
+        sx={{ flex: 1, borderRadius: 'var(--bf-r-sm)' }}
+      />
       <span className={`pct${cls ? ` ${cls}` : ''}`}>
         {pct.toFixed(0)}%{usage.usedBytes >= quota ? ' 满' : pct >= 80 ? ' 高' : ''}
       </span>
@@ -115,7 +118,7 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
   }
 
   return (
-    <TableRow data-testid={`quota-row-${repo.key}`}>
+    <TableRow data-testid={`quota-row-${repo.key}`} hover>
       <TableCell>
         <Link className="row-link mono" to={`/admin/repositories/${repo.key}`} lang="en">
           {repo.key}
@@ -123,13 +126,13 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
         <CopyButton value={repo.key} label={`仓库 key ${repo.key}`} />
       </TableCell>
       <TableCell>
-        <Chip size="small" className="badge neutral" label={repo.type} sx={badgeChipSx} />
+        <Chip size="small" className="badge neutral" label={repo.type} lang="en" />
       </TableCell>
       <TableCell>
         {repo.type === 'virtual' ? (
           <span className="text-muted">—（聚合视图，无自身内容）</span>
         ) : usage.status === 'loading' ? (
-          <span className="cell-pending" role="progressbar" aria-label="用量加载中" />
+          <MuiSkeleton sx={{ display: 'inline-block', width: 48, height: 10, verticalAlign: 'middle' }} role="progressbar" aria-label="用量加载中" />
         ) : usage.status === 'ok' && u ? (
           <span className="mono">{formatBytes(u.usedBytes)}</span>
         ) : (
@@ -147,13 +150,13 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
               autoComplete="off"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              sx={{ ...denseInputSx, ...monoInputSx, width: 140, display: 'inline-flex' }}
+              sx={{ ...monoInputSx, width: 140, display: 'inline-flex' }}
               slotProps={{
                 htmlInput: {
                   'aria-label': `${repo.key} 的新配额（字节）`,
                   'data-testid': `quota-input-${repo.key}`,
                   lang: 'en',
-                  className: 'mono quota-input',
+                  className: 'mono',
                 },
               }}
             />{' '}
@@ -176,7 +179,7 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
             <Button
               variant="outlined"
               size="small"
-              sx={rowBtnSx}
+             
               disabled={saving}
               onClick={() => void save()}
               data-testid={`quota-save-${repo.key}`}
@@ -186,7 +189,7 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
             <Button
               variant="outlined"
               size="small"
-              sx={rowBtnSx}
+             
               disabled={saving}
               onClick={() => setEditing(false)}
             >
@@ -206,7 +209,7 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
                 <Button
                   variant="outlined"
                   size="small"
-                  sx={rowBtnSx}
+                 
                   disabled={readOnly}
                   title={readOnly ? '只读管理员：配额写是管理面写操作（服务端 403 兜底）' : undefined}
                   onClick={startEdit}
@@ -269,7 +272,7 @@ export default function QuotasPage() {
             }
           />
         ) : (
-          <Table className="table">
+          <Table>
             <TableHead>
               <TableRow>
                 <TableCell component="th" scope="col">仓库</TableCell>

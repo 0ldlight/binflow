@@ -1015,13 +1015,19 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
   2. **develop → main（--no-ff）**：M11 首个批次收口或里程碑收官（m11-done tag）时执行一次——触发 CircleCI/UAT 链（52.79.109.153，含文档服务）；中途不逐票 release，避免 UAT 高频换装。
   3. **hotfix/**：自 main 切出，修完双回（main --no-ff → 回并 develop）。
   4. **交织例外顺序合入**：文件共写时（slots.go/main.go/router.go 按 13 槽共写），「先完成票先合、后行票紧随」顺序 --no-ff；当前 T-309（已验）暂缓即此例——T-308 收口后 T-308 先、T-309 紧随。
-  5. **PR 化合并（用户 2026-08-27 10:55 + 2026-08-28 07:5x 指令）**：feature→develop 经 GitHub PR（conductor gh 自建自合，`--merge` 保合并提交）；**develop→main 升级为：每次里程碑收口（m<N>-done 前）自动提交 PR**——批次收口不再直合 main（历史上三笔 batch 直合为先例遗留）。PR 描述含里程碑摘要+验证矩阵。**执行前置已就绪（2026-08-28 08:2x）**：细粒度 PAT（PRs RW + Contents RW，验证通过；token 仅存会话不落盘——新会话需用户重发或 gh auth 一次性固化）。自下一票收口起 feature→develop 全走 GitHub PR。
+  5. **PR 化合并（用户 2026-08-27 10:55 + 2026-08-28 07:5x + 2026-08-29 13:2x 指令「每次代码提交自动处理代码合并，无需确认」）**：feature→develop 经 GitHub PR（conductor gh 自建自合，`--merge` 保合并提交）；**develop→main 升级为：每次里程碑收口（m<N>-done 前）自动提交 PR**——批次收口不再直合 main（历史上三笔 batch 直合为先例遗留）。PR 描述含里程碑摘要+验证矩阵。**执行前置已就绪（2026-08-28 08:2x）**：细粒度 PAT（PRs RW + Contents RW，验证通过；token 仅存会话不落盘——新会话需用户重发或 gh auth 一次性固化）。自下一票收口起 feature→develop 全走 GitHub PR。
   5b.（原第 5 条的 fingerprint 条款随 2026-08-28 修复失效——fingerprint 已填 `4776dcc`，uat-deploy 参数缺陷已修，CI/UAT 链待首个触发验证。）
   6. **三票全交织裁定（2026-08-27 10:52，第 4 条扩展）**：T-311 续跑期间主动改写 main.go/router.go（rpm import/yum case），接线文件成 T-308/T-309/T-311 三票共写且无法按票序独立编译（先行提交必携带后行包）。裁定：T-311 落地全绿后以 **B4+B5 波次单 PR 一次合入**，三票逐项归因（票号→文件清单→验证摘要）写入 PR 描述；票状态以 PR 合并为 done 锚点。快照保险：/tmp/snap-b45-1052/。
 
 （空）
 
 ## M12 票据（进度行）
+  - **M12 收官 2026-08-30 07:1x——终验（T-356）完成 + 全部收口项落定，`m12-done` tag + 里程碑 PR 随本轮执行**。终验判 FAIL→P1 双修（restore 观察者 + 18 槽断言 `bad76e9`）后全清；笔头批（cargo 409 文面/FR-113 AC5/五处文档漂移+ROADMAP M12 未纳入项）本轮 conductor 落盘。
+
+  - **用户指令（2026-08-29 13:3x）**：「每个迭代都要更新文档站和README」——sprint 规程升级：每轮迭代若有用户可见面变更落地，README（双语）+ docs/user/ 对应页随轮更新（conductor 或当轮票内完成；无变更轮次报告留痕「无需更新」）。**M12 积压盘点**（T-328 后未同步的用户可见面）：操作族（copy/move/zip/archive!/explode+pro 门控）/Trash can/NuGet v2 全路由+v3 代理/dual-write fail-open 行为/UI 视觉升级四波——本轮即派 tech-writer 票清偿。
+
+  - **UI 视觉升级四波全清 2026-08-29 12:5x**：T-344A 规范（PR #32）→ B 批 A 主题+壳（直合 `1b5d307`）→ C 批 B 基元（PR #36）→ D 批 C 页面域（PR #37）→ E 批 D 残面清扫（PR #38）——**base.css 983→443 行**，MUI 默认皮肤全面生效（用户「UI太丑」指令闭合）。conductor 终验：193 passed 零失败 + SPA 累计 +16.47%。遗留：.card/.field 域外余量单票 + smu-tabs 换装小票 + 规范三坑回写（Modal Esc/首焦二段式/回调 ref useCallback）。
+
   - **用户 UI 视觉指令（2026-08-29 01:2x）**：「现在的UI太丑了，既然接入了MUI，就要使用MUI的原生组件去让UI变得更好看」→ **升级 MUI 批三（T-344）范围为「原生视觉升级」**：MuiProvider 主题打磨（MUI 默认为基底）+ 退役压皮肤的旧 CSS 块（复合类续挂→sx/主题组件）+ MUI 原生形态（Paper/AppBar/Drawer/Table/Chip 等）；锚册/assert-tokens/axe/playwright 硬约束不变。ux-designer 先出主题与组件清单，dev-frontend 随后实施。宽度空位即派。
 
   - **Q4 终裁（用户 2026-08-28 20:5x）**：制品操作族（copy/move/zip/`archive!`/explode）**照搬 pro 门控**（T-335 三重取证）；trash 走 `_system_` 式内部豁免保持可用；主矩阵 license 列回写 pro。T-339/T-343 断言面照此。

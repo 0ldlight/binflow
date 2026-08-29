@@ -98,7 +98,7 @@ git index 卹议（`cargoGitIndexEnabled`）**已弃用**：仓未开 sparse（c
 
 ### 5.3 失败形态全表与校验链
 
-**失败形态（CG-2 十一类锚定表——T-304 §3 取证，出处=`batch2-protocol/org/jfrog/repomd/cargo/**` + `batch3-addons`；T-316 按行落地）**：
+**失败形态（CG-2 十一类锚定表——T-304 §3 取证，出处=`batch2-protocol/org/jfrog/repomd/cargo/**` + `batch3-addons`；T-316 按行落地；T-348 复核：类 4/5 的 200+warnings 载荷锚点 = `CargoLocalRepoHandler` 中 `Failed to publish with error '<msg>'` 字符串拼装入 warnings 响应，与 T-316 真机输出逐字一致）**：
 
 | # | 失败类 | Artifactory 响应（出处） | BinFlow as-built（T-316） |
 |---|---|---|---|
@@ -142,9 +142,9 @@ git index 卹议（`cargoGitIndexEnabled`）**已弃用**：仓未开 sparse（c
 |---|---|---|
 | local | 全量（§2–§7）。 | 高 |
 | remote | sparse pull-through：`index/{pkg}` 与 `v1/crates/.../download` 未命中回源上游 registry URL；上游 config.json 首次拉取后**原文缓存为 cache 仓根的 `config.original.json`**（用于定位上游 dl/api）；对外 config.json 仍合成自指（dl/api 指向 BinFlow remote 仓，下载经代理）。search 直接代理上游 `api/v1/crates`（透传 q/per_page，错误透传上游码，上游异常 → 409 errors 信封）。publish/yank/unyank：不路由（对齐 BinFlow remote 写拒绝）。**as-built 2026-08-28（T-316）**：读面全走 FR-20 引擎（UpstreamPath 翻译：`crates/<n>/<n>-<v>.crate` → `v1/crates/<n>/<v>/download`；`config.original.json` → 上游 `index/config.json`；index 文件恒等）；search 经**查询键标记路径**缓存（`.cargo/search/<hex(query)>.json`，查询串逐字保留，MISS→HIT 按查询独立）；config.json 响应时同步尽力拉取 config.original.json（错误吞掉，上游不可达不断 config 面）；写族（publish/yank/unyank/裸 PUT）405 RE-05 措辞 + Allow: GET；DELETE（含索引文件面）= RE-06 缓存驱逐。**上游语法前提 = 单主机 cargo sparse wire 语法**（BinFlow/Artifactory cargo 面/自建兼容源）——crates.io 直连（index 与 dl 双主机）纯路径出站跳不可表达，需经一层 BinFlow/Artifactory remote 级联（**登记分歧**，见 §8.1）。 | 中（代码走读）→ as-built 高（mock 上游 + 自指 BinFlow 上游 + 真实 cargo 1.98 三腿验证） |
-| virtual | `index/{pkg}`：按成员序**拼接各成员索引文件全文**（行级追加，不去重——同名版本多成员时依赖下载侧 first-found 兜底；BinFlow 建议：按 (name,vers) 去重取首见成员，避免重复行违反官方唯一性 must，登记拆票裁决）；download：first-found（含 remote 成员 pull-through）；search：跨成员归并；config.json：任一成员可读即可读；publish：路由 `defaultDeploymentRepoRef`，未配置/不存在 → 400（错误体含仓 key）。**T-318 承载，未落地**（当前类门 404）。 | 中（merger 类 + 虚仓 handler 走读；去重行为为推断 → 低，已单列待验证） |
+| virtual | **as-built 2026-08-28（T-318）**：`index/{pkg}` 按成员序经成员读链（remote 成员即 FR-20 pull-through，负缓存保留）取各成员索引文件全文，**去重键 = (name, 忽略 build metadata 的 vers)、首见成员的原始行字节逐字保留**（不重排不重编；Artifactory 为裸拼接不去重、产重复行违反官方唯一性 must——BinFlow 按本行原登记建议采纳首见去重，裁决① 落地），再按 SemVer 排序输出；合并文件校验器：ETag = 渲染后合并体 sha256（无单一 node 背书，npm 合并 packument 同款）、Last-Modified = 最新贡献成员节点时间、条件请求 → 304；`X-BinFlow-Resolved-From` = 首见贡献成员，base 成员 reader 的缓存 hints 随响应透出。download：first-hit（local 成员节点 / remote 成员引擎链），每请求解析（成员重排即时生效）。yank/unyank：first-hit 解析持有成员——local 持有者收属性 + 其自身索引重写（成员与合并行同翻）；**remote 持有者 → 405 只读**（缓存副本非 BinFlow 可标记之物，上游拥有真相）；未知名/版本 → 404（TL-6）。search：local 成员 = 存储事实行（成员命名空间 props：yank 标志/描述；best 非 yank 版本、通配、1000 扫描上限按成员执行）+ remote 成员经查询键标记路径（`.cargo/search/<hex>.json`）pull-through，行按 crate 名**首见胜**并集（max_version 取首见成员行，不随后成员更高版本抬升——R-7），合并后再 per_page/排序。config.json：合成自指 **virtual 仓**（dl/api 指回聚合面）；写 403（三类一致）。publish：`defaultDeploymentRepo`（三别名宽容读）路由——**整条 local 发布链换址到目标成员**（帧解码→crate 落地→sidecar→成员索引重写；npm loadPackumentForWrite 同款姿态），虚面立即可见，未配置 → **C5 405 + Allow: GET**（RE-08 措辞；Artifactory 为 400 含仓 key——BinFlow 全域虚仓写拒绝姿态优先，差异登记）；路由目标漂移（配置后被删）→ 换址后 404。裸内容面：GET first-hit；PUT 走写路由换址落地；DELETE = 服务层 refuseVirtualDelete 405 不传播（routed/unrouted 双措辞）。虚址裸写（`index/**`/`.cargo/**`）先解析写路由换址再收敛（落地与 convergeIndex 都在成员仓，收敛闭环成立）。成员失败策略：unfound 贡献空、分类失败（SSRF 400/hardFail 502）容忍跳过、全体一无所获时浮现记住的失败而非掩蔽 404。 | 中（merger 类 + 虚仓 handler 走读；去重行为为推断 → 低，已单列待验证）→ **as-built 高（T-318 六集成测 + cargo 1.98.0 真机 virtual 全链：路由发布/跨成员归并/本地命中/远端缓存件/混合解析/build）** |
 
-#### 8.1 remote 实现差异登记（T-316）
+#### 8.1 remote/virtual 实现差异登记（T-316/T-318）
 
 | # | 差异 | 处置 |
 |---|---|---|
@@ -153,6 +153,7 @@ git index 卹议（`cargoGitIndexEnabled`）**已弃用**：仓未开 sparse（c
 | R-4 | search 上游码透传受引擎映射约束（上游 401/403/其余 4xx 折叠为 404 unfound 摘要，非原码透传） | 引擎 RE-04 状态机统一；Artifactory 的逐码透传需引擎扩展 |
 | R-5 | search 响应**缓存**（metadata TTL，按查询键）；Artifactory 为无缓存直代理 | 「经缓存」为票面验收语义；TTL 过期前新发布 crate 不见于 search（600s 窗口） |
 | R-6 | config.original.json 为**尽力同步**拉取（config.json 响应路径上，错误吞掉） | AC 可观测（curl 直取=引擎缓存）；上游故障不阻断 config 面 |
+| R-7 | **virtual search 的 `max_version` 取首见成员行**（后成员知更高版本不抬升；Artifactory merger 无此简化面的对照片） | 与下载序一致的 first-hit 简化——合并索引才是解析真相；T-318 差异 4 登记 |
 
 匿名下载（Artifactory `cargoAnonymousAccess`）：仓配置允许时，download 与 index 对匿名放行（系统身份执行）。BinFlow 沿用全局匿名策略即可，可不设按仓开关。中。
 
@@ -211,7 +212,7 @@ curl -s -o /dev/null -w '%{http_code} %{header{x-binflow-cache}}\n' "$BASE/binfl
 | S2 | yank = 节点属性 + 索引整文件重写（非 git commit） | 反编译 | 高 |
 | S3 | 索引路由正则（接受路径斜杠）与 crate 名限制采纳 | 反编译 + 官方建议 | 高 |
 | S4 | remote 的 `config.original.json` 翻译链与 search 代理 | 反编译 | 中 |
-| S5 | virtual 索引拼接/下载 first-found/publish 路由 defaultDeploymentRepoRef | 反编译 | 中（去重行为低） |
+| S5 | virtual 索引拼接/下载 first-found/publish 路由 defaultDeploymentRepoRef | 反编译；**as-built（T-318）：首见去重落地，Artifactory 裸拼接不采纳（差异登记）** | 中 → 高（as-built） |
 | S6 | publish 解帧后逐条错误处理返回 200+errors 的兼容形态 | 反编译；**CG-2 终裁采纳（精确 wire=200+`warnings.other`，T-316 as-built，§5.3 全表）** | 中→高（as-built） |
 | S7 | 仓根 GET 探针、reindex 管理端点 | 反编译 | 中 |
 | S8 | 索引行文件响应需带 ETag/Last-Modified（官方缓存协议）→ BinFlow 实现义务 | 官方 + 推断 | 高（义务）/ —（实现建议） |
@@ -225,11 +226,11 @@ curl -s -o /dev/null -w '%{http_code} %{header{x-binflow-cache}}\n' "$BASE/binfl
 ## 12. M11 拆票就绪度自评
 
 - **可直接拆票**：端点表（§2）、config.json 合成（§3.1）、索引路径与行 schema（§3.2/§3.3）、存储布局（§4）、publish wire 与校验链（§5）、yank 语义（§6）、search（§7）、local 全量、客户端命令（§9）。与 LC-10（`api/v1/crates` + sparse 索引，crates.io 规范为准）完全对齐。
-- **拆票时需裁决三点**：① 虚仓索引去重策略（S5 低置信项，建议首见成员去重——T-318 裁决）；② publish IO 类错误 200+errors vs 4xx/5xx——**终裁翻转为 CG-2 双轨**（200+`warnings.other` + 权限族 401/403 + 前缀畸形 500；T-316 as-built 2026-08-28，翻转 T-294 的统一 4xx/5xx，全表 §5.3）；③ 重复版本拒绝码——**CG-3 的 409 被 D-3/CG-2 终裁推翻**（无冲突臂：可删即覆盖、不可删 401/403；索引按唯一行收敛；T-316 as-built）。
+- **拆票时需裁决三点**：① 虚仓索引去重策略——**已裁（T-318 as-built 2026-08-28）：按 (name, 忽略 build metadata 的 vers) 首见成员去重、行字节逐字保留**（真机侧证：合并索引被 cargo 1.98 完整解析并完成构建）；② publish IO 类错误 200+errors vs 4xx/5xx——**终裁翻转为 CG-2 双轨**（200+`warnings.other` + 权限族 401/403 + 前缀畸形 500；T-316 as-built 2026-08-28，翻转 T-294 的统一 4xx/5xx，全表 §5.3）；③ 重复版本拒绝码——**CG-3 的 409 被 D-3/CG-2 终裁推翻**（无冲突臂：可删即覆盖、不可删 401/403；索引按唯一行收敛；T-316 as-built）。
 - **依赖提示**：索引行生成依赖制品属性系统（FR-89 已落）；`cksum` 必须取存储实测 sha256（复用既有内容面实测链）。
 
 ### 待验证清单
 
-1. virtual 索引重复行在真实 cargo 解析下的行为（S5）——驱动 ① 裁决。
+1. ~~virtual 索引重复行在真实 cargo 解析下的行为（S5）~~ **已闭环（T-318，2026-08-28）**：BinFlow 不产重复行（首见去重），混合来源行集经 cargo 1.98 完整解析+构建侧证——以更强形式关闭。
 2. http 明文 sparse 实例的真实 cargo 告警/阻断边界（qa 环境）。
 3. `features2`/`v` 字段省略时旧版 cargo（<1.51）兼容性——BinFlow 目标 cargo 1.8x，低风险。

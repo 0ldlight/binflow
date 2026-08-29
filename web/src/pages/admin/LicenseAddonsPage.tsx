@@ -29,9 +29,17 @@ import {
 } from '../../lib/addons'
 import type { AddonRow, LicenseStatus } from '../../lib/addons'
 import { useAsync } from '../../lib/useAsync'
-import { badgeChipSx, dangerBtnSx, denseInputSx } from '../../lib/muiAtoms'
 
 import './license.css'
+
+/** 档位徽章的 MUI Chip color（tier-pro→info / tier-enterprise→warning /
+ *  community = default——mui-native-visual §3.2 映射；tierBadgeClass 类名
+ *  组合续挂 DOM） */
+const TIER_COLOR: Record<string, 'info' | 'warning' | 'default'> = {
+  pro: 'info',
+  enterprise: 'warning',
+  community: 'default',
+}
 
 // License & Add-ons 管理页（M10 T-288，FR-84 FE 腿 + FR-86-AC5；console-m8
 // 管理模式「常规」分组）。两张卡：
@@ -177,9 +185,10 @@ function LicenseCard({ rev, onChanged }: { rev: number; onChanged: () => void })
             <span>
               <Chip
                 size="small"
+                variant="outlined"
+                color={TIER_COLOR[normalizeTier(state.data.tier)] ?? 'default'}
                 className={tierBadgeClass(state.data.tier)}
                 label={normalizeTier(state.data.tier)}
-                sx={badgeChipSx}
                 data-testid="license-tier"
                 lang="en"
               />
@@ -237,7 +246,7 @@ function LicenseCard({ rev, onChanged }: { rev: number; onChanged: () => void })
                   value={doc}
                   onChange={(e) => setDoc(e.target.value)}
                   placeholder="粘贴 license 文档全文（.lic）——验签失败会被原样拒绝，当前 license 不受影响"
-                  sx={{ ...denseInputSx, width: '100%', maxWidth: 720 }}
+                  sx={{ width: '100%', maxWidth: 720 }}
                   slotProps={{
                     htmlInput: {
                       'data-testid': 'license-doc-input',
@@ -274,7 +283,7 @@ function LicenseCard({ rev, onChanged }: { rev: number; onChanged: () => void })
                     variant="outlined"
                     color="error"
                     size="small"
-                    sx={dangerBtnSx}
+                   
                     disabled={busy}
                     data-testid="license-uninstall"
                     onClick={() => void doUninstall(state.data!)}
@@ -296,13 +305,13 @@ function AddonTableRow({ row }: { row: AddonRow }) {
   const disabledCfg = isDisabledByConfig(row)
   const rowClass = row.enabled ? '' : disabledCfg ? 'is-disabled' : 'is-locked'
   return (
-    <TableRow className={rowClass} data-testid={`addons-row-${row.id}`}>
+    <TableRow className={rowClass} data-testid={`addons-row-${row.id}`} hover>
       <TableCell className="mono" lang="en">
         {row.id}
       </TableCell>
       <TableCell>{row.displayName}</TableCell>
       <TableCell>
-        <Chip size="small" className="badge neutral mono" label={row.kind} sx={badgeChipSx} />
+        <Chip size="small" className="badge neutral mono" label={row.kind} sx={{ fontFamily: 'var(--bf-mono)' }} lang="en" />
       </TableCell>
       <TableCell data-testid={`addons-tier-${row.id}`}>
         {tier === 'community' ? (
@@ -310,7 +319,7 @@ function AddonTableRow({ row }: { row: AddonRow }) {
             —
           </span>
         ) : (
-          <Chip size="small" className={tierBadgeClass(tier)} label={tier} sx={badgeChipSx} />
+          <Chip size="small" variant="outlined" color={TIER_COLOR[tier] ?? 'default'} className={tierBadgeClass(tier)} label={tier} lang="en" />
         )}
       </TableCell>
       <TableCell data-testid={`addons-state-${row.id}`}>
@@ -321,7 +330,7 @@ function AddonTableRow({ row }: { row: AddonRow }) {
           </>
         ) : disabledCfg ? (
           <>
-            <Chip size="small" className="badge warning" label="⊘ 已禁用" sx={badgeChipSx} />
+            <Chip size="small" variant="outlined" color="warning" className="badge warning" label="⊘ 已禁用" />
             <span className="text-2" style={{ marginLeft: 6 }} title={row.reason ?? ''}>
               配置熔断（addons.disabled）
             </span>
@@ -387,7 +396,7 @@ export default function LicenseAddonsPage() {
         )}
         {addons.status === 'ok' && rows.length > 0 && (
           <>
-            <Table className="table addons-table" data-testid="addons-table">
+            <Table className="addons-table" data-testid="addons-table">
               <TableHead>
                 <TableRow>
                   <TableCell component="th" scope="col">ID</TableCell>

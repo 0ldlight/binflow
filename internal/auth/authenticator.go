@@ -183,6 +183,7 @@ type token struct {
 	ExpiresAt   string
 	CreatedAt   string
 	LastUsedAt  string
+	DeployScope string
 }
 
 // Target is one named permission target (mirrors metadata.PermissionTarget):

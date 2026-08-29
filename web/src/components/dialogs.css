@@ -1,14 +1,10 @@
 /* T-242 Set Me Up / Deploy 对话框族（components 域自持样式）。
  * 纪律与 assert-tokens 同款：只经 var(--bf-*) 引色，零硬编码色值。
- * 宽版 modal + 包类型网格 + 对话框内 Tab + step-up 内联表单 + 令牌面板 +
- * Deploy 拖拽区/进度条（tree.css 的同名形态留在 pages 域，这里不跨页依赖）。 */
-
-.smu-modal,
-.deploy-modal {
-  width: min(720px, calc(100vw - 48px));
-  max-height: calc(100vh - 96px);
-  overflow-y: auto;
-}
+ * T-344 批 B：modal 壳（.smu-modal/.deploy-modal 宽版规则）交 MUI Dialog
+ * slotProps.paper sx 承载；.smu-back 交 Button variant=text；.deploy-progress
+ * bar/fill 交 LinearProgress——三块规则退役。存留：包类型网格 + 对话框内
+ * Tab（tablist 键盘链路红线）+ step-up 内联表单 + 令牌面板 + Deploy 拖拽区/
+ * 回显/错误语义（无 MUI 等价物的自定义语义 DOM，mui-native-visual §3.7）。 */
 
 /* ---- Set Me Up 步骤 0：包类型网格（console-m8 C7 五项闭集） ---- */
 
@@ -57,18 +53,6 @@
   font-size: var(--bf-fs-aux);
   color: var(--bf-text-2);
   line-height: 1.4;
-}
-
-.smu-back {
-  all: unset;
-  color: var(--bf-accent);
-  cursor: pointer;
-  font-size: var(--bf-fs-aux);
-}
-
-.smu-back:focus-visible {
-  outline: 2px solid var(--bf-accent);
-  outline-offset: 1px;
 }
 
 /* ---- 对话框内 Tab（role=tablist + 方向键，console-m8 §9） ---- */
@@ -185,26 +169,6 @@
 .deploy-drop:focus-visible {
   outline: 2px solid var(--bf-accent);
   outline-offset: 1px;
-}
-
-.deploy-progress {
-  display: flex;
-  align-items: center;
-  gap: var(--bf-sp-2);
-  margin-top: var(--bf-sp-1);
-}
-
-.deploy-progress .bar {
-  flex: 1;
-  height: 4px;
-  background: var(--bf-surface-3);
-  border-radius: var(--bf-r-sm);
-  overflow: hidden;
-}
-
-.deploy-progress .fill {
-  height: 100%;
-  background: var(--bf-accent);
 }
 
 /* T-231 编码回显：原值可编辑，请求编码值只读 mono（console-m8 §8 债券承接） */

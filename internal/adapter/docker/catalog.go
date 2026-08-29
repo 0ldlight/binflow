@@ -105,7 +105,10 @@ func (h *Handler) serveCatalog(w http.ResponseWriter, r *http.Request) {
 	// right-sized for the M2 single-node registry.
 	names := make([]string, 0, len(rows))
 	for _, row := range rows {
-		if row.PackageType() != Protocol {
+		// The registry-v2 family (HL-3): a helmoci repository's images are
+		// registry names like any docker repository's — the family shares
+		// this plane, so it shares the catalog.
+		if !servesV2Plane(row.PackageType()) {
 			continue
 		}
 		if !h.catalogVisible(r.Context(), p, row.Key()) {

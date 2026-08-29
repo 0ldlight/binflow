@@ -167,6 +167,32 @@ func (s *stack) seedRepo(t *testing.T, key, class string) {
 	}
 }
 
+// seedRepoCfg seeds one repository row carrying a config blob (the
+// forceConanAuthentication posture tests — the raw-seeded shape the
+// adapter's tolerant probe reads).
+func (s *stack) seedRepoCfg(t *testing.T, key, class, cfg string) {
+	t.Helper()
+	if err := s.md.Repos().Create(context.Background(), &metadata.Repo{
+		RepoKey: key, Type: class, PackageType: Protocol, Config: cfg,
+	}); err != nil {
+		t.Fatalf("seed repo %s (cfg %s): %v", key, cfg, err)
+	}
+}
+
+// setRepoConfig rewrites one repository row's config blob (the flip-off
+// roundtrip arm).
+func (s *stack) setRepoConfig(t *testing.T, key, cfg string) {
+	t.Helper()
+	row, err := s.md.Repos().Get(context.Background(), key)
+	if err != nil {
+		t.Fatalf("load repo %s: %v", key, err)
+	}
+	row.Config = cfg
+	if err := s.md.Repos().Update(context.Background(), row); err != nil {
+		t.Fatalf("set config %s = %s: %v", key, cfg, err)
+	}
+}
+
 // seedRemoteConfig attaches one remote_configs row (loopback upstreams
 // need the SSRF exemption — the admin-set flag ADR-0012 defines; the
 // goproxy harness posture).

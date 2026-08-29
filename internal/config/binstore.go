@@ -802,16 +802,31 @@ func legacyChainWarning(where string) string {
 		" with no binstore.yaml next to the main configuration file; the existing spelling stays in effect for this compatibility window (ADR-0036) — consider moving it to a binstore.yaml"
 }
 
-// ApplyBinstoreForDefaultBoot resolves binstore.yaml for a boot that found
-// no binflow.yaml anywhere (cmd's defaults+environment path). The discovery
-// mirrors the main config's resolution order — ./binstore.yaml, then
-// $BINFLOW_HOME/binstore.yaml — so the default form keeps "binstore.yaml
-// next to where binflow.yaml would be" (ADR-0036 decision 1). There is no
-// embedded section on this path, so the coexistence verdict is always
-// branch ②; chain-scoped env keys the caller already applied are replaced
-// wholesale by the file, and their names are warned (decision 6). The
-// caller owns the final Validate.
-func ApplyBinstoreForDefaultBoot(c *Config, home string) error {
+// BuildDefaultConfig assembles the no-binflow.yaml boot — defaults plus
+// environment, the FR-6-AC5 bare-binary form — with binstore.yaml resolved
+// through the main config's own default lookup order (./binstore.yaml, then
+// $BINFLOW_HOME/binstore.yaml, so the default form keeps "binstore.yaml
+// next to where binflow.yaml would be", ADR-0036 decision 1).
+//
+// T-349 (FR-113.5, T-325's registered ordering question) settled the boot
+// order: the discovery runs BEFORE the environment overrides are validated,
+// mirroring buildWithBinstore's verdict order on the file-based path so the
+// two boot paths share one precedence:
+//
+//   - a binstore.yaml that is present OWNS the chain and its own errors
+//     fire first (an unreadable/bad file refuses the boot before any
+//     env-spelled complaint);
+//   - with the file owning the chain, the chain-scoped env keys are SKIPPED
+//     (decision 6) whether their set is complete or not — a stale partial
+//     BINFLOW_STORAGE__BACKEND=s3 from a deployment pipeline is the same
+//     "ignored + WARN" as a complete one, not a boot-killing missing-secret
+//     refusal about keys the file replaces anyway;
+//   - with NO binstore.yaml anywhere, the env-only chain set is validated
+//     at load time and an incomplete S3 group refuses the boot naming the
+//     missing key (fail fast, the pre-boot posture Validate always had).
+//
+// The returned Config is fully validated.
+func BuildDefaultConfig(home string) (*Config, error) {
 	env := environ()
 	candidates := []string{BinstoreFileName}
 	if home != "" {
@@ -820,10 +835,14 @@ func ApplyBinstoreForDefaultBoot(c *Config, home string) error {
 	for _, path := range candidates {
 		overlay, err := loadBinstoreAt(path)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if overlay == nil {
 			continue
+		}
+		c, err := buildWithOptions(&raw{}, env, buildOpts{skipChainEnv: true})
+		if err != nil {
+			return nil, err
 		}
 		overlay.apply(c)
 		for _, name := range chainEnvNames(env) {
@@ -831,14 +850,21 @@ func ApplyBinstoreForDefaultBoot(c *Config, home string) error {
 				"config: %s is set but ignored: binstore.yaml %s owns the storage chain (secret environment variables still apply)",
 				name, overlay.path))
 		}
-		return nil
+		if err := c.Validate(); err != nil {
+			return nil, err
+		}
+		return c, nil
+	}
+	c, err := build(&raw{}, env)
+	if err != nil {
+		return nil, err
 	}
 	if names := chainEnvNames(env); len(names) > 0 {
 		c.StartupWarnings = append(c.StartupWarnings, legacyChainWarning(
 			"the environment variable(s) "+strings.Join(names, ", ")))
 	}
 	fillChainFromConfig(c)
-	return nil
+	return c, nil
 }
 
 // slicesContains is the pre-generics-free spelling kept local to avoid

@@ -175,3 +175,43 @@ func TestDebRpmPolicyKeysTypeRefusal(t *testing.T) {
 		}
 	})
 }
+
+// TestByHashEnumValueDomainREST (T-346 / FR-113.2 BE, the T-327R leftover ②
+// / K45 ruling): byHash values outside ALL/SHA256/NONE (debian.md section 5)
+// answer 400 naming the enum at both the create and the replace arm — the
+// pre-T-346 posture (store verbatim, behave as NONE) is retired. The
+// gate itself lives in repo.Service's validateLocalConfig; this is the REST
+// leg of L29-BE.
+func TestByHashEnumValueDomainREST(t *testing.T) {
+	t.Run("illegal value on create refuses with the enum", func(t *testing.T) {
+		h := newHarness(t)
+		status, body := putRepoStatus(t, h, "policy-enum",
+			`{"rclass":"local","packageType":"generic","byHash":"strong"}`)
+		if status != http.StatusBadRequest {
+			t.Fatalf("status = %d; body=%s", status, body)
+		}
+		if !strings.Contains(body, "byHash") || !strings.Contains(body, "ALL, SHA256, NONE") {
+			t.Fatalf("body %q does not name the field and the enum", body)
+		}
+	})
+	t.Run("illegal value on update refuses", func(t *testing.T) {
+		h := newHarness(t)
+		if status, body := putRepoStatus(t, h, "policy-enum-up",
+			`{"rclass":"local","packageType":"generic","byHash":"ALL"}`); status != http.StatusOK {
+			t.Fatalf("create status = %d; body=%s", status, body)
+		}
+		status, body := putRepoStatus(t, h, "policy-enum-up", `{"byHash":"all"}`)
+		if status != http.StatusBadRequest {
+			t.Fatalf("update status = %d; body=%s", status, body)
+		}
+		if !strings.Contains(body, "ALL, SHA256, NONE") {
+			t.Fatalf("body %q does not name the enum", body)
+		}
+		// The refused update left the stored value untouched.
+		_, cfg := getRepoJSON(t, h, "policy-enum-up")
+		conf := cfg["configuration"].(map[string]any)
+		if conf["byHash"] != "ALL" {
+			t.Fatalf("byHash after refused update = %v, want the kept ALL", conf["byHash"])
+		}
+	})
+}
