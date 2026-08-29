@@ -514,6 +514,13 @@ func validateLocalConfig(config string) error {
 		IncludesPattern    *string `json:"includesPattern"`
 		ExcludesPattern    *string `json:"excludesPattern"`
 		ByHash             *string `json:"byHash"`
+		// T-355A (FR-110.2, the D-5 carryover): forceConanAuthentication is
+		// the conan repo-config switch (conan.md section 2's auth gate,
+		// consumed by the conan adapter). A boolean when present — typing
+		// rides the decode like every other probe field, so a mistyped value
+		// is refused at CONFIG time with the field named, never discovered
+		// when the adapter's tolerant probe reads it as false.
+		ForceConanAuthentication *bool `json:"forceConanAuthentication"`
 	}
 	if err := json.Unmarshal([]byte(config), &probe); err != nil {
 		return fmt.Errorf("%w: local repository config: %w", ErrInvalidRepoConfig, err)

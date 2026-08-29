@@ -174,6 +174,21 @@ func (s *stack) seedRemoteConfig(t *testing.T, key, url string) {
 	}
 }
 
+// setRemoteHardFail flips one repository row's canonical config onto the
+// hardFail policy (the engine then answers 502 instead of the
+// assumed-offline unfound 404 — the dead-upstream postures).
+func (s *stack) setRemoteHardFail(t *testing.T, key string) {
+	t.Helper()
+	row, err := s.md.Repos().Get(context.Background(), key)
+	if err != nil {
+		t.Fatalf("load remote row %s: %v", key, err)
+	}
+	row.Config = `{"hardFail":true}`
+	if err := s.md.Repos().Update(context.Background(), row); err != nil {
+		t.Fatalf("set hardFail %s: %v", key, err)
+	}
+}
+
 // do issues one request; user != "" adds Basic auth. The response body is
 // fully read and returned.
 func (s *stack) do(method, path, user, pass string, body io.Reader, hdr map[string]string) (int, string, http.Header) {

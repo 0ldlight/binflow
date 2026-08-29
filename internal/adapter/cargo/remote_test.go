@@ -230,6 +230,38 @@ func (f *remoteFixture) setHardFail(t *testing.T) {
 	}
 }
 
+// TestRemoteSearchDeadUpstreamPostures (T-355A, T-340 AC2's D-5
+// resolution): a TRULY dead upstream — connection refused, the T-351 L24
+// shape, not the 500-answering fault mode above — under both R-3 register
+// postures. Default (hardFail off): the engine's assumed-offline downgrade
+// answers the unfound 404 with the errors envelope naming the offline
+// state — BinFlow's registered FR-20-wide divergence from Artifactory's
+// blanket 409 (cargo.md section 8's deviation register R-3: "FR-20 全仓
+// 统一姿态优先"). hardFail on: the engine's 502 maps onto the CG-2 class-8
+// conflict face — 409 + the errors envelope, the only 409 semantics the
+// cargo surface carries (the publish family has none by the D-3 final
+// ruling; duplicates answer 401/403 or overwrite).
+func TestRemoteSearchDeadUpstreamPostures(t *testing.T) {
+	f1 := newRemoteFixture(t)
+	f1.upstream.Close() // refused dials from here on
+	status, body, _ := f1.get(repoPath("cargo-remote") + "/api/v1/crates?q=anything")
+	if status != http.StatusNotFound || !strings.Contains(body, `"errors":[{"detail":`) ||
+		!strings.Contains(body, "assumed offline") {
+		t.Fatalf("dead upstream (default posture) = (%d, %s), want 404 unfound envelope naming the offline state", status, body)
+	}
+
+	f2 := newRemoteFixture(t)
+	f2.upstream.Close()
+	f2.setHardFail(t)
+	status, body, _ = f2.get(repoPath("cargo-remote") + "/api/v1/crates?q=anything")
+	if status != http.StatusConflict || !strings.Contains(body, `"errors":[{"detail":`) {
+		t.Fatalf("dead upstream (hardFail posture) = (%d, %s), want 409 + the errors envelope", status, body)
+	}
+	if !strings.Contains(body, "hardFail enabled") {
+		t.Fatalf("hardFail 409 detail = %s, want the engine's hardFail summary riding the envelope", body)
+	}
+}
+
 // TestRemoteUpstreamDeletedCacheServes: THE cache proof — once the
 // upstream stops serving (or the artifact is deleted upstream), the
 // cached copies keep serving with zero upstream traffic.

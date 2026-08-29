@@ -3,6 +3,7 @@ package cargo
 import (
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -234,4 +235,49 @@ func runCargoErr(t *testing.T, env []string, dir string, args ...string) (string
 	cmd.Env = env
 	out, err := cmd.CombinedOutput()
 	return string(out), err
+}
+
+// TestCargoClientDeadUpstreamSearch (T-355A, T-340 AC2's D-5 resolution):
+// the REAL cargo client meets both R-3 register postures on a dead
+// upstream. Default (hardFail off): the engine's assumed-offline downgrade
+// answers 404 unfound and the client's search fails naming 404; hardFail
+// on: the CG-2 class-8 conflict face answers 409 and the client names 409
+// — the only 409 the cargo surface carries (the publish family has none,
+// D-3's final ruling).
+func TestCargoClientDeadUpstreamSearch(t *testing.T) {
+	if os.Getenv("BINFLOW_T316_CLIENT_E2E") != "1" {
+		t.Skip("set BINFLOW_T316_CLIENT_E2E=1 (with a cargo toolchain on PATH) to run the real-client matrix")
+	}
+	if _, err := exec.LookPath("cargo"); err != nil {
+		t.Fatalf("cargo toolchain unavailable on PATH: %v", err)
+	}
+
+	searchLeg := func(hardFail bool, wantStatus string) {
+		t.Helper()
+		s := newStack(t)
+		s.seedRepo(t, "cargo-remote", repo.TypeRemote)
+		dead := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+			t.Errorf("the dead upstream must never answer")
+		}))
+		dead.Close() // every dial is refused from here on
+		s.seedRemoteConfig(t, "cargo-remote", dead.URL)
+		if hardFail {
+			s.setRemoteHardFail(t, "cargo-remote")
+		}
+		issued, err := s.auth.Issue(t.Context(), adminUser, 0)
+		if err != nil {
+			t.Fatalf("issue token: %v", err)
+		}
+		env := cargoEnv(t, s.srv.URL+"/binflow/cargo-remote", issued.AccessToken)
+		work := t.TempDir()
+		out, err := runCargoErr(t, env, work, "search", "anything", "--registry", "binflow")
+		if err == nil {
+			t.Fatalf("hardFail=%v: cargo search must fail on the dead upstream, got success:\n%s", hardFail, out)
+		}
+		if !strings.Contains(out, wantStatus) {
+			t.Fatalf("hardFail=%v: cargo search output must name %s:\n%s", hardFail, wantStatus, out)
+		}
+	}
+	searchLeg(false, "404")
+	searchLeg(true, "409")
 }

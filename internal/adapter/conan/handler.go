@@ -142,16 +142,34 @@ func (h *Handler) RepoTypes() []string {
 // Layout implements adapter.Handler (see layout.go).
 func (h *Handler) Layout(r *http.Request) (string, string, error) { return layout(r) }
 
-// classOf resolves the repository class (the cargo defensive arm).
-func (h *Handler) classOf(ctx context.Context, repoKey string) (string, error) {
+// rowOf resolves the repository row — the class (the cargo defensive arm)
+// plus the caller-owned config blob the repo-config probes read (the deb
+// configFor posture over the same ClassReader seam).
+func (h *Handler) rowOf(ctx context.Context, repoKey string) (*metadata.Repo, error) {
 	row, err := h.repos.Get(ctx, repoKey)
 	if err != nil {
 		if errors.Is(err, metadata.ErrRepoNotFound) {
-			return "", errRepoNotFound(repoKey)
+			return nil, errRepoNotFound(repoKey)
 		}
-		return "", fmt.Errorf("load repository %s: %w", repoKey, err)
+		return nil, fmt.Errorf("load repository %s: %w", repoKey, err)
 	}
-	return row.Type, nil
+	return row, nil
+}
+
+// forceConanAuth reads the repo-config switch of conan.md section 2's auth
+// gate: forceConanAuthentication=true tightens the whole conan plane to
+// credentials-only (an anonymous request to ANY conan endpoint answers 401
+// with the client-guiding Basic challenge). Absent, false or hand-mangled
+// keeps the default false — the ordinary content-plane ACL (reads pass on
+// an anonymous-enabled instance, writes always demand credentials).
+func forceConanAuth(config string) bool {
+	var probe struct {
+		ForceConanAuthentication bool `json:"forceConanAuthentication"`
+	}
+	if err := json.Unmarshal([]byte(config), &probe); err != nil {
+		return false
+	}
+	return probe.ForceConanAuthentication
 }
 
 // errRepoNotFound shapes the missing-repository refusal.
@@ -161,7 +179,9 @@ func errRepoNotFound(repoKey string) error {
 
 // ServeHTTP dispatches on the parsed wire target. The capability header
 // family rides EVERY response (spec section 2), so every path writes
-// through a capWriter; the class door runs before every family — the v1
+// through a capWriter; the forceConanAuthentication gate runs before every
+// family on a forced repository (anonymous dies at 401 — see forceConanAuth);
+// the class door runs next — the v1
 // DATA plane is local-only (S6's pinned 400), the handshake trio is
 // class-independent (it is how a client discovers the only_v2 capability
 // the remote/virtual rows of section 2's table advertise), and the v2
@@ -182,12 +202,26 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	class, err := h.classOf(ctx, repoKey)
+	row, err := h.rowOf(ctx, repoKey)
 	if err != nil {
 		h.writeError(h.cap(w, r, repo.TypeLocal), err, repoKey, rel)
 		return
 	}
+	class := row.Type
 	cw := h.cap(w, r, class)
+
+	// The forceConanAuthentication gate (spec section 2's auth gate,
+	// FR-110.2/T-355A): on a forced repository an ANONYMOUS request dies
+	// here for every family — ping included, so the client's probe meets
+	// the challenge that guides it to login — before any class door or
+	// endpoint arm runs. The plane's own 401 rendering (the write gate's
+	// shape): the Basic challenge plus the shared body. Credential-carrying
+	// requests (the authenticate endpoint itself) pass — p != nil.
+	if p == nil && forceConanAuth(row.Config) {
+		cw.Header().Set("WWW-Authenticate", `Basic realm="BinFlow Realm"`)
+		writePlain(cw, http.StatusUnauthorized, "unauthorized user")
+		return
+	}
 
 	if class != repo.TypeLocal {
 		if isV1DataFamily(rt.kind) {
