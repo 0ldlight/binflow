@@ -82,8 +82,9 @@ jobs:
       # this gate landed BEFORE T-268 restored e2e default parallelism
       # (--workers=1 convention lifted 2026-08-25). The coupling is permanent
       # — removing or weakening this step requires re-serializing e2e in the
-      # same change set. NOTE: e2e itself has no CI job (local/QA posture);
-      # this step is the Go-level proxy that keeps the race gated in CI.
+      # same change set. The Go-level race gate and the e2e job below
+      # (T-350) are complements: this one pins the engine invariant, the
+      # e2e job is the UI-plane authority.
       - name: GC concurrency stress (ADR-0031 §14.2-6)
         run: >
           go test -race -count=3 -timeout 20m
@@ -94,6 +95,118 @@ jobs:
         run: |
           CGO_ENABLED=0 go build ./...
           make build
+
+  # E2E — the full Playwright suite on a dedicated runner (T-350, FR-113.6 /
+  # K46). This job is the AUTHORITATIVE signal for the e2e load-flake family
+  # (T-327 §7 protocol + T-329 observation 4): the flakes are load-induced
+  # stragglers — axe scans and polling budgets starving under colocated
+  # dev-machine load (parallel agents, builds, other e2e runs) — so a runner
+  # nothing else shares is the environment the 180s per-test budget was
+  # sized for. The local protocol stays "serial rerun green = pass"
+  # (web/README.md); when local and CI disagree, CI wins and the local red
+  # is an isolation finding, not a product regression.
+  #
+  # Shape: build the real binary (SPA embedded via make console, the same
+  # T-89 strategy as the ci job), boot it on defaults, seed through the REAL
+  # REST plane (seed-m8/m9/m10 — the same convergent seeds QA runs), then a
+  # bare `npx playwright test` = all three projects (chromium + m9 + m10),
+  # every spec exactly once. Workers pinned to 2 — below the config's
+  # local floor of 4 on purpose: a first landing on shared-tier runner
+  # hardware keeps headroom in the axe-heavy legs' 300s budget; raise it
+  # only with three consecutive green main runs as evidence.
+  #
+  # Trigger posture: main-only, same as every job here (the 2026-08-28
+  # user directive — one CI surface). PR-granularity runs were considered
+  # and left out deliberately: the suite costs ~10+ runner-minutes and the
+  # existing PR-less policy already gates every merge through this job on
+  # the next main push.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      BASE: http://127.0.0.1:8080
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.6"
+          cache: true
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      # Same embed strategy as the ci job: the placeholder shell would test
+      # a console that never ships. make console runs web's npm ci itself.
+      # The docs site rides along for the same reason — t146-docs.spec
+      # asserts the real /binflow/docs/ mount, not the placeholder.
+      - name: Build console into internal/console/dist
+        run: make console
+
+      - name: Build docs site into internal/docs/dist
+        run: make docs
+
+      - name: Build server
+        run: make build
+
+      - name: Install Playwright browser (chromium)
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+
+      # Boot on defaults: :8080, ./data in the workspace, admin/password
+      # (the credentials every seed and spec assumes when ADMIN_PW is unset).
+      # No binflow.yaml anywhere — the FR-6-AC5 bare-binary form, which also
+      # exercises the default-boot storage-chain resolution in CI.
+      - name: Boot BinFlow (defaults + env)
+        run: |
+          nohup ./bin/binflow-server serve > "$RUNNER_TEMP/binflow.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/binflow.pid"
+          for i in $(seq 1 60); do
+            if curl -fsS "$BASE/healthz" > /dev/null 2>&1; then
+              echo "binflow healthy after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "binflow never became healthy; log tail:"
+          tail -50 "$RUNNER_TEMP/binflow.log" || true
+          exit 1
+
+      - name: Seed (m8 + m9 + m10, real REST plane)
+        working-directory: web
+        run: |
+          node scripts/seed-m8.mjs
+          node scripts/seed-m9.mjs
+          node scripts/seed-m10.mjs
+
+      - name: Playwright (all three projects, dedicated runner)
+        working-directory: web
+        run: npx playwright test --workers=2
+
+      - name: Stop BinFlow
+        if: always()
+        run: |
+          [ -f "$RUNNER_TEMP/binflow.pid" ] && kill "$(cat "$RUNNER_TEMP/binflow.pid")" 2>/dev/null || true
+
+      - name: Server log on failure
+        if: failure()
+        run: tail -200 "$RUNNER_TEMP/binflow.log" || true
+
+      - name: Upload test results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: |
+            web/test-results
+            ${{ runner.temp }}/binflow.log
+          retention-days: 7
 
   # Release dry-run (T-127, FR-34-AC1/AC3): full six-platform snapshot via
   # the same Makefile entrypoint, zero credentials — Q1/DoD 7 keep every

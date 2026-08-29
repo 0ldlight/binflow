@@ -372,6 +372,9 @@ func TestDockerUpgradeFromM1Database(t *testing.T) {
 		`ALTER TABLE remote_configs DROP COLUMN socket_timeout_ms`,
 		`ALTER TABLE remote_configs DROP COLUMN metadata_retrieval_timeout_secs`,
 		`ALTER TABLE remote_configs DROP COLUMN unused_cleanup_period_hours`,
+		// 017 (T-349): same ALTER family — the tokens' narrow-scope column
+		// leaves with its ledger row.
+		`ALTER TABLE tokens DROP COLUMN deploy_scope`,
 		`DELETE FROM schema_migrations WHERE version > 1`,
 	} {
 		if _, err := db2.ExecContext(ctx, stmt); err != nil {

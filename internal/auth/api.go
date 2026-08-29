@@ -40,7 +40,35 @@ type Principal struct {
 	// Bearer arm, "ldap" for LDAP web sessions. The Authorizer does not
 	// inspect this field — it is informational for audit and debugging.
 	Source Provider
+	// DeployScope is non-nil only when the request authenticated through a
+	// NARROW token (M12 T-349, FR-113.3): a token whose permission domain
+	// was narrowed at mint time to one landing operation. The HTTP layer
+	// enforces it before routing — every request that is not the scoped
+	// operation answers 403 — while the identity (name/role/groups) stays
+	// the owner's, so the regular authorization gates keep running on the
+	// one admitted request too. Nil means an unrestricted credential; the
+	// field is informational ONLY, never a grant.
+	DeployScope *DeployScope
 }
+
+// DeployScope is the narrow permission domain one token carries (M12 T-349,
+// FR-113.3): the single checksum-deploy landing a minted token may perform.
+// Kind is the closed set's discriminator — "checksum-deploy" is the only
+// kind today (the MPU finish task's 5-minute token, ADR-0039 residual 1).
+// Repos lists every admissible FIRST path segment for the landing: the
+// session's resolved target repository plus, when the client created through
+// a virtual with a defaultDeploymentRepo, the virtual key it addressed (the
+// client only knows its own spelling; routeVirtualWrite lands both on the
+// same member). Path is the session's own repo path.
+type DeployScope struct {
+	Kind  string
+	Repos []string
+	Path  string
+}
+
+// DeployScopeChecksumDeploy is the one narrow-scope kind of this build: the
+// token admits exactly one PUT with X-Checksum-Deploy at Repo/Path.
+const DeployScopeChecksumDeploy = "checksum-deploy"
 
 // Actions accepted by Authorizer.Can (architecture section 3.4 uses the
 // short forms; metadata permission rows map read/write/delete onto them).

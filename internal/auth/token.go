@@ -5,8 +5,10 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/lzwzzy/binflow/internal/metadata"
@@ -71,6 +73,17 @@ func (v *TokenVerifier) Verify(ctx context.Context, plaintext string) (*Principa
 	// role changes immediately — Verify never freezes the role at mint time.
 	p := newPrincipal(u.Username, u.Role, u.Provider)
 	p.TokenID = t.ID
+	// Narrow tokens (M12 T-349): a stored scope rides the row, so the
+	// narrowing survives restarts and is enforced wherever the credential
+	// is presented. Unparseable scope documents fail CLOSED — the token is
+	// refused outright rather than read as unrestricted.
+	if t.DeployScope != "" {
+		ds, serr := parseDeployScope(t.DeployScope)
+		if serr != nil {
+			return nil, invalidf("auth: token scope unusable: %v", serr)
+		}
+		p.DeployScope = ds
+	}
 	return p, nil
 }
 
@@ -119,6 +132,38 @@ func nowRFC3339() string { return time.Now().UTC().Format(time.RFC3339) }
 // Issue implements TokenRegistry.Issue: 32 random bytes, hex-encoded, one
 // row storing only sha256(plaintext). ttl <= 0 means never expires.
 func (s *Service) Issue(ctx context.Context, username string, ttl time.Duration) (*IssuedToken, error) {
+	return s.issue(ctx, username, ttl, "")
+}
+
+// IssueChecksumDeployScoped mints the MPU plane's narrow landing credential
+// (M12 T-349, FR-113.3 — ADR-0039 residual 1): same entropy, TTL and
+// verification lane as a plain API token, but the row carries a deploy scope
+// that narrows the token's permission domain to exactly one checksum-deploy
+// PUT at (repos, path) — the session's own target spellings (the resolved
+// repository plus the virtual key when the client created through one).
+// Every other use of the credential answers 403 at the HTTP layer, so a
+// leaked token is worth one landing of content the client itself assembled,
+// nothing else (NFR-S63, lateral-use defense).
+func (s *Service) IssueChecksumDeployScoped(ctx context.Context, username string, ttl time.Duration, repos []string, path string) (*IssuedToken, error) {
+	clean := make([]string, 0, len(repos))
+	for _, r := range repos {
+		if r != "" && !slices.Contains(clean, r) {
+			clean = append(clean, r)
+		}
+	}
+	if len(clean) == 0 || path == "" {
+		return nil, invalidf("auth: checksum-deploy scope needs a repo key and a path")
+	}
+	doc, err := json.Marshal(scopeDoc{Kind: DeployScopeChecksumDeploy, Repos: clean, Path: path})
+	if err != nil {
+		return nil, fmt.Errorf("auth: encoding checksum-deploy scope: %w", err)
+	}
+	return s.issue(ctx, username, ttl, string(doc))
+}
+
+// issue is the single mint path for both token families; scopeJSON is the
+// deploy_scope column value (” = unrestricted).
+func (s *Service) issue(ctx context.Context, username string, ttl time.Duration, scopeJSON string) (*IssuedToken, error) {
 	if username == "" {
 		return nil, invalidf("auth: token subject is required")
 	}
@@ -144,6 +189,7 @@ func (s *Service) Issue(ctx context.Context, username string, ttl time.Duration)
 		ExpiresAt:   expiresAt,
 		CreatedAt:   now,
 		LastUsedAt:  "",
+		DeployScope: scopeJSON,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("auth: persisting token: %w", err)
@@ -156,6 +202,40 @@ func (s *Service) Issue(ctx context.Context, username string, ttl time.Duration)
 		TokenID:     id,
 		Username:    username,
 	}, nil
+}
+
+// scopeDoc is the JSON document the tokens.deploy_scope column carries
+// (migration 017). Self-describing on purpose: further narrow-scope kinds
+// extend the document without another schema change.
+type scopeDoc struct {
+	Kind  string   `json:"kind"`
+	Repos []string `json:"repos"`
+	Path  string   `json:"path"`
+}
+
+// parseDeployScope turns a stored scope value into the structured domain.
+// Anything malformed — bad JSON, an unknown kind, empty coordinates — is an
+// ERROR, never a silent nil: the verifier fails the token closed, so a
+// corrupt row can never widen back into a full-power credential.
+func parseDeployScope(v string) (*DeployScope, error) {
+	var doc scopeDoc
+	if err := json.Unmarshal([]byte(v), &doc); err != nil {
+		return nil, fmt.Errorf("malformed scope document: %w", err)
+	}
+	switch doc.Kind {
+	case DeployScopeChecksumDeploy:
+		if len(doc.Repos) == 0 || doc.Path == "" {
+			return nil, fmt.Errorf("checksum-deploy scope with empty coordinates (repos %v path %q)", doc.Repos, doc.Path)
+		}
+		for _, r := range doc.Repos {
+			if r == "" {
+				return nil, fmt.Errorf("checksum-deploy scope with an empty repo spelling (repos %v)", doc.Repos)
+			}
+		}
+		return &DeployScope{Kind: doc.Kind, Repos: doc.Repos, Path: doc.Path}, nil
+	default:
+		return nil, fmt.Errorf("unknown scope kind %q", doc.Kind)
+	}
 }
 
 // Verify on Service delegates to the shared verifier (single implementation

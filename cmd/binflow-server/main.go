@@ -715,50 +715,26 @@ func loadServeConfig(explicit string) (*config.Config, error) {
 		return resolveHome(cfg, home), nil
 	}
 
-	// No config file anywhere: defaults + environment. Load resolves env
-	// overrides and validates, so the result is fully populated.
-	cfg := config.Defaults()
-	if err := applyEnvDefaults(cfg); err != nil {
-		return nil, err
-	}
-	// T-306 (ADR-0036 decision 1): even a boot without any binflow.yaml
-	// discovers binstore.yaml through the same resolution order —
-	// ./binstore.yaml, then $BINFLOW_HOME/binstore.yaml — so the default
-	// form keeps "binstore.yaml next to where binflow.yaml would be". The
-	// temp-file roundtrip above may have recorded branch-① hints against a
-	// temp directory that never had a binstore.yaml; the real discovery
-	// below re-derives the whole warning set, so start it clean.
-	cfg.StartupWarnings = nil
-	if err := config.ApplyBinstoreForDefaultBoot(cfg, home); err != nil {
-		return nil, err
-	}
-	if err := cfg.Validate(); err != nil {
+	// No config file anywhere: defaults + environment, with binstore.yaml
+	// resolved through the same default lookup order — ./binstore.yaml,
+	// then $BINFLOW_HOME/binstore.yaml (T-306, ADR-0036 decision 1). Since
+	// T-349 (FR-113.5) the discovery precedes the env validation inside
+	// BuildDefaultConfig, so a present binstore.yaml owns the chain and its
+	// own errors on this path too; the result is fully validated.
+	cfg, err := config.BuildDefaultConfig(home)
+	if err != nil {
 		return nil, err
 	}
 	return resolveHome(cfg, home), nil
 }
 
-// applyEnvDefaults applies BINFLOW_-prefixed environment overrides onto a
-// hand-constructed Config (the no-config-file boot path). It reuses the
-// config package's env mapping by round-tripping through an empty temp
-// file: Load(path of an empty file) = defaults + env + validation, which is
-// exactly this path's semantics without exporting config internals.
-func applyEnvDefaults(cfg *config.Config) error {
-	tmp, err := os.CreateTemp("", "binflow-empty-config-*.yaml")
-	if err != nil {
-		return fmt.Errorf("config: preparing empty config for env-only load: %w", err)
-	}
-	defer func() { _ = os.Remove(tmp.Name()) }()
-	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("config: closing empty config file: %w", err)
-	}
-	loaded, err := config.Load(tmp.Name())
-	if err != nil {
-		return err
-	}
-	*cfg = *loaded
-	return nil
-}
+// applyEnvDefaults applied BINFLOW_-prefixed environment overrides onto a
+// hand-constructed Config for the no-config-file boot path, round-tripping
+// through an empty temp file (Load of an empty file = defaults + env +
+// validation). T-349 folded the whole path into config.BuildDefaultConfig,
+// which builds in-package and orders binstore discovery before the env
+// validation — the temp-file detour (and the warning-set discard it forced)
+// is gone.
 
 // resolveHome anchors the default data directory (and the default sqlite
 // path) at $BINFLOW_HOME. Relative operator-provided paths pass through

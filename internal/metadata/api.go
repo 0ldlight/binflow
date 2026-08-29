@@ -144,6 +144,11 @@ type Token struct {
 	ExpiresAt   string // RFC3339; '9999-12-31T00:00:00Z' means never expires
 	CreatedAt   string
 	LastUsedAt  string // '' when never used
+	// DeployScope (017 widening, M12 T-349 / FR-113.3): '' keeps the
+	// historical unrestricted meaning; any other value is a JSON document
+	// narrowing the token to one landing operation, parsed and enforced by
+	// the auth verifier (unparseable values fail closed there).
+	DeployScope string
 }
 
 // PermissionTarget is a named permission target (PRD E-24): a set of repos,

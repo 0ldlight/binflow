@@ -38,3 +38,26 @@ assets on the shared `/binflow/assets/**` mount.
 - Direct runtime dependencies are deliberately minimal (react,
   react-dom, react-router-dom); changes to that list go through the
   architect (ADR-0014 decision 4's third rule).
+
+## E2E flake protocol (T-350 / FR-113.6, K46)
+
+The load-flake family (axe-sweep and polling-budget legs straggling under
+colocated load — T-263/T-268/T-300/T-327/T-329 evidence rounds) is adjudicated
+by ENVIRONMENT, not by timeout raises:
+
+- **CI is the authority.** The `e2e` job in `.github/workflows/ci.yml`
+  (main pushes) runs the whole three-project suite on a dedicated runner
+  (`--workers=2`) against a freshly booted, freshly seeded instance. A red
+  there is a product/test finding; a green there is the authoritative green.
+- **Local runs use "serial rerun green = pass".** On a shared dev machine
+  (parallel agents, builds, other e2e instances), a budget red that passes
+  `npx playwright test --workers=1 <spec>` in isolation is an isolation
+  finding — log it, don't chase it, don't raise the timeout (raises mask the
+  starvation signal the budget exists to surface).
+- **The fallback (not landed, by design):** if a CI runner ever proves
+  unavailable, the silence-window spec fix is the next lever — a
+  `page.waitForLoadState('networkidle')` quiet window between `loginAs` and
+  tracker attachment (the N01 straddle shape, T-327 §7). K46 took
+  "runner first, silence window as fallback"; the runner landed, so the spec
+  surgery stays holstered.
+

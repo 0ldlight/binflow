@@ -178,21 +178,27 @@ const (
 // concurrent part PUTs cannot both pass the ordering gate against a stale
 // counter.
 type mpuSession struct {
-	mu        sync.Mutex
-	id        string // the engine session id (the token's public half)
-	sess      storage.Session
-	repoKey   string
-	path      string
-	mime      string
-	partSize  int64
-	received  int64          // mirror; the authority is sess.Offset()
-	parts     int            // parts accepted so far
-	staged    map[int][]byte // out-of-order arrivals awaiting their turn (bounded)
-	stagedBy  int64          // total staged bytes
-	state     string
-	createdBy string
-	createdAt time.Time
-	updatedAt time.Time
+	mu      sync.Mutex
+	id      string // the engine session id (the token's public half)
+	sess    storage.Session
+	repoKey string
+	// clientRepoKey is the repo key THE CLIENT spelled at create ("" = same
+	// as repoKey). It differs from repoKey exactly when a virtual's
+	// defaultDeploymentRepo resolved the target: the client checksum-deploys
+	// through ITS spelling (TestUploadsVirtualDefault), so the narrow
+	// checksum-deploy token admits both (T-349).
+	clientRepoKey string
+	path          string
+	mime          string
+	partSize      int64
+	received      int64          // mirror; the authority is sess.Offset()
+	parts         int            // parts accepted so far
+	staged        map[int][]byte // out-of-order arrivals awaiting their turn (bounded)
+	stagedBy      int64          // total staged bytes
+	state         string
+	createdBy     string
+	createdAt     time.Time
+	updatedAt     time.Time
 	// Capability binding (T-332): sha256 of the token's random half plus
 	// its expiry, persisted in the caller blob and re-proved on every
 	// token-authenticated verb.
@@ -387,8 +393,10 @@ func (r *mpuRegistry) resumeFromStore(ctx context.Context, seam storage.Multipar
 // the capability-token binding (ADR-0039): v1 rows — opened by the pre-flip
 // wire — carry no binding and fail closed under the token-addressed verbs
 // (the retirement path: an in-flight session at upgrade time dies and the
-// client re-uploads).
-const mpuCallerStateVersion = 2
+// client re-uploads). v3 (T-349) adds the client's own repo spelling for the
+// narrowed checksum-deploy token; v2 rows stay drivable — a post-restart
+// mint on one narrows to the resolved key only (fail-closed).
+const mpuCallerStateVersion = 3
 
 // mpuCallerState is the protocol coordinate blob the create verb persists
 // inside the engine's upload_sessions row (opaque to the engine, verbatim
@@ -413,6 +421,13 @@ type mpuCallerState struct {
 	// expiry — what a restarted process re-proves possession against.
 	TokenSHA256 string `json:"tokenSha256"`
 	TokenExpiry string `json:"tokenExpiry"` // RFC3339 UTC
+	// T-349 (v3): the client's own repo spelling when a virtual's
+	// defaultDeploymentRepo resolved the target (the narrow checksum-deploy
+	// token admits both). Absent on v2 rows: the restart mint narrows to the
+	// resolved key only — fail-closed for the virtual spelling of an
+	// upgrade-straddling session, which the upgrade window's clear-in-flight
+	// policy already treats as best-effort.
+	ClientRepoKey string `json:"clientRepoKey,omitempty"`
 }
 
 // mpuSessionFromStore rebuilds the plane's session view from the engine
@@ -452,19 +467,20 @@ func mpuSessionFromStore(id string, sess storage.Session, caller []byte) (*mpuSe
 		createdAt = t
 	}
 	ms := &mpuSession{
-		id:          id,
-		sess:        sess,
-		repoKey:     cs.RepoKey,
-		path:        cs.Path,
-		mime:        cs.MimeType,
-		partSize:    cs.PartSize,
-		staged:      map[int][]byte{},
-		state:       mpuStateActive,
-		createdBy:   cs.CreatedBy,
-		createdAt:   createdAt,
-		updatedAt:   time.Now().UTC(),
-		tokenSHA256: cs.TokenSHA256,
-		tokenExpiry: tokenExpiry,
+		id:            id,
+		sess:          sess,
+		repoKey:       cs.RepoKey,
+		clientRepoKey: cs.ClientRepoKey,
+		path:          cs.Path,
+		mime:          cs.MimeType,
+		partSize:      cs.PartSize,
+		staged:        map[int][]byte{},
+		state:         mpuStateActive,
+		createdBy:     cs.CreatedBy,
+		createdAt:     createdAt,
+		updatedAt:     time.Now().UTC(),
+		tokenSHA256:   cs.TokenSHA256,
+		tokenExpiry:   tokenExpiry,
 	}
 	// The engine's offset is the resume authority: a restarted session
 	// resumes at the last FLUSHED part boundary (bytes that lived only in
@@ -592,8 +608,22 @@ func newMPUTokenSecret() (secret, secretSHA string, err error) {
 // ordinary content-plane request — authenticates with it. A deps.Auth
 // without the facet leaves the Finished body's checksumToken null (logged);
 // every production wiring carries *auth.Service.
+//
+// T-349 (FR-113.3) narrowed the mint: the token is issued CHECKSUM-DEPLOY
+// SCOPED to the session's own (repoKey, repoPath), so the middleware admits
+// the credential to exactly that one landing PUT and 403s every other use
+// (NFR-S63 lateral-use defense; the pre-narrow full-power window was
+// ADR-0039 residual 1). A deps.Auth still carrying only the broad Issue
+// facet falls back to it (token present, scope unrestricted) — the seam
+// degrades to the documented residual rather than breaking the flow.
 type mpuTokenIssuer interface {
 	Issue(ctx context.Context, username string, ttl time.Duration) (*auth.IssuedToken, error)
+}
+
+// mpuScopedTokenIssuer is the narrowed mint facet (T-349). Satisfied by
+// *auth.Service alongside mpuTokenIssuer; probed first at mint time.
+type mpuScopedTokenIssuer interface {
+	IssueChecksumDeployScoped(ctx context.Context, username string, ttl time.Duration, repos []string, path string) (*auth.IssuedToken, error)
 }
 
 // ---- shared gates ----
@@ -954,15 +984,16 @@ func (s *Server) handleUploadsCreate(w http.ResponseWriter, r *http.Request) {
 	}
 	tokenExpiry := now.Add(mpuTokenTTL)
 	caller, merr := json.Marshal(mpuCallerState{
-		Version:     mpuCallerStateVersion,
-		RepoKey:     targetRepo,
-		Path:        repoPath,
-		MimeType:    "application/octet-stream",
-		PartSize:    partSize,
-		CreatedBy:   createdBy,
-		CreatedAt:   now.UTC().Format(time.RFC3339),
-		TokenSHA256: secretSHA,
-		TokenExpiry: tokenExpiry.UTC().Format(time.RFC3339),
+		Version:       mpuCallerStateVersion,
+		RepoKey:       targetRepo,
+		ClientRepoKey: repoKey,
+		Path:          repoPath,
+		MimeType:      "application/octet-stream",
+		PartSize:      partSize,
+		CreatedBy:     createdBy,
+		CreatedAt:     now.UTC().Format(time.RFC3339),
+		TokenSHA256:   secretSHA,
+		TokenExpiry:   tokenExpiry.UTC().Format(time.RFC3339),
 	})
 	var sess storage.Session
 	if merr == nil {
@@ -981,19 +1012,20 @@ func (s *Server) handleUploadsCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ms := &mpuSession{
-		id:          sess.ID(),
-		sess:        sess,
-		repoKey:     targetRepo,
-		path:        repoPath,
-		mime:        "application/octet-stream",
-		partSize:    partSize,
-		staged:      map[int][]byte{},
-		state:       mpuStateActive,
-		createdBy:   createdBy,
-		createdAt:   now,
-		updatedAt:   now,
-		tokenSHA256: secretSHA,
-		tokenExpiry: tokenExpiry,
+		id:            sess.ID(),
+		sess:          sess,
+		repoKey:       targetRepo,
+		clientRepoKey: repoKey,
+		path:          repoPath,
+		mime:          "application/octet-stream",
+		partSize:      partSize,
+		staged:        map[int][]byte{},
+		state:         mpuStateActive,
+		createdBy:     createdBy,
+		createdAt:     now,
+		updatedAt:     now,
+		tokenSHA256:   secretSHA,
+		tokenExpiry:   tokenExpiry,
 	}
 	s.uploads.add(ms)
 	s.uploads.startSweep()
@@ -1210,9 +1242,11 @@ func (s *Server) handleUploadsComplete(w http.ResponseWriter, r *http.Request) {
 // Commit (assembly + sha1 gate + the temp->blob finalize), then the task
 // record. On success it mints the checksum-deploy token the Finished status
 // hands the client — a REAL API token through the auth facet, short-lived
-// (5 minutes), owned by the session's creator. The task runs on a detached
-// context on purpose: a client disconnect after the 202 must not kill the
-// assembly (宁可慢不可丢数据).
+// (5 minutes), owned by the session's creator and, since T-349 (FR-113.3),
+// CHECKSUM-DEPLOY SCOPED: the deployScopeGuard admits the credential to
+// exactly this session's landing PUT and 403s everything else. The task runs
+// on a detached context on purpose: a client disconnect after the 202 must
+// not kill the assembly (宁可慢不可丢数据).
 func (s *Server) mpuFinishTask(ms *mpuSession, sha1Param string) {
 	ctx := context.Background()
 	ref, err := ms.sess.Commit(ctx, storage.BlobRef{Sha1: sha1Param})
@@ -1263,7 +1297,22 @@ func (s *Server) mpuFinishTask(ms *mpuSession, sha1Param string) {
 	}
 
 	token := ""
-	if issuer, ok := s.deps.Auth.(mpuTokenIssuer); ok {
+	if scoped, ok := s.deps.Auth.(mpuScopedTokenIssuer); ok {
+		landing := []string{ms.repoKey}
+		if ms.clientRepoKey != "" && ms.clientRepoKey != ms.repoKey {
+			landing = append(landing, ms.clientRepoKey)
+		}
+		if issued, ierr := scoped.IssueChecksumDeployScoped(ctx, ms.createdBy, mpuChecksumTokenTTL, landing, ms.path); ierr == nil {
+			token = issued.AccessToken
+		} else {
+			s.log.WarnContext(ctx, "httpapi: mpu checksum-deploy token mint failed",
+				"session", ms.id, "owner", ms.createdBy, "error", ierr.Error())
+		}
+	} else if issuer, ok := s.deps.Auth.(mpuTokenIssuer); ok {
+		// Narrow facet absent (an alternative wiring without *auth.Service):
+		// the broad mint, logged as the unrestricted residual it is.
+		s.log.WarnContext(ctx, "httpapi: auth facet cannot mint scoped checksum-deploy tokens; falling back to an unrestricted token",
+			"session", ms.id)
 		if issued, ierr := issuer.Issue(ctx, ms.createdBy, mpuChecksumTokenTTL); ierr == nil {
 			token = issued.AccessToken
 		} else {

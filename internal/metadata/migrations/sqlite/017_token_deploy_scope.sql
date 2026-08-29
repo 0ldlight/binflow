@@ -1,0 +1,24 @@
+-- 017_token_deploy_scope.sql (sqlite dialect) — the narrow-scope column on
+-- tokens (M12 T-349, FR-113.3 / ADR-0039 residual 1).
+--
+-- Contract: deploy_scope narrows a token's permission domain to ONE landing
+-- operation. The only writer today is the MPU finish task, which mints the
+-- 5-minute checksum-deploy token (multipart.checksum.deploy.token.expiry.secs)
+-- the client spends on its zero-transfer X-Checksum-Deploy PUT at the
+-- session's own (repoKey, repoPath) — ADR-0039 mapping 2. Before this column
+-- that token was a full user API token for its whole TTL (the lateral-use
+-- exposure T-332 registered); with a scope row the middleware admits the
+-- credential to exactly that one PUT and refuses everything else with 403.
+--
+-- The value is a small JSON document ({"kind":"checksum-deploy","repo":...,
+-- "path":...}) so the encoding is self-describing and extensible to further
+-- narrow-scope kinds without another migration. '' (the default) keeps the
+-- historical meaning: an unrestricted applied-scope token. An unparseable or
+-- unknown-kind value FAILS CLOSED in the verifier (the token is refused), so
+-- a corrupt row can never widen back into a full-power credential.
+--
+-- The column rides the existing tokens row: no new table, no backfill (every
+-- pre-017 row keeps the '' default = unrestricted, matching their mint-time
+-- contract), and revocation/expiry semantics are untouched.
+
+ALTER TABLE tokens ADD COLUMN deploy_scope TEXT NOT NULL DEFAULT '';
