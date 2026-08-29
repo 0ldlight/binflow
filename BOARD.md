@@ -1154,3 +1154,119 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 **关键路径**：T-334→T-337→T-341（NuGet bundle 主线，裁决①）→ T-356；T-333→T-338（fail-open，裁决③）→ T-351/T-356；T-335→T-339→T-343/T-345→T-352（生命周期域主线）→ T-356；T-346→T-347（回写时序耦合）；T-344→T-352→T-353（web/ 串行链）。**T-336（瘦身 P0）零依赖可任意波次穿插；T-340 零依赖可提前补位。**
 
 **风险登记（拆票日志 M12-SPLIT.md 详表）**：① Q3 trashcan 档位终裁须在 T-345 AC3 门控断言前收口（B6 前）；② Q4 操作族 license 门——T-335 取证若翻则 T-339/T-343 补三缝面；③ nuget.exe 活体可得性（curl 等价+留痕路径，M11 先例）；④ internal/storage 三票（T-338/T-339/T-343/T-345/T-349）严格波次串行 + router/slots 接线交 conductor；⑤ T-347 依赖 T-346 时序——延期则 §15.4.1 段顺延、§23 段先落；⑥ dev-go-core 负载四票错峰 B1/B2/B4/B6（窗口独占条款维持）；⑦ web/ 串行链若前端带宽受限，T-353 可并入 T-352（conductor 裁量，FR 边界留痕）。
+
+## M13 票据（T-358~T-380，tech-lead 2026-08-30 拆票；AC 全文见 docs/prd/milestone-13.md v1.0；拆票日志 reports/agents/M13-SPLIT.md；Q1~Q7 暂行口径已入票面，终裁点随票上 BOARD）
+
+> **拆票基线**：PRD §1.3 估 21~26 票，实拆 **23 票**（P0×7 / P1×12 / P2×4——含波外条件票 3 张计入 P2）。主轴 Webhook 双票（上=订阅+织入 / 下=投递+FE 面）全部 dep 前置双产物（T-358 webhook.md + T-359 ADR-0041——**取证特例：反编译集合无 webhook addon，JFrog 官方 REST 文档为唯一行为基准**，PRD §1.4-1 常设条款）；协议/行为面实现票全部 dep 对应规格/评估锚（T-363 dep T-342〔helm.md+HL-3 在案〕/ T-369 dep T-348〔D8 双证规格行在案〕/ T-367 消费 T-342 §5 D-2/D-3 评估结论）；旋钮两枚聚合一票（FR-118）；文面包/de-flake/运维尾巴按域聚类（T-370/T-361/T-372+T-374）。全宽 2 沿 M11/M12 口径。
+
+**FR → 票映射**：
+
+| FR | 票（P） | 承载要点 | 裁决/登记锚 |
+|---|---|---|---|
+| 前置产物 | T-358（P0）webhook.md / T-359（P0）ADR-0041 / T-360（P1）ADR-0042 | 规格 + 两 ADR（helm.md 增量段与 trash-can/repo-operations 旋钮行随实现票，不单列前置） | §1.3 前置①②③④⑤ |
+| FR-114 | T-358（规格）→ T-362（P0，窗口独占） | 订阅 CRUD/test + 36 事件注册 + 事件源织入（outbox 旁路）+ webhook 第 19 槽门控 | 主轴选题（PM §2.2 留痕）；Q4/Q6 |
+| FR-115 | T-364（P0 投递引擎）→ T-366（P1 FE + 真实消费者 e2e） | outbox 幸存/退避重试/死信/签名/SSRF + 控制台最小面 + dogfood Jenkins 条件腿 | inv-4 §I/§K3；K49/K50 |
+| FR-116 | T-363（P0 remote）→ T-365（P1 virtual） | /v2 面首个 remote 数据链（Bearer 认证/缓存/降级）+ 成员聚合 | D-5 翻转点；dep T-342；Q5/K54 |
+| FR-117 | T-367（P1 引擎缝票） | charts_base_url per-protocol 槽 + internal/remote absolute-URL 缝（FetchAbsolute）+ `_external`/`_transitive` 落盘 | T-313 D-2/D-3 + T-342 §5 评估结论（「建议 M13」兑现） |
+| FR-118 | T-368（P1 两旋钮聚合一票） | folderDownloadConfig 六字段 + trashcan.retention_days；L14 断言开关化 | T-356 L14/L17 如实登记；K52 |
+| FR-119 | T-369（P1 D8 翻转）→ T-371（P1 D-F2 迁移，同 area 串行） | 坐标根整树删 + files 通道规格布局 + 存量迁移（幂等零损） | T-348 N5 双证 / T-340 §4 D-F2；K53 |
+| FR-120 | T-370（P0 裁定动作·落笔段 P2，PM，**随时可动**） | D-10 终裁对照材料上 BOARD + flat 措辞回写 + fail-open AC2 加注 | Q3；T-356 ⚠️ 四项承接 |
+| FR-121 | T-361（P1，devops，**独立可首波并行**） | raceEnabled escape + CI e2e job 三连权威化——race 全树一次绿 | T-356 DoD#6 满载 flake 新成员 |
+| FR-122 | T-372（P1 FE，先改册后实现）→ T-374（P2 docs） | trash 树常驻节点（console-m8 推翻条款兑现）+ 侧栏清单 15 对齐 + npm 尾斜杠注记 | console-m8 §6.3 推翻；ROADMAP 运维尾巴 |
+| QA/文档/发布 | T-373（中期）+ T-377（终验 P0）；T-375（文档增量）；T-376（release + **UAT 随里程碑 PR 首跑**） | L01~L24 + DoD 八条 + webhook 指南等五类 + 烟测/UAT | §8 剧本；M12 T-355 未执行教训（T-356 §6） |
+| 条件票 | T-378（Q3 D-10 翻转）/ T-379（Q2 symbol server 承接）/ T-380（Q5 docker remote 顺车） | 未触发 BOARD 留痕非 DoD 缺口 | Q2/Q3/Q5 |
+
+**批次（全宽 2；波内 area 互斥，跨波同 area/同角色串行）**：
+
+- **B0（前置/规格波）**：T-358 ｜ T-359
+  - **T-358** [P0] webhook.md 规格新建（FR-114.1/115 前置——官方文档基线特例）`role:reverse-engineer` area:docs/reverse/webhook.md dep:—
+    AC1: 官方文档逐端点出处——订阅 CRUD/test 族 wire（路径/方法/请求响应体/错误码，基座前缀沿 E-26）+ 过滤器形态（repo/path/事件类型闭集）+ secret/签名契约（算法/头名，K49）+ envelope 字段集（CloudEvents 形态）；出处逐条附 JFrog 官方 REST 文档锚点（反编译集合无该 addon——取证特例条款）+ 置信度标定。
+    AC2: 36 事件清单按域分组（artifact/artifactProperty/docker/build/releaseBundle/distribution/curation/…以官方文档为准）逐条标注 **BinFlow 触发源覆盖界**（有本体域→织入点；无本体域→注册休眠，Q6 暂行）+ inv-4 §I（I2 平移判定/I3 outbound dispatcher/I4 注册 REST/I5 worker-events 40+ 类型互证）与 §K3（outbox 六方言 DDL）锚点补白 + **Q4 取证腿**（官方 license 标注上 BOARD——community 可用则翻转 unlocked）。
+    AC3: tech-lead 就绪度确认（L01 走查——FR-114-AC1 兑现）；K47~K49 校准项回填 PRD §5.6 转 PM。
+  - **T-359** [P0] ADR-0041 webhook 事件总线架构 `role:architect` area:DECISIONS.md dep:—（与 T-358 并行；wire 细目以 T-358 定案为准，落 Accepted 前对齐）
+    AC1: ADR-0041 Accepted——outbox 载体（SQLite/PG 两方言 DDL）/投递队列与退避曲线/重试上限与死信形态（可查可重放）/secret 存储与签名链（AES-GCM 维持）/订阅 URL SSRF 策略（复用 M3 Guard 五参数 + `replication.allow_private_target` 同款私网开关键名定案）/与审计事件族关系；K50 回填 PRD §5.6。
+    AC2: 订阅面权限门定案（admin 或专用权限——`internal:webhook` 的 BinFlow 映射）+ webhook 第 19 槽 kind/档位建议（Q4 终裁材料留痕，暂行 feature-int/pro+）+ 架构文档联动点清单（§6.4 指标/审计族）。
+- **B1**：T-360 ｜ T-361
+  - **T-360** [P1] ADR-0042 D-F2 存量布局迁移方案 `role:architect` area:DECISIONS.md dep:—（T-340 §4/T-348 §4 登记在案；与 T-359 同 area 波次串行）
+    AC1: ADR-0042 Accepted——迁移时机（启动期 vs 惰性）/幂等策略（二跑零改）/回滚路径/零损硬约束（sha256 对账口径）；K53 回填。
+    AC2: 迁移范围与后效验收口径入 ADR（v1 files 双拼树 → `<root>/<pid>/<pRev>/<file>`；ref-search conaninfo 恢复 + v1 包 snapshot 键裸文件名）。
+  - **T-361** [P1] FR-121 de-flake：raceEnabled escape + CI 权威化 `role:devops-engineer` area:.circleci/ + Jenkins 配置 + e2e 编排 + 逃逸点测试文件（storage/deb 满载族 _test.go 面）dep:—（PRD §1.3：独立可首波并行；B0 宽度富余亦可前移）
+    AC1: `TestBigTreeCopyNo5xx` 预算臂 race 姿态豁免/重定标机制落地（race 开销计入预算或 skip 该臂——票内定案）+ deb 满载族（T-329 以来）同机制收口或归因留痕；`make test`（race）**全树一次绿连续两轮**（L20——不再依赖隔离复跑辩护）。
+    AC2: CI e2e 专用 job 三连绿基线（真二进制+三 seed+workers=2 AUTHORITATIVE 承证在盘）+ Jenkins nightly 全量链对账记录入票（L21 前半）。
+    AC3: 无静默放宽——escape 点逐处注释/留痕可审计（grep 清单入票报告；FR-121.3 边界）。
+- **B2**：T-362 ｜ T-363
+  - **T-362** [P0] FR-114 订阅管理 REST + 36 事件注册 + 事件源织入 `role:dev-go-core` area:internal/webhook + internal/httpapi（**窗口独占**；router/slots/main.go 接线交 conductor）dep:T-358,T-359
+    AC1: 订阅 CRUD + test curl 全链（create 201 形态照规格→get→list→update→delete；test 端点向接收器真发一条测试事件、信封断言）+ 校验臂（URL 合法性/事件类型闭集外 400/过滤器语法）+ 权限门（非授权主体 CRUD 全 403 零副作用——映射照 ADR-0041）（L02）。
+    AC2: 事件源织入——统一删除 seam/copy·move 操作族/属性系统/各协议发布路径旁路取事件（M12 生命周期域底座复用；outbox 异步、主路径零变化）：generic PUT→artifact 域 deployed（envelope 逐字段断言）、DELETE/copy/move/属性 PUT 各臂、docker push→docker 域事件（dind 腿）+ 过滤器 repo/path 命中发/未命中不发双臂（L03/L04）；36 类型注册（无本体域照 Q6 暂行注册休眠、不伪造触发）。
+    AC3: webhook 第 19 槽门控三缝（community 建订阅 403 + `X-Binflow-License-Required: webhook` → pro 200 → 卸载降级不入箱；档位随 Q4 终裁）+ M1~M12 P0 抽样零回归（L05；table-driven 单测 + 可编排接收器夹具）。
+  - **T-363** [P0] FR-116.1 HelmOCI remote pull-through `role:dev-registry-adapter` area:internal/adapter/docker（/v2 remote 数据链）+ repo（helmoci remote 配置）dep:T-342
+    AC1: 自指上游（BinFlow helmoci local push chart）→ 经 helmoci-remote `helm pull` 字节/digest 一致 + 二次命中本地缓存（上游访问计数不增断言）+ `helm install` 真集群腿（M12 kind 夹具复用）（L10；真实 helm 客户端）。
+    AC2: 上游认证链（401→WWW-Authenticate Bearer→token 交换→拉取；mock registry 或自指 token 面）+ 上游故障降级（停上游→已缓存可拉/未缓存零 5xx，本地事实兜底+降级标记）（L10/L11 段）。
+    AC3: docker dind /v2 面全量回归零变化 + M12 helmoci local 序列零回归 + **Q5 顺车评估结论 BOARD 留痕**（K54——/v2 共享缝边际成本判定）+ helm.md remote 增量段随票（K51，mini 规格模式）。
+- **B3**：T-364 ｜ T-365
+  - **T-364** [P0] FR-115.1~115.4 投递引擎（outbox/重试/死信/签名/SSRF）`role:dev-go-core` area:internal/webhook 投递链（与 T-362 同 area 波次串行）dep:T-362（投递参数照 ADR-0041/K50）
+    AC1: outbox 幸存——触发事件→kill -9→重启→补投接收器零丢（盘上事实源）+ 投递全链零阻塞主路径（制品 PUT 全程零 5xx；NFR-P58 并发入箱零丢+投递 P95 有界）（L06）。
+    AC2: 接收器 500×N→指数退避序列→恢复 200 最终成功；持续失败超上限→死信可查（REST/控制台）可重放 + 告警日志一行（L07）；secret 签名——接收侧 HMAC 校验绿/篡改 body 红（K49 官方契约；secret AES-GCM 链维持不落明文、投递日志 URL 脱敏）（L08）。
+    AC3: SSRF——订阅私网 URL 拒绝形态照 ADR-0041（Guard 五参数复用 + 私网开关默认策略/开启双臂）（L09）+ 指标族 `binflow_webhook_{deliveries_total,retries_total,dead_letter_total,queue_depth}` + 审计事件 `webhook.subscription.{create,update,delete,test}` + 启动 outbox 水位一行（§6.4；NFR-S65/S66）。
+  - **T-365** [P1] FR-116.2 HelmOCI virtual 聚合 `role:dev-registry-adapter` area:internal/adapter/docker（ForRepoType 共享面）+ repo virtual 解析（同 area 串行随 T-363）dep:T-363
+    AC1: helmoci-virtual = local+remote 成员→pull 双域制品（tag 并集/by-digest 路由/首见语义照规格）+ 「Helm 与 HelmOCI 不混仓」校验 400 维持（M12 边界复用）（L11）。
+    AC2: helmoci 槽三缝含 remote/virtual 建仓（community 400 点名 helmoci/pro 200→卸载降级）+ docker dind /v2 全量回归 + M12 helmoci local 序列零回归（L11 门控段）。
+- **B4**：T-366 ｜ T-367
+  - **T-366** [P1] FR-115.5/115.7 控制台最小面 + 真实消费者 e2e `role:dev-frontend` area:web/src（webhook 订阅管理页组 + 投递记录；web/ 本波独占）dep:T-364
+    AC1: 订阅列表/新建/编辑/删除/test + 最近投递记录（状态/耗时/重试计数）MUI 面（FR-111 四闸门同构——锚册纪律新锚入册/ledger PASS/全量 Playwright/axe 双主题 0）+ readonly_admin 只读臂（L09-FE 段）。
+    AC2: 真实消费者腿——T-247 dogfood Jenkins 条件腿（dep 用户环境：VM 栈在位则接 pipeline 触发腿，事件→job 触发取证）或容器接收器腿（httpbin/脚本接收器 + 故障注入 500/超时）全绿；条件不可得则容器腿 + BOARD 留痕（非 DoD 缺口）（L08 消费者段）。
+    AC3: 服务端契约 git diff=0（FE 面零端点私加）+ SPA 预算维持（FR-115-AC7）。
+  - **T-367** [P1] FR-117 chartsBaseUrl 分体基址 + `_external` 落盘缓存（引擎 absolute-URL 缝票）`role:dev-registry-adapter` area:internal/remote（FetchAbsolute/URL 覆盖缝）+ internal/repo（charts_base_url per-protocol 槽——schema 定座票内留痕）+ adapter/helm 消费点（与 T-365 同域先后脚）dep:T-363
+    AC1: chartsBaseUrl——异构基址上游（index 内绝对 URL 异于仓基址）remote 配 `charts_base_url`→`helm pull` 回源正确 + 字节一致 + REST PUT/GET 回显 + 缺省回退仓 URL 臂（L12；helm.md §5/S8/S10 增量段随票——T-330 模式）。
+    AC2: `_external` 落盘——虚仓外部域依赖 URL 改写→首次 GET 200 + 存储树落盘可寻址 + 二次命中本地（上游不回源计数断言）+ `_transitive` 同缝 + local 仓 `_external` 400 维持（L13；落盘命名自身、-cache 仓惯例不采纳——conan.md N7 同裁定）。
+    AC3: SSRF 零新面（引擎缝复用 Guard 五参数 + TTL 定类/负缓存/stale 降级照 T-342 §5 D-3 评估结论）+ helm 经典仓三态（M11 FR-99）+ M12 helmoci 序列零回归（L13 回归段）。
+- **B5**：T-368 ｜ T-372
+  - **T-368** [P1] FR-118 旋钮两枚（folderDownloadConfig 六字段 + trashcan.retention_days）`role:dev-go-core` area:internal/config + internal/httpapi（archive 端点门）+ internal/storage（trash cron 消费）dep:—（repo-operations.md §2.1 双证/trash-can 规格在案——旋钮行回写随票）
+    AC1: folderDownload——默认关 403 文案逐字维持（T-356 L14 基线 `Download Folder functionality is disabled.`）→ 开启 `GET /api/archive/download` 200 + 解包 sha256 对账（**M12 L14 断言升级为开关化——断言反转归属本票豁免票**，PRD §5.4）+ 匿名关 401 臂 + 超限拒绝臂（L14）。
+    AC2: `retention_days=1` 短周期时钟夹具→过期自动清理 + 审计；期内不清理；默认 14 回归（M12 cron 13/15 天臂基座）（L15）；K52 键名族票内定案（六字段照 repo-operations.md §2.1 字段名）。
+    AC3: trash-can.md「恒 14d」已知边界表 + api-reference「配置旋钮未落」自注 + artifact-operations.md 翻转 + `make docs` SUCCESS（FR-118-AC3 文档面）。
+  - **T-372** [P1] FR-122.1 trash 树常驻节点 `role:dev-frontend` area:web/src（制品树浏览器 + 回收站入口；与 T-366 web/ 串行先后脚）dep:—（M12 T-352 回收站页面在案）
+    AC1: **先改册后实现**——console-m8.md 树浏览器节「Trash Can 常驻节点不建」推翻条款回写先行（推翻留痕 + 新锚入册）→ 制品树顶层常驻回收站节点最小面（入口跳转/内嵌沿用 M12 回收站页面）（L21 段；规格先行纪律）。
+    AC2: Playwright——节点可见/深链/readonly 臂 + 四闸门维持 + axe 双主题 0 + 全量 playwright 绿；服务端契约 git diff=0（FR-122-AC1）。
+- **B6**：T-369 ｜ T-370
+  - **T-369** [P1] FR-119.1 conan D8 整树删翻转 `role:dev-go-core` area:internal/adapter/conan dep:T-348（D8 双证规格行在案——`LocalConanHandler.removeRecipe` + conan 1.66 参考实现）
+    AC1: 多修订包（r1/r2）→ v1 `DELETE conans/<ref>` 坐标根→**整树删（全部修订，GET 404×2）** + conan 1.66 remove 腿 + 2.x 无修订 DELETE 同步核对（L16；**M12 as-built「latest 修订链」断言反转 100% 归属本票豁免票**——PRD §5.4 回写核实归 QA）。
+    AC2: conan.md §3.2 D8 分歧登记行随票消除（规格行退役）+ table-driven 单测 + conan v1/v2 全链抽样回归（T-308/T-312/T-340 序列）。
+  - **T-370** [P0] FR-120 文面裁定包（D-10 终裁材料 + flat/L31 落笔）`role:product-manager` area:docs/prd（M12 PRD v1.1 增订/AC2 加注）+ docs/reverse/nuget.md 差异行（随终裁）+ docs/user/integrations/artifact-operations.md dep:—（**随时可动——D-10 裁定材料宜早上 BOARD，conductor 提前插空派发**；不阻塞任何实现票）
+    AC1: D-10 对照材料上 BOARD（nuget.md §5.1 臂② 409 vs BinFlow as-built 201〔T-356 L03 实测〕双证对照 + 影响面；PM 出材料不代拍）；终裁后联动——翻转→触发 T-378 条件票；有意差异→nuget.md D 层差异行落笔（L19；终裁前维持 as-built）。
+    AC2: flat 措辞回写——M12 PRD v1.1 增订（「flat 扁平化」→「flat 折叠进 copy 主参数族」口径）+ artifact-operations.md 同步（grep 旧措辞零残留）（L18）。
+    AC3: L31 残余加注——M12 PRD FR-107 AC2「停机窗内重启」与 as-built boot 探针 fail-closed 姿势 PRD 加注（加注不改行为、ADR-0040 零修改、行为零变化断言维持）（L18；T-356 观察⑨）。
+- **B7**：T-371 ｜ T-375
+  - **T-371** [P1] FR-119.2 D-F2 files 通道布局迁移 `role:dev-go-core` area:internal/adapter/conan（v1 files 布局修正 + 存量迁移钩子；同 area 串行随 T-369）dep:T-360,T-369
+    AC1: `channelFileName` 复数/单数 trim 错位修正→新 PUT v1 通道包落 `<root>/<pid>/<pRev>/<file>` 规格布局 + 存量双拼布局树迁移（T-340 复现脚本夹具）→迁移前后制品 sha256 对账零损 + install roundtrip + **幂等（二跑零改）**（L17；roundtrip 对称故客户端面无感）。
+    AC2: settings 恢复——新 PUT v1 通道包 ref-search conaninfo 字段非 `{{}}` + `-q` 过滤腿命中 + v1 包 snapshot 键裸文件名（L17；**服务端树断言翻转归属 FR-119 豁免票**——PRD §5.4 布局对齐行）。
+    AC3: conan v1/v2 全链回归（M11 T-308/T-312 + M12 T-340 序列）零回归 + 回滚路径演练留痕（ADR-0042）。
+  - **T-375** [P1] tech-writer 增量文档（webhook 指南 + HelmOCI remote + 旋钮 + api-reference + FAQ）`role:tech-writer` area:docs/user/（webhook 使用指南新页 + helm 接入增量 + admin 旋钮说明 + api-reference + FAQ）dep:T-362~T-368（对应域票合入）
+    AC1: Webhook 使用指南（订阅/过滤/签名/重试与死信语义/SSRF 边界 + 接收端示例）+ HelmOCI remote/virtual 接入 + 旋钮说明（folderDownload/retention——trash-can.md 自注翻转联动 T-368）交付；全部 curl/客户端命令实测可复跑（L24）。
+    AC2: api-reference 增量（webhook 端点族 + 断言反转两处/布局对齐一处标注）+ FAQ 增补（事件丢失排查/死信重放/remote 缓存命中）+ `make docs` SUCCESS 零断链 + 侧栏挂页 + README 双语收口核查（用户规程留痕）（§8-8）。
+- **B8**：T-373 ｜ T-374
+  - **T-373** [P1] QA 中期回归 `role:qa-engineer` area:测试矩阵（L 序列断言 + 归属审计）dep:T-362~T-367（B2~B4 主体合入）
+    AC1: webhook 域 L02~L09 首跑（可编排接收器夹具：容器 httpbin/脚本接收器 + 故障注入 500/超时 + kill -9 编排）+ HelmOCI L10/L11（自指上游/mock registry 认证腿/kind 夹具）+ chartsBaseUrl/_external L12/L13 首跑。
+    AC2: M1~M12 P0 双形态抽样回归 + 断言反转预核实（conan D8〔T-369 合入后补腿〕/folderDownload 开关化〔T-368 合入后补腿〕）+ 契约变更面归属审计（m12-done..HEAD 增量）零孤儿。
+  - **T-374** [P2] FR-122.2/122.3 运维尾巴 docs（侧栏清单 + npm 注记）`role:tech-writer` area:docs/design/console-m8.md（侧栏清单段——设计册文面，锚册 ledger 腿与 FE 协作）+ docs/user/integrations/npm.md dep:T-372（同册串行——console-m8.md 前后脚）
+    AC1: console-m8 侧栏清单对齐现役 15 页（12/13→15）+ 树节点推翻条款落痕核查 + 锚册 ledger PASS + 全量 playwright 绿（L21 段；FR-122-AC2）。
+    AC2: npm.md registry/token 尾斜杠接入注记落笔 + `make docs` SUCCESS 零断链（L21 段；FR-122-AC3）。
+- **B9**：T-376
+  - **T-376** [P1] release 部署烟测 + **UAT 随里程碑 PR 首跑** `role:release-engineer` area:deploy/ + charts/ + CD 链 dep:全部实现票（T-362~T-372；docs 票后合入以里程碑 PR 分支复跑 docs 烟测腿——票面时序协同条款）
+    AC1: 部署矩阵烟测（compose/k8s/systemd/offline 抽样）+ 新配置面四部署接线核验（webhook 第 19 槽/私网开关键/outbox 面新键族——含 ADR-0041 引入键）。
+    AC2: **UAT 随里程碑 PR 首跑必须落地**（M12 T-355 未执行教训——T-356 §6 留痕）：develop→main 里程碑 PR 触发 CircleCI→52.79.109.153 分阶换装 + healthz 探针 + 双面烟测（含 /binflow/docs/）证据归档；与 conductor 收口时序协同（PR 化合并既定程序）。
+- **B10（收口波）**：T-377
+  - **T-377** [P0] QA 终验 `role:qa-engineer` area:全量验收矩阵 dep:全部票 + T-376
+    AC1: L01~L24 全量（承证+增量）+ M1~M12 全 P0 双形态复跑全绿 + 契约变更面（`git diff m12-done..HEAD -- internal/ cmd/`）100% 归属 M13 豁免票 + **断言反转两处**（conan D8 latest 链→整树删 / folderDownload 恒关→旋钮化〔关态文案逐字维持〕）+ **布局对齐一处**（D-F2 双拼→规格布局）PRD 回写核实 + DoD 八条逐条（实测数字归档；NFR-P58~P60 + `make test`（race）全树一次绿×2 + footprint/check-size 门维持——webhook 引擎不得破 M12 转绿门）。
+    AC2: 收口双项（README 双语 + 文档站随新能力核查——结论入收口报告）+ Q3/Q4/Q6 终裁归位核查（LC-56 归 A 或 D / webhook 槽档位 / 事件覆盖界）+ 总裁定 PASS → conductor git tag m13-done（UAT 首跑证据随里程碑 PR 归档）。
+- **波外条件票**（未触发 BOARD 留痕非 DoD 缺口）：
+  - **T-378** [P2·条件 Q3] D-10 翻转小票（nuget 同字节幂等 409）`role:dev-go-core` area:internal/adapter/nuget dep:T-370（终裁=对齐 409）+ 余量条款
+    AC1: 同字节 + 仅 w 权限主体重传→409 逐字（nuget.md §5.1 臂②）+ M12 as-built 201 断言反转（归属本票豁免）+ nuget 双客户端回归；终裁=有意差异则本票不触发（nuget.md D 层差异行留痕）。
+  - **T-379** [P2·条件 Q2] NuGet symbol server 余量票（M12 T-357 承接）`role:dev-go-core` area:internal/adapter/nuget（symbol 子域）dep:P0/P1 全收官 + 余量条款（全部 P0/P1 收官且余量足）
+    AC1: mini as-built 规格随票（T-293 终裁口径）；.pdb/GUID 路径面 + 真实客户端腿；未触发 M14+ BOARD 留痕。
+  - **T-380** [P2·条件 Q5] docker remote 顺车 `role:dev-registry-adapter` area:internal/adapter/docker（docker remote pull-through 本体）dep:T-363（K54 判定 /v2 共享缝边际成本≈0）+ BOARD 留痕
+    AC1: K54 判定≈0 且 BOARD 留痕→docker 三态 remote 首航（/v2 remote 数据链复用 helmoci 缝）+ dind 全链 + 降级臂 + Bearer 认证腿；判定≠0 则滚 M14+ 留痕（暂行口径）。
+
+**关键路径**：T-358/T-359 → T-362（订阅+织入·独占）→ T-364（投递引擎）→ T-366（FE+消费者）→ T-377（webhook 主线）；T-342 → T-363（HelmOCI remote）→ T-365（virtual）→ T-367（引擎缝）→〔T-380 条件〕→ T-373/T-377；T-360 + T-348 → T-369（D8）→ T-371（D-F2）→ T-377（conan 线）；T-368（旋钮·零依赖）→ T-373/T-375；T-372 → T-374（运维尾巴线）；… → T-375（docs）→ T-376（release+UAT 首跑）→ T-377 → m13-done。**T-361（de-flake）/T-370（PM 文面）零依赖可任意波次穿插**（后者宜早——D-10 裁定材料上 BOARD）。
+
+**风险登记（拆票日志 M13-SPLIT.md 详表）**：① **Q4 webhook 槽档位终裁**须在 T-362 AC3 门控断言前收口——T-358 AC2 取证腿（官方 license 标注）上 BOARD，conductor 于 B2 前安排裁决窗（暂行 pro+/feature-int 不阻塞实现主体）；② **Q6 事件覆盖界**——按暂行「注册休眠」实现，终裁若裁剪仅动注册表（面小不返工）；③ **webhook.md 官方文档取证风险**（反编译集合无该 addon）——官方文档为唯一基准，与 inv-4 锚点冲突时效力序=规格票>PRD 暂行（PRD §4 约定），分歧上 BOARD；④ **dev-go-core 五票串行负载**（T-362/T-364/T-368/T-369/T-371——B2/B3/B5/B6/B7 错峰）+ router/slots/main.go 接线统一交 conductor（M11 纪律延续）；⑤ **dev-registry-adapter 三票链**（T-363→T-365→T-367，B2/B3/B4 串行）与 FR-117 同域先后脚——internal/repo/adapter/helm 共写面已错峰；⑥ **T-367 schema 定座**（charts_base_url per-protocol 槽——T-342 §5 D-2①「须 architect 定座」）票内定案留痕，必要时 architect 会审（不单列 ADR）；⑦ **dogfood Jenkins 条件腿**（T-366 AC2）dep 用户环境——不可得则容器接收器腿 + BOARD 留痕（非 DoD 缺口）；⑧ **UAT 首跑时序**（T-376）——须与 conductor 里程碑 PR 收口协同（M12 T-355 教训），docs 票后合入以 PR 分支复跑烟测腿补偿；⑨ **conan owner 备裁**——PRD 下游消费者表将 conan 小票列 dev-go-core（M11 T-308 先例），与 M12 T-340（dev-registry-adapter）异派——拆票按 PRD 口径，conductor 可改派（票面 area/dep 不变）；⑩ 条件票触发态——Q2/Q3/Q5 全触发票数上浮至 26（PRD §1.3 上限内），未触发 BOARD 留痕。
