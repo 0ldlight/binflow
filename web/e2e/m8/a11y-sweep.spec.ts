@@ -36,7 +36,7 @@ test('a11y sweep: login page in both themes', async ({ page }, testInfo) => {
 })
 
 test('a11y sweep: all console routes in both themes (serious/critical = 0)', async ({ page }, testInfo) => {
-  test.setTimeout(600_000) // 52 面（26 路由 × 双主题）导航+axe；串行态 ~3m，默认并发（T-268）实测 5.1m（超 300s）~8.2m（超 480s，机上有并行验证负载），抬到 10m
+  test.setTimeout(600_000) // 54 面（27 路由 × 双主题——T-352 增回收站）导航+axe；串行态 ~3m，默认并发（T-268）实测 5.1m（超 300s）~8.2m（超 480s，机上有并行验证负载），抬到 10m
   const key = uniq('a11y')
   const client = m8Client()
   await seedRepos(client, [{ key }])
@@ -72,6 +72,8 @@ test('a11y sweep: all console routes in both themes (serious/critical = 0)', asy
     { url: '/admin/governance/quotas', settle: '[data-testid="quotas-page"]' },
     { url: '/admin/governance/replication', settle: '[data-testid="repl-page"]' },
     { url: '/admin/governance/backup', settle: '[data-testid="backup-page"]' },
+    // 回收站（M12 T-352；community 真栈 = trashcan 槽锁定卡形态）
+    { url: '/admin/governance/trash', settle: '[data-testid="trash-page"]' },
     // 管理模式：监控 / 常规
     { url: '/admin/monitoring/storage', settle: '[data-testid="storage-page"]' },
     { url: '/admin/general/settings', settle: '[data-testid="settings"]' },
@@ -89,7 +91,7 @@ test('a11y sweep: all console routes in both themes (serious/critical = 0)', asy
       scans++
     }
   }
-  // 口径自证：26 路由 × 2 主题（登录页另有独立腿）
+  // 口径自证：27 路由 × 2 主题（登录页另有独立腿；T-352 起含回收站）
   expect(scans).toBe(routes.length * 2)
 })
 

@@ -43,6 +43,15 @@ import {
 } from '../../lib/repos'
 import type { PackageType, RClass, RepoConfigBody } from '../../lib/repos'
 import { useAsync } from '../../lib/useAsync'
+import {
+  POLICY_FIELDS,
+  initialPolicyForm,
+  policyBodyEntries,
+  policyNumberValid,
+  policyPkg,
+  prefillPolicyForm,
+} from './policyFields'
+import type { PolicyForm } from './policyFields'
 
 import './repositories.css'
 
@@ -99,6 +108,9 @@ const PKG_ITEMS: { id: PackageType; label: string; desc: string; icon: string }[
 /** 门控型网格项的通用图标（displayName/描述来自注册表行——不复制） */
 const GATED_PKG_ICON = '✦'
 
+/** 策略键分组标题（T-353 字段册的呈现面） */
+const POLICY_GROUP_TITLE = { debian: 'Deb 索引策略', rpm: 'RPM 索引策略', helm: 'Helm 强制布局' } as const
+
 /** 建仓面的包型可选集（M10 T-288）：五核心静态项 + addons API 的门控槽位。
  *  加载中/请求失败 = 仅五核心（community 地板恒合法；门控型缺席不误放，
  *  服务端 D3 建仓门终裁——UI 预收敛而已）。 */
@@ -153,6 +165,8 @@ interface FormState {
   handleSnapshots: boolean
   checksumPolicyType: string
   snapshotVersionBehavior: string
+  /** deb/rpm/helm 策略键（T-353 字段册驱动；generic 等其余包型 = 空对象） */
+  policy: PolicyForm
 }
 
 const CREATE_INITIAL: FormState = {
@@ -176,6 +190,7 @@ const CREATE_INITIAL: FormState = {
   handleSnapshots: true,
   checksumPolicyType: 'client-checksums',
   snapshotVersionBehavior: 'deployer',
+  policy: {},
 }
 
 function prefillFromDetail(d: {
@@ -222,6 +237,9 @@ function prefillFromDetail(d: {
       f.checksumPolicyType = cfgStr(cfg, 'checksumPolicyType') || 'client-checksums'
       f.snapshotVersionBehavior = cfgStr(cfg, 'snapshotVersionBehavior') || 'deployer'
     }
+    // deb/rpm/helm 策略键逐键回显（全量替换提交的保全前提——漏发=丢配置）
+    const pkg = policyPkg(f.packageType)
+    if (pkg) f.policy = prefillPolicyForm(pkg, cfg)
   }
   return f
 }
@@ -264,6 +282,10 @@ function buildBody(f: FormState, mode: 'create' | 'edit'): RepoConfigBody {
       body.checksumPolicyType = f.checksumPolicyType
       body.snapshotVersionBehavior = f.snapshotVersionBehavior
     }
+    // deb/rpm/helm 策略键（T-353）：check/合法 number 恒进 body（POINTER 语义
+    // ——显式 false/0 必须过 round trip），空 text 剔除归默认
+    const pkg = policyPkg(f.packageType)
+    if (pkg) Object.assign(body as unknown as Record<string, unknown>, policyBodyEntries(pkg, f.policy))
     body.includesPattern = f.includesPattern.trim()
     body.excludesPattern = f.excludesPattern.trim()
     // 显式 0 = 不限（后端 quotaBytes 指针透传，0 会稳定回显）；空输入视为清除
@@ -295,6 +317,12 @@ function formValid(f: FormState, mode: 'create' | 'edit'): { ok: boolean; reason
   }
   if (f.rclass === 'local' && !isNonNegInt(f.quotaBytes)) {
     return { ok: false, reason: 'quotaBytes 需为非负整数（字节）' }
+  }
+  if (f.rclass === 'local') {
+    const pkg = policyPkg(f.packageType)
+    if (pkg && !policyNumberValid(pkg, f.policy)) {
+      return { ok: false, reason: '策略键的数值字段需为非负整数（historyCycles / yumRootDepth）' }
+    }
   }
   if (f.rclass === 'remote') {
     for (const v of [
@@ -434,6 +462,18 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setF((prev) => ({ ...prev, [k]: v }))
 
+  /** 换包类型（网格选定/单选）：deb/rpm/helm 的策略键表单随之初始化——
+   *  字段册驱动，键集随包类型闭集切换（创建态唯一入口；编辑态锁定不可换） */
+  const pickPackage = (pt: PackageType) => {
+    const pkg = policyPkg(pt)
+    const policy = pkg ? initialPolicyForm(pkg) : {}
+    setF((prev) => ({ ...prev, packageType: pt, policy }))
+    setBaseline((prev) => ({ ...prev, packageType: pt, policy }))
+  }
+
+  const setPolicy = (wire: string, v: string | boolean) =>
+    setF((prev) => ({ ...prev, policy: { ...prev.policy, [wire]: v } }))
+
   // 编辑态：加载现有配置并预填（全量替换语义的保全前提）
   const detail = useAsync(
     () => (mode === 'edit' && routeKey ? getRepoDetail(routeKey) : Promise.resolve(null)),
@@ -563,6 +603,8 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
   const localMembers = f.members.filter((m) => memberOptions.find((o) => o.key === m)?.type === 'local')
 
   const renderSection = (): ReactNode => {
+    // deb/rpm/helm 策略键分组（T-353）：local × 对应包类型才呈现
+    const policyDef = f.rclass === 'local' ? policyPkg(f.packageType) : null
     return (
       <>
         {/* T-344 批 D：分区卡 Paper 化（§3.5 repositories 行）——
@@ -583,7 +625,7 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                     checked={f.rclass === rc}
                     onChange={() => {
                       set('rclass', rc)
-                      if (rc !== 'local' && f.packageType === 'docker') set('packageType', 'generic')
+                      if (rc !== 'local' && f.packageType === 'docker') pickPackage('generic')
                     }}
                     value={rc}
                     name="rclass"
@@ -608,7 +650,7 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                     <Radio
                       size="small"
                       checked={f.packageType === c.id}
-                      onChange={() => set('packageType', c.id)}
+                      onChange={() => pickPackage(c.id)}
                       value={c.id}
                       name="packageType"
                       slotProps={{ input: { 'data-testid': `form-package-${c.id}` } as ComponentPropsWithoutRef<'input'> }}
@@ -1056,6 +1098,94 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
             }
             label="优先解析（priorityResolution：作为 virtual 成员时优先桶标记）"
           />
+
+          {/* deb/rpm/helm 策略键（T-353，FR-113.2/113.5）：字段册驱动——REST
+              已透传（T-327R/T-329 D-E），表单按包类型收窄呈现；check/合法
+              number 恒提交（POINTER 语义，flip-off 必须过 round trip） */}
+          {policyDef && (
+            <>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 2, mb: 1.5 }}>
+                {POLICY_GROUP_TITLE[policyDef]}——索引引擎策略键（仅{' '}
+                {f.packageType} 仓；值域/默认值由服务端终裁）
+              </Typography>
+              {POLICY_FIELDS[policyDef].map((fd) => {
+                const anchor = `form-${fd.wire}`
+                if (fd.kind === 'check') {
+                  return (
+                    <div key={fd.wire}>
+                      <FormControlLabel
+                        className="check-row"
+                        disabled={locked}
+                        control={
+                          <Checkbox
+                            size="small"
+                            checked={f.policy[fd.wire] === true}
+                            onChange={(e) => setPolicy(fd.wire, e.target.checked)}
+                            slotProps={{ input: { 'data-testid': anchor } as ComponentPropsWithoutRef<'input'> }}
+                          />
+                        }
+                        label={fd.label}
+                      />
+                      {fd.hint && <p className="field-hint">{fd.hint}</p>}
+                    </div>
+                  )
+                }
+                if (fd.kind === 'select') {
+                  return (
+                    <div className="field" key={fd.wire}>
+                      <label htmlFor={`f-policy-${fd.wire}`}>{fd.label}</label>
+                      <TextField
+                        id={`f-policy-${fd.wire}`}
+                        select
+                        size="small"
+                        value={String(f.policy[fd.wire] ?? '')}
+                        onChange={(e) => setPolicy(fd.wire, e.target.value)}
+                        disabled={locked}
+                        sx={{ width: 420 }}
+                        slotProps={{
+                          select: {
+                            native: true,
+                            inputProps: { 'data-testid': anchor } as ComponentPropsWithoutRef<'select'>,
+                          } as ComponentPropsWithoutRef<typeof Select>,
+                        }}
+                      >
+                        {(fd.options ?? []).map((o) => (
+                          <option key={o} value={o} lang="en">
+                            {o}
+                          </option>
+                        ))}
+                      </TextField>
+                      {fd.hint && <p className="field-hint">{fd.hint}</p>}
+                    </div>
+                  )
+                }
+                return (
+                  <div className="field" key={fd.wire}>
+                    <label htmlFor={`f-policy-${fd.wire}`}>{fd.label}</label>
+                    <TextField
+                      id={`f-policy-${fd.wire}`}
+                      size="small"
+                      value={String(f.policy[fd.wire] ?? '')}
+                      onChange={(e) => setPolicy(fd.wire, e.target.value)}
+                      error={fd.kind === 'number' && !isNonNegInt(String(f.policy[fd.wire] ?? ''))}
+                      disabled={locked}
+                      placeholder={fd.placeholder}
+                      sx={{ width: 420 }}
+                      slotProps={{
+                        htmlInput: {
+                          className: 'mono-input',
+                          'data-testid': anchor,
+                          lang: 'en',
+                          ...(fd.kind === 'number' ? { inputMode: 'numeric' as const } : {}),
+                        },
+                      }}
+                    />
+                    {fd.hint && <p className="field-hint">{fd.hint}</p>}
+                  </div>
+                )
+              })}
+            </>
+          )}
         </Paper>
       </>
     )
@@ -1162,8 +1292,7 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
           choices={pkgChoices}
           onPick={(pt) => {
             // 网格选定的包类型进入基线（重置不退回进页默认 generic）
-            setF((prev) => ({ ...prev, packageType: pt }))
-            setBaseline((prev) => ({ ...prev, packageType: pt }))
+            pickPackage(pt)
             setPkgOpen(false)
           }}
           onCancel={() => navigate(`/admin/repositories/${f.rclass}`)}

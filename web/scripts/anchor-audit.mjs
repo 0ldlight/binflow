@@ -219,6 +219,9 @@ const STOP = new Set([
   'anchor-audit', 'm7-done',
   // §10.6 v1.9 行文新增的非锚词（web/scripts/mock-idp.mjs 的文件名）
   'mock-idp',
+  // v1.15（T-352/T-353 行文假阳性）：回收站批的标识符引用——存储常量 /
+  // REST 参数 / CSS 类钩子 / 文档文件名段，均非 testid 锚
+  'auto-trashcan', 'transaction-size', 'confirm-input', 'trash-can',
 ])
 const docFams = new Set()
 for (const t of docTokens) {
