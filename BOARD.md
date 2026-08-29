@@ -1015,7 +1015,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
   2. **develop → main（--no-ff）**：M11 首个批次收口或里程碑收官（m11-done tag）时执行一次——触发 CircleCI/UAT 链（52.79.109.153，含文档服务）；中途不逐票 release，避免 UAT 高频换装。
   3. **hotfix/**：自 main 切出，修完双回（main --no-ff → 回并 develop）。
   4. **交织例外顺序合入**：文件共写时（slots.go/main.go/router.go 按 13 槽共写），「先完成票先合、后行票紧随」顺序 --no-ff；当前 T-309（已验）暂缓即此例——T-308 收口后 T-308 先、T-309 紧随。
-  5. **PR 化合并（用户 2026-08-27 10:55 + 2026-08-28 07:5x 指令）**：feature→develop 经 GitHub PR（conductor gh 自建自合，`--merge` 保合并提交）；**develop→main 升级为：每次里程碑收口（m<N>-done 前）自动提交 PR**——批次收口不再直合 main（历史上三笔 batch 直合为先例遗留）。PR 描述含里程碑摘要+验证矩阵。**执行前置已就绪（2026-08-28 08:2x）**：细粒度 PAT（PRs RW + Contents RW，验证通过；token 仅存会话不落盘——新会话需用户重发或 gh auth 一次性固化）。自下一票收口起 feature→develop 全走 GitHub PR。
+  5. **PR 化合并（用户 2026-08-27 10:55 + 2026-08-28 07:5x + 2026-08-29 13:2x 指令「每次代码提交自动处理代码合并，无需确认」）**：feature→develop 经 GitHub PR（conductor gh 自建自合，`--merge` 保合并提交）；**develop→main 升级为：每次里程碑收口（m<N>-done 前）自动提交 PR**——批次收口不再直合 main（历史上三笔 batch 直合为先例遗留）。PR 描述含里程碑摘要+验证矩阵。**执行前置已就绪（2026-08-28 08:2x）**：细粒度 PAT（PRs RW + Contents RW，验证通过；token 仅存会话不落盘——新会话需用户重发或 gh auth 一次性固化）。自下一票收口起 feature→develop 全走 GitHub PR。
   5b.（原第 5 条的 fingerprint 条款随 2026-08-28 修复失效——fingerprint 已填 `4776dcc`，uat-deploy 参数缺陷已修，CI/UAT 链待首个触发验证。）
   6. **三票全交织裁定（2026-08-27 10:52，第 4 条扩展）**：T-311 续跑期间主动改写 main.go/router.go（rpm import/yum case），接线文件成 T-308/T-309/T-311 三票共写且无法按票序独立编译（先行提交必携带后行包）。裁定：T-311 落地全绿后以 **B4+B5 波次单 PR 一次合入**，三票逐项归因（票号→文件清单→验证摘要）写入 PR 描述；票状态以 PR 合并为 done 锚点。快照保险：/tmp/snap-b45-1052/。
 
