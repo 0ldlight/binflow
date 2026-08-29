@@ -4,9 +4,11 @@ import { Link, useParams } from 'react-router-dom'
 import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
 import LinearProgress from '@mui/material/LinearProgress'
+import Paper from '@mui/material/Paper'
 import Tab from '@mui/material/Tab'
 import Tabs from '@mui/material/Tabs'
 import TextField from '@mui/material/TextField'
+import Typography from '@mui/material/Typography'
 
 import { useAuth } from '../../app/AuthContext'
 import { CopyButton } from '../../components/CopyButton'
@@ -477,9 +479,19 @@ export default function RepoDetailPage() {
 
           {canDelete && (
             <aside>
-              <div className="danger-zone" data-testid="repo-danger-zone">
-                <h3>危险区</h3>
-                <p>删除仓库及其（可选）全部内容。制品不可变，此操作没有撤销。</p>
+              {/* T-344 批 D：危险区 Paper 化（§3.3）——outlined + error 边 */}
+              <Paper
+                variant="outlined"
+                className="danger-zone"
+                sx={{ p: 'var(--bf-sp-4)', borderColor: 'error.main' }}
+                data-testid="repo-danger-zone"
+              >
+                <Typography variant="subtitle2" component="h3" color="error" sx={{ mb: 1 }}>
+                  危险区
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                  删除仓库及其（可选）全部内容。制品不可变，此操作没有撤销。
+                </Typography>
                 <Button
                   variant="outlined"
                   color="error"
@@ -489,7 +501,7 @@ export default function RepoDetailPage() {
                 >
                   删除仓库…
                 </Button>
-              </div>
+              </Paper>
             </aside>
           )}
         </div>

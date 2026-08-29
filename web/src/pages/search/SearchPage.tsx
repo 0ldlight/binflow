@@ -3,6 +3,7 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import Button from '@mui/material/Button'
+import MuiSkeleton from '@mui/material/Skeleton'
 import Table from '@mui/material/Table'
 import TableBody from '@mui/material/TableBody'
 import TableCell from '@mui/material/TableCell'
@@ -307,7 +308,7 @@ export default function SearchPage() {
       ) : results.status === 'loading' ? (
         <div data-testid="skeleton" aria-hidden="true" style={{ paddingTop: 8 }}>
           {Array.from({ length: 8 }, (_, i) => (
-            <div key={i} className="skeleton line" style={{ width: `${88 - i * 6}%` }} />
+            <MuiSkeleton key={i} variant="text" width={`${88 - i * 6}%`} sx={{ my: 0.5 }} />
           ))}
         </div>
       ) : results.status === 'error' && results.error ? (

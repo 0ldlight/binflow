@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
@@ -6,6 +6,11 @@ import Alert from '@mui/material/Alert'
 import Button from '@mui/material/Button'
 import Checkbox from '@mui/material/Checkbox'
 import Chip from '@mui/material/Chip'
+import Dialog from '@mui/material/Dialog'
+import DialogActions from '@mui/material/DialogActions'
+import DialogContent from '@mui/material/DialogContent'
+import DialogTitle from '@mui/material/DialogTitle'
+import Paper from '@mui/material/Paper'
 import Select from '@mui/material/Select'
 import Table from '@mui/material/Table'
 import TableBody from '@mui/material/TableBody'
@@ -13,6 +18,7 @@ import TableCell from '@mui/material/TableCell'
 import TableHead from '@mui/material/TableHead'
 import TableRow from '@mui/material/TableRow'
 import TextField from '@mui/material/TextField'
+import Typography from '@mui/material/Typography'
 
 import { useAuth } from '../../app/AuthContext'
 import { useToast } from '../../app/ToastContext'
@@ -123,13 +129,19 @@ function MatrixCell({
   )
 }
 
-const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+// T-344 批 D：手写 Tab 循环陷阱（FOCUSABLE 常量）已随 MUI Dialog 的
+// FocusTrap 退役——禁用钮不破口由 getTabbable 语义原生覆盖。
 
 /**
  * 两步资源对话框（console-m8 §3.3 C6 / §4.5；对齐 reverse §3.8 的
  * Edit Repositories 形态：① Select Repositories（双列穿梭）→ ② Set
  * Patterns (Optional) → OK 回填）。焦点圈进对话框 + Tab 循环 + Esc = 取消
  * （不回填）。draft 状态在打开时从表单初始化，确定 时一次性 onApply。
+ * T-344 批 D：自有 modal 壳（.modal-backdrop + 手写焦点陷阱）→ MUI
+ * Dialog（ConfirmDialog 同款接线）：打开即聚焦取消（安全默认） =
+ * disableAutoFocus + 回调 ref + 微任务（Modal 二段式提交——T-344C D6）；
+ * Esc 兜底 = 文档级监听（MUI 的 Esc 挂 modal root——T-344C D5）；宽度
+ * 720px 由 paper sx 承载（security.css 的 .modal.perm-res-modal 行退役）。
  */
 function ResourceDialog({
   create,
@@ -157,30 +169,22 @@ function ResourceDialog({
   const [includeInput, setIncludeInput] = useState('')
   const [excludeInput, setExcludeInput] = useState('')
   const [repoEntry, setRepoEntry] = useState('')
-  const rootRef = useRef<HTMLDivElement>(null)
-  const cancelRef = useRef<HTMLButtonElement>(null)
 
-  // 焦点陷阱（ConfirmDialog 同款）：打开即聚焦取消（安全默认），Tab 循环，Esc = 取消
+  // 打开即聚焦取消（安全默认）：回调 ref + 微任务承载（T-344C D6——挂载期
+  // useEffect 时 Modal 内容尚未落 DOM）。ref 必须 useCallback 稳定引用：
+  // 每次渲染新建的函数会让 React 走「detach(null) → attach(node)」重挂，
+  // 对话框内每敲一个字符（state 更新重渲染）就把焦点抢回取消钮——
+  // permissions.spec 的 type+Enter 键盘腿实测炸在此（键入落进按钮）。
+  const focusCancel = useCallback((node: HTMLButtonElement | null) => {
+    if (node) queueMicrotask(() => node.focus())
+  }, [])
+
+  // Esc 兜底（T-344C D5）：MUI 已处理的 Esc 会 stopPropagation，不双触发。
   useEffect(() => {
-    cancelRef.current?.focus()
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        onClose()
-        return
-      }
-      if (e.key !== 'Tab') return
-      const nodes = Array.from(rootRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])
-      if (nodes.length === 0) return
-      const first = nodes[0]
-      const last = nodes[nodes.length - 1]
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault()
-        last.focus()
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault()
-        first.focus()
-      }
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      onClose()
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
@@ -272,27 +276,31 @@ function ResourceDialog({
     )
   }
 
+  // paper slotProps 以变量承载（嵌套字面量触发 data-* 过剩属性检查——
+  // T-344C §3.5 同款修法）
+  const paperProps = {
+    'data-testid': 'perm-res-dialog',
+    sx: { width: 'min(720px, calc(100vw - 48px))' },
+  }
+
   return (
-    <div
-      className="modal-backdrop"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
+    <Dialog
+      open
+      disableAutoFocus
+      onClose={(_, reason) => {
+        // Esc / backdrop 点击 = 取消不回填（旧壳行为原样）
+        if (reason === 'escapeKeyDown' || reason === 'backdropClick') onClose()
       }}
+      aria-label={step === 1 ? '选择仓库' : '设置模式'}
+      slotProps={{ paper: paperProps }}
     >
-      <div
-        ref={rootRef}
-        className="modal perm-res-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label={step === 1 ? '选择仓库' : '设置模式'}
-        data-testid="perm-res-dialog"
-      >
-        <h2>{step === 1 ? (create ? '添加仓库' : '编辑仓库') : '设置模式（可选）'}</h2>
+      <DialogTitle>{step === 1 ? (create ? '添加仓库' : '编辑仓库') : '设置模式（可选）'}</DialogTitle>
+      <DialogContent>
         <p className="perm-res-step" data-testid="perm-res-step">
           第 {step} 步，共 2 步
           {step === 1 ? ' · 选择此 target 适用的仓库（pattern 与主体在仓库范围内生效）' : ' · 模式作用于所选仓库内的制品路径（repo 相对路径；** 跨段 / * 段内）'}
         </p>
-        <div className="modal-body perm-res-body">
+        <div className="perm-res-body">
           {step === 1 ? (
             <div data-testid="perm-res-repos">
               {reposStatus === 'error' ? (
@@ -374,32 +382,32 @@ function ResourceDialog({
             </div>
           )}
         </div>
-        <div className="modal-actions">
-          <Button ref={cancelRef} variant="outlined" size="small" data-testid="perm-res-cancel" onClick={onClose}>
-            取消
+      </DialogContent>
+      <DialogActions>
+        <Button ref={focusCancel} variant="outlined" size="small" data-testid="perm-res-cancel" onClick={onClose}>
+          取消
+        </Button>
+        {step === 2 && (
+          <Button variant="outlined" size="small" onClick={() => setStep(1)}>
+            ← 上一步
           </Button>
-          {step === 2 && (
-            <Button variant="outlined" size="small" onClick={() => setStep(1)}>
-              ← 上一步
-            </Button>
-          )}
-          {step === 1 ? (
-            <Button variant="contained" size="small" data-testid="perm-res-next" onClick={() => setStep(2)}>
-              下一步
-            </Button>
-          ) : (
-            <Button
-              variant="contained"
-              size="small"
-              data-testid="perm-res-ok"
-              onClick={() => onApply(repos, includes, excludes)}
-            >
-              确定
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
+        )}
+        {step === 1 ? (
+          <Button variant="contained" size="medium" data-testid="perm-res-next" onClick={() => setStep(2)}>
+            下一步
+          </Button>
+        ) : (
+          <Button
+            variant="contained"
+            size="medium"
+            data-testid="perm-res-ok"
+            onClick={() => onApply(repos, includes, excludes)}
+          >
+            确定
+          </Button>
+        )}
+      </DialogActions>
+    </Dialog>
   )
 }
 
@@ -1134,21 +1142,32 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
         )}
       </div>
 
+      {/* T-344 批 D：危险区 Paper 化（mui-native-visual §3.3）——
+          variant outlined + error 边；类名留 DOM（inert）。 */}
       {mode === 'edit' && !readOnly && (
-        <div className="danger-zone" style={{ marginTop: 'var(--bf-sp-5)' }} data-testid="perm-danger-zone">
-          <h3>危险区</h3>
-          <p>删除 target 会连带删除其全部授权行（单事务，无撤销）。</p>
+        <Paper
+          variant="outlined"
+          className="danger-zone"
+          sx={{ mt: 'var(--bf-sp-5)', p: 'var(--bf-sp-4)', borderColor: 'error.main' }}
+          data-testid="perm-danger-zone"
+        >
+          <Typography variant="subtitle2" component="h3" color="error" sx={{ mb: 1 }}>
+            危险区
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            删除 target 会连带删除其全部授权行（单事务，无撤销）。
+          </Typography>
           <Button
             variant="outlined"
             color="error"
             size="small"
-           
+
             onClick={() => void doDelete()}
             data-testid="perm-delete-button"
           >
             删除 target…
           </Button>
-        </div>
+        </Paper>
       )}
 
       {resOpen && (

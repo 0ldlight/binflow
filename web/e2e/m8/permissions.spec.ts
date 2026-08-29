@@ -99,6 +99,9 @@ test('admin: two-step resource dialog full chain, four-action matrix, tester, ma
   await page.click('[data-testid="perm-repo-add"]')
   await expect(page.locator('[data-testid="perm-res-dialog"]')).toBeVisible()
   await expect(page.locator('[data-testid="perm-res-step"]')).toContainText('第 1 步')
+  // T-344 批 D：ResourceDialog 换 MUI Dialog——入场 Fade 中途采样会把半透明
+  // 栈算进对比度（T-344C D7 假阳性），扫描前等过渡收敛（断言语义不变）。
+  await expect(page.locator('[data-testid="perm-res-dialog"]')).toHaveCSS('opacity', '1')
   await expectA11yClean(page, testInfo, { include: '[data-testid="perm-res-dialog"]' })
   await page.check(`[data-testid="perm-repo-pick-${repo}"]`)
   await expect(page.locator('[data-testid="perm-res-repos"] [data-testid="transfer-selected"]')).toContainText(repo)

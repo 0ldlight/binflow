@@ -47,6 +47,9 @@ test('admin: package-type grid wizard full chain (?rclass= preset, combo gating,
   await page.goto('/binflow/ui/admin/repositories/new?rclass=remote')
   await expect(page.locator('[data-testid="pkg-grid"]')).toBeVisible()
   await expect(page.locator('[data-testid="pkg-grid-item-docker"]')).toBeDisabled()
+  // T-344 批 D：包型网格换 MUI Dialog——入场 Fade 中途采样会把半透明栈算进
+  // 对比度（T-344C D7 假阳性），扫描前等过渡收敛（断言语义不变）。
+  await expect(page.locator('[data-testid="pkg-grid"]')).toHaveCSS('opacity', '1')
   await expectA11yClean(page, testInfo, { include: '[data-testid="pkg-grid"]' })
 
   // 键盘腿：focus + Enter 选定 Maven（网格项是 button——Enter 原生激活）

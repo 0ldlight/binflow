@@ -2,6 +2,12 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 
+import Button from '@mui/material/Button'
+import Paper from '@mui/material/Paper'
+import Stack from '@mui/material/Stack'
+import TextField from '@mui/material/TextField'
+import Typography from '@mui/material/Typography'
+
 import { useToast } from '../app/ToastContext'
 import { apiText, errText } from '../lib/api'
 
@@ -17,6 +23,10 @@ import { apiText, errText } from '../lib/api'
 //   管理面 Tokens 页 admin 门——按现役门呈现入口，目标页自身收敛）。
 // - step-up 相关交互不建（票面：console 铸造页未落地——T-219/T-242 域，
 //   如实不占位；step-up 语义见 docs/user/admin/token-step-up.md）。
+// T-344 批 D：残面换装——.card → Paper；.field + 裸 input + 手写 label →
+// TextField 浮标 label（锚 password-* 落 input 本体）；.btn → Button。
+// Tab 序（旧口令 → 新口令 → 确认 → 提交，浮标 label 非可聚焦元素）与
+// Enter 隐式提交（原生 form + type=submit）零变化。
 
 function PasswordSection() {
   const toast = useToast()
@@ -55,52 +65,47 @@ function PasswordSection() {
   }
 
   return (
-    <section className="card section" data-testid="profile-password">
-      <h3>认证设置 · 修改口令</h3>
+    <Paper component="section" className="card section" elevation={1} data-testid="profile-password">
+      <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
+        认证设置 · 修改口令
+      </Typography>
       <form onSubmit={(e) => void onSubmit(e)}>
-        <div className="field">
-          <label htmlFor="pw-old">当前口令</label>
-          <input
-            id="pw-old"
-            data-testid="password-old"
+        <Stack sx={{ gap: 'var(--bf-sp-3)', maxWidth: 420 }}>
+          <TextField
+            label="当前口令"
+            size="small"
             type="password"
-            autoComplete="current-password"
             value={oldPw}
             onChange={(e) => setOldPw(e.target.value)}
+            slotProps={{ htmlInput: { 'data-testid': 'password-old', autoComplete: 'current-password' } }}
           />
-        </div>
-        <div className="field">
-          <label htmlFor="pw-new">新口令</label>
-          <input
-            id="pw-new"
-            data-testid="password-new"
+          <TextField
+            label="新口令"
+            size="small"
             type="password"
-            autoComplete="new-password"
             value={newPw}
             onChange={(e) => setNewPw(e.target.value)}
+            slotProps={{ htmlInput: { 'data-testid': 'password-new', autoComplete: 'new-password' } }}
           />
-        </div>
-        <div className="field">
-          <label htmlFor="pw-confirm">确认新口令</label>
-          <input
-            id="pw-confirm"
-            data-testid="password-confirm"
+          <TextField
+            label="确认新口令"
+            size="small"
             type="password"
-            autoComplete="new-password"
             value={confirmPw}
             onChange={(e) => setConfirmPw(e.target.value)}
+            slotProps={{ htmlInput: { 'data-testid': 'password-confirm', autoComplete: 'new-password' } }}
           />
-        </div>
-        {error && (
-          <p className="field-error" data-testid="password-error" role="alert">
-            {error}
-          </p>
-        )}
-        <button type="submit" className="btn primary" data-testid="password-submit" disabled={!canSubmit}>
-          {saving ? '保存中…' : '修改口令'}
-        </button>
+          {error && (
+            <p className="field-error" data-testid="password-error" role="alert">
+              {error}
+            </p>
+          )}
+          <Button type="submit" variant="contained" data-testid="password-submit" disabled={!canSubmit}>
+            {saving ? '保存中…' : '修改口令'}
+          </Button>
+        </Stack>
       </form>
-    </section>
+    </Paper>
   )
 }
 
@@ -111,8 +116,10 @@ export default function ProfilePage() {
         <h2>编辑档案</h2>
       </div>
       <PasswordSection />
-      <section className="card section" data-testid="profile-token">
-        <h3>API Token</h3>
+      <Paper component="section" className="card section" elevation={1} data-testid="profile-token">
+        <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
+          API Token
+        </Typography>
         <p className="text-2">
           CI 与脚本请使用 API Token（管理面签发需管理员；实例开启 step-up 时非 admin
           自铸需二次口令——见文档）。
@@ -126,7 +133,7 @@ export default function ProfilePage() {
             去 Tokens 页 →
           </Link>
         </p>
-      </section>
+      </Paper>
     </div>
   )
 }

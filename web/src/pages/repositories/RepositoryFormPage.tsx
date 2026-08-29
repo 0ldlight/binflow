@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
@@ -6,11 +6,17 @@ import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Checkbox from '@mui/material/Checkbox'
+import Dialog from '@mui/material/Dialog'
+import DialogActions from '@mui/material/DialogActions'
+import DialogContent from '@mui/material/DialogContent'
+import DialogTitle from '@mui/material/DialogTitle'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import IconButton from '@mui/material/IconButton'
+import Paper from '@mui/material/Paper'
 import Radio from '@mui/material/Radio'
 import Select from '@mui/material/Select'
 import TextField from '@mui/material/TextField'
+import Typography from '@mui/material/Typography'
 
 import { useAuth } from '../../app/AuthContext'
 import { useToast } from '../../app/ToastContext'
@@ -308,7 +314,10 @@ function formValid(f: FormState, mode: 'create' | 'edit'): { ok: boolean; reason
  *  未解锁型禁用 + 提示「需要 N 档」——D5 可见性口径（入口可见带徽章，
  *  不是隐藏）。
  *  T-299：网格项保持原生 button（radiogroup 语义 + pkg-grid 卡片形态），
- *  取消钮迁 MUI；焦点/Esc 管理零变化。 */
+ *  取消钮迁 MUI；焦点/Esc 管理零变化。
+ *  T-344 批 D：modal 壳 → MUI Dialog（.modal-backdrop/.modal 手作族随之
+ *  从 base.css 退役）；锚 pkg-grid 落 paper（div）、pkg-grid-item-* 仍在
+ *  原生 button 本体；Esc/backdrop 点击 = 取消（文档级兜底同批 B 对话框）。 */
 function PackageTypeGrid({
   rclass,
   choices,
@@ -320,28 +329,34 @@ function PackageTypeGrid({
   onPick: (pt: PackageType) => void
   onCancel: () => void
 }) {
-  const ref = useRef<HTMLDivElement>(null)
+  // Esc 兜底（T-344C D5）：MUI 已处理的 Esc stopPropagation，不双触发。
   useEffect(() => {
-    ref.current?.focus()
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel()
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onCancel()
+      }
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [onCancel])
 
+  const paperProps = {
+    'data-testid': 'pkg-grid',
+    sx: { width: 'min(440px, calc(100vw - 48px))' },
+  }
+
   return (
-    <div className="modal-backdrop">
-      <div
-        ref={ref}
-        tabIndex={-1}
-        className="modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label="选择包类型"
-        data-testid="pkg-grid"
-      >
-        <h2>选择包类型</h2>
+    <Dialog
+      open
+      onClose={(_, reason) => {
+        if (reason === 'escapeKeyDown' || reason === 'backdropClick') onCancel()
+      }}
+      aria-label="选择包类型"
+      slotProps={{ paper: paperProps }}
+    >
+      <DialogTitle>选择包类型</DialogTitle>
+      <DialogContent>
         <p className="text-2">
           新建 <b>{RCLASS_LABEL[rclass]}</b> 仓库的第一步——包类型决定协议路由与客户端接入命令，创建后不可更改。
         </p>
@@ -384,13 +399,13 @@ function PackageTypeGrid({
             )
           })}
         </div>
-        <div className="modal-actions">
-          <Button variant="outlined" size="small" data-testid="pkg-grid-cancel" onClick={onCancel}>
-            取消
-          </Button>
-        </div>
-      </div>
-    </div>
+      </DialogContent>
+      <DialogActions>
+        <Button variant="outlined" size="small" data-testid="pkg-grid-cancel" onClick={onCancel}>
+          取消
+        </Button>
+      </DialogActions>
+    </Dialog>
   )
 }
 
@@ -550,8 +565,12 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
   const renderSection = (): ReactNode => {
     return (
       <>
-        <section className="repo-form-section" aria-label="常规设置">
-          <h3>常规设置</h3>
+        {/* T-344 批 D：分区卡 Paper 化（§3.5 repositories 行）——
+            .repo-form-section 手作族随本批退役 */}
+        <Paper component="section" aria-label="常规设置" sx={{ p: 2, pb: 1.5, mb: 2 }}>
+          <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
+            常规设置
+          </Typography>
           <div className="radio-row" role="radiogroup" aria-label="仓型">
             {RCLASSES.map((rc) => (
               <FormControlLabel
@@ -667,11 +686,13 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
               slotProps={{ htmlInput: { 'data-testid': 'form-description' } }}
             />
           </div>
-        </section>
+        </Paper>
 
         {f.rclass === 'remote' && (
-          <section className="repo-form-section" aria-label="来源">
-            <h3>来源（Remote）</h3>
+          <Paper component="section" aria-label="来源" sx={{ p: 2, pb: 1.5, mb: 2 }}>
+            <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
+              来源（Remote）
+            </Typography>
             <div className="field">
               <label htmlFor="f-url">上游 URL *</label>
               <TextField
@@ -738,12 +759,14 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 ⚠ 已放行私网上游：SSRF 防线对该仓放宽，变更会记录审计（NFR-S14）。
               </div>
             )}
-          </section>
+          </Paper>
         )}
 
         {f.rclass === 'virtual' && (
-          <section className="repo-form-section" aria-label="成员">
-            <h3>成员（Virtual）</h3>
+          <Paper component="section" aria-label="成员" sx={{ p: 2, pb: 1.5, mb: 2 }}>
+            <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
+              成员（Virtual）
+            </Typography>
             <div className="field">
               <label>成员（可多选，↑↓ 调整解析顺序）</label>
               {candidates.status === 'loading' && <Skeleton lines={3} />}
@@ -859,12 +882,14 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 <p className="field-hint">经此 virtual 仓的部署将写入 {f.defaultDeploymentRepo}。</p>
               )}
             </div>
-          </section>
+          </Paper>
         )}
 
         {f.rclass === 'local' && f.packageType === 'maven' && (
-          <section className="repo-form-section" aria-label="Maven 策略">
-            <h3>Maven 策略</h3>
+          <Paper component="section" aria-label="Maven 策略" sx={{ p: 2, pb: 1.5, mb: 2 }}>
+            <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
+              Maven 策略
+            </Typography>
             <FormControlLabel
               className="check-row"
               disabled={locked}
@@ -922,12 +947,14 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 <option value="unique">unique（unique 改写为 P2，行为同 deployer）</option>
               </TextField>
             </div>
-          </section>
+          </Paper>
         )}
 
         {f.rclass === 'local' && (
-          <section className="repo-form-section" aria-label="治理">
-            <h3>治理（governance）</h3>
+          <Paper component="section" aria-label="治理" sx={{ p: 2, pb: 1.5, mb: 2 }}>
+            <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
+              治理（governance）
+            </Typography>
             <div className="field">
               <label htmlFor="f-quota">配额 quotaBytes（字节）</label>
               <TextField
@@ -970,14 +997,18 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 pattern）。
               </p>
             </div>
-          </section>
+          </Paper>
         )}
 
-        <section className="repo-form-section" aria-label="高级">
-          <h3>高级</h3>
+        <Paper component="section" aria-label="高级" sx={{ p: 2, pb: 1.5, mb: 2 }}>
+          <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
+            高级
+          </Typography>
           {f.rclass === 'remote' && (
             <>
-              <p className="section-sub">缓存与超时（秒）——产品默认 7200 / 1800 / 15 / 300。</p>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: -1, mb: 1.5 }}>
+                缓存与超时（秒）——产品默认 7200 / 1800 / 15 / 300。
+              </Typography>
               {(
                 [
                   ['retrievalCachePeriodSecs', '命中缓存 TTL'],
@@ -1025,7 +1056,7 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
             }
             label="优先解析（priorityResolution：作为 virtual 成员时优先桶标记）"
           />
-        </section>
+        </Paper>
       </>
     )
   }

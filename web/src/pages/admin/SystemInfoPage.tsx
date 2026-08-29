@@ -1,3 +1,6 @@
+import Paper from '@mui/material/Paper'
+import Typography from '@mui/material/Typography'
+
 import { useAuth } from '../../app/AuthContext'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
@@ -20,6 +23,8 @@ import { useVersion } from '../../lib/useVersion'
 //   写入口不建（§1.2）。
 // - 页根锚 = settings（console-ux §10.5：/admin/general/settings 的既有锚，
 //   组件实现替换不改锚名）。
+// T-344 批 D：残面换装——.card → Paper（类名留 DOM，:not shim 排除旧配方）、
+// h3 → Typography subtitle2；kv 行族是布局 utility，原样保留。
 
 function SubsystemRow({ name, st }: { name: string; st: SubsystemStatus }) {
   const ok = st.status === 'ok'
@@ -40,8 +45,10 @@ function HealthSection() {
   const health = useAsync<HealthInfo>(getHealth, [])
   if (health.status === 'forbidden') return null
   return (
-    <section className="card section" data-testid="settings-health">
-      <h3>健康</h3>
+    <Paper component="section" className="card section" elevation={1} data-testid="settings-health">
+      <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
+        健康
+      </Typography>
       {health.status === 'loading' && <Skeleton lines={4} />}
       {health.status === 'error' && health.error && <ErrorCard error={health.error} onRetry={health.reload} />}
       {health.status === 'ok' && health.data && (
@@ -60,7 +67,7 @@ function HealthSection() {
           <SubsystemRow name="registry" st={health.data.registry} />
         </>
       )}
-    </section>
+    </Paper>
   )
 }
 
@@ -77,8 +84,10 @@ export default function SystemInfoPage() {
         </span>
       </div>
 
-      <section className="card section" data-testid="settings-instance">
-        <h3>实例信息</h3>
+      <Paper component="section" className="card section" elevation={1} data-testid="settings-instance">
+        <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
+          实例信息
+        </Typography>
         <div className="kv">
           <span className="k">产品</span>
           <span className="mono" lang="en">
@@ -113,7 +122,7 @@ export default function SystemInfoPage() {
           Server Name / Base URL / 匿名读开关 / 数据目录 / 日志级别无查询端点（契约冻结），
           不展示、不伪造；控制台不含配置写入口（Logo / Custom Message 不建）。
         </p>
-      </section>
+      </Paper>
 
       <HealthSection />
     </div>

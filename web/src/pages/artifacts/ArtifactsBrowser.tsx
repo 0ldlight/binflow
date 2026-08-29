@@ -8,6 +8,7 @@ import Checkbox from '@mui/material/Checkbox'
 import Chip from '@mui/material/Chip'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import Menu from '@mui/material/Menu'
+import MuiSkeleton from '@mui/material/Skeleton'
 import Table from '@mui/material/Table'
 import TableBody from '@mui/material/TableBody'
 import TableCell from '@mui/material/TableCell'
@@ -1079,7 +1080,7 @@ function RepoBranch({
         (!st || st.status === 'loading' ? (
           <div className="tree-skel" aria-hidden="true">
             {Array.from({ length: 6 }, (_, i) => (
-              <div key={i} className="skeleton line" style={{ width: `${70 - i * 6}%` }} />
+              <MuiSkeleton key={i} variant="text" width={`${70 - i * 6}%`} sx={{ my: 0.5 }} />
             ))}
           </div>
         ) : st.status === 'forbidden' ? (
@@ -1138,7 +1139,7 @@ function TreeLevel({
     return (
       <div className="tree-skel" aria-hidden="true">
         {Array.from({ length: Math.min(6, 15 - depth * 2) }, (_, i) => (
-          <div key={i} className="skeleton line" style={{ width: `${76 - depth * 10 - i * 6}%` }} />
+          <MuiSkeleton key={i} variant="text" width={`${76 - depth * 10 - i * 6}%`} sx={{ my: 0.5 }} />
         ))}
       </div>
     )
@@ -1396,7 +1397,7 @@ function TreeSkeleton() {
   return (
     <div className="tree-skel" aria-hidden="true">
       {Array.from({ length: 8 }, (_, i) => (
-        <div key={i} className="skeleton line" style={{ width: `${80 - i * 5}%` }} />
+        <MuiSkeleton key={i} variant="text" width={`${80 - i * 5}%`} sx={{ my: 0.5 }} />
       ))}
     </div>
   )
@@ -1406,7 +1407,7 @@ function TableSkeleton() {
   return (
     <div data-testid="skeleton" aria-hidden="true" style={{ paddingTop: 8 }}>
       {Array.from({ length: 10 }, (_, i) => (
-        <div key={i} className="skeleton line" style={{ width: `${90 - i * 5}%` }} />
+        <MuiSkeleton key={i} variant="text" width={`${90 - i * 5}%`} sx={{ my: 0.5 }} />
       ))}
     </div>
   )
