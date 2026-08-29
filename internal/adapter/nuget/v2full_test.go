@@ -177,7 +177,8 @@ func TestV2PackagesFamily(t *testing.T) {
 
 	// The single entry (#8) — hit and miss.
 	status, body, _ = s.get(apiV2Path("ng-local") + "/Packages(Id='Pk.One',Version='1.1.0')")
-	if status != http.StatusOK || !strings.Contains(body, "<entry>") || strings.Contains(body, "<feed") {
+	// T-351 D-2: the standalone entry carries its own d/m declarations.
+	if status != http.StatusOK || !strings.Contains(body, `<entry xmlns:d=`) || strings.Contains(body, "<feed") {
 		t.Fatalf("single entry = (%d, %s…)", status, firstLine(body))
 	}
 	if status, _, _ = s.get(apiV2Path("ng-local") + "/Packages(Id='Pk.One',Version='9.9.9')"); status != http.StatusNotFound {

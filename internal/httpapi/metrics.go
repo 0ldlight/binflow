@@ -63,11 +63,11 @@ const (
 	// scrape time (the cleanup precedent — the engine owns the counts).
 	metricReplayQueueDepth   = "binflow_replay_queue_depth"
 	metricReplayWindowOpen   = "binflow_replay_window_open"
-	metricReplayDrained      = "binflow_replay_drained_total"
-	metricReplayFailedRetry  = "binflow_replay_failed_retry_total"
-	metricReplayFailedPerm   = "binflow_replay_failed_permanent_total"
-	metricReplaySourceGone   = "binflow_replay_source_gone_total"
-	metricReplayReadFallback = "binflow_replay_read_fallback_total"
+	metricReplayDrained      = "binflow_replay_drained"
+	metricReplayFailedRetry  = "binflow_replay_failed_retry"
+	metricReplayFailedPerm   = "binflow_replay_failed_permanent"
+	metricReplaySourceGone   = "binflow_replay_source_gone"
+	metricReplayReadFallback = "binflow_replay_read_fallback"
 )
 
 // metricsContentType is the Prometheus text exposition format version 0.0.4

@@ -177,7 +177,12 @@ func parseOData(q *v2Query) (odataOpts, error) {
 func validV2Filter(f string) bool {
 	switch {
 	case eqBoolFilter(f, "islatestversion"),
-		eqBoolFilter(f, "isabsolutelatestversion"):
+		eqBoolFilter(f, "isabsolutelatestversion"),
+		// The bare flag form — nuget.exe list sends `IsLatestVersion`
+		// with no `eq true` (nuget.md 4-89's own wording carries it);
+		// read it as the implied `eq true` (T-351 D-1).
+		bareFlagFilter(f, "islatestversion"),
+		bareFlagFilter(f, "isabsolutelatestversion"):
 		return true
 	case strings.HasPrefix(lowerASCII(f), "id eq '") && strings.HasSuffix(f, "'"):
 		return true
@@ -185,6 +190,12 @@ func validV2Filter(f string) bool {
 		return true
 	}
 	return false
+}
+
+// bareFlagFilter reports whether f is exactly the flag's bare form
+// (whitespace-trimmed, case-insensitive) — the implied-true spelling.
+func bareFlagFilter(f, field string) bool {
+	return lowerASCII(trimSpaceASCII(f)) == field
 }
 
 func eqBoolFilter(f, field string) bool {
@@ -230,6 +241,13 @@ func (o odataOpts) filterLatest() (absolute bool, wanted, isLatestFilter bool) {
 	}
 	if eqBoolFilter(low, "isabsolutelatestversion") {
 		return true, low == "isabsolutelatestversion eq true", true
+	}
+	// The bare flag forms carry the implied `eq true` (D-1).
+	if bareFlagFilter(low, "islatestversion") {
+		return false, true, true
+	}
+	if bareFlagFilter(low, "isabsolutelatestversion") {
+		return true, true, true
 	}
 	return false, false, false
 }

@@ -238,7 +238,7 @@ func (h *Handler) serveV2Entry(w http.ResponseWriter, r *http.Request, repoKey s
 	}
 	var b bytes.Buffer
 	b.WriteString(`<?xml version="1.0" encoding="utf-8"?>` + "\n")
-	renderV2Entry(&b, base, flat, *hit, true)
+	renderV2Entry(&b, base, flat, *hit, true, true)
 	writeV2XML(w, r, http.StatusOK, "application/atom+xml; charset=utf-8", b.Bytes())
 }
 
@@ -564,14 +564,16 @@ func renderV2Feed(base, flat, self string, rows []v2Row, inlinecount bool, total
 	writeV2Element(&b, "updated", v2Timestamp(rows))
 	b.WriteString(`<link rel="self" href="/` + xmlEscapeString(self) + `"/>` + "\n")
 	for i := range rows {
-		renderV2Entry(&b, base, flat, rows[i], linksV2)
+		renderV2Entry(&b, base, flat, rows[i], linksV2, false)
 	}
 	b.WriteString("</feed>")
 	return b.Bytes()
 }
 
-// renderV2Entry renders one version's <entry>.
-func renderV2Entry(b *bytes.Buffer, base, flat string, row v2Row, linksV2 bool) {
+// renderV2Entry renders one version's <entry>. standalone selects the
+// d/m namespace declarations on the entry element itself — the single-entry
+// documents have no <feed> root to inherit them from (T-351 D-2).
+func renderV2Entry(b *bytes.Buffer, base, flat string, row v2Row, linksV2, standalone bool) {
 	id, version := row.id, row.version
 	idLow := lowerASCII(id)
 	entryID := fmt.Sprintf("%s/Packages(Id='%s',Version='%s')", base, xmlEscapeString(id), xmlEscapeString(version))
@@ -580,7 +582,11 @@ func renderV2Entry(b *bytes.Buffer, base, flat string, row v2Row, linksV2 bool) 
 		content = fmt.Sprintf("%s/%s/%s/%s", base, v2Download, idLow, version)
 	}
 
-	b.WriteString("<entry>\n")
+	if standalone {
+		b.WriteString(`<entry xmlns:d="` + v2DataNS + `" xmlns:m="` + v2MetadataNS + `">` + "\n")
+	} else {
+		b.WriteString("<entry>\n")
+	}
 	writeV2Element(b, "id", entryID)
 	writeV2Title(b, id)
 	writeV2Element(b, "updated", firstNonEmpty(row.updated, "1970-01-01T00:00:00Z"))
