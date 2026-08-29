@@ -1022,6 +1022,8 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 （空）
 
 ## M12 票据（进度行）
+  - **UI 视觉升级四波全清 2026-08-29 12:5x**：T-344A 规范（PR #32）→ B 批 A 主题+壳（直合 `1b5d307`）→ C 批 B 基元（PR #36）→ D 批 C 页面域（PR #37）→ E 批 D 残面清扫（PR #38）——**base.css 983→443 行**，MUI 默认皮肤全面生效（用户「UI太丑」指令闭合）。conductor 终验：193 passed 零失败 + SPA 累计 +16.47%。遗留：.card/.field 域外余量单票 + smu-tabs 换装小票 + 规范三坑回写（Modal Esc/首焦二段式/回调 ref useCallback）。
+
   - **用户 UI 视觉指令（2026-08-29 01:2x）**：「现在的UI太丑了，既然接入了MUI，就要使用MUI的原生组件去让UI变得更好看」→ **升级 MUI 批三（T-344）范围为「原生视觉升级」**：MuiProvider 主题打磨（MUI 默认为基底）+ 退役压皮肤的旧 CSS 块（复合类续挂→sx/主题组件）+ MUI 原生形态（Paper/AppBar/Drawer/Table/Chip 等）；锚册/assert-tokens/axe/playwright 硬约束不变。ux-designer 先出主题与组件清单，dev-frontend 随后实施。宽度空位即派。
 
   - **Q4 终裁（用户 2026-08-28 20:5x）**：制品操作族（copy/move/zip/`archive!`/explode）**照搬 pro 门控**（T-335 三重取证）；trash 走 `_system_` 式内部豁免保持可用；主矩阵 license 列回写 pro。T-339/T-343 断言面照此。
