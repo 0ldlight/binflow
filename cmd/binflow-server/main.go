@@ -472,6 +472,34 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// switch — with the TL-4 forced architecture families on by default.
 	debHandler := deb.Register(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.md.NodeProps(),
 		deb.Options{Signer: stack.signer})
+	// The copy-side index-linkage observer (M12 T-354, architecture
+	// §15.4.2's leftover seam / §11.44): the copy/move pipeline fires
+	// repo's CopyMoveObserver after every completed non-dry COPY into a
+	// local repository (repo-operations.md section 1.4 — the maven
+	// metadata recalc's copy-only trigger shape; move and dry runs are the
+	// seam's own pinned contract), handing the target repository and the
+	// candidate directory set. The observer resolves the target row's
+	// package type and dispatches onto the adapters' reindex entries,
+	// running them as repo.SystemPrincipal() — the trash chain's internal
+	// identity, where the identity IS the exemption (allow()'s role
+	// short-circuit; the Authorizer is never consulted) — under the D1
+	// server-internal license posture (license_gate.go: the gate is the
+	// HTTP verb face's, nothing behind it re-asks the question — the same
+	// exemption the trash chain, the remote pull-through's landing and the
+	// metadata calculators ride; the copy itself already passed the family's
+	// RequireAddon at the REST face). Attached BEFORE the first request
+	// (AttachCopyMoveObserver's contract) — the same assembly slot order
+	// every Attach* seam follows.
+	repo.AttachCopyMoveObserver(stack.svc, copyMoveIndexObserver{
+		repos: stack.md.Repos(),
+		reindexers: map[string]dirReindexer{
+			maven.Protocol: mavenHandler,
+			npm.Protocol:   npmHandler,
+			deb.Protocol:   debHandler,
+			conan.Protocol: conanMgmt,
+		},
+		log: logger,
+	})
 	// The addon registry (M10 T-282, ADR-0033 / section 15.2.1): the
 	// COMPILE-TIME ASSEMBLY MANIFEST — one literal slice, the
 	// META-INF/addon.{xml,properties} behavior pattern in Go form. This is
@@ -1132,6 +1160,60 @@ type trashcanGate struct {
 func (g trashcanGate) Unlocked(ctx context.Context) bool {
 	st, ok := g.reg.StatusOf(ctx, g.ev, addons.Trashcan().ID)
 	return ok && st.Enable
+}
+
+// dirReindexer is the adapters' copy-side reindex seam (M12 T-354, the
+// consumer-side interface convention): recompute the protocol's derived
+// index for the candidate directory set — the deduplicated, sorted parent
+// directories of every landed FILE (trailing-slash folder spellings), the
+// spec's own trigger vocabulary. Implemented by maven (maven-metadata.xml
+// recalculation), npm (the packument rebuild off the stored tarballs), deb
+// (the whole-repository Packages/by-hash recompute) and conan (the index
+// chain rebuild under each candidate directory); a package type without an
+// entry in the dispatch map has no derived index to maintain (generic and
+// friends — the observer's no-op).
+type dirReindexer interface {
+	ReindexDirs(ctx context.Context, p *repo.Principal, repoKey string, dirs []string) error
+}
+
+// copyMoveIndexObserver implements repo.CopyMoveObserver over the
+// assembled adapters: resolve the target repository's package type, run
+// the matching reindex entry as the internal system identity, log (never
+// propagate) the failure — the notifyReplicator contract the seam itself
+// carries: an observer must not fail or slow the operation that triggered
+// it, and the pipeline already runs this off the request path under a
+// recover shield.
+type copyMoveIndexObserver struct {
+	repos      repo.ClassReader
+	reindexers map[string]dirReindexer
+	log        *slog.Logger
+}
+
+// AfterCopyMove implements repo.CopyMoveObserver. op is OpCopy by the
+// seam's contract (§1.4: move and dry runs never fire it); the guard is
+// defensive, not a second opinion.
+func (o copyMoveIndexObserver) AfterCopyMove(ctx context.Context, op, targetRepo string, dirs []string) {
+	if op != repo.OpCopy || len(dirs) == 0 {
+		return
+	}
+	row, err := o.repos.Get(ctx, targetRepo)
+	if err != nil {
+		o.log.WarnContext(ctx, "binflow: copy index observer: target repository unreadable",
+			slog.String("repo", targetRepo), slog.String("error", err.Error()))
+		return
+	}
+	if row.Type != repo.TypeLocal {
+		return // the pipeline's precheck already refuses remote/virtual targets
+	}
+	rx, ok := o.reindexers[row.PackageType]
+	if !ok {
+		return // no derived index for this package type
+	}
+	if err := rx.ReindexDirs(ctx, repo.SystemPrincipal(), targetRepo, dirs); err != nil {
+		o.log.WarnContext(ctx, "binflow: copy-side index recompute failed",
+			slog.String("repo", targetRepo), slog.String("type", row.PackageType),
+			slog.String("error", err.Error()))
+	}
 }
 
 // openReplicationDB opens the replication store's own connection pool on
