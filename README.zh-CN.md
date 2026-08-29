@@ -42,7 +42,7 @@ service index 动态解析）；dual-write 链在 S3 停机窗 **fail-open**（�
 | 档位 | 包型 | 说明 |
 |---|---|---|
 | **community**（地板——不装 license 也有） | generic、docker、maven、npm、pypi | 五核心：M1~M9 全部能力 + 属性系统 |
-| **pro** | go、nuget、cargo（M10）· conan、helm、rpm、debian（M11）· 制品操作族 + 回收站功能槽（M12；trash 档位暂行） | 建仓/上传需 pro 及以上 license；license 失效后既有制品仍可读 |
+| **pro** | go、nuget、cargo（M10）· conan、helm、rpm、debian（M11）· helmoci、制品操作族 + 回收站功能槽（M12；trash 档位暂行） | 建仓/上传需 pro 及以上 license；license 失效后既有制品仍可读 |
 | **enterprise** | （功能槽位：ha、xray-integration） | 占位槽位；本体 M13+ |
 
 档位语义一句话：**读永不劫持**——license 缺失/过期只关闭建仓（400）与

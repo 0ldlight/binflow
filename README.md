@@ -28,7 +28,7 @@ M10 introduced the **license & add-on tier system** (community floor /
 pro / enterprise; gate on repo creation and write verbs, reads never
 held hostage) with go/nuget/cargo as the first gated package types plus
 the artifact-properties system. M11 widens the matrix to twelve package
-types (conan, helm, rpm, debian join at pro), adds the **runtime auth
+types (conan, helm, rpm, debian, helmoci join at pro), adds the **runtime auth
 configuration plane** (LDAP/OIDC/SAML editable in the console or over
 REST, effective on save — no restart), the standalone
 **`binstore.yaml` storage-chain file** (ordered provider chain with
@@ -55,7 +55,7 @@ chunked-upload REST plane took the full **Artifactory MPU shape**
 | Tier | Package types | Notes |
 |---|---|---|
 | **community** (floor — runs with no license at all) | generic, docker, maven, npm, pypi | The five core types: all M1–M9 capability, plus the properties system |
-| **pro** | go, nuget, cargo (M10) · conan, helm, rpm, debian (M11) · artifact-operations + trash-can feature slots (M12; trash tier provisional) | Repo creation and pushes require a pro-or-higher license; existing artifacts stay readable when a license lapses |
+| **pro** | go, nuget, cargo (M10) · conan, helm, rpm, debian (M11) · helmoci, artifact-operations + trash-can feature slots (M12; trash tier provisional) | Repo creation and pushes require a pro-or-higher license; existing artifacts stay readable when a license lapses |
 | **enterprise** | (feature slots: ha, xray-integration) | Placeholder slots; the bodies land in a later milestone (M13+) |
 
 Tier semantics in one line: **reads are never held hostage** — an expired or

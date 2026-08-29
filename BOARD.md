@@ -1022,6 +1022,8 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 （空）
 
 ## M12 票据（进度行）
+  - **M12 收官 2026-08-30 07:1x——终验（T-356）完成 + 全部收口项落定，`m12-done` tag + 里程碑 PR 随本轮执行**。终验判 FAIL→P1 双修（restore 观察者 + 18 槽断言 `bad76e9`）后全清；笔头批（cargo 409 文面/FR-113 AC5/五处文档漂移+ROADMAP M12 未纳入项）本轮 conductor 落盘。
+
   - **用户指令（2026-08-29 13:3x）**：「每个迭代都要更新文档站和README」——sprint 规程升级：每轮迭代若有用户可见面变更落地，README（双语）+ docs/user/ 对应页随轮更新（conductor 或当轮票内完成；无变更轮次报告留痕「无需更新」）。**M12 积压盘点**（T-328 后未同步的用户可见面）：操作族（copy/move/zip/archive!/explode+pro 门控）/Trash can/NuGet v2 全路由+v3 代理/dual-write fail-open 行为/UI 视觉升级四波——本轮即派 tech-writer 票清偿。
 
   - **UI 视觉升级四波全清 2026-08-29 12:5x**：T-344A 规范（PR #32）→ B 批 A 主题+壳（直合 `1b5d307`）→ C 批 B 基元（PR #36）→ D 批 C 页面域（PR #37）→ E 批 D 残面清扫（PR #38）——**base.css 983→443 行**，MUI 默认皮肤全面生效（用户「UI太丑」指令闭合）。conductor 终验：193 passed 零失败 + SPA 累计 +16.47%。遗留：.card/.field 域外余量单票 + smu-tabs 换装小票 + 规范三坑回写（Modal Esc/首焦二段式/回调 ref useCallback）。

@@ -121,7 +121,7 @@ curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/addons | jq
 # ]
 ```
 
-M10 装配 11 个槽位，M11 增至 15 个，**M12 增至 17 个**（`internal/addons/slots.go` 为单一事实源）：
+M10 装配 11 个槽位，M11 增至 15 个，**M12 增至 18 个**（`internal/addons/slots.go` 为单一事实源）：
 
 | addon id | 类型 | 名称 | 最低档位 | 说明 |
 |---|---|---|---|---|
@@ -143,7 +143,7 @@ M10 装配 11 个槽位，M11 增至 15 个，**M12 增至 17 个**（`internal/
 | `ha` | feature | High Availability | **enterprise** | 槽位占位（本体 M13+） |
 | `xray-integration` | feature | Xray Integration | **enterprise** | 槽位占位（本体 M13+） |
 
-档位 × 解锁数速查：community 6 槽（五核心 + properties）→ pro 15 槽（+七包型 + repo-operations/trashcan〔暂行〕）→ enterprise 17 槽（+ha/xray-integration）。
+档位 × 解锁数速查：community 6 槽（五核心 + properties）→ pro 16 槽（+七包型 + repo-operations/trashcan〔暂行〕+helmoci）→ enterprise 18 槽（+ha/xray-integration）。
 
 行内 `reason` 的三种锁定原因（呈现面字段，断言只对 `id`/`minTier`/`enabled`）：
 
