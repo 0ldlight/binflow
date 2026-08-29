@@ -1162,10 +1162,13 @@ func (pl *cmPipeline) assemble(ctx context.Context) *CopyMoveResult {
 		Detail: fmt.Sprintf(`{"src":%q,"artifacts":%d,"folders":%d,"dry":%t}`,
 			pl.cmRepoPath(pl.srcRepo, pl.srcPathDisplay()), pl.files, pl.folders, pl.dry),
 	})
-	if pl.op == OpCopy && !pl.dry && !pl.system && len(pl.landedFD) > 0 {
-		// Internal runs (SystemIdentity — the trash capture) never fire the
-		// copy observer: the system repository's content feeds no protocol
-		// index, and an observer must not be aimed at it.
+	if pl.op == OpCopy && !pl.dry && len(pl.landedFD) > 0 && !(pl.system && pl.tgtRepo == TrashRepoKey) {
+		// Internal runs (SystemIdentity) fire the copy observer ONLY when
+		// the landing target is NOT the system repository: the trash
+		// capture writes into auto-trashcan and must not aim an observer
+		// at it, but a RESTORE (system identity, target outside the system
+		// repo) lands real user content and its protocol index must be
+		// recomputed — T-356's D-356-1, the L16 arm.
 		pl.svc.notifyCopyObservers(ctx, pl.tgtRepo, pl.landedFD)
 	}
 	return out
