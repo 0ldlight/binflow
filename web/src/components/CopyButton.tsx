@@ -1,7 +1,15 @@
 import { useState } from 'react'
+import IconButton from '@mui/material/IconButton'
+import Tooltip from '@mui/material/Tooltip'
 
 // 一键拷贝（P2：一切标识符可复制；mono 值 = 拷贝候选）。拷贝的是
 // 完整值——展示可以截断，拷贝不许截断（console-ux §7.3）。
+// T-344 批 B：button.copy-btn 文字钮 → MUI IconButton + Tooltip（复制态
+// 由 Tooltip「已复制」+ success 色 + ✓ 字形三重反馈承载）；aria-label
+// 纪律不变（§8：`复制 <对象描述>`——e2e 定位契约）。
+// `copy-btn` 类名保留：repositories.spec:104 以 `.copy-btn` 类定位行内
+// 拷贝钮（spec 类钩子纪律）；同名 CSS 是 AppShell/SearchPage 的「清除
+// 历史」小文字钮在用（mui-native-visual §3.2 该行的实际退役时点后移）。
 
 export function CopyButton({ value, label }: { value: string; label: string }) {
   const [done, setDone] = useState(false)
@@ -25,14 +33,18 @@ export function CopyButton({ value, label }: { value: string; label: string }) {
   }
 
   return (
-    <button
-      type="button"
-      className="copy-btn mono"
-      aria-label={`复制 ${label}`}
-      title={`复制 ${label}`}
-      onClick={() => void copy()}
-    >
-      {done ? '已复制' : '⧉'}
-    </button>
+    <Tooltip title={done ? '已复制' : `复制 ${label}`}>
+      <IconButton
+        className="copy-btn"
+        size="small"
+        aria-label={`复制 ${label}`}
+        color={done ? 'success' : 'default'}
+        onClick={() => void copy()}
+      >
+        <span aria-hidden="true" className="mono" style={{ fontSize: 13 }}>
+          {done ? '✓' : '⧉'}
+        </span>
+      </IconButton>
+    </Tooltip>
   )
 }

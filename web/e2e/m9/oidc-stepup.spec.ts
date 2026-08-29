@@ -148,6 +148,8 @@ test('oidc step-up (mock): required -> re-auth guide (no password form); fragmen
   await expect(reauth).toBeVisible()
   await expect(page.locator('[data-testid="smu-stepup"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="smu-password"]')).toHaveCount(0)
+  // T-344C：MUI Dialog 入场 Fade 中途采样会把半透明栈算进对比度（假阳性）
+  await expect(page.locator('[data-testid="smu-dialog"]')).toHaveCSS('opacity', '1')
   await expectA11yClean(page, testInfo, { include: '[data-testid="smu-dialog"]' })
 
   // ⑤ 发起：pending-mint 落 sessionStorage（上下文含 repo；grant 值绝不入）
