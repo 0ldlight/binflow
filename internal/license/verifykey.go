@@ -33,7 +33,7 @@ const EmbeddedVerifyKeyID = "bf-lic-2026"
 // seam above absorbs the rotation. Tests NEVER touch this key: they inject
 // their own key pairs through the Manager constructor / VerifyDocument
 // (the ADR-mandated seam — no build tags, no edits to this file).
-const embeddedVerifyKeyHex = "8065b3abc22b8e11b7b58d43140d5470c352816633a2c880e74d5b8913665e00"
+const embeddedVerifyKeyHex = "9e4449a785bbfccb1243ac8417c87c704c5acd4644a718a0dac269a1fa44b9dc"
 
 // EmbeddedVerifyKeys returns the production verify-key table (kid -> public
 // key). The map is rebuilt per call and belongs to the caller; assembly

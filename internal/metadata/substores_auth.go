@@ -274,9 +274,9 @@ func (s *userStore) List(ctx context.Context) ([]*User, error) {
 type tokenStore struct{ db *sql.DB }
 
 func (s *tokenStore) Create(ctx context.Context, t *Token) (int64, error) {
-	const stmt = `INSERT INTO tokens (username, token_sha256, expires_at, created_at, last_used_at)
-		VALUES (?, ?, ?, ?, ?)`
-	res, err := s.db.ExecContext(ctx, stmt, t.Username, t.TokenSHA256, t.ExpiresAt, t.CreatedAt, t.LastUsedAt)
+	const stmt = `INSERT INTO tokens (username, token_sha256, expires_at, created_at, last_used_at, deploy_scope)
+		VALUES (?, ?, ?, ?, ?, ?)`
+	res, err := s.db.ExecContext(ctx, stmt, t.Username, t.TokenSHA256, t.ExpiresAt, t.CreatedAt, t.LastUsedAt, t.DeployScope)
 	if err != nil {
 		return 0, wrapExec("tokens create", t.Username, err)
 	}
@@ -288,20 +288,20 @@ func (s *tokenStore) Create(ctx context.Context, t *Token) (int64, error) {
 }
 
 func (s *tokenStore) Get(ctx context.Context, id int64) (*Token, error) {
-	const stmt = `SELECT id, username, token_sha256, expires_at, created_at, last_used_at
+	const stmt = `SELECT id, username, token_sha256, expires_at, created_at, last_used_at, deploy_scope
 		FROM tokens WHERE id = ?`
 	return scanToken(s.db.QueryRowContext(ctx, stmt, id), "id")
 }
 
 func (s *tokenStore) GetBySHA256(ctx context.Context, sha256 string) (*Token, error) {
-	const stmt = `SELECT id, username, token_sha256, expires_at, created_at, last_used_at
+	const stmt = `SELECT id, username, token_sha256, expires_at, created_at, last_used_at, deploy_scope
 		FROM tokens WHERE token_sha256 = ?`
 	return scanToken(s.db.QueryRowContext(ctx, stmt, sha256), sha256)
 }
 
 func scanToken(row *sql.Row, key string) (*Token, error) {
 	t := &Token{}
-	err := row.Scan(&t.ID, &t.Username, &t.TokenSHA256, &t.ExpiresAt, &t.CreatedAt, &t.LastUsedAt)
+	err := row.Scan(&t.ID, &t.Username, &t.TokenSHA256, &t.ExpiresAt, &t.CreatedAt, &t.LastUsedAt, &t.DeployScope)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("tokens get %s: %w", key, ErrTokenNotFound)
 	}

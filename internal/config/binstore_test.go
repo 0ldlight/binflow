@@ -688,10 +688,13 @@ func TestBinstoreDiscoveryNextToMain(t *testing.T) {
 	}
 }
 
-// TestApplyBinstoreForDefaultBoot: the no-main-config boot still discovers
+// TestBuildDefaultConfig: the no-main-config boot still discovers
 // binstore.yaml through the main config's own resolution order
-// (./binstore.yaml, then $BINFLOW_HOME/binstore.yaml).
-func TestApplyBinstoreForDefaultBoot(t *testing.T) {
+// (./binstore.yaml, then $BINFLOW_HOME/binstore.yaml), and — since T-349
+// (FR-113.5) — the discovery PRECEDES the env-chain validation: a present
+// file owns the chain and its own errors, while an absent one leaves the
+// env-only chain set to Validate's fail-fast.
+func TestBuildDefaultConfig(t *testing.T) {
 	t.Run("cwd binstore wins", func(t *testing.T) {
 		dir := t.TempDir()
 		if err := os.WriteFile(filepath.Join(dir, BinstoreFileName),
@@ -699,9 +702,9 @@ func TestApplyBinstoreForDefaultBoot(t *testing.T) {
 			t.Fatalf("writing binstore: %v", err)
 		}
 		t.Chdir(dir)
-		cfg := Defaults()
-		if err := ApplyBinstoreForDefaultBoot(cfg, ""); err != nil {
-			t.Fatalf("ApplyBinstoreForDefaultBoot: %v", err)
+		cfg, err := BuildDefaultConfig("")
+		if err != nil {
+			t.Fatalf("BuildDefaultConfig: %v", err)
 		}
 		if cfg.Storage.Backend != StorageBackendDisk {
 			t.Errorf("backend = %q, want disk", cfg.Storage.Backend)
@@ -718,9 +721,9 @@ func TestApplyBinstoreForDefaultBoot(t *testing.T) {
 			[]byte("version: 1\nchain:\n  - type: filestore\n"), 0o600); err != nil {
 			t.Fatalf("writing binstore: %v", err)
 		}
-		cfg := Defaults()
-		if err := ApplyBinstoreForDefaultBoot(cfg, home); err != nil {
-			t.Fatalf("ApplyBinstoreForDefaultBoot: %v", err)
+		cfg, err := BuildDefaultConfig(home)
+		if err != nil {
+			t.Fatalf("BuildDefaultConfig: %v", err)
 		}
 		want := filepath.Join(home, BinstoreFileName)
 		if cfg.Storage.Chain.Source != want {
@@ -731,12 +734,105 @@ func TestApplyBinstoreForDefaultBoot(t *testing.T) {
 	t.Run("absent boots unchanged with env hint", func(t *testing.T) {
 		t.Chdir(t.TempDir())
 		t.Setenv("BINFLOW_STORAGE__BACKEND", "disk")
-		cfg := Defaults()
-		if err := ApplyBinstoreForDefaultBoot(cfg, ""); err != nil {
-			t.Fatalf("ApplyBinstoreForDefaultBoot: %v", err)
+		cfg, err := BuildDefaultConfig("")
+		if err != nil {
+			t.Fatalf("BuildDefaultConfig: %v", err)
 		}
 		if !hasWarningContaining(cfg, "compatibility window") {
 			t.Errorf("missing the env-spelled branch-① hint, warnings = %v", cfg.StartupWarnings)
+		}
+	})
+
+	// T-349 / FR-113.5 AC5: with no binstore.yaml anywhere, an incomplete
+	// S3 env group refuses the boot AT LOAD TIME, naming the missing key.
+	t.Run("absent + incomplete s3 env refuses naming the key", func(t *testing.T) {
+		t.Chdir(t.TempDir())
+		t.Setenv("BINFLOW_STORAGE__BACKEND", "s3")
+		t.Setenv("BINFLOW_STORAGE__S3__BUCKET", "bkt")
+		t.Setenv("BINFLOW_STORAGE__S3__REGION", "us-east-1")
+		t.Setenv("BINFLOW_STORAGE__S3__ENDPOINT", "http://127.0.0.1:9000")
+		t.Setenv(S3SecretEnvVar, "secret")
+		// BINFLOW_STORAGE__S3__ACCESS_KEY_ID deliberately unset.
+		_, err := BuildDefaultConfig("")
+		if err == nil {
+			t.Fatal("incomplete s3 env group booted, want the fail-fast refusal")
+		}
+		if !strings.Contains(err.Error(), "storage.s3.access_key_id is required when backend=s3") {
+			t.Errorf("refusal %q does not name the missing key", err)
+		}
+	})
+
+	// The T-325-registered inconsistency, closed: a PRESENT binstore.yaml
+	// owns the chain, so the same incomplete env set is ignored + warned
+	// (complete sets always were) instead of killing the boot — and the
+	// file's own missing-parameter refusal fires through the final
+	// Validate, exactly like the embedded spelling always did.
+	t.Run("binstore owns chain; incomplete env ignored + warned", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, BinstoreFileName),
+			[]byte("version: 1\nchain:\n  - type: filestore\n"), 0o600); err != nil {
+			t.Fatalf("writing binstore: %v", err)
+		}
+		t.Chdir(dir)
+		t.Setenv("BINFLOW_STORAGE__BACKEND", "s3")
+		t.Setenv("BINFLOW_STORAGE__S3__BUCKET", "bkt")
+		t.Setenv(S3SecretEnvVar, "secret")
+		cfg, err := BuildDefaultConfig("")
+		if err != nil {
+			t.Fatalf("incomplete env chain set must not refuse when binstore.yaml owns the chain: %v", err)
+		}
+		if cfg.Storage.Backend != StorageBackendDisk {
+			t.Errorf("backend = %q, want the file's disk", cfg.Storage.Backend)
+		}
+		if !hasWarningContaining(cfg, "BINFLOW_STORAGE__BACKEND is set but ignored") {
+			t.Errorf("missing the ignored-env warning, warnings = %v", cfg.StartupWarnings)
+		}
+	})
+
+	// The order pin (FR-113.5's 时序断言, as-built direction): a BROKEN
+	// binstore.yaml and an incomplete env chain set in the same boot —
+	// the file's own error wins, the env-spelled missing-secret complaint
+	// never fires. The file owns the chain, so the file's diagnostics own
+	// the boot.
+	t.Run("broken binstore error outranks the env refusal", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, BinstoreFileName),
+			[]byte("version: 1\nchain:\n  - type: cache-fs\n"), 0o600); err != nil {
+			t.Fatalf("writing binstore: %v", err)
+		}
+		t.Chdir(dir)
+		t.Setenv("BINFLOW_STORAGE__BACKEND", "s3")
+		t.Setenv("BINFLOW_STORAGE__S3__BUCKET", "bkt")
+		t.Setenv(S3SecretEnvVar, "secret")
+		_, err := BuildDefaultConfig("")
+		if err == nil {
+			t.Fatal("broken binstore.yaml must refuse the boot")
+		}
+		if !strings.Contains(err.Error(), "cache-fs") || !strings.Contains(err.Error(), "reserved") {
+			t.Errorf("refusal %q is not the binstore.yaml error", err)
+		}
+		if strings.Contains(err.Error(), "access_key_id") {
+			t.Errorf("refusal %q leaks the env-spelled complaint the file outranks", err)
+		}
+	})
+
+	// The file owning the chain does NOT immunize a bad file-shaped chain:
+	// an [s3] binstore.yaml with missing parameters refuses through the
+	// final Validate — the binstore-semantic error, not an env one.
+	t.Run("s3 binstore missing parameters refuses binstore-semantically", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, BinstoreFileName),
+			[]byte("version: 1\nchain:\n  - type: s3\n    bucket: bkt\n"), 0o600); err != nil {
+			t.Fatalf("writing binstore: %v", err)
+		}
+		t.Chdir(dir)
+		t.Setenv(S3SecretEnvVar, "secret")
+		_, err := BuildDefaultConfig("")
+		if err == nil {
+			t.Fatal("s3 binstore.yaml without region/endpoint/access_key_id must refuse")
+		}
+		if !strings.Contains(err.Error(), "storage.s3.") {
+			t.Errorf("refusal %q does not name the s3 key", err)
 		}
 	})
 }

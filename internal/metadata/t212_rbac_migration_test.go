@@ -48,6 +48,7 @@ func rewindToPreRBAC(t *testing.T, db *sql.DB) {
 		`ALTER TABLE remote_configs DROP COLUMN socket_timeout_ms`,
 		`ALTER TABLE remote_configs DROP COLUMN metadata_retrieval_timeout_secs`,
 		`ALTER TABLE remote_configs DROP COLUMN unused_cleanup_period_hours`,
+		`ALTER TABLE tokens DROP COLUMN deploy_scope`, // 017 (T-349): the narrow-scope column
 	} {
 		if _, err := db.Exec(stmt); err != nil {
 			t.Fatalf("rewind (%q): %v", stmt, err)

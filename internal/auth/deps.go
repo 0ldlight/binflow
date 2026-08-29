@@ -138,6 +138,7 @@ func (a tokenStoreAdapter) Create(ctx context.Context, t token) (int64, error) {
 	return a.s.Create(ctx, &metadata.Token{
 		Username: t.Username, TokenSHA256: t.TokenSHA256,
 		ExpiresAt: t.ExpiresAt, CreatedAt: t.CreatedAt, LastUsedAt: t.LastUsedAt,
+		DeployScope: t.DeployScope,
 	})
 }
 
@@ -152,6 +153,7 @@ func (a tokenStoreAdapter) GetBySHA256(ctx context.Context, sha256 string) (toke
 	return token{
 		ID: t.ID, Username: t.Username, TokenSHA256: t.TokenSHA256,
 		ExpiresAt: t.ExpiresAt, CreatedAt: t.CreatedAt, LastUsedAt: t.LastUsedAt,
+		DeployScope: t.DeployScope,
 	}, nil
 }
 

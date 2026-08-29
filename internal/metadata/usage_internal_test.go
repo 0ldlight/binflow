@@ -87,6 +87,8 @@ func TestUsageBackfillMigration(t *testing.T) {
 		`ALTER TABLE remote_configs DROP COLUMN socket_timeout_ms`,
 		`ALTER TABLE remote_configs DROP COLUMN metadata_retrieval_timeout_secs`,
 		`ALTER TABLE remote_configs DROP COLUMN unused_cleanup_period_hours`,
+		// 017 (T-349): same ALTER family — tokens.deploy_scope leaves too.
+		`ALTER TABLE tokens DROP COLUMN deploy_scope`,
 	} {
 		if _, err := db.Exec(stmt); err != nil {
 			t.Fatalf("rewind (%q): %v", stmt, err)
