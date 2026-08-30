@@ -44,6 +44,45 @@ type Store interface {
 	// ListDeliveries returns the outbox rows of one subscription, newest
 	// first (the console's "recent deliveries" window and AC assertions).
 	ListDeliveries(ctx context.Context, subscriptionID string, limit int) ([]*Delivery, error)
+
+	// ---- the dispatcher seams (T-364, ADR-0041 decision 4) ----
+	// The dispatcher owns every status transition past T-362's pending
+	// inserts; each method below is one transition, spelled so a caller
+	// cannot express an illegal one.
+
+	// GetSubscriptionByID resolves the delivery target by row id (the
+	// outbox carries subscription_id, not key); a miss answers ErrNotFound.
+	GetSubscriptionByID(ctx context.Context, id string) (*Subscription, error)
+	// GetDelivery reads one outbox row; a miss answers ErrNotFound.
+	GetDelivery(ctx context.Context, id string) (*Delivery, error)
+	// ClaimDueDelivery atomically moves ONE due pending row to delivering
+	// (attempts+1 — the interrupted-attempt-stays-counted posture) and
+	// returns it. nil, nil when nothing is due: the worker then parks on
+	// its poll timer or the wake signal. The claim is a compare-and-set
+	// that re-asserts BOTH queue predicates (status pending AND the row
+	// still due at `now`), so concurrent workers can never share a row
+	// and a row whose retry moved into the future mid-scan cannot be
+	// claimed early.
+	ClaimDueDelivery(ctx context.Context, now string) (*Delivery, error)
+	// SweepDelivering reverts every delivering row to pending at startup
+	// (attempts preserved — kill -9 mid-attempt recovery, the ADR's
+	// decision 4 sweep) and answers how many rows it recovered.
+	SweepDelivering(ctx context.Context) (int64, error)
+	// MarkDelivered lands the terminal success: status delivered,
+	// delivered_at stamped, last_error cleared.
+	MarkDelivered(ctx context.Context, id string, attempts int64, deliveredAt string, statusCode int64) error
+	// ScheduleRetry returns a failed row to pending with next_attempt_at
+	// set (the fixed retryWait interval — webhook.md 5.2 has no backoff
+	// curve) and the attempt's observability columns recorded.
+	ScheduleRetry(ctx context.Context, id string, attempts int64, nextAttemptAt, lastError string, statusCode *int64) error
+	// MarkDead lands the terminal abandonment (4xx/3xx answer, or the
+	// retry budget exhausted): status dead — queryable, replayable, and
+	// only ever removed by replay or the subscription's cascade.
+	MarkDead(ctx context.Context, id string, attempts int64, lastError string, statusCode *int64) error
+	// ReplayDelivery resets one dead row to pending (attempts zeroed,
+	// next_attempt_at = now) — the ADR decision 4 replay face. A missing
+	// row answers ErrNotFound; a row that is not dead answers ErrNotDead.
+	ReplayDelivery(ctx context.Context, id, nextAttemptAt string) error
 }
 
 // SQLiteStore is the SQLite implementation over the 018 tables.
@@ -326,8 +365,8 @@ func (s *SQLiteStore) ListDeliveries(ctx context.Context, subscriptionID string,
 	if limit <= 0 {
 		limit = 50
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT id, subscription_id, event_type, payload, status,
-		attempts, next_attempt_at, last_error, last_status_code, created_at, delivered_at
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT `+deliveryColumns+`
 		FROM webhook_deliveries WHERE subscription_id = ? ORDER BY created_at DESC, id DESC LIMIT ?`,
 		subscriptionID, limit)
 	if err != nil {
@@ -336,24 +375,206 @@ func (s *SQLiteStore) ListDeliveries(ctx context.Context, subscriptionID string,
 	defer func() { _ = rows.Close() }()
 	var out []*Delivery
 	for rows.Next() {
-		d := &Delivery{}
-		var lastStatus sql.NullInt64
-		var delivered sql.NullString
-		if err := rows.Scan(&d.ID, &d.SubscriptionID, &d.EventType, &d.Payload, &d.Status,
-			&d.Attempts, &d.NextAttemptAt, &d.LastError, &lastStatus, &d.CreatedAt, &delivered); err != nil {
+		d, err := scanDelivery(rows)
+		if err != nil {
 			return nil, wrapStoreErr("list deliveries scan", subscriptionID, err)
-		}
-		if lastStatus.Valid {
-			v := lastStatus.Int64
-			d.LastStatusCode = &v
-		}
-		if delivered.Valid {
-			v := delivered.String
-			d.DeliveredAt = &v
 		}
 		out = append(out, d)
 	}
 	return out, wrapStoreErr("list deliveries rows", subscriptionID, rows.Err())
+}
+
+// ---- the dispatcher seams ----
+
+// claimCandidates bounds the candidate scan one claim examines: a small
+// window past the queue index, so a worker that loses every race to peers
+// simply reports "nothing due" and the next poll retries.
+const claimCandidates = 16
+
+// GetSubscriptionByID implements Store.
+func (s *SQLiteStore) GetSubscriptionByID(ctx context.Context, id string) (*Subscription, error) {
+	row := s.db.QueryRowContext(ctx,
+		`SELECT `+subColumns+` FROM webhook_subscriptions WHERE id = ?`, id)
+	sub, err := scanSubscription(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("webhook: get subscription %s: %w", id, ErrNotFound)
+	}
+	if err != nil {
+		return nil, wrapStoreErr("get subscription", id, err)
+	}
+	if sub.EventTypes, err = s.loadEventTypes(ctx, sub.ID); err != nil {
+		return nil, err
+	}
+	return sub, nil
+}
+
+// deliveryColumns is the outbox row projection every delivery read shares.
+const deliveryColumns = `id, subscription_id, event_type, payload, status, attempts,
+	next_attempt_at, last_error, last_status_code, created_at, delivered_at`
+
+// scanDelivery reads one outbox row off the narrow Scan seam.
+func scanDelivery(row interface{ Scan(...any) error }) (*Delivery, error) {
+	d := &Delivery{}
+	var lastStatus sql.NullInt64
+	var delivered sql.NullString
+	if err := row.Scan(&d.ID, &d.SubscriptionID, &d.EventType, &d.Payload, &d.Status,
+		&d.Attempts, &d.NextAttemptAt, &d.LastError, &lastStatus, &d.CreatedAt, &delivered); err != nil {
+		return nil, err
+	}
+	if lastStatus.Valid {
+		v := lastStatus.Int64
+		d.LastStatusCode = &v
+	}
+	if delivered.Valid {
+		v := delivered.String
+		d.DeliveredAt = &v
+	}
+	return d, nil
+}
+
+// GetDelivery implements Store.
+func (s *SQLiteStore) GetDelivery(ctx context.Context, id string) (*Delivery, error) {
+	row := s.db.QueryRowContext(ctx,
+		`SELECT `+deliveryColumns+` FROM webhook_deliveries WHERE id = ?`, id)
+	d, err := scanDelivery(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("webhook: get delivery %s: %w", id, ErrNotFound)
+	}
+	if err != nil {
+		return nil, wrapStoreErr("get delivery", id, err)
+	}
+	return d, nil
+}
+
+// ClaimDueDelivery implements Store: scan a due-candidate window over the
+// queue index, then compare-and-set each candidate pending->delivering
+// (attempts+1 in the same statement, so the attempt count can never drift
+// from the claim). The CAS re-asserts BOTH queue predicates — status AND
+// the due stamp: between a peer's scan and its CAS, a row can complete a
+// whole failed attempt and come back pending with a FUTURE next_attempt_at
+// (the fixed retry interval), and a claim that only re-checked status
+// would fire that retry immediately, collapsing the interval to the
+// scan-to-CAS gap. Re-asserting `next_attempt_at <= now` inside the UPDATE
+// makes the due-ness decision atomic with the claim; a CAS that loses
+// either predicate leaves RowsAffected zero and this loop moves on.
+func (s *SQLiteStore) ClaimDueDelivery(ctx context.Context, now string) (*Delivery, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id FROM webhook_deliveries
+		 WHERE status = ? AND next_attempt_at <= ?
+		 ORDER BY next_attempt_at, created_at, id LIMIT ?`,
+		StatusPending, now, claimCandidates)
+	if err != nil {
+		return nil, wrapStoreErr("claim scan", "", err)
+	}
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			_ = rows.Close()
+			return nil, wrapStoreErr("claim scan rows", "", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, wrapStoreErr("claim scan iter", "", err)
+	}
+	_ = rows.Close()
+	for _, id := range ids {
+		res, err := s.db.ExecContext(ctx,
+			`UPDATE webhook_deliveries SET status = ?, attempts = attempts + 1
+			 WHERE id = ? AND status = ? AND next_attempt_at <= ?`,
+			StatusDelivering, id, StatusPending, now)
+		if err != nil {
+			return nil, wrapStoreErr("claim", id, err)
+		}
+		if n, err := res.RowsAffected(); err != nil {
+			return nil, wrapStoreErr("claim rows", id, err)
+		} else if n == 1 {
+			return s.GetDelivery(ctx, id)
+		}
+		// Lost the race to a peer worker (or the row's due stamp moved
+		// into the future mid-scan): try the next candidate.
+	}
+	return nil, nil
+}
+
+// SweepDelivering implements Store: the startup recovery pass. next_attempt_at
+// is left untouched — every delivering row got there by being due, so the
+// reverted row is immediately claimable again.
+func (s *SQLiteStore) SweepDelivering(ctx context.Context) (int64, error) {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE webhook_deliveries SET status = ? WHERE status = ?`, StatusPending, StatusDelivering)
+	if err != nil {
+		return 0, wrapStoreErr("sweep delivering", "", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, wrapStoreErr("sweep delivering rows", "", err)
+	}
+	return n, nil
+}
+
+// MarkDelivered implements Store.
+func (s *SQLiteStore) MarkDelivered(ctx context.Context, id string, attempts int64, deliveredAt string, statusCode int64) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE webhook_deliveries SET status = ?, attempts = ?, delivered_at = ?, last_error = '', last_status_code = ?
+		 WHERE id = ?`, StatusDelivered, attempts, deliveredAt, statusCode, id)
+	if err != nil {
+		return wrapStoreErr("mark delivered", id, err)
+	}
+	return nil
+}
+
+// ScheduleRetry implements Store.
+func (s *SQLiteStore) ScheduleRetry(ctx context.Context, id string, attempts int64, nextAttemptAt, lastError string, statusCode *int64) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE webhook_deliveries SET status = ?, attempts = ?, next_attempt_at = ?, last_error = ?, last_status_code = ?
+		 WHERE id = ?`, StatusPending, attempts, nextAttemptAt, lastError, nullInt64(statusCode), id)
+	if err != nil {
+		return wrapStoreErr("schedule retry", id, err)
+	}
+	return nil
+}
+
+// MarkDead implements Store.
+func (s *SQLiteStore) MarkDead(ctx context.Context, id string, attempts int64, lastError string, statusCode *int64) error {
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE webhook_deliveries SET status = ?, attempts = ?, last_error = ?, last_status_code = ?
+		 WHERE id = ?`, StatusDead, attempts, lastError, nullInt64(statusCode), id)
+	if err != nil {
+		return wrapStoreErr("mark dead", id, err)
+	}
+	return nil
+}
+
+// ReplayDelivery implements Store.
+func (s *SQLiteStore) ReplayDelivery(ctx context.Context, id, nextAttemptAt string) error {
+	res, err := s.db.ExecContext(ctx,
+		`UPDATE webhook_deliveries SET status = ?, attempts = 0, next_attempt_at = ?, last_error = ''
+		 WHERE id = ? AND status = ?`, StatusPending, nextAttemptAt, id, StatusDead)
+	if err != nil {
+		return wrapStoreErr("replay", id, err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return wrapStoreErr("replay rows", id, err)
+	}
+	if n == 1 {
+		return nil
+	}
+	if _, gerr := s.GetDelivery(ctx, id); gerr != nil {
+		return gerr // the row does not exist at all
+	}
+	return fmt.Errorf("webhook: replay %s: %w", id, ErrNotDead)
+}
+
+// nullInt64 renders the optional status-code column value.
+func nullInt64(v *int64) any {
+	if v == nil {
+		return nil
+	}
+	return *v
 }
 
 // boolToInt maps the dialect's boolean convention.

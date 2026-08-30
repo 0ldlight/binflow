@@ -102,6 +102,10 @@ var (
 	// ErrNoCipher marks a secret-bearing write with no master key
 	// configured (the enc:v1 POSTURE arm — ADR-0041 decision 5).
 	ErrNoCipher = errors.New("webhook: secret provided but no master key is configured")
+	// ErrNotDead marks a replay of an outbox row whose status is not dead
+	// (T-364: only dead rows replay — pending/delivering/delivered are
+	// already live or finished).
+	ErrNotDead = errors.New("webhook: delivery is not dead")
 )
 
 // validationError carries the 400 message.

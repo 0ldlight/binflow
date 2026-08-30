@@ -23,6 +23,7 @@ type attemptResult struct {
 	Error           string `json:"error,omitempty"`
 	responseBody    string
 	responseHeaders http.Header
+	requestHeaders  http.Header
 }
 
 // TestOutcome is POST /subscriptions/test's answer: the attempt always
@@ -83,7 +84,17 @@ type TroubleshootQuery struct {
 	Count        int   // 0 = default 100
 }
 
-const ringCapacity = 1000
+// The troubleshooting ring's bounds (webhook.md section 7's Redis shape,
+// BinFlow's in-process equivalent — the T-364 anchor): streamMaxLen 10000
+// records kept by a janitor that runs every cleanupIntervalMillis 30000
+// and trims the oldest overflow. Between janitor runs the ring may grow
+// past the target (the official stream does too); ringHardCap is the
+// memory-safety ceiling the append path enforces itself so a runaway
+// burst between ticks cannot grow the ring without bound.
+const (
+	ringCapacity = 10000
+	ringHardCap  = 2 * ringCapacity
+)
 
 // Create validates-and-persists one subscription (the POST arm). The
 // request must already be parsed (ParseSubscriptionRequest); this method
@@ -253,7 +264,7 @@ func (b *Bus) Test(ctx context.Context, req *SubscriptionRequest, actor Actor) (
 		}
 	}
 	attempt := b.sendAttempt(ctx, &handler, payload, secret)
-	b.recordTroubleshooting(ev, &handler, payload, attempt, *req.Debug)
+	b.recordAttempt(&handler, payload, attempt, 0, *req.Debug)
 	out := &TestOutcome{Attempt: *attempt, OK: attempt.StatusCode >= 200 && attempt.StatusCode < 300}
 	if out.OK {
 		out.Message = "Test successful"
@@ -302,20 +313,28 @@ func syntheticEvent(domain, eventType, key string, actor Actor) Event {
 	return ev
 }
 
-// recordTroubleshooting appends one record under the §7 retention rules:
-// failures always, successes only when the subscription runs debug=true.
-func (b *Bus) recordTroubleshooting(ev Event, h *Handler, payload []byte, attempt *attemptResult, debug bool) {
+// recordAttempt appends one record under the §7 retention rules: failures
+// always, successes only when the subscription runs debug=true. The record
+// is derived from the STORED payload (the envelope snapshot is the wire
+// truth — domain/event_type/data/subscription_key/source all come off the
+// bytes that were sent), and retries carries the §7 retries_attempted
+// observable (attempts beyond the first; zero on the test path's single
+// shot).
+func (b *Bus) recordAttempt(h *Handler, payload []byte, attempt *attemptResult, retries int, debug bool) {
 	if attempt.Error == "" && !debug {
 		return // success without debug: not recorded
 	}
+	var env envelope
+	_ = json.Unmarshal(payload, &env) // the snapshot was marshaled from this shape
 	rec := TroubleshootingRecord{
 		Timestamp:     b.now().UnixMilli(),
 		ElapsedMillis: attempt.ElapsedMillis,
 		Request: recordRequest{
-			Method:  methodOf(h),
-			URL:     h.URL,
-			Headers: http.Header{},
-			Payload: string(payload),
+			Method:           methodOf(h),
+			URL:              h.URL,
+			Headers:          redactedRequestHeaders(attempt.requestHeaders),
+			Payload:          string(payload),
+			RetriesAttempted: retries,
 		},
 		Response: recordResponse{
 			Status:  attempt.StatusCode,
@@ -324,12 +343,15 @@ func (b *Bus) recordTroubleshooting(ev Event, h *Handler, payload []byte, attemp
 		},
 		Event: recordEvent{
 			ID:              newULID(b.now()),
-			SubscriptionKey: evSubscriptionKey(payload),
-			Domain:          ev.Domain,
-			EventType:       ev.Type,
-			Data:            dataFor(ev),
-			Source:          b.source,
+			SubscriptionKey: env.SubscriptionKey,
+			Domain:          env.Domain,
+			EventType:       env.EventType,
+			Data:            env.Data,
+			Source:          env.Source,
 		},
+	}
+	if rec.Event.Source == "" {
+		rec.Event.Source = b.source
 	}
 	if attempt.Error != "" {
 		rec.Errors = []string{attempt.Error}
@@ -337,8 +359,36 @@ func (b *Bus) recordTroubleshooting(ev Event, h *Handler, payload []byte, attemp
 	b.ringMu.Lock()
 	defer b.ringMu.Unlock()
 	b.ring = append(b.ring, rec)
+	if len(b.ring) > ringHardCap {
+		b.ring = append([]TroubleshootingRecord(nil), b.ring[len(b.ring)-ringHardCap:]...)
+	}
+}
+
+// redactedRequestHeaders copies the sent request headers with the auth
+// header's value masked: the troubleshooting record must be safe to serve
+// over REST (webhook.md section 7) while the secret never leaves the
+// process (NFR-S66 — not in logs, not in audit, not in records).
+func redactedRequestHeaders(h http.Header) http.Header {
+	out := http.Header{}
+	for name, vals := range h {
+		if strings.EqualFold(name, EventAuthHeader) {
+			out[name] = []string{secretSentinel}
+			continue
+		}
+		out[name] = append([]string(nil), vals...)
+	}
+	return out
+}
+
+// trimTroubleshooting is the record ring's janitor (the dispatcher runs it
+// on the 30s cleanup interval — webhook.md section 7's
+// cleanupIntervalMillis equivalent): trim the oldest overflow down to the
+// streamMaxLen-shaped target.
+func (b *Bus) trimTroubleshooting() {
+	b.ringMu.Lock()
+	defer b.ringMu.Unlock()
 	if len(b.ring) > ringCapacity {
-		b.ring = b.ring[len(b.ring)-ringCapacity:]
+		b.ring = append([]TroubleshootingRecord(nil), b.ring[len(b.ring)-ringCapacity:]...)
 	}
 }
 
@@ -347,18 +397,6 @@ func methodOf(h *Handler) string {
 		return h.Method
 	}
 	return http.MethodPost
-}
-
-// evSubscriptionKey recovers the subscription key off the rendered
-// envelope (the test path's snapshot).
-func evSubscriptionKey(payload []byte) string {
-	var probe struct {
-		SubscriptionKey string `json:"subscription_key"`
-	}
-	if err := json.Unmarshal(payload, &probe); err == nil {
-		return probe.SubscriptionKey
-	}
-	return ""
 }
 
 // Troubleshooting reads the record ring under the query filters.

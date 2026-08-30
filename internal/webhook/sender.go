@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"strings"
 	"text/template"
-	"time"
 )
 
 // The outbound send path (ADR-0041 decisions 2 and 6): one attempt, over
@@ -102,22 +101,27 @@ func (b *Bus) sendAttempt(ctx context.Context, h *Handler, payload []byte, secre
 	}
 	res.responseBody = string(snippet)
 	res.responseHeaders = resp.Header.Clone()
+	res.requestHeaders = req.Header.Clone()
 	done()
 	return res
 }
 
 // client is the no-follow, guarded transport (rebuilt per attempt — the
-// transport is cheap and the Guard's dial closure is stateless).
+// transport is cheap and the Guard's dial closure is stateless). The
+// client Timeout is the whole-request bound of webhook.md 5.2's
+// timeoutMillis (connection + exchange + body read); since T-364 it is
+// the configurable attempt timeout (official default 30s), not the
+// interim 10s the ADR sketched before the anchor backfill.
 func (b *Bus) client() *http.Client {
 	return &http.Client{
-		Timeout: 10 * time.Second,
+		Timeout: b.attemptTimeout,
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
 		Transport: &http.Transport{
-			DialContext:           b.guard.Dialer(10 * time.Second),
+			DialContext:           b.guard.Dialer(b.attemptTimeout),
 			DisableKeepAlives:     true,
-			ResponseHeaderTimeout: 10 * time.Second,
+			ResponseHeaderTimeout: b.attemptTimeout,
 		},
 	}
 }

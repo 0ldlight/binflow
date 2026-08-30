@@ -95,6 +95,19 @@ type Bus struct {
 	log    *slog.Logger
 	now    func() time.Time
 
+	// attemptTimeout bounds one whole send (connect + response + body
+	// read — webhook.md 5.2's timeoutMillis semantics). Set at assembly,
+	// read on every send; the dispatcher and the test endpoint share it.
+	attemptTimeout time.Duration
+
+	// saturated is the dispatcher's concurrency-cap probe (webhook.md 5.1
+	// maxConcurrentHandlers: over-cap NEW events are rejected). nil when
+	// no dispatcher runs — Emit then never rejects on this arm.
+	saturated func() bool
+	// notify wakes the dispatcher after a successful enqueue (the
+	// replication Engine's signal posture; nil = nobody listening).
+	notify func()
+
 	failures atomic.Int64 // enqueue failures (WARN-visible; the T-364 metric family reads it)
 
 	ringMu sync.Mutex
@@ -116,6 +129,10 @@ type BusOptions struct {
 	AllowPrivateTarget bool
 	Logger             *slog.Logger
 	Now                func() time.Time
+	// AttemptTimeout bounds one whole send attempt (webhook.md 5.2:
+	// timeoutMillis covers connection, redirects and body read). <= 0 =
+	// DefaultAttemptTimeout (30s, the official default).
+	AttemptTimeout time.Duration
 }
 
 // NewBus assembles the bus. The Guard is built here (scheme assertion +
@@ -137,6 +154,10 @@ func NewBus(opts BusOptions) (*Bus, error) {
 	if now == nil {
 		now = func() time.Time { return time.Now().UTC() }
 	}
+	attemptTimeout := opts.AttemptTimeout
+	if attemptTimeout <= 0 {
+		attemptTimeout = DefaultAttemptTimeout
+	}
 	return &Bus{
 		store:  opts.Store,
 		gate:   opts.Gate,
@@ -147,10 +168,11 @@ func NewBus(opts BusOptions) (*Bus, error) {
 			AllowPrivateUpstream: opts.AllowPrivateTarget,
 			Logger:               log,
 		}),
-		origin: opts.Origin,
-		source: "binflow/binflow@" + node,
-		log:    log,
-		now:    now,
+		origin:         opts.Origin,
+		source:         "binflow/binflow@" + node,
+		log:            log,
+		now:            now,
+		attemptTimeout: attemptTimeout,
 	}, nil
 }
 
@@ -187,6 +209,13 @@ func (b *Bus) Emit(ctx context.Context, ev Event) {
 	defer b.shield(ctx, ev)
 	if b.gate == nil || !b.gate(ctx) {
 		return // entitlement DENIED (or unwired): the weaving plane is off
+	}
+	if b.saturated != nil && b.saturated() {
+		// webhook.md 5.1 maxConcurrentHandlers: over-cap NEW events are
+		// rejected, not queued — the official protection valve, surfaced
+		// on the same visible-loss path as every other enqueue loss.
+		b.rejectEvent(ctx, ev)
+		return
 	}
 	et, ok := Lookup(ev.Domain, ev.Type)
 	if !ok {
@@ -232,7 +261,20 @@ func (b *Bus) Emit(ctx context.Context, ev Event) {
 	}
 	if err := b.store.EnqueueDeliveries(ctx, rows); err != nil {
 		b.enqueueFailed(ctx, ev, err)
+		return
 	}
+	if b.notify != nil {
+		b.notify() // wake the dispatcher (no-op when none runs)
+	}
+}
+
+// rejectEvent is the concurrency-cap arm of the official rate-limit shape
+// (webhook.md 5.1): the event is dropped at the seam, WARNed and counted —
+// the same observability contract as enqueueFailed, a distinct message.
+func (b *Bus) rejectEvent(ctx context.Context, ev Event) {
+	b.failures.Add(1)
+	b.log.WarnContext(ctx, "webhook: event rejected (delivery concurrency cap reached)",
+		"domain", ev.Domain, "event_type", ev.Type, "repo", ev.Repo, "path", ev.Path)
 }
 
 // shield keeps a bus panic off the request path (the notifyReplicator
