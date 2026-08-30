@@ -37,7 +37,7 @@ func (l storeRepoLookup) Get(ctx context.Context, key string) (RepoRow, error) {
 	if row == nil {
 		return nil, nil
 	}
-	return repoRow{key: row.RepoKey, pkg: row.PackageType}, nil
+	return repoRow{key: row.RepoKey, pkg: row.PackageType, class: row.Type}, nil
 }
 
 // List enumerates every repository row in key order (the catalog's
@@ -50,19 +50,21 @@ func (l storeRepoLookup) List(ctx context.Context) ([]RepoRow, error) {
 	}
 	out := make([]RepoRow, len(rows))
 	for i, row := range rows {
-		out[i] = repoRow{key: row.RepoKey, pkg: row.PackageType}
+		out[i] = repoRow{key: row.RepoKey, pkg: row.PackageType, class: row.Type}
 	}
 	return out, nil
 }
 
 // repoRow is the adapter-private view of one repository row.
 type repoRow struct {
-	key string
-	pkg string
+	key   string
+	pkg   string
+	class string
 }
 
 func (r repoRow) Key() string         { return r.key }
 func (r repoRow) PackageType() string { return r.pkg }
+func (r repoRow) Class() string       { return r.class }
 
 // staticRepoLookup is a fixed table (assembly shims and tests).
 type staticRepoLookup map[string]string

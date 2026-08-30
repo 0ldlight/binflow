@@ -113,6 +113,10 @@ type Handler struct {
 	// store error self-heals on the next request.
 	anonSeedMu sync.Mutex
 	anonSeeded bool
+	// remotes is the REMOTE repositories' upstream session pool (T-363):
+	// per-repository guarded clients plus the Bearer token cache. The
+	// zero value is ready (the map grows on first use).
+	remotes remoteSessions
 }
 
 // BlobLedger is the digest-lookup seam for download headers and mount
@@ -129,6 +133,12 @@ type RepoRow interface {
 	// (T-40) needs it alongside the routing data Get already carried.
 	Key() string
 	PackageType() string
+	// Class is the repository class ("local"/"remote"/"virtual"). Since
+	// T-363 the plane branches on it BEFORE the content handlers: a REMOTE
+	// row takes the pull-through read plane and the RE-05 write refusal.
+	// The static lookup's rows carry "" (class-less), which the branch
+	// treats as not-remote — the pre-T-363 behavior.
+	Class() string
 }
 
 // RepoLookup resolves repository rows for the docker plane. Only routing

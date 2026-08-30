@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/lzwzzy/binflow/internal/auth"
+	"github.com/lzwzzy/binflow/internal/repo"
 )
 
 // Protocol implements adapter.Handler.
@@ -217,6 +218,16 @@ func (h *Handler) serveNameRoute(w http.ResponseWriter, r *http.Request, path st
 	// scoped challenge. This gate is ahead of the content handlers so
 	// T-39/T-40 inherit it without re-deriving the mapping.
 	if !h.authorizeRoute(w, r, ref) {
+		return
+	}
+
+	// The REMOTE branch (T-363, FR-116.1): a pull-through repository takes
+	// its own read plane — the proxy conversation, the cache and the RE-05
+	// write refusal — AFTER the route's scope gate (an unauthorized
+	// principal must not aim BinFlow at upstream URLs; the service seam
+	// re-checks the read too). helm.md section 8.3 is the behavior spec.
+	if row.Class() == repo.TypeRemote {
+		h.serveRemoteRoute(w, r, ref)
 		return
 	}
 

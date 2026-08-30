@@ -63,8 +63,11 @@
 //
 // # Scope
 //
-// LOCAL repositories only. The remote pull-through (proxying an upstream
-// OCI registry) and the virtual aggregation are future tickets; the
-// Helm/HelmOCI no-mix rule on virtual member sets already guards the
-// boundary (T-309's validateHelmFamilyMix).
+// LOCAL repositories in full, and — since M13's T-363 — REMOTE
+// repositories: the /v2 pull-through against an upstream OCI registry
+// (manifest by tag/digest and blob proxying, the upstream Bearer token
+// dance, checksum-addressed caching; the behavior spec is helm.md
+// section 8.3). The virtual aggregation is T-365's; the Helm/HelmOCI
+// no-mix rule on virtual member sets already guards the boundary (T-309's
+// validateHelmFamilyMix).
 package helmoci
