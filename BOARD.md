@@ -1240,7 +1240,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
     AC2: flat 措辞回写——M12 PRD v1.1 增订（「flat 扁平化」→「flat 折叠进 copy 主参数族」口径）+ artifact-operations.md 同步（grep 旧措辞零残留）（L18）。
     AC3: L31 残余加注——M12 PRD FR-107 AC2「停机窗内重启」与 as-built boot 探针 fail-closed 姿势 PRD 加注（加注不改行为、ADR-0040 零修改、行为零变化断言维持）（L18；T-356 观察⑨）。
 - **B7**：T-371 ｜ T-375
-  - **T-371** [P1] FR-119.2 D-F2 files 通道布局迁移 `role:dev-go-core` area:internal/adapter/conan（v1 files 布局修正 + 存量迁移钩子；同 area 串行随 T-369）dep:T-360,T-369
+  - **T-371 → done 2026-08-31 03:0x——M13 14/23，conan 线收官**：D-F2 本体修复（channelFileName trim 复数→单数——新写落规格布局）+ SweepV1FilesLayout 启动 sweep（repo 清单过滤 local+conan 零仓零扫描/谓词三重约束〔coordinateRoot 四段+pid 校验+双 0 字面+pid 重复段〕/每仓 INFO 行 conflict>0 升 WARN/失败 fail-the-boot）+ **repo.Service.RewriteSubtreePrefix 窄原语**（+1 接口方法：子树前缀批改写，sha256 平移/零权限门·审计·Emit·observer/同 sha dedup/异 sha 新者胜+上报/空源 ErrNodeNotFound/空脚手架随迁删）。**真客户端**：conan 1.66 三测 PASS（新腿 LayoutSweepRoundtrip：`moved=3 dedup=1 conflicts=0`，腐蚀面〔前缀 snapshot 键+settings:{}〕sweep 后恢复，清缓存重 install 摘要全等）+ 2.31.2 全链 8.79s。conan 27.1s/repo 61.8s + docker/pypi ripple 包双 ok；新测试 -count=2 稳定。docker 两测试桩 +1 备案（接口加宽编译红最小修复，T-95/T-253 同型先例）。**conductor 接线**（main.go runServe 监听器起前插 SweepV1FilesLayout——错误即闭栈返 wrap）+ 复验 build/fmt/lint 0 + cmd 15.0s + conan 20.6s 绿。ADR-0042 四 AC 逐条对照表在日志。日志 reports/agents/T-371.md。
     AC1: `channelFileName` 复数/单数 trim 错位修正→新 PUT v1 通道包落 `<root>/<pid>/<pRev>/<file>` 规格布局 + 存量双拼布局树迁移（T-340 复现脚本夹具）→迁移前后制品 sha256 对账零损 + install roundtrip + **幂等（二跑零改）**（L17；roundtrip 对称故客户端面无感）。
     AC2: settings 恢复——新 PUT v1 通道包 ref-search conaninfo 字段非 `{{}}` + `-q` 过滤腿命中 + v1 包 snapshot 键裸文件名（L17；**服务端树断言翻转归属 FR-119 豁免票**——PRD §5.4 布局对齐行）。
     AC3: conan v1/v2 全链回归（M11 T-308/T-312 + M12 T-340 序列）零回归 + 回滚路径演练留痕（ADR-0042）。

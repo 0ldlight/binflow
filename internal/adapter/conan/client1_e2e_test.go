@@ -1,7 +1,12 @@
 package conan
 
 import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -10,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/lzwzzy/binflow/internal/repo"
+	"github.com/lzwzzy/binflow/internal/storage"
 )
 
 // TestConan1ClientEndToEnd drives the REAL conan 1.x client (1.66) against
@@ -144,6 +150,212 @@ func TestConan1ClientEndToEnd(t *testing.T) {
 		t.Fatalf("post-remove revision-0 file = %d, want 404 (the client's own revision went with the tree)", code)
 	}
 	_ = version
+}
+
+// TestConan1LayoutSweepRoundtrip (T-371 / D-F2, ADR-0042 AC-2): the REAL
+// conan 1.66 client's install roundtrip is EQUIVALENT across the legacy
+// double layout and the migrated spec layout. Legs:
+//
+//	create + upload    the client lands the package (fixed binary, spec
+//	                   layout) and a baseline install captures the cache
+//	                   digest map;
+//	corrupt            the package FILE rows are re-homed onto the
+//	                   double-spelled paths at the service seam — the exact
+//	                   storage state every pre-T-371 v1 channel upload held
+//	                   (the .timestamp and index.json rows were ALWAYS spec
+//	                   and stay put) — and the D-F2 faces turn visible:
+//	                   prefixed snapshot keys, empty ref-search settings;
+//	sweep              SweepV1FilesLayout re-homes the tree;
+//	install again      a cache-wiped install succeeds with the SAME cache
+//	                   digests (the client's settings-matching leg rides
+//	                   the recovered conaninfo fields — the `-q` data the
+//	                   defect starved).
+//
+// Environment-gated like the matrix above (BINFLOW_T308_CLIENT1_E2E=1).
+func TestConan1LayoutSweepRoundtrip(t *testing.T) {
+	if os.Getenv("BINFLOW_T308_CLIENT1_E2E") != "1" {
+		t.Skip("set BINFLOW_T308_CLIENT1_E2E=1 (with a conan 1.x on PATH) to run the conan 1 client matrix")
+	}
+	conanBin, _ := requireConan1(t)
+
+	s := newStack(t)
+	s.seedRepo(t, "conan-local", repo.TypeLocal)
+	home := t.TempDir()
+	run := func(args ...string) string {
+		t.Helper()
+		cmd := exec.Command(conanBin, args...)
+		cmd.Env = append(os.Environ(), "CONAN_USER_HOME="+home)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("conan %s: %v\n%s", strings.Join(args, " "), err, out)
+		}
+		return string(out)
+	}
+	profiles := filepath.Join(home, ".conan", "profiles")
+	if err := os.MkdirAll(profiles, 0o755); err != nil {
+		t.Fatalf("mkdir profiles: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(profiles, "default"), []byte(conan1Profile), 0o644); err != nil {
+		t.Fatalf("write profile: %v", err)
+	}
+	run("remote", "add", "binflow", s.srv.URL+"/binflow/conan-local", "--force")
+	run("user", "-p", adminPass, "-r", "binflow", adminUser)
+
+	// ---- create + upload + the baseline install ----
+	src := t.TempDir()
+	if err := os.WriteFile(filepath.Join(src, "conanfile.py"), []byte(conan1Recipe), 0o644); err != nil {
+		t.Fatalf("write conanfile: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(src, "payload.txt"), []byte("sweep payload"), 0o644); err != nil {
+		t.Fatalf("write payload: %v", err)
+	}
+	run("create", src, "myuser/stable")
+	run("upload", "hello/1.0@myuser/stable", "-r", "binflow", "--all", "--confirm")
+	run("remove", "hello/1.0@myuser/stable", "-f")
+	consumer := t.TempDir()
+	install := func() string {
+		t.Helper()
+		cmd := exec.Command(conanBin, "install", "hello/1.0@myuser/stable", "-r", "binflow", "--build=missing")
+		cmd.Dir = consumer
+		cmd.Env = append(os.Environ(), "CONAN_USER_HOME="+home)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("conan install: %v\n%s", err, out)
+		}
+		return string(out)
+	}
+	install()
+
+	// cacheDigests snapshots the cached hello package's file digests (the
+	// roundtrip-equivalence ledger — the downloaded bytes).
+	cacheDigests := func() map[string]string {
+		t.Helper()
+		out := map[string]string{}
+		root := filepath.Join(home, ".conan", "data", "hello")
+		err := filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
+			if err != nil || !info.Mode().IsRegular() {
+				return err
+			}
+			rel, _ := filepath.Rel(root, p)
+			out[rel] = shaOfFile(t, p)
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("walk cache: %v", err)
+		}
+		return out
+	}
+	baseline := cacheDigests()
+	if len(baseline) == 0 {
+		t.Fatalf("baseline cache snapshot is empty")
+	}
+
+	// ---- corrupt onto the legacy double layout (the pre-T-371 storage
+	// state): move every package FILE row under the pRev root onto the
+	// double-spelled path, service seam (index.json and .timestamp were
+	// always spec and stay). ----
+	ctx := context.Background()
+	r := ref{name: "hello", version: "1.0", user: "myuser", channel: "stable"}
+	code, body, _ := s.get(v1("conan-local", "conans/hello/1.0/myuser/stable/search"))
+	if code != http.StatusOK {
+		t.Fatalf("ref search = (%d, %s)", code, body)
+	}
+	var meta map[string]*pkgMeta
+	if err := json.Unmarshal([]byte(body), &meta); err != nil || len(meta) != 1 {
+		t.Fatalf("ref search = (%d, %s): %v", code, body, err)
+	}
+	pid := ""
+	for p := range meta {
+		pid = p
+	}
+	pRevRoot := pkgFilePrefix(r.coordinateRoot(), revDefaultV1, pid, revDefaultV1)
+	specRows, err := s.svc.List(ctx, adminPrincipal(), "conan-local", strings.TrimSuffix(pRevRoot, "/"))
+	if err != nil {
+		t.Fatalf("list pRev tree: %v", err)
+	}
+	moved := 0
+	for _, n := range specRows {
+		if n.Path == pRevRoot || strings.HasSuffix(n.Path, "/") || n.Path == pRevRoot+".timestamp" {
+			continue // folder rows and the .timestamp stay where the legacy writer put them
+		}
+		rc, _, err := s.svc.Get(ctx, adminPrincipal(), "conan-local", n.Path)
+		if err != nil {
+			t.Fatalf("read %s: %v", n.Path, err)
+		}
+		raw, rerr := io.ReadAll(rc)
+		_ = rc.Close()
+		if rerr != nil {
+			t.Fatalf("drain %s: %v", n.Path, rerr)
+		}
+		double := pRevRoot + dirPackage + "/" + pid + "/" + strings.TrimPrefix(n.Path, pRevRoot)
+		if _, err := s.svc.Put(ctx, adminPrincipal(), "conan-local", double,
+			bytes.NewReader(raw), storage.BlobRef{Sha256: n.Sha256}, "application/octet-stream"); err != nil {
+			t.Fatalf("re-home %s: %v", double, err)
+		}
+		if err := s.svc.Delete(ctx, adminPrincipal(), "conan-local", n.Path); err != nil {
+			t.Fatalf("drop spec row %s: %v", n.Path, err)
+		}
+		moved++
+	}
+	if moved == 0 {
+		t.Fatalf("corruption moved nothing (fixture build failed)")
+	}
+
+	// The D-F2 faces are visible again on the legacy tree: prefixed
+	// snapshot keys and the starved settings map.
+	code, body, _ = s.get(v1("conan-local", "conans/hello/1.0/myuser/stable/packages/"+pid))
+	if code != http.StatusOK {
+		t.Fatalf("legacy package snapshot = (%d, %s)", code, body)
+	}
+	if !strings.Contains(body, `"package/`+pid+`/conaninfo.txt"`) {
+		t.Errorf("legacy snapshot keys = %s, want the prefixed D-F2 spelling", body)
+	}
+	code, body, _ = s.get(v1("conan-local", "conans/hello/1.0/myuser/stable/search"))
+	if code != http.StatusOK || !strings.Contains(body, `"settings":{}`) {
+		t.Errorf("legacy ref search = (%d, %s), want the empty-settings D-F2 face", code, body)
+	}
+
+	// ---- sweep + the equivalent install ----
+	if err := SweepV1FilesLayout(ctx, s.svc, nil); err != nil {
+		t.Fatalf("sweep: %v", err)
+	}
+	code, body, _ = s.get(v1("conan-local", "conans/hello/1.0/myuser/stable/search"))
+	if code != http.StatusOK || strings.Contains(body, `"settings":{}`) {
+		t.Errorf("post-sweep ref search = (%d, %s), want recovered settings", code, body)
+	}
+
+	run("remove", "hello/1.0@myuser/stable", "-f")
+	out := install()
+	if !strings.Contains(out, "hello") && !strings.Contains(out, "Installed") {
+		t.Fatalf("post-sweep install output lacks the installation:\n%s", out)
+	}
+	assertSameDigests(t, cacheDigests(), baseline)
+}
+
+// shaOfFile hashes one file's bytes.
+func shaOfFile(t *testing.T, path string) string {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:])
+}
+
+// assertSameDigests fails with the differing entries.
+func assertSameDigests(t *testing.T, got, want map[string]string) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Errorf("cache snapshots differ in size: %d vs %d", len(got), len(want))
+	}
+	for k, v := range want {
+		if gv, ok := got[k]; !ok {
+			t.Errorf("post-sweep cache lacks %q (the roundtrip lost a file)", k)
+		} else if gv != v {
+			t.Errorf("post-sweep cache %q digest = %s, want the baseline %s", k, gv, v)
+		}
+	}
 }
 
 // conan1Profile is the pinned default profile (apple-clang 16 — the

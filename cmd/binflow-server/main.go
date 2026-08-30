@@ -317,6 +317,18 @@ func runServe(args []string, stderr io.Writer) error {
 
 	srv := newAssembledServer(cfg, stack, logger)
 
+	// T-371 (ADR-0042 decision 1): the conan v1 files-channel layout sweep —
+	// bootstrap order, strictly before the listener below goes up (a
+	// half-applied tree is structurally unobservable; an interrupted pass
+	// resumes by predicate on the next boot). Idempotent and predicate-
+	// consuming: zero conan repositories scans nothing, a swept instance
+	// reports moved=0. A failure fails the boot — with the write path
+	// fixed, serving an unswept legacy tree would 404 the channel GET.
+	if err := conan.SweepV1FilesLayout(context.Background(), stack.svc, logger); err != nil {
+		stack.close(logger)
+		return fmt.Errorf("conan v1 layout sweep: %w", err)
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 

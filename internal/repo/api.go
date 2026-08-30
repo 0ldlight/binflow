@@ -447,6 +447,32 @@ type Service interface {
 	// deploy; every other content caller keeps using Put.
 	PutWithOptions(ctx context.Context, p *Principal, repoKey, path string, body io.Reader, expect storage.BlobRef, mime string, opts PutOptions) (*metadata.Node, error)
 
+	// RewriteSubtreePrefix re-homes every node row under the FOLDER prefix
+	// srcPrefix onto the corresponding path under dstPrefix (a path P under
+	// src becomes dstPrefix + P[len(srcPrefix):]) — the ADR-0042 boot-sweep
+	// primitive (T-371, FR-119.2). This is a SYSTEM-STATE operation: no
+	// principal, no permission gate, and ZERO user-plane side effects — no
+	// copy/move observer, no webhook emission (an internal re-layout is not
+	// a user action), no per-node audit; the blob store is never touched
+	// (rows keep their sha256 — checksum addressing makes the move a
+	// metadata rewrite), and node properties do not ride (the conan package
+	// trees this was built for carry none).
+	//
+	// Disposition when a row already exists at a target path (the caller's
+	// observable, never a silent loss): same sha256 → the source row is
+	// dropped and counted Deduped (the retransmit-idempotent form, content
+	// single copy); different sha256 → the row with the NEWER UpdatedAt
+	// resides at the target and the pair is reported in Conflicts (the
+	// loser's content stays in the blob store, recoverable within GC's
+	// grace). An empty source subtree is ErrNodeNotFound; a dstPrefix inside
+	// srcPrefix is ErrInvalidPath; a non-local repository is
+	// ErrRepoTypeNotSupported. Durability: writes are per-row
+	// (PutNodeWithUsage / DeleteNodeWithUsage pairs) — the one caller runs
+	// this BEFORE the HTTP listener (ADR-0042 decision 1), so a half-applied
+	// tree is structurally unobservable and an interrupted sweep resumes by
+	// predicate on the next boot.
+	RewriteSubtreePrefix(ctx context.Context, repoKey, srcPrefix, dstPrefix string) (*SubtreeRewrite, error)
+
 	// ---- Virtual aggregation face (T-72, FR-21-AC5/AC6) ----
 	//
 	// The per-protocol metadata aggregations (maven maven-metadata.xml
@@ -638,6 +664,35 @@ type PutOptions struct {
 	// existing properties survive a plain re-PUT. ValidatePropSet guards
 	// the shape; adapters only ever pass sets ParseMatrixProps produced.
 	Properties map[string][]string
+}
+
+// SubtreeRewrite reports one RewriteSubtreePrefix outcome (ADR-0042's
+// reconciliation vocabulary: the caller renders the per-repository line and
+// applies the conflict=0 green gate on top of these counts).
+type SubtreeRewrite struct {
+	// Moved is the count of node rows re-homed src→dst with their sha256
+	// (and every other stored field) unchanged.
+	Moved int
+	// Deduped is the count of source rows dropped because the target path
+	// already held the SAME sha256 — the retransmit-idempotent form; content
+	// ends single-copy, nothing is lost.
+	Deduped int
+	// Conflicts reports the target paths where a DIFFERENT sha256 already
+	// resided; the newer row (UpdatedAt) won and stays at the target, the
+	// loser's content remains in the blob store within GC's grace.
+	Conflicts []RewriteConflict
+}
+
+// RewriteConflict is one differing-sha collision the rewrite resolved
+// newer-wins.
+type RewriteConflict struct {
+	// Path is the TARGET path the collision happened at.
+	Path string
+	// Kept is the sha256 of the row that won and resides at Path.
+	Kept string
+	// Dropped is the sha256 of the loser — its blob is untouched and
+	// recoverable until GC's grace expires.
+	Dropped string
 }
 
 // StatusError is a service-level failure that already knows its exact

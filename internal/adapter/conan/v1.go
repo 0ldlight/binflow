@@ -415,10 +415,17 @@ func (h *Handler) serveV1Files(ctx context.Context, cw *capWriter, r *http.Reque
 
 // channelFileName strips the assembled channel path's package prefix down
 // to the file tail (the GET leg re-addresses the latest pRev tree, so the
-// name must ride over).
+// name must ride over). The prefix is the SINGULAR dirPackage spelling —
+// the channel's own grammar (parseV1Files assembles rt.path from it and
+// serveUploadURLs hands out the same shape); the v2 WIRE family's plural
+// "packages" never appears here. T-371 (D-F2, ADR-0042): this trim used to
+// key on the plural segPackages literal and therefore never matched — every
+// v1 channel package file landed double-spelled at
+// <coordinateRoot>/0/package/<pid>/0/package/<pid>/<tail>; the fixed write
+// path lands the spec layout (<coordinateRoot>/0/package/<pid>/0/<tail>,
+// spec section 4) and SweepV1FilesLayout re-homes the legacy trees.
 func channelFileName(assembled, pid string) string {
-	trimmed := strings.TrimPrefix(assembled, segPackages+"/"+pid+"/")
-	return trimmed
+	return strings.TrimPrefix(assembled, dirPackage+"/"+pid+"/")
 }
 
 // serveV1FilesPut is the channel's write leg: land at the `0` tree, then

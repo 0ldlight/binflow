@@ -1,6 +1,7 @@
 package conan
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -417,6 +418,109 @@ func TestV1PackagesDeleteForms(t *testing.T) {
 	if code, _, _ := s.post(v1("cn-local", "conans/hello/1.0/myuser/stable/packages/delete"),
 		[]byte(`{"package_ids":["not!!"]}`), nil); code != http.StatusBadRequest {
 		t.Errorf("illegal pid packages/delete = %d, want 400", code)
+	}
+}
+
+// TestV1FilesChannelPackageLayout (T-371 / D-F2, ADR-0042 AC-1): the FIXED
+// channelFileName trim — a v1 channel package PUT lands the spec section 4
+// layout <coordinateRoot>/0/package/<pid>/0/<file> (tree-asserted, no
+// double-spelled row anywhere), the v2 package files list and the v1
+// package snapshot carry BARE file names, and the ref search recovers its
+// settings/options/requires from conaninfo.txt (the D-F2 empty-map
+// defect's first visible face).
+func TestV1FilesChannelPackageLayout(t *testing.T) {
+	s := newStack(t)
+	s.seedRepo(t, "cn-local", repo.TypeLocal)
+	pid := fixturePID(1)
+
+	put := func(p string, b []byte) {
+		t.Helper()
+		if code, body, _ := s.put(v1("cn-local", "files/myuser/hello/1.0/stable/"+p), b, nil); code != http.StatusCreated {
+			t.Fatalf("channel PUT %s = (%d, %s), want 201", p, code, body)
+		}
+	}
+	put("export/conanfile.py", []byte("recipe"))
+	put("0/package/"+pid+"/conaninfo.txt",
+		[]byte(conaninfoFixture([]string{"os=Macos", "arch=x86_64"}, []string{"shared=True"}, []string{"zlib/1.2.11"})))
+	put("0/package/"+pid+"/conan_package.tgz", []byte("tgz"))
+
+	// The tree assertion: exactly the spec paths, nothing double-spelled
+	// (the storage-level truth the sweep's predicate keys on).
+	nodes, err := s.svc.List(context.Background(), adminPrincipal(), "cn-local", "myuser/hello/1.0/stable")
+	if err != nil {
+		t.Fatalf("list tree: %v", err)
+	}
+	want := map[string]bool{
+		"myuser/hello/1.0/stable/index.json":                                true,
+		"myuser/hello/1.0/stable/0/.timestamp":                              true,
+		"myuser/hello/1.0/stable/0/export/conanfile.py":                     true,
+		"myuser/hello/1.0/stable/0/package/" + pid + "/index.json":          true,
+		"myuser/hello/1.0/stable/0/package/" + pid + "/0/.timestamp":        true,
+		"myuser/hello/1.0/stable/0/package/" + pid + "/0/conaninfo.txt":     true,
+		"myuser/hello/1.0/stable/0/package/" + pid + "/0/conan_package.tgz": true,
+	}
+	got := map[string]bool{}
+	for _, n := range nodes {
+		if strings.Contains(n.Path, "/0/package/"+pid+"/0/package/") {
+			t.Errorf("double-spelled row landed: %s (the D-F2 bug)", n.Path)
+		}
+		if !strings.HasSuffix(n.Path, "/") {
+			got[n.Path] = true
+		}
+	}
+	if len(got) != len(want) {
+		t.Errorf("file rows = %v, want exactly %v", got, want)
+	}
+	for p := range want {
+		if !got[p] {
+			t.Errorf("tree lacks the spec path %s (have %v)", p, got)
+		}
+	}
+
+	// The v2 package files list carries bare names.
+	code, body, _ := s.get(v2("cn-local", "hello/1.0/myuser/stable/revisions/0/packages/"+pid+"/revisions/0/files"))
+	if code != http.StatusOK {
+		t.Fatalf("v2 package files = (%d, %s)", code, body)
+	}
+	var listing filesResponse
+	if err := json.Unmarshal([]byte(body), &listing); err != nil {
+		t.Fatalf("files body %q: %v", body, err)
+	}
+	if len(listing.Files) != 2 {
+		t.Errorf("v2 files keys = %v, want the two bare names", listing.Files)
+	}
+	for name := range listing.Files {
+		if strings.Contains(name, "/") {
+			t.Errorf("v2 files key %q carries a path prefix (the D-F2 defect)", name)
+		}
+	}
+
+	// The v1 package snapshot carries bare names (the conan 1.66 reference
+	// server's own key spelling).
+	code, body, _ = s.get(v1("cn-local", "conans/hello/1.0/myuser/stable/packages/"+pid))
+	if code != http.StatusOK {
+		t.Fatalf("package snapshot = (%d, %s)", code, body)
+	}
+	var snap snapshotBody
+	if err := json.Unmarshal([]byte(body), &snap); err != nil {
+		t.Fatalf("snapshot body %q: %v", body, err)
+	}
+	if _, ok := snap["conaninfo.txt"]; !ok || len(snap) != 2 {
+		t.Errorf("package snapshot keys = %v, want the two bare names", snap)
+	}
+
+	// The ref search recovers the conaninfo fields (the `-q` filter's data).
+	code, body, _ = s.get(v1("cn-local", "conans/hello/1.0/myuser/stable/search"))
+	if code != http.StatusOK {
+		t.Fatalf("ref search = (%d, %s)", code, body)
+	}
+	var meta map[string]*pkgMeta
+	if err := json.Unmarshal([]byte(body), &meta); err != nil {
+		t.Fatalf("ref search body %q: %v", body, err)
+	}
+	if m := meta[pid]; m == nil || m.Settings["os"] != "Macos" || m.Options["shared"] != "True" ||
+		m.Requires["zlib/1.2.11"] != "" {
+		t.Errorf("ref search row = %v, want the conaninfo fields (the D-F2 empty-map defect)", meta[pid])
 	}
 }
 

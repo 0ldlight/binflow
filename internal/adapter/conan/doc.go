@@ -113,4 +113,14 @@
 // The router wire-up is two dispatchAPI cases owned by the assembly; this
 // package ships the handler itself so the business body lives with the
 // protocol (reindex.go).
+//
+// # Boot sweep (T-371 / ADR-0042)
+//
+// SweepV1FilesLayout is the startup seam the assembly calls before the HTTP
+// listener goes up: it re-homes the D-F2 legacy trees (v1 files-channel
+// package files the pre-T-371 channelFileName bug landed double-spelled
+// onto <coordinateRoot>/0/package/<pid>/0/package/<pid>/<tail>) onto the
+// spec section 4 layout, through repo.Service's RewriteSubtreePrefix
+// primitive. Predicate-consuming and idempotent: a clean instance scans
+// nothing, a swept one reports moved=0 on the next boot (sweep.go).
 package conan
