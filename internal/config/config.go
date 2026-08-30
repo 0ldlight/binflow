@@ -191,6 +191,12 @@ func splitEnvKey(upper string) (path []string, kind envKind, ok bool) {
 		// BINFLOW_REPLICATION__ALLOW_PRIVATE_TARGET form maps through the "__"
 		// path below.
 		return []string{"replication", "allow_private_target"}, envBool, true
+	case "WEBHOOK_ALLOW_PRIVATE_TARGET":
+		// M13 (ADR-0041 decision 6): the webhook SSRF toggle's
+		// single-underscore spelling, mirroring the replication twin above;
+		// the generic BINFLOW_WEBHOOK__ALLOW_PRIVATE_TARGET form maps
+		// through the "__" path below.
+		return []string{"webhook", "allow_private_target"}, envBool, true
 	case "AUTH_OIDC_READONLY_GROUP":
 		// M7 (ADR-0026 decision 4): the documented single-underscore
 		// spelling; the generic BINFLOW_AUTH__OIDC__READONLY_GROUP form maps

@@ -110,6 +110,12 @@ type raw struct {
 	Replication *struct {
 		AllowPrivateTarget *bool `yaml:"allow_private_target"`
 	} `yaml:"replication"`
+	// Webhook is the outbound-webhook section (M13 T-362, ADR-0041
+	// decision 6): the SSRF posture of subscription targets, default
+	// false — the deliberate asymmetry against replication.
+	Webhook *struct {
+		AllowPrivateTarget *bool `yaml:"allow_private_target"`
+	} `yaml:"webhook"`
 	// Addons is the M10 circuit-breaker section (T-283, ADR-0032 / section
 	// 15.5): disabled is a CSV of addon ids, restart-effective.
 	Addons *struct {
@@ -556,6 +562,12 @@ func buildWithOptions(r *raw, env map[string]string, o buildOpts) (*Config, erro
 		c.Replication.AllowPrivateTarget = *r.Replication.AllowPrivateTarget
 	}
 
+	// The webhook section (M13 T-362, ADR-0041 decision 6): absent means
+	// the Config default (false — deny private targets) holds.
+	if r.Webhook != nil && r.Webhook.AllowPrivateTarget != nil {
+		c.Webhook.AllowPrivateTarget = *r.Webhook.AllowPrivateTarget
+	}
+
 	// M10 T-283 (ADR-0032 / section 15.5): the addons.disabled CSV passes
 	// through verbatim — the license Manager owns the parsing, the trimming
 	// and the core-id WARN, so the key's semantics have one owner.
@@ -647,6 +659,11 @@ func defaults() *Config {
 		// ADR-0025 decision 4): private targets stay allowed so existing
 		// deployments that replicate over private networks are unchanged.
 		Replication: ReplicationConfig{AllowPrivateTarget: DefaultAllowPrivateTarget},
+		// webhook.allow_private_target defaults to FALSE (M13 T-362,
+		// ADR-0041 decision 6): webhook targets are REST-CRUD dynamic —
+		// the classic SSRF escalation surface — so the deny posture is
+		// the safe default (the asymmetry against replication above).
+		Webhook: WebhookConfig{},
 		// addons.disabled defaults to empty (M10 T-283, ADR-0032): nothing
 		// is switched off unless the operator spells it.
 		Addons: AddonsConfig{},
@@ -790,6 +807,10 @@ func setEnvValue(c *Config, path []string, kind envKind, value, name string) err
 			c.Auth.TokenStepUp = b
 		case "replication.allow_private_target":
 			c.Replication.AllowPrivateTarget = b
+		case "webhook.allow_private_target":
+			// M13 (ADR-0041 decision 6): the webhook SSRF toggle, default
+			// false (the asymmetry against replication's true).
+			c.Webhook.AllowPrivateTarget = b
 		default:
 			return fmt.Errorf("config: internal: bool path %q not wired", where)
 		}
