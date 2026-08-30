@@ -1270,3 +1270,22 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 **关键路径**：T-358/T-359 → T-362（订阅+织入·独占）→ T-364（投递引擎）→ T-366（FE+消费者）→ T-377（webhook 主线）；T-342 → T-363（HelmOCI remote）→ T-365（virtual）→ T-367（引擎缝）→〔T-380 条件〕→ T-373/T-377；T-360 + T-348 → T-369（D8）→ T-371（D-F2）→ T-377（conan 线）；T-368（旋钮·零依赖）→ T-373/T-375；T-372 → T-374（运维尾巴线）；… → T-375（docs）→ T-376（release+UAT 首跑）→ T-377 → m13-done。**T-361（de-flake）/T-370（PM 文面）零依赖可任意波次穿插**（后者宜早——D-10 裁定材料上 BOARD）。
 
 **风险登记（拆票日志 M13-SPLIT.md 详表）**：① **Q4 webhook 槽档位终裁**须在 T-362 AC3 门控断言前收口——T-358 AC2 取证腿（官方 license 标注）上 BOARD，conductor 于 B2 前安排裁决窗（暂行 pro+/feature-int 不阻塞实现主体）；② **Q6 事件覆盖界**——按暂行「注册休眠」实现，终裁若裁剪仅动注册表（面小不返工）；③ **webhook.md 官方文档取证风险**（反编译集合无该 addon）——官方文档为唯一基准，与 inv-4 锚点冲突时效力序=规格票>PRD 暂行（PRD §4 约定），分歧上 BOARD；④ **dev-go-core 五票串行负载**（T-362/T-364/T-368/T-369/T-371——B2/B3/B5/B6/B7 错峰）+ router/slots/main.go 接线统一交 conductor（M11 纪律延续）；⑤ **dev-registry-adapter 三票链**（T-363→T-365→T-367，B2/B3/B4 串行）与 FR-117 同域先后脚——internal/repo/adapter/helm 共写面已错峰；⑥ **T-367 schema 定座**（charts_base_url per-protocol 槽——T-342 §5 D-2①「须 architect 定座」）票内定案留痕，必要时 architect 会审（不单列 ADR）；⑦ **dogfood Jenkins 条件腿**（T-366 AC2）dep 用户环境——不可得则容器接收器腿 + BOARD 留痕（非 DoD 缺口）；⑧ **UAT 首跑时序**（T-376）——须与 conductor 里程碑 PR 收口协同（M12 T-355 教训），docs 票后合入以 PR 分支复跑烟测腿补偿；⑨ **conan owner 备裁**——PRD 下游消费者表将 conan 小票列 dev-go-core（M11 T-308 先例），与 M12 T-340（dev-registry-adapter）异派——拆票按 PRD 口径，conductor 可改派（票面 area/dep 不变）；⑩ 条件票触发态——Q2/Q3/Q5 全触发票数上浮至 26（PRD §1.3 上限内），未触发 BOARD 留痕。
+
+**T-370 裁定材料上板（PM，2026-08-30；FR-120.1 承载——出材料不代拍，终裁归用户/conductor）**：
+
+**① Q3 / D-10 NuGet publish 同字节幂等终裁（决定 T-378 条件票走向）**——双证对照（规格：nuget.md §5.1〔DE `isPackageAlreadyExistAndCantBeDeletedByCurrentUser` = exists && !canDelete〕；as-built：T-356 L03 实测 @`d41f6d0`）：
+
+| 臂 | 场景 | 规格（Artifactory） | BinFlow as-built | 判定 |
+|---|---|---|---|---|
+| ②a | 包已存在 + 主体无 d 权限 + **不同字节** | 409 CONFLICT `Package already exist: <deployPath>` | 409 同文案逐字 | 一致 |
+| ②b | 包已存在 + 主体无 d 权限 + **同字节** | 409（DE 谓词 exists && !canDelete，无字节比对分支——字面应 409） | **201**（幂等短路） | **分歧本体（D-10）** |
+| ③ | 包已存在 + 主体有 d 权限 | 直接覆盖上传（无冲突臂） | 201 覆盖 + sha256 新值 | 一致 |
+| ④ | 新包 | 201 `Successfully published NuPkg to: <path>` | 201 一致 | 一致 |
+
+影响面：nuget local + virtual（defaultDeploymentRepo 等价 local）publish 幂等臂；LC-56 待裁行；客户端（nuget.exe/dotnet）对「重推已存在版本」以 409 为既定冲突信号。**终裁二选一**：对齐 409 → 触发 T-378 翻转小票（冲突检查前移到字节比对之前 + M12 L03 断言反转归属豁免票）；有意差异 → nuget.md 差异登记行落笔（D 层留痕，落位随终裁票——参照 cargo.md §8.1 R-3 登记形态；终裁前维持 as-built 201）。**PM 建议：对齐 409**——① 19:05 行为逐项对齐常设条款：规格 DE 谓词无字节短路，「同字节 201」属自有发挥（2026-08-26 20:35「不要有太多自己的想法」对面）；② Artifactory 迁移用户心智零损（409 = 既定重复信号，CI 遇 409 的处置在源生态本就成立）；③ 实现面小（T-378 小票在案，小时级）；④ 留痕方案需在 nuget.md 永久登记「BinFlow 宽于 Artifactory」差异，与对齐优先基线相悖且无用户可见收益论证。风险注记：若用户有「CI 网络抖动重推同包期望成功」需求则选留痕——该需求 Artifactory 同样不满足。**补充取证建议（终裁前可选）**：T-247 保留的 t226-artifactory 容器（OSS 7.84.10，docker start 可恢复——T-358 §4）可跑活体腿（w-only 主体同字节重推看实际码）：活体 409 → 对齐依据升三证；活体 201 → nuget.md §5.1 臂②规格行需修订升置信，留痕方案转优。
+
+**② Q4 材料就绪提示（风险登记①联动）**：T-358 §1-6 取证——官方功能矩阵 Webhooks 行 Non-commercial ❌ / Pro ✅ / Enterprise ✅ → **建议维持 pro+ 不翻转**；kind 已由 ADR-0041 决策 8 定 KindFeature（不新增第三值）。供 conductor 安排 B2 前裁决窗与 Q3 一并终裁。
+
+**③ ADR-0041 决策 4 投递参数与 webhook.md §5 冲突登记（规格活化翻转点）**：ADR-0041（Accepted 2026-08-30，与 T-358 并行定案——wire 字面量未及规格值）决策 4 = 10 次尝试/2s 起步 ×2 递增/单次 10s 超时，且决策 2 将 3xx·4xx 计入可重试；webhook.md §5 官方基准 = retryCount 5（首试计入）/**固定间隔 10s 非指数退避**/单次超时 30s（含建连/重定向/读体）/**4xx 不重试（仅发送失败或 ≥500）**。按效力序（用户裁决 > webhook.md > ADR > PRD 暂行）**建议 architect 随 ADR-0041 锚点回填修订决策 4（与决策 2 的 4xx 可重试句）对齐规格**；机制条款不翻：outbox 双方言两表/死信 additive（官方无持久死信，webhook.md §5.3 明示 BinFlow 形态归 ADR）/Guard 默认拒私网。PRD v1.1 已按官方值修正（FR-115.2/K50）；**BOARD T-364 AC2「指数退避序列」措辞建议 conductor 随改「固定间隔 10s 重试序列（4xx 不重试）」**；T-356/T-358 后 ADR-0041「T-362 验收锚点骨架」AC-3 的「时间戳」字段断言同批修正（artifact 域载荷无时间戳——T-358 §1-8）。
+
+**④ T-370 文面修正落笔清单（2026-08-30，PRD 双版本已落）**：M12 PRD v1.1——cargo 409 双姿态四处（FR-110.4/AC3/LC-43/L24——D-356-3 残余）+ FR-113.5 正文与 L31 注对齐 AC5（D-356-4 残余）+ flat 措辞八处折叠口径（repo-operations.md §1.6）+ FR-107 AC2 加注（T-356 观察⑨；ADR-0040 零修改）；M13 PRD v1.1——重试语义五处 + 「36 事件」八处→13 域 66 型 + envelope 时间戳断言删除 + SSRF 键落定 + Q4 取证入文 + K47~K50 回填（T-358 AC3 转办 PM 事项）。artifact-operations.md L66 已是折叠口径（无需改）；nuget.md 差异行随 Q3 终裁联动。ROADMAP 两处版本引用滞后（M12/M13 需求基线行仍 v1.0、M13 行「36 事件」措辞）——PM 下批随收口更新（本票纪律禁写 ROADMAP，留痕于此）。
