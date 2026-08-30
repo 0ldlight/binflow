@@ -1691,7 +1691,8 @@ func (s *service) ResolveManifest(ctx context.Context, p *Principal, repoKey, im
 	if err := validateDigest(digest); err != nil {
 		return nil, err
 	}
-	if _, err := s.loadV2ReadRepo(ctx, repoKey); err != nil {
+	row, err := s.loadV2ReadRepo(ctx, repoKey)
+	if err != nil {
 		return nil, err
 	}
 	if !s.allow(ctx, p, repoKey, dockerPermPath(image), ActionRead) {
@@ -1699,6 +1700,11 @@ func (s *service) ResolveManifest(ctx context.Context, p *Principal, repoKey, im
 			return nil, fmt.Errorf("read %s/%s: %w", repoKey, image, ErrUnauthorized)
 		}
 		return nil, fmt.Errorf("read %s/%s: %w", repoKey, image, ErrForbidden)
+	}
+	if row.Type == TypeVirtual {
+		// T-365: the virtual arm walks the member order; the first member
+		// whose manifest row answers wins.
+		return s.resolveV2VirtualManifest(ctx, p, repoKey, image, digest)
 	}
 	m, err := s.md.Docker().GetManifest(ctx, repoKey, image, digest)
 	if err != nil {
@@ -1722,7 +1728,8 @@ func (s *service) ResolveTag(ctx context.Context, p *Principal, repoKey, image, 
 	if err := validateTag(tag); err != nil {
 		return nil, err
 	}
-	if _, err := s.loadV2ReadRepo(ctx, repoKey); err != nil {
+	row, err := s.loadV2ReadRepo(ctx, repoKey)
+	if err != nil {
 		return nil, err
 	}
 	if !s.allow(ctx, p, repoKey, dockerPermPath(image), ActionRead) {
@@ -1730,6 +1737,10 @@ func (s *service) ResolveTag(ctx context.Context, p *Principal, repoKey, image, 
 			return nil, fmt.Errorf("read %s/%s: %w", repoKey, image, ErrUnauthorized)
 		}
 		return nil, fmt.Errorf("read %s/%s: %w", repoKey, image, ErrForbidden)
+	}
+	if row.Type == TypeVirtual {
+		// T-365: the first member whose tag (and its manifest) answers wins.
+		return s.resolveV2VirtualTag(ctx, p, repoKey, image, tag)
 	}
 	t, err := s.md.Docker().GetTag(ctx, repoKey, image, tag)
 	if err != nil {
@@ -1758,7 +1769,8 @@ func (s *service) ListTags(ctx context.Context, p *Principal, repoKey, image str
 			return nil, fmt.Errorf("tags/list cursor %q: %w", last, ErrInvalidCursor)
 		}
 	}
-	if _, err := s.loadV2ReadRepo(ctx, repoKey); err != nil {
+	row, err := s.loadV2ReadRepo(ctx, repoKey)
+	if err != nil {
 		return nil, err
 	}
 	if !s.allow(ctx, p, repoKey, dockerPermPath(image), ActionRead) {
@@ -1766,6 +1778,11 @@ func (s *service) ListTags(ctx context.Context, p *Principal, repoKey, image str
 			return nil, fmt.Errorf("read %s/%s: %w", repoKey, image, ErrUnauthorized)
 		}
 		return nil, fmt.Errorf("read %s/%s: %w", repoKey, image, ErrForbidden)
+	}
+	if row.Type == TypeVirtual {
+		// T-365: the member tag UNION (first-seen on shared names), with
+		// the same unknown-image / tagless-image distinction.
+		return s.listV2VirtualTags(ctx, repoKey, image, n, last)
 	}
 	tags, err := s.md.Docker().ListTagsByImage(ctx, repoKey, image)
 	if err != nil {
@@ -1796,7 +1813,8 @@ func (s *service) ListTags(ctx context.Context, p *Principal, repoKey, image str
 // ListImages implements Service.ListImages (the _catalog source): image
 // names prefixed with the repository key, lexicographic, n/last sliced.
 func (s *service) ListImages(ctx context.Context, p *Principal, repoKey string, n int, last string) ([]string, error) {
-	if _, err := s.loadV2ReadRepo(ctx, repoKey); err != nil {
+	row, err := s.loadV2ReadRepo(ctx, repoKey)
+	if err != nil {
 		return nil, err
 	}
 	if !s.allow(ctx, p, repoKey, "", ActionRead) {
@@ -1814,6 +1832,11 @@ func (s *service) ListImages(ctx context.Context, p *Principal, repoKey string, 
 				last, ErrInvalidCursor, repoKey+"/")
 		}
 		after = strings.TrimPrefix(last, repoKey+"/")
+	}
+	if row.Type == TypeVirtual {
+		// T-365: the union of the members' images, rendered under the
+		// VIRTUAL key (the catalog names the addressed surface).
+		return s.listV2VirtualImages(ctx, repoKey, n, after)
 	}
 	images, err := s.md.Docker().ListImages(ctx, repoKey, after, n)
 	if err != nil {

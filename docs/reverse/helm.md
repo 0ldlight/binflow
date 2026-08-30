@@ -183,6 +183,26 @@ remote 缓存仓：
 - 会话与落盘分置：上游会话（Accept/Bearer/tag 解析）由 docker 适配器持有（internal/remote 引擎的 path-joined 取数无法表达 OCI 会话语义；出站链路复用引擎的导出 client——SSRF 链/逐跳复查/超时/重试同源）；缓存落盘经 repo 服务的 RemoteV2Plane 缝（与 `Engine.land()` 同一不变量：blob-first / checksum 寻址 / TTL 行 / GC hold）。singleflight 与 assumed-offline 窗口不在此面（登记：T-367 引擎缝可评估收编）。
 - docker（非 helmoci）remote 建仓仍拒绝（T-380 条件票；Q5/K54 顺车评估 conductor 留痕）。
 
+### 8.4 HelmOCI virtual 仓语义（M13 T-365 增量；FR-116.2——成员聚合 / 首见路由 / 降级矩阵）
+
+> 取证基线：JFrog 官方文档的 virtual 总纲（repo-semantics §8 的 first-found 成员序）+ 本仓既有 /v2 数据链口径（§8.3）；HelmOCI virtual 的 JFrog 内部实现不在反编译集合内，按 clean-room 以公开规范 + 本仓 ADR-0013（虚仓两桶序/first-hit-stops）为准。
+
+**成员构成与边界**：helmoci virtual = helmoci local + helmoci remote 成员的聚合读面（成员序 = 两桶：priorityResolution 标记成员在前、声明序在后）。「Helm 与 HelmOCI 不混仓」校验（§8.2 收尾条，T-309）在建仓/改仓面维持 400，双向生效（helm virtual 含 helmoci 成员同样拒绝）。docker（非 helmoci）virtual 建仓仍拒绝（T-380 矩阵不动）。
+
+**读面（/v2 路由按 row.Class=virtual 分流）**：
+- manifest GET/HEAD（by tag / by digest）：按成员序逐成员解析——local 成员答以既有行+节点（行在而节点缺失 = 成员 miss，walk 继续）；remote 成员先读缓存事实（tag/manifest 行 + remote_cache 探测），HIT 即服务、NEGATIVE 跳过、STALE/MISS 走该成员的上游会话（Accept 透传 + Bearer 舞步照 §8.3），拉到后落进**该成员**的缓存（checksum 寻址、digest 强校验、tag 行随记）。**首见语义**：第一个能产出正文的成员胜出（成员序决定，非内容新旧）；响应带 `X-BinFlow-Resolved-From: <成员key>`（ADR-0013 诊断面）。
+- blob GET/HEAD：同一 walk 作用在 digest 键路径上——local 成员查节点、remote 成员探测/回源/落盘（流式、commit 强校验 digest）。
+- tags/list 与 _catalog：**并集面**（服务层四读用例的 virtual 臂）——tag 并集按成员序 first-wins 去重、全局排序、官方分页；image 并集以 **virtual key** 为前缀渲染（catalog 命名被寻址面而非成员）。remote 成员只贡献**已缓存**的 tag/image 行（§8.3 D-2 口径：不代理上游 tags/list——未缓存版本在 tags/list 不可见；helm 带 `--version` 拉取不受影响）。
+- HEAD 与 GET 同路径同判定；未知引用走完 walk 后答 unfound 族（404 MANIFEST_UNKNOWN / BLOB_UNKNOWN），可附最后一次上游摘要，零裸 5xx。
+
+**降级矩阵（FR-116.5 经聚合面）**：成员 RESULT 即走停止（含 STALE——过期副本 + `X-Binflow-Upstream-Error` 标记续 serve）；成员 UNFOUND（负缓存、无副本、上游 404/401/403、传输故障无副本）继续下一成员；**分类性非 unfound 失败**（SSRF 链 400、body 上限 502）原样透传、不吞成虚仓级 404。上游断连且副本过期：经 virtual 拉取照答 STALE；未缓存引用走完 walk 答 404。
+
+**写面**：/v2 写动词对 virtual 一律 405 + `Allow: GET`。未配 defaultDeploymentRepo → C5 文案原样（「No local repository was configured …」）；已配 → 如实文案（registry v2 面的 push-through 路由**未实现**，点名目标仓、不谎称未配置）——登记为后续票。
+
+**审计与可观测**：virtual 服务记一条以 **virtual key** 为址的 download 审计行（detail 带 resolvedFrom 成员），镜像 getVirtual 口径；remote 成员的缓存落盘照记成员为址的行（引擎 land 口径）。`X-BinFlow-Cache`（MISS/HIT/STALE）仅出现在 remote 成员服务面上，local 成员服务无缓存语义标头。
+
+**缝的形态**：服务层出 `V2VirtualPlane` 能力缝（成员序 / 成员事实 / 成员落盘 / 成员上游事实 / 写拒绝渲染，全部以**成员在序**为守卫、不重跑成员自身的权限门——权限问题已在 virtual key 上由 /v2 路由门回答，镜像 ReadVirtualMember 口径）；docker 适配器驱动 walk（remote 成员的 miss 即上游会话是适配器的业务）。四读用例（ResolveManifest/ResolveTag/ListTags/ListImages）在 virtual 行上直接服务（服务层内 walk），`_catalog` 因此不再因 virtual 行 5xx（T-365 修复的隐患）。
+
 ## 9. 真实客户端命令清单（qa 可直接引用；helm 3.x——经典仓 ≥3.0，OCI 面 ≥3.8；本机 `brew install helm` 即可跑 L-h1~L-h4）
 
 ```bash
@@ -236,6 +256,16 @@ helm repo update && helm search repo binflow-virt                # 聚合 index 
 helm pull oci://$HOST/helmoci-remote/mychart --version 0.1.0     # 首拉 MISS 回源；再拉 HIT 零回源
 helm install rel3 oci://$HOST/helmoci-remote/mychart --version 0.1.0
 curl -sI $BASE/v2/helmoci-remote/mychart/manifests/0.1.0 | grep X-BinFlow-Cache   # MISS → HIT 观测面
+
+# L-h9 HelmOCI virtual 聚合（M13 T-365；成员 = helmoci local + helmoci remote，remote 上游同 L-h8）
+#   建仓：PUT /binflow/api/repositories/helmoci-virt
+#   {"rclass":"virtual","packageType":"helmoci","repositories":["helmoci-local","helmoci-remote"]}
+helm pull oci://$HOST/helmoci-virt/mychart --version 0.1.0      # 双域：local 成员直答 / remote 成员回源，digest 与 push 一致
+helm pull oci://$HOST/helmoci-virt/mychart@sha256:<digest>      # by-digest 路由
+helm install rel4 oci://$HOST/helmoci-virt/mychart --version 0.1.0
+curl -sI $BASE/v2/helmoci-virt/mychart/manifests/0.1.0 | grep -E 'X-BinFlow-(Cache|Resolved-From)'
+#   MISS/HIT/STALE + Resolved-From:<成员key> 观测面；tags/list = 成员并集（remote 侧仅已缓存 tag）
+helm push mychart-0.2.0.tgz oci://$HOST/helmoci-virt            # → 405（C5 文案；v2 面无 push-through）
 ```
 
 认证：经典仓 `helm repo add --username/--password`（或 `--pass-credentials`）；HelmOCI `helm registry login`（http 明文仅限 qa）。高（官方文档）。

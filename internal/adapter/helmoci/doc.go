@@ -63,11 +63,16 @@
 //
 // # Scope
 //
-// LOCAL repositories in full, and — since M13's T-363 — REMOTE
-// repositories: the /v2 pull-through against an upstream OCI registry
-// (manifest by tag/digest and blob proxying, the upstream Bearer token
-// dance, checksum-addressed caching; the behavior spec is helm.md
-// section 8.3). The virtual aggregation is T-365's; the Helm/HelmOCI
-// no-mix rule on virtual member sets already guards the boundary (T-309's
-// validateHelmFamilyMix).
+// LOCAL repositories in full; REMOTE repositories since M13's T-363 (the
+// /v2 pull-through against an upstream OCI registry — manifest by
+// tag/digest and blob proxying, the upstream Bearer token dance,
+// checksum-addressed caching; the behavior spec is helm.md section 8.3);
+// and VIRTUAL repositories since T-365: the member aggregation over the
+// two-bucket order — a local member serves its standing copy, a remote
+// member runs its own pull-through, tag unions on tags/list and _catalog,
+// by-digest routing, first-seen semantics (the first member that can
+// produce the body wins). The Helm/HelmOCI no-mix rule on virtual member
+// sets guards the family boundary (T-309's validateHelmFamilyMix); pushes
+// through a virtual answer the 405 write refusal (registry-v2
+// push-through routing is registered follow-up).
 package helmoci

@@ -231,6 +231,17 @@ func (h *Handler) serveNameRoute(w http.ResponseWriter, r *http.Request, path st
 		return
 	}
 
+	// The VIRTUAL branch (T-365, FR-116.2): an aggregated repository walks
+	// its members on the read side — a local member's copy, a remote
+	// member's pull-through, first-seen semantics over the two-bucket
+	// order — and refuses writes with the service-rendered 405. The branch
+	// sits after the route's scope gate like the remote one (the virtual
+	// key is the addressed permission surface).
+	if row.Class() == repo.TypeVirtual {
+		h.serveVirtualRoute(w, r, ref)
+		return
+	}
+
 	// Blob domain (T-38): the uploads route family and the blob read plane.
 	// The manifest domain follows (T-39), then the tag listing (T-40).
 	// Everything else answers the DE-16 spec-body 404 — including

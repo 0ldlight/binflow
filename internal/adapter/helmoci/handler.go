@@ -53,14 +53,15 @@ func Register(plane *docker.Handler) *Handler {
 func (h *Handler) Protocol() string { return Protocol }
 
 // RepoTypes implements adapter.Handler: the registry-v2 Helm face serves
-// LOCAL repositories in full — the chart push/pull plane — and, since
-// T-363, REMOTE repositories (the /v2 pull-through against an upstream OCI
+// LOCAL repositories in full — the chart push/pull plane —, REMOTE
+// repositories since T-363 (the /v2 pull-through against an upstream OCI
 // registry: manifest/blob proxy with Bearer-authenticated egress and the
-// checksum-addressed cache). VIRTUAL (the manifest aggregation) is T-365's;
-// the Helm/HelmOCI no-mix rule (T-309) already guards the member boundary
-// meanwhile.
+// checksum-addressed cache) and VIRTUAL repositories since T-365 (the
+// member aggregation: tag union, by-digest routing, first-seen semantics
+// over local and remote members — helm.md section 8's family posture with
+// the Helm/HelmOCI no-mix rule of T-309 guarding the member boundary).
 func (h *Handler) RepoTypes() []string {
-	return []string{repo.TypeLocal, repo.TypeRemote}
+	return []string{repo.TypeLocal, repo.TypeRemote, repo.TypeVirtual}
 }
 
 // Layout implements adapter.Handler for the content-plane mount: the first

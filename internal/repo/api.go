@@ -760,6 +760,89 @@ type RemoteV2Plane interface {
 	RecordRemoteManifest(ctx context.Context, p *Principal, repoKey, image, digest, tag, mediaType string, size int64, refs []*metadata.DockerRef) error
 }
 
+// V2VirtualPlane is the registry-v2 virtual aggregation seam (M13 T-365,
+// FR-116.2): a VIRTUAL docker/helmoci repository aggregates its members'
+// registry-v2 state — manifest/tag rows, blob nodes, remote cache facts —
+// through these membership-guarded reads. The docker adapter drives the
+// walk itself because a remote member's miss must become an UPSTREAM
+// conversation (the RemoteV2Plane posture), which is the adapter's session
+// to run; everything local stays service-owned here.
+//
+// The guard is what keeps these reads ungated safe: every member-scoped
+// method asserts the member sits in the virtual's CURRENT two-bucket order
+// (the ReadVirtualMember posture — members are resolution internals, the
+// /v2 route gate already answered the permission question on the VIRTUAL
+// key, so no per-member re-gate runs). The consumer resolves the
+// capability by type-asserting Service (the RemoteV2Plane precedent).
+type V2VirtualPlane interface {
+	// V2MemberOrder returns the two-bucket resolution order of one
+	// registry-v2 family virtual repository (family-checked: a non-virtual
+	// or non-v2 key answers ErrRepoTypeNotSupported).
+	V2MemberOrder(ctx context.Context, virtualKey string) ([]VirtualMember, error)
+	// V2MemberManifest answers ONE member's local fact base for a manifest
+	// reference (a bare-digest or tag spelling, exactly as the /v2 route
+	// parsed it) WITHOUT any upstream contact: the resolved digest and
+	// serving facts when the member's rows answer, plus the standing node.
+	// A member whose rows do not answer is a WALK MISS (Digest ""), not an
+	// error — a remote member's Cache=RemoteProbeMiss is the caller's
+	// signal to run the upstream conversation for that member.
+	V2MemberManifest(ctx context.Context, p *Principal, virtualKey, member, image, reference string) (*V2MemberManifest, error)
+	// V2MemberBlob answers one member's standing blob node at the
+	// digest-keyed blob layout path (local member node / remote member
+	// cache probe, RemoteV2Plane.ProbeRemoteCache's states verbatim).
+	V2MemberBlob(ctx context.Context, p *Principal, virtualKey, member, image, hex string) (*V2MemberBlob, error)
+	// V2MemberUpstream resolves one REMOTE member's upstream connection
+	// facts (RemoteUpstream's shape; the membership-guarded twin of
+	// RemoteV2Plane.RemoteUpstream).
+	V2MemberUpstream(ctx context.Context, p *Principal, virtualKey, member string) (*RemoteUpstream, error)
+	// V2LandMemberBlob lands one upstream-fetched body into the REMOTE
+	// member's cache (RemoteV2Plane.LandRemoteBlob's invariants, guarded
+	// by membership instead of the member's own permission pair).
+	V2LandMemberBlob(ctx context.Context, p *Principal, virtualKey, member, path, expectHex, mime string, body io.Reader) (*metadata.Node, error)
+	// V2RecordMemberManifest records the docker index rows of one cached
+	// remote-member manifest (RemoteV2Plane.RecordRemoteManifest's
+	// posture, membership-guarded).
+	V2RecordMemberManifest(ctx context.Context, p *Principal, virtualKey, member, image, digest, tag, mediaType string, size int64, refs []*metadata.DockerRef) error
+	// V2CacheMemberMiss records one upstream miss against the REMOTE
+	// member (RemoteV2Plane.CacheRemoteMiss, membership-guarded).
+	V2CacheMemberMiss(ctx context.Context, p *Principal, virtualKey, member, path string) error
+	// V2WriteRefusal renders the /v2 write refusal of one registry-v2
+	// family virtual repository (a *StatusError the adapter answers
+	// verbatim): the C5 405 when no write route is configured, and — a
+	// route IS configured — the honest wording that registry-v2
+	// push-through routing is not implemented (the target is named, never
+	// claimed).
+	V2WriteRefusal(ctx context.Context, virtualKey string) *StatusError
+}
+
+// V2MemberManifest is one member's answer for a manifest reference during a
+// virtual walk: the resolved identity and serving facts when the member's
+// rows answer, the standing copy when one exists, and the remote-member
+// cache state (RemoteProbe* constants; "" on a local member — local is the
+// origin, not a cache).
+type V2MemberManifest struct {
+	// Digest is the member's resolved manifest digest ("" when the
+	// member's rows do not answer — the walk continues).
+	Digest string
+	// MediaType and Size are the manifest ROW's serving facts.
+	MediaType string
+	Size      int64
+	// Node is the standing copy at the member's manifest layout path (nil
+	// when none stands — a local member with rows but no node is the crash
+	// window and reads as a walk miss, probeLocalMember's posture).
+	Node *metadata.Node
+	// Cache is the remote-member probe state (RemoteProbeHit/Stale/
+	// Negative/Miss); "" for a local member's answer.
+	Cache string
+}
+
+// V2MemberBlob is one member's standing blob answer: the node when a copy
+// stands, plus the remote-member cache state ("" on a local member).
+type V2MemberBlob struct {
+	Node  *metadata.Node
+	Cache string
+}
+
 // RemoteUpstream is the upstream fact bundle of one registry-v2 remote
 // repository (RemoteV2Plane.RemoteUpstream's result). Password is plaintext
 // in memory for the adapter's session only — the caller must never log or

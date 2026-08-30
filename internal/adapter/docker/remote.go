@@ -694,15 +694,50 @@ func (h *Handler) serveRemoteManifest(w http.ResponseWriter, r *http.Request, re
 	}
 }
 
-// landRemoteManifest lands one fetched manifest: digest verified (the
-// computed sha256 is the only addressing truth; a by-digest request whose
-// body disagrees is an upstream anomaly, answered 502, never landed),
-// node landed checksum-addressed, index rows recorded (the tag when the
-// request was a tag), then served MISS.
+// remoteManifestSink owns WHERE one fetched manifest lands (T-365): the
+// direct remote plane sinks into its own repository through the
+// RemoteV2Plane seam; a virtual walk sinks into the winning remote MEMBER
+// through the V2VirtualPlane seam. The landing semantics — the digest
+// verdicts, the checksum-addressed node, the index rows — are one code
+// path; only the addressing differs.
+type remoteManifestSink struct {
+	land   func(path, expectHex, mime string, body io.Reader) (*metadata.Node, error)
+	record func(dgst, tag, mediaType string, size int64, refs []*metadata.DockerRef) error
+}
+
+// manifestCopyServer is the manifest copy serve both landing arms share
+// (serveRemoteManifestCopy's own signature).
+type manifestCopyServer func(w http.ResponseWriter, r *http.Request, node *metadata.Node, mediaType, dgst string, size int64, cacheState, upstreamError string)
+
+// landRemoteManifest lands one fetched manifest for the DIRECT remote
+// plane: the sink addresses the repository the request named.
 func (h *Handler) landRemoteManifest(w http.ResponseWriter, r *http.Request, ref nameRef, reference string, isDigestRef bool, wantHex string, fetched *upstreamAnswer) {
-	ctx := r.Context()
-	p := principalOf(r)
 	plane := h.remotePlane()
+	if plane == nil {
+		h.log.ErrorContext(r.Context(), "docker: remote manifest without the v2 plane seam", "repo", ref.repoKey)
+		writeSpecError(w, http.StatusServiceUnavailable, ErrCodeUnavailable,
+			"the registry's service carries no v2 remote plane", nil)
+		return
+	}
+	p := principalOf(r)
+	h.landFetchedManifest(w, r, ref, reference, isDigestRef, wantHex, fetched, remoteManifestSink{
+		land: func(path, expectHex, mime string, body io.Reader) (*metadata.Node, error) {
+			return plane.LandRemoteBlob(r.Context(), p, ref.repoKey, path, expectHex, mime, body)
+		},
+		record: func(dgst, tag, mediaType string, size int64, refs []*metadata.DockerRef) error {
+			return plane.RecordRemoteManifest(r.Context(), p, ref.repoKey, ref.image, dgst, tag, mediaType, size, refs)
+		},
+	}, h.serveRemoteManifestCopy)
+}
+
+// landFetchedManifest is the shared landing of one upstream manifest
+// answer: digest verified (the computed sha256 is the only addressing
+// truth; a by-digest request whose body disagrees is an upstream anomaly,
+// answered 502, never landed), node landed checksum-addressed, index rows
+// recorded (the tag when the request was a tag), then served MISS through
+// the arm's own copy server.
+func (h *Handler) landFetchedManifest(w http.ResponseWriter, r *http.Request, ref nameRef, reference string, isDigestRef bool, wantHex string, fetched *upstreamAnswer, sink remoteManifestSink, serve manifestCopyServer) {
+	ctx := r.Context()
 
 	dgst := sha256HexOf(fetched.body)
 	if declared := fetched.header.Get(hdrContentDigest); declared != "" && declared != digestPrefix+dgst {
@@ -730,8 +765,7 @@ func (h *Handler) landRemoteManifest(w http.ResponseWriter, r *http.Request, ref
 		return
 	}
 
-	node, lerr := plane.LandRemoteBlob(ctx, p, ref.repoKey, manifestNodePath(ref.image, dgst), dgst, mediaType,
-		bytes.NewReader(fetched.body))
+	node, lerr := sink.land(manifestNodePath(ref.image, dgst), dgst, mediaType, bytes.NewReader(fetched.body))
 	if lerr != nil {
 		h.writeRemoteServeError(w, r, lerr, ref)
 		return
@@ -744,12 +778,11 @@ func (h *Handler) landRemoteManifest(w http.ResponseWriter, r *http.Request, ref
 	if !isDigestRef {
 		tag = reference
 	}
-	if rerr := plane.RecordRemoteManifest(ctx, p, ref.repoKey, ref.image, dgst, tag, mediaType,
-		int64(len(fetched.body)), refs); rerr != nil {
+	if rerr := sink.record(dgst, tag, mediaType, int64(len(fetched.body)), refs); rerr != nil {
 		h.log.WarnContext(ctx, "docker remote: manifest index rows not recorded (serving the landed copy)",
 			"repo", ref.repoKey, "image", ref.image, "digest", dgst, "error", rerr.Error())
 	}
-	h.serveRemoteManifestCopy(w, r, node, mediaType, dgst, int64(len(fetched.body)), remote.CacheMiss, "")
+	serve(w, r, node, mediaType, dgst, int64(len(fetched.body)), remote.CacheMiss, "")
 }
 
 // remoteManifestRefs extracts a fetched manifest's descriptor digests

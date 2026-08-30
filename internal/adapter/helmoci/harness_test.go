@@ -263,7 +263,12 @@ type addonsRegistrySeam struct {
 }
 
 func newAddonsSeam() *addonsRegistrySeam {
-	return &addonsRegistrySeam{reg: addons.New(addons.Generic(), addons.Docker(), addons.HelmOCI())}
+	// Helm rides along since T-365: the virtual member-mix legs exercise a
+	// helm repository row through the same create plane, so the slot must
+	// be registered for the pro document to admit it (the cmd assembly's
+	// manifest registers every slot; this harness mirrors the subset its
+	// tests touch).
+	return &addonsRegistrySeam{reg: addons.New(addons.Generic(), addons.Docker(), addons.HelmOCI(), addons.Helm())}
 }
 
 // gate builds the repo.PackageTypeGate over registry + Manager.

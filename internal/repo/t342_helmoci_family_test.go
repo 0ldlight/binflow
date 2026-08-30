@@ -72,10 +72,13 @@ func TestT342HelmOCIRidesDockerUseCases(t *testing.T) {
 // [T-363 assertion reversal, FR-116.1's D-5 flip] the READ plane widened:
 // ListImages (and ResolveTag/ResolveManifest/ListTags) now ADMIT a remote
 // helmoci row — a cached manifest/tag row is resolution state like any
-// local row. The virtual row keeps the refusal (T-365 owns the
-// aggregation). The pre-T-363 pin ("ListImages on remote refuses") is
-// superseded here, not loosened elsewhere: the write-plane arms below are
-// unchanged.
+// local row.
+//
+// [T-365 assertion reversal, FR-116.2] the virtual row joined the read
+// plane: ListImages (and its three siblings) walk the member order now,
+// so the memberless seeded virtual answers the empty catalog instead of
+// the class refusal. The pre-T-365 pin ("ListImages on the virtual
+// refuses") is superseded here; the write-plane arms below are unchanged.
 func TestT342HelmOCIClassRulesUnchanged(t *testing.T) {
 	e := newEnv(t)
 	seedT342Repo(t, e, "t342-helmoci-remote", repo.TypeRemote, repo.PackageHelmOCI)
@@ -88,9 +91,6 @@ func TestT342HelmOCIClassRulesUnchanged(t *testing.T) {
 			t.Errorf("PutManifest on %s error = %v, want ErrRepoTypeNotSupported", key, err)
 		}
 	}
-	if _, err := e.svc.ListImages(context.Background(), admin(), "t342-helmoci-virtual", 0, ""); !errors.Is(err, repo.ErrRepoTypeNotSupported) {
-		t.Errorf("ListImages on the virtual row error = %v, want ErrRepoTypeNotSupported (T-365 owns the aggregation)", err)
-	}
 	// The remote row's read admission (T-363): no rows cached yet — the
 	// empty catalog is the honest answer, NOT the class refusal.
 	images, err := e.svc.ListImages(context.Background(), admin(), "t342-helmoci-remote", 0, "")
@@ -99,6 +99,15 @@ func TestT342HelmOCIClassRulesUnchanged(t *testing.T) {
 	}
 	if len(images) != 0 {
 		t.Errorf("ListImages on the empty remote row = %v, want none", images)
+	}
+	// The virtual row's read admission (T-365): a memberless virtual holds
+	// no images — the empty catalog again, not the class refusal.
+	images, err = e.svc.ListImages(context.Background(), admin(), "t342-helmoci-virtual", 0, "")
+	if err != nil {
+		t.Fatalf("ListImages on the virtual row error = %v, want the empty catalog (T-365 read-plane admission)", err)
+	}
+	if len(images) != 0 {
+		t.Errorf("ListImages on the memberless virtual row = %v, want none", images)
 	}
 }
 

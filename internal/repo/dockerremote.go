@@ -32,20 +32,21 @@ import (
 var _ RemoteV2Plane = (*service)(nil)
 
 // loadV2ReadRepo resolves repoKey and admits the registry-v2 family's READ
-// plane classes: LOCAL (the push plane) and, since T-363, REMOTE (the
+// plane classes: LOCAL (the push plane), REMOTE since T-363 (the
 // pull-through — a cached manifest/tag row is resolution state like any
-// local row, and the tags/list + catalog faces read the same tables).
-// VIRTUAL stays refused here: the manifest aggregation is T-365's, and the
-// refusal names it so the miss is self-explaining.
+// local row, and the tags/list + catalog faces read the same tables) and
+// VIRTUAL since T-365 (the member aggregation — the four read use cases
+// walk the member order, and the tags/list + catalog faces read the
+// unions).
 func (s *service) loadV2ReadRepo(ctx context.Context, repoKey string) (*metadata.Repo, error) {
 	r, err := s.loadRepoRow(ctx, repoKey)
 	if err != nil {
 		return nil, err
 	}
 	switch r.Type {
-	case TypeLocal, TypeRemote:
+	case TypeLocal, TypeRemote, TypeVirtual:
 	default:
-		return nil, fmt.Errorf("%w: %s repositories are not served by the registry v2 read plane (the HelmOCI virtual aggregation lands with T-365)",
+		return nil, fmt.Errorf("%w: %s repositories are not served by the registry v2 read plane",
 			ErrRepoTypeNotSupported, r.Type)
 	}
 	if !isV2PlaneFamily(r.PackageType) {
@@ -89,16 +90,25 @@ func (s *service) loadRemoteV2Repo(ctx context.Context, p *Principal, repoKey, p
 // resolution order (014 row column, canonical JSON, product default) so the
 // adapter's egress and the engine's can never diverge on timeouts.
 func (s *service) RemoteUpstream(ctx context.Context, p *Principal, repoKey string) (*RemoteUpstream, error) {
-	row, err := s.loadRemoteV2Repo(ctx, p, repoKey, "")
-	if err != nil {
+	if _, err := s.loadRemoteV2Repo(ctx, p, repoKey, ""); err != nil {
 		return nil, err
 	}
+	return s.remoteUpstreamCore(ctx, repoKey)
+}
+
+// remoteUpstreamCore is the fact assembly without the permission gate (the
+// virtual seam's member-scoped twin, T-365 — membership guards it instead).
+func (s *service) remoteUpstreamCore(ctx context.Context, repoKey string) (*RemoteUpstream, error) {
 	cfg, err := s.md.Remote().GetConfig(ctx, repoKey)
 	if err != nil {
 		if errors.Is(err, metadata.ErrRemoteConfigNotFound) {
 			return nil, fmt.Errorf("remote %s: no remote_configs row (the create crash window; update the repository config to heal): %w", repoKey, err)
 		}
 		return nil, fmt.Errorf("remote %s: load config: %w", repoKey, err)
+	}
+	row, rerr := s.md.Repos().Get(ctx, repoKey)
+	if rerr != nil {
+		return nil, fmt.Errorf("remote %s: load repository row: %w", repoKey, rerr)
 	}
 	// The policy slice the engine reads (repoPolicy's fields, read through
 	// this package's own canonical spelling — the same JSON both consume).
@@ -167,6 +177,23 @@ func (s *service) ProbeRemoteCache(ctx context.Context, p *Principal, repoKey, p
 	if _, err := s.loadRemoteV2Repo(ctx, p, repoKey, path); err != nil {
 		return nil, err
 	}
+	probe, err := s.probeRemoteV2Core(ctx, repoKey, path)
+	if err != nil {
+		return nil, err
+	}
+	if probe.Node != nil {
+		s.audit(ctx, AuditEvent{Actor: actor(p), Action: AuditActionDownload, Repo: repoKey, Path: path})
+	}
+	return probe, nil
+}
+
+// probeRemoteV2Core is the probe without the permission gate and without
+// the audit row: the virtual aggregation seam (T-365) runs the same state
+// machine against a MEMBER (membership-guarded, ungated — the walk audits
+// one download row addressed to the VIRTUAL key with the resolvedFrom
+// detail, getVirtual's posture), so the core is the one place the negative
+// window and the TTL classes are decided.
+func (s *service) probeRemoteV2Core(ctx context.Context, repoKey, path string) (*RemoteProbe, error) {
 	if entry, err := s.md.Remote().GetCache(ctx, repoKey, path); err == nil &&
 		entry.Kind == remoteCacheKindNegative() && remoteEntryFresh(entry.ExpiresAt, s.nowFn()) {
 		return &RemoteProbe{State: RemoteProbeNegative}, nil
@@ -180,7 +207,6 @@ func (s *service) ProbeRemoteCache(ctx context.Context, p *Principal, repoKey, p
 		if entry, cerr := s.md.Remote().GetCache(ctx, repoKey, path); cerr == nil && remoteEntryFresh(entry.ExpiresAt, s.nowFn()) {
 			state = RemoteProbeHit
 		}
-		s.audit(ctx, AuditEvent{Actor: actor(p), Action: AuditActionDownload, Repo: repoKey, Path: path})
 		return &RemoteProbe{Node: node, State: state}, nil
 	}
 	return &RemoteProbe{State: RemoteProbeMiss}, nil
@@ -206,6 +232,14 @@ func (s *service) LandRemoteBlob(ctx context.Context, p *Principal, repoKey, pat
 	if _, err := s.loadRemoteV2Repo(ctx, p, repoKey, path); err != nil {
 		return nil, err
 	}
+	return s.landRemoteV2Core(ctx, p, repoKey, path, expectHex, mime, body)
+}
+
+// landRemoteV2Core is the landing chain without the permission gate (the
+// probeRemoteV2Core split, T-365): the virtual aggregation seam lands into
+// a MEMBER with the same invariants — membership replaces the member's own
+// permission pair as the guard.
+func (s *service) landRemoteV2Core(ctx context.Context, p *Principal, repoKey, path, expectHex, mime string, body io.Reader) (*metadata.Node, error) {
 	now := s.now()
 	committed, err := s.commitBlob(ctx, body, storage.BlobRef{Sha256: expectHex})
 	if err != nil {
@@ -257,6 +291,12 @@ func (s *service) CacheRemoteMiss(ctx context.Context, p *Principal, repoKey, pa
 	if _, err := s.loadRemoteV2Repo(ctx, p, repoKey, path); err != nil {
 		return err
 	}
+	return s.cacheRemoteMissCore(ctx, repoKey, path)
+}
+
+// cacheRemoteMissCore is the negative-cache write without the permission
+// gate (the virtual seam's member-scoped twin, T-365).
+func (s *service) cacheRemoteMissCore(ctx context.Context, repoKey, path string) error {
 	if err := s.md.Remote().PutCache(ctx, &metadata.RemoteCacheEntry{
 		RepoKey: repoKey, Path: path, Kind: remoteCacheKindNegative(),
 		FetchedAt: s.now(), ExpiresAt: remoteExpiry(s.nowFn(), s.remoteMissedTTL(ctx, repoKey)),
@@ -301,6 +341,12 @@ func (s *service) RecordRemoteManifest(ctx context.Context, p *Principal, repoKe
 	if _, err := s.loadRemoteV2Repo(ctx, p, repoKey, dockerPermPath(image)); err != nil {
 		return err
 	}
+	return s.recordRemoteManifestCore(ctx, repoKey, image, digest, tag, mediaType, size, refs)
+}
+
+// recordRemoteManifestCore is the index-row write without the permission
+// gate (the virtual seam's member-scoped twin, T-365).
+func (s *service) recordRemoteManifestCore(ctx context.Context, repoKey, image, digest, tag, mediaType string, size int64, refs []*metadata.DockerRef) error {
 	now := s.now()
 	if err := s.md.Docker().PutManifest(ctx, &metadata.DockerManifest{
 		RepoKey: repoKey, Image: image, Digest: digest, MediaType: mediaType,
