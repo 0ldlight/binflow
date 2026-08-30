@@ -5,7 +5,7 @@ sidebar_position: 60
 
 # Prometheus 指标参考
 
-> 适用版本：M6（ADR-0022 / PRD FR-61，T-163 交付；指标命名按 T-197 D5 校准）。指标族名、标签与预播行为逐项核对 `internal/httpapi/metrics.go`；端点行为（匿名 200 / require_auth 401→200 / TYPE 行）于本机构建实测。
+> 适用版本：M6 起（ADR-0022 / PRD FR-61，T-163 交付；指标命名按 T-197 D5 校准；**M13 增补 webhook 五族**）。指标族名、标签与预播行为逐项核对 `internal/httpapi/metrics.go`；端点行为（匿名 200 / require_auth 401→200 / TYPE 行）于本机构建实测。
 > BinFlow 自带零依赖指标实现（无 client_golang），文本暴露格式 **0.0.4**。
 
 `GET /metrics` 挂在**根级**（与 `/healthz`/`/readyz` 同族的前缀例外，不在 `/binflow` 下）：
@@ -62,6 +62,18 @@ curl -s http://127.0.0.1:8080/metrics | head
 |---|---|---|---|
 | `binflow_replication_tasks` | gauge | `status`（`pending`/`in_progress`/`success`/`failed`/`skipped`） | push 复制任务行数；**复制未装配的实例整族不出现**（不是零值） |
 
+### webhook（M13，pro 槽装配后出场）
+
+| 指标 | 类型 | 语义 |
+|---|---|---|
+| `binflow_webhook_deliveries_total` | counter | 成功投递（2xx 应答）计数 |
+| `binflow_webhook_retries_total` | counter | 排程的重试计数（首试之后、发送失败或 ≥500 触发） |
+| `binflow_webhook_dead_letter_total` | counter | 终态放弃计数（4xx/3xx 终态或重试耗尽） |
+| `binflow_webhook_queue_depth` | gauge | outbox 待投水位（积压监控主指标） |
+| `binflow_webhook_enqueue_failures_total` | counter | **入箱被拒**（入箱失败 + 50000 并发上限拒绝）——事件丢失面，告警盯它 |
+
+配套观测：审计 `webhook.dead_letter`（detail 含 subscription/attempts/error）；排障环 `GET /binflow/event/api/v1/troubleshooting`。语义全解见 [Webhook 使用指南](../admin/webhooks.md#投递语义重试死信与可观测)。
+
 零流量时 counter/gauge 的关键序列**预播在场**（先置 0）——Prometheus 重启后不会因为「还没见过流量」而丢序列；histogram 在首次观测前只有 HELP/TYPE 头、无序列（实测确认），第一次请求后 `_bucket`/`_sum`/`_count` 才出现。
 
 ## path 标签的基数防护
@@ -110,6 +122,10 @@ sum(increase(binflow_auth_logins_total[1h])) by (source)
 
 # 复制积压
 binflow_replication_tasks{status="pending"}
+
+# webhook 投递积压与丢失面（M13）
+binflow_webhook_queue_depth
+rate(binflow_webhook_enqueue_failures_total[5m])    # >0 即有事件在入箱前被丢
 ```
 
 ## 验证

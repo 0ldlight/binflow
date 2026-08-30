@@ -5,7 +5,7 @@ sidebar_position: 90
 
 # FAQ 与故障排查
 
-> 适用版本：M1~M12（各条目标注引入里程碑）。码值与文案以 M4（PRD milestone-4 v1.2）为基线，全部经 QA 真机验证（T-103/T-105 验收基线）；M7 增补条目（RBAC 只读短路 / S3 续传 404 / token step-up）以 ADR-0026/0027/0028 与 PRD milestone-7 v1.1 为准；M8 增补（控制台新路径重定向 / npm 发布权限语义）经 scratch 实例复跑（2026-08-24）；M9 增补（用户删除闭环 / npm 复制同口径）经 HEAD 构建 scratch 实例复验（2026-08-25）；M10 增补三问（license 降级行为 / 属性两入口 / S3 与 filestore 的 MPU 差异）以 ADR-0032/0033 as-built 与 T-285/T-287/T-289/T-294 实测为据（2026-08-26）；**M11 增补四问**（四包型 tier / 降级数据安全 / 四包型 remote·virtual 差异 / 存储与认证新面）以 T-305~T-324 各票实测与 ADR-0035/0036/0038 为据（2026-08-28）；**M12 增补三问**（trash 保留期 / 操作族门控 / dual-write fail-open）以 T-339/T-343/T-345/T-338 各票实测与 ADR-0040 为据（2026-08-29）。
+> 适用版本：M1~M13（各条目标注引入里程碑）。码值与文案以 M4（PRD milestone-4 v1.2）为基线，全部经 QA 真机验证（T-103/T-105 验收基线）；M7 增补条目（RBAC 只读短路 / S3 续传 404 / token step-up）以 ADR-0026/0027/0028 与 PRD milestone-7 v1.1 为准；M8 增补（控制台新路径重定向 / npm 发布权限语义）经 scratch 实例复跑（2026-08-24）；M9 增补（用户删除闭环 / npm 复制同口径）经 HEAD 构建 scratch 实例复验（2026-08-25）；M10 增补三问（license 降级行为 / 属性两入口 / S3 与 filestore 的 MPU 差异）以 ADR-0032/0033 as-built 与 T-285/T-287/T-289/T-294 实测为据（2026-08-26）；**M11 增补四问**（四包型 tier / 降级数据安全 / 四包型 remote·virtual 差异 / 存储与认证新面）以 T-305~T-324 各票实测与 ADR-0035/0036/0038 为据（2026-08-28）；**M12 增补三问**（trash 保留期 / 操作族门控 / dual-write fail-open）以 T-339/T-343/T-345/T-338 各票实测与 ADR-0040 为据（2026-08-29）；**M13 增补三问**（webhook 事件丢失排查 / 死信重放 / remote 缓存命中观测）以 T-362~T-368 各票实测与 T-375 双实例复跑为据（2026-08-30）。
 
 ## 状态码信封解读
 
@@ -190,15 +190,46 @@ community 实例建这七个 pro 档仓 → **400** `package type '<t>' is not a
 
 ### 回收站（Trash can）的保留期怎么算？能改吗？删错了怎么救？
 
-M12 起（pro 档暂行——槽 `trashcan`）local 仓的删除先捕获进内置仓 `auto-trashcan`（布局 `auto-trashcan/<原仓key>/<原路径>`，逐节点带 `trash.time`/`trash.deletedBy`/`trash.originalRepository` 等五元组属性），**保留期默认 14 天**，小时级 cron 按 `trash.time`（epoch ms）判龄清到期条目。恢复走 `POST /api/trash/restore/{path}?to=…`（也是唯一能把东西搬回来的口）；`POST /api/trash/empty` 清空、`DELETE /api/trash/clean/{path}` 单条永久清除；浏览骑既有 `GET /api/storage/auto-trashcan` 面。**保留期暂无配置旋钮**（`trashcan.retention_days` 字段未落，配置域小票承载）——生产实例恒为 14 天。要点：① 捕获失败会**中止删除**（fail-closed，宁可留活）；② GC/cleanup 不会误收 can 里的内容（trash 内容 = 引用内容，mark 集包含 can 节点）；③ community 实例**不捕获**（删除仍是硬删）。见 [Trash can 管理](admin/trash-can.md)。
+M12 起（pro 档暂行——槽 `trashcan`）local 仓的删除先捕获进内置仓 `auto-trashcan`（布局 `auto-trashcan/<原仓key>/<原路径>`，逐节点带 `trash.time`/`trash.deletedBy`/`trash.originalRepository` 等五元组属性），**保留期默认 14 天**，小时级 cron 按 `trash.time`（epoch ms）判龄清到期条目。恢复走 `POST /api/trash/restore/{path}?to=…`（也是唯一能把东西搬回来的口）；`POST /api/trash/empty` 清空、`DELETE /api/trash/clean/{path}` 单条永久清除；浏览骑既有 `GET /api/storage/auto-trashcan` 面。**保留期自 M13 起可配**（`trashcan.retention_days`，YAML/env 双形态、**重启生效**、0 = 默认 14 哨兵；生效值经 `GET /api/v1/system/settings` 回显核对）。要点：① 捕获失败会**中止删除**（fail-closed，宁可留活）；② GC/cleanup 不会误收 can 里的内容（trash 内容 = 引用内容，mark 集包含 can 节点）；③ community 实例**不捕获**（删除仍是硬删）。见 [Trash can 管理](admin/trash-can.md)。
 
 ### copy / move / zip / archive! / explode 也要 license？community 实例报什么？
 
-**是——整族一个 feature 槽 `repo-operations`，pro 档**（Q4 终裁照搬 Artifactory 的 pro entitlement 结构）。community / 过期实例对族内任何动词（`POST /api/copy|move`、`GET /api/archive/download`、带 `X-Explode-Archive` 头的 PUT、`archive!/` 成员读取）答 **403 + `X-Binflow-License-Required: repo-operations`**；匿名先吃 401（认证 → RBAC → license 的门序）。与 Artifactory 的差异（有意）：JFrog 自家 addon 拒绝是 400 text/plain，BinFlow 统一 403 errors[] 信封 + 头（与其余门控面一致，CI 按头分支即可）。降级只关门不碰数据——已复制/搬移/解包的制品照常可读。另一个易混点：**目录打包下载默认关**（`folderDownloadConfig.enabled=false`，配置旋钮未落）——即使 pro 实例该端点也答 403，属已知边界非 license 问题。见[制品操作族](admin/artifact-operations.md)。
+**是——整族一个 feature 槽 `repo-operations`，pro 档**（Q4 终裁照搬 Artifactory 的 pro entitlement 结构）。community / 过期实例对族内任何动词（`POST /api/copy|move`、`GET /api/archive/download`、带 `X-Explode-Archive` 头的 PUT、`archive!/` 成员读取）答 **403 + `X-Binflow-License-Required: repo-operations`**；匿名先吃 401（认证 → RBAC → license 的门序）。与 Artifactory 的差异（有意）：JFrog 自家 addon 拒绝是 400 text/plain，BinFlow 统一 403 errors[] 信封 + 头（与其余门控面一致，CI 按头分支即可）。降级只关门不碰数据——已复制/搬移/解包的制品照常可读。另一个易混点：**目录打包下载默认关**（`folder_download.enabled=false`）——pro 实例不配置也答 403，属配置面非 license 问题；**M13 起六字段可配**（重启生效，`GET /api/v1/system/settings` 回显核对）。见[制品操作族](admin/artifact-operations.md)。
 
 ### dual-write（filestore+s3）实例上 S3 挂了，上传下载会怎样？
 
 **M12 起不断服（fail-open，ADR-0040）**：S3 臂任一操作失败即开进程内故障窗——窗内 **PUT 本地优先落盘成功**并把内容记入磁盘重放队列（`<data>/replay-queue/<sha256>.json`，重启幸存、per-sha 幂等），**GET 回退读磁盘**（disk 恒为超集，读己之写保持）；S3 恢复后首个成功拷贝关窗、立即排空 + 存在性对账（实测 1 秒级收敛）。三个边界要记：① **治理面（GC/Delete）在窗内仍诚实失败**——fail-open 只覆盖数据面；② 带外直读 S3 桶会看到旧集合（S3 桶是引擎私有物，滞后量 = 窗口 + 排空时长）；③ 切 `mode: completed` 时 replay-queue 非空会**拒启**（防「声明迁移完成但数据没到」）。观察窗：`/metrics` 的 `binflow_replay_*` 族 + `binflow_replay_read_fallback_total`。见[存储配置 · fail-open](admin/storage-config.md#dual-write-停机窗-fail-openm12adr-0040)。
+
+## M13 增补三问（webhook 事件丢失 / 死信重放 / remote 缓存命中）
+
+### webhook 订阅建好了，事件没到接收端，怎么排查？
+
+按链路从源头到接收端走一遍（细节见 [Webhook 使用指南](admin/webhooks.md#常见报错对照)）：
+
+1. **订阅生效了吗**——`enabled` **默认 false**（建完不打开就不投递）；license 失效时事件**静默不入箱**（PUT 照常 200）。`GET /binflow/event/api/v1/subscriptions/{key}` 核对回显与 `GET /api/system/license` 档位。
+2. **事件型有触发源吗**——66 型里只有 9 型会触发（artifact 5 + artifact_property 2 + docker pushed/deleted）；其余可订阅但永不触发（控制台灰显标注）。订阅 `docker/deleted` 之类前先对照触发表。
+3. **criteria 匹配吗**——**空选择不命中任何事件**；include/exclude 是 Ant 通配、exclude 优先；copy/move **按源仓库**匹配。先用 `POST …/subscriptions/test` 验证连通（注意 test 用的是合成事件，不验 criteria）。
+4. **目标可达吗**——SSRF 默认拒 loopback/私网（test 会报 `target rejected: … loopback …`）；接收端 4xx 是**一步终态**（不重试）；30s 内没回完算发送失败。
+5. **看排障环**——`GET /binflow/event/api/v1/troubleshooting?subscription=<key>`：**失败必录**（`debug:true` 成功也录）；`retries_attempted`/`errors[]`/`response.status` 都在记录里。注意环是进程内的（10000 条/30s 修剪，**重启失史**）。
+6. **看指标**——`/metrics` 的 `binflow_webhook_queue_depth`（积压）、`binflow_webhook_enqueue_failures_total`（**入箱被拒——真丢失面**，并发超 50000 上限时新事件被丢弃）、`binflow_webhook_dead_letter_total`（放弃）。
+7. **接收端自己的义务**——投递是 **at-least-once**（重试可致重复）且不保证顺序；接收端必须幂等去重，别把「重试窗口里的重复」当故障。
+
+### webhook 死信（重试耗尽）还能重放吗？
+
+**事件本体不丢行**——重试 5 次（首试计入、固定 10s 间隔、单次 30s 超时；仅发送失败或 ≥500 会重试）耗尽后，outbox 行转 `dead` 状态，两条可查出口：排障环按订阅过滤（5 条失败记录，`retries_attempted` 0..4）与审计 `action=webhook.dead_letter`（detail 含 attempts/error/status_code/subscription/url）。**但当前没有 REST 重放端点**（重放机制在引擎层、未挂 REST/控制台面——如实登记）。恢复路径：修正接收端后**重新触发源事件**（如重新 PUT 同一路径——deployed/cached 等事件天然可重放）。避免死信的实操：接收端**快速返回 2xx**（重活异步化）——超时按发送失败计，同样烧尝试次数。
+
+### remote 仓到底有没有命中缓存？怎么证明没回源？
+
+三件套看响应头 + 一处看计数：
+
+| 观测点 | 看什么 |
+|---|---|
+| `X-Binflow-Cache` | **MISS**（首拉回源）→ **HIT**（缓存服务）→ **STALE**（上游故障时的过期副本续服务，同时带 `X-Binflow-Upstream-Error`） |
+| `X-Binflow-Upstream` | `_external` 折叠路径取数时标实际外部来源 URL |
+| `X-BinFlow-Resolved-From` | virtual 聚合命中时标**成员仓 key**（local 成员服务无缓存标头） |
+| 上游访问计数 | 最硬证据：上游是另一台 BinFlow 时 `grep '"msg":"access"' <log>`——二次拉取计数**冻结**即零回源（实测：helmoci remote 二次 pull 上游内容 GET 不增；chartsBaseUrl 分体基址命中后上游 tgz 计数恒 0） |
+
+注意两个「看不到」是口径而非故障：remote 的 **tags/list 只见已缓存的 tag**（不代理上游 tags/list——上游已有但没拉过的版本在 tags/list 不可见，`--version` 显式拉取不受影响）；`404 + 无 STALE` 说明负缓存或确无副本（digest 键路径 miss 有负缓存窗，窗口内零回源直接 404）。helm/helmoci 两形态同口径，详见 [Helm Chart 仓库接入](integrations/helm-charts.md)。
 
 ## M4 有意不兼容清单（里程碑级汇总）
 
