@@ -412,9 +412,21 @@ func TestV2DeleteFaces(t *testing.T) {
 	}
 }
 
-// TestV2PublishDuplicateArm: section 5.1's matrix — the 409 without the
-// overwrite right, the overwrite with it, the remote 400 and the unrouted
-// virtual 400.
+// TestV2PublishDuplicateArm: section 5.1's four-arm matrix, table-driven
+// (D-10, ruled 2026-08-30 — the DE predicate is exists && !canDelete,
+// byte-blind by construction):
+//
+//	②a different bytes + w-only principal → 409, the exact wording;
+//	②b SAME bytes + w-only principal      → 409, the exact wording — the
+//	  T-378 FLIP: the as-built 201 idempotent arm died with the ruling.
+//	  The M12 L03 parity assertion (T-356's as-built 201 record) is
+//	  reversed HERE; T-378 is that leg's exemption of record;
+//	③  the delete right holds             → overwrite, 201 (both the
+//	  different-bytes and the same-bytes spelling), Download serves the
+//	  pushed bytes;
+//	④  fresh deployPath                   → 201, w alone suffices.
+//
+// The rclass 400s (remote, unrouted virtual) ride below the table.
 func TestV2PublishDuplicateArm(t *testing.T) {
 	s := newStack(t)
 	s.seedRepo(t, "ng-local", repo.TypeLocal)
@@ -423,45 +435,117 @@ func TestV2PublishDuplicateArm(t *testing.T) {
 	s.seedUser(t, "writer", "writerpass") // w but no d
 	s.seedGrant(t, "nuget-writer", "writer", "ng-local", true, true, false)
 
-	first := buildNupkg(t, "Dup.Pkg", "1.0.0", flatDeps("none"))
-	if status, body, _ := s.put(v2ContentPath("ng-local"), first.body, nil); status != http.StatusCreated {
-		t.Fatalf("first publish: %d %s", status, body)
+	// push builds one fresh package and publishes it as the given
+	// principal, answering (status, body, pushed bytes). Identical
+	// id/version/deps rebuild byte-identical packages — the fixture is
+	// deterministic, which is what the same-bytes arms rest on.
+	push := func(id, deps, user, pass string) (int, string, string) {
+		pkg := buildNupkg(t, id, "1.0.0", deps)
+		status, body, _ := s.do(http.MethodPut, v2ContentPath("ng-local"), user, pass, bytesReader(pkg.body), nil)
+		return status, body, string(pkg.body)
 	}
 
-	// Same bytes: the idempotent retransmit (no conflict — 5.1's silent
-	// arm; Artifactory answers the overwrite/201 family here).
-	status, body, _ := s.put(v2ContentPath("ng-local"), first.body, nil)
-	if status != http.StatusCreated {
-		t.Fatalf("retransmit = %d %s", status, body)
+	tests := []struct {
+		name string
+		id   string
+		// seed true first lands the deployPath as admin with seedDeps
+		// (arm ④ seeds nothing — the case push IS the first; the deps
+		// strings may legitimately be "" since flatDeps("none") is the
+		// no-dependency spelling, so the flag is explicit).
+		seed     bool
+		seedDeps string
+		pushDeps string
+		asWriter bool
+		want     int
+		wantBody string
+		// downloadWant: after a 201, Download must serve the case's own
+		// pushed bytes (arm ③'s overwrite proof).
+		downloadWant bool
+	}{
+		{
+			name:     "arm2a-different-bytes-w-only",
+			id:       "Dup.A",
+			seed:     true,
+			seedDeps: flatDeps("none"),
+			pushDeps: flatDeps("Serilog", "4.0.0"),
+			asWriter: true,
+			want:     http.StatusConflict,
+			wantBody: "Package already exist: dup.a/1.0.0/dup.a.1.0.0" + suffixNupkg,
+		},
+		{
+			name:     "arm2b-same-bytes-w-only (D-10 flip, T-378; M12 L03 reversed)",
+			id:       "Dup.B",
+			seed:     true,
+			seedDeps: flatDeps("none"),
+			pushDeps: flatDeps("none"), // == seed deps: byte-identical package
+			asWriter: true,
+			want:     http.StatusConflict,
+			wantBody: "Package already exist: dup.b/1.0.0/dup.b.1.0.0" + suffixNupkg,
+		},
+		{
+			name:         "arm3-d-right-overwrites-different-bytes",
+			id:           "Dup.C",
+			seed:         true,
+			seedDeps:     flatDeps("none"),
+			pushDeps:     flatDeps("Serilog", "4.0.0"),
+			asWriter:     false, // admin holds d
+			want:         http.StatusCreated,
+			wantBody:     "Successfully published NuPkg to: dup.c/1.0.0/dup.c.1.0.0" + suffixNupkg,
+			downloadWant: true,
+		},
+		{
+			name:     "arm3-d-right-same-bytes-retransmit",
+			id:       "Dup.E",
+			seed:     true,
+			seedDeps: flatDeps("none"),
+			pushDeps: flatDeps("none"), // same bytes, but d holds: still 201
+			asWriter: false,
+			want:     http.StatusCreated,
+			wantBody: "Successfully published NuPkg to: dup.e/1.0.0/dup.e.1.0.0" + suffixNupkg,
+		},
+		{
+			name:     "arm4-fresh-package",
+			id:       "Dup.D",
+			pushDeps: flatDeps("none"),
+			asWriter: true,
+			want:     http.StatusCreated,
+			wantBody: "Successfully published NuPkg to: dup.d/1.0.0/dup.d.1.0.0" + suffixNupkg,
+		},
 	}
-
-	// A DIFFERENT package at the same version, by a principal without the
-	// delete right: the 409 with the exact wording.
-	second := buildNupkg(t, "Dup.Pkg", "1.0.0", flatDeps("Serilog", "4.0.0"))
-	status, body, _ = s.do(http.MethodPut, v2ContentPath("ng-local"), "writer", "writerpass", bytesReader(second.body), nil)
-	if status != http.StatusConflict {
-		t.Fatalf("no-overwrite-right publish = %d %s, want 409", status, body)
-	}
-	if !strings.Contains(body, "Package already exist: dup.pkg/1.0.0/dup.pkg.1.0.0"+suffixNupkg) {
-		t.Errorf("409 body = %q", firstLine(body))
-	}
-	// The same publish by the admin (d holds): the overwrite arm, 201.
-	status, body, _ = s.put(v2ContentPath("ng-local"), second.body, nil)
-	if status != http.StatusCreated {
-		t.Fatalf("overwrite publish = %d %s, want 201", status, body)
-	}
-	// The overwritten bytes are what Download serves.
-	status, body, _ = s.get(apiV2Path("ng-local") + "/Download/dup.pkg/1.0.0")
-	if status != http.StatusOK || body != string(second.body) {
-		t.Errorf("overwritten download = %d (len %d)", status, len(body))
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.seed {
+				if status, body, _ := push(tc.id, tc.seedDeps, adminUser, adminPass); status != http.StatusCreated {
+					t.Fatalf("seed publish: %d %s", status, body)
+				}
+			}
+			user, pass := adminUser, adminPass
+			if tc.asWriter {
+				user, pass = "writer", "writerpass"
+			}
+			status, body, pushed := push(tc.id, tc.pushDeps, user, pass)
+			if status != tc.want {
+				t.Fatalf("publish = %d %s, want %d", status, body, tc.want)
+			}
+			if !strings.Contains(body, tc.wantBody) {
+				t.Errorf("body = %q, want it to contain %q", firstLine(body), tc.wantBody)
+			}
+			if tc.downloadWant {
+				gstatus, gbody, _ := s.get(apiV2Path("ng-local") + "/Download/" + lowerASCII(tc.id) + "/1.0.0")
+				if gstatus != http.StatusOK || gbody != pushed {
+					t.Errorf("overwritten download = (%d, len %d), want the pushed bytes", gstatus, len(gbody))
+				}
+			}
+		})
 	}
 
 	// Remote and unrouted virtual: the rclass 400s (before any drain).
-	status, body, _ = s.put(v2ContentPath("ng-remote"), first.body, nil)
+	probe := buildNupkg(t, "Dup.R", "1.0.0", flatDeps("none"))
+	status, body, _ := s.put(v2ContentPath("ng-remote"), probe.body, nil)
 	if status != http.StatusBadRequest || !strings.Contains(body, "This operation can only be performed on local repositories.") {
 		t.Errorf("remote publish = (%d, %q)", status, firstLine(body))
 	}
-	status, body, _ = s.put(v2ContentPath("ng-virt"), first.body, nil)
+	status, body, _ = s.put(v2ContentPath("ng-virt"), probe.body, nil)
 	if status != http.StatusBadRequest || !strings.Contains(body, "This operation can only be performed on local repositories.") {
 		t.Errorf("unrouted virtual publish = (%d, %q)", status, firstLine(body))
 	}

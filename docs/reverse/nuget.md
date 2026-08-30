@@ -100,6 +100,8 @@ BinFlow 实现建议：保持两道门顺序（401 先于 403）；匿名根 GET
 
 部署路径推导：`deployPath = <可选 path 前缀/> <nuspec.id>.<nuspec.version>.nupkg`（id/version 取自包内 nuspec，**不**取 URL）。
 
+**D-10 关闭留痕（2026-08-30 终裁=对齐 409，T-378 落地）**：臂② DE 谓词 `exists && !canDelete` **无字节比对分支**——BinFlow as-built 曾把实测 sha256 当声明摘要送入服务层，借道幂等重传短路使「同字节+仅 w 权限重传」答 201（T-356 L03 实测，LC-56 待裁行）。T-378 移除该声明摘要后重复臂按本表字面执行：② 同字节/异字节一律 409（体逐字同上）、③ d 权限覆盖 201、④ 新包 201；M12 L03 as-built 断言反转归属 T-378 豁免（v2full_test.go 四臂 table-driven 固化 + curl 真客户端腿）。
+
 **与 cargo 的对照**（T-304 §1.4-D-3 已锚定）：nuget local 重复臂是 409，cargo 是 401/403+覆盖臂——包型间不一致是 Artifactory 自身事实，BinFlow 按 nuget 取 409 + d 权限覆盖臂即可，无需向 cargo 形态看齐。
 
 ### 5.2 DELETE
@@ -242,6 +244,7 @@ remote/virtual 仓 v3 service index 里的资源 @id 指向本实例固定内部
 | L6 版本归一化/小写折叠 | 维持（官方锚点） | 已对齐 |
 | L7 virtual remote 成员贡献=缓存 | 改回（裁决①） | **T-341**：§8.2 合并 |
 | （新）publish 重复臂 409+覆盖 | T-304 §7 新发现 | **T-337**：§5.1 |
+| （新）同字节幂等臂 as-built 201（D-10） | 终裁=对齐 409（2026-08-30） | **T-378**：§5.1 四臂回归 + M12 L03 断言反转豁免（本表上方留痕） |
 
 **T-337 实现要点**：① v2 路由按 §2 全集挂到既有 plane-aware rewrite（escaped 拼写保留）；② 鉴权门序 401→403（§3）；③ 重复臂照 §5.1（409 + d 权限覆盖 + virtual 409 `Unacceptable path.`）；④ FindPackagesById 缺 id=404 而非 400（易踩）；⑤ `$batch` 的 202 + `batchresponse_<guid>` boundary + part 查询串覆盖语义（§2 #13）；⑥ remote/virtual 的 v2 搜索代理按 §7（offline 回落、id 级去重、GetUpdates 注入 $orderby）。
 **T-341 实现要点**：① SearchQueryService 层阶 + FeedUtils 回落阶梯（§8.1/§9.2）替换前缀常量；② `.nuGetV3/` 缓存布局（§9.3）；③ 上游 400→take=100 重试；④ virtual 合并（档内 local 事实+remote 代理、id 级 putIfAbsent、合并后分页、totalHits=全量）；⑤ registration 改写（§9.4，packageContent 指 v2 base）。

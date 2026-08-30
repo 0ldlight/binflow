@@ -1263,7 +1263,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
     AC1: L01~L24 全量（承证+增量）+ M1~M12 全 P0 双形态复跑全绿 + 契约变更面（`git diff m12-done..HEAD -- internal/ cmd/`）100% 归属 M13 豁免票 + **断言反转两处**（conan D8 latest 链→整树删 / folderDownload 恒关→旋钮化〔关态文案逐字维持〕）+ **布局对齐一处**（D-F2 双拼→规格布局）PRD 回写核实 + DoD 八条逐条（实测数字归档；NFR-P58~P60 + `make test`（race）全树一次绿×2 + footprint/check-size 门维持——webhook 引擎不得破 M12 转绿门）。
     AC2: 收口双项（README 双语 + 文档站随新能力核查——结论入收口报告）+ Q3/Q4/Q6 终裁归位核查（LC-56 归 A 或 D / webhook 槽档位 / 事件覆盖界）+ 总裁定 PASS → conductor git tag m13-done（UAT 首跑证据随里程碑 PR 归档）。
 - **波外条件票**（未触发 BOARD 留痕非 DoD 缺口）：
-  - **T-378** [P2·条件 Q3] D-10 翻转小票（nuget 同字节幂等 409）`role:dev-go-core` area:internal/adapter/nuget dep:T-370（终裁=对齐 409）+ 余量条款
+  - **T-378 → done 2026-08-31 04:0x（条件触发兑现——用户终裁 D-10 对齐 409）——M13 16/23**：`serveV2Publish` 包体 Put 不再把实测 sha256 当声明摘要（传零值 BlobRef——重传一律走服务层完整权限对，delete 半边即 §5.1 `exists && !canDelete`→409）+ 死代码清除（SHA-256 测量族，官方 sidecar SHA-512 保留）+ **table-driven 四臂**（②a 维持/②b 本票翻转注明 M12 L03 反转+T-378 豁免/③ 两拼写/④）+ **live curl 真栈腿**：w-only 同字节重推 → `409 Package already exist: live.a/1.0.0/…` 逐字。nuget.md §5.1 D-10 关闭留痕 + §11 对照新行。nuget 16.9s 全绿 + repo/httpapi 涟漪双 ok + lint 0。顺手修 in-area 预存漂移（v2live #8 断言针 entry 命名空间——HEAD 即静默红）。conductor 复验：build 0 + 四臂定向 PASS。遗留：v3/flat 直推面 403-vs-409 待规格补锚另票；LC-56「待裁→A」回写归 PM；「有 d 无 w」微角维持现状登记。日志 reports/agents/T-378.md。
     AC1: 同字节 + 仅 w 权限主体重传→409 逐字（nuget.md §5.1 臂②）+ M12 as-built 201 断言反转（归属本票豁免）+ nuget 双客户端回归；终裁=有意差异则本票不触发（nuget.md D 层差异行留痕）。
   - **T-379** [P2·条件 Q2] NuGet symbol server 余量票（M12 T-357 承接）`role:dev-go-core` area:internal/adapter/nuget（symbol 子域）dep:P0/P1 全收官 + 余量条款（全部 P0/P1 收官且余量足）
     AC1: mini as-built 规格随票（T-293 终裁口径）；.pdb/GUID 路径面 + 真实客户端腿；未触发 M14+ BOARD 留痕。

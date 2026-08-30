@@ -1150,7 +1150,9 @@ func virtualDeployTarget(config string) string {
 // only the deployment prefix (deployPath = <prefix>/<id>.<version>.nupkg,
 // section 5.1's derivation). The duplicate arm follows section 5.1: an
 // existing package plus a principal without the overwrite right answers
-// the 409 with the exact wording.
+// the 409 with the exact wording. Since D-10's ruling (2026-08-30, T-378)
+// the arm keys on EXISTENCE alone — same-bytes retransmits included —
+// because the DE predicate has no byte-comparison branch.
 func (h *Handler) serveV2Publish(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, class string, rt route) {
 	_ = ctx
 	switch class {
@@ -1209,16 +1211,20 @@ func (h *Handler) serveV2Publish(ctx context.Context, w http.ResponseWriter, r *
 		existed = true
 	}
 
-	// The measured sha256 rides as the declared digest: a same-bytes
-	// retransmit lands idempotent, a different package demands the
-	// overwrite right — the service's own permission pair (repo-semantics
-	// section 3), which is exactly the 409/overwrite split of 5.1.
+	// No declared digest rides on the package Put — deliberate (D-10,
+	// ruled 2026-08-30, T-378): the measured sha256 sent as the declared
+	// digest is the service's idempotent-retransmit short-circuit
+	// (repo-semantics section 3), which skips the overwrite check
+	// entirely and answered a same-bytes retransmit 201 — the as-built
+	// divergence the ruling flipped. With no declared digest EVERY
+	// retransmit of an existing path walks the permission pair, and the
+	// delete half is what splits the 409 from the overwrite arm — exactly
+	// section 5.1's exists && !canDelete, byte-blind by construction.
 	if _, err := sp.file.Seek(0, io.SeekStart); err != nil {
 		writePlain(w, http.StatusInternalServerError, fmt.Sprintf("rewind spool: %v", err))
 		return
 	}
-	expect := storage.BlobRef{Sha256: sp.sha256Hex()}
-	if _, perr := h.svc.Put(r.Context(), p, repoKey, deployPath, sp.file, expect, "application/octet-stream"); perr != nil {
+	if _, perr := h.svc.Put(r.Context(), p, repoKey, deployPath, sp.file, storage.BlobRef{}, "application/octet-stream"); perr != nil {
 		switch {
 		case existed && errors.Is(perr, repo.ErrForbidden):
 			writeText(w, http.StatusConflict, "Package already exist: "+deployPath)
