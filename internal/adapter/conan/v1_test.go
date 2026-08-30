@@ -244,8 +244,10 @@ func TestV1FilesChannel(t *testing.T) {
 	}
 }
 
-// TestV1Deletes: DELETE conans/<ref> removes the LATEST revision chain
-// (the older revisions survive — spec section 3.2's parenthetical);
+// TestV1Deletes: DELETE conans/<ref> removes the WHOLE coordinate tree —
+// every revision and the index with it (spec section 3.2's D8 row;
+// T-369 flipped the T-308 as-built "LATEST revision chain" posture, the
+// M12 assertion reversal carried by this ticket's exemption — FR-119.1).
 // packages/delete and remove_files do their named jobs.
 func TestV1Deletes(t *testing.T) {
 	s := newStack(t)
@@ -282,21 +284,78 @@ func TestV1Deletes(t *testing.T) {
 		t.Errorf("post-remove file = %d, want 404", code)
 	}
 
-	// DELETE the recipe: the LATEST chain goes, the older revision stays.
+	// DELETE the recipe: the WHOLE tree goes — both revisions and the
+	// index with them (T-369's D8 flip; the retired T-308 posture kept the
+	// older revision alive here).
 	code, _, _ = s.delete(v1("cn-local", "conans/hello/1.0/myuser/stable"))
 	if code != http.StatusOK {
 		t.Fatalf("v1 recipe delete = %d, want 200", code)
 	}
 	code, body, _ = s.get(v2("cn-local", "hello/1.0/myuser/stable/revisions"))
-	if code != http.StatusOK || !strings.Contains(body, revOld) || strings.Contains(body, revNew) {
-		t.Errorf("post-delete revisions = (%d, %s), want only the older revision", code, body)
+	if code != http.StatusNotFound || strings.Contains(body, revOld) || strings.Contains(body, revNew) {
+		t.Errorf("post-delete revisions = (%d, %s), want (404, no revision)", code, body)
 	}
-	// Deleting again removes that one.
-	if code, _, _ = s.delete(v1("cn-local", "conans/hello/1.0/myuser/stable")); code != http.StatusOK {
-		t.Errorf("second v1 delete = %d, want 200", code)
+	// The coordinate is wholly gone: a second delete answers the family 404.
+	if code, _, _ = s.delete(v1("cn-local", "conans/hello/1.0/myuser/stable")); code != http.StatusNotFound {
+		t.Errorf("second v1 delete = %d, want 404", code)
 	}
 	if code, _, _ = s.get(v2("cn-local", "hello/1.0/myuser/stable/latest")); code != http.StatusNotFound {
 		t.Errorf("post-second-delete latest = %d, want 404", code)
+	}
+}
+
+// TestD8WholeTreeRecipeDelete: the D8 flip (T-369) — a coordinate-root
+// recipe delete takes EVERY revision, whichever plane drives it. The v1
+// DELETE conans/<ref> (conan 1's remove leg) and the v2 no-revision DELETE
+// <ref> (L16's 2.x parity leg) serve one truth: post-delete, every read
+// leg of the coordinate answers 404 — including the older revision's tree
+// that the retired T-308 "latest chain" posture left alive.
+func TestD8WholeTreeRecipeDelete(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		path string // the recipe-delete target on its own seeded stack
+	}{
+		{name: "v1 coordinate delete (conan 1 remove)", path: v1("cn-local", "conans/hello/1.0/myuser/stable")},
+		{name: "v2 recipe delete (no revision segment)", path: v2("cn-local", "hello/1.0/myuser/stable")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := newStack(t)
+			s.seedRepo(t, "cn-local", repo.TypeLocal)
+			r := ref{name: "hello", version: "1.0", user: "myuser", channel: "stable"}
+			revOld, revNew := fixtureRev(1), fixtureRev(8)
+			pid, prev := fixturePID(2), fixtureRev(5)
+			for _, rev := range []string{revOld, revNew} {
+				if code, body, _ := s.putRecipeFile("cn-local", r, rev, "conanfile.py", []byte("body-"+rev)); code != http.StatusCreated {
+					t.Fatalf("recipe PUT %s = (%d, %s)", rev, code, body)
+				}
+			}
+			if code, body, _ := s.putPkgFile("cn-local", r, revOld, pid, prev, "conan_package.tgz", []byte("tgz")); code != http.StatusCreated {
+				t.Fatalf("pkg PUT = (%d, %s)", code, body)
+			}
+
+			code, _, _ := s.delete(tc.path)
+			if code != http.StatusOK {
+				t.Fatalf("recipe delete = %d, want 200", code)
+			}
+			// GET 404×2 — and the rest of the family: every revision gone.
+			for _, leg := range []struct{ name, path string }{
+				{"v1 snapshot", v1("cn-local", "conans/hello/1.0/myuser/stable")},
+				{"v2 revisions", v2("cn-local", "hello/1.0/myuser/stable/revisions")},
+				{"v2 latest", v2("cn-local", "hello/1.0/myuser/stable/latest")},
+				{"old revision file", v2("cn-local", "hello/1.0/myuser/stable/revisions/"+revOld+"/files/conanfile.py")},
+				{"new revision file", v2("cn-local", "hello/1.0/myuser/stable/revisions/"+revNew+"/files/conanfile.py")},
+				{"old revision package file", v2("cn-local", "hello/1.0/myuser/stable/revisions/"+revOld+"/packages/"+pid+"/revisions/"+prev+"/files/conan_package.tgz")},
+				{"v1 digest", v1("cn-local", "conans/hello/1.0/myuser/stable/digest")},
+			} {
+				if code, _, _ := s.get(leg.path); code != http.StatusNotFound {
+					t.Errorf("post-delete %s = %d, want 404", leg.name, code)
+				}
+			}
+			// The index went with the tree: a re-delete is the family 404.
+			if code, _, _ := s.delete(tc.path); code != http.StatusNotFound {
+				t.Errorf("second recipe delete = %d, want 404", code)
+			}
+		})
 	}
 }
 

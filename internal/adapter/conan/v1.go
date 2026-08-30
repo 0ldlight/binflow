@@ -251,22 +251,30 @@ func (h *Handler) serveSnapshot(ctx context.Context, cw *capWriter, p *repo.Prin
 	writeJSONDoc(cw, out)
 }
 
-// serveV1RecipeDelete answers DELETE conans/<ref>: the LATEST revision
-// chain (spec section 3.2's parenthetical — the v1 plane has no revision
-// addressing, so "the recipe" is what the index calls newest).
+// serveV1RecipeDelete answers DELETE conans/<ref>: the coordinate-root
+// WHOLE-TREE delete — index.json, every recipe revision and every package
+// revision go in one stroke (spec section 3.2's D8 row, double-sourced:
+// Artifactory's LocalConanHandler.removeRecipe runs repoService.delete on
+// getRecipePath(user/name/version/channel) with NO revision segment, and
+// conan 1.66's reference implementation deletes the whole revisions root —
+// "remove all revisions, packages and package revisions"). The T-308
+// as-built posture (only the LATEST revision's chain survived) was
+// registered as divergence D8 and is retired by T-369: the v1 plane now
+// serves the same truth as the v2 recipe delete (serveRecipeDelete). The
+// write gate rides svc.Delete as ever (canWrite → 403).
 func (h *Handler) serveV1RecipeDelete(ctx context.Context, cw *capWriter, p *repo.Principal, repoKey string, rf ref) {
-	rrev, _, err := h.resolveRRev(ctx, p, repoKey, rf, "")
+	root := rf.coordinateRoot() + "/"
+	exists, err := h.subtreeExists(ctx, p, repoKey, root)
 	if err != nil {
-		h.writeError(cw, err, repoKey, rf.coordinateRoot())
+		h.writeError(cw, err, repoKey, root)
 		return
 	}
-	revRoot := rf.coordinateRoot() + "/" + rrev + "/"
-	if err := h.svc.Delete(ctx, p, repoKey, revRoot); err != nil {
-		h.writeError(cw, err, repoKey, revRoot)
+	if !exists {
+		writePlain(cw, http.StatusNotFound, msgPathNotFound)
 		return
 	}
-	if err := h.removeRecipeRevisionEntry(ctx, p, repoKey, rf, rrev); err != nil {
-		h.writeError(cw, err, repoKey, revRoot)
+	if err := h.svc.Delete(ctx, p, repoKey, root); err != nil {
+		h.writeError(cw, err, repoKey, root)
 		return
 	}
 	cw.WriteHeader(http.StatusOK)

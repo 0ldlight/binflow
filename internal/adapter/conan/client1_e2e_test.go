@@ -24,7 +24,10 @@ import (
 //	conan search      the v1 search endpoint
 //	conan install     after a local-cache wipe: snapshot + download_urls +
 //	                  the files channel GETs (the full download chain)
-//	conan remove -r   the v1 recipe delete
+//	conan remove -r   the v1 recipe delete — TWICE: once on a plain
+//	                  coordinate, once on a multi-revision one (T-369's
+//	                  D8 leg: the whole revision tree must go, the client's
+//	                  own revision `0` included)
 //
 // Environment-gated like the conan 2 leg: BINFLOW_T308_CLIENT1_E2E=1 with
 // a conan 1.x on PATH.
@@ -114,6 +117,31 @@ func TestConan1ClientEndToEnd(t *testing.T) {
 	run("remove", "hello/1.0@myuser/stable", "-r", "binflow", "-f")
 	if code, _, _ := s.get(v1("conan-local", "conans/hello/1.0/myuser/stable")); code != 404 {
 		t.Fatalf("post-remove snapshot = %d, want 404", code)
+	}
+
+	// ---- D8 flip leg (T-369): the multi-revision whole-tree remove ----
+	// Re-upload through the client (registers revision `0`), then seed a
+	// SECOND revision through the v2 plane — the v2 write's fresh
+	// .timestamp makes it the index's latest, so the retired T-308
+	// posture (delete only the latest chain) would have kept revision `0`
+	// alive. The flipped semantics must clear BOTH.
+	run("upload", "hello/1.0@myuser/stable", "-r", "binflow", "--all", "--confirm")
+	r := ref{name: "hello", version: "1.0", user: "myuser", channel: "stable"}
+	if code, body, _ := s.putRecipeFile("conan-local", r, fixtureRev(9), "conanfile.py", []byte("v2-seeded sibling")); code != http.StatusCreated {
+		t.Fatalf("sibling revision PUT = (%d, %s)", code, body)
+	}
+	if code, body, _ := s.get(v2("conan-local", "hello/1.0/myuser/stable/revisions")); code != 200 || !strings.Contains(body, `"0"`) {
+		t.Fatalf("pre-remove revisions = (%d, %s), want both revisions live", code, body)
+	}
+	run("remove", "hello/1.0@myuser/stable", "-r", "binflow", "-f")
+	if code, _, _ := s.get(v1("conan-local", "conans/hello/1.0/myuser/stable")); code != 404 {
+		t.Fatalf("post-remove v1 snapshot = %d, want 404", code)
+	}
+	if code, body, _ := s.get(v2("conan-local", "hello/1.0/myuser/stable/revisions")); code != 404 {
+		t.Fatalf("post-remove revisions = (%d, %s), want 404 (every revision gone)", code, body)
+	}
+	if code, _, _ := s.get(v2("conan-local", "hello/1.0/myuser/stable/revisions/0/files/conanfile.py")); code != 404 {
+		t.Fatalf("post-remove revision-0 file = %d, want 404 (the client's own revision went with the tree)", code)
 	}
 	_ = version
 }
