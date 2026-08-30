@@ -1213,7 +1213,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
     AC1: helmoci-virtual = local+remote 成员→pull 双域制品（tag 并集/by-digest 路由/首见语义照规格）+ 「Helm 与 HelmOCI 不混仓」校验 400 维持（M12 边界复用）（L11）。
     AC2: helmoci 槽三缝含 remote/virtual 建仓（community 400 点名 helmoci/pro 200→卸载降级）+ docker dind /v2 全量回归 + M12 helmoci local 序列零回归（L11 门控段）。
 - **B4**：T-366 ｜ T-367
-  - **T-366** [P1] FR-115.5/115.7 控制台最小面 + 真实消费者 e2e `role:dev-frontend` area:web/src（webhook 订阅管理页组 + 投递记录；web/ 本波独占）dep:T-364
+  - **T-366 → done 2026-08-30 21:3x——M13 9/23**：治理分组第七页 /admin/governance/webhooks（WebhooksPage + SubscriptionDialog〔**对齐规格 M3/M4 Dialog 形态**〕+ SubscriptionDrawer〔右滑 480 档——**首两块 parity 规格落地实践**〕）；lib/webhooks.ts 七端点封装 + 66 型闭集 FE 镜像 + criteria 五键托管 + secret 三态哨兵；锚册 v1.16 入册 47 锚 + ledger PASS + axe 双主题 0 + console-size 352KB 维持 + mock spec 11 腿 + **消费者腿 8 腿全绿**（真 pro 实例：七字段信封 + HMAC 线上字节逐字验签 + 固定间隔 ≥9s×2 重试 + 5 次耗尽死信 + 30s 挂死预算 + SSRF 默认拒回环钉住 + Dialog→Drawer 集成）。readonly 只读臂零写反断言；契约 diff=0。**自擒 conductor 接线缺口**：`webhook.allow_private_target` 死键（T-362 三处接线漏 load.go 装载层）——**conductor 已修**（load.go raw 段+默认 false+env 单下划线别名 + webhook_test.go 双形态表测 + strict schema 测试，config 全包绿/lint 0）。遗留：Jenkins dogfood 腿候旋钮修复后平移（容器腿已交付 AC2）；outbox 行级 REST 面与 Replay REST 归 T-364 §5-3 同裁（候选项）。日志 reports/agents/T-366.md。
     AC1: 订阅列表/新建/编辑/删除/test + 最近投递记录（状态/耗时/重试计数）MUI 面（FR-111 四闸门同构——锚册纪律新锚入册/ledger PASS/全量 Playwright/axe 双主题 0）+ readonly_admin 只读臂（L09-FE 段）。
     AC2: 真实消费者腿——T-247 dogfood Jenkins 条件腿（dep 用户环境：VM 栈在位则接 pipeline 触发腿，事件→job 触发取证）或容器接收器腿（httpbin/脚本接收器 + 故障注入 500/超时）全绿；条件不可得则容器腿 + BOARD 留痕（非 DoD 缺口）（L08 消费者段）。
     AC3: 服务端契约 git diff=0（FE 面零端点私加）+ SPA 预算维持（FR-115-AC7）。

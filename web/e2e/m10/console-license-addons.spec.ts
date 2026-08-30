@@ -31,8 +31,8 @@ const CORE_PKG = ['generic', 'docker', 'maven', 'npm', 'pypi'] as const
 const PRO_PKG = ['go', 'nuget', 'cargo', 'conan', 'helm', 'rpm', 'debian'] as const
 const NEW_PRO_PKG = ['conan', 'helm', 'rpm', 'debian'] as const
 const ENT_FEATURES = ['ha', 'xray-integration'] as const
-// T-339/T-345/T-342：第 16/17/18 槽
-const PRO_FEATURES = ['repo-operations', 'trashcan', 'helmoci'] as const
+// T-339/T-345/T-342/T-362：第 16/17/18/19 槽
+const PRO_FEATURES = ['repo-operations', 'trashcan', 'helmoci', 'webhook'] as const
 
 test.beforeEach(async ({ request }) => {
   const probe = await request.get('/binflow/ui/')
@@ -65,7 +65,7 @@ test('L27a: admin — nav entry, community floor card, live addons matrix', asyn
   // 矩阵：装配序全槽位（AC1 ≥10；T-327F =15，T-339/T-345 增 repo-operations/trashcan 后 = 17）
   await expect(page.locator('[data-testid="addons-card"]')).toBeVisible()
   const rows = page.locator('[data-testid="addons-table"] tbody tr')
-  await expect(rows).toHaveCount(18)
+  await expect(rows).toHaveCount(19)
   for (const id of [...CORE_PKG, ...PRO_PKG, ...ENT_FEATURES, ...PRO_FEATURES, 'properties']) {
     await expect(page.locator(`[data-testid="addons-row-${id}"]`)).toBeVisible()
   }

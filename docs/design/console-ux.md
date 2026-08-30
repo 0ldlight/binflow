@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 文档 | `docs/design/console-ux.md` |
-| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账）/ T-291（v1.11：Properties 页签锚册——MUI 首票）/ T-307（v1.12：认证配置页组锚册——admin/security/auth 域）/ T-344（v1.14：密度档修订——MUI small 档，mui-native-visual §7 登记）/ T-352+T-353（v1.15：回收站页锚册 trash-* 族 + 建仓表单策略键生成器扩容） |
-| 状态 | v1.15（2026-08-29） |
+| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账）/ T-291（v1.11：Properties 页签锚册——MUI 首票）/ T-307（v1.12：认证配置页组锚册——admin/security/auth 域）/ T-344（v1.14：密度档修订——MUI small 档，mui-native-visual §7 登记）/ T-352+T-353（v1.15：回收站页锚册 trash-* 族 + 建仓表单策略键生成器扩容）/ T-366（v1.16：Webhook 订阅管理页锚册 wh-* 族） |
+| 状态 | v1.16（2026-08-30） |
 | 维护者 | ux-designer |
 | 上游依据 | PRODUCT.md（Web 控制台/治理/Non-goals）、ROADMAP.md M4 节、docs/prd/milestone-1/2/3/4.md（端点矩阵与已定案行为）、docs/user/docker-registry.md（用户面口径）、docs/design/architecture.md §7（路由/console 挂载点）、internal/httpapi/router.go（路由门事实——§3.6.2 矩阵逐一核对）、reports/agents/T-98.md · T-99.md（漂移登记与 testid 素材）、reports/agents/T-98-review.md（N1 收敛建议）、BOARD.md（T-85 PRD / T-97 存在性不泄露裁决） |
 | 下游消费者 | T-86（架构：console 包/session/前端工程结构）、tech-lead（M4 拆票）、前端 dev（页面组票）、qa-engineer（控制台验收） |
@@ -32,6 +32,7 @@
 | v1.13 | 2026-08-28 | T-307R SAML 证书管理两动作（T-307 遗留 1 × T-331 三端点就绪的 FE 接线，M11 FR-92 收口）：① **T-307R 批 2 名锚入册**（`authcfg-saml-spkey-download` / `authcfg-saml-spkey-regenerate`——SAML Tab SP 加密证书卡的下载/重生成按钮）；② 交互口径：下载即得 PEM（text/plain → Blob 落盘）、重生成经 ConfirmDialog danger 确认（旧证书即刻失效的后果提示）、未生成 404 = 锚定空态（下载禁用 + 重生成兼作生成入口）、regenerate 响应体即新证书（展示即时刷新）；③ 指纹行 SHA-256（over DER，openssl 可比对）走 §7.3 mono + CopyButton 基元，不设锚；确认对话框复用 confirm-dialog 族锚 |
 | v1.14 | 2026-08-29 | T-344 密度档修订（mui-native-visual §7 登记的回写）：① §7.2 密度行自「表格行高 32px / 导航项 32px / 控件高 32px」修订为「主字号 14px（MUI 默认档）/ MUI small 密度档（表格行 ≈33px、控件 small 带 ≈31px）」——P1 信息密度原则不变，实现档位换 MUI 原生档，手写 32px 压制随之废除；② §7.1 token 表维持（tokens.css 不动，`--bf-fs-body` 等值保留供 B/C 波退役前的残余 CSS 消费）；③ 上游依据 = docs/design/mui-native-visual.md（v1.0），逐波实施细节以该规范为准 |
 | v1.15 | 2026-08-29 | T-352+T-353（M12 FR-106/FR-113 FE 腿，聚票）：① **T-352 批 trash-* 锚族 13 名入册**（回收站管理页 /admin/governance/trash——治理分组第六页；§10.5 路由表补行）；② 建仓表单 **`form-${k}` 生成器族键闭集扩 12 键**（deb×6 / rpm×4 / helm×2——T-353 策略键字段册 policyFields.ts，照 T-307 anchor 属性形态；无新静态锚，§10.6 生成器行同步）；③ 交互口径：trashcan 槽锁定态照 License 页先例（addons 行实时求值）、恢复 ConfirmDialog 内嵌 to 输入（confirm-input 先例）、清空 = danger + 输入 EMPTY 强确认（GC apply 同款）、浏览骑存储面（listChildren / ?properties 五元组断言面同源） |
+| v1.16 | 2026-08-30 | T-366 Webhook 订阅管理页（M13 FR-115.5 FE 腿，FR-115.7 真实消费者 e2e 随票）：① **T-366 批 wh-* 锚族 47 名入册**（治理分组第七页 /admin/governance/webhooks——§10.5 路由表补行）；② 交互形态照 console-artifactory-parity：新建/编辑 = Dialog（M3/M4 族通用规格——动作右下 Cancel 左/主右、Esc/遮罩关闭）、详情 + 最近投递记录 = 右侧 Drawer（抽屉族通用规格——480 档、内部滚动）——**Artifactory 对齐里程碑的首个新页面实践**；③ 订阅面消费 /binflow/event/api/v1 七端点族（E-26 前缀下官方段名逐字——lib/webhooks.ts 自带同源信封）；secret 哨兵 = webhook.md §2.4 三态（省略保持/明文轮换/"" 擦除），留空保持 = 剔除键、哨兵不回传；④ 事件型下拉 13 域分组 + wired/dormant 如实标注（66 型闭集静态镜像，服务端校验终裁——T-362 §5-4 既定） |
 
 ---
 
@@ -1057,6 +1058,7 @@ M8 路由表（console-m8 §1.4）重排后，§10.2/§10.3 的 **242 锚零改�
 | `/admin/security/auth/{ldap\|oauth\|saml}` | `authcfg-page` 族（T-307 批，v1.12 入册——见下） | M11 新增：「用户与权限」分组第五页（认证配置三 Tab；索引 `/admin/security/auth` 重定向 ldap） |
 | `/admin/governance/{audit\|gc\|quotas\|replication\|backup}` | `audit-*` `gc-*` `quota-*` `repl-*` `backup-*` 族 | 原 `/audit` `/governance/*` |
 | `/admin/governance/trash` | `trash-*` 族（T-352 批，v1.15 入册——见下） | M12 新增：治理分组第六页（回收站管理） |
+| `/admin/governance/webhooks` | `wh-*` 族（T-366 批，v1.16 入册——见下） | M13 新增：治理分组第七页（Webhook 订阅管理 + 投递排障） |
 | `/admin/monitoring/storage` | `storage-page` 族（T-238 批，v1.7 入册——D-1 收口） | 新路由；原行 `placeholder-page（新页归 T-238）` 已过时 |
 | `/admin/general/settings` | `settings` + `settings-instance` + `settings-health`（T-238 `SystemInfoPage` 承接；改密已迁 `/profile`——T-239） | 原 `/settings` |
 | `/admin/general/license` | `license-page` 族 + `addons-*` 矩阵族（T-288 批，v1.10 入册——见下） | M10 新增：「常规」分组第二页（license 状态 + addons 矩阵；导航项与页头同文案） |
@@ -1379,6 +1381,56 @@ form-<wire> 生成器族键闭集扩 12 键（web/src/pages/repositories/
 conan/helm/rpm/debian 四型（M11 注册表实态，建仓合法集仍由 addons API
 动态驱动）；审计动作词表前端镜像同步（web/src/lib/governance.ts——
 T-346 后 54 枚逐枚对照，无锚面）。
+
+**T-366 Webhook 订阅管理批（v1.16 入册，M13 FR-115.5 FE 腿——治理分组
+第七页 /admin/governance/webhooks；先入册再落码；交互形态照 Artifactory
+对齐规格的 M3/M4 弹窗与 D 系抽屉条目：新建/编辑 = Dialog（族通用规格），
+详情/投递记录 = 右侧 Drawer（抽屉族通用规格）——对齐里程碑首个新页面
+实践）：**
+
+```
+页面与列表（/admin/governance/webhooks，读门 = system:read——
+  readonly_admin 可见；读面不过 license 门〔D1〕）：
+  wh-page（页根——四态同根）  wh-refresh  wh-create（仅全量 admin）
+  wh-count  wh-table  wh-row-<key>
+  wh-empty（从未有过订阅）  wh-empty-create（空态主行动）
+  wh-readonly-note（readonly_admin 只读说明行——T-218 注记族同款）
+  wh-locked-note（webhook 槽未解锁提示——License 页先例，服务端 403 终裁）
+  wh-toggle-<key>（行内启停开关——PUT 全量体，secret 省略 = 保持）
+  wh-open-<key>（详情抽屉入口）  wh-test-<key>（行内试发）
+  wh-edit-<key>（编辑对话框入口）  wh-delete-<key>（删除 → danger 确认）
+  wh-test-last（最近一次行内试发结果——message/状态码/耗时就地呈现）
+
+新建/编辑对话框（SubscriptionDialog——wh-dialog；草稿试发吃当前表单体）：
+  wh-form-key（编辑态锁定展示）  wh-form-description  wh-form-enabled
+  wh-form-debug  wh-form-domain（13 域分组下拉）
+  wh-form-type-<type>（域内事件型复选族——wired/dormant 徽标注态呈现）
+  wh-form-any-local  wh-form-any-remote  wh-form-repos
+  wh-form-include  wh-form-exclude（criteria 五键托管——本体三域）
+  wh-form-scope-warn（空范围警示——空选择不命中任何事件）
+  wh-form-criteria-note（非托管域的 criteria 说明——REST 全量面可配）
+  wh-form-url  wh-form-secret（只写不回读——留空 = 保持，placeholder
+    「已设置——留空保持不变」）  wh-form-secret-clear（清除已存 secret）
+  wh-form-sign（use_secret_for_signing 双态说明）
+  wh-form-error（提交/试发 400·403 呈现）  wh-test-result（草稿试发结果）
+  wh-form-test  wh-form-cancel  wh-form-submit（动作右下：Cancel 左/主右）
+
+详情抽屉（SubscriptionDrawer——wh-drawer，右滑 480 档；记录 = 排障环
+  GET /event/api/v1/troubleshooting?subscription=，失败必录/debug 成功也录）：
+  wh-drawer  wh-drawer-close  wh-drawer-criteria（criteria JSON mono 呈现）
+  wh-records-refresh  wh-records-empty（空态如实：空列表 ≠ 无投递发生）
+  wh-records-table  wh-record-<i>（行族：时间/状态/事件型/耗时/重试计数）
+  wh-record-payload-<i>（载荷快照展开——mono + CopyButton）
+```
+
+变更注记（T-366，dev-frontend 回写）：订阅面消费 **/binflow/event/api/v1**
+七端点族（E-26 前缀下官方段名逐字，不在 /binflow/api 通用管理面下——
+lib/webhooks.ts 自带同源信封，ApiError 复用）；secret 哨兵语义 = webhook.md
+§2.4（省略 = 保持/明文 = 轮换/"" = 擦除），FE「留空保持」= 提交时剔除
+secret 键，哨兵绝不回传（authconfig 口径同款）；66 事件型/13 域闭集以
+lib/webhooks.ts 静态镜像驱动分组下拉（服务端校验终裁——wired/dormant
+标注为呈现层，T-362 §5-4 既定）；`toast`/`skeleton`/`error-card`/
+`empty-state`/`confirm-dialog` 复用四态基元缺省锚。
 
 **锚总量复核口径（v1.4 实测）**：`grep -rn "data-testid" web/src/` = **293 落点 / 29 文件**（v1.2 基线 242 之后，T-104~T-234 各票陆续增锚至 HEAD 的 283 落点——ADR-0029 原写 283 即此原始 grep 数）；T-235 净变化 = 壳**删 0 改 0、新增 10**（AppShell 10 → 20），占位路由新增 0（复用 `placeholder-page`）。另：`web/src/styles/theme-smoke.spec.ts`（7 处选择器引用，非锚）随 T-232 遗留①迁出 `src/` 至 `e2e/m8/theme-smoke.spec.ts`，不再计入 src 侧 grep。
 

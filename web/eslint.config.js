@@ -25,4 +25,18 @@ export default tseslint.config(
       globals: { URL: 'readonly', console: 'readonly', process: 'readonly' },
     },
   },
+  {
+    // e2e auxiliary processes (the T-366 script receiver): same posture as
+    // the build scripts — plain Node ESM spawned by a spec, not bundled.
+    files: ['e2e/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        URL: 'readonly',
+        console: 'readonly',
+        process: 'readonly',
+        Buffer: 'readonly',
+        setTimeout: 'readonly',
+      },
+    },
+  },
 )

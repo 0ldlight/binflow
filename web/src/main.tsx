@@ -59,6 +59,9 @@ const QuotasPage = lazy(() => import('./pages/governance/QuotasPage'))
 const BackupPage = lazy(() => import('./pages/governance/BackupPage'))
 // 回收站（M12 T-352，FR-106 FE 腿：浏览/恢复/清空——治理分组破坏性管理面）
 const TrashPage = lazy(() => import('./pages/governance/TrashPage'))
+// Webhook 订阅管理（M13 T-366，FR-115.5 FE 腿：订阅 CRUD/test + 排障记录
+// ——治理分组「Webhooks」；消费 /binflow/event/api/v1 七端点族）
+const WebhooksPage = lazy(() => import('./pages/webhooks/WebhooksPage'))
 // 存储概要（T-238 落真身；§6.18：stats + 逐仓 usage 现役端点编排）
 const StorageSummaryPage = lazy(() => import('./pages/monitoring/StorageSummaryPage'))
 // 系统信息（T-238 落真身；§6.19——只读展示，改密块归 /profile 的 T-239 拆分）
@@ -164,6 +167,8 @@ createRoot(document.getElementById('root')!).render(
                     <Route path="admin/governance/backup" element={<BackupPage />} />
                     {/* 回收站（T-352）：trashcan 槽门控态 + 浏览/恢复/清空 */}
                     <Route path="admin/governance/trash" element={<TrashPage />} />
+                    {/* Webhook 订阅（T-366）：治理分组第七页——事件订阅 + 投递排障 */}
+                    <Route path="admin/governance/webhooks" element={<WebhooksPage />} />
 
                     {/* —— 管理模式：监控 / 常规（T-238 落真身：存储概要 +
                          系统信息；占位/设置页挂载让位，路由结构不变。
