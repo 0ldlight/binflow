@@ -162,6 +162,22 @@ boot (degradation knob, not a licensing decision).
 {{- end }}
 
 -------------------------------------------------------------------------------
+  M13 operator knobs (T-362 / T-368)
+-------------------------------------------------------------------------------
+
+The mounted binflow.yaml renders the webhook SSRF posture
+(webhook.allow_private_target={{ .Values.config.webhook.allowPrivateTarget }}),
+the folder_download six-field family and trashcan.retention_days
+({{ .Values.config.trashcan.retentionDays }}d) explicitly. Verify the
+RESOLVED values the server booted with (requires an admin token):
+
+  curl -H "Authorization: Bearer $TOKEN" \
+    http://127.0.0.1:{{ $svcPort }}/binflow/api/v1/system/settings
+
+chartsBaseUrl is NOT among them: it is a per-repository field on helm
+remote repositories (set via the repositories API), not a config key.
+
+-------------------------------------------------------------------------------
   Notes
 -------------------------------------------------------------------------------
 

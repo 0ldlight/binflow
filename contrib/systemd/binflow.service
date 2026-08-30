@@ -42,6 +42,21 @@
 #   returns.  /etc/binflow is ReadOnlyPaths below — put the env file there
 #   (mode 0600, root-owned; the service user only reads it).
 #
+# M13 operator knobs (T-362/T-368, restart-effective):
+#   The same /etc/binflow/env file carries the M13 knob families, or they
+#   go in binflow.yaml (webhook/folder_download/trashcan sections — snake_case
+#   in the file, double-underscore in env):
+#     BINFLOW_WEBHOOK__ALLOW_PRIVATE_TARGET   (default false — the SSRF deny
+#       posture, ADR-0041 decision 6; true is an explicit opt-in for
+#       private-network receivers)
+#     BINFLOW_FOLDER_DOWNLOAD__ENABLED / __ENABLED_FOR_ANONYMOUS /
+#       __MAX_DOWNLOAD_SIZE_MB / __MAX_FILES / __MAX_CONCURRENT_REQUESTS /
+#       __ENABLED_EMPTY_DIRECTORIES           (FR-118.1, defaults = M12 as-built)
+#     BINFLOW_TRASHCAN__RETENTION_DAYS        (FR-118.2, default 14)
+#   The resolved knob values echo at GET /binflow/api/v1/system/settings
+#   (admin token).  chartsBaseUrl is NOT one of these: it is a
+#   per-repository field on helm remote repositories (repositories API).
+#
 # Security:
 #   - Runs as non-root (User=binflow)
 #   - NoNewPrivileges=yes (no setuid / capability escalation)

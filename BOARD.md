@@ -1255,7 +1255,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
     AC1: console-m8 侧栏清单对齐现役 15 页（12/13→15）+ 树节点推翻条款落痕核查 + 锚册 ledger PASS + 全量 playwright 绿（L21 段；FR-122-AC2）。
     AC2: npm.md registry/token 尾斜杠接入注记落笔 + `make docs` SUCCESS 零断链（L21 段；FR-122-AC3）。
 - **B9**：T-376
-  - **T-376** [P1] release 部署烟测 + **UAT 随里程碑 PR 首跑** `role:release-engineer` area:deploy/ + charts/ + CD 链 dep:全部实现票（T-362~T-372；docs 票后合入以里程碑 PR 分支复跑 docs 烟测腿——票面时序协同条款）
+  - **T-376 → AC1 done 2026-08-31 07:1x（AC2 执行面备妥候里程碑 PR 触发）——M13 20/23**：Chart 1.2.0→**1.3.0**（webhook/folderDownload/trashcan 三键族显式渲染 + **Recreate 策略 + checksum/config 注解——C1/C2 两枚 k8s 升级路径硬前提缺陷**〔RollingUpdate 双 pod 争 serve.lock live 复现；仅改配置静默不滚动〕）+ compose M13 env 块 8 键 + k8s 注释块 + systemd + offline 四修（C3）。**六腿烟测全绿**（compose/Chart native/kind 真部署/systemd 容器腿/offline 62M 真构真装/双面 200——均含上传下载字节一致 + 19 槽/403 门控实见）；helm lint --strict ×多轮 + template 矩阵（互斥守卫 intact）。AC2 BEFORE 取证归档（uat.9263439 上 M13 面 404=预期），触发后按报告 §4.3 可粘贴清单直跑。遗留：helm uninstall 连 PVC 删（keep 归 conductor 裁定——**裁定：M14 候选池**，不阻塞收口）；启动日志措辞失真一行级（非本票 area）；PR 分支需复跑 docs 烟测腿（时序条款）。日志 reports/agents/T-376.md。
     AC1: 部署矩阵烟测（compose/k8s/systemd/offline 抽样）+ 新配置面四部署接线核验（webhook 第 19 槽/私网开关键/outbox 面新键族——含 ADR-0041 引入键）。
     AC2: **UAT 随里程碑 PR 首跑必须落地**（M12 T-355 未执行教训——T-356 §6 留痕）：develop→main 里程碑 PR 触发 CircleCI→52.79.109.153 分阶换装 + healthz 探针 + 双面烟测（含 /binflow/docs/）证据归档；与 conductor 收口时序协同（PR 化合并既定程序）。
 - **B10（收口波）**：T-377

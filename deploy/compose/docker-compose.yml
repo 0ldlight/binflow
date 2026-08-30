@@ -132,11 +132,35 @@ services:
       # tolerated, case-sensitive. Restart-effective — removing the entry
       # and restarting restores everything; the breaker never deletes data.
       # Core ids (generic, docker, maven, npm, pypi) are a degradation knob:
-      # the server WARNs at boot and honors them anyway. Slots: go, nuget,
-      # cargo, properties, ha, xray. There is NO license-related config key;
-      # BINFLOW_M10_LICENSE_DIR is a tier-matrix TEST variable and must NOT
-      # be set on the server (the strict env scan refuses the boot on it).
+      # the server WARNs at boot and honors them anyway. 19 slots (M13):
+      # package-type = go, nuget, cargo, conan, helm, helmoci, rpm, debian;
+      # feature = properties, repo-operations, trashcan, ha,
+      # xray-integration, webhook (the 19th slot, M13 T-362). There is NO
+      # license-related config key; BINFLOW_M10_LICENSE_DIR is a tier-matrix
+      # TEST variable and must NOT be set on the server (the strict env scan
+      # refuses the boot on it).
       #BINFLOW_ADDONS__DISABLED: ${BINFLOW_ADDONS__DISABLED:-nuget,go}
+
+      # ---- M13 operator knobs (T-362/T-368, restart-effective) ------------------
+      # An image built from a pre-M13 tree fail-fasts on these variables
+      # (unknown-env refusal) — `up -d --build` from an M13 checkout first.
+      # Webhook SSRF posture (ADR-0041 decision 6): default FALSE — the
+      # deliberate asymmetry against replication.allow_private_target
+      # (webhook targets are REST-CRUD dynamic, the classic SSRF escalation
+      # surface). Set true only for receivers on private networks.
+      BINFLOW_WEBHOOK__ALLOW_PRIVATE_TARGET: ${BINFLOW_WEBHOOK__ALLOW_PRIVATE_TARGET:-false}
+      # Directory-zip knob family (FR-118.1) and the trashcan retention
+      # window (FR-118.2). Defaults = the spec column = the M12 as-built;
+      # the resolved values echo at GET /binflow/api/v1/system/settings.
+      # (env spellings must stay positive; 0 = unlimited for
+      # max_download_size_mb is a binflow.yaml-only spelling.)
+      BINFLOW_FOLDER_DOWNLOAD__ENABLED: ${BINFLOW_FOLDER_DOWNLOAD__ENABLED:-false}
+      BINFLOW_FOLDER_DOWNLOAD__ENABLED_FOR_ANONYMOUS: ${BINFLOW_FOLDER_DOWNLOAD__ENABLED_FOR_ANONYMOUS:-false}
+      BINFLOW_FOLDER_DOWNLOAD__MAX_DOWNLOAD_SIZE_MB: ${BINFLOW_FOLDER_DOWNLOAD__MAX_DOWNLOAD_SIZE_MB:-1024}
+      BINFLOW_FOLDER_DOWNLOAD__MAX_FILES: ${BINFLOW_FOLDER_DOWNLOAD__MAX_FILES:-5000}
+      BINFLOW_FOLDER_DOWNLOAD__MAX_CONCURRENT_REQUESTS: ${BINFLOW_FOLDER_DOWNLOAD__MAX_CONCURRENT_REQUESTS:-10}
+      BINFLOW_FOLDER_DOWNLOAD__ENABLED_EMPTY_DIRECTORIES: ${BINFLOW_FOLDER_DOWNLOAD__ENABLED_EMPTY_DIRECTORIES:-false}
+      BINFLOW_TRASHCAN__RETENTION_DAYS: ${BINFLOW_TRASHCAN__RETENTION_DAYS:-14}
 
       # ---- instance master key (M11 T-319/T-305, env-only) ----------------------
       # BINFLOW_REMOTE_CREDENTIALS_KEY is the AES-256-GCM instance master key

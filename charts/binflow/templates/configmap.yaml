@@ -16,7 +16,8 @@ data:
     # Section and key names mirror the strict schema in internal/config
     # (unknown keys fail-fast at boot):
     # server / storage(.s3) / logging / security / auth(.oidc,.ldap) /
-    # replication / addons. Managed keys are rendered EXPLICITLY, defaults
+    # replication / webhook / folder_download / trashcan / addons.
+    # Managed keys are rendered EXPLICITLY, defaults
     # included — the lesson of T-183: silent key absence reads as a silent
     # default, so the effective posture of every chart-managed key is
     # visible in this file.
@@ -146,6 +147,29 @@ data:
     # (T-183 lesson).
     replication:
       allow_private_target: {{ .Values.config.replication.allowPrivateTarget }}
+    # Webhook SSRF posture (M13 T-362 / ADR-0041 decision 6): rendered
+    # explicitly — the default is DENY (false), the deliberate asymmetry
+    # against replication above (webhook targets are REST-CRUD dynamic);
+    # the effective screening posture of the webhook plane must be visible
+    # (T-183 lesson).
+    webhook:
+      allow_private_target: {{ .Values.config.webhook.allowPrivateTarget }}
+    # Directory-zip knobs (M13 T-368 / FR-118.1, six fields) and the
+    # trashcan retention window (FR-118.2): rendered explicitly so the
+    # effective knob posture is visible (T-183 lesson). The resolved
+    # values echo at GET /binflow/api/v1/system/settings. chartsBaseUrl is
+    # deliberately ABSENT here: it is a per-repository field on helm
+    # remote repositories (set via the repositories API), not a global
+    # config key.
+    folder_download:
+      enabled: {{ .Values.config.folderDownload.enabled }}
+      enabled_for_anonymous: {{ .Values.config.folderDownload.enabledForAnonymous }}
+      max_download_size_mb: {{ .Values.config.folderDownload.maxDownloadSizeMb | int64 }}
+      max_files: {{ .Values.config.folderDownload.maxFiles | int64 }}
+      max_concurrent_requests: {{ .Values.config.folderDownload.maxConcurrentRequests | int64 }}
+      enabled_empty_directories: {{ .Values.config.folderDownload.enabledEmptyDirectories }}
+    trashcan:
+      retention_days: {{ .Values.config.trashcan.retentionDays | int64 }}
     # Addon circuit breaker (M10 T-283, ADR-0032 / architecture section
     # 15.5): disabled is a CSV of addon ids, restart-effective, deletes
     # nothing. Rendered explicitly — the breaker's OFF state ("" = nothing

@@ -10,13 +10,30 @@ metadata:
     {{- include "binflow.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
+  # Recreate, never RollingUpdate (T-376): SQLite WAL + the serve.lock are
+  # single-writer — a rolling update briefly coexists old and new pods on
+  # the same RWO PVC and the incoming pod CrashLoops on "serve.lock is
+  # held by another process" (observed live: every helm upgrade that
+  # changes the pod template hangs at Pending termination while the old
+  # pod keeps serving the OLD config). Same posture as the raw manifests
+  # (deploy/k8s/deployment.yaml).
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       {{- include "binflow.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
       annotations:
+        # Config checksum (T-376): the server reads binflow.yaml (and
+        # binstore.yaml) only at BOOT, and a ConfigMap content change alone
+        # does not change the pod template — without this annotation a
+        # `helm upgrade` that only flips config values (the M13 knob
+        # families are restart-effective by design) silently keeps the OLD
+        # values until a manual pod deletion. The checksum makes any
+        # rendered-config change a rollout.
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+      {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:

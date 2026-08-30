@@ -148,13 +148,43 @@ spec:
             # — removing the entry and restarting restores everything; the
             # breaker never deletes data. Core ids (generic, docker, maven,
             # npm, pypi) are a degradation knob: the server WARNs at boot and
-            # honors them anyway. Slots: go, nuget, cargo, properties, ha,
-            # xray. There is NO license-related config key;
+            # honors them anyway. 19 slots (M13): package-type = go, nuget,
+            # cargo, conan, helm, helmoci, rpm, debian; feature = properties,
+            # repo-operations, trashcan, ha, xray-integration, webhook (the
+            # 19th slot, M13 T-362). There is NO license-related config key;
             # BINFLOW_M10_LICENSE_DIR is a tier-matrix TEST variable — the
             # strict env scan refuses the boot on it, so it never gets set
             # here.
             # - name: BINFLOW_ADDONS__DISABLED
             #   value: "nuget,go"
+
+            # ── M13 operator knobs (T-362/T-368, restart-effective) ──────
+            # Uncomment to diverge from the defaults. An image built from a
+            # pre-M13 tree fail-fasts on these variables (unknown-env
+            # refusal). webhook.allow_private_target defaults FALSE (the
+            # SSRF deny posture, ADR-0041 decision 6 — the asymmetry against
+            # replication's default-allow: webhook targets are REST-CRUD
+            # dynamic). The folder_download six-field family and
+            # trashcan.retention_days echo their RESOLVED values at
+            # GET /binflow/api/v1/system/settings (admin token required).
+            # chartsBaseUrl is NOT here: it is a per-repository field on
+            # helm remote repositories (repositories API), not a config key.
+            # - name: BINFLOW_WEBHOOK__ALLOW_PRIVATE_TARGET
+            #   value: "false"
+            # - name: BINFLOW_FOLDER_DOWNLOAD__ENABLED
+            #   value: "true"
+            # - name: BINFLOW_FOLDER_DOWNLOAD__ENABLED_FOR_ANONYMOUS
+            #   value: "false"
+            # - name: BINFLOW_FOLDER_DOWNLOAD__MAX_DOWNLOAD_SIZE_MB
+            #   value: "1024"
+            # - name: BINFLOW_FOLDER_DOWNLOAD__MAX_FILES
+            #   value: "5000"
+            # - name: BINFLOW_FOLDER_DOWNLOAD__MAX_CONCURRENT_REQUESTS
+            #   value: "10"
+            # - name: BINFLOW_FOLDER_DOWNLOAD__ENABLED_EMPTY_DIRECTORIES
+            #   value: "false"
+            # - name: BINFLOW_TRASHCAN__RETENTION_DAYS
+            #   value: "14"
 
             # ── binstore.yaml storage chain (M11 T-306 / ADR-0036) ────────
             # Hand the storage chain to a standalone binstore.yaml mounted

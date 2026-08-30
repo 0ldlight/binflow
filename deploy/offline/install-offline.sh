@@ -76,13 +76,17 @@ cleanup() {
   fi
   log_warn "Installation failed (exit $exit_code) — rolling back partial state…"
 
-  # Remove images we loaded.
-  for img in "${CREATED_IMAGES[@]}"; do
-    if docker image inspect "$img" &>/dev/null; then
-      log_info "Removing image: $img"
-      docker rmi "$img" || true
-    fi
-  done
+  # Remove images we loaded. The length guard keeps `set -u` happy on bash
+  # 3.2 (macOS system bash): expanding an empty "${arr[@]}" is an unbound
+  # variable error there (T-376: a dry-run failure path hit exactly this).
+  if [ "${#CREATED_IMAGES[@]}" -gt 0 ]; then
+    for img in "${CREATED_IMAGES[@]}"; do
+      if docker image inspect "$img" &>/dev/null; then
+        log_info "Removing image: $img"
+        docker rmi "$img" || true
+      fi
+    done
+  fi
 
   # Tear down compose stack if we started it.
   if [ "$CREATED_COMPOSE" = true ]; then
@@ -241,16 +245,23 @@ install_compose() {
     return 0
   fi
 
+  # The readiness probe must follow BINFLOW_BIND_PORT when the operator
+  # moved the published port in compose/.env (T-376: a custom port made
+  # the hardcoded :8080 probe time out against a healthy stack).
+  local bind_port
+  bind_port="$(grep -E '^BINFLOW_BIND_PORT=' "$compose_env" 2>/dev/null | tail -1 | cut -d= -f2)"
+  bind_port="${bind_port:-8080}"
+
   log_info "Starting BinFlow compose stack…"
   BINFLOW_VER="$VER" docker compose -f "$BUNDLE_DIR/compose/docker-compose.yml" up -d
   CREATED_COMPOSE=true
 
   # Wait for health.
-  log_info "Waiting for BinFlow to become healthy (max 30s)…"
+  log_info "Waiting for BinFlow to become healthy on port $bind_port (max 30s)…"
   local max_wait=30
   local waited=0
   while [ "$waited" -lt "$max_wait" ]; do
-    if curl -sf http://127.0.0.1:8080/readyz > /dev/null 2>&1; then
+    if curl -sf "http://127.0.0.1:${bind_port}/readyz" > /dev/null 2>&1; then
       log_info "BinFlow is ready (/readyz → 200)."
       break
     fi
@@ -263,7 +274,7 @@ install_compose() {
 
   log_info "Compose installation complete."
   echo ""
-  echo "  BinFlow is running at http://127.0.0.1:8080"
+  echo "  BinFlow is running at http://127.0.0.1:${bind_port}"
   echo "  Admin password is in $compose_env"
   echo ""
 }
@@ -359,23 +370,39 @@ install_helm() {
   fi
   log_info "Using kubectl context: $ctx"
 
-  local chart_file="$CHARTS_DIR/binflow-${VER}.tgz"
-  if [ ! -f "$chart_file" ]; then
-    log_fail "Helm chart not found: $chart_file"
+  # Locate the packaged chart. NOT pinned to binflow-${VER}.tgz: `helm
+  # package` names the tarball after the CHART version (e.g.
+  # binflow-1.3.0.tgz), which diverges from the bundle's image/binary
+  # version (T-376: the hardcoded name made helm mode fail on every bundle
+  # produced by plain `helm package`). Any single binflow-*.tgz in charts/
+  # is the chart; zero or several is a malformed bundle.
+  local chart_file
+  chart_file="$(find "$CHARTS_DIR" -maxdepth 1 -name 'binflow-*.tgz' -print 2>/dev/null | sort | head -1 || true)"
+  if [ -z "$chart_file" ]; then
+    log_fail "No binflow-*.tgz chart package found in $CHARTS_DIR — bundle is incomplete."
   fi
+  log_info "Using chart package: $chart_file"
 
   if $DRY_RUN; then
-    log_info "  [DRY-RUN] helm upgrade --install binflow $chart_file"
+    log_info "  [DRY-RUN] helm upgrade --install binflow $chart_file --set image.repository=binflow --set image.tag=${VER}-distroless"
     return 0
   fi
+
+  # Pin the release to the BUNDLED image (binflow:${VER}-distroless, loaded
+  # above). Without this the chart default pulls ghcr.io/lzwzzy/binflow —
+  # unreachable by definition in an air-gap (T-376).
+  local helm_img_sets=(
+    --set "image.repository=binflow"
+    --set "image.tag=${VER}-distroless"
+  )
 
   # Install/upgrade.
   if helm status binflow &>/dev/null 2>&1; then
     log_info "Helm release 'binflow' already exists — upgrading."
-    helm upgrade binflow "$chart_file"
+    helm upgrade binflow "$chart_file" "${helm_img_sets[@]}"
   else
     log_info "Installing helm release 'binflow'…"
-    helm install binflow "$chart_file"
+    helm install binflow "$chart_file" "${helm_img_sets[@]}"
     CREATED_HELM=true
   fi
 

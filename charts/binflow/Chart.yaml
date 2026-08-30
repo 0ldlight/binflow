@@ -2,7 +2,7 @@ apiVersion: v2
 name: binflow
 description: BinFlow — A cloud-native binary repository manager (single-binary Go alternative to JFrog Artifactory).
 type: application
-version: "1.2.0"
+version: "1.3.0"
 appVersion: "1.0.0"
 home: https://github.com/lzwzzy/binflow
 icon: https://raw.githubusercontent.com/lzwzzy/binflow/main/docs/user/assets/logo.png
@@ -21,6 +21,8 @@ maintainers:
     email: maintainers@binflow.dev
 annotations:
   artifacthub.io/changes: |
+    - "config.webhook.allowPrivateTarget — the M13 webhook SSRF posture (T-362 / ADR-0041 decision 6), rendered explicitly as webhook.allow_private_target, default FALSE (the deliberate asymmetry against replication.allow_private_target)"
+    - "config.folderDownload (six fields) + config.trashcan.retentionDays — the M13 operator-knob families (T-368 / FR-118), rendered explicitly as folder_download / trashcan sections; resolved values echo at GET /binflow/api/v1/system/settings"
     - "config.binstore — standalone binstore.yaml storage chain (M11 T-306 / ADR-0036): [filestore] / [s3] / [filestore, s3] + migration mode, rendered as a second ConfigMap key mounted next to binflow.yaml; mutually exclusive with config.s3 (Q5 divergence refused at render time)"
     - "masterKey.existingSecret — instance master key BINFLOW_REMOTE_CREDENTIALS_KEY (M11): seals remote credentials, replication, auth_configs and GPG keypairs (enc:v1)"
     - "config.addons.disabled — the M10 addon circuit breaker (T-295, ADR-0032 section 15.5), rendered explicitly into the ConfigMap"
