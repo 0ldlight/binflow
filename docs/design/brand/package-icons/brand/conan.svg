@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <title>conan 包型图标（品牌色版）</title>
+  <!-- 近似 conan 青蓝（#0095D5）的棱角 C 几何重绘，仅作包型识别；原标形态置信度低（README §4） -->
+  <path d="M16.6 3.8H7.6A3.8 3.8 0 0 0 3.8 7.6v8.8a3.8 3.8 0 0 0 3.8 3.8h9" stroke="#0095D5" stroke-width="3.6" stroke-linecap="square"/>
+</svg>

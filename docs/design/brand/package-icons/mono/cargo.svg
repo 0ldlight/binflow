@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <title>cargo 包型图标（单色版）</title>
+  <!-- 齿轮（Rust 生态齿轮形）的极简重绘：内环 + dasharray 齿圈。mono 版全 currentColor -->
+  <circle cx="12" cy="12" r="4.1" stroke="currentColor" stroke-width="2.2"/>
+  <circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="3.1" stroke-dasharray="3.14 3.14"/>
+</svg>

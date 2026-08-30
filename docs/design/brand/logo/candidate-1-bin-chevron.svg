@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 470" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif">
+  <title>BinFlow logo 候选 1「容器·双箭流」（bin-chevron）规格表</title>
+  <desc>mark = 圆角方形容器（bin）内一对向右箭头：描边箭 + 实心箭，构成加速的 flow。横版 lockup = mark + BinFlow wordmark。含亮底/暗底/单色三版本与 16~32px 缩放样张。品牌主色对齐主题 token --bf-accent（亮 #0b6bcb / 暗 #4aa3ff），容器描边用 --bf-text（亮 #1d232c / 暗 #e9edf3）。</desc>
+
+  <!-- ================= 亮底行（--bf-surface-1 #ffffff） ================= -->
+  <rect x="0" y="0" width="760" height="225" fill="#ffffff"/>
+  <text x="24" y="30" font-size="12" fill="#9aa6b4">亮底（surface-1 #ffffff）—— mark 96px / 横版 lockup / 单色版</text>
+
+  <!-- mark 96px（品牌版：容器描边 --bf-text，箭头 --bf-accent） -->
+  <svg x="24" y="52" width="96" height="96" viewBox="0 0 48 48">
+    <rect x="5" y="5" width="38" height="38" rx="9" fill="none" stroke="#1d232c" stroke-width="3.5"/>
+    <path d="M14.5 16.2 24.5 24l-10 7.8" fill="none" stroke="#0b6bcb" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M23.5 14.6 33.5 24l-10 9.4Z" fill="#0b6bcb"/>
+  </svg>
+
+  <!-- 横版 lockup（wordmark：几何无衬线 700，字距 -0.5%；生产须转 path） -->
+  <svg x="168" y="70" width="304" height="80" viewBox="0 0 152 40">
+    <svg x="0" y="2" width="36" height="36" viewBox="0 0 48 48">
+      <rect x="5" y="5" width="38" height="38" rx="9" fill="none" stroke="#1d232c" stroke-width="3.5"/>
+      <path d="M14.5 16.2 24.5 24l-10 7.8" fill="none" stroke="#0b6bcb" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M23.5 14.6 33.5 24l-10 9.4Z" fill="#0b6bcb"/>
+    </svg>
+    <text x="44" y="28.5" font-size="25" font-weight="700" letter-spacing="-0.5" fill="#1d232c">Bin<tspan fill="#0b6bcb">Flow</tspan></text>
+  </svg>
+
+  <!-- 单色版（48px，currentColor 消费；此处着 --bf-text-2 展示） -->
+  <svg x="560" y="74" width="48" height="48" viewBox="0 0 48 48" color="#55606e">
+    <rect x="5" y="5" width="38" height="38" rx="9" fill="none" stroke="currentColor" stroke-width="3.5"/>
+    <path d="M14.5 16.2 24.5 24l-10 7.8" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M23.5 14.6 33.5 24l-10 9.4Z" fill="currentColor"/>
+  </svg>
+  <text x="556" y="140" font-size="11" fill="#9aa6b4">单色（currentColor）</text>
+
+  <text x="24" y="170" font-size="11.5" fill="#646f7b">设计注：圆角容器 = bin（仓库/集装箱）；描边箭 + 实心箭 = 逐级加速的 flow。</text>
+  <text x="24" y="188" font-size="11.5" fill="#646f7b">双箭亦读作终端提示符 »——工程师一望即知「进站、出站」。</text>
+
+  <!-- ================= 暗底行（--bf-bg #12161d） ================= -->
+  <rect x="0" y="225" width="760" height="160" fill="#12161d"/>
+  <text x="24" y="252" font-size="12" fill="#7f8a99">暗底（bg #12161d）—— mark 96px / 横版 lockup</text>
+
+  <svg x="24" y="270" width="96" height="96" viewBox="0 0 48 48">
+    <rect x="5" y="5" width="38" height="38" rx="9" fill="none" stroke="#e9edf3" stroke-width="3.5"/>
+    <path d="M14.5 16.2 24.5 24l-10 7.8" fill="none" stroke="#4aa3ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M23.5 14.6 33.5 24l-10 9.4Z" fill="#4aa3ff"/>
+  </svg>
+
+  <svg x="168" y="288" width="304" height="80" viewBox="0 0 152 40">
+    <svg x="0" y="2" width="36" height="36" viewBox="0 0 48 48">
+      <rect x="5" y="5" width="38" height="38" rx="9" fill="none" stroke="#e9edf3" stroke-width="3.5"/>
+      <path d="M14.5 16.2 24.5 24l-10 7.8" fill="none" stroke="#4aa3ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M23.5 14.6 33.5 24l-10 9.4Z" fill="#4aa3ff"/>
+    </svg>
+    <text x="44" y="28.5" font-size="25" font-weight="700" letter-spacing="-0.5" fill="#e9edf3">Bin<tspan fill="#4aa3ff">Flow</tspan></text>
+  </svg>
+
+  <!-- ================= 缩放样张（favicon 预览，16/20/24/32） ================= -->
+  <rect x="0" y="385" width="760" height="85" fill="#ffffff"/>
+  <text x="24" y="410" font-size="12" fill="#9aa6b4">缩放样张：16 / 20 / 24 / 32 px（单色轮廓在 16px 仍两箭可辨）</text>
+  <svg x="24" y="422" width="16" height="16" viewBox="0 0 48 48">
+    <rect x="5" y="5" width="38" height="38" rx="9" fill="none" stroke="#1d232c" stroke-width="3.5"/>
+    <path d="M14.5 16.2 24.5 24l-10 7.8" fill="none" stroke="#0b6bcb" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M23.5 14.6 33.5 24l-10 9.4Z" fill="#0b6bcb"/>
+  </svg>
+  <svg x="52" y="418" width="20" height="20" viewBox="0 0 48 48">
+    <rect x="5" y="5" width="38" height="38" rx="9" fill="none" stroke="#1d232c" stroke-width="3.5"/>
+    <path d="M14.5 16.2 24.5 24l-10 7.8" fill="none" stroke="#0b6bcb" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M23.5 14.6 33.5 24l-10 9.4Z" fill="#0b6bcb"/>
+  </svg>
+  <svg x="84" y="414" width="24" height="24" viewBox="0 0 48 48">
+    <rect x="5" y="5" width="38" height="38" rx="9" fill="none" stroke="#1d232c" stroke-width="3.5"/>
+    <path d="M14.5 16.2 24.5 24l-10 7.8" fill="none" stroke="#0b6bcb" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M23.5 14.6 33.5 24l-10 9.4Z" fill="#0b6bcb"/>
+  </svg>
+  <svg x="120" y="410" width="32" height="32" viewBox="0 0 48 48">
+    <rect x="5" y="5" width="38" height="38" rx="9" fill="none" stroke="#1d232c" stroke-width="3.5"/>
+    <path d="M14.5 16.2 24.5 24l-10 7.8" fill="none" stroke="#0b6bcb" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M23.5 14.6 33.5 24l-10 9.4Z" fill="#0b6bcb"/>
+  </svg>
+</svg>
