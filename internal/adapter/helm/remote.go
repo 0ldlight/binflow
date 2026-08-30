@@ -165,7 +165,7 @@ func (h *Handler) streamExternal(ctx context.Context, w http.ResponseWriter, rep
 	} else {
 		hdr.Set("Content-Type", "application/octet-stream")
 	}
-	hdr.Set("X-Binflow-Upstream", target)
+	hdr.Set(hdrUpstream, target)
 	if v := res.Header.Get("Content-Length"); v != "" {
 		hdr.Set("Content-Length", v)
 	}
@@ -187,13 +187,14 @@ func drainExternal(body io.ReadCloser) {
 }
 
 // serveRemoteExternal answers GET _external/<protocol>/<url...> on a
-// remote repository (helm.md section 6): the folded URL re-inflates, the
-// allow list gates it (the pinned 400 on a miss), the guarded client
-// streams it. Nothing lands in the cache namespace — the engine's
-// land() is the only cache writer, and absolute-URL fetches have no
-// engine seam (registered as a deliberate scope line in the ticket
-// report: correctness first, the landing rides a future engine facet).
-func (h *Handler) serveRemoteExternal(ctx context.Context, w http.ResponseWriter, repoKey, rel string) {
+// remote repository (helm.md section 6, T-367's landing posture): the
+// folded URL re-inflates, the allow list gates it (the pinned 400 on a
+// miss), then the service's RemoteExternalPlane runs the absolute-URL
+// fetch through the pull-through engine — the dependency LANDS at the
+// folded storage path and the second pull serves from the local copy
+// (X-BinFlow-Cache observable, zero third-party egress). A stack without
+// the seam (a bare test double) degrades to the pre-T-367 pass-through.
+func (h *Handler) serveRemoteExternal(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, rel string) {
 	target, err := parseExternalPath(rel, segExternal)
 	if err != nil {
 		writeText(w, http.StatusBadRequest, err.Error())
@@ -201,6 +202,16 @@ func (h *Handler) serveRemoteExternal(ctx context.Context, w http.ResponseWriter
 	}
 	if !externalAllowed(h.externalPatterns(), target) {
 		writeText(w, http.StatusBadRequest, fmt.Sprintf(msgNotExternalDependency, target))
+		return
+	}
+	if plane, ok := h.svc.(repo.RemoteExternalPlane); ok {
+		rc, node, ferr := plane.FetchExternal(ctx, p, repoKey, rel, target)
+		if ferr != nil {
+			h.writeExternalError(w, ferr, repoKey, target)
+			return
+		}
+		w.Header().Set(hdrUpstream, target)
+		h.serveNode(ctx, w, r, node, rc, nodeCType(node))
 		return
 	}
 	out := h.streamExternal(ctx, w, repoKey, target)
@@ -212,6 +223,33 @@ func (h *Handler) serveRemoteExternal(ctx context.Context, w http.ResponseWriter
 		writeText(w, http.StatusNotFound, fmt.Sprintf(
 			"Failed to find the external dependency '%s' for repository '%s'.", target, repoKey))
 	}
+}
+
+// hdrUpstream marks the third-party target the _external face served — the
+// face's own observability header (kept on both the landing and the
+// pass-through arms).
+const hdrUpstream = "X-Binflow-Upstream"
+
+// writeExternalError maps one seam failure onto the _external face: the
+// unfound family keeps the face's own 404 wording, everything else (the
+// SSRF 400 family, the 502 body-cap arm) renders verbatim.
+func (h *Handler) writeExternalError(w http.ResponseWriter, err error, repoKey, target string) {
+	var se *repo.StatusError
+	if errors.As(err, &se) {
+		if errors.Is(err, repo.ErrNodeNotFound) {
+			writeText(w, http.StatusNotFound, fmt.Sprintf(
+				"Failed to find the external dependency '%s' for repository '%s'.", target, repoKey))
+			return
+		}
+		for k, vv := range se.Header {
+			for _, v := range vv {
+				w.Header().Add(k, v)
+			}
+		}
+		writeText(w, se.Code, se.Message)
+		return
+	}
+	h.writeError(w, err, repoKey, target)
 }
 
 // serveRemoteTransitive answers GET _transitive/<protocol>/<url...> on a

@@ -2058,7 +2058,7 @@ func (s *service) CreateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 		if err := rejectKeypairRefOnNonLocal(r.Type, config); err != nil {
 			return nil, err
 		}
-		rc, password, perr := parseRemoteConfig(config)
+		rc, password, perr := parseRemoteConfig(config, r.PackageType)
 		if perr != nil {
 			return nil, perr
 		}
@@ -2222,6 +2222,9 @@ func (s *service) validateVirtualMembers(ctx context.Context, p *Principal, virt
 	if err := validateHelmFamilyMix(virtualPackageType, memberRows); err != nil {
 		return err
 	}
+	if err := validateV2MemberTypes(virtualPackageType, memberRows); err != nil {
+		return err
+	}
 	if cfg.DefaultDeploymentRepo != "" && !seen[cfg.DefaultDeploymentRepo] {
 		return fmt.Errorf(
 			"%w: defaultDeploymentRepo %q is not a member of the virtual repository",
@@ -2273,6 +2276,31 @@ func validateHelmFamilyMix(virtualPackageType string, memberRows []*metadata.Rep
 		return fmt.Errorf(
 			"%w: virtual repository cannot mix the Helm and HelmOCI protocol families (helm repositories serve classic chart indexes, helmoci repositories serve the registry v2 plane); first helm member %q, first helmoci member %q",
 			ErrInvalidRepoConfig, sawHelm, sawHelmOCI)
+	}
+	return nil
+}
+
+// validateV2MemberTypes enforces the registry-v2 same-type member rule
+// (T-367's rider, closing the cross-ecosystem gap T-365's live pass pried
+// open: a docker pull could resolve through a helmoci virtual because the
+// /v2 plane is family-shared): a docker or helmoci virtual repository
+// aggregates members of its OWN package type only — Artifactory's
+// "virtual members must be of the virtual's package type" semantics on the
+// one family where two package types share a wire plane. The refused
+// wording follows the validateHelmFamilyMix shape. Non-v2 virtuals are out
+// of the rider's scope (registered in the ticket report); the
+// helm×helmoci mix keeps its own, earlier check.
+func validateV2MemberTypes(virtualPackageType string, memberRows []*metadata.Repo) error {
+	if !isV2PlaneFamily(virtualPackageType) {
+		return nil
+	}
+	for _, row := range memberRows {
+		if row.PackageType != virtualPackageType {
+			return fmt.Errorf(
+				"%w: virtual repository cannot mix the %s and %s package types (a %s virtual aggregates %s repositories only); member %q is a %s repository",
+				ErrInvalidRepoConfig, virtualPackageType, row.PackageType,
+				virtualPackageType, virtualPackageType, row.RepoKey, row.PackageType)
+		}
 	}
 	return nil
 }
@@ -2408,7 +2436,7 @@ func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 			if err := rejectKeypairRefOnNonLocal(current.Type, r.Config); err != nil {
 				return nil, err
 			}
-			rc, password, perr := parseRemoteConfig(r.Config)
+			rc, password, perr := parseRemoteConfig(r.Config, current.PackageType)
 			if perr != nil {
 				return nil, perr
 			}

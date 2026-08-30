@@ -686,6 +686,13 @@ func NewStatusError(code int, message string, header http.Header, cause error) *
 // like the routing seam (cmd passes md.Repos() — the docker package's
 // NewRepoLookup is the same precedent). Callers map
 // metadata.ErrRepoNotFound onto their protocol's not-found wording.
+//
+// T-367 widening note: exactly one consumer additionally reads the row's
+// canonical CONFIG JSON through this seam — the helm virtual face's member
+// rewriting resolves the member's chartsBaseUrl (a public, non-protected
+// field; the canonical remote form never carries a password). The class
+// stays the seam's routing payload; the config read is that one consumer's
+// own, documented at its call site (helm memberContext).
 type ClassReader interface {
 	// Get returns the repository row for repoKey; only Type (the class)
 	// crosses this seam by contract. ErrRepoNotFound (the metadata sentinel)
@@ -710,6 +717,12 @@ type RemoteFetcher interface {
 	// read; a *remote.FetchError renders verbatim (StatusError mapping) and
 	// anything else is a plain 500.
 	Fetch(ctx context.Context, repoKey, path string) (*remote.FetchResult, error)
+	// FetchAbsolute pulls one ABSOLUTE third-party URL through the same
+	// state machine and lands it at the repository-relative storage path
+	// (T-367, FR-117 — the helm _external dependency face; helm.md section
+	// 6/S10). Credential-less egress by contract (the target is a third
+	// party, never the configured upstream).
+	FetchAbsolute(ctx context.Context, repoKey, path, target string) (*remote.FetchResult, error)
 	// Invalidate drops the local cache of one path (RE-06: DELETE on a
 	// remote repository deletes the cached copy only, never upstream); it
 	// reports whether anything was cached (204 vs 404).
@@ -721,6 +734,29 @@ type RemoteFetcher interface {
 
 // The concrete engine satisfies the seam (compile-time pin).
 var _ RemoteFetcher = (*remote.Engine)(nil)
+
+// RemoteExternalPlane is the absolute-URL dependency pull-through seam
+// (M13 T-367, FR-117, helm.md section 6/S10): the helm _external face's
+// hops run through the SAME engine machinery a path-joined fetch does —
+// the folded proxy path IS the storage path, so the landing, the negative
+// cache, the TTL classes and the stale downgrade are the ordinary
+// path-keyed ones, and a second pull serves from the local copy with zero
+// egress. The consumer resolves the capability by type-asserting Service
+// (the RemoteV2Plane precedent — an optional SPI segment; an assembly
+// without the seam answers the pre-T-367 pass-through instead).
+type RemoteExternalPlane interface {
+	// FetchExternal pulls one absolute dependency URL into repoKey's cache
+	// at path (the folded _external spelling), read-gated like Get.
+	// Unfound outcomes wrap ErrNodeNotFound; a *StatusError renders
+	// verbatim (the SSRF 400 family included).
+	FetchExternal(ctx context.Context, p *Principal, repoKey, path, target string) (io.ReadSeekCloser, *metadata.Node, error)
+	// FetchVirtualExternal is the membership-guarded member twin: the
+	// virtual _external walk lands into the REMOTE MEMBER's cache (the
+	// ReadVirtualMember posture — the read gate has already run on the
+	// VIRTUAL key, the member must currently sit in its order, no
+	// per-member re-gate).
+	FetchVirtualExternal(ctx context.Context, p *Principal, virtualKey, member, path, target string) (io.ReadSeekCloser, *metadata.Node, error)
+}
 
 // RemoteV2Plane is the registry-v2 remote pull-through seam (M13 T-363,
 // FR-116.1, helm.md section 8.3): the OCI Distribution upstream

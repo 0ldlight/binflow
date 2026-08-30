@@ -77,6 +77,22 @@ type remoteConfig struct {
 	// read as "off" with zero migration surface).
 	EnableTokenAuthentication bool                   `json:"enableTokenAuthentication"`
 	ContentSynchronisation    ContentSynchronisation `json:"contentSynchronisation"`
+	// ChartsBaseURL is the helm remote repository's divergent charts fetch
+	// base (helm.md section 6 / S10): the upstream serves its index.yaml at
+	// the repository URL but hosts the .tgz/.prov bodies under a DIFFERENT
+	// base — a heterogeneous-base upstream. Content-class fetches go to
+	// chartsBaseUrl + <repo-relative path>; the repo-root index (metadata
+	// class) always comes from the repository URL; unset falls back to the
+	// repository URL (the mirror-aligned default, S10's fallback chain).
+	//
+	// T-367's in-ticket schema ruling (T-342 D-2①, registered for the
+	// architect and settled here): the seat rides the canonical config JSON
+	// — the enableTokenAuthentication precedent, no remote_configs column —
+	// and is REFUSED BY NAME on every non-helm remote package type (the
+	// validateLocalKeypairRef posture: silently accepting an inert field
+	// would let an admin believe a maven remote fetches charts from the
+	// base).
+	ChartsBaseURL string `json:"chartsBaseUrl,omitempty"`
 }
 
 // ContentSynchronisation is the smart remote content-sync policy (T-317,
@@ -152,6 +168,7 @@ type remoteConfigInput struct {
 	PriorityResolution                *bool            `json:"priorityResolution"`
 	EnableTokenAuthentication         *bool            `json:"enableTokenAuthentication"`
 	ContentSynchronisation            *json.RawMessage `json:"contentSynchronisation"`
+	ChartsBaseURL                     *string          `json:"chartsBaseUrl"`
 }
 
 // validateRemoteConfigShape is the strict single-JSON-value gate of the
@@ -217,6 +234,8 @@ func parseContentSynchronisation(raw *json.RawMessage) (ContentSynchronisation, 
 // 4). With no master key configured the password is dropped with a WARN
 // (fetching then goes anonymous), which keeps the T-64 no-plaintext-window
 // contract exactly: nothing unprotected ever reaches the store.
+// packageType carries the repository row's package type — the one
+// per-protocol seat, chartsBaseUrl (T-367), keys on it.
 //
 // Validation is scheme/format only (FR-15-AC3): a private-address URL is
 // LEGAL at create time — the SSRF chain runs per request because DNS and
@@ -230,8 +249,10 @@ func parseContentSynchronisation(raw *json.RawMessage) (ContentSynchronisation, 
 // T-290-era refusal of the smart remote pair (enableTokenAuthentication /
 // contentSynchronisation) is retired by T-317 (FR-101.1): both are ACCEPTED
 // and effective — the no-inert-fields rule is satisfied by their consumers
-// in internal/remote (Bearer token auth, pull-side property attach).
-func parseRemoteConfig(config string) (remoteConfig, string, error) {
+// in internal/remote (Bearer token auth, pull-side property attach). The
+// same rule governs chartsBaseUrl (T-367): accepted and effective on helm
+// remotes, refused by name everywhere else (never a stored inert field).
+func parseRemoteConfig(config, packageType string) (remoteConfig, string, error) {
 	if err := validateRemoteConfigShape(config); err != nil {
 		return remoteConfig{}, "", err
 	}
@@ -256,6 +277,36 @@ func parseRemoteConfig(config string) (remoteConfig, string, error) {
 	if u.Host == "" {
 		return remoteConfig{}, "", fmt.Errorf(
 			"%w: remote repository config: url %q: host is required", ErrInvalidRepoConfig, rawURL)
+	}
+
+	// chartsBaseUrl (T-367, the per-protocol seat): a non-empty value is a
+	// helm remote's field ONLY — any other package type gets the by-name
+	// refusal (the validateLocalKeypairRef posture: an inert accepted field
+	// is the trap; a silently dropped one is a lie). Absent or an explicit
+	// "" (clearing the base back to the URL fallback) passes everywhere.
+	chartsBase := ""
+	if in.ChartsBaseURL != nil {
+		if trimmed := strings.TrimSpace(*in.ChartsBaseURL); trimmed != "" {
+			if packageType != PackageHelm {
+				return remoteConfig{}, "", fmt.Errorf(
+					"%w: remote %s repository config: chartsBaseUrl %q is not accepted (the divergent charts fetch base is a helm remote-repository behavior)",
+					ErrInvalidRepoConfig, packageType, trimmed)
+			}
+			cb, err := url.Parse(trimmed)
+			if err != nil {
+				return remoteConfig{}, "", fmt.Errorf(
+					"%w: remote repository config: chartsBaseUrl %q: %w", ErrInvalidRepoConfig, trimmed, err)
+			}
+			if cb.Scheme != "http" && cb.Scheme != "https" {
+				return remoteConfig{}, "", fmt.Errorf(
+					"%w: remote repository config: chartsBaseUrl %q: scheme must be http or https", ErrInvalidRepoConfig, trimmed)
+			}
+			if cb.Host == "" {
+				return remoteConfig{}, "", fmt.Errorf(
+					"%w: remote repository config: chartsBaseUrl %q: host is required", ErrInvalidRepoConfig, trimmed)
+			}
+			chartsBase = strings.TrimRight(cb.String(), "/")
+		}
 	}
 
 	out := remoteConfig{
@@ -362,6 +413,7 @@ func parseRemoteConfig(config string) (remoteConfig, string, error) {
 		return remoteConfig{}, "", csErr
 	}
 	out.ContentSynchronisation = cs
+	out.ChartsBaseURL = chartsBase
 	return out, in.Password, nil
 }
 

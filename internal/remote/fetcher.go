@@ -127,7 +127,17 @@ type repoPolicy struct {
 	// default, so pre-T-317 rows read "off" with no migration).
 	EnableTokenAuthentication bool             `json:"enableTokenAuthentication"`
 	ContentSync               contentSyncState `json:"contentSynchronisation"`
+	// ChartsBaseURL is the helm remote's divergent charts fetch base
+	// (T-367, FR-117; helm.md section 6 / S10). The canonical JSON is the
+	// single source — repo.Service refuses the field on non-helm remotes,
+	// so the engine consumes it whenever set, gated on the package type
+	// below as defense in depth against a hand-mangled row.
+	ChartsBaseURL string `json:"chartsBaseUrl"`
 }
+
+// pkgTypeHelm mirrors the repo package's PackageHelm spelling (the import
+// would cycle; the repoPolicy comment's sync rule covers this literal too).
+const pkgTypeHelm = "helm"
 
 // contentSyncState is the contentSynchronisation slice of the policy (the
 // K37 sub-field set — see repo.ContentSynchronisation, whose shape this
@@ -249,9 +259,13 @@ type Engine struct {
 
 	mu      sync.Mutex
 	clients map[string]*cachedClient // repoKey -> client + signature
-	offline map[string]time.Time     // repoKey -> assumed-offline until
-	stats   map[string]*repoCounters
-	flights map[string]chan struct{} // singleflight, repoKey + "/" + path
+	// extClients pools the CREDENTIAL-LESS egress clients (the helm
+	// _external face and a cross-host chartsBaseUrl) — keyed
+	// "repoKey\x00baseURL" so one repository may hold both shapes.
+	extClients map[string]*cachedClient
+	offline    map[string]time.Time // repoKey -> assumed-offline until
+	stats      map[string]*repoCounters
+	flights    map[string]chan struct{} // singleflight, repoKey + "/" + path
 }
 
 // repoCounters is the atomic counter block behind RepoStats.
@@ -291,17 +305,18 @@ func NewEngine(st storage.Engine, md metadata.Store, opts EngineOptions) (*Engin
 		cipher = c
 	}
 	e := &Engine{
-		st:       st,
-		md:       md,
-		nowFn:    opts.Now,
-		log:      opts.Logger,
-		cipher:   cipher,
-		metaWait: opts.MetadataWait,
-		resolve:  opts.Resolve,
-		clients:  map[string]*cachedClient{},
-		offline:  map[string]time.Time{},
-		stats:    map[string]*repoCounters{},
-		flights:  map[string]chan struct{}{},
+		st:         st,
+		md:         md,
+		nowFn:      opts.Now,
+		log:        opts.Logger,
+		cipher:     cipher,
+		metaWait:   opts.MetadataWait,
+		resolve:    opts.Resolve,
+		clients:    map[string]*cachedClient{},
+		extClients: map[string]*cachedClient{},
+		offline:    map[string]time.Time{},
+		stats:      map[string]*repoCounters{},
+		flights:    map[string]chan struct{}{},
 	}
 	if e.nowFn == nil {
 		e.nowFn = func() time.Time { return time.Now().UTC() }
@@ -405,6 +420,38 @@ func (e *Engine) counters(repoKey string) *repoCounters {
 // is the caller's — the service gates the read BEFORE any upstream contact
 // (an unauthorized principal must not be able to aim BinFlow at URLs).
 func (e *Engine) Fetch(ctx context.Context, repoKey, path string) (*FetchResult, error) {
+	return e.fetchFlow(ctx, repoKey, path, "")
+}
+
+// FetchAbsolute pulls one ABSOLUTE URL through the same remote proxy state
+// machine and lands it at the repository-relative storage path (T-367,
+// FR-117; the helm _external face — the folded proxy path IS a legal node
+// path, so the landing, the negative cache, the TTL classes and the stale
+// downgrade are all the ordinary path-keyed machinery). Differences
+// against Fetch, both deliberate:
+//
+//   - the egress client carries NO credentials: an external dependency URL
+//     names a third-party target, and the repository's upstream credential
+//     must never ride to it (the redirect-chain Authorization rule applied
+//     at the source); the repository's admin-set private-upstream exemption
+//     and socket timeout still govern the hop;
+//   - a third-party fault never marks the repository assumed-offline and
+//     the offline window never silences the face: the external target's
+//     health is independent of the configured upstream's.
+func (e *Engine) FetchAbsolute(ctx context.Context, repoKey, path, target string) (*FetchResult, error) {
+	u, err := url.Parse(strings.TrimSpace(target))
+	if err != nil || u.Scheme == "" || u.Host == "" ||
+		(u.Scheme != "http" && u.Scheme != "https") {
+		return nil, fmt.Errorf("remote %s: fetch absolute %q: target must be an absolute http(s) URL", repoKey, target)
+	}
+	return e.fetchFlow(ctx, repoKey, path, u.String())
+}
+
+// fetchFlow is the shared RE-04 flow behind Fetch and FetchAbsolute.
+// target "" addresses the configured upstream path-joined (with the helm
+// chartsBaseUrl base override when the repository carries one); a non-empty
+// target is the absolute-URL override of FetchAbsolute.
+func (e *Engine) fetchFlow(ctx context.Context, repoKey, path, target string) (*FetchResult, error) {
 	row, cfg, pol, err := e.loadRepo(ctx, repoKey)
 	if err != nil {
 		return nil, err
@@ -445,7 +492,7 @@ func (e *Engine) Fetch(ctx context.Context, repoKey, path string) (*FetchResult,
 			e.logResult(repoKey, path, cacheStateNegative, "", 0, time.Time{}, 0, "negative-cache hit")
 			return nil, unfoundMissing(repoKey, path)
 		}
-		res, aerr := e.attempt(ctx, row, cfg, pol, repoKey, path)
+		res, aerr := e.attempt(ctx, row, cfg, pol, repoKey, path, target)
 		if res != nil || aerr != nil {
 			return res, aerr
 		}
@@ -456,7 +503,7 @@ func (e *Engine) Fetch(ctx context.Context, repoKey, path string) (*FetchResult,
 // concurrent flight settled — re-run the full lookup"; every terminal
 // outcome — including the waiter's OWN upstream contact, which always
 // happens under a held flight — returns a result or an error.
-func (e *Engine) attempt(ctx context.Context, row *metadata.Repo, cfg *metadata.RemoteConfig, pol repoPolicy, repoKey, path string) (*FetchResult, error) {
+func (e *Engine) attempt(ctx context.Context, row *metadata.Repo, cfg *metadata.RemoteConfig, pol repoPolicy, repoKey, path, target string) (*FetchResult, error) {
 	now := e.now()
 
 	// Step 4: the local copy inside its TTL window.
@@ -474,11 +521,16 @@ func (e *Engine) attempt(ctx context.Context, row *metadata.Repo, cfg *metadata.
 	}
 
 	// Step 5a: the assumed-offline window — zero upstream traffic inside it
-	// (M44-4): stale copy, or 404/502 naming the offline state.
-	if until, off := e.offlineWindow(repoKey, now); off {
-		summary := fmt.Sprintf("assumed offline for another %.0fs", until.Sub(now).Seconds())
-		res, derr := e.downgrade(ctx, node, repoKey, path, cfg, pol, summary)
-		return res, derr
+	// (M44-4): stale copy, or 404/502 naming the offline state. An
+	// absolute-URL fetch never consults the window: the external target's
+	// health is independent of the configured upstream's, and the window is
+	// never written by the external face either (see mapTransportFault).
+	if target == "" {
+		if until, off := e.offlineWindow(repoKey, now); off {
+			summary := fmt.Sprintf("assumed offline for another %.0fs", until.Sub(now).Seconds())
+			res, derr := e.downgrade(ctx, node, repoKey, path, cfg, pol, summary, "")
+			return res, derr
+		}
 	}
 
 	// Step 5b: singleflight — one in-flight fetch per (repo, path).
@@ -528,13 +580,15 @@ func (e *Engine) attempt(ctx context.Context, row *metadata.Repo, cfg *metadata.
 		node = node2 // the freshest copy reference for the stale arms below
 	}
 
-	return e.contactUpstream(ctx, row, cfg, pol, repoKey, path, node)
+	return e.contactUpstream(ctx, row, cfg, pol, repoKey, path, target, node)
 }
 
 // contactUpstream performs the upstream request and maps its outcome onto
 // the RE-04 matrix. staleNode is the expired local copy, if any — the
-// expired-but-serving and stale-while-error branches serve it.
-func (e *Engine) contactUpstream(ctx context.Context, row *metadata.Repo, cfg *metadata.RemoteConfig, pol repoPolicy, repoKey, path string, staleNode *metadata.Node) (*FetchResult, error) {
+// expired-but-serving and stale-while-error branches serve it. target is
+// the FetchAbsolute override ("" for the ordinary path-joined hop, with the
+// helm chartsBaseUrl base substitution when the repository carries one).
+func (e *Engine) contactUpstream(ctx context.Context, row *metadata.Repo, cfg *metadata.RemoteConfig, pol repoPolicy, repoKey, path, target string, staleNode *metadata.Node) (*FetchResult, error) {
 	start := time.Now() // wall clock: the log duration, never the injectable TTL clock
 	kind := classifyPath(row.PackageType, path)
 	// The upstream request path: storage-form unless the protocol's
@@ -542,23 +596,26 @@ func (e *Engine) contactUpstream(ctx context.Context, row *metadata.Repo, cfg *m
 	// landed nodes and the singleflight slot all keep the STORAGE path —
 	// only the outbound hop sees the wire spelling.
 	upPath := upstreamPathFor(row.PackageType, path)
-	host := e.upstreamHost(cfg)
-	client, err := e.clientFor(repoKey, cfg, pol)
-	if err != nil {
-		return nil, err
+	client, req, host, cerr := e.outboundFor(row, cfg, pol, repoKey, upPath, kind, target)
+	if cerr != nil {
+		return nil, cerr
+	}
+	extHost := ""
+	if target != "" {
+		extHost = host // the external hop's own target, for the fault wording
 	}
 
 	if kind == metadata.RemoteCacheKindMetadata {
 		// Buffered class (packument, simple index, maven-metadata.xml): the
 		// 64MB cap applies and an over-limit response is a 502 (NFR-S13
 		// point 5) — never an offline mark, the upstream did answer.
-		res, ferr := client.Fetch(ctx, Request{Path: upPath})
+		res, ferr := client.Fetch(ctx, req)
 		if ferr != nil {
-			out, merr := e.mapTransportFault(ctx, repoKey, path, cfg, pol, staleNode, ferr)
+			out, merr := e.mapTransportFault(ctx, repoKey, path, cfg, pol, staleNode, ferr, extHost)
 			return out, merr
 		}
 		if res.StatusCode != http.StatusOK {
-			out, uerr := e.mapUpstreamStatus(ctx, repoKey, path, cfg, pol, staleNode, res.StatusCode, res.Status)
+			out, uerr := e.mapUpstreamStatus(ctx, repoKey, path, cfg, pol, staleNode, res.StatusCode, res.Status, extHost)
 			e.logResult(repoKey, path, cacheStateOf(out), host, res.StatusCode, start, 0, "")
 			return out, uerr
 		}
@@ -572,14 +629,14 @@ func (e *Engine) contactUpstream(ctx context.Context, row *metadata.Repo, cfg *m
 
 	// Streaming class (artifacts): unbounded and byte-counted (FR-20-AC11 —
 	// a 1GB body must cross with a flat heap).
-	res, ferr := client.Stream(ctx, Request{Path: upPath})
+	res, ferr := client.Stream(ctx, req)
 	if ferr != nil {
-		out, merr := e.mapTransportFault(ctx, repoKey, path, cfg, pol, staleNode, ferr)
+		out, merr := e.mapTransportFault(ctx, repoKey, path, cfg, pol, staleNode, ferr, extHost)
 		return out, merr
 	}
 	if res.StatusCode != http.StatusOK {
 		drainClose(res.Body)
-		out, uerr := e.mapUpstreamStatus(ctx, repoKey, path, cfg, pol, staleNode, res.StatusCode, res.Status)
+		out, uerr := e.mapUpstreamStatus(ctx, repoKey, path, cfg, pol, staleNode, res.StatusCode, res.Status, extHost)
 		e.logResult(repoKey, path, cacheStateOf(out), host, res.StatusCode, start, 0, "")
 		return out, uerr
 	}
@@ -589,7 +646,7 @@ func (e *Engine) contactUpstream(ctx context.Context, row *metadata.Repo, cfg *m
 		if errors.Is(landErr, errUpstreamBody) {
 			// Mid-body transport failure: the session is aborted inside
 			// land; it is an upstream fault like any other.
-			out2, merr := e.mapTransportFault(ctx, repoKey, path, cfg, pol, staleNode, landErr)
+			out2, merr := e.mapTransportFault(ctx, repoKey, path, cfg, pol, staleNode, landErr, extHost)
 			if out2 != nil {
 				return out2, nil
 			}
@@ -603,6 +660,122 @@ func (e *Engine) contactUpstream(ctx context.Context, row *metadata.Repo, cfg *m
 	_ = res.Body.Close()
 	e.logResult(repoKey, path, CacheMiss, host, res.StatusCode, start, out.Node.Size, "")
 	return out, nil
+}
+
+// outboundFor resolves one hop's egress client, request shape and log host:
+//
+//   - an absolute FetchAbsolute target runs on the repository's
+//     credential-less external client (Request.URL);
+//   - a helm repository with chartsBaseUrl set substitutes the base for
+//     CONTENT-class hops (the index and the other metadata documents keep
+//     the repository URL — the base is where the charts LIVE, not where the
+//     index is listed, helm.md section 6): a same-scheme-and-host base
+//     reuses the repository's own credentialed client with the absolute-URL
+//     override; a different host gets a credential-less client with the
+//     base as ITS base URL, so the upstream credential can never leak to
+//     the charts host (the redirect chain's Authorization rule, applied at
+//     the source);
+//   - everything else is the ordinary path-joined hop on the repository's
+//     own client.
+func (e *Engine) outboundFor(row *metadata.Repo, cfg *metadata.RemoteConfig, pol repoPolicy, repoKey, upPath, kind, target string) (*Client, Request, string, error) {
+	if target != "" {
+		client, err := e.externalClientFor(repoKey, cfg, pol, "")
+		if err != nil {
+			return nil, Request{}, "", err
+		}
+		return client, Request{URL: target}, hostOf(target), nil
+	}
+	if base := chartsBaseFor(row, pol, kind); base != "" {
+		if sameOrigin(cfg.URL, base) {
+			client, err := e.clientFor(repoKey, cfg, pol)
+			if err != nil {
+				return nil, Request{}, "", err
+			}
+			joined := JoinURL(base, upPath)
+			return client, Request{URL: joined}, hostOf(joined), nil
+		}
+		client, err := e.externalClientFor(repoKey, cfg, pol, base)
+		if err != nil {
+			return nil, Request{}, "", err
+		}
+		return client, Request{Path: upPath}, hostOf(base), nil
+	}
+	client, err := e.clientFor(repoKey, cfg, pol)
+	if err != nil {
+		return nil, Request{}, "", err
+	}
+	return client, Request{Path: upPath}, e.upstreamHost(cfg), nil
+}
+
+// chartsBaseFor resolves the divergent charts fetch base of one hop
+// (T-367): the configured chartsBaseUrl on a helm repository's content-
+// class path, "" otherwise. The metadata class (the repo-root index and
+// its kin) NEVER takes the base — the fallback chain of S10 keeps the
+// repository URL there.
+func chartsBaseFor(row *metadata.Repo, pol repoPolicy, kind string) string {
+	if pol.ChartsBaseURL == "" || row.PackageType != pkgTypeHelm || kind == metadata.RemoteCacheKindMetadata {
+		return ""
+	}
+	return pol.ChartsBaseURL
+}
+
+// externalClientFor returns the repository's credential-less egress client
+// for one base URL ("" = absolute-URL requests): the engine's twin of the
+// guarded clientFor, rebuilt when the egress-relevant policy changes and
+// pooled otherwise. No credential ever rides this face — the targets are
+// third-party URLs (the helm _external dependencies, a cross-host charts
+// base); the repository's SSRF exemption and socket timeout still govern.
+func (e *Engine) externalClientFor(repoKey string, cfg *metadata.RemoteConfig, pol repoPolicy, baseURL string) (*Client, error) {
+	sig := strings.Join([]string{
+		baseURL, fmt.Sprintf("%t", cfg.AllowPrivateUpstream),
+		fmt.Sprintf("%d", effectiveSocketTimeoutMs(cfg, pol)),
+	}, "\x00")
+	key := repoKey + "\x00" + baseURL
+	e.mu.Lock()
+	cached := e.extClients[key]
+	e.mu.Unlock()
+	if cached != nil && cached.sig == sig {
+		return cached.client, nil
+	}
+	client, err := NewClient(Options{
+		RepoKey:              repoKey + "-external",
+		BaseURL:              baseURL,
+		AllowPrivateUpstream: cfg.AllowPrivateUpstream,
+		SocketTimeout:        time.Duration(effectiveSocketTimeoutMs(cfg, pol)) * time.Millisecond,
+		Logger:               e.log,
+		Resolve:              e.resolve,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("remote %s: external egress client: %w", repoKey, err)
+	}
+	e.mu.Lock()
+	old := e.extClients[key]
+	e.extClients[key] = &cachedClient{sig: sig, client: client}
+	e.mu.Unlock()
+	if old != nil {
+		old.client.CloseIdleConnections()
+	}
+	return client, nil
+}
+
+// sameOrigin reports whether two URLs share scheme and host[:port] — the
+// credential-safety boundary of the charts-base substitution.
+func sameOrigin(a, b string) bool {
+	ua, ea := url.Parse(strings.TrimSpace(a))
+	ub, eb := url.Parse(strings.TrimSpace(b))
+	if ea != nil || eb != nil || ua == nil || ub == nil {
+		return false
+	}
+	return ua.Scheme == ub.Scheme && ua.Host == ub.Host
+}
+
+// hostOf extracts host[:port] of an absolute URL (the log field; "" when
+// unparsable).
+func hostOf(raw string) string {
+	if u, err := url.Parse(strings.TrimSpace(raw)); err == nil {
+		return u.Host
+	}
+	return ""
 }
 
 // land streams the upstream body through a storage session and lands the
@@ -700,7 +873,10 @@ func (e *Engine) land(ctx context.Context, repoKey, path, kind string, cfg *meta
 // mapUpstreamStatus maps a definite non-200 upstream answer: 404 (negative
 // cache + expired-but-serving), 401/403 (unfound with the upstream summary),
 // other 4xx (unfound with the summary), 5xx (offline mark + downgrade).
-func (e *Engine) mapUpstreamStatus(ctx context.Context, repoKey, path string, cfg *metadata.RemoteConfig, pol repoPolicy, staleNode *metadata.Node, status int, statusText string) (*FetchResult, error) {
+// extHost names a FetchAbsolute hop's target: a third-party 5xx is a plain
+// downgrade, never an offline mark (the external target's health must not
+// silence the repository's configured upstream).
+func (e *Engine) mapUpstreamStatus(ctx context.Context, repoKey, path string, cfg *metadata.RemoteConfig, pol repoPolicy, staleNode *metadata.Node, status int, statusText string, extHost string) (*FetchResult, error) {
 	now := e.now()
 	switch {
 	case status == http.StatusNotFound:
@@ -771,9 +947,11 @@ func (e *Engine) mapUpstreamStatus(ctx context.Context, repoKey, path string, cf
 		}
 
 	default: // 5xx and anything else anomalous
-		e.markOffline(repoKey, now.Add(time.Duration(offlineSecs(pol))*time.Second))
+		if extHost == "" {
+			e.markOffline(repoKey, now.Add(time.Duration(offlineSecs(pol))*time.Second))
+		}
 		summary := fmt.Sprintf("upstream %d %s", status, statusText)
-		return e.downgrade(ctx, staleNode, repoKey, path, cfg, pol, summary)
+		return e.downgrade(ctx, staleNode, repoKey, path, cfg, pol, summary, extHost)
 	}
 }
 
@@ -781,8 +959,11 @@ func (e *Engine) mapUpstreamStatus(ctx context.Context, repoKey, path string, cf
 // redirect excess, guarded dials, mid-body aborts): mark offline, then serve
 // a stale copy or answer 404/502. SSRF denials and the buffered-body cap are
 // NOT faults — they map to 400/502 directly with no offline mark (a
-// screening refusal must not silence the repository's other paths).
-func (e *Engine) mapTransportFault(ctx context.Context, repoKey, path string, cfg *metadata.RemoteConfig, pol repoPolicy, staleNode *metadata.Node, err error) (*FetchResult, error) {
+// screening refusal must not silence the repository's other paths). An
+// external hop (extHost set, FetchAbsolute) skips the offline mark as well:
+// the fault is a third party's, and the stale-copy-or-404 downgrade below
+// still answers.
+func (e *Engine) mapTransportFault(ctx context.Context, repoKey, path string, cfg *metadata.RemoteConfig, pol repoPolicy, staleNode *metadata.Node, err error, extHost string) (*FetchResult, error) {
 	now := e.now()
 	var rej *RejectionError
 	switch {
@@ -798,8 +979,10 @@ func (e *Engine) mapTransportFault(ctx context.Context, repoKey, path string, cf
 			Message: fmt.Sprintf("Failed to proxy '%s/%s': %v", repoKey, path, err),
 		}
 	default:
-		e.markOffline(repoKey, now.Add(time.Duration(offlineSecs(pol))*time.Second))
-		return e.downgrade(ctx, staleNode, repoKey, path, cfg, pol, fmt.Sprintf("upstream unavailable: %v", err))
+		if extHost == "" {
+			e.markOffline(repoKey, now.Add(time.Duration(offlineSecs(pol))*time.Second))
+		}
+		return e.downgrade(ctx, staleNode, repoKey, path, cfg, pol, fmt.Sprintf("upstream unavailable: %v", err), extHost)
 	}
 }
 
@@ -807,9 +990,15 @@ func (e *Engine) mapTransportFault(ctx context.Context, repoKey, path string, cf
 // copies cannot reach this branch, so always an expired one — is served with
 // X-Binflow-Upstream-Error (STALE); without one, 404 naming the offline
 // state, or 502 under hardFail (the T-79 errata: hardFail changes only the
-// no-copy outcome).
-func (e *Engine) downgrade(ctx context.Context, node *metadata.Node, repoKey, path string, cfg *metadata.RemoteConfig, pol repoPolicy, summary string) (*FetchResult, error) {
+// no-copy outcome). extHost names an EXTERNAL hop's host (FetchAbsolute):
+// the stale serve is identical, and the no-copy wording names the external
+// target's unavailability instead of claiming the repository's upstream is
+// assumed offline (the external face never writes that window).
+func (e *Engine) downgrade(ctx context.Context, node *metadata.Node, repoKey, path string, cfg *metadata.RemoteConfig, pol repoPolicy, summary, extHost string) (*FetchResult, error) {
 	host := e.upstreamHost(cfg)
+	if extHost != "" {
+		host = extHost
+	}
 	if node != nil && node.Sha256 != "" {
 		e.counters(repoKey).stales.Add(1)
 		e.logResult(repoKey, path, CacheStale, host, 0, time.Time{}, 0, summary)
@@ -820,6 +1009,14 @@ func (e *Engine) downgrade(ctx context.Context, node *metadata.Node, repoKey, pa
 		return nil, &FetchError{
 			Status:  http.StatusBadGateway,
 			Message: fmt.Sprintf("Upstream '%s' failed for '%s/%s' (hardFail enabled): %s.", host, repoKey, path, summary),
+		}
+	}
+	if extHost != "" {
+		return nil, &FetchError{
+			Status: http.StatusNotFound,
+			Message: fmt.Sprintf("Failed to find the requested resource '%s/%s': the external target %s is unavailable (no cached copy; retry later).",
+				repoKey, path, host),
+			Unfound: true,
 		}
 	}
 	return nil, &FetchError{
@@ -899,16 +1096,28 @@ func (e *Engine) Invalidate(ctx context.Context, repoKey, path string) (bool, er
 }
 
 // Forget drops every in-process trace of one repository (outbound client
-// pool, assumed-offline window, counters) — the DeleteRepo teardown hook.
+// pool, the credential-less external pools, assumed-offline window,
+// counters) — the DeleteRepo teardown hook.
 func (e *Engine) Forget(repoKey string) {
 	e.mu.Lock()
 	c := e.clients[repoKey]
 	delete(e.clients, repoKey)
+	prefix := repoKey + "\x00"
+	var ext []*cachedClient
+	for key, xc := range e.extClients {
+		if strings.HasPrefix(key, prefix) {
+			ext = append(ext, xc)
+			delete(e.extClients, key)
+		}
+	}
 	delete(e.offline, repoKey)
 	delete(e.stats, repoKey)
 	e.mu.Unlock()
 	if c != nil {
 		c.client.CloseIdleConnections()
+	}
+	for _, xc := range ext {
+		xc.client.CloseIdleConnections()
 	}
 }
 

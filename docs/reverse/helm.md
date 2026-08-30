@@ -119,13 +119,22 @@ remote 缓存仓：
 - 回源 .tgz 后异步解析 Chart.yaml 写 `chart.*` 属性（供 Packages 视图/搜索）。
 - PUT/DELETE 拒绝（通用 remote 写拒绝）。
 
+### 6.1 chartsBaseUrl 分体基址与 `_external` 落盘（M13 T-367 增量；FR-117——配置位 / 回源基址规则 / 凭据边界 / 落盘缓存）
+
+> 取证基线：本节 §6/S10（T-292 反编译规格）+ JFrog 官方文档的 remote 仓语义；实现落法为 BinFlow 决策，逐条标注。
+
+- **配置位**：`chartsBaseUrl` 走 remote 仓 canonical config JSON（`repositories.config`；enableTokenAuthentication 先例——不加 remote_configs 列）。**per-protocol 定座（票内定案，T-342 §5 D-2① 的兑现）**：仅 `packageType=helm` 的 remote 仓接受该字段；其它包型 remote 携带之 → 建仓/改仓 400 点名字段（validateLocalKeypairRef 的 refuse-by-name 姿态——静默接受会产出 inert 字段，静默丢弃则让管理员误以为生效；两害取其明拒）。值必须为绝对 http(s) URL；显式 `""` = 清除（回退仓 URL）。
+- **回源基址规则**：content 类路径（chart tgz / .prov / `_external` 折叠路径）的回源 = `chartsBaseUrl + 仓内相对路径`；**metadata 类（仓根 index.yaml）恒走仓 URL**——分体基址只描述「chart 存放地」，不描述「索引挂载地」。缺省（未配置）回退仓 URL（镜像对齐默认，S10 回退链）。引擎按 storage path 寻址缓存/负缓存/TTL（单一键空间，基址替换只影响出站一跳）。
+- **凭据边界**：chartsBaseUrl 与仓 URL 同 scheme+host → 复用仓凭据客户端（绝对 URL 覆盖）；**异 host → 无凭据客户端**（仓上游凭据绝不发往第三方 host——redirect 链的 Authorization 剥离规则前移到取数源头）。`_external` 面恒为无凭据（第三方目标），SSRF 链（逐跳复查/私网豁免旗标/超时）照走。
+- **`_external` 落盘缓存**：`_external/<protocol>/<url...>` 的取数经引擎 FetchAbsolute 缝落盘于同形折叠路径（content 类 TTL），负缓存 / STALE 降级 / 单飞与普通路径一视同仁；**第三方故障不写 assumed-offline 窗口、不受其静默**（外部目标的健康与仓上游独立）；二次拉取本地 HIT 零 egress。`_transitive` 本就走 path-joined 引擎取数（T-313 起已落盘），不受本票影响。虚仓 `_external` walk 的命中腿落进**该 remote 成员**的缓存（ReadVirtualMember 口径），响应带 `X-BinFlow-Resolved-From`。
+
 ## 7. virtual 仓语义（聚合 index.yaml + URL 改写；JFrog 文档主线 + 代码改写算法双证）
 
 1. **请求分流**：`index.yaml`（元数据文件）→ MERGER 策略（聚合）；其余 .tgz/.prov → RESOLVER（first-found 成员序，repo-semantics §8.1）。
 2. **聚合流程**（JFrog 文档口径 + 代码一致）：查虚仓缓存（§3 键：contextUrl 哈希 + 权限集哈希）→ 未命中/过期则逐成员取 index.yaml 抽 entries → 逐 chart 合并版本集（同名同版本按成员序 first-wins—— LinkedHashSet 语义，中）→ **URL 改写** → 重新序列化写缓存并返回。JFrog 行为细节：合并进行中其它同权限请求**等待既有计算**（锁等待默认 6 分钟，回退参数 `artifactory.virtual.repo.metadata.merge.lock.timeout.sec.HELM=120`）；缓存新鲜期 = 元数据检索缓存期（JFrog 文档称默认 6 分钟、建议 ≥60s）。
 3. **URL 改写算法**（此条补充公开规范；高——改写器逐分支）：
    - local 成员条目：`urls[0]` ← `<对外 base>/<localRepoKey>/<仓内路径>`（absolute 模式）或 `<仓内路径>`（relative 模式）；
-   - remote 成员条目：以该仓 chartsBaseUrl 为前缀替换为虚仓 URL `<base>/<virtualKey>/<路径>`（**主面 = 内容面**——与 §1.1 BinFlow 定案一致；Artifactory 原始形态为 `<base>/api/helm/<virtKey>/<路径>`，BinFlow 的 `api/helm` 仅为只读别名、不进聚合 index 的下载 URL，否则 index 内 URL 与主面不一致——**TL 验收 HL-1 附带修订，T-293 合入 2026-08-26**）；条目 URL 指向 chartsBaseUrl 之外的**允许清单命中**的外部地址 → 改写为 `<虚仓URL>/_external/https/<host/path>`（协议 `://` 折叠为 `/`）；命中上游 `_external` 前缀 → 改写为 `_transitive`；允许清单未命中 → **保持原 URL**（客户端直连外部）；`oci://` 前缀条目默认改写，开启 `helm.preserve.oci.urls`（默认 false）则保留原样。
+   - remote 成员条目：以该仓 chartsBaseUrl 为前缀替换为虚仓 URL `<base>/<virtualKey>/<路径>`——**识别基址 = 该仓 chartsBaseUrl，缺省回退仓 URL（T-367 起配置位生效，§6.1）**（**主面 = 内容面**——与 §1.1 BinFlow 定案一致；Artifactory 原始形态为 `<base>/api/helm/<virtKey>/<路径>`，BinFlow 的 `api/helm` 仅为只读别名、不进聚合 index 的下载 URL，否则 index 内 URL 与主面不一致——**TL 验收 HL-1 附带修订，T-293 合入 2026-08-26**）；条目 URL 指向 chartsBaseUrl 之外的**允许清单命中**的外部地址 → 改写为 `<虚仓URL>/_external/https/<host/path>`（协议 `://` 折叠为 `/`）；命中上游 `_external` 前缀 → 改写为 `_transitive`；允许清单未命中 → **保持原 URL**（客户端直连外部）；`oci://` 前缀条目默认改写，开启 `helm.preserve.oci.urls`（默认 false）则保留原样。
 4. **namespace 模式**（虚仓开关，默认关）：entries 键与下载路径以 `<成员仓key>/` 前缀区分（`/<virt>/<成员>/<chart>.tgz`）；可选再开 `helm.modify.chart.name.with.namespace`（默认 false）把 chart 名本身改为 `<成员>/<chart>`。
 5. HEAD index.yaml：有成员仓即 200（不实际聚合）；无成员 404。
 6. PUT 到 virtual：通用 defaultDeploymentRepoRef 路由（405 语义）。
@@ -187,7 +196,7 @@ remote 缓存仓：
 
 > 取证基线：JFrog 官方文档的 virtual 总纲（repo-semantics §8 的 first-found 成员序）+ 本仓既有 /v2 数据链口径（§8.3）；HelmOCI virtual 的 JFrog 内部实现不在反编译集合内，按 clean-room 以公开规范 + 本仓 ADR-0013（虚仓两桶序/first-hit-stops）为准。
 
-**成员构成与边界**：helmoci virtual = helmoci local + helmoci remote 成员的聚合读面（成员序 = 两桶：priorityResolution 标记成员在前、声明序在后）。「Helm 与 HelmOCI 不混仓」校验（§8.2 收尾条，T-309）在建仓/改仓面维持 400，双向生效（helm virtual 含 helmoci 成员同样拒绝）。docker（非 helmoci）virtual 建仓仍拒绝（T-380 矩阵不动）。
+**成员构成与边界**：helmoci virtual = helmoci local + helmoci remote 成员的聚合读面（成员序 = 两桶：priorityResolution 标记成员在前、声明序在后）。「Helm 与 HelmOCI 不混仓」校验（§8.2 收尾条，T-309）在建仓/改仓面维持 400，双向生效（helm virtual 含 helmoci 成员同样拒绝）。**registry-v2 同型成员规则（T-367 rider，照 Artifactory「virtual 成员须同包型」语义）**：helmoci virtual 的成员必须 helmoci 型——配 docker 成员 → 400（`cannot mix the helmoci and docker package types` 形态，文案照混仓家族模式）；docker virtual 配 helmoci 成员同拒（矩阵解封后生效）。docker（非 helmoci）virtual 建仓仍拒绝（T-380 矩阵不动）。
 
 **读面（/v2 路由按 row.Class=virtual 分流）**：
 - manifest GET/HEAD（by tag / by digest）：按成员序逐成员解析——local 成员答以既有行+节点（行在而节点缺失 = 成员 miss，walk 继续）；remote 成员先读缓存事实（tag/manifest 行 + remote_cache 探测），HIT 即服务、NEGATIVE 跳过、STALE/MISS 走该成员的上游会话（Accept 透传 + Bearer 舞步照 §8.3），拉到后落进**该成员**的缓存（checksum 寻址、digest 强校验、tag 行随记）。**首见语义**：第一个能产出正文的成员胜出（成员序决定，非内容新旧）；响应带 `X-BinFlow-Resolved-From: <成员key>`（ADR-0013 诊断面）。
@@ -266,6 +275,18 @@ helm install rel4 oci://$HOST/helmoci-virt/mychart --version 0.1.0
 curl -sI $BASE/v2/helmoci-virt/mychart/manifests/0.1.0 | grep -E 'X-BinFlow-(Cache|Resolved-From)'
 #   MISS/HIT/STALE + Resolved-From:<成员key> 观测面；tags/list = 成员并集（remote 侧仅已缓存 tag）
 helm push mychart-0.2.0.tgz oci://$HOST/helmoci-virt            # → 405（C5 文案；v2 面无 push-through）
+
+# L-h12 chartsBaseUrl 分体基址 + 依赖落盘（M13 T-367；上游 index 与 chart 体分置两址）
+#   建仓：PUT /binflow/api/repositories/helm-remote
+#   {"rclass":"remote","packageType":"helm","url":"$INDEX_UPSTREAM",
+#    "chartsBaseUrl":"$CHARTS_BASE"}        # 非 helm 包型携带 chartsBaseUrl → 400 点名字段
+curl -su $ADMIN $BASE/binflow/api/repositories/helm-remote | grep chartsBaseUrl   # REST 回显
+helm repo add bf-remote $BASE/binflow/helm-remote && helm repo update
+helm pull bf-remote/hetchart --version 0.1.0     # index 走 $INDEX_UPSTREAM，tgz 走 $CHARTS_BASE；字节一致
+curl -sI $BASE/binflow/helm-remote/hetchart-0.1.0.tgz | grep X-BinFlow-Cache   # MISS → HIT
+#   依赖链（虚仓改写 → _external 落盘）：上游 index 的条目 urls 指向外部 host 且允许清单命中
+#   → 虚仓 index 改写为 _external/<scheme>/<host>/<path>；helm dependency update / pull 走该折叠路径
+#   → 首拉 MISS 落盘（成员仓可见 _external/... 节点），二拉 HIT 零 egress（外部文件服务计数冻结）
 ```
 
 认证：经典仓 `helm repo add --username/--password`（或 `--pass-credentials`）；HelmOCI `helm registry login`（http 明文仅限 qa）。高（官方文档）。
@@ -284,6 +305,7 @@ helm push mychart-0.2.0.tgz oci://$HOST/helmoci-virt            # → 405（C5 �
 | S8 | URL 改写算法全分支（local/remote/chartsBaseUrl/_external/_transitive/允许清单未命中保留原样/oci:// 保留开关） | 反编译 + JFrog 文档 | 高 |
 | S9 | namespace 模式（路径前缀 + 可选改名）与子路径 index.yaml 404 | 反编译 + JFrog 文档 | 高 |
 | S10 | remote chartsBaseUrl 回退链与 `_external`/`_transitive` 代理路径形态 | 反编译 | 高 |
+| S15 | chartsBaseUrl 配置位（per-protocol refuse-by-name）、content/metadata 基址分置、异 host 凭据剥离、`_external` 落盘缓存（M13 T-367 增量，§6.1） | 本仓实现决策（反编译规格的落法） | 高 |
 | S11 | HelmOCI = docker v2 栈直接服务（isDockerGroup 三类型集）、config model 继承 OCI、不校验 chart 语义 | 反编译 + JFrog 文档 | 高 |
 | S12 | 仓生命周期联动（建仓自动 reindex / remote URL 变更清缓存） | 反编译 | 高 |
 | S13 | 虚仓版本合并 first-wins 语义 | 反编译（LinkedHashSet 推断） | 中 |

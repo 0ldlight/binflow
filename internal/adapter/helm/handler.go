@@ -245,13 +245,13 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				writeText(w, http.StatusBadRequest, msgExternalLocal)
 			case repo.TypeRemote:
 				if rt.kind == kindExternal {
-					h.serveRemoteExternal(ctx, w, repoKey, rel)
+					h.serveRemoteExternal(ctx, w, r, p, repoKey, rel)
 					return
 				}
 				h.serveRemoteTransitive(ctx, w, r, p, repoKey, rel)
 			case repo.TypeVirtual:
 				if rt.kind == kindExternal {
-					h.serveVirtualExternal(ctx, w, repoKey, rel)
+					h.serveVirtualExternal(ctx, w, r, p, repoKey, rel)
 					return
 				}
 				h.serveVirtualTransitive(ctx, w, r, p, repoKey, rel)
