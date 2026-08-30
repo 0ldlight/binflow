@@ -873,3 +873,73 @@
   - AC-F 可观测：指标六枚存在且语义正确 + 审计两事件 + 启动水位行。
   - AC-G 回归：binstore.yaml 三链 roundtrip（M11 L08/L09 口径）零回归；migration status 端点形状逐字节不变。
 - clean-room 边界: 行为对齐锚点 = docs/reverse/config-formats.md §1.2（`s3-storage-v3` 模板展开链 `cache-fs( eventual( retry( s3-storage-v3 ) ) )`——**eventual**〔本地优先 + 异步排水，校验成功才动源〕与 **retry**〔失败重试〕两 provider 正是「故障窗不断服 + 恢复后追赶」的链语义原型）+ §1.3 C4（双写迁移态由 eventual + `_add` 排水机制表达，非 dual provider）；对齐的是**容错行为模式**（本地优先写、异步追赶、排空校验），不复制 provider 嵌套结构/模板展开器——BinFlow 的稳态同步双写是自有选择（M6 H 序列验证面），本 ADR 补的是链内 eventual/retry 容错段的等价行为；差异登记：Artifactory eventual 排水后删 NFS 源，BinFlow disk 副本由运维管理（FR-50 边界维持，见「后果」对齐表条目）。
+
+## ADR-0041: Webhook 统一事件总线——单一 Emit 缝 + DB outbox（双方言）+ 复刻 replication 队列模式的投递器、HMAC/enc:v1 签名链、Guard 默认拒私网、36 事件注册-休眠、第 19 槽 KindFeature（K50 终案）
+
+- 状态: Accepted（2026-08-30，M13 B0 T-359 交付，与 T-358〔webhook.md 规格票〕并行——决策基于 PRD §1.4 工作方式条款先行，wire 字面量锚点随 T-358 落地后回填，见「锚点回填位」；本 ADR 定机制不定字面量——ADR-0035/0038 同款条款）
+- 日期: 2026-08-30
+- 背景: FR-114/115（M13 主轴选题）：36 事件类型注册 + 订阅 CRUD/test REST + 事件源织入 + 可靠投递（outbox/退避/死信/签名/SSRF）+ 控制台最小面。取证特例（PRD §1.4-1）：反编译集合无 webhook addon——**JFrog 官方 REST 文档为唯一行为基准**（full-feature-matrix §待验证既定 + inv-4 L186 声明）；inv-4 锚点仅补白：I2（管理面在 Access 侧、`internal:webhook` 权限常量——BinFlow 单体平移，inv-4 判定「可整体平移、无需模拟 Access 拆分」）、I3（unifiedevent outbound dispatcher——HTTP POST JSON 出站形态存在性）、I5（worker-events 40+ 类型清单互证）、K3（outbox 表六方言 DDL——**模式**取证，载体自定）。既有参考缝（代码现状核对）：audit.Recorder（best-effort facet + Actions() 词表闭集）、replication Engine（DB 任务行 + DefaultRetryBackoff 退避切片 + revive + signal/drain 环——元数据域任务队列的已验证形态）、remote.Guard（SSRF 机器：classifyIP 分类清单 + Dialer 连接期 DNS rebinding pinning + `replication.allow_private_target` 开关先例〔config.go `DefaultAllowPrivateTarget=true`〕）、addons 18 槽 + license.Manager.AddonEnabled 单求值点（ADR-0032/0033）；migration 水位 017。约束：主路径零变化（FR-114 AC6——织入旁路，发布路径 P95 偏差 <10%〔NFR-P58〕）；双方言义务（ADR-0007）；零新外部依赖（ADR-0005——HMAC-SHA256/AES-256-GCM 皆 stdlib）；资源门维持（footprint ≤100MB / check-size ≤100MiB / 冷启动 <2s——webhook 引擎不得破 M12 转绿门〔NFR-P60〕）。
+- 候选方案: （八轴）
+  - 总线形态: A) **单一进程内总线** `internal/webhook.Bus`——域缝一行 `Emit(ctx, Event{Type, Repo, Path, ...})`，订阅匹配/fan-out/入箱/门控全归总线，域不认订阅；B) 各域自挂——repo 删除 seam / copy-move 族 / 属性系统 / 各 adapter 发布路径各自 import webhook 做匹配与入箱；C) 通用领域事件日志底座（audit 与 webhook 共源消费，event-sourcing lite）。
+  - 订阅模型: A) **push**（HTTP POST outbound——webhook 本义，Artifactory 对齐）；B) pull（事件流 REST + 游标拉取）；C) push + 消费者注册面（inv-4 I4 unifiedevent registration 全平移——多消费者总线）。
+  - 投递器: A) **新建 `internal/webhook.Dispatcher`，复刻 replication Engine 队列模式**（DB 任务行 + 退避切片 + signal/drain 环 + 启动 sweep——同模式新代码，不共用实例）；B) 泛化 internal/replication.Engine 两域共用一个引擎；C) 内存 channel 队列 + 盘上日志补持久。
+  - 入箱时序: A) **同步小事务 fan-out**（域 mutation 提交后、HTTP 响应返回前：匹配订阅 → 逐订阅批插 delivery 行，单 DB 事务）；B) 域事务内真 outbox（与 node 写共享 metadata tx）；C) 异步进程内缓冲（channel → 后台 goroutine 入箱）。
+  - 签名与 secret: A) **HMAC-SHA256 over 存储字节 + per-subscription secret + enc:v1 密封**；B) secret 明文列（仅依赖传输层 TLS）；C) mTLS 客户端证书（接收端多为内网 CI/CD 简单端点，形态不适配）。
+  - SSRF 姿态: A) **默认拒私网 + `webhook.allow_private_target` 开关**（默认 false）；B) 默认放行（replication 同款——`DefaultAllowPrivateTarget=true`）；C) 订阅级豁免键。
+  - 事件闭集: A) **36 型全注册 + Source 标注（wired | dormant）单一事实源**；B) 仅 wired 子集注册（artifact/artifactProperty/docker 约 12~15 型）。
+  - 槽位: A) **ID="webhook"、Kind=KindFeature、MinTier=pro（Q4 暂行）**；B) 新增 Kind 第三值 "feature-int"（PRD 暂行写法字面化）；C) 不入槽恒开。
+- 决策: **八轴全 A**。要点十条：
+  1. **总线形态 = 单一 Emit 缝，与 audit 平行不合并**。`internal/webhook.Bus` 是唯一域入口：`Emit(ctx, Event)` 同步执行「门控查询 → 订阅匹配（event_type + criteria 过滤器）→ 逐订阅实例化 envelope → 批插 delivery 行」。域缝（M12 统一删除 seam、copy/move 操作族、属性系统、各协议发布路径）各加一行 Emit 调用，与既有 audit.Record 并列同址。**不合并进 audit 的论证**（否决轴 1-C）：契约不同（内部 append-only 治理记录 vs 外部官方 envelope 数据契约）、可靠性档位不同（audit best-effort swallow-and-log vs webhook at-least-once + 死信）、脱敏方向相反（audit 入库 redact vs webhook 出站签名明文）。**不用各域自挂**（否决轴 1-B）：匹配/门控/入箱逻辑在 N 个域包重复，订阅模型演进 = N 处改；Bus 把「事件织入面降级为不入箱」（门控三缝之一）收敛为单点。inv-4 I3 的 jfbus 多消费者总线与 I4 registration REST **不平移**（单体单消费者，无 Worker/Xray 对端）——留痕 M14+ build-info/Workers 域再评估。
+  2. **订阅模型 = push-only**。BinFlow 主动 HTTP POST 到订阅回调 URL；2xx = 投递成功，3xx/4xx/5xx/超时/连接错 = 可重试失败（**重定向不跟随**——开放重定向是 Guard pinning 的绕过面，`CheckRedirect: ErrUseLastResponse`〔replication client 同款〕）。**at-least-once**：kill -9 落在「发送成功与状态落库之间」→ 重启后重投可能，接收端幂等义务文档化（tech-writer 指南）。pull 面（事件流 REST）不建。**test 端点 = 同步直发**：构造合成事件 → 同一签名/SSRF/HTTP 客户端路径单发一次（**不入 outbox、不重试、无死信**），响应携带 attempt 结果（状态码/耗时/错误类别）；记审计 `webhook.subscription.test`。
+  3. **outbox 载体 = metadata DB 双方言两表（migration 018，sqlite + postgres，编号先到先得惯例）**——replication_tasks 先例（元数据域任务持久化的既有形态；ADR-0040 选磁盘目录是 storage 层「不读 DB」分层纪律的特例，webhook 无此约束）：
+     ```sql
+     webhook_subscriptions(
+       id TEXT PRIMARY KEY,            -- uuid
+       event_type TEXT NOT NULL,       -- 闭集校验（36 型，点 7）
+       url TEXT NOT NULL,
+       secret_enc TEXT NOT NULL DEFAULT '',  -- enc:v1 或空（空 = 无签名）
+       criteria TEXT NOT NULL DEFAULT '{}',  -- 过滤器 JSON（repo/path 模式集；strict 未知键拒收）
+       enabled INTEGER NOT NULL DEFAULT 1,    -- PG 方言 BOOLEAN（双方言差异照既有迁移惯例）
+       created_at TEXT NOT NULL, created_by TEXT NOT NULL,
+       updated_at TEXT NOT NULL, updated_by TEXT NOT NULL,
+       UNIQUE(event_type, url))        -- 单事件类型/订阅暂行（Artifactory wire 惯例——PUT /api/webhooks/{type} 单型）；若 T-358 证实多事件型订阅 → 子表 additive 迁移，机制条款不变
+     webhook_deliveries(
+       id TEXT PRIMARY KEY,
+       subscription_id TEXT NOT NULL REFERENCES webhook_subscriptions(id) ON DELETE CASCADE,  -- 订阅删除 → 在途行级联消失（停止投递，不残留孤儿）
+       event_type TEXT NOT NULL,
+       payload TEXT NOT NULL,          -- fan-out 时逐订阅实例化的最终 envelope 字节（快照：订阅后续修改不追溯已入箱事件；envelope 含订阅标识字段 → 投递器直发零改写，HMAC 对存储字节计算）
+       status TEXT NOT NULL CHECK (status IN ('pending','delivering','delivered','dead')),
+       attempts INTEGER NOT NULL DEFAULT 0,
+       next_attempt_at TEXT NOT NULL,
+       last_error TEXT NOT NULL DEFAULT '',
+       last_status_code INTEGER,
+       created_at TEXT NOT NULL, delivered_at TEXT)
+     -- 索引 (status, next_attempt_at)：queue 谓词 = status='pending' AND next_attempt_at <= now
+     ```
+     secret **投递时现读**（轮换即时生效于在途行）。delivered 行保留 7 天（repo cleanup cron 家族裁剪——控制台「最近投递」消费窗）；dead 行不自动清（重放或随订阅级联删除）。
+  4. **投递器 = Dispatcher（replication Engine 队列模式的复刻，非共用）**。否决轴 3-B：replication 任务是 blob 推送（payload = sha256 引用 + 凭据解析 + 平面协议族），webhook 任务是信封直发（payload = 内嵌字节 + 签名头）——泛化共用使两域任务语义互相渗透，同模式各自实现是分区纪律的代价下限。**参数定案（K50，引擎内部常量——ADR-0040「零新配置键」同姿态，旋钮化等真实需求）**：尝试上限 **10**（含首发；首发后重试 9 次）；退避 = **2s 起步 ×2 递增、单次上限 10min**（2/4/8/16/32/64/128/256/512s——最坏故障窗 ≈17min）；单次 attempt 超时 **10s**；投递 worker 并发 **4**；超上限 → status=dead（可查询、可重放：dead→pending 重置 attempts，REST + 控制台双面）+ 告警日志一行。**启动 sweep**：status='delivering' 行全部回 pending（attempts 保留——kill -9 中途行的唯一回收路径，ADR-0028 孤儿回收同姿态）。**优雅停机**：SIGTERM → 停止取新行、在途 attempt 完成或超时、行状态落库（Engine.Close 家族接线）。**queue_depth gauge = pending 行数**。
+  5. **签名与 secret 链**：机制 = **HMAC-SHA256(per-subscription secret, payload 存储字节)**，签名头名与编码（hex/base64）随 T-358 锚定（K49——官方契约字面量，本 ADR 不猜）；secret 缺省 = 不带签名头（secret 可选，照官方惯例）。secret 存储 = **enc:v1 AES-256-GCM**（复用 `BINFLOW_REMOTE_CREDENTIALS_KEY` 实例级主密钥族——ADR-0035/0038 同链）；POSTURE 同款三句：无主密钥 + 无 secret 行 → 正常启动；无主密钥 + 写带 secret 订阅 → 写路径拒绝；存量行含 secret 而无主密钥 → 启动 fail-fast。回显脱敏哨兵 + write-only PUT 语义（字段缺省或哨兵回传 = 保持不变，新明文 = 替换）；secret 不落日志、不进审计 detail（NFR-S66）。
+  6. **SSRF = 复用 remote.Guard 机器，默认拒私网**（与 replication 默认放行**有意不对称**）：订阅 URL 校验与投递出站连接全部经 Guard（scheme 闭集 http/https、classifyIP 分类清单、Dialer 连接期 DNS rebinding pinning、响应体有界读取）。**不对称论证**：replication/auth 测试连接的私网目标是运维静态配置面（YAML/DB 段，现实拓扑即内网——ADR-0025 决策 4 判定在案）；webhook 订阅 URL 是 **REST CRUD 动态面 + 任意外发端点**——CI 集成向更广主体开放后的经典 SSRF 升梯向量，且接收端在私网（Jenkins dogfood）属常态 → 显式开关 `webhook.allow_private_target`（**默认 false**，拼写镜像 `replication.allow_private_target` 键族）承载而非默认放行。端点静态校验：host 必填、userinfo 拒收、fragment 拒收、URL 长度 ≤2048。last_error 携带错误片段（≤4KB、URL 脱敏）。
+  7. **36 事件注册-休眠（Q6 暂行）**：单一事实源 = `internal/webhook/eventtypes.go` 常量集，每型 `{Name, Domain, Source}`，Source ∈ **wired**（BinFlow 有本体域、有织入点）| **dormant**（可订阅、零触发、呈现如实标注——不伪造触发源）。订阅校验对闭集（36 型全合法、未知型 400）；M13 wired 面 = artifact 族（deployed/deleted/copied/moved/properties）+ artifactProperty 族 + docker 族（pushed/deleted/tag*，dind 腿）；build/releaseBundle/distribution/curation 等无本体域 = dormant。**翻转路径**：Q6 用户裁定裁剪 → 删 dormant 常量 + 闭集缩 + 文档（存量 dormant 订阅处置归裁定票）；新域落地（M14+ build-info）→ dormant→wired 加织入行，schema 零变化（event_type 是字符串列）。清单终版以 T-358 webhook.md 为准（K48——PRD「36」为骨架数，以官方文档定案数为准）。
+  8. **第 19 槽 = ID "webhook"、Kind=KindFeature、MinTier=pro（Q4 暂行）**。**不新增 Kind 第三值**（否决轴 8-B）：Kind 的路由语义是「package-type 的 ID 即内容分发路由键」，feature-integration 与 feature 无路由差异——加第三值动装配期断言与 /api/v1/addons 呈现为零收益；PRD「feature-int」读作注记性写法。**三缝**：① 订阅 REST（feature addon 面）门 DENIED → 403 + `X-Binflow-License-Required: webhook`（ADR-0032 D4 形）；② 事件织入面：Bus.Emit 首行查门（**注入 gate func——装配层 facet，internal/webhook 不 import license**，ADR-0040 决策 8 同款分层姿态）→ DENIED 直接 return 不入箱（主路径行为零变化；gate 指标 `binflow_addon_gate_requests_total{addon=webhook}` 自动生效）；③ `addons.disabled` 熔断（ADR-0032 as-built D1）：订阅写动词 403（breaker 专用文案、**无** license 头）+ 读面 200；**投递面 = 暂停不丢**——dispatcher 停止取行，恢复后照 next_attempt_at 排空（「熔断器不是数据墓碑」哲学的延伸：存量 delivery 是已订阅契约的存量数据面）。**Q4 翻转点**：T-358 取证官方 license 标注，community 可用则 MinTier pro→community = slots.go 常量一行 + 档位矩阵行 + license 文档（conductor/用户终裁，翻转点归 T-358 收口批）。
+  9. **权限映射**：`internal:webhook`（inv-4 I2 的 Access 权限常量）的 BinFlow 映射 = 管理能力对：订阅 GET/list = **CapSystemRead**（readonly_admin 只读可见——FR-115.5 readonly 臂）；create/update/delete/test = **CapSystemWrite**（admin）。不映射 repo m 动作（过滤器可跨仓，m-holder 求值需「过滤器→仓集」语义，M13 不建——用户裁定 CI 工程师自助订阅则届时新裁决留缝）。挂载走 **dispatchAPI 显式路由族**（ADR-0034——管理面 = handler + routeAuth，**非** apiProtocolMounts）。
+  10. **主路径契约与可观测**：入箱 = 同步小事务（本地 SQLite/PG 批插，亚毫秒级——NFR-P58 P95 偏差 <10% 的结构性保证）；**入箱失败 = WARN + `binflow_webhook_enqueue_failures_total` 指标**（本 ADR 增补——audit best-effort 同姿态不阻塞主路径，但 webhooks 有交付承诺，损失必须可见；L06 零丢承诺的对象是**已入箱**事件）。指标族：`binflow_webhook_{deliveries_total, retries_total, dead_letter_total, queue_depth}` + enqueue_failures_total（expvar 自研，ADR-0022 姿态）。审计五词入 Actions() 词表：`webhook.subscription.{create,update,delete,test}` + `webhook.dead_letter`（actor/订阅标识/事件类型/URL 脱敏——userinfo 剥离）。启动 INFO 一行 outbox 水位（pending 条数——ADR-0040 同款形态）。
+- 理由: 八轴的共同判据是「参考缝复用 + 主路径结构性零变化 + 闭集可验证」。总线 A 把门控/匹配/入箱收敛为单点（事件织入面降级 = 单点 return，AC6 的结构性保证）；各域自挂（B）让订阅模型演进成本 ×N。push A 是 webhook 本义与官方文档基准的交集，pull/I4 为不存在的消费者（单体单消费者）买单。投递器 A 在「复用已验证模式」与「域语义不渗透」间取正确切面——replication Engine 的 backoff 切片/signal/drain/sweep 形态已被 revive 与两实例 e2e 验证，复刻而非泛化。入箱时序 A：真事务 outbox（B）要求 domain tx 贯穿 emit 缝——repo.Service.Put 无此结构（audit 同为提交后旁路），为强一致重写主路径违背「旁路增量」选题前提；C 的进程内缓冲在 kill -9 窗口丢事件（L06 红线）。签名 A 全 stdlib 且「对存储字节签名」使 body 与签名的对应关系免推理。SSRF A 的不对称是三条已判先例（ADR-0025 决策 4 两例）与 webhook 面形态差异的显式推理结果，非疏忽。闭集 A 让「可订阅但无触发」成为诚实可断言的状态而非静默 404；槽位 A 守住 Kind 二值闭集（新增不破坏）。
+- 后果: 新增 `internal/webhook` 包（eventtypes.go / bus.go / store.go（metadata sub-store）/ dispatcher.go / sign.go；Deps 注入 gate func + Guard + Cipher + audit facet——不 import license）；migration 018 双方言两表；`internal/addons/slots.go` 增第 19 槽构造 + cmd 装配清单一行；config 增 `webhook.allow_private_target`（默认 false——与 replication 默认 true 的不对称在部署文档注明，tech-writer 义务）；audit 词表 +5；指标族 +5；httpapi dispatchAPI 族增订阅 CRUD/test 路由（T-362 area）；cmd 装配 Bus/Dispatcher 生命周期 + 优雅停机接线；控制台最小面（P1 独立 FE 票——订阅列表/新建/编辑/删除/test + 最近投递，readonly_admin 只读，MUI 四闸门）；tech-writer：接收端幂等义务 + HMAC 验签示例 + 私网开关说明 + dormant 事件标注。**分区提示**：internal/webhook + httpapi/webhooks.go + slots 单行 = 实现票 area；域缝插入行（repo/adapter 各一行 Emit）归事件织入大票**窗口独占**（PRD §1.3 既定，避免与并行票 area 重叠）。真实消费者 e2e（dogfood Jenkins 条件腿/容器接收器）归 FR-115 第二票（控制台 + e2e）。
+- clean-room 边界: 行为依据 = JFrog 官方 REST 文档（事件清单/envelope 字段集/签名头契约/投递语义——T-358 逐条锚定出处）+ inv-4 §I/§K **行为模式**（outbox 模式存在性、outbound dispatcher 形态、internal:webhook 常量、事件类型清单互证）；不引用反编译代码结构——BinFlow 载体全自有（DB schema 两方言、envelope 构造、投递器、签名实现）；K3 六方言 DDL 只证「outbox 模式」不复制表结构；envelope 为官方 JSON 数据契约（PRD §1.4-4 红线——数据契约非代码）。
+- **锚点回填位（T-358 webhook.md 落地后回填本节，机制条款不随锚点翻转）**：K47 订阅 REST wire（端点路径/方法/请求响应体/错误码——含单型/多型订阅形态对决策 3 UNIQUE 约束的校准）；K49 签名头名与编码 + envelope 字段集 + 过滤器语法（对决策 2/5 的字面量填充）；K48 事件清单终版与 BinFlow 触发源覆盖界（对决策 7 常量集的填充与 dormant 划界）；Q4 档位终裁（对决策 8 MinTier 的翻转点）；Q6 覆盖界终裁（对决策 7 的翻转点）。效力序：用户裁决（BOARD）> webhook.md（含 as-built 段）> 本 ADR > PRD 暂行值；分歧按 19:05 上 BOARD。
+- **T-362 验收锚点骨架**（FR-114 实现大票：订阅 REST + 36 事件注册 + 事件源织入；AC 对 PRD FR-114 AC1~AC6）：
+  - AC-1（CRUD+test wire）：curl 全链 create→get→list→update→delete（路径/状态码/信封照 webhook.md）；挂载断言 = dispatchAPI 族（管理面，ADR-0034）；test 端点同步直发一条合成事件（接收器断言信封）且响应含 attempt 结果（状态码/耗时）。
+  - AC-2（事件闭集）：36 型全部可订阅；未知型 400；dormant 型可订阅、GET 回显标注「无触发源」（不伪造）。
+  - AC-3（事件织入）：generic 仓 PUT → deployed（envelope 逐字段：类型/repo/path/时间戳/订阅标识——照 webhook.md）；DELETE / copy / move / 属性 PUT 各触发对应事件；docker push → docker 域（dind 腿）。
+  - AC-4（过滤器）：repo/path 命中发/未命中不发（接收器计数双臂）；criteria 未知键 400（strict）。
+  - AC-5（权限与门控）：user 角色订阅 CRUD 全 403 零副作用；readonly_admin 读可见/写 403；webhook 槽三缝——community 建订阅 403 + `X-Binflow-License-Required: webhook` → pro 200 → `addons.disabled` 熔断：订阅写 403（无头、breaker 文案）+ 读 200 + **事件不入箱**（制品 PUT 200 且 queue_depth 不增）。
+  - AC-6（主路径零回归）：M1~M12 P0 抽样零回归 + 发布路径 P95 偏差 <10%（NFR-P58）。
+- **T-364 验收锚点骨架**（FR-115 投递引擎票：outbox/重试/死信/签名/SSRF/可观测；AC 对 PRD FR-115 AC1~AC7）：
+  - AC-1（outbox 幸存）：触发事件 → kill -9 → 重启 → 补投零丢；启动水位 INFO 行在场；sweep 断言（kill 前置 delivering 行 → 重启后 pending）。
+  - AC-2（退避）：接收器 500×N → 观测退避序列（2s/4s/8s…）→ 恢复 200 → delivered；全程制品 PUT 零 5xx 零阻塞。
+  - AC-3（死信与重放）：持续失败超 10 attempts → dead 可查（REST）+ 告警日志一行 + dead_letter_total；replay（dead→pending）→ 恢复成功；订阅删除 → 在途行级联消失。
+  - AC-4（签名与 secret）：secret 订阅 → 接收器 HMAC-SHA256 验签绿（篡改 body 红）；无 secret 无签名头；DB grep 零明文（enc:v1）；GET 回显哨兵、PUT 哨兵回传 = 不变；无主密钥 + 写带 secret = 拒绝（POSTURE 臂）。
+  - AC-5（SSRF）：私网订阅 URL 默认拒（含 DNS rebinding 腿：解析公网/连接私网 → 拒）；`webhook.allow_private_target: true` 臂投递成功；3xx 不跟随（开放重定向目标私网不触达）。
+  - AC-6（可观测）：指标五枚存在且语义正确 + 审计五词 + 投递日志/last_error URL 脱敏 grep（userinfo 零命中）。
+  - AC-7（NFR）：100 并发发布 → 入箱零丢 + 投递 P95 ≤2s（本地接收器）+ footprint/check-size/冷启动三门维持（M12 转绿门不破）。
