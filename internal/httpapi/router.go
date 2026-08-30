@@ -447,6 +447,16 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	case rest == "v1/system/cleanup" && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleSystemCleanupGET)
 
+	// ---- /api/v1/system/settings (M13 T-368, FR-118; read-only echo) --
+	// The operator-knob echo face: the resolved folder_download six-field
+	// family and trashcan.retention_days, knob-scoped by design (never a
+	// config dump — no secrets, DSNs or paths; see system_settings.go).
+	// GET is the only verb with a route; PUT/POST/DELETE and any
+	// sub-path fall to the E-26 404 — these are restart-effective file
+	// knobs, not REST-editable state (the addons-plane posture).
+	case rest == "v1/system/settings" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleSystemSettings)
+
 	// ---- /api/v1/storage/migration (T-164) ----
 	case rest == "v1/storage/migration" && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleMigrationStatus)

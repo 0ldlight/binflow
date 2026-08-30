@@ -94,6 +94,29 @@ func (c *Config) Validate() error {
 	if c.Console.SessionTTL <= 0 {
 		return fmt.Errorf("config: console.session_ttl_hours must be positive, got %s", c.Console.SessionTTL)
 	}
+	// M13 T-368 / FR-118.1 (repo-operations.md section 2.1): the three
+	// folder_download limits are non-negative integers; 0 is the consumer's
+	// "unlimited" spelling, so only negatives are nonsense. No upper bounds —
+	// the spec column carries none and a clamp would betray a spelled intent.
+	if c.FolderDownload.MaxDownloadSizeMb < 0 {
+		return fmt.Errorf("config: folder_download.max_download_size_mb must be a non-negative integer (0 = unlimited), got %d",
+			c.FolderDownload.MaxDownloadSizeMb)
+	}
+	if c.FolderDownload.MaxFiles < 0 {
+		return fmt.Errorf("config: folder_download.max_files must be a non-negative integer (0 = unlimited), got %d",
+			c.FolderDownload.MaxFiles)
+	}
+	if c.FolderDownload.MaxConcurrentRequests < 0 {
+		return fmt.Errorf("config: folder_download.max_concurrent_requests must be a non-negative integer (0 = unlimited), got %d",
+			c.FolderDownload.MaxConcurrentRequests)
+	}
+	// M13 T-368 / FR-118.2: the retention window keeps the GCHoldTTL
+	// sentinel posture — 0 maps onto the engine's spec default (14), a
+	// negative is a typo nobody chose and refuses the boot.
+	if c.Trashcan.RetentionDays < 0 {
+		return fmt.Errorf("config: trashcan.retention_days must be a non-negative integer (0 = the 14-day default), got %d",
+			c.Trashcan.RetentionDays)
+	}
 	if !allowedLogLevels()[c.Logging.Level] {
 		return fmt.Errorf("config: logging.level: unknown level %q (want debug, info, warn or error)", c.Logging.Level)
 	}

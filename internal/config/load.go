@@ -116,6 +116,24 @@ type raw struct {
 	Webhook *struct {
 		AllowPrivateTarget *bool `yaml:"allow_private_target"`
 	} `yaml:"webhook"`
+	// FolderDownload is the directory-zip knob section (M13 T-368 /
+	// FR-118.1): Artifactory folderDownloadConfig's six fields, BinFlow
+	// snake_case spelling (the K52 ruling — see FolderDownloadConfig).
+	FolderDownload *struct {
+		Enabled                 *bool  `yaml:"enabled"`
+		EnabledForAnonymous     *bool  `yaml:"enabled_for_anonymous"`
+		MaxDownloadSizeMb       *int64 `yaml:"max_download_size_mb"`
+		MaxFiles                *int   `yaml:"max_files"`
+		MaxConcurrentRequests   *int   `yaml:"max_concurrent_requests"`
+		EnabledEmptyDirectories *bool  `yaml:"enabled_empty_directories"`
+	} `yaml:"folder_download"`
+	// Trashcan is the retention-window knob section (M13 T-368 /
+	// FR-118.2): retention_days only — the capture switch is not a
+	// config key (the feature rides the trashcan license slot; an
+	// enabled key here is rejected by the strict schema).
+	Trashcan *struct {
+		RetentionDays *int `yaml:"retention_days"`
+	} `yaml:"trashcan"`
 	// Addons is the M10 circuit-breaker section (T-283, ADR-0032 / section
 	// 15.5): disabled is a CSV of addon ids, restart-effective.
 	Addons *struct {
@@ -568,6 +586,39 @@ func buildWithOptions(r *raw, env map[string]string, o buildOpts) (*Config, erro
 		c.Webhook.AllowPrivateTarget = *r.Webhook.AllowPrivateTarget
 	}
 
+	// The folder_download section (M13 T-368 / FR-118.1): absent means the
+	// spec-default column holds — the M12 as-built posture, field by field.
+	// Explicit zeros on the three limits are honored (0 = unlimited at the
+	// consumer); Validate owns the negative refusal.
+	if r.FolderDownload != nil {
+		f := r.FolderDownload
+		if f.Enabled != nil {
+			c.FolderDownload.Enabled = *f.Enabled
+		}
+		if f.EnabledForAnonymous != nil {
+			c.FolderDownload.EnabledForAnonymous = *f.EnabledForAnonymous
+		}
+		if f.MaxDownloadSizeMb != nil {
+			c.FolderDownload.MaxDownloadSizeMb = *f.MaxDownloadSizeMb
+		}
+		if f.MaxFiles != nil {
+			c.FolderDownload.MaxFiles = *f.MaxFiles
+		}
+		if f.MaxConcurrentRequests != nil {
+			c.FolderDownload.MaxConcurrentRequests = *f.MaxConcurrentRequests
+		}
+		if f.EnabledEmptyDirectories != nil {
+			c.FolderDownload.EnabledEmptyDirectories = *f.EnabledEmptyDirectories
+		}
+	}
+
+	// The trashcan section (M13 T-368 / FR-118.2): absent keeps the M12
+	// value (14); 0 is the documented "default" sentinel (the engine's
+	// <= 0 fallback), negatives refuse the boot in Validate.
+	if r.Trashcan != nil && r.Trashcan.RetentionDays != nil {
+		c.Trashcan.RetentionDays = *r.Trashcan.RetentionDays
+	}
+
 	// M10 T-283 (ADR-0032 / section 15.5): the addons.disabled CSV passes
 	// through verbatim — the license Manager owns the parsing, the trimming
 	// and the core-id WARN, so the key's semantics have one owner.
@@ -664,6 +715,18 @@ func defaults() *Config {
 		// the classic SSRF escalation surface — so the deny posture is
 		// the safe default (the asymmetry against replication above).
 		Webhook: WebhookConfig{},
+		// folder_download defaults to the repo-operations.md section 2.1
+		// column (M13 T-368 / FR-118.1): master switch off, anonymous off,
+		// 1024MB / 5000 files / 10 concurrent, empty directories off — the
+		// M12 as-built byte-for-byte (the knob only ADDS a way to spell it).
+		FolderDownload: FolderDownloadConfig{
+			MaxDownloadSizeMb:     DefaultFolderDownloadMaxSizeMb,
+			MaxFiles:              DefaultFolderDownloadMaxFiles,
+			MaxConcurrentRequests: DefaultFolderDownloadMaxConcurrentRequests,
+		},
+		// trashcan.retention_days defaults to the M12 as-built 14 days
+		// (M13 T-368 / FR-118.2, the default-unchanged red line).
+		Trashcan: TrashcanConfig{RetentionDays: DefaultTrashcanRetentionDays},
 		// addons.disabled defaults to empty (M10 T-283, ADR-0032): nothing
 		// is switched off unless the operator spells it.
 		Addons: AddonsConfig{},
@@ -811,6 +874,13 @@ func setEnvValue(c *Config, path []string, kind envKind, value, name string) err
 			// M13 (ADR-0041 decision 6): the webhook SSRF toggle, default
 			// false (the asymmetry against replication's true).
 			c.Webhook.AllowPrivateTarget = b
+		case "folder_download.enabled":
+			// M13 T-368 / FR-118.1: the directory-zip master switch.
+			c.FolderDownload.Enabled = b
+		case "folder_download.enabled_for_anonymous":
+			c.FolderDownload.EnabledForAnonymous = b
+		case "folder_download.enabled_empty_directories":
+			c.FolderDownload.EnabledEmptyDirectories = b
 		default:
 			return fmt.Errorf("config: internal: bool path %q not wired", where)
 		}
@@ -908,6 +978,18 @@ func setEnvValue(c *Config, path []string, kind envKind, value, name string) err
 			c.Console.SessionTTL = time.Duration(n) * time.Hour
 		case "console.session_ttl_seconds":
 			c.Console.SessionTTL = time.Duration(n) * time.Second
+		case "folder_download.max_download_size_mb":
+			// M13 T-368 / FR-118.1: positive integers only here — 0 (=
+			// unlimited) is a YAML-only spelling, the hash_concurrency rule.
+			c.FolderDownload.MaxDownloadSizeMb = int64(n)
+		case "folder_download.max_files":
+			c.FolderDownload.MaxFiles = n
+		case "folder_download.max_concurrent_requests":
+			c.FolderDownload.MaxConcurrentRequests = n
+		case "trashcan.retention_days":
+			// M13 T-368 / FR-118.2: the retention window; 0-as-default is
+			// likewise YAML-only (the engine maps <= 0 onto its spec 14).
+			c.Trashcan.RetentionDays = n
 		default:
 			return fmt.Errorf("config: internal: int path %q not wired", where)
 		}

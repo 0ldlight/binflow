@@ -1200,18 +1200,31 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 	addonsReg := addonManifest()
 	repo.AttachPackageTypeGate(svc, packageTypeGate{reg: addonsReg, ev: licenseMgr})
 
-	// The trash can (M12 T-345, FR-106): the feature configuration (spec
-	// defaults — enabled, 14-day retention; the config.yaml field is a
-	// registered follow-up) plus the license-plane gate over the trashcan
-	// slot (community keeps the M11 hard delete; pro captures), and the
-	// retention cron over the same store/audit collaborators.
-	repo.ConfigureTrash(svc, repo.DefaultTrashConfig())
+	// The folder-download knob (M13 T-368, FR-118.1): the resolved
+	// folder_download section drives the six-field configuration (the
+	// default column IS the M12 as-built; restart-effective).
+	repo.ConfigureFolderDownload(svc, repo.FolderDownloadConfig{
+		Enabled:                 cfg.FolderDownload.Enabled,
+		EnabledForAnonymous:     cfg.FolderDownload.EnabledForAnonymous,
+		MaxDownloadSizeMb:       cfg.FolderDownload.MaxDownloadSizeMb,
+		MaxFiles:                cfg.FolderDownload.MaxFiles,
+		MaxConcurrentRequests:   cfg.FolderDownload.MaxConcurrentRequests,
+		EnabledEmptyDirectories: cfg.FolderDownload.EnabledEmptyDirectories,
+	})
+
+	// The trash can (M12 T-345 / M13 T-368 FR-118.2): capture stays
+	// spec-default enabled; the retention window consumes
+	// trashcan.retention_days (default 14 = the M12 as-built) plus the
+	// license-plane gate over the trashcan slot (community keeps the M11
+	// hard delete; pro captures), and the retention cron over the same
+	// store/audit collaborators.
+	repo.ConfigureTrash(svc, repo.TrashConfig{Enabled: true, RetentionDays: cfg.Trashcan.RetentionDays})
 	repo.AttachTrashGate(svc, trashcanGate{reg: addonsReg, ev: licenseMgr})
 	trashEng, err := repo.NewTrashEngine(repo.TrashEngineOptions{
 		Store:         md,
 		Audit:         auditLog,
 		Gate:          trashcanGate{reg: addonsReg, ev: licenseMgr},
-		RetentionDays: repo.TrashDefaultRetentionDays,
+		RetentionDays: cfg.Trashcan.RetentionDays, // was repo.TrashDefaultRetentionDays
 	})
 	if err != nil {
 		_ = replDB.Close()
