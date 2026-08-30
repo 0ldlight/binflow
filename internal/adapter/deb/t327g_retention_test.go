@@ -176,7 +176,7 @@ func TestByHashPrunePlan(t *testing.T) {
 // signal), then returns the new body.
 func (s *stack) waitDigestMoves(t *testing.T, path, prevDigest string) string {
 	t.Helper()
-	deadline := time.Now().Add(20 * time.Second)
+	deadline := time.Now().Add(pollWindow(20 * time.Second)) // FR-121 escape #2
 	var last string
 	for time.Now().Before(deadline) {
 		status, body, _ := s.get(path)
@@ -194,7 +194,7 @@ func (s *stack) waitDigestMoves(t *testing.T, path, prevDigest string) string {
 // its effect needs its own poll).
 func (s *stack) waitGone(t *testing.T, path string) {
 	t.Helper()
-	deadline := time.Now().Add(20 * time.Second)
+	deadline := time.Now().Add(pollWindow(20 * time.Second)) // FR-121 escape #2
 	for time.Now().Before(deadline) {
 		if status, _, _ := s.get(path); status == http.StatusNotFound {
 			return
@@ -270,8 +270,20 @@ func TestByHashCyclesOneKeepsCurrentSpellings(t *testing.T) {
 	}
 
 	// The sweep (the run's last step) drops every previous-generation
-	// address: cycles=1 keeps the current generation alone.
-	s.waitGone(t, base+"/by-hash/SHA256/"+v1["Packages"])
+	// address: cycles=1 keeps the current generation alone. The prune
+	// walks the address families sequentially (SHA256 plain/gz/xz, then
+	// MD5Sum), so EACH aging address needs its own settle poll — one
+	// waitGone on the plain Packages digest is not a settle for the rest.
+	// Found live by the T-361 round-B full-tree race run (2026-08-31):
+	// the MD5Sum assert read mid-prune (200 want 404), and the
+	// "database is closed" recompute ERROR beside it was teardown closing
+	// the stack under the still-running prune — the consequence of the
+	// failure, not its cause. FR-121 escape #3: settle-poll then assert;
+	// the 404 assertions themselves still run and still bite.
+	for _, sp := range spellings {
+		s.waitGone(t, base+"/by-hash/SHA256/"+v1[sp]) // FR-121 escape #3 (settle, not skip)
+	}
+	s.waitGone(t, base+"/by-hash/MD5Sum/"+md5Of([]byte(v1PlainBody))) // FR-121 escape #3
 	for _, sp := range spellings {
 		if status, _, _ := s.get(base + "/by-hash/SHA256/" + v1[sp]); status != http.StatusNotFound {
 			t.Errorf("v1 %s by-hash address = %d, want 404 (cycles=1 keeps the current generation alone)", sp, status)
@@ -299,7 +311,7 @@ func TestByHashCyclesOneKeepsCurrentSpellings(t *testing.T) {
 		t.Errorf("current MD5Sum by-hash address = %d, want 200 (ALL policy)", status)
 	}
 	if status, _, _ := s.get(base + "/by-hash/MD5Sum/" + md5Of([]byte(v1PlainBody))); status != http.StatusNotFound {
-		t.Errorf("v1 MD5Sum by-hash address = %d, want 404", status)
+		t.Errorf("v1 MD5Sum by-hash address = %d, want 404 (post-settle, FR-121 escape #3)", status)
 	}
 }
 

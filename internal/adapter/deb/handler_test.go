@@ -44,11 +44,27 @@ func (s *stack) debPut(t *testing.T, path string, body []byte, dist string, comp
 	return s.put(path+matrix.String(), body, nil)
 }
 
+// pollWindow scales an async-recompute polling deadline by build posture —
+// FR-121 escape #2 (T-361, race recalibration; NOT a skip): 3x under -race.
+// The deb full-load family's flake line (T-313 TestDeleteDropsEntry,
+// T-318 "two rounds, different tests, both green isolated", T-329/T-340
+// full-tree misses) is exactly these windows starving while the detector
+// plus whole-tree `make test` parallelism inflate the background recompute
+// chains — the 20s base carried big headroom over the ~1s the recompute
+// actually needs, and 60s under -race restores that headroom (~45x the
+// work) without weakening a single behind-the-window assertion.
+func pollWindow(base time.Duration) time.Duration {
+	if raceEnabled { // FR-121 escape #2 — every raceEnabled call site below
+		return 3 * base
+	}
+	return base
+}
+
 // waitIndex polls a path until it serves 200 (the debPUT chain's async
 // recompute) or the deadline passes.
 func (s *stack) waitIndex(t *testing.T, path string) string {
 	t.Helper()
-	deadline := time.Now().Add(20 * time.Second)
+	deadline := time.Now().Add(pollWindow(20 * time.Second)) // FR-121 escape #2
 	for time.Now().Before(deadline) {
 		status, body, _ := s.get(path)
 		if status == http.StatusOK {
@@ -374,7 +390,7 @@ func TestByHashHistory(t *testing.T) {
 // waitIndex2 polls until the path serves 200 AND the body contains want.
 func (s *stack) waitIndex2(t *testing.T, path, want string) string {
 	t.Helper()
-	deadline := time.Now().Add(20 * time.Second)
+	deadline := time.Now().Add(pollWindow(20 * time.Second)) // FR-121 escape #2
 	var last string
 	for time.Now().Before(deadline) {
 		status, body, _ := s.get(path)
@@ -410,10 +426,19 @@ func TestDeleteDropsEntry(t *testing.T) {
 		t.Fatalf("DELETE = (%d, %s)", status, b)
 	}
 	// The async recompute sweeps the emptied distribution: no components,
-	// no index family, no Release (the sweep's stale-file arm).
-	deadline := time.Now().Add(20 * time.Second)
+	// no index family, no Release (the sweep's stale-file arm). This poll
+	// is the T-313/T-340 flake site itself — the race-scaled window is
+	// FR-121 escape #2's headline call site. The settle waits for BOTH
+	// swept paths, not Release alone: the tree sweep removes the family
+	// sequentially, so a Release-only poll can return with Packages still
+	// mid-deletion and the immediate assert below would read the gap
+	// (FR-121 escape #3, same shape the T-361 round-B run caught in the
+	// by-hash cycler).
+	deadline := time.Now().Add(pollWindow(20 * time.Second)) // FR-121 escape #2 (T-313/T-340 flake site)
 	for time.Now().Before(deadline) {
-		if status, _, _ := s.get("/binflow/deb-del/dists/stable/Release"); status == http.StatusNotFound {
+		r, _, _ := s.get("/binflow/deb-del/dists/stable/Release")
+		p, _, _ := s.get("/binflow/deb-del/dists/stable/main/binary-amd64/Packages")
+		if r == http.StatusNotFound && p == http.StatusNotFound {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
