@@ -1232,7 +1232,8 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
   - **T-369** [P1] FR-119.1 conan D8 整树删翻转 `role:dev-go-core` area:internal/adapter/conan dep:T-348（D8 双证规格行在案——`LocalConanHandler.removeRecipe` + conan 1.66 参考实现）
     AC1: 多修订包（r1/r2）→ v1 `DELETE conans/<ref>` 坐标根→**整树删（全部修订，GET 404×2）** + conan 1.66 remove 腿 + 2.x 无修订 DELETE 同步核对（L16；**M12 as-built「latest 修订链」断言反转 100% 归属本票豁免票**——PRD §5.4 回写核实归 QA）。
     AC2: conan.md §3.2 D8 分歧登记行随票消除（规格行退役）+ table-driven 单测 + conan v1/v2 全链抽样回归（T-308/T-312/T-340 序列）。
-  - **T-370** [P0] FR-120 文面裁定包（D-10 终裁材料 + flat/L31 落笔）`role:product-manager` area:docs/prd（M12 PRD v1.1 增订/AC2 加注）+ docs/reverse/nuget.md 差异行（随终裁）+ docs/user/integrations/artifact-operations.md dep:—（**随时可动——D-10 裁定材料宜早上 BOARD，conductor 提前插空派发**；不阻塞任何实现票）
+  - **T-370 → done 2026-08-30 12:5x（插空航 `2c0d243`，双远端）——M13 5/23**：PRD 双版本 v1.1（M12 十三处：cargo-409 四处补全〔收口笔仅落 2/8，本票补余〕+FR-113.5 对齐+flat 八处折叠口径+FR-107 AC2 加注；M13 廿一处：重试语义五处锚 webhook.md 官方值+「36 事件」→13 域 66 型+envelope 时间戳断言删除+SSRF 键落定+Q4 取证入文+K47~K50 回填）+ D-10 四臂对照/Q4 就绪/ADR-0041 冲突登记上板（下方裁定材料块）。conductor 复验：双 PRD 版本行 v1.1 在案+grep 旧措辞零残留。**三项终裁待用户/conductor 窗（Q3 D-10 / Q4 槽档位 / ADR-0041 决策 4 回填）**；ROADMAP 两处版本引用滞后 PM 下批随收口（票内留痕）。日志 reports/agents/T-370.md。
+    <del>原文：</del> **T-370** [P0] FR-120 文面裁定包（D-10 终裁材料 + flat/L31 落笔）`role:product-manager` area:docs/prd（M12 PRD v1.1 增订/AC2 加注）+ docs/reverse/nuget.md 差异行（随终裁）+ docs/user/integrations/artifact-operations.md dep:—（随时可动——D-10 裁定材料宜早上 BOARD，conductor 提前插空派发；不阻塞任何实现票）
     AC1: D-10 对照材料上 BOARD（nuget.md §5.1 臂② 409 vs BinFlow as-built 201〔T-356 L03 实测〕双证对照 + 影响面；PM 出材料不代拍）；终裁后联动——翻转→触发 T-378 条件票；有意差异→nuget.md D 层差异行落笔（L19；终裁前维持 as-built）。
     AC2: flat 措辞回写——M12 PRD v1.1 增订（「flat 扁平化」→「flat 折叠进 copy 主参数族」口径）+ artifact-operations.md 同步（grep 旧措辞零残留）（L18）。
     AC3: L31 残余加注——M12 PRD FR-107 AC2「停机窗内重启」与 as-built boot 探针 fail-closed 姿势 PRD 加注（加注不改行为、ADR-0040 零修改、行为零变化断言维持）（L18；T-356 观察⑨）。
