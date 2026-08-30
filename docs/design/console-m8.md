@@ -103,20 +103,24 @@ Artifactory 的核心 IA 事实是**按上下文切换的两种侧栏模式**，
 ├ 用户                   /admin/security/users
 ├ 组                     /admin/security/groups
 ├ 权限                   /admin/security/permissions
-└ Access Tokens          /admin/security/tokens（P2 占位）
+├ Access Tokens          /admin/security/tokens（P2 占位）
+└ 认证配置               /admin/security/auth/ldap〔M11 T-307 增补：LDAP/OAuth(OIDC)/SAML 三段 Tab，/admin/security/auth/{ldap|oauth|saml}〕
 
 治理
 ├ 审计日志               /admin/governance/audit
 ├ 维护（GC）             /admin/governance/gc
 ├ 配额                   /admin/governance/quotas
 ├ 复制                   /admin/governance/replication
-└ 备份 / 恢复            /admin/governance/backup
+├ 备份 / 恢复            /admin/governance/backup
+├ 回收站                 /admin/governance/trash〔M12 T-352 增补：FR-106 浏览/恢复/清空；trashcan 槽门控态呈现〕
+└ Webhooks               /admin/governance/webhooks〔M13 T-366 增补：FR-115.5 订阅 CRUD/test + 投递排障；readonly_admin 只读可见〕
 
 监控
 └ 存储                   /admin/monitoring/storage
 
 常规
-└ 系统信息               /admin/general/settings
+├ 系统信息               /admin/general/settings
+└ License & Add-ons      /admin/general/license〔M10 T-288 增补：FR-86-AC5；readonly_admin 只读可见〕
 
 ── 全局（两模式共享）─────────────────────────────────────
 登录                     /login
@@ -125,7 +129,9 @@ Artifactory 的核心 IA 事实是**按上下文切换的两种侧栏模式**，
 404                      未匹配（保留导航壳）
 ```
 
-导航条目合计 14（应用 2 + 管理 12）；分组标题是标签不是折叠项（沿 console-ux §3.1 纪律）。管理模式页面加**面包屑**（如 `仓库 / maven-remote`），对齐 Artifactory 管理页层级表达。
+导航条目合计 **18（应用 2 + 管理 16）**；分组标题是标签不是折叠项（沿 console-ux §3.1 纪律）。管理模式页面加**面包屑**（如 `仓库 / maven-remote`），对齐 Artifactory 管理页层级表达。
+
+> **〔T-374 / FR-122.2 侧栏清单回写，2026-08-31〕**本全图按 `web/src/components/AppShell.tsx` 现役 `APP_NAV`/`ADMIN_NAV` 逐项核对对齐（M8 基线 14 = 应用 2 + 管理 12 → 现役 18 = 应用 2 + 管理 16；M10 T-288 / M11 T-307 / M12 T-352 / M13 T-366 四次增补各 +1，图内以〔〕标注）。M13 PRD FR-122.2 起草时点估「15 页」未计入 T-366 Webhooks，以代码现役 16 为准。e2e 断言同步：`web/e2e/m8/shell.spec.ts` 管理侧栏 `a.nav-item` 计数 = 16。§1.5 覆盖率结论为 M8 时点陈述，保留原文；M9~M13 增量页以本注记与各里程碑锚册（console-ux §10.5）为准。
 
 ### 1.4 路由表与兼容重定向
 
@@ -639,7 +645,7 @@ Artifactory 的 Cron 表达式/Next Run/配额百分比/清理虚拟仓分块**�
 
 ## 10. 验收要点（供 qa 拆解，DoD 体例参照 milestone-7 §9）
 
-1. §1.3 导航树 14 条目逐项可达；旧路由 20 条重定向全绿（e2e 兼容窗口）。
+1. §1.3 导航树 14 条目逐项可达（M8 基线值；现役 18 = 应用 2 + 管理 16，见 §1.3 T-374 回写注记——e2e 计数断言已随增补页演进为 16）；旧路由重定向全绿（e2e 兼容窗口；**后记 T-374 核查**：该窗口已按计划移除——shell.spec 现断言 19 条旧路径原地 404〔`legacy routes: all console-m8 §1.4 paths land NotFound (redirect window removed)`〕，2026-08-31 实测绿）。
 2. §1.2「不建」清单零影子入口（侧栏/用户菜单/右键菜单 grep 断言）。
 3. §3.2 四态矩阵逐格 Playwright 断言（复用 §10 锚体系，新增页先补锚再落码）。
 4. §4 六条交互流走查（Set Me Up 含错误口令/step-up 双态；Deploy 含 409/403；权限两步对话框回填）。

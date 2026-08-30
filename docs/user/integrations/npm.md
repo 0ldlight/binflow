@@ -5,7 +5,7 @@ sidebar_position: 21
 
 # npm 接入
 
-> 适用版本：M3（publish/packument/dist-tags/unpublish/login + remote/virtual；PRD milestone-3 v1.2）；**M8 起发布权限语义更新**（见「发布权限语义」节——npm CLI 连发多版本实测 npm 10.9.8 / node 22，T-249）；**M9 复核**：复制引擎同口径钉死（T-262——目标凭据 `read`+`write` 即可，见该节末）。
+> 适用版本：M3（publish/packument/dist-tags/unpublish/login + remote/virtual；PRD milestone-3 v1.2）；**M8 起发布权限语义更新**（见「发布权限语义」节——npm CLI 连发多版本实测 npm 10.9.8 / node 22，T-249）；**M9 复核**：复制引擎同口径钉死（T-262——目标凭据 `read`+`write` 即可，见该节末）；**M13 补注**：registry/token 尾斜杠配对实证矩阵 + 交互式 login 现状修正（FR-122.3，T-374 实测 npm 10.9.8 / node 22）。
 > 本文核心链在 M3 QA 基线（commit `0f86229`，T-74/T-76 验收产物）上复跑：`.npmrc`（registry 限定 `_auth` 形态）publish、缓存清空重装、whoami 均退出码 0（复跑记录见 `reports/agents/T-77.md`）；scoped/dist-tag/unpublish/remote 代理/virtual 聚合取自 T-74/T-76 验收记录。客户端锚定 npm 10.x（10.9.8 实测，node 22）。
 
 把 BinFlow 当作私有 npm registry：`.npmrc` 一处配置，`npm publish` 发内部包、`npm install` 装内部与上游包——registry 协议按 npm 官方规范实现，scoped 包、dist-tag、unpublish 开箱可用。
@@ -31,6 +31,24 @@ export BASE=http://localhost:8080
 export ADMIN_PW=<你的管理员口令>
 export NPM_REG=$BASE/binflow/api/npm/npm-local/
 ```
+
+### 尾斜杠配对：registry 行与凭据行（高频踩坑，M13 实证）
+
+npm 客户端按「registry URL 字符串」匹配 `.npmrc` 里的凭据行（`_auth` / `_authToken`）。npm 10.9.8 / node 22 真机矩阵（T-374，2026-08-31）：
+
+| registry 行 | 凭据行 | 结果 |
+|---|---|---|
+| `…/npm-local/`（带斜杠） | `//…/npm-local/:_auth=…`（带斜杠） | 全绿（publish / whoami / install）——即上文形态 |
+| `…/npm-local`（**无斜杠**） | `…/:_auth`（带斜杠） | **ENEEDAUTH**：`npm error need auth This command requires you to be logged in to http://…/npm-local`（错误信息回显无斜杠 URL，可作排查线索） |
+| `…/npm-local/`（带斜杠） | `//…/npm-local:_auth`（**无斜杠**） | **ENEEDAUTH**（同上） |
+| `…/npm-local`（无斜杠） | `…:_auth`（无斜杠，两侧一致） | **仍然 ENEEDAUTH**——npm 的凭据键匹配不接受无斜杠形态，一致也救不了 |
+
+要点：
+
+- **两条都必须逐字带尾斜杠**。只改 registry 行不改凭据行（或反过来）= publish/whoami 立刻 `need auth`。
+- 更隐蔽的是：**匿名拉包不受影响**（`npm view` / `npm install` 照常绿）——实例默认开匿名读时，CI 表现为「install 好的、publish 突然 401/need auth」，第一反应往往去查服务端权限，实际是 `.npmrc` 斜杠形态。
+- **token 形态同坑**：`//…/npm-local/:_authToken=<token>`（带斜杠）全绿；去掉斜杠同 ENEEDAUTH。token 从管理面签发（见[管理指南](../admin/token-step-up.md)或 `POST /api/security/token`）。
+- registry 换仓（如 local → virtual）时，`registry=` 行与凭据行的**主机+路径段要同步改**——两行指向不同仓时凭据照样匹配不上。
 
 ## 接入步骤
 
@@ -103,7 +121,7 @@ npm unpublish demo-pkg@1.0.1 --force   # 版本从 packument 移除，dist-tags 
 
 unpublish 内部的 `PUT .../-rev/<rev>` 步骤 BinFlow 恒回 `200 {"ok":"updated package"}`（npm 客户端协议前置占位，包内容不动——npm CLI 行为依赖它）。
 
-`npm login`（npm ≥ 9 需 legacy 形态）：`npm login --auth-type=legacy`，签发的 token 与管理面 token 同表可吊销；日常用 `.npmrc _auth`（Basic）等效。
+`npm login`（npm ≥ 9 需 legacy 形态）：**M13 实测注记（T-374）——当前版本交互式 `npm login --auth-type=legacy` 不可用**：npm 把账号口令放在登录 PUT 请求体里、不带认证头，而服务端内容面要求写动词先过认证（匿名 PUT 直接 401），请求到不了登录端点的 body 凭据臂（M3 验收时该交互流程未直跑，T-77 O-4 已留痕；修复归服务端票）。token 端点本身正常：带 Basic 头访问即 201 铸出与管理面同表的 token（可吊销）。**日常直接用 `.npmrc` 的 `_auth`（Basic）或 `_authToken`（管理面 / `POST /api/security/token` 签发）两行之一**，形态见上文「尾斜杠配对」。
 
 ## 发布权限语义（M8 起）
 
@@ -154,6 +172,7 @@ CI 账号的 permission target 该授什么？按操作分臂（T-249 转换感�
 
 | 症状 | 原因 | 处置 |
 |---|---|---|
+| `npm error need auth This command requires you to be logged in…`（ENEEDAUTH，install 却正常） | `.npmrc` 的 registry 行或 `_auth`/`_authToken` 凭据行缺尾斜杠（或两行指向不同仓） | 两行都逐字带尾斜杠（见「尾斜杠配对」矩阵） |
 | `npm error Invalid auth configuration found: '_auth' must be renamed to ...` | 项目级 `.npmrc` 用了裸 `_auth` | 凭据行改 `//<host>/<路径>/:_auth` 限定形态（上文第 2 步） |
 | publish E403 `Cannot modify pre-existing version '1.0.0'` | 同版本已发布（不允许覆盖） | `npm version` 升版本后重发；或先 `npm unpublish` |
 | 连发第二个版本 E403（仅旧实例） | M8 之前的实例把 packument 追加误判为覆写（T-247 发现，T-249 修复） | 升级到 M8；过渡期给 CI principal 补 `delete` |
