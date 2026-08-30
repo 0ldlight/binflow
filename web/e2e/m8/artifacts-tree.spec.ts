@@ -209,6 +209,8 @@ test('plain user: repo inventory 403 -> L2 card; known-key deep link works via p
   // 顶层仓库列表不可得（GET /api/repositories 403）→ L2 无权限卡 + 引导
   await expect(page.locator('[data-testid="tree-root-denied"]')).toBeVisible()
   await expect(page.locator(`[data-testid="tree-repo-${key}"]`)).toHaveCount(0)
+  // 常驻回收站入口同门不渲染（T-372：管理壳可见性纪律）
+  await expect(page.locator('[data-testid="tree-trash-node"]')).toHaveCount(0)
 
   // 已知 repo key 的深链按路径 ACL 可达（合成顶层节点 + 子树渲染）
   await page.goto(`/binflow/ui/artifacts/${key}/d`)
@@ -218,6 +220,41 @@ test('plain user: repo inventory 403 -> L2 card; known-key deep link works via p
   await expect(page.locator('.tree-page .warn-box')).toContainText('管理员视图')
   // 普通用户写入口保留（服务端 403 行内呈现，W12d 语义不变）
   await expect(page.locator('[data-testid="tree-deploy"]')).toBeEnabled()
+})
+
+// ---- T-372 / FR-122.1：树尾常驻回收站入口（真栈形态；mock 全链在
+// e2e/m13/t372-trash-node.spec.ts）-------------------------------------------
+
+test('trash entry node (T-372): resident at tree tail; click deep-links to the M12 page', async ({ page }) => {
+  const key = uniq('m8trash')
+  await seedRepos(m8Client(), [{ key }])
+
+  await loginAs(page, 'admin')
+  await page.goto('/binflow/ui/artifacts')
+  const node = page.locator('[data-testid="tree-trash-node"]')
+  await expect(node).toBeVisible()
+  await expect(node).toContainText('回收站')
+  // 常驻树尾：DOM 序在全部仓库行之后（reverse §3.2 末尾常驻形态）
+  const rows = await page.evaluate(() =>
+    Array.from(document.querySelectorAll<HTMLElement>('[data-tree-row]')).map(
+      (el) => el.getAttribute('data-testid') ?? '',
+    ),
+  )
+  expect(rows).toContain(`tree-repo-${key}`)
+  expect(rows[rows.length - 1]).toBe('tree-trash-node')
+
+  // 点击 = 深链跳转 M12 回收站页（community 真栈 = 槽锁定卡形态）
+  await node.click()
+  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/governance\/trash$/)
+  await expect(page.locator('[data-testid="trash-page"]')).toBeVisible()
+  await expect(page.locator('[data-testid="trash-locked"]')).toBeVisible()
+})
+
+test('trash entry node (T-372): readonly_admin sees it (admin-shell gate)', async ({ page }) => {
+  await loginAs(page, 'readonly_admin')
+  await page.goto('/binflow/ui/artifacts')
+  // 管理壳同门（admin ∪ readonly_admin）：readonly 也见常驻入口
+  await expect(page.locator('[data-testid="tree-trash-node"]')).toBeVisible()
 })
 
 // ---- axe 结构可达性（serious/critical = 0 门；§9）----------------------------

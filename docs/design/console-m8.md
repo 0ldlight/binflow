@@ -296,7 +296,7 @@ Artifactory 的核心 IA 事实是**按上下文切换的两种侧栏模式**，
 
 ### 4.3 树导航与深链（对齐 reverse §4.3/§4.4）
 
-URL 即状态（`/artifacts/<repo>/<path>`）；深链自动展开祖先并选中；懒加载展开；过滤仓库输入 + Clear 复位。Trash Can 常驻节点**不建**（BinFlow 无回收站——删除即永久，危险确认文案明示）；My Favorites/星标**不建**（无后端）；Compacted/Non-Compacted 切换**不建**（懒加载一层 + 虚拟滚动已解决规模问题）。
+URL 即状态（`/artifacts/<repo>/<path>`）；深链自动展开祖先并选中；懒加载展开；过滤仓库输入 + Clear 复位。~~Trash Can 常驻节点**不建**（BinFlow 无回收站——删除即永久，危险确认文案明示）~~ **〔推翻回写 T-372 / FR-122.1，2026-08-31〕**——原条款前提「BinFlow 无回收站」已被 M12 FR-106 推翻（回收站页 `/admin/governance/trash`，T-352 交付）；按 reverse §3.2「末尾常驻 Trash Can」形态兑现：跨仓树**末尾常驻回收站入口节点**，最小面 = 点击/Enter 跳转 M12 回收站页（页身零新面）；admin / readonly_admin 可见（管理壳同门），普通 user 不渲染（§2.2）；叶节点无展开语义；锚 `tree-trash-node`（console-ux §10.3 T-372 批）。My Favorites/星标**不建**（无后端）；Compacted/Non-Compacted 切换**不建**（懒加载一层 + 虚拟滚动已解决规模问题）。
 
 ### 4.4 新建仓库向导（对齐 reverse §4.7）
 
@@ -440,6 +440,7 @@ mono 应用规则沿 console-ux §7.3 全清单不变（路径/digest/checksum/r
 ```
 
 - [1] 页头动作区对齐 reverse §3.2；[2] 详情 Tab 与字段序对齐（Properties/Followers/Xray 不建）；[3] 路径/URL mono+拷贝（P2）；[4] `(上传时提供：一致)` 映射 originalChecksums；[5] 分页沿 §6 大目录策略；[6] 页脚标语行（stats admin 门，非 admin 隐藏）。
+- 树末尾常驻回收站入口节点（T-372 / FR-122.1——§4.3 推翻条款的兑现面，2026-08-31 留痕）：admin / readonly_admin 可见，点击跳转 `/admin/governance/trash`（M12 页面沿用）；普通 user 不渲染。
 - 协议特化（docker 两级/tag 表/manifest 面板、maven GAV 树、npm 包/版本、pypi 归一名）沿 console-ux §3.4 矩阵不变，挂载点从「仓内树」平移为「跨仓树子树」。
 - 非 admin：树顶层 L2 无权限卡 + 搜索/直链引导；深链子树按路径 ACL。
 

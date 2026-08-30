@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 文档 | `docs/design/console-ux.md` |
-| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账）/ T-291（v1.11：Properties 页签锚册——MUI 首票）/ T-307（v1.12：认证配置页组锚册——admin/security/auth 域）/ T-344（v1.14：密度档修订——MUI small 档，mui-native-visual §7 登记）/ T-352+T-353（v1.15：回收站页锚册 trash-* 族 + 建仓表单策略键生成器扩容）/ T-366（v1.16：Webhook 订阅管理页锚册 wh-* 族） |
-| 状态 | v1.16（2026-08-30） |
+| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账）/ T-291（v1.11：Properties 页签锚册——MUI 首票）/ T-307（v1.12：认证配置页组锚册——admin/security/auth 域）/ T-344（v1.14：密度档修订——MUI small 档，mui-native-visual §7 登记）/ T-352+T-353（v1.15：回收站页锚册 trash-* 族 + 建仓表单策略键生成器扩容）/ T-366（v1.16：Webhook 订阅管理页锚册 wh-* 族）/ T-372（v1.17：树尾常驻回收站入口锚 tree-trash-node——console-m8 §4.3 推翻条款兑现） |
+| 状态 | v1.17（2026-08-31） |
 | 维护者 | ux-designer |
 | 上游依据 | PRODUCT.md（Web 控制台/治理/Non-goals）、ROADMAP.md M4 节、docs/prd/milestone-1/2/3/4.md（端点矩阵与已定案行为）、docs/user/docker-registry.md（用户面口径）、docs/design/architecture.md §7（路由/console 挂载点）、internal/httpapi/router.go（路由门事实——§3.6.2 矩阵逐一核对）、reports/agents/T-98.md · T-99.md（漂移登记与 testid 素材）、reports/agents/T-98-review.md（N1 收敛建议）、BOARD.md（T-85 PRD / T-97 存在性不泄露裁决） |
 | 下游消费者 | T-86（架构：console 包/session/前端工程结构）、tech-lead（M4 拆票）、前端 dev（页面组票）、qa-engineer（控制台验收） |
@@ -33,6 +33,7 @@
 | v1.14 | 2026-08-29 | T-344 密度档修订（mui-native-visual §7 登记的回写）：① §7.2 密度行自「表格行高 32px / 导航项 32px / 控件高 32px」修订为「主字号 14px（MUI 默认档）/ MUI small 密度档（表格行 ≈33px、控件 small 带 ≈31px）」——P1 信息密度原则不变，实现档位换 MUI 原生档，手写 32px 压制随之废除；② §7.1 token 表维持（tokens.css 不动，`--bf-fs-body` 等值保留供 B/C 波退役前的残余 CSS 消费）；③ 上游依据 = docs/design/mui-native-visual.md（v1.0），逐波实施细节以该规范为准 |
 | v1.15 | 2026-08-29 | T-352+T-353（M12 FR-106/FR-113 FE 腿，聚票）：① **T-352 批 trash-* 锚族 13 名入册**（回收站管理页 /admin/governance/trash——治理分组第六页；§10.5 路由表补行）；② 建仓表单 **`form-${k}` 生成器族键闭集扩 12 键**（deb×6 / rpm×4 / helm×2——T-353 策略键字段册 policyFields.ts，照 T-307 anchor 属性形态；无新静态锚，§10.6 生成器行同步）；③ 交互口径：trashcan 槽锁定态照 License 页先例（addons 行实时求值）、恢复 ConfirmDialog 内嵌 to 输入（confirm-input 先例）、清空 = danger + 输入 EMPTY 强确认（GC apply 同款）、浏览骑存储面（listChildren / ?properties 五元组断言面同源） |
 | v1.16 | 2026-08-30 | T-366 Webhook 订阅管理页（M13 FR-115.5 FE 腿，FR-115.7 真实消费者 e2e 随票）：① **T-366 批 wh-* 锚族 47 名入册**（治理分组第七页 /admin/governance/webhooks——§10.5 路由表补行）；② 交互形态照 console-artifactory-parity：新建/编辑 = Dialog（M3/M4 族通用规格——动作右下 Cancel 左/主右、Esc/遮罩关闭）、详情 + 最近投递记录 = 右侧 Drawer（抽屉族通用规格——480 档、内部滚动）——**Artifactory 对齐里程碑的首个新页面实践**；③ 订阅面消费 /binflow/event/api/v1 七端点族（E-26 前缀下官方段名逐字——lib/webhooks.ts 自带同源信封）；secret 哨兵 = webhook.md §2.4 三态（省略保持/明文轮换/"" 擦除），留空保持 = 剔除键、哨兵不回传；④ 事件型下拉 13 域分组 + wired/dormant 如实标注（66 型闭集静态镜像，服务端校验终裁——T-362 §5-4 既定） |
+| v1.17 | 2026-08-31 | T-372 树尾常驻回收站入口节点（M13 FR-122.1 FE 腿——console-m8 §4.3「Trash Can 常驻节点不建」推翻条款的兑现，推翻留痕随票入该册 §4.3/§6.3）：① **T-372 批 1 名锚入册**（`tree-trash-node`——跨仓树末尾常驻入口；先入册再落码）；② 交互口径：最小面 = 入口跳转 /admin/governance/trash（M12 T-352 页面沿用，页身零新面）；可见性 = admin/readonly_admin（管理壳同门），普通 user 不渲染；键盘 = 树行序移动 + Enter 激活（叶节点，无展开语义）；不参与「过滤仓库」过滤域（常驻语义）；③ §10.5 两行承载锚补记（/artifacts 与 /admin/governance/trash） |
 
 ---
 
@@ -1049,7 +1050,7 @@ M8 路由表（console-m8 §1.4）重排后，§10.2/§10.3 的 **242 锚零改�
 | M8 新路由 | 承载锚（不变） | 备注 |
 |---|---|---|
 | `/dashboard` | `dashboard` 页根 + dashboard-* 卡族 | 原 `/`；登录落点让位 `/artifacts` |
-| `/artifacts`、`/artifacts/:key/*` | `tree-page` 族 + `?focus=` 深链参数 + T-236 跨仓树新锚（见下） | 原 `/repositories/:key/tree/*`；T-236 起根与子树同承载跨仓树 |
+| `/artifacts`、`/artifacts/:key/*` | `tree-page` 族 + `?focus=` 深链参数 + T-236 跨仓树新锚（见下）+ T-372 树尾常驻回收站入口 `tree-trash-node`（见下） | 原 `/repositories/:key/tree/*`；T-236 起根与子树同承载跨仓树 |
 | `/search` `/profile` | `search-page` 族（+ T-239 搜索新锚，见下） / `profile-page` 族 + `password-*`（T-239 拆分落位） | `/profile` 现挂设置页组件（T-239 拆分） |
 | `/admin/repositories/{local\|remote\|virtual}` | `repos-page` 族 | 原 `/repositories`；Tab 形态归 T-240 |
 | `/admin/repositories/new` `?rclass=` | `repo-form-page` + `form-*` 族 | Quick 建仓入口的参数形态（T-240 消费） |
@@ -1057,7 +1058,7 @@ M8 路由表（console-m8 §1.4）重排后，§10.2/§10.3 的 **242 锚零改�
 | `/admin/security/{users\|groups\|permissions\|tokens}[/:name\|/new]` | `users-*` `user-*` `groups-*` `perm-*` 族 / `placeholder-page` | 原 `/security/*` |
 | `/admin/security/auth/{ldap\|oauth\|saml}` | `authcfg-page` 族（T-307 批，v1.12 入册——见下） | M11 新增：「用户与权限」分组第五页（认证配置三 Tab；索引 `/admin/security/auth` 重定向 ldap） |
 | `/admin/governance/{audit\|gc\|quotas\|replication\|backup}` | `audit-*` `gc-*` `quota-*` `repl-*` `backup-*` 族 | 原 `/audit` `/governance/*` |
-| `/admin/governance/trash` | `trash-*` 族（T-352 批，v1.15 入册——见下） | M12 新增：治理分组第六页（回收站管理） |
+| `/admin/governance/trash` | `trash-*` 族（T-352 批，v1.15 入册——见下）+ 树尾入口 `tree-trash-node`（T-372 批，v1.17——见下） | M12 新增：治理分组第六页（回收站管理） |
 | `/admin/governance/webhooks` | `wh-*` 族（T-366 批，v1.16 入册——见下） | M13 新增：治理分组第七页（Webhook 订阅管理 + 投递排障） |
 | `/admin/monitoring/storage` | `storage-page` 族（T-238 批，v1.7 入册——D-1 收口） | 新路由；原行 `placeholder-page（新页归 T-238）` 已过时 |
 | `/admin/general/settings` | `settings` + `settings-instance` + `settings-health`（T-238 `SystemInfoPage` 承接；改密已迁 `/profile`——T-239） | 原 `/settings` |
@@ -1431,6 +1432,26 @@ secret 键，哨兵绝不回传（authconfig 口径同款）；66 事件型/13 �
 lib/webhooks.ts 静态镜像驱动分组下拉（服务端校验终裁——wired/dormant
 标注为呈现层，T-362 §5-4 既定）；`toast`/`skeleton`/`error-card`/
 `empty-state`/`confirm-dialog` 复用四态基元缺省锚。
+
+**T-372 树尾常驻回收站入口批（1 名，M13 FR-122.1 FE 腿——console-m8
+§4.3「Trash Can 常驻节点不建」推翻条款的兑现，推翻留痕随票入该册；
+先入册再落码，v1.17；消费 spec = web/e2e/m13/t372-trash-node.spec.ts
+〔本票新增，全 mock 探针〕+ m8/artifacts-tree.spec.ts 增腿〔真栈可见/
+跳转〕）：**
+
+```
+跨仓树（/artifacts 左树末尾——reverse §3.2「末尾常驻 Trash Can」对齐面）：
+  tree-trash-node（常驻入口节点——admin/readonly_admin 可见〔管理壳同门〕，
+    普通 user 不渲染；点击/Enter 跳转 /admin/governance/trash，页身沿用
+    M12 T-352 回收站页零新面；role=treeitem 叶节点无展开语义，↑↓ 沿树行
+    DOM 序移动；不参与「过滤仓库」过滤域〔常驻≠已加载仓库集成员〕）
+```
+
+变更注记（T-372，dev-frontend 回写）：空实例引导卡（§1.1，console-m8）
+整块替换树时节点不渲染——常驻语义限定在树本体存在时；节点图标沿
+PropertiesTab 删除钮先例（装饰性字形，非语义面）；分隔线为视觉面
+（CSS，无锚）；槽门控/readonly 姿态全部由 M12 页面自持，入口节点零数据
+请求。
 
 **锚总量复核口径（v1.4 实测）**：`grep -rn "data-testid" web/src/` = **293 落点 / 29 文件**（v1.2 基线 242 之后，T-104~T-234 各票陆续增锚至 HEAD 的 283 落点——ADR-0029 原写 283 即此原始 grep 数）；T-235 净变化 = 壳**删 0 改 0、新增 10**（AppShell 10 → 20），占位路由新增 0（复用 `placeholder-page`）。另：`web/src/styles/theme-smoke.spec.ts`（7 处选择器引用，非锚）随 T-232 遗留①迁出 `src/` 至 `e2e/m8/theme-smoke.spec.ts`，不再计入 src 侧 grep。
 

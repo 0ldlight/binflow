@@ -120,6 +120,9 @@ export default function ArtifactsBrowser() {
   const { session } = useAuth()
   const admin = session?.admin ?? false
   const readOnly = isReadOnlyAdmin(session)
+  // T-372 / FR-122.1：树尾常驻回收站入口的可见性——管理壳同门
+  // （AppShell canSeeAdmin：admin ∪ readonly_admin），普通 user 不渲染
+  const canSeeAdmin = admin || readOnly
 
   // ---- 仓库列表（CapRepoRead：admin/readonly 全量；普通 user 403） ----
   const reposQuery = useAsync(() => getRepositories(), [])
@@ -689,6 +692,11 @@ export default function ArtifactsBrowser() {
                       />
                     ))
                   ))}
+                {/* 树尾常驻回收站入口（T-372 / FR-122.1）：console-m8 §4.3
+                    推翻条款的兑现面（推翻留痕在该节）；reverse §3.2 末尾
+                    常驻形态。最小面 = 跳转 M12 页面；不参与过滤仓库的
+                    过滤域（常驻 ≠ 已加载仓库集成员） */}
+                {canSeeAdmin && <TrashTreeNode onOpen={() => navigate('/admin/governance/trash')} />}
               </div>
             </nav>
 
@@ -1105,6 +1113,50 @@ function RepoBranch({
             onMenu={onMenu}
           />
         ))}
+    </div>
+  )
+}
+
+// ---- 左树：树尾常驻回收站入口（T-372 / FR-122.1） ---------------------------
+//
+// console-m8 §4.3 原「Trash Can 常驻节点不建」条款被 M12 FR-106 推翻后的
+// 兑现面（推翻留痕见该节）；Artifactory 树浏览器末尾常驻 Trash Can 的对齐
+// 形态（reverse §3.2）。最小面：入口跳转 /admin/governance/trash——页身
+// （浏览/恢复/清除/清空）全部沿用 M12 T-352 页面，本节点零数据请求、零
+// 自有状态。可见性与管理壳同门（admin ∪ readonly_admin），普通 user 不
+// 渲染（§2.2 管理面可见性纪律）。键盘：↑↓ 沿树行 DOM 序移动、Enter/Space
+// 激活；叶节点无展开语义（→/← 不响应，twisty 位以空槽占位对齐栅格）。
+
+function TrashTreeNode({ onOpen }: { onOpen: () => void }) {
+  const onKeys = (e: ReactKeyboardEvent<HTMLElement>) => {
+    const rows = Array.from(document.querySelectorAll<HTMLElement>('[data-tree-row]'))
+    const idx = rows.indexOf(e.currentTarget)
+    if (e.key === 'ArrowDown' && rows[idx + 1]) {
+      e.preventDefault()
+      rows[idx + 1].focus()
+    } else if (e.key === 'ArrowUp' && rows[idx - 1]) {
+      e.preventDefault()
+      rows[idx - 1].focus()
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      onOpen()
+    }
+  }
+  return (
+    <div
+      className="tree-node repo-node trash-node"
+      data-testid="tree-trash-node"
+      data-tree-row=""
+      role="treeitem"
+      aria-level={1}
+      tabIndex={0}
+      title="回收站（local 仓删除捕获——恢复 / 永久清除 / 清空，管理页）"
+      onClick={onOpen}
+      onKeyDown={onKeys}
+    >
+      <span aria-hidden="true" className="twisty" />
+      <span aria-hidden="true" className="ico">🗑</span>
+      <span>回收站</span>
     </div>
   )
 }

@@ -222,6 +222,8 @@ const STOP = new Set([
   // v1.15（T-352/T-353 行文假阳性）：回收站批的标识符引用——存储常量 /
   // REST 参数 / CSS 类钩子 / 文档文件名段，均非 testid 锚
   'auto-trashcan', 'transaction-size', 'confirm-input', 'trash-can',
+  // v1.17（T-372 行文假阳性）：树尾入口批的 spec 文件名段，非 testid 锚
+  't372-trash-node', 'artifacts-tree',
 ])
 const docFams = new Set()
 for (const t of docTokens) {
