@@ -12,6 +12,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/audit"
 	"github.com/lzwzzy/binflow/internal/auth"
 	"github.com/lzwzzy/binflow/internal/metadata"
+	"github.com/lzwzzy/binflow/internal/webhook"
 )
 
 // The ?properties read/write family (M10 T-286, FR-89.2 / architecture
@@ -185,6 +186,17 @@ func (s *Server) handleStoragePropertiesPut(w http.ResponseWriter, r *http.Reque
 		}
 	}
 	s.recordPropsAudit(r, propsAuditWrite, node.RepoKey, node.Path, propsQuerySummary(props), len(targets) > 1)
+	// Webhook seam: artifact_property/added per written key on the
+	// ADDRESSED node (webhook.md 3.2 — the envelope's node facts come from
+	// the addressed row; recursive fan-out targets fire nothing here, the
+	// addressed node's event is the operation's observable).
+	for k, vs := range props {
+		s.emitWebhook(r, webhook.Event{
+			Domain: webhook.DomainArtifactProperty, Type: webhook.TypePropAdded,
+			Repo: node.RepoKey, Path: node.Path, Sha256: node.Sha256, Size: node.Size,
+			PropertyKey: k, PropertyValues: vs,
+		})
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -258,6 +270,16 @@ func (s *Server) handleStoragePropertiesDelete(w http.ResponseWriter, r *http.Re
 		}
 	}
 	s.recordPropsAudit(r, propsAuditDelete, node.RepoKey, node.Path, raw, len(targets) > 1)
+	// Webhook seam: artifact_property/deleted per named key (the wildcard
+	// arm fires nothing — its key set was never materialized; property_values
+	// echoes empty: the values are gone by definition of the event).
+	for _, k := range keys {
+		s.emitWebhook(r, webhook.Event{
+			Domain: webhook.DomainArtifactProperty, Type: webhook.TypePropDeleted,
+			Repo: node.RepoKey, Path: node.Path, Sha256: node.Sha256, Size: node.Size,
+			PropertyKey: k,
+		})
+	}
 	w.WriteHeader(http.StatusNoContent)
 }
 

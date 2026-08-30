@@ -69,6 +69,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/replication"
 	"github.com/lzwzzy/binflow/internal/repo"
 	"github.com/lzwzzy/binflow/internal/storage"
+	"github.com/lzwzzy/binflow/internal/webhook"
 	minio "github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	_ "modernc.org/sqlite" // driver for the replication store's own connection
@@ -547,7 +548,10 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 		// lands). httpapi.New asserts every adapter above carries a slot.
 		// The ONE instance openStack built — the repo-create gate seam reads
 		// the same registry (T-283).
-		Addons:   stack.addonsReg,
+		Addons: stack.addonsReg,
+		// The unified-event webhook plane (M13 T-362): /binflow/event/api/v1
+		// seven-endpoint family + the domain handlers' Emit seam.
+		Webhooks: stack.webhookBus,
 		Version:  version,
 		Revision: revision,
 	}
@@ -641,6 +645,7 @@ func addonManifest() *addons.Registry {
 		// is this manifest's one tier value), the enterprise placeholders
 		// visible with their M11+ reservation notes.
 		addons.Properties(), addons.RepoOperations(), addons.Trashcan(), addons.HA(), addons.XrayIntegration(),
+		addons.Webhook(),
 	)
 }
 
@@ -830,6 +835,10 @@ type stack struct {
 	// signer is the GPG signing seam (T-319's SigningService, fed to the
 	// deb/rpm adapters' release-signing Options by the adapter phase).
 	signer *keypair.SigningService
+	// webhookBus is the unified-event plane (M13 T-362, ADR-0041): the
+	// Emit seam the domain handlers carry and the REST family serves.
+	// Its DB connection rides webhookDB on the close chain.
+	webhookBus *webhook.Bus
 	// oidcProv/ldapProv were the config-driven identity providers (T-179,
 	// ADR-0020). T-305 (ADR-0035) replaced them with authCfg, the
 	// ConfigManager: the three protocol sections live in auth_configs
@@ -856,6 +865,7 @@ type stack struct {
 	// LIFECYCLE concern, not an open one: startReplication launches it.
 	replStore  replication.Store
 	replDB     *sql.DB
+	webhookDB  *sql.DB
 	replEngine *replication.Engine
 	replCipher *remote.Cipher
 
@@ -1089,6 +1099,43 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 		return nil, fmt.Errorf("loading stored license: %w", err)
 	}
 
+	// The unified-event webhook plane (M13 T-362, ADR-0041): its own
+	// connection onto the metadata database (the 018 tables), the enc:v1
+	// cipher from the same instance master key, and the license Manager's
+	// evaluation as the Emit gate (decision 8: internal/webhook never
+	// imports license — the verdict arrives as a func, fail-closed).
+	webhookDB, err := openReplicationDB(ctx, sqlitePath(cfg))
+	if err != nil {
+		_ = st.Close()
+		_ = md.Close()
+		return nil, err
+	}
+	webhookCipher, err := replicationCipher()
+	if err != nil {
+		_ = webhookDB.Close()
+		_ = st.Close()
+		_ = md.Close()
+		return nil, err
+	}
+	webhookBus, err := webhook.NewBus(webhook.BusOptions{
+		Store: webhook.NewSQLiteStore(webhookDB),
+		Repos: md.Repos(),
+		Gate: func(ctx context.Context) bool {
+			return licenseMgr.AddonEnabled(ctx, addons.Webhook().ID, addons.Webhook().MinTier)
+		},
+		Cipher:             webhookCipher,
+		Origin:             cfg.Server.BaseURL,
+		AllowPrivateTarget: cfg.Webhook.AllowPrivateTarget,
+		Logger:             logger,
+	})
+	if err != nil {
+		_ = webhookDB.Close()
+		_ = st.Close()
+		_ = md.Close()
+		return nil, fmt.Errorf("wiring webhook bus: %w", err)
+	}
+	repo.AttachWebhookEmitter(svc, webhookBus)
+
 	// The unused-cleanup engine (M11 T-324, FR-102.2): the remote-cache
 	// policy pass over the same engine + audit the service uses. Built
 	// here so the first scheduled tick already sees the opened stack.
@@ -1149,6 +1196,8 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 		signer:         keypairSigner,
 		replStore:      replStore,
 		replDB:         replDB,
+		webhookDB:      webhookDB,
+		webhookBus:     webhookBus,
 		replEngine:     replEngine,
 		replCipher:     replCipher,
 		licenseMgr:     licenseMgr,

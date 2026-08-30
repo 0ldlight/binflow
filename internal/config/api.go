@@ -17,6 +17,9 @@ type Config struct {
 	Console     ConsoleConfig
 	Metrics     MetricsConfig
 	Replication ReplicationConfig
+	// Webhook is the outbound-webhook behavior section (M13 T-362,
+	// ADR-0041 decision 6): the SSRF posture of subscription targets.
+	Webhook WebhookConfig
 	// Addons is the addon circuit-breaker section (M10 T-283, ADR-0032 /
 	// architecture section 15.5 — the artifactory.addons.disabled behavior
 	// pattern in BinFlow's own spelling).
@@ -287,4 +290,15 @@ type ReplicationConfig struct {
 	// DNS-rebinding pinning (ADR-0021). This key is not a bypass of the guard;
 	// it only toggles the private-address leg of the SSRF screening list.
 	AllowPrivateTarget bool
+}
+
+// WebhookConfig carries the webhook plane's operator knobs (M13 T-362,
+// ADR-0041 decision 6). AllowPrivateTarget permits subscription target
+// URLs that resolve to private hosts — DEFAULT FALSE, the deliberate
+// asymmetry against replication's true: the replication plane's targets
+// are operator-configured static addresses, webhook targets are
+// REST-CRUD dynamic and reachable by any subscription writer, the
+// classic SSRF escalation surface.
+type WebhookConfig struct {
+	AllowPrivateTarget bool `yaml:"allow_private_target"`
 }

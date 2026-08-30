@@ -12,6 +12,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/remote"
 	"github.com/lzwzzy/binflow/internal/storage"
+	"github.com/lzwzzy/binflow/internal/webhook"
 )
 
 // The copy/move operations family (M12 T-339, FR-105.1; the behavior spec is
@@ -939,6 +940,24 @@ func (pl *cmPipeline) transfer(ctx context.Context, item *cmItem, tgtFile bool) 
 		}
 		if err := pl.writeFile(ctx, src, item.tgt, ref, props); err != nil {
 			return err
+		}
+		// Webhook seam: artifact/copied|moved per landed FILE, matched on
+		// the SOURCE repository the caller addressed (webhook.md 3.1's
+		// "按源仓库匹配"). Dry runs and internal system-identity landings
+		// into the trash repository stay silent (the observer's own guard
+		// posture — a trash capture is not a user-visible operation).
+		if !pl.dry && (!pl.system || pl.tgtRepo != TrashRepoKey) {
+			evType := webhook.TypeArtifactCopied
+			if pl.op == OpMove {
+				evType = webhook.TypeArtifactMoved
+			}
+			pl.svc.emitHook(ctx, webhook.Event{
+				Domain: webhook.DomainArtifact, Type: evType,
+				Repo: pl.srcRepo, Path: src.Path, Sha256: src.Sha256, Size: src.Size,
+				SourceRepoPath: pl.cmRepoPath(pl.srcRepo, src.Path),
+				TargetRepoPath: pl.cmRepoPath(pl.tgtRepo, item.tgt),
+				Actor:          hookActorOf(pl.p),
+			})
 		}
 	}
 

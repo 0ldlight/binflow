@@ -212,6 +212,14 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 		notImplemented(w, "/binflow/api")
 	case strings.HasPrefix(rest, "/api/"):
 		s.dispatchAPI(w, r, strings.TrimPrefix(rest, "/api/"))
+	case rest == "/event" || rest == "/event/":
+		// Bare /binflow/event: no endpoint at this address (the /api shape).
+		notImplemented(w, "/binflow/event")
+	case strings.HasPrefix(rest, "/event/"):
+		// The unified-event webhook plane (M13 T-362, ADR-0041): the
+		// official Event-service namespace /event/api/v1/** under the
+		// BinFlow prefix.
+		s.dispatchEventAPI(w, r, strings.TrimPrefix(rest, "/event"))
 	case rest == "/v2" || strings.HasPrefix(rest, "/v2/"):
 		// /binflow/v2 is NOT a mirror of the root-level exception
 		// (ADR-0010 clause 2: no double mount — the Location/realm/catalog

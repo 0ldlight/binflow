@@ -260,7 +260,7 @@ func splitEnvKey(upper string) (path []string, kind envKind, ok bool) {
 		return parts, envIntPos, true
 	case "metrics.require_auth":
 		return parts, envBool, true
-	case "replication.allow_private_target":
+	case "replication.allow_private_target", "webhook.allow_private_target":
 		return parts, envBool, true
 	case "addons.disabled":
 		// M10 T-283 (ADR-0032 / section 15.5): the circuit-breaker CSV, same

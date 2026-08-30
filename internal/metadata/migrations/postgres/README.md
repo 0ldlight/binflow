@@ -69,6 +69,17 @@ one-to-one when the dialect lands):
   T-290, FR-90.2) — socket_timeout_ms / metadata_retrieval_timeout_secs /
   unused_cleanup_period_hours, all 0 = unset (no backfill; the fetcher
   falls back to the legacy JSON fields). Statements are dialect-common.
+- 018_webhook: the unified-event webhook plane (M13 T-362, ADR-0041) —
+  webhook_subscriptions (key UNIQUE, criteria JSON text, secret_enc
+  enc:v1-or-empty, secrets_enc named-secret map), the
+  webhook_subscription_events child table (multi-event-type filters, the
+  (subscription_id, event_type) pair keyed) and the webhook_deliveries
+  outbox (status closed set, (status, next_attempt_at) queue index,
+  ON DELETE CASCADE from the subscription). Porting notes: booleans are
+  the INTEGER 0/1 convention on the sqlite side, BOOLEAN here; every id is
+  a uuid text primary key (no sequences), timestamps stay RFC3339 UTC
+  text. (015~017 predate this entry and carry no postgres notes here —
+  their sqlite files are the contract.)
 
 The migrator currently embeds `migrations/sqlite/*.sql` only
 (see ../migrate.go).

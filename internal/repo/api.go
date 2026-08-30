@@ -13,6 +13,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/remote"
 	"github.com/lzwzzy/binflow/internal/storage"
+	"github.com/lzwzzy/binflow/internal/webhook"
 )
 
 // Sentinel errors. Errors returned by Service wrap one of these; callers match
@@ -721,6 +722,81 @@ type RemoteFetcher interface {
 // The concrete engine satisfies the seam (compile-time pin).
 var _ RemoteFetcher = (*remote.Engine)(nil)
 
+// RemoteV2Plane is the registry-v2 remote pull-through seam (M13 T-363,
+// FR-116.1, helm.md section 8.3): the OCI Distribution upstream
+// conversation — Accept negotiation, the 401/WWW-Authenticate Bearer token
+// exchange, tag-to-digest resolution — exceeds the generic engine's
+// path-joined fetch, so the docker adapter drives that conversation with
+// its own session over the engine's EXPORTED outbound client. The CACHE
+// half stays service-owned through this seam: probing, landing and
+// miss-recording run the same invariants the engine's land() owns
+// (blob-first commit, checksum-addressed blobs, TTL cache rows, GC holds),
+// so the two cache writers can never disagree about what a cached copy is.
+//
+// The consumer resolves the capability by type-asserting Service (the
+// RemoteFetcher precedent — an optional SPI segment, so test doubles that
+// embed the interface keep compiling and an assembly without the seam
+// answers honestly instead of half-serving).
+type RemoteV2Plane interface {
+	// RemoteUpstream resolves one remote repository's upstream connection
+	// facts — URL, credential (password DECRYPTED for the session, never
+	// persisted or echoed by the caller), egress policy and cache TTLs.
+	// Read-gated: the caller has already passed the /v2 endpoint's own
+	// scope question; this is the defense-in-depth re-check.
+	RemoteUpstream(ctx context.Context, p *Principal, repoKey string) (*RemoteUpstream, error)
+	// ProbeRemoteCache answers the local-cache state of one storage path
+	// WITHOUT any upstream contact (the engine's steps 3+4, read-only):
+	// negative window, fresh copy, expired copy, or nothing.
+	ProbeRemoteCache(ctx context.Context, p *Principal, repoKey, path string) (*RemoteProbe, error)
+	// LandRemoteBlob lands one upstream-fetched body checksum-addressed
+	// (the engine's land() invariants; expectHex is enforced by the storage
+	// commit — a body that is not the digest it claims never lands).
+	LandRemoteBlob(ctx context.Context, p *Principal, repoKey, path, expectHex, mime string, body io.Reader) (*metadata.Node, error)
+	// CacheRemoteMiss records one upstream miss (the negative cache).
+	CacheRemoteMiss(ctx context.Context, p *Principal, repoKey, path string) error
+	// RecordRemoteManifest records the docker index rows of one cached
+	// remote manifest (manifest row, tag pointer, best-effort refs) —
+	// cache population, not a deploy: no write-plane gates run.
+	RecordRemoteManifest(ctx context.Context, p *Principal, repoKey, image, digest, tag, mediaType string, size int64, refs []*metadata.DockerRef) error
+}
+
+// RemoteUpstream is the upstream fact bundle of one registry-v2 remote
+// repository (RemoteV2Plane.RemoteUpstream's result). Password is plaintext
+// in memory for the adapter's session only — the caller must never log or
+// echo it (NFR-S14).
+type RemoteUpstream struct {
+	URL                  string
+	Username             string
+	Password             string
+	TokenAuth            bool // enableTokenAuthentication: the password IS a bearer token
+	AllowPrivateUpstream bool
+	SocketTimeoutMs      int64
+	ContentTTLSeconds    int64
+	MissedTTLSeconds     int64
+	BlockedOut           bool
+}
+
+// The RemoteProbe states (the X-BinFlow-Cache tokens they serve).
+const (
+	// RemoteProbeHit: a fresh local copy serves the request (HIT).
+	RemoteProbeHit = "HIT"
+	// RemoteProbeStale: an expired local copy stands (STALE — served on an
+	// upstream fault or upstream 404; revalidated by a successful fetch).
+	RemoteProbeStale = "STALE"
+	// RemoteProbeNegative: a fresh miss record answers unfound with zero
+	// upstream packets.
+	RemoteProbeNegative = "NEGATIVE"
+	// RemoteProbeMiss: nothing local — the upstream conversation decides.
+	RemoteProbeMiss = "MISS"
+)
+
+// RemoteProbe is one ProbeRemoteCache outcome: the state plus the standing
+// node on HIT/STALE (nil otherwise).
+type RemoteProbe struct {
+	Node  *metadata.Node
+	State string
+}
+
 // Replicator is the push-replication enqueue seam (M6, ADR-0021 decision 2:
 // "repo.Service.Put 链末增加 replication.Enqueue 调用（异步，非阻塞）").
 // The internal/replication engine satisfies it structurally; the seam lives
@@ -847,4 +923,49 @@ func AttachCopyMoveObserver(s Service, o CopyMoveObserver) {
 		return
 	}
 	impl.cmObserver = o
+}
+
+// WebhookEmitter is the unified-event bus seam (M13 T-362, ADR-0041
+// decision 1: the repository domain's mutation tails call Emit with one
+// event and never learn about subscriptions). Satisfied by the
+// internal/webhook Bus; the seam lives here, consumer-side, so repo never
+// imports the webhook package beyond the event type (matching, gating and
+// the outbox are the bus's alone).
+//
+// Emit is synchronous-but-bounded by contract: implementations must never
+// fail the caller (the bus's own recover/WARN path guarantees it), must
+// complete in small-transaction time (the outbox batch insert), and must
+// be safe for concurrent use.
+type WebhookEmitter interface {
+	Emit(ctx context.Context, e webhook.Event)
+}
+
+// AttachWebhookEmitter wires the unified-event seam onto a Service built
+// by New/NewWithClock (the AttachReplicator precedent: the constructor
+// signature stays stable for every existing caller). Call it during
+// assembly, BEFORE the first request is served; a non-concrete Service is
+// skipped with a WARN. With no emitter attached the mutation tails keep
+// their pre-M13 behavior byte for byte (invariant: the seams are additive).
+func AttachWebhookEmitter(s Service, e WebhookEmitter) {
+	impl, ok := s.(*service)
+	if !ok {
+		slog.Warn("repo: AttachWebhookEmitter: service is not the concrete implementation; webhook seam not wired")
+		return
+	}
+	impl.hooks = e
+}
+
+// hookActorOf projects a principal onto the outbound envelope's
+// userContext triple (webhook.md section 4: id = the username or token
+// subject, isToken, realm — BinFlow's "local" provider is the official
+// "internal" spelling).
+func hookActorOf(p *Principal) webhook.Actor {
+	if p == nil {
+		return webhook.Actor{ID: "anonymous", Realm: webhook.RealmFor("")}
+	}
+	return webhook.Actor{
+		ID:      p.Name,
+		IsToken: p.TokenID > 0,
+		Realm:   webhook.RealmFor(string(p.Source)),
+	}
 }
