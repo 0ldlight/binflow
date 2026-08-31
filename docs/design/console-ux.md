@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 文档 | `docs/design/console-ux.md` |
-| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账）/ T-291（v1.11：Properties 页签锚册——MUI 首票）/ T-307（v1.12：认证配置页组锚册——admin/security/auth 域）/ T-344（v1.14：密度档修订——MUI small 档，mui-native-visual §7 登记）/ T-352+T-353（v1.15：回收站页锚册 trash-* 族 + 建仓表单策略键生成器扩容）/ T-366（v1.16：Webhook 订阅管理页锚册 wh-* 族）/ T-372（v1.17：树尾常驻回收站入口锚 tree-trash-node——console-m8 §4.3 推翻条款兑现）/ T-382（v1.18：Set Me Up 抽屉化锚册——smu-* 零改名 + Resolve 批 + smu-close/smu-done 复役） |
-| 状态 | v1.18（2026-08-31） |
+| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账）/ T-291（v1.11：Properties 页签锚册——MUI 首票）/ T-307（v1.12：认证配置页组锚册——admin/security/auth 域）/ T-344（v1.14：密度档修订——MUI small 档，mui-native-visual §7 登记）/ T-352+T-353（v1.15：回收站页锚册 trash-* 族 + 建仓表单策略键生成器扩容）/ T-366（v1.16：Webhook 订阅管理页锚册 wh-* 族）/ T-372（v1.17：树尾常驻回收站入口锚 tree-trash-node——console-m8 §4.3 推翻条款兑现）/ T-382（v1.18：Set Me Up 抽屉化锚册——smu-* 零改名 + Resolve 批 + smu-close/smu-done 复役）/ T-383（v1.19：建仓形态核验锚册——form-section-* 六节族，M1 两段式断言钉死） |
+| 状态 | v1.19（2026-08-31） |
 | 维护者 | ux-designer |
 | 上游依据 | PRODUCT.md（Web 控制台/治理/Non-goals）、ROADMAP.md M4 节、docs/prd/milestone-1/2/3/4.md（端点矩阵与已定案行为）、docs/user/docker-registry.md（用户面口径）、docs/design/architecture.md §7（路由/console 挂载点）、internal/httpapi/router.go（路由门事实——§3.6.2 矩阵逐一核对）、reports/agents/T-98.md · T-99.md（漂移登记与 testid 素材）、reports/agents/T-98-review.md（N1 收敛建议）、BOARD.md（T-85 PRD / T-97 存在性不泄露裁决） |
 | 下游消费者 | T-86（架构：console 包/session/前端工程结构）、tech-lead（M4 拆票）、前端 dev（页面组票）、qa-engineer（控制台验收） |
@@ -35,6 +35,7 @@
 | v1.16 | 2026-08-30 | T-366 Webhook 订阅管理页（M13 FR-115.5 FE 腿，FR-115.7 真实消费者 e2e 随票）：① **T-366 批 wh-* 锚族 47 名入册**（治理分组第七页 /admin/governance/webhooks——§10.5 路由表补行）；② 交互形态照 console-artifactory-parity：新建/编辑 = Dialog（M3/M4 族通用规格——动作右下 Cancel 左/主右、Esc/遮罩关闭）、详情 + 最近投递记录 = 右侧 Drawer（抽屉族通用规格——480 档、内部滚动）——**Artifactory 对齐里程碑的首个新页面实践**；③ 订阅面消费 /binflow/event/api/v1 七端点族（E-26 前缀下官方段名逐字——lib/webhooks.ts 自带同源信封）；secret 哨兵 = webhook.md §2.4 三态（省略保持/明文轮换/"" 擦除），留空保持 = 剔除键、哨兵不回传；④ 事件型下拉 13 域分组 + wired/dormant 如实标注（66 型闭集静态镜像，服务端校验终裁——T-362 §5-4 既定） |
 | v1.17 | 2026-08-31 | T-372 树尾常驻回收站入口节点（M13 FR-122.1 FE 腿——console-m8 §4.3「Trash Can 常驻节点不建」推翻条款的兑现，推翻留痕随票入该册 §4.3/§6.3）：① **T-372 批 1 名锚入册**（`tree-trash-node`——跨仓树末尾常驻入口；先入册再落码）；② 交互口径：最小面 = 入口跳转 /admin/governance/trash（M12 T-352 页面沿用，页身零新面）；可见性 = admin/readonly_admin（管理壳同门），普通 user 不渲染；键盘 = 树行序移动 + Enter 激活（叶节点，无展开语义）；不参与「过滤仓库」过滤域（常驻语义）；③ §10.5 两行承载锚补记（/artifacts 与 /admin/governance/trash） |
 | v1.18 | 2026-08-31 | T-382 Set Me Up 抽屉化（M14 B1 FE 主轴票，FR-124.1 D1——壳 = 居中 Dialog → 右侧 Drawer，console-artifactory-parity D1 v1.1 实测参数：50vw 档〔clamp(480px, 50vw, 800px) + 100vw 兜窄屏〕、全高、右上 X + Esc/遮罩关闭、步 0 包型药丸、Tab = Configure/Deploy/Resolve 三枚、底栏 = 左返回链接 + 右 Done）：① **T-382 批 4 名锚入册**（`smu-tab-resolve` / `smu-pane-resolve` / `smu-cmd-res-<pt>-<i>` + **复役** `smu-close`〔头部 X〕与 `smu-done`〔底栏主按钮〕——自 §10.6 退役表摘除）；② **锚族冻结**：既有 `smu-*` 锚零改名（壳替换不动锚——smu-dialog 落 Drawer paper、smu-back 迁底栏左、smu-grid 族自网格改药丸横排〔radiogroup 键盘链路原样〕）；③ 三 Tab 内容映射留痕（generic 下载校验/pypi pip.conf/docker pull/maven pom repositories → Resolve；docker login/settings.xml/.npmrc 留 Configure；generic/pypi Configure 无配置步 → 导航提示——P3 同源纪律不发明命令）；④ 行为语义断言全量保留（铸币/step-up 内联/OIDC 续铸/AppShell resumeOpen——m8 setmeup-deploy spec 迁移更新，键盘/axe 断言复测） |
+| v1.19 | 2026-08-31 | T-383 建仓形态核验锚册（M14 B2 FE 票，FR-124.2 M1——**改判为「断言收口小票」**：T-381 活体核验 v1.1 证伪「全程单 modal」记忆，7.84 建仓 = 「Add Repositories 下拉选 rclass → 880px 磁贴网格 modal → 整页路由表单」两段式，**决策项 A 撤销——BinFlow 现形态（包型网格 Dialog + 路由页表单）已对齐**，本票不改形态只钉断言）：① **T-383 批 6 名锚入册**（`form-section-{general\|source\|members\|policy\|governance\|advanced}`——建仓/编辑表单六节 Paper 的节级锚，M1 六节结构 parity 断言的载体；条件呈现语义 = 常规/高级恒在、来源=remote、成员=virtual、Maven 策略=local×maven、治理=local，deb/rpm/helm 策略组仍在高级节内）；② **锚族冻结**：`pkg-grid-*` / `form-*` / `repo-form-page` 全族零改名（六节锚为纯新增落点，Paper 既有 aria-label 不动）；③ e2e 新面：`web/e2e/m14/`（T-383 建仓全链 + 两段式形态钉死 + 六节结构 × 三 rclass 条件呈现 + 深链 ?rclass= 直达 + 磁贴网格 Dialog 尺寸档钉死〔BinFlow 定案 440px 紧凑档，不追平 880px——v1.1 实测 33 包型 880px 网格 vs BinFlow 5 核心 + 门控槽位，追平即大面积留白；parity 册 M1 差距行「现档位即可」既有裁定，票内留痕〕+ axe 双主题）；④ 服务端 diff=0（纯 FE 票） |
 
 ---
 
@@ -1034,6 +1035,21 @@ T-382 Set Me Up 抽屉化批（v1.18 入册，4 枚；壳 = 居中 Dialog → �
   smu-close  smu-done（**复役**：头部右上 X 关闭钮 + 底栏 Done 主按钮——
     v1.9 曾以零 spec 消费退役，抽屉化后形态成立并有 spec 消费，自 §10.6
     退役表摘除；smu-back 迁底栏左、锚不变）
+T-383 建仓形态核验批（v1.19 入册，6 枚；M14 B2 FE 票——T-381 活体核验
+  v1.1 证伪「全程单 modal」，7.84 建仓 = 下拉选 rclass → 磁贴网格 modal →
+  整页路由表单两段式，**BinFlow 现形态已对齐**（决策项 A 撤销），本批 =
+  六节结构 parity 断言的节级锚载体；**pkg-grid-* / form-* 既有锚族零改名**，
+  纯新增落点，Paper 既有 aria-label 不动）：
+  form-section-general（「常规设置」节——恒在；仓型/包类型单选组 + key +
+    描述）
+  form-section-source（「来源」节——仅 remote：上游 URL/凭据/私网开关）
+  form-section-members（「成员」节——仅 virtual：成员多选 + 解析顺序）
+  form-section-policy（「Maven 策略」节——仅 local×maven：handle* 复选 +
+    checksum/SNAPSHOT 策略；deb/rpm/helm 策略组仍在 form-section-advanced
+    节内，不设节锚）
+  form-section-governance（「治理」节——仅 local：quota/includes/excludes）
+  form-section-advanced（「高级」节——恒在：remote TTL 四键 + hardFail +
+    priorityResolution + 策略键组）
 ```
 
 v1.1 → v1.2 差异注记（核对基准 = v1.1 §10.3 预定清单 vs 源码）：

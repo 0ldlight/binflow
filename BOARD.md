@@ -1356,7 +1356,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
     AC2: 上游认证链（401→WWW-Authenticate Bearer→token 交换→拉取）+ 停上游降级（已缓存可拉 / 未缓存零 5xx——本地事实兜底 + 降级标记）（L12）。
     AC3: docker dind /v2 全量回归（local/virtual 序列）+ M13 helmoci remote 序列零回归 + docker 槽 community 可用断言（remote 自动受缝不新增槽）+ remote family 指标口径（回源/命中计数）自动生效核对 + 资源门不破（NFR-P63——不得破 M12 转绿门）。
 - **B2（批 1 续 + 规格小票）**：T-383 ｜ T-393
-  - **T-383** [P0] FR-124.2 M1 建仓向导单 Dialog 化（决策项 A）`role:dev-frontend` area:web/src/pages/repositories/RepositoryFormPage.tsx（+路由深链）dep:T-381（V2 rclass 控件形态/节名/折叠默认态）；FE 链错峰随 T-382（conductor 可裁量并波——两重载体文件不同，PRD §1.3）
+  - **T-383 → done 2026-08-31 13:3x（改判收口形——决策项 A 撤销的正确性实证：**零形态改动**）——M14 6/22**：六行对照核验全钉死（rclass 手势等价对位/两段式实证〔选型后 modal 关 URL 不变表单在路由页〕/六节结构 form-section-* 新锚/深链三腿/goto 直达/remote×docker 组合门控）——**唯一差距 = 磁贴尺寸档，票内定案不追平**（Artifactory 880px 系 33 包型 90×90 大磁贴档；BinFlow 440px〔1280/1600 实测〕配 190×44 高密度卡磁贴 + 门控徽章——追平即大面积留白，从 parity 册「现档位即可」+ **440 档写进断言**改档须有意识动 spec）。新 spec 4 腿 + m8 零回归 67/67 + 邻接面 22P + a11y-sweep 56 面 + 四闸门 + 服务端 diff=0；锚册 v1.19（6 新锚）。自纠一处：form-checksum-policy 系 v1.9 零消费退役锚不复活（改节锚+label 锚定）。遗留：parity 册 M1 行「定案 440px」升级归 ux。日志 reports/agents/T-383.md。
     AC1: Playwright——新建仓全程单 Dialog(maxWidth lg) 三步（pkg-grid 网格 → rclass → 分节表单 → Save 成功落仓）；底部 Cancel 左 / Create primary 右；常规/来源/成员/策略/治理/高级六节结构保留（L03）。
     AC2: 深链 `/admin/repositories/new?package=<t>` 进入即开向导 + 浏览器回退关闭向导回列表 + 编辑态 `/admin/:key/edit` 维持整页表单（差异注记豁免留痕）；V2 细节断言（rclass 控件 Tab vs 分段、可折叠分节）收口或挂「以核验为准」附注。
     AC3: M2/M3 建仓回归序列零回归 + 四闸门 + axe 双主题 + modal 形态焦点链 + 服务端 diff=0。

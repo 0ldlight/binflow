@@ -608,8 +608,10 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
     return (
       <>
         {/* T-344 批 D：分区卡 Paper 化（§3.5 repositories 行）——
-            .repo-form-section 手作族随本批退役 */}
-        <Paper component="section" aria-label="常规设置" sx={{ p: 2, pb: 1.5, mb: 2 }}>
+            .repo-form-section 手作族随本批退役。
+            T-383：六节 Paper 加 form-section-* 锚（v1.19 入册）——M1 建仓
+            形态对齐核验的「六节结构」断言钉死用；纯锚位，零逻辑。 */}
+        <Paper component="section" aria-label="常规设置" data-testid="form-section-general" sx={{ p: 2, pb: 1.5, mb: 2 }}>
           <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
             常规设置
           </Typography>
@@ -731,7 +733,7 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
         </Paper>
 
         {f.rclass === 'remote' && (
-          <Paper component="section" aria-label="来源" sx={{ p: 2, pb: 1.5, mb: 2 }}>
+          <Paper component="section" aria-label="来源" data-testid="form-section-source" sx={{ p: 2, pb: 1.5, mb: 2 }}>
             <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
               来源（Remote）
             </Typography>
@@ -805,7 +807,7 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
         )}
 
         {f.rclass === 'virtual' && (
-          <Paper component="section" aria-label="成员" sx={{ p: 2, pb: 1.5, mb: 2 }}>
+          <Paper component="section" aria-label="成员" data-testid="form-section-members" sx={{ p: 2, pb: 1.5, mb: 2 }}>
             <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
               成员（Virtual）
             </Typography>
@@ -928,7 +930,7 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
         )}
 
         {f.rclass === 'local' && f.packageType === 'maven' && (
-          <Paper component="section" aria-label="Maven 策略" sx={{ p: 2, pb: 1.5, mb: 2 }}>
+          <Paper component="section" aria-label="Maven 策略" data-testid="form-section-policy" sx={{ p: 2, pb: 1.5, mb: 2 }}>
             <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
               Maven 策略
             </Typography>
@@ -993,7 +995,7 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
         )}
 
         {f.rclass === 'local' && (
-          <Paper component="section" aria-label="治理" sx={{ p: 2, pb: 1.5, mb: 2 }}>
+          <Paper component="section" aria-label="治理" data-testid="form-section-governance" sx={{ p: 2, pb: 1.5, mb: 2 }}>
             <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
               治理（governance）
             </Typography>
@@ -1042,7 +1044,7 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
           </Paper>
         )}
 
-        <Paper component="section" aria-label="高级" sx={{ p: 2, pb: 1.5, mb: 2 }}>
+        <Paper component="section" aria-label="高级" data-testid="form-section-advanced" sx={{ p: 2, pb: 1.5, mb: 2 }}>
           <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
             高级
           </Typography>
