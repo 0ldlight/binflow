@@ -1312,3 +1312,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **收口笔执行**：R3 LC-56 回写 + R4 README 双语完成态 + R5 ROADMAP M13 未纳入段 + 里程碑 PR（develop→main，触发 build/e2e 首跑/deploy_uat UAT 首跑）+ UAT 证据归档 + `m13-done` tag。
 
 **T-376 AC2 归档 + M13 全链收官（2026-08-31 10:4x，conductor ssh 取证）**：里程碑 PR #45 合并（main=`64a195a`）→ CircleCI build → **e2e job 首跑** → **deploy_uat UAT 首跑换装完成**。UAT（52.79.109.153）M13 标记全绿：`GET /api/v1/system/settings` **200**（folder_download 六字段 live 回显——M13 新端点）/ `/binflow/docs/admin/webhooks/` **200**（文档站新页）/ `/binflow/ui/` 200 / **`/binflow/event/api/v1/subscriptions` 200**（webhook 订阅 REST 面上 UAT）。`m13-done` tag 已推双远端。**M13 十三里程碑链闭合**。
+
+## M14 票据（tech-lead 2026-08-31 拆票中；PRD v1.0 已 conductor 审定——Q1~Q7 暂行维持、票区间 21~26 确认、拆票日志 reports/agents/M14-SPLIT.md 待落；AC 全文见 docs/prd/milestone-14.md）
+
+> **M14 = UI-parity 专程**：用户指令 2026-08-30 三件套（交互对齐/协议 logo/品牌 logo）+ docker remote 首航（T-380 K54 条件已满足）+ 服务端小票包。E1~E7 豁免常设（对齐评审不判差距）。票号 T-381 起。
