@@ -1365,7 +1365,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
     AC2: npm legacy login 端点族实证整理规格化（T-77 O-4 在案——`/-/user/*` 族路径/方法/请求响应体/错误码；npm 生态公开规范为准）；K60 端点清单定案（解锁 T-394）。
     AC3: tech-lead 就绪度确认；零 reverse-src 前端/UI 资产消费（clean-room 铁律——PRD §1.4-5）。
 - **B3（批 1 续 + 服务端小票包）**：T-384 ｜ T-394
-  - **T-384** [P0] FR-124.3 M3 用户/组创建 modal 化（决策项 B）`role:dev-frontend` area:web/src/pages（UsersPage/GroupsPage 创建表单面）dep:T-381（V6 字段集与分节）；FE 链错峰随 T-383
+  - **T-384 → done 2026-08-31 16:2x（改判收口形——决策项 B 撤销正确性实证：**零形态改动**）——M14 8/22**：对照核验四行全钉死（**非 modal 反断言**/URL 不离列表/用户四节〔settings/options/password/groups〕+ 组两节字段归属/页脚三联几何序 Cancel<Reset<Save）——差距项全有既有裁定（parity v1.1「同档形态可保持」/console-m8 §6.10「External ID/Auto Join 不建」）或票内定案（创建态无 Retype）。6 节锚 + 4 页脚复役锚（锚册 v1.20，退役计数 98→92）；spec 4 腿 + **m14 合跑 8/8（T-383 零回归）** + 邻接 19P + a11y-sweep 全路由双主题 0 + 四闸门 + SPA +35B + 服务端 diff=0。**自愈登记**：A/B 探测 pkill 误伤 T-383 :8143 实例——原 data dir 重启恢复（curl 200）。遗留：m9 N01 请求预算 flake 系 spec 级竞态（tracker 挂载时机——一行测试基建票建议）；parity M3「MUI Paper」代差描述归 ux。日志 reports/agents/T-384.md。
     AC1: Playwright——用户/组创建走 Dialog(sm) modal（字段分节、右下 Cancel/Save、**Cancel 零副作用**）；编辑保留路由页（UserDetailPage 等——E5 豁免注记）（L04）。
     AC2: V6 核验字段集对照收口（降级挂「以核验为准」）；M7 RBAC 语义（角色闭集 / readonly 禁用臂）零回归。
     AC3: 四闸门 + axe 双主题 + modal 形态焦点链 + 服务端 diff=0 + 新锚入册（锚册 + ledger 0 断链）。
