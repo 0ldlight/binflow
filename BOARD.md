@@ -1374,7 +1374,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
     AC2: helm uninstall 后 PVC 幸存（resource-policy keep 注解或等效；升级/回滚不丢数据）+ 重装同 release 数据可挂载回归（kind/helm 编排）+ docs 部署注记「彻底删除需手动清卷」（L14 前半）。
     AC3: 启动日志措辞修正一行（前后对照留痕 + grep 新措辞在场）+ v3-flat as-built 对照结论（一致→差异行关闭登记 / 不一致→触发 T-401 条件票 Q6 终裁——**本票不动行为**）+ 审计事件族复用核对（新增通道不打新词——缺词归 audit owner 登记）（L14）。
 - **B4（批 1 收尾 + PM 裁定）**：T-385 ｜ T-395
-  - **T-385** [P0] FR-124.4 L2 行内 ⋮ 菜单 `role:dev-frontend` area:web/src 列表行组件（仓库/用户/组/权限四列表）dep:T-381（V4 动作集对照）；FE 链错峰随 T-384（Users/GroupsPage 共写先后脚）
+  - **T-385 → 改判 2026-08-31（conductor 裁定——V4 撤旗后票面撤销）**：T-381 实测 Artifactory 行尾**无 ⋮ 菜单**（icon-trash 直删按钮）——「行内 ⋮ 菜单化」改造失去 parity 依据，**原票面撤销不派发**。BinFlow 现行交互（行点击进详情 + 既有动作位）按 **E 类有意偏离登记**（可发现性优于 icon-only 直删；删除走危险区确认不倒退——E1 家族）。残值收编：AC1 的「菜单无删除」缺席断言精神并入终验 E1~E7 复核面（T-400）；「行点击进详情语义」已由各列表既有 spec 覆盖。FR-124.4 需求状态由 PM 随 T-395 回写（改判留痕）。
     AC1: Playwright——四列表行尾 IconButton(MoreVert)+Menu 动作集逐项：详情 / 编辑 / 复制 key / Set Me Up（仅仓库行）；**菜单无删除断言（E1——缺席断言；V4 若 Artifactory 含删除亦不跟进——安全设计不倒退）**（L05）。
     AC2: 行点击进详情语义维持 + readonly 臂管理动作按既有权限位禁用 + Menu 键盘开合语义。
     AC3: 四闸门 + axe 双主题 + 服务端 diff=0 + 新锚入册（锚册 + ledger 0 断链）。
