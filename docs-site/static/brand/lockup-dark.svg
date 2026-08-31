@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 674 128" fill="none">
+  <title>BinFlow 横版 lockup（暗底生产版）</title>
+  <desc>K56 生产件（候选 1 转正）。几何与 lockup-horizontal.svg 完全一致，仅换暗底色板（logo/README §2）：容器描边与 wordmark Bin 用 bf-text 暗色 #e9edf3，双箭与 wordmark Flow 用 bf-accent 暗色 #4aa3ff。消费位：登录页品牌区（约 48px 高）、控制台侧栏顶横条、深色文档站。透明底，调用处给 bf-bg #12161d 或更深背景。</desc>
+  <g transform="translate(0 10) scale(2.25)">
+    <rect x="5" y="5" width="38" height="38" rx="9" stroke="#e9edf3" stroke-width="3.5"/>
+    <path d="M14.5 16.2 24.5 24l-10 7.8" stroke="#4aa3ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M23.5 14.6 33.5 24l-10 9.4Z" fill="#4aa3ff"/>
+  </g>
+  <g transform="translate(140 14)" stroke-width="16" stroke-linecap="round" stroke-linejoin="round">
+    <g stroke="#e9edf3">
+      <path d="M8 8V92M8 8H34A22 22 0 0 1 34 52H8M8 52H38A20 20 0 0 1 38 92H8"/>
+      <path d="M100 36V92"/>
+      <circle cx="100" cy="13" r="9" fill="#e9edf3" stroke="none"/>
+      <path d="M142 36V92M142 58C142 44 150 36 164 36C178 36 186 46 186 58V92"/>
+    </g>
+    <g stroke="#4aa3ff">
+      <path d="M228 8V92M228 8H276M228 50H266"/>
+      <path d="M318 8V92"/>
+      <path d="M360 64A30 30 0 0 1 420 64A30 30 0 0 1 360 64Z"/>
+      <path d="M462 36V78A16 16 0 0 0 494 78V36M494 36V78A16 16 0 0 0 526 78V36"/>
+    </g>
+  </g>
+</svg>

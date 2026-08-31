@@ -11,6 +11,7 @@ import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 
 import { useAuth } from '../app/AuthContext'
+import { BrandLockup } from '../components/BrandLogo'
 import { ApiError, errText } from '../lib/api'
 
 // 登录页（console-ux §4.1 / FR-23 W09；T-158 增 SSO）：独立布局（无侧
@@ -38,6 +39,9 @@ import { ApiError, errText } from '../lib/api'
 // label + Button(contained, medium) + Divider 承载；.login-divider 类名
 // 留 DOM（§3.8 钩子——login.spec 的 SSO 关闭态计数腿）。锚点与状态机
 // 零变化。
+//
+// T-389（FR-126）：品牌区换正式 lockup（BrandLockup——见组件头注）；
+// login-* 锚族与表单状态机零变化。
 
 /** SSO 浏览器入口（后端契约：GET → 302 IdP；disabled → 404 E-26） */
 const OIDC_LOGIN_URL = '/binflow/api/v1/oidc/login'
@@ -161,11 +165,15 @@ export default function LoginPage() {
         px: 'var(--bf-sp-3)',
       }}
     >
+      {/* 品牌区（FR-126 / T-389）：横版 lockup（path 化 wordmark，零字体
+          依赖）替换纯文字品牌残稿。h1 语义保留（wordmark 图形的可读名经
+          img alt 承载）；48px 高 = K56 §1 消费位规格；变体随 ThemeContext
+          换（BrandLockup 单点引用）。 */}
       <Stack sx={{ textAlign: 'center' }}>
-        <Typography variant="h5" component="h1">
-          BinFlow <span aria-hidden="true">◆</span>
+        <Typography variant="h5" component="h1" sx={{ lineHeight: 1 }}>
+          <BrandLockup height={48} testid="brand-login-lockup" />
         </Typography>
-        <Typography color="text.secondary" sx={{ mt: 'var(--bf-sp-1)' }}>
+        <Typography color="text.secondary" sx={{ mt: 'var(--bf-sp-2)' }}>
           制品仓库控制台
         </Typography>
       </Stack>

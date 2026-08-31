@@ -95,6 +95,14 @@ const config = {
   themeConfig: {
     navbar: {
       title: 'BinFlow 帮助文档',
+      // FR-126 / T-389: navbar logo = 候选 1 横版 lockup（K56 生产件，
+      // path 化 wordmark 零字体依赖）；srcDark 配对深色文档站（docusaurus
+      // colorMode 切换自动换源）。资产在 static/brand/，换稿 = 换文件。
+      logo: {
+        src: 'brand/lockup-horizontal.svg',
+        srcDark: 'brand/lockup-dark.svg',
+        alt: 'BinFlow',
+      },
       items: [
         // G22 (P1, formal coverage in T-146): the dropdown carries v1.x.
         { type: 'docsVersionDropdown', position: 'left' },

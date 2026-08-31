@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <title>BinFlow mark：容器·双箭流（暗底生产版）</title>
+  <desc>K56 生产件（候选 1 转正），几何与 mark.svg 完全一致，仅换暗底色板：容器描边用 bf-text 暗色 #e9edf3，双箭用 bf-accent 暗色 #4aa3ff。消费位：控制台侧栏顶（24px）、登录页（暗色品牌区）、PWA 图标深底变体。透明底，由调用处提供暗色背景（bf-bg #12161d 或更深）。</desc>
+  <rect x="5" y="5" width="38" height="38" rx="9" stroke="#e9edf3" stroke-width="3.5"/>
+  <path d="M14.5 16.2 24.5 24l-10 7.8" stroke="#4aa3ff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M23.5 14.6 33.5 24l-10 9.4Z" fill="#4aa3ff"/>
+</svg>

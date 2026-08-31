@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 文档 | `docs/design/console-ux.md` |
-| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账）/ T-291（v1.11：Properties 页签锚册——MUI 首票）/ T-307（v1.12：认证配置页组锚册——admin/security/auth 域）/ T-344（v1.14：密度档修订——MUI small 档，mui-native-visual §7 登记）/ T-352+T-353（v1.15：回收站页锚册 trash-* 族 + 建仓表单策略键生成器扩容）/ T-366（v1.16：Webhook 订阅管理页锚册 wh-* 族）/ T-372（v1.17：树尾常驻回收站入口锚 tree-trash-node——console-m8 §4.3 推翻条款兑现）/ T-382（v1.18：Set Me Up 抽屉化锚册——smu-* 零改名 + Resolve 批 + smu-close/smu-done 复役）/ T-383（v1.19：建仓形态核验锚册——form-section-* 六节族，M1 两段式断言钉死）/ T-384（v1.20：用户/组创建形态核验锚册——user-form-section-*/group-form-section-* 节锚 + 页脚四锚复役，M3 非 modal 断言钉死） |
-| 状态 | v1.20（2026-08-31） |
+| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账）/ T-291（v1.11：Properties 页签锚册——MUI 首票）/ T-307（v1.12：认证配置页组锚册——admin/security/auth 域）/ T-344（v1.14：密度档修订——MUI small 档，mui-native-visual §7 登记）/ T-352+T-353（v1.15：回收站页锚册 trash-* 族 + 建仓表单策略键生成器扩容）/ T-366（v1.16：Webhook 订阅管理页锚册 wh-* 族）/ T-372（v1.17：树尾常驻回收站入口锚 tree-trash-node——console-m8 §4.3 推翻条款兑现）/ T-382（v1.18：Set Me Up 抽屉化锚册——smu-* 零改名 + Resolve 批 + smu-close/smu-done 复役）/ T-383（v1.19：建仓形态核验锚册——form-section-* 六节族，M1 两段式断言钉死）/ T-384（v1.20：用户/组创建形态核验锚册——user-form-section-*/group-form-section-* 节锚 + 页脚四锚复役，M3 非 modal 断言钉死）/ T-389（v1.21：品牌位锚册——brand-sidebar-mark / brand-login-lockup，候选 1 logo 转正接线） |
+| 状态 | v1.21（2026-08-31） |
 | 维护者 | ux-designer |
 | 上游依据 | PRODUCT.md（Web 控制台/治理/Non-goals）、ROADMAP.md M4 节、docs/prd/milestone-1/2/3/4.md（端点矩阵与已定案行为）、docs/user/docker-registry.md（用户面口径）、docs/design/architecture.md §7（路由/console 挂载点）、internal/httpapi/router.go（路由门事实——§3.6.2 矩阵逐一核对）、reports/agents/T-98.md · T-99.md（漂移登记与 testid 素材）、reports/agents/T-98-review.md（N1 收敛建议）、BOARD.md（T-85 PRD / T-97 存在性不泄露裁决） |
 | 下游消费者 | T-86（架构：console 包/session/前端工程结构）、tech-lead（M4 拆票）、前端 dev（页面组票）、qa-engineer（控制台验收） |
@@ -37,6 +37,7 @@
 | v1.18 | 2026-08-31 | T-382 Set Me Up 抽屉化（M14 B1 FE 主轴票，FR-124.1 D1——壳 = 居中 Dialog → 右侧 Drawer，console-artifactory-parity D1 v1.1 实测参数：50vw 档〔clamp(480px, 50vw, 800px) + 100vw 兜窄屏〕、全高、右上 X + Esc/遮罩关闭、步 0 包型药丸、Tab = Configure/Deploy/Resolve 三枚、底栏 = 左返回链接 + 右 Done）：① **T-382 批 4 名锚入册**（`smu-tab-resolve` / `smu-pane-resolve` / `smu-cmd-res-<pt>-<i>` + **复役** `smu-close`〔头部 X〕与 `smu-done`〔底栏主按钮〕——自 §10.6 退役表摘除）；② **锚族冻结**：既有 `smu-*` 锚零改名（壳替换不动锚——smu-dialog 落 Drawer paper、smu-back 迁底栏左、smu-grid 族自网格改药丸横排〔radiogroup 键盘链路原样〕）；③ 三 Tab 内容映射留痕（generic 下载校验/pypi pip.conf/docker pull/maven pom repositories → Resolve；docker login/settings.xml/.npmrc 留 Configure；generic/pypi Configure 无配置步 → 导航提示——P3 同源纪律不发明命令）；④ 行为语义断言全量保留（铸币/step-up 内联/OIDC 续铸/AppShell resumeOpen——m8 setmeup-deploy spec 迁移更新，键盘/axe 断言复测） |
 | v1.19 | 2026-08-31 | T-383 建仓形态核验锚册（M14 B2 FE 票，FR-124.2 M1——**改判为「断言收口小票」**：T-381 活体核验 v1.1 证伪「全程单 modal」记忆，7.84 建仓 = 「Add Repositories 下拉选 rclass → 880px 磁贴网格 modal → 整页路由表单」两段式，**决策项 A 撤销——BinFlow 现形态（包型网格 Dialog + 路由页表单）已对齐**，本票不改形态只钉断言）：① **T-383 批 6 名锚入册**（`form-section-{general\|source\|members\|policy\|governance\|advanced}`——建仓/编辑表单六节 Paper 的节级锚，M1 六节结构 parity 断言的载体；条件呈现语义 = 常规/高级恒在、来源=remote、成员=virtual、Maven 策略=local×maven、治理=local，deb/rpm/helm 策略组仍在高级节内）；② **锚族冻结**：`pkg-grid-*` / `form-*` / `repo-form-page` 全族零改名（六节锚为纯新增落点，Paper 既有 aria-label 不动）；③ e2e 新面：`web/e2e/m14/`（T-383 建仓全链 + 两段式形态钉死 + 六节结构 × 三 rclass 条件呈现 + 深链 ?rclass= 直达 + 磁贴网格 Dialog 尺寸档钉死〔BinFlow 定案 440px 紧凑档，不追平 880px——v1.1 实测 33 包型 880px 网格 vs BinFlow 5 核心 + 门控槽位，追平即大面积留白；parity 册 M1 差距行「现档位即可」既有裁定，票内留痕〕+ axe 双主题）；④ 服务端 diff=0（纯 FE 票） |
 | v1.20 | 2026-08-31 | T-384 用户/组创建形态核验锚册（M14 B3 FE 票，FR-124.3 M3——**改判为「断言收口小票」**：T-381 活体核验 v1.1 证伪「创建 modal 化」记忆，7.84 用户/组创建 = **整页路由表单非 modal**（`/ui/admin/management/users/new`、`/groups/new`），**决策项 B 撤销——BinFlow 现形态（列表页内建分区表单）经 parity v1.1 裁定「与路由页表单同档形态，可保持」**，本票不改形态只钉断言）：① **T-384 批 6 名节锚入册**（`user-form-section-{settings\|options\|password\|groups}` + `group-form-section-{settings\|members}`——创建表单节级锚，M3 表单结构/组面 parity 断言的载体；字段归属 = name/email/role∈settings、enabled∈options、password∈password、组穿梭∈groups，编辑页分节不设节锚）；② **页脚四锚复役**（`user-form-{cancel\|reset}` / `group-form-{cancel\|reset}`——v1.9「零 spec 消费」退役，T-384 页脚三联〔Cancel 最左/Reset/Save 右，V6 实测〕断言消费，自 §10.6 摘除回归在册）；③ **锚族冻结**：`users-*` / `user-form-*` / `groups-*` / `group-form-*` 全族零改名（节锚为纯新增落点）；④ e2e 新面：`web/e2e/m14/t384-usergroup-parity.spec.ts`（创建全链 × 双实体 + API 对账〔用户 GET 全量回显 / 组 E5 includeUsers〕+ 非 modal 内建形态钉死〔无 dialog role + URL 不离列表路由〕+ 页脚三联几何序 + Reset/Cancel 语义 + axe 双主题创建态开态 4 扫）；⑤ 服务端 diff=0（纯 FE 票） |
+| v1.21 | 2026-08-31 | T-389 品牌 logo 候选 1 转正六用例接线 + wordmark path 化（M14 B4 FE 票，FR-126——K56 生产件〔docs/design/brand/logo/candidate-1/ 五件〕消费票；Q2 圈定窗闭、用户未推翻即转正）：① **T-389 批 2 名锚入册**（`brand-sidebar-mark` / `brand-login-lockup`——品牌位断言载体，§10.5 批块语义随册）；② **锚族冻结**：`login-*` / `app-nav*` 族零改名（login-page 等表单锚与 app-nav-brand 结构不动——仅 ◆ 字形退役、login 品牌区换 lockup〔h1 语义经 img alt 承载〕）；③ favicon/PWA/manifest 面不设 testid（index.html link[rel] 选择器 + 资产 URL 字节对账口径——e2e 非锚断言面）；④ 服务端 diff=0（纯 FE 票：资产内容指纹化在 build 期完成〔wire-brand-assets.mjs〕，/binflow/assets 挂载契约不动） |
 
 ---
 
@@ -1493,6 +1494,32 @@ lib/webhooks.ts 静态镜像驱动分组下拉（服务端校验终裁——wire
 PropertiesTab 删除钮先例（装饰性字形，非语义面）；分隔线为视觉面
 （CSS，无锚）；槽门控/readonly 姿态全部由 M12 页面自持，入口节点零数据
 请求。
+
+**T-389 品牌位锚批（2 名，M14 FR-126 FE 腿——候选 1「容器·双箭流」转正
+六用例接线（K56 生产件消费票）；先入册再落码，v1.21；消费 spec =
+web/e2e/m14/t389-brand.spec.ts〔本票新增〕）：**
+
+```
+品牌资产单点引用层（web/src/components/BrandLogo.tsx——资产真身 =
+  web/src/assets/brand/*.svg，K56 生产件逐字拷贝；换稿 = 换文件零返工）：
+  brand-sidebar-mark（侧栏顶 mark 24px——app-nav-brand 结构不动、◆ 字形
+    退役为 mark；侧栏两主题恒深底 → mark-dark 固定变体，不随主题切换）
+  brand-login-lockup（登录页品牌区横版 lockup 48px 高——「BinFlow ◆」
+    纯文字残稿退役；h1 语义保留〔可读名经 img alt 承载〕；亮/暗主题换
+    lockup-horizontal / lockup-dark 变体〔--bf-bg 随主题〕）
+favicon / PWA / manifest 面（index.html link 族 + web/public/brand/）
+不设 testid——非 DOM 锚，e2e 以 link[rel] 选择器 + 资产 URL 字节对账。
+```
+
+变更注记（T-389，dev-frontend 回写）：六用例落位 = favicon.ico（16/32/48
+DIB 三档）+ favicon-{16,32,48}.png、PWA/apple 180 + manifest 512（manifest
+接线）、登录页 lockup、侧栏顶 mark、docs-site navbar（lockup 浅底 +
+srcDark 深底——配置槽）；GitHub 头像用例⑥远期 P2 非本票 DoD。SVG 经
+vite `?url` 内联（<4KB data URI，零额外请求），SPA js+css gzip 增量
++1.9KB（≤10KB 预算内）；favicon/PWA 七件经 scripts/wire-brand-assets.mjs
+内容指纹化入住 /binflow/assets（serveAsset 扁平名 + immutable 的挂载
+契约），manifest start_url 用相对 ../ui/（relink 自校验禁 ui 段字面量——
+那是资产 URL 闸，app 路由引用走相对形语义同）；服务端零改动（纯 FE 票）。
 
 **锚总量复核口径（v1.4 实测）**：`grep -rn "data-testid" web/src/` = **293 落点 / 29 文件**（v1.2 基线 242 之后，T-104~T-234 各票陆续增锚至 HEAD 的 283 落点——ADR-0029 原写 283 即此原始 grep 数）；T-235 净变化 = 壳**删 0 改 0、新增 10**（AppShell 10 → 20），占位路由新增 0（复用 `placeholder-page`）。另：`web/src/styles/theme-smoke.spec.ts`（7 处选择器引用，非锚）随 T-232 遗留①迁出 `src/` 至 `e2e/m8/theme-smoke.spec.ts`，不再计入 src 侧 grep。
 

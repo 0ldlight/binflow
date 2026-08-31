@@ -3,6 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- 品牌favicon/PWA 接线（FR-126 / T-389）：源文件在 web/public/brand/
+         （gen-brand-assets.mjs 自 web/src/assets/brand/ 派生——README §3
+         管线的本地等价实现）。vite 把 public 引用补成 base 前缀
+         (/binflow/ui/brand/…)，build 后 scripts/wire-brand-assets.mjs 再
+         整族搬进共享资产挂载并按内容指纹重写（/binflow/assets/<名>-<h8>。
+         <ext>——serveAsset 只认扁平名 + immutable 缓存策略要求内容寻址；
+         /binflow/ui/** 一切路径都是 SPA shell，public 原位不可达）。 -->
+    <link rel="icon" href="/brand/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/brand/favicon-48.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/brand/favicon-16.png" />
+    <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
+    <link rel="manifest" href="/brand/manifest.json" />
     <title>BinFlow Console</title>
   </head>
   <body>

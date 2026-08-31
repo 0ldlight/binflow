@@ -226,6 +226,12 @@ const STOP = new Set([
   't372-trash-node', 'artifacts-tree',
   // v1.18（T-382 行文假阳性）：抽屉化批引用的上游规范文件名段，非 testid 锚
   'console-artifactory-parity',
+  // v1.21（T-389 行文假阳性）：品牌位批的标识符引用——CSS 类钩子（app-nav-brand，
+  // 结构钩子非 testid）/ token 名（bf-bg）/ 资产文件名段（mark-dark、
+  // lockup-horizontal、lockup-dark）/ 目录与脚本 spec 文件名段（docs-site、
+  // wire-brand-assets、t389-brand），均非 testid 锚
+  'app-nav-brand', 'bf-bg', 'docs-site', 'mark-dark', 'lockup-horizontal', 'lockup-dark',
+  'wire-brand-assets', 't389-brand',
 ])
 const docFams = new Set()
 for (const t of docTokens) {

@@ -26,6 +26,7 @@ import type { Theme } from '@mui/material/styles'
 import { useAuth } from '../app/AuthContext'
 import { useTheme } from '../app/ThemeContext'
 import { useToast } from '../app/ToastContext'
+import { BrandMark } from './BrandLogo'
 import { useConfirm } from './ConfirmDialog'
 import SetMeUpDialog from './SetMeUpDialog'
 import { abandonStepUp, useStepUp } from '../lib/stepUpGrant'
@@ -455,9 +456,13 @@ export default function AppShell() {
         }}
       >
         <nav className="app-nav" aria-label="主导航" data-testid="app-nav" style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
-          <Box className="app-nav-brand" sx={{ display: 'flex', alignItems: 'baseline', gap: 'var(--bf-sp-2)', padding: 'var(--bf-sp-4)', borderBottom: '1px solid var(--bf-sidebar-border)' }}>
+          {/* 品牌位（FR-126 / T-389）：mark 24px + 产品名。侧栏两主题恒为
+              深底 → 固定 mark-dark 变体（BrandMark 单点引用）；app-nav-brand
+              结构与 .name 类钩不动，占位字形退役为 mark（grep 面零品牌残留）。 */}
+          <Box className="app-nav-brand" sx={{ display: 'flex', alignItems: 'center', gap: 'var(--bf-sp-2)', padding: 'var(--bf-sp-4)', borderBottom: '1px solid var(--bf-sidebar-border)' }}>
+            <BrandMark size={24} testid="brand-sidebar-mark" />
             <Typography className="name" variant="subtitle1" sx={{ fontWeight: 600, color: 'var(--bf-sidebar-text)' }}>
-              BinFlow <span aria-hidden="true">◆</span>
+              BinFlow
             </Typography>
           </Box>
           <List className="app-nav-items" component="div" disablePadding sx={{ flex: 1, padding: 'var(--bf-sp-2) var(--bf-sp-1)' }}>
