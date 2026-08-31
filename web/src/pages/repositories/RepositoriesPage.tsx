@@ -14,6 +14,7 @@ import Tabs from '@mui/material/Tabs'
 import TextField from '@mui/material/TextField'
 
 import { useAuth } from '../../app/AuthContext'
+import { PkgIcon } from '../../components/PkgIcon'
 import { CopyButton } from '../../components/CopyButton'
 import DeployDialog from '../../components/DeployDialog'
 import { EmptyState } from '../../components/EmptyState'
@@ -483,7 +484,15 @@ export default function RepositoriesPage() {
                       </span>
                     </TableCell>
                     <TableCell>
-                      <Chip size="small" className="badge neutral" label={PKG_LABEL[repo.packageType] ?? repo.packageType} />
+                      {/* T-390（FR-127）：包类型列挂 mono 图标（currentColor
+                          随 Chip 文字色——双主题同一套）；未知 wire 型回退
+                          generic 形（PkgIcon 内兜底） */}
+                      <Chip
+                        size="small"
+                        className="badge neutral"
+                        icon={<PkgIcon id={repo.packageType} variant="mono" size={13} />}
+                        label={PKG_LABEL[repo.packageType] ?? repo.packageType}
+                      />
                     </TableCell>
                     <TableCell>
                       <Chip size="small" className="badge neutral" label={TYPE_LABEL[repo.type] ?? repo.type} />

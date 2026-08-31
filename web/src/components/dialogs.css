@@ -43,8 +43,9 @@
   outline-offset: 1px;
 }
 
+/* pkg-icon = PkgIcon 尺寸槽类（T-390）：brand 官方标自带色值，此处
+ * color 对 brand 不生效、留作 mono 位兜底；字符图标档（font-size）退役 */
 .smu-grid-item .pkg-icon {
-  font-size: 16px;
   color: var(--bf-accent);
 }
 

@@ -21,6 +21,8 @@ export type RClass = 'local' | 'remote' | 'virtual'
 // 等〕语义不变）；建仓对话框/表单的可选集改由 addons API 实时驱动。
 // M11 起 conan/helm/rpm/debian 四型入注册表（slots.go）；M12 T-353 把
 // deb/rpm/helm 的策略键表单面接进仓库编辑器（policyFields.ts 字段册）。
+// M14 T-390 补 'helmoci'（M12/T-342 起的第 13 槽，注册表早已装配——联合
+// 此前缺席：图标键集（assets/pkg-icons）与 wire 联合对齐所需的小改）。
 export type PackageType =
   | 'generic'
   | 'docker'
@@ -32,6 +34,7 @@ export type PackageType =
   | 'cargo'
   | 'conan'
   | 'helm'
+  | 'helmoci'
   | 'rpm'
   | 'debian'
 

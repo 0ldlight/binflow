@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <title>conan 包型图标（单色版）</title>
+  <!-- 棱角 C（方帽端点 = conan 字标的硬朗几何）。mono 版全 currentColor（消费时随文字色，
+       无固定品牌色可换；brand 版主色 K56 已同步 conan 官方灰蓝 #669ACC 系，见 brand/conan.svg）。
+       原标为 conan 字母形，此处几何 C 重绘——T-381 活体后置信度中高，核验见 package-icons/README -->
+  <path d="M16.6 3.8H7.6A3.8 3.8 0 0 0 3.8 7.6v8.8a3.8 3.8 0 0 0 3.8 3.8h9" stroke="currentColor" stroke-width="3.6" stroke-linecap="square"/>
+</svg>

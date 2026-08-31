@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <title>helm 包型图标（单色版）</title>
+  <!-- 舵轮：轮缘 + 8 粗辐 + 实心圆毂（与 helmoci 的区分方案见 README §3） -->
+  <circle cx="12" cy="12" r="8.7" stroke="currentColor" stroke-width="1.9"/>
+  <circle cx="12" cy="12" r="3.2" fill="currentColor"/>
+  <path d="M12 3.6v4M12 16.4v4M3.6 12h4M16.4 12h4" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+  <path d="M6.06 6.06l2.69 2.69M17.94 17.94l-2.69-2.69M17.94 6.06l-2.69 2.69M6.06 17.94l2.69-2.69" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
+</svg>

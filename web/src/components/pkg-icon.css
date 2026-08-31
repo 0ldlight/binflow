@@ -1,0 +1,88 @@
+/* 包型图标（FR-127 / T-390，components 域自持样式）。
+ * .pkg-svg = 尺寸槽（inline-flex span，宽高由 PkgIcon 的 size 定）+ 内联
+ * svg 100% 充满。mono 版全 currentColor——颜色由消费点的 color 继承链
+ * 决定，本文件零色值（tokens 纪律）；brand 版色值在资产文件内。 */
+
+.pkg-svg {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.pkg-svg svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ---------- 暗底提亮（K61，package-icons/README §4 登记） ----------
+ * 11 个官方深色在暗色宿主面（磁贴/药丸 surface-2、矩阵表格 surface-1）
+ * 对比度 <3:1（T-390 全枚实测，报告 reports/agents/T-390.md）：保色相抬
+ * 明度，提亮档定义在 tokens.css 的 --bf-pkgicon-*（token 定义层），最差
+ * 宿主 surface-3（悬停态）实测 ≥3.4。亮色主题零覆盖——原官方色在亮底
+ * 全部 ≥3:1。仅挂 brand：mono 的 currentColor 天然随文字色，不在提亮面。
+ *
+ * 选择器口径：按资产内官方色的字面值**定位 path**（属性值子串匹配），
+ * 真正落色的声明恒为 var(--bf-*)——字面值在此是匹配键不是色值，故写
+ * 无井号的子串形态（assert-tokens 的口径即「声明中的色值字面量」）。
+ * 子串与 K56 资产值逐字对应，大小写不敏感（i 旗）；资产换代换色时此
+ * 表随 --bf-pkgicon-* 一并复审（T-390 日志留痕）。 */
+[data-theme='dark'] .pkg-svg[data-variant='brand'][data-icon='deb'] svg [stroke*='d70a53' i] {
+  stroke: var(--bf-pkgicon-deb);
+}
+
+[data-theme='dark'] .pkg-svg[data-variant='brand'][data-icon='docker'] svg [fill*='0f5fa8' i] {
+  fill: var(--bf-pkgicon-docker-deep);
+}
+
+[data-theme='dark'] .pkg-svg[data-variant='brand'][data-icon='generic'] svg [stroke*='0b6bcb' i],
+[data-theme='dark'] .pkg-svg[data-variant='brand'][data-icon='webhook'] svg [stroke*='0b6bcb' i] {
+  stroke: var(--bf-pkgicon-generic);
+}
+
+[data-theme='dark'] .pkg-svg[data-variant='brand'][data-icon='webhook'] svg [fill*='0b6bcb' i] {
+  fill: var(--bf-pkgicon-generic);
+}
+
+/* stroke/fill 各归各的规则：合并声明会把描边件误填色（svg 根的
+ * fill="none" 是继承值，CSS fill 一声即覆盖——形态会糊） */
+[data-theme='dark'] .pkg-svg[data-variant='brand'][data-icon='helm'] svg [stroke*='0f1689' i] {
+  stroke: var(--bf-pkgicon-helm);
+}
+
+[data-theme='dark'] .pkg-svg[data-variant='brand'][data-icon='helm'] svg [fill*='0f1689' i] {
+  fill: var(--bf-pkgicon-helm);
+}
+
+[data-theme='dark'] .pkg-svg[data-variant='brand'][data-icon='helmoci'] svg [stroke*='0e7490' i] {
+  stroke: var(--bf-pkgicon-helmoci);
+}
+
+[data-theme='dark'] .pkg-svg[data-variant='brand'][data-icon='maven'] svg [stroke*='d22128' i] {
+  stroke: var(--bf-pkgicon-maven);
+}
+
+[data-theme='dark'] .pkg-svg[data-variant='brand'][data-icon='npm'] svg [fill*='cb3837' i] {
+  fill: var(--bf-pkgicon-npm);
+}
+
+[data-theme='dark'] .pkg-svg[data-variant='brand'][data-icon='nuget'] svg [stroke*='004880' i] {
+  stroke: var(--bf-pkgicon-nuget);
+}
+
+[data-theme='dark'] .pkg-svg[data-variant='brand'][data-icon='nuget'] svg [fill*='004880' i] {
+  fill: var(--bf-pkgicon-nuget);
+}
+
+[data-theme='dark'] .pkg-svg[data-variant='brand'][data-icon='pypi'] svg [stroke*='306998' i] {
+  stroke: var(--bf-pkgicon-pypi);
+}
+
+[data-theme='dark'] .pkg-svg[data-variant='brand'][data-icon='pypi'] svg [fill*='306998' i] {
+  fill: var(--bf-pkgicon-pypi);
+}
+
+[data-theme='dark'] .pkg-svg[data-variant='brand'][data-icon='trashcan'] svg [stroke*='55606e' i] {
+  stroke: var(--bf-pkgicon-trashcan);
+}

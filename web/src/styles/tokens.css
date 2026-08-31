@@ -127,5 +127,21 @@
 
   --bf-scrim: rgb(0 0 0 / 60%);
 
+  /* 包型图标 brand 暗色档（T-390 / K61，登记 package-icons/README §4）：
+   * 11 个官方深色在 surface-1~3 上 <3:1，保色相抬明度（最差宿主 surface-3
+   * 实测 ≥3.4）。九枚在「+10% 亮度微调」量级内；helm/nuget 两枚藏青起点
+   * 1.04/1.44，纯蓝通道物理扛不起暗底 3:1，抬幅超微调量级——留 ux 档
+   * 复核（若重开资产级暗色版，本组 token 整体退役）。 */
+  --bf-pkgicon-deb: #f5226d;
+  --bf-pkgicon-docker-deep: #1481e5;
+  --bf-pkgicon-generic: #0d7ff2;
+  --bf-pkgicon-helm: #6b73ef;
+  --bf-pkgicon-helmoci: #118cae;
+  --bf-pkgicon-maven: #e2494f;
+  --bf-pkgicon-npm: #d35857;
+  --bf-pkgicon-nuget: #0083e9;
+  --bf-pkgicon-pypi: #3d85c1;
+  --bf-pkgicon-trashcan: #748294;
+
   color-scheme: dark;
 }

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <title>trashcan addon 图标（品牌色版，回收站槽位）</title>
+  <!-- BinFlow 自有图形：中性 slate（#55606e = bf-text-2 token）——addon/治理面不占用语义色预算。
+       K56：注释内 token 名去掉连字符前缀（XML 注释禁双连字符） -->
+  <path d="M4.8 6.6h14.4M9.6 6.6l.9-2.3h3l.9 2.3" stroke="#55606e" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M6.6 6.6v11a2.4 2.4 0 0 0 2.4 2.4h6a2.4 2.4 0 0 0 2.4-2.4v-11" stroke="#55606e" stroke-width="1.8" stroke-linejoin="round"/>
+  <path d="M12 10.6v5M10 12.5l2-2 2 2" stroke="#55606e" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

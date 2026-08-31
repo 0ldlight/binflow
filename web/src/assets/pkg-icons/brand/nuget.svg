@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <title>nuget 包型图标（品牌色版）</title>
+  <!-- 近似 NuGet 深蓝（#004880）的包+球简化重绘，仅作包型识别 -->
+  <g transform="rotate(45 12 12)">
+    <rect x="6" y="6" width="12" height="12" rx="3" stroke="#004880" stroke-width="2.1"/>
+    <circle cx="12" cy="12" r="2.7" fill="#004880"/>
+  </g>
+</svg>

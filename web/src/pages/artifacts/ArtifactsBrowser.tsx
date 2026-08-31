@@ -22,6 +22,7 @@ import { CopyButton } from '../../components/CopyButton'
 import DeployDialog from '../../components/DeployDialog'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
+import { PkgIcon } from '../../components/PkgIcon'
 import SetMeUpDialog from '../../components/SetMeUpDialog'
 import { useToast } from '../../app/ToastContext'
 import { ApiError, getRepositories, getStorageStats, isReadOnlyAdmin } from '../../lib/api'
@@ -1023,8 +1024,10 @@ export default function ArtifactsBrowser() {
 
 // ---- 左树：仓库顶层节点（rclass×packageType 图标区分，console-m8 C2） --------
 
+// T-390（FR-127）：包型角标走 PkgIcon mono（currentColor 随 .ico 的
+// text-2 色——原 PKG_ICON 五枚几何字符表退役）；rclass 角标仍是字符
+//（30 枚集不含 rclass 形）。
 const RC_ICON: Record<string, string> = { local: '▣', remote: '◈', virtual: '◍' }
-const PKG_ICON: Record<string, string> = { generic: '▫', docker: '⬢', maven: '⌬', npm: '⬒', pypi: '⬓' }
 
 function RepoBranch({
   repo,
@@ -1080,7 +1083,7 @@ function RepoBranch({
         </span>
         <span aria-hidden="true" className="ico" title={`${repo.type || '仓库'} · ${repo.packageType || '未知包类型'}`}>
           {RC_ICON[repo.type] ?? '▣'}
-          {(repo.packageType && PKG_ICON[repo.packageType]) || ''}
+          <PkgIcon id={repo.packageType || 'generic'} variant="mono" size={14} className="tree-pkg" />
         </span>
         <span className="mono" lang="en">{repo.key}</span>
       </div>
