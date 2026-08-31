@@ -29,7 +29,7 @@ import { ApiError, getRepositories, getStorageStats, isReadOnlyAdmin } from '../
 import type { RepoListItem } from '../../lib/api'
 import { formatBytes } from '../../lib/format'
 import { cellBtnSx, monoInputSx } from '../../lib/muiAtoms'
-import { getRepoDetail } from '../../lib/repos'
+import { cfgStrList, getRepoDetail } from '../../lib/repos'
 import type { PackageType } from '../../lib/repos'
 import { useAsync } from '../../lib/useAsync'
 import { clientCommands } from '../repositories/commands'
@@ -145,6 +145,11 @@ export default function ArtifactsBrowser() {
     : meta.status === 'forbidden'
   const mkdirable = repoMeta ? rclass === 'local' && packageType === 'generic' : meta.status === 'forbidden'
   const isDockerRepo = repoMeta ? packageType === 'docker' : false
+  // T-406：virtual 仓聚合浏览是 FR-21-AC8 P2——内容面不发注定 400 的请求，
+  // 改渲染成员感知空态（成员读取自规范回显 configuration.repositories）；
+  // remote 仓列表 = 缓存落地行（服务端 T-406 同票放开）。
+  const isVirtual = repoMeta ? repoMeta.rclass === 'virtual' : false
+  const virtualMembers = repoMeta ? cfgStrList(repoMeta.configuration, 'repositories') : []
 
   // ---- 目录加载（缓存 + 去重；键含 repo 维度——跨仓切换不复用脏缓存） ----
   const chain = useMemo(() => ancestorDirs(dir), [dir])
@@ -199,14 +204,14 @@ export default function ArtifactsBrowser() {
   }, [repoKey, isDockerRepo])
 
   useEffect(() => {
-    if (!repoKey) return
+    if (!repoKey || isVirtual) return
     const wanted = new Set<string>([ck(repoKey, ''), ...chain.map((d) => ck(repoKey, d)), ...expanded])
     for (const key of wanted) {
       const sep = key.indexOf('\n')
       loadDir(key.slice(0, sep), key.slice(sep + 1))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- chain/expanded 以 join key 刻画
-  }, [repoKey, chainKey, expandedKey, tick, loadDir])
+  }, [repoKey, isVirtual, chainKey, expandedKey, tick, loadDir])
 
   const refresh = useCallback(() => {
     cacheRef.current.clear()
@@ -754,7 +759,15 @@ export default function ArtifactsBrowser() {
                     </span>
                   </div>
 
-                  {cur?.status === 'loading' || !cur ? (
+                  {isVirtual ? (
+                    <EmptyState
+                      message="虚拟仓库：聚合浏览暂未支持"
+                      hint={`读取经成员仓库解析（FR-21-AC8 P2 待补）。成员：${
+                        virtualMembers.length ? virtualMembers.join('、') : '未配置'
+                      }`}
+                      testid="tree-empty-virtual"
+                    />
+                  ) : cur?.status === 'loading' || !cur ? (
                     <TableSkeleton />
                   ) : cur.status === 'forbidden' ? (
                     <EmptyState
@@ -782,7 +795,13 @@ export default function ArtifactsBrowser() {
                     total === 0 ? (
                       <EmptyState
                         message="此目录为空"
-                        hint={uploadable ? '上传第一个制品，或创建子目录组织布局。' : '此仓库尚无内容。'}
+                        hint={
+                          uploadable
+                            ? '上传第一个制品，或创建子目录组织布局。'
+                            : rclass === 'remote'
+                              ? '远程仓库：仅展示已缓存的制品（浏览不回源）。'
+                              : '此仓库尚无内容。'
+                        }
                         testid="tree-empty-dir"
                         action={
                           uploadable && !readOnly ? (
@@ -1049,7 +1068,10 @@ function RepoBranch({
   onMenu: (x: number, y: number, target: MenuTarget) => void
 }) {
   const key = ck(repo.key, '')
-  const isOpen = expanded.has(key) || selectedRepo === repo.key
+  // T-406：virtual 仓静态化——聚合浏览未支持（FR-21-AC8 P2），无展开箭头、
+  // 无子级区；选中仍可用（内容面渲染成员感知空态）。
+  const virtual = repo.type === 'virtual'
+  const isOpen = !virtual && (expanded.has(key) || selectedRepo === repo.key)
   const st = dirState[key]
 
   return (
@@ -1069,18 +1091,22 @@ function RepoBranch({
         }}
         onKeyDown={(e) => onTreeKeys(e, { repo: repo.key, dir: '', isOpen }, onToggle, onNavigate, onMenu)}
       >
-        <span
-          role="button"
-          tabIndex={-1}
-          aria-label={isOpen ? `收起 ${repo.key}` : `展开 ${repo.key}`}
-          className="twisty"
-          onClick={(e) => {
-            e.stopPropagation()
-            onToggle(repo.key, '')
-          }}
-        >
+        {virtual ? (
+          <span className="twisty" aria-hidden="true" />
+        ) : (
+          <span
+            role="button"
+            tabIndex={-1}
+            aria-label={isOpen ? `收起 ${repo.key}` : `展开 ${repo.key}`}
+            className="twisty"
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggle(repo.key, '')
+            }}
+          >
           {isOpen ? '▾' : '▸'}
-        </span>
+          </span>
+        )}
         <span aria-hidden="true" className="ico" title={`${repo.type || '仓库'} · ${repo.packageType || '未知包类型'}`}>
           {RC_ICON[repo.type] ?? '▣'}
           <PkgIcon id={repo.packageType || 'generic'} variant="mono" size={14} className="tree-pkg" />
