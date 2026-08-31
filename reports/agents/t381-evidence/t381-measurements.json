@@ -1,0 +1,86 @@
+{
+  "ticket": "T-381",
+  "date": "2026-08-31",
+  "source": {
+    "instance": "t226-artifactory (VM 172.16.58.129, T-228 retained stack)",
+    "version": "Artifactory OSS 7.84.10 rev 78410900",
+    "access": "UI http://172.16.58.129:8182 (admin, credential from VM ~/t228-admin-pw 0600 file, session-only)",
+    "driver": "Playwright chromium headless via web/node_modules (no web/ modifications)"
+  },
+  "viewport": "1600x900 (width probes also at 1280x800)",
+  "measurements": {
+    "V1_setmeup": {
+      "entry": "topbar quick dropdown 'Set Me Up' (also artifacts page header Set Me Up + Deploy; repo row/detail entries)",
+      "shell": "el-drawer rtl + v-modal overlay (right-anchored drawer with light mask)",
+      "width": "50vw: 800px @1600 viewport (x=800), 640px @1280 (x=640); full height 900px",
+      "close": "header X button aria-label 'close drawer'; ESC verified safe",
+      "step0": "package-type pills row (generic/docker/maven/npm/...), title 'Set Up a client' -> 'Set Up A Generic Client' after select",
+      "tabs": ["Configure", "Deploy", "Resolve"],
+      "repo_select": "el-select of that package-type repos (9 options observed)",
+      "credential": "text 'To create client setup instructions with embedded authentication, generate an identity token' + [Generate Token & Create Instructions (brand)] [Dismiss (primary)]",
+      "snippets": "flat per-tab code blocks, hidden (w=0/h=0 in DOM) until token generation; placeholders observed: Deploy 'curl -uadmin:<PASSWORD> -T <PATH_TO_FILE> ...', Resolve 'curl -uadmin:<PASSWORD> -L -O ...'; NO accordion/collapse structure in DOM",
+      "footer": "['Select a different package type' (left, text-link style)] [Done (right, primary)] at y=835"
+    },
+    "V2_newrepo": {
+      "entry": "repo list 'Add Repositories' dropdown (w=176) -> Local/Remote/Virtual; route /ui/admin/repositories/{rclass}/new",
+      "grid_modal": "el-dialog 'Select Package Type' 880x726 @x=360 (centered), X close; tiles 90x90 inline-SVG per package type (33 types)",
+      "after_select": "modal closes; stays on full-page route form 'New Local Repository' (NOT single-modal wizard)",
+      "fields": ["Repository Key", "Environments", "Repository Layout", "Public Description", "Internal Description"],
+      "advanced_checkboxes": ["Disable Artifact Resolution in ...", "Allow Content Browsing", "Enable Event Replication"],
+      "footer": "[Cancel (transparent, x=1206)] [Create Local Repository (primary, x=1319)] y=799",
+      "toast_after_create": "el-message--success \"Repository 't381-ui-probe' was created successfully\", navigate to /ui/admin/repositories/local"
+    },
+    "V3_toast": {
+      "element": "el-message el-message--success",
+      "anchor": "TOP-CENTER: x=588 w=425 at 1600 viewport (center=800=viewport mid), settle y=20",
+      "motion": "fade-enter from y=-38 (top slide-in), fade-leave upward y=-21",
+      "duration": "auto-dismiss ~2-3s (first seen 4772ms after click incl. creation+nav; leave-start 6252ms, gone 6503ms)",
+      "stacking": "single message, no stack list observed"
+    },
+    "V4_rowmenu": {
+      "repo_row_actions": "NO kebab menu; row-end single button icon 'icon-trash' (direct delete affordance); other row cells: package-icon-wrapper 34px logo",
+      "user_row_actions": "same: single icon-trash button per user row",
+      "repo_list_columns": ["Repository Key", "Type", "Project", "Environment", "Replications/Shared With"],
+      "list_impl": "ag-grid (ag-row), toolbar 'Add Repositories'"
+    },
+    "V5_sidebar": {
+      "app_domain": "v-sidebar-menu-legacy w=230; items Dashboard/Artifactory(Packages,Builds,Artifacts)/Xray/Distribution/Pipelines/Integrations; each leaf item has 1 icon-font <i>, no svg/img",
+      "admin_domain": "same shell; top-level items (Environments/Repositories/User Management/Authentication Providers/General/Proxies/Monitoring) each 2 icon-font <i>; Environments svg=2; child items (Repositories/Layouts) no icons; parent items expandable"
+    },
+    "V6_forms": {
+      "new_user": "ROUTE PAGE /ui/admin/management/users/new (not modal); labels: User Name, Email Address, Password, Retype Password + checkboxes Administer Platform/Manage Resources/Can Update Profile/Disable UI Access/Disable Internal Password; section 'Add new user'; footer Cancel(far-left x=294)/Reset/Save(right)",
+      "new_group": "ROUTE PAGE /groups/new; labels: Group Name, Description, External ID + checkboxes incl 'Automatically Join New Users to this Group' + member user pick list (admin/anonymous/carol/dave); footer Cancel/Reset/Save",
+      "tokens_face": "user profile /ui/user_profile: 'Authentication Settings -> Generate an Identity Token' + Identity Tokens table (Description/Token ID/Issued At/Expiry Date + Customize Columns) + SSH keys section; profile edit password-locked (Unlock gate) -> generate-token form fields NOT verified (degraded sub-item); admin central tokens page not reachable in OSS nav",
+      "users_list_extra": "'Customize Columns' column selector observed on users list and Builds page (L1 corroboration)"
+    },
+    "V7_dependency": {
+      "builds_page": "exists in OSS app domain: /ui/builds/?after=...&type=builds; columns Build Name/Build Repository/Last Build ID/Last Build Time; empty state 'No results were found' (no build data in fixture; build-detail dependency list shape not observable)",
+      "artifact_tabs": "artifacts view /ui/repos/tree/General/: node tabs General / Effective Permissions / Properties / Followers — NO dependency tab (v1.0 recollection disproven)",
+      "artifacts_header": "'Happily serving 294 artifacts' + [Set Me Up] [Deploy] [Manage Repositories] buttons + Tree View repo list + Trash Can"
+    },
+    "V8_deletebox": {
+      "trigger": "row-end icon-trash button",
+      "box": "el-message-box 520x199 centered @x=540 (1600 viewport), title 'Delete Repository' + header X",
+      "body": "Are you sure you want to delete the {key} repository? All artifacts will be permanently deleted.",
+      "buttons": "[Cancel (el-button--default small)] [Delete (el-button--primary, GREEN rgb(64,190,70) bg rgba(64,190,70,0.2))]",
+      "input": "type=text present but hidden (w=0) — NO type-the-key pattern",
+      "esc": "ESC closes safely (repo intact after)"
+    },
+    "icon_leg": {
+      "source": "Select Package Type tile inline SVGs (JFrog-rendered official marks), 33 package types",
+      "docker": "single fill #0091E2, 10 paths; square-ish cluster top-left (containers), large mass lower-right — monochrome blue rendering",
+      "conan": "5 paths, fills #669ACC/#7CA8D4/#316699 + linear gradient — conan gray-blue family (BinFlow #0095D5 too bright -> README updated to #669ACC)",
+      "nuget": "viewBox 0 0 50 50, 8 paths, fills #016FD2/#5FFFE6/#B3DADD/white + radial/linear gradients — modern curved dual-shape mark, not classic tilted square+ball",
+      "side_colors": { "maven": "#BE202E+gradients", "npm": "#FF553E single path", "pypi": "#4B7196/#F4BF52", "go": "#00ACD7", "debian": "#A80030", "rpm": "#D72123+black" }
+    }
+  },
+  "screenshots": [
+    "00-login-land.png", "05-app-sidebar.png", "05-admin-sidebar.png",
+    "10-repo-list.png", "11-newrepo-step1-grid.png", "12-newrepo-after-select.png", "12b-newrepo-form-state.png",
+    "13-create-toast-tail.png", "14-repo-list-rows.png", "14b-probe-row-hover.png",
+    "15-row-menu.png", "15-row-menu-hover.png", "16-delete-confirm.png", "16b-delete-box-detail.png",
+    "20-setmeup-open.png", "21-setmeup-generic.png", "22-setmeup-generic-repo.png",
+    "30-new-user.png", "31-new-group.png", "32-generate-token.png", "33-user-row-menu.png", "34-user-profile.png",
+    "40-builds.png", "41-artifacts-view.png", "42-artifacts-node.png"
+  ]
+}
