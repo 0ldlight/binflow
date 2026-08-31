@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import Button from '@mui/material/Button'
@@ -6,6 +6,11 @@ import Chip from '@mui/material/Chip'
 import LinearProgress from '@mui/material/LinearProgress'
 import Paper from '@mui/material/Paper'
 import Tab from '@mui/material/Tab'
+import Table from '@mui/material/Table'
+import TableBody from '@mui/material/TableBody'
+import TableCell from '@mui/material/TableCell'
+import TableHead from '@mui/material/TableHead'
+import TableRow from '@mui/material/TableRow'
 import Tabs from '@mui/material/Tabs'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
@@ -32,6 +37,8 @@ import {
   updateRepo,
 } from '../../lib/repos'
 import type { PackageType, RClass, RepoDetail, RepoUsage } from '../../lib/repos'
+import { configsForRepo, listReplicationConfigs } from '../../lib/replications'
+import type { ReplicationConfig } from '../../lib/replications'
 import { useAsync } from '../../lib/useAsync'
 
 import './repositories.css'
@@ -44,9 +51,9 @@ import { useRepoDelete } from './RepoDeleteConfirm'
 //               remote 上游 / virtual 成员特化
 //   配置        治理（quota 行内编辑 + patterns）+ 高级字段 +
 //               「打开编辑器」入口（全量编辑走 /edit 的全量替换保全）
-//   Replications OSS 同款降级位——BinFlow 的复制配置由全局复制页承载
-//               （/admin/governance/replication，T-159/T-180），本仓级
-//               不建第二入口
+//   Replications T-404 指针升级（R1 裁定）：本仓配置摘要 + 指向仓库编辑页
+//               Replications 节的深链（配置 CRUD 真身）+ 全局复制页链接
+//               （状态/事件面，T-159/T-180）；remote/virtual = 不适用注记
 //
 // 门（router.go / rbac.go 实测）：GET /api/repositories/{key} 走
 // CanManageRepo——admin/readonly_admin 全量可读；普通 user 仅覆盖集内
@@ -213,6 +220,19 @@ export default function RepoDetailPage() {
         ? getRepoUsage(routeKey)
         : Promise.resolve(null),
     [state.status, state.data?.rclass, routeKey],
+  )
+  // T-404：本仓复制配置摘要（Replications Tab 指针升级）——local 仓才拉
+  // （push 源 = local；列表端点无 query，客户端按 source_repo 过滤）
+  const repl = useAsync(
+    () =>
+      state.data && state.data.rclass === 'local'
+        ? listReplicationConfigs()
+        : Promise.resolve([] as ReplicationConfig[]),
+    [state.status, state.data?.rclass],
+  )
+  const replConfigs = useMemo(
+    () => configsForRepo(repl.data ?? [], routeKey ?? ''),
+    [repl.data, routeKey],
   )
 
   const requestDelete = useRepoDelete({})
@@ -604,14 +624,106 @@ export default function RepoDetailPage() {
       )}
 
       {tab === 'replications' && (
-        <section className="card section degraded" data-testid="repo-repl-degraded">
+        // T-404 指针升级（R1 裁定）：配置 CRUD 真身 = 仓库编辑页 Replications
+        // 节（本 Tab 保留指针形态——BOARD 裁定「仓 Tab 保留指针」）。本 Tab
+        // 呈现本仓配置摘要（GET /v1/replications 客户端按 source_repo 过滤，
+        // 四态）+ 指向编辑节的深链 + 全局复制页链接（状态/事件面）。
+        // remote/virtual：push 复制模型不适用（源 = local 仓）——如实注记。
+        <section className="card section" data-testid="repo-repl-card">
           <h3>Replications</h3>
-          <p className="text-2">
-            本仓的复制配置由全局复制页承载（BinFlow 复制是 push 目标模型，配置不按仓分页）。
-          </p>
-          <Button component={Link} variant="outlined" size="small" to="/admin/governance/replication" data-testid="repo-repl-goto">
-            前往复制管理 →
-          </Button>
+          {rclass !== 'local' ? (
+            <>
+              <p className="text-2" data-testid="repo-repl-na">
+                复制是 local 仓的 push 模型（源仓 → 目标实例仓，ADR-0021）——{rclass} 仓不适用。
+              </p>
+              <Button component={Link} variant="outlined" size="small" to="/admin/governance/replication" data-testid="repo-repl-goto">
+                前往复制管理 →
+              </Button>
+            </>
+          ) : repl.status === 'loading' ? (
+            <Skeleton lines={2} />
+          ) : repl.status === 'forbidden' ? (
+            <p className="text-2">
+              复制配置为全局管理面（GET /api/v1/replications 需 system:read）——当前会话无权查看。
+            </p>
+          ) : repl.status === 'error' && repl.error && (repl.error.status === 501 || repl.error.status === 404) ? (
+            <p className="text-2">
+              {repl.error.status === 501 ? '本实例未启用复制（端点 501）。' : '复制端点不可用（HTTP 404）。'}
+            </p>
+          ) : repl.status === 'error' && repl.error ? (
+            <ErrorCard error={repl.error} onRetry={repl.reload} />
+          ) : replConfigs.length === 0 ? (
+            <>
+              <p className="text-2">本仓尚无复制配置。</p>
+              {canEditConfig && (
+                <Button
+                  component={Link}
+                  variant="outlined"
+                  size="small"
+                  to={`/admin/repositories/${repo.key}/edit?section=replications`}
+                  data-testid="repo-repl-edit-link"
+                >
+                  在编辑页配置复制 →
+                </Button>
+              )}
+            </>
+          ) : (
+            <>
+              <Table size="small" data-testid="repo-repl-table">
+                <TableHead>
+                  <TableRow>
+                    <TableCell component="th" scope="col">名称</TableCell>
+                    <TableCell component="th" scope="col">目标（实例 / 仓）</TableCell>
+                    <TableCell component="th" scope="col">状态</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {replConfigs.map((c) => (
+                    <TableRow key={c.id} data-testid={`repo-repl-row-${c.name}`} hover>
+                      <TableCell className="mono" lang="en">
+                        {c.name}
+                      </TableCell>
+                      <TableCell className="mono" lang="en" sx={{ maxWidth: 360, whiteSpace: 'normal', wordBreak: 'break-all' }}>
+                        {c.target_url} → {c.target_repo}
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          size="small"
+                          variant="outlined"
+                          color={c.enabled ? 'success' : 'default'}
+                          className={`badge ${c.enabled ? 'success' : 'neutral'}`}
+                          label={c.enabled ? '已启用' : '已停用'}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {canEditConfig ? (
+                <Button
+                  component={Link}
+                  variant="outlined"
+                  size="small"
+                  to={`/admin/repositories/${repo.key}/edit?section=replications`}
+                  data-testid="repo-repl-edit-link"
+                  sx={{ mt: 1.5 }}
+                >
+                  管理本仓复制配置 →
+                </Button>
+              ) : (
+                <p className="field-hint">只读呈现（readonly_admin）；编辑需全量 admin 或该仓 manage 持有者。</p>
+              )}
+            </>
+          )}
+          {rclass === 'local' && (
+            <p className="field-hint" style={{ marginBottom: 0 }}>
+              推送状态与最近事件见{' '}
+              <Link to="/admin/governance/replication" data-testid="repo-repl-goto">
+                全局复制页
+              </Link>
+              （10s 轮询）。
+            </p>
+          )}
         </section>
       )}
 

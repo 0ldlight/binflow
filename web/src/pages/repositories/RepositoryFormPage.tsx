@@ -53,6 +53,7 @@ import {
   prefillPolicyForm,
 } from './policyFields'
 import type { PolicyForm } from './policyFields'
+import ReplicationsSection from './ReplicationsSection'
 
 import './repositories.css'
 
@@ -1194,6 +1195,19 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
             </>
           )}
         </Paper>
+
+        {/* T-404（R1 裁定形态）：复制配置内嵌节——**编辑态 × local** 才呈现
+            （push 源是本仓；建仓态仓尚不存在，POST /v1/replications 的
+            source_repo 前置校验必 400）。节内自治（列表四态 + 内嵌表单），
+            与主表单状态零耦合——主表单的提交/重置不触及复制配置。深链
+            ?section=replications = 仓列表 Run 动作与详情指针的落点。 */}
+        {mode === 'edit' && f.rclass === 'local' && (
+          <ReplicationsSection
+            repoKey={routeKey ?? ''}
+            canWrite={admin}
+            focus={searchParams.get('section') === 'replications'}
+          />
+        )}
       </>
     )
   }

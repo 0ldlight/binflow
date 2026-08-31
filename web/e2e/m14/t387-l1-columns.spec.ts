@@ -20,8 +20,9 @@ import { m8Client, seedRepos } from '../m8/support/seed'
 //   ⑤ 至少一列守卫：只剩一列可见时该项 aria-disabled 且点击被拒。
 //   ⑥ 刷新取数：拦路闸门握住列表请求 → 进度环 + 禁用（取数中）→ 放行后
 //      表回归、钮复原；刷新确实发出新请求（waitForRequest 对账）。
-//   ⑦ 「无端点列不伪造」：仓库列选菜单列集 = 既有 7 列闭集（无「更新时间」
-//      等无端点列）。
+//   ⑦ 「无端点列不伪造」：仓库列选菜单列集 = 端点背书列闭集（T-404 起含
+//      Replications 第 8 列——GET /v1/replications 端点背书；仍无「更新
+//      时间」等无端点列）。
 //   ⑧ 其余列表页不受影响：users 页零列选锚（新面只在两载体页）。
 //
 // 锚源：console-ux §10.5 T-387 批（repos-columns-* / repos-refresh /
@@ -64,46 +65,47 @@ test('admin: repos column selector — open/close, hide/show, guard, reset, per-
   await page.goto('/binflow/ui/admin/repositories/local')
   await expect(page.locator(`[data-testid="repos-row-${key}"]`)).toBeVisible()
 
-  // 默认全显（7 列闭集——既有全部列，⑦）
+  // 默认全显（8 列闭集——T-404 增 Replications 列，⑦）
   const th = page.locator('[data-testid="repos-table"] thead th')
-  await expect(th).toHaveCount(7)
+  await expect(th).toHaveCount(8)
 
-  // 开（①）：aria 语义 + 菜单项恰 7、全勾
+  // 开（①）：aria 语义 + 菜单项恰 8、全勾
   const trigger = page.locator('[data-testid="repos-columns"]')
   await expect(trigger).toHaveAttribute('aria-haspopup', 'menu')
-  await expect(trigger).toContainText('列 7/7')
+  await expect(trigger).toContainText('列 8/8')
   await trigger.click()
   await expect(trigger).toHaveAttribute('aria-expanded', 'true')
   const menu = page.locator('[data-testid="repos-columns-menu"]')
   await expect(menu).toBeVisible()
-  await expect(menu.locator('[role="menuitemcheckbox"]')).toHaveCount(7)
-  await expect(menu.locator('[role="menuitemcheckbox"][aria-checked="true"]')).toHaveCount(7)
+  await expect(menu.locator('[role="menuitemcheckbox"]')).toHaveCount(8)
+  await expect(menu.locator('[role="menuitemcheckbox"][aria-checked="true"]')).toHaveCount(8)
 
   // 弃「描述」（②）：表头 + 行单元格同步 -1；菜单保持开（列选不收菜单）
   await page.click('[data-testid="repos-columns-item-description"]')
   await expect(menu).toBeVisible()
-  await expect(th).toHaveCount(6)
+  await expect(th).toHaveCount(7)
   await expect(th.filter({ hasText: '描述' })).toHaveCount(0)
-  await expect(page.locator(`[data-testid="repos-row-${key}"] td`)).toHaveCount(6)
-  await expect(trigger).toContainText('列 6/7')
+  await expect(page.locator(`[data-testid="repos-row-${key}"] td`)).toHaveCount(7)
+  await expect(trigger).toContainText('列 7/8')
 
   // 持久（④）：localStorage 落盘 + reload 保持；audit 键不被染
   expect(await page.evaluate(() => localStorage.getItem('binflow-console-cols-repos'))).toContain('description')
   expect(await page.evaluate(() => localStorage.getItem('binflow-console-cols-audit'))).toBeNull()
   await page.reload()
   await expect(page.locator(`[data-testid="repos-row-${key}"]`)).toBeVisible()
-  await expect(th).toHaveCount(6)
+  await expect(th).toHaveCount(7)
 
   // 勾回（②另一腿）
   await trigger.click()
   await page.click('[data-testid="repos-columns-item-description"]')
   await expect(page.locator('[data-testid="repos-columns-item-description"]')).toHaveAttribute('aria-checked', 'true')
-  await expect(th).toHaveCount(7)
+  await expect(th).toHaveCount(8)
 
   // 至少一列守卫（⑤）：弃到只剩 key → key 项 aria-disabled 且点击被拒
   const hideAllButKey = [
     '[data-testid="repos-columns-item-package"]',
     '[data-testid="repos-columns-item-type"]',
+    '[data-testid="repos-columns-item-replications"]',
     '[data-testid="repos-columns-item-upstream"]',
     '[data-testid="repos-columns-item-usage"]',
     '[data-testid="repos-columns-item-description"]',
@@ -118,9 +120,9 @@ test('admin: repos column selector — open/close, hide/show, guard, reset, per-
   await expect(th).toHaveCount(1)
   await expect(page.locator(`[data-testid="repos-row-${key}"] td`)).toHaveCount(1)
 
-  // 全选复位（③）：表头回 7 + 存储回空数组
+  // 全选复位（③）：表头回 8 + 存储回空数组
   await page.click('[data-testid="repos-columns-reset"]')
-  await expect(th).toHaveCount(7)
+  await expect(th).toHaveCount(8)
   expect(await page.evaluate(() => localStorage.getItem('binflow-console-cols-repos'))).toBe('[]')
 
   // 关（①另一腿）：Esc 关菜单 + 回焦触发钮

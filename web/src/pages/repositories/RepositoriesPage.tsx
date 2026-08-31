@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 
 import Button from '@mui/material/Button'
@@ -9,6 +9,7 @@ import IconButton from '@mui/material/IconButton'
 import Menu from '@mui/material/Menu'
 import MenuItem from '@mui/material/MenuItem'
 import Tab from '@mui/material/Tab'
+import Tooltip from '@mui/material/Tooltip'
 import Table from '@mui/material/Table'
 import TableBody from '@mui/material/TableBody'
 import TableCell from '@mui/material/TableCell'
@@ -34,6 +35,8 @@ import type { ColumnDef } from '../../lib/columnPrefs'
 import { cellBtnSx } from '../../lib/muiAtoms'
 import { cfgStr, cfgStrList, getRepositoriesFiltered, getUsageBatch } from '../../lib/repos'
 import type { RepoUsageRow, RClass } from '../../lib/repos'
+import { listReplicationConfigs } from '../../lib/replications'
+import type { ReplicationConfig } from '../../lib/replications'
 import { formatBytes, formatCount } from '../../lib/format'
 import { onTableRowKeys } from '../../lib/keys'
 import { useAsync } from '../../lib/useAsync'
@@ -95,12 +98,15 @@ const TABS: { id: RClass; label: string }[] = [
 
 /** T-387（FR-125.2 L1）列选器列集 = **既有全部列**（「无端点列不伪造」：
  * 列表项不带更新时间〔T-99 契约缺口沿 R 登记〕，不设「更新时间」列；
- * remote assumed-offline 无状态端点 → 不伪造状态列）。label 与表头一致；
- * anchor = 菜单项锚（anchor-audit 的 anchor: 属性形态）。 */
+ * remote assumed-offline 无状态端点 → 不伪造状态列）。T-404（R5）增
+ * `replications` 第 8 列——端点背书（GET /api/v1/replications），仅
+ * local Tab 渲染表头/单元格（push 源 = local 仓，R5「本地仓列表」同位）。
+ * label 与表头一致；anchor = 菜单项锚（anchor-audit 的 anchor: 属性形态）。 */
 const COLUMNS: ColumnDef[] = [
   { id: 'key', label: 'Repository Key', anchor: 'repos-columns-item-key' },
   { id: 'package', label: '包类型', anchor: 'repos-columns-item-package' },
   { id: 'type', label: '类型', anchor: 'repos-columns-item-type' },
+  { id: 'replications', label: 'Replications', anchor: 'repos-columns-item-replications' },
   { id: 'upstream', label: '上游 / 成员', anchor: 'repos-columns-item-upstream' },
   { id: 'usage', label: '已用', anchor: 'repos-columns-item-usage' },
   { id: 'description', label: '描述', anchor: 'repos-columns-item-description' },
@@ -273,6 +279,73 @@ function UpstreamCell({ repo }: { repo: RepoListItem }) {
   return <span className="text-muted">—</span>
 }
 
+/**
+ * Replications 列（T-404，R5 锚定形态）：**仅 local Tab**。
+ * - 未配置（0 条）：纯文本「0」——Artifactory OSS 未启用分支的同款 cell
+ *   （`<span>0</span>`，无图标）。
+ * - 已配置：行级 **Run 动作**（icon-run 形态——▶ glyph，24px 档 IconButton
+ *   + Tooltip）。R5 的 executeReplicationNow 在 BinFlow **无对位端点**
+ *   （引擎事件驱动 + ≤1min sweep；parity §7「后端 trigger 前置项，不挂
+ *   FE parity 旗」）——tooltip 如实标注语义，点击 = 深链本仓编辑页的
+ *   Replications 节（?section=replications，R1 配置真身），不伪造触发。
+ * - 加载/失败：`—`（失败 title 带原因）——「无数据不伪造 0」同已用列口径。
+ */
+function ReplicationsCell({
+  repoKey,
+  configs,
+  state,
+  error,
+  onOpen,
+}: {
+  repoKey: string
+  configs: ReplicationConfig[] | undefined
+  state: 'loading' | 'ok' | 'error' | 'forbidden'
+  error?: string
+  onOpen: () => void
+}) {
+  const testid = `repos-repl-${repoKey}`
+  if (state !== 'ok' || !configs) {
+    return (
+      <span
+        className="text-muted"
+        data-testid={testid}
+        title={state === 'error' ? `复制配置不可用（${error ?? '加载失败'}）` : state === 'forbidden' ? '复制配置为管理面（system:read）' : undefined}
+      >
+        —
+      </span>
+    )
+  }
+  if (configs.length === 0) {
+    return (
+      <span data-testid={testid} title="未配置复制（No Replication Configured）">
+        0
+      </span>
+    )
+  }
+  const enabled = configs.filter((c) => c.enabled).length
+  const tip =
+    (enabled > 0
+      ? `Run Replication——BinFlow 为事件驱动引擎（上传即推送 + ≤1 分钟 sweep 兜底），无手动触发端点；`
+      : `已配置 ${configs.length} 条复制（全部停用）；`) +
+    `共 ${configs.length} 条（${enabled} 启用）。点击前往本仓复制配置`
+  return (
+    <Tooltip title={tip} arrow>
+      <IconButton
+        size="small"
+        aria-label={`复制 ${repoKey}：${configs.length} 条配置（${enabled} 启用）`}
+        data-testid={`repos-repl-run-${repoKey}`}
+        onClick={(e) => {
+          // 行点击是导航——Run 的深链不得冒泡（CopyButton 隔离层同款）
+          e.stopPropagation()
+          onOpen()
+        }}
+      >
+        <span aria-hidden="true">▶</span>
+      </IconButton>
+    </Tooltip>
+  )
+}
+
 /** 列头排序（§4.7 循环 none → asc → desc → none）。T-344 批 C 换
  *  TableSortLabel（active/direction 箭头内建，ButtonBase 焦点环/涟漪）；
  *  aria-sort 与锚仍在 th 本体（热区 = 整格点击）。label 的 onClick
@@ -327,6 +400,21 @@ export default function RepositoriesPage() {
   const reload = state.reload
   // 已用列注水（T-258）：仅列表 ok 后发一次批量；排序/筛选（纯前端态）零触发
   const usage = useUsageBatch(state.status === 'ok')
+  // Replications 列（T-404 R5）：仅 local Tab 拉一次全量配置（端点无
+  // per-repo query，客户端按 source_repo 分组）；Tab 切换随 deps 重取
+  const repls = useAsync(
+    () => (tab === 'local' ? listReplicationConfigs() : Promise.resolve(null)),
+    [tab],
+  )
+  const replIndex = useMemo(() => {
+    const m = new Map<string, ReplicationConfig[]>()
+    for (const c of repls.data ?? []) {
+      const cur = m.get(c.source_repo)
+      if (cur) cur.push(c)
+      else m.set(c.source_repo, [c])
+    }
+    return m
+  }, [repls.data])
 
   // T-387（FR-125.2 L1）：列显隐偏好（per-page localStorage）+ 列选菜单锚
   const cols = useColumnPrefs(COLUMN_IDS, COLS_KEY)
@@ -563,6 +651,11 @@ export default function RepositoriesPage() {
                     <SortTh label="包类型" active={sortKey === 'package'} dir={sortDir} onToggle={() => toggleSort('package')} />
                   )}
                   {cols.isVisible('type') && <TableCell component="th" scope="col">类型</TableCell>}
+                  {tab === 'local' && cols.isVisible('replications') && (
+                    <TableCell component="th" scope="col" sx={{ whiteSpace: 'nowrap' }}>
+                      Replications
+                    </TableCell>
+                  )}
                   {cols.isVisible('upstream') && <TableCell component="th" scope="col">上游 / 成员</TableCell>}
                   {cols.isVisible('usage') && <TableCell component="th" scope="col">已用</TableCell>}
                   {cols.isVisible('description') && <TableCell component="th" scope="col">描述</TableCell>}
@@ -616,6 +709,17 @@ export default function RepositoriesPage() {
                     {cols.isVisible('type') && (
                       <TableCell>
                         <Chip size="small" className="badge neutral" label={TYPE_LABEL[repo.type] ?? repo.type} />
+                      </TableCell>
+                    )}
+                    {tab === 'local' && cols.isVisible('replications') && (
+                      <TableCell>
+                        <ReplicationsCell
+                          repoKey={repo.key}
+                          configs={repls.data ? (replIndex.get(repo.key) ?? []) : undefined}
+                          state={repls.status}
+                          error={repls.error?.message}
+                          onOpen={() => navigate(`/admin/repositories/${repo.key}/edit?section=replications`)}
+                        />
                       </TableCell>
                     )}
                     {cols.isVisible('upstream') && (

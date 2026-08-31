@@ -244,6 +244,14 @@ const STOP = new Set([
   // 图标身份属性非 testid——PkgIcon data-icon 同款先例）/ 许可证串的分词
   // 残段（Apache-2.0 的 'pache-2'）/ spec 文件名段（t388-f2n2），均非锚
   'data-icon', 'pache-2', 't388-f2n2',
+  // v1.25（T-404 行文假阳性）：复制 CRUD 批的标识符引用——ConfirmDialog
+  // 的 prop 名（confirm-disabled，语义描述非锚）/ 深链聚焦属性（data-active，
+  // data 属性非 testid）/ R5 锚定引用的 Artifactory CSS 类名（icon-run）/
+  // 措辞连词（flip-off）/ `repo-repl-*` 星号速记的截断残段（族内实名
+  // repo-repl-card 等均在册）/ spec 文件名段（t404-replication-crud、
+  // repositories-admin——m8 迁移腿所在文件），均非锚
+  'confirm-disabled', 'data-active', 'icon-run', 'flip-off', 'repo-repl',
+  't404-replication-crud', 'repositories-admin',
 ])
 const docFams = new Set()
 for (const t of docTokens) {
