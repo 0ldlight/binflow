@@ -1441,3 +1441,5 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 **用户指令 intake ②（2026-08-31 23:2x）：replication 的交互要与 Artifactory 一致**——M14 范围增补。立票 **T-402（P0 插空，两段）**：①规格锚定段（qa-engineer 插空——t226 活体探测 Artifactory replication 交互面〔仓库 Replication 面的表单字段/cron 形态/启停开关/Replicate Now 动作/状态呈现〕+ console-artifactory-parity.md 增 R 系条目 + BinFlow 现状差距清单；**差集法只读探测——INC-1 教训永不点确认**）；②实现段（dev-frontend，候 FE lane 空位——照锚定规格对齐 BinFlow 控制台 replication 面）。
 
 **Q6 终裁（conductor 2026-08-31 深夜窗，D-10 同族同则——用户对齐基线常设条款）**：v3/flat 直推面重复臂 **对齐 409**（K59 锚定值；as-built 403 判不一致）——**T-401 条件票触发**（翻转小票 + 矩阵 LC-66 离开「待裁」归 A；PM 建议≡conductor 裁定，收口窗落章）。
+
+**T-386 迟到终报补录（2026-09-01 00:2x）**：验证窗末段细节落日志（一次性明文三面不残留 + Bearer 终裁 + 端点闭集对账 + 与 T-388 同树协调注记——合并树 typecheck 复核过、归属以 `777903b` 清单为界；留验实例已全清）。**契约漂移登记（候后端小票）**：`POST /api/security/token` 带 `username=<不存在>` 答 **500**（`Tokens.Issue` subject 查找错误未被 handler `ErrInvalidCredentials` 分支收编）——auth-model 3.1 语义应 **400**「username is required or unknown」臂；FE 已按实况收口（错误内联呈现），服务端修正归 M14 收口窗或 M15 候选池（conductor 留痕）。
