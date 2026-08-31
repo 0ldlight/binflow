@@ -511,6 +511,7 @@ export default function RepositoriesPage() {
         (rows.length === 0 ? (
           q !== '' ? (
             <EmptyState
+              illustration
               message={`无匹配的仓库（「${keyQuery}」）`}
               action={
                 <Button
@@ -527,6 +528,7 @@ export default function RepositoriesPage() {
             />
           ) : admin ? (
             <EmptyState
+              illustration
               message={`还没有 ${TYPE_LABEL[tab]} 仓库`}
               action={
                 <Button
@@ -547,7 +549,7 @@ export default function RepositoriesPage() {
               }
             />
           ) : (
-            <EmptyState message={`还没有 ${TYPE_LABEL[tab]} 仓库`} hint="仓库由管理员创建" />
+            <EmptyState illustration message={`还没有 ${TYPE_LABEL[tab]} 仓库`} hint="仓库由管理员创建" />
           )
         ) : (
           <>

@@ -426,6 +426,7 @@ export default function AuditPage() {
         (events.length === 0 ? (
           hasFilter ? (
             <EmptyState
+              illustration
               message="当前过滤条件下无匹配事件"
               hint="仓库 / 操作者为精确匹配；时间窗为闭开区间（起含、止不含）。"
               action={
@@ -437,6 +438,7 @@ export default function AuditPage() {
             />
           ) : (
             <EmptyState
+              illustration
               message="暂无审计事件"
               hint="登录、建仓、上传等操作会记录在这里"
             />

@@ -262,6 +262,7 @@ export default function TokensPage() {
 
       {rows.length === 0 ? (
         <EmptyState
+          illustration
           message="本次会话还没有经此页签发的令牌"
           hint="生成后在创建面板一次性展示明文（关闭即不可再取）；本页无服务端清单可回看。"
           testid="tokens-empty"

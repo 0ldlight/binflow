@@ -1413,7 +1413,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
     AC1: console.md parity 化——新形态操作说明（右滑抽屉/单弹窗向导/行尾 ⋮/Tokens 页）+ 截图随终形态更新 + **FAQ 形态迁移对照表（Artifactory 手势 → BinFlow 对应——迁移用户零学习成本叙事）**（L18）。
     AC2: 品牌注记（logo 来源与候选定案 + 图标重绘许可姿态摘要 + 低置信三枚商标复查登记）+ `make docs` SUCCESS 零断链 + README 双语随新能力核查（收口双项前哨）。
 - **B9（批 2 尾票，单票波）**：T-388
-  - **T-388** [P2] FR-125.3/125.4 F2 空态插画槽 + N2 侧栏图标槽（V5 条件）`role:dev-frontend`（**ux-designer 线稿前置**——候选 1 隐喻派生线稿 2~3 张，B5 后插空备稿）area:web/src（EmptyState 组件 + AppShell 侧栏条目）dep:T-381（V5 结论——降级出口内置）；FE 链尾票
+  - **T-388 → done 2026-09-01 02:4x——M14 16/22（FE 主轴 10 票全清：8 done + 2 改判零改动）**：**F2 插画槽**——EmptyState illustration prop → EmptyArt 40×40（empty-art 锚；序=插画→说明→主行动；currentColor 占位线稿=候选 1 隐喻派生〔虚线容器+双箭〕；**槽位契约规格化**——真插画资产归设计票、换稿零返工；八列表页 15 落点 + 403 反面）。**N2 图标槽**——18 条一级条目 16px mono currentColor（fill 计算值=文字色 spec 实证；分组标签/模式切换不配——V5 口径；Material path 内联 Apache 2.0 不引包）。spec 6/6（自纠 1 spec 缺陷）+ shell 5/5 + m14 全目录 34/1skip + 定向 46 绿 + **全量两轮 271/0/25**（首轮 2 红=在册并行 flake 家族，串行甄别 16 绿）+ 四闸门 + axe 双主题 + 锚册 v1.24（empty-art/nav-icon 家族）+ SPA +2,155B + 服务端 diff=0。遗留：插画真资产设计票。日志 reports/agents/T-388.md。
     AC1: EmptyState 40px 可选插画槽（渲染/缺省双态）；图形 = logo mark 容器+箭隐喻线稿（ux 稿），**不引第三方插画库**（L08）。
     AC2: N2 按 V5 结论执行（主流版本有条目图标 → 16px mono 图标槽）或**降级不做 BOARD 留痕**（parity N2 既定出口）。
     AC3: 四闸门 + axe 双主题 + SPA 预算维持 + `app-nav` 锚族零改名（侧栏 DOM 结构纪律）。

@@ -364,9 +364,9 @@ export default function UsersPage() {
       {state.status === 'ok' &&
         (rows.length === 0 ? (
           admin ? (
-            <EmptyState message="还没有用户" hint="点击「新建用户」建立第一个账号；CI 与脚本建议使用 API Token。" />
+            <EmptyState illustration message="还没有用户" hint="点击「新建用户」建立第一个账号；CI 与脚本建议使用 API Token。" />
           ) : (
-            <EmptyState message="还没有用户" />
+            <EmptyState illustration message="还没有用户" />
           )
         ) : (
           <>

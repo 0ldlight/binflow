@@ -240,6 +240,10 @@ const STOP = new Set([
   'aria-checked', 'aria-disabled', 'aria-haspopup', 'aria-hidden',
   'binflow-console-cols-audit', 'binflow-console-cols-repos',
   'filter-bar', 'per-page', 'recent-searches', 't387-l1-columns',
+  // v1.24（T-388 行文假阳性）：空态/图标批的标识符引用——属性名（data-icon，
+  // 图标身份属性非 testid——PkgIcon data-icon 同款先例）/ 许可证串的分词
+  // 残段（Apache-2.0 的 'pache-2'）/ spec 文件名段（t388-f2n2），均非锚
+  'data-icon', 'pache-2', 't388-f2n2',
 ])
 const docFams = new Set()
 for (const t of docTokens) {

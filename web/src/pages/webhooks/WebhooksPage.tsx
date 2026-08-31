@@ -255,6 +255,7 @@ export default function WebhooksPage() {
       )}
       {phase.kind === 'ok' && subs.length === 0 && (
         <EmptyState
+          illustration
           message="暂无 Webhook 订阅"
           hint="订阅一个事件域与接收器 URL，制品部署/删除等事件会以签名 JSON 信封 POST 到接收器（试发不入箱）。"
           testid="wh-empty"

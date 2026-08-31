@@ -127,6 +127,7 @@ export default function PermissionsPage() {
         (sorted.length === 0 ? (
           admin ? (
             <EmptyState
+              illustration
               message="还没有 permission target"
               hint="target = 仓库 × 路径 pattern × 主体（用户/组）× 动作（read/write/delete/manage）；授权并集、即时生效。"
               action={
@@ -143,7 +144,7 @@ export default function PermissionsPage() {
               hint="manage 持有者可管理的 target 需满足：其引用的全部仓库都落在你的 manage 覆盖集内（覆盖集由携带 manage 的 permission target 授予）。若你刚获授 manage，请刷新本页。"
             />
           ) : (
-            <EmptyState message="还没有 permission target" />
+            <EmptyState illustration message="还没有 permission target" />
           )
         ) : (
           <>

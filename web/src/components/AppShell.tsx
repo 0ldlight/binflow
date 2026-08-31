@@ -28,6 +28,8 @@ import { useTheme } from '../app/ThemeContext'
 import { useToast } from '../app/ToastContext'
 import { BrandMark } from './BrandLogo'
 import { useConfirm } from './ConfirmDialog'
+import { NavIcon } from './NavIcons'
+import type { NavIconName } from './NavIcons'
 import SetMeUpDialog from './SetMeUpDialog'
 import { abandonStepUp, useStepUp } from '../lib/stepUpGrant'
 import type { PendingMint } from '../lib/stepUpGrant'
@@ -50,6 +52,9 @@ import { errText, isReadOnlyAdmin } from '../lib/api'
 // .nav-mode-switch / .search-entry 等类名留 DOM 作 inert 钩子，皮肤规则
 // 全部退役（base.css 壳族删除），视觉由 Drawer PaperProps sx（--bf-sidebar
 // 系 token——侧栏身份例外）与 MUI 主题承载。
+// T-388 N2/V5：一级条目接 16px mono 图标（NavIcons.tsx——Material 通用
+// 符号内联 SVG，currentColor 随文字色；分组标签与底部模式切换项不配——
+// V5 档位仅一级条目，模式切换项维持既有字形）。
 //
 // 模式切换 = 侧栏底部常驻项（应用模式显「管理」，管理模式显「返回应用」；
 // readonly_admin 可见——M7 语义保留清单 §7.3，含会话徽章「只读」）。
@@ -64,6 +69,8 @@ import { errText, isReadOnlyAdmin } from '../lib/api'
 interface NavEntry {
   label: string
   to: string
+  /** 一级条目图标（T-388 N2/V5 档位：mono currentColor，NavIcons.tsx 闭集） */
+  icon: NavIconName
   /** 仅精确匹配算 active（无子路由的叶子；默认前缀匹配覆盖子路径） */
   end?: boolean
 }
@@ -78,58 +85,60 @@ const APP_NAV: NavGroup[] = [
   {
     title: '应用',
     entries: [
-      { label: '仪表盘', to: '/dashboard', end: true },
-      { label: '制品', to: '/artifacts' },
+      { label: '仪表盘', to: '/dashboard', icon: 'dashboard', end: true },
+      { label: '制品', to: '/artifacts', icon: 'account_tree' },
     ],
   },
 ]
 
 /** 管理模式侧栏（console-m8 §1.3 全图：五分组；M10 T-288 License & Add-ons、
  * M11 T-307 认证配置、M12 T-352 回收站、M13 T-366 Webhooks 增补后 = 16 条目；
- * 分组标题是标签不是折叠项——沿 console-ux §3.1 纪律） */
+ * 分组标题是标签不是折叠项——沿 console-ux §3.1 纪律）。
+ * T-388 N2/V5：一级条目逐条接 16px mono 图标（Material 通用符号，随文字色）；
+ * 分组标签不配（V5 实测档位：仅一级条目、子项/父级标签裸文本） */
 const ADMIN_NAV: NavGroup[] = [
   {
     title: '仓库',
-    entries: [{ label: '仓库', to: '/admin/repositories' }],
+    entries: [{ label: '仓库', to: '/admin/repositories', icon: 'inventory_2' }],
   },
   {
     title: '用户与权限',
     entries: [
-      { label: '用户', to: '/admin/security/users' },
-      { label: '组', to: '/admin/security/groups' },
-      { label: '权限', to: '/admin/security/permissions' },
-      { label: 'Access Tokens', to: '/admin/security/tokens' },
+      { label: '用户', to: '/admin/security/users', icon: 'person' },
+      { label: '组', to: '/admin/security/groups', icon: 'group' },
+      { label: '权限', to: '/admin/security/permissions', icon: 'lock' },
+      { label: 'Access Tokens', to: '/admin/security/tokens', icon: 'vpn_key' },
       // M11 T-307：认证配置（FR-92——LDAP/OAuth/SAML 三协议；readonly_admin
       // 只读可见，普通 user 不入管理面）
-      { label: '认证配置', to: '/admin/security/auth/ldap' },
+      { label: '认证配置', to: '/admin/security/auth/ldap', icon: 'shield' },
     ],
   },
   {
     title: '治理',
     entries: [
-      { label: '审计日志', to: '/admin/governance/audit' },
-      { label: '维护（GC）', to: '/admin/governance/gc' },
-      { label: '配额', to: '/admin/governance/quotas' },
-      { label: '复制', to: '/admin/governance/replication' },
-      { label: '备份 / 恢复', to: '/admin/governance/backup' },
+      { label: '审计日志', to: '/admin/governance/audit', icon: 'history' },
+      { label: '维护（GC）', to: '/admin/governance/gc', icon: 'delete_sweep' },
+      { label: '配额', to: '/admin/governance/quotas', icon: 'pie_chart' },
+      { label: '复制', to: '/admin/governance/replication', icon: 'sync' },
+      { label: '备份 / 恢复', to: '/admin/governance/backup', icon: 'backup' },
       // M12 T-352：回收站（FR-106——浏览/恢复/清空；trashcan 槽门控态呈现）
-      { label: '回收站', to: '/admin/governance/trash' },
+      { label: '回收站', to: '/admin/governance/trash', icon: 'delete' },
       // M13 T-366：Webhook 订阅（FR-115.5——订阅 CRUD/test + 投递排障记录；
       // readonly_admin 只读可见，读写入口页内按角色收敛）
-      { label: 'Webhooks', to: '/admin/governance/webhooks' },
+      { label: 'Webhooks', to: '/admin/governance/webhooks', icon: 'bolt' },
     ],
   },
   {
     title: '监控',
-    entries: [{ label: '存储', to: '/admin/monitoring/storage' }],
+    entries: [{ label: '存储', to: '/admin/monitoring/storage', icon: 'storage' }],
   },
   {
     title: '常规',
     entries: [
-      { label: '系统信息', to: '/admin/general/settings' },
+      { label: '系统信息', to: '/admin/general/settings', icon: 'info' },
       // M10 T-288：License & Add-ons（FR-86-AC5——readonly_admin 只读可见，
       // 写入口页内按角色收敛；普通 user 不入管理面）
-      { label: 'License & Add-ons', to: '/admin/general/license' },
+      { label: 'License & Add-ons', to: '/admin/general/license', icon: 'card_membership' },
     ],
   },
 ]
@@ -481,6 +490,9 @@ export default function AppShell() {
                     className="nav-item"
                     sx={navItemSx}
                   >
+                    {/* T-388 N2：一级条目 16px mono 图标（currentColor 随文字色，
+                        active/hover 态零额外控色；aria-hidden 装饰——文字承载语义） */}
+                    <NavIcon name={entry.icon} />
                     {entry.label}
                   </ListItemButton>
                 ))}

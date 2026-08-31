@@ -22,7 +22,9 @@ test.beforeEach(async ({ request }) => {
   await provisionRoles()
 })
 
-/** 管理模式侧栏五分组 × 16 条目（console-m8 §1.3 全图 + M10 T-288/M11 T-307/M12 T-352/M13 T-366 增量） */
+/** 管理模式侧栏五分组 × 16 条目（console-m8 §1.3 全图 + M10 T-288/M11 T-307/M12 T-352/M13 T-366 增量）。
+ *  T-388（N2/V5）起每条一级条目带 16px mono 图标（nav-icon 家族锚）——档位
+ *  仅一级条目：分组标签与底部模式切换项不配（V5 活体核验口径）。 */
 const ADMIN_GROUPS = ['仓库', '用户与权限', '治理', '监控', '常规'] as const
 
 const ADMIN_ENTRIES: [string, string][] = [
@@ -61,6 +63,8 @@ test('admin: app-mode sidebar (2 entries) -> admin mode (5 groups / 16 entries) 
   await expect(nav.locator('.nav-item')).toHaveCount(3)
   await expect(nav.locator('a.nav-item', { hasText: '仪表盘' })).toBeVisible()
   await expect(nav.locator('a.nav-item', { hasText: '制品' })).toBeVisible()
+  // 应用域一级条目图标（T-388 N2/V5：2/2）
+  await expect(nav.locator('a.nav-item [data-testid="nav-icon"]')).toHaveCount(2)
   // 应用模式无管理分组（无影子入口）
   for (const g of ADMIN_GROUPS) {
     await expect(nav.locator('.nav-group-label', { hasText: g })).toHaveCount(0)
@@ -75,6 +79,17 @@ test('admin: app-mode sidebar (2 entries) -> admin mode (5 groups / 16 entries) 
     await expect(nav.locator('.nav-group-label', { hasText: g })).toBeVisible()
   }
   await expect(nav.locator('a.nav-item')).toHaveCount(16)
+  // 一级条目图标（T-388 N2/V5）：16/16 逐条在场、aria-hidden 装饰位；
+  // 分组标签与模式切换项不配（档位 = 仅一级条目）
+  await expect(nav.locator('a.nav-item [data-testid="nav-icon"]')).toHaveCount(16)
+  await expect(nav.locator('.nav-group-label [data-testid="nav-icon"]')).toHaveCount(0)
+  await expect(nav.locator('[data-testid="nav-mode-switch"] [data-testid="nav-icon"]')).toHaveCount(0)
+  for (const [label] of ADMIN_ENTRIES) {
+    await expect(
+      nav.locator(`a.nav-item:text-is("${label}") [data-testid="nav-icon"]`),
+      `icon for ${label}`,
+    ).toBeVisible()
+  }
   // 面包屑（§1.3：管理页层级表达）
   await expect(page.locator('[data-testid="topbar-breadcrumb"]')).toContainText('仓库')
 
