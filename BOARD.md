@@ -1427,7 +1427,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
     AC2: **L16 parity 收口专项——差距矩阵 §7 复核基线逐格终评（终评覆盖率 100%，全部 △/✗ 格翻 ✅ 或（豁））+ E1~E7 豁免逐条复核（豁免倒退=缺陷）+ V5/V7/E7 三出口落档**；Q1~Q7 终裁归位核查（LC-66 离开「待裁」）。
     AC3: DoD 八条逐条（实测数字归档）+ 总裁定 PASS → conductor git tag m14-done（UAT 证据随里程碑 PR 归档；对外发布红线维持）。
 - **波外条件票**（未触发 BOARD 留痕非 DoD 缺口）：
-  - **T-401** [P2·条件 Q6] v3-flat 翻转小票 `role:dev-go-core` area:internal/adapter/nuget（v3/flat 直推面）dep:T-393,T-394（as-built 对照结论**不一致**）+ Q6 终裁=对齐
+  - **T-401 → done 2026-09-01 00:2x（Q6 终裁兑现——击落于报告落盘前夜，报告完整在案）**：v3/flat 直推重复臂（包已存在 + w-only）→ **409 官方文案**（flat.go 冲突前移 + as-built 403 断言反转注明 T-401 豁免）；③ d 覆盖 201 / ④ 新包 201 维持；四臂 table-driven + **live curl 真栈** + nuget 全量 14.7s 绿（v2/v3 序列零回归）。nuget.md §5.4 as-built 对照行更新（403→409 关闭留痕）。area 纪律四文件。遗留：LC-66 落章归 conductor 收口窗（PM 备稿在案）；**docs/user/integrations/nuget.md 三处陈旧**（L161「同字节 201」自 T-378 起过时——D-10 后漂移非本票引入——tech-writer 小票建议）；dotnet L14' 腿候 SDK 环境（BINFLOW_T287_CLIENT_E2E=1 即验）。日志 reports/agents/T-401.md。
     AC1: 补锚值对齐翻转（403↔409 语义照 nuget.md 增量锚，D-10 先例方向）+ 断言反转归属豁免票 + nuget 双客户端回归；终裁=有意差异则本票不触发（D 层差异行留痕，LC-66 归 D）。
   - **T-403** [P2·条件 余量] NuGet symbol server 余量票（M12→M13→M14 四承——T-357/T-379 延续；**原 T-402 让号 replication 增补票**——conductor 2026-08-31 改号，T-395 §遗留③ 处置）`role:dev-go-core` area:internal/adapter/nuget（symbol 子域）dep:P0/P1 全收官 + 余量条款
     AC1: mini as-built 规格随票（T-293 终裁口径）；.pdb/GUID 路径面 + 真实客户端腿；未触发 M15+ BOARD 留痕。

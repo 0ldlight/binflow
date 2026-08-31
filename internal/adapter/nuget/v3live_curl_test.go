@@ -116,6 +116,52 @@ func TestV3LiveCurlMatrix(t *testing.T) {
 		t.Errorf("service index = %d %.160s", status, body)
 	}
 
+	// The Q6 duplicate-arm matrix (nuget.md section 5.4, K59 — ruled
+	// 2026-08-31 = align on 409; T-401): the DIRECT push form over the
+	// real socket, four arms — ②a different bytes + w-only → 409 with the
+	// official wording, ②b SAME bytes + w-only → 409 (the flip), ③ the
+	// delete right → overwrite 201, ④ fresh package → 201.
+	dupPkg := buildNupkg(t, "Live.Dup", "1.0.0", flatDeps("none"))
+	dupAlt := buildNupkg(t, "Live.Dup", "1.0.0", flatDeps("Serilog", "4.0.0"))
+	freshPkg := buildNupkg(t, "Live.Fresh", "1.0.0", flatDeps("none"))
+	if err := os.WriteFile("/tmp/t401-dup.nupkg", dupPkg.body, 0o644); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+	if err := os.WriteFile("/tmp/t401-alt.nupkg", dupAlt.body, 0o644); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+	if err := os.WriteFile("/tmp/t401-fresh.nupkg", freshPkg.body, 0o644); err != nil {
+		t.Fatalf("fixture: %v", err)
+	}
+	s.seedUser(t, "livewriter", "livewriterpass")
+	s.seedGrant(t, "t401-writer", "livewriter", "live-local", true, true, false)
+	pushBase := "/binflow/api/nuget/v3/live-local/flatcontainer"
+	// The seed (admin holds d) — also arm ④'s spelling for a fresh id.
+	if status, body := req(http.MethodPut, pushBase, "-u", adminUser+":"+adminPass, "--data-binary", "@/tmp/t401-dup.nupkg"); status != 201 {
+		t.Fatalf("Q6 seed push = %d %s", status, body)
+	}
+	// Arm ②a: different bytes, w-only.
+	if status, body := req(http.MethodPut, pushBase, "-u", "livewriter:livewriterpass", "--data-binary", "@/tmp/t401-alt.nupkg"); status != 409 ||
+		strings.TrimSpace(body) != msgPushDuplicate {
+		t.Errorf("Q6 arm2a = (%d, %q), want 409 + the official wording", status, body)
+	}
+	// Arm ②b: SAME bytes, w-only — the Q6 flip's own leg.
+	if status, body := req(http.MethodPut, pushBase, "-u", "livewriter:livewriterpass", "--data-binary", "@/tmp/t401-dup.nupkg"); status != 409 ||
+		strings.TrimSpace(body) != msgPushDuplicate {
+		t.Errorf("Q6 arm2b = (%d, %q), want 409 + the official wording", status, body)
+	}
+	// Arm ③: the delete right overwrites (different bytes, 201).
+	if status, _ := req(http.MethodPut, pushBase, "-u", adminUser+":"+adminPass, "--data-binary", "@/tmp/t401-alt.nupkg"); status != 201 {
+		t.Errorf("Q6 arm3 = %d, want the overwrite 201", status)
+	}
+	if status, body := req(http.MethodGet, "/binflow/api/nuget/v3/live-local/flatcontainer/live.dup/1.0.0/live.dup.1.0.0.nupkg"); status != 200 || body != string(dupAlt.body) {
+		t.Errorf("Q6 arm3 download = %d (len %d), want the overwritten bytes", status, len(body))
+	}
+	// Arm ④: a fresh package lands on w alone.
+	if status, _ := req(http.MethodPut, pushBase, "-u", "livewriter:livewriterpass", "--data-binary", "@/tmp/t401-fresh.nupkg"); status != 201 {
+		t.Errorf("Q6 arm4 = %d, want 201", status)
+	}
+
 	// REMOTE: search (live upstream proxy, URLs re-anchored), registration
 	// (section 9.4: packageContent → the v2 Download face), the semver2
 	// shape, the versions document and the package through the custom @id

@@ -256,10 +256,17 @@ func writeText(w http.ResponseWriter, status int, body string) {
 // verified live, T-287). The nuspec identity is authoritative in both:
 // an addressed push whose URL disagrees with the nuspec is the 400.
 //
+// The duplicate arm follows section 5.4 (K59, the Q6 ruling of
+// 2026-08-31 = align on 409): an existing package plus a principal
+// without the overwrite right answers 409 with the official push
+// contract's own wording — the same exists && !canDelete predicate
+// section 5.1 fixed for the v2 face (D-10, T-378), byte-blind by
+// construction.
+//
 // The ADDON GATE already ran at dispatchContent (write verbs); the
 // adapter never re-asks. A push onto a remote repository dies at the
 // service's read-only door (RE-05's family).
-func (h *Handler) servePush(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, _ string, rt route) {
+func (h *Handler) servePush(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, class string, rt route) {
 	if rt.kind != kindPush && rt.kind != kindV2Push && rt.kind != kindPushDirect {
 		writePlain(w, http.StatusNotFound, "not found")
 		return
@@ -295,23 +302,36 @@ func (h *Handler) servePush(ctx context.Context, w http.ResponseWriter, r *http.
 		}
 	}
 
-	// Declared client digests (the shared contract; NuGet clients send
-	// none, curl deployments may).
-	expect, err := declaredDigests(r.Header)
-	if err != nil {
-		writePlain(w, http.StatusBadRequest, err.Error())
-		return
-	}
+	// The duplicate arm's probe (section 5.4 arm ②, the exists half — the
+	// !canDelete half is the service's overwrite refusal the probe's
+	// result turns into the 409 below).
+	existed := h.duplicateArmProbe(ctx, p, repoKey, class, target)
 
-	// Land the package. The spooled file re-reads as the body — the
-	// package is never held in memory whole.
+	// No declared digest rides on the package Put — deliberate (D-10's
+	// same-family rule, section 5.4 A5): a declared sha256 equal to the
+	// stored one is the service's idempotent-retransmit short-circuit
+	// (repo-semantics section 3), which skips the overwrite gate entirely
+	// and answered a same-bytes retransmit 201 — the divergence shape the
+	// Q6 ruling closed on the v2 face first (T-378). With the zero ref
+	// EVERY retransmit of an existing path walks the permission pair, and
+	// the NuGet push faces never honored the X-Checksum-* family anyway
+	// (no NuGet client sends one; the shared contract stays the bare
+	// content plane's, serveBareContent).
+	//
+	// The spooled file re-reads as the body — the package is never held in
+	// memory whole.
 	if _, err := sp.file.Seek(0, io.SeekStart); err != nil {
 		writePlain(w, http.StatusInternalServerError, fmt.Sprintf("rewind spool: %v", err))
 		return
 	}
-	node, err := h.svc.Put(ctx, p, repoKey, target.nupkg(), sp.file, expect, "application/octet-stream")
-	if err != nil {
-		h.writeError(w, err, repoKey, target.nupkg())
+	node, perr := h.svc.Put(ctx, p, repoKey, target.nupkg(), sp.file, storage.BlobRef{}, "application/octet-stream")
+	if perr != nil {
+		if existed && errors.Is(perr, repo.ErrForbidden) {
+			// Arm ② (section 5.4 A1/A5): the official wording, verbatim.
+			writePlain(w, http.StatusConflict, msgPushDuplicate)
+			return
+		}
+		h.writeError(w, perr, repoKey, target.nupkg())
 		return
 	}
 
@@ -335,6 +355,39 @@ func (h *Handler) servePush(ctx context.Context, w http.ResponseWriter, r *http.
 		w.Header().Set(hdrChecksumSha256, node.Sha256)
 	}
 	w.WriteHeader(http.StatusCreated)
+}
+
+// msgPushDuplicate is the duplicate push refusal's exact wording — the
+// official push contract's own phrase (nuget.md section 5.4 A1, quoted
+// verbatim from the Learn response table; the Q6 ruling of 2026-08-31
+// adopted it for this face). The v2 face keeps its DE-sourced wording
+// (`Package already exist: <path>`, section 5.1): the two push faces
+// carry different anchors, each exact on its own face.
+const msgPushDuplicate = "A package with the provided ID and version already exists"
+
+// duplicateArmProbe answers whether the package's canonical landing path
+// already holds a node — section 5.4 arm ②'s exists half. Only the
+// WRITEABLE classes ask: a REMOTE push never consults existence (the
+// service's read-only door owns the refusal, and the probe's read must
+// not become an upstream pull-through contact), and an UNROUTED virtual
+// answers the routing refusal before any landing either. The probe's
+// read permission is the read the arms assume; a principal without it
+// keeps the service's own refusal (the 409 never widens authorization).
+func (h *Handler) duplicateArmProbe(ctx context.Context, p *repo.Principal, repoKey, class string, target pkgRef) bool {
+	switch class {
+	case repo.TypeLocal:
+	case repo.TypeVirtual:
+		// The routed check the v2 publish face runs before its own probe
+		// (section 5.1's virtual row: unrouted never reaches a landing).
+		row, err := h.repos.Get(ctx, repoKey)
+		if err != nil || virtualDeployTarget(row.Config) == "" {
+			return false
+		}
+	default:
+		return false
+	}
+	_, _, err := h.svc.Get(ctx, p, repoKey, target.nupkg())
+	return err == nil
 }
 
 // warnSidecar logs a failed sidecar landing (the package itself is stored;
