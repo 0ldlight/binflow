@@ -1,6 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
   <title>generic 包型图标（品牌色版）</title>
-  <!-- 建仓/SemMeUp 包型网格用。色彩锚定 BinFlow 主题 --bf-accent（#0b6bcb）+ 30% 顶面 -->
+  <!-- 建仓/SemMeUp 包型网格用。色彩锚定 BinFlow 主题 bf-accent（#0b6bcb）+ 30% 顶面。
+       K56：注释内 token 名去掉连字符前缀（XML 注释禁双连字符） -->
   <path d="M12 3l7.5 4.33v9.34L12 21l-7.5-4.33V7.33L12 3Z" stroke="#0b6bcb" stroke-width="2" stroke-linejoin="round"/>
   <path d="M12 3l7.5 4.33L12 11.7 4.5 7.33 12 3Z" fill="#4aa3ff" fill-opacity="0.3"/>
   <path d="M4.5 7.33 12 11.7l7.5-4.37M12 11.7V21" stroke="#0b6bcb" stroke-width="2" stroke-linejoin="round"/>
