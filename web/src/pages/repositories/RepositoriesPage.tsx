@@ -401,10 +401,12 @@ export default function RepositoriesPage() {
   // 已用列注水（T-258）：仅列表 ok 后发一次批量；排序/筛选（纯前端态）零触发
   const usage = useUsageBatch(state.status === 'ok')
   // Replications 列（T-404 R5）：仅 local Tab 拉一次全量配置（端点无
-  // per-repo query，客户端按 source_repo 分组）；Tab 切换随 deps 重取
+  // per-repo query，客户端按 source_repo 分组）；Tab 切换随 deps 重取。
+  // D-396-1 修正：gate 在列表 ok 之后——无权限主体的列表 403 时第 8 列
+  // 不发注定 403 的 replication 调用（u8 零水合 NFR 钉子维持）。
   const repls = useAsync(
-    () => (tab === 'local' ? listReplicationConfigs() : Promise.resolve(null)),
-    [tab],
+    () => (tab === 'local' && state.status === 'ok' ? listReplicationConfigs() : Promise.resolve(null)),
+    [tab, state.status],
   )
   const replIndex = useMemo(() => {
     const m = new Map<string, ReplicationConfig[]>()

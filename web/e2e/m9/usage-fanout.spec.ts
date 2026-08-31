@@ -127,7 +127,11 @@ function expectSingleShotFanout(t: { calls: string[]; matching: (re: RegExp) => 
     fanout.length,
     `page data-plane XHR cap <= 3 (got: ${fanout.join(' | ')})`,
   ).toBeLessThanOrEqual(3)
-  const ambient = t.calls.filter((c) => !/\/api\/(repositories|v1\/storage\/usage)/.test(c))
+  // T-404's eighth column fires one GET /api/v1/replications on the list
+  // page (D-396-1: the ambient pin below is an EXACT-match set, so the new
+  // call fell out of the whitelist; added here, the data-plane cap above
+  // still holds at 3<=3).
+  const ambient = t.calls.filter((c) => !/\/api\/(repositories|v1\/storage\/usage|v1\/replications)/.test(c))
   expect(
     [...ambient].sort(),
     `ambient shell bootstrap pinned to the known pair (got: ${ambient.join(' | ')})`,
