@@ -835,11 +835,15 @@ func writeStartupWarnings(w io.Writer, cfg *config.Config) {
 func configDefaults() *config.Config { return config.Defaults() }
 
 // describeConfigPath renders the config provenance for the startup line.
+// The no-file boot is a designed path, not a mishap: the server runs on
+// its built-in defaults with the environment applied, so the wording
+// states that posture instead of sounding like a file went missing
+// (T-376's wording leftover, corrected in T-394).
 func describeConfigPath(explicit string) string {
 	if explicit != "" {
 		return explicit
 	}
-	return "defaults (no " + defaultConfigName + " found; environment overrides applied)"
+	return "built-in defaults (no custom " + defaultConfigName + "; environment overrides applied)"
 }
 
 // stack holds every opened collaborator plus its teardown. The open order

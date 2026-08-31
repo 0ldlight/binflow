@@ -5,8 +5,8 @@ metadata:
   name: {{ include "binflow.fullname" . }}
   labels:
     {{- include "binflow.labels" . | nindent 4 }}
-  {{- with .Values.persistence.annotations }}
   annotations:
+  {{- with merge (dict "helm.sh/resource-policy" "keep") .Values.persistence.annotations }}
     {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:

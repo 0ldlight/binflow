@@ -121,7 +121,11 @@ persistence:
   storageClass: ""
   # -- Existing PVC claim name (if set, no new PVC is created).
   existingClaim: ""
-  # -- Annotations for the PVC.
+  # -- Annotations for the PVC. Merged over the chart's built-in
+  #    helm.sh/resource-policy: keep (T-376 ruling / T-394), which always
+  #    wins a key collision — the keep posture is deliberate, so `helm
+  #    uninstall` never deletes the artifact volume. Removing data means
+  #    deleting the PVC by hand (see NOTES.txt).
   annotations: {}
 
 # -- BinFlow server configuration. Values here are rendered into configmap.yaml

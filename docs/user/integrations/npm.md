@@ -5,7 +5,7 @@ sidebar_position: 21
 
 # npm 接入
 
-> 适用版本：M3（publish/packument/dist-tags/unpublish/login + remote/virtual；PRD milestone-3 v1.2）；**M8 起发布权限语义更新**（见「发布权限语义」节——npm CLI 连发多版本实测 npm 10.9.8 / node 22，T-249）；**M9 复核**：复制引擎同口径钉死（T-262——目标凭据 `read`+`write` 即可，见该节末）；**M13 补注**：registry/token 尾斜杠配对实证矩阵 + 交互式 login 现状修正（FR-122.3，T-374 实测 npm 10.9.8 / node 22）。
+> 适用版本：M3（publish/packument/dist-tags/unpublish/login + remote/virtual；PRD milestone-3 v1.2）；**M8 起发布权限语义更新**（见「发布权限语义」节——npm CLI 连发多版本实测 npm 10.9.8 / node 22，T-249）；**M9 复核**：复制引擎同口径钉死（T-262——目标凭据 `read`+`write` 即可，见该节末）；**M13 补注**：registry/token 尾斜杠配对实证矩阵 + 交互式 login 现状修正（FR-122.3，T-374 实测 npm 10.9.8 / node 22）；**M14 起交互式 login 修复可用**（T-394，FR-130.1——见下文 login 段）。
 > 本文核心链在 M3 QA 基线（commit `0f86229`，T-74/T-76 验收产物）上复跑：`.npmrc`（registry 限定 `_auth` 形态）publish、缓存清空重装、whoami 均退出码 0（复跑记录见 `reports/agents/T-77.md`）；scoped/dist-tag/unpublish/remote 代理/virtual 聚合取自 T-74/T-76 验收记录。客户端锚定 npm 10.x（10.9.8 实测，node 22）。
 
 把 BinFlow 当作私有 npm registry：`.npmrc` 一处配置，`npm publish` 发内部包、`npm install` 装内部与上游包——registry 协议按 npm 官方规范实现，scoped 包、dist-tag、unpublish 开箱可用。
@@ -121,7 +121,12 @@ npm unpublish demo-pkg@1.0.1 --force   # 版本从 packument 移除，dist-tags 
 
 unpublish 内部的 `PUT .../-rev/<rev>` 步骤 BinFlow 恒回 `200 {"ok":"updated package"}`（npm 客户端协议前置占位，包内容不动——npm CLI 行为依赖它）。
 
-`npm login`（npm ≥ 9 需 legacy 形态）：**M13 实测注记（T-374）——当前版本交互式 `npm login --auth-type=legacy` 不可用**：npm 把账号口令放在登录 PUT 请求体里、不带认证头，而服务端内容面要求写动词先过认证（匿名 PUT 直接 401），请求到不了登录端点的 body 凭据臂（M3 验收时该交互流程未直跑，T-77 O-4 已留痕；修复归服务端票）。token 端点本身正常：带 Basic 头访问即 201 铸出与管理面同表的 token（可吊销）。**日常直接用 `.npmrc` 的 `_auth`（Basic）或 `_authToken`（管理面 / `POST /api/security/token` 签发）两行之一**，形态见上文「尾斜杠配对」。
+`npm login`（npm ≥ 9 需 legacy 形态）：**M14 起可用（T-394 修复，FR-130.1；npm 10.9.8 / node 22 实测）**。交互式 `npm login --auth-type=legacy --registry=<registry URL>` 三步输入用户名/口令后即 `Logged in`——npm 把账密放在登录 PUT 的 body 里（couchDB 惯例，不带认证头），服务端在该路径族（`/-/user/org.couchdb.user:<name>`）豁免写认证门、由登录端点验证 body 凭据后铸 token，并把 `.npmrc` 的凭据行改写为 `_authToken` 形态；重复 login 是**幂等再铸**（恒 201，不报 409）。默认 `npm login`（web 形态）服务端不提供 web 登录端点，npm 客户端自动回落到同一条 couch 链，同样可用。注意事项：
+
+- 登录端点**不查仓库权限**（认证面非制品写）——没有任何 npm 仓权限的账号也能 login 铸 token；但 `npm whoami`/publish 等仍按各自权限判定（无读权限账号 `npm whoami` 会 403，属正常）。
+- 账号口令错误 → E401 `Incorrect or missing password`；`.npmrc` 不会写入任何凭据。
+- 不想交互式登录时，`.npmrc` 的 `_auth`（Basic）或 `_authToken`（管理面 / `POST /api/security/token` 签发）两行之一仍是等效路径（M13 起实测，见上文「尾斜杠配对」；M13 版交互式 login 不可用的注记已随本修复作废——T-374 L1 闭环）。
+
 
 ## 发布权限语义（M8 起）
 
