@@ -5,7 +5,7 @@ sidebar_position: 70
 
 # API 参考
 
-> 适用版本：M1~M14（端点引入里程碑标注于各表；M7 增补：用户角色字段 `adminRole`、permission target 动作 `manage`、docker 上传状态腿跨重启、token 铸造 step-up 可选门；**M9 增补**：usage 批量端点、users 列表加宽/enabled 回显/DELETE、groups `?includeUsers`、permissions `?filter=manage`——速览见[下文](#m9-增补速览)；**M11 增补**：认证配置面（含 SAML SP 证书三端点，T-331）、GPG keypair 族、cleanup 引擎、四包型 reindex 族、smart remote 两字段生效、MPU 面整体翻转（ADR-0039）与 cargo remote/virtual 仓型——见[M11 增补速览](#m11-增补速览t-328)；**M12 增补**：制品操作族（copy/move + 归档族）与 trash REST 族（NuGet v2 全路由/v3 代理属协议接入面，见 [NuGet 接入](integrations/nuget.md)）——见[M12 增补速览](#m12-增补速览t-347a)；**M13 增补**：webhook 订阅七端点族（`/event/api/v1`）+ `GET /api/v1/system/settings` 旋钮回显 + remote 仓 `chartsBaseUrl` 字段——见[M13 增补速览](#m13-增补速览t-375)；**M14 增补**：`rclass=remote + packageType=docker` 建仓开闸（T-392，见[Sr 仓库管理域](#sr-仓库管理域)表后注记）与 npm login 端点族（T-394，见[NE: npm 域](#ne-npm-域)））。Artifactory 兼容端点基于 REST 逆向规格 `docs/reverse/rest-api.md`（置信度高）。
+> 适用版本：M1~M14（端点引入里程碑标注于各表；M7 增补：用户角色字段 `adminRole`、permission target 动作 `manage`、docker 上传状态腿跨重启、token 铸造 step-up 可选门；**M9 增补**：usage 批量端点、users 列表加宽/enabled 回显/DELETE、groups `?includeUsers`、permissions `?filter=manage`——速览见[下文](#m9-增补速览)；**M11 增补**：认证配置面（含 SAML SP 证书三端点，T-331）、GPG keypair 族、cleanup 引擎、四包型 reindex 族、smart remote 两字段生效、MPU 面整体翻转（ADR-0039）与 cargo remote/virtual 仓型——见[M11 增补速览](#m11-增补速览t-328)；**M12 增补**：制品操作族（copy/move + 归档族）与 trash REST 族（NuGet v2 全路由/v3 代理属协议接入面，见 [NuGet 接入](integrations/nuget.md)）——见[M12 增补速览](#m12-增补速览t-347a)；**M13 增补**：webhook 订阅七端点族（`/event/api/v1`）+ `GET /api/v1/system/settings` 旋钮回显 + remote 仓 `chartsBaseUrl` 字段——见[M13 增补速览](#m13-增补速览t-375)；**M14 增补**：`rclass=remote + packageType=docker` 建仓开闸（T-392，见[Sr 仓库管理域](#sr-仓库管理域)表后注记）、npm login 端点族（T-394，见[NE: npm 域](#ne-npm-域)）与 replication 配置族补册（含新增 `PUT` 启停端点，T-405——见[M14 增补速览](#m14-增补速览t-397t-398)）。Artifactory 兼容端点基于 REST 逆向规格 `docs/reverse/rest-api.md`（置信度高）。
 > **M10 增补（T-293 部分回写，2026-08-26）**：`?properties` 族反转为 **GET/PUT/DELETE 三动词**（POST 增量动词不做——其余动词落 404 冻结姿态；原 M5 期表格把属性动词标为 M4/M1 系陈旧勘误）；上传路径 matrix 参数 M10 生效。M10 其余新端点（license/addons/uploads、Go/NuGet/Cargo 接入面）已随 T-296 补齐——速览见[下文](#m10-新增端点速览t-296)。
 > BinFlow 自有端点以 `/api/v1` 前缀标记。
 
@@ -424,6 +424,29 @@ curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/system/settings
 
 ---
 
+## M14 增补速览（T-397/T-398）
+
+M14 的 docker remote 建仓与 npm login 族已随 T-397 落入各自域表（[Sr 仓库管理域](#sr-仓库管理域)表后注记 / [NE: npm 域](#ne-npm-域)）；本节补 **replication 配置族**——GET/POST/DELETE 自 M6 起在列但此前未入册，M14 新增的 `PUT` 启停端点（T-405）一并补全。完整语义（字段校验/引擎行为/审计）见[治理指南 · 复制](admin/governance.md#复制push-replication)。
+
+### replication 域（`/binflow/api/v1/…`；写动词仅全量 admin）
+
+| 方法 | 路径 | 门 | 语义 |
+|---|---|---|---|
+| GET | `/binflow/api/v1/replications` | system:read（readonly_admin 可读） | 配置列表（bare array；凭据字段永不回显） |
+| POST | `/binflow/api/v1/replications` | system:write（仅 admin） | 建配置；**201** 回显配置行；`enabled` 缺省 true；重名 409、未知源仓 400 点名 key |
+| **PUT** | `/binflow/api/v1/replications/{id}` | system:write（仅 admin） | **M14（T-405）启停**：`{id}` = 列表行首的**数值 id**（不可变键；DELETE 按 name——两种寻址并存）；body `{"enabled":true\|false}` 必填，**其余字段解析但忽略**（整行 round-trip 不被拒）；**200** 回显更新后配置行（GET 投影同形，`updated_at` 刷新，sealed 凭据原样保留）。错误：匿名 401 / 非 admin 403 / 未知 id 404 `replication config not found: <id>` / 非数字 id 400 / 缺 enabled 400 |
+| DELETE | `/binflow/api/v1/replications/{name}` | system:write（仅 admin） | 按名删除（任务台账级联清空）；**204** 无体；再删 404 |
+| GET | `/binflow/api/v1/replication/status` | system:read | 复制面板载荷：`targets[]`（每配置任务计数行）+ `events[]`（跨配置最近任务合并，`?limit=` 1..500 缺省 50） |
+
+```bash
+# 启停（M14）——停用后新制品即不入队、在途任务跑完自身结论；恢复后积压由下一趟 sweep 排空，无需重启
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/v1/replications/1 \
+  -H 'Content-Type: application/json' -d '{"enabled":false}'
+# 200 {"id":1,"name":"push-prod",…,"enabled":false,…,"updated_at":"<刷新>"}
+```
+
+---
+
 ## `/api/v1` 自有端点
 
 BinFlow 在 Artifactory 兼容端点之外增加了一批自有端点（以 `/api/v1` 前缀标记），实现差异化能力：
@@ -439,6 +462,8 @@ BinFlow 在 Artifactory 兼容端点之外增加了一批自有端点（以 `/ap
 | `/binflow/api/v1/system/cleanup` | POST/GET | unused-cleanup 引擎手动触发（dry-run 默认）与状态面（M11） |
 | `/binflow/api/v1/system/settings` | GET | 运行旋钮回显（folder_download 六字段 + trashcan.retention_days 的解析值；M13） |
 | `/binflow/api/v1/session` | POST/GET/DELETE | 控制台会话管理（whoami/登录回显 `adminRole` 与 `source`） |
+| `/binflow/api/v1/replications` | GET/POST/PUT/DELETE | push 复制配置 CRUD（GET/POST/DELETE 自 M6；**PUT 启停 = M14**，按数值 id、DELETE 按 name）——见[M14 增补速览](#m14-增补速览t-397t-398) |
+| `/binflow/api/v1/replication/status` | GET | 复制面板载荷（targets 任务计数 + events 最近任务合并；readonly_admin 可读） |
 | `/binflow/api/v1/permissions` | POST/GET/DELETE | Permission Target CRUD（动作集 r/w/d/manage；GET 带 `?filter=manage` 时 manage 持有者可达覆盖集内子集——M9） |
 
 ---

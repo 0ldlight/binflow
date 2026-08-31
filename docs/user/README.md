@@ -38,7 +38,7 @@
 - **管理指南**（`admin/`）
   - [remote / virtual 仓库管理](admin/remote-virtual.md)（建仓字段表、缓存/负缓存/assumed-offline、强刷、SSRF 放行指引、凭据密钥部署、M3 不兼容清单与报错码汇总；**M14：docker remote 仓型专节**——community 档、Bearer 上游舞步、降级 STALE、dind 调试注记）— M3+M14
   - [用户组与权限管理](admin/groups-permissions.md)（三步授权流、并集与即时生效、组 CRUD 与 409 保护、`?permissions` 视图、组无 admin 位）— M4
-  - [治理：审计、GC 与配额](admin/governance.md)（审计查询与词表、GC dry-run→apply 与互斥 409、quotaBytes 413 语义、includes/excludes 409/404 双值码、用户删除闭环与 last-admin 风险〔M9〕）— M4
+  - [治理：审计、GC 与配额](admin/governance.md)（审计查询与词表、GC dry-run→apply 与互斥 409、quotaBytes 413 语义、includes/excludes 409/404 双值码、用户删除闭环与 last-admin 风险〔M9〕、复制配置 CRUD 与启停〔M14〕）— M4
   - [备份与恢复手册](admin/backup-restore.md)（export/import CLI、产物 0700 保管告警、`--verify spot/full`、无钥 fail-fast 恢复链、停机强一致可选）— M4
   - [RBAC 角色与仓库级管理员](admin/rbac-roles.md)（角色三值模型与能力矩阵、adminRole wire、manage 派生与覆盖集、`?filter=manage` 可达性〔M9〕、user.role.change 审计、IdP readonly 组映射）— M7
   - [Token 铸造二次认证 step-up](admin/token-step-up.md)（`auth.token_step_up` 开关与 TTL 域、作用域与豁免臂、本地/LDAP 口令腿与 OIDC mint grant 腿〔M9 起控制台自动续铸〕、审计维度）— M7

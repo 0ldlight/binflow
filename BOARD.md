@@ -1409,7 +1409,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
     AC1: Playwright——列选 Menu（checkbox 列表）开合/列显隐/全选复位 + per-page localStorage 持久（reload 保持）；刷新 IconButton 取数；轮询页自刷新维持（L07）。
     AC2: 「无端点列不伪造」纪律（列集 = 既有全部列）+ 其余列表页不受影响断言 + 列宽/空列处理。
     AC3: 四闸门 + axe 双主题 + 服务端 diff=0 + 新锚入册。
-  - **T-398** [P1] 文档 B：console 用户文档 parity 化 + 品牌注记 `role:tech-writer` area:docs/user/（console.md 形态操作说明 + 截图更新 + FAQ 形态迁移对照表）dep:T-382~T-386,T-389,T-390（L1 小节随 T-387 合入后置补笔——票内注明）
+  - **T-398 → done 2026-09-01 05:0x——M14 20/22**：**nuget.md 三处陈旧修正**（重复臂表重构为 v2/v3 双列**字节盲**表——删「同字节 201」〔T-378 起漂移债清〕+ v3 409 官方逐字文案与 d 覆盖 nuance + L182 同步 + `--skip-duplicate` 提示）+ **governance.md 复制管理最小节（从无到有**——引擎语义/CRUD curl/字段门错误审计 SSRF 表/启停/观测）+ api-reference M14 速览（replication 域五行含 **PUT 行**）+ console.md 仓库管理 Replications 三处 + 治理指针 + **顺笔**：Access Tokens 三处「占位页」陈旧行更新为 T-386 真身并正面写对 Q11 口径（票内判定理由与回退路径留痕——conductor 认可保留）+ artifactory-path-map/README 导航 + m8 e2e README make docs 前提行。**live 实测**：replication 全臂（POST 201/PUT 翻转 round-trip 容忍/错误臂 400×3·404·401·403·409 逐字/DELETE 204→404/readonly 臂/**停用即停入队引擎实证**）+ nuget 四臂（v3+v2 curl E2E 可复跑）+ `make docs` SUCCESS×2 零断链 + 三新锚点产物命中。遗留：dotnet L14' 候 SDK（沿 T-401）；oidc-config base64 约束登记微票；ProfilePage FE 文案行登记 FE 票。日志 reports/agents/T-398.md。
     AC1: console.md parity 化——新形态操作说明（右滑抽屉/单弹窗向导/行尾 ⋮/Tokens 页）+ 截图随终形态更新 + **FAQ 形态迁移对照表（Artifactory 手势 → BinFlow 对应——迁移用户零学习成本叙事）**（L18）。
     AC2: 品牌注记（logo 来源与候选定案 + 图标重绘许可姿态摘要 + 低置信三枚商标复查登记）+ `make docs` SUCCESS 零断链 + README 双语随新能力核查（收口双项前哨）。
 - **B9（批 2 尾票，单票波）**：T-388

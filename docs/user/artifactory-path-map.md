@@ -51,7 +51,7 @@ M8 起 BinFlow 控制台与 Artifactory **同一动作在同样的位置、走�
 | 看存储占用 | Monitoring → Storage Summary | 管理 → 监控 → 存储（`/admin/monitoring/storage`）：刷新行 + 汇总卡 + 逐仓表 | 同构（TOTAL 首行/列序对齐） |
 | 看系统信息 | General → Settings | 管理 → 常规 → 系统信息（`/admin/general/settings`） | BinFlow 只读展示（写面在 `binflow.yaml`）；Artifactory 的 Logo/Custom Base URL 编辑不建 |
 | 改自己的口令 | 用户菜单 → Edit Profile | 应用 → 编辑档案（`/profile`） | — |
-| 复制（Replication） | 仓库编辑 Replications Tab（OSS 为降级提示）/ 全局复制页（许可功能） | 治理 → 复制（`/admin/governance/replication`） | BinFlow 全局复制配置页 OSS 侧本就 404——BinFlow 自有增强 |
+| 复制（Replication） | 仓库编辑 Replications Tab（OSS 为降级提示）/ 全局复制页（许可功能） | 治理 → 复制（`/admin/governance/replication`，全局观测）+ 仓库编辑页 Replications 节（M14：local 仓配置 CRUD + 启停） | BinFlow 复制配置自 M6 起 REST 全量可用（无 license 门）；Artifactory 的 cron/sync 字段族在 BinFlow 为预留位恒禁用（事件驱动引擎） |
 | 用户菜单快捷动作 | Quick Repository Creation / New User·Group·Permission | 用户菜单同构（快速建仓子菜单〔新建 Local/Remote/Virtual 仓〕、新建用户/组/权限） | 非 admin 菜单按可见性裁剪；子菜单里的 `Set Me Up` 项暂为占位链接——Set Me Up 入口以树页/仓库列表行/详情页头为准 |
 
 ## Artifactory 有而 BinFlow 不建的面（如实登记）
