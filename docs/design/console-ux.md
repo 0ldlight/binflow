@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 文档 | `docs/design/console-ux.md` |
-| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账）/ T-291（v1.11：Properties 页签锚册——MUI 首票）/ T-307（v1.12：认证配置页组锚册——admin/security/auth 域）/ T-344（v1.14：密度档修订——MUI small 档，mui-native-visual §7 登记）/ T-352+T-353（v1.15：回收站页锚册 trash-* 族 + 建仓表单策略键生成器扩容）/ T-366（v1.16：Webhook 订阅管理页锚册 wh-* 族）/ T-372（v1.17：树尾常驻回收站入口锚 tree-trash-node——console-m8 §4.3 推翻条款兑现）/ T-382（v1.18：Set Me Up 抽屉化锚册——smu-* 零改名 + Resolve 批 + smu-close/smu-done 复役）/ T-383（v1.19：建仓形态核验锚册——form-section-* 六节族，M1 两段式断言钉死）/ T-384（v1.20：用户/组创建形态核验锚册——user-form-section-*/group-form-section-* 节锚 + 页脚四锚复役，M3 非 modal 断言钉死）/ T-389（v1.21：品牌位锚册——brand-sidebar-mark / brand-login-lockup，候选 1 logo 转正接线）/ T-387（v1.22：L1 列选器 + 刷新锚册——repos-columns-* / audit-columns-* / 两页 refresh） |
-| 状态 | v1.22（2026-08-31） |
+| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账）/ T-291（v1.11：Properties 页签锚册——MUI 首票）/ T-307（v1.12：认证配置页组锚册——admin/security/auth 域）/ T-344（v1.14：密度档修订——MUI small 档，mui-native-visual §7 登记）/ T-352+T-353（v1.15：回收站页锚册 trash-* 族 + 建仓表单策略键生成器扩容）/ T-366（v1.16：Webhook 订阅管理页锚册 wh-* 族）/ T-372（v1.17：树尾常驻回收站入口锚 tree-trash-node——console-m8 §4.3 推翻条款兑现）/ T-382（v1.18：Set Me Up 抽屉化锚册——smu-* 零改名 + Resolve 批 + smu-close/smu-done 复役）/ T-383（v1.19：建仓形态核验锚册——form-section-* 六节族，M1 两段式断言钉死）/ T-384（v1.20：用户/组创建形态核验锚册——user-form-section-*/group-form-section-* 节锚 + 页脚四锚复役，M3 非 modal 断言钉死）/ T-389（v1.21：品牌位锚册——brand-sidebar-mark / brand-login-lockup，候选 1 logo 转正接线）/ T-387（v1.22：L1 列选器 + 刷新锚册——repos-columns-* / audit-columns-* / 两页 refresh）/ T-386（v1.23：Access Tokens 页真身锚册——tokens-* 族 28 名 + placeholder-page 退役） |
+| 状态 | v1.23（2026-08-31） |
 | 维护者 | ux-designer |
 | 上游依据 | PRODUCT.md（Web 控制台/治理/Non-goals）、ROADMAP.md M4 节、docs/prd/milestone-1/2/3/4.md（端点矩阵与已定案行为）、docs/user/docker-registry.md（用户面口径）、docs/design/architecture.md §7（路由/console 挂载点）、internal/httpapi/router.go（路由门事实——§3.6.2 矩阵逐一核对）、reports/agents/T-98.md · T-99.md（漂移登记与 testid 素材）、reports/agents/T-98-review.md（N1 收敛建议）、BOARD.md（T-85 PRD / T-97 存在性不泄露裁决） |
 | 下游消费者 | T-86（架构：console 包/session/前端工程结构）、tech-lead（M4 拆票）、前端 dev（页面组票）、qa-engineer（控制台验收） |
@@ -39,6 +39,7 @@
 | v1.20 | 2026-08-31 | T-384 用户/组创建形态核验锚册（M14 B3 FE 票，FR-124.3 M3——**改判为「断言收口小票」**：T-381 活体核验 v1.1 证伪「创建 modal 化」记忆，7.84 用户/组创建 = **整页路由表单非 modal**（`/ui/admin/management/users/new`、`/groups/new`），**决策项 B 撤销——BinFlow 现形态（列表页内建分区表单）经 parity v1.1 裁定「与路由页表单同档形态，可保持」**，本票不改形态只钉断言）：① **T-384 批 6 名节锚入册**（`user-form-section-{settings\|options\|password\|groups}` + `group-form-section-{settings\|members}`——创建表单节级锚，M3 表单结构/组面 parity 断言的载体；字段归属 = name/email/role∈settings、enabled∈options、password∈password、组穿梭∈groups，编辑页分节不设节锚）；② **页脚四锚复役**（`user-form-{cancel\|reset}` / `group-form-{cancel\|reset}`——v1.9「零 spec 消费」退役，T-384 页脚三联〔Cancel 最左/Reset/Save 右，V6 实测〕断言消费，自 §10.6 摘除回归在册）；③ **锚族冻结**：`users-*` / `user-form-*` / `groups-*` / `group-form-*` 全族零改名（节锚为纯新增落点）；④ e2e 新面：`web/e2e/m14/t384-usergroup-parity.spec.ts`（创建全链 × 双实体 + API 对账〔用户 GET 全量回显 / 组 E5 includeUsers〕+ 非 modal 内建形态钉死〔无 dialog role + URL 不离列表路由〕+ 页脚三联几何序 + Reset/Cancel 语义 + axe 双主题创建态开态 4 扫）；⑤ 服务端 diff=0（纯 FE 票） |
 | v1.21 | 2026-08-31 | T-389 品牌 logo 候选 1 转正六用例接线 + wordmark path 化（M14 B4 FE 票，FR-126——K56 生产件〔docs/design/brand/logo/candidate-1/ 五件〕消费票；Q2 圈定窗闭、用户未推翻即转正）：① **T-389 批 2 名锚入册**（`brand-sidebar-mark` / `brand-login-lockup`——品牌位断言载体，§10.5 批块语义随册）；② **锚族冻结**：`login-*` / `app-nav*` 族零改名（login-page 等表单锚与 app-nav-brand 结构不动——仅 ◆ 字形退役、login 品牌区换 lockup〔h1 语义经 img alt 承载〕）；③ favicon/PWA/manifest 面不设 testid（index.html link[rel] 选择器 + 资产 URL 字节对账口径——e2e 非锚断言面）；④ 服务端 diff=0（纯 FE 票：资产内容指纹化在 build 期完成〔wire-brand-assets.mjs〕，/binflow/assets 挂载契约不动） |
 | v1.22 | 2026-08-31 | T-387 L1 列选器 + 刷新（M14 B8 FE 票，FR-125.2——console-artifactory-parity §5 L1 工具栏模式实现票〔§10 批 2 低优先项；v1.1 旁证：7.84 用户/Builds 列表均有 Customize Columns〕；载体 = RepositoriesPage / AuditPage 两页，BOARD 票面指名）：① **T-387 批 23 名静态锚入册**（`repos-columns` 族〔触发钮 + 菜单容器 + 7 列项 + 复位项〕+ `repos-refresh` / `audit-columns` 族〔同构 6 列项〕+ `audit-refresh`——列项锚以 anchor: 属性字面量落码〔T-307/T-353 数据驱动形态，spec 侧选择器全字面量〕）；② **锚族冻结**：`repos-*` / `audit-*` 既有族零改名（列显隐只做整列不渲染——锚挂点与单元格内容不动，T-390 Chip 面原样）；③ 偏好定案：per-page localStorage（键 `binflow-console-cols-{repos\|audit}`，ThemeContext/recent-searches 同款浏览器本地偏好面）+ 读回清洗（未知 id 剔除、「全隐」回落全显）+ 至少一列守卫（最后一列 aria-disabled 不可弃）；④ e2e 新面 `web/e2e/m14/t387-l1-columns.spec.ts`（开合/Esc 回焦/显隐选弃各腿/守卫/全选复位/reload 持久/刷新取数〔拦路闸门确定性腿：进度环 + 禁用 + waitForRequest 对账〕/其余列表页反断言/axe 双主题菜单开态 4 扫）；⑤ 服务端 diff=0（纯 FE 票） |
+| v1.23 | 2026-08-31 | T-386 Access Tokens 页真身（M14 B6 FE 票，FR-125.1——parity §3 M3；占位页载体退役）：① **T-386 批 28 名锚入册**（`tokens-page` 族——创建 modal 全链〔表单/二次口令/一次性明文〕+ 会话台账表 + 行内与按 id 双吊销出口 + readonly/台账两注记；明细见 §10.5 T-386 批块）；② **`placeholder-page` 退役入 §10.6 总表**（最后载体 = Access Tokens 路由；组件随本票删除，grep=0；四条 M8 spec 腿迁移更新非反转——路径断言不动、锚断言换 `tokens-page` 族，T-238 存储页同款先例）；③ §10.4 Tokens 白名单行摘除（四枚预定锚全数落地转正）；④ 语义注记：表 = 本会话台账（服务端无令牌清单端点，§9-R6——刷新即空）、明文一次性（内存态保证）、消费面 = 既有 token REST 两端点闭集（零新端点——spec 运行期对账）；⑤ 服务端 diff=0（纯 FE 票） |
 
 ---
 
@@ -1081,7 +1082,6 @@ v1.1 → v1.2 差异注记（核对基准 = v1.1 §10.3 预定清单 vs 源码�
 
 | 锚 | 归属 | 状态 |
 |---|---|---|
-| `tokens-page` `token-create` `token-plaintext` `token-revoke-<id>` | 安全组 Tokens 页 | P2 兜底占位（v1.4：路由 `/admin/security/tokens` 落地，`placeholder-page` 承载占位态——旧 `nav-item.disabled` 计数断言随之退役，auth-shell/spec 改断路由 + `placeholder-page`） |
 | `audit-export` | 审计 CSV 导出（ux R3） | P2 债务，不渲染 |
 | `search-filter-package` `search-filter-type` | 搜索页类型过滤 | v1.1 预定、v1.2 删除——R2 类型化过滤落地时回填 §10.3 |
 | `copy-<field>` | 拷贝按钮（§10.1 可选约定） | 现仅 `aria-label` 标注被拷对象（§8），无 testid；需要断言拷贝行为时再加 |
@@ -1098,7 +1098,7 @@ M8 路由表（console-m8 §1.4）重排后，§10.2/§10.3 的 **242 锚零改�
 | `/admin/repositories/{local\|remote\|virtual}` | `repos-page` 族 + T-387 批 `repos-columns-*` / `repos-refresh`（L1 列选/刷新，见下） | 原 `/repositories`；Tab 形态归 T-240 |
 | `/admin/repositories/new` `?rclass=` | `repo-form-page` + `form-*` 族 | Quick 建仓入口的参数形态（T-240 消费） |
 | `/admin/repositories/:key[/edit]` | `repo-detail-page` 族 / `repo-form-page` | 原 `/repositories/:key[/settings]` |
-| `/admin/security/{users\|groups\|permissions\|tokens}[/:name\|/new]` | `users-*` `user-*` `groups-*` `perm-*` 族 / `placeholder-page` | 原 `/security/*` |
+| `/admin/security/{users\|groups\|permissions\|tokens}[/:name\|/new]` | `users-*` `user-*` `groups-*` `perm-*` 族 / T-386 批 `tokens-*` 族（见下——占位页锚已退役） | 原 `/security/*` |
 | `/admin/security/auth/{ldap\|oauth\|saml}` | `authcfg-page` 族（T-307 批，v1.12 入册——见下） | M11 新增：「用户与权限」分组第五页（认证配置三 Tab；索引 `/admin/security/auth` 重定向 ldap） |
 | `/admin/governance/{audit\|gc\|quotas\|replication\|backup}` | `audit-*` 族 + T-387 批 `audit-columns-*` / `audit-refresh`（L1 列选/刷新，见下） + `gc-*` `quota-*` `repl-*` `backup-*` 族 | 原 `/audit` `/governance/*` |
 | `/admin/governance/trash` | `trash-*` 族（T-352 批，v1.15 入册——见下）+ 树尾入口 `tree-trash-node`（T-372 批，v1.17——见下） | M12 新增：治理分组第六页（回收站管理） |
@@ -1555,6 +1555,38 @@ useAuditPages tick 重拉首页（过滤保持、已加载增量丢弃）；列�
 页反断言在册）；持久层共享件 = lib/columnPrefs（两页同 hook，菜单壳页内
 直挂换全字面量锚——不做共享组件 + 动态前缀，避对账器不可见形）。
 
+**T-386 批（v1.23，M14 FR-125.1——Access Tokens 页真身 / admin/security/tokens；
+先入册再落码流程兑现，§10.5 表该行承载锚随之改写；占位页锚退役归 §10.6）：**
+
+```
+tokens-page（页面根——真身承载；admin/readonly_admin 全量、普通 user = L2 无权限卡）
+tokens-readonly-note（readonly_admin 只读注记——吊销禁用的说明行）
+tokens-ledger-note（台账披露注记——服务端无清单端点，表 = 本会话经此页签发）
+tokens-empty（空态——会话台账空 + 生成 CTA）  tokens-count（台账计数行）
+token-create（页头「生成令牌」钮）  token-create-empty（空态 CTA 钮）
+token-dialog（创建 modal 根——Dialog sm，三种内容态共用：表单/二次口令/一次性明文）
+token-form-subject（admin 代人签发输入——readonly 臂不渲染）
+token-form-ttl（有效期 select——preset 闭集；「永不过期」选项仅 admin）
+token-submit  token-cancel  token-mint-error（签发错误内联——400 等就地呈现）
+token-plaintext（一次性明文面板——形态复用 smu-token-panel，MUI 版）  token-value（明文本体 mono）
+token-plaintext-done（「我已保存，关闭」——关闭即丢弃明文）
+token-stepup（二次口令内联面板——smu-stepup 同形态，不弹第二层）
+token-password  token-password-submit  token-password-error（错误文案 = 服务端原文逐字）
+token-table（会话台账表——列：token_id/指纹/主体/有效期/状态/操作）
+token-row-<id>  token-fingerprint-<id>（sha256 前 8 hex——与审计 token.issue detail 同 digest）
+token-status-<id>（状态 Chip：有效/已吊销——吊销后翻转）  token-revoke-<id>（行内吊销钮——readonly 禁用）
+token-revoke-byid（按 id 吊销盒——admin 专属；历史令牌的既有出口）
+token-revoke-id（id 输入）  token-revoke-byid-go（执行钮——非数字禁用）
+```
+
+变更注记（T-386，dev-frontend 回写）：消费面 = 既有 token REST 两端点闭集
+（E-17 签发 JSON 投影 + E-18 吊销 form 体——统一请求层新增 formBody 形态；
+零新端点，spec 运行期对账在案）；签发链与 Set Me Up 同源同引擎（同端点、
+同 wire、同二次口令态机；OIDC 臂的重认证回跳承载在 Set Me Up，本页诚实
+降级为引导面板、不设锚）；明文一次性由内存态保证（modal 卸载即丢弃，
+刷新即失）；表 = 会话台账（无 GET 端点不伪造骨架/错误态——T-387「无端点
+不伪造」同款纪律）；`placeholder-page` 随最后载体退役入 §10.6 总表。
+
 **锚总量复核口径（v1.4 实测）**：`grep -rn "data-testid" web/src/` = **293 落点 / 29 文件**（v1.2 基线 242 之后，T-104~T-234 各票陆续增锚至 HEAD 的 283 落点——ADR-0029 原写 283 即此原始 grep 数）；T-235 净变化 = 壳**删 0 改 0、新增 10**（AppShell 10 → 20），占位路由新增 0（复用 `placeholder-page`）。另：`web/src/styles/theme-smoke.spec.ts`（7 处选择器引用，非锚）随 T-232 遗留①迁出 `src/` 至 `e2e/m8/theme-smoke.spec.ts`，不再计入 src 侧 grep。
 
 **锚总量（v1.2 核对基准）**：`grep -rn "data-testid" web/src/` = **242 处落点 / 27 文件**；动态族计一名约 **230 锚**（§10.2 + §10.3 合计）。v1.1 预定锚转正流程至此闭环（v1.1 文末「落码后回写本节并升 v1.2」约定兑现）。
@@ -1632,8 +1664,9 @@ node web/scripts/anchor-audit.mjs --ledger   # 册↔实态断言，违例 exit 
 101 条〔99 家族，静态展开计〕；v1.9.1〔T-274〕摘除误杀回填的 19 族〔20 记名，
 `perm-matrix-remove-{user,group}` 两记对应 src 一族〕→ 98 条；T-382〔v1.18〕
 复役 `smu-close`/`smu-done`、T-384〔v1.20〕复役 `user-form-{cancel,reset}` /
-`group-form-{cancel,reset}` → **现存 92 条**。复活 = 从本表删除 + 回写
-§10.3，走 conductor）**：
+`group-form-{cancel,reset}` → 92 条；T-386〔v1.23〕退役 `placeholder-page`
+（最后载体 Access Tokens 路由落真身）→ **现存 93 条**。复活 = 从本表删除 +
+回写 §10.3，走 conductor）**：
 
 | 退役锚（家族） | 原承载 | 批次/退役 | 原因·去向 |
 |---|---|---|---|
@@ -1661,6 +1694,7 @@ node web/scripts/anchor-audit.mjs --ledger   # 册↔实态断言，违例 exit 
 | `search-results` | 搜索结果表容器 | T-100 / v1.9 | 零 spec 消费（行族 `search-result-*` 存活） |
 | `smu-grid-denied` `smu-grid-empty` `smu-mint-error` `smu-token-area` `smu-cmd-conf-*` `smu-resuming` | Set Me Up（网格降级两态/铸造错误/Token 区/配置命令块/恢复中） | T-242 / v1.9 | 零 spec 消费；`smu-tab-configure` 因 Tab 焦点选择器自消费**保留**（见口径·组件逻辑自消费）；`smu-close` / `smu-done` 曾列本表，T-382 抽屉化（v1.18）复役并回归在册 |
 | `deploy-empty` `deploy-target-echo` `deploy-retry-*` | Deploy（空态/目标回显/重试钮族） | T-242 / v1.9 | 零 spec 消费（`deploy-*` 主族存活） |
+| `placeholder-page` | 占位页（18 路由表未交付页的兜底承载） | T-98 / v1.23 | 最后载体 = Access Tokens 路由（T-386 落真身，组件删除、grep=0）；四条 M8 spec 腿迁移更新非反转（锚断言换 `tokens-page` 族——T-238 存储页同款先例）；`tokens-*` 族承载 |
 
 **回填记录（v1.9.1，T-274——T-267 误杀修正）**：下列 19 族曾以「零 spec 消费」
 入本表处置，实为对账器 spec 抽取正则的形态盲区所致**误杀**（见下方工具局限

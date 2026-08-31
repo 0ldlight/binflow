@@ -1392,7 +1392,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
     AC2: BE 副线增量首跑——L12 docker remote 全链（自指上游 + Bearer + 降级）+ L13 npm legacy login + L14 前半 PVC keep 腿（kind/helm 编排）。
     AC3: 中期归属审计——FE 变更面（`git diff m13-done..HEAD -- web/src`）100% 归属 M14 票 + FE 票服务端 diff=0 抽查 + axe 双主题/四闸门维持态巡检。
 - **B6（批 2 启动 + 文档 A）**：T-386 ｜ T-397
-  - **T-386** [P1] FR-125.1 Tokens 页真身 `role:dev-frontend` area:web/src/pages（Access Tokens 路由——PlaceholderPage 退役）dep:T-381（V6→Q4 字段集定案——终裁晚于派发则以暂行字段集起步、票内收口）；FE 链错峰随 T-389
+  - **T-386 → done 2026-08-31 23:5x——M14 13/22（PlaceholderPage 整体退役）**：TokensPage 真身（创建 modal 全链 + **一次性明文面板仅展示一次** + step-up 内联（OIDC 会话引导 Set Me Up 诚实降级）+ 会话台账（by design——令牌清单端点系 R6 登记候裁）+ 双吊销出口（danger ConfirmDialog）+ 三角色臂）；**暂行字段集留痕**（V6c 密码锁未核验——Q4 终裁后翻转面登记，先立后端字段票不私加）。api.ts formBody additive（E-18 首消费）。**四条 M8 spec 腿迁移更新**（迁移非反转——T-238 先例）22 绿 + spec 8 tests + **全量两轮 264/2→264/0**（首轮 2 红=m9 usage-fanout 在册假阳性家族，串行 4/4 绿）+ armed 实例腿绿 + 四闸门 + axe 双主题 4 扫 0 + 锚册 v1.23 + SPA +4,937B + 服务端 diff=0。遗留：ProfilePage 一行文案票（Q11 口径）；R6 令牌清单端点候裁。日志 reports/agents/T-386.md。
     AC1: Playwright——创建 modal 全链（创建 → **一次性明文面板仅展示一次** → 刷新后不可再取）+ 吊销 ConfirmDialog danger 确认 + 列表状态翻转 + readonly_admin 只读臂（L06）。
     AC2: `PlaceholderPage` 该路由退役 grep=0 + **消费端点清单 == 既有 token REST（零新端点断言——不私加端点）** + mint/step-up 链复用（SetMeUp 同源引擎，`smu-token-panel` 形态复用）。
     AC3: 四闸门 + axe 双主题 + modal/确认双形态焦点链 + 服务端 diff=0 + 新锚入册。

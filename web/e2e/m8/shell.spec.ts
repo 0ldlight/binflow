@@ -30,7 +30,7 @@ const ADMIN_ENTRIES: [string, string][] = [
   ['用户', 'users-page'],
   ['组', 'groups-page'],
   ['权限', 'perms-page'],
-  ['Access Tokens', 'placeholder-page'],
+  ['Access Tokens', 'tokens-page'], // M14 T-386 落真身（原占位页承载）
   ['认证配置', 'authcfg-page'], // M11 T-307（FR-92——LDAP/OAuth/SAML 三协议）
   ['审计日志', 'audit-page'],
   ['维护（GC）', 'gc-page'],

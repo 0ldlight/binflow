@@ -49,7 +49,9 @@ const UserDetailPage = lazy(() => import('./pages/security/UserDetailPage'))
 const GroupsPage = lazy(() => import('./pages/security/GroupsPage'))
 const PermissionsPage = lazy(() => import('./pages/security/PermissionsPage'))
 const PermissionEditorPage = lazy(() => import('./pages/security/PermissionEditorPage'))
-const PlaceholderPage = lazy(() => import('./pages/PlaceholderPage'))
+// Access Tokens 真身（M14 T-386，FR-125.1）：签发（一次性明文 + step-up 链）
+// + 会话台账 + 吊销；消费面 = 既有 token REST 两端点（零新端点）
+const TokensPage = lazy(() => import('./pages/security/TokensPage'))
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'))
 const AuditPage = lazy(() => import('./pages/audit/AuditPage'))
 const GCPage = lazy(() => import('./pages/governance/GCPage'))
@@ -146,11 +148,8 @@ createRoot(document.getElementById('root')!).render(
                       path="admin/security/permissions/:name"
                       element={<PermissionEditorPage mode="edit" />}
                     />
-                    {/* Access Tokens（ux R6/P2：签发引导 + 吊销占位，§6.12） */}
-                    <Route
-                      path="admin/security/tokens"
-                      element={<PlaceholderPage title="Access Tokens" ticket="P2" adminOnly />}
-                    />
+                    {/* Access Tokens（M14 T-386 落真身：占位页载体退役，grep=0） */}
+                    <Route path="admin/security/tokens" element={<TokensPage />} />
                     {/* 认证配置（T-307）：三协议 Tab = 同组件按段参数化；
                          非法段在组件内重定向 ldap */}
                     <Route

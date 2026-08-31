@@ -37,6 +37,10 @@ export interface RequestOptions {
   method?: string
   /** JSON 序列化的请求体（Content-Type 自动置 application/json） */
   body?: unknown
+  /** form-urlencoded 表单体（键值对序列化，Content-Type 自动置
+   *  application/x-www-form-urlencoded）——OAuth 族端点的官方形态
+   *  （E-18 revoke 只吃 form，无 JSON 投影；T-386 首个消费方）。 */
+  formBody?: Record<string, string>
   /** 原样字节体（M10 license 装载：POST /api/system/license 的 body 就是
    *  license 文档全文，不是 JSON——T-288 起的纯文本写面共享同一信封）。 */
   rawBody?: string
@@ -77,6 +81,9 @@ async function rawRequest(path: string, opts: RequestOptions = {}): Promise<Resp
   if (opts.rawBody !== undefined) {
     headers['Content-Type'] = 'text/plain;charset=utf-8'
     init.body = opts.rawBody
+  } else if (opts.formBody !== undefined) {
+    headers['Content-Type'] = 'application/x-www-form-urlencoded'
+    init.body = new URLSearchParams(opts.formBody).toString()
   } else if (opts.body !== undefined) {
     headers['Content-Type'] = 'application/json'
     init.body = JSON.stringify(opts.body)
