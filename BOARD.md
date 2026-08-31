@@ -1332,7 +1332,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 | FR-129 | T-392（P1，一票含 dind 全链） | docker remote pull-through 首航（/v2 remote 复用 T-363 缝）+ Bearer + 降级 | Q5/K54 成立；LC-64 |
 | FR-130 | T-393（P1 reverse 前置规格）→ T-394（P1 聚合一票 dev-go-core） | v3-flat 补锚 + npm login 端点实证（K59/K60）→ npm login + PVC keep + 启动日志 + as-built 对照（不动行为） | Q6；翻转走 T-401 条件票 |
 | QA/文档/发布/裁定 | T-396（中期 P1）+ T-400（终验 P0）；T-397/T-398（两票 P1）；T-399（release+UAT P1）；T-395（PM Q 终裁联动 P1） | L01~L18 + **L16 矩阵逐格终评** + DoD 八条 + UAT 随里程碑 PR | §8 剧本十段；K55~K61 回填 |
-| 条件票 | T-401（Q6 v3-flat 翻转）/T-402（symbol server 余量四承）；N2 内置 T-388 出口、D3（Q7）不占票号 | 未触发 BOARD 留痕非 DoD 缺口 | Q6/Q7/余量条款 |
+| 条件票 | T-401（Q6 v3-flat 翻转）/T-403（symbol server 余量四承——原 T-402 让号 replication 增补票，conductor 2026-08-31 改号）；N2 内置 T-388 出口、D3（Q7）不占票号 | 未触发 BOARD 留痕非 DoD 缺口 | Q6/Q7/余量条款 |
 
 **批次（全宽 2；波内 area 互斥，跨波同 area/同角色串行；FE 主轴 web/src 一波一票错峰）**：
 
@@ -1378,7 +1378,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
     AC1: Playwright——四列表行尾 IconButton(MoreVert)+Menu 动作集逐项：详情 / 编辑 / 复制 key / Set Me Up（仅仓库行）；**菜单无删除断言（E1——缺席断言；V4 若 Artifactory 含删除亦不跟进——安全设计不倒退）**（L05）。
     AC2: 行点击进详情语义维持 + readonly 臂管理动作按既有权限位禁用 + Menu 键盘开合语义。
     AC3: 四闸门 + axe 双主题 + 服务端 diff=0 + 新锚入册（锚册 + ledger 0 断链）。
-  - **T-395** [P1] PM Q 终裁联动回写票 `role:product-manager` area:docs/prd/milestone-14.md（§5.6 K55~K61 回填 + Q 归位）+ ROADMAP（「M14 未纳入项」段备稿）dep:T-381（V1~V8 结论 / K55 材料）；Q 终裁窗 conductor 安排（Q1/Q2/Q3 建议 B1~B2 同窗、Q4 V6 后、Q6 补锚后）
+  - **T-395 → done 2026-08-31 23:5x——M14 14/22**：PRD **v1.0→v1.1**（§7 Q1~Q7 逐项归位全表重写〔终裁/执行归位 4 + 撤销归位 2 + 维持暂行 3 臂〕+ FR-124 三改判回写〔124.4 改判 E 类偏离票面撤销〕+ **FR-131 replication 新节**〔用户指令行 J〕+ K55~K61 全量回填 + FR-130.1/2 优先级勘误 + LC-57~67 修订〔A7/C2/**D1**/待裁 1〕+ L19 新增）+ ROADMAP 未纳入段备稿（22 条票级遗留 + T-402 在列）。**交叉核对零矛盾**（BOARD 改判登记逐条对照）。**抓到 T-402 撞号**（symbol server 余量票 vs replication 增补票）——conductor 已裁：symbol server **让号 T-403**（三处回写）。遗留转 conductor：Q6 收口窗必裁（**已裁：对齐 409——T-401 触发**）；Q3-C 落章或明示暂行；ROADMAP 头 v1.1 刷随收口窗。日志 reports/agents/T-395.md。
     AC1: Q1~Q7 终裁材料上 BOARD（PM 出材料不代拍）+ 终裁联动回写——K55（核验源与三出口）/K57（决策项 A/B/C 终态）/K58（Tokens 字段集）/K59（v3-flat 锚定值）PRD §5.6 回填 + LC-66 离开「待裁」回写。
     AC2: ROADMAP「M14 未纳入项」段文本备妥（AQL M15 第一顺位 + Replay REST / D1 busy / 成员同型滚程理由），收口随 conductor 收口窗落笔（M13 R5 先例）；§2.2 候选池收编对账（DoD#7）。
     AC3: PRD 文面修正——FR-130.1/130.2 优先级内部双值统一（§4 标 P2 vs DoD P1——票面已按 DoD 取 P1）+ 拆票日志歧义登记回填（M14-SPLIT.md §6 逐条）。
@@ -1429,13 +1429,15 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **波外条件票**（未触发 BOARD 留痕非 DoD 缺口）：
   - **T-401** [P2·条件 Q6] v3-flat 翻转小票 `role:dev-go-core` area:internal/adapter/nuget（v3/flat 直推面）dep:T-393,T-394（as-built 对照结论**不一致**）+ Q6 终裁=对齐
     AC1: 补锚值对齐翻转（403↔409 语义照 nuget.md 增量锚，D-10 先例方向）+ 断言反转归属豁免票 + nuget 双客户端回归；终裁=有意差异则本票不触发（D 层差异行留痕，LC-66 归 D）。
-  - **T-402** [P2·条件 余量] NuGet symbol server 余量票（M12→M13→M14 四承——T-357/T-379 延续）`role:dev-go-core` area:internal/adapter/nuget（symbol 子域）dep:P0/P1 全收官 + 余量条款
+  - **T-403** [P2·条件 余量] NuGet symbol server 余量票（M12→M13→M14 四承——T-357/T-379 延续；**原 T-402 让号 replication 增补票**——conductor 2026-08-31 改号，T-395 §遗留③ 处置）`role:dev-go-core` area:internal/adapter/nuget（symbol 子域）dep:P0/P1 全收官 + 余量条款
     AC1: mini as-built 规格随票（T-293 终裁口径）；.pdb/GUID 路径面 + 真实客户端腿；未触发 M15+ BOARD 留痕。
 
 **关键路径**：T-381（核验锚 B0）→ T-382→T-383→T-384→T-385（批 1 FE 串行链——V1/V2/V4/V6 细节断言收口）→ T-389（logo P0）→ T-386→T-390→T-387→T-388（批 2/图标 FE 链）→ T-398（docs B）→ T-399（release+UAT）→ T-400（终验·矩阵逐格终评）→ m14-done。副线并入：T-393→T-394（B2/B3 服务端小票链）→ T-396/T-397；T-392（B1 docker remote）→ T-396；T-395（PM 裁定）终裁归位归 T-400 AC2 核查。**T-391（FE 债）零依赖 B0 补位；T-392/T-394 与 FE 天然错峰全程并行；D1+M1 并波与 L1+FE 债合票为 conductor 压缩裁量（风险⑨）。**
 
-**风险登记（拆票日志 M14-SPLIT.md 详表）**：① **Q1 核验源终裁时点**——须 B1 派发前（建议与 Q2/Q3 同窗）；V1/V2/V4/V6 落定前批 1 细节断言不得转正，降级路径 T-381 AC3 内置（t226 容器→外部活体→③凭标注，批 1 手势级断言均高/中高置信不阻塞）；② **Q2 logo 圈定窗截止 B2 前波**——T-389（B5）候选 1 工作稿起步，资产参数化单点引用（换稿=换文件零返工），窗后未推翻即转正 BOARD 留痕，wordmark K56 票内定案；③ **Q3 决策项 A/B/C 终裁**——暂行照 parity §10 批 1 建议（C=Deploy 保持居中不动），终裁随 Q1/Q2 同窗 B1~B2，翻转面小；④ **锚族冻结 + 新锚入册（web/src 改动铁门槛）**——smu-*/login-*/app-nav 零改名（anchor-audit 0 断链逐票 AC），D1 壳替换保留清单六项，侧栏品牌区不动 app-nav-brand，新面（L2 菜单/Tokens/列选器）新锚入册；⑤ **E1~E7 豁免复核点位**——L2 菜单无删除缺席断言（E1，V4 若含删除亦不跟进）、M3 编辑整页（E5）等七条 T-400 AC2 终验逐条复核（豁免倒退=缺陷）+ 三出口落档；⑥ **四闸门 + axe 双主题 + SPA 预算维持**——FE 十票合入条件票票内嵌，30 枚图标 + logo 资产计入 gzip 增量 ≤10KB（NFR-P61），FE 票服务端 diff=0 沿 M8 T-235 先例；⑦ **活体核验降级与零静默升格**——不可得项维持「以核验为准」标注，grep 附注清单与核验结论一一对应，置信度回写=改契约须修订留痕；⑧ **D1 抽屉化的既有兼容**——M8 e2e spec 走「迁移更新非反转」（铸币/step-up/OIDC 续铸行为断言全量保留），更新面 100% 归属 M14 豁免票（T-396/T-400 归属审计）；⑨ **FE 串行链 10 票工期**——web/src 一波一票默认纪律，压缩两选项（D1+M1 并波〔PRD §1.3 明示可并行〕/ L1+FE 债合票〔M13 ⑦ 先例〕）+ T-399 可前移 B9；⑩ **条件票触发态**——Q6 翻转（T-401）/symbol 余量四承（T-402）/N2 V5 降级（T-388 票内出口）/D3（Q7）不占票号（用户立项才开后端域票）；全触发上浮 24（PRD 21~26 线内），未触发 BOARD 留痕非 DoD 缺口。
+**风险登记（拆票日志 M14-SPLIT.md 详表）**：① **Q1 核验源终裁时点**——须 B1 派发前（建议与 Q2/Q3 同窗）；V1/V2/V4/V6 落定前批 1 细节断言不得转正，降级路径 T-381 AC3 内置（t226 容器→外部活体→③凭标注，批 1 手势级断言均高/中高置信不阻塞）；② **Q2 logo 圈定窗截止 B2 前波**——T-389（B5）候选 1 工作稿起步，资产参数化单点引用（换稿=换文件零返工），窗后未推翻即转正 BOARD 留痕，wordmark K56 票内定案；③ **Q3 决策项 A/B/C 终裁**——暂行照 parity §10 批 1 建议（C=Deploy 保持居中不动），终裁随 Q1/Q2 同窗 B1~B2，翻转面小；④ **锚族冻结 + 新锚入册（web/src 改动铁门槛）**——smu-*/login-*/app-nav 零改名（anchor-audit 0 断链逐票 AC），D1 壳替换保留清单六项，侧栏品牌区不动 app-nav-brand，新面（L2 菜单/Tokens/列选器）新锚入册；⑤ **E1~E7 豁免复核点位**——L2 菜单无删除缺席断言（E1，V4 若含删除亦不跟进）、M3 编辑整页（E5）等七条 T-400 AC2 终验逐条复核（豁免倒退=缺陷）+ 三出口落档；⑥ **四闸门 + axe 双主题 + SPA 预算维持**——FE 十票合入条件票票内嵌，30 枚图标 + logo 资产计入 gzip 增量 ≤10KB（NFR-P61），FE 票服务端 diff=0 沿 M8 T-235 先例；⑦ **活体核验降级与零静默升格**——不可得项维持「以核验为准」标注，grep 附注清单与核验结论一一对应，置信度回写=改契约须修订留痕；⑧ **D1 抽屉化的既有兼容**——M8 e2e spec 走「迁移更新非反转」（铸币/step-up/OIDC 续铸行为断言全量保留），更新面 100% 归属 M14 豁免票（T-396/T-400 归属审计）；⑨ **FE 串行链 10 票工期**——web/src 一波一票默认纪律，压缩两选项（D1+M1 并波〔PRD §1.3 明示可并行〕/ L1+FE 债合票〔M13 ⑦ 先例〕）+ T-399 可前移 B9；⑩ **条件票触发态**——Q6 翻转（T-401）/symbol 余量四承（T-403）/N2 V5 降级（T-388 票内出口）/D3（Q7）不占票号（用户立项才开后端域票）；全触发上浮 24（PRD 21~26 线内），未触发 BOARD 留痕非 DoD 缺口。
 
 **K56 品牌资产生产化 → done 2026-08-31 14:1x（ux-designer 插空票——T-389 接线弹药就绪）**：候选 1 生产件 6 件（mark/mark-dark/mark-mono/lockup-horizontal 674×128/lockup-dark/README——wordmark **手工勾画 monoline**〔cap 100/笔宽 16/圆帽/字距 26，逐字坐标表公开——绕开 Inter 转曲许可面，与 mark 圆帽箭头同语言〕）；npm/go 四枚 `<text>`→path；conan brand 换色 #669ACC（T-381 L02）+ mono 保持 currentColor 纪律；README 双 v1.2。ripgrep 复核 `<text>` 残留 0（仅三张候选规格表存档件——README 已警示，全仓 xmllint 前清理归 chore）。**顺手修 3 枚 brand 图标（webhook/trashcan/generic）注释非法 `--` XML 序列**（严格解析器拒载隐患，语义零变动）。PNG/favicon 派生命令已备（T-389 执行）。日志 reports/agents/K56-brand-paths.md。
 
 **用户指令 intake ②（2026-08-31 23:2x）：replication 的交互要与 Artifactory 一致**——M14 范围增补。立票 **T-402（P0 插空，两段）**：①规格锚定段（qa-engineer 插空——t226 活体探测 Artifactory replication 交互面〔仓库 Replication 面的表单字段/cron 形态/启停开关/Replicate Now 动作/状态呈现〕+ console-artifactory-parity.md 增 R 系条目 + BinFlow 现状差距清单；**差集法只读探测——INC-1 教训永不点确认**）；②实现段（dev-frontend，候 FE lane 空位——照锚定规格对齐 BinFlow 控制台 replication 面）。
+
+**Q6 终裁（conductor 2026-08-31 深夜窗，D-10 同族同则——用户对齐基线常设条款）**：v3/flat 直推面重复臂 **对齐 409**（K59 锚定值；as-built 403 判不一致）——**T-401 条件票触发**（翻转小票 + 矩阵 LC-66 离开「待裁」归 A；PM 建议≡conductor 裁定，收口窗落章）。
