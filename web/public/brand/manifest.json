@@ -1,0 +1,23 @@
+{
+  "name": "BinFlow Console",
+  "short_name": "BinFlow",
+  "description": "BinFlow 制品仓库控制台（单二进制，随实例交付）",
+  "start_url": "../ui/",
+  "display": "standalone",
+  "background_color": "#f3f5f7",
+  "theme_color": "#1b2430",
+  "icons": [
+    {
+      "src": "apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

@@ -132,7 +132,8 @@ function CreateUserForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
   return (
     <section className="card inline-form" data-testid="user-form" aria-label="新建用户">
       <h3>新建用户</h3>
-      <div className="form-section">
+      {/* T-384 节锚（v1.20 批）：创建表单四节——M3 表单结构 parity 断言载体 */}
+      <div className="form-section" data-testid="user-form-section-settings">
         <h4>用户设置</h4>
         <div className="field">
           <label htmlFor="uf-name">用户名 *</label>
@@ -200,7 +201,7 @@ function CreateUserForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
           <p className="field-hint">user=按 permission target 授权；readonly_admin=管理面只读；admin=管理面全权。</p>
         </div>
       </div>
-      <div className="form-section">
+      <div className="form-section" data-testid="user-form-section-options">
         <h4>选项</h4>
         <FormControlLabel
           className="check-row"
@@ -215,7 +216,7 @@ function CreateUserForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
           label="启用（取消勾选 = 禁用账号——禁用后登录与写面全部拒绝）"
         />
       </div>
-      <div className="form-section">
+      <div className="form-section" data-testid="user-form-section-password">
         <h4>口令</h4>
         <div className="field">
           <label htmlFor="uf-pass">初始口令 *</label>
@@ -238,7 +239,7 @@ function CreateUserForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
           )}
         </div>
       </div>
-      <div className="form-section">
+      <div className="form-section" data-testid="user-form-section-groups">
         <h4>相关组</h4>
         <p className="field-hint">勾选即加入（右列）；保存后即时生效——移出组即失去该组授权，无需重登。</p>
         {groups.status === 'loading' && <Skeleton lines={2} />}
@@ -272,10 +273,17 @@ function CreateUserForm({ onDone, onCancel }: { onDone: () => void; onCancel: ()
         </Alert>
       )}
       <div className="form-actions">
-        <Button variant="outlined" size="small" onClick={onCancel}>
+        {/* 页脚三联（T-384 复役 v1.9 退役锚）：Cancel 最左 / Reset / Save 右——
+            parity V6 实测页脚形态的断言载体 */}
+        <Button variant="outlined" size="small" onClick={onCancel} data-testid="user-form-cancel">
           取消
         </Button>
-        <Button variant="outlined" size="small" onClick={() => setF(CREATE_INITIAL)}>
+        <Button
+          variant="outlined"
+          size="small"
+          onClick={() => setF(CREATE_INITIAL)}
+          data-testid="user-form-reset"
+        >
           重置
         </Button>
         <Button

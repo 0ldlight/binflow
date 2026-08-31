@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <title>BinFlow mark：容器·双箭流（单色 currentColor 版）</title>
+  <desc>K56 生产件（候选 1 转正）。三形全部 currentColor，继承调用处文字色——侧栏、按钮内、打印、禁用态都能用（logo/README §0 约束 4）。几何与 mark.svg 一致。消费时外层元素设 color 即可，例如 MUI IconButton 的 inherit 色。</desc>
+  <rect x="5" y="5" width="38" height="38" rx="9" stroke="currentColor" stroke-width="3.5"/>
+  <path d="M14.5 16.2 24.5 24l-10 7.8" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M23.5 14.6 33.5 24l-10 9.4Z" fill="currentColor"/>
+</svg>

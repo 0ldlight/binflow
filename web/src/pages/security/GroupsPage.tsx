@@ -228,7 +228,9 @@ function GroupEditor({
   return (
     <section className="card inline-form" data-testid="group-form" aria-label={editMode ? '编辑组' : '新建组'}>
       <h3>{editMode ? `编辑组 · ${seed.name}` : '新建组'}</h3>
-      <div className="form-section">
+      {/* T-384 节锚（v1.20 批）：组面两节——M3 组表单结构 parity 断言载体
+          （编辑态第三节日权限矩阵沿用 group-perm-matrix 既有锚，不设节锚） */}
+      <div className="form-section" data-testid="group-form-section-settings">
         <h4>组设置</h4>
         <div className="field">
           <label htmlFor="gf-name">组名{editMode ? '（不可变）' : ' *'}</label>
@@ -266,7 +268,7 @@ function GroupEditor({
           />
         </div>
       </div>
-      <div className="form-section">
+      <div className="form-section" data-testid="group-form-section-members">
         <h4>成员</h4>
         <p className="field-hint">勾选即加入（右列）；保存后即时生效——移出即失去该组授权，无需重登。</p>
         {!snapshot ? (
@@ -313,13 +315,15 @@ function GroupEditor({
         </Alert>
       )}
       <div className="form-actions">
-        <Button variant="outlined" size="small" onClick={onCancel}>
+        {/* 页脚三联（T-384 复役 v1.9 退役锚）：Cancel 最左 / Reset / Save 右 */}
+        <Button variant="outlined" size="small" onClick={onCancel} data-testid="group-form-cancel">
           取消
         </Button>
         <Button
           variant="outlined"
           size="small"
           disabled={!dirty || submitting}
+          data-testid="group-form-reset"
           onClick={() => {
             setName(seed.name)
             setDescription(seed.description)

@@ -186,6 +186,12 @@ remote repositories (set via the repositories API), not a config key.
 - The default admin password is "password". Change it in production by setting
   --set admin.password=<your-password>.
 - Blob data is persisted via PVC ({{ include "binflow.pvcName" . }}).
+{{- if and .Values.persistence.enabled (not .Values.persistence.existingClaim) }}
+  The chart-created PVC carries helm.sh/resource-policy: keep — `helm
+  uninstall` leaves it (and the artifact data) behind on purpose. To
+  really delete the data, remove the PVC manually:
+  kubectl delete pvc --namespace {{ .Release.Namespace }} {{ include "binflow.pvcName" . }}
+{{- end }}
 - For production, set config.baseUrl to your external URL for correct
   redirect and realm generation.
 - S3 / OIDC / LDAP (config.s3 / config.oidc / config.ldap) are opt-in;

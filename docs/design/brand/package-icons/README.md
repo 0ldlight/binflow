@@ -4,7 +4,7 @@
 |---|---|
 | 文档 | `docs/design/brand/package-icons/README.md` |
 | 票据 | UX-1（插空票：品牌资产 + Artifactory 交互对齐规格） |
-| 状态 | v1.1（2026-08-31，T-381 活体对照修正三枚低置信图标 + 六枚旁证色） |
+| 状态 | v1.2（2026-08-31，K56 生产化：npm/go 字标 `<text>` 转 path、conan 双版 #669ACC 落地——30 枚零 text 依赖；此前 v1.1 同日 T-381 活体对照修正） |
 | 维护者 | ux-designer |
 | 上游依据 | 用户指令 2026-08-30（② 各协议包型 logo 加上）；`web/src/lib/repos.ts`（PackageType 联合）、`internal/license/manager.go`（五核心包型槽位）、`internal/repo/service.go`（helmoci 属 registry-v2 族）、`internal/webhook/doc.go`（webhook 域） |
 | 下游消费者 | FE 票（建仓包型网格 `pkg-grid`、Set Me Up 网格 `smu-grid`、制品树类型列、License & Add-ons 矩阵的图标接线） |
@@ -67,7 +67,7 @@ FE 侧若发现某枚在 16px 下偏轻/偏重，按「加减 0.2px 笔宽」微
 | go | go | `#00ADD8` | 斜体 GO + 速度线 | Go 团队（Google） | 高（活体旁证：7.84 tile `#00ACD7`，与 BinFlow 几乎同色） |
 | nuget | nuget | `#004880` | 倾斜圆角方 + 中心球 | .NET 基金会（NuGet） | **中**（2026-08-31 活体：7.84 tile 已用**现代曲线双形**——8 path，`#016FD2` 蓝 + `#5FFFE6`/`#B3DADD` 青绿点缀，非经典斜方+球；BinFlow 的经典斜方+球识别度仍高、可保留，接线后并排无混淆风险；若要贴新标再开重绘票） |
 | cargo | cargo | `#CE422B` | 齿轮（dasharray 齿圈） | Rust 基金会（Cargo/Rust 齿轮） | 中 |
-| conan | conan | ~~`#0095D5`~~ → **`#669ACC`** | 棱角 C | JFrog / conan.io 社区 | **中高**（2026-08-31 活体：7.84 tile 为 5 path **多段灰蓝** `#669ACC`/`#7CA8D4`/`#316699` + 线性渐变——即 conan 官方灰蓝色系；BinFlow 原 `#0095D5` 过亮偏 azure，**brand 主色改为 `#669ACC`**；「棱角 C」骨架方向与官方一致） |
+| conan | conan | ~~`#0095D5`~~ → **`#669ACC`** | 棱角 C | JFrog / conan.io 社区 | **中高**（2026-08-31 活体：7.84 tile 为 5 path **多段灰蓝** `#669ACC`/`#7CA8D4`/`#316699` + 线性渐变——即 conan 官方灰蓝色系；BinFlow 原 `#0095D5` 过亮偏 azure，**brand 主色改为 `#669ACC`**；「棱角 C」骨架方向与官方一致；v1.2/K56 已同步 `brand/conan.svg` 换色落地，mono 版依 §1 纪律保持 currentColor、仅注记参照色） |
 | helm | helm | `#0F1689` | 舵轮（实心圆毂） | CNCF（Helm） | 中高 |
 | helmoci | helmoci | `#0E7490` | 舵轮变体（六边毂，§3） | 同上（衍生形，非官方标） | —（自有变体） |
 | rpm | rpm | `#EE2526` | 包裹盒 + 标签带 + 落箱箭头 | Red Hat（RPM 生态） | 中高（活体旁证：7.84 tile `#D72123` + black，同族红） |
@@ -94,6 +94,6 @@ addon 两枚的用色纪律：治理面/能力开关**不占用** success/warnin
    - `SetMeUpDialog` 的 `smu-grid`（brand 版，替换 `CLIENT_PKG_META` 里的 `▫ ⬢ ⌬ ⬒ ⬓` 字符图标）;
    - 仓库列表/树/搜索的类型列（mono 版，currentColor 随文字色）；
    - `LicenseAddonsPage` addon 矩阵（trashcan/webhook，brand 版）。
-2. **`npm` 与 `go` 含 `<text>`**——svg 文字随系统字体漂移，生产接线前必须转 path（或换 path 勾画版）。其余 13 枚纯 path/rect/circle，零依赖。
+2. ~~**`npm` 与 `go` 含 `<text>`**~~ **已清除（K56/v1.2）**——两枚字标改为 monoline path 勾画：npm 双版同骨架（stroke 1.2 圆帽，小写 n/p/m，p 下延 18.0，包络 4.0~19.4 在方块内净区内）；go 双版同骨架（stroke 2.3 圆帽，G=开口右上的圆 + 3 点位内伸横杠，O=整圆，`skewX(-8)` 给斜体），字形网格已写进各 SVG 注释。30 枚现全部零 text、零字体环境依赖。
 3. 门控包型（license 未解锁）用 mono 版 + `opacity: 0.4` + 现有 `pkg-tier-*` 档位徽章组合，不要用 brand 版置灰（品牌色置灰会臟色）。
 4. 深色主题：mono 版天然适配（currentColor）；brand 版的官方色在暗底（`#12161d`）下对比度抽查过 docker/npm/pypi 三枚均 ≥3:1（图形件标准），其余枚如发现暗底发闷，允许 +10% 亮度微调并在本 README 登记。

@@ -1271,6 +1271,78 @@ func contentAction(method string) (action string, required bool) {
 	return "", false
 }
 
+// couchUserPrefix is the npm legacy login's user-id family
+// (docs/reverse/npm.md K60-1: PUT /-/user/org.couchdb.user:<name>). The
+// literal lives here, not in the npm adapter, because the adapter packages
+// are leaves — httpapi never imports them (architecture section 2), so the
+// router's own grammar for the exempt family is spelled out beside its
+// consumer.
+const couchUserPrefix = "org.couchdb.user:"
+
+// isCouchUserDocument reports whether rel — the ESCAPED repo-relative tail
+// of a content-plane request — spells the npm legacy login's couch
+// user-document family (K60-1, plus the E409 retry spelling K60-6 pins as
+// never-reachable-but-served): "-/user/org.couchdb.user:<name>" and
+// ".../-rev/<rev>". The comparison runs on the escaped segments exactly as
+// the client spelled them (npm encodes the username; the structural
+// segments are literal), and the structural pins — a leading "-/" then
+// "user", an id segment that starts at the couch prefix and carries no
+// "/", at most the one "-rev/<rev>" pair — keep the family from swallowing
+// any package, dist-tag or tarball address. The npm adapter's own decoded
+// grammar (parseRoute) remains the authority: a spelling this predicate
+// matches but that grammar rejects answers the adapter's 404, never a
+// write.
+func isCouchUserDocument(rel string) bool {
+	rel = strings.TrimSuffix(rel, "/") // parseRoute tolerates one trailing slash
+	segs := strings.Split(rel, "/")
+	if len(segs) < 3 || segs[0] != "-" || segs[1] != "user" {
+		return false
+	}
+	if id := segs[2]; !strings.HasPrefix(id, couchUserPrefix) || id == couchUserPrefix {
+		return false
+	}
+	switch len(segs) {
+	case 3:
+		return true
+	case 5:
+		return segs[3] == "-rev" && segs[4] != ""
+	}
+	return false
+}
+
+// npmCouchLoginExempt reports whether the request is the npm legacy login
+// PUT whose credential rides the BODY (K60-1's single fix surface, T-394):
+// the couch convention sends no Authorization header, so the content
+// plane's write gate would 401 the request at the door and the adapter's
+// body-credential arm could never run. The gate stands down for exactly
+// that path family — and only on an npm repository: the row is resolved
+// HERE, before the gate, because the path family alone must never open an
+// anonymous write on any other type's content plane (a generic repo asked
+// to PUT "-/user/…" would happily store it as a node). An unknown repo
+// key, a lookup failure or a non-npm type keeps the standard write gate,
+// and the inner handler's own repo lookup stays the single dispatch
+// authority (the extra Get here rides only the rare login PUT).
+//
+// Standing the gate down means the whole write-face posture for this one
+// request: no credential requirement, no repo-path write ACL and no addon
+// entitlement question — login is an authentication face, not an artifact
+// write (K60 §2.3: the adapter verifies and mints, zero artifacts touch
+// disk, and the route carries no repository permission check).
+func (s *Server) npmCouchLoginExempt(r *http.Request) bool {
+	if r.Method != http.MethodPut {
+		return false
+	}
+	repoKey, rel := splitFirstSegment(r)
+	if !isCouchUserDocument(rel) {
+		return false
+	}
+	row, err := s.deps.Repos.Get(r.Context(), repoKey)
+	if err != nil || row == nil {
+		return false
+	}
+	return row.PackageType == repo.PackageNpm
+}
+
 // dispatchContent routes /binflow/<repo-key>/** to the adapter serving
 // that repository's package type (architecture section 5.1 dispatch).
 // Authorization runs on the raw (prefixed) path first — the ACL is keyed
@@ -1297,6 +1369,16 @@ func (s *Server) dispatchContent(w http.ResponseWriter, r *http.Request, _ strin
 	}
 	action, required := contentAction(r.Method)
 	p := principalFrom(r.Context())
+
+	// The K60-1 gate exemption (T-394): the npm legacy login PUT carries
+	// its credential in the body, couch-style, so the write gate must let
+	// it through to the adapter's body arm. npmCouchLoginExempt narrows the
+	// stand-down to that one path family on npm repositories — every other
+	// write surface (publish, dist-tags, unpublish, the same path family
+	// on any other repo type) keeps the gate below untouched.
+	if required && s.npmCouchLoginExempt(r) {
+		action, required = "", false
+	}
 
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		repoKey, _ := splitFirstSegment(r)

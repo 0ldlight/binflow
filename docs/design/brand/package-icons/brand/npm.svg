@@ -1,6 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
   <title>npm 包型图标（品牌色版）</title>
-  <!-- npm 官方红方标形态（#CB3837 白字），仅作包型识别；生产须转 path（README §5） -->
+  <!-- npm 官方红方标形态（#CB3837 白字），仅作包型识别。K56 生产化：三字母由 text 转
+       monoline path，与 mono 版同骨架，白色描于红方上，零字体依赖（README §6） -->
   <rect x="3" y="3" width="18" height="18" rx="2.5" fill="#CB3837"/>
-  <text x="12" y="15" fill="#ffffff" font-family="Arial, 'Helvetica Neue', sans-serif" font-weight="700" font-size="6.6" text-anchor="middle" letter-spacing="-0.2">npm</text>
+  <g stroke="#ffffff" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4.6 14.6V10.7M4.6 12.2C4.6 11.2 5.3 10.6 6.2 10.6C7.1 10.6 7.7 11.2 7.7 12.2V14.6"/>
+    <path d="M9.6 17.4V10.7M9.6 10.7H10.4C11.9 10.7 13 11.5 13 12.6C13 13.7 11.9 14.6 10.4 14.6H9.6"/>
+    <path d="M14.4 14.6V10.7M14.4 12.2C14.4 11.2 15.1 10.6 16 10.6C16.3 10.6 16.6 11.2 16.6 12.2V14.6M16.6 12.2C16.6 11.2 17.3 10.6 18.2 10.6C18.5 10.6 18.8 11.2 18.8 12.2V14.6"/>
+  </g>
 </svg>

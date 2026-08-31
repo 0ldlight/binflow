@@ -20,12 +20,15 @@ import (
 // pair carries the same weight as Basic. A PRESENT-but-wrong body credential
 // is a 401, never a silent anonymous acceptance.
 //
-// Stack note (T-63 review N4 follow-up): through the full httpapi assembly
-// a PUT is credential-gated BEFORE the adapter runs, so an anonymous login
-// PUT meets the standard 401 Basic challenge at the gate; the couch branch
-// below serves stacks that reach the handler without that gate (direct
-// mounts, future route carve-outs) and the authenticated flows (`.npmrc`
-// `_auth` + `npm login`, the PRD M22c equivalent-credential posture).
+// Stack note (T-63 review N4 follow-up, amended by T-394): the full
+// httpapi assembly credential-gates every content PUT BEFORE the adapter
+// runs — EXCEPT this login family, which K60-1 carves out precisely so
+// the couch branch below is reachable through the assembled server (the
+// npm client sends body credentials, no Authorization header). Stacks
+// that still gate the path (direct mounts, stricter front doors) keep
+// their 401 at the door; the authenticated flows (`.npmrc` `_auth` +
+// `npm login`, the PRD M22c equivalent-credential posture) ride the
+// header arm unchanged.
 
 // loginTokenTTL is the npm login token lifetime: the auth module's default
 // (720h) kept local so the npm plane could diverge without touching the

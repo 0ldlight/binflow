@@ -4,7 +4,7 @@
 |---|---|
 | 文档 | `docs/design/brand/logo/README.md` |
 | 票据 | UX-1（插空票：品牌资产 + Artifactory 交互对齐规格） |
-| 状态 | v1.0（2026-08-30，三候选 + 推荐待用户圈定） |
+| 状态 | v1.2（2026-08-31，K56：候选 1 转正生产化——wordmark 转 path、五件生产 SVG + favicon 派生管线，见 §6；此前 v1.0 2026-08-30 三候选 + 推荐，v1.1 圈定窗闭候选 1 转正） |
 | 维护者 | ux-designer |
 | 上游依据 | 用户指令 2026-08-30（③ 产品 logo 自设计：好看、国际化、偏技术感）；`web/src/app/MuiProvider.tsx` 与 `web/src/styles/tokens.css`（主题色板约束） |
 | 下游消费者 | FE 票（favicon/登录页/侧栏顶/文档站接线）、docs-site 首页 |
@@ -83,3 +83,13 @@
 ## 5. 许可注记
 
 三稿均为本票原创几何（无第三方商标、无字体字形嵌入、无素材库引用），BinFlow 项目自由使用。wordmark 最终若按 §3 转 Inter Bold path，Inter 以 SIL OFL 1.0 授权（允许嵌入与再分发，需随附 license 文本——由接线 FE 票在 `web/src/assets/` 放 `INTER-LICENSE` 或改用手工勾画规避）。
+
+## 6. 生产化交付（v1.2，K56——候选 1 转正）
+
+**转正背景**：用户圈定窗（B2 前）已闭、未推翻推荐——候选 1「容器·双箭流」即为 BinFlow 工作 logo；T-389 派发时直接消费 `candidate-1/` 生产件。
+
+- **产物**：`candidate-1/` 下五件生产 SVG——`mark.svg` / `mark-dark.svg` / `mark-mono.svg` / `lockup-horizontal.svg` / `lockup-dark.svg`，全部零 `<text>`、零字体依赖（UX-1 遗留清除）。
+- **wordmark 取径**：手工勾画 monoline 几何构字（§3 预留退路），**非** Inter 转曲——顺带触发 §5 的「手工勾画规避」分支，接线 FE 票**无需**再放 `INTER-LICENSE`。字形网格与逐字坐标见 `candidate-1/README.md` §2（可复核、可重画）。
+- **favicon 派生**：16/32/48 PNG + .ico 合成 + PWA 180/512 的现成命令（rsvg-convert / npx svgexport / magick 三方案）见 `candidate-1/README.md` §3；PNG 生成留给接线票（K56 会话无渲染工具）。
+- **色彩**：与 §2 表、`tokens.css` 一一对应未动；改 token 同步清单新增这五件。
+- **遗留**：UX-1 规格表 `candidate-1-bin-chevron.svg` 仍含 `<text>` 与非法注释序列（注释内 `--bf-*`），仅存档不接线，勿直接拷贝其内容（详见 `candidate-1/README.md` §4）。
