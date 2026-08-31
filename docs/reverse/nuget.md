@@ -1,6 +1,6 @@
 # NuGet 包型（v2 OData 全路由 + remote/virtual search 上游代理 + service index 动态解析）行为规格
 
-- 票据：T-334（M12 B0，FR-103 规格前置，用户裁决① NuGet 对齐 bundle 的活化落点）。谱系：T-287（M10 试点 as-built，L1~L7 rulings）→ T-304 §1.1 复核（出处锚定 + 四项改回判定）→ 本票活化。消费票：**T-337**（FR-103：v2 路由全集 + OData 参数面 + publish 重复臂）、**T-341**（FR-104：v3 search 上游代理 + service index 动态解析 + virtual 合并）。
+- 票据：T-334（M12 B0，FR-103 规格前置，用户裁决① NuGet 对齐 bundle 的活化落点）。谱系：T-287（M10 试点 as-built，L1~L7 rulings）→ T-304 §1.1 复核（出处锚定 + 四项改回判定）→ 本票活化；T-393（M14 B2）增量锚 §5.4（K59 v3/flat 直推面重复臂）。消费票：**T-337**（FR-103：v2 路由全集 + OData 参数面 + publish 重复臂）、**T-341**（FR-104：v3 search 上游代理 + service index 动态解析 + virtual 合并）。
 - **公开规范锚点（官方优先）**：Microsoft Learn NuGet Server API（v3：service index / SearchQueryService / registrations / flat container / push）；v2 OData 的 Learn 页已撤，现存权威 = NuGet/Home 官方 wiki 两页——[SemVer2 support for nuget.org (server side)](https://github.com/NuGet/Home/wiki/SemVer2-support-for-nuget.org-(server-side))（v2 OData 端点全集 + 逐端点参数签名 + semVerLevel 语义）与 [Semver 2.0.0 Protocol](https://github.com/NuGet/Home/wiki/Semver-2.0.0-Protocol)；[JFrog NuGet Repositories 文档](https://docs.jfrog.com/artifactory/docs/nuget-repositories)（URL 形态）。反编译只补规范空白，逐条标注「此条补充官方规范」。
 - **出处层级标记**：`T-304` = T-304 §1.1 行项锚定；`DE` = 本票直接反编译取证（NuGetSubResource / NuGet{Local,Remote,Virtual}RepoHandler / NuPkgSearchRequestHandler 族 / NuGetServiceImpl / NuGetV3VirtualAndRemoteCommon / FeedUtils / NuGetSearchParameters / artifactory.xsd）；`官方` = 上述公开文档。
 - 置信度：`高` = 反编译 + 公开文档双证（或纯官方定义）；`中` = 仅反编译；`低` = 推断。低置信不作验收依赖。
@@ -117,6 +117,23 @@ BinFlow 实现建议：保持两道门顺序（401 先于 403）；匿名根 GET
 - virtual：路径 pattern 校验失败 → 404 `Unable to find package <id>`；随后**先查 local/federated 成员、再查 remote 成员**（每档内按成员序），首个 2xx/30x 即返回；全部失败时若任一成员返回过 403 且系统开关 `nuGetVirtualEnableForbiddenResponse` 开 → 403（最后一个 403 的消息），否则 404（最后错误消息）。
 - remote：未命中本地路径解析时用**替代下载 URL** 直连上游：`<repo.url>/<downloadContextPath>/<id>/<version>`（downloadContextPath 默认 `api/v2/package`，xsd 默认值，高）；非 smart 源场景下版本串会剥 SemVer2 metadata。
 - local：见 §6 路径解析。
+
+### 5.4 v3/flatcontainer 直推面重复臂增量锚（K59，T-393——D-10 终裁邻域面）
+
+背景：BinFlow T-287 注册偏差——本实例 service index 把 `PackagePublish/2.0.0` @id 指到 `<v3base>/flatcontainer`（无尾斜杠），于是真实客户端（dotnet 8.x，T-287 live 验证）的 v3 协议 push 落在 **v3 flatcontainer 面**（两形态：direct `PUT <publish-base>`〔客户端真实形态，身份取自包内 nuspec〕与 addressed `PUT <v3base>/flatcontainer/<id>/<version>`〔PRD carrier + curl 面〕）。Artifactory **不存在**这一面——增量锚按「官方规范 → Artifactory 可观察行为 → BinFlow as-built 对照」三层取证。
+
+| # | 断言 | 出处 | 置信度 |
+|---|---|---|---|
+| A1 | 官方 push 契约：`PUT {PackagePublish@id}`，body = **multipart/form-data 首段 = nupkg 原始字节**（后续段忽略，文件名/头忽略）；成功 201/202；包无效 400；**「A package with the provided ID and version already exists」→ 409**；官方明示「该 URL 与 legacy V2 push endpoint 同址、协议相同」 | 官方（Learn: Push and Delete, NuGet API，本票全文复核） | 高 |
+| A2 | Artifactory service index 把 `PackagePublish/2.0.0` @id 宣告为 **v2 base**（非 flatcontainer）——feed 模板 `fullNugetRootFeed.json` 与上游代理转换表（`getOriginalToArtifactoryResourceConverters`）双处一致。故 Artifactory 上真实客户端 push 永远落 v2 publish 面 → 重复臂即 §5.1 的 409 | DE（§9.1 T-304 锚定 + 本票双点复核） | 高 |
+| A3 | Artifactory v3 flatcontainer 家族（`v3-flatcontainer/{id}/index.json`、`v3-flatcontainer/{id}/{ver}/{file}.nupkg`、`v3-flatcontainer/{id}/{ver}/{id}.nuspec`）**全 GET-only**；v3 mount 下仅有的 PUT = `PUT symbols`（symbol 包，multipart）与继承自 v2 资源的 catch-all `PUT {path: .+}`（@Consumes multipart/form-data）——后者把 URL 路径当 deploy-path 前缀转 v2 publish（重复臂同 §5.1 = 409） | DE（`NugetV3Resource`/`NuGetV3SubResource` 路由全集复核，本票） | 高 |
+| A4 | 对 flatcontainer 形态路径发**非 multipart** 内容型 PUT（如 `application/octet-stream`）→ 无 @Consumes 匹配 → JAX-RS 容器默认 **415**（服务端未显式编码该分支） | DE 推断（容器通则，无显式代码） | 中 |
+| A5 | **K59 锚定值 = 409**：与官方 push 资源逐字（A1）一致，且与 D-10 终裁方向（v2 面 DE 谓词 exists && !canDelete → 409）同族语义——「包已存在且不可覆盖」在两个 push 面上不应出现不同状态码 | 官方 + D-10 邻域推定 | 高 |
+| A6 | BinFlow as-built 现状：v3/flat 直推面「已存在 + 无 d」→ 服务层 overwrite 门（ErrForbidden）→ adapter 403（体含 `needs DELETE permission on the existing node`）——**与锚定值不一致**；「已存在 + 有 d」→ 覆盖 201；新包 → 201（无 adapter 注入的字节比对，D-10 后语义同构） | BinFlow 代码（flat.go servePush → repo service overwrite 门 → writeError 403 映射）+ T-378 §2 留痕 | 高（代码事实；live 未跑——stock 二进制 community 档不发 nuget 证） |
+
+消费指引（FR-130.4 腿 **P2 性质**，本票只锚定不动行为）：
+- **T-394 AC3**：as-built 对照结论登记——按 A6 现状 = **不一致**（403 ≠ 409）。
+- **T-401**（条件票）：Q6 终裁=对齐时按 A5 翻转（403→409，臂语义照 §5.1 四臂：同字节/异字节一律 409、d 权限覆盖、新包 201）；终裁=有意差异则 T-401 不触发，本节降级为 D 层差异行（LC-66 归 D）。
 
 ## 6. 包存储路径解析（v2，此条补充官方规范）
 
@@ -245,6 +262,7 @@ remote/virtual 仓 v3 service index 里的资源 @id 指向本实例固定内部
 | L7 virtual remote 成员贡献=缓存 | 改回（裁决①） | **T-341**：§8.2 合并 |
 | （新）publish 重复臂 409+覆盖 | T-304 §7 新发现 | **T-337**：§5.1 |
 | （新）同字节幂等臂 as-built 201（D-10） | 终裁=对齐 409（2026-08-30） | **T-378**：§5.1 四臂回归 + M12 L03 断言反转豁免（本表上方留痕） |
+| （新）v3/flat 直推面重复臂 403 vs 409 | K59 锚定 = 409（§5.4，官方 + D-10 邻域） | **T-394**（as-built 对照登记）→ **T-401**（Q6=对齐时翻转） |
 
 **T-337 实现要点**：① v2 路由按 §2 全集挂到既有 plane-aware rewrite（escaped 拼写保留）；② 鉴权门序 401→403（§3）；③ 重复臂照 §5.1（409 + d 权限覆盖 + virtual 409 `Unacceptable path.`）；④ FindPackagesById 缺 id=404 而非 400（易踩）；⑤ `$batch` 的 202 + `batchresponse_<guid>` boundary + part 查询串覆盖语义（§2 #13）；⑥ remote/virtual 的 v2 搜索代理按 §7（offline 回落、id 级去重、GetUpdates 注入 $orderby）。
 **T-341 实现要点**：① SearchQueryService 层阶 + FeedUtils 回落阶梯（§8.1/§9.2）替换前缀常量；② `.nuGetV3/` 缓存布局（§9.3）；③ 上游 400→take=100 重试；④ virtual 合并（档内 local 事实+remote 代理、id 级 putIfAbsent、合并后分页、totalHits=全量）；⑤ registration 改写（§9.4，packageContent 指 v2 base）。
@@ -259,3 +277,5 @@ remote/virtual 仓 v3 service index 里的资源 @id 指向本实例固定内部
 | 4 | GetUpdates() 服务端过滤语义（packageIds/versions 版本比较是服务端做还是全量返回客户端筛） | 中 | 上游源实测 + 老客户端对照 |
 | 5 | v3 remote 上游 take 上限行为（>1000 结果的源，virtual 是否丢尾） | 中 | 构造多版本上游源实测 |
 | 6 | `DataServiceVersion` 响应头的精确值族（1.0 vs 2.0 在各端点的分布） | 中 | 抓包核对（本规格记 V2 为主，root/$metadata 为 OData 常量头） |
+| 7 | A4：Artifactory 对 flatcontainer 路径非 multipart PUT 的实际状态码（415 vs 其他） | 中 | t226 活体/真实例 curl 直打（本票 stock 二进制无法起 nuget 面） |
+| 8 | K59 翻转腿（T-401 触发时）的 live 四臂矩阵（v3/flat 面同字节/异字节×w/d 权限） | 中（代码事实已高） | T-401 票内 curl + dotnet 双客户端 |

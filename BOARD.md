@@ -1360,7 +1360,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
     AC1: Playwright——新建仓全程单 Dialog(maxWidth lg) 三步（pkg-grid 网格 → rclass → 分节表单 → Save 成功落仓）；底部 Cancel 左 / Create primary 右；常规/来源/成员/策略/治理/高级六节结构保留（L03）。
     AC2: 深链 `/admin/repositories/new?package=<t>` 进入即开向导 + 浏览器回退关闭向导回列表 + 编辑态 `/admin/:key/edit` 维持整页表单（差异注记豁免留痕）；V2 细节断言（rclass 控件 Tab vs 分段、可折叠分节）收口或挂「以核验为准」附注。
     AC3: M2/M3 建仓回归序列零回归 + 四闸门 + axe 双主题 + modal 形态焦点链 + 服务端 diff=0。
-  - **T-393** [P1] FR-130 前置规格小票（v3-flat 补锚 + npm login 端点族实证整理）`role:reverse-engineer` area:docs/reverse/nuget.md（增量锚）+ docs/reverse/npm.md（增量段）dep:—
+  - **T-393 → done 2026-08-31 13:2x——M14 5/22**：nuget.md §5.4 六断言（**K59 锚定值 = 409**——flatcontainer 族 GET-only + catch-all PUT 转 v2 publish + BinFlow as-built 403 不一致对照，逐条出处+置信度〔高 18/中 4/低 1〕）+ **npm.md 新建（K60 六条定案**——`/-/user/org.couchdb.user:<name>` 族全量规格化，本机 npm 10.9.8 实物源码 + live 抓包对拍 L1~L7〔匿名 401 复现/Basic 201 铸 token/token 全链绿/web 登录 ENYI 回落〕；**唯一修复面 = httpapi 写认证门对该路径族豁免，login 永不 409 不变量**——解锁 T-394）。附带发现两条入册（pacote 自更新横幅探测流量非登录协议；.npmrc 凭据键**端口参与匹配**——尾斜杠坑姊妹坑 live 实证）。clean-room 合规（零前端/UI 资产；官方文档+客户端源码为准）。遗留四条登记（v3/flat live 四臂归 T-401 条件票；裸 login 首跑归 T-394 AC1；README 清单补行归 conductor；DE whoami 错误体低置信）。日志 reports/agents/T-393.md。
     AC1: nuget.md v3/flat 直推面增量锚——包已存在时 403 vs 409 语义（D-10 终裁〔对齐 409〕邻域面；出处逐条标注 + 置信度标定）（K59；130.4 腿 P2 性质票内注明）。
     AC2: npm legacy login 端点族实证整理规格化（T-77 O-4 在案——`/-/user/*` 族路径/方法/请求响应体/错误码；npm 生态公开规范为准）；K60 端点清单定案（解锁 T-394）。
     AC3: tech-lead 就绪度确认；零 reverse-src 前端/UI 资产消费（clean-room 铁律——PRD §1.4-5）。
