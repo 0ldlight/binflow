@@ -25,7 +25,8 @@ function npmAuthLine(origin: string, repoKey: string): string {
 // ---- Set Me Up 对话框数据源（T-242，console-m8 §4.1 / reverse §4.1） ----------
 //
 // clientCommands（上方，仓库详情页/树页命令块）保持原样；对话框族消费下面
-// 三个导出：包类型网格元数据 + 按凭据参数化的 Configure/Deploy 两侧命令。
+// 的导出：包类型网格元数据 + 按凭据参数化的 Configure/Deploy/Resolve 三侧
+// 命令（T-382 三 Tab 重组，映射见 smuResolveCommands 头部注记）。
 // 凭据规则（§4.1）：铸币成功前给占位（<USERNAME> / <TOKEN 或口令>），成功后
 // 由对话框回填真实 username/token（token 只在明文面板期存在，见组件注记）。
 
@@ -68,33 +69,28 @@ function gatedPkgBlock(packageType: PackageType, repoKey: string): CommandBlock[
   ]
 }
 
-/** Configure 侧（解析/拉取）：把客户端指向 BinFlow 并完成登录 */
+// T-382 三 Tab 重组（console-artifactory-parity D1 v1.1）：Configure/Deploy
+// 双侧改 Configure/Deploy/Resolve 三侧，按语义三分（映射留痕见组件头注）：
+//   Configure = 客户端初始配置（端点 + 凭据：docker login / settings.xml
+//               servers / .npmrc _auth）；generic/pypi 无配置步（curl/pip
+//               开箱即用）→ 空数组，由组件给导航提示
+//   Deploy    = 推（发布命令，原 Deploy 侧原样）
+//   Resolve   = 拉（原 Configure 侧的解析/下载/安装命令迁入）
+
+/** Configure 侧（客户端配置）：把客户端指向 BinFlow 并完成登录 */
 export function smuConfigureCommands(packageType: PackageType, repoKey: string, creds: ClientCreds): CommandBlock[] {
   const origin = window.location.origin
   switch (packageType) {
     case 'generic':
-      return [
-        {
-          title: '下载与校验（curl）',
-          lang: 'bash',
-          text: [
-            `# 下载与校验（响应头携带服务端实测 sha256；匿名读默认开）`,
-            `curl -sI ${origin}/binflow/${repoKey}/acme/app.tar.gz | grep -i x-checksum-sha256`,
-            `curl -O ${origin}/binflow/${repoKey}/acme/app.tar.gz`,
-          ].join('\n'),
-          note: '需要认证的读路径加 -u <用户名>:<令牌>。',
-        },
-      ]
+      // curl 无配置步（匿名读默认开）——下载/校验命令在 Resolve 侧
+      return []
     case 'docker':
       return [
         {
-          title: 'Docker 登录与拉取',
+          title: 'Docker 登录',
           lang: 'bash',
-          text: [
-            `echo "${creds.secret}" | docker login ${origin} -u ${creds.username} --password-stdin`,
-            `docker pull ${origin}/${repoKey}/acme/app:v1`,
-          ].join('\n'),
-          note: '镜像名首段是仓库 key（单段 name 404）；明文 HTTP 需配置 insecure-registries（见 docs/user/docker-registry.md）。',
+          text: [`echo "${creds.secret}" | docker login ${origin} -u ${creds.username} --password-stdin`].join('\n'),
+          note: '登录一次后 push/pull 自动完成 Bearer 协商；明文 HTTP 需配置 insecure-registries（见 docs/user/docker-registry.md）。',
         },
       ]
     case 'maven':
@@ -116,6 +112,60 @@ export function smuConfigureCommands(packageType: PackageType, repoKey: string, 
           ].join('\n'),
           note: '放置位置：${user.home}/.m2/settings.xml / ${maven.home}/conf/settings.xml / 自定义 -s settings.xml。',
         },
+      ]
+    case 'npm':
+      return [
+        {
+          title: '.npmrc（项目根目录）',
+          lang: 'ini',
+          text: [
+            `registry=${origin}/binflow/api/npm/${repoKey}/`,
+            `${npmAuthLine(origin, repoKey)}:_auth=${creds.npmAuth}`,
+            `always-auth=true`,
+          ].join('\n'),
+          note: creds.npmAuth.startsWith('<')
+            ? '_auth 生成：printf \'%s:%s\' "<用户名>" "<令牌>" | base64；裸 _auth 会被 npm 10 拒绝，凭据行必须带 //host/路径/ 前缀。'
+            : '凭据行必须带 //host/路径/ 前缀（npm 10 实测坑，npm.md §2）。',
+        },
+      ]
+    case 'pypi':
+      // pip 无登录步（解析配置 pip.conf 在 Resolve 侧；发布凭据 .pypirc 在
+      // Deploy 侧）——Configure 无命令块
+      return []
+    default:
+      return gatedPkgBlock(packageType, repoKey)
+  }
+}
+
+/** Resolve 侧（解析/拉取）：从 BinFlow 解析与下载制品（凭据在 Configure 侧
+ *  一次配置——docker login / settings.xml / .npmrc；此处命令不内嵌凭据） */
+export function smuResolveCommands(packageType: PackageType, repoKey: string): CommandBlock[] {
+  const origin = window.location.origin
+  switch (packageType) {
+    case 'generic':
+      return [
+        {
+          title: '下载与校验（curl）',
+          lang: 'bash',
+          text: [
+            `# 下载与校验（响应头携带服务端实测 sha256；匿名读默认开）`,
+            `curl -sI ${origin}/binflow/${repoKey}/acme/app.tar.gz | grep -i x-checksum-sha256`,
+            `curl -O ${origin}/binflow/${repoKey}/acme/app.tar.gz`,
+          ].join('\n'),
+          note: '需要认证的读路径加 -u <用户名>:<令牌>。',
+        },
+      ]
+    case 'docker':
+      return [
+        {
+          title: '拉取镜像',
+          lang: 'bash',
+          text: [`docker pull ${origin}/${repoKey}/acme/app:v1`].join('\n'),
+          note: '镜像名首段是仓库 key（单段 name 404）；登录见「配置」Tab。',
+        },
+      ]
+    case 'maven':
+      return [
         {
           title: '解析：pom <repositories>',
           lang: 'xml',
@@ -133,16 +183,15 @@ export function smuConfigureCommands(packageType: PackageType, repoKey: string, 
     case 'npm':
       return [
         {
-          title: '.npmrc（项目根目录）',
-          lang: 'ini',
+          title: '安装与验证',
+          lang: 'bash',
           text: [
-            `registry=${origin}/binflow/api/npm/${repoKey}/`,
-            `${npmAuthLine(origin, repoKey)}:_auth=${creds.npmAuth}`,
-            `always-auth=true`,
+            `# registry 已在 Configure 侧的 .npmrc 指向本仓（配置不跨目录继承）`,
+            `npm install demo-pkg`,
+            `npm cache clean --force && rm -rf node_modules package-lock.json`,
+            `npm install demo-pkg && node -e 'console.log(require("demo-pkg"))'`,
           ].join('\n'),
-          note: creds.npmAuth.startsWith('<')
-            ? '_auth 生成：printf \'%s:%s\' "<用户名>" "<令牌>" | base64；裸 _auth 会被 npm 10 拒绝，凭据行必须带 //host/路径/ 前缀。'
-            : '凭据行必须带 //host/路径/ 前缀（npm 10 实测坑，npm.md §2）。',
+          note: 'consumer 目录也需要 .npmrc（registry 配置不继承，缺省走公网——npm.md §4 实测坑）。',
         },
       ]
     case 'pypi':

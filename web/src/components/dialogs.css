@@ -4,26 +4,30 @@
  * slotProps.paper sx 承载；.smu-back 交 Button variant=text；.deploy-progress
  * bar/fill 交 LinearProgress——三块规则退役。存留：包类型网格 + 对话框内
  * Tab（tablist 键盘链路红线）+ step-up 内联表单 + 令牌面板 + Deploy 拖拽区/
- * 回显/错误语义（无 MUI 等价物的自定义语义 DOM，mui-native-visual §3.7）。 */
+ * 回显/错误语义（无 MUI 等价物的自定义语义 DOM，mui-native-visual §3.7）。
+ * T-382：Set Me Up 壳换 MUI Drawer（右抽屉 50vw 档，宽度走 slotProps.paper
+ * sx）；步 0 自网格改药丸横排（.smu-grid-items/.smu-grid-item 语义不变——
+ * 锚 smu-grid/smu-grid-item-<pt> 与 radiogroup 键盘链路原样）。 */
 
-/* ---- Set Me Up 步骤 0：包类型网格（console-m8 C7 五项闭集） ---- */
+/* ---- Set Me Up 步骤 0：包类型药丸横排（T-382，D1 v1.1 实测形态；
+ *      console-m8 C7 五项闭集不变） ---- */
 
 .smu-grid-items {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
-  gap: var(--bf-sp-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bf-sp-2);
   margin: var(--bf-sp-4) 0;
 }
 
 .smu-grid-item {
   all: unset;
   box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  gap: var(--bf-sp-1);
-  padding: var(--bf-sp-4);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--bf-sp-2);
+  padding: var(--bf-sp-2) var(--bf-sp-4);
   border: 1px solid var(--bf-border);
-  border-radius: var(--bf-r-md);
+  border-radius: 999px; /* 药丸：全圆端（形状值，非色值——token 纪律不涉） */
   background: var(--bf-surface-2);
   cursor: pointer;
 }
@@ -40,19 +44,13 @@
 }
 
 .smu-grid-item .pkg-icon {
-  font-size: 18px;
+  font-size: 16px;
   color: var(--bf-accent);
 }
 
 .smu-grid-item .pkg-name {
   font-weight: 600;
-  font-size: var(--bf-fs-h3);
-}
-
-.smu-grid-item .pkg-desc {
-  font-size: var(--bf-fs-aux);
-  color: var(--bf-text-2);
-  line-height: 1.4;
+  font-size: var(--bf-fs-body);
 }
 
 /* ---- 对话框内 Tab（role=tablist + 方向键，console-m8 §9） ---- */

@@ -765,8 +765,8 @@ export default function AppShell() {
         </Container>
       </Box>
       {/* 全局 Set Me Up 入口承载（quick-set-me-up 接线，T-244）+ OIDC
-          step-up 回跳续铸承载（T-260）——modal 层 fixed 定位不随壳布局；
-          关闭回焦菜单钮（续铸态关闭 = 放弃 grant + pending） */}
+          step-up 回跳续铸承载（T-260）——T-382 起壳为右抽屉（fixed 定位
+          不随壳布局）；关闭回焦菜单钮（续铸态关闭 = 放弃 grant + pending） */}
       {(smuOpen || (resumeOpen && status === 'authenticated')) && (
         <SetMeUpDialog
           preselectedRepo={resumeOpen ? resumeCtxRef.current?.repo : undefined}

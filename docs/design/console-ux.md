@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 文档 | `docs/design/console-ux.md` |
-| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账）/ T-291（v1.11：Properties 页签锚册——MUI 首票）/ T-307（v1.12：认证配置页组锚册——admin/security/auth 域）/ T-344（v1.14：密度档修订——MUI small 档，mui-native-visual §7 登记）/ T-352+T-353（v1.15：回收站页锚册 trash-* 族 + 建仓表单策略键生成器扩容）/ T-366（v1.16：Webhook 订阅管理页锚册 wh-* 族）/ T-372（v1.17：树尾常驻回收站入口锚 tree-trash-node——console-m8 §4.3 推翻条款兑现） |
-| 状态 | v1.17（2026-08-31） |
+| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账）/ T-291（v1.11：Properties 页签锚册——MUI 首票）/ T-307（v1.12：认证配置页组锚册——admin/security/auth 域）/ T-344（v1.14：密度档修订——MUI small 档，mui-native-visual §7 登记）/ T-352+T-353（v1.15：回收站页锚册 trash-* 族 + 建仓表单策略键生成器扩容）/ T-366（v1.16：Webhook 订阅管理页锚册 wh-* 族）/ T-372（v1.17：树尾常驻回收站入口锚 tree-trash-node——console-m8 §4.3 推翻条款兑现）/ T-382（v1.18：Set Me Up 抽屉化锚册——smu-* 零改名 + Resolve 批 + smu-close/smu-done 复役） |
+| 状态 | v1.18（2026-08-31） |
 | 维护者 | ux-designer |
 | 上游依据 | PRODUCT.md（Web 控制台/治理/Non-goals）、ROADMAP.md M4 节、docs/prd/milestone-1/2/3/4.md（端点矩阵与已定案行为）、docs/user/docker-registry.md（用户面口径）、docs/design/architecture.md §7（路由/console 挂载点）、internal/httpapi/router.go（路由门事实——§3.6.2 矩阵逐一核对）、reports/agents/T-98.md · T-99.md（漂移登记与 testid 素材）、reports/agents/T-98-review.md（N1 收敛建议）、BOARD.md（T-85 PRD / T-97 存在性不泄露裁决） |
 | 下游消费者 | T-86（架构：console 包/session/前端工程结构）、tech-lead（M4 拆票）、前端 dev（页面组票）、qa-engineer（控制台验收） |
@@ -34,6 +34,7 @@
 | v1.15 | 2026-08-29 | T-352+T-353（M12 FR-106/FR-113 FE 腿，聚票）：① **T-352 批 trash-* 锚族 13 名入册**（回收站管理页 /admin/governance/trash——治理分组第六页；§10.5 路由表补行）；② 建仓表单 **`form-${k}` 生成器族键闭集扩 12 键**（deb×6 / rpm×4 / helm×2——T-353 策略键字段册 policyFields.ts，照 T-307 anchor 属性形态；无新静态锚，§10.6 生成器行同步）；③ 交互口径：trashcan 槽锁定态照 License 页先例（addons 行实时求值）、恢复 ConfirmDialog 内嵌 to 输入（confirm-input 先例）、清空 = danger + 输入 EMPTY 强确认（GC apply 同款）、浏览骑存储面（listChildren / ?properties 五元组断言面同源） |
 | v1.16 | 2026-08-30 | T-366 Webhook 订阅管理页（M13 FR-115.5 FE 腿，FR-115.7 真实消费者 e2e 随票）：① **T-366 批 wh-* 锚族 47 名入册**（治理分组第七页 /admin/governance/webhooks——§10.5 路由表补行）；② 交互形态照 console-artifactory-parity：新建/编辑 = Dialog（M3/M4 族通用规格——动作右下 Cancel 左/主右、Esc/遮罩关闭）、详情 + 最近投递记录 = 右侧 Drawer（抽屉族通用规格——480 档、内部滚动）——**Artifactory 对齐里程碑的首个新页面实践**；③ 订阅面消费 /binflow/event/api/v1 七端点族（E-26 前缀下官方段名逐字——lib/webhooks.ts 自带同源信封）；secret 哨兵 = webhook.md §2.4 三态（省略保持/明文轮换/"" 擦除），留空保持 = 剔除键、哨兵不回传；④ 事件型下拉 13 域分组 + wired/dormant 如实标注（66 型闭集静态镜像，服务端校验终裁——T-362 §5-4 既定） |
 | v1.17 | 2026-08-31 | T-372 树尾常驻回收站入口节点（M13 FR-122.1 FE 腿——console-m8 §4.3「Trash Can 常驻节点不建」推翻条款的兑现，推翻留痕随票入该册 §4.3/§6.3）：① **T-372 批 1 名锚入册**（`tree-trash-node`——跨仓树末尾常驻入口；先入册再落码）；② 交互口径：最小面 = 入口跳转 /admin/governance/trash（M12 T-352 页面沿用，页身零新面）；可见性 = admin/readonly_admin（管理壳同门），普通 user 不渲染；键盘 = 树行序移动 + Enter 激活（叶节点，无展开语义）；不参与「过滤仓库」过滤域（常驻语义）；③ §10.5 两行承载锚补记（/artifacts 与 /admin/governance/trash） |
+| v1.18 | 2026-08-31 | T-382 Set Me Up 抽屉化（M14 B1 FE 主轴票，FR-124.1 D1——壳 = 居中 Dialog → 右侧 Drawer，console-artifactory-parity D1 v1.1 实测参数：50vw 档〔clamp(480px, 50vw, 800px) + 100vw 兜窄屏〕、全高、右上 X + Esc/遮罩关闭、步 0 包型药丸、Tab = Configure/Deploy/Resolve 三枚、底栏 = 左返回链接 + 右 Done）：① **T-382 批 4 名锚入册**（`smu-tab-resolve` / `smu-pane-resolve` / `smu-cmd-res-<pt>-<i>` + **复役** `smu-close`〔头部 X〕与 `smu-done`〔底栏主按钮〕——自 §10.6 退役表摘除）；② **锚族冻结**：既有 `smu-*` 锚零改名（壳替换不动锚——smu-dialog 落 Drawer paper、smu-back 迁底栏左、smu-grid 族自网格改药丸横排〔radiogroup 键盘链路原样〕）；③ 三 Tab 内容映射留痕（generic 下载校验/pypi pip.conf/docker pull/maven pom repositories → Resolve；docker login/settings.xml/.npmrc 留 Configure；generic/pypi Configure 无配置步 → 导航提示——P3 同源纪律不发明命令）；④ 行为语义断言全量保留（铸币/step-up 内联/OIDC 续铸/AppShell resumeOpen——m8 setmeup-deploy spec 迁移更新，键盘/axe 断言复测） |
 
 ---
 
@@ -1024,6 +1025,15 @@ M9 消费波批（v1.9 入册——T-257/T-259/T-260 落地时 area 不含本册
             smu-pending-hint（等待重认证完成的铸造提示）
   测试基建锚：idp-login-page（web/scripts 下 IdP 模拟页页根——第一方渲染
             DOM，src 口径收录该文件；M9 OIDC spec 断言）
+T-382 Set Me Up 抽屉化批（v1.18 入册，4 枚；壳 = 居中 Dialog → 右抽屉
+  50vw 档，console-artifactory-parity D1 v1.1 实测参数——**既有 smu-* 锚族
+  零改名**，壳替换不动锚；Tab 三枚化 + 底栏形态 + 步 0 药丸均为壳内重排）：
+  smu-tab-resolve  smu-pane-resolve（第三 Tab「解析 Resolve」+ 面板——
+    T-382 前双 Tab 内容三分重组，映射留痕见组件头注）
+  smu-cmd-res-<pt>-<i>（Resolve 侧命令块——与 smu-cmd-dep-* 平行的动态族）
+  smu-close  smu-done（**复役**：头部右上 X 关闭钮 + 底栏 Done 主按钮——
+    v1.9 曾以零 spec 消费退役，抽屉化后形态成立并有 spec 消费，自 §10.6
+    退役表摘除；smu-back 迁底栏左、锚不变）
 ```
 
 v1.1 → v1.2 差异注记（核对基准 = v1.1 §10.3 预定清单 vs 源码）：
@@ -1555,7 +1565,7 @@ node web/scripts/anchor-audit.mjs --ledger   # 册↔实态断言，违例 exit 
 | `backup-cmd-export` `backup-cmd-import` `gc-error` `quotas-table` `quotas-empty` `quota-cancel-*` `quota-error-*` `migration-readonly-note` `audit-empty` | 治理域（备份命令块/GC 错误行/配额表与空态/迁移只读注记/审计未过滤空态） | T-102~T-160 / v1.9 | 零 spec 消费（配额行内编辑族 `quota-row-*` / `quota-bar-*` / `quota-edit-*` / `quota-input-*` / `quota-save-*` 曾列本表，T-274 查明系审计盲区误杀、已回填；`audit-empty-filtered` / `quotas-page` / `gc-page` 等页面根存活） |
 | `storage-summary-blobs` `storage-empty` `storage-partial` `storage-progress` | 存储概要（二进制计数/空态/部分数据标注/进度提示） | T-238 / v1.9 | 零 spec 消费（逐仓行 `storage-row-*` 曾列本表，T-274 查明系审计盲区误杀、已回填） |
 | `search-results` | 搜索结果表容器 | T-100 / v1.9 | 零 spec 消费（行族 `search-result-*` 存活） |
-| `smu-close` `smu-grid-denied` `smu-grid-empty` `smu-mint-error` `smu-token-area` `smu-cmd-conf-*` `smu-done` `smu-resuming` | Set Me Up（关闭/网格降级两态/铸造错误/Token 区/配置命令块/完成/恢复中） | T-242 / v1.9 | 零 spec 消费；`smu-tab-configure` 因 Tab 焦点选择器自消费**保留**（见口径·组件逻辑自消费） |
+| `smu-grid-denied` `smu-grid-empty` `smu-mint-error` `smu-token-area` `smu-cmd-conf-*` `smu-resuming` | Set Me Up（网格降级两态/铸造错误/Token 区/配置命令块/恢复中） | T-242 / v1.9 | 零 spec 消费；`smu-tab-configure` 因 Tab 焦点选择器自消费**保留**（见口径·组件逻辑自消费）；`smu-close` / `smu-done` 曾列本表，T-382 抽屉化（v1.18）复役并回归在册 |
 | `deploy-empty` `deploy-target-echo` `deploy-retry-*` | Deploy（空态/目标回显/重试钮族） | T-242 / v1.9 | 零 spec 消费（`deploy-*` 主族存活） |
 
 **回填记录（v1.9.1，T-274——T-267 误杀修正）**：下列 19 族曾以「零 spec 消费」
