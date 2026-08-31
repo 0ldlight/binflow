@@ -7,6 +7,7 @@ package httpapi
 //
 //	GET    /binflow/api/v1/replications          list configs (no secrets)
 //	POST   /binflow/api/v1/replications          create a config
+//	PUT    /binflow/api/v1/replications/{id}     flip one config's enabled bit
 //	DELETE /binflow/api/v1/replications/{name}   drop a config (tasks cascade)
 //	GET    /binflow/api/v1/replication/status    panel payload (T-159 shape)
 //
@@ -38,6 +39,7 @@ import (
 // report flags the follow-up.
 const (
 	auditActionReplicationConfigCreate = "replication.config.create"
+	auditActionReplicationConfigUpdate = "replication.config.update"
 	auditActionReplicationConfigDelete = "replication.config.delete"
 )
 
@@ -96,6 +98,22 @@ type replicationConfigResponse struct {
 	Enabled                 bool   `json:"enabled"`
 	CreatedAt               string `json:"created_at"`
 	UpdatedAt               string `json:"updated_at"`
+}
+
+// replicationConfigResponseOf renders one config row in the read shape every
+// config-carrying response shares — the GET projection minus the credential
+// pair (create, update and the list all answer with exactly these fields,
+// so a client cannot tell which verb produced a row).
+func replicationConfigResponseOf(c *replication.ReplicationConfig) replicationConfigResponse {
+	return replicationConfigResponse{
+		ID: c.ID, Name: c.Name, SourceRepo: c.SourceRepo,
+		TargetURL: c.TargetURL, TargetRepo: c.TargetRepo,
+		TargetUsername:          c.TargetUsername,
+		MaxBandwidthBytesPerSec: c.MaxBandwidthBytesPerSec,
+		MaxItemsPerPush:         c.MaxItemsPerPush,
+		Enabled:                 c.Enabled,
+		CreatedAt:               c.CreatedAt, UpdatedAt: c.UpdatedAt,
+	}
 }
 
 // replicationTargetStatus is one row of the status payload's targets array:
@@ -218,15 +236,7 @@ func (s *Server) handleReplicationList(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]replicationConfigResponse, 0, len(cfgs))
 	for _, c := range cfgs {
-		out = append(out, replicationConfigResponse{
-			ID: c.ID, Name: c.Name, SourceRepo: c.SourceRepo,
-			TargetURL: c.TargetURL, TargetRepo: c.TargetRepo,
-			TargetUsername:          c.TargetUsername,
-			MaxBandwidthBytesPerSec: c.MaxBandwidthBytesPerSec,
-			MaxItemsPerPush:         c.MaxItemsPerPush,
-			Enabled:                 c.Enabled,
-			CreatedAt:               c.CreatedAt, UpdatedAt: c.UpdatedAt,
-		})
+		out = append(out, replicationConfigResponseOf(c))
 	}
 	writeJSONBody(w, http.StatusOK, out)
 }
@@ -330,15 +340,106 @@ func (s *Server) handleReplicationCreate(w http.ResponseWriter, r *http.Request)
 			fmt.Sprintf("replication config %d created but unreadable: %v", id, err))
 		return
 	}
-	writeJSONBody(w, http.StatusCreated, replicationConfigResponse{
-		ID: created.ID, Name: created.Name, SourceRepo: created.SourceRepo,
-		TargetURL: created.TargetURL, TargetRepo: created.TargetRepo,
-		TargetUsername:          created.TargetUsername,
-		MaxBandwidthBytesPerSec: created.MaxBandwidthBytesPerSec,
-		MaxItemsPerPush:         created.MaxItemsPerPush,
-		Enabled:                 created.Enabled,
-		CreatedAt:               created.CreatedAt, UpdatedAt: created.UpdatedAt,
+	writeJSONBody(w, http.StatusCreated, replicationConfigResponseOf(created))
+}
+
+// replicationUpdateBody is the PUT /{id} wire shape (T-405). The update face
+// is deliberately the enable/disable bit ALONE: the mini-PUT ruling scopes
+// full-row editing to a later ticket (the wider Artifactory field family —
+// cron, path prefixes, the sync flags — is a medium-confidence reverse-spec
+// area, replication.md 2.1/2.2, and no BinFlow model carries it yet). The
+// decode still reuses the whole create shape so a client round-tripping a
+// row it read from the list (the natural console form) is accepted instead
+// of refused: every field besides enabled is parsed and IGNORED, and the
+// response echoes the stored row, so the caller sees exactly what applied.
+type replicationUpdateBody struct {
+	replicationConfigBody
+}
+
+// handleReplicationUpdate serves PUT /binflow/api/v1/replications/{id} (the
+// console's start/stop switch, T-405). The flip is a STORE bit, not an
+// engine signal: the push engine re-reads the config rows on every event
+// (Enqueue) and every drain pass (wake + the 1m sweep), so disabling stops
+// new task rows immediately and stops new task claims within one pass — an
+// attempt already in flight runs to its own conclusion — and enabling
+// resumes both, no restart anywhere. The id is the numeric row id the list
+// projection carries (the immutable key; the name stays renamable).
+func (s *Server) handleReplicationUpdate(w http.ResponseWriter, r *http.Request, idRaw string) {
+	p := principalFrom(r.Context())
+	if p == nil || !p.Admin {
+		writeError(w, http.StatusForbidden, "replication configuration requires an administrator account")
+		return
+	}
+	if s.deps.Replication == nil {
+		replicationNotConfigured(w)
+		return
+	}
+	id, err := strconv.ParseInt(strings.TrimSpace(idRaw), 10, 64)
+	if err != nil || id < 1 {
+		writeError(w, http.StatusBadRequest, "id must be a positive integer")
+		return
+	}
+	var body replicationUpdateBody
+	if err := decodeJSONBodyOf(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if body.Enabled == nil {
+		writeError(w, http.StatusBadRequest, "enabled is required (true or false); no other field is editable on this face yet")
+		return
+	}
+	cfg, err := s.deps.Replication.GetConfig(r.Context(), id)
+	if err != nil {
+		switch {
+		case errors.Is(err, replication.ErrConfigNotFound):
+			writeError(w, http.StatusNotFound, "replication config not found: "+idRaw)
+		case metadata.IsStoreBusy(err):
+			writeError(w, http.StatusServiceUnavailable,
+				"replication store is busy, retry shortly: "+err.Error())
+		default:
+			writeError(w, http.StatusInternalServerError, "get replication config: "+err.Error())
+		}
+		return
+	}
+	// Read-modify-write of the full row (the store has no single-column
+	// flip): safe today because this face is the only config-column writer,
+	// and it is what preserves the sealed credential and every throttle cap
+	// through the flip.
+	cfg.Enabled = *body.Enabled
+	cfg.UpdatedAt = metadata.Now()
+	if err := s.deps.Replication.UpdateConfig(r.Context(), cfg); err != nil {
+		switch {
+		case errors.Is(err, replication.ErrConfigNotFound):
+			writeError(w, http.StatusNotFound, "replication config not found: "+idRaw)
+		case errors.Is(err, replication.ErrDuplicateName):
+			// Unreachable through this face (the name is never rewritten
+			// here); mapped anyway so a racing future writer cannot leak a
+			// 500 where the family answers 409.
+			writeError(w, http.StatusConflict,
+				fmt.Sprintf("replication config name %q is already taken", cfg.Name))
+		case metadata.IsStoreBusy(err):
+			writeError(w, http.StatusServiceUnavailable,
+				"replication store is busy, retry shortly: "+err.Error())
+		default:
+			writeError(w, http.StatusInternalServerError, "update replication config: "+err.Error())
+		}
+		return
+	}
+	s.audit.Record(r.Context(), audit.Event{
+		Actor:  p.Name,
+		Action: auditActionReplicationConfigUpdate,
+		Repo:   cfg.SourceRepo,
+		Detail: auditDetail("name", cfg.Name, "enabled", fmt.Sprint(cfg.Enabled)),
 	})
+	updated, err := s.deps.Replication.GetConfig(r.Context(), id)
+	if err != nil {
+		// Same posture as the create's echo read: the flip already landed,
+		// surface the store fault with the id named for the retry.
+		writeError(w, http.StatusInternalServerError,
+			fmt.Sprintf("replication config %d updated but unreadable: %v", id, err))
+		return
+	}
+	writeJSONBody(w, http.StatusOK, replicationConfigResponseOf(updated))
 }
 
 // handleReplicationDelete serves DELETE /binflow/api/v1/replications/{name}:
