@@ -17,6 +17,15 @@ type Config struct {
 	Console     ConsoleConfig
 	Metrics     MetricsConfig
 	Replication ReplicationConfig
+	// Webhook is the outbound-webhook behavior section (M13 T-362,
+	// ADR-0041 decision 6): the SSRF posture of subscription targets.
+	Webhook WebhookConfig
+	// FolderDownload is the folder_download section (M13 T-368 / FR-118.1):
+	// the six-field knob family of the directory-zip download plane.
+	FolderDownload FolderDownloadConfig
+	// Trashcan is the trashcan section (M13 T-368 / FR-118.2): the
+	// retention window of the trash-can purge cron.
+	Trashcan TrashcanConfig
 	// Addons is the addon circuit-breaker section (M10 T-283, ADR-0032 /
 	// architecture section 15.5 — the artifactory.addons.disabled behavior
 	// pattern in BinFlow's own spelling).
@@ -287,4 +296,71 @@ type ReplicationConfig struct {
 	// DNS-rebinding pinning (ADR-0021). This key is not a bypass of the guard;
 	// it only toggles the private-address leg of the SSRF screening list.
 	AllowPrivateTarget bool
+}
+
+// WebhookConfig carries the webhook plane's operator knobs (M13 T-362,
+// ADR-0041 decision 6). AllowPrivateTarget permits subscription target
+// URLs that resolve to private hosts — DEFAULT FALSE, the deliberate
+// asymmetry against replication's true: the replication plane's targets
+// are operator-configured static addresses, webhook targets are
+// REST-CRUD dynamic and reachable by any subscription writer, the
+// classic SSRF escalation surface.
+type WebhookConfig struct {
+	AllowPrivateTarget bool `yaml:"allow_private_target"`
+}
+
+// FolderDownloadConfig is the folder_download section (M13 T-368 /
+// FR-118.1): the six-field knob family of Artifactory's
+// folderDownloadConfig (docs/reverse/repo-operations.md section 2.1,
+// config descriptor + template double evidence, high confidence), in
+// BinFlow's snake_case spelling — the K52 name-family ruling: the FIELD
+// SET follows section 2.1 verbatim, the YAML spelling follows the
+// config.yaml snake_case convention every other section uses (the
+// trashcan row of config-formats.md is the registered precedent:
+// retentionPeriodDays → retention_days). Every default is the spec's
+// own column, so an unconfigured boot is byte-for-byte the M12 as-built
+// (folder download off; the limits still ride the service's spec
+// defaults). Restart-effective like every section here: the assembly
+// pushes the resolved value onto repo.ConfigureFolderDownload before the
+// first request (the section 2.1 hot-reload clause is a REGISTERED
+// divergence, recorded on that seam).
+type FolderDownloadConfig struct {
+	// Enabled is the master switch; off answers the section 2.2 step-6
+	// 403 "Download Folder functionality is disabled." for every path
+	// (after the anonymous and qualification steps). Default false.
+	Enabled bool `yaml:"enabled"`
+	// EnabledForAnonymous is the anonymous sub-switch; an anonymous
+	// caller with it off answers the step-1 401 before anything else
+	// runs. Default false.
+	EnabledForAnonymous bool `yaml:"enabled_for_anonymous"`
+	// MaxDownloadSizeMb bounds the subtree's total file size in binary
+	// MB. Default 1024; 0 = unlimited (the consumer's zero-value
+	// semantics — the env override, like every int key, demands a
+	// positive integer, so 0 is a YAML-only spelling).
+	MaxDownloadSizeMb int64 `yaml:"max_download_size_mb"`
+	// MaxFiles bounds the subtree's file count. Default 5000; 0 =
+	// unlimited (same YAML-only-zero rule).
+	MaxFiles int `yaml:"max_files"`
+	// MaxConcurrentRequests bounds in-flight folder downloads; a full
+	// slot set answers the step-8 400. Default 10; 0 = unlimited.
+	MaxConcurrentRequests int `yaml:"max_concurrent_requests"`
+	// EnabledEmptyDirectories includes empty folder rows in the archive.
+	// Default false.
+	EnabledEmptyDirectories bool `yaml:"enabled_empty_directories"`
+}
+
+// TrashcanConfig is the trashcan section (M13 T-368 / FR-118.2): the
+// retention window of the trash-can purge cron, Artifactory's
+// trashcanConfig.retentionPeriodDays in the config-formats.md BinFlow
+// mapping spelling (trashcan.retention_days). The M12 as-built value
+// (14) is the default, so an unconfigured boot keeps the standing
+// behavior; 0 keeps the same fallback at the consumer (the engine maps
+// <= 0 onto its spec default — the sentinel pattern of
+// storage.gc_hold_ttl_seconds), and a negative refuses the boot.
+type TrashcanConfig struct {
+	// RetentionDays is the retention window in days; captured nodes
+	// whose trash.time predates now minus this window are purged by the
+	// hourly cron. Default 14 (repo.TrashDefaultRetentionDays' spec
+	// column — the equality is pinned by the T-368 httpapi leg).
+	RetentionDays int `yaml:"retention_days"`
 }

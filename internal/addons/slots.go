@@ -276,3 +276,22 @@ func Trashcan() Addon {
 		Description: "Soft-delete safety net: deletes are captured into the built-in auto-trashcan with provenance properties, 14-day retention, restore/empty/clean.",
 	}
 }
+
+// Webhook is the unified-event webhook feature slot (M13 T-362, FR-114 /
+// ADR-0041 decision 8 — the 19th slot). The tier is the Q4 final ruling:
+// the official Feature Comparison Matrix puts webhooks OUTSIDE the
+// non-commercial column and INSIDE Pro X and up (webhook.md section 8,
+// high confidence), so MinTier=pro mirrors the boundary and community
+// instances keep the subscription writes gated (403 + the license header)
+// while reads stay open. Kind=KindFeature — no third kind (the ADR's
+// closed-set ruling; the PRD's "feature-int" interim spelling is a
+// naming note, not a routing difference).
+func Webhook() Addon {
+	return Addon{
+		ID:          "webhook",
+		Kind:        KindFeature,
+		MinTier:     license.TierPro,
+		DisplayName: "Webhooks",
+		Description: "Unified-event webhooks: subscribe to artifact, property and docker events over the /event/api/v1 plane with criteria filters, HMAC-signed delivery and a delivery outbox.",
+	}
+}

@@ -173,9 +173,15 @@ class HelloConan(ConanFile):
 	}
 
 	// ---- L-c5: remove through the remote ----
+	// L16's 2.x parity leg (T-369): the no-revision DELETE takes the WHOLE
+	// revision chain, so the chain endpoint itself answers 404 — a
+	// latest-chain regression would leave it 200 with one entry.
 	run("remove", "hello/1.0@myuser/stable", "-r", "binflow", "-c")
 	if code, _, _ := s.get(v2("conan-local", "hello/1.0/myuser/stable/latest")); code != 404 {
 		t.Fatalf("post-remove latest = %d, want 404", code)
+	}
+	if code, body, _ := s.get(v2("conan-local", "hello/1.0/myuser/stable/revisions")); code != 404 {
+		t.Fatalf("post-remove revisions = (%d, %s), want 404 (whole tree gone)", code, body)
 	}
 }
 

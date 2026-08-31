@@ -28,14 +28,14 @@ M10 introduced the **license & add-on tier system** (community floor /
 pro / enterprise; gate on repo creation and write verbs, reads never
 held hostage) with go/nuget/cargo as the first gated package types plus
 the artifact-properties system. M11 widens the matrix to twelve package
-types (conan, helm, rpm, debian, helmoci join at pro), adds the **runtime auth
+types (conan, helm, rpm, debian join at pro), adds the **runtime auth
 configuration plane** (LDAP/OIDC/SAML editable in the console or over
 REST, effective on save — no restart), the standalone
 **`binstore.yaml` storage-chain file** (ordered provider chain with
 fail-fast coexistence rules), GPG **keypair signing** for debian/rpm
 repository metadata, and the remote-cache **unused-cleanup engine**.
 
-M12 (in progress) lands the **artifact-lifecycle domain**: a
+M12 lands the **artifact-lifecycle domain**: a
 copy/move/zip/`archive!`/explode **operations family** and a **Trash
 Can** (local deletes are captured into the built-in `auto-trashcan`
 repository with five-tuple provenance properties, restorable over REST,
@@ -50,13 +50,29 @@ chunked-upload REST plane took the full **Artifactory MPU shape**
 (jfrog-cli verified), and the console's visual layer was re-skinned onto
 **native MUI defaults** (hand-written base.css 983 → 443 lines).
 
+M13 (done) adds the **webhook unified event plane**: the official
+seven-endpoint subscription family under `/binflow/event/api/v1` over a
+66-type/13-domain closed set (9 wired today), HMAC-SHA256 signed
+delivery with official retry semantics (5 attempts first-counted, fixed
+10s wait, 30s per-attempt budget, 4xx terminal), a per-instance
+troubleshooting ring and five Prometheus families — pro slot, with the
+SSRF posture defaulting to rejecting private targets. The **HelmOCI
+repository family completes** (remote pull-through with Bearer upstream
+auth and cache-first degradation, virtual member aggregation with
+first-seen routing), helm remotes gain the **`chartsBaseUrl` divergent
+fetch base** with `_external`/`_transitive` on-disk caching, conan v1
+recipe DELETE becomes a **whole-tree delete**, and the long-awaited
+**runtime knobs** land (`folder_download` six fields +
+`trashcan.retention_days`, restart-effective, echoed over
+`GET /api/v1/system/settings`).
+
 ## Package type matrix (with tiers)
 
 | Tier | Package types | Notes |
 |---|---|---|
 | **community** (floor — runs with no license at all) | generic, docker, maven, npm, pypi | The five core types: all M1–M9 capability, plus the properties system |
-| **pro** | go, nuget, cargo (M10) · conan, helm, rpm, debian (M11) · helmoci, artifact-operations + trash-can feature slots (M12; trash tier provisional) | Repo creation and pushes require a pro-or-higher license; existing artifacts stay readable when a license lapses |
-| **enterprise** | (feature slots: ha, xray-integration) | Placeholder slots; the bodies land in a later milestone (M13+) |
+| **pro** | go, nuget, cargo (M10) · conan, helm, rpm, debian (M11) · helmoci, artifact-operations + trash-can feature slots (M12; trash tier provisional) · webhook (M13) | Repo creation and pushes require a pro-or-higher license; existing artifacts stay readable when a license lapses |
+| **enterprise** | (feature slots: ha, xray-integration) | Placeholder slots; the bodies land in a later milestone (M14+) |
 
 Tier semantics in one line: **reads are never held hostage** — an expired or
 missing license only closes repo-creation (400) and write verbs
@@ -67,7 +83,8 @@ shows the live per-slot verdict. Full guide:
 | What | Where |
 |---|---|
 | Product vision & scope | [`PRODUCT.md`](PRODUCT.md) |
-| Milestones (M1 kernel → M12 lifecycle pass; M1–M11 done) | [`ROADMAP.md`](ROADMAP.md) |
+| Milestones (M1 kernel → M13 event-bus pass; M1–M13 done) | [`ROADMAP.md`](ROADMAP.md) |
+| M13 requirements (PRD: webhook event bus, HelmOCI completion, config knobs, behavior-debt closure) | [`docs/prd/milestone-13.md`](docs/prd/milestone-13.md) |
 | M12 requirements (PRD: NuGet completion, artifact lifecycle, behavior-debt closure) | [`docs/prd/milestone-12.md`](docs/prd/milestone-12.md) |
 | Artifactory full-feature matrix (213 entries — the M10+ roadmap backbone) | [`docs/reverse/artifactory-full-feature-matrix.md`](docs/reverse/artifactory-full-feature-matrix.md) |
 | Help documentation center (install / integrations / admin / API / FAQ) | [`docs/user/README.md`](docs/user/README.md) |

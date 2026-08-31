@@ -90,6 +90,12 @@ type repoConfig struct {
 	EnableTokenAuthentication *json.RawMessage `json:"enableTokenAuthentication,omitempty"`
 	ContentSynchronisation    *json.RawMessage `json:"contentSynchronisation,omitempty"`
 
+	// ChartsBaseURL is the helm remote's divergent charts fetch base
+	// (T-367, FR-117; helm.md section 6.1): transport only — repo.Service
+	// owns the per-protocol refusal (the field names a helm remote
+	// behavior; any other package type's PUT answers a by-name 400 there).
+	ChartsBaseURL string `json:"chartsBaseUrl,omitempty"`
+
 	// PriorityResolution is the per-repository virtual-resolution mark
 	// (PRD C3's two-bucket order); legal on local and remote members.
 	PriorityResolution *bool `json:"priorityResolution,omitempty"`
@@ -238,6 +244,7 @@ func (c repoConfig) configJSON(rclass string) (string, error) {
 		setI64(m, "unusedArtifactsCleanupPeriodHours", c.UnusedArtifactsCleanupPeriodHours)
 		setRawJSON(m, "enableTokenAuthentication", c.EnableTokenAuthentication)
 		setRawJSON(m, "contentSynchronisation", c.ContentSynchronisation)
+		setStr(m, "chartsBaseUrl", c.ChartsBaseURL)
 		setBool(m, "hardFail", c.HardFail)
 		setBool(m, "allowPrivateUpstream", c.AllowPrivateUpstream)
 		setBool(m, "priorityResolution", c.PriorityResolution)

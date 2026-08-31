@@ -52,6 +52,7 @@ type stack struct {
 	auth    *auth.Service    // the real chain (token issuance for client legs)
 	license *license.Manager // non-nil on the licensed assembly
 	h       *Handler         // the adapter under test (direct seam access)
+	dataDir string           // the engine root (the sweep's blob-face reconciliation walks it)
 }
 
 // handlerForTest exposes the adapter for the index-layer assertions that
@@ -153,7 +154,7 @@ func newStackOpt(t *testing.T, opt stackOptions) *stack {
 	ts := httptest.NewServer(s.Handler())
 	t.Cleanup(ts.Close)
 
-	return &stack{t: t, srv: ts, st: st, md: md, svc: svc, auth: authSvc, license: mgr, h: handler}
+	return &stack{t: t, srv: ts, st: st, md: md, svc: svc, auth: authSvc, license: mgr, h: handler, dataDir: dataDir}
 }
 
 // seedRepo writes a repository row directly through the metadata store

@@ -317,6 +317,12 @@ func (s *countingGetService) Delete(ctx context.Context, p *Principal, rk, path 
 func (s *countingGetService) List(ctx context.Context, p *Principal, rk, prefix string) ([]*metadata.Node, error) {
 	return s.inner.List(ctx, p, rk, prefix)
 }
+
+// RewriteSubtreePrefix delegates verbatim (the T-371 interface widening's
+// test-only ripple; the blob domain never re-homes subtrees).
+func (s *countingGetService) RewriteSubtreePrefix(ctx context.Context, rk, src, dst string) (*repo.SubtreeRewrite, error) {
+	return s.inner.RewriteSubtreePrefix(ctx, rk, src, dst)
+}
 func (s *countingGetService) CreateRepo(ctx context.Context, p *Principal, r *metadata.Repo) (*metadata.Repo, error) {
 	return s.inner.CreateRepo(ctx, p, r)
 }

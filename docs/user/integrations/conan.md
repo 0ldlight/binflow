@@ -5,8 +5,8 @@ sidebar_position: 27
 
 # Conan（C/C++）接入
 
-> 适用版本：M11（conan 包型为 **pro 档**能力——建仓/上传需 pro 及以上 license，见 [License 与 Add-ons 管理](../admin/license.md)；未解锁时既有制品仍可下载/构建）。
-> 验证客户端：**conan 2.31.2** 与 **conan 1.66.0** 双版本实测（T-308/T-312：create / upload / install / list / remove / remote login 全链 + latest 解析对账）。行为基准 `docs/reverse/conan.md`。
+> 适用版本：M11 起（conan 包型为 **pro 档**能力——建仓/上传需 pro 及以上 license，见 [License 与 Add-ons 管理](../admin/license.md)；未解锁时既有制品仍可下载/构建）。**M13 增补**：v1 `DELETE` 语义翻转为**整树删**（T-369）+ v1 files 通道存储布局对齐与启动迁移（T-371）。
+> 验证客户端：**conan 2.31.2** 与 **conan 1.66.0** 双版本实测（T-308/T-312：create / upload / install / list / remove / remote login 全链 + latest 解析对账；M13 增量 T-369/T-371 与本文 T-375 复测：多修订整树删 + 删后读腿 404）。行为基准 `docs/reverse/conan.md`。
 
 BinFlow 实现 conan 修订链协议：**local / remote（代理缓存）/ virtual（聚合）三类仓型齐备**。conan 2 客户端走 v2 端点族；conan 1.x 走 v1 数据面（仅 local 仓）。
 
@@ -64,11 +64,15 @@ conan install --requires=hello/1.0 -r binflow --build=missing
 conan list 'hello/1.0#*' -r binflow --format=json   # 修订史（JSON）
 ```
 
-### 5. 删除
+### 5. 删除（整树删——M13 起）
 
 ```bash
-conan remove 'hello/1.0' -r binflow         # 删 latest 修订链（v2 latest 404 为止）
+conan remove 'hello/1.0' -r binflow         # 删除整个坐标：全部修订 + 全部包修订
 ```
+
+- 语义与 v2 面 `DELETE conans/<ref>`（无修订段）**一面一真**：删的是**坐标根**（`<user>/<name>/<version>/<channel>/`）——`index.json`、全部 recipe 修订、全部包修订一并消失（实测：conan 1.66 对双修订坐标 `remove -r -f` 后，v2 revisions 404、旧修订的文件 404、`conan list '<ref>#*'` 报 `Couldn't find revisions`）。
+- 再删同一坐标 → 404（`Path not found`——v1 族 miss 文案；幂等基线 = 「已删即终态」）。
+- 写权限门照走（无 delete 权限 → 403）；trash can 开启时删除照常先捕获（见 [Trash can](../admin/trash-can.md)）。
 
 ## conan 1.x 客户端（仅 local 仓）
 
@@ -140,14 +144,18 @@ curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/conan/conan-local/reindex
 
 门 = 认证 + CanManageRepo(write)；仅 local 仓（其它类 400）；同步执行。
 
-## 边界与有意不做（M11）
+## 边界与有意不做（M11；M13 增补）
 
 | 项 | 行为 |
 |---|---|
 | remote search 代理 | 不做（引擎约束）——404 诚实文案；`install --requires` 按精确 ref 可用 |
 | `forceConanAuthentication` 仓配置 | 已实现（默认 false 维持普通 ACL；true 时匿名全端点 401+Basic 挑战——T-355A） |
 | 缓存落点 | remote 缓存落在仓自身命名空间（无 `-cache` 独立缓存仓） |
-| v1 DELETE 语义 | 删 latest 修订链（旧修订存活） |
+| v1 DELETE 语义 | **整树删（M13 起）**——坐标根全部修订与包修订一并删除；此前为「删 latest 修订链、旧修订存活」（T-369 翻转，与 v2 无修订 DELETE 一面一真） |
+
+### 存储布局对齐与启动迁移（M13 标注，D-F2）
+
+conan v1 files 通道（`conan upload --all` 的包文件 PUT）的存储布局自 M13 起对齐规格形态：`<坐标根>/<rRev>/package/<pid>/<pRev>/<文件>`（修订段对 v1 上传恒为 `0`）。**从 M12 及更早版本升级**的实例，若曾用 conan 1.x 写过包文件，**首次启动自动迁移**存量树（幂等：二次启动 `moved=0`；迁移日志一行 `conan v1 layout sweep: repo=<key> moved=<n> dedup=<n> conflicts=<n>`，conflict 非零升 WARN 并逐条列明）。迁移失败会**拒绝启动**（先失败优于服务一个读面 404 的半迁移树）；修复后重启从断点续跑。recipe 文件与 v2 面布局不受影响。
 
 ## 常见报错对照
 

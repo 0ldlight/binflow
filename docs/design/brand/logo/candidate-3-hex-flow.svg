@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 470" font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif">
+  <title>BinFlow logo 候选 3「六边容器·折线流」（hex-flow）规格表</title>
+  <desc>mark = 六边形容器（bin/registry 语义）内一条下折的流线收于实心箭头（flow）。横版 lockup = mark + BinFlow wordmark。含亮底/暗底/单色三版本与 16~32px 缩放样张。品牌主色对齐主题 token --bf-accent（亮 #0b6bcb / 暗 #4aa3ff），六边形用 --bf-text。</desc>
+
+  <!-- ================= 亮底行（--bf-surface-1 #ffffff） ================= -->
+  <rect x="0" y="0" width="760" height="225" fill="#ffffff"/>
+  <text x="24" y="30" font-size="12" fill="#9aa6b4">亮底（surface-1 #ffffff）—— mark 96px / 横版 lockup / 单色版</text>
+
+  <!-- mark 96px -->
+  <svg x="24" y="52" width="96" height="96" viewBox="0 0 48 48">
+    <path d="M24 3.5 41 13.3v21.4L24 44.5 7 34.7V13.3Z" fill="none" stroke="#1d232c" stroke-width="3.4" stroke-linejoin="round"/>
+    <path d="M10 17.5h10.5v12.5h7.5" fill="none" stroke="#0b6bcb" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M28 25 37 30.2 28 35.4Z" fill="#0b6bcb"/>
+  </svg>
+
+  <!-- 横版 lockup -->
+  <svg x="168" y="70" width="304" height="80" viewBox="0 0 152 40">
+    <svg x="0" y="2" width="36" height="36" viewBox="0 0 48 48">
+      <path d="M24 3.5 41 13.3v21.4L24 44.5 7 34.7V13.3Z" fill="none" stroke="#1d232c" stroke-width="3.4" stroke-linejoin="round"/>
+      <path d="M10 17.5h10.5v12.5h7.5" fill="none" stroke="#0b6bcb" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M28 25 37 30.2 28 35.4Z" fill="#0b6bcb"/>
+    </svg>
+    <text x="44" y="28.5" font-size="25" font-weight="700" letter-spacing="-0.5" fill="#1d232c">Bin<tspan fill="#0b6bcb">Flow</tspan></text>
+  </svg>
+
+  <!-- 单色版 -->
+  <svg x="560" y="74" width="48" height="48" viewBox="0 0 48 48" color="#55606e">
+    <path d="M24 3.5 41 13.3v21.4L24 44.5 7 34.7V13.3Z" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linejoin="round"/>
+    <path d="M10 17.5h10.5v12.5h7.5" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M28 25 37 30.2 28 35.4Z" fill="currentColor"/>
+  </svg>
+  <text x="556" y="140" font-size="11" fill="#9aa6b4">单色（currentColor）</text>
+
+  <text x="24" y="170" font-size="11.5" fill="#646f7b">设计注：六边形 = 容器/registry 惯用形；折线流 = 流水线（pipeline）逐级下泄。</text>
+  <text x="24" y="188" font-size="11.5" fill="#646f7b">风险注：六边形在制品生态里被多种技术标使用（辨识度摊薄），16px 下折线易糊。</text>
+
+  <!-- ================= 暗底行（--bf-bg #12161d） ================= -->
+  <rect x="0" y="225" width="760" height="160" fill="#12161d"/>
+  <text x="24" y="252" font-size="12" fill="#7f8a99">暗底（bg #12161d）—— mark 96px / 横版 lockup</text>
+
+  <svg x="24" y="270" width="96" height="96" viewBox="0 0 48 48">
+    <path d="M24 3.5 41 13.3v21.4L24 44.5 7 34.7V13.3Z" fill="none" stroke="#e9edf3" stroke-width="3.4" stroke-linejoin="round"/>
+    <path d="M10 17.5h10.5v12.5h7.5" fill="none" stroke="#4aa3ff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M28 25 37 30.2 28 35.4Z" fill="#4aa3ff"/>
+  </svg>
+
+  <svg x="168" y="288" width="304" height="80" viewBox="0 0 152 40">
+    <svg x="0" y="2" width="36" height="36" viewBox="0 0 48 48">
+      <path d="M24 3.5 41 13.3v21.4L24 44.5 7 34.7V13.3Z" fill="none" stroke="#e9edf3" stroke-width="3.4" stroke-linejoin="round"/>
+      <path d="M10 17.5h10.5v12.5h7.5" fill="none" stroke="#4aa3ff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M28 25 37 30.2 28 35.4Z" fill="#4aa3ff"/>
+    </svg>
+    <text x="44" y="28.5" font-size="25" font-weight="700" letter-spacing="-0.5" fill="#e9edf3">Bin<tspan fill="#4aa3ff">Flow</tspan></text>
+  </svg>
+
+  <!-- ================= 缩放样张 ================= -->
+  <rect x="0" y="385" width="760" height="85" fill="#ffffff"/>
+  <text x="24" y="410" font-size="12" fill="#9aa6b4">缩放样张：16 / 20 / 24 / 32 px（16px 下内流线建议简化为直箭，见 README 派生规则）</text>
+  <svg x="24" y="422" width="16" height="16" viewBox="0 0 48 48">
+    <path d="M24 3.5 41 13.3v21.4L24 44.5 7 34.7V13.3Z" fill="none" stroke="#1d232c" stroke-width="3.4" stroke-linejoin="round"/>
+    <path d="M10 17.5h10.5v12.5h7.5" fill="none" stroke="#0b6bcb" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M28 25 37 30.2 28 35.4Z" fill="#0b6bcb"/>
+  </svg>
+  <svg x="52" y="418" width="20" height="20" viewBox="0 0 48 48">
+    <path d="M24 3.5 41 13.3v21.4L24 44.5 7 34.7V13.3Z" fill="none" stroke="#1d232c" stroke-width="3.4" stroke-linejoin="round"/>
+    <path d="M10 17.5h10.5v12.5h7.5" fill="none" stroke="#0b6bcb" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M28 25 37 30.2 28 35.4Z" fill="#0b6bcb"/>
+  </svg>
+  <svg x="84" y="414" width="24" height="24" viewBox="0 0 48 48">
+    <path d="M24 3.5 41 13.3v21.4L24 44.5 7 34.7V13.3Z" fill="none" stroke="#1d232c" stroke-width="3.4" stroke-linejoin="round"/>
+    <path d="M10 17.5h10.5v12.5h7.5" fill="none" stroke="#0b6bcb" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M28 25 37 30.2 28 35.4Z" fill="#0b6bcb"/>
+  </svg>
+  <svg x="120" y="410" width="32" height="32" viewBox="0 0 48 48">
+    <path d="M24 3.5 41 13.3v21.4L24 44.5 7 34.7V13.3Z" fill="none" stroke="#1d232c" stroke-width="3.4" stroke-linejoin="round"/>
+    <path d="M10 17.5h10.5v12.5h7.5" fill="none" stroke="#0b6bcb" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M28 25 37 30.2 28 35.4Z" fill="#0b6bcb"/>
+  </svg>
+</svg>

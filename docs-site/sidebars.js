@@ -68,6 +68,7 @@ const sidebars = {
         'admin/storage-config', // M11 (T-328): binstore.yaml storage chain (+M12 fail-open section).
         'admin/artifact-operations', // M12 (T-347A): copy/move/zip/archive!/explode family (pro slot).
         'admin/trash-can', // M12 (T-347A): trash can capture/restore/retention (pro provisional).
+        'admin/webhooks', // M13 (T-375): outbound webhook subscription guide (pro slot).
       ],
     },
 

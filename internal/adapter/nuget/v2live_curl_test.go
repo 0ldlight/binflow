@@ -88,6 +88,17 @@ func TestLiveCurlMatrix(t *testing.T) {
 			t.Fatalf("#17 publish root (%s) = %d %s", target, status, body)
 		}
 	}
+	// D-10 (ruled 2026-08-30, T-378): the SAME bytes retransmitted by a
+	// w-only principal answer the 409 with section 5.1 arm ②'s exact
+	// wording — the flip's real-client leg (curl is this environment's
+	// client; the dotnet/nuget.exe faces are the T-287 matrix's).
+	s.seedUser(t, "livewriter", "livewriterpass")
+	s.seedGrant(t, "live-writer", "livewriter", "live-local", true, true, false)
+	if status, body := req(http.MethodPut, "/binflow/live-local/v2",
+		"-u", "livewriter:livewriterpass", "--data-binary", "@/tmp/t337-a.nupkg"); status != 409 ||
+		!strings.Contains(body, "Package already exist: live.a/1.0.0/live.a.1.0.0.nupkg") {
+		t.Errorf("D-10 same-bytes w-only retransmit = (%d, %.120q)", status, body)
+	}
 	// #18: publish with a path prefix.
 	if status, body := req(http.MethodPut, "/binflow/live-local/v2/team/live.a/1.1.0", append(auth, "--data-binary", "@/tmp/t337-b.nupkg")...); status != 201 {
 		t.Fatalf("#18 publish prefix = %d %s", status, body)
@@ -120,7 +131,11 @@ func TestLiveCurlMatrix(t *testing.T) {
 	if status, body := req(http.MethodGet, "/binflow/api/nuget/v2/live-local/Packages()"); status != 200 || !strings.Contains(body, "1.0.0") {
 		t.Errorf("#7 Packages = %d", status)
 	}
-	if status, body := req(http.MethodGet, `/binflow/api/nuget/v2/live-local/Packages(Id=%27Live.A%27,Version=%271.0.0%27)`); status != 200 || !strings.Contains(body, "<entry>") {
+	// The needle is "<entry" without the closing bracket: the rendered
+	// entry carries namespace declarations (<entry xmlns:d=...>), so the
+	// T-337-era "<entry>" spelling stopped matching the wire (a pre-
+	// existing drift T-378's live rerun surfaced; repaired in passing).
+	if status, body := req(http.MethodGet, `/binflow/api/nuget/v2/live-local/Packages(Id=%27Live.A%27,Version=%271.0.0%27)`); status != 200 || !strings.Contains(body, "<entry") {
 		t.Errorf("#8 single entry = %d", status)
 	}
 	if status, body := req(http.MethodGet, `/binflow/api/nuget/v2/live-local/Packages(Id=%27Live.A%27)/Id`); status != 200 || !strings.Contains(body, "<d:Id ") {

@@ -84,6 +84,22 @@ const (
 	// and DNS-rebinding pinning (ADR-0021). The default is deliberately permissive
 	// so existing deployments that replicate to private targets do not change.
 	DefaultAllowPrivateTarget = true
+	// The folder_download limit defaults (M13 T-368 / FR-118.1) are the
+	// repo-operations.md section 2.1 spec column — the same numbers
+	// internal/repo's DefaultFolderDownloadConfig ships, spelled here so
+	// the loader's default and the consumer's default stay independently
+	// checkable (the T-368 httpapi leg pins the equality; an unconfigured
+	// boot is byte-for-byte the M12 as-built).
+	DefaultFolderDownloadMaxSizeMb             int64 = 1024
+	DefaultFolderDownloadMaxFiles              int   = 5000
+	DefaultFolderDownloadMaxConcurrentRequests int   = 10
+	// DefaultTrashcanRetentionDays (M13 T-368 / FR-118.2) is the M12
+	// as-built retention window: config.xml trashcanConfig's
+	// retentionPeriodDays=14 (storage-layout.md section 5), the value the
+	// retention cron ran on before the knob existed — the default-unchanged
+	// red line. Mirrors repo.TrashDefaultRetentionDays (this package cannot
+	// import internal/repo; the equality is pinned by the T-368 httpapi leg).
+	DefaultTrashcanRetentionDays = 14
 )
 
 // Metadata driver enum (architecture section 8; postgres M1 enum-only).
@@ -191,6 +207,12 @@ func splitEnvKey(upper string) (path []string, kind envKind, ok bool) {
 		// BINFLOW_REPLICATION__ALLOW_PRIVATE_TARGET form maps through the "__"
 		// path below.
 		return []string{"replication", "allow_private_target"}, envBool, true
+	case "WEBHOOK_ALLOW_PRIVATE_TARGET":
+		// M13 (ADR-0041 decision 6): the webhook SSRF toggle's
+		// single-underscore spelling, mirroring the replication twin above;
+		// the generic BINFLOW_WEBHOOK__ALLOW_PRIVATE_TARGET form maps
+		// through the "__" path below.
+		return []string{"webhook", "allow_private_target"}, envBool, true
 	case "AUTH_OIDC_READONLY_GROUP":
 		// M7 (ADR-0026 decision 4): the documented single-underscore
 		// spelling; the generic BINFLOW_AUTH__OIDC__READONLY_GROUP form maps
@@ -260,8 +282,22 @@ func splitEnvKey(upper string) (path []string, kind envKind, ok bool) {
 		return parts, envIntPos, true
 	case "metrics.require_auth":
 		return parts, envBool, true
-	case "replication.allow_private_target":
+	case "replication.allow_private_target", "webhook.allow_private_target":
 		return parts, envBool, true
+	case "folder_download.enabled", "folder_download.enabled_for_anonymous",
+		"folder_download.enabled_empty_directories":
+		// M13 T-368 / FR-118.1: the folder_download switches, generic
+		// double-underscore form (BINFLOW_FOLDER_DOWNLOAD__ENABLED…).
+		return parts, envBool, true
+	case "folder_download.max_download_size_mb", "folder_download.max_files",
+		"folder_download.max_concurrent_requests":
+		// The three limits; positive integers (the YAML spelling alone can
+		// express 0 = unlimited, the hash_concurrency rule).
+		return parts, envIntPos, true
+	case "trashcan.retention_days":
+		// M13 T-368 / FR-118.2: the retention window (BINFLOW_TRASHCAN__RETENTION_DAYS);
+		// 0-as-default is a YAML-only spelling for the same reason.
+		return parts, envIntPos, true
 	case "addons.disabled":
 		// M10 T-283 (ADR-0032 / section 15.5): the circuit-breaker CSV, same
 		// reachability as its YAML key (BINFLOW_ADDONS__DISABLED).

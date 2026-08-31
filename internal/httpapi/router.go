@@ -212,6 +212,14 @@ func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 		notImplemented(w, "/binflow/api")
 	case strings.HasPrefix(rest, "/api/"):
 		s.dispatchAPI(w, r, strings.TrimPrefix(rest, "/api/"))
+	case rest == "/event" || rest == "/event/":
+		// Bare /binflow/event: no endpoint at this address (the /api shape).
+		notImplemented(w, "/binflow/event")
+	case strings.HasPrefix(rest, "/event/"):
+		// The unified-event webhook plane (M13 T-362, ADR-0041): the
+		// official Event-service namespace /event/api/v1/** under the
+		// BinFlow prefix.
+		s.dispatchEventAPI(w, r, strings.TrimPrefix(rest, "/event"))
 	case rest == "/v2" || strings.HasPrefix(rest, "/v2/"):
 		// /binflow/v2 is NOT a mirror of the root-level exception
 		// (ADR-0010 clause 2: no double mount — the Location/realm/catalog
@@ -438,6 +446,16 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleSystemCleanupPOST)
 	case rest == "v1/system/cleanup" && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleSystemCleanupGET)
+
+	// ---- /api/v1/system/settings (M13 T-368, FR-118; read-only echo) --
+	// The operator-knob echo face: the resolved folder_download six-field
+	// family and trashcan.retention_days, knob-scoped by design (never a
+	// config dump — no secrets, DSNs or paths; see system_settings.go).
+	// GET is the only verb with a route; PUT/POST/DELETE and any
+	// sub-path fall to the E-26 404 — these are restart-effective file
+	// knobs, not REST-editable state (the addons-plane posture).
+	case rest == "v1/system/settings" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleSystemSettings)
 
 	// ---- /api/v1/storage/migration (T-164) ----
 	case rest == "v1/storage/migration" && r.Method == http.MethodGet:

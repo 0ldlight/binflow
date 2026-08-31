@@ -3,10 +3,8 @@ package nuget
 import (
 	"archive/zip"
 	"bytes"
-	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/xml"
 	"errors"
 	"fmt"
@@ -67,12 +65,15 @@ type nuspecInfo struct {
 // errInvalidPackage marks every push-validation refusal (mapped to 400).
 var errInvalidPackage = errors.New("invalid package")
 
-// spooledPackage is one landed push body plus its measured digests.
+// spooledPackage is one landed push body plus its measured digest. The
+// SHA-256 measurement of the T-337 era is gone since D-10's ruling: its
+// only consumer was the v2 publish's declared-digest arm (the
+// idempotent-retransmit short-circuit T-378 removed); the sidecar the
+// official protocol spells is SHA-512.
 type spooledPackage struct {
 	file   *os.File
 	size   int64
 	sha512 []byte // raw digest; base64 at render time
-	sha256 []byte // raw digest; the declared-digest arm's spelling
 }
 
 // spoolNupkg streams the request body into a temp file, hashing SHA-512
@@ -84,7 +85,6 @@ func spoolNupkg(body io.Reader) (*spooledPackage, error) {
 	}
 	sp := &spooledPackage{file: f}
 	h := sha512.New()
-	h256 := sha256.New()
 	buf := make([]byte, 64<<10)
 	var n int64
 	for {
@@ -95,9 +95,6 @@ func spoolNupkg(body io.Reader) (*spooledPackage, error) {
 				return nil, fmt.Errorf("%w: package exceeds the %d MiB ceiling", errInvalidPackage, nupkgBodyLimit>>20)
 			}
 			if _, werr := h.Write(buf[:r]); werr != nil {
-				return nil, fmt.Errorf("hash upload: %w", werr)
-			}
-			if _, werr := h256.Write(buf[:r]); werr != nil {
 				return nil, fmt.Errorf("hash upload: %w", werr)
 			}
 			if _, werr := f.Write(buf[:r]); werr != nil {
@@ -116,7 +113,6 @@ func spoolNupkg(body io.Reader) (*spooledPackage, error) {
 	}
 	sp.size = n
 	sp.sha512 = h.Sum(nil)
-	sp.sha256 = h256.Sum(nil)
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return nil, fmt.Errorf("rewind spool: %w", err)
 	}
@@ -344,12 +340,4 @@ func (sp *spooledPackage) validatePush(target pkgRef) ([]byte, *nuspecInfo, erro
 // spelling (standard base64, trailing '=' kept, trailing newline none).
 func (sp *spooledPackage) sha512Base64() string {
 	return base64.StdEncoding.EncodeToString(sp.sha512[:])
-}
-
-// sha256Hex renders the measured SHA-256 as lowercase hex (the v2
-// publish's declared-digest arm — the blob-ref spelling the service
-// expects; same bytes retransmit idempotent, different bytes demand the
-// overwrite right).
-func (sp *spooledPackage) sha256Hex() string {
-	return hex.EncodeToString(sp.sha256[:])
 }

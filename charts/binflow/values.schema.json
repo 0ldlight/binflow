@@ -182,6 +182,60 @@
             "allowPrivateTarget": { "type": "boolean" }
           }
         },
+        "webhook": {
+          "type": "object",
+          "description": "Webhook SSRF posture (M13 T-362 / ADR-0041 decision 6). Rendered as webhook.allow_private_target — default FALSE, the deliberate asymmetry against replication (webhook targets are REST-CRUD dynamic, the classic SSRF escalation surface).",
+          "properties": {
+            "allowPrivateTarget": {
+              "type": "boolean",
+              "description": "Allow webhook subscription target URLs resolving to private (RFC 1918 / loopback / link-local) hosts. Default false (deny); true is an explicit opt-in for private-network receivers."
+            }
+          }
+        },
+        "folderDownload": {
+          "type": "object",
+          "description": "Directory-zip knob family (M13 T-368 / FR-118.1, the K52 snake_case ruling). Rendered as the folder_download section, six fields, all explicit (T-183 lesson). Resolved values echo at GET /binflow/api/v1/system/settings.",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Master switch for the folder-download endpoint (default false — the M12 as-built)."
+            },
+            "enabledForAnonymous": {
+              "type": "boolean",
+              "description": "Allow anonymous principals the endpoint (default false; only read when enabled=true)."
+            },
+            "maxDownloadSizeMb": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Maximum zipped download size in MB (default 1024; 0 = unlimited is a YAML-only spelling the env form cannot express)."
+            },
+            "maxFiles": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Maximum files in one folder download (default 5000)."
+            },
+            "maxConcurrentRequests": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Maximum concurrent folder-download requests (default 10)."
+            },
+            "enabledEmptyDirectories": {
+              "type": "boolean",
+              "description": "Include empty directories in the zip (default false)."
+            }
+          }
+        },
+        "trashcan": {
+          "type": "object",
+          "description": "Trashcan retention window (M13 T-368 / FR-118.2). Rendered as trashcan.retention_days.",
+          "properties": {
+            "retentionDays": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Days a soft-deleted node stays restorable before the hourly purge cron drops it (default 14 — the M12 as-built, the default-unchanged red line)."
+            }
+          }
+        },
         "storage": {
           "type": "object",
           "description": "Storage GC knobs beyond dataDir (the chart's config.storage block).",

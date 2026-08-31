@@ -112,6 +112,84 @@ jobs:
               "${UAT_HOME:-/opt/binflow-uat}" \
               "uat.${CIRCLE_SHA1:0:7}"
 
+  # E2E — the Playwright suite on this pipeline's own runner (T-361, FR-121
+  # AC2 / L21 前半). Mirror of the GitHub Actions e2e job (T-350), which
+  # stayed the AUTHORITATIVE signal for the e2e load-flake family until the
+  # GitHub account's Actions billing blocked job starts (observed 2026-08-28
+  # onward: "recent account payments have failed or your spending limit
+  # needs to be increased" — every job red at startup, zero steps run).
+  # This job re-homes the same recipe on the CI surface that still runs:
+  # the workspace binary from `build` (real SPA + docs embedded — the same
+  # artifact deploy_uat ships), a defaults boot (admin/password, ./data in
+  # the ephemeral job workspace), the three convergent REST seeds QA runs
+  # (m8/m9/m10), then a bare `npx playwright test --workers=2` = all three
+  # projects, every spec exactly once. Workers stay pinned to 2 — the same
+  # first-landing posture as T-350; raise only on three consecutive green
+  # main runs of BOTH e2e jobs as evidence.
+  #
+  # Trigger posture: main-only via the same branch-filter shape as
+  # deploy_uat (the 2026-08-28 one-CI-surface directive). Like deploy_uat
+  # it rides the build job's workspace rather than rebuilding — one
+  # artifact, one truth.
+  e2e:
+    executor: go
+    environment:
+      BASE: http://127.0.0.1:8080
+    steps:
+      - checkout_full
+      - attach_workspace:
+          at: .
+      - restore_cache:
+          keys:
+            - web-deps-v1-{{ checksum "web/package-lock.json" }}
+      # The runner only needs web/node_modules for the Playwright runner
+      # itself; the SPA under test is already embedded in the workspace
+      # binary (build ran make console + make docs).
+      - run:
+          name: Console deps (Playwright runner)
+          command: cd web && npm ci
+      - save_cache:
+          key: web-deps-v1-{{ checksum "web/package-lock.json" }}
+          paths: [ "~/project/web/node_modules" ]
+      - run:
+          name: Install Playwright browser (chromium)
+          command: cd web && npx playwright install --with-deps chromium
+      # Boot on defaults: :8080, ./data in the job workspace (ephemeral —
+      # every run starts from a bare instance, same as the GHA job), no
+      # binflow.yaml anywhere (the FR-6-AC5 bare-binary form).
+      - run:
+          name: Boot BinFlow (defaults + env)
+          command: ./bin/binflow-server serve > "$HOME/server.log" 2>&1
+          background: true
+      - run:
+          name: Wait for healthz (60s)
+          command: |
+            for i in $(seq 1 60); do
+              if curl -fsS "$BASE/healthz" > /dev/null 2>&1; then
+                echo "binflow healthy after ${i}s"
+                exit 0
+              fi
+              sleep 1
+            done
+            echo "binflow never became healthy; log tail:"
+            tail -50 "$HOME/server.log" || true
+            exit 1
+      - run:
+          name: Seed (m8 + m9 + m10, real REST plane)
+          command: |
+            cd web
+            node scripts/seed-m8.mjs
+            node scripts/seed-m9.mjs
+            node scripts/seed-m10.mjs
+      - run:
+          name: Playwright (all three projects, workers=2)
+          no_output_timeout: 30m
+          command: cd web && npx playwright test --workers=2
+      - run:
+          name: Server log on failure
+          when: on_fail
+          command: tail -200 "$HOME/server.log" || true
+
 workflows:
   version: 2
   uat:
@@ -121,6 +199,11 @@ workflows:
             branches:
               only: [main]
       - deploy_uat:
+          requires: [build]
+          filters:
+            branches:
+              only: [main]
+      - e2e:
           requires: [build]
           filters:
             branches:

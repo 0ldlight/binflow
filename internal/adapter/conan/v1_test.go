@@ -1,6 +1,7 @@
 package conan
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -244,8 +245,10 @@ func TestV1FilesChannel(t *testing.T) {
 	}
 }
 
-// TestV1Deletes: DELETE conans/<ref> removes the LATEST revision chain
-// (the older revisions survive — spec section 3.2's parenthetical);
+// TestV1Deletes: DELETE conans/<ref> removes the WHOLE coordinate tree —
+// every revision and the index with it (spec section 3.2's D8 row;
+// T-369 flipped the T-308 as-built "LATEST revision chain" posture, the
+// M12 assertion reversal carried by this ticket's exemption — FR-119.1).
 // packages/delete and remove_files do their named jobs.
 func TestV1Deletes(t *testing.T) {
 	s := newStack(t)
@@ -282,21 +285,78 @@ func TestV1Deletes(t *testing.T) {
 		t.Errorf("post-remove file = %d, want 404", code)
 	}
 
-	// DELETE the recipe: the LATEST chain goes, the older revision stays.
+	// DELETE the recipe: the WHOLE tree goes — both revisions and the
+	// index with them (T-369's D8 flip; the retired T-308 posture kept the
+	// older revision alive here).
 	code, _, _ = s.delete(v1("cn-local", "conans/hello/1.0/myuser/stable"))
 	if code != http.StatusOK {
 		t.Fatalf("v1 recipe delete = %d, want 200", code)
 	}
 	code, body, _ = s.get(v2("cn-local", "hello/1.0/myuser/stable/revisions"))
-	if code != http.StatusOK || !strings.Contains(body, revOld) || strings.Contains(body, revNew) {
-		t.Errorf("post-delete revisions = (%d, %s), want only the older revision", code, body)
+	if code != http.StatusNotFound || strings.Contains(body, revOld) || strings.Contains(body, revNew) {
+		t.Errorf("post-delete revisions = (%d, %s), want (404, no revision)", code, body)
 	}
-	// Deleting again removes that one.
-	if code, _, _ = s.delete(v1("cn-local", "conans/hello/1.0/myuser/stable")); code != http.StatusOK {
-		t.Errorf("second v1 delete = %d, want 200", code)
+	// The coordinate is wholly gone: a second delete answers the family 404.
+	if code, _, _ = s.delete(v1("cn-local", "conans/hello/1.0/myuser/stable")); code != http.StatusNotFound {
+		t.Errorf("second v1 delete = %d, want 404", code)
 	}
 	if code, _, _ = s.get(v2("cn-local", "hello/1.0/myuser/stable/latest")); code != http.StatusNotFound {
 		t.Errorf("post-second-delete latest = %d, want 404", code)
+	}
+}
+
+// TestD8WholeTreeRecipeDelete: the D8 flip (T-369) — a coordinate-root
+// recipe delete takes EVERY revision, whichever plane drives it. The v1
+// DELETE conans/<ref> (conan 1's remove leg) and the v2 no-revision DELETE
+// <ref> (L16's 2.x parity leg) serve one truth: post-delete, every read
+// leg of the coordinate answers 404 — including the older revision's tree
+// that the retired T-308 "latest chain" posture left alive.
+func TestD8WholeTreeRecipeDelete(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		path string // the recipe-delete target on its own seeded stack
+	}{
+		{name: "v1 coordinate delete (conan 1 remove)", path: v1("cn-local", "conans/hello/1.0/myuser/stable")},
+		{name: "v2 recipe delete (no revision segment)", path: v2("cn-local", "hello/1.0/myuser/stable")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := newStack(t)
+			s.seedRepo(t, "cn-local", repo.TypeLocal)
+			r := ref{name: "hello", version: "1.0", user: "myuser", channel: "stable"}
+			revOld, revNew := fixtureRev(1), fixtureRev(8)
+			pid, prev := fixturePID(2), fixtureRev(5)
+			for _, rev := range []string{revOld, revNew} {
+				if code, body, _ := s.putRecipeFile("cn-local", r, rev, "conanfile.py", []byte("body-"+rev)); code != http.StatusCreated {
+					t.Fatalf("recipe PUT %s = (%d, %s)", rev, code, body)
+				}
+			}
+			if code, body, _ := s.putPkgFile("cn-local", r, revOld, pid, prev, "conan_package.tgz", []byte("tgz")); code != http.StatusCreated {
+				t.Fatalf("pkg PUT = (%d, %s)", code, body)
+			}
+
+			code, _, _ := s.delete(tc.path)
+			if code != http.StatusOK {
+				t.Fatalf("recipe delete = %d, want 200", code)
+			}
+			// GET 404×2 — and the rest of the family: every revision gone.
+			for _, leg := range []struct{ name, path string }{
+				{"v1 snapshot", v1("cn-local", "conans/hello/1.0/myuser/stable")},
+				{"v2 revisions", v2("cn-local", "hello/1.0/myuser/stable/revisions")},
+				{"v2 latest", v2("cn-local", "hello/1.0/myuser/stable/latest")},
+				{"old revision file", v2("cn-local", "hello/1.0/myuser/stable/revisions/"+revOld+"/files/conanfile.py")},
+				{"new revision file", v2("cn-local", "hello/1.0/myuser/stable/revisions/"+revNew+"/files/conanfile.py")},
+				{"old revision package file", v2("cn-local", "hello/1.0/myuser/stable/revisions/"+revOld+"/packages/"+pid+"/revisions/"+prev+"/files/conan_package.tgz")},
+				{"v1 digest", v1("cn-local", "conans/hello/1.0/myuser/stable/digest")},
+			} {
+				if code, _, _ := s.get(leg.path); code != http.StatusNotFound {
+					t.Errorf("post-delete %s = %d, want 404", leg.name, code)
+				}
+			}
+			// The index went with the tree: a re-delete is the family 404.
+			if code, _, _ := s.delete(tc.path); code != http.StatusNotFound {
+				t.Errorf("second recipe delete = %d, want 404", code)
+			}
+		})
 	}
 }
 
@@ -358,6 +418,109 @@ func TestV1PackagesDeleteForms(t *testing.T) {
 	if code, _, _ := s.post(v1("cn-local", "conans/hello/1.0/myuser/stable/packages/delete"),
 		[]byte(`{"package_ids":["not!!"]}`), nil); code != http.StatusBadRequest {
 		t.Errorf("illegal pid packages/delete = %d, want 400", code)
+	}
+}
+
+// TestV1FilesChannelPackageLayout (T-371 / D-F2, ADR-0042 AC-1): the FIXED
+// channelFileName trim — a v1 channel package PUT lands the spec section 4
+// layout <coordinateRoot>/0/package/<pid>/0/<file> (tree-asserted, no
+// double-spelled row anywhere), the v2 package files list and the v1
+// package snapshot carry BARE file names, and the ref search recovers its
+// settings/options/requires from conaninfo.txt (the D-F2 empty-map
+// defect's first visible face).
+func TestV1FilesChannelPackageLayout(t *testing.T) {
+	s := newStack(t)
+	s.seedRepo(t, "cn-local", repo.TypeLocal)
+	pid := fixturePID(1)
+
+	put := func(p string, b []byte) {
+		t.Helper()
+		if code, body, _ := s.put(v1("cn-local", "files/myuser/hello/1.0/stable/"+p), b, nil); code != http.StatusCreated {
+			t.Fatalf("channel PUT %s = (%d, %s), want 201", p, code, body)
+		}
+	}
+	put("export/conanfile.py", []byte("recipe"))
+	put("0/package/"+pid+"/conaninfo.txt",
+		[]byte(conaninfoFixture([]string{"os=Macos", "arch=x86_64"}, []string{"shared=True"}, []string{"zlib/1.2.11"})))
+	put("0/package/"+pid+"/conan_package.tgz", []byte("tgz"))
+
+	// The tree assertion: exactly the spec paths, nothing double-spelled
+	// (the storage-level truth the sweep's predicate keys on).
+	nodes, err := s.svc.List(context.Background(), adminPrincipal(), "cn-local", "myuser/hello/1.0/stable")
+	if err != nil {
+		t.Fatalf("list tree: %v", err)
+	}
+	want := map[string]bool{
+		"myuser/hello/1.0/stable/index.json":                                true,
+		"myuser/hello/1.0/stable/0/.timestamp":                              true,
+		"myuser/hello/1.0/stable/0/export/conanfile.py":                     true,
+		"myuser/hello/1.0/stable/0/package/" + pid + "/index.json":          true,
+		"myuser/hello/1.0/stable/0/package/" + pid + "/0/.timestamp":        true,
+		"myuser/hello/1.0/stable/0/package/" + pid + "/0/conaninfo.txt":     true,
+		"myuser/hello/1.0/stable/0/package/" + pid + "/0/conan_package.tgz": true,
+	}
+	got := map[string]bool{}
+	for _, n := range nodes {
+		if strings.Contains(n.Path, "/0/package/"+pid+"/0/package/") {
+			t.Errorf("double-spelled row landed: %s (the D-F2 bug)", n.Path)
+		}
+		if !strings.HasSuffix(n.Path, "/") {
+			got[n.Path] = true
+		}
+	}
+	if len(got) != len(want) {
+		t.Errorf("file rows = %v, want exactly %v", got, want)
+	}
+	for p := range want {
+		if !got[p] {
+			t.Errorf("tree lacks the spec path %s (have %v)", p, got)
+		}
+	}
+
+	// The v2 package files list carries bare names.
+	code, body, _ := s.get(v2("cn-local", "hello/1.0/myuser/stable/revisions/0/packages/"+pid+"/revisions/0/files"))
+	if code != http.StatusOK {
+		t.Fatalf("v2 package files = (%d, %s)", code, body)
+	}
+	var listing filesResponse
+	if err := json.Unmarshal([]byte(body), &listing); err != nil {
+		t.Fatalf("files body %q: %v", body, err)
+	}
+	if len(listing.Files) != 2 {
+		t.Errorf("v2 files keys = %v, want the two bare names", listing.Files)
+	}
+	for name := range listing.Files {
+		if strings.Contains(name, "/") {
+			t.Errorf("v2 files key %q carries a path prefix (the D-F2 defect)", name)
+		}
+	}
+
+	// The v1 package snapshot carries bare names (the conan 1.66 reference
+	// server's own key spelling).
+	code, body, _ = s.get(v1("cn-local", "conans/hello/1.0/myuser/stable/packages/"+pid))
+	if code != http.StatusOK {
+		t.Fatalf("package snapshot = (%d, %s)", code, body)
+	}
+	var snap snapshotBody
+	if err := json.Unmarshal([]byte(body), &snap); err != nil {
+		t.Fatalf("snapshot body %q: %v", body, err)
+	}
+	if _, ok := snap["conaninfo.txt"]; !ok || len(snap) != 2 {
+		t.Errorf("package snapshot keys = %v, want the two bare names", snap)
+	}
+
+	// The ref search recovers the conaninfo fields (the `-q` filter's data).
+	code, body, _ = s.get(v1("cn-local", "conans/hello/1.0/myuser/stable/search"))
+	if code != http.StatusOK {
+		t.Fatalf("ref search = (%d, %s)", code, body)
+	}
+	var meta map[string]*pkgMeta
+	if err := json.Unmarshal([]byte(body), &meta); err != nil {
+		t.Fatalf("ref search body %q: %v", body, err)
+	}
+	if m := meta[pid]; m == nil || m.Settings["os"] != "Macos" || m.Options["shared"] != "True" ||
+		m.Requires["zlib/1.2.11"] != "" {
+		t.Errorf("ref search row = %v, want the conaninfo fields (the D-F2 empty-map defect)", meta[pid])
 	}
 }
 

@@ -1,6 +1,6 @@
 # PRD — M13 Artifactory 对齐第四程：Webhook 统一事件总线 + HelmOCI 三态齐装 + 配置旋钮与文面债收口
 
-> **PRD 状态：v1.0（2026-08-30，待 conductor 审）**。主轴选题（PM，§2.2 留痕）：**Webhook 统一事件总线**——主矩阵缺口 6（36 事件 CloudEvents envelope + HTTP outbound + 订阅管理），inv-4 判定「可整体平移、无需模拟 Access 拆分」；**取证路径特例**：反编译集合无 webhook addon（full-feature-matrix §待验证 L365）→ **JFrog 官方 REST 文档为唯一行为基准**，inv-4 §I/§K 反编译锚点仅补空白。范围基线：ROADMAP「M12 未纳入项」（票级遗留聚类 / P2 登记维持 / 运维尾巴）。**HA 本体维持 Q1 终裁「单列专程」——前置 = PRODUCT.md「明确不做」修订解禁（用户动作，截稿未发生），本 PRD 不排任何 HA 工作项**。19:05 行为逐项对齐条款为常设工作准绳（M11 §1.4 制度延续）。
+> **PRD 状态：v1.1（2026-08-30，待 conductor 审；v1.1 = v1.0 + T-370 文面修正——T-358 webhook.md 规格活化后的校准：重试语义对齐官方基准〔固定间隔 10s/4xx 不重试〕、事件数 36→13 域 66 型、envelope 字段修正、SSRF 键落定、Q4 取证结论、K47~K50 回填；详见 §0 修订记录）**。主轴选题（PM，§2.2 留痕）：**Webhook 统一事件总线**——主矩阵缺口 6（36 事件〔inv-4 I1 内部总线枚举口径；官方可订阅面实为 66 型/13 域——webhook.md §0 校准〕CloudEvents envelope + HTTP outbound + 订阅管理），inv-4 判定「可整体平移、无需模拟 Access 拆分」；**取证路径特例**：反编译集合无 webhook addon（full-feature-matrix §待验证 L365）→ **JFrog 官方 REST 文档为唯一行为基准**，inv-4 §I/§K 反编译锚点仅补空白。范围基线：ROADMAP「M12 未纳入项」（票级遗留聚类 / P2 登记维持 / 运维尾巴）。**HA 本体维持 Q1 终裁「单列专程」——前置 = PRODUCT.md「明确不做」修订解禁（用户动作，截稿未发生），本 PRD 不排任何 HA 工作项**。19:05 行为逐项对齐条款为常设工作准绳（M11 §1.4 制度延续）。
 
 | 项 | 值 |
 |---|---|
@@ -17,6 +17,7 @@
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | v1.0 | 2026-08-30 | 初版草案（待 conductor 审）：M13 范围（主轴选题 Webhook 事件总线 + ROADMAP「M12 未纳入项」票级遗留聚类全收编 + P2 登记维持四项 + 运维尾巴三项）、FR-114~FR-122、档位矩阵增量 1 行（webhook 槽 Q4）、契约矩阵 11 条、L01~L24、开放问题 Q1~Q7 带暂行；随稿完成 ROADMAP M13 立项行 + 当前里程碑头切换（PM 职责内两处） |
+| v1.1 | 2026-08-30 | T-370 文面修正（规格活化后校准——效力序：webhook.md 规格票 > PRD 暂行值）：① 重试语义——FR-115.2/AC2/§1.2 量化门槛/L07/场景 B 五处「指数退避/退避序列」修正为官方基准（重试仅发送失败或 HTTP≥500，4xx/3xx 不重试；固定间隔 10s 非指数退避；retryCount 5 首试计入；单次超时 30s；死信为 BinFlow additive 扩展）；**登记 ADR-0041 决策 4 投递参数与 webhook.md §5 冲突，待 architect 锚点回填修订（K50/BOARD T-370 裁定行）**；② 事件数——「36 事件」规范表述更新为「13 域 66 型」（36 为 inv-4 I1 内部统一总线枚举层）+ 覆盖界落定（本体 9 型 / 休眠 57 型）；③ envelope——FR-114 AC3 删「时间戳」字段断言（artifact 域载荷无时间戳字段，勿发明——T-358 §1-8）；④ SSRF 键名落定（官方 `event.security.blacklist.enabled` ↔ BinFlow `webhook.allow_private_target`，ADR-0041 决策 6）；⑤ Q4 取证结论入文（官方矩阵 Non-commercial ❌/Pro ✅——建议维持 pro+）+ kind 定 KindFeature（ADR-0041 决策 8）；⑥ K47~K50 回填（T-358 AC3 转办 PM 事项） |
 
 ---
 
@@ -42,8 +43,8 @@ M12 以 `m12-done`（2026-08-30，PR #42 合并 main）收官：NuGet 对齐 bun
 | 指标 | M13 门槛 | 来源 |
 |---|---|---|
 | Webhook 订阅面 | 订阅 CRUD + test 端点 curl 全链绿（wire 照官方文档——webhook.md 逐端点）；过滤器命中/未命中双臂 | FR-114 |
-| 事件触发面 | artifact/artifactProperty/docker 域事件在发布/删除/属性/推送路径真实触发（envelope 逐字段断言）；36 事件类型注册与触发源覆盖界照 K48 定案 | FR-114 |
-| 投递可靠性 | kill -9 后 outbox 事件零丢补投；接收器 500 → 退避重试恢复；超上限死信可查；secret 签名接收侧校验绿 | FR-115 |
+| 事件触发面 | artifact/artifactProperty/docker 域事件在发布/删除/属性/推送路径真实触发（七字段 envelope 逐字段断言——artifact 域载荷无时间戳字段）；事件类型注册（13 域 66 型全表；36 为内部总线枚举层）与触发源覆盖界照 K48 定案 | FR-114 |
+| 投递可靠性 | kill -9 后 outbox 事件零丢补投；接收器 500 → 固定间隔 10s 重试恢复（4xx 不重试负面臂）；超上限死信可查；secret 签名接收侧校验绿 | FR-115 |
 | 真实消费者 | dogfood Jenkins 条件腿或容器接收器腿全绿（dep: 用户环境时条件票留痕） | FR-115 |
 | HelmOCI remote | 上游 push → 经 BinFlow remote pull 字节/digest 一致；二次命中本地缓存（上游不回源）；上游认证腿绿 | FR-116 |
 | HelmOCI virtual | local+remote 成员聚合 pull 双域制品；混仓校验维持 400 | FR-116 |
@@ -56,7 +57,7 @@ M12 以 `m12-done`（2026-08-30，PR #42 合并 main）收官：NuGet 对齐 bun
 
 ### 1.3 上游依赖与并行关系（含分票提示）
 
-- **前置产物（拆票前）**：① **webhook.md**（reverse-engineer，新建——官方文档逐端点出处 + 36 事件清单〔域分组与 BinFlow 触发源覆盖界〕+ CloudEvents envelope 形态 + secret/签名 + 过滤器 + 投递语义；inv-4 I2~I5/K3 反编译锚点补白；tech-lead 就绪度确认）；② **ADR-0041**（architect——事件总线架构：outbox 载体〔SQLite/PG 两方言〕/投递队列与退避曲线/重试上限与死信/secret 存储与签名/订阅 URL SSRF 策略〔复用 M3 Guard + 私网开关语义〕/与审计事件族的关系）；③ 视 Q 裁定 **ADR-0042**（D-F2 存量布局迁移方案：启动期 vs 惰性、回滚）；④ helm.md 增量段（chartsBaseUrl/_external as-built 锚点细化——S8/S10 已高置信，增量小，随 FR-117 票）；⑤ trash-can.md / repo-operations.md 旋钮行回写随票（T-330 模式，不单列前置）。
+- **前置产物（拆票前）**：① **webhook.md**（reverse-engineer；**已交付 T-358〔2026-08-30〕**——官方文档逐端点出处 + 事件清单〔13 域 66 型 + 覆盖界：本体 9 型/休眠 57 型〕+ CloudEvents envelope 形态 + secret/签名 + 过滤器 + 投递语义；inv-4 I2~I5/K3 反编译锚点补白；tech-lead 就绪度确认）；② **ADR-0041**（architect——事件总线架构：outbox 载体〔SQLite/PG 双方言〕/投递队列与重试策略/重试上限与死信/secret 存储与签名/订阅 URL SSRF 策略〔复用 M3 Guard + 私网开关语义〕/与审计事件族的关系；**Accepted 2026-08-30〔T-359〕——决策 4 投递参数与 webhook.md §5 官方值冲突，待锚点回填修订〔见 FR-115.2 注/K50〕**）；③ 视 Q 裁定 **ADR-0042**（D-F2 存量布局迁移方案：启动期 vs 惰性、回滚）；④ helm.md 增量段（chartsBaseUrl/_external as-built 锚点细化——S8/S10 已高置信，增量小，随 FR-117 票）；⑤ trash-can.md / repo-operations.md 旋钮行回写随票（T-330 模式，不单列前置）。
 - **依赖序**：FR-114/115 dep webhook.md + ADR-0041（规格/ADR 先行，事件织入大票窗口独占）；FR-116 dep helm.md 增量（remote 代理链设计）且与 FR-117 同域先后脚（remote 引擎 absolute-URL 缝在 FR-117 消费）；FR-119.2 dep ADR-0042；FR-120 为 PM 票随时可动（D-10 裁定材料不阻塞任何实现票）；FR-121 devops 独立可首波并行；FR-122.1 FE 票 dep 锚册纪律（console-m8 回写先行或同票）。
 - **实现分区与分票提示（宽度 ≤2 内建）**：FR-114 拆 2 票（规格票 → 订阅 REST + 事件织入大票〔internal/webhook + httpapi，窗口独占〕）；FR-115 拆 2 票（投递引擎〔outbox + 重试/死信/签名〕→ 控制台最小面 + 真实消费者 e2e〔web/〕）；FR-116 拆 2 票（remote pull-through → virtual 聚合）；FR-117 一票（internal/remote 引擎缝 + repo config）；FR-118 一票（internal/config）；FR-119 拆 2 票（D8 翻转小票 / D-F2 迁移票——同 area 串行）；FR-120 一票（PM）；FR-121 一票（devops）；FR-122 拆 2 票（FE〔web/〕/ docs 票）；QA 两票（中期回归 + 终验）；tech-writer 一~两票；release 一票（烟测 + **UAT 随里程碑 PR 首跑**——M12 T-355 未执行教训，T-356 §6 留痕）。估 **21~26 票**（含条件票 slot：symbol server Q2 / docker remote 顺车 Q5 / D-10 翻转 Q3）。
 - **QA 并行面**：webhook 需可编排接收器夹具（容器 httpbin/本地脚本接收器 + 故障注入 500/超时）+ kill -9 编排；HelmOCI remote 需上游夹具（自指 BinFlow helmoci local〔M12 已有〕+ mock registry 认证腿）；D-F2 需存量双拼布局树夹具（T-340 复现脚本可复用）；retention 需短周期时钟夹具（M12 cron 单测 13/15 天臂已在）；断言反转两处（conan D8 / folderDownload 开关化）+ 一处服务端布局对齐（D-F2）须 PRD 回写核实。
@@ -77,7 +78,7 @@ M12 以 `m12-done`（2026-08-30，PR #42 合并 main）收官：NuGet 对齐 bun
 
 | # | 来源（指令/裁决/登记） | 本 PRD 功能需求 | 优先级 |
 |---|---|---|---|
-| A | 主轴选题（PM，§2.2 留痕）+ 主矩阵缺口 6 + inv-4 §I | FR-114（Webhook 订阅管理 REST + 36 事件类型注册 + 事件源织入）+ FR-115（投递引擎：outbox/重试/死信/签名/SSRF + 控制台最小面 + 可观测） | P0（FR-115 FE 面 P1） |
+| A | 主轴选题（PM，§2.2 留痕）+ 主矩阵缺口 6 + inv-4 §I | FR-114（Webhook 订阅管理 REST + 事件类型注册〔13 域 66 型〕+ 事件源织入）+ FR-115（投递引擎：outbox/重试/死信/签名/SSRF + 控制台最小面 + 可观测） | P0（FR-115 FE 面 P1） |
 | B | ROADMAP「M12 未纳入项」票级遗留（D-5 翻转点） | FR-116（HelmOCI remote pull-through + virtual 聚合——docker 面首个 remote 数据链） | P0（remote）/ P1（virtual） |
 | B | 票级遗留（T-313 D-2/D-3 + T-342 评估结论） | FR-117（chartsBaseUrl 分体基址 + `_external` 落盘缓存——引擎 absolute-URL 缝票） | P1 |
 | B | 票级遗留（旋钮两枚，缝已备） | FR-118（folderDownloadConfig 六字段 + trashcan.retention_days——YAML 旋钮化） | P1 |
@@ -108,7 +109,7 @@ M12 以 `m12-done`（2026-08-30，PR #42 合并 main）收官：NuGet 对齐 bun
 | conan remote search 上游代理 | 维持登记（T-348 §4-2 P3 候选——cargo 已跟进，conan 404 诚实文案在案；用户可推翻） |
 | statisticsEnabled / sourceOrigin 行为化、属性复制协议面扩列、keypair T-319 / SAML T-331 差异族、crates.io 直连双主机 | 维持在案（各票报告在档——M12 §2.2 既定） |
 | D-10 同字节幂等行为翻转 | **待裁不动**（Q3——终裁前维持 as-built 201；终裁若翻转走条件小票） |
-| 36 事件中 BinFlow 无本体域的触发源实现（build/releaseBundle/distribution/curation） | Q6——暂行「类型注册休眠」（可订阅、无触发源、文档如实）；不伪造触发 |
+| 66 型中 BinFlow 无本体域的 57 型触发源实现（build/releaseBundle/distribution/curation/xray/app_trust 等——webhook.md 覆盖界逐条标注） | Q6——暂行「类型注册休眠」（可订阅、无触发源、文档如实）；不伪造触发 |
 | 逐行翻译 Java→Go / 复制 JFrog license 密钥格式 | **永久不做**（ADR-0001） |
 
 ---
@@ -116,7 +117,7 @@ M12 以 `m12-done`（2026-08-30，PR #42 合并 main）收官：NuGet 对齐 bun
 ## 3. 用户与场景（M13 视角）
 
 - **场景 A（平台工程师，CI 联动）**：Jenkins 流水线订阅 BinFlow 仓的制品发布事件——`mvn deploy` 落仓即触发下游构建 job（T-247 dogfood 栈真实复现）；secret 签名让接收端可验真。
-- **场景 B（运维，可靠投递）**：webhook 接收端短暂宕机——BinFlow 退避重试、恢复后补投；持续失败入死信可查；BinFlow 自身重启事件不丢（outbox 持久）。
+- **场景 B（运维，可靠投递）**：webhook 接收端短暂宕机——BinFlow 固定间隔重试（10s）、恢复后补投；持续失败入死信可查；BinFlow 自身重启事件不丢（outbox 持久）。
 - **场景 C（Helm 平台工程师）**：helmoci 仓三态齐装——remote 代理上游 registry（首拉回源、二次命中缓存），虚仓聚合本地私有 chart 与远端公共 chart；上游 chart 托管在自定义基址时 chartsBaseUrl 独立配置。
 - **场景 D（管理员，配置面）**：按需打开目录 zip 下载（默认关——文案逐字不变）；回收站保留期按合规要求从 14 天调至 30 天，YAML 一键。
 - **场景 E（conan 用户）**：v1 删除行为对齐（坐标根整树删——多修订全消）；存量 v1 files 树平滑迁移，`-q` 过滤恢复工作。
@@ -130,7 +131,7 @@ M12 以 `m12-done`（2026-08-30，PR #42 合并 main）收官：NuGet 对齐 bun
 
 ### 4.1 Webhook 统一事件总线·上（主轴选题，P0）
 
-#### FR-114 订阅管理 REST + 36 事件注册 + 事件源织入（internal/webhook + httpapi + 各 adapter 事件缝；前置 webhook.md + ADR-0041）
+#### FR-114 订阅管理 REST + 事件注册（13 域 66 型）+ 事件源织入（internal/webhook + httpapi + 各 adapter 事件缝；前置 webhook.md〔已交付 T-358〕+ ADR-0041）
 
 **用户故事**：
 - 作为 CI/CD 工程师，我用 curl（或 Jenkins 配置面）创建 webhook 订阅——指定事件类型、仓/路径过滤器、回调 URL 与 secret；发布/删除制品后接收端立即收到结构化事件。
@@ -138,17 +139,17 @@ M12 以 `m12-done`（2026-08-30，PR #42 合并 main）收官：NuGet 对齐 bun
 
 行为规格：
 
-- **114.1 前置规格票（reverse-engineer）**：**docs/reverse/webhook.md 新建**——官方文档逐端点出处（订阅 CRUD/test 族 + 过滤器形态 + secret/签名 + envelope 字段集）；36 事件清单按域分组（artifact / artifactProperty / docker / build / releaseBundle / distribution / curation / … 以官方文档为准）并逐条标注 **BinFlow 触发源覆盖界**（有本体域 → 织入点；无本体域 → 注册休眠，Q6）；inv-4 §I（I2 管理在 Access 的平移判定 / I3 outbound dispatcher / I4 事件注册 REST / I5 worker events 40+ 类型清单）与 §K3（outbox 六方言 DDL）作为反编译锚点补白；tech-lead 就绪度确认。
+- **114.1 前置规格票（reverse-engineer；已交付 T-358，2026-08-30）**：**docs/reverse/webhook.md**——官方文档逐端点出处（订阅 CRUD/test 七端点 + 过滤器形态 + secret/签名 + envelope 字段集）；事件清单按域分组（**13 域 66 型**——36 为 inv-4 I1 内部统一总线枚举层，两层关系见 webhook.md §0）并逐条标注 **BinFlow 触发源覆盖界**（本体 9 型 → 织入点；休眠 57 型 → 注册休眠，Q6）；inv-4 §I（I2 管理在 Access 的平移判定 / I3 outbound dispatcher / I4 事件注册 REST / I5 worker events 40+ 类型清单）与 §K3（outbox 六方言 DDL）作为反编译锚点补白；tech-lead 就绪度确认（M13 拆票在案）。
 - **114.2 订阅 REST 族**：CRUD + test（wire 逐端点照 webhook.md；基座前缀差异沿 E-26 口径）；权限门（admin 或 ADR-0041 定案的专用权限——`internal:webhook` 权限常量的 BinFlow 映射归 ADR）；订阅校验（URL 合法性/事件类型闭集/过滤器语法）。
-- **114.3 事件源织入**：在既有统一删除 seam、copy/move 操作族、属性系统、各协议发布路径上旁路取事件（M12 生命周期域底座复用；outbox 异步——主路径零变化）；P0 触发域 = artifact 族（deployed/deleted/copied/moved/properties）+ docker 族（pushed/deleted/tag*）；其余域照 K48 覆盖界定案。
-- **114.4 门控**：新 addon 槽 `webhook`（第 19 槽，kind 暂定 feature-int）——community locked / pro+ unlocked（**Q4 待裁**：随 webhook.md 取证官方 license 标注，community 可用则翻转 unlocked）；三缝语义自动生效（FR-85 机制复用，事件织入面降级为不入箱）。
+- **114.3 事件源织入**：在既有统一删除 seam、copy/move 操作族、属性系统、各协议发布路径上旁路取事件（M12 生命周期域底座复用；outbox 异步——主路径零变化）；P0 触发域 = **本体 9 型**（artifact 5 + artifactProperty 2 + docker pushed/deleted——逐型清单与织入点照 webhook.md 覆盖界标注；docker tag* 无独立织入点归休眠）；其余 57 型照 K48 覆盖界定案（注册休眠）。
+- **114.4 门控**：新 addon 槽 `webhook`（第 19 槽，kind = **KindFeature**——ADR-0041 决策 8 已裁不新增第三值，「feature-int」为注记性写法）——community locked / pro+ unlocked（**Q4 待终裁确认**：webhook.md 取证在案——官方功能矩阵 Webhooks 行 Non-commercial ❌/Pro ✅，T-358 §1-6 **建议维持 pro+ 不翻转**）；三缝语义自动生效（FR-85 机制复用，事件织入面降级为不入箱）。
 - **114.5 与 Build-info 的边界**：build/releaseBundle 等无本体域事件类型按 Q6 处置（暂行注册休眠）——不伪造触发源。
 
 验收标准（AC）：
 
-- **AC1（规格票交付）**：webhook.md 落 docs/reverse/（官方文档出处逐条 + 36 事件清单 + 覆盖界标注 + 置信度标定）；tech-lead 拆票就绪确认。
+- **AC1（规格票交付）**：webhook.md 落 docs/reverse/（官方文档出处逐条 + 13 域 66 型事件清单 + 覆盖界标注 + 置信度标定）；tech-lead 拆票就绪确认。**（已兑现：T-358 done 2026-08-30）**
 - **AC2（订阅 CRUD + test）**：curl 全链——create（201/返回 id 形态照规格）→ get → list → update → delete；`test` 端点向接收器真发一条测试事件（接收器侧断言信封）。
-- **AC3（事件触发）**：generic 仓 PUT 制品 → 接收器收到 artifact 域 deployed 事件（envelope 字段逐条断言：事件类型/repo/path/时间戳/订阅标识——照 webhook.md）；DELETE / copy / move / 属性 PUT 各触发对应事件；docker push → docker 域事件（dind 腿）。
+- **AC3（事件触发）**：generic 仓 PUT 制品 → 接收器收到 artifact 域 deployed 事件（七字段 envelope 逐字段断言照 webhook.md——**artifact 域载荷无时间戳字段，勿发明**〔T-358 §1-8〕；token 触发时 userContext.isToken=true 臂）；DELETE / copy / move / 属性 PUT 各触发对应事件；docker push → docker 域事件（dind 腿）。
 - **AC4（过滤器）**：订阅限定 repo/path 过滤 → 命中发、未命中不发（接收器计数双臂断言）。
 - **AC5（权限与门控）**：非授权主体订阅 CRUD 全 403 零副作用；webhook 槽三缝（community 建订阅 403 + `X-Binflow-License-Required: webhook` → pro 200 → 卸载降级形态）。
 - **AC6（回归）**：M1~M12 P0 抽样零回归（事件织入为 outbox 旁路——主路径时延与行为零变化）。
@@ -164,16 +165,16 @@ M12 以 `m12-done`（2026-08-30，PR #42 合并 main）收官：NuGet 对齐 bun
 行为规格：
 
 - **115.1 outbox 持久化**（inv-4 K3 outbox 模式——BinFlow 单体两方言）：事件产生 → 事务入箱 → 异步投递；重启幸存（盘上事实源）。
-- **115.2 重试与死信**：接收端非 2xx/超时 → 指数退避重试（曲线与上限照 ADR-0041）→ 超上限标记死信（可查询、可重放——形态照 ADR）；投递不阻塞主路径。
-- **115.3 签名**：订阅 secret → 请求签名头（算法/头名照 webhook.md 官方契约，K49）；secret 存储 AES-GCM 链维持（不落明文）。
-- **115.4 SSRF 防护**：订阅 URL 校验复用 M3 Guard 家族（DNS rebinding pinning 五参数）+ 私网目标开关（`replication.allow_private_target` 同款语义——归 ADR-0041 定案键名）。
+- **115.2 重试与死信（v1.1 对齐 webhook.md §5 官方基准——原「指数退避」为 PRD 暂行值，按效力序规格票 > PRD 修正）**：重试条件 = **仅发送失败或 HTTP ≥500（4xx/3xx 不重试）**；**固定间隔 10s**（retryWaitMillis，非指数退避）；retryCount **5**（首试计入，共 5 次尝试）；单次超时 **30s**（含建连/重定向/读体）；重定向不跟随（ADR-0041 决策 2）；投递不阻塞主路径。超上限 → status=dead 死信可查可重放（**BinFlow additive 扩展**——官方无持久死信、耗尽后弃投仅排障记录留痕〔webhook.md §5.3 明示 BinFlow 形态归 ADR-0041〕）。**ADR-0041 决策 4 冲突登记**：该 ADR（与 T-358 并行定案）参数为 10 次尝试/2s 起步 ×2 递增/单次 10s 超时，且决策 2 将 3xx·4xx 计入可重试——与 webhook.md §5 官方值冲突；按效力序（webhook.md > ADR）**建议 architect 随锚点回填修订 ADR-0041 决策 4 对齐规格**（机制条款不翻：outbox 双方言两表/死信 additive/Guard 默认拒私网）；T-370 BOARD 裁定行已登记，终裁归 conductor/用户。
+- **115.3 签名**：订阅 secret → 请求签名头 `X-JFrog-Event-Auth` + HMAC-SHA256（官方契约已锚——webhook.md §6，K49；`use_secret_for_signing` 双态，签名态头承载中置信待活体）；secret 存储 AES-GCM 链维持（不落明文）。
+- **115.4 SSRF 防护**：订阅 URL 校验复用 M3 Guard 家族（DNS rebinding pinning 五参数）+ 私网目标开关——官方 canonical 键 `event.security.blacklist.enabled`（默认 true 禁私网，webhook.md §5.4）；BinFlow 旋钮拼写已由 ADR-0041 决策 6 定案为 `webhook.allow_private_target`（默认 false，镜像 replication 键族——与官方 blacklist 语义等价、键名 BinFlow 化）。
 - **115.5 控制台最小面**（P1；web/）：订阅列表/新建/编辑/删除/test + 最近投递记录（状态/耗时/重试计数）——MUI 组件纪律（FR-111 四闸门同构）；readonly_admin 只读。
 - **115.6 可观测**：`binflow_webhook_{deliveries_total, retries_total, dead_letter_total, queue_depth}` 指标族 + 审计事件 `webhook.subscription.{create,update,delete,test}` + 死信告警日志一行；投递日志 URL 脱敏。
 
 验收标准（AC）：
 
 - **AC1（outbox 幸存）**：触发事件 → kill -9 → 重启 → 事件补投接收器（零丢断言）。
-- **AC2（重试退避）**：接收器 500×N → 观察退避序列 → 恢复 200 → 最终成功；全程主路径（制品 PUT）零 5xx 零阻塞。
+- **AC2（重试语义；v1.1）**：接收器 500×N → 固定间隔 10s 重试序列 → 恢复 200 → 最终成功；接收器 4xx（如 404）→ **不重试**（单次终态）负面臂；全程主路径（制品 PUT）零 5xx 零阻塞。
 - **AC3（死信）**：持续失败超上限 → 死信状态可查（REST/控制台）+ 告警日志；重放动作绿。
 - **AC4（签名）**：配置 secret 的订阅 → 接收器按官方契约 HMAC 校验绿（篡改 body → 校验红）。
 - **AC5（真实消费者）**：T-247 dogfood Jenkins 条件腿（dep: 用户环境——VM 栈在位则接一条 pipeline 触发腿，事件 → job 触发取证）或容器接收器腿（httpbin/脚本接收器 + 故障注入）全绿；条件不可得则容器腿 + BOARD 留痕（非 DoD 缺口）。
@@ -329,7 +330,7 @@ M12 以 `m12-done`（2026-08-30，PR #42 合并 main）收官：NuGet 对齐 bun
 
 | addon 槽位（M13 增量行） | kind | community | pro | enterprise | M13 状态 |
 |---|---|---|---|---|---|
-| webhook | feature-int（暂行） | locked | unlocked | unlocked | M13 交付（FR-114/115；档位与 kind 随 Q4 终裁——webhook.md 取证官方 license 标注） |
+| webhook | feature（KindFeature——ADR-0041 决策 8） | locked | unlocked | unlocked | M13 交付（FR-114/115；取证结论在案：官方矩阵 Non-commercial ❌/Pro ✅——建议维持 pro+〔T-358 §1-6〕，Q4 终裁确认；kind 已定 KindFeature） |
 
 - 三态叠加规则、`addons.disabled` 熔断、license 覆盖表语义全部沿 M10 §5.2 不变；webhook 槽自动获得门控三缝行为（FR-85 机制复用）。
 - helmoci 槽（M12 转正，pro）承载 remote/virtual——不新增槽；repo-operations / trashcan 槽既有，旋钮（FR-118）不涉门控。
@@ -339,8 +340,8 @@ M12 以 `m12-done`（2026-08-30，PR #42 合并 main）收官：NuGet 对齐 bun
 | # | 端点/契约面 | Artifactory 对应 / 公开规范 | 层级 | 优先级 | 置信度 | 验收 |
 |---|---|---|---|---|---|---|
 | LC-46 | Webhook 订阅 CRUD + test REST 族（含过滤器/事件类型闭集校验） | JFrog 官方 REST 文档（webhook 订阅族——端点逐条以 webhook.md 定案）；inv-4 I2：Artifactory 侧管理在 Access，BinFlow 单体平移（「无需模拟 Access 拆分」判定） | A | P0 | 复核后（webhook.md） | L01/L02 |
-| LC-47 | 36 事件类型集 + 触发源织入 + CloudEvents envelope | 官方文档（事件清单/envelope）+ inv-4 I3（outbound dispatcher）/I5（worker-events 40+ 类型清单互证）；BinFlow 触发源覆盖界 = K48/Q6 | A | P0 | 复核后 | L03/L04 |
-| LC-48 | 投递语义（outbox 持久/退避重试/死信/secret 签名/代理与超时） | 官方文档（投递行为）+ inv-4 K3 outbox 模式（BinFlow 载体自定——SQLite/PG 两方言） | A | P0 | 复核后 | L05~L08 |
+| LC-47 | 事件类型集（13 域 66 型）+ 触发源织入（本体 9 型）+ CloudEvents envelope（七字段） | 官方文档（事件清单/envelope——webhook.md 已锚）+ inv-4 I3（outbound dispatcher）/I5（worker-events 40+ 类型清单互证）；BinFlow 触发源覆盖界 = K48/Q6 | A | P0 | 高（T-358 交付） | L03/L04 |
+| LC-48 | 投递语义（outbox 持久/固定间隔重试〔10s×4、4xx 不重试〕/死信 additive/secret 签名/代理与超时〔30s〕） | 官方文档（投递行为——webhook.md §5 已锚）+ inv-4 K3 outbox 模式（BinFlow 载体自定——SQLite/PG 两方言） | A | P0 | 高（T-358 交付） | L05~L08 |
 | LC-49 | HelmOCI remote pull-through + virtual 聚合（manifest/blob 回源 + 缓存 + Bearer 认证链 + tag 并集/by-digest 路由） | Artifactory HelmOCI remote/virtual（helm.md）+ OCI Distribution 规范（/v2 面代理链——M3 Q4 缓议翻转点经 helmoci 先航） | A | P0/P1 | 高（复用 M12 HL-3 机制 + 既有 remote 引擎） | L10/L11 |
 | LC-50 | remote 仓 `charts_base_url` 分体基址（回源 = chartsBaseUrl + 相对路径，缺省回退仓 URL） | artifactory.xsd 真字段 + helm.md §5 回源链/S8/S10（高置信） | A | P1 | 高 | L12 |
 | LC-51 | `_external`/`_transitive` 外部依赖落盘缓存（absolute-URL 引擎缝；local → 400 维持） | helm.md §2/§3 端点表（高置信）+ T-342 评估结论 | A | P1 | 高 | L13 |
@@ -348,9 +349,9 @@ M12 以 `m12-done`（2026-08-30，PR #42 合并 main）收官：NuGet 对齐 bun
 | LC-53 | trashcan.retention_days 旋钮（默认 14；cron 消费） | config.xml trashcanConfig（M12 mini 规格锚点；BinFlow 键名 K52） | A | P1 | 高 | L15 |
 | LC-54 | conan v1 `DELETE conans/<ref>` 坐标根整树删（全部修订）——**as-built latest 链翻转** | conan.md §3.2 D8（T-348 双证：`LocalConanHandler.removeRecipe` + conan 1.66 参考实现；v2 同型互证 `getRecipePathForRemove`） | A | P1 | 高 | L16 |
 | LC-55 | conan v1 files 通道布局 `<root>/<pid>/<pRev>/<file>` + 存量迁移（现态双拼路径——服务端布局对齐，客户端面无感） | conan.md §4 规格 + T-340 §4 D-F2 登记 | A | P1 | 高 | L17 |
-| LC-56 | NuGet publish 同字节幂等臂（D-10） | nuget.md §5.1 臂②（包已存在且无 d 权限 → **409**）vs BinFlow as-built（同字节 + 仅 w 主体重传 → **201**，T-356 L03 实测） | **待裁**（Q3——终裁后归 A〔翻转对齐 409〕或 D〔有意差异留痕〕并回写） | P2 | 高（分歧双证在案） | L19（as-built 维持断言 + 裁定留痕） |
+| LC-56 | NuGet publish 同字节幂等臂（D-10） | nuget.md §5.1 臂②（包已存在且无 d 权限 → **409**）vs BinFlow as-built（同字节 + 仅 w 主体重传 → **201**，T-356 L03 实测） | **A**（终裁 2026-08-30 对齐 409——T-378 翻转落地，live 四臂逐字；M12 L03 断言反转归属 T-378 豁免票） | P2 | 高（分歧双证在案） | L19（已闭环——nuget.md §5.1 D-10 关闭留痕） |
 
-> 计数：**11 条 = A 10（LC-46~LC-55）+ C 0 + D 0 + 待裁 1（LC-56）**。deb Packages.bz2 维持 M12 LC-45 D 层留痕不重复立行（Q7 推翻通道）。既有契约面（五基础包型、go/nuget/cargo、conan/deb/rpm/helm、配置域、操作族/回收站、MPU 新 wire）M13 对 M12 as-built 零行为变化（§5.4），断言反转两处 + 服务端布局对齐一处均经 PRD 回写。webhook outbox 表结构为内部载体（非契约面），不入矩阵。
+> 计数：**11 条 = A 11（LC-46~LC-56——LC-56 终裁 2026-08-30 对齐 409，T-378 落地）+ C 0 + D 0**。deb Packages.bz2 维持 M12 LC-45 D 层留痕不重复立行（Q7 推翻通道）。既有契约面（五基础包型、go/nuget/cargo、conan/deb/rpm/helm、配置域、操作族/回收站、MPU 新 wire）M13 对 M12 as-built 零行为变化（§5.4），断言反转两处 + 服务端布局对齐一处均经 PRD 回写。webhook outbox 表结构为内部载体（非契约面），不入矩阵。
 
 ### 5.4 回归基线（M13 断言反转两处 + 布局对齐一处——均经 PRD 回写；其余零回归）
 
@@ -371,7 +372,7 @@ M12 以 `m12-done`（2026-08-30，PR #42 合并 main）收官：NuGet 对齐 bun
 ```bash
 BASE=http://127.0.0.1:8080; ADMIN=admin:password
 # ========== FR-114 Webhook 订阅与事件 ==========
-# L01 规格票走查：webhook.md（官方文档出处逐条 + 36 事件清单 + 覆盖界标注）+ tl 就绪确认
+# L01 规格票走查：webhook.md（官方文档出处逐条 + 13 域 66 型清单 + 覆盖界标注）+ tl 就绪确认
 # L02 订阅 CRUD + test：curl 全链（create→get→list→update→delete；test 真发一条到接收器，信封断言）
 # L03 事件触发：generic PUT → artifact deployed 事件（envelope 逐字段）；DELETE/copy/move/属性 PUT 各臂；
 #    docker push → docker 域事件（dind 腿）；事件类型闭集外 → 400
@@ -380,7 +381,7 @@ BASE=http://127.0.0.1:8080; ADMIN=admin:password
 
 # ========== FR-115 投递引擎 ==========
 # L06 outbox 幸存：触发事件 → kill -9 → 重启 → 补投零丢；主路径 PUT 全程零 5xx 零阻塞
-# L07 重试/死信：接收器 500×N → 退避序列 → 恢复成功；持续失败 → 死信可查可重放 + 告警日志
+# L07 重试/死信：接收器 500×N → 固定间隔 10s 重试序列 → 恢复成功；4xx → 不重试负面臂；持续失败 → 死信可查可重放 + 告警日志
 # L08 签名与真实消费者：secret → 接收器 HMAC 校验绿（篡改红）；dogfood Jenkins 条件腿或容器接收器腿全绿
 # L09 SSRF 负面：私网订阅 URL 拒绝形态照 ADR-0041（默认策略 + 开关双臂）
 # （FE 面）控制面 Playwright：订阅 CRUD + 投递记录 + readonly 臂；四闸门维持
@@ -429,10 +430,10 @@ BASE=http://127.0.0.1:8080; ADMIN=admin:password
 
 | # | 项 | v1.0 暂行值 | 校准来源 |
 |---|---|---|---|
-| K47 | webhook 订阅 REST wire（端点路径/方法/请求响应体/错误码——官方文档逐端点） | 本 PRD 不锚路径，行为面暂行 | webhook.md |
-| K48 | 36 事件清单 + BinFlow 触发源覆盖界（无本体域〔build/releaseBundle/distribution/curation〕处置：注册休眠 vs 裁剪） | 暂行注册休眠（可订阅、无触发源、文档如实） | webhook.md + Q6 |
-| K49 | 签名形态（secret → HMAC 算法/头名）+ envelope 字段集 + 过滤器语法 | 照官方文档（未锚） | webhook.md |
-| K50 | outbox 载体与投递参数（表结构两方言/退避曲线/重试上限/死信阈值/代理与超时/SSRF 键名） | 本 PRD §4.2 行为面暂行 | ADR-0041 |
+| K47 | webhook 订阅 REST wire（端点路径/方法/请求响应体/错误码——官方文档逐端点） | **已回填（T-358）**：`/event/api/v1/subscriptions*` 七端点——list/create(201)/get/update(204，key 不可改)/delete(204)/test（吃完整订阅体，非 key 引用）/troubleshooting；key 正则 `^[A-Za-z][A-Za-z0-9_\-]+$`、handlers 恰 1、enabled 默认 false、custom 型五方法 + Go 模板 `{{.path}}` | webhook.md §1–§2 |
+| K48 | 事件清单 + BinFlow 触发源覆盖界（无本体域处置：注册休眠 vs 裁剪） | **已回填（T-358）**：13 域 66 型全表 + 本体 9 型/休眠 57 型覆盖界逐条标注；暂行注册休眠维持——裁剪翻转面小（ADR-0041 决策 7 翻转路径在案） | webhook.md + Q6 终裁 |
+| K49 | 签名形态（secret → HMAC 算法/头名）+ envelope 字段集 + 过滤器语法 | **已回填（T-358）**：头名 `X-JFrog-Event-Auth` + HMAC-SHA256（官方 openssl 验签命令逐字）；`use_secret_for_signing` 双态（签名态头承载中置信待活体）；envelope 七字段（含 userContext.isToken） | webhook.md §6 |
+| K50 | outbox 载体与投递参数（表结构两方言/重试策略/重试上限/死信阈值/代理与超时/SSRF 键名） | ADR-0041 Accepted（决策 3/4/6：双方言两表/Dispatcher/`webhook.allow_private_target` 默认 false）——**决策 4 投递参数与 webhook.md §5 官方值冲突**（10 次/2s 指数/10s 超时/4xx 计入可重试 vs 5 次/固定 10s/30s 超时/4xx 不重试）：按效力序 webhook.md > ADR，待 architect 锚点回填修订（T-370 BOARD 登记）；死信 additive 维持 | ADR-0041 + webhook.md §5 |
 | K51 | helmoci remote 上游协议界（OCI Distribution 规范面/Bearer token 交换/manifest 校验策略） | 复用既有 remote 引擎 + /v2 面 | helm.md 增量段（随 FR-116 票） |
 | K52 | 旋钮键名族（folderDownloadConfig 六字段与 trashcan.retention_days 的 BinFlow config.yaml 映射） | 暂行 `trashcan.retention_days` + folderDownload 族照 repo-operations.md §2.1 字段名 | FR-118 票内定案 |
 | K53 | D-F2 存量迁移方案（启动期 vs 惰性/回滚/幂等策略） | 启动期迁移暂行（幂等零损为硬约束） | ADR-0042 |
@@ -451,8 +452,8 @@ BASE=http://127.0.0.1:8080; ADMIN=admin:password
 | ADR-0040（fail-open）vs M12 PRD AC2「停机窗内重启」措辞 | as-built boot 探针 fail-closed 姿势解释空间（T-356 观察⑨） | **加注不改行为、ADR 零修改**（FR-120.3） | PM 文面（FR-120） |
 | M12 PRD flat 措辞 vs repo-operations.md §1.6 | 文面债（T-356 L12） | M12 PRD v1.1 增订 + 用户文档同步（FR-120.2） | PM 文面（FR-120） |
 | console-m8「Trash Can 常驻节点不建」 | 被 M12 FR-106 推翻 | **先改册后实现**（规格先行纪律，FR-122.1） | FE 票内含规格回写 |
-| nuget.md §5.1 臂② vs as-built 201（D-10） | 规格-实现分歧未上 BOARD | 终裁前维持 as-built；终裁后联动（翻转小票或差异行） | 用户决策（Q3） |
-| ADR-0032/0033（license 门控/addon 注册表） | webhook 第 19 槽 | Q4 终裁（暂行 pro+/feature-int） | 视需要随 ADR-0041 批次补注 |
+| nuget.md §5.1 臂② vs as-built 201（D-10） | 规格-实现分歧**对照材料已上 BOARD（T-370，2026-08-30）**——PM 建议对齐 409，终裁待用户 | 终裁前维持 as-built；终裁后联动（翻转小票 T-378 或 nuget.md 差异行） | 用户决策（Q3） |
+| ADR-0032/0033（license 门控/addon 注册表） | webhook 第 19 槽 | Q4 终裁（暂行 pro+；取证结论建议维持——T-358 §1-6；kind 已定 KindFeature） | 视需要随 ADR-0041 批次补注 |
 
 ### 6.2 性能（M13 增量）
 
@@ -486,9 +487,9 @@ BASE=http://127.0.0.1:8080; ADMIN=admin:password
 | Q1 | **HA 本体排期**（承接 M12 Q1 终裁「M12+ 单列专程」） | 架构级大件；PRODUCT.md Non-goal | **前置 = 用户修订 PRODUCT.md「明确不做」段（解禁 HA）**——截稿未发生，M13 不排任何 HA 工作项；解禁后 PM 建议专程里程碑（心跳/推举/传播 ADR 群）。Xray 集成面本体同族处置 |
 | Q2 | **NuGet symbol server 余量条件票**（M12 Q2 未触发承接） | NuGet 域增量面（.pdb/GUID 路径） | 全部 P0/P1 收官且余量足 → 触发（mini as-built 规格随票，T-293 终裁口径）；未触发 M14+，BOARD 留痕非 DoD 缺口 |
 | Q3 | **D-10 同字节幂等终裁**：nuget.md §5.1 臂②（同字节无 d 权限 → 409）vs BinFlow as-built 201 | nuget publish 语义；规格-实现一致性 | 终裁前维持 as-built 201（LC-56 待裁行）；PM 已备对照材料上 BOARD——方向：对齐 409（翻转小票 slot）或有意差异 D 层留痕（nuget.md 差异行） |
-| Q4 | **webhook 槽档位归属**（community/pro/enterprise + kind） | 门控矩阵第 19 槽 | 暂行 pro+ 解锁、kind=feature-int；随 webhook.md 取证官方 license 标注终裁（community 可用则翻转 unlocked） |
+| Q4 | **webhook 槽档位归属**（community/pro/enterprise + kind） | 门控矩阵第 19 槽 | 暂行 pro+ 解锁；**取证结论在案（T-358 §1-6）**：官方功能矩阵 Webhooks 行 Non-commercial ❌/Pro ✅/Enterprise ✅——**建议维持 pro+ 不翻转**，待终裁确认；kind 已由 ADR-0041 决策 8 定 KindFeature（feature-int 为注记性写法） |
 | Q5 | **docker（非 helmoci）remote 本体顺车**：FR-116 建成 /v2 remote 数据链后 docker remote 边际成本 | M13 容量 vs docker 三态齐装时机 | 暂行不顺车（滚 M14+）；FR-116 规格票判定共享缝边际成本≈0 则条件票承接（K54，BOARD 留痕） |
-| Q6 | **36 事件无本体域处置**（build/releaseBundle/distribution/curation 族 BinFlow 无触发源） | 事件类型闭集与订阅校验面 | 暂行「类型注册休眠」——可订阅、无触发源、文档如实标注；裁剪方案（仅注册有源域）待用户裁定 |
+| Q6 | **66 型中无本体域 57 型处置**（build/releaseBundle/distribution/curation/xray/app_trust 族 BinFlow 无触发源） | 事件类型闭集与订阅校验面 | 暂行「类型注册休眠」——webhook.md 已按此交付全表（本体 9 型/休眠 57 型，覆盖界逐条标注）；裁剪方案（仅注册有源域）待用户裁定——翻转面小（ADR-0041 决策 7 翻转路径在案） |
 | Q7 | **deb Packages.bz2 维持**（承接 M12 Q7/LC-45） | debian 索引压缩集完备度 | 维持不做（dsnet 依赖不可得实证 T-314；plain+gz+xz/lzma 在场 apt 零损）；用户推翻通道：提供实现路径（如纯 Go bzip2 写入器）则翻转 |
 
 ---
@@ -512,7 +513,7 @@ BASE=http://127.0.0.1:8080; ADMIN=admin:password
 1. §4 全部 P0 AC（FR-114/115/116 remote 段）经 qa 验证全绿；P1（FR-116 virtual 段/117/118/119/121/122 + FR-115 FE 面）全绿；P2（FR-120 落笔段/122.2/122.3）全绿；条件票（NuGet symbol server Q2 / docker remote 顺车 Q5 / D-10 翻转 Q3 / deb bz2 Q7）按余量条款——未触发不构成 DoD 缺口，须 BOARD 留痕；
 2. §8 剧本全绿；§1.2 量化门槛表逐行达标（订阅面/事件触发/投递可靠性/真实消费者/HelmOCI remote/virtual/chartsBaseUrl/_external/旋钮两枚/conan 翻转与迁移/文面裁定/测试债/运维尾巴——全部有实测数字归档）；
 3. 回归硬门槛：M1~M12 全部 P0 序列双形态复跑全绿；M12 as-built 零行为变化（豁免票归属外）；契约变更面 100% 归属 M13 豁免票；**断言反转两处**（conan D8 latest 链→整树删 / folderDownload 恒关→旋钮化〔关态文案逐字维持〕）+ **布局对齐一处**（D-F2 双拼→规格布局）经 PRD 回写核实；
-4. 前置产物齐备：webhook.md（官方文档出处逐条 + 36 事件 + 覆盖界）+ ADR-0041 Accepted（含 K47~K50 校准）；视 Q 裁定 ADR-0042（K53）；Q3/Q4/Q6 终裁归位（D-10 归 A 或 D / webhook 槽档位 / 事件覆盖界）；
+4. 前置产物齐备：webhook.md（官方文档出处逐条 + 13 域 66 型 + 覆盖界——已交付 T-358）+ ADR-0041 Accepted（含 K47~K50 校准；**决策 4 投递参数对 webhook.md §5 的锚点回填修订完成**）；视 Q 裁定 ADR-0042（K53）；Q3/Q4/Q6 终裁归位（D-10 归 A 或 D / webhook 槽档位 / 事件覆盖界）；
 5. tech-writer 增量文档交付（§8-8）；新增能力的客户端命令全部实测可复跑；
 6. NFR-P58~P60 达标归档；`make test`（race）全树一次绿连续两轮（FR-121——不再接受隔离复跑辩护）/ `make lint` 0 issues / gofmt 空维持 / 默认并发全量 e2e 绿；`make footprint` 维持绿 + check-size ≤100MiB（webhook 引擎不得破 M12 转绿门）；
 7. §2.2 Non-goals 与主轴滚程对账完成：滚入 M14+ 项在 ROADMAP 登记（「M13 未纳入项」于收口时建段）；§1.4 出处义务在全部 M13 规格票可审计（webhook.md 官方文档锚点逐条）；

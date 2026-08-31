@@ -475,6 +475,14 @@ func (f *fakeService) UsageBatch(_ context.Context, _ *Principal, _ repo.UsageBa
 	return nil, errUnimplementedFake
 }
 
+// RewriteSubtreePrefix is the ADR-0042 boot-sweep stub (T-371): the docker
+// plane never re-homes subtrees, so the fake keeps answering
+// errUnimplementedFake — it exists only to satisfy the widened interface
+// (the same test-only ripple as the two stubs above).
+func (f *fakeService) RewriteSubtreePrefix(_ context.Context, _, _ string, _ string) (*repo.SubtreeRewrite, error) {
+	return nil, errUnimplementedFake
+}
+
 var errUnimplementedFake = fmt.Errorf("unimplemented in the blob-domain fake")
 
 // newBlobHarness assembles the handler with the real storage engine (the

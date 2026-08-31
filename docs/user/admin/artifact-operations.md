@@ -5,8 +5,8 @@ sidebar_position: 50
 
 # 制品操作族（copy / move / zip / archive! / explode）
 
-> 适用版本：M12（T-339 copy/move + T-343 归档族；行为规格 `docs/reverse/repo-operations.md`，Q4 终裁：整族照搬 **pro 门控**）。整族共用一个 feature 槽 **`repo-operations`**——community 实例对族内任何动词答 **403 + `X-Binflow-License-Required: repo-operations`**（真二进制 curl 实测，T-339 §7）。
-> 本文命令取 T-339/T-343 工作日志的真实输出（真二进制 + curl / httptest 真服务端栈）。
+> 适用版本：M12 起（T-339 copy/move + T-343 归档族；行为规格 `docs/reverse/repo-operations.md`，Q4 终裁：整族照搬 **pro 门控**）。**M13 增补**：`folder_download` 六字段配置旋钮落地（T-368，默认不变）。整族共用一个 feature 槽 **`repo-operations`**——community 实例对族内任何动词答 **403 + `X-Binflow-License-Required: repo-operations`**（真二进制 curl 实测，T-339 §7）。
+> 本文命令取 T-339/T-343 工作日志的真实输出（真二进制 + curl / httptest 真服务端栈）；旋钮段为 T-375 双实例实测（2026-08-30）。
 
 ## 用途
 
@@ -104,9 +104,23 @@ curl -su admin:$ADMIN_PW \
 - `includeChecksumFiles=true`：从 blobs 台账**生成** `.sha1/.md5/.sha256` 伴随条目（BinFlow 磁盘无边文件，ADR-0006——这是本条目的 BinFlow 语义）。
 - 流式打包不落盘（io.Pipe），审计一次 DOWNLOAD 行（带 archiveType/files/bytes，非逐文件）。
 
-**限额与开关（folderDownloadConfig 六默认）**：`enabled=false`、`enabledForAnonymous=false`、`maxDownloadSizeMb=1024`、`maxFiles=5000`、`maxConcurrentRequests=10`、`enabledEmptyDirectories=false`；超限/超并发按 Artifactory 逐字消息拒绝（MB=1024²）。
+**限额与开关（folderDownloadConfig 六字段，M13 起可配）**：默认 `enabled=false`、`enabledForAnonymous=false`、`maxDownloadSizeMb=1024`、`maxFiles=5000`、`maxConcurrentRequests=10`、`enabledEmptyDirectories=false`；超限/超并发按 Artifactory 逐字消息拒绝（MB=1024²）。
 
-> **已知边界（如实登记）**：总开关的配置旋钮（binflow.yaml 字段）**尚未落地**（T-343 遗留①，配置域小票承载）——当前生产实例只能以默认 `enabled=false` 运行，即该端点对所有人答 403（开启条件齐备后本文同步刷新）。装配缝 `repo.ConfigureFolderDownload` 已就位。
+**配置旋钮（`folder_download` 段，M13 T-368 落地——重启生效）**：
+
+```yaml
+# binflow.yaml（Artifactory folderDownloadConfig 六字段 → BinFlow snake_case 拼写）
+folder_download:
+  enabled: true                     # 总开关；BINFLOW_FOLDER_DOWNLOAD__ENABLED
+  enabled_for_anonymous: false      # 匿名打包下载（实例关匿名时开了也 401）
+  max_download_size_mb: 1024        # 0 = 不限
+  max_files: 5000                   # 0 = 不限
+  max_concurrent_requests: 10
+  enabled_empty_directories: false  # 空目录条目入包
+```
+
+- 生效值可经 `GET /binflow/api/v1/system/settings` 回显核对（admin / readonly_admin；实测缺省实例回 `"enabled": false` + `1024/5000/10`）。
+- 语义要点（实测）：开 `enabled` 后目录打包 200（zip 条目与树一致）；**匿名腿** = `enabled_for_anonymous=false` 或实例关匿名 → 401 `You must be logged in to download a folder or repository.`；关 `enabled` → 403 `Download Folder functionality is disabled.`；`max_files=1` 超限 → 400 逐字文案。camelCase 拼写（`maxDownloadSizeMb` 等）被 strict schema **拒绝**——从 Artifactory 复制配置请改 snake_case。
 
 ## 归档内成员读取：`archive!/`
 
@@ -176,7 +190,7 @@ curl -u admin:password -X POST "$BASE/binflow/api/copy/src/a.bin?to=/dst/a.bin" 
 | 400 `Explode archive deployment failed, Missing file name.` | PUT 路径尾斜杠 | 给出目标文件名 |
 | 400（zip-slip） | 归档条目含 `../`/绝对路径 | 修归档内容 |
 | 404 `Unable to find zip resource: …` | 成员名拼写/点段不逐字 / 归档不含该成员 | 用归档工具核对成员名 |
-| 打包下载 403（已认证且有读权限） | folderDownloadConfig 默认 `enabled=false`（配置旋钮未落，见已知边界） | 等配置票；临时用 `!/` 成员读取或逐文件下载 |
+| 打包下载 403（已认证且有读权限） | `folder_download.enabled` 默认 `false`（M13 起可开，重启生效） | 配置段置 true 重启；临时用 `!/` 成员读取或逐文件下载 |
 
 ## 下一步
 

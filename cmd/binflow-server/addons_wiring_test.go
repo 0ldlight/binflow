@@ -29,8 +29,8 @@ import (
 // tier marks — the FR-86-AC1 guard at the source of truth.
 func TestT282ManifestComplete(t *testing.T) {
 	r := addonManifest()
-	if r.Len() != 18 {
-		t.Fatalf("manifest carries %d slots, want 18", r.Len())
+	if r.Len() != 19 {
+		t.Fatalf("manifest carries %d slots, want 19", r.Len())
 	}
 	want := map[string]struct {
 		kind addons.Kind
@@ -54,6 +54,7 @@ func TestT282ManifestComplete(t *testing.T) {
 		"trashcan":         {addons.KindFeature, license.TierPro}, // T-345 (Q3 interim)
 		"ha":               {addons.KindFeature, license.TierEnterprise},
 		"xray-integration": {addons.KindFeature, license.TierEnterprise},
+		"webhook":          {addons.KindFeature, license.TierPro}, // T-362 (Q4 official-matrix ruling)
 	}
 	for _, a := range r.All() {
 		w, ok := want[a.ID]
@@ -115,8 +116,8 @@ func TestT282AddonsServedOnRealStack(t *testing.T) {
 	if err := json.Unmarshal(body, &rows); err != nil {
 		t.Fatalf("addons body not a bare array: %v (%s)", err, body)
 	}
-	if len(rows) != 18 {
-		t.Fatalf("real-stack addons carries %d slots, want 18: %s", len(rows), body)
+	if len(rows) != 19 {
+		t.Fatalf("real-stack addons carries %d slots, want 19: %s", len(rows), body)
 	}
 	unlocked := map[string]bool{"generic": true, "docker": true, "maven": true, "npm": true, "pypi": true, "properties": true}
 	for _, row := range rows {

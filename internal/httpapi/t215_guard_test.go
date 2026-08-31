@@ -41,7 +41,7 @@ import (
 // Editing this constant is a deliberate route-gate change — update the
 // inventory table with it.
 const (
-	t215ManageGates    = 56 // +3: T-345's trash family (empty/restore/clean, CapSystemWrite — the gc/cleanup destructive-management posture)
+	t215ManageGates    = 57 // +3: T-345's trash family (empty/restore/clean, CapSystemWrite — the gc/cleanup destructive-management posture); +1: T-368's GET /api/v1/system/settings (CapSystemRead — the FR-118 knob echo, readonly_admin may see)
 	t215RepoManageBits = 8  // +2: T-309's helm reindex family; +1: T-311's yum reindex; +1: T-310's deb reindex (CanManageRepo, ADR-0034)
 	// t215ManageGates +10 (M11 T-319, ADR-0038): the instance GPG keypair
 	// plane — /api/security/keypair {POST,PUT,GET,verify POST,public GET,
@@ -59,6 +59,10 @@ const (
 	// and the two forced-generation verbs (PUT …/config/key/public/
 	// regenerate, the Artifactory-compat face, plus the BinFlow-native
 	// POST …/saml/key) on CapSecurityWrite.
+	// t215ManageGates +1 (M13 T-368, FR-118): GET /api/v1/system/settings on
+	// CapSystemRead — the operator-knob echo face (folder_download six
+	// fields + trashcan.retention_days); read-only like the addons plane,
+	// every other verb falls to the E-26 404.
 )
 
 func t215MustRead(t *testing.T, name string) string {

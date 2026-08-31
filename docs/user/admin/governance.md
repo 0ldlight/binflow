@@ -42,6 +42,9 @@ M4 审计动作全集（可作 `action=` 过滤值；M7 增补 `user.role.change
 | 治理 | `gc.run`、`quota.exceeded`、`export.run`、`import.run` |
 | 会话 | `login.success`、`login.failed` |
 | token | `token.issue`、`token.revoke`（detail 含指纹/subject/TTL；step-up 路径的 `token.issue` 另含 `step_up` 维度，见 [step-up 指南](token-step-up.md#审计)） |
+| webhook（M13） | `webhook.subscription.create` / `.update` / `.delete` / `.test`（detail 含 key/enabled）、`webhook.dead_letter`（投递放弃——detail 含 subscription/attempts/error/status_code，URL 照录） |
+
+> 本表为 M4 核心词族；后续里程碑的动作词随特性文档走——`cleanup.run`（[cleanup](../api-reference.md#m11-增补速览t-328)）、`trash.restore` / `trash.retention`（[Trash can](trash-can.md)）、license 族（[License 与 Add-ons](license.md)）、`auth.config.*`（[认证配置](auth-config.md)）、webhook 族（上表）。
 
 历史注记：M4 曾登记「token 签发/吊销不落审计」缺口，现已修复（`token.issue` / `token.revoke` 均落审计，scratch 实例 2026-08-24 实测）。
 

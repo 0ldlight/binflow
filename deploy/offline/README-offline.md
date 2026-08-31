@@ -10,7 +10,7 @@ binflow_offline_<VER>.tar.gz
 │   ├── binflow-<VER>-alpine.tar       # docker save — alpine 镜像变体
 │   └── binflow-<VER>-distroless.tar   # docker save — distroless 镜像变体
 ├── charts/
-│   └── binflow-<VER>.tgz              # Helm Chart 包
+│   └── binflow-<Chart版本>.tgz        # Helm Chart 包（helm package 命名 = Chart 版本，如 binflow-1.3.0.tgz——与镜像/二进制的 <VER> 独立；安装脚本自动发现）
 ├── k8s/
 │   ├── deployment.yaml                # K8s Deployment 配置
 │   ├── pvc.yaml                       # PVC 配置
@@ -124,6 +124,15 @@ curl http://127.0.0.1:8080/readyz
 - **binstore.yaml 存储链（T-306 / ADR-0036）**：air-gapped 环境同样支持把存储链交给独立文件——compose 模式下在 `compose/` 目录放一个 `binstore.yaml` 并按 `deploy/compose/docker-compose.yml` 注释挂载；helm 模式用 `config.binstore.*` values（Chart 1.2.0+）；k8s 清单见包内 `k8s/binstore-configmap.yaml.example`。文件拥有链期间，`BINFLOW_STORAGE__BACKEND` / `BINFLOW_STORAGE__S3__*` 环境变量被忽略（WARN）；`BINFLOW_STORAGE_S3_SECRET_ACCESS_KEY` 始终生效（env-only 秘密）。
 - **实例主密钥（T-319/T-305）**：`BINFLOW_REMOTE_CREDENTIALS_KEY`（base64 32 字节）以 enc:v1 密封远程仓库凭据、复制秘密、auth_configs 与 GPG keypair。离线环境在 `.env`（compose）/ Secret（k8s/helm `masterKey.existingSecret`）中生成并备份一次——一旦存在密封行，缺失同钥会拒绝启动。
 - **镜像锚定**：compose 引用的 `minio/minio` 与 `minio/mc` 均为版本锚定 tag（非 `:latest`）。2026-08-28 实测 `RELEASE.2025-04-08T15-39-49Z`（mc）可拉取可执行（T-306 曾观察到拉取失败，判定为镜像源瞬态/探测拼写问题）；对可复现性要求高的环境请走本离线包（`docker save` 全量镜像，零外部请求）。
+
+## M13 配置面（T-376）
+
+M13 的三族运维旋钮随离线包三模式自然可用（包结构零变化——键族走 compose env / Chart values / k8s env，无需新文件）：
+
+- **`webhook.allow_private_target`（T-362 / ADR-0041 决策 6）**：webhook 订阅目标 SSRF 开关，**默认 false**（与 replication 的默认放行刻意不对称——webhook 目标是 REST-CRUD 动态面）。compose：`.env` 的 `BINFLOW_WEBHOOK__ALLOW_PRIVATE_TARGET`；helm：`config.webhook.allowPrivateTarget`（Chart 1.3.0+）；k8s：清单内注释块同名 env。真接收端在私网才显式开 true。
+- **`folder_download` 六字段 + `trashcan.retention_days`（T-368 / FR-118）**：目录压缩旋钮族与回收站保留窗，默认即 M12 as-built（enabled=false / 1024MB / 5000 files / 10 并发 / 空目录 off；retention=14 天）。compose：`BINFLOW_FOLDER_DOWNLOAD__*` 与 `BINFLOW_TRASHCAN__RETENTION_DAYS`；helm：`config.folderDownload.*` / `config.trashcan.retentionDays`。**解析值回显**：`GET /binflow/api/v1/system/settings`（admin token）——离线装机后用一条 curl 核对生效面。
+- **`chartsBaseUrl`（T-367）**：**不是全局配置键**——helm remote 仓库的 per-repository 字段（`chartsBaseUrl`，repositories API 设置，供 OCI 仓库 charts 索引自定义发散拉取源），三种部署模式均无 env/values 键，属预期。
+- 注意：M13 之前的镜像对上述 env 键 fail-fast（unknown env 拒启）——离线包内镜像与键族同版本，不受影响；混用旧镜像时先 `--build` 或换包。
 
 ## 故障排除
 

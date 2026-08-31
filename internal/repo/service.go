@@ -16,6 +16,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/remote"
 	"github.com/lzwzzy/binflow/internal/storage"
+	"github.com/lzwzzy/binflow/internal/webhook"
 )
 
 // service is the local + remote + virtual implementation of Service (the
@@ -55,6 +56,12 @@ type service struct {
 	// until the adapters' reindex kernels are wired at cmd assembly)
 	// keeps the trigger a no-op.
 	cmObserver CopyMoveObserver
+	// hooks is the unified-event webhook seam (M13 T-362, ADR-0041
+	// decision 1): wired by AttachWebhookEmitter after New. nil (every
+	// pre-M13 stack and the unwired test posture) keeps every emit below
+	// a no-op — the mutation tails' behavior is byte-identical without
+	// the bus (FR-114 AC6's zero-regression posture).
+	hooks WebhookEmitter
 	// folderCfg/folderSlots are the folder-download configuration and its
 	// concurrency semaphore (M12 T-343, repo-operations section 2.1):
 	// installed by ConfigureFolderDownload (assembly/tests), spec defaults
@@ -221,6 +228,16 @@ func (s *service) audit(ctx context.Context, e AuditEvent) {
 	if err := s.au.Append(ctx, e); err != nil {
 		slog.WarnContext(ctx, "repo: audit append failed", "action", e.Action, "repo", e.Repo, "path", e.Path, "error", err)
 	}
+}
+
+// emitHook is the webhook seam's nil-safe tail (M13 T-362): every wiring
+// site calls this beside its audit row — same address, same best-effort
+// contract, one line each (ADR-0041 decision 1's "与既有 audit 并列同址").
+func (s *service) emitHook(ctx context.Context, e webhook.Event) {
+	if s.hooks == nil {
+		return
+	}
+	s.hooks.Emit(ctx, e)
 }
 
 // loadRepoRow resolves repoKey into its repository row of ANY class; the
@@ -431,6 +448,14 @@ func (s *service) getRemote(ctx context.Context, p *Principal, repoKey, path str
 	// no hold; releasing there would strip a concurrent lander's refcount.
 	if res.CacheState == remote.CacheMiss && res.Node != nil {
 		s.releaseGCHold(ctx, res.Node.Sha256)
+		// Webhook seam: artifact/cached fires on the miss-and-land arm only
+		// (webhook.md 3.1 — HIT/STALE served a copy this call did not
+		// fetch).
+		s.emitHook(ctx, webhook.Event{
+			Domain: webhook.DomainArtifact, Type: webhook.TypeArtifactCached,
+			Repo: repoKey, Path: path, Sha256: res.Node.Sha256, Size: res.Node.Size,
+			Actor: hookActorOf(p),
+		})
 	}
 	s.audit(ctx, AuditEvent{Actor: actor(p), Action: AuditActionDownload, Repo: repoKey, Path: path})
 	return res.Body, res.Node, nil
@@ -537,6 +562,14 @@ func (s *service) PutWithOptions(ctx context.Context, p *Principal, repoKey, pat
 		s.audit(ctx, AuditEvent{
 			Actor: p.Name, Action: AuditActionDeploy, Repo: repoKey, Path: path,
 			Detail: fmt.Sprintf(`{"sha256":%q,"size":%d,"idempotent":%t}`, n.Sha256, n.Size, idempotent),
+		})
+		// Webhook seam: artifact/deployed on the file-deploy tail (webhook.md
+		// 3.1; the idempotent-retransmit arm keeps firing — at-least-once is
+		// the delivery contract and dedup belongs to the receiver, section 5.6).
+		s.emitHook(ctx, webhook.Event{
+			Domain: webhook.DomainArtifact, Type: webhook.TypeArtifactDeployed,
+			Repo: repoKey, Path: path, Sha256: n.Sha256, Size: n.Size,
+			Actor: hookActorOf(p),
 		})
 		// Push-replication hook (M6, ADR-0021 decision 2): the artifact is
 		// landed and audited, the chain is complete — enqueue the event on a
@@ -736,6 +769,13 @@ func (s *service) PutFromBlob(ctx context.Context, p *Principal, repoKey, path s
 	s.audit(ctx, AuditEvent{
 		Actor: p.Name, Action: AuditActionDeploy, Repo: repoKey, Path: path,
 		Detail: fmt.Sprintf(`{"sha256":%q,"size":%d,"idempotent":%t,"checksumDeployed":true}`, n.Sha256, n.Size, idempotent),
+	})
+	// Webhook seam: artifact/deployed on the checksum-deploy tail (the
+	// zero-transfer deploy is a deploy, webhook.md 3.1's PUT 部署链).
+	s.emitHook(ctx, webhook.Event{
+		Domain: webhook.DomainArtifact, Type: webhook.TypeArtifactDeployed,
+		Repo: repoKey, Path: path, Sha256: n.Sha256, Size: n.Size,
+		Actor: hookActorOf(p),
 	})
 	return n, nil
 }
@@ -1265,7 +1305,8 @@ func (s *service) Delete(ctx context.Context, p *Principal, repoKey, path string
 		return nil
 	}
 
-	if _, err := nodes.Get(ctx, repoKey, path); err != nil {
+	doomed, err := nodes.Get(ctx, repoKey, path)
+	if err != nil {
 		if errors.Is(err, metadata.ErrNodeNotFound) {
 			return fmt.Errorf("node %s/%s: %w", repoKey, path, ErrNodeNotFound)
 		}
@@ -1287,6 +1328,15 @@ func (s *service) Delete(ctx context.Context, p *Principal, repoKey, path string
 	} else {
 		s.audit(ctx, AuditEvent{Actor: p.Name, Action: AuditActionDelete, Repo: repoKey, Path: path})
 	}
+	// Webhook seam: artifact/deleted on the unified delete tail (webhook.md
+	// 3.1; the trash capture is the SAME delete seen through the safety
+	// net — one event, never two, the trash chain's own copy/move runs are
+	// system-identity and stay silent below).
+	s.emitHook(ctx, webhook.Event{
+		Domain: webhook.DomainArtifact, Type: webhook.TypeArtifactDeleted,
+		Repo: repoKey, Path: path, Sha256: doomed.Sha256, Size: doomed.Size,
+		Actor: hookActorOf(p),
+	})
 	return nil
 }
 
@@ -1402,6 +1452,17 @@ func (s *service) List(ctx context.Context, p *Principal, repoKey, prefix string
 // grant on the folder covers every manifest/blob/tag beneath it — the same
 // shape ADR-0010 clause 5 derives from the scope subject <repoKey>/<image>.
 func dockerPermPath(image string) string { return image + "/" }
+
+// dockerImageTypeOf maps a manifest media type onto the webhook envelope's
+// image_type pair (webhook.md 3.3: "oci"/"docker") — the OCI media-type
+// family is the discriminator, everything else (the application/vnd.docker.*
+// family) is the docker spelling.
+func dockerImageTypeOf(mediaType string) string {
+	if strings.HasPrefix(mediaType, "application/vnd.oci.") {
+		return "oci"
+	}
+	return "docker"
+}
 
 // PutManifest implements Service.PutManifest. Ordering follows the content
 // Put contract: the manifest body's blob is already committed by the adapter
@@ -1590,6 +1651,18 @@ func (s *service) PutManifest(ctx context.Context, p *Principal, repoKey, image,
 		Detail: fmt.Sprintf(`{"digest":%q,"tag":%q,"size":%d,"refs":%d,"idempotent":%t}`,
 			digest, tag, size, len(rows), idempotent),
 	})
+	// Webhook seam: docker/pushed fires on the tag-publish tail (webhook.md
+	// 3.3 — "new tag push"; digest-only publishes carry no tag row and stay
+	// silent; the layer/config blobs landed through PutLandedBlob and never
+	// fire the artifact domain, the /v2 plane's event is THIS one).
+	if tag != "" {
+		s.emitHook(ctx, webhook.Event{
+			Domain: webhook.DomainDocker, Type: webhook.TypeDockerPushed,
+			Repo: repoKey, Path: nodePath, Sha256: digest, Size: size,
+			ImageName: image, Tag: tag, ImageType: dockerImageTypeOf(mediaType),
+			Actor: hookActorOf(p),
+		})
+	}
 	// Push-replication hook (T-195 D2): the manifest NODE task is what drives
 	// the protocol-aware docker push plane (the /v2 manifest PUT that lands
 	// the manifest row AND the tag pointers on the target); the body blob's
@@ -1618,7 +1691,8 @@ func (s *service) ResolveManifest(ctx context.Context, p *Principal, repoKey, im
 	if err := validateDigest(digest); err != nil {
 		return nil, err
 	}
-	if _, err := s.loadLocalDockerRepo(ctx, repoKey); err != nil {
+	row, err := s.loadV2ReadRepo(ctx, repoKey)
+	if err != nil {
 		return nil, err
 	}
 	if !s.allow(ctx, p, repoKey, dockerPermPath(image), ActionRead) {
@@ -1626,6 +1700,11 @@ func (s *service) ResolveManifest(ctx context.Context, p *Principal, repoKey, im
 			return nil, fmt.Errorf("read %s/%s: %w", repoKey, image, ErrUnauthorized)
 		}
 		return nil, fmt.Errorf("read %s/%s: %w", repoKey, image, ErrForbidden)
+	}
+	if row.Type == TypeVirtual {
+		// T-365: the virtual arm walks the member order; the first member
+		// whose manifest row answers wins.
+		return s.resolveV2VirtualManifest(ctx, p, repoKey, image, digest)
 	}
 	m, err := s.md.Docker().GetManifest(ctx, repoKey, image, digest)
 	if err != nil {
@@ -1649,7 +1728,8 @@ func (s *service) ResolveTag(ctx context.Context, p *Principal, repoKey, image, 
 	if err := validateTag(tag); err != nil {
 		return nil, err
 	}
-	if _, err := s.loadLocalDockerRepo(ctx, repoKey); err != nil {
+	row, err := s.loadV2ReadRepo(ctx, repoKey)
+	if err != nil {
 		return nil, err
 	}
 	if !s.allow(ctx, p, repoKey, dockerPermPath(image), ActionRead) {
@@ -1657,6 +1737,10 @@ func (s *service) ResolveTag(ctx context.Context, p *Principal, repoKey, image, 
 			return nil, fmt.Errorf("read %s/%s: %w", repoKey, image, ErrUnauthorized)
 		}
 		return nil, fmt.Errorf("read %s/%s: %w", repoKey, image, ErrForbidden)
+	}
+	if row.Type == TypeVirtual {
+		// T-365: the first member whose tag (and its manifest) answers wins.
+		return s.resolveV2VirtualTag(ctx, p, repoKey, image, tag)
 	}
 	t, err := s.md.Docker().GetTag(ctx, repoKey, image, tag)
 	if err != nil {
@@ -1685,7 +1769,8 @@ func (s *service) ListTags(ctx context.Context, p *Principal, repoKey, image str
 			return nil, fmt.Errorf("tags/list cursor %q: %w", last, ErrInvalidCursor)
 		}
 	}
-	if _, err := s.loadLocalDockerRepo(ctx, repoKey); err != nil {
+	row, err := s.loadV2ReadRepo(ctx, repoKey)
+	if err != nil {
 		return nil, err
 	}
 	if !s.allow(ctx, p, repoKey, dockerPermPath(image), ActionRead) {
@@ -1693,6 +1778,11 @@ func (s *service) ListTags(ctx context.Context, p *Principal, repoKey, image str
 			return nil, fmt.Errorf("read %s/%s: %w", repoKey, image, ErrUnauthorized)
 		}
 		return nil, fmt.Errorf("read %s/%s: %w", repoKey, image, ErrForbidden)
+	}
+	if row.Type == TypeVirtual {
+		// T-365: the member tag UNION (first-seen on shared names), with
+		// the same unknown-image / tagless-image distinction.
+		return s.listV2VirtualTags(ctx, repoKey, image, n, last)
 	}
 	tags, err := s.md.Docker().ListTagsByImage(ctx, repoKey, image)
 	if err != nil {
@@ -1723,7 +1813,8 @@ func (s *service) ListTags(ctx context.Context, p *Principal, repoKey, image str
 // ListImages implements Service.ListImages (the _catalog source): image
 // names prefixed with the repository key, lexicographic, n/last sliced.
 func (s *service) ListImages(ctx context.Context, p *Principal, repoKey string, n int, last string) ([]string, error) {
-	if _, err := s.loadLocalDockerRepo(ctx, repoKey); err != nil {
+	row, err := s.loadV2ReadRepo(ctx, repoKey)
+	if err != nil {
 		return nil, err
 	}
 	if !s.allow(ctx, p, repoKey, "", ActionRead) {
@@ -1741,6 +1832,11 @@ func (s *service) ListImages(ctx context.Context, p *Principal, repoKey string, 
 				last, ErrInvalidCursor, repoKey+"/")
 		}
 		after = strings.TrimPrefix(last, repoKey+"/")
+	}
+	if row.Type == TypeVirtual {
+		// T-365: the union of the members' images, rendered under the
+		// VIRTUAL key (the catalog names the addressed surface).
+		return s.listV2VirtualImages(ctx, repoKey, n, after)
 	}
 	images, err := s.md.Docker().ListImages(ctx, repoKey, after, n)
 	if err != nil {
@@ -1815,7 +1911,8 @@ func (s *service) DeleteManifest(ctx context.Context, p *Principal, repoKey, ima
 	// digest is that residue by construction (the layout path is
 	// digest-keyed and the index is the registry's authority); anything
 	// else at the path is not ours to touch.
-	if _, err := s.md.Docker().GetManifest(ctx, repoKey, image, digest); err != nil {
+	doomedM, err := s.md.Docker().GetManifest(ctx, repoKey, image, digest)
+	if err != nil {
 		if !errors.Is(err, metadata.ErrManifestNotFound) {
 			return fmt.Errorf("manifest %s/%s@%s: %w", repoKey, image, digest, err)
 		}
@@ -1849,6 +1946,15 @@ func (s *service) DeleteManifest(ctx context.Context, p *Principal, repoKey, ima
 	s.audit(ctx, AuditEvent{
 		Actor: p.Name, Action: AuditActionDelete, Repo: repoKey, Path: nodePath,
 		Detail: fmt.Sprintf(`{"digest":%q}`, digest),
+	})
+	// Webhook seam: docker/deleted on the registry delete tail (webhook.md
+	// 3.3 — the digest-keyed delete cascades every tag the store held; the
+	// tag field stays empty rather than inventing one).
+	s.emitHook(ctx, webhook.Event{
+		Domain: webhook.DomainDocker, Type: webhook.TypeDockerDeleted,
+		Repo: repoKey, Path: nodePath, Sha256: digest, Size: doomedM.Size,
+		ImageName: image, ImageType: dockerImageTypeOf(doomedM.MediaType),
+		Actor: hookActorOf(p),
 	})
 	return nil
 }
@@ -1952,7 +2058,7 @@ func (s *service) CreateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 		if err := rejectKeypairRefOnNonLocal(r.Type, config); err != nil {
 			return nil, err
 		}
-		rc, password, perr := parseRemoteConfig(config)
+		rc, password, perr := parseRemoteConfig(config, r.PackageType)
 		if perr != nil {
 			return nil, perr
 		}
@@ -2116,6 +2222,9 @@ func (s *service) validateVirtualMembers(ctx context.Context, p *Principal, virt
 	if err := validateHelmFamilyMix(virtualPackageType, memberRows); err != nil {
 		return err
 	}
+	if err := validateV2MemberTypes(virtualPackageType, memberRows); err != nil {
+		return err
+	}
 	if cfg.DefaultDeploymentRepo != "" && !seen[cfg.DefaultDeploymentRepo] {
 		return fmt.Errorf(
 			"%w: defaultDeploymentRepo %q is not a member of the virtual repository",
@@ -2167,6 +2276,31 @@ func validateHelmFamilyMix(virtualPackageType string, memberRows []*metadata.Rep
 		return fmt.Errorf(
 			"%w: virtual repository cannot mix the Helm and HelmOCI protocol families (helm repositories serve classic chart indexes, helmoci repositories serve the registry v2 plane); first helm member %q, first helmoci member %q",
 			ErrInvalidRepoConfig, sawHelm, sawHelmOCI)
+	}
+	return nil
+}
+
+// validateV2MemberTypes enforces the registry-v2 same-type member rule
+// (T-367's rider, closing the cross-ecosystem gap T-365's live pass pried
+// open: a docker pull could resolve through a helmoci virtual because the
+// /v2 plane is family-shared): a docker or helmoci virtual repository
+// aggregates members of its OWN package type only — Artifactory's
+// "virtual members must be of the virtual's package type" semantics on the
+// one family where two package types share a wire plane. The refused
+// wording follows the validateHelmFamilyMix shape. Non-v2 virtuals are out
+// of the rider's scope (registered in the ticket report); the
+// helm×helmoci mix keeps its own, earlier check.
+func validateV2MemberTypes(virtualPackageType string, memberRows []*metadata.Repo) error {
+	if !isV2PlaneFamily(virtualPackageType) {
+		return nil
+	}
+	for _, row := range memberRows {
+		if row.PackageType != virtualPackageType {
+			return fmt.Errorf(
+				"%w: virtual repository cannot mix the %s and %s package types (a %s virtual aggregates %s repositories only); member %q is a %s repository",
+				ErrInvalidRepoConfig, virtualPackageType, row.PackageType,
+				virtualPackageType, virtualPackageType, row.RepoKey, row.PackageType)
+		}
 	}
 	return nil
 }
@@ -2302,7 +2436,7 @@ func (s *service) UpdateRepo(ctx context.Context, p *Principal, r *metadata.Repo
 			if err := rejectKeypairRefOnNonLocal(current.Type, r.Config); err != nil {
 				return nil, err
 			}
-			rc, password, perr := parseRemoteConfig(r.Config)
+			rc, password, perr := parseRemoteConfig(r.Config, current.PackageType)
 			if perr != nil {
 				return nil, perr
 			}

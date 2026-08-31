@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <title>cargo 包型图标（品牌色版）</title>
+  <!-- 近似 Rust 生态锈橙（#CE422B）齿轮简化重绘，仅作包型识别 -->
+  <circle cx="12" cy="12" r="4.1" stroke="#CE422B" stroke-width="2.2"/>
+  <circle cx="12" cy="12" r="8" stroke="#CE422B" stroke-width="3.1" stroke-dasharray="3.14 3.14"/>
+</svg>

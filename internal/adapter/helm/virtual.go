@@ -18,12 +18,14 @@ package helm
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"go.yaml.in/yaml/v3"
@@ -64,20 +66,46 @@ func (m *indexMerge) fold(name string, e *yaml.Node, mc memberCtx) {
 }
 
 // memberContext loads one member's rewriting context: the class and, for
-// remote members, the upstream URL off the remote_configs seam (the
-// chartsBaseUrl fallback IS the repository URL — a divergent chartsBaseUrl
-// seat would land with the config schema ticket; registered).
+// remote members, the charts recognition base — the configured
+// chartsBaseUrl when the member carries one (T-367; helm.md section 7.3 /
+// S8: the member's entries are recognized against the base its upstream
+// actually serves charts from), the repository URL as the S10 fallback.
+// The canonical config JSON rides the repository row (the ClassReader
+// seam's one widened consumer — see repo.ClassReader's note); a missing
+// row, an unparsable blob or an absent field all keep the URL fallback.
 func (h *Handler) memberContext(ctx context.Context, m repo.VirtualMember) memberCtx {
 	mc := memberCtx{key: m.Key, typ: m.Type}
 	if m.Type != repo.TypeRemote || h.remotes == nil {
 		return mc
 	}
 	cfg, err := h.remotes.GetConfig(ctx, m.Key)
-	if err != nil || cfg == nil {
-		return mc
+	if err == nil && cfg != nil {
+		mc.chartsBase = cfg.URL
 	}
-	mc.chartsBase = cfg.URL
+	if base := memberChartsBase(ctx, h.repos, m.Key); base != "" {
+		mc.chartsBase = base
+	}
 	return mc
+}
+
+// memberChartsBase reads one remote member's configured chartsBaseUrl off
+// its canonical repository config JSON ("" when absent, unparsable or the
+// seam is nil — the URL fallback the caller already set).
+func memberChartsBase(ctx context.Context, repos repo.ClassReader, member string) string {
+	if repos == nil {
+		return ""
+	}
+	row, err := repos.Get(ctx, member)
+	if err != nil || row == nil || row.Config == "" {
+		return ""
+	}
+	var probe struct {
+		ChartsBaseURL string `json:"chartsBaseUrl"`
+	}
+	if err := json.Unmarshal([]byte(row.Config), &probe); err != nil {
+		return ""
+	}
+	return strings.TrimRight(strings.TrimSpace(probe.ChartsBaseURL), "/")
 }
 
 // serveVirtualIndex answers GET/HEAD index.yaml on a virtual repository.
@@ -205,8 +233,12 @@ func setEntryURL(entry *yaml.Node, newURL string) {
 // virtual repository: the remote members whose allow list admits the URL
 // are the egress candidates, in two-bucket order; the first that answers
 // (or the first classified refusal) serves. No admitting member at all is
-// the pinned 400.
-func (h *Handler) serveVirtualExternal(ctx context.Context, w http.ResponseWriter, repoKey, rel string) {
+// the pinned 400. Since T-367 the admitting member's hop runs through the
+// RemoteExternalPlane seam — the dependency LANDS in that member's cache
+// at the folded path (the resolution posture of every other member fetch:
+// the second pull is a member-local HIT); a stack without the seam keeps
+// the pre-T-367 direct stream.
+func (h *Handler) serveVirtualExternal(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey, rel string) {
 	target, err := parseExternalPath(rel, segExternal)
 	if err != nil {
 		writeText(w, http.StatusBadRequest, err.Error())
@@ -217,6 +249,7 @@ func (h *Handler) serveVirtualExternal(ctx context.Context, w http.ResponseWrite
 		h.writeError(w, err, repoKey, rel)
 		return
 	}
+	plane, _ := h.svc.(repo.RemoteExternalPlane) // nil on a bare double: the pass-through below
 	admitted := false
 	for _, m := range order {
 		if m.Type != repo.TypeRemote {
@@ -226,6 +259,21 @@ func (h *Handler) serveVirtualExternal(ctx context.Context, w http.ResponseWrite
 			continue
 		}
 		admitted = true
+		if plane != nil {
+			rc, node, ferr := plane.FetchVirtualExternal(ctx, p, repoKey, m.Key, rel, target)
+			if ferr == nil {
+				w.Header().Set(hdrUpstream, target)
+				w.Header().Set(repo.HdrResolvedFrom, m.Key)
+				h.serveNode(ctx, w, r, node, rc, nodeCType(node))
+				return
+			}
+			if !errors.Is(ferr, repo.ErrNodeNotFound) {
+				h.writeExternalError(w, ferr, repoKey, target)
+				return // the classified refusal is the answer (the same target would refuse on every member)
+			}
+			// An unfound member walks on to the next.
+			continue
+		}
 		out := h.streamExternal(ctx, w, m.Key, target)
 		if out.writeFn != nil {
 			_ = out.writeFn()

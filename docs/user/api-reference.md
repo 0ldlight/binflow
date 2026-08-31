@@ -5,7 +5,7 @@ sidebar_position: 70
 
 # API 参考
 
-> 适用版本：M1~M12（端点引入里程碑标注于各表；M7 增补：用户角色字段 `adminRole`、permission target 动作 `manage`、docker 上传状态腿跨重启、token 铸造 step-up 可选门；**M9 增补**：usage 批量端点、users 列表加宽/enabled 回显/DELETE、groups `?includeUsers`、permissions `?filter=manage`——速览见[下文](#m9-增补速览)；**M11 增补**：认证配置面（含 SAML SP 证书三端点，T-331）、GPG keypair 族、cleanup 引擎、四包型 reindex 族、smart remote 两字段生效、MPU 面整体翻转（ADR-0039）与 cargo remote/virtual 仓型——见[M11 增补速览](#m11-增补速览t-328)；**M12 增补**：制品操作族（copy/move + 归档族）与 trash REST 族（NuGet v2 全路由/v3 代理属协议接入面，见 [NuGet 接入](integrations/nuget.md)）——见[M12 增补速览](#m12-增补速览t-347a)）。Artifactory 兼容端点基于 REST 逆向规格 `docs/reverse/rest-api.md`（置信度高）。
+> 适用版本：M1~M13（端点引入里程碑标注于各表；M7 增补：用户角色字段 `adminRole`、permission target 动作 `manage`、docker 上传状态腿跨重启、token 铸造 step-up 可选门；**M9 增补**：usage 批量端点、users 列表加宽/enabled 回显/DELETE、groups `?includeUsers`、permissions `?filter=manage`——速览见[下文](#m9-增补速览)；**M11 增补**：认证配置面（含 SAML SP 证书三端点，T-331）、GPG keypair 族、cleanup 引擎、四包型 reindex 族、smart remote 两字段生效、MPU 面整体翻转（ADR-0039）与 cargo remote/virtual 仓型——见[M11 增补速览](#m11-增补速览t-328)；**M12 增补**：制品操作族（copy/move + 归档族）与 trash REST 族（NuGet v2 全路由/v3 代理属协议接入面，见 [NuGet 接入](integrations/nuget.md)）——见[M12 增补速览](#m12-增补速览t-347a)；**M13 增补**：webhook 订阅七端点族（`/event/api/v1`）+ `GET /api/v1/system/settings` 旋钮回显 + remote 仓 `chartsBaseUrl` 字段——见[M13 增补速览](#m13-增补速览t-375)）。Artifactory 兼容端点基于 REST 逆向规格 `docs/reverse/rest-api.md`（置信度高）。
 > **M10 增补（T-293 部分回写，2026-08-26）**：`?properties` 族反转为 **GET/PUT/DELETE 三动词**（POST 增量动词不做——其余动词落 404 冻结姿态；原 M5 期表格把属性动词标为 M4/M1 系陈旧勘误）；上传路径 matrix 参数 M10 生效。M10 其余新端点（license/addons/uploads、Go/NuGet/Cargo 接入面）已随 T-296 补齐——速览见[下文](#m10-新增端点速览t-296)。
 > BinFlow 自有端点以 `/api/v1` 前缀标记。
 
@@ -14,6 +14,7 @@ BinFlow 的 API 分为两个面：
 1. **制品的容路径**（无 `/api` 前缀）：`/binflow/<repoKey>/<path>`——上传、下载、删除制品，各协议客户端走这里。
 2. **管理面 API**（`/binflow/api/*`）：仓库 CRUD、用户/组/权限、审计、GC、Token、搜索、系统信息。
 3. **Docker Registry 根级平面**（`/v2/*`）——独立路由，见[Docker 接入指南](docker-registry.md)。
+4. **Webhook 事件面**（`/binflow/event/api/v1/*`，M13）——订阅 CRUD/试发/排障，见[Webhook 使用指南](admin/webhooks.md)。
 
 ---
 
@@ -354,7 +355,7 @@ M10 的「按名 400」退役——remote 仓配置现在**接受 + canonical �
 |---|---|---|---|
 | POST | `/binflow/api/copy/{srcRepo}[/{srcPath}]?to=/{targetRepo}[/{targetPath}]` | 认证 + 逐文件管线（源 read/目标 write）+ license | 树级复制（零拷贝）；`dry=1` 干跑；响应 200 + `messages[]`，Content-Type 为 vendor 形 `application/vnd.org.jfrog.artifactory.storage.CopyOrMoveResult+json`；状态 = 最后一条 error 的码（无码 409 兜底） |
 | POST | `/binflow/api/move/{srcRepo}[/{srcPath}]?to=…` | 同上 + 源 `delete` | 树级搬移（copy + 源删除 + 目录剪除） |
-| GET | `/binflow/api/archive/download/{repo}[/{path}]?archiveType=zip\|tar\|tar.gz\|tgz` | 读权限（匿名 401 先于参数解析） | 目录/整仓流式打包（不落盘）；`includeChecksumFiles=true` 附 checksum 伴随条目；**默认关**（folderDownloadConfig.enabled=false，配置旋钮未落——见指南已知边界） |
+| GET | `/binflow/api/archive/download/{repo}[/{path}]?archiveType=zip\|tar\|tar.gz\|tgz` | 读权限（匿名 401 先于参数解析） | 目录/整仓流式打包（不落盘）；`includeChecksumFiles=true` 附 checksum 伴随条目；**默认关**（`folder_download.enabled=false`，**M13 起六字段可配**，重启生效——见[制品操作族](admin/artifact-operations.md)） |
 | GET | `/binflow/{repo}/{archive}!/{entry}`（内容面） | 归档路径读门 | 归档内成员直读（首个 `!/` 切分、嵌套递归、`.sha1/.md5/.sha256` 后缀回裸 hex）；非 GET 405 |
 | PUT | `/binflow/{repo}/{path}` + `X-Explode-Archive[: true]`（或 `X-Explode-Archive-Atomic: true`） | 目标父目录 `w` | 解包部署：白名单 zip/tar/tar.gz/tgz；成功 **201 空体** + `X-Binflow-Exploded-Files: <n>` 计数头；归档原件不落库 |
 
@@ -368,7 +369,51 @@ M10 的「按名 400」退役——remote 仓配置现在**接受 + canonical �
 | POST | `/binflow/api/trash/empty` | 清空整个 can；回 JSON 摘要 `{"removed","files","folders","bytes"}` |
 | DELETE | `/binflow/api/trash/clean/{path}` | 单条（子树）永久清除；摘要同上 |
 
-浏览不是第四路由：骑既有 `GET /api/storage/auto-trashcan[...][?properties|?list]`（五元组断言面 = `?properties`）。捕获/保留期（默认 14 天、小时 cron）语义见 [Trash can 管理](admin/trash-can.md)。
+浏览不是第四路由：骑既有 `GET /api/storage/auto-trashcan[...][?properties|?list]`（五元组断言面 = `?properties`）。捕获/保留期（默认 14 天、小时 cron；**M13 起保留期经 `trashcan.retention_days` 可配**，重启生效）语义见 [Trash can 管理](admin/trash-can.md)。
+
+---
+
+## M13 增补速览（T-375）
+
+webhook 订阅七端点族、system/settings 旋钮回显与 remote 仓 `chartsBaseUrl` 字段（依据 T-362~T-368 as-built + T-375 双实例实测，2026-08-30；完整语义见 [Webhook 使用指南](admin/webhooks.md)与 [Helm Chart 仓库接入](integrations/helm-charts.md)）：
+
+### webhook 域（`/binflow/event/api/v1/**`；注意**不在** `/binflow/api` 下；**整族 pro 槽 `webhook`**——写动词 community 403 + `X-Binflow-License-Required: webhook`，读面不设门）
+
+| 方法 | 路径 | 门 | 语义 |
+|---|---|---|---|
+| GET | `/binflow/event/api/v1/subscriptions` | system:read（readonly_admin 可见） | 订阅列表（bare array） |
+| POST | `/binflow/event/api/v1/subscriptions` | system:write + license | 创建；**201** 回显 SubscriptionView（`secret` 恒掩码 `********`） |
+| GET | `/binflow/event/api/v1/subscriptions/{key}` | system:read | 单查；miss **404 `Subscription not found`** |
+| PUT | `/binflow/event/api/v1/subscriptions/{key}` | system:write + license | 全量更新；**204 无体**；key 不可改 |
+| DELETE | `/binflow/event/api/v1/subscriptions/{key}` | system:write + license | 删除（级联删投递行）；**204**；再删 404 |
+| POST | `/binflow/event/api/v1/subscriptions/test` | system:write + license | **试发草稿**（吃完整订阅体，非 key 引用）；同步单发不入箱；200 TestOutcome（`ok`/`attempt{status_code,elapsed_millis,error}`——**失败也是 200，看 body**） |
+| GET | `/binflow/event/api/v1/troubleshooting` | system:read | 排障记录环（query：`subscription`/`target`/`start`/`end`/`count`；失败必录、`debug:true` 成功也录；进程内环 10000 条/30s 修剪，重启失史） |
+
+- 请求体 = 订阅一形：`key`（`^[A-Za-z][A-Za-z0-9_-]+$` ≤500）/`project_key`/`description`/`enabled`（**默认 false**）/`event_filter{domain,event_types[],criteria}`（strict——未知键 400）/`handlers[]`（**恰 1 个**；`webhook` 或 `custom-webhook` 两型）/`debug`。
+- 投递：HMAC-SHA256 hex 于 `X-JFrog-Event-Auth`（`use_secret_for_signing=false` 时为 secret 明文直传）；重试 **5 次首试计入 / 固定 10s / 单次 30s 超时 / 仅发送失败或 ≥500**（4xx 一步终态）；死信落审计 `webhook.dead_letter` + 指标族 `binflow_webhook_*`。
+- SSRF：目标默认拒 loopback/私网；`webhook.allow_private_target`（默认 false，重启生效）放行。
+
+### system 域：旋钮回显
+
+| 方法 | 路径 | 门 | 语义 |
+|---|---|---|---|
+| GET | `/binflow/api/v1/system/settings` | system:read（admin / readonly_admin） | 回显**已解析**的运行旋钮（YAML+env+defaults 合流值）：`folder_download` 六字段 + `trashcan.retention_days`。**knob-scoped 裁量**——只回行为旋钮，永不携带 secret/DSN/路径；只读（其余动词 E-26 404）；旋钮本身重启生效 |
+
+```bash
+curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/system/settings
+# {"folder_download":{"enabled":false,"enabled_for_anonymous":false,
+#   "max_download_size_mb":1024,"max_files":5000,"max_concurrent_requests":10,
+#   "enabled_empty_directories":false},
+#  "trashcan":{"retention_days":14}}
+```
+
+### 仓库域：remote 配置增量字段
+
+| 字段 | 类型 | 适用 | 行为 |
+|---|---|---|---|
+| `chartsBaseUrl` | string | **仅 `packageType=helm` 的 remote** | content 类回源（tgz/.prov/`_external` 折叠路径）的分体基址；metadata（index.yaml）恒走仓 URL；缺省回退仓 URL。绝对 http(s) URL，`""` = 清除。**其它包型携带 → 400 点名字段**；异 host 时**无凭据**出站（仓凭据不发第三方）。virtual 聚合 index 的改写识别基址同此字段（M13） |
+
+（HelmOCI remote/virtual 仓型与 `_external` 落盘缓存同为本里程碑增量，建仓走通用 `PUT /api/repositories/{key}`，协议面语义见 [Helm Chart 仓库接入](integrations/helm-charts.md#helmoci-仓型oci-形态m13local--remote--virtual)。）
 
 ---
 
@@ -385,6 +430,7 @@ BinFlow 在 Artifactory 兼容端点之外增加了一批自有端点（以 `/ap
 | `/binflow/api/v1/audit` | GET | 审计日志查询（admin / readonly_admin） |
 | `/binflow/api/v1/system/gc` | POST | 触发 GC（同步执行，dry-run/apply；admin only） |
 | `/binflow/api/v1/system/cleanup` | POST/GET | unused-cleanup 引擎手动触发（dry-run 默认）与状态面（M11） |
+| `/binflow/api/v1/system/settings` | GET | 运行旋钮回显（folder_download 六字段 + trashcan.retention_days 的解析值；M13） |
 | `/binflow/api/v1/session` | POST/GET/DELETE | 控制台会话管理（whoami/登录回显 `adminRole` 与 `source`） |
 | `/binflow/api/v1/permissions` | POST/GET/DELETE | Permission Target CRUD（动作集 r/w/d/manage；GET 带 `?filter=manage` 时 manage 持有者可达覆盖集内子集——M9） |
 
@@ -698,5 +744,5 @@ Docker-Distribution-Api-Version: registry/2.0
 ## 下一步
 
 - 各协议接入指南：[Docker](docker-registry.md) · [Maven](integrations/maven.md) · [npm](integrations/npm.md) · [PyPI](integrations/pypi.md) · [Go](integrations/golang.md) · [NuGet](integrations/nuget.md) · [Cargo](integrations/cargo.md) · [Conan](integrations/conan.md) · [Helm](integrations/helm-charts.md) · [RPM](integrations/rpm.md) · [Debian](integrations/debian.md)
-- 管理操作：[治理指南](admin/governance.md) · [权限管理](admin/groups-permissions.md) · [RBAC 角色与仓库级管理员](admin/rbac-roles.md) · [Token 铸造 step-up](admin/token-step-up.md) · [备份恢复](admin/backup-restore.md) · [License 与 Add-ons](admin/license.md) · [属性系统](properties.md) · [认证配置](admin/auth-config.md) · [存储配置](admin/storage-config.md)
+- 管理操作：[治理指南](admin/governance.md) · [权限管理](admin/groups-permissions.md) · [RBAC 角色与仓库级管理员](admin/rbac-roles.md) · [Token 铸造 step-up](admin/token-step-up.md) · [备份恢复](admin/backup-restore.md) · [License 与 Add-ons](admin/license.md) · [属性系统](properties.md) · [认证配置](admin/auth-config.md) · [存储配置](admin/storage-config.md) · [Webhook 使用指南](admin/webhooks.md)
 - 常见问题与排障：[FAQ](faq.md)

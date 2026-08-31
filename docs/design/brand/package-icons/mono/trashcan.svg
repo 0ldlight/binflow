@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <title>trashcan addon 图标（单色版，回收站槽位）</title>
+  <!-- BinFlow 自有图形（无商标风险）：回收桶 + 桶内上行箭头（恢复语义） -->
+  <path d="M4.8 6.6h14.4M9.6 6.6l.9-2.3h3l.9 2.3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M6.6 6.6v11a2.4 2.4 0 0 0 2.4 2.4h6a2.4 2.4 0 0 0 2.4-2.4v-11" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+  <path d="M12 10.6v5M10 12.5l2-2 2 2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

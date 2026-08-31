@@ -13,6 +13,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/remote"
 	"github.com/lzwzzy/binflow/internal/storage"
+	"github.com/lzwzzy/binflow/internal/webhook"
 )
 
 // Sentinel errors. Errors returned by Service wrap one of these; callers match
@@ -446,6 +447,32 @@ type Service interface {
 	// deploy; every other content caller keeps using Put.
 	PutWithOptions(ctx context.Context, p *Principal, repoKey, path string, body io.Reader, expect storage.BlobRef, mime string, opts PutOptions) (*metadata.Node, error)
 
+	// RewriteSubtreePrefix re-homes every node row under the FOLDER prefix
+	// srcPrefix onto the corresponding path under dstPrefix (a path P under
+	// src becomes dstPrefix + P[len(srcPrefix):]) — the ADR-0042 boot-sweep
+	// primitive (T-371, FR-119.2). This is a SYSTEM-STATE operation: no
+	// principal, no permission gate, and ZERO user-plane side effects — no
+	// copy/move observer, no webhook emission (an internal re-layout is not
+	// a user action), no per-node audit; the blob store is never touched
+	// (rows keep their sha256 — checksum addressing makes the move a
+	// metadata rewrite), and node properties do not ride (the conan package
+	// trees this was built for carry none).
+	//
+	// Disposition when a row already exists at a target path (the caller's
+	// observable, never a silent loss): same sha256 → the source row is
+	// dropped and counted Deduped (the retransmit-idempotent form, content
+	// single copy); different sha256 → the row with the NEWER UpdatedAt
+	// resides at the target and the pair is reported in Conflicts (the
+	// loser's content stays in the blob store, recoverable within GC's
+	// grace). An empty source subtree is ErrNodeNotFound; a dstPrefix inside
+	// srcPrefix is ErrInvalidPath; a non-local repository is
+	// ErrRepoTypeNotSupported. Durability: writes are per-row
+	// (PutNodeWithUsage / DeleteNodeWithUsage pairs) — the one caller runs
+	// this BEFORE the HTTP listener (ADR-0042 decision 1), so a half-applied
+	// tree is structurally unobservable and an interrupted sweep resumes by
+	// predicate on the next boot.
+	RewriteSubtreePrefix(ctx context.Context, repoKey, srcPrefix, dstPrefix string) (*SubtreeRewrite, error)
+
 	// ---- Virtual aggregation face (T-72, FR-21-AC5/AC6) ----
 	//
 	// The per-protocol metadata aggregations (maven maven-metadata.xml
@@ -639,6 +666,35 @@ type PutOptions struct {
 	Properties map[string][]string
 }
 
+// SubtreeRewrite reports one RewriteSubtreePrefix outcome (ADR-0042's
+// reconciliation vocabulary: the caller renders the per-repository line and
+// applies the conflict=0 green gate on top of these counts).
+type SubtreeRewrite struct {
+	// Moved is the count of node rows re-homed src→dst with their sha256
+	// (and every other stored field) unchanged.
+	Moved int
+	// Deduped is the count of source rows dropped because the target path
+	// already held the SAME sha256 — the retransmit-idempotent form; content
+	// ends single-copy, nothing is lost.
+	Deduped int
+	// Conflicts reports the target paths where a DIFFERENT sha256 already
+	// resided; the newer row (UpdatedAt) won and stays at the target, the
+	// loser's content remains in the blob store within GC's grace.
+	Conflicts []RewriteConflict
+}
+
+// RewriteConflict is one differing-sha collision the rewrite resolved
+// newer-wins.
+type RewriteConflict struct {
+	// Path is the TARGET path the collision happened at.
+	Path string
+	// Kept is the sha256 of the row that won and resides at Path.
+	Kept string
+	// Dropped is the sha256 of the loser — its blob is untouched and
+	// recoverable until GC's grace expires.
+	Dropped string
+}
+
 // StatusError is a service-level failure that already knows its exact
 // client-facing rendering: HTTP status, body message and optional response
 // headers (Allow on a 405, ...). It exists so repository-CLASS semantics can
@@ -685,6 +741,13 @@ func NewStatusError(code int, message string, header http.Header, cause error) *
 // like the routing seam (cmd passes md.Repos() — the docker package's
 // NewRepoLookup is the same precedent). Callers map
 // metadata.ErrRepoNotFound onto their protocol's not-found wording.
+//
+// T-367 widening note: exactly one consumer additionally reads the row's
+// canonical CONFIG JSON through this seam — the helm virtual face's member
+// rewriting resolves the member's chartsBaseUrl (a public, non-protected
+// field; the canonical remote form never carries a password). The class
+// stays the seam's routing payload; the config read is that one consumer's
+// own, documented at its call site (helm memberContext).
 type ClassReader interface {
 	// Get returns the repository row for repoKey; only Type (the class)
 	// crosses this seam by contract. ErrRepoNotFound (the metadata sentinel)
@@ -709,6 +772,12 @@ type RemoteFetcher interface {
 	// read; a *remote.FetchError renders verbatim (StatusError mapping) and
 	// anything else is a plain 500.
 	Fetch(ctx context.Context, repoKey, path string) (*remote.FetchResult, error)
+	// FetchAbsolute pulls one ABSOLUTE third-party URL through the same
+	// state machine and lands it at the repository-relative storage path
+	// (T-367, FR-117 — the helm _external dependency face; helm.md section
+	// 6/S10). Credential-less egress by contract (the target is a third
+	// party, never the configured upstream).
+	FetchAbsolute(ctx context.Context, repoKey, path, target string) (*remote.FetchResult, error)
 	// Invalidate drops the local cache of one path (RE-06: DELETE on a
 	// remote repository deletes the cached copy only, never upstream); it
 	// reports whether anything was cached (204 vs 404).
@@ -720,6 +789,187 @@ type RemoteFetcher interface {
 
 // The concrete engine satisfies the seam (compile-time pin).
 var _ RemoteFetcher = (*remote.Engine)(nil)
+
+// RemoteExternalPlane is the absolute-URL dependency pull-through seam
+// (M13 T-367, FR-117, helm.md section 6/S10): the helm _external face's
+// hops run through the SAME engine machinery a path-joined fetch does —
+// the folded proxy path IS the storage path, so the landing, the negative
+// cache, the TTL classes and the stale downgrade are the ordinary
+// path-keyed ones, and a second pull serves from the local copy with zero
+// egress. The consumer resolves the capability by type-asserting Service
+// (the RemoteV2Plane precedent — an optional SPI segment; an assembly
+// without the seam answers the pre-T-367 pass-through instead).
+type RemoteExternalPlane interface {
+	// FetchExternal pulls one absolute dependency URL into repoKey's cache
+	// at path (the folded _external spelling), read-gated like Get.
+	// Unfound outcomes wrap ErrNodeNotFound; a *StatusError renders
+	// verbatim (the SSRF 400 family included).
+	FetchExternal(ctx context.Context, p *Principal, repoKey, path, target string) (io.ReadSeekCloser, *metadata.Node, error)
+	// FetchVirtualExternal is the membership-guarded member twin: the
+	// virtual _external walk lands into the REMOTE MEMBER's cache (the
+	// ReadVirtualMember posture — the read gate has already run on the
+	// VIRTUAL key, the member must currently sit in its order, no
+	// per-member re-gate).
+	FetchVirtualExternal(ctx context.Context, p *Principal, virtualKey, member, path, target string) (io.ReadSeekCloser, *metadata.Node, error)
+}
+
+// RemoteV2Plane is the registry-v2 remote pull-through seam (M13 T-363,
+// FR-116.1, helm.md section 8.3): the OCI Distribution upstream
+// conversation — Accept negotiation, the 401/WWW-Authenticate Bearer token
+// exchange, tag-to-digest resolution — exceeds the generic engine's
+// path-joined fetch, so the docker adapter drives that conversation with
+// its own session over the engine's EXPORTED outbound client. The CACHE
+// half stays service-owned through this seam: probing, landing and
+// miss-recording run the same invariants the engine's land() owns
+// (blob-first commit, checksum-addressed blobs, TTL cache rows, GC holds),
+// so the two cache writers can never disagree about what a cached copy is.
+//
+// The consumer resolves the capability by type-asserting Service (the
+// RemoteFetcher precedent — an optional SPI segment, so test doubles that
+// embed the interface keep compiling and an assembly without the seam
+// answers honestly instead of half-serving).
+type RemoteV2Plane interface {
+	// RemoteUpstream resolves one remote repository's upstream connection
+	// facts — URL, credential (password DECRYPTED for the session, never
+	// persisted or echoed by the caller), egress policy and cache TTLs.
+	// Read-gated: the caller has already passed the /v2 endpoint's own
+	// scope question; this is the defense-in-depth re-check.
+	RemoteUpstream(ctx context.Context, p *Principal, repoKey string) (*RemoteUpstream, error)
+	// ProbeRemoteCache answers the local-cache state of one storage path
+	// WITHOUT any upstream contact (the engine's steps 3+4, read-only):
+	// negative window, fresh copy, expired copy, or nothing.
+	ProbeRemoteCache(ctx context.Context, p *Principal, repoKey, path string) (*RemoteProbe, error)
+	// LandRemoteBlob lands one upstream-fetched body checksum-addressed
+	// (the engine's land() invariants; expectHex is enforced by the storage
+	// commit — a body that is not the digest it claims never lands).
+	LandRemoteBlob(ctx context.Context, p *Principal, repoKey, path, expectHex, mime string, body io.Reader) (*metadata.Node, error)
+	// CacheRemoteMiss records one upstream miss (the negative cache).
+	CacheRemoteMiss(ctx context.Context, p *Principal, repoKey, path string) error
+	// RecordRemoteManifest records the docker index rows of one cached
+	// remote manifest (manifest row, tag pointer, best-effort refs) —
+	// cache population, not a deploy: no write-plane gates run.
+	RecordRemoteManifest(ctx context.Context, p *Principal, repoKey, image, digest, tag, mediaType string, size int64, refs []*metadata.DockerRef) error
+}
+
+// V2VirtualPlane is the registry-v2 virtual aggregation seam (M13 T-365,
+// FR-116.2): a VIRTUAL docker/helmoci repository aggregates its members'
+// registry-v2 state — manifest/tag rows, blob nodes, remote cache facts —
+// through these membership-guarded reads. The docker adapter drives the
+// walk itself because a remote member's miss must become an UPSTREAM
+// conversation (the RemoteV2Plane posture), which is the adapter's session
+// to run; everything local stays service-owned here.
+//
+// The guard is what keeps these reads ungated safe: every member-scoped
+// method asserts the member sits in the virtual's CURRENT two-bucket order
+// (the ReadVirtualMember posture — members are resolution internals, the
+// /v2 route gate already answered the permission question on the VIRTUAL
+// key, so no per-member re-gate runs). The consumer resolves the
+// capability by type-asserting Service (the RemoteV2Plane precedent).
+type V2VirtualPlane interface {
+	// V2MemberOrder returns the two-bucket resolution order of one
+	// registry-v2 family virtual repository (family-checked: a non-virtual
+	// or non-v2 key answers ErrRepoTypeNotSupported).
+	V2MemberOrder(ctx context.Context, virtualKey string) ([]VirtualMember, error)
+	// V2MemberManifest answers ONE member's local fact base for a manifest
+	// reference (a bare-digest or tag spelling, exactly as the /v2 route
+	// parsed it) WITHOUT any upstream contact: the resolved digest and
+	// serving facts when the member's rows answer, plus the standing node.
+	// A member whose rows do not answer is a WALK MISS (Digest ""), not an
+	// error — a remote member's Cache=RemoteProbeMiss is the caller's
+	// signal to run the upstream conversation for that member.
+	V2MemberManifest(ctx context.Context, p *Principal, virtualKey, member, image, reference string) (*V2MemberManifest, error)
+	// V2MemberBlob answers one member's standing blob node at the
+	// digest-keyed blob layout path (local member node / remote member
+	// cache probe, RemoteV2Plane.ProbeRemoteCache's states verbatim).
+	V2MemberBlob(ctx context.Context, p *Principal, virtualKey, member, image, hex string) (*V2MemberBlob, error)
+	// V2MemberUpstream resolves one REMOTE member's upstream connection
+	// facts (RemoteUpstream's shape; the membership-guarded twin of
+	// RemoteV2Plane.RemoteUpstream).
+	V2MemberUpstream(ctx context.Context, p *Principal, virtualKey, member string) (*RemoteUpstream, error)
+	// V2LandMemberBlob lands one upstream-fetched body into the REMOTE
+	// member's cache (RemoteV2Plane.LandRemoteBlob's invariants, guarded
+	// by membership instead of the member's own permission pair).
+	V2LandMemberBlob(ctx context.Context, p *Principal, virtualKey, member, path, expectHex, mime string, body io.Reader) (*metadata.Node, error)
+	// V2RecordMemberManifest records the docker index rows of one cached
+	// remote-member manifest (RemoteV2Plane.RecordRemoteManifest's
+	// posture, membership-guarded).
+	V2RecordMemberManifest(ctx context.Context, p *Principal, virtualKey, member, image, digest, tag, mediaType string, size int64, refs []*metadata.DockerRef) error
+	// V2CacheMemberMiss records one upstream miss against the REMOTE
+	// member (RemoteV2Plane.CacheRemoteMiss, membership-guarded).
+	V2CacheMemberMiss(ctx context.Context, p *Principal, virtualKey, member, path string) error
+	// V2WriteRefusal renders the /v2 write refusal of one registry-v2
+	// family virtual repository (a *StatusError the adapter answers
+	// verbatim): the C5 405 when no write route is configured, and — a
+	// route IS configured — the honest wording that registry-v2
+	// push-through routing is not implemented (the target is named, never
+	// claimed).
+	V2WriteRefusal(ctx context.Context, virtualKey string) *StatusError
+}
+
+// V2MemberManifest is one member's answer for a manifest reference during a
+// virtual walk: the resolved identity and serving facts when the member's
+// rows answer, the standing copy when one exists, and the remote-member
+// cache state (RemoteProbe* constants; "" on a local member — local is the
+// origin, not a cache).
+type V2MemberManifest struct {
+	// Digest is the member's resolved manifest digest ("" when the
+	// member's rows do not answer — the walk continues).
+	Digest string
+	// MediaType and Size are the manifest ROW's serving facts.
+	MediaType string
+	Size      int64
+	// Node is the standing copy at the member's manifest layout path (nil
+	// when none stands — a local member with rows but no node is the crash
+	// window and reads as a walk miss, probeLocalMember's posture).
+	Node *metadata.Node
+	// Cache is the remote-member probe state (RemoteProbeHit/Stale/
+	// Negative/Miss); "" for a local member's answer.
+	Cache string
+}
+
+// V2MemberBlob is one member's standing blob answer: the node when a copy
+// stands, plus the remote-member cache state ("" on a local member).
+type V2MemberBlob struct {
+	Node  *metadata.Node
+	Cache string
+}
+
+// RemoteUpstream is the upstream fact bundle of one registry-v2 remote
+// repository (RemoteV2Plane.RemoteUpstream's result). Password is plaintext
+// in memory for the adapter's session only — the caller must never log or
+// echo it (NFR-S14).
+type RemoteUpstream struct {
+	URL                  string
+	Username             string
+	Password             string
+	TokenAuth            bool // enableTokenAuthentication: the password IS a bearer token
+	AllowPrivateUpstream bool
+	SocketTimeoutMs      int64
+	ContentTTLSeconds    int64
+	MissedTTLSeconds     int64
+	BlockedOut           bool
+}
+
+// The RemoteProbe states (the X-BinFlow-Cache tokens they serve).
+const (
+	// RemoteProbeHit: a fresh local copy serves the request (HIT).
+	RemoteProbeHit = "HIT"
+	// RemoteProbeStale: an expired local copy stands (STALE — served on an
+	// upstream fault or upstream 404; revalidated by a successful fetch).
+	RemoteProbeStale = "STALE"
+	// RemoteProbeNegative: a fresh miss record answers unfound with zero
+	// upstream packets.
+	RemoteProbeNegative = "NEGATIVE"
+	// RemoteProbeMiss: nothing local — the upstream conversation decides.
+	RemoteProbeMiss = "MISS"
+)
+
+// RemoteProbe is one ProbeRemoteCache outcome: the state plus the standing
+// node on HIT/STALE (nil otherwise).
+type RemoteProbe struct {
+	Node  *metadata.Node
+	State string
+}
 
 // Replicator is the push-replication enqueue seam (M6, ADR-0021 decision 2:
 // "repo.Service.Put 链末增加 replication.Enqueue 调用（异步，非阻塞）").
@@ -847,4 +1097,49 @@ func AttachCopyMoveObserver(s Service, o CopyMoveObserver) {
 		return
 	}
 	impl.cmObserver = o
+}
+
+// WebhookEmitter is the unified-event bus seam (M13 T-362, ADR-0041
+// decision 1: the repository domain's mutation tails call Emit with one
+// event and never learn about subscriptions). Satisfied by the
+// internal/webhook Bus; the seam lives here, consumer-side, so repo never
+// imports the webhook package beyond the event type (matching, gating and
+// the outbox are the bus's alone).
+//
+// Emit is synchronous-but-bounded by contract: implementations must never
+// fail the caller (the bus's own recover/WARN path guarantees it), must
+// complete in small-transaction time (the outbox batch insert), and must
+// be safe for concurrent use.
+type WebhookEmitter interface {
+	Emit(ctx context.Context, e webhook.Event)
+}
+
+// AttachWebhookEmitter wires the unified-event seam onto a Service built
+// by New/NewWithClock (the AttachReplicator precedent: the constructor
+// signature stays stable for every existing caller). Call it during
+// assembly, BEFORE the first request is served; a non-concrete Service is
+// skipped with a WARN. With no emitter attached the mutation tails keep
+// their pre-M13 behavior byte for byte (invariant: the seams are additive).
+func AttachWebhookEmitter(s Service, e WebhookEmitter) {
+	impl, ok := s.(*service)
+	if !ok {
+		slog.Warn("repo: AttachWebhookEmitter: service is not the concrete implementation; webhook seam not wired")
+		return
+	}
+	impl.hooks = e
+}
+
+// hookActorOf projects a principal onto the outbound envelope's
+// userContext triple (webhook.md section 4: id = the username or token
+// subject, isToken, realm — BinFlow's "local" provider is the official
+// "internal" spelling).
+func hookActorOf(p *Principal) webhook.Actor {
+	if p == nil {
+		return webhook.Actor{ID: "anonymous", Realm: webhook.RealmFor("")}
+	}
+	return webhook.Actor{
+		ID:      p.Name,
+		IsToken: p.TokenID > 0,
+		Realm:   webhook.RealmFor(string(p.Source)),
+	}
 }

@@ -17,6 +17,7 @@
 | 版本 | 日期 | 变更 |
 |---|---|---|
 | v1.0 | 2026-08-28 | 初版草案（待 conductor 审）：M12 范围（必须纳入四项用户裁决/裁定承载 + 候选池 PM 聚类收编 + 主轴增量选题制品操作族）、FR-103~FR-113、档位矩阵增量 2 行、契约矩阵 15 条、L01~L35、开放问题 Q1~Q7 带暂行；随稿完成 ROADMAP M12 立项行 + 主轴重排（PM 职责内两处） |
+| v1.1 | 2026-08-30 | T-370 文面裁定包增订（FR-120.2/120.3 + D-356-3/4 残余收口；含收官笔头批 `346485e` 两处先行修正〔§1.2 量化门槛 cargo 行 + FR-113 AC5 拒启序〕并入本版记账）：① cargo 409 记账修正——FR-110.4/AC3/LC-43/L24 四处由「死上游 search → 409」单臂改为双姿态（默认 404 unfound / hardFail 409+errors 信封，照 cargo.md §8.1 R-3 登记；T-355A §2.3 修正案）；② FR-113.5 正文与 L31 命令注对齐 AC5 终验口径（binstore.yaml 在场时其链语义优先——T-349 设计化，D-356-4）；③ flat 措辞回写——八处「flat 扁平化/flat 模式」统一为「flat 折叠进 copy 主参数族（`/api/flat/*` 不实现 → 404）」口径（repo-operations.md §1.6 裁定；T-356 L12 文面债；artifact-operations.md L66 已是折叠口径无需改）；④ FR-107 AC2 加注——「停机窗内重启」解释空间收口（as-built boot 探针 fail-closed；加注不改行为、ADR-0040 零修改；T-356 观察⑨） |
 
 ---
 
@@ -45,7 +46,7 @@ M11 以 `m11-done`（2026-08-28）收官：四包型（conan/deb/rpm/helm）+ ca
 | NuGet publish 重复臂 | 同 id+version 二次 push → 409 CONFLICT；d 权限主体重传 → 覆盖（T-304 §7 新发现语义） | FR-103 |
 | NuGet search 时效 | remote 仓可搜到**上游未缓存**新发布版本（发布→可搜，无缓存落地前置）；virtual 合并两域并见 | FR-104 |
 | service index 自适应 | 异构上游自定义 @id 路径 → flatcontainer/registration/search 三面 URL 零配置解析（前缀常量退役） | FR-104 |
-| 制品操作 | copy/move 树级 + dryRun 零副作用 + flat；属性/校验和随行；协议仓索引联动重算；万节点树 copy 零 5xx + sha256 对账 | FR-105 |
+| 制品操作 | copy/move 树级 + dryRun 零副作用 + flat 折叠进 copy 主参数族（`/api/flat/*` → 404）；属性/校验和随行；协议仓索引联动重算；万节点树 copy 零 5xx + sha256 对账 | FR-105 |
 | Trash can | 删除→打标（四元组）→恢复 roundtrip sha256 一致；保留期自动清理；empty 审计 | FR-106 |
 | dual-write fail-open | S3 停机窗 PUT/GET 零 5xx（T-327 D-A 两处 500 消除）+ 恢复后排空对账零缺 + 队列重启幸存 | FR-107 |
 | 资源门转绿 | `make footprint` ≤100MB（D-8R 红→绿）；`make check-size` 六平台聚合 ≤100MiB 维持；冷启动 <2s | FR-108 |
@@ -84,7 +85,7 @@ M11 以 `m11-done`（2026-08-28）收官：四包型（conan/deb/rpm/helm）+ ca
 | A | 收口裁定⑤（BOARD 留痕）+ T-329 D-8R | FR-108（空载 RSS 瘦身：懒加载 embed，footprint 门红→绿） | P0 |
 | A | T-329 D-F 登记 | FR-110（包型收尾小票包：conan D-F 状态码 + forceConanAuthentication + 活体互证条件腿；cargo R-3/R-4 + DELETE 收敛） | P1 / P2 |
 | B | 候选池聚类（ROADMAP M11 未纳入项）+ T-330 定名 | FR-106（Trash can 回收站：auto-trashcan 内置仓 + 打标 + 保留期 + restore/empty/clean + 控制台最小面） | P1 |
-| B | 主轴增量选题（PM，§2.2 留痕）+ 主矩阵缺口 5 | FR-105（制品操作族：copy/move〔树级/dryRun/flat/属性与索引随行〕+ `archive!/` + 目录 zip + exploded 解包上传） | P0（copy/move）/ P1（归档族） |
+| B | 主轴增量选题（PM，§2.2 留痕）+ 主矩阵缺口 5 | FR-105（制品操作族：copy/move〔树级/dryRun/flat 折叠进主参数族/属性与索引随行〕+ `archive!/` + 目录 zip + exploded 解包上传） | P0（copy/move）/ P1（归档族） |
 | B | Q2 承接（T-320 未派）+ T-313 D-2/D-5 | FR-109（HelmOCI 分发 + oci:// 透传 + chartsBaseUrl P2） | P1 |
 | B | T-300 候选清单 | FR-111（MUI 批次三：五页面 + 共享组件六件套 + combobox 统一化——交互零变化） | P1 |
 | C | T-332/T-318/T-312 转交集中消化 | FR-112（架构/规格回写批：architecture §15.4/§23 + cargo.md §8 + conan.md 升置信 + D-G/D-H 校验） | P1 |
@@ -127,7 +128,7 @@ M11 以 `m11-done`（2026-08-28）收官：四包型（conan/deb/rpm/helm）+ ca
 
 - **场景 A（.NET 团队，NuGet 补全）**：内网既有 v2 老工具链（TeamCity 步骤/nuget.exe 老版）与 v3 新链（dotnet 8）并存——`nuget list`/`nuget install -Source`（v2）与 `dotnet add package`（v3）都全功能可用；remote 仓能搜到上游刚发布的版本，不等缓存落地。
 - **场景 B（管理员，数据安全）**：同事误删了发布仓里的关键包——14 天内从回收站恢复（打标留删除人与原路径），sha256 逐位一致；「删除即永久」的事故源消除。
-- **场景 C（迁移管理员，仓间搬运）**：从旧仓把制品树搬到新仓：`POST /api/copy` 先 dryRun 预演看冲突报告，确认后执行——属性、校验和、协议仓索引（Packages/repomd/index.json）随行重算；flat 模式 flatten 布局。
+- **场景 C（迁移管理员，仓间搬运）**：从旧仓把制品树搬到新仓：`POST /api/copy` 先 dryRun 预演看冲突报告，确认后执行——属性、校验和、协议仓索引（Packages/repomd/index.json）随行重算；flat 需求由 copy 主参数族承载（`/api/flat/*` 不实现 → 404，Artifactory 默认部署同姿——repo-operations.md §1.6 裁定，v1.1 措辞回写）。
 - **场景 D（运维，S3 检修窗）**：dual-write 迁移期撞上 S3 检修——上传照常 200（本地落盘 + 队列）、下载照常 200（存量 fallback）；S3 恢复后自动排空补齐，对账零缺。
 - **场景 E（运维，资源基线）**：升级 M12 后空载 RSS 回到 ≤100MB（PRODUCT.md 基线），冷启动不见劣化。
 - **场景 F（平台工程师，Helm OCI）**：`helm push oci://` 与经典仓同仓体验；虚仓里 Helm 与 HelmOCI 不混仓的边界清晰。
@@ -192,13 +193,13 @@ M11 以 `m11-done`（2026-08-28）收官：四包型（conan/deb/rpm/helm）+ ca
 #### FR-105 copy/move + `archive!/` + 目录 zip + exploded 解包（internal/storage + httpapi + 各 adapter 索引联动；前置 repo-operations.md）
 
 **用户故事**：
-- 作为仓库管理员，我在仓间搬制品：`POST /api/copy`（或 `/api/move`）先 dryRun 预演，确认后执行——属性、校验和、协议仓索引随行；flat 模式扁平化布局。
+- 作为仓库管理员，我在仓间搬制品：`POST /api/copy`（或 `/api/move`）先 dryRun 预演，确认后执行——属性、校验和、协议仓索引随行；flat 需求由 copy 主参数族承载（`/api/flat/*` 不实现 → 404——repo-operations.md §1.6 裁定，v1.1 措辞回写）。
 - 作为用户，我直接读归档内成员（`<file>.zip!/inner/path`）、整目录一键 zip 下载、上传归档自动解包部署。
 
 行为规格：
 
 - **105.1 前置 mini 规格票**：repo-operations.md——`POST /api/copy|move/{srcRepo}/{srcPath}?to=/{dstRepo}/{dstPath}`（树级、dryRun、flat〔dry+failFast〕）、`<name>.<ext>!/inner/path` 按需解包成员读取（strictArchiveDotSlash 严格模式）、目录/整仓 zip（folderDownloadConfig 默认关 + 1024MB/5000 文件/10 并发/匿名单独开关 + `GET /api/archive/download` + entry 抽取 + 计流量）、exploded archive 解包上传（explodedArchiveExtensions=zip,tar,tar.gz,tgz）——逐条附 Artifactory 出处（主矩阵 §C copy/move 行、归档族三行锚点在案）。
-- **105.2 copy/move 核心（P0）**：树级复制/移动 + dryRun 预演（零副作用）+ flat 扁平化（dry+failFast）+ 目标仓写权限门 + 属性（node_props）/校验和随行 + **派生索引联动**：源/目标为协议仓（deb/rpm/conan/helm/npm/nuget…）时触发对应索引重算链（消费各 adapter 既有 reindex 内核）；「系统内路径豁免」面（FR-97.1 DB-2 建立的豁免名录）收编为显式系统路径集。
+- **105.2 copy/move 核心（P0）**：树级复制/移动 + dryRun 预演（零副作用）+ flat 折叠进 copy 主参数族（`/api/flat/*` 不实现 → 404——repo-operations.md §1.6 裁定；dry/failFast 为 copy 既有参数，v1.1 措辞回写）+ 目标仓写权限门 + 属性（node_props）/校验和随行 + **派生索引联动**：源/目标为协议仓（deb/rpm/conan/helm/npm/nuget…）时触发对应索引重算链（消费各 adapter 既有 reindex 内核）；「系统内路径豁免」面（FR-97.1 DB-2 建立的豁免名录）收编为显式系统路径集。
 - **105.3 归档族（P1）**：`archive!/` 流式成员读取（不解包落盘）；目录 zip（配置默认关 + 四限参 + 计流量审计）；exploded 上传——**替换 M10「X-Explode-Archive 显式 400 拒绝」为接受+解包**（白名单扩展名闭集外维持 400）。
 - **105.4 门控**：暂行基座能力不新增 addon 槽（Artifactory 侧无 license 门标记在案；规格票复核发现门控则上 BOARD——Q4）。
 - **105.5 回收站联动**：move 底座为 FR-106 复用（删除 = move to `auto-trashcan`）。
@@ -206,7 +207,7 @@ M11 以 `m11-done`（2026-08-28）收官：四包型（conan/deb/rpm/helm）+ ca
 验收标准（AC）：
 
 - **AC1（copy/move 全链）**：maven/npm 源仓→目标仓 `curl -X POST -u $ADMIN "$BASE/api/copy/<src>/<path>" --data-urlencode "to=/<dst>/<path>"` → 200 + 源/目标 sha256 对账 + `?properties` 随行 + copy 源保留 / move 源消失。
-- **AC2（dryRun/flat）**：dryRun → 冲突/规模报告形态 + 源/目标零变化（GET 对照）；flat 模式展开断言 + failFast 臂。
+- **AC2（dryRun/flat 折叠；v1.1 措辞对齐 as-built——T-356 L12 实证）**：dryRun → 冲突/规模报告形态 + 源/目标零变化（GET 对照）；`/api/flat/{copy,move}` → 404（Artifactory 默认部署同姿）+ copy 主参数族 to/dry/failFast 断言 + failFast 停走臂。
 - **AC3（协议仓索引联动）**：deb 仓 copy `.deb` → 目标 Packages/by-hash 重算；conan 仓 move recipe → 目标 index.json 修订链一致；trash restore 回原仓 → 索引重算（copy 与 restore 两臂，npm install 复验）。
 - **AC4（archive!/）**：PUT zip 后 `curl $BASE/binflow/<repo>/<file>.zip!/inner/path.txt` → 成员字节一致；strictArchiveDotSlash 开启后违规形态照规格。
 - **AC5（目录 zip）**：开 folderDownload → `GET /api/archive/download` → 解包逐文件 sha256 对账；默认关断言；超限（>5000 文件）拒绝形态。
@@ -253,7 +254,7 @@ M11 以 `m11-done`（2026-08-28）收官：四包型（conan/deb/rpm/helm）+ ca
 验收标准（AC）：
 
 - **AC1（停机窗）**：MinIO stop → PUT 3 制品全 200（disk 落盘 + 队列深度 +3）→ GET 新旧制品全 200 → MinIO start → 排空 → mc 侧逐对象 sha256 对账零缺。
-- **AC2（持久化）**：停机窗内重启 BinFlow → 队列幸存 → 恢复后排空对账（对账报告留票）。
+- **AC2（持久化）**：停机窗内重启 BinFlow → 队列幸存 → 恢复后排空对账（对账报告留票）。**（v1.1 加注——T-356 观察⑨：as-built boot 探针为 fail-closed，S3 全停窗内整进程重启会因 bucket 探针拒启〔T-338 按「重启排在恢复后」验证、ADR-0040 未修订 boot 探针〕；本 AC 的「停机窗内重启」指队列盘上幸存语义——通过姿势 = 重启时探针可过或排在 S3 恢复后，水位行与排空在恢复后兑现〔T-356 §1 D-3 实证〕。加注不改行为、ADR-0040 零修改。）**
 - **AC3（迁移语义回归）**：M6 H12~H15 迁移序列复跑绿（fail-open 不破坏迁移状态机；completed 边界断言）。
 - **AC4（可观测）**：queue depth gauge + 排空审计断言。
 - **AC5（回归）**：binstore.yaml 三链 roundtrip（M11 L08/L09 口径）零回归。
@@ -309,13 +310,13 @@ M11 以 `m11-done`（2026-08-28）收官：四包型（conan/deb/rpm/helm）+ ca
 - **110.1 D-F 状态码修正（T-329 §7 登记）**：v1 `packages/delete` 对 `_/_` 坐标（conan 2.x 无 user/channel 上传形态）删树成功回 **200**（现 404「Path not found」——dir 解析与删除结果码分离，v1.go servePackagesDeleteIDs）；conan.md 规格行随票回写；conan 1.x 流量不受影响（回归断言）。
 - **110.2 forceConanAuthentication（T-308 遗留）**：仓配置字段落地——接受/回显/生效（匿名面收紧为强制认证；默认 false 行为已备）。
 - **110.3 conan Artifactory 真实上游活体互证（T-312 遗留）**：**条件腿**（Q5——dep: 用户环境/Artifactory 实例可得性）；不可得维持 mock + 自指上游两腿留痕（非 DoD 缺口）。
-- **110.4 cargo R-3/R-4（T-316 登记）**：remote search 上游死（上游 404）时对齐 Artifactory **409 + errors 信封**（现 404；出处：T-304 §3 表 remote search Exception 臂）；`.cargo/**` DELETE 收敛（低危随票）。
+- **110.4 cargo R-3/R-4（T-316 登记；v1.1 勘误——T-355A §2.3 修正案 / T-356 D-356-3）**：remote search 上游死时**双姿态照 cargo.md §8.1 R-3 登记**——默认（hardFail 关）→ **404 unfound** 信封（assumed offline 摘要；FR-20 全仓统一姿态优先）/ hardFail 开 → **409 + errors 信封**（Artifactory cargo 面 409 在 remote search 上游异常臂〔T-304 §3 表 Exception 臂 / CG-2 类 8〕，publish 面无 409——T-355A §2.1 查证）；`.cargo/**` DELETE 收敛（低危随票）。
 
 验收标准（AC）：
 
 - **AC1（D-F）**：conan 2.x 上传 `_/_` 形态包 → v1 packages/delete → **200** + 树删（curl 断言；404 复现对照脚本入票）。
 - **AC2（forceConanAuthentication）**：PUT 开启 → 匿名面 401/引导登录形态照规格；GET 回显；关闭往返。
-- **AC3（cargo 409）**：死上游 search → 409 + errors 信封（curl 断言）。
+- **AC3（cargo 双姿态；v1.1）**：死上游 search → 默认 404 unfound / hardFail 409 + errors 信封（curl 双臂断言；实现与测试 T-355A §2.2 在案，T-356 L24 实测绿）。
 - **AC4（条件腿）**：Q5 结论执行或留痕。
 
 ### 4.9 MUI 批次三（T-300 候选清单兑现）
@@ -369,7 +370,7 @@ M11 以 `m11-done`（2026-08-28）收官：四包型（conan/deb/rpm/helm）+ ca
 - **113.2 byHash 值域枚举校验归 repo.Service（T-327R 登记）+ web 仓表单 deb/rpm 策略键跟进（T-327R——REST 已通〔T-327R/D-E〕、表单缺）**。
 - **113.3 checksum-deploy token 窄域化（T-332 登记）**：MPU complete 后签发 token 的权限域收窄到目标会话（防横向使用）——安全向增强，Artifactory 无 wire 对照（C 层级）。
 - **113.4 auth 尾巴（T-305 遗留）**：audit 词表两词补录 + `userDnPattern` 消费缺位（按 auth-integration.md v2 规格：DN 直写模式生效或明确拒绝）。
-- **113.5 env-only 不完整链键组先于 binstore 拒启（T-325 登记，dev-go-storage）**：S3 凭据 env 组不完整 → 启动期即拒（早于 binstore.yaml 解析报错；错误指明缺键）。
+- **113.5 env-only 不完整链键组拒启（T-325 登记，dev-go-storage；v1.1 对齐 AC5 终验口径——T-349 设计化，D-356-4）**：S3 凭据 env 组不完整 → 启动期即拒、错误指名缺键——**生效条件 = binstore.yaml 缺席或自身可解析**；binstore.yaml 在场时其链语义优先（文件在且 schema 错 → binstore 解析错先出）。
 - **113.6 测试基建**：e2e 负载 flake 族 **CI 专用 runner**（或静默窗协议——T-327 §7 协议 + T-329 观察④重申；形态 K46 定案）。
 - **113.7 待裁登记（不阻塞）**：SAML POST key FE 入口（T-307R——regenerate 已覆盖主径，开口子与否待裁）；crates.io 直连双主机 R-2 维持（文档说明）；keypair T-319 D-1~D-8 / SAML T-331 D-1~D-5 维持在案（用户可推翻）。
 
@@ -414,7 +415,7 @@ M11 以 `m11-done`（2026-08-28）收官：四包型（conan/deb/rpm/helm）+ ca
 | LC-32 | NuGet publish 重复臂：409 CONFLICT + canDelete 覆盖 | `NuGetLocalRepoHandler`（T-304 §7 新发现；与 cargo D-3 同构） | A | P0 | 高 | L03 |
 | LC-33 | NuGet v3 service index 动态解析（资源类型优先级阶梯） | `FeedUtils` 阶梯常量表 + 偏好序列（T-304 §1.1-L4） | A | P0 | 复核后 | L06 |
 | LC-34 | NuGet v3 remote/virtual search 上游代理合并（SearchQueryService @id 提取 + local∪remote） | `downloadSearchResult` / `collectAllSearchResultDataItems`（T-304 §1.1-L3'/L7；local 半边维持存储事实） | A | P0 | 高 | L07/L08 |
-| LC-35 | `POST /api/copy\|move/{srcRepo}/{srcPath}`（树级 + dryRun + flat〔dry+failFast〕+ 属性/校验和/索引随行） | Artifactory copy/move REST（主矩阵 §C；repo-operations.md） | A | P0 | 复核后 | L11/L12 |
+| LC-35 | `POST /api/copy\|move/{srcRepo}/{srcPath}`（树级 + dryRun + flat 折叠进主参数族〔`/api/flat/*` → 404〕+ 属性/校验和/索引随行） | Artifactory copy/move REST（主矩阵 §C；repo-operations.md） | A | P0 | 复核后 | L11/L12 |
 | LC-36 | 归档内路径 `archive!/`（按需解包成员读取 + strictArchiveDotSlash） | inv-3 §3.1（主矩阵归档族行） | A | P1 | 复核后 | L14 |
 | LC-37 | 目录/整仓 zip 下载（folderDownloadConfig 默认关 + 四限参 + `GET /api/archive/download` + entry 抽取 + 计流量） | inv-1 F ArchiveResource + inv-2 §1.A/inv-3 §3.3 | A | P1 | 复核后 | L14 |
 | LC-38 | exploded archive 解包上传（X-Explode-Archive + explodedArchiveExtensions 白名单） | inv-2 §5 system.properties——**M10「显式 400 拒绝」反转** | A | P1 | 高 | L14 |
@@ -422,7 +423,7 @@ M11 以 `m11-done`（2026-08-28）收官：四包型（conan/deb/rpm/helm）+ ca
 | LC-40 | dual-write S3 停机 fail-open（本地优先写 + 异步重试队列 + 排空对账） | **无 Artifactory 对照**（dual-write 为 BinFlow 自有迁移引擎——T-289-E 结构性不可对照；M6 FR-50 文面行为模式） | C | P1 | 高（ADR-0040） | L18/L19 |
 | LC-41 | HelmOCI 分发（package_type=helmoci 复用 docker 面 + 三 media type + oci:// 透传 + 混仓校验） | Artifactory HelmOCI（HL-3；helm.md） | A | P1 | 高 | L21/L22 |
 | LC-42 | conan v1 packages/delete `_/_` 坐标 200（D-F）+ forceConanAuthentication 字段 | conan.md §3.2 规格 200（缺陷修正）；artifactory.xsd 真字段 | A | P1/P2 | 高 | L23 |
-| LC-43 | cargo remote 死上游 search 409（R-3/R-4）+ `.cargo/**` DELETE 收敛 | `CargoRemoteRepoHandler.search` Exception 臂（T-304 §3 表） | A | P2 | 高 | L24 |
+| LC-43 | cargo remote 死上游 search 双姿态（默认 404 unfound / hardFail 409+errors 信封——R-3 登记；v1.1）+ `.cargo/**` DELETE 收敛 | `CargoRemoteRepoHandler.search` Exception 臂（T-304 §3 表）+ cargo.md §8.1 R-3/R-4 | A | P2 | 高 | L24 |
 | LC-44 | `socketTimeoutMillis` canonical 回显（T-290-2 兑现）+ byHash 值域枚举 + web 策略键表单 | `HttpRepoDescriptor` 字段拼写（xsd 逐字）；debian.md/rpm.md 值域 | A | P2 | 高 | L28/L29 |
 | LC-45 | debian Packages.bz2 压缩档 | **D（有意不兼容）**——dsnet 依赖不可得实证（T-314）；plain+gz+xz/lzma 在场，apt 功能面零损；用户可推翻（Q7） | D | — | 高 | L34（负向/留痕） |
 
@@ -468,7 +469,7 @@ BASE=http://127.0.0.1:8080; ADMIN=admin:password
 # L10 规格走查：repo-operations.md（copy/move/archive!/zip/explode 出处逐条）+ tl 就绪确认
 # L11 copy/move：curl -X POST -u $ADMIN "$BASE/api/copy/<src>/<path>" --data-urlencode "to=/<dst>/<path>"
 #    → 200；源/目标 sha256 对账；?properties 随行；move 源消失；万节点树 copy 零 5xx
-# L12 dryRun/flat：dryRun 报告 + 源/目标零变化（GET 对照）；flat 展开 + failFast 臂
+# L12 dryRun/flat：dryRun 报告 + 源/目标零变化（GET 对照）；/api/flat/* → 404（折叠口径）+ failFast 停走臂
 # L13 索引联动：deb 仓 copy .deb → 目标 Packages/by-hash 重算；conan move recipe → 目标 index.json 一致
 # L14 归档族：GET <file>.zip!/inner/path.txt 字节一致（strictArchiveDotSlash 臂）；开 folderDownload →
 #    GET /api/archive/download 解包 sha256 对账（默认关/超限拒绝臂）；PUT X-Explode-Archive → 展开
@@ -495,7 +496,7 @@ BASE=http://127.0.0.1:8080; ADMIN=admin:password
 # ========== FR-110 包型收尾 ==========
 # L23 conan：_/_ 坐标 v1 packages/delete → 200+树删（404 复现对照）；forceConanAuthentication 开→匿名 401/回显；
 #    conan 1.x 回归不受影响
-# L24 cargo：死上游 search → 409+errors 信封；.cargo/** DELETE 收敛断言
+# L24 cargo：死上游 search 双姿态（默认 404 unfound / hardFail 409+errors 信封）；.cargo/** DELETE 收敛断言
 
 # ========== FR-111 MUI 批三 ==========
 # L25 四闸门：锚零改动/ledger PASS/全量 playwright/assert-tokens + axe 双主题 0 + gzip 累计 ≤25%
@@ -509,7 +510,7 @@ BASE=http://127.0.0.1:8080; ADMIN=admin:password
 # L28 socketTimeoutMillis：PUT 新拼写回显一致；PUT 旧拼写 → 接受+回显新拼写；文档同步
 # L29 byHash/表单：byHash 非法值 400 枚举；Playwright deb/rpm 策略键表单往返回显
 # L30 token 窄域化：MPU 会话 token 他路径 403；原会话续传 200
-# L31 auth/拒启：audit 两词可见；userDnPattern 规格行为；S3 env 缺键启动即拒（先于 binstore 报错）
+# L31 auth/拒启：audit 两词可见；userDnPattern 规格行为；S3 env 缺键启动即拒（binstore.yaml 在场时其链语义优先）
 # L32 CI runner/de-flake：协议落地 + 负载 flake 家族三连零复发或隔离归因留痕
 
 # ========== 回归与收口 ==========

@@ -69,6 +69,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/replication"
 	"github.com/lzwzzy/binflow/internal/repo"
 	"github.com/lzwzzy/binflow/internal/storage"
+	"github.com/lzwzzy/binflow/internal/webhook"
 	minio "github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 	_ "modernc.org/sqlite" // driver for the replication store's own connection
@@ -316,6 +317,18 @@ func runServe(args []string, stderr io.Writer) error {
 
 	srv := newAssembledServer(cfg, stack, logger)
 
+	// T-371 (ADR-0042 decision 1): the conan v1 files-channel layout sweep —
+	// bootstrap order, strictly before the listener below goes up (a
+	// half-applied tree is structurally unobservable; an interrupted pass
+	// resumes by predicate on the next boot). Idempotent and predicate-
+	// consuming: zero conan repositories scans nothing, a swept instance
+	// reports moved=0. A failure fails the boot — with the write path
+	// fixed, serving an unswept legacy tree would 404 the channel GET.
+	if err := conan.SweepV1FilesLayout(context.Background(), stack.svc, logger); err != nil {
+		stack.close(logger)
+		return fmt.Errorf("conan v1 layout sweep: %w", err)
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
@@ -326,6 +339,10 @@ func runServe(args []string, stderr io.Writer) error {
 	// Run to return — every task is reverted to pending and the blob reads
 	// stop — before the storage engine closes underneath it.
 	drainReplication := stack.startReplication(ctx, logger)
+	// The webhook delivery engine (M13 T-364): drains the outbox for the
+	// server's lifetime; drainWebhook must complete before webhookDB
+	// closes underneath it.
+	drainWebhook := stack.startWebhookDelivery(ctx, logger)
 
 	// The license daily re-evaluation loop (ADR-0032 / D6): expiry is a
 	// runtime event, the downgrade needs no restart. Cancellation rides
@@ -342,6 +359,7 @@ func runServe(args []string, stderr io.Writer) error {
 	err = srv.Run(ctx)
 	if err != nil {
 		drainReplication()
+		drainWebhook()
 		return fmt.Errorf("serve: %w", err)
 	}
 
@@ -351,6 +369,7 @@ func runServe(args []string, stderr io.Writer) error {
 	// the final teardown is beginning.
 	logger.Info("shutting down gracefully")
 	drainReplication()
+	drainWebhook()
 	stack.close(logger)
 	logger.Info("binflow stopped")
 	return nil
@@ -540,14 +559,19 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 		// own handlers (the adapter-seam pattern) instead.
 		MgmtHandlers: map[string]http.Handler{"conan": conanMgmt},
 		// The process metric registry (T-163, ADR-0022): one per serve; the
-		// /metrics endpoint and the request-counting middleware ride it.
-		Metrics: metrics.NewRegistry(),
+		// /metrics endpoint and the request-counting middleware ride it, and
+		// the webhook dispatcher's five families (T-364) share the same
+		// instance so a scrape sees both.
+		Metrics: stack.metricRegistry(),
 		// The addon manifest (M10 T-282): the compile-time assembly literal
 		// slice (see addonManifest — the one function to touch when a slot
 		// lands). httpapi.New asserts every adapter above carries a slot.
 		// The ONE instance openStack built — the repo-create gate seam reads
 		// the same registry (T-283).
-		Addons:   stack.addonsReg,
+		Addons: stack.addonsReg,
+		// The unified-event webhook plane (M13 T-362): /binflow/event/api/v1
+		// seven-endpoint family + the domain handlers' Emit seam.
+		Webhooks: stack.webhookBus,
 		Version:  version,
 		Revision: revision,
 	}
@@ -641,6 +665,7 @@ func addonManifest() *addons.Registry {
 		// is this manifest's one tier value), the enterprise placeholders
 		// visible with their M11+ reservation notes.
 		addons.Properties(), addons.RepoOperations(), addons.Trashcan(), addons.HA(), addons.XrayIntegration(),
+		addons.Webhook(),
 	)
 }
 
@@ -830,6 +855,10 @@ type stack struct {
 	// signer is the GPG signing seam (T-319's SigningService, fed to the
 	// deb/rpm adapters' release-signing Options by the adapter phase).
 	signer *keypair.SigningService
+	// webhookBus is the unified-event plane (M13 T-362, ADR-0041): the
+	// Emit seam the domain handlers carry and the REST family serves.
+	// Its DB connection rides webhookDB on the close chain.
+	webhookBus *webhook.Bus
 	// oidcProv/ldapProv were the config-driven identity providers (T-179,
 	// ADR-0020). T-305 (ADR-0035) replaced them with authCfg, the
 	// ConfigManager: the three protocol sections live in auth_configs
@@ -854,8 +883,17 @@ type stack struct {
 	// them in the engine — nil when no master key is configured, in which
 	// case password-carrying configs are refused at create time. Run is a
 	// LIFECYCLE concern, not an open one: startReplication launches it.
-	replStore  replication.Store
-	replDB     *sql.DB
+	replStore replication.Store
+	replDB    *sql.DB
+	webhookDB *sql.DB
+	// webhookDisp is the delivery engine (M13 T-364) draining webhookBus's
+	// outbox; startWebhookDelivery owns its Run/drain lifecycle, the
+	// replication engine's shape.
+	webhookDisp *webhook.Dispatcher
+	// metricsReg is the one process registry (T-163): the HTTP /metrics
+	// plane and the webhook dispatcher's five families share it, so a
+	// scrape sees both (hoisted here from the Deps literal).
+	metricsReg *metrics.Registry
 	replEngine *replication.Engine
 	replCipher *remote.Cipher
 
@@ -1089,6 +1127,63 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 		return nil, fmt.Errorf("loading stored license: %w", err)
 	}
 
+	// The unified-event webhook plane (M13 T-362, ADR-0041): its own
+	// connection onto the metadata database (the 018 tables), the enc:v1
+	// cipher from the same instance master key, and the license Manager's
+	// evaluation as the Emit gate (decision 8: internal/webhook never
+	// imports license — the verdict arrives as a func, fail-closed).
+	webhookDB, err := openReplicationDB(ctx, sqlitePath(cfg))
+	if err != nil {
+		_ = st.Close()
+		_ = md.Close()
+		return nil, err
+	}
+	webhookCipher, err := replicationCipher()
+	if err != nil {
+		_ = webhookDB.Close()
+		_ = st.Close()
+		_ = md.Close()
+		return nil, err
+	}
+	webhookBus, err := webhook.NewBus(webhook.BusOptions{
+		Store: webhook.NewSQLiteStore(webhookDB),
+		Repos: md.Repos(),
+		Gate: func(ctx context.Context) bool {
+			return licenseMgr.AddonEnabled(ctx, addons.Webhook().ID, addons.Webhook().MinTier)
+		},
+		Cipher:             webhookCipher,
+		Origin:             cfg.Server.BaseURL,
+		AllowPrivateTarget: cfg.Webhook.AllowPrivateTarget,
+		Logger:             logger,
+	})
+	if err != nil {
+		_ = webhookDB.Close()
+		_ = st.Close()
+		_ = md.Close()
+		return nil, fmt.Errorf("wiring webhook bus: %w", err)
+	}
+	repo.AttachWebhookEmitter(svc, webhookBus)
+
+	// The webhook delivery engine (M13 T-364, ADR-0041 decision 4): the
+	// worker pool over the 018 outbox, with the five metric families on
+	// the process registry and the dead-letter audit word best-effort.
+	// Wire parameters are the T-358 anchor defaults (retryCount 5 first
+	// counted / fixed 10s wait / 30s attempt timeout / 1000s+10000 burst
+	// pacing / 50000 concurrent cap) — DispatcherOptions zero values.
+	metricsReg := metrics.NewRegistry()
+	webhookDisp, err := webhook.NewDispatcher(webhook.DispatcherOptions{
+		Bus:      webhookBus,
+		Registry: metricsReg,
+		Audit:    auditLog,
+		Logger:   logger,
+	})
+	if err != nil {
+		_ = webhookDB.Close()
+		_ = st.Close()
+		_ = md.Close()
+		return nil, fmt.Errorf("wiring webhook dispatcher: %w", err)
+	}
+
 	// The unused-cleanup engine (M11 T-324, FR-102.2): the remote-cache
 	// policy pass over the same engine + audit the service uses. Built
 	// here so the first scheduled tick already sees the opened stack.
@@ -1117,18 +1212,31 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 	addonsReg := addonManifest()
 	repo.AttachPackageTypeGate(svc, packageTypeGate{reg: addonsReg, ev: licenseMgr})
 
-	// The trash can (M12 T-345, FR-106): the feature configuration (spec
-	// defaults — enabled, 14-day retention; the config.yaml field is a
-	// registered follow-up) plus the license-plane gate over the trashcan
-	// slot (community keeps the M11 hard delete; pro captures), and the
-	// retention cron over the same store/audit collaborators.
-	repo.ConfigureTrash(svc, repo.DefaultTrashConfig())
+	// The folder-download knob (M13 T-368, FR-118.1): the resolved
+	// folder_download section drives the six-field configuration (the
+	// default column IS the M12 as-built; restart-effective).
+	repo.ConfigureFolderDownload(svc, repo.FolderDownloadConfig{
+		Enabled:                 cfg.FolderDownload.Enabled,
+		EnabledForAnonymous:     cfg.FolderDownload.EnabledForAnonymous,
+		MaxDownloadSizeMb:       cfg.FolderDownload.MaxDownloadSizeMb,
+		MaxFiles:                cfg.FolderDownload.MaxFiles,
+		MaxConcurrentRequests:   cfg.FolderDownload.MaxConcurrentRequests,
+		EnabledEmptyDirectories: cfg.FolderDownload.EnabledEmptyDirectories,
+	})
+
+	// The trash can (M12 T-345 / M13 T-368 FR-118.2): capture stays
+	// spec-default enabled; the retention window consumes
+	// trashcan.retention_days (default 14 = the M12 as-built) plus the
+	// license-plane gate over the trashcan slot (community keeps the M11
+	// hard delete; pro captures), and the retention cron over the same
+	// store/audit collaborators.
+	repo.ConfigureTrash(svc, repo.TrashConfig{Enabled: true, RetentionDays: cfg.Trashcan.RetentionDays})
 	repo.AttachTrashGate(svc, trashcanGate{reg: addonsReg, ev: licenseMgr})
 	trashEng, err := repo.NewTrashEngine(repo.TrashEngineOptions{
 		Store:         md,
 		Audit:         auditLog,
 		Gate:          trashcanGate{reg: addonsReg, ev: licenseMgr},
-		RetentionDays: repo.TrashDefaultRetentionDays,
+		RetentionDays: cfg.Trashcan.RetentionDays, // was repo.TrashDefaultRetentionDays
 	})
 	if err != nil {
 		_ = replDB.Close()
@@ -1149,6 +1257,10 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 		signer:         keypairSigner,
 		replStore:      replStore,
 		replDB:         replDB,
+		webhookDB:      webhookDB,
+		webhookBus:     webhookBus,
+		webhookDisp:    webhookDisp,
+		metricsReg:     metricsReg,
 		replEngine:     replEngine,
 		replCipher:     replCipher,
 		licenseMgr:     licenseMgr,
@@ -1342,6 +1454,45 @@ func (s *stack) startReplication(ctx context.Context, logger *slog.Logger) (drai
 			logger.Info("replication engine drained")
 		})
 	}
+}
+
+// startWebhookDelivery launches the delivery dispatcher's Run loop on a
+// context derived from ctx and returns the drain function the shutdown
+// path MUST call before closing the webhook database: it cancels the loop
+// (in-flight attempts abort at their next context boundary and land their
+// outcome rows on a detached context), then waits for every worker to
+// park. Idempotent and safe on early serve failures.
+func (s *stack) startWebhookDelivery(ctx context.Context, logger *slog.Logger) (drain func()) {
+	if s.webhookDisp == nil {
+		return func() {}
+	}
+	engCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		if err := s.webhookDisp.Run(engCtx); err != nil {
+			logger.Warn("webhook dispatcher stopped", "error", err.Error())
+		}
+	}()
+	var once sync.Once
+	return func() {
+		once.Do(func() {
+			cancel()
+			<-done
+			logger.Info("webhook dispatcher drained")
+		})
+	}
+}
+
+// metricRegistry lazily creates the one process registry (T-163): the
+// HTTP /metrics plane and the webhook dispatcher's five families (T-364)
+// share it, so a scrape sees both. openStack always populates the field;
+// the guard keeps any future light-stack assembly path honest.
+func (s *stack) metricRegistry() *metrics.Registry {
+	if s.metricsReg == nil {
+		s.metricsReg = metrics.NewRegistry()
+	}
+	return s.metricsReg
 }
 
 // wireAuthConfigManager builds and loads the auth-configuration plane
@@ -1667,6 +1818,14 @@ func (s *stack) close(logger *slog.Logger) {
 	if s.replDB != nil {
 		if err := s.replDB.Close(); err != nil {
 			logger.Error("closing replication store", "error", err.Error())
+		}
+	}
+	// The webhook store's own pool (T-362 left it un-closed; with the
+	// T-364 dispatcher writing through it, drain-then-close is now
+	// load-bearing — serve() drains the dispatcher before this runs).
+	if s.webhookDB != nil {
+		if err := s.webhookDB.Close(); err != nil {
+			logger.Error("closing webhook store", "error", err.Error())
 		}
 	}
 	if s.md != nil {

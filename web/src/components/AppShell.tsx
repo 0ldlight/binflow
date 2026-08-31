@@ -84,8 +84,8 @@ const APP_NAV: NavGroup[] = [
 ]
 
 /** 管理模式侧栏（console-m8 §1.3 全图：五分组；M10 T-288 License & Add-ons、
- * M11 T-307 认证配置、M12 T-352 回收站增补后 = 15 条目；分组标题是标签
- * 不是折叠项——沿 console-ux §3.1 纪律） */
+ * M11 T-307 认证配置、M12 T-352 回收站、M13 T-366 Webhooks 增补后 = 16 条目；
+ * 分组标题是标签不是折叠项——沿 console-ux §3.1 纪律） */
 const ADMIN_NAV: NavGroup[] = [
   {
     title: '仓库',
@@ -113,6 +113,9 @@ const ADMIN_NAV: NavGroup[] = [
       { label: '备份 / 恢复', to: '/admin/governance/backup' },
       // M12 T-352：回收站（FR-106——浏览/恢复/清空；trashcan 槽门控态呈现）
       { label: '回收站', to: '/admin/governance/trash' },
+      // M13 T-366：Webhook 订阅（FR-115.5——订阅 CRUD/test + 投递排障记录；
+      // readonly_admin 只读可见，读写入口页内按角色收敛）
+      { label: 'Webhooks', to: '/admin/governance/webhooks' },
     ],
   },
   {
@@ -189,6 +192,7 @@ function adminCrumbs(pathname: string): Crumb[] {
     replication: '复制',
     backup: '备份 / 恢复',
     trash: '回收站',
+    webhooks: 'Webhooks',
   }
   if (pathname.startsWith('/admin/governance/')) {
     const seg = pathname.slice('/admin/governance/'.length)

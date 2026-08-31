@@ -264,8 +264,10 @@ config:
     #    (inert set entries); addon ids are case-sensitive. Restart-effective:
     #    the value is consumed once at startup, so removing an entry and
     #    restarting restores everything — the breaker never deletes data.
-    #    Addon ids: core = generic, docker, maven, npm, pypi; slots = go,
-    #    nuget, cargo, properties, ha, xray.
+    #    Addon ids (19 slots, M13): core = generic, docker, maven, npm, pypi;
+    #    package-type = go, nuget, cargo, conan, helm, helmoci, rpm, debian;
+    #    feature = properties, repo-operations, trashcan, ha,
+    #    xray-integration, webhook (the 19th slot, M13 T-362).
     disabled: ""
 
   # -- Push-replication SSRF posture (T-210 / ADR-0025 decision 4). Rendered
@@ -279,6 +281,49 @@ config:
     #    enforcing scheme/host sanity and re-screening per hop. This key only
     #    toggles the private-address leg of the SSRF screening list.
     allowPrivateTarget: true
+
+  # -- Webhook SSRF posture (M13 T-362 / ADR-0041 decision 6). Rendered into
+  #    the mounted binflow.yaml as webhook.allow_private_target.
+  webhook:
+    # -- Allow webhook subscription target URLs that resolve to private
+    #    (RFC 1918 / loopback / link-local) hosts. Default FALSE — the
+    #    deliberate asymmetry against replication.allow_private_target
+    #    above: webhook targets are REST-CRUD dynamic (the classic SSRF
+    #    escalation surface), so deny is the safe default. Setting true is
+    #    an explicit opt-in for receivers on private networks.
+    allowPrivateTarget: false
+
+  # -- Directory-zip knob family (M13 T-368 / FR-118.1, the K52 snake_case
+  #    ruling). Rendered into the mounted binflow.yaml as the folder_download
+  #    section — six fields, all explicit (T-183 lesson). Defaults are the
+  #    spec column of repo-operations.md section 2.1 = the M12 as-built with
+  #    the master switch now spelled: enabled=false, anonymous=false,
+  #    1024 MB / 5000 files / 10 concurrent, empty directories off. The
+  #    resolved values echo at GET /binflow/api/v1/system/settings.
+  folderDownload:
+    # -- Master switch for the folder (directory) download endpoint. Default
+    #    false — the M12 as-built (folder download off).
+    enabled: false
+    # -- Allow anonymous principals the folder-download endpoint. Default
+    #    false; only read when enabled=true.
+    enabledForAnonymous: false
+    # -- Maximum zipped download size in MB (env spelling must stay > 0;
+    #    0 = unlimited is a YAML-only spelling).
+    maxDownloadSizeMb: 1024
+    # -- Maximum number of files in one folder download.
+    maxFiles: 5000
+    # -- Maximum concurrent folder-download requests.
+    maxConcurrentRequests: 10
+    # -- Include empty directories in the zip. Default false.
+    enabledEmptyDirectories: false
+
+  # -- Trashcan retention window (M13 T-368 / FR-118.2). Rendered into the
+  #    mounted binflow.yaml as trashcan.retention_days.
+  trashcan:
+    # -- Days a soft-deleted node stays restorable before the hourly purge
+    #    cron drops it. Default 14 = the M12 as-built (the
+    #    default-unchanged red line).
+    retentionDays: 14
 
   # -- Standalone storage-chain file binstore.yaml (M11 T-306 / ADR-0036).
   #    When enabled the chart renders a SECOND ConfigMap key, binstore.yaml,

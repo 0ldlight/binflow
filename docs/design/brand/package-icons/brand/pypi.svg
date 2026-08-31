@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <title>pypi 包型图标（品牌色版）</title>
+  <!-- Python 官方双色（蓝 #306998 / 黄 #FFD43B）双蛇互扣简化重绘；蛇眼用对方色 -->
+  <path d="M4.5 7h8.7a3.3 3.3 0 0 1 3.3 3.3V12" stroke="#306998" stroke-width="3.8" stroke-linecap="round"/>
+  <path d="M19.5 17h-8.7a3.3 3.3 0 0 1-3.3-3.3V12" stroke="#FFD43B" stroke-width="3.8" stroke-linecap="round"/>
+  <circle cx="6.4" cy="7" r="1.05" fill="#FFD43B"/>
+  <circle cx="17.6" cy="17" r="1.05" fill="#306998"/>
+</svg>

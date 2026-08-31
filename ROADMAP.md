@@ -148,22 +148,29 @@
 - [ ] QA：L01~L35 + M1~M11 P0 双形态全量回归 + 契约归属审计（m11-done..HEAD）+ **三处断言反转**（nuget v2 404→路由全集 / virtual search 缓存→上游代理 / X-Explode 400→接受）+ footprint 红→绿；tech-writer 五类增量；release 部署烟测 + UAT 链
 - [ ] 条件票：NuGet symbol server（Q2 余量——mini as-built 规格随票）/ conan 活体互证（Q5 dep:用户环境）/ `_external` 落盘缓存（Q6 architect 评估）——未触发 BOARD 留痕非 DoD 缺口
 
-### M13 — Artifactory 对齐第四程：Webhook 统一事件总线 + HelmOCI 三态齐装 + 配置旋钮与文面债收口（PRD v1.0 草案待 conductor 审，2026-08-30）
+### M13 — Artifactory 对齐第四程：Webhook 统一事件总线 + HelmOCI 三态齐装 + 配置旋钮与文面债收口（**`m13-done` 2026-08-31**；PRD v1.1 终版——23 票全落：21 done + 条件票 T-379/T-380 未触发留痕；T-377 终验 PASS：DoD 八条达标，L01~L24 全绿）
 需求基线：docs/prd/milestone-13.md（PRD v1.0：FR-114~FR-122 九条需求；契约矩阵 11 条〔A 10 / 待裁 1——LC-56 D-10〕+ 档位矩阵增量 1 行〔webhook 第 19 槽 Q4〕；L01~L24；开放问题 Q1~Q7 带暂行）
 来源链：ROADMAP「M12 未纳入项」（票级遗留聚类 / P2 登记维持 / 运维尾巴）+ **PM 主轴选题**（Webhook 事件总线——主矩阵缺口 6，inv-4 判定「可整体平移」、官方文档为唯一行为基准〔反编译集合无该 addon〕；§2.2 滚程留痕：AQL/Build-info 滚 M14+，HA 前置 = PRODUCT.md 修订解禁未发生）+ T-356 终验维持登记四项（D-10/flat/L31/flake）+ T-348/T-340/T-313/T-342 取证链 + Sprint 942 收官笔头批 `346485e`
-- [ ] conductor 审定 PRD v1.0（Q1~Q7 暂行终裁；ADR-0041〔webhook 事件总线：outbox/投递/SSRF〕立项，视 Q 裁定 ADR-0042〔D-F2 存量迁移〕）
-- [ ] 前置产物：webhook.md 规格票（**新建**——官方文档逐端点出处 + 36 事件清单 + BinFlow 触发源覆盖界 + inv-4 §I/§K 锚点补白）+ ADR-0041 + helm.md 增量段（chartsBaseUrl/_external as-built 细化，随票）
-- [ ] FR-114/115 Webhook 主轴：订阅 CRUD+test REST + 36 事件注册与事件源织入（artifact/artifactProperty/docker 域 P0）+ outbox 投递引擎（重试/死信/签名/SSRF）+ 控制台最小面 + 真实消费者验收（dogfood Jenkins 条件腿）（P0；FE 面 P1）
-- [ ] FR-116 HelmOCI remote pull-through + virtual（D-5 翻转点——docker /v2 面首个 remote 数据链，M3 Q4 缓议翻转；remote P0 / virtual P1）
-- [ ] FR-117 chartsBaseUrl 分体基址（T-313 D-2）+ `_external` 落盘缓存（D-3——T-342 评估结论兑现，引擎 absolute-URL 缝票）（P1）
-- [ ] FR-118 旋钮两枚：folderDownloadConfig 六字段 + trashcan.retention_days（缝已备——T-356 L14/L17 断言开关化）（P1）
-- [ ] FR-119 conan D8 整树删翻转（T-348 双证）+ D-F2 files 通道布局迁移（T-340 §4，dep ADR-0042）（P1）
-- [ ] FR-120 文面裁定包：D-10 同字节幂等上 BOARD 终裁（P0 裁定动作）+ flat 措辞回写 + fail-open AC2 加注（T-356 观察⑨；ADR-0040 零修改）（P2 落笔）
-- [ ] FR-121 de-flake：raceEnabled escape（TestBigTreeCopyNo5xx 预算臂 + deb 满载族）+ CI e2e job 三连权威化——race 全树一次绿，不再接受隔离复跑辩护（P1）
-- [ ] FR-122 运维尾巴：trash 树常驻节点（console-m8 推翻条款——先改册后实现）+ 侧栏清单 15 对齐 + npm 尾斜杠接入注记（P1/P2）
-- [ ] QA：L01~L24 + M1~M12 P0 双形态全量回归 + 契约归属审计（m12-done..HEAD）+ **断言反转两处**（conan D8 latest 链→整树删 / folderDownload 恒关→旋钮化）+ 布局对齐一处（D-F2）；tech-writer 增量（webhook 指南/HelmOCI remote/旋钮/收官清扫）；release 烟测 + **UAT 随里程碑 PR 首跑**（M12 T-355 未执行教训）
-- [ ] 条件票：NuGet symbol server（Q2 余量承接）/ docker remote 顺车（Q5，K54 判定）/ D-10 翻转（Q3）/ deb bz2 推翻（Q7）——未触发 BOARD 留痕非 DoD 缺口
-- [ ] 「M12 未纳入项」对账：收口时建「M13 未纳入项」段（DoD#7 字面；M14+ 主轴候选第一顺位 = AQL + 老搜索专程）
+- [x] conductor 审定 PRD v1.0（Q1~Q7 暂行终裁；ADR-0041〔webhook 事件总线：outbox/投递/SSRF〕立项，视 Q 裁定 ADR-0042〔D-F2 存量迁移〕）
+- [x] 前置产物：webhook.md 规格票（**新建**——官方文档逐端点出处 + 36 事件清单 + BinFlow 触发源覆盖界 + inv-4 §I/§K 锚点补白）+ ADR-0041 + helm.md 增量段（chartsBaseUrl/_external as-built 细化，随票）
+- [x] FR-114/115 Webhook 主轴：订阅 CRUD+test REST + 36 事件注册与事件源织入（artifact/artifactProperty/docker 域 P0）+ outbox 投递引擎（重试/死信/签名/SSRF）+ 控制台最小面 + 真实消费者验收（dogfood Jenkins 条件腿）（P0；FE 面 P1）
+- [x] FR-116 HelmOCI remote pull-through + virtual（D-5 翻转点——docker /v2 面首个 remote 数据链，M3 Q4 缓议翻转；remote P0 / virtual P1）
+- [x] FR-117 chartsBaseUrl 分体基址（T-313 D-2）+ `_external` 落盘缓存（D-3——T-342 评估结论兑现，引擎 absolute-URL 缝票）（P1）
+- [x] FR-118 旋钮两枚：folderDownloadConfig 六字段 + trashcan.retention_days（缝已备——T-356 L14/L17 断言开关化）（P1）
+- [x] FR-119 conan D8 整树删翻转（T-348 双证）+ D-F2 files 通道布局迁移（T-340 §4，dep ADR-0042）（P1）
+- [x] FR-120 文面裁定包：D-10 同字节幂等上 BOARD 终裁（P0 裁定动作）+ flat 措辞回写 + fail-open AC2 加注（T-356 观察⑨；ADR-0040 零修改）（P2 落笔）
+- [x] FR-121 de-flake：raceEnabled escape（TestBigTreeCopyNo5xx 预算臂 + deb 满载族）+ CI e2e job 三连权威化——race 全树一次绿，不再接受隔离复跑辩护（P1）
+- [x] FR-122 运维尾巴：trash 树常驻节点（console-m8 推翻条款——先改册后实现）+ 侧栏清单 15 对齐 + npm 尾斜杠接入注记（P1/P2）
+- [x] QA：L01~L24 + M1~M12 P0 双形态全量回归 + 契约归属审计（m12-done..HEAD）+ **断言反转两处**（conan D8 latest 链→整树删 / folderDownload 恒关→旋钮化）+ 布局对齐一处（D-F2）；tech-writer 增量（webhook 指南/HelmOCI remote/旋钮/收官清扫）；release 烟测 + **UAT 随里程碑 PR 首跑**（M12 T-355 未执行教训）
+- [x] 条件票：NuGet symbol server（Q2 余量承接）/ docker remote 顺车（Q5，K54 判定）/ D-10 翻转（Q3）/ deb bz2 推翻（Q7）——未触发 BOARD 留痕非 DoD 缺口
+- [x] 「M12 未纳入项」对账：收口时建「M13 未纳入项」段（DoD#7 字面；M14+ 主轴候选第一顺位 = AQL + 老搜索专程）
+
+### M13 未纳入项（滚入 M14+ 候选池；2026-08-31 T-377 终验归档 + 各票登记汇总；DoD#7 对账）
+
+- **主轴候选（第一顺位 = UI-parity 里程碑——用户指令 2026-08-30「交互体验与 JFrog Artifactory 完全一致（弹窗/抽屉）+ 协议 logo + 自设计品牌 logo」）**：docs/design/console-artifactory-parity.md 差距矩阵 + UX-1 品牌资产（logo 三候选/图标 30 枚）已备；活体核验 V1~V8 与 FE 接线票归 M14。
+- **实现类候选**：docker remote 首航（T-380——K54 判定条件已满足，收口波未派发转 M14）/ NuGet symbol server（T-379 余量承接）/ npm legacy login 服务端小票（T-374 L1——T-77 O-4 实证）/ 仓库表 hover 对比度 FE 小票（T-374 L2，4.41:1）/ Replay + outbox 行级 REST 面（T-364 §5-③ + T-366 §4-2）/ remote 缓存树高并发 busy 重试预算（T-377 D1——24 路 0.27% 边角）/ helm uninstall PVC keep（T-376）/ virtual 成员同型全包型推广（T-367）/ v3-flat 直推面 403-vs-409 规格补锚（T-378）/ 启动日志措辞一行（T-376）/ 3xx 终态 V4 活体验证（T-364）/ disable 快照契约翻转若需（T-364）。
+- **编排注记**：playwright 全量纯净 community 实例前提 README 一行（T-374 L3——T-377 再次实证：pro 宿主 132 红）；dind containerd snapshotter 调试建议 `--feature containerd-snapshotter=false`（T-377 D2 环境注记）。
+- **沿 M11/M12 候选池续滚**：HA 本体（Q1——PRODUCT.md 修订解禁未发生）/ AQL + 老搜索 / Build-info 域 / Go 深化 / Terraform / GitLFS / 制品 license 识别 / 冷存储分层 / AI/ML 包型扩展 / license 公钥 config 覆盖。
 
 
 

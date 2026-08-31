@@ -61,6 +61,15 @@
   letter-spacing: -2px;
 }
 
+/* 树尾常驻回收站入口（T-372 / FR-122.1）：与仓库区以细线分隔——
+ * Artifactory 树尾 Trash Can 的同形分隔；视觉面无锚 */
+.tree-node.trash-node {
+  margin-top: var(--bf-sp-2);
+  border-top: 1px solid var(--bf-border);
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+}
+
 .tree-node.selected {
   background: var(--bf-surface-2);
   box-shadow: inset 2px 0 0 var(--bf-accent);

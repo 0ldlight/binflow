@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <title>generic 包型图标（单色版）</title>
+  <!-- 等距立方体：仓库里的「任意文件」。mono 版全 currentColor（列表/表单/树用） -->
+  <path d="M12 3l7.5 4.33v9.34L12 21l-7.5-4.33V7.33L12 3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M4.5 7.33 12 11.7l7.5-4.37M12 11.7V21" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+</svg>

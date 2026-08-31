@@ -5,13 +5,13 @@ sidebar_position: 47
 
 # License 与 Add-ons 管理
 
-> 适用版本：M10（license/addon 体系随 M10 交付；ADR-0032/ADR-0033 为设计依据）+ **M11 增补**（conan/helm/rpm/debian 四槽位，T-308~T-311）+ **M12 增补**（`repo-operations` / `trashcan` 两功能槽，T-339/T-343/T-345——trashcan 档位**暂行 pro**，Q3 终裁建议 community）。REST 面见 [API 参考 · M10 新增端点速览](../api-reference.md#m10-新增端点速览t-296)；行为规格锚：`docs/design/architecture.md` §15。
+> 适用版本：M10（license/addon 体系随 M10 交付；ADR-0032/ADR-0033 为设计依据）+ **M11 增补**（conan/helm/rpm/debian 四槽位，T-308~T-311）+ **M12 增补**（`repo-operations` / `trashcan` 两功能槽，T-339/T-343/T-345——trashcan 档位**暂行 pro**，Q3 终裁建议 community）+ **M13 增补**（第 19 槽 `webhook`，pro 档）。REST 面见 [API 参考 · M10 新增端点速览](../api-reference.md#m10-新增端点速览t-296)；行为规格锚：`docs/design/architecture.md` §15。
 > 本文不含任何密钥材料：签发工具的用法是文档面，钥料管理规程见下文「离线签发工具」的安全注意。
 
 BinFlow 的功能分级由**一份 license 文档 + 一张编译期 addon 槽位矩阵**决定：
 
 - **不装 license 也能跑**：实例按 community 地板运行，M1~M9 全部既有能力（五核心包型 + 属性系统）不受影响。
-- **装 license 解锁档位**：`pro` 解锁 go/nuget/cargo（M10）+ conan/helm/rpm/debian（M11）七个包型，及制品操作族与回收站两个功能槽（M12）；`enterprise` 追加 HA / Xray 集成槽位（本体 M13+）。
+- **装 license 解锁档位**：`pro` 解锁 go/nuget/cargo（M10）+ conan/helm/rpm/debian（M11）+ helmoci（M12）八个包型，及制品操作族、回收站（M12）与 webhook（M13）三个功能槽；`enterprise` 追加 HA / Xray 集成槽位（本体 M14+）。
 - **矩阵是代码不是数据**：槽位的最低档位（MinTier）是代码常量——不存在可在运行时篡改的许可面，改档位 = 发版。
 
 ## 三档语义
@@ -19,8 +19,8 @@ BinFlow 的功能分级由**一份 license 文档 + 一张编译期 addon 槽位
 | 档位 | 语义 | 解锁面 |
 |---|---|---|
 | `community` | 地板。**未装 license / license 过期 / 验签失败 / 档位不足时一律降级到此档**（降级闭集 D1~D7） | 五核心包型（generic/docker/maven/npm/pypi）+ 属性系统（properties）——即 M1~M9 全部能力 |
-| `pro` | 中档 | 追加 go / nuget / cargo（M10 试点）+ conan / helm / rpm / debian（M11）七个包型 |
-| `enterprise` | 高档 | 追加 ha / xray-integration 两个功能槽位（占位可见，本体 M13+） |
+| `pro` | 中档 | 追加 go / nuget / cargo（M10 试点）+ conan / helm / rpm / debian（M11）+ helmoci（M12）八个包型，及 repo-operations / trashcan / webhook 三个功能槽 |
+| `enterprise` | 高档 | 追加 ha / xray-integration 两个功能槽位（占位可见，本体 M14+） |
 
 降级行为要点（排障时先想这五条）：
 
@@ -121,7 +121,7 @@ curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/addons | jq
 # ]
 ```
 
-M10 装配 11 个槽位，M11 增至 15 个，**M12 增至 18 个**（`internal/addons/slots.go` 为单一事实源）：
+M10 装配 11 个槽位，M11 增至 15 个，M12 增至 18 个，**M13 增至 19 个**（`internal/addons/slots.go` 为单一事实源）：
 
 | addon id | 类型 | 名称 | 最低档位 | 说明 |
 |---|---|---|---|---|
@@ -138,12 +138,14 @@ M10 装配 11 个槽位，M11 增至 15 个，**M12 增至 18 个**（`internal/
 | `helm` | package-type | Helm Charts | **pro**（M11） | 经典 chart 仓 index.yaml 引擎（见 [Helm 接入](../integrations/helm-charts.md)） |
 | `rpm` | package-type | RPM (Yum) | **pro**（M11） | repodata 引擎 + repomd 签名（见 [RPM 接入](../integrations/rpm.md)） |
 | `debian` | package-type | Debian | **pro**（M11） | debPUT 坐标 + dists 索引 + InRelease 签名（见 [Debian 接入](../integrations/debian.md)） |
+| `helmoci` | package-type | HelmOCI | **pro**（M12） | OCI 形态 chart 仓（/v2 栈；M13 起三仓型齐备，见 [Helm 接入](../integrations/helm-charts.md)） |
 | `repo-operations` | feature | Artifact Operations | **pro**（M12） | copy/move/zip/`archive!`/explode 整族一槽（见[制品操作族](artifact-operations.md)） |
 | `trashcan` | feature | Trash Can | **pro**（M12，**暂行**——Q3 终裁建议 community） | 删除捕获/恢复/保留期（见 [Trash can 管理](trash-can.md)） |
-| `ha` | feature | High Availability | **enterprise** | 槽位占位（本体 M13+） |
-| `xray-integration` | feature | Xray Integration | **enterprise** | 槽位占位（本体 M13+） |
+| `webhook` | feature | Webhooks | **pro**（M13） | 出站事件订阅七端点 + 签名投递（见 [Webhook 使用指南](webhooks.md)） |
+| `ha` | feature | High Availability | **enterprise** | 槽位占位（本体 M14+） |
+| `xray-integration` | feature | Xray Integration | **enterprise** | 槽位占位（本体 M14+） |
 
-档位 × 解锁数速查：community 6 槽（五核心 + properties）→ pro 16 槽（+七包型 + repo-operations/trashcan〔暂行〕+helmoci）→ enterprise 18 槽（+ha/xray-integration）。
+档位 × 解锁数速查：community 6 槽（五核心 + properties）→ pro 17 槽（+八包型 + repo-operations/trashcan〔暂行〕+webhook）→ enterprise 19 槽（+ha/xray-integration）。
 
 行内 `reason` 的三种锁定原因（呈现面字段，断言只对 `id`/`minTier`/`enabled`）：
 

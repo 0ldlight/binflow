@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <title>rpm 包型图标（单色版）</title>
+  <!-- 安装包语义：包裹盒 + 标签带 + 落箱箭头（install）。mono 版全 currentColor -->
+  <rect x="4.2" y="4.2" width="15.6" height="15.6" rx="1.8" stroke="currentColor" stroke-width="2"/>
+  <path d="M4.2 8h15.6" stroke="currentColor" stroke-width="1.4"/>
+  <path d="M12 10.6v4.8M9.8 13.2l2.2 2.2 2.2-2.2" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

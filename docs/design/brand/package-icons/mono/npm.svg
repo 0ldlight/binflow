@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <title>npm 包型图标（单色版）</title>
+  <!-- npm 红方标的三字标。mono 版描边方块 + currentColor 字（生产须转 path，见 README） -->
+  <rect x="3" y="3" width="18" height="18" rx="2.5" stroke="currentColor" stroke-width="1.8"/>
+  <text x="12" y="15" fill="currentColor" font-family="Arial, 'Helvetica Neue', sans-serif" font-weight="700" font-size="6.6" text-anchor="middle" letter-spacing="-0.2">npm</text>
+</svg>

@@ -27,7 +27,7 @@ M10 引入 **license / addon 档位体系**（community 地板 / pro / enterpris
 fail-fast 并存裁决）、debian/rpm 仓库元数据的 GPG **keypair 签名**，以及
 remote 缓存的 **unused-cleanup 清理引擎**。
 
-M12（进行中）落地**制品生命周期域**：copy/move/zip/`archive!`/explode
+M12 落地**制品生命周期域**：copy/move/zip/`archive!`/explode
 **制品操作族**与 **Trash can**（local 仓删除先捕获进内置 `auto-trashcan`
 仓、逐节点带五元组溯源属性、REST 可恢复、默认 14 天保留期按小时清扫——
 两者均为 pro 功能槽）。**NuGet 面补全**（v2 OData 全路由含 `$batch`；
@@ -37,13 +37,24 @@ service index 动态解析）；dual-write 链在 S3 停机窗 **fail-open**（�
 分块上传 REST 面已整体翻成 **Artifactory MPU 形状**（jfrog-cli 实测）；
 控制台视觉层全面换装 **MUI 原生默认皮肤**（手写 base.css 983 → 443 行）。
 
+M13（已完成）落地 **Webhook 统一事件面**：`/binflow/event/api/v1` 下的
+官方七端点订阅族 + 13 域 66 型闭集（当前 9 型织入触发）、HMAC-SHA256
+签名投递与官方重试语义（5 次首试计入、固定 10s 间隔、单次 30s 预算、
+4xx 终态）、进程内排障环 + 五枚 Prometheus 指标族——pro 槽，SSRF 姿态
+默认拒私网目标。**HelmOCI 仓型补全**（remote 代理：Bearer 上游认证 +
+缓存优先降级；virtual 成员聚合：首见路由），helm remote 增
+**`chartsBaseUrl` 分体回源基址**与 `_external`/`_transitive` 落盘缓存，
+conan v1 recipe DELETE 翻转为**整树删**；**运行旋钮**落地
+（`folder_download` 六字段 + `trashcan.retention_days`，重启生效，
+`GET /api/v1/system/settings` 回显）。
+
 ## 包型矩阵（含档位）
 
 | 档位 | 包型 | 说明 |
 |---|---|---|
 | **community**（地板——不装 license 也有） | generic、docker、maven、npm、pypi | 五核心：M1~M9 全部能力 + 属性系统 |
-| **pro** | go、nuget、cargo（M10）· conan、helm、rpm、debian（M11）· helmoci、制品操作族 + 回收站功能槽（M12；trash 档位暂行） | 建仓/上传需 pro 及以上 license；license 失效后既有制品仍可读 |
-| **enterprise** | （功能槽位：ha、xray-integration） | 占位槽位；本体 M13+ |
+| **pro** | go、nuget、cargo（M10）· conan、helm、rpm、debian（M11）· helmoci、制品操作族 + 回收站功能槽（M12；trash 档位暂行）· webhook（M13） | 建仓/上传需 pro 及以上 license；license 失效后既有制品仍可读 |
+| **enterprise** | （功能槽位：ha、xray-integration） | 占位槽位；本体 M14+ |
 
 档位语义一句话：**读永不劫持**——license 缺失/过期只关闭建仓（400）与
 写动词（403 + `X-Binflow-License-Required: <addon>`）；`GET /binflow/api/v1/addons`
@@ -53,7 +64,8 @@ service index 动态解析）；dual-write 链在 S3 停机窗 **fail-open**（�
 | 内容 | 位置 |
 |---|---|
 | 产品愿景与范围 | [`PRODUCT.md`](PRODUCT.md) |
-| 里程碑（M1 内核 → M12 生命周期程；M1~M11 已完成〔m11-done〕） | [`ROADMAP.md`](ROADMAP.md) |
+| 里程碑（M1 内核 → M13 事件总线程；M1~M13 已完成） | [`ROADMAP.md`](ROADMAP.md) |
+| M13 需求（PRD：Webhook 事件总线 / HelmOCI 补全 / 配置旋钮 / 行为债收口） | [`docs/prd/milestone-13.md`](docs/prd/milestone-13.md) |
 | M12 需求（PRD：NuGet 补全 / 制品生命周期 / 行为债收口） | [`docs/prd/milestone-12.md`](docs/prd/milestone-12.md) |
 | Artifactory 全量功能对照矩阵（213 条目——M10+ 路线图骨干） | [`docs/reverse/artifactory-full-feature-matrix.md`](docs/reverse/artifactory-full-feature-matrix.md) |
 | 帮助文档中心（安装 / 接入 / 管理 / API / FAQ） | [`docs/user/README.md`](docs/user/README.md) |

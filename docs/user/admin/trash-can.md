@@ -5,8 +5,8 @@ sidebar_position: 51
 
 # Trash can（回收站）
 
-> 适用版本：M12（T-345；T-330 条件票转正承载；行为锚点 `docs/reverse/storage-layout.md` §5 / `inv-1-core.md` §B）。**档位暂行 pro**（feature 槽 `trashcan`，Q3 终裁建议降为 community——若终裁翻转，本文档位表述随之刷新）；community 实例**不捕获删除**（维持 M11 硬删语义）。
-> 本文命令与响应取 T-345 真二进制 curl 全链（port 18345，真签名 pro license 文档）。
+> 适用版本：M12 起（T-345；T-330 条件票转正承载；行为锚点 `docs/reverse/storage-layout.md` §5 / `inv-1-core.md` §B）。**M13 增补**：保留期旋钮 `trashcan.retention_days` 落地（T-368，默认不变 14 天）。**档位暂行 pro**（feature 槽 `trashcan`，Q3 终裁建议降为 community——若终裁翻转，本文档位表述随之刷新）；community 实例**不捕获删除**（维持 M11 硬删语义）。
+> 本文命令与响应取 T-345 真二进制 curl 全链（port 18345，真签名 pro license 文档）；旋钮段为 T-375 双实例实测（2026-08-30）。
 
 ## 用途
 
@@ -16,7 +16,7 @@ local 仓的删除不再一去不返：**删除前先把节点捕获进内置仓
 
 - **pro 及以上 license**（槽 `trashcan`）：community 实例 REST 面答 403 + `X-Binflow-License-Required: trashcan`，且删除侧不捕获（删除仍为硬删，行为与 M11 逐字节一致）。
 - trash REST 族的门是 `system:write`（**仅全量 admin**；readonly_admin 403、普通 user 403、匿名 401——gc/cleanup 破坏性管理面同款姿态）。
-- 服务端默认装配 `enabled=true / retention=14d`（无配置旋钮，见「已知边界」）。
+- 服务端默认装配 `enabled=true / retention=14d`；保留期可经 `trashcan.retention_days` 调整（M13 起，见下文「保留期」）。
 
 ## 语义
 
@@ -101,7 +101,20 @@ curl -su admin:$ADMIN_PW -X DELETE $BASE/binflow/api/trash/clean/vlibs/com | jq 
 
 ## 保留期
 
-- 默认 **14 天**：小时级 cron（`TrashEngine`）按 `trash.time`（epoch ms）判龄；捕获后、打标前崩溃的裸行降级回退 `updated_at` 判龄（保守删除而非永久滞留）。
+- 默认 **14 天**；小时级 cron（`TrashEngine`）按 `trash.time`（epoch ms）判龄；捕获后、打标前崩溃的裸行降级回退 `updated_at` 判龄（保守删除而非永久滞留）。
+- **保留期旋钮（M13 起）**：`trashcan.retention_days`（YAML）/ `BINFLOW_TRASHCAN__RETENTION_DAYS`（env；env 只收正整数，`0` 只能 YAML 拼写——语义为「回退默认 14」哨兵）。**重启生效**（非热更新——Artifactory 的 reload 即时生效为已登记分歧）；负值拒启。生效值可经 `GET /api/v1/system/settings` 回显核对（实测：配 7 → `"trashcan":{"retention_days":7}`；缺省 → 14）：
+
+```yaml
+# binflow.yaml
+trashcan:
+  retention_days: 7        # 捕获后保留 7 天；0 = 默认 14
+```
+
+```bash
+curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/system/settings
+# {"folder_download":{…}, "trashcan":{"retention_days":7}}
+```
+
 - 过期 FILE 行删除、无文件子树的 folder 行清除；审计 `trash.retention`（actor `system-trash`）。
 - license 锁定（槽 locked）时 cron 跳过（报告为 skip，非错误）。
 
@@ -111,7 +124,8 @@ curl -su admin:$ADMIN_PW -X DELETE $BASE/binflow/api/trash/clean/vlibs/com | jq 
 
 | 项 | 现状 | 去向 |
 |---|---|---|
-| 配置旋钮 | `trashcan.enabled` / `trashcan.retention_days` 的 binflow.yaml 字段**未落**（internal/config 域小票承载）——生产实例恒为 enabled/14d | 配置域小票；落地后本文刷新 |
+| 保留期旋钮 | **已落地（M13 T-368）**：`trashcan.retention_days`（默认 14 不变，重启生效） | — |
+| 捕获开关 | `trashcan.enabled` **不是配置键**——strict schema 拒绝该键；捕获开关走 trashcan license 槽（community 即不捕获） | 维持（票面口径：enabled 不旋钮化） |
 | 档位 | pro 暂行；Q3 终裁建议 community（clean-room 取证：Artifactory OSS 发行即携带 trash 基座，无 addon 门证） | conductor/PM 终裁；翻转点 = slots.go 一行 + 四处测试断言 |
 | docker manifest 删除 | 不入站（恢复需索引随行） | 独立票 |
 | 覆盖入站（`send.overwrites.to.trashcan`） | 未实现——PUT 覆盖同名文件不进 can | 后续票候选 |

@@ -685,9 +685,36 @@ func TestCopyObserverFires(t *testing.T) {
 	}
 }
 
+// dryRunBudget is the wall-clock ceiling for the 10k-tree dry run, in two
+// postures — FR-121 escape #1 (T-361, race recalibration; NOT a skip):
+//
+//   - no-race: 5s, the production P95 proxy (P54). Every no-race execution
+//     asserts the production number unchanged — this test has no -short
+//     guard, so CircleCI's fast-test leg (`go test ./internal/... -short`,
+//     no -race) and any bare local `go test` run the arm in full.
+//   - race: 45s (9x the production figure). Measured calibration on the
+//     16-core dev machine, 2026-08-31 (T-361): the same walk takes
+//     0.59-0.68s without the detector and 11.5-14.0s WITH it, isolated —
+//     a 20-24x inflation structural to instrumenting a 10k-node metadata
+//     walk — and full-tree parallel `make test` load adds roughly another
+//     2x (the T-339/T-356 flake: one miss in 35-package first rounds,
+//     isolated reruns green). 45s sits ~3x above the worst isolated race
+//     observation with load headroom, while any regression this arm guards
+//     (an accidental per-node physical I/O or an O(n^2) walk — the class
+//     T-339 landed it against) blows into minutes under race too and still
+//     fails loudly. Skipping instead would leave the default `make test`
+//     gate (race) with no budget signal at all.
+func dryRunBudget() time.Duration {
+	if raceEnabled { // FR-121 escape #1 — this package's only race-keyed budget arm
+		return 45 * time.Second
+	}
+	return 5 * time.Second
+}
+
 // TestBigTreeCopyNo5xx: the AC3 scale leg — a ten-thousand-node tree copy
 // answers with zero item-level 5xx messages, a sampled checksum match, and
-// the dry run over the same tree stays under the 5s budget. The tree is
+// the dry run over the same tree stays under the budget (dryRunBudget:
+// 5s production figure, 45s under -race — FR-121 escape #1). The tree is
 // seeded through the store (one shared blob row, many node rows): the copy
 // path is a metadata walk by design (zero-copy), so this is the faithful
 // scale shape.
@@ -735,7 +762,8 @@ func TestBigTreeCopyNo5xx(t *testing.T) {
 	}
 
 	// Dry run first: full validation chain, budget-checked (P95 proxy: the
-	// single-run wall time on the developer/CI machine).
+	// single-run wall time on the developer/CI machine — two-tier ceiling
+	// per dryRunBudget above).
 	start := time.Now()
 	dry := cmRun(t, e, admin(), repo.CopyMoveRequest{
 		Op: repo.OpCopy, SrcRepo: "src", SrcPath: "root", TargetRepo: "dst", TargetPath: "root", DryRun: true,
@@ -744,8 +772,8 @@ func TestBigTreeCopyNo5xx(t *testing.T) {
 	if dry.HTTPStatus != 200 || dry.Artifacts != width*depth {
 		t.Fatalf("dry run wrong: %d artifacts (%s)", dry.Artifacts, msgText(dry))
 	}
-	if elapsed > 5*time.Second {
-		t.Fatalf("dry run over the 10k tree took %s (>5s budget)", elapsed)
+	if budget := dryRunBudget(); elapsed > budget { // FR-121 escape #1
+		t.Fatalf("dry run over the 10k tree took %s (>%.0fs budget, race=%t)", elapsed, budget.Seconds(), raceEnabled)
 	}
 	t.Logf("dry run over %d nodes: %s", width*depth+depth+1, elapsed)
 

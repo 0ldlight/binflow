@@ -93,7 +93,9 @@ curl -s -b jar.txt -X PUT $BASE/binflow/generic-local/a/f.txt \
 ├ 维护（GC）          /admin/governance/gc
 ├ 配额                /admin/governance/quotas
 ├ 复制                /admin/governance/replication
-└ 备份 / 恢复         /admin/governance/backup
+├ 备份 / 恢复         /admin/governance/backup
+├ 回收站              /admin/governance/trash（M12）
+└ Webhooks            /admin/governance/webhooks（M13）
 监控
 └ 存储                /admin/monitoring/storage
 常规
@@ -116,7 +118,7 @@ curl -s -b jar.txt -X PUT $BASE/binflow/generic-local/a/f.txt \
   - 文件夹：复制路径 / 删除 / 刷新
   - 仓库：复制仓库路径 / 刷新 / 在仓库管理中打开
 - 当前层 children 表（名称/类型/大小/修改时间/操作者）支持「过滤当前层」与「只看文件」；大目录客户端分页「加载更多」，超过 2000 条提示改用[搜索](#搜索与仪表盘)。
-- **跨路径 Move/Copy 不做**（服务端无端点）；**无回收站**——删除即永久（危险确认文案明示）。
+- **跨路径 Move/Copy 不做树内入口**（REST 面自 M12 起可用——[制品操作族](admin/artifact-operations.md)）；**删除先入回收站**（pro 槽 `trashcan`，社区档为硬删——治理页 [回收站](#治理admingovernance) 可浏览/恢复）。
 
 详情面板三形态（Tab 式：`常规` / `有效权限`（admin 渲染））：
 
@@ -173,7 +175,9 @@ curl -s -b jar.txt -X PUT $BASE/binflow/generic-local/a/f.txt \
 - **维护（GC）**（`/admin/governance/gc`）：GC 状态 + dry-run 结果面板 + apply **输入实例名二次确认**；存储迁移进度面板同页。
 - **配额**（`/admin/governance/quotas`）：每仓 used/quota 水位条（80% 黄 / 100% 红）+ 行内编辑上限。
 - **复制**（`/admin/governance/replication`）：复制目标表 + 最近事件（10s 轮询）。
+- **Webhooks**（`/admin/governance/webhooks`，M13）：订阅列表（行内启停/试发/编辑/删除）+ 新建/编辑对话框（13 域分组事件型选择，休眠型灰显如实标注）+ 详情抽屉（最近投递记录——状态/耗时/重试计数/载荷快照）。写动词 pro 槽 `webhook`；readonly_admin 只读臂（无新建钮、写动作禁用）。REST 语义与接收端配方见 [Webhook 使用指南](admin/webhooks.md)。
 - **备份 / 恢复**（`/admin/governance/backup`）：CLI 引导卡（export/import 命令与警示，一键复制）——备份恢复是**高危带外操作**，不做进度 UI；完整链见[备份与恢复手册](admin/backup-restore.md)。
+- **回收站**（`/admin/governance/trash`，M12）：`auto-trashcan` 内置仓的浏览/恢复/清空面（槽 `trashcan` 门控态呈现）。捕获/保留期语义见 [Trash can 管理](admin/trash-can.md)。
 
 ### 监控与常规
 
@@ -232,8 +236,8 @@ M8 路由重排曾为 M7 及以前的控制台路径提供**自动客户端重�
 | Access Tokens 管理页 | 仍为占位（签发引导 + token_id 吊销输入；列表/吊销管理面 R6 未落地）；控制台铸币走 Set Me Up 对话框 |
 | Packages 卡片落地页 / Builds / Xray / Pipelines / Distribution | 不建——JFrog 独立产品（Non-goal），制品树是最近似落点 |
 | Authentication Providers（SAML/Crowd 等）配置页 | 不建（产品 Non-goal）；OIDC/LDAP 走 `binflow.yaml`（见[专题指南](guides/oidc-config.md)） |
-| 仓库 Layouts / Proxies / Mail Server / Webhooks / cron 计划备份 | 不建——BinFlow 无对应功能面；备份是 export/import 任务（见[备份手册](admin/backup-restore.md)） |
-| 跨路径 Move/Copy、回收站（Trash Can）、收藏/星标 | 不建——无对应端点；删除即永久 |
+| 仓库 Layouts / Proxies / Mail Server / cron 计划备份 | 不建——BinFlow 无对应功能面；备份是 export/import 任务（见[备份手册](admin/backup-restore.md)） |
+| 跨路径 Move/Copy 的树内入口、收藏/星标 | 不建 UI——copy/move 走 REST（[制品操作族](admin/artifact-operations.md)，M12 起）；回收站 UI 在治理页（M12 起） |
 | 审计 CSV 导出 / 搜索 checksum 反查 UI | P2 债务：按钮不渲染 / 页面引导走 REST |
 | token 签发/吊销落审计 | `token.issue` / `token.revoke` 均落审计（detail 含指纹与 TTL；step-up 路径另含 `step_up` 维度，见[step-up 指南](admin/token-step-up.md#审计)） |
 | 非 admin 的仓库清单 | 管理面 CapRepoRead 门是定案（存在性不泄露），非缺陷；制品可达性走内容面 |

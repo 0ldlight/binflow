@@ -154,6 +154,14 @@ type Deps struct {
 	// seam the deb/rpm legs consume is assembled in cmd from the same
 	// store + cipher).
 	Keypairs KeypairPlane
+	// Webhooks is the unified-event subscription plane (M13 T-362,
+	// ADR-0041): the /binflow/event/api/v1 seven-endpoint family plus the
+	// Emit seam the domain mutation tails share. Nil keeps every endpoint
+	// at the honest 503 and every emit a no-op — unit stacks only; every
+	// assembled server wires the webhook.Bus (cmd assembly: store over the
+	// metadata database, gate from the license manager, cipher from the
+	// instance master key).
+	Webhooks WebhookPlane
 	// Addons is the assembled addon registry (M10 T-282, ADR-0033): the
 	// compile-time literal slice cmd builds. Nil keeps GET /api/v1/addons
 	// at an honest empty array and the repo-create plane on repo.Service's

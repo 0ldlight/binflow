@@ -45,6 +45,7 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/maven-remote-cent
 | `hardFail` | 否 | **false** | `true` 时上游错误向上抛 **502**（默认 404 + 有缓存服务缓存） |
 | `allowPrivateUpstream` | 否 | **false** | SSRF 私网放行开关，仅 admin 可设、写审计日志（见[SSRF 小节](#ssrf-防护与-allowprivateupstream-放行指引)） |
 | `priorityResolution` | 否 | `false` | 作为 virtual 成员时的优先解析标记（见下文） |
+| `chartsBaseUrl` | 否 | 空（回退仓 URL） | **M13，仅 `packageType=helm` 的 remote**：content 类回源（tgz/`.prov`/`_external` 折叠路径）的分体基址——metadata（index.yaml）恒走仓 URL；绝对 http(s) URL、`""` = 清除；**其它包型携带 → 400 点名字段**；异 host 时无凭据出站。用法见 [Helm Chart 仓库接入](../integrations/helm-charts.md#chartsbaseurl分体回源基址m13) |
 
 > **smart remote 字段注意（T-290/T-317/T-346）**：① `enableTokenAuthentication` / `contentSynchronisation`
 > 自 **M11 起接受且生效**（上表；M10 期的按名 400 已退役）；**其余**未知字段维持
@@ -54,7 +55,7 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/maven-remote-cent
 > ③ 消费优先级：新列值 > canonical JSON > legacy `socketTimeoutSecs` > 产品默认——升级既有仓
 > 零回填零行为变化。
 
-`packageType` 合法值：五核心 `generic` / `maven` / `npm` / `pypi`（+ `go`，M10 起）；M11 追加 `conan` / `helm` / `rpm` / `debian`（pro 档——三类仓型齐备，见各接入指南）与 **`cargo` remote/virtual 仓型**（pro 档，T-316/T-318 交付；上游语法前提与虚仓索引归并语义见 [Cargo 接入](../integrations/cargo.md)）。**remote/virtual + docker → 400**（M3 类矩阵；替代路径 `skopeo copy`，见 [docker-registry.md](../docker-registry.md)）。
+`packageType` 合法值：五核心 `generic` / `maven` / `npm` / `pypi`（+ `go`，M10 起）；M11 追加 `conan` / `helm` / `rpm` / `debian`（pro 档——三类仓型齐备，见各接入指南）与 **`cargo` remote/virtual 仓型**（pro 档，T-316/T-318 交付；上游语法前提与虚仓索引归并语义见 [Cargo 接入](../integrations/cargo.md)）；**M13 追加 `helmoci` remote/virtual 仓型**（pro 档——OCI 代理与聚合读面，`url` 指向上游 distribution 根含 `/v2`，语义见 [Helm Chart 仓库接入](../integrations/helm-charts.md#helmoci-仓型oci-形态m13local--remote--virtual)）。**remote/virtual + docker → 400**（M3 类矩阵维持；替代路径 `skopeo copy`，见 [docker-registry.md](../docker-registry.md)）。
 
 回显形态（`GET .../repositories/{key}`）：上游 `url` 与参数在 `configuration` 对象内，**`password` 字段不出现在响应里**（传过也不回显）。
 
