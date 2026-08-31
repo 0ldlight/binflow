@@ -5,7 +5,7 @@ sidebar_position: 90
 
 # FAQ 与故障排查
 
-> 适用版本：M1~M13（各条目标注引入里程碑）。码值与文案以 M4（PRD milestone-4 v1.2）为基线，全部经 QA 真机验证（T-103/T-105 验收基线）；M7 增补条目（RBAC 只读短路 / S3 续传 404 / token step-up）以 ADR-0026/0027/0028 与 PRD milestone-7 v1.1 为准；M8 增补（控制台新路径重定向 / npm 发布权限语义）经 scratch 实例复跑（2026-08-24）；M9 增补（用户删除闭环 / npm 复制同口径）经 HEAD 构建 scratch 实例复验（2026-08-25）；M10 增补三问（license 降级行为 / 属性两入口 / S3 与 filestore 的 MPU 差异）以 ADR-0032/0033 as-built 与 T-285/T-287/T-289/T-294 实测为据（2026-08-26）；**M11 增补四问**（四包型 tier / 降级数据安全 / 四包型 remote·virtual 差异 / 存储与认证新面）以 T-305~T-324 各票实测与 ADR-0035/0036/0038 为据（2026-08-28）；**M12 增补三问**（trash 保留期 / 操作族门控 / dual-write fail-open）以 T-339/T-343/T-345/T-338 各票实测与 ADR-0040 为据（2026-08-29）；**M13 增补三问**（webhook 事件丢失排查 / 死信重放 / remote 缓存命中观测）以 T-362~T-368 各票实测与 T-375 双实例复跑为据（2026-08-30）。
+> 适用版本：M1~M14（各条目标注引入里程碑）。码值与文案以 M4（PRD milestone-4 v1.2）为基线，全部经 QA 真机验证（T-103/T-105 验收基线）；M7 增补条目（RBAC 只读短路 / S3 续传 404 / token step-up）以 ADR-0026/0027/0028 与 PRD milestone-7 v1.1 为准；M8 增补（控制台新路径重定向 / npm 发布权限语义）经 scratch 实例复跑（2026-08-24）；M9 增补（用户删除闭环 / npm 复制同口径）经 HEAD 构建 scratch 实例复验（2026-08-25）；M10 增补三问（license 降级行为 / 属性两入口 / S3 与 filestore 的 MPU 差异）以 ADR-0032/0033 as-built 与 T-285/T-287/T-289/T-294 实测为据（2026-08-26）；**M11 增补四问**（四包型 tier / 降级数据安全 / 四包型 remote·virtual 差异 / 存储与认证新面）以 T-305~T-324 各票实测与 ADR-0035/0036/0038 为据（2026-08-28）；**M12 增补三问**（trash 保留期 / 操作族门控 / dual-write fail-open）以 T-339/T-343/T-345/T-338 各票实测与 ADR-0040 为据（2026-08-29）；**M13 增补三问**（webhook 事件丢失排查 / 死信重放 / remote 缓存命中观测）以 T-362~T-368 各票实测与 T-375 双实例复跑为据（2026-08-30）；**M14 增补两问**（docker remote 缓存命中观测 / helm 卸载留卷）以 T-392/T-394 各票实测与 T-397 双实例 + dind 真客户端复跑为据（2026-08-31）。
 
 ## 状态码信封解读
 
@@ -230,6 +230,26 @@ M12 起（pro 档暂行——槽 `trashcan`）local 仓的删除先捕获进内�
 | 上游访问计数 | 最硬证据：上游是另一台 BinFlow 时 `grep '"msg":"access"' <log>`——二次拉取计数**冻结**即零回源（实测：helmoci remote 二次 pull 上游内容 GET 不增；chartsBaseUrl 分体基址命中后上游 tgz 计数恒 0） |
 
 注意两个「看不到」是口径而非故障：remote 的 **tags/list 只见已缓存的 tag**（不代理上游 tags/list——上游已有但没拉过的版本在 tags/list 不可见，`--version` 显式拉取不受影响）；`404 + 无 STALE` 说明负缓存或确无副本（digest 键路径 miss 有负缓存窗，窗口内零回源直接 404）。helm/helmoci 两形态同口径，详见 [Helm Chart 仓库接入](integrations/helm-charts.md)。
+
+## M14 增补两问（docker remote 缓存命中 / helm 卸载留卷）
+
+### docker remote 仓建好了，怎么证明 docker pull 走的是缓存而不是每次回源？
+
+[M13 的三件套](#remote-仓到底有没有命中缓存怎么证明没回源)对 docker remote 同样成立，但有个形态差异：**docker 客户端不显示响应头**，`X-Binflow-Cache` 得用 curl 对 `/v2` 路径看（docker 域挂根级，无 `/binflow` 前缀）：
+
+```bash
+REG=localhost:8080    # docker remote 仓 docker-remote，镜像 acme/app，tag v1
+curl -s -o /dev/null -D - $REG/v2/docker-remote/acme/app/manifests/v1 \
+  -H 'Accept: application/vnd.oci.image.index.v1+json' | grep -i x-binflow
+# 首拉/缓存清理后 → X-Binflow-Cache: MISS；再拉 → HIT；
+# 上游故障 + TTL 过期时已缓存 → STALE + X-Binflow-Upstream-Error（Docker-Content-Digest 不变，docker 客户端照常拉）
+```
+
+manifest（by-tag 与 by-digest）与 blobs 是**逐路径各自 MISS→HIT** 的——docker pull 时客户端本地已有的层不会到 BinFlow 来，所以「pull 成功但某 blob 还是 MISS」属正常。最硬证据仍是上游计数：上游是另一台 BinFlow 时 `grep '"msg":"access"' <上游日志>`，二次 `docker pull` 计数**冻结**即零回源（T-392/T-397 dind 实测 delta 0）。另注意：`tags/list` 只见已缓存 tag；未缓存 ref 在上游故障期答 404 `MANIFEST_UNKNOWN`（message 附上游摘要，零 5xx）。完整语义见 [remote/virtual 管理指南 · docker remote 仓](admin/remote-virtual.md#docker-remote-仓m14fr-129)。
+
+### `helm uninstall` 之后 PVC 还在，是没卸干净吗？
+
+是**有意幸存**：chart 自建 PVC 带 `helm.sh/resource-policy: keep`（M14 起恒注入，用户注解撞键也 keep 胜出——T-376 裁决 / T-394），`helm uninstall` 只删工作负载、保留数据卷——防「卸载重装图省事，制品全没了」的误删。同 namespace 重装同名 release 会复用幸存 PVC。**彻底删除须手动清卷**：`kubectl delete pvc --namespace <ns> <release>-binflow`（或按标签 `-l app.kubernetes.io/instance=<release>`）；`existingClaim` 复用外部 PVC 的部署不适用本条。详见 [Helm Chart 安装 · 卸载](install/helm.md#卸载)。
 
 ## M4 有意不兼容清单（里程碑级汇总）
 

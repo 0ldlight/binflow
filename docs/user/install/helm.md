@@ -5,8 +5,8 @@ sidebar_position: 13
 
 # Helm Chart（Kubernetes）
 
-> 适用版本：M5 GA v1.0.0（charts/binflow/；T-137, FR-38, PB-06）。
-> 本文命令属「文档命令，待 QA 复跑」——核心路径与 Chart 产物、values.yaml、NOTES.txt 一致。
+> 适用版本：M5 GA v1.0.0（charts/binflow/；T-137, FR-38, PB-06）+ **M14 增补**（PVC `helm.sh/resource-policy: keep` 注解恒注入——卸载幸存/手动清卷口径，T-376 裁决 / T-394）。
+> 本文命令属「文档命令，待 QA 复跑」——核心路径与 Chart 产物、values.yaml、NOTES.txt 一致；M14 keep 注解面已实测（`helm lint` + `helm template` 三态 + `--dry-run` NOTES 渲染，2026-08-31，T-397——集群内 `helm uninstall` 幸存 UAT 归 T-399）。
 
 `charts/binflow/` 提供了标准的 Helm Chart，支持单副本部署（架构 section 9 明确 M1 无 HA）、PVC 持久化、可选 Ingress、镜像拉取密钥、资源限制和 HPA（单副本约束）。
 
@@ -219,11 +219,18 @@ ingress:
 helm uninstall binflow
 ```
 
-PVC 默认不会被删除（防止误删数据）。如需清理：
+**PVC 有意幸存（M14 起显式保证）**：chart 自建的 PVC 带 `helm.sh/resource-policy: keep` 注解（恒注入——即使用户在 `persistence.annotations` 里写了同键 `remove`，冲突时 keep 单键胜出，T-376 裁决 / T-394）。因此 `helm uninstall` 只删工作负载，**数据卷与制品数据保留**——这是防误删的刻意姿态，不是没卸干净；同 namespace 重新 `helm install` 同名 release 会复用幸存的 PVC（PVC 名 = `<release>-binflow`）。`NOTES.txt` 安装完成时会印出本说明与清卷命令。
+
+彻底删除数据须手动清卷（二选一）：
 
 ```bash
+# 按名（NOTES.txt 同款；PVC 名 = <release>-binflow）
+kubectl delete pvc --namespace <ns> binflow-binflow
+# 按标签（release 名非 binflow 时把 instance= 值换成实际 release 名）
 kubectl delete pvc -l app.kubernetes.io/instance=binflow
 ```
+
+两条边界：`persistence.existingClaim` 复用外部 PVC 时本节不适用（chart 不管那个卷的死活）；keep 姿态对 `helm delete`/`helm uninstall` 两种拼法同样生效，**没有配置项可以关掉**——要「卸载即删卷」的自动化请在上层 CI 里显式补 `kubectl delete pvc`。
 
 ## 下一步
 

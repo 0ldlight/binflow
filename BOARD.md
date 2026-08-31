@@ -1396,7 +1396,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
     AC1: Playwright——创建 modal 全链（创建 → **一次性明文面板仅展示一次** → 刷新后不可再取）+ 吊销 ConfirmDialog danger 确认 + 列表状态翻转 + readonly_admin 只读臂（L06）。
     AC2: `PlaceholderPage` 该路由退役 grep=0 + **消费端点清单 == 既有 token REST（零新端点断言——不私加端点）** + mint/step-up 链复用（SetMeUp 同源引擎，`smu-token-panel` 形态复用）。
     AC3: 四闸门 + axe 双主题 + modal/确认双形态焦点链 + 服务端 diff=0 + 新锚入册。
-  - **T-397** [P1] 文档 A：接入与运维增量 `role:tech-writer` area:docs/user/（docker remote 接入 + npm legacy login 注记 + helm keep + api-reference + FAQ）dep:T-392,T-394
+  - **T-397 → done 2026-08-31 23:3x——M14 12/22（两笔登记债清）**：remote-virtual.md **docker remote 专节**（建仓/URL 形态/MISS-HIT-STALE/降级/Bearer/SSRF/dind 注记 + **L195 过期行作废留痕**〔T-392 遗留①〕）+ docker-registry.md 接入节（报错 +3 行）+ helm.md 卸载节重写（keep/幸存/手动清双路/无开关如实注记）+ api-reference npm 域 +5 行（couch 族）+ FAQ 两问（缓存三态观测/卸载留卷）+ **armed OIDC 起法一行修**（T-382 漂移债清）+ README 双语收口（陈旧 cargo 措辞修/M14 段含品牌行）。**全量实测**：community 建 200/virtual 400 逐字/RepoDigest 全等/二拉 delta 0/TTL STALE 降级/npm 裸 login 全链复跑/helm 三态 template/armed 补钥真绿；`make docs` SUCCESS 4.53MB 零断链。遗留五项：Docker Hub 直连候公网环境（归 T-399 UAT 顺腿）；docker virtual 开矩阵归 conductor 裁；migrate-artifactory.md 措辞陈旧登记；Chart bump+UAT 归 T-399；by-digest 强刷产品决策候选。日志 reports/agents/T-397.md。
     AC1: docker remote 接入指南（三态齐装叙事 + 缓存命中/降级语义）+ npm legacy login 注记（老 CLI 通道 + 尾斜杠配对注记衔接 T-374）交付；客户端命令全部实测可复跑（L18 段）。
     AC2: helm uninstall PVC keep 说明（彻底删除需手动清卷）+ api-reference 增量（npm login 端点族）+ FAQ 增补；`make docs` SUCCESS 零断链 + 侧栏挂页。
 - **B7（图标接线，单票波）**：T-390

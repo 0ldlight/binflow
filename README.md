@@ -8,8 +8,9 @@ repositories, storage, permissions and REST semantics map one-to-one, so an
 Artifactory shop can migrate without relearning the vocabulary. One static
 binary, zero external dependencies, **twelve package ecosystems** served
 natively — see the matrix below — each across **local, remote (pull-through
-proxy cache) and virtual (aggregating)** repository types (cargo's
-remote/virtual pending), with an embedded web console.
+proxy cache) and virtual (aggregating)** repository types (docker's remote
+landed in M14 at the community tier; its virtual aggregation remains
+unserved), with an embedded web console.
 
 M6 added the enterprise layer (OIDC / LDAP SSO, S3 blob storage with online
 migration, push replication, Prometheus metrics, `bf` CLI, `bf-migrate`).
@@ -66,6 +67,14 @@ recipe DELETE becomes a **whole-tree delete**, and the long-awaited
 `trashcan.retention_days`, restart-effective, echoed over
 `GET /api/v1/system/settings`).
 
+M14 (in progress) opens **docker remote pull-through** (community tier,
+self-referenced upstream verified with digest parity and frozen upstream
+counts on re-pull), fixes **npm legacy `login`** (bare
+`npm login --auth-type=legacy` now mints a token end to end), pins the
+Helm chart's **PVC keep posture** (`helm uninstall` intentionally survives
+the artifact volume), and lands the **brand logo + per-package-type icon
+set** across the console and this documentation site.
+
 ## Package type matrix (with tiers)
 
 | Tier | Package types | Notes |
@@ -83,7 +92,8 @@ shows the live per-slot verdict. Full guide:
 | What | Where |
 |---|---|
 | Product vision & scope | [`PRODUCT.md`](PRODUCT.md) |
-| Milestones (M1 kernel → M13 event-bus pass; M1–M13 done) | [`ROADMAP.md`](ROADMAP.md) |
+| Milestones (M1 kernel → M14 UI-parity pass; M1–M13 done, M14 in progress) | [`ROADMAP.md`](ROADMAP.md) |
+| M14 requirements (PRD: Artifactory interaction parity, protocol + brand logos, docker remote first flight, server small-fix pack) | [`docs/prd/milestone-14.md`](docs/prd/milestone-14.md) |
 | M13 requirements (PRD: webhook event bus, HelmOCI completion, config knobs, behavior-debt closure) | [`docs/prd/milestone-13.md`](docs/prd/milestone-13.md) |
 | M12 requirements (PRD: NuGet completion, artifact lifecycle, behavior-debt closure) | [`docs/prd/milestone-12.md`](docs/prd/milestone-12.md) |
 | Artifactory full-feature matrix (213 entries — the M10+ roadmap backbone) | [`docs/reverse/artifactory-full-feature-matrix.md`](docs/reverse/artifactory-full-feature-matrix.md) |

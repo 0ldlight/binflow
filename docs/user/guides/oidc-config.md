@@ -99,8 +99,11 @@ auth:
 
 ```bash
 BINFLOW_ADMIN_PASSWORD=<口令> BINFLOW_AUTH_OIDC_CLIENT_SECRET=<client-secret> \
+  BINFLOW_REMOTE_CREDENTIALS_KEY=<base64 的 32 字节密钥> \
   binflow-server serve -c armed.yaml
 ```
+
+> `BINFLOW_REMOTE_CREDENTIALS_KEY` 是 armed 起法的**必配项**（M11 认证配置面起）：`auth.oidc` 落库的 `client_secret` 走凭据密封，无主密钥启动即拒——`… seeding section oidc: field "client_secret": … no master key: BINFLOW_REMOTE_CREDENTIALS_KEY is not set (required to store secrets)`（T-382 契约漂移修正，2026-08-31 复跑实证：补钥后启动 200、`GET /api/v1/auth/methods` 回 `"oidc":true`）。密钥生成见 [remote/virtual 管理指南](../admin/remote-virtual.md#上游凭据与-binflow_remote_credentials_key)。
 
 启动后自检：`GET /api/v1/auth/methods` 回 `"oidc":true`；用 SSO 账号登录控制台 → Set Me Up → 生成令牌，应走「重新认证并继续」引导（不出口令框）。本地演练可用仓库自带的零依赖 mock IdP（`node web/scripts/mock-idp.mjs <端口> <client-secret>`，固定身份 `ssouser`）代替真实 IdP 走通全链。
 

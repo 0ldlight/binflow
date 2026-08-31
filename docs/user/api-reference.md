@@ -5,7 +5,7 @@ sidebar_position: 70
 
 # API 参考
 
-> 适用版本：M1~M13（端点引入里程碑标注于各表；M7 增补：用户角色字段 `adminRole`、permission target 动作 `manage`、docker 上传状态腿跨重启、token 铸造 step-up 可选门；**M9 增补**：usage 批量端点、users 列表加宽/enabled 回显/DELETE、groups `?includeUsers`、permissions `?filter=manage`——速览见[下文](#m9-增补速览)；**M11 增补**：认证配置面（含 SAML SP 证书三端点，T-331）、GPG keypair 族、cleanup 引擎、四包型 reindex 族、smart remote 两字段生效、MPU 面整体翻转（ADR-0039）与 cargo remote/virtual 仓型——见[M11 增补速览](#m11-增补速览t-328)；**M12 增补**：制品操作族（copy/move + 归档族）与 trash REST 族（NuGet v2 全路由/v3 代理属协议接入面，见 [NuGet 接入](integrations/nuget.md)）——见[M12 增补速览](#m12-增补速览t-347a)；**M13 增补**：webhook 订阅七端点族（`/event/api/v1`）+ `GET /api/v1/system/settings` 旋钮回显 + remote 仓 `chartsBaseUrl` 字段——见[M13 增补速览](#m13-增补速览t-375)）。Artifactory 兼容端点基于 REST 逆向规格 `docs/reverse/rest-api.md`（置信度高）。
+> 适用版本：M1~M14（端点引入里程碑标注于各表；M7 增补：用户角色字段 `adminRole`、permission target 动作 `manage`、docker 上传状态腿跨重启、token 铸造 step-up 可选门；**M9 增补**：usage 批量端点、users 列表加宽/enabled 回显/DELETE、groups `?includeUsers`、permissions `?filter=manage`——速览见[下文](#m9-增补速览)；**M11 增补**：认证配置面（含 SAML SP 证书三端点，T-331）、GPG keypair 族、cleanup 引擎、四包型 reindex 族、smart remote 两字段生效、MPU 面整体翻转（ADR-0039）与 cargo remote/virtual 仓型——见[M11 增补速览](#m11-增补速览t-328)；**M12 增补**：制品操作族（copy/move + 归档族）与 trash REST 族（NuGet v2 全路由/v3 代理属协议接入面，见 [NuGet 接入](integrations/nuget.md)）——见[M12 增补速览](#m12-增补速览t-347a)；**M13 增补**：webhook 订阅七端点族（`/event/api/v1`）+ `GET /api/v1/system/settings` 旋钮回显 + remote 仓 `chartsBaseUrl` 字段——见[M13 增补速览](#m13-增补速览t-375)；**M14 增补**：`rclass=remote + packageType=docker` 建仓开闸（T-392，见[Sr 仓库管理域](#sr-仓库管理域)表后注记）与 npm login 端点族（T-394，见[NE: npm 域](#ne-npm-域)））。Artifactory 兼容端点基于 REST 逆向规格 `docs/reverse/rest-api.md`（置信度高）。
 > **M10 增补（T-293 部分回写，2026-08-26）**：`?properties` 族反转为 **GET/PUT/DELETE 三动词**（POST 增量动词不做——其余动词落 404 冻结姿态；原 M5 期表格把属性动词标为 M4/M1 系陈旧勘误）；上传路径 matrix 参数 M10 生效。M10 其余新端点（license/addons/uploads、Go/NuGet/Cargo 接入面）已随 T-296 补齐——速览见[下文](#m10-新增端点速览t-296)。
 > BinFlow 自有端点以 `/api/v1` 前缀标记。
 
@@ -78,6 +78,11 @@ BinFlow 的 API 分为两个面：
 | DELETE | `/binflow/api/npm/{repoKey}/-/${pkg}?rev=...` | unpublish（移除指定版本） | M3 |
 | GET | `/binflow/{repoKey}/{name}/-/{name}-{v}.tgz` | 下载 tarball（内容路径直取） | M3 |
 | PUT | `/binflow/{repoKey}/{name}/-/{name}-{v}.tgz` | **405**—npm 域仅认 packument PUT | M3 |
+| PUT | `/binflow/api/npm/{repoKey}/-/user/org.couchdb.user:{name}` | **login（couch 用户文档族，M14 起可用）**——npm `login --auth-type=legacy` 的落点：凭据在 body（`name`/`password`），该路径族对 npm 仓**豁免写认证门**，由登录端点验证 body 凭据后铸 token（**201 幂等再铸**，不报 409）；错口令 401 + Basic challenge。仅 `packageType=npm` 仓适用（generic 仓同路径仍 401——类型钉死防匿名写入） | M3/M14 |
+| PUT | `/binflow/api/npm/{repoKey}/-/user/org.couchdb.user:{name}/-rev/{rev}` | login 重试拼写（npm 带 revision 重发），同臂服务（M14 起随豁免生效） | M3/M14 |
+| POST | `/binflow/api/npm/{repoKey}/-/v1/login` | **401**——web 登录端点不提供；npm 客户端（npm ≥ 9 默认 web 形态）收到 401 后自动回落 couch 链，行为可用 | M14 |
+| GET | `/binflow/api/npm/{repoKey}/-/whoami` | 当前用户（需认证；无该仓读权限的账号 403——读面 ACL 语义） | M3 |
+| GET | `/binflow/api/npm/{repoKey}/-/ping` | 连通性探测（免认证，`200 {}`） | M3 |
 
 ### PE: PyPI 域
 
@@ -128,6 +133,8 @@ BinFlow 的 API 分为两个面：
 | PUT | `/binflow/api/repositories/{key}` | 建仓（创建）/ 替换既有仓（M7 起替换臂与配额字段对覆盖仓的 manage 持有者开放；**建仓臂仍 admin only**） | M1 |
 | POST | `/binflow/api/repositories/{key}` | 改仓（更新配置，含 quotaBytes 配额写；M7 起 manage 持有者同上） | M1 |
 | DELETE | `/binflow/api/repositories/{key}` | 删仓（含可选 `?deleteContent`；admin only，不下放） | M1 |
+
+> **M14 建仓形态变化（T-392）**：`PUT` 接受 `rclass=remote + packageType=docker`（community 档——不新增 license 槽），协议面语义见 [remote/virtual 管理指南 · docker remote 仓](admin/remote-virtual.md#docker-remote-仓m14fr-129)；`rclass=virtual + packageType=docker` 维持矩阵中唯一 valid-but-unserved 组合，**400** `repository type not supported: virtual docker repositories are not supported (docker serves local and remote; PRD Q4 keeps virtual docker unserved)`（live 实测文案逐字）。
 
 ### 系统端点
 
