@@ -1337,6 +1337,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 **批次（全宽 2；波内 area 互斥，跨波同 area/同角色串行；FE 主轴 web/src 一波一票错峰）**：
 
 - **B0（前置锚 + 零依赖补位）**：T-381 ｜ T-391
+  - **T-391 → done 2026-08-31 12:0x——M14 1/22**：hover 对比度修复定案「**不引入新 token**——链接色向正文 token 压 12%（color-mix，assert-tokens 放行）」：亮 **4.42→5.08** / 暗 **5.55→6.12**，其余承载面 ≥5.1 双主题；根因复算（action.hover 叠 --bf-bg，无 Paper 包裹——探针实测 #e9ebed 与 T-374 逐字节吻合）。axe 双主题 serious=0（全路由 sweep + 显式 hover 探针 T-374 同姿势 3/3 红位 0 违例）+ e2e README 两行注记（纯净 community 前提/dind snapshotter）+ 四闸门 + 全量 233 绿（m9 两 spec seed 并行撞 INSERT 串行 8/8 绿——**L-b 登记**）。conductor 复验 ledger PASS。遗留：L-a `.member-pop` 同配方一行（virtual Tab 浮层入口——M14 候选）；L-b m9 seed 并行互撞（CI workers=2 理论可复现——归 QA/编排注记）。日志 reports/agents/T-391.md。
   - **T-381** [P0] FR-123 活体核验 V1~V8 + parity 置信度回写 + 差距矩阵复核基线 `role:qa-engineer`（执行腿——浏览器/t226 编排；**ux-designer 共笔回写**）area:docs/design/console-artifactory-parity.md（置信度列/§7 重印）+ 证据归档 reports/agents/T-381.md dep:—（Q1 核验源暂行①t226 容器恢复〔T-228 保留栈 docker start 可恢复〕+②外部活体辅助；降级路径内置 AC3）
     AC1: V1~V8 逐项核验结论 + 证据（截图/录屏/文档锚点）归档；parity 规格置信度列回写（§0 修订记录留痕——**改置信度=改契约**）；零静默升格——grep「以核验为准」清单与核验结论一一对应（L01）。
     AC2: 差距矩阵复核基线落盘（§7 重印版 + 三出口判定：V5 降级 / V7 关闭 / E7 再议）+ 低置信三枚图标（nuget/conan/docker 鲸腹）活体对照顺带腿（LC-63 注记——修正结论回 package-icons README §4 登记）；tech-lead 批 1/批 2 细节断言收口确认。
