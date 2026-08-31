@@ -1259,7 +1259,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
     AC1: 部署矩阵烟测（compose/k8s/systemd/offline 抽样）+ 新配置面四部署接线核验（webhook 第 19 槽/私网开关键/outbox 面新键族——含 ADR-0041 引入键）。
     AC2: **UAT 随里程碑 PR 首跑必须落地**（M12 T-355 未执行教训——T-356 §6 留痕）：develop→main 里程碑 PR 触发 CircleCI→52.79.109.153 分阶换装 + healthz 探针 + 双面烟测（含 /binflow/docs/）证据归档；与 conductor 收口时序协同（PR 化合并既定程序）。
 - **B10（收口波）**：T-377
-  - **T-377** [P0] QA 终验 `role:qa-engineer` area:全量验收矩阵 dep:全部票 + T-376
+  - **T-377 → done 2026-08-31 10:1x——**总裁定 **PASS**，M13 21/23（T-379/T-380 未触发留痕见下）**：DoD 八条逐条达标**（实测数字归档：check-size 94.13/100MB、footprint 11.9MB@ready、冷启动三连 0.618/0.201/0.197s、投递 p95=2ms、万 blob 8 路零 5xx）；**L01~L24 全绿**（承证口径：T-373 后生产代码零变化 + HEAD 复跑压缩验证）；**T-371 行为面四 AC 独立复证**（preT371→HEAD 真升级链：sweep moved=3→二启 moved=0 TREE-IDENTICAL + sha256 三口径全等 + ref-search settings 恢复 + install roundtrip 字节 MATCH）；**`_transitive`/`_external` 拼写规则钉死**（三分支 live——T-373 观察② 关闭）；三处反转 + D-10 四臂独立复证；Q3/Q4/Q6 归位；race 全树干净机复跑 exit=0；Playwright 全量 236/24skip/1 已知串行绿；归属审计 14 提交 88 文件 100% + 45e73c4 记账复核维持。**新登记 D1**（remote 缓存树 24 路并发 SQLITE_BUSY 0.27% 可重试边角——M14 候选；8 路门内口径零 5xx）+ D2（dind containerd snapshotter 环境注记）。收口笔五项（R3 LC-56 回写/R4 README 完成态/R5 ROADMAP 未纳入段/e2e+UAT 随 PR）归 conductor 本轮执行。日志 reports/agents/T-377.md。
     AC1: L01~L24 全量（承证+增量）+ M1~M12 全 P0 双形态复跑全绿 + 契约变更面（`git diff m12-done..HEAD -- internal/ cmd/`）100% 归属 M13 豁免票 + **断言反转两处**（conan D8 latest 链→整树删 / folderDownload 恒关→旋钮化〔关态文案逐字维持〕）+ **布局对齐一处**（D-F2 双拼→规格布局）PRD 回写核实 + DoD 八条逐条（实测数字归档；NFR-P58~P60 + `make test`（race）全树一次绿×2 + footprint/check-size 门维持——webhook 引擎不得破 M12 转绿门）。
     AC2: 收口双项（README 双语 + 文档站随新能力核查——结论入收口报告）+ Q3/Q4/Q6 终裁归位核查（LC-56 归 A 或 D / webhook 槽档位 / 事件覆盖界）+ 总裁定 PASS → conductor git tag m13-done（UAT 首跑证据随里程碑 PR 归档）。
 - **波外条件票**（未触发 BOARD 留痕非 DoD 缺口）：
@@ -1304,3 +1304,9 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 **用户指令 intake（2026-08-30 13:1x，M14 UI-parity 里程碑主输入；插空派发 UX-1 票即刻启动）**：① 前端**交互体验与 JFrog Artifactory 完全一致**——弹窗（New Repository 向导等 modal）、抽屉（Set Me Up/详情 slide-out）等形态逐一对齐（MUI 化视觉之上的下一层）；② **各协议 logo 加上**（13 包型 SVG 图标集，品牌色）；③ **BinFlow 产品 logo 自设计**（国际化、偏技术、好看；非 JFrog 仿制）。执行：UX-1（ux-designer 插空——品牌 logo 三稿 + 协议图标集 + Artifactory 交互模式规格 docs/design/console-artifactory-parity.md）→ PM 据此起草 M14 PRD（M13 收口后立项）；FE 接线票归 dev-frontend 后续波次。
 
 **UX-1 → done 2026-08-30 13:3x（36 新文件，零现有代码改动）**：品牌 logo 三候选（docs/design/brand/logo/——**推荐候选 1「容器·双箭流」**〔bin/flow + 终端提示符 » 双隐喻，16px 免简化〕，候选 2 括号流/候选 3 六角流备选；品牌色锚定现有 --bf-accent 不另起炉灶）+ 包型图标 30 枚（mono/brand 各 15——13 包型 + trashcan/webhook；helm×helmoci 三重区分；逐枚持有方与许可姿态注记）+ **console-artifactory-parity.md**（模式 catalog 逐项置信度标注→MUI 组件→载体→差距三档 + §7 页面×模式差距矩阵〔PM 起 M14 PRD 直接引用〕+ §8 活体核验清单 V1~V8 + §9 豁免登记 E1~E7〔保护 BinFlow 优于 Artifactory 的安全设计〕+ §10 落地批次）。遗留：推荐稿待用户圈定（三稿齐备可换）；wordmark/npm/go 图标接线前转 path；活体核验 V1~V8 归有浏览器的票。日志 reports/agents/UX-1.md。
+
+**M13 收口（2026-08-31 10:1x——T-377 PASS 后 conductor 序列）**：
+
+- **波外条件票留痕**：**T-379**（Q2 NuGet symbol server）未触发——余量条款未满足（收口波无余量），滚 M14+；**T-380**（Q5 docker remote 顺车）——K54 判定「/v2 共享缝边际成本≈0」**成立**（T-363 §Q5 结论在案），但收口波满宽未随 M13 派发 → **转 M14 首航候选（触发条件已满足）**。两者均非 DoD 缺口（PRD §1.3 上限条款内）。
+- **M14 候选池汇总**（本轮各票登记汇总）：T-380 docker remote 首航（条件已满足）/ L1 npm legacy login 服务端小票（T-374）/ L2 仓库表 hover 对比度 FE 小票（T-374）/ Replay+outbox 行级 REST 面（T-364 §5-③+T-366 §4-2）/ D1 remote 缓存树高并发 busy 重试预算（T-377）/ helm uninstall PVC keep（T-376）/ 成员同型全包型推广（T-367）/ v3/flat 直推面 403-vs-409 规格补锚（T-378）/ 启动日志措辞一行（T-376）/ playwright 纯净实例假设 README 注记（T-374 L3）/ 3xx 终态 V4 活体验证（T-364）/ disable 快照契约翻转若需（T-364）/ **UI-parity 主轴**（用户指令 2026-08-30：交互对齐 Artifactory + 协议 logo + 品牌 logo——UX-1 资产与差距矩阵已备）。
+- **收口笔执行**：R3 LC-56 回写 + R4 README 双语完成态 + R5 ROADMAP M13 未纳入段 + 里程碑 PR（develop→main，触发 build/e2e 首跑/deploy_uat UAT 首跑）+ UAT 证据归档 + `m13-done` tag。

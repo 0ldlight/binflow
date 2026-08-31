@@ -37,7 +37,7 @@ service index 动态解析）；dual-write 链在 S3 停机窗 **fail-open**（�
 分块上传 REST 面已整体翻成 **Artifactory MPU 形状**（jfrog-cli 实测）；
 控制台视觉层全面换装 **MUI 原生默认皮肤**（手写 base.css 983 → 443 行）。
 
-M13（进行中）落地 **Webhook 统一事件面**：`/binflow/event/api/v1` 下的
+M13（已完成）落地 **Webhook 统一事件面**：`/binflow/event/api/v1` 下的
 官方七端点订阅族 + 13 域 66 型闭集（当前 9 型织入触发）、HMAC-SHA256
 签名投递与官方重试语义（5 次首试计入、固定 10s 间隔、单次 30s 预算、
 4xx 终态）、进程内排障环 + 五枚 Prometheus 指标族——pro 槽，SSRF 姿态
@@ -64,7 +64,7 @@ conan v1 recipe DELETE 翻转为**整树删**；**运行旋钮**落地
 | 内容 | 位置 |
 |---|---|
 | 产品愿景与范围 | [`PRODUCT.md`](PRODUCT.md) |
-| 里程碑（M1 内核 → M13 事件总线程；M1~M12 已完成，M13 进行中） | [`ROADMAP.md`](ROADMAP.md) |
+| 里程碑（M1 内核 → M13 事件总线程；M1~M13 已完成） | [`ROADMAP.md`](ROADMAP.md) |
 | M13 需求（PRD：Webhook 事件总线 / HelmOCI 补全 / 配置旋钮 / 行为债收口） | [`docs/prd/milestone-13.md`](docs/prd/milestone-13.md) |
 | M12 需求（PRD：NuGet 补全 / 制品生命周期 / 行为债收口） | [`docs/prd/milestone-12.md`](docs/prd/milestone-12.md) |
 | Artifactory 全量功能对照矩阵（213 条目——M10+ 路线图骨干） | [`docs/reverse/artifactory-full-feature-matrix.md`](docs/reverse/artifactory-full-feature-matrix.md) |

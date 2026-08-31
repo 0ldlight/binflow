@@ -349,9 +349,9 @@ M12 以 `m12-done`（2026-08-30，PR #42 合并 main）收官：NuGet 对齐 bun
 | LC-53 | trashcan.retention_days 旋钮（默认 14；cron 消费） | config.xml trashcanConfig（M12 mini 规格锚点；BinFlow 键名 K52） | A | P1 | 高 | L15 |
 | LC-54 | conan v1 `DELETE conans/<ref>` 坐标根整树删（全部修订）——**as-built latest 链翻转** | conan.md §3.2 D8（T-348 双证：`LocalConanHandler.removeRecipe` + conan 1.66 参考实现；v2 同型互证 `getRecipePathForRemove`） | A | P1 | 高 | L16 |
 | LC-55 | conan v1 files 通道布局 `<root>/<pid>/<pRev>/<file>` + 存量迁移（现态双拼路径——服务端布局对齐，客户端面无感） | conan.md §4 规格 + T-340 §4 D-F2 登记 | A | P1 | 高 | L17 |
-| LC-56 | NuGet publish 同字节幂等臂（D-10） | nuget.md §5.1 臂②（包已存在且无 d 权限 → **409**）vs BinFlow as-built（同字节 + 仅 w 主体重传 → **201**，T-356 L03 实测） | **待裁**（Q3——终裁后归 A〔翻转对齐 409〕或 D〔有意差异留痕〕并回写） | P2 | 高（分歧双证在案） | L19（as-built 维持断言 + 裁定留痕） |
+| LC-56 | NuGet publish 同字节幂等臂（D-10） | nuget.md §5.1 臂②（包已存在且无 d 权限 → **409**）vs BinFlow as-built（同字节 + 仅 w 主体重传 → **201**，T-356 L03 实测） | **A**（终裁 2026-08-30 对齐 409——T-378 翻转落地，live 四臂逐字；M12 L03 断言反转归属 T-378 豁免票） | P2 | 高（分歧双证在案） | L19（已闭环——nuget.md §5.1 D-10 关闭留痕） |
 
-> 计数：**11 条 = A 10（LC-46~LC-55）+ C 0 + D 0 + 待裁 1（LC-56）**。deb Packages.bz2 维持 M12 LC-45 D 层留痕不重复立行（Q7 推翻通道）。既有契约面（五基础包型、go/nuget/cargo、conan/deb/rpm/helm、配置域、操作族/回收站、MPU 新 wire）M13 对 M12 as-built 零行为变化（§5.4），断言反转两处 + 服务端布局对齐一处均经 PRD 回写。webhook outbox 表结构为内部载体（非契约面），不入矩阵。
+> 计数：**11 条 = A 11（LC-46~LC-56——LC-56 终裁 2026-08-30 对齐 409，T-378 落地）+ C 0 + D 0**。deb Packages.bz2 维持 M12 LC-45 D 层留痕不重复立行（Q7 推翻通道）。既有契约面（五基础包型、go/nuget/cargo、conan/deb/rpm/helm、配置域、操作族/回收站、MPU 新 wire）M13 对 M12 as-built 零行为变化（§5.4），断言反转两处 + 服务端布局对齐一处均经 PRD 回写。webhook outbox 表结构为内部载体（非契约面），不入矩阵。
 
 ### 5.4 回归基线（M13 断言反转两处 + 布局对齐一处——均经 PRD 回写；其余零回归）
 

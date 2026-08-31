@@ -50,7 +50,7 @@ chunked-upload REST plane took the full **Artifactory MPU shape**
 (jfrog-cli verified), and the console's visual layer was re-skinned onto
 **native MUI defaults** (hand-written base.css 983 → 443 lines).
 
-M13 (in progress) adds the **webhook unified event plane**: the official
+M13 (done) adds the **webhook unified event plane**: the official
 seven-endpoint subscription family under `/binflow/event/api/v1` over a
 66-type/13-domain closed set (9 wired today), HMAC-SHA256 signed
 delivery with official retry semantics (5 attempts first-counted, fixed
@@ -83,7 +83,7 @@ shows the live per-slot verdict. Full guide:
 | What | Where |
 |---|---|
 | Product vision & scope | [`PRODUCT.md`](PRODUCT.md) |
-| Milestones (M1 kernel → M13 event-bus pass; M1–M12 done, M13 in progress) | [`ROADMAP.md`](ROADMAP.md) |
+| Milestones (M1 kernel → M13 event-bus pass; M1–M13 done) | [`ROADMAP.md`](ROADMAP.md) |
 | M13 requirements (PRD: webhook event bus, HelmOCI completion, config knobs, behavior-debt closure) | [`docs/prd/milestone-13.md`](docs/prd/milestone-13.md) |
 | M12 requirements (PRD: NuGet completion, artifact lifecycle, behavior-debt closure) | [`docs/prd/milestone-12.md`](docs/prd/milestone-12.md) |
 | Artifactory full-feature matrix (213 entries — the M10+ roadmap backbone) | [`docs/reverse/artifactory-full-feature-matrix.md`](docs/reverse/artifactory-full-feature-matrix.md) |
