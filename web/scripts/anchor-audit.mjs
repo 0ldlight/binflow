@@ -232,6 +232,14 @@ const STOP = new Set([
   // wire-brand-assets、t389-brand），均非 testid 锚
   'app-nav-brand', 'bf-bg', 'docs-site', 'mark-dark', 'lockup-horizontal', 'lockup-dark',
   'wire-brand-assets', 't389-brand',
+  // v1.22（T-387 行文假阳性）：L1 批的标识符引用——aria 属性名（批次语义
+  // 描述，非锚——aria-expanded 等同款先例在册）/ localStorage 键名
+  //（binflow-console-cols-{repos,audit}，偏好面非锚）/ CSS 类钩子
+  //（filter-bar）/ 措辞连词（per-page、recent-searches）/ spec 文件名段
+  //（t387-l1-columns），均非 testid 锚
+  'aria-checked', 'aria-disabled', 'aria-haspopup', 'aria-hidden',
+  'binflow-console-cols-audit', 'binflow-console-cols-repos',
+  'filter-bar', 'per-page', 'recent-searches', 't387-l1-columns',
 ])
 const docFams = new Set()
 for (const t of docTokens) {

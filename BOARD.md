@@ -1405,7 +1405,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
     AC2: 四消费点逐点——pkg-grid brand 版（+门控态 **mono + opacity 0.4 + pkg-tier-* 徽章三件套**——brand 版不置灰）/ smu-grid brand 版（`CLIENT_PKG_META` 字符图标 `▫ ⬢ ⌬ ⬒ ⬓` 退役 grep=0）/ 仓库列表·制品树·搜索类型列 mono currentColor / LicenseAddonsPage addon 矩阵 brand 版；30 枚全部被消费或注记豁免。
     AC3: 暗底抽查 ≥3:1（发闷允许 +10% 亮度微调并回 README §4 登记——K61）+ 装饰图标 aria-hidden / 语义处 aria-label（类型列）+ SPA gzip 增量 ≤10KB + 四闸门 + axe + M8 建仓/SetMe Up spec 联动更新全绿。
 - **B8（批 2 收尾 + 文档 B）**：T-387 ｜ T-398
-  - **T-387** [P1] FR-125.2 L1 列选器 + 刷新 `role:dev-frontend` area:web/src 工具栏（RepositoriesPage/AuditPage）dep:FE 链错峰（RepositoriesPage 与 T-385 行面共写先后脚）
+  - **T-387 → done 2026-08-31 22:5x——M14 11/22**：两页工具栏尾组（列选 Menu + menuitemcheckbox + 全选复位 / 刷新钮 + 取数中进度环禁用）+ **偏好持久定案 per-page localStorage**（`binflow-console-cols-{repos,audit}`，读回清洗 + 全隐回落 + 至少一列守卫——console-ux v1.22 注记留痕；reload 持久/互不染 e2e 断言）。spec 5/5（自纠 2 处 spec 缺陷）+ 定向 29+7 + **全量两轮 258/0/24**（首轮 1 红串行甄别在册 axe 假阳性家族）+ 四闸门 + axe 菜单开态双主题 0 + 锚册 v1.22（23 锚）+ SPA +3,244B ≤10KB + 服务端 diff=0。**行面零触碰口径**：单元格内层 JSX 逐字节未动（T-390 Chip 原样），列显隐仅整列条件包裹。遗留：推广 users/groups/search（共享层 columnPrefs.ts 已就绪）；:8157 留验可整删（按端口精确杀——T-389 教训已吸收）。日志 reports/agents/T-387.md。
     AC1: Playwright——列选 Menu（checkbox 列表）开合/列显隐/全选复位 + per-page localStorage 持久（reload 保持）；刷新 IconButton 取数；轮询页自刷新维持（L07）。
     AC2: 「无端点列不伪造」纪律（列集 = 既有全部列）+ 其余列表页不受影响断言 + 列宽/空列处理。
     AC3: 四闸门 + axe 双主题 + 服务端 diff=0 + 新锚入册。

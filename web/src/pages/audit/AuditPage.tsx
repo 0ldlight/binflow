@@ -1,7 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ComponentPropsWithoutRef } from 'react'
 
 import Button from '@mui/material/Button'
+import CircularProgress from '@mui/material/CircularProgress'
+import Divider from '@mui/material/Divider'
+import IconButton from '@mui/material/IconButton'
+import Menu from '@mui/material/Menu'
+import MenuItem from '@mui/material/MenuItem'
 import Select from '@mui/material/Select'
 import Table from '@mui/material/Table'
 import TableBody from '@mui/material/TableBody'
@@ -16,6 +21,8 @@ import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import { ApiError, getRepositories } from '../../lib/api'
 import type { AuditEvent } from '../../lib/api'
+import { useColumnPrefs } from '../../lib/columnPrefs'
+import type { ColumnDef } from '../../lib/columnPrefs'
 import { formatAuditTime } from '../../lib/format'
 import { monoInputSx } from '../../lib/muiAtoms'
 import {
@@ -38,6 +45,22 @@ import { useAsync } from '../../lib/useAsync'
 //   repo/path mono + 拷贝 / 来源 detail.remote_addr / detail JSON 折叠。
 // - CSV 导出 P2 债务：不渲染入口（ux R3）。
 // - 非 admin：GET /api/v1/audit 403 → 单张无权限卡（§3.6.3 L2）。
+// - T-387（FR-125.2 L1，console-artifactory-parity §5 L1）：工具栏补列选器
+//   （Menu + menuitemcheckbox，列集 = 既有六列；偏好 localStorage per-page）
+//   与刷新 IconButton（静态列表手动重取——回首页游标，过滤保持）。
+
+/** T-387 列选器列集：label 与表头一致；anchor = 菜单项锚（anchor-audit
+ *  的 anchor: 属性形态）。 */
+const COLUMNS: ColumnDef[] = [
+  { id: 'time', label: '时间', anchor: 'audit-columns-item-time' },
+  { id: 'actor', label: '操作者', anchor: 'audit-columns-item-actor' },
+  { id: 'action', label: '动作', anchor: 'audit-columns-item-action' },
+  { id: 'target', label: '对象', anchor: 'audit-columns-item-target' },
+  { id: 'source', label: '来源', anchor: 'audit-columns-item-source' },
+  { id: 'detail', label: '详情', anchor: 'audit-columns-item-detail' },
+]
+const COLUMN_IDS = COLUMNS.map((c) => c.id)
+const COLS_KEY = 'binflow-console-cols-audit'
 
 /** detail 收窄：remote_addr 是 Logger 合并进 Detail 的来源地址（M1 契约） */
 function detailObject(d: unknown): Record<string, unknown> {
@@ -62,8 +85,11 @@ function detailJSON(d: unknown): string {
 /**
  * 服务端分页容器：首页随 filters 变化重拉（防抖由调用方做），「加载更多」
  * 携 cursor 增量追加。晚到的旧响应按运行闭包旗标丢弃（useAsync 同款语义）。
+ * T-387（L1 刷新）：refresh 手动重拉首页（tick 入 effect 依赖——过滤保持、
+ * 已加载增量丢弃回第 1 页，与过滤变更同语义）。
  */
 function useAuditPages(filters: AuditFilters) {
+  const [tick, setTick] = useState(0)
   const [events, setEvents] = useState<AuditEvent[]>([])
   const [nextCursor, setNextCursor] = useState('')
   const [phase, setPhase] = useState<'loading' | 'ok' | 'error' | 'forbidden'>('loading')
@@ -82,7 +108,7 @@ function useAuditPages(filters: AuditFilters) {
     setMoreError(null)
     setEvents([])
     setNextCursor('')
-    getAuditEventsPage(filters, '', AUDIT_PAGE_SIZE)
+    getAuditEventsPage(JSON.parse(key) as AuditFilters, '', AUDIT_PAGE_SIZE)
       .then((p) => {
         if (!alive) return
         setEvents(p.events)
@@ -98,8 +124,7 @@ function useAuditPages(filters: AuditFilters) {
     return () => {
       alive = false
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- key 即 filters 的全量刻画
-  }, [key])
+  }, [key, tick])
 
   const loadMore = async (): Promise<void> => {
     const { key: k, nextCursor: cursor } = stateRef.current
@@ -123,7 +148,10 @@ function useAuditPages(filters: AuditFilters) {
     }
   }
 
-  return { events, nextCursor, phase, error, loadingMore, moreError, loadMore }
+  // T-387（L1 刷新）：手动重拉首页（过滤保持；已加载增量丢弃）
+  const refresh = useCallback(() => setTick((t) => t + 1), [])
+
+  return { events, nextCursor, phase, error, loadingMore, moreError, loadMore, refresh }
 }
 
 export default function AuditPage() {
@@ -164,7 +192,12 @@ export default function AuditPage() {
 
   // 时间值由 datetime-local 产出，浏览器侧不可产出非法串；timeInvalid
   // 只作行内提示（防手动改 DOM 等异常路径），不参与查询门控
-  const { events, nextCursor, phase, error, loadingMore, moreError, loadMore } = useAuditPages(committed)
+  const { events, nextCursor, phase, error, loadingMore, moreError, loadMore, refresh } = useAuditPages(committed)
+
+  // T-387（L1）：列显隐偏好（per-page localStorage）+ 列选菜单锚
+  const cols = useColumnPrefs(COLUMN_IDS, COLS_KEY)
+  const [colsAnchor, setColsAnchor] = useState<HTMLElement | null>(null)
+  const colsOpen = Boolean(colsAnchor)
 
   // path 过滤：只作用于已加载集（§6.3——绝不假装过滤了全量）
   const pathQ = path.trim().toLowerCase()
@@ -301,6 +334,77 @@ export default function AuditPage() {
         <span className="count" data-testid="audit-count">
           已加载 {rows.length} 条{pathQ ? '（路径过滤仅作用于已加载集）' : ''}
         </span>
+        {/* T-387（L1）：工具栏尾 = 列选器 + 刷新（parity L1「列选择器 + 刷新
+            按钮」；计数已在栏尾 audit-count）。形态与仓库页同款——两页共写
+            的持久层在 lib/columnPrefs（菜单壳 30 行级，页内直挂换全字面量锚，
+            不做共享组件 + 动态前缀）。 */}
+        <span className="filter-tail-actions">
+          <Button
+            variant="outlined"
+            size="small"
+            aria-haspopup="menu"
+            aria-expanded={colsOpen}
+            data-testid="audit-columns"
+            title="自定义显示列（偏好保存在本浏览器）"
+            onClick={(e) => setColsAnchor(e.currentTarget)}
+          >
+            <span aria-hidden="true">▤</span> 列 {cols.visibleCount}/{COLUMNS.length}
+          </Button>
+          <Menu
+            open={colsOpen}
+            onClose={() => setColsAnchor(null)}
+            anchorEl={colsAnchor}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+            data-testid="audit-columns-menu"
+          >
+            {COLUMNS.map((c) => {
+              const visible = cols.isVisible(c.id)
+              const last = visible && cols.visibleCount === 1
+              return (
+                <MenuItem
+                  key={c.id}
+                  role="menuitemcheckbox"
+                  aria-checked={visible}
+                  aria-disabled={last || undefined}
+                  title={last ? '至少保留一列' : undefined}
+                  data-testid={c.anchor}
+                  onClick={() => {
+                    if (!last) cols.toggle(c.id)
+                  }}
+                >
+                  <span aria-hidden="true" className="col-check">
+                    {visible ? '☑' : '☐'}
+                  </span>
+                  {c.label}
+                </MenuItem>
+              )
+            })}
+            <Divider component="li" />
+            <MenuItem
+              aria-disabled={cols.visibleCount === COLUMNS.length || undefined}
+              title={cols.visibleCount === COLUMNS.length ? '全部列已在场' : '显示全部列'}
+              data-testid="audit-columns-reset"
+              onClick={() => cols.reset()}
+            >
+              全选列
+            </MenuItem>
+          </Menu>
+          <IconButton
+            size="small"
+            aria-label="刷新审计列表"
+            data-testid="audit-refresh"
+            disabled={phase === 'loading'}
+            onClick={refresh}
+            title="重新拉取审计事件（保持当前过滤，回第 1 页）"
+          >
+            {phase === 'loading' ? (
+              <CircularProgress size={16} aria-hidden="true" />
+            ) : (
+              <span aria-hidden="true">↻</span>
+            )}
+          </IconButton>
+        </span>
       </div>
       {(timeInvalid || timeHint) && (
         <p className="field-hint" style={{ margin: '0 0 var(--bf-sp-2)' }}>
@@ -342,12 +446,12 @@ export default function AuditPage() {
             <Table data-testid="audit-table">
               <TableHead>
                 <TableRow>
-                  <TableCell component="th" scope="col">时间</TableCell>
-                  <TableCell component="th" scope="col">操作者</TableCell>
-                  <TableCell component="th" scope="col">动作</TableCell>
-                  <TableCell component="th" scope="col">对象</TableCell>
-                  <TableCell component="th" scope="col">来源</TableCell>
-                  <TableCell component="th" scope="col">详情</TableCell>
+                  {cols.isVisible('time') && <TableCell component="th" scope="col">时间</TableCell>}
+                  {cols.isVisible('actor') && <TableCell component="th" scope="col">操作者</TableCell>}
+                  {cols.isVisible('action') && <TableCell component="th" scope="col">动作</TableCell>}
+                  {cols.isVisible('target') && <TableCell component="th" scope="col">对象</TableCell>}
+                  {cols.isVisible('source') && <TableCell component="th" scope="col">来源</TableCell>}
+                  {cols.isVisible('detail') && <TableCell component="th" scope="col">详情</TableCell>}
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -357,29 +461,39 @@ export default function AuditPage() {
                   const remote = detailRemoteAddr(ev.detail)
                   return (
                     <TableRow key={ev.id} data-testid={`audit-row-${i}`} hover>
-                      <TableCell className="mono audit-time" title={ev.time}>
-                        {formatAuditTime(ev.time)}
-                      </TableCell>
-                      <TableCell>{ev.actor}</TableCell>
-                      <TableCell className="mono" lang="en">
-                        {ev.action}
-                      </TableCell>
-                      <TableCell className="mono" sx={{ maxWidth: 360, whiteSpace: 'normal', wordBreak: 'break-all' }} lang="en">
-                        {target || '—'} {target && <CopyButton value={target} label={`审计对象 ${target}`} />}
-                      </TableCell>
-                      <TableCell className="mono" lang="en">
-                        {remote || '—'}
-                      </TableCell>
-                      <TableCell>
-                        {json ? (
-                          <details className="detail-pop">
-                            <summary>detail</summary>
-                            <pre lang="en">{json}</pre>
-                          </details>
-                        ) : (
-                          <span className="text-muted">—</span>
-                        )}
-                      </TableCell>
+                      {cols.isVisible('time') && (
+                        <TableCell className="mono audit-time" title={ev.time}>
+                          {formatAuditTime(ev.time)}
+                        </TableCell>
+                      )}
+                      {cols.isVisible('actor') && <TableCell>{ev.actor}</TableCell>}
+                      {cols.isVisible('action') && (
+                        <TableCell className="mono" lang="en">
+                          {ev.action}
+                        </TableCell>
+                      )}
+                      {cols.isVisible('target') && (
+                        <TableCell className="mono" sx={{ maxWidth: 360, whiteSpace: 'normal', wordBreak: 'break-all' }} lang="en">
+                          {target || '—'} {target && <CopyButton value={target} label={`审计对象 ${target}`} />}
+                        </TableCell>
+                      )}
+                      {cols.isVisible('source') && (
+                        <TableCell className="mono" lang="en">
+                          {remote || '—'}
+                        </TableCell>
+                      )}
+                      {cols.isVisible('detail') && (
+                        <TableCell>
+                          {json ? (
+                            <details className="detail-pop">
+                              <summary>detail</summary>
+                              <pre lang="en">{json}</pre>
+                            </details>
+                          ) : (
+                            <span className="text-muted">—</span>
+                          )}
+                        </TableCell>
+                      )}
                     </TableRow>
                   )
                 })}
