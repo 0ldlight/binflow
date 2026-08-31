@@ -282,9 +282,9 @@ func TestRemoteWriteRefusal(t *testing.T) {
 }
 
 // TestRemoteClassGates: the live create plane — helmoci REMOTE creation
-// passes under the pro document (with the canonicalized url), while the
-// docker package type keeps its local-only matrix (T-380's boundary) and
-// the unlicensed community tier keeps the D3 refusal.
+// passes under the pro document (with the canonicalized url), docker REMOTE
+// rides the same seam since T-392 (FR-129), and the unlicensed community
+// tier keeps helmoci's D3 refusal.
 func TestRemoteClassGates(t *testing.T) {
 	s, keys := newLicensedStack(t)
 	ctx := context.Background()
@@ -324,12 +324,14 @@ func TestRemoteClassGates(t *testing.T) {
 		t.Fatalf("remote config = (%v, %+v), want the typed url row", err, cfg)
 	}
 
-	// The docker package type keeps its matrix (docker remote stays
-	// T-380's conditional ticket, refused today).
+	// The docker package type rides the same /v2 remote seam since T-392
+	// (FR-129): the create passes under the SAME pro document (docker's
+	// slot is core-five, so it would also pass on community — pinned in
+	// the repo package's own gate tests).
 	dockerBody := `{"key":"docker-remote","rclass":"remote","packageType":"docker","url":"http://127.0.0.1:9/v2/up"}`
 	status, respBody, _ = s.do(http.MethodPut, "/binflow/api/repositories/docker-remote", adminUser, adminPass,
 		strings.NewReader(dockerBody), map[string]string{"Content-Type": "application/json"})
-	if status != http.StatusBadRequest || !strings.Contains(respBody, "not supported") {
-		t.Fatalf("docker remote create = (%d, %s), want the matrix 400", status, respBody)
+	if status != http.StatusOK {
+		t.Fatalf("docker remote create = (%d, %s), want 200 (the seam admission)", status, respBody)
 	}
 }

@@ -292,22 +292,35 @@ func TestCreateDockerRepoEnabled(t *testing.T) {
 		}
 	})
 
-	t.Run("remote and virtual docker stay refused (FR-15-AC7)", func(t *testing.T) {
-		// The M3 inversion (PRD section 5.6) opened every class for the
-		// protocol package types; docker is the ONE combination that stays
-		// 400 (PRD Q4 — registry proxy/aggregation semantics unverified).
+	t.Run("remote docker creates, virtual docker stays refused (FR-129)", func(t *testing.T) {
+		// T-392 (M14 FR-129) opened REMOTE docker onto the /v2 remote seam
+		// T-363 built; VIRTUAL docker is the one combination the matrix
+		// still refuses (PRD Q4's aggregation half).
 		e := newEnv(t)
-		for _, rclass := range []string{repo.TypeRemote, repo.TypeVirtual} {
-			_, err := e.svc.CreateRepo(ctx, admin(), &metadata.Repo{
-				RepoKey: "d-" + rclass, Type: rclass, PackageType: repo.PackageDocker,
-				Config: `{"url":"https://registry-1.docker.io"}`,
-			})
-			if !errors.Is(err, repo.ErrRepoTypeNotSupported) {
-				t.Fatalf("CreateRepo(%s docker) error = %v, want ErrRepoTypeNotSupported", rclass, err)
-			}
-			if !strings.Contains(err.Error(), "not supported in M3") {
-				t.Fatalf("error does not carry the not-supported-in-M3 wording: %v", err)
-			}
+		row, err := e.svc.CreateRepo(ctx, admin(), &metadata.Repo{
+			RepoKey: "d-remote", Type: repo.TypeRemote, PackageType: repo.PackageDocker,
+			Config: `{"url":"https://registry-1.docker.io/v2"}`,
+		})
+		if err != nil {
+			t.Fatalf("CreateRepo(remote docker) error = %v, want nil (the seam admission)", err)
+		}
+		if row.Type != repo.TypeRemote || row.PackageType != repo.PackageDocker {
+			t.Fatalf("row = (%s, %s), want (remote, docker)", row.Type, row.PackageType)
+		}
+		cfg, cerr := e.md.Remote().GetConfig(ctx, "d-remote")
+		if cerr != nil || cfg.URL != "https://registry-1.docker.io/v2" {
+			t.Fatalf("remote config = (%v, %+v), want the typed url row", cerr, cfg)
+		}
+
+		_, err = e.svc.CreateRepo(ctx, admin(), &metadata.Repo{
+			RepoKey: "d-virtual", Type: repo.TypeVirtual, PackageType: repo.PackageDocker,
+			Config: `{"url":"https://registry-1.docker.io"}`,
+		})
+		if !errors.Is(err, repo.ErrRepoTypeNotSupported) {
+			t.Fatalf("CreateRepo(virtual docker) error = %v, want ErrRepoTypeNotSupported", err)
+		}
+		if !strings.Contains(err.Error(), "are not supported") {
+			t.Fatalf("error does not carry the not-supported wording: %v", err)
 		}
 	})
 

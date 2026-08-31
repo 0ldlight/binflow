@@ -11,9 +11,10 @@ package repo_test
 //   - a known-but-locked slot refuses create/update/delete with the pointed
 //     clause (D3: tier / allowlist / the addons.disabled breaker) and records
 //     the license.addon.denied audit row;
-//   - the static five keep their M3 class rulings under the overlay
-//     (docker stays local-only) and the floor posture (a wired gate with
-//     everything unlocked changes nothing for them);
+//   - the static five keep their class rulings under the overlay (virtual
+//     docker stays refused; remote docker opened by T-392) and the floor
+//     posture (a wired gate with everything unlocked changes nothing for
+//     them);
 //   - the virtual-member rule (FR-85.1④): a locked member refuses the
 //     virtual create/update;
 //   - the SERVICE-layer content paths never consult the gate (the
@@ -186,9 +187,11 @@ func TestT283DisabledBreakerShape(t *testing.T) {
 }
 
 // TestT283StaticFiveUnchangedUnderOverlay: with the seam wired and
-// everything unlocked, the static five behave exactly as before — and
-// docker's local-only M3 ruling SURVIVES the overlay (a registry-known
-// docker slot must not smuggle remote/virtual docker in).
+// everything unlocked, the static five behave exactly as before — the
+// registry-known docker slot opens REMOTE docker (T-392's matrix cell, no
+// gate question of its own) while VIRTUAL docker's refusal SURVIVES the
+// overlay (a registry-known docker slot must not smuggle virtual docker
+// in).
 func TestT283StaticFiveUnchangedUnderOverlay(t *testing.T) {
 	e, _ := gateEnv(t, map[string]repo.PackageTypeVerdict{
 		"generic": unlockedGo, "docker": unlockedGo, "npm": unlockedGo,
@@ -199,12 +202,20 @@ func TestT283StaticFiveUnchangedUnderOverlay(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("generic create under overlay: %v", err)
 	}
-	_, err := e.svc.CreateRepo(ctx, admin(), &metadata.Repo{
+	// Remote docker is a matrix cell, not a gate question: the known docker
+	// slot creates it exactly like the nil-gate path does (T-392).
+	if _, err := e.svc.CreateRepo(ctx, admin(), &metadata.Repo{
 		RepoKey: "t283-docker-remote", Type: repo.TypeRemote, PackageType: repo.PackageDocker,
-		Config: `{"url":"https://upstream.example"}`,
+		Config: `{"url":"https://upstream.example/v2"}`,
+	}); err != nil {
+		t.Fatalf("docker remote under overlay: %v", err)
+	}
+	_, err := e.svc.CreateRepo(ctx, admin(), &metadata.Repo{
+		RepoKey: "t283-docker-virtual", Type: repo.TypeVirtual, PackageType: repo.PackageDocker,
+		Config: `{"repositories":["t283-generic"]}`,
 	})
-	if !errors.Is(err, repo.ErrRepoTypeNotSupported) || !strings.Contains(err.Error(), "local-only") {
-		t.Fatalf("docker remote under overlay = %v, want the M3 class ruling", err)
+	if !errors.Is(err, repo.ErrRepoTypeNotSupported) || !strings.Contains(err.Error(), "are not supported") {
+		t.Fatalf("docker virtual under overlay = %v, want the class ruling", err)
 	}
 	// Unknown values keep the static enum's refusal (the service backstop
 	// behind httpapi's dynamic 400).

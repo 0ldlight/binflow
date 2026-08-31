@@ -7,6 +7,7 @@ package httpapi_test
 // GET, and the ?type=/?packageType= filters on the list.
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -288,18 +289,21 @@ func TestM04ListFiltersREST(t *testing.T) {
 // ---- M05: the docker combination boundary (FR-15-AC7) ----
 
 func TestM05DockerBoundaryREST(t *testing.T) {
-	t.Run("remote+docker is 400 not supported in M3", func(t *testing.T) {
+	t.Run("remote+docker creates (FR-129, T-392)", func(t *testing.T) {
 		h := repoModelHarness(t)
 		status, body := putRepoStatus(t, h, "docker-remote",
-			`{"rclass":"remote","packageType":"docker","url":"https://registry-1.docker.io"}`)
-		if status != http.StatusBadRequest {
+			`{"rclass":"remote","packageType":"docker","url":"https://registry-1.docker.io/v2"}`)
+		if status != http.StatusOK {
 			t.Fatalf("status = %d; body=%s", status, body)
 		}
-		if !strings.Contains(body, "not supported in M3") {
-			t.Fatalf("body = %q, want the not-supported-in-M3 wording", body)
+		if !strings.Contains(body, "Successfully created repository 'docker-remote'") {
+			t.Fatalf("body = %q, want the created wording", body)
+		}
+		if cfg, err := h.md.Remote().GetConfig(context.Background(), "docker-remote"); err != nil || cfg.URL != "https://registry-1.docker.io/v2" {
+			t.Fatalf("remote config = (%v, %+v), want the typed url row", err, cfg)
 		}
 	})
-	t.Run("virtual+docker is 400 not supported in M3", func(t *testing.T) {
+	t.Run("virtual+docker is 400 not supported", func(t *testing.T) {
 		h := repoModelHarness(t)
 		if s, b := putRepoStatus(t, h, "docker-local", `{"rclass":"local","packageType":"docker"}`); s != http.StatusOK {
 			t.Fatalf("seed docker local: %d %s", s, b)
@@ -309,8 +313,8 @@ func TestM05DockerBoundaryREST(t *testing.T) {
 		if status != http.StatusBadRequest {
 			t.Fatalf("status = %d; body=%s", status, body)
 		}
-		if !strings.Contains(body, "not supported in M3") {
-			t.Fatalf("body = %q, want the not-supported-in-M3 wording", body)
+		if !strings.Contains(body, "are not supported") {
+			t.Fatalf("body = %q, want the not-supported wording", body)
 		}
 	})
 	t.Run("local+docker does not regress", func(t *testing.T) {
