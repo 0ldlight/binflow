@@ -90,12 +90,12 @@ func TestCreateRepoTypeValidation(t *testing.T) {
 		{"remote maven", "remote", "maven", `{"url":"http://127.0.0.1:9099/m2"}`, nil},
 		{"remote npm", "remote", "npm", `{"url":"https://registry.npmjs.org"}`, nil},
 		{"remote pypi", "remote", "pypi", `{"url":"https://pypi.org/simple"}`, nil},
-		{"remote docker → not supported in M3", "remote", "docker", `{"url":"https://registry-1.docker.io"}`, repo.ErrRepoTypeNotSupported},
+		{"remote docker (FR-129, T-392)", "remote", "docker", `{"url":"https://registry-1.docker.io/v2"}`, nil},
 		{"virtual generic", "virtual", "generic", "", nil}, // members seeded by the test body
 		{"virtual maven", "virtual", "maven", "", nil},
 		{"virtual npm", "virtual", "npm", "", nil},
 		{"virtual pypi", "virtual", "pypi", "", nil},
-		{"virtual docker → not supported in M3", "virtual", "docker", "", repo.ErrRepoTypeNotSupported},
+		{"virtual docker → not supported (PRD Q4)", "virtual", "docker", "", repo.ErrRepoTypeNotSupported},
 		{"unknown rclass", "federated", "generic", "", repo.ErrInvalidRepoType},
 		{"unknown package", "local", "conda", "", repo.ErrInvalidRepoType},
 		{"empty rclass", "", "generic", "", repo.ErrInvalidRepoType},
@@ -124,10 +124,10 @@ func TestCreateRepoTypeValidation(t *testing.T) {
 				t.Fatalf("error = %v, want %v", err, tt.want)
 			}
 			// The docker-combination refusal must reach the API surface with
-			// its "not supported in M3" wording (FR-15-AC7; httpapi maps the
-			// sentinel to a 400-shaped response).
-			if errors.Is(tt.want, repo.ErrRepoTypeNotSupported) && !strings.Contains(err.Error(), "not supported in M3") {
-				t.Fatalf("error %q does not carry the not-supported-in-M3 wording", err)
+			// the matrix wording (FR-15-AC7 as narrowed by FR-129; httpapi
+			// maps the sentinel to a 400-shaped response).
+			if errors.Is(tt.want, repo.ErrRepoTypeNotSupported) && !strings.Contains(err.Error(), "are not supported") {
+				t.Fatalf("error %q does not carry the not-supported wording", err)
 			}
 		})
 	}

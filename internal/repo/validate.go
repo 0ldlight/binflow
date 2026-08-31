@@ -21,16 +21,19 @@ var knownPackageTypes = map[string]bool{
 	PackageGeneric: true, PackageDocker: true, PackageMaven: true, PackageNpm: true, PackagePypi: true,
 }
 
-// supportedPackageTypes is the M3 support matrix (FR-15, T-64): all three
-// repository classes × {generic, maven, npm, pypi}, docker on LOCAL only
-// (FR-15-AC7 / PRD Q4: remote and virtual docker stay out of M3 — the
-// registry proxy/aggregation semantics are unverified spec ground,
-// docker-registry.md section 9; re-evaluation is M4). The one rejected
-// combination answers ErrRepoTypeNotSupported with "not supported in M3"
-// wording; httpapi translates the shape (400), the semantics stay here.
+// supportedPackageTypes is the support matrix (FR-15, T-64): all three
+// repository classes × {generic, maven, npm, pypi}, docker on LOCAL and —
+// since T-392 (M14 FR-129) — on REMOTE, where the /v2 pull-through rides
+// the same family-shared remote data chain helmoci opened in T-363 (the
+// K54 "shared seam, marginal cost zero" ruling). Virtual docker stays
+// refused (PRD Q4's aggregation half: the /v2 virtual plane is served for
+// helmoci; docker's own virtual registration remains unserved ground).
+// The one rejected combination answers ErrRepoTypeNotSupported with the
+// errClassNotSupported wording; httpapi translates the shape (400), the
+// semantics stay here.
 var supportedPackageTypes = map[string]map[string]bool{
 	TypeLocal:   {PackageGeneric: true, PackageDocker: true, PackageMaven: true, PackageNpm: true, PackagePypi: true},
-	TypeRemote:  {PackageGeneric: true, PackageMaven: true, PackageNpm: true, PackagePypi: true},
+	TypeRemote:  {PackageGeneric: true, PackageDocker: true, PackageMaven: true, PackageNpm: true, PackagePypi: true},
 	TypeVirtual: {PackageGeneric: true, PackageMaven: true, PackageNpm: true, PackagePypi: true},
 }
 
@@ -65,19 +68,21 @@ func validateRclass(rclass string) error {
 	return nil
 }
 
-// errClassNotSupported is the M3 class-matrix refusal (docker on
-// remote/virtual, FR-15-AC7) — shared by the static path and the dynamic
-// overlay so the two can never drift on the wording.
+// errClassNotSupported is the class-matrix refusal (virtual docker, the
+// PRD Q4 aggregation half — FR-15-AC7 originally refused remote docker too,
+// which T-392/FR-129 opened onto the T-363 remote seam) — shared by the
+// static path and the dynamic overlay so the two can never drift on the
+// wording.
 func errClassNotSupported(rclass, packageType string) error {
-	return fmt.Errorf("%w: %s %s repositories are not supported in M3 (docker is local-only; PRD Q4)",
+	return fmt.Errorf("%w: %s %s repositories are not supported (docker serves local and remote; PRD Q4 keeps virtual docker unserved)",
 		ErrRepoTypeNotSupported, rclass, packageType)
 }
 
 // validateRepoType checks rclass and package type. A syntactically unknown
-// value is ErrInvalidRepoType; the M3 matrix leaves exactly one
-// valid-but-unserved combination — docker on remote or virtual — which is
-// ErrRepoTypeNotSupported with "not supported in M3" wording (FR-15-AC7) so
-// httpapi can surface the reason.
+// value is ErrInvalidRepoType; the matrix leaves exactly one
+// valid-but-unserved combination — docker on virtual — which is
+// ErrRepoTypeNotSupported with the errClassNotSupported wording
+// (FR-15-AC7 as narrowed by FR-129) so httpapi can surface the reason.
 func validateRepoType(rclass, packageType string) error {
 	if err := validateRclass(rclass); err != nil {
 		return err

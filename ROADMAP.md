@@ -2,7 +2,7 @@
 
 > 由 product-manager 维护；tech-lead 据此把当前里程碑分解为 ticket。
 
-## 当前里程碑：M13（Artifactory 对齐第四程——Webhook 统一事件总线 + HelmOCI 三态齐装 + 配置旋钮与文面债收口；PRD v1.0 草案待 conductor 审，2026-08-30；M12 已 `m12-done` 2026-08-30）
+## 当前里程碑：M14（UI-parity 里程碑——前端交互体验与 Artifactory 完全对齐 + 协议 logo + 自设计品牌 logo + docker remote 首航；PRD v1.0 草案待 conductor 审，2026-08-31；M13 已 `m13-done` 2026-08-31）
 
 ### M0 — 团队启动（已完成）
 - [x] 产品愿景 PRODUCT.md（BinFlow）
@@ -171,6 +171,22 @@
 - **实现类候选**：docker remote 首航（T-380——K54 判定条件已满足，收口波未派发转 M14）/ NuGet symbol server（T-379 余量承接）/ npm legacy login 服务端小票（T-374 L1——T-77 O-4 实证）/ 仓库表 hover 对比度 FE 小票（T-374 L2，4.41:1）/ Replay + outbox 行级 REST 面（T-364 §5-③ + T-366 §4-2）/ remote 缓存树高并发 busy 重试预算（T-377 D1——24 路 0.27% 边角）/ helm uninstall PVC keep（T-376）/ virtual 成员同型全包型推广（T-367）/ v3-flat 直推面 403-vs-409 规格补锚（T-378）/ 启动日志措辞一行（T-376）/ 3xx 终态 V4 活体验证（T-364）/ disable 快照契约翻转若需（T-364）。
 - **编排注记**：playwright 全量纯净 community 实例前提 README 一行（T-374 L3——T-377 再次实证：pro 宿主 132 红）；dind containerd snapshotter 调试建议 `--feature containerd-snapshotter=false`（T-377 D2 环境注记）。
 - **沿 M11/M12 候选池续滚**：HA 本体（Q1——PRODUCT.md 修订解禁未发生）/ AQL + 老搜索 / Build-info 域 / Go 深化 / Terraform / GitLFS / 制品 license 识别 / 冷存储分层 / AI/ML 包型扩展 / license 公钥 config 覆盖。
+
+### M14 — UI-parity 里程碑：前端交互体验与 Artifactory 完全对齐 + 协议 logo + 自设计品牌 logo + docker remote 首航（PRD v1.0 草案待 conductor 审，2026-08-31）
+需求基线：docs/prd/milestone-14.md（PRD v1.0 草案：FR-123~FR-130 八条需求；契约矩阵 10 条〔A 7 / C 2 / 待裁 1——LC-57~LC-66 续接〕+ 档位矩阵增量 0 行〔19 槽维持〕；L01~L18；开放问题 Q1~Q7 带暂行；E1~E7 豁免常设条款）
+来源链：用户指令 2026-08-30 三指令（① 交互体验与 Artifactory 完全一致〔弹窗/抽屉〕② 协议 logo ③ 自设计品牌 logo——M14 主轴定音，**AQL 专程让位滚 M15 第一顺位**）+ UX-1 三交付（console-artifactory-parity.md §7 差距矩阵/§8 V1~V8/§9 E1~E7/§10 批次 + brand/logo 三候选 + brand/package-icons 30 枚）+ ROADMAP「M13 未纳入项」候选池 PM 收编（FE 类入主轴；docker remote〔T-380 K54 条件已满足〕/npm legacy login/PVC keep/v3-flat 补锚入波；Replay REST/D1 busy/成员同型滚 M15+——理由 PRD §2.2 留痕）
+- [ ] conductor 审定 PRD v1.0（Q1~Q7 暂行终裁——活体核验源/logo 圈定窗/决策项 A·B·C 前置；无新 ADR——服务端两面均既有域增量）
+- [ ] 前置产物：活体核验票（V1~V8 回写 + parity 置信度升级 + 差距矩阵复核基线）B1 首波（降级路径 Q1）；wordmark/npm/go 转 path 定案随票（K56）
+- [ ] FR-124 批 1 形态对齐 P0：D1 Set Me Up 抽屉化（smu-* 锚族冻结）+ M1 建仓单 Dialog 化（深链兼容，决策项 A）+ M3 用户/组创建 modal（决策项 B）+ L2 行内 ⋮（删除不进菜单 E1）
+- [ ] FR-125 批 2 补缺 P1/P2：Tokens 页真身（创建 modal + 一次性明文 + 吊销确认，零新端点）+ L1 列选器/刷新 + F2 空态插画槽 + N2 侧栏图标槽（V5 条件）
+- [ ] FR-126 品牌 logo 转正 P0：候选 1 六用例接线（favicon.ico/PWA/登录页/侧栏顶/文档站〔GitHub 远期 P2〕）+ wordmark 转 path（Q2 圈定窗 B2 前）
+- [ ] FR-127 包型图标接线 P1：30 枚四消费点（pkg-grid/smu-grid/类型列/addon 矩阵）+ npm/go 转 path 前置 + 门控/暗底纪律
+- [ ] FR-128 FE 债 P1/P2：仓库表 hover 对比度 ≥4.5:1 + playwright 纯净实例前提/dind snapshotter README 注记
+- [ ] FR-129 docker remote 首航 P1（T-380 条件已满足——K54 判定成立；helmoci 缝复用；docker 三态齐装收口）
+- [ ] FR-130 服务端小票包 P1/P2：npm legacy login（T-77 O-4 实证）+ helm uninstall PVC keep + 启动日志措辞 + v3-flat 403-vs-409 规格补锚（Q6 条件翻转）
+- [ ] QA：L01~L18 + 差距矩阵逐格终评（17×8 覆盖率 100%）+ E1~E7 豁免复核 + axe 双主题维持 + M1~M13 P0 双形态全量回归 + FE 票服务端 diff=0；tech-writer 增量（console parity 化 + 品牌注记 + docker remote 接入 + npm login + helm keep）；release 烟测 + UAT 随里程碑 PR
+- [ ] 条件票：NuGet symbol server（余量四承）/ v3-flat 翻转（Q6）/ N2 图标槽（V5）/ D3 立项（Q7）——未触发 BOARD 留痕非 DoD 缺口
+- [ ] 「M13 未纳入项」对账：收口时建「M14 未纳入项」段（DoD#7 字面；M15+ 主轴候选第一顺位 = AQL + 老搜索专程——UI-parity 让位留痕 + Replay/D1 busy/成员同型滚程登记）
 
 
 

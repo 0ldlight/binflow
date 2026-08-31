@@ -35,7 +35,17 @@
 }
 
 .row-link:hover {
-  color: var(--bf-accent);
+  /* T-391（FR-128 / T-374 L2）：hover 行底 = MUI action.hover（亮 4% 黑 /
+   * 暗 8% 白，探针实测）叠 --bf-bg 的合成（亮 #e9ebed / 暗 #25292f），
+   * accent 直落其上亮色 4.42:1 < AA 4.5（e2e 光标几何 race 下 axe 可
+   * 触发，串行绿是侥幸不是豁免）。修法 = 向正文色压 12%：两枚现货
+   * token 的 color-mix 派生，不引入新 token、不动 MUI 主题与其余承载
+   * 面（assert-tokens 对 color-mix var(--bf-*) 明示放行）。axe-core 同
+   * 式手算 + 浏览器 computed 复核：亮 #0d62b8 on #e9ebed = 5.08:1
+   * （原 4.42）/ 暗 #5dacfe on #25292f = 6.12:1（原 5.55），其余承载
+   * 面（surface-1/2、bg）双主题 ≥5.1:1；色相仍是 accent 族，下划线
+   * hover 语义不变。 */
+  color: color-mix(in srgb, var(--bf-accent) 88%, var(--bf-text));
   text-decoration: underline;
 }
 

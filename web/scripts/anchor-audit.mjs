@@ -224,6 +224,8 @@ const STOP = new Set([
   'auto-trashcan', 'transaction-size', 'confirm-input', 'trash-can',
   // v1.17（T-372 行文假阳性）：树尾入口批的 spec 文件名段，非 testid 锚
   't372-trash-node', 'artifacts-tree',
+  // v1.18（T-382 行文假阳性）：抽屉化批引用的上游规范文件名段，非 testid 锚
+  'console-artifactory-parity',
 ])
 const docFams = new Set()
 for (const t of docTokens) {

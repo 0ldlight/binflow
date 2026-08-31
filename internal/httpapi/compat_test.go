@@ -90,15 +90,19 @@ func TestRepositoriesCRUD(t *testing.T) {
 		}
 	})
 
-	t.Run("docker combinations stay 400 (FR-15-AC7)", func(t *testing.T) {
-		resp := putRepo(t, h, "docker-remote",
-			`{"rclass":"remote","packageType":"docker","url":"https://registry-1.docker.io"}`)
+	t.Run("virtual docker stays 400 (FR-15-AC7 aggregation half)", func(t *testing.T) {
+		// T-392 (FR-129) opened REMOTE docker onto the /v2 remote seam; the
+		// virtual half keeps the matrix refusal. The remote-docker CREATE
+		// leg lives in t80_repo_model_test.go (own harness) so this
+		// sequence's C05 page assertions keep their seeded shape.
+		resp := putRepo(t, h, "docker-virtual",
+			`{"rclass":"virtual","packageType":"docker","repositories":["generic-local"]}`)
 		eb := decodeError(t, resp)
 		if resp.StatusCode != http.StatusBadRequest {
 			t.Fatalf("status = %d; body=%s", resp.StatusCode, eb.Errors[0].Message)
 		}
-		if !strings.Contains(eb.Errors[0].Message, "not supported in M3") {
-			t.Fatalf("message = %q, want the not-supported-in-M3 wording", eb.Errors[0].Message)
+		if !strings.Contains(eb.Errors[0].Message, "are not supported") {
+			t.Fatalf("message = %q, want the not-supported wording", eb.Errors[0].Message)
 		}
 	})
 

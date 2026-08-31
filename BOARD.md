@@ -1310,3 +1310,128 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **波外条件票留痕**：**T-379**（Q2 NuGet symbol server）未触发——余量条款未满足（收口波无余量），滚 M14+；**T-380**（Q5 docker remote 顺车）——K54 判定「/v2 共享缝边际成本≈0」**成立**（T-363 §Q5 结论在案），但收口波满宽未随 M13 派发 → **转 M14 首航候选（触发条件已满足）**。两者均非 DoD 缺口（PRD §1.3 上限条款内）。
 - **M14 候选池汇总**（本轮各票登记汇总）：T-380 docker remote 首航（条件已满足）/ L1 npm legacy login 服务端小票（T-374）/ L2 仓库表 hover 对比度 FE 小票（T-374）/ Replay+outbox 行级 REST 面（T-364 §5-③+T-366 §4-2）/ D1 remote 缓存树高并发 busy 重试预算（T-377）/ helm uninstall PVC keep（T-376）/ 成员同型全包型推广（T-367）/ v3/flat 直推面 403-vs-409 规格补锚（T-378）/ 启动日志措辞一行（T-376）/ playwright 纯净实例假设 README 注记（T-374 L3）/ 3xx 终态 V4 活体验证（T-364）/ disable 快照契约翻转若需（T-364）/ **UI-parity 主轴**（用户指令 2026-08-30：交互对齐 Artifactory + 协议 logo + 品牌 logo——UX-1 资产与差距矩阵已备）。
 - **收口笔执行**：R3 LC-56 回写 + R4 README 双语完成态 + R5 ROADMAP M13 未纳入段 + 里程碑 PR（develop→main，触发 build/e2e 首跑/deploy_uat UAT 首跑）+ UAT 证据归档 + `m13-done` tag。
+
+**T-376 AC2 归档 + M13 全链收官（2026-08-31 10:4x，conductor ssh 取证）**：里程碑 PR #45 合并（main=`64a195a`）→ CircleCI build → **e2e job 首跑** → **deploy_uat UAT 首跑换装完成**。UAT（52.79.109.153）M13 标记全绿：`GET /api/v1/system/settings` **200**（folder_download 六字段 live 回显——M13 新端点）/ `/binflow/docs/admin/webhooks/` **200**（文档站新页）/ `/binflow/ui/` 200 / **`/binflow/event/api/v1/subscriptions` 200**（webhook 订阅 REST 面上 UAT）。`m13-done` tag 已推双远端。**M13 十三里程碑链闭合**。
+
+## M14 票据（tech-lead 2026-08-31 拆票中；PRD v1.0 已 conductor 审定——Q1~Q7 暂行维持、票区间 21~26 确认、拆票日志 reports/agents/M14-SPLIT.md 待落；AC 全文见 docs/prd/milestone-14.md）
+
+> **M14 = UI-parity 专程**：用户指令 2026-08-30 三件套（交互对齐/协议 logo/品牌 logo）+ docker remote 首航（T-380 K54 条件已满足）+ 服务端小票包。E1~E7 豁免常设（对齐评审不判差距）。票号 T-381 起。
+
+> **拆票基线**：PRD §1.3 估 21~26 票，实拆 **22 票**（P0×7 / P1×12 / P2×3——含波外条件票 2 张计入 P2）。**FE 主轴 10 票全 web/src 一波一票错峰串行（B0~B9）**；FR-123 活体核验前置锚 B0（Q1 降级路径内置——核验源不可得凭 V1~V8 标注降级，不阻塞批 1 主形态）；批 1 四项 P0（D1/M1/M3/L2）B1~B4；品牌两票 FE 错峰（logo P0 B5 / 图标 P1 B7）；批 2（Tokens P1 / L1 P1 / F2+N2 P2）B6~B9；BE 副线与 FE 天然错峰——docker remote（dev-registry-adapter）B1、FR-130 服务端小票包聚合一票（dev-go-core，dep reverse 前置规格票）B3；QA 三腿（核验执行 B0 / 中期 B5 / 终验 B11）+ tech-writer 两票（接入运维 B6 / console parity B8）+ release 一票（B10）+ PM 裁定一票（B4）。全宽 2 沿 M11~M13 口径。
+
+**FR → 票映射**：
+
+| FR | 票（P） | 承载要点 | 裁决/登记锚 |
+|---|---|---|---|
+| FR-123 | T-381（P0，B0 前置锚） | V1~V8 活体核验 + parity 置信度回写（改契约留痕）+ §7 矩阵复核基线 + 三出口 + 低置信三枚图标顺带腿 | Q1/K55；降级路径内置 |
+| FR-124 | T-382（D1）/T-383（M1）/T-384（M3）/T-385（L2）——四票 P0 串行 | 抽屉化（smu-* 锚族冻结）/建仓单 Dialog + 深链/创建 modal（编辑整页 E5）/行尾 ⋮（删除不进 E1） | Q3/K57；V1/V2/V4/V6 |
+| FR-125 | T-386（Tokens P1）/T-387（L1 P1）/T-388（F2+N2 P2 合并票） | PlaceholderPage 退役零新端点 / 列选刷新 per-page 持久 / 插画槽 + 图标槽 | Q4/K58；V5 降级出口 |
+| FR-126 | T-389（P0，一票含 path 化 + docs-site 槽） | 候选 1 工作稿起步六用例五落地 + wordmark path + 双主题色板锚定 | Q2 圈定窗 B2 前截止；K56 票内定案 |
+| FR-127 | T-390（P1，一票） | 30 枚搬运 + npm/go 转 path + 四消费点 + 门控/暗底纪律 | K61；dep D1/M1 错峰（B7） |
+| FR-128 | T-391（P1，零依赖 B0 补位） | hover ≥4.5:1 + e2e README 两行注记 | T-374 L2/L3 + T-377 D2 |
+| FR-129 | T-392（P1，一票含 dind 全链） | docker remote pull-through 首航（/v2 remote 复用 T-363 缝）+ Bearer + 降级 | Q5/K54 成立；LC-64 |
+| FR-130 | T-393（P1 reverse 前置规格）→ T-394（P1 聚合一票 dev-go-core） | v3-flat 补锚 + npm login 端点实证（K59/K60）→ npm login + PVC keep + 启动日志 + as-built 对照（不动行为） | Q6；翻转走 T-401 条件票 |
+| QA/文档/发布/裁定 | T-396（中期 P1）+ T-400（终验 P0）；T-397/T-398（两票 P1）；T-399（release+UAT P1）；T-395（PM Q 终裁联动 P1） | L01~L18 + **L16 矩阵逐格终评** + DoD 八条 + UAT 随里程碑 PR | §8 剧本十段；K55~K61 回填 |
+| 条件票 | T-401（Q6 v3-flat 翻转）/T-402（symbol server 余量四承）；N2 内置 T-388 出口、D3（Q7）不占票号 | 未触发 BOARD 留痕非 DoD 缺口 | Q6/Q7/余量条款 |
+
+**批次（全宽 2；波内 area 互斥，跨波同 area/同角色串行；FE 主轴 web/src 一波一票错峰）**：
+
+- **B0（前置锚 + 零依赖补位）**：T-381 ｜ T-391
+  - **T-391 → done 2026-08-31 12:0x——M14 1/22**：hover 对比度修复定案「**不引入新 token**——链接色向正文 token 压 12%（color-mix，assert-tokens 放行）」：亮 **4.42→5.08** / 暗 **5.55→6.12**，其余承载面 ≥5.1 双主题；根因复算（action.hover 叠 --bf-bg，无 Paper 包裹——探针实测 #e9ebed 与 T-374 逐字节吻合）。axe 双主题 serious=0（全路由 sweep + 显式 hover 探针 T-374 同姿势 3/3 红位 0 违例）+ e2e README 两行注记（纯净 community 前提/dind snapshotter）+ 四闸门 + 全量 233 绿（m9 两 spec seed 并行撞 INSERT 串行 8/8 绿——**L-b 登记**）。conductor 复验 ledger PASS。遗留：L-a `.member-pop` 同配方一行（virtual Tab 浮层入口——M14 候选）；L-b m9 seed 并行互撞（CI workers=2 理论可复现——归 QA/编排注记）。日志 reports/agents/T-391.md。
+  - **T-381 → done 2026-08-31 12:2x——M14 2/22（B0 全清）**：t226 容器一次恢复（OSS 7.84.10）；V1~V8 全 DOM 实测回写（parity **v1.1**，§0 留痕，零静默升格）+ §7 重印三行改判 + 图标三枚修正（README v1.1）+ 26 png + measurements.json 归档。**三项记忆证伪（改判）**：① **V2/M1 决策项 A 撤销**——7.84 建仓 =「下拉选 rclass→880px 磁贴 modal→**整页路由表单**」两段式，「全程单 modal」不成立，**BinFlow 现形态已对齐——T-383 转断言收口小票（conductor 改判）**；② **V6/M3 决策项 B 撤销**——用户/组创建整页表单非 modal（**T-384 同转收口**）；③ **V4/L2 撤 parity 旗**——行尾无 ⋮（icon-trash 直删，T-385 缩面或转候选）。**V1/D1 参数修正**：抽屉 **50vw**（非 480px）+ **Configure/Deploy/Resolve 三 Tab** + 底栏返回链接——T-382 断言集更新。V3 toast 顶部居中单条（E7 转再议）；V8 删仓 520px/**Delete 绿色主按钮**——BinFlow 输入确认+红 danger = 更严有意偏离（E1 实证加码）。**INC-1 事故（已完整恢复）**：探测误点删除确认致 t226 语料仓（120 制品）误删——VM 快照 ~/t381-incident-recovery/ → 原路径回灌 **120/120** + filestore 159 blob 前后不变（checksum 寻址字节等价）+ 抽样 8 路 sha1 全中；残留：同尺寸组 path↔内容排列可能异于原序（恢复上限）；t381-ui-probe 空仓留档；后续探测改「差集法+永不点确认」。遗留：L02 conan.svg 换色归 ux；L05 ux 共笔签认待路由；L06 事故教训成文。日志 reports/agents/T-381.md。
+    AC1: V1~V8 逐项核验结论 + 证据（截图/录屏/文档锚点）归档；parity 规格置信度列回写（§0 修订记录留痕——**改置信度=改契约**）；零静默升格——grep「以核验为准」清单与核验结论一一对应（L01）。
+    AC2: 差距矩阵复核基线落盘（§7 重印版 + 三出口判定：V5 降级 / V7 关闭 / E7 再议）+ 低置信三枚图标（nuget/conan/docker 鲸腹）活体对照顺带腿（LC-63 注记——修正结论回 package-icons README §4 登记）；tech-lead 批 1/批 2 细节断言收口确认。
+    AC3: 降级路径——核验源不可得项如实维持「中/低置信 + 以核验为准」标注，降级清单 BOARD 留痕；批 1 四项主形态断言不受阻（手势级断言均高/中高置信——不恋战，批 1 不等）。
+  - **T-391** [P1] FR-128 FE 债：仓库表 hover 对比度 + e2e 前提注记 `role:dev-frontend` area:web/src（仓库表 hover 态）+ web/e2e/README dep:—（零依赖补位；hover 早落使后续每张 FE 票 axe 基线干净）
+    AC1: 仓库表 hover 态文字/背景对比度 ≥4.5:1（双主题；现 4.41:1——token 微调或 hover 底色换档票内定案留痕，不引入新 token 优先）+ axe 双主题 serious=0 维持（L11 段）。
+    AC2: web/e2e/README 两行注记——①全量 Playwright 须纯净 **community 实例**前提（pro 宿主 132 红两轮实证）；②dind 调试 `--feature containerd-snapshotter=false`（T-377 D2）落笔。
+    AC3: e2e 全量纯净 community 形态复跑绿 + 四闸门维持（typecheck/assert:tokens/anchor ledger/lint）+ 服务端 diff=0。
+- **B1（批 1 启动 + BE 副线首航）**：T-382 ｜ T-392
+  - **T-382 → done 2026-08-31 13:0x——M14 4/22（v1.1 实测参数落地首票）**：壳 Dialog→**Drawer anchor=right temporary**，宽 `min(clamp(480,50vw,800),100vw)`（**几何实证：1600 视口 {x:800,w:800} 与 T-381 实测逐位一致**）；**Configure/Deploy/Resolve 三 Tab**（方向键循环+焦点陷阱×10）+ 底栏「← 选择不同的包类型」+ Done + 右上 X；步 0 药丸化（smu-grid 键盘链路零改动）；命令三分重组（smuResolveCommands 新族——docker 登录/拉取拆两 Tab、npm 增安装验证）。**smu-* 锚族零改名**（smu-close/smu-done 复役摘退役表；锚册 v1.18）；关闭四通道 + 回焦断言；**armed 真 IdP 全链绿**（fragment 回跳→抽屉自动重开→grant 单次消费→Bearer 200——4P）+ step-up 真门腿；M8 spec 迁移更新（铸币/step-up/OIDC 语义断言全量保留）11P；四闸门 + SPA 353KB + 全量 231P（4 红全数 flake 协议甄别绿——跨腿依赖/共居 axe/m9 seed 在册族）；服务端 diff=0。DeployDialog 零改动（决策项 C 遵守）。契约漂移登记：armed OIDC 实例起法需补 BINFLOW_REMOTE_CREDENTIALS_KEY（T-260 报告滞后——docs 修订一行归 T-397）。遗留：t366-consumer DRAWER 腿跨腿依赖归 QA；parity D1 行 △ 回写归 ux 共笔。日志 reports/agents/T-382.md。
+    AC1: Playwright（web/e2e/m14/，沿 M8 先例）——Set Me Up 从仓库行/详情打开为**右滑抽屉**（Drawer anchor right temporary，宽 min(480px,100vw-32px) 档断言）；`smu-*` 锚族零改名（anchor-audit 0 断链——**锚族冻结铁门槛**）；Esc/backdrop 关闭 + 关闭回焦启动元素（L02）。
+    AC2: OIDC 续铸重开链路回归绿（armed 实例腿，T-242 序列复用）+ step-up 内联面板抽屉内完成（不弹二级框）+ 命令块 `pre` overflow-x:auto 不折行断言；V1 结论落定的细节断言（Configure/Deploy Tab 命名）收口——降级则挂「以核验为准」附注留痕；决策项 C 暂行 DeployDialog 保持居中不动（Q3 终裁前零改动）。
+    AC3: 四闸门 + axe 双主题 serious=0 + 键盘焦点（Tab 循环/焦点陷阱）Drawer 形态复测 + M8 e2e 既有 Set Me Up spec **迁移更新**（行为语义断言——铸币/step-up/OIDC 续铸——全量保留）全绿 + 服务端 diff=0。
+  - **T-392 → done 2026-08-31 12:5x——M14 3/22（K54「边际成本≈0」实证：产品码净变更 ~20 行——validate.go remote 类型表加 docker 一行 + 文案/注释）**：dind 真客户端全链——push digest `6c2a9711…` → remote pull RepoDigest 全等 + fresh 首拉上游 +3 → rmi+prune 复拉 **delta 0 冻结**；凭据链（闭实例 A2 日志 admin 全链）+ mock Bearer **全舞步恰一轮**（401×1→token 交换 Basic 验证×1→授权拉取×1）；停上游降级 **200+STALE+Upstream-Error**（客户端拉成功）/未缓存 404 零 5xx；community 无 license 建 remote docker **200**（自动受缝不新增槽）+ docker virtual 400 维持；helmoci remote 零回归（Digest 同值 tgz 逐字节）；MISS/HIT/STALE 三态 + audit 自动生效。断言翻转 7 处（矩阵面）+ 新测试 10 件；全树绿 + lint 0 + check-size 94.13/footprint 11.9MB/冷启 767ms（NFR-P63 不破）。conductor 复验：build 0 + repo 定向绿。遗留四项：docs L195 归 T-397；Prometheus remote 族 RE-11 P2 占位（双计数源归并留痕）；dind PMTU 环境注记；httpapi 无 WriteTimeout 既有姿态归 architect 裁。日志 reports/agents/T-392.md。
+    AC1: 自指上游（BinFlow docker local push）→ 经 docker-remote `docker pull` digest 一致 → 二次命中本地缓存（**上游访问计数不增断言**）；dind 腿（M2/M13 夹具复用）（L12；真实 docker 客户端）。
+    AC2: 上游认证链（401→WWW-Authenticate Bearer→token 交换→拉取）+ 停上游降级（已缓存可拉 / 未缓存零 5xx——本地事实兜底 + 降级标记）（L12）。
+    AC3: docker dind /v2 全量回归（local/virtual 序列）+ M13 helmoci remote 序列零回归 + docker 槽 community 可用断言（remote 自动受缝不新增槽）+ remote family 指标口径（回源/命中计数）自动生效核对 + 资源门不破（NFR-P63——不得破 M12 转绿门）。
+- **B2（批 1 续 + 规格小票）**：T-383 ｜ T-393
+  - **T-383** [P0] FR-124.2 M1 建仓向导单 Dialog 化（决策项 A）`role:dev-frontend` area:web/src/pages/repositories/RepositoryFormPage.tsx（+路由深链）dep:T-381（V2 rclass 控件形态/节名/折叠默认态）；FE 链错峰随 T-382（conductor 可裁量并波——两重载体文件不同，PRD §1.3）
+    AC1: Playwright——新建仓全程单 Dialog(maxWidth lg) 三步（pkg-grid 网格 → rclass → 分节表单 → Save 成功落仓）；底部 Cancel 左 / Create primary 右；常规/来源/成员/策略/治理/高级六节结构保留（L03）。
+    AC2: 深链 `/admin/repositories/new?package=<t>` 进入即开向导 + 浏览器回退关闭向导回列表 + 编辑态 `/admin/:key/edit` 维持整页表单（差异注记豁免留痕）；V2 细节断言（rclass 控件 Tab vs 分段、可折叠分节）收口或挂「以核验为准」附注。
+    AC3: M2/M3 建仓回归序列零回归 + 四闸门 + axe 双主题 + modal 形态焦点链 + 服务端 diff=0。
+  - **T-393** [P1] FR-130 前置规格小票（v3-flat 补锚 + npm login 端点族实证整理）`role:reverse-engineer` area:docs/reverse/nuget.md（增量锚）+ docs/reverse/npm.md（增量段）dep:—
+    AC1: nuget.md v3/flat 直推面增量锚——包已存在时 403 vs 409 语义（D-10 终裁〔对齐 409〕邻域面；出处逐条标注 + 置信度标定）（K59；130.4 腿 P2 性质票内注明）。
+    AC2: npm legacy login 端点族实证整理规格化（T-77 O-4 在案——`/-/user/*` 族路径/方法/请求响应体/错误码；npm 生态公开规范为准）；K60 端点清单定案（解锁 T-394）。
+    AC3: tech-lead 就绪度确认；零 reverse-src 前端/UI 资产消费（clean-room 铁律——PRD §1.4-5）。
+- **B3（批 1 续 + 服务端小票包）**：T-384 ｜ T-394
+  - **T-384** [P0] FR-124.3 M3 用户/组创建 modal 化（决策项 B）`role:dev-frontend` area:web/src/pages（UsersPage/GroupsPage 创建表单面）dep:T-381（V6 字段集与分节）；FE 链错峰随 T-383
+    AC1: Playwright——用户/组创建走 Dialog(sm) modal（字段分节、右下 Cancel/Save、**Cancel 零副作用**）；编辑保留路由页（UserDetailPage 等——E5 豁免注记）（L04）。
+    AC2: V6 核验字段集对照收口（降级挂「以核验为准」）；M7 RBAC 语义（角色闭集 / readonly 禁用臂）零回归。
+    AC3: 四闸门 + axe 双主题 + modal 形态焦点链 + 服务端 diff=0 + 新锚入册（锚册 + ledger 0 断链）。
+  - **T-394** [P1] FR-130 服务端小票包聚合（npm legacy login + helm PVC keep + 启动日志措辞 + v3-flat as-built 对照）`role:dev-go-core` area:internal/adapter/npm（legacy login）+ cmd/（日志一行）+ charts/（PVC keep 注解——**release-engineer 会审协作点**，文件地图条款；版本 bump 归 T-399）dep:T-393（规格先行——clean-room 没有规格不开工）
+    AC1: npm legacy login 真实客户端全链（login → 凭据落位 → 既有 publish/install 复用 token）+ 既有 npm 现代认证链零回归 + 端点清单 == T-393 K60 定案（L13；130.1 DoD-P1 腿）。
+    AC2: helm uninstall 后 PVC 幸存（resource-policy keep 注解或等效；升级/回滚不丢数据）+ 重装同 release 数据可挂载回归（kind/helm 编排）+ docs 部署注记「彻底删除需手动清卷」（L14 前半）。
+    AC3: 启动日志措辞修正一行（前后对照留痕 + grep 新措辞在场）+ v3-flat as-built 对照结论（一致→差异行关闭登记 / 不一致→触发 T-401 条件票 Q6 终裁——**本票不动行为**）+ 审计事件族复用核对（新增通道不打新词——缺词归 audit owner 登记）（L14）。
+- **B4（批 1 收尾 + PM 裁定）**：T-385 ｜ T-395
+  - **T-385** [P0] FR-124.4 L2 行内 ⋮ 菜单 `role:dev-frontend` area:web/src 列表行组件（仓库/用户/组/权限四列表）dep:T-381（V4 动作集对照）；FE 链错峰随 T-384（Users/GroupsPage 共写先后脚）
+    AC1: Playwright——四列表行尾 IconButton(MoreVert)+Menu 动作集逐项：详情 / 编辑 / 复制 key / Set Me Up（仅仓库行）；**菜单无删除断言（E1——缺席断言；V4 若 Artifactory 含删除亦不跟进——安全设计不倒退）**（L05）。
+    AC2: 行点击进详情语义维持 + readonly 臂管理动作按既有权限位禁用 + Menu 键盘开合语义。
+    AC3: 四闸门 + axe 双主题 + 服务端 diff=0 + 新锚入册（锚册 + ledger 0 断链）。
+  - **T-395** [P1] PM Q 终裁联动回写票 `role:product-manager` area:docs/prd/milestone-14.md（§5.6 K55~K61 回填 + Q 归位）+ ROADMAP（「M14 未纳入项」段备稿）dep:T-381（V1~V8 结论 / K55 材料）；Q 终裁窗 conductor 安排（Q1/Q2/Q3 建议 B1~B2 同窗、Q4 V6 后、Q6 补锚后）
+    AC1: Q1~Q7 终裁材料上 BOARD（PM 出材料不代拍）+ 终裁联动回写——K55（核验源与三出口）/K57（决策项 A/B/C 终态）/K58（Tokens 字段集）/K59（v3-flat 锚定值）PRD §5.6 回填 + LC-66 离开「待裁」回写。
+    AC2: ROADMAP「M14 未纳入项」段文本备妥（AQL M15 第一顺位 + Replay REST / D1 busy / 成员同型滚程理由），收口随 conductor 收口窗落笔（M13 R5 先例）；§2.2 候选池收编对账（DoD#7）。
+    AC3: PRD 文面修正——FR-130.1/130.2 优先级内部双值统一（§4 标 P2 vs DoD P1——票面已按 DoD 取 P1）+ 拆票日志歧义登记回填（M14-SPLIT.md §6 逐条）。
+- **B5（品牌 P0 + QA 中期）**：T-389 ｜ T-396
+  - **T-389** [P0] FR-126 品牌 logo 候选 1 转正六用例接线 + wordmark path 化 `role:dev-frontend` area:web/src/assets/brand/（单点引用）+ web/public（favicon/PWA PNG）+ LoginPage/AppShell 品牌区 + docs-site navbar 配置槽（conductor 可转 tech-writer——票面留痕）dep:—（FE 链错峰随 T-385；**Q2 圈定窗 B2 前截止**——候选 1 工作稿起步，用户未推翻即转正 BOARD 留痕）
+    AC1: 六用例五落地——favicon.ico（16/32/48 三档在场，16px 两箭可辨样张归档）+ PWA/apple-touch PNG 180/512 + 登录页横版 lockup 暗色版（`◆` 与纯文字品牌残留 grep=0，`login-*` 锚族不动）+ 侧栏顶 mark 24px（`app-nav-brand` 结构不动）+ 文档站 navbar 浅底版；双主题各用例截图核对（L09）。GitHub 用例⑥远期 P2 非 DoD。
+    AC2: wordmark path 化——生产 SVG 零 `<text>` 零 font-family（grep 断言）；K56 票内定案（Inter Bold OFL path + `INTER-LICENSE` 在场，或手工勾画 +0.5 天留痕）；资产参数化单点引用（换稿=换文件零返工）。
+    AC3: 色板锚定 `--bf-accent`/`--bf-text` 双主题值（改 token 必须同步 logo 资产）+ `login-*`/`app-nav` 锚族对账 0 断链 + 四闸门 + SPA gzip 增量 ≤10KB 预算内（logo 资产计入）。
+  - **T-396** [P1] QA 中期回归 `role:qa-engineer` area:测试矩阵（web/e2e/m14/ 首跑 + BE 腿）dep:T-382~T-385（批 1 四票）,T-392,T-394
+    AC1: L02~L05 批 1 首跑全绿（抽屉/向导/modal/菜单四形态 + 锚族对账 + 焦点链 + 菜单无删陠除席断言复核）+ M8 e2e 既有 Set Me Up/建仓/用户组 spec **迁移更新面**复核（行为语义断言全量保留）。
+    AC2: BE 副线增量首跑——L12 docker remote 全链（自指上游 + Bearer + 降级）+ L13 npm legacy login + L14 前半 PVC keep 腿（kind/helm 编排）。
+    AC3: 中期归属审计——FE 变更面（`git diff m13-done..HEAD -- web/src`）100% 归属 M14 票 + FE 票服务端 diff=0 抽查 + axe 双主题/四闸门维持态巡检。
+- **B6（批 2 启动 + 文档 A）**：T-386 ｜ T-397
+  - **T-386** [P1] FR-125.1 Tokens 页真身 `role:dev-frontend` area:web/src/pages（Access Tokens 路由——PlaceholderPage 退役）dep:T-381（V6→Q4 字段集定案——终裁晚于派发则以暂行字段集起步、票内收口）；FE 链错峰随 T-389
+    AC1: Playwright——创建 modal 全链（创建 → **一次性明文面板仅展示一次** → 刷新后不可再取）+ 吊销 ConfirmDialog danger 确认 + 列表状态翻转 + readonly_admin 只读臂（L06）。
+    AC2: `PlaceholderPage` 该路由退役 grep=0 + **消费端点清单 == 既有 token REST（零新端点断言——不私加端点）** + mint/step-up 链复用（SetMeUp 同源引擎，`smu-token-panel` 形态复用）。
+    AC3: 四闸门 + axe 双主题 + modal/确认双形态焦点链 + 服务端 diff=0 + 新锚入册。
+  - **T-397** [P1] 文档 A：接入与运维增量 `role:tech-writer` area:docs/user/（docker remote 接入 + npm legacy login 注记 + helm keep + api-reference + FAQ）dep:T-392,T-394
+    AC1: docker remote 接入指南（三态齐装叙事 + 缓存命中/降级语义）+ npm legacy login 注记（老 CLI 通道 + 尾斜杠配对注记衔接 T-374）交付；客户端命令全部实测可复跑（L18 段）。
+    AC2: helm uninstall PVC keep 说明（彻底删除需手动清卷）+ api-reference 增量（npm login 端点族）+ FAQ 增补；`make docs` SUCCESS 零断链 + 侧栏挂页。
+- **B7（图标接线，单票波）**：T-390
+  - **T-390** [P1] FR-127 包型图标 30 枚接线（npm/go 转 path + 四消费点）`role:dev-frontend` area:web/src/assets/pkg-icons/（或 React 组件封装）+ 四消费点（pkg-grid/smu-grid/类型列/addon 矩阵）+ web/src/lib/repos.ts dep:T-382,T-383（D1/M1 共写面错峰后）,T-381（低置信三枚活体修正顺带腿消费）
+    AC1: 搬运 30 枚（mono/brand 双版）+ **npm/go 转 path 前置**（grep `<text>`=0）+ `lib/repos.ts` PackageType 联合与图标 key 对齐（helmoci 入联合 FE 小改；deb↔debian / go 映射两例外注记）（L10）。
+    AC2: 四消费点逐点——pkg-grid brand 版（+门控态 **mono + opacity 0.4 + pkg-tier-* 徽章三件套**——brand 版不置灰）/ smu-grid brand 版（`CLIENT_PKG_META` 字符图标 `▫ ⬢ ⌬ ⬒ ⬓` 退役 grep=0）/ 仓库列表·制品树·搜索类型列 mono currentColor / LicenseAddonsPage addon 矩阵 brand 版；30 枚全部被消费或注记豁免。
+    AC3: 暗底抽查 ≥3:1（发闷允许 +10% 亮度微调并回 README §4 登记——K61）+ 装饰图标 aria-hidden / 语义处 aria-label（类型列）+ SPA gzip 增量 ≤10KB + 四闸门 + axe + M8 建仓/SetMe Up spec 联动更新全绿。
+- **B8（批 2 收尾 + 文档 B）**：T-387 ｜ T-398
+  - **T-387** [P1] FR-125.2 L1 列选器 + 刷新 `role:dev-frontend` area:web/src 工具栏（RepositoriesPage/AuditPage）dep:FE 链错峰（RepositoriesPage 与 T-385 行面共写先后脚）
+    AC1: Playwright——列选 Menu（checkbox 列表）开合/列显隐/全选复位 + per-page localStorage 持久（reload 保持）；刷新 IconButton 取数；轮询页自刷新维持（L07）。
+    AC2: 「无端点列不伪造」纪律（列集 = 既有全部列）+ 其余列表页不受影响断言 + 列宽/空列处理。
+    AC3: 四闸门 + axe 双主题 + 服务端 diff=0 + 新锚入册。
+  - **T-398** [P1] 文档 B：console 用户文档 parity 化 + 品牌注记 `role:tech-writer` area:docs/user/（console.md 形态操作说明 + 截图更新 + FAQ 形态迁移对照表）dep:T-382~T-386,T-389,T-390（L1 小节随 T-387 合入后置补笔——票内注明）
+    AC1: console.md parity 化——新形态操作说明（右滑抽屉/单弹窗向导/行尾 ⋮/Tokens 页）+ 截图随终形态更新 + **FAQ 形态迁移对照表（Artifactory 手势 → BinFlow 对应——迁移用户零学习成本叙事）**（L18）。
+    AC2: 品牌注记（logo 来源与候选定案 + 图标重绘许可姿态摘要 + 低置信三枚商标复查登记）+ `make docs` SUCCESS 零断链 + README 双语随新能力核查（收口双项前哨）。
+- **B9（批 2 尾票，单票波）**：T-388
+  - **T-388** [P2] FR-125.3/125.4 F2 空态插画槽 + N2 侧栏图标槽（V5 条件）`role:dev-frontend`（**ux-designer 线稿前置**——候选 1 隐喻派生线稿 2~3 张，B5 后插空备稿）area:web/src（EmptyState 组件 + AppShell 侧栏条目）dep:T-381（V5 结论——降级出口内置）；FE 链尾票
+    AC1: EmptyState 40px 可选插画槽（渲染/缺省双态）；图形 = logo mark 容器+箭隐喻线稿（ux 稿），**不引第三方插画库**（L08）。
+    AC2: N2 按 V5 结论执行（主流版本有条目图标 → 16px mono 图标槽）或**降级不做 BOARD 留痕**（parity N2 既定出口）。
+    AC3: 四闸门 + axe 双主题 + SPA 预算维持 + `app-nav` 锚族零改名（侧栏 DOM 结构纪律）。
+- **B10（release）**：T-399
+  - **T-399** [P1] release 烟测 + UAT 随里程碑 PR `role:release-engineer` area:deploy/ + charts/（版本收口）+ CD 链 dep:全部实现票（B9 收官后启动；可前移 B9 与 T-388 并波——conductor 裁量，P2 尾票不阻塞烟测面）
+    AC1: 部署矩阵烟测（compose/k8s/systemd/offline 抽样）+ Chart 版本收口 bump（PVC keep 注解随 T-394 面核实）+ **helm uninstall PVC keep 在 UAT 链验证**（PRD §8-10）。
+    AC2: UAT 随里程碑 PR（develop→main，CircleCI→52.79.109.153 分阶换装 + healthz + 双面烟测——M13 起常态）；与 conductor 收口时序协同（M12 T-355 教训条款）；SPA/favicon 新资产 go:embed 接线核验。
+- **B11（收口波）**：T-400
+  - **T-400** [P0] QA 终验 `role:qa-engineer` area:全量验收矩阵 dep:全部票 + T-399
+    AC1: L01~L18 全量（承证+增量）+ M1~M13 全 P0 双形态复跑全绿 + 归属审计（FE 变更面 100% 归属 + FE 票服务端 diff=0）+ 资源门三连（footprint ≤100MB / check-size ≤100MiB / 冷启动 <2s）+ SPA gzip 增量 ≤10KB（图标 + logo 资产计入）+ `make test`（race）全树绿维持。
+    AC2: **L16 parity 收口专项——差距矩阵 §7 复核基线逐格终评（终评覆盖率 100%，全部 △/✗ 格翻 ✅ 或（豁））+ E1~E7 豁免逐条复核（豁免倒退=缺陷）+ V5/V7/E7 三出口落档**；Q1~Q7 终裁归位核查（LC-66 离开「待裁」）。
+    AC3: DoD 八条逐条（实测数字归档）+ 总裁定 PASS → conductor git tag m14-done（UAT 证据随里程碑 PR 归档；对外发布红线维持）。
+- **波外条件票**（未触发 BOARD 留痕非 DoD 缺口）：
+  - **T-401** [P2·条件 Q6] v3-flat 翻转小票 `role:dev-go-core` area:internal/adapter/nuget（v3/flat 直推面）dep:T-393,T-394（as-built 对照结论**不一致**）+ Q6 终裁=对齐
+    AC1: 补锚值对齐翻转（403↔409 语义照 nuget.md 增量锚，D-10 先例方向）+ 断言反转归属豁免票 + nuget 双客户端回归；终裁=有意差异则本票不触发（D 层差异行留痕，LC-66 归 D）。
+  - **T-402** [P2·条件 余量] NuGet symbol server 余量票（M12→M13→M14 四承——T-357/T-379 延续）`role:dev-go-core` area:internal/adapter/nuget（symbol 子域）dep:P0/P1 全收官 + 余量条款
+    AC1: mini as-built 规格随票（T-293 终裁口径）；.pdb/GUID 路径面 + 真实客户端腿；未触发 M15+ BOARD 留痕。
+
+**关键路径**：T-381（核验锚 B0）→ T-382→T-383→T-384→T-385（批 1 FE 串行链——V1/V2/V4/V6 细节断言收口）→ T-389（logo P0）→ T-386→T-390→T-387→T-388（批 2/图标 FE 链）→ T-398（docs B）→ T-399（release+UAT）→ T-400（终验·矩阵逐格终评）→ m14-done。副线并入：T-393→T-394（B2/B3 服务端小票链）→ T-396/T-397；T-392（B1 docker remote）→ T-396；T-395（PM 裁定）终裁归位归 T-400 AC2 核查。**T-391（FE 债）零依赖 B0 补位；T-392/T-394 与 FE 天然错峰全程并行；D1+M1 并波与 L1+FE 债合票为 conductor 压缩裁量（风险⑨）。**
+
+**风险登记（拆票日志 M14-SPLIT.md 详表）**：① **Q1 核验源终裁时点**——须 B1 派发前（建议与 Q2/Q3 同窗）；V1/V2/V4/V6 落定前批 1 细节断言不得转正，降级路径 T-381 AC3 内置（t226 容器→外部活体→③凭标注，批 1 手势级断言均高/中高置信不阻塞）；② **Q2 logo 圈定窗截止 B2 前波**——T-389（B5）候选 1 工作稿起步，资产参数化单点引用（换稿=换文件零返工），窗后未推翻即转正 BOARD 留痕，wordmark K56 票内定案；③ **Q3 决策项 A/B/C 终裁**——暂行照 parity §10 批 1 建议（C=Deploy 保持居中不动），终裁随 Q1/Q2 同窗 B1~B2，翻转面小；④ **锚族冻结 + 新锚入册（web/src 改动铁门槛）**——smu-*/login-*/app-nav 零改名（anchor-audit 0 断链逐票 AC），D1 壳替换保留清单六项，侧栏品牌区不动 app-nav-brand，新面（L2 菜单/Tokens/列选器）新锚入册；⑤ **E1~E7 豁免复核点位**——L2 菜单无删除缺席断言（E1，V4 若含删除亦不跟进）、M3 编辑整页（E5）等七条 T-400 AC2 终验逐条复核（豁免倒退=缺陷）+ 三出口落档；⑥ **四闸门 + axe 双主题 + SPA 预算维持**——FE 十票合入条件票票内嵌，30 枚图标 + logo 资产计入 gzip 增量 ≤10KB（NFR-P61），FE 票服务端 diff=0 沿 M8 T-235 先例；⑦ **活体核验降级与零静默升格**——不可得项维持「以核验为准」标注，grep 附注清单与核验结论一一对应，置信度回写=改契约须修订留痕；⑧ **D1 抽屉化的既有兼容**——M8 e2e spec 走「迁移更新非反转」（铸币/step-up/OIDC 续铸行为断言全量保留），更新面 100% 归属 M14 豁免票（T-396/T-400 归属审计）；⑨ **FE 串行链 10 票工期**——web/src 一波一票默认纪律，压缩两选项（D1+M1 并波〔PRD §1.3 明示可并行〕/ L1+FE 债合票〔M13 ⑦ 先例〕）+ T-399 可前移 B9；⑩ **条件票触发态**——Q6 翻转（T-401）/symbol 余量四承（T-402）/N2 V5 降级（T-388 票内出口）/D3（Q7）不占票号（用户立项才开后端域票）；全触发上浮 24（PRD 21~26 线内），未触发 BOARD 留痕非 DoD 缺口。

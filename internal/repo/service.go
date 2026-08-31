@@ -125,7 +125,8 @@ func actor(p *Principal) string {
 // wired, a REGISTRY-KNOWN slot extends the legal package-type set — the
 // static enum's "must be one of generic, docker, maven, npm, pypi" no longer
 // rejects the assembled pilot types (T-282 leftover 2) — while the static
-// five keep their own M3 class rulings (docker stays local-only) and a
+// five keep their own class rulings (virtual docker stays refused; remote
+// docker opened by T-392 onto the /v2 remote seam) and a
 // known-but-locked slot answers the D3 refusal. A nil gate, or a value the
 // registry does not know, keeps validateRepoType verbatim.
 //

@@ -10,6 +10,13 @@ import { m8Client, seedRepos, sessionApi } from './support/seed'
 // + §8 T-231 债券）。断言口径 = e2e/m8/README §2：锚断言 + 操作流对照 +
 // sessionApi 对账；错误文案断言 ADR-0027 决策 5 逐字（error_description）。
 //
+// T-382 迁移（D1 抽屉化，console-artifactory-parity v1.1 实测参数）：Set Me Up
+// 壳 = 居中 Dialog → 右侧 Drawer（anchor right + temporary），宽 50vw 档
+// （clamp 480~800，1280 视口 = 640px——非旧票 480 固定档）、全高、右上 X +
+// Esc/遮罩关闭；Tab = Configure/Deploy/Resolve 三枚；底栏 = 左返回链接 +
+// 右 Done 主按钮；步 0 = 包型药丸。铸币/step-up/OIDC 续铸行为语义断言全量
+// 保留（smu-* 锚族零改名——壳替换不动锚）。
+//
 // 三入口（树工具栏 / 仓库列表行 / 仓库详情头）在本 spec 内全部走通；
 // step-up 腿两层：(a) mock 拦截腿（verbatim ADR 错误体 + 第三次放行真铸，
 // 任何实例可跑）；(b) 真实 armed 实例腿（BINFLOW_AUTH__TOKEN_STEP_UP=true
@@ -43,7 +50,22 @@ async function livePackageTypes(page: Page): Promise<Set<string>> {
 
 // ---- Set Me Up：仓库上下文直达 + 铸币 + 命令块 + Tab + 剪贴板（admin 腿） ----
 
-test('setmeup: repo context opens the client dialog directly; mint + token-embedded commands + copy', async ({
+/** D1 抽屉几何断言（T-382，v1.1 实测参数）：右缘贴齐视口右缘、50vw 档
+ *  （clamp 480~800——1280 视口 = 640px，非旧 480 固定档）、全高。先等
+ *  Slide 过渡收敛（transform none）——入场动画中途取 box 会读到滑入途
+ *  中的 x（宽度恒定、x 在动）。 */
+async function expectDrawerGeometry(page: Page, drawer: ReturnType<Page['locator']>): Promise<void> {
+  const vw = page.viewportSize()?.width ?? 1280
+  const vh = page.viewportSize()?.height ?? 720
+  await expect(drawer).toHaveCSS('transform', 'none')
+  const box = await drawer.boundingBox()
+  expect(box, 'drawer paper has a box').toBeTruthy()
+  expect(box!.width).toBeCloseTo(Math.min(Math.max(480, vw / 2), 800), 0)
+  expect(box!.x + box!.width).toBeCloseTo(vw, 0) // anchor right：右缘贴齐
+  expect(box!.height).toBeCloseTo(vh, 0) // 全高
+}
+
+test('setmeup: repo context opens the client drawer directly; mint + token-embedded commands + copy', async ({
   page,
 }) => {
   test.setTimeout(120_000)
@@ -56,23 +78,41 @@ test('setmeup: repo context opens the client dialog directly; mint + token-embed
   await page.click(`[data-testid="tree-repo-${key}"]`)
   await page.click('[data-testid="tree-setmeup"]')
 
-  // 选中仓库 → 直达主对话框（reverse §4.1），仓库下拉预选当前仓
+  // 选中仓库 → 直达主面板（reverse §4.1），仓库下拉预选当前仓
   const dialog = page.locator('[data-testid="smu-dialog"]')
   await expect(dialog).toBeVisible()
   await expect(page.locator('[data-testid="smu-grid"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="smu-repo"]')).toHaveValue(key)
   await expect(dialog).toContainText('配置 Generic 客户端')
 
+  // T-382 抽屉形态：右侧 50vw 档 + 全高（v1.1 实测收口）
+  await expectDrawerGeometry(page, dialog)
+
+  // Tab 三枚（Configure / Deploy / Resolve——v1.1 实测收口）
+  for (const t of ['configure', 'deploy', 'resolve']) {
+    await expect(page.locator(`[data-testid="smu-tab-${t}"]`)).toBeVisible()
+  }
+  await expect(dialog.locator('[role="tab"]')).toHaveCount(3)
+
+  // 焦点陷阱（Drawer 形态复测）：连打 Tab 十次焦点仍在抽屉内（键盘 leg
+  // 在 Deploy Dialog 上有同款断言——T-382 壳换 Drawer 后此处复测）
+  for (let i = 0; i < 10; i++) await page.keyboard.press('Tab')
+  const trappedIn = await page.evaluate(() =>
+    !!document.activeElement?.closest('[data-testid="smu-dialog"]'),
+  )
+  expect(trappedIn, 'focus stays trapped inside the drawer').toBe(true)
+
   // 铸币（admin 会话 = ADR-0027 决策 1 豁免臂，无二次口令）
   await page.click('[data-testid="smu-generate"]')
   const panel = page.locator('[data-testid="smu-token-panel"]')
   await expect(panel).toBeVisible()
-  await expect(panel).toContainText('关闭对话框后不可再查看')
+  await expect(panel).toContainText('关闭抽屉后不可再查看')
   const token = (await page.locator('[data-testid="smu-token"]').textContent()) ?? ''
   expect(token.length).toBeGreaterThan(20)
 
-  // 命令块回填真实凭据：配置面占位符退场（generic 的配置侧不含凭据——
-  // token 明文进部署侧 curl -u）
+  // 命令块回填真实凭据：配置面占位符退场（generic 的配置侧不含凭据也
+  // 不含命令块——T-382 三分后 Configure 无 generic 配置步；token 明文进
+  // 部署侧 curl -u）
   await expect(page.locator('[data-testid="smu-pane-configure"]')).not.toContainText('<TOKEN 或口令>')
 
   // 剪贴板断言：令牌全值（console-ux §7.3——拷贝不截断）
@@ -84,6 +124,18 @@ test('setmeup: repo context opens the client dialog directly; mint + token-embed
   await expect(page.locator('[data-testid="smu-cmd-dep-generic-0"] pre')).toContainText(token)
   await expect(page.locator('[data-testid="smu-pane-deploy"]')).toContainText(key)
 
+  // Tab 切换（部署 → 解析，T-382 第三枚）：generic 解析侧 = curl 下载与校验
+  await page.click('[data-testid="smu-tab-resolve"]')
+  await expect(page.locator('[data-testid="smu-pane-resolve"]')).toBeVisible()
+  await expect(page.locator('[data-testid="smu-cmd-res-generic-0"] pre')).toContainText(
+    `/binflow/${key}/acme/app.tar.gz`,
+  )
+  // 命令块 pre 不折行（overflow-x:auto——mono 命令横向滚动，P2 原则）
+  await expect(page.locator('[data-testid="smu-cmd-res-generic-0"] pre')).toHaveCSS(
+    'overflow-x',
+    'auto',
+  )
+
   // 对账（§2.6）：UI 说铸了 token——让同源 Bearer 臂复核管理面可达
   const bearer = await page.evaluate(async (t) => {
     const r = await fetch('/binflow/api/repositories', { headers: { Authorization: `Bearer ${t}` } })
@@ -91,14 +143,19 @@ test('setmeup: repo context opens the client dialog directly; mint + token-embed
   }, token)
   expect(bearer).toBe(200)
 
-  // Esc 关闭（§3.4）
-  await page.keyboard.press('Escape')
+  // 底栏形态（v1.1 实测）：左返回链接 + 右 Done 主按钮；Done 关闭 + 回焦
+  // 启动元素（L02——tree-setmeup）
+  await expect(page.locator('[data-testid="smu-back"]')).toBeVisible()
+  await page.click('[data-testid="smu-done"]')
   await expect(page.locator('[data-testid="smu-dialog"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="tree-setmeup"]')).toBeFocused()
 })
 
-// ---- Set Me Up：包类型网格（无仓库上下文入口；只列已有仓库的包类型） ----
+// ---- Set Me Up：包类型药丸（无仓库上下文入口；只列已有仓库的包类型） ----
 
-test('setmeup grid: package types = union of existing repos; back link returns to grid', async ({ page }) => {
+test('setmeup grid: package types = union of existing repos; back link returns to pills; X closes', async ({
+  page,
+}) => {
   const key = uniq('m8grid')
   await seedRepos(m8Client(), [{ key }, { key: `${key}-npmpkg`, packageType: 'npm' }])
 
@@ -107,14 +164,14 @@ test('setmeup grid: package types = union of existing repos; back link returns t
   await page.click('[data-testid="tree-setmeup"]')
 
   await expect(page.locator('[data-testid="smu-grid"]')).toBeVisible()
-  // 网格项集合 = 实例内已有仓库的包类型并集（对齐 reverse §4.1）
+  // 药丸集合 = 实例内已有仓库的包类型并集（对齐 reverse §4.1）
   const types = await livePackageTypes(page)
   for (const pt of ['generic', 'docker', 'maven', 'npm', 'pypi']) {
     const want = types.has(pt) ? 1 : 0
     await expect(page.locator(`[data-testid="smu-grid-item-${pt}"]`)).toHaveCount(want)
   }
 
-  // 选 npm → 主对话框；下拉只列 npm 仓
+  // 选 npm → 主面板；下拉只列 npm 仓
   await page.click('[data-testid="smu-grid-item-npm"]')
   await expect(page.locator('[data-testid="smu-repo"]')).toBeVisible()
   const picked = await page.locator('[data-testid="smu-repo"]').inputValue()
@@ -129,10 +186,11 @@ test('setmeup grid: package types = union of existing repos; back link returns t
     expect(npmKeyList).toContain(opt)
   }
 
-  // 「选择不同的包类型」返回网格（reverse §4.1 返回链接）
+  // 「选择不同的包类型」返回药丸（reverse §4.1 返回链接——T-382 起在底栏左）
   await page.click('[data-testid="smu-back"]')
   await expect(page.locator('[data-testid="smu-grid-item-generic"]')).toBeVisible()
-  await page.keyboard.press('Escape')
+  // 右上 X 关闭（抽屉族通用规格，§4；smu-close 随 T-382 复役）
+  await page.click('[data-testid="smu-close"]')
   await expect(page.locator('[data-testid="smu-dialog"]')).toHaveCount(0)
 })
 
@@ -308,8 +366,12 @@ test('entry points: repositories list row and repo detail header open both dialo
   await expect(page.locator('[data-testid="smu-dialog"]')).toBeVisible()
   await expect(page.locator('[data-testid="smu-repo"]')).toHaveValue(key)
   await expect(page).toHaveURL(/\/admin\/repositories\/local$/) // 未跳详情页
-  await page.keyboard.press('Escape')
+  // 遮罩关闭（抽屉族通用规格）：点抽屉外左侧遮罩 + 回焦启动元素（L02）
+  const vw = page.viewportSize()?.width ?? 1280
+  const vh = page.viewportSize()?.height ?? 720
+  await page.mouse.click(Math.round(vw * 0.25), Math.round(vh / 2))
   await expect(page.locator('[data-testid="smu-dialog"]')).toHaveCount(0)
+  await expect(page.locator(`[data-testid="repos-setmeup-${key}"]`)).toBeFocused()
 
   // 仓库列表行：部署（generic local 行有 Deploy 入口）
   await page.click(`[data-testid="repos-deploy-${key}"]`)
@@ -333,36 +395,48 @@ test('entry points: repositories list row and repo detail header open both dialo
 
 // ---- axe 结构可达性（serious/critical = 0 门；§9）----------------------------
 
-// T-344C：对话框换 MUI Dialog 后入场带 225ms Fade——axe 在动画中途采样会把
-// 半透明栈算进对比度（实测 4.48 < 4.5 假阳性）。扫描前等过渡收敛（终态
-// 断言语义不变，只是不再对动画帧求值）。
+// T-344C：对话框换 MUI 后入场带过渡动画——axe 在动画中途采样会把半透明
+// 栈算进对比度（实测 4.48 < 4.5 假阳性）。扫描前等过渡收敛（终态断言语义
+// 不变，只是不再对动画帧求值）。T-382 起 Set Me Up 壳 = Drawer（paper 走
+// Slide，不透明度恒 1——本等待退化为终态在场断言，Deploy Dialog 的 Fade
+// 仍由同款等待覆盖）。
 async function settleDialog(page: Page, scope: string): Promise<void> {
   await expect(page.locator(scope)).toHaveCSS('opacity', '1')
 }
 
-test('axe: setmeup (grid + main) and deploy dialogs scan clean', async ({ page }, testInfo) => {
+test('axe: setmeup drawer (pills + main) clean in both themes; deploy dialog clean', async ({ page }, testInfo) => {
   const key = uniq('m8axe')
   await seedRepos(m8Client(), [{ key }, { key: `${key}-npmpkg`, packageType: 'npm' }])
 
   await loginAs(page, 'admin')
-  await page.goto('/binflow/ui/artifacts')
 
-  // 网格态
-  await page.click('[data-testid="tree-setmeup"]')
-  await expect(page.locator('[data-testid="smu-grid-item-generic"]')).toBeVisible()
-  await settleDialog(page, '[data-testid="smu-dialog"]')
-  await expectA11yClean(page, testInfo, { include: '[data-testid="smu-dialog"]' })
-  await page.keyboard.press('Escape')
+  // T-382：抽屉双主题扫描（a11y-sweep 同款 localStorage 姿势——路由面扫
+  // 不到抽屉态，抽屉的 serious=0 门在本 spec 承载）
+  for (const theme of ['light', 'dark'] as const) {
+    await page.evaluate((t) => localStorage.setItem('binflow-console-theme', t), theme)
+    await page.goto('/binflow/ui/artifacts')
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
 
-  // 主对话框（含铸币区 + 命令块）
-  await page.click(`[data-testid="tree-repo-${key}"]`)
-  await page.click('[data-testid="tree-setmeup"]')
-  await expect(page.locator('[data-testid="smu-repo"]')).toHaveValue(key)
-  await settleDialog(page, '[data-testid="smu-dialog"]')
-  await expectA11yClean(page, testInfo, { include: '[data-testid="smu-dialog"]' })
-  await page.keyboard.press('Escape')
+    // 药丸态（步 0）
+    await page.click('[data-testid="tree-setmeup"]')
+    await expect(page.locator('[data-testid="smu-grid-item-generic"]')).toBeVisible()
+    await settleDialog(page, '[data-testid="smu-dialog"]')
+    await expectA11yClean(page, testInfo, { include: '[data-testid="smu-dialog"]' })
+    await page.keyboard.press('Escape')
 
-  // Deploy 对话框（含拖拽区 + GAV 回显面隐藏——generic 仓）
+    // 主面板（含铸币区 + 三 Tab 命令块；Resolve 为 T-382 新增面）
+    await page.click(`[data-testid="tree-repo-${key}"]`)
+    await page.click('[data-testid="tree-setmeup"]')
+    await expect(page.locator('[data-testid="smu-repo"]')).toHaveValue(key)
+    await page.click('[data-testid="smu-tab-resolve"]')
+    await expect(page.locator('[data-testid="smu-pane-resolve"]')).toBeVisible()
+    await settleDialog(page, '[data-testid="smu-dialog"]')
+    await expectA11yClean(page, testInfo, { include: '[data-testid="smu-dialog"]' })
+    await page.keyboard.press('Escape')
+  }
+
+  // Deploy 对话框（含拖拽区 + GAV 回显面隐藏——generic 仓；居中 Dialog
+  // 形态不变——决策项 C 暂行，单主题腿维持）
   await page.click('[data-testid="tree-deploy"]')
   await expect(page.locator('[data-testid="deploy-drop"]')).toBeVisible()
   await settleDialog(page, '[data-testid="deploy-dialog"]')
