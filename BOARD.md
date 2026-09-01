@@ -1623,4 +1623,8 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **B14 派发（conductor 2026-09-02 04:4x）**：**T-428**（文面回写簇——四处落笔 + make docs；轻载适配审计占机）入 lane。
 
+**T-428 → done 2026-09-02 04:5x——M15 20/25（文面回写簇）**：四处落笔全**写前代码核对**——①reverse/README 补 npm.md 行（T-393 遗留②清）；②parity 册 v1.4：M1 行 440px 紧凑档定案升级 + M3 MUI Paper 代差注记；③package-icons v1.3：K61 量级拍板（K56 现值零改动，超 +10% 不回折）；④migrate-artifactory 清账 6 处（nuget 措辞分面/三→四阶段/守卫/旗标/dry-run 真实渲染/报错 +2）。`make docs` SUCCESS 零断链；②③标「ux 会签位」代笔（遗留 ux 复核签字）。日志 reports/agents/T-428.md。
+
+**B15 派发（conductor 2026-09-02 05:0x）**：**T-424**（L2 行内快捷 + e2e 三节纪律成文——复制 key/Set Me Up 直开 + INC-1/pkill 精确杀/assert-tokens 豁免成文）入 FE lane。
+
 **全树 race 补证判无效（conductor 2026-09-01 14:3x）**：与两 agent 测试套件同机并发跑——22 包红全部 620-660s 超时形态 + db/sql 竞争 panic + storage fail-open 窗口 = **共租负载签名**（T-414 日志同款 load 450-630），非产品缺陷。T-412 的 AC3 证据改挂 **T-421 中期 QA 串行全树 race**（届时 lane 空净）。**D-413-2 [P3·登记]**：唯一真信号 = T-413 `TestEngineMixedLoad` 在慢机下 K63 并发门 429 介入而测试只容忍 busy gate 拒绝——测试健壮性收窄（门注入调低或混合负载容忍 429），归 T-421 复验时顺腿修或转 T-433。**教训入册：全树 race/性能类验证必须 lane 空净时串行跑（派单纪律）。**
