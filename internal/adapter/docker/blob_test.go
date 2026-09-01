@@ -238,6 +238,17 @@ func (f *fakeService) DeleteRepo(context.Context, *Principal, string, bool) erro
 	return errUnimplementedFake
 }
 
+// SearchScope/CanRead satisfy the AQL read-only scope seams (T-413) — the
+// blob and manifest paths never consult them; the permissive stubs keep
+// this fake compiling as repo.Service grows query-plane seams.
+func (f *fakeService) SearchScope(context.Context, *Principal) ([]repo.ReadScope, error) {
+	return nil, nil
+}
+
+func (f *fakeService) CanRead(context.Context, *Principal, string, string) bool {
+	return true
+}
+
 // PutManifest (fake): records the manifest row, the tag pointer and the
 // ref ledger exactly once per digest (idempotent republish refreshes tags
 // and refs only, mirroring the real service), and writes the manifest node

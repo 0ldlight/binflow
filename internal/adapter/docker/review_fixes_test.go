@@ -323,6 +323,16 @@ func (s *countingGetService) List(ctx context.Context, p *Principal, rk, prefix 
 func (s *countingGetService) RewriteSubtreePrefix(ctx context.Context, rk, src, dst string) (*repo.SubtreeRewrite, error) {
 	return s.inner.RewriteSubtreePrefix(ctx, rk, src, dst)
 }
+
+// SearchScope/CanRead delegate verbatim (T-413's AQL read-only seams —
+// same test-only ripple family as RewriteSubtreePrefix above).
+func (s *countingGetService) SearchScope(ctx context.Context, p *Principal) ([]repo.ReadScope, error) {
+	return s.inner.SearchScope(ctx, p)
+}
+
+func (s *countingGetService) CanRead(ctx context.Context, p *Principal, rk, path string) bool {
+	return s.inner.CanRead(ctx, p, rk, path)
+}
 func (s *countingGetService) CreateRepo(ctx context.Context, p *Principal, r *metadata.Repo) (*metadata.Repo, error) {
 	return s.inner.CreateRepo(ctx, p, r)
 }
