@@ -55,7 +55,10 @@ jobs:
       - run:
           name: Vet + lint + fast tests
           command: |
-            go vet ./...
+            # T-432 structure conformance: make vet carries the web/ node_modules
+            # exclusion — bare `go vet ./...` would descend into it after
+            # `make console` populated it two steps earlier.
+            make vet
             make lint
             go test ./internal/... ./cmd/... -count=1 -short
       - run:

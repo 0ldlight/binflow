@@ -30,7 +30,7 @@ BinFlow：用 Go 重写的云原生制品仓库（对标 JFrog Artifactory，架
 - **看板规则**：`BOARD.md` 只有主会话可以写。subagent 只读看板；状态写进 `reports/agents/T-<id>.md`。
 - **ticket 状态流**：`todo → doing → review → qa → done`，异常走 `blocked`。
 - **分区规则（area）**：并行派发的 ticket，area（Go 包 / web 页面组 / 部署目标）不得重叠。
-- **Go 规范**：gofmt + golangci-lint 零告警；错误一律 wrap 带上下文；显式传递 context；测试 table-driven；接口驱动、依赖注入，不跨包摸内部结构。
+- **Go 规范**：gofmt + golangci-lint 零告警；错误一律 wrap 带上下文；显式传递 context；测试 table-driven；接口驱动、依赖注入，不跨包摸内部结构。**新测试文件以被测单元/行为命名**（如 `auth_storm_test.go`），不用票号命名（go.dev 惯例 `reverse.go`/`reverse_test.go` 配对；票号写进文件头注释与报告即可——存量 93 个票号命名文件不回改，仅约束新增）。
 - **提交规范**：conventional commits（`feat:` / `fix:` / `test:` / `docs:` / `chore:` / `refactor:`），由主会话在 ticket 通过 qa 后统一提交。
 - **验证优先**：声称"完成"必须附实际执行过的自测命令与关键输出。协议兼容性必须用真实客户端（docker/mvn/npm/pip/curl）验证，不许只测 happy path。
 - **安全底线**：删除数据、外发数据、写密钥、对外发布镜像/Chart/二进制 → 停下来询问用户。

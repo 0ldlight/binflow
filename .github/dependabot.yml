@@ -1,0 +1,35 @@
+version: 2
+updates:
+  # Go module — the server, adapters, and search engine
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      go-minor:
+        update-types: [minor, patch]
+
+  # Console (React + Vite + MUI)
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      npm-dev-minor:
+        dependency-type: development
+        update-types: [minor, patch]
+
+  # Docs site
+  - package-ecosystem: npm
+    directory: /docs-site
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+
+  # GitHub Actions workflows (when present)
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
