@@ -1585,4 +1585,8 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **B7 派发（conductor 2026-09-01 18:0x）**：**T-419**（搜索页 AQL 模式——FE 主线，dep T-414+T-415 均满足；锚册 v1.29）入 FE lane；T-417（老搜索三端点）继续在途。
 
+**T-417 → done 2026-09-01 18:0x——M15 11/25（主轴第五环落：老搜索并轨，断言反转①）**：gavc/prop/pattern 三端点（三层数据面：metadata/repo 查询缝 + httpapi 路由/metrics〔plane 标签扩值——T-415 遗留④兑现〕）；断言反转①（t92 SR-03/04 404→分派实现，其余未实现族 404 维持）；K64 落笔；K65 顺车判定见其报告。自测：build/vet 全树（fake 纪律）/lint/测试面绿（§4 证据表）。conductor spot：build 零输出。日志 reports/agents/T-417.md。
+
+**B8 派发（conductor 2026-09-01 18:1x）**：**T-418**（replication.md 增量段——包 B 前置规格，双源材料；解锁 T-420/T-422 链）入 lane；T-419（FE）继续在途。
+
 **全树 race 补证判无效（conductor 2026-09-01 14:3x）**：与两 agent 测试套件同机并发跑——22 包红全部 620-660s 超时形态 + db/sql 竞争 panic + storage fail-open 窗口 = **共租负载签名**（T-414 日志同款 load 450-630），非产品缺陷。T-412 的 AC3 证据改挂 **T-421 中期 QA 串行全树 race**（届时 lane 空净）。**D-413-2 [P3·登记]**：唯一真信号 = T-413 `TestEngineMixedLoad` 在慢机下 K63 并发门 429 介入而测试只容忍 busy gate 拒绝——测试健壮性收窄（门注入调低或混合负载容忍 429），归 T-421 复验时顺腿修或转 T-433。**教训入册：全树 race/性能类验证必须 lane 空净时串行跑（派单纪律）。**

@@ -593,10 +593,14 @@ type Service interface {
 	// store access). Malformed parameters answer ErrInvalidSearchQuery.
 
 	// SearchArtifacts returns every file node whose repo-relative path
-	// contains name as a literal, case-sensitive substring (K2's provisional
-	// semantics — SQL LIKE; the `*` wildcard family and gavc are P2). repos
-	// narrows the candidate repositories (nil/empty = all); unknown keys
-	// simply match nothing. An empty name answers ErrInvalidSearchQuery.
+	// contains name as a literal, case-INsensitive substring (K64's
+	// calibration, aql.md section 0-5 — SQL LIKE with both sides folded;
+	// the `*` wildcard family stays unimplemented: the official and
+	// decompiled readings both treat name bytes literally). The gavc/prop/
+	// pattern arms of that former P2 note landed on the
+	// LegacySearchService face (T-417). repos narrows the candidate
+	// repositories (nil/empty = all); unknown keys simply match nothing. An
+	// empty name answers ErrInvalidSearchQuery.
 	SearchArtifacts(ctx context.Context, p *Principal, name string, repos []string) ([]*metadata.Node, error)
 	// SearchChecksum returns every file node referencing a blob addressed by
 	// any of the query's digests (union; cross-repository references are all

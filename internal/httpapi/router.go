@@ -863,11 +863,14 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 			s.handleTrashClean(w, r, rest)
 		})
 
-	// ---- /api/search (SR-01/SR-02, T-92 + AQL M15 T-415) ----
-	// The legacy pair opens the M1 E-26 search domain (PRD M4: artifact +
-	// checksum only); every other family member — props/users/artifactory/
-	// pattern/badge, and any other verb on these two paths — falls through
-	// to the E-26 404 (SR-04, intentional incompatibility). The gates mirror
+	// ---- /api/search (SR-01/SR-02, T-92 + AQL M15 T-415 + T-417 trio) ----
+	// The legacy pair opened the M1 E-26 search domain (PRD M4: artifact +
+	// checksum only). The M15 axis completes the first batch: AQL's POST
+	// entrance (T-415) plus the old-search trio gavc/prop/pattern (T-417,
+	// FR-134 — the SR-03/SR-04 closure assertions flipped in that ticket);
+	// every remaining family member — users/artifactory/badge, the
+	// misspelled plural "props" (the official member is prop), and any
+	// foreign verb on an open path — keeps the E-26 404. The gates mirror
 	// /api/storage's read posture: the use case owns the anonymous-channel
 	// decision, so a closed instance answers the spec's 403 rather than a
 	// route-level 401 challenge.
@@ -885,6 +888,12 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		s.enforce(w, r, routeAuth{}, s.handleSearchArtifact)
 	case rest == "search/checksum" && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{}, s.handleSearchChecksum)
+	case rest == "search/gavc" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{}, s.handleSearchGavc)
+	case rest == "search/prop" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{}, s.handleSearchProp)
+	case rest == "search/pattern" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{}, s.handleSearchPattern)
 
 	// ---- /api/security (E-16..E-19) ----
 	case rest == "security/password" && r.Method == http.MethodPut:

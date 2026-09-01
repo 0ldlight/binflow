@@ -11,10 +11,12 @@ import (
 	"github.com/lzwzzy/binflow/internal/metadata"
 )
 
-// Search use cases (T-92, FR-26 / SR-01/SR-02). The SQL mechanics live in
+// Search use cases (T-92, FR-26 / SR-01/SR-02; the FR-134 legacy arms live
+// beside them in search_legacy.go). The SQL mechanics live in
 // metadata.NodeSearcher; this layer owns the parts the store cannot judge:
-// query validation (K2's provisional semantics), the anonymous-channel gate
-// and the ACL visibility filter.
+// query validation (K64's calibrated name semantics; the gavc/prop/pattern
+// shapes in search_legacy.go), the anonymous-channel gate and the ACL
+// visibility filter.
 //
 // ACL posture (NFR-S24, zero leak): a result node is visible exactly when
 // the caller could GET it — the same Authorizer.Can(read) decision the
@@ -40,10 +42,11 @@ type ChecksumQuery struct {
 // answers 400 (ErrInvalidSearchQuery) well before the engine limit.
 const maxSearchRepos = 1000
 
-// SearchArtifacts implements Service.SearchArtifacts (SR-01, K2 provisional:
-// literal case-sensitive path substring, SQL LIKE). repos narrows the
-// candidate repositories; nil or empty means every repository the caller can
-// read.
+// SearchArtifacts implements Service.SearchArtifacts (SR-01, K64 as
+// calibrated by aql.md section 0-5: literal case-INsensitive path substring,
+// SQL LIKE with both sides folded; name bytes stay literal — no wildcards).
+// repos narrows the candidate repositories; nil or empty means every
+// repository the caller can read.
 func (s *service) SearchArtifacts(ctx context.Context, p *Principal, name string, repos []string) ([]*metadata.Node, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {

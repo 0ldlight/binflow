@@ -183,8 +183,9 @@ func newInstrumentation(deps Deps) *instrumentation {
 		ins.authLogins.Add(0, "source", source)
 	}
 
-	// The search family (M15 T-415): pre-seeded so the exposition shows the
-	// aql plane and both rejection reasons before the first query lands.
+	// The search family (M15 T-415; the legacy plane joined in T-417):
+	// pre-seeded so the exposition shows both planes and both rejection
+	// reasons before the first query lands.
 	ins.searchQueries = mustCounter(reg, metricSearchQueries,
 		"Search-plane queries executed, by plane.")
 	ins.searchDur = mustHistogram(reg, metricSearchDuration,
@@ -192,6 +193,7 @@ func newInstrumentation(deps Deps) *instrumentation {
 	ins.searchRej = mustCounter(reg, metricSearchRejections,
 		"Search-plane query rejections by resource-gate reason (concurrency = the 429 gate arm, timeout = the 408 deadline arm).")
 	ins.searchQueries.Add(0, "plane", "aql")
+	ins.searchQueries.Add(0, "plane", "legacy")
 	ins.searchRej.Add(0, "reason", "concurrency")
 	ins.searchRej.Add(0, "reason", "timeout")
 

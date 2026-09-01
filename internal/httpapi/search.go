@@ -16,10 +16,11 @@ import (
 //	GET /binflow/api/search/checksum?sha256=&sha1=&md5=&repos= SR-02 (W15)
 //
 // Both answer 200 {"results":[FileInfo...]} — the E-09 field set verbatim
-// (storage.go's fileInfoOf) — and every other family member
-// (props/users/artifactory/pattern/badge/...) stays on the E-26 404: the
-// M4 search domain deliberately opens exactly these two doors (SR-04, an
-// intentional incompatibility — property and user search are M5+ scope).
+// (storage.go's fileInfoOf). The family grew twice since: AQL's POST
+// entrance (T-415, search_aql.go) and the gavc/prop/pattern trio (T-417,
+// search_legacy.go — the SR-03/SR-04 closure rows flipped there); the
+// remaining members (users/artifactory/badge, the misspelled plural
+// "props") stay on the E-26 404 (SR-04's surviving set).
 //
 // Matching semantics are K2's provisional ruling: a literal, case-sensitive
 // path substring via SQL LIKE (`*` wildcards and gavc are P2); the checksum
