@@ -1577,4 +1577,12 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **B5 派发（conductor 2026-09-01 13:5x）**：**T-415**（AQL 端点面——P0 主轴第四环，dep T-413 已满足；Engine.Run 薄路由壳 + compact + envelope + metrics 新组；携带 fake-blast-radius 纪律）入 lane；T-416（FE）继续在途。
 
+**T-415 → done 2026-09-01 17:3x（配额窗②复活后收口）——M15 9/25（主轴第四环落：AQL 端点面）**：`POST /api/search/aql` 全链——text/plain + ?query 回退 + 6000 读上限；匿名两臂（E5 401/E6 403 逐字）；错误映射（QueryError→400 逐字/busy→429+Retry-After/超时→408）；§3 流式 envelope 逐字节（pretty/compact 双形态 + virtual_repos/properties 投影 + virtualIndex 双面）；**引擎在 New 内从既有 Deps 自装配（ADR-0043 §24.1 唯一装配点——cmd 零改动 Deps 零新字段 → fake blast radius 零，D-413-1 纪律兑现）**；metrics search family 三组（queries_total{plane}/duration/rejections_total{reason}）。测试两件新（行为命名）：L21 全链 + L23 e2e + stub 429/408/500 映射 + 确定性 golden + WriteTimeout pin。自测：httpapi race **427.4s 绿** + search 15.3s + 全树 vet 零破损 + lint 0。中置信留痕：compact 非空行体（活体实 415，按 §3.1 描述实现——**规格待验证**）、properties 嵌套形态（V-d）。遗留四项（Truncated 诚实上界文案口径随 K63/Q2 裁、真门并发饱和不可确定性〔stub 同口径〕、range 比较符不触发 virtual 展开、T-417 扩 plane 值）。日志 reports/agents/T-415.md。
+
+**B6 派发（conductor 2026-09-01 17:4x）**：**T-417**（老搜索三端点 gavc/prop/pattern——P0 主轴第五环，dep T-415 已满足；断言反转① + K64 落笔 + K65 余量条款）入 lane；T-416（FE）继续在途。
+
+**T-416 → done 2026-09-01 17:5x（配额窗②复活后收口）——M15 10/25（断言反转② FE 落）**：T-406 内容面 gate 解除 + RepoBranch 静态化退役（与非 virtual 同形动态展开）+ `tree-empty-virtual` 空态翻转（**锚不退役**——有内容走并集表格/无成员维持空态两态文案；锚册 **v1.28** 留痕）+ 删除三出口预收敛（RE-08 405 shadow-entry 不给）+ **顺手收口先在缺陷**：未选仓手动展开永久骨架环（T-236 起全 rclass——effect 改「选中仓根∪祖先链∪手动集」）+ warn-box 对比度（78% 徽章族配方，axe 新腿首扫暴露的亮色 serious）。自测：四门 + 新 spec 4 腿 + M3/M4 浏览 7 零回归 + artifacts-tree 10 + a11y-sweep 全路由双主题 0 + **SPA 仅 +470B**。**软注记登记（候选小票）**：`GET /api/repositories/<virtual>` 回显原始 config blob——成员级联删除后 echo 仍列已删成员（服务层两态可分、FE 经 echo 不可分——真区分需 httpapi echo 改造）。遗留三条（跨仓展开 QA 补独立腿/warn-box 全局类说明/深链 403 姿态与 T-406 一致）。日志 reports/agents/T-416.md。
+
+**B7 派发（conductor 2026-09-01 18:0x）**：**T-419**（搜索页 AQL 模式——FE 主线，dep T-414+T-415 均满足；锚册 v1.29）入 FE lane；T-417（老搜索三端点）继续在途。
+
 **全树 race 补证判无效（conductor 2026-09-01 14:3x）**：与两 agent 测试套件同机并发跑——22 包红全部 620-660s 超时形态 + db/sql 竞争 panic + storage fail-open 窗口 = **共租负载签名**（T-414 日志同款 load 450-630），非产品缺陷。T-412 的 AC3 证据改挂 **T-421 中期 QA 串行全树 race**（届时 lane 空净）。**D-413-2 [P3·登记]**：唯一真信号 = T-413 `TestEngineMixedLoad` 在慢机下 K63 并发门 429 介入而测试只容忍 busy gate 拒绝——测试健壮性收窄（门注入调低或混合负载容忍 429），归 T-421 复验时顺腿修或转 T-433。**教训入册：全树 race/性能类验证必须 lane 空净时串行跑（派单纪律）。**

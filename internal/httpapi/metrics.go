@@ -68,6 +68,13 @@ const (
 	metricReplayFailedPerm   = "binflow_replay_failed_permanent"
 	metricReplaySourceGone   = "binflow_replay_source_gone"
 	metricReplayReadFallback = "binflow_replay_read_fallback"
+	// The search family (M15 T-415, ADR-0043 pt 8): the query counter keyed
+	// by plane (aql today; the legacy endpoints join with their own plane
+	// values in T-417), the latency histogram and the resource-gate
+	// rejection counter (concurrency = the 429 arm, timeout = the 408 arm).
+	metricSearchQueries    = "binflow_search_queries_total"
+	metricSearchDuration   = "binflow_search_query_duration_seconds"
+	metricSearchRejections = "binflow_search_rejections_total"
 )
 
 // metricsContentType is the Prometheus text exposition format version 0.0.4
@@ -115,6 +122,11 @@ type instrumentation struct {
 	replayPerm   *metrics.Gauge
 	replayGone   *metrics.Gauge
 	replayReadFB *metrics.Gauge
+	// search* are the AQL plane's three families (M15 T-415): query volume,
+	// latency and resource-gate rejections.
+	searchQueries *metrics.Counter
+	searchDur     *metrics.Histogram
+	searchRej     *metrics.Counter
 }
 
 // newInstrumentation registers the four families on reg and pre-seeds the
@@ -170,6 +182,18 @@ func newInstrumentation(deps Deps) *instrumentation {
 	for _, source := range []string{"local", "oidc", "ldap"} {
 		ins.authLogins.Add(0, "source", source)
 	}
+
+	// The search family (M15 T-415): pre-seeded so the exposition shows the
+	// aql plane and both rejection reasons before the first query lands.
+	ins.searchQueries = mustCounter(reg, metricSearchQueries,
+		"Search-plane queries executed, by plane.")
+	ins.searchDur = mustHistogram(reg, metricSearchDuration,
+		"Search-plane query duration in seconds.", metrics.DefaultBuckets)
+	ins.searchRej = mustCounter(reg, metricSearchRejections,
+		"Search-plane query rejections by resource-gate reason (concurrency = the 429 gate arm, timeout = the 408 deadline arm).")
+	ins.searchQueries.Add(0, "plane", "aql")
+	ins.searchRej.Add(0, "reason", "concurrency")
+	ins.searchRej.Add(0, "reason", "timeout")
 
 	if deps.Replication != nil {
 		ins.replTasks = mustGauge(reg, metricReplicationTasks,

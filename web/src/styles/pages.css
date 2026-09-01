@@ -318,7 +318,10 @@
   background: color-mix(in srgb, var(--bf-warning) 8%, transparent);
   padding: var(--bf-sp-2) var(--bf-sp-3);
   margin-bottom: var(--bf-sp-4);
-  color: var(--bf-warning);
+  /* T-416：裸 --bf-warning 文本在亮色 8% 底上不足 4.5:1（axe serious）——
+     对齐 base.css 徽章族的配方（token 78% + text，同 token 对同比例，
+     亮 ≈6.1:1 / 暗 ≈7.4:1） */
+  color: color-mix(in srgb, var(--bf-warning) 78%, var(--bf-text));
   font-size: var(--bf-fs-aux);
 }
 

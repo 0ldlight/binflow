@@ -19,6 +19,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/metrics"
 	"github.com/lzwzzy/binflow/internal/replication"
 	"github.com/lzwzzy/binflow/internal/repo"
+	"github.com/lzwzzy/binflow/internal/search"
 	"github.com/lzwzzy/binflow/internal/storage"
 )
 
@@ -224,7 +225,17 @@ type Server struct {
 	// Always built (harmless on stacks without the seam — every endpoint
 	// answers the 501 before it ever consults the registry).
 	uploads *mpuRegistry
-	srv     *http.Server
+	// aql runs POST /api/search/aql (M15 T-415, FR-133.3 / ADR-0043 §24.1):
+	// the T-413 search engine, assembled HERE from the already-wired Deps —
+	// httpapi is the sole assembly point of search x repo x metadata. nil
+	// (metadata-less unit stacks, or a node store without NodeQueryer) keeps
+	// the endpoint at the honest 503.
+	aql aqlRunner
+	// aqlVirtual is the virtual-repository index shared by the engine (the
+	// Members resolver of aql.md §7-1) and the endpoint (the virtual_repos
+	// projection of §7-3); nil exactly when aql is.
+	aqlVirtual *virtualIndex
+	srv        *http.Server
 }
 
 // New assembles the server. deps.Console may be nil (a bare console
@@ -330,6 +341,22 @@ func New(deps Deps, log *slog.Logger) *Server {
 		s.auditLog = lg
 	} else {
 		s.audit = noopRecorder{}
+	}
+	// The AQL engine (M15 T-415, FR-133.3 / ADR-0043 §24.1: httpapi is the
+	// sole assembly point of search x repo x metadata — the session/permView
+	// facet precedent, so cmd's Deps wiring stays untouched). Requires the
+	// queryable node store (metadata.NodeQueryer, the NodeSearcher assertion
+	// shape) and the repository service's ACL seam; anything less keeps
+	// POST /api/search/aql at the honest 503 rather than an unfiltered query.
+	if deps.Metadata != nil && deps.ReposSvc != nil {
+		if q, ok := deps.Metadata.Nodes().(metadata.NodeQueryer); ok {
+			s.aqlVirtual = newVirtualIndex(deps.Metadata)
+			s.aql = search.NewEngine(search.EngineOptions{
+				Nodes:   q,
+				ACL:     deps.ReposSvc,
+				Virtual: s.aqlVirtual,
+			})
+		}
 	}
 
 	s.srv = &http.Server{
