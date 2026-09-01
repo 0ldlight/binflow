@@ -251,6 +251,31 @@ manifest（by-tag 与 by-digest）与 blobs 是**逐路径各自 MISS→HIT** �
 
 是**有意幸存**：chart 自建 PVC 带 `helm.sh/resource-policy: keep`（M14 起恒注入，用户注解撞键也 keep 胜出——T-376 裁决 / T-394），`helm uninstall` 只删工作负载、保留数据卷——防「卸载重装图省事，制品全没了」的误删。同 namespace 重装同名 release 会复用幸存 PVC。**彻底删除须手动清卷**：`kubectl delete pvc --namespace <ns> <release>-binflow`（或按标签 `-l app.kubernetes.io/instance=<release>`）；`existingClaim` 复用外部 PVC 的部署不适用本条。详见 [Helm Chart 安装 · 卸载](install/helm.md#卸载)。
 
+## M15 增补两问（AQL 子集边界 / AQL 迁移差异）
+
+### Artifactory 的 AQL 查询搬过来，哪些能用哪些 400？
+
+BinFlow 实现 AQL 的 **items 域只读子集**：`items.find()` + 全部比较/通配/逻辑操作符（`$eq/$ne/$gt/$gte/$lt/$lte/$match/$nmatch/$and/$or/$msp/$last/$before`）+ `.include().sort().offset().limit()` 尾缀链 + virtual key 透明展开，均可用；envelope、range、错误信封与 E1 语法错文案与 Artifactory 逐字一致。
+
+**400 点名拒绝**的（message 直接说原因，不是静默空集）：
+
+- **域**：`builds` / `modules` / `dependencies` / `releases` 等 build 系与 release 系域；`statistics`（未存储）；`properties` 作入口域（属性条件写在 items 里：`{"@key":"v"}`）。
+- **字段**：`stat.*` 族（M16 计划）、`modified_by`、`original_sha1`/`original_md5`（BinFlow 单值 checksum）。
+- **动词/修饰**：`.delete()` / `.update()` / `.dryRun`（AQL 只读）、`.transitive`、`.distinct()`、`$not`（AQL 语言本身无此操作符）。
+
+完整字段表与文案族见 [AQL 搜索指南](aql.md#语言子集)。
+
+### 从 Artifactory 迁 AQL 查询脚本，要改哪几处？
+
+四类高频改写（完整对照表见 [AQL 指南 · 迁移对照](aql.md#从-artifactory-aql-迁移对照表)）：
+
+1. **相对时间加空格**：`"$last":"1d"` → `"$last":"1 d"`（BinFlow 要求 count 与 unit 空格分隔，`"1d"` 400 `Invalid relative date format`）。
+2. **build/stat 域查询改道**：build 系查询走外部 CI 记录；下载统计 M16 前用指标/usage 面替代。
+3. **大结果集加分页**：BinFlow 硬上限 **1,000 行**（Artifactory self-managed 无默认上限）——超限置 `X-Binflow-Search-Truncated: true` + `range.notification`，`.offset()` 循环续翻；注意**自己的 `.limit(n)` 小于命中数时同样置截断标记**（= 还有未取行，不代表出错）。
+4. **凭据**：AQL 永不允许匿名（闭环实例 401 / 开匿名实例 403），脚本必须带 Basic/Token。
+
+另有两个「反向惊喜」：`.sort()` 在 Artifactory OSS 档被许可门挡，BinFlow 无门**直接可用**；`maven-metadata.xml` 会作为普通 file 行出现在 items 结果里（想排除加 `{"name":{"$nmatch":"*maven-metadata.xml"}}`）。
+
 ## M4 有意不兼容清单（里程碑级汇总）
 
 从 Artifactory 迁移时的差异点（各域细节见对应指南；M1~M3 清单见 [remote/virtual 管理](admin/remote-virtual.md#m3-有意不兼容清单汇总)）：
@@ -259,7 +284,7 @@ manifest（by-tag 与 by-digest）与 blobs 是**逐路径各自 MISS→HIT** �
 |---|---|---|
 | 组的 admin 位 | 组只能授 read/write/delete；admin 组成员的非 admin 用户对管理面仍 403 | M4 定案（防组内自提权） |
 | `/api/v2/security/permissions/**`（Artifactory v2 权限 API） | 404——BinFlow 权限面是 `/api/v1/permissions` | M4 |
-| Artifactory 搜索族（props/users/artifactory/pattern/badge、AQL） | 404——M4 仅 name 子串 + checksum 精确 | M4；gavc/props 后续评估 |
+| Artifactory 搜索族残项（props 复数拼写/users/artifactory/badge） | 404——AQL 与 gavc/prop/pattern 已于 M15 交付（见 [AQL 搜索指南](aql.md)），`creation/dates/usage` 族登记 M16 | M4 起；M15 收窄 |
 | `/api/system/storage/prune/**` | 404——空间回收走 GC | M4 |
 | REST export/import | 404——备份恢复仅 CLI | M4 定案（高危操作带外） |
 | 异步 GC 作业 / GC 状态端点 | 同步执行、无 `GET /api/v1/system/gc`（上次运行查审计 `gc.run`） | M4；异步框架 M6+ |
@@ -280,6 +305,8 @@ manifest（by-tag 与 by-digest）与 blobs 是**逐路径各自 MISS→HIT** �
 | （无内置实例级只读管理员；管理面 admin 为布尔） | `adminRole` 三值角色（`user`/`readonly_admin`/`admin`） | M7 起；`admin=true ⇔ adminRole=admin` 两写法等价。readonly_admin 为 BinFlow 自有（Artifactory 近似能力 = target 只授 read，无管理面只读） |
 | `binflow_session` 控制台会话 | （本产品新增） | server-side session + CSRF Origin 校验；Artifactory 无对应面 |
 | System YAML / storage GC / backup | `binflow.yaml` / `POST /api/v1/system/gc` / `export`/`import` CLI | GC 语义（mark-sweep + grace=mtime）同构 |
+| AQL（`POST /api/search/aql`） | 同路径同信封（M15） | items 域只读子集；build/stat 域、写动词、`.transitive` 400 点名——逐条差异见 [AQL 指南 · 迁移对照表](aql.md#从-artifactory-aql-迁移对照表) |
+| 老搜索族（gavc/prop/pattern） | 同路径（M15） | `prop` 单数拼写；未命中一律 200 空数组；行 = FileInfo 超集（非 Artifactory 瘦 uri 行） |
 
 迁移注意事项（高频四问）：
 

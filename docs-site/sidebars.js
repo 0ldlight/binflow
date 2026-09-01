@@ -96,6 +96,10 @@ const sidebars = {
     // ?properties family) — community-floor cross-cutting feature.
     'properties',
 
+    // M15 (T-426): the AQL search guide (items-domain subset, error copy
+    // family, Artifactory AQL migration table).
+    'aql',
+
     'faq',
 
     // --- 安装指南 (7 deployment forms + upgrade notes) lands with T-141 ---

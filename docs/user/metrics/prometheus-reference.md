@@ -31,7 +31,7 @@ curl -s http://127.0.0.1:8080/metrics | head
 
 不想开认证又不想暴露？在反代层限制 `/metrics` 的来源（白名单 Prometheus 主机）。
 
-## 指标族（四类，名字逐字对齐实现）
+## 指标族（名字逐字对齐实现）
 
 ### HTTP
 
@@ -55,6 +55,14 @@ curl -s http://127.0.0.1:8080/metrics | head
 | 指标 | 类型 | 标签 | 语义 |
 |---|---|---|---|
 | `binflow_auth_logins_total` | counter | `source`（`local`/`oidc`/`ldap`） | 控制台登录成功计数（按认证来源；失败不计） |
+
+### 搜索（M15）
+
+| 指标 | 类型 | 标签 | 语义 |
+|---|---|---|---|
+| `binflow_search_queries_total` | counter | `plane`（`aql` / `legacy`——legacy = gavc/prop/pattern 三端点合值） | 查询执行计数（AQL 含 400 在内每次执行；M4 的 artifact/checksum 两端点不喂此族） |
+| `binflow_search_query_duration_seconds` | histogram | — | 查询执行时长（两平面共用，无标签维度）；AQL 另有服务端 >5s 单行 WARN 日志 |
+| `binflow_search_rejections_total` | counter | `reason`（`concurrency` = 429 / `timeout` = 408） | 资源门拒绝计数（门本身见 [AQL 指南 · 资源门](../aql.md#资源门与限流)） |
 
 ### 复制
 

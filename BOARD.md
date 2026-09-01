@@ -1615,4 +1615,8 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **B12 派发（conductor 2026-09-02 04:2x）**：**T-426**（tech-writer 文档票两腿——AQL 指南/搜索 API 参考/virtual·复制包 B 增量/FAQ；前置全满足）入 lane；审计 workflow 树对照继续。
 
+**T-426 → done 2026-09-02 04:2x——M15 18/25（文档票两腿齐）**：**docs/user/aql.md 新篇**（子集边界 + 400 逐字 + **Artifactory AQL 迁移对照表**）+ api-reference（SR 表翻转 aql/gavc/prop/pattern + /v1 表 +3 行 + **顺修存量 bug：复制 target_url 缺 /binflow 后缀**）+ governance（搜索节重写 + 复制包 B 三小节）+ console（T-416/419/420/422 四面增量）+ FAQ 两问 + 顺车三处（search 指标入册/README/sidebars）。**双净实例实测**（18501/18502 避开审计端口）：AQL 22 组 curl + 老搜索四端点 + 复制包 B 全臂（run→AQL 验证 5 路径收敛/409×2/封锁四变体）跑通留输出；make docs 零断链。**as-built 事实入册两处**（相对时间 `"1d"` 须空格〔与官方后缀表字面冲突——分歧登记，翻转点 lexer.go parsePeriod〕；用户 .limit() 也置截断标记）。**环境注记**：04:08:34 全机 binflow-server 同秒被外部 SIGTERM（审计实例 18091 + 本票 scratch；非本票 pkill）——审计实例未复活，登记待查。遗留四条（429/408 未活体触发系语料限制、blockPull 降级按 T-422 报告入册、FE 面以各票 e2e 为据）。日志 reports/agents/T-426.md。
+
+**B13 派发（conductor 2026-09-02 04:3x）**：**T-427**（PM 收口笔——Q 总账归位 + LC/K 终版 + 「M15 未纳入项」起草〔与 intake ⑤ M16 语境衔接〕；dep T-407/T-425 均满足）入 lane。
+
 **全树 race 补证判无效（conductor 2026-09-01 14:3x）**：与两 agent 测试套件同机并发跑——22 包红全部 620-660s 超时形态 + db/sql 竞争 panic + storage fail-open 窗口 = **共租负载签名**（T-414 日志同款 load 450-630），非产品缺陷。T-412 的 AC3 证据改挂 **T-421 中期 QA 串行全树 race**（届时 lane 空净）。**D-413-2 [P3·登记]**：唯一真信号 = T-413 `TestEngineMixedLoad` 在慢机下 K63 并发门 429 介入而测试只容忍 busy gate 拒绝——测试健壮性收窄（门注入调低或混合负载容忍 429），归 T-421 复验时顺腿修或转 T-433。**教训入册：全树 race/性能类验证必须 lane 空净时串行跑（派单纪律）。**
