@@ -1611,4 +1611,8 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **B11 派发（conductor 2026-09-02 03:5x）**：**T-425**（远端浏览评估票——研究型轻载，产 Q4 材料包；机器被审计 workflow 占用故选此票）入 lane；**T-421 继续押后**（净机需求）。
 
+**T-425 → done 2026-09-02 04:1x——M15 17/25（评估票：Q4 材料齐）**：13 包型能力矩阵（官方文档 2026-09-02 实取 + 21 包型设置出现矩阵脚本比对 + 本仓规格双源）+ 三出口材料 + Q4 浓缩包。**关键发现**：Artifactory 远端浏览 = 可选档 `listRemoteFolderItems`（**默认 false**；官方设置面仅 Debian/Generic/Maven/Opkg/RPM 五型）——PM docker-tags 倾向系 **L2 超 parity 错位**（Artifactory 未开放该型，已标注供裁）；maven/generic HTML 抓取族官方未写算法（中置信→建议不做）。t226 活体 Pro 许可门 400 → 降级留痕零静默升格。**Q4 终裁（conductor 2026-09-02 04:2x）**：**出口 C 批 1 = helm+deb+rpm**（~3 票零新解析器——对齐 Artifactory 可选档语义，默认维持缓存浏览）；docker tags 腿不采（超 parity）；maven/generic HTML 抓取族不做（算法无锚）；**LC-76 归 A（可选档语义）**，实现段 M16 登记。日志 reports/agents/T-425.md。
+
+**B12 派发（conductor 2026-09-02 04:2x）**：**T-426**（tech-writer 文档票两腿——AQL 指南/搜索 API 参考/virtual·复制包 B 增量/FAQ；前置全满足）入 lane；审计 workflow 树对照继续。
+
 **全树 race 补证判无效（conductor 2026-09-01 14:3x）**：与两 agent 测试套件同机并发跑——22 包红全部 620-660s 超时形态 + db/sql 竞争 panic + storage fail-open 窗口 = **共租负载签名**（T-414 日志同款 load 450-630），非产品缺陷。T-412 的 AC3 证据改挂 **T-421 中期 QA 串行全树 race**（届时 lane 空净）。**D-413-2 [P3·登记]**：唯一真信号 = T-413 `TestEngineMixedLoad` 在慢机下 K63 并发门 429 介入而测试只容忍 busy gate 拒绝——测试健壮性收窄（门注入调低或混合负载容忍 429），归 T-421 复验时顺腿修或转 T-433。**教训入册：全树 race/性能类验证必须 lane 空净时串行跑（派单纪律）。**
