@@ -2,7 +2,7 @@
 
 > 由 product-manager 维护；tech-lead 据此把当前里程碑分解为 ticket。
 
-## 当前里程碑：M14（UI-parity 里程碑——前端交互体验与 Artifactory 完全对齐 + 协议 logo + 自设计品牌 logo + docker remote 首航；PRD v1.0 草案待 conductor 审，2026-08-31；M13 已 `m13-done` 2026-08-31）
+## 当前里程碑：M15（候选池已启——AQL 专程第一顺位 + M14 未纳入项承接；PM 立项稿待 conductor 审；M14 已 `m14-done` 2026-09-01）
 
 ### M0 — 团队启动（已完成）
 - [x] 产品愿景 PRODUCT.md（BinFlow）
@@ -172,7 +172,7 @@
 - **编排注记**：playwright 全量纯净 community 实例前提 README 一行（T-374 L3——T-377 再次实证：pro 宿主 132 红）；dind containerd snapshotter 调试建议 `--feature containerd-snapshotter=false`（T-377 D2 环境注记）。
 - **沿 M11/M12 候选池续滚**：HA 本体（Q1——PRODUCT.md 修订解禁未发生）/ AQL + 老搜索 / Build-info 域 / Go 深化 / Terraform / GitLFS / 制品 license 识别 / 冷存储分层 / AI/ML 包型扩展 / license 公钥 config 覆盖。
 
-### M14 — UI-parity 里程碑：前端交互体验与 Artifactory 完全对齐 + 协议 logo + 自设计品牌 logo + docker remote 首航（PRD v1.0 草案待 conductor 审，2026-08-31）
+### M14 — UI-parity 里程碑：前端交互体验与 Artifactory 完全对齐 + 协议 logo + 自设计品牌 logo + docker remote 首航（**`m14-done` 2026-09-01**；PRD v1.2 终版——24 票全落：22 done〔含 T-406/T-406b P0 热修〕+ 条件票 T-401 已触发执行 + T-403 未触发留痕 + T-402 两段/T-404/T-405 增补；T-400 终验 PASS：五 AC 全绿，L16 终评落档 parity v1.3）
 需求基线：docs/prd/milestone-14.md（PRD v1.0 草案：FR-123~FR-130 八条需求；契约矩阵 10 条〔A 7 / C 2 / 待裁 1——LC-57~LC-66 续接〕+ 档位矩阵增量 0 行〔19 槽维持〕；L01~L18；开放问题 Q1~Q7 带暂行；E1~E7 豁免常设条款）
 来源链：用户指令 2026-08-30 三指令（① 交互体验与 Artifactory 完全一致〔弹窗/抽屉〕② 协议 logo ③ 自设计品牌 logo——M14 主轴定音，**AQL 专程让位滚 M15 第一顺位**）+ UX-1 三交付（console-artifactory-parity.md §7 差距矩阵/§8 V1~V8/§9 E1~E7/§10 批次 + brand/logo 三候选 + brand/package-icons 30 枚）+ ROADMAP「M13 未纳入项」候选池 PM 收编（FE 类入主轴；docker remote〔T-380 K54 条件已满足〕/npm legacy login/PVC keep/v3-flat 补锚入波；Replay REST/D1 busy/成员同型滚 M15+——理由 PRD §2.2 留痕）
 - [ ] conductor 审定 PRD v1.0（Q1~Q7 暂行终裁——活体核验源/logo 圈定窗/决策项 A·B·C 前置；无新 ADR——服务端两面均既有域增量）
@@ -186,11 +186,13 @@
 - [ ] FR-130 服务端小票包 P1/P2：npm legacy login（T-77 O-4 实证）+ helm uninstall PVC keep + 启动日志措辞 + v3-flat 403-vs-409 规格补锚（Q6 条件翻转）
 - [ ] QA：L01~L18 + 差距矩阵逐格终评（17×8 覆盖率 100%）+ E1~E7 豁免复核 + axe 双主题维持 + M1~M13 P0 双形态全量回归 + FE 票服务端 diff=0；tech-writer 增量（console parity 化 + 品牌注记 + docker remote 接入 + npm login + helm keep）；release 烟测 + UAT 随里程碑 PR
 - [ ] 条件票：NuGet symbol server（余量四承）/ v3-flat 翻转（Q6）/ N2 图标槽（V5）/ D3 立项（Q7）——未触发 BOARD 留痕非 DoD 缺口
-- [ ] 「M13 未纳入项」对账：收口时建「M14 未纳入项」段（DoD#7 字面；M15+ 主轴候选第一顺位 = AQL + 老搜索专程——UI-parity 让位留痕 + Replay/D1 busy/成员同型滚程登记；**备稿已就绪——T-395 v1.1，见下段，收口窗启用**）
+- [x] 「M13 未纳入项」对账：收口时建「M14 未纳入项」段（DoD#7 字面；M15+ 主轴候选第一顺位 = AQL + 老搜索专程——UI-parity 让位留痕 + Replay/D1 busy/成员同型滚程登记；**备稿已就绪——T-395 v1.1，见下段，收口窗启用**）→ **已启用**（m14-done 收口笔：下段去「备稿」帽，T-406 遗留〔virtual 聚合 / remote 远端浏览〕并入）
 
-### M14 未纳入项（**备稿**——滚入 M15+ 候选池；T-395 2026-08-31 起草，收口窗由 conductor 启用并按届时 as-built 修订勾稽；DoD#7 对账）
+### M14 未纳入项（滚入 M15+ 候选池；T-395 2026-08-31 起草，**m14-done 收口笔启用**并按 as-built 修订勾稽——T-406 遗留两项并入；DoD#7 对账）
 
-> **状态：备稿未启用**——PM 预备文本（沿 M13 R5 先例），启用与内容定稿归 conductor 收口动作；「票级遗留」以下以 2026-08-31 23:3x 票据状态（M14 12/22 + T-402 增补）为基线，启用时逐条复核仍成立/已消化。
+> **状态：已启用（m14-done 收口笔 2026-09-01）**——PM 预备文本（沿 M13 R5 先例）经 conductor 终验后启用；「票级遗留」以下以 2026-08-31 23:3x 票据状态为基线起草，收口笔逐条复核：滚程三项/三出口候选维持成立，主轴 AQL 第一顺位维持；**T-406 收口笔并入两项**（见下）。
+
+- **T-406 遗留（m14-done 并入）**：virtual 仓聚合浏览（FR-21-AC8 P2——成员并集 children / Artifactory 同形态；M14 以成员感知空态收口，读取面经成员解析已可用）+ remote 仓远端浏览（Artifactory remote browsing——M14 落缓存浏览即停，不回源列举；回源列举系上游目录枚举语义决策，需 per-协议探测上游能力）。
 
 - **主轴候选（M15 第一顺位 = AQL + 老搜索专程）**：M13 PRD 原列 M14 第一顺位，被 2026-08-30 UI-parity 主轴指令让位（用户动作，非 PM 裁量）；M14 PRD §2.2 留痕在案；体量专程级判断不变（查询语言/执行引擎/分页）。
 - **滚程项（M14 PRD §2.2 判定维持）**：Replay + outbox 行级 REST 面（M15+ webhook 域二程——运营增强非协议兼容面，死信重放机制已备翻转面小不返工）；remote 缓存树高并发 busy 重试预算（M15+ 后端硬化——门内 8 路零 5xx 已达承诺，24 路 0.27% SQLITE_BUSY 可重试边角，busy_timeout 牵 SQLite 写路径需专项回归）；virtual 成员同型全包型推广（M15+ 后端对齐程——需 13 包型 × 三 rclass 全量回归矩阵）。

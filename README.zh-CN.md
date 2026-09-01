@@ -48,7 +48,7 @@ conan v1 recipe DELETE 翻转为**整树删**；**运行旋钮**落地
 （`folder_download` 六字段 + `trashcan.retention_days`，重启生效，
 `GET /api/v1/system/settings` 回显）。
 
-M14（进行中）开出 **docker remote 代理缓存**（community 档；自指上游
+M14（已完成）开出 **docker remote 代理缓存**（community 档；自指上游
 实测 digest 全等、二拉上游计数冻结），修复 **npm 交互式 legacy login**
 （裸 `npm login --auth-type=legacy` 全链铸 token 可用），钉死 Helm Chart
 的 **PVC keep 姿态**（`helm uninstall` 有意保留数据卷），并落地**品牌
@@ -70,7 +70,7 @@ logo + 逐包型图标集**（控制台与文档站统一换装）。
 | 内容 | 位置 |
 |---|---|
 | 产品愿景与范围 | [`PRODUCT.md`](PRODUCT.md) |
-| 里程碑（M1 内核 → M14 UI-parity 程；M1~M13 已完成，M14 进行中） | [`ROADMAP.md`](ROADMAP.md) |
+| 里程碑（M1 内核 → M14 UI-parity 程；M1~M14 已完成） | [`ROADMAP.md`](ROADMAP.md) |
 | M14 需求（PRD：Artifactory 交互形态对齐 / 协议与品牌 logo / docker remote 首航 / 服务端小票包） | [`docs/prd/milestone-14.md`](docs/prd/milestone-14.md) |
 | M13 需求（PRD：Webhook 事件总线 / HelmOCI 补全 / 配置旋钮 / 行为债收口） | [`docs/prd/milestone-13.md`](docs/prd/milestone-13.md) |
 | M12 需求（PRD：NuGet 补全 / 制品生命周期 / 行为债收口） | [`docs/prd/milestone-12.md`](docs/prd/milestone-12.md) |

@@ -118,6 +118,7 @@ curl -s -b jar.txt -X PUT $BASE/binflow/generic-local/a/f.txt \
   - 文件夹：复制路径 / 删除 / 刷新
   - 仓库：复制仓库路径 / 刷新 / 在仓库管理中打开
 - 当前层 children 表（名称/类型/大小/修改时间/操作者）支持「过滤当前层」与「只看文件」；大目录客户端分页「加载更多」，超过 2000 条提示改用[搜索](#搜索与仪表盘)。
+- **仓型面（M14）**：local 仓直列内容；**remote 仓只列已缓存制品**（浏览永不回源——空目录提示「远程仓库：仅展示已缓存的制品」，与 Artifactory 的 remote-cache FolderInfo 同口径；回源拉取走包管理器协议面）；**virtual 仓聚合浏览暂未支持**（内容面为成员感知的空态——读取仍按成员仓解析，FR-21-AC8 待补）。
 - **跨路径 Move/Copy 不做树内入口**（REST 面自 M12 起可用——[制品操作族](admin/artifact-operations.md)）；**删除先入回收站**（pro 槽 `trashcan`，社区档为硬删——治理页 [回收站](#治理admingovernance) 可浏览/恢复）。
 
 详情面板三形态（Tab 式：`常规` / `有效权限`（admin 渲染））：

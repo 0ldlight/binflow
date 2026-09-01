@@ -67,7 +67,7 @@ recipe DELETE becomes a **whole-tree delete**, and the long-awaited
 `trashcan.retention_days`, restart-effective, echoed over
 `GET /api/v1/system/settings`).
 
-M14 (in progress) opens **docker remote pull-through** (community tier,
+M14 (done) opens **docker remote pull-through** (community tier,
 self-referenced upstream verified with digest parity and frozen upstream
 counts on re-pull), fixes **npm legacy `login`** (bare
 `npm login --auth-type=legacy` now mints a token end to end), pins the
@@ -92,7 +92,7 @@ shows the live per-slot verdict. Full guide:
 | What | Where |
 |---|---|
 | Product vision & scope | [`PRODUCT.md`](PRODUCT.md) |
-| Milestones (M1 kernel → M14 UI-parity pass; M1–M13 done, M14 in progress) | [`ROADMAP.md`](ROADMAP.md) |
+| Milestones (M1 kernel → M14 UI-parity pass; M1–M14 done) | [`ROADMAP.md`](ROADMAP.md) |
 | M14 requirements (PRD: Artifactory interaction parity, protocol + brand logos, docker remote first flight, server small-fix pack) | [`docs/prd/milestone-14.md`](docs/prd/milestone-14.md) |
 | M13 requirements (PRD: webhook event bus, HelmOCI completion, config knobs, behavior-debt closure) | [`docs/prd/milestone-13.md`](docs/prd/milestone-13.md) |
 | M12 requirements (PRD: NuGet completion, artifact lifecycle, behavior-debt closure) | [`docs/prd/milestone-12.md`](docs/prd/milestone-12.md) |

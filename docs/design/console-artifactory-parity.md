@@ -4,7 +4,7 @@
 |---|---|
 | 文档 | `docs/design/console-artifactory-parity.md` |
 | 票据 | UX-1（插空票：品牌资产 + Artifactory 交互对齐规格） |
-| 状态 | v1.2（2026-09-01，T-402a replication 交互面锚定增补） |
+| 状态 | v1.3（2026-09-01，T-400 终验 L16 矩阵逐格终评落档） |
 | 维护者 | ux-designer |
 | 上游依据 | 用户指令 2026-08-30（① 前端交互体验与 JFrog Artifactory 完全一致，含弹窗、抽屉等）；`docs/design/console-ux.md` v1.15（IA/四态/token 母册）；`docs/design/mui-native-visual.md`（MUI 原生视觉基线）；`web/src/` 现状逐一核对（见各模式的「BinFlow 载体」列） |
 | 下游消费者 | **PM——M14 UI-parity PRD 直接引用 §7 差距矩阵**；FE 拆票；qa-engineer 验收 |
@@ -19,6 +19,7 @@
 | v1.0 | 2026-08-30 | UX-1 初版：交互模式 catalog（导航 N1~N3 / 弹窗 M1~M4 / 抽屉 D1~D3 / 列表 L1~L4 / 反馈 F1~F3），逐项置信度标注 + MUI 映射 + BinFlow 载体对照；§7 页面×模式差距矩阵；§8 活体核验清单；§9 不做清单；§10 落地批次建议 |
 | v1.1 | 2026-08-31 | **T-381 活体核验回写**（qa-engineer 执行，源 = t226-artifactory OSS 7.84.10 活体实例，DOM 实测）。V1~V8 全部核验，改契约级结论：**M1 决策项 A 撤销**（7.84 建仓 = 网格 modal 880px + 整页表单两段式，BinFlow 现形态已一致）；**M3 决策项 B 撤销**（7.84 用户/组创建 = 整页路由表单，非 modal）；**L2 ⋮ 菜单无对位**（7.84 行内 = 直删 trash 图标按钮，删除确认为 520px 轻量 message-box、无 type-the-key、Delete 键为绿色主按钮）；**D1 宽度修正 480px→50vw**（800px@1600 实测，Tab = Configure/Deploy/Resolve 三枚）；**F1 锚位证实 = 顶部居中单条 ~2-3s**（E7 转入「再议」）；**V5 证实侧栏条目带图标**（N2 维持改造）；**V7 关闭**（Builds 面存在但 BinFlow 不建；制品详情页签无依赖视图）。§7 矩阵按此重印，§8 附核验结论列。证据：`reports/agents/T-381.md` + `reports/agents/t381-evidence/` |
 | v1.2 | 2026-09-01 | **T-402a 复制（replication）交互面锚定增补**（qa-engineer 执行，用户指令 2026-08-31 23:2x「replication 的交互要和 Artifactory 一致」）。新增 **§6A R 系条目 R1~R10**（逐项置信度）：活体实测高置信 = R1 入口拓扑（**仓级表单步骤节**，仓库编辑页 jf-steps 三步 Basic/Advanced/**Replications** 等宽 387px 横排；OSS 无全局复制管理页）、R2 OSS license 门形态（Replications 步 `is-disabled` 点击 no-op、REST `/api/replications*` 一律 400 Pro-only、UI-API `global/replications/config` 反而不受门）、R5 列表列形态（本地仓列表 **Replications 列**，OSS 每行 cell=「0」；启用态=bundle 实证 `icon-run` 图标链 + 三态 tooltip）、R7/R9 状态呈现与容器形态；OSS 门后不可达项中/中高置信（bundle 静态资产行为事实 + 公开 REST 双源，**未静默升格**）= R3 字段集（enabled/cronExp/enableEventReplication/pathPrefix/syncDeletes/syncProperties/syncStatistics）、R4 cron 校验（`GET /crontime?isReplication=`，Quartz 格式）、R6 Test 动作、R8 全局封锁开关（blockPush/blockPull）。§7 矩阵增「复制」专用行。**注意**：BinFlow 复制为事件驱动（无用户级 cron）——R4 对齐是后端语义决策非纯 FE parity。证据：`reports/agents/T-402a.md` + `reports/agents/t402-evidence/` |
+| v1.3 | 2026-09-01 | **T-400 终验 L16 矩阵逐格终评落档**（qa-engineer 执行——T-381 共笔先例）。§7 矩阵正文保持 v1.2 原样（历史基线），其后新增 **§7A 终评表**：v1.2 时点仍标 △/✗ 的全部格子（D1 双入口 / L1 三处 / N2 / Tokens 四格 / 复制 M2·M3）按 M14 落地票据（T-382/T-386/T-387/T-388/T-404）翻 ✅ 或（豁·登记），**终评覆盖率 100%**；三出口（V5 不降级 / V7 关闭 / E7 再议）落档；E1~E7 逐条复核零倒退。证据：`reports/agents/T-400.md` |
 
 ## 1. 目标、边界与置信度标尺
 
@@ -332,6 +333,27 @@ BinFlow 族基座：`web/src/components/ConfirmDialog.tsx`（MUI `Dialog`，Esc/
 | 依赖树 D3 | —（v1.1 关闭：依赖视图挂 Builds 面（§9 永不建），制品页签无对位已实测） | | | | | | | |
 
 **模式级汇总（v1.1 重排；v1.2 增补）**：核验后**唯一高优先 parity 差距 = D1 抽屉族**（Set Me Up 居中 Dialog → 右抽屉 50vw + 补 Resolve Tab）；**次级 = Tokens 页真身**（BinFlow 侧缺口）；原 M1 建仓单 modal 化、M3 用户/组创建 modal 化、L2 ⋮ 菜单三个改造项的 parity 依据经核验**不成立，撤销**（BinFlow 现形态即 Artifactory 形态，或 Artifactory 无对位）；低优先 = L1 列选/刷新、N2 侧栏图标（一级条目档位）、F2 空态插画位。**v1.2 增（R 系，T-402a）**：复制面 = 状态呈现 ✅ 超集（R7）+ 容器形态 ✅（R9）+ push 模型 ✅（R10）；**UI CRUD 表单 ✗**（R1 拓扑裁定 + R3 字段集——FE 为主）；**cron/Replicate Now/Test/全局封锁四项 ✗ 且均为后端语义前置**（R4~R6/R8——超出 FE parity 票，交 PM 立项评审；BinFlow 事件驱动模型是否引入 cron 双轨是产品决策非纯对齐）。
+
+### 7A. T-400 终评表（v1.3，2026-09-01——L16 逐格终评落档；矩阵正文保持 v1.2 历史基线不动）
+
+上图 v1.2 矩阵中仍标 △/✗ 的格子，按 M14 落地票据逐格终评（**覆盖率 100%**；全部非豁免 △/✗ 已翻 ✅，范围外/有意保持者以（豁·登记）收口）。证据 = T-400 复跑或票据承证，逐格见 `reports/agents/T-400.md` §AC1。
+
+| v1.2 格 | 终评 | 依据（票据 + T-400 复核） |
+|---|---|---|
+| 制品树 D1（决策项 C：Deploy 抽屉化评估） | **（豁·暂行定案）** | Q3-C 维持暂行（PRD §7）：Deploy 有意保持居中 Dialog——上传进度表在抽屉过窄；T-382 零改动遵守；终裁窗开放，用户推翻才开票 |
+| 仓库列表 D1（行内 Set Me Up 入口待抽屉化） | ✅ | T-382 落地（行/详情入口均开右抽屉 50vw 档）；T-400 复跑 `setmeup-deploy` 7/7 绿（含 armed 真门腿） |
+| 仓库列表 L1（列选/刷新缺） | ✅ | T-387 落地（列选 Menu + 全选复位 + 刷新钮 + per-page localStorage）；T-400 全量含 t387 spec 绿 |
+| 仓库详情 D1（Set Me Up 入口） | ✅ | 同 T-382（详情入口同一抽屉） |
+| 用户/组 L1、权限 L1（△） | **（豁·登记）** | L1 首期范围 = 仓库/审计两页（PRD FR-125.2「列多者受益」）；其余列表推广系 T-387 遗留候选（columnPrefs 共享层已就绪），非 M14 DoD |
+| 审计 L1（列选缺） | ✅ | T-387（审计页列选 + 刷新，e2e 断言 reload 持久） |
+| Access Tokens M3（✗ 占位） | ✅ | T-386 真身（创建 modal + 一次性明文仅展示一次 + 吊销双出口 + 会话台账；`PlaceholderPage` grep=0）；字段集 V6c 降级暂行（Q4 维持——OSS 无 admin token 面可核验） |
+| Access Tokens L1（✗）/ L2（✗）/ F 系（✗） | **（豁·登记）**/ ✅ / ✅ | L1：台账为会话内存态（刷新即空），列选无对象——登记不建；L2：无 ⋮ 无行内直删（E1 家族对齐）；F：空态插画槽 T-388 落地（八列表页 15 落点） |
+| 复制 M2（△ 补删除确认） | ✅ | T-404：E1 输入 name 强确认（错名禁用/对名放行 + 取消腿） |
+| 复制 M3（△ 补配置表单） | ✅ | T-404：R1 裁定形态落地（仓编辑页 `form-section-replications` 内嵌节 + R3 字段两档 + 预留位恒禁用零提交）；T-405 PUT 启停联合腿 live 绿（T-396 L19 承证） |
+| 全局壳 N2（△ 图标槽） | ✅ | T-388：18 条一级条目 16px mono currentColor（V5 实测档位——仅一级条目，子项/分组标签不配） |
+| 依赖树 D3 | 关闭维持 | V7 出口（挂 Builds 面，§9 永不建）；BinFlow 维持不建 |
+
+**三出口终评落档**：V5 **不降级**（T-388 已落）/ V7 **关闭**（D3 维持不建）/ E7 **再议维持不改**（BinFlow toast 右下堆叠为有意设计，待用户推翻信号）。**E1~E7 豁免终核：零倒退**（T-400 代码面逐条复核：`MoreVert` 全树 grep=0、无页码控件、`badge neutral` 在位、PermissionEditorPage/UserDetailPage 路由页在位、中英混排维持、ToastContext 右下锚位维持；详见 T-400 报告 §AC2）。
 
 ## 8. 活体核验清单（低/中置信项；核验后才可升格为 PRD 断言）——**v1.1：V1~V8 已全部核验**
 
