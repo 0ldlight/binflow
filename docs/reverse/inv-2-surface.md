@@ -55,8 +55,8 @@ Jersey 装配证据：`org.artifactory.rest.servlet.JerseyApplication` 注册扫
 
 | 功能族 | 根路径 / 证据 | 行为要点 | 置信度 | BinFlow 覆盖 |
 |---|---|---|---|---|
-| AQL | `search/aql`（AqlResource）| POST AQL 查询文本，返回结果集（Artifactory Query Language） | 高 | 缺失 |
-| 14 种搜索 | `search/{artifact,gavc,prop,usage,creation,dates,pattern,license,checksum,badChecksum,dependency,versions,latestVersion,buildArtifacts}`（SearchResource）| 制品名/坐标/属性/使用方/创建日期/通配/许可/校验和(含坏块)/依赖/版本/最新版本/构建产物 搜索 | 高 | 缺失（无独立搜索 API） |
+| AQL | `search/aql`（AqlResource）| POST AQL 查询文本，返回结果集（Artifactory Query Language）——**oss 档可用**（活体 7.84.10 实证；`.sort()` 在 OSS 被许可门挡——降级行为详见 aql.md §0-2/§2.5） | 高 | **M15 实现中**（规格就绪 docs/reverse/aql.md，T-407 2026-09-01——就绪度翻转留痕；原「缺失」） |
+| 14 种搜索（**T-407 计数定案**：SearchResource 注册恰 14 子资源——铁证；官方 reference 另文档化 archive、latestVersionByProperties 2 枚**外挂**搜索端点，全量 16 归 aql.md §8.1） | `search/{artifact,gavc,prop,usage,creation,dates,pattern,license,checksum,badChecksum,dependency,versions,latestVersion,buildArtifacts}`（SearchResource）| 制品名/坐标/属性/使用方/创建日期/通配/许可/校验和(含坏块)/依赖/版本/最新版本/构建产物 搜索（OSS 7.84.10 活体可用性矩阵与空集语义族分化见 aql.md §8.2——artifact/gavc/prop/usage/creation/dates 可用，pattern/checksum/license/badChecksum/dependency/versions/latestVersion/buildArtifacts 为 Pro 门 400） | 高 | 部分：artifact+checksum 已有（T-92）；**M15 收编 gavc/prop/pattern**（FR-134 断言反转①）；余者 E-26 404 维持 |
 | UI 搜索 + 结果暂存 | `artifactsearch`、`stashResults`、`packagesSearch`、`syntax-search`（UI SearchResource 族 + PackagesSearchResource）| 分页/暂存搜索结果（10 操作）、包级搜索（npm/pypi 等 packages 索引） | 高 | 缺失 |
 
 ### D. 安全、用户、令牌

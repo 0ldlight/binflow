@@ -93,7 +93,7 @@
 | 功能 | 行为要点 | 证据 | 置信度 | BinFlow 覆盖 |
 |---|---|---|---|---|
 | AQL | `POST /api/search/aql?compact`；领域：item/statistics/property/build/module/dependency/promotion/releasebundle(+file)/sensitive；SQL builder+optimizer+result decorator；并发上限抛 AqlTooManyRequestsException（接 QRL） | `rest/resource/aql/AqlResource.java`、`storage/db/aql/**`、`aql/AqlTooManyRequestsException.java` | 高 | **缺失**：无 AQL（最大查询面差距） |
-| 老搜索族（13 类） | artifact / checksum / gavc / property / pattern（异步） / usageSince / badChecksum / createdInRange / anyDateInRange / dependency / buildArtifacts / artifactLatestVersion / artifactVersions | `rest/resource/search/types/*` | 高 | 部分：仅 checksum（M1 面） |
+| 老搜索族（**14 类**——T-407 勘误：SearchResource 注册 14 子资源，本行原漏 license） | artifact / checksum / gavc / property / pattern（异步） / usageSince / badChecksum / createdInRange / anyDateInRange / dependency / buildArtifacts / artifactLatestVersion / artifactVersions / **license** | `rest/resource/search/SearchResource.java`、`rest/resource/search/types/*` | 高 | 部分：artifact+checksum（T-92/M1 面）；M15 收编 gavc/prop/pattern（FR-134） |
 | UI 搜索增强 | 搜索结果 stash（保存结果集供分页/继续）、syntax search、字段名助手 | `ui/.../search/{StashSearchResultsResource,SyntaxSearchResource}`、`search/fields/FieldNameHelper` | 中 | 缺失 |
 | 搜索结果可见性 | visible aql items 辅助（按权限过滤搜索结果） | `search/VisibleAqlItemsSearchHelper.java` | 中 | 部分：搜索按权限过滤原则已有 |
 

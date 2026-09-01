@@ -1,0 +1,6 @@
+{
+  "errors" : [ {
+    "status" : 400,
+    "message" : "This REST API is available only in Artifactory Pro (see: jfrog.com/artifactory/features). If you are already running Artifactory Pro please make sure your server is activated with a valid license key.\n"
+  } ]
+}

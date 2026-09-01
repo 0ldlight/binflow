@@ -1,0 +1,149 @@
+
+{
+"results" : [ {
+  "path" : "pkg-25",
+  "name" : "artifact-25.bin",
+  "type" : "file"
+},{
+  "path" : "pkg-19",
+  "name" : "artifact-19.bin",
+  "type" : "file"
+},{
+  "path" : "pkg-23",
+  "name" : "artifact-23.bin",
+  "type" : "file"
+},{
+  "path" : "pkg-06",
+  "name" : "artifact-06.bin",
+  "type" : "file"
+},{
+  "path" : "deep/nest/ed",
+  "name" : "file-042.txt",
+  "type" : "file"
+},{
+  "path" : "pkg-07",
+  "name" : "artifact-07.bin",
+  "type" : "file"
+},{
+  "path" : "pkg-29",
+  "name" : "artifact-29.bin",
+  "type" : "file"
+},{
+  "path" : "pkg-05",
+  "name" : "artifact-05.bin",
+  "type" : "file"
+},{
+  "path" : "日本語",
+  "name" : "資料-01.txt",
+  "type" : "file"
+},{
+  "path" : "pkg-03",
+  "name" : "artifact-03.bin",
+  "type" : "file"
+},{
+  "path" : "pkg-27",
+  "name" : "artifact-27.bin",
+  "type" : "file"
+},{
+  "path" : "pkg-10",
+  "name" : "artifact-10.bin",
+  "type" : "file"
+},{
+  "path" : "pkg-18",
+  "name" : "artifact-18.bin",
+  "type" : "file"
+},{
+  "path" : "pkg-09",
+  "name" : "artifact-09.bin",
+  "type" : "file"
+},{
+  "path" : "pkg-01",
+  "name" : "artifact-01.bin",
+  "type" : "file"
+},{
+  "path" : "pkg-28",
+  "name" : "artifact-28.bin",
+  "type" : "file"
+},{
+  "path" : "pkg-15",
+  "name" : "artifact-15.bin",
+  "type" : "file"
+},{
+  "path" : "pkg-21",
+  "name" : "artifact-21.bin",
+  "type" : "file"
+},{
+  "path" : "docs & notes",
+  "name" : "readme v2.txt",
+  "type" : "file"
+},{
+  "path" : "pkg-26",
+  "name" : "artifact-26.bin",
+  "type" : "file"
+},{
+  "path" : "pkg-24",
+  "name" : "artifact-24.bin",
+  "type" : "file"
+},{
+  "path" : "pkg-11",
+  "name" : "artifact-11.bin",
+  "type" : "file"
+},{
+  "path" : "pkg-00",
+  "name" : "artifact-00.bin",
+  "type" : "file"
+},{
+  "path" : "pkg-20",
+  "name" : "artifact-20.bin",
+  "type" : "file"
+},{
+  "path" : "pkg-22",
+  "name" : "artifact-22.bin",
+  "type" : "file"
+},{
+  "path" : "pkg-13",
+  "name" : "artifact-13.bin",
+  "type" : "file"
+},{
+  "path" : "pkg-12",
+  "name" : "artifact-12.bin",
+  "type" : "file"
+},{
+  "path" : "pkg-02",
+  "name" : "artifact-02.bin",
+  "type" : "file"
+},{
+  "path" : "a b c",
+  "name" : "with spaces.txt",
+  "type" : "file"
+},{
+  "path" : "pkg-08",
+  "name" : "artifact-08.bin",
+  "type" : "file"
+},{
+  "path" : "pkg-14",
+  "name" : "artifact-14.bin",
+  "type" : "file"
+},{
+  "path" : "pkg-17",
+  "name" : "artifact-17.bin",
+  "type" : "file"
+},{
+  "path" : "sym'bols$",
+  "name" : "percent%.txt",
+  "type" : "file"
+},{
+  "path" : "pkg-16",
+  "name" : "artifact-16.bin",
+  "type" : "file"
+},{
+  "path" : "pkg-04",
+  "name" : "artifact-04.bin",
+  "type" : "file"
+} ],
+"range" : {
+  "start_pos" : 0,
+  "end_pos" : 35,
+  "total" : 35
+}
+}

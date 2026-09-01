@@ -33,4 +33,5 @@ reverse-engineer 在此产出 **clean-room 行为规格**——让实现者不�
 | `inv-3-protocols.md` | 全量功能盘点·分区3（协议与包型）：57 包型逐项、横切协议能力（矩阵参数/checksum 部署三头/路径归一化中枢等 22 项）、25 条内置 layout | 全量盘点 |
 | `inv-4-addons.md` | 全量功能盘点·分区4（Addon/企业功能）：HA/Xray/Distribution/Build-info/Projects/复制/联邦/插件/事件/许可/DB/存储后端等 91 条 + 外部依赖标注 | 全量盘点 |
 | `goproxy.md` | Go 包型（GOPROXY 协议）行为规格：端点表、`!lower` 转义布局、校验链、rclass 三态、真实客户端矩阵（FR-87 前置，T-278） | M10 |
+| `aql.md` | AQL 与搜索域行为规格：语言子集（域/字段/操作符/尾缀链）、envelope 与错误文案逐字、资源治理 K63 校准、virtual 仓语义、老搜索 14 端点族 OSS 可用性矩阵、基座映射表（FR-132/133/134 前置锚，T-407；官方文档为唯一行为基准 + t226 活体核验） | M15 |
 | `artifactory-full-feature-matrix.md` | **主矩阵（M10+ 路线图骨干）**：四分区去重合并的全量功能对照——213 条、十大高价值缺口、依赖外部产品项单列、待验证清单汇总 | 全量盘点 |

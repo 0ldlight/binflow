@@ -1,0 +1,31 @@
+
+{
+"results" : [ {
+  "repo" : "t228-maven",
+  "path" : "com/example/t228/t228-lib",
+  "name" : "maven-metadata.xml",
+  "type" : "file",
+  "size" : 331,
+  "created" : "2026-08-23T08:19:04.618Z"
+},{
+  "repo" : "t228-maven",
+  "path" : "com/example/t228/t228-lib/1.0.0",
+  "name" : "t228-lib-1.0.0.pom",
+  "type" : "file",
+  "size" : 412,
+  "created" : "2026-08-23T08:19:04.539Z"
+},{
+  "repo" : "t228-maven",
+  "path" : "com/example/t228/t228-lib/1.0.0",
+  "name" : "t228-lib-1.0.0.jar",
+  "type" : "file",
+  "size" : 2047,
+  "created" : "2026-08-23T08:19:04.627Z"
+} ],
+"range" : {
+  "start_pos" : 0,
+  "end_pos" : 3,
+  "total" : 3,
+  "limit" : 3
+}
+}

@@ -1,0 +1,213 @@
+{
+  "results" : [ {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/a b c/with spaces.txt",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.357Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-01/artifact-01.bin",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.358Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/docs & notes/readme v2.txt",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.360Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-00/artifact-00.bin",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.360Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-02/artifact-02.bin",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.377Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-03/artifact-03.bin",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.383Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-04/artifact-04.bin",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.399Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-05/artifact-05.bin",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.402Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-06/artifact-06.bin",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.419Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-07/artifact-07.bin",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.424Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-08/artifact-08.bin",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.440Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-09/artifact-09.bin",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.455Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-10/artifact-10.bin",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.464Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-11/artifact-11.bin",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.475Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-12/artifact-12.bin",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.481Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-13/artifact-13.bin",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.493Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-14/artifact-14.bin",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.511Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-15/artifact-15.bin",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.520Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-16/artifact-16.bin",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.528Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-17/artifact-17.bin",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.547Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-18/artifact-18.bin",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.551Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-19/artifact-19.bin",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.572Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-20/artifact-20.bin",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.578Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-21/artifact-21.bin",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.592Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-22/artifact-22.bin",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.602Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-23/artifact-23.bin",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.609Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-24/artifact-24.bin",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.611Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-25/artifact-25.bin",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.628Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-26/artifact-26.bin",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.632Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-27/artifact-27.bin",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.648Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-28/artifact-28.bin",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.671Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-29/artifact-29.bin",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.671Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/sym'bols$/percent%.txt",
+    "downloadCount" : 3,
+    "lastDownloaded" : "2026-08-23T08:26:04.689Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/日本語/資料-01.txt",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.700Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/deep/nest/ed/file-042.txt",
+    "downloadCount" : 2,
+    "lastDownloaded" : "2026-08-23T08:26:04.709Z",
+    "remoteDownloadCount" : 0,
+    "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+  } ]
+}

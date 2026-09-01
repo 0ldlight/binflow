@@ -1471,3 +1471,84 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **PRD v1.2 收口笔**：LC-66 待裁→**A**（T-401 已执行 + 证据链闭合；计数 A 8 / C 2 / D 1 零待裁）；README 双语 M14→done；ROADMAP 头部切 M15 + M14 段 `m14-done` + 「M14 未纳入项」启用（T-406 遗留两项并入：virtual 聚合 / remote 远端浏览）。
 - **m14-done tag + 里程碑 PR + UAT AFTER**：随本笔执行（PR 自建自合 per standing 授权；UAT AFTER = deploy_uat 后 governance push-replication 0→≥1 + version sha 翻转取证）。
 - **M14 终态**：24 票全落（22 done 含 T-406/T-406b 热修 + T-401 条件票已执行 + T-403 未触发留痕 + T-402/T-404/T-405 增补）；parity 册 v1.3；锚册 v1.26。**M15 候选池开局**（AQL 第一顺位）。
+
+---
+
+## M15 票据（搜索基建专程——AQL 首程）
+
+**立项（PM 2026-09-01，`docs/prd/milestone-15.md` v1.0）**：AQL 专程两度让位后兑现——「M15 核心（item+property 域 + 引擎/分页 + 老搜索首批 + 资源门简化）/ M16 高级面（statistics·usage + QRL 全量 + UI 搜索族）」分阶段。FR-132~140 九条；LC-68~79（A 9 / C 2 / 待裁 1——LC-76 远端浏览）；L20~L34；§5.7 搜索域端点全景归属表（14 端点族）；断言反转三处（SR-03/04、tree-empty-virtual、mint 500→400）预归属豁免票。
+
+**conductor 审定（2026-09-01 09:1x）——PRD v1.0 转正 + 三项即裁**：
+- **Q5 终裁：不引入 cron 双轨**（维持事件驱动 + 1min sweep 唯一引擎；手动场景 Replicate Now 承接——T-402a 勘误 + 双轨一致性成本材料充分，即裁落章；M16 复制域二程不再列 cron 为实现项）。
+- **Q6 即裁：docker virtual 建仓矩阵开禁**（M14 remote 首航 + virtual 聚合语义既有 + helmoci virtual 先例——对齐 Artifactory 组合完整性；tech-lead 列条件小票，非 DoD）。
+- **Q1/Q3 暂行确认**（分阶段边界收口窗终裁；400 诚实拒绝维持）；Q2 随 aql.md 回写归位；Q4 评估票材料后裁；Q7 维持 as-built 暂行。
+- 派发前置：tech-lead 拆票（票号 T-407 起；aql.md 规格票 + ADR-0043 为 B0 前置锚——L20 就绪才开主轴实现）。
+
+### M15 票批 v1（tech-lead 2026-09-01）
+
+**拆票日志 `docs/M15-SPLIT.md`**（票据明细 AC 全文/依赖图/风险登记/口径——派单直接引用）；实拆 **25 票**（P0×8 / P1×11 / P2×6——波外条件票 T-431 计入 P2；K65 为 T-417 票内余量条款、Q4 实现段/Q7 by-digest 不占号——PRD §1.3 估 19~25 线内上沿），**B0~B12 十三波全宽 2**（波内 area 互斥；FE 主线 web/src 一波一票错峰 B3→B4→B6→B8；AQL 主轴六波串行链 B0~B5 为决定性路径）；断言反转三处预归属：SR-03/04→T-417、tree-empty-virtual→T-416、mint→T-410。
+
+**波次表**：
+
+| 波 | lane 1 | lane 2 | 备注 |
+|---|---|---|---|
+| B0 | T-407 aql.md 规格票（rev） | T-408 ADR-0043（arch） | 前置锚双票并行（conductor 指令）；软协作 132.4④ 映射表 |
+| B1 | T-409 AQL 语言前端 | T-410 mint 400（插空） | L20 就绪 + ADR Accepted 后开主轴 |
+| B2 | T-411 AQL 执行内核 | T-412 virtual 聚合 BE | internal/search vs internal/repo 错峰 |
+| B3 | T-413 ACL+资源门 | T-414 FE 列选器三页+member-pop | FE 链起步（零依赖早落） |
+| B4 | T-415 AQL 端点面 | T-416 virtual FE（断言反转②） | httpapi 搜索面 vs web/src artifacts |
+| B5 | T-417 老搜索三端点（断言反转①） | T-418 replication.md 增量段 | httpapi 搜索面先后脚（T-415→T-417） |
+| B6 | T-419 FE AQL 模式 | T-420 Replicate Now | T-420 FE ▶ 小腿与 T-419 文件不相交（裁量） |
+| B7 | T-421 QA 中期回归 | T-422 Test+封锁双开关 | 主轴 L21~L24/L26/L29 复核窗 |
+| B8 | T-423 busy 重试预算 | T-424 L2 快捷+e2e 纪律 | busy 与满载回归同场 |
+| B9 | T-425 远端浏览评估票 | T-426 文档票（两腿） | Q4 材料窗 + 用户文档 |
+| B10 | T-427 PM Q 终裁联动 | T-428 文面回写簇 | Q1/Q4 收口窗必裁 |
+| B11 | T-429 release 烟测+UAT | — | 单票波 |
+| B12 | T-430 QA 终验 | — | m15-done 就绪判定 |
+| 波外 | T-431 Q6 docker virtual 开禁（已裁开——随时插空，非 DoD） | — | 避开 T-412 波与 FE 主轴票 |
+
+**票据行**（票号 / 标题 / 优先级 / role / area / dep；AC 全文见 SPLIT §1.2 与 PRD §4）：
+
+- T-407 [P0] FR-132 aql.md 规格票 + t226 活体核验 + 口径归一 · role: reverse-engineer · area: docs/reverse/aql.md（+主矩阵勘误回写） · dep: —
+- T-408 [P0] ADR-0043 AQL 引擎架构（EBNF/AST→参数化 SQL/ACL 织入/资源门/WriteTimeout 归位） · role: architect · area: DECISIONS.md + architecture.md 搜索节 · dep: —（软协作 T-407 132.4④）
+- T-409 [P0] FR-133.1 AQL 语言前端（lexer/parser/AST 校验——纯函数零 IO） · role: dev-go-core · area: internal/search 语言前端（新包，定名从 ADR-0043） · dep: T-407,T-408
+- T-410 [P1] FR-139.1 mint unknown username 400 修正（断言反转③） · role: dev-go-core · area: internal/httpapi auth 域 · dep: —（插空）
+- T-411 [P0] FR-133.2 AQL 执行内核（planner/参数化 SQL/投影——零拼接） · role: dev-go-core · area: internal/search + internal/metadata 只读缝 · dep: T-409
+- T-412 [P1] FR-136.1/2/4 virtual 聚合 service（children 并集/解析同源/ACL 同门） · role: dev-go-core · area: internal/repo/service.go · dep: —
+- T-413 [P0] FR-133.2/4 ACL 织入 + 资源治理门（allow() 同源/K63 三件/流式满载） · role: dev-go-core · area: internal/search 引擎 entry（repo.Service allow() 只读消费） · dep: T-411
+- T-414 [P1] FR-135.2/3 FE 列选器三页推广 + member-pop hover · role: dev-frontend · area: web/src users/groups/search + repositories hover · dep: —
+- T-415 [P0] FR-133.3/5 AQL 端点面（POST /api/search/aql + compact + E-01 + metrics） · role: dev-go-core · area: internal/httpapi search 面 · dep: T-413
+- T-416 [P1] FR-136.3 virtual FE 树消费（tree-empty-virtual 退役——断言反转②） · role: dev-frontend · area: web/src artifacts（ArtifactsBrowser） · dep: T-412
+- T-417 [P0] FR-134 老搜索三端点 gavc/prop/pattern（断言反转① + K64 落笔 + K65 余量条款） · role: dev-go-core · area: internal/httpapi search 面（+internal/search 匹配内核） · dep: T-415
+- T-418 [P1] replication.md 增量段（包 B 前置规格——三面双源材料） · role: reverse-engineer · area: docs/reverse/replication.md · dep: —
+- T-419 [P1] FR-135.1 搜索页 AQL 模式（编辑器/错误内联/结果表） · role: dev-frontend · area: web/src/pages/search · dep: T-414,T-415
+- T-420 [P1] FR-138.1 Replicate Now（全量同步任务/幂等/▶ 接线；outbox diff=0） · role: dev-go-core · area: internal/replication + httpapi 复制面（+web/src ▶ 小腿） · dep: T-418
+- T-421 [P1] QA 中期回归（L20~L26/L29 + 断言反转预核实） · role: qa-engineer · area: 测试矩阵 · dep: T-407,T-410,T-412,T-415,T-416,T-417
+- T-422 [P2] FR-138.2/3 Test 连接 + blockPush/blockPull 全局封锁（UI-API 不受门） · role: dev-go-core · area: internal/replication + httpapi + web/src 复制配置面 · dep: T-418,T-420
+- T-423 [P2] FR-139.2 remote 缓存树 busy 重试预算（24 路清零 + 写路径专项） · role: dev-go-core · area: internal/storage/remote + internal/metadata busy 面 · dep: —（B8 定位）
+- T-424 [P2] FR-140.1/2 L2 行内快捷 + e2e 纪律成文（E1 不倒退） · role: dev-frontend · area: web/src repositories 行内 + web/e2e README · dep: —（FE lane 排队）
+- T-425 [P2] FR-137 远端浏览评估票（13 包型能力矩阵 + Q4 材料上 BOARD） · role: reverse-engineer（dev-registry-adapter 会签） · area: docs/reverse/ mini 规格 · dep: —
+- T-426 [P1] 文档票两腿（AQL 指南+搜索 API 参考 / 增量+FAQ——票内先后笔） · role: tech-writer · area: docs/user/ · dep: T-415,T-417（腿②候 B6/B7 合入）
+- T-427 [P1] PM Q 终裁联动回写（Q1/Q4 收口窗必裁 + K62~K66 回填 + 未纳入段） · role: product-manager · area: docs/prd + ROADMAP · dep: T-407,T-425
+- T-428 [P2] FR-140.3 文面回写簇（四处 + ux 会签两行） · role: tech-writer（ux 会签） · area: docs/reverse README + design/user 文面 · dep: —
+- T-429 [P1] release 烟测 + UAT 随里程碑 PR（F1 趋势登记） · role: release-engineer · area: deploy/ + charts/ + CD 链 · dep: 全部实现票 + T-426
+- T-430 [P0] QA 终验（L20~L34 + §5.7 逐行核对 + DoD 八条） · role: qa-engineer · area: 全量矩阵 · dep: 全部 + T-429
+- T-431 [P2·条件·Q6 已裁开] docker virtual 建仓矩阵开禁（矩阵行 + FE 门控 + 三态回归） · role: dev-go-core · area: internal/repo 建仓矩阵 + web/src 门控一行 · dep: —（随时插空——避开 T-412 波与 FE 主轴票；非 DoD）
+
+**首派建议**：**B0 即派 T-407 + T-408**（双锚并行，conductor 已定；L20 就绪度确认 + ADR-0043 Accepted 后开 B1 主轴 T-409 + mint T-410 插空）。插空候选全程：T-431（任意空位）→ T-425（P2 可前移早出 Q4 材料）→ T-428。
+
+**B0 派发（conductor 2026-09-01 09:2x）**：T-407（reverse-engineer，aql.md + t226 活体核验〔INC-1 差集法纪律已重申〕+ 口径归一）+ T-408（architect，ADR-0043 + architecture 增量节）双锚并行在途。**拆票六条口径 conductor 批复**：T-418 replication.md 增量段独立成票（认可——M14 T-393/T-394 先例）/ FR-140 L2 归属照 SPLIT / search 列选器归 T-414 / mint·busy 分票优先级照 SPLIT 取值 / ADR↔aql.md 软协作缝维持 B0 并行 / T-420 FE 小腿并行归运行时裁量。M15 计 0/25。
+
+**T-408 → done 2026-09-01 09:3x——M15 1/25**：**ADR-0043 Accepted**（七轴决策 + EBNF 文法 + 字段→SQL 映射表 11 行 + 软缝对齐清单十条 + 四票锚点）+ architecture §24 搜索域增量节 + §11.46/47 技术债登记。三个非显然裁决（勾稽现役代码）：① **ACL 两段织入**——auth.Authorizer 的 path 级 include/exclude 模式（targetCovers）使 repo 集合 SQL 过滤不完备，取「repo 集织入 + path-scoped 仓行级 CanRead 复核」，拒绝把模式翻译成 SQL LIKE（双真相源即泄漏）；② nodes 无 name/depth/type/updated_by 列——前三者双方言同式派生表达式零迁移，modified_by 注册 unsupported 诚实 400 不伪造；③ **WriteTimeout 维持不设**（同一 Server 承载分钟级 blob 流写——查询时长治理归引擎 deadline，T-392 就此关闭）。契约：metadata.NodeQueryer 只读查询缝 / repo.Service +SearchScope+CanRead / search.Engine.Run 三接口定案；K63 门参数定案（1000/4/10s/429+Retry-After，内部常量零配置键，Q2 出口）。风险：与 T-407 软缝（PRD 属性形态 {"@key"} vs 官方 {"@license"}——ADR 取官方形态，aql.md 落盘后按清单十条复核，分歧走勘误不翻机制）。日志 reports/agents/T-408.md。
+
+**B1 插空派发（conductor 2026-09-01 09:3x）**：T-410（mint unknown username 400 修正——断言反转③，零 B0 依赖）入空 lane；T-407（aql.md）继续在途。主轴 T-409 仍候 L20 就绪（双门：L20 + ADR Accepted——后者已满足）。
+
+**T-410 → done 2026-09-01 09:4x——M15 2/25**：`handleTokenCreate` 错误分类扩 `ErrInvalidCredentials || metadata.ErrUserNotFound` → 400 `invalid_request`「username is required or unknown」（internal/auth 零改动——分类归 HTTP seam，wrap 链保留）；table-driven 新用例（unknown 400 逐字 + 非 admin 403 守卫防枚举次序锚 + 回归 + operator log 无 500 残留）+ **断言反转③ e2e 落笔**（t386 spec：500→400）；活体逐字复刻 + armed 全链 + m9 mock 腿绿；lint 0；两包 100.6s/27.2s 全绿。conductor spot：build + 新用例绿。遗留登记：t386 readonly_admin 自铸腿 armed 假设漂移（非本票面）。日志 reports/agents/T-410.md。
+
+**T-407 → done 2026-09-01 09:4x——M15 3/25（B0 双锚闭合，L20 地基就绪）**：**aql.md 落盘**（301 行 14 节，官方 8 页逐条锚 + inv 补白 + t226 活体 36 探针；高 ~14 / 中 ~6 / 低 8 全在册）+ 四文件勘误回写（inv-1 §E 补 license、inv-2 §1.C 14 计数定案、主矩阵三行、README）。**五个定案**：① **`$not` 不存在**（官方无 + 活体 400 双证——PRD 133.1 前提校准为 $and·$or + $msp）；② `.sort()` OSS 档被许可门挡（BinFlow 无门——按官方全集 A 层实现）；③ 老搜索计数 **14** 定案（SearchResource 铁证）；④ 空集族分化（artifact/gavc/prop=200 空数组 vs usage/creation/dates=404）；⑤ K64 维持 LIKE 子串（大小写不敏感对齐点交 T-417）。K65 判定：dates/creation trivial 可顺车。待验证 8 项全在册有归位路径（429 形态/6000 门现值/property 数据腿/virtual 对拍归 T-412/T-415 e2e）。**B1 主轴双门全开**。日志 reports/agents/T-407.md + t407-evidence/。
+
+**B1 主轴派发（conductor 2026-09-01 09:4x）**：**T-409**（AQL 语言前端 lexer/parser/AST——dep 双锚已满足；携带 $not 校准前提与 ADR-0043 软缝清单）+ T-414（FE 列选器三页——零 BE 依赖早波）双 lane 在途。
+
+**T-409 → done 2026-09-01 10:3x——M15 4/25（主轴第一环落）**：internal/search 语言前端全新增 2,881 行含测试（fields 闭集注册表 17+2 字段 + 12 未支持域提示 / 位置追踪 lexer / 递归下降 parser〔$and·$or·$msp·@key·隐式 and + 尾缀链序强制 + sort validator 双句逐字 + **6000 长度门在 Parse 入口**〕/ AST + T-411 消费契约 godoc / QueryError envelope 前形态）；120 test/subtest；lint 0 + race 13.6s 绿 + **零 DB import 实证**（纯函数达标）；v1c 文案逐字节断言。**两处 ADR↔aql.md 分歧留痕上报**（实现从 aql.md，ADR 勘误已派 T-408 作者补笔）：① $not 产生式（aql.md：不存在）；② checksums sha1 平名 vs 点路径。低置信项诚实拒绝 + 「以核验为准」标注。T-415 需知悉：错误文案双轨（语法=E1 逐字 / 域·字段·操作符=C 层增强，均 400）。日志 reports/agents/T-409.md。
+
+**B2 派发（conductor 2026-09-01 10:3x）**：**T-411**（AQL 执行内核——planner/参数化 SQL 编译/投影 + 注入红线 + 万节点性能腿；dep T-409 已满足，携带两分歧勘误注记）入主轴 lane；T-414（FE）继续在途。T-408 作者复活补 ADR-0043 勘误两处（Erratum 节，Status 维持 Accepted）。

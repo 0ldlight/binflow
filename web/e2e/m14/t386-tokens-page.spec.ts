@@ -252,18 +252,19 @@ test('tokens: revoke-by-id for out-of-ledger tokens; mint error surfaces inline'
   await page.fill('[data-testid="token-revoke-id"]', 'not-a-number')
   await expect(page.locator('[data-testid="token-revoke-byid-go"]')).toBeDisabled()
 
-  // 签发错误内联：admin 代人不存在的主体 → 错误面就地呈现（as-built =
-  // 500 "token creation failed"——契约漂移登记：auth-model 3.1 语义上属
-  // 「username is required or unknown」的 400 invalid_request 臂，但
-  // Tokens.Issue 的 subject 查找错误未被 handler 的 ErrInvalidCredentials
-  // 分支收编〔服务端 diff=0，票内不改——以能跑通的为准，日志「契约漂移」项〕）
+  // 签发错误内联：admin 代人不存在的主体 → 错误面就地呈现。T-410（M15
+  // FR-139.1，断言反转③）服务端归位后：unknown username 答 400
+  // 「username is required or unknown」（auth-model 3.1 的 invalid_request
+  // 臂——Tokens.Issue subject 查找的 ErrUserNotFound 已被 handler 收编）；
+  // FE 内联呈现 error_description 逐字（HTTP 400），不再是 as-built 500
+  // "token creation failed" 漂移面（T-386 当时按能跑通的为准钉了漂移）。
   await page.click('[data-testid="token-create"]')
   await page.fill('[data-testid="token-form-subject"]', 'no-such-user-t386')
   await page.click('[data-testid="token-submit"]')
   const err = page.locator('[data-testid="token-mint-error"]')
   await expect(err).toBeVisible({ timeout: 10_000 })
-  await expect(err).toContainText('HTTP 500')
-  await expect(err).toContainText('token creation failed')
+  await expect(err).toContainText('HTTP 400')
+  await expect(err).toContainText('username is required or unknown')
   await page.click('[data-testid="token-cancel"]')
   await expect(page.locator('[data-testid="token-dialog"]')).toHaveCount(0)
 })

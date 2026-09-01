@@ -1,0 +1,1 @@
+Failed to parse query: items.find({"repo":"t228-maven"}).limit(1).sort({"$asc":["name"]}), it looks like there is syntax error near the following sub-query: sort({"$asc":["name"]})

@@ -1,0 +1,8 @@
+example-repo-local LOCAL
+t228-docker LOCAL
+t228-generic LOCAL
+t228-maven LOCAL
+t228-npm LOCAL
+t228-probe LOCAL
+t228-probe2 LOCAL
+t381-ui-probe LOCAL

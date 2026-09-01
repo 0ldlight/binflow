@@ -1,0 +1,22 @@
+
+{
+"results" : [ {
+  "name" : "t228-lib-1.0.0.pom",
+  "stats" : [ {
+    "downloaded" : "2026-08-23T08:26:05.038Z",
+    "downloads" : 2
+  } ]
+},{
+  "name" : "maven-metadata.xml",
+  "stats" : [ {
+    "downloaded" : "2026-08-23T08:26:45.640Z",
+    "downloads" : 4
+  } ]
+} ],
+"range" : {
+  "start_pos" : 0,
+  "end_pos" : 2,
+  "total" : 2,
+  "limit" : 2
+}
+}

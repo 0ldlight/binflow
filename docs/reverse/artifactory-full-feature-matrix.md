@@ -280,8 +280,8 @@
 |---|---|---|---|---|
 | 核心 REST 家族规模 | `/artifactory/api` 103 resource 类 / ≈475 方法级操作 | inv-2 §0 | 高 | 部分（BinFlow ≈50 操作；/binflow 前缀 + errors[] envelope 风格差异，E-26） |
 | UI REST 家族 | `/ui/api/v1` 107 类 / ≈470 操作（19 个服务域工厂） | inv-2 §0/§4 | 高 | 部分（控制台走自有 /api/v1 面） |
-| AQL | POST aql 查询语言；域：item/statistics/property/build/module/dependency/promotion/releasebundle/sensitive；SQL builder+optimizer；并发上限接 QRL | inv-1 E；inv-2 §1.C | 高 | **缺失**（最大查询面差距） |
-| 老搜索族（13 端点） | artifact/gavc/property/pattern（异步）/usageSince/badChecksum/createdInRange/dependency/buildArtifacts/latestVersion/versions/checksum 等 | inv-1 E；inv-2 §1.C | 高 | 部分（artifact+checksum 已有 SR-01/02；其余按 E-26 显式 404 归档） |
+| AQL | POST aql 查询语言；域：item/statistics/property/build/module/dependency/promotion/releasebundle/sensitive；SQL builder+optimizer；并发上限接 QRL | inv-1 E；inv-2 §1.C；aql.md | 高 | **M15 实现中**（T-407 规格就绪 → T-409~T-415/T-417 实现票在途——**就绪度翻转留痕**：原「缺失（最大查询面差距）」，aql.md 落盘 2026-09-01 起翻转为规格就绪；M15 子集 = item+property 域 + 官方操作符主列） |
+| 老搜索族（**14 端点**——T-407 勘误定案：SearchResource 注册 14 子资源为铁证，inv-1 §E 原记 13 漏 license） | artifact/gavc/property/pattern（异步）/usageSince/badChecksum/createdInRange/dependency/buildArtifacts/latestVersion/versions/checksum/**license** 等（官方 reference 另有 archive、latestVersionByProperties 2 枚外挂——全量 16，远期登记） | inv-1 E；inv-2 §1.C；aql.md §8 | 高 | 部分（artifact+checksum 已有 SR-01/02；**M15 收编 gavc/prop/pattern**〔FR-134 断言反转①〕；其余按 E-26 显式 404 归档） |
 | UI 搜索增强 | 结果暂存 stash（分页/续查）、packagesSearch 包索引搜索、syntax search、字段助手 | inv-1 E；inv-2 §1.C | 高 | 部分（控制台全局搜索+recentSearches 已有；暂存/包索引搜索缺） |
 | 配置描述符原文往返 | GET/POST config.xml 原文 + 子树级替换（rpm/debian/ha）；configdescriptor/securitydescriptor | inv-1 D；inv-2 §1.H | 高 | 部分（自有 YAML/env 配置 + 导出导入；无描述符原文往返） |
 | 运行时 KV 配置存储 | configsService 命名配置 KV（url signing key、checksumReplication 等） | inv-1 D | 中 | 缺失（可并入自有 config） |
@@ -335,7 +335,7 @@
 ## 十大高价值缺口（按用户价值排序，M10+ 候选主轴）
 
 1. **制品属性系统**（矩阵参数部署 + `?properties` 读写 + 属性集）：所有 Artifactory 客户端的横切基座，且是搜索/清理策略/复制属性同步的基石——BinFlow 当前 ?properties 显式 404。
-2. **查询面**：AQL + 13 个老搜索端点（企业日常操作入口；可先做 artifact/gavc/pattern/usageSince 子集 + 简化查询语言）。
+2. **查询面**：AQL + **14** 个老搜索端点（企业日常操作入口；可先做 artifact/gavc/pattern/usageSince 子集 + 简化查询语言）。（T-407 勘误：原记「13 个」沿 inv-1 §E 漏 license——SearchResource 14 子资源为铁证；M15 = AQL item+property + gavc/prop/pattern 首批，详见 docs/reverse/aql.md）
 3. **Trash can 回收站**（14 天保留/恢复/清空/目录属性）：删除即永久是数据安全事故源；语义独立、实现面窄。
 4. **Cleanup/Retention 策略引擎**（包/构建/bundle 三类策略 + cron run + dry-run view + 报告）：BinFlow 仅 GC 管孤儿块，无内容级治理。
 5. **制品操作族**：路径级 copy/move/flat、zap、目录 zip 下载（folderDownload）、归档内浏览/抽取（archive!/）——日常运维高频操作。
