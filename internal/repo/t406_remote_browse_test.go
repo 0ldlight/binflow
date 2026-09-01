@@ -61,12 +61,14 @@ func TestT406RemoteCacheBrowseFace(t *testing.T) {
 		t.Fatalf("Get(folder d/) second = (%v, %v), want ErrIsFolder + node", err2, node2)
 	}
 
-	// A childless folder probe is an honest miss, no upstream round trip.
+	// A childless folder probe falls through to the engine — protocol faces
+	// legitimately serve slash-terminated resources (pypi /simple/<proj>/),
+	// so the upstream answers (here 404 → the Unfound family), one hit.
 	if _, _, err := e.svc.Get(ctx, admin(), "generic-remote", "nope/"); !errors.Is(err, repo.ErrNodeNotFound) {
-		t.Fatalf("Get(childless folder) = %v, want ErrNodeNotFound", err)
+		t.Fatalf("Get(childless folder) = %v, want the Unfound family wrapping ErrNodeNotFound", err)
 	}
-	if got := hits.Load(); got != before {
-		t.Fatalf("browse faces touched the upstream: %d hits, want %d", got, before)
+	if got := hits.Load(); got != before+1 {
+		t.Fatalf("childless folder probe upstream hits = %d, want %d (cached faces silent)", got, before+1)
 	}
 }
 

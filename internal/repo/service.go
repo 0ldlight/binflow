@@ -372,15 +372,15 @@ func (s *service) Get(ctx context.Context, p *Principal, repoKey, path string) (
 	}
 	switch row.Type {
 	case TypeRemote:
-		// T-406 (parity): the browser's FOLDER face on a remote repository.
-		// Folders are never upstream resources (remote_cache validators exist
-		// only for content/metadata kinds), so the cache rows are the whole
-		// truth: a cached folder row serves directly, and a folder probe that
-		// misses but has cached CHILDREN is materialized on read — the cache
-		// plane already writes on read, and pre-T-406 landings carry file
-		// rows without their ancestor folders. A childless folder probe is an
-		// honest 404-shaped miss (no upstream round trip). Content paths keep
-		// the engine's TTL-classed pull-through below.
+		// T-406 (parity): the browser's FOLDER face on a remote repository
+		// serves the cache — a cached folder row answers directly, and a
+		// folder probe that misses but has cached CHILDREN is materialized on
+		// read (the cache plane already writes on read; pre-T-406 landings
+		// carry file rows without their ancestor folders). Everything else
+		// falls through to the engine: protocol faces legitimately serve
+		// slash-terminated upstream resources (pypi /simple/<project>/ index
+		// pages, nuget v2 paths), so a bare childless-404 shortcut here broke
+		// them (T-400's first red — T-406b).
 		if isFolderNode(path) {
 			if n, nerr := s.md.Nodes().Get(ctx, repoKey, path); nerr == nil && n.Sha256 == emptyFolderSHA {
 				return nil, n, fmt.Errorf("get %s/%s: %w", repoKey, path, ErrIsFolder)
@@ -393,7 +393,6 @@ func (s *service) Get(ctx context.Context, p *Principal, repoKey, path string) (
 					}
 				}
 			}
-			return nil, nil, fmt.Errorf("node %s/%s: %w", repoKey, path, ErrNodeNotFound)
 		}
 		return s.getRemote(ctx, p, repoKey, path)
 	case TypeVirtual:
