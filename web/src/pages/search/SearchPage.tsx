@@ -3,6 +3,9 @@ import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import Button from '@mui/material/Button'
+import Divider from '@mui/material/Divider'
+import Menu from '@mui/material/Menu'
+import MenuItem from '@mui/material/MenuItem'
 import MuiSkeleton from '@mui/material/Skeleton'
 import Table from '@mui/material/Table'
 import TableBody from '@mui/material/TableBody'
@@ -15,6 +18,8 @@ import { CopyButton } from '../../components/CopyButton'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { apiJSON } from '../../lib/api'
+import { useColumnPrefs } from '../../lib/columnPrefs'
+import type { ColumnDef } from '../../lib/columnPrefs'
 import { formatBytes } from '../../lib/format'
 import { monoInputSx } from '../../lib/muiAtoms'
 import { useAsync } from '../../lib/useAsync'
@@ -45,6 +50,20 @@ import './search.css'
 const PAGE = 100
 const RECENT_KEY = 'binflow-console-recent-searches'
 const RECENT_MAX = 8
+
+/** T-414（FR-135.2，T-387 spec 形态复用）：列选器列集 = **既有全部列**闭集
+ * （「无端点列不伪造」——SR-01 返回 E-09 FileInfo 全量，五列全端点背书；
+ * 无 checksums 时 sha256 列如实呈现 —，不弃列）。label 与表头一致；
+ * anchor = 菜单项锚（anchor-audit 的 anchor: 属性形态）。 */
+const COLUMNS: ColumnDef[] = [
+  { id: 'repo', label: '仓库', anchor: 'search-columns-item-repo' },
+  { id: 'path', label: '路径 / 语义', anchor: 'search-columns-item-path' },
+  { id: 'size', label: '大小', anchor: 'search-columns-item-size' },
+  { id: 'modified', label: '修改时间', anchor: 'search-columns-item-modified' },
+  { id: 'sha256', label: 'sha256', anchor: 'search-columns-item-sha256' },
+]
+const COLUMN_IDS = COLUMNS.map((c) => c.id)
+const COLS_KEY = 'binflow-console-cols-search'
 
 interface SearchResult {
   repo: string
@@ -118,6 +137,11 @@ export default function SearchPage() {
   const [recent, setRecent] = useState<string[]>(() => loadRecent())
   const [recentOpen, setRecentOpen] = useState(false)
   const [recentActive, setRecentActive] = useState(-1)
+  // T-414（FR-135.2）：列显隐偏好（T-387 共享层；五列静态闭集，与 recent
+  // searches 同为浏览器本地偏好面）
+  const cols = useColumnPrefs(COLUMN_IDS, COLS_KEY)
+  const [colsAnchor, setColsAnchor] = useState<HTMLElement | null>(null)
+  const colsOpen = Boolean(colsAnchor)
 
   // 防抖 300ms（§5.2）；变化即作废在飞请求
   useEffect(() => {
@@ -298,6 +322,63 @@ export default function SearchPage() {
           sx={{ ...monoInputSx, width: 240 }}
           slotProps={{ htmlInput: { 'data-testid': 'search-filter-repo', 'aria-label': '按仓库过滤', className: 'mono' } }}
         />
+        {/* T-414（FR-135.2）：工具栏尾 = 列选器（T-387 L1 形态复用——列集 =
+            结果表五列闭集；空态/无结果时表不在场，偏好仍可预设——列选是
+            表的偏好面不是结果的从属） */}
+        <span className="filter-tail-actions filter-tail-end">
+          <Button
+            variant="outlined"
+            size="small"
+            aria-haspopup="menu"
+            aria-expanded={colsOpen}
+            data-testid="search-columns"
+            title="自定义显示列（偏好保存在本浏览器）"
+            onClick={(e) => setColsAnchor(e.currentTarget)}
+          >
+            <span aria-hidden="true">▤</span> 列 {cols.visibleCount}/{COLUMNS.length}
+          </Button>
+          <Menu
+            open={colsOpen}
+            onClose={() => setColsAnchor(null)}
+            anchorEl={colsAnchor}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+            data-testid="search-columns-menu"
+          >
+            {COLUMNS.map((c) => {
+              const visible = cols.isVisible(c.id)
+              // 至少一列在场：仅剩一列可见时该项不可再弃
+              const last = visible && cols.visibleCount === 1
+              return (
+                <MenuItem
+                  key={c.id}
+                  role="menuitemcheckbox"
+                  aria-checked={visible}
+                  aria-disabled={last || undefined}
+                  title={last ? '至少保留一列' : undefined}
+                  data-testid={c.anchor}
+                  onClick={() => {
+                    if (!last) cols.toggle(c.id)
+                  }}
+                >
+                  <span aria-hidden="true" className="col-check">
+                    {visible ? '☑' : '☐'}
+                  </span>
+                  {c.label}
+                </MenuItem>
+              )
+            })}
+            <Divider component="li" />
+            <MenuItem
+              aria-disabled={cols.visibleCount === COLUMNS.length || undefined}
+              title={cols.visibleCount === COLUMNS.length ? '全部列已在场' : '显示全部列'}
+              data-testid="search-columns-reset"
+              onClick={() => cols.reset()}
+            >
+              全选列
+            </MenuItem>
+          </Menu>
+        </span>
       </div>
 
       {!hasQuery ? (
@@ -325,11 +406,11 @@ export default function SearchPage() {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell component="th" scope="col">仓库</TableCell>
-                <TableCell component="th" scope="col">路径 / 语义</TableCell>
-                <TableCell component="th" scope="col">大小</TableCell>
-                <TableCell component="th" scope="col">修改时间</TableCell>
-                <TableCell component="th" scope="col">sha256</TableCell>
+                {cols.isVisible('repo') && <TableCell component="th" scope="col">仓库</TableCell>}
+                {cols.isVisible('path') && <TableCell component="th" scope="col">路径 / 语义</TableCell>}
+                {cols.isVisible('size') && <TableCell component="th" scope="col">大小</TableCell>}
+                {cols.isVisible('modified') && <TableCell component="th" scope="col">修改时间</TableCell>}
+                {cols.isVisible('sha256') && <TableCell component="th" scope="col">sha256</TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -346,33 +427,39 @@ export default function SearchPage() {
                       if (e.key === 'Enter') gotoNode(r)
                     }}
                   >
-                    <TableCell className="mono" lang="en">{r.repo}</TableCell>
-                    <TableCell sx={{ whiteSpace: 'normal', wordBreak: 'break-all' }}>
-                      <div className="mono row-link" lang="en">{r.path}</div>
-                      <div className="search-result-sub">
-                        {sub ? (
-                          <span lang="en">{sub}</span>
+                    {cols.isVisible('repo') && <TableCell className="mono" lang="en">{r.repo}</TableCell>}
+                    {cols.isVisible('path') && (
+                      <TableCell sx={{ whiteSpace: 'normal', wordBreak: 'break-all' }}>
+                        <div className="mono row-link" lang="en">{r.path}</div>
+                        <div className="search-result-sub">
+                          {sub ? (
+                            <span lang="en">{sub}</span>
+                          ) : (
+                            r.checksums?.sha256 && (
+                              <span className="mono" lang="en" title={r.checksums.sha256}>
+                                sha256 {r.checksums.sha256.slice(0, 12)}…
+                              </span>
+                            )
+                          )}
+                        </div>
+                      </TableCell>
+                    )}
+                    {cols.isVisible('size') && <TableCell className="mono">{formatBytes(Number(r.size) || 0)}</TableCell>}
+                    {cols.isVisible('modified') && (
+                      <TableCell className="mono">{r.lastModified ? r.lastModified.replace('T', ' ').slice(0, 19) : '—'}</TableCell>
+                    )}
+                    {cols.isVisible('sha256') && (
+                      <TableCell className="mono" title={r.checksums?.sha256 ?? ''}>
+                        {r.checksums?.sha256 ? (
+                          <>
+                            {`${r.checksums.sha256.slice(0, 10)}…`}
+                            <CopyButton value={r.checksums.sha256} label={`sha256 ${r.path}`} />
+                          </>
                         ) : (
-                          r.checksums?.sha256 && (
-                            <span className="mono" lang="en" title={r.checksums.sha256}>
-                              sha256 {r.checksums.sha256.slice(0, 12)}…
-                            </span>
-                          )
+                          '—'
                         )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="mono">{formatBytes(Number(r.size) || 0)}</TableCell>
-                    <TableCell className="mono">{r.lastModified ? r.lastModified.replace('T', ' ').slice(0, 19) : '—'}</TableCell>
-                    <TableCell className="mono" title={r.checksums?.sha256 ?? ''}>
-                      {r.checksums?.sha256 ? (
-                        <>
-                          {`${r.checksums.sha256.slice(0, 10)}…`}
-                          <CopyButton value={r.checksums.sha256} label={`sha256 ${r.path}`} />
-                        </>
-                      ) : (
-                        '—'
-                      )}
-                    </TableCell>
+                      </TableCell>
+                    )}
                   </TableRow>
                 )
               })}

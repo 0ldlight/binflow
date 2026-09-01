@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -160,11 +161,16 @@ func memberPriorityResolution(config string) bool {
 // members are resolution internals — the same posture as the remote branch:
 // an unauthorized principal must not aim BinFlow at member upstreams).
 //
-// Member semantics per class:
+// The FOLDER spelling (trailing slash) never enters the walk: it is the
+// aggregate browse's question, answered from the members' stored rows by
+// getVirtualFolder (T-412, FR-136.1) — a folder has no body to resolve, so
+// first-hit-stops has nothing to decide.
 //
-//   - local: a plain node lookup. A folder row is NOT a download hit — the
-//     aggregate browse is P2 (FR-21-AC8) — so folder-only members keep the
-//     walk moving toward a member that actually holds the artifact.
+// Member semantics per class on the FILE face:
+//
+//   - local: a plain node lookup. A folder row is NOT a download hit — it
+//     carries no body — so folder-only members keep the walk moving toward a
+//     member that actually holds the artifact.
 //   - remote: the full FR-20 proxy chain (cache, stale downgrade, guarded
 //     upstream contact — M50's upstream-package case depends on it). The
 //     engine's classified outcome drives the R10 stale/miss rule: a RESULT
@@ -184,6 +190,13 @@ func (s *service) getVirtual(ctx context.Context, p *Principal, virtualKey, path
 	order, err := s.virtualMemberOrder(ctx, virtualKey)
 	if err != nil {
 		return nil, nil, err
+	}
+	if isFolderNode(path) {
+		// T-412 (FR-136.1): the folder spelling is the aggregate browse.
+		// Same member order as the pull walk below — one resolution order,
+		// two faces (the browse can never disagree with the download plane
+		// about which member leads).
+		return s.getVirtualFolder(ctx, virtualKey, path, order)
 	}
 	for _, m := range order {
 		var (
@@ -223,7 +236,10 @@ func (s *service) probeLocalMember(ctx context.Context, member, path string) (io
 		return nil, nil, false, fmt.Errorf("node %s/%s: %w", member, path, err)
 	}
 	if n.Sha256 == emptyFolderSHA {
-		// Folder rows carry no body; aggregate directory reads are P2.
+		// Folder rows carry no body; the folder SPELLING is answered by
+		// getVirtualFolder before this walk ever runs, but a slash-less
+		// probe that happens to hit a folder row keeps walking toward a
+		// member that actually holds the artifact.
 		return nil, nil, false, nil
 	}
 	rc, _, err := s.st.Open(ctx, n.Sha256)
@@ -238,6 +254,100 @@ func (s *service) probeLocalMember(ctx context.Context, member, path string) (io
 		return nil, nil, false, fmt.Errorf("open blob %s for %s/%s: storage backend does not support Seek", n.Sha256, member, path)
 	}
 	return seekable, n, true, nil
+}
+
+// ---- the T-412 aggregate browse (FR-136.1/136.2) ----
+
+// getVirtualFolder is the virtual Get's folder face: a trailing-slash probe
+// answers through the members' STORED rows only — the folder marker of the
+// first member in the shared order that holds one, or a synthesized marker
+// when members hold only children beneath the path (pre-ADR-0016 remote
+// landings wrote file rows without their ancestor folders). The upstream is
+// NEVER probed (a directory is not an upstream resource — the T-406 ruling)
+// and nothing is written into any member's namespace: the remote arm's
+// read-side materialization is deliberately NOT copied here (a virtual read
+// leaves every member exactly as it found it, ADR-0013), so the synthesized
+// row is display-only and carries no provenance it cannot honestly claim.
+func (s *service) getVirtualFolder(ctx context.Context, virtualKey, path string, order []virtualMember) (io.ReadSeekCloser, *metadata.Node, error) {
+	dir := strings.TrimSuffix(path, "/")
+	for _, m := range order {
+		n, err := s.md.Nodes().Get(ctx, m.key, path)
+		switch {
+		case err == nil:
+			// A non-marker row at a folder spelling is unwritable by any
+			// current writer; should drift ever produce one, the spelling is
+			// still the caller's question and answers the same way.
+			return nil, n, fmt.Errorf("get %s/%s: %w", virtualKey, path, ErrIsFolder)
+		case errors.Is(err, metadata.ErrNodeNotFound):
+			// The marker may live in a later member — keep walking.
+		default:
+			return nil, nil, fmt.Errorf("node %s/%s (member %s): %w", virtualKey, path, m.key, err)
+		}
+	}
+	// No member holds the marker. Children strictly beneath the path still
+	// prove the directory (the caller's next call lists them): synthesize
+	// the display row rather than 404 a folder that demonstrably lists.
+	// ListByPrefix's LIKE also matches the dir's own spelling and sibling
+	// prefixes sharing the leading bytes, so the child test is the exact
+	// dir+"/" prefix, the same in-process filter Delete's candidate walk
+	// applies.
+	for _, m := range order {
+		kids, err := s.md.Nodes().ListByPrefix(ctx, m.key, dir)
+		if err != nil {
+			return nil, nil, fmt.Errorf("list %s/%s (member %s): %w", virtualKey, dir, m.key, err)
+		}
+		for _, k := range kids {
+			if strings.HasPrefix(k.Path, dir+"/") {
+				return nil, &metadata.Node{
+					RepoKey: virtualKey, Path: path, Sha256: emptyFolderSHA, Size: 0,
+				}, fmt.Errorf("get %s/%s: %w", virtualKey, path, ErrIsFolder)
+			}
+		}
+	}
+	return nil, nil, fmt.Errorf("node %s/%s: %w", virtualKey, path, ErrNodeNotFound)
+}
+
+// listVirtual is List's virtual arm: the members' children UNION, walked in
+// the SAME two-bucket order the pull resolution uses — a path two members
+// carry answers the FIRST member's row, the exact row a pull of that path
+// would serve, so the aggregate browse and the download plane can never
+// disagree about which member owns a path (FR-136.2's "不引入第二解析通道":
+// one virtualMemberOrder computation, two consumers). Rows keep their MEMBER
+// repo key — the storage-plane truth, the same posture as the pull Get's
+// winning node and aql.md §7-2's "result rows carry the actual storage repo".
+//
+// Remote members contribute their CACHE rows only (the T-406 listing
+// posture): the upstream is never probed from a browse face, so a dead or
+// slow upstream cannot fail or stall the tree. A memberless or all-empty
+// virtual answers an honest empty page, never an error — the
+// no-members/all-members-empty distinction the console's empty-state copy
+// keys on rides the repositories face's member list, not this one.
+func (s *service) listVirtual(ctx context.Context, virtualKey, prefix string) ([]*metadata.Node, error) {
+	order, err := s.virtualMemberOrder(ctx, virtualKey)
+	if err != nil {
+		return nil, err
+	}
+	merged := make(map[string]*metadata.Node)
+	for _, m := range order {
+		nodes, err := s.md.Nodes().ListByPrefix(ctx, m.key, prefix)
+		if err != nil {
+			return nil, fmt.Errorf("list %s/%s (member %s): %w", virtualKey, prefix, m.key, err)
+		}
+		for _, n := range nodes {
+			if _, dup := merged[n.Path]; dup {
+				continue // an earlier member in the order owns this path
+			}
+			merged[n.Path] = n
+		}
+	}
+	out := make([]*metadata.Node, 0, len(merged))
+	for _, n := range merged {
+		out = append(out, n)
+	}
+	// ListByPrefix answers each member ordered by path; the union re-sorts
+	// so the merged answer keeps the interface's path-ordered contract.
+	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
+	return out, nil
 }
 
 // probeRemoteMember walks one remote member through the FR-20 chain and maps

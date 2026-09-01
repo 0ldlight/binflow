@@ -23,7 +23,9 @@ import { m8Client, seedRepos } from '../m8/support/seed'
 //   ⑦ 「无端点列不伪造」：仓库列选菜单列集 = 端点背书列闭集（T-404 起含
 //      Replications 第 8 列——GET /v1/replications 端点背书；仍无「更新
 //      时间」等无端点列）。
-//   ⑧ 其余列表页不受影响：users 页零列选锚（新面只在两载体页）。
+//   ⑧ 其余列表页不受影响：users 页零列选锚（新面只在两载体页）——T-414
+//      起 users/groups/search 三页已推广列选器（e2e/m15/t414 谱系），本腿
+//      口径改为「repos/audit 锚不越界到 users 页」。
 //
 // 锚源：console-ux §10.5 T-387 批（repos-columns-* / repos-refresh /
 // audit-columns-* / audit-refresh——23 名全静态锚）；repos-* / audit-*
@@ -212,13 +214,18 @@ test('admin: audit column selector + refresh (hide persists across reload; refre
 })
 
 // ---- 4. 其余列表页不受影响（⑧） ----------------------------------------------
+// T-414 更新：users/groups/search 三页列选器推广后，本腿口径改为「锚互不
+// 越界」——users 页有自己的 users-columns（T-414 批），但 repos/audit 的
+// 列选锚仍不得出现在场（per-page 偏好面隔离）。
 
-test('admin: other list pages untouched — no column selector outside the two carrier pages', async ({ page }) => {
+test('admin: column selectors stay per-page — repos/audit anchors absent from users page', async ({ page }) => {
   await loginAs(page, 'admin')
   await page.goto('/binflow/ui/admin/security/users')
   await expect(page.locator('[data-testid="users-table"]')).toBeVisible()
   await expect(page.locator('[data-testid="repos-columns"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="audit-columns"]')).toHaveCount(0)
+  // users 页自己的列选器在场（T-414 推广面）
+  await expect(page.locator('[data-testid="users-columns"]')).toBeVisible()
   // 既有列表面照常（本票只加不删：users 表头仍在场）
   await expect(page.locator('[data-testid="users-table"] thead th').first()).toBeVisible()
 })

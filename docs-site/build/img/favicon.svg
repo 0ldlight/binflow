@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
-  <title>BinFlow mark：容器·双箭流（亮底生产版）</title>
-  <desc>K56 生产件（候选 1 转正）。圆角容器 = bin（仓库/集装箱）；描边箭 + 实心箭 = 逐级加速的 flow，亦读终端提示符 »。色板对齐 web/src/styles/tokens.css：容器描边用 bf-text 亮色 #1d232c，双箭用 bf-accent 亮色 #0b6bcb；改 token 必须同步本文件与 mark-dark.svg（logo/README §2）。几何规格：48 网格；容器 rect(5,5,38,38) rx9 描边 3.5；描边箭折线 (14.5,16.2)(24.5,24)(14.5,31.8) 描边 4 圆帽；实心箭三角 (23.5,14.6)(33.5,24)(23.5,33.4)。零 text、零字体依赖。</desc>
-  <rect x="5" y="5" width="38" height="38" rx="9" stroke="#1d232c" stroke-width="3.5"/>
-  <path d="M14.5 16.2 24.5 24l-10 7.8" stroke="#0b6bcb" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M23.5 14.6 33.5 24l-10 9.4Z" fill="#0b6bcb"/>
-</svg>

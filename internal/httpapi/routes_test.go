@@ -68,15 +68,18 @@ func TestE26FullMatrix(t *testing.T) {
 		// superseded): /api/search/artifact and /api/search/checksum now
 		// ROUTE (SR-01/SR-02), so the old matrix row for the artifact
 		// entrance moved to TestSearchArtifactW14 (its parameterless
-		// anonymous GET now answers the 400 of the missing name). The
+		// anonymous GET now answers the 400 of the missing name).
+		// T-417 R5 flip (FR-134, the same supersession): /api/search/gavc
+		// and /api/search/pattern ROUTE now too (their parameterless
+		// anonymous GETs answer the 400 of the missing value —
+		// search_legacy_test.go owns the positive halves); /api/search/prop
+		// routes as the OFFICIAL singular spelling. The remaining
 		// UNIMPLEMENTED search family stays here forever (SR-04, W36) —
 		// TestSearchUnimplementedFamilyW36 pins the authenticated posture.
-		{"/binflow/api/search/props", false},
+		{"/binflow/api/search/props", false}, // misspelled: the official member is prop
 		{"/binflow/api/search/users", false},
 		{"/binflow/api/search/artifactory", false},
-		{"/binflow/api/search/pattern", false},
 		{"/binflow/api/search/badge", false},
-		{"/binflow/api/search/gavc", false},
 		{"/binflow/api/replication", false},
 		{"/binflow/api/system/info", false},
 		{"/binflow/api/system/configuration", false},

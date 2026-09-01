@@ -259,8 +259,9 @@ func (s *service) loadRepoRow(ctx context.Context, repoKey string) (*metadata.Re
 // service can operate on. Remote repositories are NO LONGER refused here —
 // Get/Delete dispatch to the remote engine (T-66) and the write plane
 // refuses them with RE-05's 405 — and virtual repositories resolve through
-// their members on the read plane (T-71); only the aggregate LIST keeps the
-// refusal (FR-21-AC8 is P2).
+// their members on every read face (pull Get and the aggregate browse,
+// T-71/T-412); this loader serves the local-only use cases (the /v2 write
+// plane's repository resolution), which keep the refusal.
 func (s *service) loadLocalRepo(ctx context.Context, repoKey string) (*metadata.Repo, error) {
 	r, err := s.loadRepoRow(ctx, repoKey)
 	if err != nil {
@@ -268,7 +269,7 @@ func (s *service) loadLocalRepo(ctx context.Context, repoKey string) (*metadata.
 	}
 	if r.Type != TypeLocal {
 		if r.Type == TypeVirtual {
-			return nil, fmt.Errorf("%w: virtual repositories resolve through their members on the read plane; aggregate listing is deferred (FR-21-AC8, P2)",
+			return nil, fmt.Errorf("%w: virtual repositories resolve through their members; this operation requires a local repository",
 				ErrRepoTypeNotSupported)
 		}
 		return nil, fmt.Errorf("%w: %s repositories are not served by the local content plane", ErrRepoTypeNotSupported, r.Type)
@@ -353,7 +354,9 @@ func validateDockerImage(image string) error {
 // M3 (T-71, ADR-0013): a VIRTUAL repository dispatches to the two-bucket
 // member resolver (virtual.go) behind the same read gate; the winning
 // member's reader is wrapped with X-BinFlow-Resolved-From on top of
-// whatever hints it already carried.
+// whatever hints it already carried. The FOLDER spelling answers the
+// aggregate browse face instead: (nil, folderNode, ErrIsFolder) off the
+// members' stored rows, never an upstream probe (T-412).
 func (s *service) Get(ctx context.Context, p *Principal, repoKey, path string) (io.ReadSeekCloser, *metadata.Node, error) {
 	if err := validateNodePath(path); err != nil {
 		return nil, nil, err
@@ -1442,6 +1445,20 @@ func hasDeletedPrefix(p string, deleted map[string]bool) bool {
 // "d" and "d/" are equivalent (both return the folder row and every node
 // beneath it); without the strip, ListByPrefix("d/") would build a "d//%"
 // subtree arm matching nothing (T-12 review B2).
+//
+// T-406 (parity): remote repositories list their CACHE — pull-through
+// landings are ordinary node rows under the remote key (remote_cache holds
+// only validators), so the browser shows cached content like Artifactory's
+// remote-cache FolderInfo (rest-api.md section 3: FileInfo carries remoteUrl
+// on remote-cache rows); the upstream is never probed from the listing face.
+//
+// T-412 (FR-136.1): virtual repositories list the member UNION (virtual.go's
+// listVirtual) — the same two-bucket order the pull resolution walks, first
+// member winning a path two members carry; a memberless or all-empty virtual
+// answers an honest empty page. The read gate runs BEFORE the class dispatch
+// (Get's ordering): the virtual aggregate is exactly as gated as the local
+// listing, and an unauthorized caller learns nothing beyond the gate's own
+// answer (FR-136.4's "沿内容面 allow() 既有").
 func (s *service) List(ctx context.Context, p *Principal, repoKey, prefix string) ([]*metadata.Node, error) {
 	if prefix != "" {
 		prefix = strings.TrimSuffix(prefix, "/")
@@ -1452,26 +1469,18 @@ func (s *service) List(ctx context.Context, p *Principal, repoKey, prefix string
 			return nil, err
 		}
 	}
-	// T-406 (parity): remote repositories list their CACHE — pull-through
-	// landings are ordinary node rows under the remote key (remote_cache
-	// holds only validators), so the browser shows cached content like
-	// Artifactory's remote-cache FolderInfo (rest-api.md section 3: FileInfo
-	// carries remoteUrl on remote-cache rows); the upstream is never probed
-	// from the listing face. Virtual aggregate listing keeps its refusal
-	// (FR-21-AC8, P2) — the console renders a member-aware empty state.
 	row, err := s.loadRepoRow(ctx, repoKey)
 	if err != nil {
 		return nil, err
-	}
-	if row.Type == TypeVirtual {
-		return nil, fmt.Errorf("%w: virtual repositories resolve through their members on the read plane; aggregate listing is deferred (FR-21-AC8, P2)",
-			ErrRepoTypeNotSupported)
 	}
 	if !s.allow(ctx, p, repoKey, prefix, ActionRead) {
 		if p == nil {
 			return nil, fmt.Errorf("read %s/%s: %w", repoKey, prefix, ErrUnauthorized)
 		}
 		return nil, fmt.Errorf("read %s/%s: %w", repoKey, prefix, ErrForbidden)
+	}
+	if row.Type == TypeVirtual {
+		return s.listVirtual(ctx, repoKey, prefix)
 	}
 	nodes, err := s.md.Nodes().ListByPrefix(ctx, repoKey, prefix)
 	if err != nil {

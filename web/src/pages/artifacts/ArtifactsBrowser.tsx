@@ -145,9 +145,13 @@ export default function ArtifactsBrowser() {
     : meta.status === 'forbidden'
   const mkdirable = repoMeta ? rclass === 'local' && packageType === 'generic' : meta.status === 'forbidden'
   const isDockerRepo = repoMeta ? packageType === 'docker' : false
-  // T-406：virtual 仓聚合浏览是 FR-21-AC8 P2——内容面不发注定 400 的请求，
-  // 改渲染成员感知空态（成员读取自规范回显 configuration.repositories）；
-  // remote 仓列表 = 缓存落地行（服务端 T-406 同票放开）。
+  // T-416（FR-136.3，断言反转②）：T-406 的内容面 gate 解除——服务端聚合面
+  // （T-412）就绪，virtual 仓与非 virtual 仓同形浏览（树动态展开 + children
+  // 表 = 成员并集）。isVirtual 仍作两处语义分流：① 并集为空时的成员感知
+  // 空态文案（成员读取自规范回显 configuration.repositories）；② 删除入口
+  // 预收敛（RE-08：virtual 不经手删除，服务端一律 405——不给注定失败的
+  // 影子入口，与 uploadable/mkdirable 的 rclass 门同款姿态）。
+  // remote 仓列表 = 缓存落地行（T-406 服务端同票放开，维持）。
   const isVirtual = repoMeta ? repoMeta.rclass === 'virtual' : false
   const virtualMembers = repoMeta ? cfgStrList(repoMeta.configuration, 'repositories') : []
 
@@ -204,14 +208,22 @@ export default function ArtifactsBrowser() {
   }, [repoKey, isDockerRepo])
 
   useEffect(() => {
-    if (!repoKey || isVirtual) return
-    const wanted = new Set<string>([ck(repoKey, ''), ...chain.map((d) => ck(repoKey, d)), ...expanded])
+    // 跨仓根（未选仓）时手动展开的分支照常加载——T-416 收口：virtual twisty
+    // 恢复动态展开后「点了箭头永远转骨架」不可接受。该缺口先于本票存在且对
+    // 全部 rclass 同形（原 effect 以 !repoKey 早退，expanded 集被一并跳过）；
+    // 修复为「选中仓的根 + 祖先链 ∪ 手动展开集」，行为只增不改。
+    const wanted = new Set<string>(expanded)
+    if (repoKey) {
+      wanted.add(ck(repoKey, ''))
+      for (const d of chain) wanted.add(ck(repoKey, d))
+    }
+    if (wanted.size === 0) return
     for (const key of wanted) {
       const sep = key.indexOf('\n')
       loadDir(key.slice(0, sep), key.slice(sep + 1))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- chain/expanded 以 join key 刻画
-  }, [repoKey, isVirtual, chainKey, expandedKey, tick, loadDir])
+  }, [repoKey, chainKey, expandedKey, tick, loadDir])
 
   const refresh = useCallback(() => {
     cacheRef.current.clear()
@@ -714,7 +726,7 @@ export default function ArtifactsBrowser() {
                   download={download}
                   onDownload={(n, sha) => void doDownload(repoKey, n, sha)}
                   onClose={() => selectFile(null)}
-                  canDelete={!readOnly}
+                  canDelete={!readOnly && !isVirtual}
                   canWriteProps={!readOnly}
                   onDelete={(n) => void confirmDelete(repoKey, n)}
                 />
@@ -759,15 +771,7 @@ export default function ArtifactsBrowser() {
                     </span>
                   </div>
 
-                  {isVirtual ? (
-                    <EmptyState
-                      message="虚拟仓库：聚合浏览暂未支持"
-                      hint={`读取经成员仓库解析（FR-21-AC8 P2 待补）。成员：${
-                        virtualMembers.length ? virtualMembers.join('、') : '未配置'
-                      }`}
-                      testid="tree-empty-virtual"
-                    />
-                  ) : cur?.status === 'loading' || !cur ? (
+                  {cur?.status === 'loading' || !cur ? (
                     <TableSkeleton />
                   ) : cur.status === 'forbidden' ? (
                     <EmptyState
@@ -793,30 +797,49 @@ export default function ArtifactsBrowser() {
                     <ErrorCard error={cur.error} onRetry={refresh} />
                   ) : rows.length === 0 ? (
                     total === 0 ? (
-                      <EmptyState
-                        message="此目录为空"
-                        hint={
-                          uploadable
-                            ? '上传第一个制品，或创建子目录组织布局。'
-                            : rclass === 'remote'
-                              ? '远程仓库：仅展示已缓存的制品（浏览不回源）。'
-                              : '此仓库尚无内容。'
-                        }
-                        testid="tree-empty-dir"
-                        action={
-                          uploadable && !readOnly ? (
-                            <Button
-                              variant="contained"
-                              size="small"
-                              onClick={() => {
-                                setDeployOpen(true)
-                              }}
-                            >
-                              上传第一个制品
-                            </Button>
-                          ) : undefined
-                        }
-                      />
+                      isVirtual ? (
+                        // T-416 断言反转②：T-406 的「聚合浏览暂未支持」空态翻转
+                        // 为「成员并集为空」——有成员内容时不再空态（走上方正常
+                        // 表格分支）；无成员/全空维持空态，文案按两态区分（成员
+                        // 清单读自 configuration.repositories 规范回显）。锚
+                        // tree-empty-virtual 保留、语义随票翻转（锚册 v1.28）。
+                        <EmptyState
+                          message={dir === '' ? '虚拟仓库：暂无聚合内容' : '此路径在成员仓库中无内容'}
+                          hint={
+                            dir === ''
+                              ? virtualMembers.length
+                                ? `成员 ${virtualMembers.join('、')} 当前均无内容——成员仓库有制品后会聚合到这里（若成员已被删除，请在仓库管理中更新成员列表）。`
+                                : '未配置成员仓库——在仓库管理中配置成员后，成员内容会聚合到这里。'
+                              : '虚拟仓库按成员并集浏览，此路径下没有任何成员的内容。'
+                          }
+                          testid="tree-empty-virtual"
+                        />
+                      ) : (
+                        <EmptyState
+                          message="此目录为空"
+                          hint={
+                            uploadable
+                              ? '上传第一个制品，或创建子目录组织布局。'
+                              : rclass === 'remote'
+                                ? '远程仓库：仅展示已缓存的制品（浏览不回源）。'
+                                : '此仓库尚无内容。'
+                          }
+                          testid="tree-empty-dir"
+                          action={
+                            uploadable && !readOnly ? (
+                              <Button
+                                variant="contained"
+                                size="small"
+                                onClick={() => {
+                                  setDeployOpen(true)
+                                }}
+                              >
+                                上传第一个制品
+                              </Button>
+                            ) : undefined
+                          }
+                        />
+                      )
                     ) : filter.trim() !== '' ? (
                       // QA-3 / §3.1 空态：过滤后为空 ≠ 这一层没有内容——标准
                       // 文案 + 清除过滤（连「只看文件」一并复位，保证非空回呈现）
@@ -953,18 +976,23 @@ export default function ArtifactsBrowser() {
                                     下载
                                   </Button>
                                 )}
-                                <Button
-                                  variant="outlined"
-                                  color="error"
-                                  size="small"
-                                 
-                                  data-testid="delete-node-button"
-                                  disabled={readOnly}
-                                  title={readOnly ? '只读管理员不可删（服务端 403 兜底）' : undefined}
-                                  onClick={() => void confirmDelete(repoKey, n)}
-                                >
-                                  删除
-                                </Button>
+                                {/* T-416：virtual 仓删除入口预收敛（RE-08——
+                                    服务端 DELETE 一律 405「不经 virtual 删除」，
+                                    不给注定失败的影子入口；页头 warn-box 同义
+                                    说明常驻） */}
+                                {!isVirtual && (
+                                  <Button
+                                    variant="outlined"
+                                    color="error"
+                                    size="small"
+                                    data-testid="delete-node-button"
+                                    disabled={readOnly}
+                                    title={readOnly ? '只读管理员不可删（服务端 403 兜底）' : undefined}
+                                    onClick={() => void confirmDelete(repoKey, n)}
+                                  >
+                                    删除
+                                  </Button>
+                                )}
                               </TableCell>
                             </TableRow>
                           ))}
@@ -1005,6 +1033,10 @@ export default function ArtifactsBrowser() {
           readOnly={readOnly}
           canSeeAdmin={admin}
           repoRclass={repoMeta?.rclass}
+          // T-416：菜单目标可能是左树上任一仓（非当前仓）——虚拟判定按目标
+          // repoKey 查仓库清单，而非当前仓 rclass。清单 403（普通 user 深链）
+          // 时查不到 → 不预收敛，交给服务端 405 原样呈现。
+          targetVirtual={repoNodes.some((r) => r.key === menu.target.repoKey && r.type === 'virtual')}
           onClose={() => setMenu(null)}
           onCopyPath={(value) => {
             void navigator.clipboard.writeText(value).then(
@@ -1068,10 +1100,10 @@ function RepoBranch({
   onMenu: (x: number, y: number, target: MenuTarget) => void
 }) {
   const key = ck(repo.key, '')
-  // T-406：virtual 仓静态化——聚合浏览未支持（FR-21-AC8 P2），无展开箭头、
-  // 无子级区；选中仍可用（内容面渲染成员感知空态）。
-  const virtual = repo.type === 'virtual'
-  const isOpen = !virtual && (expanded.has(key) || selectedRepo === repo.key)
+  // T-416（FR-136.3）：T-406 的 virtual 静态化解除——服务端聚合面（T-412）
+  // 就绪，virtual 仓与非 virtual 仓同形：twisty 动态展开 + 子级区
+  //（children = 成员并集，深层递归与 local/remote 一致）。
+  const isOpen = expanded.has(key) || selectedRepo === repo.key
   const st = dirState[key]
 
   return (
@@ -1091,22 +1123,18 @@ function RepoBranch({
         }}
         onKeyDown={(e) => onTreeKeys(e, { repo: repo.key, dir: '', isOpen }, onToggle, onNavigate, onMenu)}
       >
-        {virtual ? (
-          <span className="twisty" aria-hidden="true" />
-        ) : (
-          <span
-            role="button"
-            tabIndex={-1}
-            aria-label={isOpen ? `收起 ${repo.key}` : `展开 ${repo.key}`}
-            className="twisty"
-            onClick={(e) => {
-              e.stopPropagation()
-              onToggle(repo.key, '')
-            }}
-          >
+        <span
+          role="button"
+          tabIndex={-1}
+          aria-label={isOpen ? `收起 ${repo.key}` : `展开 ${repo.key}`}
+          className="twisty"
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggle(repo.key, '')
+          }}
+        >
           {isOpen ? '▾' : '▸'}
-          </span>
-        )}
+        </span>
         <span aria-hidden="true" className="ico" title={`${repo.type || '仓库'} · ${repo.packageType || '未知包类型'}`}>
           {RC_ICON[repo.type] ?? '▣'}
           <PkgIcon id={repo.packageType || 'generic'} variant="mono" size={14} className="tree-pkg" />
@@ -1379,6 +1407,7 @@ function TreeContextMenu({
   readOnly,
   canSeeAdmin,
   repoRclass,
+  targetVirtual,
   onClose,
   onCopyPath,
   onDownload,
@@ -1390,6 +1419,8 @@ function TreeContextMenu({
   readOnly: boolean
   canSeeAdmin: boolean
   repoRclass?: string
+  /** 菜单目标是否 virtual 仓（T-416：删除预收敛——RE-08 服务端 405） */
+  targetVirtual: boolean
   onClose: () => void
   onCopyPath: (value: string) => void
   onDownload: (repo: string, node: ChildNode) => void
@@ -1399,6 +1430,10 @@ function TreeContextMenu({
 }) {
   const t = menu.target
   const readonlyTitle = '只读管理员不可删（服务端 403 兜底）'
+  // 与行内删除钮同一语义（见上方调用方注释）：virtual 不给注定 405 的入口
+  const virtualDeleteTitle = 'virtual 仓不经手删除（RE-08，服务端 405）——请到持有该制品的成员仓删除'
+  const deleteBlocked = readOnly || targetVirtual
+  const deleteTitle = readOnly ? readonlyTitle : targetVirtual ? virtualDeleteTitle : undefined
   const items: MenuItem[] =
     t.kind === 'repo'
       ? [
@@ -1414,8 +1449,8 @@ function TreeContextMenu({
             {
               id: 'delete',
               label: '删除',
-              disabled: readOnly,
-              title: readOnly ? readonlyTitle : undefined,
+              disabled: deleteBlocked,
+              title: deleteTitle,
               run: () => { onClose(); onDelete(t.repoKey, t.node) },
             },
             { id: 'refresh', label: '刷新', run: () => onRefresh(t.repoKey) },
@@ -1426,8 +1461,8 @@ function TreeContextMenu({
             {
               id: 'delete',
               label: repoRclass === 'remote' ? '删除缓存' : '删除',
-              disabled: readOnly,
-              title: readOnly ? readonlyTitle : undefined,
+              disabled: deleteBlocked,
+              title: deleteTitle,
               run: () => { onClose(); onDelete(t.repoKey, t.node) },
             },
           ]

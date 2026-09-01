@@ -18,9 +18,12 @@ import (
 )
 
 // T-92: the /api/search domain (FR-26, SR-01/SR-02/SR-04, W14/W15/W16/W36).
-// The routes open here are exactly artifact + checksum; every other family
-// member stays on the E-26 404 (the routes_test.go matrix keeps those rows,
-// with this ticket's flip of the artifact row noted below).
+// The routes open here are artifact + checksum; the M15 wave added the AQL
+// entrance (T-415, search_aql.go) and the gavc/prop/pattern trio (T-417,
+// search_legacy.go — the SR-03/SR-04 closure rows that used to live below
+// flipped there). Every other family member stays on the E-26 404 (the
+// routes_test.go matrix keeps those rows, with this ticket's flip of the
+// artifact row noted below).
 
 // searchFileInfo is the client-side view of one results[] entry — the E-09
 // FileInfo field set (size stays a STRING, checksums the sha1/md5/sha256
@@ -362,22 +365,26 @@ func TestSearchAnonymousOpenInstance(t *testing.T) {
 	}
 }
 
-// TestSearchUnimplementedFamilyW36 is SR-04 (W36): the search domain opens
-// exactly artifact + checksum — every other family member stays on the E-26
-// 404 with the not-implemented wording, and so do foreign verbs on the two
-// open paths. (The M1 E-26 matrix row for /api/search/artifact flipped in
-// this same ticket — routes_test.go carries the note.)
+// TestSearchUnimplementedFamilyW36 is SR-04 (W36), post-T-417 form: the
+// search domain now opens artifact + checksum (T-92) and the gavc/prop/
+// pattern trio (FR-134 — the SR-03/SR-04 closure assertions flipped in
+// T-417; search_legacy_test.go owns the positive halves). Every REMAINING
+// family member stays on the E-26 404 with the not-implemented wording,
+// including the misspelled plural "props" (the official member is prop),
+// and so do foreign verbs on the open paths. (The M1 E-26 matrix row for
+// /api/search/artifact flipped in T-92; routes_test.go carries the T-417
+// note beside its gavc/pattern rows.)
 func TestSearchUnimplementedFamilyW36(t *testing.T) {
 	h := newHarness(t)
 
 	for _, path := range []string{
+		// The official member is prop (aql.md section 8.2); the plural
+		// spelling was never an endpoint and stays a 404.
 		"/binflow/api/search/props?props=license",
 		"/binflow/api/search/users?name=admin",
 		"/binflow/api/search/artifactory?name=x",
 		"/binflow/api/search/artifactory/internal",
-		"/binflow/api/search/pattern?pattern=**/*.jar",
 		"/binflow/api/search/badge?sha256=" + strings.Repeat("0", 64),
-		"/binflow/api/search/gavc?g=com.acme&a=demo-app", // SR-03: P2, still closed
 		"/binflow/api/search",
 		"/binflow/api/search/",
 	} {
@@ -394,11 +401,14 @@ func TestSearchUnimplementedFamilyW36(t *testing.T) {
 		})
 	}
 
-	// Foreign verbs on the two open paths stay 404 (the domain is GET-only).
+	// Foreign verbs on the open paths stay 404 (the domain is GET-only,
+	// save AQL's POST).
 	for _, tc := range []struct{ method, path string }{
 		{http.MethodPost, "/binflow/api/search/artifact?name=x"},
 		{http.MethodPut, "/binflow/api/search/checksum?sha256=" + strings.Repeat("a", 64)},
 		{http.MethodDelete, "/binflow/api/search/artifact"},
+		{http.MethodPost, "/binflow/api/search/gavc?g=com.acme"},
+		{http.MethodDelete, "/binflow/api/search/pattern?pattern=x:y"},
 	} {
 		t.Run(tc.method+" "+tc.path, func(t *testing.T) {
 			resp := h.do(tc.method, tc.path, adminUser, adminPass, nil, nil)

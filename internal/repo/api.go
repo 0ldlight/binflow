@@ -270,7 +270,8 @@ type AuditLogger interface {
 // M3 dispatches per repository class: remote reads pull through the proxy
 // engine (T-66), virtual reads resolve over the member two-bucket order and
 // virtual writes route onto the configured local deployment member or
-// answer the C5 405 (T-71); aggregate virtual LIST is deferred (P2).
+// answer the C5 405 (T-71); virtual List aggregates the member children
+// union over the same order (T-412, FR-136).
 //
 // The interface is organized in two contract segments (architecture section
 // 5.4, M3/T-63): the public use-case face (content + repository management)
@@ -363,7 +364,10 @@ type Service interface {
 	// List returns every node under prefix ("" = whole repository), ordered
 	// by path. Folder nodes (path ending in "/") are included. The prefix is
 	// normalized: "d" and "d/" are equivalent and both return the folder row
-	// plus everything beneath it (T-12 review B2).
+	// plus everything beneath it (T-12 review B2). A VIRTUAL repository
+	// answers the member children UNION over the resolution order — first
+	// member winning a path two members carry; rows keep their member repo
+	// key, and a remote member contributes cache rows only (T-412).
 	List(ctx context.Context, p *Principal, repoKey, prefix string) ([]*metadata.Node, error)
 
 	// CreateRepo validates and persists a new repository configuration.
@@ -589,10 +593,14 @@ type Service interface {
 	// store access). Malformed parameters answer ErrInvalidSearchQuery.
 
 	// SearchArtifacts returns every file node whose repo-relative path
-	// contains name as a literal, case-sensitive substring (K2's provisional
-	// semantics — SQL LIKE; the `*` wildcard family and gavc are P2). repos
-	// narrows the candidate repositories (nil/empty = all); unknown keys
-	// simply match nothing. An empty name answers ErrInvalidSearchQuery.
+	// contains name as a literal, case-INsensitive substring (K64's
+	// calibration, aql.md section 0-5 — SQL LIKE with both sides folded;
+	// the `*` wildcard family stays unimplemented: the official and
+	// decompiled readings both treat name bytes literally). The gavc/prop/
+	// pattern arms of that former P2 note landed on the
+	// LegacySearchService face (T-417). repos narrows the candidate
+	// repositories (nil/empty = all); unknown keys simply match nothing. An
+	// empty name answers ErrInvalidSearchQuery.
 	SearchArtifacts(ctx context.Context, p *Principal, name string, repos []string) ([]*metadata.Node, error)
 	// SearchChecksum returns every file node referencing a blob addressed by
 	// any of the query's digests (union; cross-repository references are all
@@ -600,6 +608,47 @@ type Service interface {
 	// bare hex, case-normalized; sha1/md5 resolve through the blobs ledger.
 	// An all-empty or malformed query answers ErrInvalidSearchQuery.
 	SearchChecksum(ctx context.Context, p *Principal, q ChecksumQuery, repos []string) ([]*metadata.Node, error)
+
+	// ---- AQL scope seams (T-413, FR-133.2 / ADR-0043 pt 4) ----
+	//
+	// The two-stage read-only ACL weave of the AQL engine: SearchScope is
+	// the collection-level first stage (the repo_key predicate the engine
+	// compiles into the WHERE tree — the repoFilter narrowing of the SQL,
+	// hoisted to the caller's whole readable set), CanRead the row-level
+	// second stage over the path-scoped repositories. Zero side effects by
+	// contract: no writes, no audit rows, no webhooks.
+
+	// SearchScope returns every local or remote repository the principal
+	// can read at least one path of, classified PathScoped when every read
+	// grant covering the repository carries include/exclude path patterns
+	// (those repositories' rows need the CanRead re-check; a pattern-free
+	// target covers every path, so its rows skip the second stage at zero
+	// per-row cost). Admin and readonly-admin principals — and anonymous
+	// callers on an open instance — read globally: every local and remote
+	// repository, PathScoped=false. Virtual repositories never enter the
+	// scope (nodes carry no virtual rows, aql.md §7). Anonymous callers on
+	// a closed instance meet ErrForbidden (the searchGate rule, T-92's
+	// gate); an empty scope is a legitimate answer — the engine
+	// short-circuits to an empty result without touching SQL.
+	SearchScope(ctx context.Context, p *Principal) ([]ReadScope, error)
+	// CanRead reports whether p may read repoKey/path — the same
+	// allow(read) decision a download and T-92's filterVisible run, so the
+	// query plane and the content plane can never disagree on visibility.
+	CanRead(ctx context.Context, p *Principal, repoKey, path string) bool
+}
+
+// ReadScope is one repository of the caller's AQL search scope (T-413,
+// FR-133.2 / ADR-0043 pt 4). The engine weaves the whole scope into the
+// query's WHERE tree and re-checks only the PathScoped rows through
+// Service.CanRead — the second stage that keeps path include/exclude
+// patterns a single-sourced decision (auth's matcher, never a SQL
+// translation).
+type ReadScope struct {
+	// Repo is the repository key.
+	Repo string
+	// PathScoped marks a repository whose read grants all carry path
+	// patterns: rows in it must clear CanRead before they surface.
+	PathScoped bool
 }
 
 // UsageReport is the GE-06 usage view: the repository's metered total and

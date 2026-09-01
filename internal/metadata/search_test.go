@@ -47,16 +47,19 @@ func seedFolderRow(t *testing.T, st metadata.Store, key, path string) {
 	}
 }
 
-// TestSearchByName pins SR-01's SQL semantics (K2 provisional: literal
-// case-sensitive path substring). The store's case_sensitive_like DSN pragma
-// makes LIKE binary-sensitive; the fragment escaping keeps %/_/\ literal.
+// TestSearchByName pins SR-01's SQL semantics under K64's calibration
+// (aql.md section 0-5, T-417): a literal path substring matched
+// case-INSENSITIVELY — the fragment folds and the column wraps in LOWER(),
+// so the store's case_sensitive_like DSN pragma is irrelevant on this arm.
+// The fragment escaping keeps %/_/\ literal, and the fold is ASCII (the
+// registered limitation).
 func TestSearchByName(t *testing.T) {
 	st := open(t)
 	ctx := context.Background()
 	ns := searcherOf(t, st)
 	seedSearchNodes(t, st, "alpha",
 		"acme/artifact.bin",       // the W14 target
-		"acme/ARTIFACT.bin",       // different case: a different name
+		"acme/ARTIFACT.bin",       // the K64 twin: folds onto the same match
 		"other/lib.jar",           // no match below
 		"deep/acme/readme.txt",    // fragment in a DIRECTORY name matches too
 		"my_lib/artifact.bin",     // underscore must stay literal
@@ -73,14 +76,21 @@ func TestSearchByName(t *testing.T) {
 		want []string
 	}{
 		{"filename substring (W14)", "artifact", []string{
-			"100Xct/artifact.bin", "100pct/artifact.bin", "acme/artifact.bin",
-			`back\slash/artifact.bin`, "myXlib/artifact.bin", "my_lib/artifact.bin",
+			"100Xct/artifact.bin", "100pct/artifact.bin", "acme/ARTIFACT.bin",
+			"acme/artifact.bin", `back\slash/artifact.bin`, "myXlib/artifact.bin",
+			"my_lib/artifact.bin",
 		}},
-		{"case-sensitive: lowercase excludes the uppercase twin", "artifact.bin", []string{
-			"100Xct/artifact.bin", "100pct/artifact.bin", "acme/artifact.bin",
-			`back\slash/artifact.bin`, "myXlib/artifact.bin", "my_lib/artifact.bin",
+		{"case-insensitive: the uppercase twin joins (K64)", "artifact.bin", []string{
+			"100Xct/artifact.bin", "100pct/artifact.bin", "acme/ARTIFACT.bin",
+			"acme/artifact.bin", `back\slash/artifact.bin`, "myXlib/artifact.bin",
+			"my_lib/artifact.bin",
 		}},
-		{"uppercase fragment matches only the uppercase twin", "ARTIFACT", []string{"acme/ARTIFACT.bin"}},
+		{"uppercase fragment folds onto every twin (K64)", "ARTIFACT", []string{
+			"100Xct/artifact.bin", "100pct/artifact.bin", "acme/ARTIFACT.bin",
+			"acme/artifact.bin", `back\slash/artifact.bin`, "myXlib/artifact.bin",
+			"my_lib/artifact.bin",
+		}},
+		{"directory fragment folds too (K64)", "DEEP/ACME", []string{"deep/acme/readme.txt"}},
 		{"directory name substring matches its files", "deep/acme", []string{"deep/acme/readme.txt"}},
 		{"underscore stays literal", "my_lib", []string{"my_lib/artifact.bin"}},
 		{"percent stays literal", "100pct", []string{"100pct/artifact.bin"}},
@@ -280,4 +290,257 @@ func TestSearchByChecksum(t *testing.T) {
 			t.Fatalf("empty-digest search = %v", pathsOf(t, got))
 		}
 	})
+}
+
+// seedProps writes properties onto a seeded node through the real
+// NodePropStore face (the M10 write arm — the search arm's sibling).
+func seedProps(t *testing.T, st metadata.Store, key, path string, props map[string]string) {
+	t.Helper()
+	set := make(map[string][]string, len(props))
+	for k, v := range props {
+		set[k] = []string{v}
+	}
+	if err := st.NodeProps().Merge(context.Background(), key, path, set); err != nil {
+		t.Fatalf("props merge %s/%s: %v", key, path, err)
+	}
+}
+
+// TestSearchByPath pins the gavc arm's SQL semantics (T-417, FR-134.1): a
+// literal leading prefix plus literal infix substrings, case-SENSITIVE (a
+// maven coordinate is), wildcard bytes in the pieces escaped to themselves,
+// folder rows never surfacing, the repos filter narrowing, and limit > 0
+// capping the page SQL-side.
+func TestSearchByPath(t *testing.T) {
+	st := open(t)
+	ctx := context.Background()
+	ns := searcherOf(t, st)
+	seedSearchNodes(t, st, "maven-local",
+		"com/acme/demo-app/1.0.0/demo-app-1.0.0.jar",
+		"com/acme/demo-app/1.0.0/demo-app-1.0.0-sources.jar",
+		"com/acme/demo-app/2.0.0/demo-app-2.0.0.jar",
+		"com/acme/other-lib/1.0.0/other-lib-1.0.0.jar",
+		"COM/ACME/demo-app/1.0.0/demo-app-1.0.0.jar",  // case twin: gavc stays case-sensitive
+		"org/other/demo-app/3.0.0/demo-app-3.0.0.jar", // the module at another org
+		"com/acme/100pct/demo/100pct-1.0.jar",         // literal % inside the path text
+	)
+	seedSearchNodes(t, st, "maven-other", "com/acme/demo-app/1.0.0/demo-app-1.0.0.jar")
+	seedFolderRow(t, st, "maven-local", "com/acme/")
+
+	tests := []struct {
+		name  string
+		f     metadata.PathFilter
+		repos []string
+		want  []string
+	}{
+		{"group+artifact+version prefix", metadata.PathFilter{
+			Prefix: "com/acme/demo-app/1.0.0"}, nil, []string{
+			"com/acme/demo-app/1.0.0/demo-app-1.0.0-sources.jar",
+			"com/acme/demo-app/1.0.0/demo-app-1.0.0.jar",
+			"com/acme/demo-app/1.0.0/demo-app-1.0.0.jar", // maven-other's twin
+		}},
+		{"group prefix reaches every version", metadata.PathFilter{
+			Prefix: "com/acme/demo-app"}, nil, []string{
+			"com/acme/demo-app/1.0.0/demo-app-1.0.0-sources.jar",
+			"com/acme/demo-app/1.0.0/demo-app-1.0.0.jar",
+			"com/acme/demo-app/2.0.0/demo-app-2.0.0.jar",
+			"com/acme/demo-app/1.0.0/demo-app-1.0.0.jar", // maven-other's twin
+		}},
+		{"prefix is case-sensitive", metadata.PathFilter{
+			Prefix: "com/acme/DEMO-APP"}, nil, nil},
+		{"prefix anchors at the head (a suffix is not a prefix)", metadata.PathFilter{
+			Prefix: "acme/demo-app"}, nil, nil},
+		// Raw-head semantics: this layer implies NO segment boundary — the
+		// gavc caller's trailing slash is what makes a prefix a directory.
+		{"prefix is raw head bytes, boundary or not", metadata.PathFilter{
+			Prefix: "com/acme/demo-app/1.0"}, nil, []string{
+			"com/acme/demo-app/1.0.0/demo-app-1.0.0-sources.jar",
+			"com/acme/demo-app/1.0.0/demo-app-1.0.0.jar",
+			"com/acme/demo-app/1.0.0/demo-app-1.0.0.jar", // maven-other's twin
+		}},
+		{"artifact infix without group", metadata.PathFilter{
+			Infixes: []string{"/demo-app/"}}, nil, []string{
+			"COM/ACME/demo-app/1.0.0/demo-app-1.0.0.jar",
+			"com/acme/demo-app/1.0.0/demo-app-1.0.0-sources.jar",
+			"com/acme/demo-app/1.0.0/demo-app-1.0.0.jar",
+			"com/acme/demo-app/2.0.0/demo-app-2.0.0.jar",
+			"org/other/demo-app/3.0.0/demo-app-3.0.0.jar",
+			"com/acme/demo-app/1.0.0/demo-app-1.0.0.jar", // maven-other's twin
+		}},
+		{"classifier infix", metadata.PathFilter{
+			Infixes: []string{"-sources."}}, nil, []string{
+			"com/acme/demo-app/1.0.0/demo-app-1.0.0-sources.jar",
+		}},
+		{"prefix plus classifier infix compose", metadata.PathFilter{
+			Prefix: "com/acme", Infixes: []string{"-sources."}}, nil, []string{
+			"com/acme/demo-app/1.0.0/demo-app-1.0.0-sources.jar",
+		}},
+		{"repos filter narrows", metadata.PathFilter{
+			Prefix: "com/acme/demo-app/1.0.0"}, []string{"maven-other"}, []string{
+			"com/acme/demo-app/1.0.0/demo-app-1.0.0.jar",
+		}},
+		{"unknown repo matches nothing", metadata.PathFilter{
+			Prefix: "com/acme"}, []string{"ghost"}, nil},
+		{"empty filter matches every file", metadata.PathFilter{}, nil, []string{
+			"COM/ACME/demo-app/1.0.0/demo-app-1.0.0.jar",
+			"com/acme/100pct/demo/100pct-1.0.jar",
+			"com/acme/demo-app/1.0.0/demo-app-1.0.0-sources.jar",
+			"com/acme/demo-app/1.0.0/demo-app-1.0.0.jar",
+			"com/acme/demo-app/2.0.0/demo-app-2.0.0.jar",
+			"com/acme/other-lib/1.0.0/other-lib-1.0.0.jar",
+			"org/other/demo-app/3.0.0/demo-app-3.0.0.jar",
+			"com/acme/demo-app/1.0.0/demo-app-1.0.0.jar", // maven-other's twin
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ns.SearchByPath(ctx, tt.f, 0, tt.repos)
+			if err != nil {
+				t.Fatalf("SearchByPath: %v", err)
+			}
+			if !equalPaths(pathsOf(t, got), tt.want) {
+				t.Fatalf("SearchByPath(%+v) = %v, want %v", tt.f, pathsOf(t, got), tt.want)
+			}
+		})
+	}
+
+	// The limit cap trims SQL-side (the K63 +1 probe rides this parameter).
+	got, err := ns.SearchByPath(ctx, metadata.PathFilter{Prefix: "com/acme"}, 2, nil)
+	if err != nil {
+		t.Fatalf("SearchByPath limit: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("limited search returned %d rows, want 2", len(got))
+	}
+
+	// The folder row never surfaces even when the prefix addresses it.
+	got, err = ns.SearchByPath(ctx, metadata.PathFilter{Prefix: "com/acme"}, 0, nil)
+	if err != nil {
+		t.Fatalf("SearchByPath: %v", err)
+	}
+	for _, p := range pathsOf(t, got) {
+		if strings.HasSuffix(p, "/") {
+			t.Fatalf("folder row %q surfaced in search results", p)
+		}
+	}
+}
+
+// TestSearchByProps pins the prop arm's SQL semantics (T-417, FR-134.2): a
+// key-without-value condition is bare existence, a value-pinned one is an
+// exact match, constraints AND across keys, multi-valued keys match when any
+// value does, and unknown keys answer the honest empty page.
+func TestSearchByProps(t *testing.T) {
+	st := open(t)
+	ctx := context.Background()
+	ns := searcherOf(t, st)
+	seedSearchNodes(t, st, "generic-local",
+		"acme/artifact.bin", "acme/other.bin", "acme/multi.bin", "acme/bare.bin")
+	seedSearchNodes(t, st, "other-local", "acme/artifact.bin")
+	seedProps(t, st, "generic-local", "acme/artifact.bin",
+		map[string]string{"license": "Apache-2.0", "build.name": "demo"})
+	seedProps(t, st, "generic-local", "acme/other.bin",
+		map[string]string{"license": "MIT"})
+	seedProps(t, st, "generic-local", "acme/multi.bin",
+		map[string]string{"license": "GPL-3.0-only"})
+	if err := st.NodeProps().Merge(ctx, "generic-local", "acme/multi.bin",
+		map[string][]string{"license": {"Apache-2.0"}}); err != nil {
+		t.Fatalf("second value: %v", err)
+	}
+	seedProps(t, st, "generic-local", "acme/bare.bin",
+		map[string]string{"stage": "gold"})
+
+	tests := []struct {
+		name  string
+		conds []metadata.PropFilter
+		repos []string
+		want  []string
+	}{
+		{"key=value pins the value", []metadata.PropFilter{{Key: "license", Value: "Apache-2.0"}}, nil, []string{
+			"acme/artifact.bin", "acme/multi.bin",
+		}},
+		{"key without value is bare existence", []metadata.PropFilter{{Key: "license"}}, nil, []string{
+			"acme/artifact.bin", "acme/multi.bin", "acme/other.bin",
+		}},
+		{"constraints AND across keys", []metadata.PropFilter{
+			{Key: "license", Value: "Apache-2.0"}, {Key: "build.name"}}, nil, []string{
+			"acme/artifact.bin",
+		}},
+		{"both values pinned intersects", []metadata.PropFilter{
+			{Key: "license", Value: "MIT"}, {Key: "build.name", Value: "demo"}}, nil, nil},
+		{"unknown key is the honest empty page", []metadata.PropFilter{{Key: "ghost"}}, nil, nil},
+		{"repos filter narrows", []metadata.PropFilter{{Key: "license"}}, []string{"other-local"}, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ns.SearchByProps(ctx, tt.conds, 0, tt.repos)
+			if err != nil {
+				t.Fatalf("SearchByProps: %v", err)
+			}
+			if !equalPaths(pathsOf(t, got), tt.want) {
+				t.Fatalf("SearchByProps(%v) = %v, want %v", tt.conds, pathsOf(t, got), tt.want)
+			}
+		})
+	}
+}
+
+// TestSearchByPattern pins the pattern arm's SQL semantics (T-417,
+// FR-134.3): the repo and path patterns arrive PRE-TRANSLATED (the kernel
+// lives in internal/search and has its own suite — match_test.go); this
+// layer adds only the ESCAPE clause, so a translated literal wildcard stays
+// literal and the path pattern anchors at the head.
+func TestSearchByPattern(t *testing.T) {
+	st := open(t)
+	ctx := context.Background()
+	ns := searcherOf(t, st)
+	seedSearchNodes(t, st, "maven-local",
+		"com/acme/lib/a.jar",
+		"com/acme/lib/deep/b.jar",
+		"com/acme/root.jar",
+		"com/acme/lib/x.pom",
+		"100%/lib/c.jar",
+	)
+	seedSearchNodes(t, st, "other-local", "com/acme/lib/a.jar")
+
+	tests := []struct {
+		name               string
+		repoLike, pathLike string
+		want               []string
+	}{
+		{"literal repo and path head", "maven-local", "com/acme/root.jar", []string{
+			"maven-local/com/acme/root.jar",
+		}},
+		{"translated star crosses segments (SQL % semantics)", "maven-local", "com/acme/%.jar", []string{
+			"maven-local/com/acme/lib/a.jar",
+			"maven-local/com/acme/lib/deep/b.jar",
+			"maven-local/com/acme/root.jar",
+		}},
+		{"translated double-star behaves as one star (depth floor: one slash)", "maven-local", "com/acme/%%/%.jar", []string{
+			"maven-local/com/acme/lib/a.jar",
+			"maven-local/com/acme/lib/deep/b.jar",
+		}},
+		{"repo pattern spans repositories", "%-local", "com/acme/lib/a.jar", []string{
+			"maven-local/com/acme/lib/a.jar", "other-local/com/acme/lib/a.jar",
+		}},
+		{"path pattern anchors at the head", "maven-local", "acme/%", nil},
+		{"translated literal percent stays literal", "maven-local", `100\%/lib/%`, []string{
+			"maven-local/100%/lib/c.jar",
+		}},
+		{"empty path pattern leaves the repo constraint alone", "other-local", "", []string{
+			"other-local/com/acme/lib/a.jar",
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ns.SearchByPattern(ctx, tt.repoLike, tt.pathLike, 0)
+			if err != nil {
+				t.Fatalf("SearchByPattern: %v", err)
+			}
+			keys := make([]string, 0, len(got))
+			for _, n := range got {
+				keys = append(keys, n.RepoKey+"/"+n.Path)
+			}
+			if !equalPaths(keys, tt.want) {
+				t.Fatalf("SearchByPattern(%q,%q) = %v, want %v", tt.repoLike, tt.pathLike, keys, tt.want)
+			}
+		})
+	}
 }
