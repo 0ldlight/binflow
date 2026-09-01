@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { ComponentPropsWithoutRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
@@ -6,7 +6,10 @@ import Alert from '@mui/material/Alert'
 import Button from '@mui/material/Button'
 import Checkbox from '@mui/material/Checkbox'
 import Chip from '@mui/material/Chip'
+import Divider from '@mui/material/Divider'
 import FormControlLabel from '@mui/material/FormControlLabel'
+import Menu from '@mui/material/Menu'
+import MenuItem from '@mui/material/MenuItem'
 import Select from '@mui/material/Select'
 import Table from '@mui/material/Table'
 import TableBody from '@mui/material/TableBody'
@@ -22,6 +25,8 @@ import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import { ADMIN_ROLES, ApiError, canAdminWrite, errText, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
+import { useColumnPrefs } from '../../lib/columnPrefs'
+import type { ColumnDef } from '../../lib/columnPrefs'
 import type { AdminRole } from '../../lib/api'
 import { onTableRowKeys } from '../../lib/keys'
 import { useAsync } from '../../lib/useAsync'
@@ -52,6 +57,22 @@ import type { UserListItem } from './api'
 // admin 渲染。readonly_admin：读面全通 + users-readonly-note（M7 §7.3）。
 
 type UserSortKey = 'name' | 'email' | 'groups' | 'role' | 'status'
+
+/** T-414（FR-135.2，T-387 spec 形态复用）：列选器列集 = **既有全部列**闭集
+ * （「无端点列不伪造」——§6.9[1] 明示不建 Realm/Last Login/Admin 布尔列）；
+ * label 与表头一致；anchor = 菜单项锚（anchor-audit 的 anchor: 属性形态）。
+ * 操作列仅 admin 在场（L4 写面预收敛）——非 admin 视图该列不存在，菜单项
+ * 同步不呈现（不伪造空控制）。 */
+const COLUMNS: ColumnDef[] = [
+  { id: 'name', label: '用户名', anchor: 'users-columns-item-name' },
+  { id: 'email', label: 'Email', anchor: 'users-columns-item-email' },
+  { id: 'groups', label: '组', anchor: 'users-columns-item-groups' },
+  { id: 'role', label: '角色', anchor: 'users-columns-item-role' },
+  { id: 'status', label: 'Status', anchor: 'users-columns-item-status' },
+  { id: 'actions', label: '操作', anchor: 'users-columns-item-actions' },
+]
+const COLUMN_IDS = COLUMNS.map((c) => c.id)
+const COLS_KEY = 'binflow-console-cols-users'
 
 function roleBadge(item: UserListItem) {
   // E2 列表项无 admin 布尔（W40 禁）——adminRole 恒渲染，闭集外回退
@@ -308,6 +329,14 @@ export default function UsersPage() {
   // 单请求（E2 加宽列表）——行模型 = 列表项本体，无逐用户详情扇出
   const state = useAsync(listUsers, [])
   const [creating, setCreating] = useState(false)
+  // T-414（FR-135.2）：列显隐偏好（per-page localStorage，T-387 共享层）。
+  // 列集随视角收窄：非 admin 无操作列（列不在场则菜单项与偏好 id 同步剔除
+  // ——readHidden 按当页列集清洗，未列入不在场列的隐藏项自动失效）。
+  const pageColumns = useMemo(() => (admin ? COLUMNS : COLUMNS.filter((c) => c.id !== 'actions')), [admin])
+  const pageIds = useMemo(() => (admin ? COLUMN_IDS : COLUMN_IDS.filter((id) => id !== 'actions')), [admin])
+  const cols = useColumnPrefs(pageIds, COLS_KEY)
+  const [colsAnchor, setColsAnchor] = useState<HTMLElement | null>(null)
+  const colsOpen = Boolean(colsAnchor)
   const { sort, toggle } = useTableSort<UserSortKey>({ key: 'name', dir: 'asc' })
   const { openDialog: deleteUser } = useUserDelete({ onDeleted: () => state.reload() })
 
@@ -353,6 +382,68 @@ export default function UsersPage() {
         />
       )}
 
+      {/* T-414（FR-135.2）：工具栏尾 = 列选器（T-387 L1 形态复用——MUI Menu +
+          menuitemcheckbox 项，字形勾选态 aria-hidden 装饰、语义在
+          aria-checked；计数行 users-count 在表尾，尾组自推右端）。本页无
+          工具栏搜索面（用户数 = 实例账号规模，全量在端上），filter-bar 单独
+          承载列选尾组。 */}
+      <div className="filter-bar">
+        <span className="filter-tail-actions filter-tail-end">
+          <Button
+            variant="outlined"
+            size="small"
+            aria-haspopup="menu"
+            aria-expanded={colsOpen}
+            data-testid="users-columns"
+            title="自定义显示列（偏好保存在本浏览器）"
+            onClick={(e) => setColsAnchor(e.currentTarget)}
+          >
+            <span aria-hidden="true">▤</span> 列 {cols.visibleCount}/{pageColumns.length}
+          </Button>
+          <Menu
+            open={colsOpen}
+            onClose={() => setColsAnchor(null)}
+            anchorEl={colsAnchor}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+            data-testid="users-columns-menu"
+          >
+            {pageColumns.map((c) => {
+              const visible = cols.isVisible(c.id)
+              // 至少一列在场：仅剩一列可见时该项不可再弃
+              const last = visible && cols.visibleCount === 1
+              return (
+                <MenuItem
+                  key={c.id}
+                  role="menuitemcheckbox"
+                  aria-checked={visible}
+                  aria-disabled={last || undefined}
+                  title={last ? '至少保留一列' : undefined}
+                  data-testid={c.anchor}
+                  onClick={() => {
+                    if (!last) cols.toggle(c.id)
+                  }}
+                >
+                  <span aria-hidden="true" className="col-check">
+                    {visible ? '☑' : '☐'}
+                  </span>
+                  {c.label}
+                </MenuItem>
+              )
+            })}
+            <Divider component="li" />
+            <MenuItem
+              aria-disabled={cols.visibleCount === pageColumns.length || undefined}
+              title={cols.visibleCount === pageColumns.length ? '全部列已在场' : '显示全部列'}
+              data-testid="users-columns-reset"
+              onClick={() => cols.reset()}
+            >
+              全选列
+            </MenuItem>
+          </Menu>
+        </span>
+      </div>
+
       {state.status === 'loading' && <Skeleton lines={6} />}
       {state.status === 'error' && state.error && <ErrorCard error={state.error} onRetry={state.reload} />}
       {state.status === 'forbidden' && state.error && (
@@ -373,12 +464,16 @@ export default function UsersPage() {
             <Table data-testid="users-table">
               <TableHead>
                 <TableRow>
-                  <SortTh label="用户名" sortKey="name" sort={sort} onToggle={toggle} testid="users-sort-name" />
-                  <SortTh label="Email" sortKey="email" sort={sort} onToggle={toggle} />
-                  <SortTh label="组" sortKey="groups" sort={sort} onToggle={toggle} />
-                  <SortTh label="角色" sortKey="role" sort={sort} onToggle={toggle} />
-                  <SortTh label="Status" sortKey="status" sort={sort} onToggle={toggle} testid="users-sort-status" />
-                  {admin && <TableCell component="th" scope="col">操作</TableCell>}
+                  {cols.isVisible('name') && (
+                    <SortTh label="用户名" sortKey="name" sort={sort} onToggle={toggle} testid="users-sort-name" />
+                  )}
+                  {cols.isVisible('email') && <SortTh label="Email" sortKey="email" sort={sort} onToggle={toggle} />}
+                  {cols.isVisible('groups') && <SortTh label="组" sortKey="groups" sort={sort} onToggle={toggle} />}
+                  {cols.isVisible('role') && <SortTh label="角色" sortKey="role" sort={sort} onToggle={toggle} />}
+                  {cols.isVisible('status') && (
+                    <SortTh label="Status" sortKey="status" sort={sort} onToggle={toggle} testid="users-sort-status" />
+                  )}
+                  {admin && cols.isVisible('actions') && <TableCell component="th" scope="col">操作</TableCell>}
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -397,41 +492,49 @@ export default function UsersPage() {
                         onTableRowKeys(e, () => navigate(`/admin/security/users/${encodeURIComponent(r.name)}`))
                       }
                     >
-                      <TableCell>
-                        <Link className="row-link mono" to={`/admin/security/users/${encodeURIComponent(r.name)}`} lang="en">
-                          {r.name}
-                        </Link>{' '}
-                        <CopyButton value={r.name} label={`用户名 ${r.name}`} />
-                      </TableCell>
-                      <TableCell>
-                        <span className="text-2">{r.email}</span>
-                      </TableCell>
-                      <TableCell sx={{ maxWidth: 360, whiteSpace: 'normal', wordBreak: 'break-word' }}>
-                        {r.groups.length === 0 ? (
-                          <span className="text-muted">—</span>
-                        ) : (
-                          <span title={r.groups.join(', ')}>
-                            <Chip size="small" className="badge neutral" label={r.groups.length} />{' '}
-                            <span className="sec-chips">
-                              {r.groups.map((g) => (
-                                <Chip
-                                  key={g}
-                                  size="small"
-                                  className="badge neutral mono"
-                                  label={g}
-                                  sx={{ fontFamily: 'var(--bf-mono)' }}
-                                  lang="en"
-                                />
-                              ))}
+                      {cols.isVisible('name') && (
+                        <TableCell>
+                          <Link className="row-link mono" to={`/admin/security/users/${encodeURIComponent(r.name)}`} lang="en">
+                            {r.name}
+                          </Link>{' '}
+                          <CopyButton value={r.name} label={`用户名 ${r.name}`} />
+                        </TableCell>
+                      )}
+                      {cols.isVisible('email') && (
+                        <TableCell>
+                          <span className="text-2">{r.email}</span>
+                        </TableCell>
+                      )}
+                      {cols.isVisible('groups') && (
+                        <TableCell sx={{ maxWidth: 360, whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                          {r.groups.length === 0 ? (
+                            <span className="text-muted">—</span>
+                          ) : (
+                            <span title={r.groups.join(', ')}>
+                              <Chip size="small" className="badge neutral" label={r.groups.length} />{' '}
+                              <span className="sec-chips">
+                                {r.groups.map((g) => (
+                                  <Chip
+                                    key={g}
+                                    size="small"
+                                    className="badge neutral mono"
+                                    label={g}
+                                    sx={{ fontFamily: 'var(--bf-mono)' }}
+                                    lang="en"
+                                  />
+                                ))}
+                              </span>
                             </span>
-                          </span>
-                        )}
-                      </TableCell>
-                      <TableCell>{roleBadge(r)}</TableCell>
-                      <TableCell>
-                        <StatusLabel enabled={r.enabled} name={r.name} />
-                      </TableCell>
-                      {admin && (
+                          )}
+                        </TableCell>
+                      )}
+                      {cols.isVisible('role') && <TableCell>{roleBadge(r)}</TableCell>}
+                      {cols.isVisible('status') && (
+                        <TableCell>
+                          <StatusLabel enabled={r.enabled} name={r.name} />
+                        </TableCell>
+                      )}
+                      {admin && cols.isVisible('actions') && (
                         <TableCell>
                           <Button
                             variant="outlined"

@@ -252,6 +252,14 @@ const STOP = new Set([
   // repositories-admin——m8 迁移腿所在文件），均非锚
   'confirm-disabled', 'data-active', 'icon-run', 'flip-off', 'repo-repl',
   't404-replication-crud', 'repositories-admin',
+  // v1.27（T-414 行文假阳性）：列选器三页推广批的标识符引用——CSS 类钩子
+  // （member-pop / row-link，浮层与行内链接的结构钩子非锚）/ CSS 函数名
+  // （color-mix，T-391 配方描述）/ localStorage 键名（binflow-console-cols-
+  // {users,groups,search}，偏好面非锚——v1.22 两键先例同款）/ spec 文件名段
+  // （t414-columns-promo），均非 testid 锚
+  'member-pop', 'row-link', 'color-mix',
+  'binflow-console-cols-users', 'binflow-console-cols-groups', 'binflow-console-cols-search',
+  't414-columns-promo',
 ])
 const docFams = new Set()
 for (const t of docTokens) {

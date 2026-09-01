@@ -79,7 +79,12 @@
 
 .member-pop summary {
   cursor: pointer;
-  color: var(--bf-accent);
+  /* T-414（FR-135.3，T-391 L-a 清账）：浮层入口常态即 accent——行 hover
+   * 行底（action.hover 叠 --bf-bg：亮 #e9ebed / 暗 #25292f）上亮色 4.42:1
+   * < AA 4.5，与 .row-link:hover 同缺陷类。同配方收口：向正文色压 12%
+   * 的 color-mix 派生（亮 5.08:1 / 暗 6.12:1；常态底上更高，无回归面），
+   * 现货 token 派生、零新 token。 */
+  color: color-mix(in srgb, var(--bf-accent) 88%, var(--bf-text));
   list-style: none;
   white-space: nowrap;
 }

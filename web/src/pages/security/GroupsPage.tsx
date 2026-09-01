@@ -1,9 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import Alert from '@mui/material/Alert'
 import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
+import Divider from '@mui/material/Divider'
+import Menu from '@mui/material/Menu'
+import MenuItem from '@mui/material/MenuItem'
 import Table from '@mui/material/Table'
 import TableBody from '@mui/material/TableBody'
 import TableCell from '@mui/material/TableCell'
@@ -19,6 +22,8 @@ import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import { ApiError, canAdminWrite, errText, isReadOnlyAdmin } from '../../lib/api'
+import { useColumnPrefs } from '../../lib/columnPrefs'
+import type { ColumnDef } from '../../lib/columnPrefs'
 import { useAsync } from '../../lib/useAsync'
 import './security.css'
 import { TransferBox } from './TransferBox'
@@ -61,6 +66,19 @@ import type { GroupListItem, PermissionTarget } from './api'
 // 权限编辑器，解除引用后重删即成——「不撞墙」）。
 
 /** 成员扫描快照（E2 单源）：users 列表项内嵌 groups[] 的双索引投影 */
+/** T-414（FR-135.2，T-387 spec 形态复用）：列选器列集 = **既有全部列**闭集
+ * （「无端点列不伪造」——组模型无 adminPrivileges 徽章列外的虚构列）；label
+ * 与表头一致；anchor = 菜单项锚（anchor-audit 的 anchor: 属性形态）。操作列
+ * 仅 admin 在场——非 admin 视图列与菜单项同步剔除（UsersPage 同款）。 */
+const COLUMNS: ColumnDef[] = [
+  { id: 'name', label: '组名', anchor: 'groups-columns-item-name' },
+  { id: 'perms', label: '权限数', anchor: 'groups-columns-item-perms' },
+  { id: 'members', label: '成员数', anchor: 'groups-columns-item-members' },
+  { id: 'actions', label: '操作', anchor: 'groups-columns-item-actions' },
+]
+const COLUMN_IDS = COLUMNS.map((c) => c.id)
+const COLS_KEY = 'binflow-console-cols-groups'
+
 interface MembershipSnapshot {
   /** user → groups */
   userGroups: Record<string, string[]>
@@ -367,6 +385,14 @@ export default function GroupsPage() {
   const [form, setForm] = useState<EditorSeed | null>(null)
   const [conflict, setConflict] = useState<Conflict | null>(null)
 
+  // T-414（FR-135.2）：列显隐偏好（T-387 共享层；非 admin 视图无操作列——
+  // 列集/菜单项/偏好 id 同步剔除，UsersPage 同款口径）
+  const pageColumns = useMemo(() => (admin ? COLUMNS : COLUMNS.filter((c) => c.id !== 'actions')), [admin])
+  const pageIds = useMemo(() => (admin ? COLUMN_IDS : COLUMN_IDS.filter((id) => id !== 'actions')), [admin])
+  const cols = useColumnPrefs(pageIds, COLS_KEY)
+  const [colsAnchor, setColsAnchor] = useState<HTMLElement | null>(null)
+  const colsOpen = Boolean(colsAnchor)
+
   const groups = state.data?.groups ?? []
   const membership = state.data?.membership ?? null
   const targets = state.data?.targets ?? null
@@ -490,6 +516,66 @@ export default function GroupsPage() {
         </Alert>
       )}
 
+      {/* T-414（FR-135.2）：工具栏尾 = 列选器（T-387 L1 形态复用；计数行
+          groups-count 在表尾，尾组自推右端；本页无工具栏搜索面——filter-bar
+          单独承载列选尾组，UsersPage 同款） */}
+      <div className="filter-bar">
+        <span className="filter-tail-actions filter-tail-end">
+          <Button
+            variant="outlined"
+            size="small"
+            aria-haspopup="menu"
+            aria-expanded={colsOpen}
+            data-testid="groups-columns"
+            title="自定义显示列（偏好保存在本浏览器）"
+            onClick={(e) => setColsAnchor(e.currentTarget)}
+          >
+            <span aria-hidden="true">▤</span> 列 {cols.visibleCount}/{pageColumns.length}
+          </Button>
+          <Menu
+            open={colsOpen}
+            onClose={() => setColsAnchor(null)}
+            anchorEl={colsAnchor}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+            data-testid="groups-columns-menu"
+          >
+            {pageColumns.map((c) => {
+              const visible = cols.isVisible(c.id)
+              // 至少一列在场：仅剩一列可见时该项不可再弃
+              const last = visible && cols.visibleCount === 1
+              return (
+                <MenuItem
+                  key={c.id}
+                  role="menuitemcheckbox"
+                  aria-checked={visible}
+                  aria-disabled={last || undefined}
+                  title={last ? '至少保留一列' : undefined}
+                  data-testid={c.anchor}
+                  onClick={() => {
+                    if (!last) cols.toggle(c.id)
+                  }}
+                >
+                  <span aria-hidden="true" className="col-check">
+                    {visible ? '☑' : '☐'}
+                  </span>
+                  {c.label}
+                </MenuItem>
+              )
+            })}
+            <Divider component="li" />
+            <MenuItem
+              aria-disabled={cols.visibleCount === pageColumns.length || undefined}
+              title={cols.visibleCount === pageColumns.length ? '全部列已在场' : '显示全部列'}
+              data-testid="groups-columns-reset"
+              onClick={() => cols.reset()}
+            >
+              全选列
+            </MenuItem>
+          </Menu>
+        </span>
+      </div>
+
       {state.status === 'loading' && <Skeleton lines={5} />}
       {state.status === 'error' && state.error && <ErrorCard error={state.error} onRetry={state.reload} />}
       {state.status === 'forbidden' && state.error && (
@@ -514,62 +600,72 @@ export default function GroupsPage() {
             <Table data-testid="groups-table">
               <TableHead>
                 <TableRow>
-                  <SortTh label="组名" sortKey="name" sort={sort} onToggle={toggle} testid="groups-sort-name" />
-                  <SortTh label="权限数" sortKey="perms" sort={sort} onToggle={toggle} />
-                  <SortTh label="成员数" sortKey="members" sort={sort} onToggle={toggle} />
-                  {admin && <TableCell component="th" scope="col">操作</TableCell>}
+                  {cols.isVisible('name') && (
+                    <SortTh label="组名" sortKey="name" sort={sort} onToggle={toggle} testid="groups-sort-name" />
+                  )}
+                  {cols.isVisible('perms') && <SortTh label="权限数" sortKey="perms" sort={sort} onToggle={toggle} />}
+                  {cols.isVisible('members') && (
+                    <SortTh label="成员数" sortKey="members" sort={sort} onToggle={toggle} />
+                  )}
+                  {admin && cols.isVisible('actions') && <TableCell component="th" scope="col">操作</TableCell>}
                 </TableRow>
               </TableHead>
               <TableBody>
                 {sorted.map((r) => (
                   <TableRow key={r.group.name} data-testid={`group-row-${r.group.name}`} hover>
-                    <TableCell>
-                      <div className="cell-stack">
-                        <span>
-                          <span className="mono" lang="en">
-                            {r.group.name}
-                          </span>{' '}
-                          <CopyButton value={r.group.name} label={`组名 ${r.group.name}`} />
-                        </span>
-                        {r.group.description && (
-                          <span className="text-muted" style={{ fontSize: 11 }}>
-                            {r.group.description}
+                    {cols.isVisible('name') && (
+                      <TableCell>
+                        <div className="cell-stack">
+                          <span>
+                            <span className="mono" lang="en">
+                              {r.group.name}
+                            </span>{' '}
+                            <CopyButton value={r.group.name} label={`组名 ${r.group.name}`} />
+                          </span>
+                          {r.group.description && (
+                            <span className="text-muted" style={{ fontSize: 11 }}>
+                              {r.group.description}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                    )}
+                    {cols.isVisible('perms') && (
+                      <TableCell>
+                        {targets === null ? (
+                          <span className="text-muted">—</span>
+                        ) : (
+                          <span className="cell-inline">
+                            <span className="text-2">
+                              {r.grants.length}
+                            </span>
+                            {r.grants.some((g) => g.actions.includes('manage')) && (
+                              <Chip
+                                size="small"
+                                className="badge neutral mono"
+                                label="manage"
+                                sx={{ fontFamily: 'var(--bf-mono)' }}
+                                lang="en"
+                                data-testid={`group-manage-badge-${r.group.name}`}
+                                title="组在至少一个 permission target 上持有 manage（仓库配置派生权）——BinFlow 无 Artifactory 组级 adminPrivileges 字段（有意不跟进，rbac-model §5）"
+                              />
+                            )}
                           </span>
                         )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {targets === null ? (
-                        <span className="text-muted">—</span>
-                      ) : (
-                        <span className="cell-inline">
-                          <span className="text-2">
-                            {r.grants.length}
+                      </TableCell>
+                    )}
+                    {cols.isVisible('members') && (
+                      <TableCell>
+                        {r.memberCount === null ? (
+                          <span className="text-muted">—</span>
+                        ) : (
+                          <span className="text-2" title={(membership?.groupMembers[r.group.name] ?? []).join(', ') || undefined} data-testid={`group-members-${r.group.name}`}>
+                            {r.memberCount}
                           </span>
-                          {r.grants.some((g) => g.actions.includes('manage')) && (
-                            <Chip
-                              size="small"
-                              className="badge neutral mono"
-                              label="manage"
-                              sx={{ fontFamily: 'var(--bf-mono)' }}
-                              lang="en"
-                              data-testid={`group-manage-badge-${r.group.name}`}
-                              title="组在至少一个 permission target 上持有 manage（仓库配置派生权）——BinFlow 无 Artifactory 组级 adminPrivileges 字段（有意不跟进，rbac-model §5）"
-                            />
-                          )}
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {r.memberCount === null ? (
-                        <span className="text-muted">—</span>
-                      ) : (
-                        <span className="text-2" title={(membership?.groupMembers[r.group.name] ?? []).join(', ') || undefined} data-testid={`group-members-${r.group.name}`}>
-                          {r.memberCount}
-                        </span>
-                      )}
-                    </TableCell>
-                    {admin && (
+                        )}
+                      </TableCell>
+                    )}
+                    {admin && cols.isVisible('actions') && (
                       <TableCell>
                         <span style={{ display: 'inline-flex', gap: 8 }}>
                           <Button
