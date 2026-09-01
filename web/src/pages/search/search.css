@@ -92,6 +92,34 @@
   outline-offset: -2px;
 }
 
+/* ---------- AQL 模式（T-419，FR-135.1） ---------- */
+
+.aql-bar {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--bf-sp-2);
+  padding: var(--bf-sp-2) 0 var(--bf-sp-1);
+}
+
+/* 工具尾行：左侧子集口径提示（长文案可折行），右侧列选器尾组（T-414 壳） */
+.aql-tail {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--bf-sp-3);
+  margin-bottom: var(--bf-sp-2);
+}
+
+.aql-tail .search-sub {
+  flex: 1 1 auto;
+  margin: 0;
+}
+
+.aql-pager {
+  display: flex;
+  gap: var(--bf-sp-2);
+}
+
 /* ---------- 结果表 ---------- */
 
 .search-result-sub {

@@ -1589,4 +1589,8 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **B8 派发（conductor 2026-09-01 18:1x）**：**T-418**（replication.md 增量段——包 B 前置规格，双源材料；解锁 T-420/T-422 链）入 lane；T-419（FE）继续在途。
 
+**T-419 → done 2026-09-01 18:2x——M15 12/25（FE 主线落：搜索页 AQL 模式）**：模式切换（ToggleButtonGroup + `?mode=aql` 深链；基本表单/锚零变化）+ AqlPanel（mono 编辑器 / 400 E-01 逐字内联 / K63 通告 / 表头三态排序 / range 分页）+ aql.ts 统一层（**零新端点**——rawBody 消费 T-415；尾缀链重写器按链序归位）+ ColumnsMenu 抽壳两模式共用。**锚册 v1.29**（T-419 批 15 锚；search 既有锚零改名——AQL 行复用既有锚零新增）。自测：四门 + 新 spec **7/7**（含 400 逐字 + 429/408/截断 mock 腿 + axe 双主题）+ 净实例全量 **259✓/1 在册假阳性**（串行绿甄别）+ m9 4/4 + **SPA +5,053B**。契约漂移零（T-415 实测逐项对 aql.md；429 Retry-After 数值不上 UI 系 ApiError 无响应头——锚册注记）。遗留四条均轻（排序字段须在输出集/title 提示已给；病态括号退化为 400 内联；草稿会话态；耗时列不采——无端点背书不伪造）。日志 reports/agents/T-419.md。
+
+**T-432 段一派发（conductor 2026-09-01 18:3x——结构插空票激活，前置 T-414/T-419 已落 FE lane 空净）**：vite 6→7.3.6 + plugin-react 4→5.2.0 + hooks plugin 5→7.1.1（flat recommended-latest）+ engines 底座；四门含 relink/wire-brand 对 vite 7 产物兼容 + 净实例全量。在途。
+
 **全树 race 补证判无效（conductor 2026-09-01 14:3x）**：与两 agent 测试套件同机并发跑——22 包红全部 620-660s 超时形态 + db/sql 竞争 panic + storage fail-open 窗口 = **共租负载签名**（T-414 日志同款 load 450-630），非产品缺陷。T-412 的 AC3 证据改挂 **T-421 中期 QA 串行全树 race**（届时 lane 空净）。**D-413-2 [P3·登记]**：唯一真信号 = T-413 `TestEngineMixedLoad` 在慢机下 K63 并发门 429 介入而测试只容忍 busy gate 拒绝——测试健壮性收窄（门注入调低或混合负载容忍 429），归 T-421 复验时顺腿修或转 T-433。**教训入册：全树 race/性能类验证必须 lane 空净时串行跑（派单纪律）。**

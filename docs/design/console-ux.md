@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 文档 | `docs/design/console-ux.md` |
-| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账）/ T-291（v1.11：Properties 页签锚册——MUI 首票）/ T-307（v1.12：认证配置页组锚册——admin/security/auth 域）/ T-344（v1.14：密度档修订——MUI small 档，mui-native-visual §7 登记）/ T-352+T-353（v1.15：回收站页锚册 trash-* 族 + 建仓表单策略键生成器扩容）/ T-366（v1.16：Webhook 订阅管理页锚册 wh-* 族）/ T-372（v1.17：树尾常驻回收站入口锚 tree-trash-node——console-m8 §4.3 推翻条款兑现）/ T-382（v1.18：Set Me Up 抽屉化锚册——smu-* 零改名 + Resolve 批 + smu-close/smu-done 复役）/ T-383（v1.19：建仓形态核验锚册——form-section-* 六节族，M1 两段式断言钉死）/ T-384（v1.20：用户/组创建形态核验锚册——user-form-section-*/group-form-section-* 节锚 + 页脚四锚复役，M3 非 modal 断言钉死）/ T-389（v1.21：品牌位锚册——brand-sidebar-mark / brand-login-lockup，候选 1 logo 转正接线）/ T-387（v1.22：L1 列选器 + 刷新锚册——repos-columns-* / audit-columns-* / 两页 refresh）/ T-386（v1.23：Access Tokens 页真身锚册——tokens-* 族 28 名 + placeholder-page 退役）/ T-388（v1.24：F2 空态插画槽 empty-art + N2 侧栏图标槽 nav-icon——一级条目档位）/ T-404（v1.25：复制 CRUD 内嵌表单锚册——repl-* 配置面族 + form-section-replications 第七节 + 仓 Tab 指针升级 + Replications 列/Run）/ T-406（v1.26：制品浏览 remote/virtual 热修锚——tree-empty-virtual + remote 空态文案分支）/ T-414（v1.27：L1 列选器三页推广锚册——{users\|groups\|search}-columns-* 28 名 + member-pop 对比度清账）/ T-416（v1.28：virtual FE 树消费断言反转②——tree-empty-virtual 语义翻转 + RepoBranch virtual 动态展开恢复 + 删除入口预收敛） |
-| 状态 | v1.27（2026-09-01） |
+| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账）/ T-291（v1.11：Properties 页签锚册——MUI 首票）/ T-307（v1.12：认证配置页组锚册——admin/security/auth 域）/ T-344（v1.14：密度档修订——MUI small 档，mui-native-visual §7 登记）/ T-352+T-353（v1.15：回收站页锚册 trash-* 族 + 建仓表单策略键生成器扩容）/ T-366（v1.16：Webhook 订阅管理页锚册 wh-* 族）/ T-372（v1.17：树尾常驻回收站入口锚 tree-trash-node——console-m8 §4.3 推翻条款兑现）/ T-382（v1.18：Set Me Up 抽屉化锚册——smu-* 零改名 + Resolve 批 + smu-close/smu-done 复役）/ T-383（v1.19：建仓形态核验锚册——form-section-* 六节族，M1 两段式断言钉死）/ T-384（v1.20：用户/组创建形态核验锚册——user-form-section-*/group-form-section-* 节锚 + 页脚四锚复役，M3 非 modal 断言钉死）/ T-389（v1.21：品牌位锚册——brand-sidebar-mark / brand-login-lockup，候选 1 logo 转正接线）/ T-387（v1.22：L1 列选器 + 刷新锚册——repos-columns-* / audit-columns-* / 两页 refresh）/ T-386（v1.23：Access Tokens 页真身锚册——tokens-* 族 28 名 + placeholder-page 退役）/ T-388（v1.24：F2 空态插画槽 empty-art + N2 侧栏图标槽 nav-icon——一级条目档位）/ T-404（v1.25：复制 CRUD 内嵌表单锚册——repl-* 配置面族 + form-section-replications 第七节 + 仓 Tab 指针升级 + Replications 列/Run）/ T-406（v1.26：制品浏览 remote/virtual 热修锚——tree-empty-virtual + remote 空态文案分支）/ T-414（v1.27：L1 列选器三页推广锚册——{users\|groups\|search}-columns-* 28 名 + member-pop 对比度清账）/ T-416（v1.28：virtual FE 树消费断言反转②——tree-empty-virtual 语义翻转 + RepoBranch virtual 动态展开恢复 + 删除入口预收敛）/ T-419（v1.29：搜索页 AQL 模式锚册——search-mode 族 + search-aql-* 15 名，smu/search 既有锚零改名） |
+| 状态 | v1.29（2026-09-01） |
 | 维护者 | ux-designer |
 | 上游依据 | PRODUCT.md（Web 控制台/治理/Non-goals）、ROADMAP.md M4 节、docs/prd/milestone-1/2/3/4.md（端点矩阵与已定案行为）、docs/user/docker-registry.md（用户面口径）、docs/design/architecture.md §7（路由/console 挂载点）、internal/httpapi/router.go（路由门事实——§3.6.2 矩阵逐一核对）、reports/agents/T-98.md · T-99.md（漂移登记与 testid 素材）、reports/agents/T-98-review.md（N1 收敛建议）、BOARD.md（T-85 PRD / T-97 存在性不泄露裁决） |
 | 下游消费者 | T-86（架构：console 包/session/前端工程结构）、tech-lead（M4 拆票）、前端 dev（页面组票）、qa-engineer（控制台验收） |
@@ -45,6 +45,7 @@
 | v1.26 | 2026-09-01 | T-406 制品浏览 remote/virtual 仓热修（M14 P0 用户主诉「无法展示制品」，conductor 执行——parity 对齐票）：① **`tree-empty-virtual` 入册**（virtual 仓成员感知空态卡：聚合浏览 FR-21-AC8 P2 待补 + 成员清单读自 configuration.repositories；RepoBranch virtual 静态化——无展开箭头〔twisty 降级占位〕、无子级区，选中仍可用）；② remote 仓空态 hint 改「远程仓库：仅展示已缓存的制品（浏览不回源）」（`tree-empty-dir` 载体不变、文案分支）；③ 内容面 gate：virtual 仓不发注定 400 的 storage 调用（D-396-1 同款模式；meta 到位前首请求仍发一次，渲染面已正确分流）；④ 服务端同票放开（remote 列表面 = 缓存行；folder 面 = 缓存 marker 行 + 读侧材料化 putFolderRow；virtual 拒绝维持）——锚册只记 FE 面 |
 | v1.27 | 2026-09-01 | T-414 L1 列选器三页推广 + member-pop 对比度清账（M15 B1 FE 早波票，FR-135.2/135.3——T-387 spec 形态复用 + T-391 L-a 遗留收口）：① **T-414 批 28 名锚入册**（`{users\|groups\|search}-columns{,-menu,-reset}` 触发钮/菜单壳/复位项三件套 + `users-columns-item-{name\|email\|groups\|role\|status\|actions}` / `groups-columns-item-{name\|perms\|members\|actions}` / `search-columns-item-{repo\|path\|size\|modified\|sha256}` 逐列项——列集 = 三页既有真实列闭集，「无端点列不伪造」维持；users/groups 操作列仅 admin 视角在场——非 admin 列集/菜单项/偏好 id 同步剔除，不伪造空控制）；② 偏好面沿 T-387 定案：per-page localStorage 键 `binflow-console-cols-{users\|groups\|search}`（读回按当页列集清洗 + 至少一列守卫 + 隐私模式退化会话内）；users/groups 两页原无工具栏搜索面——filter-bar 单独承载列选尾组，search 页尾组缀既有过滤输入后；③ t387 spec 的「users 页零列选锚」反断言腿更新为「repos/audit 锚不越界」（三页推广后口径改写，断言语义不弱化）；④ member-pop hover 对比度 ≥4.5:1 双主题（T-391 color-mix 配方收口：`color-mix(in srgb, var(--bf-accent) 88%, var(--bf-text))`——行 hover 行底亮 5.08:1/暗 6.12:1，常态底更高无回归面）；⑤ e2e 新面 `web/e2e/m15/t414-columns-promo.spec.ts`（三页列选全生命周期 + reload 持久 + 键互不染 + member-pop computed 配方回归腿 + hover 态 axe 双主题 + 三页菜单开态 axe 双主题）；⑥ 服务端 diff=0（纯 FE 票） |
 | v1.28 | 2026-09-01 | T-416 virtual FE 树消费（M15 B4 FE 票，FR-136.3——**断言反转②**，锚册留痕；dep T-412 服务端聚合面已就绪）：① **`tree-empty-virtual` 锚不退役、语义翻转**——自「聚合浏览暂未支持（FR-21-AC8 P2 待补）」翻转为「成员并集为空」：有成员内容不再空态（走正常 children 表 = 成员并集）；无成员/全空维持空态，文案两态区分（全空 = 成员清单提示，读自 configuration.repositories 回显；无成员 = 「未配置成员仓库」——成员仓删除后 FK 级联态）；② **RepoBranch virtual 静态化解除**（T-406 as-built 受限面退役）：virtual 仓重新有 twisty 动态展开 + 子级区，与非 virtual 仓同形（深层递归一致）；内容面 gate 同步解除（isVirtual 不再拦 listChildren）；③ 删除入口预收敛（票内新增的语义分流）：virtual 仓行内删除钮/详情面板删除/右键删除全部收敛（disabled/隐藏）——RE-08 服务端 DELETE 一律 405「不经 virtual 删除」，不给注定失败的影子入口；右键判定按**目标** repoKey 查仓库清单（非当前仓 rclass——左树跨仓目标）；④ e2e 新面 `web/e2e/m15/t416-virtual-tree.spec.ts`（Playwright 自建夹具：双 local 成员 + virtual 仓——树展开并集逐名渲染/同名目录合并/深层递归/空态两态/删除收敛 + 405 服务端真相钉 + axe 双主题）；⑤ 服务端 diff=0（纯 FE 票） |
+| v1.29 | 2026-09-01 | T-419 搜索页 AQL 模式（M15 B6 FE 票，FR-135.1——dep T-414 列选器面 + T-415 端点面均已就绪）：① **T-419 批 15 名锚入册**（`search-mode{,-basic,-aql}` 模式切换三件套 + `search-aql-{input,run,error,notification,range,prev,next}` AQL 面七件 + `search-aql-sort-{repo\|path\|size\|modified\|sha256}` 表头排序五名——明细见 §10.5 T-419 批块）；② **锚族冻结**：`search-*` 既有族零改名（模式切换为页头纯新增行；AQL 结果行/计数副标**复用** `search-result-<i>` / `search-count` 既有锚——零新行锚；列选器复用 T-414 `search-columns-*` 族同一份壳，两模式同一时刻仅一者在场，页内锚唯一）；③ 模式深链：`?mode=aql`（基本模式无 mode 参数——既有 `?q=`/`?repos=` 深链与 URL 断言零变化；AQL 查询文本不入 URL——6,000 字符上限的查询串不宜进地址栏）；④ 分页/排序交互定案 = **改写查询文本的尾缀链段后重放**（.sort/.offset 按链序 include→transitive→sort→offset→limit→distinct 归位——查询文本是唯一事实源，无影子状态）；⑤ e2e 新面 `web/e2e/m15/t419-aql-mode.spec.ts`（模式切换/深链 reload/合法查询渲染 + 列选器联动/400 E-01 逐字 + 未支持域点名/排序三态/分页 offset 链序 + range 回显/429·408·K63 截断通告 mock 腿/axe 双主题结果态 + 错误态）；⑥ 服务端 diff=0（纯 FE 票——只读消费 T-415 既有端点） |
 
 ---
 
@@ -1100,7 +1101,7 @@ M8 路由表（console-m8 §1.4）重排后，§10.2/§10.3 的 **242 锚零改�
 |---|---|---|
 | `/dashboard` | `dashboard` 页根 + dashboard-* 卡族 | 原 `/`；登录落点让位 `/artifacts` |
 | `/artifacts`、`/artifacts/:key/*` | `tree-page` 族 + `?focus=` 深链参数 + T-236 跨仓树新锚（见下）+ T-372 树尾常驻回收站入口 `tree-trash-node`（见下） | 原 `/repositories/:key/tree/*`；T-236 起根与子树同承载跨仓树 |
-| `/search` `/profile` | `search-page` 族（+ T-239 搜索新锚，见下）+ T-414 批 `search-columns-*`（L1 列选器推广，见下） / `profile-page` 族 + `password-*`（T-239 拆分落位） | `/profile` 现挂设置页组件（T-239 拆分） |
+| `/search` `/profile` | `search-page` 族（+ T-239 搜索新锚，见下）+ T-414 批 `search-columns-*`（L1 列选器推广，见下）+ T-419 批 `search-mode{,-basic,-aql}` / `search-aql-{input|run|error|notification|range|prev|next}` / `search-aql-sort-*`（AQL 模式，见下） / `profile-page` 族 + `password-*`（T-239 拆分落位） | `/profile` 现挂设置页组件（T-239 拆分） |
 | `/admin/repositories/{local\|remote\|virtual}` | `repos-page` 族 + T-387 批 `repos-columns-*` / `repos-refresh`（L1 列选/刷新，见下）+ T-404 批 `repos-repl-*` / `repos-repl-run-*`（R5 Replications 列 + 行级 Run，仅 local Tab，见下） | 原 `/repositories`；Tab 形态归 T-240 |
 | `/admin/repositories/new` `?rclass=` | `repo-form-page` + `form-*` 族 | Quick 建仓入口的参数形态（T-240 消费） |
 | `/admin/repositories/:key[/edit]` | `repo-detail-page` 族（Replications Tab = T-404 批 `repo-repl-*` 指针升级，见下）/ `repo-form-page` + T-404 批 `form-section-replications`（编辑态 × local 的复制节）+ `?section=replications` 深链 | 原 `/repositories/:key[/settings]` |
@@ -1723,6 +1724,44 @@ member-pop hover 对比度（repositories 页 virtual Tab 成员浮层入口—�
 filter-bar 承载（计数行 users-count/groups-count 仍在表尾不动）；t387
 spec ④ 腿自「users 页零列选锚」改写为「repos/audit 列选锚不越界到 users
 页」（三页推广后口径改写，断言语义不弱化）。服务端 diff=0（纯 FE 票）。
+
+#### T-419 批（v1.29——搜索页 AQL 模式，FR-135.1；载体 = SearchPage 模式
+切换 + AqlPanel，消费 POST /api/search/aql〔T-415 既有端点，零新端点〕）
+
+```
+搜索页页头模式切换（/search，h2 下新增行——基本表单 JSX/行为维持不动）：
+  search-mode（MUI ToggleButtonGroup 容器，aria-label=搜索模式）
+  search-mode-basic（「基本」档——选中 = 既有基本表单在场）
+  search-mode-aql（「AQL」档——选中 = AqlPanel 在场；?mode=aql 深链直达）
+AQL 面七件（AqlPanel——编辑器/错误/通告/分页；全名展开
+  search-aql-{input|run|error|notification|range|prev|next}）：
+  search-aql-input（mono textarea 编辑器；⌘/Ctrl+Enter 提交）
+  search-aql-run（「执行」钮——空查询禁用）
+  search-aql-error（错误内联 Alert：400 E-01 文案逐字透传 + 408/429
+    分流提示；mono 长文案可折行）
+  search-aql-notification（K63 截断通告——range.notification 官方文案
+    逐字 + 分页指引；仅截断时在场）
+  search-aql-range（range 尾行：start_pos/本页行数/total〔流式语义
+    注记〕/limit〔仅查询声明时〕+ 上下页钮组）
+  search-aql-prev  search-aql-next（翻页 = 改写查询 .offset() 后重放；
+    prev 在 start_pos=0 禁用，next 仅「截断通告在场或本页满窗」可用）
+  search-aql-sort-{repo|path|size|modified|sha256}
+    （表头排序钮（MUI TableSortLabel）——三态轮转：注入 .sort({"$asc":
+    […]}) → 翻转 desc → 摘除；th 带 aria-sort；字段须在查询输出集内
+    〔不在则服务端 400 点名——内联呈现，不伪造〕）
+复用零新锚：AQL 结果行沿 search-result-<i> 既有族；计数副标沿
+  search-count（文案「AQL 结果 – N 行」）；列选器沿 T-414 search-columns-*
+  族同一份壳（ColumnsMenu——两模式共用，同一时刻仅一者在场）
+```
+
+变更注记（T-419，dev-frontend 回写）：模式深链 = `?mode=aql`（基本模式
+不带 mode 参数——既有 `?q=`/`?repos=` 深链与 URL 断言零变化；AQL 查询
+文本不入 URL，6,000 字符上限的查询串不宜进地址栏）；分页/排序交互 = 改写
+查询文本的尾缀链段（.sort/.offset 按 aql.md §2.5 链序归位）后重放——
+编辑器是唯一事实源，交互改写对用户可见；AQL 行是投影（include 决定字段
+集），缺省字段列如实呈现 —（「无端点列不伪造」同款纪律）；429 的
+Retry-After 头未在 UI 呈现数值（统一请求层 ApiError 不携带响应头——文案
+透传 + 状态提示已覆盖，数值面留后续票）。服务端 diff=0（纯 FE 票）。
 
 **锚总量复核口径（v1.4 实测）**：`grep -rn "data-testid" web/src/` = **293 落点 / 29 文件**（v1.2 基线 242 之后，T-104~T-234 各票陆续增锚至 HEAD 的 283 落点——ADR-0029 原写 283 即此原始 grep 数）；T-235 净变化 = 壳**删 0 改 0、新增 10**（AppShell 10 → 20），占位路由新增 0（复用 `placeholder-page`）。另：`web/src/styles/theme-smoke.spec.ts`（7 处选择器引用，非锚）随 T-232 遗留①迁出 `src/` 至 `e2e/m8/theme-smoke.spec.ts`，不再计入 src 侧 grep。
 
