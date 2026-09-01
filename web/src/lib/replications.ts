@@ -9,6 +9,10 @@
 //                                      合并前真实实例对该动词 404（router
 //                                      只挂 GET/POST/DELETE），联合腿由
 //                                      conductor 合并后验证（票内注明）。
+//   POST   /api/v1/replications/{id}/run  **T-420（FR-138.1）**——Replicate
+//                                      Now：对该配置种一次全量对账（异步；
+//                                      观测走既有 /api/v1/replication/
+//                                      status 面，规格 §9.2-A 排程语义）。
 //
 // 语义注记（R3/R4 勘误，parity v1.2 §6A）：
 // - BinFlow 复制引擎 = 事件驱动（上传 hook 入队）+ 固定间隔 sweep 兜底，
@@ -79,6 +83,29 @@ export function deleteReplicationConfig(name: string): Promise<void> {
  */
 export function putReplicationEnabled(id: number, enabled: boolean): Promise<ReplicationConfig> {
   return apiJSON<ReplicationConfig>(`/v1/replications/${id}`, { method: 'PUT', body: { enabled } })
+}
+
+/** 全量同步触发响应（T-420，FR-138.1——replicationRunResponse）。`info`
+ *  为锚定排程文案（规格 §9.1 UI 面）；scheduled = 本次种下的任务行数
+ *  （0 = 源仓当前无制品，合法的空跑）；capped = max_items_per_push 截断
+ *  （再点一次取下一段，路径序确定性分片）。 */
+export interface ReplicationRunResult {
+  info: string
+  id: number
+  name: string
+  scheduled: number
+  capped: boolean
+}
+
+/**
+ * Replicate Now（T-420）：POST /v1/replications/{id}/run——对该配置种一次
+ * 全量对账（每个源仓文件节点一条 pending 任务，异步执行；状态经
+ * /api/v1/replication/status 观测面查询）。语义照规格 §9.2-A：重复触发
+ * 不去重（结果收敛，200）；enabled:false 拒绝（409，先 PUT enabled=true）；
+ * 封锁门（§9.2-A-5）归 T-422。
+ */
+export function runReplicationNow(id: number): Promise<ReplicationRunResult> {
+  return apiJSON<ReplicationRunResult>(`/v1/replications/${id}/run`, { method: 'POST' })
 }
 
 /**
