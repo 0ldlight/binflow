@@ -1593,4 +1593,8 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **T-432 段一派发（conductor 2026-09-01 18:3x——结构插空票激活，前置 T-414/T-419 已落 FE lane 空净）**：vite 6→7.3.6 + plugin-react 4→5.2.0 + hooks plugin 5→7.1.1（flat recommended-latest）+ engines 底座；四门含 relink/wire-brand 对 vite 7 产物兼容 + 净实例全量。在途。
 
+**T-418 → done 2026-09-01 22:3x（配额窗③复活后收口）——M15 13/25（包 B 前置规格落）**：replication.md **§9 增量段**（227→403 行）——端点 11（官方 REST 面 + UI-API 面双列）/ 三面 × 幂等逐条（触发·封锁·Test）/ **定案 2**（Test 形态、审计补词 4）+ **顺手清偿 2**（M6 待验证 #1/#3 双解、T-405 审计遗留词）。置信度高 9/中高 4/中 3/低 0（**三源**：官方 OpenAPI 主源 + reverse-src Pro 实现 + T-402a 实测）。待验证 V1~V4（Pro 抓包升格项，不阻断实现）+ 交裁 2 点（§9.6——实现按 A 层对位 + 票内留痕）。日志 reports/agents/T-418.md。
+
+**B9 派发（conductor 2026-09-01 22:4x）**：**T-420**（Replicate Now——全量同步任务 + ▶ 接线；dep T-418 已满足；outbox 模式复用 diff=0 审计）入 lane；T-432①（工具链段一）继续在途。
+
 **全树 race 补证判无效（conductor 2026-09-01 14:3x）**：与两 agent 测试套件同机并发跑——22 包红全部 620-660s 超时形态 + db/sql 竞争 panic + storage fail-open 窗口 = **共租负载签名**（T-414 日志同款 load 450-630），非产品缺陷。T-412 的 AC3 证据改挂 **T-421 中期 QA 串行全树 race**（届时 lane 空净）。**D-413-2 [P3·登记]**：唯一真信号 = T-413 `TestEngineMixedLoad` 在慢机下 K63 并发门 429 介入而测试只容忍 busy gate 拒绝——测试健壮性收窄（门注入调低或混合负载容忍 429），归 T-421 复验时顺腿修或转 T-433。**教训入册：全树 race/性能类验证必须 lane 空净时串行跑（派单纪律）。**
