@@ -2,7 +2,7 @@
 
 > 由 product-manager 维护；tech-lead 据此把当前里程碑分解为 ticket。
 
-## 当前里程碑：M15（候选池已启——AQL 专程第一顺位 + M14 未纳入项承接；PM 立项稿待 conductor 审；M14 已 `m14-done` 2026-09-01）
+## 当前里程碑：M15（搜索基建专程〔AQL 首程〕——PRD v1.0 草案待 conductor 审，2026-09-01；M14 已 `m14-done` 2026-09-01）
 
 ### M0 — 团队启动（已完成）
 - [x] 产品愿景 PRODUCT.md（BinFlow）
@@ -209,6 +209,22 @@
 - **沿 M13 候选池续滚**：HA 本体（PRODUCT.md「明确不做」修订解禁前置未发生）/ Xray 集成面 / Build-info 域 / Go 深化（sumdb 代理 + external 重定向）/ Terraform / GitLFS / 制品 license 识别 / 冷存储分层 / AI-ML 包型扩展 / license 公钥 config 覆盖（T-293 终裁③——走新 ADR）。
 
 
+
+### M15 — 搜索基建专程（AQL 首程）：AQL 查询语言与执行引擎 + 老搜索首批端点 + virtual 聚合浏览收口 + 复制包 B 首批（PRD v1.0 草案待 conductor 审，2026-09-01）
+需求基线：docs/prd/milestone-15.md（PRD v1.0 草案：FR-132~FR-140 九条需求；契约矩阵 12 条〔A 9 / C 2 / 待裁 1——LC-68~LC-79 续接〕+ 档位矩阵增量 0 行〔19 槽维持——搜索域按 Artifactory oss 档映射为核心能力无槽〕+ **搜索域端点全景归属表**〔14 端点族逐条不留模糊地带〕；L20~L34；开放问题 Q1~Q7 带暂行——**Q1 AQL 分阶段边界〔M15 核心/M16 高级面〕为收口窗必裁**；K62~K66 待校准）
+来源链：主矩阵十大缺口 2（查询面——「企业日常操作入口」）+ **AQL 两度让位留痕**（M13 §2.2 主轴让位 webhook → M14 §2.2 主轴让位 UI-parity〔用户指令〕——两次均非 PM 裁量，本程兑现不再旁移）+ ROADMAP「M14 未纳入项」候选池 PM 收编（T-406 遗留两项 / 复制包 B 首批〔T-402a ②段登记〕/ mint 500→400〔T-386 契约漂移〕/ busy 预算改判收编〔BE 里程碑回归窗一次覆盖〕/ L2 自有增强 / 测试基建与文面债包；**Replay REST 与成员同型滚 M16 维持——理由 PRD §2.2 留痕**）+ inv-1 §E / inv-2 §1.C 反编译锚点（AQL 端点/九域/QRL + 14 老搜索端点枚举）+ AddonType `oss` 档（t226 活体核验腿可用——无 replication 式 entitlement 锁）+ M4 两笔欠账（SR-03 gavc「still closed」/ §5.5 K2 匹配语义待校准）+ M10 node_props 预留索引兑现（architecture §15.3.2）+ M14 as-built（T-405 replication PUT 最小面——包 B 在其上叠加零返工）
+- [ ] conductor 审定 PRD v1.0（Q1~Q7 暂行终裁——Q1 分阶段边界 / Q4 远端浏览三出口为收口窗必裁；ADR-0043〔AQL 引擎：语言子集文法 / AST→参数化 SQL / ACL 织入 / 资源治理门 / WriteTimeout 交互〕立项）
+- [ ] 前置产物：aql.md 规格票（**新建**——官方文档为唯一行为基准〔webhook.md 先例〕+ inv 补白 + t226 活体核验腿 + 口径归一〔14-vs-13 勘误 + 子集边界表 + M4 K2 校准 + 基座映射表〕）+ ADR-0043 + replication.md 增量段（包 B 双源材料——T-402a R 系在案）
+- [ ] FR-132/133/134 AQL 主线（P0）：规格锚 → 语言与执行引擎（item+property 域 + include/sort/offset/limit + ACL 同源过滤〔T-92 血统——越权零泄漏探针硬 AC〕+ 资源治理门简化版 K63 + `POST /api/search/aql?compact`）→ 老搜索首批 gavc/prop/pattern（同引擎——SR-03/SR-04 断言反转①；dates/creation 余量条件 K65；K64 匹配语义校准落笔）
+- [ ] FR-135 搜索面 FE（P1）：搜索页 AQL 模式（编辑器 + 语法错内联，零新端点）+ 列选器三页推广（users/groups/search）+ member-pop hover
+- [ ] FR-136 virtual 聚合浏览（P1）：FR-21-AC8 兑现——children 成员并集 + t226 形态对照 + tree-empty-virtual 断言反转②（锚册留痕）
+- [ ] FR-137 remote 远端浏览**评估票**（P2）：per-协议上游枚举能力矩阵（13 包型逐行）+ Q4 三出口材料——不设实现断言
+- [ ] FR-138 复制包 B 首批（P1/P2）：Replicate Now（executereplicationnow 对位 + outbox 模式复用零重构）/ Test 连接 / blockPush·blockPull 全局封锁（UI-API 不受门）；cron 双轨 Q5 不裁不建
+- [ ] FR-139 契约与硬化小包（P1/P2）：mint unknown username 500→400（auth-model 3.1 归位——断言反转③）+ remote 缓存树 busy 重试预算（24 路 0.27% 边角清零 + SQLite 写路径专项回归）
+- [ ] FR-140 债包（P2）：L2 行内快捷（复制 key/Set Me Up——LC-79 C 层自有增强，E1 不倒退）+ 测试基建纪律成文（INC-1 教训/pkill/assert-tokens）+ 文面回写簇（reverse README/parity 册两行/package-icons 暗底拍板/migrate 措辞）
+- [ ] QA：L20~L34 + 断言反转三处归属审计 + t226 AQL 活体对拍 + §5.7 全景表逐行核对 + M1~M14 P0 双形态全量回归；tech-writer（AQL 用户指南 + 搜索 API 参考 + 浏览/复制增量 + FAQ 子集边界）；release 烟测 + UAT 随里程碑 PR
+- [ ] 条件票：dates/creation 顺车（K65）/ 远端浏览实现段（Q4）/ docker virtual 矩阵开禁（Q6）/ by-digest 强刷（Q7）/ NuGet symbol server 余量五承（T-403 延续）/ Tokens 字段集补核验（候商业版/云活体源）——未触发 BOARD 留痕非 DoD 缺口
+- [ ] 「M14 未纳入项」对账：收口时建「M15 未纳入项」段（DoD#7 字面；备稿沿 T-395 先例收口窗启用——M16+ 候选第一顺位 = AQL 高级面〔statistics/usage 域 + QRL 全量 + UI 搜索族，dep Q1 终裁〕）
 
 ### M11 未纳入项（滚入 M12+ 候选池；2026-08-28 T-329 终验归档后由 M11 PRD §2.2/§4.8 + 用户三项裁决〔07:5x〕+ 票级遗留登记处置；DoD#7 对账）
 

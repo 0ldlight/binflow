@@ -1471,3 +1471,15 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **PRD v1.2 收口笔**：LC-66 待裁→**A**（T-401 已执行 + 证据链闭合；计数 A 8 / C 2 / D 1 零待裁）；README 双语 M14→done；ROADMAP 头部切 M15 + M14 段 `m14-done` + 「M14 未纳入项」启用（T-406 遗留两项并入：virtual 聚合 / remote 远端浏览）。
 - **m14-done tag + 里程碑 PR + UAT AFTER**：随本笔执行（PR 自建自合 per standing 授权；UAT AFTER = deploy_uat 后 governance push-replication 0→≥1 + version sha 翻转取证）。
 - **M14 终态**：24 票全落（22 done 含 T-406/T-406b 热修 + T-401 条件票已执行 + T-403 未触发留痕 + T-402/T-404/T-405 增补）；parity 册 v1.3；锚册 v1.26。**M15 候选池开局**（AQL 第一顺位）。
+
+---
+
+## M15 票据（搜索基建专程——AQL 首程）
+
+**立项（PM 2026-09-01，`docs/prd/milestone-15.md` v1.0）**：AQL 专程两度让位后兑现——「M15 核心（item+property 域 + 引擎/分页 + 老搜索首批 + 资源门简化）/ M16 高级面（statistics·usage + QRL 全量 + UI 搜索族）」分阶段。FR-132~140 九条；LC-68~79（A 9 / C 2 / 待裁 1——LC-76 远端浏览）；L20~L34；§5.7 搜索域端点全景归属表（14 端点族）；断言反转三处（SR-03/04、tree-empty-virtual、mint 500→400）预归属豁免票。
+
+**conductor 审定（2026-09-01 09:1x）——PRD v1.0 转正 + 三项即裁**：
+- **Q5 终裁：不引入 cron 双轨**（维持事件驱动 + 1min sweep 唯一引擎；手动场景 Replicate Now 承接——T-402a 勘误 + 双轨一致性成本材料充分，即裁落章；M16 复制域二程不再列 cron 为实现项）。
+- **Q6 即裁：docker virtual 建仓矩阵开禁**（M14 remote 首航 + virtual 聚合语义既有 + helmoci virtual 先例——对齐 Artifactory 组合完整性；tech-lead 列条件小票，非 DoD）。
+- **Q1/Q3 暂行确认**（分阶段边界收口窗终裁；400 诚实拒绝维持）；Q2 随 aql.md 回写归位；Q4 评估票材料后裁；Q7 维持 as-built 暂行。
+- 派发前置：tech-lead 拆票（票号 T-407 起；aql.md 规格票 + ADR-0043 为 B0 前置锚——L20 就绪才开主轴实现）。
