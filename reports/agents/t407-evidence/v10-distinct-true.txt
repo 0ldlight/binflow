@@ -1,0 +1,21 @@
+
+{
+"results" : [ {
+  "repo" : "t228-maven",
+  "path" : "com/example/t228/t228-lib",
+  "name" : "maven-metadata.xml",
+  "type" : "file",
+  "size" : 331,
+  "created" : "2026-08-23T08:19:04.618Z",
+  "created_by" : "admin",
+  "modified" : "2026-08-23T08:19:04.694Z",
+  "modified_by" : "admin",
+  "updated" : "2026-08-23T08:19:04.701Z"
+} ],
+"range" : {
+  "start_pos" : 0,
+  "end_pos" : 1,
+  "total" : 1,
+  "limit" : 1
+}
+}

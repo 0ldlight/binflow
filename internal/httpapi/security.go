@@ -388,7 +388,17 @@ func (s *Server) handleTokenCreate(w http.ResponseWriter, r *http.Request) {
 
 	tok, err := s.deps.Tokens.Issue(r.Context(), subject, ttl)
 	if err != nil {
-		if errors.Is(err, auth.ErrInvalidCredentials) {
+		// FR-139.1 (assertion inversion ③, M15): an unknown mint subject
+		// joins the empty one in the 400 invalid_request arm. Real
+		// Artifactory answers transient-user creation here (auth-model.md
+		// 3.1), a shape BinFlow's token plane does not model, so the
+		// subject-lookup miss folds into the same wording — the spec's base
+		// phrase "username is required" plus the "or unknown" extension the
+		// PRD M15 registration pins. The service wraps the store's
+		// ErrUserNotFound verbatim (no credential was rejected, so the
+		// ErrInvalidCredentials sentinel does not apply); classification
+		// belongs at this HTTP seam, not in the service's wording.
+		if errors.Is(err, auth.ErrInvalidCredentials) || errors.Is(err, metadata.ErrUserNotFound) {
 			writeOAuthError(w, http.StatusBadRequest, "invalid_request", "username is required or unknown")
 			return
 		}

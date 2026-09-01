@@ -1,0 +1,7 @@
+{
+  "results" : [ {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-maven/com/example/t228/t228-lib/1.0.0/t228-lib-1.0.0.pom"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-maven/com/example/t228/t228-lib/1.0.0/t228-lib-1.0.0.jar"
+  } ]
+}

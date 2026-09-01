@@ -1,0 +1,108 @@
+{
+  "results" : [ {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-00/artifact-00.bin",
+    "created" : "2026-08-23T08:14:09.646Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-01/artifact-01.bin",
+    "created" : "2026-08-23T08:13:46.018Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-02/artifact-02.bin",
+    "created" : "2026-08-23T08:14:09.956Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-03/artifact-03.bin",
+    "created" : "2026-08-23T08:14:10.038Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-04/artifact-04.bin",
+    "created" : "2026-08-23T08:13:45.736Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-07/artifact-07.bin",
+    "created" : "2026-08-23T08:14:10.420Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-08/artifact-08.bin",
+    "created" : "2026-08-23T08:14:10.519Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-10/artifact-10.bin",
+    "created" : "2026-08-23T08:14:10.729Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-12/artifact-12.bin",
+    "created" : "2026-08-23T08:14:11.026Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-22/artifact-22.bin",
+    "created" : "2026-08-23T08:13:46.097Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-23/artifact-23.bin",
+    "created" : "2026-08-23T08:13:45.566Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-28/artifact-28.bin",
+    "created" : "2026-08-23T08:13:45.848Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-05/artifact-05.bin",
+    "created" : "2026-08-23T08:14:10.249Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-06/artifact-06.bin",
+    "created" : "2026-08-23T08:14:10.334Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-09/artifact-09.bin",
+    "created" : "2026-08-23T08:13:46.060Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-11/artifact-11.bin",
+    "created" : "2026-08-23T08:13:45.887Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-14/artifact-14.bin",
+    "created" : "2026-08-23T08:13:45.923Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-17/artifact-17.bin",
+    "created" : "2026-08-23T08:14:11.563Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-18/artifact-18.bin",
+    "created" : "2026-08-23T08:13:45.806Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-26/artifact-26.bin",
+    "created" : "2026-08-23T08:13:45.962Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/docs & notes/readme v2.txt",
+    "created" : "2026-08-23T08:13:49.997Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/日本語/資料-01.txt",
+    "created" : "2026-08-23T08:13:50.081Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/a b c/with spaces.txt",
+    "created" : "2026-08-23T08:13:50.168Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/deep/nest/ed/file-042.txt",
+    "created" : "2026-08-23T08:13:50.257Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/sym'bols$/percent%.txt",
+    "created" : "2026-08-23T08:13:49.912Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-13/artifact-13.bin",
+    "created" : "2026-08-23T08:14:11.128Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-15/artifact-15.bin",
+    "created" : "2026-08-23T08:14:11.366Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-16/artifact-16.bin",
+    "created" : "2026-08-23T08:14:11.478Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-24/artifact-24.bin",
+    "created" : "2026-08-23T08:13:45.654Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-27/artifact-27.bin",
+    "created" : "2026-08-23T08:14:12.565Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-29/artifact-29.bin",
+    "created" : "2026-08-23T08:14:12.788Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-19/artifact-19.bin",
+    "created" : "2026-08-23T08:14:11.784Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-20/artifact-20.bin",
+    "created" : "2026-08-23T08:14:11.873Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-21/artifact-21.bin",
+    "created" : "2026-08-23T08:14:11.958Z"
+  }, {
+    "uri" : "http://127.0.0.1:8182/artifactory/api/storage/t228-generic/pkg-25/artifact-25.bin",
+    "created" : "2026-08-23T08:14:12.359Z"
+  } ]
+}

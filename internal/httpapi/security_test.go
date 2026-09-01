@@ -262,6 +262,103 @@ func TestTokenCreate(t *testing.T) {
 	})
 }
 
+// TestTokenCreateUnknownSubject pins FR-139.1 (assertion inversion ③,
+// M15): minting for a subject that does not exist answers the 400
+// invalid_request arm of auth-model.md 3.1 — "username is required or
+// unknown" — not the pre-fix 500. The real auth.Service wraps the store's
+// metadata.ErrUserNotFound on the subject lookup; the handler classifies
+// it at the HTTP seam. The non-admin row pins the anti-enumeration
+// ordering (FR-23-AC5's uniform surface governs the login plane; here the
+// 403 guard fires before subject resolution, so the new 400 is never a
+// username probe for callers below the admin capability).
+func TestTokenCreateUnknownSubject(t *testing.T) {
+	h := newHarnessCfg(t, nil, [][2]string{{"ci-bot", "ci-pw"}})
+	for _, tc := range []struct {
+		name       string
+		user, pass string
+		ct, body   string
+		wantStatus int
+		wantCode   string
+		wantDesc   string
+	}{
+		{
+			name:       "form unknown subject is 400, not 500",
+			user:       adminUser,
+			pass:       adminPass,
+			ct:         "application/x-www-form-urlencoded",
+			body:       "grant_type=client_credentials&username=ghost&expires_in=300",
+			wantStatus: http.StatusBadRequest,
+			wantCode:   "invalid_request",
+			wantDesc:   "username is required or unknown",
+		},
+		{
+			name:       "JSON projection of the same miss",
+			user:       adminUser,
+			pass:       adminPass,
+			ct:         "application/json",
+			body:       `{"grant_type":"client_credentials","username":"ghost"}`,
+			wantStatus: http.StatusBadRequest,
+			wantCode:   "invalid_request",
+			wantDesc:   "username is required or unknown",
+		},
+		{
+			name:       "non-admin naming anyone stays behind the 403 guard",
+			user:       "ci-bot",
+			pass:       "ci-pw",
+			ct:         "application/x-www-form-urlencoded",
+			body:       "grant_type=client_credentials&username=ghost",
+			wantStatus: http.StatusForbidden,
+			wantCode:   "invalid_request",
+			wantDesc:   "administrator privileges required",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			hdr := map[string]string{}
+			if tc.ct != "" {
+				hdr["Content-Type"] = tc.ct
+			}
+			resp := h.do(http.MethodPost, "/binflow/api/security/token", tc.user, tc.pass, []byte(tc.body), hdr)
+			body := mustGet(t, resp)
+			if resp.StatusCode != tc.wantStatus {
+				t.Fatalf("status = %d, want %d; body=%s", resp.StatusCode, tc.wantStatus, body)
+			}
+			assertOAuthError(t, body, tc.wantCode)
+			var oe struct {
+				ErrorDescription string `json:"error_description"`
+			}
+			if err := json.Unmarshal([]byte(body), &oe); err != nil {
+				t.Fatalf("body %q: %v", body, err)
+			}
+			if oe.ErrorDescription != tc.wantDesc {
+				t.Fatalf("error_description = %q, want %q", oe.ErrorDescription, tc.wantDesc)
+			}
+			// The classified arm must never reach the operator log: a
+			// "token issue failed" line here means the miss fell through the
+			// classification into the 500 branch again.
+			if strings.Contains(h.logs(), "token issue failed") {
+				t.Fatalf("miss classified as an infrastructure failure:\n%s", h.logs())
+			}
+		})
+	}
+
+	t.Run("existing subject still mints (regression)", func(t *testing.T) {
+		resp := h.do(http.MethodPost, "/binflow/api/security/token", adminUser, adminPass,
+			[]byte("grant_type=client_credentials&username=ci-bot&expires_in=300"),
+			map[string]string{"Content-Type": "application/x-www-form-urlencoded"})
+		body := mustGet(t, resp)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", resp.StatusCode, body)
+		}
+		var tok tokenResp
+		if err := json.Unmarshal([]byte(body), &tok); err != nil {
+			t.Fatalf("mint body %q: %v", body, err)
+		}
+		if tok.AccessToken == "" || tok.TokenID == 0 {
+			t.Fatalf("on-behalf mint incomplete: %+v", tok)
+		}
+	})
+}
+
 // assertOAuthError checks the {"error","error_description"} shape and code.
 func assertOAuthError(t *testing.T, body, code string) {
 	t.Helper()

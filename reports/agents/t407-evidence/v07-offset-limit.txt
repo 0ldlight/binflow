@@ -1,0 +1,12 @@
+
+{
+"results" : [ {
+  "name" : "artifact-05.bin"
+} ],
+"range" : {
+  "start_pos" : 1,
+  "end_pos" : 1,
+  "total" : 1,
+  "limit" : 1
+}
+}

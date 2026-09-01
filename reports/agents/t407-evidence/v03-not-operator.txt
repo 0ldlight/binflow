@@ -1,0 +1,1 @@
+Failed to parse query: items.find({"repo":"t228-maven","$not":{"name":{"$match":"*.pom"}}}).limit(2), it looks like there is syntax error near the following sub-query: $not":{"name":{"$match":"*.pom"}}}).limit(2)

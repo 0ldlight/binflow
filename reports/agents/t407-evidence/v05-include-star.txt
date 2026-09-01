@@ -1,0 +1,27 @@
+
+{
+"results" : [ {
+  "repo" : "t228-generic",
+  "path" : "pkg-00",
+  "name" : "artifact-00.bin",
+  "type" : "file",
+  "size" : 16384,
+  "created" : "2026-08-23T08:14:09.646Z",
+  "created_by" : "admin",
+  "modified" : "2026-08-23T08:14:09.638Z",
+  "modified_by" : "admin",
+  "updated" : "2026-08-23T08:14:09.646Z",
+  "depth" : 2,
+  "actual_md5" : "a7bc2b7540eef0b80e59b7796cf7ad8d",
+  "actual_sha1" : "8ddcdd9c896b4f0f27101e79ed114466bf7860a8",
+  "repo_path_checksum" : "87365298887bab053ed3f14dd0bcc9894e3a57b4",
+  "sha256" : "af19ec3fa14f5217c7e316c25d0c96d1834689d61de57923b1da0e82fe64c435",
+  "virtual_repos" : [ ]
+} ],
+"range" : {
+  "start_pos" : 0,
+  "end_pos" : 1,
+  "total" : 1,
+  "limit" : 1
+}
+}
