@@ -72,9 +72,14 @@ func TestT406RemoteCacheBrowseFace(t *testing.T) {
 	}
 }
 
-// TestT406VirtualAggregateRefusalStands: the virtual refusal family is
-// unchanged by the remote ruling (FR-21-AC8 stays P2).
-func TestT406VirtualAggregateRefusalStands(t *testing.T) {
+// TestT406VirtualAggregateFaceOpened: the virtual aggregate refusal this
+// test pinned for T-406 ("FR-21-AC8 stays P2") is RETIRED by T-412
+// (FR-136.1) — List on a virtual repository answers the member union
+// instead of ErrRepoTypeNotSupported. The full union/order/ACL matrix lives
+// in virtual_aggregate_test.go; this pins the flip on the original T-406
+// fixture (two empty members → an honest empty page, no error, no upstream
+// contact).
+func TestT406VirtualAggregateFaceOpened(t *testing.T) {
 	ctx := context.Background()
 	e := newEnv(t)
 	mustCreateTypedRepo(t, e, "maven-local", repo.PackageMaven)
@@ -85,7 +90,11 @@ func TestT406VirtualAggregateRefusalStands(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("CreateRepo(virtual): %v", err)
 	}
-	if _, err := e.svc.List(ctx, admin(), "maven-virtual", ""); !errors.Is(err, repo.ErrRepoTypeNotSupported) {
-		t.Fatalf("List(virtual root) = %v, want ErrRepoTypeNotSupported", err)
+	nodes, err := e.svc.List(ctx, admin(), "maven-virtual", "")
+	if err != nil {
+		t.Fatalf("List(virtual root) = %v, want the open aggregate face (empty)", err)
+	}
+	if len(nodes) != 0 {
+		t.Fatalf("List(virtual root) = %d rows, want 0 (both members empty)", len(nodes))
 	}
 }
