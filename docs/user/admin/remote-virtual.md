@@ -5,7 +5,7 @@ sidebar_position: 40
 
 # remote / virtual 仓库管理
 
-> 适用版本：M3（pull-through 代理缓存 + 聚合解析；PRD milestone-3 v1.2、ADR-0012/0013）+ **M10 增补**（smart remote 生效字段子集：`socketTimeoutMs`〔含 xsd 别名〕/`metadataRetrievalTimeoutSecs`）+ **M11 增补**（`enableTokenAuthentication`/`contentSynchronisation` 接受且生效〔L25 反转，T-317〕；`unusedArtifactsCleanupPeriodHours` 清理引擎生效〔T-324〕；conan/helm/rpm/debian 三类仓型——T-312/313/314/315；**cargo remote/virtual 仓型**——T-316/T-318，见 [Cargo 接入](../integrations/cargo.md)）。
+> 适用版本：M3（pull-through 代理缓存 + 聚合解析；PRD milestone-3 v1.2、ADR-0012/0013）+ **M10 增补**（smart remote 生效字段子集：`socketTimeoutMs`〔含 xsd 别名〕/`metadataRetrievalTimeoutSecs`）+ **M11 增补**（`enableTokenAuthentication`/`contentSynchronisation` 接受且生效〔L25 反转，T-317〕；`unusedArtifactsCleanupPeriodHours` 清理引擎生效〔T-324〕；conan/helm/rpm/debian 三类仓型——T-312/313/314/315；**cargo remote/virtual 仓型**——T-316/T-318，见 [Cargo 接入](../integrations/cargo.md)）+ **M14 增补**（**docker remote 仓型**——FR-129/T-392，community 档自动受缝；**docker virtual 维持拒绝**〔PRD Q4 聚合半边未交付〕，见[下文专节](#docker-remote-仓m14fr-129)）。
 > 本文命令在 M3 QA 基线（commit `0f86229`，T-75/T-76 验收产物）上复验：建仓字段回显、缓存 MISS→HIT 冻结、DELETE 强刷、凭据加密落盘、无钥 fail-fast、virtual 收口与写路由均按预期（复跑记录见 `reports/agents/T-77.md`）。
 
 三种仓型各司其职，概念与 Artifactory 一一对应（术语不变）：
@@ -55,7 +55,7 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/maven-remote-cent
 > ③ 消费优先级：新列值 > canonical JSON > legacy `socketTimeoutSecs` > 产品默认——升级既有仓
 > 零回填零行为变化。
 
-`packageType` 合法值：五核心 `generic` / `maven` / `npm` / `pypi`（+ `go`，M10 起）；M11 追加 `conan` / `helm` / `rpm` / `debian`（pro 档——三类仓型齐备，见各接入指南）与 **`cargo` remote/virtual 仓型**（pro 档，T-316/T-318 交付；上游语法前提与虚仓索引归并语义见 [Cargo 接入](../integrations/cargo.md)）；**M13 追加 `helmoci` remote/virtual 仓型**（pro 档——OCI 代理与聚合读面，`url` 指向上游 distribution 根含 `/v2`，语义见 [Helm Chart 仓库接入](../integrations/helm-charts.md#helmoci-仓型oci-形态m13local--remote--virtual)）。**remote/virtual + docker → 400**（M3 类矩阵维持；替代路径 `skopeo copy`，见 [docker-registry.md](../docker-registry.md)）。
+`packageType` 合法值：五核心 `generic` / `maven` / `npm` / `pypi`（+ `go`，M10 起）；M11 追加 `conan` / `helm` / `rpm` / `debian`（pro 档——三类仓型齐备，见各接入指南）与 **`cargo` remote/virtual 仓型**（pro 档，T-316/T-318 交付；上游语法前提与虚仓索引归并语义见 [Cargo 接入](../integrations/cargo.md)）；**M13 追加 `helmoci` remote/virtual 仓型**（pro 档——OCI 代理与聚合读面，`url` 指向上游 distribution 根含 `/v2`，语义见 [Helm Chart 仓库接入](../integrations/helm-charts.md#helmoci-仓型oci-形态m13local--remote--virtual)）；**M14 追加 `docker` remote 仓型**（**community 档**——docker 槽本就在地板档，remote 自动受缝不新增 license 槽，FR-129/T-392；语义见[下文专节](#docker-remote-仓m14fr-129)与 [Docker 接入](../docker-registry.md#remote-仓pull-through-代理上游m14)）。**virtual + docker → 400 维持**（PRD Q4 聚合半边未交付；文案见[常见报错码对照](#常见报错码对照跨域汇总v12-定案码)）。
 
 回显形态（`GET .../repositories/{key}`）：上游 `url` 与参数在 `configuration` 对象内，**`password` 字段不出现在响应里**（传过也不回显）。
 
@@ -99,9 +99,35 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/maven-virtual \
 
 其它行为：PUT/POST → **405** + `Allow: GET`（`Remote repository '<key>' is a read-only proxy cache; deployments to remote repositories are not accepted.`）；缓冲型响应（packument/simple/metadata）上限 64MB，超限 502；重定向逐跳跟随且每跳重过 SSRF 校验，上限 5 跳；大文件代理全程流式（1GB 实测服务进程 RSS 增量 < 256MB）。
 
+## docker remote 仓（M14，FR-129）
+
+docker 从 M2 的「仅 local」扩为 **local + remote 两态**（virtual 维持拒绝，见文末矩阵）。走根级 `/v2` 栈：`docker pull <host>/<remote仓key>/<镜像名>:<tag>` 首拉回源、此后命中本地缓存——与 maven/npm/pypi remote 同一套引擎语义（负缓存/TTL/降级/offline 窗全适用），观测面同为 `X-Binflow-Cache` 头族。**community 档即可用**（docker 槽在地板档，remote 不新增 license 槽——无 license 实例建仓 200，T-392/T-397 双轮实测）。
+
+```bash
+# 建仓：url 指向上游 distribution 根（含 /v2）——与 helmoci remote 同口径
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/docker-remote \
+  -H 'Content-Type: application/json' \
+  -d '{"rclass":"remote","packageType":"docker",
+       "url":"https://registry-1.docker.io/v2"}' \
+  -o /dev/null -w '%{http_code}\n'        # 200
+```
+
+| 面 | 行为（实测） |
+|---|---|
+| `url` 形态 | 上游 distribution **根含 `/v2`**：Docker Hub 形态 `https://registry-1.docker.io/v2`；上游是另一台 BinFlow 时 `http://<host>:<port>/v2/<上游仓key>`。回源路径 = `<url>/<镜像名（去掉本仓 key）>/manifests/<ref>` 与 `<url>/<镜像名>/blobs/<digest>`（live 证据：`GET http://…/v2/up-local/t397img/manifests/1`） |
+| 首拉（MISS） | manifest + config/layer blob 逐路径回源落盘（blob 流式 + digest 强校验，不符不落盘）；`Docker-Content-Digest` 与直连上游推送 digest **全等** |
+| 二次拉取（HIT） | **上游内容 GET 计数冻结**（delta 0，零回源）；`X-Binflow-Cache: HIT`（by-tag / by-digest / blobs 逐路径） |
+| 上游认证 | 上游 401 + `WWW-Authenticate: Bearer` challenge → 仓凭据（username/password）自动完成 token 交换 → Bearer 重试，**舞步恰一轮**（token 按 scope 缓存，二跳零复舞）；无凭据时匿名交换（公用 registry 形态）。BinFlow 自身上游（闭匿名）首试即收 Basic，凭据直连不触发舞步。`enableTokenAuthentication: true` 时凭据以 Bearer 形态发出 |
+| 降级 | TTL 过期 + 上游故障：有缓存 → **200 + `X-Binflow-Cache: STALE` + `X-Binflow-Upstream-Error`**，`Docker-Content-Digest` 不变（docker 客户端照常拉）；未缓存 ref → **404 `MANIFEST_UNKNOWN`**，message 附上游摘要，**零 5xx** |
+| 边界 | remote 仓写动词 405（只读代理，通用规则）；**docker virtual 建仓 400**（PRD Q4 未交付，文案见[报错对照](#常见报错码对照跨域汇总v12-定案码)）；`tags/list` 只见已缓存 tag（通用口径，见 [FAQ](../faq.md)） |
+
+> **SSRF**：上游 URL 命中私网/环回（如本机演练 `192.168.x.x`、内网 registry）建仓后拉取会被 [SSRF 防护](#ssrf-防护与-allowprivateupstream-放行指引)拒绝（404 message 带 `ssrf-guard` 摘要）——内网上游由 admin 配 `allowPrivateUpstream: true` 放行（本机双实例演练即用此通道实测）。另注：客户端在 dind 里访问宿主实例用 `host.docker.internal`，但**那是容器视角的名字**——remote 仓的 `url` 是 BinFlow 服务端发起的请求，须填服务端可达的地址。
+>
+> **dind 调试注记（客户端侧）**：dind 29.x 默认 containerd snapshotter 对 plain-HTTP registry 的 blob 取数会走 https 回退（不遵守 `--insecure-registry`）→ 拉取超时且 BinFlow 侧零到达。启动 dind 加 `--feature containerd-snapshotter=false` 回经典 overlay2（`docker run -d --privileged docker:dind --insecure-registry <host:port> --feature containerd-snapshotter=false`；详见仓库内 `web/e2e/README.md`）。macOS Docker Desktop 另有 dind↔宿主大包 PMTU 黑洞的环境症（~MB 级响应停摆），解法为 dind 内 `iptables -t mangle -A OUTPUT/-A INPUT -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1300` 后再开新连接（T-392 环境注记）。
+
 ## 缓存管理与强刷手法
 
-- **强刷单个路径**：`DELETE /binflow/<remote>/<path>` → 204（仅删本地缓存，不触达上游），下次 GET 重新回源。这是 M3 唯一的强刷手法——**没有** `?refresh=true` 参数（保持 URL 语义纯净，与 Artifactory 一致）。mvn `-U` 拿不到新 SNAPSHOT 时，对 `maven-metadata.xml` 的缓存路径执行 DELETE 即可。未缓存路径 DELETE → 404（幂等）。
+- **强刷单个路径**：`DELETE /binflow/<remote>/<path>` → 204（仅删本地缓存，不触达上游），下次 GET 重新回源。这是 M3 唯一的强刷手法——**没有** `?refresh=true` 参数（保持 URL 语义纯净，与 Artifactory 一致）。mvn `-U` 拿不到新 SNAPSHOT 时，对 `maven-metadata.xml` 的缓存路径执行 DELETE 即可。未缓存路径 DELETE → 404（幂等）。**docker remote 注记（M14 实测）**：manifest 以 digest 寻址落盘，按 tag 路径或裸 hex 路径 DELETE 均不命中缓存节点（404、缓存不动）——清 docker remote 缓存请走「整仓清空」或观察头。
 - **整仓清空**：删仓时带 `?deleteContent=true`（缓存 node 一并删除后重建仓），或按路径逐个 DELETE。
 - **删仓**：`DELETE /binflow/api/repositories/<key>?deleteContent=true`。
 - 缓存跨重启保留：重启实例（含换密钥重启）后已缓存内容直接 HIT，不回退重拉（T-77 复跑实证）。
@@ -184,6 +210,7 @@ M3 起 BinFlow 从「纯内网服务」变为**出网客户端**（架构规范 
 | Maven Central（`https://repo.maven.apache.org/maven2`） | **可用**（实测） | mvn 全链经 BinFlow，含传递依赖 |
 | pypi.org | **可用**（实测；302 → files.pythonhosted.org 逐跳过链后跟随） | simple + 下载全链 |
 | registry.npmjs.org | **M3 不可用**——packument 不在 `<name>/packument.json` 布局路径（404），npmjs 代理归 M4 | 布局兼容上游（内网 Nexus/Artifactory）可用 |
+| docker registry 上游（`packageType=docker`，M14） | **自指上游（另一台 BinFlow）可用**（实测：digest 全等、二拉零回源、降级 STALE）；Bearer challenge 上游（mock 全舞步）可用 | Docker Hub（`https://registry-1.docker.io/v2`）等公用 registry 直连**未实测**——Bearer 舞步同构，待验证 |
 | 内网私网上游 | 可用，需 `allowPrivateUpstream: true` | 见 SSRF 小节 |
 
 ## M3 有意不兼容清单（汇总）
@@ -192,7 +219,8 @@ M3 起 BinFlow 从「纯内网服务」变为**出网客户端**（架构规范 
 
 | 不做项 | 表现 | 归属 |
 |---|---|---|
-| docker 类型的 remote 仓（Docker Hub pull-through） | 建仓 400 `not supported in M3`；替代 `skopeo copy` | M4+ 评估 |
+| docker 类型的 virtual 仓（聚合） | 建仓 **400** `…are not supported (docker serves local and remote; PRD Q4 keeps virtual docker unserved)`——**remote 仓型 M14 已开**（FR-129/T-392，见[专节](#docker-remote-仓m14fr-129)），仅聚合半边未交付 | PRD Q4 |
+| ~~docker 类型的 remote 仓~~ | **M14 已交付**（本行原为「M3 建仓 400、替代 `skopeo copy`」——T-392 开放矩阵后作废留痕） | M14 done |
 | Gradle/Ivy/sbt/conan/go module 等其它生态 | `packageType` 仅 generic/docker/maven/npm/pypi，其余 400（Gradle 走 maven 仓可用，P2 观察） | M4+/M6+ |
 | Maven 索引（indexer） | `/binflow/<repo>/.index/**` 404 | M4+ |
 | remote 主动预取/复制（cache warming/replication） | 仅被动 pull-through | M6+ |
@@ -219,6 +247,7 @@ M3 起 BinFlow 从「纯内网服务」变为**出网客户端**（架构规范 
 | 502 | `Upstream '<host>' failed for '<repo>/<path>' (hardFail enabled): ...` | 同上，但仓配了 `hardFail: true` | 同上 |
 | 404 | `... (upstream answered 401 ...; credentials refused or insufficient)` | 上游凭据错误（401/403 视为 unfound） | 核对仓配置的 username/password |
 | 400 | `Cannot fetch '<repo>/<path>': upstream target refused — private or suppressed upstream (...)` | SSRF 防护拒绝私网/环回目标 | 内网上游配 `allowPrivateUpstream`（见上）；公网上游检查 url/网络 |
+| 400 | `repository type not supported: virtual docker repositories are not supported (docker serves local and remote; PRD Q4 keeps virtual docker unserved)` | docker virtual 建仓（M14 起矩阵中唯一 valid-but-unserved 组合——remote 已开） | docker 走 local + remote 两态；聚合暂不做 |
 | 400 | `file '<f>' already exists in repository '<repo>'; overwriting is not allowed (...)` | PyPI 同 filename 重复上传 | 升版本重构建 |
 | 400 | `unknown action '<action>'` | PyPI 上传 `:action` 非 `file_upload` | 用 twine |
 | 401 | `authentication required` | 匿名写操作（publish/upload/deploy） | 配置客户端凭据（settings.xml / `_auth` / `.pypirc`） |

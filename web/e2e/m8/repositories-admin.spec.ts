@@ -14,8 +14,9 @@ import { m8Client, sessionApi } from './support/seed'
 // 锚源：console-ux §10.2 仓库组冻结锚（repos-*/repo-*/form-*）+ 本票新增
 // （repos-tab-*/repos-sort-*/repos-delete-<key>/repos-pager/pkg-grid*/
 // form-{reset,cancel}/repo-form-readonly-note/repo-tab-*/repo-quota-*/
-// repo-repl-{degraded,goto}/repo-edit-link/repo-goto-tree/
-// repo-manage-note/repo-detail-readonly-note）。退役：repos-filter-{type,
+// repo-repl-{card,goto}/repo-edit-link/repo-goto-tree/
+// repo-manage-note/repo-detail-readonly-note——repo-repl-degraded 随 T-404
+// 指针升级退役，本 spec 腿迁移更新〔§10.6 v1.25〕）。退役：repos-filter-{type,
 // package}（Tab 化）、form-prev/form-next（单页分区化）——§10 已回写 v1.6。
 //
 // 门语义（router.go / rbac.go 实测）：GET /api/repositories = CapRepoRead
@@ -259,9 +260,11 @@ test('readonly_admin: full list visible, write entries gone; detail/config read-
   await expect(page.locator('[data-testid="repo-governance-card"]')).toContainText('10240')
   await expect(page.locator('[data-testid="repo-quota-input"]')).toBeDisabled()
   await expect(page.locator('[data-testid="repo-quota-save"]')).toBeDisabled()
-  // Replications Tab：降级位指向全局复制页（OSS 同款降级语义）
+  // Replications Tab（T-404 指针升级）：本仓配置摘要卡 + 全局复制页链接；
+  // readonly 无编辑深链（复制写面 = system:write 仅全量 admin，L4 预收敛）
   await page.click('[data-testid="repo-tab-replications"]')
-  await expect(page.locator('[data-testid="repo-repl-degraded"]')).toBeVisible()
+  await expect(page.locator('[data-testid="repo-repl-card"]')).toBeVisible()
+  await expect(page.locator('[data-testid="repo-repl-edit-link"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="repo-repl-goto"]')).toHaveAttribute('href', '/binflow/ui/admin/governance/replication')
   await expectA11yClean(page, testInfo, { include: '[data-testid="repo-detail-page"]' })
 

@@ -241,13 +241,15 @@ check-deps:
 ##    WARN only — `make build` never fails on size.
 ## 2. Every compressed dist/ release archive (exit 1 when any platform
 ##    archive is over 40MB; CHECK_SIZE_WARN=1 downgrades to a warning).
-## 3. The SIX-PLATFORM AGGREGATE of those archives <= 100MB (T-326 D-8
-##    artifact-face consolidation): the per-archive 40MB budget is the
-##    user-facing wire-cost line; the aggregate ceiling guards the
-##    distribution footprint of a full snapshot/release set (measured
-##    94.13MB at T-326: six archives 14.93–16.36MB each). NOT the D-8
-##    ruling itself — PRD milestone-11 §102.3's 100MB line is runtime idle
-##    RSS, gated separately by `make footprint` (same escape hatch:
+## 3. The SIX-PLATFORM AGGREGATE of those archives <= 120MB (T-326 D-8
+##    artifact-face consolidation; M14 F1 re-baseline 100->120: measured
+##    94.13MB at T-326, 103.37MB at M14 close — the M12~M14 asset growth,
+##    ruled sustainable by T-400 AC4 while every per-archive and runtime
+##    budget stays hard): the per-archive 40MB budget is the user-facing
+##    wire-cost line; the aggregate ceiling guards the distribution
+##    footprint of a full snapshot/release set. NOT the D-8 ruling itself —
+##    PRD milestone-11 §102.3's 100MB line is runtime idle RSS, gated
+##    separately by `make footprint` (same escape hatch:
 ##    CHECK_SIZE_WARN=1 downgrades to a warning).
 ## 4. No dist/ artifacts — the common `make build` case — leaves just the
 ##    per-binary report.
@@ -290,13 +292,13 @@ check-size:
 	done; \
 	if [ "$$found" -gt 0 ]; then \
 		tmb=$$(awk -v b="$$total" 'BEGIN { printf "%.2f", b/1048576 }'); \
-		echo "  TOTAL: $$tmb MB across $$found archives (budget 100 MB, T-326)"; \
-		if [ "$$total" -gt 104857600 ]; then \
+		echo "  TOTAL: $$tmb MB across $$found archives (budget 120 MB, T-326 / M14 F1)"; \
+		if [ "$$total" -gt 125829120 ]; then \
 			over=1; \
 			if [ "$(CHECK_SIZE_WARN)" = "1" ]; then \
-				echo "  WARNING: six-platform aggregate exceeds the 100MB budget"; \
+				echo "  WARNING: six-platform aggregate exceeds the 120MB budget"; \
 			else \
-				echo "  ERROR: six-platform aggregate exceeds the 100MB budget (CHECK_SIZE_WARN=1 downgrades to a warning)"; \
+				echo "  ERROR: six-platform aggregate exceeds the 120MB budget (CHECK_SIZE_WARN=1 downgrades to a warning)"; \
 			fi; \
 		fi; \
 	fi; \

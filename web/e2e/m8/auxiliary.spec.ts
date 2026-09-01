@@ -279,13 +279,16 @@ test('profile: split form (password + token note) reachable from the user menu f
   await expect(page.locator('[data-testid="password-old"]')).toBeVisible()
   await expect(page.locator('[data-testid="password-submit"]')).toBeDisabled()
 
-  // API Token 说明面（§6.5[2]：Identity Tokens 表不建；入口按现役门呈现）
+  // API Token 说明面（§6.5[2]；T-386 起目标页真身：台账 + 生成）
   await expect(page.locator('[data-testid="profile-token"]')).toBeVisible()
   await expect(page.locator('[data-testid="profile-token-docs"]')).toHaveAttribute('href', '/binflow/docs/api-reference')
   await page.click('[data-testid="profile-token-goto"]')
   await expect(page).toHaveURL(/\/binflow\/ui\/admin\/security\/tokens$/)
-  // 普通用户：目标页自身 L2 收敛（adminOnly 占位 → 无权限卡）
-  await expect(page.locator('[data-testid="placeholder-page"]')).toBeVisible()
+  // 普通用户：目标页自身 L2 收敛（T-386 真身的 denied 臂 = 无权限卡；
+  // 管理面页根在场，占位页锚已退役）
+  await expect(page.locator('[data-testid="tokens-page"]')).toBeVisible()
+  await expect(page.locator('[data-testid="tokens-page"] [data-testid="empty-state"]')).toBeVisible()
+  await expect(page.locator('[data-testid="tokens-page"] [data-testid="token-create"]')).toHaveCount(0)
 
   // profile 页 axe（serious/critical = 0；先锚定页面根——lazy 分片到达后再扫）
   await page.goto('/binflow/ui/profile')

@@ -342,7 +342,7 @@ func withRootPrincipal(r *http.Request, p *auth.Principal) *http.Request {
 // and the repository create arm (family 6 splits inside handleRepoPut,
 // which knows whether the key exists). Where the write is additionally
 // destructive the service layer still re-checks (repo.Service's DeleteRepo
-// admin door, the GC and replication create/delete guards).
+// admin door, the GC and replication create/update/delete guards).
 func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string) {
 	switch {
 	case rest == "system/ping" && r.Method == http.MethodGet:
@@ -463,17 +463,20 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	case rest == "v1/storage/migration/start" && r.Method == http.MethodPost:
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleMigrationStart)
 
-	// ---- /api/v1/replications (T-180, ADR-0021) ----
+	// ---- /api/v1/replications (T-180, ADR-0021; PUT T-405) ----
 	// The push-replication configuration plane. GET lists (secrets
-	// excluded), POST creates, DELETE /{name} drops one config — its task
-	// rows cascade via the 009 FK. No PUT yet: the ticket scoped the CRUD to
-	// create/delete, and an update surface needs an enable/disable
-	// semantics ruling first. The sibling /api/v1/replication/status below
-	// is the console panel's aggregated read face (T-159).
+	// excluded), POST creates, PUT /{id} flips one config's enabled bit (the
+	// console start/stop switch — the T-405 mini face, scoped to the bit
+	// alone), DELETE /{name} drops one config — its task rows cascade via
+	// the 009 FK. The sibling /api/v1/replication/status below is the
+	// console panel's aggregated read face (T-159).
 	case rest == "v1/replications" && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleReplicationList)
 	case rest == "v1/replications" && r.Method == http.MethodPost:
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleReplicationCreate)
+	case strings.HasPrefix(rest, "v1/replications/") && r.Method == http.MethodPut:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite},
+			s.withName(rest, "v1/replications/", s.handleReplicationUpdate))
 	case strings.HasPrefix(rest, "v1/replications/") && r.Method == http.MethodDelete:
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite},
 			s.withName(rest, "v1/replications/", s.handleReplicationDelete))

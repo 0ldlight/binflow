@@ -302,6 +302,7 @@ export default function SearchPage() {
 
       {!hasQuery ? (
         <EmptyState
+          illustration
           message="输入关键词开始搜索"
           hint="子串匹配制品路径（如 libcore、acme/app、1.0.3）。空关键词不发起查询。"
         />
@@ -315,6 +316,7 @@ export default function SearchPage() {
         <ErrorCard error={results.error} onRetry={results.reload} />
       ) : rows.length === 0 ? (
         <EmptyState
+          illustration
           message={`没有匹配「${debounced}」的制品`}
           hint="检查拼写、放宽仓库过滤，或换更短的子串；结果按你的权限过滤。"
         />

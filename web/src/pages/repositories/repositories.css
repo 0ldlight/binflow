@@ -74,13 +74,17 @@
   outline-offset: 1px;
 }
 
+/* T-390：禁用磁贴 opacity 0.45 → 0.4（FR-127 门控三件套口径：mono 图标
+ * + opacity 0.4 + pkg-tier-* 徽章；README §6.3）。禁用件本就不在对比度
+ * 义务面（WCAG 1.4.11 豁免 disabled），提亮档不对其生效。 */
 .pkg-grid-item:disabled {
-  opacity: 0.45;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
+/* pkg-icon = PkgIcon 的尺寸槽类（mono currentColor 的着色位；brand 版
+ * 自带官方色，color 不生效）——T-390 字符图标（font-size 档）退役 */
 .pkg-grid-item .pkg-icon {
-  font-size: 18px;
   color: var(--bf-accent);
 }
 

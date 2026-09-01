@@ -21,6 +21,28 @@
   white-space: nowrap;
 }
 
+/* T-387（FR-125.2 L1）：工具栏尾动作组（列选器 + 刷新）——仓库/审计两页
+ * 共用（.filter-bar 是共享基元，本类同域追加）。审计页的 .count 已吃掉
+ * margin-left:auto 让位，本组缀其后即在栏尾；仓库页过滤栏无 count，尾组
+ * 自己挂 .filter-tail-end 推到右端（parity L1「列选/刷新在工具栏尾」）。 */
+.filter-tail-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--bf-sp-2);
+}
+
+.filter-tail-end {
+  margin-left: auto;
+}
+
+/* 列选菜单项的勾选字形（menuitemcheckbox 的可见态——aria-checked 承载
+ * 语义，字形 aria-hidden 装饰；等宽对齐让勾/未勾标签同列） */
+.col-check {
+  display: inline-block;
+  width: 1.25em;
+  color: var(--bf-accent);
+}
+
 /* T-300 批次二：过滤栏输入全部迁 MUI TextField（T-299 仓库页 + 本批
  * 树/搜索/审计页）——原生 input/select 的皮肤规则退役（外框由
  * muiAtoms.denseInputSx 承载；mono 字体随 htmlInput className 落 input

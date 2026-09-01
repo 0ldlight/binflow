@@ -1,0 +1,128 @@
+{
+  "ticket": "T-402a (spec anchor leg)",
+  "date": "2026-08-31/09-01",
+  "executor": "qa-engineer",
+  "source": {
+    "instance": "t226-artifactory (VM 172.16.58.129, T-228 retained stack)",
+    "version": "Artifactory OSS 7.84.10 rev 78410900",
+    "api_base": "http://172.16.58.129:8181/artifactory/api",
+    "ui_base": "http://172.16.58.129:8182",
+    "driver": "Playwright chromium headless (web/node_modules reused, scripts in /tmp/t402)",
+    "discipline": "read-only diff probing; no delete/confirm/save/trigger clicks (INC-1 rule)"
+  },
+  "live_measurements": {
+    "entitlements": {
+      "endpoint": "GET /api/system/version",
+      "license": "Artifactory OSS",
+      "addons": [],
+      "flags": {
+        "EVENT_BASED_PULL_REPLICATION": false,
+        "SMART_REMOTE_TARGET_FOR_EDGE": false,
+        "REPO_REPLICATION": false,
+        "MULTIPUSH_REPLICATION": false
+      }
+    },
+    "rest_license_gate": {
+      "GET /api/replications": "400 'This REST API is available only in Artifactory Pro...'",
+      "GET /api/replications/example-repo-local": "400 same gate",
+      "GET /api/replication/configs": "400 same gate"
+    },
+    "uiapi_not_gated": {
+      "GET /ui/api/v1/ui/global/replications/config": {
+        "status": 200,
+        "body": { "blockPullReplications": false, "blockPushReplications": false }
+      },
+      "GET /ui/api/v1/ui/admin/repositories/local/example-repo-local": {
+        "status": 200,
+        "note": "local repo form model carries \"replications\":[] (not license-stripped)"
+      }
+    },
+    "admin_sidebar_oss": {
+      "groups": ["Projects", "Environments", "Repositories(Repositories, Layouts)", "User Management(Authentication Providers)", "General(Proxies, Monitoring)", "SERVICES(Artifactory)"],
+      "global_replication_entry": "absent",
+      "sidebar_width_px": 230
+    },
+    "repo_edit_steps": {
+      "route": "/ui/admin/repositories/local/example-repo-local/edit",
+      "component": "jf-steps (horizontal left-rail of the repo edit page, data-v-121545c0)",
+      "items": [
+        { "text": "Basic", "class": "jf-steps__item is-active", "x": 302, "y": 146, "w": 387, "h": 40, "dataCy": "panel-Basic" },
+        { "text": "Advanced", "class": "jf-steps__item", "x": 721, "y": 146, "w": 387, "h": 40, "dataCy": "panel-Advanced" },
+        { "text": "Replications", "class": "jf-steps__item is-disabled", "x": 1141, "y": 146, "w": 387, "h": 40, "dataCy": "panel-Replications" }
+      ],
+      "disabled_semantics": {
+        "click": "no-op (url unchanged)",
+        "aria_disabled": "absent",
+        "gate_tooltip_text": "none rendered on hover",
+        "css": ".is-disabled .jf-steps__inner{color:rgba(65,72,87,.4);cursor:default} .is-disabled:after{background:#f1f3f8}",
+        "subroutes": "/replication,/replications,/edit/replications all 404"
+      }
+    },
+    "repo_list_replications_column": {
+      "route": "/ui/admin/repositories/local",
+      "columns": ["Repository Key", "Type", "Project", "Environment", "Replications", "Shared With"],
+      "header": { "text": "Replications", "x": 1224, "w": 140 },
+      "row_cells_oss": "plain text '0' per row (disabled branch of the cell renderer)",
+      "footer": "Showing 1 - 6 from 6 items"
+    },
+    "artifactory_service_page": {
+      "route": "/ui/admin/artifactory/list (sidebar walk-in required; direct URL renders empty shell)",
+      "subnav_groups": ["General(Settings,Property Sets,HTTP Settings)", "Services(Backups,Maven Indexer,Import & Export)", "Repositories(System)", "Security(Settings,Keys Management,Certificates)", "Advanced(Log Analytics,System Logs,Maintenance,Config Descriptor,Security Descriptor)", "Packages(UI Settings)"]
+    }
+  },
+  "bundle_forensics": {
+    "method": "served static assets only (clean-room: behavior facts extracted, zero code copied) — /ui/api/v1/ui/webapp/js/app.umd.js?v=7.84.15 (6.3MB) + manifest.umd.js + 1021 lazy chunks mirrored to /tmp/t402/bundle/corpus",
+    "steps_constants": "{TYPE_SPECIFIC:'typeSpecific',BASIC:'basic',ADVANCED:'advanced',GENERAL:'general',CRON_EXP:'cronExp',REPLICATIONS:'replications',REPO_TYPE:'repoType',FEDERATION:'federation'} + event 'repo-form-change'",
+    "remote_repo_default_replication": { "enabled": false, "cronExp": "", "enableEventReplication": false, "pathPrefix": "", "syncDeletes": false, "syncProperties": false, "syncStatistics": false, "type": "remote" },
+    "local_repo_default": "replications:[]",
+    "cron_validation": {
+      "action": "validateCron -> GET {api}/crontime?cron=<exp>&isReplication=<bool>",
+      "help_link": "quartz-scheduler.org/documentation/quartz-2.3.0/tutorials/crontrigger",
+      "i18n_errors": ["The cron expression is invalid", "Please enter a valid cron expression"],
+      "live_check": "direct GET attempts hit 404/401 (api prefix/auth context not reproduced) — not re-verified live"
+    },
+    "actions": {
+      "runReplication": "POST {api}/admin/repositories/executereplicationnow?replicationUrl=<url> body=repoModel; response .info -> notification toast",
+      "testReplication": "POST {api}/admin/repositories/testlocalreplication?replicationUrl=<url> body=repoModel{replications:[cfg]}",
+      "TEST_REMOTE_REPLICATION": "/admin/repositories/testremotereplication",
+      "EXECUTE_ALL_LOCAL_REPLICATIONS": "/ui/admin/repositories/executeall?repoKey=&replicationUrl=",
+      "EXECUTE_REMOTE_REPLICATION": "/ui/admin/repositories/exeucteremotereplication [sic — verbatim JFrog path spelling]"
+    },
+    "replication_cell_renderer": {
+      "chunk": "Lifecycle~ReleaseBundlesListV2~repositories.js",
+      "enabled_branch": "a.icon-run.replication-column-button, id=repositories-local-replicate, 24px, hover #43a047, [disabled] opacity .3",
+      "disabled_branch": "<span>0</span>",
+      "tooltips": { "globalBlockPush": "Push Replication Is Blocked", "enabled": "Run Replication", "none": "No Replication Configured" },
+      "click": "grid bus $emit('execute-replications', rowData)"
+    },
+    "i18n_labels": {
+      "lastReplicationStatus": "Last Replication Status",
+      "dashboard_widget": { "LABEL": "Replications", "DESCRIPTION": "Monitor the status of active replications occurring across your multiple deployments and review historical replication runs." },
+      "admin_nav": "ADMIN_REPLICATION:'Replication' (MC page /admin/mission_control/replications, HIDDEN_WHEN_SERVICE_NOT_INSTALLED(MC))"
+    },
+    "global_block_toggles": {
+      "fields": ["blockPushReplications", "blockPullReplications"],
+      "form": "General Settings field family (alongside fileUploadMaxSize, folderDownload*, globalOfflineMode)",
+      "tooltips": {
+        "blockPushReplications": "When set, push replication will not be triggered regardless of configuration.",
+        "blockPullReplications": "When set, pull replication will not be triggered regardless of configuration."
+      },
+      "api": "GET/PUT global/replications/config"
+    }
+  },
+  "binflow_current_state": {
+    "console": {
+      "global_page": "web/src/pages/governance/ReplicationPage.tsx — read-only status: targets table (state dot/name/URL/src->dst/pending/in_progress/failed/succeeded/last_success) + events table, 10s poll, four-state convergence (loading/403/404+501/error-stale)",
+      "repo_tab": "web/src/pages/repositories/RepoDetailPage.tsx — 'replications' Tab = degraded pointer card -> /admin/governance/replication (data-testid repo-repl-degraded/repo-repl-goto)",
+      "crud_ui": "none (REST/CLI only, by design comment)"
+    },
+    "rest": ["GET /api/v1/replications", "POST /api/v1/replications", "DELETE /api/v1/replications/{name}", "GET /api/v1/replication/status"],
+    "model": "ReplicationConfig{Name,SourceRepo,TargetURL,TargetRepo,TargetUsername,TargetPasswordEnc,MaxBandwidthBytesPerSec,MaxItemsPerPush,Enabled} — no cron, no pathPrefix, no sync* flags",
+    "engine": "event-driven push (upload hook) + fixed-interval sweep fallback (default 1m, Engine.SweepInterval) — no user-facing cron expressions"
+  },
+  "screenshots": [
+    "01-after-login.png", "02-admin-home.png", "10-repositories-list.png", "10-repo-list.png (interim)",
+    "11-repo-detail.png", "12-repl-step-clip.png", "20-repl-step-hover.png", "21-repl-step-clicked.png",
+    "30-artifactory-service.png", "31-general-settings.png"
+  ]
+}

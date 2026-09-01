@@ -5,8 +5,8 @@ sidebar_position: 25
 
 # NuGet 接入（v3 / v2）
 
-> 适用版本：M10 起（nuget 包型为 **pro 档**能力——建仓/推送需 pro 及以上 license，见 [License 与 Add-ons 管理](../admin/license.md)；未解锁时既有包仍可还原）；**M12 补全**（T-337：v2 全路由集实装；T-341：v3 remote/virtual search 升为上游实时代理 + service index 动态解析）。协议行为基准：learn.microsoft.com/nuget/api 官方规范（clean-room 有公开规范以官方为准）。
-> 验证客户端：**dotnet SDK 8**（8.0.412 实测，T-287：push / add package / restore / run 全链 + remote 缓存断言 + 公网 LIVE 腿）；M12 增量以**真 curl 逐字矩阵**验证（T-337/T-341 live 矩阵，环境无 dotnet SDK 时按 M11 conan 先例回落），并对 nuget.org 真上游活体闭合 OData 参数语义。
+> 适用版本：M10 起（nuget 包型为 **pro 档**能力——建仓/推送需 pro 及以上 license，见 [License 与 Add-ons 管理](../admin/license.md)；未解锁时既有包仍可还原）；**M12 补全**（T-337：v2 全路由集实装；T-341：v3 remote/virtual search 升为上游实时代理 + service index 动态解析）；**M14 对齐**（T-401：v3 push 重复臂翻转为 **409**——与 v2 面 D-10 终裁同族同则，两面重复臂自此同语义，见下文「重复推送臂」表）。协议行为基准：learn.microsoft.com/nuget/api 官方规范（clean-room 有公开规范以官方为准）。
+> 验证客户端：**dotnet SDK 8**（8.0.412 实测，T-287：push / add package / restore / run 全链 + remote 缓存断言 + 公网 LIVE 腿）；M12 增量以**真 curl 逐字矩阵**验证（T-337/T-341 live 矩阵，环境无 dotnet SDK 时按 M11 conan 先例回落），并对 nuget.org 真上游活体闭合 OData 参数语义；M14 起两矩阵含 push 重复四臂腿（同字节/异字节 × 有/无 `delete` 权限，T-401）。
 
 BinFlow 同时提供 **v3 主面**（service index / flatcontainer / registration / search / publish——`dotnet` 与现代客户端走这里）与 **v2 全路由面**（OData 全 18 端点：`Search()` / `Packages()` / `GetUpdates()` / `$batch` / `Download` / DELETE / PUT 双形——nuget.exe 2.x 与老工具链走这里）。`dotnet` 工作流只需一个 `nuget.config`。
 
@@ -90,7 +90,7 @@ dotnet nuget push bin/Release/Acme.Lib.1.0.0.nupkg --source binflow
 - push 体为单 part 的 multipart/form-data（dotnet 8 实测形态），裸流也照收；包大小上限 **512MiB**。
 - 校验链：zip/nuspec 可解析、id/version 一致 → 400 家族拒绝；落 `.nupkg` 后**服务端生成** `.nuspec` 与 `.nupkg.sha512` 两个 sidecar（可再生件）。
 - 成功 **201 + Location**（包地址）。
-- 同 id/version 重复 push → 409；改内容需先删（见下文 DELETE 语义）。
+- 同 id/version 重复 push → 409（**字节盲**：同字节重传同样 409——M14 起 v3 面与 v2 面同口径；持 `delete` 权限者例外，覆盖 → 201，见下文重复推送臂表）；改内容需先删（见下文 DELETE 语义）。
 
 ### 4. 还原与运行
 
@@ -152,14 +152,17 @@ base = `$BASE/binflow/api/nuget/v2/<repoKey>`，OData Atom feed（V2FeedPackage 
 | `PUT /`（multipart，字段名 `package`） | 201 `Successfully published NuPkg to: <path>`（live 逐字，如 `team/live.a/1.1.0/live.a.1.1.0.nupkg`）；缺字段 → 400 精确文案。**落点差异**：Artifactory 落仓根扁平 `<id>.<version>.nupkg`，BinFlow 落 canonical flatcontainer 三件套（201 文案中的 path 随之） |
 | `PUT /{前缀}` | deployPath = `<前缀>/<nuspec.id>.<nuspec.version>.nupkg`（身份取自 nuspec，按规格字面） |
 
-**重复推送臂**（v2 直推与 v3 push 分立，语义不同——v3 push 重复恒 409）：
+**重复推送臂**（v2 直推与 v3 push 两面**同语义、字节盲**——同字节/异字节同判，不存在「同字节幂等 201」臂：v2 面自 T-378〔D-10 终裁〕、v3 面自 M14 T-401 起先后对齐 409，两面仅 409 响应文案不同）：
 
-| 形态 | 结果 |
-|---|---|
-| 同 id/version 已存在，无 `delete` 权限 | **409** `Package already exist: <deployPath>` |
-| 同 id/version 已存在，有 `delete` 权限 | 覆盖 → 201 |
-| 同 id/version 且字节相同 | 幂等 201 |
-| remote 仓 / 未路由 virtual | 400 `This operation can only be performed on local repositories.` |
+| 形态 | v2 直推（`PUT` v2 base） | v3 push（`dotnet nuget push` / curl 直推 flatcontainer，两 URL 形态同臂） |
+|---|---|---|
+| 同 id/version 已存在，当前用户无 `delete` 权限（同字节或异字节） | **409** `Package already exist: <deployPath>` | **409** `A package with the provided ID and version already exists`（Learn 官方文案逐字） |
+| 同 id/version 已存在，有 `delete` 权限 | 覆盖 → **201** | 覆盖 → **201**（覆盖后下载即新字节） |
+| 新包 | **201** `Successfully published NuPkg to: <path>` | **201** |
+| remote 仓 | 400 `This operation can only be performed on local repositories.` | 405（只读门裁决，不查存在性、不答 409） |
+| virtual | 未配置 defaultDeploymentRepo → 400（同上文案）；已路由 = 等价 local publish，重复臂同 local | 未路由 → 路由拒绝（不答 409）；已路由（经成员解析）= 等价 local 重复臂 |
+
+客户端提示：`dotnet nuget push --skip-duplicate` 只跳过 409（其余错误照常失败）——CI 对同一版本重复推包时用它避免流水线红灯。
 
 **`semVerLevel` 过滤语义**（nuget.org 活体闭合，FluentAssertions/StackExchange.Redis 双源实测）：SemVer2-only = **点分预发布标识（≥2 个点分段，如 `alpha.1`）或含 build metadata**；`3.0.0-alpha`/`rc1` 等 v1 形预发布在默认档可见。
 
@@ -179,7 +182,7 @@ BinFlow **不提供符号服务器**：`.pdb` 的 SYMSRV 路径与 `.snupkg` 符
 | push 403 + 响应头 `X-Binflow-License-Required: nuget` | license 过期/卸载后的写门（D2）；**restore/读不受影响** | 重装 license |
 | push 401 | 匿名写被拒（push 永远需要认证） | 补 `packageSourceCredentials` |
 | push 400（id/version 校验） | nuspec 与寻址形态不一致 / 包损坏 / nuspec 超 4MiB | 重新 `dotnet pack` |
-| push 409 | v3 push 同 id/version 已存在（v3 面恒 409；v2 直推的重复臂见上表——有 `delete` 权限可覆盖） | 升版本；或先 DELETE（硬删） |
+| push 409 | 同 id/version 已存在且当前用户无 `delete` 权限——**字节盲**（同字节重传同样 409，v2/v3 两面同口径）；文案 v3 面 `A package with the provided ID and version already exists`、v2 面 `Package already exist: <deployPath>`（见上表） | 升版本；先 DELETE（硬删）；授 `delete` 后覆盖；CI 重复推用 `dotnet nuget push --skip-duplicate` |
 | `dotnet add package` 在 remote 仓搜索为空（200 `totalHits:0`） | M12 起 remote search 是上游实时代理：上游不可达/非 200 → 贡献空（不 5xx）；带凭据源（Azure Artifacts）搜索回落空集 | 检查上游可达性；带 `--version` 走版本清单（flatcontainer 不依赖搜索）；公开源匿名可用 |
 | 版本寻址 404 | 未做归一化（如用 `1.0` 寻址存储为 `1.0.0`） | 用三段版本 `1.0.0` |
 | v2 `Search()` 空集 404 / `FindPackagesById()` 缺 id 404 | OData 语义（空 feed 以 404 表达；缺 id 非参数错误） | 核对 id 拼写（小写）；单包探测用 `FindPackagesById()?id=` |

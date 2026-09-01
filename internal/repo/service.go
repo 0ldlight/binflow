@@ -372,6 +372,28 @@ func (s *service) Get(ctx context.Context, p *Principal, repoKey, path string) (
 	}
 	switch row.Type {
 	case TypeRemote:
+		// T-406 (parity): the browser's FOLDER face on a remote repository
+		// serves the cache — a cached folder row answers directly, and a
+		// folder probe that misses but has cached CHILDREN is materialized on
+		// read (the cache plane already writes on read; pre-T-406 landings
+		// carry file rows without their ancestor folders). Everything else
+		// falls through to the engine: protocol faces legitimately serve
+		// slash-terminated upstream resources (pypi /simple/<project>/ index
+		// pages, nuget v2 paths), so a bare childless-404 shortcut here broke
+		// them (T-400's first red — T-406b).
+		if isFolderNode(path) {
+			if n, nerr := s.md.Nodes().Get(ctx, repoKey, path); nerr == nil && n.Sha256 == emptyFolderSHA {
+				return nil, n, fmt.Errorf("get %s/%s: %w", repoKey, path, ErrIsFolder)
+			}
+			if p != nil {
+				dir := strings.TrimSuffix(path, "/")
+				if kids, kerr := s.md.Nodes().ListByPrefix(ctx, repoKey, dir); kerr == nil && len(kids) > 0 {
+					if n, ferr := s.putFolderRow(ctx, p, repoKey, path, folderMime); ferr == nil {
+						return nil, n, fmt.Errorf("get %s/%s: %w", repoKey, path, ErrIsFolder)
+					}
+				}
+			}
+		}
 		return s.getRemote(ctx, p, repoKey, path)
 	case TypeVirtual:
 		return s.getVirtual(ctx, p, repoKey, path)
@@ -1430,8 +1452,20 @@ func (s *service) List(ctx context.Context, p *Principal, repoKey, prefix string
 			return nil, err
 		}
 	}
-	if _, err := s.loadLocalRepo(ctx, repoKey); err != nil {
+	// T-406 (parity): remote repositories list their CACHE — pull-through
+	// landings are ordinary node rows under the remote key (remote_cache
+	// holds only validators), so the browser shows cached content like
+	// Artifactory's remote-cache FolderInfo (rest-api.md section 3: FileInfo
+	// carries remoteUrl on remote-cache rows); the upstream is never probed
+	// from the listing face. Virtual aggregate listing keeps its refusal
+	// (FR-21-AC8, P2) — the console renders a member-aware empty state.
+	row, err := s.loadRepoRow(ctx, repoKey)
+	if err != nil {
 		return nil, err
+	}
+	if row.Type == TypeVirtual {
+		return nil, fmt.Errorf("%w: virtual repositories resolve through their members on the read plane; aggregate listing is deferred (FR-21-AC8, P2)",
+			ErrRepoTypeNotSupported)
 	}
 	if !s.allow(ctx, p, repoKey, prefix, ActionRead) {
 		if p == nil {

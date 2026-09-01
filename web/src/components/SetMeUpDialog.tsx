@@ -10,6 +10,7 @@ import Drawer from '@mui/material/Drawer'
 import IconButton from '@mui/material/IconButton'
 
 import { useAuth } from '../app/AuthContext'
+import { PkgIcon } from './PkgIcon'
 import { CopyButton } from './CopyButton'
 import { EmptyState } from './EmptyState'
 import { ErrorCard } from './ErrorCard'
@@ -412,9 +413,9 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
               setShowGrid(false)
             }}
           >
-            <span className="pkg-icon" aria-hidden="true">
-              {m.icon}
-            </span>
+            {/* T-390（FR-127）：包型身份走 brand 版官方标（字符图标退役）；
+                药丸内与包名同现 = 装饰位（aria-hidden 在 PkgIcon 内） */}
+            <PkgIcon id={m.id} variant="brand" size={18} className="pkg-icon" />
             <span className="pkg-name">{m.label}</span>
           </button>
         ))}

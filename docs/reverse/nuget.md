@@ -129,11 +129,13 @@ BinFlow 实现建议：保持两道门顺序（401 先于 403）；匿名根 GET
 | A3 | Artifactory v3 flatcontainer 家族（`v3-flatcontainer/{id}/index.json`、`v3-flatcontainer/{id}/{ver}/{file}.nupkg`、`v3-flatcontainer/{id}/{ver}/{id}.nuspec`）**全 GET-only**；v3 mount 下仅有的 PUT = `PUT symbols`（symbol 包，multipart）与继承自 v2 资源的 catch-all `PUT {path: .+}`（@Consumes multipart/form-data）——后者把 URL 路径当 deploy-path 前缀转 v2 publish（重复臂同 §5.1 = 409） | DE（`NugetV3Resource`/`NuGetV3SubResource` 路由全集复核，本票） | 高 |
 | A4 | 对 flatcontainer 形态路径发**非 multipart** 内容型 PUT（如 `application/octet-stream`）→ 无 @Consumes 匹配 → JAX-RS 容器默认 **415**（服务端未显式编码该分支） | DE 推断（容器通则，无显式代码） | 中 |
 | A5 | **K59 锚定值 = 409**：与官方 push 资源逐字（A1）一致，且与 D-10 终裁方向（v2 面 DE 谓词 exists && !canDelete → 409）同族语义——「包已存在且不可覆盖」在两个 push 面上不应出现不同状态码 | 官方 + D-10 邻域推定 | 高 |
-| A6 | BinFlow as-built 现状：v3/flat 直推面「已存在 + 无 d」→ 服务层 overwrite 门（ErrForbidden）→ adapter 403（体含 `needs DELETE permission on the existing node`）——**与锚定值不一致**；「已存在 + 有 d」→ 覆盖 201；新包 → 201（无 adapter 注入的字节比对，D-10 后语义同构） | BinFlow 代码（flat.go servePush → repo service overwrite 门 → writeError 403 映射）+ T-378 §2 留痕 | 高（代码事实；live 未跑——stock 二进制 community 档不发 nuget 证） |
+| A6 | BinFlow as-built 现状（T-394 对照时点）：v3/flat 直推面「已存在 + 无 d」→ 服务层 overwrite 门（ErrForbidden）→ adapter 403（体含 `needs DELETE permission on the existing node`）——**与锚定值不一致**；「已存在 + 有 d」→ 覆盖 201；新包 → 201（无 adapter 注入的字节比对，D-10 后语义同构）。**已翻转——见下方 Q6 关闭留痕** | BinFlow 代码（flat.go servePush → repo service overwrite 门 → writeError 403 映射）+ T-378 §2 留痕 | 高（代码事实；live 未跑——stock 二进制 community 档不发 nuget 证） |
+
+**Q6 关闭留痕（2026-08-31 终裁=对齐 409，T-401 落地 2026-09-01）**：v3/flat 直推面（direct 与 addressed 两形态同面）重复臂按 A5 翻转——「已存在 + 无 d」→ **409**，体 = A1 官方逐字 `A package with the provided ID and version already exists`（Learn 响应表原文；规格文案非空，v2 族的 `Package already exist:` 回落形态未启用）；d 权限覆盖 201、新包 201 维持；同字节/异字节一律 409（落地手法与 T-378 同族：包体 Put 声明摘要改零值——本面原把客户端 X-Checksum-\* 头透传服务层，同字节+声明摘要==存量时走幂等重传短路答 201，D-10 同族同则一并摘除；该头族在 NuGet push 面本就无客户端发送，bare content 面契约不变）。remote 面（只读门 405）与未路由 virtual（路由拒绝）不查存在性、不答 409。T-394 时点的 as-built 403 断言在 T-401 反转（豁免票号 T-401，flat_test.go 四臂 + v3live curl 四臂 live 逐字固化）。
 
 消费指引（FR-130.4 腿 **P2 性质**，本票只锚定不动行为）：
 - **T-394 AC3**：as-built 对照结论登记——按 A6 现状 = **不一致**（403 ≠ 409）。
-- **T-401**（条件票）：Q6 终裁=对齐时按 A5 翻转（403→409，臂语义照 §5.1 四臂：同字节/异字节一律 409、d 权限覆盖、新包 201）；终裁=有意差异则 T-401 不触发，本节降级为 D 层差异行（LC-66 归 D）。
+- **T-401**（条件票）：Q6 终裁=对齐时按 A5 翻转（403→409，臂语义照 §5.1 四臂：同字节/异字节一律 409、d 权限覆盖、新包 201）；终裁=有意差异则 T-401 不触发，本节降级为 D 层差异行（LC-66 归 D）。→ **已触发并落地（上方 Q6 关闭留痕）**。
 
 ## 6. 包存储路径解析（v2，此条补充官方规范）
 
@@ -262,7 +264,7 @@ remote/virtual 仓 v3 service index 里的资源 @id 指向本实例固定内部
 | L7 virtual remote 成员贡献=缓存 | 改回（裁决①） | **T-341**：§8.2 合并 |
 | （新）publish 重复臂 409+覆盖 | T-304 §7 新发现 | **T-337**：§5.1 |
 | （新）同字节幂等臂 as-built 201（D-10） | 终裁=对齐 409（2026-08-30） | **T-378**：§5.1 四臂回归 + M12 L03 断言反转豁免（本表上方留痕） |
-| （新）v3/flat 直推面重复臂 403 vs 409 | K59 锚定 = 409（§5.4，官方 + D-10 邻域） | **T-394**（as-built 对照登记）→ **T-401**（Q6=对齐时翻转） |
+| （新）v3/flat 直推面重复臂 403 vs 409 | K59 锚定 = 409（§5.4，官方 + D-10 邻域） | **T-394**（as-built 对照登记=不一致）→ **T-401**：Q6 终裁=对齐，已翻转（403→409，§5.4 Q6 关闭留痕 + 四臂回归） |
 
 **T-337 实现要点**：① v2 路由按 §2 全集挂到既有 plane-aware rewrite（escaped 拼写保留）；② 鉴权门序 401→403（§3）；③ 重复臂照 §5.1（409 + d 权限覆盖 + virtual 409 `Unacceptable path.`）；④ FindPackagesById 缺 id=404 而非 400（易踩）；⑤ `$batch` 的 202 + `batchresponse_<guid>` boundary + part 查询串覆盖语义（§2 #13）；⑥ remote/virtual 的 v2 搜索代理按 §7（offline 回落、id 级去重、GetUpdates 注入 $orderby）。
 **T-341 实现要点**：① SearchQueryService 层阶 + FeedUtils 回落阶梯（§8.1/§9.2）替换前缀常量；② `.nuGetV3/` 缓存布局（§9.3）；③ 上游 400→take=100 重试；④ virtual 合并（档内 local 事实+remote 代理、id 级 putIfAbsent、合并后分页、totalHits=全量）；⑤ registration 改写（§9.4，packageContent 指 v2 base）。
@@ -278,4 +280,4 @@ remote/virtual 仓 v3 service index 里的资源 @id 指向本实例固定内部
 | 5 | v3 remote 上游 take 上限行为（>1000 结果的源，virtual 是否丢尾） | 中 | 构造多版本上游源实测 |
 | 6 | `DataServiceVersion` 响应头的精确值族（1.0 vs 2.0 在各端点的分布） | 中 | 抓包核对（本规格记 V2 为主，root/$metadata 为 OData 常量头） |
 | 7 | A4：Artifactory 对 flatcontainer 路径非 multipart PUT 的实际状态码（415 vs 其他） | 中 | t226 活体/真实例 curl 直打（本票 stock 二进制无法起 nuget 面） |
-| 8 | K59 翻转腿（T-401 触发时）的 live 四臂矩阵（v3/flat 面同字节/异字节×w/d 权限） | 中（代码事实已高） | T-401 票内 curl + dotnet 双客户端 |
+| 8 | ~~K59 翻转腿（T-401 触发时）的 live 四臂矩阵（v3/flat 面同字节/异字节×w/d 权限）~~ **已闭合（T-401，2026-09-01）**：curl 四臂 live 全绿（真栈真 socket，409 体=官方逐字）；dotnet 腿以 `BINFLOW_T287_CLIENT_E2E` 夹具新增 L14' 交付（w-only 同字节重推 + `--skip-duplicate` exit 0 断言——409 是该 flag 唯一跳过的状态码），实现机无 dotnet SDK 未本机复跑，有 SDK 环境直接复跑即证。 | 高（curl live 已证；dotnet 夹具逻辑待 SDK 环境） | — |

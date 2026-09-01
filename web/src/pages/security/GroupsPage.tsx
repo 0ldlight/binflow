@@ -502,11 +502,12 @@ export default function GroupsPage() {
         (sorted.length === 0 ? (
           admin ? (
             <EmptyState
+              illustration
               message="还没有组"
               hint="组的授权经 permission target 生效（组行 × read/write/delete/manage 并集）。"
             />
           ) : (
-            <EmptyState message="还没有组" />
+            <EmptyState illustration message="还没有组" />
           )
         ) : (
           <>

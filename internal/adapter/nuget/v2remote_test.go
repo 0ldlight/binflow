@@ -150,8 +150,11 @@ func TestV2RemoteProxyCount(t *testing.T) {
 
 // TestV2RemoteProxyFallback: an upstream whose v2 search face answers
 // nothing falls back to the repository's landed facts (section 7.1-1's
-// offline arm) — the never-cached-nothing case — and the all-empty answer
-// is the family 404, never a 5xx.
+// offline arm). Until T-406 the local-only listing seam (svc.List) refused
+// remote repositories, so this arm degraded to the family 404 — the
+// degradation the original ticket report registered. T-406 opened the
+// remote cache to the listing face, so the fallback now ENUMERATES the
+// landed nodes: the warmed package surfaces as a 200 feed entry.
 func TestV2RemoteProxyFallback(t *testing.T) {
 	s := newStack(t)
 	s.seedRepo(t, "ng-remote", repo.TypeRemote)
@@ -175,15 +178,14 @@ func TestV2RemoteProxyFallback(t *testing.T) {
 	}
 
 	// The search face itself: an upstream with no v2 answer and no cached
-	// search response answers the 404, never a 5xx — the never-cached arm
-	// cannot enumerate the remote repository's landed nodes through the
-	// local-only listing seam (svc.List), the degradation the ticket report
-	// registers; the engine's stale-copy arm (a cached search response
-	// served on upstream fault) is covered by the marker-cache assertions
-	// of TestV2RemoteProxyFeed.
+	// search response falls back to the landed cache facts (T-406 opened
+	// svc.List to the remote cache) — the warmed package surfaces as a 200
+	// feed entry, never a 5xx; the engine's stale-copy arm (a cached search
+	// response served on upstream fault) is covered by the marker-cache
+	// assertions of TestV2RemoteProxyFeed.
 	status, body, _ := s.get(apiV2Path("ng-remote") + "/Search()")
-	if status != http.StatusNotFound {
-		t.Fatalf("fallback Search = (%d, %s…), want the 404 degradation", status, firstLine(body))
+	if status != http.StatusOK || !strings.Contains(body, "landed.lib") {
+		t.Fatalf("fallback Search = (%d, %s…), want the 200 landed-facts feed", status, firstLine(body))
 	}
 	// The landed package is still DOWNLOADABLE through the canonical arm.
 	if status, _, _ := s.get(apiV2Path("ng-remote") + "/Download/landed.lib/3.0.0"); status != http.StatusOK {

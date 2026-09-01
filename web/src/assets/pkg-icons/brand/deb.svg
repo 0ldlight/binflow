@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <title>deb 包型图标（品牌色版，wire 值 debian）</title>
+  <!-- Debian 官方 swirl 红（#D70A53）螺线简化重绘，仅作包型识别 -->
+  <path d="M11.7 4.5a7.5 7.5 0 1 0 7.5 7.5" stroke="#D70A53" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M19.2 12a4.7 4.7 0 1 0-4.7 4.7" stroke="#D70A53" stroke-width="2.4" stroke-linecap="round"/>
+</svg>

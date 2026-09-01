@@ -47,13 +47,14 @@ export function placeholderCreds(username: string): ClientCreds {
   }
 }
 
-/** 包类型网格（console-m8 C7 五项闭集；图标与树页 PKG_ICON 同形） */
-export const CLIENT_PKG_META: { id: PackageType; label: string; icon: string; desc: string }[] = [
-  { id: 'generic', label: 'Generic', icon: '▫', desc: '任意文件（curl / CI 脚本直传）' },
-  { id: 'docker', label: 'Docker', icon: '⬢', desc: 'OCI 镜像（docker login / push）' },
-  { id: 'maven', label: 'Maven', icon: '⌬', desc: 'JVM 构件（settings.xml + mvn deploy）' },
-  { id: 'npm', label: 'npm', icon: '⬒', desc: 'Node 包（.npmrc + npm publish）' },
-  { id: 'pypi', label: 'PyPI', icon: '⬓', desc: 'Python 包（pip.conf / twine）' },
+/** 包类型网格（console-m8 C7 五项闭集；图标不在元数据里——SetMeUp 药丸
+ *  的 PkgIcon 按 id 解析，T-390 起五枚几何字符图标退役） */
+export const CLIENT_PKG_META: { id: PackageType; label: string; desc: string }[] = [
+  { id: 'generic', label: 'Generic', desc: '任意文件（curl / CI 脚本直传）' },
+  { id: 'docker', label: 'Docker', desc: 'OCI 镜像（docker login / push）' },
+  { id: 'maven', label: 'Maven', desc: 'JVM 构件（settings.xml + mvn deploy）' },
+  { id: 'npm', label: 'npm', desc: 'Node 包（.npmrc + npm publish）' },
+  { id: 'pypi', label: 'PyPI', desc: 'Python 包（pip.conf / twine）' },
 ]
 
 /** 门控包型回退块（M10 T-288）：命令块内容与 docs/user 同源（文件头注），

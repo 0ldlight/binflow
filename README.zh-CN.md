@@ -6,8 +6,8 @@ BinFlow 是一个用 Go 从零实现的**云原生制品仓库**，架构与概�
 JFrog Artifactory——仓库、存储、权限、REST 语义一一对应，Artifactory
 用户迁移过来不用重学词汇。单静态二进制、零外部依赖，原生服务**十二个
 包生态**（见下方矩阵），每种协议都支持 **local / remote（代理缓存）/
-virtual（聚合）** 三种仓型（cargo 的 remote/virtual 待交付），并内嵌
-Web 控制台。
+virtual（聚合）** 三种仓型（docker 的 remote 已于 M14 落地 community
+档；其 virtual 聚合暂未交付），并内嵌 Web 控制台。
 
 M6 在其上补齐企业层：OIDC / LDAP 单点登录、S3 对象存储后端与本地→S3
 在线迁移、单向 push 复制、Prometheus `/metrics` 指标端点、`bf` CLI 与
@@ -48,6 +48,12 @@ conan v1 recipe DELETE 翻转为**整树删**；**运行旋钮**落地
 （`folder_download` 六字段 + `trashcan.retention_days`，重启生效，
 `GET /api/v1/system/settings` 回显）。
 
+M14（已完成）开出 **docker remote 代理缓存**（community 档；自指上游
+实测 digest 全等、二拉上游计数冻结），修复 **npm 交互式 legacy login**
+（裸 `npm login --auth-type=legacy` 全链铸 token 可用），钉死 Helm Chart
+的 **PVC keep 姿态**（`helm uninstall` 有意保留数据卷），并落地**品牌
+logo + 逐包型图标集**（控制台与文档站统一换装）。
+
 ## 包型矩阵（含档位）
 
 | 档位 | 包型 | 说明 |
@@ -64,7 +70,8 @@ conan v1 recipe DELETE 翻转为**整树删**；**运行旋钮**落地
 | 内容 | 位置 |
 |---|---|
 | 产品愿景与范围 | [`PRODUCT.md`](PRODUCT.md) |
-| 里程碑（M1 内核 → M13 事件总线程；M1~M13 已完成） | [`ROADMAP.md`](ROADMAP.md) |
+| 里程碑（M1 内核 → M14 UI-parity 程；M1~M14 已完成） | [`ROADMAP.md`](ROADMAP.md) |
+| M14 需求（PRD：Artifactory 交互形态对齐 / 协议与品牌 logo / docker remote 首航 / 服务端小票包） | [`docs/prd/milestone-14.md`](docs/prd/milestone-14.md) |
 | M13 需求（PRD：Webhook 事件总线 / HelmOCI 补全 / 配置旋钮 / 行为债收口） | [`docs/prd/milestone-13.md`](docs/prd/milestone-13.md) |
 | M12 需求（PRD：NuGet 补全 / 制品生命周期 / 行为债收口） | [`docs/prd/milestone-12.md`](docs/prd/milestone-12.md) |
 | Artifactory 全量功能对照矩阵（213 条目——M10+ 路线图骨干） | [`docs/reverse/artifactory-full-feature-matrix.md`](docs/reverse/artifactory-full-feature-matrix.md) |

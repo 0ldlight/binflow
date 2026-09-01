@@ -102,6 +102,32 @@ public static class Greeter
 		t.Fatalf("L14 landed nupkg GET = %d", status)
 	}
 
+	// ---- L14': the duplicate push arm through the real client (Q6,
+	// T-401 — nuget.md section 5.4): a write-only principal re-pushing
+	// the SAME version meets the official 409, and --skip-duplicate is
+	// the client's own contract for exactly that status — any other code
+	// (the pre-T-401 403 of the overwrite gate) fails the push, so runCmd
+	// fatalling on a non-zero exit IS the assertion of record.
+	s.seedUser(t, "writer", "writerpass")
+	s.seedGrant(t, "t401-writer", "writer", "ng-local", true, true, false)
+	pushDirW := t.TempDir()
+	writeFile(t, filepath.Join(pushDirW, "nuget.config"), fmt.Sprintf(`<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources>
+    <clear />
+    <add key="binflow" value="%s/index.json" />
+  </packageSources>
+  <packageSourceCredentials>
+    <binflow>
+      <add key="Username" value="%s" />
+      <add key="ClearTextPassword" value="%s" />
+    </binflow>
+  </packageSourceCredentials>
+</configuration>
+`, s.srv.URL+"/binflow/api/nuget/v3/ng-local", "writer", "writerpass"))
+	out = runCmd(t, pushDirW, dotnet, "nuget", "push", nupkg, "--source", "binflow", "--api-key", "ignored", "--skip-duplicate")
+	t.Logf("L14' dotnet nuget push (w-only same-bytes retransmit, --skip-duplicate): %s", oneLine(out))
+
 	// ---- L15: consume from the local repository ----
 	app := t.TempDir()
 	writeFile(t, filepath.Join(app, "nuget.config"), fmt.Sprintf(`<?xml version="1.0" encoding="utf-8"?>

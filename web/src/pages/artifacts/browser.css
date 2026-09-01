@@ -61,6 +61,13 @@
   letter-spacing: -2px;
 }
 
+/* 包型角标（T-390）：rclass 字符旁的内联 svg 槽——基线对齐跟随文字
+ * （vertical-align 负值压到 x-height 视觉中线，与字符角标同视觉档） */
+.tree-node .ico .tree-pkg {
+  margin-inline-start: 1px;
+  vertical-align: -0.18em;
+}
+
 /* 树尾常驻回收站入口（T-372 / FR-122.1）：与仓库区以细线分隔——
  * Artifactory 树尾 Trash Can 的同形分隔；视觉面无锚 */
 .tree-node.trash-node {

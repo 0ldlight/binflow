@@ -87,7 +87,7 @@ curl -s -b jar.txt -X PUT $BASE/binflow/generic-local/a/f.txt \
 ├ 用户                /admin/security/users
 ├ 组                  /admin/security/groups
 ├ 权限                /admin/security/permissions
-└ Access Tokens       /admin/security/tokens（占位页，见下文边界表）
+└ Access Tokens       /admin/security/tokens（M14 真身页，见下文）
 治理
 ├ 审计日志            /admin/governance/audit
 ├ 维护（GC）          /admin/governance/gc
@@ -118,6 +118,7 @@ curl -s -b jar.txt -X PUT $BASE/binflow/generic-local/a/f.txt \
   - 文件夹：复制路径 / 删除 / 刷新
   - 仓库：复制仓库路径 / 刷新 / 在仓库管理中打开
 - 当前层 children 表（名称/类型/大小/修改时间/操作者）支持「过滤当前层」与「只看文件」；大目录客户端分页「加载更多」，超过 2000 条提示改用[搜索](#搜索与仪表盘)。
+- **仓型面（M14）**：local 仓直列内容；**remote 仓只列已缓存制品**（浏览永不回源——空目录提示「远程仓库：仅展示已缓存的制品」，与 Artifactory 的 remote-cache FolderInfo 同口径；回源拉取走包管理器协议面）；**virtual 仓聚合浏览暂未支持**（内容面为成员感知的空态——读取仍按成员仓解析，FR-21-AC8 待补）。
 - **跨路径 Move/Copy 不做树内入口**（REST 面自 M12 起可用——[制品操作族](admin/artifact-operations.md)）；**删除先入回收站**（pro 槽 `trashcan`，社区档为硬删——治理页 [回收站](#治理admingovernance) 可浏览/恢复）。
 
 详情面板三形态（Tab 式：`常规` / `有效权限`（admin 渲染））：
@@ -154,10 +155,10 @@ curl -s -b jar.txt -X PUT $BASE/binflow/generic-local/a/f.txt \
 
 ### 仓库（`/admin/repositories`）
 
-- **三 Tab 列表**：`/admin/repositories/{local|remote|virtual}` 子路由；「N 个仓库」计数 + 右上 `+ 添加仓库`；列头排序（key / 包类型）+ 行尾删除入口；每行 Set Me Up / Deploy 快捷钮。
+- **三 Tab 列表**：`/admin/repositories/{local|remote|virtual}` 子路由；「N 个仓库」计数 + 右上 `+ 添加仓库`；列头排序（key / 包类型）+ 行尾删除入口；每行 Set Me Up / Deploy 快捷钮。local Tab M14 起有 **Replications 列**（每仓复制配置计数；≥1 条时行级 Run 动作深链到该仓编辑页 Replications 节——BinFlow 无手动 trigger，复制是事件驱动的）。
 - **建仓向导**：`/admin/repositories/new` 进页弹**包类型网格**（五项必选）→ 单页分区表单（常规设置 → 来源/成员 → 包类型专属 → 高级）+ 右栏实时摘要。key 规则 `[a-z][a-z0-9-]{1,62}` 前端预检、服务端终裁（400 行内回显）。**保留字 `api` / `v2` / `docs` / `console` / `ui` / `assets` 建仓即 400**。
-- **仓库详情** `/admin/repositories/:key`：概要 / 接入命令（与接入文档同源）/ 统计（配额水位条）/ 配置（配额行内编辑 + patterns；**manage 持有者**亦可编辑本仓配置——见 [RBAC 指南](admin/rbac-roles.md)）四 Tab + 危险区（删仓仅全量 admin 可见）。
-- **编辑** `/admin/repositories/:key/edit`：rclass/包类型锁定，其余字段同建仓表单。
+- **仓库详情** `/admin/repositories/:key`：概要 / 接入命令（与接入文档同源）/ 统计（配额水位条）/ 配置（配额行内编辑 + patterns；**manage 持有者**亦可编辑本仓配置——见 [RBAC 指南](admin/rbac-roles.md)）/ Replications（M14：本仓复制配置摘要卡 + 深链编辑节 + 全局复制页入口）Tab + 危险区（删仓仅全量 admin 可见）。
+- **编辑** `/admin/repositories/:key/edit`：rclass/包类型锁定，其余字段同建仓表单。**M14 起编辑态 local 仓另有 Replications 节**（push 复制配置：列表 + 新建/编辑表单 + 行内启停开关 + 输入 name 强确认删除；Artifactory 的 cron/sync 等字段为预留位恒禁用——如实标注引擎尚不支持）；编辑保存 = 删除 + 重建（未决任务级联清空、目标口令不回显需重输——留空即匿名目标）。remote/virtual 仓不适用（push 源是 local）。REST 语义见[治理指南 · 复制](admin/governance.md#复制push-replication)。
 - **删除**：两段强确认——非空仓必须勾选 `同时删除内容` + **输入 repo key 确认**（不勾选直接删非空仓会被服务端 400 拒绝）。
 - 治理字段（仅 local 仓）：`quotaBytes` 与 `includesPattern` / `excludesPattern`（详见[治理指南](admin/governance.md)）。
 
@@ -167,14 +168,14 @@ curl -s -b jar.txt -X PUT $BASE/binflow/generic-local/a/f.txt \
 - **删除用户**（M9 起，列表行按钮 + 编辑页危险区双入口）：**输入用户名强确认**（逐字匹配才解禁）+ 不可恢复级联文案（组员/授权/token/会话同事务删除、审计保留、**重复删除 404 非幂等**）。自删与内置 admin 行 UI 预禁用并述因；last-admin 与 404（已被他人删）不预判，服务端原文如实呈现。REST 语义与三护栏见[治理指南 · 删除用户](admin/governance.md#删除用户m9-起)。
 - **组**：列表 + 表单（组设置 + 成员穿梭 + 组权限矩阵）——M9 起成员计数/花名册由用户列表**客户端过滤**推导（单请求全量新鲜）；编辑器打开的瞬间按需取 `GET /api/security/groups/{name}?includeUsers=true`（恰一次，用户/组列表不重拉），穿梭两侧与用户页 groups 列同源（user_groups 行的两视图）。组成员写侧仍走逐用户组集替换（组侧写端点未开）。
 - **权限 target**：列表 → 单页分区编辑器（名称 / 资源 / 用户 / 组）+ **两步资源对话框**（`编辑仓库…` → ① 选仓库 → ② 可选 include/exclude patterns）+ 四动作矩阵（read/write/delete/manage）+ **模式测试器**（输入路径即时显示逐条命中与最终判定）+ 保存前 diff 确认。完整操作与 curl 对账见[用户组与权限管理](admin/groups-permissions.md)。仓库级管理员（manage 持有者）M9 起经 `GET /api/v1/permissions?filter=manage` 可达本编辑器（覆盖集内 target，见 [RBAC 指南](admin/rbac-roles.md#manage-能做什么--不能做什么)）。
-- **Access Tokens**：占位页（签发引导 + 输入 token_id 吊销）；控制台日常铸币走 [Set Me Up](#set-me-up客户端接入向导) 对话框。
+- **Access Tokens**（M14 真身页，T-386）：**生成令牌** modal（有效期档 1h/24h（缺省）/7d/30d/365d，**永不过期仅 admin**；admin 可选签发对象代人签发；scope 恒 `api:*` 只读说明——服务端不收窄权限域）→ 一次性明文面板（mono + 拷贝 + 「关闭后不可再查看」）；**会话台账**（token_id/指纹/主体/有效期/状态/操作——服务端只存指纹、无令牌清单端点，刷新即空，历史令牌按 token_id 吊销对账走审计日志）；吊销双出口（行内 danger 确认 + admin 专属按 token_id 吊销盒）。**铸币门 = 任何已认证会话**（Q11：与 Set Me Up 同端点同门，非 admin 仅能自铸、有效期有限——本页在管理模式，普通 user 直链为无权限卡，其日常铸币走 Set Me Up）；readonly_admin 吊销禁用、自铸不受限；OIDC 会话的 step-up 重认证走 Set Me Up 链。
 
 ### 治理（`/admin/governance/*`）
 
 - **审计日志**（`/admin/governance/audit`）：时间窗/操作者/仓库/动作/路径过滤 + 游标「加载更多」；动作值原样 mono 显示（不翻译）。词表见[治理指南](admin/governance.md#审计)。
 - **维护（GC）**（`/admin/governance/gc`）：GC 状态 + dry-run 结果面板 + apply **输入实例名二次确认**；存储迁移进度面板同页。
 - **配额**（`/admin/governance/quotas`）：每仓 used/quota 水位条（80% 黄 / 100% 红）+ 行内编辑上限。
-- **复制**（`/admin/governance/replication`）：复制目标表 + 最近事件（10s 轮询）。
+- **复制**（`/admin/governance/replication`）：复制目标表 + 最近事件（10s 轮询）。M14 起配置 CRUD 另入[仓库编辑页 Replications 节](#仓库adminrepositories)，本页保持全局观测视角；REST 与引擎语义见[治理指南 · 复制](admin/governance.md#复制push-replication)。
 - **Webhooks**（`/admin/governance/webhooks`，M13）：订阅列表（行内启停/试发/编辑/删除）+ 新建/编辑对话框（13 域分组事件型选择，休眠型灰显如实标注）+ 详情抽屉（最近投递记录——状态/耗时/重试计数/载荷快照）。写动词 pro 槽 `webhook`；readonly_admin 只读臂（无新建钮、写动作禁用）。REST 语义与接收端配方见 [Webhook 使用指南](admin/webhooks.md)。
 - **备份 / 恢复**（`/admin/governance/backup`）：CLI 引导卡（export/import 命令与警示，一键复制）——备份恢复是**高危带外操作**，不做进度 UI；完整链见[备份与恢复手册](admin/backup-restore.md)。
 - **回收站**（`/admin/governance/trash`，M12）：`auto-trashcan` 内置仓的浏览/恢复/清空面（槽 `trashcan` 门控态呈现）。捕获/保留期语义见 [Trash can 管理](admin/trash-can.md)。
@@ -233,7 +234,7 @@ M8 路由重排曾为 M7 及以前的控制台路径提供**自动客户端重�
 
 | 项 | 说明 |
 |---|---|
-| Access Tokens 管理页 | 仍为占位（签发引导 + token_id 吊销输入；列表/吊销管理面 R6 未落地）；控制台铸币走 Set Me Up 对话框 |
+| Access Tokens 令牌清单 | 服务端只存指纹、**无令牌清单端点**（R6 未落地）——控制台台账是会话内存态（刷新即空，明文只展示一次）；历史令牌吊销走按 token_id 出口 + 审计日志指纹对账 |
 | Packages 卡片落地页 / Builds / Xray / Pipelines / Distribution | 不建——JFrog 独立产品（Non-goal），制品树是最近似落点 |
 | Authentication Providers（SAML/Crowd 等）配置页 | 不建（产品 Non-goal）；OIDC/LDAP 走 `binflow.yaml`（见[专题指南](guides/oidc-config.md)） |
 | 仓库 Layouts / Proxies / Mail Server / cron 计划备份 | 不建——BinFlow 无对应功能面；备份是 export/import 任务（见[备份手册](admin/backup-restore.md)） |

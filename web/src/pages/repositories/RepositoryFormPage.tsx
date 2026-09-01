@@ -20,6 +20,7 @@ import Typography from '@mui/material/Typography'
 
 import { useAuth } from '../../app/AuthContext'
 import { useToast } from '../../app/ToastContext'
+import { PkgIcon } from '../../components/PkgIcon'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
@@ -52,6 +53,7 @@ import {
   prefillPolicyForm,
 } from './policyFields'
 import type { PolicyForm } from './policyFields'
+import ReplicationsSection from './ReplicationsSection'
 
 import './repositories.css'
 
@@ -96,17 +98,15 @@ const RCLASS_LABEL: Record<RClass, string> = { local: 'Local', remote: 'Remote',
 
 /** 包类型网格五核心静态元数据（C7；门控型 go/nuget/cargo 等自 addons API
  *  动态并入——M10 T-288：可选集与徽章/锁定态都吃注册表实时数据，前端不
- *  复制槽位清单） */
-const PKG_ITEMS: { id: PackageType; label: string; desc: string; icon: string }[] = [
-  { id: 'generic', label: 'Generic', desc: '任意文件（curl 上传 / 下载）', icon: '◈' },
-  { id: 'docker', label: 'Docker', desc: 'OCI 镜像（docker push / pull，仅 Local）', icon: '◆' },
-  { id: 'maven', label: 'Maven', desc: 'JVM 构件（mvn deploy / 解析）', icon: '◾' },
-  { id: 'npm', label: 'npm', desc: 'Node 包（npm publish / install）', icon: '◇' },
-  { id: 'pypi', label: 'PyPI', desc: 'Python 包（twine / pip）', icon: '▫' },
+ *  复制槽位清单。图标不在元数据里——PkgIcon 按 id 解析，T-390 起几何
+ *  字符图标族（五核心 + 门控通用星形）退役） */
+const PKG_ITEMS: { id: PackageType; label: string; desc: string }[] = [
+  { id: 'generic', label: 'Generic', desc: '任意文件（curl 上传 / 下载）' },
+  { id: 'docker', label: 'Docker', desc: 'OCI 镜像（docker push / pull，仅 Local）' },
+  { id: 'maven', label: 'Maven', desc: 'JVM 构件（mvn deploy / 解析）' },
+  { id: 'npm', label: 'npm', desc: 'Node 包（npm publish / install）' },
+  { id: 'pypi', label: 'PyPI', desc: 'Python 包（twine / pip）' },
 ]
-
-/** 门控型网格项的通用图标（displayName/描述来自注册表行——不复制） */
-const GATED_PKG_ICON = '✦'
 
 /** 策略键分组标题（T-353 字段册的呈现面） */
 const POLICY_GROUP_TITLE = { debian: 'Deb 索引策略', rpm: 'RPM 索引策略', helm: 'Helm 强制布局' } as const
@@ -118,7 +118,6 @@ interface PkgChoice {
   id: PackageType
   label: string
   desc: string
-  icon: string
   /** addons 槽位行（五核心在注册表栈上有行；undefined = 无行，按地板放行） */
   opt?: PkgTypeOption
 }
@@ -127,7 +126,7 @@ function buildPkgChoices(options: PkgTypeOption[]): PkgChoice[] {
   const items: PkgChoice[] = PKG_ITEMS.map((p) => ({ ...p, opt: options.find((o) => o.id === p.id) }))
   for (const o of options) {
     if (PKG_ITEMS.some((p) => p.id === o.id)) continue
-    items.push({ id: o.id as PackageType, label: o.displayName, desc: o.description, icon: GATED_PKG_ICON, opt: o })
+    items.push({ id: o.id as PackageType, label: o.displayName, desc: o.description, opt: o })
   }
   return items
 }
@@ -400,12 +399,19 @@ function PackageTypeGrid({
                 aria-checked={false}
                 disabled={block !== null}
                 title={block ?? undefined}
+                className="pkg-grid-item"
                 data-testid={`pkg-grid-item-${c.id}`}
                 onClick={() => onPick(c.id)}
               >
-                <span className="pkg-icon" aria-hidden="true">
-                  {c.icon}
-                </span>
+                {/* T-390（FR-127）：包型身份走 brand 版官方标；禁用态
+                    （license 门控/组合约束）换 mono + 容器 opacity 0.4
+                    ——品牌色置灰会脏色（README §6.3），三件套 = mono +
+                    opacity + pkg-tier-* 徽章（徽章在下）。
+                    className="pkg-grid-item" 本票复线：T-240 起磁贴类名
+                    从未落 DOM（repositories.css 的卡面族 dead 至今，本票
+                    门控三件套断言暴露）——卡面 + 禁用置灰随类名复活；
+                    几何档（440px Dialog 宽）不受影响（spec 复证）。 */}
+                <PkgIcon id={c.id} variant={block ? 'mono' : 'brand'} size={22} className="pkg-icon" />
                 <span className="pkg-name">
                   {c.label}
                   {badgeTier && (
@@ -1189,6 +1195,19 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
             </>
           )}
         </Paper>
+
+        {/* T-404（R1 裁定形态）：复制配置内嵌节——**编辑态 × local** 才呈现
+            （push 源是本仓；建仓态仓尚不存在，POST /v1/replications 的
+            source_repo 前置校验必 400）。节内自治（列表四态 + 内嵌表单），
+            与主表单状态零耦合——主表单的提交/重置不触及复制配置。深链
+            ?section=replications = 仓列表 Run 动作与详情指针的落点。 */}
+        {mode === 'edit' && f.rclass === 'local' && (
+          <ReplicationsSection
+            repoKey={routeKey ?? ''}
+            canWrite={admin}
+            focus={searchParams.get('section') === 'replications'}
+          />
+        )}
       </>
     )
   }

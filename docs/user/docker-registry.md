@@ -5,8 +5,8 @@ sidebar_position: 10
 
 # Docker / OCI 镜像接入
 
-> 适用版本：M2（Docker Registry v2 + OCI + Helm OCI 承载；PRD milestone-2 v1.3）；[上传中断续传](#大层上传中断续传跨重启)为 M7 增补（FR-67 / ADR-0028）。
-> 本文命令在 M2 烟测基线（commit `923db2e`，即 T-44/T-45 验收产物）的 compose 实例上复验，登录/推送/拉取/运行、oras、helm、buildx、podman/crane/skopeo 链路均退出码 0；续传链于 M7 代码（2026-08-23）以 `make test-m7-resume`（kill -9）与 `make test-m7-resume-sigterm`（SIGTERM）双探针 + curl 全链复验。
+> 适用版本：M2（Docker Registry v2 + OCI + Helm OCI 承载；PRD milestone-2 v1.3）；[上传中断续传](#大层上传中断续传跨重启)为 M7 增补（FR-67 / ADR-0028）；[remote 仓（pull-through 代理上游）](#remote-仓pull-through-代理上游m14)为 M14 增补（FR-129）。
+> 本文命令在 M2 烟测基线（commit `923db2e`，即 T-44/T-45 验收产物）的 compose 实例上复验，登录/推送/拉取/运行、oras、helm、buildx、podman/crane/skopeo 链路均退出码 0；续传链于 M7 代码（2026-08-23）以 `make test-m7-resume`（kill -9）与 `make test-m7-resume-sigterm`（SIGTERM）双探针 + curl 全链复验；remote 仓链于 M14 代码（2026-08-31）以双实例 + dind 29.7.2 真客户端复验（T-392 首航 + T-397 文档复跑）。
 
 把 BinFlow 当作私有 Docker Registry：`docker login/push/pull` 直连可用，OCI 镜像与 Helm chart 都能存放（chart 以 OCI artifact 形态承载，无需任何 Helm 专有端点）。
 
@@ -121,6 +121,32 @@ docker manifest inspect --insecure $REG/docker-local/acme/app:v1 | jq -r '.media
 
 > `docker manifest inspect` 走 CLI 直连（不经 daemon），明文 HTTP 需带 `--insecure`。
 > 匿名拉取：`anonymous_access` 默认开——`docker logout` 后 `docker pull` 仍可用（匿名 token 通道）；**push 永远需要认证**。关闭匿名见部署篇 `BINFLOW_SECURITY_ANONYMOUS_ACCESS=false`。
+
+## remote 仓：pull-through 代理上游（M14）
+
+M14 起 docker **local + remote 两态齐装**（virtual 聚合暂不做）：remote 仓代理任一 Registry v2 上游——`docker pull <host>/<remote仓key>/<镜像名>:<tag>` 首拉回源缓存，此后命中本地副本零回源；上游故障时已缓存镜像照常可拉。**community 档即可用**（不占 pro 槽）。
+
+```bash
+# 1. 建仓（url 指向上游 distribution 根，含 /v2；公网 registry 形如
+#    https://registry-1.docker.io/v2，上游是另一台 BinFlow 时形如
+#    http://<上游host>:<port>/v2/<上游仓key>——下例为实测形态）
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/docker-remote \
+  -H 'Content-Type: application/json' \
+  -d '{"rclass":"remote","packageType":"docker",
+       "url":"http://upstream.example.com:8080/v2/docker-local"}' \
+  -o /dev/null -w '%{http_code}\n'        # 200
+
+# 2. 照常 pull——名字里换成 remote 仓 key 即可
+docker pull $REG/docker-remote/acme/app:v1
+# Digest: sha256:… ← 与直连上游推送的 digest 全等（实测逐位一致）
+
+# 3. 观测命中：docker 客户端不显示响应头，用 curl 看（MISS→HIT→STALE 三态）
+curl -s -o /dev/null -D - $REG/v2/docker-remote/acme/app/manifests/v1 \
+  -H 'Accept: application/vnd.oci.image.index.v1+json' | grep -i x-binflow
+# X-Binflow-Cache: HIT
+```
+
+要点（自指上游 + Bearer mock 全链实测，T-392/T-397；Docker Hub 等公网 registry 直连待公网环境验证——Bearer 舞步同构）：二次拉取**上游计数冻结**（零回源）；上游 401 + Bearer challenge 时自动完成 token 交换（舞步恰一轮，token 按 scope 复用）；上游故障 + TTL 过期时已缓存 manifest 答 **`STALE` + `X-Binflow-Upstream-Error`**（`Docker-Content-Digest` 不变，客户端无感），未缓存 ref 答 404 `MANIFEST_UNKNOWN`（带上游摘要，零 5xx）；上游在私网/本机需 admin 放行 `allowPrivateUpstream`。完整语义（URL 形态/降级矩阵/SSRF/dind 调试注记）见 [remote/virtual 管理指南 · docker remote 仓](admin/remote-virtual.md#docker-remote-仓m14fr-129)。
 
 ## 多架构镜像（buildx）
 
@@ -368,6 +394,9 @@ http:
 | helm push 401 | 明文 HTTP 下 `helm registry login` 不可用（无 `--plain-http`） | 写 `HELM_REGISTRY_CONFIG` 凭据文件（见上文 helm 节） |
 | PATCH upload 报 416（`Content-Length: 0`） | `Content-Range` 起点 ≠ 服务端已收字节数（错位重放） | 读响应里的 `Range` 头取权威 offset，从 `Range` 末尾 +1 处重锚续传 |
 | 重启后 GET/PATCH upload URL 报 404 `BLOB_UPLOAD_UNKNOWN` | 会话过期（>24h TTL）、已被收尾/取消，或 **S3 后端**（multipart 状态在 S3 服务端，BinFlow 侧不续传） | 本地 filestore 下未过期会话不会 404（见[续传](#大层上传中断续传跨重启)）；S3 后端请整块重传 |
+| dind 内 pull 一直卡住、BinFlow 侧零到达日志 | dind 29.x 默认 containerd snapshotter 对 plain-HTTP registry 的 blob 取数走 https 回退，不遵守 `--insecure-registry` | dind 启动加 `--feature containerd-snapshotter=false` 回经典 overlay2（见[remote 仓 dind 注记](#remote-仓pull-through-代理上游m14)与 `web/e2e/README.md`） |
+| dind（macOS Docker Desktop）拉 ~MB 级层卡死、服务端 goroutine 停在写响应 | dind↔宿主方向大包 PMTU 黑洞（环境网络症，非产品面） | dind 内对 OUTPUT 与 INPUT 各加一条 `iptables -t mangle -A … -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1300` 后开新连接（T-392 环境注记） |
+| remote 仓 pull 报 404 带 `ssrf-guard` 摘要 | remote 仓 `url` 指向私网/环回地址，被 SSRF 防护拒绝 | 内网上游由 admin 配 `allowPrivateUpstream: true`（见[管理指南](admin/remote-virtual.md#ssrf-防护与-allowprivateupstream-放行指引)） |
 
 ## 下一步
 

@@ -13,6 +13,7 @@ import TextField from '@mui/material/TextField'
 
 import { useAuth } from '../../app/AuthContext'
 import { useToast } from '../../app/ToastContext'
+import { PkgIcon } from '../../components/PkgIcon'
 import { useConfirm } from '../../components/ConfirmDialog'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
@@ -300,16 +301,34 @@ function LicenseCard({ rev, onChanged }: { rev: number; onChanged: () => void })
   )
 }
 
+/** 矩阵行图标（T-390 / FR-127 AC2-④）：包型槽 → 对应包型 brand 标；
+ *  trashcan/webhook 两 feature 槽 → 自有 brand 标；其余 feature 槽
+ *  （properties/ha/repo-operations/xray-integration）不在 30 枚集内——
+ *  无图标（注记豁免，见 T-390 日志）。 */
+function addonIconId(row: AddonRow): string | null {
+  if (row.kind === 'package-type') return row.id
+  if (row.id === 'trashcan' || row.id === 'webhook') return row.id
+  return null
+}
+
 function AddonTableRow({ row }: { row: AddonRow }) {
   const tier = normalizeTier(row.minTier)
   const disabledCfg = isDisabledByConfig(row)
   const rowClass = row.enabled ? '' : disabledCfg ? 'is-disabled' : 'is-locked'
+  const iconId = addonIconId(row)
   return (
     <TableRow className={rowClass} data-testid={`addons-row-${row.id}`} hover>
       <TableCell className="mono" lang="en">
         {row.id}
       </TableCell>
-      <TableCell>{row.displayName}</TableCell>
+      <TableCell>
+        {/* 包型身份位走 brand 版（AC2-④）；锁定/禁用行的置灰由既有
+            .is-locked/.is-disabled 行级 opacity 承载（沿用，不另设图标态） */}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          {iconId && <PkgIcon id={iconId} variant="brand" size={18} />}
+          {row.displayName}
+        </span>
+      </TableCell>
       <TableCell>
         <Chip size="small" className="badge neutral mono" label={row.kind} sx={{ fontFamily: 'var(--bf-mono)' }} lang="en" />
       </TableCell>

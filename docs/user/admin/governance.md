@@ -5,8 +5,8 @@ sidebar_position: 42
 
 # 治理：审计、GC 与配额
 
-> 适用版本：M4（治理面；PRD milestone-4 v1.2 FR-29/30/31/24、ADR-0015 勘误后）；**M9 增补**：用户删除闭环（DELETE 三护栏/级联/确定性 404，T-251/T-257）与 last-admin 竞窗运营提醒（T-273 候选背景）。
-> 本文全部命令在本机 scratch 实例（commit `7593d8e`）上复跑：审计过滤/词表、GC dry-run→apply 与互斥 409、pattern 409 双态、配额 413 与幂等重传豁免均按预期（蓝本 T-103 W22~W27/W12a，报告见 `reports/agents/T-103-qa.md` §2.2/§2.5~§2.7）。M9 用户删除链（成功/四护栏/重复删 404/token 即时 401/user.delete 审计/级联组员清空）在 HEAD 构建的 scratch 实例（2026-08-25）上 curl 复验全过。
+> 适用版本：M4（治理面；PRD milestone-4 v1.2 FR-29/30/31/24、ADR-0015 勘误后）；**M9 增补**：用户删除闭环（DELETE 三护栏/级联/确定性 404，T-251/T-257）与 last-admin 竞窗运营提醒（T-273 候选背景）；**M14 增补**：复制配置启停端点与控制台配置面（T-404/T-405，见下文[复制](#复制push-replication)节）。
+> 本文全部命令在本机 scratch 实例（commit `7593d8e`）上复跑：审计过滤/词表、GC dry-run→apply 与互斥 409、pattern 409 双态、配额 413 与幂等重传豁免均按预期（蓝本 T-103 W22~W27/W12a，报告见 `reports/agents/T-103-qa.md` §2.2/§2.5~§2.7）。M9 用户删除链（成功/四护栏/重复删 404/token 即时 401/user.delete 审计/级联组员清空）在 HEAD 构建的 scratch 实例（2026-08-25）上 curl 复验全过。复制节命令（CRUD 全臂 + 启停引擎语义）在 HEAD 构建的 scratch 实例（2026-09-01，T-398）上 curl 复验全过。
 
 治理四件事：**审计**（谁在何时动了什么）、**GC**（回收无引用 blob）、**配额**（仓库容量上限）、**路径模式**（仓库接纳哪些路径）。前三个都有控制台页面；本文以 REST/CLI 为主面（脚本可完全等效），页面走查见[控制台指南](../console.md)。
 
@@ -170,6 +170,71 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/tiny/b.bin --data-binary @800b.bin
 | 用量查询 | `GET /api/v1/storage/usage/{repo}` → `{repo, usedBytes, quotaBytes}`（admin 或有 read 授权用户） |
 
 五协议客户端在 413 时的表现（真机实测）：docker push `exit 1` + `denied: Repository ... quota exceeded`；npm `E413`；mvn deploy `Failed ... status code: 413`；twine `HTTPError: 413 Error`；curl 直接呈现 message。**已知边界**（P2 观察）：docker 多层 push 中先成功落盘的小层（含 mount 的 config）、maven deploy 的 pom/metadata 可能先落——被拒的写本身原子、manifest 不落，但「先落且配额内的部分」属每写语义保留；此类残留不影响 catalog/索引可见性，需要时整仓删除回收。
+
+## 复制（push replication）
+
+> M6 起提供（ADR-0021：事件驱动 push 引擎 + 配置/观测 REST）；**M14 补启停端点与控制台配置面**（T-405 `PUT` 启停；T-404 仓库编辑页 Replications 节）。REST 一直是完全配置面，界面与之同源。
+
+push 复制把 **local 仓**新落的制品推送到**目标实例**（另一个 BinFlow，或任何兼容其上传面的服务）：
+
+- **触发是事件驱动**：制品落库即入队（无用户级 cron）；另有 **1 分钟兜底 sweep**（进程崩溃遗留任务的恢复 + 退避耗尽任务 5 分钟后的复活重试）。
+- **推送面按源仓包型选择**：generic/maven 走通用 REST 面、docker 走 `/v2` registry 面、npm 走 publish/dist-tag 面、pypi 走 multipart 上传面——从不直接触碰目标存储。
+- **目标冲突语义**：目标已有同 sha256 路径 = 幂等成功（零传输）；不同 sha256 = 终态 failed（first-write-wins，目标侧不动）。
+- **重试**：瞬时失败指数退避共 6 次尝试（1s/2s/4s/8s/16s 间隔）。
+
+### 配置 CRUD
+
+```bash
+export BASE=http://localhost:8080
+export ADMIN_PW=<你的管理员口令>
+
+# 建配置（201 回显配置行——凭据字段永不回显；enabled 缺省 true）
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/replications \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"push-prod","source_repo":"repl-local","target_url":"http://target.example/binflow","target_repo":"mirror","target_username":"ci","target_password":"<目标口令>"}'
+# {"id":1,"name":"push-prod","source_repo":"repl-local",...,"enabled":true,"created_at":"…","updated_at":"…"}
+
+# 列表（bare array；readonly_admin 可读）
+curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/replications
+
+# 启停（M14）——按数值 id 寻址（列表行首字段）；body 仅 enabled 必填，
+# 其余字段可整行回传、解析但忽略（客户端 round-trip 不被拒）
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/v1/replications/1 \
+  -H 'Content-Type: application/json' -d '{"enabled":false}'
+# 200 + 更新后的配置行（updated_at 随翻转刷新；已密封凭据与节流上限逐字节保留）
+
+# 删除（按 name 寻址；任务台账级联清空）
+curl -su admin:$ADMIN_PW -X DELETE $BASE/binflow/api/v1/replications/push-prod \
+  -o /dev/null -w '%{http_code}\n'                                   # 204
+```
+
+| 项 | 语义 |
+|---|---|
+| 门 | 读（GET 列表 / status）= system:read（admin / readonly_admin）；写（POST / PUT / DELETE）= system:write 且**仅全量 admin**（readonly_admin 只读呈现） |
+| `name` | 1..64 位 `[A-Za-z0-9._-]`、以字母数字开头（DELETE 按它寻址）；重名 → 409 `replication config name "<name>" is already taken` |
+| `source_repo` | 必须是已存在的仓（建仓先行）——未知 → 400 `replication config references an unknown repository "<key>"` |
+| `target_url` / `target_repo` | 绝对 http(s) URL + 目标仓名，均必填（URL 不合法 → 400 点名 `target_url must be an absolute http or https URL with a host`） |
+| `target_password` | **只写**：存储前以 `BINFLOW_REMOTE_CREDENTIALS_KEY` 主钥密封（enc:v1），任何响应不回显。实例未设主钥时携带口令 → 400（文案点名该环境变量）；留空 = 匿名目标 |
+| `max_bandwidth_bytes_per_sec` / `max_items_per_push` | 节流上限，非负；0 = 缺省（`max_items_per_push` 缺省 1000） |
+| `enabled` | 缺省 **true**。**停用语义**：停 → 新制品即时不入队、在途任务跑完自身结论（不中断）；恢复 → 新制品即时入队，停用期积压由下一趟 sweep 排空（≤1 分钟）——**全程无需重启** |
+| `PUT {id}` 错误形态 | 匿名 401 / 非 admin 403 / 未知 id 404 `replication config not found: <id>` / 非数字或 ≤0 的 id 400 `id must be a positive integer` / 缺 `enabled` 400（文案明示「本面暂无其他可编辑字段」） |
+| 审计 | 操作面 `replication.config.create` / `.update` / `.delete`（detail 含 name，update 另含 enabled）；引擎面 `replication.push` / `replication.push.failed` |
+| SSRF | 目标 URL 过 scheme/host 校验 + 逐跳复检 + DNS-rebinding 钉扎；私网目标**默认放行**（`replication.allow_private_target` 缺省 true——与 webhook 默认拒有意不对称：复制目标是运维静态配置的） |
+
+字段级更新（改名/换目标等）暂无端点——编辑 = 删除 + 重建两步。
+
+### 观测面
+
+```bash
+# 复制面板载荷（治理页同源）：每配置一行的任务计数 + 跨配置合并的最近事件
+curl -su admin:$ADMIN_PW "$BASE/binflow/api/v1/replication/status?limit=50"
+# {"targets":[{"id":1,"name":"push-prod",…,"pending":0,"in_progress":1,"succeeded":0,
+#   "failed":0,"skipped":0,"last_success_at":"","updated_at":"…"}],
+#  "events":[{"id":1,"replication_id":1,"blob_sha256":"…","node_path":"demo/app-1.jar",
+#   "status":"in_progress","attempts":3,…}]}        —— limit 1..500，缺省 50
+```
+
+控制台入口两处：治理 → 复制（`/admin/governance/replication`：目标表 + 最近事件 10s 轮询）与**仓库编辑页 Replications 节**（M14，仅 local 仓编辑态：配置列表 + 新建/编辑表单 + 行内启停开关即上表 `PUT` + 输入 name 强确认删除；表单中 cron/事件开关/路径前缀/sync 三开关为 Artifactory 概念的**预留位，恒禁用**——BinFlow 引擎为事件驱动 + 1 分钟 sweep，无用户级 cron）。仓库列表 local Tab 的 `Replications` 列显示每仓配置计数，行级 Run 动作深链回编辑节——BinFlow 无手动 trigger 端点，复制由事件驱动，Run 不伪造触发。
 
 ## 控制台对应页面
 

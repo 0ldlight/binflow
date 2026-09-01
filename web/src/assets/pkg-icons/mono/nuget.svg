@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <title>nuget 包型图标（单色版）</title>
+  <!-- 倾斜圆角方（包）+ 中心球（nugget）的极简重绘。mono 版全 currentColor -->
+  <g transform="rotate(45 12 12)">
+    <rect x="6" y="6" width="12" height="12" rx="3" stroke="currentColor" stroke-width="2.1"/>
+    <circle cx="12" cy="12" r="2.7" fill="currentColor"/>
+  </g>
+</svg>

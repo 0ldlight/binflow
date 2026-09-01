@@ -46,12 +46,11 @@ test('login lands on shell; dashboard cards arrive; theme toggles; 404 keeps she
 
   // M8 IA 重排（T-235）：登录落点 = /artifacts（console-m8 §1.1）；
   // T-236 起跨仓树真身承载（tree-page 锚——§10.5 表已回写）；
-  // Access Tokens 从侧栏禁用占位改为真实路由 /admin/security/tokens 的
-  // P2 占位页（placeholder-page 锚承载，§10.4 注记随 v1.4 更新）
+  // Access Tokens（T-386 落真身：占位页锚退役，tokens-page 族承载——§10.5）
   await expect(page).toHaveURL(/\/binflow\/ui\/artifacts$/)
   await expect(page.locator('[data-testid="tree-page"]')).toBeVisible()
   await page.goto('/binflow/ui/admin/security/tokens')
-  await expect(page.locator('[data-testid="placeholder-page"]')).toBeVisible()
+  await expect(page.locator('[data-testid="tokens-page"]')).toBeVisible()
 
   // 仪表盘卡片独立到达（admin 登录下四张管理面卡都在；M8 起仅侧栏入口）
   await page.goto('/binflow/ui/dashboard')
