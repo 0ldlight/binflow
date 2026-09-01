@@ -1,4 +1,4 @@
-# BinFlow 架构设计（M1 定稿；M2~M6 增量已并入，M7 增量标注 [M7]，M8 控制台对齐约束见 §13 [M8]，M9 服务端解冻约束见 §14 [M9]，M10 license/addon/属性基座见 §15 [M10]；M11 增量未新增章节号——票据级 as-built + ADR 承载；M12 操作域/MPU/remote 字段/可观测回写见 §15.4 与 §23 [M12]）
+# BinFlow 架构设计（M1 定稿；M2~M6 增量已并入，M7 增量标注 [M7]，M8 控制台对齐约束见 §13 [M8]，M9 服务端解冻约束见 §14 [M9]，M10 license/addon/属性基座见 §15 [M10]；M11 增量未新增章节号——票据级 as-built + ADR 承载；M12 操作域/MPU/remote 字段/可观测回写见 §15.4 与 §23 [M12]；M13/M14 增量未新增章节号——ADR-0040~0042 承载；M15 搜索域 AQL 引擎见 §24 [M15]）
 
 > architect 维护。本文件在 ADR-0001~0033 基线上给出可并行开发的实现蓝图：包边界 = 并行开发 area 边界。
 > 标注 **[M2+]** / **[M3+]** / **[M6+]** / **[M7]** 的内容当期不实现，只保证接口缝存在；标注「待逆向规格确认」的行为以 `docs/reverse/` 规格为准，规格冲突时先回 ADR。
@@ -1674,6 +1674,10 @@ logging:
 
 45. **[M12] folderDownloadConfig / trashcan 配置旋钮未进 internal/config**（T-343 遗留① + T-345 遗留②，§15.4.2/§15.4.3）：两装配缝（`ConfigureFolderDownload` / `ConfigureTrash`）已就位，但 config schema 无对应 YAML 字段——生产实例分别恒「打包下载默认关（pro 也 403）」/「恒 enabled+14d spec 默认」。需 config 域小票：字段 + cmd 装配一行 + docs/user 同步；热更新评估随票（当前重启/预服务生效）。
 
+46. **[M15] AQL path 级权限复核的行级成本**（ADR-0043 决策 4，§24.4）：path-scoped permission target（include/exclude 路径模式）存在的仓，其结果行需逐行 `CanRead` 复核（每行 2 次 permission 查询）——万节点 NFR-P67 预算内可行（且仅 path-scoped 仓触发，主体形态零成本）；P95 滑坡时启用 per-(principal, repo) 记忆化（缝已留，T-413/T-411 定形）。不 SQL 化模式匹配的理由 = 单真相源（Go matchesAny 与 SQL LIKE 翻译分叉即 ACL 泄漏）。
+
+47. **[M15] AQL offset 无界深翻页**（ADR-0043 决策 5 边界，§24.7）：`.offset(n)` 无上限——深翻页 O(offset) 扫描；K63 未裁 offset 上限（Artifactory 语义照 aql.md 锚定后随 Q2 定）。keyset 翻页（(repo_key,path) 游标）为后路，需求出现时新 ADR。
+
 ## 12. 待逆向规格确认清单（阻塞点挂 docs/reverse/）
 
 | # | 问题 | 规格文件 | 影响面 |
@@ -2732,3 +2736,118 @@ PRD 89.3 暂行的「per-node ≤500」未采用——64 键与 §15.3.1 矩阵�
   **两处分歧时 CI 胜**——本地红 = 隔离性发现，不是产品回归。
 - **与既有 gate 的互补**：Go 级 race gate（GC 并发压力腿，§14.2-6）钉引擎不变量；本 job 是
   UI 面权威。两者互补不可互替——ci.yml 注释钉死「移除/弱化任一需与另一联动改」的永久耦合。
+
+## 24. [M15] 搜索域增量——AQL 引擎与查询面（ADR-0043 展开）
+
+> 字面契约（字段全集/操作符闭集/错误文案/compact 形态/virtual 语义）以 docs/reverse/aql.md
+> （T-407）定案为准——本节与 ADR-0043 同款软缝条款；分歧走 ADR-0043 勘误段，不翻机制。
+
+### 24.1 包边界与依赖方向（internal/search 新包）
+
+```
+httpapi ──────────┬──────────────► repo.Service（既有面 + SearchScope/CanRead 两窄读方法）
+   │              │                        ▲
+   │              └──────────────► internal/search.Engine.Run(ctx, principal, aqlText)
+   │                                       │
+   ▼                                       ▼
+internal/search ────── IR（metadata.NodeQuery）─────► metadata.NodeQueryer（md.Nodes() 断言消费）
+```
+
+- `internal/search` **只 import metadata + repo 的公共 API**（零反向依赖、不摸内部结构——Go 规范）；
+  httpapi 是唯一装配点。文件 = 四票 area：`lexer.go / parser.go / ast.go / fields.go / queryerr.go`
+  （T-409，纯函数零 IO 零 DB）、`plan.go`（T-411 编译器）、`engine.go / gate.go`（T-413 入口 +
+  K63 门 + 行复核）、`match.go`（通配→LIKE 转义内核——AQL `$match/$nmatch` 与老搜索 pattern
+  端点〔T-417〕共享的单一译者，K64 校准同源）。
+- **缝接口（契约）**：
+  ```go
+  // internal/search
+  func Parse(src string) (*Query, *QueryError)                     // T-409：止步 AST
+  func (p *Planner) Plan(q *Query, scope []repo.RepoScope) (metadata.NodeQuery, error)  // T-411
+  type Engine struct{ /* Queryer + Gate + Scope 源 + Metrics，装配注入 */ }
+  func (e *Engine) Run(ctx context.Context, p *repo.Principal, src string) (*Result, error) // T-413
+  type Result struct{ Rows []metadata.NodeRow; Truncated bool }
+
+  // internal/metadata（新缝文件 aqlquery.go——NodeSearcher 断言形态同款）
+  type NodeQueryer interface {
+      QueryNodes(ctx context.Context, q NodeQuery) ([]NodeRow, error)  // IR→方言参数化 SQL 在此层
+  }
+  var _ NodeQueryer = (*nodeStore)(nil)
+
+  // internal/repo（Service 接口 +2 窄只读方法，T-413——allow() 同源，零副作用）
+  type RepoScope struct{ Repo string; PathScoped bool }
+  SearchScope(ctx context.Context, p *Principal) ([]RepoScope, error)
+  CanRead(ctx context.Context, p *Principal, repoKey, path string) bool
+  ```
+
+### 24.2 执行序（一条 AQL 的路径）
+
+```
+POST /api/search/aql[?compact]
+  → httpapi handler（routeAuth{}——匿名门归 use case，T-92 姿态）
+  → Engine.Run:
+      Parse（语法错 400 先于资源门——垃圾查询不占位）
+    → gate: semaphore try-acquire（并发 4；满 → 429 + Retry-After: 1，不排队）
+    → ctx = context.WithTimeout(ctx, 10s)            ← K63 超时（T-392 归位点：不设全局 WriteTimeout）
+    → SearchScope(p)（匿名闭环 → 403；可读仓空 → 空结果短路）
+    → Planner.Plan: AST→IR + ACL repo 集织入 + LIMIT min(用户 limit,1000)+1
+    → metadata.QueryNodes: IR→参数化 SQL（惰性 JOIN blobs / EXISTS node_props）
+    → PathScoped 仓行级 CanRead 复核（同一 allow() 源）
+    → 多出一行 → Truncated=true，截至 1000
+    → 释放位；慢查询（>5s）单行 WARN
+  → handler: 200 envelope（照 aql.md；?compact 变体）+ X-BinFlow-Search-Truncated 头
+```
+
+### 24.3 编译映射与注入防线（ADR-0043 决策 3 的执行表）
+
+- IR 字段 = **闭集枚举键**（FieldRepo…FieldMd5）；SQL 文本仅由常量片段拼装、**用户值只进 args**
+  （nodeQuery G202 纪律延伸）；ORDER BY 无用户值（排序键出自注册表闭集）+ `(repo_key, path)`
+  恒定 tiebreaker（翻页确定性）。
+- name/depth/type = path 派生表达式（双方言同式 / 尾斜杠判 folder——映射表见 ADR-0043 决策 3）；
+  时间比较双侧归一化（SQLite `julianday()` / PG `::timestamptz`）；checksums.sha1/md5 惰性
+  `JOIN blobs`；`@key` → `EXISTS(node_props)`（`idx_node_props_name` 兑现消费——M10 预留承诺）。
+- `$match`/`$nmatch` → LIKE + `ESCAPE '\'`（`*`→`%`、`?`→`_`，字面通配符转义——match.go 单点）。
+- **字段注册表 = 诚实拒绝单点**：未注册域/字段/操作符（含 `modified_by`——nodes 无 updated_by
+  列，不加列不伪造；含 statistics 域字段；含 `.distinct()/.delete()/.update()`）→ 400 且 message
+  点名（domain/field-not-supported 语义，零伪空集——§1.4-2 宪章条款）。
+
+### 24.4 ACL 织入（T-92 血统的集合化抬升）
+
+- 依据（as-built 勾稽）：`auth.Authorizer.Can` 的 target 覆盖含 **path 级 include/exclude 模式**
+  （authorizer.go targetCovers/matchesAny）——repo 集合过滤对 path-scoped target 不完备。
+- 两段织入：`SearchScope` 把调用者可读仓集合（admin/匿名开实例 = 全部 local+remote 仓、
+  PathScoped=false；virtual 仓不入 scope——nodes 无 virtual 行，133.5 暂行）织成 `repo_key IN`
+  谓词；**仅 PathScoped 仓**的行经 `CanRead`（allow(read) 公开只读投影——同源由构造保证）复核。
+  现网主体形态（无 path 模式 target）零行级成本。
+- 翻页口径：offset 为 SQL 侧 offset、翻页遍历原始行序逐页过复核——「offset/limit 可达全量」
+  成立；截断头语义 =「原始行序仍有余量」（诚实上界）。
+- 越权探针形态复用 t92_search_test.go（T-413/T-415 硬 AC；path-scoped target 夹具为新增臂）。
+
+### 24.5 资源门与 WriteTimeout 归位（K63 / T-392 收口）
+
+- 门参数 = 引擎内部常量（`aqlMaxRows=1000 / aqlMaxConcurrent=4 / aqlQueryTimeout=10s /
+  aqlRetryAfter=1s`）——零新配置键（ADR-0040 姿态）；与 Artifactory QRL 默认的冲突走 PRD Q2
+  出口（C 层自有设计留痕：单机 SQLite 形态防护必要性更高，有门优于无门）。
+- 零 OOM = LIMIT 下推 + 物化上界 1001 行（结构性保证，非流式编码保证）。
+- **httpapi Server 维持不设全局 WriteTimeout**（T-392 就此归位）：同一 Server 承载内容面大
+  blob 流式传输（分钟级合法写），任何全局值都会杀内容面；查询时长治理统一在 K63 引擎
+  deadline，响应体有界（≤1001 行）传输层无增量防护面。ReadHeaderTimeout 10s 维持。
+- 超时错误形态暂行 503（与 429 可区分）、随 aql.md 锚定 + Q2 回写。
+
+### 24.6 端点与可观测（T-415 面）
+
+- `POST /binflow/api/search/aql`（body = AQL 文本）+ `?compact` 变体——router 沿 `search/`
+  分支追加（既有 search/artifact、search/checksum 同族；SR-04 关闭断言的**反转面**归 T-417
+  三老端点，AQL 不动既有 404 族）。成功 200 envelope 照 aql.md；错误面 E-01 单形（§7.3 不动）。
+- metrics（ADR-0022 自研 Registry）：`binflow_search_queries_total{plane="aql"}` /
+  `binflow_search_query_duration_seconds`（histogram）/ `binflow_search_rejections_total
+  {reason="concurrency"|"timeout"}`；慢查询（>5s = K63 阈值 1/2）单行 WARN。
+- 老搜索三端点（T-417）消费 match.go 内核 + `search.ResultCap` 截断常量与截断头（形态同源
+  单点）；数据路径维持 repo.Service 既有搜索方法（T-92 面零迁移）。
+
+### 24.7 已知妥协（M15 增量——并录 §11.46/47）
+
+- path 复核的行级成本：PathScoped 仓存在时逐行 CanRead（每行 2 次 permission 查询）——万节点
+  P95 预算内可行，滑坡时启用 per-(principal,repo) 记忆化（缝已留，T-413 定）。
+- offset 无界：深翻页 O(offset) 扫描，K63 未裁 offset 上限（Q2 出口随 aql.md）。
+- name/depth 无索引（派生表达式）——name 等值/排序走全扫；真出现热点以索引化生成列升级
+  （migration + IR 键位不变，届时新 ADR）。

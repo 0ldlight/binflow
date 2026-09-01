@@ -1538,3 +1538,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 **首派建议**：**B0 即派 T-407 + T-408**（双锚并行，conductor 已定；L20 就绪度确认 + ADR-0043 Accepted 后开 B1 主轴 T-409 + mint T-410 插空）。插空候选全程：T-431（任意空位）→ T-425（P2 可前移早出 Q4 材料）→ T-428。
 
 **B0 派发（conductor 2026-09-01 09:2x）**：T-407（reverse-engineer，aql.md + t226 活体核验〔INC-1 差集法纪律已重申〕+ 口径归一）+ T-408（architect，ADR-0043 + architecture 增量节）双锚并行在途。**拆票六条口径 conductor 批复**：T-418 replication.md 增量段独立成票（认可——M14 T-393/T-394 先例）/ FR-140 L2 归属照 SPLIT / search 列选器归 T-414 / mint·busy 分票优先级照 SPLIT 取值 / ADR↔aql.md 软协作缝维持 B0 并行 / T-420 FE 小腿并行归运行时裁量。M15 计 0/25。
+
+**T-408 → done 2026-09-01 09:3x——M15 1/25**：**ADR-0043 Accepted**（七轴决策 + EBNF 文法 + 字段→SQL 映射表 11 行 + 软缝对齐清单十条 + 四票锚点）+ architecture §24 搜索域增量节 + §11.46/47 技术债登记。三个非显然裁决（勾稽现役代码）：① **ACL 两段织入**——auth.Authorizer 的 path 级 include/exclude 模式（targetCovers）使 repo 集合 SQL 过滤不完备，取「repo 集织入 + path-scoped 仓行级 CanRead 复核」，拒绝把模式翻译成 SQL LIKE（双真相源即泄漏）；② nodes 无 name/depth/type/updated_by 列——前三者双方言同式派生表达式零迁移，modified_by 注册 unsupported 诚实 400 不伪造；③ **WriteTimeout 维持不设**（同一 Server 承载分钟级 blob 流写——查询时长治理归引擎 deadline，T-392 就此关闭）。契约：metadata.NodeQueryer 只读查询缝 / repo.Service +SearchScope+CanRead / search.Engine.Run 三接口定案；K63 门参数定案（1000/4/10s/429+Retry-After，内部常量零配置键，Q2 出口）。风险：与 T-407 软缝（PRD 属性形态 {"@key"} vs 官方 {"@license"}——ADR 取官方形态，aql.md 落盘后按清单十条复核，分歧走勘误不翻机制）。日志 reports/agents/T-408.md。
+
+**B1 插空派发（conductor 2026-09-01 09:3x）**：T-410（mint unknown username 400 修正——断言反转③，零 B0 依赖）入空 lane；T-407（aql.md）继续在途。主轴 T-409 仍候 L20 就绪（双门：L20 + ADR Accepted——后者已满足）。
