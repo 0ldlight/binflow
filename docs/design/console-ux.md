@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 文档 | `docs/design/console-ux.md` |
-| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账）/ T-291（v1.11：Properties 页签锚册——MUI 首票）/ T-307（v1.12：认证配置页组锚册——admin/security/auth 域）/ T-344（v1.14：密度档修订——MUI small 档，mui-native-visual §7 登记）/ T-352+T-353（v1.15：回收站页锚册 trash-* 族 + 建仓表单策略键生成器扩容）/ T-366（v1.16：Webhook 订阅管理页锚册 wh-* 族）/ T-372（v1.17：树尾常驻回收站入口锚 tree-trash-node——console-m8 §4.3 推翻条款兑现）/ T-382（v1.18：Set Me Up 抽屉化锚册——smu-* 零改名 + Resolve 批 + smu-close/smu-done 复役）/ T-383（v1.19：建仓形态核验锚册——form-section-* 六节族，M1 两段式断言钉死）/ T-384（v1.20：用户/组创建形态核验锚册——user-form-section-*/group-form-section-* 节锚 + 页脚四锚复役，M3 非 modal 断言钉死）/ T-389（v1.21：品牌位锚册——brand-sidebar-mark / brand-login-lockup，候选 1 logo 转正接线）/ T-387（v1.22：L1 列选器 + 刷新锚册——repos-columns-* / audit-columns-* / 两页 refresh）/ T-386（v1.23：Access Tokens 页真身锚册——tokens-* 族 28 名 + placeholder-page 退役）/ T-388（v1.24：F2 空态插画槽 empty-art + N2 侧栏图标槽 nav-icon——一级条目档位）/ T-404（v1.25：复制 CRUD 内嵌表单锚册——repl-* 配置面族 + form-section-replications 第七节 + 仓 Tab 指针升级 + Replications 列/Run）/ T-406（v1.26：制品浏览 remote/virtual 热修锚——tree-empty-virtual + remote 空态文案分支）/ T-414（v1.27：L1 列选器三页推广锚册——{users\|groups\|search}-columns-* 28 名 + member-pop 对比度清账）/ T-416（v1.28：virtual FE 树消费断言反转②——tree-empty-virtual 语义翻转 + RepoBranch virtual 动态展开恢复 + 删除入口预收敛）/ T-419（v1.29：搜索页 AQL 模式锚册——search-mode 族 + search-aql-* 15 名，smu/search 既有锚零改名） |
-| 状态 | v1.29（2026-09-01） |
+| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账）/ T-291（v1.11：Properties 页签锚册——MUI 首票）/ T-307（v1.12：认证配置页组锚册——admin/security/auth 域）/ T-344（v1.14：密度档修订——MUI small 档，mui-native-visual §7 登记）/ T-352+T-353（v1.15：回收站页锚册 trash-* 族 + 建仓表单策略键生成器扩容）/ T-366（v1.16：Webhook 订阅管理页锚册 wh-* 族）/ T-372（v1.17：树尾常驻回收站入口锚 tree-trash-node——console-m8 §4.3 推翻条款兑现）/ T-382（v1.18：Set Me Up 抽屉化锚册——smu-* 零改名 + Resolve 批 + smu-close/smu-done 复役）/ T-383（v1.19：建仓形态核验锚册——form-section-* 六节族，M1 两段式断言钉死）/ T-384（v1.20：用户/组创建形态核验锚册——user-form-section-*/group-form-section-* 节锚 + 页脚四锚复役，M3 非 modal 断言钉死）/ T-389（v1.21：品牌位锚册——brand-sidebar-mark / brand-login-lockup，候选 1 logo 转正接线）/ T-387（v1.22：L1 列选器 + 刷新锚册——repos-columns-* / audit-columns-* / 两页 refresh）/ T-386（v1.23：Access Tokens 页真身锚册——tokens-* 族 28 名 + placeholder-page 退役）/ T-388（v1.24：F2 空态插画槽 empty-art + N2 侧栏图标槽 nav-icon——一级条目档位）/ T-404（v1.25：复制 CRUD 内嵌表单锚册——repl-* 配置面族 + form-section-replications 第七节 + 仓 Tab 指针升级 + Replications 列/Run）/ T-406（v1.26：制品浏览 remote/virtual 热修锚——tree-empty-virtual + remote 空态文案分支）/ T-414（v1.27：L1 列选器三页推广锚册——{users\|groups\|search}-columns-* 28 名 + member-pop 对比度清账）/ T-416（v1.28：virtual FE 树消费断言反转②——tree-empty-virtual 语义翻转 + RepoBranch virtual 动态展开恢复 + 删除入口预收敛）/ T-419（v1.29：搜索页 AQL 模式锚册——search-mode 族 + search-aql-* 15 名，smu/search 既有锚零改名）/ T-422（v1.30：复制包 B 首批锚册增量——repl-test/repl-test-result 表单 Test 两锚 + 全局封锁卡 repl-global-block/repl-block-push/repl-block-pull 三锚〔FR-138.2/138.3，parity §6A R8〕，repl-* 既有锚零改名） |
+| 状态 | v1.30（2026-09-02） |
 | 维护者 | ux-designer |
 | 上游依据 | PRODUCT.md（Web 控制台/治理/Non-goals）、ROADMAP.md M4 节、docs/prd/milestone-1/2/3/4.md（端点矩阵与已定案行为）、docs/user/docker-registry.md（用户面口径）、docs/design/architecture.md §7（路由/console 挂载点）、internal/httpapi/router.go（路由门事实——§3.6.2 矩阵逐一核对）、reports/agents/T-98.md · T-99.md（漂移登记与 testid 素材）、reports/agents/T-98-review.md（N1 收敛建议）、BOARD.md（T-85 PRD / T-97 存在性不泄露裁决） |
 | 下游消费者 | T-86（架构：console 包/session/前端工程结构）、tech-lead（M4 拆票）、前端 dev（页面组票）、qa-engineer（控制台验收） |
@@ -985,6 +985,9 @@ repo-danger-zone  repo-delete-button  repo-delete-content  repo-delete-confirm-k
         repl-empty-events（事件空态；两空态锚为 EmptyState 的 testid prop 形态）
         repl-unavailable（404/501 降级提示）  repl-stale（轮询瞬断行内提示）
         （403 分支复用缺省 empty-state 锚——L2 无权限卡，§10.1 四态基元）
+        T-422 批（v1.30）：repl-global-block  repl-block-push  repl-block-pull
+        （全局封锁双开关卡——blockPush/blockPull 应急刹车，R8 形态；
+        锚册正文见 §10.5 T-422 批块）
   配额：quotas-page  quotas-table  quotas-empty  quota-row-<repoKey>  quota-bar-<repoKey>
         quota-edit-<repoKey>  quota-input-<repoKey>  quota-save-<repoKey>
         quota-cancel-<repoKey>  quota-error-<repoKey>
@@ -1656,6 +1659,14 @@ admin.spec 腿迁移 + t387 列集 7→8 联动）：**
     repl-form-syncDeletes  repl-form-syncProperties  repl-form-syncStatistics
   repl-recreate-note（编辑重建语义警示——DELETE+POST、未决任务清空）
   repl-form-error（提交/重建失败呈现）  repl-form-cancel  repl-form-submit
+  T-422 批（v1.30 入册——FR-138.2/138.3，Test 连接 + 全局封锁面）：
+  repl-test（表单「测试连接」——创建态草稿面/编辑态未改动探已存配置，
+    POST /v1/replications/{id}/test 与 /test 两面；探测零副作用不看封锁态）
+  repl-test-result（探测判定内联呈现——成功绿/失败红携目标状态码）
+全局复制页封锁卡（ReplicationPage——T-422，parity §6A R8 形态）：
+  repl-global-block（全局封锁卡根——独立于状态面四态收敛）
+  repl-block-push  repl-block-pull（两方向 Switch——
+    POST /v1/system/replications/block|unblock 方向选择器；readonly 只读）
 仓详情 Replications Tab（RepoDetailPage——指针升级，BOARD「仓 Tab 保留指针」）：
   repo-repl-card（本仓配置摘要卡——四态同根；remote/virtual = 不适用）
   repo-repl-table  repo-repl-row-<name>（摘要行：名称/目标/启停徽标）
