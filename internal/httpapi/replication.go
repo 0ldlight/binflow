@@ -1,13 +1,15 @@
 package httpapi
 
 // Push-replication management REST (T-180, ADR-0021): the /binflow/api/v1
-// replications CRUD and the aggregated status face the console panel (T-159)
-// polls. The domain lives in internal/replication (configs + the task ledger
-// the push engine drains); this file adds only the REST surface:
+// replications CRUD, the manual full-sync trigger (T-420, FR-138.1) and the
+// aggregated status face the console panel (T-159) polls. The domain lives in
+// internal/replication (configs + the task ledger the push engine drains);
+// this file adds only the REST surface:
 //
 //	GET    /binflow/api/v1/replications          list configs (no secrets)
 //	POST   /binflow/api/v1/replications          create a config
 //	PUT    /binflow/api/v1/replications/{id}     flip one config's enabled bit
+//	POST   /binflow/api/v1/replications/{id}/run trigger one full sync (T-420)
 //	DELETE /binflow/api/v1/replications/{name}   drop a config (tasks cascade)
 //	GET    /binflow/api/v1/replication/status    panel payload (T-159 shape)
 //
@@ -20,6 +22,7 @@ package httpapi
 // ConfigStatus.ReplicationID not duplicated (it equals the config id).
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -41,6 +44,12 @@ const (
 	auditActionReplicationConfigCreate = "replication.config.create"
 	auditActionReplicationConfigUpdate = "replication.config.update"
 	auditActionReplicationConfigDelete = "replication.config.delete"
+	// auditActionReplicationRun records one manual full-sync trigger (T-420,
+	// FR-138.1) — the run family's control-plane word (gc.run, export.run
+	// posture; replication.md §9.4 #3), deliberately distinct from the
+	// engine's replication.push execution-layer pair. Vocabulary-block
+	// registration in internal/audit rides the §9.4 batch (T-422 leg).
+	auditActionReplicationRun = "replication.run"
 )
 
 // Status-event window (T-159 ruling 5): the panel asks for the most recent
@@ -440,6 +449,119 @@ func (s *Server) handleReplicationUpdate(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	writeJSONBody(w, http.StatusOK, replicationConfigResponseOf(updated))
+}
+
+// ReplicationRunner is the manual full-sync trigger seam (T-420, FR-138.1;
+// the executereplicationnow counterpart, replication.md §9.2-A/§9.6):
+// consumer-side interface, satisfied by *replication.Engine, one method that
+// appends the config's full-reconciliation task rows and wakes the existing
+// worker — never a second executor.
+type ReplicationRunner interface {
+	// TriggerFullSync seeds one full sync of cfg and returns what it
+	// scheduled. Errors: replication.ErrTriggerDisabled (a down enabled
+	// bit), replication.ErrNoMetaSeam, and store faults (busy-wrapped).
+	TriggerFullSync(ctx context.Context, cfg *replication.ReplicationConfig) (*replication.FullSyncResult, error)
+}
+
+// replicationRunResponse is the POST /binflow/api/v1/replications/{id}/run
+// body. The official REST face (POST /api/replication/execute/{repoPath})
+// defines no success body and the scheduling is async (§9.2-A-3 — "scheduled
+// to run", never the replication's result), so the family shape carries the
+// anchored UI-face info line plus the seeding counts the console toast and
+// the capped flag an operator needs before re-triggering (a capped run wants
+// a second click; §9.1-A UI row for the wording, confidence medium-high).
+type replicationRunResponse struct {
+	Info      string `json:"info"`
+	ID        int64  `json:"id"`
+	Name      string `json:"name"`
+	Scheduled int64  `json:"scheduled"`
+	Capped    bool   `json:"capped"`
+}
+
+// handleReplicationRun serves POST /binflow/api/v1/replications/{id}/run (the
+// console's Replicate Now action, T-420): schedule ONE full sync of the
+// addressed config. Addressing is the numeric row id (the family's PUT face
+// key — the immutable one; names stay renamable), per §9.6's landing note.
+// The request body is not consumed: the Artifactory A-face's optional
+// ReplicationRequest[] body carries per-run target credentials and path
+// filters BinFlow's stored-config model has no arm for, and §9.2-A-2's
+// body-absent arm ("trigger the config as saved") is the whole semantics
+// here. Repeated runs are NOT deduped (§9.2-A-7, medium confidence): the
+// second pass appends again and converges through the target's sha256
+// idempotent hits — the response stays 200, not 409. A DOWN enabled bit IS
+// refused (409): the drain never claims a disabled config's rows, so
+// scheduling it would only park dead ledger rows; the remedy is the family's
+// own PUT enabled=true. The global block gate (§9.2-A-5) arrives with T-422
+// — no blockPush state exists yet for this face to consult.
+func (s *Server) handleReplicationRun(w http.ResponseWriter, r *http.Request, idRaw string) {
+	p := principalFrom(r.Context())
+	if p == nil || !p.Admin {
+		writeError(w, http.StatusForbidden, "replication configuration requires an administrator account")
+		return
+	}
+	if s.deps.Replication == nil {
+		replicationNotConfigured(w)
+		return
+	}
+	if s.deps.ReplicationRunner == nil {
+		writeError(w, http.StatusNotImplemented,
+			"replication trigger is not wired on this instance (the push engine is absent)")
+		return
+	}
+	id, err := strconv.ParseInt(strings.TrimSpace(idRaw), 10, 64)
+	if err != nil || id < 1 {
+		writeError(w, http.StatusBadRequest, "id must be a positive integer")
+		return
+	}
+	cfg, err := s.deps.Replication.GetConfig(r.Context(), id)
+	if err != nil {
+		switch {
+		case errors.Is(err, replication.ErrConfigNotFound):
+			writeError(w, http.StatusNotFound, "replication config not found: "+idRaw)
+		case metadata.IsStoreBusy(err):
+			writeError(w, http.StatusServiceUnavailable,
+				"replication store is busy, retry shortly: "+err.Error())
+		default:
+			writeError(w, http.StatusInternalServerError, "get replication config: "+err.Error())
+		}
+		return
+	}
+	if !cfg.Enabled {
+		// The engine refuses the same bit (ErrTriggerDisabled) — this arm
+		// names the config and the remedy before any store round trip.
+		writeError(w, http.StatusConflict, fmt.Sprintf(
+			"replication config %q is disabled; enable it (PUT enabled=true) before running a full sync", cfg.Name))
+		return
+	}
+	res, err := s.deps.ReplicationRunner.TriggerFullSync(r.Context(), cfg)
+	if err != nil {
+		switch {
+		case errors.Is(err, replication.ErrTriggerDisabled): // raced flip
+			writeError(w, http.StatusConflict, fmt.Sprintf(
+				"replication config %q is disabled; enable it (PUT enabled=true) before running a full sync", cfg.Name))
+		case metadata.IsStoreBusy(err):
+			writeError(w, http.StatusServiceUnavailable,
+				"replication store is busy, retry shortly: "+err.Error())
+		default:
+			writeError(w, http.StatusInternalServerError, "trigger replication run: "+err.Error())
+		}
+		return
+	}
+	s.audit.Record(r.Context(), audit.Event{
+		Actor:  p.Name,
+		Action: auditActionReplicationRun,
+		Repo:   cfg.SourceRepo,
+		Detail: auditDetail("name", cfg.Name, "target", cfg.TargetURL,
+			"target_repo", cfg.TargetRepo, "scheduled", fmt.Sprint(res.Scheduled),
+			"capped", fmt.Sprint(res.Capped)),
+	})
+	writeJSONBody(w, http.StatusOK, replicationRunResponse{
+		Info:      "The replication tasks was successfully scheduled to run",
+		ID:        cfg.ID,
+		Name:      cfg.Name,
+		Scheduled: res.Scheduled,
+		Capped:    res.Capped,
+	})
 }
 
 // handleReplicationDelete serves DELETE /binflow/api/v1/replications/{name}:

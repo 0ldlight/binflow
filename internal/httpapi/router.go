@@ -463,13 +463,15 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	case rest == "v1/storage/migration/start" && r.Method == http.MethodPost:
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleMigrationStart)
 
-	// ---- /api/v1/replications (T-180, ADR-0021; PUT T-405) ----
+	// ---- /api/v1/replications (T-180, ADR-0021; PUT T-405; POST run T-420) --
 	// The push-replication configuration plane. GET lists (secrets
 	// excluded), POST creates, PUT /{id} flips one config's enabled bit (the
 	// console start/stop switch — the T-405 mini face, scoped to the bit
-	// alone), DELETE /{name} drops one config — its task rows cascade via
-	// the 009 FK. The sibling /api/v1/replication/status below is the
-	// console panel's aggregated read face (T-159).
+	// alone), POST /{id}/run schedules one full sync of the addressed config
+	// (the Replicate Now face, T-420/FR-138.1 — async seeding, observability
+	// rides the status face below), DELETE /{name} drops one config — its
+	// task rows cascade via the 009 FK. The sibling /api/v1/replication/
+	// status below is the console panel's aggregated read face (T-159).
 	case rest == "v1/replications" && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleReplicationList)
 	case rest == "v1/replications" && r.Method == http.MethodPost:
@@ -477,6 +479,16 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	case strings.HasPrefix(rest, "v1/replications/") && r.Method == http.MethodPut:
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite},
 			s.withName(rest, "v1/replications/", s.handleReplicationUpdate))
+	case strings.HasPrefix(rest, "v1/replications/") && r.Method == http.MethodPost:
+		// Only the /{id}/run spelling has a route; every other POST under
+		// the prefix keeps the family's E-26 404.
+		idRaw, tail := splitAPIName(rest, "v1/replications/")
+		if idRaw != "" && tail == "run" {
+			s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite},
+				func(w http.ResponseWriter, r *http.Request) { s.handleReplicationRun(w, r, idRaw) })
+			return
+		}
+		notImplemented(w, "/binflow/api/"+rest)
 	case strings.HasPrefix(rest, "v1/replications/") && r.Method == http.MethodDelete:
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite},
 			s.withName(rest, "v1/replications/", s.handleReplicationDelete))

@@ -91,6 +91,13 @@ type Deps struct {
 	// Nil leaves those endpoints at 501 — the console panel's "replication
 	// not enabled" degradation (T-159 contract ruling 6).
 	Replication replication.Store
+	// ReplicationRunner is the manual full-sync trigger seam (T-420,
+	// FR-138.1): the push engine implements it (Engine.TriggerFullSync) and
+	// cmd wires THE engine instance the worker loop drains — a second engine
+	// would double-claim the ledger, which is why this is a wired seam, not
+	// a self-assembled one. Nil keeps POST /api/v1/replications/{id}/run at
+	// the family's 501 while the store-backed faces stay up.
+	ReplicationRunner ReplicationRunner
 	// ReplicationCipher seals target passwords at config-create time
 	// (ADR-0012 enc:v1 at-rest form; the same master key the engine
 	// decrypts with). Nil refuses password-carrying creates with a 400

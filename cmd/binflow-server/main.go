@@ -613,6 +613,10 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// open them never reaches assembly.
 	deps.Replication = stack.replStore
 	deps.ReplicationCipher = replicationCipherSeam(stack.replCipher)
+	// The manual full-sync trigger (T-420, FR-138.1): THE engine instance
+	// startReplication drains — the seam must not assemble a second engine,
+	// or two workers would claim one ledger.
+	deps.ReplicationRunner = stack.replEngine
 	// The OIDC login seam (T-157/T-179) rides the SAME live provider the
 	// auth service's Bearer arm verifies against — through the config
 	// manager's snapshot (T-305): the seam answers the CURRENT OAuth2
