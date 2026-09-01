@@ -26,6 +26,9 @@ func NewSQLiteStore(db *sql.DB) *SQLiteStore { return &SQLiteStore{db: db} }
 
 var _ Store = (*SQLiteStore)(nil)
 
+// The same handle also satisfies the global-block persistence seam (019).
+var _ BlockKeeper = (*SQLiteStore)(nil)
+
 // boolToInt maps a Go bool onto the 0/1 INTEGER convention of the dialect.
 func boolToInt(b bool) int {
 	if b {
@@ -287,6 +290,44 @@ func (s *SQLiteStore) ListTasks(ctx context.Context, replicationID int64, limit 
 		return nil, wrapErr("task list rows", fmt.Sprint(replicationID), err)
 	}
 	return out, nil
+}
+
+// ---- global block state (replication_globals, migration 019) ----
+
+// GetGlobalBlock implements BlockKeeper: the single row, or (nil, nil) when
+// no flip (and no boot seed) ever wrote it.
+func (s *SQLiteStore) GetGlobalBlock(ctx context.Context) (*GlobalBlock, error) {
+	const stmt = `SELECT block_push, block_pull, updated_at, updated_by
+		FROM replication_globals WHERE id = 1`
+	var push, pull int
+	b := &GlobalBlock{}
+	err := s.db.QueryRowContext(ctx, stmt).Scan(&push, &pull, &b.UpdatedAt, &b.UpdatedBy)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, wrapErr("global block get", "", err)
+	}
+	b.BlockPush = push != 0
+	b.BlockPull = pull != 0
+	return b, nil
+}
+
+// PutGlobalBlock implements BlockKeeper: an integral upsert of the whole
+// two-flag state (idempotent by construction, §9.2-B-5).
+func (s *SQLiteStore) PutGlobalBlock(ctx context.Context, b *GlobalBlock) error {
+	const stmt = `INSERT INTO replication_globals (id, block_push, block_pull, updated_at, updated_by)
+		VALUES (1, ?, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET
+			block_push = excluded.block_push,
+			block_pull = excluded.block_pull,
+			updated_at = excluded.updated_at,
+			updated_by = excluded.updated_by`
+	if _, err := s.db.ExecContext(ctx, stmt,
+		boolToInt(b.BlockPush), boolToInt(b.BlockPull), b.UpdatedAt, b.UpdatedBy); err != nil {
+		return wrapErr("global block put", "", err)
+	}
+	return nil
 }
 
 // ---- derived state ----

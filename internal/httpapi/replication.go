@@ -491,8 +491,9 @@ type replicationRunResponse struct {
 // idempotent hits — the response stays 200, not 409. A DOWN enabled bit IS
 // refused (409): the drain never claims a disabled config's rows, so
 // scheduling it would only park dead ledger rows; the remedy is the family's
-// own PUT enabled=true. The global block gate (§9.2-A-5) arrives with T-422
-// — no blockPush state exists yet for this face to consult.
+// own PUT enabled=true. The GLOBAL BLOCK gate (§9.2-A-5) is consulted
+// before scheduling (T-422): a blocked push refuses the run immediately
+// with the anchored skip wording — 封锁与触发同门, never queue-behind.
 func (s *Server) handleReplicationRun(w http.ResponseWriter, r *http.Request, idRaw string) {
 	p := principalFrom(r.Context())
 	if p == nil || !p.Admin {
@@ -533,12 +534,24 @@ func (s *Server) handleReplicationRun(w http.ResponseWriter, r *http.Request, id
 			"replication config %q is disabled; enable it (PUT enabled=true) before running a full sync", cfg.Name))
 		return
 	}
+	// The global block gate BEFORE scheduling (T-422, §9.2-A-5): the
+	// T-420-marked flip point. 409 — the same state-conflict family the
+	// disabled bit takes; the anchored §9.2-A-5 error text rides the
+	// message with the remedy.
+	if s.deps.ReplicationBlocks != nil && s.deps.ReplicationBlocks.PushBlocked() {
+		writeError(w, http.StatusConflict, fmt.Sprintf(
+			"Push replication is blocked, skipping replication (config %s; POST /api/v1/system/replications/unblock to resume)", cfg.Name))
+		return
+	}
 	res, err := s.deps.ReplicationRunner.TriggerFullSync(r.Context(), cfg)
 	if err != nil {
 		switch {
 		case errors.Is(err, replication.ErrTriggerDisabled): // raced flip
 			writeError(w, http.StatusConflict, fmt.Sprintf(
 				"replication config %q is disabled; enable it (PUT enabled=true) before running a full sync", cfg.Name))
+		case errors.Is(err, replication.ErrPushBlocked): // raced brake (§9.2-A-5)
+			writeError(w, http.StatusConflict, fmt.Sprintf(
+				"Push replication is blocked, skipping replication (config %s; POST /api/v1/system/replications/unblock to resume)", cfg.Name))
 		case metadata.IsStoreBusy(err):
 			writeError(w, http.StatusServiceUnavailable,
 				"replication store is busy, retry shortly: "+err.Error())

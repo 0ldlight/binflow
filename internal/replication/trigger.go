@@ -64,6 +64,12 @@ func (e *Engine) TriggerFullSync(ctx context.Context, cfg *ReplicationConfig) (*
 	if !cfg.Enabled {
 		return nil, fmt.Errorf("%w: %s: a disabled config's tasks are never claimed; flip enabled first", ErrTriggerDisabled, cfg.Name)
 	}
+	// The global push block gates the scheduling entry (T-422, §9.2-A-5):
+	// a blocked trigger fails immediately — it does not queue behind the
+	// brake ("封锁与触发同门").
+	if e.pushBlocked() {
+		return nil, fmt.Errorf("%w: config %s; unblock push replication first", ErrPushBlocked, cfg.Name)
+	}
 	if e.cfg.meta == nil {
 		return nil, fmt.Errorf("%w: full sync of %s cannot enumerate the source repository", ErrNoMetaSeam, cfg.Name)
 	}

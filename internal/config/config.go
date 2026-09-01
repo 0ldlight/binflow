@@ -207,6 +207,12 @@ func splitEnvKey(upper string) (path []string, kind envKind, ok bool) {
 		// BINFLOW_REPLICATION__ALLOW_PRIVATE_TARGET form maps through the "__"
 		// path below.
 		return []string{"replication", "allow_private_target"}, envBool, true
+	case "REPLICATION_BLOCK_PUSH", "REPLICATION_BLOCK_PULL":
+		// M15 T-422 (FR-138.3, §9.2-B): the global block brake's boot
+		// carriers, same single-underscore reachability as the SSRF twin
+		// above; the generic BINFLOW_REPLICATION__BLOCK_* form maps through
+		// the "__" path below.
+		return []string{"replication", strings.ToLower(strings.TrimPrefix(upper, "REPLICATION_"))}, envBool, true
 	case "WEBHOOK_ALLOW_PRIVATE_TARGET":
 		// M13 (ADR-0041 decision 6): the webhook SSRF toggle's
 		// single-underscore spelling, mirroring the replication twin above;
@@ -282,7 +288,8 @@ func splitEnvKey(upper string) (path []string, kind envKind, ok bool) {
 		return parts, envIntPos, true
 	case "metrics.require_auth":
 		return parts, envBool, true
-	case "replication.allow_private_target", "webhook.allow_private_target":
+	case "replication.allow_private_target", "webhook.allow_private_target",
+		"replication.block_push", "replication.block_pull":
 		return parts, envBool, true
 	case "folder_download.enabled", "folder_download.enabled_for_anonymous",
 		"folder_download.enabled_empty_directories":

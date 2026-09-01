@@ -341,12 +341,14 @@ func TestTriggerRepeatWhileInFlight(t *testing.T) {
 // t420Source is a source instance whose REST face carries the replication
 // plane complete (store + cipher + trigger seam) — the production cmd wiring
 // in miniature; the shared newBinFlow fixture leaves it unwired on purpose
-// (its engines are per-test constructions over a later-opened store).
+// (its engines are per-test constructions over a later-opened store). Since
+// T-422 the block gate and the test-probe seam ride along (the cmd posture).
 type t420Source struct {
 	*binflow
 	store  replication.Store
 	engine *replication.Engine
 	cipher *remote.Cipher
+	blocks *replication.BlockGate
 }
 
 func newT420Source(t *testing.T, repos []*metadata.Repo) *t420Source {
@@ -394,14 +396,24 @@ func newT420Source(t *testing.T, repos []*metadata.Repo) *t420Source {
 	if err != nil {
 		t.Fatalf("NewCipher: %v", err)
 	}
+	// The global block gate (T-422): unblocked seed over the persisted
+	// row — the cmd posture in miniature.
+	blocks := replication.NewBlockGate(store, replication.GlobalBlock{}, nil, nil)
+	if err := blocks.Load(ctx); err != nil {
+		t.Fatalf("block gate load: %v", err)
+	}
 	engine, err := replication.NewEngine(store, st, replication.EngineOptions{
 		Cipher: cipher,
 		Audit:  audit.New(md, true),
 		Meta:   replication.NewStoreMetaSource(md),
+		Blocks: blocks,
 	})
 	if err != nil {
 		t.Fatalf("NewEngine: %v", err)
 	}
+	blocks.SetWake(engine.Kick)
+	remote.InstallPullBlockProbe(blocks.PullBlocked)
+	t.Cleanup(func() { remote.InstallPullBlockProbe(nil) })
 	repo.AttachReplicator(svc, engine)
 	runCtx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})
@@ -428,12 +440,14 @@ func newT420Source(t *testing.T, repos []*metadata.Repo) *t420Source {
 		Replication:       store,
 		ReplicationCipher: cipher,
 		ReplicationRunner: engine,
+		ReplicationTester: engine,
+		ReplicationBlocks: blocks,
 	}, nil)
 	ts := httptest.NewServer(srv.Handler())
 	t.Cleanup(ts.Close)
 	return &t420Source{
 		binflow: &binflow{t: t, url: ts.URL, dataDir: dataDir, svc: svc, st: st, md: md, adminPw: "pw-source"},
-		store:   store, engine: engine, cipher: cipher,
+		store:   store, engine: engine, cipher: cipher, blocks: blocks,
 	}
 }
 

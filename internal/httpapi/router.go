@@ -457,6 +457,24 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	case rest == "v1/system/settings" && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleSystemSettings)
 
+	// ---- /api/v1/system/replications (M15 T-422, FR-138.3; the global
+	// blockPush/blockPull emergency brake — replication.md §9.1-B, the
+	// A-layer three-endpoint form per §9.6's landing ruling) ----
+	// GET answers the official camelCase pair; the two POST verbs take the
+	// push/pull query params (default "true"; non-"true" leaves the
+	// direction alone this call, §9.2-B-1) and answer text/plain (§9.2-B-3).
+	// The block NEVER gates this family itself — configuration traffic keeps
+	// flowing while the brake is on (§9.2-B-6 posture, t226's UI-API
+	// finding). Every other spelling falls to the E-26 404.
+	case rest == "v1/system/replications" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleReplicationGlobalBlockGet)
+	case rest == "v1/system/replications/block" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite},
+			s.handleReplicationGlobalBlockSet(true))
+	case rest == "v1/system/replications/unblock" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite},
+			s.handleReplicationGlobalBlockSet(false))
+
 	// ---- /api/v1/storage/migration (T-164) ----
 	case rest == "v1/storage/migration" && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleMigrationStatus)
@@ -480,12 +498,27 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite},
 			s.withName(rest, "v1/replications/", s.handleReplicationUpdate))
 	case strings.HasPrefix(rest, "v1/replications/") && r.Method == http.MethodPost:
-		// Only the /{id}/run spelling has a route; every other POST under
-		// the prefix keeps the family's E-26 404.
+		// Only the /{id}/run, /{id}/test and the id-less draft /test
+		// spellings have routes; every other POST under the prefix keeps
+		// the family's E-26 404.
 		idRaw, tail := splitAPIName(rest, "v1/replications/")
 		if idRaw != "" && tail == "run" {
 			s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite},
 				func(w http.ResponseWriter, r *http.Request) { s.handleReplicationRun(w, r, idRaw) })
+			return
+		}
+		if idRaw != "" && tail == "test" {
+			// T-422 (FR-138.2, §9.3): probe the stored config, the optional
+			// body overriding single fields for this probe alone.
+			s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite},
+				func(w http.ResponseWriter, r *http.Request) { s.handleReplicationTest(w, r, idRaw) })
+			return
+		}
+		if idRaw == "test" && tail == "" {
+			// T-422 (§9.2-C-9): the id-less DRAFT face — an unsaved form
+			// probes its candidate; nothing is read from or written to the
+			// store beyond the audit row.
+			s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleReplicationTestDraft)
 			return
 		}
 		notImplemented(w, "/binflow/api/"+rest)

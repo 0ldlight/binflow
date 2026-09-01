@@ -55,3 +55,45 @@ func TestReplicationSectionStrictSchema(t *testing.T) {
 		t.Fatal("Load succeeded with an unknown replication key, want strict-schema error")
 	}
 }
+
+// TestReplicationBlockKeysResolution (T-422, FR-138.3 / replication.md
+// §9.2-B): replication.block_push/block_pull are the global brake's BOOT
+// carriers — default false (the emergency brake never arms itself), explicit
+// values honored, both env spellings reachable. The resolved values only
+// seed the runtime gate on a database without a replication_globals row
+// (the persisted row outranks them — the K31 posture, asserted in the
+// replication package's gate tests).
+func TestReplicationBlockKeysResolution(t *testing.T) {
+	cases := []struct {
+		name     string
+		yaml     string
+		env      map[string]string
+		wantPush bool
+		wantPull bool
+	}{
+		{name: "absent section defaults to unblocked"},
+		{name: "explicit push block", yaml: "replication:\n  block_push: true\n", wantPush: true},
+		{name: "explicit pull block", yaml: "replication:\n  block_pull: true\n", wantPull: true},
+		{name: "explicit both", yaml: "replication:\n  block_push: true\n  block_pull: true\n", wantPush: true, wantPull: true},
+		{
+			name:     "generic double-underscore env wins over yaml",
+			yaml:     "replication:\n  block_push: true\n",
+			env:      map[string]string{"BINFLOW_REPLICATION__BLOCK_PUSH": "false"},
+			wantPush: false,
+		},
+		{
+			name:     "single-underscore env spellings",
+			env:      map[string]string{"BINFLOW_REPLICATION_BLOCK_PUSH": "true", "BINFLOW_REPLICATION_BLOCK_PULL": "1"},
+			wantPush: true, wantPull: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := mustLoad(t, tc.yaml, tc.env)
+			if c.Replication.BlockPush != tc.wantPush || c.Replication.BlockPull != tc.wantPull {
+				t.Fatalf("block flags = (push %v, pull %v), want (%v, %v)",
+					c.Replication.BlockPush, c.Replication.BlockPull, tc.wantPush, tc.wantPull)
+			}
+		})
+	}
+}

@@ -520,6 +520,36 @@ func (e *Engine) attempt(ctx context.Context, row *metadata.Repo, cfg *metadata.
 		}
 	}
 
+	// Step 5a′: the global pull-replication block (T-422, §9.2-B-4 — the
+	// pull half of the blockPush/blockPull brake). ZERO upstream contact
+	// while it is on, for the configured upstream AND the absolute-URL
+	// external face alike (an emergency brake that still shipped third-party
+	// egress would not be one): an expired copy degrades stale with the
+	// block named in the hint, a miss answers the family's unfound 404 —
+	// hardFail: the 502 — naming the BRAKE (never "assumed offline": the
+	// window is deliberately not written, an operator action is not an
+	// upstream fault and lifting it must restore service with no wait).
+	if pullBlocked() {
+		if node != nil && node.Sha256 != "" {
+			return e.downgrade(ctx, node, repoKey, path, cfg, pol, pullBlockSummary, "")
+		}
+		e.logResult(repoKey, path, "", e.upstreamHost(cfg), 0, time.Time{}, 0, pullBlockSummary)
+		if pol.HardFail {
+			return nil, &FetchError{
+				Status: http.StatusBadGateway,
+				Message: fmt.Sprintf("Upstream '%s' failed for '%s/%s' (hardFail enabled): %s.",
+					e.upstreamHost(cfg), repoKey, path, pullBlockSummary),
+			}
+		}
+		return nil, &FetchError{
+			Status: http.StatusNotFound,
+			Message: fmt.Sprintf(
+				"Failed to find the requested resource '%s/%s': pull replication is blocked on this instance (no cached copy; unblock pull replication to resume upstream fetches).",
+				repoKey, path),
+			Unfound: true,
+		}
+	}
+
 	// Step 5a: the assumed-offline window — zero upstream traffic inside it
 	// (M44-4): stale copy, or 404/502 naming the offline state. An
 	// absolute-URL fetch never consults the window: the external target's

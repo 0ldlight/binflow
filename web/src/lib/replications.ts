@@ -13,6 +13,20 @@
 //                                      Now：对该配置种一次全量对账（异步；
 //                                      观测走既有 /api/v1/replication/
 //                                      status 面，规格 §9.2-A 排程语义）。
+//   POST   /api/v1/replications/{id}/test  **T-422（FR-138.2）**——Test 连接：
+//                                      探测已存配置的目标（可选 body 逐字段
+//                                      覆盖＝草稿测，§9.3）；零副作用、不问
+//                                      封锁态（§9.2-C-10）。
+//   POST   /api/v1/replications/test       **T-422 草稿面**——未保存的表单候选
+//                                      直接测（§9.2-C-9「未保存的草稿配置可
+//                                      直接测」）；body 必填。
+//   GET    /api/v1/system/replications   **T-422（FR-138.3）**——全局封锁读：
+//                                      官方 camelCase 两键（§9.1-B）。
+//   POST   /api/v1/system/replications/block|unblock?push=&pull=
+//                                      全局封锁翻位：query 选择方向（缺省
+//                                      =该方向动作；非 "true" 串=本次不动，
+//                                      §9.2-B-1），text/plain 四变体文案
+//                                      （§9.2-B-3）；封锁不影响配置面本身。
 //
 // 语义注记（R3/R4 勘误，parity v1.2 §6A）：
 // - BinFlow 复制引擎 = 事件驱动（上传 hook 入队）+ 固定间隔 sweep 兜底，
@@ -30,7 +44,7 @@
 //   BINFLOW_REMOTE_CREDENTIALS_KEY，未配时带密码的创建 400（文案原样
 //   行内呈现）。
 
-import { apiJSON } from './api'
+import { ApiError, apiJSON, apiText } from './api'
 
 /** 配置行（GET/POST/PUT 响应体——replicationConfigResponse，凭据密码无字段） */
 export interface ReplicationConfig {
@@ -106,6 +120,88 @@ export interface ReplicationRunResult {
  */
 export function runReplicationNow(id: number): Promise<ReplicationRunResult> {
   return apiJSON<ReplicationRunResult>(`/v1/replications/${id}/run`, { method: 'POST' })
+}
+
+// ---- T-422：Test 连接（FR-138.2，规格 §9.2-C/§9.3） ----
+
+/** 探测判定体（replication.TestResult——ok 携带 status_code 与锚定文案；
+ *  失败也是这个体，只是 HTTP 400，message 即内联失败原因——auth.config.test
+ *  同款姿态，非 errors[] 信封）。 */
+export interface ReplicationTestResult {
+  ok: boolean
+  /** 探测命中的目标状态码（0 = 未触达目标——连接层失败） */
+  status_code: number
+  message: string
+}
+
+/**
+ * 已存配置的 Test 连接：POST /v1/replications/{id}/test。override 逐字段
+ * 覆盖（§9.3 草稿臂：url/repo/username/password 任一非空即替换该字段，
+ * 本探测不落盘）；密码只写不读（NFR-S75：不进日志、不回显）。探测为纯读
+ * （对目标只发一个 GET），不看全局封锁态（§9.2-C-10）。
+ *
+ * 探测失败（HTTP 400）承载同形判定体——这里从 raw 解回呈现（ApiError 兜
+ * 底保持 errors[] 面）；404 = 未知 id；401/403 照常抛。
+ */
+export async function testReplicationConfig(
+  id: number,
+  override?: Partial<Pick<ReplicationConfigBody, 'target_url' | 'target_repo' | 'target_username' | 'target_password'>>,
+): Promise<ReplicationTestResult> {
+  return postReplicationTest(`/v1/replications/${id}/test`, override)
+}
+
+/**
+ * 草稿 Test 连接：POST /v1/replications/test（id 无关面——表单创建态候选
+ * 直接测，§9.2-C-9）。body 必填：目标 URL/仓 + 可选凭据对；密码只写不读。
+ */
+export function testReplicationDraft(
+  body: Pick<ReplicationConfigBody, 'target_url' | 'target_repo'> &
+    Partial<Pick<ReplicationConfigBody, 'name' | 'target_username' | 'target_password'>>,
+): Promise<ReplicationTestResult> {
+  return postReplicationTest('/v1/replications/test', body)
+}
+
+/** 两 Test 面的共享信封：探测失败是 HTTP 400 + 判定体（不是 errors[]）——
+ *  通用层会折成 ApiError，这里从 raw 解回判定原文呈现；其余非 2xx（401/
+ *  403/404/501）保持抛 ApiError。 */
+async function postReplicationTest(path: string, body?: unknown): Promise<ReplicationTestResult> {
+  try {
+    return await apiJSON<ReplicationTestResult>(path, {
+      method: 'POST',
+      ...(body === undefined ? {} : { body }),
+    })
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 400 && err.raw) {
+      try {
+        const parsed = JSON.parse(err.raw) as ReplicationTestResult
+        if (typeof parsed?.ok === 'boolean') return parsed
+      } catch {
+        // 不是判定体（面级 400：非法 body 等）——按通用错误抛
+      }
+    }
+    throw err
+  }
+}
+
+// ---- T-422：全局封锁双开关（FR-138.3，规格 §9.1-B/§9.2-B；parity R8） ----
+
+/** 全局封锁读体（官方 camelCase 两键，§9.1-B 三源高置信；顺序照官方例） */
+export interface ReplicationGlobalBlock {
+  blockPullReplications: boolean
+  blockPushReplications: boolean
+}
+
+/** 读全局封锁态（CapSystemRead：admin / readonly_admin） */
+export function getReplicationGlobalBlock(): Promise<ReplicationGlobalBlock> {
+  return apiJSON<ReplicationGlobalBlock>('/v1/system/replications')
+}
+
+/** 封锁方向（block = 封，unblock = 解）。只列要动的方向：缺省参数在服务端
+ *  意为「该方向动作」，这里显式传 push=true&pull=false 形态精确指定单方向
+ *  （§9.2-B-1 的选择器语义）。响应为 text/plain 锚定文案（§9.2-B-3）。 */
+export function setReplicationBlock(blocking: boolean, push: boolean, pull: boolean): Promise<string> {
+  const q = new URLSearchParams({ push: String(push), pull: String(pull) })
+  return apiText(`/v1/system/replications/${blocking ? 'block' : 'unblock'}?${q}`, { method: 'POST' })
 }
 
 /**

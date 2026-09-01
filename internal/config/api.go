@@ -296,6 +296,20 @@ type ReplicationConfig struct {
 	// DNS-rebinding pinning (ADR-0021). This key is not a bypass of the guard;
 	// it only toggles the private-address leg of the SSRF screening list.
 	AllowPrivateTarget bool
+	// BlockPush is the boot-time carrier of the global push-replication
+	// block (M15 T-422, FR-138.3; replication.md §9.1-B/§9.2-B —
+	// Artifactory's blockPushReplications). Default false. Runtime flips go
+	// through the REST face (POST /api/v1/system/replications/block|unblock)
+	// and persist in the replication_globals row: the row is authoritative
+	// once it exists, and this key only SEEDS it on the first boot (the K31
+	// dual-source posture — a later YAML edit draws no effect, INFO-logged
+	// at seed time).
+	BlockPush bool
+	// BlockPull is blockPush's pull twin: while on, the remote pull-through
+	// plane contacts no upstream at all (cached copies still serve; a miss
+	// answers the unfound 404 naming the brake). Same seeding rule as
+	// BlockPush.
+	BlockPull bool
 }
 
 // WebhookConfig carries the webhook plane's operator knobs (M13 T-362,

@@ -98,6 +98,18 @@ type Deps struct {
 	// a self-assembled one. Nil keeps POST /api/v1/replications/{id}/run at
 	// the family's 501 while the store-backed faces stay up.
 	ReplicationRunner ReplicationRunner
+	// ReplicationTester is the connection-probe seam (T-422, FR-138.2): the
+	// same engine instance as ReplicationRunner answers TestTarget. Nil
+	// keeps both test faces at the family's 501 while the store-backed
+	// faces stay up.
+	ReplicationTester ReplicationTester
+	// ReplicationBlocks is the global blockPush/blockPull gate (T-422,
+	// FR-138.3): the /api/v1/system/replications block family rides it, the
+	// run face consults it before scheduling (§9.2-A-5). Nil keeps that
+	// family at the 501 degradation and the run face block-blind (unit
+	// stacks; every assembled server wires the gate the engine and the
+	// remote pull plane share).
+	ReplicationBlocks *replication.BlockGate
 	// ReplicationCipher seals target passwords at config-create time
 	// (ADR-0012 enc:v1 at-rest form; the same master key the engine
 	// decrypts with). Nil refuses password-carrying creates with a 400

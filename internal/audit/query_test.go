@@ -350,4 +350,16 @@ func TestVocabularyQueryable(t *testing.T) {
 			t.Fatalf("T-346 action %q missing from Actions()", a)
 		}
 	}
+	// M15 T-422 (replication.md §9.4 #1~#4): the replication config family's
+	// batch — the T-405 PUT-enabled word (legacy #1, finally registered),
+	// the T-420 trigger word (#3) and the two new faces (test #2, the
+	// global block flip #4).
+	for _, a := range []string{
+		audit.ActionReplicationCfgUpdate, audit.ActionReplicationCfgTest,
+		audit.ActionReplicationRun, audit.ActionReplicationBlockUpdate,
+	} {
+		if !seen[a] {
+			t.Fatalf("T-422 action %q missing from Actions()", a)
+		}
+	}
 }

@@ -1607,4 +1607,8 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **T-432① 官方通知补记（2026-09-02 01:5x）**：vite7 产物与 relink/wire-brand **完全兼容**（三面改写+自检全过 + vite6 沙箱基线互证）；**契约偏差登记**——BOARD 条款④「降级清理」语义失效（hooks v7 recommended 与 recommended-latest 同为全量 compiler 规则），替代执行 = recommended-latest + 存量命中 5 规则降 warn ratchet（10 条零违规当日 error 生效）；**37 条 ratchet warnings 清单入日志作清理票底稿（候选小票登记）**；整夜 load 63→481（用户 VM+串流共租）——**安静窗 chromium 全量 e2e 复跑建议归 T-421**；t404:337 腿系 T-420 翻转版断言票内未真栈跑（归 T-421 遗留①）；:8099 跨票残留实例 hazard 注记。conductor 收编缺口事故（replications.ts 漏提交→树内 tsc 破）已闭（`215aa19`）——**教训：收编按票报变更清单逐文件对 git status**。
 
+**T-422 → done 2026-09-02 03:4x（配额窗④复活后收口）——M15 16/25（复制包 B 首批齐：Test + 全局封锁）**：`Engine.TestTarget`（一次 GET 零副作用、凭据不落日志 NFR-S75、**不看封锁态**照 §9.2-C-10）+ **blockPush/blockPull 全局封锁**（binflow.yaml 全局段 + REST + 控制台开关**三面一致**；blockPush=on 新事件不入队 + 在途停发 + **REST 配置通道不受门**——t226 实测语义；blockPull=on 拉侧照 remote 语义拒绝/降级）+ **T-420 预检翻转点兑现**（handler 排程前 blockPush 预检）+ audit 词表批次（replication.run + replication.config.*）。自测：4 包全 ok + httpapi 137.4s + **race 两轮绿（25m 口径）** + lint 0；含 §2 越界申报（最小外延缝——AC 落地所需）。遗留细节见报告（FE 呈现面 parity R8 形态核验归 QA）。日志 reports/agents/T-422.md。
+
+**B11 派发（conductor 2026-09-02 03:5x）**：**T-425**（远端浏览评估票——研究型轻载，产 Q4 材料包；机器被审计 workflow 占用故选此票）入 lane；**T-421 继续押后**（净机需求）。
+
 **全树 race 补证判无效（conductor 2026-09-01 14:3x）**：与两 agent 测试套件同机并发跑——22 包红全部 620-660s 超时形态 + db/sql 竞争 panic + storage fail-open 窗口 = **共租负载签名**（T-414 日志同款 load 450-630），非产品缺陷。T-412 的 AC3 证据改挂 **T-421 中期 QA 串行全树 race**（届时 lane 空净）。**D-413-2 [P3·登记]**：唯一真信号 = T-413 `TestEngineMixedLoad` 在慢机下 K63 并发门 429 介入而测试只容忍 busy gate 拒绝——测试健壮性收窄（门注入调低或混合负载容忍 429），归 T-421 复验时顺腿修或转 T-433。**教训入册：全树 race/性能类验证必须 lane 空净时串行跑（派单纪律）。**
