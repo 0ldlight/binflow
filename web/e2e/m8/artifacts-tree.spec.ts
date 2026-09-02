@@ -82,10 +82,11 @@ test('seed-m8 tree: deep link auto-expands ancestors, selects the node and scrol
   })
   expect(inView).toBe(true)
 
-  // 当前层 children 表（懒加载一层的数据面）+ 选中文件进 URL（?focus=）
+  // 当前层 children 表（懒加载一层的数据面）+ 选中文件进 URL（T-434：文件是
+  // 路径末段——?focus= 退役，断言反转①）
   await expect(page.locator('[data-testid="tree-list"] tbody tr').first()).toBeVisible()
   await page.click('[data-testid="tree-row-f000.txt"]')
-  await expect(page).toHaveURL(new RegExp(`/binflow/ui/artifacts/${PERM_REPO}/perf/w03\\?focus=f000\\.txt$`))
+  await expect(page).toHaveURL(new RegExp(`/binflow/ui/artifacts/${PERM_REPO}/perf/w03/f000\\.txt$`))
   await expect(page.locator('[data-testid="node-detail"]')).toBeVisible()
   await expect(page.locator('[data-testid="node-detail"]')).toContainText('perf/w03/f000.txt')
 
@@ -180,8 +181,14 @@ test('readonly_admin: full repo inventory + write entries disabled + readonly no
   // 自 tree-upload 平移到页头 tree-deploy，语义不变）
   await expect(page.locator('[data-testid="tree-deploy"]')).toBeDisabled()
   await expect(page.locator('[data-testid="tree-mkdir"]')).toBeDisabled()
-  await expect(page.locator('[data-testid="delete-node-button"]').first()).toBeDisabled()
-  // 右键菜单删除项同样禁用
+  // 删除入口预收敛（T-434 children 表操作列退役）：readonly 不渲染删除钮
+  //（与 T-416 virtual 同款姿态——不给注定 403 的入口）；选中文件后详情
+  // 面板同样零承载
+  await expect(page.locator('[data-testid="delete-node-button"]')).toHaveCount(0)
+  await page.click('[data-testid="tree-row-keep.bin"]')
+  await expect(page.locator('[data-testid="node-detail"]')).toBeVisible()
+  await expect(page.locator('[data-testid="delete-node-button"]')).toHaveCount(0)
+  // 右键菜单删除项同样禁用（可渲染面的禁用态语义不变）
   await page.locator('[data-testid="tree-row-keep.bin"]').click({ button: 'right' })
   await expect(page.locator('[data-testid="tree-context-delete"]')).toBeDisabled()
   await page.keyboard.press('Escape')
@@ -290,6 +297,8 @@ test('timing: tree expand on a seeded level (lazy one-level load)', async ({ pag
 
   await loginAs(page, 'admin')
   await page.goto(`/binflow/ui/artifacts/${key}`)
+  // T-434（select≠expand）：选中仓不再强制展开——perf 层可见前先展开仓根
+  await page.locator(`[data-testid="tree-repo-${key}"] .twisty`).click()
   const root = page.locator('[data-testid="tree-node-perf"]')
   await expect(root).toBeVisible()
   const expand = await measureTreeExpand(page, root, `[data-testid^="tree-node-perf/"]`)

@@ -70,7 +70,9 @@ test('tree filter: drill-down resets the term, sub-level renders non-zero (QA-3)
   await expect(page.locator('[data-testid="tree-row-root-a.txt"]')).toBeVisible()
   await expect(page.locator('[data-testid="tree-list"] tbody tr')).toHaveCount(2)
 
-  // 下钻（左树进 alpha——跨层导航）：词清空 + 子层非零呈现，无需手动清空
+  // 下钻（左树进 alpha——跨层导航）：词清空 + 子层非零呈现，无需手动清空。
+  // T-434（select≠expand）：选中仓不再强制展开——树节点可见前先展开仓根
+  await page.locator(`[data-testid="tree-repo-${repoA}"] .twisty`).click()
   await page.click('[data-testid="tree-node-alpha"]')
   await expect(page).toHaveURL(new RegExp(`/binflow/ui/artifacts/${repoA}/alpha$`))
   await expect(page.locator('[data-testid="tree-filter"]')).toHaveValue('')
@@ -78,12 +80,13 @@ test('tree filter: drill-down resets the term, sub-level renders non-zero (QA-3)
   await expect(page.locator('[data-testid="tree-row-alpha-1.txt"]')).toBeVisible()
   await expect(page.locator('[data-testid="tree-row-nested"]')).toBeVisible()
 
-  // 同层内导航（?focus= 选中文件）保留词——children 集合未变，词语义完整
+  // 同层内导航（文件选中——URL 路径末段，T-434）保留词——children 集合未变，
+  // 词语义完整
   await page.fill('[data-testid="tree-filter"]', 'alpha-1')
   await expect(page.locator('[data-testid="tree-list"] tbody tr')).toHaveCount(1)
   await page.click('[data-testid="tree-row-alpha-1.txt"]')
   await expect(page).toHaveURL(
-    new RegExp(`/binflow/ui/artifacts/${repoA}/alpha\\?focus=alpha-1\\.txt$`),
+    new RegExp(`/binflow/ui/artifacts/${repoA}/alpha/alpha-1\\.txt$`),
   )
   await expect(page.locator('[data-testid="tree-filter"]')).toHaveValue('alpha-1')
 

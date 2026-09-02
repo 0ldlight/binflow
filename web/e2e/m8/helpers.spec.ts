@@ -115,6 +115,8 @@ test('timing: first-interactive + tree-expand collect numbers on a seeded level'
 
   await loginAs(page, 'admin')
   await page.goto(`/binflow/ui/artifacts/${key}`)
+  // T-434（select≠expand）：选中仓不再强制展开——perf 层可见前先展开仓根
+  await page.locator(`[data-testid="tree-repo-${key}"] .twisty`).click()
   const root = page.locator('[data-testid="tree-node-perf"]')
   await expect(root).toBeVisible()
   const expand = await measureTreeExpand(page, root, `[data-testid^="tree-node-perf/"]`)

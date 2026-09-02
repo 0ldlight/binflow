@@ -106,7 +106,8 @@ test('keyboard: tree arrows expand/collapse/navigate, row Enter opens, Shift+F10
   await page.keyboard.press('ArrowLeft')
   await expect(page.locator(`[data-testid="tree-repo-${key}"]`)).toHaveAttribute('aria-expanded', 'false')
 
-  // 表格行：↑↓ 行移动 + 目录行 Enter 进路径 + 文件行 Enter 选中（?focus=）
+  // 表格行：↑↓ 行移动 + 目录行 Enter 进路径 + 文件行 Enter 选中（T-434：文件
+  // 选中进 URL 路径末段——?focus= 退役）
   await page.goto(`/binflow/ui/artifacts/${key}`)
   await expect(page.locator('[data-testid="tree-row-docs"]')).toBeVisible()
   await page.focus('[data-testid="tree-row-docs"]')
@@ -117,7 +118,7 @@ test('keyboard: tree arrows expand/collapse/navigate, row Enter opens, Shift+F10
   await expect(page).toHaveURL(new RegExp(`/binflow/ui/artifacts/${key}/docs$`))
   await page.focus('[data-testid="tree-row-guide.md"]')
   await page.keyboard.press('Enter')
-  await expect(page).toHaveURL(new RegExp(`/binflow/ui/artifacts/${key}/docs\\?focus=guide\\.md`))
+  await expect(page).toHaveURL(new RegExp(`/binflow/ui/artifacts/${key}/docs/guide\\.md$`))
   await expect(page.locator('[data-testid="node-detail"]')).toBeVisible()
 
   // Shift+F10：右键菜单键盘打开（Chromium 报 F10+shift）+ Esc 关闭

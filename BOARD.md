@@ -1677,4 +1677,8 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **m15-done tag + 里程碑 PR + UAT AFTER** 随本笔执行（T-429 §6 清单六标记）。
 - **M15 终态**：25 票全落（22 实现 + T-421/T-429/T-430 三验 + 条件票 T-431 已执行/T-403 留痕）+ 增补 T-406b/D-T421-1 两热修；**AQL 全栈贯通**（aql.md→ADR→引擎四环→端点→老搜索→FE）+ virtual 聚合 + 复制包 B + busy 预算 + 结构轮；锚册 v1.30、parity v1.4。**M16 已开工**（PRD v1.1 + T-434 树栈在途）。
 
+**T-434 → done 2026-09-02 23:4x——M16 1/?（批次① 树栈全落地——用户 P0 主诉正面回应）**：四项全对齐——**文件叶子进树**（「（空）」误导占位消除 + children 表收窄 + 目录 Artifact Count/Size 概要）/ **选择≠展开**（单击纯选中、箭头展开、深链自动展开维持）/ **URL 页签段 + 文件路径段化**（`?focus=` 退役——兼容重定向；`artifacts/:tab/:key/*` 新路由）/ **树头工具带**（包类型 facet + rclass 组〔按实有三态——Cache=remote 缓存子集不伪造〕+ Sort-by + 紧凑单选 + My Favorites）+ reverse §3.2 facet 段回填。**锚册 v1.31**（12 新锚）。自抓三缺陷票内修（删除选中回跳闭包/checksum 徽标对比度/根层 focusPath）。自测：四门绿 + 新 spec 5/5 + 指定回归（artifacts-tree 10/t416 4/t372 6）+ 全绿面 + axe 双主题 0 + **服务端 diff=0 + SPA +3,178B**。遗留：?focus= 发射端（Dashboard/Search/AqlPanel）重定向收敛归批次③翻新；TAB 同名 repo edge 锚册注记。日志 reports/agents/T-434.md。
+
+**M16 拆票派发（conductor 2026-09-02 23:5x）**：tech-lead 全量拆票在途（T-435 起——批次②③④ + FR-146 统计基建先行 + FR-147 远端浏览 C 批 1 + FR-148 AQL 副线 + FR-149 i18n 独占波 + FR-150 cron 域〔ADR-0044 前置锚〕+ 条件池）。
+
 **全树 race 补证判无效（conductor 2026-09-01 14:3x）**：与两 agent 测试套件同机并发跑——22 包红全部 620-660s 超时形态 + db/sql 竞争 panic + storage fail-open 窗口 = **共租负载签名**（T-414 日志同款 load 450-630），非产品缺陷。T-412 的 AC3 证据改挂 **T-421 中期 QA 串行全树 race**（届时 lane 空净）。**D-413-2 [P3·登记]**：唯一真信号 = T-413 `TestEngineMixedLoad` 在慢机下 K63 并发门 429 介入而测试只容忍 busy gate 拒绝——测试健壮性收窄（门注入调低或混合负载容忍 429），归 T-421 复验时顺腿修或转 T-433。**教训入册：全树 race/性能类验证必须 lane 空净时串行跑（派单纪律）。**
