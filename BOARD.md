@@ -1627,4 +1627,8 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **B15 派发（conductor 2026-09-02 05:0x）**：**T-424**（L2 行内快捷 + e2e 三节纪律成文——复制 key/Set Me Up 直开 + INC-1/pkill 精确杀/assert-tokens 豁免成文）入 FE lane。
 
+**T-424 → done 2026-09-02 08:4x（配额窗⑤复活后收口）——M15 21/25（L2 快捷钉断言 + 纪律成文）**：新 spec 5/5（复制 key〔aria+Space+剪贴板全值+回显〕/ Set Me Up 直开〔smu-* 锚族复用〕/ **E1 不倒退缺席断言**/ axe 双主题）+ **web/e2e/README 三节纪律 + 两 flake 注记成文**（INC-1 永不点确认/共享 fixture 快照前置；pkill 按端口精确杀——三起票务事故 + conductor 两起自杀并入；assert-tokens 豁免口径）。**web/src 零改动**（L2 快捷系 M8 既有能力——纪律票钉成断言口径，diff 审计过）；净实例全量三项目 **301✓/0 红/24 skip**（7.9m）；四门绿；**SPA +0B**。**过程事故诚实披露**（§5）：首轮起服 heredoc 失败→空配置误开仓库根 ./data 14 秒（仅 session sweep+WAL checkpoint，零写请求——日志逐行核对）→ 教训并入 README §4。遗留三条（Enter 劫持共享件修法超 area 建议单独提票/assert-tokens 显式 allowlist 待票/见报告）。日志 reports/agents/T-424.md。
+
+**M15 尾波态势（conductor 2026-09-02 08:4x）**：实现票仅剩 **T-423**（busy 专项——24 路并发测需净机，候审计 workflow 末两腿完结即派）与条件票 T-431（随时插空）；随后 T-429 release（dep T-423）→ T-430 终验 → m15-done 收口窗（Q1 终裁 + 未纳入项启用 + tag/PR/UAT）。
+
 **全树 race 补证判无效（conductor 2026-09-01 14:3x）**：与两 agent 测试套件同机并发跑——22 包红全部 620-660s 超时形态 + db/sql 竞争 panic + storage fail-open 窗口 = **共租负载签名**（T-414 日志同款 load 450-630），非产品缺陷。T-412 的 AC3 证据改挂 **T-421 中期 QA 串行全树 race**（届时 lane 空净）。**D-413-2 [P3·登记]**：唯一真信号 = T-413 `TestEngineMixedLoad` 在慢机下 K63 并发门 429 介入而测试只容忍 busy gate 拒绝——测试健壮性收窄（门注入调低或混合负载容忍 429），归 T-421 复验时顺腿修或转 T-433。**教训入册：全树 race/性能类验证必须 lane 空净时串行跑（派单纪律）。**
