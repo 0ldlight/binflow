@@ -1665,4 +1665,8 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **D-T421-1 [P1·conductor 已修]**：AQL criteria 成员次序敏感——parseComparator 末尾冗余「外层 } 必须紧跟」检查误杀比较符对象后的合法 `,` 成员（单对象双操作符已由 expectPunct 覆盖，检查纯属多余）。**修复=删检查 + 注释释因**；回归测试 parser_order_test.go 四混序形 + 单对象双操作符维持拒绝；search 包 race 272.4s 绿 + lint 0。L21 验收命令原样恢复可用。
 
+**T-429 → done 2026-09-02 20:3x——M15 24/25（release 收官）**：**Chart 1.4.0→1.5.0 定案**（M15 三处 behavior 变化判据命中；blockPush/blockPull 新键 SEED-ONLY 语义**三段链贯通**：渲染→boot seed→REST 回显→unblock 复位）；**七腿烟测全绿**（goreleaser 六平台 6/6 校验和 + 四镜像 PUSH=0 + compose/k8s 清单/Chart kind 真装/systemd/offline roundtrip 字节一致）；**M15 面探针**（AQL 命中/Replicate Now 逐字节回读/封锁 409 逐字/docker×virtual 200/virtual 聚合）；**F1 门 120MB 首验 PASS = 104.52MB**（+1.1% 非红旗）+ 资源三连 GREEN（11.9MB/514ms）；favicon+docs/aql 六面指纹一致。**UAT AFTER 清单备妥**（BEFORE 基线核 = uat.2a11096，M14 PR #65 已部署——conductor 注意：周期合并 PR #64 后 main 已前移，AFTER 翻转标记按 m15-done PR 合并后）。遗留：server 40.59MB 首破 40MB 原始线（WARN-only→M16 观察）；offline 三处预存在候小票；首 PUT 405 不可复现观察。日志 reports/agents/T-429.md。
+
+**B18 派发（conductor 2026-09-02 20:4x）**：**T-430**（M15 终验 P0——**钉 SHA `73d4556` archive 验证**〔T-434 在改工作树，免污染〕；L20~L34 终评 + §5.7 逐行 + DoD 八条 + Q1 证据摘要）入 lane。**T-429 收编 SHA `73d4556` = m15-done 候选锚**。
+
 **全树 race 补证判无效（conductor 2026-09-01 14:3x）**：与两 agent 测试套件同机并发跑——22 包红全部 620-660s 超时形态 + db/sql 竞争 panic + storage fail-open 窗口 = **共租负载签名**（T-414 日志同款 load 450-630），非产品缺陷。T-412 的 AC3 证据改挂 **T-421 中期 QA 串行全树 race**（届时 lane 空净）。**D-413-2 [P3·登记]**：唯一真信号 = T-413 `TestEngineMixedLoad` 在慢机下 K63 并发门 429 介入而测试只容忍 busy gate 拒绝——测试健壮性收窄（门注入调低或混合负载容忍 429），归 T-421 复验时顺腿修或转 T-433。**教训入册：全树 race/性能类验证必须 lane 空净时串行跑（派单纪律）。**
