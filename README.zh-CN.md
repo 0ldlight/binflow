@@ -237,7 +237,15 @@ docker compose -f deploy/dev/docker-compose.yml down -v    # 清空数据
   `GET /api/v1/storage/migration` 查进度）。
   指南：[S3 对象存储后端与在线迁移](docs/user/guides/s3-config.md)。
 - **push 复制**——上传单向复制到目标实例（五协议全覆盖），事件驱动 +
-  指数退避重试 + 定时兜底扫描。状态：`GET /api/v1/replication/status`。
+  指数退避重试 + 定时兜底扫描。M15 起支持按需全量重同步（`POST
+  /api/v1/replications/{id}/run`）、目标连通性预探（`…/test`）与全局
+  推/拉封锁闸（`/api/v1/system/replications`）。状态：`GET
+  /api/v1/replication/status`。
+- **AQL 搜索（M15）**——Artifactory Query Language 的 items 域子集：
+  `curl -su admin:$PW -X POST $BASE/binflow/api/search/aql
+  --data-binary 'items.find({"repo":"maven-local"}).limit(10)'`，
+  另有经典 gavc/prop/pattern 三端点与控制台搜索页的 AQL 模式。
+  指南：[AQL 搜索指南](docs/user/aql.md)。
 - **Prometheus 指标**——`curl -s $BASE/metrics`（根级路径，默认匿名）：
   HTTP、存储、认证、复制四类指标族。
   参考：[Prometheus 指标参考](docs/user/metrics/prometheus-reference.md)。
