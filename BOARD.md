@@ -1764,4 +1764,6 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **B2 派发（conductor 2026-09-03 01:3x）**：批次② 首环 **T-439**（FE 表单三段结构 + 字段域补齐——dep T-437 已满足）入 FE lane。
 
+**用户指令 intake ⑨（2026-09-03 01:3x）：本地 Artifactory 7.161.20 参照——「我在本地的8082部署了artifactory,参照这个，重构前端,使用typescript,账号密码是admin/JFrog@2026」**。实例核实：**7.161.20**（rev 86120900，比 t226 的 7.84.10 新 77 个 minor）**addons 全开**（replication/curation/xray/release-bundle/federated/retention 等——Pro/Enterprise 面可见）。**parity 参照基线切换至本实例**（HTTP 直连无 SSH/TUN 障碍；内存已存档）。前端已是 TypeScript（React+TSX 全树）——「使用typescript」确认满足。**处置**：①T-439（在途表单票）已获补充指令——以 7.161 实测为准；②**基线复核 agent 已派**（7.84→7.161 形态差异清单 + T-435 十五条待验证归位 + 批次② 即时修正建议）。
+
 **全树 race 补证判无效（conductor 2026-09-01 14:3x）**：与两 agent 测试套件同机并发跑——22 包红全部 620-660s 超时形态 + db/sql 竞争 panic + storage fail-open 窗口 = **共租负载签名**（T-414 日志同款 load 450-630），非产品缺陷。T-412 的 AC3 证据改挂 **T-421 中期 QA 串行全树 race**（届时 lane 空净）。**D-413-2 [P3·登记]**：唯一真信号 = T-413 `TestEngineMixedLoad` 在慢机下 K63 并发门 429 介入而测试只容忍 busy gate 拒绝——测试健壮性收窄（门注入调低或混合负载容忍 429），归 T-421 复验时顺腿修或转 T-433。**教训入册：全树 race/性能类验证必须 lane 空净时串行跑（派单纪律）。**
