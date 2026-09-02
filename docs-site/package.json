@@ -2,7 +2,7 @@
   "name": "binflow-docs-site",
   "version": "0.1.0",
   "private": true,
-  "description": "BinFlow help docs site (Docusaurus 3, ADR-0011). Aggregates docs/user as the content source — tech-writers never edit this directory; `make docs` builds it into internal/docs/dist for go:embed.",
+  "description": "BinFlow help docs site (Docusaurus 3, ADR-0011). Aggregates docs/user as the content source \u2014 tech-writers never edit this directory; `make docs` builds it into internal/docs/dist for go:embed.",
   "scripts": {
     "docusaurus": "docusaurus",
     "start": "docusaurus start",
@@ -20,7 +20,7 @@
     "@mdx-js/react": "^3.1.1",
     "clsx": "^2.1.1",
     "prism-react-renderer": "^2.4.1",
-    "react": "^18.3.1",
+    "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
   "engines": {
