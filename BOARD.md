@@ -1760,4 +1760,8 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **T-437 → done 2026-09-03 00:5x——M16 4/35（B1 票①：parity 册翻案修订）**：**parity 册 v1.5**（票面「v1.2」实落 v1.5——版本线已至 v1.4，回退即重写历史，映射双处留痕）——E5/E1/E6/E2/R4 **五处翻案改写** + §3 M3 勘误 + §5 L4 分治注 + **§9A stay-out 八项登记** + **§11 K67 冻结**（树栈 as-built 定案）+ **§12 B 47 项四态预归属表 48 行**（零缺号零无主——B-2.8/B-3.2 两无主候选明示归 T-460 核定）+ cron 推翻三处留痕闭环（T-402a 勘误原文存档，「事件驱动唯一引擎」→「增量唯一引擎+全量调度并存」）；锚册 v1.32（v1.30 补记 + 本批注记）。**两命令门**（make docs/anchor-audit）系 ux agent 无 shell 的外部确认位——conductor 收口窗代跑。日志 reports/agents/T-437.md。
 
+**T-438 → done 2026-09-03 01:2x——M16 5/35（B1 票②：统计基建单源落）**：nodes 扩列四列（K69 DDL + 幂等迁移）+ **三分口径埋点**（直连/经 virtual〔virtual 命中给实际存储成员行计数〕/remote 缓存命中——remote_* 正交防错条吸收）+ FileInfo 投影扩字段 + **?stats 面**（敏感字段 + CapSystemRead 门——按 ADR-0044 正位执行，票内 area 映射核对留痕〔internal/storage 实为 blob 后端——nodes 在 metadata，落点修正〕）+ statisticsEnabled 行为化 + sourceOrigin 落库顺车。自测：build/vet/lint 0 + T438 十二测试 race 绿 + 分位基准 + **全量 `go test -race ./...` 25m 口径全包 PASS**（含 httpapi ~10min race 面）。**单源契约声明**（零第二计数通道——批次③字段族与 FR-148 usage 域唯一数据源）。日志 reports/agents/T-438.md。
+
+**B2 派发（conductor 2026-09-03 01:3x）**：批次② 首环 **T-439**（FE 表单三段结构 + 字段域补齐——dep T-437 已满足）入 FE lane。
+
 **全树 race 补证判无效（conductor 2026-09-01 14:3x）**：与两 agent 测试套件同机并发跑——22 包红全部 620-660s 超时形态 + db/sql 竞争 panic + storage fail-open 窗口 = **共租负载签名**（T-414 日志同款 load 450-630），非产品缺陷。T-412 的 AC3 证据改挂 **T-421 中期 QA 串行全树 race**（届时 lane 空净）。**D-413-2 [P3·登记]**：唯一真信号 = T-413 `TestEngineMixedLoad` 在慢机下 K63 并发门 429 介入而测试只容忍 busy gate 拒绝——测试健壮性收窄（门注入调低或混合负载容忍 429），归 T-421 复验时顺腿修或转 T-433。**教训入册：全树 race/性能类验证必须 lane 空净时串行跑（派单纪律）。**

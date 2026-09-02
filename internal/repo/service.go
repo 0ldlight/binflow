@@ -441,7 +441,11 @@ func (s *service) Get(ctx context.Context, p *Principal, repoKey, path string) (
 		_ = rc.Close()
 		return nil, nil, fmt.Errorf("open blob %s for %s/%s: storage backend does not support Seek", n.Sha256, repoKey, path)
 	}
-	s.audit(ctx, AuditEvent{Actor: actor(p), Action: AuditActionDownload, Repo: repoKey, Path: path})
+	s.markDownload(ctx, p, downloadMark{
+		auditRepo: repoKey, auditPath: path,
+		countRepo: repoKey, countPath: path,
+		origin: downloadOriginDirect,
+	})
 	return seekable, n, nil
 }
 
@@ -484,7 +488,16 @@ func (s *service) getRemote(ctx context.Context, p *Principal, repoKey, path str
 			Actor: hookActorOf(p),
 		})
 	}
-	s.audit(ctx, AuditEvent{Actor: actor(p), Action: AuditActionDownload, Repo: repoKey, Path: path})
+	// The remote-serving arm (K69 arm 3): the count lands on the remote
+	// repository's own row, both columns, with the contentSynchronisation
+	// eligibility marker riding the audit detail.
+	s.markDownload(ctx, p, downloadMark{
+		auditRepo: repoKey, auditPath: path,
+		countRepo: repoKey, countPath: path,
+		origin:       downloadOriginRemote,
+		extra:        []string{s.statsSyncDetail(ctx, repoKey)},
+		remoteServed: true,
+	})
 	return res.Body, res.Node, nil
 }
 
@@ -1758,7 +1771,11 @@ func (s *service) ResolveManifest(ctx context.Context, p *Principal, repoKey, im
 		}
 		return nil, fmt.Errorf("manifest %s/%s@%s: %w", repoKey, image, digest, err)
 	}
-	s.audit(ctx, AuditEvent{Actor: actor(p), Action: AuditActionDownload, Repo: repoKey, Path: nodePathFor(image, digest)})
+	s.markDownload(ctx, p, downloadMark{
+		auditRepo: repoKey, auditPath: nodePathFor(image, digest),
+		countRepo: repoKey, countPath: nodePathFor(image, digest),
+		origin: downloadOriginDirect,
+	})
 	return m, nil
 }
 
@@ -1794,7 +1811,11 @@ func (s *service) ResolveTag(ctx context.Context, p *Principal, repoKey, image, 
 		}
 		return nil, fmt.Errorf("tag %s/%s:%s: %w", repoKey, image, tag, err)
 	}
-	s.audit(ctx, AuditEvent{Actor: actor(p), Action: AuditActionDownload, Repo: repoKey, Path: dockerImageManifestPath(image, t.Digest)})
+	s.markDownload(ctx, p, downloadMark{
+		auditRepo: repoKey, auditPath: dockerImageManifestPath(image, t.Digest),
+		countRepo: repoKey, countPath: dockerImageManifestPath(image, t.Digest),
+		origin: downloadOriginDirect,
+	})
 	return t, nil
 }
 

@@ -786,6 +786,19 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 			})
 			return
 		}
+		if _, ok := r.URL.Query()["stats"]; ok && r.Method == http.MethodGet {
+			// M16 T-438 (FR-146.2 / ADR-0044 K69): the per-node download
+			// statistics (StatsInfo). The route keeps the item-info read
+			// gate — the counts are content-plane facts, anonymous follows
+			// the flag; the identity arm (lastDownloadedBy) is a FIELD-level
+			// gate inside the handler on CapSystemRead, the audit log read's
+			// capability (K69 decision 5's "non-tier callers get the field
+			// omitted", which is why this route must NOT 403 them here).
+			s.enforce(w, r, routeAuth{}, func(w http.ResponseWriter, r *http.Request) {
+				s.handleStorageStats(w, r, repoKey, rel)
+			})
+			return
+		}
 		if _, ok := r.URL.Query()["permissions"]; ok && r.Method == http.MethodGet {
 			// SE-08 (T-97 review B2, M7 family 7): the effective-permission
 			// view is MANAGEMENT-plane data — it enumerates principal names

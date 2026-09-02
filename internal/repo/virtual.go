@@ -215,9 +215,16 @@ func (s *service) getVirtual(ctx context.Context, p *Principal, virtualKey, path
 		if !hit {
 			continue // member miss: next bucket entry
 		}
-		s.audit(ctx, AuditEvent{
-			Actor: actor(p), Action: AuditActionDownload, Repo: virtualKey, Path: path,
-			Detail: fmt.Sprintf(`{"resolvedFrom":%q}`, m.key),
+		// The via-virtual arm (K69 arm 2): the audit row addresses the
+		// VIRTUAL surface, the count lands on the MEMBER's row — and a
+		// member that is itself a remote repository served this download
+		// from its cache, so its row takes the remote column too.
+		s.markDownload(ctx, p, downloadMark{
+			auditRepo: virtualKey, auditPath: path,
+			countRepo: m.key, countPath: path,
+			origin:       downloadOriginVirtual(virtualKey),
+			extra:        []string{fmt.Sprintf(`"resolvedFrom":%q`, m.key)},
+			remoteServed: m.typ == TypeRemote,
 		})
 		return withResolvedFrom(rc, m.key), node, nil
 	}
@@ -504,9 +511,12 @@ func (s *service) ReadVirtualMember(ctx context.Context, virtualKey, member, pat
 	if !hit {
 		return nil, nil, fmt.Errorf("node %s/%s: %w", member, path, ErrNodeNotFound)
 	}
-	s.audit(ctx, AuditEvent{
-		Action: AuditActionDownload, Repo: virtualKey, Path: path,
-		Detail: fmt.Sprintf(`{"resolvedFrom":%q,"aggregate":true}`, member),
+	s.markDownload(ctx, nil, downloadMark{
+		auditRepo: virtualKey, auditPath: path,
+		countRepo: member, countPath: path,
+		origin:       downloadOriginVirtual(virtualKey),
+		extra:        []string{fmt.Sprintf(`"resolvedFrom":%q`, member), `"aggregate":true`},
+		remoteServed: false,
 	})
 	return rc, node, nil
 }
@@ -537,9 +547,14 @@ func (s *service) readRemoteMemberDoc(ctx context.Context, virtualKey, member, p
 			"virtual", virtualKey, "member", member, "path", path)
 		return nil, nil, fmt.Errorf("node %s/%s: %w", member, path, ErrNodeNotFound)
 	}
-	s.audit(ctx, AuditEvent{
-		Action: AuditActionDownload, Repo: virtualKey, Path: path,
-		Detail: fmt.Sprintf(`{"resolvedFrom":%q,"aggregate":true}`, member),
+	// The aggregation face's remote-member twin: the member's cache served
+	// the document, so its row takes the remote column as well.
+	s.markDownload(ctx, nil, downloadMark{
+		auditRepo: virtualKey, auditPath: path,
+		countRepo: member, countPath: path,
+		origin:       downloadOriginVirtual(virtualKey),
+		extra:        []string{fmt.Sprintf(`"resolvedFrom":%q`, member), `"aggregate":true`},
+		remoteServed: true,
 	})
 	return res.Body, res.Node, nil
 }

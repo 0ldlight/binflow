@@ -144,7 +144,7 @@ func (s *service) V2MemberManifest(ctx context.Context, p *Principal, virtualKey
 		}
 		return nil, fmt.Errorf("node %s/%s: %w", m.key, dockerImageManifestPath(image, dgst), nerr)
 	}
-	s.auditVirtualResolve(ctx, p, virtualKey, m.key, dockerImageManifestPath(image, dgst))
+	s.auditVirtualResolve(ctx, p, virtualKey, m.key, dockerImageManifestPath(image, dgst), false)
 	return &V2MemberManifest{Digest: dgst, MediaType: row.MediaType, Size: row.Size, Node: node}, nil
 }
 
@@ -221,7 +221,7 @@ func (s *service) V2LandMemberBlob(ctx context.Context, p *Principal, virtualKey
 	if err != nil {
 		return nil, err
 	}
-	s.auditVirtualResolve(ctx, p, virtualKey, m.key, path)
+	s.auditVirtualResolve(ctx, p, virtualKey, m.key, path, true)
 	return node, nil
 }
 
@@ -376,11 +376,16 @@ func parseV2ReferenceDigest(reference string) (string, error) {
 
 // auditVirtualResolve records the walk's download row addressed to the
 // VIRTUAL (getVirtual's shape): the member that served rides the detail so
-// "which copy did I get" is answerable from the audit trail alone.
-func (s *service) auditVirtualResolve(ctx context.Context, p *Principal, virtualKey, member, path string) {
-	s.audit(ctx, AuditEvent{
-		Actor: actor(p), Action: AuditActionDownload, Repo: virtualKey, Path: path,
-		Detail: fmt.Sprintf(`{"resolvedFrom":%q}`, member),
+// "which copy did I get" is answerable from the audit trail alone. The
+// count lands on the MEMBER's row (K69 arm 2), with the remote column when
+// the serving member is a remote pull-through (its cache served).
+func (s *service) auditVirtualResolve(ctx context.Context, p *Principal, virtualKey, member, path string, memberRemote bool) {
+	s.markDownload(ctx, p, downloadMark{
+		auditRepo: virtualKey, auditPath: path,
+		countRepo: member, countPath: path,
+		origin:       downloadOriginVirtual(virtualKey),
+		extra:        []string{fmt.Sprintf(`"resolvedFrom":%q`, member)},
+		remoteServed: memberRemote,
 	})
 }
 
@@ -403,7 +408,7 @@ func (s *service) resolveV2VirtualManifest(ctx context.Context, p *Principal, vi
 		if !ok {
 			continue
 		}
-		s.auditVirtualResolve(ctx, p, virtualKey, m.key, dockerImageManifestPath(image, digest))
+		s.auditVirtualResolve(ctx, p, virtualKey, m.key, dockerImageManifestPath(image, digest), m.typ == TypeRemote)
 		return row, nil
 	}
 	return nil, fmt.Errorf("manifest %s/%s@%s: %w", virtualKey, image, digest, ErrManifestNotFound)
@@ -434,7 +439,7 @@ func (s *service) resolveV2VirtualTag(ctx context.Context, p *Principal, virtual
 		if !ok {
 			continue
 		}
-		s.auditVirtualResolve(ctx, p, virtualKey, m.key, dockerImageManifestPath(image, t.Digest))
+		s.auditVirtualResolve(ctx, p, virtualKey, m.key, dockerImageManifestPath(image, t.Digest), m.typ == TypeRemote)
 		return t, nil
 	}
 	return nil, fmt.Errorf("tag %s/%s:%s: %w", virtualKey, image, tag, ErrTagNotFound)

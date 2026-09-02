@@ -365,9 +365,16 @@ func (s *service) ArchiveDownload(ctx context.Context, p *Principal, req Archive
 	if ext == archiveFormatTgzAlt {
 		ext = archiveFormatTgz
 	}
-	s.audit(ctx, AuditEvent{
-		Actor: actor(p), Action: AuditActionDownload, Repo: req.RepoKey, Path: root,
-		Detail: fmt.Sprintf(`{"archiveType":%q,"files":%d,"bytes":%d}`, req.Type, files, total),
+	// The folder download's bookkeeping: the audit row addresses the folder
+	// root, and the count is a structural no-op — folder rows are excluded
+	// at the SQL edge (K69: folder rows stay at zero), the whole-repo
+	// spelling (root "") has no row at all. The archived FILES each carry
+	// their own count at the Get landing points the stream walk serves.
+	s.markDownload(ctx, p, downloadMark{
+		auditRepo: req.RepoKey, auditPath: root,
+		countRepo: req.RepoKey, countPath: root,
+		origin: downloadOriginDirect,
+		extra:  []string{fmt.Sprintf(`"archiveType":%q`, req.Type), fmt.Sprintf(`"files":%d`, files), fmt.Sprintf(`"bytes":%d`, total)},
 	})
 	return &ArchiveDownloadResult{
 		Body:        &slotReleasingReader{r: pr, release: release},

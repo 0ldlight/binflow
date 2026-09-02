@@ -192,6 +192,47 @@ func likePrefix(prefix string) (exact, subtree string) {
 	return repl.Replace(prefix), repl.Replace(prefix) + "/%"
 }
 
+// CountDownload implements NodeStore.CountDownload (M16 T-438, ADR-0044
+// K69): ONE statement, self-incrementing on both counters so concurrent
+// landings never lose an increment. The folder-marker exclusion keeps
+// folder rows at their structural zero (a folder carries no body, so no
+// download face can land on it — the guard lives at the SQL edge, not at
+// every caller's); a missing row updates nothing and reports no error.
+func (s *nodeStore) CountDownload(ctx context.Context, repoKey, path, by, at string, remoteServed bool) error {
+	remoteDelta := int64(0)
+	if remoteServed {
+		remoteDelta = 1
+	}
+	const stmt = `UPDATE nodes
+		SET download_count = download_count + 1,
+		    last_downloaded_at = ?,
+		    last_downloaded_by = ?,
+		    remote_download_count = remote_download_count + ?
+		WHERE repo_key = ? AND path = ? AND sha256 <> ?`
+	if _, err := s.db.ExecContext(ctx, stmt,
+		at, by, remoteDelta, repoKey, path, FolderMarkerSHA); err != nil {
+		return wrapExec("nodes count-download", repoKey, err)
+	}
+	return nil
+}
+
+// Stats implements NodeStore.Stats: the four counting columns of one node
+// row, ErrNodeNotFound when absent.
+func (s *nodeStore) Stats(ctx context.Context, repoKey, path string) (*NodeStats, error) {
+	const stmt = `SELECT repo_key, path, download_count, last_downloaded_at, last_downloaded_by, remote_download_count
+		FROM nodes WHERE repo_key = ? AND path = ?`
+	row := s.db.QueryRowContext(ctx, stmt, repoKey, path)
+	st := &NodeStats{}
+	err := row.Scan(&st.RepoKey, &st.Path, &st.DownloadCount, &st.LastDownloadedAt, &st.LastDownloadedBy, &st.RemoteDownloadCount)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("nodes stats %s/%s: %w", repoKey, path, ErrNodeNotFound)
+	}
+	if err != nil {
+		return nil, wrapExec("nodes stats", repoKey, err)
+	}
+	return st, nil
+}
+
 // ---- BlobStore ----
 
 type blobStore struct{ db *sql.DB }

@@ -20,8 +20,10 @@ import (
 // and FolderInfo for directories; the ?list family returns a flat file
 // listing; ?permissions answers the effective-permission view (SE-08, T-97);
 // ?properties answers the property read/write family (FR-89, T-286 —
-// properties.go). Everything else under ?propertiesXml/?stats/?lastModified
-// is deliberately unimplemented and falls to the E-26 404.
+// properties.go); ?stats answers the per-node download statistics (StatsInfo,
+// M16 T-438 / ADR-0044 K69 — the four nodes counting columns' only wire
+// face). Everything else under ?propertiesXml/?lastModified is deliberately
+// unimplemented and falls to the E-26 404.
 //
 // Read authorization follows the content plane (the endpoint exposes exactly
 // what a content GET exposes, metadata flavor): anonymous reads pass when
@@ -94,13 +96,14 @@ func isoMillisUTC(stored string) string {
 // its direct children sorted by name (rest-api.md section 3). relPath is the
 // decoded repo-relative path ("" = the repository root).
 func (s *Server) handleStorageItem(w http.ResponseWriter, r *http.Request, repoKey, relPath string) {
-	// Unimplemented query arms (E-09 scope): propertiesXml/stats/lastModified
+	// Unimplemented query arms (E-09 scope): propertiesXml/lastModified
 	// answer the E-26 404 rather than silently returning the plain item
 	// body. (?permissions left this list in T-97 — SE-08 routes it to
 	// handleStoragePermissions before this handler runs; ?properties left
 	// it in T-286 — FR-89 routes the three verbs to the properties family
-	// before this handler runs.)
-	for _, q := range []string{"propertiesXml", "stats", "lastModified"} {
+	// before this handler runs; ?stats left it in T-438 — K69 routes it to
+	// handleStorageStats before this handler runs.)
+	for _, q := range []string{"propertiesXml", "lastModified"} {
 		if _, ok := r.URL.Query()[q]; ok {
 			notImplemented(w, "/binflow/api/storage item query '"+q+"'")
 			return
@@ -123,6 +126,90 @@ func (s *Server) handleStorageItem(w http.ResponseWriter, r *http.Request, repoK
 		return
 	}
 	s.writeFileInfo(w, r, repoKey, node)
+}
+
+// statsInfoBody is the StatsInfo wire shape of the ?stats arm (rest-api.md
+// section 3's high-confidence anchor; ADR-0044 K69 decision 4). The official
+// seven-field set also carries remoteLastDownloaded and
+// remoteLastDownloadedBy — both are UNSOURCED in BinFlow (no smart-remote
+// pull-back statistics exist) and are therefore omitted, never faked
+// (architecture 11.49; the add-a-column path is a small migration ticket).
+type statsInfoBody struct {
+	URI                 string `json:"uri"`
+	DownloadCount       int64  `json:"downloadCount"`
+	LastDownloaded      string `json:"lastDownloaded,omitempty"`
+	LastDownloadedBy    string `json:"lastDownloadedBy,omitempty"`
+	RemoteDownloadCount int64  `json:"remoteDownloadCount"`
+}
+
+// handleStorageStats serves GET /api/storage/{repo}/{path}?stats (M16 T-438,
+// FR-146.2): the per-node download statistics — the four nodes counting
+// columns' only wire face. The route keeps the item-info read gate
+// (content-plane semantics, anonymous follows the flag): the counts are not
+// identity information. lastDownloadedBy is the exception — the identity
+// arm rides the audit log's read capability (K69 decision 5): a caller
+// holding CapSystemRead (admin or readonly_admin) sees the field, everyone
+// else gets it omitted (omitempty), never blanked.
+func (s *Server) handleStorageStats(w http.ResponseWriter, r *http.Request, repoKey, relPath string) {
+	p := principalFrom(r.Context())
+	node, err := s.statsNode(r, p, repoKey, relPath)
+	if err != nil {
+		s.writeStorageError(w, err)
+		return
+	}
+	st, err := s.deps.Metadata.Nodes().Stats(r.Context(), node.RepoKey, node.Path)
+	if err != nil {
+		s.writeStorageError(w, err)
+		return
+	}
+	body := statsInfoBody{
+		URI:                 storageURI(requestBase(r), repoKey, node.Path),
+		DownloadCount:       st.DownloadCount,
+		RemoteDownloadCount: st.RemoteDownloadCount,
+	}
+	if st.LastDownloadedAt != "" {
+		body.LastDownloaded = isoMillisUTC(st.LastDownloadedAt)
+	}
+	if managementAllowed(s.deps.Authz, func(m auth.ManagementAuthorizer) bool {
+		return m.CanManage(r.Context(), p, auth.CapSystemRead)
+	}) {
+		body.LastDownloadedBy = st.LastDownloadedBy
+	}
+	writeJSONBody(w, http.StatusOK, body)
+}
+
+// statsNode resolves the addressed node for the ?stats face WITHOUT the
+// content-plane Get call: ?stats is a telemetry probe, none of K69's three
+// counting arms covers reading statistics, and a face that fed the counter
+// it reports would be self-counting absurdity (the ADR's "probes don't
+// count"). List carries the same path-scoped read gate as Get (anonymous
+// follows the flag), answers both the file and the folder spelling through
+// its exact-match arm, resolves a VIRTUAL address onto the member rows the
+// counts live on, and writes no audit row — so the probe is invisible to
+// the counters and the audit trail alike.
+func (s *Server) statsNode(r *http.Request, p *auth.Principal, repoKey, relPath string) (*metadata.Node, error) {
+	trimmed := strings.TrimSuffix(relPath, "/")
+	if trimmed == "" {
+		// The repository root carries no node row (serveRootFolder's
+		// posture), so it has no statistics source: the item family's 404
+		// rather than a fabricated zero. Folder rows DO exist and answer
+		// with their structural zeros.
+		return nil, fmt.Errorf("node %s/: %w", repoKey, repo.ErrNodeNotFound)
+	}
+	nodes, err := s.deps.ReposSvc.List(r.Context(), p, repoKey, trimmed)
+	if err != nil {
+		return nil, err
+	}
+	want := trimmed
+	if isFolderPath(relPath) {
+		want = trimmed + "/"
+	}
+	for _, n := range nodes {
+		if n.Path == want {
+			return n, nil
+		}
+	}
+	return nil, fmt.Errorf("node %s/%s: %w", repoKey, relPath, repo.ErrNodeNotFound)
 }
 
 // dockerTagsForFolder resolves tag→digests[] for a docker image folder when

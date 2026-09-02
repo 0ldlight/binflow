@@ -90,6 +90,21 @@ type Node struct {
 	UpdatedAt string // RFC3339 UTC
 }
 
+// NodeStats is the per-node download statistics projection of the nodes
+// table's four counting columns (M16 T-438, ADR-0044 K69 — the download
+// plane's SINGLE counting channel: the ?stats wire face and the usage
+// domain read this shape and nothing else counts). It deliberately does
+// not extend Node: the content-plane Node shape is frozen (FileInfo zero
+// change, architecture 25.5) and statistics are a read-side projection.
+type NodeStats struct {
+	RepoKey             string
+	Path                string
+	DownloadCount       int64  // three-arm criterion: direct, via virtual (member row), remote-serving
+	LastDownloadedAt    string // RFC3339 UTC, "" = never downloaded
+	LastDownloadedBy    string // principal name, "anonymous" for unauthenticated, "" = never
+	RemoteDownloadCount int64  // downloads a REMOTE repository served; structurally 0 on local rows
+}
+
 // Repo is one repository configuration row.
 type Repo struct {
 	RepoKey     string
@@ -507,6 +522,21 @@ type NodeStore interface {
 	// ListByPrefix returns nodes under repoKey whose path starts with prefix,
 	// ordered by path.
 	ListByPrefix(ctx context.Context, repoKey, prefix string) ([]*Node, error)
+	// CountDownload atomically records one download against a node row (the
+	// SQL-side self-increment is exact under SQLite's single writer and
+	// Postgres row locks alike). by is the downloader's principal spelling
+	// ("anonymous" for unauthenticated access), at the RFC3339 UTC landing
+	// instant; remoteServed additionally bumps remote_download_count —
+	// callers set it when the counted row lives in a remote repository, so
+	// local rows keep the column at its structural zero. Folder rows are
+	// excluded mechanically (the shared folder marker carries no body), and
+	// a missing row is a silent no-op: counting keeps the audit row's
+	// best-effort posture, so a node deleted between the serve and this
+	// bookkeeping is history, not an error.
+	CountDownload(ctx context.Context, repoKey, path, by, at string, remoteServed bool) error
+	// Stats returns one node's download statistics projection (the four
+	// counting columns); ErrNodeNotFound when the row is absent.
+	Stats(ctx context.Context, repoKey, path string) (*NodeStats, error)
 }
 
 // BlobStore is the "ever existed" ledger of physical objects (ADR-0006: rows
