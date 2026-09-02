@@ -4,9 +4,9 @@
 |---|---|
 | 文档 | `docs/design/console-artifactory-parity.md` |
 | 票据 | UX-1（插空票：品牌资产 + Artifactory 交互对齐规格） |
-| 状态 | v1.4（2026-09-02，T-428 文面回写：M1 行 440px 定案升级 + M3 行 MUI Paper 代差注记——ux 口径代笔，**ux 会签位**；此前 v1.3 T-400 终评落档） |
+| 状态 | v1.5（2026-09-03，T-437 M16 翻案修订：E5/E1/E2/E6/R4 五处翻案改写 + §9A stay-out 登记 + §11 K67 冻结 + §12 B 47 项四态预归属表——ux 主笔 + **PM 会签位**〔按 PRD v1.1 七裁定代笔〕；**版本对账：PRD/审计材料所称「parity 册 v1.2」即本版 v1.5**——实序为准，§0 留痕；此前 v1.4 T-428 文面回写 / v1.3 T-400 终评落档） |
 | 维护者 | ux-designer |
-| 上游依据 | 用户指令 2026-08-30（① 前端交互体验与 JFrog Artifactory 完全一致，含弹窗、抽屉等）；`docs/design/console-ux.md` v1.15（IA/四态/token 母册）；`docs/design/mui-native-visual.md`（MUI 原生视觉基线）；`web/src/` 现状逐一核对（见各模式的「BinFlow 载体」列） |
+| 上游依据 | 用户指令 2026-08-30（① 前端交互体验与 JFrog Artifactory 完全一致，含弹窗、抽屉等）；用户指令 intake ⑤（2026-09-02，BOARD 在档——M16 全前端对齐 + 不做清单全面翻案除 Xray）；`docs/prd/milestone-16.md` v1.1（§7 Q1~Q7/Q13 七+一裁定——v1.5 翻案依据）；`reports/m16-parity-audit-material.md`（A/B/C/D 四件套——B 47 项偏差与 A8 清单）；`docs/design/console-ux.md` v1.15+（IA/四态/token 母册；锚登记以 §10.5 为锚名权威源）；`docs/design/mui-native-visual.md`（MUI 原生视觉基线）；`web/src/` 现状逐一核对（见各模式的「BinFlow 载体」列）；`reports/agents/T-434.md`（树栈 as-built——§11 K67 冻结底稿） |
 | 下游消费者 | **PM——M14 UI-parity PRD 直接引用 §7 差距矩阵**；FE 拆票；qa-engineer 验收 |
 | 置信度声明 | Artifactory 7.x 行为描述基于本票作者的产品知识（clean-room：无反编译 UI 代码消费）。**V1~V8 已于 2026-08-31 由 qa-engineer 在活体实例上核验完毕**（源：t226-artifactory，Artifactory OSS 7.84.10 rev 78410900，DOM 实测 + 截图归档 `reports/agents/t381-evidence/`，详见 `reports/agents/T-381.md`）；核验结论已回写各模式置信度列与 §8。未入 §8 的中置信项（L1/L4/F2/F3/N3 等）维持原标注。**R 系（复制面）于 2026-09-01 由 qa-engineer 活体锚定**（同源实例，差集法只读探测 + 服务端下发的前端静态资产行为事实提取，证据 `reports/agents/t402-evidence/`，详见 `reports/agents/T-402a.md`）：活体可达项标高置信；OSS license 门后不可达项以 bundle 实证 + 公开 REST 文档双源标中/中高置信，**未静默升格** |
 
@@ -21,6 +21,13 @@
 | v1.2 | 2026-09-01 | **T-402a 复制（replication）交互面锚定增补**（qa-engineer 执行，用户指令 2026-08-31 23:2x「replication 的交互要和 Artifactory 一致」）。新增 **§6A R 系条目 R1~R10**（逐项置信度）：活体实测高置信 = R1 入口拓扑（**仓级表单步骤节**，仓库编辑页 jf-steps 三步 Basic/Advanced/**Replications** 等宽 387px 横排；OSS 无全局复制管理页）、R2 OSS license 门形态（Replications 步 `is-disabled` 点击 no-op、REST `/api/replications*` 一律 400 Pro-only、UI-API `global/replications/config` 反而不受门）、R5 列表列形态（本地仓列表 **Replications 列**，OSS 每行 cell=「0」；启用态=bundle 实证 `icon-run` 图标链 + 三态 tooltip）、R7/R9 状态呈现与容器形态；OSS 门后不可达项中/中高置信（bundle 静态资产行为事实 + 公开 REST 双源，**未静默升格**）= R3 字段集（enabled/cronExp/enableEventReplication/pathPrefix/syncDeletes/syncProperties/syncStatistics）、R4 cron 校验（`GET /crontime?isReplication=`，Quartz 格式）、R6 Test 动作、R8 全局封锁开关（blockPush/blockPull）。§7 矩阵增「复制」专用行。**注意**：BinFlow 复制为事件驱动（无用户级 cron）——R4 对齐是后端语义决策非纯 FE parity。证据：`reports/agents/T-402a.md` + `reports/agents/t402-evidence/` |
 | v1.3 | 2026-09-01 | **T-400 终验 L16 矩阵逐格终评落档**（qa-engineer 执行——T-381 共笔先例）。§7 矩阵正文保持 v1.2 原样（历史基线），其后新增 **§7A 终评表**：v1.2 时点仍标 △/✗ 的全部格子（D1 双入口 / L1 三处 / N2 / Tokens 四格 / 复制 M2·M3）按 M14 落地票据（T-382/T-386/T-387/T-388/T-404）翻 ✅ 或（豁·登记），**终评覆盖率 100%**；三出口（V5 不降级 / V7 关闭 / E7 再议）落档；E1~E7 逐条复核零倒退。证据：`reports/agents/T-400.md` |
 | v1.4 | 2026-09-02 | **T-428 文面回写簇**（tech-writer 执笔，M1/M3 两处 ux 口径按 ux 册既有定案代笔——**ux 会签位**，未自创设计值；T-398 §4-2 登记）。**M1 行升级**：差距行尾注「网格 modal 宽度参考 880px（BinFlow 现档位即可）」升级为 **440px 紧凑档定案**（T-381 实测 880px 系 33 包型 90×90 大磁贴档 → T-383 票内定案不追平并写进 e2e 断言；T-390 磁贴卡面复活后新形态刷新——`.pkg-grid-item` 类名复线、宽度档复证不破）。**M3 行增补**：MUI 映射格补 **MUI Paper 代差注记**（repositories 域六节 Paper〔缺省 elevation 1〕vs security 域 `.form-section` CSS 留——mui-native-visual 换装分期既定口径，非 parity 缺口）。证据：`reports/agents/T-383.md`/`T-390.md`/`T-398.md` + `web/src/pages/repositories/RepositoryFormPage.tsx`、`web/src/pages/security/UsersPage.tsx` as-built 核对 |
+| v1.5 | 2026-09-03 | **T-437 M16 翻案修订版**（ux-designer 主笔 + PM 会签位代笔——M16-SPLIT B1 前置锚票，FR-141.1/.2）。**版本对账**：PRD FR-141.2 与 `reports/m16-parity-audit-material.md` D 骨架所称「parity 册 v1.2」即本版——审计材料起草时点未同步本册自身版本线（彼时已至 v1.4），本版起以实序 **v1.5** 为准，映射留痕。修订六项：① **E5 前提修正**（Q5 出口①路由化——「BinFlow 已用路由实体表单」前提被 M16 审计推翻〔B-2.15〕，条目注销 + §3 M3 勘误）；② **E1 范围修正**（Q2 出口①——管理列表 vs 浏览器表分治文本 + T-434 children 表收窄 as-built 对账）；③ **三例翻案双留痕**：E6→双语可切换（Q3）/ E2→页码控件（Q4，§5 L4 联动注）/ R4 cron 引入（Q1——**推翻 M15 Q5 终裁与 T-402a 勘误，勘误原文存档不删**）；④ **§9A stay-out 登记**（A8 清单 + 仓库详情中间页/E4 测试器/快搜范围页签/结果计数一致性等八项 + 候裁子项）；⑤ **§11 K67 冻结**（树栈四项 as-built + TAB 省略规范形 + rclass 三态 + 分页控件形态锚——LC-98/T-451 断言地基）；⑥ **§12 B 47 项四态预归属表**（48 行全列含 3 对账去重行——零无主，供 QA 终验收口审计对账）。证据：`reports/agents/T-437.md` + `docs/prd/milestone-16.md` v1.1 §7 + `reports/m16-parity-audit-material.md` + `reports/agents/T-434.md` |
+
+**v1.5 会签与就绪度（T-437，2026-09-03——PM 会签位代笔〔按 PRD v1.1 七裁定；PM 亲笔复核窗随 conductor 派单〕）**：
+
+1. **PM 会签 · 行一（Q1~Q7 + Q13 归位核对）**：Q1 cron 引入（推翻 M15 Q5——§6A R4 翻案标注）/ Q2 E1 收紧不倒退（§9 E1 分治文本 + §9A-S5 as-built 对账）/ Q3 双语超集（§9 E6 改写）/ Q4 页码翻正（§9 E2 改写 + §5 L4 联动注 + §11.2 分页锚）/ Q5 路由化（§9 E5 注销 + §3 M3 勘误）/ Q6 两程结构（§9A-S7/S8 的 M17 预立项段联动条目）/ Q7 Annotate 加（§12 B-1.6 归属 T-444/T-455）——七项终裁在本册对应条目 **100% 留痕，Q 编号 ↔ 条目号双向可回溯**。
+2. **PM 会签 · 行二（Q8~Q12 候裁核对）**：Q8 表单域全补倾向（B-1.5/B-3.12 → T-439，断言挂候裁附注）/ Q9 自有增强层逐项三态（§9A 八项 + 候裁子项清单——批次②③断言冻结前裁，裁毕回写本表）/ Q10 条件票不占 DoD（B-3.18 Last Login 列 → T-468 条件票）/ Q11 webhook 触发源（非本册面——PRD/ADR-0041 域）/ Q12 t381（conductor 决定项，非本册面）——候裁项**零冒进冻结**，断言面全部挂「候裁」附注。
+3. **tech-lead 就绪度（ux 侧复核；正式确认候 B1 收口窗）**：批次②~④ + FE 副线断言地基齐备——§11 K67（树栈 as-built + 分页控件锚）供 dep 本票的九张 FE 票（T-439/T-441/T-443/T-445/T-447/T-449/T-451/T-453/T-455）直接引用；§12 归属表 48 行零无主（候裁 4 项均有 Q 编号或建议票 + 收口审计对账点）；批次②③④可拆性无阻塞项。
 
 ## 1. 目标、边界与置信度标尺
 
@@ -110,7 +117,7 @@ BinFlow 族基座：`web/src/components/ConfirmDialog.tsx`（MUI `Dialog`，Esc/
 | Artifactory 行为（置信度：**高**；**V6 已核验 2026-08-31，实测修正**） | 用户/组**创建 = 整页路由表单**（`/ui/admin/management/users/new`、`/groups/new`），**不是 modal**——用户表单字段：User Name / Email Address / Password / Retype Password + 复选项（Administer Platform / Manage Resources / Can Update Profile / Disable UI Access / Disable Internal Password）；组表单：Group Name / Description / External ID + 复选项 + 成员用户选择列表；页脚 **Cancel（最左）/ Reset / Save（右）**。Token 面：**用户 profile 页**（`/ui/user_profile`）的 "Authentication Settings → Generate an Identity Token" 区 + **Identity Tokens 表**（Description / Token ID / Issued At / Expiry Date，带列选器）；admin 侧集中 token 管理页在 OSS 7.84 导航不可达（可能为 Pro 门）。 |
 | MUI 映射 | 路由页分节表单（`Paper` 节 + 页脚动作条）；token 面复用 SetMeUp 的 `smu-token-panel` 形态。**MUI Paper 代差注记（v1.4，ux 会签位）**：分节容器的 Paper 化按域分期——建仓/编辑表单六节已是 `<Paper component="section">`（缺省 elevation 1 档；T-344 批 D 换装、T-383 加 `form-section-*` 锚），用户/组表单维持 CSS 分区排版（`security.css` `.form-section`——mui-native-visual 批次标「留」）。该代差是 MUI 换装的既定分期，非 Artifactory parity 缺口（Artifactory 自绘 jf 表单面板、无 elevation 概念，节界视觉不进对齐面）。 |
 | BinFlow 载体 | 用户：`UsersPage`（列表页内建表单）+ `UserDetailPage`（路由页编辑）；组：`GroupsPage`（同列表页形态）；权限：`PermissionEditorPage`（路由页——BinFlow 自有的模式测试器/diff 确认是增强，**豁免**）；Tokens：`PlaceholderPage`（P2 占位）。 |
-| 差距 | ✅ 形态已对齐（**v1.1 核验改判：决策项 B 撤销**——7.84 用户/组创建即整页路由表单，BinFlow 无需 modal 化；BinFlow 列表页内建表单与路由页编辑的差异属同档形态，可保持）。Tokens 页 ✗ **缺失**（BinFlow 侧缺口维持，随 M3 规格落真身：token 列表表 + 铸币区 + 一次性明文面板 + 吊销确认；形态参照 7.84 profile 页的表+生成区，V6c 生成表单字段集因 profile 密码锁未核验，接线票时以 `smu-token-panel` 既有形态为准）。 |
+| 差距 | ✅ 形态已对齐（**v1.1 核验改判：决策项 B 撤销**——7.84 用户/组创建即整页路由表单，BinFlow 无需 modal 化；BinFlow 列表页内建表单与路由页编辑的差异属同档形态，可保持）。**v1.5 勘误（Q5，2026-09-02 终裁路由化）**：上句「同档形态，可保持」的 BinFlow 侧前提不实——用户/组创建实为**列表页内联展开卡**（M16 审计 B-2.15；v1.1 的 V6 核验只证 Artifactory 侧为路由表单，未核 BinFlow 侧载体），E5 豁免前提随之失效（§9 E5 注销）。Q5 出口①：`/users/new`、`/groups/new` 整页路由表单（FR-145.1/T-453 承载——断言反转④），内联卡退役；BinFlow 内部形态统一（权限创建已是路由页）；编辑面路由页维持对齐不变。Tokens 页 ✗ **缺失**（BinFlow 侧缺口维持，随 M3 规格落真身：token 列表表 + 铸币区 + 一次性明文面板 + 吊销确认；形态参照 7.84 profile 页的表+生成区，V6c 生成表单字段集因 profile 密码锁未核验，接线票时以 `smu-token-panel` 既有形态为准）。 |
 
 ### M4 弹窗族行为细节（ESC / 遮罩 / 焦点）
 
@@ -185,7 +192,7 @@ BinFlow 族基座：`web/src/components/ConfirmDialog.tsx`（MUI `Dialog`，Esc/
 |---|---|
 | Artifactory 行为（置信度：**中**） | 管理列表多用页码分页控件；制品树浏览为增量加载。 |
 | BinFlow 载体 | 全站「加载更多」增量（console-ux §6：keyset 游标 + 工程师往下翻心智）。 |
-| 差距 | ✅ 已有（**有意偏离**：keyset 分页对页码不友好，BinFlow 形态保留；豁免登记 §9） |
+| 差距 | ~~✅ 已有（有意偏离：keyset 分页对页码不友好，BinFlow 形态保留；豁免登记 §9）~~ **v1.5 翻案（Q4，2026-09-02 用户终裁，出口①翻正）**：E2 豁免注销——**分治口径 = 「管理列表/结果表用页码控件，制品树/大目录深浏览维持增量加载」**（Artifactory 同为树增量 + 表页码双轨）。管理列表与结果表页码控件 ×9 处统一（LC-98 / T-451——断言锚见 §11.2；后端维持 keyset 游标 + 页窗映射，呈现对齐语义自有 C 注）；console-ux §6 大目录策略条款的回写归 T-451 票内（锚册 v1.32 预登记）。 |
 
 ---
 
@@ -246,7 +253,7 @@ BinFlow 族基座：`web/src/components/ConfirmDialog.tsx`（MUI `Dialog`，Esc/
 | Artifactory 行为（置信度：**中**——bundle 字段模型实证 + 公开 REST 文档双源；活体 OSS 不可达，表单面板永不渲染） | 复制配置字段族：**enabled**（启停开关）、**cronExp**（cron 表达式，见 R4）、**enableEventReplication**（事件复制开关——cron 兜底之外即时触发）、**pathPrefix**（路径前缀过滤）、**syncDeletes**（**删除同步/enabled 无仓剔除**——目标端同步删源端已删路径）、**syncProperties**（属性同步）、**syncStatistics**（统计同步）、**type**（push/remote=pull）+ 凭据 username/password + 目标 URL/仓对。remote（pull）仓默认对象（bundle 原文）：`{enabled:!1, cronExp:"", enableEventReplication:!1, pathPrefix:"", syncDeletes:!1, syncProperties:!1, syncStatistics:!1, type:"remote"}`；本地（push）仓默认 `replications:[]`（数组——multipush 多目标）。 |
 | MUI 映射 | 表单节内 `TextField`（URL/仓对/凭据/pathPrefix）+ `TextField`（cron）+ `Switch/Checkbox` 族（enabled/事件/三个 sync） |
 | BinFlow 载体 | 后端 `ReplicationConfig`（internal/replication/model.go）：Name/SourceRepo/TargetURL/TargetRepo/TargetUsername/TargetPasswordEnc/**MaxBandwidthBytesPerSec/MaxItemsPerPush**/Enabled——**无 cronExp、无 pathPrefix、无 sync 族、无事件开关**（纯事件驱动）；UI **无任何 CRUD 表单**（REST-only，代码注释明示）。 |
-| 差距 | △ 字段集双向错位：BinFlow 缺 cron/pathPrefix/sync 族（对齐需后端模型扩展）；带宽节流/批量上限是 Artifactory 无的**超集**（保留）。表单 UI 本身 ✗ 缺失（②段主工面）。 |
+| 差距 | △ 字段集双向错位：BinFlow 缺 cron/pathPrefix/sync 族（对齐需后端模型扩展）；带宽节流/批量上限是 Artifactory 无的**超集**（保留）。表单 UI 本身 ✗ 缺失（②段主工面）。**v1.5 对账注（T-437）**：表单 UI 已随 T-404 落（仓编辑页 `form-section-replications` 内嵌节——锚册 v1.25）；六字段中 **cronExp 预留位随 Q1 终裁转正为真字段**（FR-150.3 ③ 复制用户级 cron——T-450 承载），enableEventReplication/pathPrefix/sync 三开关**维持预留缺位**（BinFlow 事件驱动语义自有，候裁不伪造——零静默升格纪律同源）。 |
 
 ### R4 cron 表达式形态与校验
 
@@ -254,7 +261,7 @@ BinFlow 族基座：`web/src/components/ConfirmDialog.tsx`（MUI `Dialog`，Esc/
 |---|---|
 | Artifactory 行为（置信度：**中高**——bundle 端点 + 帮助文案实证；crontime 活体直连未复现成功，未验成功不升格） | cron 为 **Quartz 格式**（帮助文案直链 quartz-scheduler.org CronTrigger 2.3.0 教程）；**服务端校验**：`GET {api}/crontime?cron=<表达式>&isReplication=<bool>`（isReplication 区分复制调度语义）；校验失败文案 `"The cron expression is invalid"` / `"Please enter a valid cron expression"`。复制为 **cron 定时 + 事件（enableEventReplication）双轨**。 |
 | BinFlow 载体 | **无用户级 cron**——引擎事件驱动（上传 hook 入队）+ 固定间隔 sweep 兜底（`Engine.SweepInterval` 默认 1m，崩溃恢复用）。 |
-| 差距 | ✗ 缺失（**语义级**：为 per-config 加 cron 是后端引擎调度改造 + 产品双轨决策，超出 FE parity 票范围——**PM 立项评审项**，见 T-402a 报告工料包 B）。 |
+| 差距 | ~~✗ 缺失（语义级——PM 立项评审项，见 T-402a 报告工料包 B）~~ **v1.5 翻案（Q1，2026-09-02 用户终裁引入——推翻 M15 Q5 终裁与 T-402a 勘误）**：cron 调度域转正——**FR-150 / LC-91 / ADR-0044** 承载（T-446 引擎 + T-450 三消费面 BE + T-462 FE；表达式子集 = 本条 Quartz 锚对拍，T-435 规格票）。**T-402a 勘误标注（推翻留痕——勘误原文存档不删，效力自此以本条为准）**：勘误「事件驱动唯一引擎、无用户级 cron、Replicate Now 承接手动全量」被 Q1 终裁推翻，改写为「**事件驱动 + outbox 仍是增量唯一引擎；调度域只触发全量类任务**（GC 全量/备份/复制全量同步），同制品不双推（NFR-P74 / L48 零重复投递断言）」——推翻链三处留痕：BOARD / PRD §5.4 断言反转⑦ / 本条。R 系对账：R5（Run/Replications 列）/ R6（Test）/ R8（全局封锁）已随 M14 T-404 与 M15 T-422 落地；**R 系仅 R4 域翻案在场**，R3 的 cronExp 预留位同场转正（见 R3 v1.5 对账注）。 |
 
 ### R5 Replicate Now 类动作形态
 
@@ -310,7 +317,7 @@ BinFlow 族基座：`web/src/components/ConfirmDialog.tsx`（MUI `Dialog`，Esc/
 ## 7. 差距矩阵（页面 × 模式）——PM 起 M14 UI-parity PRD 直接引用（v1.1 核验后重印；v1.2 增复制行）
 
 图例：✅ 已对齐 ｜ △ 需改造 ｜ ✗ 缺失 ｜ `·` 不适用 ｜（豁）= BinFlow 有意偏离且豁免（§9）
-**v1.1 重印说明**：本版矩阵已吸收 T-381 活体核验结论（V1~V8）；与 v1.0 的差异均以「v1.1」标注。三出口判定见 §8 表下注。**v1.2 增**：复制面专用行（§6A R 系）。
+**v1.1 重印说明**：本版矩阵已吸收 T-381 活体核验结论（V1~V8）；与 v1.0 的差异均以「v1.1」标注。三出口判定见 §8 表下注。**v1.2 增**：复制面专用行（§6A R 系）。**v1.5 注**：用户/组行 M3 格的 ✅ 系 **Artifactory 侧**形态核验结论（矩阵正文保持历史基线不动）；BinFlow 侧内联卡载体经 Q5 终裁路由化收口（T-453——断言反转④）——见 §3 M3 v1.5 勘误与 §12 表 B-2.15 行。
 
 | 页面 | 弹窗向导 M1 | 确认框 M2 | 表单 modal M3 | 抽屉 D1 | 详情分栏 D2 | 工具栏 L1 | 行内菜单 L2 | 空态/骨架/反馈 F 系 |
 |---|---|---|---|---|---|---|---|---|
@@ -333,7 +340,7 @@ BinFlow 族基座：`web/src/components/ConfirmDialog.tsx`（MUI `Dialog`，Esc/
 | 全局壳（N 系） | `·` | `·` | `·` | `·` | `·` | `·` | `·` | N1 ✅ / N2 △（图标槽；V5 已证 7.84 一级条目带图标，维持）/ N3 ✅ |
 | 依赖树 D3 | —（v1.1 关闭：依赖视图挂 Builds 面（§9 永不建），制品页签无对位已实测） | | | | | | | |
 
-**模式级汇总（v1.1 重排；v1.2 增补）**：核验后**唯一高优先 parity 差距 = D1 抽屉族**（Set Me Up 居中 Dialog → 右抽屉 50vw + 补 Resolve Tab）；**次级 = Tokens 页真身**（BinFlow 侧缺口）；原 M1 建仓单 modal 化、M3 用户/组创建 modal 化、L2 ⋮ 菜单三个改造项的 parity 依据经核验**不成立，撤销**（BinFlow 现形态即 Artifactory 形态，或 Artifactory 无对位）；低优先 = L1 列选/刷新、N2 侧栏图标（一级条目档位）、F2 空态插画位。**v1.2 增（R 系，T-402a）**：复制面 = 状态呈现 ✅ 超集（R7）+ 容器形态 ✅（R9）+ push 模型 ✅（R10）；**UI CRUD 表单 ✗**（R1 拓扑裁定 + R3 字段集——FE 为主）；**cron/Replicate Now/Test/全局封锁四项 ✗ 且均为后端语义前置**（R4~R6/R8——超出 FE parity 票，交 PM 立项评审；BinFlow 事件驱动模型是否引入 cron 双轨是产品决策非纯对齐）。
+**模式级汇总（v1.1 重排；v1.2 增补）**：核验后**唯一高优先 parity 差距 = D1 抽屉族**（Set Me Up 居中 Dialog → 右抽屉 50vw + 补 Resolve Tab）；**次级 = Tokens 页真身**（BinFlow 侧缺口）；原 M1 建仓单 modal 化、M3 用户/组创建 modal 化、L2 ⋮ 菜单三个改造项的 parity 依据经核验**不成立，撤销**（BinFlow 现形态即 Artifactory 形态，或 Artifactory 无对位）；低优先 = L1 列选/刷新、N2 侧栏图标（一级条目档位）、F2 空态插画位。**v1.2 增（R 系，T-402a）**：复制面 = 状态呈现 ✅ 超集（R7）+ 容器形态 ✅（R9）+ push 模型 ✅（R10）；**UI CRUD 表单 ✗**（R1 拓扑裁定 + R3 字段集——FE 为主）；**cron/Replicate Now/Test/全局封锁四项 ✗ 且均为后端语义前置**（R4~R6/R8——超出 FE parity 票，交 PM 立项评审；BinFlow 事件驱动模型是否引入 cron 双轨是产品决策非纯对齐）。**v1.5 修正（T-437）**：R5（Run/列内触发）/ R6（Test）/ R8（全局封锁）已随 M14 T-404 与 M15 T-422 落地；R4 cron 经 **Q1 终裁翻正立项**（FR-150/ADR-0044——§6A R4 v1.5 翻案标注，推翻 M15 Q5 留痕）；E2/E6 翻案、E5 注销见 §9——翻案后唯一存活的「UI CRUD 缺口」面收敛为零。
 
 ### 7A. T-400 终评表（v1.3，2026-09-01——L16 逐格终评落档；矩阵正文保持 v1.2 历史基线不动）
 
@@ -389,18 +396,139 @@ BinFlow 族基座：`web/src/components/ConfirmDialog.tsx`（MUI `Dialog`，Esc/
 
 | # | 偏离点 | 理由 |
 |---|---|---|
-| E1 | 删除类动作不进列表行内/不做一键删 | 危险动作显式化（P5）；制品不可变，无撤销。**v1.1 实证加码**：7.84 行内直删 trash 图标 + 仅一次单击确认（V4/V8）——BinFlow 的输入 key 确认 + 危险区收束比 Artifactory 原生更严，豁免立场稳固 |
-| E2 | 「加载更多」增量分页（非页码控件） | keyset 游标 + 工程师心智（console-ux §6） |
+| E1 | 删除类动作不进**管理列表**行内 / 不做一键删（**v1.5 范围修正，Q2 出口①——管理列表 vs 浏览器表分治**） | 危险动作显式化（P5）；制品不可变，无撤销。v1.1 实证加码维持（7.84 行内直删 trash + 单击一次确认 + 绿色 Delete——V4/V8，Artifactory 原生更激进）。**v1.5 分治文本**：① **管理列表**（仓库/用户/组/权限/token 等实体列表）——删除不进行内、收详情危险区（输入 key 强确认 + 影响面摘要），现行态维持；② **浏览器面**（制品树/children 表/属性行）——v1.0~v1.4 期间 children 表每行红色「删除」钮与 ① 文本相抵（审计 C2-b 坐实），Q2 终裁**收紧不倒退**：浏览器面行内删除件须过危险确认（输入名档）或收进详情面板/右键菜单。**as-built 对账（T-434，2026-09-02）**：children 表操作列（详情/下载/删除三钮）已退役——删除收敛进详情面板与右键菜单（两者都过危险确认）、下载在右键与详情、详情入口经行点击/树叶子——新文本零违例；NFR-S78 全删除面按本文本复核（L35/L37/L44） |
+| E2 | ~~「加载更多」增量分页（非页码控件）~~ **v1.5 翻案改写（Q4，2026-09-02 用户终裁，出口①翻正）——豁免注销** | **页码控件 ×9 处统一**：FR-144.7 / LC-98 承载（T-451 共享分页组件 + ×9 消费点迁移——消费点清单票内 grep 盘点入锚册，实际多于 9 以盘点为准）。**语义自有 C 注**：后端维持 keyset 游标 + 页窗映射（呈现对齐、深翻页 offset 扫描成本规避）；分治口径与控件形态断言锚见 §5 L4 v1.5 注 + §11.2；console-ux §6「加载更多」条款回写归 T-451 票内（锚册 v1.32 预登记——防失锚） |
 | E3 | 仓库类型 badge 用中性色 | 颜色预算留给状态（console-ux §7.1） |
-| E4 | 权限编辑器为整页 + 模式测试器 + diff 确认 | BinFlow 增强面，Artifactory 无对位 |
-| E5 | 用户/组**创建与编辑**均保留页面形态 | **v1.1 改写**（原条目仅覆盖编辑）：V6 实测 7.84 创建即整页路由表单，页面形态不再是偏离而是对齐；modal 化决策项 B 已撤销 |
-| E6 | UI 文案中文 + 术语保留英文原词（repository key/deployment 等） | console-ux §1.2 命名对齐条款 |
+| E4 | 权限编辑器为整页 + 模式测试器 + diff 确认 | BinFlow 增强面，Artifactory 无对位（**stay-out 确认 §9A-S1**——A8/Q9；T-455 两步弹窗只换入口形态，编辑器本体零删除断言承载） |
+| E5 | ~~用户/组创建与编辑均保留页面形态~~ **v1.5 注销（Q5，2026-09-02 终裁路由化）——豁免条目除名** | **前提失效**：v1.1 改写所依据的「BinFlow 已用路由实体表单」被 M16 审计推翻（用户/组创建实为列表页内联展开卡——B-2.15；V6 只核了 Artifactory 侧）。Q5 出口①：`/users/new`、`/groups/new` 整页路由表单（FR-145.1 / T-453——断言反转④），内联卡退役。**路由化兑现后该面为对齐项非偏离项**（Artifactory 创建即路由表单——V6）；编辑面路由页维持对齐不变；本条目自豁免清单除名留档，M3 勘误同场（§3） |
+| E6 | ~~UI 文案中文 + 术语保留英文原词~~ **v1.5 翻案改写（Q3，2026-09-02 用户终裁——超集出口）——单语豁免注销** | **双语可切换**：zh 默认维持（零语义变化——现行文案原样迁移）+ en 资源包对齐 Artifactory 英文形态；**术语两包保真**（repo key / deployment / checksum / Set Me Up 等英文原词在两包中一致——console-ux §1.2 命名对齐条款升格为两包条款，升格回写归 T-463/T-464 票内，锚册 v1.32 预登记）。承载：FR-149 / LC-97（T-463 框架 + 文案外提 100% + CI 断言；T-464 双包 + 切换器 + 断言双语化）；断言反转⑥——默认 locale（zh）全量断言维持零翻新、en 抽样腿、锚 id 与文案解耦（锚册零改名）。**非单语倒退**：翻案出口 = 超集（可切换），中文产品定位维持 |
 | E7 | toast 锚位暂保留右下 | **v1.1 转「再议」**：V3 实证 Artifactory = 顶部居中单条 ~2-3s 无堆叠；BinFlow 右下堆叠 + error 常驻为有意设计，默认不改；是否对齐交 PM/用户（改动成本一行级，见 §8 三出口） |
+
+### 9A. stay-out 登记（M16 / A8 清单确认——v1.5，2026-09-03，T-437）
+
+A8 = Artifactory 无对位（建了不对齐）或对位即要避开的形态。M16 翻案语境下逐项确认维持（PRD §0.2——Q9 裁点；已定项标依据，倾向项标「候 Q9」）。**登记即契约**：后续票不为其建载体；翻案须 Q 裁定 + 本册版本递增双留痕（§1.4 条款 1 同源纪律）。
+
+| # | stay-out 项 | 处置 | 依据 / 候裁 |
+|---|---|---|---|
+| S1 | E4 权限编辑器整页 + 模式测试器 + diff 确认 | **维持**（BinFlow 增强面，Artifactory 无对位） | A8；T-455 只换「新建权限/添加仓库·用户组」入口为两步弹窗，编辑器本体 + 测试器/diff 零删除断言承载（T-455 AC3） |
+| S2 | L2 行内 ⋮ 菜单 | **维持不建** | V4 实证 7.84 行尾无 ⋮（= trash 直删——恰是 E1 要避开的激进形态）；「复制 key / Set Me Up 行内快捷」留自有增强票，不挂 parity 旗 |
+| S3 | 结果计数一致性（header/footer 恒一致） | **维持**（不对齐 Artifactory 实测 header 计数滞后错位缺陷——BinFlow 更优） | A8 明细；B-3.17 |
+| S4 | 仓库详情中间页（`/:key` 概要/配置/Replications） | **维持自有**（候 Q9 终裁确认——PM 倾向维持） | B-3.13；Artifactory 行点击直进编辑、无详情层；BinFlow 附加层是配置/危险区/Set Me Up 的载体——拆层即信息架构重排，非对齐收益 |
+| S5 | children 表复合形态 | **收窄已落**（T-434 as-built）：操作列退役（删除→详情面板/右键、均过危险确认；下载→右键/详情）；表本体保留为目录浏览增强（Artifactory 右侧纯 item view；BinFlow 目录给「直系概要 + 表」双呈现） | Q2 出口① + Q9 倾向收窄已兑现；E1 分治文本见 §9 E1 |
+| S6 | disable 快照契约翻转 | **维持关闭** | T-364 钉死；无用户推翻信号（A8） |
+| S7 | 快搜范围页签（Artifacts/Packages/Builds） | **维持缺位**（R2 类型化落地后再现——既定设计；Builds 页签 dep Build-info 域） | B-2.14 分拆注记；M17 预立项段随域解禁 |
+| S8 | 无数据源不伪造族：Module ID 字段 / Any Distribution 预置 / Project·Environment·Shared With 列 / Realm 列 | **维持缺位登记**（域落地后随域解禁） | PRD §1.4 条款 2 / §0.3——Build-info / Release Bundle / Projects 域归 M17 预立项段；Environment 列与 FR-143.2 Environments 字域联动（T-439 票内核对，缺位不伪造） |
+
+**候裁子项（非 stay-out——Q9 裁点挂起，批次②③断言冻结前裁，裁毕回写本表）**：表单 footer 重置钮（PM 倾向移除——T-439 兑现 + M1 行联动留痕）/ mimeType 与校验徽标块（PM 倾向收进下载伴随——T-447）/ 详情「类型/子项/修改时间」列去留（T-445 票内）/ 组·权限列表行内「编辑」钮超集（L2/E1 家族延伸——V4 实证 Artifactory 行尾仅 trash，候 Q9 复核收敛或维持）。
 
 ## 10. 落地批次建议（供 PM 排 M14 拆票；全部为 FE 票，不动后端）——**v1.1 按核验结论重排**
 
 - **批 1（高置信形态对齐，PRD 可直接断言）**：① **D1 Set Me Up 抽屉化**（唯一存活的批 1 parity 票：壳 `Dialog` → 右 `Drawer`，宽 `clamp(480px, 50vw, 800px)`，**Tab 补第三枚 Resolve**，底栏「返回链接 + Done」对齐；含 Deploy 对话框评估——决策项 C：建议 Deploy 保持居中 Dialog，上传进度表在抽屉里过窄，v1.1 实测 7.84 制品页 Set Me Up 与 Deploy 并列，建议维持）。~~② M1 建仓向导单 Dialog 化~~（**v1.1 撤销**：V2 证实现形态已对齐）；~~③ M3 用户/组创建 modal 化~~（**v1.1 撤销**：V6 证明 7.84 即整页表单）；~~④ L2 行内 ⋯ 菜单~~（**v1.1 撤销 parity 旗**：V4 证明 7.84 无 ⋮；复制 key/Set Me Up 行内快捷可留作可选自有增强票，不挂对齐目标）。
 - **批 2（补缺与低优先）**：⑤ Tokens 页真身（M3 规格；v1.1 补参照形态：生成区 + token 表（Description/Token ID/Issued At/Expiry Date）+ 一次性明文面板 + 吊销确认）；⑥ L1 列选器 + 刷新（仓库/审计先行；v1.1 旁证：7.84 用户/Builds 列表均有 Customize Columns）；⑦ F2 空态插画槽位；⑧ N2 侧栏图标槽（**V5 已核验：照排**，档位=一级条目）。
 - **批 3（核验后微调）**：**F1 toast 锚位——E7 再议中**（V3 实证差异，默认不改，待 PM/用户定夺）；~~M1/M3 细节修正~~（V2/V6 核验后无遗留修正项；唯一残留 = V6c token 生成表单字段集，随 ⑤ 接线票以 `smu-token-panel` 既有形态覆盖）。
-- **批 4（v1.2 增：复制面 T-402 ②实现段，候 FE lane）**：**⑨ 复制 CRUD UI**（包 A——表单〔现有 REST 字段集：name/源仓/目标 URL/目标仓/凭据/enabled/带宽/批量上限〕+ 删除 ConfirmDialog〔E1 输入 name 档〕+ 仓详情 Tab 升级〔R1 拓扑二选一，PM 裁〕；**阻塞点 = REST 无 PUT**——启停需先落 mini 后端票）；**⑩ cron/Replicate Now/Test/全局封锁**（包 B——四项均后端语义前置〔R4~R6/R8〕，PM 立项评审后再拆 FE 腿；工料详见 `reports/agents/T-402a.md` §5）。
+- **批 4（v1.2 增：复制面 T-402 ②实现段，候 FE lane）**：**⑨ 复制 CRUD UI**（包 A——表单〔现有 REST 字段集：name/源仓/目标 URL/目标仓/凭据/enabled/带宽/批量上限〕+ 删除 ConfirmDialog〔E1 输入 name 档〕+ 仓详情 Tab 升级〔R1 拓扑二选一，PM 裁〕；**阻塞点 = REST 无 PUT**——启停需先落 mini 后端票）；**⑩ cron/Replicate Now/Test/全局封锁**（包 B——四项均后端语义前置〔R4~R6/R8〕，PM 立项评审后再拆 FE 腿；工料详见 `reports/agents/T-402a.md` §5）。**v1.5 注（T-437）**：⑩ 已全部兑现/转正——Replicate Now/Test/全局封锁随 M14 T-404 与 M15 T-422 落地；cron 经 **Q1 终裁转正** FR-150（M16 T-446/T-450/T-462——ADR-0044 承载，§6A R4 翻案标注）。
 - 品牌资产接线（UX-1 另两交付）随批 2 并行：logo 落地清单见 `docs/design/brand/logo/README.md` §4；包型图标接线注意见 `docs/design/brand/package-icons/README.md` §6（低置信三枚已于 2026-08-31 活体对照修正，见该 README §4）。
+
+---
+
+## 11. K67 冻结：树栈 as-built 断言锚 + 分页控件形态锚（v1.5，2026-09-03，T-437）
+
+> K67（PRD §5.6）本义 = 树头工具带断言锚。本节冻结范围扩为**树栈全套 as-built 定案**（T-434 已落码 + t226 活体对照 + 锚册 v1.31 登记块）**+ 分页控件形态锚**（Q4 出口①——LC-98/T-451 断言地基）。**冻结即契约**：dep T-437 的 FE 票（T-439/441/443/445/447/449/451/453/455）断言直接引用本节；偏离 = 改契约，须回本册版本递增。锚名权威源 = console-ux §10.5 T-434 批登记块（本节不复列锚名清单）。
+
+### 11.1 树栈四项 as-built（T-434 已落——断言反转①；spec = `web/e2e/m16/t434-tree-stack.spec.ts` 5 腿）
+
+| # | 断言面 | as-built 定案（冻结） |
+|---|---|---|
+| K67-1 | 文件叶子进树 | 目录与文件同行渲染（**目录在前、文件在后**）；「（空）」占位仅在**真空目录**渲染；TREE_LEVEL_CAP 口径 = **目录 + 文件合计**（300 档维持——文件节点计入后的预算复核已随票归档，NFR-P70 绿）；文件叶子点击 → 右侧 item view；children 表收窄见 §9A-S5 |
+| K67-2 | select ≠ expand | 单击仓库名 = 纯选中（`aria-expanded` 前后不变）；展开只由 expanded 集驱动（箭头 twisty / 键盘 → / 深链祖先链）；**深链祖先链含仓根 + 被选目录自身**（对齐项维持不动——Artifactory 同语义） |
+| K67-3 | URL 模型（**TAB 省略规范形**） | `/artifacts/[<TAB>/]<repo>/<path>`；TAB ∈ {general\|properties\|permissions}，**省略 = general 规范形**——默认档不占段（全部既有仓/目录深链保持规范形零重定向；书签与既有 spec 断言面不猝死），**非默认页签恒占段**；文件 = 路径末段（末段文件/目录判别经父目录 listing，零额外请求）；旧 `?focus=` 与多段旧形一次性 replace 折入（**兼容重定向维持一轮**——发射端翻新归 T-449：DashboardPage/SearchPage/AqlPanel 改发路径段深链）；reload / 重开 / 分享三态一致 |
+| K67-4 | 树头工具带 | 三行带形态、**不随树滚动**（`.browser-tree-scroll` 滚动区让位）：过滤仓库文本框（载体自页头迁树头，锚不变）+ 包类型 facet 复选组（**选项集 = 已加载清单实有型**，动态——不伪造未启用型）+ rclass 复选组（**三态：local / remote / virtual**）+ Sort-by（名称 / 包类型 / 仓库类型）+ Compacted/Non-Compacted 单选（紧凑行高档）+ My Favorites（前端态 localStorage 持久；标记入口 = 仓库右键 `tree-context-favorite`） |
+
+**K67 附注三条（T-434 契约漂移注记升格冻结）**：
+
+1. **rclass 三态形态**：Artifactory 的 Cache 位 = remote 仓**缓存子集视图**（reverse §3.2 回填口径）；BinFlow remote 浏览面本就是缓存落地行——**不伪造第四态**。远端浏览可选档（FR-147——T-448/T-461）on 时 remote 树含未缓存远端行，仍记 remote 态、不拆 Cache 态。
+2. **TAB 词与 repo key 同名 known-edge**：repo key 与 TAB 词（general/properties/permissions）同名时按 TAB 解析——该名仓库经 `/artifacts/general/<key>` 仍可达（路由 `:tab/:key` 排位优先于 `:key/*`）。
+3. **文件深链多付一次请求**（装载链乐观取全路径 → FileInfo GET + `?list` 400 快速失败）——正确性优先的已知代价，非热路径（NFR-P70 门未触）；优化窗口留后续性能票，**不进断言面**。
+
+### 11.2 分页控件形态（Q4 出口①——LC-98 / T-451 断言锚）
+
+| 断言面 | 冻结形态 | 置信度 |
+|---|---|---|
+| 控件品种 | 页码数字序列（当前页高亮）+ 首/上一页/下一页/末页按钮 + 每页行数选择器 | 形态**高**（Artifactory 管理列表通行形态 + t226 列表实测页码控件在场——L4 v1.1 中置信升格）；**每页行数档位候 T-451 票内 t226 复核后冻结，不静默升格** |
+| 边界态 | 首页时「首页/上一页」禁置、末页时「下一页/末页」禁置；单页全量时控件整体呈现、全链禁置——**禁置不隐藏**（P7 键盘可达） | 高（本册族通用规格） |
+| 语义 C 注 | 后端维持 keyset 游标 + **页窗映射**（页码跳转 = 前端游标链推进，深翻页 offset 扫描成本规避）；呈现对齐、语义自有——LC-98 C 注留痕 | 定案（Q4 终裁附带） |
+| 适用范围 | 管理列表 + 结果表（×9 消费点）；**制品树/大目录深浏览维持增量加载**（分治口径见 §5 L4 v1.5 注——Artifactory 同为双轨） | 定案 |
+| 消费点清单 | T-451 票内先 grep 盘点「加载更多」族全量清单入锚册（B-3.3 实测基数 9——实际多于 9 以盘点为准） | 待盘点（票内） |
+
+---
+
+## 12. B 47 项四态预归属表（v1.5，2026-09-03，T-437——供 QA 终验收口审计〔T-460/T-466〕对账）
+
+> 源：`reports/m16-parity-audit-material.md` §B（t226 逐页实测 + 代码行锚）。四态 = **翻正**（对齐改造落票）/ **豁免·复核**（豁免条目经 Q 表或审计显式复核——维持或注销均留 Q 编号）/ **stay-out 确认**（§9A 登记）/ **候裁挂起**（Q 编号在册或无主候选待核定）。
+> **行数对账**：材料自报 47（logic 11 / visual 17 / minor 19），实列行 **48**（B-2 实列 18 行——B-2.7/B-2.10 系同主题「独立取证口径」行，材料自计数按主题归并 1）；本表**按行全列 48**、同主题行标「对账去重行」——零丢项零无主，收口审计以本表行数为准确口径。
+> **行级汇总**：翻正 36（已落 4——T-434；在途 32）/ 豁免·复核维持 3 / stay-out 确认 2 / 候裁挂起 4 / 对账去重行 3。
+
+### B-1 logic（11 项——批次① + 表单栈 + 安全栈 + cron 域）
+
+| # | 偏差点（摘） | 四态归属 | 承载票 / 依据 |
+|---|---|---|---|
+| B-1.1 | 左树无文件叶子（folders-only + 误导「（空）」） | **翻正 · 已落** | T-434 done（断言反转①；K67-1） |
+| B-1.2 | 选择即展开（Select ≠ 纯 select） | **翻正 · 已落** | T-434 done（K67-2） |
+| B-1.3 | URL/状态模型（页签不进 URL + `?focus=`） | **翻正 · 已落** | T-434 done（K67-3——TAB 省略规范形）；`?focus=` **发射端**翻新 → T-449 AC2 |
+| B-1.4 | 树头工具带缺失 | **翻正 · 已落** | T-434 done（K67-4）；reverse §3.2 facet 回填同票已清偿（2026-09-02 补记在案） |
+| B-1.5 | 表单藏字段（maxUniqueSnapshots/repoLayoutRef/blackedOut/archiveBrowsingEnabled——PUT 全收 UI 无） | **翻正**（候 Q8 附注——倾向全补） | T-439（批次②；提交-回显-行为三链表驱动 spec；repoLayoutRef 联动评估 K 项票内登记） |
+| B-1.6 | 权限动词集（无 Annotate；write 未拆 Deploy/Cache） | **翻正**（Q7 已裁加） | T-444（BE 动词域 + 迁移零提权 NFR-S77）+ T-455（FE 矩阵五列——LC-88） |
+| B-1.7 | 用户表单能力位（缺三旗；双布尔被三值枚举替） | **翻正** + 候裁臂 | T-453（三旗 A 腿 + 行为联动断言）；双布尔 vs 枚举 = **候裁挂起**（ADR-0026 闭集——v1.0 暂行维持枚举 + 差异登记） |
+| B-1.8 | Profile 无自助 token/SSH（签发指到 admin 页） | **翻正**（文档化设计推翻——非正式豁免补齐） | T-457（一次性明文 + 即时可用 curl 断言；Access Tokens L1 重评联动 A7） |
+| B-1.9 | GC 维护面（无 cron / Cleanup 两族 / Quota 百分比） | **翻正**（Q1 已裁） | T-446/T-450（引擎 + BE）+ T-462（FE 消费面——FR-145.7 呈现承载） |
+| B-1.10 | 备份页（无定时 CRUD / import/export 页） | **翻正**（Q1 已裁） | T-450（BE：New Backup/cron/next-run/列表）+ T-462（FE；手动 dry-run/apply 并存维持） |
+| B-1.11 | 监控组仅存储页（无 System Logs / Service Status） | **翻正**（P2） | T-459（SystemInfoPage 归位服务节点组；载体票内定案——零新端点优先） |
+
+### B-2 visual（18 行——去重后 17 项；批次②③④主体）
+
+| # | 偏差点（摘） | 四态归属 | 承载票 / 依据 |
+|---|---|---|---|
+| B-2.1 | 详情页签集逐级不同 + 顺序（属性在权限前） | **翻正** | T-445（三级页签序断言——权限在属性前；admin-only 门控维持） |
+| B-2.2 | children 表复合 + 行内删除与 E1 相抵 | **翻正 · 部分已落** + 豁免·复核 | 操作列退役已落 T-434（Q2 出口①——E1 分治文本 §9 + as-built 对账）；表本体保留为增强（§9A-S5；候 Q9 确认） |
+| B-2.3 | 文件元数据字段集（缺 File URL/Downloads 族/virtual 关联块；多出 mimeType/校验块） | **翻正** + stay-out 分拆 + 候裁 | 翻正：T-445（dep T-438 字段族端到端）；stay-out：Module ID（§9A-S8——dep Build-info，M17 解禁）；候裁：mimeType/校验块（Q9 倾向收进下载伴随——T-447） |
+| B-2.4 | 仓库/目录元数据（仓缺 Layout/Description/Created/Count；目录缺 File URL） | **翻正** + 候裁 | T-445（与 T-434 目录直系概要对账）；「多出类型/子项/修改时间」处置候 Q9 |
+| B-2.5 | 表单结构扁平（无 Basic\|Advanced\|Replications 步进） | **翻正** | T-439（复制配置移第三步——M6 能力语义零变化） |
+| B-2.6 | 包类型弹窗（440px/13 tiles/8 禁用 vs 880px 全可用） | **翻正** | T-441（modal 880px + 8 包型开禁——**M1 行再修订留痕归 T-441 落地时**，本版仅归属预告不预改 v1.4 定案文本；型录维持 13 实有不伪造） |
+| B-2.7 | 制品详情页签（独立取证口径——同 B-2.1 主题） | **对账去重行** | 归 B-2.1 / T-445 |
+| B-2.8 | 有效权限渲染（chip 列表 vs 分段开关 + 网格 + 列选；不显授予 target） | **候裁挂起（无主候选）** | PRD FR-144 未列该细分——分段开关 + AG 网格系重载体；建议 T-445 票内评估「授予 target 可见性」信息增补（轻腿），重载体候 PM 裁；**收口审计 T-460 对账点** |
+| B-2.9 | 属性编辑解剖（隐藏表单 + 逐行 ✎/🗑 vs 常显输入 + Add + 网格搜索） | **翻正** + 候裁臂 | T-447（行内删除与 E1 关系统一——Q2 出口①）；Property\|Property Set 分段 = 候裁（K68——裁做须 BE 属性集小域另立票，不做缺位登记） |
+| B-2.10 | General 字段集（独立取证口径——同 B-2.3 主题） | **对账去重行** | 归 B-2.3 / T-445 |
+| B-2.11 | 搜索结果列集（三源不一致：现行五列 vs T-414 注释 vs console-m8 §6.4） | **翻正** | T-449（断言反转②——name 链接\|Path\|Repository\|Modified + 选择列；大小+sha256 移列选器可选项） |
+| B-2.12 | 下载形态（两带文字按钮 vs 单 24px 图标钮） | **翻正** | T-447（Q2/Q9 处置——校验能力收进伴随形态） |
+| B-2.13 | 查询位置（页内输入 vs 顶栏驻留 + 网格快滤） | **翻正** | T-449（AQL 模式编辑器共存形态票内设计） |
+| B-2.14 | 快搜入口（253px 紧凑 vs 815px overlay + 范围页签） | **翻正** + stay-out 分拆 | 翻正：T-449（空历史「No recent searches yet」占位恒渲染——`AppShell.tsx:628` 对位）；stay-out：范围页签缺位维持（§9A-S7——R2 既定 + Builds dep M17） |
+| B-2.15 | 用户/组创建内联卡（与 E5/V6 决策前提矛盾 + BinFlow 内部不一致） | **翻正**（Q5 已裁路由化） | T-453（断言反转④——/users/new、/groups/new 深链整页表单 + 内联卡退役断言；E5 注销 §9 + M3 勘误 §3） |
+| B-2.16 | 权限编辑器内联形态（vs 两步弹窗） | **翻正** | T-455（① 选仓双列 + Any Local/Any Remote 预置〔Any Distribution 缺位登记 §9A-S8〕→ ② Set Patterns；E4 本体维持 §9A-S1） |
+| B-2.17 | 帮助钮（纯链接 vs ? 下拉 + About 弹窗） | **翻正** | T-457（链接形态照 ux 定案；About 版本弹窗——侧栏脚注 vdev 升格） |
+| B-2.18 | Admin 导航分组（认证单页三页签 / Webhooks·维护·备份挂治理 / 无侧栏过滤） | **翻正**（P2） | T-459（Webhooks 归常规组、维护·备份归服务节点组〔与 T-462 挂靠一致〕；HTTP SSO/Crowd/JIRA 缺位 = 域不存在登记不伪造） |
+
+### B-3 minor（19 项）
+
+| # | 偏差点（摘） | 四态归属 | 承载票 / 依据 |
+|---|---|---|---|
+| B-3.1 | 右键菜单集更小 | **豁免 · 复核维持** | 大半豁免（Pro 门控 Copy/Move/Versions 等族 + E1）；admin 深链 = 自有增强维持；A8 复核在案 |
+| B-3.2 | 初始态（无选中 + 静态引导卡 vs 首仓库自动选中 + item view） | **候裁挂起（无主候选）** | FR-142.5 登记但 T-434 未承载（票面四项外）——建议 T-445 票内顺车（树 + 详情联动面）或 PM 收口笔 T-460 核定单列；**收口审计对账点** |
+| B-3.3 | 空态/上限/分页（「（空）」占位 / CAP=300 / BIG_DIR=2000 / 表 100/页加载更多） | **翻正** + 豁免·复核 | 翻正：E2→页码控件 ×9（Q4——T-451，断言锚 §11.2）；豁免维持：TREE_LEVEL_CAP/BIG_DIR 自工程通知（无害自设计——K67-1 口径冻结） |
+| B-3.4 | 系统节点（无 build-info 伪仓库；Trash 叶节点） | **豁免 · 复核维持** | build-info 不建（§9 永不建③ + M17 预立项段）；Trash 维持 T-372 最小入口形态；「回收站」中文文案随 i18n 键化（E6 两包条款） |
+| B-3.5 | 仓库/目录字段（同族复核） | **对账去重行** | 归 B-2.4 / T-445（材料原文「原始归 minor」的归并在案） |
+| B-3.6 | remote 表单无 Test 连通性（唯一 Test 在复制子表单） | **翻正** | T-442（BE 端点——Engine.TestTarget 同构复用；wire 归属〔歧义⑥〕票内与 conductor 核定落 LC）+ T-443（FE 三臂消费 + 零副作用） |
+| B-3.7 | 编辑表单 Save 无 dirty-gating | **翻正** | T-443（进入 disabled / 变更 enabled / 无变更提交不可达） |
+| B-3.8 | 创建入口拓扑（单「＋ 添加仓库」+ 表单内 rclass vs 下拉三预选分路由） | **翻正** | T-443（/new 直链兼容映射；表单内 rclass 控件移除） |
+| B-3.9 | 仓库列表列集（缺 Project/Environment/Shared With；Remote 页签缺 Replications 列；多出冗余「类型」列） | **翻正** + stay-out 注记 | T-443（冗余「类型」列收敛〔候 Q9 附注〕+ Remote 页签 Replications 列——as-built 对账：列 + Run 动作已随 T-404 落，push-only 口径注记 ADR-0021/R10）；Project/Shared With 缺位登记不伪造（§9A-S8） |
+| B-3.10 | 仓库行操作超集（copy-key + Set Me Up + 部署 vs 单 trash） | **豁免 · 复核维持** | L2 v1.1 + E1（T-443 AC3 零倒退断言承载） |
+| B-3.11 | 表单 footer 多「重置」钮 | **候裁挂起（Q9 倾向移除）** | T-439 兑现 + M1 行联动留痕（M1 锚点 Cancel + Create/Save 对齐）；批次②断言冻结前裁 |
+| B-3.12 | 表单概念级缺口（Environments 多选 / 描述拆分 / Force Auth / Suppress POM） | **翻正**（候 Q8 附注——倾向全补） | T-439（与 B-1.5 同票字段域表驱动） |
+| B-3.13 | 仓库详情中间页 | **stay-out 确认**（候 Q9 终裁） | §9A-S4——PM 倾向维持自有（Artifactory 无详情层） |
+| B-3.14 | 搜索行导航（整行可点 vs 仅 name 单元格深链） | **翻正** | T-449（行体 inert；深链 = 路径段形——K67-3 联动） |
+| B-3.15 | 日期格式（结果表无时区偏移；详情裸 ISO） | **翻正** | T-449（结果表 `dd-MM-yy HH:mm:ss +ZZZZ` 正则断言）+ T-445（详情 ISO 格式化——T/.000Z 不裸显）；en 变体归 T-464（locale 化，FR-149.4） |
+| B-3.16 | 快搜空历史不渲染下拉 | **翻正** | T-449（与 B-2.14 翻正腿同源） |
+| B-3.17 | 结果计数一致性 | **stay-out 确认** | §9A-S3——BinFlow header/footer 恒一致更优，不对齐 Artifactory 实测缺陷 |
+| B-3.18 | 用户列表列（无 Realm/Last Login/网格搜索框） | **翻正** + stay-out 分拆 | 翻正：Last Login（T-454 BE 派生 + T-468 FE 列——**条件票**，Q10 裁点）；stay-out：Realm（无端点列不伪造——§9A-S8）；网格搜索框候 T-468 联动（列选器族推广） |
+| B-3.19 | 组/权限列表（列集差异 + 行内「编辑」钮超集） | **候裁挂起**（部分） | 列集差异候 T-468（条件票——LC-96 列选器推广）；行内编辑钮 = L2/E1 家族豁免延伸（V4 实证行尾仅 trash）——候 Q9 复核收敛或维持（§9A 候裁子项） |
+
+**表尾结论（收口审计输入）**：48 行四态齐备零无主——翻正 36（T-434 已落 4 / 在途 32 标票号）、豁免·复核维持 3、stay-out 确认 2（另有 5 行内分拆 stay-out 子项归 §9A）、候裁挂起 4（B-2.8、B-3.2 无主候选 → T-460 核定；B-3.11、B-3.19 候 Q9）、对账去重行 3。候裁项终裁后回写本表 + 版本递增。
