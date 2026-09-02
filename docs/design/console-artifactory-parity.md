@@ -99,7 +99,7 @@ BinFlow 族基座：`web/src/components/ConfirmDialog.tsx`（MUI `Dialog`，Esc/
 | Artifactory 行为（**V2 已核验 2026-08-31，逐项实测**） | ① 入口：仓库列表页 **「Add Repositories」下拉**（Local / Remote / Virtual 三项）——rclass 在进向导前选定，**不在 modal 内以 Tab/分段控件出现**；② 「Select Package Type」**modal 网格**：宽 **880px** 居中、右上 X，90×90 包型磁贴（inline SVG 官方标）；③ 选磁贴后 **modal 关闭、落在整页路由表单**（`/ui/admin/repositories/local/new`，标题 "New Local Repository"）——**不是单 modal 全程**；④ 表单字段：Repository Key / Environments / Repository Layout / Public Description / Internal Description + 折叠高级节（Disable Artifact Resolution… / Allow Content Browsing / Enable Event Replication 等复选项）；⑤ 页脚：**Cancel（左，transparent）+ Create Local Repository（右，primary）**。 |
 | MUI 映射 | 网格步 `Dialog`（Artifactory 实测 880px；**BinFlow 定案 440px 紧凑档不追平**——paper sx `min(440px, calc(100vw - 48px))` 钉死，v1.4 定案见差距行）+ 表单步**路由页**分节 `Paper` |
 | BinFlow 载体 | `web/src/pages/repositories/RepositoryFormPage.tsx`——已是两段式：`pkg-grid` Dialog（选择包类型，带 `pkg-tier-*` 档位徽章；**T-390 卡面复活后形态**：`.pkg-grid-item` 类名复线，卡面边框/surface 底/hover/禁用置灰生效，可选磁贴 brand 图标 22px、门控磁贴 mono + opacity 0.4 + 徽章）→ **路由页** `/admin/repositories/new` 单页分区表单（常规/来源/成员/策略/治理/高级六节 `Paper`）；rclass 由 URL query 预选 + 单选组。 |
-| 差距 | ✅ 已有（**v1.1 核验改判：决策项 A 撤销**——7.84 实测即「网格 modal → 整页表单」两段式，BinFlow 现形态与 Artifactory 一致，无需收单 Dialog）。保留微差注记：Artifactory 的 rclass 由入口下拉选定，BinFlow 用 URL query + 页内单选组——手势等价，不改。网格 modal 宽度**定案升级（v1.4，ux 会签位）**：Artifactory 880px 系 33 包型 90×90 大磁贴档位；BinFlow 5 核心 + 8 门控槽位、190×44 高密度卡磁贴（icon+名+述+徽章）——**定案 440px 紧凑档、不追平 880px**（追平即大面积留白；T-383 票内定案并写进 e2e 断言 `toBeCloseTo(min(440, vw-48))`，T-390 磁贴卡面复活后宽度档复证不破——宽度由 paper sx 钉死，磁贴形态变化不外溢）。原「宽度参考 880px（BinFlow 现档位即可）」措辞据此收口。 |
+| 差距 | ✅ 已有（**v1.1 核验改判：决策项 A 撤销**——7.84 实测即「网格 modal → 整页表单」两段式，BinFlow 现形态与 Artifactory 一致，无需收单 Dialog）。保留微差注记：Artifactory 的 rclass 由入口下拉选定，BinFlow 用 URL query + 页内单选组——手势等价，不改。网格 modal 宽度**定案升级（v1.4，ux 会签位）**：Artifactory 880px 系 33 包型 90×90 大磁贴档位；BinFlow 5 核心 + 8 门控槽位、190×44 高密度卡磁贴（icon+名+述+徽章）——**定案 440px 紧凑档、不追平 880px**（追平即大面积留白；T-383 票内定案并写进 e2e 断言 `toBeCloseTo(min(440, vw-48))`，T-390 磁贴卡面复活后宽度档复证不破——宽度由 paper sx 钉死，磁贴形态变化不外溢）。原「宽度参考 880px（BinFlow 现档位即可）」措辞据此收口。**v1.5 注（T-439 as-built，B-3.11/Q9 兑现 + B-2.5 三段）**：表单已升级 **Basic | Advanced | Replications 三段步进条**（Artifactory 7.161.20 :8082 活体复核——jf-steps 三步条形态证实，页脚 = Cancel + Create 两钮**无 Reset**）；BinFlow footer 重置钮随票移除（页脚两钮对齐 M1 锚点）；复制配置内嵌节迁第三步（M6 语义零变化）。 |
 
 ### M2 删除确认（危险确认族）
 
@@ -476,7 +476,7 @@ A8 = Artifactory 无对位（建了不对齐）或对位即要避开的形态。
 | B-1.2 | 选择即展开（Select ≠ 纯 select） | **翻正 · 已落** | T-434 done（K67-2） |
 | B-1.3 | URL/状态模型（页签不进 URL + `?focus=`） | **翻正 · 已落** | T-434 done（K67-3——TAB 省略规范形）；`?focus=` **发射端**翻新 → T-449 AC2 |
 | B-1.4 | 树头工具带缺失 | **翻正 · 已落** | T-434 done（K67-4）；reverse §3.2 facet 回填同票已清偿（2026-09-02 补记在案） |
-| B-1.5 | 表单藏字段（maxUniqueSnapshots/repoLayoutRef/blackedOut/archiveBrowsingEnabled——PUT 全收 UI 无） | **翻正**（候 Q8 附注——倾向全补） | T-439（批次②；提交-回显-行为三链表驱动 spec；repoLayoutRef 联动评估 K 项票内登记） |
+| B-1.5 | 表单藏字段（maxUniqueSnapshots/repoLayoutRef/blackedOut/archiveBrowsingEnabled——PUT 全收 UI 无） | **翻正 · 部分落（T-439 as-built 注）** | T-439 落**预留位形态**（恒禁用零提交）：活体对账证「PUT 全收」仅到**解码层**——四域 transport 解码不 400 但 `configJSON` 不转发、GET 回显缺失（decode-only 静默丢弃；契约漂移在案，API 漂移钉 tripwire 断言随 spec）；**提交-回显-行为三链须 BE 承接票**（configJSON 转发 + 行为联动）落地后逐域转正；repoLayoutRef 布局解析联动评估 = **K70**（BinFlow 布局由协议 adapter 固定、无 repoLayoutRef 消费方——承接时须接线布局引擎或钉协议默认值） |
 | B-1.6 | 权限动词集（无 Annotate；write 未拆 Deploy/Cache） | **翻正**（Q7 已裁加） | T-444（BE 动词域 + 迁移零提权 NFR-S77）+ T-455（FE 矩阵五列——LC-88） |
 | B-1.7 | 用户表单能力位（缺三旗；双布尔被三值枚举替） | **翻正** + 候裁臂 | T-453（三旗 A 腿 + 行为联动断言）；双布尔 vs 枚举 = **候裁挂起**（ADR-0026 闭集——v1.0 暂行维持枚举 + 差异登记） |
 | B-1.8 | Profile 无自助 token/SSH（签发指到 admin 页） | **翻正**（文档化设计推翻——非正式豁免补齐） | T-457（一次性明文 + 即时可用 curl 断言；Access Tokens L1 重评联动 A7） |
@@ -492,7 +492,7 @@ A8 = Artifactory 无对位（建了不对齐）或对位即要避开的形态。
 | B-2.2 | children 表复合 + 行内删除与 E1 相抵 | **翻正 · 部分已落** + 豁免·复核 | 操作列退役已落 T-434（Q2 出口①——E1 分治文本 §9 + as-built 对账）；表本体保留为增强（§9A-S5；候 Q9 确认） |
 | B-2.3 | 文件元数据字段集（缺 File URL/Downloads 族/virtual 关联块；多出 mimeType/校验块） | **翻正** + stay-out 分拆 + 候裁 | 翻正：T-445（dep T-438 字段族端到端）；stay-out：Module ID（§9A-S8——dep Build-info，M17 解禁）；候裁：mimeType/校验块（Q9 倾向收进下载伴随——T-447） |
 | B-2.4 | 仓库/目录元数据（仓缺 Layout/Description/Created/Count；目录缺 File URL） | **翻正** + 候裁 | T-445（与 T-434 目录直系概要对账）；「多出类型/子项/修改时间」处置候 Q9 |
-| B-2.5 | 表单结构扁平（无 Basic\|Advanced\|Replications 步进） | **翻正** | T-439（复制配置移第三步——M6 能力语义零变化） |
+| B-2.5 | 表单结构扁平（无 Basic\|Advanced\|Replications 步进） | **翻正 · 已落（T-439）** | T-439（复制配置移第三步——M6 能力语义零变化）：步进条三段 `form-step-*`（编辑态 × local；建仓态两段——仓尚不存在）；非活跃步整步卸载，六节锚零改名；7.161.20 :8082 活体复核证实 jf-steps 三步条形态（步进条无歧义） |
 | B-2.6 | 包类型弹窗（440px/13 tiles/8 禁用 vs 880px 全可用） | **翻正** | T-441（modal 880px + 8 包型开禁——**M1 行再修订留痕归 T-441 落地时**，本版仅归属预告不预改 v1.4 定案文本；型录维持 13 实有不伪造） |
 | B-2.7 | 制品详情页签（独立取证口径——同 B-2.1 主题） | **对账去重行** | 归 B-2.1 / T-445 |
 | B-2.8 | 有效权限渲染（chip 列表 vs 分段开关 + 网格 + 列选；不显授予 target） | **候裁挂起（无主候选）** | PRD FR-144 未列该细分——分段开关 + AG 网格系重载体；建议 T-445 票内评估「授予 target 可见性」信息增补（轻腿），重载体候 PM 裁；**收口审计 T-460 对账点** |
@@ -521,8 +521,8 @@ A8 = Artifactory 无对位（建了不对齐）或对位即要避开的形态。
 | B-3.8 | 创建入口拓扑（单「＋ 添加仓库」+ 表单内 rclass vs 下拉三预选分路由） | **翻正** | T-443（/new 直链兼容映射；表单内 rclass 控件移除） |
 | B-3.9 | 仓库列表列集（缺 Project/Environment/Shared With；Remote 页签缺 Replications 列；多出冗余「类型」列） | **翻正** + stay-out 注记 | T-443（冗余「类型」列收敛〔候 Q9 附注〕+ Remote 页签 Replications 列——as-built 对账：列 + Run 动作已随 T-404 落，push-only 口径注记 ADR-0021/R10）；Project/Shared With 缺位登记不伪造（§9A-S8） |
 | B-3.10 | 仓库行操作超集（copy-key + Set Me Up + 部署 vs 单 trash） | **豁免 · 复核维持** | L2 v1.1 + E1（T-443 AC3 零倒退断言承载） |
-| B-3.11 | 表单 footer 多「重置」钮 | **候裁挂起（Q9 倾向移除）** | T-439 兑现 + M1 行联动留痕（M1 锚点 Cancel + Create/Save 对齐）；批次②断言冻结前裁 |
-| B-3.12 | 表单概念级缺口（Environments 多选 / 描述拆分 / Force Auth / Suppress POM） | **翻正**（候 Q8 附注——倾向全补） | T-439（与 B-1.5 同票字段域表驱动） |
+| B-3.11 | 表单 footer 多「重置」钮 | **已裁 · 已落（T-439）** | Q9 终裁移除（PM 倾向出口）——T-439 兑现：footer = Cancel + Create/Save 两钮（M1 行联动留痕在案；7.161.20 :8082 实测页脚无 Reset 佐证）；`form-reset` 锚退役入 §10.6（反断言翻新） |
+| B-3.12 | 表单概念级缺口（Environments 多选 / 描述拆分 / Force Auth / Suppress POM） | **翻正 · 部分落（T-439 as-built 注）** | T-439 表驱动落地：**Force Auth 实字段**（forceConanAuthentication——local × conan，T-355A configJSON 全收 + adapter 401 挑战行为；PRD「（virtual）」注与后端实态不符——Artifactory 侧亦为 conan 域字段，7.161 实测 generic/virtual 表单无此标签）；Environments（7.161 已更名 **Stage**——Stages & Lifecycle）/ 描述拆分 notes / Suppress POM 三域后端无承接 → 预留位（Public Description 对位 = 既有描述字段，标签不改） |
 | B-3.13 | 仓库详情中间页 | **stay-out 确认**（候 Q9 终裁） | §9A-S4——PM 倾向维持自有（Artifactory 无详情层） |
 | B-3.14 | 搜索行导航（整行可点 vs 仅 name 单元格深链） | **翻正** | T-449（行体 inert；深链 = 路径段形——K67-3 联动） |
 | B-3.15 | 日期格式（结果表无时区偏移；详情裸 ISO） | **翻正** | T-449（结果表 `dd-MM-yy HH:mm:ss +ZZZZ` 正则断言）+ T-445（详情 ISO 格式化——T/.000Z 不裸显）；en 变体归 T-464（locale 化，FR-149.4） |

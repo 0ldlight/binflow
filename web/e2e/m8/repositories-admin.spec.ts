@@ -44,10 +44,13 @@ test('admin: package-type grid wizard full chain (?rclass= preset, combo gating,
   await loginAs(page, 'admin')
   const key = uniq('t240rz')
 
-  // Quick 建仓入口形态：?rclass=remote 预选仓型；网格 docker 项禁用（FR-15-AC7）
+  // Quick 建仓入口形态：?rclass=remote 预选仓型；网格 docker 项可用
+  //（T-431〔M15 Q6〕组合门退役——docker 三仓型全开，服务端
+  // supportedPackageTypes 是唯一事实源；本腿原文「docker 禁用」系 T-431
+  // 漏翻新的陈旧断言，T-439 复跑发现并归位——断言语义随裁定不弱化）
   await page.goto('/binflow/ui/admin/repositories/new?rclass=remote')
   await expect(page.locator('[data-testid="pkg-grid"]')).toBeVisible()
-  await expect(page.locator('[data-testid="pkg-grid-item-docker"]')).toBeDisabled()
+  await expect(page.locator('[data-testid="pkg-grid-item-docker"]')).toBeEnabled()
   // T-344 批 D：包型网格换 MUI Dialog——入场 Fade 中途采样会把半透明栈算进
   // 对比度（T-344C D7 假阳性），扫描前等过渡收敛（断言语义不变）。
   await expect(page.locator('[data-testid="pkg-grid"]')).toHaveCSS('opacity', '1')
@@ -269,13 +272,16 @@ test('readonly_admin: full list visible, write entries gone; detail/config read-
   await expectA11yClean(page, testInfo, { include: '[data-testid="repo-detail-page"]' })
 
   // 编辑表单：全字段禁用 + 保存禁用 + 只读注记（T-218 债收口：文案走
-  // CanManageRepo write 语义，不再是错位的 repo:write 全局门措辞）
+  // CanManageRepo write 语义，不再是错位的 repo:write 全局门措辞）。
+  // T-439 步进翻新：quota 在高级步（先切步再断言禁用）；重置钮已随
+  // B-3.11/Q9 终裁移除（M1 锚点 Cancel + Create/Save 两钮）——反断言在案。
   await page.goto(`/binflow/ui/admin/repositories/${key}/edit`)
   await expect(page.locator('[data-testid="form-key"]')).toHaveCount(0) // 编辑态 key 锁定展示
   await expect(page.locator('[data-testid="form-description"]')).toBeDisabled()
+  await page.click('[data-testid="form-step-advanced"]')
   await expect(page.locator('[data-testid="form-quota"]')).toBeDisabled()
   await expect(page.locator('[data-testid="form-submit"]')).toBeDisabled()
-  await expect(page.locator('[data-testid="form-reset"]')).toBeVisible()
+  await expect(page.locator('[data-testid="form-reset"]')).toHaveCount(0)
   const note = page.locator('[data-testid="repo-form-readonly-note"]')
   await expect(note).toBeVisible()
   await expect(note).toContainText('CanManageRepo')

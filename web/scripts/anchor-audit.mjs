@@ -260,6 +260,11 @@ const STOP = new Set([
   'member-pop', 'row-link', 'color-mix',
   'binflow-console-cols-users', 'binflow-console-cols-groups', 'binflow-console-cols-search',
   't414-columns-promo',
+  // v1.33（T-439 行文假阳性）：三段步进批的标识符引用——Artifactory 侧
+  // CSS 类名（jf-steps，活体形态描述非锚）/ 措辞连词（as-built——
+  // 「翻正 · 已落」行的 as-built 注定语、decode-only——transport 只解码
+  // 不转发的两档定档用词），均非 testid 锚
+  'jf-steps', 'as-built', 'decode-only',
 ])
 const docFams = new Set()
 for (const t of docTokens) {

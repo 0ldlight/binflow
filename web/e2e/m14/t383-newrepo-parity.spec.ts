@@ -22,7 +22,9 @@ import { m8Client, sessionApi } from '../m8/support/seed'
 //      + BinFlow 定案宽度档 440px（不追平 880px——33 包型 880px 网格
 //      vs BinFlow 5 核心 + 门控槽位，追平即大面积留白；parity 册 M1 行
 //      「现档位即可」既有裁定，票内留痕）；
-//   ④ 六节结构：form-section-*（v1.19 批锚）条件呈现矩阵 × 三 rclass；
+//   ④ 六节结构：form-section-*（v1.19 批锚）条件呈现矩阵 × 三 rclass
+//      （T-439 翻新：三段步进〔form-step-*〕后六节分驻基础/高级两步——
+//      矩阵断言语义不变，逐节可见性经步进切换触达；见 expectSections 注）；
 //   ⑤ 全链：选择 → 表单 → Save 落仓（toast + 详情 + API 对账）。
 //
 // 锚源：console-ux §10（pkg-grid-* / form-* 冻结族零改名 + T-383 批
@@ -49,17 +51,35 @@ async function pickFromGrid(page: Page, pt: string): Promise<ReturnType<Page['lo
   return form
 }
 
-/** 六节结构条件呈现矩阵（T-383 对照核验表 ④ 的断言形态）。
- *  visible = 在场节；hidden = 反断言（条件节不渲染——不是隐藏，锚计数 0）。 */
-async function expectSections(
-  page: Page,
-  visible: Array<'general' | 'source' | 'members' | 'policy' | 'governance' | 'advanced'>,
-): Promise<void> {
-  const ALL = ['general', 'source', 'members', 'policy', 'governance', 'advanced'] as const
-  for (const s of ALL) {
-    const loc = page.locator(`[data-testid="form-section-${s}"]`)
-    if (visible.includes(s)) await expect(loc).toBeVisible()
-    else await expect(loc).toHaveCount(0)
+/** 六节结构条件呈现矩阵（T-383 对照核验表 ④ 的断言形态；T-439 翻新为
+ *  步进感知——三段步进〔FR-143.1〕后六节分驻两步：基础 = general/source/
+ *  members、高级 = policy/governance/advanced。断言语义不弱化：各步逐节
+ *  可见 + 不适用节两步合计计数恒 0〔非 CSS 隐藏〕）。 */
+const STEP_OF = {
+  general: 'basic',
+  source: 'basic',
+  members: 'basic',
+  policy: 'advanced',
+  governance: 'advanced',
+  advanced: 'advanced',
+} as const
+type SectionId = keyof typeof STEP_OF
+
+async function gotoStep(page: Page, step: 'basic' | 'advanced'): Promise<void> {
+  await page.click(`[data-testid="form-step-${step}"]`)
+}
+
+async function expectSections(page: Page, visible: SectionId[]): Promise<void> {
+  const ALL = Object.keys(STEP_OF) as SectionId[]
+  for (const step of ['basic', 'advanced'] as const) {
+    const onStep = ALL.filter((s) => STEP_OF[s] === step)
+    if (!visible.some((s) => STEP_OF[s] === step)) continue // 该步无断言节则不切
+    await gotoStep(page, step)
+    for (const s of onStep) {
+      const loc = page.locator(`[data-testid="form-section-${s}"]`)
+      if (visible.includes(s)) await expect(loc).toBeVisible()
+      else await expect(loc).toHaveCount(0)
+    }
   }
 }
 
@@ -89,11 +109,12 @@ test('admin: two-phase create chain — grid modal pick → full-page form → S
   await expect(page.locator('[data-testid="form-rclass-local"]')).toBeChecked()
   await expect(page.locator('[data-testid="form-package-generic"]')).toBeChecked()
 
-  // 六节结构（local × generic）：常规/治理/高级在场；来源/成员/策略不渲染
-  //（常规节逐字锚定 = key/描述字段所在节——全链填充动作的目标节）
+  // 六节结构（local × generic）：常规（基础步）+ 治理/高级（高级步）在场；
+  // 来源/成员/策略不渲染（T-439 步进翻新——见 expectSections 注；矩阵跑完
+  // 停在高级步，填 key/描述前回基础步——必填字段所在）
   await expect(page.locator('[data-testid="form-section-general"]')).toBeVisible()
-  await expect(page.locator('[data-testid="form-section-advanced"]')).toBeVisible()
   await expectSections(page, ['general', 'governance', 'advanced'])
+  await gotoStep(page, 'basic')
 
   // Save 落仓：必填未满足禁用 → 填 key → 创建 → toast + 详情落点
   await expect(page.locator('[data-testid="form-submit"]')).toBeDisabled()
@@ -138,8 +159,10 @@ test('admin: ?rclass= deep links reach the form page; six-section matrix per rcl
   await pickFromGrid(page, 'maven')
   await expect(page.locator('[data-testid="form-rclass-remote"]')).toBeChecked()
   await expect(page.locator('[data-testid="form-package-maven"]')).toBeChecked()
-  // 六节（remote × maven）：来源在场（上游 URL）；治理/成员/策略不渲染
+  // 六节（remote × maven）：来源在场（上游 URL——基础步）；高级步在场；
+  // 治理/成员/策略不渲染
   await expectSections(page, ['general', 'source', 'advanced'])
+  await gotoStep(page, 'basic')
   await expect(page.locator('[data-testid="form-section-source"] [data-testid="form-url"]')).toBeVisible()
 
   // 深链 virtual：成员节在场；来源/治理不渲染
@@ -225,8 +248,11 @@ test('axe: create-repo states clean in both themes (grid modal + create-form loc
     await expectA11yClean(page, testInfo, { include: '[data-testid="pkg-grid"]' })
 
     // 段 2a：创建态表单 local × generic（sweep 只见网格开态/编辑态——创建态
-    // 六节呈现是本票新增扫描面）
+    // 节呈现是本票新增扫描面；治理节随 T-439 步进驻高级步——axe 扫含步进条
+    // 与基础步两形态）
     await pickFromGrid(page, 'generic')
+    await expectA11yClean(page, testInfo, { include: '[data-testid="repo-form-page"]' })
+    await gotoStep(page, 'advanced')
     await expect(page.locator('[data-testid="form-section-governance"]')).toBeVisible()
     await expectA11yClean(page, testInfo, { include: '[data-testid="repo-form-page"]' })
 

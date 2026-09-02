@@ -15,6 +15,8 @@ import IconButton from '@mui/material/IconButton'
 import Paper from '@mui/material/Paper'
 import Radio from '@mui/material/Radio'
 import Select from '@mui/material/Select'
+import Tab from '@mui/material/Tab'
+import Tabs from '@mui/material/Tabs'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 
@@ -53,14 +55,55 @@ import {
 } from './policyFields'
 import type { PolicyForm } from './policyFields'
 import ReplicationsSection from './ReplicationsSection'
+import {
+  FORCE_CONAN_AUTH_HINT,
+  FORCE_CONAN_AUTH_LABEL,
+  FORM_STEPS,
+  RESERVED_ARCHIVE_BROWSING_HINT,
+  RESERVED_ARCHIVE_BROWSING_LABEL,
+  RESERVED_BLACKED_OUT_HINT,
+  RESERVED_BLACKED_OUT_LABEL,
+  RESERVED_ENVIRONMENTS_HINT,
+  RESERVED_GROUP_ADVANCED_TITLE,
+  RESERVED_GROUP_BASIC_TITLE,
+  RESERVED_INTERNAL_DESCRIPTION_HINT,
+  RESERVED_MAX_UNIQUE_SNAPSHOTS_HINT,
+  RESERVED_PLACEHOLDER,
+  RESERVED_REPO_LAYOUT_HINT,
+  RESERVED_SUPPRESS_POM_HINT,
+  RESERVED_SUPPRESS_POM_LABEL,
+} from './formCopy'
 
 import './repositories.css'
 
 // 建仓/编辑表单（console-m8 §4.4/§6.7，T-240 重排）：进页弹包类型网格
-// （5 项，必选）→ **单页分区式**表单（常规设置 → 来源/成员 → 包类型
-// 专属 → 治理/高级）+ 右栏实时摘要；底部 取消 / 重置 / 创建|保存（必填
-// 未满足禁用）。编辑态 rclass/packageType 锁定（不可变是服务端 UpdateRepo
-// 契约）。
+// （5 项，必选）→ **三段步进式**表单（T-439 / FR-143.1，B-2.5——Artifactory
+// 7.161.20 实测形态：顶部 Basic | Advanced | Replications 步进条
+// 〔jf-steps 三步，aria-label「Step N of 3」〕；节内仍是常规设置 →
+// 来源/成员 → 包类型专属 → 治理/高级六节 Paper，form-section-* 锚零改名）
+// + 右栏实时摘要；底部 取消 / 创建|保存（**重置钮已移除**——T-439 /
+// B-3.11 / Q9 冻结：对齐 M1 锚点 Cancel + Create/Save 两钮；必填未满足
+// 禁用）。编辑态 rclass/packageType 锁定（不可变是服务端 UpdateRepo 契约）。
+//
+// 步进分派（T-439）：基础 = 常规/来源/成员；高级 = 策略/治理/高级 +
+// 预留位字段族；Replications = 复制配置（**编辑态 × local** 才呈现——
+// M6 能力语义零变化，仅载体自内嵌第七节迁第三步；建仓态仓尚不存在，
+// 步进条只两段）。深链 ?section=replications 直落第三步（仓列表 Run
+// 动作与详情指针的落点不变）。
+//
+// 字段域补齐（T-439 / FR-143.2，B-1.5 + B-3.12，Q8 冻结「全补」口径的
+// as-built 落地）：八域经活体实证（本票 scratch 实例 PUT→GET 对账）分两档
+// ——
+// - **实字段**：forceConanAuthentication（local × conan——T-355A 起
+//   configJSON local 臂全收 + adapter 行为消费；显式 false 恒提交，flip-off
+//   过 round trip）；
+// - **预留位**（恒禁用、零提交，R3 两档定案先例同款）：maxUniqueSnapshots /
+//   repoLayoutRef / blackedOut / archiveBrowsingEnabled（transport 有解码位
+//   但 configJSON 不转发——**decode-only 静默丢弃**，契约漂移在案）+
+//   Environments(Stage) / 内部描述 notes（notes 同为 decode-only）/ Suppress
+//   POM（无解码位）。PRD「API 已收全」的审计证据（repositories.go L55-61）
+//   仅覆盖解码层——提交-回显-行为三链在现后端不可达，BE 承接票落地后
+//   预留位逐域转正（票内登记 + K70）。
 //
 // 字段语义与后端透传链严格对齐（T-95 起，零改动）：
 // - governance（quotaBytes/includes/excludes）只在 LOCAL 仓呈现——
@@ -163,9 +206,16 @@ interface FormState {
   handleSnapshots: boolean
   checksumPolicyType: string
   snapshotVersionBehavior: string
+  /** T-439 实字段（B-3.12 Force Auth 的 BinFlow 后端承接面）：local × conan
+   *  才呈现/提交——configJSON local 臂全收，conan adapter 以 401 挑战消费 */
+  forceConanAuthentication: boolean
   /** deb/rpm/helm 策略键（T-353 字段册驱动；generic 等其余包型 = 空对象） */
   policy: PolicyForm
 }
+
+/** 表单步进（T-439 / FR-143.1）：Artifactory 7.161.20 实测三段——
+ *  Basic | Advanced | Replications（jf-steps 步进条）。 */
+type FormStep = 'basic' | 'advanced' | 'replications'
 
 const CREATE_INITIAL: FormState = {
   rclass: 'local',
@@ -188,6 +238,7 @@ const CREATE_INITIAL: FormState = {
   handleSnapshots: true,
   checksumPolicyType: 'client-checksums',
   snapshotVersionBehavior: 'deployer',
+  forceConanAuthentication: false,
   policy: {},
 }
 
@@ -238,6 +289,8 @@ function prefillFromDetail(d: {
     // deb/rpm/helm 策略键逐键回显（全量替换提交的保全前提——漏发=丢配置）
     const pkg = policyPkg(f.packageType)
     if (pkg) f.policy = prefillPolicyForm(pkg, cfg)
+    // T-439：conan 强制认证回显（decode 面全收的实字段——漏发=关掉已开的 401 门）
+    if (f.packageType === 'conan') f.forceConanAuthentication = cfgBool(cfg, 'forceConanAuthentication')
   }
   return f
 }
@@ -279,6 +332,11 @@ function buildBody(f: FormState, mode: 'create' | 'edit'): RepoConfigBody {
       body.handleSnapshots = f.handleSnapshots
       body.checksumPolicyType = f.checksumPolicyType
       body.snapshotVersionBehavior = f.snapshotVersionBehavior
+    }
+    // T-439：conan 强制认证——显式 false 恒提交（POINTER 语义同 maven 族，
+    // flip-off 必须过 round trip，否则 401 门一旦打开就关不回）
+    if (f.packageType === 'conan') {
+      body.forceConanAuthentication = f.forceConanAuthentication
     }
     // deb/rpm/helm 策略键（T-353）：check/合法 number 恒进 body（POINTER 语义
     // ——显式 false/0 必须过 round trip），空 text 剔除归默认
@@ -441,6 +499,104 @@ function PackageTypeGrid({
   )
 }
 
+/** 预留位文本域（R3 两档定案先例同款）：恒禁用 + 零提交——Artifactory
+ *  字段族的如实呈现，不发明引擎不存在的行为。 */
+function ReservedTextField({
+  id,
+  label,
+  hint,
+  anchor,
+  multiline,
+}: {
+  id: string
+  label: string
+  hint: string
+  anchor: string
+  multiline?: boolean
+}) {
+  return (
+    <div className="field">
+      <label htmlFor={id}>{label}</label>
+      <TextField
+        id={id}
+        size="small"
+        disabled
+        multiline={multiline}
+        minRows={multiline ? 2 : undefined}
+        placeholder={RESERVED_PLACEHOLDER}
+        sx={multiline ? undefined : { width: 420 }}
+        slotProps={{ htmlInput: { 'data-testid': anchor, lang: 'en' } }}
+      />
+      <p className="field-hint">{hint}</p>
+    </div>
+  )
+}
+
+/** 预留位复选（同上——恒禁用、零提交） */
+function ReservedCheck({ label, hint, anchor }: { label: string; hint: string; anchor: string }) {
+  return (
+    <div>
+      <FormControlLabel
+        className="check-row"
+        disabled
+        control={
+          <Checkbox size="small" slotProps={{ input: { 'data-testid': anchor } as ComponentPropsWithoutRef<'input'> }} />
+        }
+        label={label}
+      />
+      <p className="field-hint">{hint}</p>
+    </div>
+  )
+}
+
+/** Basic 步预留位组（T-439 / FR-143.2）：repoLayoutRef + Environments(Stage)
+ *  + 内部描述 notes——三域后端均无承接（前两者 decode-only、后者 decode-only）。 */
+function ReservedBasicFields() {
+  return (
+    <div className="field" data-testid="form-reserved-basic">
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+        {RESERVED_GROUP_BASIC_TITLE}
+      </Typography>
+      <ReservedTextField
+        id="f-repo-layout"
+        label="Repository Layout（repoLayoutRef）"
+        hint={RESERVED_REPO_LAYOUT_HINT}
+        anchor="form-repo-layout"
+      />
+      <ReservedTextField
+        id="f-environments"
+        label="环境段（Environments / Stage）"
+        hint={RESERVED_ENVIRONMENTS_HINT}
+        anchor="form-environments"
+      />
+      <ReservedTextField
+        id="f-internal-description"
+        label="内部描述（Internal Description / notes）"
+        hint={RESERVED_INTERNAL_DESCRIPTION_HINT}
+        anchor="form-internal-description"
+        multiline
+      />
+    </div>
+  )
+}
+
+/** Advanced 步预留位组：blackedOut + archiveBrowsingEnabled（decode-only 两域）。 */
+function ReservedAdvancedChecks() {
+  return (
+    <div className="field" data-testid="form-reserved-advanced">
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+        {RESERVED_GROUP_ADVANCED_TITLE}
+      </Typography>
+      <ReservedCheck label={RESERVED_BLACKED_OUT_LABEL} hint={RESERVED_BLACKED_OUT_HINT} anchor="form-blacked-out" />
+      <ReservedCheck
+        label={RESERVED_ARCHIVE_BROWSING_LABEL}
+        hint={RESERVED_ARCHIVE_BROWSING_HINT}
+        anchor="form-archive-browsing"
+      />
+    </div>
+  )
+}
+
 export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }) {
   const { session } = useAuth()
   const admin = canAdminWrite(session)
@@ -459,7 +615,12 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
     : 'local'
 
   const [f, setF] = useState<FormState>({ ...CREATE_INITIAL, rclass: initialRclass })
-  const [baseline, setBaseline] = useState<FormState>({ ...CREATE_INITIAL, rclass: initialRclass })
+  // T-439 步进态：深链 ?section=replications 直落第三步（落点语义不变——
+  // 仓列表 Run 动作与详情指针既有深链零改造；建仓态无第三步，回基础步）。
+  // baseline 态随重置钮（B-3.11/Q9）一并退役。
+  const [step, setStep] = useState<FormStep>(
+    mode === 'edit' && searchParams.get('section') === 'replications' ? 'replications' : 'basic',
+  )
   const [pkgOpen, setPkgOpen] = useState(mode === 'create')
   const [submitting, setSubmitting] = useState(false)
   const [serverError, setServerError] = useState<ApiError | null>(null)
@@ -472,7 +633,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
     const pkg = policyPkg(pt)
     const policy = pkg ? initialPolicyForm(pkg) : {}
     setF((prev) => ({ ...prev, packageType: pt, policy }))
-    setBaseline((prev) => ({ ...prev, packageType: pt, policy }))
   }
 
   const setPolicy = (wire: string, v: string | boolean) =>
@@ -488,7 +648,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
     if (detail.status === 'ok' && detail.data) {
       const prefilled = prefillFromDetail(detail.data)
       setF(prefilled)
-      setBaseline(prefilled)
     }
   }, [mode, detail.status, detail.data])
 
@@ -606,10 +765,27 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
 
   const localMembers = f.members.filter((m) => memberOptions.find((o) => o.key === m)?.type === 'local')
 
+  // T-439：第三步适用性（编辑态 × local）+ 钳位——步进条与内容区共用同一
+  // 判定，双载体一致（深链误入 remote/virtual 编辑时不悬空选中态）
+  const replStepLive = mode === 'edit' && f.rclass === 'local'
+  const activeStep: FormStep = step === 'replications' && !replStepLive ? 'basic' : step
+
   const renderSection = (): ReactNode => {
     // deb/rpm/helm 策略键分组（T-353）：local × 对应包类型才呈现
     const policyDef = f.rclass === 'local' ? policyPkg(f.packageType) : null
-    return (
+    // T-439 步进分派（FR-143.1）：非活跃步整步卸载（house 口径：条件节
+    // count 0、非 CSS 隐藏——六节 form-section-* 锚零改名，t383 矩阵翻新为
+    // 步进感知）。第三步 = 复制配置（activeStep 钳位见上）。
+    if (activeStep === 'replications') {
+      return (
+        <ReplicationsSection
+          repoKey={routeKey ?? ''}
+          canWrite={admin}
+          focus={searchParams.get('section') === 'replications'}
+        />
+      )
+    }
+    const stepBasic: ReactNode = (
       <>
         {/* T-344 批 D：分区卡 Paper 化（§3.5 repositories 行）——
             .repo-form-section 手作族随本批退役。
@@ -732,7 +908,13 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
               disabled={locked}
               slotProps={{ htmlInput: { 'data-testid': 'form-description' } }}
             />
+            {/* T-439：Artifactory 的 Public Description 对位即本字段（标签
+                不改——存量 spec 锚定面零翻新）；拆分出的 Internal Description
+                是后端未承接的 notes，走下方预留位 */}
           </div>
+          {/* T-439 / FR-143.2：Basic 步预留位组（repoLayoutRef / Environments
+              〔7.161 更名 Stage〕/ notes——后端无承接三域） */}
+          <ReservedBasicFields />
         </Paper>
 
         {f.rclass === 'remote' && (
@@ -931,7 +1113,11 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
             </div>
           </Paper>
         )}
-
+      </>
+    )
+    if (activeStep === 'basic') return stepBasic
+    return (
+      <>
         {f.rclass === 'local' && f.packageType === 'maven' && (
           <Paper component="section" aria-label="Maven 策略" data-testid="form-section-policy" sx={{ p: 2, pb: 1.5, mb: 2 }}>
             <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
@@ -994,6 +1180,20 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 <option value="unique">unique（unique 改写为 P2，行为同 deployer）</option>
               </TextField>
             </div>
+            {/* T-439 / FR-143.2：maven 域预留位两枚（Artifactory 7.161 中与
+                Handle Releases/Checksum/SNAPSHOT 同组的 Max Unique Snapshots
+                与 Suppress POM Consistency Checks——后端均无承接） */}
+            <ReservedTextField
+              id="f-max-unique-snapshots"
+              label="Max Unique Snapshots（maxUniqueSnapshots）"
+              hint={RESERVED_MAX_UNIQUE_SNAPSHOTS_HINT}
+              anchor="form-max-unique-snapshots"
+            />
+            <ReservedCheck
+              label={RESERVED_SUPPRESS_POM_LABEL}
+              hint={RESERVED_SUPPRESS_POM_HINT}
+              anchor="form-suppress-pom"
+            />
           </Paper>
         )}
 
@@ -1104,6 +1304,34 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
             label="优先解析（priorityResolution：作为 virtual 成员时优先桶标记）"
           />
 
+          {/* T-439 / FR-143.2 实字段（B-3.12 Force Auth 的后端承接面）：
+              local × conan 才呈现——forceConanAuthentication 为 configJSON
+              local 臂全收 + adapter 行为消费的真字段（提交-回显-行为三链
+              可达；Artifactory 侧 Force Authentication 亦为 conan 域字段，
+              PRD「（virtual）」注记与后端实态不符——票内契约漂移在案）。 */}
+          {f.rclass === 'local' && f.packageType === 'conan' && (
+            <>
+              <FormControlLabel
+                className="check-row"
+                disabled={locked}
+                control={
+                  <Checkbox
+                    size="small"
+                    checked={f.forceConanAuthentication}
+                    onChange={(e) => set('forceConanAuthentication', e.target.checked)}
+                    slotProps={{ input: { 'data-testid': 'form-force-auth' } as ComponentPropsWithoutRef<'input'> }}
+                  />
+                }
+                label={FORCE_CONAN_AUTH_LABEL}
+              />
+              <p className="field-hint">{FORCE_CONAN_AUTH_HINT}</p>
+            </>
+          )}
+
+          {/* T-439 / FR-143.2：Advanced 步预留位组（blackedOut /
+              archiveBrowsingEnabled——decode-only 两域） */}
+          <ReservedAdvancedChecks />
+
           {/* deb/rpm/helm 策略键（T-353，FR-113.2/113.5）：字段册驱动——REST
               已透传（T-327R/T-329 D-E），表单按包类型收窄呈现；check/合法
               number 恒提交（POINTER 语义，flip-off 必须过 round trip） */}
@@ -1192,19 +1420,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
             </>
           )}
         </Paper>
-
-        {/* T-404（R1 裁定形态）：复制配置内嵌节——**编辑态 × local** 才呈现
-            （push 源是本仓；建仓态仓尚不存在，POST /v1/replications 的
-            source_repo 前置校验必 400）。节内自治（列表四态 + 内嵌表单），
-            与主表单状态零耦合——主表单的提交/重置不触及复制配置。深链
-            ?section=replications = 仓列表 Run 动作与详情指针的落点。 */}
-        {mode === 'edit' && f.rclass === 'local' && (
-          <ReplicationsSection
-            repoKey={routeKey ?? ''}
-            canWrite={admin}
-            focus={searchParams.get('section') === 'replications'}
-          />
-        )}
       </>
     )
   }
@@ -1245,6 +1460,42 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
 
       <div className="form-layout">
         <section>
+          {/* T-439 / FR-143.1：Basic | Advanced | Replications 步进条
+              （Artifactory 7.161.20 实测三段 jf-steps 形态的 MUI Tabs 对位；
+              aria-label 承「Step N of 3」步进语义）。第三步仅编辑态 × local
+              在场（建仓态仓尚不存在，两段）；步进切换不触发表单状态——
+              必填门控/提交恒以全表单为准（跨步可见性不参与 gate）。 */}
+          <Tabs
+            value={activeStep}
+            onChange={(_, v: FormStep) => setStep(v)}
+            aria-label="仓库表单分区步进"
+            variant="fullWidth"
+            sx={{ mb: 2, minHeight: 36 }}
+          >
+            <Tab
+              value="basic"
+              label={FORM_STEPS.basic}
+              aria-label="Step 1 of 3: Basic"
+              data-testid="form-step-basic"
+              sx={{ minHeight: 36 }}
+            />
+            <Tab
+              value="advanced"
+              label={FORM_STEPS.advanced}
+              aria-label="Step 2 of 3: Advanced"
+              data-testid="form-step-advanced"
+              sx={{ minHeight: 36 }}
+            />
+            {replStepLive && (
+              <Tab
+                value="replications"
+                label={FORM_STEPS.replications}
+                aria-label="Step 3 of 3: Replications"
+                data-testid="form-step-replications"
+                sx={{ minHeight: 36 }}
+              />
+            )}
+          </Tabs>
           {renderSection()}
           {serverError && (
             <Alert
@@ -1262,23 +1513,15 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
             </Alert>
           )}
           <div className="form-actions">
+            {/* T-439 / B-3.11 / Q9 冻结：重置钮移除——M1 锚点 Cancel +
+                Create/Save 两钮对齐（Artifactory 7.161 实测页脚同款；
+                baseline 态随之退役，未保存改动的回退 = 取消重进）。 */}
             <Button
               variant="outlined"
               size="small"
               onClick={() => navigate(mode === 'create' ? `/admin/repositories/${f.rclass}` : `/admin/repositories/${routeKey}`)}
             >
               取消
-            </Button>
-            <Button
-              variant="outlined"
-              size="small"
-              onClick={() => {
-                setF(baseline)
-                setServerError(null)
-              }}
-              data-testid="form-reset"
-            >
-              重置
             </Button>
             <Button
               variant="contained"
@@ -1309,7 +1552,7 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
           rclass={f.rclass}
           choices={pkgChoices}
           onPick={(pt) => {
-            // 网格选定的包类型进入基线（重置不退回进页默认 generic）
+            // 网格选定即生效（重置钮已随 B-3.11/Q9 退役——改选 = 重进表单）
             pickPackage(pt)
             setPkgOpen(false)
           }}

@@ -32,6 +32,11 @@ import { m8Client, seedRepos } from '../m8/support/seed'
 //
 // 锚源：console-ux §10.5 T-404 批（v1.25——repl-* 配置面族 + repo-repl-*
 // 指针族 + repos-repl-* 列族 + form-section-replications 第七节）。
+//
+// T-439 步进翻新：本节载体自「内嵌第七节」迁表单第三步（FR-143.1——
+// Basic|Advanced|Replications 步进条；M6 能力语义零变化）。本 spec 全部
+// /edit 导航改走 ?section=replications 深链（步进第三步直落——既有深链
+// 落点语义不变，且每腿顺带钉死深链 → 第三步分派）；锚与断言面零改名。
 
 test.beforeEach(async ({ request }) => {
   const probe = await request.get('/binflow/ui/')
@@ -85,7 +90,7 @@ test('admin: inline create — form posts the wire set only (reserved fields nev
   await seedRepos(m8Client(), [{ key }])
 
   await loginAs(page, 'admin')
-  await page.goto(`/binflow/ui/admin/repositories/${key}/edit`)
+  await page.goto(`/binflow/ui/admin/repositories/${key}/edit?section=replications`)
   const section = page.locator('[data-testid="form-section-replications"]')
   await expect(section).toBeVisible()
   // R1 形态钉死：内嵌节（无 dialog/drawer role——整页分区）
@@ -177,7 +182,7 @@ test('admin: edit = delete + recreate (no field-level PUT) — exactly one pair,
   await seedConfig(key, name, { target_repo: 'old-target' })
 
   await loginAs(page, 'admin')
-  await page.goto(`/binflow/ui/admin/repositories/${key}/edit`)
+  await page.goto(`/binflow/ui/admin/repositories/${key}/edit?section=replications`)
   await expect(page.locator(`[data-testid="repl-row-${name}"]`)).toContainText('old-target')
 
   await page.click(`[data-testid="repl-edit-${name}"]`)
@@ -221,7 +226,7 @@ test('admin: delete requires typing the config name (E1) — wrong name refused,
   await seedConfig(key, name)
 
   await loginAs(page, 'admin')
-  await page.goto(`/binflow/ui/admin/repositories/${key}/edit`)
+  await page.goto(`/binflow/ui/admin/repositories/${key}/edit?section=replications`)
 
   // 取消腿：Esc/取消离开对话框，行保留
   await page.click(`[data-testid="repl-delete-${name}"]`)
@@ -259,7 +264,7 @@ test('toggle: PUT /v1/replications/{id} with {enabled} — mocked 200 flips; liv
   const id = (JSON.parse(created.text) as Record<string, unknown>).id as number
 
   await loginAs(page, 'admin')
-  await page.goto(`/binflow/ui/admin/repositories/${key}/edit`)
+  await page.goto(`/binflow/ui/admin/repositories/${key}/edit?section=replications`)
   const toggle = page.locator(`[data-testid="repl-toggle-${name}"]`)
   await expect(toggle).toBeChecked()
 
@@ -307,7 +312,7 @@ test('readonly_admin: section read-only — switch disabled, write entries absen
   await seedConfig(key, name, { enabled: false })
 
   await loginAs(page, 'readonly_admin')
-  await page.goto(`/binflow/ui/admin/repositories/${key}/edit`)
+  await page.goto(`/binflow/ui/admin/repositories/${key}/edit?section=replications`)
   await expect(page.locator('[data-testid="form-section-replications"]')).toBeVisible()
   await expect(page.locator(`[data-testid="repl-row-${name}"]`)).toBeVisible()
   await expect(page.locator(`[data-testid="repl-toggle-${name}"]`)).toBeDisabled()
@@ -386,7 +391,7 @@ test('degraded states render notes, not tables (mocked 501 / 403)', async ({ pag
   await page.route('**/api/v1/replications', (route) =>
     route.fulfill({ status: 501, contentType: 'application/json', body: JSON.stringify({ errors: [{ message: 'replication is not configured on this instance' }] }) }),
   )
-  await page.goto(`/binflow/ui/admin/repositories/${key}/edit`)
+  await page.goto(`/binflow/ui/admin/repositories/${key}/edit?section=replications`)
   await expect(page.locator('[data-testid="repl-degraded"]')).toBeVisible()
   await expect(page.locator('[data-testid="repl-list"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="repl-empty"]')).toHaveCount(0)
@@ -409,7 +414,7 @@ test('axe: replications section + inline form clean in both themes', async ({ pa
 
   for (const theme of ['light', 'dark'] as const) {
     await page.evaluate((t) => localStorage.setItem('binflow-console-theme', t), theme)
-    await page.goto(`/binflow/ui/admin/repositories/${key}/edit`)
+    await page.goto(`/binflow/ui/admin/repositories/${key}/edit?section=replications`)
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
     await expect(page.locator('[data-testid="repl-empty"]')).toBeVisible()
     await expectA11yClean(page, testInfo, { include: '[data-testid="form-section-replications"]' })

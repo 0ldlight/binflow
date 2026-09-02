@@ -66,10 +66,12 @@ test('local generic full lifecycle: create with governance -> list -> edit round
   await expect(page.locator('[data-testid="pkg-grid"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="form-rclass-local"]')).toBeChecked()
 
-  // 单页分区表单：key 实时校验 + 描述 + governance（同一页）
+  // 分步表单（T-439 三段步进）：key 实时校验 + 描述（基础步）；
+  // governance 三键驻高级步——切步后填写
   await page.fill('[data-testid="form-key"]', key)
   await expect(page.locator('[data-testid="form-key-ok"]')).toBeVisible()
   await page.fill('[data-testid="form-description"]', 'T-99 lifecycle probe')
+  await page.click('[data-testid="form-step-advanced"]')
   await page.fill('[data-testid="form-quota"]', '1048576')
   await page.fill('[data-testid="form-includes"]', '**/*')
   await page.fill('[data-testid="form-excludes"]', 'tmp/**')
@@ -111,10 +113,12 @@ test('local generic full lifecycle: create with governance -> list -> edit round
   await page.fill('[data-testid="repos-filter-key"]', 'definitely-no-such-repo')
   await expect(page.locator('[data-testid="repos-empty-filtered"]')).toBeVisible()
 
-  // 编辑：rclass/packageType 锁定 + quota 修改往返（全量替换保全；单页无步骤）
+  // 编辑：rclass/packageType 锁定 + quota 修改往返（全量替换保全；governance
+  // 键驻高级步——T-439 步进翻新，语义不变）
   await page.goto(`/binflow/ui/admin/repositories/${key}/edit`)
   await expect(page.locator('[data-testid="form-rclass-local"]')).toBeDisabled()
   await expect(page.locator('[data-testid="form-package-generic"]')).toBeDisabled()
+  await page.click('[data-testid="form-step-advanced"]')
   await expect(page.locator('[data-testid="form-quota"]')).toHaveValue('1048576')
   await expect(page.locator('[data-testid="form-excludes"]')).toHaveValue('tmp/**')
   await page.fill('[data-testid="form-quota"]', '2097152')

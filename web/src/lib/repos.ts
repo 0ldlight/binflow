@@ -125,6 +125,9 @@ export interface RepoConfigBody {
   includesPattern?: string
   excludesPattern?: string
   quotaBytes?: number
+  /** T-439（FR-143.2）：conan 强制认证——local × conan 才发（configJSON
+   *  local 臂全收，T-355A；显式 false 恒携带，flip-off 过 round trip） */
+  forceConanAuthentication?: boolean
 }
 
 export function getRepositoriesFiltered(repoType = '', packageType = ''): Promise<RepoListItem[]> {
@@ -232,6 +235,11 @@ export function buildLocalQuotaBody(d: RepoDetail, quotaBytes: number): RepoConf
     body.handleSnapshots = cfgBool(cfg, 'handleSnapshots', true)
     body.checksumPolicyType = cfgStr(cfg, 'checksumPolicyType') || 'client-checksums'
     body.snapshotVersionBehavior = cfgStr(cfg, 'snapshotVersionBehavior') || 'deployer'
+  }
+  // T-439：conan 强制认证保全（全量替换语义——漏发会把已开的 401 门静默
+  // 关掉；显式 false 恒携带，flip-off 过 round trip）
+  if (d.packageType === 'conan') {
+    body.forceConanAuthentication = cfgBool(cfg, 'forceConanAuthentication')
   }
   return body
 }
