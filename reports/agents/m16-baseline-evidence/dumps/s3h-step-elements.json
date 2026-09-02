@@ -1,0 +1,62 @@
+[
+ {
+  "i": 0,
+  "cls": "jf-steps",
+  "text": "BasicAdvancedReplicationsPackage TypeGeneral Setti"
+ },
+ {
+  "i": 1,
+  "cls": "jf-steps__list flex flex--justify-b margin--b-32",
+  "text": "BasicAdvancedReplications"
+ },
+ {
+  "i": 2,
+  "cls": "jf-steps__item is-active",
+  "text": "Basic"
+ },
+ {
+  "i": 3,
+  "cls": "jf-steps__inner flex flex--align-center",
+  "text": "Basic"
+ },
+ {
+  "i": 4,
+  "cls": "jf-steps__text flex flex--align-center",
+  "text": "Basic"
+ },
+ {
+  "i": 5,
+  "cls": "jf-steps__item",
+  "text": "Advanced"
+ },
+ {
+  "i": 6,
+  "cls": "jf-steps__inner flex flex--align-center",
+  "text": "Advanced"
+ },
+ {
+  "i": 7,
+  "cls": "jf-steps__text flex flex--align-center",
+  "text": "Advanced"
+ },
+ {
+  "i": 8,
+  "cls": "jf-steps__item",
+  "text": "Replications"
+ },
+ {
+  "i": 9,
+  "cls": "jf-steps__inner flex flex--align-center",
+  "text": "Replications"
+ },
+ {
+  "i": 10,
+  "cls": "jf-steps__text flex flex--align-center",
+  "text": "Replications"
+ },
+ {
+  "i": 11,
+  "cls": "jf-steps__overflow",
+  "text": "Package TypeGeneral SettingsRepository Layoutagent"
+ }
+]

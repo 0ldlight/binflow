@@ -1,0 +1,74 @@
+[
+ {
+  "href": "/ui/admin/projects/list",
+  "text": "All Projects Overview"
+ },
+ {
+  "href": "/ui/admin/stages",
+  "text": "Stages & Lifecycle"
+ },
+ {
+  "href": "/ui/admin/repositories",
+  "text": "Repositories"
+ },
+ {
+  "href": "/ui/admin/management/users",
+  "text": "User Management"
+ },
+ {
+  "href": "/ui/admin/proxies/configuration",
+  "text": "Proxies"
+ },
+ {
+  "href": "/ui/admin/configuration/security/ldap",
+  "text": "Authentication"
+ },
+ {
+  "href": "/ui/admin/configuration/security/general",
+  "text": "Security"
+ },
+ {
+  "href": "/ui/admin/configuration/general",
+  "text": "General Management"
+ },
+ {
+  "href": "/ui/admin/monitoring/storage-summary",
+  "text": "Monitoring"
+ },
+ {
+  "href": "/ui/admin/monitoring/storage-summary",
+  "text": "Storage"
+ },
+ {
+  "href": "/ui/admin/monitoring/service-status",
+  "text": "Service Status"
+ },
+ {
+  "href": "/ui/admin/artifactory/advanced/log_analytics",
+  "text": "Log Analytics"
+ },
+ {
+  "href": "/ui/admin/monitoring/federation-status",
+  "text": "Federation Status"
+ },
+ {
+  "href": "/ui/admin/monitoring/system_logs",
+  "text": "System Logs"
+ },
+ {
+  "href": "/ui/admin/artifactory/advanced/system_logs",
+  "text": "Artifactory Logs"
+ },
+ {
+  "href": "/ui/admin/topology-teaser",
+  "text": "Topology"
+ },
+ {
+  "href": "/ui/admin/support-zone",
+  "text": "Support Zone"
+ },
+ {
+  "href": "/ui/admin/artifactory/configuration/artifactory_general",
+  "text": "Artifactory Settings"
+ }
+]

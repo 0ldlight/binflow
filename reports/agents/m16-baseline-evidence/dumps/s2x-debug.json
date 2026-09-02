@@ -1,0 +1,67 @@
+{
+ "itemTexts": [
+  "jfrog-support-bundle",
+  "artifactory-build-info",
+  "example-repo-local",
+  "Trash Can"
+ ],
+ "treeitems": [
+  {
+   "text": "jfrog-support-bundle",
+   "expanded": null,
+   "cls": "tree-item.treeNodes.first-root"
+  },
+  {
+   "text": "artifactory-build-info",
+   "expanded": null,
+   "cls": "tree-item.treeNodes"
+  },
+  {
+   "text": "example-repo-local",
+   "expanded": null,
+   "cls": "tree-item.treeNodes"
+  },
+  {
+   "text": "Trash Can",
+   "expanded": null,
+   "cls": "tree-item.trashNodes.first-root"
+  }
+ ],
+ "selects": [
+  {
+   "label": "Package Types",
+   "text": "Agent PackagesAgent PluginsAlpineAnsible",
+   "x": 0
+  },
+  {
+   "label": "Repository Types",
+   "text": "LocalRemoteCacheVirtualRelease BundleFed",
+   "x": 0
+  },
+  {
+   "label": "",
+   "text": "Repository TypeRepository KeyPackage Typ",
+   "x": 0
+  },
+  {
+   "label": "Package Types",
+   "text": "Agent PackagesAgent PluginsAlpineAnsible",
+   "x": 609
+  },
+  {
+   "label": "Repository Types",
+   "text": "LocalRemoteCacheVirtualRelease BundleFed",
+   "x": 861
+  },
+  {
+   "label": "",
+   "text": "Repository TypeRepository KeyPackage Typ",
+   "x": 0
+  },
+  {
+   "label": "",
+   "text": "Repository TypeRepository KeyPackage Typ",
+   "x": 0
+  }
+ ]
+}

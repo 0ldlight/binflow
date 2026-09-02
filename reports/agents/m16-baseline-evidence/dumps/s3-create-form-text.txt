@@ -1,0 +1,53 @@
+Skip to main content
+WELCOME TO
+THE JFROG PLATFORM!
+Universal End-to-End DevOps Platform For Continuous Software Releases
+Get Started
+Don't show me again
+Platform
+Administration
+A
+All Projects
+All Projects Overview
+Stages & Lifecycle
+Repositories
+User Management
+Proxies
+Authentication
+Security
+General Management
+Monitoring
+Topology
+Support Zone
+Artifactory Settings
+JFrog Platform
+Enterprise Plus trial license 7.161.20 rev 86120900 Licensed to TEST JFrog Ltd.
+© Copyright 2026 JFrog Ltd
+All Projects
+Repositories
+Create a Repository
+Recently Viewed
+All Repositories
+Inactive 
+Filters
+Clear all
+Repository Type
+Package Type
+URL
+Project
+Stage
+Other
+ 
+Repository Key
+Repository Type
+Package Type
+Last Activity
+Project
+artifactory-build-info
+Local
+Not Available
+Not Assigned
+example-repo-local
+Local
+Not Available
+Not Assigned

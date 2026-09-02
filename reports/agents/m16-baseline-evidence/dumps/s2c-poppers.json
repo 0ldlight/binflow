@@ -1,0 +1,299 @@
+[
+ {
+  "cls": "vsm--dropdown",
+  "x": 0,
+  "items": [
+   "Packages",
+   "Builds",
+   "Artifacts",
+   "Release Lifecycle"
+  ]
+ },
+ {
+  "cls": "el-dropdown",
+  "x": 1592,
+  "items": [
+   "Deploy (Upload)",
+   "Manage Repositories"
+  ]
+ },
+ {
+  "cls": "el-dropdown-menu.el-popper",
+  "x": 0,
+  "items": [
+   "Deploy (Upload)",
+   "Manage Repositories"
+  ]
+ },
+ {
+  "cls": "el-popover.el-popper",
+  "x": 0,
+  "items": [
+   "Agent Packages",
+   "Agent Plugins",
+   "Alpine",
+   "Ansible",
+   "Bazel Modules",
+   "Bower",
+   "Local",
+   "Remote",
+   "Cache",
+   "Virtual",
+   "Release Bundle",
+   "Federated",
+   "Repository Type",
+   "Repository Key",
+   "Package Type"
+  ]
+ },
+ {
+  "cls": "el-select-dropdown.el-popper",
+  "x": 0,
+  "items": [
+   "Agent Packages",
+   "Agent Plugins",
+   "Alpine",
+   "Ansible",
+   "Bazel Modules",
+   "Bower"
+  ]
+ },
+ {
+  "cls": "el-select-dropdown__wrap.el-scrollbar__wrap",
+  "x": 0,
+  "items": [
+   "Agent Packages",
+   "Agent Plugins",
+   "Alpine",
+   "Ansible",
+   "Bazel Modules",
+   "Bower"
+  ]
+ },
+ {
+  "cls": "el-scrollbar__view.el-select-dropdown__list",
+  "x": 0,
+  "items": [
+   "Agent Packages",
+   "Agent Plugins",
+   "Alpine",
+   "Ansible",
+   "Bazel Modules",
+   "Bower"
+  ]
+ },
+ {
+  "cls": "el-select-dropdown.el-popper",
+  "x": 0,
+  "items": [
+   "Local",
+   "Remote",
+   "Cache",
+   "Virtual",
+   "Release Bundle",
+   "Federated"
+  ]
+ },
+ {
+  "cls": "el-select-dropdown__wrap.el-scrollbar__wrap",
+  "x": 0,
+  "items": [
+   "Local",
+   "Remote",
+   "Cache",
+   "Virtual",
+   "Release Bundle",
+   "Federated"
+  ]
+ },
+ {
+  "cls": "el-scrollbar__view.el-select-dropdown__list",
+  "x": 0,
+  "items": [
+   "Local",
+   "Remote",
+   "Cache",
+   "Virtual",
+   "Release Bundle",
+   "Federated"
+  ]
+ },
+ {
+  "cls": "el-select-dropdown.el-popper",
+  "x": 0,
+  "items": [
+   "Repository Type",
+   "Repository Key",
+   "Package Type"
+  ]
+ },
+ {
+  "cls": "el-select-dropdown__wrap.el-scrollbar__wrap",
+  "x": 0,
+  "items": [
+   "Repository Type",
+   "Repository Key",
+   "Package Type"
+  ]
+ },
+ {
+  "cls": "el-scrollbar__view.el-select-dropdown__list",
+  "x": 0,
+  "items": [
+   "Repository Type",
+   "Repository Key",
+   "Package Type"
+  ]
+ },
+ {
+  "cls": "el-select-dropdown.el-popper",
+  "x": 0,
+  "items": [
+   "Agent Packages",
+   "Agent Plugins",
+   "Alpine",
+   "Ansible",
+   "Bazel Modules",
+   "Bower"
+  ]
+ },
+ {
+  "cls": "el-select-dropdown__wrap.el-scrollbar__wrap",
+  "x": 0,
+  "items": [
+   "Agent Packages",
+   "Agent Plugins",
+   "Alpine",
+   "Ansible",
+   "Bazel Modules",
+   "Bower"
+  ]
+ },
+ {
+  "cls": "el-scrollbar__view.el-select-dropdown__list",
+  "x": 0,
+  "items": [
+   "Agent Packages",
+   "Agent Plugins",
+   "Alpine",
+   "Ansible",
+   "Bazel Modules",
+   "Bower"
+  ]
+ },
+ {
+  "cls": "el-select-dropdown.el-popper",
+  "x": 0,
+  "items": [
+   "Local",
+   "Remote",
+   "Cache",
+   "Virtual",
+   "Release Bundle",
+   "Federated"
+  ]
+ },
+ {
+  "cls": "el-select-dropdown__wrap.el-scrollbar__wrap",
+  "x": 0,
+  "items": [
+   "Local",
+   "Remote",
+   "Cache",
+   "Virtual",
+   "Release Bundle",
+   "Federated"
+  ]
+ },
+ {
+  "cls": "el-scrollbar__view.el-select-dropdown__list",
+  "x": 0,
+  "items": [
+   "Local",
+   "Remote",
+   "Cache",
+   "Virtual",
+   "Release Bundle",
+   "Federated"
+  ]
+ },
+ {
+  "cls": "el-select-dropdown.el-popper",
+  "x": 0,
+  "items": [
+   "Repository Type",
+   "Repository Key",
+   "Package Type"
+  ]
+ },
+ {
+  "cls": "el-select-dropdown__wrap.el-scrollbar__wrap",
+  "x": 0,
+  "items": [
+   "Repository Type",
+   "Repository Key",
+   "Package Type"
+  ]
+ },
+ {
+  "cls": "el-scrollbar__view.el-select-dropdown__list",
+  "x": 0,
+  "items": [
+   "Repository Type",
+   "Repository Key",
+   "Package Type"
+  ]
+ },
+ {
+  "cls": "el-popover.el-popper",
+  "x": 0,
+  "items": [
+   "Repository Type",
+   "Repository Key",
+   "Package Type"
+  ]
+ },
+ {
+  "cls": "el-select-dropdown.el-popper",
+  "x": 0,
+  "items": [
+   "Repository Type",
+   "Repository Key",
+   "Package Type"
+  ]
+ },
+ {
+  "cls": "el-select-dropdown__wrap.el-scrollbar__wrap",
+  "x": 0,
+  "items": [
+   "Repository Type",
+   "Repository Key",
+   "Package Type"
+  ]
+ },
+ {
+  "cls": "el-scrollbar__view.el-select-dropdown__list",
+  "x": 0,
+  "items": [
+   "Repository Type",
+   "Repository Key",
+   "Package Type"
+  ]
+ },
+ {
+  "cls": "el-dropdown",
+  "x": 1596,
+  "items": [
+   "Delete Content",
+   "Native Browser"
+  ]
+ },
+ {
+  "cls": "el-dropdown-menu.el-popper",
+  "x": 0,
+  "items": [
+   "Delete Content",
+   "Native Browser"
+  ]
+ }
+]

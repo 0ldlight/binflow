@@ -1,0 +1,5 @@
+WELCOME TO
+THE JFROG PLATFORM!
+Universal End-to-End DevOps Platform For Continuous Software Releases
+Get Started
+Don't show me again

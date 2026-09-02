@@ -1,0 +1,98 @@
+[
+ {
+  "href": "#main-content",
+  "text": "Skip to main content",
+  "x": 0,
+  "y": -40
+ },
+ {
+  "href": "/ui/",
+  "text": "",
+  "x": 0,
+  "y": 47
+ },
+ {
+  "href": "/ui/packages",
+  "text": "Artifactory",
+  "x": 0,
+  "y": 194
+ },
+ {
+  "href": "/ui/packages",
+  "text": "Packages",
+  "x": 0,
+  "y": 240
+ },
+ {
+  "href": "/ui/builds",
+  "text": "Builds",
+  "x": 0,
+  "y": 280
+ },
+ {
+  "href": "/ui/repos/tree",
+  "text": "Artifacts",
+  "x": 0,
+  "y": 320
+ },
+ {
+  "href": "/ui/artifactory/release-lifecycle",
+  "text": "Release Lifecycle",
+  "x": 0,
+  "y": 360
+ },
+ {
+  "href": "/ui/security-and-compliance-teaser",
+  "text": "Xray",
+  "x": 0,
+  "y": 400
+ },
+ {
+  "href": "/ui/release-bundles",
+  "text": "Distribution",
+  "x": 0,
+  "y": 446
+ },
+ {
+  "href": "/ui/teasers/ml_sh",
+  "text": "AI/ML",
+  "x": 0,
+  "y": 492
+ },
+ {
+  "href": "/ui/teaser-pipelines",
+  "text": "Pipelines",
+  "x": 0,
+  "y": 538
+ },
+ {
+  "href": "/ui/integrations",
+  "text": "Integrations",
+  "x": 0,
+  "y": 606
+ },
+ {
+  "href": "https://www.jfrog.com",
+  "text": "© Copyright 2026 JFrog Ltd",
+  "x": 24,
+  "y": 967
+ },
+ {
+  "href": "#",
+  "text": "All Projects",
+  "x": 270,
+  "y": 131
+ },
+ {
+  "href": "#",
+  "text": "Artifactory",
+  "x": 416,
+  "y": 132
+ },
+ {
+  "href": "http://127.0.0.1:8082/artifactory/jfrog-support-bundle/",
+  "text": "http://127.0.0.1:8082/artifactory/jfrog-support-bundle/",
+  "x": 945,
+  "y": 544
+ }
+]

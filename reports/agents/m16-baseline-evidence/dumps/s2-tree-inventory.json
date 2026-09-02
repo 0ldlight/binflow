@@ -1,0 +1,213 @@
+{
+ "url": "http://127.0.0.1:8082/ui/repos/tree/General/",
+ "tids": [],
+ "btns": [
+  {
+   "tid": "",
+   "text": "Get Started",
+   "aria": "",
+   "cls": "el-p-button.el-p-button--primary",
+   "x": 781,
+   "y": 479,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "platform",
+   "aria": "",
+   "cls": "toggle-menu-button.active",
+   "x": 266,
+   "y": 49,
+   "disabled": true
+  },
+  {
+   "tid": "",
+   "text": "administration",
+   "aria": "",
+   "cls": "toggle-menu-button",
+   "x": 343,
+   "y": 49,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "",
+   "aria": "Submit Search",
+   "cls": "el-p-button.el-p-button--large",
+   "x": 1495,
+   "y": 49,
+   "disabled": true
+  },
+  {
+   "tid": "",
+   "text": "",
+   "aria": "Advanced Search",
+   "cls": "el-p-button.el-p-button--large",
+   "x": 1535,
+   "y": 49,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "",
+   "aria": "Get Help and Learn",
+   "cls": "el-p-button.el-p-button--transparent",
+   "x": 1602,
+   "y": 59,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "A",
+   "aria": "User Menu",
+   "cls": "el-p-button.el-p-button--transparent",
+   "x": 1647,
+   "y": 59,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "",
+   "aria": "Hide navigation menu",
+   "cls": "vsm--toggle-btn.vsm--toggle-btn_slot",
+   "x": 198,
+   "y": 942,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Set Me Up",
+   "aria": "",
+   "cls": "el-button.el-button--brand",
+   "x": 1483,
+   "y": 126,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "",
+   "aria": "More options",
+   "cls": "el-button.actions-dropdown-btn",
+   "x": 1600,
+   "y": 126,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "My Favorites",
+   "aria": "My Favorites filter",
+   "cls": "el-button.el-tooltip",
+   "x": 1113,
+   "y": 219,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Clear",
+   "aria": "Clear filters",
+   "cls": "el-button.clear-btn-button",
+   "x": 1281,
+   "y": 215,
+   "disabled": true
+  },
+  {
+   "tid": "",
+   "text": "",
+   "aria": "Compacted",
+   "cls": "el-button.switchButtonsItem",
+   "x": 1561,
+   "y": 219,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "",
+   "aria": "Non-Compacted",
+   "cls": "el-button.switchButtonsItem",
+   "x": 1592,
+   "y": 219,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "",
+   "aria": "Copy to clipboard",
+   "cls": "el-tooltip",
+   "x": 1510,
+   "y": 416,
+   "disabled": false
+  }
+ ],
+ "inputs": [
+  {
+   "tag": "input",
+   "type": "checkbox",
+   "ph": "",
+   "value": "on",
+   "tid": "",
+   "aria": "",
+   "x": 781,
+   "y": 560
+  },
+  {
+   "tag": "input",
+   "type": "text",
+   "ph": "Search Artifacts",
+   "value": "",
+   "tid": "",
+   "aria": "",
+   "x": 1293,
+   "y": 49
+  },
+  {
+   "tag": "input",
+   "type": "text",
+   "ph": "Repository Name",
+   "value": "",
+   "tid": "",
+   "aria": "",
+   "x": 286,
+   "y": 219
+  },
+  {
+   "tag": "input",
+   "type": "text",
+   "ph": "",
+   "value": "",
+   "tid": "",
+   "aria": "Package Types",
+   "x": 617,
+   "y": 219
+  },
+  {
+   "tag": "input",
+   "type": "text",
+   "ph": "Package Types",
+   "value": "",
+   "tid": "",
+   "aria": "",
+   "x": 609,
+   "y": 219
+  },
+  {
+   "tag": "input",
+   "type": "text",
+   "ph": "",
+   "value": "",
+   "tid": "",
+   "aria": "Repository Types",
+   "x": 869,
+   "y": 219
+  },
+  {
+   "tag": "input",
+   "type": "text",
+   "ph": "Repository Types",
+   "value": "",
+   "tid": "",
+   "aria": "",
+   "x": 861,
+   "y": 219
+  }
+ ]
+}

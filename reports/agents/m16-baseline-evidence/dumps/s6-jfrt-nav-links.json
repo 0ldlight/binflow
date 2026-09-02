@@ -1,0 +1,114 @@
+[
+ {
+  "href": "/ui/admin/projects/list",
+  "text": "All Projects Overview"
+ },
+ {
+  "href": "/ui/admin/stages",
+  "text": "Stages & Lifecycle"
+ },
+ {
+  "href": "/ui/admin/repositories",
+  "text": "Repositories"
+ },
+ {
+  "href": "/ui/admin/management/users",
+  "text": "User Management"
+ },
+ {
+  "href": "/ui/admin/proxies/configuration",
+  "text": "Proxies"
+ },
+ {
+  "href": "/ui/admin/configuration/security/ldap",
+  "text": "Authentication"
+ },
+ {
+  "href": "/ui/admin/configuration/security/general",
+  "text": "Security"
+ },
+ {
+  "href": "/ui/admin/configuration/general",
+  "text": "General Management"
+ },
+ {
+  "href": "/ui/admin/monitoring/storage-summary",
+  "text": "Monitoring"
+ },
+ {
+  "href": "/ui/admin/topology-teaser",
+  "text": "Topology"
+ },
+ {
+  "href": "/ui/admin/support-zone",
+  "text": "Support Zone"
+ },
+ {
+  "href": "/ui/admin/artifactory/configuration/artifactory_general",
+  "text": "Artifactory Settings"
+ },
+ {
+  "href": "/ui/admin/artifactory/configuration/artifactory_general",
+  "text": "General Settings"
+ },
+ {
+  "href": "/ui/admin/artifactory/security/general",
+  "text": "Artifactory Security"
+ },
+ {
+  "href": "/ui/admin/artifactory/config_packages",
+  "text": "Packages Settings"
+ },
+ {
+  "href": "/ui/admin/artifactory/configuration/reverse_proxy",
+  "text": "HTTP Settings"
+ },
+ {
+  "href": "/ui/admin/artifactory/import_export/repositories",
+  "text": "Repository Imp/Exp"
+ },
+ {
+  "href": "/ui/admin/artifactory/import_export/system",
+  "text": "System Imp/Exp"
+ },
+ {
+  "href": "/ui/admin/repositories/layouts",
+  "text": "Repositories Layouts"
+ },
+ {
+  "href": "/ui/admin/artifactory/migration_tool",
+  "text": "Migration Tool"
+ },
+ {
+  "href": "/ui/admin/artifactory/configuration/property_sets",
+  "text": "Property Sets"
+ },
+ {
+  "href": "/ui/admin/artifactory/services/indexer",
+  "text": "Maven Indexer"
+ },
+ {
+  "href": "/ui/admin/artifactory/advanced/config_descriptor",
+  "text": "Config Descriptor"
+ },
+ {
+  "href": "/ui/admin/artifactory/advanced/security_descriptor",
+  "text": "Security Descriptor"
+ },
+ {
+  "href": "/ui/admin/artifactory/advanced/maintenance",
+  "text": "Maintenance"
+ },
+ {
+  "href": "/ui/admin/artifactory/services/backups",
+  "text": "Backups"
+ },
+ {
+  "href": "/ui/admin/artifactory/services/retention/policies",
+  "text": "Retention Policies"
+ },
+ {
+  "href": "/ui/admin/artifactory/configuration/user_plugins",
+  "text": "User Plugins"
+ }
+]

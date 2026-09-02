@@ -1,0 +1,40 @@
+Skip to main content
+Platform
+Administration
+A
+All Projects
+All Projects Overview
+Stages & Lifecycle
+Repositories
+User Management
+Users
+Groups
+Global Roles
+Permissions
+Access Tokens
+Proxies
+Authentication
+Security
+General Management
+Monitoring
+Topology
+Support Zone
+Artifactory Settings
+JFrog Platform
+Enterprise Plus trial license 7.161.20 rev 86120900 Licensed to TEST JFrog Ltd.
+© Copyright 2026 JFrog Ltd
+Groups
+New Group
+Filters
+Clear all
+Admin
+Auto Join
+External
+ 
+Name
+Permissions
+External
+Admin
+Auto Join
+readers
+1 | Anything

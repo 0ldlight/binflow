@@ -1,0 +1,20 @@
+[
+ {
+  "tag": "DIV",
+  "cls": "repo-form-ui-component",
+  "x": 270,
+  "y": 225
+ },
+ {
+  "tag": "DIV",
+  "cls": "el-form-item",
+  "x": 270,
+  "y": 225
+ },
+ {
+  "tag": "DIV",
+  "cls": "el-form-item__content",
+  "x": 270,
+  "y": 225
+ }
+]

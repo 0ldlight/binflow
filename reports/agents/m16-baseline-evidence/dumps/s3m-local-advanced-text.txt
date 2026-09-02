@@ -1,0 +1,40 @@
+Skip to main content
+Platform
+Administration
+A
+All Projects
+All Projects Overview
+Stages & Lifecycle
+Repositories
+User Management
+Proxies
+Authentication
+Security
+General Management
+Monitoring
+Topology
+Support Zone
+Artifactory Settings
+JFrog Platform
+Enterprise Plus trial license 7.161.20 rev 86120900 Licensed to TEST JFrog Ltd.
+© Copyright 2026 JFrog Ltd
+All Projects
+Repositories
+New Local Repository
+Basic
+Advanced
+Replications
+Property Sets
+Moving item(s): 0
+0 Available Property Sets
+No Items Selected
+1 Selected Property Set
+Name
+artifactory
+Other Settings
+Priority Resolution 
+Disable Artifact Resolution in Repository 
+Allow Artifact Content Browsing 
+Enable Redirect Download 
+Cancel
+Create Local Repository

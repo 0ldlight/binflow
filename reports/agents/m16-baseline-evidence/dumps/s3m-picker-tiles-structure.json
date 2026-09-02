@@ -1,0 +1,35 @@
+{
+ "n": 12,
+ "kids": [
+  {
+   "tag": "DIV",
+   "cls": "",
+   "text": "Docker"
+  },
+  {
+   "tag": "DIV",
+   "cls": "",
+   "text": "Docker"
+  },
+  {
+   "tag": "BUTTON",
+   "cls": "el-button el-tooltip pkg-container margin--b-8 el-button--de",
+   "text": "Docker"
+  },
+  {
+   "tag": "SPAN",
+   "cls": "",
+   "text": "Docker"
+  },
+  {
+   "tag": "DIV",
+   "cls": "flex flex--dir-col flex--align-center",
+   "text": "Docker"
+  },
+  {
+   "tag": "P",
+   "cls": "label-text color--text-bright font--no-wrap display--inline-",
+   "text": "Docker"
+  }
+ ]
+}

@@ -1,0 +1,173 @@
+{
+ "url": "http://127.0.0.1:8082/ui/admin/repositories",
+ "tids": [],
+ "btns": [
+  {
+   "tid": "",
+   "text": "Get Started",
+   "aria": "",
+   "cls": "el-p-button.el-p-button--primary",
+   "x": 781,
+   "y": 479,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "platform",
+   "aria": "",
+   "cls": "toggle-menu-button",
+   "x": 266,
+   "y": 49,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "administration",
+   "aria": "",
+   "cls": "toggle-menu-button.active",
+   "x": 343,
+   "y": 49,
+   "disabled": true
+  },
+  {
+   "tid": "",
+   "text": "",
+   "aria": "Get Help and Learn",
+   "cls": "el-p-button.el-p-button--transparent",
+   "x": 1602,
+   "y": 59,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "A",
+   "aria": "User Menu",
+   "cls": "el-p-button.el-p-button--transparent",
+   "x": 1647,
+   "y": 59,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "",
+   "aria": "Hide navigation menu",
+   "cls": "vsm--toggle-btn.vsm--toggle-btn_slot",
+   "x": 198,
+   "y": 942,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Create a Repository",
+   "aria": "",
+   "cls": "el-button.el-button--brand",
+   "x": 1446,
+   "y": 126,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "",
+   "aria": "Customize Columns",
+   "cls": "el-button.el-button--icon",
+   "x": 1556,
+   "y": 264,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "",
+   "aria": "Toggle table sidebar",
+   "cls": "el-button.el-button--icon",
+   "x": 1592,
+   "y": 264,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "",
+   "aria": "Close the table sidebar",
+   "cls": "el-button.el-button--icon",
+   "x": 1927,
+   "y": 272,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Clear all",
+   "aria": "Clear all filters",
+   "cls": "clear-all.vue2",
+   "x": 1884,
+   "y": 320,
+   "disabled": true
+  },
+  {
+   "tid": "",
+   "text": "",
+   "aria": "Copy Repository Key",
+   "cls": "el-tooltip",
+   "x": 524,
+   "y": 364,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "",
+   "aria": "Show in Artifacts Tree",
+   "cls": "el-button.el-button--standalone",
+   "x": 1607,
+   "y": 387,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "",
+   "aria": "Copy Repository Key",
+   "cls": "el-tooltip",
+   "x": 524,
+   "y": 428,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "",
+   "aria": "Row actions, undefined",
+   "cls": "el-button.el-button--standalone",
+   "x": 1607,
+   "y": 455,
+   "disabled": false
+  }
+ ],
+ "inputs": [
+  {
+   "tag": "input",
+   "type": "checkbox",
+   "ph": "",
+   "value": "on",
+   "tid": "",
+   "aria": "",
+   "x": 781,
+   "y": 560
+  },
+  {
+   "tag": "input",
+   "type": "text",
+   "ph": "Search Admin Resources",
+   "value": "",
+   "tid": "",
+   "aria": "",
+   "x": 1236,
+   "y": 48
+  },
+  {
+   "tag": "input",
+   "type": "text",
+   "ph": "Search",
+   "value": "",
+   "tid": "",
+   "aria": "",
+   "x": 1352,
+   "y": 264
+  }
+ ]
+}

@@ -1,0 +1,62 @@
+[
+ {
+  "tag": "div",
+  "text": "GeneralInfoName:jfrog-support-bundlePackage Type: ",
+  "cls": "tab-info-wrapper"
+ },
+ {
+  "tag": "div",
+  "text": "GeneralInfoName:jfrog-support-bundlePackage Type: ",
+  "cls": "el-tabs"
+ },
+ {
+  "tag": "div",
+  "text": "General",
+  "cls": "el-tabs__header"
+ },
+ {
+  "tag": "div",
+  "text": "General",
+  "cls": "el-tabs__nav-wrap"
+ },
+ {
+  "tag": "div",
+  "text": "General",
+  "cls": "el-tabs__nav-scroll"
+ },
+ {
+  "tag": "div",
+  "text": "General",
+  "cls": "el-tabs__nav"
+ },
+ {
+  "tag": "div",
+  "text": "",
+  "cls": "el-tabs__active-bar"
+ },
+ {
+  "tag": "div",
+  "text": "General",
+  "cls": "el-tabs__item"
+ },
+ {
+  "tag": "div",
+  "text": "InfoName:jfrog-support-bundlePackage Type: Support",
+  "cls": "el-tabs__content"
+ },
+ {
+  "tag": "div",
+  "text": "InfoName:jfrog-support-bundlePackage Type: Support",
+  "cls": "el-tab-pane"
+ },
+ {
+  "tag": "div",
+  "text": "InfoName:jfrog-support-bundlePackage Type: Support",
+  "cls": "tab-view-wrapper"
+ },
+ {
+  "tag": "div",
+  "text": "Name:jfrog-support-bundlePackage Type: Support Bun",
+  "cls": "general-table"
+ }
+]

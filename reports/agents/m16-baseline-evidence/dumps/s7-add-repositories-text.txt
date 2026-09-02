@@ -1,0 +1,59 @@
+Skip to main content
+Platform
+Administration
+A
+All Projects
+All Projects Overview
+Stages & Lifecycle
+Repositories
+User Management
+Users
+Groups
+Global Roles
+Permissions
+Access Tokens
+Proxies
+Authentication
+Security
+General Management
+Monitoring
+Topology
+Support Zone
+Artifactory Settings
+JFrog Platform
+Enterprise Plus trial license 7.161.20 rev 86120900 Licensed to TEST JFrog Ltd.
+© Copyright 2026 JFrog Ltd
+Create Permission
+Create a new permission to manage how users and groups access the resources below. Learn more.
+Name
+Name can not be empty
+Resources
+Select the resource types to which the permission applies.
+Users
+Select the users and their actions on the selected resources.
+Groups
+Select the groups and their actions on the selected resources.
+Add Repositories
+Add Builds
+Add Release Bundles
+Add Repositories
+Set a repository permission target to define what a user has access to view in the repository resource. Learn more.
+1
+Select Repositories
+Select all the repositories to which you wish to apply the permissions.
+2
+Set Patterns (Optional)
+Setting patterns applies to the artifacts inside the selected repositories.
+Moving item(s): 0
+4 Available Repositories
+Name
+Any Local
+Any Remote
+Any Distribution
+example-repo-local
+0 Selected Repositories
+No Items Selected
+Cancel
+OK
+Cancel
+Create

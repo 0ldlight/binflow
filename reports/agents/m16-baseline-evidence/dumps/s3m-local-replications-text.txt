@@ -1,0 +1,42 @@
+Skip to main content
+Platform
+Administration
+A
+All Projects
+All Projects Overview
+Stages & Lifecycle
+Repositories
+User Management
+Proxies
+Authentication
+Security
+General Management
+Monitoring
+Topology
+Support Zone
+Artifactory Settings
+JFrog Platform
+Enterprise Plus trial license 7.161.20 rev 86120900 Licensed to TEST JFrog Ltd.
+© Copyright 2026 JFrog Ltd
+All Projects
+Repositories
+New Local Repository
+Basic
+Advanced
+Replications
+This repository has not been configured for replication. To learn about replicating repositories, refer to the
+JFrog Artifactory User Guide
+Enable Event Replication
+Replications
+Add Replication
+ 
+URL
+Sync Deletes
+Sync Properties
+Enabled
+No replications defined
+Click Add Replication to define the push or pull replication of
+content between two repositories
+1
+Cancel
+Create Local Repository

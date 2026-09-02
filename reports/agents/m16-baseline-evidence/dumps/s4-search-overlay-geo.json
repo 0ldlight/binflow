@@ -1,0 +1,27 @@
+[
+ {
+  "cls": "navbar-search-wrapper dropdown-z-index search-coll",
+  "w": 340,
+  "h": 0
+ },
+ {
+  "cls": "flex advanced-search-container expanded flex-grow ",
+  "w": 798,
+  "h": 42
+ },
+ {
+  "cls": "mt-2 recent-search-dropdown new-navigation",
+  "w": 740,
+  "h": 46
+ },
+ {
+  "cls": "card recent-search-card",
+  "w": 740,
+  "h": 46
+ },
+ {
+  "cls": "mt-2 search-advanced-dropdown topbar-v3",
+  "w": 740,
+  "h": 0
+ }
+]

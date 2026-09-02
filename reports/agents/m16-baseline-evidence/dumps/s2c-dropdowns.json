@@ -1,0 +1,44 @@
+[
+ {
+  "label": "Package Types",
+  "ph": "",
+  "x": 0,
+  "inlineText": "Agent PackagesAgent PluginsAlpineAnsibleBazel ModulesBower Select AllClear All"
+ },
+ {
+  "label": "Repository Types",
+  "ph": "",
+  "x": 0,
+  "inlineText": "LocalRemoteCacheVirtualRelease BundleFederated Select AllClear All"
+ },
+ {
+  "label": "",
+  "ph": "Select",
+  "x": 0,
+  "inlineText": "Repository TypeRepository KeyPackage Type"
+ },
+ {
+  "label": "Package Types",
+  "ph": "",
+  "x": 609,
+  "inlineText": "Agent PackagesAgent PluginsAlpineAnsibleBazel ModulesBower Select AllClear All"
+ },
+ {
+  "label": "Repository Types",
+  "ph": "",
+  "x": 861,
+  "inlineText": "LocalRemoteCacheVirtualRelease BundleFederated Select AllClear All"
+ },
+ {
+  "label": "",
+  "ph": "Select",
+  "x": 0,
+  "inlineText": "Repository TypeRepository KeyPackage Type"
+ },
+ {
+  "label": "",
+  "ph": "Select",
+  "x": 0,
+  "inlineText": "Repository TypeRepository KeyPackage Type"
+ }
+]

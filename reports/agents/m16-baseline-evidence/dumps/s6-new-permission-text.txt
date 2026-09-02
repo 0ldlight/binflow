@@ -1,0 +1,39 @@
+Skip to main content
+Platform
+Administration
+A
+All Projects
+All Projects Overview
+Stages & Lifecycle
+Repositories
+User Management
+Users
+Groups
+Global Roles
+Permissions
+Access Tokens
+Proxies
+Authentication
+Security
+General Management
+Monitoring
+Topology
+Support Zone
+Artifactory Settings
+JFrog Platform
+Enterprise Plus trial license 7.161.20 rev 86120900 Licensed to TEST JFrog Ltd.
+© Copyright 2026 JFrog Ltd
+Create Permission
+Create a new permission to manage how users and groups access the resources below. Learn more.
+Name
+Resources
+Select the resource types to which the permission applies.
+Users
+Select the users and their actions on the selected resources.
+Groups
+Select the groups and their actions on the selected resources.
+Add Repositories
+Add Builds
+Add Release Bundles
+Cancel
+Create
