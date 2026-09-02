@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ComponentPropsWithoutRef, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react'
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 
 import Alert from '@mui/material/Alert'
 import Button from '@mui/material/Button'
@@ -9,6 +9,10 @@ import Chip from '@mui/material/Chip'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import Menu from '@mui/material/Menu'
 import MuiSkeleton from '@mui/material/Skeleton'
+import Popover from '@mui/material/Popover'
+import Radio from '@mui/material/Radio'
+import RadioGroup from '@mui/material/RadioGroup'
+import Select from '@mui/material/Select'
 import Table from '@mui/material/Table'
 import TableBody from '@mui/material/TableBody'
 import TableCell from '@mui/material/TableCell'
@@ -35,7 +39,7 @@ import { useAsync } from '../../lib/useAsync'
 import { clientCommands } from '../repositories/commands'
 
 import NodeDetail from './NodeDetail'
-import type { DownloadState } from './NodeDetail'
+import type { DetailTab, DownloadState } from './NodeDetail'
 import type { ChildNode } from './lib'
 import './browser.css'
 // 共享样式（T-100 建立的树/上传/搜索样式族；搜索页仍从原址引入——完整
@@ -55,15 +59,30 @@ import {
 // 对齐面；自 repositories/tree/TreePage 迁址重构）：
 //
 // - 左树：仓库为顶层节点（rclass×packageType 图标区分）+ 懒展开一层 +
-//   「过滤仓库」前端过滤（仅已加载集）；URL 即状态（/artifacts/<repo>/
-//   <path>，文件选中进 ?focus=），深链自动展开祖先并滚动定位（§4.3）。
-//   两个过滤词都按作用域复位（QA-3 / FR-82-AC2）：跨层/跨仓导航清空，
-//   同层内（?focus=、树展开）保留——语义论证见过滤状态声明处注释。
-// - 右列：详情面板（仓库/目录/文件三形态 Tab：常规 + 有效权限）+ 当前层
-//   children 表（目录在前，客户端分页 100/页「加载更多」）。
+//   树头工具带（T-434 / FR-142.4：过滤仓库文本框 + 包类型 facet 复选组 +
+//   Local/Remote/Virtual 组 + Sort-by + Compacted/Non-Compacted 单选 +
+//   My Favorites——对齐 Artifactory 树头；收藏为前端态，localStorage 持久）。
+// - URL 即状态（T-434 / FR-142.3，断言反转①）：/artifacts[/<TAB>]/<repo>/
+//   <path>——活跃页签是 URL 路径段（省略 = general，对位 Artifactory
+//   /ui/repos/tree/<TAB>/…）；文件选择是路径段（?focus= 退役，旧深链
+//   一次性 replace 重定向——书签不猝死）。深链自动展开祖先链（含被选
+//   目录自身）并滚动定位（§4.3）。
+// - 选择 ≠ 展开（T-434 / FR-142.2）：仓库名/目录单击 = 纯选中（右侧面
+//   切换，不强制展开分支——原 selectedRepo 并集解除）；展开箭头独立操作；
+//   键盘 →/← 独立展开/收起。
+// - 文件叶子进树（T-434 / FR-142.1，断言反转①）：目录展开显示子目录与
+//   文件行（filter n.folder 退役），仅含文件的目录不再渲染误导性「（空）」
+//   占位；文件叶子点击 = 选中出右侧 item view；children 表随之收窄——
+//   操作列（详情/下载/删除）退役（文件主路径走树/表行选中，删除收敛进
+//   详情面板与右键菜单，两者都过危险确认——Q2 出口①，E1 不倒退）。
+//   文件/目录末段判别经父目录 listing（父链本就装载）；未决期右侧骨架，
+//   不闪错误形态。
+// - 两个过滤词都按作用域复位（QA-3 / FR-82-AC2）：跨层/跨仓导航清空，
+//   同层内（文件选中、树展开）保留——语义论证见过滤状态声明处注释。
 // - 右键菜单（console-m8 C3 的 BinFlow 对齐面）：文件=复制路径/下载/
-//   删除；目录=复制路径/删除/刷新；仓库=复制仓库路径/刷新/在仓库管理中
-//   打开。Move/Copy 无端点不建（零影子入口）。Shift+F10 / Menu 键可达。
+//   删除；目录=复制路径/删除/刷新；仓库=复制仓库路径/收藏（My Favorites）/
+//   刷新/在仓库管理中打开。Move/Copy 无端点不建（零影子入口）。
+//   Shift+F10 / Menu 键可达。
 // - 403 收敛（§2.2/§3.6）：GET /api/repositories 走 CapRepoRead——普通
 //   user 403 → 树顶层 L2 无权限卡 + 搜索/直链引导；已知 repo key 的深链
 //   按路径 ACL 可达（合成顶层节点）。repo 元数据 403 → generic 降级。
@@ -74,15 +93,70 @@ import {
 //
 // T-300 批次二：控件层迁 MUI（Table 家族 / TextField / Button / Checkbox /
 // Chip 徽章 / Alert / 右键菜单 Menu）。交互逻辑零变化：树键盘语义（↑↓→←
-// Enter/Shift+F10）与行导航、URL 即状态、过滤复位语义、锚点（tree-* 族）
-// 全部原样；右键菜单项保持原生 button（artifacts-tree.spec 断言
+// Enter/Shift+F10）与行导航、过滤复位语义、锚点（tree-* 族）全部原样；
+// 右键菜单项保持原生 button（artifacts-tree.spec 断言
 // [data-testid="tree-context-menu"] button 计数——MenuItem 是 li，会断言
 // 断链）。
 
 const PAGE = 100
 const BIG_DIR = 2000
-/** 单层目录树节点渲染上限（懒加载一层 + content-visibility 之外的保险丝） */
+/** 单层目录树节点渲染上限（懒加载一层 + content-visibility 之外的保险丝；
+ * T-434 起口径含文件叶子——目录+文件合并计数） */
 const TREE_LEVEL_CAP = 300
+
+// ---- URL 模型（T-434 / FR-142.3）--------------------------------------------
+//
+// /artifacts[/<TAB>]/<repo>[/<path>…]，TAB ∈ {general|properties|permissions}
+// （对位 Artifactory /ui/repos/tree/<TAB>/<repo>/<path>）。TAB 省略 = general：
+// 旧 /artifacts/<repo>/<path> 全量保持规范形零重定向（书签与既有 spec 面
+// 不猝死），页签非默认档才占段。文件是路径末段（?focus= 退役）——旧
+// ?focus= URL 经一次性 replace 折入路径。已知边界：repo key 与 TAB 词
+// （general/properties/permissions）同名时按 TAB 解析（该名仓库经
+// /artifacts/general/<key> 仍可达）。
+
+/** 页签 ID（NodeDetail 内部值）→ URL 段 slug */
+const TAB_SLUG: Record<DetailTab, string> = { general: 'general', props: 'properties', perms: 'permissions' }
+const SLUG_TO_TAB: Record<string, DetailTab> = {
+  general: 'general',
+  properties: 'props',
+  permissions: 'perms',
+}
+
+function buildTreeUrl(tab: DetailTab, repo: string, segs: string[]): string {
+  const slug = tab === 'general' ? '' : `${TAB_SLUG[tab]}/`
+  if (!repo) return '/artifacts'
+  const path = encodeDir(segs.join('/'))
+  return `/artifacts/${slug}${encodeURIComponent(repo)}${path ? `/${path}` : ''}`
+}
+
+// ---- 树头工具带（T-434 / FR-142.4）-------------------------------------------
+
+const FAV_KEY = 'bf-tree-favorites'
+const COMPACT_KEY = 'bf-tree-compacted'
+
+function loadFavorites(): Set<string> {
+  try {
+    const raw = localStorage.getItem(FAV_KEY)
+    const arr = raw ? (JSON.parse(raw) as unknown) : []
+    return new Set(Array.isArray(arr) ? arr.filter((s) => typeof s === 'string') : [])
+  } catch {
+    return new Set()
+  }
+}
+
+/** Sort-by 选项（K67 冻结候选：名称 / 包类型 / 仓库类型，均升序、name 稳定末键） */
+type TreeSort = 'name' | 'pkg' | 'rclass'
+
+function compareRepos(a: RepoListItem, b: RepoListItem, sort: TreeSort): number {
+  if (sort === 'pkg') {
+    const d = (a.packageType || '').localeCompare(b.packageType || '')
+    if (d !== 0) return d
+  } else if (sort === 'rclass') {
+    const d = (a.type || '').localeCompare(b.type || '')
+    if (d !== 0) return d
+  }
+  return a.key.localeCompare(b.key)
+}
 
 type DirStatus =
   | { status: 'loading' }
@@ -109,13 +183,12 @@ type MenuTarget =
   | { kind: 'node'; repoKey: string; node: ChildNode }
 
 export default function ArtifactsBrowser() {
-  const { key: repoKeyParam } = useParams<{ key?: string }>()
-  const repoKey = repoKeyParam ?? ''
+  const routeParams = useParams<{ tab?: string; key?: string }>()
+  // splat 需无类型参数表读取（'*' 不在 RouteComponentParams 的键集内）
+  const splatRaw = useParams()['*'] ?? ''
   const navigate = useNavigate()
-  const [params, setParams] = useSearchParams()
-  // splat 已由 React Router 解码；去掉空段（尾斜杠）即 repo 相对目录
-  const dir = (useParams()['*'] ?? '').split('/').filter((s) => s !== '').join('/')
-  const focus = params.get('focus')
+  const location = useLocation()
+  const [params] = useSearchParams()
   const toast = useToast()
   const confirm = useConfirm()
   const { session } = useAuth()
@@ -124,6 +197,55 @@ export default function ArtifactsBrowser() {
   // T-372 / FR-122.1：树尾常驻回收站入口的可见性——管理壳同门
   // （AppShell canSeeAdmin：admin ∪ readonly_admin），普通 user 不渲染
   const canSeeAdmin = admin || readOnly
+
+  // ---- URL 解析（T-434 / FR-142.3：页签段 + 文件路径段）----
+  // 两条路由同组件承载：artifacts/:tab/:key/*（新形，tab 是段）与
+  // artifacts/:key/*（tab 省略 = general 的规范形 + 单段旧形）。旧 ?focus=
+  // 与「首段不是页签词」的多段 URL 是 legacy——一次性 replace 折入规范形
+  // （重定向目标与当前 pathname 相同时不动作，防环）。
+  const tabParam = routeParams.tab
+  const keyParam = routeParams.key ?? ''
+  const focusParam = params.get('focus')
+  const splatKey = splatRaw.split('/').filter((s) => s !== '').join('\n')
+  const parsed = useMemo(() => {
+    let tab: DetailTab = 'general'
+    let repo = ''
+    let segs: string[] = []
+    let legacy = false
+    const splatSegs = splatKey === '' ? [] : splatKey.split('\n')
+    if (tabParam !== undefined) {
+      if (tabParam in SLUG_TO_TAB) {
+        tab = SLUG_TO_TAB[tabParam]
+        repo = keyParam
+        segs = splatSegs
+      } else {
+        // 多段旧形落在本路由（:tab 吃掉了 repo key）——回填为 repo + path
+        legacy = true
+        repo = tabParam
+        segs = [keyParam, ...splatSegs].filter((s) => s !== '')
+      }
+    } else if (keyParam) {
+      if (keyParam in SLUG_TO_TAB) tab = SLUG_TO_TAB[keyParam] // /artifacts/<TAB>：跨仓根的页签视图
+      else {
+        repo = keyParam
+        segs = splatSegs
+      }
+    }
+    if (focusParam) {
+      // ?focus= 退役：折入路径末段（跨仓根上的 focus 无承载面，丢弃）
+      if (repo) segs = [...segs, focusParam]
+      legacy = true
+    }
+    return { tab, repo, segs, legacy }
+  }, [tabParam, keyParam, splatKey, focusParam])
+
+  const repoKey = parsed.repo
+  const tab = parsed.tab
+  const legacyTarget = parsed.legacy ? buildTreeUrl(parsed.tab, parsed.repo, parsed.segs) : null
+  useEffect(() => {
+    // 规范形一次性重定向（?focus= 折入路径 / 多段旧形回填页签段）
+    if (legacyTarget && location.pathname !== legacyTarget) navigate(legacyTarget, { replace: true })
+  }, [legacyTarget, location.pathname, navigate])
 
   // ---- 仓库列表（CapRepoRead：admin/readonly 全量；普通 user 403） ----
   const reposQuery = useAsync(() => getRepositories(), [])
@@ -156,8 +278,6 @@ export default function ArtifactsBrowser() {
   const virtualMembers = repoMeta ? cfgStrList(repoMeta.configuration, 'repositories') : []
 
   // ---- 目录加载（缓存 + 去重；键含 repo 维度——跨仓切换不复用脏缓存） ----
-  const chain = useMemo(() => ancestorDirs(dir), [dir])
-  const chainKey = chain.join('\n')
   const [dirState, setDirState] = useState<Record<string, DirStatus>>({})
   const cacheRef = useRef(new Map<string, ChildNode[]>())
   const inflightRef = useRef(new Set<string>())
@@ -165,6 +285,31 @@ export default function ArtifactsBrowser() {
   /** 手动/深链展开的目录（跨仓复合键） */
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const expandedKey = Array.from(expanded).sort().join('\n')
+
+  // ---- 路径末段分类（T-434 / FR-142.1：文件是路径段）----
+  // 末段是文件还是目录由父目录 listing 判别（父链本就装载，零额外请求）；
+  // 未决期（父 listing 在途）右侧骨架呈现，不闪目录形态。装载链取乐观
+  // 全路径（目录深链免瀑布）；文件路径多付一次 FileInfo GET——文件选中
+  // 非热路径，正确性优先（优化余地登记票内遗留）。
+  const pathSegs = parsed.segs
+  const fullDir = pathSegs.join('/')
+  const parentDir = pathSegs.length > 0 ? pathSegs.slice(0, -1).join('/') : ''
+  const lastSeg = pathSegs.length > 0 ? pathSegs[pathSegs.length - 1] : ''
+  const parentSt = repoKey ? dirState[ck(repoKey, parentDir)] : undefined
+  const parentSettled =
+    pathSegs.length === 0 || parentSt?.status === 'ok' || parentSt?.status === 'forbidden' || parentSt?.status === 'error'
+  const lastChild =
+    parentSt?.status === 'ok' && lastSeg !== '' ? parentSt.nodes.find((n) => n.name === lastSeg) : undefined
+  const fileSelected = !!(lastChild && !lastChild.folder)
+  const dir = fileSelected ? parentDir : fullDir
+  const focusFile = fileSelected ? lastSeg : null
+  /** 选中文件的树路径（与 ChildNode.path 同构：根层文件无前导斜杠） */
+  const focusPath = focusFile !== null ? (dir !== '' ? `${dir}/${focusFile}` : focusFile) : null
+
+  // 展开链 = 分类后 dir 的祖先（含自身）；装载链 = 乐观全路径的祖先（含自身）
+  const chain = useMemo(() => ancestorDirs(dir), [dir])
+  const chainKey = chain.join('\n')
+  const loadChainKey = useMemo(() => ancestorDirs(fullDir).join('\n'), [fullDir])
 
   const loadDir = useCallback(
     (repo: string, d: string, force = false) => {
@@ -212,10 +357,11 @@ export default function ArtifactsBrowser() {
     // 恢复动态展开后「点了箭头永远转骨架」不可接受。该缺口先于本票存在且对
     // 全部 rclass 同形（原 effect 以 !repoKey 早退，expanded 集被一并跳过）；
     // 修复为「选中仓的根 + 祖先链 ∪ 手动展开集」，行为只增不改。
+    // T-434：装载链取乐观全路径（末段判别前就并行拉满——目录深链免瀑布）。
     const wanted = new Set<string>(expanded)
     if (repoKey) {
       wanted.add(ck(repoKey, ''))
-      for (const d of chain) wanted.add(ck(repoKey, d))
+      for (const d of loadChainKey === '' ? [] : loadChainKey.split('\n')) wanted.add(ck(repoKey, d))
     }
     if (wanted.size === 0) return
     for (const key of wanted) {
@@ -223,7 +369,7 @@ export default function ArtifactsBrowser() {
       loadDir(key.slice(0, sep), key.slice(sep + 1))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- chain/expanded 以 join key 刻画
-  }, [repoKey, chainKey, expandedKey, tick, loadDir])
+  }, [repoKey, loadChainKey, expandedKey, tick, loadDir])
 
   const refresh = useCallback(() => {
     cacheRef.current.clear()
@@ -233,44 +379,61 @@ export default function ArtifactsBrowser() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 全量刷新语义
   }, [reposQuery.reload])
 
-  // 切仓/切目录：自动展开祖先链（深链 §4.3）
+  // 切仓/切目录：自动展开祖先链（深链 §4.3）。T-434 / FR-142.2（断言
+  // 反转①）：单击仓库名 = 纯选中——dir === '' 不再强制展开仓分支（原
+  // selectedRepo 并集 + chain(['']) 双路强制展开解除）；进入子路径（深链/
+  // 下钻）才展开仓根 + 祖先链（含被选目录自身——目录选中即见其内容，
+  // Artifactory 同形）。展开态只增不减（用户手动展开不因导航被收起）。
   useEffect(() => {
     if (!repoKey) return
-    setExpanded((prev) => {
-      const next = new Set(prev)
-      for (const d of chain) next.add(ck(repoKey, d))
-      return next
-    })
+    if (dir !== '') {
+      setExpanded((prev) => {
+        const next = new Set(prev)
+        next.add(ck(repoKey, ''))
+        for (const d of chain) next.add(ck(repoKey, d))
+        return next
+      })
+    }
     setVisible(PAGE)
     // eslint-disable-next-line react-hooks/exhaustive-deps -- dir/repo 变化即重置
-  }, [dir, repoKey])
+  }, [dir, repoKey, chainKey])
 
-  // 深链滚动定位：祖先链全部就绪后把当前节点滚进可视区
+  // 深链滚动定位：祖先链全部就绪后把当前节点（目录/文件叶子/仓库行）滚进可视区
   const chainSettled = !!repoKey && chain.every((d) => dirState[ck(repoKey, d)]?.status === 'ok')
   useEffect(() => {
     if (!chainSettled) return
     const sel =
-      dir === ''
-        ? document.querySelector(`[data-testid="tree-repo-${CSS.escape(repoKey)}"]`)
-        : document.querySelector(`[data-testid="tree-node-${CSS.escape(dir)}"]`)
+      focusPath !== null
+        ? document.querySelector(`[data-testid="tree-leaf-${CSS.escape(focusPath)}"]`)
+        : dir === ''
+          ? document.querySelector(`[data-testid="tree-repo-${CSS.escape(repoKey)}"]`)
+          : document.querySelector(`[data-testid="tree-node-${CSS.escape(dir)}"]`)
     sel?.scrollIntoView({ block: 'nearest' })
-  }, [chainSettled, repoKey, dir])
+  }, [chainSettled, repoKey, dir, focusPath])
 
-  // ---- 导航 / 选中（URL 即状态：目录进路径，文件进 ?focus=） ----
+  // ---- 导航 / 选中（URL 即状态：页签段 + 目录与文件都进路径，T-434） ----
   const goTo = useCallback(
     (repo: string, d: string) => {
-      navigate(`/artifacts/${encodeURIComponent(repo)}${d ? `/${encodeDir(d)}` : ''}`)
+      navigate(buildTreeUrl(tab, repo, d === '' ? [] : d.split('/').filter(Boolean)))
     },
-    [navigate],
+    [navigate, tab],
   )
 
+  /** 文件选中（null = 收起选中，回当前目录形态）——文件是 URL 路径末段 */
   const selectFile = useCallback(
     (name: string | null) => {
-      const next = new URLSearchParams()
-      if (name) next.set('focus', name)
-      setParams(next, { replace: false })
+      const segs = dir.split('/').filter(Boolean)
+      navigate(buildTreeUrl(tab, repoKey, name ? [...segs, name] : segs))
     },
-    [setParams],
+    [navigate, tab, repoKey, dir],
+  )
+
+  /** 页签切换 = URL 段交换（保持当前选择与文件） */
+  const goTab = useCallback(
+    (t: DetailTab) => {
+      navigate(buildTreeUrl(t, repoKey, pathSegs))
+    },
+    [navigate, repoKey, pathSegs],
   )
 
   // ---- 过滤 / 分页（§6.3：只作用于已加载集，提示边界） ----
@@ -280,14 +443,42 @@ export default function ArtifactsBrowser() {
   const [visible, setVisible] = useState(PAGE)
   useEffect(() => setVisible(PAGE), [filter, filesOnly, dir])
 
-  // 过滤复位（QA-3 / FR-82-AC2，T-246 终验观察）：「过滤当前层」是对特定
-  // (repo, dir) 已加载 children 集合的谓词——词是用户对着那一层敲进去的。
-  // 跨层导航（下钻 / 面包屑上跳 / 左树跳兄弟层）或跨仓切换后，旧词落在一
-  // 个它从未针对过的新集合上，命中与否纯属巧合，空结果会被误读成「这一层
-  // 没有东西」（QA-3 空树误导）；因此 (repo, dir) 任一维变化即清空。同层
-  // 内导航（?focus= 换选中文件、树节点展开/收起）不动 children 集合，词
-  // 的语义完整——保留。「只看文件」是跨层稳定的视图偏好、不是针对单层的
-  // 词，跨层保留（仅它收窄出的空态文案单独呈现，见下方空态分支）。
+  // ---- 树头工具带状态（T-434 / FR-142.4）----
+  // 包类型 facet / rclass 组 / Sort-by 是会话态（视图过滤器）；Compacted
+  // 与 My Favorites 是偏好态（localStorage 持久——AC4 reload 保持）。
+  // facet 空集 = 不过滤（默认全量；403 合成节点 type/packageType 为空串
+  // 不被勾选项误伤——默认即全量）。
+  const [pkgFacets, setPkgFacets] = useState<Set<string>>(new Set())
+  const [rclassFacets, setRclassFacets] = useState<Set<string>>(new Set())
+  const [sortBy, setSortBy] = useState<TreeSort>('name')
+  const [compacted, setCompacted] = useState(() => localStorage.getItem(COMPACT_KEY) === '1')
+  const [favorites, setFavorites] = useState<Set<string>>(() => loadFavorites())
+  const [favOnly, setFavOnly] = useState(false)
+  const [facetAnchor, setFacetAnchor] = useState<HTMLElement | null>(null)
+  useEffect(() => {
+    localStorage.setItem(COMPACT_KEY, compacted ? '1' : '0')
+  }, [compacted])
+  useEffect(() => {
+    localStorage.setItem(FAV_KEY, JSON.stringify(Array.from(favorites).sort()))
+  }, [favorites])
+  const toggleFavorite = useCallback((repo: string) => {
+    setFavorites((prev) => {
+      const next = new Set(prev)
+      if (next.has(repo)) next.delete(repo)
+      else next.add(repo)
+      return next
+    })
+  }, [])
+
+  // 过滤复位（QA-3 / FR-82-AC2，T-246 终验观察；T-434 文件选中不改 dir——
+  // 同层语义维持）：「过滤当前层」是对特定 (repo, dir) 已加载 children
+  // 集合的谓词——词是用户对着那一层敲进去的。跨层导航（下钻 / 面包屑
+  // 上跳 / 左树跳兄弟层）或跨仓切换后，旧词落在一个它从未针对过的新集合
+  // 上，命中与否纯属巧合，空结果会被误读成「这一层没有东西」（QA-3 空
+  // 树误导）；因此 (repo, dir) 任一维变化即清空。同层内导航（文件选中、
+  // 树节点展开/收起）不动 children 集合，词的语义完整——保留。「只看
+  // 文件」是跨层稳定的视图偏好、不是针对单层的词，跨层保留（仅它收窄
+  // 出的空态文案单独呈现，见下方空态分支）。
   useEffect(() => {
     setFilter('')
   }, [repoKey, dir])
@@ -299,6 +490,9 @@ export default function ArtifactsBrowser() {
   }, [repoKey])
 
   const cur = repoKey ? dirState[ck(repoKey, dir)] : undefined
+  // 末段分类未决（父 listing 在途）：children 表与详情都骨架呈现——不闪
+  // 目录形态再翻文件形态（错形态期间点页签会产生错误路径的请求）
+  const curUncertain = pathSegs.length > 0 && !parentSettled
   const rows = useMemo(() => {
     const nodes = cur?.status === 'ok' ? cur.nodes : []
     const f = filter.trim().toLowerCase()
@@ -306,8 +500,8 @@ export default function ArtifactsBrowser() {
   }, [cur, filter, filesOnly])
   const total = cur?.status === 'ok' ? cur.nodes.length : 0
 
-  // 选中文件（?focus= 对账到当前层节点）
-  const selectedNode = focus && cur?.status === 'ok' ? cur.nodes.find((n) => n.name === focus) : undefined
+  // 选中文件（URL 末段对账到父目录 listing 的文件行）
+  const selectedNode = fileSelected ? lastChild : undefined
 
   // ---- 操作：上传 / 建目录 / 删除 / 下载 / 右键菜单 ----
   // 对话框族（T-242）：页头动作区 Set Me Up / Deploy（console-m8 §6.3[1]）。
@@ -364,23 +558,37 @@ export default function ArtifactsBrowser() {
         ),
       })
       if (!ok) return
+      // T-434：文件选中是 URL 路径末段——删除的节点若是当前选中（文件 =
+      // 末段 / 目录 = 当前 dir），选中态随目标一起退役并回跳父目录。
+      // 否则 URL 指向已删节点，末段判别会落进 404 空态（「路径不存在」
+      // 对刚亲手删除它的用户是误导——?focus= 时代该缺口同样存在，路径
+      // 段化后必须收口）。删除前取值（删除后 listing 变迁不影响判定）。
+      const wasSelected = repo === repoKey && (node.folder ? dir === node.path : focusFile === node.name)
+      const backToParent = () => {
+        const parent = node.path.includes('/') ? node.path.slice(0, node.path.lastIndexOf('/')) : ''
+        goTo(repo, parent)
+      }
       try {
         await deleteNode(repo, node.path, node.folder)
         toast.success(`已删除 ${node.path}`)
         setDeleteError(null)
+        if (wasSelected) backToParent()
         refresh()
       } catch (err) {
         const apiErr = err instanceof ApiError ? err : new ApiError(0, String(err))
         if (apiErr.status === 404) {
           // E-14 幂等：路径已不存在 = 目标状态已达成
           toast.success(`已删除 ${node.path}（此前已不存在——删除幂等）`)
+          if (wasSelected) backToParent()
           refresh()
           return
         }
         setDeleteError({ path: `${repo}/${node.path}`, err: apiErr })
       }
     },
-    [confirm, repoMeta, refresh, toast],
+    // dir/focusFile/goTo 是 T-434 选中态回跳的活值（wasSelected 判定）——
+    // 不入依赖会钉死在挂载初值（终验探针抓出的真缺陷：URL 永不回跳）
+    [confirm, repoMeta, refresh, toast, repoKey, dir, focusFile, goTo],
   )
 
   const doMkdir = async () => {
@@ -456,10 +664,23 @@ export default function ArtifactsBrowser() {
     return []
   }, [reposQuery.status, repos, repoKey])
 
+  /** 树头工具带的可选包类型集（已加载仓库清单的去重排序——不伪造未实有型） */
+  const pkgTypes = useMemo(
+    () => Array.from(new Set(repoNodes.map((r) => r.packageType).filter((t) => t !== ''))).sort(),
+    [repoNodes],
+  )
+
+  // 仓库清单 → 工具带流水线：名称过滤 → 包类型 facet → rclass 组 →
+  // My Favorites → Sort-by（ facet 空集 = 不过滤；sort 恒生效，name 稳定）
   const filteredRepos = useMemo(() => {
     const f = repoFilter.trim().toLowerCase()
-    return f ? repoNodes.filter((r) => r.key.toLowerCase().includes(f)) : repoNodes
-  }, [repoNodes, repoFilter])
+    const out = repoNodes
+      .filter((r) => (f ? r.key.toLowerCase().includes(f) : true))
+      .filter((r) => (pkgFacets.size > 0 ? pkgFacets.has(r.packageType) : true))
+      .filter((r) => (rclassFacets.size > 0 ? rclassFacets.has(r.type) : true))
+      .filter((r) => (favOnly ? favorites.has(r.key) : true))
+    return [...out].sort((a, b) => compareRepos(a, b, sortBy))
+  }, [repoNodes, repoFilter, pkgFacets, rclassFacets, favOnly, favorites, sortBy])
 
   // ---- 渲染 ----
   const emptyInstance = reposQuery.status === 'ok' && repos.length === 0 && !repoKey && !onboardSkipped
@@ -492,29 +713,6 @@ export default function ArtifactsBrowser() {
           {admin && (
             <Button variant="outlined" size="small" sx={cellBtnSx} component={Link} to="/admin/repositories/local">
               管理仓库 →
-            </Button>
-          )}
-        </div>
-        <div className="browser-filter">
-          <TextField
-            type="search"
-            size="small"
-            placeholder="过滤仓库…"
-            value={repoFilter}
-            onChange={(e) => setRepoFilter(e.target.value)}
-            disabled={reposQuery.status !== 'ok'}
-            sx={{ width: 200 }}
-            slotProps={{ htmlInput: { 'data-testid': 'tree-repo-filter', 'aria-label': '过滤仓库（仅已加载集）' } }}
-          />
-          {repoFilter && (
-            <Button
-              variant="outlined"
-              size="small"
-              sx={cellBtnSx}
-              data-testid="tree-repo-filter-clear"
-              onClick={() => setRepoFilter('')}
-            >
-              清除
             </Button>
           )}
         </div>
@@ -663,9 +861,44 @@ export default function ArtifactsBrowser() {
           )}
 
           <div className="tree-layout browser-layout">
-            {/* 左树：仓库顶层 + 懒展开子树（reverse §3.2/§4.3） */}
-            <nav className="tree-pane" aria-label="制品树" data-testid="browser-tree">
-              <div role="tree" aria-label="跨仓制品树">
+            {/* 左树：树头工具带（T-434 / FR-142.4）+ 仓库顶层 + 懒展开子树
+                （reverse §3.2/§4.3）。工具带在滚动区外常驻（带不随树滚走）。 */}
+            <nav className={`tree-pane browser-tree${compacted ? ' compacted' : ''}`} aria-label="制品树" data-testid="browser-tree">
+              <TreeToolband
+                repoFilter={repoFilter}
+                onRepoFilter={setRepoFilter}
+                reposStatus={reposQuery.status}
+                pkgTypes={pkgTypes}
+                pkgFacets={pkgFacets}
+                onTogglePkg={(t) =>
+                  setPkgFacets((prev) => {
+                    const next = new Set(prev)
+                    if (next.has(t)) next.delete(t)
+                    else next.add(t)
+                    return next
+                  })
+                }
+                onClearPkg={() => setPkgFacets(new Set())}
+                rclassFacets={rclassFacets}
+                onToggleRclass={(rc) =>
+                  setRclassFacets((prev) => {
+                    const next = new Set(prev)
+                    if (next.has(rc)) next.delete(rc)
+                    else next.add(rc)
+                    return next
+                  })
+                }
+                sortBy={sortBy}
+                onSort={setSortBy}
+                compacted={compacted}
+                onCompacted={setCompacted}
+                favCount={favorites.size}
+                favOnly={favOnly}
+                onFavOnly={setFavOnly}
+                facetAnchor={facetAnchor}
+                onFacetAnchor={setFacetAnchor}
+              />
+              <div className="browser-tree-scroll" role="tree" aria-label="跨仓制品树">
                 {reposQuery.status === 'loading' && <TreeSkeleton />}
                 {reposQuery.status === 'error' && reposQuery.error && (
                   <ErrorCard error={reposQuery.error} onRetry={reposQuery.reload} />
@@ -694,6 +927,7 @@ export default function ArtifactsBrowser() {
                         repo={r}
                         selectedRepo={repoKey}
                         currentDir={dir}
+                        focusPath={focusPath}
                         dirState={dirState}
                         expanded={expanded}
                         onToggle={(repo, d) =>
@@ -713,14 +947,23 @@ export default function ArtifactsBrowser() {
                 {/* 树尾常驻回收站入口（T-372 / FR-122.1）：console-m8 §4.3
                     推翻条款的兑现面（推翻留痕在该节）；reverse §3.2 末尾
                     常驻形态。最小面 = 跳转 M12 页面；不参与过滤仓库的
-                    过滤域（常驻 ≠ 已加载仓库集成员） */}
+                    过滤域（常驻 ≠ 已加载仓库集成员）；工具带 facet 同样
+                    不滤它（常驻语义） */}
                 {canSeeAdmin && <TrashTreeNode onOpen={() => navigate('/admin/governance/trash')} />}
               </div>
             </nav>
 
-            {/* 右列：详情面板（右联）+ 当前层 children 表 */}
+            {/* 右列：详情面板（右联，页签态进 URL——T-434）+ 当前层 children 表 */}
             <div className="tree-main">
-              {detailTarget && repoKey ? (
+              {curUncertain ? (
+                // 末段分类未决（父 listing 在途）：骨架占位——文件/目录形态
+                // 判定前不渲染详情（错形态期间的页签点击会打错误路径请求）
+                <div data-testid="skeleton" aria-hidden="true" style={{ paddingTop: 8 }}>
+                  {Array.from({ length: 4 }, (_, i) => (
+                    <MuiSkeleton key={i} variant="text" width={`${88 - i * 8}%`} sx={{ my: 0.5 }} />
+                  ))}
+                </div>
+              ) : detailTarget && repoKey ? (
                 <NodeDetail
                   target={detailTarget}
                   download={download}
@@ -729,13 +972,20 @@ export default function ArtifactsBrowser() {
                   canDelete={!readOnly && !isVirtual}
                   canWriteProps={!readOnly}
                   onDelete={(n) => void confirmDelete(repoKey, n)}
+                  tab={tab}
+                  onTabChange={goTab}
+                  // 目录形态的直系概要（Artifact Count / Size——FR-142.1：
+                  // children 表收窄后目录选中给概要；数据源 = 已装载 listing）
+                  childrenNodes={
+                    detailTarget.kind === 'node' && detailTarget.node.folder && cur?.status === 'ok' ? cur.nodes : undefined
+                  }
                 />
               ) : (
                 <section className="card section node-detail">
                   <h3>制品浏览器</h3>
                   <p className="text-2">
-                    左侧是全部仓库的树：单击选中（此处联动详情），Enter 或展开箭头进入下一层。选中路径会进入
-                    URL——可以直接分享或收藏深链，打开时自动展开定位。
+                    左侧是全部仓库的树：单击选中（此处联动详情），展开箭头（或 → 键）展开下一层——目录与文件都出现在树里。
+                    选中路径与页签都会进入 URL——可以直接分享或收藏深链，打开时自动展开定位。
                   </p>
                   <p className="text-2">
                     右键（或 <kbd>Shift+F10</kbd>）打开操作菜单：复制路径 / 下载 / 删除 / 刷新。
@@ -771,7 +1021,7 @@ export default function ArtifactsBrowser() {
                     </span>
                   </div>
 
-                  {cur?.status === 'loading' || !cur ? (
+                  {curUncertain || cur?.status === 'loading' || !cur ? (
                     <TableSkeleton />
                   ) : cur.status === 'forbidden' ? (
                     <EmptyState
@@ -892,6 +1142,10 @@ export default function ArtifactsBrowser() {
                           <Link to="/search">搜索</Link> 定位制品。
                         </div>
                       )}
+                      {/* children 表（T-434 / FR-142.1 收窄）：文件主路径走树叶子
+                          与本表行选中；原操作列（详情/下载/删除）退役——下载在
+                          右键菜单与详情面板，删除收敛进详情面板（危险确认门），
+                          Q2 出口①：E1 不倒退（确认流原样，仅入口收拢）。 */}
                       <Table className="tree-table" data-testid="tree-list">
                         <TableHead>
                           <TableRow>
@@ -900,7 +1154,6 @@ export default function ArtifactsBrowser() {
                             <TableCell component="th" scope="col">大小</TableCell>
                             <TableCell component="th" scope="col">修改时间</TableCell>
                             <TableCell component="th" scope="col">{isDockerRepo ? '摘要' : 'sha256'}</TableCell>
-                            <TableCell component="th" scope="col">操作</TableCell>
                           </TableRow>
                         </TableHead>
                         <TableBody>
@@ -908,7 +1161,7 @@ export default function ArtifactsBrowser() {
                             <TableRow
                               key={n.name}
                               data-testid={`tree-row-${n.name}`}
-                              className={focus === n.name ? 'selected' : ''}
+                              className={focusFile === n.name ? 'selected' : ''}
                               hover
                               onClick={() => (n.folder ? goTo(repoKey, n.path) : selectFile(n.name))}
                               onContextMenu={(e: ReactMouseEvent) => {
@@ -958,42 +1211,6 @@ export default function ArtifactsBrowser() {
                               <TableCell className="mono" title={n.sha256}>
                                 {n.sha256 ? `${n.sha256.slice(0, 10)}…` : '—'}
                               </TableCell>
-                              <TableCell onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-                                {!n.folder && (
-                                  <Button variant="outlined" size="small" sx={cellBtnSx} onClick={() => selectFile(n.name)} title="展开详情面板">
-                                    详情
-                                  </Button>
-                                )}
-                                {!n.folder && (
-                                  <Button
-                                    variant="outlined"
-                                    size="small"
-                                    sx={cellBtnSx}
-                                    onClick={() => void doDownload(repoKey, n, n.sha256)}
-                                    disabled={download?.path === n.path && download.phase === 'loading'}
-                                    title="下载并做 sha256 对账"
-                                  >
-                                    下载
-                                  </Button>
-                                )}
-                                {/* T-416：virtual 仓删除入口预收敛（RE-08——
-                                    服务端 DELETE 一律 405「不经 virtual 删除」，
-                                    不给注定失败的影子入口；页头 warn-box 同义
-                                    说明常驻） */}
-                                {!isVirtual && (
-                                  <Button
-                                    variant="outlined"
-                                    color="error"
-                                    size="small"
-                                    data-testid="delete-node-button"
-                                    disabled={readOnly}
-                                    title={readOnly ? '只读管理员不可删（服务端 403 兜底）' : undefined}
-                                    onClick={() => void confirmDelete(repoKey, n)}
-                                  >
-                                    删除
-                                  </Button>
-                                )}
-                              </TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
@@ -1037,6 +1254,10 @@ export default function ArtifactsBrowser() {
           // repoKey 查仓库清单，而非当前仓 rclass。清单 403（普通 user 深链）
           // 时查不到 → 不预收敛，交给服务端 405 原样呈现。
           targetVirtual={repoNodes.some((r) => r.key === menu.target.repoKey && r.type === 'virtual')}
+          // T-434 / FR-142.4：My Favorites（前端态收藏，reverse §3.2 仓库
+          // 右键 Add to Favorites 的对位——标记入口在仓库菜单）
+          targetFavorite={favorites.has(menu.target.repoKey)}
+          onToggleFavorite={toggleFavorite}
           onClose={() => setMenu(null)}
           onCopyPath={(value) => {
             void navigator.clipboard.writeText(value).then(
@@ -1080,10 +1301,215 @@ export default function ArtifactsBrowser() {
 //（30 枚集不含 rclass 形）。
 const RC_ICON: Record<string, string> = { local: '▣', remote: '◈', virtual: '◍' }
 
+// ---- 树头工具带（T-434 / FR-142.4——Artifactory 树头对齐面）------------------
+//
+// reverse §3.2 回填后的 Artifactory 形态：过滤输入 + Clear + Tree View 单选
+// （Compacted/Non-Compacted）+ Filter-by-Package-Type 复选组 + Local/Remote/
+// Cache/Virtual 组 + Sort-by。BinFlow 语义映射：rclass 组为实有三态
+// local/remote/virtual（remote 浏览面本就是缓存落地行——Artifactory 的
+// Cache 是 remote 的缓存子集视图，不伪造第四态）；包类型 facet 的选项集
+// 取自已加载仓库清单（13 型实有，不伪造未实现型）。控件沿 MUI small 档
+// （mui-native-visual §7 密度）。
+
+const RCLASS_FACETS: { id: string; label: string }[] = [
+  { id: 'local', label: 'Local' },
+  { id: 'remote', label: 'Remote' },
+  { id: 'virtual', label: 'Virtual' },
+]
+
+function TreeToolband({
+  repoFilter,
+  onRepoFilter,
+  reposStatus,
+  pkgTypes,
+  pkgFacets,
+  onTogglePkg,
+  onClearPkg,
+  rclassFacets,
+  onToggleRclass,
+  sortBy,
+  onSort,
+  compacted,
+  onCompacted,
+  favCount,
+  favOnly,
+  onFavOnly,
+  facetAnchor,
+  onFacetAnchor,
+}: {
+  repoFilter: string
+  onRepoFilter: (v: string) => void
+  reposStatus: string
+  pkgTypes: string[]
+  pkgFacets: Set<string>
+  onTogglePkg: (t: string) => void
+  onClearPkg: () => void
+  rclassFacets: Set<string>
+  onToggleRclass: (rc: string) => void
+  sortBy: TreeSort
+  onSort: (s: TreeSort) => void
+  compacted: boolean
+  onCompacted: (v: boolean) => void
+  favCount: number
+  favOnly: boolean
+  onFavOnly: (v: boolean) => void
+  facetAnchor: HTMLElement | null
+  onFacetAnchor: (el: HTMLElement | null) => void
+}) {
+  return (
+    <div className="tree-toolband" data-testid="tree-toolband">
+      <div className="toolband-row">
+        <TextField
+          type="search"
+          size="small"
+          placeholder="过滤仓库…"
+          value={repoFilter}
+          onChange={(e) => onRepoFilter(e.target.value)}
+          disabled={reposStatus !== 'ok'}
+          sx={{ width: 152 }}
+          slotProps={{ htmlInput: { 'data-testid': 'tree-repo-filter', 'aria-label': '过滤仓库（仅已加载集）' } }}
+        />
+        {repoFilter && (
+          <Button
+            variant="outlined"
+            size="small"
+            sx={cellBtnSx}
+            data-testid="tree-repo-filter-clear"
+            onClick={() => onRepoFilter('')}
+          >
+            清除
+          </Button>
+        )}
+        <Button
+          variant="outlined"
+          size="small"
+          sx={cellBtnSx}
+          data-testid="tree-favorites"
+          aria-pressed={favOnly}
+          title="只看收藏的仓库（收藏经仓库右键菜单标记，浏览器本地持久）"
+          onClick={() => onFavOnly(!favOnly)}
+        >
+          {favOnly ? '★' : '☆'} My Favorites{favCount > 0 ? `（${favCount}）` : ''}
+        </Button>
+      </div>
+      <div className="toolband-row">
+        <Button
+          variant="outlined"
+          size="small"
+          sx={cellBtnSx}
+          aria-haspopup="dialog"
+          title="按包类型过滤仓库树（复选组，空 = 不过滤）"
+          data-testid="tree-facet-pkg"
+          onClick={(e) => onFacetAnchor(e.currentTarget)}
+        >
+          包类型{pkgFacets.size > 0 ? `（${pkgFacets.size}）` : ''} ▾
+        </Button>
+        {RCLASS_FACETS.map((rc) => (
+          <FormControlLabel
+            key={rc.id}
+            className="check-row"
+            control={
+              <Checkbox
+                size="small"
+                checked={rclassFacets.has(rc.id)}
+                onChange={() => onToggleRclass(rc.id)}
+                slotProps={{ input: { 'data-testid': `tree-facet-rclass-${rc.id}` } as ComponentPropsWithoutRef<'input'> }}
+              />
+            }
+            label={<span lang="en">{rc.label}</span>}
+            title={`仓库类型 ${rc.label} 过滤（空选 = 不过滤）`}
+          />
+        ))}
+      </div>
+      <div className="toolband-row">
+        <TextField
+          select
+          size="small"
+          label="排序"
+          value={sortBy}
+          onChange={(e) => onSort(e.target.value as TreeSort)}
+          sx={{ width: 128 }}
+          slotProps={{
+            select: {
+              native: true,
+              inputProps: {
+                'aria-label': '树排序（Sort by）',
+                'data-testid': 'tree-sort-by',
+              } as ComponentPropsWithoutRef<'select'>,
+            } as ComponentPropsWithoutRef<typeof Select>,
+          }}
+        >
+          <option value="name">名称</option>
+          <option value="pkg">包类型</option>
+          <option value="rclass">仓库类型</option>
+        </TextField>
+        {/* Tree View 单选：Compacted（紧凑行高）/ Non-Compacted（标准） */}
+        <RadioGroup
+          row
+          aria-label="树视图密度（Tree View）"
+          value={compacted ? '1' : '0'}
+          onChange={(e) => onCompacted(e.target.value === '1')}
+          sx={{ gap: 0.5 }}
+        >
+          <FormControlLabel
+            value="1"
+            control={<Radio size="small" slotProps={{ input: { 'data-testid': 'tree-view-compacted' } as ComponentPropsWithoutRef<'input'> }} />}
+            label={<span title="紧凑行高（Compacted）">紧凑</span>}
+          />
+          <FormControlLabel
+            value="0"
+            control={<Radio size="small" slotProps={{ input: { 'data-testid': 'tree-view-normal' } as ComponentPropsWithoutRef<'input'> }} />}
+            label={<span title="标准行高（Non-Compacted）">标准</span>}
+          />
+        </RadioGroup>
+      </div>
+      <Popover
+        open={facetAnchor !== null}
+        anchorEl={facetAnchor ?? undefined}
+        onClose={() => onFacetAnchor(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        slotProps={{
+          paper: {
+            'data-testid': 'tree-facet-pkg-panel',
+            sx: { border: '1px solid var(--bf-border)', p: 'var(--bf-sp-2)', maxWidth: 260 },
+          } as ComponentPropsWithoutRef<'div'>,
+        }}
+      >
+        <div className="toolband-facet-title" lang="en">Filter by Package Type</div>
+        {pkgTypes.length === 0 ? (
+          <p className="text-2" style={{ margin: 0 }}>（已加载集中没有带包类型的仓库）</p>
+        ) : (
+          pkgTypes.map((t) => (
+            <FormControlLabel
+              key={t}
+              className="check-row"
+              control={
+                <Checkbox
+                  size="small"
+                  checked={pkgFacets.has(t)}
+                  onChange={() => onTogglePkg(t)}
+                  slotProps={{ input: { 'data-testid': `tree-facet-pkg-${t}` } as ComponentPropsWithoutRef<'input'> }}
+                />
+              }
+              label={<span lang="en">{t}</span>}
+            />
+          ))
+        )}
+        {pkgFacets.size > 0 && (
+          <Button variant="outlined" size="small" sx={cellBtnSx} data-testid="tree-facet-pkg-clear" onClick={onClearPkg}>
+            清除（{pkgFacets.size}）
+          </Button>
+        )}
+      </Popover>
+    </div>
+  )
+}
+
 function RepoBranch({
   repo,
   selectedRepo,
   currentDir,
+  focusPath,
   dirState,
   expanded,
   onToggle,
@@ -1093,6 +1519,8 @@ function RepoBranch({
   repo: RepoListItem
   selectedRepo: string
   currentDir: string
+  /** 选中文件的完整路径（文件选中态传给叶子行；null = 无文件选中） */
+  focusPath: string | null
   dirState: Record<string, DirStatus>
   expanded: Set<string>
   onToggle: (repo: string, dir: string) => void
@@ -1103,7 +1531,9 @@ function RepoBranch({
   // T-416（FR-136.3）：T-406 的 virtual 静态化解除——服务端聚合面（T-412）
   // 就绪，virtual 仓与非 virtual 仓同形：twisty 动态展开 + 子级区
   //（children = 成员并集，深层递归与 local/remote 一致）。
-  const isOpen = expanded.has(key) || selectedRepo === repo.key
+  // T-434 / FR-142.2（断言反转①）：isOpen 只由 expanded 集（展开箭头/键盘
+  // → / 深链祖先链）决定——selectedRepo 并集解除，单击仓库名 = 纯选中。
+  const isOpen = expanded.has(key)
   const st = dirState[key]
 
   return (
@@ -1163,6 +1593,7 @@ function RepoBranch({
             depth={1}
             currentRepo={selectedRepo}
             currentDir={currentDir}
+            focusPath={focusPath}
             dirState={dirState}
             expanded={expanded}
             onToggle={onToggle}
@@ -1218,7 +1649,8 @@ function TrashTreeNode({ onOpen }: { onOpen: () => void }) {
   )
 }
 
-// ---- 左树：目录层（只渲染已展开路径 + 手动展开层——懒加载一层） ----------------
+// ---- 左树：目录层（只渲染已展开路径 + 手动展开层——懒加载一层；T-434 起
+// 目录与文件叶子同行渲染——排序沿用 sortChildren 的目录在前 + 同组按名） ----
 
 function TreeLevel({
   repoKey,
@@ -1226,6 +1658,7 @@ function TreeLevel({
   depth,
   currentRepo,
   currentDir,
+  focusPath,
   dirState,
   expanded,
   onToggle,
@@ -1237,6 +1670,7 @@ function TreeLevel({
   depth: number
   currentRepo: string
   currentDir: string
+  focusPath: string | null
   dirState: Record<string, DirStatus>
   expanded: Set<string>
   onToggle: (repo: string, dir: string) => void
@@ -1267,14 +1701,44 @@ function TreeLevel({
       </div>
     )
   }
-  const folders = st.nodes.filter((n) => n.folder)
-  if (folders.length === 0) {
+  // T-434 / FR-142.1（断言反转①）：filter n.folder 退役——文件与目录都进
+  // 树；「（空）」只在真空目录渲染（仅含文件的目录现在有叶子行可见，
+  // 误导性空占位症状连带消除）。
+  if (st.nodes.length === 0) {
     return <div className="tree-empty-level">（空）</div>
   }
-  const capped = folders.slice(0, TREE_LEVEL_CAP)
+  const capped = st.nodes.slice(0, TREE_LEVEL_CAP)
   return (
     <>
       {capped.map((n) => {
+        if (!n.folder) {
+          // 文件叶子：无展开语义（twisty 空槽对齐栅格——trash-node 同款），
+          // 点击/Enter = 选中（URL 末段 → 右侧 item view）
+          const leafSelected = currentRepo === repoKey && focusPath === n.path
+          return (
+            <div
+              key={n.name}
+              className={`tree-node leaf-node${leafSelected ? ' selected' : ''}`}
+              data-testid={`tree-leaf-${n.path}`}
+              data-tree-row=""
+              role="treeitem"
+              aria-level={depth + 1}
+              aria-selected={leafSelected}
+              tabIndex={0}
+              style={{ paddingLeft: depth * 14 + 6 }}
+              onClick={() => onNavigate(repoKey, n.path)}
+              onContextMenu={(e: ReactMouseEvent) => {
+                e.preventDefault()
+                onMenu(e.clientX, e.clientY, { kind: 'node', repoKey, node: n })
+              }}
+              onKeyDown={(e) => onTreeKeys(e, { repo: repoKey, dir: n.path, isOpen: false, leaf: true, node: n }, onToggle, onNavigate, onMenu)}
+            >
+              <span aria-hidden="true" className="twisty" />
+              <span aria-hidden="true" className="ico">◾</span>
+              <span className="mono" lang="en">{n.name}</span>
+            </div>
+          )
+        }
         const key = ck(repoKey, n.path)
         const isOpen = expanded.has(key)
         const onChain = currentRepo === repoKey && (currentDir === n.path || currentDir.startsWith(`${n.path}/`))
@@ -1287,6 +1751,7 @@ function TreeLevel({
               data-tree-row=""
               role="treeitem"
               aria-expanded={isOpen}
+              aria-selected={selected}
               aria-level={depth + 1}
               tabIndex={0}
               style={{ paddingLeft: depth * 14 + 6 }}
@@ -1295,7 +1760,7 @@ function TreeLevel({
                 e.preventDefault()
                 onMenu(e.clientX, e.clientY, { kind: 'node', repoKey, node: n })
               }}
-              onKeyDown={(e) => onTreeKeys(e, { repo: repoKey, dir: n.path, isOpen }, onToggle, onNavigate, onMenu)}
+              onKeyDown={(e) => onTreeKeys(e, { repo: repoKey, dir: n.path, isOpen, node: n }, onToggle, onNavigate, onMenu)}
             >
               <span
                 role="button"
@@ -1319,6 +1784,7 @@ function TreeLevel({
                 depth={depth + 1}
                 currentRepo={currentRepo}
                 currentDir={currentDir}
+                focusPath={focusPath}
                 dirState={dirState}
                 expanded={expanded}
                 onToggle={onToggle}
@@ -1329,17 +1795,19 @@ function TreeLevel({
           </div>
         )
       })}
-      {folders.length > capped.length && (
+      {st.nodes.length > capped.length && (
         <div className="tree-empty-level">
-          … 其余 {folders.length - capped.length} 个目录未渲染（单层上限 {TREE_LEVEL_CAP}）
+          … 其余 {st.nodes.length - capped.length} 项未渲染（单层上限 {TREE_LEVEL_CAP}）
         </div>
       )}
     </>
   )
 }
 
-/** §3.4/§8 树键盘语义：↑↓ 移动、→ 展开、← 收起、Enter 激活、Shift+F10 菜单 */
-type TreeKeyPos = { repo: string; dir: string; isOpen: boolean }
+/** §3.4/§8 树键盘语义：↑↓ 移动、→ 展开、← 收起（叶子 = 上跳父层）、
+ * Enter 激活、Shift+F10 菜单。T-434：叶子行（leaf）无展开语义——→ 不响应，
+ * ← 上跳父目录；node 优先取行自带的 ChildNode（文件叶子带 sha256/size） */
+type TreeKeyPos = { repo: string; dir: string; isOpen: boolean; leaf?: boolean; node?: ChildNode }
 
 function onTreeKeys(
   e: ReactKeyboardEvent<HTMLElement>,
@@ -1353,7 +1821,9 @@ function onTreeKeys(
   if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) {
     e.preventDefault()
     const rect = e.currentTarget.getBoundingClientRect()
-    if (pos.dir === '') {
+    if (pos.node) {
+      onMenu(rect.left + 40, rect.top + 14, { kind: 'node', repoKey: pos.repo, node: pos.node })
+    } else if (pos.dir === '') {
       onMenu(rect.left + 40, rect.top + 14, { kind: 'repo', repoKey: pos.repo })
     } else {
       // 目录节点：菜单目标 = 该目录（删除/复制路径/刷新）
@@ -1375,10 +1845,11 @@ function onTreeKeys(
     rows[idx - 1].focus()
   } else if (e.key === 'ArrowRight') {
     e.preventDefault()
-    if (!pos.isOpen) onToggle(pos.repo, pos.dir)
+    if (!pos.leaf && !pos.isOpen) onToggle(pos.repo, pos.dir)
   } else if (e.key === 'ArrowLeft') {
     e.preventDefault()
-    if (pos.isOpen) onToggle(pos.repo, pos.dir)
+    if (pos.leaf) onNavigate(pos.repo, pos.dir.split('/').slice(0, -1).join('/'))
+    else if (pos.isOpen) onToggle(pos.repo, pos.dir)
     else onNavigate(pos.repo, pos.dir.split('/').slice(0, -1).join('/'))
   } else if (e.key === 'Enter' || e.key === ' ') {
     e.preventDefault()
@@ -1408,6 +1879,8 @@ function TreeContextMenu({
   canSeeAdmin,
   repoRclass,
   targetVirtual,
+  targetFavorite,
+  onToggleFavorite,
   onClose,
   onCopyPath,
   onDownload,
@@ -1421,6 +1894,9 @@ function TreeContextMenu({
   repoRclass?: string
   /** 菜单目标是否 virtual 仓（T-416：删除预收敛——RE-08 服务端 405） */
   targetVirtual: boolean
+  /** 菜单目标仓库是否已收藏（T-434 My Favorites） */
+  targetFavorite: boolean
+  onToggleFavorite: (repo: string) => void
   onClose: () => void
   onCopyPath: (value: string) => void
   onDownload: (repo: string, node: ChildNode) => void
@@ -1430,7 +1906,9 @@ function TreeContextMenu({
 }) {
   const t = menu.target
   const readonlyTitle = '只读管理员不可删（服务端 403 兜底）'
-  // 与行内删除钮同一语义（见上方调用方注释）：virtual 不给注定 405 的入口
+  // 与详情面板删除钮同一语义（行内删除钮已随 children 表收窄退役——
+  // Q2 出口①：删除收敛进详情与右键，两者都过危险确认，E1 不倒退）：
+  // virtual 不给注定 405 的入口
   const virtualDeleteTitle = 'virtual 仓不经手删除（RE-08，服务端 405）——请到持有该制品的成员仓删除'
   const deleteBlocked = readOnly || targetVirtual
   const deleteTitle = readOnly ? readonlyTitle : targetVirtual ? virtualDeleteTitle : undefined
@@ -1438,6 +1916,12 @@ function TreeContextMenu({
     t.kind === 'repo'
       ? [
           { id: 'copy-repo-path', label: '复制仓库路径', run: () => { onCopyPath(`${t.repoKey}/`); onClose() } },
+          {
+            id: 'favorite',
+            label: targetFavorite ? '取消收藏（My Favorites）' : '加入收藏（My Favorites）',
+            title: '收藏是前端态（localStorage 持久）；树头 My Favorites 可只看收藏仓库',
+            run: () => { onToggleFavorite(t.repoKey); onClose() },
+          },
           { id: 'refresh', label: '刷新', run: () => onRefresh(t.repoKey) },
           ...(canSeeAdmin
             ? [{ id: 'open-admin', label: '在仓库管理中打开', run: () => onOpenAdmin(t.repoKey) }]
@@ -1528,3 +2012,5 @@ function TableSkeleton() {
     </div>
   )
 }
+
+// T434-MARKER-PROBE

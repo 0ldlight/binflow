@@ -88,7 +88,8 @@ test('admin: dashboard full data face, quick entries, audit row deep-links the t
   }
   expect(row, '6 轮补种后 upload 行仍未进入最新 8 条窗口').not.toBeNull()
   await row!.click()
-  await expect(page).toHaveURL(new RegExp(`/binflow/ui/artifacts/${repo}/acme\\?focus=${visible}$`))
+  // T-434：?focus= 退役——dashboard 发出的旧深链被浏览器组件一次性折入路径段
+  await expect(page).toHaveURL(new RegExp(`/binflow/ui/artifacts/${repo}/acme/${visible}$`))
   await expect(page.locator('[data-testid="tree-page"]')).toBeVisible()
   await expect(page.locator('[data-testid="node-detail"]')).toContainText(visible)
 
@@ -155,10 +156,11 @@ test('search: keyboard chain query -> count subtitle -> row Enter deep-links the
   await expect(page.locator('[data-testid="search-pager"]')).toContainText('显示 1 – 1 / 共 1 项')
   await expect(page.locator('[data-testid="search-more"]')).toHaveCount(0)
 
-  // 行键盘激活 → 跨仓树深链自动展开（T-236 消费）+ URL 即状态
+  // 行键盘激活 → 跨仓树深链自动展开（T-236 消费）+ URL 即状态（T-434：搜索
+  // 行发出的 ?focus= 旧深链被一次性折入路径段）
   await page.focus('[data-testid="search-result-0"]')
   await page.keyboard.press('Enter')
-  await expect(page).toHaveURL(new RegExp(`/binflow/ui/artifacts/${repo}/acme\\?focus=${file}$`))
+  await expect(page).toHaveURL(new RegExp(`/binflow/ui/artifacts/${repo}/acme/${file}$`))
   await expect(page.locator('[data-testid="node-detail"]')).toContainText(`acme/${file}`)
 })
 

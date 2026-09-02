@@ -38,11 +38,74 @@
   align-items: stretch;
 }
 
+/* T-434：树头工具带常驻树 pane 顶部（不随树滚走）——pane 让出滚动/内边距，
+ * 滚动与虚拟化下放到 .browser-tree-scroll（tree.css 的 .tree-pane 底样被
+ * 这两条覆盖接手；m8 spec 的 closest('.tree-pane') 可视区判定不受影响） */
 .browser-layout .tree-pane {
+  padding: 0;
+  max-height: none;
+  content-visibility: visible;
+}
+
+.browser-tree-scroll {
   max-height: calc(100vh - 300px);
+  overflow-y: auto;
+  padding: var(--bf-sp-2);
   /* 虚拟滚动的轻量形态：离屏节点跳过布局/绘制（懒加载一层之外的第二道闸） */
   content-visibility: auto;
   contain-intrinsic-size: auto 480px;
+}
+
+/* ---------- 树头工具带（T-434 / FR-142.4）---------- */
+
+.tree-toolband {
+  display: flex;
+  flex-direction: column;
+  gap: var(--bf-sp-1);
+  padding: var(--bf-sp-2);
+  border-bottom: 1px solid var(--bf-border);
+}
+
+.tree-toolband .toolband-row {
+  display: flex;
+  align-items: center;
+  gap: var(--bf-sp-2);
+  flex-wrap: wrap;
+}
+
+.tree-toolband .toolband-row .check-row {
+  margin: 0;
+}
+
+.tree-toolband .toolband-row .MuiFormControlLabel-label {
+  font-size: var(--bf-fs-aux);
+}
+
+.toolband-facet-title {
+  font-size: var(--bf-fs-aux);
+  color: var(--bf-text-2);
+  margin-bottom: var(--bf-sp-1);
+}
+
+/* 文件叶子行（T-434）：图标色与目录行同档，名称 mono（继承 .tree-node .mono） */
+.tree-node.leaf-node .ico {
+  color: var(--bf-text-muted);
+}
+
+/* Compacted（紧凑行高——Tree View 单选的紧凑档；Non-Compacted = 基础档） */
+.browser-tree.compacted .tree-node {
+  min-height: 20px;
+  font-size: var(--bf-fs-aux);
+  gap: 4px;
+}
+
+.browser-tree.compacted .tree-node .ico {
+  font-size: calc(var(--bf-fs-aux) - 1px);
+}
+
+.browser-tree.compacted .tree-empty-level,
+.browser-tree.compacted .tree-denied {
+  padding: 0 var(--bf-sp-2);
 }
 
 .browser-layout .tree-main {
@@ -109,12 +172,17 @@
 
 .checksum-badge.ok-badge {
   background: color-mix(in srgb, var(--bf-success) 15%, transparent);
-  color: var(--bf-success);
+  /* T-434：裸 --bf-success 文本在 15% 底上不足 4.5:1（axe serious——
+     「文件选中 + originalChecksums 在场」的详情形态被本票 axe 腿首次
+     扫出的潜伏债）——对齐 base.css 徽章族配方（token 78% + text，
+     与 T-416 warn-box 同款处置） */
+  color: color-mix(in srgb, var(--bf-success) 78%, var(--bf-text));
 }
 
 .checksum-badge.warning {
   background: color-mix(in srgb, var(--bf-warning) 15%, transparent);
-  color: var(--bf-warning);
+  /* 同上：warning 态同配方（不一致徽标低频呈现，一并清账防同族复发） */
+  color: color-mix(in srgb, var(--bf-warning) 78%, var(--bf-text));
 }
 
 /* ---------- 右键上下文菜单（C3）----------

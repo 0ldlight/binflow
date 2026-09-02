@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import Button from '@mui/material/Button'
@@ -22,6 +21,13 @@ import PropertiesTab from './PropertiesTab'
 //   （FileInfo 全字段）；Tab = 常规 + 属性（节点形态，T-291 MUI 首票——
 //   ?properties 读读写族）+ 有效权限（admin 渲染——admin 位仅做预收敛
 //   省掉明知 403 的请求，§3.6.3）。
+// - T-434 / FR-142.3：活跃页签进 URL 路径段（tab prop 受控——对位
+//   Artifactory /ui/repos/tree/<TAB>/…）；目标切换不重置页签（页签是
+//   视图态随 URL 走，T-246 修的是父渲染重置——受控 prop 后该类重置
+//   物理消失）。URL 页签对目标无效时回退常规渲染不重写 URL（admin 位
+//   异步到位，重写会抖）。
+// - 目录形态给直系概要（T-434 / FR-142.1：children 表收窄后目录选中给
+//   Artifact Count / Size——数据源 = 父组件已装载的当前层 listing）。
 // - 字段序对齐 reverse §3.2：名称 → 包类型 → Repository Path → File URL
 //   → 计数/大小 → 部署者/Created；文件附 Checksums 块（sha256/sha1/md5
 //   各带「（上传时提供：一致）」徽标——映射 originalChecksums 比对）。
@@ -37,6 +43,9 @@ export interface DownloadState {
   match: boolean | undefined
 }
 
+/** 详情页签 ID（URL 段 slug 映射见 ArtifactsBrowser TAB_SLUG） */
+export type DetailTab = 'general' | 'props' | 'perms'
+
 /** 详情对象：仓库（dir='' 且有元数据）｜目录｜文件 */
 export type DetailTarget =
   | { kind: 'repo'; repoKey: string }
@@ -50,6 +59,9 @@ export default function NodeDetail({
   canDelete,
   canWriteProps,
   onDelete,
+  tab,
+  onTabChange,
+  childrenNodes,
 }: {
   target: DetailTarget
   download: DownloadState | null
@@ -61,16 +73,24 @@ export default function NodeDetail({
    *  保留入口由服务端 403 兜底——属性写权限是路径 `w`，非管理面能力） */
   canWriteProps: boolean
   onDelete: (node: ChildNode) => void
+  /** 活跃页签（T-434 / FR-142.3：URL 路径段受控，省略 = general） */
+  tab: DetailTab
+  onTabChange: (t: DetailTab) => void
+  /** 目录形态的直系子项概要数据（父组件已装载的当前层 listing；缺省回退
+   *  FolderInfo.children 计数——无 listing 的场景） */
+  childrenNodes?: ChildNode[]
 }) {
   const { session } = useAuth()
   const admin = session?.admin ?? false
-  const [tab, setTab] = useState<'general' | 'props' | 'perms'>('general')
-  // target 是父组件每次渲染新建的对象（identity 不稳定）——Tab 重置改由
-  // 稳定键驱动：否则后台数据到达引发的父重渲染会把用户正在看的 Tab
-  // 弹回「常规」（T-246 终验 fix-forward 期间由键盘腿时序暴露的真缺陷）
-  const targetKey =
-    target.kind === 'repo' ? `repo:${target.repoKey}` : `node:${target.repoKey}/${target.node.path}`
-  useEffect(() => setTab('general'), [targetKey])
+  // 页签有效性：URL 携带的页签对当前目标不可用（仓库根无属性页签 / 非
+  // admin 无权限页签）时回退常规渲染，不重写 URL（admin 位异步到位，
+  // 重写会抖/环）
+  const activeTab: DetailTab =
+    tab === 'props' && target.kind !== 'node'
+      ? 'general'
+      : tab === 'perms' && !admin
+        ? 'general'
+        : tab
 
   // 节点元数据（文件/目录）在顶层取——头部「下载并校验」按钮的对账源
   // （checksums.sha256）与常规 Tab 共用一次请求。
@@ -149,10 +169,11 @@ export default function NodeDetail({
           评估落地）。锚 node-tab-* 落 Tab 根 <button>（元素型不变）、
           aria-selected 内建；方向键「选择随焦点」= selectionFollowsFocus
           （T-344D 批 C 的 repos/repo/authcfg 同款——keyboard.spec §4 的
-          node-tab 腿由 MUI 行为覆盖，onTablistKeys 末位消费者随之退役）。 */}
+          node-tab 腿由 MUI 行为覆盖，onTablistKeys 末位消费者随之退役）。
+          T-434：value 受控于 URL 页签段（activeTab 经目标有效性校验）。 */}
       <Tabs
-        value={tab}
-        onChange={(_e, id: 'general' | 'props' | 'perms') => setTab(id)}
+        value={activeTab}
+        onChange={(_e, id: DetailTab) => onTabChange(id)}
         selectionFollowsFocus
         aria-label="详情视图"
         sx={{ borderBottom: 1, borderColor: 'divider', mb: 'var(--bf-sp-3)' }}
@@ -162,13 +183,13 @@ export default function NodeDetail({
         {admin && <Tab value="perms" label="有效权限" data-testid="node-tab-perms" />}
       </Tabs>
 
-      {tab === 'general' ? (
+      {activeTab === 'general' ? (
         target.kind === 'repo' ? (
           <RepoGeneral repoKey={target.repoKey} />
         ) : (
-          <NodeGeneral node={target.node} repoKey={target.repoKey} item={item} itemStatus={nodeItem.status} itemError={nodeItem.error} download={download} />
+          <NodeGeneral node={target.node} repoKey={target.repoKey} item={item} itemStatus={nodeItem.status} itemError={nodeItem.error} download={download} childrenNodes={childrenNodes} />
         )
-      ) : tab === 'props' && target.kind === 'node' ? (
+      ) : activeTab === 'props' && target.kind === 'node' ? (
         // 属性页签（T-291）：目录/文件节点均可挂属性（§15.3.2）；仓库根形态
         // 不渲染该 Tab。folder 行的存储拼写带尾斜杠——?properties 面按
         // storageNode 寻址，folder 需带尾斜杠（与目录删除同款 isFolderNode
@@ -254,6 +275,7 @@ function NodeGeneral({
   itemStatus,
   itemError,
   download,
+  childrenNodes,
 }: {
   node: ChildNode
   repoKey: string
@@ -261,6 +283,7 @@ function NodeGeneral({
   itemStatus: 'loading' | 'ok' | 'error' | 'forbidden'
   itemError: { status: number } | null
   download: DownloadState | null
+  childrenNodes?: ChildNode[]
 }) {
   const busy = download?.path === node.path && download.phase === 'loading'
   const verdict =
@@ -295,10 +318,27 @@ function NodeGeneral({
           </>
         )}
         {node.folder && (
-          <div className="kv">
-            <span className="k">子项</span>
-            <span className="mono">{item.children?.length ?? 0} 项</span>
-          </div>
+          // T-434 / FR-142.1：children 表收窄后目录形态给直系概要
+          //（Artifact Count / Size——Artifactory 目录 item view 同位字段；
+          // Size 口径 = 直系文件已知大小合计，folder 无 size 契约不虚构）
+          <>
+            <div className="kv">
+              <span className="k">子项（Artifact Count）</span>
+              <span className="mono">
+                {childrenNodes
+                  ? `目录 ${childrenNodes.filter((n) => n.folder).length} · 文件 ${childrenNodes.filter((n) => !n.folder).length}`
+                  : `${item.children?.length ?? 0} 项`}
+              </span>
+            </div>
+            {childrenNodes && childrenNodes.some((n) => !n.folder && n.size !== null) && (
+              <div className="kv">
+                <span className="k">Size（直系文件合计）</span>
+                <span className="mono">
+                  {formatBytes(childrenNodes.reduce((acc, n) => acc + (!n.folder && n.size !== null ? n.size : 0), 0))}
+                </span>
+              </div>
+            )}
+          </>
         )}
         <div className="kv">
           <span className="k">Repository Path</span>

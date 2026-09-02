@@ -87,8 +87,10 @@ test('W12/W12b/W13 generic tree: upload -> browse -> detail/download sha match -
   await expect(page.locator('[data-testid="deploy-row-sbom.json"]')).toContainText('✓ checksum 一致')
   await page.click('[data-testid="deploy-close"]')
 
-  // 根层：acme 目录行出现（服务端 mkdir-on-put 语义），左树同步
+  // 根层：acme 目录行出现（服务端 mkdir-on-put 语义），左树同步。
+  // T-434（select≠expand）：选中仓不强制展开——树节点可见前先展开仓根
   await expect(page.locator('[data-testid="tree-row-acme"]')).toBeVisible()
+  await page.locator(`[data-testid="tree-repo-${key}"] .twisty`).click()
   await expect(page.locator('[data-testid="tree-node-acme"]')).toBeVisible()
 
   // 进目录（W12b）：children 表 + ?list 合并的 size 列
@@ -134,17 +136,23 @@ test('W12/W12b/W13 generic tree: upload -> browse -> detail/download sha match -
   await expect(page).toHaveURL(new RegExp(`/binflow/ui/artifacts/${key}$`))
   await expect(page.locator('[data-testid="tree-row-acme"]')).toBeVisible()
 
-  // 删除（E-14）：文件 → 行消失 + 内容面 404；重复删除 = 404（幂等语义源）
+  // 删除（E-14）：文件 → 行消失 + 内容面 404；重复删除 = 404（幂等语义源）。
+  // T-434 children 表操作列退役：删除收敛进详情面板（危险确认门不变）——
+  // 选中行 → 详情 delete-node-button → confirm
   await page.click('[data-testid="tree-row-acme"]')
-  await page.click('[data-testid="tree-row-app.bin"] [data-testid="delete-node-button"]')
+  await page.click('[data-testid="tree-row-app.bin"]')
+  await expect(page.locator('[data-testid="node-detail"]')).toContainText('app.bin')
+  await page.click('[data-testid="node-detail"] [data-testid="delete-node-button"]')
   await page.click('[data-testid="confirm-accept"]')
   await expect(page.locator('.toast').filter({ hasText: '已删除 acme/app.bin' })).toBeVisible()
   await expect(page.locator('[data-testid="tree-row-app.bin"]')).toHaveCount(0)
   expect((await api(page, 'GET', `/${key}/acme/app.bin`)).status).toBe(404)
   expect((await api(page, 'DELETE', `/${key}/acme/app.bin`)).status).toBe(404)
 
-  // 删除目录（递归）
-  await page.click('[data-testid="tree-row-docs"] [data-testid="delete-node-button"]')
+  // 删除目录（递归）——同走详情面板（目录形态详情的删除钮）
+  await page.click('[data-testid="tree-row-docs"]')
+  await expect(page.locator('[data-testid="node-detail"]')).toContainText('docs')
+  await page.click('[data-testid="node-detail"] [data-testid="delete-node-button"]')
   await page.click('[data-testid="confirm-accept"]')
   await expect(page.locator('[data-testid="tree-row-docs"]')).toHaveCount(0)
 })
@@ -187,8 +195,12 @@ test('W12d read-only user: browse allowed, delete 403 reason inline with guidanc
   await expect(page.locator('[data-testid="tree-row-keep.bin"]')).toBeVisible()
   await expect(page.locator('.tree-page .warn-box')).toContainText('管理员视图')
 
-  // 删除被拒：403 原因行内呈现 + 权限指引（W12d）
-  await page.click('[data-testid="tree-row-keep.bin"] [data-testid="delete-node-button"]')
+  // 删除被拒：403 原因行内呈现 + 权限指引（W12d）。T-434 children 表操作列
+  // 退役：普通（路径 read-only）用户的删除入口 = 详情面板（服务端 403 兜底
+  // 呈现的 W12d 语义不变）
+  await page.click('[data-testid="tree-row-keep.bin"]')
+  await expect(page.locator('[data-testid="node-detail"]')).toContainText('keep.bin')
+  await page.click('[data-testid="node-detail"] [data-testid="delete-node-button"]')
   await page.click('[data-testid="confirm-accept"]')
   const err = page.locator('[data-testid="delete-error"]')
   await expect(err).toBeVisible()
@@ -314,9 +326,10 @@ test('W14b search: empty-keyword guide, debounced results, semantic subline, row
   await page.fill('[data-testid="search-filter-repo"]', key)
   await expect(page.locator('[data-testid="search-result-0"]')).toBeVisible({ timeout: 10_000 })
 
-  // 行点击跳树定位（?focus= 自动选中 + 详情面板）
+  // 行点击跳树定位（文件自动选中 + 详情面板；T-434：搜索行发出的 ?focus=
+  // 旧深链被浏览器组件一次性折入路径段——URL 即状态）
   await page.click('[data-testid="search-result-0"]')
-  await expect(page).toHaveURL(new RegExp(`/binflow/ui/artifacts/${key}/acme\\?focus=${fileName}`))
+  await expect(page).toHaveURL(new RegExp(`/binflow/ui/artifacts/${key}/acme/${fileName}$`))
   await expect(page.locator('[data-testid="node-detail"]')).toBeVisible()
   await expect(page.locator('[data-testid="node-detail"]')).toContainText(`acme/${fileName}`)
 })

@@ -105,8 +105,16 @@ createRoot(document.getElementById('root')!).render(
                         认证守卫先于本 index 重定向生效，return=%2F 语义不变 */}
                     <Route index element={<Navigate to="/artifacts" replace />} />
                     <Route path="dashboard" element={<DashboardPage />} />
-                    {/* 跨仓树（T-236）：根与子树同组件——URL 即状态 */}
+                    {/* 跨仓树（T-236）：根与子树同组件——URL 即状态。T-434
+                        （FR-142.3）：活跃页签进 URL 路径段——
+                        /artifacts/[<TAB>/]<repo>/<path>，TAB ∈
+                        {general|properties|permissions}（省略 = general，
+                        对位 Artifactory /ui/repos/tree/<TAB>/…）；文件选择
+                        是路径末段（?focus= 退役，旧深链组件内一次性
+                        replace 重定向）。多段 URL 走 :tab/:key 路由（首段
+                        非页签词时组件按旧形折叠回 repo/path） */}
                     <Route path="artifacts" element={<ArtifactsBrowser />} />
+                    <Route path="artifacts/:tab/:key/*" element={<ArtifactsBrowser />} />
                     <Route path="artifacts/:key/*" element={<ArtifactsBrowser />} />
                     <Route path="search" element={<SearchPage />} />
                     {/* 编辑档案（T-239 拆分落位：改密 + API Token；§6.5） */}
