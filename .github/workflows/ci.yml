@@ -33,7 +33,7 @@ jobs:
       # placeholder shell; CI builds the real SPA first so the tested and
       # shipped binary embeds it.
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "20"
           cache: npm
@@ -136,7 +136,7 @@ jobs:
           cache: true
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "20"
           cache: npm
@@ -231,7 +231,7 @@ jobs:
       # Embed the real SPA so the size gate sees honest numbers (the
       # placeholder shell would under-report; T-89 strategy).
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: "20"
           cache: npm
