@@ -1661,4 +1661,8 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **T-434 [P0] M16 批次①：制品树栈对齐（插空即发）**：`role:dev-frontend` area:web/src/pages/artifacts ｜ 素材：reports/m16-parity-audit-material.md B-1.1~1.4 + PRD FR-142 批次①。四项：①**文件叶子进树**（消除「（空）」误导占位——children 表收窄决策随票：文件行进树后右侧纯 item view 对齐）；②**选择≠展开**（单击纯选中、箭头才展开）；③**URL/状态模型**（页签进 URL 段 + 文件选择路径段化——Artifactory `/tree/<TAB>/<repo>/<path>` 形态）；④**树头工具带**（包类型 facet/rclass 组/Sort-by/紧凑视图单选/My Favorites）+ reverse §3.2 facet 回填。在途。
 
+**T-421 → done 2026-09-02 19:4x（三窗五跑终收口）——M15 24/25（QA 中期 PASS）**：七项收口——①全树 race 两轮 **零 DATA RACE**（红全墙钟类；9 包串行 solo 绿含 maven 438s/auth 1087s/binflow-server 750s；metadata/repo/httpapi 三包未获 solo 绿窗=在册性能门家族 + Docker VM 周期满载——T-423 当晨同树一次绿在案）；②t404 真栈 8/8（T-420 遗留①闭）；③chromium 全量 258/5/9 五红全甄别（T-432① 遗留闭）；④D-413-2 复核 ✓（T-423 修法负载下活）；⑤**T-422 五锚新 spec 5/5 真栈绿**（含 BASE2 双实例腿；dead 桶 9→4）；⑥**K63 真门活体：恰 4×200+4×429 + Retry-After:1 + 文案逐字**；⑦中期矩阵 L20~L31 过（L21 因缺陷降 D-T421-1）+ E1~E7 零倒退 + 归属审计 100% 票号。观察三项登记（root ?list 文案/凭据主密钥指路归 T-426·T-429/metrics 根路径归 T-430）。日志 reports/agents/T-421.md。
+
+**D-T421-1 [P1·conductor 已修]**：AQL criteria 成员次序敏感——parseComparator 末尾冗余「外层 } 必须紧跟」检查误杀比较符对象后的合法 `,` 成员（单对象双操作符已由 expectPunct 覆盖，检查纯属多余）。**修复=删检查 + 注释释因**；回归测试 parser_order_test.go 四混序形 + 单对象双操作符维持拒绝；search 包 race 272.4s 绿 + lint 0。L21 验收命令原样恢复可用。
+
 **全树 race 补证判无效（conductor 2026-09-01 14:3x）**：与两 agent 测试套件同机并发跑——22 包红全部 620-660s 超时形态 + db/sql 竞争 panic + storage fail-open 窗口 = **共租负载签名**（T-414 日志同款 load 450-630），非产品缺陷。T-412 的 AC3 证据改挂 **T-421 中期 QA 串行全树 race**（届时 lane 空净）。**D-413-2 [P3·登记]**：唯一真信号 = T-413 `TestEngineMixedLoad` 在慢机下 K63 并发门 429 介入而测试只容忍 busy gate 拒绝——测试健壮性收窄（门注入调低或混合负载容忍 429），归 T-421 复验时顺腿修或转 T-433。**教训入册：全树 race/性能类验证必须 lane 空净时串行跑（派单纪律）。**
