@@ -188,10 +188,9 @@ func TestT283DisabledBreakerShape(t *testing.T) {
 
 // TestT283StaticFiveUnchangedUnderOverlay: with the seam wired and
 // everything unlocked, the static five behave exactly as before — the
-// registry-known docker slot opens REMOTE docker (T-392's matrix cell, no
-// gate question of its own) while VIRTUAL docker's refusal SURVIVES the
-// overlay (a registry-known docker slot must not smuggle virtual docker
-// in).
+// registry-known docker slot opens REMOTE docker and (since T-431, M15 Q6)
+// VIRTUAL docker exactly like the nil-gate path does: matrix cells, not
+// gate questions of their own.
 func TestT283StaticFiveUnchangedUnderOverlay(t *testing.T) {
 	e, _ := gateEnv(t, map[string]repo.PackageTypeVerdict{
 		"generic": unlockedGo, "docker": unlockedGo, "npm": unlockedGo,
@@ -210,12 +209,26 @@ func TestT283StaticFiveUnchangedUnderOverlay(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("docker remote under overlay: %v", err)
 	}
-	_, err := e.svc.CreateRepo(ctx, admin(), &metadata.Repo{
+	// Virtual docker is the same kind of cell since T-431 — but its member
+	// set must stay same-type (T-367's rider), so a docker member seeds the
+	// create and a generic member still refuses with the mix wording.
+	if _, err := e.svc.CreateRepo(ctx, admin(), &metadata.Repo{
+		RepoKey: "t283-docker-local", Type: repo.TypeLocal, PackageType: repo.PackageDocker,
+	}); err != nil {
+		t.Fatalf("seed docker local under overlay: %v", err)
+	}
+	if _, err := e.svc.CreateRepo(ctx, admin(), &metadata.Repo{
 		RepoKey: "t283-docker-virtual", Type: repo.TypeVirtual, PackageType: repo.PackageDocker,
+		Config: `{"repositories":["t283-docker-local"]}`,
+	}); err != nil {
+		t.Fatalf("docker virtual under overlay: %v", err)
+	}
+	_, err := e.svc.CreateRepo(ctx, admin(), &metadata.Repo{
+		RepoKey: "t283-docker-virtual-mix", Type: repo.TypeVirtual, PackageType: repo.PackageDocker,
 		Config: `{"repositories":["t283-generic"]}`,
 	})
-	if !errors.Is(err, repo.ErrRepoTypeNotSupported) || !strings.Contains(err.Error(), "are not supported") {
-		t.Fatalf("docker virtual under overlay = %v, want the class ruling", err)
+	if !errors.Is(err, repo.ErrInvalidRepoConfig) || !strings.Contains(err.Error(), "cannot mix") {
+		t.Fatalf("docker virtual with a generic member under overlay = %v, want the same-type member ruling", err)
 	}
 	// Unknown values keep the static enum's refusal (the service backstop
 	// behind httpapi's dynamic 400).

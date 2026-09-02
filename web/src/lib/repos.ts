@@ -41,11 +41,12 @@ export type PackageType =
 export const RCLASSES: RClass[] = ['local', 'remote', 'virtual']
 export const PACKAGE_TYPES: PackageType[] = ['generic', 'docker', 'maven', 'npm', 'pypi']
 
-/** Remote×Docker / Virtual×Docker 非法（FR-15-AC7：docker 仅 local） */
-export function comboAllowed(rclass: RClass, packageType: PackageType): boolean {
-  if (packageType === 'docker') return rclass === 'local'
-  return true
-}
+// rclass × packageType 组合门于 T-431（M15 PRD Q6 裁开）退役：docker 三仓型
+// 全开（local=M2 / remote=T-392 FR-129 / virtual=T-431，沿 helmoci T-365 聚合
+// 读面先例），其余四核心自 M3 即全开——建仓面不再有非法组合，服务端
+// supportedPackageTypes（internal/repo/validate.go）是唯一事实源；矩阵若回缩
+// 先在服务端裁，前端预收敛按需重建。license 门控包型的槽位门在
+// pkgChoiceBlock（addons enabled 判定），与本门无关。
 
 /** ADR-0008 保留段（api/v2/docs/console/ui/assets——与 internal/repo/api.go 同源） */
 export const RESERVED_REPO_KEYS = ['api', 'v2', 'docs', 'console', 'ui', 'assets']

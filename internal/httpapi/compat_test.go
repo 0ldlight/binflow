@@ -90,19 +90,20 @@ func TestRepositoriesCRUD(t *testing.T) {
 		}
 	})
 
-	t.Run("virtual docker stays 400 (FR-15-AC7 aggregation half)", func(t *testing.T) {
-		// T-392 (FR-129) opened REMOTE docker onto the /v2 remote seam; the
-		// virtual half keeps the matrix refusal. The remote-docker CREATE
-		// leg lives in t80_repo_model_test.go (own harness) so this
-		// sequence's C05 page assertions keep their seeded shape.
+	t.Run("virtual docker with a cross-type member stays 400 (T-367 rider)", func(t *testing.T) {
+		// T-431 (M15 Q6) opened the virtual docker CELL on the matrix; the
+		// same-type member rule is now the refusal this sequence meets — a
+		// generic member cannot join a docker virtual. Kept as a 400 so the
+		// C05 page assertions keep their seeded shape; the CREATE-success
+		// leg lives in t80_repo_model_test.go (own harness).
 		resp := putRepo(t, h, "docker-virtual",
 			`{"rclass":"virtual","packageType":"docker","repositories":["generic-local"]}`)
 		eb := decodeError(t, resp)
 		if resp.StatusCode != http.StatusBadRequest {
 			t.Fatalf("status = %d; body=%s", resp.StatusCode, eb.Errors[0].Message)
 		}
-		if !strings.Contains(eb.Errors[0].Message, "are not supported") {
-			t.Fatalf("message = %q, want the not-supported wording", eb.Errors[0].Message)
+		if !strings.Contains(eb.Errors[0].Message, "cannot mix the docker and generic package types") {
+			t.Fatalf("message = %q, want the same-type member wording", eb.Errors[0].Message)
 		}
 	})
 

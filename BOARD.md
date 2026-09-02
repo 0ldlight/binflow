@@ -1645,4 +1645,20 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **B16 派发（conductor 2026-09-02 11:0x）**：**T-421**（QA 中期——净机串行全树 race 窗口开启 + 六项累积交接面收口〔T-420 e2e 腿/T-432① 安静窗复跑/D-413-2 复核/T-422 五锚/真门形态/归属审计〕）+ **T-431**（docker virtual 开禁——Q6 裁定兑现，错峰避让 QA race 窗）双 lane 在途。**M15 实现面全落**——余 T-429 release（候 T-421/T-431）→ T-430 终验 → m15-done。
 
+**用户指令 intake ⑥（2026-09-02 14:3x）：「记得定期将 develop 的代码合并到 main」——常设节奏入册**（conductor memory：≥10 done 票或 ≥1 天触发 develop→main 自建自合）。**首次执行**：M15 中程回流 PR **#64 已合**（merge commit `12c8720`——**77 个提交**上 main：AQL 全栈/复制包 B/virtual 聚合/busy 预算/结构轮/文档族；deploy_uat 随合并触发，UAT 将升 m15 中程形态）。在途票（T-421/T-431）工作树未提交改动不受扰。
+
+**T-431 → done 2026-09-02 15:4x（配额窗⑥复活后收口）——M15 23/25（Q6 兑现：docker×virtual 开禁）**：矩阵行一行开（validate.go——唯一行为改动，沿 T-365 语义：聚合读面 family-wide 本就在，唯一阻碍就是建仓格）+ 拒绝臂数据驱动缝 + **FE comboAllowed 门整体退役**（其对 remote 也是陈旧谎言）+ 六处旧行为钉翻转 + 双新测试（建仓/成员解析/混型拒）。docker race 239s 绿 + helmoci 180s 绿 + vet 全树 + FE 四门；唯一红（TestBigTreeCopyNo5xx）归因机器负载（load 38-148 时 11.16s 撞墙 vs load 13 时 3.39s 过——copy 计划走查不在本票路径，同机同族 QA 先例在）。遗留四条（FE remote×docker 可选再藏归 conductor 裁/e2e 实机腿候低载窗归 T-430/live dind 归 QA/docs 联动 T-426）。日志 reports/agents/T-431.md。
+
+**B17 派发（conductor 2026-09-02 15:5x）**：**T-429**（release 烟测 + UAT 备妥——dep 全满足；Chart bump 判据 1.4.0→1.5.0；构建腿先行 + kind 重腿错峰 T-421 e2e 大波）入 lane；T-421（QA 中期）继续在途。
+
+---
+
+## M16 票据（全前端 Artifactory parity + i18n + cron 域——用户 intake ⑤⑥⑦）
+
+**用户指令 intake ⑦（2026-09-02 16:1x）：「当前前端整体和 Artifactory 偏离严〔重〕」——第三次 UI 加码。处置：M16 即刻开工，不等 M15 收官仪式。**
+
+**M16 PRD v1.1 审定转正（conductor 2026-09-02 16:1x）**：七裁定已落章（intake ⑤ 窗口）+ LC-80~98 零待裁 + 两程结构（M17 产品域预立项）。BOARD 追认转正——tech-lead 全量拆票候 M15 m15-done 后补；**树栈 P0 批次（FR-142 批次①，素材 B-1.1~1.4）以插空第三 lane 即刻派发**。
+
+**T-434 [P0] M16 批次①：制品树栈对齐（插空即发）**：`role:dev-frontend` area:web/src/pages/artifacts ｜ 素材：reports/m16-parity-audit-material.md B-1.1~1.4 + PRD FR-142 批次①。四项：①**文件叶子进树**（消除「（空）」误导占位——children 表收窄决策随票：文件行进树后右侧纯 item view 对齐）；②**选择≠展开**（单击纯选中、箭头才展开）；③**URL/状态模型**（页签进 URL 段 + 文件选择路径段化——Artifactory `/tree/<TAB>/<repo>/<path>` 形态）；④**树头工具带**（包类型 facet/rclass 组/Sort-by/紧凑视图单选/My Favorites）+ reverse §3.2 facet 回填。在途。
+
 **全树 race 补证判无效（conductor 2026-09-01 14:3x）**：与两 agent 测试套件同机并发跑——22 包红全部 620-660s 超时形态 + db/sql 竞争 panic + storage fail-open 窗口 = **共租负载签名**（T-414 日志同款 load 450-630），非产品缺陷。T-412 的 AC3 证据改挂 **T-421 中期 QA 串行全树 race**（届时 lane 空净）。**D-413-2 [P3·登记]**：唯一真信号 = T-413 `TestEngineMixedLoad` 在慢机下 K63 并发门 429 介入而测试只容忍 busy gate 拒绝——测试健壮性收窄（门注入调低或混合负载容忍 429），归 T-421 复验时顺腿修或转 T-433。**教训入册：全树 race/性能类验证必须 lane 空净时串行跑（派单纪律）。**

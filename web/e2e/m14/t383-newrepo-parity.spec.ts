@@ -17,8 +17,9 @@ import { m8Client, sessionApi } from '../m8/support/seed'
 //      关闭、URL 不变、表单仍在路由页——非单 modal 全程）；
 //   ② rclass 选择形态：入口预选（列表钮 + quick 菜单三型下拉 = Add
 //      Repositories 下拉的对位）+ ?rclass= 深链直达 + 页内单选组回显；
-//   ③ 磁贴网格：radiogroup 语义 + 原生 button 磁贴 + 组合门控（docker 仅
-//      local）+ BinFlow 定案宽度档 440px（不追平 880px——33 包型 880px 网格
+//   ③ 磁贴网格：radiogroup 语义 + 原生 button 磁贴 + 组合门控退役（docker
+//      三仓型全开——T-431 沿 T-392 remote / T-431 virtual 的服务端矩阵）
+//      + BinFlow 定案宽度档 440px（不追平 880px——33 包型 880px 网格
 //      vs BinFlow 5 核心 + 门控槽位，追平即大面积留白；parity 册 M1 行
 //      「现档位即可」既有裁定，票内留痕）；
 //   ④ 六节结构：form-section-*（v1.19 批锚）条件呈现矩阵 × 三 rclass；
@@ -129,8 +130,9 @@ test('admin: ?rclass= deep links reach the form page; six-section matrix per rcl
   await expect(grid).toBeVisible()
   await expect(grid).toContainText('Remote')
 
-  // 组合门控（磁贴矩阵）：remote × docker 禁用（FR-15-AC7，组合约束非门控）
-  await expect(page.locator('[data-testid="pkg-grid-item-docker"]')).toBeDisabled()
+  // 组合门控退役（T-431）：remote × docker 可选（T-392 开的服务端格，FE 门
+  // 随 virtual 开禁一并退役）；license 门控槽位的禁用与此无关、另行断言
+  await expect(page.locator('[data-testid="pkg-grid-item-docker"]')).toBeEnabled()
   await expect(page.locator('[data-testid="pkg-grid-item-maven"]')).toBeEnabled()
 
   await pickFromGrid(page, 'maven')

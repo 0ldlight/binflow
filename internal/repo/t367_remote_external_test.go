@@ -155,17 +155,15 @@ func TestT367V2MemberTypes(t *testing.T) {
 			refusalIn: "cannot mix the helmoci and docker package types",
 		},
 		{
-			// docker virtuals are still refused by the class matrix BEFORE
-			// member validation (remote docker opened in T-392; the virtual
-			// half stays refused); the refusal below names the matrix, and
-			// the member rule's docker-owning arm is then live for a future
-			// flip.
+			// T-431 (M15 Q6) opened the docker virtual cell, so the member
+			// rule's docker-owning arm is now the live refusal this mix
+			// meets: the class matrix no longer intercepts it first.
 			name:      "docker virtual with a helmoci member",
 			key:       "t367-virt-docker-hoci",
 			own:       repo.PackageDocker,
 			members:   `{"repositories":["t367-docker-local","t367-helmoci-local"]}`,
 			wantRefus: true,
-			refusalIn: "are not supported",
+			refusalIn: "cannot mix the docker and helmoci package types",
 		},
 		{
 			// The rider's scope is the v2 family: a non-v2 virtual keeps

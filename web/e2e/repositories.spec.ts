@@ -167,10 +167,11 @@ test('remote maven: url roundtrip, password never echoed, empty delete', async (
   await page.goto('/binflow/ui/admin/repositories/new')
   await login(page)
 
-  // 网格（local 默认）先选 Maven；再切 Remote——docker 组合即禁用（FR-15-AC7）
+  // 网格（local 默认）先选 Maven；再切 Remote——docker 组合自 T-431 起可选
+  //（服务端 T-392 已开 remote 格；FE 门随 virtual 开禁一并退役）
   await page.click('[data-testid="pkg-grid-item-maven"]')
   await page.click('[data-testid="form-rclass-remote"]')
-  await expect(page.locator('[data-testid="form-package-docker"]')).toBeDisabled()
+  await expect(page.locator('[data-testid="form-package-docker"]')).toBeEnabled()
 
   await page.fill('[data-testid="form-key"]', key)
   await page.fill('[data-testid="form-url"]', 'https://repo1.maven.org/maven2')
@@ -204,7 +205,7 @@ test('remote maven: url roundtrip, password never echoed, empty delete', async (
   await expect(page.locator('[data-testid="toast"]')).toContainText('deleted successfully')
 })
 
-test('form gating: illegal combo disabled, key/url precheck, zero write requests', async ({ page }) => {
+test('form gating: docker combo open since T-431, key/url precheck, zero write requests', async ({ page }) => {
   await page.goto('/binflow/ui/admin/repositories/new')
   await login(page)
 
@@ -217,9 +218,9 @@ test('form gating: illegal combo disabled, key/url precheck, zero write requests
 
   await page.click('[data-testid="pkg-grid-item-generic"]')
 
-  // Remote × Docker 组合置灰（FR-15-AC7）
+  // Remote × Docker 组合自 T-431 起可选（组合门退役；license 门控槽位不在此面）
   await page.click('[data-testid="form-rclass-remote"]')
-  await expect(page.locator('[data-testid="form-package-docker"]')).toBeDisabled()
+  await expect(page.locator('[data-testid="form-package-docker"]')).toBeEnabled()
 
   // key 预检：非法字符 / 保留段（门控断言 = form-submit 禁用——T-240 单页化）
   await page.fill('[data-testid="form-key"]', 'Bad_Key')

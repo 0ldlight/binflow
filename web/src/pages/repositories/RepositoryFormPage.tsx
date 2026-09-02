@@ -31,7 +31,6 @@ import { getAddons, lockedHint, packageTypeOptions, tierBadgeClass } from '../..
 import type { PkgTypeOption } from '../../lib/addons'
 import {
   RCLASSES,
-  comboAllowed,
   createRepo,
   cfgBool,
   cfgNum,
@@ -102,7 +101,7 @@ const RCLASS_LABEL: Record<RClass, string> = { local: 'Local', remote: 'Remote',
  *  字符图标族（五核心 + 门控通用星形）退役） */
 const PKG_ITEMS: { id: PackageType; label: string; desc: string }[] = [
   { id: 'generic', label: 'Generic', desc: '任意文件（curl 上传 / 下载）' },
-  { id: 'docker', label: 'Docker', desc: 'OCI 镜像（docker push / pull，仅 Local）' },
+  { id: 'docker', label: 'Docker', desc: 'OCI 镜像（docker push / pull）' },
   { id: 'maven', label: 'Maven', desc: 'JVM 构件（mvn deploy / 解析）' },
   { id: 'npm', label: 'npm', desc: 'Node 包（npm publish / install）' },
   { id: 'pypi', label: 'PyPI', desc: 'Python 包（twine / pip）' },
@@ -131,12 +130,12 @@ function buildPkgChoices(options: PkgTypeOption[]): PkgChoice[] {
   return items
 }
 
-/** 单项可选取舍：组合矩阵（docker 仅 local）× 槽位解锁态；返回禁用原因
- *  （null = 可选）。槽位禁用优先呈现（addons.disabled 熔断高于组合约束的
- *  信息量——它对 admin 是可行动的）。 */
-function pkgChoiceBlock(rclass: RClass, c: PkgChoice): string | null {
+/** 单项可选取舍：槽位解锁态；返回禁用原因（null = 可选）。组合矩阵门自
+ *  T-431（M15 Q6）随 docker 三仓型全开而退役（服务端 supportedPackageTypes
+ *  为唯一事实源——rclass × packageType 组合恒合法，矩阵回缩时在服务端先裁），
+ *  license 槽位禁用是当前唯一组合性约束。 */
+function pkgChoiceBlock(c: PkgChoice): string | null {
   if (c.opt && !c.opt.enabled) return lockedHint(c.opt)
-  if (!comboAllowed(rclass, c.id)) return `${rclass} × ${c.id} 不受支持（docker 仅 local）`
   return null
 }
 
@@ -298,11 +297,10 @@ function isNonNegInt(v: string): boolean {
   return v.trim() === '' || /^\d+$/.test(v.trim())
 }
 
-/** 全表单门控：必填/预检不通过则提交不可用（表单零坏请求，§4.4） */
+/** 全表单门控：必填/预检不通过则提交不可用（表单零坏请求，§4.4）。组合门
+ *  T-431 退役（见 lib/repos.ts）——服务端成员规则（同型成员等）仍以 400 文案
+ *  行内呈现。 */
 function formValid(f: FormState, mode: 'create' | 'edit'): { ok: boolean; reason?: string } {
-  if (!comboAllowed(f.rclass, f.packageType)) {
-    return { ok: false, reason: '该仓型 × 包类型组合不受支持（docker 仅 local）' }
-  }
   if (mode === 'create') {
     if (f.key.trim() === '') return { ok: false, reason: 'Repository key 未填' }
     if (validateRepoKey(f.key.trim())) return { ok: false, reason: 'Repository key 不合规' }
@@ -389,7 +387,7 @@ function PackageTypeGrid({
         </p>
         <div className="pkg-grid-items" role="radiogroup" aria-label="包类型">
           {choices.map((c) => {
-            const block = pkgChoiceBlock(rclass, c)
+            const block = pkgChoiceBlock(c)
             const badgeTier = c.opt && c.opt.minTier !== 'community' ? c.opt.minTier : null
             return (
               <button
@@ -633,7 +631,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                     checked={f.rclass === rc}
                     onChange={() => {
                       set('rclass', rc)
-                      if (rc !== 'local' && f.packageType === 'docker') pickPackage('generic')
                     }}
                     value={rc}
                     name="rclass"
@@ -646,7 +643,7 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
           </div>
           <div className="radio-row" role="radiogroup" aria-label="包类型">
             {pkgChoices.map((c) => {
-              const block = pkgChoiceBlock(f.rclass, c)
+              const block = pkgChoiceBlock(c)
               const badgeTier = c.opt && c.opt.minTier !== 'community' ? c.opt.minTier : null
               return (
                 <FormControlLabel

@@ -350,10 +350,13 @@ func TestVirtualCreateGates(t *testing.T) {
 		t.Fatalf("helm virtual with a helmoci member = (%d, %s), want the mix 400", status, body)
 	}
 
-	// The docker matrix keeps its boundary (docker virtual stays refused).
+	// T-431 opened the docker virtual cell on the matrix, so this mix now
+	// meets the same-type member rule instead: a helmoci member refuses a
+	// docker virtual (the family-shared /v2 plane keeps single-type member
+	// sets, T-367's rider).
 	status, body = create(`{"key":"docker-virt","rclass":"virtual","packageType":"docker","repositories":["later-local"]}`)
-	if status != http.StatusBadRequest || !strings.Contains(body, "not supported") {
-		t.Fatalf("docker virtual create = (%d, %s), want the matrix 400", status, body)
+	if status != http.StatusBadRequest || !strings.Contains(body, "cannot mix the docker and helmoci package types") {
+		t.Fatalf("docker virtual with a helmoci member = (%d, %s), want the mix 400", status, body)
 	}
 
 	// Uninstall: the create face returns to the D3 400.

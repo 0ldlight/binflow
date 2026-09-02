@@ -22,19 +22,23 @@ var knownPackageTypes = map[string]bool{
 }
 
 // supportedPackageTypes is the support matrix (FR-15, T-64): all three
-// repository classes × {generic, maven, npm, pypi}, docker on LOCAL and —
-// since T-392 (M14 FR-129) — on REMOTE, where the /v2 pull-through rides
-// the same family-shared remote data chain helmoci opened in T-363 (the
-// K54 "shared seam, marginal cost zero" ruling). Virtual docker stays
-// refused (PRD Q4's aggregation half: the /v2 virtual plane is served for
-// helmoci; docker's own virtual registration remains unserved ground).
-// The one rejected combination answers ErrRepoTypeNotSupported with the
-// errClassNotSupported wording; httpapi translates the shape (400), the
-// semantics stay here.
+// repository classes × {generic, maven, npm, pypi} since M3, docker on
+// LOCAL since M2, on REMOTE since T-392 (M14 FR-129 — the /v2 pull-through
+// rides the family-shared remote data chain helmoci opened in T-363, the
+// K54 "shared seam, marginal cost zero" ruling), and on VIRTUAL since
+// T-431 (M15 PRD Q6's ruling): the aggregated READ plane T-365 built for
+// helmoci is family-shared exactly like the remote chain, so a docker
+// virtual walks its members through the same four read use cases — the
+// helmoci precedent's semantics, one matrix cell. The matrix therefore
+// currently refuses nothing among the static five; the refusal arm below
+// stays because supportedPackageTypes remains the single source of truth —
+// a future cell ruling empties (or here, re-fills) a cell without
+// re-plumbing the refusal, and httpapi's 400 translation of
+// ErrRepoTypeNotSupported still covers the shape.
 var supportedPackageTypes = map[string]map[string]bool{
 	TypeLocal:   {PackageGeneric: true, PackageDocker: true, PackageMaven: true, PackageNpm: true, PackagePypi: true},
 	TypeRemote:  {PackageGeneric: true, PackageDocker: true, PackageMaven: true, PackageNpm: true, PackagePypi: true},
-	TypeVirtual: {PackageGeneric: true, PackageMaven: true, PackageNpm: true, PackagePypi: true},
+	TypeVirtual: {PackageGeneric: true, PackageDocker: true, PackageMaven: true, PackageNpm: true, PackagePypi: true},
 }
 
 // validateRepoKey checks one repository key against the charset rule and the
@@ -68,21 +72,23 @@ func validateRclass(rclass string) error {
 	return nil
 }
 
-// errClassNotSupported is the class-matrix refusal (virtual docker, the
-// PRD Q4 aggregation half — FR-15-AC7 originally refused remote docker too,
-// which T-392/FR-129 opened onto the T-363 remote seam) — shared by the
-// static path and the dynamic overlay so the two can never drift on the
-// wording.
+// errClassNotSupported is the class-matrix refusal — shared by the static
+// path and the dynamic overlay so the two can never drift on the wording.
+// Its history: FR-15-AC7 originally refused both remote and virtual docker;
+// T-392/FR-129 opened remote onto the T-363 remote seam, and T-431 (M15 Q6)
+// opened virtual onto the T-365 aggregated read plane — the matrix holds no
+// refused cell today, so this arm is the seam a future ruling re-fills, not
+// a live refusal.
 func errClassNotSupported(rclass, packageType string) error {
-	return fmt.Errorf("%w: %s %s repositories are not supported (docker serves local and remote; PRD Q4 keeps virtual docker unserved)",
+	return fmt.Errorf("%w: %s %s repositories are not supported",
 		ErrRepoTypeNotSupported, rclass, packageType)
 }
 
 // validateRepoType checks rclass and package type. A syntactically unknown
-// value is ErrInvalidRepoType; the matrix leaves exactly one
-// valid-but-unserved combination — docker on virtual — which is
-// ErrRepoTypeNotSupported with the errClassNotSupported wording
-// (FR-15-AC7 as narrowed by FR-129) so httpapi can surface the reason.
+// value is ErrInvalidRepoType; a matrix-refused combination (none among the
+// static five since T-431 opened virtual docker — see
+// supportedPackageTypes) is ErrRepoTypeNotSupported with the
+// errClassNotSupported wording so httpapi can surface the reason.
 func validateRepoType(rclass, packageType string) error {
 	if err := validateRclass(rclass); err != nil {
 		return err
