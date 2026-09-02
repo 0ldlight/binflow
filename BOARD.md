@@ -1752,4 +1752,10 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **B0 派发（conductor 2026-09-03 00:1x）**：**T-435**（规格增量三份——aql.md statistics/QRL/dates + remote-browsing.md 成稿 + cron Quartz 锚）+ **T-436**（ADR-0044 调度域 + K68/K69 双会签——与事件驱动零重复投递边界）双锚并行在途。B1（T-437 parity 册 v1.2 + T-438 统计基建）候 B0 就绪。
 
+**T-436 → done 2026-09-03 00:2x——M16 2/35（B0 锚①：ADR-0044 Accepted）**：cron 调度域六轴决策 13 要点——schedules 台账（表达式/next-run/last-run/状态/所属域）+ **Quartz 六域子集自研解析**（robfig/cron 否决——方言判断）+ 独立 1min ticker + **与事件驱动+outbox 并存三层口径**（调度只触发全量类任务，事件驱动仍是增量唯一引擎，零重复投递）+ 防护三面（过去时间拒配/每域并发上限/误触发）。K68 会签（write→deploy-cache 零提权等价迁移 + annotate↔M10 属性对位）+ K69 会签（nodes 四列 + 三分计数口径 + **?stats 面正位**〔与 T-438 AC1 措辞差——派单附注〕+ CapSystemRead 可见性门）。architecture §25（25.1~25.7）+ 技术债 48/49/50。软缝清单八项（T-435 差异核对协议）。下游 T-438/440/444/446/450/462 全解锁。日志 reports/agents/T-436.md。
+
+**T-435 → done 2026-09-03 00:3x——M16 3/35（B0 锚②：规格增量三份）**：aql.md **§14 增量段**（statistics 十字段/QRL 全量三态/dates-creation 空集族逐字——M15 冻结面零改动）+ **remote-browsing.md**（T-425 矩阵直提成稿 + 降级六条 + §8.5 扩面）+ **cron-scheduling.md**（K70 归位——Quartz 官方对拍 + 与 ADR-0044 软缝留痕）。覆盖端点 22/流程 12/字段集 4；置信度高 ~30/中 ~13/**低 0**。**关键发现三条**：① **PRD/T-440 的 `usageSince` 参数名与 Artifactory wire `notUsedSince` 不符**（三源——交实现票与 PM 勘误）；② statistics `remote_*` 族 = 下游 smart remote 回拉统计，与 K69 三分口径正交（T-438 埋点防错条已钉）；③ QRL 与 AQL 429 并发闸正交（QRL 限流=延迟放行非 429）。**t226 活体腿降级**（TUN 路由断 SSH kex——R1 内置路径，15 条待验证三清单在册，环境修复后一次只读会话可补齐）。日志 reports/agents/T-435.md。
+
+**B1 派发（conductor 2026-09-03 00:4x）**：**T-437**（parity 册 v1.2 + K67 冻结 + 47 项四态预归属——ux 票，PM 会签）+ **T-438**（统计基建先行——nodes 四列 + 埋点 + 三分口径；**携带 T-436 K69 ?stats 正位附注 + T-435 remote_* 正交防错条 + notUsedSince 勘误口径**）双 lane 在途。
+
 **全树 race 补证判无效（conductor 2026-09-01 14:3x）**：与两 agent 测试套件同机并发跑——22 包红全部 620-660s 超时形态 + db/sql 竞争 panic + storage fail-open 窗口 = **共租负载签名**（T-414 日志同款 load 450-630），非产品缺陷。T-412 的 AC3 证据改挂 **T-421 中期 QA 串行全树 race**（届时 lane 空净）。**D-413-2 [P3·登记]**：唯一真信号 = T-413 `TestEngineMixedLoad` 在慢机下 K63 并发门 429 介入而测试只容忍 busy gate 拒绝——测试健壮性收窄（门注入调低或混合负载容忍 429），归 T-421 复验时顺腿修或转 T-433。**教训入册：全树 race/性能类验证必须 lane 空净时串行跑（派单纪律）。**

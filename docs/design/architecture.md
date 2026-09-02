@@ -882,6 +882,10 @@ CREATE TABLE nodes (
   created_by TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
+  download_count INTEGER NOT NULL DEFAULT 0,        -- [M16 K69/ADR-0044] per-node 下载计数（三分口径：直连/经 virtual 落成员行/remote 服务——与 audit ActionDownload 同源同址埋点；folder 行恒 0）
+  last_downloaded_at TEXT NOT NULL DEFAULT '',      -- [M16 K69] RFC3339，空 = 从未下载
+  last_downloaded_by TEXT NOT NULL DEFAULT '',      -- [M16 K69] 最近下载者（匿名 = "anonymous"）；?stats 投影受可见性门（admin/readonly_admin/m-holder——§25.5）
+  remote_download_count INTEGER NOT NULL DEFAULT 0, -- [M16 K69] remote 仓作为服务点的下载次数（local 仓恒 0）
   PRIMARY KEY (repo_key, path)
 );
 CREATE INDEX idx_nodes_blob ON nodes(sha256);   -- GC 反连接 & 删 blob 前检查
@@ -1595,8 +1599,9 @@ logging:
 | `artifactory.config.xml` | `repositories` 表 + YAML | — | 运行时可改仓配置，无 XML |
 | remote 影子缓存仓（`<remoteKey>-cache`） | 缓存 node 直接落 remote 仓自身 repo_key + `remote_cache` 验证器表 | pull-through 语义等价 | 不做影子仓间接层（Artifactory 是其存储分片历史包袱，ADR-0012）；待 repo-semantics §7.3 M3 逆向印证后如有行为差异再评估 |
 | virtual priorityResolution | 两桶序：priorityResolution 优先桶（桶内声明序）→ 其余成员（桶内声明序）（ADR-0013 联动记录，T-79 定案） | 聚合解析（Artifactory 四桶的两桶简化，客户端不可观察差异） | stale 命中即成员结果、真 404 续桶；写路由 defaultDeploymentRepo 见 PRD FR-21 |
+| cron 调度（备份 cron/维护面 cron/复制 cronExp——Quartz 表达式） | `schedules` 统一台账 + `internal/scheduler` 触发器（**[M16] ADR-0044/§25**） | 三消费面形态（GC/Cleanup 两族 cron + Next Run + Run Now / 备份 CRUD + next-run / 复制 cronExp 字段）与 Quartz 六域表达式；调度只触发全量类任务，与事件驱动+outbox 并存零重复投递（内容层） | 表达式子集拒绝 `W`/`#`（诚实子集）；OSS 预置 backup-daily/weekly **不预置**（零静默写盘纪律）；维护面/备份面挂 `/api/v1/system/*` 自有前缀 |
 | Access（用户/权限） | auth + users/tokens/permission_targets(+principals) 表 | 本地用户+token+命名 permission target ACL | M1 无组、无 SSO |
-| Access 动作集 read/write/annotate/delete/manage（auth-model §4，高置信） | r/w/d + **[M7] m（manage）**（§3.4a） | manage 动作对齐 = 仓库级 admin（CanManageRepo 消费）；m 只判 repos[]、无路径子域 | annotate/distribute/managedXrayMeta 不做；Artifactory 无 read-only admin 角色——BinFlow `users.role` 闭集的 `readonly_admin` 是 Q4 需求的自有扩展（**有意差异**，ADR-0026） |
+| Access 动作集 read/write/annotate/delete/manage（auth-model §4，高置信） | r/w/d + **[M7] m（manage）** + **[M16] a（annotate）**（§3.4a + §25.6/ADR-0044 K68） | manage 动作对齐 = 仓库级 admin（CanManageRepo 消费）；m 只判 repos[]、无路径子域；annotate = 属性写权限（M10 三动词对位——§25.6）；wire 动词 write→deploy-cache 翻新（PUT 双词收一轮） | distribute/managedXrayMeta 不做；Artifactory 无 read-only admin 角色——BinFlow `users.role` 闭集的 `readonly_admin` 是 Q4 需求的自有扩展（**有意差异**，ADR-0026）；Property Set 分段缺位登记（无域不伪造——ADR-0044 K68） |
 | `/api/` REST | 兼容子集 + `/api/v1` | 高频端点 | 全量兼容明确不做（PRODUCT）；统一挂 `/binflow` 前缀，不用 `/artifactory` 前缀、不做根路径镜像（ADR-0008） |
 | SubscriptionType 十档 + AddonType 80 项注解门控（inv-2 §3） | `license.Tier` 三档闭集 + `addons.Addon` 描述符（[M10]，ADR-0032/0033） | 功能分级门控的行为模式：档位 × 能力解锁矩阵、全局禁用开关、安装/查询/卸载 REST、无订阅 403 映射 | 档位命名/文档格式/签名算法/注册形态全部自有（ed25519 + 编译期装配清单）；license REST 取单数 `/api/system/license`（复数多证相加属 HA 语义）；门控织入数据面非路由面（§15.1.5） |
 | 矩阵参数（`;k=v` 剥离→部署属性）+ `?properties` 读写（rest-api §3） | `SplitMatrixParams` 单点 + `node_props` 表 + `?properties` 三动词（[M10]，§15.3） | 属性随 PUT 落库、键校验 400、GET/PUT/DELETE REST 族 | 非 k=v 形 `;` 保持字面路径（存量兼容，Artifactory 严格 400——§11.39）；PUT 取同名键值集替换的自有 merge 语义（§11.40）；属性搜索/AQL 归 M11+ |
@@ -1677,6 +1682,12 @@ logging:
 46. **[M15] AQL path 级权限复核的行级成本**（ADR-0043 决策 4，§24.4）：path-scoped permission target（include/exclude 路径模式）存在的仓，其结果行需逐行 `CanRead` 复核（每行 2 次 permission 查询）——万节点 NFR-P67 预算内可行（且仅 path-scoped 仓触发，主体形态零成本）；P95 滑坡时启用 per-(principal, repo) 记忆化（缝已留，T-413/T-411 定形）。不 SQL 化模式匹配的理由 = 单真相源（Go matchesAny 与 SQL LIKE 翻译分叉即 ACL 泄漏）。
 
 47. **[M15] AQL offset 无界深翻页**（ADR-0043 决策 5 边界，§24.7）：`.offset(n)` 无上限——深翻页 O(offset) 扫描；K63 未裁 offset 上限（Artifactory 语义照 aql.md 锚定后随 Q2 定）。keyset 翻页（(repo_key,path) 游标）为后路，需求出现时新 ADR。
+
+48. **[M16] statisticsEnabled 通知本体缺位（smart-remote 域）**（ADR-0044 K69 点 6）：`contentSynchronisation.statisticsEnabled` 官方语义 = 向上游 Artifactory 实例通知下载统计（上游须为 Artifactory 系且开放同步）；BinFlow M16 行为化仅到本地（statsSync 资格标记落 audit detail + 四列无条件本地计数）——通知本体不做（上游通知端点属新 API 面，零私加口径 + PM FR 流程），随 smart-remote 域立项解禁（双 BinFlow 联邦链路届时评估通知端点形态）。
+
+49. **[M16] StatsInfo 无源两字段**（ADR-0044 K69 点 4）：`GET ?stats` 官方七字段中 `remoteLastDownloaded` / `remoteLastDownloadedBy` 无存储源（K69 四列不含 remote 侧时间戳/身份两列）——投影省略不伪造；AQL statistics 域的 `remote_downloaded`（时间戳）/`remote_downloaded_by`/`remote_origin`/`remote_path` 同判（注册表 unsupported）。后路 = 两列小迁移票 + 投影一行 + AQL 注册表翻 supported（勘误形态）。
+
+50. **[M16] cron 子集的 W/# 不收边界**（ADR-0044 决策 3）：`W`（最近工作日）/`#`（第 n 周几）两 Quartz 形态不收（400 点名拒绝）——三消费面仓内锚（console-ui §3.9/§3.10、replication.md）零用例；需求出现时翻转 = `cron.go` 词法一臂 + `next.go` 计算一臂（单点扩展，schema/台账零变化）。年域仅收 `*` 同族（具体年域不支持）。
 
 ## 12. 待逆向规格确认清单（阻塞点挂 docs/reverse/）
 
@@ -2851,3 +2862,173 @@ POST /api/search/aql[?compact]
 - offset 无界：深翻页 O(offset) 扫描，K63 未裁 offset 上限（Q2 出口随 aql.md）。
 - name/depth 无索引（派生表达式）——name 等值/排序走全扫；真出现热点以索引化生成列升级
   （migration + IR 键位不变，届时新 ADR）。
+
+---
+
+## 25. [M16] 调度域增量——cron 台账与触发器（ADR-0044 展开）+ 统计扩列（K69 会签）+ 权限动词扩列（K68 会签）
+
+> 承载：FR-150（cron 调度域——Q1 终裁引入）/ FR-146.1（Annotate——Q7 终裁加）/ FR-146.2（per-node 下载计数）。
+> 决策记录在 ADR-0044（本节是其执行规范——接口精确到签名、DDL 精确到列、口径精确到断言形态）。
+> 字面契约（cron 拒绝文案逐字 / statistics 字段定名）以 T-435 锚（docs/reverse/ 增量段）为准——ADR-0044 软缝清单八项。
+
+### 25.1 包边界与依赖方向（internal/scheduler 新包）
+
+```
+internal/scheduler/          # [M16] cron 调度域（ADR-0044——三票 T-446/450/462 基座）
+├── cron.go                  # Quartz 六域子集词法与解析（纯函数零 IO 零 DB——T-446）
+├── next.go                  # next-run 计算器 Next(expr, after)（纯函数——T-446）
+└── scheduler.go             # Run 循环（1min ticker + wake）+ 域注册面 + 误触发防护
+                             #  + audit/metrics facet + Kick(domain,key) 手动触发等价缝（T-446）
+internal/metadata/substores_schedules.go   # ScheduleStore 缝（webhook store 先例——T-446）
+internal/httpapi/{schedules,backups}.go    # 台账只读投影 + 备份 CRUD 面（T-450）
+internal/httpapi/system_maintenance.go     # 维护面 cron 字段（T-450——三槽 + Quota/Compress/Prune 挂靠）
+```
+
+依赖规则（review 依据）：`scheduler` 只 import metadata 的 ScheduleStore 公共面 + 各域**导出的载体方法**
+（replication.TriggerFullSync / repo RunOnce 族 / export callable）——**禁止 import repo 的内容写路径、
+webhook Bus、replication 引擎内部**（并存语义 §25.4-② 的结构性保证：import 图即审计证据）。
+httpapi 装配 scheduler 与三域 Runner（cmd main.go 生命周期段——licenseMgr/cleanupEng/trashEng 先例：
+Run(ctx) 随 signal context 启动，优雅停机 = 在途 Runner 完成或载体自身取消）。
+
+域闭集 = 代码常量 `maintenance | backup | replication`（schedules 表 CHECK 同源）；新域 = 增量注册行 +
+CHECK 扩列迁移（ADR-0041 事件闭集同款纪律——闭集才可枚举验证）。
+
+### 25.2 schedules 台账与三消费面
+
+台账 DDL、`「无行 = 不调度」`单态语义、不预置立场见 ADR-0044 决策 2（Artifactory OSS 预置
+backup-daily/weekly 不对齐——零静默写盘，§10 对齐表有意差异行在案）。
+
+Go 契约（metadata sub-store——签名即 T-446/T-450 交接面）：
+
+```go
+// internal/metadata（substores_schedules.go）
+type Schedule struct {
+    Domain, Key string          // 域闭集 + 域内实体键
+    CronExpr    string
+    Enabled     bool
+    NextRunAt   string          // RFC3339 UTC；'' = 未排
+    LastRunAt   string          // '' = 从未
+    LastStatus  string          // '' | ok | failed
+    LastError   string          // 截断上限（引擎内部常量）
+    CreatedAt, CreatedBy, UpdatedAt, UpdatedBy string
+}
+// Upsert（同事务维护 next_run = Next(expr, now)）/ Get / List(domain?) /
+// ListDue(ctx, now)（enabled=1 AND next_run_at<=now——idx_schedules_due 直查）/
+// RecordRun(domain, key, at, status, errMsg)（触发后落 last_* 并重算 next）。
+type ScheduleStore interface { /* 上述五方法 */ }
+```
+
+三消费面 REST（T-450——字段名细节票内与 FE 对齐，归属与骨架此处冻结）：
+
+| 面 | 端点 | 说明 |
+|---|---|---|
+| 维护面 | `GET/PUT /api/v1/system/maintenance` | 三 cron 槽（gc / cleanup-unused-cache / cleanup-virtual）+ Quota 百分比 + Compress/Prune 即时钮挂靠；Run Now 各自既有面（`POST /api/v1/system/gc`/cleanup）并存维持 |
+| 备份 | `PUT/GET /api/v1/system/backups`、`GET/PUT/DELETE /api/v1/system/backups/{key}` | PUT = upsert-by-key（Artifactory 官方备份面语义）；payload（仓集/排除位）落备份实体表、cron/next 落台账；**`/api/export/**` 维持 404、import 维持 CLI-only**（ADR-0015 勘误二边界不破） |
+| 复制 | replications 既有 CRUD body 增 `cronExp` 字段 | replication.md §2.1 对位；空 = 不调度（台账行同事务删除）；GET 回显 + next-run 投影（台账读） |
+| 只读投影 | `GET /api/v1/system/schedules?domain=` | FE next-run 倒计时/失败态/禁用态（T-462 消费；system:read 门） |
+
+门位：三消费面 CRUD 全部沿用各域既有门（GC/备份/维护 = system:write——readonly_admin 403，
+ADR-0026 GC 全路由先例；复制 cronExp 随复制配置面门）——**零新权限通道**（NFR-S79）。
+
+audit +9 词：`<domain>.schedule.{set,run,fail}` × 三域（set = 配置变更含 cron/next_run；
+run = 到点执行成功含 key/耗时；fail = 失败含 last_error 截断）。载体自身 audit 词照常在场——
+三事件是调度层视角，不替代 gc.trigger / replication.push 族。
+metrics：`binflow_scheduler_{fires,failures}_total{domain}` + 启动 INFO 台账水位一行。
+
+### 25.3 cron 子集与 next-run（T-446 实现规范）
+
+| 项 | 收 | 拒（400 点名） |
+|---|---|---|
+| 域数 | 六域（秒 分 时 日 月 周）+ 可选第七年域**仅 `*`**（`0 0 12 1/1 * ? *` 七域形态在案） | 五域 Vixie / 八域以上 / 具体年域 |
+| 字符 | `*`、`?`（日/周互斥占位——细则随 T-435 锚）、`,` 列表、`-` 区间、`/` 步进（含 `1/1`）、空格分域 | 闭集外任意字符 |
+| 名字 | 月名 JAN–DEC / 周名 SUN–SAT（大小写不敏感——细则随锚） | 缩写集外的拼写字串 |
+| 特殊 | `L`（月末 / `nL` 该月最后周几——月末备份刚需） | `W`（最近工作日）、`#`（第 n 周几）——§11.50 留缝 |
+
+计算器：`Next(expr string, after time.Time) (time.Time, error)`——纯函数、UTC、秒分辨率、确定性
+（对拍断言可表驱动——NFR-P74）；PUT 期校验 = Parse + Next(now) 必须出值（不可达 → 400）。
+
+误触发防护三面（NFR-P74/S79）：
+- 解析期：闭集校验 400（零注入——纯字符串→结构体，无 eval 无拼接）；**过去时间拒配**（备份面
+  nextBackupTime 显式字段在过去 → 400）；next-run 不可达 → 400。
+- 运行期：每域并发 1（域内串行；maintenance 另由 data 目录维护锁结构性互斥 gc/export/import/cleanup
+  族——ADR-0015 勘误③）；**错过窗坍缩**（停机/积压只补触发一次，next 自 now 重算——防补射风暴）；
+  时钟回拨（now < last_run 跳过 + WARN；next_run 在未来不触发）。
+- 测试加速：`Kick(domain, key)` 手动触发等价缝——与到点同 dispatch 路径（L48「手动触发等价腿」载体）。
+
+### 25.4 与事件驱动 + outbox 的并存语义（断言反转⑦的边界——零重复投递三层口径）
+
+1. **调度触发面 = 全量类任务闭集**：GC 全量（apply 载体 + grace 兜底不缩短）/ Cleanup 两族全量 pass
+   （RunOnce）/ 备份 export（RunOnce）/ 复制全量对账（TriggerFullSync）。闭集外任务调度永不触发
+   （增量推送/属性同步/webhook 投递/回收站清扫——事件驱动与域内策略 sweep 的既有领地，**调度域不得
+   重造其触发器**：replication 引擎事件轨 + 1min sweep、TrashEngine/CleanupEngine 小时级循环、T-423
+   busy 预算三者原样不动）。
+2. **事件驱动 + outbox = 增量唯一引擎不迁**：replication Enqueue 与 webhook Bus.Emit 织入面、引擎文件
+   **diff=0**（T-446 硬 AC——§25.1 的 import 禁令是结构性保证）。
+3. **复制全量调度 = 与 Replicate Now 同载体**（TriggerFullSync 种子 + wake——零第二执行器/零新队列，
+   重试/退避/revive/协议推面/属性携带全沿用）。
+4. **零重复投递三层口径**：职责层——调度只发全量、事件只发增量（Artifactory cron 轨与事件轨并行同构，
+   replication.md §9.2-B-4 互证）；任务层——**允许并存**（全量种子行与事件增量行可同窗共存，
+   TriggerFullSync「重复触发不合并」既有豁免 = ADR-0021 §11.28 同族）；内容层——**零重复**（目标侧
+   sha256 幂等命中，blob 已在即不重传字节）。**L48 断言口径 = 内容层**（目标实例 blob 集不增 +
+   无重复字节传输）；调度窗内增量事件**不抑制不互斥**——双轨各走各的，收敛交给幂等。
+5. **载体行为 diff=0**：调度触发的任务与手动触发同载体同参数面（载体 audit 词/维护锁/webhook 行为
+   零变化）——调度域只加自己的九个 audit 词。
+
+### 25.5 nodes 统计扩列（K69 会签——四列/三分口径/StatsInfo 面/可见性门）
+
+- **四列**（§6 DDL 已并入；migration ALTER ×4——folder 行恒零值）：`download_count` /
+  `last_downloaded_at`（空 = 从未）/ `last_downloaded_by`（匿名 = `"anonymous"`）/
+  `remote_download_count`。**四列 = 批次③字段族与 FR-148 usage 域唯一计数源（单源契约——
+  T-438 声明、T-440 复核、QA 中期断言；零第二通道、零派生聚合）**。
+- **三分计数口径**：①直连（节点所在仓 GET）②经 virtual（virtual 解析命中——**计数落成员节点行**，
+  virtual 无节点行）③remote 缓存命中（remote 仓节点 GET，含先回源后服务）。三臂皆
+  download_count+1 且刷 last_downloaded_*；臂③另计 remote_download_count+1（local 仓恒 0）。
+  **计数判定与 audit `ActionDownload` 同源同址**：凡记 audit download 的下载面即计数
+  （generic/docker/remote/virtual 着陆点——HEAD/探测不计）；audit 行与四列**同批写**。
+- **埋点单点**：repo 服务下载路径各着陆点单条 `UPDATE nodes SET download_count = download_count + 1, …`
+  （SQL 自增原子）+ T-423 busy 预算包裹——下载面已在每 GET 一次 audit 写量级，列增同批零第二事务
+  （NFR-P71 零可感知尾延的结构性保证）。
+- **stats wire 面 = `GET /api/storage/{repo}/{path}?stats`（StatsInfo）**：rest-api.md storage 段
+  ?stats 行高置信锚（官方七字段）；BinFlow 投影 `uri/downloadCount/lastDownloaded/lastDownloadedBy/
+  remoteDownloadCount` 五字段——`remoteLastDownloaded`/`remoteLastDownloadedBy` 无源省略（§11.49）。
+  **基础 FileInfo 零变化**（T-438 AC1 的「FileInfo 投影」按此锚正位为 ?stats 面——差异留痕）。
+- **`last_downloaded_by` 可见性门**：默认档 = **CapSystemRead 同源（admin ∨ readonly_admin）——与审计
+  日志 GET `/api/v1/audit` 同档**（router 该面 manage: CapSystemRead——PRD K69「与 audit 同档」兑现）；
+  非档位 ?stats 投影**省略**该字段（omitempty）；计数面（downloadCount/lastDownloaded）无门。
+  AQL statistics 域 downloaded_by 同门（非档位 → `"unknown"`，ADR-0043 Errata ⑧ 同款）；
+  m-holder 加档 = 放宽项候 Q 裁（K69 留缝不动）。
+- **statisticsEnabled / sourceOrigin 行为化**（smart-remote 域证据——ADR-0044 K69 点 6）：四列计数
+  **无条件**（本地统计是本地事实，不同步键门控）；`enabled && statisticsEnabled` → remote 服务臂
+  audit download 行 detail 附 statsSync 资格标记（通知本体缺位 §11.48）；sourceOrigin「落库」=
+  audit download detail 增 `origin` 维度（`direct | virtual:<vkey> | remote`——三分口径审计轨迹，
+  nodes 零新列）。
+- **AQL 字段族对位**：四列承载 `downloads/downloaded/downloaded_by/remote_downloads`；
+  `remote_downloaded`/`remote_downloaded_by`/`remote_origin`/`remote_path` 无源 → 注册表
+  unsupported 诚实拒绝（后路 = 加列小票 + 勘误——ADR-0043 注册表条款同款）。
+
+### 25.6 权限动词扩列（K68 会签——动作闭集 +a / wire 词翻新 / 零提权等价迁移）
+
+- **动作闭集**：`r/w/d/m` → `r/w/d/m/a`（auth/api.go +`ActionAnnotate = "a"`）。语义 = 属性写权限：
+  M10 属性系统三动词对位——GET properties（读，随 item-info r 门**不变**）/ PUT → a / DELETE → a
+  （allowPropsWrite 改判——单点 internal/httpapi/properties.go 的写门函数）。annotate 不开内容字节面
+  （上传/落地仍 w、删除与覆盖检查族仍 d——「属性是元数据非内容」分界延续）。
+- **wire 词翻新**：`/api/v1/permissions` 动作词 `{read,write,delete,manage}` →
+  `{read,deploy-cache,annotate,delete,manage}`——PUT 双词收一轮（`write` = deploy-cache 别名，
+  存量脚本不破）；GET 回显正名单形。**DB 列 can_write 不改名、内部码 w 不变**（deploy/cache 合并列
+  语义与 Artifactory 同构；拆分拆的是属性写而非部署/缓存分离）。`?permissions` 视图字母集 +a。
+- **迁移（零提权等价迁移）**：migration +`can_annotate`（默认 0）+ **存量 can_write=1 行回填
+  can_annotate=1**——write 原语义覆盖属性写，拆分时存量授权跟随两半，迁移前后有效权限矩阵**逐位相等**
+  （零提权 ⊇ 零回归）。dry-run 报告 = principals 全行映射表（映射率 100% + 回填集 ≡ write 集双向断言）；
+  回滚 = can_annotate 弃用 + wire 词翻回。
+- **角色与门位**：admin 旁路放行 a；readonly_admin 对 a 恒拒；**m ↛ a**（无提权链不变量延续）；
+  docker token scope 词表不收 a（ADR-0026 决策 5 同款）。
+- **Property|Property Set 分段：裁不做**（无属性集域不伪造——裁做须 BE 属性集配置小域另立票）。
+
+### 25.7 已知妥协（M16 增量——并录 §11.48/49/50）
+
+- statisticsEnabled 通知本体缺位（smart-remote 域——§11.48）：本地行为化仅到资格标记 + 无条件计数。
+- StatsInfo/AQL statistics 无源字段族（§11.49）：remoteLastDownloaded/remoteLastDownloadedBy +
+  remote_downloaded(时间戳)/remote_downloaded_by/remote_origin/remote_path。
+- cron 子集 W/# 不收、年域仅 `*`（§11.50）：翻转 = cron.go/next.go 单点扩展。
+- Artifactory OSS 预置 backup-daily/weekly 不预置（零静默写盘纪律——§10 有意差异行）：用户显式建，
+  文档面（tech-writer T-458）须写明「无预置调度」。
