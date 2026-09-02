@@ -13,16 +13,21 @@ import TableCell from '@mui/material/TableCell'
 import TableHead from '@mui/material/TableHead'
 import TableRow from '@mui/material/TableRow'
 import TextField from '@mui/material/TextField'
+import ToggleButton from '@mui/material/ToggleButton'
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
 
 import { CopyButton } from '../../components/CopyButton'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { apiJSON } from '../../lib/api'
 import { useColumnPrefs } from '../../lib/columnPrefs'
-import type { ColumnDef } from '../../lib/columnPrefs'
+import type { ColumnDef, ColumnPrefs } from '../../lib/columnPrefs'
 import { formatBytes } from '../../lib/format'
 import { monoInputSx } from '../../lib/muiAtoms'
 import { useAsync } from '../../lib/useAsync'
+
+import { AqlPanel } from './AqlPanel'
+import { semanticOf } from './aql'
 
 import './search.css'
 
@@ -46,6 +51,10 @@ import './search.css'
 // - 漏斗三过滤（仓库/包类型/仓型，console-m8 §6.4 线框）不建：搜索端点
 //   仅 name+repos 两参，包类型/仓型无服务端参数，也不做仅 admin 可用的
 //   前端伪过滤（repos 清单对普通 user 403）——保持仓 key 过滤单一入口。
+// - T-419（FR-135.1）：页头加「基本 / AQL」模式切换（?mode=aql 深链）——
+//   本表单（基本模式）行为/锚维持不动；AQL 模式见 AqlPanel（消费
+//   POST /api/search/aql，T-415 端点，零新端点）；列选器（T-414 交付面）
+//   两模式共用一份壳（ColumnsMenu）。
 
 const PAGE = 100
 const RECENT_KEY = 'binflow-console-recent-searches'
@@ -81,23 +90,8 @@ function searchArtifacts(name: string, repos: string, signal?: AbortSignal): Pro
   return apiJSON<{ results: SearchResult[] }>(`/search/artifact?${params.toString()}`, { signal })
 }
 
-/** 从路径形态推导协议语义副行（§4.8：让工程师不点进去就能判断「是不是它」） */
-export function semanticOf(path: string): string | null {
-  const segs = path.replace(/^\//, '').split('/')
-  const file = segs[segs.length - 1]
-  if (file === 'maven-metadata.xml' && segs.length >= 3) {
-    return `maven-metadata · ${segs.slice(0, segs.length - 2).join(':')}:${segs[segs.length - 2]}`
-  }
-  if (segs.length >= 4) {
-    const groupId = segs.slice(0, segs.length - 3).join('.')
-    const artifactId = segs[segs.length - 3]
-    const version = segs[segs.length - 2]
-    if (file.startsWith(`${artifactId}-${version}`)) {
-      return `maven GAV ${groupId}:${artifactId}:${version}`
-    }
-  }
-  return null
-}
+/** 从路径形态推导协议语义副行 → 见 aql.ts（两模式共用，零环依赖）。 */
+
 
 // ---- recentSearches（localStorage；隐私模式下降级为会话内不持久） ----
 
@@ -119,10 +113,78 @@ function persistRecent(list: string[]): void {
   }
 }
 
-/** 深链初始态：?q= / ?repos= 直读一次（replaceState 只写不读回环） */
-function initialQuery(): { q: string; repos: string } {
+/** 深链初始态：?q= / ?repos= / ?mode=aql 直读一次（replaceState 只写不读回环） */
+type SearchMode = 'basic' | 'aql'
+function initialQuery(): { q: string; repos: string; mode: SearchMode } {
   const p = new URLSearchParams(window.location.search)
-  return { q: (p.get('q') ?? '').trim(), repos: p.get('repos') ?? '' }
+  return {
+    q: (p.get('q') ?? '').trim(),
+    repos: p.get('repos') ?? '',
+    mode: p.get('mode') === 'aql' ? 'aql' : 'basic',
+  }
+}
+
+/** 列选器（T-414 交付面）——基本过滤条尾组与 AQL 工具尾行共用一份壳：
+ *  锚与 DOM 与 T-414 落码逐字节同形（同一时刻仅一模式在场，页内锚唯一）。 */
+function ColumnsMenu({ cols }: { cols: ColumnPrefs }) {
+  const [colsAnchor, setColsAnchor] = useState<HTMLElement | null>(null)
+  const colsOpen = Boolean(colsAnchor)
+  return (
+    <span className="filter-tail-actions filter-tail-end">
+      <Button
+        variant="outlined"
+        size="small"
+        aria-haspopup="menu"
+        aria-expanded={colsOpen}
+        data-testid="search-columns"
+        title="自定义显示列（偏好保存在本浏览器）"
+        onClick={(e) => setColsAnchor(e.currentTarget)}
+      >
+        <span aria-hidden="true">▤</span> 列 {cols.visibleCount}/{COLUMNS.length}
+      </Button>
+      <Menu
+        open={colsOpen}
+        onClose={() => setColsAnchor(null)}
+        anchorEl={colsAnchor}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        data-testid="search-columns-menu"
+      >
+        {COLUMNS.map((c) => {
+          const visible = cols.isVisible(c.id)
+          // 至少一列在场：仅剩一列可见时该项不可再弃
+          const last = visible && cols.visibleCount === 1
+          return (
+            <MenuItem
+              key={c.id}
+              role="menuitemcheckbox"
+              aria-checked={visible}
+              aria-disabled={last || undefined}
+              title={last ? '至少保留一列' : undefined}
+              data-testid={c.anchor}
+              onClick={() => {
+                if (!last) cols.toggle(c.id)
+              }}
+            >
+              <span aria-hidden="true" className="col-check">
+                {visible ? '☑' : '☐'}
+              </span>
+              {c.label}
+            </MenuItem>
+          )
+        })}
+        <Divider component="li" />
+        <MenuItem
+          aria-disabled={cols.visibleCount === COLUMNS.length || undefined}
+          title={cols.visibleCount === COLUMNS.length ? '全部列已在场' : '显示全部列'}
+          data-testid="search-columns-reset"
+          onClick={() => cols.reset()}
+        >
+          全选列
+        </MenuItem>
+      </Menu>
+    </span>
+  )
 }
 
 export default function SearchPage() {
@@ -137,11 +199,13 @@ export default function SearchPage() {
   const [recent, setRecent] = useState<string[]>(() => loadRecent())
   const [recentOpen, setRecentOpen] = useState(false)
   const [recentActive, setRecentActive] = useState(-1)
+  // T-419（FR-135.1）：搜索模式（basic = 既有基本表单；aql = AqlPanel）。
+  // 模式进 URL（?mode=aql——基本模式无 mode 参数，既有 ?q=/?repos= 深链
+  // 与 URL 断言零变化）
+  const [mode, setMode] = useState<SearchMode>(initial.mode)
   // T-414（FR-135.2）：列显隐偏好（T-387 共享层；五列静态闭集，与 recent
-  // searches 同为浏览器本地偏好面）
+  // searches 同为浏览器本地偏好面）——两模式共用（列选是结果表的偏好面）
   const cols = useColumnPrefs(COLUMN_IDS, COLS_KEY)
-  const [colsAnchor, setColsAnchor] = useState<HTMLElement | null>(null)
-  const colsOpen = Boolean(colsAnchor)
 
   // 防抖 300ms（§5.2）；变化即作废在飞请求
   useEffect(() => {
@@ -149,17 +213,22 @@ export default function SearchPage() {
     return () => window.clearTimeout(t)
   }, [keyword])
 
-  // 深链状态写回：查询态进 URL（replaceState——搜索历史不逐字母进栈）
+  // 深链状态写回：查询态进 URL（replaceState——搜索历史不逐字母进栈）。
+  // AQL 模式只携带 mode（查询文本不入 URL——6,000 字符上限的查询串不宜
+  // 进地址栏）；基本模式的 q/repos 序与既有完全一致
   useEffect(() => {
     const params = new URLSearchParams()
-    if (debounced) params.set('q', debounced)
-    if (repoFilter.trim()) params.set('repos', repoFilter.trim())
+    if (mode === 'aql') params.set('mode', 'aql')
+    if (mode === 'basic') {
+      if (debounced) params.set('q', debounced)
+      if (repoFilter.trim()) params.set('repos', repoFilter.trim())
+    }
     const qs = params.toString()
     const next = `${window.location.pathname}${qs ? `?${qs}` : ''}`
     if (next !== `${window.location.pathname}${window.location.search}`) {
       window.history.replaceState(null, '', next)
     }
-  }, [debounced, repoFilter])
+  }, [mode, debounced, repoFilter])
 
   const results = useAsync(() => {
     abortRef.current?.abort()
@@ -237,6 +306,37 @@ export default function SearchPage() {
   return (
     <div data-testid="search-page">
       <h2 className="search-headline">搜索制品</h2>
+      {/* T-419（FR-135.1）：模式切换——基本表单（既有，维持不动）↔ AQL
+          编辑器（AqlPanel）；切模式不丢各自动作态（组件卸载/重挂，基本
+          模式的关键词/过滤在页级 state 存续） */}
+      <ToggleButtonGroup
+        exclusive
+        size="small"
+        value={mode}
+        onChange={(_, v) => {
+          if (v !== null) setMode(v)
+        }}
+        aria-label="搜索模式"
+        data-testid="search-mode"
+        sx={{
+          mb: 2,
+          // MUI 未选中档位文字默认 54% 黑（亮主题 #f3f5f7 底上 ≈4.2:1 <
+          // AA）——钉 text.primary（选中态走 MUI 原生主色对比面，不碰）
+          '& .MuiToggleButton-root:not(.Mui-selected)': { color: 'text.primary' },
+        }}
+      >
+        <ToggleButton value="basic" data-testid="search-mode-basic">
+          基本
+        </ToggleButton>
+        <ToggleButton value="aql" data-testid="search-mode-aql">
+          AQL
+        </ToggleButton>
+      </ToggleButtonGroup>
+
+      {mode === 'aql' ? (
+        <AqlPanel columns={COLUMNS} cols={cols} toolbar={<ColumnsMenu cols={cols} />} />
+      ) : (
+        <>
       {hasQuery && results.status === 'ok' && (
         <p className="search-count" data-testid="search-count">
           搜索结果 – {rows.length} 项
@@ -324,61 +424,8 @@ export default function SearchPage() {
         />
         {/* T-414（FR-135.2）：工具栏尾 = 列选器（T-387 L1 形态复用——列集 =
             结果表五列闭集；空态/无结果时表不在场，偏好仍可预设——列选是
-            表的偏好面不是结果的从属） */}
-        <span className="filter-tail-actions filter-tail-end">
-          <Button
-            variant="outlined"
-            size="small"
-            aria-haspopup="menu"
-            aria-expanded={colsOpen}
-            data-testid="search-columns"
-            title="自定义显示列（偏好保存在本浏览器）"
-            onClick={(e) => setColsAnchor(e.currentTarget)}
-          >
-            <span aria-hidden="true">▤</span> 列 {cols.visibleCount}/{COLUMNS.length}
-          </Button>
-          <Menu
-            open={colsOpen}
-            onClose={() => setColsAnchor(null)}
-            anchorEl={colsAnchor}
-            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-            data-testid="search-columns-menu"
-          >
-            {COLUMNS.map((c) => {
-              const visible = cols.isVisible(c.id)
-              // 至少一列在场：仅剩一列可见时该项不可再弃
-              const last = visible && cols.visibleCount === 1
-              return (
-                <MenuItem
-                  key={c.id}
-                  role="menuitemcheckbox"
-                  aria-checked={visible}
-                  aria-disabled={last || undefined}
-                  title={last ? '至少保留一列' : undefined}
-                  data-testid={c.anchor}
-                  onClick={() => {
-                    if (!last) cols.toggle(c.id)
-                  }}
-                >
-                  <span aria-hidden="true" className="col-check">
-                    {visible ? '☑' : '☐'}
-                  </span>
-                  {c.label}
-                </MenuItem>
-              )
-            })}
-            <Divider component="li" />
-            <MenuItem
-              aria-disabled={cols.visibleCount === COLUMNS.length || undefined}
-              title={cols.visibleCount === COLUMNS.length ? '全部列已在场' : '显示全部列'}
-              data-testid="search-columns-reset"
-              onClick={() => cols.reset()}
-            >
-              全选列
-            </MenuItem>
-          </Menu>
-        </span>
+            表的偏好面不是结果的从属）。T-419 起两模式共用 ColumnsMenu 壳 */}
+        <ColumnsMenu cols={cols} />
       </div>
 
       {!hasQuery ? (
@@ -473,7 +520,7 @@ export default function SearchPage() {
               <Button
                 variant="outlined"
                 size="small"
-               
+
                 data-testid="search-more"
                 onClick={() => setVisible((v) => v + PAGE)}
               >
@@ -482,6 +529,8 @@ export default function SearchPage() {
             )}
           </div>
         </>
+      )}
+      </>
       )}
     </div>
   )

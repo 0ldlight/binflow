@@ -189,6 +189,20 @@ const (
 	ActionReplicationPushFailed = "replication.push.failed"
 	ActionReplicationCfgCreate  = "replication.config.create"
 	ActionReplicationCfgDelete  = "replication.config.delete"
+	// The §9.4 batch (M15 T-422, replication.md §9.4 #1~#4 — the reverse
+	// spec's same-venue registration list): update is the T-405 PUT-enabled
+	// face's word (emit site httpapi, landed as a literal with its own
+	// tests); test is the T-422 connection probe; run is T-420's manual
+	// full-sync trigger (the run family's CONTROL-plane word — gc.run,
+	// export.run posture — deliberately distinct from the engine's
+	// execution-layer replication.push pair); block.update is the global
+	// blockPush/blockPull flip (the single .update-family word over the
+	// verb-pair alternative, per §9.4 #4's family-consistency lean).
+	// Emit sites keep their literals (their own tests pin those).
+	ActionReplicationCfgUpdate   = "replication.config.update"
+	ActionReplicationCfgTest     = "replication.config.test"
+	ActionReplicationRun         = "replication.run"
+	ActionReplicationBlockUpdate = "replication.block.update"
 
 	ActionKeypairCreate    = "keypair.create"
 	ActionKeypairUpdate    = "keypair.update"
@@ -241,6 +255,10 @@ func Actions() []string {
 		ActionPropsWrite, ActionPropsDelete,
 		ActionReplicationPush, ActionReplicationPushFailed,
 		ActionReplicationCfgCreate, ActionReplicationCfgDelete,
+		// M15 T-422: the replication config family's §9.4 batch — the
+		// update/test/run words plus the global block flip.
+		ActionReplicationCfgUpdate, ActionReplicationCfgTest,
+		ActionReplicationRun, ActionReplicationBlockUpdate,
 		ActionKeypairCreate, ActionKeypairUpdate, ActionKeypairGenerate,
 		ActionKeypairDelete, ActionKeypairVerify, ActionKeypairAssociate,
 		ActionAuthConfigUpdate, ActionAuthConfigTest,

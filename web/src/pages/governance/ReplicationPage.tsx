@@ -1,18 +1,27 @@
 import { useEffect, useState } from 'react'
+import type { ComponentPropsWithoutRef } from 'react'
 
 import Chip from '@mui/material/Chip'
+import FormControlLabel from '@mui/material/FormControlLabel'
+import Switch from '@mui/material/Switch'
 import Table from '@mui/material/Table'
 import TableBody from '@mui/material/TableBody'
 import TableCell from '@mui/material/TableCell'
 import TableHead from '@mui/material/TableHead'
 import TableRow from '@mui/material/TableRow'
 
+import { useToast } from '../../app/ToastContext'
 import { CopyButton } from '../../components/CopyButton'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
-import { ApiError, apiJSON, errText } from '../../lib/api'
+import { ApiError, apiJSON, canAdminWrite, errText, isReadOnlyAdmin } from '../../lib/api'
 import { formatAuditTime, formatCount } from '../../lib/format'
+import { useAuth } from '../../app/AuthContext'
+import {
+  getReplicationGlobalBlock,
+  setReplicationBlock,
+} from '../../lib/replications'
 
 // 复制面板（T-159）：push 复制状态 + 事件列表（治理组「复制」页）。
 // GET /api/v1/replication/status（admin），每 10s 轮询（AC②）。
@@ -169,6 +178,98 @@ const TASK_BADGE: Record<string, string> = {
 /** digest 展示可截断，拷贝复制完整值（§7.3） */
 function shortSha(s: string): string {
   return s.length > 14 ? `${s.slice(0, 7)}…${s.slice(-4)}` : s
+}
+
+/** 全局封锁双开关卡（T-422，FR-138.3 / parity §6A R8）：blockPush/
+ *  blockPull 应急刹车——形态照 R8（General Settings 字段族成员 + tooltip
+ *  "regardless of configuration"）；两方向独立翻转，GET/POST
+ *  /api/v1/system/replications 族（规格 §9.1-B/§9.2-B）。封锁只拦复制执行，
+ *  不拦本面板与配置面（t226 UI-API 不受门）。 */
+function GlobalBlockCard() {
+  const { session } = useAuth()
+  const toast = useToast()
+  const readOnly = isReadOnlyAdmin(session)
+  const adminWrite = canAdminWrite(session)
+  const [state, setState] = useState<'loading' | 'ok' | 'error'>('loading')
+  const [flags, setFlags] = useState({ push: false, pull: false })
+  const [busy, setBusy] = useState<'' | 'push' | 'pull'>('')
+
+  const load = () => {
+    getReplicationGlobalBlock()
+      .then((b) => {
+        setFlags({ push: b.blockPushReplications, pull: b.blockPullReplications })
+        setState('ok')
+      })
+      .catch(() => setState('error'))
+  }
+  useEffect(load, [])
+
+  const flip = async (dir: 'push' | 'pull', next: boolean) => {
+    setBusy(dir)
+    try {
+      // 只动一个方向（§9.2-B-1 选择器）：另一方向显式 false = 本次不动。
+      const msg = await setReplicationBlock(next, dir === 'push', dir === 'pull')
+      toast.success(msg)
+      load()
+    } catch (err) {
+      toast.error(`封锁开关翻转失败：${errText(err)}`)
+      load() // 行内不乐观更新——失败后回读服务端真值
+    } finally {
+      setBusy('')
+    }
+  }
+
+  if (state === 'loading') return <Skeleton lines={2} />
+  return (
+    <section className="card section" data-testid="repl-global-block">
+      <h3>全局封锁（应急刹车）</h3>
+      {state === 'error' ? (
+        <p className="field-hint" style={{ marginBottom: 0 }}>
+          全局封锁状态读取失败（GET /api/v1/system/replications）。
+        </p>
+      ) : (
+        <>
+          <FormControlLabel
+            disabled={!adminWrite || busy !== ''}
+            control={
+              <Switch
+                size="small"
+                checked={flags.push}
+                onChange={(e) => void flip('push', e.target.checked)}
+                slotProps={
+                  {
+                    input: { 'data-testid': 'repl-block-push' } as ComponentPropsWithoutRef<'input'>,
+                  } as { input: ComponentPropsWithoutRef<'input'> }
+                }
+              />
+            }
+            label="封锁 push 复制（blockPushReplications）"
+          />
+          <FormControlLabel
+            disabled={!adminWrite || busy !== ''}
+            control={
+              <Switch
+                size="small"
+                checked={flags.pull}
+                onChange={(e) => void flip('pull', e.target.checked)}
+                slotProps={
+                  {
+                    input: { 'data-testid': 'repl-block-pull' } as ComponentPropsWithoutRef<'input'>,
+                  } as { input: ComponentPropsWithoutRef<'input'> }
+                }
+              />
+            }
+            label="封锁 pull 复制（blockPullReplications）——remote 回源/智能拉取零上游流量"
+          />
+          <p className="field-hint" style={{ marginBottom: 0 }}>
+            设定后，无论各复制配置如何，push/pull 复制都不会触发（R8 tooltip 语义）；
+            已缓存制品照常服务（pull 侧仅停上游接触）。封锁不影响本面板与复制配置的读写。
+            {readOnly ? '（当前会话为只读管理员——开关只读呈现）' : ''}
+          </p>
+        </>
+      )}
+    </section>
+  )
 }
 
 function ReplicationBody({ data, staleError }: { data: ReplicationStatus; staleError?: string }) {
@@ -353,6 +454,9 @@ export default function ReplicationPage() {
       {phase.kind === 'error' && phase.stale === null && (
         <ErrorCard error={new ApiError(0, phase.message)} onRetry={retry} />
       )}
+      {/* T-422：全局封锁双开关——独立于状态面的只读/降级态（封锁面自身
+          可用即呈现；与状态面 403/404/501 分开收敛） */}
+      {phase.kind !== 'forbidden' && <GlobalBlockCard />}
       {okData && <ReplicationBody data={okData} staleError={phase.kind === 'error' ? phase.message : undefined} />}
     </div>
   )

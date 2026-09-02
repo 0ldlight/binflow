@@ -193,6 +193,12 @@ type EngineOptions struct {
 	// the generic REST plane (the T-162 behavior — correct for generic and
 	// maven repositories, insufficient for the protocol layouts).
 	Meta MetaSource
+	// Blocks is the global blockPush/blockPull gate (T-422, §9.2-B): a
+	// blocked push direction stops event enqueues, task claims and manual
+	// triggers. nil = the pre-T-422 posture (no block state exists, nothing
+	// is ever blocked) — the zero value of every pre-existing assembly and
+	// test.
+	Blocks *BlockGate
 }
 
 // engineConfig is the normalized EngineOptions.
@@ -208,6 +214,7 @@ type engineConfig struct {
 	maxRevives   int64
 	reviveEvery  time.Duration
 	meta         MetaSource
+	blocks       *BlockGate
 }
 
 // maxAttempts is the total attempt budget: the initial attempt plus one retry
@@ -254,6 +261,7 @@ func NewEngine(store Store, blobs BlobSource, opts EngineOptions) (*Engine, erro
 		maxRevives:   opts.MaxRevives,
 		reviveEvery:  opts.ReviveDelay,
 		meta:         opts.Meta,
+		blocks:       opts.Blocks,
 	}
 	if cfg.now == nil {
 		cfg.now = func() time.Time { return time.Now().UTC() }
@@ -347,6 +355,17 @@ func (e *Engine) signal() {
 	}
 }
 
+// Kick wakes the worker from outside the engine (T-422): the block gate's
+// post-update hook — an UNBLOCK resumes the parked queue immediately
+// instead of waiting out the sweep tick. Blocking needs no kick: the next
+// drain pass parks itself at the gate (§9.2-B-4).
+func (e *Engine) Kick() { e.signal() }
+
+// pushBlocked consults the global gate (nil = never blocked).
+func (e *Engine) pushBlocked() bool {
+	return e.cfg.blocks != nil && e.cfg.blocks.PushBlocked()
+}
+
 // Enqueue is the repo.Service.Put-tail hook (AC ①): one pending
 // ReplicationTask per ENABLED config whose source_repo matches, then a wake.
 // It must never fail or slow the upload path — callers run it on a detached
@@ -357,6 +376,15 @@ func (e *Engine) signal() {
 // a new ledger row; target-side sha256 dedup makes the extra push a no-op.
 func (e *Engine) Enqueue(ctx context.Context, repoKey, path, sha256 string) {
 	if repoKey == "" || path == "" || sha256 == "" {
+		return
+	}
+	// The global push block (T-422, §9.2-B-4b): a blocked instance appends
+	// NO task rows — a re-deploy of the source repository must not reach
+	// the target while the brake is on (the events are simply not captured;
+	// an unblocked later state converges through a manual full sync).
+	if e.pushBlocked() {
+		e.log.WarnContext(ctx, "replication: enqueue skipped: push replication is blocked",
+			"repo", repoKey, "path", path)
 		return
 	}
 	defer func() {
@@ -434,6 +462,15 @@ func (e *Engine) Run(ctx context.Context) error {
 // Deterministic not-retryable failures (the last_error marker) and tasks
 // past their revival budget stay terminal.
 func (e *Engine) drain(ctx context.Context) {
+	// The global push block gates the claim track too (T-422, §9.2-B-4):
+	// while the brake is on, nothing is claimed and nothing is revived —
+	// pending rows simply wait (an attempt already in flight runs to its
+	// own conclusion inside processTask, whose loop top re-checks the gate
+	// between attempts).
+	if e.pushBlocked() {
+		e.log.WarnContext(ctx, "replication: drain skipped: push replication is blocked")
+		return
+	}
 	configs, err := e.store.ListConfigs(ctx)
 	if err != nil {
 		e.log.WarnContext(ctx, "replication: drain: list configs failed", "error", err)
@@ -580,9 +617,23 @@ func (e *Engine) auditPush(ctx context.Context, failed bool, cfg *ReplicationCon
 // process start (the interrupted attempt stays counted).
 func (e *Engine) processTask(ctx context.Context, cfg *ReplicationConfig, task *ReplicationTask) {
 	attempt := task.Attempts
+	var lastClaim *ReplicationTask
 	for {
 		if err := ctx.Err(); err != nil {
 			e.revertTask(task, err)
+			return
+		}
+		// The block gate between attempts (T-422): a brake that landed while
+		// this task was cycling stops the NEXT attempt — the row reverts to
+		// pending exactly like a shutdown interruption and waits for the
+		// unblock. The revert carries the last claim so an attempt already
+		// spent stays counted.
+		if e.pushBlocked() {
+			if lastClaim != nil {
+				e.revertTask(lastClaim, ErrPushBlocked)
+			} else {
+				e.revertTask(task, ErrPushBlocked)
+			}
 			return
 		}
 		attempt++
@@ -591,6 +642,7 @@ func (e *Engine) processTask(ctx context.Context, cfg *ReplicationConfig, task *
 		claim.Attempts = attempt
 		claim.LastError = ""
 		claim.CompletedAt = ""
+		lastClaim = &claim
 		if err := e.writeTask(&claim); err != nil {
 			return // store fault: leave the row as loaded, the sweep retries
 		}

@@ -4,7 +4,7 @@
 |---|---|
 | 文档 | `docs/design/console-artifactory-parity.md` |
 | 票据 | UX-1（插空票：品牌资产 + Artifactory 交互对齐规格） |
-| 状态 | v1.3（2026-09-01，T-400 终验 L16 矩阵逐格终评落档） |
+| 状态 | v1.4（2026-09-02，T-428 文面回写：M1 行 440px 定案升级 + M3 行 MUI Paper 代差注记——ux 口径代笔，**ux 会签位**；此前 v1.3 T-400 终评落档） |
 | 维护者 | ux-designer |
 | 上游依据 | 用户指令 2026-08-30（① 前端交互体验与 JFrog Artifactory 完全一致，含弹窗、抽屉等）；`docs/design/console-ux.md` v1.15（IA/四态/token 母册）；`docs/design/mui-native-visual.md`（MUI 原生视觉基线）；`web/src/` 现状逐一核对（见各模式的「BinFlow 载体」列） |
 | 下游消费者 | **PM——M14 UI-parity PRD 直接引用 §7 差距矩阵**；FE 拆票；qa-engineer 验收 |
@@ -20,6 +20,7 @@
 | v1.1 | 2026-08-31 | **T-381 活体核验回写**（qa-engineer 执行，源 = t226-artifactory OSS 7.84.10 活体实例，DOM 实测）。V1~V8 全部核验，改契约级结论：**M1 决策项 A 撤销**（7.84 建仓 = 网格 modal 880px + 整页表单两段式，BinFlow 现形态已一致）；**M3 决策项 B 撤销**（7.84 用户/组创建 = 整页路由表单，非 modal）；**L2 ⋮ 菜单无对位**（7.84 行内 = 直删 trash 图标按钮，删除确认为 520px 轻量 message-box、无 type-the-key、Delete 键为绿色主按钮）；**D1 宽度修正 480px→50vw**（800px@1600 实测，Tab = Configure/Deploy/Resolve 三枚）；**F1 锚位证实 = 顶部居中单条 ~2-3s**（E7 转入「再议」）；**V5 证实侧栏条目带图标**（N2 维持改造）；**V7 关闭**（Builds 面存在但 BinFlow 不建；制品详情页签无依赖视图）。§7 矩阵按此重印，§8 附核验结论列。证据：`reports/agents/T-381.md` + `reports/agents/t381-evidence/` |
 | v1.2 | 2026-09-01 | **T-402a 复制（replication）交互面锚定增补**（qa-engineer 执行，用户指令 2026-08-31 23:2x「replication 的交互要和 Artifactory 一致」）。新增 **§6A R 系条目 R1~R10**（逐项置信度）：活体实测高置信 = R1 入口拓扑（**仓级表单步骤节**，仓库编辑页 jf-steps 三步 Basic/Advanced/**Replications** 等宽 387px 横排；OSS 无全局复制管理页）、R2 OSS license 门形态（Replications 步 `is-disabled` 点击 no-op、REST `/api/replications*` 一律 400 Pro-only、UI-API `global/replications/config` 反而不受门）、R5 列表列形态（本地仓列表 **Replications 列**，OSS 每行 cell=「0」；启用态=bundle 实证 `icon-run` 图标链 + 三态 tooltip）、R7/R9 状态呈现与容器形态；OSS 门后不可达项中/中高置信（bundle 静态资产行为事实 + 公开 REST 双源，**未静默升格**）= R3 字段集（enabled/cronExp/enableEventReplication/pathPrefix/syncDeletes/syncProperties/syncStatistics）、R4 cron 校验（`GET /crontime?isReplication=`，Quartz 格式）、R6 Test 动作、R8 全局封锁开关（blockPush/blockPull）。§7 矩阵增「复制」专用行。**注意**：BinFlow 复制为事件驱动（无用户级 cron）——R4 对齐是后端语义决策非纯 FE parity。证据：`reports/agents/T-402a.md` + `reports/agents/t402-evidence/` |
 | v1.3 | 2026-09-01 | **T-400 终验 L16 矩阵逐格终评落档**（qa-engineer 执行——T-381 共笔先例）。§7 矩阵正文保持 v1.2 原样（历史基线），其后新增 **§7A 终评表**：v1.2 时点仍标 △/✗ 的全部格子（D1 双入口 / L1 三处 / N2 / Tokens 四格 / 复制 M2·M3）按 M14 落地票据（T-382/T-386/T-387/T-388/T-404）翻 ✅ 或（豁·登记），**终评覆盖率 100%**；三出口（V5 不降级 / V7 关闭 / E7 再议）落档；E1~E7 逐条复核零倒退。证据：`reports/agents/T-400.md` |
+| v1.4 | 2026-09-02 | **T-428 文面回写簇**（tech-writer 执笔，M1/M3 两处 ux 口径按 ux 册既有定案代笔——**ux 会签位**，未自创设计值；T-398 §4-2 登记）。**M1 行升级**：差距行尾注「网格 modal 宽度参考 880px（BinFlow 现档位即可）」升级为 **440px 紧凑档定案**（T-381 实测 880px 系 33 包型 90×90 大磁贴档 → T-383 票内定案不追平并写进 e2e 断言；T-390 磁贴卡面复活后新形态刷新——`.pkg-grid-item` 类名复线、宽度档复证不破）。**M3 行增补**：MUI 映射格补 **MUI Paper 代差注记**（repositories 域六节 Paper〔缺省 elevation 1〕vs security 域 `.form-section` CSS 留——mui-native-visual 换装分期既定口径，非 parity 缺口）。证据：`reports/agents/T-383.md`/`T-390.md`/`T-398.md` + `web/src/pages/repositories/RepositoryFormPage.tsx`、`web/src/pages/security/UsersPage.tsx` as-built 核对 |
 
 ## 1. 目标、边界与置信度标尺
 
@@ -89,9 +90,9 @@ BinFlow 族基座：`web/src/components/ConfirmDialog.tsx`（MUI `Dialog`，Esc/
 | | |
 |---|---|
 | Artifactory 行为（**V2 已核验 2026-08-31，逐项实测**） | ① 入口：仓库列表页 **「Add Repositories」下拉**（Local / Remote / Virtual 三项）——rclass 在进向导前选定，**不在 modal 内以 Tab/分段控件出现**；② 「Select Package Type」**modal 网格**：宽 **880px** 居中、右上 X，90×90 包型磁贴（inline SVG 官方标）；③ 选磁贴后 **modal 关闭、落在整页路由表单**（`/ui/admin/repositories/local/new`，标题 "New Local Repository"）——**不是单 modal 全程**；④ 表单字段：Repository Key / Environments / Repository Layout / Public Description / Internal Description + 折叠高级节（Disable Artifact Resolution… / Allow Content Browsing / Enable Event Replication 等复选项）；⑤ 页脚：**Cancel（左，transparent）+ Create Local Repository（右，primary）**。 |
-| MUI 映射 | 网格步 `Dialog`（宽 880px ≈ `maxWidth="lg"`）+ 表单步**路由页**分节 `Paper` |
-| BinFlow 载体 | `web/src/pages/repositories/RepositoryFormPage.tsx`——已是两段式：`pkg-grid` Dialog（选择包类型，带 `pkg-tier-*` 档位徽章）→ **路由页** `/admin/repositories/new` 单页分区表单（常规/来源/成员/策略/治理/高级六节 `Paper`）；rclass 由 URL query 预选 + 单选组。 |
-| 差距 | ✅ 已有（**v1.1 核验改判：决策项 A 撤销**——7.84 实测即「网格 modal → 整页表单」两段式，BinFlow 现形态与 Artifactory 一致，无需收单 Dialog）。保留微差注记：Artifactory 的 rclass 由入口下拉选定，BinFlow 用 URL query + 页内单选组——手势等价，不改。网格 modal 宽度参考 880px（BinFlow 现档位即可）。 |
+| MUI 映射 | 网格步 `Dialog`（Artifactory 实测 880px；**BinFlow 定案 440px 紧凑档不追平**——paper sx `min(440px, calc(100vw - 48px))` 钉死，v1.4 定案见差距行）+ 表单步**路由页**分节 `Paper` |
+| BinFlow 载体 | `web/src/pages/repositories/RepositoryFormPage.tsx`——已是两段式：`pkg-grid` Dialog（选择包类型，带 `pkg-tier-*` 档位徽章；**T-390 卡面复活后形态**：`.pkg-grid-item` 类名复线，卡面边框/surface 底/hover/禁用置灰生效，可选磁贴 brand 图标 22px、门控磁贴 mono + opacity 0.4 + 徽章）→ **路由页** `/admin/repositories/new` 单页分区表单（常规/来源/成员/策略/治理/高级六节 `Paper`）；rclass 由 URL query 预选 + 单选组。 |
+| 差距 | ✅ 已有（**v1.1 核验改判：决策项 A 撤销**——7.84 实测即「网格 modal → 整页表单」两段式，BinFlow 现形态与 Artifactory 一致，无需收单 Dialog）。保留微差注记：Artifactory 的 rclass 由入口下拉选定，BinFlow 用 URL query + 页内单选组——手势等价，不改。网格 modal 宽度**定案升级（v1.4，ux 会签位）**：Artifactory 880px 系 33 包型 90×90 大磁贴档位；BinFlow 5 核心 + 8 门控槽位、190×44 高密度卡磁贴（icon+名+述+徽章）——**定案 440px 紧凑档、不追平 880px**（追平即大面积留白；T-383 票内定案并写进 e2e 断言 `toBeCloseTo(min(440, vw-48))`，T-390 磁贴卡面复活后宽度档复证不破——宽度由 paper sx 钉死，磁贴形态变化不外溢）。原「宽度参考 880px（BinFlow 现档位即可）」措辞据此收口。 |
 
 ### M2 删除确认（危险确认族）
 
@@ -107,7 +108,7 @@ BinFlow 族基座：`web/src/components/ConfirmDialog.tsx`（MUI `Dialog`，Esc/
 | | |
 |---|---|
 | Artifactory 行为（置信度：**高**；**V6 已核验 2026-08-31，实测修正**） | 用户/组**创建 = 整页路由表单**（`/ui/admin/management/users/new`、`/groups/new`），**不是 modal**——用户表单字段：User Name / Email Address / Password / Retype Password + 复选项（Administer Platform / Manage Resources / Can Update Profile / Disable UI Access / Disable Internal Password）；组表单：Group Name / Description / External ID + 复选项 + 成员用户选择列表；页脚 **Cancel（最左）/ Reset / Save（右）**。Token 面：**用户 profile 页**（`/ui/user_profile`）的 "Authentication Settings → Generate an Identity Token" 区 + **Identity Tokens 表**（Description / Token ID / Issued At / Expiry Date，带列选器）；admin 侧集中 token 管理页在 OSS 7.84 导航不可达（可能为 Pro 门）。 |
-| MUI 映射 | 路由页分节表单（`Paper` 节 + 页脚动作条）；token 面复用 SetMeUp 的 `smu-token-panel` 形态 |
+| MUI 映射 | 路由页分节表单（`Paper` 节 + 页脚动作条）；token 面复用 SetMeUp 的 `smu-token-panel` 形态。**MUI Paper 代差注记（v1.4，ux 会签位）**：分节容器的 Paper 化按域分期——建仓/编辑表单六节已是 `<Paper component="section">`（缺省 elevation 1 档；T-344 批 D 换装、T-383 加 `form-section-*` 锚），用户/组表单维持 CSS 分区排版（`security.css` `.form-section`——mui-native-visual 批次标「留」）。该代差是 MUI 换装的既定分期，非 Artifactory parity 缺口（Artifactory 自绘 jf 表单面板、无 elevation 概念，节界视觉不进对齐面）。 |
 | BinFlow 载体 | 用户：`UsersPage`（列表页内建表单）+ `UserDetailPage`（路由页编辑）；组：`GroupsPage`（同列表页形态）；权限：`PermissionEditorPage`（路由页——BinFlow 自有的模式测试器/diff 确认是增强，**豁免**）；Tokens：`PlaceholderPage`（P2 占位）。 |
 | 差距 | ✅ 形态已对齐（**v1.1 核验改判：决策项 B 撤销**——7.84 用户/组创建即整页路由表单，BinFlow 无需 modal 化；BinFlow 列表页内建表单与路由页编辑的差异属同档形态，可保持）。Tokens 页 ✗ **缺失**（BinFlow 侧缺口维持，随 M3 规格落真身：token 列表表 + 铸币区 + 一次性明文面板 + 吊销确认；形态参照 7.84 profile 页的表+生成区，V6c 生成表单字段集因 profile 密码锁未核验，接线票时以 `smu-token-panel` 既有形态为准）。 |
 

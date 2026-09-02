@@ -5,7 +5,7 @@ sidebar_position: 70
 
 # API 参考
 
-> 适用版本：M1~M14（端点引入里程碑标注于各表；M7 增补：用户角色字段 `adminRole`、permission target 动作 `manage`、docker 上传状态腿跨重启、token 铸造 step-up 可选门；**M9 增补**：usage 批量端点、users 列表加宽/enabled 回显/DELETE、groups `?includeUsers`、permissions `?filter=manage`——速览见[下文](#m9-增补速览)；**M11 增补**：认证配置面（含 SAML SP 证书三端点，T-331）、GPG keypair 族、cleanup 引擎、四包型 reindex 族、smart remote 两字段生效、MPU 面整体翻转（ADR-0039）与 cargo remote/virtual 仓型——见[M11 增补速览](#m11-增补速览t-328)；**M12 增补**：制品操作族（copy/move + 归档族）与 trash REST 族（NuGet v2 全路由/v3 代理属协议接入面，见 [NuGet 接入](integrations/nuget.md)）——见[M12 增补速览](#m12-增补速览t-347a)；**M13 增补**：webhook 订阅七端点族（`/event/api/v1`）+ `GET /api/v1/system/settings` 旋钮回显 + remote 仓 `chartsBaseUrl` 字段——见[M13 增补速览](#m13-增补速览t-375)；**M14 增补**：`rclass=remote + packageType=docker` 建仓开闸（T-392，见[Sr 仓库管理域](#sr-仓库管理域)表后注记）、npm login 端点族（T-394，见[NE: npm 域](#ne-npm-域)）与 replication 配置族补册（含新增 `PUT` 启停端点，T-405——见[M14 增补速览](#m14-增补速览t-397t-398)）。Artifactory 兼容端点基于 REST 逆向规格 `docs/reverse/rest-api.md`（置信度高）。
+> 适用版本：M1~M14（端点引入里程碑标注于各表；M7 增补：用户角色字段 `adminRole`、permission target 动作 `manage`、docker 上传状态腿跨重启、token 铸造 step-up 可选门；**M9 增补**：usage 批量端点、users 列表加宽/enabled 回显/DELETE、groups `?includeUsers`、permissions `?filter=manage`——速览见[下文](#m9-增补速览)；**M11 增补**：认证配置面（含 SAML SP 证书三端点，T-331）、GPG keypair 族、cleanup 引擎、四包型 reindex 族、smart remote 两字段生效、MPU 面整体翻转（ADR-0039）与 cargo remote/virtual 仓型——见[M11 增补速览](#m11-增补速览t-328)；**M12 增补**：制品操作族（copy/move + 归档族）与 trash REST 族（NuGet v2 全路由/v3 代理属协议接入面，见 [NuGet 接入](integrations/nuget.md)）——见[M12 增补速览](#m12-增补速览t-347a)；**M13 增补**：webhook 订阅七端点族（`/event/api/v1`）+ `GET /api/v1/system/settings` 旋钮回显 + remote 仓 `chartsBaseUrl` 字段——见[M13 增补速览](#m13-增补速览t-375)；**M14 增补**：`rclass=remote + packageType=docker` 建仓开闸（T-392，见[Sr 仓库管理域](#sr-仓库管理域)表后注记）、npm login 端点族（T-394，见[NE: npm 域](#ne-npm-域)）与 replication 配置族补册（含新增 `PUT` 启停端点，T-405——见[M14 增补速览](#m14-增补速览t-397t-398)）；**M15 增补**：AQL 端点 + 老搜索三端点（gavc/prop/pattern，见[SR 搜索域](#sr-搜索域)）与复制包 B（Replicate Now · Test 连接 · 全局封锁，见[M15 增补速览](#m15-增补速览t-426)；语言细节见 [AQL 搜索指南](aql.md)）。Artifactory 兼容端点基于 REST 逆向规格 `docs/reverse/rest-api.md`（置信度高）。
 > **M10 增补（T-293 部分回写，2026-08-26）**：`?properties` 族反转为 **GET/PUT/DELETE 三动词**（POST 增量动词不做——其余动词落 404 冻结姿态；原 M5 期表格把属性动词标为 M4/M1 系陈旧勘误）；上传路径 matrix 参数 M10 生效。M10 其余新端点（license/addons/uploads、Go/NuGet/Cargo 接入面）已随 T-296 补齐——速览见[下文](#m10-新增端点速览t-296)。
 > BinFlow 自有端点以 `/api/v1` 前缀标记。
 
@@ -119,9 +119,13 @@ BinFlow 的 API 分为两个面：
 
 | 方法 | 路径 | 参数 | 语义 | 里程碑 |
 |---|---|---|---|---|
-| GET | `/binflow/api/search/artifact` | `name=`（必填）、`repos=a,b` | 按名称子串搜索（SQL LIKE，权限过滤） | M4 |
+| GET | `/binflow/api/search/artifact` | `name=`（必填，**大小写不敏感子串**——M15 K64 校准）、`repos=a,b` | 按名称子串搜索（SQL LIKE，权限过滤） | M4/M15 |
 | GET | `/binflow/api/search/checksum` | `sha1=/md5=/sha256=`（至少一）、`repos=a,b` | 按 checksum 精确搜索 | M1 |
-| GET | `/binflow/api/search/props\|users\|artifactory\|pattern\|badge` | — | **404** 有意不做 | M1 |
+| POST | `/binflow/api/search/aql` | body = AQL 文本（`text/plain`）；`?compact=true`；`?query=` 空体回退 | **AQL 查询**（items 域子集，完整语言/错误/迁移对照见 [AQL 搜索指南](aql.md)） | M15 |
+| GET | `/binflow/api/search/gavc` | `g=/a=/v=/c=`（至少一）、`repos=a,b` | Maven 坐标检索（布局路径形态匹配） | M15 |
+| GET | `/binflow/api/search/prop` | `props=k[=v]` 或任意 `?k=v` 参数（`repos` 保留） | 按属性检索（键无值 = 键存在性） | M15 |
+| GET | `/binflow/api/search/pattern` | `pattern=<repo-glob>:<path-glob>` | 按路径模式检索（`*`/`?` SQL 语义，跨段） | M15 |
+| GET | `/binflow/api/search/props\|users\|artifactory\|badge` | — | **404** 有意不做（注意 `prop` 是官方单数拼写，复数 `props` 404） | M1 |
 
 ### SR: 仓库管理域
 
@@ -445,6 +449,97 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/v1/replications/1 \
 # 200 {"id":1,"name":"push-prod",…,"enabled":false,…,"updated_at":"<刷新>"}
 ```
 
+> **`target_url` 形态（M15 实测勘误）**：引擎推送地址 = `{target_url}/binflow/{target_repo}/{path}`——`target_url` 填目标实例**裸 origin**（如 `http://target.example:8080`），**不带** `/binflow` 后缀（带了会拼出 `/binflow/binflow/…`）。
+
+---
+
+## M15 增补速览（T-426）
+
+搜索域两组新面（AQL + 老搜索三端点）与复制包 B（Replicate Now / Test 连接 / 全局封锁）。AQL 的语言子集、错误文案族与迁移对照见 [AQL 搜索指南](aql.md)；复制语义见[治理指南 · 复制](admin/governance.md#复制push-replication)。本节 curl 于 HEAD 构建的双实例实测（2026-09-02），输出摘录原样。
+
+### 搜索：AQL（`POST /api/search/aql`）
+
+- body = 查询文本（`--data-binary 'items.find({"repo":"maven-local"})'`）；**匿名不可用**（闭环实例 401 / 开匿名实例 403）；未支持域（`builds`/`statistics`/`properties`…）与未支持字段（`stat.*`/`modified_by`/`original_*`）一律 **400 点名**；链序 `include→sort→offset→limit` 乱序 = 400 语法错（文案逐字同 Artifactory）。
+- 上限：结果 **1,000 行**（超限置 `X-Binflow-Search-Truncated: true` + `range.notification` 官方文案，`.offset()` 续翻）；查询文本 **6,000 字符**；并发 4 → **429 + `Retry-After: 1`**；执行 10s → **408**。
+- virtual key 是合法查询值：编译期展开为成员仓，行内 `repo` = 实际存储仓 key + 隐式 `virtual_repos` 输出；不存在的 repo key → 200 空集。
+
+```bash
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/search/aql \
+  --data-binary 'items.find({"repo":"maven-local"}).include("repo","path","name").sort({"$desc":["name"]}).limit(2)'
+# 200
+# {
+# "results" : [ { "repo" : "maven-local", "path" : "com/acme/demo", "name" : "maven-metadata.xml" }, ... ],
+# "range" : { "start_pos" : 0, "end_pos" : 2, "total" : 2, "limit" : 2 }
+# }
+
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/search/aql --data-binary 'builds.find({})'
+# 400 {"errors":[{"status":400,
+#   "message":"AQL domain not supported: builds (BinFlow AQL supports: items; build-info domains are not implemented)"}]}
+```
+
+### 搜索：老搜索三端点（`GET /api/search/{gavc,prop,pattern}`，T-417）
+
+三端点与既有 `artifact`/`checksum` 同族：envelope `{"results":[FileInfo…]}`（E-09 全字段超集，含 `uri`/`downloadUri`）、结果**按调用者权限过滤**、未命中一律 **200 + `results:[]`**、上限 1,000 行 + 同一枚 `X-Binflow-Search-Truncated` 截断头。
+
+```bash
+# Maven 坐标（g/a/v/c 至少一项；按 M3 布局路径形态匹配，全字面、大小写敏感）
+curl -su admin:$ADMIN_PW "$BASE/binflow/api/search/gavc?g=com.acme&a=demo&v=1.0.0&c=sources"
+# {"results":[{"uri":"…/api/storage/maven-local/com/acme/demo/1.0.0/demo-1.0.0-sources.jar",…}]}
+curl -su admin:$ADMIN_PW "$BASE/binflow/api/search/gavc?g=com.acme&a=demo&v=9.9.9"
+# 200 {"results":[]}      （空集族——不是 404）
+
+# 属性检索：文档形 props=k=v / 官方任意参数形（?build.name=x）；键无值 = 键存在性；键值走 M10 属性文法（非法键 400）
+curl -su admin:$ADMIN_PW "$BASE/binflow/api/search/prop?props=stage=prod"
+curl -su admin:$ADMIN_PW "$BASE/binflow/api/search/prop?stage=prod&repos=team-local"
+
+# 路径模式：<repo-glob>:<path-glob>；'*'/'?' 跨段（SQL 语义，与 AQL $match 同内核）；repo 半可通配跨仓
+curl -su admin:$ADMIN_PW "$BASE/binflow/api/search/pattern?pattern=maven-local:com/acme/**/*.jar"
+curl -su admin:$ADMIN_PW "$BASE/binflow/api/search/pattern?pattern=*-local:**/build-*.bin"
+curl -su admin:$ADMIN_PW "$BASE/binflow/api/search/pattern?pattern=nocolon"
+# 400 ... "Pattern search requires a '<repo-pattern>:<path-pattern>' value."
+```
+
+边界（as-built）：`gavc` 不按仓包型/layout 描述符过滤（路径形态匹配 + `repos=` 收窄）；`pattern` 查 virtual key → 空集（成员展开只在 AQL 面）；复数拼写 `props` → 404。
+
+### 复制包 B：Replicate Now / Test / 全局封锁（T-420/T-422）
+
+| 方法 | 路径 | 门 | 语义 |
+|---|---|---|---|
+| POST | `/binflow/api/v1/replications/{id}/run` | system:write（仅 admin） | **全量同步触发**（按已存配置种一趟对账任务；`{id}` = 数值 id）。200 `{"info":"The replication tasks was successfully scheduled to run","id","name","scheduled","capped"}`——**排程即返回，不等复制**；`scheduled`=本次种入任务数（空源仓 = 0 空跑）；`capped`=受 `max_items_per_push` 截断（再点取下一段）。重复触发**不去重**（200 再种，目标侧 sha256 幂等收敛）；停用配置 → **409**（先 `PUT enabled=true`）；push 被封 → **409**（锚文 `Push replication is blocked, skipping replication` + 解锁指路）；未知 id 404 |
+| POST | `/binflow/api/v1/replications/{id}/test` | system:write（仅 admin） | 探测**已存配置**的目标连通（`GET {target_url}/binflow/api/storage/{target_repo}`，携已存密封凭据）；可选 body `{target_url/target_repo/target_username/target_password}` 逐字段覆盖（改了 URL/用户名没给密码 → 按匿名探测，旧密文不外发）。**ok 判定体**：通过 200 `{"ok":true,"status_code":200,"message":"Push replication target url '<url>' tested successfully"}`；失败**同形 400**（`ok:false` + 目标状态码/原因内联）。零副作用、**不看封锁态** |
+| POST | `/binflow/api/v1/replications/test` | system:write（仅 admin） | **无 id 草稿面**：body 必填（`{target_url,target_repo,target_username?,target_password?}`），未保存的候选先测后存；自实例目标 → `ok:false`（`Cannot replicate to the same instance: …`）；`-cache` 结尾目标 → 官方文案 `Replication to remote cache repositories are not allowed.` |
+| GET | `/binflow/api/v1/system/replications` | system:read | 全局封锁态，官方键形 `{"blockPullReplications":bool,"blockPushReplications":bool}` |
+| POST | `/binflow/api/v1/system/replications/block` / `unblock` | system:write（仅 admin） | **应急刹车**：query `push`/`pull` 选方向（缺省 = 该方向动作；**非 `"true"` 串 = 本次不动**）；响应 **text/plain** 官方文案（`Successfully blocked all replications, no replication will be triggered.` / 仅单方向变体 / 双不动 `No action taken.`）。幂等、写入即持久（重启保持）；**不拦配置面**（CRUD/启停/列表封锁期照常） |
+
+封锁生效面：事件轨（新制品零入队）+ 认领轨（在途任务重试间隙停发，重试计数保留）+ 手动触发（run 409）+ **拉侧回源**（`blockPull=on` 时 remote 仓零上游接触：新鲜缓存照常 HIT、过期副本降级 STALE、miss 404 点名封锁——不写 assumed-offline 窗，解除即恢复）。三面一致入口：`binflow.yaml` 的 `replication.block_push` / `replication.block_pull`（缺省 false，首次启动种子落库，此后 REST 管理）+ REST 三端点 + 治理页全局封锁卡。
+
+```bash
+# Replicate Now：5 个制品排程，目标实例逐路径收敛（sha256 幂等）
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/replications/1/run
+# 200 {"info":"The replication tasks was successfully scheduled to run","id":1,"name":"push-b",
+#      "scheduled":5,"capped":false}
+
+# Test：正确凭据 200 / 错误凭据 400（判定体内联目标状态）
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/replications/1/test
+# 200 {"ok":true,"status_code":200,
+#      "message":"Push replication target url 'http://127.0.0.1:18502/binflow/api/storage/mirror-b' tested successfully"}
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/replications/test \
+  -H 'Content-Type: application/json' \
+  -d '{"target_url":"http://127.0.0.1:18502","target_repo":"mirror-b","target_username":"admin","target_password":"wrong"}'
+# 400 {"ok":false,"status_code":401,
+#      "message":"Connection failed: Target replication URL returned error 401: {…invalid credentials…}"}
+
+# 全局封锁 roundtrip
+curl -su admin:$ADMIN_PW -X POST "$BASE/binflow/api/v1/system/replications/block?push=true"
+# Successfully blocked all replications, no replication will be triggered.
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/replications/1/run
+# 409 ... "Push replication is blocked, skipping replication (config push-b; POST /api/v1/system/replications/unblock to resume)"
+curl -su admin:$ADMIN_PW -X POST "$BASE/binflow/api/v1/system/replications/unblock?push=true"
+# Successfully unblocked all replications.
+```
+
+审计词新增：`replication.run`（run 族控制面）、`replication.config.test`、`replication.block.update`（detail 含 name/target/scheduled/capped 或封锁终态）；与引擎执行层 `replication.push` 分层不混用。
+
 ---
 
 ## `/api/v1` 自有端点
@@ -463,7 +558,10 @@ BinFlow 在 Artifactory 兼容端点之外增加了一批自有端点（以 `/ap
 | `/binflow/api/v1/system/settings` | GET | 运行旋钮回显（folder_download 六字段 + trashcan.retention_days 的解析值；M13） |
 | `/binflow/api/v1/session` | POST/GET/DELETE | 控制台会话管理（whoami/登录回显 `adminRole` 与 `source`） |
 | `/binflow/api/v1/replications` | GET/POST/PUT/DELETE | push 复制配置 CRUD（GET/POST/DELETE 自 M6；**PUT 启停 = M14**，按数值 id、DELETE 按 name）——见[M14 增补速览](#m14-增补速览t-397t-398) |
+| `/binflow/api/v1/replications/{id}/run` · `/{id}/test` · `/test` | POST | **M15 复制包 B**：全量同步触发（Replicate Now）与目标连通探测（已存配置 / 无 id 草稿）——见[M15 增补速览](#m15-增补速览t-426) |
+| `/binflow/api/v1/system/replications` | GET/POST | **M15 全局封锁**：blockPush/blockPull 应急刹车三端点（GET 态 + block/unblock，官方键形与文案） |
 | `/binflow/api/v1/replication/status` | GET | 复制面板载荷（targets 任务计数 + events 最近任务合并；readonly_admin 可读） |
+| `/binflow/api/search/aql` | POST | **M15 AQL 查询**（items 域子集；语言与迁移对照见 [AQL 搜索指南](aql.md)） |
 | `/binflow/api/v1/permissions` | POST/GET/DELETE | Permission Target CRUD（动作集 r/w/d/manage；GET 带 `?filter=manage` 时 manage 持有者可达覆盖集内子集——M9） |
 
 ---
@@ -776,5 +874,6 @@ Docker-Distribution-Api-Version: registry/2.0
 ## 下一步
 
 - 各协议接入指南：[Docker](docker-registry.md) · [Maven](integrations/maven.md) · [npm](integrations/npm.md) · [PyPI](integrations/pypi.md) · [Go](integrations/golang.md) · [NuGet](integrations/nuget.md) · [Cargo](integrations/cargo.md) · [Conan](integrations/conan.md) · [Helm](integrations/helm-charts.md) · [RPM](integrations/rpm.md) · [Debian](integrations/debian.md)
+- 搜索：[AQL 搜索指南](aql.md)（语言子集 / 错误文案族 / Artifactory 迁移对照）· [属性系统](properties.md)
 - 管理操作：[治理指南](admin/governance.md) · [权限管理](admin/groups-permissions.md) · [RBAC 角色与仓库级管理员](admin/rbac-roles.md) · [Token 铸造 step-up](admin/token-step-up.md) · [备份恢复](admin/backup-restore.md) · [License 与 Add-ons](admin/license.md) · [属性系统](properties.md) · [认证配置](admin/auth-config.md) · [存储配置](admin/storage-config.md) · [Webhook 使用指南](admin/webhooks.md)
 - 常见问题与排障：[FAQ](faq.md)

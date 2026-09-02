@@ -4,7 +4,7 @@
 |---|---|
 | 文档 | `docs/design/brand/package-icons/README.md` |
 | 票据 | UX-1（插空票：品牌资产 + Artifactory 交互对齐规格） |
-| 状态 | v1.2（2026-08-31，K56 生产化：npm/go 字标 `<text>` 转 path、conan 双版 #669ACC 落地——30 枚零 text 依赖；此前 v1.1 同日 T-381 活体对照修正） |
+| 状态 | v1.3（2026-09-02，T-428：K61 helm·nuget 超 +10% 抬幅**量级拍板**——ux 会签位，见 §4 末块；此前 v1.2 K56 生产化：npm/go 字标 `<text>` 转 path、conan 双版 #669ACC 落地——30 枚零 text 依赖；v1.1 同日 T-381 活体对照修正） |
 | 维护者 | ux-designer |
 | 上游依据 | 用户指令 2026-08-30（② 各协议包型 logo 加上）；`web/src/lib/repos.ts`（PackageType 联合）、`internal/license/manager.go`（五核心包型槽位）、`internal/repo/service.go`（helmoci 属 registry-v2 族）、`internal/webhook/doc.go`（webhook 域） |
 | 下游消费者 | FE 票（建仓包型网格 `pkg-grid`、Set Me Up 网格 `smu-grid`、制品树类型列、License & Add-ons 矩阵的图标接线） |
@@ -97,7 +97,7 @@ addon 两枚的用色纪律：治理面/能力开关**不占用** success/warnin
 ¹ 对最差宿主 surface-3（悬停态）的 WCAG 对比度；surface-1/2 更高。
 
 - **处置形态**：FE 侧 `web/src/styles/tokens.css` 暗色块增 `--bf-pkgicon-*` 档（保色相抬明度），`web/src/components/pkg-icon.css` 在 `[data-theme='dark']` 下按官方色字面值定位形件替换——**资产文件本身零改动**，亮色主题零覆盖（原官方色在亮底全部 ≥3:1）。已达标的 cargo/conan/go/rpm 与多色件的达标辅色（docker `#0db7ed`、generic 顶面、pypi 黄蛇、npm 白字）不动。
-- **量级注记**：九枚在 §6.4「+10% 亮度微调」量级内（HSL L +0.06~0.13）；**helm/nuget 两枚藏青起点 1.04/1.44——纯蓝通道在暗面上物理扛不起 3:1（蓝通道相对亮度上限 0.0722），抬幅（L +0.38/+0.21）超出微调量级**，系暗底可辨性的物理下限所需，留 ux 档复核：若 K 系要出资产级暗色版（brand-dark/ 目录），本组 token 整体退役。
+- **量级注记**：九枚在 §6.4「+10% 亮度微调」量级内（HSL L +0.06~0.13）；**helm/nuget 两枚藏青起点 1.04/1.44——纯蓝通道在暗面上物理扛不起 3:1（蓝通道相对亮度上限 0.0722），抬幅（L +0.38/+0.21）超出微调量级**，系暗底可辨性的物理下限所需。**量级拍板（2026-09-02，T-428，ux 会签位）**：按 K56 资产现值定案——`brand/helm.svg` 仍持官方色 `#0F1689`、`brand/nuget.svg` 仍持 `#004880`（K56 生产化只动 npm/go/conan，「资产文件零改动、暗色档由 FE token 承载」的处置形态维持）；两枚的超量级抬幅（暗色档 token `#6b73ef`/`#0083e9`）**定案认可、不回折 +10% 微调线**——藏青起点上它是暗底可辨性（3:1）的物理下限，非风格选择。退役条件维持：若 K 系出资产级暗色版（brand-dark/ 目录），本组 token 整体退役。
 - **消费注记**：mono 版 trashcan/webhook 两枚无消费点（四消费点中 addon 槽只走 brand 矩阵位）——按 §1 的 mono 定位（列表/表单/树）预留，T-390 注记豁免。
 
 ## 5. 来源与许可姿态（重要）
@@ -119,4 +119,4 @@ addon 两枚的用色纪律：治理面/能力开关**不占用** success/warnin
    - `LicenseAddonsPage` addon 矩阵（trashcan/webhook，brand 版）。
 2. ~~**`npm` 与 `go` 含 `<text>`**~~ **已清除（K56/v1.2）**——两枚字标改为 monoline path 勾画：npm 双版同骨架（stroke 1.2 圆帽，小写 n/p/m，p 下延 18.0，包络 4.0~19.4 在方块内净区内）；go 双版同骨架（stroke 2.3 圆帽，G=开口右上的圆 + 3 点位内伸横杠，O=整圆，`skewX(-8)` 给斜体），字形网格已写进各 SVG 注释。30 枚现全部零 text、零字体环境依赖。
 3. 门控包型（license 未解锁）用 mono 版 + `opacity: 0.4` + 现有 `pkg-tier-*` 档位徽章组合，不要用 brand 版置灰（品牌色置灰会臟色）。
-4. 深色主题：mono 版天然适配（currentColor）；brand 版的官方色在暗底（`#12161d`）下对比度抽查过 docker/npm/pypi 三枚均 ≥3:1（图形件标准），其余枚如发现暗底发闷，允许 +10% 亮度微调并在本 README 登记。**〔T-390 勘误〕**该抽查对背景而非真实宿主面——磁贴/表格面更亮，实测 11 枚 <3:1，提亮档已按 K61 登记（§4 末块）。
+4. 深色主题：mono 版天然适配（currentColor）；brand 版的官方色在暗底（`#12161d`）下对比度抽查过 docker/npm/pypi 三枚均 ≥3:1（图形件标准），其余枚如发现暗底发闷，允许 +10% 亮度微调并在本 README 登记。**〔T-390 勘误〕**该抽查对背景而非真实宿主面——磁贴/表格面更亮，实测 11 枚 <3:1，提亮档已按 K61 登记（§4 末块）；其中 helm/nuget 两枚超 +10% 量级的抬幅已于 T-428 **定案拍板**（不回折微调线，见 §4 末块量级注记）。

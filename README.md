@@ -266,7 +266,15 @@ The same instance grows into the enterprise surface without changing shape:
   Guide: [S3 后端与在线迁移](docs/user/guides/s3-config.md) (中文).
 - **Push replication** — uploads replicate one-way to a target instance
   (all five protocols), event-driven with exponential backoff and a cron
-  sweep for missed events. Status: `GET /api/v1/replication/status`.
+  sweep for missed events. On-demand full resync (`POST
+  /api/v1/replications/{id}/run`), pre-save target probing (`…/test`) and a
+  global push/pull block brake (`/api/v1/system/replications`) ship with M15.
+  Status: `GET /api/v1/replication/status`.
+- **AQL search (M15)** — Artifactory Query Language subset over the items
+  domain: `curl -su admin:$PW -X POST $BASE/binflow/api/search/aql
+  --data-binary 'items.find({"repo":"maven-local"}).limit(10)'`, plus the
+  classic gavc/prop/pattern endpoints and an AQL mode in the console search
+  page. Guide: [AQL 搜索指南](docs/user/aql.md) (中文).
 - **Prometheus metrics** — `curl -s $BASE/metrics` (root-level, anonymous
   by default): HTTP, storage, auth and replication families.
   Reference: [Prometheus 指标参考](docs/user/metrics/prometheus-reference.md) (中文).

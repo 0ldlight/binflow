@@ -80,6 +80,12 @@ one-to-one when the dialect lands):
   a uuid text primary key (no sequences), timestamps stay RFC3339 UTC
   text. (015~017 predate this entry and carry no postgres notes here —
   their sqlite files are the contract.)
+- 019_replication_globals: the global blockPush/blockPull emergency-brake
+  row (M15 T-422, FR-138.3 / replication.md §9.2-B) — replication_globals,
+  ONE row with the id CHECK-pinned to 1 (the same single-row shape as
+  012_license), the two direction flags and the last-flip bookkeeping.
+  Statements are dialect-common (booleans as 0/1 on the sqlite side,
+  BOOLEAN here).
 
 The migrator currently embeds `migrations/sqlite/*.sql` only
 (see ../migrate.go).
