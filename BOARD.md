@@ -1647,4 +1647,8 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **用户指令 intake ⑥（2026-09-02 14:3x）：「记得定期将 develop 的代码合并到 main」——常设节奏入册**（conductor memory：≥10 done 票或 ≥1 天触发 develop→main 自建自合）。**首次执行**：M15 中程回流 PR **#64 已合**（merge commit `12c8720`——**77 个提交**上 main：AQL 全栈/复制包 B/virtual 聚合/busy 预算/结构轮/文档族；deploy_uat 随合并触发，UAT 将升 m15 中程形态）。在途票（T-421/T-431）工作树未提交改动不受扰。
 
+**T-431 → done 2026-09-02 15:4x（配额窗⑥复活后收口）——M15 23/25（Q6 兑现：docker×virtual 开禁）**：矩阵行一行开（validate.go——唯一行为改动，沿 T-365 语义：聚合读面 family-wide 本就在，唯一阻碍就是建仓格）+ 拒绝臂数据驱动缝 + **FE comboAllowed 门整体退役**（其对 remote 也是陈旧谎言）+ 六处旧行为钉翻转 + 双新测试（建仓/成员解析/混型拒）。docker race 239s 绿 + helmoci 180s 绿 + vet 全树 + FE 四门；唯一红（TestBigTreeCopyNo5xx）归因机器负载（load 38-148 时 11.16s 撞墙 vs load 13 时 3.39s 过——copy 计划走查不在本票路径，同机同族 QA 先例在）。遗留四条（FE remote×docker 可选再藏归 conductor 裁/e2e 实机腿候低载窗归 T-430/live dind 归 QA/docs 联动 T-426）。日志 reports/agents/T-431.md。
+
+**B17 派发（conductor 2026-09-02 15:5x）**：**T-429**（release 烟测 + UAT 备妥——dep 全满足；Chart bump 判据 1.4.0→1.5.0；构建腿先行 + kind 重腿错峰 T-421 e2e 大波）入 lane；T-421（QA 中期）继续在途。
+
 **全树 race 补证判无效（conductor 2026-09-01 14:3x）**：与两 agent 测试套件同机并发跑——22 包红全部 620-660s 超时形态 + db/sql 竞争 panic + storage fail-open 窗口 = **共租负载签名**（T-414 日志同款 load 450-630），非产品缺陷。T-412 的 AC3 证据改挂 **T-421 中期 QA 串行全树 race**（届时 lane 空净）。**D-413-2 [P3·登记]**：唯一真信号 = T-413 `TestEngineMixedLoad` 在慢机下 K63 并发门 429 介入而测试只容忍 busy gate 拒绝——测试健壮性收窄（门注入调低或混合负载容忍 429），归 T-421 复验时顺腿修或转 T-433。**教训入册：全树 race/性能类验证必须 lane 空净时串行跑（派单纪律）。**
