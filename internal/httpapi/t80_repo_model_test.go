@@ -303,18 +303,21 @@ func TestM05DockerBoundaryREST(t *testing.T) {
 			t.Fatalf("remote config = (%v, %+v), want the typed url row", err, cfg)
 		}
 	})
-	t.Run("virtual+docker is 400 not supported", func(t *testing.T) {
+	t.Run("virtual+docker creates (T-431, M15 Q6)", func(t *testing.T) {
 		h := repoModelHarness(t)
 		if s, b := putRepoStatus(t, h, "docker-local", `{"rclass":"local","packageType":"docker"}`); s != http.StatusOK {
 			t.Fatalf("seed docker local: %d %s", s, b)
 		}
 		status, body := putRepoStatus(t, h, "docker-virtual",
 			`{"rclass":"virtual","packageType":"docker","repositories":["docker-local"]}`)
-		if status != http.StatusBadRequest {
+		if status != http.StatusOK {
 			t.Fatalf("status = %d; body=%s", status, body)
 		}
-		if !strings.Contains(body, "are not supported") {
-			t.Fatalf("body = %q, want the not-supported wording", body)
+		if !strings.Contains(body, "Successfully created repository 'docker-virtual'") {
+			t.Fatalf("body = %q, want the created wording", body)
+		}
+		if members, err := h.md.Virtual().ListMembers(context.Background(), "docker-virtual"); err != nil || len(members) != 1 || members[0].MemberRepo != "docker-local" {
+			t.Fatalf("virtual members = (%v, %+v), want the seeded docker-local", err, members)
 		}
 	})
 	t.Run("local+docker does not regress", func(t *testing.T) {

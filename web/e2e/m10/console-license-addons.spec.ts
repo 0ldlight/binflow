@@ -154,7 +154,8 @@ test('L27d: repo-create dialog — core badgeless floor, gated pro-badged + disa
     await expect(page.locator(`[data-testid="pkg-grid-item-${id}"]`)).toBeVisible()
     await expect(page.locator(`[data-testid="pkg-grid-item-${id}"] [data-testid="pkg-tier-${id}"]`)).toHaveCount(0)
   }
-  // docker 仅 local 的组合约束维持（既有行为零回归）
+  // docker 磁贴在 local 入口下可选（组合门 T-431 全仓型退役后此处恒绿，
+  // 门控槽位 pro 徽章/禁用才是本 spec 的对象）
   await expect(page.locator('[data-testid="pkg-grid-item-docker"]')).toBeEnabled()
 
   // 门控型：可见带 pro 徽章（D5）、禁用、提示需要 pro

@@ -135,10 +135,11 @@ const (
 	TypeVirtual = "virtual"
 
 	PackageGeneric = "generic"
-	// PackageDocker serves LOCAL since M2 (FR-7-AC1) and REMOTE since T-392
+	// PackageDocker serves LOCAL since M2 (FR-7-AC1), REMOTE since T-392
 	// (M14 FR-129 — the /v2 pull-through rides the family-shared remote
-	// data chain T-363 opened); VIRTUAL stays unserved (PRD Q4's
-	// aggregation half, docker-registry.md section 9).
+	// data chain T-363 opened), and VIRTUAL since T-431 (M15 PRD Q6's
+	// ruling — the T-365 aggregated read plane is family-shared, so a
+	// docker virtual walks its members with helmoci virtual's semantics).
 	PackageDocker = "docker"
 	// PackageMaven/PackageNpm/PackagePypi open for all three classes in M3
 	// (FR-15-AC1): local is served by the protocol adapters (T-67/T-69/T-70),

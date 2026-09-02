@@ -292,10 +292,11 @@ func TestCreateDockerRepoEnabled(t *testing.T) {
 		}
 	})
 
-	t.Run("remote docker creates, virtual docker stays refused (FR-129)", func(t *testing.T) {
+	t.Run("remote docker creates, virtual docker creates (FR-129 + T-431)", func(t *testing.T) {
 		// T-392 (M14 FR-129) opened REMOTE docker onto the /v2 remote seam
-		// T-363 built; VIRTUAL docker is the one combination the matrix
-		// still refuses (PRD Q4's aggregation half).
+		// T-363 built; T-431 (M15 Q6) opened VIRTUAL docker onto the
+		// aggregated read plane T-365 built — the matrix refuses nothing
+		// among the static five anymore.
 		e := newEnv(t)
 		row, err := e.svc.CreateRepo(ctx, admin(), &metadata.Repo{
 			RepoKey: "d-remote", Type: repo.TypeRemote, PackageType: repo.PackageDocker,
@@ -312,15 +313,29 @@ func TestCreateDockerRepoEnabled(t *testing.T) {
 			t.Fatalf("remote config = (%v, %+v), want the typed url row", cerr, cfg)
 		}
 
-		_, err = e.svc.CreateRepo(ctx, admin(), &metadata.Repo{
-			RepoKey: "d-virtual", Type: repo.TypeVirtual, PackageType: repo.PackageDocker,
-			Config: `{"url":"https://registry-1.docker.io"}`,
-		})
-		if !errors.Is(err, repo.ErrRepoTypeNotSupported) {
-			t.Fatalf("CreateRepo(virtual docker) error = %v, want ErrRepoTypeNotSupported", err)
+		// The virtual aggregates same-type members (T-367's rider); a docker
+		// local member makes the smallest legal member set.
+		if _, err := e.svc.CreateRepo(ctx, admin(), &metadata.Repo{
+			RepoKey: "d-local", Type: repo.TypeLocal, PackageType: repo.PackageDocker,
+		}); err != nil {
+			t.Fatalf("CreateRepo(local docker member): %v", err)
 		}
-		if !strings.Contains(err.Error(), "are not supported") {
-			t.Fatalf("error does not carry the not-supported wording: %v", err)
+		vrow, verr := e.svc.CreateRepo(ctx, admin(), &metadata.Repo{
+			RepoKey: "d-virtual", Type: repo.TypeVirtual, PackageType: repo.PackageDocker,
+			Config: `{"repositories":["d-local","d-remote"]}`,
+		})
+		if verr != nil {
+			t.Fatalf("CreateRepo(virtual docker) error = %v, want nil (T-431 opened the cell)", verr)
+		}
+		if vrow.Type != repo.TypeVirtual || vrow.PackageType != repo.PackageDocker {
+			t.Fatalf("row = (%s, %s), want (virtual, docker)", vrow.Type, vrow.PackageType)
+		}
+		got, gerr := e.svc.GetRepo(ctx, admin(), "d-virtual")
+		if gerr != nil {
+			t.Fatalf("GetRepo(d-virtual): %v", gerr)
+		}
+		if got.Type != repo.TypeVirtual || got.PackageType != repo.PackageDocker {
+			t.Fatalf("round trip = %s/%s, want virtual/docker", got.Type, got.PackageType)
 		}
 	})
 

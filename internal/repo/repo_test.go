@@ -68,9 +68,10 @@ func TestCreateRepoKeyValidation(t *testing.T) {
 	}
 }
 
-// TestCreateRepoTypeValidation: the M3 rclass/packageType matrix (FR-15-AC1/
-// AC7): all three classes x {generic, maven, npm, pypi} open, docker stays
-// local-only. Remote rows need a valid url config, virtual rows a member —
+// TestCreateRepoTypeValidation: the rclass/packageType matrix (FR-15-AC1/
+// AC7 as narrowed by FR-129 and T-431): all three classes x the static five
+// open — docker local (M2), remote (T-392), virtual (T-431, M15 Q6).
+// Remote rows need a valid url config, virtual rows a member —
 // the config-level rules are the FR-15 field tests further down; this table
 // pins the MATRIX (what combinations the service accepts at all).
 func TestCreateRepoTypeValidation(t *testing.T) {
@@ -95,7 +96,7 @@ func TestCreateRepoTypeValidation(t *testing.T) {
 		{"virtual maven", "virtual", "maven", "", nil},
 		{"virtual npm", "virtual", "npm", "", nil},
 		{"virtual pypi", "virtual", "pypi", "", nil},
-		{"virtual docker → not supported (PRD Q4)", "virtual", "docker", "", repo.ErrRepoTypeNotSupported},
+		{"virtual docker (T-431, M15 Q6)", "virtual", "docker", "", nil},
 		{"unknown rclass", "federated", "generic", "", repo.ErrInvalidRepoType},
 		{"unknown package", "local", "conda", "", repo.ErrInvalidRepoType},
 		{"empty rclass", "", "generic", "", repo.ErrInvalidRepoType},
@@ -108,7 +109,14 @@ func TestCreateRepoTypeValidation(t *testing.T) {
 			if tt.rclass == "virtual" && tt.want == nil {
 				// The member must pre-exist (FR-15-AC4); the matrix success
 				// rows seed one local member, exactly like the M03 QA flow.
-				mustCreateRepo(t, e, "member-local")
+				// A registry-v2 family virtual demands a same-type member
+				// (validateV2MemberTypes, T-367), so the docker row seeds a
+				// docker member.
+				if tt.packageType == repo.PackageDocker {
+					mustCreateDockerRepo(t, e, "member-local")
+				} else {
+					mustCreateRepo(t, e, "member-local")
+				}
 				config = `{"repositories":["member-local"]}`
 			}
 			_, err := e.svc.CreateRepo(context.Background(), admin(), &metadata.Repo{
