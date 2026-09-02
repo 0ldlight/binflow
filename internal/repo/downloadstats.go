@@ -40,9 +40,16 @@ import (
 //
 // Folder rows stay at zero by construction: the store-side UPDATE excludes
 // the shared folder marker, so the folder-download archive face (whose
-// audit row addresses the folder root) is a structural no-op. HEAD requests
-// and cache probes never reach this seam — they never record an audit
-// download row either.
+// audit row addresses the folder root) is a structural no-op. The seam has
+// no probe carve-out BY DESIGN: the count lands wherever the audit download
+// row lands, so the pair can never drift. (As-built consequence, registered
+// in T-438's report: the generic adapter serves HEAD through the shared
+// Get landing point, and /api/storage's item-info/properties/permissions
+// faces resolve nodes through the same service call — those faces have
+// written audit download rows since M1, and now count with them. The ?
+// statistics face deliberately reads through List instead: a telemetry
+// probe feeds no counter. De-probing the metadata faces is an audit-face
+// ticket, not a counting carve-out.)
 
 // The origin dimension every download audit row's detail carries (K69
 // decision 6: the three-arm audit trail; nodes grows no column for it).

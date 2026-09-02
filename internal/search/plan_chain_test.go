@@ -352,3 +352,60 @@ func TestChainIncludeStarCoversStorageFields(t *testing.T) {
 		t.Fatalf("star echo order starts at repo: %v", plan.Output)
 	}
 }
+
+// TestT440ChainStatisticsDomain runs the statistics domain through the
+// full compile chain (AQL text → IR → SQL → rows) on the chain corpus:
+// the null literal's zero predicates, the counting-column comparators,
+// the constant-zero stubs, and the include-driven counting projection.
+func TestT440ChainStatisticsDomain(t *testing.T) {
+	st := openChainStore(t)
+	opt := search.PlanOptions{Now: time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)}
+	ctx := context.Background()
+	// Two downloads land on the replicated row through the single counting
+	// channel; everything else keeps its structural zeros.
+	for i := 0; i < 2; i++ {
+		if err := st.Nodes().CountDownload(ctx, "libs-cache", "remote/replicated.bin",
+			"carol", "2026-08-20T09:00:00.000Z", false); err != nil {
+			t.Fatalf("count download: %v", err)
+		}
+	}
+
+	t.Run("counter and zero predicates", func(t *testing.T) {
+		rows, _ := runQuery(t, st,
+			`items.find({"stat.downloads":{"$eq":2}}).include("stat.downloads","stat.downloaded","stat.downloaded_by")`, opt)
+		if got := paths(rows); len(rows) != 1 || rows[0].RepoKey != "libs-cache" {
+			t.Fatalf("counter rows = %v", got)
+		}
+		if rows[0].DownloadCount != 2 || rows[0].LastDownloadedAt != "2026-08-20T09:00:00.000Z" ||
+			rows[0].LastDownloadedBy != "carol" {
+			t.Fatalf("counting projection = %+v", rows[0])
+		}
+		never, _ := runQuery(t, st,
+			`items.find({"stat.downloads":{"$eq":null},"repo":"libs"})`, opt)
+		if len(never) != 4 {
+			t.Fatalf("zero-arm rows = %v, want the four undownloaded libs files", paths(never))
+		}
+	})
+
+	t.Run("downloaded date arm with the null disjunction", func(t *testing.T) {
+		rows, _ := runQuery(t, st,
+			`items.find({"$or":[{"stat.downloaded":{"$lt":"2026-08-21"}},{"stat.downloaded":{"$eq":null}}],"repo":"libs-cache"})`,
+			opt)
+		if got := paths(rows); len(rows) != 1 || rows[0].Path != "remote/replicated.bin" {
+			t.Fatalf("disjunction rows = %v", got)
+		}
+	})
+
+	t.Run("stubs fold through the chain", func(t *testing.T) {
+		rows, _ := runQuery(t, st,
+			`items.find({"stat.remote_downloads":{"$gt":0}})`, opt)
+		if len(rows) != 0 {
+			t.Fatalf("stub rows = %v, want none", paths(rows))
+		}
+		rows, _ = runQuery(t, st,
+			`items.find({"stat.remote_downloaded":{"$eq":null},"repo":"other"})`, opt)
+		if len(rows) != 1 {
+			t.Fatalf("stub vacuous rows = %v", paths(rows))
+		}
+	})
+}

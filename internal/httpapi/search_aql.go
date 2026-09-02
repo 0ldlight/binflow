@@ -280,6 +280,7 @@ func (s *Server) renderAQLRow(b *strings.Builder, row *metadata.NodeQueryRow, fi
 		b.WriteString(val)
 	}
 	propsEmitted := false
+	statsEmitted := false
 	for _, f := range fields {
 		switch f.Kind {
 		case search.OutputProp:
@@ -288,6 +289,16 @@ func (s *Server) renderAQLRow(b *strings.Builder, row *metadata.NodeQueryRow, fi
 			}
 			propsEmitted = true
 			emit("properties", renderAQLProps(row, fields, compact))
+		case search.OutputStat:
+			// The statistics domain nests once, at the first stat entry's
+			// position (aql.md §3.3/§14.1 — the "stats" : [ {…} ] array of
+			// live v16): every named stat member lands inside the one
+			// object, in include order.
+			if statsEmitted {
+				continue
+			}
+			statsEmitted = true
+			emit("stats", renderAQLStats(row, fields, compact))
 		case search.OutputVirtualRepos:
 			emit("virtual_repos", renderAQLStringArray(aqlVirtualsOf(rev, row.RepoKey), compact))
 		default:
@@ -364,6 +375,63 @@ func renderAQLProps(row *metadata.NodeQueryRow, fields []search.OutputField, com
 		return "[" + strings.Join(parts, ",") + "]"
 	}
 	return "[ " + strings.Join(parts, ",") + " ]"
+}
+
+// renderAQLStats renders the nested "stats" value: one object whose fields
+// are exactly the include-named statistics members, in echo order (aql.md
+// §14.1 — include replaces the domain's default set; live v16 shows the
+// `[ {\n    "field" : value\n  } ]` shape). Column-backed members read the
+// row; the smart-remote remote_* stubs render their constant zero values
+// (0 for the counter, null for the rest — the spec's mapping ruling, data
+// never fabricated).
+func renderAQLStats(row *metadata.NodeQueryRow, fields []search.OutputField, compact bool) string {
+	type entry struct{ k, v string }
+	var entries []entry
+	for _, f := range fields {
+		if f.Kind != search.OutputStat {
+			continue
+		}
+		switch f.Field {
+		case search.FieldStatDownloaded:
+			if row.LastDownloadedAt == "" {
+				entries = append(entries, entry{"downloaded", "null"})
+				continue
+			}
+			entries = append(entries, entry{"downloaded", aqlJSONDate(row.LastDownloadedAt)})
+		case search.FieldStatDownloads:
+			entries = append(entries, entry{"downloads", strconv.FormatInt(row.DownloadCount, 10)})
+		case search.FieldStatDownloadedBy:
+			if row.LastDownloadedBy == "" {
+				entries = append(entries, entry{"downloaded_by", "null"})
+				continue
+			}
+			entries = append(entries, entry{"downloaded_by", aqlJSONString(row.LastDownloadedBy)})
+		case search.FieldStatRemoteDownloads:
+			entries = append(entries, entry{"remote_downloads", "0"})
+		case search.FieldStatRemoteDownloaded:
+			entries = append(entries, entry{"remote_downloaded", "null"})
+		case search.FieldStatRemoteDownloadedBy:
+			entries = append(entries, entry{"remote_downloaded_by", "null"})
+		case search.FieldStatRemoteOrigin:
+			entries = append(entries, entry{"remote_origin", "null"})
+		case search.FieldStatRemotePath:
+			entries = append(entries, entry{"remote_path", "null"})
+		}
+	}
+	render := func(e entry, compact bool) string {
+		if compact {
+			return `"` + e.k + `":` + e.v
+		}
+		return `    "` + e.k + `" : ` + e.v
+	}
+	var parts []string
+	for _, e := range entries {
+		parts = append(parts, render(e, compact))
+	}
+	if compact {
+		return "[{" + strings.Join(parts, ",") + "}]"
+	}
+	return "[ {\n" + strings.Join(parts, ",\n") + "\n  } ]"
 }
 
 // aqlVirtualsOf reads the member->virtuals reverse map, tolerating a nil map

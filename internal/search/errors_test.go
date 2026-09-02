@@ -38,17 +38,22 @@ func TestParseErrors(t *testing.T) {
 		{"domain-properties-hint", `properties.find({})`, ErrUnsupportedDomain, "properties", "",
 			`AQL domain not supported: properties (BinFlow AQL supports: items; query properties through items.find with {"@key": value} criteria)`},
 		{"domain-statistics", `statistics.find({})`, ErrUnsupportedDomain, "statistics", "",
-			"AQL domain not supported: statistics (BinFlow AQL supports: items; statistics data is not stored yet)"},
+			`AQL domain not supported: statistics (BinFlow AQL supports: items; query statistics through items.find with {"stat.<field>": value} criteria)`},
 
 		// Fields: unknown (evidence v15 names repossss), known-but-no-source.
 		{"unknown-field", `items.find({"repossss":"x"})`, ErrUnknownField, "items", "repossss",
 			"Unknown AQL field: repossss"},
 		{"unknown-field-include", `items.find({}).include("repossss")`, ErrUnknownField, "items", "repossss",
 			"Unknown AQL field: repossss"},
-		{"stat-field", `items.find({"stat.downloads":{"$gt":1}})`, ErrUnsupportedField, "statistics", "stat.downloads",
-			"AQL field not supported yet: stat.downloads (statistics data is not stored yet)"},
-		{"stat-field-include", `items.find({}).include("stat.downloaded_by")`, ErrUnsupportedField, "statistics", "stat.downloaded_by",
-			"AQL field not supported yet: stat.downloaded_by (statistics data is not stored yet)"},
+		// The statistics family is OPEN since T-440 (aql.md §14.1) — the
+		// honest refusals left in it are the two internal ids, and the null
+		// literal's operator gate.
+		{"stat-internal-id", `items.find({"stat.id":{"$eq":1}})`, ErrUnsupportedField, "statistics", "stat.id",
+			"AQL field not supported yet: stat.id (internal field, not exposed)"},
+		{"stat-internal-remote-id-include", `items.find({}).include("stat.remote_id")`, ErrUnsupportedField, "statistics", "stat.remote_id",
+			"AQL field not supported yet: stat.remote_id (internal field, not exposed)"},
+		{"stat-null-order-op", `items.find({"stat.downloads":{"$gt":null}})`, ErrBadValue, "statistics", "stat.downloads",
+			"AQL null values support $eq and $ne only on field stat.downloads"},
 		{"modified-by", `items.find({"modified_by":"admin"})`, ErrUnsupportedField, "item", "modified_by",
 			"AQL field not supported yet: modified_by (no storage source in BinFlow yet)"},
 		{"original-sha1", `items.find({"original_sha1":"8ddc"})`, ErrUnsupportedField, "item", "original_sha1",

@@ -583,6 +583,18 @@ func (p *parser) validateValue(k keyField, op Operator, val *Value, integral boo
 		}
 	}
 	if val.Kind == LitNull {
+		// The statistics domain owns the null literal (aql.md §2.5/§14.1:
+		// a stats zero value is queried as null, never as 0 or ""); it is
+		// legal on $eq/$ne only — a null under an order comparator has no
+		// Artifactory-registered meaning, and this subset refuses to invent
+		// one.
+		if target.Domain == DomainStatistics {
+			if op != OpEq && op != OpNe {
+				return p.queryErr(ErrBadValue, string(target.Domain), name, pos,
+					"AQL null values support $eq and $ne only on field %s", name)
+			}
+			return nil
+		}
 		return p.queryErr(ErrBadValue, string(target.Domain), name, pos,
 			"AQL null values are not supported for field %s (only statistics-domain fields use null)", name)
 	}

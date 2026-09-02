@@ -677,3 +677,152 @@ func TestQueryNodesBehavior(t *testing.T) {
 		}
 	})
 }
+
+// TestT440StatisticsCompileSnapshot pins the statistics-domain compile
+// arms (M16 T-440, aql.md §14.1): the three counting-column comparators,
+// the null literal's structural-zero predicates (QueryZero — the raw
+// column, never the julianday projection), and the lazy counting-column
+// projection tail.
+func TestT440StatisticsCompileSnapshot(t *testing.T) {
+	const statsTail = ", nodes.download_count, nodes.last_downloaded_at, nodes.last_downloaded_by FROM nodes"
+	tests := []struct {
+		name     string
+		query    NodeQuery
+		wantSQL  string
+		wantArgs []any
+	}{
+		{
+			name:     "counter comparator reads the raw column",
+			query:    NodeQuery{Where: &QueryCompare{Field: QueryDownloads, Op: QueryGte, Value: int64(3)}},
+			wantSQL:  aqlSelectPrefix + " FROM nodes WHERE nodes.download_count >= ? ORDER BY nodes.repo_key, nodes.path",
+			wantArgs: []any{int64(3)},
+		},
+		{
+			name: "downloaded comparator normalizes both sides",
+			query: NodeQuery{Where: &QueryCompare{Field: QueryDownloaded, Op: QueryLt,
+				Value: "2026-09-01T13:00:00.000Z"}},
+			wantSQL:  aqlSelectPrefix + " FROM nodes WHERE julianday(nodes.last_downloaded_at) < julianday(?) ORDER BY nodes.repo_key, nodes.path",
+			wantArgs: []any{"2026-09-01T13:00:00.000Z"},
+		},
+		{
+			name: "null literal compiles to the structural zero on the raw columns",
+			query: NodeQuery{Where: &QueryAnd{Children: []NodePredicate{
+				&QueryZero{Field: QueryDownloads},
+				&QueryZero{Field: QueryDownloaded, Negate: true},
+				&QueryZero{Field: QueryDownloadedBy},
+			}}},
+			wantSQL: aqlSelectPrefix + " FROM nodes WHERE (nodes.download_count = ?" +
+				" AND nodes.last_downloaded_at <> ?" +
+				" AND nodes.last_downloaded_by = ?) ORDER BY nodes.repo_key, nodes.path",
+			wantArgs: []any{int64(0), "", ""},
+		},
+		{
+			name: "statistics projection appends the counting columns",
+			query: NodeQuery{
+				Where:  &QueryFolderTest{},
+				Fields: []QueryField{QueryName, QueryDownloads, QueryDownloaded, QueryDownloadedBy},
+			},
+			wantSQL:  aqlSelectPrefix + statsTail + " WHERE nodes.path NOT LIKE '%/' ORDER BY nodes.repo_key, nodes.path",
+			wantArgs: nil,
+		},
+		{
+			name: "downloaded sort key rides the julianday expression",
+			query: NodeQuery{
+				Where: &QueryFolderTest{},
+				Sort:  []NodeSort{{Field: QueryDownloaded, Asc: true}},
+			},
+			wantSQL: aqlSelectPrefix + " FROM nodes WHERE nodes.path NOT LIKE '%/'" +
+				" ORDER BY julianday(nodes.last_downloaded_at) ASC, nodes.repo_key, nodes.path",
+			wantArgs: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotSQL, gotArgs, err := compileNodeQuery(tt.query)
+			if err != nil {
+				t.Fatalf("compileNodeQuery: %v", err)
+			}
+			if gotSQL != tt.wantSQL {
+				t.Errorf("sql:\n got %s\nwant %s", gotSQL, tt.wantSQL)
+			}
+			if fmt.Sprint(gotArgs) != fmt.Sprint(tt.wantArgs) {
+				t.Errorf("args:\n got %#v\nwant %#v", gotArgs, tt.wantArgs)
+			}
+		})
+	}
+	if _, _, err := compileNodeQuery(NodeQuery{Where: &QueryZero{Field: QueryRepo}}); err == nil {
+		t.Fatal("a zero-value predicate on a non-statistics field must fail")
+	}
+}
+
+// TestT440StatisticsExecutorArms runs the counting columns through the
+// executor: CountDownload lands the values, the statistics projection
+// reads them back, and the zero predicates filter on them (T-438's single
+// counting channel consumed by the T-440 query plane).
+func TestT440StatisticsExecutorArms(t *testing.T) {
+	st := openTest(t)
+	ctx := context.Background()
+	putRepo(t, st, "stats")
+	const ts = "2026-09-01T10:00:00Z"
+	for _, sha := range []string{strings.Repeat("a", 64), strings.Repeat("b", 64)} {
+		if err := st.Blobs().Put(ctx, &Blob{Sha256: sha, Size: 5, CreatedAt: ts}); err != nil {
+			t.Fatalf("put blob: %v", err)
+		}
+	}
+	if err := st.Nodes().Put(ctx, &Node{
+		RepoKey: "stats", Path: "hot.bin", Sha256: strings.Repeat("a", 64), Size: 5,
+		Mime: "application/octet-stream", CreatedBy: "alice", CreatedAt: ts, UpdatedAt: ts,
+	}); err != nil {
+		t.Fatalf("put hot: %v", err)
+	}
+	if err := st.Nodes().Put(ctx, &Node{
+		RepoKey: "stats", Path: "cold.bin", Sha256: strings.Repeat("b", 64), Size: 5,
+		Mime: "application/octet-stream", CreatedBy: "alice", CreatedAt: ts, UpdatedAt: ts,
+	}); err != nil {
+		t.Fatalf("put cold: %v", err)
+	}
+	for i := 0; i < 2; i++ {
+		if err := st.Nodes().CountDownload(ctx, "stats", "hot.bin", "bob",
+			"2026-09-01T12:00:00.000Z", false); err != nil {
+			t.Fatalf("count download: %v", err)
+		}
+	}
+	q := func(where NodePredicate, fields ...QueryField) []*NodeQueryRow {
+		t.Helper()
+		got, err := st.Nodes().(NodeQueryer).QueryNodes(ctx, NodeQuery{
+			Where:  &QueryAnd{Children: []NodePredicate{where, &QueryFolderTest{}}},
+			Fields: fields,
+		})
+		if err != nil {
+			t.Fatalf("QueryNodes: %v", err)
+		}
+		return got
+	}
+
+	rows := q(&QueryCompare{Field: QueryRepo, Op: QueryEq, Value: "stats"},
+		QueryDownloads, QueryDownloaded, QueryDownloadedBy)
+	if len(rows) != 2 {
+		t.Fatalf("rows = %d, want both files", len(rows))
+	}
+	byPath := map[string]*NodeQueryRow{}
+	for _, r := range rows {
+		byPath[r.Path] = r
+	}
+	if hot := byPath["hot.bin"]; hot.DownloadCount != 2 ||
+		hot.LastDownloadedAt != "2026-09-01T12:00:00.000Z" || hot.LastDownloadedBy != "bob" {
+		t.Fatalf("hot stats = %+v", hot)
+	}
+	if cold := byPath["cold.bin"]; cold.DownloadCount != 0 || cold.LastDownloadedAt != "" || cold.LastDownloadedBy != "" {
+		t.Fatalf("cold stats = %+v, want the structural zeros", cold)
+	}
+
+	// The zero predicates filter on the very columns the projection read.
+	never := q(&QueryZero{Field: QueryDownloads})
+	if len(never) != 1 || never[0].Path != "cold.bin" {
+		t.Fatalf("zero-arm rows = %v, want cold.bin only", never)
+	}
+	downloaded := q(&QueryZero{Field: QueryDownloads, Negate: true})
+	if len(downloaded) != 1 || downloaded[0].Path != "hot.bin" {
+		t.Fatalf("negated-zero rows = %v, want hot.bin only", downloaded)
+	}
+}

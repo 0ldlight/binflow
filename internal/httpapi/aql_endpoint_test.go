@@ -365,7 +365,7 @@ func TestSearchAQLRejections(t *testing.T) {
 		{"truncated syntax: E1 shape", `items.find({"repo":`, http.StatusBadRequest, "", "Failed to parse query:"},
 		{"unsupported domain names itself", `builds.find({})`, http.StatusBadRequest, "", "builds"},
 		{"unsupported domain via dotted entry", `build.promotions.find({})`, http.StatusBadRequest, "", "build"},
-		{"statistics field named", `items.find({"stat.downloads":{"$gt":1}})`, http.StatusBadRequest, "", "stat.downloads"},
+		{"statistics internal id named", `items.find({"stat.id":{"$eq":1}})`, http.StatusBadRequest, "", "stat.id"},
 		{"unknown field named", `items.find({"repossss":"x"})`, http.StatusBadRequest, "", "repossss"},
 		{"modified_by honest refusal", `items.find({"modified_by":"admin"})`, http.StatusBadRequest, "", "modified_by"},
 		{"$not refused by name", `items.find({"$not":{"repo":"x"}})`, http.StatusBadRequest, "", "$not"},
