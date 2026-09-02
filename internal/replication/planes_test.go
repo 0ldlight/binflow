@@ -28,6 +28,7 @@ type fakeMeta struct {
 	nodes map[string]map[string]*replication.NodeMeta // repoKey -> path -> meta
 	tags  map[string][]string                         // repoKey+"/"+image+"/"+hex -> tags
 	props map[string]map[string][]string              // repoKey+"/"+path -> properties (T-317)
+	files map[string][]replication.NodeFile           // repoKey -> path-ordered file nodes (T-420)
 }
 
 func (f *fakeMeta) PackageType(_ context.Context, repoKey string) (string, error) {
@@ -50,6 +51,17 @@ func (f *fakeMeta) DockerTags(_ context.Context, repoKey, image, digestHex strin
 
 func (f *fakeMeta) NodeProps(_ context.Context, repoKey, path string) (map[string][]string, error) {
 	return f.props[repoKey+"/"+path], nil
+}
+
+// RepoFiles mirrors the store seam's contract: path-ordered, limit-bounded
+// (0 = unbounded), folder markers never present in the fixture's data.
+func (f *fakeMeta) RepoFiles(_ context.Context, repoKey string, limit int) ([]replication.NodeFile, error) {
+	files := f.files[repoKey]
+	if limit > 0 && len(files) > limit {
+		files = files[:limit]
+	}
+	out := append([]replication.NodeFile(nil), files...)
+	return out, nil
 }
 
 // protoTarget records one request against a scripted protocol target.

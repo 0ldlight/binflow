@@ -613,6 +613,15 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// open them never reaches assembly.
 	deps.Replication = stack.replStore
 	deps.ReplicationCipher = replicationCipherSeam(stack.replCipher)
+	// The manual full-sync trigger (T-420, FR-138.1): THE engine instance
+	// startReplication drains — the seam must not assemble a second engine,
+	// or two workers would claim one ledger.
+	deps.ReplicationRunner = stack.replEngine
+	// The connection probe (T-422, FR-138.2) rides the same engine (its
+	// guarded client and SSRF posture), and the global block family
+	// (FR-138.3) rides the gate every consumer shares.
+	deps.ReplicationTester = stack.replEngine
+	deps.ReplicationBlocks = stack.replBlocks
 	// The OIDC login seam (T-157/T-179) rides the SAME live provider the
 	// auth service's Bearer arm verifies against — through the config
 	// manager's snapshot (T-305): the seam answers the CURRENT OAuth2
@@ -900,6 +909,11 @@ type stack struct {
 	metricsReg *metrics.Registry
 	replEngine *replication.Engine
 	replCipher *remote.Cipher
+	// replBlocks is the global blockPush/blockPull gate (T-422, FR-138.3):
+	// one instance shared by the engine (Blocks option), the REST block
+	// family (Deps.ReplicationBlocks) and the remote pull plane's installed
+	// probe — the last flip's state is what every consumer reads.
+	replBlocks *replication.BlockGate
 
 	// licenseMgr is the entitlement manager (M10 T-279, ADR-0032): built
 	// and loaded in openStack; its daily re-evaluation ticker starts with
@@ -1065,6 +1079,21 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 		return nil, err
 	}
 	replStore := replication.NewSQLiteStore(replDB)
+	// The global blockPush/blockPull gate (T-422, FR-138.3): the persisted
+	// replication_globals row is authoritative; a fresh database seeds it
+	// once from the binflow.yaml replication.block_push/block_pull keys
+	// (the K31 dual-source posture). One gate instance serves the engine,
+	// the REST block family and the remote pull plane's probe.
+	replBlocks := replication.NewBlockGate(replStore, replication.GlobalBlock{
+		BlockPush: cfg.Replication.BlockPush,
+		BlockPull: cfg.Replication.BlockPull,
+	}, nil, logger)
+	if err := replBlocks.Load(ctx); err != nil {
+		_ = replDB.Close()
+		_ = st.Close()
+		_ = md.Close()
+		return nil, fmt.Errorf("wiring replication block gate: %w", err)
+	}
 	replCipher, err := replicationCipher()
 	if err != nil {
 		_ = replDB.Close()
@@ -1088,6 +1117,9 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 		// the source repository's package type. Without it every task takes
 		// the generic REST plane — correct for generic/maven only.
 		Meta: replication.NewStoreMetaSource(md),
+		// The global push-block gate (T-422, §9.2-B): blocks event enqueues,
+		// task claims and manual triggers while the brake is on.
+		Blocks: replBlocks,
 	})
 	if err != nil {
 		_ = replDB.Close()
@@ -1095,6 +1127,12 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 		_ = md.Close()
 		return nil, fmt.Errorf("wiring replication engine: %w", err)
 	}
+	// An UNBLOCK resumes the parked queue immediately (the wake hook); the
+	// pull half of the brake feeds the remote pull-through plane's probe
+	// (the engine is assembled inside repo.New, so an installed probe is
+	// the minimal seam — see internal/remote/pullblock.go).
+	replBlocks.SetWake(replEngine.Kick)
+	remote.InstallPullBlockProbe(replBlocks.PullBlocked)
 	repo.AttachReplicator(svc, replEngine)
 
 	// The entitlement manager (M10 T-279, ADR-0032): embedded verify keys,
@@ -1267,6 +1305,7 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 		metricsReg:     metricsReg,
 		replEngine:     replEngine,
 		replCipher:     replCipher,
+		replBlocks:     replBlocks,
 		licenseMgr:     licenseMgr,
 		cleanupEng:     cleanupEng,
 		trashEng:       trashEng,

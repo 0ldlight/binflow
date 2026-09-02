@@ -29,9 +29,12 @@ import {
   deleteReplicationConfig,
   listReplicationConfigs,
   putReplicationEnabled,
+  testReplicationConfig,
+  testReplicationDraft,
   validateReplicationName,
   validateReplicationTargetURL,
 } from '../../lib/replications'
+import type { ReplicationTestResult } from '../../lib/replications'
 import type { ReplicationConfig, ReplicationConfigBody } from '../../lib/replications'
 import { useAsync } from '../../lib/useAsync'
 
@@ -52,6 +55,11 @@ import { useAsync } from '../../lib/useAsync'
 // - 编辑语义（REST 无字段级 PUT 的票内定案）：保存 = **删除 + 重建**
 //   （DELETE+POST）——配置 id 变化、未决任务级联清空；表单内 repl-
 //   recreate-note 明示后果，仅启停走行内开关（T-405）。
+// - 表单 Test（T-422，FR-138.2/规格 §9.2-C/§9.3）：「测试连接」对表单当前
+//   候选发一次只读探测——创建态走草稿面（未保存直接测，§9.2-C-9），编辑
+//   态未改动时探已存配置（服务端解封已存凭据）；结果内联呈现（repl-test /
+//   repl-test-result 锚）。探测零副作用、凭据不回显不落日志（NFR-S75）、
+//   不看全局封锁态（§9.2-C-10——封锁拦执行不拦测试）。
 // - 门：读 = system:read（admin/readonly_admin；普通 user 403 → 本节降级
 //   注记）；写 = system:write（仅全量 admin——readonly_admin 只读呈现，
 //   服务端 403 兜底）。
@@ -198,6 +206,10 @@ export default function ReplicationsSection({
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<number | null>(null)
+  // T-422（FR-138.2）：表单 Test——草稿/已存配置的连通探测结果（内联呈现，
+  // 成功绿/失败红；探测零副作用、凭据不回显不落日志 NFR-S75）。
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState<ReplicationTestResult | null>(null)
   const rootRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
@@ -208,10 +220,12 @@ export default function ReplicationsSection({
 
   const startCreate = () => {
     setFormError(null)
+    setTestResult(null)
     setEditor({ base: null, form: { ...CREATE_FORM } })
   }
   const startEdit = (c: ReplicationConfig) => {
     setFormError(null)
+    setTestResult(null)
     setEditor({ base: c, form: editForm(c) })
   }
 
@@ -290,6 +304,49 @@ export default function ReplicationsSection({
       )
     } finally {
       setBusyId(null)
+    }
+  }
+
+  // T-422（FR-138.2）：表单 Test——创建态走草稿面（未保存候选直接测，
+  // §9.2-C-9）；编辑态表单未改动且未输入新密码时探已存配置（服务端解封
+  // 已存凭据），任一改动则整候选草稿测（旧密文绝不随新候选外发）。探测
+  // 零副作用、凭据不回显（NFR-S75）；不看全局封锁态（§9.2-C-10）。
+  const doTest = async () => {
+    if (!editor) return
+    const { base, form } = editor
+    setTesting(true)
+    setTestResult(null)
+    setFormError(null)
+    try {
+      let res: ReplicationTestResult
+      if (!base) {
+        res = await testReplicationDraft({
+          ...(form.name.trim() !== '' ? { name: form.name.trim() } : {}),
+          target_url: form.targetUrl.trim(),
+          target_repo: form.targetRepo.trim(),
+          target_username: form.username.trim(),
+          target_password: form.password,
+        })
+      } else {
+        const unchanged =
+          form.targetUrl.trim() === base.target_url &&
+          form.targetRepo.trim() === base.target_repo &&
+          form.username.trim() === base.target_username &&
+          form.password === ''
+        res = unchanged
+          ? await testReplicationConfig(base.id)
+          : await testReplicationConfig(base.id, {
+              target_url: form.targetUrl.trim(),
+              target_repo: form.targetRepo.trim(),
+              target_username: form.username.trim(),
+              ...(form.password !== '' ? { target_password: form.password } : {}),
+            })
+      }
+      setTestResult(res)
+    } catch (err) {
+      setFormError(`测试连接无法执行：${errText(err)}`)
+    } finally {
+      setTesting(false)
     }
   }
 
@@ -645,6 +702,21 @@ export default function ReplicationsSection({
             </Alert>
           )}
 
+          {testResult && (
+            <Alert
+              severity={testResult.ok ? 'success' : 'error'}
+              data-testid="repl-test-result"
+              role="status"
+              sx={{ mt: 2 }}
+            >
+              <div lang="en">{testResult.message}</div>
+              <div>
+                {testResult.ok ? '目标可达且凭据被接受' : '探测未通过'}
+                {testResult.status_code > 0 ? `（目标应答 HTTP ${testResult.status_code}）` : '（未触达目标）'}
+              </div>
+            </Alert>
+          )}
+
           <div className="form-actions">
             <Button
               variant="outlined"
@@ -653,10 +725,21 @@ export default function ReplicationsSection({
               onClick={() => {
                 setEditor(null)
                 setFormError(null)
+                setTestResult(null)
               }}
               data-testid="repl-form-cancel"
             >
               取消
+            </Button>
+            <Button
+              variant="outlined"
+              size="small"
+              disabled={!!urlErr || f.targetRepo.trim() === '' || testing || saving}
+              title="对表单当前候选发一次只读连通探测（不落盘、不看封锁态）"
+              onClick={() => void doTest()}
+              data-testid="repl-test"
+            >
+              {testing ? '测试中…' : '测试连接'}
             </Button>
             <Button
               variant="contained"

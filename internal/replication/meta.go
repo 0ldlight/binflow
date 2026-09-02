@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/lzwzzy/binflow/internal/metadata"
 )
@@ -39,6 +40,14 @@ type NodeMeta struct {
 	Sha256 string
 }
 
+// NodeFile is one FILE node reference: the address a full-sync trigger (T-420)
+// seeds one pending task from — the repo-relative path and the blob it points
+// at, nothing else (properties and mime travel the push planes' own lookups).
+type NodeFile struct {
+	Path   string
+	Sha256 string
+}
+
 // MetaSource is the engine's read-only view of the source instance's
 // metadata. Implementations must be safe for concurrent use.
 type MetaSource interface {
@@ -57,6 +66,12 @@ type MetaSource interface {
 	// map — the push plane reads this at PUSH time, so properties attached
 	// between landing and the drain ride the same task.
 	NodeProps(ctx context.Context, repoKey, path string) (map[string][]string, error)
+	// RepoFiles lists the repository's FILE nodes ordered by path — the
+	// full-sync trigger's enumeration (T-420). limit > 0 caps the row count
+	// (callers pass the config's MaxItemsPerPush cap+1 probe); 0 is
+	// unbounded. Folder marker rows are never returned; a repository without
+	// artifacts answers an empty slice, not an error.
+	RepoFiles(ctx context.Context, repoKey string, limit int) ([]NodeFile, error)
 }
 
 // StoreMetaSource implements MetaSource over an opened metadata store. It is
@@ -123,4 +138,32 @@ func (s *StoreMetaSource) NodeProps(ctx context.Context, repoKey, path string) (
 		return nil, fmt.Errorf("node properties %s/%s: %w", repoKey, path, err)
 	}
 	return props, nil
+}
+
+// RepoFiles implements MetaSource (T-420): every FILE node of the repository,
+// path-ordered, through the metadata store's node-search seam — the read-only
+// listing the M15 search wave already serves (an empty PathFilter matches
+// every file node, folder markers excluded, LIMIT applied SQL-side), so the
+// trigger adds no new metadata surface. A store that carries no search seam
+// (none today) answers a plain error the REST face surfaces as a 500.
+func (s *StoreMetaSource) RepoFiles(ctx context.Context, repoKey string, limit int) ([]NodeFile, error) {
+	searcher, ok := s.md.Nodes().(metadata.NodeSearcher)
+	if !ok {
+		return nil, fmt.Errorf("source repo %s: metadata store carries no node search seam", repoKey)
+	}
+	nodes, err := searcher.SearchByPath(ctx, metadata.PathFilter{}, limit, []string{repoKey})
+	if err != nil {
+		return nil, fmt.Errorf("source repo %s: enumerate file nodes: %w", repoKey, err)
+	}
+	out := make([]NodeFile, 0, len(nodes))
+	for _, n := range nodes {
+		// nodeQuery already excludes folder rows; the suffix/marker guards
+		// keep a mangled row from becoming a task that can never push.
+		if n.Path == "" || n.Sha256 == "" || strings.HasSuffix(n.Path, "/") ||
+			n.Sha256 == metadata.FolderMarkerSHA {
+			continue
+		}
+		out = append(out, NodeFile{Path: n.Path, Sha256: n.Sha256})
+	}
+	return out, nil
 }

@@ -1,12 +1,12 @@
 # PRD — M15 搜索基建专程（AQL 首程）：AQL 查询语言与执行引擎 + 老搜索首批端点 + virtual 聚合浏览收口 + 复制包 B 首批
 
-> **PRD 状态：v1.0 草案（2026-09-01，待 conductor 审）**。主轴选题：**AQL 专程**——主矩阵十大缺口 2（「查询面：企业日常操作入口」），**两度让位后第三程兑现**（M13 主轴让位 webhook〔M13 PRD §2.2 列「M14 专程候选第一顺位」〕→ M14 主轴让位 UI-parity〔用户指令 2026-08-30，M14 PRD §2.2 留痕「滚 M15 专程候选第一顺位」〕——两次让位均非 PM 裁量，本程无用户指令不再旁移）。**取证路径特例（webhook.md 先例复用）**：AQL 有 JFrog 官方文档（语言/域/字段/分页/排序全覆盖）→ **官方文档为唯一行为基准**，inv-1 §E / inv-2 §1.C 反编译锚点补白（端点形态/域清单/QRL 并发上限）；**t226 活体核验腿可用**（AQL 系 AddonType `oss` 档——inv-2 §3 枚举，OSS 7.84.10 实例可活体对照，无 replication 式 entitlement 锁）。范围基线：ROADMAP「M14 未纳入项」（已启用候选池——PM 收编裁决 §2.2 逐条留痕）+ T-406 遗留两项 + 复制包 B 首批（T-402a ②段登记）。**体量判定：AQL 超单里程碑 → 分阶段建议（§1.1 输入 5 / §2.2 / Q1 终裁）——M15 = AQL 核心（item+property 域 + 引擎 + 分页）/ M16 = AQL 高级面（statistics/usage 域 + QRL 全量 + UI 搜索族）**。
+> **PRD 状态：v1.1 收口笔（2026-09-02，T-427——PM 执行期 Q 终裁联动回写；终版归 m15-done 收口窗〔conductor〕。v1.0 已转正：conductor 2026-09-01 09:1x——Q5/Q6 即裁）**。主轴选题：**AQL 专程**——主矩阵十大缺口 2（「查询面：企业日常操作入口」），**两度让位后第三程兑现**（M13 主轴让位 webhook〔M13 PRD §2.2 列「M14 专程候选第一顺位」〕→ M14 主轴让位 UI-parity〔用户指令 2026-08-30，M14 PRD §2.2 留痕「滚 M15 专程候选第一顺位」〕——两次让位均非 PM 裁量，本程无用户指令不再旁移）。**取证路径特例（webhook.md 先例复用）**：AQL 有 JFrog 官方文档（语言/域/字段/分页/排序全覆盖）→ **官方文档为唯一行为基准**，inv-1 §E / inv-2 §1.C 反编译锚点补白（端点形态/域清单/QRL 并发上限）；**t226 活体核验腿可用**（AQL 系 AddonType `oss` 档——inv-2 §3 枚举，OSS 7.84.10 实例可活体对照，无 replication 式 entitlement 锁）。范围基线：ROADMAP「M14 未纳入项」（已启用候选池——PM 收编裁决 §2.2 逐条留痕）+ T-406 遗留两项 + 复制包 B 首批（T-402a ②段登记）。**体量判定：AQL 超单里程碑 → 分阶段建议（§1.1 输入 5 / §2.2 / Q1 终裁）——M15 = AQL 核心（item+property 域 + 引擎 + 分页）/ M16 = AQL 高级面（statistics/usage 域 + QRL 全量 + UI 搜索族）**。
 
 | 项 | 值 |
 |---|---|
 | 文档 | `docs/prd/milestone-15.md` |
 | 里程碑 | M15 — 搜索基建专程（AQL 首程）——AQL 规格票与语言/执行引擎（item+property 域 + include/sort/offset/limit + ACL 同源过滤 + 资源治理门简化版）+ 老搜索首批端点（gavc/prop/pattern——SR-03/SR-04 断言反转）+ 控制台搜索面升级 + virtual 仓聚合浏览（FR-21-AC8 兑现）+ remote 远端浏览评估票 + 复制包 B 首批（Replicate Now / Test / blockPush·blockPull；cron 双轨 Q5）+ 契约漂移与后端硬化小包（mint 500→400 / remote busy 重试预算）+ 工程债与文面小包 |
-| 状态 | v1.0 草案（FR-132~FR-140 九条需求；契约矩阵 12 条〔A 9 / C 2 / 待裁 1——LC-68~LC-79 续接 M14 编号〕+ 档位矩阵增量 0 行〔19 槽维持〕+ **搜索域端点全景归属表**〔§5.7——14 端点族逐条不留模糊地带〕；L20~L34 验收命令骨架；开放问题 Q1~Q7 带暂行；K62~K66 待校准） |
+| 状态 | **v1.1 收口笔（2026-09-02，T-427）**——Q 总账归位（Q4/Q5/Q6 终裁落章 / Q2·Q3 随 aql.md + ADR-0043 规格回写归位 / Q1 收口窗终裁〔材料已齐 §7〕/ Q7 维持登记）；契约矩阵 12 条终版〔**A 10 / C 2 / 待裁 0**——LC-76 归 A（Q4 终裁出口 C 批 1）〕+ §5.7 全景表 as-built 对账（+archive/latestVersionByProperties 两外挂端点补登）；K62~K66 全量回填实装值；断言反转三处已落 + K64 局部翻转留痕；ROADMAP「M15 未纳入项」备稿落笔（intake ⑤ M16 全翻案语境衔接标注）。（v1.0 基线：FR-132~FR-140 九条需求；档位矩阵增量 0 行〔19 槽维持〕；L20~L34 验收命令骨架） |
 | 上游依据 | PRODUCT.md（高频子集承诺——AQL 只承诺语言子集；Non-goals 不越界：不为 AQL 而建 Build-info/Release Bundle 域）、ROADMAP「M14 未纳入项」（候选池已启用——主轴候选/滚程三项/执行期改判与出口登记/票级遗留三簇/条件票出口/范围增补留痕/T-406 收口笔并入两项）、docs/reverse/inv-1-core.md（§E AQL 行〔`POST /api/search/aql?compact` + 九域清单 + SQL builder/optimizer + AqlTooManyRequestsException 接 QRL——高置信〕+ QRL 行〔`v1/system/query_rate_limiter` 三态 + 指标 job〕）、docs/reverse/inv-2-surface.md（§1.C 14 种老搜索端点枚举 + UI 搜索族〔artifactsearch/stashResults/packagesSearch/syntax-search〕+ **§3 AddonType `oss` 档含 AQL**——档位映射与活体核验依据）、docs/reverse/artifactory-full-feature-matrix.md（十大缺口 2 + §338 子集建议〔「可先做 artifact/gavc/pattern 子集 + 简化查询语言」——本 PRD 分阶段策略的同源依据〕+ §限流 QRL 行）、docs/reverse/rest-api.md（§4 checksum 搜索高置信——既有面回归基线）、JFrog 官方文档（AQL 语言/域字段/操作符/include·sort·offset·limit + Artifactory REST Search 域——**唯一行为基准，webhook.md 先例**）、docs/design/architecture.md（nodes 表列面〔repo_key/path/sha256/size/mime/created_by/created_at/updated_at——name/depth 由 path 派生〕+ §15.3.2 node_props 关联表与 `idx_node_props_name` 预留索引〔**M10 预留索引的兑现票**〕）、docs/prd/milestone-3.md（FR-21-AC8——virtual 聚合浏览 P2 未兑）、docs/prd/milestone-4.md（SR-01/02 已有面 + SR-03 gavc「P2 still closed」+ SR-04 未实现族 404 断言 + §5.5 K2 匹配语义暂行〔「Artifactory 语义待逆向校准」——M4 起欠账本程清偿〕）、docs/prd/milestone-13.md（§2.2 AQL 滚程留痕 + webhook.md 官方文档基准先例 + 体例）、docs/prd/milestone-14.md（体例 + LC-67/Fr-131/L19/Q7 止编号续接 + §2.2 AQL 让位留痕）、BOARD.md M14 收口节（T-406 遗留两项 + 复制包 B 登记〔T-402a ②段——cron 双轨/Replicate Now/Test/全局封锁「产品语义决策非纯 parity，滚 M15 候选 + Q 项登记」〕+ T-386 mint 契约漂移〔500≠400〕+ T-399 F1 首红 103.36MB + m14-done 收口笔〔F1 调基 120MB / M15 候选池开局 AQL 第一顺位〕）、reports/agents/T-402a.md（R 系条目 + 包 B 双源材料 + t226 OSS entitlement 锁实证——AQL 无此锁的反面参照）、reports/agents/T-406.md（remote 缓存浏览/virtual 成员感知空态 as-built）、reports/agents/T-377.md（D1 busy——24 路 0.27% SQLITE_BUSY）、reports/agents/T-364.md §5-③ + T-366.md §4-2（Replay/outbox 行级登记）、reports/agents/T-367.md（成员同型）、reports/agents/T-386.md（mint 漂移登记 + Q4 Tokens 字段集降级）、docs/reverse/replication.md（包 B 域面基线）、docs/reverse/npm.md（K60 先例——端点族规格化体例）、ADR-0001（clean-room——AQL 公开文档优先条款）、ADR-0041（webhook.md「官方文档为唯一行为基准」先例 + outbox 引擎——Replicate Now 的任务载体参照） |
 | 下游消费者 | tech-lead（拆票——票号 T-407 起；宽度 ≤2 内建，§1.3 分票提示）、reverse-engineer（**aql.md 新建**——官方文档逐条锚点 + inv 补白 + t226 活体核验腿 + 搜索域口径归一；replication.md 增量段——包 B 双源材料）、architect（**ADR-0043**：AQL 引擎架构〔文法子集/AST→参数化 SQL 映射/ACL 织入/资源治理/错误形态〕；httpapi WriteTimeout 与长查询的交互随本 ADR 评审——T-392 登记归 architect）、dev-go-core（AQL 引擎 + 老搜索端点 + virtual 聚合 + mint 修正 + busy 预算——主 lane）、dev-registry-adapter（remote 远端浏览评估票的 per-协议上游枚举能力面）、dev-frontend（搜索面升级 + L2 自有增强 + member-pop/列选器推广）、qa-engineer（t226 AQL 活体核验腿 + L20~L34 + 断言反转两处核实 + 双形态回归）、tech-writer（AQL 用户指南 + 搜索 API 参考 + 搜索页/浏览/复制文档增量）、release-engineer（烟测 + UAT 随里程碑 PR）、conductor（Q1~Q7 裁决窗 + tag m15-done） |
 
@@ -16,7 +16,8 @@
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
-| v1.0 | 2026-09-01 | 初版草案（待 conductor 审）：M15 范围（主轴 AQL 专程首程 + 候选池收编〔virtual 聚合 P1 / 复制包 B 首批 P1/P2 / mint 修正 P1 / busy 预算 P2 / L2 增强 P2 / 债包 P2〕+ 评估票 remote 远端浏览）、FR-132~FR-140、契约矩阵 LC-68~LC-79（A 8 / C 3 / 待裁 1）+ 搜索域端点全景归属表（§5.7）、档位矩阵增量 0 行、L20~L34、开放问题 Q1~Q7 带暂行（AQL 分阶段边界为 Q1 首裁项）；随稿完成 ROADMAP M15 立项行 + 当前里程碑头切换（PM 职责内两处，沿 M13/M14 v1.0 先例） |
+| v1.0 | 2026-09-01 | 初版草案（待 conductor 审）：M15 范围（主轴 AQL 专程首程 + 候选池收编〔virtual 聚合 P1 / 复制包 B 首批 P1/P2 / mint 修正 P1 / busy 预算 P2 / L2 增强 P2 / 债包 P2〕+ 评估票 remote 远端浏览）、FR-132~FR-140、契约矩阵 LC-68~LC-79（A 8 / C 3 / 待裁 1）+ 搜索域端点全景归属表（§5.7）、档位矩阵增量 0 行、L20~L34、开放问题 Q1~Q7 带暂行（AQL 分阶段边界为 Q1 首裁项）；随稿完成 ROADMAP M15 立项行 + 当前里程碑头切换（PM 职责内两处，沿 M13/M14 v1.0 先例）。**当日转正**：conductor 2026-09-01 09:1x（Q5 不引入 cron / Q6 docker virtual 开禁即裁；Q1/Q3 暂行确认） |
+| v1.1 | 2026-09-02 | **T-427 PM Q 终裁联动回写（收口笔）**（依据：aql.md〔T-407 五定案〕+ ADR-0043 及三笔勘误 + T-425 Q4 材料与终裁 + 各实现票 as-built）：① §7 Q1~Q7 逐项归位（终裁落章 3〔Q4 出口 C 批 1——LC-76 归 A / Q5 cron 不引入 / Q6 开禁→T-431〕+ 规格回写归位 2〔Q2 K63 定案 / Q3 400 维持〕+ 维持暂行 2〔Q1 收口窗必裁材料齐 / Q7 登记型〕）；② §5.6 K62~K66 全量回填实装值（K63 定案 1000/4/10s/429+Retry-After/**408**——503 暂行作废；K64 局部翻转——大小写不敏感对齐；K65 不顺车判 M16）；③ 契约矩阵 LC-68~79 终版（LC-76 待裁→A；as-built 状态逐行回填——计数 A 10 / C 2 / 待裁 0）；④ FR-133.1/133.3/133.4/134.5/134.6 规格校准落笔（$not 不存在 / C 层增强文案 / K63 定案 / K65 判定 / K64 落笔）；⑤ §5.4 断言反转三处 + K64 as-built 回写核对、§5.7 全景表 as-built 对账（+两外挂端点补登）、§8/§9 执行态注；⑥ ROADMAP「M15 未纳入项」备稿段落笔（T-427 票面 AC——启用归 conductor 收口窗；**intake ⑤ M16 全翻案语境逐条衔接标注**） |
 
 ---
 
@@ -30,7 +31,7 @@ M14 以 `m14-done`（2026-09-01，T-400 终验 PASS 五 AC 全绿）收官：UI-
 2. **候选池收编（ROADMAP「M14 未纳入项」已启用，PM 裁量 §2.2 留痕）**：T-406 遗留两项（virtual 聚合浏览〔FR-21-AC8 P2——用户主诉「无法展示制品」的 P0 热修收口后的自然补全〕+ remote 远端浏览〔评估票——per-协议上游枚举语义决策〕）；执行期候选（mint 500≠400 契约漂移修正〔T-386 登记〕、复制包 B 首批、L2 自有增强）；滚程三项维持滚程（Replay REST / busy 预算 / 成员同型——其中 busy 预算改判收编：BE 里程碑回归窗一次覆盖，§2.2 留痕）。
 3. **老搜索并轨（同域合并评估，任务给定）**：inv-2 §1.C 枚举 14 种老搜索端点（BinFlow 已有 2、关闭 12）——与 AQL 共享同一查询引擎基座（nodes/node_props → SQL），并轨立项分批实现；M4 起的两笔欠账同场清偿：SR-03（gavc「P2 still closed」）与 §5.5 K2（artifact name 匹配语义「待逆向校准」）。
 4. **M14 as-built 基线**：T-406 落地「remote 仓列缓存行（浏览不回源）+ virtual 成员感知空态」——FR-136 virtual 聚合落地后，`tree-empty-virtual` 空态锚将翻转为聚合实态（断言反转登记 §5.4）；T-405 落地 replication `PUT /{id}` enabled 最小面——包 B 首批在其上叠加，无返工。
-5. **分阶段策略（PM 建议，Q1 终裁）**：AQL 九域中 BinFlow 基座就绪度分层清晰——item/property 域基座全备（nodes 表 + M10 node_props/预留索引）；statistics/usage 域 **dep 下载计数基建**（BinFlow 无 per-node 下载统计——M11 登记的 statisticsEnabled 行为化「待 stats 面立项」同族）；build/module/dependency/promotion/releasebundle/sensitive 域 **dep Build-info 域与 Release Bundle 域立项**（候选池在案未排期——不为 AQL 而建功能本体，与 M14 §2.2「不为对齐而建」同构防线）。故 **M15 = AQL 核心（item+property 域 + 语言/引擎/分页 + 老搜索首批 + 资源门简化版）/ M16 = AQL 高级面（statistics/usage 域〔dep stats 基建〕+ QRL 全量三态 + UI 搜索族〔stashResults/packagesSearch/syntax-search〕+ 剩余老搜索）**——「客户端真实可用」准绳：一个能被真实 curl/jf 风格脚本走通的 AQL 子集 > 九域只有 happy path。
+5. **分阶段策略（PM 建议，Q1 终裁）**：AQL 九域中 BinFlow 基座就绪度分层清晰——item/property 域基座全备（nodes 表 + M10 node_props/预留索引）；statistics/usage 域 **dep 下载计数基建**（BinFlow 无 per-node 下载统计——M11 登记的 statisticsEnabled 行为化「待 stats 面立项」同族）；build/module/dependency/promotion/releasebundle/sensitive 域 **dep Build-info 域与 Release Bundle 域立项**（候选池在案未排期——不为 AQL 而建功能本体，与 M14 §2.2「不为对齐而建」同构防线）。故 **M15 = AQL 核心（item+property 域 + 语言/引擎/分页 + 老搜索首批 + 资源门简化版）/ M16 = AQL 高级面（statistics/usage 域〔dep stats 基建〕+ QRL 全量三态 + UI 搜索族〔stashResults/packagesSearch/syntax-search〕+ 剩余老搜索）**——「客户端真实可用」准绳：一个能被真实 curl/jf 风格脚本走通的 AQL 子集 > 九域只有 happy path。**（v1.1 注：M15 侧五环已全落 as-built——T-409/411/413/415/417/419；Q1 收口窗终裁材料见 §7）**
 
 **不贪多**：M15 以「一条 P0 主线（AQL 规格票 → 引擎 → 老搜索首批 → 搜索面）+ 两条 P1 副线（virtual 聚合 / 复制包 B 首批）+ 小票与债包」为形态；任何 Q 触发的增项（dates/creation 余量顺车 / 远端浏览实现段 / docker virtual 矩阵开禁 / by-digest 强刷）必须走条件票/余量条款。
 
@@ -53,6 +54,8 @@ M14 以 `m14-done`（2026-09-01，T-400 终验 PASS 五 AC 全绿）收官：UI-
 | 复制包 B 首批 | Replicate Now：触发全量推送任务（幂等 + 任务状态可查）；blockPush/blockPull：全局封锁生效（新事件不入队/拉侧封锁）且 UI-API 不受门（t226 实测语义）；Test：上游可达+认证探测；cron 双轨 Q5 终裁留痕 | FR-138 |
 | 契约与硬化 | mint unknown username → 400（auth-model 3.1 逐字文案——as-built 500 漂移修正）；busy 预算：24 路并发缓存树重放零 5xx（0.27% 边角清零）+ SQLite 写路径专项回归 | FR-139 |
 | 资源与预算门 | footprint ≤100MB / check-size ≤120MB（m14-done 调基门）维持；冷启动 <2s；SPA 每票增量 ≤10KB；AQL 引擎净增量 footprint 可忽略（纯 Go 代码无新资产）；F1 六平台聚合趋势观察项登记（103.37MB → M15 不显著上浮） | §6.2 |
+
+> **v1.1 执行态注**（2026-09-02 04:3x 基线，M15 18/25 + T-432①）：AQL 全链 / ACL / 资源门 / 老搜索首批 / 搜索面 FE / virtual 聚合 / 远端浏览评估 / 复制包 B 首批（Replicate Now + Test + 封锁双开关）/ mint 400 / 文档票**已达标归档**（T-409~T-417/T-419/T-420/T-422/T-425/T-426——done 条目 BOARD 在档）；busy 预算（T-423）/ L2 快捷 + e2e 纪律（T-424）/ 文面簇（T-428）/ release（T-429）/ 终验（T-430）在途；docker virtual 开禁（T-431）波外候插空；QA 中期回归（T-421）押后至审计 workflow 完结（串行净机——共租负载教训）。
 
 ### 1.3 上游依赖与并行关系（含分票提示）
 
@@ -105,8 +108,8 @@ M14 以 `m14-done`（2026-09-01，T-400 终验 PASS 五 AC 全绿）收官：UI-
 | **剩余老搜索**（dates/creation/badChecksum/versions/latestVersion） | M16+（dates/creation 若规格票判 trivial 可余量顺车——K65 条件条款，非 DoD）；badChecksum dep 校验扫描遍历；versions/latestVersion dep 包型坐标语义细化 |
 | **Replay + outbox 行级 REST 面**（T-364 §5-③ + T-366 §4-2） | **滚 M16（webhook 域二程）维持**——M14 判定理由仍立（运营增强非协议兼容面、机制已备翻转面小）；新增理由：与 AQL 同挤 httpapi/dev-go-core lane，AQL 专程优先 |
 | **virtual 成员同型全包型推广**（T-367） | **滚 M16+ 维持**——需 13 包型 × 三 rclass 全量回归矩阵，dev-go-core 容量让位 AQL 专程；现态缺陷面窄 |
-| **remote 远端浏览实现段** | **Q4 三出口**（评估票 FR-137 产出后裁：全做/子集〔仅上游有枚举 API 的包型〕/维持缓存浏览）——回源列举系上游目录枚举语义决策，per-协议无统一规范，PM 暂行倾向子集（helm index/docker tags 类先行），不代拍 |
-| **cron 双轨**（Artifactory 用户级 cron 复制） | **Q5 终裁**——PM 建议不引入（事件驱动 + sweep 已证、Replicate Now 覆盖手动全量场景、双轨一致性成本），材料在案不代拍；终裁若引入则 M16 复制域二程 |
+| **remote 远端浏览实现段** | **Q4 已终裁（conductor 2026-09-02 04:2x）——出口 C 批 1**：helm + deb + rpm（可选档 `listRemoteFolderItems` 对位语义，**默认 false 维持缓存浏览 = T-406 as-built 同形态——不欠默认 parity，欠可选档**）；docker tags 腿不采（Artifactory 官方设置面未开放该型——做即超 parity L2）；maven/generic HTML 抓取族不做（官方未写算法，中置信无锚）；LC-76 归 A；实现段 ~3 票 M16 登记（ROADMAP「M15 未纳入项」Q 实现段——牵连 T-412 listVirtual remote 成员口径扩面） |
+| **cron 双轨**（Artifactory 用户级 cron 复制） | **Q5 已终裁（conductor 2026-09-01 09:1x）——不引入**：事件驱动 + 1min sweep 维持唯一引擎，手动全量场景 Replicate Now 承接（T-420 已落地：幂等收敛 + enabled:false → 409 + 双实例 sha256 一致实证）；M16 复制域二程不再列 cron 为实现项；**intake ⑤ 翻案语境下如重开，须列与本裁定冲突点交用户确认（BOARD 在档，不默默翻转）** |
 | **HA 本体 + Xray 集成面** | 沿 M12~M14 Q 终裁维持「单列专程」——前置 PRODUCT.md「明确不做」修订解禁（用户动作，截稿未发生） |
 | **E7 toast 锚位微调 / Q4 Tokens 字段集补核验** | 维持登记——E7 候用户信号（V3 实证显著不同但 BinFlow 既有有意设计，默认不改）；Tokens 候商业版/云活体源条件票（V6c 降级登记维持） |
 | **t381 事故残留清理**（VM 取证快照 15MB + 空仓） | conductor 决定项（非 PM 裁量）——登记维持；REST 删被 OSS license 门挡的处置随 conductor |
@@ -160,11 +163,11 @@ M14 以 `m14-done`（2026-09-01，T-400 终验 PASS 五 AC 全绿）收官：UI-
 
 行为规格：
 
-- **133.1 语言子集（aql.md 定案为准，暂行如下）**：`items.find(<criteria>)` 查询本体——item 域字段（repo/path/name/type/size/created/modified/created_by/modified_by/checksums 族——全集归规格票）、property 域嵌套匹配（`{"$and":[{"@key":{"$eq":"license"}},...]}` 形态或官方等价——**M10 node_props 预留索引 `idx_node_props_name` 的兑现消费**）、操作符集（`$eq/$ne/$lt/$lte/$gt/$gte/$match/$contains` 等官方集的 M15 子集）、`$and/$or/$not` 任意复合嵌套；尾缀方法链 `.include(<fields>)` / `.sort({$asc|$desc:[...]})` / `.offset(n)` / `.limit(n)`。
+- **133.1 语言子集（aql.md 定案为准，暂行如下）**：`items.find(<criteria>)` 查询本体——item 域字段（repo/path/name/type/size/created/modified/created_by/modified_by/checksums 族——全集归规格票）、property 域嵌套匹配（`{"$and":[{"@key":{"$eq":"license"}},...]}` 形态或官方等价——**M10 node_props 预留索引 `idx_node_props_name` 的兑现消费**）、操作符集（`$eq/$ne/$lt/$lte/$gt/$gte/$match/$nmatch` 官方 8 比较符 + `$last/$before` 相对时间——**v1.1 校准：`$contains` 不存在**，aql.md §2.4）、`$and/$or` 任意复合 + `$msp`（**v1.1 校准：`$not` 不存在**——官方 + 活体 400 双证，aql.md §0-1；v1.0「$not 任意复合」前提修正）；尾缀方法链 `.include(<fields>)` / `.sort({$asc|$desc:[...]})` / `.offset(n)` / `.limit(n)`（链序敏感——include→sort→offset→limit→distinct，aql.md §2.5 活体双证）。
 - **133.2 执行内核（ADR-0043 定案为准）**：AST → **参数化 SQL** 编译（nodes + node_props join；name/depth 由 path 派生的策略、sha1/md5 取数路径归 ADR）——**零字符串拼接**（注入面唯一红线）；ACL 谓词在 planner 织入（repo_key 维度，与 T-92 `SearchArtifacts` 同一 allow() 源——不另建权限通道）；结果装饰器（include 字段投影 + envelope 组装）。
-- **133.3 端点 wire**：`POST /api/search/aql`（body = AQL 文本）+ `?compact` 变体（紧凑结果形态——inv-1 §E 锚点，形态归规格票）；成功 200 envelope 照官方；语法错/非法字段/未支持域 → 400（E-01 errors[]；未支持域文案含 domain 名——诚实拒绝零伪空集，§1.4 条款 2）。
-- **133.4 资源治理门（K63 暂行，C 层自有设计）**：单查询结果上限（暂行 1,000 行——截断语义：返回 + 截断标记，offset/limit 分页可达全量）；并发上限（暂行 4——超限 429 + Retry-After）；执行超时（暂行 10s → 超时 400/503 形态归规格票锚定后定）；满载下零 5xx 零 OOM（结果集流式装饰）。
-- **133.5 virtual 仓语义**：照 aql.md 活体锚定结论（暂行：查询对象 = 实际存储行〔local + remote 缓存行〕，virtual 仓不作查询实体——Artifactory 同语义待活体确认，翻转则规格票回写）。
+- **133.3 端点 wire**：`POST /api/search/aql`（body = AQL 文本）+ `?compact` 变体（紧凑结果形态——inv-1 §E 锚点，形态归规格票）；成功 200 envelope 照官方；语法错/非法字段/未支持域 → 400（E-01 errors[]；未支持域文案含 domain 名——诚实拒绝零伪空集，§1.4 条款 2）。**（v1.1 注：Artifactory 对未支持/未知域走通用 parse error 400、无专门域文案——aql.md §2.1 活体双证；BinFlow 域名提示系 C 层增强文案，码位 400 一致不违 parity；T-409 双轨落地——语法 E1 逐字 / 域·字段·操作符 C 层增强）**
+- **133.4 资源治理门（K63 已定案并实装——v1.1 回填：ADR-0043 + 勘误 + T-413/T-415 as-built）**：单查询结果上限 **1,000 行**（截断语义：range.notification 官方逐字文案 + offset/limit 分页可达全量）；并发上限 **4**——超限 429 + Retry-After（内部常量零配置键）；执行超时 **10s → 408**（aql.md E7 官方错误码表 + ADR-0043 勘误定案——v1.0「400/503 形态待定」就此关闭，503 暂行作废）；查询长度 **6,000 字符门**（Parse 入口，字节 + rune 双条件）；满载下零 5xx 零 OOM（结果集流式装饰）。
+- **133.5 virtual 仓语义**：照 aql.md 活体锚定结论（暂行：查询对象 = 实际存储行〔local + remote 缓存行〕，virtual 仓不作查询实体）。**（v1.1 定案：aql.md §7——暂行口径成立**，且 virtual key 须作合法查询值**编译期透明展开**〔ADR-0043 勘误三分支——展开≠权限通道〕；结果行 repo 字段 = 实际成员仓 key；不存在的 repo key → 200 空集。t226 无 virtual 仓活体对拍降级留痕——官方 + 反编译双源定案，BinFlow e2e 对拍腿归 T-415 归档）
 
 验收标准（AC）：
 
@@ -186,8 +189,8 @@ M14 以 `m14-done`（2026-09-01，T-400 终验 PASS 五 AC 全绿）收官：UI-
 - **134.2 prop**：`GET /api/search/prop?props=<k>[=<v>]&repos=`——node_props 维度反查（M10 预留索引第二消费方）；参数形态照 aql.md 锚（官方 prop 搜索参数族）。
 - **134.3 pattern**：`GET /api/search/pattern?pattern=<repo>:<path-glob>`——通配路径匹配（`**/*.jar` 形态；与 AQL `$match` 共享匹配内核）。
 - **134.4 共通语义**：envelope `{"results":[FileInfo...]}`（FileInfo 形态复用 E-09/T-92 既有）；参数缺失/非法 → 400 E-01；ACL 同 FR-133（同一 allow() 源）；结果上限沿 K63（老搜索侧默认截断语义照 aql.md 锚）。
-- **134.5 dates/creation 余量条件（K65，P2 非 DoD）**：规格票若判 trivial（created 区间直查 nodes）可余量顺车；否则 M16（§5.7 归属表 M16+ 行）。
-- **134.6 K64 校准落笔**：`/api/search/artifact` name 匹配语义按 aql.md 结论执行（维持 LIKE 子串 / 或翻转官方语义——翻转则断言反转归属本票）。
+- **134.5 dates/creation 余量条件（K65——v1.1 判定：不顺车，M16）**：T-407 判「trivial」仅**数据腿**成立（created_at 单列区间直查）；**wire 腿非同构**（未命中 **404 `No results found.`** 空集族 + uri 瘦行〔非 E-09 FileInfo〕+ epoch 毫秒参数解析——aql.md §8.2），塞进本程只会做成半吊子（T-417 票内留痕）；M16 登记项含参数与行形态全集。
+- **134.6 K64 校准落笔（v1.1 已落 T-417）**：`/api/search/artifact` name 匹配语义 aql.md §0-5 三源定案执行——子串语义本体**维持**（无族级断言反转）+ **大小写不敏感翻转对齐**（BinFlow 原区分大小写系漂移——LOWER LIKE 折叠转义，ASCII 折叠局限登记）+ `*` 通配维持字面（官方/反编译均按字面处理）；断言更新归属 T-417 豁免票**已执行**（M4 §5.5 K2 欠账就此清偿）。
 
 验收标准（AC）：
 
@@ -323,37 +326,37 @@ M14 以 `m14-done`（2026-09-01，T-400 终验 PASS 五 AC 全绿）收官：UI-
 
 M15 不新增 addon 槽：**搜索域（AQL + 老搜索）按 Artifactory AddonType `oss` 档映射为 BinFlow 核心能力**（community 全可用——inv-2 §3 枚举依据；与 docker remote 走既有 docker 槽同构，搜索无槽）；复制包 B 消费既有 replication 域（M6 FR-57~60 / M11 FR-101 域面——非 addon 槽，规格票内核对档位归属如有出入回写）；virtual 聚合/浏览为既有 storage 域增量（无槽）。三态叠加规则、`addons.disabled` 熔断语义沿 M10 §5.2 不变。**注意**：Artifactory「Smart Searches」（保存搜索）系 pro 档——BinFlow 保存搜索面若远期立项须按槽裁决，本程不含。
 
-### 5.3 契约矩阵（12 条，LC-68~LC-79 续接 M14 编号）
+### 5.3 契约矩阵（12 条终版，LC-68~LC-79 续接 M14 编号——v1.1：LC-76 归 A，as-built 状态逐行回填）
 
-| # | 契约面 | Artifactory 对应 / 公开规范 | 层级 | 优先级 | 置信度 | 验收 |
+| # | 契约面 | Artifactory 对应 / 公开规范 | 层级 | 优先级 | 置信度（v1.1 as-built） | 验收 |
 |---|---|---|---|---|---|---|
-| LC-68 | `POST /api/search/aql`（+`?compact`）端点 wire——请求文本/envelope/错误码族 | 官方 REST 文档（唯一基准）+ inv-1 §E（高置信端点锚）；t226 活体对拍 | A | P0 | 高（端点）/ 以核验为准（envelope 边角——aql.md 回写后升格） | L21 |
-| LC-69 | AQL 语言子集——item+property 域 / 操作符集 / `$and·$or·$not` 复合 / `.include·.sort·.offset·.limit`；**未支持域 → 400 诚实拒绝** | 官方 AQL 文档全集的 M15 子集（子集边界表 = aql.md 定案）；statistics/usage M16、六域远期 dep（§5.7） | **A（子集注记）** | P0 | 高（语法主干官方全覆盖）/ 字段全集边角以核验为准 | L21/L22 |
-| LC-70 | 老搜索首批——`GET /api/search/gavc / prop / pattern`（参数族 + FileInfo envelope + 400 语义） | inv-2 §1.C 枚举（高置信）+ 官方 Search 文档；gavc 兼容子集沿 M4 §5.2 口径 | A | P0 | 高（端点族）/ 参数细节以 aql.md 为准 | L24 |
-| LC-71 | 既有 `artifact/checksum` 搜索语义维持 + name 匹配语义校准（M4 K2 欠账清偿） | T-92 as-built + aql.md 校准结论（K64） | A | P0 | 高（既有面） | L24 |
-| LC-72 | 搜索域 ACL——结果按调用者过滤（同一 allow() 源，越权仓零出现） | T-92 血统（console-ux §3「与内容面同一 allow() 路径」）；Artifactory 同语义（读权限过滤） | A | P0 | 高 | L23 |
-| LC-73 | 资源治理门——结果上限截断 + 并发上限 429 + 执行超时（K63 暂行） | inv-1 §E（QRL→AqlTooManyRequests 反编译锚）；**QRL 全量三态/REST/指标 M16+**——M15 简化版自有设计 | **C（简化自有——AQL 全量对齐面 M16）** | P0 | 中（429/超时形态待 aql.md 锚定回写） | L23 |
-| LC-74 | 控制台搜索面——AQL 模式编辑器 + 结果表 + 列选器三页推广（users/groups/search）+ member-pop hover | 消费既有/本程端点零新端点；列选器形态沿 LC-61（已锚）；AQL 编辑器形态 BinFlow 自有（Artifactory Smart Searches 系 pro 档保存搜索——不对齐） | A（列选器腿）/ C 注（AQL 编辑器腿） | P1 | 高（列选器）/ C 腿无对齐义务 | L25 |
-| LC-75 | virtual 聚合浏览——`GET /api/storage/<virtual>/<path>` children 成员并集（FR-21-AC8 逐字）+ 同名合并 + 解析顺序同源 | milestone-3 FR-21-AC8 + Artifactory virtual 浏览形态（t226 活体对照腿） | A | P1 | 高（AC8 逐字）/ children 排序细节以核验为准 | L26 |
-| LC-76 | remote 远端浏览——per-协议上游枚举能力矩阵 + 三出口（全做/子集/维持缓存浏览） | Artifactory remote browsing（官方文档 + t226 活体）；上游枚举无统一规范——语义决策 | **待裁（评估票 FR-137 产出 → Q4 终裁归位 A/C/D）** | P2（评估） | 以评估票为准 | L27 |
-| LC-77 | 复制包 B——Replicate Now（executereplicationnow 对位）/ blockPush·blockPull 全局封锁（UI-API 不受门）/ Test 连接 | 官方 REST 文档（主源——t226 entitlement 锁不可活体）+ T-402a R 系实测（列表列/▶ 形态已核） | A | P1/P2 | 中高（R 系已核形态）/ wire 细节待 replication.md 增量段锚定 | L28 |
-| LC-78 | mint unknown username 400——auth-model 3.1 既有语义归位（as-built 500 漂移修正，T-386 登记） | docs/reverse/auth-model.md 3.1（既有规格——非新增对齐面） | A | P1 | 高（规格在案） | L29 |
-| LC-79 | L2 行内快捷（复制 key / Set Me Up 直开）——非 parity 面自有增强 | T-381 §V4 建议（Artifactory 行尾无 ⋮——LC-60 D 层维持不破）；E1 不倒退 | **C（自有增强）** | P2 | —（自有设计） | L31 |
+| LC-68 | `POST /api/search/aql`（+`?compact`）端点 wire——text/plain 请求体 + `?query` 回退 + envelope/错误码族 | 官方 OpenAPI（唯一基准）+ inv-1 §E 端点锚 + t226 活体 36 探针（T-407） | A | P0 | 高——**已落地 T-415**（pretty/compact 双形态逐字节 + E-01/401/403/408/429 映射 + metrics 三组）；compact 非空行体中置信「规格待验证」留痕（活体实 415——aql.md §12 V 项） | L21 |
+| LC-69 | AQL 语言子集——item+property 域 / **v1.1 校准：$and·$or·$msp（$not 不存在）** / 8 比较符 + $last·$before / 链序敏感尾缀链 / 6,000 门；**未支持域 → 400 诚实拒绝**（C 层增强文案，码位一致） | 官方 AQL 文档全集的 M15 子集 + aql.md 五定案；statistics/usage M16、六域远期 dep（§5.7） | **A（子集注记）** | P0 | 高——**已落地 T-409/T-411**（17+2 字段闭集注册表 + 12 未支持域提示；参数化 SQL 零拼接——注入红线 7 形 × 8 恶意值；`idx_node_props_name` 经 EXPLAIN 断言兑现） | L21/L22 |
+| LC-70 | 老搜索首批——`GET /api/search/gavc / prop / pattern`（参数族〔prop 任意查询参数即属性键〕+ envelope + 200 空数组族 + 400 语义） | inv-2 §1.C（**14 计数定案**——T-407 勘误回写）+ 官方 Search 文档 + aql.md §8（pattern 对齐源 = 官方 Pro 文档语义，非 OSS 400 门行为） | A | P0 | 高——**已落地 T-417**（mvn 真坐标腿 / M10 属性腿 / 通配树；K63 截断同门；三端点 uri 瘦行族 vs BinFlow FileInfo 超集差异留痕不追改） | L24 |
+| LC-71 | 既有 `artifact/checksum` 搜索语义维持 + name 匹配语义校准（**K64 落笔：子串维持 + 大小写不敏感翻转 + `*` 字面**） | T-92 as-built + aql.md §0-5（官方措辞 + 活体 + 反编译三源） | A | P0 | 高——**已落 T-417**（K64 两臂断言；T-92 全量 spec 零改动通过 = 零回归证据；M4 §5.5 K2 欠账清偿） | L24 |
+| LC-72 | 搜索域 ACL——**两段织入**（SearchScope 集合谓词 + path-scoped 仓行级 CanRead 复核，同一 allow() 源，越权仓零出现） | aql.md §6（Artifactory 结果流侧行级过滤等价语义——BinFlow 走 SQL 谓词 + 行复核）；ADR-0043 pt4/5 | A | P0 | 高——**已落地 T-413**（auth.Authorizer include/exclude 模式**拒绝 SQL LIKE 翻译**——双真相源即泄漏，ADR 裁两段缝；virtual 展开≠权限通道） | L23 |
+| LC-73 | 资源治理门 K63 定案——上限 1,000 截断（range.notification 官方逐字）/ 并发 4 → 429 + Retry-After / 超时 10s → **408** / 6,000 门；内部常量零配置键 | aql.md §5 校准表（码位/文案 A 对齐：429 `too many requests`、408、6,000、截断通告；值域 C 层——Artifactory self-managed 无默认上限 / 并发默认 3 / REST 超时 900s，不硬仿）+ inv-1 §E QRL 反编译锚；QRL 全量三态/REST/指标 M16+ | **C（简化自有——AQL 全量对齐面 M16）** | P0 | 中高——**已落地 T-413/T-415**（408/429/截断 wire 全链；V-a 429 活体触发系语料限制以核验为准——T-426 留痕；真门并发饱和不可确定性 stub 同口径） | L23 |
+| LC-74 | 控制台搜索面——AQL 模式编辑器 + 结果表 + 列选器三页推广（users/groups/search）+ member-pop hover | 消费既有/本程端点**零新端点**；列选器形态沿 LC-61；AQL 编辑器 BinFlow 自有（Artifactory Smart Searches 系 pro 档保存搜索——不对齐） | A（列选器腿）/ C 注（AQL 编辑器腿） | P1 | 高——**已落地 T-414/T-419**（锚册 v1.27/v1.29；search 既有锚零改名——AQL 行复用；SPA +2,183B / +5,053B 预算内；服务端 diff=0） | L25 |
+| LC-75 | virtual 聚合浏览——`GET /api/storage/<virtual>/<path>` children 成员并集（FR-21-AC8 逐字）+ 同名路径**首成员胜** + 解析顺序同源（virtualMemberOrder） | milestone-3 FR-21-AC8 + aql.md §7-2（结果行 repo = 实际成员仓 key 同姿态）；t226 对照腿**降级**（实例无 virtual 仓——官方 + 反编译双源定案，BinFlow e2e 对拍替代） | A | P1 | 高——**已落地 T-412/T-416**（断言反转②；remote 成员仅缓存行〔T-406 listing 口径〕——**Q4 开档后 M16 扩面牵连点**；display-only marker 零落库〔ADR-0013〕） | L26 |
+| LC-76 | remote 远端浏览——**Q4 终裁（conductor 2026-09-02 04:2x）：出口 C 批 1 = helm + deb + rpm 可选档语义**（`listRemoteFolderItems` 对位，**默认 false = T-406 as-built 同形态，不欠默认 parity**） | Artifactory 官方设置面五型（Debian/Generic/Maven/Opkg/RPM）+《Browse Remote Repositories》专节（取决于上游支持——Maven Central 正例 / Docker Hub 反例）+ T-425 13 型能力矩阵；t226 活体腿结构性降级（OSS REST 建仓面 Pro 门 400——零残留留痕） | **A（可选档语义——v1.1 归位，离开「待裁」）** | P2（评估→实现段 M16） | 高（官方文档直读 + 矩阵双源）——**评估已落 T-425**；实现段 ~3 票 M16 登记、批 2（docker/helmoci tags 层 + maven metadata 层）条件、HTML 抓取族不做（§2.2） | L27 |
+| LC-77 | 复制包 B——Replicate Now（`POST /api/v1/replications/{id}/run`）/ blockPush·blockPull 全局封锁（UI-API 不受门）/ Test 连接（零副作用、不看封锁态） | T-418 replication.md §9 增量段（**三源**：官方 OpenAPI 主源 + reverse-src Pro 实现 + T-402a 实测）；cron 双轨 Q5 终裁不引入 | A | P1/P2 | 高——**已落地 T-418/T-420/T-422**（双实例 sha256 逐路径一致 + 幂等收敛 + enabled:false → 409 + 封锁三面一致 + audit 词批次 + outbox 引擎 diff=0；V1~V4 Pro 抓包升格项不阻断） | L28 |
+| LC-78 | mint unknown username 400——auth-model 3.1 既有语义归位（as-built 500 漂移修正，T-386 登记） | docs/reverse/auth-model.md 3.1（既有规格——非新增对齐面） | A | P1 | 高——**已落地 T-410**（断言反转③；400 逐字 + 非 admin 403 守卫防枚举次序锚 + t386 spec e2e 翻转） | L29 |
+| LC-79 | L2 行内快捷（复制 key / Set Me Up 直开）——非 parity 面自有增强 | T-381 §V4 建议（Artifactory 行尾无 ⋮——LC-60 D 层维持不破）；E1 不倒退 | **C（自有增强）** | P2 | —（自有设计）——**在途 T-424**（B8 后 FE lane 空位） | L31 |
 
-> 计数：**12 条 = A 9（LC-68/69〔子集注记〕/70/71/72/74〔列选器腿；AQL 编辑器腿为 C 注〕/75/77/78）+ C 2（LC-73/79）+ 待裁 1（LC-76）**。既有契约面（五基础包型、九 addon 包型、配置域、操作族/回收站、webhook、helmoci/docker remote、replication M14 as-built）M15 对 M14 as-built 零行为变化（§5.4）；FE 票「服务端 diff=0」复核沿 M8 先例；断言反转两处（SR-03/SR-04 + tree-empty-virtual）+ mint 一处全部归属 M15 豁免票。
+> 计数（v1.1 终版）：**12 条 = A 10（LC-68/69〔子集注记〕/70/71/72/74〔列选器腿；AQL 编辑器腿为 C 注〕/75/**76〔Q4 终裁归位**〕/77/78）+ C 2（LC-73/79）+ 待裁 0**——v1.0 待裁 1（LC-76）已清，零滞留（LC-56 教训防范）。既有契约面（五基础包型、九 addon 包型、配置域、操作族/回收站、webhook、helmoci/docker remote、replication M14 as-built）M15 对 M14 as-built 零行为变化（§5.4——断言反转三处 + K64 局部翻转均归属 M15 豁免票）；FE 票「服务端 diff=0」复核沿 M8 先例已过（T-414/T-416/T-419，T-424 归终验）。
 
-### 5.4 回归基线（M15 断言反转三处设计——全部归属 M15 豁免票；其余零反转）
+### 5.4 回归基线（M15 断言反转三处设计——全部归属 M15 豁免票；其余零反转。v1.1：三处 + K64 局部翻转 as-built 回写核对）
 
-| 既有断言 | M15 期望 |
-|---|---|
-| M1~M14 全部 P0 序列（双形态：无 license 默认 + pro） | 零回归（AQL/老搜索只增不改既有面；virtual 聚合改变 List 行为面——M3 FR-21 序列与 M4 浏览 spec 专项复跑） |
-| t92_search_test.go SR-03/SR-04（gavc/props/pattern 等未实现族 → 404） | **断言反转①**：gavc/prop/pattern 三行 404 → 分派实现（FR-134 豁免票归属；其余未实现族 404 维持——§5.7 归属为准） |
-| `tree-empty-virtual` 空态锚（T-406 as-built——virtual 成员感知空态） | **断言反转②**：有成员内容时翻转为聚合实态（FR-136 豁免票归属——锚册退役/翻转留痕；无成员/全空维持空态） |
-| mint unknown username → 500（T-386 as-built 漂移登记） | **断言反转③**：→ 400（auth-model 3.1 归位——FR-139 豁免票归属） |
-| `/api/search/artifact` name 匹配语义（LIKE 子串——M4 K2 暂行） | K64 校准结论执行：维持 → 零变化；翻转 → 断言更新归属 FR-134 豁免票（aql.md 回写留痕） |
-| `make test`（race）/ footprint ≤100MB / check-size ≤120MB（m14-done 调基门）/ 冷启动 <2s / SPA 每票 ≤10KB | 维持（AQL 引擎纯 Go 增量；F1 六平台聚合趋势观察项登记 §6.2） |
-| 四闸门 + axe 双主题 serious=0 / anchor ledger 0 断链 | 维持全绿（新 FE 面走新锚入册流程） |
-| M14 replication 面三票 spec（T-404/T-405）+ webhook outbox 引擎 | 零回归（包 B 复用非重构——引擎文件 diff 审计；PUT enabled/列表投影不变化） |
+| 既有断言 | M15 期望 | **as-built（v1.1 核对）** |
+|---|---|---|
+| M1~M14 全部 P0 序列（双形态：无 license 默认 + pro） | 零回归（AQL/老搜索只增不改既有面；virtual 聚合改变 List 行为面——M3 FR-21 序列与 M4 浏览 spec 专项复跑） | BE 面票内回归绿（T-412 repo 全包 race 454.8s / T-415 httpapi 427.4s 等）；**全量双形态复跑归 T-421/T-430**（T-421 押后至审计 workflow 完结——串行净机纪律）；**全树 race 判无效教训在册**（共租负载签名，D-413-2 登记归 T-421） |
+| t92_search_test.go SR-03/SR-04（gavc/props/pattern 等未实现族 → 404） | **断言反转①**：gavc/prop/pattern 三行 404 → 分派实现（FR-134 豁免票归属；其余未实现族 404 维持——§5.7 归属为准） | **已落 T-417**（三行反转 + 其余未实现族 404 维持——§5.7 对账一致） |
+| `tree-empty-virtual` 空态锚（T-406 as-built——virtual 成员感知空态） | **断言反转②**：有成员内容时翻转为聚合实态（FR-136 豁免票归属——锚册退役/翻转留痕；无成员/全空维持空态） | **已落 T-412（BE）+ T-416（FE）**——锚**不退役**（有内容并集表格 / 无成员空态两态文案），锚册 v1.28 留痕；M3 FR-21/M4 浏览序列零回归（票内 7 spec） |
+| mint unknown username → 500（T-386 as-built 漂移登记） | **断言反转③**：→ 400（auth-model 3.1 归位——FR-139 豁免票归属） | **已落 T-410**（400 逐字 + t386 spec e2e 翻转 + armed 全链） |
+| `/api/search/artifact` name 匹配语义（LIKE 子串——M4 K2 暂行） | K64 校准结论执行：维持 → 零变化；翻转 → 断言更新归属 FR-134 豁免票（aql.md 回写留痕） | **局部翻转已落 T-417**：大小写不敏感对齐（区分大小写系漂移——断言更新豁免票执行）；子串本体 + `*` 字面维持（aql.md §0-5 三源——M4 K2 欠账清偿） |
+| `make test`（race）/ footprint ≤100MB / check-size ≤120MB（m14-done 调基门）/ 冷启动 <2s / SPA 每票 ≤10KB | 维持（AQL 引擎纯 Go 增量；F1 六平台聚合趋势观察项登记 §6.2） | 票内 race 全绿（TEST_TIMEOUT=20m 口径——T-420 勘误在册）；SPA 逐票 +470B~+5,053B 全过；F1 趋势终登记归 T-429 |
+| 四闸门 + axe 双主题 serious=0 / anchor ledger 0 断链 | 维持全绿（新 FE 面走新锚入册流程） | **已落**（T-414/T-416/T-419 四门 + a11y 双主题 0 + 锚册 v1.27~v1.29 递增——T-424 归终验） |
+| M14 replication 面三票 spec（T-404/T-405）+ webhook outbox 引擎 | 零回归（包 B 复用非重构——引擎文件 diff 审计；PUT enabled/列表投影不变化） | **已落 T-420/T-422**（outbox 引擎文件 diff=0 审计；409/enabled 语义 + 列表投影不变化；spec 终验归 T-421/T-430） |
 
 ### 5.5 M15 核心验收命令（L 序列骨架，QA 直接引用——续接 M14 L19 起）
 
@@ -422,36 +425,38 @@ BASE=http://127.0.0.1:8080; ADMIN=admin:password
 #    FAQ〔AQL 子集边界与迁移对照〕）客户端命令实测可复跑
 ```
 
-### 5.6 待校准项（K62~K66——暂行值随规格票/活体核验归位，效力序 §1.4 条款 3）
+### 5.6 待校准项（K62~K66——v1.1 全量回填实装值；「v1.0 暂行值」列为历史对照保留；效力序 §1.4 条款 3 就此闭环：aql.md / ADR-0043〔含勘误〕> 本 PRD）
 
-| # | 项 | v1.0 暂行值 | 归位路径 |
+| # | 项 | v1.0 暂行值 | **v1.1 归位值（实装 + 依据锚）** |
 |---|---|---|---|
-| K62 | AQL 语言子集边界（域/字段/操作符全集的 M15 取舍 + 未支持域错误文案） | item+property 域 + 官方操作符主列；未支持域 400「domain not supported」族 | aql.md 规格票定案 + t226 活体文案逐字回写；翻转走断言反转票 |
-| K63 | 资源治理门参数（结果上限/并发上限/执行超时/429 与超时形态） | 上限 1,000 行（截断+分页可达全量）/ 并发 4 / 超时 10s | aql.md 锚定 Artifactory QRL 默认与错误形态后回写（429 形态为 LC-73 C 层）；Q2 终裁 |
-| K64 | `/api/search/artifact` name 匹配语义（M4 §5.5 K2 欠账） | 维持 LIKE 子串 + `*` 通配不做 | aql.md 校准结论（官方 artifact 搜索语义锚定）→ 维持或翻转断言反转（FR-134.6 承载） |
-| K65 | 老搜索首批清单与 dates/creation 顺车判定 | gavc/prop/pattern 三枚；dates/creation 默认 M16（规格票判 trivial 可余量顺车 P2） | aql.md 口径归一定案（14-vs-13 勘误同步） |
-| K66 | remote 远端浏览 per-协议能力矩阵 | 评估票产出（PM 暂行倾向：仅上游有枚举 API 的包型子集化） | FR-137 交付 → Q4 终裁归位（LC-76 离开「待裁」） |
+| K62 | AQL 语言子集边界（域/字段/操作符 + 未支持域文案） | item+property 域 + 官方操作符主列；未支持域 400「domain not supported」族 | **aql.md 定案 + T-409/T-411 实装**：item+property 域（property 嵌套 `@key`/`@*`/`property.key` 展开 + `$msp`）；操作符 = 官方 8 比较符 + `$last/$before`（**`$not`/`$contains` 不存在**——§0-1/§2.4）；尾缀链序敏感（include→sort→offset→limit→distinct——E1 逐字 + 链序 parse error）；`.sort()` 按官方全集 **A 层实现**（BinFlow 无许可门——OSS 门行为不仿，§0-2）；6,000 门在 Parse 入口（字节 + rune 双条件——T-433 排队注记）；字段闭集 17+2 注册表 + 12 未支持域提示（400 **C 层增强文案**——Artifactory 系通用 parse error 无域文案，码位一致） |
+| K63 | 资源治理门参数（上限/并发/超时/429 形态） | 上限 1,000 行（截断+分页可达全量）/ 并发 4 / 超时 10s | **定案 = 暂行值全中 + 408 码位**（ADR-0043 + 勘误 + T-413/T-415 实装）：1,000 截断（range.notification 官方逐字）/ 并发 4 → 429 + Retry-After（**内部常量零配置键**）/ 超时 10s → **408**（aql.md E7 官方错误码表——v1.0「400/503 待定」关闭）/ 6,000 门；值域 vs Artifactory（self-managed 无默认上限 / 并发默认 3 / REST 超时 900s）冲突**C 层留痕不硬仿**——Q2 归位（§7） |
+| K64 | `/api/search/artifact` name 匹配语义（M4 §5.5 K2 欠账） | 维持 LIKE 子串 + `*` 通配不做 | **aql.md §0-5 三源定案 + T-417 落笔**：子串本体**维持**（无族级断言反转）+ **大小写不敏感翻转**（原区分大小写系漂移——LOWER LIKE 折叠转义，ASCII 折叠局限登记）+ `*` **字面维持**（官方/反编译一致）；断言更新已归 T-417 豁免票执行——**M4 起欠账清偿** |
+| K65 | 老搜索首批清单与 dates/creation 顺车判定 | gavc/prop/pattern 三枚；dates/creation 默认 M16（判 trivial 可顺车 P2） | **定案**：首批三枚已落（T-417——断言反转①）；**端点计数 14 定案**（SearchResource 铁证——inv-1/主矩阵已勘误回写，全量口径 = 官方 reference 16 枚外挂 + AQL）；**dates/creation 不顺车 → M16**（T-417 票内判定：数据腿 trivial 但 wire 腿非同构——404 空集族 + uri 瘦行 + epoch-ms）；usage dep stats 维持 M16 |
+| K66 | remote 远端浏览 per-协议能力矩阵 | 评估票产出（PM 暂行倾向：仅上游有枚举 API 的包型子集化） | **T-425 交付 + Q4 终裁归位**：13 型矩阵三族分层（一文档全树族 helm S / deb·rpm M；per-实体族 docker·helmoci·maven·pypi·npm·conan·goproxy·cargo；无标准族 generic·maven 目录层）+ 官方设置面五型勘正（Debian/Generic/Maven/Opkg/RPM）——**PM 暂行倾向中 docker 腿系超 parity 错位（Artifactory 未开放该型），被终裁修正**；**出口 C 批 1 = helm+deb+rpm**（可选档 `listRemoteFolderItems` 语义，默认维持缓存浏览）；批 2 条件 + 不做面登记 ROADMAP「M15 未纳入项」；LC-76 归 A |
 
-### 5.7 搜索域端点全景归属表（本 PRD 特有——逐条不留模糊地带；「14 端点族」= inv-2 §1.C 枚举，13 计数勘误归 K65）
+### 5.7 搜索域端点全景归属表（本 PRD 特有——逐条不留模糊地带；v1.1 as-built 对账列回填 + 两外挂端点补登〔aql.md §8.1 交 PM 重审项——已重审：远期登记〕）
 
-| 端点 | BinFlow 现状（m14-done） | M15 处置 | 归属层 |
+| 端点 | v1.0 现状 → 处置 | **as-built（v1.1 对账）** | 归属层 |
 |---|---|---|---|
-| `POST /api/search/aql`（+`?compact`） | 404 | **FR-133 实现**（item+property 子集 + 资源门） | A（子集）/ LC-68/69 |
-| `GET /api/search/artifact` | 已有（T-92） | 维持 + K64 校准落笔 | A / LC-71 |
-| `GET /api/search/checksum` | 已有（T-92） | 维持 | A / LC-71 |
-| `GET /api/search/gavc` | 404（SR-03 关闭断言） | **FR-134 实现**（断言反转①） | A / LC-70 |
-| `GET /api/search/prop` | 404（SR-04） | **FR-134 实现**（断言反转①） | A / LC-70 |
-| `GET /api/search/pattern` | 404（SR-04） | **FR-134 实现**（断言反转①） | A / LC-70 |
-| `GET /api/search/dates` / `creation` | 404 | 余量条件（K65——判 trivial 顺车 P2，默认 M16） | M16+（条件 M15） |
-| `GET /api/search/usage`（usageSince） | 404 | M16+（dep per-node 下载计数基建） | M16+ |
-| `GET /api/search/badChecksum` | 404 | M16+（dep 校验扫描遍历） | M16+ |
-| `GET /api/search/versions` / `latestVersion` | 404 | M16+（dep 包型坐标语义细化） | M16+ |
-| `GET /api/search/license` | 404 | 远期（dep 制品 license 识别域——候选池在案） | 远期 dep |
-| `GET /api/search/dependency` / `buildArtifacts` | 404 | 远期（dep Build-info 域——候选池在案，不为 AQL 而建） | 远期 dep |
-| UI 族 `artifactsearch`/`stashResults`/`packagesSearch`/`syntax-search` | 404 | M16（AQL 高级面——搜索页 M15 先升 AQL 模式） | M16 |
-| `v1/system/query_rate_limiter`（QRL REST） | 404 | M16（M15 落 C 层资源门 LC-73） | M16 |
+| `POST /api/search/aql`（+`?compact`） | 404 → **FR-133 实现**（item+property 子集 + 资源门） | **已实现（T-409/T-411/T-413/T-415）**——语言前端/内核/门/端点四环全落；`?query` 回退 + 6,000 门 + metrics 三组；compact 行体中置信留痕 | A（子集）/ LC-68/69 |
+| `GET /api/search/artifact` | 已有（T-92）→ 维持 + K64 落笔 | **已有 + K64 局部翻转（T-417）**——大小写不敏感对齐、`*` 字面；T-92 全量 spec 零回归 | A / LC-71 |
+| `GET /api/search/checksum` | 已有（T-92）→ 维持 | **已有维持**（T-417 零改动通过） | A / LC-71 |
+| `GET /api/search/gavc` | 404（SR-03）→ **FR-134 实现**（断言反转①） | **已实现（T-417）**——mvn 真坐标腿；v/c/repos 臂 | A / LC-70 |
+| `GET /api/search/prop` | 404（SR-04）→ **FR-134 实现**（断言反转①） | **已实现（T-417）**——任意查询参数即属性键形态（aql.md §8.2 勘正后口径） | A / LC-70 |
+| `GET /api/search/pattern` | 404（SR-04）→ **FR-134 实现**（断言反转①） | **已实现（T-417）**——通配树 + 跨仓臂；对齐源 = 官方 Pro 文档语义 | A / LC-70 |
+| `GET /api/search/dates` / `creation` | 404 → 余量条件（K65） | **404 维持——K65 判定不顺车（T-417）**：404 空集族 + 瘦行 + epoch-ms 非同构 → **M16** | M16 |
+| `GET /api/search/usage`（usageSince） | 404 → M16+（dep stats） | **404 维持**——dep per-node 下载计数基建（**aql.md 注：stats 字段 t226 OSS 活体可用——排 M16 系自有基建缺失，非 parity 档位**） | M16 |
+| `GET /api/search/badChecksum` | 404 → M16+ | 404 维持（dep 校验扫描遍历） | M16+ |
+| `GET /api/search/versions` / `latestVersion` | 404 → M16+ | 404 维持（dep 包型坐标语义细化） | M16+ |
+| `GET /api/search/license` | 404 → 远期 | 404 维持（dep 制品 license 识别域——intake ⑤ 翻案语境：候选池续滚重标） | 远期 dep |
+| `GET /api/search/dependency` / `buildArtifacts` | 404 → 远期 | 404 维持（dep Build-info 域——同上重标） | 远期 dep |
+| （外挂）`GET /api/search/archive` | ——（v1.0 未列） | **v1.1 补登**（aql.md §8.1：SearchResource 外 REST reference 文档化端点，官方标注 deprecated；**PM 重审结论：远期登记不实现**）——404 维持 | 远期 dep |
+| （外挂）`GET /api/search/latestVersionByProperties` | ——（v1.0 未列） | **v1.1 补登**（同上——反编译 RestAddon 方法面；PM 重审结论同：远期登记）——404 维持 | 远期 dep |
+| UI 族 `artifactsearch`/`stashResults`/`packagesSearch`/`syntax-search` | 404 → M16 | 404 维持——搜索页 AQL 模式已落（T-419）承接控制台查询面；结果暂存/包级索引族 M16 | M16 |
+| `v1/system/query_rate_limiter`（QRL REST） | 404 → M16 | 404 维持——M15 落 C 层资源门 LC-73（T-413 实装：1000/4/10s/429/408） | M16 |
 
-> 本表 = 搜索域端点兼容承诺的唯一权威清单（高频子集承诺在查询域的落点）；任何未列端点不承诺；「M16+/远期」行进任何里程碑前须 PM 重审（滚动候选池对账）。
+> 本表 = 搜索域端点兼容承诺的唯一权威清单（高频子集承诺在查询域的落点）；**全量口径 = SearchResource 14 端点 + 官方 reference 2 外挂 + AQL**（aql.md §0-3 定案——本表 14+2+1 全数在册，零遗漏）；任何未列端点不承诺；「M16+/远期」行进任何里程碑前须 PM 重审（滚动候选池对账——M16 立项时与本表 + intake ⑤ 审计产出双源对账）。
 
 ---
 
@@ -494,19 +499,19 @@ BASE=http://127.0.0.1:8080; ADMIN=admin:password
 
 ---
 
-## 7. 开放问题（Q1~Q7 带暂行——PM 出材料不代拍，终裁落章归 conductor；收口核查位 §9-5）
+## 7. 开放问题（Q1~Q7——v1.1 逐项归位：终裁落章 3〔Q4/Q5/Q6〕· 规格回写归位 2〔Q2/Q3〕· 维持暂行 2〔Q1 收口窗必裁——材料已齐 / Q7 登记型〕；状态 + 依据锚；PM 出材料不代拍——终裁落章归 conductor）
 
-| # | 问题 | 影响面 | 暂行口径 + PM 材料/倾向 |
+| # | 问题 | 影响面 | **归位态（v1.1）——状态 + 依据锚** |
 |---|---|---|---|
-| Q1 | **AQL 分阶段边界终裁**（M15 核心 / M16 高级面切分是否成立；statistics/usage 域与 UI 搜索族是否 M16） | FR-132~134 范围锚；M16 立项输入 | **暂行照 §1.1-5 建议**：M15 = item+property 域 + 引擎/分页 + 老搜索首批 + 资源门简化；M16 = statistics/usage 域〔dep stats 基建〕+ QRL 全量 + UI 搜索族 + 剩余老搜索。PM 材料依：基座就绪度分层（nodes/node_props 全备 vs 下载计数缺失 vs Build-info 未立项）+「客户端真实可用」准绳；**矩阵 §338 子集建议同源背书**。倾向：维持切分，M16 优先 statistics 域（用户价值最高） |
-| Q2 | **资源治理门参数与 429/超时形态**（K63） | FR-133.4；LC-73 C 层定案 | 暂行：上限 1,000/并发 4/超时 10s/429+Retry-After；aql.md 锚定 Artifactory QRL 默认与 AqlTooManyRequests 形态后回写；若 Artifactory 默认显著不同（如无上限/不同码）→ 材料上 BOARD 再裁。PM 倾向：BinFlow 有门优于无门（单机 SQLite 形态防护必要性更高），与 Artifactory 默认冲突处走 C 层留痕不硬仿 |
-| Q3 | **未支持域错误形态**（400 诚实拒绝 vs 200 伪空集 vs 501） | FR-133.3；LC-69 | 暂行 400 domain-not-supported（envelope 含 domain 名）；PM 材料依 §1.4 条款 2（诚实边界宪章）+ 项目「不伪造」价值观；倾向 400 维持。终裁确认后文案逐字随 aql.md 活体样本定 |
-| Q4 | **remote 远端浏览去留**（三出口：全做/子集/维持缓存浏览——T-406 as-built） | FR-137 → LC-76 归位；M16+ 排期输入 | 评估票产出后裁（能力矩阵 + 成本 + 上游压力材料）；PM 暂行倾向**子集**（仅上游有廉价枚举 API 的包型——helm index/docker tags 先行；全量回源列举对上游压力大且无统一规范）。**不代拍——评估票材料齐后终裁** |
-| Q5 | **cron 双轨**（Artifactory 用户级 cron 复制 vs BinFlow 事件驱动 + 1min sweep） | FR-138.4；M16 复制域二程输入 | **本程不裁不建**（零 cron 工作）；PM 材料依 T-402a 勘误（BinFlow 引擎实为事件驱动，非用户 cron）+ Replicate Now 覆盖手动全量场景 + 双轨一致性成本；**倾向不引入**（维持事件驱动唯一引擎），迁移用户 cron 习惯用 Replicate Now 承接。终裁若引入归 M16 |
-| Q6 | **docker virtual 建仓矩阵开禁**（T-397 登记 conductor 裁） | 建仓矩阵包型 × rclass 组合面 | 材料随 M15 出：docker 三态齐装（M14 remote 首航 + virtual 聚合语义既有）后 virtual 为自然补全；helmoci virtual 已开（M13）为先例；开禁面 = 建仓矩阵一行 + FE 门控 + 回归。PM 倾向**开**（对齐 Artifactory 组合完整性）；conductor 裁后走条件小票（非 DoD） |
-| Q7 | **by-digest 拉取强刷**（T-397 产品决策候选——remote 缓存 TTL 语义对 by-digest 请求是否豁免） | remote 缓存语义面（小） | 暂行维持 as-built（不强刷，TTL 统一）；材料：Artifactory remote 缓存语义（aql.md 外的 remote 域规格锚）+ 分层缓存一致性代价；conductor/用户裁后走条件小票（非 DoD） |
+| Q1 | **AQL 分阶段边界终裁**（M15 核心 / M16 高级面切分是否成立；statistics/usage 域与 UI 搜索族是否 M16） | FR-132~134 范围锚；**M16 立项前提** | **【维持暂行——收口窗必裁，材料已齐】**M15 侧证据链闭合：语言前端（T-409）/ 执行内核（T-411——**P95 item 7.7/30.6/38.5ms〔预算 500ms〕、property join 37.5/90.7/107.1ms〔预算 800ms〕大幅余量**，scripts/m15-aql-perf.sh 可复跑）/ ACL+资源门（T-413）/ 端点（T-415）/ 老搜索三端点（T-417）/ FE AQL 模式（T-419）六环全落。M16 边界核对**维持 §1.1-5 建议**：statistics/usage 域〔dep per-node 下载计数基建——**aql.md 注：stats 字段 t226 OSS 活体可用〔v16〕，排 M16 系自有基建缺失而非 parity 档位**〕+ QRL 全量（三态 + REST + 指标 job）+ UI 搜索族 + 剩余老搜索（dates/creation〔T-417 判 M16〕/ badChecksum / versions / latestVersion / usage）。PM 建议：维持切分、M16 优先 statistics 域（用户价值最高）；**intake ⑤ 语境注：M16 主轴候选重排归 M16 立项稿与全量审计产出对账——AQL 高级面作为候选第一顺位维持登记（ROADMAP「M15 未纳入项」），不因翻案语境预先升降**。BOARD 留痕 = 各 done 条目。**conductor 落章动作：m15-done 收口窗终裁（DoD#5 硬项）** |
+| Q2 | **资源治理门参数与 429/超时形态**（K63） | FR-133.4；LC-73 C 层定案 | **【规格回写归位】**K63 定案 = 上限 **1,000** 行（截断 + range.notification 官方逐字文案）/ 并发 **4** → 429 + Retry-After（**内部常量零配置键**）/ 超时 **10s → 408**（ADR-0043 勘误定案——503 暂行作废；aql.md E7 官方错误码表 408 非 503/504）/ 查询长度 **6,000**（A 层）。Artifactory 对照（aql.md §5 校准表）：self-managed **无默认上限**（SaaS 500k）/ 并发默认 3 / REST 超时 900s——值域冲突走 **C 层留痕不硬仿**（单机 SQLite 防护必要性更高），码位与文案（429 `too many requests`、408、6,000、截断通告）**A 层逐字对齐**。实装 T-413/T-415；V-a（429 活体触发）语料限制以核验为准（T-426 留痕）。BOARD 留痕 = T-408 + 三笔勘误 + T-413/T-415 done 条目 |
+| Q3 | **未支持域错误形态**（400 诚实拒绝 vs 200 伪空集 vs 501） | FR-133.3；LC-69 | **【规格回写归位】**400 诚实拒绝**维持且升级定案**：Artifactory 对未支持/未知入口域与未知字段一律走**通用 parse error 400**（`Failed to parse query: ...`——活体 v14/v15 双证，**无专门 domain-not-supported 文案**，aql.md §2.1）；BinFlow 域/字段/操作符提示为 **C 层增强文案**（码位 400 一致、信息更明确——Artifactory 文案本身不携带 domain 名，不违反 parity）；零伪空集零静默吞宪章（§1.4 条款 2）如约兑现。实装 T-409（双轨文案：语法 E1 逐字 / 域·字段·操作符 C 层增强，均 400）。BOARD 留痕 = T-407 五定案 + T-409 done 条目 |
+| Q4 | **remote 远端浏览去留**（三出口：全做/子集/维持缓存浏览——T-406 as-built） | FR-137 → LC-76 归位；M16+ 排期输入 | **【终裁归位——conductor 2026-09-02 04:2x】出口 C 批 1 = helm + deb + rpm**：可选档 `listRemoteFolderItems` 对位语义（**默认 false 维持缓存浏览 = T-406 as-built 同形态——parity 定性修正：不欠默认 parity，欠可选档**）；批 2（条件，批 1 验证用户真实使用后裁）= docker/helmoci tags 层（drill-down 定位，catalog 根不可达须向用户明示）+ maven metadata 版本层；**docker tags 腿不采**（Artifactory 官方设置面未开放该型——做即超 parity L2，T-425 如实标注）；**maven/generic HTML 抓取族不做**（官方未写算法，中置信无锚）；**LC-76 归 A（可选档语义）**；实现段 ~3 票 M16 登记（牵连 T-412 listVirtual remote 成员口径扩面〔repo-semantics §8.5〕；规格建议落 docs/reverse/remote-browsing.md——T-425 §1/§2 可直接成稿，归 conductor 编排）。**PM 暂行倾向（helm/docker 先行）被材料修正**——docker 腿超 parity 错位系 T-425 关键发现，终裁采纳 C2 序（协议廉价度 × 缝厚度），PM 复核认可。BOARD 留痕 = T-425 done 条目 + Q4 终裁行 |
+| Q5 | **cron 双轨**（Artifactory 用户级 cron 复制 vs BinFlow 事件驱动 + 1min sweep） | FR-138.4；M16 复制域二程输入 | **【终裁归位——conductor 2026-09-01 09:1x】不引入 cron 双轨**：事件驱动 + 1min sweep 维持唯一引擎；手动全量场景 Replicate Now 承接——**T-420 已落地**（`POST /api/v1/replications/{id}/run`：双实例逐路径 sha256 一致 + 重复触发幂等收敛 + enabled:false → 409）；FR-138.4「不裁不建」兑现为「**裁不建**」；M16 复制域二程不再列 cron 为实现项。**intake ⑤ 注**：不做清单翻案语境下如重开 cron，须列与本裁定冲突点交用户确认（BOARD 在档裁定不默默翻转）。BOARD 留痕 = conductor 审定段 Q5 行 + T-420 done 条目 |
+| Q6 | **docker virtual 建仓矩阵开禁**（T-397 登记 conductor 裁） | 建仓矩阵包型 × rclass 组合面 | **【终裁归位——conductor 2026-09-01 09:1x（即裁）】开禁**：对齐 Artifactory 组合完整性（M14 docker remote 首航 + M15 virtual 聚合语义既有 + helmoci virtual〔M13〕先例）；载体 = **T-431 条件票**（P2 波外插空，**非 DoD**；开禁面 = 建仓矩阵一行 + FE 门控 + docker 三态回归）。截至本笔（B13）未插空——若 m15-done 前未派则滚 M16 首票留痕（ROADMAP 条件票出口）。BOARD 留痕 = conductor 审定段 Q6 行 + 票批 v1 T-431 行 |
+| Q7 | **by-digest 拉取强刷**（remote 缓存 TTL 语义对 by-digest 请求是否豁免） | remote 缓存语义面（小） | **【维持暂行——as-built 登记】**不强刷、TTL 统一维持（T-397 产品决策候选登记）；材料在案（Artifactory remote 缓存语义锚 + 分层缓存一致性代价）。翻转走条件小票（非 DoD）；**intake ⑤ 注**：缓存语义细面不属前端对齐主诉，默认不进 M16 翻案首批——用户点名才开票。BOARD 留痕 = conductor 审定段「Q7 维持 as-built」行 |
 
-> **Q 状态总账（v1.0）**：全部 7 项带暂行开工口径，无一阻塞 B1 派发；**收口窗必裁项 = Q1（分阶段边界——M16 立项前提）与 Q4（LC-76 离开「待裁」——评估票材料齐后）**；Q2/Q3 随 aql.md 回写自然归位；Q5/Q6/Q7 材料备即裁、不裁维持暂行登记（LC-56「滞留待裁」教训防范——每项均有明确归位路径）。
+> **归位总账（v1.1）**：终裁落章 **3**（Q4 远端浏览出口 C 批 1——LC-76 归 A / Q5 cron 不引入 / Q6 docker virtual 开禁 → T-431 条件票）；规格回写归位 **2**（Q2 K63 定案 1,000/4/10s/429+Retry-After/408 / Q3 400 诚实拒绝 + C 层增强文案）；维持暂行 **2**（Q1 分阶段边界——**收口窗必裁，材料已齐**；Q7 by-digest——登记型）。**收口核查位**：T-430 AC「Q1~Q7 归位核查」+ DoD#5；LC-56 教训（M13 滞留待裁）防范——**唯一硬待裁 = Q1（M16 立项前提）**，零「待裁」层滞留（LC-76 已清）。
 
 ---
 
@@ -514,13 +519,13 @@ BASE=http://127.0.0.1:8080; ADMIN=admin:password
 
 1. **前置锚先行**：L20（aql.md 交付 + t226 活体核验 + 口径归一 + 就绪度确认）——FR-133/134 断言的规格地基；ADR-0043 Accepted 核查。
 2. **回归基线（硬门槛先行）**：M1~M14 全部 P0 序列双形态复跑全绿；断言反转三处预核实（SR-03/SR-04 现值 404 在案 / tree-empty-virtual 现态在案 / mint 现值 500 在案——反转后归属审计清晰）。
-3. **AQL 主线**：L21（语言全链 + compact + 错误面）→ L22（执行内核注入用例 + planner 快照）→ L23（ACL 探针 + 资源门满载）。
-4. **老搜索并轨**：L24（gavc/prop/pattern 三端点 + 真实数据腿 + 断言反转① + K64 落笔）。
-5. **FE 副线**：L25（搜索页 AQL 模式 + 列选器三页 + member-pop）——四闸门 + axe + diff=0。
-6. **浏览收口**：L26（virtual 聚合并集 + t226 对照 + 断言反转②）。
-7. **评估与复制**：L27（远端浏览能力矩阵 + Q4 材料）→ L28（复制包 B 三件套 + 双实例编排 + outbox 引擎 diff=0）。
-8. **契约与硬化**：L29（mint 400 归位 + 断言反转③）→ L30（busy 预算 24 路清零 + 写路径专项回归）。
-9. **债包**：L31（L2 快捷 + 纪律成文 + 文面回写）。
+3. **AQL 主线**：L21（语言全链 + compact + 错误面——**已落 T-409/T-411/T-415**）→ L22（执行内核注入用例 + planner 快照——**已落 T-411**：注入红线 7 形 × 8 恶意值 + IR→SQL 快照 17 形 + 万节点 P95 六形）→ L23（ACL 探针 + 资源门满载——**BE 已落 T-413**；真栈并发饱和与 AQL 腿 e2e 复核归 T-421/T-430）。
+4. **老搜索并轨**：L24（**已落 T-417**：三端点 + mvn/M10 真实数据腿 + 断言反转① + K64 落笔——t92 全量 spec 零改动通过）。
+5. **FE 副线**：L25（**已落 T-414/T-419**：列选器三页 + member-pop + 搜索页 AQL 模式——四闸门 + axe 双主题 0 + 服务端 diff=0 + SPA 预算内）。
+6. **浏览收口**：L26（**已落 T-412/T-416**：聚合并集 + 断言反转②〔锚不退役两态〕——t226 对照腿降级〔实例无 virtual 仓，INC-1 禁建仓〕，官方 + 反编译双源 + BinFlow e2e 对拍替代留痕）。
+7. **评估与复制**：L27（**已落 T-425**：13 型矩阵 + Q4 终裁出口 C 批 1）→ L28（**已落 T-418/T-420/T-422**：三件套 + 双实例编排 + outbox 引擎 diff=0；e2e 真栈腿/封锁门/toast 断言翻转与 FE R8 形态核验归 T-421）。
+8. **契约与硬化**：L29（**已落 T-410**：mint 400 + 断言反转③）→ L30（busy 预算——**T-423 在途**：24 路清零 + 写路径专项回归）。
+9. **债包**：L31（L2 快捷 + 纪律成文——**T-424 在途**；文面回写簇——**T-428 在途**）。
 10. **收口**：L32（全量回归 + 归属审计）→ L33（NFR 与性能门槛 + F1 趋势登记）→ L34（文档实测复跑）。
 11. **文档**：tech-writer——AQL 用户指南（子集边界明示 + 迁移脚本对照）、搜索 API 参考（AQL + 老搜索首批）、搜索页/虚拟浏览/复制包 B 增量、FAQ（AQL 子集与未支持域行为）。
 12. **release**：部署烟测 + UAT 随里程碑 PR（M13 起常态）；Replicate Now 双实例腿在 UAT 链取证。
@@ -531,9 +536,9 @@ BASE=http://127.0.0.1:8080; ADMIN=admin:password
 
 1. §4 全部 P0 AC（FR-132 规格锚 / FR-133 AQL 引擎 / FR-134 老搜索首批）经 qa 验证全绿；P1（FR-135/136/138.1/139.1）全绿；P2（FR-137 评估票/138.2~138.3/139.2/140 全部）全绿；条件票（dates/creation 顺车 K65 / 远端浏览实现段 Q4 / docker virtual 开禁 Q6 / by-digest 强刷 Q7 / NuGet symbol server 余量五承 / Tokens 字段集补核验）按余量/条件条款——未触发不构成 DoD 缺口，须 BOARD 留痕；
 2. §8 剧本全绿；§1.2 量化门槛表逐行达标（AQL 全链/ACL/资源门/老搜索/搜索面/virtual 聚合/评估材料/复制包 B/契约硬化——全部有实测数字或 curl/Playwright 证据归档）；
-3. **搜索域专项收口**：§5.7 端点全景表逐行核对（实现/维持/断言反转/未实现 404 四态与表一致——未列端点仍 404）；断言反转三处（SR-03/SR-04 + tree-empty-virtual + mint）归属审计 100% M15 豁免票；aql.md 置信度列经 t226 回写（零静默升格——「以核验为准」附注与结论一一对应）；
+3. **搜索域专项收口**：§5.7 端点全景表逐行核对（实现/维持/断言反转/未实现 404 四态与表一致——未列端点仍 404）；断言反转三处（SR-03/SR-04 + tree-empty-virtual + mint）归属审计 100% M15 豁免票；aql.md 置信度列经 t226 回写（零静默升格——「以核验为准」附注与结论一一对应）；**v1.1 执行态**：三处反转已落（T-417 / T-412+T-416 / T-410——归属审计就绪）+ K64 局部翻转（大小写不敏感）同归 T-417 豁免票；§5.7 as-built 对账完成（v1.1——含 archive / latestVersionByProperties 两外挂端点补登，全量口径 14+2+1 零遗漏）；aql.md 置信度回写已落（T-407——高 ~14 / 中 ~6 / 低 8 全在册）；
 4. 回归硬门槛：M1~M14 全部 P0 序列双形态复跑全绿；M14 as-built 零行为变化（豁免票归属外——replication 三票 spec / docker remote / npm login 面）；FE 变更面 100% 归属 M15 票 + FE 票服务端 diff=0；
-5. 前置产物与 Q 归位：aql.md + ADR-0043（Accepted）+ replication.md 增量段齐备；Q1~Q7 归位——**收口窗必裁 Q1（分阶段边界）与 Q4（LC-76 离开「待裁」）**，其余随规格回写归位或维持暂行登记（每项归位路径在案，LC-56 教训防范）；
+5. 前置产物与 Q 归位：aql.md + ADR-0043（Accepted）+ replication.md 增量段齐备；Q1~Q7 归位——**收口窗必裁 Q1（分阶段边界）与 Q4（LC-76 离开「待裁」）**，其余随规格回写归位或维持暂行登记（每项归位路径在案，LC-56 教训防范）；**v1.1 归位基线（§7 总账）**：前置三产物齐备（T-407 / T-408 + 三笔勘误 / T-418）；**Q4 已终裁（出口 C 批 1——LC-76 归 A）**、Q5/Q6 终裁落章（不引入 cron / 开禁→T-431）、Q2/Q3 规格回写归位、Q7 维持登记——**唯一硬待裁 = Q1（收口窗必裁，材料已齐 §7）**；
 6. NFR-P67~P69 / NFR-S73~S75 达标归档；`make test`（race）全树绿维持 / `make lint` 0 issues / gofmt 空；资源门三连（footprint ≤100MB / check-size ≤120MB 调基门 / 冷启动 <2s）+ SPA 每票 ≤10KB + F1 六平台趋势观察登记；
 7. §2.2 Non-goals 与候选池对账完成：滚入 M16+ 项在 ROADMAP「M15 未纳入项」登记（备稿沿 T-395 先例，收口窗启用）；§1.4 出处义务在全部 M15 票可审计（aql.md/官方文档锚点逐条）；
 8. 主会话 git tag `m15-done`（对外发布任何制品先经用户确认；PR 化合并沿既定 gitflow 程序；UAT 证据随里程碑 PR 归档）。

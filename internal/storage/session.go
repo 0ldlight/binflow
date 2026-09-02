@@ -102,12 +102,23 @@ func (s *uploadSession) Append(ctx context.Context, r io.Reader) (int64, error) 
 
 // persistStateLocked writes the session state to the metadata row. A nil
 // Sessions store (blob-only GC path) makes it a no-op. Callers hold s.mu.
+//
+// The write rides the busy budget (T-423, T-377 D1): it is an idempotent
+// overwrite of the row's state column with a value computed under s.mu (the
+// retry re-marshals the identical state), so a busy-class escape re-runs
+// instead of poisoning a session whose data bytes are already durable. The
+// caller's detached context (Append passes WithoutCancel, N3/T-220) keeps
+// the ladder running to its end for a client that disconnected between the
+// last byte and this bookkeeping write.
 func (s *uploadSession) persistStateLocked(ctx context.Context) error {
 	ss := s.eng.opts.Sessions
 	if ss == nil {
 		return nil
 	}
-	if err := ss.SetState(ctx, s.id, marshalSessionState(s.state)); err != nil {
+	if err := RetryOnBusy(ctx, s.eng.opts.Logger, s.eng.opts.BusyRetry, "upload-sessions set-state",
+		func(ctx context.Context) error {
+			return ss.SetState(ctx, s.id, marshalSessionState(s.state))
+		}); err != nil {
 		return fmt.Errorf("persist session state: %w", err)
 	}
 	return nil

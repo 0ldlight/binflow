@@ -109,6 +109,11 @@ type raw struct {
 	} `yaml:"metrics"`
 	Replication *struct {
 		AllowPrivateTarget *bool `yaml:"allow_private_target"`
+		// BlockPush/BlockPull are the global blockPush/blockPull emergency
+		// brake's boot carriers (M15 T-422, §9.2-B): pointers so an absent
+		// key stays distinguishable from an explicit false at resolve time.
+		BlockPush *bool `yaml:"block_push"`
+		BlockPull *bool `yaml:"block_pull"`
 	} `yaml:"replication"`
 	// Webhook is the outbound-webhook section (M13 T-362, ADR-0041
 	// decision 6): the SSRF posture of subscription targets, default
@@ -580,6 +585,19 @@ func buildWithOptions(r *raw, env map[string]string, o buildOpts) (*Config, erro
 		c.Replication.AllowPrivateTarget = *r.Replication.AllowPrivateTarget
 	}
 
+	// The global block brake's boot carriers (M15 T-422, §9.2-B): absent
+	// means the Config default (false — nothing blocked) holds; the resolved
+	// values only SEED the runtime gate on a database without a
+	// replication_globals row (the REST face owns the live state).
+	if r.Replication != nil {
+		if r.Replication.BlockPush != nil {
+			c.Replication.BlockPush = *r.Replication.BlockPush
+		}
+		if r.Replication.BlockPull != nil {
+			c.Replication.BlockPull = *r.Replication.BlockPull
+		}
+	}
+
 	// The webhook section (M13 T-362, ADR-0041 decision 6): absent means
 	// the Config default (false — deny private targets) holds.
 	if r.Webhook != nil && r.Webhook.AllowPrivateTarget != nil {
@@ -709,6 +727,9 @@ func defaults() *Config {
 		// replication.allow_private_target defaults to true (T-210 /
 		// ADR-0025 decision 4): private targets stay allowed so existing
 		// deployments that replicate over private networks are unchanged.
+		// replication.block_push/block_pull default to FALSE (M15 T-422,
+		// §9.2-B): the zero value IS the unblocked posture — the emergency
+		// brake never arms itself.
 		Replication: ReplicationConfig{AllowPrivateTarget: DefaultAllowPrivateTarget},
 		// webhook.allow_private_target defaults to FALSE (M13 T-362,
 		// ADR-0041 decision 6): webhook targets are REST-CRUD dynamic —
@@ -870,6 +891,13 @@ func setEnvValue(c *Config, path []string, kind envKind, value, name string) err
 			c.Auth.TokenStepUp = b
 		case "replication.allow_private_target":
 			c.Replication.AllowPrivateTarget = b
+		case "replication.block_push":
+			// M15 T-422 (§9.2-B): the brake's boot carrier — seeds the
+			// runtime gate on a fresh database; the persisted row outranks
+			// it from the first flip on.
+			c.Replication.BlockPush = b
+		case "replication.block_pull":
+			c.Replication.BlockPull = b
 		case "webhook.allow_private_target":
 			// M13 (ADR-0041 decision 6): the webhook SSRF toggle, default
 			// false (the asymmetry against replication's true).

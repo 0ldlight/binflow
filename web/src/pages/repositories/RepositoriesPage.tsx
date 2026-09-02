@@ -20,6 +20,7 @@ import Tabs from '@mui/material/Tabs'
 import TextField from '@mui/material/TextField'
 
 import { useAuth } from '../../app/AuthContext'
+import { useToast } from '../../app/ToastContext'
 import { PkgIcon } from '../../components/PkgIcon'
 import { CopyButton } from '../../components/CopyButton'
 import DeployDialog from '../../components/DeployDialog'
@@ -27,7 +28,7 @@ import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import SetMeUpDialog from '../../components/SetMeUpDialog'
 import { Skeleton } from '../../components/Skeleton'
-import { ApiError } from '../../lib/api'
+import { ApiError, errText } from '../../lib/api'
 import type { RepoListItem } from '../../lib/api'
 import { canAdminWrite, isReadOnlyAdmin } from '../../lib/api'
 import { useColumnPrefs } from '../../lib/columnPrefs'
@@ -35,7 +36,7 @@ import type { ColumnDef } from '../../lib/columnPrefs'
 import { cellBtnSx } from '../../lib/muiAtoms'
 import { cfgStr, cfgStrList, getRepositoriesFiltered, getUsageBatch } from '../../lib/repos'
 import type { RepoUsageRow, RClass } from '../../lib/repos'
-import { listReplicationConfigs } from '../../lib/replications'
+import { listReplicationConfigs, runReplicationNow } from '../../lib/replications'
 import type { ReplicationConfig } from '../../lib/replications'
 import { formatBytes, formatCount } from '../../lib/format'
 import { onTableRowKeys } from '../../lib/keys'
@@ -280,14 +281,16 @@ function UpstreamCell({ repo }: { repo: RepoListItem }) {
 }
 
 /**
- * Replications 列（T-404，R5 锚定形态）：**仅 local Tab**。
+ * Replications 列（T-404 R5 形态 + T-420 真语义）：**仅 local Tab**。
  * - 未配置（0 条）：纯文本「0」——Artifactory OSS 未启用分支的同款 cell
  *   （`<span>0</span>`，无图标）。
  * - 已配置：行级 **Run 动作**（icon-run 形态——▶ glyph，24px 档 IconButton
- *   + Tooltip）。R5 的 executeReplicationNow 在 BinFlow **无对位端点**
- *   （引擎事件驱动 + ≤1min sweep；parity §7「后端 trigger 前置项，不挂
- *   FE parity 旗」）——tooltip 如实标注语义，点击 = 深链本仓编辑页的
- *   Replications 节（?section=replications，R1 配置真身），不伪造触发。
+ *   + Tooltip）。T-420 起为真触发：POST /api/v1/replications/{id}/run 逐
+ *   启用配置种全量对账（executeall 语义——「按已存配置跑全部 enabled」，
+ *   规格 §9.2-A），toast 回报排程数并深链全局复制页（任务状态翻转在既有
+ *   /api/v1/replication/status 观测面）。全部停用时按锚（executeall 三态
+ *   之「无启用配置」）不触发——按钮禁用 + tooltip 说明。readonly_admin：
+ *   按钮禁用（CapSystemWrite 门，服务端 403 兜底）。
  * - 加载/失败：`—`（失败 title 带原因）——「无数据不伪造 0」同已用列口径。
  */
 function ReplicationsCell({
@@ -295,13 +298,15 @@ function ReplicationsCell({
   configs,
   state,
   error,
-  onOpen,
+  canRun,
+  onRun,
 }: {
   repoKey: string
   configs: ReplicationConfig[] | undefined
   state: 'loading' | 'ok' | 'error' | 'forbidden'
   error?: string
-  onOpen: () => void
+  canRun: boolean
+  onRun: (enabled: ReplicationConfig[]) => void
 }) {
   const testid = `repos-repl-${repoKey}`
   if (state !== 'ok' || !configs) {
@@ -322,26 +327,31 @@ function ReplicationsCell({
       </span>
     )
   }
-  const enabled = configs.filter((c) => c.enabled).length
+  const enabledConfigs = configs.filter((c) => c.enabled)
   const tip =
-    (enabled > 0
-      ? `Run Replication——BinFlow 为事件驱动引擎（上传即推送 + ≤1 分钟 sweep 兜底），无手动触发端点；`
-      : `已配置 ${configs.length} 条复制（全部停用）；`) +
-    `共 ${configs.length} 条（${enabled} 启用）。点击前往本仓复制配置`
+    (enabledConfigs.length > 0
+      ? `Run Replication——对本仓 ${enabledConfigs.length} 条启用配置各触发一次全量同步（异步执行，任务状态见全局复制页）；`
+      : `已配置 ${configs.length} 条复制（全部停用）——启用后才能触发；`) +
+    `共 ${configs.length} 条（${enabledConfigs.length} 启用）` +
+    (canRun ? '' : '；只读管理员不可触发')
   return (
     <Tooltip title={tip} arrow>
-      <IconButton
-        size="small"
-        aria-label={`复制 ${repoKey}：${configs.length} 条配置（${enabled} 启用）`}
-        data-testid={`repos-repl-run-${repoKey}`}
-        onClick={(e) => {
-          // 行点击是导航——Run 的深链不得冒泡（CopyButton 隔离层同款）
-          e.stopPropagation()
-          onOpen()
-        }}
-      >
-        <span aria-hidden="true">▶</span>
-      </IconButton>
+      {/* span 隔离层：禁用态 IconButton 不冒泡行点击（键盘路径同 CopyButton 先例） */}
+      <span onClick={(e) => e.stopPropagation()}>
+        <IconButton
+          size="small"
+          aria-label={`复制 ${repoKey}：${configs.length} 条配置（${enabledConfigs.length} 启用）`}
+          data-testid={`repos-repl-run-${repoKey}`}
+          disabled={!canRun || enabledConfigs.length === 0}
+          onClick={(e) => {
+            // 行点击是导航——触发不得冒泡（CopyButton 隔离层同款）
+            e.stopPropagation()
+            onRun(enabledConfigs)
+          }}
+        >
+          <span aria-hidden="true">▶</span>
+        </IconButton>
+      </span>
     </Tooltip>
   )
 }
@@ -393,6 +403,7 @@ export default function RepositoriesPage() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const tab = tabFromPath(pathname)
+  const toast = useToast()
 
   const [keyQuery, setKeyQuery] = useState('')
   // Tab = 服务端 ?type= 过滤（E-04 契约形态）；key 是已加载集上的前端子串
@@ -428,6 +439,31 @@ export default function RepositoriesPage() {
   // 对话框族（T-242）：行内 Set Me Up / Deploy 入口（dialog state 就地）
   const [smuKey, setSmuKey] = useState<string | null>(null)
   const [deployKey, setDeployKey] = useState<string | null>(null)
+
+  // T-420（FR-138.1）Replicate Now：对本仓逐**启用**配置触发全量同步
+  // （executeall 语义——「按已存配置跑全部 enabled」，规格 §9.2-A；停用
+  // 配置跳过不拒）。排程为异步——toast 回报种下的任务数，任务状态的
+  // 翻转在既有全局复制页（/api/v1/replication/status 观测面，10s 轮询）。
+  const runReplications = async (repoKey: string, enabled: ReplicationConfig[]) => {
+    if (enabled.length === 0) return
+    let total = 0
+    try {
+      for (const c of enabled) {
+        const res = await runReplicationNow(c.id)
+        total += res.scheduled
+      }
+    } catch (err) {
+      toast.error(`复制触发失败（${repoKey}）：${errText(err)}`)
+      return
+    }
+    const names = enabled.map((c) => c.name).join('、')
+    toast.success(
+      total > 0
+        ? `已触发 ${repoKey} 的全量同步：排程 ${formatCount(total)} 项任务（${names}）`
+        : `已触发 ${repoKey} 的全量同步：源仓当前无制品，本次为空跑（${names}）`,
+      { label: '查看任务', onClick: () => navigate('/admin/governance/replication') },
+    )
+  }
 
   const [sortKey, setSortKey] = useState<'key' | 'package' | null>(null)
   const [sortDir, setSortDir] = useState<SortDir>('asc')
@@ -720,7 +756,8 @@ export default function RepositoriesPage() {
                           configs={repls.data ? (replIndex.get(repo.key) ?? []) : undefined}
                           state={repls.status}
                           error={repls.error?.message}
-                          onOpen={() => navigate(`/admin/repositories/${repo.key}/edit?section=replications`)}
+                          canRun={admin}
+                          onRun={(enabled) => void runReplications(repo.key, enabled)}
                         />
                       </TableCell>
                     )}

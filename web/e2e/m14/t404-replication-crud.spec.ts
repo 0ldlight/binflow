@@ -9,7 +9,8 @@ import { m8Client, seedRepos } from '../m8/support/seed'
 // 仓库编辑页 Replications 节（form-section-replications，**内嵌节无
 // modal/drawer**，R9）+ 仓 Tab 指针升级 + 仓列表 Replications 列/行级 Run
 // 三件套。真栈腿 + 拦路对账（网络层 payload 净度）+ 受控 mock 腿（降级态、
-// PUT 启停的 T-405 合并前形态）。
+// PUT 启停的 T-405 合并前形态）。列表臂的 Run 动作自 T-420（M15 FR-138.1）
+// 起为真触发（POST /v1/replications/{id}/run——占位深链语义退役）。
 //
 // 断言面（AC1/AC2）：
 //   ① 创建臂：空态 → 内嵌表单 → POST 落库（API 对账）+ **payload 净度**
@@ -23,8 +24,9 @@ import { m8Client, seedRepos } from '../m8/support/seed'
 //      如实呈现 + 行内不乐观更新（两条形态都合法，合并后自然走 200 腿）。
 //   ⑤ 只读臂：readonly_admin——节只读呈现（开关禁用、写入口不渲染、
 //      Tab 无编辑深链）。
-//   ⑥ 列表臂：Replications 列（0 = 纯文本「0」；已配置 = Run 图标）+
-//      Run 深链 ?section=replications + remote Tab 无该列。
+//   ⑥ 列表臂：Replications 列（0 = 纯文本「0」；已配置 = Run 图标——T-420
+//      起为真触发：toast 排程回报 + 「查看任务」深链全局复制页）+
+//      remote Tab 无该列。
 //   ⑦ 降级臂（受控 mock）：501 → repl-degraded；403 → repl-denied。
 //   ⑧ axe 双主题：节 + 表单开态。
 //
@@ -326,9 +328,13 @@ test('readonly_admin: section read-only — switch disabled, write entries absen
   )
 })
 
-// ---- 6. 列表臂：Replications 列（0 = 纯文本 / 已配置 = Run 图标）+ 深链 -------
+// ---- 6. 列表臂：Replications 列（0 = 纯文本 / 已配置 = Run 触发）------------
 
-test('admin: repos list Replications column — plain 0 vs Run icon, deep link to the section; remote tab has no column', async ({
+// T-420 起列表臂的 ▶ 为真触发（POST /v1/replications/{id}/run 逐启用配置
+// ——executeall 语义），占位的「点击深链编辑节」退役：断言翻转为
+// toast 排程回报 + URL 停留列表页 + 深链入口移交 toast 的「查看任务」
+// （全局复制页 = 任务状态翻转的观测面）。
+test('admin: repos list Replications column — plain 0 vs Run trigger (toast + status link); remote tab has no column', async ({
   page,
 }) => {
   const bare = uniq('t404f')
@@ -342,14 +348,18 @@ test('admin: repos list Replications column — plain 0 vs Run icon, deep link t
   await page.goto('/binflow/ui/admin/repositories/local')
   // 未配置 = 纯文本「0」（R5 OSS 未启用分支同款 cell）
   await expect(page.locator(`[data-testid="repos-repl-${bare}"]`)).toHaveText('0')
-  // 已配置 = icon-run 行级动作（aria-label 携带条数/启用数）
+  // 已配置 = icon-run 行级动作（aria-label 携带条数/启用数——T-404 形态不变）
   const run = page.locator(`[data-testid="repos-repl-run-${wired}"]`)
   await expect(run).toBeVisible()
   await expect(run).toHaveAttribute('aria-label', `复制 ${wired}：2 条配置（1 启用）`)
   await run.click()
-  await expect(page).toHaveURL(new RegExp(`/admin/repositories/${wired}/edit\\?section=replications$`))
-  await expect(page.locator('[data-testid="form-section-replications"]')).toBeVisible()
-  await expect(page.locator('[data-testid="form-section-replications"]')).toHaveAttribute('data-active', 'true')
+  // 真触发：排程 toast（空仓 = 0 项的空跑文案），URL 停留列表页
+  await expect(page.locator('[data-testid="toast"]')).toContainText(`已触发 ${wired} 的全量同步`, { timeout: 8000 })
+  await expect(page).toHaveURL(/\/admin\/repositories\/local$/)
+  // toast 的「查看任务」深链到全局复制页（任务状态翻转的观测面）
+  await page.locator('[data-testid="toast"] a, [data-testid="toast"] button').filter({ hasText: '查看任务' }).click()
+  await expect(page).toHaveURL(/\/admin\/governance\/replication$/)
+  await expect(page.locator('[data-testid="toast"]')).toHaveCount(0)
 
   // remote Tab 无该列（push 源 = local，R5「本地仓列表」同位）
   await page.goto('/binflow/ui/admin/repositories/remote')

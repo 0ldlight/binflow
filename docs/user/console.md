@@ -5,7 +5,7 @@ sidebar_position: 30
 
 # Web 控制台使用指南
 
-> 适用版本：M8（新信息架构：双模式壳 / 跨仓制品树 / 管理域五分组 / Set Me Up 与 Deploy 对话框族；设计规格 `docs/design/console-m8.md`）；**M9 增补**：Set Me Up 的 OIDC 重认证腿（T-260）、用户/组页的 Status 真值与删除面（T-257）、旧路径重定向窗口全量移除（T-263，见[旧路径 → 新路径](#旧路径--新路径m9-起不再重定向)）。
+> 适用版本：M8（新信息架构：双模式壳 / 跨仓制品树 / 管理域五分组 / Set Me Up 与 Deploy 对话框族；设计规格 `docs/design/console-m8.md`）；**M9 增补**：Set Me Up 的 OIDC 重认证腿（T-260）、用户/组页的 Status 真值与删除面（T-257）、旧路径重定向窗口全量移除（T-263，见[旧路径 → 新路径](#旧路径--新路径m9-起不再重定向)）；**M15 增补**：搜索页 AQL 模式（T-419）、virtual 仓聚合浏览（T-416）、复制 ▶ Replicate Now 与 Test 连接/全局封锁（T-420/T-422）。
 > 本篇全部 UI 路径与对话框行为在 HEAD（`89b27ce` 构建，含内嵌控制台）的 scratch 实例（127.0.0.1:18091，七仓种子覆盖全部五种包类型）上以 Playwright 走查验证（11/11 通过：双模式导航、树深链、对话框族、管理域路由、10 条旧路径重定向〔M8 兼容窗口；M9 起已移除，见下节〕）；登录/会话/CSRF 段沿用 M4 QA 基线（T-103/T-105，报告 `reports/agents/T-103-qa.md` / `T-105-qa.md`），M8 未改动服务端会话语义。浏览器矩阵依据 T-104 与 T-120 修复后的跨引擎复核。M9 增补面在 HEAD 构建的自起 scratch/armed 栈（2026-08-25）复验：shell 旧路径 19 条 404 断言、users-groups 6 腿、oidc-stepup 4 腿全绿。
 
 M4 起单二进制自带 Web 控制台（go:embed，零外部依赖、断网可用）。**M8 起控制台的信息架构与操作流对齐 Artifactory**（同一个动作在同样的位置、走同样的步骤——从 Artifactory 迁移的用户零学习成本；逐任务的操作路径对照见 [Artifactory → BinFlow 操作路径对照表](artifactory-path-map.md)）。控制台仍是**管理面**——CI 与脚本继续走 REST/token，两者同一 API、同一权限模型。
@@ -118,7 +118,7 @@ curl -s -b jar.txt -X PUT $BASE/binflow/generic-local/a/f.txt \
   - 文件夹：复制路径 / 删除 / 刷新
   - 仓库：复制仓库路径 / 刷新 / 在仓库管理中打开
 - 当前层 children 表（名称/类型/大小/修改时间/操作者）支持「过滤当前层」与「只看文件」；大目录客户端分页「加载更多」，超过 2000 条提示改用[搜索](#搜索与仪表盘)。
-- **仓型面（M14）**：local 仓直列内容；**remote 仓只列已缓存制品**（浏览永不回源——空目录提示「远程仓库：仅展示已缓存的制品」，与 Artifactory 的 remote-cache FolderInfo 同口径；回源拉取走包管理器协议面）；**virtual 仓聚合浏览暂未支持**（内容面为成员感知的空态——读取仍按成员仓解析，FR-21-AC8 待补）。
+- **仓型面（M14/M15）**：local 仓直列内容；**remote 仓只列已缓存制品**（浏览永不回源——空目录提示「远程仓库：仅展示已缓存的制品」，与 Artifactory 的 remote-cache FolderInfo 同口径；回源拉取走包管理器协议面）；**virtual 仓聚合浏览 M15 起可用**（children = 成员仓并集，树动态展开/深链与 local 同形；成员全空时空态卡点名成员清单；virtual 仓不经手删除——删除入口按服务端 405 预收敛不渲染）。
 - **跨路径 Move/Copy 不做树内入口**（REST 面自 M12 起可用——[制品操作族](admin/artifact-operations.md)）；**删除先入回收站**（pro 槽 `trashcan`，社区档为硬删——治理页 [回收站](#治理admingovernance) 可浏览/恢复）。
 
 详情面板三形态（Tab 式：`常规` / `有效权限`（admin 渲染））：
@@ -155,10 +155,10 @@ curl -s -b jar.txt -X PUT $BASE/binflow/generic-local/a/f.txt \
 
 ### 仓库（`/admin/repositories`）
 
-- **三 Tab 列表**：`/admin/repositories/{local|remote|virtual}` 子路由；「N 个仓库」计数 + 右上 `+ 添加仓库`；列头排序（key / 包类型）+ 行尾删除入口；每行 Set Me Up / Deploy 快捷钮。local Tab M14 起有 **Replications 列**（每仓复制配置计数；≥1 条时行级 Run 动作深链到该仓编辑页 Replications 节——BinFlow 无手动 trigger，复制是事件驱动的）。
+- **三 Tab 列表**：`/admin/repositories/{local|remote|virtual}` 子路由；「N 个仓库」计数 + 右上 `+ 添加仓库`；列头排序（key / 包类型）+ 行尾删除入口；每行 Set Me Up / Deploy 快捷钮。local Tab M14 起有 **Replications 列**（每仓复制配置计数）；**M15 起 ▶ Run = 真触发 Replicate Now**（对本仓逐启用配置 POST run，toast 回报排程数〔0 = 空跑如实说明〕+「查看任务」深链复制页；全部停用则按钮禁用——REST 语义见[治理指南 · Replicate Now](admin/governance.md#replicate-now手动全量同步m15t-420)）。
 - **建仓向导**：`/admin/repositories/new` 进页弹**包类型网格**（五项必选）→ 单页分区表单（常规设置 → 来源/成员 → 包类型专属 → 高级）+ 右栏实时摘要。key 规则 `[a-z][a-z0-9-]{1,62}` 前端预检、服务端终裁（400 行内回显）。**保留字 `api` / `v2` / `docs` / `console` / `ui` / `assets` 建仓即 400**。
 - **仓库详情** `/admin/repositories/:key`：概要 / 接入命令（与接入文档同源）/ 统计（配额水位条）/ 配置（配额行内编辑 + patterns；**manage 持有者**亦可编辑本仓配置——见 [RBAC 指南](admin/rbac-roles.md)）/ Replications（M14：本仓复制配置摘要卡 + 深链编辑节 + 全局复制页入口）Tab + 危险区（删仓仅全量 admin 可见）。
-- **编辑** `/admin/repositories/:key/edit`：rclass/包类型锁定，其余字段同建仓表单。**M14 起编辑态 local 仓另有 Replications 节**（push 复制配置：列表 + 新建/编辑表单 + 行内启停开关 + 输入 name 强确认删除；Artifactory 的 cron/sync 等字段为预留位恒禁用——如实标注引擎尚不支持）；编辑保存 = 删除 + 重建（未决任务级联清空、目标口令不回显需重输——留空即匿名目标）。remote/virtual 仓不适用（push 源是 local）。REST 语义见[治理指南 · 复制](admin/governance.md#复制push-replication)。
+- **编辑** `/admin/repositories/:key/edit`：rclass/包类型锁定，其余字段同建仓表单。**M14 起编辑态 local 仓另有 Replications 节**（push 复制配置：列表 + 新建/编辑表单 + 行内启停开关 + 输入 name 强确认删除；**M15 起表单带「测试连接」按钮**——创建态测草稿、编辑态未改动时探已存配置，判定内联呈现〔绿/红 + 目标状态码〕；Artifactory 的 cron/sync 等字段为预留位恒禁用——如实标注引擎尚不支持）；编辑保存 = 删除 + 重建（未决任务级联清空、目标口令不回显需重输——留空即匿名目标）。remote/virtual 仓不适用（push 源是 local）。REST 语义见[治理指南 · 复制](admin/governance.md#复制push-replication)。
 - **删除**：两段强确认——非空仓必须勾选 `同时删除内容` + **输入 repo key 确认**（不勾选直接删非空仓会被服务端 400 拒绝）。
 - 治理字段（仅 local 仓）：`quotaBytes` 与 `includesPattern` / `excludesPattern`（详见[治理指南](admin/governance.md)）。
 
@@ -175,7 +175,7 @@ curl -s -b jar.txt -X PUT $BASE/binflow/generic-local/a/f.txt \
 - **审计日志**（`/admin/governance/audit`）：时间窗/操作者/仓库/动作/路径过滤 + 游标「加载更多」；动作值原样 mono 显示（不翻译）。词表见[治理指南](admin/governance.md#审计)。
 - **维护（GC）**（`/admin/governance/gc`）：GC 状态 + dry-run 结果面板 + apply **输入实例名二次确认**；存储迁移进度面板同页。
 - **配额**（`/admin/governance/quotas`）：每仓 used/quota 水位条（80% 黄 / 100% 红）+ 行内编辑上限。
-- **复制**（`/admin/governance/replication`）：复制目标表 + 最近事件（10s 轮询）。M14 起配置 CRUD 另入[仓库编辑页 Replications 节](#仓库adminrepositories)，本页保持全局观测视角；REST 与引擎语义见[治理指南 · 复制](admin/governance.md#复制push-replication)。
+- **复制**（`/admin/governance/replication`）：复制目标表 + 最近事件（10s 轮询）；**M15 起页头新增全局封锁卡**（blockPush/blockPull 两方向独立 Switch——「无论配置如何都不触发」的应急刹车，与 `binflow.yaml`/REST 三面同源；readonly_admin 只读呈现）。M14 起配置 CRUD 另入[仓库编辑页 Replications 节](#仓库adminrepositories)，本页保持全局观测视角；REST 与引擎语义见[治理指南 · 复制](admin/governance.md#复制push-replication)。
 - **Webhooks**（`/admin/governance/webhooks`，M13）：订阅列表（行内启停/试发/编辑/删除）+ 新建/编辑对话框（13 域分组事件型选择，休眠型灰显如实标注）+ 详情抽屉（最近投递记录——状态/耗时/重试计数/载荷快照）。写动词 pro 槽 `webhook`；readonly_admin 只读臂（无新建钮、写动作禁用）。REST 语义与接收端配方见 [Webhook 使用指南](admin/webhooks.md)。
 - **备份 / 恢复**（`/admin/governance/backup`）：CLI 引导卡（export/import 命令与警示，一键复制）——备份恢复是**高危带外操作**，不做进度 UI；完整链见[备份与恢复手册](admin/backup-restore.md)。
 - **回收站**（`/admin/governance/trash`，M12）：`auto-trashcan` 内置仓的浏览/恢复/清空面（槽 `trashcan` 门控态呈现）。捕获/保留期语义见 [Trash can 管理](admin/trash-can.md)。
@@ -188,7 +188,7 @@ curl -s -b jar.txt -X PUT $BASE/binflow/generic-local/a/f.txt \
 
 ### 搜索与仪表盘
 
-- **搜索**（`/search`）：名称子串检索，结果按调用者权限过滤（无 read 权限的仓库不出现在结果里）；支持按仓库收窄；行点击**深链进制品树**（自动展开定位）。checksum 精确反查暂未接 UI（页面引导走 REST）。
+- **搜索**（`/search`）：**双模式**（M15）——`基本`即既有名称子串检索（结果按调用者权限过滤、按仓库收窄、行点击深链进制品树）；`AQL` 模式切换后出 mono 查询编辑器（⌘/Ctrl+Enter 执行，工具行明示子集边界：items + property 域、操作符清单、未支持域 400）。AQL 结果复用同一结果表与列选器：行点击/Enter 深链跨仓树（投影缺 repo/name 的行不给注定 404 的深链）；**排序 = 表头注入/翻转 `.sort()` 段、分页 = 改写 `.offset()` 重放**（编辑器是唯一事实源）；400 语法错**逐字内联**呈现（含未支持域点名），408/429 分流人话提示，K63 截断通告按官方文案呈现并给分页指引。语言与错误对照见 [AQL 搜索指南](aql.md)。checksum 精确反查暂未接 UI（页面引导走 REST）。
 - **仪表盘**（`/dashboard`）：健康/存储/仓库/最近审计卡片，各自独立加载。remote 上游健康统计端点未开放，仓库卡仅列 remote 计数（上游状态显示 `—`）——remote 仓的 assumed-offline 细节看仓库列表/详情页。
 
 ## 角色可见性

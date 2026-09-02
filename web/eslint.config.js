@@ -10,11 +10,34 @@ export default tseslint.config(
   { ignores: ['dist', 'node_modules', 'playwright-report', 'test-results'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
+  // react-hooks v7 (T-432 seg 1): the manual plugins/rules block is replaced
+  // by the plugin's own flat config. v7 ships exactly two flat tiers and BOTH
+  // enable the compiler-derived rules at error — the BOARD's fallback tier
+  // (flat.recommended) is not a milder set in v7 (delta vs recommended-latest
+  // is only void-use-memo), so "downgrade to recommended" cannot clear the
+  // pre-existing findings the way it could in v6.
+  //
+  // Ratchet (ticket clause 4, 37 findings > 30 budget): the five rules that
+  // fire on existing INTENTIONAL patterns are demoted to 'warn' — lint stays
+  // green (CI runs plain `eslint .`, warnings pass) while every finding stays
+  // visible as the cleanup backlog. These are behavior-sensitive refactors
+  // (latest-value ref mirrors with documented 401-race fixes, MUI anchorEl
+  // refs, uncontrolled-holder escape hatches) that do NOT belong in a pure
+  // toolchain ticket whose e2e gate expects zero behavior change:
+  //   set-state-in-effect 25 · refs 8 · immutability 2 · purity 1 ·
+  //   preserve-manual-memoization 1
+  // All other compiler-derived rules (set-state-in-render, use-memo,
+  // void-use-memo, static-components, error-boundaries, ...) stay at 'error'
+  // — zero existing violations, enforced from day one.
+  reactHooks.configs.flat['recommended-latest'],
   {
     files: ['**/*.{ts,tsx}'],
-    plugins: { 'react-hooks': reactHooks },
     rules: {
-      ...reactHooks.configs.recommended.rules,
+      'react-hooks/set-state-in-effect': 'warn',
+      'react-hooks/refs': 'warn',
+      'react-hooks/immutability': 'warn',
+      'react-hooks/purity': 'warn',
+      'react-hooks/preserve-manual-memoization': 'warn',
     },
   },
   {

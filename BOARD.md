@@ -1589,4 +1589,60 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **B8 派发（conductor 2026-09-01 18:1x）**：**T-418**（replication.md 增量段——包 B 前置规格，双源材料；解锁 T-420/T-422 链）入 lane；T-419（FE）继续在途。
 
+**T-419 → done 2026-09-01 18:2x——M15 12/25（FE 主线落：搜索页 AQL 模式）**：模式切换（ToggleButtonGroup + `?mode=aql` 深链；基本表单/锚零变化）+ AqlPanel（mono 编辑器 / 400 E-01 逐字内联 / K63 通告 / 表头三态排序 / range 分页）+ aql.ts 统一层（**零新端点**——rawBody 消费 T-415；尾缀链重写器按链序归位）+ ColumnsMenu 抽壳两模式共用。**锚册 v1.29**（T-419 批 15 锚；search 既有锚零改名——AQL 行复用既有锚零新增）。自测：四门 + 新 spec **7/7**（含 400 逐字 + 429/408/截断 mock 腿 + axe 双主题）+ 净实例全量 **259✓/1 在册假阳性**（串行绿甄别）+ m9 4/4 + **SPA +5,053B**。契约漂移零（T-415 实测逐项对 aql.md；429 Retry-After 数值不上 UI 系 ApiError 无响应头——锚册注记）。遗留四条均轻（排序字段须在输出集/title 提示已给；病态括号退化为 400 内联；草稿会话态；耗时列不采——无端点背书不伪造）。日志 reports/agents/T-419.md。
+
+**T-432 段一派发（conductor 2026-09-01 18:3x——结构插空票激活，前置 T-414/T-419 已落 FE lane 空净）**：vite 6→7.3.6 + plugin-react 4→5.2.0 + hooks plugin 5→7.1.1（flat recommended-latest）+ engines 底座；四门含 relink/wire-brand 对 vite 7 产物兼容 + 净实例全量。在途。
+
+**T-418 → done 2026-09-01 22:3x（配额窗③复活后收口）——M15 13/25（包 B 前置规格落）**：replication.md **§9 增量段**（227→403 行）——端点 11（官方 REST 面 + UI-API 面双列）/ 三面 × 幂等逐条（触发·封锁·Test）/ **定案 2**（Test 形态、审计补词 4）+ **顺手清偿 2**（M6 待验证 #1/#3 双解、T-405 审计遗留词）。置信度高 9/中高 4/中 3/低 0（**三源**：官方 OpenAPI 主源 + reverse-src Pro 实现 + T-402a 实测）。待验证 V1~V4（Pro 抓包升格项，不阻断实现）+ 交裁 2 点（§9.6——实现按 A 层对位 + 票内留痕）。日志 reports/agents/T-418.md。
+
+**B9 派发（conductor 2026-09-01 22:4x）**：**T-420**（Replicate Now——全量同步任务 + ▶ 接线；dep T-418 已满足；outbox 模式复用 diff=0 审计）入 lane；T-432①（工具链段一）继续在途。
+
+**用户指令 intake ⑤（2026-09-02 00:1x，重量级——M16 定向）**：①「现在制品树展示仍然和 artifactory 的逻辑严重偏离」——M14/M15 parity 后仍不满（**用户第三次 UI 加码**）；②「下个里程碑需要完全检查整个前端，对齐 artifactory 的所有内容」；③「现阶段除了 xray 暂时不做，剩余产品文档中明确不做（第一版）的都要做」——**不做清单全面翻案（除 Xray）**，含 E1~E7/§9/PRD Non-goals/滚程项，且**与 conductor 先前裁定冲突处（如 Q5 cron 双轨已裁不引入）立项稿列冲突点交用户确认而非默默翻转**。**即时处置**：M16 全量审计 workflow 已发起（不做清单三源枚举 + t226 逐页活体对照〔树为最高优先〕→ 汇编 M16 立项素材）；M15 在途票（T-420/T-432①）不受扰继续。
+
+**T-432① → done 2026-09-01 23:0x——M15 14/25（结构插空：web 工具链段一）**：vite ^6.3.0→**^7.3.6** + @vitejs/plugin-react ^4.5.0→**^5.2.0** + eslint-plugin-react-hooks ^5.2.0→**^7.1.1**（eslint.config 手工块→`configs.flat['recommended-latest']`）+ engines `^20.19.0 || >=22.12.0`；四门 + relink/wire-brand 对 vite 7 产物兼容验证 + e2e（§3 证据）。段二（vite 8 Rolldown + plugin-react 6）与 MUI v7→v9 维持排队独立票面。日志 reports/agents/T-432.md。
+
+**T-420 → done 2026-09-02 00:4x（报告固化收口）——M15 15/25（复制包 B 主件：Replicate Now）**：`POST /api/v1/replications/{id}/run` 对位（T-418 §9 wire）——**双实例主腿**：3 制品先落仓→建配置→REST 触发→B 侧节点数/**逐路径 sha256 与源一致**→status succeeded=3→重复触发 200 收敛（幂等）→PUT enabled=false→**409**→audit 2 行；引擎单元 4 面 + FE ▶ 真语义接线（T-404 占位替换 + spec 断言翻转）。outbox 引擎文件 diff=0（复用模式非重构）。**race 口径勘误留痕**：go 默认 10m 超时误伤——Makefile `TEST_TIMEOUT=20m` 才是既定口径，按 25m 重跑全包绿。**遗留七项预登记**：e2e 真栈腿归 T-421（toast/URL/任务深链断言已翻转）、锚册 §10.5 `repos-repl-run` 语义行归 owner 修订、M15-SPLIT §5.7 补 run 行、封锁门预检归 T-422（handler 翻转点已注释标明）、audit 词 replication.run 归 T-422 腿、api-reference 归 T-426 腿②、大仓 limit 化全枚举缝（T-423 同族，dogfood 量级无压力）。日志 reports/agents/T-420.md。
+
+**B10 派发（conductor 2026-09-02 01:0x）**：**T-422**（Test 连接 + blockPush·blockPull 全局封锁合票——P2，dep T-418 已满足；含 T-420 留下的封锁门预检翻转点 + audit 词表 replication.run/replication.config.* 批次）入 Go lane；**T-421（QA 中期）押后至审计 workflow 完结**（串行净机跑全树 race——共租负载教训）。
+
+**T-432① 官方通知补记（2026-09-02 01:5x）**：vite7 产物与 relink/wire-brand **完全兼容**（三面改写+自检全过 + vite6 沙箱基线互证）；**契约偏差登记**——BOARD 条款④「降级清理」语义失效（hooks v7 recommended 与 recommended-latest 同为全量 compiler 规则），替代执行 = recommended-latest + 存量命中 5 规则降 warn ratchet（10 条零违规当日 error 生效）；**37 条 ratchet warnings 清单入日志作清理票底稿（候选小票登记）**；整夜 load 63→481（用户 VM+串流共租）——**安静窗 chromium 全量 e2e 复跑建议归 T-421**；t404:337 腿系 T-420 翻转版断言票内未真栈跑（归 T-421 遗留①）；:8099 跨票残留实例 hazard 注记。conductor 收编缺口事故（replications.ts 漏提交→树内 tsc 破）已闭（`215aa19`）——**教训：收编按票报变更清单逐文件对 git status**。
+
+**T-422 → done 2026-09-02 03:4x（配额窗④复活后收口）——M15 16/25（复制包 B 首批齐：Test + 全局封锁）**：`Engine.TestTarget`（一次 GET 零副作用、凭据不落日志 NFR-S75、**不看封锁态**照 §9.2-C-10）+ **blockPush/blockPull 全局封锁**（binflow.yaml 全局段 + REST + 控制台开关**三面一致**；blockPush=on 新事件不入队 + 在途停发 + **REST 配置通道不受门**——t226 实测语义；blockPull=on 拉侧照 remote 语义拒绝/降级）+ **T-420 预检翻转点兑现**（handler 排程前 blockPush 预检）+ audit 词表批次（replication.run + replication.config.*）。自测：4 包全 ok + httpapi 137.4s + **race 两轮绿（25m 口径）** + lint 0；含 §2 越界申报（最小外延缝——AC 落地所需）。遗留细节见报告（FE 呈现面 parity R8 形态核验归 QA）。日志 reports/agents/T-422.md。
+
+**B11 派发（conductor 2026-09-02 03:5x）**：**T-425**（远端浏览评估票——研究型轻载，产 Q4 材料包；机器被审计 workflow 占用故选此票）入 lane；**T-421 继续押后**（净机需求）。
+
+**T-425 → done 2026-09-02 04:1x——M15 17/25（评估票：Q4 材料齐）**：13 包型能力矩阵（官方文档 2026-09-02 实取 + 21 包型设置出现矩阵脚本比对 + 本仓规格双源）+ 三出口材料 + Q4 浓缩包。**关键发现**：Artifactory 远端浏览 = 可选档 `listRemoteFolderItems`（**默认 false**；官方设置面仅 Debian/Generic/Maven/Opkg/RPM 五型）——PM docker-tags 倾向系 **L2 超 parity 错位**（Artifactory 未开放该型，已标注供裁）；maven/generic HTML 抓取族官方未写算法（中置信→建议不做）。t226 活体 Pro 许可门 400 → 降级留痕零静默升格。**Q4 终裁（conductor 2026-09-02 04:2x）**：**出口 C 批 1 = helm+deb+rpm**（~3 票零新解析器——对齐 Artifactory 可选档语义，默认维持缓存浏览）；docker tags 腿不采（超 parity）；maven/generic HTML 抓取族不做（算法无锚）；**LC-76 归 A（可选档语义）**，实现段 M16 登记。日志 reports/agents/T-425.md。
+
+**B12 派发（conductor 2026-09-02 04:2x）**：**T-426**（tech-writer 文档票两腿——AQL 指南/搜索 API 参考/virtual·复制包 B 增量/FAQ；前置全满足）入 lane；审计 workflow 树对照继续。
+
+**T-426 → done 2026-09-02 04:2x——M15 18/25（文档票两腿齐）**：**docs/user/aql.md 新篇**（子集边界 + 400 逐字 + **Artifactory AQL 迁移对照表**）+ api-reference（SR 表翻转 aql/gavc/prop/pattern + /v1 表 +3 行 + **顺修存量 bug：复制 target_url 缺 /binflow 后缀**）+ governance（搜索节重写 + 复制包 B 三小节）+ console（T-416/419/420/422 四面增量）+ FAQ 两问 + 顺车三处（search 指标入册/README/sidebars）。**双净实例实测**（18501/18502 避开审计端口）：AQL 22 组 curl + 老搜索四端点 + 复制包 B 全臂（run→AQL 验证 5 路径收敛/409×2/封锁四变体）跑通留输出；make docs 零断链。**as-built 事实入册两处**（相对时间 `"1d"` 须空格〔与官方后缀表字面冲突——分歧登记，翻转点 lexer.go parsePeriod〕；用户 .limit() 也置截断标记）。**环境注记**：04:08:34 全机 binflow-server 同秒被外部 SIGTERM（审计实例 18091 + 本票 scratch；非本票 pkill）——审计实例未复活，登记待查。遗留四条（429/408 未活体触发系语料限制、blockPull 降级按 T-422 报告入册、FE 面以各票 e2e 为据）。日志 reports/agents/T-426.md。
+
+**B13 派发（conductor 2026-09-02 04:3x）**：**T-427**（PM 收口笔——Q 总账归位 + LC/K 终版 + 「M15 未纳入项」起草〔与 intake ⑤ M16 语境衔接〕；dep T-407/T-425 均满足）入 lane。
+
+**T-427 → done 2026-09-02 04:4x——M15 19/25（PM 收口笔）**：PRD **v1.1**——§7 Q 总账逐项归位（终裁落章 3〔Q4 C 批 1/Q5 cron 不引入/Q6 开禁→T-431〕+ 规格回写归位 2〔Q2 K63 定案 1000/4/10s/**408**/Q3 400 维持〕+ 维持暂行 2〔Q1 收口窗必裁——材料已齐；Q7 登记型〕）+ LC-68~79 终版（**A10/C2/待裁 0 零滞留**）+ K62~66 实装值回填（K64 局部翻转=大小写不敏感——M4 K2 欠账清偿；K65 判 M16）+ §5.7 全景表 as-built 对账（**archive/latestVersionByProperties 两外挂端点补登**——全量口径 14+2+1 零遗漏）+ FR-133/134 规格校准（aql.md 五定案回写）+ ROADMAP「M15 未纳入项」备稿段（**每条〔M16 吸收预期〕标注——Xray 唯一维持不做、HA/Build-info/license 翻案候选、协议无 API 根树物理不可行非翻案面**）。日志 reports/agents/T-427.md。
+
+**B14 派发（conductor 2026-09-02 04:4x）**：**T-428**（文面回写簇——四处落笔 + make docs；轻载适配审计占机）入 lane。
+
+**T-428 → done 2026-09-02 04:5x——M15 20/25（文面回写簇）**：四处落笔全**写前代码核对**——①reverse/README 补 npm.md 行（T-393 遗留②清）；②parity 册 v1.4：M1 行 440px 紧凑档定案升级 + M3 MUI Paper 代差注记；③package-icons v1.3：K61 量级拍板（K56 现值零改动，超 +10% 不回折）；④migrate-artifactory 清账 6 处（nuget 措辞分面/三→四阶段/守卫/旗标/dry-run 真实渲染/报错 +2）。`make docs` SUCCESS 零断链；②③标「ux 会签位」代笔（遗留 ux 复核签字）。日志 reports/agents/T-428.md。
+
+**B15 派发（conductor 2026-09-02 05:0x）**：**T-424**（L2 行内快捷 + e2e 三节纪律成文——复制 key/Set Me Up 直开 + INC-1/pkill 精确杀/assert-tokens 豁免成文）入 FE lane。
+
+**T-424 → done 2026-09-02 08:4x（配额窗⑤复活后收口）——M15 21/25（L2 快捷钉断言 + 纪律成文）**：新 spec 5/5（复制 key〔aria+Space+剪贴板全值+回显〕/ Set Me Up 直开〔smu-* 锚族复用〕/ **E1 不倒退缺席断言**/ axe 双主题）+ **web/e2e/README 三节纪律 + 两 flake 注记成文**（INC-1 永不点确认/共享 fixture 快照前置；pkill 按端口精确杀——三起票务事故 + conductor 两起自杀并入；assert-tokens 豁免口径）。**web/src 零改动**（L2 快捷系 M8 既有能力——纪律票钉成断言口径，diff 审计过）；净实例全量三项目 **301✓/0 红/24 skip**（7.9m）；四门绿；**SPA +0B**。**过程事故诚实披露**（§5）：首轮起服 heredoc 失败→空配置误开仓库根 ./data 14 秒（仅 session sweep+WAL checkpoint，零写请求——日志逐行核对）→ 教训并入 README §4。遗留三条（Enter 劫持共享件修法超 area 建议单独提票/assert-tokens 显式 allowlist 待票/见报告）。日志 reports/agents/T-424.md。
+
+**M15 尾波态势（conductor 2026-09-02 08:4x）**：实现票仅剩 **T-423**（busy 专项——24 路并发测需净机，候审计 workflow 末两腿完结即派）与条件票 T-431（随时插空）；随后 T-429 release（dep T-423）→ T-430 终验 → m15-done 收口窗（Q1 终裁 + 未纳入项启用 + tag/PR/UAT）。
+
+**M16 立项稿 v1.0 落盘（PM 2026-09-02 10:3x）**：milestone-16.md 约 560 行——§0 范围定界（推荐口径=控制台交互 parity）+ FR-141~148（主轴四批次〔树栈 P0〕+ 后端小域 + 远端浏览 + AQL 副线）+ LC-80~96 + L35~L46 + K67~72 + **用户确认清单 Q1~Q13**；ROADMAP 头切 M16。日志见 PM 回报。
+
+**M16 确认清单终裁（conductor 主持，用户四项 + conductor 三项，2026-09-02 10:4x）**：
+- **Q1 cron 双轨：用户裁「引入 cron 调度域」**（推翻 conductor M15 Q5 终裁——事件驱动引擎保留，**新增独立调度域**〔GC 定时/备份定时/复制 cron 字段〕：需新 ADR + 调度数据模型 + 与事件引擎并存语义）。
+- **Q3 界面语言：用户裁「双语可切换」**（i18n 框架 + 中英两包——工程量最大档，牵全部 UI 文案与 e2e 断言双语化）。
+- **Q4 分页范式：用户裁「翻成页码控件」**（×9 处统一，e2e 随迁）。
+- **Q6 产品域边界：用户裁「全部进」**（Builds/Build-info、Release Bundle、洞察报表、Federation/Lifecycles 全做——**按两程承接**：M16 = 交互 parity + i18n + cron 域收口；**M17 = 产品域扩张专程**〔须 PRODUCT.md 修订 + ADR 群——沿 PM A1 建议与选项说明的拆程指引〕）。
+- conductor 三项：**Q2/E1** 修文本范围（管理列表 vs 浏览器表）+ 收紧件 UI 不倒退；**Q5/E5** 用户/组创建路由化（V6 前提已实证推翻）；**Q7/Annotate** 加（后端动词域 + 前端矩阵列 + 语义迁移随票）。
+- Q8~Q13 可后裁维持暂行。**PM 已派回填 v1.1**（范围重排 + 裁定落章 + M17 预立项段）。
+
+**T-423 → done 2026-09-02 10:5x——M15 22/25（最后主实现票落：busy 重试预算）**：**RetryOnBusy**（4 次总执行/250ms→1s 封顶退避/busy-class only/ctx 取消即止/耗尽保 ErrStoreBusy 可重试语义）贯穿缓存填充写链——storage 会话行 + Append 态持久化 + remote land() 三 upsert + **registry-v2 面（dockerremote.go——D1 原始现场，area 外延披露）** + 负缓存写 + **busy-Append 诚实性修正**（不再误裹 errUpstreamBody/误标 assumed-offline）。**AC1 实证**：generic 面 24 路基线（HEAD archive 构建）3×500 SQLITE_BUSY + 级联 9569 假 404 → **修复后 0 5xx、10000/10000**；8 路不倒退（p50 189ms vs T-377 184ms）；helmoci 面 24 路 0 5xx。**D-413-2 票内修**（5m 预算+指数退避+耗尽归因诚实）。**全树 race 一次过 36 包**；metadata 契约零改动（ADR-0007 勘误许可）。遗留四条（⑦ limit 缝 M16 候选/审计行丢弃 P3 候选/helmoci 基线静窗不复现如实记录/面积审计按 §6）。日志 reports/agents/T-423.md。
+
+**B16 派发（conductor 2026-09-02 11:0x）**：**T-421**（QA 中期——净机串行全树 race 窗口开启 + 六项累积交接面收口〔T-420 e2e 腿/T-432① 安静窗复跑/D-413-2 复核/T-422 五锚/真门形态/归属审计〕）+ **T-431**（docker virtual 开禁——Q6 裁定兑现，错峰避让 QA race 窗）双 lane 在途。**M15 实现面全落**——余 T-429 release（候 T-421/T-431）→ T-430 终验 → m15-done。
+
 **全树 race 补证判无效（conductor 2026-09-01 14:3x）**：与两 agent 测试套件同机并发跑——22 包红全部 620-660s 超时形态 + db/sql 竞争 panic + storage fail-open 窗口 = **共租负载签名**（T-414 日志同款 load 450-630），非产品缺陷。T-412 的 AC3 证据改挂 **T-421 中期 QA 串行全树 race**（届时 lane 空净）。**D-413-2 [P3·登记]**：唯一真信号 = T-413 `TestEngineMixedLoad` 在慢机下 K63 并发门 429 介入而测试只容忍 busy gate 拒绝——测试健壮性收窄（门注入调低或混合负载容忍 429），归 T-421 复验时顺腿修或转 T-433。**教训入册：全树 race/性能类验证必须 lane 空净时串行跑（派单纪律）。**

@@ -59,7 +59,7 @@ M4 审计动作全集（可作 `action=` 过滤值；M7 增补 `user.role.change
 跨仓统一入口（结果**按调用者权限过滤**——无 read 的仓库不出现；admin 全见）：
 
 ```bash
-# 名称子串（SQL LIKE；缺 name → 400）
+# 名称子串（大小写不敏感 LIKE；缺 name → 400）
 curl -su admin:$ADMIN_PW "$BASE/binflow/api/search/artifact?name=w.bin" 
 # {"results":[{repo,path,size,...}]}；repos= 逗号分隔限定仓
 
@@ -68,7 +68,9 @@ SHA=$(shasum -a 256 w.bin | cut -d' ' -f1)
 curl -su admin:$ADMIN_PW "$BASE/binflow/api/search/checksum?sha256=$SHA"
 ```
 
-M4 边界（**404，有意不做**）：`/api/search/props|users|artifactory|pattern|badge`、AQL、gavc 结构化检索、`*` 通配。匿名实例关闭时未认证搜索当前返回 403（与 /api 家族 401 姿态尚不统一，已登记勘误）。
+**M15 起搜索面六端点齐备**：上述两端点之外，新增 AQL（`POST /api/search/aql`）与老搜索三端点（`GET /api/search/gavc|prop|pattern`）——语言子集、错误文案族与 Artifactory 迁移对照见 **[AQL 搜索指南](../aql.md)**，wire 速览见 [API 参考 · M15 增补](../api-reference.md#m15-增补速览t-426)。未命中一律 200 空数组；结果上限 1,000 行（截断置 `X-Binflow-Search-Truncated` 头）。
+
+仍 404（有意不做）：`/api/search/props|users|artifactory|badge`（注意 `prop` 为官方单数拼写）。匿名姿态按面分化：老搜索族（artifact/checksum/gavc/prop/pattern）闭环实例匿名 → 403；**AQL 永不允许匿名**（闭环 401 / 开匿名 403）。
 
 ## GC（垃圾回收）
 
@@ -173,13 +175,13 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/tiny/b.bin --data-binary @800b.bin
 
 ## 复制（push replication）
 
-> M6 起提供（ADR-0021：事件驱动 push 引擎 + 配置/观测 REST）；**M14 补启停端点与控制台配置面**（T-405 `PUT` 启停；T-404 仓库编辑页 Replications 节）。REST 一直是完全配置面，界面与之同源。
+> M6 起提供（ADR-0021：事件驱动 push 引擎 + 配置/观测 REST）；**M14 补启停端点与控制台配置面**（T-405 `PUT` 启停；T-404 仓库编辑页 Replications 节）；**M15 补复制包 B**（T-420 Replicate Now 全量触发 · T-422 Test 连接与全局封锁）。REST 一直是完全配置面，界面与之同源。
 
 push 复制把 **local 仓**新落的制品推送到**目标实例**（另一个 BinFlow，或任何兼容其上传面的服务）：
 
-- **触发是事件驱动**：制品落库即入队（无用户级 cron）；另有 **1 分钟兜底 sweep**（进程崩溃遗留任务的恢复 + 退避耗尽任务 5 分钟后的复活重试）。
+- **触发是事件驱动 + 手动全量**：制品落库即入队（无用户级 cron）；另有 **1 分钟兜底 sweep**（进程崩溃遗留任务的恢复 + 退避耗尽任务 5 分钟后的复活重试）；补漏/建仓后对账走 **Replicate Now**（见下文）。
 - **推送面按源仓包型选择**：generic/maven 走通用 REST 面、docker 走 `/v2` registry 面、npm 走 publish/dist-tag 面、pypi 走 multipart 上传面——从不直接触碰目标存储。
-- **目标冲突语义**：目标已有同 sha256 路径 = 幂等成功（零传输）；不同 sha256 = 终态 failed（first-write-wins，目标侧不动）。
+- **目标冲突语义**：目标已有同 sha256 路径 = 幂等成功（零传输）；不同 sha256 = 终态 failed（first-write-wins，目标侧不动）——典型如目标 maven 仓自己生成的 `maven-metadata.xml` 与源副本必然不同 sha，Replicate Now 后状态面会有一条 failed（属预期）。
 - **重试**：瞬时失败指数退避共 6 次尝试（1s/2s/4s/8s/16s 间隔）。
 
 ### 配置 CRUD
@@ -189,9 +191,10 @@ export BASE=http://localhost:8080
 export ADMIN_PW=<你的管理员口令>
 
 # 建配置（201 回显配置行——凭据字段永不回显；enabled 缺省 true）
+# target_url = 目标实例裸 origin（引擎自行拼 /binflow/<target_repo>/<path>，不要再带 /binflow 后缀）
 curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/replications \
   -H 'Content-Type: application/json' \
-  -d '{"name":"push-prod","source_repo":"repl-local","target_url":"http://target.example/binflow","target_repo":"mirror","target_username":"ci","target_password":"<目标口令>"}'
+  -d '{"name":"push-prod","source_repo":"repl-local","target_url":"http://target.example:8080","target_repo":"mirror","target_username":"ci","target_password":"<目标口令>"}'
 # {"id":1,"name":"push-prod","source_repo":"repl-local",...,"enabled":true,"created_at":"…","updated_at":"…"}
 
 # 列表（bare array；readonly_admin 可读）
@@ -213,7 +216,7 @@ curl -su admin:$ADMIN_PW -X DELETE $BASE/binflow/api/v1/replications/push-prod \
 | 门 | 读（GET 列表 / status）= system:read（admin / readonly_admin）；写（POST / PUT / DELETE）= system:write 且**仅全量 admin**（readonly_admin 只读呈现） |
 | `name` | 1..64 位 `[A-Za-z0-9._-]`、以字母数字开头（DELETE 按它寻址）；重名 → 409 `replication config name "<name>" is already taken` |
 | `source_repo` | 必须是已存在的仓（建仓先行）——未知 → 400 `replication config references an unknown repository "<key>"` |
-| `target_url` / `target_repo` | 绝对 http(s) URL + 目标仓名，均必填（URL 不合法 → 400 点名 `target_url must be an absolute http or https URL with a host`） |
+| `target_url` / `target_repo` | 绝对 http(s) URL + 目标仓名，均必填（URL 不合法 → 400 点名 `target_url must be an absolute http or https URL with a host`）；`target_url` 填**裸 origin**——推送/探测地址由引擎拼 `{target_url}/binflow/{target_repo}/…` |
 | `target_password` | **只写**：存储前以 `BINFLOW_REMOTE_CREDENTIALS_KEY` 主钥密封（enc:v1），任何响应不回显。实例未设主钥时携带口令 → 400（文案点名该环境变量）；留空 = 匿名目标 |
 | `max_bandwidth_bytes_per_sec` / `max_items_per_push` | 节流上限，非负；0 = 缺省（`max_items_per_push` 缺省 1000） |
 | `enabled` | 缺省 **true**。**停用语义**：停 → 新制品即时不入队、在途任务跑完自身结论（不中断）；恢复 → 新制品即时入队，停用期积压由下一趟 sweep 排空（≤1 分钟）——**全程无需重启** |
@@ -222,6 +225,84 @@ curl -su admin:$ADMIN_PW -X DELETE $BASE/binflow/api/v1/replications/push-prod \
 | SSRF | 目标 URL 过 scheme/host 校验 + 逐跳复检 + DNS-rebinding 钉扎；私网目标**默认放行**（`replication.allow_private_target` 缺省 true——与 webhook 默认拒有意不对称：复制目标是运维静态配置的） |
 
 字段级更新（改名/换目标等）暂无端点——编辑 = 删除 + 重建两步。
+
+### Replicate Now：手动全量同步（M15，T-420）
+
+对**单条配置**种一趟全量对账任务（枚举源仓现有 FILE 节点逐个入队，复用既有 push 队列，无新执行器）：
+
+```bash
+# 排程即返回（不等复制）；scheduled = 本次种入任务数；capped = 受 max_items_per_push 截断（再点取下一段）
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/replications/1/run
+# 200 {"info":"The replication tasks was successfully scheduled to run","id":1,"name":"push-b",
+#      "scheduled":5,"capped":false}
+# 空源仓 → "scheduled":0（空跑，如实回报）
+```
+
+| 面 | 行为 |
+|---|---|
+| 寻址 | `{id}` = 数值 id（与 `PUT` 启停同键，不可变主键） |
+| body | 不消费——按**已存配置**跑（官方 ReplicationRequest[] 的 per-run 覆盖面 BinFlow 配置模型无对位臂） |
+| 重复触发 | **不去重**：再次 run 照样 200 + 再种一趟，目标侧 sha256 幂等收敛（代价翻倍，勿在 CI 里高频轮询） |
+| 停用配置 | **409**（文案点名配置 + 指路 `PUT enabled=true`）——停用位的任务行引擎永不认领，排程即死行 |
+| push 被封 | **409** `Push replication is blocked, skipping replication (config <name>; POST …/unblock to resume)`（封锁与触发同门，不排队等待） |
+| 观测 | 不新增查询面——[观测面](#观测面) status 即任务状态翻转观测（10s 轮询同源） |
+| 审计 | `replication.run`（detail：name/target/target_repo/scheduled/capped） |
+
+### Test 连接（M15，T-422）
+
+保存前后都可测：对 `{target_url}/binflow/api/storage/{target_repo}` 发一次只读 GET（200/302 视为通；401/403 = 凭据被拒；404 = 仓不存在或凭据不足），**零状态写入、不看封锁态**：
+
+```bash
+# 已存配置（凭据取自行内密封值）
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/replications/1/test
+# 200 {"ok":true,"status_code":200,
+#      "message":"Push replication target url 'http://127.0.0.1:18502/binflow/api/storage/mirror-b' tested successfully"}
+
+# 无 id 草稿面（表单先测后存；body 必填）
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/replications/test \
+  -H 'Content-Type: application/json' \
+  -d '{"target_url":"http://127.0.0.1:18502","target_repo":"mirror-b","target_username":"admin","target_password":"wrong"}'
+# 400 {"ok":false,"status_code":401,
+#      "message":"Connection failed: Target replication URL returned error 401: {…invalid credentials…}"}
+```
+
+| 面 | 行为 |
+|---|---|
+| 响应形态 | **ok 判定体**：通过 200 / 失败**同形 400**（`{ok,status_code,message}`，内联原因即载荷）；面级错误（未知 id 404、body 畸形 400、凭据解封失败 500 不回显明文）才走 errors[] 信封 |
+| body 覆盖 | `{id}/test` 可选 body 逐字段覆盖（改了 URL/用户名没给密码 → 按**匿名**探测——旧密文绝不随新候选外发） |
+| 拒绝族 | 自实例目标 → `Cannot replicate to the same instance: …`；`-cache` 结尾目标 → 官方文案 `Replication to remote cache repositories are not allowed.`；DNS/传输 → `Error testing push replication config: unknown host '<host>'` |
+| 审计 | `replication.config.test`（detail：name/target_url/status_code/ok；零凭据） |
+
+### 全局封锁 blockPush / blockPull（M15，T-422）
+
+**应急刹车**：一键停全实例的 push 复制与 remote 回源，无论各配置 enabled 与否（对齐 Artifactory blockPush/blockPull 语义，三端点官方 wire 形）：
+
+```bash
+# 读态（readonly_admin 可读）——官方 camelCase 键形
+curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/system/replications
+# {"blockPullReplications":false,"blockPushReplications":false}
+
+# 封 / 解（query 选方向：缺省 = 该方向动作；非 "true" 串 = 本次不动；响应 text/plain 官方文案）
+curl -su admin:$ADMIN_PW -X POST "$BASE/binflow/api/v1/system/replications/block?push=true"
+# Successfully blocked all replications, no replication will be triggered.
+curl -su admin:$ADMIN_PW -X POST "$BASE/binflow/api/v1/system/replications/block?push=false"
+# Successfully blocked all pull replications, no pull replication will be triggered.   （仅动了 pull）
+curl -su admin:$ADMIN_PW -X POST "$BASE/binflow/api/v1/system/replications/unblock?push=true"
+# Successfully unblocked all replications.
+curl -su admin:$ADMIN_PW -X POST "$BASE/binflow/api/v1/system/replications/block?push=false&pull=false"
+# No action taken.   （双不动：200、状态零变化、零审计）
+```
+
+| 面 | 行为 |
+|---|---|
+| push 生效面 | 事件轨（封锁期新制品**零任务入账**）+ 认领轨（在途任务重试间隙停发回 pending，attempt 计数保留；已在 HTTP 途中的单次推送跑完自身）+ Replicate Now（409，见上） |
+| pull 生效面 | remote 仓**零上游接触**：新鲜缓存照常 HIT；过期副本降级 **STALE**（hint 点名封锁）；miss → 404 点名封锁（hardFail 仓 → 502）——**不写 assumed-offline 窗**（刹车是操作员动作非上游故障，解除即刻恢复） |
+| 持久化 | 写入即持久（migration 019 单行表）；重启后行权威——binflow.yaml 的 `replication.block_push` / `block_pull`（缺省 false）只在**首启无行**时种子落库，此后以 REST 为准 |
+| 不拦配置面 | 配置 CRUD/启停/列表在封锁期照常（刹车停复制不停管理） |
+| 幂等 | 同值重复调用 = 同状态再写 + 同文案 200 |
+| 审计 | `replication.block.update`（detail：blockPush/blockPull 终态；双不动不落审计） |
+
+控制台对应：治理 → 复制页的全局封锁卡（两方向独立 Switch，与 REST/配置文件三面同源）。
 
 ### 观测面
 
@@ -234,7 +315,7 @@ curl -su admin:$ADMIN_PW "$BASE/binflow/api/v1/replication/status?limit=50"
 #   "status":"in_progress","attempts":3,…}]}        —— limit 1..500，缺省 50
 ```
 
-控制台入口两处：治理 → 复制（`/admin/governance/replication`：目标表 + 最近事件 10s 轮询）与**仓库编辑页 Replications 节**（M14，仅 local 仓编辑态：配置列表 + 新建/编辑表单 + 行内启停开关即上表 `PUT` + 输入 name 强确认删除；表单中 cron/事件开关/路径前缀/sync 三开关为 Artifactory 概念的**预留位，恒禁用**——BinFlow 引擎为事件驱动 + 1 分钟 sweep，无用户级 cron）。仓库列表 local Tab 的 `Replications` 列显示每仓配置计数，行级 Run 动作深链回编辑节——BinFlow 无手动 trigger 端点，复制由事件驱动，Run 不伪造触发。
+控制台入口两处：治理 → 复制（`/admin/governance/replication`：目标表 + 最近事件 10s 轮询；**M15 起页头新增全局封锁卡**——两方向独立 Switch，即上文 block/unblock 三端点）与**仓库编辑页 Replications 节**（M14，仅 local 仓编辑态：配置列表 + 新建/编辑表单〔**M15 起表单带「测试连接」按钮**，即 Test 面〕+ 行内启停开关即上表 `PUT` + 输入 name 强确认删除；表单中 cron/事件开关/路径前缀/sync 三开关为 Artifactory 概念的**预留位，恒禁用**——BinFlow 引擎为事件驱动 + 1 分钟 sweep，无用户级 cron）。仓库列表 local Tab 的 `Replications` 列显示每仓配置计数；**M15 起 ▶ Run 动作 = 真触发**（对本仓逐启用配置 POST run，toast 回报排程数 + 「查看任务」深链复制页；全部停用则按钮禁用——见上文 Replicate Now）。
 
 ## 控制台对应页面
 

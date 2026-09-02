@@ -75,9 +75,16 @@ type Options struct {
 	// reclaimable). The blob-only GC path (which never touches sessions) is
 	// the one caller that may leave it nil.
 	Sessions metadata.UploadSessionStore
+	// BusyRetry bounds the second-chance retry of busy-class session-row
+	// writes (T-423, FR-139.2 — T-377 D1): the row create of BeginSession
+	// and the state persist of Append re-run within this budget when
+	// SQLITE_BUSY escapes the store's own busy_timeout under a concurrent
+	// cache-fill storm. Zero value means DefaultBusyRetry.
+	BusyRetry BusyRetryPolicy
 	// Logger receives the Close retention INFO line (ADR-0028: the preserved
-	// unexpired session count + ids, truncated). Nil means slog.Default().
-	// It is the only thing this package logs.
+	// unexpired session count + ids, truncated) and the per-retry WARN lines
+	// of the busy budget (busy.go). Nil means silent for the retries and
+	// slog.Default() for the retention line.
 	Logger *slog.Logger
 }
 
@@ -220,7 +227,13 @@ func (e *engine) BeginSession(ctx context.Context) (Session, error) {
 			CreatedAt: st.CreatedAt.UTC().Format(time.RFC3339),
 			ExpiresAt: expiresAt.UTC().Format(time.RFC3339),
 		}
-		if err := ss.Create(ctx, row); err != nil {
+		// The busy budget (T-423, T-377 D1): a fresh row insert is
+		// idempotent-by-construction here — a failed attempt removed this
+		// attempt's directory before returning, and the retry inserts the
+		// SAME row again — so a busy-class escape re-runs inside
+		// opts.BusyRetry instead of failing the caller's landing.
+		if err := RetryOnBusy(ctx, e.opts.Logger, e.opts.BusyRetry, "upload-sessions create",
+			func(ctx context.Context) error { return ss.Create(ctx, row) }); err != nil {
 			_ = os.RemoveAll(dir)
 			return nil, fmt.Errorf("storage: begin session %s: persist: %w", id, err)
 		}

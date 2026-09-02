@@ -49,6 +49,9 @@ type S3Engine struct {
 	// log receives the Close retention INFO (the ADR-0028 posture's one
 	// line). Nil means slog.Default().
 	log *slog.Logger
+	// busyRetry is the resolved busy-class row-write retry budget (T-423,
+	// busy.go); zero value means DefaultBusyRetry at use time.
+	busyRetry BusyRetryPolicy
 	// ttl is the resolved session TTL: the row-expiry clock and the orphan
 	// MPU sweep's age cutoff share one number, like the disk arm's Options.ttl.
 	ttl time.Duration
@@ -140,6 +143,10 @@ type S3EngineOptions struct {
 	// answers ErrSessionNotFound and Close aborts live multipart uploads
 	// (nothing would be resumable without rows, so eager reclamation wins).
 	Sessions metadata.UploadSessionStore
+	// BusyRetry bounds the second-chance retry of busy-class session-row
+	// writes (T-423, FR-139.2 — T-377 D1), the disk arm's twin. Zero value
+	// means DefaultBusyRetry.
+	BusyRetry BusyRetryPolicy
 	// Logger receives the Close retention INFO line (the disk arm's
 	// ADR-0028 posture, mirrored for wired engines). Nil means
 	// slog.Default().
@@ -182,6 +189,7 @@ func OpenS3Engine(core *minio.Core, bucket string, opts *S3EngineOptions) (Engin
 		holds:        newHoldSet(opts.GCHoldTTL, opts.Now),
 		rows:         opts.Sessions,
 		log:          opts.Logger,
+		busyRetry:    opts.BusyRetry,
 		ttl:          opts.sessionTTL(),
 		sessions:     make(map[string]*s3Session),
 		clock:        opts.Now,
@@ -331,12 +339,18 @@ func (e *S3Engine) beginSession(ctx context.Context, partSize int64, caller stri
 	// by age. A row failure aborts the fresh MPU — fail the begin rather
 	// than ship a session nothing can resume.
 	if e.rows != nil {
-		if err := e.rows.Create(ctx, &metadata.UploadSession{
-			ID:        id,
-			State:     marshalS3SessionState(s.sessionStateLocked()),
-			CreatedAt: createdAt.UTC().Format(time.RFC3339),
-			ExpiresAt: createdAt.Add(e.ttl).UTC().Format(time.RFC3339),
-		}); err != nil {
+		// The busy budget (T-423, T-377 D1): a failed attempt aborts this
+		// attempt's MPU above and the retry persists the SAME row —
+		// idempotent-by-construction, see busy.go.
+		if err := RetryOnBusy(ctx, e.log, e.busyRetry, "upload-sessions create (s3)",
+			func(ctx context.Context) error {
+				return e.rows.Create(ctx, &metadata.UploadSession{
+					ID:        id,
+					State:     marshalS3SessionState(s.sessionStateLocked()),
+					CreatedAt: createdAt.UTC().Format(time.RFC3339),
+					ExpiresAt: createdAt.Add(e.ttl).UTC().Format(time.RFC3339),
+				})
+			}); err != nil {
 			_ = e.core.AbortMultipartUpload(context.Background(), e.bucket, uploadKey, uploadID)
 			return nil, fmt.Errorf("storage: s3: begin session %s: persist: %w", id, err)
 		}
