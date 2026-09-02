@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"time"
 
 	"github.com/lzwzzy/binflow/internal/metadata"
@@ -245,8 +246,15 @@ func (s *service) landRemoteV2Core(ctx context.Context, p *Principal, repoKey, p
 	if err != nil {
 		return nil, err
 	}
-	if err := s.md.Blobs().Put(ctx, &metadata.Blob{
-		Sha256: committed.Sha256, Sha1: committed.Sha1, Md5: committed.Md5, Size: committed.Size, CreatedAt: now,
+	// The row writes ride the busy budget (T-423, T-377 D1 — the same
+	// second-chance ladder the engine's land() uses): all three are
+	// idempotent upserts, so a busy-class escape past the store's
+	// busy_timeout re-runs instead of failing the pull that already paid
+	// for the upstream transfer.
+	if err := s.cacheBusyRetry(ctx, "remote v2 cache blob row", func(ctx context.Context) error {
+		return s.md.Blobs().Put(ctx, &metadata.Blob{
+			Sha256: committed.Sha256, Sha1: committed.Sha1, Md5: committed.Md5, Size: committed.Size, CreatedAt: now,
+		})
 	}); err != nil {
 		return nil, fmt.Errorf("remote %s: cache blob row %s: %w", repoKey, committed.Sha256, err)
 	}
@@ -265,19 +273,32 @@ func (s *service) landRemoteV2Core(ctx context.Context, p *Principal, repoKey, p
 			node.Mime = existing.Mime
 		}
 	}
-	if err := s.md.Nodes().Put(ctx, node); err != nil {
+	if err := s.cacheBusyRetry(ctx, "remote v2 cache node row", func(ctx context.Context) error {
+		return s.md.Nodes().Put(ctx, node)
+	}); err != nil {
 		return nil, fmt.Errorf("remote %s: cache node %s: %w", repoKey, path, err)
 	}
 	ttl := s.remoteContentTTL(ctx, repoKey)
-	if err := s.md.Remote().PutCache(ctx, &metadata.RemoteCacheEntry{
-		RepoKey: repoKey, Path: path, Kind: metadata.RemoteCacheKindContent,
-		FetchedAt: now, ExpiresAt: remoteExpiry(s.nowFn(), ttl),
+	if err := s.cacheBusyRetry(ctx, "remote v2 cache state row", func(ctx context.Context) error {
+		return s.md.Remote().PutCache(ctx, &metadata.RemoteCacheEntry{
+			RepoKey: repoKey, Path: path, Kind: metadata.RemoteCacheKindContent,
+			FetchedAt: now, ExpiresAt: remoteExpiry(s.nowFn(), ttl),
+		})
 	}); err != nil {
 		return nil, fmt.Errorf("remote %s: cache state %s: %w", repoKey, path, err)
 	}
 	s.releaseGCHold(ctx, committed.Sha256)
 	s.audit(ctx, AuditEvent{Actor: actor(p), Action: AuditActionDownload, Repo: repoKey, Path: path})
 	return node, nil
+}
+
+// cacheBusyRetry re-runs one remote cache-population row write while it
+// fails with busy-class metadata contention, within the production budget
+// (T-423, T-377 D1 — storage.RetryOnBusy owns the contract). The service
+// keeps no logger of its own, so the per-retry WARN lines go to the
+// process default logger — in a serve process that is the server log.
+func (s *service) cacheBusyRetry(ctx context.Context, op string, fn func(context.Context) error) error {
+	return storage.RetryOnBusy(ctx, slog.Default(), storage.DefaultBusyRetry, op, fn)
 }
 
 // CacheRemoteMiss implements RemoteV2Plane: the negative-cache write of the
@@ -297,9 +318,11 @@ func (s *service) CacheRemoteMiss(ctx context.Context, p *Principal, repoKey, pa
 // cacheRemoteMissCore is the negative-cache write without the permission
 // gate (the virtual seam's member-scoped twin, T-365).
 func (s *service) cacheRemoteMissCore(ctx context.Context, repoKey, path string) error {
-	if err := s.md.Remote().PutCache(ctx, &metadata.RemoteCacheEntry{
-		RepoKey: repoKey, Path: path, Kind: remoteCacheKindNegative(),
-		FetchedAt: s.now(), ExpiresAt: remoteExpiry(s.nowFn(), s.remoteMissedTTL(ctx, repoKey)),
+	if err := s.cacheBusyRetry(ctx, "remote v2 negative cache row", func(ctx context.Context) error {
+		return s.md.Remote().PutCache(ctx, &metadata.RemoteCacheEntry{
+			RepoKey: repoKey, Path: path, Kind: remoteCacheKindNegative(),
+			FetchedAt: s.now(), ExpiresAt: remoteExpiry(s.nowFn(), s.remoteMissedTTL(ctx, repoKey)),
+		})
 	}); err != nil {
 		return fmt.Errorf("remote %s: negative cache %s: %w", repoKey, path, err)
 	}
@@ -348,22 +371,31 @@ func (s *service) RecordRemoteManifest(ctx context.Context, p *Principal, repoKe
 // gate (the virtual seam's member-scoped twin, T-365).
 func (s *service) recordRemoteManifestCore(ctx context.Context, repoKey, image, digest, tag, mediaType string, size int64, refs []*metadata.DockerRef) error {
 	now := s.now()
-	if err := s.md.Docker().PutManifest(ctx, &metadata.DockerManifest{
-		RepoKey: repoKey, Image: image, Digest: digest, MediaType: mediaType,
-		Size: size, CreatedBy: "remote-proxy", CreatedAt: now,
+	// The index rows ride the busy budget like every other cache-fill row
+	// write (T-423): PutManifest/PutTag are upserts and PutRefs replaces
+	// the manifest's ref set wholesale — all idempotent under a re-run.
+	if err := s.cacheBusyRetry(ctx, "remote v2 manifest row", func(ctx context.Context) error {
+		return s.md.Docker().PutManifest(ctx, &metadata.DockerManifest{
+			RepoKey: repoKey, Image: image, Digest: digest, MediaType: mediaType,
+			Size: size, CreatedBy: "remote-proxy", CreatedAt: now,
+		})
 	}); err != nil {
 		return fmt.Errorf("remote manifest row %s/%s@%s: %w", repoKey, image, digest, err)
 	}
 	if tag != "" {
-		if err := s.md.Docker().PutTag(ctx, &metadata.DockerTag{
-			RepoKey: repoKey, Image: image, Tag: tag, Digest: digest,
-			UpdatedBy: "remote-proxy", UpdatedAt: now,
+		if err := s.cacheBusyRetry(ctx, "remote v2 tag row", func(ctx context.Context) error {
+			return s.md.Docker().PutTag(ctx, &metadata.DockerTag{
+				RepoKey: repoKey, Image: image, Tag: tag, Digest: digest,
+				UpdatedBy: "remote-proxy", UpdatedAt: now,
+			})
 		}); err != nil {
 			return fmt.Errorf("remote tag row %s/%s:%s: %w", repoKey, image, tag, err)
 		}
 	}
 	if len(refs) > 0 {
-		if err := s.md.Docker().PutRefs(ctx, repoKey, image, digest, refs); err != nil {
+		if err := s.cacheBusyRetry(ctx, "remote v2 ref rows", func(ctx context.Context) error {
+			return s.md.Docker().PutRefs(ctx, repoKey, image, digest, refs)
+		}); err != nil {
 			return fmt.Errorf("remote ref rows %s/%s@%s: %w", repoKey, image, digest, err)
 		}
 	}

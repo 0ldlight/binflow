@@ -244,18 +244,25 @@ type EngineOptions struct {
 	// Resolve is the SSRF guard's resolver override (the T-65 test seam,
 	// passed through to every per-repository client).
 	Resolve func(ctx context.Context, host string) ([]netip.Addr, error)
+	// BusyRetry is the second-chance budget for busy-class metadata
+	// contention on the cache-fill write path's row writes (T-423,
+	// FR-139.2 — T-377 D1: the blob, node and cache-state upserts re-run
+	// when SQLITE_BUSY escapes the store's busy_timeout instead of
+	// surfacing a 500). Zero value means storage.DefaultBusyRetry.
+	BusyRetry storage.BusyRetryPolicy
 }
 
 // Engine is the process-wide remote proxy engine (architecture section 2's
 // remote.Fetch facade). It is safe for concurrent use.
 type Engine struct {
-	st       storage.Engine
-	md       metadata.Store
-	nowFn    func() time.Time
-	log      *slog.Logger
-	cipher   *Cipher
-	metaWait time.Duration
-	resolve  func(ctx context.Context, host string) ([]netip.Addr, error)
+	st        storage.Engine
+	md        metadata.Store
+	nowFn     func() time.Time
+	log       *slog.Logger
+	cipher    *Cipher
+	metaWait  time.Duration
+	busyRetry storage.BusyRetryPolicy
+	resolve   func(ctx context.Context, host string) ([]netip.Addr, error)
 
 	mu      sync.Mutex
 	clients map[string]*cachedClient // repoKey -> client + signature
@@ -311,6 +318,7 @@ func NewEngine(st storage.Engine, md metadata.Store, opts EngineOptions) (*Engin
 		log:        opts.Logger,
 		cipher:     cipher,
 		metaWait:   opts.MetadataWait,
+		busyRetry:  opts.BusyRetry,
 		resolve:    opts.Resolve,
 		clients:    map[string]*cachedClient{},
 		extClients: map[string]*cachedClient{},
@@ -400,6 +408,14 @@ func (e *Engine) migrateCredentials(ctx context.Context) error {
 }
 
 func (e *Engine) now() time.Time { return e.nowFn().UTC() }
+
+// retryBusy re-runs one cache-fill metadata row write while it fails with
+// busy-class contention, within the engine's budget (T-423, T-377 D1 —
+// storage.RetryOnBusy carries the contract; the op label names the row for
+// the retry WARN line).
+func (e *Engine) retryBusy(ctx context.Context, op string, fn func(context.Context) error) error {
+	return storage.RetryOnBusy(ctx, e.log, e.busyRetry, op, fn)
+}
 
 // counters returns (creating) the per-repository counter block.
 func (e *Engine) counters(repoKey string) *repoCounters {
@@ -821,6 +837,14 @@ func (e *Engine) land(ctx context.Context, repoKey, path, kind string, cfg *meta
 	written, err := sess.Append(ctx, body)
 	if err != nil {
 		_ = sess.Abort(context.Background())
+		// Busy-class bookkeeping contention inside the session's state
+		// persist is a LOCAL fault (T-423): the upstream delivered the body
+		// fine, so the offline-mark/stale-service arm must not fire and
+		// blame it — the honest error surfaces for the caller's retryable
+		// classification instead.
+		if metadata.IsStoreBusy(err) {
+			return nil, fmt.Errorf("remote %s: stream upstream body: %w", repoKey, err)
+		}
 		// The marker routes this into the upstream-fault arm (offline mark,
 		// stale service); without it a local failure would poison the
 		// repository's upstream state (review side-fix).
@@ -837,8 +861,14 @@ func (e *Engine) land(ctx context.Context, repoKey, path, kind string, cfg *meta
 	}
 
 	// Blob-first (architecture section 3.2): the ledger row, then the node.
-	if err := e.md.Blobs().Put(ctx, &metadata.Blob{
-		Sha256: ref.Sha256, Sha1: ref.Sha1, Md5: ref.Md5, Size: ref.Size, CreatedAt: rfc3339(now),
+	// The row writes ride the busy budget (T-423, T-377 D1): all three are
+	// idempotent upserts, so a busy-class escape past the store's
+	// busy_timeout re-runs instead of failing the fetch that already paid
+	// for the upstream transfer.
+	if err := e.retryBusy(ctx, "remote cache blob row", func(ctx context.Context) error {
+		return e.md.Blobs().Put(ctx, &metadata.Blob{
+			Sha256: ref.Sha256, Sha1: ref.Sha1, Md5: ref.Md5, Size: ref.Size, CreatedAt: rfc3339(now),
+		})
 	}); err != nil {
 		return nil, fmt.Errorf("remote %s: cache blob row %s: %w", repoKey, ref.Sha256, err)
 	}
@@ -858,15 +888,19 @@ func (e *Engine) land(ctx context.Context, repoKey, path, kind string, cfg *meta
 		}
 		node.Mime = firstNonEmpty(mimeOf(hdr), existing.Mime)
 	}
-	if err := e.md.Nodes().Put(ctx, node); err != nil {
+	if err := e.retryBusy(ctx, "remote cache node row", func(ctx context.Context) error {
+		return e.md.Nodes().Put(ctx, node)
+	}); err != nil {
 		return nil, fmt.Errorf("remote %s: cache node %s: %w", repoKey, path, err)
 	}
 
 	// Validators + TTL clock (dual TTL by class; the kind is recomputed per
 	// fetch so a provider registration change re-classifies on refetch).
 	ttl := ttlFor(kind, cfg.ContentTTLSeconds, cfg.MetadataTTLSeconds, pol.MissedRetrievalCachePeriodSecs)
-	if err := e.md.Remote().PutCache(ctx, contentEntry(repoKey, path,
-		hdr.Get("ETag"), hdr.Get("Last-Modified"), kind, now, ttl)); err != nil {
+	if err := e.retryBusy(ctx, "remote cache state row", func(ctx context.Context) error {
+		return e.md.Remote().PutCache(ctx, contentEntry(repoKey, path,
+			hdr.Get("ETag"), hdr.Get("Last-Modified"), kind, now, ttl))
+	}); err != nil {
 		return nil, fmt.Errorf("remote %s: cache state %s: %w", repoKey, path, err)
 	}
 
@@ -915,7 +949,9 @@ func (e *Engine) mapUpstreamStatus(ctx context.Context, repoKey, path string, cf
 		// so the next request inside the window answers 404 even though a
 		// copy exists — the literal PRD/RE-04 reading, pinned by test.
 		ttl := ttlFor(cacheKindNegative, 0, 0, pol.MissedRetrievalCachePeriodSecs)
-		if err := e.md.Remote().PutCache(ctx, negativeEntry(repoKey, path, now, ttl)); err != nil {
+		if err := e.retryBusy(ctx, "remote negative cache row", func(ctx context.Context) error {
+			return e.md.Remote().PutCache(ctx, negativeEntry(repoKey, path, now, ttl))
+		}); err != nil {
 			return nil, fmt.Errorf("remote %s: negative cache %s: %w", repoKey, path, err)
 		}
 		if staleNode != nil {

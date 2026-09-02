@@ -121,6 +121,40 @@ func TestEngineWindowAndPaging(t *testing.T) {
 	}
 }
 
+// mixedLoadGateBudget is the mixed-load test's tolerance for the K63 gate
+// on a loaded machine (D-413-2): the previous 30s wall-clock deadline
+// assumed a fast box — under the observed load-90+ co-tenant storms the
+// eight flavors' churn through the 4-wide gate legitimately outran it, and
+// the deadline then converted the gate's own lawful 429 into a false red.
+// Five minutes still fails a leaked gate cleanly while staying an order of
+// magnitude below the race-suite timeout.
+const mixedLoadGateBudget = 5 * time.Minute
+
+// runGateRetry executes one query attempt, retrying ONLY the gate's
+// ErrResourceBusy with polite exponential backoff until the budget
+// elapses. The old shape (a fixed 1ms spin inside a 30s window) re-hammered
+// a full gate once per millisecond, adding to the very contention it was
+// waiting out; the ladder backs off to 25ms instead. On budget expiry the
+// returned error keeps ErrResourceBusy matchable — the verdict stays "the
+// gate was full", honestly attributed, never a 5xx-shaped misreport.
+func runGateRetry(ctx context.Context, eng *Engine, p *repo.Principal, query string, budget time.Duration) (*Result, error) {
+	backoff := time.Millisecond
+	deadline := time.Now().Add(budget)
+	for {
+		res, err := eng.Run(ctx, p, query)
+		if err == nil || !errors.Is(err, ErrResourceBusy) {
+			return res, err
+		}
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("search gate stayed full for the whole %v mixed-load budget (machine under load?): %w", budget, err)
+		}
+		time.Sleep(backoff)
+		if backoff *= 2; backoff > 25*time.Millisecond {
+			backoff = 25 * time.Millisecond
+		}
+	}
+}
+
 // TestEngineMixedLoad is AC3 (NFR-P68's pre-leg): eight concurrent query
 // shapes over the real store while a writer keeps landing nodes — the only
 // permitted failures are the gate's own 429 rejections (never a 5xx), every
@@ -168,16 +202,13 @@ func TestEngineMixedLoad(t *testing.T) {
 	}
 
 	const rounds = 15
-	deadline := time.Now().Add(30 * time.Second)
 	runFlavor := func(query string) {
 		for i := 0; i < rounds; i++ {
-			res, err := eng.Run(ctx, caller, query)
 			// The gate's 429 is a legitimate busy verdict, never a failure
-			// — the test client retries politely until its own deadline.
-			for err != nil && errors.Is(err, ErrResourceBusy) && time.Now().Before(deadline) {
-				time.Sleep(time.Millisecond)
-				res, err = eng.Run(ctx, caller, query)
-			}
+			// — the test client retries politely within the mixed-load
+			// budget (D-413-2: a loaded machine's gate churn must not read
+			// as a red).
+			res, err := runGateRetry(ctx, eng, caller, query, mixedLoadGateBudget)
 			if err != nil {
 				t.Errorf("flavor %q: %v (only the busy gate may refuse)", query, err)
 				return
@@ -221,5 +252,76 @@ func TestEngineMixedLoad(t *testing.T) {
 	}
 	if hits := hitsOf(res.Rows); !strings.HasPrefix(hits[0], "load-a/w/") {
 		t.Fatalf("fresh tail order starts at %v", hits[0])
+	}
+}
+
+// gateTestEnv builds the smallest real engine the gate-retry policy tests
+// need: an open repository with one file and a scope that can read it.
+func gateTestEnv(t *testing.T) (*Engine, *repo.Principal) {
+	t.Helper()
+	rs := newRealStack(t, false)
+	sha := seedBlob(t, rs.md)
+	seedRepo(t, rs.md, "gate", repo.TypeLocal)
+	seedFile(t, rs.md, sha, "gate", "d/one.bin")
+	eng := NewEngine(EngineOptions{Nodes: mustQueryer(t, rs.md), ACL: &funcACL{
+		scope: []repo.ReadScope{{Repo: "gate"}},
+	}})
+	return eng, &repo.Principal{Name: "alice"}
+}
+
+// TestGateRetrySucceedsOnceTheGateFrees pins the D-413-2 tolerance itself:
+// with every slot held, the retry ladder keeps waiting (not failing) and
+// completes as soon as a slot frees.
+func TestGateRetrySucceedsOnceTheGateFrees(t *testing.T) {
+	eng, caller := gateTestEnv(t)
+	for i := 0; i < maxConcurrent; i++ {
+		if !eng.gate.tryAcquire() {
+			t.Fatal("prefilling the gate failed")
+		}
+	}
+	released := make(chan struct{})
+	go func() {
+		defer close(released)
+		time.Sleep(30 * time.Millisecond)
+		eng.gate.release()
+	}()
+	res, err := runGateRetry(context.Background(), eng, caller,
+		`items.find({"repo":"gate"})`, mixedLoadGateBudget)
+	if err != nil {
+		t.Fatalf("runGateRetry under a full gate: %v", err)
+	}
+	if len(res.Rows) != 1 {
+		t.Fatalf("rows = %d, want the one seeded file", len(res.Rows))
+	}
+	<-released
+	// Drain the slots this test holds so the engine it shares with the
+	// package sees a quiet gate afterwards.
+	for i := 1; i < maxConcurrent; i++ {
+		eng.gate.release()
+	}
+}
+
+// TestGateRetryFailsHonestAfterBudgetExpiry pins the tail of the same
+// policy: a gate that never frees produces a prompt, honestly-attributed
+// busy verdict — still ErrResourceBusy-matchable, never a hang and never a
+// 5xx-shaped misreport.
+func TestGateRetryFailsHonestAfterBudgetExpiry(t *testing.T) {
+	eng, caller := gateTestEnv(t)
+	for i := 0; i < maxConcurrent; i++ {
+		if !eng.gate.tryAcquire() {
+			t.Fatal("prefilling the gate failed")
+		}
+	}
+	start := time.Now()
+	_, err := runGateRetry(context.Background(), eng, caller,
+		`items.find({"repo":"gate"})`, 25*time.Millisecond)
+	if !errors.Is(err, ErrResourceBusy) {
+		t.Fatalf("err = %v, want the gate's busy verdict past the budget", err)
+	}
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Fatalf("budget expiry took %v — the ladder must fail promptly, not hang", elapsed)
+	}
+	for i := 0; i < maxConcurrent; i++ {
+		eng.gate.release()
 	}
 }
