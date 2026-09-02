@@ -177,9 +177,11 @@
         },
         "replication": {
           "type": "object",
-          "description": "Push-replication SSRF posture (T-210 / ADR-0025 decision 4). Rendered as replication.allow_private_target.",
+          "description": "Replication plane knobs. allowPrivateTarget is the push-replication SSRF posture (T-210 / ADR-0025 decision 4); blockPush/blockPull are the M15 global emergency brake pair (T-422 / FR-138.3), rendered as replication.block_push / block_pull and SEED-ONLY (they seed the replication_globals row on first boot; afterwards that row is authoritative).",
           "properties": {
-            "allowPrivateTarget": { "type": "boolean" }
+            "allowPrivateTarget": { "type": "boolean" },
+            "blockPush": { "type": "boolean", "description": "Global push-replication emergency brake (M15 T-422): seeds replication.block_push on first boot. While on, new push events stop enqueueing, in-flight sends stop and Replicate-Now answers 409; the REST config channel stays open." },
+            "blockPull": { "type": "boolean", "description": "blockPush's pull twin (M15 T-422): seeds replication.block_pull on first boot. While on, the remote pull-through plane contacts no upstream (cached copies still serve)." }
           }
         },
         "webhook": {

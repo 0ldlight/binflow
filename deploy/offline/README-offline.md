@@ -10,7 +10,7 @@ binflow_offline_<VER>.tar.gz
 │   ├── binflow-<VER>-alpine.tar       # docker save — alpine 镜像变体
 │   └── binflow-<VER>-distroless.tar   # docker save — distroless 镜像变体
 ├── charts/
-│   └── binflow-<Chart版本>.tgz        # Helm Chart 包（helm package 命名 = Chart 版本，如 binflow-1.4.0.tgz——与镜像/二进制的 <VER> 独立；安装脚本自动发现）
+│   └── binflow-<Chart版本>.tgz        # Helm Chart 包（helm package 命名 = Chart 版本，如 binflow-1.5.0.tgz——与镜像/二进制的 <VER> 独立；安装脚本自动发现）
 ├── k8s/
 │   ├── deployment.yaml                # K8s Deployment 配置
 │   ├── pvc.yaml                       # PVC 配置

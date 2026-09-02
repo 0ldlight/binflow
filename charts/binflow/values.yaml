@@ -285,6 +285,25 @@ config:
     #    enforcing scheme/host sanity and re-screening per hop. This key only
     #    toggles the private-address leg of the SSRF screening list.
     allowPrivateTarget: true
+    # -- Global push-replication emergency brake (M15 T-422 / FR-138.3,
+    #    Artifactory's blockPushReplications). Rendered into the mounted
+    #    binflow.yaml as replication.block_push. Default false. SEED-ONLY
+    #    (K31 dual-source posture): the key seeds the replication_globals
+    #    row on the FIRST boot only — once that row exists it is
+    #    authoritative and a later chart/YAML edit draws no effect (INFO-
+    #    logged at seed time). Runtime flips go through the REST face
+    #    (POST /api/v1/system/replications/block|unblock) and the console
+    #    switch. While on: new push events stop enqueueing, in-flight sends
+    #    stop, and Replicate-Now scheduling answers 409 — the REST CONFIG
+    #    channel (PUT/GET replication configs) deliberately stays open so
+    #    the brake can be lifted again.
+    blockPush: false
+    # -- blockPush's pull twin (M15 T-422, replication.md §9.2-B): while on,
+    #    the remote pull-through plane contacts no upstream at all — cached
+    #    copies still serve and a cache miss answers the unfound 404 naming
+    #    the brake. Rendered as replication.block_pull; same SEED-ONLY rule
+    #    and same REST runtime face as blockPush.
+    blockPull: false
 
   # -- Webhook SSRF posture (M13 T-362 / ADR-0041 decision 6). Rendered into
   #    the mounted binflow.yaml as webhook.allow_private_target.

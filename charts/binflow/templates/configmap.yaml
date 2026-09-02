@@ -147,6 +147,13 @@ data:
     # (T-183 lesson).
     replication:
       allow_private_target: {{ .Values.config.replication.allowPrivateTarget }}
+      # Global replication brake pair (M15 T-422 / FR-138.3): rendered
+      # explicitly so the first-boot posture is visible (T-183 lesson).
+      # SEED-ONLY keys: they seed the replication_globals row on the first
+      # boot; afterwards that row is authoritative and runtime flips go
+      # through the REST face + console switch (K31 dual-source posture).
+      block_push: {{ .Values.config.replication.blockPush }}
+      block_pull: {{ .Values.config.replication.blockPull }}
     # Webhook SSRF posture (M13 T-362 / ADR-0041 decision 6): rendered
     # explicitly — the default is DENY (false), the deliberate asymmetry
     # against replication above (webhook targets are REST-CRUD dynamic);
