@@ -2,7 +2,7 @@ apiVersion: v2
 name: binflow
 description: BinFlow — A cloud-native binary repository manager (single-binary Go alternative to JFrog Artifactory).
 type: application
-version: "1.4.0"
+version: "1.5.0"
 appVersion: "1.0.0"
 home: https://github.com/lzwzzy/binflow
 icon: https://raw.githubusercontent.com/lzwzzy/binflow/main/docs/user/assets/logo.png
@@ -21,6 +21,8 @@ maintainers:
     email: maintainers@binflow.dev
 annotations:
   artifacthub.io/changes: |
+    - "config.replication.blockPush / blockPull — the M15 global replication emergency brake pair (T-422 / FR-138.3, Artifactory's blockPushReplications + its pull twin), rendered explicitly into the ConfigMap as replication.block_push / block_pull, default FALSE. SEED-ONLY keys (K31 dual-source posture): they seed the replication_globals row on the FIRST boot only — once that row exists it is authoritative and a later chart edit draws no effect; runtime flips go through the REST face (POST /api/v1/system/replications/block|unblock) and the console switch. blockPush=on stops new push-event enqueueing, in-flight sends and Replicate-Now scheduling (409) while deliberately leaving the REST config channel open; blockPull=on makes the remote pull-through plane contact no upstream (cached copies still serve)"
+    - "M15 app surface is config-plane-free for upgraders: the AQL search plane (POST /api/search/aql + the gavc/prop/pattern first batch), virtual-repo aggregate browsing, Replicate Now (POST /api/v1/replications/{id}/run) and the docker×virtual creation cell all ship with zero new global config keys — the K63 resource gates (result cap 1000 / concurrency 4 / deadline) are internal constants by the Q2 ruling, so a values.yaml upgrade needs no new keys beyond the brake pair above"
     - "persistence — the chart-created PVC now carries helm.sh/resource-policy: keep unconditionally (M14 T-394): helm uninstall PRESERVES the data volume on purpose (an artifact registry's blobs must never vanish with a release); user annotations merge under persistence.annotations with keep winning any key conflict; NOTES.txt spells out the two manual cleanup paths (kubectl delete pvc by name / by label) for operators who DO want the data gone"
     - "config.webhook.allowPrivateTarget — the M13 webhook SSRF posture (T-362 / ADR-0041 decision 6), rendered explicitly as webhook.allow_private_target, default FALSE (the deliberate asymmetry against replication.allow_private_target)"
     - "config.folderDownload (six fields) + config.trashcan.retentionDays — the M13 operator-knob families (T-368 / FR-118), rendered explicitly as folder_download / trashcan sections; resolved values echo at GET /binflow/api/v1/system/settings"

@@ -372,7 +372,7 @@ install_helm() {
 
   # Locate the packaged chart. NOT pinned to binflow-${VER}.tgz: `helm
   # package` names the tarball after the CHART version (e.g.
-  # binflow-1.4.0.tgz), which diverges from the bundle's image/binary
+  # binflow-1.5.0.tgz), which diverges from the bundle's image/binary
   # version (T-376: the hardcoded name made helm mode fail on every bundle
   # produced by plain `helm package`). Any single binflow-*.tgz in charts/
   # is the chart; zero or several is a malformed bundle.

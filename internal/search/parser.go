@@ -514,10 +514,11 @@ func (p *parser) parseComparator(k keyField, allowedOps []Operator) (Operator, V
 		return "", Value{}, e
 	}
 	// Exactly one operator per comparator object (ADR-0043 pt 2 grammar):
-	// the enclosing criteria object's "}" must follow.
-	if !p.cur().isPunct("}") {
-		return "", Value{}, p.syntaxErr(p.cur().pos)
-	}
+	// the expectPunct("}") above already rejects a second "$op" inside the
+	// comparator. What may follow here is the enclosing criteria object's
+	// "}" OR the "," of the next member — JSON member order is free
+	// (D-T421-1: this used to demand "}" right here, making every member
+	// after an operator object a syntax error).
 	return op, val, nil
 }
 
