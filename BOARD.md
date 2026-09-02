@@ -1679,6 +1679,77 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **T-434 → done 2026-09-02 23:4x——M16 1/?（批次① 树栈全落地——用户 P0 主诉正面回应）**：四项全对齐——**文件叶子进树**（「（空）」误导占位消除 + children 表收窄 + 目录 Artifact Count/Size 概要）/ **选择≠展开**（单击纯选中、箭头展开、深链自动展开维持）/ **URL 页签段 + 文件路径段化**（`?focus=` 退役——兼容重定向；`artifacts/:tab/:key/*` 新路由）/ **树头工具带**（包类型 facet + rclass 组〔按实有三态——Cache=remote 缓存子集不伪造〕+ Sort-by + 紧凑单选 + My Favorites）+ reverse §3.2 facet 段回填。**锚册 v1.31**（12 新锚）。自抓三缺陷票内修（删除选中回跳闭包/checksum 徽标对比度/根层 focusPath）。自测：四门绿 + 新 spec 5/5 + 指定回归（artifacts-tree 10/t416 4/t372 6）+ 全绿面 + axe 双主题 0 + **服务端 diff=0 + SPA +3,178B**。遗留：?focus= 发射端（Dashboard/Search/AqlPanel）重定向收敛归批次③翻新；TAB 同名 repo edge 锚册注记。日志 reports/agents/T-434.md。
 
+### M16 票批 v1（tech-lead 2026-09-02）
+
+**拆票日志 `docs/M16-SPLIT.md`**（票据明细 AC 全文/依赖图/风险登记/歧义口径——派单直接引用）；实拆 **34 票**（P0×4 / P1×25 / P2×5——含波外条件票 T-467/T-468；E7 toast / license 公钥 ADR / t381〔Q12〕不占号）+ 批次① T-434 已落 = 里程碑 35 票（PRD §1.3 估 30~40 线内）；**B0~B18 十九波全宽 2**（波内 area 互斥；**FE 主线一波一票错峰**——批次② B2~B4 → ③ B5~B8 → ④ B9~B12 → 147/150 FE 腿 B13~B14 → **i18n 独占波 B15~B16**；统计基建 B1 先行〔批次③字段族 + AQL usage 共依赖单源〕）；断言反转归属：②→T-449 ③→T-439/441 ④→T-453 ⑤→T-444 ⑥→T-463/464 ⑦→T-446/450（①已落 T-434）。关键路径 = FE 主线 15 波串行链。
+
+**波次表**：
+
+| 波 | lane 1 | lane 2 | 备注 |
+|---|---|---|---|
+| B0 | T-435 规格增量三份（rev） | T-436 ADR-0044+K68/K69 会签锚 | 前置锚双票并行（conductor 指令）；软协作 cron 锚 |
+| B1 | T-437 parity 册 v1.2+K67 冻结 | T-438 统计基建 | 册 = 批次②~④断言地基；基建先行（一鱼两吃单源，dep T-436 K69） |
+| B2 | T-439 FE②-a 三段+字段域 | T-440 AQL statistics/usage | FE 主线开工（dep T-437）；usage dep T-435+T-438 |
+| B3 | T-441 FE②-b modal 880+8 开禁 | T-442 远端浏览三型+remote Test 端点 | web/src repositories vs internal/adapter |
+| B4 | T-443 FE②-c 列表/入口/dirty/Test | T-444 Annotate BE+迁移（断言反转⑤） | FE② 收口（Test dep T-442）；auth/migrate 域 |
+| B5 | T-445 FE③-a 页签序+字段族 | T-446 cron 调度引擎 | 字段族 dep T-438 端到端；internal/scheduler 新包 |
+| B6 | T-447 FE③-b 属性编辑+下载形态 | T-448 可选档接线+§8.5 口径扩面 | artifacts PropertiesTab vs internal/repo |
+| B7 | T-449 FE③-c 搜索栈（断言反转②+?focus= 发射端） | T-450 cron 三消费面 BE+audit | dep T-446；复制 cron 双实例零重复腿 |
+| B8 | T-451 FE 分页 ×9（LC-98/E2 翻案） | T-452 QRL+UI 搜索族+dates（P2） | 分页跨页面独立波；副线 P2 收尾 |
+| B9 | T-453 FE④-a 路由表单化+能力位（断言反转④） | T-454 Last Login BE（P2） | 批次④开工 |
+| B10 | T-455 FE④-b 两步弹窗+矩阵五列 | T-456 QA 中期回归 | 五列 dep T-444；L36~L42/L48 已落面复核窗 |
+| B11 | T-457 FE④-c profile 自助+帮助/About | T-458 文档票（两腿） | AppShell 帮助钮；腿①动笔 |
+| B12 | T-459 FE④-d 监控面+导航分组 | T-460 PM Q 终裁联动收口笔 | 批次④收口；Q8~Q12 归位窗 |
+| B13 | T-461 FE 远端浏览树消费 | （插空窗：T-467 条件票〔Q10〕） | dep T-448；lane 2 容条件 BE 票 |
+| B14 | T-462 FE cron 消费面（GC/备份/import-export） | （插空窗续） | dep T-450+T-459；最后一张常规 FE 票 |
+| B15 | T-463 **i18n-a 框架+全树文案外提（独占波）** | —（FE 互斥；非 FE 条件票可插） | 与所有 FE 票互斥 |
+| B16 | T-464 i18n-b 双包+切换器+断言双语化（独占波） | —（同上） | L47；en 抽样腿 |
+| B17 | T-465 release 烟测+UAT | — | 单票波 |
+| B18 | T-466 QA 终验 | — | 单票波；m16-done 就绪判定 |
+| 波外 | T-467 [P2·条件 Q10] NuGet symbol / T-468 [P2·条件] L1 列选器+Last Login 列 | — | 未触发不构成 DoD 缺口；T-468 避开 FE 主线波 |
+
+**票据行**（票号 / 标题 / 优先级 / role / area / dep；AC 全文见 M16-SPLIT §1.2 与 PRD §4）：
+
+- T-435 [P0] FR-141.4 规格增量段三份：aql.md 增量（statistics/usage/QRL/dates）+ remote-browsing.md（T-425 §1/§2 成稿）+ cron 表达式子集锚（Quartz 对拍） · role: reverse-engineer · area: docs/reverse/ · dep: —
+- T-436 [P0] ADR-0044 cron 调度域（数据模型/子集/next-run/并存语义/防护）+ K68 Annotate 迁移会签 + K69 统计 schema 会签 · role: architect · area: DECISIONS.md + architecture.md · dep: —（软协作 T-435 cron 锚）
+- T-437 [P0] FR-141.1/.2 parity 册 v1.2（E5/E1 修正 + E6/E2/cron 三例翻案双留痕 + stay-out 登记 + K67 冻结 + B 47 项四态预归属表） · role: ux-designer（PM 会签） · area: docs/design/console-artifactory-parity.md · dep: —
+- T-438 [P1] FR-146.2 per-node 下载计数基建（nodes 四列扩 + 三分口径埋点 + FileInfo 投影——一鱼两吃单源） · role: dev-go-core · area: internal/storage + internal/httpapi · dep: T-436（K69）
+- T-439 [P1] FR-143.1/.2 FE 表单三段结构（Basic|Advanced|Replications）+ 字段域补齐（四藏字段+Environments/描述拆分/ForceAuth/SuppressPOM 三链）+ 重置钮移除 · role: dev-frontend · area: web/src/pages/repositories/RepositoryFormPage · dep: T-437
+- T-440 [P1] FR-148.1 AQL statistics/usage 域 + GET /api/search/usage（计数与 FileInfo 单源一致 + ACL 探针 + K63 门沿用） · role: dev-go-core · area: internal/search + internal/httpapi search 面 · dep: T-435, T-438
+- T-441 [P1] FR-143.3 FE 包类型弹窗 880px + 8 包型开禁（go/nuget/cargo/conan/helm/helmoci/rpm/debian 八型真实客户端 roundtrip） · role: dev-frontend · area: web/src/pages/repositories modal · dep: T-439
+- T-442 [P1] FR-147.1 远端浏览批 1 三型回源枚举（helm index 全树/deb/rpm——默认 false）+ remote Test 端点（Engine.TestTarget 复用——wire 歧义⑥票内核定） · role: dev-registry-adapter · area: internal/adapter + internal/remote + httpapi Test 路由 · dep: T-435
+- T-443 [P1] FE FR-143.4/.5 仓库列表列集 + Add Repositories 入口分路由 + dirty-gating + remote Test 三臂消费 · role: dev-frontend · area: web/src/pages/repositories/RepositoriesPage · dep: T-441, T-442
+- T-444 [P1] FR-146.1 Annotate 动词扩列 + write→deploy-cache 拆分迁移（dry-run 100% + M7 全量零提权 + 可回滚——断言反转⑤） · role: dev-go-core · area: internal/auth + httpapi + internal/migrate · dep: T-436（K68）
+- T-445 [P1] FE FR-144.1/.2/.3 详情页签序（权限在属性前）+ File URL + Downloads/Last Downloaded 族渲染 + 仓/目录元数据补齐 · role: dev-frontend · area: web/src/pages/artifacts/NodeDetail · dep: T-438, T-443
+- T-446 [P1] FR-150.1/.2 cron 调度引擎（schedule 实体/子集解析/next-run/触发器/误触发防护 + 并存语义——outbox 引擎 diff=0） · role: dev-go-core · area: internal/scheduler（定名从 ADR-0044） · dep: T-435, T-436
+- T-447 [P1] FE FR-144.4/.5 属性编辑解剖（常显输入+Add+网格搜索）+ 下载形态单图标钮（校验收伴随——Q2/Q9） · role: dev-frontend · area: web/src/pages/artifacts/PropertiesTab · dep: T-445
+- T-448 [P1] FR-147.2 可选档 repo service 接线 + listVirtual §8.5 口径扩面 + 上游停机降级 · role: dev-go-core · area: internal/repo + repo-semantics §8.5 回写 · dep: T-442
+- T-449 [P1] FE FR-144.6 搜索栈：列集归一（name 链接|Path|Repository|Modified+选择列——断言反转②）+ 行导航 name 单元格 + 顶栏驻留/快滤 + 快搜空历史占位 + 日期格式 + **?focus= 发射端翻新（T-434 遗留）** · role: dev-frontend · area: web/src/pages/search + AppShell + DashboardPage · dep: T-447
+- T-450 [P1] FR-150.3/.4 cron 三消费面 BE（GC 定时+Cleanup 两族/备份定时 CRUD REST+import-export/复制 cron 字段）+ audit 三事件 + 零重复投递双实例腿 · role: dev-go-core · area: internal/scheduler 消费接线 + httpapi 维护/备份/复制 REST · dep: T-446
+- T-451 [P1] FE FR-144.7/LC-98 分页控件 ×9 统一（共享组件 + keyset 页窗映射——E2 翻案） · role: dev-frontend · area: web/src 共享分页组件 + ×9 消费点 · dep: T-449
+- T-452 [P2] FR-148.2/.3 QRL 全量（v1/system/query_rate_limiter 三态+指标 job）+ UI 搜索族四端点 + dates/creation + §5.7 全景表 M16 行对账 · role: dev-go-core · area: internal/search + internal/httpapi（v1 system 面） · dep: T-435, T-440
+- T-453 [P1] FE FR-145.1/.3 用户/组路由表单化（/users/new /groups/new——断言反转④）+ 能力位三旗行为联动 · role: dev-frontend · area: web/src/pages/security/UsersPage+GroupsPage · dep: T-451
+- T-454 [P2] FR-146.3 Last Login 派生（audit 登录事件 → users 列表投影） · role: dev-go-core · area: internal/audit + httpapi users 面 · dep: —
+- T-455 [P1] FE FR-145.2 权限编辑两步弹窗（双列选仓+Any Local/Any Remote 预置→include/exclude）+ 权限矩阵五列（dep Annotate） · role: dev-frontend · area: web/src/pages/security/PermissionEditorPage · dep: T-444, T-453
+- T-456 [P1] QA 中期回归（逐批 V 式复核 L36~L42/L48 已落面 + t226 对照 + 断言反转①~⑤现值 + E1/E6 零倒退） · role: qa-engineer · area: 测试矩阵 · dep: T-434, T-439~T-452 已落面
+- T-457 [P1] FE FR-145.4/.6a profile 自助 identity token/SSH key + ? 帮助下拉 + About 版本弹窗 · role: dev-frontend · area: web/src/ProfilePage + AppShell · dep: T-455
+- T-458 [P1] 文档票两腿（腿①树/表单/详情字段族/统计 usage/安全面；腿②监控/远端浏览/cron/i18n + **豁免翻案用户可见变化公告**） · role: tech-writer · area: docs/user/ · dep: 腿① T-440/443/445；腿②候 B12~B16
+- T-459 [P2] FE FR-145.5/.6b 监控面 System Logs 查看器 + Service Status + SystemInfoPage 归位 + 导航分组/侧栏过滤 · role: dev-frontend · area: web/src/pages/monitoring + admin/SystemInfoPage + AppShell 导航 · dep: T-457
+- T-460 [P1] PM Q 终裁联动收口笔（Q8~Q12 归位 + B 47 项四态归属核对 + K67~72 回填 + ROADMAP M16 未纳入项 + M17 衔接） · role: product-manager · area: docs/prd/milestone-16.md + ROADMAP · dep: T-437
+- T-461 [P1] FE FR-147.3 远端浏览树消费（可选档 on/off 双态 + 未缓存路径回源 + 降级呈现） · role: dev-frontend · area: web/src/pages/artifacts + repositories 开关 · dep: T-448
+- T-462 [P1] FE FR-145.7 GC/备份 cron 消费面（Cleanup 两族/Compress/Prune/Quota + cron 字段 next-run 呈现）+ 备份定时 CRUD + import/export 管理页 · role: dev-frontend · area: web/src/pages/governance · dep: T-450, T-459
+- T-463 [P1] FR-149.1 i18n 框架接入 + **全树文案外提 100%**（组件零硬编码中文 CI 断言 + zh 包零语义变化）——**独占波** · role: dev-frontend · area: web/src 全站 + web/scripts · dep: T-462（全部 FE 票收口后）
+- T-464 [P1] FR-149.2/.3/.4 en 资源包（术语对齐 Artifactory）+ 语言切换器（localStorage 持久）+ 断言双语化（en 抽样腿 + axe 双 locale + 键断言） · role: dev-frontend · area: web/src + web/e2e · dep: T-463
+- T-465 [P1] release 烟测 + UAT 随里程碑 PR（8 包型/统计/cron 取证 + Chart bump 判据 + F1 六平台趋势 + server 40.59MB 原始线观察；t381 处置〔Q12〕随票或留痕） · role: release-engineer · area: deploy/ + charts/ · dep: 全部实现票 + T-458
+- T-466 [P0] QA 终验（L35~L48 全量 + 断言反转①~⑦归属审计 + **B 47 项收口审计表四态零无主** + DoD 八条 + NFR 归档 + m16-done 就绪判定） · role: qa-engineer · area: 全量矩阵 · dep: 全部 + T-465
+- T-467 [P2·条件 Q10] NuGet symbol server 六承转正（mini as-built 规格随票 + .pdb/GUID 真实腿） · role: dev-registry-adapter · area: internal/adapter nuget symbol 面 · dep: Q10 终裁（材料窗 T-460）；非 DoD
+- T-468 [P2·条件] L1 列选器推广（repos/users/groups/permissions——columnPrefs 共享层）+ Users Last Login 列 · role: dev-frontend · area: web/src 四列表页 · dep: T-454 + 批次④ FE 收口；FE 空位插空；非 DoD
+- 不占号 slot：E7 toast 锚位（候用户信号）/ license 公钥 config 覆盖 ADR（候立项）/ t381 残留清理（Q12 conductor——建议随 T-465 处置）
+
 **M16 拆票派发（conductor 2026-09-02 23:5x）**：tech-lead 全量拆票在途（T-435 起——批次②③④ + FR-146 统计基建先行 + FR-147 远端浏览 C 批 1 + FR-148 AQL 副线 + FR-149 i18n 独占波 + FR-150 cron 域〔ADR-0044 前置锚〕+ 条件池）。
+
+**M16 拆票落板（tech-lead 2026-09-03 00:0x）**：`docs/M16-SPLIT.md` + BOARD 票批 v1——**34 新票**（P0×4/P1×25/P2×5，含条件票 T-467/T-468）+ T-434 = **35 票**（PRD 估 30~40 线内）；B0~B18 十九波全宽 2。关键路径 = FE 主线 15 波串行链；BE 全链 lane 2 错峰零反压；**B1 统计基建（T-438）先行**（批次③ Downloads + AQL usage 单源共依赖）；i18n 独占波 B15~B16（SPLIT 歧义②留痕——FE 票附「文案集中常量」纪律降本）。三处工期压缩选项（R2）备 conductor 裁量。
+
+**B0 派发（conductor 2026-09-03 00:1x）**：**T-435**（规格增量三份——aql.md statistics/QRL/dates + remote-browsing.md 成稿 + cron Quartz 锚）+ **T-436**（ADR-0044 调度域 + K68/K69 双会签——与事件驱动零重复投递边界）双锚并行在途。B1（T-437 parity 册 v1.2 + T-438 统计基建）候 B0 就绪。
 
 **全树 race 补证判无效（conductor 2026-09-01 14:3x）**：与两 agent 测试套件同机并发跑——22 包红全部 620-660s 超时形态 + db/sql 竞争 panic + storage fail-open 窗口 = **共租负载签名**（T-414 日志同款 load 450-630），非产品缺陷。T-412 的 AC3 证据改挂 **T-421 中期 QA 串行全树 race**（届时 lane 空净）。**D-413-2 [P3·登记]**：唯一真信号 = T-413 `TestEngineMixedLoad` 在慢机下 K63 并发门 429 介入而测试只容忍 busy gate 拒绝——测试健壮性收窄（门注入调低或混合负载容忍 429），归 T-421 复验时顺腿修或转 T-433。**教训入册：全树 race/性能类验证必须 lane 空净时串行跑（派单纪律）。**
