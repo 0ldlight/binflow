@@ -11,8 +11,10 @@
 //   地板呈现——UI 不放大）。
 //
 // 消费方：pages/admin/LicenseAddonsPage（管理页）+ 建仓对话框的包型档位
-// 徽章（pages/repositories/RepositoryFormPage）——徽章/禁用态一律吃本
-// API 的实时数据，不在前端复制槽位清单（FR-86-AC2 单源规则）。
+// 徽章（pages/repositories/RepositoryFormPage）——徽章一律吃本 API 的实时
+// 数据，不在前端复制槽位清单（FR-86-AC2 单源规则）。T-441（M16 FR-143.3）
+// 起建仓面不再消费 enabled 做禁用（前端槽位门整族退役——license 门系后端
+// ADR-0033 域，D3 终裁）；enabled/disabledByConfig 仍服务 License 页状态格。
 
 import { apiJSON, apiText } from './api'
 
@@ -102,11 +104,11 @@ export interface PkgTypeOption {
   description: string
   minTier: LicenseTier
   enabled: boolean
-  disabledByConfig: boolean
 }
 
 /** 包型槽位清单（装配序）。无注册表的栈（pre-M10 单元形态）= 空数组——
- *  调用方按五核心静态集呈现（那些形态本就没有门控型）。 */
+ *  调用方按五核心静态集呈现（那些形态本就没有门控型）。T-441 起本视图
+ *  只供档位徽章与描述文案；enabled 保留给未来消费方（建仓面不再禁用）。 */
 export function packageTypeOptions(rows: AddonRow[]): PkgTypeOption[] {
   return rows
     .filter((r) => r.kind === 'package-type')
@@ -116,12 +118,5 @@ export function packageTypeOptions(rows: AddonRow[]): PkgTypeOption[] {
       description: r.description,
       minTier: normalizeTier(r.minTier),
       enabled: r.enabled,
-      disabledByConfig: isDisabledByConfig(r),
     }))
-}
-
-/** 未解锁提示文案（禁用 title / 状态格共用；disabled 熔断优先于档位子句） */
-export function lockedHint(opt: PkgTypeOption): string {
-  if (opt.disabledByConfig) return '已被 addons.disabled 配置熔断（去开关重启恢复，数据不删）'
-  return `需要 ${opt.minTier} 档 license（当前未解锁）`
 }

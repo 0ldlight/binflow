@@ -105,6 +105,13 @@ async function installMocks(page: Page, opts: FormMockOpts = {}): Promise<void> 
   await page.route('**/binflow/ui/**', (route) => route.fulfill({ path: join(DIST, 'index.html') }))
 }
 
+/** T-439 步进感知归位（本 spec 系 T-439 翻新遗漏的 straggler——策略键节
+ *  自 T-439 起分驻 Advanced 步，T-441 复跑发现；断言语义不弱化，只补步进
+ *  导航。同款先例：m8/repositories-admin 的 T-431 漏翻新腿在 T-439 顺车归位） */
+async function gotoAdvanced(page: import('@playwright/test').Page): Promise<void> {
+  await page.click('[data-testid="form-step-advanced"]')
+}
+
 // ---------------------------------------------------------------------------
 // ① deb 编辑器: 设策略键(byHash/historyCycles/origin)→ 保存 → 提交体对账
 //    (空 text 剔除; 全量替换语义下 governance 键随行)
@@ -126,8 +133,9 @@ test('deb editor: set policy keys and save — transport body matches the regist
   })
   await page.goto('/binflow/ui/admin/repositories/deb-local/edit')
 
-  // 高级分区: deb 六键呈现(字段册驱动), 回显预填
+  // 高级分区(Advanced 步): deb 六键呈现(字段册驱动), 回显预填
   await expect(page.locator('[data-testid="repo-form-page"]')).toBeVisible()
+  await gotoAdvanced(page)
   await expect(page.getByText('Deb 索引策略——索引引擎策略键')).toBeVisible()
   await expect(page.locator('[data-testid="form-byHash"]')).toHaveValue('SHA256')
   await expect(page.locator('[data-testid="form-historyCycles"]')).toHaveValue('5')
@@ -170,6 +178,7 @@ test('deb editor round-trip: saved config echoes back on reopen', async ({ page 
   await page.goto('/binflow/ui/admin/repositories/deb-rt/edit')
 
   // 默认拼写: byHash 闭集首值 NONE, historyCycles 空(= 归默认 3)
+  await gotoAdvanced(page)
   await expect(page.locator('[data-testid="form-byHash"]')).toHaveValue('NONE')
   await page.locator('[data-testid="form-byHash"]').selectOption('SHA256')
   await page.locator('[data-testid="form-historyCycles"]').fill('9')
@@ -179,6 +188,7 @@ test('deb editor round-trip: saved config echoes back on reopen', async ({ page 
   // 重开: GET 回显已保存配置(模拟服务端 canonical 存储后的 GET)
   cfgByRev['deb-rt'] = repoDetail('deb-rt', 'debian', { byHash: 'SHA256', historyCycles: 9 })
   await page.goto('/binflow/ui/admin/repositories/deb-rt/edit')
+  await gotoAdvanced(page)
   await expect(page.locator('[data-testid="form-byHash"]')).toHaveValue('SHA256')
   await expect(page.locator('[data-testid="form-historyCycles"]')).toHaveValue('9')
 })
@@ -195,6 +205,7 @@ test('rpm create: RP-2 opt-in and root depth ride the PUT; explicit false surviv
   await page.goto('/binflow/ui/admin/repositories/new?rclass=local')
   await page.locator('[data-testid="pkg-grid-item-rpm"]').click()
   await page.locator('[data-testid="form-key"]').fill('rpm-local')
+  await gotoAdvanced(page)
   // deb 族字段不得出现在 rpm 仓(字段册按包类型收窄)
   await expect(page.locator('[data-testid="form-byHash"]')).toHaveCount(0)
   await expect(page.getByText('RPM 索引策略——索引引擎策略键')).toBeVisible()
@@ -231,6 +242,7 @@ test('helm editor: enforce-layout pair round-trips an explicit false on flip-off
     writes,
   })
   await page.goto('/binflow/ui/admin/repositories/helm-local/edit')
+  await gotoAdvanced(page)
 
   await expect(page.getByText('Helm 强制布局——索引引擎策略键')).toBeVisible()
   await expect(page.locator('[data-testid="form-forceMetadataNameVersion"]')).toBeChecked()
@@ -255,6 +267,7 @@ test('readonly_admin: policy fields disabled with the form readonly note', async
     details: { 'deb-ro': repoDetail('deb-ro', 'debian', { byHash: 'ALL' }) },
   })
   await page.goto('/binflow/ui/admin/repositories/deb-ro/edit')
+  await gotoAdvanced(page)
 
   await expect(page.locator('[data-testid="repo-form-readonly-note"]')).toBeVisible()
   await expect(page.locator('[data-testid="form-byHash"]')).toBeDisabled()
@@ -275,6 +288,7 @@ test('a11y: deb policy form is clean in both themes', async ({ page }, testInfo)
     await page.goto('/binflow/ui/artifacts')
     await page.evaluate((t) => localStorage.setItem('binflow-console-theme', t), theme)
     await page.goto('/binflow/ui/admin/repositories/deb-a11y/edit')
+    await gotoAdvanced(page)
     await expect(page.locator('[data-testid="form-byHash"]')).toBeVisible()
     await expectA11yClean(page, testInfo, { include: '[data-testid="repo-form-page"]' })
   }

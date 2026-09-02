@@ -19,9 +19,9 @@ import { m8Client, sessionApi } from '../m8/support/seed'
 //      Repositories 下拉的对位）+ ?rclass= 深链直达 + 页内单选组回显；
 //   ③ 磁贴网格：radiogroup 语义 + 原生 button 磁贴 + 组合门控退役（docker
 //      三仓型全开——T-431 沿 T-392 remote / T-431 virtual 的服务端矩阵）
-//      + BinFlow 定案宽度档 440px（不追平 880px——33 包型 880px 网格
-//      vs BinFlow 5 核心 + 门控槽位，追平即大面积留白；parity 册 M1 行
-//      「现档位即可」既有裁定，票内留痕）；
+//      + 宽度档 **924px 居中**（T-441 翻转③：原 440px 紧凑档定案按 7.161.20
+//      活体勘误翻平——实测 924×760 居中 el-dialog，m16-baseline-refresh
+//      §A3-7；parity 册 M1 行 v1.6 留痕）；
 //   ④ 六节结构：form-section-*（v1.19 批锚）条件呈现矩阵 × 三 rclass
 //      （T-439 翻新：三段步进〔form-step-*〕后六节分驻基础/高级两步——
 //      矩阵断言语义不变，逐节可见性经步进切换触达；见 expectSections 注）；
@@ -152,7 +152,8 @@ test('admin: ?rclass= deep links reach the form page; six-section matrix per rcl
   await expect(grid).toContainText('Remote')
 
   // 组合门控退役（T-431）：remote × docker 可选（T-392 开的服务端格，FE 门
-  // 随 virtual 开禁一并退役）；license 门控槽位的禁用与此无关、另行断言
+  // 随 virtual 开禁一并退役）；license 槽位的前端禁用亦随 T-441 退役
+  // （门控三件套断言翻新归 t390/t441 spec）
   await expect(page.locator('[data-testid="pkg-grid-item-docker"]')).toBeEnabled()
   await expect(page.locator('[data-testid="pkg-grid-item-maven"]')).toBeEnabled()
 
@@ -186,7 +187,7 @@ test('admin: ?rclass= deep links reach the form page; six-section matrix per rcl
 
 // ---- 3. rclass 入口形态 + 磁贴网格 Dialog 形态钉死（宽度档定案 + Esc） --------
 
-test('admin: grid modal shape pin — radiogroup tiles, 440px decided tier, Esc cancel; quick-menu dropdown entry', async ({
+test('admin: grid modal shape pin — radiogroup tiles, 924px centered tier (T-441 flip), Esc cancel; quick-menu dropdown entry', async ({
   page,
 }) => {
   await loginAs(page, 'admin')
@@ -213,14 +214,16 @@ test('admin: grid modal shape pin — radiogroup tiles, 440px decided tier, Esc 
     await expect(tile).toHaveAttribute('role', 'radio')
   }
 
-  // 宽度档钉死（票内定案）：BinFlow 440px 紧凑档——不追平 v1.1 实测 880px
-  // （33 包型网格的档位；BinFlow 5 核心 + 门控槽位，追平即大面积留白）。
-  // 几何断言体例 = T-382 expectDrawerGeometry 同款（boundingBox，非像素）。
+  // 宽度档钉死（T-441 翻转③）：924px 居中档——7.161.20 活体实测勘误
+  // （7.84 锚 880px → 924px 实测；m16-baseline-refresh §A3-7）。视口钳
+  // min(924, vw-48)；居中 = boundingBox 左缘 ≈ (vw-w)/2（MUI Dialog paper
+  // margin auto——几何断言体例 = T-382 expectDrawerGeometry 同款，非像素）。
   await expect(grid).toHaveCSS('opacity', '1') // Fade 收敛后再取 box
   const box = await grid.boundingBox()
   expect(box, 'pkg-grid paper has a box').toBeTruthy()
   const vw = page.viewportSize()?.width ?? 1280
-  expect(box!.width).toBeCloseTo(Math.min(440, vw - 48), 0)
+  expect(box!.width).toBeCloseTo(Math.min(924, vw - 48), 0)
+  expect(Math.abs(box!.x - (vw - box!.width) / 2), 'pkg-grid centered in viewport').toBeLessThanOrEqual(1)
 
   // Esc = 取消关闭（M4 族通用规格）：回对应 Tab、无写请求语义
   await page.keyboard.press('Escape')

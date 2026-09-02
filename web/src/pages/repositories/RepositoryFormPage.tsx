@@ -29,7 +29,7 @@ import { Skeleton } from '../../components/Skeleton'
 import { ApiError, canAdminWrite, errText, getRepositories, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
 import type { RepoListItem } from '../../lib/api'
 import Chip from '@mui/material/Chip'
-import { getAddons, lockedHint, packageTypeOptions, tierBadgeClass } from '../../lib/addons'
+import { getAddons, packageTypeOptions, tierBadgeClass } from '../../lib/addons'
 import type { PkgTypeOption } from '../../lib/addons'
 import {
   RCLASSES,
@@ -77,7 +77,8 @@ import {
 import './repositories.css'
 
 // 建仓/编辑表单（console-m8 §4.4/§6.7，T-240 重排）：进页弹包类型网格
-// （5 项，必选）→ **三段步进式**表单（T-439 / FR-143.1，B-2.5——Artifactory
+// （必选；T-441 起宽 924px 居中档 + 八门控型开禁——见 PackageTypeGrid 注）
+// → **三段步进式**表单（T-439 / FR-143.1，B-2.5——Artifactory
 // 7.161.20 实测形态：顶部 Basic | Advanced | Replications 步进条
 // 〔jf-steps 三步，aria-label「Step N of 3」〕；节内仍是常规设置 →
 // 来源/成员 → 包类型专属 → 治理/高级六节 Paper，form-section-* 锚零改名）
@@ -173,14 +174,11 @@ function buildPkgChoices(options: PkgTypeOption[]): PkgChoice[] {
   return items
 }
 
-/** 单项可选取舍：槽位解锁态；返回禁用原因（null = 可选）。组合矩阵门自
- *  T-431（M15 Q6）随 docker 三仓型全开而退役（服务端 supportedPackageTypes
- *  为唯一事实源——rclass × packageType 组合恒合法，矩阵回缩时在服务端先裁），
- *  license 槽位禁用是当前唯一组合性约束。 */
-function pkgChoiceBlock(c: PkgChoice): string | null {
-  if (c.opt && !c.opt.enabled) return lockedHint(c.opt)
-  return null
-}
+/** 前端槽位门已随 T-441（M16 FR-143.3，B-2.6）整族退役：磁贴/单选不再有
+ *  license 禁用态——license 门是后端 ADR-0033 域（repo.Service D3 拒绝，
+ *  建仓面 400「package type not available」终裁），前端只保留档位徽章的
+ *  可见性提示（D5：入口可见带徽章，不是隐藏）。组合矩阵门更早于 T-431
+ *  （M15 Q6）退役——建仓面自此零前端预裁，一切槽位问题服务端说了算。 */
 
 interface FormState {
   rclass: RClass
@@ -393,9 +391,15 @@ function formValid(f: FormState, mode: 'create' | 'edit'): { ok: boolean; reason
 }
 
 /** 建仓向导第 0 步：包类型网格对话框（§4.4 进页即弹；单选即选定关闭）。
- *  M10 T-288：每型带档位徽章（community 地板无徽章；pro/enterprise 徽章），
- *  未解锁型禁用 + 提示「需要 N 档」——D5 可见性口径（入口可见带徽章，
- *  不是隐藏）。
+ *  M10 T-288：每型带档位徽章（community 地板无徽章；pro/enterprise 徽章）
+ *  ——D5 可见性口径（入口可见带徽章，不是隐藏）。
+ *  T-441（M16 FR-143.3，B-2.6——形态翻转③）：Dialog 宽度档自 440px 紧凑档
+ *  翻至 **924px 居中档**（Artifactory 7.161.20 活体实测 924×760 居中
+ *  el-dialog——7.84 审计锚 880px 勘误，基线复核 m16-baseline-refresh
+ *  §A3-7）；八门控型磁贴**去禁用态**（纯前端门开禁——license 门系后端
+ *  ADR-0033 域，repo.Service D3 终裁，见文件头 pkgChoiceBlock 退役注），
+ *  磁贴恒 brand 官方标 + 档位徽章保留。maxWidth={false} 解除 MUI 'sm'
+ *  （600px）钳制——宽度权威在 paper sx。
  *  T-299：网格项保持原生 button（radiogroup 语义 + pkg-grid 卡片形态），
  *  取消钮迁 MUI；焦点/Esc 管理零变化。
  *  T-344 批 D：modal 壳 → MUI Dialog（.modal-backdrop/.modal 手作族随之
@@ -426,12 +430,13 @@ function PackageTypeGrid({
 
   const paperProps = {
     'data-testid': 'pkg-grid',
-    sx: { width: 'min(440px, calc(100vw - 48px))' },
+    sx: { width: 'min(924px, calc(100vw - 48px))' },
   }
 
   return (
     <Dialog
       open
+      maxWidth={false}
       onClose={(_, reason) => {
         if (reason === 'escapeKeyDown' || reason === 'backdropClick') onCancel()
       }}
@@ -445,7 +450,6 @@ function PackageTypeGrid({
         </p>
         <div className="pkg-grid-items" role="radiogroup" aria-label="包类型">
           {choices.map((c) => {
-            const block = pkgChoiceBlock(c)
             const badgeTier = c.opt && c.opt.minTier !== 'community' ? c.opt.minTier : null
             return (
               <button
@@ -453,21 +457,15 @@ function PackageTypeGrid({
                 key={c.id}
                 role="radio"
                 aria-checked={false}
-                disabled={block !== null}
-                title={block ?? undefined}
                 className="pkg-grid-item"
                 data-testid={`pkg-grid-item-${c.id}`}
                 onClick={() => onPick(c.id)}
               >
-                {/* T-390（FR-127）：包型身份走 brand 版官方标；禁用态
-                    （license 门控/组合约束）换 mono + 容器 opacity 0.4
-                    ——品牌色置灰会脏色（README §6.3），三件套 = mono +
-                    opacity + pkg-tier-* 徽章（徽章在下）。
-                    className="pkg-grid-item" 本票复线：T-240 起磁贴类名
-                    从未落 DOM（repositories.css 的卡面族 dead 至今，本票
-                    门控三件套断言暴露）——卡面 + 禁用置灰随类名复活；
-                    几何档（440px Dialog 宽）不受影响（spec 复证）。 */}
-                <PkgIcon id={c.id} variant={block ? 'mono' : 'brand'} size={22} className="pkg-icon" />
+                {/* T-390（FR-127）：包型身份走 brand 版官方标。T-441 起
+                    磁贴无禁用态（八门控型开禁——mono/opacity 0.4 置灰
+                    三件套随 pkgChoiceBlock 退役），恒 brand；档位徽章
+                    （pkg-tier-*）是槽位档位的唯一可见提示，保留。 */}
+                <PkgIcon id={c.id} variant="brand" size={22} className="pkg-icon" />
                 <span className="pkg-name">
                   {c.label}
                   {badgeTier && (
@@ -484,7 +482,7 @@ function PackageTypeGrid({
                     />
                   )}
                 </span>
-                <span className="pkg-desc">{block ?? c.desc}</span>
+                <span className="pkg-desc">{c.desc}</span>
               </button>
             )
           })}
@@ -658,8 +656,9 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
     return list.filter((r) => r.type !== 'virtual' && r.key !== f.key)
   }, [candidates.data, f.key])
 
-  // 包型可选集（M10 T-288）：addons 注册表实时数据（徽章/锁定态与 License
-  // 页同源）。加载中/403/失败 = 仅五核心地板项——门控型不误放，服务端终裁。
+  // 包型可选集（M10 T-288）：addons 注册表实时数据（徽章与 License 页同源）。
+  // 加载中/403/失败 = 仅五核心地板项（门控型缺席不呈现，非禁用——T-441 起
+  // 无前端禁用门，槽位解锁与否由服务端 D3 终裁，错误走 form-error 原文回显）。
   const addons = useAsync(getAddons, [])
   const pkgChoices = useMemo(() => buildPkgChoices(packageTypeOptions(addons.data ?? [])), [addons.data])
 
@@ -819,14 +818,12 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
           </div>
           <div className="radio-row" role="radiogroup" aria-label="包类型">
             {pkgChoices.map((c) => {
-              const block = pkgChoiceBlock(c)
               const badgeTier = c.opt && c.opt.minTier !== 'community' ? c.opt.minTier : null
               return (
                 <FormControlLabel
                   key={c.id}
-                  className={block ? 'disabled' : undefined}
-                  title={block ?? undefined}
-                  disabled={mode === 'edit' || block !== null || locked}
+                  className={mode === 'edit' ? 'disabled' : undefined}
+                  disabled={mode === 'edit' || locked}
                   control={
                     <Radio
                       size="small"

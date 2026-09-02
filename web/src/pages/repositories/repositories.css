@@ -74,18 +74,31 @@
   outline-offset: 1px;
 }
 
-/* T-390：禁用磁贴 opacity 0.45 → 0.4（FR-127 门控三件套口径：mono 图标
- * + opacity 0.4 + pkg-tier-* 徽章；README §6.3）。禁用件本就不在对比度
- * 义务面（WCAG 1.4.11 豁免 disabled），提亮档不对其生效。 */
-.pkg-grid-item:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
+/* T-390 的禁用磁贴规则（opacity 0.4 + not-allowed——FR-127 门控三件套）
+ * 已随 T-441（M16 FR-143.3，B-2.6）退役：八门控型磁贴开禁，网格内不再
+ * 有 disabled 磁贴（license 门系后端 ADR-0033 域）；档位可见性由
+ * pkg-tier-* 徽章承载。:hover:not(:disabled) 选择器保留——button 语义的
+ * 防御性写法，零成本。 */
 
 /* pkg-icon = PkgIcon 的尺寸槽类（mono currentColor 的着色位；brand 版
  * 自带官方色，color 不生效）——T-390 字符图标（font-size 档）退役 */
 .pkg-grid-item .pkg-icon {
   color: var(--bf-accent);
+}
+
+/* T-441：磁贴内档位徽章（MUI Chip outlined）文字色收敛——门控开禁后磁贴
+ * 进对比度义务面（原 disabled 子树被 WCAG 豁免，axe 跳过），raw info 主色
+ * #0b6bcb 在 surface-2 磁贴底上 = 4.48:1 差 0.02。沿用 base.css 语义徽章
+ * 家族的「语义色 78% + 正文色」收敛配方（.badge.tier-*:not(.MuiChip-root)
+ * 同款——彼配方被 :not() 排除在 Chip 外，磁贴场景 Chip 皮肤需要同收敛）：
+ * 双主题实测 ≥5.4:1（light #0f5ba8 on #e9edf1）。surface-1（表单 radio 行
+ * 徽章）raw 主色本就 ≥5.2:1，不动。 */
+.pkg-grid-item .MuiChip-root.tier-pro .MuiChip-label {
+  color: color-mix(in srgb, var(--bf-info) 78%, var(--bf-text));
+}
+
+.pkg-grid-item .MuiChip-root.tier-enterprise .MuiChip-label {
+  color: color-mix(in srgb, var(--bf-warning) 78%, var(--bf-text));
 }
 
 .pkg-grid-item .pkg-name {

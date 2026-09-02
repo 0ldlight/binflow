@@ -20,9 +20,12 @@ import { loginAs } from '../m8/support/roles'
 //
 // Assertion regime (m10 README §2.4 over ADR-0029 decision 3): anchors from
 // console-ux §10 (T-288 batch, v1.10); tier badges assert the CLOSED-SET
-// wire value (community|pro|enterprise), never marketing copy; gated entries
-// are VISIBLE with their badge (D5) and DISABLED with a needed-tier hint —
-// no visual/pixel assertions; readonly = disabled + counter-assertions.
+// wire value (community|pro|enterprise), never marketing copy. T-441 (M16
+// FR-143.3) opened the repo-create dialog's frontend slot gate: gated
+// entries stay VISIBLE with their badge (D5 unchanged) but are now ENABLED —
+// the license verdict is the backend's (ADR-0033 / repo.Service D3); the
+// community-instance refusal chain is pinned in e2e/m16/t441 — no visual/
+// pixel assertions; readonly = disabled + counter-assertions.
 
 const CORE_PKG = ['generic', 'docker', 'maven', 'npm', 'pypi'] as const
 // T-327F（L27a 裁定）：门控包型自 T-282 的 3 扩至 7——M11 新四型
@@ -143,7 +146,7 @@ test('L27c: readonly_admin read-only visible; plain user navigation unreachable'
   await expect(user.locator('[data-testid="addons-table"]')).toHaveCount(0)
 })
 
-test('L27d: repo-create dialog — core badgeless floor, gated pro-badged + disabled', async ({ page }) => {
+test('L27d: repo-create dialog — core badgeless floor, gated pro-badged + enabled (T-441 gate opened)', async ({ page }) => {
   await loginAs(page, 'admin')
   await page.goto('/binflow/ui/admin/repositories/new')
   const grid = page.locator('[data-testid="pkg-grid"]')
@@ -155,24 +158,26 @@ test('L27d: repo-create dialog — core badgeless floor, gated pro-badged + disa
     await expect(page.locator(`[data-testid="pkg-grid-item-${id}"] [data-testid="pkg-tier-${id}"]`)).toHaveCount(0)
   }
   // docker 磁贴在 local 入口下可选（组合门 T-431 全仓型退役后此处恒绿，
-  // 门控槽位 pro 徽章/禁用才是本 spec 的对象）
+  // 门控槽位 pro 徽章才是本 spec 的对象）
   await expect(page.locator('[data-testid="pkg-grid-item-docker"]')).toBeEnabled()
 
-  // 门控型：可见带 pro 徽章（D5）、禁用、提示需要 pro
+  // 门控型（T-441 开禁翻转）：可见带 pro 徽章（D5 不变）+ **enabled**——
+  // 前端槽位门退役（license 门系后端 ADR-0033 域，repo.Service D3 终裁；
+  // community 实例提交时的 400 拒绝链断言在 m16/t441 spec）
   for (const id of PRO_PKG) {
     const item = page.locator(`[data-testid="pkg-grid-item-${id}"]`)
     await expect(item).toBeVisible()
-    await expect(item).toBeDisabled()
+    await expect(item).toBeEnabled()
     await expect(page.locator(`[data-testid="pkg-grid-item-${id}"] [data-testid="pkg-tier-${id}"]`)).toHaveText('pro')
-    await expect(item).toHaveAttribute('title', /需要 pro/)
   }
 
-  // 选定地板型进表单：radio 行同族徽章 + 门控型禁用（表单面零坏请求）
+  // 选定地板型进表单：radio 行同族徽章 + 门控型同 enabled（T-441——表单面
+  // 不再预裁，坏请求由服务端 400 终裁并原文回显）
   await page.locator('[data-testid="pkg-grid-item-generic"]').click()
   await expect(page.locator('[data-testid="pkg-grid"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="form-package-maven"]')).toBeEnabled()
   for (const id of PRO_PKG) {
-    await expect(page.locator(`[data-testid="form-package-${id}"]`)).toBeDisabled()
+    await expect(page.locator(`[data-testid="form-package-${id}"]`)).toBeEnabled()
     await expect(page.locator(`label:has([data-testid="form-package-${id}"]) [data-testid="pkg-tier-${id}"]`)).toHaveText('pro')
   }
 })
