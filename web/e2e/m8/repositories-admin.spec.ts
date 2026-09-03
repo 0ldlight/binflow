@@ -38,16 +38,17 @@ test.beforeEach(async ({ request }) => {
 
 // ---- 1. 建仓向导全链（网格 → 分区表单 → 创建 → 对账） --------------------
 
-test('admin: package-type grid wizard full chain (?rclass= preset, combo gating, create + reconcile)', async ({
+test('admin: package-type grid wizard full chain (?rclass= preset, create + reconcile)', async ({
   page,
 }, testInfo) => {
   await loginAs(page, 'admin')
   const key = uniq('t240rz')
 
-  // Quick 建仓入口形态：?rclass=remote 预选仓型；网格 docker 项禁用（FR-15-AC7）
+  // Quick 建仓入口形态：?rclass=remote 预选仓型；T-431 退役 docker×rclass 组合矩阵门，
+  // docker 在 remote/virtual 下均可用（服务端 supportedPackageTypes 为唯一约束源）。
   await page.goto('/binflow/ui/admin/repositories/new?rclass=remote')
   await expect(page.locator('[data-testid="pkg-grid"]')).toBeVisible()
-  await expect(page.locator('[data-testid="pkg-grid-item-docker"]')).toBeDisabled()
+  await expect(page.locator('[data-testid="pkg-grid-item-docker"]')).toBeEnabled()
   // T-344 批 D：包型网格换 MUI Dialog——入场 Fade 中途采样会把半透明栈算进
   // 对比度（T-344C D7 假阳性），扫描前等过渡收敛（断言语义不变）。
   await expect(page.locator('[data-testid="pkg-grid"]')).toHaveCSS('opacity', '1')
