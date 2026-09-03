@@ -1800,4 +1800,10 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **T-470 → done 2026-09-04 02:1x——intake ⑫ 兑现（Fern 迁移首程）**：**`docs-fern/`**（fern.config.yml + docs.yml + 40 页 MDX，42 文件）——**46 页 10,278 行 → 40 页 5,263 行（51.2%）**；**T-xxx 引用 156→0**（去迭代化 grep 零命中——唯一例外系 docker virtual 400 错误文案逐字保真）；合并 auth←3 篇 + storage/permissions/operations/console←各 2 篇；删 real-env-appendix（纯 QA 归档）。**API 契约逐字保真**（端点/参数/错误文案/配置键/命令）。自查全过（yaml 双配置 + @mdx-js/mdx 40/40 编译 + 导航↔页面双向映射 + 内链解析）。遗留：`fern build` 真构建候联网环境（CLI 传递依赖 registry 404）；平台发布需账号（conductor/用户执行）；旧站退役另裁。日志 reports/agents/T-470.md。
 
+**Fern 官方布局重构（conductor 2026-09-04，`037c383`）**：用户提供 Fern token（fern_Cod…Hyi）；CLI 安装排雷（npx 缓存劫持 1.11.3 旧核——清除后 brew 5.113.1）+ **docs.yml 逐字官方 schema**（instances/tabs/navigation 三顶层分离 + page path 指文件）——**CLI 解析全绿**（"Reload completed in 855ms" 40 页导航全解析）。遗留两环境项：本地预览前端被 pnpm 11 构建门（esbuild postinstall）挡（后端 :3003 正常）；**发布走 Fern 平台 GitHub 连接**（用户 UI 侧连 0ldlight/binflow → 自动构建 binflow.buildwithfern.com）。
+
+**T-451 → done 2026-09-04 07:5x——M16 17/35（B8 票①：分页控件 ×9 统一——E2 翻案兑现）**：**Pager.tsx 共享控件**（页码/每页行数档位冻结 [20/50/100/200/1000]/首末页禁置 + useClientPager）+ **八列表面迁移**（ResultsTable/AqlPanel/审计 keyset 页窗/仓库/users/groups/permissions/tokens）+ 制品树增量加载按 L4 分治维持（豁免锚注记）。**契约漂移①**：7.161 管理列表实为 ag-grid「to/of」形态无页码序列——按 7.84 冻结锚实现，版本线分歧留痕候 ux 裁（翻转点已备）。锚册 **v1.39**（9 名 + 四退役）+ parity **v1.10**（E2/L4/B-3.3 翻已落 + §11.2 档位冻结）。四门绿 + 新 spec 4/4 + m16 目录 38P×2 + a11y 双主题 0 + SPA +4,863B。**环境事件披露**：brew simdutf 升级断链系统 node@22（全程 nvm v24 绕行——其他 agent 同法）。日志 reports/agents/T-451.md。
+
+**用户指令 intake ⑬（2026-09-04 02:3x）：「后续代码只提交到 git@github.com:0ldlight/binflow.git」——push 循环已去掉 vm 远端**（配置保留零使用）。
+
 **全树 race 补证判无效（conductor 2026-09-01 14:3x）**：与两 agent 测试套件同机并发跑——22 包红全部 620-660s 超时形态 + db/sql 竞争 panic + storage fail-open 窗口 = **共租负载签名**（T-414 日志同款 load 450-630），非产品缺陷。T-412 的 AC3 证据改挂 **T-421 中期 QA 串行全树 race**（届时 lane 空净）。**D-413-2 [P3·登记]**：唯一真信号 = T-413 `TestEngineMixedLoad` 在慢机下 K63 并发门 429 介入而测试只容忍 busy gate 拒绝——测试健壮性收窄（门注入调低或混合负载容忍 429），归 T-421 复验时顺腿修或转 T-433。**教训入册：全树 race/性能类验证必须 lane 空净时串行跑（派单纪律）。**
