@@ -13,6 +13,7 @@ import TableSortLabel from '@mui/material/TableSortLabel'
 import TextField from '@mui/material/TextField'
 
 import { CopyButton } from '../../components/CopyButton'
+import { Pager, useClientPager } from '../../components/Pager'
 import type { ColumnDef, ColumnPrefs } from '../../lib/columnPrefs'
 import { formatBytes } from '../../lib/format'
 import { monoInputSx } from '../../lib/muiAtoms'
@@ -55,9 +56,10 @@ async function copySelection(rows: ResultRow[]): Promise<void> {
 // - **选择列**：Artifactory 对位形态（批量动作入口）；BinFlow 无批量
 //   端点，选择面的诚实能力 = 批量复制路径（§7.3 一键拷贝家族的行集版），
 //   不伪造批量删除/下载影子入口（E1 / 零端点纪律）。
-// - 分页两形态：基本模式 = 客户端切片 + 「加载更多」（pageSize 在场时，
-//   search-pager/search-more 既有锚与语义维持）；AQL 模式 = footer 槽
-//   （range 尾行 + .offset() 翻页，由 AqlPanel 注入）。
+// - 分页两形态（T-451 / E2 翻案：页码控件——parity §11.2 冻结形态）：
+//   基本模式 = 客户端页窗（useClientPager + 共享 Pager，pageSize 在场时
+//   search-pager 根锚维持）；AQL 模式 = footer 槽（range 回显 + 共享
+//   Pager 的 .offset()/.limit() 重写，由 AqlPanel 注入）。
 
 /** 网格行（两模式归一形态：basic 的 E-09 全路径拆 dir+name，AQL 的投影
  *  行缺字段如实 null —— 不伪造）。 */
@@ -101,7 +103,8 @@ export function ResultsTable({
   toolbarRight?: ReactNode
   /** 快滤初值（?repos= 旧深链的兼容折入——见 SearchPage URL 模型注记） */
   initialFilter?: string
-  /** 客户端切片页大小（在场 = 基本模式「加载更多」分页）；缺省 = 无分页 */
+  /** 客户端页窗初始页大小（在场 = 基本模式页码分页；T-451 起页大小由
+   *  选择器在运行时调整——此值仅为初始档）；缺省 = 无分页 */
   pageSize?: number
   /** 底部槽（AQL 模式 range 尾行；与 pageSize 互斥——分页形态二选一） */
   footer?: ReactNode
@@ -122,19 +125,13 @@ export function ResultsTable({
     [rows, needle],
   )
 
-  // 客户端切片（基本模式；AQL 不传 pageSize 由服务端 .offset/.limit 分页）。
-  // 切片回零 = 派生：epoch（快滤词 × 结果集标识）变了即回落第一页——
-  // 状态里只存「某 epoch 下用户展开到的行数」，无 effect 回零（re-render
-  // 派生口径，加载更多点击时随新 epoch 落盘）。rows 由调用方 useMemo
-  // 稳定（结果集不变即同引用）。
+  // 客户端页窗（基本模式；AQL 不传 pageSize 由服务端 .offset/.limit 分页）。
+  // 回零 = 派生：epoch（快滤词 × 结果集标识）变了即回落第一页——状态里
+  // 只存「某 epoch 下用户翻到的页」，无 effect 回零。rows 由调用方
+  // useMemo 稳定（结果集不变即同引用）。
   const epoch = useMemo(() => ({ needle, rows }), [needle, rows])
-  const baseVisible = pageSize ?? Number.POSITIVE_INFINITY
-  const [slice, setSlice] = useState<{ epoch: unknown; visible: number }>(() => ({
-    epoch: undefined,
-    visible: baseVisible,
-  }))
-  const visible = slice.epoch === epoch ? slice.visible : baseVisible
-  const shown = filtered.slice(0, Number.isFinite(visible) ? visible : filtered.length)
+  const pager = useClientPager(filtered.length, epoch, pageSize)
+  const shown = pageSize === undefined ? filtered : pager.slice(filtered)
 
   // 选择列：键 = row.key（repo+path 稳定身份，不受快滤重排影响）
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set())
@@ -340,20 +337,17 @@ export function ResultsTable({
 
       {pageSize !== undefined && !noMatch && (
         <div className="search-footer" data-testid="search-pager">
-          <span>
-            显示 1 – {shown.length} / 共 {filtered.length} 项
-            {needle !== '' ? `（快滤自 ${rows.length}）` : ''}
-          </span>
-          {shown.length < filtered.length && (
-            <Button
-              variant="outlined"
-              size="small"
-              data-testid="search-more"
-              onClick={() => setSlice({ epoch, visible: (Number.isFinite(visible) ? visible : 0) + (pageSize ?? 0) })}
-            >
-              加载更多
-            </Button>
-          )}
+          <Pager
+            page={pager.page}
+            pageCount={pager.pageCount}
+            onPageChange={pager.setPage}
+            from={pager.from}
+            to={pager.to}
+            total={filtered.length}
+            note={needle !== '' ? `（快滤自 ${rows.length}）` : undefined}
+            pageSize={pager.size}
+            onPageSizeChange={pager.setSize}
+          />
         </div>
       )}
       {footer}

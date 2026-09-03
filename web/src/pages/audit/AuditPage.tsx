@@ -18,6 +18,7 @@ import TextField from '@mui/material/TextField'
 import { CopyButton } from '../../components/CopyButton'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
+import { Pager, PAGER_SIZE_DEFAULT } from '../../components/Pager'
 import { Skeleton } from '../../components/Skeleton'
 import { ApiError, getRepositories } from '../../lib/api'
 import type { AuditEvent } from '../../lib/api'
@@ -25,13 +26,7 @@ import { useColumnPrefs } from '../../lib/columnPrefs'
 import type { ColumnDef } from '../../lib/columnPrefs'
 import { formatAuditTime } from '../../lib/format'
 import { monoInputSx } from '../../lib/muiAtoms'
-import {
-  AUDIT_ACTIONS,
-  AUDIT_PAGE_SIZE,
-  EMPTY_AUDIT_FILTERS,
-  getAuditEventsPage,
-  localInputToRFC3339,
-} from '../../lib/governance.ts'
+import { AUDIT_ACTIONS, EMPTY_AUDIT_FILTERS, getAuditEventsPage, localInputToRFC3339 } from '../../lib/governance.ts'
 import type { AuditFilters } from '../../lib/governance.ts'
 import { useAsync } from '../../lib/useAsync'
 
@@ -40,7 +35,9 @@ import { useAsync } from '../../lib/useAsync'
 //   配 datalist 建议 + 文案明示）/ action（词表选择器，GE-02）/ 时间窗
 //   （since 含 until 不含，datetime-local 折算 UTC）/ path（**已加载集**
 //   客户端子串——REST 无 path 参数，§6.3 兜底，显式提示边界）。
-// - 分页：keyset cursor「加载更多」增量追加（§6.1 不做页码跳转）。
+// - 分页：T-451（E2 翻案 / LC-98）页码控件——keyset 游标页窗映射：页码 N
+//   = 游标链推进 N-1 跳（后端维持 keyset，呈现对齐语义自有 C 注）；末页
+//   未知（游标耗尽才知），页数 = 前沿 + 1，页码逐页揭示、全链禁置不隐藏。
 // - 表格：时间 mono / 动作原样 mono（不翻译 enum，排障要比对）/ 对象
 //   repo/path mono + 拷贝 / 来源 detail.remote_addr / detail JSON 折叠。
 // - CSV 导出 P2 债务：不渲染入口（ux R3）。
@@ -83,36 +80,50 @@ function detailJSON(d: unknown): string {
 }
 
 /**
- * 服务端分页容器：首页随 filters 变化重拉（防抖由调用方做），「加载更多」
- * 携 cursor 增量追加。晚到的旧响应按运行闭包旗标丢弃（useAsync 同款语义）。
- * T-387（L1 刷新）：refresh 手动重拉首页（tick 入 effect 依赖——过滤保持、
- * 已加载增量丢弃回第 1 页，与过滤变更同语义）。
+ * 服务端分页容器（T-451 窗口化改版——E2 翻案：keyset 游标 → 页码页窗）：
+ * 页码 N 的窗口 = 游标链第 N-1 跳的 limit 行；向前翻 = 前沿逐跳推进（每跳
+ * 一次 keyset 取数，索引便宜——深翻页 offset 扫描成本规避的 C 注兑现），
+ * 向后翻 = 已缓存游标直接取窗。过滤/页大小/刷新变化 = 游标链重建（页回
+ * 1）；晚到旧响应按 alive 闭包旗标丢弃（useAsync 同款语义）。T-387（L1
+ * 刷新）：refresh 手动重拉（过滤保持、游标链丢弃回第 1 页）。
  */
 function useAuditPages(filters: AuditFilters) {
   const [tick, setTick] = useState(0)
+  const [pageSize, setPageSize] = useState(PAGER_SIZE_DEFAULT)
+  // nav.key !== 当前过滤键 = 派生回落第 1 页（无 effect 回零，ResultsTable
+  // epoch 同款口径）
+  const [nav, setNav] = useState<{ key: string; page: number } | null>(null)
   const [events, setEvents] = useState<AuditEvent[]>([])
-  const [nextCursor, setNextCursor] = useState('')
+  const [more, setMore] = useState(false)
   const [phase, setPhase] = useState<'loading' | 'ok' | 'error' | 'forbidden'>('loading')
   const [error, setError] = useState<ApiError | null>(null)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const [moreError, setMoreError] = useState<ApiError | null>(null)
   const key = JSON.stringify(filters)
-  // 供 loadMore 读取最新游标与过滤（避免依赖数组抖动）
-  const stateRef = useRef({ key, nextCursor })
-  stateRef.current = { key, nextCursor }
+  const page = nav !== null && nav.key === key ? nav.page : 1
+
+  // 游标链：cursors[k-1] = 取第 k 页的游标（cursors[0] = '' 首页）。链与
+  // （过滤 × 页大小 × tick）绑定——任一变化即重建（旧链在新窗口宽度下
+  // 指向错位窗口）。ref 承载：写入不触发重取（effect 依赖保持窄面）。
+  const chainRef = useRef<{ scope: string; cursors: string[] }>({ scope: '', cursors: [''] })
+  const scope = `${key} ${pageSize} ${tick}`
 
   useEffect(() => {
+    if (chainRef.current.scope !== scope) chainRef.current = { scope, cursors: [''] }
     let alive = true
     setPhase('loading')
     setError(null)
-    setMoreError(null)
-    setEvents([])
-    setNextCursor('')
-    getAuditEventsPage(JSON.parse(key) as AuditFilters, '', AUDIT_PAGE_SIZE)
+    getAuditEventsPage(JSON.parse(key) as AuditFilters, chainRef.current.cursors[page - 1] ?? '', pageSize)
       .then((p) => {
         if (!alive) return
         setEvents(p.events)
-        setNextCursor(p.nextCursor)
+        setMore(p.nextCursor !== '')
+        if (p.nextCursor !== '') {
+          // 前沿推进：本页带下一游标 → 第 page+1 页已确证存在（页码序列
+          // 由 more 派生逐页揭示）
+          const chain = chainRef.current
+          if (chain.cursors[page] === undefined) {
+            chainRef.current = { scope: chain.scope, cursors: [...chain.cursors.slice(0, page), p.nextCursor] }
+          }
+        }
         setPhase('ok')
       })
       .catch((err: unknown) => {
@@ -124,34 +135,20 @@ function useAuditPages(filters: AuditFilters) {
     return () => {
       alive = false
     }
-  }, [key, tick])
+  }, [key, page, pageSize, tick, scope])
 
-  const loadMore = async (): Promise<void> => {
-    const { key: k, nextCursor: cursor } = stateRef.current
-    if (cursor === '' || loadingMore) return
-    setLoadingMore(true)
-    setMoreError(null)
-    try {
-      const p = await getAuditEventsPage(JSON.parse(k) as AuditFilters, cursor, AUDIT_PAGE_SIZE)
-      // 晚到丢弃守卫（review B1）：请求在飞时过滤变更，首页 effect 已清空
-      // events/nextCursor——旧过滤的第 2 页不得追加进新列表，更不得用旧
-      // 游标覆写 nextCursor（否则后续加载更多在新过滤下延续旧游标链）。
-      // 过滤键比对与 useAsync 的 alive 闭包旗标同语义；finally 仍复位
-      // loadingMore，不卡按钮。
-      if (stateRef.current.key !== k) return
-      setEvents((prev) => [...prev, ...p.events])
-      setNextCursor(p.nextCursor)
-    } catch (err) {
-      setMoreError(err instanceof ApiError ? err : new ApiError(0, String(err)))
-    } finally {
-      setLoadingMore(false)
-    }
-  }
+  const goTo = useCallback((p: number) => setNav({ key, page: p }), [key])
+  const changeSize = useCallback((n: number) => {
+    setPageSize(n)
+    setNav(null)
+  }, [])
+  // T-387（L1 刷新）：手动重拉（过滤保持；游标链丢弃回第 1 页）
+  const refresh = useCallback(() => {
+    setTick((t) => t + 1)
+    setNav(null)
+  }, [])
 
-  // T-387（L1 刷新）：手动重拉首页（过滤保持；已加载增量丢弃）
-  const refresh = useCallback(() => setTick((t) => t + 1), [])
-
-  return { events, nextCursor, phase, error, loadingMore, moreError, loadMore, refresh }
+  return { events, more, page, pageSize, phase, error, goTo, changeSize, refresh }
 }
 
 export default function AuditPage() {
@@ -192,7 +189,7 @@ export default function AuditPage() {
 
   // 时间值由 datetime-local 产出，浏览器侧不可产出非法串；timeInvalid
   // 只作行内提示（防手动改 DOM 等异常路径），不参与查询门控
-  const { events, nextCursor, phase, error, loadingMore, moreError, loadMore, refresh } = useAuditPages(committed)
+  const { events, more, page, pageSize, phase, error, goTo, changeSize, refresh } = useAuditPages(committed)
 
   // T-387（L1）：列显隐偏好（per-page localStorage）+ 列选菜单锚
   const cols = useColumnPrefs(COLUMN_IDS, COLS_KEY)
@@ -332,7 +329,7 @@ export default function AuditPage() {
           </Button>
         )}
         <span className="count" data-testid="audit-count">
-          已加载 {rows.length} 条{pathQ ? '（路径过滤仅作用于已加载集）' : ''}
+          本页 {events.length} 条{pathQ ? `（路径过滤命中 ${rows.length}——仅作用于本页窗口）` : ''}
         </span>
         {/* T-387（L1）：工具栏尾 = 列选器 + 刷新（parity L1「列选择器 + 刷新
             按钮」；计数已在栏尾 audit-count）。形态与仓库页同款——两页共写
@@ -501,28 +498,18 @@ export default function AuditPage() {
                 })}
               </TableBody>
             </Table>
-            <div className="more-row">
-              {nextCursor !== '' ? (
-                <Button
-                  variant="outlined"
-                  size="small"
-                 
-                  disabled={loadingMore}
-                  onClick={() => void loadMore()}
-                  data-testid="audit-more"
-                >
-                  {loadingMore ? '加载中…' : `加载更多（已加载 ${events.length} 条）`}
-                </Button>
-              ) : (
-                <span className="text-muted" style={{ fontSize: 'var(--bf-fs-aux)' }}>
-                  共 {events.length} 条（已到末页）
-                </span>
-              )}
-              {moreError && (
-                <span className="field-error" role="alert">
-                  加载更多失败：{moreError.message}
-                </span>
-              )}
+            <div className="pager-row" data-testid="audit-pager">
+              <Pager
+                page={page}
+                pageCount={more ? page + 1 : page}
+                onPageChange={goTo}
+                from={events.length === 0 ? 0 : (page - 1) * pageSize + 1}
+                to={(page - 1) * pageSize + events.length}
+                total={null}
+                lastUnknown
+                pageSize={pageSize}
+                onPageSizeChange={changeSize}
+              />
             </div>
           </>
         ))}

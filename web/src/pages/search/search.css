@@ -47,10 +47,8 @@
   margin: 0;
 }
 
-.aql-pager {
-  display: flex;
-  gap: var(--bf-sp-2);
-}
+/* .aql-pager 退役（T-451/E2 翻案）：前后页按钮对 → 共享 Pager
+ * （components/pager.css——页码序列 + 首末页 + 每页行数选择器） */
 
 /* ---------- 结果网格（T-449 / B-2.13：网格内快滤 + 选择列动作行） ---------- */
 

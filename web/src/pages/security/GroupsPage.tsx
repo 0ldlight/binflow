@@ -20,6 +20,7 @@ import { useConfirm } from '../../components/ConfirmDialog'
 import { CopyButton } from '../../components/CopyButton'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
+import { Pager, useClientPager } from '../../components/Pager'
 import { Skeleton } from '../../components/Skeleton'
 import { ApiError, canAdminWrite, errText, isReadOnlyAdmin } from '../../lib/api'
 import { useColumnPrefs } from '../../lib/columnPrefs'
@@ -410,6 +411,11 @@ export default function GroupsPage() {
         return r.group.name
     }
   })
+  // T-451（E2 翻案）：客户端页窗（数据形态 × 排序变化即回落第 1 页；
+  // 字符串键口径：同形刷新不丢页位）
+  const pageEpoch = `${state.status}|${sorted.length}|${sort.key ?? ''}|${sort.dir}`
+  const pager = useClientPager(sorted.length, pageEpoch)
+  const pageRows = pager.slice(sorted)
 
   const doDelete = async (name: string, description: string) => {
     const memberCount = membership ? (membership.groupMembers[name] ?? []).length : null
@@ -611,7 +617,7 @@ export default function GroupsPage() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {sorted.map((r) => (
+                {pageRows.map((r) => (
                   <TableRow key={r.group.name} data-testid={`group-row-${r.group.name}`} hover>
                     {cols.isVisible('name') && (
                       <TableCell>
@@ -692,9 +698,18 @@ export default function GroupsPage() {
                 ))}
               </TableBody>
             </Table>
-            <p className="table-foot" data-testid="groups-count">
-              组总数： {sorted.length}
-            </p>
+            <div className="table-foot" data-testid="groups-count">
+              <Pager
+                page={pager.page}
+                pageCount={pager.pageCount}
+                onPageChange={pager.setPage}
+                from={pager.from}
+                to={pager.to}
+                total={sorted.length}
+                pageSize={pager.size}
+                onPageSizeChange={pager.setSize}
+              />
+            </div>
           </>
         ))}
     </div>

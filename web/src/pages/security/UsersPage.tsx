@@ -23,6 +23,7 @@ import { useToast } from '../../app/ToastContext'
 import { CopyButton } from '../../components/CopyButton'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
+import { Pager, useClientPager } from '../../components/Pager'
 import { Skeleton } from '../../components/Skeleton'
 import { ADMIN_ROLES, ApiError, canAdminWrite, errText, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
 import { useColumnPrefs } from '../../lib/columnPrefs'
@@ -354,6 +355,11 @@ export default function UsersPage() {
         return r.name
     }
   })
+  // T-451（E2 翻案）：客户端页窗（数据形态 × 排序变化即回落第 1 页；
+  // 字符串键口径：同形刷新不丢页位）
+  const pageEpoch = `${state.status}|${rows.length}|${sort.key ?? ''}|${sort.dir}`
+  const pager = useClientPager(rows.length, pageEpoch)
+  const pageRows = pager.slice(rows)
 
   return (
     <div data-testid="users-page">
@@ -477,7 +483,7 @@ export default function UsersPage() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {rows.map((r) => {
+                {pageRows.map((r) => {
                   // 自删/内置 admin：UI 预禁用（服务端 400 终裁；title 述因）
                   const self = session?.username === r.name
                   const builtin = r.name === 'admin'
@@ -554,9 +560,18 @@ export default function UsersPage() {
                 })}
               </TableBody>
             </Table>
-            <p className="table-foot" data-testid="users-count">
-              用户总数： {rows.length}
-            </p>
+            <div className="table-foot" data-testid="users-count">
+              <Pager
+                page={pager.page}
+                pageCount={pager.pageCount}
+                onPageChange={pager.setPage}
+                from={pager.from}
+                to={pager.to}
+                total={rows.length}
+                pageSize={pager.size}
+                onPageSizeChange={pager.setSize}
+              />
+            </div>
           </>
         ))}
     </div>

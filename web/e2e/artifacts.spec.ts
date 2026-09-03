@@ -433,7 +433,9 @@ test('large directory: client-side load-more pagination (ux R1 fallback)', async
   await expect(page.locator('[data-testid="tree-list"] tbody tr')).toHaveCount(1)
   await page.fill('[data-testid="tree-filter"]', '')
   await expect(page.locator('[data-testid="tree-list"] tbody tr')).toHaveCount(100)
-  // 加载更多：增量追加（骨架/已有行不重绘语义）
+  // 加载更多：增量追加（骨架/已有行不重绘语义）——T-451/E2 翻案后
+  // 制品树/大目录深浏览维持增量（parity §5 L4 分治口径 + §11.2 适用范围）
+  // ——本腿即分治豁免面的断言锚，页码控件不适用于此面
   await page.click('[data-testid="tree-load-more"]')
   await expect(page.locator('[data-testid="tree-list"] tbody tr')).toHaveCount(200, { timeout: 20_000 })
   await page.click('[data-testid="tree-load-more"]')

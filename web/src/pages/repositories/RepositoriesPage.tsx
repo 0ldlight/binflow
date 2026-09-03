@@ -26,6 +26,7 @@ import { CopyButton } from '../../components/CopyButton'
 import DeployDialog from '../../components/DeployDialog'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
+import { Pager, useClientPager } from '../../components/Pager'
 import SetMeUpDialog from '../../components/SetMeUpDialog'
 import { Skeleton } from '../../components/Skeleton'
 import { ApiError, errText } from '../../lib/api'
@@ -516,6 +517,11 @@ export default function RepositoriesPage() {
     if (va === vb) return 0
     return ((va < vb ? -1 : 1) * (sortDir === 'asc' ? 1 : -1)) as number
   })
+  // T-451（E2 翻案）：客户端页窗（结果集标识 = 数据形态 × 过滤 × 排序——
+  // 变化即回落第 1 页；字符串键口径：同形刷新不丢页位）
+  const pageEpoch = `${state.status}|${sorted.length}|${q}|${sortKey ?? ''}|${sortDir}`
+  const pager = useClientPager(sorted.length, pageEpoch)
+  const pageRows = pager.slice(sorted)
 
   return (
     <div data-testid="repos-page">
@@ -773,7 +779,7 @@ export default function RepositoriesPage() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {sorted.map((repo) => (
+                {pageRows.map((repo) => (
                   <TableRow
                     key={repo.key}
                     data-testid={`repos-row-${repo.key}`}
@@ -891,10 +897,19 @@ export default function RepositoriesPage() {
                 ))}
               </TableBody>
             </Table>
-            <p className="table-foot" data-testid="repos-pager">
-              显示 {sorted.length === 0 ? 0 : 1} – {sorted.length} / 共 {sorted.length} 项
-              {q !== '' && `（按「${keyQuery}」过滤）`}
-            </p>
+            <div className="table-foot" data-testid="repos-pager">
+              <Pager
+                page={pager.page}
+                pageCount={pager.pageCount}
+                onPageChange={pager.setPage}
+                from={pager.from}
+                to={pager.to}
+                total={sorted.length}
+                note={q !== '' ? `（按「${keyQuery}」过滤）` : undefined}
+                pageSize={pager.size}
+                onPageSizeChange={pager.setSize}
+              />
+            </div>
           </>
         ))}
 

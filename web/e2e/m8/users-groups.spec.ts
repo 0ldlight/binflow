@@ -39,10 +39,10 @@ test('admin: create user with transfer membership, edit partitions, role dropdow
   // 备料：一个组（穿梭的右侧目标）
   expect((await sessionApi(page, 'PUT', `/api/security/groups/${group}`, { name: group, description: 't237' })).status).toBe(201)
 
-  // —— 列表形态：列头排序 + 计数行 + axe ——
+  // —— 列表形态：列头排序 + 分页行（T-451 页码控件）+ axe ——
   await page.goto('/binflow/ui/admin/security/users')
   await expect(page.locator('[data-testid="users-table"]')).toBeVisible()
-  await expect(page.locator('[data-testid="users-count"]')).toContainText('用户总数')
+  await expect(page.locator('[data-testid="users-count"]')).toContainText(/共 \d+ 项/)
   await expect(page.locator('[data-testid="users-sort-name"]')).toHaveAttribute('aria-sort', 'ascending')
   await page.click('[data-testid="users-sort-name"]')
   await expect(page.locator('[data-testid="users-sort-name"]')).toHaveAttribute('aria-sort', 'descending')
@@ -145,7 +145,7 @@ test('admin: groups editor — membership transfer writes per-user, matrix + man
   // 组页列表形态 + 新建（成员穿梭在创建态即生效）
   await page.goto('/binflow/ui/admin/security/groups')
   await expect(page.locator('[data-testid="groups-table"]')).toBeVisible()
-  await expect(page.locator('[data-testid="groups-count"]')).toContainText('组总数')
+  await expect(page.locator('[data-testid="groups-count"]')).toContainText(/共 \d+ 项/)
   await page.click('[data-testid="groups-create"]')
   await page.fill('[data-testid="group-form-name"]', group)
   await page.fill('[data-testid="group-form-description"]', 't237 members')

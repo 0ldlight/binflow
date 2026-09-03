@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 文档 | `docs/design/console-ux.md` |
-| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账）/ T-291（v1.11：Properties 页签锚册——MUI 首票）/ T-307（v1.12：认证配置页组锚册——admin/security/auth 域）/ T-344（v1.14：密度档修订——MUI small 档，mui-native-visual §7 登记）/ T-352+T-353（v1.15：回收站页锚册 trash-* 族 + 建仓表单策略键生成器扩容）/ T-366（v1.16：Webhook 订阅管理页锚册 wh-* 族）/ T-372（v1.17：树尾常驻回收站入口锚 tree-trash-node——console-m8 §4.3 推翻条款兑现）/ T-382（v1.18：Set Me Up 抽屉化锚册——smu-* 零改名 + Resolve 批 + smu-close/smu-done 复役）/ T-383（v1.19：建仓形态核验锚册——form-section-* 六节族，M1 两段式断言钉死）/ T-384（v1.20：用户/组创建形态核验锚册——user-form-section-*/group-form-section-* 节锚 + 页脚四锚复役，M3 非 modal 断言钉死）/ T-389（v1.21：品牌位锚册——brand-sidebar-mark / brand-login-lockup，候选 1 logo 转正接线）/ T-387（v1.22：L1 列选器 + 刷新锚册——repos-columns-* / audit-columns-* / 两页 refresh）/ T-386（v1.23：Access Tokens 页真身锚册——tokens-* 族 28 名 + placeholder-page 退役）/ T-388（v1.24：F2 空态插画槽 empty-art + N2 侧栏图标槽 nav-icon——一级条目档位）/ T-404（v1.25：复制 CRUD 内嵌表单锚册——repl-* 配置面族 + form-section-replications 第七节 + 仓 Tab 指针升级 + Replications 列/Run）/ T-406（v1.26：制品浏览 remote/virtual 热修锚——tree-empty-virtual + remote 空态文案分支）/ T-414（v1.27：L1 列选器三页推广锚册——{users\|groups\|search}-columns-* 28 名 + member-pop 对比度清账）/ T-416（v1.28：virtual FE 树消费断言反转②——tree-empty-virtual 语义翻转 + RepoBranch virtual 动态展开恢复 + 删除入口预收敛）/ T-419（v1.29：搜索页 AQL 模式锚册——search-mode 族 + search-aql-* 15 名，smu/search 既有锚零改名）/ T-422（v1.30：复制包 B 首批锚册增量——repl-test/repl-test-result 表单 Test 两锚 + 全局封锁卡 repl-global-block/repl-block-push/repl-block-pull 三锚〔FR-138.2/138.3，parity §6A R8〕，repl-* 既有锚零改名）/ T-434（v1.31：制品树栈对齐锚册——tree-leaf-* 文件叶子 + 树头工具带 tree-toolband 族 + URL 模型段化〔页签段/文件路径段/?focus= 退役〕+ select≠expand，断言反转①留痕，tree-* 既有锚零改名）/ T-437（v1.32：版本史补记——v1.30 行归位〔T-434 遗留 + ux 复核盖章〕+ M16 翻案联动预登记〔E2 分页/E6 双语条款回写挂起 → T-451/T-464 票内；零锚变更〕）/ T-439（v1.33：表单三段步进锚册——form-step-* 三枚 + 预留位族 9 名 + form-force-auth 实字段 + form-reset 退役〔B-3.11/Q9〕）/ T-441（v1.34：pkg-grid 尺寸档断言翻转③〔440→924 居中〕+ 八型门控三件套退役登记——零新锚零改名）/ T-443（v1.35：入口分路由锚册——repos-create-{menu,三预选} + form-rclass-note + form-test 族三枚；form-rclass 族与 repos-columns-item-type 退役〔B-3.8 翻正 / Q9 列收敛〕）/ T-445（v1.36：详情字段族锚册——node-file-url 三形态 + node-downloads 统计族〔消费 T-438 ?stats〕+ node-repo-* 仓视图族；页签序统一〔权限在属性前〕零锚改名）/ T-447（v1.37：属性编辑解剖锚册——node-props-search 族 + node-download-menu 伴随菜单族；node-props 旗标表单/行内编辑族退役〔B-2.9 翻正〕+ 下载形态单图标钮〔B-2.12/Q9〕）/ T-449（v1.38：搜索栈锚册——结果网格 search-grid 与快滤族 + 选择列与批量拷贝族 + search-result-link-<i> + topbar-search-recent-empty；topbar-search-recent-clear 复役；页内查询表单与 recentSearches 下拉族退役〔B-2.13 翻正〕+ 列集归一〔B-2.11 断言反转②——search-columns-item-name 新增、大小/sha256 默认隐藏〕） |
-| 状态 | v1.38（2026-09-03，T-449——搜索栈锚册〔列集归一断言反转② + 顶栏驻留查询 + 网格快滤 + 选择列 + name 深链 + 空历史占位〕；结果网格与快滤 + 选择列与批量拷贝 + search-result-link + topbar-search-recent-empty 入册，topbar-search-recent-clear 复役，页内查询表单与 recentSearches 下拉族退役） |
+| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账）/ T-291（v1.11：Properties 页签锚册——MUI 首票）/ T-307（v1.12：认证配置页组锚册——admin/security/auth 域）/ T-344（v1.14：密度档修订——MUI small 档，mui-native-visual §7 登记）/ T-352+T-353（v1.15：回收站页锚册 trash-* 族 + 建仓表单策略键生成器扩容）/ T-366（v1.16：Webhook 订阅管理页锚册 wh-* 族）/ T-372（v1.17：树尾常驻回收站入口锚 tree-trash-node——console-m8 §4.3 推翻条款兑现）/ T-382（v1.18：Set Me Up 抽屉化锚册——smu-* 零改名 + Resolve 批 + smu-close/smu-done 复役）/ T-383（v1.19：建仓形态核验锚册——form-section-* 六节族，M1 两段式断言钉死）/ T-384（v1.20：用户/组创建形态核验锚册——user-form-section-*/group-form-section-* 节锚 + 页脚四锚复役，M3 非 modal 断言钉死）/ T-389（v1.21：品牌位锚册——brand-sidebar-mark / brand-login-lockup，候选 1 logo 转正接线）/ T-387（v1.22：L1 列选器 + 刷新锚册——repos-columns-* / audit-columns-* / 两页 refresh）/ T-386（v1.23：Access Tokens 页真身锚册——tokens-* 族 28 名 + placeholder-page 退役）/ T-388（v1.24：F2 空态插画槽 empty-art + N2 侧栏图标槽 nav-icon——一级条目档位）/ T-404（v1.25：复制 CRUD 内嵌表单锚册——repl-* 配置面族 + form-section-replications 第七节 + 仓 Tab 指针升级 + Replications 列/Run）/ T-406（v1.26：制品浏览 remote/virtual 热修锚——tree-empty-virtual + remote 空态文案分支）/ T-414（v1.27：L1 列选器三页推广锚册——{users\|groups\|search}-columns-* 28 名 + member-pop 对比度清账）/ T-416（v1.28：virtual FE 树消费断言反转②——tree-empty-virtual 语义翻转 + RepoBranch virtual 动态展开恢复 + 删除入口预收敛）/ T-419（v1.29：搜索页 AQL 模式锚册——search-mode 族 + search-aql-* 15 名，smu/search 既有锚零改名）/ T-422（v1.30：复制包 B 首批锚册增量——repl-test/repl-test-result 表单 Test 两锚 + 全局封锁卡 repl-global-block/repl-block-push/repl-block-pull 三锚〔FR-138.2/138.3，parity §6A R8〕，repl-* 既有锚零改名）/ T-434（v1.31：制品树栈对齐锚册——tree-leaf-* 文件叶子 + 树头工具带 tree-toolband 族 + URL 模型段化〔页签段/文件路径段/?focus= 退役〕+ select≠expand，断言反转①留痕，tree-* 既有锚零改名）/ T-437（v1.32：版本史补记——v1.30 行归位〔T-434 遗留 + ux 复核盖章〕+ M16 翻案联动预登记〔E2 分页/E6 双语条款回写挂起 → T-451/T-464 票内；零锚变更〕）/ T-439（v1.33：表单三段步进锚册——form-step-* 三枚 + 预留位族 9 名 + form-force-auth 实字段 + form-reset 退役〔B-3.11/Q9〕）/ T-441（v1.34：pkg-grid 尺寸档断言翻转③〔440→924 居中〕+ 八型门控三件套退役登记——零新锚零改名）/ T-443（v1.35：入口分路由锚册——repos-create-{menu,三预选} + form-rclass-note + form-test 族三枚；form-rclass 族与 repos-columns-item-type 退役〔B-3.8 翻正 / Q9 列收敛〕）/ T-445（v1.36：详情字段族锚册——node-file-url 三形态 + node-downloads 统计族〔消费 T-438 ?stats〕+ node-repo-* 仓视图族；页签序统一〔权限在属性前〕零锚改名）/ T-447（v1.37：属性编辑解剖锚册——node-props-search 族 + node-download-menu 伴随菜单族；node-props 旗标表单/行内编辑族退役〔B-2.9 翻正〕+ 下载形态单图标钮〔B-2.12/Q9〕）/ T-449（v1.38：搜索栈锚册——结果网格 search-grid 与快滤族 + 选择列与批量拷贝族 + search-result-link-<i> + topbar-search-recent-empty；topbar-search-recent-clear 复役；页内查询表单与 recentSearches 下拉族退役〔B-2.13 翻正〕+ 列集归一〔B-2.11 断言反转②——search-columns-item-name 新增、大小/sha256 默认隐藏〕）/ T-451（v1.39：分页控件 ×9 统一锚册——pager 控件族 {range,size,size-\<n\>,first,prev,next,last,page-\<n\>} + audit-pager；「加载更多」族盘点 9 面〔8 迁移 + tree-load-more 分治豁免〕；search-more/search-aql-prev/search-aql-next/audit-more 退役；§6 条款回写〔E2 翻案 Q4 出口①〕） |
+| 状态 | v1.39（2026-09-04，T-451——分页控件 ×9 统一锚册〔E2 翻案：Q4 出口①页码控件〕；pager 控件族 9 名 + audit-pager 入册，「加载更多」族盘点 9 面〔8 迁移 + 树分治豁免 1〕，search-more/search-aql-prev/search-aql-next/audit-more 退役，§6 大目录条款回写页码/增量分治） |
 | 维护者 | ux-designer |
 | 上游依据 | PRODUCT.md（Web 控制台/治理/Non-goals）、ROADMAP.md M4 节、docs/prd/milestone-1/2/3/4.md（端点矩阵与已定案行为）、docs/user/docker-registry.md（用户面口径）、docs/design/architecture.md §7（路由/console 挂载点）、internal/httpapi/router.go（路由门事实——§3.6.2 矩阵逐一核对）、reports/agents/T-98.md · T-99.md（漂移登记与 testid 素材）、reports/agents/T-98-review.md（N1 收敛建议）、BOARD.md（T-85 PRD / T-97 存在性不泄露裁决） |
 | 下游消费者 | T-86（架构：console 包/session/前端工程结构）、tech-lead（M4 拆票）、前端 dev（页面组票）、qa-engineer（控制台验收） |
@@ -51,6 +51,7 @@
 | v1.32 | 2026-09-03 | T-437 版本史补记 + M16 翻案联动预登记（M16 B1 前置锚票，FR-141.2——parity 册 v1.5 同场落盘；**本版零锚变更**，ledger 无涉）：① **v1.30 行补记**（T-434 遗留归位——T-422 §0 版本史行缺席，见上；ux 复核盖章同场清偿）；② **翻案联动预登记（防失锚）**：E2 分页翻案（Q4/LC-98——T-451 页码控件 ×9）牵本册 §6「加载更多」大目录策略条款——**正式条款回写归 T-451 票内**（届时版本递增），本行预登记挂起态（分治口径已冻结于 parity 册 §5 L4 v1.5 注 + §11.2：管理列表/结果表页码、树/大目录维持增量）；E6 双语翻案（Q3/FR-149）牵 §1.2「UI 文案为中文」条款——两包条款升格归 T-463/T-464 票内回写，预登记同款；③ parity 册 v1.5（E1/E2/E5/E6/R4 翻案 + §9A stay-out + §11 K67 冻结 + §12 B 47 项归属表）落盘——**树栈 as-built 断言锚（K67）冻结于彼册 §11，本册 §10.5 T-434 批登记块为锚名权威源不变**；i18n 锚 id 与文案解耦纪律（T-463 承接）自本行起在案 |
 | v1.33 | 2026-09-03 | T-439 表单三段步进 + 字段域补齐（M16 批次② 首票，FR-143.1/.2——B-2.5 + B-1.5 + B-3.12 + B-3.11〔Q8/Q9 冻结兑现〕）：① **T-439 批 13 名锚入册**（`form-step-{basic\|advanced\|replications}` 步进条三枚——对位 Artifactory 7.161.20 实测 jf-steps 三步条〔conductor 本机 :8082 活体探测，read-only 差集法——形态以 7.161 为准推翻/确认 7.84 审计材料的步进条无 ambiguity〕；预留位族 9 名〔`form-reserved-{basic\|advanced}` 组根 + `form-repo-layout` / `form-environments` / `form-internal-description` / `form-blacked-out` / `form-archive-browsing` / `form-max-unique-snapshots` / `form-suppress-pom`〕；实字段 `form-force-auth`——明细见 §10.5 T-439 批块）；② **`form-reset` 退役入 §10.6**（B-3.11/Q9 终裁：footer 对齐 M1 锚点 Cancel + Create/Save 两钮——7.161 实测页脚无 Reset；baseline 态随钮退役）；③ 六节分驻两步：`form-section-*` 锚零改名、非活跃步整步卸载（count 0 非 CSS 隐藏）；`form-section-replications` 载体自内嵌第七节迁第三步（M6 复制配置语义零变化，?section=replications 深链直落）；④ 字段域八域活体定档（scratch 实例 PUT→GET 对账）：七域后端无承接〔四域 decode-only：repoLayoutRef/blackedOut/maxUniqueSnapshots/archiveBrowsingEnabled——transport 解码不 400 但 configJSON 不转发；三域无解码位：environments/notes/suppressPomConsistencyChecks〕→ 预留位（恒禁用零提交，R3 先例）；一域实字段〔forceConanAuthentication——local × conan，T-355A 全收 + adapter 行为〕——**PRD「API 已收全」证据仅覆盖解码层，契约漂移在案**（票内登记 + API 漂移钉 tripwire 断言 + repoLayoutRef 布局解析联动评估 K70）；⑤ e2e 新面 `web/e2e/m16/t439-form-stepper.spec.ts`（八域表驱动 + 步进导航 + 深链 + footer 移除 + payload 净度网络层对账 + API 漂移钉 + axe 双主题）+ 既有 spec 翻新 ×4（t383 六节矩阵步进感知 / m8 repositories-admin readonly 腿 / repositories 建仓-编辑腿 / t404 全部 /edit 导航改 ?section=replications 深链）；⑥ 服务端 diff=0（纯 FE 票） |
 | v1.35 | 2026-09-03 | T-443 列表列集 + 入口分路由 + dirty-gating + remote Test 消费（M16 批次② FE②-c，FR-143.4/.5——B-3.8 翻正收口 + B-3.9 翻正 + B-3.6 落位）：① **T-443 批 9 名锚入册**（`repos-create-menu` + `repos-create-{local\|remote\|virtual}`——列表入口自平钮翻 Create a Repository 下拉三预选〔7.161.20 活体形态：型名 + 一句描述行，m16-baseline-refresh §A3-1/证据 s3e-create-dropdown〕，选中即分路由深链 `/admin/repositories/<rclass>/new`〔三静态路由承 rclass prop；旧 `/new`+`?rclass=` 直链经路由表兼容映射 replace——7 处跨页 emitter 零改动；非法段落 404〕；`form-rclass-note`——**表单内 rclass 控件移除**后的仓型语境行〔非交互件〕；`form-test` / `form-test-result` / `form-test-create-note`——remote Test 连接〔消费 T-442 端点 POST /api/repositories/{key}/test：编辑态 × remote 在场〔7.161 实测落 Basic 步凭据组旁〕，三臂内联呈现——成功绿/凭据被拒红〔message 原文〕/不可达红〔status_code 0〕；草稿臂 = url/username/password 对基线逐字段 diff〔带密码 = 明文凭据对 / 仅改 url 或 username = 匿名探测 / 零改动 = 已存配置探测〕；建仓态给 hint 不给死按钮〕——明细见 §10.5 T-443 批块）；② **退役 4 名入 §10.6**（`form-rclass-{local\|remote\|virtual}`——仓型单选组〔B-3.8：分路由预选取代〕+ `repos-columns-item-type`——列选项「类型」〔Q9/B-3.9 冗余列收敛：三 Tab 子路由即类型〕）；③ 列表列集对齐（B-3.9）：Replications 列自 T-404 的仅 local 扩 **local + remote 两 Tab**〔push-only 口径注记在表头 title——ADR-0021/parity §6A R10：BinFlow 无 pull 复制，remote 页签如实呈现以该仓为源的 push 配置；t404 spec 旧「remote 无列」断言翻转——空 remote Tab 的空洞断言在票内复核发现〕；Project 列缺位登记不伪造（§9A-S8 同口径）；④ dirty-gating 无新锚（进入编辑 Save disabled → 变更 enabled → 改回再 disabled；断言走既有 `form-submit` 禁用态 + title 原因文案）；⑤ e2e 新面 `web/e2e/m16/t443-list-entry-dirty-test.spec.ts`（五腿：入口/列集/dirty/Test 三臂+零副作用/axe 双主题）+ 既有 spec 翻新 ×8（repositories / t104 / t383 / t387 / t404 / t441 / m8 repositories-admin / m8 shell）；⑥ 服务端 diff=0（纯 FE 票） |
+| v1.39 | 2026-09-04 | T-451 FE 分页控件 ×9 统一（M16 批次③ B8，FR-144.7 / LC-98——**E2 翻案兑现**：Q4 出口①页码控件，v1.32 预登记的 §6 条款回写本版落笔）：① **T-451 批 9 名锚入册**（共享 Pager 控件族 `pager-range`〔「显示 a – b / 共 c 项」range 行——total 未知面如实「末页未知」〕+ `pager-size`/`pager-size-<n>`〔每页行数选择器——档位 20/50/100/200/1000，票内冻结〕+ 四边界钮 `pager-first`/`pager-prev`/`pager-next`/`pager-last` + 页码序列 `pager-page-<n>`〔MUI Pagination，当前页 aria-current 高亮〕+ 审计页脚根 `audit-pager`——明细见 §10.5 T-451 批块）；② **「加载更多」族全量盘点（票内 grep）= 9 面**：8 面迁移页码控件（搜索基本模式 ResultsTable 客户端页窗 / AQL 模式 .offset() 重写 / 审计 keyset 游标页窗 / repos / users / groups / perms / tokens 计数行升级）+ 1 面分治豁免维持增量（制品树 children 表 tree-load-more——§6 分治口径）；③ **退役 4 名入 §10.6**（`audit-more`〔审计「加载更多」钮——keyset 页窗化〕+ `search-more`〔搜索基本模式「加载更多」钮〕+ `search-aql-prev`/`search-aql-next`〔AQL 前后页按钮对〕——E2 翻案：控件形态统一 pager 族；AQL 行为语义锚 search-aql-range 保持）；④ **§6 条款回写**（v1.32 预登记兑现）：条款 1 改「管理列表/结果表 = 页码控件（100/页缺省——docker n 缺省同源），制品树/大目录深浏览维持增量」+ §4.10 审计线框 [加载更多] 行改页码控件；⑤ **语义 C 注**（LC-98）：后端维持 keyset 游标（审计）与 AQL offset——页码在前端映射为页窗（游标链推进/查询文本重写），深翻页 offset 扫描成本规避；末页未知的流式面页数 = 前沿 + 1 逐页揭示（呈现对齐、语义自有）；⑥ e2e 新面 t451-pager-unification（四腿：搜索页窗跳转/档位/边界 / 管理列表单页全链禁置 / AQL 页码+offset 与档位+limit 重写 / axe 双主题）+ 既有 spec 翻新 ×7（governance 审计腿窗口化改写 / t419 分页腿 pager 族 / m8 auxiliary·users-groups·permissions / m9 mholder / m14 t386 计数行文案）；⑦ 服务端 diff=0（纯 FE 票） |
 | v1.38 | 2026-09-03 | T-449 FE 搜索栈（M16 批次③ B7，FR-144.6——断言反转② 归一承载：B-2.11 列集 + B-2.13 查询位置 + B-2.14/B-3.16 快搜空历史 + B-3.14 行导航 + B-3.15 日期格式〔结果表腿〕+ ?focus= 发射端翻新〔T-434 遗留归位〕）：① **T-449 批 9 名锚入册**（结果网格 `search-grid`〔网格根——两模式共用 ResultsTable「列框架收敛」〕+ 快滤族 `search-quick-filter`/`search-quick-count`/`search-quick-filter-empty`〔B-2.13 网格内快滤：name/dir/repo 子串客户端窄化〕+ 选择列族 `search-select-all`/`search-row-select-<i>`/`search-selection-copy`〔批量复制路径 = 选择面的诚实能力，不伪造批量删除/下载影子入口〕+ `search-result-link-<i>`〔B-3.14：行体 inert 仅 name 单元格深链，href = K67-3 路径段规范形〕+ `topbar-search-recent-empty`〔B-3.16：空历史/无匹配占位，对位 "No recent searches yet"〕——明细见 §10.5 T-449 批块）；② **复役 1 名**：`topbar-search-recent-clear`（v1.9 零消费退役 → 顶栏成唯一 recentSearches 承载后复役回归在册；零历史时不渲染）；③ **退役 5 名入 §10.6**（`search-input`/`search-filter-repo`〔页内查询表单〕+ `search-recent`/`search-recent-item-<i>`/`search-recent-clear`〔页内下拉族〕——B-2.13 翻正：查询面 = 顶栏驻留〔Enter → /search?q=，/search 上 replace + 驻留回显派生态〕，?repos= 深链参数退役）；④ **列集归一**（B-2.11 断言反转②）：search-columns-item 序改 {name\|path\|repo\|modified\|size\|sha256} 六项——name 新增，size/sha256 转默认隐藏（useColumnPrefs 扩 defaultHidden 第三参，缺省 [] = 既有调用方零变化；reset 语义翻新 = 恢复默认列集「恢复默认列」）；search-aql-sort 扩 name 六项；AQL 行复用锚〔search-result-\<i\>/search-count/search-aql-range/sort 族〕全数保持；⑤ **?focus= 发射端翻新**：SearchPage/AqlPanel/DashboardPage 改发路径段深链（T-434 兼容重定向维持一轮）；⑥ 日期 `dd-MM-yy HH:mm:ss +ZZZZ`（formatStamp 两模式单源）；⑦ e2e 新面 t449-search-stack（六腿：列集默认档+日期正则 / name 深链+行体 inert / 快滤+选择列+批量拷贝 / 顶栏驻留+空历史占位 / AQL 共存形态 / axe 双主题）+ 既有 spec 翻新 ×7（t419/t414/m8 auxiliary/m9 fr82/artifacts/auth-shell/m14 t388——零锚断链）；⑧ 服务端 diff=0（纯 FE 票） |
 | v1.37 | 2026-09-03 | T-447 属性编辑解剖 + 下载形态（M16 批次③ B6，FR-144.4/.5——B-2.9 翻正 + B-2.12 翻正〔Q2 出口①/Q9 终裁消化〕）：① **T-447 批 6 名锚入册**（属性页签 `node-props-search`〔网格搜索输入——键/值子串客户端过滤〕+ `node-props-search-empty`〔无匹配提示块〕+ 下载伴随族 `node-download-menu`〔触发钮〕/ `node-download-menu-verify`〔校验动作项——原「下载并校验」按钮能力〕/ `node-download-panel`〔伴随菜单面板根 role=dialog〕/ `node-download-checksums`〔checksums/mimeType 区——Q9「收进伴随形态」〕——明细见 §10.5 T-447 批块）；② **`node-props-add` / `node-props-key-input` / `node-props-values-input-<key>` 语义翻新零改名**（常显表单——B-2.9：7.161.20 活体实证 placeholder 逐字 "Property name"/"Property value" + Add Property + 网格 Search；同名键 Add = 值集整体替换〔§11.40，replaceHint 语义可见〕）；③ **退役 4 名入 §10.6**（`node-props-row-new`〔旗标草稿行〕/ `node-props-save` `node-props-cancel`〔行内保存-取消〕/ `node-props-edit-<key>`〔逐行 ✎ 编辑钮〕——隐藏「+ 新增属性」表单与逐行 ✎/🗑 解剖退役；🗑 删除钮保留但过危险确认——E1 统一〔Q2 出口①〕，m10 L21 腿翻新）；④ **下载形态**（B-2.12）：两带文字按钮（下载并校验 + 直接下载）收敛为单 24px 图标钮 `node-download`（锚零改名、载体 = 浏览器原生落盘锚点）+ 伴随菜单（校验能力 + 结果块 `node-download-verify` 随菜单驻留〔锚零改名、载体迁址〕+ checksums/mimeType〔General 页平铺退役，Q9 终裁〕）；下载计数联动 = 校验下载完成触发 ?stats 重读（T-438 埋点单源——服务端内容面计数，零 FE 第二通道；直接下载无 JS 完成回调不触发，服务端计数照落）；⑤ **Property\|Property Set 分段 = K68 候裁臂**：不建不做缺位登记（Property Set 须 BE 属性集小域扩列另立票，裁做时再入册——parity 册 B-2.9 行同款注记）；⑥ e2e 新面 `web/e2e/m16/t447-props-download.spec.ts`（四腿：常显解剖+确认删除 / 网格搜索〔M10 夹具词汇〕/ 下载形态+计数联动 / axe 双主题含菜单展开态）+ 既有 spec 翻新 ×2（m10 properties-matrix L21a-c / artifacts W12-W13）；⑦ 服务端 diff=0（纯 FE 票） |
 | v1.36 | 2026-09-03 | T-445 详情页签序 + 元数据字段族 + Downloads 渲染（M16 批次③ 首票，FR-144.1/.2/.3——B-2.1/7 页签序 + B-2.3/4/10 字段族，**消费 T-438 ?stats 统计面**）：① **T-445 批 9 名锚入册**（`node-file-url`〔File URL 值格——仓/目录/文件三形态共用，内容面绝对 URL + 复制钮走 §10.1 aria-label〕+ 下载统计族 `node-downloads` / `node-last-downloaded-by` / `node-last-downloaded` / `node-remote-downloads`〔file 形态，?stats 面：计数全档可见、lastDownloadedBy 仅 CapSystemRead 档回带其余 '—' 不伪造〕+ 仓视图族 `node-repo-layout` / `node-repo-description` / `node-repo-created` / `node-repo-artifact-count`〔Layout 与 Created 无源恒 '—' + title 登记：K70 预留位 / CreatedAt 未投影 wire；Count = usage counts 面 nodeCount〕——明细见 §10.5 T-445 批块）；② **页签序统一**：常规 → 有效权限 → 属性（权限在属性前——7.161.20 活体 A2-7 + 7.84 reverse §3.2 逐级一致；`node-tab-*` 锚与 URL slug 零变化仅渲染序互换，m8 keyboard 方向键腿随序翻新；仓级属性页签缺位 = 仓根无节点行契约、非 admin 权限页签缺位 = SE-08 门）；③ 缺位登记不伪造：Module ID（Build-info stay-out §9A-S8）/ Package Information·Dependency Declaration·Virtual Repository Associations·Included Repositories 块（域缺位）/ folder 下载统计族（结构性零值不渲染）/仓视图 Size: Show 懒展开（usage 面廉价直接渲染）——t445 spec 反断言钉死；④ 字段序对齐 reverse §3.2（parity 族在前，BinFlow 自有增强〔类型/mimeType/Checksums 块/tags〕排后——去留候 Q9/T-447）；⑤ e2e 新面 `web/e2e/m16/t445-detail-fields.spec.ts`（五腿：三级页签序 / File URL+复制+Downloads 端到端+缺位反断言 / plain-user 可见性档 / 仓视图字段族 / axe 双主题）+ 既有 spec 翻新 ×1（m8 keyboard）；⑥ 服务端 diff=0（纯 FE 票） |
@@ -603,11 +604,16 @@ permission target = `{name, repos[], includePatterns[], excludePatterns[], princ
 │        │        │ CREATE    │                              │                  │
 │14:02:11│ ci-bot  │ PUT       │ docker-local/acme/app        │ token#84         │
 └────────┴────────┴──────────┴──────────────────────────────┴──────────────────┘
-                              [加载更多 (50/约1,842)]   [导出 CSV]
+              [|<] [<] 1 2 3 [>] [>|]  每页 [100▾] 行  显示 1 – 100（末页未知）
+                              [导出 CSV]
 ```
 
 - 动作值原样显示（不翻译 enum——排障时要把值贴给同事/日志比对）。
 - 时间列固定宽 mono（`HH:mm:ss`，跨天显示日期）；默认倒序。
+- **分页（T-451 / E2 翻案）**：页码控件（共享 Pager，§6 条款 1）——keyset
+  游标页窗映射（页码 N = 游标链第 N-1 跳；语义 C 注见 parity 册 §11.2），
+  末页未知（游标耗尽才知）→ 页数 = 前沿 + 1 逐页揭示；path 过滤仅作用于
+  当前页窗（§6.3 兜底，计数行如实标注）。
 - 「导出 CSV」仅在当前过滤条件下导出已加载集合或触发服务端导出（M4 后端能力，§9-R3）。
 
 ### 4.11 治理（GC / 备份 / 配额，共用的危险区模式）
@@ -733,11 +739,11 @@ permission target = `{name, repos[], includePatterns[], excludePatterns[], princ
 
 ## 6. 大目录与性能的 UX 约定
 
-1. **页大小 100**，与 docker API `n` 缺省一致；「加载更多」增量模式，不做页码跳转（keyset 游标 + 工程师「往下翻」心智）。
+1. **分治口径（T-451 / E2 翻案——Q4 出口①，2026-09-02 用户终裁；parity 册 §5 L4 v1.5 注 + §11.2 形态锚）**：管理列表与结果表 = **页码控件**（页码序列〔当前页高亮〕+ 首/上一页/下一页/末页钮 + 每页行数选择器；单页全量时控件整体呈现、全链禁置——禁置不隐藏）；页大小缺省 **100**（docker API `n` 缺省同源），档位 20/50/100/200/1000（T-451 票内冻结——参照实例 7.161.20 管理列表分页 selector 槽在场未启用，无档位可逐字对位）。**制品树/大目录深浏览维持增量加载**（「加载更多」——Artifactory 同为树增量 + 表页码双轨）。语义 C 注（LC-98）：后端维持 keyset 游标/AQL offset，页码在前端映射为页窗（游标链推进 / 查询文本尾缀重写）——呈现对齐、语义自有；深翻页 offset 扫描成本规避。
 2. **树只懒加载一层**；右侧表格只列当前层 children；`list&deep=1` 深列举不用于浏览（仅搜索/导出消费）。
 3. **前端过滤只作用于已加载集**，并显式提示已加载边界（§4.6）——绝不假装过滤了全量。
 4. **行数 >500 时前端必须虚拟化渲染**（窗口化）；这是 UX 对实现的硬性要求（性能预算：首屏交互 < 1s，滚动不掉帧），实现方式归 T-86/前端票。
-5. 已知 API 缺口与兜底：M1~M3 的 storage children / `_list` 无分页参数——过渡期前端「一次拉取 + 客户端分页」，children 超过 2,000 条时提示「目录过大，建议用搜索或 `_list?prefix=`」；§9-R1 提出分页参数需求，后端落地后前端切换为服务端分页（UI 形态不变，仍为「加载更多」）。
+5. 已知 API 缺口与兜底：M1~M3 的 storage children / `_list` 无分页参数——过渡期前端「一次拉取 + 客户端分页」，children 超过 2,000 条时提示「目录过大，建议用搜索或 `_list?prefix=`」；§9-R1 提出分页参数需求，后端落地后前端切换为服务端分页（制品树面 UI 形态不变，仍为「加载更多」增量——条款 1 分治口径；管理列表/结果面已随 T-451 落页码控件）。
 
 ---
 
@@ -1341,6 +1347,48 @@ HH:mm:ss +ZZZZ`（formatStamp——浏览器本地时区 + 显式偏移，两模
 ——search-result-<i>/search-count/search-pager/search-columns 族零改名，
 AQL 行复用锚全数保持。服务端 diff=0（纯 FE 票）。
 
+**T-451 批分页控件统一锚册（9 名新增 + 4 退役，M16 批次③ B8
+FR-144.7 / LC-98——E2 翻案〔Q4 出口①〕：parity 册 §11.2 冻结形态锚的
+消费载体；先入册再落码，v1.39；消费 spec = web/e2e/m16/
+t451-pager-unification.spec.ts〔本票新增〕+ governance/t419/m8
+auxiliary·users-groups·permissions/m9 mholder/m14 t386 翻新）：**
+
+```
+共享控件（web/src/components/Pager.tsx——九面同一控件，一面一控件
+  同刻唯一，固定锚名跨面复用）：
+  pager-range（range 行「显示 a – b / 共 c 项」——已知总量面带总数；
+    keyset/流式面〔audit/AQL〕total 未知，如实呈现「（末页未知）」，
+    各面语境注记续挂〔快滤自 d / 按「q」过滤 / 管理范围内 /
+    含已吊销 N 等〕）
+  pager-size（每页行数选择器——档位 20/50/100/200/1000，缺省 100；
+    档位票内冻结：参照实例 7.161.20 管理列表〔ag-grid〕分页 selector
+    槽在场未启用〔pageSizeComp 空〕、单页全量面无档位可证——非
+    Artifactory 逐字对位，BinFlow 自有冻结留痕）
+  pager-size-<n>（选择器档位项）
+  pager-first / pager-prev / pager-next / pager-last（四边界钮——
+    §11.2 边界态：首页 first/prev 禁置、末页 next/last 禁置、
+    单页全量全链禁置；MUI Pagination showFirst/LastButton）
+  pager-page-<n>（页码序列项——当前页 aria-current 高亮；已知总量面
+    = ceil(total/size)；流式/keyset 面 = 前沿 + 1 逐页揭示〔语义 C 注〕）
+审计（AuditPage 页脚根）：
+  audit-pager（keyset 游标页窗根——页码 N = 游标链第 N-1 跳，
+    前沿逐跳推进、向后直跳已缓存游标；过滤/页大小/刷新 = 链重建回第 1 页）
+退役（§10.6）：audit-more（审计「加载更多」钮——keyset 增量追加改
+  页窗）/ search-more（搜索基本模式「加载更多」钮——客户端切片改页窗）/
+  search-aql-prev / search-aql-next（AQL 前后页按钮对——
+  .offset() 重写改由页码序列承载；行为语义锚 search-aql-range 保持）
+```
+
+「加载更多」族盘点（T-451 票内 grep 全量，2026-09-04）：**9 面**——
+迁移 8 面（搜索基本模式〔ResultsTable 客户端页窗〕/ AQL 模式〔.offset()
++.limit() 尾缀重写〕/ 审计〔keyset 游标页窗〕/ 仓库列表〔repos-pager 计数
+行升级〕/ 用户〔users-count〕/ 组〔groups-count〕/ 权限 target
+〔perms-count〕/ Access Tokens〔tokens-count〕）+ 分治豁免 1 面（制品树
+children 表 tree-load-more——§6 条款 1 分治口径维持增量，断言锚 =
+e2e/artifacts.spec.ts 既有腿）。B-3.3 实测基数 9 与盘点一致；各面既有
+footer 根锚（repos-pager/users-count/groups-count/perms-count/
+tokens-count/search-pager/search-aql-range）零改名，控件族挂其下。
+
 **T-239 应用模式辅助页新锚（17 枚，先入本清单再落码流程兑现；§10.5 表
 `/search` `/profile` 行的承载锚随之改写）**：
 
@@ -1353,8 +1401,9 @@ AQL 行复用锚全数保持。服务端 diff=0（纯 FE 票）。
         **T-449 退役**——recentSearches 单承载顶栏下拉，随页内查询表单退役）
         search-recent-item-<i>（历史项；↑↓ 导航 + Enter 应用；**T-449 退役**同上）
         search-recent-clear（清除历史；**T-449 退役**同上）
-        search-pager（底部计数行「显示 a – b / 共 c 项」+ 加载更多——
-        T-449 起随快滤注记「共 c 项（快滤自 d）」）
+        search-pager（底部计数行「显示 a – b / 共 c 项」——T-449 起随快滤
+        注记「共 c 项（快滤自 d）」；**T-451 起挂共享 Pager 页码控件**
+        〔客户端页窗——加载更多退役，见 T-451 批〕）
         （search-count 迁为页头计数副标「搜索结果 – N 项」，锚名不变）
 编辑档案：profile-page（页根）  profile-password（认证设置·改密卡）
         profile-token（API Token 说明卡）  profile-token-docs  profile-token-goto
@@ -1376,7 +1425,8 @@ search.css`（T-236 登记的归位收口）。
 列表三 Tab：repos-tab-{local|remote|virtual}（Tab 子路由导航，aria-current=page）
             repos-sort-{key|package}（列头排序，aria-sort 三态——T-237 基准同款）
             repos-delete-<repoKey>（行尾删除入口——仅全量 admin，L4 预收敛）
-            repos-pager（底部计数行「显示 a – b / 共 c 项」）
+            repos-pager（底部计数行「显示 a – b / 共 c 项」——T-451 起挂
+            共享 Pager 页码控件〔客户端页窗〕）
 建仓向导：  pkg-grid（包类型网格对话框——C7 五项，进页即弹）
             pkg-grid-item-<pt>（网格项——动态段 = addons 注册表包型全集 13 型；
             T-431 组合门/T-441 license 槽位门先后退役，恒可选〔后端终裁〕）
@@ -2143,7 +2193,11 @@ node web/scripts/anchor-audit.mjs --ledger   # 册↔实态断言，违例 exit 
 `search-input` `search-filter-repo` `search-recent` `search-recent-item-<i>`
 `search-recent-clear`（页内查询表单与 recentSearches 下拉——B-2.13 翻正，
 查询面归顶栏驻留）+ 复役 `topbar-search-recent-clear`（顶栏成唯一承载）
-→ **现存 101 条**。复活 = 从本表删除 + 回写 §10.3，走 conductor）**：
+→ 101 条；T-451〔v1.39〕退役 `audit-more`（审计「加载更多」钮——keyset
+增量追加改页窗）+ `search-more` `search-aql-prev` `search-aql-next`
+（「加载更多」钮 + AQL 前后页按钮对——E2 翻案：分页控件形态统一 pager
+族，翻页由页码序列/边界钮承载）
+→ **现存 105 条**。复活 = 从本表删除 + 回写 §10.3，走 conductor）**：
 
 | 退役锚（家族） | 原承载 | 批次/退役 | 原因·去向 |
 |---|---|---|---|
@@ -2178,6 +2232,9 @@ node web/scripts/anchor-audit.mjs --ledger   # 册↔实态断言，违例 exit 
 | `form-rclass-local` `form-rclass-remote` `form-rclass-virtual` | 建仓表单仓型单选组（常规节 radio 行三枚） | T-99 / v1.35 | T-443（FR-143.4，B-3.8 翻正收口）：入口 = Create a Repository 下拉三预选分路由 `/admin/repositories/<rclass>/new`（7.161.20 实测同构——`/ui/admin/repositories/<rclass>/new`），表单内仓型控件移除（rclass prop 由三静态路由承载；旧 `/new`+`?rclass=` 深链经路由表兼容映射）；语境承载 = `form-rclass-note`（§10.5 T-443 批）；spec 翻新 repositories/t104/t383/m8 repositories-admin（count 0 反断言 + URL 断言） |
 | `repos-columns-item-type` | 仓库列表列选器「类型」列项（T-387 批 8 列闭集之一） | T-387 / v1.35 | T-443（Q9/B-3.9 冗余列收敛）：三 Tab 子路由即类型（local Tab 恒 Local……），单列表内 Repository Type 列在 BinFlow 分 Tab 形态下信息量为零——列 + 列选项同步退役（localStorage 偏好读回按列集清洗，存量 hidden 值无害剔除）；t387 spec 8→7 全套翻新 |
 | `node-props-row-new` `node-props-save` `node-props-cancel` `node-props-edit-<key>` | 属性页签旗标表单族（「+ 新增属性」草稿行 / 行内保存-取消对 / 逐行 ✎ 编辑钮） | T-291 / v1.37 | T-447（FR-144.4，B-2.9 翻正——7.161.20 活体实证常显解剖）：Property/Value 输入 + Add 常驻（`node-props-add`/`node-props-key-input`/`node-props-values-input-<key>` 语义翻新零改名），同名键 Add = 值集整体替换（§11.40，replaceHint 语义可见）——旗标草稿行与行内编辑器退役；m10 properties-matrix L21 腿翻新（count 0 反断言钉死 + 确认删除腿：`node-props-delete-<key>` 保留但过危险确认——E1 统一〔Q2 出口①〕，删除走 ConfirmDialog 可拒绝） |
+| `search-more` | 搜索基本模式「加载更多」钮（客户端切片增量展开，100/页） | T-100 / v1.39 | T-451（FR-144.7/LC-98，E2 翻案——Q4 出口①）：基本模式结果表改客户端**页窗**（ResultsTable useClientPager + 共享 Pager 页码控件〔pager 族〕），「加载更多」增量范式在管理列表/结果表域退役（制品树分治豁免维持增量——tree-load-more）；m8 auxiliary 单页腿翻新（全链禁置断言代 count 0 反断言） |
+| `search-aql-prev` `search-aql-next` | AQL 模式结果表前后页按钮对（.offset() ± limit 重写） | T-419 / v1.39 | T-451（E2 翻案同源）：翻页改由共享 Pager 页码序列承载（页码 N → .offset((N-1)×limit) 尾缀重写——查询文本仍是唯一事实源；每页行数 = .limit() 重写并清 .offset 回第 1 页）；行为语义锚 `search-aql-range`（start_pos/limit/流式 total 回显）保持零改名；t419 分页腿与 K63 截断通告腿翻新（pager-prev/pager-next 断言） |
+| `audit-more` | 审计日志「加载更多」钮（keyset 游标增量追加，100/页） | T-102 / v1.39 | T-451（E2 翻案同源）：审计改 keyset **页窗**（useAuditPages 游标链——页码 N = 第 N-1 跳取窗；页脚根 = `audit-pager` 挂共享 Pager），增量追加范式退役；路径过滤语义随窗口化改「仅作用于本页窗口」（audit-count 文案同步）；governance.spec 审计腿窗口化改写（B1 晚到丢弃竞态腿保留——alive 守卫语义不变） |
 
 **回填记录（v1.9.1，T-274——T-267 误杀修正）**：下列 19 族曾以「零 spec 消费」
 入本表处置，实为对账器 spec 抽取正则的形态盲区所致**误杀**（见下方工具局限

@@ -1,0 +1,26 @@
+/* T-451（FR-144.7 / LC-98，E2 翻案）：统一分页控件样式。
+ * 形态锚 = parity 册 §11.2（K67/T-437 冻结）——页码序列 + 首/上一页/
+ * 下一页/末页 + 每页行数选择器。九个消费面（search 两模式 / audit /
+ * repos / users / groups / perms / tokens + 树增量豁免面）共用。 */
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--bf-sp-3);
+  flex-wrap: wrap;
+  padding: var(--bf-sp-2) 0 0;
+}
+
+.pager-range {
+  font-size: var(--bf-fs-aux);
+  white-space: nowrap;
+}
+
+.pager-size {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--bf-sp-1);
+  font-size: var(--bf-fs-aux);
+  white-space: nowrap;
+}

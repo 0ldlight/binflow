@@ -286,6 +286,11 @@ const STOP = new Set([
   // v1.38（T-449 行文假阳性）：搜索栈批的标识符引用——本票新 spec 的
   // 文件名段（t449-search-stack），非 testid 锚
   't449-search-stack',
+  // v1.39（T-451 行文假阳性）：分页批的标识符引用——本票新 spec 文件名段
+  // （t451-pager-unification）、翻新 spec 简称（users-groups 即
+  // e2e/m8/users-groups.spec.ts 的翻新引用）、参照实例网格技术名
+  // （ag-grid——7.161.20 管理列表分页形态复核留痕），均非 testid 锚
+  't451-pager-unification', 'users-groups', 'ag-grid',
 ])
 const docFams = new Set()
 for (const t of docTokens) {

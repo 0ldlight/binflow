@@ -12,6 +12,7 @@ import { useAuth } from '../../app/AuthContext'
 import { CopyButton } from '../../components/CopyButton'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
+import { Pager, useClientPager } from '../../components/Pager'
 import { Skeleton } from '../../components/Skeleton'
 import { canAdminWrite, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
 import { onTableRowKeys } from '../../lib/keys'
@@ -78,6 +79,11 @@ export default function PermissionsPage() {
         return t.name
     }
   })
+  // T-451（E2 翻案）：客户端页窗（数据形态 × 排序变化即回落第 1 页；
+  // 字符串键口径：同形刷新不丢页位）
+  const pageEpoch = `${state.status}|${sorted.length}|${sort.key ?? ''}|${sort.dir}`
+  const pager = useClientPager(sorted.length, pageEpoch)
+  const pageRows = pager.slice(sorted)
 
   return (
     <div data-testid="perms-page">
@@ -159,7 +165,7 @@ export default function PermissionsPage() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {sorted.map((t) => (
+                {pageRows.map((t) => (
                   <TableRow
                     key={t.name}
                     data-testid={`perm-row-${t.name}`}
@@ -220,9 +226,19 @@ export default function PermissionsPage() {
                 ))}
               </TableBody>
             </Table>
-            <p className="table-foot" data-testid="perms-count">
-              {mHolder ? '管理范围内的权限 target：' : '权限 target 总数：'} {sorted.length}
-            </p>
+            <div className="table-foot" data-testid="perms-count">
+              <Pager
+                page={pager.page}
+                pageCount={pager.pageCount}
+                onPageChange={pager.setPage}
+                from={pager.from}
+                to={pager.to}
+                total={sorted.length}
+                note={mHolder ? '（管理范围内的权限 target）' : undefined}
+                pageSize={pager.size}
+                onPageSizeChange={pager.setSize}
+              />
+            </div>
           </>
         ))}
     </div>

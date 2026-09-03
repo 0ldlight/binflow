@@ -8,6 +8,7 @@ import MuiSkeleton from '@mui/material/Skeleton'
 import TextField from '@mui/material/TextField'
 
 import { EmptyState } from '../../components/EmptyState'
+import { Pager, PAGER_SIZE_OPTIONS } from '../../components/Pager'
 import type { ApiError } from '../../lib/api'
 import type { ColumnDef, ColumnPrefs } from '../../lib/columnPrefs'
 import { monoInputSx } from '../../lib/muiAtoms'
@@ -43,7 +44,9 @@ import type { ResultRow } from './ResultsTable'
 //   同一承载（文案同源，提示分流）。
 // - range 消费：start_pos/limit 回显 + 流式语义注记（total = 本页行数，
 //   非全量计数——aql.md §3.2）；「还有下一页」的判定只吃两个诚实信号
-//   ——截断通告（notification）或本页满窗。
+//   ——截断通告（notification）或本页满窗。T-451 起翻页 = 共享 Pager
+//   （页码/首末页/每页行数——E2 翻案 §11.2 形态锚）；offset/limit 仍由
+//   尾缀链重写承载（查询文本是唯一事实源，语义 C 注：呈现对齐语义自有）。
 
 /** 列 id → AQL 排序字段（表头排序注入的段值；字段须在查询输出集内，
  *  否则服务端 400「Only the result fields are allowed…」——内联呈现）。 */
@@ -161,11 +164,25 @@ export function AqlPanel({
     run(withTailClause(text.trim(), 'offset', String(offset)))
   }
 
-  const pageSize = range?.limit ?? rows.length
+  // 页窗语义（T-451 / E2 翻案）：页大小 = 查询声明的 .limit()，未声明 =
+  // 引擎上限 1000；页码 N → .offset((N-1)×size) 重写查询文本重放（查询
+  // 文本是唯一事实源，无影子状态）。页数 = 前沿 + 1（total 是流式语义
+  // = 本页行数非全量计数——末页未知，页码逐页揭示）。
+  const pageSize = range?.limit ?? AQL_RESULT_CAP
+  const page = range ? Math.floor(range.start_pos / pageSize) + 1 : 1
   const hasMore = range
     ? range.notification !== undefined ||
       (range.limit !== undefined ? rows.length === range.limit : rows.length >= AQL_RESULT_CAP)
     : false
+  const pageCount = hasMore ? page + 1 : page
+  const pageFrom = range && rows.length > 0 ? range.start_pos + 1 : 0
+  const pageTo2 = range ? range.start_pos + rows.length : 0
+  // 档位 = 冻结档 ∪ 当前查询声明的 limit（手写非档值〔如 .limit(2)〕如实
+  // 在场——选择器不得对当前值显示空白）
+  const sizeOptions = useMemo(
+    () => [...new Set([...PAGER_SIZE_OPTIONS, pageSize])].sort((a, b) => a - b),
+    [pageSize],
+  )
   const failed = res.status === 'error' || res.status === 'forbidden' ? res.error : null
   // 结果网格在场 = 已执行且命中（列选器随网格工具行；否则尾行承载）
   const gridOn = !notRun && !failed && res.status === 'ok' && rows.length > 0 && Boolean(range)
@@ -220,7 +237,7 @@ export function AqlPanel({
             {' '}
             .sort()/.offset()/.limit()
           </span>{' '}
-          尾缀承载——表头与翻页钮会改写查询文本。
+          尾缀承载——表头排序与分页控件（页码/每页行数）会改写查询文本。
         </p>
         {/* 列选器：结果网格不在场时由尾行承载（偏好预设定案，T-414——
             同一份壳，网格在场时改驻网格工具行，同一时刻仅一处） */}
@@ -286,27 +303,22 @@ export function AqlPanel({
                 （流式语义 = 本页行数，非全量计数）
                 {range.limit !== undefined ? ` · limit ${range.limit}` : ''}
               </span>
-              <span className="aql-pager">
-                <Button
-                  variant="outlined"
-                  size="small"
-                  data-testid="search-aql-prev"
-                  disabled={range.start_pos === 0}
-                  onClick={() => pageTo(Math.max(0, range.start_pos - pageSize))}
-                >
-                  上一页
-                </Button>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  data-testid="search-aql-next"
-                  disabled={!hasMore}
-                  title={hasMore ? undefined : '本页未满窗且无截断标记——已到结果末尾'}
-                  onClick={() => pageTo(range.start_pos + rows.length)}
-                >
-                  下一页
-                </Button>
-              </span>
+              <Pager
+                page={page}
+                pageCount={pageCount}
+                onPageChange={(p) => pageTo((p - 1) * pageSize)}
+                from={pageFrom}
+                to={pageTo2}
+                total={null}
+                lastUnknown
+                pageSize={pageSize}
+                sizeOptions={sizeOptions}
+                onPageSizeChange={(n) => {
+                  // 换页大小 = 重写 .limit() 并回第 1 页（清 .offset——
+                  // 旧 offset 在新页大小下指向错位窗口）
+                  run(withTailClause(withTailClause(text.trim(), 'limit', String(n)), 'offset', null))
+                }}
+              />
             </div>
           }
         />

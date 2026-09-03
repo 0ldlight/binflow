@@ -56,13 +56,8 @@
   word-break: break-all;
 }
 
-/* 「加载更多」行 */
-.more-row {
-  display: flex;
-  align-items: center;
-  gap: var(--bf-sp-3);
-  padding: var(--bf-sp-3) 0;
-}
+/* 分页行（T-451：审计 keyset 页窗）——控件本体样式在 components/pager.css；
+ * more-row「加载更多」行随 E2 翻案移除（parity 册 §11.2 形态锚） */
 
 /* ---------- GC 页（§4.11 危险区） ---------- */
 

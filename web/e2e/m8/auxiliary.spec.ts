@@ -155,9 +155,10 @@ test('search: topbar query chain -> count subtitle -> name-link deep-links the t
 
   // 计数副标（reverse §3.3；计数与行数一致性 = 验收项，不对齐其计数怪癖）
   await expect(page.locator('[data-testid="search-count"]')).toContainText('1 项')
-  // 底部计数行（C1：显示 a – b / 共 c 项；无更多页不渲染加载更多）
+  // 底部计数行（T-451 页码控件：单页全量 = 控件整体呈现、全链禁置）
   await expect(page.locator('[data-testid="search-pager"]')).toContainText('显示 1 – 1 / 共 1 项')
-  await expect(page.locator('[data-testid="search-more"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="pager-first"]')).toBeDisabled()
+  await expect(page.locator('[data-testid="pager-last"]')).toBeDisabled()
 
   // name 单元格深链（T-449/B-3.14：行体 inert，链接即导航——路径段规范形，
   // ?focus= 发射端退役）→ 跨仓树深链自动展开（T-236 消费）

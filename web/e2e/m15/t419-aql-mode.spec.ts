@@ -216,7 +216,9 @@ test('admin: column header clicks inject, flip and remove the .sort() clause in 
   await expect(page.locator('th').filter({ hasText: '大小' })).not.toHaveAttribute('aria-sort', 'ascending')
 })
 
-// ---- 5. 分页交互：.offset() 改写 + range.start_pos/limit 回显（④分页） --------
+// ---- 5. 分页交互：.offset() 改写 + range.start_pos/limit 回显（④分页；
+//          T-451 起承载 = 共享 Pager 页码控件——锚族 pager-*，prev/next
+//          独立钮对〔search-aql-prev/next〕退役） ------------------------------
 
 test('admin: pager rewrites .offset() in chain order and consumes the range echo', async ({
   page,
@@ -234,29 +236,40 @@ test('admin: pager rewrites .offset() in chain order and consumes the range echo
   const editor = page.locator('[data-testid="search-aql-input"]')
   const range = page.locator('[data-testid="search-aql-range"]')
 
-  // 第 1 页：start_pos 0、limit 回显 2；上一页禁用、下一页在场（满窗 = 可能还有）
+  // 第 1 页：start_pos 0、limit 回显 2；first/prev 禁置、next/last 在场
+  //（满窗 = 可能还有——流式末页未知，页码序列只呈现已确证页 [1][2]）
   await expect(page.locator('[data-testid="search-result-0"]')).toContainText(`${marker}-f1.bin`)
   await expect(range).toContainText('start_pos 0 · 本页 2 行 · total 2（流式语义 = 本页行数，非全量计数） · limit 2')
-  await expect(page.locator('[data-testid="search-aql-prev"]')).toBeDisabled()
-  await expect(page.locator('[data-testid="search-aql-next"]')).toBeEnabled()
+  await expect(page.locator('[data-testid="pager-first"]')).toBeDisabled()
+  await expect(page.locator('[data-testid="pager-prev"]')).toBeDisabled()
+  await expect(page.locator('[data-testid="pager-next"]')).toBeEnabled()
+  await expect(page.locator('[data-testid="pager-page-1"]')).toBeVisible()
+  await expect(page.locator('[data-testid="pager-page-2"]')).toBeVisible()
 
   // 下一页：.offset(2) 注入且链序在 .limit() 之前；行 = f3/f4
-  await page.click('[data-testid="search-aql-next"]')
+  await page.click('[data-testid="pager-next"]')
   await expect(page.locator('[data-testid="search-result-0"]')).toContainText(`${marker}-f3.bin`)
   expect(await editor.inputValue()).toBe(`${base}.offset(2).limit(2)`)
   await expect(range).toContainText('start_pos 2')
 
-  // 再下一页：offset(4)，末页 1 行 < limit → 下一页禁用（无截断标记即末尾）
-  await page.click('[data-testid="search-aql-next"]')
+  // 再下一页：offset(4)，末页 1 行 < limit → next/last 禁置（无截断标记即末尾）
+  await page.click('[data-testid="pager-next"]')
   await expect(page.locator('[data-testid="search-result-0"]')).toContainText(`${marker}-f5.bin`)
   await expect(page.locator('[data-testid="search-result-1"]')).toHaveCount(0)
-  await expect(page.locator('[data-testid="search-aql-next"]')).toBeDisabled()
-  await expect(page.locator('[data-testid="search-aql-prev"]')).toBeEnabled()
+  await expect(page.locator('[data-testid="pager-next"]')).toBeDisabled()
+  await expect(page.locator('[data-testid="pager-last"]')).toBeDisabled()
+  await expect(page.locator('[data-testid="pager-prev"]')).toBeEnabled()
 
   // 上一页：offset(2)（按 limit 页大小回退）
-  await page.click('[data-testid="search-aql-prev"]')
+  await page.click('[data-testid="pager-prev"]')
   await expect(page.locator('[data-testid="search-result-0"]')).toContainText(`${marker}-f3.bin`)
   expect(await editor.inputValue()).toBe(`${base}.offset(2).limit(2)`)
+
+  // 页码直跳：点 [1] → offset(0)；点 [2] → offset(2)（页码 = (N-1)×limit）
+  await page.click('[data-testid="pager-page-1"]')
+  await expect(page.locator('[data-testid="search-result-0"]')).toContainText(`${marker}-f1.bin`)
+  await page.click('[data-testid="pager-page-2"]')
+  await expect(page.locator('[data-testid="search-result-0"]')).toContainText(`${marker}-f3.bin`)
 })
 
 // ---- 6. mock 腿：429/408 错误族 + K63 截断通告（③④的不可廉价触达面） ---------
@@ -317,9 +330,10 @@ test('admin: 429/408 error families and the K63 truncation notice render inline 
   await expect(note).toBeVisible({ timeout: 10_000 })
   await expect(note).toContainText('AQL query reached the search hard limit, results are trimmed.')
   await expect(page.locator('[data-testid="search-aql-range"]')).toContainText('start_pos 0 · 本页 1 行 · total 1')
-  // notification 在场 = 还有更多行——下一页保持可用（无 limit 声明不回显 limit 键）
+  // notification 在场 = 还有更多行——下一页保持可用（无 limit 声明不回显 limit 键；
+  // T-451：分页 = 页码控件，next 承载「下一页」）
   await expect(page.locator('[data-testid="search-aql-range"]')).not.toContainText('limit')
-  await expect(page.locator('[data-testid="search-aql-next"]')).toBeEnabled()
+  await expect(page.locator('[data-testid="pager-next"]')).toBeEnabled()
 })
 
 // ---- 7. axe 双主题：结果态 + 错误态（⑤） ---------------------------------------
