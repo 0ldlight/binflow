@@ -1,4 +1,4 @@
-# AQL 与搜索域 行为规格（M15 FR-132/133/134 前置锚，T-407）
+# AQL 与搜索域 行为规格（M15 FR-132/133/134 前置锚，T-407；**M16 增量段 §14**——statistics/usage + QRL + dates + UI 搜索族，T-435）
 
 > **取证基准（PRD M15 §1.4 条款 1 特例，webhook.md 先例）**：AQL 有 JFrog 官方文档全覆盖 → **官方文档为唯一行为基准**；inv-1 §E / inv-2 §1.C 反编译锚点仅补官方文档空白（逐条标注「此条补充官方规范」）；**t226 活体核验腿**（OSS 7.84.10，2026-09-01 会话）作置信度校验——AQL 系 AddonType `oss` 档，无 entitlement 锁。证据：`reports/agents/t407-evidence/`（36 份响应体逐字节实录）。
 >
@@ -299,3 +299,146 @@ BinFlow 基座（architecture §15.3 + migrations 001/013）：`nodes(repo_key, 
 - 老搜索端点族 OpenAPI（artifact/gavc/prop/pattern/checksum/usage/dates/creation/license/versions/latestVersion/latestVersionByProperties/badChecksum/dependency/buildArtifacts/archive 各页）：`https://docs.jfrog.com/artifactory/reference/llms.txt` 索引逐页（searchartifact/searchgavc/searchproperty/searchpattern 等，节录于 §8）
 - 活体：t226-artifactory OSS 7.84.10 rev 78410900（VM 172.16.58.129，API 8181 `/artifactory/api`；容器恢复沿 T-381 §0——抵达即 Up 保留态，用毕维持 Up；证据 `reports/agents/t407-evidence/` 36 文件）
 - 反编译：`reverse-src/artifactory/src/batch1-core/org/artifactory/rest/resource/aql/AqlResource.java`、`rest/resource/search/SearchResource.java`、`aql/model/*`（AqlDomainEnum/AqlComparatorEnum/AqlPhysicalFieldEnum/AqlRelativeDateComparatorEnum/AqlSortTypeEnum/AqlOperatorEnum）、`aql/result/AqlRestResult.java + AqlJsonLocalStreamer.java`、`storage/db/aql/service/AqlServiceImpl.java + AqlQueryValidator.java + decorator/VirtualRepoCriteriaDecorator.java`、`rest/common/exception/mapper/AqlExceptionMapper.java`、`common/ConstantValues.java`（aql* 键）、`search/ArtifactSearcher.java`、`utils/ObfuscationUtils.java`、`rest/resource/system/QueryRateLimiterResource.java`
+
+---
+
+# M16 增量段（FR-148 前置锚，T-435，2026-09-03）
+
+> **定位**：statistics/usage 域字段集（T-440 定案面）+ `/api/search/usage` wire + QRL 全量锚（K72）+ dates/creation 承接（K65）+ UI 搜索族四端点（inv-2 §1.C）。主文档 §0~§13 为 M15 冻结面，本段不改动其条文；凡本段与 §8.2 表述有出入处，在 §14.6「对既有条目的校正」集中登记。
+>
+> **取证状态（如实登记）**：本段活体腿降级——t226（VM 172.16.58.129）2026-09-03 会话不可达（本机路由经 TUN 代理，SSH kex 即断、API 8181/8182 无响应；`docker start` 恢复链〔T-381 §0〕无法执行）。降级路径按票据 R1 内置条款：官方文档 + 反编译双/单源推进 + 逐条附注，**零静默升格**。既有活体证据（T-407 会话 2026-09-01，同实例同版本）凡覆盖本段条目者直接引用并标注出处文件；本段新增锚（QRL REST 现值、UI 搜索族、crontime、dates 错误臂）未获活体复现的，置信度按单源降档并进 §14.7 待验证清单。
+
+## 14.1 statistics 域字段集（FR-148.1 / T-440 定案面；§2.1 表 statistics 行的展开）
+
+字段全集（官方 aql-entities-fields-reference 字段表 + 反编译 AqlPhysicalFieldEnum statistics 十项逐一对齐，双源一致；活体输出形态 v16）：
+
+| 字段 | 类型 | 域默认输出 | 语义 | 置信度 |
+|---|---|---|---|---|
+| `downloaded` | Date | **是** | 该 item 最后一次被下载的时间（本实例视角） | 高（官方 + 反编译 + 活体 v16） |
+| `downloads` | Int | **是** | 该 item 累计下载次数 | 高（三源同上） |
+| `downloaded_by` | String | **是** | 最后下载者用户名；非 admin 调用者按 §6 脱敏规则替换 `unknown` | 高（官方 + 反编译；脱敏现值沿 V-e 待验证） |
+| `remote_downloads` | Int | 否（须 include） | **从代理本 local 仓的 smart remote 仓**累计回拉次数 | 高（官方 + 反编译） |
+| `remote_downloaded` | Date | 否 | 同上维度的最后一次回拉时间 | 高 |
+| `remote_downloaded_by` | String | 否 | 同上维度最后回拉者 | 高 |
+| `remote_origin` | String | 否 | smart remote 链上远端 Artifactory 实例地址 | 高 |
+| `remote_path` | String | 否 | smart remote 链上的完整路径 | 高 |
+| `id` / `remote_id` | Long | 否（内部） | stats 行内部 id，默认结果不含 | 高（反编译；官方无文档——补充官方规范） |
+
+- **域默认输出集** = `{downloaded, downloads, downloaded_by}`（反编译 defaultResultField 旗标三分：仅前三者为域默认；remote_* 全族与 id 非默认）。items 域 include 首次出现 `stat.*` 字段时按 §2.5 规则覆盖该默认集（活体 v16：include 只点 `stat.downloads`/`stat.downloaded` → 嵌套行只含两字段）。
+- **输出形态**：items 查询带统计域字段 → 行内嵌套数组 `"stats" : [ {…} ]`（活体 v16 逐字）。
+- **零值语义**：官方明示统计域零值用 `null` 查询（`{"stat.downloads":{"$eq":null}}` = 零下载；§2.5 已录）。从未被下载的 item：`downloaded/downloads/downloaded_by` 查询面按 null 处理。
+- **remote_* 语义澄清（对 BinFlow 映射关键）**：官方措辞逐字为「downloads **from a smart remote repository proxying the local repository**」——remote_* 族统计的是**下游 smart remote 代理回拉本 local 制品**（上游视角），**不是**本仓 remote 回源下载。BinFlow 无 smart remote 拓扑 → remote_* 全族恒 null/0（C 层零值 stub 登记即可，勿造数据）。**K69 三分口径（直连/经 virtual/remote 缓存命中）全部属于 `downloads` 族的本实例视角计数，与 remote_* 是两个正交维度**——T-438 埋点落列时勿把「remote 缓存命中」灌进 remote_downloads（那是 Artifactory 的 smart remote 语义）。
+- **usage 端点的内部形态（补充官方规范，反编译）**：`/api/search/usage` 的命中集等价于一条固定模板的 items 统计域查询（行为等价，不贴实现）：`(downloaded < T 或 downloaded=null) 且 (remote_downloaded < T 或 =null) 且 created < T'`——Artifactory 自身即「usage REST = statistics 域单源」的一鱼两吃先例（T-440 断言对位）。
+
+## 14.2 `GET /api/search/usage` wire（FR-148.1；§8.2 usage 行的展开）
+
+| 项 | 值 | 出处 |
+|---|---|---|
+| 方法/路径 | `GET /api/search/usage` | 官方 OpenAPI（searchusage，Since 2.2.4） |
+| 参数 `notUsedSince` | **必填**，Java epoch 毫秒（int64）——上次下载早于该时刻（含从未下载）的制品入选 | 官方 + 反编译 @QueryParam + 活体 v8m |
+| 参数 `createdBefore` | 可选，epoch 毫秒；**缺省时回退用 notUsedSince 值**（官方明示 "if omitted, only artifacts created before notUsedSince"；反编译同） | 官方 + 反编译双源 |
+| 参数 `repos` | 可选 CSV，限定 local/缓存仓 | 官方 + 反编译 |
+| 鉴权 | privileged non-anonymous（官方）；匿名 → 401（AuthorizationRestException） | 官方 + 反编译 |
+| 命中语义 | `(downloaded < notUsedSince OR downloaded IS NULL) AND (remote_downloaded < notUsedSince OR NULL) AND created < createdBefore(缺省=notUsedSince)`；严格小于 | 反编译（高）；官方未写布尔式（补充官方规范） |
+| 排序 | `lastDownloaded` 升序，次键 `remoteLastDownloaded` 升序 | 反编译（中——活体未逐行验证排序） |
+| 行形态 | `{uri, downloadCount, lastDownloaded, remoteDownloadCount, remoteLastDownloaded}` 五字段；`uri` = 实例 base URL 的 storage API 路径；两日期 = ISO8601 毫秒 Z；`remoteLastDownloaded` 无远端下载时 = `"1970-01-01T00:00:00.000Z"`（epoch-0 格式化，非 null） | **活体 v8m 逐字节**（高） |
+| 空/未命中 | **404** `{"errors":[{"status":404,"message":"No results found."}]}` | 活体 v8n + 反编译（高） |
+| 缺 notUsedSince 参数 | **404 同上文案**（不走 400——参数缺失与空集同文案的反直觉怪癖） | 反编译（中；官方文档只写 400） |
+| Content-Type | `application/json` 或 `application/vnd.org.jfrog.artifactory.search.ArtifactUsageResult+json` | 官方 + 反编译 |
+| 结果上限 | 老搜索共通 `search.userQueryLimit` 1000 族（§8.3） | 官方头注 |
+
+**官方文档差异登记（零静默升格）**：官方 OpenAPI 的行 schema 只列 `uri`/`lastDownloaded` 两字段——**活体 + 反编译双源为五字段行**（v8m 逐字节）。本规格按五字段定案，标注「此条补充官方规范」。
+
+**命名口径警示（交 conductor/T-440）**：PRD FR-148.1 与 T-440 AC1 文本写 `usageSince=`，**Artifactory wire 实参名为 `notUsedSince`**（官方 + 反编译 + 活体三源）。BinFlow 对外参数面按 `notUsedSince` 对齐；`usageSince` 不应成为对外参数名（实现票断言书写时注意）。
+
+## 14.3 dates/creation 双端点（K65 承接；§8.2 两行的展开）
+
+共通骨架（两端点同一父类行为）：
+
+| 项 | 值 | 出处/置信度 |
+|---|---|---|
+| 鉴权 | privileged non-anonymous；匿名 401 | 官方 + 反编译（高） |
+| `from` | **必填** epoch 毫秒；缺失 → **400 `'from' parameter cannot be empty!`**（单引号逐字） | 反编译（高——文案逐字；官方未载） |
+| `to` | 可选 epoch 毫秒；**区间语义 = `from` 严格大于、`to` 含等号**（`> from AND <= to`） | 反编译（高）；官方未写开闭区间 |
+| `to` 缺省 | **官方文档：use now()；反编译：无上界（不拼上界谓词）**——两源冲突，见 §14.7 V-j（差异仅对 created 在未来的 item 可观察；BinFlow 建议按官方 now() 口径实现并留痕） | 冲突如实登记 |
+| 排除项 | `maven-metadata.xml` 恒排除（两端口径） | 反编译（中；官方未载——补充官方规范） |
+| 未命中 | **404 `No results found.`**（§0-4 族） | 活体 v8l/v8o + 反编译（高） |
+| 结果上限 | 专键 `limit.search.results.in.dates.range` 默认 **-1**（关）；未启用时回落 `search.userQueryLimit` 1000（anonymous/非 admin 档，`search.limitAnonymousUsersOnly` 默认 true） | 反编译 + 官方（高） |
+
+**`GET /api/search/creation?from=&to=&repos=`**：
+
+- 固定按**两个日期字段**匹配：`created` **或** `lastModified` 落入区间即命中（OR 语义；反编译——官方文档未提 lastModified 也参与，补充官方规范）。
+- 行 = `{uri, created}` 瘦行（uri 同 usage 形态；created = ISO8601 字符串）。**回显日期怪癖（反编译，中）**：命中行回显值优先取 `created`；若 created 不落在请求区间（因 lastModified 命中的行），回显改用 `lastModified` 值放进 `created` 字段——即 `created` 字段可能实际是 lastModified 的时间。
+- Content-Type：`application/json` 或 `application/vnd.org.jfrog.artifactory.search.ArtifactCreationResult+json`。
+
+**`GET /api/search/dates?from=&to=&repos=&dateFields=`**：
+
+- `dateFields` 可选 CSV，**合法值四枚**：`created` / `lastModified` / `lastDownloaded` / `remote_last_downloaded`（注意末项 snake_case）；缺省行为未在反编译明确（默认字段集以核验为准——§14.7 V-k）。
+- 未知字段名 → **400** `Date field name '<name>' unknown!, possible values are: [...]`（"unknown!, possible" 拼写逐字；枚举回显为四值）。
+- 多字段 = OR 组（任一字段落区间即命中）。
+- Content-Type：`application/json` 或 `application/vnd.org.jfrog.artifactory.search.ArtifactResult+json`。
+
+## 14.4 QRL 全量锚（K72 归位；§5 表 QRL 行的展开）
+
+**REST wire**（反编译 QueryRateLimiterResource + RateLimiterResource——官方 REST reference 未文档化此端点，整节为补充官方规范；置信度：中〔单源反编译〕，活体现值待验证 §14.7 V-l）：
+
+| 方法/路径 | 行为 | 成功响应 | 错误响应 |
+|---|---|---|---|
+| `GET /api/v1/system/query_rate_limiter/config` | 读当前限流配置（DB 有则回 DB 值，无则回默认值） | 200 `application/json`：`{"rlSettings":[{"rlType":"DEFAULT","permitsPerTimeFrame":N,"timeFrameMillis":N,"timeQuota":N},{"rlType":"LOW_PRIORITY",…}]}` | 功能关闭 → 400 纯文本 `Query rate limiter is disabled` |
+| `POST /api/v1/system/query_rate_limiter/config`（body = 上述 JSON） | 合并写（缺省字段回落既有/默认值；只认 DEFAULT/LOW_PRIORITY 两型） | 200 纯文本 `Query rate limiter configuration was updated successfully` | 同上 400 形态（异常 message 透传） |
+| `DELETE /api/v1/system/query_rate_limiter/config` | 删除自定义配置（回默认） | 200 纯文本 `Query rate limiter configuration was deleted successfully` | 同上 |
+
+- **权限**：`admin` 专属（RolesAllowed admin + dashboard 校验；非 admin 403）。注意路径**不带** `/artifactory/api` 之外的 search 前缀——属 v1 system 面（T-452 挂 v1 面）。
+- **三态语义**（K72 核心条目；反编译 + 官方 system.properties 文档可互证默认值）：
+
+| 态 | 触发 | 行为 | 置信度 |
+|---|---|---|---|
+| disabled | `artifactory.query.rate.limiter.enabled=false`（**出厂默认**） | 整个限流器旁路；REST 三操作一律 400 `Query rate limiter is disabled` | 高（反编译默认值 + 官方 properties 文档） |
+| enabled | enabled=true 且 simulation=false | 超限查询**阻塞等待**（许可桶 + 时间配额双桶）；DB 查询面生效（非仅 AQL 面） | 高（反编译） |
+| simulation | `artifactory.query.rate.limiter.simulation.mode.enabled=true` | 超限**不阻塞不拒绝**，只记录「本应被限流」的时长指标——观测模式 | 高（反编译；官方 properties 文档列该键） |
+
+- **配置模型**：两型 `DEFAULT`（常规查询）与 `LOW_PRIORITY`（低优先请求面，按请求路径正则归类）+ 内部 `SYSTEM`（限流器自身的 DB 操作，恒旁路不可配）。**HA 语义：permits 按 running server 数均分**（BinFlow 单节点 = 不除）。
+- **出厂默认值**（system.properties 键，反编译 ConstantValues）：`query.rate.limiter.default.permitsPerTimeFrame=2147483647`（即不限）、`.timeFrameMillis=1000`、`.timeQuota=2147483647`；low.priority 同族同值。
+- **指标 job**：重复任务每 `query.rate.limiter.metrics.interval.secs`（默认 **60s**）采样一次；仅 enabled 态调度。指标面：Prometheus provider `jfrt_qrl`（CONTINUOUS，刷新 60s，disabled 时输出空）；限流发生时 INFO 日志文案族逐字 `Artifactory database queries have reached the set limit ({} per {} ms). Throttling has been applied ({}% of the time) to protect system health.`（low priority 变体同构）。指标字段族：totalQueries / totalPermits / slowedDownMillis(%) / slowedDownByTimeMillis(%) / chargedQueryTime（每采样窗归零）。
+- **与 AQL 429 的边界（勿混淆，承 §5）**：AQL REST 的 429 `too many requests` 来自 **AQL 并发上限**（`artifactory.aql.queries.limit`，默认 3）——那是查询并发闸，不是 QRL；QRL 管的是底层 **DB 查询速率**（限流形态是**延迟放行**而非 429 拒绝，simulation 态更只记不断）。两机制正交。
+- **BinFlow 映射注记（交 T-452/K72，非本规格裁定）**：K63 定案门（1000/4/10s → 429/408 形态）维持不动；QRL 面按本锚建 admin REST 三操作 + 三态 + 指标采样；默认值是否沿用 Artifactory 出厂（=不限流）vs 映射 K63 值，属 T-452 票内定案，本锚只钉 Artifactory 行为。
+
+## 14.5 UI 搜索族四端点（inv-2 §1.C；FR-148.3 / T-452 输入）
+
+四资源全部挂在 Artifactory **UI REST 树**（`/ui/api/…` 面——供自带前端消费；与 `/api` 公共 REST 面不同源）。**挂载前缀精确拼法未获活体确认（§14.7 V-m）**：反编译资源级注解为下表「注册子路径」，四资源无 `v1/…` 前缀注解（对照 auth-integration.md 已实录的 `v1/admin/…` 族），推测全路径 = `/artifactory/ui/api/<注册子路径>`；置信度中，活体对拍后钉死。角色面：四资源均 `@RolesAllowed({admin, user})`。
+
+| 端点 | 操作清单（注册子路径下） | 行为要点 | 置信度 |
+|---|---|---|---|
+| `artifactsearch` | `POST quick` / `POST gavc` / `POST pkg{type}` / `GET pkg{type}`（选项集）/ `POST pkg/tonative`（UI 检索条件 → AQL 转换）/ `POST checksum` / `POST trash` / `POST deleteArtifact` | 控制台搜索页数据面：quick 快搜、pkg 族按包型检索（请求体 = 检索条件模型数组）；`deleteArtifact` 为**删除动词**（BinFlow 只读面不承载则缺位登记） | 高（反编译操作面）/ 中（wire 模型字段） |
+| `stashResults` | `POST`（存结果集）/ `GET`（取）/ `DELETE`（清）/ `POST subtract` / `POST intersect` / `POST add` / `POST export` / `POST copy` / `POST move` / `POST discard` —— 共 10 操作 | 搜索结果暂存与集合运算（交/差/并）+ 批量 copy/move/discard；**总开关 `artifactory.ui.search.stashResults.endpoint.enabled` 出厂 false** → 关闭时全操作 404 `Stash search results endpoint is disabled`（OSS 档默认即关） | 高（反编译含开关默认值与文案） |
+| `packagesSearch` | `POST leadFile` / `POST artifacts`（batch3-addons） | 按包型+repo+包名+版本取主制品/制品清单；包不存在 404 空体 | 高（反编译） |
+| `syntax-search` | `POST` | AQL 语法搜索（树浏览新搜索页数据面）；开关 `artifactory.treebrowser.newpagewithsearch.enabled` → 关闭 400 `Syntax Search is disabled`；语法错 400 ErrorResponse envelope | 高（反编译） |
+
+- **BinFlow 取向注记（非裁定）**：此族是 UI 内部面；T-452 AC「四端点 curl wire 断言」以本表操作面 + 上表路径为锚。Smart Searches 保存面 pro 档不做的 PRD 口径与本表 `stashResults` 出厂 false 相互印证（Artifactory OSS 档该族默认关闭）。
+- `searchResults`（`GET`，同目录第五资源）：暂存结果视图数据面，inv-2 未列——登记为外延项，T-452 不承载则缺位登记。
+
+## 14.6 对既有条目的校正（本段 vs §8.2；零静默升格）
+
+1. **§8.2 usage 行「行 = {uri, downloadCount, lastDownloaded, remoteDownloadCount,…}」**：经 v8m 全量核对定案为**恰五字段**（…+ `remoteLastDownloaded`，无省略号余项）——§14.2。
+2. **§8.2 creation 行「to 缺省 now()」**：此说法源自官方文档；反编译为「to 缺省 = 无上界」。冲突登记 V-j，差异仅对 created 在未来的 item 可观察。§8.2 原文维持（官方口径），BinFlow 实现票按 V-j 裁定。
+3. **§8.2 dates 行「dateFields 决定回显日期字段」**：定案精确化——`dateFields` 是**匹配条件字段集**（OR 组），非回显投影；合法值四枚含 `remote_last_downloaded`（§14.3）。
+4. **§5 表 QRL 行「三态 enabled/disabled/simulation + 指标 job」**：展开定案于 §14.4——三态触发键、指标 job 60s、REST 三操作、HA 均分语义。
+
+## 14.7 增量段待验证清单（低置信/未复现汇总——零静默升格）
+
+| # | 项 | 现值依据 | 验证途径 |
+|---|---|---|---|
+| V-i | usage 端点排序键（lastDownloaded 升序 + remoteLastDownloaded 次键） | 反编译单源 | t226 恢复后多制品多时戳语料对拍（语料仓已有下载记录） |
+| V-j | creation/dates 的 `to` 缺省语义（官方 now() vs 反编译无上界） | 双源冲突 | 需 created 在未来的 item（只读纪律下不可造——可候 BinFlow e2e 自证，或以官方 now() 口径实现后登记） |
+| V-k | dates 端点 `dateFields` 缺省默认集 | 反编译未见显式默认 | t226 恢复后 `GET /api/search/dates?from=…`（无 dateFields）观测回显行为 |
+| V-l | QRL REST 三操作在 7.84.10 的现值（disabled 400 文案 / GET 默认体） | 反编译单源（官方无 REST 文档） | t226 恢复后 admin GET `$BASE/api/v1/system/query_rate_limiter/config`（只读） |
+| V-m | UI 搜索族挂载前缀精确拼法（`/ui/api/artifactsearch/quick` 推测值）与 stash 开关现值 | 反编译注解 + auth-integration.md 先例类推（中） | t226 恢复后 GET `$BASE/ui/api/artifactsearch/pkg`（只读选项端点）+ stashResults 404 臂 |
+| V-n | statistics 域 `downloaded_by` 非 admin 脱敏现值 | 反编译 ObfuscationUtils（默认脱敏）；沿用 V-e | 同 V-e |
+| V-o | creation 端点 created-回显-fallback（lastModified 命中行回显 lastModified 值） | 反编译单源（怪癖级） | t226 恢复后构造 matched-by-modified 行观测（只读可测：对既有语料以窄 from 区间探测） |
+
+## 14.8 增量段取证锚点（2026-09-03 会话）
+
+- 官方：aql-entities-fields-reference（statistics 字段表）、reference/searchusage、reference/searchcreation（from/to 参数与 now() 声明）、Quartz CronTrigger tutorial 与 maintenance 文档（cron 锚另落 cron-scheduling.md）；QRL REST 官方 reference **无页**（llms.txt 索引核对）——§14.4 整节反编译单源。
+- 反编译：`aql/model/AqlPhysicalFieldEnum.java`（statistics 十字段 + defaultResultField 旗标）、`rest/resource/search/types/{UsageSinceResource,CreatedInRangeResource,AnyDateInRangeResource,GenericSearchResource}.java`、`api/rest/search/{result/LastDownloadRestResult,common/RestDateFieldName}.java`、`search/{SearchServiceImpl,stats/LastDownloadedItemsSearcherUtils}.java`、`rest/resource/system/{QueryRateLimiterResource,RateLimiterResource}.java`、`throttling/qrl/**`（type/{Enabled,Simulation,Disabled}QueryRateLimiter + QueryRateLimiterFactory + service/QueryRateLimiterServiceImpl + metrics/{QueryRateLimiterMetricsJob,QueryRateLimiterMetricProvider}）、`throtlling/{common/model/RateLimiterConfig,qrl/model/QueryRateLimiterMetrics,qrl/enums/QueryRateLimiterType}`、`common/ConstantValues.java`（qrl* / search* / limit.search.results.in.dates.range 键）、`ui/rest/resource/artifacts/search/{ArtifactSearch,StashSearchResults,SyntaxSearch,SearchResults}Resource.java`、`addon/search/packages/rest/PackagesSearchResource.java`
+- 既有活体证据（T-407 会话 2026-09-01 引用）：`reports/agents/t407-evidence/v16-stats-fields.txt`（stats 嵌套输出）、`v8m-usage-epoch-hit.txt`（五字段行逐字节）、`v8n-usage-empty-404.txt`、`v8k-creation-epoch-hit.txt`、`v8l-creation-empty-404.txt`、`v8o-dates-empty-404.txt`
+- t226 状态（2026-09-03）：不可达（TUN 路由断），零接触零残留（未建立任何会话）——保留态无从扰动；恢复链待环境修复后按 T-381 §0 执行。
