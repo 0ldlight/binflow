@@ -1,0 +1,104 @@
+# BinFlow UAT protocol matrix (T-469, user directive #10) — the GitHub
+# Actions face of the per-protocol push/pull suite that runs after every UAT
+# deploy. The matrix logic lives in ONE script — ci/protocol-matrix.sh —
+# shared verbatim with the CircleCI `protocol_matrix` job; this workflow
+# only supplies the toolchains and fans the legs out.
+#
+# Trigger: manual (workflow_dispatch) for now. The automatic post-deploy
+# lane lives on CircleCI (which owns the deploy itself); the push:main
+# trigger below is provided but stays commented until the account's Actions
+# billing is healthy again (observed broken 2026-08-28: every job red at
+# startup) and the double-run cost is accepted — same surface, same script.
+#
+# on:
+#   push:
+#     branches: [main]
+#
+# Secrets (Settings > Secrets and variables > Actions):
+#   UAT_MATRIX_PASSWORD  REQUIRED — the UAT admin password
+# Optional repo variables (Settings > Secrets and variables > Variables):
+#   UAT_MATRIX_BASE      default http://52.79.109.153:8080
+#   UAT_MATRIX_USER      default admin
+#
+# Fan-out: one runner per leg (fail-fast off) — a red leg never masks the
+# others, mirroring the CircleCI when:always steps.
+
+name: protocol-matrix
+
+on:
+  workflow_dispatch:
+    inputs:
+      legs:
+        description: "Comma list of legs (empty = all ten)"
+        required: false
+        default: ""
+
+concurrency:
+  group: protocol-matrix
+  cancel-in-progress: false
+
+env:
+  BINFLOW_BASE: ${{ vars.UAT_MATRIX_BASE || 'http://52.79.109.153:8080' }}
+  BINFLOW_USER: ${{ vars.UAT_MATRIX_USER || 'admin' }}
+  BINFLOW_PASSWORD: ${{ secrets.UAT_MATRIX_PASSWORD }}
+
+jobs:
+  matrix:
+    name: leg/${{ matrix.leg }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        leg: [generic, maven, gradle, npm, pypi, docker, nuget, go, helm, conan]
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      # ubuntu-latest already carries: JDK+mvn 3.9, gradle, node, python3,
+      # go, docker, cmake, g++. What it lacks: helm, conan, twine/build.
+      - name: Client toolchains (helm + conan/build/twine)
+        run: |
+          curl -fsSL https://get.helm.sh/helm-v4.2.4-linux-amd64.tar.gz | tar -xz
+          sudo install -m 0755 linux-amd64/helm /usr/local/bin/helm
+          python3 -m pip install --quiet --user conan build twine \
+            || python3 -m pip install --quiet --user --break-system-packages conan build twine
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      # The docker leg needs the daemon to trust the plain-HTTP UAT
+      # registry (same step the CircleCI machine job runs).
+      - name: Docker daemon — trust the plain-HTTP UAT registry
+        if: matrix.leg == 'docker'
+        run: |
+          REG="$(printf '%s' "$BINFLOW_BASE" | sed -e 's|^https\{0,1\}://||')"
+          sudo mkdir -p /etc/docker
+          printf '{"insecure-registries":["%s"]}\n' "$REG" | sudo tee /etc/docker/daemon.json >/dev/null
+          sudo systemctl restart docker
+          docker info | grep -A3 'Insecure Registries'
+
+      - name: Run leg — ${{ matrix.leg }}
+        env:
+          # matrix.leg is workflow-defined (not event input); SELECTED_LEGS
+          # carries the dispatcher's leg filter — both reach the shell via
+          # env, never via inline interpolation.
+          LEG: ${{ matrix.leg }}
+          SELECTED_LEGS: ${{ github.event.inputs.legs }}
+          # runner.* is step-level only; the workdir rides with the leg.
+          BINFLOW_MATRIX_WORK: ${{ runner.temp }}/matrix-work
+          BINFLOW_MATRIX_REPORT: ${{ runner.temp }}/matrix-work/report.log
+        run: |
+          mkdir -p "$BINFLOW_MATRIX_WORK"
+          if [ -n "${SELECTED_LEGS:-}" ]; then
+            case ",$SELECTED_LEGS," in
+              *",$LEG,"*) ;;
+              *) echo "leg $LEG not selected (inputs: $SELECTED_LEGS) — skip"; exit 0 ;;
+            esac
+          fi
+          bash ci/protocol-matrix.sh --strict-tools --leg "$LEG"
+
+      - name: Report
+        if: always()
+        env:
+          BINFLOW_MATRIX_WORK: ${{ runner.temp }}/matrix-work
+          BINFLOW_MATRIX_REPORT: ${{ runner.temp }}/matrix-work/report.log
+        run: bash ci/protocol-matrix.sh --report || true
