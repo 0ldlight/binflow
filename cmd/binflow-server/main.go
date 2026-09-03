@@ -344,6 +344,22 @@ func runServe(args []string, stderr io.Writer) error {
 	// closes underneath it.
 	drainWebhook := stack.startWebhookDelivery(ctx, logger)
 
+	// The cron scheduler (M16 T-450, ADR-0044): the 021 ledger's dispatch
+	// loop with the three consuming domains registered — maintenance (gc +
+	// the cleanup full pass over the REST gc kernel and CleanupEngine),
+	// backup (the export kernel the CLI shares) and replication
+	// (TriggerFullSync). After srv so the maintenance runner holds the
+	// assembled server; the loop rides the signal context like every
+	// lifecycle engine (no drain — a carrier in flight runs on its own
+	// detached context and the next boot's collapse re-fires a missed
+	// window once).
+	if _, err := startScheduler(ctx, logger, cfg, stack, srv); err != nil {
+		drainReplication()
+		drainWebhook()
+		stack.close(logger)
+		return fmt.Errorf("scheduler: %w", err)
+	}
+
 	// The license daily re-evaluation loop (ADR-0032 / D6): expiry is a
 	// runtime event, the downgrade needs no restart. Cancellation rides
 	// the same signal context as the HTTP drain.

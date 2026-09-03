@@ -243,8 +243,8 @@ func TestReplicationsCreateAndList(t *testing.T) {
 		"target_username": "", "enabled": true,
 		"max_bandwidth_bytes_per_sec": float64(0), "max_items_per_push": float64(1000),
 	}
-	if len(created) != len(want)+2 { // + created_at, updated_at
-		t.Fatalf("created keys = %v (%d), want exactly %v plus the two timestamps", created, len(created), want)
+	if len(created) != len(want)+4 { // + created_at, updated_at, cron_exp, next_schedule_sync (T-450's cron arm)
+		t.Fatalf("created keys = %v (%d), want exactly %v plus the timestamps and the cron projection", created, len(created), want)
 	}
 	for k, v := range want {
 		got, ok := created[k]

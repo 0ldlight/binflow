@@ -100,6 +100,15 @@ one-to-one when the dialect lands):
   ('' = unscheduled / never) and the idx_schedules_due tick index. "No row
   = not scheduled" is the single-state semantics; nothing is preseeded.
   Statements are dialect-common.
+- 022_backups: the backup entity payload table (M16 T-450, FR-150.3 /
+  ADR-0044 decisions 2 and 5) — one row per scheduled backup configuration
+  keyed by key (the same key the 021 schedules row carries under
+  domain='backup'), holding the payload the export carrier consumes
+  (enabled, export_dir). The cron half lives in the schedules ledger;
+  Artifactory descriptor fields without a BinFlow carrier (repository
+  subsets, incremental, retention rotation, zip, mail-on-error) are
+  deliberately absent. Nothing is preseeded. Statements are
+  dialect-common (booleans as 0/1 on the sqlite side, BOOLEAN here).
 
 The migrator currently embeds `migrations/sqlite/*.sql` only
 (see ../migrate.go).

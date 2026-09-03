@@ -457,6 +457,53 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	case rest == "v1/system/settings" && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleSystemSettings)
 
+	// ---- /api/v1/system/maintenance (M16 T-450, FR-150.3 / ADR-0044
+	// decision 7①) ----
+	// The maintenance plane's three cron slots (gc / cleanup-unused-cache /
+	// cleanup-virtual), each one 021 ledger row under domain='maintenance'.
+	// GET reads the projection (cron + next-run + last-run), PUT writes one
+	// or more slot arms. Gate = system:read / system:write (the GC/cleanup
+	// family's posture — readonly_admin reads, never writes, T-214①). The
+	// manual faces (POST /system/gc, /system/cleanup) are untouched —
+	// "Run Now" stays those routes. Every other spelling falls to the E-26
+	// 404.
+	case rest == "v1/system/maintenance" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleSystemMaintenanceGET)
+	case rest == "v1/system/maintenance" && r.Method == http.MethodPut:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleSystemMaintenancePUT)
+
+	// ---- /api/v1/system/backups (M16 T-450, FR-150.3 / ADR-0044 decision
+	// 7②) ----
+	// The backup configuration CRUD over the 022 payload table + the 021
+	// ledger's domain='backup' rows. PUT upserts (the body-key form follows
+	// the official single-PUT shape, the {key} form is the by-key alias);
+	// DELETE drops payload AND schedule row together. The ADR-0015 erratum
+	// ② boundary holds: /api/export/** stays 404, import stays CLI-only —
+	// this face configures, it never restores. Gates = system:read /
+	// system:write. Every other spelling falls to the E-26 404.
+	case rest == "v1/system/backups" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleSystemBackupsList)
+	case rest == "v1/system/backups" && r.Method == http.MethodPut:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleSystemBackupsPut)
+	case strings.HasPrefix(rest, "v1/system/backups/") && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead},
+			s.withName(rest, "v1/system/backups/", s.handleSystemBackupsGet))
+	case strings.HasPrefix(rest, "v1/system/backups/") && r.Method == http.MethodPut:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite},
+			s.withName(rest, "v1/system/backups/", s.handleSystemBackupsPutKey))
+	case strings.HasPrefix(rest, "v1/system/backups/") && r.Method == http.MethodDelete:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite},
+			s.withName(rest, "v1/system/backups/", s.handleSystemBackupsDelete))
+
+	// ---- /api/v1/system/schedules (M16 T-450, FR-150.3 / ADR-0044
+	// decision 7④) ----
+	// The ledger's read-only projection (?domain= narrows to one
+	// closed-set domain): the FE's next-run countdown / failure / disabled
+	// rendering. Read-only by design — writes only exist on the three
+	// config faces. Gate = system:read (the addons-plane posture).
+	case rest == "v1/system/schedules" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleSystemSchedulesGET)
+
 	// ---- /api/v1/system/replications (M15 T-422, FR-138.3; the global
 	// blockPush/blockPull emergency brake — replication.md §9.1-B, the
 	// A-layer three-endpoint form per §9.6's landing ruling) ----

@@ -34,6 +34,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/audit"
 	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/replication"
+	"github.com/lzwzzy/binflow/internal/scheduler"
 )
 
 // Audit actions for the configuration plane. String literals, not
@@ -88,13 +89,23 @@ type replicationConfigBody struct {
 	// useful posture — a config created disabled would silently swallow
 	// every enqueue until flipped) stays distinct from an explicit false.
 	Enabled *bool `json:"enabled"`
+	// CronExp is the scheduled full-sync expression (M16 T-450, FR-150.4 /
+	// replication.md §2.1 cronExp — the M15 Q5 reversal's landing): absent
+	// = no schedule; non-empty = validated and written to the schedules
+	// ledger under domain='replication' keyed by the config id. The
+	// BinFlow face deliberately makes the cron OPTIONAL (empty = event
+	// driven only) where Artifactory's replication descriptor demands one —
+	// a registered intentional difference, so the anchor's "cronExp is
+	// required" 400 arm never fires here; the "Invalid cronExp" arm does.
+	CronExp *string `json:"cron_exp"`
 }
 
 // replicationConfigResponse is the read shape: the full config row minus the
 // credential pair. The username stays — it identifies the account on the
 // TARGET instance, is useless without the password, and the admin-facing
 // CRUD plane has always shown it (the T-159 ruling hides credentials on the
-// STATUS face only).
+// STATUS face only). CronExp/NextScheduleSync echo the ledger row (” = the
+// config rides the event track alone).
 type replicationConfigResponse struct {
 	ID                      int64  `json:"id"`
 	Name                    string `json:"name"`
@@ -105,6 +116,8 @@ type replicationConfigResponse struct {
 	MaxBandwidthBytesPerSec int64  `json:"max_bandwidth_bytes_per_sec"`
 	MaxItemsPerPush         int64  `json:"max_items_per_push"`
 	Enabled                 bool   `json:"enabled"`
+	CronExp                 string `json:"cron_exp"`
+	NextScheduleSync        string `json:"next_schedule_sync"`
 	CreatedAt               string `json:"created_at"`
 	UpdatedAt               string `json:"updated_at"`
 }
@@ -112,7 +125,9 @@ type replicationConfigResponse struct {
 // replicationConfigResponseOf renders one config row in the read shape every
 // config-carrying response shares — the GET projection minus the credential
 // pair (create, update and the list all answer with exactly these fields,
-// so a client cannot tell which verb produced a row).
+// so a client cannot tell which verb produced a row). The cron fields stay
+// empty here; callers that can read the ledger use
+// replicationConfigResponseWithSchedule.
 func replicationConfigResponseOf(c *replication.ReplicationConfig) replicationConfigResponse {
 	return replicationConfigResponse{
 		ID: c.ID, Name: c.Name, SourceRepo: c.SourceRepo,
@@ -123,6 +138,49 @@ func replicationConfigResponseOf(c *replication.ReplicationConfig) replicationCo
 		Enabled:                 c.Enabled,
 		CreatedAt:               c.CreatedAt, UpdatedAt: c.UpdatedAt,
 	}
+}
+
+// replicationScheduleKey is the replication domain's ledger key: the config
+// id in its TEXT form (ADR-0044 decision 2's DDL comment).
+func replicationScheduleKey(id int64) string { return strconv.FormatInt(id, 10) }
+
+// replicationConfigResponseWithSchedule renders the row plus its schedule
+// projection (cron echo and next-run). A ledger read failure degrades to
+// the plain row — the config plane must keep answering when the ledger
+// hiccups (the cron fields are a projection, not config state).
+func (s *Server) replicationConfigResponseWithSchedule(r *http.Request, c *replication.ReplicationConfig) replicationConfigResponse {
+	resp := replicationConfigResponseOf(c)
+	if row, err := s.readScheduleRow(r, scheduler.DomainReplication, replicationScheduleKey(c.ID)); err == nil && row != nil {
+		resp.CronExp = row.CronExpr
+		if row.Enabled && row.CronExpr != "" {
+			resp.NextScheduleSync = row.NextRunAt
+		}
+	}
+	return resp
+}
+
+// landReplicationCron writes (or clears) the config's schedule row and
+// records the replication.schedule.set word. enabled mirrors the config's
+// own bit so the family's PUT switch parks both stores at once.
+func (s *Server) landReplicationCron(w http.ResponseWriter, r *http.Request, cfg *replication.ReplicationConfig, cron string, actor string) bool {
+	cleared, nextRun, err := s.writeScheduleCron(r, scheduler.DomainReplication,
+		replicationScheduleKey(cfg.ID), strings.TrimSpace(cron), cfg.Enabled, "", actor)
+	if err != nil {
+		s.writeScheduleError(w, err, "replication")
+		return false
+	}
+	detail := auditDetail("id", replicationScheduleKey(cfg.ID), "name", cfg.Name, "action", "cleared")
+	if !cleared {
+		detail = auditDetail("id", replicationScheduleKey(cfg.ID), "name", cfg.Name, "action", "set",
+			"cronExp", strings.TrimSpace(cron), "next_run", nextRun)
+	}
+	s.audit.Record(r.Context(), audit.Event{
+		Actor:  actor,
+		Action: audit.ActionReplicationScheduleSet,
+		Repo:   cfg.SourceRepo,
+		Detail: detail,
+	})
+	return true
 }
 
 // replicationTargetStatus is one row of the status payload's targets array:
@@ -245,7 +303,7 @@ func (s *Server) handleReplicationList(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]replicationConfigResponse, 0, len(cfgs))
 	for _, c := range cfgs {
-		out = append(out, replicationConfigResponseOf(c))
+		out = append(out, s.replicationConfigResponseWithSchedule(r, c))
 	}
 	writeJSONBody(w, http.StatusOK, out)
 }
@@ -284,6 +342,16 @@ func (s *Server) handleReplicationCreate(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest,
 			fmt.Sprintf("replication config references an unknown repository %q", body.SourceRepo))
 		return
+	}
+
+	// The cron arm validates BEFORE the config row is stored (the backup
+	// face's law): a refused expression must not half-land a config. The
+	// anchor's 400 family (cron-scheduling.md §3) answers.
+	if body.CronExp != nil {
+		if cerr := validateCronArm(body.Name, strings.TrimSpace(*body.CronExp), ""); cerr != nil {
+			s.writeScheduleError(w, cerr, "replication")
+			return
+		}
 	}
 
 	// Seal the target password before anything is stored (ADR-0012: never
@@ -349,17 +417,27 @@ func (s *Server) handleReplicationCreate(w http.ResponseWriter, r *http.Request)
 			fmt.Sprintf("replication config %d created but unreadable: %v", id, err))
 		return
 	}
-	writeJSONBody(w, http.StatusCreated, replicationConfigResponseOf(created))
+	// The cron arm (M16 T-450): a create carrying cron_exp lands the
+	// schedule row in the same request — the config row exists now, so the
+	// ledger key is known. An absent/empty arm creates no row (the config
+	// rides the event track alone); the expression itself was validated
+	// before anything was stored.
+	if body.CronExp != nil && strings.TrimSpace(*body.CronExp) != "" {
+		if !s.landReplicationCron(w, r, created, *body.CronExp, p.Name) {
+			return
+		}
+	}
+	writeJSONBody(w, http.StatusCreated, s.replicationConfigResponseWithSchedule(r, created))
 }
 
-// replicationUpdateBody is the PUT /{id} wire shape (T-405). The update face
-// is deliberately the enable/disable bit ALONE: the mini-PUT ruling scopes
-// full-row editing to a later ticket (the wider Artifactory field family —
-// cron, path prefixes, the sync flags — is a medium-confidence reverse-spec
-// area, replication.md 2.1/2.2, and no BinFlow model carries it yet). The
-// decode still reuses the whole create shape so a client round-tripping a
-// row it read from the list (the natural console form) is accepted instead
-// of refused: every field besides enabled is parsed and IGNORED, and the
+// replicationUpdateBody is the PUT /{id} wire shape (T-405, widened by
+// T-450's cron arm). The face takes the enable/disable bit and/or the
+// cron_exp arm: enabled nil + cron_exp nil is the refused empty edit; an
+// explicit empty cron_exp CLEARS the schedule (the single-state law); a
+// non-empty one is validated and written. The decode still reuses the
+// whole create shape so a client round-tripping a row it read from the
+// list (the natural console form) is accepted instead of refused: every
+// field besides enabled and cron_exp is parsed and IGNORED, and the
 // response echoes the stored row, so the caller sees exactly what applied.
 type replicationUpdateBody struct {
 	replicationConfigBody
@@ -393,8 +471,9 @@ func (s *Server) handleReplicationUpdate(w http.ResponseWriter, r *http.Request,
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if body.Enabled == nil {
-		writeError(w, http.StatusBadRequest, "enabled is required (true or false); no other field is editable on this face yet")
+	if body.Enabled == nil && body.CronExp == nil {
+		writeError(w, http.StatusBadRequest,
+			"enabled or cron_exp is required; no other field is editable on this face")
 		return
 	}
 	cfg, err := s.deps.Replication.GetConfig(r.Context(), id)
@@ -410,11 +489,21 @@ func (s *Server) handleReplicationUpdate(w http.ResponseWriter, r *http.Request,
 		}
 		return
 	}
+	// The cron arm validates before the config write (the create face's
+	// law): a refused expression changes nothing.
+	if body.CronExp != nil {
+		if cerr := validateCronArm(cfg.Name, strings.TrimSpace(*body.CronExp), ""); cerr != nil {
+			s.writeScheduleError(w, cerr, "replication")
+			return
+		}
+	}
 	// Read-modify-write of the full row (the store has no single-column
 	// flip): safe today because this face is the only config-column writer,
 	// and it is what preserves the sealed credential and every throttle cap
 	// through the flip.
-	cfg.Enabled = *body.Enabled
+	if body.Enabled != nil {
+		cfg.Enabled = *body.Enabled
+	}
 	cfg.UpdatedAt = metadata.Now()
 	if err := s.deps.Replication.UpdateConfig(r.Context(), cfg); err != nil {
 		switch {
@@ -440,6 +529,21 @@ func (s *Server) handleReplicationUpdate(w http.ResponseWriter, r *http.Request,
 		Repo:   cfg.SourceRepo,
 		Detail: auditDetail("name", cfg.Name, "enabled", fmt.Sprint(cfg.Enabled)),
 	})
+	// The cron half (M16 T-450): an explicit arm lands/clears the schedule
+	// row; an enabled-only edit still resyncs an existing row's enabled bit
+	// (the family's one switch parks the event track AND the schedule —
+	// ADR-0044 decision 9's zero-new-permission-channel posture).
+	if body.CronExp != nil {
+		if !s.landReplicationCron(w, r, cfg, *body.CronExp, p.Name) {
+			return
+		}
+	} else if body.Enabled != nil {
+		if err := s.syncScheduleEnabled(r, scheduler.DomainReplication,
+			replicationScheduleKey(cfg.ID), cfg.Enabled, p.Name); err != nil {
+			s.writeScheduleError(w, err, "replication")
+			return
+		}
+	}
 	updated, err := s.deps.Replication.GetConfig(r.Context(), id)
 	if err != nil {
 		// Same posture as the create's echo read: the flip already landed,
@@ -448,7 +552,7 @@ func (s *Server) handleReplicationUpdate(w http.ResponseWriter, r *http.Request,
 			fmt.Sprintf("replication config %d updated but unreadable: %v", id, err))
 		return
 	}
-	writeJSONBody(w, http.StatusOK, replicationConfigResponseOf(updated))
+	writeJSONBody(w, http.StatusOK, s.replicationConfigResponseWithSchedule(r, updated))
 }
 
 // ReplicationRunner is the manual full-sync trigger seam (T-420, FR-138.1;
@@ -617,6 +721,14 @@ func (s *Server) handleReplicationDelete(w http.ResponseWriter, r *http.Request,
 		writeError(w, http.StatusInternalServerError,
 			fmt.Sprintf("delete replication config %s: %v", name, err))
 		return
+	}
+	// Entity-delete linkage (ADR-0044 decision 2): the schedule row dies
+	// with its config. A ledger fault here is logged, not fatal — the
+	// runner tombstone-cleans an orphan row at fire time.
+	if derr := s.deps.Metadata.Schedules().Delete(r.Context(),
+		scheduler.DomainReplication, replicationScheduleKey(id)); derr != nil && !errors.Is(derr, metadata.ErrScheduleNotFound) {
+		s.log.WarnContext(r.Context(), "httpapi: replication schedule row outlived its config",
+			"id", id, "error", derr.Error())
 	}
 	s.audit.Record(r.Context(), audit.Event{
 		Actor:  p.Name,
