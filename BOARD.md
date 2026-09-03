@@ -1778,4 +1778,8 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **T-443 → done 2026-09-03 12:2x——M16 10/35（批次② 闭合：列表列集 + 入口分路由 + dirty-gating + Test 消费）**：**Add Repositories 下拉三预选**（7.161 活体形态）分路由（三静态路由承 rclass prop + /new 直链兼容映射——7 处 emitter 零改动）+ 表单 rclass 控件移除（form-rclass-* 三锚退役）+ 「类型」列收敛（Q9）+ **Replications 列扩 local+remote 两 Tab**（push-only 口径注记）+ Project 列缺位登记不伪造 + **dirty-gating**（deep-equal 基线）+ **remote Test 三臂消费**（正确凭据/错误凭据/不可达——curl+Playwright 双证 + 零副作用探针）。锚册 **v1.35**（9 入册 + 4 退役）+ parity **v1.7**（B-3.6~3.9 翻已落 + **B-3.9 as-built 勘误**——T-404 实作仅 local Tab 且 spec 系空洞负断言）。四门绿 + SPA +3,830B + 触及面 55P + m8/m14/m16 全目录绿。**批次②（B2~B4）闭合**。日志 reports/agents/T-443.md。
 
+**T-446 → done 2026-09-03 13:2x——M16 11/35（B5 票②：cron 调度引擎落）**：**internal/scheduler 新包**——Quartz 六域子集解析器（接受/拒绝形态照 cron-scheduling.md 定案——C-a 四臂活体已验）+ **next-run 纯函数** + schedules 台账 CRUD（ScheduleStore 五方法照 ADR-0044 DDL）+ **独立 1min ticker**（domain 回调接口——只触发全量类任务；消费面归 T-448/T-450）+ 防护三面（过去时间拒配/每域并发上限/误触发）+ 与事件驱动并存零重复投递边界（票内声明）+ audit schedule.* 词族。conductor spot：scheduler 21.3s 绿 + metadata Schedule 测试绿 + lint 0。日志 reports/agents/T-446.md。
+
+**用户即时项（2026-09-03 12:4x）**：企业版 license 生成 + **UAT 激活**（`b5be0f76`，binflow，365 天，**19/19 槽全开**——conan 建仓 200 真验 pro 门通过；/tmp/binflow-enterprise.lic）。
+
 **全树 race 补证判无效（conductor 2026-09-01 14:3x）**：与两 agent 测试套件同机并发跑——22 包红全部 620-660s 超时形态 + db/sql 竞争 panic + storage fail-open 窗口 = **共租负载签名**（T-414 日志同款 load 450-630），非产品缺陷。T-412 的 AC3 证据改挂 **T-421 中期 QA 串行全树 race**（届时 lane 空净）。**D-413-2 [P3·登记]**：唯一真信号 = T-413 `TestEngineMixedLoad` 在慢机下 K63 并发门 429 介入而测试只容忍 busy gate 拒绝——测试健壮性收窄（门注入调低或混合负载容忍 429），归 T-421 复验时顺腿修或转 T-433。**教训入册：全树 race/性能类验证必须 lane 空净时串行跑（派单纪律）。**
