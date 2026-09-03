@@ -299,6 +299,10 @@ func (s *sqliteStore) GpgKeypairs() GpgKeypairStore {
 	return &gpgKeypairStore{db: s.db}
 }
 
+func (s *sqliteStore) Schedules() ScheduleStore {
+	return &scheduleStore{db: s.db}
+}
+
 func (s *sqliteStore) Ping(ctx context.Context) error {
 	if err := s.db.PingContext(ctx); err != nil {
 		return fmt.Errorf("metadata: ping: %w", err)

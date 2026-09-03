@@ -362,4 +362,15 @@ func TestVocabularyQueryable(t *testing.T) {
 			t.Fatalf("T-422 action %q missing from Actions()", a)
 		}
 	}
+	// M16 T-446 (FR-150.2 / ADR-0044 decision 10): the cron scheduler's
+	// nine words — one set/run/fail triple per consuming domain.
+	for _, a := range []string{
+		audit.ActionMaintenanceScheduleSet, audit.ActionMaintenanceScheduleRun, audit.ActionMaintenanceScheduleFail,
+		audit.ActionBackupScheduleSet, audit.ActionBackupScheduleRun, audit.ActionBackupScheduleFail,
+		audit.ActionReplicationScheduleSet, audit.ActionReplicationScheduleRun, audit.ActionReplicationScheduleFail,
+	} {
+		if !seen[a] {
+			t.Fatalf("T-446 action %q missing from Actions()", a)
+		}
+	}
 }

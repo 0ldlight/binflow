@@ -238,6 +238,25 @@ const (
 
 	ActionStorageReplayWindow = "storage.replay.window"
 	ActionStorageReplayDrain  = "storage.replay.drained"
+
+	// The scheduler's nine words (M16 T-446, FR-150.2 / ADR-0044 decision
+	// 10): one set/run/fail triple per consuming domain. run and fail are
+	// the ENGINE's view of one fired job (detail carries the key, run adds
+	// duration, fail adds the truncated last_error); set is the CONFIG
+	// surface's word — T-450's emitting face (detail carries cron and the
+	// recomputed next_run). The three words ride ON TOP of the carriers'
+	// own audit trails (gc.run / export.run / replication.run stay in
+	// force): the scheduler records that a schedule fired, the carrier
+	// records what it did.
+	ActionMaintenanceScheduleSet  = "maintenance.schedule.set"
+	ActionMaintenanceScheduleRun  = "maintenance.schedule.run"
+	ActionMaintenanceScheduleFail = "maintenance.schedule.fail"
+	ActionBackupScheduleSet       = "backup.schedule.set"
+	ActionBackupScheduleRun       = "backup.schedule.run"
+	ActionBackupScheduleFail      = "backup.schedule.fail"
+	ActionReplicationScheduleSet  = "replication.schedule.set"
+	ActionReplicationScheduleRun  = "replication.schedule.run"
+	ActionReplicationScheduleFail = "replication.schedule.fail"
 )
 
 // Actions returns the full action vocabulary (GE-02 + the T-346 sweep):
@@ -274,6 +293,12 @@ func Actions() []string {
 		ActionArtifactCopy, ActionArtifactMove, ActionArtifactExplode,
 		ActionTrashRestore, ActionTrashEmpty, ActionTrashClean, ActionTrashRetention,
 		ActionStorageReplayWindow, ActionStorageReplayDrain,
+		// M16 T-446 (FR-150.2 / ADR-0044 decision 10): the cron scheduler's
+		// per-domain set/run/fail triples — run/fail emit from the engine,
+		// set from T-450's config surfaces.
+		ActionMaintenanceScheduleSet, ActionMaintenanceScheduleRun, ActionMaintenanceScheduleFail,
+		ActionBackupScheduleSet, ActionBackupScheduleRun, ActionBackupScheduleFail,
+		ActionReplicationScheduleSet, ActionReplicationScheduleRun, ActionReplicationScheduleFail,
 	}
 }
 
