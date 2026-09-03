@@ -1324,18 +1324,20 @@ repos/audit/users/groups 语义零变化），存储面 = 隐藏集语义不变�
 `["size","sha256"]` 而非 `[]`）；② **查询位置**（B-2.13）：页内关键词/
 仓库过滤输入退役——查询面 = 顶栏驻留（Enter → /search?q=，/search 上
 replace 接替原页内 replaceState 写回环；驻留回显 = 派生态〔location.key
-+ 草稿双层〕零 effect）；结果窄化 = 网格内快滤（客户端子串——SR-01
-全量返回无服务端分页，客户端窄化即全量语义）；**AQL 模式共存形态**
-（票内设计）：AQL 编辑器 = AQL 模式的服务端查询面，顶栏驻留输入保持
-全局基本检索入口，快滤两层正交（编辑器管服务端、快滤管已取回行，
-编辑器重放不清快滤）；③ **行导航**（B-3.14）：行体 inert（无 onClick/
-tabIndex），深链唯一载体 = name 单元格链接（search-result-link-<i>）；
-?focus= 发射端翻新（SearchPage/AqlPanel/DashboardPage 改发路径段
-规范形，T-434 兼容重定向维持一轮）；④ **日期格式**（B-3.15 结果表腿）：
-modified = `dd-MM-yy HH:mm:ss +ZZZZ`（formatStamp——浏览器本地时区 +
-显式偏移，两模式单源）；⑤ 既有 spec 翻新 ×7（t419 列断言/排序腿先勾列、
-t414 search 腿默认档改写、m8 auxiliary 搜索三腿走顶栏、m9 fr82 顶栏三腿
-+ Esc 两段随占位态、artifacts W14b、auth-shell 深链腿、m14 t388 无匹配腿）
++ 草稿双层〕零 effect；Esc 分支 preventDefault 阻断 input[type=search]
+原生清空——否则其 input 事件经 onChange 重开下拉，收下拉动作被抵消）；
+结果窄化 = 网格内快滤（客户端子串——SR-01 全量返回无服务端分页，
+客户端窄化即全量语义）；**AQL 模式共存形态**（票内设计）：AQL 编辑器
+= AQL 模式的服务端查询面，顶栏驻留输入保持全局基本检索入口，快滤两层
+正交（编辑器管服务端、快滤管已取回行，编辑器重放不清快滤）；③
+**行导航**（B-3.14）：行体 inert（无 onClick/tabIndex），深链唯一载体 =
+name 单元格链接（search-result-link-<i>）；?focus= 发射端翻新
+（SearchPage/AqlPanel/DashboardPage 改发路径段规范形，T-434 兼容重定向
+维持一轮）；④ **日期格式**（B-3.15 结果表腿）：modified = `dd-MM-yy
+HH:mm:ss +ZZZZ`（formatStamp——浏览器本地时区 + 显式偏移，两模式
+单源）；⑤ 既有 spec 翻新 ×7（t419 列断言/排序腿先勾列、t414 search 腿
+默认档改写、m8 auxiliary 搜索三腿走顶栏、m9 fr82 顶栏三腿 + Esc 两段随
+占位态、artifacts W14b、auth-shell 深链腿、m14 t388 无匹配腿）
 ——search-result-<i>/search-count/search-pager/search-columns 族零改名，
 AQL 行复用锚全数保持。服务端 diff=0（纯 FE 票）。
 
@@ -1986,7 +1988,9 @@ spec.ts〔本票新增〕+ t387 spec 反断言腿口径更新）：**
   groups-columns-item-{name|perms|members|actions}
     （四列项——组名/权限数/成员数/操作；操作列 admin 门控同上）
 搜索页（/search，filter-bar 尾组缀既有过滤输入后；**T-449 随动**：filter-bar
-  随页内查询表单退役，列选尾组迁结果网格工具行〔search-grid 容器内〕）：
+  随页内查询表单退役，列选尾组迁结果网格工具行〔search-grid 容器内〕；
+  网格不在场时（空态/无结果/错误）由页内独立工具行承载同一份壳——
+  「偏好可预设」定案维持，t414 spec 空态开菜单腿同形态）：
   search-columns  search-columns-menu  search-columns-reset
     （三锚同语义同形态；列选是结果表的偏好面——空态/无结果时表不在场，
     偏好仍可预设；**T-449 起 reset 语义翻新 = 恢复默认列集**〔文案

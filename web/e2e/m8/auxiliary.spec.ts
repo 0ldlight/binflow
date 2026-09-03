@@ -127,28 +127,31 @@ test('plain user: dashboard converges to instance card + guidance note', async (
   await expect(page.locator('[data-testid="dashboard"] .card.section')).toContainText('编辑档案')
 })
 
-// ---- 搜索（§6.4 / reverse §3.3·§4.5）--------------------------------------
+// ---- 搜索（§6.4 / reverse §3.3·§4.5；T-449 搜索栈翻新随动：查询面 =
+// 顶栏驻留（页内输入退役），recentSearches 单承载顶栏下拉，行导航仅
+// name 单元格深链）-----------------------------------------------------------
 
-test('search: keyboard chain query -> count subtitle -> row Enter deep-links the tree', async ({ page }) => {
+test('search: topbar query chain -> count subtitle -> name-link deep-links the tree', async ({ page }) => {
   const { repo, file, marker } = await seedSearchFixture()
   await loginAs(page, 'admin')
 
-  // 顶栏搜索入口落 SearchPage（T-235 壳结构；T-265 起顶栏是真输入框——
-  // 空词 Enter 保留「纯入口跳 /search」通道，本页 autoFocus 回显维持）
+  // 顶栏搜索入口落 SearchPage（T-235 壳结构；T-449 起查询面 = 顶栏驻留——
+  // 空词 Enter 保留「纯入口跳 /search」通道，焦点驻留顶栏输入）
   await page.goto('/binflow/ui/dashboard')
   await page.focus('[data-testid="topbar-search"]')
   await page.keyboard.press('Enter')
   await expect(page).toHaveURL(/\/binflow\/ui\/search$/)
-  await expect(page.locator('[data-testid="search-input"]')).toBeFocused()
+  await expect(page.locator('[data-testid="topbar-search"]')).toBeFocused()
 
-  // 空关键词引导态：不查询
-  await expect(page.locator('[data-testid="empty-state"]')).toContainText('输入关键词开始搜索')
+  // 空关键词引导态：不查询（指引指向顶栏查询面）
+  await expect(page.locator('[data-testid="empty-state"]')).toContainText('在顶栏输入关键词开始搜索')
 
-  // 键盘输入 + Enter 显式提交（立即查询 + 记入最近搜索）
+  // 键盘输入 + Enter 显式提交（立即查询 + 记入最近搜索）+ 驻留回显
   await page.keyboard.type(marker)
   await page.keyboard.press('Enter')
   await expect(page.locator('[data-testid="search-result-0"]')).toBeVisible({ timeout: 10_000 })
-  await expect(page.locator('[data-testid="search-result-0"]')).toContainText(`/acme/${file}`)
+  await expect(page.locator('[data-testid="search-result-0"]')).toContainText(file)
+  await expect(page.locator('[data-testid="topbar-search"]')).toHaveValue(marker)
 
   // 计数副标（reverse §3.3；计数与行数一致性 = 验收项，不对齐其计数怪癖）
   await expect(page.locator('[data-testid="search-count"]')).toContainText('1 项')
@@ -156,22 +159,24 @@ test('search: keyboard chain query -> count subtitle -> row Enter deep-links the
   await expect(page.locator('[data-testid="search-pager"]')).toContainText('显示 1 – 1 / 共 1 项')
   await expect(page.locator('[data-testid="search-more"]')).toHaveCount(0)
 
-  // 行键盘激活 → 跨仓树深链自动展开（T-236 消费）+ URL 即状态（T-434：搜索
-  // 行发出的 ?focus= 旧深链被一次性折入路径段）
-  await page.focus('[data-testid="search-result-0"]')
+  // name 单元格深链（T-449/B-3.14：行体 inert，链接即导航——路径段规范形，
+  // ?focus= 发射端退役）→ 跨仓树深链自动展开（T-236 消费）
+  await page.focus('[data-testid="search-result-link-0"]')
   await page.keyboard.press('Enter')
   await expect(page).toHaveURL(new RegExp(`/binflow/ui/artifacts/${repo}/acme/${file}$`))
   await expect(page.locator('[data-testid="node-detail"]')).toContainText(`acme/${file}`)
 })
 
-test('search: recentSearches persist in localStorage, keyboard-apply, clear', async ({ page }) => {
+test('search: recentSearches persist in localStorage, keyboard-apply, clear (topbar surface)', async ({ page }) => {
   const { marker } = await seedSearchFixture()
   await loginAs(page, 'admin')
   await page.goto('/binflow/ui/search')
 
-  // 历史为空：聚焦不渲染下拉
-  await page.focus('[data-testid="search-input"]')
-  await expect(page.locator('[data-testid="search-recent"]')).toHaveCount(0)
+  // 历史为空：聚焦渲染下拉 + 空历史占位（T-449/B-3.16 翻正——对位
+  // "No recent searches yet"；页内 recentSearches 下拉已随页内输入退役）
+  await page.focus('[data-testid="topbar-search"]')
+  await expect(page.locator('[data-testid="topbar-search-recent"]')).toBeVisible()
+  await expect(page.locator('[data-testid="topbar-search-recent-empty"]')).toHaveText('暂无最近搜索')
 
   await page.keyboard.type(marker)
   await page.keyboard.press('Enter')
@@ -181,47 +186,49 @@ test('search: recentSearches persist in localStorage, keyboard-apply, clear', as
   const stored = await page.evaluate(() => window.localStorage.getItem('binflow-console-recent-searches'))
   expect(stored).toContain(marker)
 
-  // 有关键词时下拉不遮挡结果；↑↓ 显式导航展开历史
-  await page.focus('[data-testid="search-input"]')
-  await expect(page.locator('[data-testid="search-recent"]')).toHaveCount(0)
+  // 提交后聚焦：历史项在场（占位退场）；↑↓ 导航 + Enter 应用历史项
+  await page.click('h2.search-headline')
+  await page.focus('[data-testid="topbar-search"]')
+  await expect(page.locator('[data-testid="topbar-search-recent-item-0"]')).toHaveText(marker)
   await page.keyboard.press('ArrowDown')
-  await expect(page.locator('[data-testid="search-recent"]')).toBeVisible()
-  await expect(page.locator('[data-testid="search-recent-item-0"]')).toHaveText(marker)
-  await page.keyboard.press('Enter') // 应用历史项：回填关键词并查询
-  await expect(page.locator('[data-testid="search-recent"]')).toHaveCount(0)
-  await expect(page.locator('[data-testid="search-input"]')).toHaveValue(marker)
+  await expect(page.locator('[data-testid="topbar-search-recent-item-0"]')).toHaveClass(/active/)
+  await page.keyboard.press('Enter') // 应用历史项：重放查询
+  await expect(page.locator('[data-testid="topbar-search-recent"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="topbar-search"]')).toHaveValue(marker)
   await expect(page.locator('[data-testid="search-result-0"]')).toBeVisible()
 
-  // 清空关键词聚焦 = 全量历史；Esc 关闭；一键清除历史。
-  // （先点标题失焦再清空——fill 对已聚焦元素不重放 focus 事件）
+  // Esc 收下拉；一键清除历史（清除钮 T-449 复役锚）→ 占位回场 + 存储清空
+  //（Esc 后焦点仍在输入——先点标题失焦再聚焦，focus 事件确定性重放）
   await page.click('h2.search-headline')
-  await page.fill('[data-testid="search-input"]', '')
-  await page.focus('[data-testid="search-input"]')
-  await expect(page.locator('[data-testid="search-recent"]')).toBeVisible()
+  await page.focus('[data-testid="topbar-search"]')
+  await expect(page.locator('[data-testid="topbar-search-recent"]')).toBeVisible()
   await page.keyboard.press('Escape')
-  await expect(page.locator('[data-testid="search-recent"]')).toHaveCount(0)
-  // 重新聚焦（先失焦再聚焦，focus 事件确定性重放）后一键清除
+  await expect(page.locator('[data-testid="topbar-search-recent"]')).toHaveCount(0)
   await page.click('h2.search-headline')
-  await page.focus('[data-testid="search-input"]')
-  await expect(page.locator('[data-testid="search-recent"]')).toBeVisible()
-  await page.click('[data-testid="search-recent-clear"]')
-  await expect(page.locator('[data-testid="search-recent"]')).toHaveCount(0)
+  await page.focus('[data-testid="topbar-search"]')
+  await expect(page.locator('[data-testid="topbar-search-recent"]')).toBeVisible()
+  await page.click('[data-testid="topbar-search-recent-clear"]')
+  await expect(page.locator('[data-testid="topbar-search-recent"]')).toHaveCount(0)
   const after = await page.evaluate(() => window.localStorage.getItem('binflow-console-recent-searches'))
   expect(JSON.parse(after ?? '[]')).toEqual([])
+  // 清后再聚焦：空历史占位回场（占位恒渲染语义——B-3.16）
+  await page.click('h2.search-headline')
+  await page.focus('[data-testid="topbar-search"]')
+  await expect(page.locator('[data-testid="topbar-search-recent-empty"]')).toBeVisible()
 })
 
 test('search: ?q= deep link restores the query state and queries immediately', async ({ page }) => {
   const { file, marker } = await seedSearchFixture()
   await loginAs(page, 'admin')
 
-  // 直链（深链状态回显）：关键词回填 + 立即查询（不等防抖）
+  // 直链（深链状态回显）：顶栏驻留回显 + 立即查询
   await page.goto(`/binflow/ui/search?q=${marker}`)
-  await expect(page.locator('[data-testid="search-input"]')).toHaveValue(marker)
+  await expect(page.locator('[data-testid="topbar-search"]')).toHaveValue(marker)
   await expect(page.locator('[data-testid="search-result-0"]')).toBeVisible({ timeout: 10_000 })
   await expect(page.locator('[data-testid="search-result-0"]')).toContainText(file)
   await expect(page).toHaveURL(new RegExp(`[?&]q=${marker}`))
 
-  // 搜索页 axe（serious/critical = 0——结果态含计数行/拷贝钮）
+  // 搜索页 axe（serious/critical = 0——结果态含计数行/选择列/链接列）
   await expectA11yClean(page, test.info(), { include: '[data-testid="search-page"]' })
 })
 

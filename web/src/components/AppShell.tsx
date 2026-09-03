@@ -58,10 +58,11 @@ import { errText, isReadOnlyAdmin } from '../lib/api'
 //
 // 模式切换 = 侧栏底部常驻项（应用模式显「管理」，管理模式显「返回应用」；
 // readonly_admin 可见——M7 语义保留清单 §7.3，含会话徽章「只读」）。
-// 顶栏（§2.1）：面包屑/标题 · 搜索制品（T-265 起真输入框——Enter 提交跳
-// /search?q=、Esc 清空、最近词下拉沿搜索页 recentSearches，FR-82-AC9）·
-// 帮助 · 主题 · 用户菜单（Quick 动作 = §2.3；仅全量 admin 渲染写入口，
-// readonly_admin 不见快速建仓）。
+// 顶栏（§2.1）：面包屑/标题 · 搜索制品（T-265 起真输入框；T-449 起 =
+// 搜索页驻留查询面——Enter 提交 /search?q=、/search 上 replace；Esc 清空、
+// 最近词下拉聚焦恒渲染含空历史占位「暂无最近搜索」，FR-82-AC9 / parity
+// B-2.13·B-3.16）· 帮助 · 主题 · 用户菜单（Quick 动作 = §2.3；仅全量
+// admin 渲染写入口，readonly_admin 不见快速建仓）。
 // 「不建」清单零影子入口（ADR-0029 决策 5）：无 Proxies/包索引/独立
 // 产品入口；单实例无范围下拉（§1.2 单值不渲染口径）。
 // testid 242 锚不随路由改名（console-ux §10/§10.5——W 资产保全）。
@@ -271,19 +272,29 @@ export default function AppShell() {
   const [menuOpen, setMenuOpen] = useState(false)
   const sessionToggleRef = useRef<HTMLButtonElement>(null)
 
-  // 顶栏搜索（console-m8 §2.1 / FR-82-AC9，T-265 升真输入框）：
-  //   Enter → /search?q=<词>（顶栏提交即写入 recentSearches——与搜索页
-  //   同键联动）；空词 Enter = 纯入口跳 /search（沿 T-235 前身「点进搜索
-  //   页」的通道，/search 自身的 autoFocus 回显行为维持不变）。
+  // 顶栏搜索（console-m8 §2.1 / FR-82-AC9，T-265 升真输入框；T-449 起
+  //   = 搜索页的驻留查询面，parity B-2.13 翻正）：
+  //   Enter → /search?q=<词>（顶栏提交即写入 recentSearches）；空词
+  //   Enter = 纯入口跳 /search（沿 T-235 前身通道）。已在 /search 时
+  //   replace（连续细化查询不逐词进栈——接替原 SearchPage 的
+  //   replaceState 写回环）。
+  //   驻留回显：URL 的 q 即查询事实源——/search 上同步输入框显值（导航
+  //   触发；编辑未提交不回写，输入框是草稿层）。
   //   Esc 两段：先收最近词下拉，再清空 + 失焦。
-  //   最近词下拉沿 SearchPage 既有 recentSearches 语义：按当前词子串过滤、
-  //   ↑↓ 循环 + Enter 应用、一键清除历史。
+  //   最近词下拉（T-449 / B-3.16 翻正）：聚焦即渲染——空历史给
+  //   「暂无最近搜索」占位（对位 Artifactory 恒渲染 "No recent searches
+  //   yet"）；有历史按当前词子串过滤、↑↓ 循环 + Enter 应用、一键清除。
   const topbarSearchRef = useRef<HTMLInputElement>(null)
-  const [searchTerm, setSearchTerm] = useState('')
+  // 驻留回显（派生态零 effect）：URL 的 q 是查询事实源；草稿 = 用户在
+  // 「当前 location」上敲的未提交词（location.key 变即让位 URL 回显——
+  // 导航后输入框显示已提交查询，编辑中不回跳）
+  const urlQ = location.pathname === '/search' ? (new URLSearchParams(location.search).get('q') ?? '').trim() : ''
+  const [draft, setDraft] = useState<{ key: string; term: string }>({ key: '', term: '' })
+  const searchTerm = draft.key === location.key ? draft.term : urlQ
   const [recent, setRecent] = useState<string[]>(() => loadRecentSearches())
   const [recentOpen, setRecentOpen] = useState(false)
   const [recentActive, setRecentActive] = useState(-1)
-  // 按当前词子串过滤（空词 = 全量历史；无匹配即不渲染下拉）
+  // 按当前词子串过滤（空词 = 全量历史；无匹配 = 占位提示）
   const recentList = recent.filter((q) => q.toLowerCase().includes(searchTerm.trim().toLowerCase()))
 
   const submitTopbarSearch = (raw: string) => {
@@ -291,12 +302,14 @@ export default function AppShell() {
     setRecentOpen(false)
     setRecentActive(-1)
     if (term === '') {
+      setDraft({ key: location.key, term: '' })
       navigate('/search')
       return
     }
     setRecent(commitRecentSearch(term))
-    setSearchTerm(term)
-    navigate(`/search?q=${encodeURIComponent(term)}`)
+    setDraft({ key: location.key, term })
+    const onSearch = location.pathname === '/search'
+    navigate(`/search?q=${encodeURIComponent(term)}`, { replace: onSearch })
   }
 
   const onTopbarSearchKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
@@ -312,14 +325,16 @@ export default function AppShell() {
       return
     }
     if (e.key === 'Escape') {
-      // 两段 Esc：可见下拉在（recentList 非空）先收它；否则清空 + 失焦。
-      // 判据用「实际呈现的下拉」而非 recentOpen——子串无匹配时下拉本就
-      // 不渲染，此时 Esc 直接走清空（不可见的状态不该吞掉一次按键）。
-      if (recentOpen && recentList.length > 0) {
+      // 两段 Esc：下拉开（含空历史占位态——T-449 起聚焦恒渲染）先收它；
+      // 否则清空 + 失焦。preventDefault 阻断 input[type=search] 的原生
+      // Esc 清空（清空触发 input 事件 → onChange 重开下拉——收下拉动作用
+      // 会被原生副作用抵消；清空由第二段的显式 setDraft 承载）。
+      e.preventDefault()
+      if (recentOpen) {
         setRecentOpen(false)
         setRecentActive(-1)
       } else {
-        setSearchTerm('')
+        setDraft({ key: location.key, term: '' })
         topbarSearchRef.current?.blur()
       }
       return
@@ -613,7 +628,7 @@ export default function AppShell() {
                 }}
                 value={searchTerm}
                 onChange={(e) => {
-                  setSearchTerm(e.target.value)
+                  setDraft({ key: location.key, term: e.target.value })
                   setRecentOpen(true)
                 }}
                 onFocus={() => setRecentOpen(true)}
@@ -625,35 +640,46 @@ export default function AppShell() {
                 sx={{ flex: 1, minWidth: 0 }}
               />
               <kbd aria-hidden="true">⌘K</kbd>
-              {recentOpen && recentList.length > 0 && (
+              {recentOpen && (
                 <div className="topbar-search-recent" data-testid="topbar-search-recent">
                   <div className="search-recent-head">
                     <span>最近搜索</span>
-                    <button
-                      type="button"
-                      className="copy-btn"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={clearTopbarRecent}
-                    >
-                      清除历史
-                    </button>
+                    {recent.length > 0 && (
+                      <button
+                        type="button"
+                        className="copy-btn"
+                        data-testid="topbar-search-recent-clear"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={clearTopbarRecent}
+                      >
+                        清除历史
+                      </button>
+                    )}
                   </div>
-                  <ul className="search-recent-list" aria-label="最近搜索">
-                    {recentList.map((q, i) => (
-                      <li key={q}>
-                        <button
-                          type="button"
-                          className={i === recentActive ? 'active' : ''}
-                          data-testid={`topbar-search-recent-item-${i}`}
-                          lang="en"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => submitTopbarSearch(q)}
-                        >
-                          {q}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
+                  {recentList.length > 0 ? (
+                    <ul className="search-recent-list" aria-label="最近搜索">
+                      {recentList.map((q, i) => (
+                        <li key={q}>
+                          <button
+                            type="button"
+                            className={i === recentActive ? 'active' : ''}
+                            data-testid={`topbar-search-recent-item-${i}`}
+                            lang="en"
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => submitTopbarSearch(q)}
+                          >
+                            {q}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    // 空历史占位恒渲染（T-449 / B-3.16——对位 Artifactory
+                    // "No recent searches yet"；含子串无匹配态）
+                    <p className="search-recent-empty" data-testid="topbar-search-recent-empty">
+                      {recent.length === 0 ? '暂无最近搜索' : `「${searchTerm.trim()}」无匹配历史`}
+                    </p>
+                  )}
                 </div>
               )}
             </Paper>

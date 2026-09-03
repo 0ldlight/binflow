@@ -66,10 +66,11 @@ test('login lands on shell; dashboard cards arrive; theme toggles; 404 keeps she
   await page.goto('/binflow/ui/admin/repositories/local')
   await expect(page.locator('[data-testid="repos-page"]')).toBeVisible()
   await expect(page.locator('[data-testid="app-nav"]')).toBeVisible()
-  // 搜索页深链（T-100 已交付）：真实搜索页挂载（空关键词引导态）
+  // 搜索页深链（T-100 已交付）：真实搜索页挂载（空关键词引导态；T-449 起
+  // 查询面 = 顶栏驻留，页内网格未渲染）
   await page.goto('/binflow/ui/search')
   await expect(page.locator('[data-testid="search-page"]')).toBeVisible()
-  await expect(page.locator('[data-testid="search-input"]')).toBeFocused()
+  await expect(page.locator('[data-testid="search-grid"]')).toHaveCount(0)
 
   // 主题切换：亮 → 暗 → 亮（T-234/Q2 终裁默认亮色，推翻旧暗色优先；
   // token 零分叉，data-theme 属性切换）

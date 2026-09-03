@@ -19,7 +19,8 @@ import { loginAs } from '../m8/support/roles'
 // （illustration prop 同构），由 shell.spec 图标腿 + axe 扫覆盖剩余面。
 //
 // 锚源：console-ux §10.5 T-388 批（empty-art / nav-icon）；既有 empty-state
-// / repos-empty-filtered / audit-filter-* / search-input 零改名。
+// / repos-empty-filtered / audit-filter-* 零改名（search-input 随 T-449 页内
+// 查询表单退役——无匹配腿改走顶栏驻留提交）。
 
 test.beforeEach(async ({ request }) => {
   const probe = await request.get('/binflow/ui/')
@@ -127,8 +128,9 @@ test('F2: search page — initial empty and no-match empty both carry the slot',
   await expect(initial).toBeVisible()
   await expect(initial.locator('[data-testid="empty-art"]')).toBeVisible()
 
-  // 无匹配空（防抖 300ms 后确定性无命中）
-  await page.fill('[data-testid="search-input"]', 't388-no-such-artifact-qq')
+  // 无匹配空（T-449：查询面 = 顶栏驻留——顶栏 Enter 提交，确定性无命中）
+  await page.fill('[data-testid="topbar-search"]', 't388-no-such-artifact-qq')
+  await page.keyboard.press('Enter')
   await expect(page.locator('[data-testid="empty-state"]')).toContainText('没有匹配')
   await expect(page.locator('[data-testid="empty-state"] [data-testid="empty-art"]')).toBeVisible()
 })

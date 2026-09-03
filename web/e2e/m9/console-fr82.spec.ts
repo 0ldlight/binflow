@@ -154,21 +154,22 @@ test('topbar search: Enter submits to /search?q= and commits the term into recen
   const marker = 'alpha-1'
   await loginAs(page, 'admin')
 
-  // 输入 → Enter：/search?q= 深链回显（SearchPage autoFocus 维持）+ 立即查询
+  // 输入 → Enter：/search?q= 深链 + 顶栏驻留回显（T-449：查询面 = 顶栏——
+  // 焦点驻留顶栏输入，显值 = q）+ 立即查询
   await page.goto(`/binflow/ui/artifacts/${repoA}`)
   await page.fill('[data-testid="topbar-search"]', marker)
   await page.keyboard.press('Enter')
   await expect(page).toHaveURL(new RegExp(`/binflow/ui/search\\?q=${marker}$`))
-  await expect(page.locator('[data-testid="search-input"]')).toBeFocused()
-  await expect(page.locator('[data-testid="search-input"]')).toHaveValue(marker)
+  await expect(page.locator('[data-testid="topbar-search"]')).toBeFocused()
+  await expect(page.locator('[data-testid="topbar-search"]')).toHaveValue(marker)
   await expect(page.locator('[data-testid="search-result-0"]')).toBeVisible({ timeout: 10_000 })
   await expect(page.locator('[data-testid="search-result-0"]')).toContainText(marker)
 
-  // 顶栏提交即入列：搜索页清空关键词聚焦 → 最近搜索首项 = 顶栏提交词
+  // 顶栏提交即入列：重新聚焦顶栏 → 最近搜索首项 = 顶栏提交词（recentSearches
+  // 单承载顶栏下拉——T-449 随页内输入退役）
   await page.click('h2.search-headline')
-  await page.fill('[data-testid="search-input"]', '')
-  await page.focus('[data-testid="search-input"]')
-  await expect(page.locator('[data-testid="search-recent-item-0"]')).toHaveText(marker)
+  await page.focus('[data-testid="topbar-search"]')
+  await expect(page.locator('[data-testid="topbar-search-recent-item-0"]')).toHaveText(marker)
   const stored = await page.evaluate(() => window.localStorage.getItem('binflow-console-recent-searches'))
   expect(stored).toContain(marker)
 
@@ -205,15 +206,18 @@ test('topbar search: recent dropdown rides the shared store; Esc clears + blurs;
   await page.keyboard.press('Enter')
   await expect(page).toHaveURL(new RegExp(`/binflow/ui/search\\?q=${marker}$`))
 
-  // Esc 清空失焦：可见下拉在先收（Esc#1）；子串无匹配时下拉不呈现，
-  // Esc 直接清空 + 失焦（不可见状态不吞按键）
+  // Esc 清空失焦两段（T-449 起「无匹配」也呈现占位下拉——恒渲染翻正）：
+  // Esc#1 收下拉（含占位态）；Esc#2 清空 + 失焦
   await page.goto(`/binflow/ui/artifacts/${repoA}`)
   await page.focus('[data-testid="topbar-search"]')
   await expect(page.locator('[data-testid="topbar-search-recent"]')).toBeVisible()
   await page.keyboard.press('Escape') // 收下拉
   await expect(page.locator('[data-testid="topbar-search-recent"]')).toHaveCount(0)
   await page.keyboard.type('transient')
-  await page.keyboard.press('Escape') // 无匹配下拉未呈现 → 清空 + 失焦
+  await expect(page.locator('[data-testid="topbar-search-recent-empty"]')).toBeVisible()
+  await page.keyboard.press('Escape') // 占位态下拉在场 → 先收它
+  await expect(page.locator('[data-testid="topbar-search-recent"]')).toHaveCount(0)
+  await page.keyboard.press('Escape') // 下拉已收 → 清空 + 失焦
   await expect(page.locator('[data-testid="topbar-search"]')).toHaveValue('')
   await expect(page.locator('[data-testid="topbar-search"]')).not.toBeFocused()
 
@@ -234,12 +238,14 @@ test('topbar search: empty-term Enter keeps the plain /search entry (autoFocus p
   await loginAs(page, 'admin')
   await page.goto('/binflow/ui/dashboard')
 
-  // 空词 Enter = 纯入口跳 /search（T-235 前身通道；搜索页 autoFocus 维持）
+  // 空词 Enter = 纯入口跳 /search（T-235 前身通道；T-449 起查询面驻留
+  // 顶栏——焦点留驻顶栏输入，页内网格未渲染）
   await page.focus('[data-testid="topbar-search"]')
   await page.keyboard.press('Enter')
   await expect(page).toHaveURL(/\/binflow\/ui\/search$/)
-  await expect(page.locator('[data-testid="search-input"]')).toBeFocused()
-  await expect(page.locator('[data-testid="search-input"]')).toHaveValue('')
+  await expect(page.locator('[data-testid="topbar-search"]')).toBeFocused()
+  await expect(page.locator('[data-testid="topbar-search"]')).toHaveValue('')
+  await expect(page.locator('[data-testid="search-grid"]')).toHaveCount(0)
 })
 
 // ---- axe：新输入框结构可达（serious/critical = 0；§9） ------------------------

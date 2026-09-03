@@ -9,9 +9,14 @@ import { m8Client } from '../m8/support/seed'
 // 结果表，消费 T-415 既有端点 POST /api/search/aql；结果表复用 T-414 列
 // 框架与列选器）。
 //
+// T-449 搜索栈翻新随动（零锚断链——AQL 行复用锚维持）：页内查询表单退役
+//（查询面 = 顶栏驻留 + AQL 编辑器，search-input 断言翻为反断言）；列框架
+// 收敛 ResultsTable（默认列 = 选择列 + 制品|路径|仓库|修改时间，大小/
+// sha256 列选器可选项不默认呈现——断言反转②；size 排序腿先勾列再点）。
+//
 // 断言面（M15-SPLIT §1.2 AC + BOARD）：
-//   ① 模式切换：默认基本（既有表单维持不动）；?mode=aql 深链 reload 持久；
-//      两模式列选器（T-414 壳）均在场。
+//   ① 模式切换：默认基本；?mode=aql 深链 reload 持久；两模式列选器
+//      （T-414 壳）均在场。
 //   ② 合法查询结果渲染：行/计数副标（search-count 复用）/行锚沿
 //      search-result-<i> 既有族；include 投影字段进列。
 //   ③ 语法错内联呈现：400 E-01 文案逐字透传（v1c 链序错锚样本 +
@@ -67,30 +72,30 @@ test('admin: search mode switch — basic default, ?mode=aql deep link, columns 
   await loginAs(page, 'admin')
   await page.goto('/binflow/ui/search')
 
-  // 默认基本模式：既有表单在场、AQL 编辑器不在场、URL 无 mode 参数
-  await expect(page.locator('[data-testid="search-input"]')).toBeVisible()
+  // 默认基本模式：查询面 = 顶栏驻留（页内输入 T-449 退役）、AQL 编辑器
+  // 不在场、无查询无网格、URL 无 mode 参数
   await expect(page.locator('[data-testid="search-aql-input"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="search-grid"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="topbar-search"]')).toBeVisible()
   await expect(page).toHaveURL(/\/binflow\/ui\/search$/)
   // 模式切换容器（role=group——档位钮的语义父）
   await expect(page.locator('[data-testid="search-mode"]')).toBeVisible()
   await expect(page.locator('[data-testid="search-mode"]')).toHaveAttribute('role', 'group')
 
-  // 切 AQL：编辑器在场、基本表单卸载、URL 承 mode=aql；列选器（T-414 壳）在场
+  // 切 AQL：编辑器在场、URL 承 mode=aql；列选器（T-414 壳）在场
   await page.click('[data-testid="search-mode-aql"]')
   await expect(page.locator('[data-testid="search-aql-input"]')).toBeVisible()
-  await expect(page.locator('[data-testid="search-input"]')).toHaveCount(0)
   await expect(page).toHaveURL(/\/binflow\/ui\/search\?mode=aql$/)
   await expect(page.locator('[data-testid="search-columns"]')).toBeVisible()
   await expect(page.locator('[data-testid="search-aql-run"]')).toBeVisible()
 
-  // 深链 reload 持久（?mode=aql 直达——replaceState 写回的读回环）
+  // 深链 reload 持久（?mode=aql 直达——URL 即状态的读回环）
   await page.reload()
   await expect(page.locator('[data-testid="search-aql-input"]')).toBeVisible()
-  await expect(page.locator('[data-testid="search-input"]')).toHaveCount(0)
 
-  // 切回基本：mode 参数摘除（既有 ?q=/?repos= 语义面零变化）
+  // 切回基本：mode 参数摘除（查询不自动续跑——顶栏驻留词在，Enter 即重查）
   await page.click('[data-testid="search-mode-basic"]')
-  await expect(page.locator('[data-testid="search-input"]')).toBeVisible()
+  await expect(page.locator('[data-testid="search-aql-input"]')).toHaveCount(0)
   await expect(page).toHaveURL(/\/binflow\/ui\/search$/)
 })
 
@@ -111,28 +116,31 @@ test('admin: AQL query renders rows through the T-414 column frame; column selec
 
   // 行渲染（行锚沿既有 search-result-<i> 族）+ 计数副标（search-count 复用）
   await expect(page.locator('[data-testid="search-result-0"]')).toBeVisible({ timeout: 10_000 })
-  await expect(page.locator('[data-testid="search-result-0"]')).toContainText(`sort/${marker}-a.bin`)
+  // 列框架归一（T-449）：name 列（链接）与 path 列分立——full path 跨单元格
+  await expect(page.locator('[data-testid="search-result-0"]')).toContainText(`${marker}-a.bin`)
+  await expect(page.locator('[data-testid="search-result-0"]')).toContainText('sort')
   await expect(page.locator('[data-testid="search-result-0"]')).toContainText(repo)
   await expect(page.locator('[data-testid="search-count"]')).toHaveText('AQL 结果 – 2 行')
 
+  // 列选器（AQL 模式内）：默认列集 = 选择列 + 制品|路径|仓库|修改时间（5 表头，
+  // T-449 断言反转②）；勾入 sha256 → 6 + 行单元格 6；弃回 → 5
+  const th = page.locator('[data-testid="search-page"] table thead th')
+  await expect(th).toHaveCount(5)
+  await expect(th.filter({ hasText: 'sha256' })).toHaveCount(0)
+  await page.click('[data-testid="search-columns"]')
+  await page.click('[data-testid="search-columns-item-sha256"]')
+  await expect(th).toHaveCount(6)
+  await expect(page.locator('[data-testid="search-result-0"] td')).toHaveCount(6)
   // sha256 列：投影值在场 + 一键拷贝（mono + CopyButton——T-414 列框架原样）
-  const sha = page.locator('[data-testid="search-result-0"] td').nth(4)
+  const sha = page.locator('[data-testid="search-result-0"] td').nth(5)
   await expect(sha).toContainText('…')
   await expect(sha.locator('button')).toBeVisible()
+  await page.click('[data-testid="search-columns-item-sha256"]')
+  await expect(th).toHaveCount(5)
 
   // range 尾行：start_pos 回显 + 无 limit 时不伪造 limit 键
   await expect(page.locator('[data-testid="search-aql-range"]')).toContainText('start_pos 0 · 本页 2 行')
   await expect(page.locator('[data-testid="search-aql-range"]')).not.toContainText('limit')
-
-  // 列选器（AQL 模式内）：弃 sha256 → 表头 4 + 行单元格 4；勾回复位
-  const th = page.locator('[data-testid="search-page"] table thead th')
-  await expect(th).toHaveCount(5)
-  await page.click('[data-testid="search-columns"]')
-  await page.click('[data-testid="search-columns-item-sha256"]')
-  await expect(th).toHaveCount(4)
-  await expect(page.locator('[data-testid="search-result-0"] td')).toHaveCount(4)
-  await page.click('[data-testid="search-columns-item-sha256"]')
-  await expect(th).toHaveCount(5)
 })
 
 // ---- 3. 语法错内联呈现：400 E-01 逐字 + 未支持域点名（③） ---------------------
@@ -182,6 +190,12 @@ test('admin: column header clicks inject, flip and remove the .sort() clause in 
   await runAql(page, base)
   await expect(page.locator('[data-testid="search-result-0"]')).toBeVisible({ timeout: 10_000 })
   const editor = page.locator('[data-testid="search-aql-input"]')
+
+  // size 列默认不在场（T-449 断言反转②）——排序腿先经列选器勾入；
+  // 随后收菜单（MUI Menu backdrop 挡表头点击）
+  await page.click('[data-testid="search-columns"]')
+  await page.click('[data-testid="search-columns-item-size"]')
+  await page.keyboard.press('Escape')
 
   // 注入 asc（查询文本可见改写——无影子状态）；size 升序 → 首行 = 最小文件
   await page.click('[data-testid="search-aql-sort-size"]')

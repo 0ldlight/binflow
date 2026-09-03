@@ -25,7 +25,8 @@ import { useVersion } from '../lib/useVersion'
 // 无对齐负担，保留 BinFlow 五卡形态）：健康 / 存储 stats / 仓库计数 /
 // 最近审计 8 条。快捷入口（§6.2 线框）：仓库卡「建仓 →」（仅全量 admin，
 // L4 写入口预收敛）与审计卡「查看全部 →」。审计行点击进对象（深链
-// /artifacts/<repo>/<父目录>?focus=<名>——T-236 深链自动展开消费）。
+// /artifacts/<repo>/<路径段>——T-236 深链自动展开消费；T-449 起发射
+// 路径段规范形，?focus= 退役）。
 // 各卡片独立骨架独立到达（health 慢不挡 storage stats）。四态矩阵
 // （§3.2）：loading=卡片骨架、empty=空实例 CTA、error=该卡错误卡其余
 // 照常、403=整卡隐藏（§3.6「API 403 即隐藏」——非 admin 面板自然收敛
@@ -196,16 +197,14 @@ function ReposCard() {
   )
 }
 
-/** 审计事件 → 制品树深链：父目录进路径、末段进 ?focus=（文件与目录两态
- *  都落在正确层——目录会成为父层的一个子节点被选中）。无 repo 的事件
+/** 审计事件 → 制品树深链（T-449 发射端翻新 / K67-3 路径段规范形：文件
+ *  与目录两态都是路径末段——目录会成为父层的一个子节点被选中；?focus=
+ *  退役，旧深链由 ArtifactsBrowser 一次性折入维持兼容）。无 repo 的事件
  *  （用户/权限面）无树目标，行不可点。 */
 function auditTarget(ev: AuditEvent): string | null {
   if (!ev.repo || ev.repo === '') return null
-  const segs = ev.path.replace(/^\//, '').split('/')
-  const name = segs.pop() ?? ''
-  const enc = segs.map((s) => encodeURIComponent(s)).join('/')
-  const dirPart = enc ? `/${enc}` : ''
-  return `/artifacts/${encodeURIComponent(ev.repo)}${dirPart}${name ? `?focus=${encodeURIComponent(name)}` : ''}`
+  const segs = ev.path.replace(/^\//, '').split('/').filter((s) => s !== '')
+  return `/artifacts/${[ev.repo, ...segs].map((s) => encodeURIComponent(s)).join('/')}`
 }
 
 function AuditCard() {

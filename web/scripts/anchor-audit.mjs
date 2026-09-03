@@ -283,6 +283,9 @@ const STOP = new Set([
   // 文件名段（t447-props-download 本票新 spec / properties-matrix 即
   // e2e/m10/properties-matrix.spec.ts 的 L21 翻新引用），均非 testid 锚
   't447-props-download', 'properties-matrix',
+  // v1.38（T-449 行文假阳性）：搜索栈批的标识符引用——本票新 spec 的
+  // 文件名段（t449-search-stack），非 testid 锚
+  't449-search-stack',
 ])
 const docFams = new Set()
 for (const t of docTokens) {

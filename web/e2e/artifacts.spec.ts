@@ -311,7 +311,7 @@ test('maven upload form: GAV generates layout path, precheck blocks bad input wi
   expect(item.status).toBe(200)
 })
 
-test('W14b search: empty-keyword guide, debounced results, semantic subline, row click locates tree node', async ({ page }) => {
+test('W14b search: topbar query, grid quick filter, semantic subline, name link locates tree node', async ({ page }) => {
   const key = uniq('t100f')
   const marker = uniq('libcore')
   const fileName = `${marker}.bin`
@@ -321,24 +321,27 @@ test('W14b search: empty-keyword guide, debounced results, semantic subline, row
   await api(page, 'PUT', `/${key}/acme/${fileName}`, 'search-probe')
 
   await page.goto('/binflow/ui/search')
-  // 空关键词引导态：不发起查询
-  await expect(page.locator('[data-testid="empty-state"]')).toContainText('输入关键词开始搜索')
+  // 空关键词引导态：不发起查询（T-449：指引指向顶栏驻留查询面）
+  await expect(page.locator('[data-testid="empty-state"]')).toContainText('在顶栏输入关键词开始搜索')
 
-  // 防抖后出结果（repo + path + size）
-  await page.fill('[data-testid="search-input"]', marker)
+  // 顶栏提交出结果（T-449：查询面 = 顶栏驻留；repo + name/path 分列）
+  await page.fill('[data-testid="topbar-search"]', marker)
+  await page.keyboard.press('Enter')
   await expect(page.locator('[data-testid="search-result-0"]')).toBeVisible({ timeout: 10_000 })
   await expect(page.locator('[data-testid="search-result-0"]')).toContainText(key)
-  await expect(page.locator('[data-testid="search-result-0"]')).toContainText(`/acme/${fileName}`)
+  await expect(page.locator('[data-testid="search-result-0"]')).toContainText('acme')
+  await expect(page.locator('[data-testid="search-result-0"]')).toContainText(fileName)
 
-  // 仓库过滤收窄：过滤到不存在的 repo → 无结果空态
-  await page.fill('[data-testid="search-filter-repo"]', 'no-such-repo')
-  await expect(page.locator('[data-testid="empty-state"]')).toContainText('没有匹配', { timeout: 10_000 })
-  await page.fill('[data-testid="search-filter-repo"]', key)
+  // 网格内快滤收窄（仓库过滤输入 T-449 退役——快滤承载结果窄化）：
+  // 子串无匹配 → 网格无匹配态；命中恢复
+  await page.fill('[data-testid="search-quick-filter"]', 'no-such-repo')
+  await expect(page.locator('[data-testid="search-quick-filter-empty"]')).toBeVisible({ timeout: 10_000 })
+  await page.fill('[data-testid="search-quick-filter"]', key)
   await expect(page.locator('[data-testid="search-result-0"]')).toBeVisible({ timeout: 10_000 })
 
-  // 行点击跳树定位（文件自动选中 + 详情面板；T-434：搜索行发出的 ?focus=
-  // 旧深链被浏览器组件一次性折入路径段——URL 即状态）
-  await page.click('[data-testid="search-result-0"]')
+  // name 单元格深链跳树定位（T-449/B-3.14：行体 inert 仅 name 链接；路径段
+  // 规范形直达——URL 即状态）
+  await page.click('[data-testid="search-result-link-0"]')
   await expect(page).toHaveURL(new RegExp(`/binflow/ui/artifacts/${key}/acme/${fileName}$`))
   await expect(page.locator('[data-testid="node-detail"]')).toBeVisible()
   await expect(page.locator('[data-testid="node-detail"]')).toContainText(`acme/${fileName}`)
