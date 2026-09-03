@@ -190,7 +190,9 @@ test('L22 — legacy semicolon regression (seed-m10 fixtures, FR-89-AC4)', async
   expect(again.text).toBe('paired')
 })
 
-// ---- L21 — Properties Tab UI legs (T-291, console-ux §10 v1.11 anchors) ----
+// ---- L21 — Properties Tab UI legs (T-291 → T-447 anatomy: always-visible
+// Property/Value inputs + Add + grid search; inline delete goes through the
+// danger confirm — E1 unified per Q2 exit ①; anchors console-ux §10 v1.37) ----
 //
 // Target artifacts live under props-ui/ (exclusive to these legs — the REST
 // legs above own ci/ l19/ l20/ legacy/), ONE FILE PER LEG: the suite runs
@@ -231,7 +233,7 @@ async function skipIfNoConsole(request: APIRequestContext) {
   test.skip(probe.status() === 404, 'console segment not mounted by this binary yet')
 }
 
-test('L21a — admin: empty state, add/edit/delete, inline validation, merge keeps siblings', async ({ page, request }) => {
+test('L21a — admin: empty state, always-visible add form, same-key replace keeps siblings, confirmed delete', async ({ page, request }) => {
   await skipIfNoConsole(request)
   const file = 'l21a.bin'
   const path = `props-ui/${file}`
@@ -239,23 +241,24 @@ test('L21a — admin: empty state, add/edit/delete, inline validation, merge kee
   await loginAs(page, 'admin')
   await openPropsTab(page, file)
 
-  // Empty state: no properties guidance (four-states posture).
+  // Empty state: no properties guidance (four-states posture) — the
+  // always-visible Property/Value form stays present (T-447 anatomy).
   await expect(page.locator('[data-testid="node-props-empty"]')).toBeVisible()
   await expect(page.locator('[data-testid="node-props-table"]')).toHaveCount(0)
+  await expect(page.locator('[data-testid="node-props-key-input"]')).toBeVisible()
+  await expect(page.locator('[data-testid="node-props-values-input-new"]')).toBeVisible()
 
-  // Illegal key = immediate feedback + save disabled (server-side closed
+  // Illegal key = immediate feedback + Add disabled (server-side closed
   // charset mirrored client-side; zero bad requests leave the browser).
-  await page.click('[data-testid="node-props-add"]')
-  await expect(page.locator('[data-testid="node-props-row-new"]')).toBeVisible()
   await page.fill('[data-testid="node-props-key-input"]', 'bad key')
   await expect(page.getByText('键须匹配', { exact: false })).toBeVisible()
-  await expect(page.locator('[data-testid="node-props-save"]')).toBeDisabled()
+  await expect(page.locator('[data-testid="node-props-add"]')).toBeDisabled()
 
-  // Fix the key; the draft values input re-keys to the typed name.
+  // Fix the key; the values input re-keys to the typed name.
   await page.fill('[data-testid="node-props-key-input"]', 'qa')
   await page.fill('[data-testid="node-props-values-input-qa"]', 'passed, rc1')
-  await expect(page.locator('[data-testid="node-props-save"]')).toBeEnabled()
-  await page.click('[data-testid="node-props-save"]')
+  await expect(page.locator('[data-testid="node-props-add"]')).toBeEnabled()
+  await page.click('[data-testid="node-props-add"]')
   const row = page.locator('[data-testid="node-props-row-qa"]')
   await expect(row).toBeVisible()
   await expect(row).toContainText('passed, rc1')
@@ -264,25 +267,33 @@ test('L21a — admin: empty state, add/edit/delete, inline validation, merge kee
   const wire = JSON.parse((await call('GET', `/binflow/api/storage/${L21_REPO}/${path}?properties=qa`)).text)
   expect(wire).toEqual({ properties: { qa: ['passed', 'rc1'] } })
 
-  // Edit = PUT single-key replace; OTHER keys survive (the §11.40 merge law
-  // — the semantics the tab's hint line states to the user).
+  // Same-key Add = whole value-set REPLACE; OTHER keys survive (the §11.40
+  // merge law — the replaceHint semantics; the per-row editor is retired).
   await call('PUT', `/binflow/api/storage/${L21_REPO}/${path}?properties=owner=team-a`)
   await page.reload()
   await expect(page.locator('[data-testid="node-tab-props"]')).toBeVisible()
   await page.click('[data-testid="node-tab-props"]')
   await expect(page.locator('[data-testid="node-props-row-owner"]')).toBeVisible()
-  await page.click('[data-testid="node-props-edit-qa"]')
+  await page.fill('[data-testid="node-props-key-input"]', 'qa')
+  await expect(page.getByText('同名键 = 整体替换其值集', { exact: false })).toBeVisible()
   await page.fill('[data-testid="node-props-values-input-qa"]', 'released')
-  await page.click('[data-testid="node-props-save"]')
+  await page.click('[data-testid="node-props-add"]')
   await expect(page.locator('[data-testid="node-props-row-qa"]')).toContainText('released')
   await expect(page.locator('[data-testid="node-props-row-qa"]')).not.toContainText('passed')
   await expect(page.locator('[data-testid="node-props-row-owner"]')).toContainText('team-a')
 
-  // Delete is the light interaction (no confirm dialog, Artifactory parity);
-  // deleting every key returns the empty state.
+  // Delete goes through the danger confirm (E1 unified, Q2 exit ① — the
+  // T-291 light-interaction no-confirm posture is retired); declining keeps
+  // the row, accepting removes it; deleting every key returns the empty state.
   await page.click('[data-testid="node-props-delete-qa"]')
+  await expect(page.locator('[data-testid="confirm-dialog"]')).toBeVisible()
+  await page.click('[data-testid="confirm-cancel"]')
+  await expect(page.locator('[data-testid="node-props-row-qa"]')).toBeVisible()
+  await page.click('[data-testid="node-props-delete-qa"]')
+  await page.click('[data-testid="confirm-accept"]')
   await expect(page.locator('[data-testid="node-props-row-qa"]')).toHaveCount(0)
   await page.click('[data-testid="node-props-delete-owner"]')
+  await page.click('[data-testid="confirm-accept"]')
   await expect(page.locator('[data-testid="node-props-empty"]')).toBeVisible()
   expect(JSON.parse((await call('GET', `/binflow/api/storage/${L21_REPO}/${path}?properties`)).text)).toEqual({
     properties: {},
@@ -302,13 +313,15 @@ test('L21b — plain user with read-only grant: reads rows, write faces the 403 
   await expect(page.locator('[data-testid="node-props-row-qa"]')).toBeVisible()
   // Plain user keeps the write entries (W12d posture — the server is the
   // gate, not the UI): counter-assertion against the readonly leg below.
+  // Add 的 disabled 有两重：权限预收敛（L21c 反断言）与表单校验（常显
+  // 表单空态即 invalid——T-447 解剖）——本腿先填表再断言 enabled。
+  await expect(page.locator('[data-testid="node-props-key-input"]')).toBeEnabled()
+  await page.fill('[data-testid="node-props-key-input"]', 'qa')
+  await page.fill('[data-testid="node-props-values-input-qa"]', 'hijack')
   await expect(page.locator('[data-testid="node-props-add"]')).toBeEnabled()
-  await expect(page.locator('[data-testid="node-props-edit-qa"]')).toBeEnabled()
 
   // The write attempt surfaces the server's 403 envelope inline.
-  await page.click('[data-testid="node-props-edit-qa"]')
-  await page.fill('[data-testid="node-props-values-input-qa"]', 'hijack')
-  await page.click('[data-testid="node-props-save"]')
+  await page.click('[data-testid="node-props-add"]')
   const err = page.locator('[data-testid="node-props-error"]')
   await expect(err).toBeVisible()
   await expect(err).toContainText('403')
@@ -326,7 +339,9 @@ test('L21c — readonly_admin: write entries disabled (pre-convergence posture)'
   await openPropsTab(page, 'l21c.bin')
 
   await expect(page.locator('[data-testid="node-props-row-qa"]')).toBeVisible()
+  await expect(page.locator('[data-testid="node-props-key-input"]')).toBeDisabled()
+  // 空键时值输入锚后缀 = new（家族 node-props-values-input-<key>）
+  await expect(page.locator('[data-testid="node-props-values-input-new"]')).toBeDisabled()
   await expect(page.locator('[data-testid="node-props-add"]')).toBeDisabled()
-  await expect(page.locator('[data-testid="node-props-edit-qa"]')).toBeDisabled()
   await expect(page.locator('[data-testid="node-props-delete-qa"]')).toBeDisabled()
 })

@@ -279,6 +279,10 @@ const STOP = new Set([
   //（uild-info，§9A-S8 域名引用——大写 B 不入正则）/ spec 文件名段
   //（t445-detail-fields——本票新 spec 的文件名），均非 testid 锚
   'stay-out', 'uild-info', 't445-detail-fields',
+  // v1.37（T-447 行文假阳性）：属性解剖批的标识符引用——消费 spec 的
+  // 文件名段（t447-props-download 本票新 spec / properties-matrix 即
+  // e2e/m10/properties-matrix.spec.ts 的 L21 翻新引用），均非 testid 锚
+  't447-props-download', 'properties-matrix',
 ])
 const docFams = new Set()
 for (const t of docTokens) {

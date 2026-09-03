@@ -50,3 +50,50 @@ export const STATS_HINTS = {
 /** 值缺席的统一占位：无源字段（K70/无 wire 面）/ 从未下载 / 非档位省略
  *  （lastDownloadedBy）——不区分占位原因，避免泄漏档位信息 */
 export const EMPTY_VALUE = '—'
+
+/**
+ * 属性页签文案（M16 T-447 / FR-144.4，B-2.9 翻正——Artifactory 属性编辑
+ * 解剖：常显 Property/Value 输入 + Add + 网格搜索；7.161.20 活体实证
+ * placeholder 逐字 = "Property name" / "Property value"）。
+ */
+export const PROPS_COPY = {
+  /** 常显键输入 placeholder（7.161.20 活体同文） */
+  keyPlaceholder: 'Property name',
+  /** 常显值输入 placeholder（7.161.20 活体同文；多值逗号分隔） */
+  valuePlaceholder: 'Property value',
+  /** Add 提交钮（B-2.9 解剖要素；同名键 = 整体替换其值集〔§11.40〕） */
+  addLabel: 'Add 属性',
+  /** 网格搜索（B-2.9 解剖要素——键/值子串过滤既有网格） */
+  searchLabel: '搜索属性',
+  searchPlaceholder: '搜索键或值',
+  /** 同名键替换语义的可见性提示（Add 表单的 helper 文案） */
+  replaceHint: '同名键 = 整体替换其值集（其他键保留）',
+  /** 行内删除的危险确认（E1 统一——Q2 出口①：删除走确认，轻交互退役） */
+  deleteTitle: '删除属性',
+  deleteLead: '将删除属性',
+  deleteTrail: '（该节点的这一个键及其全部值）。属性删除没有撤销，需要时可在上方重新添加。',
+  /** 表尾常驻说明（保存/删除语义与服务端口径——T-291 起维持） */
+  footnote: 'Add = PUT（该键值集整体替换，其他键保留）；删除 = DELETE 该键（危险确认）。与服务端规则同口径：键 [A-Za-z][A-Za-z0-9_.-]{0,63}，值 ≤1KiB、无控制字符，单键 ≤32 值，节点 ≤64 键。',
+} as const
+
+/**
+ * 下载形态文案（M16 T-447 / FR-144.5，B-2.12 翻正 + Q9 处置——单 24px
+ * 图标钮（直接下载）+ 伴随菜单承载校验能力与 checksum/mimeType 信息）。
+ */
+export const DOWNLOAD_COPY = {
+  /** 单图标钮（直接下载——浏览器原生落盘，Artifactory 单 24px 图标对位） */
+  iconLabel: '下载',
+  iconTitle: '下载（浏览器直接落盘）',
+  /** 伴随菜单触发（校验能力 + checksum/mimeType 的家——Q9「收进伴随形态」） */
+  menuLabel: '下载与校验',
+  /** 伴随菜单内的校验动作（sha256 对账——原「下载并校验」按钮能力） */
+  verifyLabel: '下载并校验（sha256 对账）',
+  verifyBusy: '正在下载并计算 sha256（大文件稍慢）…',
+  verifyOk: '✓ 下载落盘 sha256 与服务端一致',
+  verifyBad: '✗ 不一致！下载内容与服务端登记的 checksum 不匹配',
+  /** checksum/mimeType 区（Q9：mimeType 与校验徽标块自 General 页收进伴随） */
+  checksumsHeader: 'Checksums',
+  mimeTypeLabel: 'mimeType',
+  /** 大文件指引（校验是浏览器内存路径——Blob 落盘的固有成本提示） */
+  verifyHint: '大文件建议直接下载（校验经浏览器内存路径）',
+} as const

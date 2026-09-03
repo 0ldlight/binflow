@@ -100,10 +100,16 @@ test('W12/W12b/W13 generic tree: upload -> browse -> detail/download sha match -
   await expect(page.locator('[data-testid="tree-row-app.bin"] td').nth(2)).toHaveText('12 B')
   await expect(page.locator('[data-testid="tree-row-sbom.json"]')).toBeVisible()
 
-  // 详情面板：checksums + 服务端 item info 对账（P2 拷贝面）
+  // 详情面板：checksums 收进下载伴随菜单（T-447 / Q9「校验块收进伴随
+  // 形态」）——General 页不再平铺，开菜单对账（P2 拷贝面不变）
   await page.click('[data-testid="tree-row-app.bin"]')
   await expect(page.locator('[data-testid="node-detail"]')).toBeVisible()
-  await expect(page.locator('[data-testid="node-detail"]')).toContainText('sha256')
+  await expect(page.locator('[data-testid="node-detail"]')).not.toContainText('sha256')
+  await page.click('[data-testid="node-download-menu"]')
+  await expect(page.locator('[data-testid="node-download-checksums"]')).toContainText('sha256')
+  // Popover 背景层拦截页签点击——先 Esc 收起（T-447 伴随菜单的交互契约）
+  await page.keyboard.press('Escape')
+  await expect(page.locator('[data-testid="node-download-panel"]')).toBeHidden()
   const item = await api(page, 'GET', `/api/storage/${key}/acme/app.bin`)
   expect(item.status).toBe(200)
   const itemJson = JSON.parse(item.text)
@@ -112,16 +118,20 @@ test('W12/W12b/W13 generic tree: upload -> browse -> detail/download sha match -
 
   // 下载 sha 对账（W13）：本地流式哈希 vs item info checksums.sha256
   // （有效权限自 T-236 起是详情面板的第二个 Tab——console-m8 §3.3 C4；
-  //   锚不变，操作流多一步 Tab 切换。verify 块在常规 Tab——断言完权限 Tab
-  //   后显式切回；此前该腿隐性依赖「后台数据到达把 Tab 弹回常规」的缺陷，
-  //   T-244 修复 target identity 重置后按显式切换书写）
+  //   锚不变，操作流多一步 Tab 切换。T-447：校验能力收进伴随菜单——
+  //   verify 动作 = node-download-menu-verify，结果块 node-download-verify
+  //   随菜单驻留；单 24px 图标钮 node-download = 直接下载）
   await page.click('[data-testid="node-tab-perms"]')
   await expect(page.locator('[data-testid="node-perms"]')).toBeVisible() // admin 面（?permissions）
   await page.click('[data-testid="node-tab-general"]')
-  await page.click('[data-testid="node-download"]')
+  await page.click('[data-testid="node-download-menu"]')
+  await page.click('[data-testid="node-download-menu-verify"]')
   await expect(page.locator('[data-testid="node-download-verify"]')).toContainText('✓ 下载落盘 sha256 与服务端一致', {
     timeout: 15_000,
   })
+  // 校验后菜单驻留（结果块就地呈现）——继续后续步骤前 Esc 收起
+  await page.keyboard.press('Escape')
+  await expect(page.locator('[data-testid="node-download-panel"]')).toBeHidden()
 
   // 建目录（E-15 尾斜杠 mkdir）——toast 断言按内容过滤（下载成功的
   // toast 仍在堆叠中）

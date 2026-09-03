@@ -1,9 +1,18 @@
+import { useState } from 'react'
+import type { MouseEvent as ReactMouseEvent } from 'react'
+
 import { Link } from 'react-router-dom'
 
 import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
+import Divider from '@mui/material/Divider'
+import IconButton from '@mui/material/IconButton'
+import Popover from '@mui/material/Popover'
+import Stack from '@mui/material/Stack'
 import Tab from '@mui/material/Tab'
 import Tabs from '@mui/material/Tabs'
+import Tooltip from '@mui/material/Tooltip'
+import Typography from '@mui/material/Typography'
 
 import { useAuth } from '../../app/AuthContext'
 import { CopyButton } from '../../components/CopyButton'
@@ -11,7 +20,7 @@ import { Skeleton } from '../../components/Skeleton'
 import { formatBytes } from '../../lib/format'
 import { getRepoDetail } from '../../lib/repos'
 import { useAsync } from '../../lib/useAsync'
-import { EMPTY_VALUE, NO_SOURCE_HINTS, REPO_FIELD_LABELS, STATS_HINTS, STATS_LABELS } from './detailCopy'
+import { DOWNLOAD_COPY, EMPTY_VALUE, NO_SOURCE_HINTS, REPO_FIELD_LABELS, STATS_HINTS, STATS_LABELS } from './detailCopy'
 import { contentFileURL, getItem, getItemPermissions, getNodeStats, getRepoUsageCounts } from './lib'
 import type { ChildNode, ItemInfo } from './lib'
 import PropertiesTab from './PropertiesTab'
@@ -40,9 +49,9 @@ import PropertiesTab from './PropertiesTab'
 //   Downloads / Last Downloaded By / Last Downloaded / Remote Downloads
 //   （消费 T-438 ?stats 面——file 形态）；仓视图补 Repository Layout /
 //   Description / Created / Artifact Count（Layout 与 Created 无源恒
-//   '—' + title 登记——不伪造）。BinFlow 自有增强（类型/mimeType/
-//   Checksums 块〔「（上传时提供：一致）」徽标映射 originalChecksums〕/
-//   下载校验块/docker tags）排在 parity 族之后，去留候 Q9（T-447）。
+//   '—' + title 登记——不伪造）。**T-447 / Q9 终裁消化**：mimeType/
+//   Checksums 徽标块/下载校验块自 General 页收进下载伴随菜单（见
+//   FileDownloadActions）；General 页保留的类型/tags 为已裁维持项。
 // - **缺位登记（不伪造）**：Module ID 不建（dep Build-info，§9A-S8——
 //   M17 解禁）；Package Information / Dependency Declaration /
 //   Virtual Repository Associations / Included Repositories 块不建
@@ -109,7 +118,7 @@ export default function NodeDetail({
         ? 'general'
         : tab
 
-  // 节点元数据（文件/目录）在顶层取——头部「下载并校验」按钮的对账源
+  // 节点元数据（文件/目录）在顶层取——下载伴随菜单的对账源
   // （checksums.sha256）与常规 Tab 共用一次请求。
   const nodeItem = useAsync(
     () => (target.kind === 'node' ? getItem(target.repoKey, target.node.path) : Promise.resolve(null)),
@@ -136,33 +145,18 @@ export default function NodeDetail({
         </h3>
         <div className="node-detail-actions">
           {isFile && target.kind === 'node' && (
-            <>
-              <Button
-                variant="outlined"
-                size="small"
-               
-                disabled={download?.path === target.node.path && download.phase === 'loading'}
-                data-testid="node-download"
-                onClick={() => onDownload(target.node, item?.checksums?.sha256 ?? target.node.sha256 ?? '')}
-                title="下载并做 sha256 对账"
-              >
-                {download?.path === target.node.path && download.phase === 'loading' ? '下载中…' : '下载并校验'}
-              </Button>
-              <Button
-                variant="outlined"
-                size="small"
-               
-                component="a"
-                href={`/binflow/${encodeURIComponent(target.repoKey)}/${target.node.path
-                  .split('/')
-                  .map((s) => encodeURIComponent(s))
-                  .join('/')}`}
-                download={target.node.name}
-                title="大文件建议直接下载（不经浏览器 sha256 对账）"
-              >
-                直接下载
-              </Button>
-            </>
+            // 下载形态（T-447 / FR-144.5，B-2.12 翻正 + Q9 处置）：单 24px
+            // 图标钮（直接下载——浏览器原生落盘）+ 伴随菜单（校验能力与
+            // checksum/mimeType 的家）。原两带文字按钮（下载并校验 / 直接
+            // 下载）收敛；General 页的 mimeType/校验徽标块/下载校验块随迁
+            // 伴随（Q9 终裁「校验块收进伴随形态」）。
+            <FileDownloadActions
+              repoKey={target.repoKey}
+              node={target.node}
+              item={item}
+              download={download}
+              onVerify={() => onDownload(target.node, item?.checksums?.sha256 ?? target.node.sha256 ?? '')}
+            />
           )}
           {target.kind === 'node' && canDelete && (
             <Button
@@ -223,6 +217,160 @@ export default function NodeDetail({
         <PermsTab target={target} />
       )}
     </section>
+  )
+}
+
+// ---- 下载形态：单 24px 图标钮 + 伴随菜单（T-447 / FR-144.5，B-2.12/Q9）------
+
+// Artifactory 7.161 单 24px 图标钮无校验伴随（B-2.12 目标形）；BinFlow 的
+// sha256 对账/mimeType/checksum 徽标是自有增强——Q9 终裁「校验块收进伴随
+// 形态」：能力与信息全部收进伴随菜单，General 页不再平铺。直接下载走
+// 内容面 GET（T-438 埋点单源——服务端计数，无 FE 侧第二通道）；校验下载
+// 完成后由 FileStatsRows 的 refreshKey 联动刷新计数（直接下载是浏览器
+// 原生锚点，无 JS 完成回调——计数仍由服务端单源落库，下次统计读自然带回）。
+function FileDownloadActions({
+  repoKey,
+  node,
+  item,
+  download,
+  onVerify,
+}: {
+  repoKey: string
+  node: ChildNode
+  item: ItemInfo | null
+  download: DownloadState | null
+  onVerify: () => void
+}) {
+  const [menuAnchor, setMenuAnchor] = useState<HTMLButtonElement | null>(null)
+  const busy = download?.path === node.path && download.phase === 'loading'
+  const verdict =
+    download?.path === node.path && download.phase === 'done' && download.match !== undefined ? download.match : null
+  const href = contentFileURL(repoKey, node.path)
+
+  return (
+    <>
+      <Tooltip title={DOWNLOAD_COPY.iconTitle}>
+        <IconButton
+          size="small"
+          sx={{ width: 24, height: 24 }}
+          component="a"
+          href={href}
+          download={node.name}
+          data-testid="node-download"
+          aria-label={`${DOWNLOAD_COPY.iconLabel} ${node.name}`}
+        >
+          <span aria-hidden="true" style={{ fontSize: 14 }}>⬇</span>
+        </IconButton>
+      </Tooltip>
+      <Tooltip title={DOWNLOAD_COPY.menuLabel}>
+        <IconButton
+          size="small"
+          sx={{ width: 24, height: 24 }}
+          data-testid="node-download-menu"
+          aria-label={DOWNLOAD_COPY.menuLabel}
+          aria-haspopup="dialog"
+          aria-expanded={menuAnchor !== null}
+          onClick={(e: ReactMouseEvent<HTMLButtonElement>) => setMenuAnchor(e.currentTarget)}
+        >
+          <span aria-hidden="true" style={{ fontSize: 12 }}>▾</span>
+        </IconButton>
+      </Tooltip>
+      <Popover
+        open={menuAnchor !== null}
+        anchorEl={menuAnchor}
+        onClose={() => setMenuAnchor(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        slotProps={{
+          paper: {
+            'data-testid': 'node-download-panel',
+            role: 'dialog',
+            'aria-label': DOWNLOAD_COPY.menuLabel,
+            sx: {
+              border: '1px solid var(--bf-border)',
+              boxShadow: 'var(--bf-shadow-2)',
+              borderRadius: 'var(--bf-r-md)',
+              p: 'var(--bf-sp-3)',
+              maxWidth: 380,
+            },
+          } as React.ComponentPropsWithoutRef<'div'>,
+        }}
+      >
+        <Stack spacing={1}>
+          <Button
+            size="small"
+            variant="outlined"
+            data-testid="node-download-menu-verify"
+            disabled={busy}
+            onClick={onVerify}
+          >
+            {DOWNLOAD_COPY.verifyLabel}
+          </Button>
+          {/* 校验呈现（node-download-verify——原 General 页右栏随迁；菜单
+              开着才可见，最终结果另有 toast 承载，关闭菜单不丢反馈） */}
+          {busy && <div className="node-verify">{DOWNLOAD_COPY.verifyBusy}</div>}
+          {verdict !== null && (
+            <div className={`node-verify ${verdict ? 'ok' : 'bad'}`} data-testid="node-download-verify">
+              {verdict ? (
+                <>
+                  {DOWNLOAD_COPY.verifyOk}
+                  <div className="mono sub" lang="en">{download?.sha}</div>
+                </>
+              ) : (
+                <>
+                  {DOWNLOAD_COPY.verifyBad}
+                  <div className="mono sub" lang="en">local {download?.sha}</div>
+                </>
+              )}
+            </div>
+          )}
+          <Divider />
+          {/* checksum/mimeType 区（Q9：自 General 页收进伴随） */}
+          <div data-testid="node-download-checksums">
+            <Typography variant="caption" color="text.secondary">
+              {DOWNLOAD_COPY.checksumsHeader}
+            </Typography>
+            {!item ? (
+              <Typography variant="body2" color="text.secondary">元数据加载中…</Typography>
+            ) : (
+              <>
+                <div className="kv">
+                  <span className="k">{DOWNLOAD_COPY.mimeTypeLabel}</span>
+                  <span className="mono" lang="en">{item.mimeType ?? EMPTY_VALUE}</span>
+                </div>
+                {(['sha256', 'sha1', 'md5'] as const).map((algo) => {
+                  const v = item.checksums?.[algo]
+                  if (!v) return null
+                  const orig = item.originalChecksums?.[algo]
+                  return (
+                    <div className="kv" key={algo}>
+                      <span className="k">{algo}</span>
+                      <span className="mono" lang="en">
+                        <span>
+                          {v.length > 24 ? `${v.slice(0, 20)}…${v.slice(-8)}` : v}
+                          <CopyButton value={v} label={algo} />
+                        </span>
+                        {orig && (
+                          <span
+                            className={`checksum-badge ${orig === v ? 'ok-badge' : 'warning'}`}
+                            title="客户端上传时提供的 checksum 与服务端实际值比对"
+                          >
+                            上传时提供：{orig === v ? '一致 ✓' : '不一致'}
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  )
+                })}
+              </>
+            )}
+          </div>
+          <Typography variant="caption" color="text.secondary">
+            {DOWNLOAD_COPY.verifyHint}
+          </Typography>
+        </Stack>
+      </Popover>
+    </>
   )
 }
 
@@ -324,7 +472,8 @@ function RepoGeneral({ repoKey }: { repoKey: string }) {
 // 字段序（T-445 / FR-144.2/.3）：Name → Repository Path → File URL（B-2.4
 // 目录视图同样补齐）→〔Module ID 不建——Build-info stay-out〕→ 部署者 →
 // 大小 → Created → 修改时间 → 下载统计族（file 形态）→ BinFlow 自有
-// 增强（类型/mimeType/Checksums 块/tags——处置候 Q9）。
+// 增强（类型/tags——T-447/Q9 后仅存两项；mimeType 与 Checksums 块已收进
+// 下载伴随菜单）。
 function NodeGeneral({
   node,
   repoKey,
@@ -342,11 +491,13 @@ function NodeGeneral({
   download: DownloadState | null
   childrenNodes?: ChildNode[]
 }) {
-  const busy = download?.path === node.path && download.phase === 'loading'
-  const verdict =
-    download?.path === node.path && download.phase === 'done' && download.match !== undefined ? download.match : null
   const nodeRef = node.folder ? `${node.path}/` : node.path
   const fileURL = contentFileURL(repoKey, nodeRef)
+  // 下载计数联动（T-438 埋点单源）：FE 可观测的下载完成（校验下载落盘）
+  // 作为 ?stats 重读信号——UI 计数与 nodes 单源对齐；直接下载是浏览器原生
+  // 锚点无完成回调，不触发（服务端计数照落，下次读自然带回）
+  const statsRefreshKey =
+    download?.path === node.path && download.phase === 'done' ? `done:${download.sha}` : 'base'
 
   if (itemStatus === 'loading') return <Skeleton lines={4} />
   if (itemStatus !== 'ok' || !item) {
@@ -395,8 +546,8 @@ function NodeGeneral({
             不渲染〔Artifactory folder item view 同为无下载族〕；组件在
             item 到位后才挂载 = 统计读晚于本页的 item-info GET，页内浏览
             计数先落库再呈现，读数与 UI 一致——T-438 §3-2 探针面计数继承
-            的确定性呈现） */}
-        {!node.folder && <FileStatsRows repoKey={repoKey} path={node.path} />}
+            的确定性呈现；statsRefreshKey = 下载完成后的计数联动重读） */}
+        {!node.folder && <FileStatsRows repoKey={repoKey} path={node.path} refreshKey={statsRefreshKey} />}
         {node.folder && (
           // T-434 / FR-142.1：children 表收窄后目录形态给直系概要
           //（Artifact Count / Size——Artifactory 目录 item view 同位字段；
@@ -420,45 +571,12 @@ function NodeGeneral({
             )}
           </>
         )}
-        {/* ---- BinFlow 自有增强（parity 族之后；去留候 Q9/T-447）---- */}
+        {/* ---- BinFlow 自有增强（parity 族之后；mimeType/Checksums 块已随
+              Q9 终裁收进下载伴随菜单〔T-447〕——General 页不再平铺）---- */}
         <div className="kv">
           <span className="k">类型</span>
           <span>{node.folder ? '目录' : '文件'}</span>
         </div>
-        {!node.folder && (
-          <div className="kv">
-            <span className="k">mimeType</span>
-            <span className="mono" lang="en">{item.mimeType ?? EMPTY_VALUE}</span>
-          </div>
-        )}
-        {!node.folder && item.checksums && (
-          <>
-            {(['sha256', 'sha1', 'md5'] as const).map((algo) => {
-              const v = item.checksums?.[algo]
-              if (!v) return null
-              const orig = item.originalChecksums?.[algo]
-              return (
-                <div className="kv" key={algo}>
-                  <span className="k">{algo}</span>
-                  <span className="mono" lang="en">
-                    <span>
-                      {v.length > 24 ? `${v.slice(0, 20)}…${v.slice(-8)}` : v}
-                      <CopyButton value={v} label={algo} />
-                    </span>
-                    {orig && (
-                      <span
-                        className={`checksum-badge ${orig === v ? 'ok-badge' : 'warning'}`}
-                        title="客户端上传时提供的 checksum 与服务端实际值比对"
-                      >
-                        上传时提供：{orig === v ? '一致 ✓' : '不一致'}
-                      </span>
-                    )}
-                  </span>
-                </div>
-              )
-            })}
-          </>
-        )}
         {/* docker 特化：manifest digest 行的 tag 徽标（T-134 G32a） */}
         {!node.folder && node.tags && node.tags.length > 0 && (
           <div className="kv">
@@ -479,24 +597,6 @@ function NodeGeneral({
           </div>
         )}
       </div>
-      <div>
-        {verdict !== null && (
-          <div className={`node-verify ${verdict ? 'ok' : 'bad'}`} data-testid="node-download-verify">
-            {verdict ? (
-              <>
-                ✓ 下载落盘 sha256 与服务端一致
-                <div className="mono sub" lang="en">{download?.sha}</div>
-              </>
-            ) : (
-              <>
-                ✗ 不一致！下载内容与服务端登记的 checksum 不匹配
-                <div className="mono sub" lang="en">local {download?.sha}</div>
-              </>
-            )}
-          </div>
-        )}
-        {busy && <div className="node-verify">正在下载并计算 sha256（大文件稍慢）…</div>}
-      </div>
     </div>
   )
 }
@@ -507,8 +607,9 @@ function NodeGeneral({
 // （从未下载 或 调用者非 CapSystemRead 档——服务端 omitempty）一律 '—'，
 // 不区分原因（区分即泄漏档位信息）。计数与远端计数全档可见（?stats 计
 // 数面无门）。
-function FileStatsRows({ repoKey, path }: { repoKey: string; path: string }) {
-  const stats = useAsync(() => getNodeStats(repoKey, path), [repoKey, path])
+function FileStatsRows({ repoKey, path, refreshKey }: { repoKey: string; path: string; refreshKey: string }) {
+  // refreshKey：FE 可观测的下载完成信号（联动重读——见 NodeGeneral 注）
+  const stats = useAsync(() => getNodeStats(repoKey, path), [repoKey, path, refreshKey])
   const d = stats.status === 'ok' ? stats.data : null
   const errTitle =
     stats.status === 'error' || stats.status === 'forbidden'
