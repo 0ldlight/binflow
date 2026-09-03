@@ -1782,4 +1782,6 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **用户即时项（2026-09-03 12:4x）**：企业版 license 生成 + **UAT 激活**（`b5be0f76`，binflow，365 天，**19/19 槽全开**——conan 建仓 200 真验 pro 门通过；/tmp/binflow-enterprise.lic）。
 
+**T-445 → done 2026-09-03 13:3x——M16 12/35（B5 票①：详情页签序 + 字段族落）**：**页签序互换**（常规→有效权限→属性——7.161 实测序，锚/URL slug 零变化）+ **File URL 三形态**（含复制钮）+ **Downloads 字段族**（消费 T-438 **?stats 面**〔按 as-built 实落——派单「FileInfo 非敏感」与 ADR K69.4 有差，FE 按实落消费效果等价，混合形裁定归 conductor/ADR〕）+ RepoGeneral 字段族（Layout/Description/Created/Artifact Count——usage counts 点名臂）+ detailCopy.ts（文案集中常量）。锚册 **v1.36**（9 锚）。四门绿 + SPA +813B + 指定回归全绿（keyboard/t434/artifacts/m10×3/t416/t372/trash/m9/a11y）。**契约漂移登记 ②③**（GET /api/repositories `url` 缺 /binflow 前缀〔M1 既有〕+ FileInfo.downloadUri 系 api/storage URI 非下载语义——后端勘误候选两条）。日志 reports/agents/T-445.md。
+
 **全树 race 补证判无效（conductor 2026-09-01 14:3x）**：与两 agent 测试套件同机并发跑——22 包红全部 620-660s 超时形态 + db/sql 竞争 panic + storage fail-open 窗口 = **共租负载签名**（T-414 日志同款 load 450-630），非产品缺陷。T-412 的 AC3 证据改挂 **T-421 中期 QA 串行全树 race**（届时 lane 空净）。**D-413-2 [P3·登记]**：唯一真信号 = T-413 `TestEngineMixedLoad` 在慢机下 K63 并发门 429 介入而测试只容忍 busy gate 拒绝——测试健壮性收窄（门注入调低或混合负载容忍 429），归 T-421 复验时顺腿修或转 T-433。**教训入册：全树 race/性能类验证必须 lane 空净时串行跑（派单纪律）。**
