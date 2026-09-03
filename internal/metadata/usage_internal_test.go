@@ -89,6 +89,11 @@ func TestUsageBackfillMigration(t *testing.T) {
 		`ALTER TABLE remote_configs DROP COLUMN unused_cleanup_period_hours`,
 		// 017 (T-349): same ALTER family — tokens.deploy_scope leaves too.
 		`ALTER TABLE tokens DROP COLUMN deploy_scope`,
+		// 020 (T-438): the nodes counting columns, same duplicate-column rule.
+		`ALTER TABLE nodes DROP COLUMN download_count`,
+		`ALTER TABLE nodes DROP COLUMN last_downloaded_at`,
+		`ALTER TABLE nodes DROP COLUMN last_downloaded_by`,
+		`ALTER TABLE nodes DROP COLUMN remote_download_count`,
 	} {
 		if _, err := db.Exec(stmt); err != nil {
 			t.Fatalf("rewind (%q): %v", stmt, err)

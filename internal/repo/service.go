@@ -396,6 +396,16 @@ func (s *service) Get(ctx context.Context, p *Principal, repoKey, path string) (
 						return nil, n, fmt.Errorf("get %s/%s: %w", repoKey, path, ErrIsFolder)
 					}
 				}
+				// T-448 (FR-147.2): with the optional档 on, a folder that
+				// exists only upstream answers off the enumeration snapshot —
+				// the tree can be expanded into uncached remote directories.
+				// Display-only and zero-write (ADR-0013 posture: a browse read
+				// leaves the cache exactly as it found it). Degraded or
+				// denied answers claim nothing; the engine fall-through below
+				// then speaks with its own error state.
+				if n := s.remoteBrowseFolderRow(ctx, p, browseRepoOf(row), strings.TrimSuffix(path, "/")); n != nil {
+					return nil, n, fmt.Errorf("get %s/%s: %w", repoKey, path, ErrIsFolder)
+				}
 			}
 		}
 		return s.getRemote(ctx, p, repoKey, path)
@@ -441,7 +451,11 @@ func (s *service) Get(ctx context.Context, p *Principal, repoKey, path string) (
 		_ = rc.Close()
 		return nil, nil, fmt.Errorf("open blob %s for %s/%s: storage backend does not support Seek", n.Sha256, repoKey, path)
 	}
-	s.audit(ctx, AuditEvent{Actor: actor(p), Action: AuditActionDownload, Repo: repoKey, Path: path})
+	s.markDownload(ctx, p, downloadMark{
+		auditRepo: repoKey, auditPath: path,
+		countRepo: repoKey, countPath: path,
+		origin: downloadOriginDirect,
+	})
 	return seekable, n, nil
 }
 
@@ -484,7 +498,16 @@ func (s *service) getRemote(ctx context.Context, p *Principal, repoKey, path str
 			Actor: hookActorOf(p),
 		})
 	}
-	s.audit(ctx, AuditEvent{Actor: actor(p), Action: AuditActionDownload, Repo: repoKey, Path: path})
+	// The remote-serving arm (K69 arm 3): the count lands on the remote
+	// repository's own row, both columns, with the contentSynchronisation
+	// eligibility marker riding the audit detail.
+	s.markDownload(ctx, p, downloadMark{
+		auditRepo: repoKey, auditPath: path,
+		countRepo: repoKey, countPath: path,
+		origin:       downloadOriginRemote,
+		extra:        []string{s.statsSyncDetail(ctx, repoKey)},
+		remoteServed: true,
+	})
 	return res.Body, res.Node, nil
 }
 
@@ -1460,34 +1483,54 @@ func hasDeletedPrefix(p string, deleted map[string]bool) bool {
 // (Get's ordering): the virtual aggregate is exactly as gated as the local
 // listing, and an unauthorized caller learns nothing beyond the gate's own
 // answer (FR-136.4's "沿内容面 allow() 既有").
+//
+// T-448 (FR-147.2): a remote repository with listRemoteFolderItems=true
+// merges its upstream-derived display rows into the listing (browse.go);
+// with the flag off — the default — the listing is exactly the T-406 cache
+// face and the upstream is never probed (behavior diff zero by
+// construction). List is listRows without the remote layer's degradation
+// note; the RemoteBrowsePlane twin carries the note.
 func (s *service) List(ctx context.Context, p *Principal, repoKey, prefix string) ([]*metadata.Node, error) {
+	nodes, _, err := s.listRowsChecked(ctx, p, repoKey, prefix)
+	return nodes, err
+}
+
+// ListWithRemote implements RemoteBrowsePlane: the same listing walk as
+// List plus the remote-browse layer's state note, so a consumer that
+// renders the optional档's error state (T-461's tree) can show it beside
+// the cached rows instead of guessing why the remote layer went quiet.
+func (s *service) ListWithRemote(ctx context.Context, p *Principal, repoKey, prefix string) (*RemoteBrowseListing, error) {
+	nodes, degraded, err := s.listRowsChecked(ctx, p, repoKey, prefix)
+	if err != nil {
+		return nil, err
+	}
+	return &RemoteBrowseListing{Nodes: nodes, RemoteDegraded: degraded}, nil
+}
+
+// listRowsChecked is the shared listing pipeline's front half: prefix
+// normalization, repository resolution and the read gate — then listRows
+// (browse.go) dispatches by class and folds the optional档's derived rows.
+func (s *service) listRowsChecked(ctx context.Context, p *Principal, repoKey, prefix string) ([]*metadata.Node, string, error) {
 	if prefix != "" {
 		prefix = strings.TrimSuffix(prefix, "/")
 		if prefix == "" { // was exactly "/"
-			return nil, fmt.Errorf("%w: the repository root is not a listable prefix", ErrInvalidPath)
+			return nil, "", fmt.Errorf("%w: the repository root is not a listable prefix", ErrInvalidPath)
 		}
 		if err := validateNodePath(prefix); err != nil {
-			return nil, err
+			return nil, "", err
 		}
 	}
 	row, err := s.loadRepoRow(ctx, repoKey)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if !s.allow(ctx, p, repoKey, prefix, ActionRead) {
 		if p == nil {
-			return nil, fmt.Errorf("read %s/%s: %w", repoKey, prefix, ErrUnauthorized)
+			return nil, "", fmt.Errorf("read %s/%s: %w", repoKey, prefix, ErrUnauthorized)
 		}
-		return nil, fmt.Errorf("read %s/%s: %w", repoKey, prefix, ErrForbidden)
+		return nil, "", fmt.Errorf("read %s/%s: %w", repoKey, prefix, ErrForbidden)
 	}
-	if row.Type == TypeVirtual {
-		return s.listVirtual(ctx, repoKey, prefix)
-	}
-	nodes, err := s.md.Nodes().ListByPrefix(ctx, repoKey, prefix)
-	if err != nil {
-		return nil, fmt.Errorf("list %s/%s: %w", repoKey, prefix, err)
-	}
-	return nodes, nil
+	return s.listRows(ctx, p, row, prefix)
 }
 
 // ---- Docker use cases (M2, FR-7 through FR-9) ----
@@ -1758,7 +1801,11 @@ func (s *service) ResolveManifest(ctx context.Context, p *Principal, repoKey, im
 		}
 		return nil, fmt.Errorf("manifest %s/%s@%s: %w", repoKey, image, digest, err)
 	}
-	s.audit(ctx, AuditEvent{Actor: actor(p), Action: AuditActionDownload, Repo: repoKey, Path: nodePathFor(image, digest)})
+	s.markDownload(ctx, p, downloadMark{
+		auditRepo: repoKey, auditPath: nodePathFor(image, digest),
+		countRepo: repoKey, countPath: nodePathFor(image, digest),
+		origin: downloadOriginDirect,
+	})
 	return m, nil
 }
 
@@ -1794,7 +1841,11 @@ func (s *service) ResolveTag(ctx context.Context, p *Principal, repoKey, image, 
 		}
 		return nil, fmt.Errorf("tag %s/%s:%s: %w", repoKey, image, tag, err)
 	}
-	s.audit(ctx, AuditEvent{Actor: actor(p), Action: AuditActionDownload, Repo: repoKey, Path: dockerImageManifestPath(image, t.Digest)})
+	s.markDownload(ctx, p, downloadMark{
+		auditRepo: repoKey, auditPath: dockerImageManifestPath(image, t.Digest),
+		countRepo: repoKey, countPath: dockerImageManifestPath(image, t.Digest),
+		origin: downloadOriginDirect,
+	})
 	return t, nil
 }
 

@@ -29,6 +29,9 @@ import { makeClient, m8Client, seedRepos } from '../m8/support/seed'
 // 最小形态；「封锁下配置面照常 / run 触发」两腿全部放在 blockPull 窗内
 // 执行（blockPull 不门 push 轨——这本身就是要钉的方向独立性）。
 //
+// T-439 步进翻新：复制节载体迁表单第三步（FR-143.1，M6 语义零变化）——
+// 本 spec 三处 /edit 导航改走 ?section=replications 深链直落第三步。
+//
 // 锚源：console-ux §10.5 v1.30（repl-test / repl-test-result /
 // repl-global-block / repl-block-push / repl-block-pull——既有 repl-* 零改名）。
 
@@ -83,7 +86,7 @@ test('admin: form test-connection (draft face) — unreachable target fails inli
   await seedRepos(m8Client(), [{ key }])
 
   await loginAs(page, 'admin')
-  await page.goto(`/binflow/ui/admin/repositories/${key}/edit`)
+  await page.goto(`/binflow/ui/admin/repositories/${key}/edit?section=replications`)
   await page.click('[data-testid="repl-create"]')
   await page.fill('[data-testid="repl-form-url"]', 'https://t422-nohost.invalid')
   await page.fill('[data-testid="repl-form-target-repo"]', `${key}-dr`)
@@ -96,10 +99,15 @@ test('admin: form test-connection (draft face) — unreachable target fails inli
   const req = await posted
   expect(req.url()).not.toMatch(/\/replications\/\d+\/test$/)
 
-  // 内联判定块（非 toast、非表单错误）：锚定 unknown host 文案 + 未触达
+  // 内联判定块（非 toast、非表单错误）：不可达文案 + 未触达。传输层错误
+  // 两分支均为合法形态（probe.go probeTransportMessage）：DNS 解析失败 =
+  // "unknown host '…'"；其余传输故障（本机沙箱/代理解析 .invalid 域走
+  // 非路径）= "GET <url>: connection failed"——两分支同义（不可达），
+  // 断言取服务端文案前缀 + 判定后缀，环境无关（T-439 复跑环境定性留痕）。
   const verdict = page.locator('[data-testid="repl-test-result"]')
   await expect(verdict).toBeVisible({ timeout: 15_000 })
-  await expect(verdict).toContainText("unknown host 't422-nohost.invalid'")
+  await expect(verdict).toContainText('Error testing push replication config:')
+  await expect(verdict).toContainText(/unknown host 't422-nohost\.invalid'|connection failed/)
   await expect(verdict).toContainText('探测未通过')
   await expect(verdict).toContainText('未触达目标')
   await expect(page.locator('[data-testid="repl-form-error"]')).toHaveCount(0)
@@ -121,7 +129,7 @@ test('admin: form test-connection — self-instance candidate refused with the a
   await seedRepos(m8Client(), [{ key }])
 
   await loginAs(page, 'admin')
-  await page.goto(`/binflow/ui/admin/repositories/${key}/edit`)
+  await page.goto(`/binflow/ui/admin/repositories/${key}/edit?section=replications`)
   await page.click('[data-testid="repl-create"]')
   const origin = await page.evaluate(() => window.location.origin)
   await page.fill('[data-testid="repl-form-url"]', origin)
@@ -151,7 +159,7 @@ test('admin: form test-connection — live second instance passes (requires BASE
   await seedRepos(b2, [{ key: `${key}-dr` }])
 
   await loginAs(page, 'admin')
-  await page.goto(`/binflow/ui/admin/repositories/${key}/edit`)
+  await page.goto(`/binflow/ui/admin/repositories/${key}/edit?section=replications`)
   await page.click('[data-testid="repl-create"]')
   await page.fill('[data-testid="repl-form-url"]', process.env.BASE2!)
   await page.fill('[data-testid="repl-form-target-repo"]', `${key}-dr`)

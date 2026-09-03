@@ -185,6 +185,67 @@ export function getItemPermissions(
   return apiJSON<PermissionsView>(`${storagePath(repoKey, path)}?permissions`, { signal })
 }
 
+// ---- 下载统计面（M16 T-445 / FR-144.2，消费 T-438 后端 ?stats）------------
+
+/**
+ * ?stats 面（GET /api/storage/{repo}/{path}?stats）：nodes 四列（下载计数
+ * 的唯一 wire 面）的投影。计数无门（路由 = item-info 同款内容面读门，
+ * 匿名随开关）；lastDownloadedBy 是例外——仅 CapSystemRead 档
+ * （admin ∨ readonly_admin）回带，其余档服务端 omitempty 省略（FE 端
+ * 「缺省 = '—'」，不伪造、也不区分「从未下载」与「非档位省略」）。
+ * folder 行是结构性零值（CountDownload 的 SQL 边排除 folder）——详情页
+ * 只在 file 形态消费本面（Artifactory folder item view 亦无下载族）。
+ */
+export interface NodeStats {
+  uri: string
+  downloadCount: number
+  lastDownloaded?: string
+  lastDownloadedBy?: string
+  remoteDownloadCount: number
+}
+
+export function getNodeStats(repoKey: string, path: string, signal?: AbortSignal): Promise<NodeStats> {
+  return apiJSON<NodeStats>(`${storagePath(repoKey, path)}?stats`, { signal })
+}
+
+/**
+ * 仓级 usage + counts（M16 T-445 / FR-144.3：仓视图 Artifact Count 行数据
+ * 源）。batch 面 `?repos=` 点名单行 + `?include=counts`——一次请求带回
+ * usedBytes/quotaBytes/nodeCount（Size 与 Count 同源，替代 getRepoUsage
+ * 单行面）。nodeCount = FILE 节点数（folder 哨兵行排除——repo service
+ * 语义，与「Artifact Count」对位）。点名仓不可见（无权限/不存在）→ 行
+ * 缺席（batch 面点名子集语义），返回 null。
+ */
+export interface RepoUsageCounts {
+  usedBytes: number
+  quotaBytes: number
+  nodeCount: number
+}
+
+export async function getRepoUsageCounts(repoKey: string, signal?: AbortSignal): Promise<RepoUsageCounts | null> {
+  const rows = await apiJSON<Array<RepoUsageCounts & { repo: string }>>(
+    `/v1/storage/usage?include=counts&repos=${encodeURIComponent(repoKey)}`,
+    { signal },
+  )
+  return Array.isArray(rows) ? (rows.find((r) => r.repo === repoKey) ?? null) : null
+}
+
+/**
+ * 内容面绝对 URL（File URL 行的呈现与复制值——FR-144.2/.3）：origin +
+ * `/binflow/<repo>/<path>`，folder 保留尾斜杠（与「直接下载」钮同一构造，
+ * 运行时派生、无绝对路径假设；FileInfo.downloadUri 是 api/storage 形态，
+ * 非 Artifactory 语义的下载 URL——不用）。
+ */
+export function contentFileURL(repoKey: string, ref: string): string {
+  const trailing = ref.endsWith('/')
+  const enc = ref
+    .split('/')
+    .filter((s) => s !== '')
+    .map((s) => encodeURIComponent(s))
+    .join('/')
+  return `${window.location.origin}${CONTENT_ROOT}/${encodeURIComponent(repoKey)}${enc ? `/${enc}` : ''}${trailing ? '/' : ''}`
+}
+
 // ---- 内容面 ----
 
 function contentURL(repoKey: string, path: string): string {

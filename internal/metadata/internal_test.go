@@ -375,6 +375,13 @@ func TestDockerUpgradeFromM1Database(t *testing.T) {
 		// 017 (T-349): same ALTER family — the tokens' narrow-scope column
 		// leaves with its ledger row.
 		`ALTER TABLE tokens DROP COLUMN deploy_scope`,
+		// 020 (T-438): the nodes counting columns — same plain-ALTER family,
+		// they leave with their ledger row or the re-application dies on the
+		// duplicate.
+		`ALTER TABLE nodes DROP COLUMN download_count`,
+		`ALTER TABLE nodes DROP COLUMN last_downloaded_at`,
+		`ALTER TABLE nodes DROP COLUMN last_downloaded_by`,
+		`ALTER TABLE nodes DROP COLUMN remote_download_count`,
 		`DELETE FROM schema_migrations WHERE version > 1`,
 	} {
 		if _, err := db2.ExecContext(ctx, stmt); err != nil {

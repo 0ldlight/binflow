@@ -1,0 +1,63 @@
+# T-443 Test 三臂 curl 实测（scratch 127.0.0.1:18083，2026-09-03）
+
+## 臂① 正确凭据/可达（自指 /healthz，allowPrivateUpstream=true）
+{
+  "ok": true,
+  "status_code": 200,
+  "message": "Remote repository 't443-ok' url 'http://127.0.0.1:18083/healthz' tested successfully"
+}
+HTTP 200
+
+## 臂② 凭据被拒（上游 401 = 管理面匿名 401）
+{
+  "ok": false,
+  "status_code": 401,
+  "message": "Connection failed: Remote repository URL returned error 401: {"
+}
+HTTP 400
+
+## 臂③ 不可达（127.0.0.1:1 连接拒绝——status_code 0）
+{
+  "ok": false,
+  "status_code": 0,
+  "message": "Error testing remote repository 't443-dead': GET http://127.0.0.1:1/x: connection failed"
+}
+HTTP 400
+
+## 草稿臂（body url override → 匿名探测死端口）
+{
+  "ok": false,
+  "status_code": 0,
+  "message": "Error testing remote repository 't443-ok': GET http://127.0.0.1:1/y: connection failed"
+}
+HTTP 400
+
+## 非 remote 仓面级 400（errors[] 信封——FE 走 form-error 姿势）
+{
+  "errors": [
+    {
+      "status": 400,
+      "message": "repository 't443-local' is a local repository; only remote repositories have an upstream to test"
+    }
+  ]
+}
+
+HTTP 400
+
+## 零副作用（探测后配置原样）
+{
+  "key": "t443-ok",
+  "rclass": "remote",
+  "packageType": "generic",
+  "description": "",
+  "url": "http://127.0.0.1:18083/t443-ok",
+  "configuration": {
+    "allowPrivateUpstream": true,
+    "assumedOfflinePeriodSecs": 300,
+    "contentSynchronisation": {
+      "enabled": false,
+      "propertiesEnabled": false,
+      "sourceOrigin": false,
+      "statisticsEnabled": false
+    },
+    "enableTo

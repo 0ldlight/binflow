@@ -182,6 +182,15 @@ func (e *Engine) Run(ctx context.Context, p *repo.Principal, query string) (*Res
 	if err != nil {
 		return nil, err // *QueryError — already the final copy
 	}
+	return e.runAST(ctx, p, ast)
+}
+
+// runAST is the shared execution segment behind Run and RunUsage: the
+// non-blocking gate, the deadline and the bounded segment. Both entrances
+// are the SAME query plane — one concurrency ceiling, one timeout, one row
+// cap (K63 zero-exemption posture: a fixed-template caller buys no relief
+// a hand-written query does not get).
+func (e *Engine) runAST(ctx context.Context, p *repo.Principal, ast *Query) (*Result, error) {
 	if !e.gate.tryAcquire() {
 		return nil, ErrResourceBusy
 	}
@@ -206,6 +215,98 @@ func (e *Engine) Run(ctx context.Context, p *repo.Principal, query string) (*Res
 	}
 	res.Elapsed = e.nowFn().Sub(start)
 	return res, nil
+}
+
+// UsageQuery is the fixed template of GET /api/search/usage (aql.md
+// §14.2): artifacts whose last download predates NotUsedSince (never
+// downloaded included) AND whose creation predates CreatedBefore. The
+// endpoint validates and converts the wire parameters; zero values here
+// mean "absent" (CreatedBefore falling back to NotUsedSince per the
+// official rule, Repos leaving the scope un narrowed beyond the ACL).
+type UsageQuery struct {
+	NotUsedSince  int64    // epoch milliseconds
+	CreatedBefore int64    // epoch milliseconds; 0 → NotUsedSince
+	Repos         []string // optional repository narrowing (CSV on the wire)
+}
+
+// RunUsage executes the usage endpoint's fixed statistics-domain template
+// through the very same engine path a hand-written AQL query takes — the
+// spec's own "usage REST = statistics domain, one source" shape (aql.md
+// §14.1: the endpoint's hit set is behaviorally the template
+// (downloaded < T OR null) AND (remote_downloaded < T OR null) AND
+// created < T'). The counting columns T-438 landed are the single data
+// source; the remote_* arm folds to a constant today and swaps in one
+// place should a smart-remote source ever exist.
+func (e *Engine) RunUsage(ctx context.Context, p *repo.Principal, uq UsageQuery) (*Result, error) {
+	return e.runAST(ctx, p, usageTemplate(uq))
+}
+
+// usageTemplate builds the endpoint's AST. The arms land in template
+// order: the downloaded disjunction, the remote-downloaded disjunction
+// (constant-folded away by the planner — kept literal for parity with the
+// spec's recorded internal form), the created bound, then the optional
+// repository narrowing. The projection carries the identity triple (repo,
+// path, name — the uri's raw material) plus the two counting members the
+// five-field row renders; the sort is lastDownloaded ascending (the
+// spec's recorded order key, §14.2/V-i).
+func usageTemplate(uq UsageQuery) *Query {
+	notUsed := time.UnixMilli(uq.NotUsedSince).UTC()
+	createdBefore := notUsed
+	if uq.CreatedBefore != 0 {
+		createdBefore = time.UnixMilli(uq.CreatedBefore).UTC()
+	}
+	downloadedRef := statRef(FieldStatDownloaded)
+	remoteRef := statRef(FieldStatRemoteDownloaded)
+	children := []Criteria{
+		&Or{Children: []Criteria{
+			&Compare{Field: downloadedRef, Op: OpLt,
+				Value: Value{Kind: LitString, Str: epochMillisLiteral(notUsed)}},
+			&Compare{Field: downloadedRef, Op: OpEq, Value: Value{Kind: LitNull}},
+		}},
+		&Or{Children: []Criteria{
+			&Compare{Field: remoteRef, Op: OpLt,
+				Value: Value{Kind: LitString, Str: epochMillisLiteral(notUsed)}},
+			&Compare{Field: remoteRef, Op: OpEq, Value: Value{Kind: LitNull}},
+		}},
+		&Compare{Field: FieldRef{ID: FieldCreated, Name: "created", Domain: DomainItem},
+			Op: OpLt, Value: Value{Kind: LitString, Str: epochMillisLiteral(createdBefore)}},
+	}
+	if len(uq.Repos) > 0 {
+		arms := make([]Criteria, 0, len(uq.Repos))
+		for _, key := range uq.Repos {
+			arms = append(arms, &Compare{
+				Field: FieldRef{ID: FieldRepo, Name: "repo", Domain: DomainItem},
+				Op:    OpEq, Value: Value{Kind: LitString, Str: key},
+			})
+		}
+		children = append(children, &Or{Children: arms})
+	}
+	return &Query{
+		Domain:   "items",
+		Criteria: &And{Children: children},
+		Include: []IncludeField{
+			{Raw: "repo", Field: FieldRef{ID: FieldRepo, Name: "repo", Domain: DomainItem}},
+			{Raw: "path", Field: FieldRef{ID: FieldPath, Name: "path", Domain: DomainItem}},
+			{Raw: "name", Field: FieldRef{ID: FieldName, Name: "name", Domain: DomainItem}},
+			{Raw: "stat.downloaded", Field: statRef(FieldStatDownloaded)},
+			{Raw: "stat.downloads", Field: statRef(FieldStatDownloads)},
+		},
+		Sort: []SortKey{{Field: statRef(FieldStatDownloaded), Asc: true}},
+	}
+}
+
+// statRef resolves a statistics FieldID through the registry (the single
+// spelling source for hand-built ASTs).
+func statRef(id FieldID) FieldRef {
+	f, _ := lookupField(string(id))
+	return FieldRef{ID: f.ID, Name: f.Name, Domain: f.Domain}
+}
+
+// epochMillisLiteral renders an epoch-milliseconds instant as the
+// RFC3339 UTC form the planner's date kernel normalizes — millisecond
+// precision kept so the strict-< boundary is exact to the wire parameter.
+func epochMillisLiteral(t time.Time) string {
+	return t.Format("2006-01-02T15:04:05.000Z07:00")
 }
 
 // execute is the deadline-bounded segment. Every store touch happens here.
@@ -325,15 +426,22 @@ func (e *Engine) recheckRows(ctx context.Context, p *repo.Principal, scope []rep
 }
 
 // obfuscateRows applies the non-admin identity masking (aql.md §6 /
-// ADR-0043 Errata ⑧): created_by becomes the literal "unknown" for every
-// caller but full admins. The rows are engine-owned copies of the result
-// set (never shared store state), so the decoration is safe in place.
+// ADR-0043 Errata ⑧; §14.1 extends it to the statistics domain's
+// downloaded_by): created_by becomes the literal "unknown" for every
+// caller but full admins, and downloaded_by joins it — an EMPTY
+// downloaded_by (never downloaded) stays empty: it renders as the null
+// arm on the wire, and "unknown" is an identity, not a null. The rows are
+// engine-owned copies of the result set (never shared store state), so
+// the decoration is safe in place.
 func obfuscateRows(p *repo.Principal, rows []*metadata.NodeQueryRow) {
 	if p != nil && p.Admin {
 		return
 	}
 	for _, r := range rows {
 		r.CreatedBy = obfuscatedUser
+		if r.LastDownloadedBy != "" {
+			r.LastDownloadedBy = obfuscatedUser
+		}
 	}
 }
 

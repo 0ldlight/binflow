@@ -42,7 +42,7 @@ import (
 // inventory table with it.
 const (
 	t215ManageGates    = 64 // +3: T-345's trash family (empty/restore/clean, CapSystemWrite — the gc/cleanup destructive-management posture); +1: T-368's GET /api/v1/system/settings (CapSystemRead — the FR-118 knob echo, readonly_admin may see); +1: T-405's PUT /api/v1/replications/{id} (CapSystemWrite — the replication config family's create/delete posture); +1: T-420's POST /api/v1/replications/{id}/run (CapSystemWrite — the Replicate Now trigger, FR-138.1/replication.md §9.2-A; the family's write posture); +5: T-422's global-block family and Test faces (FR-138.2/138.3, replication.md §9.1-B/§9.3) — GET /api/v1/system/replications on CapSystemRead (the official camelCase pair, readonly_admin may see the brake state) + POST …/block + POST …/unblock on CapSystemWrite (the emergency brake flips) + POST /api/v1/replications/{id}/test and the id-less POST …/test draft face on CapSystemWrite (the connection probe, the family's write posture)
-	t215RepoManageBits = 8  // +2: T-309's helm reindex family; +1: T-311's yum reindex; +1: T-310's deb reindex (CanManageRepo, ADR-0034)
+	t215RepoManageBits = 9  // +2: T-309's helm reindex family; +1: T-311's yum reindex; +1: T-310's deb reindex (CanManageRepo, ADR-0034); +1: T-442's POST /api/repositories/{key}/test (CanManageRepo write — the remote form's upstream probe, FR-143.5; the config-edit arms' posture: a draft body may carry credentials, so a read-only manager cannot aim the stored credential at upstreams)
 	// t215ManageGates +10 (M11 T-319, ADR-0038): the instance GPG keypair
 	// plane — /api/security/keypair {POST,PUT,GET,verify POST,public GET,
 	// {pairName} GET+DELETE}, /api/v1/admin/security/keypair/generate POST,

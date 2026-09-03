@@ -12,16 +12,31 @@ func TestRegistryInvariants(t *testing.T) {
 			t.Errorf("default output field %q not registered", name)
 		}
 	}
-	// The statistics family is registered-but-unsupported, one entry per
-	// aql.md §2.2 field, so rejections can name them.
+	// The statistics family (open since T-440, aql.md §14.1): one entry
+	// per §2.2 field — the column-backed trio and the constant-zero stubs
+	// are usable citizens of the statistics domain, the two internal ids
+	// keep the honest-unsupported refusal.
 	for _, name := range statFields {
 		f, ok := lookupField(name)
 		if !ok {
 			t.Errorf("stat field %q not registered", name)
 			continue
 		}
-		if f.Unsupported == "" || f.Domain != DomainStatistics {
-			t.Errorf("stat field %q = %+v, want registered-unsupported statistics", name, f)
+		if f.Domain != DomainStatistics {
+			t.Errorf("stat field %q = %+v, want statistics domain", name, f)
+		}
+		internal := name == "stat.id" || name == "stat.remote_id"
+		if internal != (f.Unsupported != "") {
+			t.Errorf("stat field %q unsupported = %q, want the internal-ids-only refusal", name, f.Unsupported)
+		}
+		if internal {
+			continue
+		}
+		if !f.Projectable || f.Unsupported != "" {
+			t.Errorf("stat field %q = %+v, want projectable and supported", name, f)
+		}
+		if f.Sortable != !isStatStubField(f.ID) {
+			t.Errorf("stat field %q sortable = %t, want true only for column-backed members", name, f.Sortable)
 		}
 	}
 	for name, f := range fieldRegistry {

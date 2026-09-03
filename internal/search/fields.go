@@ -59,6 +59,19 @@ const (
 	FieldRepoPathChecksum FieldID = "repo_path_checksum"
 	FieldPropertyKey      FieldID = "property.key"
 	FieldPropertyValue    FieldID = "property.value"
+	// The statistics family (aql.md §14.1, M16 T-440): three column-backed
+	// fields over the T-438 counting columns, five constant-zero-value
+	// stubs for the smart-remote remote_* family BinFlow has no source for
+	// (恒 null/0 — registered per the spec's mapping ruling, data never
+	// fabricated), and the two internal ids stay unsupported.
+	FieldStatDownloaded         FieldID = "stat.downloaded"
+	FieldStatDownloads          FieldID = "stat.downloads"
+	FieldStatDownloadedBy       FieldID = "stat.downloaded_by"
+	FieldStatRemoteDownloaded   FieldID = "stat.remote_downloaded"
+	FieldStatRemoteDownloads    FieldID = "stat.remote_downloads"
+	FieldStatRemoteDownloadedBy FieldID = "stat.remote_downloaded_by"
+	FieldStatRemoteOrigin       FieldID = "stat.remote_origin"
+	FieldStatRemotePath         FieldID = "stat.remote_path"
 )
 
 // FieldKind is the value kind of a field, mirroring the official field table
@@ -142,14 +155,38 @@ var defaultItemOutput = []string{
 	"modified", "modified_by", "updated",
 }
 
-// statFields registers the statistics-domain field family (aql.md §2.2):
-// known to the language, gated behind per-node download counters BinFlow does
-// not store yet (M16) — registered so rejections name the field.
+// statFields is the statistics-domain field family (aql.md §2.2/§14.1):
+// the three column-backed fields, the five smart-remote stubs and the two
+// internal ids. The registry carries one entry each; statStubFields marks
+// the constant-zero subset the planner folds (BinFlow has no smart-remote
+// topology — the spec's mapping ruling, aql.md §14.1: 勿造数据).
 var statFields = []string{
 	"stat.downloaded", "stat.downloads", "stat.downloaded_by",
 	"stat.remote_downloaded", "stat.remote_downloads",
 	"stat.remote_downloaded_by", "stat.remote_origin", "stat.remote_path",
 	"stat.id", "stat.remote_id",
+}
+
+// statStubFields are the constant zero-value members: queryable and
+// projectable against their fixed value (0 for the counter, null for the
+// rest), sortable never — a constant has no order to give.
+var statStubFields = []FieldID{
+	FieldStatRemoteDownloaded,
+	FieldStatRemoteDownloads,
+	FieldStatRemoteDownloadedBy,
+	FieldStatRemoteOrigin,
+	FieldStatRemotePath,
+}
+
+// isStatStubField reports whether id is one of the constant-zero remote_*
+// statistics fields.
+func isStatStubField(id FieldID) bool {
+	for _, f := range statStubFields {
+		if f == id {
+			return true
+		}
+	}
+	return false
 }
 
 // unsupportedDomains carries the query-entry domains Artifactory accepts that
@@ -165,9 +202,11 @@ var unsupportedDomains = map[string]string{
 	"artifacts":         "build-info domains are not implemented",
 	"releases":          "release-bundle domains are not implemented",
 	"release_artifacts": "release-bundle domains are not implemented",
-	"statistics":        "statistics data is not stored yet",
-	"properties":        `query properties through items.find with {"@key": value} criteria`,
-	"item.infos":        "internal domain, not exposed",
+	// The statistics ENTRY domain stays closed (the M15/M16 query entry is
+	// items); the field family itself is open through stat.* paths.
+	"statistics": `query statistics through items.find with {"stat.<field>": value} criteria`,
+	"properties": `query properties through items.find with {"@key": value} criteria`,
+	"item.infos": "internal domain, not exposed",
 }
 
 // notSupportedOps are operator spellings that parse like operators but are
@@ -290,23 +329,49 @@ var fieldRegistry = map[string]Field{
 }
 
 func init() {
-	// Statistics family: one registered-but-unsupported entry per field so
-	// rejections carry the field name (AC2: "statistics 字段" must be an
-	// honest, named rejection).
-	for _, name := range statFields {
-		fieldRegistry[name] = Field{
-			ID: FieldID(name), Name: name, Domain: DomainStatistics, Kind: KindDate,
-			Unsupported: "statistics data is not stored yet",
-		}
+	// Statistics family (M16 T-440, aql.md §14.1): the three column-backed
+	// fields are full registry citizens — criteria, include, sort, the null
+	// literal — over the T-438 counting columns (the single counting
+	// channel). The remote_* stubs are registered against their constant
+	// zero values so parity queries (the usage template's remote arm, §14.2)
+	// parse and fold instead of being rejected; the two internal ids keep
+	// the honest unsupported refusal.
+	fieldRegistry["stat.downloaded"] = Field{
+		ID: FieldStatDownloaded, Name: "stat.downloaded", Domain: DomainStatistics,
+		Kind: KindDate, Ops: dateOps, Sortable: true, Projectable: true,
 	}
-	// stat.downloads/downloads counters are ints, not dates — keep the kinds
-	// honest for value validation even on the unsupported path.
 	fieldRegistry["stat.downloads"] = Field{
-		ID: FieldID("stat.downloads"), Name: "stat.downloads", Domain: DomainStatistics, Kind: KindInt,
-		Unsupported: "statistics data is not stored yet",
+		ID: FieldStatDownloads, Name: "stat.downloads", Domain: DomainStatistics,
+		Kind: KindInt, Ops: cmpOps, Sortable: true, Projectable: true,
+	}
+	fieldRegistry["stat.downloaded_by"] = Field{
+		ID: FieldStatDownloadedBy, Name: "stat.downloaded_by", Domain: DomainStatistics,
+		Kind: KindString, Ops: stringOps, Sortable: true, Projectable: true,
+	}
+	fieldRegistry["stat.remote_downloaded"] = Field{
+		ID: FieldStatRemoteDownloaded, Name: "stat.remote_downloaded", Domain: DomainStatistics,
+		Kind: KindDate, Ops: dateOps, Projectable: true,
 	}
 	fieldRegistry["stat.remote_downloads"] = Field{
-		ID: FieldID("stat.remote_downloads"), Name: "stat.remote_downloads", Domain: DomainStatistics, Kind: KindInt,
-		Unsupported: "statistics data is not stored yet",
+		ID: FieldStatRemoteDownloads, Name: "stat.remote_downloads", Domain: DomainStatistics,
+		Kind: KindInt, Ops: cmpOps, Projectable: true,
+	}
+	fieldRegistry["stat.remote_downloaded_by"] = Field{
+		ID: FieldStatRemoteDownloadedBy, Name: "stat.remote_downloaded_by", Domain: DomainStatistics,
+		Kind: KindString, Ops: stringOps, Projectable: true,
+	}
+	fieldRegistry["stat.remote_origin"] = Field{
+		ID: FieldStatRemoteOrigin, Name: "stat.remote_origin", Domain: DomainStatistics,
+		Kind: KindString, Ops: stringOps, Projectable: true,
+	}
+	fieldRegistry["stat.remote_path"] = Field{
+		ID: FieldStatRemotePath, Name: "stat.remote_path", Domain: DomainStatistics,
+		Kind: KindString, Ops: stringOps, Projectable: true,
+	}
+	for _, name := range []string{"stat.id", "stat.remote_id"} {
+		fieldRegistry[name] = Field{
+			ID: FieldID(name), Name: name, Domain: DomainStatistics,
+			Kind: KindLong, Unsupported: "internal field, not exposed",
+		}
 	}
 }

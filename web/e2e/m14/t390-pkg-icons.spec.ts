@@ -9,10 +9,11 @@ import { m8Client, seedRepos } from '../m8/support/seed'
 // docs/design/brand/package-icons，UX-1/K56 生产件；组件
 // src/components/PkgIcon.tsx 单点引用）。断言面（AC2 逐消费点）：
 //
-//   ① pkg-grid：可选磁贴 = brand 官方标；门控磁贴三件套 = mono +
-//      opacity 0.4 + pkg-tier-* 徽章（README §6.3：品牌色置灰会脏色）；
+//   ① pkg-grid：可选磁贴 = brand 官方标；T-441（M16 FR-143.3）起八门控型
+//      磁贴开禁——原「门控三件套」（mono + opacity 0.4 + 禁用）退役，全
+//      磁贴恒 brand 官方标，档位可见性由 pkg-tier-* 徽章承载（D5 不变）；
 //      零 <text>/<title>（K56 字标 path 化 + 组件剥 title）；deb↔debian
-//      资产映射；T-383 的 440px 档不因图标回归。
+//      资产映射；T-441 的 924px 居中档不因图标回归。
 //   ② smu-grid 药丸：brand 官方标；五枚几何字符图标退役（innerText 无）。
 //   ③ 类型列（仓库列表 Chip + 制品树 .ico）：mono currentColor——computed
 //      stroke 与宿主 color 同值（随文字色，双主题同一套）。
@@ -53,12 +54,12 @@ async function expectStrokeFollowsColor(page: Page, iconSel: string): Promise<vo
   expect(verdict.ok, `mono currentColor wiring at ${iconSel} (${verdict.why}${verdict.detail ? `; host color ${verdict.detail}` : ''})`).toBe(true)
 }
 
-// ---- 1. pkg-grid：brand/门控三件套 + 零 text + deb 映射 + 440 档 -------------
+// ---- 1. pkg-grid：全磁贴 brand（T-441 开禁）+ 零 text + deb 映射 + 924 档 ----
 
 const CORE_PKG = ['generic', 'docker', 'maven', 'npm', 'pypi'] as const
 const PRO_PKG = ['go', 'nuget', 'cargo', 'conan', 'helm', 'helmoci', 'rpm', 'debian'] as const
 
-test('admin: pkg-grid tiles — core brand marks, gated mono triple (mono + 0.4 + tier badge), zero <text>, 440px tier holds', async ({
+test('admin: pkg-grid tiles — all brand marks (gated opened, T-441), tier badges stay, zero <text>, 924px tier holds', async ({
   page,
 }) => {
   await loginAs(page, 'admin')
@@ -81,16 +82,16 @@ test('admin: pkg-grid tiles — core brand marks, gated mono triple (mono + 0.4 
     'rgb(203, 56, 55)',
   )
 
-  // 门控八型三件套：mono + 磁贴 opacity 0.4 + pro 徽章（disabled）
+  // 门控八型开禁（T-441 翻转）：磁贴 enabled + 恒 brand（mono/opacity 0.4/
+  // disabled 三件套退役）+ pro 徽章保留（D5 档位可见性——闭集 wire 值）
   for (const pt of PRO_PKG) {
     const tile = page.locator(`[data-testid="pkg-grid-item-${pt}"]`)
-    await expect(tile).toBeDisabled()
-    await expect(tile).toHaveCSS('opacity', '0.4')
-    await expect(tile.locator('.pkg-svg')).toHaveAttribute('data-variant', 'mono')
+    await expect(tile).toBeEnabled()
+    await expect(tile).toHaveCSS('opacity', '1')
+    await expect(tile.locator('.pkg-svg')).toHaveCount(1)
+    await expect(tile.locator('.pkg-svg')).toHaveAttribute('data-variant', 'brand')
     await expect(tile.locator(`[data-testid="pkg-tier-${pt}"]`)).toHaveText('pro')
   }
-  // mono currentColor：门控磁贴的形件色跟随宿主文字色（非品牌色、非死色）
-  await expectStrokeFollowsColor(page, '[data-testid="pkg-grid-item-go"] .pkg-svg')
 
   // deb↔debian 资产映射（README §1 例外：目录名 deb，wire 值 debian）
   await expect(page.locator('[data-testid="pkg-grid-item-debian"] .pkg-svg')).toHaveAttribute(
@@ -102,12 +103,12 @@ test('admin: pkg-grid tiles — core brand marks, gated mono triple (mono + 0.4 
   await expect(grid.locator('svg text')).toHaveCount(0)
   await expect(grid.locator('svg title')).toHaveCount(0)
 
-  // T-383 440px 档联动复证：磁贴内嵌图标不得改动 Dialog 宽度档
+  // T-441 924px 居中档联动复证：磁贴内嵌图标不得改动 Dialog 宽度档
   await expect(grid).toHaveCSS('opacity', '1')
   const box = await grid.boundingBox()
   expect(box, 'pkg-grid paper has a box').toBeTruthy()
   const vw = page.viewportSize()?.width ?? 1280
-  expect(box!.width).toBeCloseTo(Math.min(440, vw - 48), 0)
+  expect(box!.width).toBeCloseTo(Math.min(924, vw - 48), 0)
 })
 
 // ---- 2. smu-grid 药丸：brand 官方标，几何字符图标退役 --------------------------
@@ -204,7 +205,8 @@ test('addons matrix: package-type & trashcan/webhook rows carry brand marks; fea
     page.locator('[data-testid="addons-row-trashcan"] .pkg-svg svg path').first(),
   ).toHaveCSS('stroke', 'rgb(116, 130, 148)')
 
-  // 暗色建仓网格：npm 红方提亮档 #d35857（rgb(211, 88, 87)）；门控 mono 不受提亮影响
+  // 暗色建仓网格：npm 红方提亮档 #d35857（rgb(211, 88, 87)）；T-441 起门控
+  // 磁贴亦 brand（提亮档同规则覆盖，mono 例外腿已随三件套退役）
   await page.goto('/binflow/ui/admin/repositories/new')
   await expect(page.locator('[data-testid="pkg-grid"]')).toBeVisible()
   await expect(page.locator('[data-testid="pkg-grid-item-npm"] .pkg-svg svg rect')).toHaveCSS(

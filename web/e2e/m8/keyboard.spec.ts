@@ -187,17 +187,18 @@ test('keyboard: tablist arrow keys switch repo detail tabs and node detail tabs'
   await page.keyboard.press('ArrowLeft')
   await expect(page.locator('[data-testid="repo-tab-config"]')).toHaveAttribute('aria-selected', 'true')
 
-  // 树详情面板 node-tabs：常规 → 属性（T-291 插入的第二 Tab）→ 有效权限
-  // （admin 渲染）——T-236 的 node-perms 入 Tab 同款「+1 步」断言同步
+  // 树详情面板 node-tabs：常规 → 有效权限 → 属性（T-445 / FR-144.1 页签序
+  // ——权限在属性前，7.161.20 活体 A2-7 + 7.84 reverse §3.2 逐级一致；
+  // T-291 的属性 Tab 与 T-236 的权限 Tab 渲染序互换，锚不变）
   await page.goto(`/binflow/ui/artifacts/${key}/docs`)
   await expect(page.locator('[data-testid="node-detail"]')).toBeVisible()
   await page.focus('[data-testid="node-tab-general"]')
   await page.keyboard.press('ArrowRight')
-  await expect(page.locator('[data-testid="node-tab-props"]')).toHaveAttribute('aria-selected', 'true')
-  await expect(page.locator('[data-testid="node-props"]')).toBeVisible()
-  await page.keyboard.press('ArrowRight')
   await expect(page.locator('[data-testid="node-tab-perms"]')).toHaveAttribute('aria-selected', 'true')
   await expect(page.locator('[data-testid="node-perms"]')).toBeVisible()
+  await page.keyboard.press('ArrowRight')
+  await expect(page.locator('[data-testid="node-tab-props"]')).toHaveAttribute('aria-selected', 'true')
+  await expect(page.locator('[data-testid="node-props"]')).toBeVisible()
 })
 
 // ---- 5. 对话框焦点陷阱 + Esc + 禁用钮不破口 + quick-set-me-up 接线 ------------

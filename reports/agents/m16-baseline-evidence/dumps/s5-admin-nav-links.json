@@ -1,0 +1,74 @@
+[
+ {
+  "href": "/ui/",
+  "text": ""
+ },
+ {
+  "href": "/ui/admin/projects/list",
+  "text": "All Projects Overview"
+ },
+ {
+  "href": "/ui/admin/stages",
+  "text": "Stages & Lifecycle"
+ },
+ {
+  "href": "/ui/admin/repositories",
+  "text": "Repositories"
+ },
+ {
+  "href": "/ui/admin/management/users",
+  "text": "User Management"
+ },
+ {
+  "href": "/ui/admin/management/users",
+  "text": "Users"
+ },
+ {
+  "href": "/ui/admin/management/groups",
+  "text": "Groups"
+ },
+ {
+  "href": "/ui/admin/management/global_roles",
+  "text": "Global Roles"
+ },
+ {
+  "href": "/ui/admin/management/permissions",
+  "text": "Permissions"
+ },
+ {
+  "href": "/ui/admin/configuration/security/access_tokens",
+  "text": "Access Tokens"
+ },
+ {
+  "href": "/ui/admin/proxies/configuration",
+  "text": "Proxies"
+ },
+ {
+  "href": "/ui/admin/configuration/security/ldap",
+  "text": "Authentication"
+ },
+ {
+  "href": "/ui/admin/configuration/security/general",
+  "text": "Security"
+ },
+ {
+  "href": "/ui/admin/configuration/general",
+  "text": "General Management"
+ },
+ {
+  "href": "/ui/admin/monitoring/storage-summary",
+  "text": "Monitoring"
+ },
+ {
+  "href": "/ui/admin/topology-teaser",
+  "text": "Topology"
+ },
+ {
+  "href": "/ui/admin/support-zone",
+  "text": "Support Zone"
+ },
+ {
+  "href": "/ui/admin/artifactory/configuration/artifactory_general",
+  "text": "Artifactory Settings"
+ }
+]

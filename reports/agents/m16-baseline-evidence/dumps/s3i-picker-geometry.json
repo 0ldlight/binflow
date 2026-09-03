@@ -1,0 +1,30 @@
+[
+ {
+  "cls": "el-dialog__wrapper",
+  "w": 1680,
+  "h": 1000,
+  "nTiles": 0,
+  "sample": []
+ },
+ {
+  "cls": "el-dialog el-dialog--center",
+  "w": 924,
+  "h": 760,
+  "nTiles": 0,
+  "sample": []
+ },
+ {
+  "cls": "el-dialog__header",
+  "w": 924,
+  "h": 66,
+  "nTiles": 0,
+  "sample": []
+ },
+ {
+  "cls": "",
+  "w": 876,
+  "h": 42,
+  "nTiles": 0,
+  "sample": []
+ }
+]

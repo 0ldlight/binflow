@@ -763,6 +763,16 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 				func(w http.ResponseWriter, r *http.Request) {
 					s.handleRepoDelete(w, r, key)
 				})
+		case tail == "test" && r.Method == http.MethodPost:
+			// T-442 (FR-143.5): the remote form's Test connectivity probe.
+			// The gate matches the configuration-write arms — the probe is
+			// part of the editing workflow and may carry draft credentials,
+			// so a read-only manager cannot aim the stored credential at
+			// arbitrary hosts through it.
+			s.enforce(w, r, routeAuth{required: true, repoManage: &repoManageGate{repo: key, write: true}},
+				func(w http.ResponseWriter, r *http.Request) {
+					s.handleRepositoryTest(w, r, key)
+				})
 		default:
 			notImplemented(w, "/binflow/api/"+rest)
 		}
@@ -783,6 +793,19 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		if _, ok := r.URL.Query()["list"]; ok && r.Method == http.MethodGet {
 			s.enforce(w, r, routeAuth{}, func(w http.ResponseWriter, r *http.Request) {
 				s.handleStorageList(w, r, repoKey, rel)
+			})
+			return
+		}
+		if _, ok := r.URL.Query()["stats"]; ok && r.Method == http.MethodGet {
+			// M16 T-438 (FR-146.2 / ADR-0044 K69): the per-node download
+			// statistics (StatsInfo). The route keeps the item-info read
+			// gate — the counts are content-plane facts, anonymous follows
+			// the flag; the identity arm (lastDownloadedBy) is a FIELD-level
+			// gate inside the handler on CapSystemRead, the audit log read's
+			// capability (K69 decision 5's "non-tier callers get the field
+			// omitted", which is why this route must NOT 403 them here).
+			s.enforce(w, r, routeAuth{}, func(w http.ResponseWriter, r *http.Request) {
+				s.handleStorageStats(w, r, repoKey, rel)
 			})
 			return
 		}
@@ -908,13 +931,15 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 			s.handleTrashClean(w, r, rest)
 		})
 
-	// ---- /api/search (SR-01/SR-02, T-92 + AQL M15 T-415 + T-417 trio) ----
+	// ---- /api/search (SR-01/SR-02, T-92 + AQL M15 T-415 + T-417 trio + M16 usage T-440) ----
 	// The legacy pair opened the M1 E-26 search domain (PRD M4: artifact +
 	// checksum only). The M15 axis completes the first batch: AQL's POST
 	// entrance (T-415) plus the old-search trio gavc/prop/pattern (T-417,
 	// FR-134 — the SR-03/SR-04 closure assertions flipped in that ticket);
-	// every remaining family member — users/artifactory/badge, the
-	// misspelled plural "props" (the official member is prop), and any
+	// M16 adds the usage member (T-440, FR-148.1) — the 404-empty-set
+	// family's first door, riding the AQL engine's fixed statistics-domain
+	// template. Every remaining family member — users/artifactory/badge,
+	// the misspelled plural "props" (the official member is prop), and any
 	// foreign verb on an open path — keeps the E-26 404. The gates mirror
 	// /api/storage's read posture: the use case owns the anonymous-channel
 	// decision, so a closed instance answers the spec's 403 rather than a
@@ -925,6 +950,8 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	// and the anonymous gate lives INSIDE the handler — AQL is never
 	// anonymous, and its two spec arms (401 closed instance / 403 open
 	// instance, §4 E5/E6) would both be masked by a route-level 401
+	// challenge. Usage (aql.md §14.2) is the same handler-gated shape: a
+	// privileged non-anonymous face whose anonymous arm is the 401
 	// challenge. Foreign verbs on the path keep the E-26 404 like the rest
 	// of the family.
 	case rest == "search/aql" && r.Method == http.MethodPost:
@@ -939,6 +966,8 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		s.enforce(w, r, routeAuth{}, s.handleSearchProp)
 	case rest == "search/pattern" && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{}, s.handleSearchPattern)
+	case rest == "search/usage" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{}, s.handleSearchUsage)
 
 	// ---- /api/security (E-16..E-19) ----
 	case rest == "security/password" && r.Method == http.MethodPut:

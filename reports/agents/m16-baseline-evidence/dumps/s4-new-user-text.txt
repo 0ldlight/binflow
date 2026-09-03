@@ -1,0 +1,67 @@
+Skip to main content
+Platform
+Administration
+A
+All Projects
+All Projects Overview
+Stages & Lifecycle
+Repositories
+User Management
+Users
+Groups
+Global Roles
+Permissions
+Access Tokens
+Proxies
+Authentication
+Security
+General Management
+Monitoring
+Topology
+Support Zone
+Artifactory Settings
+JFrog Platform
+Enterprise Plus trial license 7.161.20 rev 86120900 Licensed to TEST JFrog Ltd.
+© Copyright 2026 JFrog Ltd
+Add new user
+User Settings
+User Name
+Email Address
+Roles
+Platform Administrator
+Manage Resources 
+Platform Auditor 
+Manage Webhook 
+Options
+Can Update Profile
+Disable UI Access
+Disable Internal Password Login 
+Password
+Password
+Retype Password
+Multi-factor Authentication Status
+Reset Google MFA Enrollment
+Related Groups
+AllSelected (1)
+ 
+Group Name
+readers
+User Permissions
+RepositoriesBuildsRelease Bundles
+ 
+Permission Name
+Applied To
+Repositories
+Read
+Deploy/Cache
+Delete
+Annotate
+Manage
+Anything
+readers
+1 | ANY
+Showing 1 - 1 from 1 items
+1
+Cancel
+Reset
+Save

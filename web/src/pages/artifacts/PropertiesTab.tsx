@@ -1,10 +1,10 @@
-import { useState } from 'react'
-import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useMemo, useState } from 'react'
 
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import IconButton from '@mui/material/IconButton'
+import InputAdornment from '@mui/material/InputAdornment'
 import Stack from '@mui/material/Stack'
 import Table from '@mui/material/Table'
 import TableBody from '@mui/material/TableBody'
@@ -15,28 +15,34 @@ import TextField from '@mui/material/TextField'
 import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
 
+import { useConfirm } from '../../components/ConfirmDialog'
 import { useToast } from '../../app/ToastContext'
 import { Skeleton } from '../../components/Skeleton'
 import { ApiError, deleteNodeProperties, errText, getNodeProperties, putNodeProperties } from '../../lib/api'
+import { PROPS_COPY } from './detailCopy'
 import { useAsync } from '../../lib/useAsync'
 
-// 制品详情 · Properties 页签（T-291，M10 FR-89 FE 腿——控制台首个 MUI 面）。
+// 制品详情 · Properties 页签（T-291 M10 首发；T-447 / FR-144.4 解剖翻正）。
 //
-// 交互按 Artifactory Artifact Properties Tab 对齐（BOARD 2026-08-26 指令：
-// 组件层换 MUI，交互逻辑不变）：
-//   - key → 多值集合的表格，值以逗号分隔呈现/编辑（Artifactory 同款形态；
-//     wire 形态 = §15.3.3 的 map<string,string[]>，如实逐值呈现，非拍平）
-//   - 逐属性操作流：行内编辑（键不可改——PUT 按 key 合并，改键 = 删旧键
-//     + 新增行两步，向用户如实呈现）+ 新增行（空行待填）+ 删除（轻交互，
-//     无确认弹窗，与 Artifactory 一致）
-//   - 保存语义可见性：PUT 是「该键值集整体替换、其他键保留」（§11.40 合并
-//     律），与 Artifactory 逐属性 add/remove 效果面一致——页签内常驻说明行
-//   - 校验与服务端同口径（internal/metadata/props.go 闭集）：键
-//     [A-Za-z][A-Za-z0-9_.-]{0,63}；值非空/≤1024B/无控制字节/单键 ≤32 值/
-//     无重复；节点 ≤64 键——非法即时反馈，保存钮禁用
-//   - 权限姿态沿树页先例（W12d）：readonly_admin 预收敛禁用（canWrite=
-//     false）；普通用户保留写入口，服务端 403 行内呈现（opError 信封文案）
-// 四态：loading（Skeleton）/ 空（无属性引导）/ 错误（Alert + 重试）/ 数据。
+// 交互解剖按 Artifactory 7.161.20 活体实证对齐（B-2.9 翻正——T-447 活体
+// 取证：example-repo-local Properties 页签 = 常显 Property name / Property
+// value 输入 + Add Property 钮 + 网格 Search 过滤 + 行选网格）：
+//   - **常显表单**：Property/Value 两输入 + Add 钮常驻（隐藏「+ 新增属性」
+//     旗标表单与逐行 ✎ 编辑行退役——B-2.9 两处偏差形态一并收口）；
+//     同名键 Add = 该键值集整体替换（§11.40 合并律——键锁定的行内编辑
+//     退役后，改值 = 同键重 Add，语义对用户可见〔replaceHint〕）
+//   - **网格搜索**：键/值子串过滤既有属性网格（客户端过滤，清空恢复）
+//   - **行内删除与 E1 统一**（Q2 出口①——收紧不倒退）：删除钮在行内，
+//     但走 ConfirmDialog 危险确认（T-291 期的「轻交互无确认」退役）
+//   - **Property|Property Set 分段 = K68 候裁臂**：不建（Property Set 须
+//     BE 属性集小域扩列另立票；本票不做缺位登记——裁做时再入册）
+//   - wire 形态 = §15.3.3 的 map<string,string[]>（值以逗号分隔呈现，
+//     如实逐值呈现非拍平）；校验与服务端同口径（props.go 闭集），非法
+//     即时反馈、Add 禁用——零坏请求出浏览器
+//   - 权限姿态沿树页先例（W12d）：readonly_admin 预收敛禁用；普通用户
+//     保留写入口，服务端 403 行内呈现（opError 信封文案）
+// 四态：loading（Skeleton）/ 空（无属性引导，常显表单仍在）/ 错误
+// （Alert + 重试）/ 数据。
 
 /** 键闭集（与服务端 ValidatePropKey 同口径） */
 const KEY_RE = /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/
@@ -72,9 +78,6 @@ function parseValues(text: string): { values: string[]; error: string | null } {
   return { values, error: null }
 }
 
-/** 编辑器态：null = 浏览；new = 新增草稿行；edit = 既有键的值集编辑（键锁定） */
-type Editor = { mode: 'new' } | { mode: 'edit'; key: string } | null
-
 export default function PropertiesTab({
   repoKey,
   path,
@@ -86,51 +89,56 @@ export default function PropertiesTab({
   canWrite: boolean
 }) {
   const toast = useToast()
+  const confirm = useConfirm()
   const propsQ = useAsync(() => getNodeProperties(repoKey, path), [repoKey, path])
-  const rows: [string, string[]][] =
-    propsQ.status === 'ok'
-      ? Object.entries(propsQ.data ?? {}).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-      : []
+  const rows: [string, string[]][] = useMemo(
+    () =>
+      propsQ.status === 'ok'
+        ? Object.entries(propsQ.data ?? {}).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        : [],
+    [propsQ.status, propsQ.data],
+  )
 
-  const [editor, setEditor] = useState<Editor>(null)
+  // 常显表单态（键/值输入驻留——Add 成功后清空；不做行内草稿行）
   const [newKey, setNewKey] = useState('')
   const [valuesText, setValuesText] = useState('')
+  const [search, setSearch] = useState('')
   const [opError, setOpError] = useState<{ status: number; message: string } | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const closeEditor = () => {
-    setEditor(null)
-    setNewKey('')
-    setValuesText('')
-  }
-
-  // ---- 即时校验（保存钮禁用的依据） ----
+  // ---- 即时校验（Add 钮禁用的依据） ----
   const trimmedKey = newKey.trim()
+  const valuesAnchorSuffix = trimmedKey || 'new'
+  const keyExists = rows.some(([k]) => k === trimmedKey)
   const keyError =
-    editor?.mode !== 'new'
+    trimmedKey === ''
       ? null
-      : trimmedKey === ''
-        ? null
-        : validateKey(trimmedKey) ?? (rows.some(([k]) => k === trimmedKey) ? `键 ${trimmedKey} 已存在（PUT 会原地替换值集，请直接编辑该行）` : null)
-  const keyCountError =
-    editor?.mode === 'new' && rows.length >= MAX_KEYS ? `节点最多 ${MAX_KEYS} 个属性键` : null
-  const { error: valuesError } = editor ? parseValues(valuesText) : { error: null }
-  const newKeyMissing = editor?.mode === 'new' && trimmedKey === ''
-  const invalid = !!keyError || !!keyCountError || !!valuesError || newKeyMissing
+      : validateKey(trimmedKey)
+  const keyCountError = trimmedKey !== '' && !keyExists && rows.length >= MAX_KEYS ? `节点最多 ${MAX_KEYS} 个属性键` : null
+  const { error: valuesError } = parseValues(valuesText)
+  const keyMissing = trimmedKey === ''
+  const invalid = !!keyError || !!keyCountError || !!valuesError || keyMissing
 
-  // ---- 写操作（逐属性：PUT 单键 merge / DELETE 单键） ----
-  const save = async () => {
-    if (!editor || invalid || busy) return
-    const key = editor.mode === 'new' ? trimmedKey : editor.key
+  // ---- 网格搜索（键/值子串，客户端过滤；大小写不敏感） ----
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (q === '') return rows
+    return rows.filter(([k, vs]) => k.toLowerCase().includes(q) || vs.some((v) => v.toLowerCase().includes(q)))
+  }, [rows, search])
+
+  // ---- 写操作（Add = PUT 单键 merge / 删除 = DELETE 单键，过危险确认） ----
+  const add = async () => {
+    if (invalid || busy) return
     const { values } = parseValues(valuesText)
     setBusy(true)
     setOpError(null)
     try {
-      // PUT 单键 = 该键值集整体替换、他键保留（§11.40）；与 Artifactory
-      // 逐属性 add/remove 的效果面一致
-      await putNodeProperties(repoKey, path, { [key]: values })
-      toast.success(`已保存属性 ${key}`)
-      closeEditor()
+      // PUT 单键 = 同名键值集整体替换、他键保留（§11.40）——常显表单下
+      // 的「改值」即同键重 Add（replaceHint 语义可见）
+      await putNodeProperties(repoKey, path, { [trimmedKey]: values })
+      toast.success(keyExists ? `已替换属性 ${trimmedKey} 的值集` : `已添加属性 ${trimmedKey}`)
+      setNewKey('')
+      setValuesText('')
       propsQ.reload()
     } catch (err) {
       const status = err instanceof ApiError ? err.status : 0
@@ -141,12 +149,24 @@ export default function PropertiesTab({
   }
 
   const remove = async (key: string) => {
+    // E1 统一（Q2 出口①）：行内删除件必须过危险确认——浏览器面（属性行）
+    // 的轻交互直删退役
+    const ok = await confirm({
+      title: PROPS_COPY.deleteTitle,
+      danger: true,
+      confirmLabel: '删除',
+      body: (
+        <p>
+          {PROPS_COPY.deleteLead} <b className="mono" lang="en">{key}</b> {PROPS_COPY.deleteTrail}
+        </p>
+      ),
+    })
+    if (!ok) return
     setBusy(true)
     setOpError(null)
     try {
       await deleteNodeProperties(repoKey, path, [key])
       toast.success(`已删除属性 ${key}`)
-      if (editor?.mode === 'edit' && editor.key === key) closeEditor()
       propsQ.reload()
     } catch (err) {
       const status = err instanceof ApiError ? err.status : 0
@@ -156,17 +176,20 @@ export default function PropertiesTab({
     }
   }
 
-  const onFieldKeys = (e: ReactKeyboardEvent<HTMLInputElement>) => {
+  const onFieldKeys = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // 常显表单无「取消编辑」态——Enter 提交、Esc 只清输入
     if (e.key === 'Enter') {
       e.preventDefault()
-      void save()
+      void add()
     } else if (e.key === 'Escape') {
       e.preventDefault()
-      closeEditor()
+      setNewKey('')
+      setValuesText('')
     }
   }
 
   const readonlyTitle = '只读管理员不可写（服务端 403 兜底）'
+  const searchEmpty = search.trim() !== '' && filtered.length === 0
 
   // ---- 四态 ----
   if (propsQ.status === 'loading') return <div data-testid="node-props"><Skeleton lines={3} /></div>
@@ -190,43 +213,105 @@ export default function PropertiesTab({
 
   return (
     <div data-testid="node-props">
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
-        <Typography variant="body2" color="text.secondary">
-          属性 · {rows.length} 个键
-        </Typography>
+      {/* 常显表单（B-2.9 翻正——7.161.20 活体：Property name / Property
+          value 两输入 + Add 常驻；同名键 = 整体替换其值集） */}
+      <Stack direction="row" alignItems="flex-start" spacing={1} sx={{ mb: 1.5, flexWrap: 'wrap' }}>
+        <TextField
+          size="small"
+          label="Property"
+          sx={{ width: 220 }}
+          placeholder={PROPS_COPY.keyPlaceholder}
+          value={newKey}
+          onChange={(e) => setNewKey(e.target.value)}
+          onKeyDown={onFieldKeys}
+          disabled={!canWrite || busy}
+          error={!!keyError || !!keyCountError}
+          helperText={keyError ?? keyCountError ?? (keyExists ? PROPS_COPY.replaceHint : ' ')}
+          slotProps={{ htmlInput: { 'data-testid': 'node-props-key-input', spellCheck: false, autoComplete: 'off' } }}
+        />
+        <TextField
+          size="small"
+          label="Value"
+          sx={{ width: 280 }}
+          placeholder={PROPS_COPY.valuePlaceholder}
+          value={valuesText}
+          onChange={(e) => setValuesText(e.target.value)}
+          onKeyDown={onFieldKeys}
+          disabled={!canWrite || busy}
+          error={!!valuesError}
+          helperText={valuesError ?? '多值以逗号分隔，如 v1, v2'}
+          slotProps={{
+            htmlInput: {
+              // 后缀 = 已敲键或 new（家族 node-props-values-input-<key>）——
+              // 模板串内不得内联引号（对账器值类正则按引号截断，锚家族会
+              // 从 src 侧隐形——T-447 复刻 T-291 教训，先算后拼）
+              'data-testid': `node-props-values-input-${valuesAnchorSuffix}`,
+              spellCheck: false,
+              autoComplete: 'off',
+            },
+          }}
+        />
         <Tooltip
           title={
             !canWrite
               ? readonlyTitle
               : rows.length >= MAX_KEYS
                 ? `节点最多 ${MAX_KEYS} 个属性键`
-                : '新增一个属性（空行待填）'
+                : PROPS_COPY.replaceHint
           }
         >
           <span>
             <Button
               size="small"
               variant="outlined"
+              sx={{ mt: 0.5 }}
               data-testid="node-props-add"
-              disabled={!canWrite || busy || rows.length >= MAX_KEYS || editor?.mode === 'new'}
-              onClick={() => {
-                setNewKey('')
-                setValuesText('')
-                setOpError(null)
-                setEditor({ mode: 'new' })
-              }}
+              disabled={!canWrite || busy || invalid}
+              onClick={() => void add()}
             >
-              + 新增属性
+              {PROPS_COPY.addLabel}
             </Button>
           </span>
         </Tooltip>
       </Stack>
 
-      {rows.length === 0 && editor?.mode !== 'new' ? (
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 0.5 }}>
+        <Typography variant="body2" color="text.secondary">
+          属性 · {rows.length} 个键{search.trim() !== '' ? `（匹配 ${filtered.length}）` : ''}
+        </Typography>
+        {/* 网格搜索（B-2.9 解剖要素——键/值子串过滤；清空恢复全量） */}
+        <TextField
+          size="small"
+          sx={{ width: 220 }}
+          placeholder={PROPS_COPY.searchPlaceholder}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          slotProps={{
+            htmlInput: { 'data-testid': 'node-props-search', 'aria-label': PROPS_COPY.searchLabel, autoComplete: 'off' },
+            input: {
+              endAdornment: search !== '' && (
+                <InputAdornment position="end">
+                  <IconButton size="small" aria-label="清除属性搜索" onClick={() => setSearch('')}>
+                    <span aria-hidden="true">✕</span>
+                  </IconButton>
+                </InputAdornment>
+              ),
+            },
+          }}
+        />
+      </Stack>
+
+      {rows.length === 0 ? (
         <Box data-testid="node-props-empty" sx={{ py: 3, textAlign: 'center' }}>
           <Typography color="text.secondary">此节点尚无属性</Typography>
           <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-            部署时以矩阵参数（PUT …;key=value）附带，或在此新增；属性用于检索与治理。
+            部署时以矩阵参数（PUT …;key=value）附带，或用上方表单添加；属性用于检索与治理。
+          </Typography>
+        </Box>
+      ) : searchEmpty ? (
+        <Box sx={{ py: 3, textAlign: 'center' }}>
+          <Typography color="text.secondary" data-testid="node-props-search-empty">
+            没有匹配「{search.trim()}」的属性
           </Typography>
         </Box>
       ) : (
@@ -235,171 +320,41 @@ export default function PropertiesTab({
             <TableRow>
               <TableCell sx={{ width: '34%' }}>键</TableCell>
               <TableCell>值（多值以逗号分隔）</TableCell>
-              <TableCell sx={{ width: 96 }} align="right">
+              <TableCell sx={{ width: 72 }} align="right">
                 操作
               </TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {rows.map(([key, values]) =>
-              editor?.mode === 'edit' && editor.key === key ? (
-                <TableRow key={key} data-testid={`node-props-row-${key}`}>
-                  <TableCell sx={MONO} component="th" scope="row">
-                    {key}
-                  </TableCell>
-                  <TableCell>
-                    <TextField
-                      size="small"
-                      fullWidth
-                      autoFocus
-                      margin="none"
-                      placeholder="值（多值逗号分隔，如 v1, v2）"
-                      value={valuesText}
-                      onChange={(e) => setValuesText(e.target.value)}
-                      onKeyDown={onFieldKeys}
-                      error={!!valuesError}
-                      helperText={valuesError ?? 'Enter 保存 · Esc 取消；保存 = 该键值集整体替换，其他属性保留'}
-                      slotProps={{ htmlInput: { 'data-testid': `node-props-values-input-${key}`, spellCheck: false } }}
-                    />
-                  </TableCell>
-                  <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                    <Tooltip title="保存（PUT 单键替换）">
-                      <span>
-                        <IconButton
-                          size="small"
-                          aria-label={`保存属性 ${key}`}
-                          data-testid="node-props-save"
-                          disabled={!!valuesError || valuesText.trim() === '' || busy}
-                          onClick={() => void save()}
-                        >
-                          <span aria-hidden="true">✓</span>
-                        </IconButton>
-                      </span>
-                    </Tooltip>
-                    <Tooltip title="取消编辑">
-                      <IconButton
-                        size="small"
-                        aria-label={`取消编辑属性 ${key}`}
-                        data-testid="node-props-cancel"
-                        disabled={busy}
-                        onClick={closeEditor}
-                      >
-                        <span aria-hidden="true">✕</span>
-                      </IconButton>
-                    </Tooltip>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                <TableRow key={key} data-testid={`node-props-row-${key}`}>
-                  <TableCell sx={MONO} component="th" scope="row">
-                    {key}
-                  </TableCell>
-                  <TableCell sx={MONO}>{values.join(', ')}</TableCell>
-                  <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                    <Tooltip title={!canWrite ? readonlyTitle : '编辑该键的值集（键不可改——改键 = 删除后新增）'}>
-                      <span>
-                        <IconButton
-                          size="small"
-                          aria-label={`编辑属性 ${key}`}
-                          data-testid={`node-props-edit-${key}`}
-                          disabled={!canWrite || busy || editor?.mode === 'new'}
-                          onClick={() => {
-                            setNewKey('')
-                            setValuesText(values.join(', '))
-                            setOpError(null)
-                            setEditor({ mode: 'edit', key })
-                          }}
-                        >
-                          <span aria-hidden="true">✎</span>
-                        </IconButton>
-                      </span>
-                    </Tooltip>
-                    <Tooltip
-                      title={
-                        !canWrite
-                          ? readonlyTitle
-                          : '删除该属性（DELETE 单键，无确认——轻交互与 Artifactory 一致）'
-                      }
-                    >
-                      <span>
-                        <IconButton
-                          size="small"
-                          aria-label={`删除属性 ${key}`}
-                          data-testid={`node-props-delete-${key}`}
-                          disabled={!canWrite || busy}
-                          onClick={() => void remove(key)}
-                        >
-                          <span aria-hidden="true">🗑</span>
-                        </IconButton>
-                      </span>
-                    </Tooltip>
-                  </TableCell>
-                </TableRow>
-              ),
-            )}
-            {editor?.mode === 'new' && (
-              <TableRow data-testid="node-props-row-new">
-                <TableCell>
-                  <TextField
-                    size="small"
-                    fullWidth
-                    autoFocus
-                    margin="none"
-                    placeholder="键（如 qa / build.number）"
-                    value={newKey}
-                    onChange={(e) => setNewKey(e.target.value)}
-                    error={!!keyError || !!keyCountError}
-                    helperText={keyError ?? keyCountError ?? undefined}
-                    slotProps={{ htmlInput: { 'data-testid': `node-props-key-input`, spellCheck: false } }}
-                  />
+            {filtered.map(([key, values]) => (
+              <TableRow key={key} data-testid={`node-props-row-${key}`}>
+                <TableCell sx={MONO} component="th" scope="row">
+                  {key}
                 </TableCell>
-                <TableCell>
-                  <TextField
-                    size="small"
-                    fullWidth
-                    margin="none"
-                    placeholder="值（多值逗号分隔，如 passed, rc1）"
-                    value={valuesText}
-                    onChange={(e) => setValuesText(e.target.value)}
-                    onKeyDown={onFieldKeys}
-                    error={!!valuesError}
-                    helperText={valuesError ?? undefined}
-                    slotProps={{
-                      htmlInput: {
-                        'data-testid': `node-props-values-input-${newKey.trim() || 'new'}`,
-                        spellCheck: false,
-                      },
-                    }}
-                  />
-                </TableCell>
+                <TableCell sx={MONO}>{values.join(', ')}</TableCell>
                 <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                  <Tooltip title="保存（PUT 单键替换）">
+                  <Tooltip
+                    title={
+                      !canWrite
+                        ? readonlyTitle
+                        : '删除该属性（DELETE 单键——过危险确认，E1 统一）'
+                    }
+                  >
                     <span>
                       <IconButton
                         size="small"
-                        aria-label="保存新属性"
-                        data-testid="node-props-save"
-                        disabled={invalid || busy}
-                        onClick={() => void save()}
+                        aria-label={`删除属性 ${key}`}
+                        data-testid={`node-props-delete-${key}`}
+                        disabled={!canWrite || busy}
+                        onClick={() => void remove(key)}
                       >
-                        <span aria-hidden="true">✓</span>
+                        <span aria-hidden="true">🗑</span>
                       </IconButton>
                     </span>
                   </Tooltip>
-                  <Tooltip title="取消新增">
-                    <IconButton
-                      size="small"
-                      aria-label="取消新增属性"
-                      data-testid="node-props-cancel"
-                      disabled={busy}
-                      onClick={closeEditor}
-                    >
-                      <span aria-hidden="true">✕</span>
-                    </IconButton>
-                  </Tooltip>
                 </TableCell>
               </TableRow>
-            )}
+            ))}
           </TableBody>
         </Table>
       )}
@@ -421,9 +376,7 @@ export default function PropertiesTab({
       )}
 
       <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
-        属性逐行独立保存：保存 = PUT（该键值集整体替换，其他键保留）；删除 = DELETE 该键。与服务端规则同口径：键{' '}
-        {'[A-Za-z][A-Za-z0-9_.-]{0,63}'}
-        ，值 ≤1KiB、无控制字符，单键 ≤32 值，节点 ≤64 键。
+        {PROPS_COPY.footnote}
       </Typography>
     </div>
   )

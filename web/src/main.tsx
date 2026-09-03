@@ -1,6 +1,6 @@
 import { StrictMode, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes, useSearchParams } from 'react-router-dom'
 
 import CircularProgress from '@mui/material/CircularProgress'
 
@@ -86,6 +86,16 @@ function RouteFallback() {
   )
 }
 
+/** /admin/repositories/new 直链兼容映射（T-443）：?rclass= {local|remote|
+ *  virtual} → 对应分路由（replace，不占历史）；缺省/非法值 → local。
+ *  兼容窗内的 7 处跨页 emitter 零改动（见路由表注）。 */
+function RepoCreateCompat() {
+  const [sp] = useSearchParams()
+  const rc = sp.get('rclass')
+  const target = rc === 'remote' || rc === 'virtual' ? rc : 'local'
+  return <Navigate to={`/admin/repositories/${target}/new`} replace />
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ThemeProvider>
@@ -133,10 +143,29 @@ createRoot(document.getElementById('root')!).render(
                     <Route path="admin/repositories/local" element={<RepositoriesPage />} />
                     <Route path="admin/repositories/remote" element={<RepositoriesPage />} />
                     <Route path="admin/repositories/virtual" element={<RepositoriesPage />} />
+                    {/* T-443（FR-143.4，B-3.8）：建仓入口分路由——三静态路由
+                        承 rclass prop（Artifactory 7.161.20 实测
+                        /ui/admin/repositories/<rclass>/new 同构；非法段不匹配
+                        落 * 通配 404，与 Artifactory 未知 rclass 404 同姿）。
+                        静态三段不与 :key / :key/edit 竞争（段深不同）。 */}
                     <Route
-                      path="admin/repositories/new"
-                      element={<RepositoryFormPage mode="create" />}
+                      path="admin/repositories/local/new"
+                      element={<RepositoryFormPage mode="create" rclass="local" />}
                     />
+                    <Route
+                      path="admin/repositories/remote/new"
+                      element={<RepositoryFormPage mode="create" rclass="remote" />}
+                    />
+                    <Route
+                      path="admin/repositories/virtual/new"
+                      element={<RepositoryFormPage mode="create" rclass="virtual" />}
+                    />
+                    {/* /new 直链兼容映射（T-443）：旧深链（?rclass= 形态 =
+                        quick 菜单与 7 处跨页入口）一次性 replace 到分路由；
+                        路由表是兼容层的唯一落点——7 个跨页 emitter（AppShell
+                        quick 菜单 / Dashboard / Deploy / SetMeUp / Artifacts /
+                        Quotas / StorageSummary）零改动跟进。 */}
+                    <Route path="admin/repositories/new" element={<RepoCreateCompat />} />
                     <Route path="admin/repositories/:key" element={<RepoDetailPage />} />
                     <Route
                       path="admin/repositories/:key/edit"

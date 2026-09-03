@@ -78,18 +78,19 @@ func (s *service) FetchVirtualExternal(ctx context.Context, p *Principal, virtua
 		return nil, nil, fmt.Errorf("fetch member %s of virtual %s: %w: not a current remote member",
 			member, virtualKey, ErrRepoNotFound)
 	}
-	detail := fmt.Sprintf(`{"resolvedFrom":%q}`, member)
-	return s.fetchExternalCore(ctx, p, member, path, target, virtualKey, detail)
+	frag := fmt.Sprintf(`"resolvedFrom":%q`, member)
+	return s.fetchExternalCore(ctx, p, member, path, target, virtualKey, frag)
 }
 
 // fetchExternalCore is the ungated engine hop both faces share: the
 // FetchAbsolute call, the error mapping and the MISS-side bookkeeping
 // (getRemote's twin — one place so the two cache-serving faces cannot
-// drift). auditRepo/auditDetail shape the ONE download audit row: the
-// addressed repository key on the direct face, the VIRTUAL key with the
-// resolvedFrom detail on the member face (the getVirtual + engine
-// double-row posture T-365 registered, kept to a single row per call).
-func (s *service) fetchExternalCore(ctx context.Context, p *Principal, repoKey, path, target, auditRepo, auditDetail string) (io.ReadSeekCloser, *metadata.Node, error) {
+// drift). auditRepo shapes the ONE download audit row's repository — the
+// addressed repository key on the direct face, the VIRTUAL key on the
+// member face — and auditFrag the member face's resolvedFrom detail
+// fragment (the getVirtual + engine double-row posture T-365 registered,
+// kept to a single row per call).
+func (s *service) fetchExternalCore(ctx context.Context, p *Principal, repoKey, path, target, auditRepo, auditFrag string) (io.ReadSeekCloser, *metadata.Node, error) {
 	if s.remoteEng == nil {
 		return nil, nil, fmt.Errorf("%w: remote repositories have no engine wired", ErrRepoTypeNotSupported)
 	}
@@ -116,9 +117,25 @@ func (s *service) fetchExternalCore(ctx context.Context, p *Principal, repoKey, 
 			Actor: hookActorOf(p),
 		})
 	}
-	s.audit(ctx, AuditEvent{
-		Actor: actor(p), Action: AuditActionDownload, Repo: auditRepo, Path: path,
-		Detail: auditDetail,
+	// One download bookkeeping pair, shaped by the addressed surface: the
+	// direct face is the remote-serving arm (both columns, origin remote);
+	// the virtual member face counts the member's row (K69 arm 2) — the
+	// member's cache served it, so the remote column moves there too.
+	var extra []string
+	if auditFrag != "" {
+		extra = append(extra, auditFrag)
+	}
+	origin := downloadOriginVirtual(auditRepo)
+	if auditRepo == repoKey {
+		origin = downloadOriginRemote
+		extra = append(extra, s.statsSyncDetail(ctx, repoKey))
+	}
+	s.markDownload(ctx, p, downloadMark{
+		auditRepo: auditRepo, auditPath: path,
+		countRepo: repoKey, countPath: path,
+		origin:       origin,
+		extra:        extra,
+		remoteServed: true,
 	})
 	return res.Body, res.Node, nil
 }

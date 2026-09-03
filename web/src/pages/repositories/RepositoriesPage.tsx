@@ -44,6 +44,7 @@ import { useAsync } from '../../lib/useAsync'
 
 import './repositories.css'
 import { useRepoDelete } from './RepoDeleteConfirm'
+import { REPO_CREATE_ENTRY } from './formCopy'
 
 // 仓库管理列表（console-m8 §6.6 / reverse §3.4，T-240 重排）：
 //
@@ -100,13 +101,21 @@ const TABS: { id: RClass; label: string }[] = [
 /** T-387（FR-125.2 L1）列选器列集 = **既有全部列**（「无端点列不伪造」：
  * 列表项不带更新时间〔T-99 契约缺口沿 R 登记〕，不设「更新时间」列；
  * remote assumed-offline 无状态端点 → 不伪造状态列）。T-404（R5）增
- * `replications` 第 8 列——端点背书（GET /api/v1/replications），仅
- * local Tab 渲染表头/单元格（push 源 = local 仓，R5「本地仓列表」同位）。
+ * `replications` 第 8 列——端点背书（GET /api/v1/replications）。
+ * T-443（FR-143.4，B-3.9/Q9）：冗余「类型」列**收敛**——Tab 子路由即类型
+ * （local Tab 恒 Local……列信息量为零；Artifactory 7.161 单列表的
+ * Repository Type 列在 BinFlow 三 Tab 形态下不适用），`type` 列自列集退役
+ * （repos-columns-item-type 锚退役入册 §10.6；localStorage 偏好读回按
+ * 列集清洗，存量 hidden 里的 type 无害剔除）。
+ * **缺位登记（B-3.9，不伪造）**：Artifactory 7.161 列集的 Project 列——
+ * BinFlow 无项目模型（无 project 实体/端点），列不建（§9A-S8 同口径）；
+ * Environment/Shared With 亦无对位（7.161 视口截断未定论——基线复核
+ * §A3-11）。Replications 列自本票起 local + remote 两 Tab 渲染（remote
+ * 页签口径注记见 ReplicationsCell 注）。
  * label 与表头一致；anchor = 菜单项锚（anchor-audit 的 anchor: 属性形态）。 */
 const COLUMNS: ColumnDef[] = [
   { id: 'key', label: 'Repository Key', anchor: 'repos-columns-item-key' },
   { id: 'package', label: '包类型', anchor: 'repos-columns-item-package' },
-  { id: 'type', label: '类型', anchor: 'repos-columns-item-type' },
   { id: 'replications', label: 'Replications', anchor: 'repos-columns-item-replications' },
   { id: 'upstream', label: '上游 / 成员', anchor: 'repos-columns-item-upstream' },
   { id: 'usage', label: '已用', anchor: 'repos-columns-item-usage' },
@@ -281,7 +290,8 @@ function UpstreamCell({ repo }: { repo: RepoListItem }) {
 }
 
 /**
- * Replications 列（T-404 R5 形态 + T-420 真语义）：**仅 local Tab**。
+ * Replications 列（T-404 R5 形态 + T-420 真语义）：**local + remote 两 Tab**
+ * （T-443 / FR-143.4 起 remote 页签增列——B-3.9 翻正收口）。
  * - 未配置（0 条）：纯文本「0」——Artifactory OSS 未启用分支的同款 cell
  *   （`<span>0</span>`，无图标）。
  * - 已配置：行级 **Run 动作**（icon-run 形态——▶ glyph，24px 档 IconButton
@@ -291,6 +301,13 @@ function UpstreamCell({ repo }: { repo: RepoListItem }) {
  *   /api/v1/replication/status 观测面）。全部停用时按锚（executeall 三态
  *   之「无启用配置」）不触发——按钮禁用 + tooltip 说明。readonly_admin：
  *   按钮禁用（CapSystemWrite 门，服务端 403 兜底）。
+ * - **push-only 口径注记（ADR-0021 / parity §6A R10）**：BinFlow 复制 =
+ *   push 模型（source_repo → target，任意仓型可作源——模型 FK 只要求
+ *   repositories 行存在）；Artifactory remote 页签的 Replications 列承载
+ *   **pull** 复制配置，BinFlow 无 pull 概念（remote 仓缓存拉取是另一能力
+ *   域，已有）——remote 页签该列如实呈现以该仓为**源**的 push 配置
+ *   （通常 0——配置面 UI 自 T-439 起仅 local 编辑态暴露，API 侧 remote
+ *   可作源），不伪造 pull 语义。
  * - 加载/失败：`—`（失败 title 带原因）——「无数据不伪造 0」同已用列口径。
  */
 function ReplicationsCell({
@@ -405,18 +422,29 @@ export default function RepositoriesPage() {
   const tab = tabFromPath(pathname)
   const toast = useToast()
 
+  // T-443（FR-143.4，B-3.8）：Create a Repository 下拉三预选（Local/Remote/
+  // Virtual 带一句描述——Artifactory 7.161.20 实测 el-dropdown 形态的 MUI
+  // 对位；federated/release-bundle 两型为 A1 非目标域不伪造）。选中即分路由
+  // 深链 /admin/repositories/<rclass>/new——表单内 rclass 控件随之移除。
+  const [createAnchor, setCreateAnchor] = useState<HTMLElement | null>(null)
+  const createOpen = Boolean(createAnchor)
+
   const [keyQuery, setKeyQuery] = useState('')
   // Tab = 服务端 ?type= 过滤（E-04 契约形态）；key 是已加载集上的前端子串
   const state = useAsync(() => getRepositoriesFiltered(tab, ''), [tab])
   const reload = state.reload
   // 已用列注水（T-258）：仅列表 ok 后发一次批量；排序/筛选（纯前端态）零触发
   const usage = useUsageBatch(state.status === 'ok')
-  // Replications 列（T-404 R5）：仅 local Tab 拉一次全量配置（端点无
-  // per-repo query，客户端按 source_repo 分组）；Tab 切换随 deps 重取。
-  // D-396-1 修正：gate 在列表 ok 之后——无权限主体的列表 403 时第 8 列
-  // 不发注定 403 的 replication 调用（u8 零水合 NFR 钉子维持）。
+  // Replications 列（T-404 R5；T-443 起两 Tab）：local + remote Tab 各拉
+  // 一次全量配置（端点无 per-repo query，客户端按 source_repo 分组）；
+  // Tab 切换随 deps 重取。D-396-1 修正沿：gate 在列表 ok 之后——无权限
+  // 主体的列表 403 时不发注定 403 的 replication 调用（u8 零水合 NFR 钉子
+  // 维持）。virtual Tab 无该列（push 源聚合仓无对位语义）。
   const repls = useAsync(
-    () => (tab === 'local' && state.status === 'ok' ? listReplicationConfigs() : Promise.resolve(null)),
+    () =>
+      (tab === 'local' || tab === 'remote') && state.status === 'ok'
+        ? listReplicationConfigs()
+        : Promise.resolve(null),
     [tab, state.status],
   )
   const replIndex = useMemo(() => {
@@ -498,15 +526,45 @@ export default function RepositoriesPage() {
             {state.status === 'ok' ? `${rows.length} 个仓库` : '…'}
           </span>
           {admin && (
-            <Button
-              component={Link}
-              to="/admin/repositories/new"
-              variant="contained"
-              size="small"
-              data-testid="repos-create"
-            >
-              ＋ 添加仓库
-            </Button>
+            <>
+              {/* T-443：入口自平钮翻下拉三预选（repos-create 锚不动——触发
+                  钮本体；菜单项锚 repos-create-<rclass> 三枚 v1.35 入册）。 */}
+              <Button
+                variant="contained"
+                size="small"
+                aria-haspopup="menu"
+                aria-expanded={createOpen}
+                title="新建仓库——选择仓型后进入对应建仓表单"
+                onClick={(e) => setCreateAnchor(e.currentTarget)}
+                data-testid="repos-create"
+              >
+                ＋ 新建仓库
+              </Button>
+              <Menu
+                open={createOpen}
+                onClose={() => setCreateAnchor(null)}
+                anchorEl={createAnchor}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+                data-testid="repos-create-menu"
+              >
+                {TABS.map((t) => (
+                  <MenuItem
+                    key={t.id}
+                    data-testid={`repos-create-${t.id}`}
+                    onClick={() => {
+                      setCreateAnchor(null)
+                      navigate(`/admin/repositories/${t.id}/new`)
+                    }}
+                    sx={{ display: 'block', whiteSpace: 'normal', lineHeight: 1.4, py: 0.75 }}
+                  >
+                    <b>{REPO_CREATE_ENTRY[t.id].label}</b>
+                    <br />
+                    <span style={{ fontSize: 'var(--bf-fs-aux)' }}>{REPO_CREATE_ENTRY[t.id].desc}</span>
+                  </MenuItem>
+                ))}
+              </Menu>
+            </>
           )}
         </div>
       </div>
@@ -659,7 +717,7 @@ export default function RepositoriesPage() {
               action={
                 <Button
                   component={Link}
-                  to={`/admin/repositories/new${tab !== 'local' ? `?rclass=${tab}` : ''}`}
+                  to={`/admin/repositories/${tab}/new`}
                   variant="contained"
                   size="small"
                 >
@@ -688,9 +746,19 @@ export default function RepositoriesPage() {
                   {cols.isVisible('package') && (
                     <SortTh label="包类型" active={sortKey === 'package'} dir={sortDir} onToggle={() => toggleSort('package')} />
                   )}
-                  {cols.isVisible('type') && <TableCell component="th" scope="col">类型</TableCell>}
-                  {tab === 'local' && cols.isVisible('replications') && (
-                    <TableCell component="th" scope="col" sx={{ whiteSpace: 'nowrap' }}>
+                  {/* T-443：类型列收敛（Q9/B-3.9）——三 Tab 子路由即类型，
+                      冗余列退役；Project 列缺位登记不伪造（见 COLUMNS 注） */}
+                  {(tab === 'local' || tab === 'remote') && cols.isVisible('replications') && (
+                    <TableCell
+                      component="th"
+                      scope="col"
+                      sx={{ whiteSpace: 'nowrap' }}
+                      title={
+                        tab === 'remote'
+                          ? 'push 复制配置（以该仓为源）——BinFlow 无 pull 复制（remote 缓存是另一能力域，ADR-0021/parity R10）'
+                          : 'push 复制配置（以该仓为源）'
+                      }
+                    >
                       Replications
                     </TableCell>
                   )}
@@ -744,12 +812,7 @@ export default function RepositoriesPage() {
                         />
                       </TableCell>
                     )}
-                    {cols.isVisible('type') && (
-                      <TableCell>
-                        <Chip size="small" className="badge neutral" label={TYPE_LABEL[repo.type] ?? repo.type} />
-                      </TableCell>
-                    )}
-                    {tab === 'local' && cols.isVisible('replications') && (
+                    {(tab === 'local' || tab === 'remote') && cols.isVisible('replications') && (
                       <TableCell>
                         <ReplicationsCell
                           repoKey={repo.key}

@@ -56,6 +56,12 @@ var ErrGroupNotFound = errors.New("metadata: group not found")
 // web_sessions rows.
 var ErrWebSessionNotFound = errors.New("metadata: web session not found")
 
+// ErrScheduleNotFound is returned by ScheduleStore Get/Delete for missing
+// schedules rows (the "no row = not scheduled" single-state semantics of
+// ADR-0044 decision 2: absence is the unscheduled state, callers render it
+// as such rather than erroring on the READ side).
+var ErrScheduleNotFound = errors.New("metadata: schedule not found")
+
 // ErrUploadSessionNotFound is returned by UploadSessionStore methods for
 // missing upload_sessions rows.
 var ErrUploadSessionNotFound = errors.New("metadata: upload session not found")
@@ -88,6 +94,21 @@ type Node struct {
 	CreatedBy string // principal name
 	CreatedAt string // RFC3339 UTC
 	UpdatedAt string // RFC3339 UTC
+}
+
+// NodeStats is the per-node download statistics projection of the nodes
+// table's four counting columns (M16 T-438, ADR-0044 K69 — the download
+// plane's SINGLE counting channel: the ?stats wire face and the usage
+// domain read this shape and nothing else counts). It deliberately does
+// not extend Node: the content-plane Node shape is frozen (FileInfo zero
+// change, architecture 25.5) and statistics are a read-side projection.
+type NodeStats struct {
+	RepoKey             string
+	Path                string
+	DownloadCount       int64  // three-arm criterion: direct, via virtual (member row), remote-serving
+	LastDownloadedAt    string // RFC3339 UTC, "" = never downloaded
+	LastDownloadedBy    string // principal name, "anonymous" for unauthenticated, "" = never
+	RemoteDownloadCount int64  // downloads a REMOTE repository served; structurally 0 on local rows
 }
 
 // Repo is one repository configuration row.
@@ -471,6 +492,7 @@ type Store interface {
 	NodeProps() NodePropStore
 	AuthConfigs() AuthConfigStore
 	GpgKeypairs() GpgKeypairStore
+	Schedules() ScheduleStore
 	// IsReferenced reports whether any node row or docker ref row currently
 	// points at sha256 ([M9] ADR-0031 mechanism A): the single-point Live
 	// oracle behind the GC sweep's pre-delete recheck. It spans two sub-stores
@@ -507,6 +529,21 @@ type NodeStore interface {
 	// ListByPrefix returns nodes under repoKey whose path starts with prefix,
 	// ordered by path.
 	ListByPrefix(ctx context.Context, repoKey, prefix string) ([]*Node, error)
+	// CountDownload atomically records one download against a node row (the
+	// SQL-side self-increment is exact under SQLite's single writer and
+	// Postgres row locks alike). by is the downloader's principal spelling
+	// ("anonymous" for unauthenticated access), at the RFC3339 UTC landing
+	// instant; remoteServed additionally bumps remote_download_count —
+	// callers set it when the counted row lives in a remote repository, so
+	// local rows keep the column at its structural zero. Folder rows are
+	// excluded mechanically (the shared folder marker carries no body), and
+	// a missing row is a silent no-op: counting keeps the audit row's
+	// best-effort posture, so a node deleted between the serve and this
+	// bookkeeping is history, not an error.
+	CountDownload(ctx context.Context, repoKey, path, by, at string, remoteServed bool) error
+	// Stats returns one node's download statistics projection (the four
+	// counting columns); ErrNodeNotFound when the row is absent.
+	Stats(ctx context.Context, repoKey, path string) (*NodeStats, error)
 }
 
 // BlobStore is the "ever existed" ledger of physical objects (ADR-0006: rows
@@ -949,4 +986,52 @@ type UsageStore interface {
 	// its size from repo_usage. Folder rows contribute their stored size
 	// (always 0 for the folder marker).
 	DeleteNodeWithUsage(ctx context.Context, repoKey, path, updatedAt string) error
+}
+
+// Schedule is one row of the unified cron schedules ledger (021, M16
+// T-446 / ADR-0044 decision 2): the full-type job one consuming plane
+// (domain) wants fired on a Quartz-subset cron expression. The store is a
+// dumb ledger — expression legality, next-run computation and dispatch are
+// internal/scheduler's; the REST projection (GET /api/v1/system/schedules)
+// and the three config surfaces are T-450's.
+type Schedule struct {
+	Domain   string // closed set: maintenance | backup | replication (021 CHECK)
+	Key      string // in-domain entity key (job slot name, backup key, replication id)
+	CronExpr string
+	Enabled  bool
+	// NextRunAt is RFC3339 UTC, '' = unscheduled (the disabled state).
+	NextRunAt  string
+	LastRunAt  string // RFC3339 UTC, '' = never ran
+	LastStatus string // '' | ok | failed (021 CHECK)
+	LastError  string // failure summary, already truncated by the writer
+	CreatedAt  string
+	CreatedBy  string
+	UpdatedAt  string
+	UpdatedBy  string
+}
+
+// ScheduleStore is the schedules ledger persistence seam (021, M16 T-446 /
+// ADR-0044 decisions 1 and 2): exactly the five faces the scheduler engine
+// and the config surfaces consume. The store validates nothing beyond the
+// 021 CHECKs — the scheduler package owns expression parsing, next-run
+// computation and the run-state write-back law (Put replaces the run-state
+// columns too, so the engine's post-run re-arm is one full-row write).
+type ScheduleStore interface {
+	// Put upserts by (domain, key): an existing row keeps its
+	// created_at/created_by, every other column is replaced.
+	Put(ctx context.Context, s *Schedule) error
+	// Get returns the row or wraps ErrScheduleNotFound.
+	Get(ctx context.Context, domain, key string) (*Schedule, error)
+	// Delete removes the row ("no row = not scheduled"; the config surface
+	// drops it when the cronExp is cleared or the entity dies). Wraps
+	// ErrScheduleNotFound when absent.
+	Delete(ctx context.Context, domain, key string) error
+	// List returns the rows of one domain ordered by key, or of every
+	// domain ordered by (domain, key) when domain is "". The read
+	// projection and the boot census read here.
+	List(ctx context.Context, domain string) ([]*Schedule, error)
+	// ListDue returns the enabled rows with a next_run_at at or before now
+	// (RFC3339 UTC text; '' never matches), ordered by next_run_at — the
+	// tick query's only call, served by idx_schedules_due.
+	ListDue(ctx context.Context, now string) ([]*Schedule, error)
 }

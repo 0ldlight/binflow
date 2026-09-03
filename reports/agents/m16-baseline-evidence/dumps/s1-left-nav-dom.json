@@ -1,0 +1,372 @@
+{
+ "label": "s1-left-nav-dom",
+ "url": "http://127.0.0.1:8082/ui/repos/tree/General/",
+ "count": 12,
+ "out": [
+  {
+   "tag": "nav",
+   "cls": "v-sidebar-menu.vsm_expanded",
+   "aria": "Main navigation",
+   "kids": [
+    {
+     "tag": "div",
+     "cls": "project-selector-wrapper",
+     "kids": [
+      {
+       "tag": "div",
+       "cls": "el-p-tooltip__trigger",
+       "aria": "Projects selector",
+       "role": "button",
+       "kids": [
+        {
+         "tag": "div",
+         "cls": "active-project",
+         "kids": [
+          {
+           "tag": "span",
+           "cls": "tooltip-wrapper.flex--1",
+           "kids": [
+            {
+             "tag": "span",
+             "cls": "jf-text.font--size-medium.font--600",
+             "text": "All Projects"
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "tag": "div",
+     "cls": "vsm--scroll-wrapper",
+     "kids": [
+      {
+       "tag": "ul",
+       "cls": "vsm--list",
+       "kids": [
+        {
+         "tag": "li",
+         "kids": [
+          {
+           "tag": "div",
+           "cls": "vsm--item.vsm--item_open.el-p-tooltip__trigger",
+           "kids": [
+            {
+             "tag": "a",
+             "cls": "vsm--link.vsm--link_level-1.vsm--link_active",
+             "href": "/ui/packages",
+             "kids": [
+              {
+               "tag": "span",
+               "cls": "vsm--title",
+               "text": "Artifactory"
+              }
+             ]
+            },
+            {
+             "tag": "div",
+             "cls": "vsm--dropdown",
+             "kids": [
+              {
+               "tag": "ul",
+               "id": "submenu-ARTIFACTORY",
+               "cls": "vsm--list",
+               "kids": [
+                {
+                 "tag": "li",
+                 "kids": [
+                  {
+                   "tag": "div",
+                   "cls": "vsm--item.el-p-tooltip__trigger",
+                   "kids": [
+                    {
+                     "tag": "a",
+                     "cls": "vsm--link.vsm--link_level-2",
+                     "href": "/ui/packages",
+                     "kids": [
+                      {
+                       "tag": "span",
+                       "cls": "vsm--title",
+                       "text": "Packages"
+                      }
+                     ]
+                    }
+                   ]
+                  }
+                 ]
+                },
+                {
+                 "tag": "li",
+                 "kids": [
+                  {
+                   "tag": "div",
+                   "cls": "vsm--item.el-p-tooltip__trigger",
+                   "kids": [
+                    {
+                     "tag": "a",
+                     "cls": "vsm--link.vsm--link_level-2",
+                     "href": "/ui/builds",
+                     "kids": [
+                      {
+                       "tag": "span",
+                       "cls": "vsm--title",
+                       "text": "Builds"
+                      }
+                     ]
+                    }
+                   ]
+                  }
+                 ]
+                },
+                {
+                 "tag": "li",
+                 "kids": [
+                  {
+                   "tag": "div",
+                   "cls": "vsm--item.el-p-tooltip__trigger",
+                   "kids": [
+                    {
+                     "tag": "a",
+                     "cls": "vsm--link.vsm--link_level-2.vsm--link_active",
+                     "href": "/ui/repos/tree",
+                     "kids": [
+                      {
+                       "tag": "span",
+                       "cls": "vsm--title",
+                       "text": "Artifacts"
+                      }
+                     ]
+                    }
+                   ]
+                  }
+                 ]
+                },
+                {
+                 "tag": "li",
+                 "kids": [
+                  {
+                   "tag": "div",
+                   "cls": "vsm--item.el-p-tooltip__trigger",
+                   "kids": [
+                    {
+                     "tag": "a",
+                     "cls": "vsm--link.vsm--link_level-2",
+                     "href": "/ui/artifactory/release-lifecycle",
+                     "kids": [
+                      {
+                       "tag": "span",
+                       "cls": "vsm--title",
+                       "text": "Release Lifecycle"
+                      }
+                     ]
+                    }
+                   ]
+                  }
+                 ]
+                }
+               ]
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "tag": "li",
+         "kids": [
+          {
+           "tag": "div",
+           "cls": "vsm--item.el-p-tooltip__trigger",
+           "kids": [
+            {
+             "tag": "a",
+             "cls": "vsm--link.vsm--link_level-1.vsm--link_no-children-active",
+             "href": "/ui/security-and-compliance-teaser",
+             "kids": [
+              {
+               "tag": "span",
+               "cls": "vsm--title",
+               "text": "Xray"
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "tag": "li",
+         "kids": [
+          {
+           "tag": "div",
+           "cls": "vsm--item.el-p-tooltip__trigger",
+           "kids": [
+            {
+             "tag": "a",
+             "cls": "vsm--link.vsm--link_level-1",
+             "href": "/ui/release-bundles",
+             "kids": [
+              {
+               "tag": "span",
+               "cls": "vsm--title",
+               "text": "Distribution"
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "tag": "li",
+         "kids": [
+          {
+           "tag": "div",
+           "cls": "vsm--item.el-p-tooltip__trigger",
+           "kids": [
+            {
+             "tag": "a",
+             "cls": "vsm--link.vsm--link_level-1.vsm--link_no-children-active",
+             "href": "/ui/teasers/ml_sh",
+             "kids": [
+              {
+               "tag": "span",
+               "cls": "vsm--title",
+               "text": "AI/ML"
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "tag": "li",
+         "kids": [
+          {
+           "tag": "div",
+           "cls": "vsm--item.el-p-tooltip__trigger",
+           "kids": [
+            {
+             "tag": "a",
+             "cls": "vsm--link.vsm--link_level-1.vsm--link_no-children-active",
+             "href": "/ui/teaser-pipelines",
+             "kids": [
+              {
+               "tag": "span",
+               "cls": "vsm--title",
+               "text": "Pipelines"
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        },
+        {
+         "tag": "li",
+         "kids": [
+          {
+           "tag": "div",
+           "cls": "vsm--item.el-p-tooltip__trigger",
+           "kids": [
+            {
+             "tag": "a",
+             "cls": "vsm--link.vsm--link_level-1.top-separator-small",
+             "href": "/ui/integrations",
+             "kids": [
+              {
+               "tag": "span",
+               "cls": "vsm--title",
+               "text": "Integrations"
+              }
+             ]
+            }
+           ]
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "tag": "div",
+     "cls": "sidebar-jfui-footer",
+     "kids": [
+      {
+       "tag": "div",
+       "cls": "flex.flex--direction-column",
+       "kids": [
+        {
+         "tag": "span",
+         "cls": "jf-text.font--size-normal.font--600",
+         "text": "JFrog Platform"
+        },
+        {
+         "tag": "span",
+         "cls": "jf-text.font--size-normal.font--600",
+         "text": "Enterprise Plus trial license 7.161.20 rev 86120900 Licensed to TEST JFrog Ltd."
+        },
+        {
+         "tag": "a",
+         "href": "https://www.jfrog.com",
+         "kids": [
+          {
+           "tag": "span",
+           "cls": "jf-text.font--size-normal.font--600",
+           "text": "© Copyright 2026 JFrog Ltd"
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "tag": "button",
+     "cls": "vsm--toggle-btn.vsm--toggle-btn_slot",
+     "disabled": false,
+     "aria": "Hide navigation menu"
+    }
+   ]
+  },
+  {
+   "tag": "div",
+   "cls": "sidebar-jfui-footer",
+   "kids": [
+    {
+     "tag": "div",
+     "cls": "flex.flex--direction-column",
+     "kids": [
+      {
+       "tag": "span",
+       "cls": "jf-text.font--size-normal.font--600",
+       "text": "JFrog Platform"
+      },
+      {
+       "tag": "span",
+       "cls": "jf-text.font--size-normal.font--600",
+       "text": "Enterprise Plus trial license 7.161.20 rev 86120900 Licensed to TEST JFrog Ltd."
+      },
+      {
+       "tag": "a",
+       "href": "https://www.jfrog.com",
+       "kids": [
+        {
+         "tag": "span",
+         "cls": "jf-text.font--size-normal.font--600",
+         "text": "© Copyright 2026 JFrog Ltd"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

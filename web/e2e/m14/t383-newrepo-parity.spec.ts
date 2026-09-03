@@ -15,14 +15,18 @@ import { m8Client, sessionApi } from '../m8/support/seed'
 // 钉死面（对照核验表逐项 ↔ reports/agents/T-383.md §1）：
 //   ① 两段式：网格 = modal（role=dialog）+ 表单 = 整页路由（选型后 modal
 //      关闭、URL 不变、表单仍在路由页——非单 modal 全程）；
-//   ② rclass 选择形态：入口预选（列表钮 + quick 菜单三型下拉 = Add
-//      Repositories 下拉的对位）+ ?rclass= 深链直达 + 页内单选组回显；
+//   ② rclass 选择形态（T-443 翻新，B-3.8 翻正收口）：列表入口 = 下拉三预选
+//      （repos-create-{menu,<rclass>}）分路由深链 /admin/repositories/
+//      <rclass>/new + quick 菜单/?rclass= 旧深链经兼容映射同落 + **表单内
+//      rclass 控件移除**（form-rclass-* 退役，页内单选组形态随之翻案）；
 //   ③ 磁贴网格：radiogroup 语义 + 原生 button 磁贴 + 组合门控退役（docker
 //      三仓型全开——T-431 沿 T-392 remote / T-431 virtual 的服务端矩阵）
-//      + BinFlow 定案宽度档 440px（不追平 880px——33 包型 880px 网格
-//      vs BinFlow 5 核心 + 门控槽位，追平即大面积留白；parity 册 M1 行
-//      「现档位即可」既有裁定，票内留痕）；
-//   ④ 六节结构：form-section-*（v1.19 批锚）条件呈现矩阵 × 三 rclass；
+//      + 宽度档 **924px 居中**（T-441 翻转③：原 440px 紧凑档定案按 7.161.20
+//      活体勘误翻平——实测 924×760 居中 el-dialog，m16-baseline-refresh
+//      §A3-7；parity 册 M1 行 v1.6 留痕）；
+//   ④ 六节结构：form-section-*（v1.19 批锚）条件呈现矩阵 × 三 rclass
+//      （T-439 翻新：三段步进〔form-step-*〕后六节分驻基础/高级两步——
+//      矩阵断言语义不变，逐节可见性经步进切换触达；见 expectSections 注）；
 //   ⑤ 全链：选择 → 表单 → Save 落仓（toast + 详情 + API 对账）。
 //
 // 锚源：console-ux §10（pkg-grid-* / form-* 冻结族零改名 + T-383 批
@@ -49,17 +53,35 @@ async function pickFromGrid(page: Page, pt: string): Promise<ReturnType<Page['lo
   return form
 }
 
-/** 六节结构条件呈现矩阵（T-383 对照核验表 ④ 的断言形态）。
- *  visible = 在场节；hidden = 反断言（条件节不渲染——不是隐藏，锚计数 0）。 */
-async function expectSections(
-  page: Page,
-  visible: Array<'general' | 'source' | 'members' | 'policy' | 'governance' | 'advanced'>,
-): Promise<void> {
-  const ALL = ['general', 'source', 'members', 'policy', 'governance', 'advanced'] as const
-  for (const s of ALL) {
-    const loc = page.locator(`[data-testid="form-section-${s}"]`)
-    if (visible.includes(s)) await expect(loc).toBeVisible()
-    else await expect(loc).toHaveCount(0)
+/** 六节结构条件呈现矩阵（T-383 对照核验表 ④ 的断言形态；T-439 翻新为
+ *  步进感知——三段步进〔FR-143.1〕后六节分驻两步：基础 = general/source/
+ *  members、高级 = policy/governance/advanced。断言语义不弱化：各步逐节
+ *  可见 + 不适用节两步合计计数恒 0〔非 CSS 隐藏〕）。 */
+const STEP_OF = {
+  general: 'basic',
+  source: 'basic',
+  members: 'basic',
+  policy: 'advanced',
+  governance: 'advanced',
+  advanced: 'advanced',
+} as const
+type SectionId = keyof typeof STEP_OF
+
+async function gotoStep(page: Page, step: 'basic' | 'advanced'): Promise<void> {
+  await page.click(`[data-testid="form-step-${step}"]`)
+}
+
+async function expectSections(page: Page, visible: SectionId[]): Promise<void> {
+  const ALL = Object.keys(STEP_OF) as SectionId[]
+  for (const step of ['basic', 'advanced'] as const) {
+    const onStep = ALL.filter((s) => STEP_OF[s] === step)
+    if (!visible.some((s) => STEP_OF[s] === step)) continue // 该步无断言节则不切
+    await gotoStep(page, step)
+    for (const s of onStep) {
+      const loc = page.locator(`[data-testid="form-section-${s}"]`)
+      if (visible.includes(s)) await expect(loc).toBeVisible()
+      else await expect(loc).toHaveCount(0)
+    }
   }
 }
 
@@ -71,10 +93,16 @@ test('admin: two-phase create chain — grid modal pick → full-page form → S
   await loginAs(page, 'admin')
   const key = uniq('t383new')
 
-  // 入口 A：仓库列表「＋ 添加仓库」（rclass 由当前 Tab 语境 + URL query 预选）
+  // 入口 A（T-443 翻新）：仓库列表「＋ 新建仓库」= Create a Repository 下拉
+  // 三预选（B-3.8）——型名 + 一句描述；选中即分路由深链
+  // /admin/repositories/<rclass>/new（表单内 rclass 控件移除）
   await page.goto('/binflow/ui/admin/repositories/local')
   await page.click('[data-testid="repos-create"]')
-  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/new$/)
+  const entryMenu = page.locator('[data-testid="repos-create-menu"]')
+  await expect(entryMenu).toBeVisible()
+  await expect(entryMenu.locator('[role="menuitem"]')).toHaveCount(3)
+  await page.click('[data-testid="repos-create-local"]')
+  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/local\/new$/)
 
   // 段 1（选择）：网格 = modal + 表单页已在路由上（两段式第一段）
   const grid = page.locator('[data-testid="pkg-grid"]')
@@ -85,15 +113,17 @@ test('admin: two-phase create chain — grid modal pick → full-page form → S
 
   // 段 2（表单）：选 generic → modal 关闭、URL 不变、表单仍在路由页
   await pickFromGrid(page, 'generic')
-  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/new$/)
-  await expect(page.locator('[data-testid="form-rclass-local"]')).toBeChecked()
+  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/local\/new$/)
+  // T-443：rclass 控件移除（预选语义由分路由承载——form-rclass-* 退役）
+  await expect(page.locator('[data-testid="form-rclass-local"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="form-package-generic"]')).toBeChecked()
 
-  // 六节结构（local × generic）：常规/治理/高级在场；来源/成员/策略不渲染
-  //（常规节逐字锚定 = key/描述字段所在节——全链填充动作的目标节）
+  // 六节结构（local × generic）：常规（基础步）+ 治理/高级（高级步）在场；
+  // 来源/成员/策略不渲染（T-439 步进翻新——见 expectSections 注；矩阵跑完
+  // 停在高级步，填 key/描述前回基础步——必填字段所在）
   await expect(page.locator('[data-testid="form-section-general"]')).toBeVisible()
-  await expect(page.locator('[data-testid="form-section-advanced"]')).toBeVisible()
   await expectSections(page, ['general', 'governance', 'advanced'])
+  await gotoStep(page, 'basic')
 
   // Save 落仓：必填未满足禁用 → 填 key → 创建 → toast + 详情落点
   await expect(page.locator('[data-testid="form-submit"]')).toBeDisabled()
@@ -118,41 +148,47 @@ test('admin: two-phase create chain — grid modal pick → full-page form → S
   expect((await m8Client().request('DELETE', `/binflow/api/repositories/${key}`)).status).toBeLessThan(300)
 })
 
-// ---- 2. 深链 + rclass 条件节矩阵（?rclass= 直达表单页；只读不落仓） ----------
+// ---- 2. 深链 + rclass 条件节矩阵（分路由直达表单页；只读不落仓） --------------
 
-test('admin: ?rclass= deep links reach the form page; six-section matrix per rclass', async ({ page }) => {
+test('admin: split-route deep links reach the form page; six-section matrix per rclass', async ({ page }) => {
   await loginAs(page, 'admin')
 
-  // 深链 remote：直达表单页 + 网格即开（rclass 由 URL 预选，非向导内 Tab）
-  await page.goto('/binflow/ui/admin/repositories/new?rclass=remote')
+  // 深链 remote（T-443 分路由；旧 /new?rclass= 形态经兼容映射同落）：
+  // 直达表单页 + 网格即开（rclass 由路由预选，表单内控件移除）
+  await page.goto('/binflow/ui/admin/repositories/remote/new')
   const grid = page.locator('[data-testid="pkg-grid"]')
   await expect(page.locator('[data-testid="repo-form-page"]')).toBeVisible()
   await expect(grid).toBeVisible()
   await expect(grid).toContainText('Remote')
 
   // 组合门控退役（T-431）：remote × docker 可选（T-392 开的服务端格，FE 门
-  // 随 virtual 开禁一并退役）；license 门控槽位的禁用与此无关、另行断言
+  // 随 virtual 开禁一并退役）；license 槽位的前端禁用亦随 T-441 退役
+  // （门控三件套断言翻新归 t390/t441 spec）
   await expect(page.locator('[data-testid="pkg-grid-item-docker"]')).toBeEnabled()
   await expect(page.locator('[data-testid="pkg-grid-item-maven"]')).toBeEnabled()
 
   await pickFromGrid(page, 'maven')
-  await expect(page.locator('[data-testid="form-rclass-remote"]')).toBeChecked()
+  await expect(page.locator('[data-testid="form-rclass-remote"]')).toHaveCount(0) // T-443：控件移除
   await expect(page.locator('[data-testid="form-package-maven"]')).toBeChecked()
-  // 六节（remote × maven）：来源在场（上游 URL）；治理/成员/策略不渲染
+  // 六节（remote × maven）：来源在场（上游 URL——基础步）；高级步在场；
+  // 治理/成员/策略不渲染
   await expectSections(page, ['general', 'source', 'advanced'])
+  await gotoStep(page, 'basic')
   await expect(page.locator('[data-testid="form-section-source"] [data-testid="form-url"]')).toBeVisible()
 
   // 深链 virtual：成员节在场；来源/治理不渲染
-  await page.goto('/binflow/ui/admin/repositories/new?rclass=virtual')
+  await page.goto('/binflow/ui/admin/repositories/virtual/new')
   await expect(page.locator('[data-testid="pkg-grid"]')).toBeVisible()
   await pickFromGrid(page, 'generic')
-  await expect(page.locator('[data-testid="form-rclass-virtual"]')).toBeChecked()
+  await expect(page.locator('[data-testid="form-rclass-virtual"]')).toHaveCount(0) // T-443：控件移除
   //（成员节逐字锚定 = virtual 的定义节——成员选择 + 解析顺序）
   await expect(page.locator('[data-testid="form-section-members"]')).toBeVisible()
   await expectSections(page, ['general', 'members', 'advanced'])
 
-  // 默认入口 local × maven：Maven 策略节在场（deb/rpm/helm 策略组仍在高级节内）
+  // 默认入口（/new 兼容映射 → local）× maven：Maven 策略节在场
+  //（deb/rpm/helm 策略组仍在高级节内）
   await page.goto('/binflow/ui/admin/repositories/new')
+  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/local\/new$/)
   await expect(page.locator('[data-testid="pkg-grid"]')).toBeVisible()
   await pickFromGrid(page, 'maven')
   await expectSections(page, ['general', 'policy', 'governance', 'advanced'])
@@ -163,16 +199,18 @@ test('admin: ?rclass= deep links reach the form page; six-section matrix per rcl
 
 // ---- 3. rclass 入口形态 + 磁贴网格 Dialog 形态钉死（宽度档定案 + Esc） --------
 
-test('admin: grid modal shape pin — radiogroup tiles, 440px decided tier, Esc cancel; quick-menu dropdown entry', async ({
+test('admin: grid modal shape pin — radiogroup tiles, 924px centered tier (T-441 flip), Esc cancel; quick-menu dropdown entry', async ({
   page,
 }) => {
   await loginAs(page, 'admin')
 
   // 入口 B：quick 菜单「快速建仓」三型下拉 = Artifactory「Add Repositories」
-  // 下拉（Local/Remote/Virtual 预选）的对位形态（parity v1.1：手势等价）
+  // 下拉（Local/Remote/Virtual 预选）的对位形态（parity v1.1：手势等价）。
+  // T-443：其 /new?rclass= 链接经路由表兼容映射落 remote 分路由（AppShell
+  // 零改动——7 处跨页 emitter 的兼容窗语义在本腿钉死）
   await page.click('[data-testid="session-toggle"]')
   await page.click('[data-testid="quick-new-repo-remote"]')
-  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/new\?rclass=remote$/)
+  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/remote\/new$/)
   await expect(page.locator('[data-testid="pkg-grid"]')).toBeVisible()
   // rclass 预选感知的退出：取消回对应 Tab（remote）
   await page.click('[data-testid="pkg-grid-cancel"]')
@@ -190,14 +228,16 @@ test('admin: grid modal shape pin — radiogroup tiles, 440px decided tier, Esc 
     await expect(tile).toHaveAttribute('role', 'radio')
   }
 
-  // 宽度档钉死（票内定案）：BinFlow 440px 紧凑档——不追平 v1.1 实测 880px
-  // （33 包型网格的档位；BinFlow 5 核心 + 门控槽位，追平即大面积留白）。
-  // 几何断言体例 = T-382 expectDrawerGeometry 同款（boundingBox，非像素）。
+  // 宽度档钉死（T-441 翻转③）：924px 居中档——7.161.20 活体实测勘误
+  // （7.84 锚 880px → 924px 实测；m16-baseline-refresh §A3-7）。视口钳
+  // min(924, vw-48)；居中 = boundingBox 左缘 ≈ (vw-w)/2（MUI Dialog paper
+  // margin auto——几何断言体例 = T-382 expectDrawerGeometry 同款，非像素）。
   await expect(grid).toHaveCSS('opacity', '1') // Fade 收敛后再取 box
   const box = await grid.boundingBox()
   expect(box, 'pkg-grid paper has a box').toBeTruthy()
   const vw = page.viewportSize()?.width ?? 1280
-  expect(box!.width).toBeCloseTo(Math.min(440, vw - 48), 0)
+  expect(box!.width).toBeCloseTo(Math.min(924, vw - 48), 0)
+  expect(Math.abs(box!.x - (vw - box!.width) / 2), 'pkg-grid centered in viewport').toBeLessThanOrEqual(1)
 
   // Esc = 取消关闭（M4 族通用规格）：回对应 Tab、无写请求语义
   await page.keyboard.press('Escape')
@@ -225,8 +265,11 @@ test('axe: create-repo states clean in both themes (grid modal + create-form loc
     await expectA11yClean(page, testInfo, { include: '[data-testid="pkg-grid"]' })
 
     // 段 2a：创建态表单 local × generic（sweep 只见网格开态/编辑态——创建态
-    // 六节呈现是本票新增扫描面）
+    // 节呈现是本票新增扫描面；治理节随 T-439 步进驻高级步——axe 扫含步进条
+    // 与基础步两形态）
     await pickFromGrid(page, 'generic')
+    await expectA11yClean(page, testInfo, { include: '[data-testid="repo-form-page"]' })
+    await gotoStep(page, 'advanced')
     await expect(page.locator('[data-testid="form-section-governance"]')).toBeVisible()
     await expectA11yClean(page, testInfo, { include: '[data-testid="repo-form-page"]' })
 

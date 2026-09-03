@@ -86,10 +86,15 @@ func refuseVirtualDelete(virtualKey string, routed bool) error {
 // ---- read resolution ----
 
 // virtualMember is one resolution step: the member key plus its class. The
-// priority mark is consumed by the ordering pass and not carried.
+// priority mark is consumed by the ordering pass and not carried. pkg/cfg
+// are the member row's package type and config JSON — the T-448 browse fold
+// reads the optional档 mark from them without a second repository load; the
+// resolution walk itself ignores them.
 type virtualMember struct {
 	key string
 	typ string // TypeLocal | TypeRemote
+	pkg string
+	cfg string
 }
 
 // virtualMemberOrder computes the two-bucket resolution order of one virtual
@@ -120,7 +125,7 @@ func (s *service) virtualMemberOrder(ctx context.Context, virtualKey string) ([]
 		}
 		switch member.Type {
 		case TypeLocal, TypeRemote:
-			m := virtualMember{key: member.RepoKey, typ: member.Type}
+			m := virtualMember{key: member.RepoKey, typ: member.Type, pkg: member.PackageType, cfg: member.Config}
 			if memberPriorityResolution(member.Config) {
 				priority = append(priority, m)
 			} else {
@@ -196,7 +201,7 @@ func (s *service) getVirtual(ctx context.Context, p *Principal, virtualKey, path
 		// Same member order as the pull walk below — one resolution order,
 		// two faces (the browse can never disagree with the download plane
 		// about which member leads).
-		return s.getVirtualFolder(ctx, virtualKey, path, order)
+		return s.getVirtualFolder(ctx, p, virtualKey, path, order)
 	}
 	for _, m := range order {
 		var (
@@ -215,9 +220,16 @@ func (s *service) getVirtual(ctx context.Context, p *Principal, virtualKey, path
 		if !hit {
 			continue // member miss: next bucket entry
 		}
-		s.audit(ctx, AuditEvent{
-			Actor: actor(p), Action: AuditActionDownload, Repo: virtualKey, Path: path,
-			Detail: fmt.Sprintf(`{"resolvedFrom":%q}`, m.key),
+		// The via-virtual arm (K69 arm 2): the audit row addresses the
+		// VIRTUAL surface, the count lands on the MEMBER's row — and a
+		// member that is itself a remote repository served this download
+		// from its cache, so its row takes the remote column too.
+		s.markDownload(ctx, p, downloadMark{
+			auditRepo: virtualKey, auditPath: path,
+			countRepo: m.key, countPath: path,
+			origin:       downloadOriginVirtual(virtualKey),
+			extra:        []string{fmt.Sprintf(`"resolvedFrom":%q`, m.key)},
+			remoteServed: m.typ == TypeRemote,
 		})
 		return withResolvedFrom(rc, m.key), node, nil
 	}
@@ -268,7 +280,7 @@ func (s *service) probeLocalMember(ctx context.Context, member, path string) (io
 // read-side materialization is deliberately NOT copied here (a virtual read
 // leaves every member exactly as it found it, ADR-0013), so the synthesized
 // row is display-only and carries no provenance it cannot honestly claim.
-func (s *service) getVirtualFolder(ctx context.Context, virtualKey, path string, order []virtualMember) (io.ReadSeekCloser, *metadata.Node, error) {
+func (s *service) getVirtualFolder(ctx context.Context, p *Principal, virtualKey, path string, order []virtualMember) (io.ReadSeekCloser, *metadata.Node, error) {
 	dir := strings.TrimSuffix(path, "/")
 	for _, m := range order {
 		n, err := s.md.Nodes().Get(ctx, m.key, path)
@@ -304,6 +316,22 @@ func (s *service) getVirtualFolder(ctx context.Context, virtualKey, path string,
 			}
 		}
 	}
+	// T-448 (FR-147.2, repo-semantics §8.5): a folder that exists only in a
+	// flag-on remote member's upstream tree resolves off the enumeration
+	// snapshot — the same display-only synthesized marker this method
+	// already answers for members with only cached children, in the same
+	// member order, gated on the MEMBER's own allow() (zero-leak) and
+	// writing nothing into any member's namespace (ADR-0013).
+	for _, m := range order {
+		if m.typ != TypeRemote {
+			continue
+		}
+		if s.remoteBrowseFolderRow(ctx, p, remoteBrowseRepo{key: m.key, packageType: m.pkg, config: m.cfg}, dir) != nil {
+			return nil, &metadata.Node{
+				RepoKey: virtualKey, Path: path, Sha256: emptyFolderSHA, Size: 0,
+			}, fmt.Errorf("get %s/%s: %w", virtualKey, path, ErrIsFolder)
+		}
+	}
 	return nil, nil, fmt.Errorf("node %s/%s: %w", virtualKey, path, ErrNodeNotFound)
 }
 
@@ -322,18 +350,58 @@ func (s *service) getVirtualFolder(ctx context.Context, virtualKey, path string,
 // virtual answers an honest empty page, never an error — the
 // no-members/all-members-empty distinction the console's empty-state copy
 // keys on rides the repositories face's member list, not this one.
-func (s *service) listVirtual(ctx context.Context, virtualKey, prefix string) ([]*metadata.Node, error) {
+//
+// T-448 (FR-147.2, repo-semantics §8.5's expanded口径 — the reconciliation
+// the spec's own wording always described): a remote member with
+// listRemoteFolderItems=true ALSO contributes its upstream-derived display
+// rows, folded AT the member's own position in the order (cache rows first,
+// derived rows of the same member after — a cached row anywhere in the
+// member's unit keeps its real digest), first member still winning any path.
+// The derived rows are display-only (§4-3) and additionally gated on the
+// MEMBER's own allow() — an unauthorized member leaks zero upstream rows
+// (remote-browsing.md §5) while its cache rows keep the T-412 posture. The
+// flag stays off by default, so the pre-T-448 "cache rows only" tree is the
+// unchanged default. The second return aggregates the engaged members'
+// degradation notes: a degraded layer never fails the tree (§4-1).
+func (s *service) listVirtual(ctx context.Context, p *Principal, virtualKey, prefix string) ([]*metadata.Node, string, error) {
 	order, err := s.virtualMemberOrder(ctx, virtualKey)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	merged := make(map[string]*metadata.Node)
+	cachedPaths := make(map[string]bool)
+	var degraded []string
 	for _, m := range order {
 		nodes, err := s.md.Nodes().ListByPrefix(ctx, m.key, prefix)
 		if err != nil {
-			return nil, fmt.Errorf("list %s/%s (member %s): %w", virtualKey, prefix, m.key, err)
+			return nil, "", fmt.Errorf("list %s/%s (member %s): %w", virtualKey, prefix, m.key, err)
+		}
+		// The optional档's member unit: cache rows first, then the member's
+		// derived rows (zero when the flag is off or the member gate
+		// refuses) — one fold, both classes, at the member's position.
+		var derived []*metadata.Node
+		if m.typ == TypeRemote {
+			var note string
+			derived, note = s.remoteBrowseRows(ctx, p, remoteBrowseRepo{key: m.key, packageType: m.pkg, config: m.cfg}, prefix)
+			if note != "" {
+				degraded = append(degraded, note)
+			}
 		}
 		for _, n := range nodes {
+			cachedPaths[strings.TrimSuffix(n.Path, "/")] = true
+			if _, dup := merged[n.Path]; dup {
+				continue // an earlier member in the order owns this path
+			}
+			merged[n.Path] = n
+		}
+		for _, n := range derived {
+			// §4-3's cached-first rule: a cache row ANYWHERE in the union
+			// owns the path (its real digest beats a display row); the
+			// slash-insensitive key folds the folder marker spelling into
+			// the same path.
+			if cachedPaths[strings.TrimSuffix(n.Path, "/")] {
+				continue
+			}
 			if _, dup := merged[n.Path]; dup {
 				continue // an earlier member in the order owns this path
 			}
@@ -347,7 +415,7 @@ func (s *service) listVirtual(ctx context.Context, virtualKey, prefix string) ([
 	// ListByPrefix answers each member ordered by path; the union re-sorts
 	// so the merged answer keeps the interface's path-ordered contract.
 	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
-	return out, nil
+	return out, strings.Join(degraded, "; "), nil
 }
 
 // probeRemoteMember walks one remote member through the FR-20 chain and maps
@@ -504,9 +572,12 @@ func (s *service) ReadVirtualMember(ctx context.Context, virtualKey, member, pat
 	if !hit {
 		return nil, nil, fmt.Errorf("node %s/%s: %w", member, path, ErrNodeNotFound)
 	}
-	s.audit(ctx, AuditEvent{
-		Action: AuditActionDownload, Repo: virtualKey, Path: path,
-		Detail: fmt.Sprintf(`{"resolvedFrom":%q,"aggregate":true}`, member),
+	s.markDownload(ctx, nil, downloadMark{
+		auditRepo: virtualKey, auditPath: path,
+		countRepo: member, countPath: path,
+		origin:       downloadOriginVirtual(virtualKey),
+		extra:        []string{fmt.Sprintf(`"resolvedFrom":%q`, member), `"aggregate":true`},
+		remoteServed: false,
 	})
 	return rc, node, nil
 }
@@ -537,9 +608,14 @@ func (s *service) readRemoteMemberDoc(ctx context.Context, virtualKey, member, p
 			"virtual", virtualKey, "member", member, "path", path)
 		return nil, nil, fmt.Errorf("node %s/%s: %w", member, path, ErrNodeNotFound)
 	}
-	s.audit(ctx, AuditEvent{
-		Action: AuditActionDownload, Repo: virtualKey, Path: path,
-		Detail: fmt.Sprintf(`{"resolvedFrom":%q,"aggregate":true}`, member),
+	// The aggregation face's remote-member twin: the member's cache served
+	// the document, so its row takes the remote column as well.
+	s.markDownload(ctx, nil, downloadMark{
+		auditRepo: virtualKey, auditPath: path,
+		countRepo: member, countPath: path,
+		origin:       downloadOriginVirtual(virtualKey),
+		extra:        []string{fmt.Sprintf(`"resolvedFrom":%q`, member), `"aggregate":true`},
+		remoteServed: true,
 	})
 	return res.Body, res.Node, nil
 }

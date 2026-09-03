@@ -1,0 +1,604 @@
+{
+ "url": "http://127.0.0.1:8082/ui/admin/repositories/local/new",
+ "tids": [],
+ "btns": [
+  {
+   "tid": "",
+   "text": "platform",
+   "aria": "",
+   "cls": "toggle-menu-button",
+   "x": 266,
+   "y": 49,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "administration",
+   "aria": "",
+   "cls": "toggle-menu-button.active",
+   "x": 343,
+   "y": 49,
+   "disabled": true
+  },
+  {
+   "tid": "",
+   "text": "",
+   "aria": "Get Help and Learn",
+   "cls": "el-p-button.el-p-button--transparent",
+   "x": 1602,
+   "y": 59,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "A",
+   "aria": "User Menu",
+   "cls": "el-p-button.el-p-button--transparent",
+   "x": 1647,
+   "y": 59,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "",
+   "aria": "Hide navigation menu",
+   "cls": "vsm--toggle-btn.vsm--toggle-btn_slot",
+   "x": 198,
+   "y": 942,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Basic",
+   "aria": "Step 1 of 3: Basic",
+   "cls": "jf-steps__item.is-active",
+   "x": 270,
+   "y": 153,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Advanced",
+   "aria": "Step 2 of 3: Advanced",
+   "cls": "jf-steps__item",
+   "x": 737,
+   "y": 153,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Replications",
+   "aria": "Step 3 of 3: Replications",
+   "cls": "jf-steps__item",
+   "x": 1205,
+   "y": 153,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Package Type",
+   "aria": "",
+   "cls": "el-button.package-logo",
+   "x": 270,
+   "y": 239,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "",
+   "aria": "Remove **/*",
+   "cls": "el-button.icon-remove-btn",
+   "x": 1262,
+   "y": 640,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Cancel",
+   "aria": "",
+   "cls": "el-button.el-button--transparent",
+   "x": 1286,
+   "y": 899,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Create Local Repository",
+   "aria": "",
+   "cls": "el-button.el-button--primary",
+   "x": 1399,
+   "y": 899,
+   "disabled": true
+  },
+  {
+   "tid": "",
+   "text": "",
+   "aria": "Close",
+   "cls": "el-dialog__headerbtn",
+   "x": 1254,
+   "y": 144,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Docker",
+   "aria": "Docker Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 402,
+   "y": 276,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "npm",
+   "aria": "npm Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 512,
+   "y": 276,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Maven",
+   "aria": "Maven Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 621,
+   "y": 276,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "PyPI",
+   "aria": "PyPI Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 731,
+   "y": 276,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Hugging Face",
+   "aria": "Hugging Face Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 840,
+   "y": 276,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Gradle",
+   "aria": "Gradle Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 950,
+   "y": 276,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Go",
+   "aria": "Go Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 1059,
+   "y": 276,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Debian",
+   "aria": "Debian Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 1169,
+   "y": 276,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "RPM",
+   "aria": "RPM Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 402,
+   "y": 374,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Swift",
+   "aria": "Swift Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 512,
+   "y": 374,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Terraform / OpenTofu",
+   "aria": "Terraform / OpenTofu Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 621,
+   "y": 374,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Terraform Backend",
+   "aria": "Terraform Backend Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 731,
+   "y": 374,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Agent Packages",
+   "aria": "Agent Packages Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 840,
+   "y": 374,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Agent Plugins",
+   "aria": "Agent Plugins Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 950,
+   "y": 374,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Alpine",
+   "aria": "Alpine Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 1059,
+   "y": 374,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Ansible",
+   "aria": "Ansible Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 1169,
+   "y": 374,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Bower",
+   "aria": "Bower Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 402,
+   "y": 472,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Cargo",
+   "aria": "Cargo Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 512,
+   "y": 472,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Chef",
+   "aria": "Chef Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 621,
+   "y": 472,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "CocoaPods",
+   "aria": "CocoaPods Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 731,
+   "y": 472,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Conan",
+   "aria": "Conan Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 840,
+   "y": 472,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Conda",
+   "aria": "Conda Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 950,
+   "y": 472,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "CRAN",
+   "aria": "CRAN Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 1059,
+   "y": 472,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "OCI",
+   "aria": "OCI Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 1169,
+   "y": 472,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Machine Learning",
+   "aria": "Machine Learning Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 402,
+   "y": 570,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Nix",
+   "aria": "Nix Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 512,
+   "y": 570,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "RubyGems",
+   "aria": "RubyGems Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 621,
+   "y": 570,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "GitLfs",
+   "aria": "GitLfs Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 731,
+   "y": 570,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Helm",
+   "aria": "Helm Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 840,
+   "y": 570,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Hex",
+   "aria": "Hex Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 950,
+   "y": 570,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Ivy",
+   "aria": "Ivy Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 1059,
+   "y": 570,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "LuaRocks",
+   "aria": "LuaRocks Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 1169,
+   "y": 570,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Skills",
+   "aria": "Skills Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 402,
+   "y": 668,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "NuGet",
+   "aria": "NuGet Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 512,
+   "y": 668,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Opkg",
+   "aria": "Opkg Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 621,
+   "y": 668,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Composer php",
+   "aria": "Composer php Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 731,
+   "y": 668,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Pub / Dart",
+   "aria": "Pub / Dart Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 840,
+   "y": 668,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Puppet",
+   "aria": "Puppet Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 950,
+   "y": 668,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "SBT",
+   "aria": "SBT Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 1059,
+   "y": 668,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Vagrant",
+   "aria": "Vagrant Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 1169,
+   "y": 668,
+   "disabled": false
+  },
+  {
+   "tid": "",
+   "text": "Generic",
+   "aria": "Generic Package Type Button Not Selected",
+   "cls": "el-button.el-tooltip",
+   "x": 402,
+   "y": 766,
+   "disabled": false
+  }
+ ],
+ "inputs": [
+  {
+   "tag": "input",
+   "type": "text",
+   "ph": "Search Admin Resources",
+   "value": "",
+   "tid": "",
+   "aria": "",
+   "x": 1236,
+   "y": 48
+  },
+  {
+   "tag": "input",
+   "type": "text",
+   "ph": "Select Layout",
+   "value": "simple-default",
+   "tid": "",
+   "aria": "",
+   "x": 270,
+   "y": 565
+  },
+  {
+   "tag": "input",
+   "type": "text",
+   "ph": "",
+   "value": "",
+   "tid": "",
+   "aria": "",
+   "x": 270,
+   "y": 659
+  },
+  {
+   "tag": "input",
+   "type": "text",
+   "ph": "",
+   "value": "",
+   "tid": "",
+   "aria": "",
+   "x": 270,
+   "y": 753
+  },
+  {
+   "tag": "input",
+   "type": "text",
+   "ph": "New Pattern",
+   "value": "",
+   "tid": "",
+   "aria": "",
+   "x": 979,
+   "y": 579
+  },
+  {
+   "tag": "input",
+   "type": "text",
+   "ph": "",
+   "value": "**/*",
+   "tid": "",
+   "aria": "",
+   "x": 979,
+   "y": 627
+  },
+  {
+   "tag": "input",
+   "type": "text",
+   "ph": "New Pattern",
+   "value": "",
+   "tid": "",
+   "aria": "",
+   "x": 979,
+   "y": 737
+  },
+  {
+   "tag": "input",
+   "type": "text",
+   "ph": "",
+   "value": "",
+   "tid": "",
+   "aria": "",
+   "x": 270,
+   "y": 420
+  },
+  {
+   "tag": "input",
+   "type": "text",
+   "ph": "",
+   "value": "",
+   "tid": "",
+   "aria": "Select Stages",
+   "x": 987,
+   "y": 426
+  },
+  {
+   "tag": "input",
+   "type": "text",
+   "ph": "Select Stages",
+   "value": "",
+   "tid": "",
+   "aria": "",
+   "x": 979,
+   "y": 420
+  },
+  {
+   "tag": "input",
+   "type": "text",
+   "ph": "Search by package type",
+   "value": "",
+   "tid": "",
+   "aria": "",
+   "x": 533,
+   "y": 210
+  }
+ ]
+}

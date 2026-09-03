@@ -1,0 +1,44 @@
+Skip to main content
+WELCOME TO
+THE JFROG PLATFORM!
+Universal End-to-End DevOps Platform For Continuous Software Releases
+Get Started
+Don't show me again
+Platform
+Administration
+Use Up and Down arrow keys to navigate recent searches, Enter to select, Esc to dismiss
+A
+All Projects
+Artifactory
+Packages
+Builds
+Artifacts
+Release Lifecycle
+Xray
+Distribution
+AI/ML
+Pipelines
+Integrations
+JFrog Platform
+Enterprise Plus trial license 7.161.20 rev 86120900 Licensed to TEST JFrog Ltd.
+© Copyright 2026 JFrog Ltd
+All Projects
+Artifactory
+Artifacts
+Set Me Up
+Happily serving 0 artifacts
+Filter By
+My Favorites
+Clear
+Tree View: 
+jfrog-support-bundle
+artifactory-build-info
+example-repo-local
+Trash Can
+jfrog-support-bundle
+General
+Info
+File URL:	
+http://127.0.0.1:8082/artifactory/jfrog-support-bundle/
+Virtual Repository Associations
+Included Repositories

@@ -15,6 +15,8 @@ import IconButton from '@mui/material/IconButton'
 import Paper from '@mui/material/Paper'
 import Radio from '@mui/material/Radio'
 import Select from '@mui/material/Select'
+import Tab from '@mui/material/Tab'
+import Tabs from '@mui/material/Tabs'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 
@@ -27,7 +29,7 @@ import { Skeleton } from '../../components/Skeleton'
 import { ApiError, canAdminWrite, errText, getRepositories, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
 import type { RepoListItem } from '../../lib/api'
 import Chip from '@mui/material/Chip'
-import { getAddons, lockedHint, packageTypeOptions, tierBadgeClass } from '../../lib/addons'
+import { getAddons, packageTypeOptions, tierBadgeClass } from '../../lib/addons'
 import type { PkgTypeOption } from '../../lib/addons'
 import {
   RCLASSES,
@@ -37,11 +39,12 @@ import {
   cfgStr,
   cfgStrList,
   getRepoDetail,
+  testRepoUpstream,
   updateRepo,
   validateRepoKey,
   validateUpstreamURL,
 } from '../../lib/repos'
-import type { PackageType, RClass, RepoConfigBody } from '../../lib/repos'
+import type { PackageType, RClass, RepoConfigBody, RepoTestOverride, RepoTestResult } from '../../lib/repos'
 import { useAsync } from '../../lib/useAsync'
 import {
   POLICY_FIELDS,
@@ -53,14 +56,82 @@ import {
 } from './policyFields'
 import type { PolicyForm } from './policyFields'
 import ReplicationsSection from './ReplicationsSection'
+import {
+  FORCE_CONAN_AUTH_HINT,
+  FORCE_CONAN_AUTH_LABEL,
+  FORM_STEPS,
+  RCLASS_ROUTE_NOTE,
+  REMOTE_TEST_CREATE_HINT,
+  REMOTE_TEST_FAIL_NOTE,
+  REMOTE_TEST_HINT,
+  REMOTE_TEST_LABEL,
+  REMOTE_TEST_OK_NOTE,
+  REMOTE_TEST_STATUS_PREFIX,
+  REMOTE_TEST_UNREACHED_NOTE,
+  RESERVED_ARCHIVE_BROWSING_HINT,
+  RESERVED_ARCHIVE_BROWSING_LABEL,
+  RESERVED_BLACKED_OUT_HINT,
+  RESERVED_BLACKED_OUT_LABEL,
+  RESERVED_ENVIRONMENTS_HINT,
+  RESERVED_GROUP_ADVANCED_TITLE,
+  RESERVED_GROUP_BASIC_TITLE,
+  RESERVED_INTERNAL_DESCRIPTION_HINT,
+  RESERVED_MAX_UNIQUE_SNAPSHOTS_HINT,
+  RESERVED_PLACEHOLDER,
+  RESERVED_REPO_LAYOUT_HINT,
+  RESERVED_SUPPRESS_POM_HINT,
+  RESERVED_SUPPRESS_POM_LABEL,
+  SAVE_CLEAN_HINT,
+} from './formCopy'
 
 import './repositories.css'
 
 // 建仓/编辑表单（console-m8 §4.4/§6.7，T-240 重排）：进页弹包类型网格
-// （5 项，必选）→ **单页分区式**表单（常规设置 → 来源/成员 → 包类型
-// 专属 → 治理/高级）+ 右栏实时摘要；底部 取消 / 重置 / 创建|保存（必填
-// 未满足禁用）。编辑态 rclass/packageType 锁定（不可变是服务端 UpdateRepo
-// 契约）。
+// （必选；T-441 起宽 924px 居中档 + 八门控型开禁——见 PackageTypeGrid 注）
+// → **三段步进式**表单（T-439 / FR-143.1，B-2.5——Artifactory
+// 7.161.20 实测形态：顶部 Basic | Advanced | Replications 步进条
+// 〔jf-steps 三步，aria-label「Step N of 3」〕；节内仍是常规设置 →
+// 来源/成员 → 包类型专属 → 治理/高级六节 Paper，form-section-* 锚零改名）
+// + 右栏实时摘要；底部 取消 / 创建|保存（**重置钮已移除**——T-439 /
+// B-3.11 / Q9 冻结：对齐 M1 锚点 Cancel + Create/Save 两钮；必填未满足
+// 禁用）。编辑态 rclass/packageType 锁定（不可变是服务端 UpdateRepo 契约）。
+//
+// T-443（FR-143.4，B-3.8 翻正）：**rclass 控件移除**——仓型由入口分路由
+// 预选（/admin/repositories/<rclass>/new 三静态路由承载 rclass prop；
+// 旧 /new + ?rclass= 深链经路由表兼容映射），表单内不再有仓型单选组
+// （form-rclass-* 三锚退役入册 §10.6）。编辑态 rclass/packageType 锁定
+// 不变（服务端契约）。
+//
+// T-443（FR-143.5，B-3.6）：remote 来源节的 **Test 连接**（编辑态在场、
+// 落 Basic 步——Artifactory 7.161.20 实测 Test 在 Basic 段凭据组旁）：
+// 消费 T-442 端点 POST /api/repositories/{key}/test，三臂内联呈现
+// （成功绿 / 凭据被拒红〔内联 message〕 / 不可达红〔status_code 0〕）；
+// 草稿臂语义 = url/username/password 逐字段 diff 已存基线（见 buildTestBody）。
+//
+// T-443（FR-143.4）：**dirty-gating**——编辑态进入即 Save 禁用，与预填
+// 基线出现任何字段差异才启用（无变更提交不可达；密码基线恒空串——
+// 输入即 dirty，NFR-S14 不回显语义的必然推论）。基线 = GET 回显预填的
+// 同一对象（deep-equal 规范形比较，见 formStateEquals）。
+//
+// 步进分派（T-439）：基础 = 常规/来源/成员；高级 = 策略/治理/高级 +
+// 预留位字段族；Replications = 复制配置（**编辑态 × local** 才呈现——
+// M6 能力语义零变化，仅载体自内嵌第七节迁第三步；建仓态仓尚不存在，
+// 步进条只两段）。深链 ?section=replications 直落第三步（仓列表 Run
+// 动作与详情指针的落点不变）。
+//
+// 字段域补齐（T-439 / FR-143.2，B-1.5 + B-3.12，Q8 冻结「全补」口径的
+// as-built 落地）：八域经活体实证（本票 scratch 实例 PUT→GET 对账）分两档
+// ——
+// - **实字段**：forceConanAuthentication（local × conan——T-355A 起
+//   configJSON local 臂全收 + adapter 行为消费；显式 false 恒提交，flip-off
+//   过 round trip）；
+// - **预留位**（恒禁用、零提交，R3 两档定案先例同款）：maxUniqueSnapshots /
+//   repoLayoutRef / blackedOut / archiveBrowsingEnabled（transport 有解码位
+//   但 configJSON 不转发——**decode-only 静默丢弃**，契约漂移在案）+
+//   Environments(Stage) / 内部描述 notes（notes 同为 decode-only）/ Suppress
+//   POM（无解码位）。PRD「API 已收全」的审计证据（repositories.go L55-61）
+//   仅覆盖解码层——提交-回显-行为三链在现后端不可达，BE 承接票落地后
+//   预留位逐域转正（票内登记 + K70）。
 //
 // 字段语义与后端透传链严格对齐（T-95 起，零改动）：
 // - governance（quotaBytes/includes/excludes）只在 LOCAL 仓呈现——
@@ -130,14 +201,11 @@ function buildPkgChoices(options: PkgTypeOption[]): PkgChoice[] {
   return items
 }
 
-/** 单项可选取舍：槽位解锁态；返回禁用原因（null = 可选）。组合矩阵门自
- *  T-431（M15 Q6）随 docker 三仓型全开而退役（服务端 supportedPackageTypes
- *  为唯一事实源——rclass × packageType 组合恒合法，矩阵回缩时在服务端先裁），
- *  license 槽位禁用是当前唯一组合性约束。 */
-function pkgChoiceBlock(c: PkgChoice): string | null {
-  if (c.opt && !c.opt.enabled) return lockedHint(c.opt)
-  return null
-}
+/** 前端槽位门已随 T-441（M16 FR-143.3，B-2.6）整族退役：磁贴/单选不再有
+ *  license 禁用态——license 门是后端 ADR-0033 域（repo.Service D3 拒绝，
+ *  建仓面 400「package type not available」终裁），前端只保留档位徽章的
+ *  可见性提示（D5：入口可见带徽章，不是隐藏）。组合矩阵门更早于 T-431
+ *  （M15 Q6）退役——建仓面自此零前端预裁，一切槽位问题服务端说了算。 */
 
 interface FormState {
   rclass: RClass
@@ -163,9 +231,16 @@ interface FormState {
   handleSnapshots: boolean
   checksumPolicyType: string
   snapshotVersionBehavior: string
+  /** T-439 实字段（B-3.12 Force Auth 的 BinFlow 后端承接面）：local × conan
+   *  才呈现/提交——configJSON local 臂全收，conan adapter 以 401 挑战消费 */
+  forceConanAuthentication: boolean
   /** deb/rpm/helm 策略键（T-353 字段册驱动；generic 等其余包型 = 空对象） */
   policy: PolicyForm
 }
+
+/** 表单步进（T-439 / FR-143.1）：Artifactory 7.161.20 实测三段——
+ *  Basic | Advanced | Replications（jf-steps 步进条）。 */
+type FormStep = 'basic' | 'advanced' | 'replications'
 
 const CREATE_INITIAL: FormState = {
   rclass: 'local',
@@ -188,6 +263,7 @@ const CREATE_INITIAL: FormState = {
   handleSnapshots: true,
   checksumPolicyType: 'client-checksums',
   snapshotVersionBehavior: 'deployer',
+  forceConanAuthentication: false,
   policy: {},
 }
 
@@ -238,6 +314,8 @@ function prefillFromDetail(d: {
     // deb/rpm/helm 策略键逐键回显（全量替换提交的保全前提——漏发=丢配置）
     const pkg = policyPkg(f.packageType)
     if (pkg) f.policy = prefillPolicyForm(pkg, cfg)
+    // T-439：conan 强制认证回显（decode 面全收的实字段——漏发=关掉已开的 401 门）
+    if (f.packageType === 'conan') f.forceConanAuthentication = cfgBool(cfg, 'forceConanAuthentication')
   }
   return f
 }
@@ -280,6 +358,11 @@ function buildBody(f: FormState, mode: 'create' | 'edit'): RepoConfigBody {
       body.checksumPolicyType = f.checksumPolicyType
       body.snapshotVersionBehavior = f.snapshotVersionBehavior
     }
+    // T-439：conan 强制认证——显式 false 恒提交（POINTER 语义同 maven 族，
+    // flip-off 必须过 round trip，否则 401 门一旦打开就关不回）
+    if (f.packageType === 'conan') {
+      body.forceConanAuthentication = f.forceConanAuthentication
+    }
     // deb/rpm/helm 策略键（T-353）：check/合法 number 恒进 body（POINTER 语义
     // ——显式 false/0 必须过 round trip），空 text 剔除归默认
     const pkg = policyPkg(f.packageType)
@@ -295,6 +378,43 @@ function buildBody(f: FormState, mode: 'create' | 'edit'): RepoConfigBody {
 
 function isNonNegInt(v: string): boolean {
   return v.trim() === '' || /^\d+$/.test(v.trim())
+}
+
+/** 规范形序列化（对象键排序、数组保序）——dirty 判定的稳定比较基
+ *  （T-443）：f 与基线同构（同一构造路径 + spread 更新保键序），排序后
+ *  逐字节比较对键序漂移免疫；policy 对象与 members 数组一并覆盖。 */
+function stableFormString(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(stableFormString).join(',')}]`
+  if (v !== null && typeof v === 'object') {
+    const entries = Object.entries(v as Record<string, unknown>)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([k, val]) => `${JSON.stringify(k)}:${stableFormString(val)}`)
+    return `{${entries.join(',')}}`
+  }
+  return JSON.stringify(v) ?? 'null'
+}
+
+/** T-443 dirty 判定：与 GET 回显预填基线的全字段 deep-equal（编辑态）。
+ *  建仓态恒 dirty（无基线——Save 门只走 formValid 必填门）。 */
+function formStateEquals(a: FormState, b: FormState): boolean {
+  return stableFormString(a) === stableFormString(b)
+}
+
+/** T-443（FR-143.5）Test 草稿臂：对**已存基线**逐字段 diff——
+ *  - 密码已填 → 整组草稿三元组（明文凭据对，不咨询已存密封密钥）；
+ *  - url/username 任一改动（未填密码）→ 草稿 url+username 对 = **匿名探测**
+ *    （T-422 覆盖纪律：密封密钥绝不静默送往改动后的候选主机）；
+ *  - 零改动 → 无 body（已存配置探测，服务端解封已存凭据）。
+ *  与 buildBody 无关：探测永不落盘，密码不因探测进任何提交。 */
+function buildTestBody(f: FormState, baseline: FormState | null): RepoTestOverride | undefined {
+  if (baseline === null) return { url: f.url.trim(), username: f.username.trim(), password: f.password }
+  if (f.password !== '') {
+    return { url: f.url.trim(), username: f.username.trim(), password: f.password }
+  }
+  if (f.url.trim() !== baseline.url.trim() || f.username.trim() !== baseline.username.trim()) {
+    return { url: f.url.trim(), username: f.username.trim() }
+  }
+  return undefined
 }
 
 /** 全表单门控：必填/预检不通过则提交不可用（表单零坏请求，§4.4）。组合门
@@ -335,9 +455,15 @@ function formValid(f: FormState, mode: 'create' | 'edit'): { ok: boolean; reason
 }
 
 /** 建仓向导第 0 步：包类型网格对话框（§4.4 进页即弹；单选即选定关闭）。
- *  M10 T-288：每型带档位徽章（community 地板无徽章；pro/enterprise 徽章），
- *  未解锁型禁用 + 提示「需要 N 档」——D5 可见性口径（入口可见带徽章，
- *  不是隐藏）。
+ *  M10 T-288：每型带档位徽章（community 地板无徽章；pro/enterprise 徽章）
+ *  ——D5 可见性口径（入口可见带徽章，不是隐藏）。
+ *  T-441（M16 FR-143.3，B-2.6——形态翻转③）：Dialog 宽度档自 440px 紧凑档
+ *  翻至 **924px 居中档**（Artifactory 7.161.20 活体实测 924×760 居中
+ *  el-dialog——7.84 审计锚 880px 勘误，基线复核 m16-baseline-refresh
+ *  §A3-7）；八门控型磁贴**去禁用态**（纯前端门开禁——license 门系后端
+ *  ADR-0033 域，repo.Service D3 终裁，见文件头 pkgChoiceBlock 退役注），
+ *  磁贴恒 brand 官方标 + 档位徽章保留。maxWidth={false} 解除 MUI 'sm'
+ *  （600px）钳制——宽度权威在 paper sx。
  *  T-299：网格项保持原生 button（radiogroup 语义 + pkg-grid 卡片形态），
  *  取消钮迁 MUI；焦点/Esc 管理零变化。
  *  T-344 批 D：modal 壳 → MUI Dialog（.modal-backdrop/.modal 手作族随之
@@ -368,12 +494,13 @@ function PackageTypeGrid({
 
   const paperProps = {
     'data-testid': 'pkg-grid',
-    sx: { width: 'min(440px, calc(100vw - 48px))' },
+    sx: { width: 'min(924px, calc(100vw - 48px))' },
   }
 
   return (
     <Dialog
       open
+      maxWidth={false}
       onClose={(_, reason) => {
         if (reason === 'escapeKeyDown' || reason === 'backdropClick') onCancel()
       }}
@@ -387,7 +514,6 @@ function PackageTypeGrid({
         </p>
         <div className="pkg-grid-items" role="radiogroup" aria-label="包类型">
           {choices.map((c) => {
-            const block = pkgChoiceBlock(c)
             const badgeTier = c.opt && c.opt.minTier !== 'community' ? c.opt.minTier : null
             return (
               <button
@@ -395,21 +521,15 @@ function PackageTypeGrid({
                 key={c.id}
                 role="radio"
                 aria-checked={false}
-                disabled={block !== null}
-                title={block ?? undefined}
                 className="pkg-grid-item"
                 data-testid={`pkg-grid-item-${c.id}`}
                 onClick={() => onPick(c.id)}
               >
-                {/* T-390（FR-127）：包型身份走 brand 版官方标；禁用态
-                    （license 门控/组合约束）换 mono + 容器 opacity 0.4
-                    ——品牌色置灰会脏色（README §6.3），三件套 = mono +
-                    opacity + pkg-tier-* 徽章（徽章在下）。
-                    className="pkg-grid-item" 本票复线：T-240 起磁贴类名
-                    从未落 DOM（repositories.css 的卡面族 dead 至今，本票
-                    门控三件套断言暴露）——卡面 + 禁用置灰随类名复活；
-                    几何档（440px Dialog 宽）不受影响（spec 复证）。 */}
-                <PkgIcon id={c.id} variant={block ? 'mono' : 'brand'} size={22} className="pkg-icon" />
+                {/* T-390（FR-127）：包型身份走 brand 版官方标。T-441 起
+                    磁贴无禁用态（八门控型开禁——mono/opacity 0.4 置灰
+                    三件套随 pkgChoiceBlock 退役），恒 brand；档位徽章
+                    （pkg-tier-*）是槽位档位的唯一可见提示，保留。 */}
+                <PkgIcon id={c.id} variant="brand" size={22} className="pkg-icon" />
                 <span className="pkg-name">
                   {c.label}
                   {badgeTier && (
@@ -426,7 +546,7 @@ function PackageTypeGrid({
                     />
                   )}
                 </span>
-                <span className="pkg-desc">{block ?? c.desc}</span>
+                <span className="pkg-desc">{c.desc}</span>
               </button>
             )
           })}
@@ -441,7 +561,105 @@ function PackageTypeGrid({
   )
 }
 
-export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }) {
+/** 预留位文本域（R3 两档定案先例同款）：恒禁用 + 零提交——Artifactory
+ *  字段族的如实呈现，不发明引擎不存在的行为。 */
+function ReservedTextField({
+  id,
+  label,
+  hint,
+  anchor,
+  multiline,
+}: {
+  id: string
+  label: string
+  hint: string
+  anchor: string
+  multiline?: boolean
+}) {
+  return (
+    <div className="field">
+      <label htmlFor={id}>{label}</label>
+      <TextField
+        id={id}
+        size="small"
+        disabled
+        multiline={multiline}
+        minRows={multiline ? 2 : undefined}
+        placeholder={RESERVED_PLACEHOLDER}
+        sx={multiline ? undefined : { width: 420 }}
+        slotProps={{ htmlInput: { 'data-testid': anchor, lang: 'en' } }}
+      />
+      <p className="field-hint">{hint}</p>
+    </div>
+  )
+}
+
+/** 预留位复选（同上——恒禁用、零提交） */
+function ReservedCheck({ label, hint, anchor }: { label: string; hint: string; anchor: string }) {
+  return (
+    <div>
+      <FormControlLabel
+        className="check-row"
+        disabled
+        control={
+          <Checkbox size="small" slotProps={{ input: { 'data-testid': anchor } as ComponentPropsWithoutRef<'input'> }} />
+        }
+        label={label}
+      />
+      <p className="field-hint">{hint}</p>
+    </div>
+  )
+}
+
+/** Basic 步预留位组（T-439 / FR-143.2）：repoLayoutRef + Environments(Stage)
+ *  + 内部描述 notes——三域后端均无承接（前两者 decode-only、后者 decode-only）。 */
+function ReservedBasicFields() {
+  return (
+    <div className="field" data-testid="form-reserved-basic">
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+        {RESERVED_GROUP_BASIC_TITLE}
+      </Typography>
+      <ReservedTextField
+        id="f-repo-layout"
+        label="Repository Layout（repoLayoutRef）"
+        hint={RESERVED_REPO_LAYOUT_HINT}
+        anchor="form-repo-layout"
+      />
+      <ReservedTextField
+        id="f-environments"
+        label="环境段（Environments / Stage）"
+        hint={RESERVED_ENVIRONMENTS_HINT}
+        anchor="form-environments"
+      />
+      <ReservedTextField
+        id="f-internal-description"
+        label="内部描述（Internal Description / notes）"
+        hint={RESERVED_INTERNAL_DESCRIPTION_HINT}
+        anchor="form-internal-description"
+        multiline
+      />
+    </div>
+  )
+}
+
+/** Advanced 步预留位组：blackedOut + archiveBrowsingEnabled（decode-only 两域）。 */
+function ReservedAdvancedChecks() {
+  return (
+    <div className="field" data-testid="form-reserved-advanced">
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+        {RESERVED_GROUP_ADVANCED_TITLE}
+      </Typography>
+      <ReservedCheck label={RESERVED_BLACKED_OUT_LABEL} hint={RESERVED_BLACKED_OUT_HINT} anchor="form-blacked-out" />
+      <ReservedCheck
+        label={RESERVED_ARCHIVE_BROWSING_LABEL}
+        hint={RESERVED_ARCHIVE_BROWSING_HINT}
+        anchor="form-archive-browsing"
+      />
+    </div>
+  )
+}
+
+export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 'edit'; rclass?: RClass }) {
   const { session } = useAuth()
   const admin = canAdminWrite(session)
   const readOnly = isReadOnlyAdmin(session)
@@ -451,18 +669,28 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
   const { key: routeKey } = useParams<{ key: string }>()
   const [searchParams] = useSearchParams()
 
-  // Quick 建仓入口的 ?rclass= 形态（shell §2.3 / §1.4 路由表）
-  const initialRclass: RClass = mode === 'create'
-    ? searchParams.get('rclass') === 'remote' || searchParams.get('rclass') === 'virtual'
-      ? (searchParams.get('rclass') as RClass)
-      : 'local'
-    : 'local'
+  // T-443：仓型由分路由 prop 预选（/admin/repositories/<rclass>/new 三静态
+  // 路由承载；旧 /new + ?rclass= 深链在路由表兼容映射层收敛——本组件零
+  // query 解析，表单内仓型控件移除〔B-3.8〕）。
+  const initialRclass: RClass = mode === 'create' ? (rclass ?? 'local') : 'local'
 
   const [f, setF] = useState<FormState>({ ...CREATE_INITIAL, rclass: initialRclass })
-  const [baseline, setBaseline] = useState<FormState>({ ...CREATE_INITIAL, rclass: initialRclass })
+  // T-443 dirty-gating 基线：GET 回显预填的同一对象（编辑态）。密码基线
+  // 恒 ''（NFR-S14 不回显）——输入即 dirty。
+  const [baseline, setBaseline] = useState<FormState | null>(null)
+  // T-439 步进态：深链 ?section=replications 直落第三步（落点语义不变——
+  // 仓列表 Run 动作与详情指针既有深链零改造；建仓态无第三步，回基础步）。
+  // baseline 态随重置钮（B-3.11/Q9）一并退役。
+  const [step, setStep] = useState<FormStep>(
+    mode === 'edit' && searchParams.get('section') === 'replications' ? 'replications' : 'basic',
+  )
   const [pkgOpen, setPkgOpen] = useState(mode === 'create')
   const [submitting, setSubmitting] = useState(false)
   const [serverError, setServerError] = useState<ApiError | null>(null)
+  // T-443 remote Test（FR-143.5）：探测中旗标 + 内联判定体（repl-test 同款
+  // 姿势——成功绿/失败红，message 原文呈现）。
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState<RepoTestResult | null>(null)
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setF((prev) => ({ ...prev, [k]: v }))
 
@@ -472,13 +700,13 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
     const pkg = policyPkg(pt)
     const policy = pkg ? initialPolicyForm(pkg) : {}
     setF((prev) => ({ ...prev, packageType: pt, policy }))
-    setBaseline((prev) => ({ ...prev, packageType: pt, policy }))
   }
 
   const setPolicy = (wire: string, v: string | boolean) =>
     setF((prev) => ({ ...prev, policy: { ...prev.policy, [wire]: v } }))
 
-  // 编辑态：加载现有配置并预填（全量替换语义的保全前提）
+  // 编辑态：加载现有配置并预填（全量替换语义的保全前提）；同一对象落
+  // dirty 基线（T-443——进入编辑 Save disabled 的比较基准）。
   const detail = useAsync(
     () => (mode === 'edit' && routeKey ? getRepoDetail(routeKey) : Promise.resolve(null)),
     [mode, routeKey],
@@ -499,8 +727,9 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
     return list.filter((r) => r.type !== 'virtual' && r.key !== f.key)
   }, [candidates.data, f.key])
 
-  // 包型可选集（M10 T-288）：addons 注册表实时数据（徽章/锁定态与 License
-  // 页同源）。加载中/403/失败 = 仅五核心地板项——门控型不误放，服务端终裁。
+  // 包型可选集（M10 T-288）：addons 注册表实时数据（徽章与 License 页同源）。
+  // 加载中/403/失败 = 仅五核心地板项（门控型缺席不呈现，非禁用——T-441 起
+  // 无前端禁用门，槽位解锁与否由服务端 D3 终裁，错误走 form-error 原文回显）。
   const addons = useAsync(getAddons, [])
   const pkgChoices = useMemo(() => buildPkgChoices(packageTypeOptions(addons.data ?? [])), [addons.data])
 
@@ -576,7 +805,10 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
   const urlErr = f.rclass === 'remote' ? validateUpstreamURL(f.url.trim()) : null
   // readonly_admin：GET 通过但写面必 403——全字段禁用 + 注记（M7 §7.3）
   const locked = readOnly
-  const canSubmit = gate.ok && !submitting && !locked
+  // T-443 dirty-gating：编辑态零变更 = Save 不可达（无变更提交不可达）；
+  // 建仓态无基线恒 dirty（必填门 formValid 是唯一门）。
+  const dirty = mode !== 'edit' || baseline === null || !formStateEquals(f, baseline)
+  const canSubmit = gate.ok && !submitting && !locked && dirty
 
   const doSubmit = async () => {
     setServerError(null)
@@ -596,6 +828,27 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
     }
   }
 
+  /** T-443（FR-143.5）remote Test：编辑态（仓已存在——端点按 key 寻址）对
+   *  上游发一次只读探测。草稿臂 body 由与基线的 diff 推导（buildTestBody）；
+   *  面级故障（404/403/5xx）走 form-error 姿势呈现；判定体（含 400 臂）
+   *  一律内联 form-test-result。探测与保存完全独立——不落盘、不触发
+   *  assumed-offline（T-442 零副作用构造）。 */
+  const doTest = async () => {
+    if (!routeKey) return
+    setTesting(true)
+    setTestResult(null)
+    try {
+      const res = await testRepoUpstream(routeKey, buildTestBody(f, baseline))
+      setTestResult(res)
+    } catch (err) {
+      // 面级故障（非判定体）：未知仓 404 / 越权 403 / 解封失败 5xx——
+      // 与保存失败的行内呈现同姿势（不冒充探测结论）
+      setServerError(err instanceof ApiError ? err : new ApiError(0, errText(err)))
+    } finally {
+      setTesting(false)
+    }
+  }
+
   const moveMember = (idx: number, delta: -1 | 1) => {
     const next = [...f.members]
     const j = idx + delta
@@ -606,10 +859,27 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
 
   const localMembers = f.members.filter((m) => memberOptions.find((o) => o.key === m)?.type === 'local')
 
+  // T-439：第三步适用性（编辑态 × local）+ 钳位——步进条与内容区共用同一
+  // 判定，双载体一致（深链误入 remote/virtual 编辑时不悬空选中态）
+  const replStepLive = mode === 'edit' && f.rclass === 'local'
+  const activeStep: FormStep = step === 'replications' && !replStepLive ? 'basic' : step
+
   const renderSection = (): ReactNode => {
     // deb/rpm/helm 策略键分组（T-353）：local × 对应包类型才呈现
     const policyDef = f.rclass === 'local' ? policyPkg(f.packageType) : null
-    return (
+    // T-439 步进分派（FR-143.1）：非活跃步整步卸载（house 口径：条件节
+    // count 0、非 CSS 隐藏——六节 form-section-* 锚零改名，t383 矩阵翻新为
+    // 步进感知）。第三步 = 复制配置（activeStep 钳位见上）。
+    if (activeStep === 'replications') {
+      return (
+        <ReplicationsSection
+          repoKey={routeKey ?? ''}
+          canWrite={admin}
+          focus={searchParams.get('section') === 'replications'}
+        />
+      )
+    }
+    const stepBasic: ReactNode = (
       <>
         {/* T-344 批 D：分区卡 Paper 化（§3.5 repositories 行）——
             .repo-form-section 手作族随本批退役。
@@ -619,38 +889,22 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
           <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
             常规设置
           </Typography>
-          <div className="radio-row" role="radiogroup" aria-label="仓型">
-            {RCLASSES.map((rc) => (
-              <FormControlLabel
-                key={rc}
-                className={mode === 'edit' ? 'disabled' : undefined}
-                disabled={mode === 'edit' || locked}
-                control={
-                  <Radio
-                    size="small"
-                    checked={f.rclass === rc}
-                    onChange={() => {
-                      set('rclass', rc)
-                    }}
-                    value={rc}
-                    name="rclass"
-                    slotProps={{ input: { 'data-testid': `form-rclass-${rc}` } as ComponentPropsWithoutRef<'input'> }}
-                  />
-                }
-                label={rc === 'local' ? 'Local（本地存储）' : rc === 'remote' ? 'Remote（代理上游）' : 'Virtual（聚合）'}
-              />
-            ))}
-          </div>
+          {/* T-443（FR-143.4，B-3.8）：仓型单选组退役——rclass 由入口分路由
+              预选（/admin/repositories/<rclass>/new，本组件 rclass prop），
+              表单内不再有仓型控件（Artifactory 7.161.20 同构：入口下拉选定、
+              表单内无 rclass 控件；form-rclass-* 三锚退役入册 §10.6）。
+              常规节以一行说明承载仓型语境（非交互件）。 */}
+          <p className="field-note" data-testid="form-rclass-note">
+            仓型：<b>{RCLASS_LABEL[f.rclass]}</b>——{RCLASS_ROUTE_NOTE}
+          </p>
           <div className="radio-row" role="radiogroup" aria-label="包类型">
             {pkgChoices.map((c) => {
-              const block = pkgChoiceBlock(c)
               const badgeTier = c.opt && c.opt.minTier !== 'community' ? c.opt.minTier : null
               return (
                 <FormControlLabel
                   key={c.id}
-                  className={block ? 'disabled' : undefined}
-                  title={block ?? undefined}
-                  disabled={mode === 'edit' || block !== null || locked}
+                  className={mode === 'edit' ? 'disabled' : undefined}
+                  disabled={mode === 'edit' || locked}
                   control={
                     <Radio
                       size="small"
@@ -683,8 +937,9 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
               )
             })}
           </div>
+          {/* T-443：rclass 半句随控件移除归 form-rclass-note——本注记收窄为包型 */}
           {mode === 'edit' && (
-            <p className="field-note">仓型与包类型不可修改（变更会静默改变全部协议路由决策）。</p>
+            <p className="field-note">包类型不可修改（变更会静默改变全部协议路由决策）。</p>
           )}
           {mode === 'create' && (
             <div className="field">
@@ -732,7 +987,13 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
               disabled={locked}
               slotProps={{ htmlInput: { 'data-testid': 'form-description' } }}
             />
+            {/* T-439：Artifactory 的 Public Description 对位即本字段（标签
+                不改——存量 spec 锚定面零翻新）；拆分出的 Internal Description
+                是后端未承接的 notes，走下方预留位 */}
           </div>
+          {/* T-439 / FR-143.2：Basic 步预留位组（repoLayoutRef / Environments
+              〔7.161 更名 Stage〕/ notes——后端无承接三域） */}
+          <ReservedBasicFields />
         </Paper>
 
         {f.rclass === 'remote' && (
@@ -789,6 +1050,46 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 <b>清除</b>已存凭据；需要保留请重新输入。
               </p>
             </div>
+            {/* T-443（FR-143.5，B-3.6）：Test 连接——Artifactory 7.161.20 实测
+                落 Basic 步凭据组旁。编辑态在场（T-442 端点按已存 key 寻址——
+                建仓态仓不存在，给 hint 不给死按钮）；readonly_admin 禁用
+                （CanManageRepo write 门，服务端 403 兜底）。草稿臂 diff 语义
+                见 buildTestBody。 */}
+            {mode === 'edit' ? (
+              <div className="field">
+                <Button
+                  variant="outlined"
+                  size="small"
+                  disabled={testing || locked || f.url.trim() === '' || !!urlErr}
+                  title={REMOTE_TEST_HINT}
+                  onClick={() => void doTest()}
+                  data-testid="form-test"
+                >
+                  {testing ? '测试中…' : REMOTE_TEST_LABEL}
+                </Button>
+                <p className="field-hint">{REMOTE_TEST_HINT}</p>
+                {testResult && (
+                  <Alert
+                    severity={testResult.ok ? 'success' : 'error'}
+                    data-testid="form-test-result"
+                    role="status"
+                    sx={{ mt: 1 }}
+                  >
+                    <div lang="en">{testResult.message}</div>
+                    <div>
+                      {testResult.ok ? REMOTE_TEST_OK_NOTE : REMOTE_TEST_FAIL_NOTE}
+                      {testResult.status_code > 0
+                        ? `（${REMOTE_TEST_STATUS_PREFIX}${testResult.status_code}）`
+                        : `（${REMOTE_TEST_UNREACHED_NOTE}）`}
+                    </div>
+                  </Alert>
+                )}
+              </div>
+            ) : (
+              <p className="field-hint" data-testid="form-test-create-note">
+                {REMOTE_TEST_CREATE_HINT}
+              </p>
+            )}
             <FormControlLabel
               className="check-row"
               disabled={locked}
@@ -931,7 +1232,11 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
             </div>
           </Paper>
         )}
-
+      </>
+    )
+    if (activeStep === 'basic') return stepBasic
+    return (
+      <>
         {f.rclass === 'local' && f.packageType === 'maven' && (
           <Paper component="section" aria-label="Maven 策略" data-testid="form-section-policy" sx={{ p: 2, pb: 1.5, mb: 2 }}>
             <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
@@ -994,6 +1299,20 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 <option value="unique">unique（unique 改写为 P2，行为同 deployer）</option>
               </TextField>
             </div>
+            {/* T-439 / FR-143.2：maven 域预留位两枚（Artifactory 7.161 中与
+                Handle Releases/Checksum/SNAPSHOT 同组的 Max Unique Snapshots
+                与 Suppress POM Consistency Checks——后端均无承接） */}
+            <ReservedTextField
+              id="f-max-unique-snapshots"
+              label="Max Unique Snapshots（maxUniqueSnapshots）"
+              hint={RESERVED_MAX_UNIQUE_SNAPSHOTS_HINT}
+              anchor="form-max-unique-snapshots"
+            />
+            <ReservedCheck
+              label={RESERVED_SUPPRESS_POM_LABEL}
+              hint={RESERVED_SUPPRESS_POM_HINT}
+              anchor="form-suppress-pom"
+            />
           </Paper>
         )}
 
@@ -1104,6 +1423,34 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
             label="优先解析（priorityResolution：作为 virtual 成员时优先桶标记）"
           />
 
+          {/* T-439 / FR-143.2 实字段（B-3.12 Force Auth 的后端承接面）：
+              local × conan 才呈现——forceConanAuthentication 为 configJSON
+              local 臂全收 + adapter 行为消费的真字段（提交-回显-行为三链
+              可达；Artifactory 侧 Force Authentication 亦为 conan 域字段，
+              PRD「（virtual）」注记与后端实态不符——票内契约漂移在案）。 */}
+          {f.rclass === 'local' && f.packageType === 'conan' && (
+            <>
+              <FormControlLabel
+                className="check-row"
+                disabled={locked}
+                control={
+                  <Checkbox
+                    size="small"
+                    checked={f.forceConanAuthentication}
+                    onChange={(e) => set('forceConanAuthentication', e.target.checked)}
+                    slotProps={{ input: { 'data-testid': 'form-force-auth' } as ComponentPropsWithoutRef<'input'> }}
+                  />
+                }
+                label={FORCE_CONAN_AUTH_LABEL}
+              />
+              <p className="field-hint">{FORCE_CONAN_AUTH_HINT}</p>
+            </>
+          )}
+
+          {/* T-439 / FR-143.2：Advanced 步预留位组（blackedOut /
+              archiveBrowsingEnabled——decode-only 两域） */}
+          <ReservedAdvancedChecks />
+
           {/* deb/rpm/helm 策略键（T-353，FR-113.2/113.5）：字段册驱动——REST
               已透传（T-327R/T-329 D-E），表单按包类型收窄呈现；check/合法
               number 恒提交（POINTER 语义，flip-off 必须过 round trip） */}
@@ -1192,19 +1539,6 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
             </>
           )}
         </Paper>
-
-        {/* T-404（R1 裁定形态）：复制配置内嵌节——**编辑态 × local** 才呈现
-            （push 源是本仓；建仓态仓尚不存在，POST /v1/replications 的
-            source_repo 前置校验必 400）。节内自治（列表四态 + 内嵌表单），
-            与主表单状态零耦合——主表单的提交/重置不触及复制配置。深链
-            ?section=replications = 仓列表 Run 动作与详情指针的落点。 */}
-        {mode === 'edit' && f.rclass === 'local' && (
-          <ReplicationsSection
-            repoKey={routeKey ?? ''}
-            canWrite={admin}
-            focus={searchParams.get('section') === 'replications'}
-          />
-        )}
       </>
     )
   }
@@ -1245,6 +1579,42 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
 
       <div className="form-layout">
         <section>
+          {/* T-439 / FR-143.1：Basic | Advanced | Replications 步进条
+              （Artifactory 7.161.20 实测三段 jf-steps 形态的 MUI Tabs 对位；
+              aria-label 承「Step N of 3」步进语义）。第三步仅编辑态 × local
+              在场（建仓态仓尚不存在，两段）；步进切换不触发表单状态——
+              必填门控/提交恒以全表单为准（跨步可见性不参与 gate）。 */}
+          <Tabs
+            value={activeStep}
+            onChange={(_, v: FormStep) => setStep(v)}
+            aria-label="仓库表单分区步进"
+            variant="fullWidth"
+            sx={{ mb: 2, minHeight: 36 }}
+          >
+            <Tab
+              value="basic"
+              label={FORM_STEPS.basic}
+              aria-label="Step 1 of 3: Basic"
+              data-testid="form-step-basic"
+              sx={{ minHeight: 36 }}
+            />
+            <Tab
+              value="advanced"
+              label={FORM_STEPS.advanced}
+              aria-label="Step 2 of 3: Advanced"
+              data-testid="form-step-advanced"
+              sx={{ minHeight: 36 }}
+            />
+            {replStepLive && (
+              <Tab
+                value="replications"
+                label={FORM_STEPS.replications}
+                aria-label="Step 3 of 3: Replications"
+                data-testid="form-step-replications"
+                sx={{ minHeight: 36 }}
+              />
+            )}
+          </Tabs>
           {renderSection()}
           {serverError && (
             <Alert
@@ -1262,6 +1632,9 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
             </Alert>
           )}
           <div className="form-actions">
+            {/* T-439 / B-3.11 / Q9 冻结：重置钮移除——M1 锚点 Cancel +
+                Create/Save 两钮对齐（Artifactory 7.161 实测页脚同款；
+                baseline 态随之退役，未保存改动的回退 = 取消重进）。 */}
             <Button
               variant="outlined"
               size="small"
@@ -1270,21 +1643,14 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
               取消
             </Button>
             <Button
-              variant="outlined"
-              size="small"
-              onClick={() => {
-                setF(baseline)
-                setServerError(null)
-              }}
-              data-testid="form-reset"
-            >
-              重置
-            </Button>
-            <Button
               variant="contained"
               size="small"
               disabled={!canSubmit}
-              title={locked ? '只读管理员不可写（服务端 403 兜底）' : gate.reason}
+              title={
+                locked
+                  ? '只读管理员不可写（服务端 403 兜底）'
+                  : gate.reason ?? (mode === 'edit' && !dirty ? SAVE_CLEAN_HINT : undefined)
+              }
               onClick={() => void doSubmit()}
               data-testid="form-submit"
             >
@@ -1309,7 +1675,7 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
           rclass={f.rclass}
           choices={pkgChoices}
           onPick={(pt) => {
-            // 网格选定的包类型进入基线（重置不退回进页默认 generic）
+            // 网格选定即生效（重置钮已随 B-3.11/Q9 退役——改选 = 重进表单）
             pickPackage(pt)
             setPkgOpen(false)
           }}

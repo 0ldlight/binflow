@@ -56,6 +56,11 @@ func renderPredicate(p metadata.NodePredicate) string {
 		return "prop[" + renderConds(n.Conds) + "]"
 	case *metadata.QueryPropSame:
 		return "msp[" + renderConds(n.Conds) + "]"
+	case *metadata.QueryZero:
+		if n.Negate {
+			return fmt.Sprintf("nonzero(%s)", n.Field)
+		}
+		return fmt.Sprintf("zero(%s)", n.Field)
 	}
 	return fmt.Sprintf("%T", p)
 }
@@ -162,6 +167,34 @@ func TestPlanPredicateSnapshots(t *testing.T) {
 		{"created_by and checksums address storage directly",
 			`items.find({"created_by":"alice","actual_sha1":"8ddc"})`,
 			`and(cmp(created_by eq "alice"), cmp(sha1 eq "8ddc"), file)`},
+
+		// The statistics domain (T-440, aql.md §14.1): the null literal
+		// lowers onto the structural-zero predicates, the counting columns
+		// behave like their kinds, and the constant-zero remote_* stubs
+		// fold — a vacuous arm inside an Or ABSORBS the disjunction.
+		{"stat counter",
+			`items.find({"stat.downloads":{"$gte":3}})`,
+			"and(cmp(downloads gte 3), file)"},
+		{"stat downloaded date arm",
+			`items.find({"stat.downloaded":{"$lt":"2026-09-01T13:00:00.000Z"}})`,
+			`and(cmp(downloaded lt "2026-09-01T13:00:00Z"), file)`},
+		{"stat null literals are the structural zeros",
+			`items.find({"stat.downloads":{"$eq":null},"stat.downloaded":{"$ne":null}})`,
+			"and(zero(downloads), nonzero(downloaded), file)"},
+		{"stat downloaded_by string arm",
+			`items.find({"stat.downloaded_by":{"$eq":"bob"}})`,
+			`and(cmp(downloaded_by eq "bob"), file)`},
+		{"stub counter folds against its constant",
+			`items.find({"stat.remote_downloads":{"$gt":0}})`, "and(false, file)"},
+		{"stub null matches everything",
+			`items.find({"stat.remote_downloaded":{"$eq":null},"repo":"libs"})`,
+			`and(cmp(repo eq "libs"), file)`},
+		{"a vacuous Or arm absorbs the disjunction",
+			`items.find({"$or":[{"stat.remote_downloaded":{"$eq":null}},{"repo":"libs"}]})`,
+			"and(file)"},
+		{"the usage template shape folds its remote arm away",
+			`items.find({"$or":[{"stat.remote_downloaded":{"$lt":"2030-01-01"}},{"stat.remote_downloaded":{"$eq":null}}],"repo":"libs"})`,
+			`and(cmp(repo eq "libs"), file)`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

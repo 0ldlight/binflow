@@ -1,0 +1,46 @@
+Skip to main content
+Platform
+Administration
+A
+All Projects
+All Projects Overview
+Stages & Lifecycle
+Repositories
+User Management
+Proxies
+Authentication
+Security
+General Management
+Monitoring
+Topology
+Support Zone
+Artifactory Settings
+JFrog Platform
+Enterprise Plus trial license 7.161.20 rev 86120900 Licensed to TEST JFrog Ltd.
+© Copyright 2026 JFrog Ltd
+All Projects
+Repositories
+New Virtual Repository
+Generic
+Repository Key
+0/64
+Stage
+General Settings
+Repository Layout
+Public Description
+Internal Description
+Include / Exclude Patterns
+Include Patterns
+Exclude Patterns
+Repositories
+Moving item(s): 0
+1 Available Repository
+Name
+example-repo-local
+0 Selected Repositories
+No Items Selected
+Default Deployment Repository
+Remote Artifacts
+Remote Requests Can Retrieve Remote Artifacts
+Cancel
+Create Virtual Repository

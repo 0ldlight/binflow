@@ -260,6 +260,29 @@ const STOP = new Set([
   'member-pop', 'row-link', 'color-mix',
   'binflow-console-cols-users', 'binflow-console-cols-groups', 'binflow-console-cols-search',
   't414-columns-promo',
+  // v1.33（T-439 行文假阳性）：三段步进批的标识符引用——Artifactory 侧
+  // CSS 类名（jf-steps，活体形态描述非锚）/ 措辞连词（as-built——
+  // 「翻正 · 已落」行的 as-built 注定语、decode-only——transport 只解码
+  // 不转发的两档定档用词），均非 testid 锚
+  'jf-steps', 'as-built', 'decode-only',
+  // v1.34（T-441 行文假阳性）：翻转③批的标识符引用——对比度配方的
+  // token 名（surface-2，磁贴底色描述非锚）/ spec 文件名段
+  // （t441-pkg-modal-open——本票新 spec 的文件名），均非 testid 锚
+  'surface-2', 't441-pkg-modal-open',
+  // v1.35（T-443 行文假阳性）：入口分路由批的标识符引用——dirty 判定的
+  // 措辞连词（dirty-gating——票面 AC 用词）/ push-only 口径注记的缩写
+  // （ADR-0021/R10 行文）/ spec 文件名段（t443-list-entry-dirty-test
+  // ——本票新 spec 的文件名），均非 testid 锚
+  'dirty-gating', 'push-only', 't443-list-entry-dirty-test',
+  // v1.36（T-445 行文假阳性）：详情字段族批的标识符引用——stay-out 缺位
+  // 登记用词（§9A stay-out 名词化的连词）/ Build-info 的首字母残段
+  //（uild-info，§9A-S8 域名引用——大写 B 不入正则）/ spec 文件名段
+  //（t445-detail-fields——本票新 spec 的文件名），均非 testid 锚
+  'stay-out', 'uild-info', 't445-detail-fields',
+  // v1.37（T-447 行文假阳性）：属性解剖批的标识符引用——消费 spec 的
+  // 文件名段（t447-props-download 本票新 spec / properties-matrix 即
+  // e2e/m10/properties-matrix.spec.ts 的 L21 翻新引用），均非 testid 锚
+  't447-props-download', 'properties-matrix',
 ])
 const docFams = new Set()
 for (const t of docTokens) {

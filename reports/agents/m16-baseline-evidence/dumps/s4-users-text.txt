@@ -1,0 +1,46 @@
+Skip to main content
+Platform
+Administration
+A
+All Projects
+All Projects Overview
+Stages & Lifecycle
+Repositories
+User Management
+Users
+Groups
+Global Roles
+Permissions
+Access Tokens
+Proxies
+Authentication
+Security
+General Management
+Monitoring
+Topology
+Support Zone
+Artifactory Settings
+JFrog Platform
+Enterprise Plus trial license 7.161.20 rev 86120900 Licensed to TEST JFrog Ltd.
+© Copyright 2026 JFrog Ltd
+Users
+New user
+Filters
+Clear all
+Admin
+Status
+Realm
+ 
+Name
+Email
+Realm
+Groups
+Admin
+Status
+Last Login
+admin
+internal
+03-09-26 04:37:17 +0800
+anonymous
+internal
+Total Users: 2

@@ -51,6 +51,12 @@ const (
 	// OutputVirtualRepos is the logical virtual_repos field: resolved
 	// from the repository registry at runtime, never from node storage.
 	OutputVirtualRepos
+	// OutputStat is one statistics-domain member: rendered as the nested
+	// "stats" array at the position of the FIRST stat entry (aql.md §3.3,
+	// live v16), one object whose fields are exactly the include-named
+	// stat fields in echo order — include replaces the domain's default
+	// set the same way it does the item domain's (§2.5).
+	OutputStat
 )
 
 // OutputField is one .include() argument (or one default/star field) in
@@ -98,6 +104,11 @@ func PlanQuery(ctx context.Context, q *Query, opt PlanOptions) (*Plan, error) {
 	where, err := p.lower(q.Criteria)
 	if err != nil {
 		return nil, err
+	}
+	if where == nil {
+		// Every predicate folded vacuous (e.g. the constant-zero statistics
+		// stubs): the criteria is match-all, not a nil tree.
+		where = &metadata.QueryAnd{}
 	}
 	// The implicit file predicate: a query without a type condition
 	// searches files (aql.md §2.2, live evidence v09). {"type":"any"}
@@ -151,14 +162,32 @@ func (p *planner) lower(c Criteria) (metadata.NodePredicate, error) {
 		if err != nil {
 			return nil, err
 		}
+		if len(children) == 0 {
+			// Every arm folded vacuous-true: the conjunction is true (nil),
+			// the boolean identity — keeping an empty node would block the
+			// Or arm's absorption one level up.
+			return nil, nil
+		}
 		if len(children) == 1 {
 			return children[0], nil
 		}
 		return &metadata.QueryAnd{Children: children}, nil
 	case *Or:
-		children, err := p.lowerChildren(n.Children)
-		if err != nil {
-			return nil, err
+		// A vacuous-true arm (nil — {"type":"any"}, a folded constant stub)
+		// ABSORBS the disjunction: dropping it instead would narrow the Or
+		// to its remaining arms, the exact boolean error the usage
+		// template's constant-true remote arm surfaced (T-440). And keeps
+		// the drop: true is the conjunction's identity.
+		var children []metadata.NodePredicate
+		for _, ch := range n.Children {
+			l, err := p.lower(ch)
+			if err != nil {
+				return nil, err
+			}
+			if l == nil {
+				return nil, nil
+			}
+			children = append(children, l)
 		}
 		if len(children) == 0 {
 			return nil, fmt.Errorf("planner: empty disjunction")
@@ -197,8 +226,9 @@ func (p *planner) lowerChildren(in []Criteria) ([]metadata.NodePredicate, error)
 }
 
 // lowerCompare compiles one field comparator. A nil return (never an
-// error) means the predicate is vacuous and should be dropped — only the
-// {"type":"any"} arm produces it.
+// error) means the predicate is vacuous and should be dropped — the
+// {"type":"any"} arm and the folded constant-zero statistics stubs
+// produce it.
 func (p *planner) lowerCompare(cmp *Compare) (metadata.NodePredicate, error) {
 	v := cmp.Value
 	switch cmp.Field.ID {
@@ -221,12 +251,105 @@ func (p *planner) lowerCompare(cmp *Compare) (metadata.NodePredicate, error) {
 			Op:      patternOp(cmp.Op),
 			Value:   patternValue(cmp.Op, v.Str),
 		}}}, nil
+	case FieldStatDownloaded:
+		f, _ := storageFieldOf(FieldStatDownloaded)
+		if v.Kind == LitNull {
+			return statZero(f, cmp.Op), nil
+		}
+		if v.Period != nil {
+			return p.periodArm(f, cmp.Op, v.Period)
+		}
+		return p.dateArm(f, cmp.Op, v.Str)
+	case FieldStatDownloads:
+		f, _ := storageFieldOf(FieldStatDownloads)
+		if v.Kind == LitNull {
+			return statZero(f, cmp.Op), nil
+		}
+		return &metadata.QueryCompare{Field: f, Op: plainOp(cmp.Op), Value: v.Int}, nil
+	case FieldStatDownloadedBy:
+		f, ok := storageFieldOf(FieldStatDownloadedBy)
+		if !ok {
+			return nil, fmt.Errorf("planner: field %q has no storage mapping", cmp.Field.Name)
+		}
+		if v.Kind == LitNull {
+			return statZero(f, cmp.Op), nil
+		}
+		return &metadata.QueryCompare{Field: f, Op: patternOp(cmp.Op), Value: patternValue(cmp.Op, v.Str)}, nil
+	case FieldStatRemoteDownloaded, FieldStatRemoteDownloads, FieldStatRemoteDownloadedBy,
+		FieldStatRemoteOrigin, FieldStatRemotePath:
+		return foldStatStub(cmp), nil
 	}
 	f, ok := storageFieldOf(cmp.Field.ID)
 	if !ok {
 		return nil, fmt.Errorf("planner: field %q has no storage mapping", cmp.Field.Name)
 	}
 	return &metadata.QueryCompare{Field: f, Op: patternOp(cmp.Op), Value: patternValue(cmp.Op, v.Str)}, nil
+}
+
+// statZero compiles the null literal on a column-backed statistics field:
+// the wire-side null IS the structural zero (0 / ”), spelled by the
+// QueryZero arm the compiler renders against the raw column (aql.md
+// §14.1). $ne is the negated zero test.
+func statZero(f metadata.QueryField, op Operator) metadata.NodePredicate {
+	return &metadata.QueryZero{Field: f, Negate: op == OpNe}
+}
+
+// foldStatStub constant-folds one comparison against a stub statistics
+// field — the smart-remote remote_* family BinFlow has no source for, per
+// the spec's mapping ruling (aql.md §14.1: 恒 null/0, 勿造数据). Every arm
+// evaluates the literal against the stub's constant value:
+//
+//   - remote_downloads is the constant 0 counter (an int zero renders as
+//     0 on the wire, the v8m usage face's shape);
+//   - the date and string stubs are constant null (never a value).
+//
+// A satisfied constant folds to nil (vacuous — dropped by the caller); an
+// unsatisfied one folds to QueryFalse. This keeps the usage template's
+// remote arm (§14.2) literal-true today while leaving the seam a single
+// place to swap for a real source.
+func foldStatStub(cmp *Compare) metadata.NodePredicate {
+	v := cmp.Value
+	if v.Kind == LitNull {
+		// Zero-value queries on a null-valued constant: $eq null matches
+		// every row, $ne null none. remote_downloads' wire-side zero is the
+		// same null literal (§14.1), so the counter folds identically.
+		if cmp.Op == OpEq {
+			return nil
+		}
+		return &metadata.QueryFalse{}
+	}
+	const zero = int64(0)
+	satisfied := false
+	if cmp.Field.ID == FieldStatRemoteDownloads {
+		switch cmp.Op {
+		case OpEq:
+			satisfied = zero == v.Int
+		case OpNe:
+			satisfied = zero != v.Int
+		case OpGt:
+			satisfied = zero > v.Int
+		case OpGte:
+			satisfied = zero >= v.Int
+		case OpLt:
+			satisfied = zero < v.Int
+		case OpLte:
+			satisfied = zero <= v.Int
+		}
+	} else {
+		// Null-valued constants: no non-null literal ever matches ($eq,
+		// $match, the order comparators); the negative forms are vacuously
+		// true for every row.
+		switch cmp.Op {
+		case OpEq, OpMatch, OpGt, OpGte, OpLt, OpLte, OpLast, OpBefore:
+			satisfied = false
+		case OpNe, OpNmatch:
+			satisfied = true
+		}
+	}
+	if satisfied {
+		return nil
+	}
+	return &metadata.QueryFalse{}
 }
 
 // lowerRepo compiles a repo comparator, expanding values that name virtual
@@ -537,6 +660,12 @@ func storageFieldOf(id FieldID) (metadata.QueryField, bool) {
 		return metadata.QuerySha1, true
 	case FieldActualMD5:
 		return metadata.QueryMd5, true
+	case FieldStatDownloaded:
+		return metadata.QueryDownloaded, true
+	case FieldStatDownloads:
+		return metadata.QueryDownloads, true
+	case FieldStatDownloadedBy:
+		return metadata.QueryDownloadedBy, true
 	}
 	return "", false
 }
@@ -621,6 +750,16 @@ func buildProjection(q *Query) (fields []metadata.QueryField, props []string, ou
 		props = append(props, key)
 		out = append(out, OutputField{Key: raw, Kind: OutputProp, PropKey: key})
 	}
+	addStat := func(inc IncludeField) {
+		// The column-backed stat members pull their counting columns into
+		// the storage projection (deduped); the constant stubs add none —
+		// their values are rendered from the closed stub set.
+		if f, ok := storageFieldOf(inc.Field.ID); ok && !seen[f] {
+			seen[f] = true
+			fields = append(fields, f)
+		}
+		out = append(out, OutputField{Key: inc.Raw, Kind: OutputStat, Field: inc.Field.ID})
+	}
 	if len(q.Include) == 0 {
 		for _, e := range defaultProjection {
 			addEntry(e)
@@ -642,6 +781,8 @@ func buildProjection(q *Query) (fields []metadata.QueryField, props []string, ou
 			// The long forms project the whole property pair of every
 			// property the node carries.
 			addProp("*", inc.Raw)
+		case inc.Field.Domain == DomainStatistics:
+			addStat(inc)
 		default:
 			if f, ok := storageFieldOf(inc.Field.ID); ok {
 				addEntry(projectionEntry{key: inc.Field.Name, id: inc.Field.ID, field: f})

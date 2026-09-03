@@ -1,0 +1,7 @@
+[
+ "LocalUpload and resolve your own packages",
+ "RemoteProxy and cache packages hosted remotely",
+ "VirtualAccess multiple repositories within a single URL",
+ "Release BundleProtect your artifacts as part of the distribution flow",
+ "FederatedMirror packages from different JFrog instances"
+]

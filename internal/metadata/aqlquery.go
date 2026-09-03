@@ -47,7 +47,10 @@ type QueryField string
 // The query field closure (ADR-0043 pt 3 plus the aql.md §10 mapping):
 // modified and updated share the updated_at column (single-column dual
 // meaning — BinFlow has no separate modification timestamp); sha1 and md5
-// live in the blobs ledger behind the lazy join.
+// live in the blobs ledger behind the lazy join. The statistics triple
+// (M16 T-440, aql.md §14.1) rides the four per-node counting columns T-438
+// landed — the same single counting channel the ?stats face reads, never a
+// second source.
 const (
 	QueryRepo      QueryField = "repo"
 	QueryPath      QueryField = "path" // AQL path = the parent directory (aql.md §2.2/§10)
@@ -61,6 +64,16 @@ const (
 	QuerySha256    QueryField = "sha256"
 	QuerySha1      QueryField = "sha1"
 	QueryMd5       QueryField = "md5"
+	// QueryDownloaded is the statistics domain's downloaded field:
+	// nodes.last_downloaded_at, whose structural zero '' is the wire-side
+	// null (never downloaded — aql.md §14.1 zero-value semantics).
+	QueryDownloaded QueryField = "downloaded"
+	// QueryDownloads is the statistics domain's downloads counter:
+	// nodes.download_count, whose structural zero 0 is the wire-side null.
+	QueryDownloads QueryField = "downloads"
+	// QueryDownloadedBy is the statistics domain's downloaded_by field:
+	// nodes.last_downloaded_by, '' = never.
+	QueryDownloadedBy QueryField = "downloaded_by"
 )
 
 // QueryOp is the comparator vocabulary of the compiled predicate tree.
@@ -133,6 +146,17 @@ type QueryPropExists struct{ Conds []QueryPropCond }
 // value of the same key.
 type QueryPropSame struct{ Conds []QueryPropCond }
 
+// QueryZero is the statistics domain's null-literal test (aql.md §14.1):
+// the field sits at its STRUCTURAL zero — download_count = 0,
+// last_downloaded_at = ” / last_downloaded_by = ” — which is what the
+// wire-side {"$eq":null} denotes on a stats field. Negate is the $ne arm.
+// The zero spellings live in one place (zeroValueSQL) so the wire and the
+// storage conventions cannot drift.
+type QueryZero struct {
+	Field  QueryField
+	Negate bool
+}
+
 func (*QueryAnd) isNodePredicate()        {}
 func (*QueryOr) isNodePredicate()         {}
 func (*QueryNot) isNodePredicate()        {}
@@ -141,6 +165,7 @@ func (*QueryFolderTest) isNodePredicate() {}
 func (*QueryCompare) isNodePredicate()    {}
 func (*QueryPropExists) isNodePredicate() {}
 func (*QueryPropSame) isNodePredicate()   {}
+func (*QueryZero) isNodePredicate()       {}
 
 // NodeSort is one sort key; the compiler appends the constant
 // (repo_key, path) tiebreaker after the user keys.
@@ -169,7 +194,9 @@ type NodeQuery struct {
 // NodeQueryRow is one result row. RepoKey and Path are the identity
 // columns (the storage path — the AQL path/name split is a projection of
 // it, carried by ParentPath and Name). Sha1/Md5 stay empty unless the
-// query pulled the blobs ledger in.
+// query pulled the blobs ledger in; the three statistics members stay at
+// their structural zeros unless the projection asked for the counting
+// columns (M16 T-440 — the single source the ?stats face shares).
 type NodeQueryRow struct {
 	RepoKey    string
 	Path       string // storage path, repo-relative
@@ -184,7 +211,14 @@ type NodeQueryRow struct {
 	CreatedBy  string
 	CreatedAt  string
 	UpdatedAt  string
-	Props      map[string][]string // property projections; nil when none were requested
+	// DownloadCount/LastDownloadedAt/LastDownloadedBy carry the counting
+	// columns when the query projected them (QueryDownloads & family);
+	// last_downloaded_* keep their '' = never spelling — the wire-side null
+	// rendering is the search package's business, not the store's.
+	DownloadCount    int64
+	LastDownloadedAt string
+	LastDownloadedBy string
+	Props            map[string][]string // property projections; nil when none were requested
 }
 
 // Derived column expressions (ADR-0043 pt 3 derivation axis A: SQL
@@ -230,6 +264,11 @@ func (s *nodeStore) QueryNodes(ctx context.Context, q NodeQuery) ([]*NodeQueryRo
 		dest := []any{&r.RepoKey, &r.Path, &r.ParentPath, &r.Name, &r.Type,
 			&r.Depth, &r.Size, &r.Sha256, &r.CreatedBy, &r.CreatedAt, &r.UpdatedAt}
 		switch len(cols) {
+		case 16: // blobs ledger + the three counting columns
+			dest = append(dest, &r.Sha1, &r.Md5,
+				&r.DownloadCount, &r.LastDownloadedAt, &r.LastDownloadedBy)
+		case 14: // the three counting columns (statistics projection, M16 T-440)
+			dest = append(dest, &r.DownloadCount, &r.LastDownloadedAt, &r.LastDownloadedBy)
 		case 13: // the blobs ledger joined for sha1/md5
 			dest = append(dest, &r.Sha1, &r.Md5)
 		case 11:
@@ -338,10 +377,15 @@ func compileNodeQuery(q NodeQuery) (string, []any, error) {
 	c := &nodeQueryCompiler{}
 	// The lazy ledger join triggers on EITHER side: a sha1/md5 comparator
 	// sets the flag while the WHERE tree renders, a sha1/md5 projection
-	// sets it up front (ADR-0043 pt 3 axis 7-A).
+	// sets it up front (ADR-0043 pt 3 axis 7-A). The counting columns ride
+	// the same lazy rule: only a statistics projection pays for them.
+	needStats := false
 	for _, f := range q.Fields {
 		if f == QuerySha1 || f == QueryMd5 {
 			c.needBlobs = true
+		}
+		if f == QueryDownloaded || f == QueryDownloads || f == QueryDownloadedBy {
+			needStats = true
 		}
 	}
 	whereSQL, err := c.whereSQL(q.Where)
@@ -365,6 +409,9 @@ func compileNodeQuery(q NodeQuery) (string, []any, error) {
 	sb.WriteString(", nodes.size, nodes.sha256, nodes.created_by, nodes.created_at, nodes.updated_at")
 	if c.needBlobs {
 		sb.WriteString(", b.sha1, b.md5")
+	}
+	if needStats {
+		sb.WriteString(", nodes.download_count, nodes.last_downloaded_at, nodes.last_downloaded_by")
 	}
 	sb.WriteString(" FROM nodes")
 	if c.needBlobs {
@@ -602,8 +649,58 @@ func (c *nodeQueryCompiler) render(p NodePredicate) (string, error) {
 		// hoisted arm keeps them by keeping all conditions inside the one
 		// DISTINCT subquery.
 		return c.renderExists(propCondsOf(n))
+	case *QueryZero:
+		return c.renderZero(n)
 	}
 	return "", fmt.Errorf("metadata: aql compile: unknown predicate %T", p)
+}
+
+// renderZero renders the structural-zero test of one statistics field
+// (QueryZero): the single place the wire-side null and the storage-side
+// zero spellings meet. The RAW column is compared (never the julianday
+// projection) — ” is a text value, not a date.
+func (c *nodeQueryCompiler) renderZero(z *QueryZero) (string, error) {
+	col, err := c.statsColumn(z.Field)
+	if err != nil {
+		return "", err
+	}
+	zero, err := statsZeroValue(z.Field)
+	if err != nil {
+		return "", err
+	}
+	c.whereArgs = append(c.whereArgs, zero)
+	op := " = "
+	if z.Negate {
+		op = " <> "
+	}
+	return col + op + "?", nil //nolint:gosec // G202: constant fragment; the zero rides in args
+}
+
+// statsColumn maps a statistics query field onto its counting column and
+// reports the column's structural zero (the value the wire renders as
+// null, aql.md §14.1).
+func (c *nodeQueryCompiler) statsColumn(f QueryField) (string, error) {
+	switch f {
+	case QueryDownloads:
+		return "nodes.download_count", nil
+	case QueryDownloaded:
+		return "nodes.last_downloaded_at", nil
+	case QueryDownloadedBy:
+		return "nodes.last_downloaded_by", nil
+	}
+	return "", fmt.Errorf("metadata: aql compile: field %q has no zero-value form", f)
+}
+
+// statsZeroValue is the bound parameter of a QueryZero arm: the column's
+// structural zero (0 for the counter, ” for the never-spellings).
+func statsZeroValue(f QueryField) (any, error) {
+	switch f {
+	case QueryDownloads:
+		return int64(0), nil
+	case QueryDownloaded, QueryDownloadedBy:
+		return "", nil
+	}
+	return nil, fmt.Errorf("metadata: aql compile: field %q has no zero-value form", f)
 }
 
 // renderExists renders a property predicate in non-hoistable position as a
@@ -688,6 +785,16 @@ func (c *nodeQueryCompiler) fieldExpr(f QueryField) (expr string, date bool, err
 	case QueryMd5:
 		c.needBlobs = true
 		return "b.md5", false, nil
+	case QueryDownloaded:
+		// Date-normalized like created/updated: the never spelling ''
+		// lands at julianday NULL, so every bare comparison excludes
+		// never-downloaded rows — the wire-side rule the null literal's
+		// QueryZero arm spells out (aql.md §14.1).
+		return "julianday(nodes.last_downloaded_at)", true, nil
+	case QueryDownloads:
+		return "nodes.download_count", false, nil
+	case QueryDownloadedBy:
+		return "nodes.last_downloaded_by", false, nil
 	}
 	return "", false, fmt.Errorf("metadata: aql compile: unknown query field %q", f)
 }

@@ -86,6 +86,20 @@ one-to-one when the dialect lands):
   012_license), the two direction flags and the last-flip bookkeeping.
   Statements are dialect-common (booleans as 0/1 on the sqlite side,
   BOOLEAN here).
+- 020_node_download_stats: the per-node download statistics widening of
+  nodes (M16 T-438, FR-146.2 / ADR-0044 K69) — download_count /
+  last_downloaded_at / last_downloaded_by / remote_download_count, all
+  zero-defaulted with no backfill (pre-020 rows mean "never downloaded");
+  folder rows stay zero by the counting UPDATE's marker exclusion, and the
+  four columns are the download plane's single counting channel. Statements
+  are dialect-common.
+- 021_schedules: the unified cron schedules ledger (M16 T-446, FR-150.1 /
+  ADR-0044 decision 2) — one row per scheduled full-type job keyed by
+  (domain, key) with the domain CHECK closed set (maintenance | backup |
+  replication), the last_status closed set, RFC3339-UTC next_run/last_run
+  ('' = unscheduled / never) and the idx_schedules_due tick index. "No row
+  = not scheduled" is the single-state semantics; nothing is preseeded.
+  Statements are dialect-common.
 
 The migrator currently embeds `migrations/sqlite/*.sql` only
 (see ../migrate.go).

@@ -183,7 +183,16 @@ func (s *service) ProbeRemoteCache(ctx context.Context, p *Principal, repoKey, p
 		return nil, err
 	}
 	if probe.Node != nil {
-		s.audit(ctx, AuditEvent{Actor: actor(p), Action: AuditActionDownload, Repo: repoKey, Path: path})
+		// HIT/STALE carry the download bookkeeping here (the serve that
+		// follows is the event); a MISS audits at landing. Either way the
+		// remote repository's own row takes both columns (K69 arm 3).
+		s.markDownload(ctx, p, downloadMark{
+			auditRepo: repoKey, auditPath: path,
+			countRepo: repoKey, countPath: path,
+			origin:       downloadOriginRemote,
+			extra:        []string{s.statsSyncDetail(ctx, repoKey)},
+			remoteServed: true,
+		})
 	}
 	return probe, nil
 }
@@ -288,7 +297,15 @@ func (s *service) landRemoteV2Core(ctx context.Context, p *Principal, repoKey, p
 		return nil, fmt.Errorf("remote %s: cache state %s: %w", repoKey, path, err)
 	}
 	s.releaseGCHold(ctx, committed.Sha256)
-	s.audit(ctx, AuditEvent{Actor: actor(p), Action: AuditActionDownload, Repo: repoKey, Path: path})
+	// The MISS arm's landing (fetch-then-serve): the same remote-serving
+	// bookkeeping as the HIT/STALE probe above, one row, both columns.
+	s.markDownload(ctx, p, downloadMark{
+		auditRepo: repoKey, auditPath: path,
+		countRepo: repoKey, countPath: path,
+		origin:       downloadOriginRemote,
+		extra:        []string{s.statsSyncDetail(ctx, repoKey)},
+		remoteServed: true,
+	})
 	return node, nil
 }
 

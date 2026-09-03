@@ -1,0 +1,58 @@
+Skip to main content
+Platform
+Administration
+A
+All Projects
+All Projects Overview
+Stages & Lifecycle
+Repositories
+User Management
+Proxies
+Authentication
+Security
+General Management
+Monitoring
+Topology
+Support Zone
+Artifactory Settings
+General Settings
+Artifactory Security
+Packages Settings
+HTTP Settings
+Repository Imp/Exp
+System Imp/Exp
+Repositories Layouts
+Migration Tool
+Property Sets
+Maven Indexer
+Config Descriptor
+Security Descriptor
+Maintenance
+Backups
+Retention Policies
+User Plugins
+JFrog Platform
+Enterprise Plus trial license 7.161.20 rev 86120900 Licensed to TEST JFrog Ltd.
+© Copyright 2026 JFrog Ltd
+All Projects
+Artifactory Settings
+Maintenance
+Garbage Collection
+Cron Expression
+Next Run Time
+Run Now
+Enable Quota Control 
+Storage Space Warning (Percentage)
+Storage Space Limit (Percentage)
+Cleanup Unused Cached Artifacts
+Cron Expression
+Next Run Time
+Cleanup Unused Cached Artifacts Now
+Cleanup Virtual Repositories
+Cron Expression
+Next Run Time
+Cleanup Virtual Repositories Now
+Compress the Internal Database
+Prune Unreferenced Data
+Reset
+Save

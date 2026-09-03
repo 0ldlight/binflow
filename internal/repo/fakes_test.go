@@ -158,9 +158,13 @@ func shaOf(s string) string {
 // ---- fakeAuthorizer: static grants keyed by action ----
 
 // grant is one (action → allow) rule; a pathPrefix "" matches everything.
+// repo "" matches every repository (the original shape — the zero-leak
+// probes of T-448 need per-repository grants, every other test keeps the
+// wildcard).
 type grant struct {
 	action     string
 	pathPrefix string
+	repo       string
 	allow      bool
 }
 
@@ -171,7 +175,7 @@ type policyAuthz struct {
 	byUser map[string][]grant
 }
 
-func (a *policyAuthz) Can(_ context.Context, p *repo.Principal, _, path, action string) bool {
+func (a *policyAuthz) Can(_ context.Context, p *repo.Principal, repoKey, path, action string) bool {
 	if p == nil || p.Admin {
 		return p != nil && p.Admin
 	}
@@ -179,6 +183,9 @@ func (a *policyAuthz) Can(_ context.Context, p *repo.Principal, _, path, action 
 	defer a.mu.Unlock()
 	for _, g := range a.byUser[p.Name] {
 		if g.action != action {
+			continue
+		}
+		if g.repo != "" && g.repo != repoKey {
 			continue
 		}
 		if g.pathPrefix == "" || strings.HasPrefix(path, g.pathPrefix) {
@@ -196,6 +203,17 @@ func (a *policyAuthz) add(user, action, prefix string) {
 		a.byUser = map[string][]grant{}
 	}
 	a.byUser[user] = append(a.byUser[user], grant{action: action, pathPrefix: prefix, allow: true})
+}
+
+// addOnRepo grants user the action under prefix on ONE repository only
+// (the T-448 zero-leak probes: read on the virtual, not on the member).
+func (a *policyAuthz) addOnRepo(user, action, repoKey, prefix string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.byUser == nil {
+		a.byUser = map[string][]grant{}
+	}
+	a.byUser[user] = append(a.byUser[user], grant{action: action, pathPrefix: prefix, repo: repoKey, allow: true})
 }
 
 // ---- audit recorder ----

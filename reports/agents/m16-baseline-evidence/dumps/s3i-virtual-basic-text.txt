@@ -1,0 +1,71 @@
+Skip to main content
+Platform
+Administration
+A
+All Projects
+All Projects Overview
+Stages & Lifecycle
+Repositories
+User Management
+Proxies
+Authentication
+Security
+General Management
+Monitoring
+Topology
+Support Zone
+Artifactory Settings
+JFrog Platform
+Enterprise Plus trial license 7.161.20 rev 86120900 Licensed to TEST JFrog Ltd.
+© Copyright 2026 JFrog Ltd
+All Projects
+Repositories
+New Virtual Repository
+Package Type
+Repository Key
+0/64
+Stage
+General Settings
+Repository Layout
+Public Description
+Internal Description
+Include / Exclude Patterns
+Include Patterns
+Exclude Patterns
+Cancel
+Create Virtual Repository
+Select Package Type
+Docker
+npm
+Maven
+PyPI
+Hugging Face
+Gradle
+Go
+Debian
+RPM
+Swift
+Terraform / OpenTofu
+Alpine
+Ansible
+Bower
+Chef
+CocoaPods
+Conan
+Conda
+CRAN
+OCI
+Nix
+RubyGems
+GitLfs
+Helm
+Hex
+Ivy
+LuaRocks
+NuGet
+Composer php
+P2 Eclipse
+Pub / Dart
+Puppet
+SBT
+Generic
