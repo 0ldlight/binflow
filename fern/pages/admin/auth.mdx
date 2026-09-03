@@ -1,0 +1,179 @@
+# 认证（LDAP / OIDC / SAML）
+
+BinFlow 支持三种外部认证：**LDAP 目录登录**、**OIDC 单点登录**、**SAML 集成**。两条管理路径：
+
+- **运行态配置面**：控制台「认证配置」页（`/admin/security/auth`）或 REST（`/binflow/api/v1/admin/security/*`）——直接改实例上的生效配置，**保存即生效**（无需重启）。
+- **文件配置**：`binflow.yaml` 的 `auth.ldap` / `auth.oidc` 段——**首次启动**种子进 DB，此后权威源是 DB 配置面。
+
+## 运行态配置面（核心语义）
+
+| 语义 | 说明 |
+|---|---|
+| **保存即生效** | PUT 成功后的下一个请求就走新配置；`GET /api/v1/auth/methods` 的 `oidc`/`ldap` 位随 `enabled` 翻转 |
+| **secret 只写不读** | 口令/密钥落库前经实例主钥 **enc:v1 密封**（AES-256-GCM）；GET 恒回 20 星哨兵 `********************`，明文永不回传 |
+| **测试连接先行** | 每段一个 `POST …/test` 端点，保存前后都可探测，5s 短超时 |
+
+前置：要写 secret 就必须带 `BINFLOW_REMOTE_CREDENTIALS_KEY`（base64 的 32 字节）启动——密封不可用时不假装存了；已有密封行而无主钥的实例**启动即拒**。
+
+### REST 端点
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET / PUT / POST …/test | `/api/v1/admin/security/ldap` | LDAP 段 |
+| GET / PUT / POST …/test | `/api/v1/admin/security/oauth` | OIDC 段 |
+| GET / PUT / POST …/test | `/api/v1/admin/security/saml/config` | SAML 段（未设置 GET 回 `{}`） |
+| GET | `…/saml/config/key/public` | 当前 SP 证书 PEM（text/plain）；未生成 404 |
+| PUT | `…/saml/config/key/public/regenerate` | 轮换 SP 钥对（旧证书即刻失效），响应体 = 新证书 PEM |
+| POST | `…/saml/key` | 生成/替换 SP 钥对 |
+
+GET 挂 CapSecurityRead（readonly_admin 可见）；PUT/test 挂 CapSecurityWrite（仅 admin）。PUT 是**整段替换**——非 secret 字段要逐字段全量回传（手写 curl 先 GET 改后 PUT 全量发）。
+
+### secret 哨兵语义（write-only 三态）
+
+| PUT 里 secret 字段的值 | 效果 |
+|---|---|
+| **键缺席**（或控制台留空） | 保持存量（最常用——改其它字段不用重输口令） |
+| **新明文** | 替换（落库前密封） |
+| `""` 空串 | 清除 |
+| **20 星哨兵** | **400 拒绝**——`refusing the masked placeholder — leave the field empty to keep the stored secret, or re-enter the value` |
+
+### 测试连接
+
+```bash
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/admin/security/ldap/test
+# {"ok":false,"phase":"dial","category":"unreachable",
+#  "message":"could not connect to the target (dial failed or timed out)"}  ← ok:false 时 HTTP 400
+```
+
+LDAP 附带用户 bind 探测：body 带 `{"testUsername":"jane","testPassword":"…"}` 两半齐备才走（只有一半 400）。控制台「测试连接」把当前表单值随体发送——可以先测后存。
+
+## LDAP 目录认证
+
+启用后登录表单同时接受本地与目录用户——服务端**先本地后 LDAP** 回退。LDAP 只挂登录端点（`POST /api/v1/session`），无 Bearer 臂：目录用户的 API 凭据走登录后签发的 Token。
+
+### 文件配置（auth.ldap 段）
+
+```yaml
+auth:
+  ldap:
+    enabled: true
+    url: ldaps://ldap.example.com:636        # 或 ldap://host:389 + start_tls: true
+    base_dn: dc=example,dc=org
+    bind_dn: cn=admin,dc=example,dc=org      # 服务账号；空 = 直连用户 DN 绑定（uid=<name>,<base_dn>）
+    user_filter: "(uid=%s)"                  # %s = 登录用户名；AD 常用 "(sAMAccountName=%s)"
+    user_id_attr: uid
+    group_filter: "(&(objectClass=groupOfNames)(member=uid=%s,ou=people,dc=example,dc=org))"
+    group_base_dn: ou=groups,dc=example,dc=org   # 缺省回落 base_dn
+    group_name_attr: cn                      # AD 常用 sAMAccountName
+    admin_group: cn=binflow-admins,ou=groups,dc=example,dc=org   # DN；空 = 不映射
+    pool_size: 5
+    # start_tls: true                        # ldap:// 上升级；与 ldaps:// 互斥
+    # skip_tls_verify: false                 # 仅评估可用
+```
+
+bind password 走环境变量，**写进 YAML 会拒启**：`export BINFLOW_AUTH_LDAP_BIND_PASSWORD=<bind-password>`。除该键外 `auth.ldap` 其余键只能写在 YAML（env 覆盖面不含这些路径）。
+
+### 运行态 wire 字段
+
+| 组 | 字段 |
+|---|---|
+| 基本 | `key`（恒 `ldap`）/ `enabled` / `ldapUrl`（格式 `ldap://host[:port]/<baseDN>`——base DN 写在 URL path，缺失 400）/ `startTls` / `skipTlsVerify` |
+| 搜索 | `search.searchFilter`（RFC 2254，`{0}` 占位）/ `search.searchBase` / `search.searchSubTree`（默认 true） |
+| 凭据 | `search.managerDn` / `search.managerPassword`（secret） |
+| 账号 | `autoCreateUser`（默认 true）/ `emailAttribute`（默认 `mail`）/ `pagingSupportEnabled` / `ldapPoisoningProtection` / `userDnPattern`（已持久化回显，直绑消费未实现——绑定走 search 段） |
+| 组映射 | `groupFilter` / `groupBaseDn` / `groupNameAttribute` / `adminGroup` / `readOnlyGroup` |
+| 连接池 | `poolSize`（默认 5；换配置后旧池 30s 宽限排空） |
+
+### TLS 姿势（一表定案）
+
+| 场景 | 配置 | 行为 |
+|---|---|---|
+| 隐式 TLS | `ldap://` → `ldaps://host:636` | 拨号即 TLS；`start_tls` 被忽略并 WARN |
+| 明文端口升级 | `ldap://host:389` + `start_tls: true` | 每条连接进池前升级；失败则连接拆除登录失败，**绝不静默回落明文** |
+| 纯明文 | `ldap://host:389` | 仅限可信内网 |
+
+证书信任走运行环境系统信任库（无 CA 证书配置键）；自签评估可用 `skip_tls_verify: true`（启动 WARN）。
+
+### 行为要点与排障
+
+- **先本地后 LDAP**：本地口令命中即返回；本地失败且配置了 LDAP 才 bind。目录停机不影响存量会话（新登录快速 401，不 hang）。
+- **首登自动建号**（`provider=ldap`、无本地口令）；目录用户改密返回 400——口令归目录管。
+- 常见坑：osixia/openldap 默认 ACL 连组都搜不到（改 `to * by self read by users read`）；其 ldaps 默认 `olcTLSVerifyClient: demand` 要求客户端证书，Go 客户端直接断（设 `never`）；过滤器/属性拼写不匹配（用与 `user_filter` 完全相同的过滤器手工 `ldapsearch` 验证）；目录停机与错口令同为 401（看服务端日志）。
+
+## OIDC 单点登录
+
+启用后控制台出现「使用 SSO 登录」按钮；ID Token 也可直接作 Bearer 凭据调用管理 API。未启用时两条 `/oidc` 路由 404（SSO 姿态不可探测）。
+
+### 文件配置（auth.oidc 段）
+
+```yaml
+auth:
+  oidc:
+    enabled: true
+    issuer_url: https://accounts.example.com          # 发现基准：<issuer>/.well-known/openid-configuration
+    client_id: binflow-console
+    redirect_url: https://binflow.example.com/binflow/api/v1/oidc/callback
+    # scopes: [openid, profile, email]                # 缺省
+    # user_claim: preferred_username / group_claim: groups / admin_group / readonly_group
+```
+
+client secret 走 `BINFLOW_AUTH_OIDC_CLIENT_SECRET`（写进 YAML 拒启）；`client_secret` 非必填（PKCE-only public client 合法）。启动时做 discovery——issuer 不可达直接拒启（fail-fast）。除 secret 与 readonly_group 两键外，`auth.oidc` 其余键**只能写 YAML**（env 拼写一律拒启）。
+
+登录流（服务端编排，前端不经手令牌）：`GET /api/v1/oidc/login` 302 到 IdP（Authorization Code + **PKCE S256** + 256 位 state）→ callback 换码验签（JWKS/issuer/audience/expiry）→ 签发 `binflow_session` → 302 `/binflow/ui/`。
+
+同一入口携 `purpose=step_up` 即 step-up 重认证流（见 [Token 二次认证](/admin/tokens)）。
+
+### 用户与组映射
+
+- **首登自动建号**；IdP 用户名与既有本地用户同名时登录失败（500）——用户名空间三臂共享，规划命名避开。
+- **组同步是替换不是并集**：每次认证 `user_groups` 被重写为 claim 里的组集合——IdP 侧移除组，下次登录即失效。
+- **IdP 组不自动物化**：只有目标侧已存在同名组才写入成员；要让某 IdP 组生效，先在 BinFlow 建组挂权限。
+- **管理员映射**：`admin_group` 命中 → `admin`；Provider 是权威，每次登录刷新。
+
+### Keycloak 参考
+
+realm 任意（issuer = `https://<host>/realms/<realm>`）；client confidential + standard flow + PKCE S256；redirect URI 与 `redirect_url` 逐字一致；组 claim 经 Client scopes → Groups Membership mapper（Token Claim Name `groups`）；建 `binflow-admins` 组填 `admin_group`。
+
+## SAML
+
+13 字段配置段（`enableIntegration` / `serviceProviderName` / `loginUrl` / `logoutUrl` / `certificate` / `useEncryptedAssertion` / `syncGroups` / `groupAttribute` / `emailAttribute` / `noAutoUserCreation`〔**反语义**——控制台复选框「Auto Create Users」提交时自动取反〕/ `allowUserToAccessProfile` / `autoRedirect` / `verifyAudienceRestriction`）。
+
+**已知边界**：字段已持久化 + 回显 + 校验，但 **SP 断言消费（真正登录）暂未交付**——保存的配置尚不构成可登录的 SAML 接入。SP 加密证书管理面可用：开启 `useEncryptedAssertion` 时实例托管 RSA-2048 自签证书（私钥密封落库永不出库），经三端点管理；轮换是 force 替换、**旧证书即刻失效**（IdP 侧须重新导入）。
+
+## 首启种子与双源纪律
+
+- 文件段里的 secret 从环境变量取（写进 YAML 照旧拒启）；带 secret 的文件段首启种子需要主钥（无钥拒启）。
+- DB 有配置段后，文件段不再覆盖（每次启动 DB 权威 + WARN 提示）。
+- 审计：`auth.config.update`（detail 只含变更键名，值不落）/ `auth.config.test` / `auth.config.samlkey.{generate,regenerate}`。
+
+## Helm Chart
+
+```yaml
+config:
+  ldap: { enabled: true, url: "ldaps://...", baseDn: "...", bindDn: "...",
+          existingSecret: binflow-ldap }   # Secret 需含 BINFLOW_AUTH_LDAP_BIND_PASSWORD
+  oidc: { enabled: true, issuerUrl: "...", clientId: "...", redirectUrl: "...",
+          adminGroup: binflow-admins, existingSecret: binflow-oidc }
+```
+
+```bash
+kubectl create secret generic binflow-oidc \
+  --from-literal=BINFLOW_AUTH_OIDC_CLIENT_SECRET=<secret>
+```
+
+## 常见报错对照
+
+| 症状 | 原因 | 处置 |
+|---|---|---|
+| PUT 400 `refusing the masked placeholder` | 回传了 GET 的哨兵 | secret 键整段删掉再 PUT，或填新值 |
+| PUT secret 密封类报错 | 实例无主钥 | 带 `BINFLOW_REMOTE_CREDENTIALS_KEY` 重启 |
+| 启动报 `wiring auth.oidc: ... discovery` | issuer 不可达/拼错 | 修 `issuer_url`（启动发现是 fail-fast） |
+| 启动报 `key "auth.oidc.client_secret" looks like a secret` | secret 写进了 YAML | 移到 env |
+| 回调 400 `oidc state mismatch` / `transaction missing or expired` | 事务 cookie 不匹配或超 10 分钟 | 从控制台重新发起登录 |
+| 登录后 401 | ID Token 验签失败或用户被禁用 | 核对 `client_id` 与 IdP 时钟；查 enabled 位 |
+| SSO 后组授权仓库 403 | 组未在目标侧物化 | 先建同名组并授权，重新登录 |
+| 改完配置要重启吗 | 不用 | 保存即生效 |
+
+## 下一步
+
+- [用户、组与权限](/admin/permissions) · [Token 与二次认证](/admin/tokens) · [仓库管理（凭据密钥）](/admin/repositories)

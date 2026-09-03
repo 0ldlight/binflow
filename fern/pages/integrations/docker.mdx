@@ -1,0 +1,261 @@
+# Docker / OCI 镜像接入
+
+把 BinFlow 当作私有 Docker Registry：`docker login/push/pull` 直连可用，OCI 镜像与 Helm chart 都能存放（chart 以 OCI artifact 形态承载）。
+
+## 连接形态：根级 `/v2`，无路径前缀
+
+docker（及 podman/crane/skopeo/oras）按 Registry spec 固定向 `/v2/...` 发请求，无法配置子路径——BinFlow 把 docker 端点挂在**根级 `/v2/**`**。登录目标就是 `host[:port]`，不带 scheme、不带路径。
+
+```bash
+export BASE=http://localhost:8080   # 管理面 / curl 用（/binflow 前缀）
+export REG=localhost:8080           # docker 客户端目标
+export ADMIN_PW=<你的管理员口令>
+```
+
+| 部署形态 | `REG` 取值 | insecure-registries |
+|---|---|---|
+| 本机实例 | `localhost:8080` | **免配**（daemon 默认把 `127.0.0.0/8` 视为 insecure） |
+| 远程主机（明文 HTTP） | `registry.internal:8080` | **必配**（见下节） |
+| 前置反代 + TLS 域名 | `registry.example.com` | 免配（HTTPS） |
+
+## 明文 HTTP 必配 insecure-registries
+
+docker daemon 对非 localhost 地址默认强制 HTTPS，不配时报 `http: server gave HTTP response to HTTPS client`。三种形态：
+
+| 形态 | 做法 |
+|---|---|
+| 本机 localhost | 零配置 |
+| Docker Desktop / Linux daemon | daemon 配置加数组后重启（Desktop: Settings → Docker Engine；Linux: `/etc/docker/daemon.json` + `systemctl restart docker`） |
+| dind（CI 容器内 daemon） | 启动旗标：`docker run -d --privileged docker:dind --insecure-registry <host:port>` |
+
+```json
+{ "insecure-registries": ["registry.internal:8080"] }
+```
+
+## 接入步骤
+
+### 1. 创建 docker 仓库
+
+docker 端点不建仓——仓库经管理面 API 创建：
+
+```bash
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/docker-local \
+  -H 'Content-Type: application/json' \
+  -d '{"rclass":"local","packageType":"docker"}' \
+  -o /dev/null -w '%{http_code}\n'        # 200
+```
+
+### 2. 登录与推送
+
+镜像名的**首段是仓库 key，其余段是镜像名**：
+
+```bash
+echo "$ADMIN_PW" | docker login $REG -u admin --password-stdin
+# Login Succeeded（口令错误则 unauthorized、退出码 1）
+
+docker build -t $REG/docker-local/acme/app:v1 .
+docker push $REG/docker-local/acme/app:v1
+# 镜像名形态：<host>/<repoKey>/<image>:<tag>（镜像名可多级，如 acme/team/app）
+```
+
+单段 name（只有 repoKey、无镜像段）→ 404；仓库不存在或类型不是 docker 同样 404（`NAME_UNKNOWN`）。
+
+### 3. 拉取与验证
+
+```bash
+docker pull $REG/docker-local/acme/app:v1
+docker run --rm $REG/docker-local/acme/app:v1
+
+curl -su admin:$ADMIN_PW $REG/v2/_catalog
+# {"repositories":["docker-local/acme/app"]}
+curl -su admin:$ADMIN_PW $REG/v2/docker-local/acme/app/tags/list
+# {"name":"docker-local/acme/app","tags":["v1"]}
+```
+
+匿名拉取默认开启——`docker logout` 后 `docker pull` 仍可用（匿名 token 通道）；**push 永远需要认证**。
+
+## remote 仓：pull-through 代理上游
+
+remote 仓代理任一 Registry v2 上游——`docker pull <host>/<remote仓key>/<镜像名>:<tag>` 首拉回源缓存，此后命中本地副本零回源；上游故障时已缓存镜像照常可拉。community 档即可用。
+
+```bash
+# 建仓：url 指向上游 distribution 根（含 /v2）。
+# Docker Hub 形如 https://registry-1.docker.io/v2；
+# 上游是另一台 BinFlow 时形如 http://<上游host>:<port>/v2/<上游仓key>
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/docker-remote \
+  -H 'Content-Type: application/json' \
+  -d '{"rclass":"remote","packageType":"docker",
+       "url":"http://upstream.example.com:8080/v2/docker-local"}' \
+  -o /dev/null -w '%{http_code}\n'        # 200
+
+docker pull $REG/docker-remote/acme/app:v1    # digest 与直连上游全等
+
+# 观测命中（docker 客户端不显示响应头，用 curl 看）
+curl -s -o /dev/null -D - $REG/v2/docker-remote/acme/app/manifests/v1 \
+  -H 'Accept: application/vnd.oci.image.index.v1+json' | grep -i x-binflow
+# X-Binflow-Cache: HIT
+```
+
+行为要点：上游 401 + Bearer challenge 时自动完成 token 交换；上游故障 + TTL 过期时已缓存 manifest 答 `STALE` + `X-Binflow-Upstream-Error`（digest 不变，客户端无感）；未缓存 ref 答 404 `MANIFEST_UNKNOWN`（零 5xx）；内网上游需 admin 放行 `allowPrivateUpstream`；**docker virtual 建仓 400**（不支持聚合）。通用字段与 SSRF 语义见 [仓库管理](/admin/repositories)。
+
+## 多架构镜像（buildx）
+
+`docker-container` driver 的 builder 不读宿主 daemon 的 insecure-registries、不共享宿主登录态——plain-HTTP 上游必须给 builder 级配置，且推送前宿主先 `docker login`：
+
+```bash
+cat > buildkitd.toml <<'EOF'
+[registry."localhost:8080"]
+  http = true
+EOF
+docker buildx create --name binflow --driver docker-container --buildkitd-config buildkitd.toml
+docker buildx build --builder binflow \
+  --platform linux/amd64,linux/arm64 \
+  -t $REG/docker-local/acme/multi:1 --push .
+docker buildx rm binflow
+```
+
+## Helm chart 承载（oras 与 helm 客户端）
+
+chart 以 OCI artifact 形态存放：chart tgz 作 layer、helm config 作 manifest config（**config 类型不可作 layer**）。
+
+```bash
+# oras（推荐）
+oras login --plain-http $REG -u admin -p "$ADMIN_PW"
+oras push --plain-http $REG/charts/myapp:1.0.0 \
+  --config chart.json:application/vnd.cncf.helm.config.v1+json \
+  myapp-1.0.0.tgz:application/vnd.cncf.helm.chart.content.v1.tar+gzip
+oras pull --plain-http $REG/charts/myapp:1.0.0
+```
+
+> oras v1.2 拒绝绝对路径（`absolute file path detected`）——在工作目录内用相对路径。
+
+helm 客户端的 `registry login` 没有 `--plain-http` 旗标，明文 HTTP 下直接写凭据文件（路径见 `helm env HELM_REGISTRY_CONFIG`）：
+
+```bash
+mkdir -p ~/.config/helm/registry
+printf '{"auths":{"%s":{"auth":"%s"}}}' "$REG" \
+  "$(printf 'admin:%s' "$ADMIN_PW" | base64)" \
+  > ~/.config/helm/registry/config.json
+
+helm push --plain-http myapp-1.0.0.tgz oci://$REG/charts
+helm pull --plain-http oci://$REG/charts/myapp --version 1.0.0
+```
+
+## 其它客户端
+
+| 客户端 | 明文 HTTP 旗标 |
+|---|---|
+| podman 5.x | `--tls-verify=false`（login/pull/push 各自带） |
+| crane | `--insecure`（每个子命令自带；写操作先 `crane auth login`） |
+| skopeo | inspect 用 `--tls-verify=false`；copy 用 `--src-tls-verify=false` / `--dest-tls-verify=false` |
+
+```bash
+crane copy --insecure $REG/docker-local/acme/app:v1 $REG/docker-local/copy/app:v1
+skopeo copy --src-tls-verify=false docker://$REG/docker-local/acme/app:v1 docker-archive:app.tar
+skopeo copy --dest-tls-verify=false --dest-creds admin:$ADMIN_PW \
+  docker-archive:app.tar docker://$REG/docker-local/skopeo/app:v1
+```
+
+## token 说明
+
+`docker login` 触发的 token 流：未认证请求 `/v2/**` → `401 + Www-Authenticate: Bearer realm="<BASE>/v2/token"` → 客户端携 Basic 凭据换 token → 后续请求带 Bearer。要点：TTL 默认 30 天；无 refresh token（过期重新 login）；docker token 与管理面 token **同表同管**——管理面吊销后即时 401。
+
+```bash
+# 手工协商（脚本场景）
+TOKEN=$(curl -su admin:$ADMIN_PW \
+  "$BASE/v2/token?service=binflow&scope=repository:docker-local/acme/app:pull,push" | jq -r .token)
+curl -s -H "Authorization: Bearer $TOKEN" $REG/v2/_catalog
+```
+
+## 大层上传中断续传（跨重启，本地 filestore 后端）
+
+docker blob 上传会话跨进程重启存活——传到一半遇到服务器重启，向 upload URL 查询状态即可拿到**权威 offset** 从断点续传。`kill -9`、SIGTERM、`docker compose restart` 三种重启形态一致可续传；会话唯一回收路径是 TTL 过期（默认 24h）。
+
+```bash
+# 发起会话 → 202 + Location
+LOC=$(curl -su admin:$ADMIN_PW -X POST $BASE/v2/docker-local/myimg/blobs/uploads/ \
+  -o /dev/null -D - | awk -F': ' 'tolower($1)=="location"{sub(/\r/,"",$2);print $2}')
+
+# 传首块 → 202 + Range: 0-524287
+head -c 524288 /dev/urandom > /tmp/chunk1
+curl -su admin:$ADMIN_PW -X PATCH -H 'Content-Type: application/octet-stream' \
+  --data-binary @/tmp/chunk1 "$BASE$LOC" -o /dev/null -D - | grep -i '^range:'
+
+# —— 服务器重启 ——
+# 查询状态 → 204 + 权威 Range（断点锚点）
+curl -su admin:$ADMIN_PW "$BASE$LOC" -o /dev/null -D - | grep -iE '^(HTTP|range)'
+# HTTP/1.1 204 No Content / Range: 0-524287
+
+# 从权威 offset 续传剩余块（Content-Range 起点 == 已收字节数）→ 202
+head -c 65536 /dev/urandom > /tmp/chunk2
+curl -su admin:$ADMIN_PW -X PATCH -H 'Content-Type: application/octet-stream' \
+  -H 'Content-Range: 524288-589823' --data-binary @/tmp/chunk2 "$BASE$LOC" \
+  -o /dev/null -w '%{http_code}\n'
+
+# PUT 收尾（digest 校验）→ 201
+DIG="sha256:$(cat /tmp/chunk1 /tmp/chunk2 | openssl dgst -sha256 -r | cut -d' ' -f1)"
+curl -su admin:$ADMIN_PW -X PUT "$BASE$LOC?digest=$DIG" -o /dev/null -w '%{http_code}\n'
+```
+
+| 情形 | 响应 |
+|---|---|
+| GET upload URL（未过期） | 204 + `Range: 0-<offset-1>`（服务端权威已收字节数） |
+| PATCH `Content-Range` 起点 ≠ 已收字节 | 416 空 body + 权威 `Range`（以响应 Range 重锚；会话存活） |
+| PUT `?digest=` 校验失败 | 400（会话保留可重试） |
+| 会话过期（>24h）或 S3 后端重启后 | 404 `BLOB_UPLOAD_UNKNOWN`（S3 的 multipart 状态在 S3 服务端持有，客户端整块重传） |
+
+docker CLI 自身中断后会从头重传（客户端不实现续传逻辑）——规格级续传面向探针与自管传输脚本。
+
+## 有意不兼容与差异
+
+| 行为 | BinFlow |
+|---|---|
+| `DELETE /v2/<name>/blobs/<digest>` | **405 UNSUPPORTED**——blob 物理删除唯一入口是 GC |
+| `DELETE /v2/<name>/manifests/<tag>` | **405**——官方 spec 禁止 by-tag 删除；tag 删除经 by-digest manifest 删除实现 |
+| `GET /v2/<name>/referrers/` | **404**——OCI referrers API 不做（manifest PUT 的 `OCI-Subject` 响应头仍返回，oras 探测后安全回退） |
+| 创建已存在的用户 | **409** `The user already exists: <name>` |
+| 空 tag 集的 `tags/list` | **200 且 `"tags":null`**（对齐 OCI conformance；jq 断言写 `.tags == null`） |
+| 未认证 `GET /v2/` | 恒 401 挑战（不随匿名开关变化；匿名拉取经匿名 token 通行） |
+| manifest PUT 的 `Content-Type` | 透传不白名单（前瞻兼容新类型） |
+
+## 前置反向代理（可选）
+
+`/v2/` 必须原样直通、**不要 rewrite**——挑战头里的 `realm` 指向 BinFlow 自身 `/v2/token`，路径改写会打断 token 协商：
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name registry.example.com;
+    client_max_body_size 0;
+
+    location /v2/ {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_request_buffering off;     # 流式转发 blob 上传
+        proxy_buffering off;
+    }
+    location /binflow/ {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        client_max_body_size 0;
+    }
+}
+```
+
+## 常见报错对照
+
+| 症状 | 原因 | 处置 |
+|---|---|---|
+| `http: server gave HTTP response to HTTPS client` | daemon 未把目标列入 insecure-registries | 按三形态配置并重启 daemon |
+| login `unauthorized: authentication required` | 口令错误 | 核对口令 |
+| push/pull `name unknown` / 404 | 单段 name，或仓库未建 / 非 docker 类型 | 用全名 `<repoKey>/<image>`；先建仓 |
+| curl `GET manifests/<ref>` 404 | Accept 协商：存储类型不在 Accept 列表 | Accept 加对应类型或 `*/*` |
+| buildx push `unauthorized` | builder 缺登录态或缺 `http = true` 配置 | 宿主先 login；buildkitd.toml 配置 |
+| helm push 401 | 明文 HTTP 下 `helm registry login` 不可用 | 写 `HELM_REGISTRY_CONFIG` 凭据文件 |
+| PATCH upload 416 | `Content-Range` 起点错位 | 读响应 `Range` 头取权威 offset 重锚 |
+| 重启后 upload URL 404 `BLOB_UPLOAD_UNKNOWN` | 会话过期 / 已收尾，或 **S3 后端** | 本地 filestore 未过期会话不会 404；S3 整块重传 |
+| remote 仓 pull 404 带 `ssrf-guard` | 上游指向私网/环回，被 SSRF 防护拒绝 | admin 配 `allowPrivateUpstream: true` |
+
+## 下一步
+
+- [仓库管理（remote/virtual）](/admin/repositories) · [Helm Chart 仓库接入](/integrations/helm) · [FAQ](/faq)

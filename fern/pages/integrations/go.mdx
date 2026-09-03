@@ -1,0 +1,120 @@
+# Go Modules 接入（GOPROXY）
+
+BinFlow 作为 Go module proxy：`GOPROXY` 一处配置，`go build` 从 BinFlow 解析模块；local 仓可 PUT 三件套发布私有模块，remote 仓代理 proxy.golang.org 等上游并缓存，virtual 仓本地优先聚合。
+
+> go 包型为 **pro 档**能力——建仓/推送需 pro 及以上 license（community 实例建 go 仓得 400 `package type 'go' is not available ...`）；未解锁时既有内容仍可拉取。见 [License 与 Add-ons](/admin/license)。
+
+## 前置条件
+
+- 实例已装 pro 及以上 license；go 1.21+（实测锚 1.26）。
+
+## GOPROXY 地址形态
+
+```
+GOPROXY=$BASE/binflow/<repoKey>
+```
+
+无额外路径段——repoKey 直接作第二段。仓探针：`curl -s $BASE/binflow/go-local/` → 200 空体。
+
+## 接入步骤
+
+### 1. 创建仓库（local / remote / virtual）
+
+```bash
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/go-local \
+  -H 'Content-Type: application/json' \
+  -d '{"rclass":"local","packageType":"go"}' \
+  -o /dev/null -w '%{http_code}\n'        # 200
+
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/go-remote \
+  -H 'Content-Type: application/json' \
+  -d '{"rclass":"remote","packageType":"go","url":"https://proxy.golang.org"}' \
+  -o /dev/null -w '%{http_code}\n'        # 200
+
+# 成员序 = 优先序：local 在前即本地优先
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/go-virt \
+  -H 'Content-Type: application/json' \
+  -d '{"rclass":"virtual","packageType":"go","members":["go-local","go-remote"]}' \
+  -o /dev/null -w '%{http_code}\n'        # 200
+```
+
+### 2. 发布模块（curl PUT 三件套）
+
+官方 GOPROXY 协议是只读的——PUT 三端点是仓库侧扩展（发布私有模块用），`$version` 须 canonical（`v1.2.3`）或 pseudo-version 或 `+incompatible` 形态：
+
+```bash
+# .zip / .mod / .info 三件（.info 为两键 JSON：{"Version":"...","Time":"RFC3339"}）
+curl -su admin:$ADMIN_PW -T mymod.zip \
+  "$BASE/binflow/go-local/example.com/mymod/@v/v1.0.2.zip" -o /dev/null -w '%{http_code}\n'    # 201
+curl -su admin:$ADMIN_PW -T mymod.mod \
+  "$BASE/binflow/go-local/example.com/mymod/@v/v1.0.2.mod" -o /dev/null -w '%{http_code}\n'    # 201
+curl -su admin:$ADMIN_PW -T info.json \
+  "$BASE/binflow/go-local/example.com/mymod/@v/v1.0.2.info" -o /dev/null -w '%{http_code}\n'   # 201
+
+# 版本清单（只有 .zip 落盘的版本才进 list）
+curl -su admin:$ADMIN_PW "$BASE/binflow/go-local/example.com/mymod/@v/list"
+# v1.0.2
+```
+
+- 可带 `X-Checksum-Sha256/-Sha1/-Md5` 头：格式错 400、与实测不符 **409**。
+- 部署属性走矩阵参数：`.../@v/v1.0.2.zip;build=77`（见[属性系统](/search/properties)）。
+- `.info` 缺失时服务端按 zip 时间戳合成；已存的 `.info` 逐字节回读。
+
+### 3. 配置 go 客户端环境变量
+
+| 变量 | BinFlow 场景 |
+|---|---|
+| `GOPROXY` | `GOPROXY=$BASE/binflow/go-virt`；多源 `GOPROXY=$BASE/binflow/go-virt,https://proxy.golang.org,direct` |
+| `GOSUMDB` | **私有模块走 BinFlow 必设 `GOSUMDB=off`**（air-gapped 必设，否则 sumdb 校验卡死） |
+| `GONOSUMDB` | 仅私有前缀跳过校验：`GONOSUMDB=example.com`（公共模块照常验） |
+| `GOPRIVATE` | **慎用**（见下） |
+| `GOINSECURE` | http 明文实例：`GOINSECURE=$HOST`（不关 sumdb，常需同设 `GOSUMDB=off`） |
+
+> **高频卡点**：常见的 `GOPRIVATE='*'` 全私有姿势会让所有模块**绕过 GOPROXY 直连 VCS**（GOPRIVATE 同时是 GONOPROXY 的默认值），报 `unrecognized import path ... "?go-get=1"`。「全走 BinFlow」的可操作形态是 `GOPROXY=<binflow> + GOSUMDB=off`。另注意 `GONOSUMCHECK` 不是真实 go 环境变量（历史讹传）。
+
+BinFlow **不代理 sumdb**（`sumdb/sum.golang.org/*` 三端点 404）——校验要么留公网（GONOSUMDB 前缀法），要么关（GOSUMDB=off）。
+
+### 4. 构建与 remote/virtual
+
+```bash
+export GOPROXY="$BASE/binflow/go-local" GOSUMDB=off
+go mod init example.com/scratch
+go mod edit -require=example.com/mymod@v1.0.2 && go mod download example.com/mymod@v1.0.2
+go build ./...        # .info → .mod → .zip 三段全部来自 BinFlow
+
+# remote 直连可用（无「remote 必须经 virtual」限制）；二次执行上游接触恰 1 次
+export GOPROXY="$BASE/binflow/go-remote" GOSUMDB=off
+go mod download golang.org/x/mod@v0.17.0
+
+# virtual：本地模块命中 local，未命中走 remote
+export GOPROXY="$BASE/binflow/go-virt" GOSUMDB=off
+```
+
+virtual 语义：`.zip/.mod/.info` 按成员序首个命中（命中成员经 `X-Binflow-Resolved-From` 头可见）；`@v/list` 跨成员并集；`@latest` 取全局最优候选。
+
+## `!lower` 转义（大小写模块）
+
+GOPROXY 协议用 case-encoding 消歧大小写不敏感文件系统：**模块路径与版本里的每个大写字母在 wire 上替换为 `!` + 小写**（`example.com/MyMod` → `example.com/!my!mod`；`v1.0.0-BETA` → `v1.0.0-!b!e!t!a`）。存储与展示保持解码形态。`!!` 与尾随 `!` 非法 → 400。
+
+## 边界与有意不做
+
+- **sumdb 代理**（`sumdb/sum.golang.org/{supported,lookup,tile}`）：不实现，404。
+- external dependencies 重定向、VCS git 直连 remote、curation 版本过滤：不做。
+- `h1:` dirhash 是客户端域——服务端不计算不存储，`go.sum` 校验全在客户端。
+
+## 常见报错对照
+
+| 症状 | 原因 | 处置 |
+|---|---|---|
+| 建仓 400 `package type 'go' is not available ...` | community 档 | 装 pro/enterprise license |
+| push 403 + `X-Binflow-License-Required: go` | license 写门；**读与 `go mod download` 不受影响** | 重装 license；期间继续拉取 |
+| `unrecognized import path ... "?go-get=1"` | GOPRIVATE 把模块送去 VCS 直连 | 移除 GOPRIVATE，用 `GOPROXY=<binflow> + GOSUMDB=off` |
+| 拉取卡死在 sumdb 校验 | sum.golang.org 不可达且未关 | `GOSUMDB=off` 或 `GONOSUMDB=<私有前缀>` |
+| PUT 400（版本文法 / major 一致性 / .info·mod 内容） | 版本拼写或元数据不一致 | 用 `vX.Y.Z` 规范拼写；对齐路径与版本 |
+| PUT 409 `Checksum error` | 声明校验和与实测不符 | 重新计算 |
+| remote 仓 PUT → 405 | remote 仓只读 | 发布走 local 仓或 virtual 部署路由 |
+| `@v/list` 404 但 `.mod`/`.info` 已传 | list 只聚合有 `.zip` 的版本 | 补传 `.zip` |
+
+## 下一步
+
+- [License 与 Add-ons](/admin/license) · [仓库管理](/admin/repositories) · [NuGet](/integrations/nuget) · [Cargo](/integrations/cargo)

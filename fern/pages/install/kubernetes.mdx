@@ -1,0 +1,70 @@
+# 原生 Kubernetes 清单（kubectl apply -k）
+
+不使用 Helm 时，`deploy/k8s/` 提供完整的 Kustomize 清单，`kubectl apply -k` 即可部署。
+
+## 前置要求
+
+- Kubernetes >= 1.28，kubectl >= 1.28
+- 镜像已推送至集群可访问的 registry（默认 `ghcr.io/lzwzzy/binflow`）
+
+## 安装步骤
+
+### 1. 准备 Secret
+
+编辑 `deploy/k8s/secret.yaml` 替换管理员密码占位符：
+
+```yaml
+stringData:
+  BINFLOW_ADMIN_PASSWORD: "<replace-with-a-strong-password>"
+```
+
+可选：远程代理凭据密钥 `openssl rand -base64 32` 填入 `BINFLOW_REMOTE_CREDENTIALS_KEY`（用途见 [仓库管理](/admin/repositories)）。
+
+### 2. 配置镜像
+
+`deploy/k8s/kustomization.yaml`：
+
+```yaml
+images:
+  - name: binflow
+    newName: ghcr.io/lzwzzy/binflow
+    newTag: v1.0.0-distroless   # 或 v1.0.0-alpine（含 shell 可调试）
+```
+
+alpine 变体需把探针从 `exec` 改为 `httpGet`（path `/readyz`、port `http`）。
+
+### 3. 应用并验证
+
+```bash
+kubectl apply -k deploy/k8s/
+# 创建顺序：secret → pvc（RWO 20Gi）→ deployment（单副本 Recreate）→ service（ClusterIP 8080）
+
+kubectl rollout status deployment/binflow
+# deployment "binflow" successfully rolled out
+
+kubectl port-forward svc/binflow 8080:8080 &
+curl -s http://127.0.0.1:8080/readyz                    # ok
+kubectl get secret binflow-secret -o jsonpath="{.data.BINFLOW_ADMIN_PASSWORD}" | base64 -d
+```
+
+## 可选：Ingress 与 Overlay
+
+- `deploy/k8s/ingress.yaml` 默认被注释——取消 `kustomization.yaml` 中该行并编辑 host。
+- GitOps 友好：建 `deploy/k8s/overlays/prod/kustomization.yaml`（resources 指向 `../../.`，用 patches 改 host/镜像）后 `kubectl apply -k deploy/k8s/overlays/prod`。注意 SQLite 单写，replicas > 1 不可用于生产。
+
+## 安全说明
+
+- `enableServiceLinks: false`——避免 K8s Service 环境变量与 `BINFLOW_` 配置命名空间冲突。
+- `runAsNonRoot: true`；密码经 `secretKeyRef` 注入，不进 Pod spec 明文。
+- 单副本（Recreate 策略）：SQLite WAL 模式要求独占写入。
+
+## 卸载
+
+```bash
+kubectl delete -k deploy/k8s/
+kubectl delete pvc binflow-data   # PVC 不随 kustomize 删除，手动清理
+```
+
+## 下一步
+
+- [Helm Chart](/install/helm) · [离线安装](/install/offline) · [备份与恢复](/admin/backup)

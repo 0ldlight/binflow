@@ -1,0 +1,128 @@
+# AQL 搜索
+
+AQL（Artifactory Query Language）是 Artifactory 的制品查询语言：一段查询文本描述「查什么、输出哪些字段、怎么排序翻页」，服务端返回流式 JSON。BinFlow 以 `items.find(...)` 为唯一入口，覆盖日常的「按仓库/路径/属性/checksum/时间窗找制品」场景。老搜索端点（gavc/prop/pattern）见 [API 参考](/api-reference)。
+
+## 请求形态
+
+| 项 | 值 |
+|---|---|
+| 方法/路径 | `POST /binflow/api/search/aql`（**POST 专用**——GET 404） |
+| 请求体 | `text/plain`，body = AQL 查询文本（**非 JSON 包裹**） |
+| 查询参数 | `?compact=true`（行体压单行）；body 为空时回退读 `?query=<urlencoded AQL>` |
+| 成功 / 错误 | 200 `{results, range}` / 400·401·403·408·429 `{"errors":[...]}` 信封 |
+
+**AQL 永不允许匿名**（闭环实例 401 / 开匿名实例 403）——用 Basic 或 Token 凭据。
+
+```bash
+export BASE=http://127.0.0.1:18501
+export AU='admin:<你的管理员口令>'
+
+# 单仓全列——默认输出 repo/path/name/type/size/created/created_by/modified/updated
+curl -su $AU -X POST $BASE/binflow/api/search/aql \
+  --data-binary 'items.find({"repo":"maven-local"})'
+# {"results" : [ { "repo" : "maven-local", "path" : "...", "name" : "..." }, ... ],
+#  "range" : { "start_pos" : 0, "end_pos" : 5, "total" : 5 } }
+
+# 投影 + 排序 + 分页（include→sort→offset→limit 链序固定）
+curl -su $AU -X POST $BASE/binflow/api/search/aql \
+  --data-binary 'items.find({"repo":"maven-local","type":"file"})
+                 .include("repo","path","name","size","modified")
+                 .sort({"$desc":["path"]}).offset(1).limit(2)'
+
+# 属性条件（@key 短形）与通配/相对时间
+curl -su $AU -X POST $BASE/binflow/api/search/aql \
+  --data-binary 'items.find({"@stage":"prod"}).include("repo","path","name","@stage")'
+curl -su $AU -X POST $BASE/binflow/api/search/aql \
+  --data-binary 'items.find({"name":{"$match":"demo-1.0.0*"}}).include("repo","name")'
+curl -su $AU -X POST $BASE/binflow/api/search/aql \
+  --data-binary 'items.find({"repo":"team-local","created":{"$last":"1 day"}}).include("name","created")'
+```
+
+## 语言子集
+
+### 域：只有 items
+
+查询入口域只有一个：`items`。其余 Artifactory 域一律 **400 点名拒绝**（message 直接说该域为什么不行——宁可拒绝也不伪空集）：
+
+| 域（Artifactory） | BinFlow |
+|---|---|
+| `items` | **支持**（唯一入口） |
+| `properties` / `statistics` | 400——属性走 items 的 `@key` 条件；统计未存储 |
+| `builds` / `modules` / `dependencies` / `releases` 等 build/release 系域 | 400——未实现 |
+
+### 字段
+
+| 字段 | 说明 |
+|---|---|
+| `repo` / `path` / `name` | 仓 key / 父目录 / 条目名（`$match` 通配可用） |
+| `type` | `file` / `folder` / `any`；**查询不含 type 条件时默认只搜 file** |
+| `created` / `modified` / `updated` | date（`modified` 与 `updated` 同值——无独立文件系统时间戳） |
+| `created_by` | 上传者（非 admin 调用者脱敏为 `unknown`） |
+| `size` / `depth` | 字节 / 路径深度 |
+| `sha256` / `actual_sha1` / `actual_md5` | checksum（单值存储，无 original/actual 分离） |
+| `virtual_repos` | **仅 include**：该制品被哪些 virtual 仓包含（不能作条件） |
+| `@<key>` / `property.key` / `property.value` | 属性域字段（`{"@stage":"prod"}` 为短形；`{"@k":"*"}` 键存在性） |
+
+引用即 400 的字段：`modified_by`、`original_sha1`/`original_md5`、`stat.*` 族（统计未存储）、`id`。
+
+### 操作符
+
+| 类别 | 操作符 |
+|---|---|
+| 比较 | `$eq` `$ne` `$gt` `$gte` `$lt` `$lte` |
+| 通配 | `$match` `$nmatch`（仅 string；`*` 任意串、`?` 单字符——只在这两个操作符内生效） |
+| 逻辑 | `$and` `$or`，逗号分隔 = 隐式 `$and`（任意深度嵌套） |
+| 单属性 | `$msp`——要求**同一个属性实例**满足全部条件 |
+| 相对时间 | `$last` `$before`（仅 date 字段）；语法 `"<count> <unit>"`，单位 `ms/s(秒)/minute/d/day/w/week/mo/month/y/year`——**count 与 unit 之间必须有空格**（`"1 day"` 可用；`"1d"` → 400） |
+
+不收录（400 点名）：`$not`（用 `$ne`/`$nmatch`）、`$contains`（用 `$match`）。
+
+### 尾缀方法链
+
+| 尾缀 | 语义 |
+|---|---|
+| `.include(<fields>)` | 投影字段集，`"*"` 全字段 |
+| `.sort({"$asc\|"$desc":["<field>",...]})` | 排序字段**必须在输出字段集内**；字段不可重复 |
+| `.offset(<n>)` / `.limit(<n>)` | 翻页（仅显式声明 limit 时 range 才有 `limit` 键） |
+
+**链序固定**：`include → sort → offset → limit`。乱序 → 400 语法错（文案与 Artifactory 逐字一致）。不收录的动词：`.distinct()`、`.transitive`、`.delete()/update()/dryRun`（**AQL 只读**）。
+
+## virtual 仓语义
+
+virtual key 是**合法查询值**：`items.find({"repo":"maven-virtual"})` 编译期展开为成员仓 OR 组。结果行 `repo` = **实际存储仓 key**，并**隐式附加 `virtual_repos` 输出字段**列出包含该制品的 virtual 仓。不存在的 repo key → 200 空集（无存在性校验）。
+
+## 响应 envelope 与截断
+
+- 流式形态：`"results" : [ {...},{...} ]`；日期 ISO8601 毫秒 UTC。
+- `range`：`start_pos`（offset 回显）/ `end_pos` / `total`（**本页行数**，不是全量计数）/ `notification`（截断通告）。
+- **行数上限 1,000**：超限返回前 1,000 行 + 响应头 `X-Binflow-Search-Truncated: true` + `range.notification`；用 `.offset()` 续翻。**用户自己的 `.limit(n)` 小于原始命中数时同样置截断标记**（= 还有未取行，不代表出错）。
+- 查询文本上限 **6,000 字符**。
+
+## 权限、脱敏与资源门
+
+- **行级过滤**：结果按调用者 read 权限过滤（admin 全见）；身份字段对非 admin 脱敏为 `unknown`。
+- **资源门**：同实例并发上限 4（超限 **429** + `Retry-After: 1`）；执行超时 **10s**（**408**）；>5s 服务端 WARN。
+
+## 从 Artifactory AQL 迁移对照表
+
+| Artifactory 行为 | BinFlow | 迁移动作 |
+|---|---|---|
+| build 系域 / `stat.*` 统计字段 / `modified_by` / `original_*` | 400 点名拒绝 | build 系查询改走外部 CI；下载统计用 usage/指标面；脚本删字段 |
+| `items.delete()` 等 AQL 写动作 | 400（只读） | 删除走 `DELETE /binflow/{repo}/{path}`；属性走 `?properties` |
+| 相对时间 `"1d"` 粘连短后缀 | 400——必须空格分隔 | 正则改写：`"(\d+)(d\|w\|mo\|y\|s)"` → `"$1 $2"` |
+| self-managed 无默认行数上限 | 硬上限 **1,000** + 截断标记 | 大结果集加 `.limit()` 分页循环 |
+| 匿名可查 | **永不允许匿名** | 脚本配凭据或 Token |
+| `.sort()` 在 OSS 档被许可门挡 | 无许可门，直接可用 | 含 sort 的查询反而能跑了 |
+| envelope / range / 错误信封 / 语法错文案 | 逐字一致 | 无 |
+
+## 验证
+
+```bash
+curl -su $AU -X PUT $BASE/binflow/team-local/qa/probe.bin --data-binary 'probe' -o /dev/null -w '%{http_code}\n'  # 201
+curl -su $AU -X POST $BASE/binflow/api/search/aql --data-binary 'items.find({"repo":"team-local"})' | grep -c '"name"'  # ≥1
+curl -su $AU -X POST $BASE/binflow/api/search/aql --data-binary 'items.find({"repo":"no-such"})' | grep '"total" : 0'  # 空集 200
+```
+
+## 下一步
+
+- [属性系统](/search/properties) · [bf-migrate 迁移指南](/tools/migrate-artifactory) · [API 参考](/api-reference)

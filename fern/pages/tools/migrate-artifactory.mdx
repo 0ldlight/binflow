@@ -1,0 +1,95 @@
+# 从 Artifactory 迁移（bf-migrate）
+
+`bf-migrate` 把 Artifactory 实例的**仓库定义、用户、token 台账、generic/maven 布局仓的制品本体**搬进 BinFlow。概念一一对应（local/remote/virtual、repo key、permission target——术语不变，总对照表见 [FAQ](/faq)）。
+
+## 迁移什么、不迁移什么
+
+| 阶段 | 迁移内容 | 不迁/不可迁 |
+|---|---|---|
+| repos | local/remote/virtual 仓定义（rclass 1:1） | federated 仓；**映射集外包型仓**（转换器映射集 = `generic`/`docker`/`maven`/`npm`/`pypi`，`gradle` 别名 `maven` 并警告）；**remote 仓上游密码**（Artifactory 从不回显，目标侧重填） |
+| users | internal realm 用户（名、email、admin 位、groups） | `anonymous`/`_system_`/IdP realm 用户、无 email 用户；**口令不可导出** |
+| tokens | 仅台账：列出、计数 | **token 值不可导出**——目标侧重发再分发 |
+| artifacts | **generic 与 maven（含 gradle 别名）布局仓的制品本体**：源侧清单 → 下载中双哈希校验 → 目标侧 PUT；`--concurrency` 并行（默认 4） | docker/npm/pypi 仓的**制品**（协议上传面无法用 plain-file 复刻——配置迁、制品留源侧记原因）；remote 仓（缓存不迁）与 virtual 仓（聚合无本体） |
+
+**工具映射面 ≠ 产品能力面**：repos 阶段跳过 nuget/go/cargo/conan/helm/rpm/debian 等包型仓，说的是 **bf-migrate 的转换器映射集**，不是 BinFlow 的产品能力——这些包型 BinFlow 均支持。此类仓在目标侧**手建同 key 仓**、用各协议客户端（`dotnet nuget push` / `conan upload` / `helm push` 等）重灌制品即可。
+
+两条 Artifactory 硬约束：
+
+1. **口令**：任何响应都不含用户口令。二选一——`--password-env <VAR>`（全员共享一个初始口令，迁后轮换）或 `--passwords-out <file>`（每用户随机 24 位口令，写 0600 文件）。两者皆无且有待迁用户时 fail-fast。
+2. **token 值**：源只回元数据——第三阶段全部标 skipped 并提示目标重建。
+
+另有一点不在本工具范围：**组定义**（组需目标侧预建——用户 groups 引用未知组会 400 记为该项失败）。
+
+## 前置条件
+
+- 源：Artifactory REST 可达，admin 凭据（Bearer token 或 API key）。
+- 目标：BinFlow 实例 + admin API token；**默认只许迁入空目标（零仓实例）**——非空目标被守卫拒绝，确需合并见 `--allow-non-empty`。
+- 目标侧已建好用户引用到的组。
+
+## 使用
+
+```bash
+export ARTIFACTORY_URL=http://src-host:8081/artifactory   # 必须含 context path
+export ARTIFACTORY_TOKEN=<源 admin token>
+export BINFLOW_SERVER_URL=http://binflow:8080
+export BINFLOW_TOKEN=<目标 admin token>
+
+# 第一步永远先摸底：只读不写、不落进度文件
+bf-migrate migrate --dry-run
+# repos: found=6 migrated=5 skipped=1 already-done=0 failed=0
+# users: found=4 migrated=2 skipped=2 already-done=0 failed=0
+# tokens: found=2 migrated=0 skipped=2
+
+# 全量（生成每用户口令）；中断后续传
+bf-migrate migrate --passwords-out ./migrated-passwords.txt
+bf-migrate migrate --passwords-out ./migrated-passwords.txt --resume
+```
+
+| 旗标 | 缺省 | 说明 |
+|---|---|---|
+| `--artifactory-url` | `$ARTIFACTORY_URL` | 源地址（含 context path，必填） |
+| `--artifactory-token-env` / `--artifactory-api-key-env` | `ARTIFACTORY_TOKEN` / `ARTIFACTORY_API_KEY` | 源凭据变量名（token 未设时回退 API key） |
+| `--server` / `--token-env` | `$BINFLOW_SERVER_URL` / `BINFLOW_TOKEN` | 目标地址与 admin token 变量名 |
+| `--dry-run` | 关 | 只统计不写 |
+| `--resume` | 关 | 载入进度文件，跳过已完成项 |
+| `--allow-non-empty` | 关 | 覆盖空目标守卫（create-or-replace：同 key 仓重配、同路径制品覆盖、源未提及的目标内容不动） |
+| `--concurrency` | `4` | 制品阶段每仓并行拷贝数 |
+| `--progress-file` / `--report-file` | `.bf-migrate-progress.json` / `migration_report.json` | 检查点 / 报告路径 |
+| `--retry-max` | `5` | 目标瞬时失败重试次数 |
+| `--password-env` / `--passwords-out` | 无 | 口令策略二选一 |
+| `--skip-users` | 关 | 源用户列表被拒（400/403）时降级为警告继续 |
+
+## 四阶段语义（保序、可断点）
+
+- 顺序固定 **repos → users → tokens → artifacts**（virtual 引用成员、token 引用用户；配置问题先暴露，再动大数据）。repo 按 key 排序，**virtual 殿后**。
+- **空目标守卫**：写入型运行只许迁入零仓目标（`migrate: target instance is not empty: <占用明细> ...`）；`--dry-run` 只观测不拒绝；`--resume` 不被拦。
+- **逐项检查点**：成功/跳过即写（原子落盘）；失败项**不标记**——`--resume` 就是重试杠杆。artifacts 阶段进度按 32 条批落盘。写入动词 create-or-replace，重跑天然幂等。
+- 进度文件绑定源/目标 URL（混用被拒载）；单项失败不中断全场，结束聚合报错、退出码 1。
+
+## 迁移后手工收尾清单
+
+1. **remote 仓上游密码**：逐个重填（Artifactory 不回显，迁移只带 url/username）。
+2. **组与权限**：`POST /api/v1/permissions` 挂授权（组预建前置）。
+3. **token 重发**：按台账在目标侧 `bf token create`，再分发给持有方。
+4. **用户口令分发**：`migrated-passwords.txt`（0600）安全渠道分发，强制首次登录轮换。
+5. **virtual 成员与 local 仓 patterns 复核**。
+
+## 已知缺口与行为注记
+
+- **maven 仓重迁轮 `maven-metadata.xml` 会被目标重算**：重跑时 jar/pom 再上传触发 BinFlow 按服务端语义重算 metadata（`<lastUpdated>` 变化）。比对迁移前后字节以构件本体（jar/pom）为准，metadata 差异可忽略。
+- **源为 Artifactory OSS 时的能力边界**：OSS 7.x 无 docker registry 与 npm 协议面（`/v2/`、`/api/npm/{repo}/**` 全 404）——docker/npm 仓只能 **config-only 迁移**（报告记 "artifacts left behind"），与网络连通性无关；协议制品迁移须 Pro/企业版源。
+
+## 常见报错对照
+
+| 症状 | 原因 | 处置 |
+|---|---|---|
+| `--artifactory-url is required` | 地址没给/没进 env | 补上（记得带 context path） |
+| `migrate: target instance is not empty: ...` | 空目标守卫 | 确认目标本该为空；确要合并则 `--allow-non-empty` |
+| `no BinFlow credentials: ... (required for writes)` | 非 dry-run 且 token 未解析到 | `--token-env` 指到已导出的变量 |
+| 用户项 400 `Unable to find group by name` | 目标侧缺组 | 预建组后 `--resume` |
+| `skipped repo <key>: package type "..." is not supported` | 包型在映射集外 | 目标侧手建同 key 仓 + 协议客户端重灌 |
+| 结束退出码 1 | 有 item 级失败 | 看汇总；修复后 `--resume` 精确重试 |
+
+## 下一步
+
+- [bf CLI](/tools/bf-cli) · [FAQ 迁移对照表](/faq) · [Web 控制台](/admin/console)

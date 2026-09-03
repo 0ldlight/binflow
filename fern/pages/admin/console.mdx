@@ -1,0 +1,122 @@
+# Web 控制台
+
+单二进制自带 Web 控制台（go:embed，零外部依赖、断网可用）。控制台的信息架构与操作流**对齐 Artifactory**——同一个动作在同样的位置、走同样的步骤；控制台仍是**管理面**，CI 与脚本继续走 REST/token，两者同一 API、同一权限模型。
+
+## 登录与会话
+
+浏览器打开 `$BASE/binflow/`——服务端 301 到 `$BASE/binflow/ui/`。控制台**没有匿名模式**：未登录一律先到登录页。错误凭据行内红字；「口令错」与「用户不存在」服务端文案**完全相同**（不泄露存在性），并落 `login.failed` 审计。
+
+会话机制（服务端存储，curl 可完全等效）：
+
+```bash
+# 登录（JSON 或 form）→ 200 {"username":"admin","admin":true} + Set-Cookie
+curl -s -c jar.txt -X POST $BASE/binflow/api/v1/session \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"<口令>"}'
+curl -s -b jar.txt $BASE/binflow/api/v1/session      # whoami
+curl -s -b jar.txt -X DELETE $BASE/binflow/api/v1/session -o /dev/null -w '%{http_code}\n'   # 204 登出
+```
+
+| 面 | 行为 |
+|---|---|
+| cookie | `binflow_session`；`HttpOnly; Path=/binflow; SameSite=Lax`；TLS 部署自动加 `Secure` |
+| TTL | `console.session_ttl_hours`（默认 **24**）；**会话必死语义**——滑动续期被绝对 TTL 封顶，会话必死于登录时刻 + TTL，与活跃度无关 |
+| 重启 | 会话落元数据库，实例重启不掉线 |
+| 等价性 | 会话 cookie 与 Basic/Token 等权。唯一例外是 docker `/v2` 面——cookie 作用域结构性不含根级 `/v2` |
+
+**CSRF 防线**：会话 cookie 认证的非 GET/HEAD 写请求，携带非同源 `Origin` 头 → **403**。Basic/Token 认证天然免疫——CI 与脚本零感知。
+
+## 双模式导航
+
+| 模式 | 路由前缀 | 侧栏分组 | 落地页 |
+|---|---|---|---|
+| 应用模式 | `/artifacts` `/dashboard` `/search` `/profile` | 应用：仪表盘、制品 | `/artifacts`（跨仓制品树） |
+| 管理模式 | `/admin/**` | 仓库 / 用户与权限 / 治理 / 监控 / 常规 五分组 | `/admin/repositories` |
+
+模式切换在侧栏底部；管理页带面包屑；顶栏全局搜索（`⌘K` / `Ctrl+K` / `/`）。
+
+管理模式五分组：**仓库**（Local/Remote/Virtual 三 Tab）· **用户与权限**（用户 / 组 / 权限 / Access Tokens）· **治理**（审计日志 / 维护 GC / 配额 / 复制 / 备份恢复 / 回收站 / Webhooks）· **监控**（存储）· **常规**（系统信息、License）。
+
+## 制品树浏览器（/artifacts）
+
+**全部仓库出现在一棵树上**，仓库是顶层节点，左侧树 + 右侧详情面板联动。
+
+- 懒加载一层；**URL 即状态**（`/artifacts/<repo>/<path…>` 深链可直接分享，打开自动展开祖先定位）。
+- 右键菜单（`Shift+F10` 键盘可达）：文件 = 复制路径/下载/删除；文件夹 = 复制路径/删除/刷新；仓库 = 复制仓库路径/刷新/在仓库管理中打开。
+- **仓型面**：local 直列内容；**remote 仓只列已缓存制品**（浏览永不回源）；virtual 仓聚合浏览可用（children = 成员仓并集；virtual 不经手删除）。
+- 详情面板：路径 mono + 拷贝按钮；文件 Checksums 块（sha256/sha1/md5）；docker manifest digest 带 tag 徽标；权限过滤自然生效。
+- 树内不做跨路径 Move/Copy（REST 面可用，见[制品操作](/admin/operations)）；**删除先入回收站**（pro 槽，community 档为硬删）。
+
+## Set Me Up：客户端接入向导
+
+入口：制品树页头 / 仓库管理列表行 / 仓库详情页头。流程：包类型网格（只列实例已有仓库的包类型）→ 主对话框（仓库下拉 + `配置`/`部署` 两个 Tab——内容与各[接入指南](/integrations/docker)同源，UI 不发明命令）→ **生成令牌**（控制台铸币位）：
+
+- **admin 会话**：直接生成（免二次口令）。
+- **本地 / LDAP 用户**：`auth.token_step_up` 开启时对话框内联口令重验表单（语义见 [Token step-up](/admin/tokens)）。
+- **SSO 用户**：不出口令框——出「重新认证并继续」引导，全页跳转 IdP 强制重认证后自动续铸。
+- 成功 → 令牌明文一次性面板（24 小时过期，关闭后不可再查看）。
+
+## Deploy：浏览器上传对话框
+
+字段序：目标仓库（只列 local 的 Generic / Maven 仓）→ 部署模式 → 拖拽区 → 目标路径（mono 可编辑，含特殊字符时显示请求编码值只读回显）→ `部署` 显式提交。浏览器端流式计算 sha256 与服务端对账；maven 仓按 GAV 表单生成 layout 路径；**docker / npm / pypi 仓不出现上传入口**（协议发布是客户端会话，UI 以接入命令块替代）。
+
+## 管理模式各域速览
+
+- **仓库**：三 Tab 列表 + 建仓向导（key 规则 `[a-z][a-z0-9-]{1,62}`，保留字 `api`/`v2`/`docs`/`console`/`ui`/`assets` 建仓即 400）+ 详情页（接入命令/统计/配额/Replications）+ 编辑页。删除两段强确认：非空仓必须勾选「同时删除内容」+ **输入 repo key 确认**。
+- **用户与权限**：用户列表（单请求数据源，Status 徽章真值即服务端 `enabled`）；删除用户**输入用户名强确认**（级联不可恢复、重复删除 404 非幂等——REST 语义见[治理](/admin/governance)）；组编辑器；权限 target 编辑器（两步资源对话框 + 四动作矩阵 + **模式测试器** + 保存前 diff）；Access Tokens 页（生成/一次性明文/吊销——服务端只存指纹，无令牌清单端点）。
+- **治理**：审计日志（过滤 + 游标分页）、维护 GC（dry-run 面板 + 输入实例名确认 apply）、配额（水位条 80% 黄/100% 红）、复制（目标表 + 全局封锁卡）、Webhooks（订阅 CRUD + 试发 + 投递记录抽屉）、备份/恢复（CLI 引导卡——高危带外操作，不做进度 UI）、回收站。
+- **监控与常规**：存储（汇总卡 + 逐仓用量表）；系统信息（版本/健康卡）；编辑档案 `/profile`（改密 + token 说明）。
+- **搜索**：双模式——基本（名称子串）与 AQL（mono 编辑器，⌘/Ctrl+Enter 执行，语法错逐字内联）——语言见 [AQL](/search/aql)。
+
+## 角色可见性
+
+| 角色 | 可见 |
+|---|---|
+| admin | 全部入口与数据面 |
+| readonly_admin | 应用模式 + 管理模式全部读面；一切写入口禁用（服务端 403 兜底） |
+| user | 仪表盘、制品树与搜索（按自身路径 ACL）、编辑档案。「管理」入口不渲染；已知 repo key 的深链按自身 ACL 可达 |
+| 未登录 | 重定向 `/login?return=` |
+
+401 一律「登录已过期」+ 重登；403 按层级收敛（导航/按钮不渲染、页面级无权限卡）。
+
+## 旧路径迁移对照
+
+旧版路由已失效（不再重定向，直链落 404 页）——请按下表更新书签与脚本：
+
+| 旧路径 | 新路径 |
+|---|---|
+| `/repositories*` | `/admin/repositories/...`（列表默认 local Tab） |
+| `/repositories/:key/settings` | `/admin/repositories/:key/edit` |
+| `/repositories/:key/tree/<path…>` | `/artifacts/:key/<path…>`（`?focus=` 参数原样可用） |
+| `/settings` | `/admin/general/settings`（改密在 `/profile`） |
+| `/security/users*` · `/security/groups*` · `/security/permissions*` · `/security/tokens` | `/admin/security/…` 同名尾段 |
+| `/audit` | `/admin/governance/audit` |
+| `/governance/{gc,quotas,replication,backup}` | `/admin/governance/…` 同名尾段 |
+
+首页 `/` 不受影响：登录落点仍是 `/artifacts`。
+
+## 从 Artifactory 迁移：操作路径对照
+
+同一动作在两侧的位置与步骤对齐（BinFlow 路径前缀 `$BASE/binflow/ui`）：
+
+| 任务 | Artifactory | BinFlow |
+|---|---|---|
+| 建仓 | Administration → Repositories →「+」 | 管理 → 仓库 → `+ 添加仓库`（进页先选包类型） |
+| 建用户 / 建组 / 配权限 | User Management 对应页 | 管理 → 用户与权限 对应页（权限编辑器带模式测试器与 diff） |
+| 找制品 | Artifacts 树 / 顶栏搜索 | 应用 → 制品树 / 顶栏搜索 |
+| Set Me Up | 选中仓库页头 | 同位置（含生成令牌） |
+| UI 上传（Deploy） | 树页头 Deploy | 同位置（仅 local Generic/Maven） |
+| GC / 配额 | SERVICES → Advanced → Maintenance | 治理 → 维护（GC）/ 配额（per-repo 字节模型，比 OSS 两字段更强） |
+| 审计 | （OSS 无此页） | 治理 → 审计日志（自有页） |
+| 备份 | SERVICES → Backups（cron 计划） | 治理 → 备份/恢复（export/import CLI，无 cron 计划——**语义差异**） |
+| 复制 | Replications Tab / 全局复制页（许可功能） | 治理 → 复制 + 仓库编辑页 Replications 节（无 license 门；cron/sync 字段为预留位恒禁用——事件驱动引擎） |
+
+**Artifactory 有而 BinFlow 不建的面**：Xray / Pipelines / Distribution / Builds / Projects（JFrog 独立产品）、Packages 聚合页、Authentication Providers 的 UI 配置（OIDC/LDAP 走配置文件与运行态 REST，见[认证](/admin/auth)）、自定义仓库 Layouts、Mail Server、System Logs 查看器。**BinFlow 自有增强**：审计日志页、per-repo 配额水位条、全局复制配置页、`readonly_admin` 实例级只读管理员、Set Me Up 内 step-up 重验、权限模式测试器。
+
+## 浏览器兼容
+
+Chromium 系（Chrome/Edge）为主支持（全量回归）；WebKit（Safari 内核）与 Firefox 支持登录/制品树/上传链。生产环境推荐 Chromium 系浏览器。
+
+## 下一步
+
+- [用户、组与权限](/admin/permissions) · [治理](/admin/governance) · [Artifactory 迁移指南](/tools/migrate-artifactory)

@@ -1,0 +1,143 @@
+# Cargo（Rust）接入
+
+BinFlow 作为 **sparse HTTP registry**（crates.io 兼容）：`.cargo/config.toml` 注册一个 alternate registry，`cargo publish` 发内部 crate、`cargo add/build` 消费；索引与下载地址由 `config.json` 自述，cargo 全自动协商。local / remote（代理缓存）/ virtual（聚合）三类仓型齐备。
+
+> cargo 包型为 **pro 档**能力——建仓/发布需 pro 及以上 license；未解锁时既有 crate 仍可下载/构建。客户端锚 cargo 1.70+（实测 1.98）。
+
+## 接入步骤
+
+### 1. 创建仓库
+
+```bash
+export BASE=http://localhost:8080
+export REG=$BASE/binflow/cargo-local
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/cargo-local \
+  -H 'Content-Type: application/json' \
+  -d '{"rclass":"local","packageType":"cargo"}' \
+  -o /dev/null -w '%{http_code}\n'        # 200
+
+# 探针：sparse 入口配置（dl/api 指回 BinFlow 自身）
+curl -s "$REG/index/config.json"
+# {"dl":"http://localhost:8080/binflow/cargo-local/v1/crates","api":"http://localhost:8080/binflow/cargo-local"}
+```
+
+### 2. 配置 alternate registry 与 token
+
+`~/.cargo/config.toml`（旧拼写 `.cargo/config` 同效）：
+
+```toml
+[registries.binflow]
+index = "sparse+http://localhost:8080/binflow/cargo-local/index/"
+```
+
+`sparse+` 前缀**必带**；尾斜杠按上例保留。token 三选一（发布/yank 必须认证；下载与索引按实例匿名策略）：
+
+```bash
+cargo login --registry binflow                          # ① 交互登录，存 ~/.cargo/credentials.toml
+export CARGO_REGISTRIES_BINFLOW_TOKEN=<BinFlow 用户 token>   # ② 环境变量（CI 推荐）
+# ③ 凭据文件直接写：~/.cargo/credentials.toml 的 [registry.binflow] token = "..."
+```
+
+> wire 形态注意：cargo 发的是**裸 `Authorization: <token>` 头——无 `Bearer` scheme**（crates.io 兼容形态）。token 用管理面签发的 access token 即可。
+
+### 3. 发布与消费
+
+```bash
+cargo new mycrate --lib && cd mycrate
+echo 'description = "demo crate"' >> Cargo.toml
+cargo publish --registry binflow
+# Published mycrate v0.1.0 at registry `binflow`
+
+# 发布后索引立即可见（同步重写）
+curl -s "$REG/index/my/cr/mycrate"
+# {"name":"mycrate","vers":"0.1.0","deps":[],"cksum":"b82c1c70…","yanked":false}
+
+cd .. && cargo new consumer && cd consumer
+cargo add mycrate --registry binflow && cargo build
+```
+
+- 索引路径按 crate 名长度四档推导：1 字符 `index/1/{n}`、2 字符 `index/2/{n}`、3 字符 `index/3/{首字符}/{n}`、≥4 字符 `index/{前两字符}/{第3-4字符}/{n}`（**文件名小写**）。
+- 校验链：crate 名 = 首字符字母 + `[A-Za-z0-9_-]`、≤64；`vers` 严格 SemVer 2.0（前导零拒绝）。
+- **同 name+version 重复发布由删除权限裁决**：调用方可删该版本 → 覆盖上传；不可删 → 403。注意 cargo 1.98 客户端会预检索引并在本地拒绝重复发布——日常重复发布走「删后重发」（见报错表）。
+
+### 4. yank / search
+
+```bash
+cargo yank --registry binflow mycrate@0.1.0            # 索引行 "yanked":true
+cargo yank --undo --registry binflow mycrate@0.1.0      # cargo 1.98 无 unyank 子命令
+curl -s "$REG/api/v1/crates?q=mycrate&per_page=10"      # search：q 匹配名称+描述，per_page 默认 10 上限 100
+```
+
+yank 语义（官方）：**不是删除**——只翻索引行布尔；已写进 `Cargo.lock` 的项目照常构建，新解析不再选该版本，**下载持续 200**。
+
+### 5. cksum 对账（发布完整性）
+
+```
+索引行 "cksum"  ==  .crate 节点存储实测 sha256  ==  下载体 sha256
+```
+
+```bash
+curl -s -o /tmp/mycrate.crate "$REG/v1/crates/mycrate/0.1.0/download"
+shasum -a 256 /tmp/mycrate.crate | cut -d' ' -f1     # 与索引行 cksum 逐字符一致
+```
+
+cargo 客户端每次下载都按索引行 cksum 自动校验。
+
+## remote 仓（pull-through 代理缓存）
+
+```bash
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/cargo-remote \
+  -H 'Content-Type: application/json' \
+  -d '{"rclass":"remote","packageType":"cargo",
+       "url":"http://cargo-up.example.com:8080/binflow/cargo-local"}' \
+  -o /dev/null -w '%{http_code}\n'        # 200
+```
+
+- **上游语法前提**：上游须为**单主机 sparse wire 语法**（其 `config.json` 的 dl/api 指向同主机路径——BinFlow / Artifactory cargo 面 / 自建兼容源均属此类）。**crates.io 直连（index/dl 双主机形态）不支持**。
+- 内网上游需 `"allowPrivateUpstream": true`（SSRF 守卫默认拒绝私网/环回目标）。
+- 行为：index / 下载 pull-through（二次命中 `X-Binflow-Cache: HIT`）；search 查询串逐字代理上游（上游硬故障 → 409；assumed-offline 静默期 → 404）；**缓存续供**——上游删除 crate 后，全新项目 `cargo add` + `build` 仅凭 remote 缓存照常成功；写操作（publish/yank/索引写）**405** 只读；`DELETE /binflow/<remote>/<path>` = 缓存驱逐。
+
+## virtual 仓（聚合入口）
+
+```bash
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/cargo-virtual \
+  -H 'Content-Type: application/json' \
+  -d '{"rclass":"virtual","packageType":"cargo",
+       "repositories":["cargo-local","cargo-remote"],
+       "defaultDeploymentRepo":"cargo-local"}' \
+  -o /dev/null -w '%{http_code}\n'        # 200
+```
+
+- **经虚仓发布必须配 `defaultDeploymentRepo`**（指向 local 成员；未配置 → 写 405 `No local repository was configured as local deployment repository for the (<key>) virtual repository.`）。
+- index 归并：**去重键 = (name, 忽略 build metadata 的 vers)**、首见成员原始行逐字保留，按 SemVer 排序；`X-Binflow-Resolved-From` = 首见贡献成员。
+- yank/unyank first-hit 解析持有成员：local 持有者正常翻转；remote 持有者 → 405 只读。
+- DELETE **不透传成员删除**（405）——删缓存对 remote 成员直接操作；删已发布版本也须对持有成员仓直接操作。
+
+## 边界与有意不做
+
+| 项 | 行为 |
+|---|---|
+| crates.io 直连上游 | 不支持（remote 上游须单主机 sparse wire 语法） |
+| git 索引协议（`info/refs` / `git-upload-pack`） | 不做（官方已弃用），404 |
+| owners 四端点 | 不做，404 |
+| 手写索引/侧车（bare PUT/DELETE 到 `index/**`） | 接受（PUT 201 / DELETE 204）并触发索引收敛；`index/config.json` 写 403 |
+| 索引条件请求 | 支持 `ETag` / `Last-Modified` + 304 |
+| 禁匿名实例 | `config.json` 输出 `"auth-required":true`，cargo 带凭据重试（官方握手） |
+
+## 常见报错对照
+
+| 症状 | 原因 | 处置 |
+|---|---|---|
+| 建仓 400 `package type 'cargo' is not available ...` | community 档 | 装 pro/enterprise license |
+| publish/yank 403 + `X-Binflow-License-Required: cargo` | license 写门；下载/索引读不受影响 | 重装 license |
+| publish 401 | 未配 token / token 失效 | `cargo login` 或设 `CARGO_REGISTRIES_BINFLOW_TOKEN` |
+| `already exists on ... index`（本地拒绝，PUT 未发） | 客户端预检索引发现重复 | **删后重发**（对持有成员仓直接操作，经虚仓 DELETE 恒 405）：先 `curl -X DELETE "$REG/crates/mycrate/mycrate-0.1.0.crate"` 删存储件（204），再 `curl -X DELETE "$REG/index/my/cr/mycrate"` 删索引行（204；**顺序勿倒**），随后照常 `cargo publish`。或升 `vers` / yank 旧版 |
+| publish 命令回 200 但输出 `Failed to publish ...` 警告 | 校验族失败（如 `version "0.2.0.abc" is not valid SemVer 2.0`）走 `warnings.other` 载荷——crate 实际未落地 | 看 `warnings.other` 里的错误原文修正后重发 |
+| publish 500（`errors` 信封） | wire 帧形状违例（声明长度超 1MiB / 空帧 / 尾随字节） | 用 cargo 客户端发布；核对 `Cargo.toml` |
+| `failed to parse manifest ... registry not listed` | 配置缺 `[registries.binflow]` 或漏 `sparse+` 前缀 | 按第 2 步补全 |
+| 索引 404 但包已发布 | 索引路径档位算错 | 按四档表推导 |
+| 下载 404 `unable to download crate` | 版本号拼写未归一或未发布 | 核对 `cargo add` 解析出的版本 |
+
+## 下一步
+
+- [License 与 Add-ons](/admin/license) · [仓库管理](/admin/repositories) · [Go](/integrations/go) · [NuGet](/integrations/nuget)

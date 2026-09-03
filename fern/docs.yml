@@ -1,0 +1,109 @@
+instances:
+  - url: binflow.buildwithfern.com
+
+title: BinFlow 文档
+
+tabs:
+  文档:
+    display-name: 文档
+    icon: home
+
+navigation:
+  - tab: 文档
+    layout:
+      - page: BinFlow 简介
+        path: pages/index.mdx
+        icon: home
+      - section: 快速开始
+        contents:
+          - page: 五分钟快速开始
+            path: pages/getting-started/quickstart.mdx
+            icon: rocket
+      - section: 安装部署
+        contents:
+          - page: 单二进制安装
+            path: pages/install/binary.mdx
+          - page: Docker 运行
+            path: pages/install/docker.mdx
+          - page: docker-compose 部署
+            path: pages/install/compose.mdx
+          - page: Helm Chart（Kubernetes）
+            path: pages/install/helm.mdx
+          - page: 原生 Kubernetes 清单
+            path: pages/install/kubernetes.mdx
+          - page: systemd 服务（裸机）
+            path: pages/install/systemd.mdx
+          - page: 离线安装（air-gapped）
+            path: pages/install/offline.mdx
+          - page: 升级
+            path: pages/install/upgrade.mdx
+      - section: 客户端接入
+        contents:
+          - page: Docker / OCI 镜像
+            path: pages/integrations/docker.mdx
+          - page: Generic（任意文件）
+            path: pages/integrations/generic.mdx
+          - page: Maven
+            path: pages/integrations/maven.mdx
+          - page: npm
+            path: pages/integrations/npm.mdx
+          - page: PyPI
+            path: pages/integrations/pypi.mdx
+          - page: Go Modules
+            path: pages/integrations/go.mdx
+          - page: NuGet
+            path: pages/integrations/nuget.mdx
+          - page: Cargo（Rust）
+            path: pages/integrations/cargo.mdx
+          - page: Conan（C/C++）
+            path: pages/integrations/conan.mdx
+          - page: Helm Chart 仓库
+            path: pages/integrations/helm.mdx
+          - page: RPM（Yum/DNF）
+            path: pages/integrations/rpm.mdx
+          - page: Debian（apt）
+            path: pages/integrations/debian.mdx
+      - section: 管理指南
+        contents:
+          - page: Web 控制台
+            path: pages/admin/console.mdx
+          - page: 仓库管理（local / remote / virtual）
+            path: pages/admin/repositories.mdx
+          - page: 用户、组与权限
+            path: pages/admin/permissions.mdx
+          - page: Token 与二次认证（step-up）
+            path: pages/admin/tokens.mdx
+          - page: 治理（审计 / GC / 配额 / 复制）
+            path: pages/admin/governance.mdx
+          - page: 备份与恢复
+            path: pages/admin/backup.mdx
+          - page: 存储后端（磁盘 / S3 / 双写）
+            path: pages/admin/storage.mdx
+          - page: 认证（LDAP / OIDC / SAML）
+            path: pages/admin/auth.mdx
+          - page: License 与 Add-ons
+            path: pages/admin/license.mdx
+          - page: 制品操作与回收站
+            path: pages/admin/operations.mdx
+          - page: Webhooks
+            path: pages/admin/webhooks.mdx
+          - page: 监控指标（Prometheus）
+            path: pages/admin/monitoring.mdx
+      - section: 搜索与属性
+        contents:
+          - page: 属性系统
+            path: pages/search/properties.mdx
+          - page: AQL 搜索
+            path: pages/search/aql.mdx
+      - section: 工具与迁移
+        contents:
+          - page: bf CLI
+            path: pages/tools/bf-cli.mdx
+          - page: 从 Artifactory 迁移（bf-migrate）
+            path: pages/tools/migrate-artifactory.mdx
+      - page: API 参考
+        path: pages/api-reference.mdx
+        icon: square-terminal
+      - page: FAQ 与故障排查
+        path: pages/faq.mdx
+        icon: circle-help
