@@ -204,6 +204,12 @@ const (
 	ActionReplicationRun         = "replication.run"
 	ActionReplicationBlockUpdate = "replication.block.update"
 
+	// T-442 (M16 FR-143.5): the remote repository form's upstream Test
+	// probe — the replication.config.test naming precedent lifted onto the
+	// repositories domain (the conductor's wire ruling: a sibling family,
+	// not the same endpoint). Emit site keeps its literal (httpapi).
+	ActionRepositoryRemoteTest = "repository.remote.test"
+
 	ActionKeypairCreate    = "keypair.create"
 	ActionKeypairUpdate    = "keypair.update"
 	ActionKeypairGenerate  = "keypair.generate"

@@ -273,6 +273,13 @@ type Engine struct {
 	offline    map[string]time.Time // repoKey -> assumed-offline until
 	stats      map[string]*repoCounters
 	flights    map[string]chan struct{} // singleflight, repoKey + "/" + path
+	// browseTrees is the remote-browsing enumeration cache (T-442,
+	// FR-147.1): one parsed whole-tree snapshot per repository, held for
+	// the repository's metadata TTL. It is written ONLY by BrowseRemote —
+	// every fetch path above stays byte-identical (the optional档's off
+	// posture is "nothing here is ever consulted").
+	browseMu    sync.Mutex
+	browseTrees map[string]*browseTree
 }
 
 // repoCounters is the atomic counter block behind RepoStats.
@@ -312,19 +319,20 @@ func NewEngine(st storage.Engine, md metadata.Store, opts EngineOptions) (*Engin
 		cipher = c
 	}
 	e := &Engine{
-		st:         st,
-		md:         md,
-		nowFn:      opts.Now,
-		log:        opts.Logger,
-		cipher:     cipher,
-		metaWait:   opts.MetadataWait,
-		busyRetry:  opts.BusyRetry,
-		resolve:    opts.Resolve,
-		clients:    map[string]*cachedClient{},
-		extClients: map[string]*cachedClient{},
-		offline:    map[string]time.Time{},
-		stats:      map[string]*repoCounters{},
-		flights:    map[string]chan struct{}{},
+		st:          st,
+		md:          md,
+		nowFn:       opts.Now,
+		log:         opts.Logger,
+		cipher:      cipher,
+		metaWait:    opts.MetadataWait,
+		busyRetry:   opts.BusyRetry,
+		resolve:     opts.Resolve,
+		clients:     map[string]*cachedClient{},
+		extClients:  map[string]*cachedClient{},
+		offline:     map[string]time.Time{},
+		stats:       map[string]*repoCounters{},
+		flights:     map[string]chan struct{}{},
+		browseTrees: map[string]*browseTree{},
 	}
 	if e.nowFn == nil {
 		e.nowFn = func() time.Time { return time.Now().UTC() }
@@ -1163,7 +1171,7 @@ func (e *Engine) Invalidate(ctx context.Context, repoKey, path string) (bool, er
 
 // Forget drops every in-process trace of one repository (outbound client
 // pool, the credential-less external pools, assumed-offline window,
-// counters) — the DeleteRepo teardown hook.
+// counters, the remote-browsing snapshot) — the DeleteRepo teardown hook.
 func (e *Engine) Forget(repoKey string) {
 	e.mu.Lock()
 	c := e.clients[repoKey]
@@ -1179,6 +1187,7 @@ func (e *Engine) Forget(repoKey string) {
 	delete(e.offline, repoKey)
 	delete(e.stats, repoKey)
 	e.mu.Unlock()
+	e.browseForget(repoKey)
 	if c != nil {
 		c.client.CloseIdleConnections()
 	}

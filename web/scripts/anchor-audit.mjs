@@ -265,6 +265,10 @@ const STOP = new Set([
   // 「翻正 · 已落」行的 as-built 注定语、decode-only——transport 只解码
   // 不转发的两档定档用词），均非 testid 锚
   'jf-steps', 'as-built', 'decode-only',
+  // v1.34（T-441 行文假阳性）：翻转③批的标识符引用——对比度配方的
+  // token 名（surface-2，磁贴底色描述非锚）/ spec 文件名段
+  // （t441-pkg-modal-open——本票新 spec 的文件名），均非 testid 锚
+  'surface-2', 't441-pkg-modal-open',
 ])
 const docFams = new Set()
 for (const t of docTokens) {

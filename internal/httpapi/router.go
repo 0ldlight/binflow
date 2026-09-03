@@ -763,6 +763,16 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 				func(w http.ResponseWriter, r *http.Request) {
 					s.handleRepoDelete(w, r, key)
 				})
+		case tail == "test" && r.Method == http.MethodPost:
+			// T-442 (FR-143.5): the remote form's Test connectivity probe.
+			// The gate matches the configuration-write arms — the probe is
+			// part of the editing workflow and may carry draft credentials,
+			// so a read-only manager cannot aim the stored credential at
+			// arbitrary hosts through it.
+			s.enforce(w, r, routeAuth{required: true, repoManage: &repoManageGate{repo: key, write: true}},
+				func(w http.ResponseWriter, r *http.Request) {
+					s.handleRepositoryTest(w, r, key)
+				})
 		default:
 			notImplemented(w, "/binflow/api/"+rest)
 		}
