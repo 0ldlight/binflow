@@ -1796,4 +1796,8 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **T-449 → done 2026-09-04 01:4x（配额窗⑫复活后收口）——M16 16/35（B7 票①：FE 搜索栈收敛）**：**ResultsTable.tsx 共享结果网格**（列集归一：Artifact 链接|Path|Repository|Modified+选择列——**断言反转②**；大小/sha256 移列选器不默认呈现）+ 行导航仅 name 单元格深链（行体 inert）+ **顶栏驻留查询 + 网格内快滤**（AQL 编辑器共存）+ 快搜空历史占位恒渲染 + 日期格式含时区偏移 + **?focus= 发射端翻新**（Dashboard/Search/AqlPanel 改发路径段——T-434 遗留闭）。**两真 a11y 缺陷修复**（Checkbox aria-label 落 input / indeterminate aria-checked mixed 禁值）。锚册 **v1.38** + parity **v1.9**。四门绿 + 新 spec 6/6×3 + m16 目录 34P×2 + t419+t414 18/18 + axe 双主题三态 0 + SPA +850B。契约注记三条（?repos= 退役 / cols-search 缺席语义微调 / 对账器掩蔽观察）。日志 reports/agents/T-449.md。**B7 齐落。**
 
+**用户指令 intake ⑫（2026-09-04 01:5x）：「后续 binflow 的文档迁移至 fern，注意剔除文档中迭代相关的内容，尽量精简」——立票 T-470 已派。**
+
+**T-470 → done 2026-09-04 02:1x——intake ⑫ 兑现（Fern 迁移首程）**：**`docs-fern/`**（fern.config.yml + docs.yml + 40 页 MDX，42 文件）——**46 页 10,278 行 → 40 页 5,263 行（51.2%）**；**T-xxx 引用 156→0**（去迭代化 grep 零命中——唯一例外系 docker virtual 400 错误文案逐字保真）；合并 auth←3 篇 + storage/permissions/operations/console←各 2 篇；删 real-env-appendix（纯 QA 归档）。**API 契约逐字保真**（端点/参数/错误文案/配置键/命令）。自查全过（yaml 双配置 + @mdx-js/mdx 40/40 编译 + 导航↔页面双向映射 + 内链解析）。遗留：`fern build` 真构建候联网环境（CLI 传递依赖 registry 404）；平台发布需账号（conductor/用户执行）；旧站退役另裁。日志 reports/agents/T-470.md。
+
 **全树 race 补证判无效（conductor 2026-09-01 14:3x）**：与两 agent 测试套件同机并发跑——22 包红全部 620-660s 超时形态 + db/sql 竞争 panic + storage fail-open 窗口 = **共租负载签名**（T-414 日志同款 load 450-630），非产品缺陷。T-412 的 AC3 证据改挂 **T-421 中期 QA 串行全树 race**（届时 lane 空净）。**D-413-2 [P3·登记]**：唯一真信号 = T-413 `TestEngineMixedLoad` 在慢机下 K63 并发门 429 介入而测试只容忍 busy gate 拒绝——测试健壮性收窄（门注入调低或混合负载容忍 429），归 T-421 复验时顺腿修或转 T-433。**教训入册：全树 race/性能类验证必须 lane 空净时串行跑（派单纪律）。**
