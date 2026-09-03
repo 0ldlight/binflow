@@ -1786,4 +1786,8 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **T-448 → done 2026-09-03 15:1x——M16 13/35（B6 票②：可选档接线 + §8.5 扩面）**：repo service `listRemoteFolderItems` 开关接线（**默认 false——off 行为 diff=0** 既有断言零回归）；**口径扩面**：on 时 **virtual 树含远端成员行**（repo-semantics §8.5 对账回写——T-412「仅缓存行」口径扩面兑现）+ 未缓存路径回源拉取 + 下载计数埋点联动（T-438 单源）+ 上游停机降级（远端层错误态 + 已缓存行可用）+ 越权仓远端行零泄漏（allow() 同源）。conductor spot：build 0 + targeted 测试绿 + vet 全树净。日志 reports/agents/T-448.md。
 
+**T-447 → done 2026-09-03 21:4x（配额窗击落两轮后终收口）——M16 14/35（B6 票①：属性编辑解剖 + 下载形态）**：**B-2.9 解剖翻正**（常显 Property/Value+Add+网格搜索、隐藏「+ 新增属性」与逐行 ✎/🗑 退役、删除过危险确认——E1 统一）+ **B-2.12 单 24px 图标钮**（两带文字按钮收敛 + checksums/mimeType/verify 收进伴随菜单——Q9 消化）+ ?stats 计数联动（T-438 单源）。7.161 活体实证解剖。锚册 **v1.37**（6 新+4 退役）+ parity **v1.8**（B-2.9/B-2.12 翻已落）。四门绿 + 新 spec 4/4×4 连跑 + 回归全绿（m10×3/artifacts/m16 目录 28P/m8 族 25P/a11y 双主题）+ SPA +1,081B。契约注记：?properties 分号=矩阵路径语法（REST 只认逗号配对——spec 注释留痕）。K68 候裁臂不建不登记（Property Set 须 BE 另立票）。日志 reports/agents/T-447.md。
+
+**intake ⑩⑪ 登记补笔（2026-09-03 19:4x）**：⑩ CI 协议矩阵立票 **T-469**（devops-engineer）在途——`ci/protocol-matrix.sh` 单源 + CircleCI `protocol_matrix` job〔挂 deploy_uat 后，machine executor + 逐腿 when:always〕+ GH Actions `protocol-matrix.yml`，十协议推送+拉取，jfrog/project-examples 夹具。⑪ **origin 切 `https://github.com/0ldlight/binflow.git`**（SSH deploy key 只读误报 → HTTPS+gh 凭据；首推 `9815864..d9cb2bb` ✅）。
+
 **全树 race 补证判无效（conductor 2026-09-01 14:3x）**：与两 agent 测试套件同机并发跑——22 包红全部 620-660s 超时形态 + db/sql 竞争 panic + storage fail-open 窗口 = **共租负载签名**（T-414 日志同款 load 450-630），非产品缺陷。T-412 的 AC3 证据改挂 **T-421 中期 QA 串行全树 race**（届时 lane 空净）。**D-413-2 [P3·登记]**：唯一真信号 = T-413 `TestEngineMixedLoad` 在慢机下 K63 并发门 429 介入而测试只容忍 busy gate 拒绝——测试健壮性收窄（门注入调低或混合负载容忍 429），归 T-421 复验时顺腿修或转 T-433。**教训入册：全树 race/性能类验证必须 lane 空净时串行跑（派单纪律）。**
