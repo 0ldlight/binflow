@@ -1,0 +1,71 @@
+# 离线安装（air-gapped）
+
+无互联网环境中使用离线安装包 `binflow_offline_<VER>.tar.gz`（`make offline-bundle` 构建），含 Docker 镜像、Helm Chart、K8s 清单、二进制与安装脚本——解压后全程零外部请求。
+
+## 构建离线包（在有网的构建机上）
+
+```bash
+make release
+bash deploy/release/build-release.sh
+helm package charts/binflow -d .
+make offline-bundle
+# 产物：deploy/offline/binflow_offline_v1.0.0.tar.gz（+ .sha256 校验文件）
+```
+
+包内布局：`images/`（两变体 docker save 产物）、`charts/`、`k8s/`、`compose/`、`binaries/`（linux amd64/arm64 + checksums）、`install-offline.sh`、`SHA256SUMS`。
+
+## 安装步骤
+
+```bash
+# 1. 传输到目标机器（U 盘/内网共享/scp）
+scp user@build-machine:/path/to/binflow_offline_v1.0.0.tar.gz .
+
+# 2. 校验完整性
+shasum -a 256 binflow_offline_v1.0.0.tar.gz     # 与构建机 .sha256 对账
+tar xzf binflow_offline_v1.0.0.tar.gz && cd binflow_offline_*
+shasum -a 256 -c SHA256SUMS                      # 全部 OK
+
+# 3. 安装（三模式任选）
+./install-offline.sh --compose    # 默认推荐：单机 docker compose
+./install-offline.sh --kind       # kind 集群（测试）
+./install-offline.sh --helm       # 已有 K8s 集群
+./install-offline.sh --dry-run --compose   # 干跑预览
+
+# 4. 验证
+curl -s http://127.0.0.1:8080/readyz    # ok
+```
+
+| 模式 | 前置要求 | 适用 |
+|---|---|---|
+| **docker-compose**（默认） | Docker >= 24.0 + compose 插件 | 单机，最简单 |
+| **kind** | Docker + kind >= 0.20 + kubectl | K8s-in-Docker 测试环境 |
+| **helm** | Docker + kubectl + helm >= 3.12 + 已有集群 | 正式 K8s 集群 |
+
+## 模式行为要点
+
+- **compose**：校验 SHA256SUMS → `docker load` 两镜像 → 生成随机管理员密码（写在 `compose/.env`，`grep BINFLOW_ADMIN_PASSWORD compose/.env` 查看）→ `docker compose up -d` → 等待 `/readyz`（最多 30s）。
+- **kind**：建集群（已存在跳过）→ `kind load docker-image` → `kubectl apply -k k8s/` → 等就绪 + 端口转发。
+- **helm**：验证 kubectl 上下文 → `helm install binflow charts/binflow-<VER>.tgz`（已装则 upgrade）→ 等就绪。ImagePullPolicy 为 `IfNotPresent`（镜像经 docker load 已在本地）。
+
+失败自动回滚（已载镜像删除、compose 栈停止、helm release 卸载、K8s 资源删除）。
+
+## 常见问题
+
+| 问题 | 处置 |
+|---|---|
+| 端口 8080 被占用 | 编辑 `compose/.env` 的 `BINFLOW_BIND_PORT` |
+| SHA256SUMS 校验失败 | 传输损坏，重新传输 |
+| Docker 未运行 | `docker info` 确认 daemon |
+| K8s 连接失败 | `kubectl config current-context` 检查上下文 |
+
+## 卸载
+
+```bash
+docker compose -f compose/docker-compose.yml down -v   # compose 模式
+kind delete cluster --name binflow-offline              # kind 模式
+helm uninstall binflow                                  # helm 模式
+```
+
+## 下一步
+
+- [docker-compose 部署](/install/compose) · [Helm Chart](/install/helm) · [单二进制安装](/install/binary)

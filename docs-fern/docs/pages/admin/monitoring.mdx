@@ -1,0 +1,98 @@
+# 监控指标（Prometheus）
+
+BinFlow 自带零依赖指标实现，文本暴露格式 **0.0.4**。`GET /metrics` 挂在**根级**（与 `/healthz`/`/readyz` 同族的前缀例外，不在 `/binflow` 下）。
+
+```bash
+curl -s http://127.0.0.1:8080/metrics | head
+# # HELP binflow_auth_logins_total Console logins by identity provider source.
+# # TYPE binflow_auth_logins_total counter
+# binflow_auth_logins_total{source="ldap"} 0
+```
+
+## 端点行为
+
+| 项 | 值 |
+|---|---|
+| 方法 | GET / HEAD（其余 405） |
+| Content-Type | `text/plain; version=0.0.4; charset=utf-8` |
+| 默认暴露 | **匿名可读**（scrape 不付认证往返） |
+| 收紧 | `metrics.require_auth: true` 后需任意有效凭据（非 admin 门）；env `BINFLOW_METRICS__REQUIRE_AUTH=true` |
+
+不想开认证又不想暴露？在反代层限制 `/metrics` 的来源（白名单 Prometheus 主机）。
+
+## 指标族
+
+### HTTP
+
+| 指标 | 类型 | 标签 | 语义 |
+|---|---|---|---|
+| `binflow_http_requests_total` | counter | `method` / `path` / `status` | 请求计数 |
+| `binflow_http_request_duration_seconds` | histogram | `method` / `path` | 延迟（桶 `.005 .01 .025 .05 .1 .25 .5 1 2.5 5 10`） |
+| `binflow_http_requests_in_flight` | gauge | — | 当前在途请求数 |
+
+### 存储
+
+| 指标 | 类型 | 标签 | 语义 |
+|---|---|---|---|
+| `binflow_storage_blobs` | gauge | `engine`（disk/s3） | blob 台账行数 |
+| `binflow_storage_blob_bytes` | gauge | `engine` | disk = `blobs/` 物理字节；s3 = 逻辑字节合计（配额口径——物理桶占用在对象存储侧看） |
+
+### 认证 / 搜索 / 复制 / webhook
+
+| 指标 | 语义 |
+|---|---|
+| `binflow_auth_logins_total{source}` | 控制台登录成功计数（local/oidc/ldap） |
+| `binflow_search_queries_total{plane}` | 查询计数（`aql` / `legacy`）；`binflow_search_query_duration_seconds` 直方图；`binflow_search_rejections_total{reason}`（concurrency/timeout） |
+| `binflow_replication_tasks{status}` | push 复制任务行数；**复制未装配的实例整族不出现**（不是零值） |
+| `binflow_webhook_*` 五族 | 投递/重试/死信/积压/入箱失败（见 [Webhooks](/admin/webhooks)） |
+| `binflow_replay_*` 族 | dual-write 停机窗重放队列（见[存储后端](/admin/storage)） |
+
+零流量时 counter/gauge 关键序列**预播在场**（先置 0）——Prometheus 重启不丢序列；histogram 首次观测前只有 HELP/TYPE 头。
+
+## path 标签的基数防护
+
+`path` 不是原始 URL——变参路径折叠成模板（总基数 < 100）：docker `/v2/**` → `/v2` 整面；内容路径 → `/binflow/:repo/:path`；已知变参 API 族 → `:key`/`:name` 形；未收录深路径 → 两段字面前缀 + `:rest` 兜底。
+
+## 抓取与告警示例
+
+```yaml
+scrape_configs:
+  - job_name: binflow
+    scrape_interval: 15s
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["binflow-host:8080"]
+    # metrics.require_auth=true 时：
+    # basic_auth: { username: admin, password: <pw> }
+```
+
+```promql
+# QPS 与 5xx 错误率
+sum(rate(binflow_http_requests_total[5m])) by (path)
+sum(rate(binflow_http_requests_total{status=~"5.."}[5m]))
+  / sum(rate(binflow_http_requests_total[5m]))
+
+# P99 延迟
+histogram_quantile(0.99,
+  sum(rate(binflow_http_request_duration_seconds_bucket[5m])) by (le, path))
+
+# 复制积压 / webhook 丢失面
+binflow_replication_tasks{status="pending"}
+binflow_webhook_queue_depth
+rate(binflow_webhook_enqueue_failures_total[5m])    # >0 即有事件在入箱前被丢
+```
+
+## 验证
+
+```bash
+curl -s -o /dev/null -w '%{http_code} %{content_type}\n' http://127.0.0.1:8080/metrics
+# 200 text/plain; version=0.0.4; charset=utf-8
+```
+
+## 已知边界
+
+- 复制**延迟**无直方图（仅任务计数）；`/metrics/json` 未实现。
+
+## 下一步
+
+- 健康探针语义（`/healthz` vs `/readyz` vs `/api/v1/health`）：[治理](/admin/governance) · [存储后端](/admin/storage)

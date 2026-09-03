@@ -1,0 +1,103 @@
+# PyPI 接入
+
+把 BinFlow 当作私有 Python 包索引：`pip.conf` 指向 BinFlow 安装、`twine upload` 发布——simple index 按 PEP 503/629 规范实现，`#sha256=` 哈希校验、wheel+sdist 并存、依赖链解析全部成立。
+
+## URL 形态
+
+```
+安装索引：$BASE/binflow/api/pypi/<repoKey>/simple    ← /simple 尾斜杠不能省
+上传端点：$BASE/binflow/api/pypi/<repoKey>
+```
+
+包名按 PEP 503 归一化（lower + `[-_.]+`→`-`）：`Demo_Pkg`、`demo_pkg`、`demo-pkg` 三个 URL 返回同一 index 页。
+
+## 接入步骤
+
+### 1. 创建仓库
+
+```bash
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/pypi-local \
+  -H 'Content-Type: application/json' \
+  -d '{"rclass":"local","packageType":"pypi"}' \
+  -o /dev/null -w '%{http_code}\n'        # 200
+```
+
+### 2. 安装侧：pip.conf
+
+`~/.config/pip/pip.conf`（Linux；macOS 为 `~/Library/Application Support/pip/pip.conf`）或项目级：
+
+```ini
+[global]
+index-url = http://localhost:8080/binflow/api/pypi/pypi-local/simple
+```
+
+```bash
+pip install demo-pkg
+# 一次性用法：
+pip install --index-url $BASE/binflow/api/pypi/pypi-local/simple demo-pkg
+```
+
+### 3. 发布侧：.pypirc + twine
+
+```ini
+# ~/.pypirc
+[distutils]
+index-servers = binflow
+
+[binflow]
+repository = http://localhost:8080/binflow/api/pypi/pypi-local
+username = admin
+password = <你的管理员口令>
+```
+
+```bash
+pip wheel . -w dist/          # 或 python -m build（产 .whl 与 .tar.gz）
+twine upload --repository binflow dist/*
+```
+
+上传协议要点：multipart 的 `:action` 必须为 `file_upload`（其它值 400 `unknown action '<action>'`）；`md5_digest` 可选（服务端自算 sha256；提供且不一致走 409 校验链）；存储路径为 `<name>/<version>/<filename>`。
+
+### 4. 验证：hash 对账
+
+```bash
+# simple 页的 #sha256= fragment == 实际下载文件 sha256（pip 安装即自动校验）
+curl -s $BASE/binflow/api/pypi/pypi-local/simple/demo-pkg/ | grep -o '#sha256=[a-f0-9]*'
+curl -s -o dl.whl $BASE/binflow/api/pypi/pypi-local/packages/demo-pkg/0.1.0/demo_pkg-0.1.0-py3-none-any.whl
+shasum -a 256 dl.whl
+```
+
+依赖链：包 A 声明依赖包 B（同仓另一包），`pip install A` 自动从同一 index 装齐。wheel 与 sdist 同版本并存：`--only-binary` 取 whl、`--no-binary` 取 tar.gz。
+
+## remote / virtual 仓
+
+- **remote 仓**：`index-url` 指向 `$BASE/binflow/api/pypi/pypi-remote/simple`——首次回源缓存、二次安装零上游流量；simple 页 href 重写为 BinFlow 路径、`#sha256=` fragment 保留上游值。**pypi.org 真上游可用**（其 `/packages/` 302 到 files.pythonhosted.org，逐跳过 SSRF 校验后跟随）。
+- **virtual 仓**：`index-url` 指向 `$BASE/binflow/api/pypi/pypi-virtual/simple`——本地包与上游包一次装齐，simple 索引为成员条目并集（每次现算）。
+
+## simple index 细节
+
+- 文档头含 `<meta name="api-version" value="2" />`（PEP 629）；条目按文件名排序。
+- 无尾斜杠 `GET .../simple/<name>` → 302 补尾斜杠；`If-None-Match` 命中 → 304。
+- **PEP 691 JSON simple 已支持**：`Accept: application/vnd.pypi.simple.v1+json` → JSON 形态。
+- 哈希算法**仅 sha256**；未知名 → 404（`errors[]` 信封）。
+
+## 匿名与凭据
+
+| 场景 | 行为 |
+|---|---|
+| 匿名 GET simple/文件（默认） | 200——`pip install` 免凭据 |
+| 匿名 upload（POST） | **401** `authentication required` |
+| 全局关匿名 | pip 用 `--user`/URL 内嵌凭据；twine 走 `.pypirc` |
+
+## 常见报错对照
+
+| 症状 | 原因 | 处置 |
+|---|---|---|
+| twine `HTTPError: 400` + `file ... already exists` | 同名文件已上传过（不允许覆盖） | 升版本号重新构建；或先删旧构件 |
+| upload 400 `unknown action 'submit'` | multipart `:action` 不是 `file_upload` | 用 twine，勿手工构造 legacy 表单 |
+| upload 401 | 匿名上传或凭据错误 | `.pypirc` 配置 username/password |
+| install 404（包明明存在） | index-url 少了 `/simple` 后缀，或仓不对 | 核对 URL 形态；包名大小写/下划线无关（PEP 503） |
+| curl simple 页 302 | 无尾斜杠（规范行为） | 跟随重定向或补尾斜杠 |
+
+## 下一步
+
+- [仓库管理（remote/virtual）](/admin/repositories) · [Maven](/integrations/maven) · [npm](/integrations/npm)

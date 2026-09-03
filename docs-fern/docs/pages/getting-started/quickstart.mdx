@@ -1,0 +1,100 @@
+# 五分钟快速开始
+
+目标：五步跑通 **建仓 → 上传 → 下载 → 校验**。给出两条可互换路径——裸二进制（无需 Docker）与 docker compose。示例假定 `bash`/`zsh`、`curl`、`jq`、`sha256sum` 可用（macOS 用 `shasum -a 256` 等价替换）。
+
+设置常量（改过端口就调整 `BASE`）：
+
+```bash
+export BASE=http://localhost:8080
+export ADMIN_PW=password    # 评估默认口令；改法见下方第 0 步
+```
+
+> **第 0 步（推荐）：首次启动前设置真正的 admin 口令。**
+> BinFlow 首启会种子化 `admin` 账号。未设置 `BINFLOW_ADMIN_PASSWORD` 时口令为文档化默认值 `password`——**仅限评估**。默认口令生效期间服务端持续打 WARN。首次启动后再设该变量不会重新种子化；轮换口令：
+>
+> ```bash
+> curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/security/password \
+>   -H 'Content-Type: application/json' \
+>   -d '{"oldPassword":"password","newPassword":"a-real-secret"}' \
+>   && export ADMIN_PW=a-real-secret
+> # Password has been successfully changed
+> ```
+
+## 路径 A —— 裸二进制
+
+**1. 获取并启动**
+
+```bash
+make build
+# 产出三个二进制：bin/binflow-server、bin/bf（CLI）、bin/bf-migrate（迁移工具）
+./bin/binflow-server serve
+# ... binflow starting ... binflow listening addr=:8080
+```
+
+默认监听 `:8080`，数据落在 `./data`（按需创建）。`Ctrl-C` 优雅退出。从发布产物安装见 [单二进制安装](/install/binary)。
+
+**2. 验证存活**
+
+```bash
+curl -s $BASE/binflow/api/system/ping
+# OK
+```
+
+**3. 建仓**
+
+```bash
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/generic-local \
+  -H 'Content-Type: application/json' \
+  -d '{"rclass":"local","packageType":"generic","description":"quick start"}'
+# Successfully created repository 'generic-local'
+```
+
+**4. 上传**（服务端计算并回显校验和）
+
+```bash
+echo "hello binflow" > hello.txt
+SHA=$(shasum -a 256 hello.txt | cut -d' ' -f1)
+curl -su admin:$ADMIN_PW -T hello.txt $BASE/binflow/generic-local/acme/hello.txt | jq .
+# {
+#   "repo": "generic-local",
+#   "path": "/acme/hello.txt",
+#   ...
+#   "checksums": { "sha1": "...", "md5": "...", "sha256": "<与 $SHA 一致>" },
+#   ...
+# }
+```
+
+**5. 下载并校验**（内容路径 GET 默认匿名可读）
+
+```bash
+curl -s -o hello.dl.txt $BASE/binflow/generic-local/acme/hello.txt
+diff hello.txt hello.dl.txt && echo "content identical"
+shasum -a 256 hello.dl.txt   # == $SHA
+```
+
+## 路径 B —— docker compose
+
+```bash
+cd deploy/dev
+cp .env.example .env
+# 编辑 .env 设置 BINFLOW_ADMIN_PASSWORD —— 不设 compose 拒绝启动
+cd -
+docker compose -f deploy/dev/docker-compose.yml up -d --build
+docker compose -f deploy/dev/docker-compose.yml ps
+# binflow-dev    Up ... (healthy)    127.0.0.1:8080->8080/tcp
+```
+
+步骤 2~5 与路径 A 的命令逐字节相同——统一 `/binflow` 前缀的意义。
+
+数据持久化在命名卷（挂载 `/var/lib/binflow`）：`restart` 与 `down && up -d`（不带 `-v`）都保留制品；`down -v` 清空。宿主 8080 被占用时在 `.env` 设 `BINFLOW_BIND_PORT=18080` 并调整 `BASE`。
+
+## 刚才跑通了什么
+
+- ping、建仓、带校验和协商的上传、带校验和验证的下载、匿名读——任意实例最快的健康检查链。
+- 上传是原子的（中断的上传永不可见）；blob 按 sha256 内容寻址、跨路径跨仓去重；删除幂等。
+
+## 下一步
+
+- 生产部署：[安装部署](/install/binary) 各篇（docker / compose / helm / k8s / systemd / 离线）。
+- 协议接入：[Docker](/integrations/docker) · [Maven](/integrations/maven) · [npm](/integrations/npm) · [PyPI](/integrations/pypi) · [Generic](/integrations/generic)。
+- Web 控制台：浏览器打开 `$BASE/binflow/ui/`，指南见 [Web 控制台](/admin/console)。
