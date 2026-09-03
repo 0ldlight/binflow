@@ -269,6 +269,11 @@ const STOP = new Set([
   // token 名（surface-2，磁贴底色描述非锚）/ spec 文件名段
   // （t441-pkg-modal-open——本票新 spec 的文件名），均非 testid 锚
   'surface-2', 't441-pkg-modal-open',
+  // v1.35（T-443 行文假阳性）：入口分路由批的标识符引用——dirty 判定的
+  // 措辞连词（dirty-gating——票面 AC 用词）/ push-only 口径注记的缩写
+  // （ADR-0021/R10 行文）/ spec 文件名段（t443-list-entry-dirty-test
+  // ——本票新 spec 的文件名），均非 testid 锚
+  'dirty-gating', 'push-only', 't443-list-entry-dirty-test',
 ])
 const docFams = new Set()
 for (const t of docTokens) {

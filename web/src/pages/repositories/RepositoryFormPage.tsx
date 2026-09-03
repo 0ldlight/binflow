@@ -39,11 +39,12 @@ import {
   cfgStr,
   cfgStrList,
   getRepoDetail,
+  testRepoUpstream,
   updateRepo,
   validateRepoKey,
   validateUpstreamURL,
 } from '../../lib/repos'
-import type { PackageType, RClass, RepoConfigBody } from '../../lib/repos'
+import type { PackageType, RClass, RepoConfigBody, RepoTestOverride, RepoTestResult } from '../../lib/repos'
 import { useAsync } from '../../lib/useAsync'
 import {
   POLICY_FIELDS,
@@ -59,6 +60,14 @@ import {
   FORCE_CONAN_AUTH_HINT,
   FORCE_CONAN_AUTH_LABEL,
   FORM_STEPS,
+  RCLASS_ROUTE_NOTE,
+  REMOTE_TEST_CREATE_HINT,
+  REMOTE_TEST_FAIL_NOTE,
+  REMOTE_TEST_HINT,
+  REMOTE_TEST_LABEL,
+  REMOTE_TEST_OK_NOTE,
+  REMOTE_TEST_STATUS_PREFIX,
+  REMOTE_TEST_UNREACHED_NOTE,
   RESERVED_ARCHIVE_BROWSING_HINT,
   RESERVED_ARCHIVE_BROWSING_LABEL,
   RESERVED_BLACKED_OUT_HINT,
@@ -72,6 +81,7 @@ import {
   RESERVED_REPO_LAYOUT_HINT,
   RESERVED_SUPPRESS_POM_HINT,
   RESERVED_SUPPRESS_POM_LABEL,
+  SAVE_CLEAN_HINT,
 } from './formCopy'
 
 import './repositories.css'
@@ -85,6 +95,23 @@ import './repositories.css'
 // + 右栏实时摘要；底部 取消 / 创建|保存（**重置钮已移除**——T-439 /
 // B-3.11 / Q9 冻结：对齐 M1 锚点 Cancel + Create/Save 两钮；必填未满足
 // 禁用）。编辑态 rclass/packageType 锁定（不可变是服务端 UpdateRepo 契约）。
+//
+// T-443（FR-143.4，B-3.8 翻正）：**rclass 控件移除**——仓型由入口分路由
+// 预选（/admin/repositories/<rclass>/new 三静态路由承载 rclass prop；
+// 旧 /new + ?rclass= 深链经路由表兼容映射），表单内不再有仓型单选组
+// （form-rclass-* 三锚退役入册 §10.6）。编辑态 rclass/packageType 锁定
+// 不变（服务端契约）。
+//
+// T-443（FR-143.5，B-3.6）：remote 来源节的 **Test 连接**（编辑态在场、
+// 落 Basic 步——Artifactory 7.161.20 实测 Test 在 Basic 段凭据组旁）：
+// 消费 T-442 端点 POST /api/repositories/{key}/test，三臂内联呈现
+// （成功绿 / 凭据被拒红〔内联 message〕 / 不可达红〔status_code 0〕）；
+// 草稿臂语义 = url/username/password 逐字段 diff 已存基线（见 buildTestBody）。
+//
+// T-443（FR-143.4）：**dirty-gating**——编辑态进入即 Save 禁用，与预填
+// 基线出现任何字段差异才启用（无变更提交不可达；密码基线恒空串——
+// 输入即 dirty，NFR-S14 不回显语义的必然推论）。基线 = GET 回显预填的
+// 同一对象（deep-equal 规范形比较，见 formStateEquals）。
 //
 // 步进分派（T-439）：基础 = 常规/来源/成员；高级 = 策略/治理/高级 +
 // 预留位字段族；Replications = 复制配置（**编辑态 × local** 才呈现——
@@ -353,6 +380,43 @@ function isNonNegInt(v: string): boolean {
   return v.trim() === '' || /^\d+$/.test(v.trim())
 }
 
+/** 规范形序列化（对象键排序、数组保序）——dirty 判定的稳定比较基
+ *  （T-443）：f 与基线同构（同一构造路径 + spread 更新保键序），排序后
+ *  逐字节比较对键序漂移免疫；policy 对象与 members 数组一并覆盖。 */
+function stableFormString(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(stableFormString).join(',')}]`
+  if (v !== null && typeof v === 'object') {
+    const entries = Object.entries(v as Record<string, unknown>)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([k, val]) => `${JSON.stringify(k)}:${stableFormString(val)}`)
+    return `{${entries.join(',')}}`
+  }
+  return JSON.stringify(v) ?? 'null'
+}
+
+/** T-443 dirty 判定：与 GET 回显预填基线的全字段 deep-equal（编辑态）。
+ *  建仓态恒 dirty（无基线——Save 门只走 formValid 必填门）。 */
+function formStateEquals(a: FormState, b: FormState): boolean {
+  return stableFormString(a) === stableFormString(b)
+}
+
+/** T-443（FR-143.5）Test 草稿臂：对**已存基线**逐字段 diff——
+ *  - 密码已填 → 整组草稿三元组（明文凭据对，不咨询已存密封密钥）；
+ *  - url/username 任一改动（未填密码）→ 草稿 url+username 对 = **匿名探测**
+ *    （T-422 覆盖纪律：密封密钥绝不静默送往改动后的候选主机）；
+ *  - 零改动 → 无 body（已存配置探测，服务端解封已存凭据）。
+ *  与 buildBody 无关：探测永不落盘，密码不因探测进任何提交。 */
+function buildTestBody(f: FormState, baseline: FormState | null): RepoTestOverride | undefined {
+  if (baseline === null) return { url: f.url.trim(), username: f.username.trim(), password: f.password }
+  if (f.password !== '') {
+    return { url: f.url.trim(), username: f.username.trim(), password: f.password }
+  }
+  if (f.url.trim() !== baseline.url.trim() || f.username.trim() !== baseline.username.trim()) {
+    return { url: f.url.trim(), username: f.username.trim() }
+  }
+  return undefined
+}
+
 /** 全表单门控：必填/预检不通过则提交不可用（表单零坏请求，§4.4）。组合门
  *  T-431 退役（见 lib/repos.ts）——服务端成员规则（同型成员等）仍以 400 文案
  *  行内呈现。 */
@@ -595,7 +659,7 @@ function ReservedAdvancedChecks() {
   )
 }
 
-export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }) {
+export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 'edit'; rclass?: RClass }) {
   const { session } = useAuth()
   const admin = canAdminWrite(session)
   const readOnly = isReadOnlyAdmin(session)
@@ -605,14 +669,15 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
   const { key: routeKey } = useParams<{ key: string }>()
   const [searchParams] = useSearchParams()
 
-  // Quick 建仓入口的 ?rclass= 形态（shell §2.3 / §1.4 路由表）
-  const initialRclass: RClass = mode === 'create'
-    ? searchParams.get('rclass') === 'remote' || searchParams.get('rclass') === 'virtual'
-      ? (searchParams.get('rclass') as RClass)
-      : 'local'
-    : 'local'
+  // T-443：仓型由分路由 prop 预选（/admin/repositories/<rclass>/new 三静态
+  // 路由承载；旧 /new + ?rclass= 深链在路由表兼容映射层收敛——本组件零
+  // query 解析，表单内仓型控件移除〔B-3.8〕）。
+  const initialRclass: RClass = mode === 'create' ? (rclass ?? 'local') : 'local'
 
   const [f, setF] = useState<FormState>({ ...CREATE_INITIAL, rclass: initialRclass })
+  // T-443 dirty-gating 基线：GET 回显预填的同一对象（编辑态）。密码基线
+  // 恒 ''（NFR-S14 不回显）——输入即 dirty。
+  const [baseline, setBaseline] = useState<FormState | null>(null)
   // T-439 步进态：深链 ?section=replications 直落第三步（落点语义不变——
   // 仓列表 Run 动作与详情指针既有深链零改造；建仓态无第三步，回基础步）。
   // baseline 态随重置钮（B-3.11/Q9）一并退役。
@@ -622,6 +687,10 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
   const [pkgOpen, setPkgOpen] = useState(mode === 'create')
   const [submitting, setSubmitting] = useState(false)
   const [serverError, setServerError] = useState<ApiError | null>(null)
+  // T-443 remote Test（FR-143.5）：探测中旗标 + 内联判定体（repl-test 同款
+  // 姿势——成功绿/失败红，message 原文呈现）。
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState<RepoTestResult | null>(null)
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setF((prev) => ({ ...prev, [k]: v }))
 
@@ -636,7 +705,8 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
   const setPolicy = (wire: string, v: string | boolean) =>
     setF((prev) => ({ ...prev, policy: { ...prev.policy, [wire]: v } }))
 
-  // 编辑态：加载现有配置并预填（全量替换语义的保全前提）
+  // 编辑态：加载现有配置并预填（全量替换语义的保全前提）；同一对象落
+  // dirty 基线（T-443——进入编辑 Save disabled 的比较基准）。
   const detail = useAsync(
     () => (mode === 'edit' && routeKey ? getRepoDetail(routeKey) : Promise.resolve(null)),
     [mode, routeKey],
@@ -646,6 +716,7 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
     if (detail.status === 'ok' && detail.data) {
       const prefilled = prefillFromDetail(detail.data)
       setF(prefilled)
+      setBaseline(prefilled)
     }
   }, [mode, detail.status, detail.data])
 
@@ -734,7 +805,10 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
   const urlErr = f.rclass === 'remote' ? validateUpstreamURL(f.url.trim()) : null
   // readonly_admin：GET 通过但写面必 403——全字段禁用 + 注记（M7 §7.3）
   const locked = readOnly
-  const canSubmit = gate.ok && !submitting && !locked
+  // T-443 dirty-gating：编辑态零变更 = Save 不可达（无变更提交不可达）；
+  // 建仓态无基线恒 dirty（必填门 formValid 是唯一门）。
+  const dirty = mode !== 'edit' || baseline === null || !formStateEquals(f, baseline)
+  const canSubmit = gate.ok && !submitting && !locked && dirty
 
   const doSubmit = async () => {
     setServerError(null)
@@ -751,6 +825,27 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
       setServerError(err instanceof ApiError ? err : new ApiError(0, errText(err)))
     } finally {
       setSubmitting(false)
+    }
+  }
+
+  /** T-443（FR-143.5）remote Test：编辑态（仓已存在——端点按 key 寻址）对
+   *  上游发一次只读探测。草稿臂 body 由与基线的 diff 推导（buildTestBody）；
+   *  面级故障（404/403/5xx）走 form-error 姿势呈现；判定体（含 400 臂）
+   *  一律内联 form-test-result。探测与保存完全独立——不落盘、不触发
+   *  assumed-offline（T-442 零副作用构造）。 */
+  const doTest = async () => {
+    if (!routeKey) return
+    setTesting(true)
+    setTestResult(null)
+    try {
+      const res = await testRepoUpstream(routeKey, buildTestBody(f, baseline))
+      setTestResult(res)
+    } catch (err) {
+      // 面级故障（非判定体）：未知仓 404 / 越权 403 / 解封失败 5xx——
+      // 与保存失败的行内呈现同姿势（不冒充探测结论）
+      setServerError(err instanceof ApiError ? err : new ApiError(0, errText(err)))
+    } finally {
+      setTesting(false)
     }
   }
 
@@ -794,28 +889,14 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
           <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
             常规设置
           </Typography>
-          <div className="radio-row" role="radiogroup" aria-label="仓型">
-            {RCLASSES.map((rc) => (
-              <FormControlLabel
-                key={rc}
-                className={mode === 'edit' ? 'disabled' : undefined}
-                disabled={mode === 'edit' || locked}
-                control={
-                  <Radio
-                    size="small"
-                    checked={f.rclass === rc}
-                    onChange={() => {
-                      set('rclass', rc)
-                    }}
-                    value={rc}
-                    name="rclass"
-                    slotProps={{ input: { 'data-testid': `form-rclass-${rc}` } as ComponentPropsWithoutRef<'input'> }}
-                  />
-                }
-                label={rc === 'local' ? 'Local（本地存储）' : rc === 'remote' ? 'Remote（代理上游）' : 'Virtual（聚合）'}
-              />
-            ))}
-          </div>
+          {/* T-443（FR-143.4，B-3.8）：仓型单选组退役——rclass 由入口分路由
+              预选（/admin/repositories/<rclass>/new，本组件 rclass prop），
+              表单内不再有仓型控件（Artifactory 7.161.20 同构：入口下拉选定、
+              表单内无 rclass 控件；form-rclass-* 三锚退役入册 §10.6）。
+              常规节以一行说明承载仓型语境（非交互件）。 */}
+          <p className="field-note" data-testid="form-rclass-note">
+            仓型：<b>{RCLASS_LABEL[f.rclass]}</b>——{RCLASS_ROUTE_NOTE}
+          </p>
           <div className="radio-row" role="radiogroup" aria-label="包类型">
             {pkgChoices.map((c) => {
               const badgeTier = c.opt && c.opt.minTier !== 'community' ? c.opt.minTier : null
@@ -856,8 +937,9 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
               )
             })}
           </div>
+          {/* T-443：rclass 半句随控件移除归 form-rclass-note——本注记收窄为包型 */}
           {mode === 'edit' && (
-            <p className="field-note">仓型与包类型不可修改（变更会静默改变全部协议路由决策）。</p>
+            <p className="field-note">包类型不可修改（变更会静默改变全部协议路由决策）。</p>
           )}
           {mode === 'create' && (
             <div className="field">
@@ -968,6 +1050,46 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
                 <b>清除</b>已存凭据；需要保留请重新输入。
               </p>
             </div>
+            {/* T-443（FR-143.5，B-3.6）：Test 连接——Artifactory 7.161.20 实测
+                落 Basic 步凭据组旁。编辑态在场（T-442 端点按已存 key 寻址——
+                建仓态仓不存在，给 hint 不给死按钮）；readonly_admin 禁用
+                （CanManageRepo write 门，服务端 403 兜底）。草稿臂 diff 语义
+                见 buildTestBody。 */}
+            {mode === 'edit' ? (
+              <div className="field">
+                <Button
+                  variant="outlined"
+                  size="small"
+                  disabled={testing || locked || f.url.trim() === '' || !!urlErr}
+                  title={REMOTE_TEST_HINT}
+                  onClick={() => void doTest()}
+                  data-testid="form-test"
+                >
+                  {testing ? '测试中…' : REMOTE_TEST_LABEL}
+                </Button>
+                <p className="field-hint">{REMOTE_TEST_HINT}</p>
+                {testResult && (
+                  <Alert
+                    severity={testResult.ok ? 'success' : 'error'}
+                    data-testid="form-test-result"
+                    role="status"
+                    sx={{ mt: 1 }}
+                  >
+                    <div lang="en">{testResult.message}</div>
+                    <div>
+                      {testResult.ok ? REMOTE_TEST_OK_NOTE : REMOTE_TEST_FAIL_NOTE}
+                      {testResult.status_code > 0
+                        ? `（${REMOTE_TEST_STATUS_PREFIX}${testResult.status_code}）`
+                        : `（${REMOTE_TEST_UNREACHED_NOTE}）`}
+                    </div>
+                  </Alert>
+                )}
+              </div>
+            ) : (
+              <p className="field-hint" data-testid="form-test-create-note">
+                {REMOTE_TEST_CREATE_HINT}
+              </p>
+            )}
             <FormControlLabel
               className="check-row"
               disabled={locked}
@@ -1524,7 +1646,11 @@ export default function RepositoryFormPage({ mode }: { mode: 'create' | 'edit' }
               variant="contained"
               size="small"
               disabled={!canSubmit}
-              title={locked ? '只读管理员不可写（服务端 403 兜底）' : gate.reason}
+              title={
+                locked
+                  ? '只读管理员不可写（服务端 403 兜底）'
+                  : gate.reason ?? (mode === 'edit' && !dirty ? SAVE_CLEAN_HINT : undefined)
+              }
               onClick={() => void doSubmit()}
               data-testid="form-submit"
             >

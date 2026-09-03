@@ -339,15 +339,19 @@ test('readonly_admin: section read-only — switch disabled, write entries absen
 // ——executeall 语义），占位的「点击深链编辑节」退役：断言翻转为
 // toast 排程回报 + URL 停留列表页 + 深链入口移交 toast 的「查看任务」
 // （全局复制页 = 任务状态翻转的观测面）。
-test('admin: repos list Replications column — plain 0 vs Run trigger (toast + status link); remote tab has no column', async ({
+test('admin: repos list Replications column — plain 0 vs Run trigger (toast + status link); remote tab column is push-only', async ({
   page,
 }) => {
   const bare = uniq('t404f')
   const wired = uniq('t404g')
   const name = uniq('t404run').toLowerCase()
+  const rem = uniq('t404r')
   await seedRepos(m8Client(), [{ key: bare }, { key: wired }])
   await seedConfig(wired, name, { enabled: true })
   await seedConfig(wired, `${name}-off`, { enabled: false })
+  await m8Client().request('PUT', `/binflow/api/repositories/${rem}`, {
+    body: { rclass: 'remote', packageType: 'generic', description: 't404 remote', url: 'https://example.com/upstream' },
+  })
 
   await loginAs(page, 'admin')
   await page.goto('/binflow/ui/admin/repositories/local')
@@ -366,19 +370,25 @@ test('admin: repos list Replications column — plain 0 vs Run trigger (toast + 
   await expect(page).toHaveURL(/\/admin\/governance\/replication$/)
   await expect(page.locator('[data-testid="toast"]')).toHaveCount(0)
 
-  // remote Tab 无该列（push 源 = local，R5「本地仓列表」同位）
+  // remote Tab 亦有该列（T-443 / B-3.9 翻正：Artifactory 对位列存在——BinFlow
+  // 口径 = push-only，ADR-0021/R10：呈现以该仓为源的 push 配置，无 pull 概念
+  // ——表头 tooltip 注记）。本腿先备 remote 行再断言（非空表非空断言——
+  // 空表时表头不渲染的空洞在 T-443 复核发现）
   await page.goto('/binflow/ui/admin/repositories/remote')
-  await expect(page.locator('[data-testid="repos-table"] thead th').filter({ hasText: 'Replications' })).toHaveCount(0)
+  await expect(page.locator(`[data-testid="repos-row-${rem}"]`)).toBeVisible({ timeout: 30_000 })
+  const replHead = page.locator('[data-testid="repos-table"] thead th').filter({ hasText: 'Replications' })
+  await expect(replHead).toHaveCount(1)
+  await expect(replHead).toHaveAttribute('title', /无 pull 复制/)
+  await expect(page.locator(`[data-testid="repos-repl-${rem}"]`)).toHaveText('0')
 
-  // remote 仓详情 Replications Tab：不适用注记（R10——push 源 = local 仓）
-  const rem = uniq('t404r')
-  await m8Client().request('PUT', `/binflow/api/repositories/${rem}`, {
-    body: { rclass: 'remote', packageType: 'generic', description: 't404 remote', url: 'https://example.com/upstream' },
-  })
+  // remote 仓详情 Replications Tab：不适用注记（R10——配置面 push 源 = local 仓）
   await page.goto(`/binflow/ui/admin/repositories/${rem}`)
   await page.click('[data-testid="repo-tab-replications"]')
   await expect(page.locator('[data-testid="repo-repl-card"]')).toBeVisible()
   await expect(page.locator('[data-testid="repo-repl-na"]')).toBeVisible()
+
+  // 收尾
+  await m8Client().request('DELETE', `/binflow/api/repositories/${rem}`)
 })
 
 // ---- 7. 降级臂（受控 mock）：501 → repl-degraded；403 → repl-denied ----------

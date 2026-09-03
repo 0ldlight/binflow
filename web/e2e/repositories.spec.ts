@@ -57,14 +57,15 @@ function uniq(prefix: string): string {
 
 test('local generic full lifecycle: create with governance -> list -> edit roundtrip -> delete with content', async ({ page }) => {
   const key = uniq('t99a')
-  await page.goto('/binflow/ui/admin/repositories/new')
+  await page.goto('/binflow/ui/admin/repositories/local/new')
   await login(page)
 
   // 进页即弹包类型网格（T-240 向导第 0 步）：选 Generic 即选定关闭
   await expect(page.locator('[data-testid="pkg-grid"]')).toBeVisible()
   await page.click('[data-testid="pkg-grid-item-generic"]')
   await expect(page.locator('[data-testid="pkg-grid"]')).toHaveCount(0)
-  await expect(page.locator('[data-testid="form-rclass-local"]')).toBeChecked()
+  // T-443：rclass 由分路由预选（表单内控件移除——form-rclass-* 退役）
+  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/local\/new$/)
 
   // 分步表单（T-439 三段步进）：key 实时校验 + 描述（基础步）；
   // governance 三键驻高级步——切步后填写
@@ -114,10 +115,12 @@ test('local generic full lifecycle: create with governance -> list -> edit round
   await expect(page.locator('[data-testid="repos-empty-filtered"]')).toBeVisible()
 
   // 编辑：rclass/packageType 锁定 + quota 修改往返（全量替换保全；governance
-  // 键驻高级步——T-439 步进翻新，语义不变）
+  // 键驻高级步——T-439 步进翻新，语义不变）。T-443：rclass 控件移除
+  // （锁定语义由「控件不存在」承载）+ dirty-gating（变更后 Save 启用）
   await page.goto(`/binflow/ui/admin/repositories/${key}/edit`)
-  await expect(page.locator('[data-testid="form-rclass-local"]')).toBeDisabled()
+  await expect(page.locator('[data-testid="form-rclass-local"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="form-package-generic"]')).toBeDisabled()
+  await expect(page.locator('[data-testid="form-submit"]')).toBeDisabled()
   await page.click('[data-testid="form-step-advanced"]')
   await expect(page.locator('[data-testid="form-quota"]')).toHaveValue('1048576')
   await expect(page.locator('[data-testid="form-excludes"]')).toHaveValue('tmp/**')
@@ -168,13 +171,14 @@ test('local generic full lifecycle: create with governance -> list -> edit round
 
 test('remote maven: url roundtrip, password never echoed, empty delete', async ({ page }) => {
   const key = uniq('t99b')
-  await page.goto('/binflow/ui/admin/repositories/new')
+  // T-443：remote 由分路由预选（/admin/repositories/remote/new——表单内
+  // rclass 控件移除；旧 ?rclass= 深链兼容映射的等价直达）
+  await page.goto('/binflow/ui/admin/repositories/remote/new')
   await login(page)
 
-  // 网格（local 默认）先选 Maven；再切 Remote——docker 组合自 T-431 起可选
+  // 网格（remote 预选）选 Maven——docker 组合自 T-431 起可选
   //（服务端 T-392 已开 remote 格；FE 门随 virtual 开禁一并退役）
   await page.click('[data-testid="pkg-grid-item-maven"]')
-  await page.click('[data-testid="form-rclass-remote"]')
   await expect(page.locator('[data-testid="form-package-docker"]')).toBeEnabled()
 
   await page.fill('[data-testid="form-key"]', key)
@@ -210,7 +214,8 @@ test('remote maven: url roundtrip, password never echoed, empty delete', async (
 })
 
 test('form gating: docker combo open since T-431, key/url precheck, zero write requests', async ({ page }) => {
-  await page.goto('/binflow/ui/admin/repositories/new')
+  // T-443：remote 分路由直达（表单内 rclass 控件移除）
+  await page.goto('/binflow/ui/admin/repositories/remote/new')
   await login(page)
 
   const writes: string[] = []
@@ -223,7 +228,6 @@ test('form gating: docker combo open since T-431, key/url precheck, zero write r
   await page.click('[data-testid="pkg-grid-item-generic"]')
 
   // Remote × Docker 组合自 T-431 起可选（组合门退役；license 门控槽位不在此面）
-  await page.click('[data-testid="form-rclass-remote"]')
   await expect(page.locator('[data-testid="form-package-docker"]')).toBeEnabled()
 
   // key 预检：非法字符 / 保留段（门控断言 = form-submit 禁用——T-240 单页化）
@@ -259,9 +263,9 @@ test('virtual: member order roundtrip, defaultDeploymentRepo, server 400 inline'
   })
 
   const vkey = uniq('t99v')
-  await page.goto('/binflow/ui/admin/repositories/new')
+  // T-443：virtual 分路由直达（表单内 rclass 控件移除）
+  await page.goto('/binflow/ui/admin/repositories/virtual/new')
   await page.click('[data-testid="pkg-grid-item-generic"]')
-  await page.click('[data-testid="form-rclass-virtual"]')
   await expect(page.locator('[data-testid="form-package-generic"]')).toBeChecked()
   await page.fill('[data-testid="form-key"]', vkey)
   await page.check(`[data-testid="form-member-${m1}"]`)
@@ -305,9 +309,12 @@ test('virtual: member order roundtrip, defaultDeploymentRepo, server 400 inline'
   expect(afterJson.configuration.defaultDeploymentRepo).toBeUndefined()
 
   // 服务端 400 行内回显：编辑态成员在表单打开后被外部删除 → 保存被服务端拒
+  //（T-443 dirty-gating：先落一处变更使 Save 可达——本腿语义是服务端 400
+  //  行内回显，无变更提交已被 dirty 门挡在前）
   await page.goto(`/binflow/ui/admin/repositories/${vkey}/edit`)
   await expect(page.locator(`[data-testid="form-member-${m2}"]`)).toBeChecked()
   await api(page, 'DELETE', `/api/repositories/${m2}`)
+  await page.fill('[data-testid="form-description"]', 't99 external-delete probe')
   await page.click('[data-testid="form-submit"]')
   await expect(page.locator('[data-testid="form-error"]')).toBeVisible()
   await expect(page.locator('[data-testid="form-error"]')).toContainText(m2)

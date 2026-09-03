@@ -44,11 +44,13 @@ test('admin: package-type grid wizard full chain (?rclass= preset, combo gating,
   await loginAs(page, 'admin')
   const key = uniq('t240rz')
 
-  // Quick 建仓入口形态：?rclass=remote 预选仓型；网格 docker 项可用
+  // Quick 建仓入口形态：?rclass=remote 深链经 T-443 兼容映射落 remote 分路由
+  //（表单内 rclass 控件移除——预选语义由路由承载）；网格 docker 项可用
   //（T-431〔M15 Q6〕组合门退役——docker 三仓型全开，服务端
   // supportedPackageTypes 是唯一事实源；本腿原文「docker 禁用」系 T-431
   // 漏翻新的陈旧断言，T-439 复跑发现并归位——断言语义随裁定不弱化）
   await page.goto('/binflow/ui/admin/repositories/new?rclass=remote')
+  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/remote\/new$/)
   await expect(page.locator('[data-testid="pkg-grid"]')).toBeVisible()
   await expect(page.locator('[data-testid="pkg-grid-item-docker"]')).toBeEnabled()
   // T-344 批 D：包型网格换 MUI Dialog——入场 Fade 中途采样会把半透明栈算进
@@ -60,7 +62,7 @@ test('admin: package-type grid wizard full chain (?rclass= preset, combo gating,
   await page.focus('[data-testid="pkg-grid-item-maven"]')
   await page.keyboard.press('Enter')
   await expect(page.locator('[data-testid="pkg-grid"]')).toHaveCount(0)
-  await expect(page.locator('[data-testid="form-rclass-remote"]')).toBeChecked()
+  await expect(page.locator('[data-testid="form-rclass-remote"]')).toHaveCount(0) // T-443：rclass 控件移除
   await expect(page.locator('[data-testid="form-package-maven"]')).toBeChecked()
   await expect(page.locator('[data-testid="form-submit"]')).toBeDisabled() // 必填未满足禁用
 
@@ -361,11 +363,13 @@ test('m-holder: covered repo editable (quota inline + editor), uncovered converg
   const got = await sessionApi(page, 'GET', `/api/repositories/${covered}`)
   expect((got.json as { configuration: { quotaBytes: number } }).configuration.quotaBytes).toBe(40960)
 
-  // 覆盖集内编辑器：单页表单可用（服务端 CanManageRepo 写臂放行）
+  // 覆盖集内编辑器：单页表单可用（服务端 CanManageRepo 写臂放行）。
+  // T-443 dirty-gating：进入编辑 Save disabled（零变更），落变更后启用
   await page.goto(`/binflow/ui/admin/repositories/${covered}/edit`)
   await expect(page.locator('[data-testid="form-description"]')).toBeEnabled()
-  await expect(page.locator('[data-testid="form-submit"]')).toBeEnabled()
+  await expect(page.locator('[data-testid="form-submit"]')).toBeDisabled()
   await page.fill('[data-testid="form-description"]', 'updated by m-holder')
+  await expect(page.locator('[data-testid="form-submit"]')).toBeEnabled()
   await page.click('[data-testid="form-submit"]')
   await expect(page.locator('[data-testid="toast"]')).toContainText('update successfully')
 

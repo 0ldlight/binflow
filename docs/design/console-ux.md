@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 文档 | `docs/design/console-ux.md` |
-| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账）/ T-291（v1.11：Properties 页签锚册——MUI 首票）/ T-307（v1.12：认证配置页组锚册——admin/security/auth 域）/ T-344（v1.14：密度档修订——MUI small 档，mui-native-visual §7 登记）/ T-352+T-353（v1.15：回收站页锚册 trash-* 族 + 建仓表单策略键生成器扩容）/ T-366（v1.16：Webhook 订阅管理页锚册 wh-* 族）/ T-372（v1.17：树尾常驻回收站入口锚 tree-trash-node——console-m8 §4.3 推翻条款兑现）/ T-382（v1.18：Set Me Up 抽屉化锚册——smu-* 零改名 + Resolve 批 + smu-close/smu-done 复役）/ T-383（v1.19：建仓形态核验锚册——form-section-* 六节族，M1 两段式断言钉死）/ T-384（v1.20：用户/组创建形态核验锚册——user-form-section-*/group-form-section-* 节锚 + 页脚四锚复役，M3 非 modal 断言钉死）/ T-389（v1.21：品牌位锚册——brand-sidebar-mark / brand-login-lockup，候选 1 logo 转正接线）/ T-387（v1.22：L1 列选器 + 刷新锚册——repos-columns-* / audit-columns-* / 两页 refresh）/ T-386（v1.23：Access Tokens 页真身锚册——tokens-* 族 28 名 + placeholder-page 退役）/ T-388（v1.24：F2 空态插画槽 empty-art + N2 侧栏图标槽 nav-icon——一级条目档位）/ T-404（v1.25：复制 CRUD 内嵌表单锚册——repl-* 配置面族 + form-section-replications 第七节 + 仓 Tab 指针升级 + Replications 列/Run）/ T-406（v1.26：制品浏览 remote/virtual 热修锚——tree-empty-virtual + remote 空态文案分支）/ T-414（v1.27：L1 列选器三页推广锚册——{users\|groups\|search}-columns-* 28 名 + member-pop 对比度清账）/ T-416（v1.28：virtual FE 树消费断言反转②——tree-empty-virtual 语义翻转 + RepoBranch virtual 动态展开恢复 + 删除入口预收敛）/ T-419（v1.29：搜索页 AQL 模式锚册——search-mode 族 + search-aql-* 15 名，smu/search 既有锚零改名）/ T-422（v1.30：复制包 B 首批锚册增量——repl-test/repl-test-result 表单 Test 两锚 + 全局封锁卡 repl-global-block/repl-block-push/repl-block-pull 三锚〔FR-138.2/138.3，parity §6A R8〕，repl-* 既有锚零改名）/ T-434（v1.31：制品树栈对齐锚册——tree-leaf-* 文件叶子 + 树头工具带 tree-toolband 族 + URL 模型段化〔页签段/文件路径段/?focus= 退役〕+ select≠expand，断言反转①留痕，tree-* 既有锚零改名）/ T-437（v1.32：版本史补记——v1.30 行归位〔T-434 遗留 + ux 复核盖章〕+ M16 翻案联动预登记〔E2 分页/E6 双语条款回写挂起 → T-451/T-464 票内；零锚变更〕）/ T-439（v1.33：表单三段步进锚册——form-step-* 三枚 + 预留位族 9 名 + form-force-auth 实字段 + form-reset 退役〔B-3.11/Q9〕）/ T-441（v1.34：pkg-grid 尺寸档断言翻转③〔440→924 居中〕+ 八型门控三件套退役登记——零新锚零改名） |
-| 状态 | v1.34（2026-09-03。**v1.33 头部滞后勘误**：T-439 落 §0 版本史行与 §10.5 批块时未同步本「状态」格——实序 v1.33 在档，本行顺车归位） |
+| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账）/ T-291（v1.11：Properties 页签锚册——MUI 首票）/ T-307（v1.12：认证配置页组锚册——admin/security/auth 域）/ T-344（v1.14：密度档修订——MUI small 档，mui-native-visual §7 登记）/ T-352+T-353（v1.15：回收站页锚册 trash-* 族 + 建仓表单策略键生成器扩容）/ T-366（v1.16：Webhook 订阅管理页锚册 wh-* 族）/ T-372（v1.17：树尾常驻回收站入口锚 tree-trash-node——console-m8 §4.3 推翻条款兑现）/ T-382（v1.18：Set Me Up 抽屉化锚册——smu-* 零改名 + Resolve 批 + smu-close/smu-done 复役）/ T-383（v1.19：建仓形态核验锚册——form-section-* 六节族，M1 两段式断言钉死）/ T-384（v1.20：用户/组创建形态核验锚册——user-form-section-*/group-form-section-* 节锚 + 页脚四锚复役，M3 非 modal 断言钉死）/ T-389（v1.21：品牌位锚册——brand-sidebar-mark / brand-login-lockup，候选 1 logo 转正接线）/ T-387（v1.22：L1 列选器 + 刷新锚册——repos-columns-* / audit-columns-* / 两页 refresh）/ T-386（v1.23：Access Tokens 页真身锚册——tokens-* 族 28 名 + placeholder-page 退役）/ T-388（v1.24：F2 空态插画槽 empty-art + N2 侧栏图标槽 nav-icon——一级条目档位）/ T-404（v1.25：复制 CRUD 内嵌表单锚册——repl-* 配置面族 + form-section-replications 第七节 + 仓 Tab 指针升级 + Replications 列/Run）/ T-406（v1.26：制品浏览 remote/virtual 热修锚——tree-empty-virtual + remote 空态文案分支）/ T-414（v1.27：L1 列选器三页推广锚册——{users\|groups\|search}-columns-* 28 名 + member-pop 对比度清账）/ T-416（v1.28：virtual FE 树消费断言反转②——tree-empty-virtual 语义翻转 + RepoBranch virtual 动态展开恢复 + 删除入口预收敛）/ T-419（v1.29：搜索页 AQL 模式锚册——search-mode 族 + search-aql-* 15 名，smu/search 既有锚零改名）/ T-422（v1.30：复制包 B 首批锚册增量——repl-test/repl-test-result 表单 Test 两锚 + 全局封锁卡 repl-global-block/repl-block-push/repl-block-pull 三锚〔FR-138.2/138.3，parity §6A R8〕，repl-* 既有锚零改名）/ T-434（v1.31：制品树栈对齐锚册——tree-leaf-* 文件叶子 + 树头工具带 tree-toolband 族 + URL 模型段化〔页签段/文件路径段/?focus= 退役〕+ select≠expand，断言反转①留痕，tree-* 既有锚零改名）/ T-437（v1.32：版本史补记——v1.30 行归位〔T-434 遗留 + ux 复核盖章〕+ M16 翻案联动预登记〔E2 分页/E6 双语条款回写挂起 → T-451/T-464 票内；零锚变更〕）/ T-439（v1.33：表单三段步进锚册——form-step-* 三枚 + 预留位族 9 名 + form-force-auth 实字段 + form-reset 退役〔B-3.11/Q9〕）/ T-441（v1.34：pkg-grid 尺寸档断言翻转③〔440→924 居中〕+ 八型门控三件套退役登记——零新锚零改名）/ T-443（v1.35：入口分路由锚册——repos-create-{menu,三预选} + form-rclass-note + form-test 族三枚；form-rclass 族与 repos-columns-item-type 退役〔B-3.8 翻正 / Q9 列收敛〕） |
+| 状态 | v1.35（2026-09-03，T-443——入口分路由锚册 + form-rclass 族/repos-columns-item-type 退役 + form-test 族入册） |
 | 维护者 | ux-designer |
 | 上游依据 | PRODUCT.md（Web 控制台/治理/Non-goals）、ROADMAP.md M4 节、docs/prd/milestone-1/2/3/4.md（端点矩阵与已定案行为）、docs/user/docker-registry.md（用户面口径）、docs/design/architecture.md §7（路由/console 挂载点）、internal/httpapi/router.go（路由门事实——§3.6.2 矩阵逐一核对）、reports/agents/T-98.md · T-99.md（漂移登记与 testid 素材）、reports/agents/T-98-review.md（N1 收敛建议）、BOARD.md（T-85 PRD / T-97 存在性不泄露裁决） |
 | 下游消费者 | T-86（架构：console 包/session/前端工程结构）、tech-lead（M4 拆票）、前端 dev（页面组票）、qa-engineer（控制台验收） |
@@ -50,6 +50,7 @@
 | v1.31 | 2026-09-02 | T-434 制品树栈对齐（M16 批次① P0 首票，FR-142——B-1.1~1.4 四项，**断言反转①**留痕）：① **T-434 批 12 名锚入册**（`tree-leaf-<path>` 文件叶子行 + 树头工具带 `tree-toolband` / `tree-facet-pkg{,-<packageType>,-clear,-panel}` / `tree-facet-rclass-{local\|remote\|virtual}` / `tree-sort-by` / `tree-view-{compacted,normal}` / `tree-favorites` + 仓库右键 `tree-context-favorite`〔tree-context-* 族内新具体名〕——明细见 §10.5 T-434 批块）；② **文件叶子进树**（B-1.1）：TreeLevel 的 `filter n.folder` 退役——目录与文件同行渲染（目录在前），「（空）」占位只在真空目录渲染（仅含文件的目录症状连带消除）；TREE_LEVEL_CAP 口径改为目录+文件合计；children 表**操作列退役**（详情/下载/删除三钮——Q2 出口①：删除收敛进详情面板与右键菜单，两者都过危险确认，E1 不倒退；下载在右键与详情）；目录选中详情给直系概要（子项〔Artifact Count〕目录 X · 文件 Y + Size〔直系文件合计〕）；③ **select≠expand**（B-1.2）：RepoBranch `isOpen` 的 selectedRepo 并集解除——单击仓库名 = 纯选中；展开只由 expanded 集（箭头/键盘 →/深链祖先链）驱动；深链祖先链含仓根与被选目录自身（对齐项不动）；④ **URL 模型段化**（B-1.3）：`/artifacts/[<TAB>/]<repo>/<path>`——TAB ∈ {general\|properties\|permissions} 省略 = general（对位 Artifactory /ui/repos/tree/<TAB>/…；省略档使全部既有仓/目录 URL 保持规范形零重定向）；文件是路径末段（`?focus=` 退役——旧深链组件内一次性 replace 折入；URL 末段文件/目录判别经父目录 listing）；`node-tab-*` 锚不变、页签值受控于 URL；⑤ **树头工具带**（B-1.4）：过滤仓库文本框（**载体自页头迁树头**，锚不变）+ My Favorites（前端态 localStorage，标记入口 = 仓库右键 tree-context-favorite）+ 包类型 facet 复选组（选项集 = 已加载清单实有型）+ Local/Remote/Virtual 组（Artifactory 的 Cache 为 remote 缓存子集视图——BinFlow remote 浏览面即缓存落地行，不伪造第四态）+ Sort-by（名称/包类型/仓库类型）+ Compacted/Non-Compacted 单选（紧凑行高档）；⑥ e2e：新面 `web/e2e/m16/t434-tree-stack.spec.ts`（四 AC 腿 + ?focus= 兼容映射 + axe 双主题）+ 既有 spec 翻新（`?focus=` URL 断言 ×6、tree-node 可见依赖选中即展开的腿补显式展开、行内删除钮腿改走详情面板）；⑦ 服务端 diff=0（纯 FE 票）；⑧ known-edge：repo key 与 TAB 词（general/properties/permissions）同名时按 TAB 解析（经 /artifacts/general/<key> 仍可达）——工具带与 URL 模型的 K67 冻结候选注记 |
 | v1.32 | 2026-09-03 | T-437 版本史补记 + M16 翻案联动预登记（M16 B1 前置锚票，FR-141.2——parity 册 v1.5 同场落盘；**本版零锚变更**，ledger 无涉）：① **v1.30 行补记**（T-434 遗留归位——T-422 §0 版本史行缺席，见上；ux 复核盖章同场清偿）；② **翻案联动预登记（防失锚）**：E2 分页翻案（Q4/LC-98——T-451 页码控件 ×9）牵本册 §6「加载更多」大目录策略条款——**正式条款回写归 T-451 票内**（届时版本递增），本行预登记挂起态（分治口径已冻结于 parity 册 §5 L4 v1.5 注 + §11.2：管理列表/结果表页码、树/大目录维持增量）；E6 双语翻案（Q3/FR-149）牵 §1.2「UI 文案为中文」条款——两包条款升格归 T-463/T-464 票内回写，预登记同款；③ parity 册 v1.5（E1/E2/E5/E6/R4 翻案 + §9A stay-out + §11 K67 冻结 + §12 B 47 项归属表）落盘——**树栈 as-built 断言锚（K67）冻结于彼册 §11，本册 §10.5 T-434 批登记块为锚名权威源不变**；i18n 锚 id 与文案解耦纪律（T-463 承接）自本行起在案 |
 | v1.33 | 2026-09-03 | T-439 表单三段步进 + 字段域补齐（M16 批次② 首票，FR-143.1/.2——B-2.5 + B-1.5 + B-3.12 + B-3.11〔Q8/Q9 冻结兑现〕）：① **T-439 批 13 名锚入册**（`form-step-{basic\|advanced\|replications}` 步进条三枚——对位 Artifactory 7.161.20 实测 jf-steps 三步条〔conductor 本机 :8082 活体探测，read-only 差集法——形态以 7.161 为准推翻/确认 7.84 审计材料的步进条无 ambiguity〕；预留位族 9 名〔`form-reserved-{basic\|advanced}` 组根 + `form-repo-layout` / `form-environments` / `form-internal-description` / `form-blacked-out` / `form-archive-browsing` / `form-max-unique-snapshots` / `form-suppress-pom`〕；实字段 `form-force-auth`——明细见 §10.5 T-439 批块）；② **`form-reset` 退役入 §10.6**（B-3.11/Q9 终裁：footer 对齐 M1 锚点 Cancel + Create/Save 两钮——7.161 实测页脚无 Reset；baseline 态随钮退役）；③ 六节分驻两步：`form-section-*` 锚零改名、非活跃步整步卸载（count 0 非 CSS 隐藏）；`form-section-replications` 载体自内嵌第七节迁第三步（M6 复制配置语义零变化，?section=replications 深链直落）；④ 字段域八域活体定档（scratch 实例 PUT→GET 对账）：七域后端无承接〔四域 decode-only：repoLayoutRef/blackedOut/maxUniqueSnapshots/archiveBrowsingEnabled——transport 解码不 400 但 configJSON 不转发；三域无解码位：environments/notes/suppressPomConsistencyChecks〕→ 预留位（恒禁用零提交，R3 先例）；一域实字段〔forceConanAuthentication——local × conan，T-355A 全收 + adapter 行为〕——**PRD「API 已收全」证据仅覆盖解码层，契约漂移在案**（票内登记 + API 漂移钉 tripwire 断言 + repoLayoutRef 布局解析联动评估 K70）；⑤ e2e 新面 `web/e2e/m16/t439-form-stepper.spec.ts`（八域表驱动 + 步进导航 + 深链 + footer 移除 + payload 净度网络层对账 + API 漂移钉 + axe 双主题）+ 既有 spec 翻新 ×4（t383 六节矩阵步进感知 / m8 repositories-admin readonly 腿 / repositories 建仓-编辑腿 / t404 全部 /edit 导航改 ?section=replications 深链）；⑥ 服务端 diff=0（纯 FE 票） |
+| v1.35 | 2026-09-03 | T-443 列表列集 + 入口分路由 + dirty-gating + remote Test 消费（M16 批次② FE②-c，FR-143.4/.5——B-3.8 翻正收口 + B-3.9 翻正 + B-3.6 落位）：① **T-443 批 9 名锚入册**（`repos-create-menu` + `repos-create-{local\|remote\|virtual}`——列表入口自平钮翻 Create a Repository 下拉三预选〔7.161.20 活体形态：型名 + 一句描述行，m16-baseline-refresh §A3-1/证据 s3e-create-dropdown〕，选中即分路由深链 `/admin/repositories/<rclass>/new`〔三静态路由承 rclass prop；旧 `/new`+`?rclass=` 直链经路由表兼容映射 replace——7 处跨页 emitter 零改动；非法段落 404〕；`form-rclass-note`——**表单内 rclass 控件移除**后的仓型语境行〔非交互件〕；`form-test` / `form-test-result` / `form-test-create-note`——remote Test 连接〔消费 T-442 端点 POST /api/repositories/{key}/test：编辑态 × remote 在场〔7.161 实测落 Basic 步凭据组旁〕，三臂内联呈现——成功绿/凭据被拒红〔message 原文〕/不可达红〔status_code 0〕；草稿臂 = url/username/password 对基线逐字段 diff〔带密码 = 明文凭据对 / 仅改 url 或 username = 匿名探测 / 零改动 = 已存配置探测〕；建仓态给 hint 不给死按钮〕——明细见 §10.5 T-443 批块）；② **退役 4 名入 §10.6**（`form-rclass-{local\|remote\|virtual}`——仓型单选组〔B-3.8：分路由预选取代〕+ `repos-columns-item-type`——列选项「类型」〔Q9/B-3.9 冗余列收敛：三 Tab 子路由即类型〕）；③ 列表列集对齐（B-3.9）：Replications 列自 T-404 的仅 local 扩 **local + remote 两 Tab**〔push-only 口径注记在表头 title——ADR-0021/parity §6A R10：BinFlow 无 pull 复制，remote 页签如实呈现以该仓为源的 push 配置；t404 spec 旧「remote 无列」断言翻转——空 remote Tab 的空洞断言在票内复核发现〕；Project 列缺位登记不伪造（§9A-S8 同口径）；④ dirty-gating 无新锚（进入编辑 Save disabled → 变更 enabled → 改回再 disabled；断言走既有 `form-submit` 禁用态 + title 原因文案）；⑤ e2e 新面 `web/e2e/m16/t443-list-entry-dirty-test.spec.ts`（五腿：入口/列集/dirty/Test 三臂+零副作用/axe 双主题）+ 既有 spec 翻新 ×8（repositories / t104 / t383 / t387 / t404 / t441 / m8 repositories-admin / m8 shell）；⑥ 服务端 diff=0（纯 FE 票） |
 | v1.34 | 2026-09-03 | T-441 包类型弹窗翻转③（M16 批次② FE②-b，FR-143.3——B-2.6 翻正；**本版零锚变更**，ledger 无涉，尺寸/形态断言翻转登记）：① **pkg-grid 尺寸档断言翻转③**：Dialog 宽 440px 紧凑档 → **924px 居中档**（`min(924px, calc(100vw - 48px))` + MUI `maxWidth={false}`——7.161.20 活体实测勘误 924×760 居中 el-dialog，7.84 审计锚 880px；翻案依据 M16-SPLIT §1.2 AC1，parity 册 M1 行 v1.6 留痕；e2e 断言 = 既有 `pkg-grid` 锚的 boundingBox 宽度 + 视口居中腿——**零新锚**）；② **八型门控三件套退役**：`pkg-grid-item-<pt>` 的 disabled/mono 图标/opacity 0.4 形态断言翻新（t390/t441 spec）——前端槽位门整族退役（license 门系后端 ADR-0033 域，repo.Service D3 终裁；community 实例的 400 拒绝链断言钉进 m16/t441）；`pkg-tier-<pt>` 徽章锚与语义（D5 可见性）不变，徽章文字色沿语义徽章家族收敛配方保 surface-2 对比度（light 5.4:1）；③ `form-package-<pt>` 单选行的同门禁用同步退役（两承载面一致）；④ 顺车归位：repo-policy-keys spec 六腿补步进导航（T-439 straggler——策略键节驻 Advanced 步后的漏翻新，断言语义不弱化）+ 本册「状态」格 v1.33 滞后勘误；⑤ 服务端 diff=0（纯 FE 票） |
 
 ---
@@ -1376,6 +1377,41 @@ Service D3 建仓 400 终裁——community 实例的拒绝链断言钉在
 零新锚）；磁贴内徽章文字色沿语义徽章家族收敛配方（`color-mix 78%`）
 保 surface-2 底上 ≥4.5:1。
 
+**T-443 批（v1.35，M16 批次② FE②-c，FR-143.4/.5——入口分路由 + 列表
+列集 + dirty-gating + remote Test 消费；先入册再落码；消费 spec =
+web/e2e/m16/t443-list-entry-dirty-test.spec.ts〔本票新增〕+ t383/t387/
+t404/repositories/m8 repositories-admin/m8 shell/t104/t441 翻新）：**
+
+```
+仓库列表入口（/admin/repositories/{local|remote|virtual}，页头动作区）：
+  repos-create-menu（MUI Menu 容器——Create a Repository 下拉三预选；
+    开态在场、Esc 关回焦）
+  repos-create-{local|remote|virtual}（三菜单项——型名 + 一句描述行
+    〔7.161.20 活体形态对位：Local "Upload and resolve your own
+    packages" 族〕；选中即分路由 /admin/repositories/<rclass>/new）
+建仓/编辑表单：
+  form-rclass-note（仓型说明行——T-443 rclass 控件移除后的语境承载：
+    非交互件，恒呈现〔创建态 = 路由预选值；编辑态 = GET 回显值〕）
+  form-test（remote Test 连接钮——仅编辑态 × remote 在场〔Basic 步来源
+    节；T-442 端点按已存 key 寻址〕；探测中禁用 + 「测试中…」）
+  form-test-result（探测判定体内联块——成功绿/失败红，message 原文
+    〔lang=en〕+ 中文注记行〔可达且凭据被接受/探测未通过 + 状态码或
+    未触达〕；role=status）
+  form-test-create-note（建仓态替代 hint——「保存后可测」；按钮不呈现
+    的如实说明，非死按钮）
+```
+
+退役（本批 4 名入 §10.6 总表）：`form-rclass-{local|remote|virtual}`
+（仓型单选组——B-3.8 翻正收口：rclass 由入口分路由预选，表单内控件
+移除；`form-rclass-note` 承载语境）+ `repos-columns-item-type`（列选项
+「类型」——Q9/B-3.9 冗余列收敛：三 Tab 子路由即类型，列与列选项同步
+退役）。路由面：`/admin/repositories/<rclass>/new` 三静态路由 + `/new`
+直链兼容映射（replace，?rclass= 收敛——7 处跨页 emitter 零改动）。
+变更注记（T-443，dev-frontend 回写）：dirty-gating 无新锚（断言走既有
+`form-submit` 禁用态 + title 原因文案）；Replications 列扩 remote Tab
+无新锚（`repos-repl-<key>` 族语义扩容——push-only 口径注记在表头
+title，ADR-0021/R10）；服务端 diff=0（纯 FE 票）。
+
 **T-307 认证配置页组新锚（64 名，M11 FR-92 FE 腿——LDAP/OAuth(OIDC)/SAML
 三协议 Tab；先入册再落码，v1.12；消费 spec = web/e2e/ 认证配置 spec 组
 〔本票新增〕）：**
@@ -1938,8 +1974,10 @@ node web/scripts/anchor-audit.mjs --ledger   # 册↔实态断言，违例 exit 
 `perm-matrix-remove-{user,group}` 两记对应 src 一族〕→ 98 条；T-382〔v1.18〕
 复役 `smu-close`/`smu-done`、T-384〔v1.20〕复役 `user-form-{cancel,reset}` /
 `group-form-{cancel,reset}` → 92 条；T-386〔v1.23〕退役 `placeholder-page`
-（最后载体 Access Tokens 路由落真身）→ **现存 93 条**。复活 = 从本表删除 +
-回写 §10.3，走 conductor）**：
+（最后载体 Access Tokens 路由落真身）→ 93 条；T-443〔v1.35〕退役
+`form-rclass-{local,remote,virtual}` + `repos-columns-item-type`（入口
+分路由预选取代表单内仓型控件 + 冗余类型列收敛）→ **现存 97 条**。复活 =
+从本表删除 + 回写 §10.3，走 conductor）**：
 
 | 退役锚（家族） | 原承载 | 批次/退役 | 原因·去向 |
 |---|---|---|---|
@@ -1970,6 +2008,8 @@ node web/scripts/anchor-audit.mjs --ledger   # 册↔实态断言，违例 exit 
 | `placeholder-page` | 占位页（18 路由表未交付页的兜底承载） | T-98 / v1.23 | 最后载体 = Access Tokens 路由（T-386 落真身，组件删除、grep=0）；四条 M8 spec 腿迁移更新非反转（锚断言换 `tokens-page` 族——T-238 存储页同款先例）；`tokens-*` 族承载 |
 | `repo-repl-degraded` | 仓详情 Replications Tab 降级卡（「配置由全局复制页承载」指针） | T-240 / v1.25 | T-404 R1 裁定升级：配置 CRUD 真身 = 仓库编辑页 Replications 节，本 Tab 升级为本仓配置摘要 + 编辑节深链（`repo-repl-card` 族承载）；m8/repositories-admin spec 腿迁移更新非反转（`repo-repl-goto` 锚名不变、载体换 Link）；降级语义（501/404）由 `repl-degraded` 承载 |
 | `form-reset` | 建仓/编辑表单 footer 重置钮（T-240 单页分区式三钮族的中间钮） | T-240 / v1.33 | T-439（B-3.11/Q9 终裁兑现）：footer 对齐 M1 锚点 Cancel + Create/Save 两钮——Artifactory 7.161.20 实测页脚无 Reset（conductor :8082 活体探测留痕）；baseline 态随钮退役，未保存改动的回退 = 取消重进；m8/repositories-admin readonly 腿反断言翻新（`form-reset` count 0——断言语义不弱化） |
+| `form-rclass-local` `form-rclass-remote` `form-rclass-virtual` | 建仓表单仓型单选组（常规节 radio 行三枚） | T-99 / v1.35 | T-443（FR-143.4，B-3.8 翻正收口）：入口 = Create a Repository 下拉三预选分路由 `/admin/repositories/<rclass>/new`（7.161.20 实测同构——`/ui/admin/repositories/<rclass>/new`），表单内仓型控件移除（rclass prop 由三静态路由承载；旧 `/new`+`?rclass=` 深链经路由表兼容映射）；语境承载 = `form-rclass-note`（§10.5 T-443 批）；spec 翻新 repositories/t104/t383/m8 repositories-admin（count 0 反断言 + URL 断言） |
+| `repos-columns-item-type` | 仓库列表列选器「类型」列项（T-387 批 8 列闭集之一） | T-387 / v1.35 | T-443（Q9/B-3.9 冗余列收敛）：三 Tab 子路由即类型（local Tab 恒 Local……），单列表内 Repository Type 列在 BinFlow 分 Tab 形态下信息量为零——列 + 列选项同步退役（localStorage 偏好读回按列集清洗，存量 hidden 值无害剔除）；t387 spec 8→7 全套翻新 |
 
 **回填记录（v1.9.1，T-274——T-267 误杀修正）**：下列 19 族曾以「零 spec 消费」
 入本表处置，实为对账器 spec 抽取正则的形态盲区所致**误杀**（见下方工具局限

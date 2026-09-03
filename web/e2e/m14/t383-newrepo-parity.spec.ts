@@ -15,8 +15,10 @@ import { m8Client, sessionApi } from '../m8/support/seed'
 // 钉死面（对照核验表逐项 ↔ reports/agents/T-383.md §1）：
 //   ① 两段式：网格 = modal（role=dialog）+ 表单 = 整页路由（选型后 modal
 //      关闭、URL 不变、表单仍在路由页——非单 modal 全程）；
-//   ② rclass 选择形态：入口预选（列表钮 + quick 菜单三型下拉 = Add
-//      Repositories 下拉的对位）+ ?rclass= 深链直达 + 页内单选组回显；
+//   ② rclass 选择形态（T-443 翻新，B-3.8 翻正收口）：列表入口 = 下拉三预选
+//      （repos-create-{menu,<rclass>}）分路由深链 /admin/repositories/
+//      <rclass>/new + quick 菜单/?rclass= 旧深链经兼容映射同落 + **表单内
+//      rclass 控件移除**（form-rclass-* 退役，页内单选组形态随之翻案）；
 //   ③ 磁贴网格：radiogroup 语义 + 原生 button 磁贴 + 组合门控退役（docker
 //      三仓型全开——T-431 沿 T-392 remote / T-431 virtual 的服务端矩阵）
 //      + 宽度档 **924px 居中**（T-441 翻转③：原 440px 紧凑档定案按 7.161.20
@@ -91,10 +93,16 @@ test('admin: two-phase create chain — grid modal pick → full-page form → S
   await loginAs(page, 'admin')
   const key = uniq('t383new')
 
-  // 入口 A：仓库列表「＋ 添加仓库」（rclass 由当前 Tab 语境 + URL query 预选）
+  // 入口 A（T-443 翻新）：仓库列表「＋ 新建仓库」= Create a Repository 下拉
+  // 三预选（B-3.8）——型名 + 一句描述；选中即分路由深链
+  // /admin/repositories/<rclass>/new（表单内 rclass 控件移除）
   await page.goto('/binflow/ui/admin/repositories/local')
   await page.click('[data-testid="repos-create"]')
-  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/new$/)
+  const entryMenu = page.locator('[data-testid="repos-create-menu"]')
+  await expect(entryMenu).toBeVisible()
+  await expect(entryMenu.locator('[role="menuitem"]')).toHaveCount(3)
+  await page.click('[data-testid="repos-create-local"]')
+  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/local\/new$/)
 
   // 段 1（选择）：网格 = modal + 表单页已在路由上（两段式第一段）
   const grid = page.locator('[data-testid="pkg-grid"]')
@@ -105,8 +113,9 @@ test('admin: two-phase create chain — grid modal pick → full-page form → S
 
   // 段 2（表单）：选 generic → modal 关闭、URL 不变、表单仍在路由页
   await pickFromGrid(page, 'generic')
-  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/new$/)
-  await expect(page.locator('[data-testid="form-rclass-local"]')).toBeChecked()
+  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/local\/new$/)
+  // T-443：rclass 控件移除（预选语义由分路由承载——form-rclass-* 退役）
+  await expect(page.locator('[data-testid="form-rclass-local"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="form-package-generic"]')).toBeChecked()
 
   // 六节结构（local × generic）：常规（基础步）+ 治理/高级（高级步）在场；
@@ -139,13 +148,14 @@ test('admin: two-phase create chain — grid modal pick → full-page form → S
   expect((await m8Client().request('DELETE', `/binflow/api/repositories/${key}`)).status).toBeLessThan(300)
 })
 
-// ---- 2. 深链 + rclass 条件节矩阵（?rclass= 直达表单页；只读不落仓） ----------
+// ---- 2. 深链 + rclass 条件节矩阵（分路由直达表单页；只读不落仓） --------------
 
-test('admin: ?rclass= deep links reach the form page; six-section matrix per rclass', async ({ page }) => {
+test('admin: split-route deep links reach the form page; six-section matrix per rclass', async ({ page }) => {
   await loginAs(page, 'admin')
 
-  // 深链 remote：直达表单页 + 网格即开（rclass 由 URL 预选，非向导内 Tab）
-  await page.goto('/binflow/ui/admin/repositories/new?rclass=remote')
+  // 深链 remote（T-443 分路由；旧 /new?rclass= 形态经兼容映射同落）：
+  // 直达表单页 + 网格即开（rclass 由路由预选，表单内控件移除）
+  await page.goto('/binflow/ui/admin/repositories/remote/new')
   const grid = page.locator('[data-testid="pkg-grid"]')
   await expect(page.locator('[data-testid="repo-form-page"]')).toBeVisible()
   await expect(grid).toBeVisible()
@@ -158,7 +168,7 @@ test('admin: ?rclass= deep links reach the form page; six-section matrix per rcl
   await expect(page.locator('[data-testid="pkg-grid-item-maven"]')).toBeEnabled()
 
   await pickFromGrid(page, 'maven')
-  await expect(page.locator('[data-testid="form-rclass-remote"]')).toBeChecked()
+  await expect(page.locator('[data-testid="form-rclass-remote"]')).toHaveCount(0) // T-443：控件移除
   await expect(page.locator('[data-testid="form-package-maven"]')).toBeChecked()
   // 六节（remote × maven）：来源在场（上游 URL——基础步）；高级步在场；
   // 治理/成员/策略不渲染
@@ -167,16 +177,18 @@ test('admin: ?rclass= deep links reach the form page; six-section matrix per rcl
   await expect(page.locator('[data-testid="form-section-source"] [data-testid="form-url"]')).toBeVisible()
 
   // 深链 virtual：成员节在场；来源/治理不渲染
-  await page.goto('/binflow/ui/admin/repositories/new?rclass=virtual')
+  await page.goto('/binflow/ui/admin/repositories/virtual/new')
   await expect(page.locator('[data-testid="pkg-grid"]')).toBeVisible()
   await pickFromGrid(page, 'generic')
-  await expect(page.locator('[data-testid="form-rclass-virtual"]')).toBeChecked()
+  await expect(page.locator('[data-testid="form-rclass-virtual"]')).toHaveCount(0) // T-443：控件移除
   //（成员节逐字锚定 = virtual 的定义节——成员选择 + 解析顺序）
   await expect(page.locator('[data-testid="form-section-members"]')).toBeVisible()
   await expectSections(page, ['general', 'members', 'advanced'])
 
-  // 默认入口 local × maven：Maven 策略节在场（deb/rpm/helm 策略组仍在高级节内）
+  // 默认入口（/new 兼容映射 → local）× maven：Maven 策略节在场
+  //（deb/rpm/helm 策略组仍在高级节内）
   await page.goto('/binflow/ui/admin/repositories/new')
+  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/local\/new$/)
   await expect(page.locator('[data-testid="pkg-grid"]')).toBeVisible()
   await pickFromGrid(page, 'maven')
   await expectSections(page, ['general', 'policy', 'governance', 'advanced'])
@@ -193,10 +205,12 @@ test('admin: grid modal shape pin — radiogroup tiles, 924px centered tier (T-4
   await loginAs(page, 'admin')
 
   // 入口 B：quick 菜单「快速建仓」三型下拉 = Artifactory「Add Repositories」
-  // 下拉（Local/Remote/Virtual 预选）的对位形态（parity v1.1：手势等价）
+  // 下拉（Local/Remote/Virtual 预选）的对位形态（parity v1.1：手势等价）。
+  // T-443：其 /new?rclass= 链接经路由表兼容映射落 remote 分路由（AppShell
+  // 零改动——7 处跨页 emitter 的兼容窗语义在本腿钉死）
   await page.click('[data-testid="session-toggle"]')
   await page.click('[data-testid="quick-new-repo-remote"]')
-  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/new\?rclass=remote$/)
+  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/remote\/new$/)
   await expect(page.locator('[data-testid="pkg-grid"]')).toBeVisible()
   // rclass 预选感知的退出：取消回对应 Tab（remote）
   await page.click('[data-testid="pkg-grid-cancel"]')

@@ -67,46 +67,49 @@ test('admin: repos column selector — open/close, hide/show, guard, reset, per-
   await page.goto('/binflow/ui/admin/repositories/local')
   await expect(page.locator(`[data-testid="repos-row-${key}"]`)).toBeVisible()
 
-  // 默认全显（8 列闭集——T-404 增 Replications 列，⑦）
+  // 默认全显（7 列闭集——T-404 增 Replications 列；T-443 收敛冗余「类型」列
+  //〔Q9/B-3.9〕：三 Tab 子路由即类型，type 列 + 列选项退役）
   const th = page.locator('[data-testid="repos-table"] thead th')
-  await expect(th).toHaveCount(8)
+  await expect(th).toHaveCount(7)
 
-  // 开（①）：aria 语义 + 菜单项恰 8、全勾
+  // 开（①）：aria 语义 + 菜单项恰 7、全勾；type 项已退役（反断言）
   const trigger = page.locator('[data-testid="repos-columns"]')
   await expect(trigger).toHaveAttribute('aria-haspopup', 'menu')
-  await expect(trigger).toContainText('列 8/8')
+  await expect(trigger).toContainText('列 7/7')
   await trigger.click()
   await expect(trigger).toHaveAttribute('aria-expanded', 'true')
   const menu = page.locator('[data-testid="repos-columns-menu"]')
   await expect(menu).toBeVisible()
-  await expect(menu.locator('[role="menuitemcheckbox"]')).toHaveCount(8)
-  await expect(menu.locator('[role="menuitemcheckbox"][aria-checked="true"]')).toHaveCount(8)
+  await expect(menu.locator('[role="menuitemcheckbox"]')).toHaveCount(7)
+  await expect(menu.locator('[role="menuitemcheckbox"][aria-checked="true"]')).toHaveCount(7)
+  // 「类型」列项退役（Q9）：菜单内无该文案项（文案级负断言——锚已随列退役，
+  // 不以退役锚反断言以免 broken 假阳性）
+  await expect(menu.getByText(/^类型$/, { exact: true })).toHaveCount(0)
 
   // 弃「描述」（②）：表头 + 行单元格同步 -1；菜单保持开（列选不收菜单）
   await page.click('[data-testid="repos-columns-item-description"]')
   await expect(menu).toBeVisible()
-  await expect(th).toHaveCount(7)
+  await expect(th).toHaveCount(6)
   await expect(th.filter({ hasText: '描述' })).toHaveCount(0)
-  await expect(page.locator(`[data-testid="repos-row-${key}"] td`)).toHaveCount(7)
-  await expect(trigger).toContainText('列 7/8')
+  await expect(page.locator(`[data-testid="repos-row-${key}"] td`)).toHaveCount(6)
+  await expect(trigger).toContainText('列 6/7')
 
   // 持久（④）：localStorage 落盘 + reload 保持；audit 键不被染
   expect(await page.evaluate(() => localStorage.getItem('binflow-console-cols-repos'))).toContain('description')
   expect(await page.evaluate(() => localStorage.getItem('binflow-console-cols-audit'))).toBeNull()
   await page.reload()
   await expect(page.locator(`[data-testid="repos-row-${key}"]`)).toBeVisible()
-  await expect(th).toHaveCount(7)
+  await expect(th).toHaveCount(6)
 
   // 勾回（②另一腿）
   await trigger.click()
   await page.click('[data-testid="repos-columns-item-description"]')
   await expect(page.locator('[data-testid="repos-columns-item-description"]')).toHaveAttribute('aria-checked', 'true')
-  await expect(th).toHaveCount(8)
+  await expect(th).toHaveCount(7)
 
   // 至少一列守卫（⑤）：弃到只剩 key → key 项 aria-disabled 且点击被拒
   const hideAllButKey = [
     '[data-testid="repos-columns-item-package"]',
-    '[data-testid="repos-columns-item-type"]',
     '[data-testid="repos-columns-item-replications"]',
     '[data-testid="repos-columns-item-upstream"]',
     '[data-testid="repos-columns-item-usage"]',
@@ -122,9 +125,9 @@ test('admin: repos column selector — open/close, hide/show, guard, reset, per-
   await expect(th).toHaveCount(1)
   await expect(page.locator(`[data-testid="repos-row-${key}"] td`)).toHaveCount(1)
 
-  // 全选复位（③）：表头回 8 + 存储回空数组
+  // 全选复位（③）：表头回 7 + 存储回空数组
   await page.click('[data-testid="repos-columns-reset"]')
-  await expect(th).toHaveCount(8)
+  await expect(th).toHaveCount(7)
   expect(await page.evaluate(() => localStorage.getItem('binflow-console-cols-repos'))).toBe('[]')
 
   // 关（①另一腿）：Esc 关菜单 + 回焦触发钮

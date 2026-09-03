@@ -118,9 +118,10 @@ test('admin: frontend gate opened, backend verdict final — go tile submits thr
   if (!licensed) {
     // community：服务端 D3 拒绝（ADR-0033 域）——form-error 原文回显，
     // 停留表单页（未跳详情）。前端门开禁后这条链是槽位纪律的唯一守门。
+    //（T-443：/new 直链经兼容映射落 local 分路由——停留断言随路由表翻新）
     await expect(page.locator('[data-testid="form-error"]')).toBeVisible()
     await expect(page.locator('[data-testid="form-error"]')).toContainText('package type not available')
-    await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/new$/)
+    await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/local\/new$/)
   } else {
     // licensed：八槽解锁——建仓成链（toast + 详情落点 + API 对账）
     await expect(page.locator('[data-testid="toast"]')).toContainText(`Successfully created repository '${key}'`)

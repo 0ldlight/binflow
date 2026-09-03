@@ -11,7 +11,7 @@
 //   编辑表单从 GET 回显预填全部字段再整体提交，避免「改一个字段丢
 //   其它字段」；transport 未覆盖的本地 config 字段见工作日志契约漂移。
 
-import { apiJSON, apiText } from './api'
+import { ApiError, apiJSON, apiText } from './api'
 import type { RepoListItem } from './api'
 
 export type RClass = 'local' | 'remote' | 'virtual'
@@ -187,6 +187,58 @@ export function deleteRepo(key: string, deleteContent: boolean): Promise<string>
     `/repositories/${encodeURIComponent(key)}${deleteContent ? '?deleteContent=true' : ''}`,
     { method: 'DELETE' },
   )
+}
+
+// ---- T-443：remote 上游 Test（FR-143.5，消费 T-442 端点） ----
+
+/** 探测判定体（remote.TestResult——T-422 复制 Test 族同形）：ok 携带
+ *  status_code 与锚定文案；失败也是这个体，只是 HTTP 400，message 即内联
+ *  失败原因（auth.config.test 姿态，非 errors[] 信封）。status_code = 0
+ *  表示未触达上游（连接层失败/DNS 拒绝）。 */
+export interface RepoTestResult {
+  ok: boolean
+  status_code: number
+  message: string
+}
+
+/** Test 草稿臂（T-442 UpstreamOverride 的 wire 投影）：每字段非空即替换
+ *  已存配置的同名字段——**仅本探测生效，零落盘**。带 password = 明文凭据
+ *  对（不咨询已存密封密钥）；仅改 url/username = 匿名探测（密封密钥绝不
+ *  静默送往别的主机）；全空/缺省 body = 已存配置探测（服务端解封密钥）。 */
+export interface RepoTestOverride {
+  url?: string
+  username?: string
+  password?: string
+}
+
+/**
+ * remote 上游连通探测：POST /api/repositories/{key}/test（T-442 端点，
+ * CanManageRepo write 门——编辑表单自身已在门内）。探测 = 对上游基址的
+ * 一个只读 GET，通过判据 = 2xx/3xx/404（registry 族上游裸根 404 属设计
+ * 行为）；401/403 = 凭据被拒；其余 = Connection failed 族；传输层故障 =
+ * connection failed / unknown host 文案（status_code 0）。**零副作用**：
+ * 不写任何 node/cache/offline 状态，凭据不进任何日志（NFR-S75）。
+ *
+ * 探测失败（HTTP 400）承载同形判定体——从 raw 解回原文呈现（ApiError
+ * 兜底保持 errors[] 面）；404 未知仓 / 400 非 remote 仓 / 403 越权照常抛。
+ */
+export async function testRepoUpstream(key: string, override?: RepoTestOverride): Promise<RepoTestResult> {
+  try {
+    return await apiJSON<RepoTestResult>(`/repositories/${encodeURIComponent(key)}/test`, {
+      method: 'POST',
+      ...(override === undefined ? {} : { body: override }),
+    })
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 400 && err.raw) {
+      try {
+        const parsed = JSON.parse(err.raw) as RepoTestResult
+        if (typeof parsed?.ok === 'boolean') return parsed
+      } catch {
+        // 不是判定体（面级 400：非 remote 仓 / 非法 body）——按通用错误抛
+      }
+    }
+    throw err
+  }
 }
 
 // ---- configuration 回显读取（unknown 收窄小工具） ----

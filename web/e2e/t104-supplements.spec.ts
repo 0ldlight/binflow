@@ -86,10 +86,12 @@ test('W10: UI form creates docker-ui-local (local+docker); REST packageType reco
   await api(page, 'DELETE', `/api/repositories/${DOCKER_REPO}?deleteContent=true`)
 
   await page.goto('/binflow/ui/admin/repositories/new')
-  // T-240 向导：进页弹包类型网格，选 Docker 即选定关闭（local 默认）
+  // T-240 向导：进页弹包类型网格，选 Docker 即选定关闭（local 默认）。
+  // T-443：/new 深链经兼容映射落 local 分路由（表单内 rclass 控件移除）
+  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/local\/new$/)
   await expect(page.locator('[data-testid="pkg-grid"]')).toBeVisible()
   await page.click('[data-testid="pkg-grid-item-docker"]')
-  await expect(page.locator('[data-testid="form-rclass-local"]')).toBeChecked()
+  await expect(page.locator('[data-testid="form-rclass-local"]')).toHaveCount(0)
   await expect(page.locator('[data-testid="form-package-docker"]')).toBeChecked()
   await page.fill('[data-testid="form-key"]', DOCKER_REPO)
   await expect(page.locator('[data-testid="form-key-ok"]')).toBeVisible()
@@ -201,10 +203,10 @@ test('W10b: UI edits remote url; REST round-trips new value; password never echo
   await page.goto('/binflow/ui/')
   await login(page)
 
-  await page.goto('/binflow/ui/admin/repositories/new')
-  // T-240 向导：进页弹包类型网格（generic 选定即关）；再切 Remote；单页表单
+  // T-443：remote 分路由直达（表单内 rclass 控件移除；旧 /new 兼容映射等价）
+  await page.goto('/binflow/ui/admin/repositories/remote/new')
+  // T-240 向导：进页弹包类型网格（generic 选定即关）；单页表单
   await page.click('[data-testid="pkg-grid-item-generic"]')
-  await page.click('[data-testid="form-rclass-remote"]')
   await page.fill('[data-testid="form-key"]', key)
   await page.fill('[data-testid="form-url"]', url1)
   await page.fill('[data-testid="form-username"]', 'ci')

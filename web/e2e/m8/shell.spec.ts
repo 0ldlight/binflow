@@ -163,12 +163,13 @@ test('admin: user-menu quick actions are keyboard reachable', async ({ page }) =
   await expect(page).toHaveURL(/\/binflow\/ui\/admin\/security\/permissions\/new$/)
   await expect(page.locator('[data-testid="perm-editor-page"]')).toBeVisible()
 
-  // 快速建仓子菜单（rclass 参数形态就位——T-240 消费）
+  // 快速建仓子菜单（T-240 消费；T-443 起 /new?rclass= 链接经路由表兼容映射
+  // 落 remote 分路由——AppShell 零改动，兼容窗语义在此钉死）
   await page.focus('[data-testid="session-toggle"]')
   await page.keyboard.press('Enter')
   await page.focus('[data-testid="quick-new-repo-remote"]')
   await page.keyboard.press('Enter')
-  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/new\?rclass=remote$/)
+  await expect(page).toHaveURL(/\/binflow\/ui\/admin\/repositories\/remote\/new$/)
   await expect(page.locator('[data-testid="repo-form-page"]')).toBeVisible()
 })
 
