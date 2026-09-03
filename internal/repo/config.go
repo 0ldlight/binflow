@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/url"
 	"strings"
+
+	"github.com/lzwzzy/binflow/internal/remote"
 )
 
 // The M3 type-specific repository configuration model (PRD FR-15, T-64).
@@ -93,6 +95,19 @@ type remoteConfig struct {
 	// would let an admin believe a maven remote fetches charts from the
 	// base).
 	ChartsBaseURL string `json:"chartsBaseUrl,omitempty"`
+	// ListRemoteFolderItems is the remote-browsing optional档 (M16 T-448,
+	// FR-147.2, remote-browsing.md section 1 / repo-semantics 7.1): when on,
+	// a directory listing of this remote repository merges the upstream's
+	// display-only derived rows beside the cache rows (the T-442 enumeration
+	// engine); when off — the default, and the whole pre-T-448 posture — the
+	// tree shows cached rows only and the upstream is never probed from a
+	// browse face (T-406). Canonical echo rides the same JSON seat as
+	// hardFail/enableTokenAuthentication (always present); a `true` on a
+	// package type outside the batch-1 set is refused by name at config
+	// time (the chartsBaseUrl posture — an inert accepted field is the
+	// trap). deb/rpm are the official-setting types (remote-browsing.md
+	// section 2); helm is BinFlow's L2 superset leg, registered there.
+	ListRemoteFolderItems bool `json:"listRemoteFolderItems"`
 }
 
 // ContentSynchronisation is the smart remote content-sync policy (T-317,
@@ -169,6 +184,7 @@ type remoteConfigInput struct {
 	EnableTokenAuthentication         *bool            `json:"enableTokenAuthentication"`
 	ContentSynchronisation            *json.RawMessage `json:"contentSynchronisation"`
 	ChartsBaseURL                     *string          `json:"chartsBaseUrl"`
+	ListRemoteFolderItems             *bool            `json:"listRemoteFolderItems"`
 }
 
 // validateRemoteConfigShape is the strict single-JSON-value gate of the
@@ -394,6 +410,21 @@ func parseRemoteConfig(config, packageType string) (remoteConfig, string, error)
 	out.SocketTimeoutSecs = (out.SocketTimeoutMillis + 999) / 1000
 	if in.HardFail != nil {
 		out.HardFail = *in.HardFail
+	}
+	// listRemoteFolderItems (T-448, FR-147.2): a `true` outside the
+	// enumeration engine's batch-1 set is refused BY NAME (the chartsBaseUrl
+	// posture — the admin would believe the tree merges upstream rows on a
+	// type whose upstream has no root-level enumeration); absent or an
+	// explicit false passes on every type (false IS the product default).
+	// The set question is the engine's own (remote.BrowseSupported — one
+	// source, no repo-side spelling mirror to drift).
+	if in.ListRemoteFolderItems != nil {
+		if *in.ListRemoteFolderItems && !remote.BrowseSupported(packageType) {
+			return remoteConfig{}, "", fmt.Errorf(
+				"%w: remote %s repository config: listRemoteFolderItems true is not accepted (remote folder enumeration exists for the batch-1 types: helm, debian, rpm)",
+				ErrInvalidRepoConfig, packageType)
+		}
+		out.ListRemoteFolderItems = *in.ListRemoteFolderItems
 	}
 	if in.AllowPrivateUpstream != nil {
 		out.AllowPrivateUpstream = *in.AllowPrivateUpstream

@@ -241,6 +241,8 @@ repo 配置字段 `checksumPolicyType`，两个合法值：
 
 virtual 目录 GET = 各成员（含 `listRemoteFolderItems=true` 的 remote）条目按 §8.1 顺序合并去重；搜索同理限定成员集合。M3 可后置（BinFlow 控制台 M4 才需要）。中。
 
+**BinFlow as-built 对账（M16 T-448 / FR-147.2 回写）**：本条原口径 2026-09-03 落地——远端浏览可选档（`listRemoteFolderItems`，默认 false，remote-browsing.md §1）off 时 virtual 树 = T-412 as-built「remote 成员仅缓存行」（即全成员未开档的默认形态，与原口径不冲突——原口径内含 `=true` 前提）；**开档 remote 成员的远端派生行（display-only、零落库、缓存行优先去重）按 §8.1 成员序并入 virtual 树**，即本条完整口径。两处代码补充口径随实现定案（置信度=中，沿本条原档位）：① 远端派生行额外受**该 remote 成员自身 allow() 读权限**门（越权仓零远端行泄漏——remote-browsing.md §5；成员缓存行仍沿 virtual 自身门，T-412 姿态不变）；② 远端枚举层上游故障**不塌树**（§7.2 assumed-offline 静默 + 派生行缺席 + 错误态标注，缓存行照常——remote-browsing.md §4）。
+
 ## 9. 与官方文档的差异 / 补充
 
 - 「同 checksum 幂等重传不触发覆盖权限检查」：官方文档未记载（只有代码可见），对 CI 重试场景行为关键 → **本条为反编译补充官方规范**。

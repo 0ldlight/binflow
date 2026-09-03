@@ -368,7 +368,10 @@ type Service interface {
 	// plus everything beneath it (T-12 review B2). A VIRTUAL repository
 	// answers the member children UNION over the resolution order — first
 	// member winning a path two members carry; rows keep their member repo
-	// key, and a remote member contributes cache rows only (T-412).
+	// key. A remote member contributes cache rows by default; a member (or
+	// repository) with listRemoteFolderItems=true additionally merges its
+	// upstream-derived DISPLAY rows — zero 落库, cache rows first, and gated
+	// on the member's own read (T-412/T-448; repo-semantics §8.5).
 	List(ctx context.Context, p *Principal, repoKey, prefix string) ([]*metadata.Node, error)
 
 	// CreateRepo validates and persists a new repository configuration.
@@ -836,6 +839,16 @@ type RemoteFetcher interface {
 	// Forget drops the repository's in-process state (client pool, offline
 	// window) — the DeleteRepo teardown hook.
 	Forget(repoKey string)
+	// BrowseRemote enumerates the upstream children of one folder as
+	// DISPLAY-ONLY rows (T-442's engine; T-448's listing wiring is the
+	// first consumer). The engine never reads the listRemoteFolderItems
+	// flag — the CALLER decides to call, which is what keeps the optional
+	//档's off posture at behavior diff zero. Authorization rides permit, the
+	// caller's own allow() handed in as a closure and consulted BEFORE any
+	// upstream contact (nil or refusing → ErrBrowseDenied, zero rows); an
+	// upstream fault answers Degraded with a nil error, so a listing face
+	// keeps serving its cached rows beside the note.
+	BrowseRemote(ctx context.Context, permit remote.BrowsePermit, repoKey, folder string) (*remote.BrowseResult, error)
 }
 
 // The concrete engine satisfies the seam (compile-time pin).
@@ -863,6 +876,35 @@ type RemoteExternalPlane interface {
 	// per-member re-gate).
 	FetchVirtualExternal(ctx context.Context, p *Principal, virtualKey, member, path, target string) (io.ReadSeekCloser, *metadata.Node, error)
 }
+
+// RemoteBrowseListing is ListWithRemote's answer: the ordinary listing rows
+// plus the remote-browse layer's state (M16 T-448, FR-147.2). RemoteDegraded
+// is non-empty only when an ENGAGED layer (a flag-on remote repository, or
+// such a member of a virtual) met an upstream fault or sits inside the
+// assumed-offline silence — the rows are then the cached ones alone, never a
+// failed listing (remote-browsing.md §4-1: 枚举失败不整树塌). A flag-off or
+// all-healthy tree answers "".
+type RemoteBrowseListing struct {
+	Nodes          []*metadata.Node
+	RemoteDegraded string
+}
+
+// RemoteBrowsePlane is the optional档's enriched listing seam (M16 T-448,
+// FR-147.2 — the RemoteV2Plane precedent, an optional SPI segment): the
+// exact walk Service.List performs plus the remote layer's degradation
+// note, so a consumer that renders the optional档's error state (the tree
+// face, T-461) can show WHY the remote layer went quiet beside the cached
+// rows instead of the note being lost to List's plain slice. One resolution
+// channel: List is this walk with the note dropped, so the two faces can
+// never disagree about a tree.
+type RemoteBrowsePlane interface {
+	// ListWithRemote is Service.List's walk with the remote layer's state
+	// note attached. Same gates, same ordering, same rows.
+	ListWithRemote(ctx context.Context, p *Principal, repoKey, prefix string) (*RemoteBrowseListing, error)
+}
+
+// The concrete service satisfies the seam (compile-time pin).
+var _ RemoteBrowsePlane = (*service)(nil)
 
 // RemoteV2Plane is the registry-v2 remote pull-through seam (M13 T-363,
 // FR-116.1, helm.md section 8.3): the OCI Distribution upstream

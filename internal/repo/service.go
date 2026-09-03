@@ -396,6 +396,16 @@ func (s *service) Get(ctx context.Context, p *Principal, repoKey, path string) (
 						return nil, n, fmt.Errorf("get %s/%s: %w", repoKey, path, ErrIsFolder)
 					}
 				}
+				// T-448 (FR-147.2): with the optional档 on, a folder that
+				// exists only upstream answers off the enumeration snapshot —
+				// the tree can be expanded into uncached remote directories.
+				// Display-only and zero-write (ADR-0013 posture: a browse read
+				// leaves the cache exactly as it found it). Degraded or
+				// denied answers claim nothing; the engine fall-through below
+				// then speaks with its own error state.
+				if n := s.remoteBrowseFolderRow(ctx, p, browseRepoOf(row), strings.TrimSuffix(path, "/")); n != nil {
+					return nil, n, fmt.Errorf("get %s/%s: %w", repoKey, path, ErrIsFolder)
+				}
 			}
 		}
 		return s.getRemote(ctx, p, repoKey, path)
@@ -1473,34 +1483,54 @@ func hasDeletedPrefix(p string, deleted map[string]bool) bool {
 // (Get's ordering): the virtual aggregate is exactly as gated as the local
 // listing, and an unauthorized caller learns nothing beyond the gate's own
 // answer (FR-136.4's "沿内容面 allow() 既有").
+//
+// T-448 (FR-147.2): a remote repository with listRemoteFolderItems=true
+// merges its upstream-derived display rows into the listing (browse.go);
+// with the flag off — the default — the listing is exactly the T-406 cache
+// face and the upstream is never probed (behavior diff zero by
+// construction). List is listRows without the remote layer's degradation
+// note; the RemoteBrowsePlane twin carries the note.
 func (s *service) List(ctx context.Context, p *Principal, repoKey, prefix string) ([]*metadata.Node, error) {
+	nodes, _, err := s.listRowsChecked(ctx, p, repoKey, prefix)
+	return nodes, err
+}
+
+// ListWithRemote implements RemoteBrowsePlane: the same listing walk as
+// List plus the remote-browse layer's state note, so a consumer that
+// renders the optional档's error state (T-461's tree) can show it beside
+// the cached rows instead of guessing why the remote layer went quiet.
+func (s *service) ListWithRemote(ctx context.Context, p *Principal, repoKey, prefix string) (*RemoteBrowseListing, error) {
+	nodes, degraded, err := s.listRowsChecked(ctx, p, repoKey, prefix)
+	if err != nil {
+		return nil, err
+	}
+	return &RemoteBrowseListing{Nodes: nodes, RemoteDegraded: degraded}, nil
+}
+
+// listRowsChecked is the shared listing pipeline's front half: prefix
+// normalization, repository resolution and the read gate — then listRows
+// (browse.go) dispatches by class and folds the optional档's derived rows.
+func (s *service) listRowsChecked(ctx context.Context, p *Principal, repoKey, prefix string) ([]*metadata.Node, string, error) {
 	if prefix != "" {
 		prefix = strings.TrimSuffix(prefix, "/")
 		if prefix == "" { // was exactly "/"
-			return nil, fmt.Errorf("%w: the repository root is not a listable prefix", ErrInvalidPath)
+			return nil, "", fmt.Errorf("%w: the repository root is not a listable prefix", ErrInvalidPath)
 		}
 		if err := validateNodePath(prefix); err != nil {
-			return nil, err
+			return nil, "", err
 		}
 	}
 	row, err := s.loadRepoRow(ctx, repoKey)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if !s.allow(ctx, p, repoKey, prefix, ActionRead) {
 		if p == nil {
-			return nil, fmt.Errorf("read %s/%s: %w", repoKey, prefix, ErrUnauthorized)
+			return nil, "", fmt.Errorf("read %s/%s: %w", repoKey, prefix, ErrUnauthorized)
 		}
-		return nil, fmt.Errorf("read %s/%s: %w", repoKey, prefix, ErrForbidden)
+		return nil, "", fmt.Errorf("read %s/%s: %w", repoKey, prefix, ErrForbidden)
 	}
-	if row.Type == TypeVirtual {
-		return s.listVirtual(ctx, repoKey, prefix)
-	}
-	nodes, err := s.md.Nodes().ListByPrefix(ctx, repoKey, prefix)
-	if err != nil {
-		return nil, fmt.Errorf("list %s/%s: %w", repoKey, prefix, err)
-	}
-	return nodes, nil
+	return s.listRows(ctx, p, row, prefix)
 }
 
 // ---- Docker use cases (M2, FR-7 through FR-9) ----
