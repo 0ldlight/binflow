@@ -199,7 +199,10 @@ type Target struct {
 // PermissionRow is one (target, principal) grant row (mirrors
 // metadata.PermissionPrincipal). PrincipalType is "user" in M1; groups are
 // M4 and non-user rows are ignored by the authorizer. CanManage (M7,
-// ADR-0026) is the repo-scoped admin bit — see ActionManage.
+// ADR-0026) is the repo-scoped admin bit — see ActionManage. CanAnnotate
+// (M16 T-444, ADR-0044 K68) is the property-write bit — see ActionAnnotate;
+// migration 023 backfilled it onto every can_write row so the write→
+// deploy-cache/annotate split is privilege-preserving for existing grants.
 type PermissionRow struct {
 	ID            int64
 	TargetName    string
@@ -209,6 +212,7 @@ type PermissionRow struct {
 	CanWrite      bool
 	CanDelete     bool
 	CanManage     bool
+	CanAnnotate   bool
 }
 
 // permissionSource is the consumer-side slice of metadata.PermissionStore.

@@ -109,6 +109,13 @@ one-to-one when the dialect lands):
   subsets, incremental, retention rotation, zip, mail-on-error) are
   deliberately absent. Nothing is preseeded. Statements are
   dialect-common (booleans as 0/1 on the sqlite side, BOOLEAN here).
+- 023_annotate_action: permission_principals.can_annotate INTEGER — the 'a'
+  (annotate) action bit, the property-write half of the write verb's split
+  (M16 T-444, FR-146.1 / ADR-0044 K68). Zero-privilege equivalence backfill:
+  every existing can_write=1 row becomes can_annotate=1 (the pre-split
+  property-write gate was `w`); can_write keeps its name and code (deploy/
+  cache stay one merged column — the wire word write -> deploy-cache is
+  presentation only). Statements are dialect-common.
 
 The migrator currently embeds `migrations/sqlite/*.sql` only
 (see ../migrate.go).

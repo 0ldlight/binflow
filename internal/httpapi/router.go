@@ -875,7 +875,7 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		if _, ok := r.URL.Query()["permissions"]; ok && r.Method == http.MethodGet {
 			// SE-08 (T-97 review B2, M7 family 7): the effective-permission
 			// view is MANAGEMENT-plane data — it enumerates principal names
-			// and their r/w/d/m distribution — so it walks the single-repo
+			// and their r/w/d/m/a distribution — so it walks the single-repo
 			// manage gate: admin and readonly_admin read it, a plain user
 			// needs the m action on the repository (upstream's first door on
 			// this arm is canManage; BinFlow's m is the same question). An
@@ -894,11 +894,12 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 			// route as a third query arm. GET keeps the item-info read gate
 			// (content-plane semantics, anonymous follows the flag); the
 			// mutating verbs demand authentication at the route and the
-			// path's `w` inside the handler (the same Authorizer the
-			// content plane consults — properties are metadata, not content,
-			// so no overwrite/`d` coupling). Every other verb on the arm
-			// falls to the E-26 404 below, the family's frozen posture for
-			// spellings it does not define.
+			// path's `a` (annotate) inside the handler (the same Authorizer
+			// the content plane consults — properties are metadata, not
+			// content, so no overwrite/`d` coupling and no upload/`w` face;
+			// the M16 verb split, T-444 / ADR-0044 K68). Every other verb on
+			// the arm falls to the E-26 404 below, the family's frozen
+			// posture for spellings it does not define.
 			switch r.Method {
 			case http.MethodGet:
 				s.enforce(w, r, routeAuth{}, func(w http.ResponseWriter, r *http.Request) {

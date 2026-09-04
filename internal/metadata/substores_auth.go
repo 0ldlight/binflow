@@ -386,12 +386,13 @@ func (s *permissionStore) PutTarget(ctx context.Context, t *PermissionTarget, pr
 		return wrapExec("permission put-target clear principals", t.Name, err)
 	}
 	const insertPrincipal = `INSERT INTO permission_principals
-		(target_name, principal, principal_type, can_read, can_write, can_delete, can_manage)
-		VALUES (?, ?, ?, ?, ?, ?, ?)`
+		(target_name, principal, principal_type, can_read, can_write, can_delete, can_manage, can_annotate)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
 	for _, p := range principals {
 		if _, err := tx.ExecContext(ctx, insertPrincipal,
 			t.Name, p.Principal, p.PrincipalType,
-			boolToInt(p.CanRead), boolToInt(p.CanWrite), boolToInt(p.CanDelete), boolToInt(p.CanManage)); err != nil {
+			boolToInt(p.CanRead), boolToInt(p.CanWrite), boolToInt(p.CanDelete), boolToInt(p.CanManage),
+			boolToInt(p.CanAnnotate)); err != nil {
 			return wrapExec("permission put-target principal "+p.Principal, t.Name, err)
 		}
 	}
@@ -420,7 +421,7 @@ func (s *permissionStore) GetTarget(ctx context.Context, name string) (*Permissi
 	}
 
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, target_name, principal, principal_type, can_read, can_write, can_delete, can_manage
+		`SELECT id, target_name, principal, principal_type, can_read, can_write, can_delete, can_manage, can_annotate
 		FROM permission_principals WHERE target_name = ? ORDER BY principal`, name)
 	if err != nil {
 		return nil, nil, wrapExec("permission get principals", name, err)
@@ -429,11 +430,12 @@ func (s *permissionStore) GetTarget(ctx context.Context, name string) (*Permissi
 	var out []*PermissionPrincipal
 	for rows.Next() {
 		p := &PermissionPrincipal{}
-		var canRead, canWrite, canDelete, canManage int
-		if err := rows.Scan(&p.ID, &p.TargetName, &p.Principal, &p.PrincipalType, &canRead, &canWrite, &canDelete, &canManage); err != nil {
+		var canRead, canWrite, canDelete, canManage, canAnnotate int
+		if err := rows.Scan(&p.ID, &p.TargetName, &p.Principal, &p.PrincipalType, &canRead, &canWrite, &canDelete, &canManage, &canAnnotate); err != nil {
 			return nil, nil, wrapExec("permission get principals scan", name, err)
 		}
-		p.CanRead, p.CanWrite, p.CanDelete, p.CanManage = canRead != 0, canWrite != 0, canDelete != 0, canManage != 0
+		p.CanRead, p.CanWrite, p.CanDelete, p.CanManage, p.CanAnnotate =
+			canRead != 0, canWrite != 0, canDelete != 0, canManage != 0, canAnnotate != 0
 		out = append(out, p)
 	}
 	if err := rows.Err(); err != nil {
@@ -485,7 +487,7 @@ func (s *permissionStore) PrincipalsFor(ctx context.Context, repoKey string) ([]
 	// repos is a JSON array of repo keys; the LIKE match over the quoted key
 	// is exact enough for M1 (keys cannot contain quotes or JSON specials).
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT p.id, p.target_name, p.principal, p.principal_type, p.can_read, p.can_write, p.can_delete, p.can_manage
+		`SELECT p.id, p.target_name, p.principal, p.principal_type, p.can_read, p.can_write, p.can_delete, p.can_manage, p.can_annotate
 		FROM permission_principals p
 		JOIN permission_targets t ON t.name = p.target_name
 		WHERE t.repos LIKE ? ESCAPE '\'
@@ -498,11 +500,12 @@ func (s *permissionStore) PrincipalsFor(ctx context.Context, repoKey string) ([]
 	var out []*PermissionPrincipal
 	for rows.Next() {
 		p := &PermissionPrincipal{}
-		var canRead, canWrite, canDelete, canManage int
-		if err := rows.Scan(&p.ID, &p.TargetName, &p.Principal, &p.PrincipalType, &canRead, &canWrite, &canDelete, &canManage); err != nil {
+		var canRead, canWrite, canDelete, canManage, canAnnotate int
+		if err := rows.Scan(&p.ID, &p.TargetName, &p.Principal, &p.PrincipalType, &canRead, &canWrite, &canDelete, &canManage, &canAnnotate); err != nil {
 			return nil, wrapExec("permission principals-for scan", repoKey, err)
 		}
-		p.CanRead, p.CanWrite, p.CanDelete, p.CanManage = canRead != 0, canWrite != 0, canDelete != 0, canManage != 0
+		p.CanRead, p.CanWrite, p.CanDelete, p.CanManage, p.CanAnnotate =
+			canRead != 0, canWrite != 0, canDelete != 0, canManage != 0, canAnnotate != 0
 		out = append(out, p)
 	}
 	if err := rows.Err(); err != nil {
@@ -518,7 +521,7 @@ func (s *permissionStore) PrincipalsFor(ctx context.Context, repoKey string) ([]
 // reaches auth's coverage walk.
 func (s *permissionStore) Principals(ctx context.Context) ([]*PermissionPrincipal, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT p.id, p.target_name, p.principal, p.principal_type, p.can_read, p.can_write, p.can_delete, p.can_manage
+		`SELECT p.id, p.target_name, p.principal, p.principal_type, p.can_read, p.can_write, p.can_delete, p.can_manage, p.can_annotate
 		FROM permission_principals p
 		JOIN permission_targets t ON t.name = p.target_name
 		ORDER BY p.target_name, p.principal`)
@@ -529,11 +532,12 @@ func (s *permissionStore) Principals(ctx context.Context) ([]*PermissionPrincipa
 	var out []*PermissionPrincipal
 	for rows.Next() {
 		p := &PermissionPrincipal{}
-		var canRead, canWrite, canDelete, canManage int
-		if err := rows.Scan(&p.ID, &p.TargetName, &p.Principal, &p.PrincipalType, &canRead, &canWrite, &canDelete, &canManage); err != nil {
+		var canRead, canWrite, canDelete, canManage, canAnnotate int
+		if err := rows.Scan(&p.ID, &p.TargetName, &p.Principal, &p.PrincipalType, &canRead, &canWrite, &canDelete, &canManage, &canAnnotate); err != nil {
 			return nil, wrapExec("permission principals scan", "", err)
 		}
-		p.CanRead, p.CanWrite, p.CanDelete, p.CanManage = canRead != 0, canWrite != 0, canDelete != 0, canManage != 0
+		p.CanRead, p.CanWrite, p.CanDelete, p.CanManage, p.CanAnnotate =
+			canRead != 0, canWrite != 0, canDelete != 0, canManage != 0, canAnnotate != 0
 		out = append(out, p)
 	}
 	if err := rows.Err(); err != nil {

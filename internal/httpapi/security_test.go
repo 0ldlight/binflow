@@ -869,8 +869,10 @@ func TestPermissionsCRUD(t *testing.T) {
 		for _, a := range tg.Principals.Users["ci-bot"] {
 			actions[a] = true
 		}
-		if !actions["read"] || !actions["write"] || actions["delete"] {
-			t.Fatalf("actions = %v, want {read, write} only", tg.Principals.Users["ci-bot"])
+		// T-444 (ADR-0044 K68): the body said "write", the echo renders the
+		// canonical deploy-cache — the alias arm is receive-only.
+		if !actions["read"] || !actions["deploy-cache"] || actions["delete"] {
+			t.Fatalf("actions = %v, want {read, deploy-cache} only", tg.Principals.Users["ci-bot"])
 		}
 	})
 
@@ -922,11 +924,12 @@ func TestPermissionsCRUD(t *testing.T) {
 			{"missing repos", `{"name":"x1"}`, http.StatusBadRequest},
 			{"unknown repo", `{"name":"x2","repos":["ghost"]}`, http.StatusBadRequest},
 			{"unknown user", `{"name":"x3","repos":["generic-local"],"principals":{"users":{"ghost":["read"]}}}`, http.StatusBadRequest},
-			// "manage" left this ladder with T-217 (PRD M7 section 5.6
-			// reversal table: the action set gains manage); the genuinely
-			// unknown spellings keep refusing — annotate is the spec's
-			// next action word and deliberately NOT followed.
-			{"unknown action", `{"name":"x4","repos":["generic-local"],"principals":{"users":{"ci-bot":["annotate"]}}}`, http.StatusBadRequest},
+			// "manage" left this ladder with T-217 and "annotate" with
+			// T-444 (ADR-0044 K68: the action set's five words are all
+			// live); the genuinely unknown spellings keep refusing —
+			// "distribute" is the reference's action BinFlow deliberately
+			// does not implement.
+			{"unknown action", `{"name":"x4","repos":["generic-local"],"principals":{"users":{"ci-bot":["distribute"]}}}`, http.StatusBadRequest},
 		} {
 			resp := h.do(http.MethodPost, "/binflow/api/v1/permissions", adminUser, adminPass,
 				[]byte(tc.body), map[string]string{"Content-Type": "application/json"})

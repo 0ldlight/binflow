@@ -104,12 +104,15 @@ func rowCoversPrincipal(row PermissionRow, p *Principal) bool {
 // view (SE-08): which of read/write/delete one principal holds on one repo
 // path through the targets covering it, plus Manage (M7, ADR-0026) — the
 // repo-scoped admin bit, which a target carries for the principal whenever
-// it lists the repo, regardless of the path patterns.
+// it lists the repo, regardless of the path patterns — and Annotate (M16
+// T-444, ADR-0044 K68), the property-write bit, a path-plane action merged
+// like r/w/d.
 type PrincipalBits struct {
-	Read   bool
-	Write  bool
-	Delete bool
-	Manage bool
+	Read     bool
+	Write    bool
+	Delete   bool
+	Manage   bool
+	Annotate bool
 }
 
 // ItemPrincipals computes the effective-permission view of (repoKey, path)
@@ -146,6 +149,7 @@ func (s *Service) ItemPrincipals(ctx context.Context, repoKey, path string) (use
 		b.Read = b.Read || row.CanRead
 		b.Write = b.Write || row.CanWrite
 		b.Delete = b.Delete || row.CanDelete
+		b.Annotate = b.Annotate || row.CanAnnotate
 		m[row.Principal] = b
 	}
 	for _, row := range rows {

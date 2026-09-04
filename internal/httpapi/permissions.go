@@ -34,6 +34,16 @@ import (
 // accept and echo "manage" (docs/reverse/auth-model.md section 4's action
 // set subset; existing targets without the bit behave exactly as before).
 //
+// T-444 (M16, FR-146.1 / ADR-0044 K68 / architecture section 25.6): the
+// action vocabulary renews to {read, deploy-cache, annotate, delete,
+// manage} — the reference's five permission-matrix columns. "write" stays
+// ACCEPTED on POST as a deploy-cache alias (legacy scripts keep working;
+// removal evaluated M17) but the GET echo renders the canonical single
+// form: the compat arm is receive-only. The DB column (can_write) and the
+// internal code (w) are unchanged — deploy/cache stay one merged column;
+// the split that happened is the property-write face (annotate, its own
+// bit since migration 023), not a deploy/cache separation.
+//
 // T-254 (M9 E6, ADR-0030 / architecture section 14.1.6) completes the
 // family's READ arm through the same move: GET /api/v1/permissions with a
 // non-empty ?filter= rides a required-only route and handlePermissionList
@@ -216,19 +226,33 @@ func (s *Server) handlePermissionCreate(w http.ResponseWriter, r *http.Request) 
 				switch strings.ToLower(strings.TrimSpace(a)) {
 				case "read":
 					row.CanRead = true
-				case "write":
+				case "deploy-cache":
+					// T-444 (FR-146.1 / ADR-0044 K68): the canonical write
+					// word — deploy/cache stay one merged column (can_write),
+					// the reference's Deploy/Cache parity.
 					row.CanWrite = true
+				case "write":
+					// T-444: the legacy spelling, accepted as the
+					// deploy-cache alias for one compat round (K68 point 2:
+					// existing scripts and the pre-T-455 console keep
+					// working; removal evaluated M17). It grants deploy-cache
+					// ONLY — annotate is its own word now, and the alias does
+					// not silently carry the property-write face.
+					row.CanWrite = true
+				case "annotate":
+					// T-444: the property-write action (the ?properties
+					// family's PUT/DELETE gate) — its own grant, no longer
+					// the write action's shadow.
+					row.CanAnnotate = true
 				case "delete":
 					row.CanDelete = true
 				case "manage":
 					// T-217 (FR-65): the repo-scoped admin bit joins the wire
-					// action set — auth-model.md section 4's manage action,
-					// the only widening beyond r/w/d (annotate and friends
-					// stay refused below).
+					// action set — auth-model.md section 4's manage action.
 					row.CanManage = true
 				default:
 					writePlainError(w, http.StatusBadRequest, fmt.Sprintf(
-						"unknown permission action %q (supported: read, write, delete, manage)", a))
+						"unknown permission action %q (supported: read, deploy-cache, annotate, delete, manage; write is accepted as a deploy-cache alias)", a))
 					return false
 				}
 			}
@@ -456,14 +480,18 @@ func permissionBodyOf(t *metadata.PermissionTarget, repos []string, rows []*meta
 	}
 	for _, row := range rows {
 		// T-217 (FR-65): the manage bit echoes in the same r/w/d order
-		// plus m — the wire's round-trip of the family-4 exception (what
-		// was granted through "manage" must read back through "manage").
-		actions := make([]string, 0, 4)
+		// plus m. T-444 (ADR-0044 K68): the write word echoes its canonical
+		// deploy-cache form (the alias arm is receive-only) and annotate
+		// takes its own column — the reference's five-column order.
+		actions := make([]string, 0, 5)
 		if row.CanRead {
 			actions = append(actions, "read")
 		}
 		if row.CanWrite {
-			actions = append(actions, "write")
+			actions = append(actions, "deploy-cache")
+		}
+		if row.CanAnnotate {
+			actions = append(actions, "annotate")
 		}
 		if row.CanDelete {
 			actions = append(actions, "delete")

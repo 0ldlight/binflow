@@ -269,8 +269,8 @@ type permissionViewer interface {
 
 // permissionsView is the GET /api/storage/{repo}/{path}?permissions body
 // (SE-08): the item uri plus the effective principal view, users and groups,
-// each a map from the PRINCIPAL NAME to the permission letters (r/w/d) it
-// holds on the item through the targets covering the path:
+// each a map from the PRINCIPAL NAME to the permission letters (r/w/d/m/a)
+// it holds on the item through the targets covering the path:
 //
 //	{"uri":..., "principals":{"users":{"jane":["r"]},"groups":{"devs":["r","w"]}}}
 //
@@ -362,10 +362,14 @@ func (s *Server) handleStoragePermissions(w http.ResponseWriter, r *http.Request
 // manage bit, orthogonal to the path-plane letters and carried by any
 // target that lists the repository (auth.PrincipalBits.Manage computes it
 // with Can's exact predicate, so the view and the decision cannot diverge).
+// M16 (T-444, ADR-0044 K68) appends the a letter — annotate, the
+// property-write bit, rendered with BinFlow's internal compact code (the
+// reference spells the annotate letter 'n'; BinFlow's closed action set
+// uses 'a', the internal-code/wire-word layering K68 point 2 pins).
 func principalLetters(m map[string]auth.PrincipalBits) map[string][]string {
 	out := map[string][]string{}
 	for name, bits := range m {
-		letters := make([]string, 0, 4)
+		letters := make([]string, 0, 5)
 		if bits.Read {
 			letters = append(letters, "r")
 		}
@@ -377,6 +381,9 @@ func principalLetters(m map[string]auth.PrincipalBits) map[string][]string {
 		}
 		if bits.Manage {
 			letters = append(letters, "m")
+		}
+		if bits.Annotate {
+			letters = append(letters, "a")
 		}
 		if len(letters) > 0 {
 			out[name] = letters

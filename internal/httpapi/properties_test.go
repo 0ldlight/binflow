@@ -314,16 +314,21 @@ func TestStoragePropertiesFolderRecursive(t *testing.T) {
 
 func TestStoragePropertiesPermissions(t *testing.T) {
 	// The gates: GET rides the item-info read plane (anonymous follows the
-	// flag); PUT/DELETE demand authentication plus the path's `w` — with no
-	// overwrite (`d`) coupling (section 15.3.3).
+	// flag); PUT/DELETE demand authentication plus the path's `a`
+	// (annotate) — the T-444 split (ADR-0044 K68): the property-write face
+	// is its own action now, still with no overwrite (`d`) coupling
+	// (section 15.3.3).
 	h := newHarnessCfg(t, func(c *mutatedConfig) { c.Security.AnonymousAccess = true },
-		[][2]string{{"plainuser", "plainpass"}, {"writer", "writerpass"}})
+		[][2]string{{"plainuser", "plainpass"}, {"writer", "writerpass"}, {"annotator", "annotatorpass"}})
 	seedRepo(t, h, "generic-local")
 	putContent(t, h, "/binflow/generic-local/sec/app.bin;env=prod", "app")
 
-	// plainuser holds read only; writer holds write on sec/.
+	// plainuser holds read only; writer holds write WITHOUT annotate (the
+	// split probe — pre-T-444 the write grant carried the property face);
+	// annotator holds read+annotate without any content face.
 	grant(t, h, "sec-read", "generic-local", "sec/**", "plainuser", true, false, false)
 	grant(t, h, "sec-write", "generic-local", "sec/**", "writer", true, true, false)
+	grantBitsHTTP(t, h, "sec-annotate", "annotator", true, false, false, false, true)
 
 	const base = "/binflow/api/storage/generic-local/sec/app.bin"
 
@@ -351,12 +356,22 @@ func TestStoragePropertiesPermissions(t *testing.T) {
 			t.Fatalf("anonymous DELETE status = %d", s)
 		}
 	})
-	t.Run("writer writes and deletes without holding d", func(t *testing.T) {
-		if s := doProps(t, h, http.MethodPut, base+"?properties=qa=passed", "writer", "writerpass"); s != http.StatusNoContent {
-			t.Fatalf("writer PUT status = %d", s)
+	t.Run("writer without annotate meets the split's 403 (T-444)", func(t *testing.T) {
+		// The write grant alone no longer carries the property face — the
+		// alias-era shadow is gone (K68 point 5's "w without a" probe).
+		if s := doProps(t, h, http.MethodPut, base+"?properties=qa=1", "writer", "writerpass"); s != http.StatusForbidden {
+			t.Fatalf("writer (w, no a) PUT status = %d, want 403", s)
 		}
-		if s := doProps(t, h, http.MethodDelete, base+"?properties=qa", "writer", "writerpass"); s != http.StatusNoContent {
-			t.Fatalf("writer DELETE status = %d", s)
+		if s := doProps(t, h, http.MethodDelete, base+"?properties=env", "writer", "writerpass"); s != http.StatusForbidden {
+			t.Fatalf("writer (w, no a) DELETE status = %d, want 403", s)
+		}
+	})
+	t.Run("annotator writes and deletes properties without holding w or d", func(t *testing.T) {
+		if s := doProps(t, h, http.MethodPut, base+"?properties=qa=passed", "annotator", "annotatorpass"); s != http.StatusNoContent {
+			t.Fatalf("annotator PUT status = %d", s)
+		}
+		if s := doProps(t, h, http.MethodDelete, base+"?properties=qa", "annotator", "annotatorpass"); s != http.StatusNoContent {
+			t.Fatalf("annotator DELETE status = %d", s)
 		}
 		// A write-grant-only reader of a DIFFERENT subtree stays fenced.
 		if s, _ := getProps(t, h, base+"?properties=env", "nosuch", "nosuch"); s != http.StatusUnauthorized {

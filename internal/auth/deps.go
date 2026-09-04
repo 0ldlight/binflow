@@ -195,7 +195,7 @@ func (a permissionStoreAdapter) PrincipalsFor(ctx context.Context, repoKey strin
 			ID: p.ID, TargetName: p.TargetName, Principal: p.Principal,
 			PrincipalType: p.PrincipalType,
 			CanRead:       p.CanRead, CanWrite: p.CanWrite, CanDelete: p.CanDelete,
-			CanManage: p.CanManage,
+			CanManage: p.CanManage, CanAnnotate: p.CanAnnotate,
 		}
 	}
 	return out, nil
@@ -214,7 +214,7 @@ func (a permissionStoreAdapter) Principals(ctx context.Context) ([]PermissionRow
 			ID: p.ID, TargetName: p.TargetName, Principal: p.Principal,
 			PrincipalType: p.PrincipalType,
 			CanRead:       p.CanRead, CanWrite: p.CanWrite, CanDelete: p.CanDelete,
-			CanManage: p.CanManage,
+			CanManage: p.CanManage, CanAnnotate: p.CanAnnotate,
 		}
 	}
 	return out, nil
