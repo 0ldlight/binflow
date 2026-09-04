@@ -51,6 +51,7 @@
 | v1.32 | 2026-09-03 | T-437 版本史补记 + M16 翻案联动预登记（M16 B1 前置锚票，FR-141.2——parity 册 v1.5 同场落盘；**本版零锚变更**，ledger 无涉）：① **v1.30 行补记**（T-434 遗留归位——T-422 §0 版本史行缺席，见上；ux 复核盖章同场清偿）；② **翻案联动预登记（防失锚）**：E2 分页翻案（Q4/LC-98——T-451 页码控件 ×9）牵本册 §6「加载更多」大目录策略条款——**正式条款回写归 T-451 票内**（届时版本递增），本行预登记挂起态（分治口径已冻结于 parity 册 §5 L4 v1.5 注 + §11.2：管理列表/结果表页码、树/大目录维持增量）；E6 双语翻案（Q3/FR-149）牵 §1.2「UI 文案为中文」条款——两包条款升格归 T-463/T-464 票内回写，预登记同款；③ parity 册 v1.5（E1/E2/E5/E6/R4 翻案 + §9A stay-out + §11 K67 冻结 + §12 B 47 项归属表）落盘——**树栈 as-built 断言锚（K67）冻结于彼册 §11，本册 §10.5 T-434 批登记块为锚名权威源不变**；i18n 锚 id 与文案解耦纪律（T-463 承接）自本行起在案 |
 | v1.33 | 2026-09-03 | T-439 表单三段步进 + 字段域补齐（M16 批次② 首票，FR-143.1/.2——B-2.5 + B-1.5 + B-3.12 + B-3.11〔Q8/Q9 冻结兑现〕）：① **T-439 批 13 名锚入册**（`form-step-{basic\|advanced\|replications}` 步进条三枚——对位 Artifactory 7.161.20 实测 jf-steps 三步条〔conductor 本机 :8082 活体探测，read-only 差集法——形态以 7.161 为准推翻/确认 7.84 审计材料的步进条无 ambiguity〕；预留位族 9 名〔`form-reserved-{basic\|advanced}` 组根 + `form-repo-layout` / `form-environments` / `form-internal-description` / `form-blacked-out` / `form-archive-browsing` / `form-max-unique-snapshots` / `form-suppress-pom`〕；实字段 `form-force-auth`——明细见 §10.5 T-439 批块）；② **`form-reset` 退役入 §10.6**（B-3.11/Q9 终裁：footer 对齐 M1 锚点 Cancel + Create/Save 两钮——7.161 实测页脚无 Reset；baseline 态随钮退役）；③ 六节分驻两步：`form-section-*` 锚零改名、非活跃步整步卸载（count 0 非 CSS 隐藏）；`form-section-replications` 载体自内嵌第七节迁第三步（M6 复制配置语义零变化，?section=replications 深链直落）；④ 字段域八域活体定档（scratch 实例 PUT→GET 对账）：七域后端无承接〔四域 decode-only：repoLayoutRef/blackedOut/maxUniqueSnapshots/archiveBrowsingEnabled——transport 解码不 400 但 configJSON 不转发；三域无解码位：environments/notes/suppressPomConsistencyChecks〕→ 预留位（恒禁用零提交，R3 先例）；一域实字段〔forceConanAuthentication——local × conan，T-355A 全收 + adapter 行为〕——**PRD「API 已收全」证据仅覆盖解码层，契约漂移在案**（票内登记 + API 漂移钉 tripwire 断言 + repoLayoutRef 布局解析联动评估 K70）；⑤ e2e 新面 `web/e2e/m16/t439-form-stepper.spec.ts`（八域表驱动 + 步进导航 + 深链 + footer 移除 + payload 净度网络层对账 + API 漂移钉 + axe 双主题）+ 既有 spec 翻新 ×4（t383 六节矩阵步进感知 / m8 repositories-admin readonly 腿 / repositories 建仓-编辑腿 / t404 全部 /edit 导航改 ?section=replications 深链）；⑥ 服务端 diff=0（纯 FE 票） |
 | v1.35 | 2026-09-03 | T-443 列表列集 + 入口分路由 + dirty-gating + remote Test 消费（M16 批次② FE②-c，FR-143.4/.5——B-3.8 翻正收口 + B-3.9 翻正 + B-3.6 落位）：① **T-443 批 9 名锚入册**（`repos-create-menu` + `repos-create-{local\|remote\|virtual}`——列表入口自平钮翻 Create a Repository 下拉三预选〔7.161.20 活体形态：型名 + 一句描述行，m16-baseline-refresh §A3-1/证据 s3e-create-dropdown〕，选中即分路由深链 `/admin/repositories/<rclass>/new`〔三静态路由承 rclass prop；旧 `/new`+`?rclass=` 直链经路由表兼容映射 replace——7 处跨页 emitter 零改动；非法段落 404〕；`form-rclass-note`——**表单内 rclass 控件移除**后的仓型语境行〔非交互件〕；`form-test` / `form-test-result` / `form-test-create-note`——remote Test 连接〔消费 T-442 端点 POST /api/repositories/{key}/test：编辑态 × remote 在场〔7.161 实测落 Basic 步凭据组旁〕，三臂内联呈现——成功绿/凭据被拒红〔message 原文〕/不可达红〔status_code 0〕；草稿臂 = url/username/password 对基线逐字段 diff〔带密码 = 明文凭据对 / 仅改 url 或 username = 匿名探测 / 零改动 = 已存配置探测〕；建仓态给 hint 不给死按钮〕——明细见 §10.5 T-443 批块）；② **退役 4 名入 §10.6**（`form-rclass-{local\|remote\|virtual}`——仓型单选组〔B-3.8：分路由预选取代〕+ `repos-columns-item-type`——列选项「类型」〔Q9/B-3.9 冗余列收敛：三 Tab 子路由即类型〕）；③ 列表列集对齐（B-3.9）：Replications 列自 T-404 的仅 local 扩 **local + remote 两 Tab**〔push-only 口径注记在表头 title——ADR-0021/parity §6A R10：BinFlow 无 pull 复制，remote 页签如实呈现以该仓为源的 push 配置；t404 spec 旧「remote 无列」断言翻转——空 remote Tab 的空洞断言在票内复核发现〕；Project 列缺位登记不伪造（§9A-S8 同口径）；④ dirty-gating 无新锚（进入编辑 Save disabled → 变更 enabled → 改回再 disabled；断言走既有 `form-submit` 禁用态 + title 原因文案）；⑤ e2e 新面 `web/e2e/m16/t443-list-entry-dirty-test.spec.ts`（五腿：入口/列集/dirty/Test 三臂+零副作用/axe 双主题）+ 既有 spec 翻新 ×8（repositories / t104 / t383 / t387 / t404 / t441 / m8 repositories-admin / m8 shell）；⑥ 服务端 diff=0（纯 FE 票） |
+| v1.42 | 2026-09-04 | T-457 FE Profile 自助 Identity Token + ? 帮助下拉 + About 版本弹窗（M16 批次④ B11，FR-145.4/.6a——parity B-1.8/B-2.17 翻正承载）：① **T-457 批 27 名锚入册**（Profile 自助签发族 `profile-token-{generate,dialog,ttl,submit,cancel,error,plaintext,value,id,curl,done,stepup,password,password-submit,password-error}` 15 名〔生成弹窗全链——一次性明文〔关弹窗即不可再取，服务端只存指纹〕+ step-up 口令腿内联 + 即用 curl 样例〕+ SSH 缺位卡 `profile-ssh` / `profile-ssh-gap` 2 名〔后端无 SSH 公钥端点——§9-R11 契约缺口登记，如实缺位零表单〕+ 帮助下拉族 `help-{docs,training,release-notes,about}` 4 名 + 侧栏脚注升格入口 `nav-about` 1 名 + About 弹窗族 `about-{dialog,brand-mark,version,revision,product,close}` 6 名——明细见 §10.5 T-457 批块）；② **锚语义翻新零改名**：`topbar-help`（顶栏帮助纯链接 → ? 下拉触发钮——aria-haspopup/expanded；Documentation 项承接原 /binflow/docs/ 外链形态）、`profile-token`（API Token 说明卡 → Identity Token 自助签发真身——「签发指到 admin Tokens 页」的文档化设计推翻〔B-1.8〕；`profile-token-docs`/`profile-token-goto` 维持全员可见，后者语义收窄为管理面二级入口）、`nav-version`（侧栏脚注行载体 Typography → ListItemButton〔点击开 About〕，版本呈现零变化）；③ **帮助下拉四项**（B-2.17，FR-145.6a 定案集）：Documentation（/binflow/docs/ 外链）/ Online Training（无对应服务——7.161 活体处置：禁用占位 + 行内如实注记，不伪造外链）/ Release Notes（实链 /binflow/docs/install/upgrade「升级与版本说明」页）/ About（版本弹窗入口）；7.161.20 活体平台菜单实为 JFrog Documentation / JFrog Academy / Navigation Tour 三项无 About/Release Notes（探针 reports/agents/t457-probe/——差异留痕 parity 册 B-2.17）；④ **About 版本弹窗**：消费 /api/system/version（version/revision/product 三值 mono 呈现 + 品牌位；失败 = — 不伪装〔Q4〕）；双入口 = help-about + nav-about（侧栏脚注 vdev 行升格）；⑤ e2e 新面 `web/e2e/m16/t457-profile-help-about.spec.ts`（六腿：admin 自铸全链〔一次性明文 + Bearer/curl-Basic 双臂即用对账 + 关闭/刷新不可再取 + 吊销收尾〕/ user 自铸〔有限期闭集无永不过期 + 无代人签发 + 主体对账 + 内联 500 错误〕/ step-up mock 腿〔ADR 逐字〕/ SSH 缺位反断言〔结构断言零锚引用〕/ 帮助四项 + About 版本对账〔同刻 /api/system/version 比对〕/ axe 双主题三态〔页+菜单+弹窗〕）+ 既有 spec 翻新 ×2（t134-g32 DC-02 / t146-docs G19b-1——topbar-help 链接断言改下拉 Documentation 项断言）；⑥ 服务端 diff=0（纯 FE 票） |
 | v1.41 | 2026-09-04 | T-455 FE 权限矩阵五列 + 两步弹窗步头（M16 批次④ B10 票①，FR-146.1 FE 消费面——T-444 wire 翻新 + parity B-1.6/B-2.16 翻正承载）：① **T-455 批 2 名锚入册**（两步资源对话框可点步头 `perm-res-step-1`/`perm-res-step-2`〔对位 7.161.20 活体 Add Repositories 弹窗双步头常驻可点、aria-current 标当前步——探针证据 reports/agents/t455-probe/〕——明细见 §10.5 T-455 批块）；② **矩阵五列**：编辑器用户/组矩阵 read/annotate/write/delete/manage（列序对位 7.161.20 活体 Repositories 资源型 Read/Annotate/Deploy-Cache/Delete-Overwrite/Manage；7.161 标签进列头 title）——`perm-matrix-cell-<kind>-<principal>-<action>` 冻结族**扩 annotate 成员**（族口径 §10.6，零新族名）、`perm-matrix{,-groups}`/`{user,group}-perm-matrix` 表锚零改名；③ **wire 双层收口**（T-444 消费面）：水合归一（deploy-cache→write）与保存序列化（write→deploy-cache 正名单形）单点收口在 pages/security/api.ts（normalizePermActions/wireActions）；GET echo 断言四处翻新（security:175 / m8 permissions:170,437 / m9 mholder:200——write→deploy-cache）；④ **勾选联动裁定**：write 与 annotate 独立位列、零联动（活体联动形态在 0 仓参照实例不可观测——矩阵门在资源型+行选定之后，登记不伪造；且 T-444 拆分语义 = write 不携带 annotate〔零提权〕，UI 自动联动会越权授予 annotate——独立位列是唯一正确形态）；⑤ e2e 新面 `web/e2e/m16/t455-perm-five-columns.spec.ts`（四腿：五列+annotate 往返+payload 正名单形 / 兼容窗水合〔legacy write→write 列勾选、零漂移禁用、补勾/撤销 annotate 往返〕/ 步头双跳+Next 链 / readonly annotate 只读）+ 既有 spec 翻新 ×4（上述 GET echo 四处）；⑥ 服务端 diff=0（纯 FE 票） |
 | v1.40 | 2026-09-04 | T-453 FE 用户/组路由表单化 + 能力位三旗（M16 批次④ B9，FR-145.1/.3——**断言反转④**：Q5 出口①路由化，parity 册 E5 注销条目的兑现票）：① **T-453 批 9 名锚入册**（页根 `user-create-page`〔/admin/security/users/new〕+ `group-form-page`〔/admin/security/groups/new 与 /groups/:name/edit 两态共用〕+ 只读注记 `user-create-readonly-note`/`group-form-readonly-note`〔readonly_admin 深链防御——L4 列表门外的路由页兜底面〕+ 能力位三旗预留位族 `user-form-reserved-caps`〔组根〕/`user-form-profile-updatable`/`user-form-disable-ui`/`user-form-disable-internal-password`〔BE create/partial-update 均未承接——T-439 预留位两档纪律：恒禁用 + 零提交 + hint 如实标注；现值 = BE 回显出厂档 profile=true 其余 false，与 7.161.20 活体默认档同值〕+ 候裁附注 `user-form-role-parity-note`〔管理位双布尔 vs 枚举——ADR-0026 暂行维持三值枚举 + 差异登记，双布尔不建不伪造〕——明细见 §10.5 T-453 批块）；② **载体迁移零改名**：`user-form`/`user-form-section-{settings|options|password|groups}`/`user-form-{name,email,role,enabled,password,password2,groups,group-<name>,cancel,reset,submit,error}` 与 `group-form`/`group-form-section-{settings,members}`/`group-form-{name,description,member-<name>,cancel,reset,submit,error}` 全族自列表内联展开卡迁路由页（UsersPage/GroupsPage → UserCreatePage/GroupFormPage），锚名零变化；③ **路由面**：`/admin/security/users/new` + `/admin/security/groups/new` + `/admin/security/groups/:name/edit` 三路由（组编辑随内联卡创建/编辑同卡一并路由化——7.161.20 活体 /ui/admin/management/{users,groups}/new 同构，2026-09-04 探针证据 reports/agents/t453-probe/）；页脚 Cancel/Reset/Save 三联保留 **Reset**（7.161 活体：Reset/Save 初始禁置——Reset dirty 门 + Save 必填门；与 T-439 建仓表单移除重置钮的 Q9 处置为页面级差异化配置，差异留痕 parity 册）；创建表单补 `user-form-password2`（Retype——7.161 活体在场，T-384 期「创建态无 Retype」定案翻案）；④ e2e 新面 t453-route-forms（三腿：深链+能力位三件套〔预留位现值/payload 净度/API 漂移钉〕+ 闭环 / 组内联卡退役断言 / readonly 深链 + axe 双主题）+ 既有 spec 翻新 ×5（m8 users-groups / m9 users-groups〔编辑器数据面改路由页口径〕/ m14 t384〔断言反转④改写〕/ security / m8 a11y-sweep〔+2 路由〕）+ rbac 零改动核验；⑤ 服务端 diff=0（纯 FE 票） |
 | v1.39 | 2026-09-04 | T-451 FE 分页控件 ×9 统一（M16 批次③ B8，FR-144.7 / LC-98——**E2 翻案兑现**：Q4 出口①页码控件，v1.32 预登记的 §6 条款回写本版落笔）：① **T-451 批 9 名锚入册**（共享 Pager 控件族 `pager-range`〔「显示 a – b / 共 c 项」range 行——total 未知面如实「末页未知」〕+ `pager-size`/`pager-size-<n>`〔每页行数选择器——档位 20/50/100/200/1000，票内冻结〕+ 四边界钮 `pager-first`/`pager-prev`/`pager-next`/`pager-last` + 页码序列 `pager-page-<n>`〔MUI Pagination，当前页 aria-current 高亮〕+ 审计页脚根 `audit-pager`——明细见 §10.5 T-451 批块）；② **「加载更多」族全量盘点（票内 grep）= 9 面**：8 面迁移页码控件（搜索基本模式 ResultsTable 客户端页窗 / AQL 模式 .offset() 重写 / 审计 keyset 游标页窗 / repos / users / groups / perms / tokens 计数行升级）+ 1 面分治豁免维持增量（制品树 children 表 tree-load-more——§6 分治口径）；③ **退役 4 名入 §10.6**（`audit-more`〔审计「加载更多」钮——keyset 页窗化〕+ `search-more`〔搜索基本模式「加载更多」钮〕+ `search-aql-prev`/`search-aql-next`〔AQL 前后页按钮对〕——E2 翻案：控件形态统一 pager 族；AQL 行为语义锚 search-aql-range 保持）；④ **§6 条款回写**（v1.32 预登记兑现）：条款 1 改「管理列表/结果表 = 页码控件（100/页缺省——docker n 缺省同源），制品树/大目录深浏览维持增量」+ §4.10 审计线框 [加载更多] 行改页码控件；⑤ **语义 C 注**（LC-98）：后端维持 keyset 游标（审计）与 AQL offset——页码在前端映射为页窗（游标链推进/查询文本重写），深翻页 offset 扫描成本规避；末页未知的流式面页数 = 前沿 + 1 逐页揭示（呈现对齐、语义自有）；⑥ e2e 新面 t451-pager-unification（四腿：搜索页窗跳转/档位/边界 / 管理列表单页全链禁置 / AQL 页码+offset 与档位+limit 重写 / axe 双主题）+ 既有 spec 翻新 ×7（governance 审计腿窗口化改写 / t419 分页腿 pager 族 / m8 auxiliary·users-groups·permissions / m9 mholder / m14 t386 计数行文案）；⑦ 服务端 diff=0（纯 FE 票） |
@@ -219,6 +220,8 @@ BinFlow ◆                    ← 产品名 + 版本号（/api/system/version�
 
 - **全局搜索 ⌘K**：聚焦即跳 `/search` 并置焦输入框（跨页快捷键，`/` 键等效）。
 - **顶栏版本号**：来自 `/api/system/version`（如实返回 BinFlow 版本，不伪装——Q4 定案的 UI 侧延续）。
+- **顶栏 ? 帮助下拉（v1.42 / T-457，B-2.17 翻正）**：四项 = Documentation（`/binflow/docs/` 外链，新标签页）/ Online Training（无对应服务——禁用占位 + 行内注记，不伪造外链；7.161 活体此项为 JFrog Academy 外链）/ Release Notes（`/binflow/docs/install/upgrade`「升级与版本说明」）/ About（版本弹窗入口）。
+- **About 版本弹窗（v1.42）**：消费 `/api/system/version` 三值（version/revision/product，mono 呈现；失败 = `—` 不伪装）。双入口 = 帮助下拉 About 项 + 侧栏脚注版本行（vdev 行升格为可点入口）。
 - **toast**：右下角堆叠，成功 5s 自动消失、错误常驻直至手动关闭；toast 内可带一个动作链接（如「查看审计」）。
 - **危险确认对话框**：居中 modal，焦点圈进对话框，Esc 关闭，确认按钮需满足前置（如输入 repo key）才可用。
 
@@ -841,6 +844,7 @@ mono 栈：`ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, "Liberati
 | R8 | 权限 pattern 判定的同源保证：前端测试器与服务端 `auth.pathmatch` 一致（提供判定规则测试向量或一次性判定端点） | 测试器标注「仅供参考，以保存后实际生效为准」（体验降级，不阻塞） |
 | R9 | remote 缓存统计（`/api/v1/remote/stats`，M3 P2）实装 + assumed-offline 状态查询 | remote 详情页统计块显示 `—` |
 | R10 | `/binflow` 前缀下的浏览器可读代理已具备且可携 session 凭据——npm packument GET `/binflow/api/npm/{repo}/{pkg}`、pypi simple GET `/binflow/api/pypi/{repo}/simple/{project}/`（cookie `Path=/binflow` 覆盖；GET 无 CSRF 面）——确认 session 对这些路径等价可用（T-86）。docker tags/list **不作例**（E4 定案：cookie 结构性不达根级 `/v2`，docker 客户端走 `/v2/token` Basic 面——PRD M4 v1.3 CE-03 注记、docs/user/faq.md） | 走 `/api/storage/{repo}/{path}` 兜底（信息少：无 dist-tags 摘要 / 无 simple 归一文件行）；docker tag 面无 session 可携代理（E4），树数据源挂另票 |
+| R11 | Profile SSH Keys 自助管理（v1.42 / T-457 登记）：`GET/PUT/DELETE /api/security/ssh_keys` 类端点（Key 别名 + 公钥登记/删除/清点）——后端现无任何 SSH 公钥端点（7.161 活体 Profile 有 Add New SSH Key + 别名/签名两列表） | Profile 页 SSH Keys 卡如实缺位（`profile-ssh-gap` 注记，零表单零影子入口）——端点落地后补增删表 |
 
 ---
 
@@ -1489,6 +1493,59 @@ mholder:200）；④ 活体差异登记：7.161.20 权限新建/编辑是三步�
 BinFlow 编辑器本体 stay-out（§9A-S1/E4），非 Repositories 资源型不建
 （Build-info/Release Bundle 域 §9A-S8）；⑤ 服务端 diff=0（纯 FE 票）。
 
+**T-457 批 Profile 自助 Identity Token + 帮助下拉/About 锚册（27 名新增 + 0 退役，M16 批次④
+B11，FR-145.4/.6a——parity B-1.8/B-2.17 翻正；7.161.20 活体探针 2026-09-04〔reports/agents/
+t457-probe/——平台菜单实为 JFrog Documentation / JFrog Academy / Navigation Tour 三项，无
+About/Release Notes；7.84 逆向 §3.18 Profile = Generate an Identity Token + Identity Tokens
+表 + Add New SSH Key〕；v1.42；消费 spec = web/e2e/m16/t457-profile-help-about.spec.ts〔本票
+新增〕+ t134-g32 DC-02 / t146-docs G19b-1 翻新）：**
+
+```
+Profile 自助签发族（profile-token 卡语义升格：API Token 说明卡 → Identity
+  Token 自助签发真身——「签发指到 admin Tokens 页」推翻〔B-1.8〕；docs/goto
+  两锚全员可见维持，goto 语义收窄为管理面二级入口）：
+  profile-token-generate（卡内「生成 Identity Token」钮——开弹窗）
+  profile-token-dialog（生成弹窗根，Dialog sm）
+  profile-token-ttl（有效期 select——档位 3600/86400/604800/2592000/31536000
+    + 0〔仅 admin，Q11 护栏〕；默认 86400）
+  profile-token-submit（生成）/ profile-token-cancel（取消）
+  profile-token-error（签发失败内联——HTTP 状态 + message）
+  profile-token-plaintext（一次性明文面板根——关弹窗即不可再取）
+  profile-token-value（令牌明文，64 hex mono + 拷贝）
+  profile-token-id（token_id 呈现——审计 token.issue 对账用）
+  profile-token-curl（即用 curl 样例 -u 用户名:令牌 + 拷贝——Basic 双臂）
+  profile-token-done（「我已保存，关闭」）
+  profile-token-stepup（step-up 二次口令腿 Alert——ADR-0027 内联非二层）
+  profile-token-password / profile-token-password-submit /
+  profile-token-password-error（口令输入/提交/内联错误——401 逐字）
+SSH 缺位卡（后端无 SSH 公钥端点——§9-R11 契约缺口，如实缺位零表单）：
+  profile-ssh（卡根）  profile-ssh-gap（缺位注记 Alert）
+帮助下拉（topbar-help 锚语义翻新零改名：纯链接 → 下拉触发钮；四项集 =
+  FR-145.6a 定案，7.161 活体差异留痕 parity 册 B-2.17）：
+  help-docs（Documentation——/binflow/docs/ 外链新标签页）
+  help-training（Online Training——无对应服务，禁用占位 + 行内注记）
+  help-release-notes（Release Notes——/binflow/docs/install/upgrade 实链）
+  help-about（About——开版本弹窗）
+About 版本弹窗（消费 /api/system/version；失败 = — 不伪装〔Q4〕）：
+  nav-about（侧栏脚注 vdev 行升格的弹窗入口——nav-version 锚不动）
+  about-dialog（弹窗根）/ about-brand-mark（品牌位）
+  about-version / about-revision / about-product（三值 mono 呈现）
+  about-close（关闭）
+```
+
+动词域/联动留痕（T-457，dev-frontend 回写）：① 自助面消费闭集 = 既有
+E-17 POST /api/security/token（silent401 JSON 投影）——零新端点；吊销
+（E-18）是 CapSecurityWrite 管理面写动作，Profile 自助面不摆入口（按
+token_id 吊销仍在 Access Tokens 页）；② 台账不进 Profile：服务端只存
+指纹、无令牌清单端点（§9-R6）——管理面 Access Tokens 页的会话台账是
+该语义的既有承载，Profile 生成弹窗内呈 token_id/有效期供审计对账；
+③ **Access Tokens 持久化牵 L1 列选器重评 = A7 联动登记**（架构约束
+条目：服务端令牌清单端点落地 → Tokens 页台账转持久列表 → L1 列选/
+刷新推广〔T-468 条件池同域〕——本票留痕不承载）；④ SSH Keys 契约缺口
+§9-R11 登记（FE 摆不出没有的端点——profile-ssh-gap 如实缺位）；
+⑤ axe 注记：说明文字内行内链接带下划线（link-in-text-block——LoginPage
+同款先例，MuiLink underline）。
+
 **T-239 应用模式辅助页新锚（17 枚，先入本清单再落码流程兑现；§10.5 表
 `/search` `/profile` 行的承载锚随之改写）**：
 
@@ -1506,7 +1563,9 @@ BinFlow 编辑器本体 stay-out（§9A-S1/E4），非 Repositories 资源型不
         〔客户端页窗——加载更多退役，见 T-451 批〕）
         （search-count 迁为页头计数副标「搜索结果 – N 项」，锚名不变）
 编辑档案：profile-page（页根）  profile-password（认证设置·改密卡）
-        profile-token（API Token 说明卡）  profile-token-docs  profile-token-goto
+        profile-token（**T-457 语义升格**：Identity Token 自助签发真身——批块见上）
+        profile-token-docs  profile-token-goto（管理面二级入口）
+        profile-ssh / profile-ssh-gap（**T-457 新增**——SSH 缺位卡）
         （password-{old,new,confirm,error,submit} 冻结锚随改密表自设置页整体迁址，锚名不变）
 404：   not-found-path（触发 404 的原始路径回显）  not-found-home（回主页链接）
 登录：   login-docs（常驻说明的文档链接）

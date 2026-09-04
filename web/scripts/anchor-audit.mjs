@@ -305,6 +305,14 @@ const STOP = new Set([
   // 简称（permissions-mholder 即 e2e/m9/permissions-mholder.spec.ts——
   // v1.39 users-groups 同款先例），均非锚
   'deploy-cache', 't455-perm-five-columns', 't455-probe', 'permissions-mholder',
+  // v1.42（T-457 行文假阳性）：profile 自助 + 帮助下拉批的标识符引用——
+  // ADR-0027 的二次口令腿措辞（step-up——批次语义描述非锚）/ axe 规则名
+  // （link-in-text-block——批块 axe 注记引用的规则标识，非 testid 锚）/
+  // 翻新 spec 文件名段（t134-g32 / t146-docs 即既有两 spec 的翻新引用）/
+  // 本票新 spec 文件名段（t457-profile-help-about）/ 活体探针证据目录名
+  // （t457-probe 即 reports/agents/t457-probe/ 的 7.161.20 取证），均非锚
+  'step-up', 'link-in-text-block', 't134-g32', 't146-docs',
+  't457-profile-help-about', 't457-probe',
 ])
 const docFams = new Set()
 for (const t of docTokens) {

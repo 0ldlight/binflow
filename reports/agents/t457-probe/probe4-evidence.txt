@@ -1,0 +1,61 @@
+[E1] help dropdown (synthetic click on Get Help and Learn)
+  click: clicked
+[
+ {
+  "cls": "el-p-dropdown-menu el-p-dropdown-menu--large main-dropdown-container i",
+  "text": "Help\nJFrog Documentation\nJFrog Academy\nNavigation Tour",
+  "links": [
+   {
+    "text": "JFrog Documentation",
+    "href": "https://jfrog.com/help"
+   },
+   {
+    "text": "JFrog Academy",
+    "href": "https://academy.jfrog.com"
+   },
+   {
+    "text": "Navigation Tour",
+    "href": null
+   }
+  ]
+ }
+]
+
+[E2] About dialog
+  About item: missing
+  dialogs: []
+
+[E3] user menu → Edit Profile
+  click: clicked
+  user menu: [
+ {
+  "cls": "el-p-dropdown-menu el-p-dropdown-menu--large main-dropdown-container",
+  "text": "a\nadmin\nQuick Repository Creation\nSet Me Up\nEdit Profile\nLogout",
+  "links": []
+ }
+]
+  Edit Profile: clicked
+  profile url: http://localhost:8082/ui/user_profile
+  page text (first 3500):
+    | Skip to main content
+    | WELCOME TO
+    | THE JFROG PLATFORM!
+    | Universal End-to-End DevOps Platform For Continuous Software Releases
+    | Get Started
+    | Don't show me again
+    | Platform
+    | Administration
+    | Use Up and Down arrow keys to navigate recent searches, Enter to select, Esc to dismiss
+    | A
+    | All Projects
+    | Artifactory
+    | Xray
+    | Distribution
+    | AI/ML
+    | Pipelines
+    | Integrations
+    | JFrog Platform
+    | Enterprise Plus trial license 7.161.20 rev 86120900 Licensed to TEST JFrog Ltd.
+    | © Copyright 2026 JFrog Ltd
+    | Get Help and Learn
+    | User Menu

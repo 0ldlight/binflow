@@ -9,6 +9,10 @@ import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
 import Container from '@mui/material/Container'
+import Dialog from '@mui/material/Dialog'
+import DialogActions from '@mui/material/DialogActions'
+import DialogContent from '@mui/material/DialogContent'
+import DialogTitle from '@mui/material/DialogTitle'
 import Divider from '@mui/material/Divider'
 import Drawer from '@mui/material/Drawer'
 import IconButton from '@mui/material/IconButton'
@@ -19,6 +23,7 @@ import ListItemButton from '@mui/material/ListItemButton'
 import Menu from '@mui/material/Menu'
 import MenuItem from '@mui/material/MenuItem'
 import Paper from '@mui/material/Paper'
+import Stack from '@mui/material/Stack'
 import Toolbar from '@mui/material/Toolbar'
 import Typography from '@mui/material/Typography'
 import type { Theme } from '@mui/material/styles'
@@ -411,6 +416,23 @@ export default function AppShell() {
   // 关闭回焦锚钮。T-344 批 A 摘 paper sx 复刻块：菜单壳交 MUI 默认
   // （elevation paper / 主题密度档）。
 
+  // 帮助下拉 + About 版本弹窗（T-457 / FR-145.6a——parity B-2.17 翻正：
+  // 纯链接 → ? 下拉）。四项 = Documentation（/binflow/docs/——console-ux
+  // §3.5 定案链接形态）/ Online Training（无对应服务——按 7.161 活体形态
+  // 处置为禁用占位 + 行内如实注记，登记不伪造）/ Release Notes（实链
+  // docs/user/install/upgrade「升级与版本说明」）/ About（版本弹窗——
+  // 消费 /api/system/version，与侧栏脚注 nav-about 同一入口）。7.161.20
+  // 活体平台菜单 = JFrog Documentation / JFrog Academy / Navigation Tour
+  // 三项（探针 reports/agents/t457-probe/——无 About/Release Notes 项；
+  // 本四项集 = PRD FR-145.6a 定案，差异留痕 parity 册 B-2.17）。
+  const [helpOpen, setHelpOpen] = useState(false)
+  const helpToggleRef = useRef<HTMLButtonElement>(null)
+  const [aboutOpen, setAboutOpen] = useState(false)
+  const openAbout = () => {
+    setHelpOpen(false)
+    setAboutOpen(true)
+  }
+
   const doLogout = async () => {
     setMenuOpen(false)
     const ok = await confirm({
@@ -532,10 +554,29 @@ export default function AppShell() {
                 {mode === 'admin' ? '返回应用' : '管理'}
               </ListItemButton>
             )}
-            {/* 许可行（§1.1）：版本来自 /api/system/version（nav-version 锚不变） */}
-            <Typography className="app-nav-license" variant="caption" sx={{ padding: 'var(--bf-sp-1) var(--bf-sp-2)', color: 'var(--bf-sidebar-text-2)' }}>
-              BinFlow <span data-testid="nav-version" lang="en">{version ? `v${version.version}` : '—'}</span> · 单二进制制品仓库
-            </Typography>
+            {/* 许可行（§1.1）：版本来自 /api/system/version（nav-version 锚不变）。
+                T-457：脚注升格为 About 版本弹窗入口（B-2.17——vdev 行可点，
+                开 About 弹窗；文案与版本呈现零变化） */}
+            <ListItemButton
+              component="button"
+              type="button"
+              className="app-nav-license"
+              data-testid="nav-about"
+              title="关于 BinFlow（版本 / 构建信息）"
+              onClick={() => setAboutOpen(true)}
+              sx={(t) => ({
+                ...navItemSx(t),
+                padding: 'var(--bf-sp-1) var(--bf-sp-2)',
+                justifyContent: 'flex-start',
+                minHeight: 0,
+                marginTop: 'auto',
+                '& .MuiTypography-root': { color: 'inherit' },
+              })}
+            >
+              <Typography variant="caption" sx={{ textAlign: 'left' }}>
+                BinFlow <span data-testid="nav-version" lang="en">{version ? `v${version.version}` : '—'}</span> · 单二进制制品仓库
+              </Typography>
+            </ListItemButton>
           </Box>
         </nav>
       </Drawer>
@@ -683,16 +724,60 @@ export default function AppShell() {
                 </div>
               )}
             </Paper>
-            <a
-              className="topbar-help"
-              href="/binflow/docs/"
-              target="_blank"
-              rel="noopener noreferrer"
-              title="帮助文档（新标签页打开）"
-              data-testid="topbar-help"
-            >
-              <span aria-hidden="true">?</span> 帮助
-            </a>
+            {/* 帮助下拉（T-457 / B-2.17 翻正）：topbar-help 锚语义翻新零改名
+                （链接 → 下拉触发钮——aria-haspopup/expanded，四项见上方注释） */}
+            <div>
+              <Button
+                className="topbar-help"
+                color="inherit"
+                ref={helpToggleRef}
+                aria-haspopup="menu"
+                aria-expanded={helpOpen}
+                title="帮助"
+                data-testid="topbar-help"
+                onClick={() => setHelpOpen((v) => !v)}
+                sx={{ minWidth: 0, padding: '0 var(--bf-sp-2)' }}
+              >
+                <span aria-hidden="true">?</span> 帮助
+              </Button>
+              <Menu
+                open={helpOpen}
+                onClose={() => setHelpOpen(false)}
+                anchorEl={helpToggleRef.current}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+                transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+              >
+                <MenuItem
+                  component="a"
+                  href="/binflow/docs/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid="help-docs"
+                  onClick={() => setHelpOpen(false)}
+                >
+                  Documentation
+                </MenuItem>
+                {/* 无对应服务：7.161 活体此项是外链（JFrog Academy）——BinFlow
+                    无培训站点，外链无处可指；禁用 + 行内注记 = 诚实占位 */}
+                <MenuItem disabled data-testid="help-training">
+                  Online Training（暂无对应服务）
+                </MenuItem>
+                <MenuItem
+                  component="a"
+                  href="/binflow/docs/install/upgrade"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid="help-release-notes"
+                  onClick={() => setHelpOpen(false)}
+                >
+                  Release Notes
+                </MenuItem>
+                <Divider component="li" role="presentation" sx={{ my: 'var(--bf-sp-1)' }} />
+                <MenuItem data-testid="help-about" onClick={openAbout}>
+                  About
+                </MenuItem>
+              </Menu>
+            </div>
             {/* 主题切换：title 原生 tooltip、aria-label、字形与
                 ThemeContext 翻转链路零变化；皮肤交 MUI 默认 */}
             <IconButton
@@ -824,6 +909,63 @@ export default function AppShell() {
           }}
         />
       )}
+      {/* About 版本弹窗（T-457 / FR-145.6a——B-2.17）：消费 /api/system/version
+          （useVersion 模块级缓存同源）；版本/构建信息如实呈现，失败 = —
+          （Q4 不伪装）。入口两处：? 帮助下拉 help-about + 侧栏脚注 nav-about */}
+      <Dialog
+        open={aboutOpen}
+        onClose={() => setAboutOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        data-testid="about-dialog"
+        aria-labelledby="about-dialog-title"
+      >
+        <DialogTitle id="about-dialog-title">About</DialogTitle>
+        <DialogContent dividers sx={{ display: 'grid', gap: 'var(--bf-sp-2)', pt: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 'var(--bf-sp-2)' }}>
+            <BrandMark size={32} testid="about-brand-mark" />
+            <Box>
+              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                BinFlow
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                单二进制云原生制品仓库
+              </Typography>
+            </Box>
+          </Box>
+          <Divider />
+          <Stack spacing={0.5}>
+            <Typography variant="body2">
+              版本：
+              <span className="mono" lang="en" data-testid="about-version">
+                {version ? `v${version.version}` : '—'}
+              </span>
+            </Typography>
+            <Typography variant="body2">
+              构建：
+              <span className="mono" lang="en" data-testid="about-revision">
+                {version ? version.revision : '—'}
+              </span>
+            </Typography>
+            <Typography variant="body2">
+              产品标识：
+              <span className="mono" lang="en" data-testid="about-product">
+                {version ? version.product : '—'}
+              </span>
+            </Typography>
+          </Stack>
+          <Typography variant="caption" color="text.secondary">
+            版本与构建信息来自 GET /api/system/version（开放端点）；License 详情见管理面
+            「Administration → License &amp; Add-ons」。
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Box sx={{ flexGrow: 1 }} />
+          <Button variant="contained" data-testid="about-close" onClick={() => setAboutOpen(false)}>
+            关闭
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }

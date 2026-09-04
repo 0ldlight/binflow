@@ -1,0 +1,38 @@
+url: http://localhost:8082/ui/user_profile
+page text:
+  | Skip to main content
+  | Platform
+  | Administration
+  | Use Up and Down arrow keys to navigate recent searches, Enter to select, Esc to dismiss
+  | A
+  | All Projects
+  | Artifactory
+  | Xray
+  | Distribution
+  | AI/ML
+  | Pipelines
+  | Integrations
+  | JFrog Platform
+  | Enterprise Plus trial license 7.161.20 rev 86120900 Licensed to TEST JFrog Ltd.
+  | © Copyright 2026 JFrog Ltd
+interactive elements:
+  {"tag":"A","cy":null,"testid":null,"text":"Skip to main content","type":null}
+  {"tag":"A","cy":null,"testid":null,"text":"","type":null}
+  {"tag":"BUTTON","cy":"toggleMenuButton-platform","testid":null,"text":"Platform","type":null}
+  {"tag":"BUTTON","cy":"toggleMenuButton-administration","testid":null,"text":"Administration","type":null}
+  {"tag":"INPUT","cy":"searchInput","testid":null,"text":"Search Packages","type":"text"}
+  {"tag":"BUTTON","cy":"searchIconButton","testid":null,"text":"","type":"button"}
+  {"tag":"BUTTON","cy":"filterIconButton","testid":null,"text":"","type":"button"}
+  {"tag":"DIV","cy":"help-menu-button","testid":null,"text":"","type":null}
+  {"tag":"BUTTON","cy":"jf-navbar-action-button","testid":null,"text":"","type":"button"}
+  {"tag":"DIV","cy":null,"testid":null,"text":"A","type":null}
+  {"tag":"BUTTON","cy":"jf-navbar-action-button","testid":null,"text":"A","type":"button"}
+  {"tag":"DIV","cy":null,"testid":null,"text":"All Projects","type":null}
+  {"tag":"A","cy":"sideFrameItemArtifactory","testid":null,"text":"Artifactory","type":null}
+  {"tag":"A","cy":"sideFrameItemXray","testid":null,"text":"Xray","type":null}
+  {"tag":"A","cy":"sideFrameItemDistribution","testid":null,"text":"Distribution","type":null}
+  {"tag":"A","cy":"sideFrameItemAI/ML","testid":null,"text":"AI/ML","type":null}
+  {"tag":"A","cy":"sideFrameItemPipelines","testid":null,"text":"Pipelines","type":null}
+  {"tag":"A","cy":"sideFrameItemIntegrations","testid":null,"text":"Integrations","type":null}
+  {"tag":"A","cy":null,"testid":null,"text":"© Copyright 2026 JFrog Ltd","type":null}
+  {"tag":"BUTTON","cy":"toggleSideFrame","testid":null,"text":"","type":null}
