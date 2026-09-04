@@ -493,7 +493,9 @@ leg_nuget() {
 EOF
   # NuGet patch segments are Int32 — the 14-digit global stamp overflows
   # ('1.0.20260904142122' is not a valid version string). Epoch seconds
-  # fit until 2038 and stay sortable; every other leg keeps $VER.
+  # fit until 2038 and stay sortable; every other leg keeps $VER. The
+  # assembly/file versions pin 1.0.0.0 separately: AssemblyVersion parts
+  # are UInt16, so any time-derived build number overflows (CS7034).
   local NVER
   NVER="1.0.$(date +%s)"
   setup_client run_dotnet dotnet dotnet \
@@ -508,7 +510,7 @@ EOF
   sed_file proj/single-example.csproj \
     -e "s|<TargetFramework>net7.0</TargetFramework>|<TargetFramework>net8.0</TargetFramework>|g" \
     -e "/PackageReference Include=\"snappier\"/d" \
-    -e "s|<ImplicitUsings>enable</ImplicitUsings>|<ImplicitUsings>enable</ImplicitUsings><Version>$NVER</Version>|"
+    -e "s|<ImplicitUsings>enable</ImplicitUsings>|<ImplicitUsings>enable</ImplicitUsings><Version>$NVER</Version><AssemblyVersion>1.0.0.0</AssemblyVersion><FileVersion>1.0.0.0</FileVersion>|"
   cat > proj/nuget.config <<EOF
 <?xml version="1.0" encoding="utf-8"?>
 <configuration>
