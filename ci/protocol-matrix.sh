@@ -491,6 +491,11 @@ leg_nuget() {
   cat > global.json <<'EOF'
 { "sdk": { "version": "8.0.*", "rollForward": "latestFeature" } }
 EOF
+  # NuGet patch segments are Int32 — the 14-digit global stamp overflows
+  # ('1.0.20260904142122' is not a valid version string). Epoch seconds
+  # fit until 2038 and stay sortable; every other leg keeps $VER.
+  local NVER
+  NVER="1.0.$(date +%s)"
   setup_client run_dotnet dotnet dotnet \
     'docker run --rm -v "$PWD":"$PWD" -w "$PWD" mcr.microsoft.com/dotnet/sdk:8.0 dotnet' \
     || { tool_unavailable dotnet; return $?; }
@@ -503,7 +508,7 @@ EOF
   sed_file proj/single-example.csproj \
     -e "s|<TargetFramework>net7.0</TargetFramework>|<TargetFramework>net8.0</TargetFramework>|g" \
     -e "/PackageReference Include=\"snappier\"/d" \
-    -e "s|<ImplicitUsings>enable</ImplicitUsings>|<ImplicitUsings>enable</ImplicitUsings><Version>$VER</Version>|"
+    -e "s|<ImplicitUsings>enable</ImplicitUsings>|<ImplicitUsings>enable</ImplicitUsings><Version>$NVER</Version>|"
   cat > proj/nuget.config <<EOF
 <?xml version="1.0" encoding="utf-8"?>
 <configuration>
@@ -517,10 +522,10 @@ EOF
 </configuration>
 EOF
   run_dotnet pack proj/single-example.csproj -c Release -o pkg || return 1
-  local nupkg="pkg/single-example.$VER.nupkg"
+  local nupkg="pkg/single-example.$NVER.nupkg"
   [ -f "$nupkg" ] || { echo "packed nupkg missing (looked for $nupkg)"; ls pkg; return 1; }
   run_dotnet nuget push "$nupkg" --source binflow || return 1
-  log "dotnet nuget push done (single-example $VER)"
+  log "dotnet nuget push done (single-example $NVER)"
   # Pull leg: hand-written consumer (no `dotnet new` template dependency).
   rm -rf consumer; mkdir -p consumer; cp proj/nuget.config consumer/
   cat > consumer/consumer.csproj <<EOF
@@ -530,7 +535,7 @@ EOF
     <ImplicitUsings>enable</ImplicitUsings><Nullable>disable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="single-example" Version="$VER" />
+    <PackageReference Include="single-example" Version="$NVER" />
   </ItemGroup>
 </Project>
 EOF
@@ -538,7 +543,7 @@ EOF
   local out
   out="$(run_dotnet run --project consumer)" || return 1
   printf '%s' "$out" | grep -q "consumer-ok" || { echo "consumer output: $out"; return 1; }
-  ok "nuget: pack + push + restore/run roundtrip (single-example $VER)"
+  ok "nuget: pack + push + restore/run roundtrip (single-example $NVER)"
 }
 
 leg_go() {
