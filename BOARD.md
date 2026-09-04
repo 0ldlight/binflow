@@ -1838,3 +1838,9 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **T-471 → doing 2026-09-04 18:3x（T-455 收口解锁即派）**：devops-engineer 在途。CI-only retries + timeout 档位；本地严格面不变；不碰 spec 本体。
 
+**T-458 腿① → done 2026-09-04 18:5x（`c6d8219`，14 文件 +575/−78）——票两腿制：腿② 候 T-459/T-461~T-464 合入另派**：docs/user 八文件（console 树深链/表单三段/详情族/统一搜索/预埋节；aql statistics+usage 专节〔90 天未下载可复跑示例〕；api-reference 五动词行；groups-permissions 动作动词专节〔wire 四规则+三段 curl 实录+零提权回填〕；properties 写门 annotate）+ fern/pages 五页镜像。**17 条新增 curl 断言终态复放 17/17 PASS**（净实例 18095 + 迁移账本 v23 实证；UAT 探针残留清零）。docker-virtual 四处陈旧 400 文档翻正。零票号零里程碑号（grep 核验）。日志 reports/agents/T-458.md。**Fern 重发布挂 conductor**（本报告轮执行）。
+
+**T-471 → done 2026-09-04 18:5x（`1887311`）——工程票**：playwright.config 三处——`retries: CI ? 2 : 0`（漂移对应「两轮失败集轮换」非确定性尾延迟；真坏 selector 三连败仍红）/ `expect.timeout: CI ? 10s : 5s`（straggler 全死在 locator 等待）/ actionTimeout 不设 + workers 维持（评估理由入注释）。本地严格面逐项未变（env 门控双态活体验证）。tsc/eslint 0。真验证 = 下次 main e2e run（T-471 AC：绿 ×2 连续）。日志 reports/agents/T-471.md。
+
+**用户指令 intake ⑮（2026-09-04 18:4x）：「关注 circleci 和 githubaction 的报错，调整后要重跑，复测」——CI 复测循环开启**。CircleCI 首查（c4da02e commit status）：build ✅ / deploy_uat ✅ / **protocol_matrix ❌**（T-469 十协议矩阵首真跑红）/ **ci/circleci: e2e ❌**。本地复现定谳：**pypi 腿根因 = pip ≥25 对 plain-HTTP 索引硬性忽略未信任主机**（本地 venv 复放 WARNING 实证）→ `--trusted-host`（从实际 index URL 派生，dockerized 模式安全）修复后 **pypi PASS**；generic/npm/go 亦本地 PASS（npm 先前红系复现 shell 缺 nvm 的 docker-fallback 形态，非缺陷）；docker 本地红 = 本机 Docker Desktop 未配 insecure-registry（CI 侧 config.yml:244 已写 daemon.json——非缺陷）。GH e2e rerun（旧配置）仍红——正是 T-471 目标面。**PR #91 已合（main `47f8385`）：携 e2e retries 新配置 + pypi 修复 + T-444/T-455/T-458/T-471 全量——双 CI 复测中，裁定挂下轮。**
+
