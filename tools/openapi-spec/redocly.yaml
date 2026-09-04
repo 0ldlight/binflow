@@ -1,0 +1,12 @@
+# Redocly lint config for the BinFlow OpenAPI spec (local validation only —
+# Fern consumes the spec directly, this file is not part of the docs site).
+#
+# Relaxed rules and why:
+#   no-trailing-slash: off  — the trailing slashes are protocol-canonical wire
+#     paths (docker registry `GET /v2/`, `POST /v2/<name>/blobs/uploads/`;
+#     PEP 503 `simple/` indexes; twine's `{repo}/` upload root). Removing them
+#     would misstate the contract.
+extends:
+  - recommended
+rules:
+  no-path-trailing-slash: off
