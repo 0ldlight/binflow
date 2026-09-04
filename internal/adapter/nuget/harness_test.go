@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/lzwzzy/binflow/internal/adapter"
@@ -60,7 +61,8 @@ func newStack(t *testing.T) *stack {
 type stackOptions struct {
 	addons      *addonsRegistrySeam
 	keys        *licenseKeys
-	noAnonymous bool // anonymous access off — the force-auth door's posture
+	noAnonymous bool   // anonymous access off — the force-auth door's posture
+	spoolDir    string // Options.SpoolDir; "" = the cmd assembly's <dataDir>/staging (T-476)
 }
 
 // newStackOpt assembles the stack; a non-nil keys builds a REAL
@@ -112,7 +114,13 @@ func newStackOpt(t *testing.T, opt stackOptions) *stack {
 	// handler stays OUT of the global adapter registry — httpapi mounts
 	// Deps.Adapters explicitly.
 	RegisterMetadata()
-	handler := New(svc, md.Repos(), md.Blobs(), md.Remote(), Options{})
+	spoolDir := opt.spoolDir
+	if spoolDir == "" {
+		// Mirror the cmd assembly (T-476): push bodies stage on the
+		// storage volume's staging/ dir, never the OS temp dir.
+		spoolDir = filepath.Join(dataDir, "staging")
+	}
+	handler := New(svc, md.Repos(), md.Blobs(), md.Remote(), Options{SpoolDir: spoolDir})
 
 	deps := httpapi.Deps{
 		Config:    cfg,

@@ -18,6 +18,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/lzwzzy/binflow/internal/adapter"
 	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/repo"
 	"github.com/lzwzzy/binflow/internal/storage"
@@ -277,7 +278,7 @@ func (h *Handler) servePush(ctx context.Context, w http.ResponseWriter, r *http.
 		return
 	}
 	defer closeBody()
-	sp, err := spoolNupkg(body)
+	sp, err := spoolNupkg(h.opts.SpoolDir, body)
 	if err != nil {
 		h.writePushError(w, err)
 		return
@@ -321,7 +322,8 @@ func (h *Handler) servePush(ctx context.Context, w http.ResponseWriter, r *http.
 	// The spooled file re-reads as the body — the package is never held in
 	// memory whole.
 	if _, err := sp.file.Seek(0, io.SeekStart); err != nil {
-		writePlain(w, http.StatusInternalServerError, fmt.Sprintf("rewind spool: %v", err))
+		slogWarnContext(ctx, "nuget: package push rewind failed", "error", err.Error())
+		writePlain(w, http.StatusInternalServerError, msgSpoolRewindFailed)
 		return
 	}
 	node, perr := h.svc.Put(ctx, p, repoKey, target.nupkg(), sp.file, storage.BlobRef{}, "application/octet-stream")
@@ -397,10 +399,22 @@ func (h *Handler) warnSidecar(ctx context.Context, repoKey, path string, err err
 		"repo", repoKey, "path", path, "error", err.Error())
 }
 
-// writePushError renders the validation-family refusal.
+// writePushError renders the push-family refusals.
 func (h *Handler) writePushError(w http.ResponseWriter, err error) {
 	if errors.Is(err, errMissingPackageField) {
 		writePlain(w, http.StatusBadRequest, msgMissingPackageField)
+		return
+	}
+	if errors.Is(err, adapter.ErrStagingUnavailable) {
+		// 507 Insufficient Storage (T-476, the T-474 family): an unwritable
+		// or full staging root is a recoverable deployment condition, not a
+		// server bug — and the pre-T-476 face leaked the raw os error
+		// ("/tmp/binflow-nuget-*.nupkg: read-only file system") on a bare
+		// 500. The body names the ATTEMPTED ROOT only (the operator's own
+		// configuration, the actionable fact); the os-error internals and
+		// the temp file name ride the server log.
+		slog.Error("nuget: package push staging failed", slog.String("error", err.Error()))
+		writePlain(w, http.StatusInsufficientStorage, fmt.Sprintf(msgSpoolUnavailable, adapter.StagingLabel(h.opts.SpoolDir)))
 		return
 	}
 	if errors.Is(err, errInvalidPackage) {
@@ -409,6 +423,15 @@ func (h *Handler) writePushError(w http.ResponseWriter, err error) {
 	}
 	writePlain(w, http.StatusInternalServerError, err.Error())
 }
+
+// msgSpoolUnavailable is the push staging refusal (T-476): the %s carries
+// the ATTEMPTED staging root (adapter.StagingLabel — bounded disclosure,
+// the T-474 ruling's exact posture).
+const msgSpoolUnavailable = "package push cannot be staged: the upload staging area (%s) is unavailable (see the server log)"
+
+// msgSpoolRewindFailed is the unexpected-failure refusal when the staged
+// package cannot be re-read for the landing (the os detail rides the log).
+const msgSpoolRewindFailed = "package push could not re-read its staged bytes (see the server log)"
 
 // msgMissingPackageField is the publish refusal's exact wording (nuget.md
 // section 2 #17: the form-data body without the package field).

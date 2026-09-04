@@ -11,6 +11,8 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"github.com/lzwzzy/binflow/internal/adapter"
 )
 
 // The .nupkg validation chain and the nuspec fact model.
@@ -76,12 +78,31 @@ type spooledPackage struct {
 	sha512 []byte // raw digest; base64 at render time
 }
 
-// spoolNupkg streams the request body into a temp file, hashing SHA-512
-// and counting bytes. The caller owns the file (close removes it).
-func spoolNupkg(body io.Reader) (*spooledPackage, error) {
-	f, err := os.CreateTemp("", "binflow-nuget-*.nupkg")
+// spoolNupkg streams the request body into a staging file under dir,
+// hashing SHA-512 and counting bytes. The caller owns the returned
+// package (close removes it); every error path removes the file itself.
+//
+// The staging root is the shared adapter primitive (adapter.StageFile,
+// T-476 the T-474 family): the production posture is the storage-volume
+// root the cmd assembly passes (<storage data_dir>/staging — hardened
+// read-only-rootfs containers mount no writable /tmp, the UAT nuget push
+// incident's own shape), dir "" keeps the OS-temp fallback for the bare
+// test harness. Failures on the STAGING side (root unwritable, file
+// uncreatable, disk full mid-write, the rewind) wrap
+// adapter.ErrStagingUnavailable — the handler's 507 family; read faults
+// stay the plain stream-error family.
+func spoolNupkg(dir string, body io.Reader) (*spooledPackage, error) {
+	f, err := adapter.StageFile(dir, "binflow-nuget-*.nupkg")
 	if err != nil {
-		return nil, fmt.Errorf("spool upload: %w", err)
+		return nil, err
+	}
+	// Every early exit below drops the staged file: only the success
+	// return hands the file to the caller (spooledPackage.close owns it
+	// from there).
+	abandon := func(err error) (*spooledPackage, error) {
+		_ = f.Close()
+		_ = os.Remove(f.Name())
+		return nil, err
 	}
 	sp := &spooledPackage{file: f}
 	h := sha512.New()
@@ -92,39 +113,39 @@ func spoolNupkg(body io.Reader) (*spooledPackage, error) {
 		if r > 0 {
 			n += int64(r)
 			if n > nupkgBodyLimit {
-				return nil, fmt.Errorf("%w: package exceeds the %d MiB ceiling", errInvalidPackage, nupkgBodyLimit>>20)
+				return abandon(fmt.Errorf("%w: package exceeds the %d MiB ceiling", errInvalidPackage, nupkgBodyLimit>>20))
 			}
 			if _, werr := h.Write(buf[:r]); werr != nil {
-				return nil, fmt.Errorf("hash upload: %w", werr)
+				return abandon(fmt.Errorf("hash upload: %w", werr))
 			}
 			if _, werr := f.Write(buf[:r]); werr != nil {
-				return nil, fmt.Errorf("spool upload: %w", werr)
+				return abandon(fmt.Errorf("%w: staging the package body: %w", adapter.ErrStagingUnavailable, werr))
 			}
 		}
 		if rerr == io.EOF {
 			break
 		}
 		if rerr != nil {
-			return nil, fmt.Errorf("read upload: %w", rerr)
+			return abandon(fmt.Errorf("read upload: %w", rerr))
 		}
 	}
 	if n == 0 {
-		return nil, fmt.Errorf("%w: empty package body", errInvalidPackage)
+		return abandon(fmt.Errorf("%w: empty package body", errInvalidPackage))
 	}
 	sp.size = n
 	sp.sha512 = h.Sum(nil)
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
-		return nil, fmt.Errorf("rewind spool: %w", err)
+		return abandon(fmt.Errorf("%w: rewinding the staged package: %w", adapter.ErrStagingUnavailable, err))
 	}
 	return sp, nil
 }
 
 // close removes the spool (the push path's only temp artifact). The file
-// name is THIS function's own CreateTemp return — never a client string —
+// name is THIS function's own StageFile return — never a client string —
 // so the removal cannot traverse.
 func (sp *spooledPackage) close() {
 	_ = sp.file.Close()           //nolint:errcheck // read-only fd close on cleanup
-	_ = os.Remove(sp.file.Name()) //nolint:gosec // G703: name is os.CreateTemp's own, not client input //nolint:errcheck // best-effort temp cleanup
+	_ = os.Remove(sp.file.Name()) //nolint:gosec // G703: name is StageFile's own, not client input //nolint:errcheck // best-effort temp cleanup
 }
 
 // identityFromNuspec derives the push target wholly from the package: the

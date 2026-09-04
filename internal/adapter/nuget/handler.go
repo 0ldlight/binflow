@@ -46,6 +46,18 @@ type Options struct {
 	// BaseURL is the externally visible origin (server.base_url). Empty
 	// means derive from the request (X-Forwarded-Proto honored).
 	BaseURL string
+	// SpoolDir roots the package-push spool files (T-476, the T-474
+	// family): a push body streams to disk first — the .nupkg reaches
+	// hundreds of MB, and the zip validation plus the landing re-read the
+	// staged bytes. Hardened deployments — read-only rootfs, the kubernetes
+	// norm — mount no writable /tmp, which the OS-temp spool of the
+	// pre-T-476 code assumed (the UAT nuget push incident: "spool upload:
+	// open /tmp/binflow-nuget-*.nupkg: read-only file system" on a bare
+	// 500). The cmd assembly passes <storage data_dir>/staging — the SAME
+	// volume the blob store writes on. "" falls back to the OS temp dir
+	// (the bare test-harness posture); every refusal names the root it
+	// attempted (adapter.StagingDir/StageFile).
+	SpoolDir string
 }
 
 // Handler is the NuGet protocol adapter. It owns the wire protocol only;

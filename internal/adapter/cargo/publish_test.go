@@ -19,7 +19,7 @@ func TestDecodePublishFrame(t *testing.T) {
 	crate := []byte("pretend this is a gzipped tarball")
 
 	t.Run("legal", func(t *testing.T) {
-		rawJSON, spool, err := decodePublishFrame(bytes.NewReader(publishBody(meta, crate)))
+		rawJSON, spool, err := decodePublishFrame(t.TempDir(), bytes.NewReader(publishBody(meta, crate)))
 		if err != nil {
 			t.Fatalf("decodePublishFrame: %v", err)
 		}
@@ -40,7 +40,7 @@ func TestDecodePublishFrame(t *testing.T) {
 		// A zero-length metadata frame parses as JSON "" — parsePublishMeta
 		// rejects it; the deframer itself must carry it through.
 		body := append(uint32le(0), publishBodyBody(crate)...)
-		rawJSON, spool, err := decodePublishFrame(bytes.NewReader(body))
+		rawJSON, spool, err := decodePublishFrame(t.TempDir(), bytes.NewReader(body))
 		if err != nil {
 			t.Fatalf("decodePublishFrame: %v", err)
 		}
@@ -70,7 +70,7 @@ func TestDecodePublishFrame(t *testing.T) {
 	}
 	for _, tc := range defects {
 		t.Run(tc.name, func(t *testing.T) {
-			_, spool, err := decodePublishFrame(bytes.NewReader(tc.body))
+			_, spool, err := decodePublishFrame(t.TempDir(), bytes.NewReader(tc.body))
 			if !errors.Is(err, errFramingDefect) {
 				t.Fatalf("decodePublishFrame err = %v, want errFramingDefect (the 500 family)", err)
 			}
@@ -96,7 +96,7 @@ func TestDecodePublishFrame(t *testing.T) {
 	}
 	for _, tc := range truncations {
 		t.Run(tc.name, func(t *testing.T) {
-			_, spool, err := decodePublishFrame(bytes.NewReader(tc.body))
+			_, spool, err := decodePublishFrame(t.TempDir(), bytes.NewReader(tc.body))
 			if err == nil || errors.Is(err, errFramingDefect) {
 				t.Fatalf("decodePublishFrame err = %v, want a plain truncation error (the 200 family)", err)
 			}

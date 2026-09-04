@@ -436,8 +436,11 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// metadata TTL split. The /binflow/api/nuget/{v3,v2} mount is the
 	// router's plane-aware api mount (PRD FR-88's spellings); the
 	// addons.NuGet() slot carries the pro-tier gating (T-282/T-283).
+	// Options.SpoolDir (T-476, the T-474 family) stages push bodies under
+	// the storage data root's staging/ — the read-only-/tmp UAT incident's
+	// own fix.
 	nugetHandler := nuget.Register(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.md.Remote(),
-		nuget.Options{BaseURL: cfg.Server.BaseURL})
+		nuget.Options{BaseURL: cfg.Server.BaseURL, SpoolDir: filepath.Join(cfg.Storage.DataDir, "staging")})
 	// cargo (M11/T-294, the Rust crates package type): same wiring story
 	// as goproxy/nuget — the content plane dispatches on
 	// package_type="cargo" and the provider registration classifies the
@@ -446,9 +449,12 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// aggregation are their own M11 tickets (spec sections 8/S4/S5). The
 	// NodeProps seam carries the protocol's own yank state (the
 	// crate.yanked node property IS the yank flag); the addons.Cargo()
-	// slot carries the pro-tier gating (T-282/T-283).
+	// slot carries the pro-tier gating (T-282/T-283). Options.SpoolDir
+	// (T-476, the T-474 family) stages publish crates under the storage
+	// data root's staging/.
 	cargoHandler := cargo.Register(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.md.NodeProps(),
-		cargo.Options{BaseURL: cfg.Server.BaseURL, AnonymousAccess: cfg.Security.AnonymousAccess})
+		cargo.Options{BaseURL: cfg.Server.BaseURL, AnonymousAccess: cfg.Security.AnonymousAccess,
+			SpoolDir: filepath.Join(cfg.Storage.DataDir, "staging")})
 	// conan (M11/T-308, the C/C++ package type): same wiring story as
 	// cargo — the content plane dispatches on package_type="conan" and the
 	// provider registration classifies the index.json/.timestamp nodes as
@@ -508,8 +514,11 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// backfill; remote and virtual classes serve (handler.go RepoTypes).
 	// T-322: the Signer seam signs repomd.xml.asc/.key on every local
 	// recompute (stack.signer, the same keypair.SigningService deb rides).
+	// T-476 (the T-474 family): Options.SpoolDir stages PUT bodies under
+	// the storage data root's staging/.
 	rpmHandler := rpm.RegisterWithProps(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.md.NodeProps(),
-		rpm.Options{DataDir: cfg.Storage.DataDir, Signer: stack.signer})
+		rpm.Options{DataDir: cfg.Storage.DataDir, Signer: stack.signer,
+			SpoolDir: filepath.Join(cfg.Storage.DataDir, "staging")})
 	// deb (M11/T-310, the Debian/apt package type): same wiring story as
 	// rpm — the content plane dispatches on package_type="debian" and the
 	// provider registration classifies the dists/ tree as regenerable
@@ -520,8 +529,10 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// addons.Debian() slot carries the pro-tier gating (T-282/T-283).
 	// The debPUT chain recomputes automatically (FR-97.1) — no opt-in
 	// switch — with the TL-4 forced architecture families on by default.
+	// Options.SpoolDir (T-476, the T-474 family) stages debPUT bodies under
+	// the storage data root's staging/.
 	debHandler := deb.Register(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.md.NodeProps(),
-		deb.Options{Signer: stack.signer})
+		deb.Options{Signer: stack.signer, SpoolDir: filepath.Join(cfg.Storage.DataDir, "staging")})
 	// The copy-side index-linkage observer (M12 T-354, architecture
 	// §15.4.2's leftover seam / §11.44): the copy/move pipeline fires
 	// repo's CopyMoveObserver after every completed non-dry COPY into a
