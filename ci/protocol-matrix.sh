@@ -484,6 +484,13 @@ leg_nuget() {
   require_tier pro || return $?
   ensure_repo uat-matrix-nuget-local nuget
   WORKDIR="$WORK/nuget"; mkdir -p "$WORKDIR"; cd "$WORKDIR" || return 1
+  # Pin the SDK from the project side: PATH fights over which dotnet host
+  # resolves (the GH runner's /usr/share/dotnet ships SDK 10 whose restore
+  # dies as a silent MSB4181); global.json binds whichever host to 8.0.x —
+  # the docs/user/integrations/nuget.md anchor (setup-dotnet preinstalls it).
+  cat > global.json <<'EOF'
+{ "sdk": { "version": "8.0.*", "rollForward": "latestFeature" } }
+EOF
   setup_client run_dotnet dotnet dotnet \
     'docker run --rm -v "$PWD":"$PWD" -w "$PWD" mcr.microsoft.com/dotnet/sdk:8.0 dotnet' \
     || { tool_unavailable dotnet; return $?; }
@@ -660,6 +667,9 @@ add_executable(matrix src/main.cpp)
 install(TARGETS matrix RUNTIME DESTINATION bin)
 EOF
   printf '#include <iostream>\nint main() { std::cout << "matrix-ok\\n"; }\n' > proj/src/main.cpp
+  # Fresh CONAN_HOME ships no profiles — conan 2 demands a build profile
+  # before `create`; detect one from the toolchain (GH run tripped on this).
+  conan profile detect --force >/dev/null 2>&1 || conan profile detect >/dev/null
   ( cd proj && conan create . ) || return 1
   conan remote add bf-matrix "$(client_base conan)/binflow/uat-matrix-conan-local" || return 1
   conan remote login bf-matrix "$BINFLOW_USER" -p "$BINFLOW_PASSWORD" || return 1
