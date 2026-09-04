@@ -122,17 +122,21 @@ test('G19-1: all install pages accessible', async ({ page }) => {
 // G19b: 帮助入口
 // ---------------------------------------------------------------------------
 
-test('G19b-1: console help link points to /binflow/docs/', async ({ page }) => {
+test('G19b-1: console help dropdown Documentation item points to /binflow/docs/', async ({ page }) => {
   // Navigate to the console shell — the SPA will redirect to /login
   await page.goto('/binflow/ui/')
-  // Login first (the help link is in the AppShell, rendered after auth)
+  // Login first (the help dropdown is in the AppShell, rendered after auth)
   await login(page)
-  // The help link should be in the topbar
-  const helpLink = page.locator('[data-testid="topbar-help"]')
-  await expect(helpLink).toBeVisible()
-  await expect(helpLink).toHaveAttribute('href', '/binflow/docs/')
-  await expect(helpLink).toHaveAttribute('target', '_blank')
-  await expect(helpLink).toContainText('帮助')
+  // T-457（B-2.17 翻正）：帮助升格 ? 下拉——Documentation 项承接原外链
+  const helpToggle = page.locator('[data-testid="topbar-help"]')
+  await expect(helpToggle).toBeVisible()
+  await expect(helpToggle).toContainText('帮助')
+  await helpToggle.click()
+  const helpDocs = page.locator('[data-testid="help-docs"]')
+  await expect(helpDocs).toBeVisible()
+  await expect(helpDocs).toHaveAttribute('href', '/binflow/docs/')
+  await expect(helpDocs).toHaveAttribute('target', '_blank')
+  await page.keyboard.press('Escape')
 })
 
 // ---------------------------------------------------------------------------

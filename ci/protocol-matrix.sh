@@ -484,6 +484,20 @@ leg_nuget() {
   require_tier pro || return $?
   ensure_repo uat-matrix-nuget-local nuget
   WORKDIR="$WORK/nuget"; mkdir -p "$WORKDIR"; cd "$WORKDIR" || return 1
+  # Pin the SDK from the project side: PATH fights over which dotnet host
+  # resolves (the GH runner's /usr/share/dotnet ships SDK 10 whose restore
+  # dies as a silent MSB4181); global.json binds whichever host to 8.0.x —
+  # the docs/user/integrations/nuget.md anchor (setup-dotnet preinstalls it).
+  cat > global.json <<'EOF'
+{ "sdk": { "version": "8.0.*", "rollForward": "latestFeature" } }
+EOF
+  # NuGet patch segments are Int32 — the 14-digit global stamp overflows
+  # ('1.0.20260904142122' is not a valid version string). Epoch seconds
+  # fit until 2038 and stay sortable; every other leg keeps $VER. The
+  # assembly/file versions pin 1.0.0.0 separately: AssemblyVersion parts
+  # are UInt16, so any time-derived build number overflows (CS7034).
+  local NVER
+  NVER="1.0.$(date +%s)"
   setup_client run_dotnet dotnet dotnet \
     'docker run --rm -v "$PWD":"$PWD" -w "$PWD" mcr.microsoft.com/dotnet/sdk:8.0 dotnet' \
     || { tool_unavailable dotnet; return $?; }
@@ -496,7 +510,7 @@ leg_nuget() {
   sed_file proj/single-example.csproj \
     -e "s|<TargetFramework>net7.0</TargetFramework>|<TargetFramework>net8.0</TargetFramework>|g" \
     -e "/PackageReference Include=\"snappier\"/d" \
-    -e "s|<ImplicitUsings>enable</ImplicitUsings>|<ImplicitUsings>enable</ImplicitUsings><Version>$VER</Version>|"
+    -e "s|<ImplicitUsings>enable</ImplicitUsings>|<ImplicitUsings>enable</ImplicitUsings><Version>$NVER</Version><AssemblyVersion>1.0.0.0</AssemblyVersion><FileVersion>1.0.0.0</FileVersion>|"
   cat > proj/nuget.config <<EOF
 <?xml version="1.0" encoding="utf-8"?>
 <configuration>
@@ -510,10 +524,14 @@ leg_nuget() {
 </configuration>
 EOF
   run_dotnet pack proj/single-example.csproj -c Release -o pkg || return 1
-  local nupkg="pkg/single-example.$VER.nupkg"
+  local nupkg="pkg/single-example.$NVER.nupkg"
   [ -f "$nupkg" ] || { echo "packed nupkg missing (looked for $nupkg)"; ls pkg; return 1; }
-  run_dotnet nuget push "$nupkg" --source binflow || return 1
-  log "dotnet nuget push done (single-example $VER)"
+  # `--source binflow` is a NAMED source — it only resolves from a
+  # directory whose nuget.config chain defines it (proj/), not from the
+  # workdir root ("The specified source 'binflow' is invalid").
+  cp "$nupkg" proj/
+  ( cd proj && run_dotnet nuget push "single-example.$NVER.nupkg" --source binflow ) || return 1
+  log "dotnet nuget push done (single-example $NVER)"
   # Pull leg: hand-written consumer (no `dotnet new` template dependency).
   rm -rf consumer; mkdir -p consumer; cp proj/nuget.config consumer/
   cat > consumer/consumer.csproj <<EOF
@@ -523,7 +541,7 @@ EOF
     <ImplicitUsings>enable</ImplicitUsings><Nullable>disable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="single-example" Version="$VER" />
+    <PackageReference Include="single-example" Version="$NVER" />
   </ItemGroup>
 </Project>
 EOF
@@ -531,7 +549,7 @@ EOF
   local out
   out="$(run_dotnet run --project consumer)" || return 1
   printf '%s' "$out" | grep -q "consumer-ok" || { echo "consumer output: $out"; return 1; }
-  ok "nuget: pack + push + restore/run roundtrip (single-example $VER)"
+  ok "nuget: pack + push + restore/run roundtrip (single-example $NVER)"
 }
 
 leg_go() {
@@ -652,6 +670,10 @@ class MatrixConan(ConanFile):
         cmake = CMake(self)
         cmake.configure()
         cmake.build()
+
+    def package(self):
+        cmake = CMake(self)
+        cmake.install()
 PYEOF
   cat > proj/CMakeLists.txt <<'EOF'
 cmake_minimum_required(VERSION 3.15)
@@ -660,6 +682,10 @@ add_executable(matrix src/main.cpp)
 install(TARGETS matrix RUNTIME DESTINATION bin)
 EOF
   printf '#include <iostream>\nint main() { std::cout << "matrix-ok\\n"; }\n' > proj/src/main.cpp
+  # Fresh CONAN_HOME ships no profiles — conan 2 demands a build profile
+  # before `create`. No output swallowing: a detect failure must fail the
+  # leg with its real cause, not resurface as create's generic complaint.
+  conan profile detect --force
   ( cd proj && conan create . ) || return 1
   conan remote add bf-matrix "$(client_base conan)/binflow/uat-matrix-conan-local" || return 1
   conan remote login bf-matrix "$BINFLOW_USER" -p "$BINFLOW_PASSWORD" || return 1
@@ -669,6 +695,9 @@ EOF
   # (--build=never: a binary miss is a failure, not a local rebuild).
   export CONAN_HOME="$PWD/conan-home2"
   rm -rf "$CONAN_HOME"; mkdir -p "$CONAN_HOME"
+  # The second cache needs its own default profile (host+build resolution
+  # runs client-side in `conan install` too).
+  conan profile detect --force
   conan remote add bf-matrix "$(client_base conan)/binflow/uat-matrix-conan-local" || return 1
   conan remote login bf-matrix "$BINFLOW_USER" -p "$BINFLOW_PASSWORD" || return 1
   conan install --requires="matrix/$VER" -r bf-matrix --build=never || return 1

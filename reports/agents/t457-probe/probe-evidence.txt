@@ -1,0 +1,61 @@
+[E1] help dropdown (top bar)
+  NOT FOUND: no ? help trigger matched — dump top bar text below
+
+---
+Platform
+Administration
+Use Up and Down arrow keys to navigate recent searches, Enter to select, Esc to dismiss
+A
+---
+Use Up and Down arrow keys to navigate recent searches, Enter to select, Esc to dismiss
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+SEARCH PACKAGES
+---
+SEARCH PACKAGES
+---
+SEARCH PACKAGES
+---
+
+---
+All Projects
+Artifactory
+Xray
+Distribution
+AI/ML
+Pipelines
+Integrations
+JFrog Platform
+Enterprise Plus trial license 7.161.20 rev 86120900 Licensed to TEST JFrog Ltd.
+© Copyright 2026 JFrog Ltd
+---
+Integrations
+---
+Welcome To JFrog Platform
+Universal End-to-End DevOps Platform For Continuous Software Releases
+---
+CREATE AND MANAGE YOUR REPOSITORY
+
+[E2] About dialog
+  NOT FOUND via menu — trying standalone About trigger
+
+[E3] Profile page (Edit Profile)
+  user menu lines:
+
+[E4] profile sub-nav / token + ssh entries
+  "Access Tokens" on profile page: 0
+  "SSH Keys" on profile page: 0
+  "Authentication Settings" on profile page: 0
+  "Lock" on profile page: 0
+  "Unlock" on profile page: 0

@@ -1,6 +1,6 @@
 # AQL 搜索
 
-AQL（Artifactory Query Language）是 Artifactory 的制品查询语言：一段查询文本描述「查什么、输出哪些字段、怎么排序翻页」，服务端返回流式 JSON。BinFlow 以 `items.find(...)` 为唯一入口，覆盖日常的「按仓库/路径/属性/checksum/时间窗找制品」场景。老搜索端点（gavc/prop/pattern）见 [API 参考](/api-reference)。
+AQL（Artifactory Query Language）是 Artifactory 的制品查询语言：一段查询文本描述「查什么、输出哪些字段、怎么排序翻页」，服务端返回流式 JSON。BinFlow 以 `items.find(...)` 为唯一入口，覆盖日常的「按仓库/路径/属性/checksum/时间窗找制品」场景。老搜索端点（gavc/prop/pattern）见 [API 参考](/api-参考/binflow-api)。
 
 ## 请求形态
 
@@ -219,4 +219,4 @@ curl -su $AU -X POST $BASE/binflow/api/search/aql --data-binary 'items.find({"re
 
 ## 下一步
 
-- [属性系统](/search/properties) · [bf-migrate 迁移指南](/tools/migrate-artifactory) · [API 参考](/api-reference)
+- [属性系统](/search/properties) · [bf-migrate 迁移指南](/tools/migrate-artifactory) · [API 参考](/api-参考/binflow-api)

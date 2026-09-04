@@ -339,18 +339,23 @@ test('G32b-2: docker root level — image directory listing with zero regression
   await api(page, 'DELETE', `/api/repositories/${key}?deleteContent=true`)
 })
 
-test('DC-02: help link to /binflow/docs/ in AppShell', async ({ page }) => {
+test('DC-02: help dropdown Documentation item to /binflow/docs/ in AppShell', async ({ page }) => {
   const errors = watchServerErrors(page)
 
   await page.goto('/binflow/ui/')
   await login(page)
 
-  // Verify the help link exists with correct href and text
-  const helpLink = page.locator('[data-testid="topbar-help"]')
-  await expect(helpLink).toBeVisible()
-  await expect(helpLink).toHaveAttribute('href', '/binflow/docs/')
-  await expect(helpLink).toHaveAttribute('target', '_blank')
-  await expect(helpLink).toContainText('帮助')
+  // T-457（B-2.17 翻正）：帮助从纯链接升格为 ? 下拉——Documentation 项
+  // 承接原 /binflow/docs/ 外链形态（锚 topbar-help 语义翻新零改名）
+  const helpToggle = page.locator('[data-testid="topbar-help"]')
+  await expect(helpToggle).toBeVisible()
+  await expect(helpToggle).toContainText('帮助')
+  await helpToggle.click()
+  const helpDocs = page.locator('[data-testid="help-docs"]')
+  await expect(helpDocs).toBeVisible()
+  await expect(helpDocs).toHaveAttribute('href', '/binflow/docs/')
+  await expect(helpDocs).toHaveAttribute('target', '_blank')
+  await page.keyboard.press('Escape')
 
   expect(errors).toEqual([])
 })

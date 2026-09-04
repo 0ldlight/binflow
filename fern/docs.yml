@@ -8,6 +8,9 @@ tabs:
   文档:
     display-name: 文档
     icon: home
+  API 参考:
+    display-name: API 参考
+    icon: square-terminal
 
 navigation:
   - tab: 文档
@@ -102,9 +105,11 @@ navigation:
             path: pages/tools/bf-cli.mdx
           - page: 从 Artifactory 迁移（bf-migrate）
             path: pages/tools/migrate-artifactory.mdx
-      - page: API 参考
-        path: pages/api-reference.mdx
-        icon: square-terminal
       - page: FAQ 与故障排查
         path: pages/faq.mdx
         icon: circle-help
+  - tab: API 参考
+    layout:
+      - api: openapi/binflow.json
+        slug: binflow-api
+        display-errors: true

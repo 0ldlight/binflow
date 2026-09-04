@@ -1,0 +1,6 @@
+# Registers the OpenAPI spec as this workspace's API definition so the docs
+# site's API 参考 tab can reference it (`docs.yml` navigation: `- api:`).
+# The docs-starter reference layout: fern/generators.yml + fern/docs.yml.
+api:
+  specs:
+    - openapi: openapi/binflow.json
