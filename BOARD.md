@@ -1879,3 +1879,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **Fern 重发布避让（21:2x）**：T-472 在途重构 fern/（空 API definition stub 已落树——CLI 切 API 项目模式拒 tab+layout 导航形）——T-458 镜像页发布顺延候 T-472 收口统一执行。
 
+**T-472 → done 2026-09-04 22:4x（`04851ac`，20 文件 +11,931/−349）——intake ⑯ 兑现（Fern API 参考生成）**：**fern/openapi/binflow.json**（OpenAPI 3.1：112 paths/158 ops/20 tags/54 schemas，迭代标记零残留）+ **docs.yml API tab**（官方形态 `layout: [- api:]` 字符串形 + generators.yml 注册——**派单给的 `api: {path:}` 对象形在 CLI/平台双双解析失败，agent 依 fern-api 官方 schema 纠正**，偏差留痕）+ api-reference.mdx 退役防双源 + 7 页 8 处跨链改指。**tools/openapi-spec/ 生成器**（再生式：api-reference.md 逐字主源〔25 端点 63 锚点 63/63 逐字一致〕+ router.go 交叉核对〔3 类差异登记〕+ handler 线面事实）。redocly 0 error（71 质量 warning）+ preview 发布验证（158 端点页 ×20 tag 全渲染）。**conductor 生产发布（22:4x）**：交互确认管道应答后 `Published docs`——**API tab 线上 200**（api-参考/binflow-api/…/artifact-download 实渲染）+ 文档 tab 200（**T-458 镜像顺带上线**）。遗留：npm 域两处契约页勘误裁定 / 9 内部面是否扩入 / 71 warning 收敛 / 旧短链 301。日志 reports/agents/T-472.md。
+
+**矩阵复测③裁定 + ④在跑（22:3x~22:5x）**：③（`992c6a7`）**9/10——conan ✅ 转绿**（双缓存 detect 生效）+ helm ✅（GH runner 全链路）；**nuget 真根因露面**（rm 修生效、SDK 8.0.424 上场后）：**14 位时间戳超 NuGet Int32 patch 上限**（`'1.0.20260904142122' is not a valid version string`——SDK 10 的 MSB4181 系同一错误被吞）→ ④修：leg 内 `NVER=1.0.$(date +%s)`（epoch 秒 2038 前合法，他腿保持全局戳）（`2eca84f`）+ conan recipe 补 package()（空包 WARN——peer 材料采纳）（`2d03244`）。④ = run 33884189963 在跑——**唯一余红即 nuget，裁定挂下轮。**
+
