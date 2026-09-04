@@ -30,6 +30,29 @@ function uniq(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
 }
 
+/** 顶栏搜索提交（T-475 确定性原语，机制与重试形态见 t449 topbarQuery
+ *  注释）：登录落地链上 AppShell 懒加载重挂会清零顶栏受控草稿、导航换
+ *  key 会回滚已填词——慢 runner 上 fill/Enter 与之竞速 = 提交空词（裸
+ *  /search 无 ?q）。等落地页内容就位 + 受控值钉住（回滚即重填）+ 提交
+ *  后核对 URL，空词分支整个重试。 */
+async function topbarSearchSubmit(page: import('@playwright/test').Page, term: string): Promise<void> {
+  const target = new RegExp(`/binflow/ui/search\\?q=${term}$`)
+  const input = page.locator('[data-testid="topbar-search"]')
+  await page.waitForSelector('[data-testid="tree-page"]')
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await page.fill('[data-testid="topbar-search"]', term)
+    await expect
+      .poll(async () => {
+        if ((await input.inputValue()) !== term) await page.fill('[data-testid="topbar-search"]', term)
+        return input.inputValue()
+      })
+      .toBe(term)
+    await page.press('[data-testid="topbar-search"]', 'Enter')
+    if (await page.waitForURL(target, { timeout: 3_000 }).then(() => true, () => false)) return
+  }
+  await expect(page).toHaveURL(target)
+}
+
 // ---- ① 客户端页窗：页码跳转 / 每页行数 / 首末页禁置（基本搜索） --------------
 
 test('admin: search results page-window pager — jump, size options, boundary disable', async ({ page }) => {
@@ -51,8 +74,7 @@ test('admin: search results page-window pager — jump, size options, boundary d
   }
 
   await loginAs(page, 'admin')
-  await page.fill('[data-testid="topbar-search"]', marker)
-  await page.press('[data-testid="topbar-search"]', 'Enter')
+  await topbarSearchSubmit(page, marker)
   await expect(page.locator('[data-testid="search-result-0"]')).toBeVisible({ timeout: 15_000 })
 
   // 第 1 页（100/页）：恰 100 行 + range 行 + 边界禁置

@@ -385,22 +385,32 @@ jobs:
   #   UAT_MATRIX_BASE       http://52.79.109.153:8080 (falls back to this)
   #   UAT_MATRIX_USER       admin (falls back)
   #   UAT_MATRIX_PASSWORD   REQUIRED — the UAT admin password ($:? guard)
-  protocol_matrix:
+  # T-469 -> intake 18: the protocol matrix as TEN PARALLEL JOBS (one per
+  # protocol). The former single machine job ran the legs serially behind
+  # one universal toolchain install — slow, and a single red leg surfaced
+  # only as an opaque job-level failure (the f98bb6b9 CircleCI red came
+  # with no leg attribution, while GH's per-leg matrix read the same tree
+  # 10/10 green). Each leg job now installs ONLY its own toolchain
+  # (checkout -> env -> selective install -> leg), failures attribute per
+  # protocol on the commit status, and the ten legs run concurrently.
+  protocol_leg:
+    parameters:
+      leg:
+        type: string
     machine:
       image: ubuntu-2204:current
       # T-473: docker layer caching — the docker leg builds a real image
       # (leg_docker: fixture Dockerfile + appended CMD), so cached base
       # layers skip the re-pull/re-build on every main deploy and nightly
       # run. Purge handle if a bad layer sticks: `circleci dlc`.
-      # (arm.medium for this job: NOT applicable — see header ARM; the
-      # toolchain installs pin linux-amd64 tarballs.)
       docker_layer_caching: true
     steps:
       - checkout_full
       - run:
           name: Matrix env into BASH_ENV (every later step sources it)
-          # (printf lines, not a heredoc: the config processor requires
-          # escaping bare '<<' in v2.1+ — simpler to avoid it entirely)
+          # (printf lines, not a heredoc: the config processor dislikes
+          # bare '<<' in command bodies — parameter refs below are the
+          # sanctioned form, shell heredocs are not)
           command: |
             mkdir -p "$HOME/project/ci/.matrix-work"
             printf '%s\n' \
@@ -413,76 +423,53 @@ jobs:
               >> "$BASH_ENV"
             . "$BASH_ENV"
       - run:
-          name: Client toolchains (mvn 3.9 / JDK17 / node22 / go1.26 / helm4 / dotnet8 / conan2 / build+twine)
+          name: Client toolchain — leg only
+          # Selective install: exactly what THIS protocol's client needs
+          # (docs anchors: maven 3.9.9, node 22, go 1.26.6, helm 4.2.4,
+          # dotnet 8, conan 2 via pip; gradle's wrapper needs only JDK17).
           command: |
-            sudo apt-get update -qq
-            sudo apt-get install -y -qq openjdk-17-jdk-headless python3-venv python3-pip \
-              cmake g++ unzip zip jq >/dev/null
-            # maven 3.9.9 — the docs/user/integrations/maven.md anchor.
-            curl -fsSL https://archive.apache.org/dist/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.tar.gz \
-              | sudo tar -xz -C /opt
-            sudo ln -sf /opt/apache-maven-3.9.9/bin/mvn /usr/local/bin/mvn
-            # node 22 (npm leg; apt's is too old for the fixture chain)
-            curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - >/dev/null
-            sudo apt-get install -y -qq nodejs >/dev/null
-            # go — same line as go.mod's directive
-            curl -fsSL "https://go.dev/dl/go1.26.6.linux-amd64.tar.gz" | sudo tar -xz -C /usr/local
-            # helm 4.2.4 — the docs/user/integrations/helm-charts.md anchor
-            curl -fsSL https://get.helm.sh/helm-v4.2.4-linux-amd64.tar.gz | tar -xz
-            sudo install -m 0755 linux-amd64/helm /usr/local/bin/helm
-            # dotnet SDK 8 — the docs/user/integrations/nuget.md anchor
-            curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
-            bash /tmp/dotnet-install.sh --channel 8.0 --install-dir "$HOME/.dotnet" >/dev/null
-            # conan 2 + pypi build/twine — the docs/user/integrations anchors
-            pip3 install --quiet --user conan build twine
+            set -eu
+            LEG="<< parameters.leg >>"
+            case "$LEG" in
+              generic) echo "no toolchain needed (curl ships in the image)" ;;
+              maven|gradle)
+                sudo apt-get update -qq
+                sudo apt-get install -y -qq openjdk-17-jdk-headless >/dev/null
+                if [ "$LEG" = maven ]; then
+                  curl -fsSL https://archive.apache.org/dist/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.tar.gz \
+                    | sudo tar -xz -C /opt
+                  sudo ln -sf /opt/apache-maven-3.9.9/bin/mvn /usr/local/bin/mvn
+                fi ;;
+              npm)
+                curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - >/dev/null
+                sudo apt-get install -y -qq nodejs >/dev/null ;;
+              pypi)
+                sudo apt-get update -qq
+                sudo apt-get install -y -qq python3-venv python3-pip >/dev/null
+                pip3 install --quiet --user build twine ;;
+              docker)
+                REG="$(printf '%s' "${UAT_MATRIX_BASE:-http://52.79.109.153:8080}" | sed -e 's|^https\{0,1\}://||')"
+                sudo mkdir -p /etc/docker
+                printf '{"insecure-registries":["%s"]}\n' "$REG" | sudo tee /etc/docker/daemon.json >/dev/null
+                sudo systemctl restart docker
+                docker info | grep -A3 'Insecure Registries' ;;
+              nuget)
+                curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
+                bash /tmp/dotnet-install.sh --channel 8.0 --install-dir "$HOME/.dotnet" >/dev/null ;;
+              go)
+                curl -fsSL "https://go.dev/dl/go1.26.6.linux-amd64.tar.gz" | sudo tar -xz -C /usr/local ;;
+              helm)
+                curl -fsSL https://get.helm.sh/helm-v4.2.4-linux-amd64.tar.gz | tar -xz
+                sudo install -m 0755 linux-amd64/helm /usr/local/bin/helm ;;
+              conan)
+                sudo apt-get update -qq
+                sudo apt-get install -y -qq cmake g++ python3-venv python3-pip >/dev/null
+                pip3 install --quiet --user conan ;;
+              *) echo "unknown leg: $LEG" >&2; exit 2 ;;
+            esac
       - run:
-          name: Docker daemon — trust the plain-HTTP UAT registry
-          command: |
-            REG="$(printf '%s' "${UAT_MATRIX_BASE:-http://52.79.109.153:8080}" | sed -e 's|^https\{0,1\}://||')"
-            sudo mkdir -p /etc/docker
-            printf '{"insecure-registries":["%s"]}\n' "$REG" | sudo tee /etc/docker/daemon.json >/dev/null
-            sudo systemctl restart docker
-            docker info | grep -A3 'Insecure Registries'
-      - run:
-          name: matrix leg — generic
-          when: always
-          command: bash ci/protocol-matrix.sh --strict-tools --leg generic
-      - run:
-          name: matrix leg — maven
-          when: always
-          command: bash ci/protocol-matrix.sh --strict-tools --leg maven
-      - run:
-          name: matrix leg — gradle
-          when: always
-          command: bash ci/protocol-matrix.sh --strict-tools --leg gradle
-      - run:
-          name: matrix leg — npm
-          when: always
-          command: bash ci/protocol-matrix.sh --strict-tools --leg npm
-      - run:
-          name: matrix leg — pypi
-          when: always
-          command: bash ci/protocol-matrix.sh --strict-tools --leg pypi
-      - run:
-          name: matrix leg — docker
-          when: always
-          command: bash ci/protocol-matrix.sh --strict-tools --leg docker
-      - run:
-          name: matrix leg — nuget
-          when: always
-          command: bash ci/protocol-matrix.sh --strict-tools --leg nuget
-      - run:
-          name: matrix leg — go
-          when: always
-          command: bash ci/protocol-matrix.sh --strict-tools --leg go
-      - run:
-          name: matrix leg — helm
-          when: always
-          command: bash ci/protocol-matrix.sh --strict-tools --leg helm
-      - run:
-          name: matrix leg — conan
-          when: always
-          command: bash ci/protocol-matrix.sh --strict-tools --leg conan
+          name: matrix leg
+          command: bash ci/protocol-matrix.sh --strict-tools --leg "<< parameters.leg >>"
       - run:
           name: Matrix report
           when: always
@@ -549,11 +536,14 @@ workflows:
       # push/pull matrix against the instance it just shipped (user
       # directive #10). deploy_uat's own smoke (version stamp + docs face)
       # stays the deploy gate; this job is the protocol-depth gate.
-      - protocol_matrix:
+      - protocol_leg:
           requires: [deploy_uat]
           filters:
             branches:
               only: [main]
+          matrix:
+            parameters:
+              leg: [generic, maven, gradle, npm, pypi, docker, nuget, go, helm, conan]
       - e2e:
           requires: [build]
           filters:
@@ -576,7 +566,10 @@ workflows:
               only: [main]
     jobs:
       - race_full
-      - protocol_matrix
+      - protocol_leg:
+          matrix:
+            parameters:
+              leg: [generic, maven, gradle, npm, pypi, docker, nuget, go, helm, conan]
 
   # T-473 approval-gate placeholder (registered form, not active — no
   # external-publish job exists today; goreleaser release faces stay
