@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -61,6 +62,7 @@ type stackOptions struct {
 	addons      *addonsRegistrySeam
 	keys        *licenseKeys
 	extPatterns []string // Options.ExternalPatterns (nil = the "**" default)
+	spoolDir    string   // Options.SpoolDir; "" = the cmd assembly's <dataDir>/staging (T-474)
 }
 
 // newStack builds the default stack: anonymous reads on, no addon
@@ -118,9 +120,16 @@ func newStackOpt(t *testing.T, opt stackOptions) *stack {
 	// stays OUT of the global adapter registry — httpapi mounts
 	// Deps.Adapters explicitly.
 	RegisterMetadata()
+	spoolDir := opt.spoolDir
+	if spoolDir == "" {
+		// Mirror the cmd assembly (T-474): chart uploads stage on the
+		// storage volume's staging/ dir, never the OS temp dir.
+		spoolDir = filepath.Join(dataDir, "staging")
+	}
 	handler := New(svc, md.Repos(), md.Blobs(), md.NodeProps(), md.Remote(), Options{
 		BaseURL:          opt.baseURL,
 		ExternalPatterns: opt.extPatterns,
+		SpoolDir:         spoolDir,
 		Now:              func() time.Time { return time.Now() },
 	})
 
