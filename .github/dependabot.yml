@@ -1,8 +1,12 @@
 version: 2
 updates:
+  # Dependency bumps flow into develop (the validated integration branch),
+  # never straight into main — main is the UAT source and only receives
+  # tested trees via develop merges. See 2026-09-04 MUI 7→9 incident.
   # Go module — the server, adapters, and search engine
   - package-ecosystem: gomod
     directory: /
+    target-branch: develop
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
@@ -13,6 +17,7 @@ updates:
   # Console (React + Vite + MUI)
   - package-ecosystem: npm
     directory: /web
+    target-branch: develop
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
@@ -24,6 +29,7 @@ updates:
   # Docs site
   - package-ecosystem: npm
     directory: /docs-site
+    target-branch: develop
     schedule:
       interval: monthly
     open-pull-requests-limit: 3
@@ -31,5 +37,6 @@ updates:
   # GitHub Actions workflows (when present)
   - package-ecosystem: github-actions
     directory: /
+    target-branch: develop
     schedule:
       interval: monthly
