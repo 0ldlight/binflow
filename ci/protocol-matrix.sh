@@ -526,7 +526,11 @@ EOF
   run_dotnet pack proj/single-example.csproj -c Release -o pkg || return 1
   local nupkg="pkg/single-example.$NVER.nupkg"
   [ -f "$nupkg" ] || { echo "packed nupkg missing (looked for $nupkg)"; ls pkg; return 1; }
-  run_dotnet nuget push "$nupkg" --source binflow || return 1
+  # `--source binflow` is a NAMED source — it only resolves from a
+  # directory whose nuget.config chain defines it (proj/), not from the
+  # workdir root ("The specified source 'binflow' is invalid").
+  cp "$nupkg" proj/
+  ( cd proj && run_dotnet nuget push "single-example.$NVER.nupkg" --source binflow ) || return 1
   log "dotnet nuget push done (single-example $NVER)"
   # Pull leg: hand-written consumer (no `dotnet new` template dependency).
   rm -rf consumer; mkdir -p consumer; cp proj/nuget.config consumer/
