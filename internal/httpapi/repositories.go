@@ -72,6 +72,24 @@ type repoConfig struct {
 	HardFail                       *bool  `json:"hardFail,omitempty"`
 	AllowPrivateUpstream           *bool  `json:"allowPrivateUpstream,omitempty"`
 
+	// ---- D-T456-1 remote-browsing optional档 transport (T-448, FR-147.2;
+	// remote-browsing.md section 1 / repo-semantics 7.1) ----
+	//
+	// listRemoteFolderItems is the remote repository's upstream-merge switch:
+	// true makes a directory listing merge the enumeration engine's
+	// display-only derived rows beside the cache rows (batch-1 types only);
+	// false — the product default — keeps the pre-T-448 cached-rows-only
+	// posture. The field was missing from this struct since T-448: PUT bodies
+	// carrying it were silently swallowed by the decode (an unknown field to
+	// json.Decoder) and the mistyped-value 400 was unreachable for the same
+	// reason. Same posture as hardFail above: a flat POINTER field (an
+	// explicit false must survive the round trip so the flip-off update
+	// works), REMOTE arm only (the knob reads the remote canonical config),
+	// typing rides the decode (a mistyped value is a 400 naming the field),
+	// and the true-outside-batch-1 by-name refusal stays repo.Service's
+	// (parseRemoteConfig — one gate, no wire-side mirror to drift).
+	ListRemoteFolderItems *bool `json:"listRemoteFolderItems,omitempty"`
+
 	// ---- T-290 smart remote effective subset (FR-90.2; PRD/LC-12 and
 	// artifactory.xsd spellings — aliases resolve inside repo.Service, an
 	// M11-ruled name is refused there with a 400) ----
@@ -248,6 +266,10 @@ func (c repoConfig) configJSON(rclass string) (string, error) {
 		setBool(m, "hardFail", c.HardFail)
 		setBool(m, "allowPrivateUpstream", c.AllowPrivateUpstream)
 		setBool(m, "priorityResolution", c.PriorityResolution)
+		// D-T456-1: the remote-browsing optional档 finally rides the config
+		// blob — repo.Service's parseRemoteConfig owns its typing gate (a
+		// `true` outside the batch-1 set refuses by name there).
+		setBool(m, "listRemoteFolderItems", c.ListRemoteFolderItems)
 	case repo.TypeVirtual:
 		if c.Repositories != nil {
 			m["repositories"] = c.Repositories
