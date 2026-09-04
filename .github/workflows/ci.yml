@@ -68,10 +68,12 @@ jobs:
       # Go test with an explicit per-package timeout (FR-77 AC3, T-220
       # handover): the -race suite's slowest package (internal/httpapi)
       # takes ~571s on an idle machine — go test's 10m default leaves no
-      # headroom on slower CI runners. The Makefile defaults to the same
-      # 20m; passing it here keeps the CI budget visible in the workflow.
+      # headroom on slower CI runners. 30m: the GH runner's shared vCPUs
+      # run the race suite ~2x slower than idle metal (repo alone 772s on
+      # run 33881407081) — the 20m wall clock tripped mid-suite with every
+      # package healthy, purely capacity (peer-session forensics).
       - name: Test
-        run: make test TEST_TIMEOUT=20m
+        run: make test TEST_TIMEOUT=30m
 
       # GC concurrency stress (ADR-0031 / architecture section 14.2 point 6
       # and section 14.5-5): the T-232 race legs — uploads (and
