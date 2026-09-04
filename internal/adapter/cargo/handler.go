@@ -66,6 +66,16 @@ type Options struct {
 	// false makes config.json carry "auth-required": true (spec section
 	// 3.1) — cargo then authenticates its index/download requests.
 	AnonymousAccess bool
+	// SpoolDir roots the publish crate spool files (T-476, the T-474
+	// family): the .crate frame streams to disk — the landing re-reads it,
+	// and crates reach tens of megabytes. Hardened deployments — read-only
+	// rootfs, the kubernetes norm — mount no writable /tmp, which the
+	// OS-temp spool of the pre-T-476 code assumed (the same family as the
+	// UAT helm/nuget push incidents). The cmd assembly passes <storage
+	// data_dir>/staging — the SAME volume the blob store writes on. ""
+	// falls back to the OS temp dir (the bare test-harness posture); every
+	// refusal names the root it attempted (adapter.StagingDir/StageFile).
+	SpoolDir string
 }
 
 // Handler is the Cargo protocol adapter. It owns the wire protocol only;

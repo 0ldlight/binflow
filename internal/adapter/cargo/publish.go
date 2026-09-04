@@ -15,6 +15,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/lzwzzy/binflow/internal/adapter"
 	"github.com/lzwzzy/binflow/internal/metadata"
 	"github.com/lzwzzy/binflow/internal/repo"
 	"github.com/lzwzzy/binflow/internal/storage"
@@ -52,6 +53,17 @@ import (
 // those are the IOException track and ride the 200 + warnings.other arm.
 var errFramingDefect = errors.New("invalid publish frame")
 
+// msgSpoolUnavailable is the publish staging refusal (T-476, the T-474
+// family): 507 Insufficient Storage on the errors envelope, the %s
+// carrying the ATTEMPTED staging root (adapter.StagingLabel — bounded
+// disclosure; the os internals and the temp file name ride the log).
+const msgSpoolUnavailable = "crate publish cannot be staged: the upload staging area (%s) is unavailable (see the server log)"
+
+// msgSpoolReopenFailed is the warn-arm wording when the staged crate
+// cannot be re-read for the landing (CG-2's 200 face keeps it; the os
+// detail rides the log).
+const msgSpoolReopenFailed = "re-reading the staged crate failed (see the server log)"
+
 // maxMetaJSON bounds the metadata frame (the publish JSON is manifest
 // facts, never the readme body — a megabyte is an order of magnitude
 // beyond any real manifest, and a hostile length must fail fast instead
@@ -78,16 +90,22 @@ type publishMeta struct {
 }
 
 // decodePublishFrame splits the publish body into its metadata JSON and
-// the .crate bytes (spooled to a temp file — the crate is never held in
-// memory whole). Shape defects (errFramingDefect) answer 500; every error
-// the READING of the stream produces — a frame that ends early (the
-// EOFException family), a reset connection, a spool fault — carries no
-// sentinel and rides the handler's 200 + warnings.other arm (CG-2's
-// IOException track).
-func decodePublishFrame(body io.Reader) (rawJSON []byte, cratePath string, err error) {
-	f, err := os.CreateTemp("", "binflow-cargo-*.crate")
+// the .crate bytes (staged to a file under dir — the crate is never held
+// in memory whole). Shape defects (errFramingDefect) answer 500; every
+// error the READING of the stream produces — a frame that ends early (the
+// EOFException family), a reset connection — carries no sentinel and
+// rides the handler's 200 + warnings.other arm (CG-2's IOException
+// track). The STAGING-side faults (the root unwritable, the staged write
+// failing mid-frame, the close) are the one carve-out (T-476, the T-474
+// family): they wrap adapter.ErrStagingUnavailable and answer 507 — the
+// server's environmental inability to accept ANY upload is not this
+// publish's processing chain, and cargo reads a 200-with-warnings as
+// SUCCESS (R-1), which would have made the read-only-/tmp incident a
+// silent total loss. stagingWriter draws that line inside the copy.
+func decodePublishFrame(dir string, body io.Reader) (rawJSON []byte, cratePath string, err error) {
+	f, err := adapter.StageFile(dir, "binflow-cargo-*.crate")
 	if err != nil {
-		return nil, "", fmt.Errorf("spool crate: %w", err)
+		return nil, "", err
 	}
 	spooled := false
 	defer func() {
@@ -111,8 +129,12 @@ func decodePublishFrame(body io.Reader) (rawJSON []byte, cratePath string, err e
 	if crateLen == 0 {
 		return nil, "", fmt.Errorf("%w: crate frame is empty", errFramingDefect)
 	}
-	copied, cerr := io.Copy(f, io.LimitReader(body, int64(crateLen)))
+	sw := &stagingWriter{f: f}
+	copied, cerr := io.Copy(sw, io.LimitReader(body, int64(crateLen)))
 	if cerr != nil {
+		if sw.writeErr != nil {
+			return nil, "", fmt.Errorf("%w: staging the crate frame: %w", adapter.ErrStagingUnavailable, sw.writeErr)
+		}
 		return nil, "", fmt.Errorf("read crate frame: %w", cerr)
 	}
 	if copied != int64(crateLen) {
@@ -129,10 +151,29 @@ func decodePublishFrame(body io.Reader) (rawJSON []byte, cratePath string, err e
 		return nil, "", fmt.Errorf("%w: %d trailing byte(s) after the crate frame", errFramingDefect, n)
 	}
 	if err := f.Close(); err != nil {
-		return nil, "", fmt.Errorf("close spool: %w", err)
+		return nil, "", fmt.Errorf("%w: closing the staged crate: %w", adapter.ErrStagingUnavailable, err)
 	}
 	spooled = true
 	return rawJSON, f.Name(), nil
+}
+
+// stagingWriter marks whether the STAGING side of the crate copy failed:
+// a write fault (disk full, the volume gone read-only mid-upload) is the
+// environmental 507 family (adapter.ErrStagingUnavailable), while a read
+// fault is the client stream's own end and keeps CG-2's IOException track
+// (the 200 + warnings.other arm). io.Copy alone cannot draw that line.
+type stagingWriter struct {
+	f        *os.File
+	writeErr error
+}
+
+// Write implements io.Writer, remembering the first staging-side fault.
+func (w *stagingWriter) Write(p []byte) (int, error) {
+	n, err := w.f.Write(p)
+	if err != nil {
+		w.writeErr = err
+	}
+	return n, err
 }
 
 // readFramedBytes reads one [u32 LE length][payload] frame fully into
@@ -198,8 +239,20 @@ func parsePublishMeta(raw []byte) (*publishMeta, error) {
 // door in ServeHTTP; a publish onto a virtual repository is the M11
 // routing ticket's, refused the same way.
 func (h *Handler) servePublish(ctx context.Context, w http.ResponseWriter, r *http.Request, p *repo.Principal, repoKey string) {
-	rawJSON, spoolPath, err := decodePublishFrame(r.Body)
+	rawJSON, spoolPath, err := decodePublishFrame(h.opts.SpoolDir, r.Body)
 	if err != nil {
+		if errors.Is(err, adapter.ErrStagingUnavailable) {
+			// The T-476 carve-out (see decodePublishFrame): the staging
+			// refusal answers 507 on the face's own errors envelope — a
+			// 200 + warnings answer would read as SUCCESS to cargo (R-1).
+			// Bounded disclosure per the T-474 ruling: the body names the
+			// attempted staging root; the os internals ride the log.
+			slog.ErrorContext(ctx, "cargo: publish staging failed",
+				slog.String("repo", repoKey), slog.String("error", err.Error()))
+			writeEnvelope(w, http.StatusInsufficientStorage,
+				fmt.Sprintf(msgSpoolUnavailable, adapter.StagingLabel(h.opts.SpoolDir)))
+			return
+		}
 		if errors.Is(err, errFramingDefect) {
 			// CG-2 class 7: the uncaught-RuntimeException family. The exact
 			// Jersey error page Artifactory's generic mapper renders is not
@@ -242,9 +295,13 @@ func (h *Handler) servePublish(ctx context.Context, w http.ResponseWriter, r *ht
 	// the server measures, spec section 5.3). The service answers the
 	// permission family (401 anonymous / 403) and the overwrite decision;
 	// every other landing fault is the IOException track's 200 arm.
-	crateFile, err := os.Open(spoolPath) //nolint:gosec // G304: our own os.CreateTemp path, never client input
+	crateFile, err := os.Open(spoolPath) //nolint:gosec // G304: our own staged spool path, never client input
 	if err != nil {
-		writePublished(w, publishFailure(fmt.Errorf("reopen spool: %w", err)))
+		// Bounded wording (T-476): the reopen's os error names the staged
+		// file's path — the warnings.other string never carries it.
+		slog.WarnContext(ctx, "cargo: staged crate reopen failed",
+			slog.String("repo", repoKey), slog.String("error", err.Error()))
+		writePublished(w, publishFailure(errors.New(msgSpoolReopenFailed)))
 		return
 	}
 	node, err := h.svc.PutWithOptions(ctx, p, repoKey, target, crateFile, expect,

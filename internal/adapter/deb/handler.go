@@ -76,6 +76,17 @@ type Options struct {
 	// = unsigned mode (every repository degrades to the unsigned posture,
 	// never a content-plane failure).
 	Signer ReleaseSigner
+	// SpoolDir roots the debPUT binary spool files (T-476, the T-474
+	// family): the .deb body stages to disk — the control parse and the
+	// landing both re-read it, and packages reach tens of megabytes.
+	// Hardened deployments — read-only rootfs, the kubernetes norm —
+	// mount no writable /tmp, which the OS-temp spool of the pre-T-476
+	// code assumed (the same family as the UAT helm/nuget push
+	// incidents). The cmd assembly passes <storage data_dir>/staging —
+	// the SAME volume the blob store writes on. "" falls back to the OS
+	// temp dir (the bare test-harness posture); every refusal names the
+	// root it attempted (adapter.StagingDir/StageFile).
+	SpoolDir string
 }
 
 // Handler is the Debian adapter. It owns the wire protocol only.
@@ -342,16 +353,26 @@ func (h *Handler) serveUploadDeb(ctx context.Context, w http.ResponseWriter, r *
 	}
 	dists := coords.distributions
 
-	spoolPath, err := spoolBody(r.Body)
+	spoolPath, err := h.spoolBody(r.Body)
 	if err != nil {
-		writeText(w, http.StatusInternalServerError, fmt.Sprintf("spool request body: %v", err))
+		// 507 Insufficient Storage (T-476, the T-474 family): an unwritable
+		// or full staging root is a recoverable deployment condition, not a
+		// server bug — and the pre-T-476 face leaked the raw os error on a
+		// bare 500. The body names the ATTEMPTED ROOT (the operator's own
+		// config — the actionable fact); the os-error internals and the
+		// temp file name stay out of the face and ride the server log.
+		slog.ErrorContext(ctx, "deb: package upload spool failed",
+			slog.String("repo", repoKey), slog.String("path", rel), slog.String("error", err.Error()))
+		writeText(w, http.StatusInsufficientStorage, fmt.Sprintf(msgSpoolUnavailable, adapter.StagingLabel(h.opts.SpoolDir)))
 		return
 	}
 	defer func() { _ = os.Remove(spoolPath) }()
 
-	f, err := os.Open(spoolPath) //nolint:gosec // G304: our own os.CreateTemp path, never client input
+	f, err := os.Open(spoolPath) //nolint:gosec // G304: our own staged spool path, never client input
 	if err != nil {
-		writeText(w, http.StatusInternalServerError, fmt.Sprintf("reopen spool: %v", err))
+		slog.ErrorContext(ctx, "deb: package upload spool reopen failed",
+			slog.String("repo", repoKey), slog.String("path", rel), slog.String("error", err.Error()))
+		writeText(w, http.StatusInternalServerError, msgSpoolReopenFailed)
 		return
 	}
 	doc, parseErr := parseDebControl(f)
@@ -373,9 +394,11 @@ func (h *Handler) serveUploadDeb(ctx context.Context, w http.ResponseWriter, r *
 		writeText(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	f, err = os.Open(spoolPath) //nolint:gosec // G304: our own os.CreateTemp path, never client input
+	f, err = os.Open(spoolPath) //nolint:gosec // G304: our own staged spool path, never client input
 	if err != nil {
-		writeText(w, http.StatusInternalServerError, fmt.Sprintf("reopen spool: %v", err))
+		slog.ErrorContext(ctx, "deb: package upload spool reopen failed",
+			slog.String("repo", repoKey), slog.String("path", rel), slog.String("error", err.Error()))
+		writeText(w, http.StatusInternalServerError, msgSpoolReopenFailed)
 		return
 	}
 	node, err := h.svc.PutWithOptions(ctx, adapter.PrincipalFrom(ctx), repoKey, rel, f, expect,
@@ -478,24 +501,48 @@ func debFactProps(doc *controlDoc) map[string][]string {
 	return props
 }
 
-// spoolBody drains the request body into a temp file (packages reach tens
-// of megabytes; the parse and the landing both re-read it).
-func spoolBody(body io.Reader) (string, error) {
-	f, err := os.CreateTemp("", "binflow-deb-*.deb")
+// spoolBody drains the request body into the handler's staging root (see
+// the package-level spoolBody below for the semantics).
+func (h *Handler) spoolBody(body io.Reader) (string, error) {
+	return spoolBody(h.opts.SpoolDir, body)
+}
+
+// spoolBody stages body as one temp file under dir (packages reach tens
+// of megabytes; the parse and the landing both re-read it). The staging
+// root is the shared adapter primitive (adapter.StagingDir/StageFile,
+// T-476 the T-474 family): the production posture is the storage-volume
+// root the cmd assembly passes (<storage data_dir>/staging — hardened
+// read-only-rootfs containers mount no writable /tmp), dir "" keeps the
+// OS-temp fallback for the bare test harness. Every failure wraps
+// adapter.ErrStagingUnavailable — the handler's 507 family — and names
+// the root it attempted.
+func spoolBody(dir string, body io.Reader) (string, error) {
+	f, err := adapter.StageFile(dir, "binflow-deb-*.deb")
 	if err != nil {
 		return "", err
 	}
 	if _, err := io.Copy(f, body); err != nil {
 		_ = f.Close()
 		_ = os.Remove(f.Name())
-		return "", err
+		return "", fmt.Errorf("%w: staging the request body: %w", adapter.ErrStagingUnavailable, err)
 	}
 	if err := f.Close(); err != nil {
 		_ = os.Remove(f.Name())
-		return "", err
+		return "", fmt.Errorf("%w: closing the staged body: %w", adapter.ErrStagingUnavailable, err)
 	}
 	return f.Name(), nil
 }
+
+// msgSpoolUnavailable is the debPUT staging refusal (T-476, the T-474
+// family): 507 Insufficient Storage — a recoverable deployment condition,
+// not a server bug. The %s carries the ATTEMPTED staging root
+// (adapter.StagingLabel — bounded disclosure; the os internals and the
+// temp file name ride the server log).
+const msgSpoolUnavailable = "package upload cannot be staged: the upload staging area (%s) is unavailable (see the server log)"
+
+// msgSpoolReopenFailed is the unexpected-failure refusal when the staged
+// body cannot be re-read (the os detail rides the log).
+const msgSpoolReopenFailed = "package upload could not re-read its staged bytes (see the server log)"
 
 // writeCreated renders the 201 with the Location and checksum headers.
 func (h *Handler) writeCreated(w http.ResponseWriter, rel string, node *metadata.Node) {

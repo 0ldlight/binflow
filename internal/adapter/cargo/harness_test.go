@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/lzwzzy/binflow/internal/adapter"
@@ -53,6 +54,7 @@ type stackOptions struct {
 	anonymous bool   // the global anonymous read flag
 	addons    *addonsRegistrySeam
 	keys      *licenseKeys
+	spoolDir  string // Options.SpoolDir; "" = the cmd assembly's <dataDir>/staging (T-476)
 }
 
 // newStack builds the default stack: anonymous reads on, no addon
@@ -110,9 +112,16 @@ func newStackOpt(t *testing.T, opt stackOptions) *stack {
 	// stays OUT of the global adapter registry — httpapi mounts
 	// Deps.Adapters explicitly.
 	RegisterMetadata()
+	spoolDir := opt.spoolDir
+	if spoolDir == "" {
+		// Mirror the cmd assembly (T-476): publish crates stage on the
+		// storage volume's staging/ dir, never the OS temp dir.
+		spoolDir = filepath.Join(dataDir, "staging")
+	}
 	handler := New(svc, md.Repos(), md.Blobs(), md.NodeProps(), Options{
 		BaseURL:         opt.baseURL,
 		AnonymousAccess: opt.anonymous,
+		SpoolDir:        spoolDir,
 	})
 
 	deps := httpapi.Deps{

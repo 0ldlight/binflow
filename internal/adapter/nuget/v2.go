@@ -1178,7 +1178,7 @@ func (h *Handler) serveV2Publish(ctx context.Context, w http.ResponseWriter, r *
 		return
 	}
 	defer closeBody()
-	sp, err := spoolNupkg(body)
+	sp, err := spoolNupkg(h.opts.SpoolDir, body)
 	if err != nil {
 		h.writePushError(w, err)
 		return
@@ -1221,7 +1221,8 @@ func (h *Handler) serveV2Publish(ctx context.Context, w http.ResponseWriter, r *
 	// delete half is what splits the 409 from the overwrite arm — exactly
 	// section 5.1's exists && !canDelete, byte-blind by construction.
 	if _, err := sp.file.Seek(0, io.SeekStart); err != nil {
-		writePlain(w, http.StatusInternalServerError, fmt.Sprintf("rewind spool: %v", err))
+		slogWarnContext(r.Context(), "nuget: package push rewind failed", "error", err.Error())
+		writePlain(w, http.StatusInternalServerError, msgSpoolRewindFailed)
 		return
 	}
 	if _, perr := h.svc.Put(r.Context(), p, repoKey, deployPath, sp.file, storage.BlobRef{}, "application/octet-stream"); perr != nil {

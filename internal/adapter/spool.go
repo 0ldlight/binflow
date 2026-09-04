@@ -38,6 +38,21 @@ func StagingDir(dir string) (string, error) {
 	return root, nil
 }
 
+// StagingLabel renders the attempted staging root for a refusal face: the
+// configured root quoted verbatim, or the OS-temp fallback named honestly.
+// This is the face's ONLY disclosure (T-476's bounded-disclosure ruling,
+// T-474's precedent): the root is the operator's own configuration and the
+// one actionable fact a client output can carry; the os-error internals
+// and the temp file name ride the server log instead. The four spool
+// adapters render through this one helper — helm carries its own
+// pre-T-476 method of the same semantics (its area, untouched).
+func StagingLabel(dir string) string {
+	if dir != "" {
+		return fmt.Sprintf("%q", dir)
+	}
+	return "the OS temp directory"
+}
+
 // StageFile resolves the staging root (StagingDir) and creates one temp
 // file named per pattern inside it. The caller owns the file: it drains
 // the upload into it and closes/removes it on every path.
