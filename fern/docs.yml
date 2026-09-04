@@ -1,5 +1,6 @@
 instances:
   - url: binflow.docs.buildwithfern.com
+    custom-domain: binflow.org
 
 title: BinFlow 文档
 
