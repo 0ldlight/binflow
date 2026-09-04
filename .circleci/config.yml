@@ -14,6 +14,82 @@
 #   - SSH key for the UAT host uploaded; its fingerprint in $UAT_SSH_FP
 #   - $UAT_HOST (default 52.79.109.153), $UAT_USER (default ubuntu),
 #     $UAT_HOME (default /opt/binflow-uat)
+#
+# T-473 (2026-09-04) — DevOps capability sweep (user directive: "把 circleci
+# 的 devops 相关能力都用起来"). Every change below is additive to the
+# main-push flow — caches, test splitting, junit/test-results reporting, a
+# nightly scheduled workflow, DLC on the machine job; job semantics and the
+# workflow DAG are untouched. Verdicts, capability by capability (rejected
+# ones included — 留痕):
+#
+#   CACHING    go-mod cache path FIXED: v1 cached /go/pkg/mod, which does not
+#              exist in cimg images (docker-run verified: GOMODCACHE is
+#              /home/circleci/go/pkg/mod) — every prior save silently
+#              captured nothing (save_cache tolerates missing paths, so no
+#              job ever red; it was pure dead weight). Now: exact key +
+#              prefix fallback (a go.sum bump restores the old module set and
+#              `go mod download` fills only the delta). NEW go-build object
+#              cache (GOCACHE — survives source churn at object level). NEW
+#              npm tarball caches (~/.npm) for make console / make docs /
+#              e2e: caching node_modules is worthless under `npm ci` (it
+#              DELETES node_modules before installing), so e2e's web-deps-v1
+#              restore is retired for the tarball cache that actually pays.
+#              NEW Playwright browser cache (~/.cache/ms-playwright) keyed on
+#              the lockfile — same invalidation clock as the runner version.
+#   SPLIT      build: parallelism 2 + `circleci tests split` by package
+#              (--split-by=timings --timings-type=classname once store_test_
+#              results history accumulates; name-based until then). 2, not
+#              3~4: the console/docs/vet/lint legs duplicate per shard
+#              (guarding them to shard 0 would change what the other shard's
+#              tests compile against — placeholder vs real SPA embed — i.e.
+#              job semantics; not an allowed change). Revisit the count with
+#              Insights timing data. e2e NOT sharded: --shard would fork the
+#              workers/retries posture T-471 just tuned; one box, one truth.
+#   REPORTING  junit everywhere: gotestsum (pinned v1.13.0; go directive
+#              1.24.0 — fine on the 1.26 executor) wraps the SAME go test
+#              flags for build/race_full; Playwright --reporter=list,junit
+#              (CLI comma form, verified against the installed playwright's
+#              own program.js) for e2e, replacing the config's CI 'github'
+#              reporter — dead weight on CircleCI, which has no GitHub
+#              context. store_test_results feeds Insights + flaky detection
+#              (the T-471 drift family gets a data face); store_artifacts
+#              keeps the raw junit, e2e traces, and the server log.
+#   ARM        arm.medium evaluated, NOT applied: cimg/go + cimg/node
+#              publish arm64 variants and Go cross-builds natively, but a
+#              resource_class flip is not an additive change and the main
+#              retest is in flight. protocol_matrix additionally pins
+#              amd64 toolchain tarballs (go1.26.6.linux-amd64, helm
+#              linux-amd64) — its machine legs need dual-arch installs
+#              first. Follow-up ticket once the retest closes.
+#   ORBS       none, deliberately: the toolchain is image-pinned
+#              (cimg/go:1.26-node) and step-anchored (mvn 3.9.9, helm 4.2.4,
+#              go 1.26.6) — circleci/go would install a SECOND Go over the
+#              pinned one (drift, not less); circleci/node has no surface
+#              (no node executor in the critical path); circleci/docker has
+#              no surface (the machine job configures daemon.json by hand on
+#              purpose — insecure-registries for the plain-HTTP UAT).
+#   DLC        protocol_matrix machine job: docker_layer_caching true — the
+#              docker leg builds a real image (leg_docker). Purge handle:
+#              `circleci dlc`.
+#   NIGHTLY    separate `nightly` workflow, cron 17 3 * * * (03:17 UTC —
+#              off-peak; deliberately not a round hour to dodge the cron
+#              herd): race_full (full-tree -race, the `make test` recipe
+#              split x4) + protocol_matrix against the STANDING UAT with no
+#              deploy first — the drift face (disk growth, GC, long-lived
+#              process state) the post-deploy matrix never sees. Config-
+#              based schedules run the default branch's config; the new
+#              API "scheduled pipelines" can replace this later without
+#              touching the jobs.
+#   APPROVAL   no external-publish job exists today (goreleaser release
+#              faces stay conductor+user actions per the Makefile Q1/DoD 7
+#              note) — the approval-gate shape is registered as a comment
+#              at the workflows section for whenever one lands.
+#   CONTEXT    UAT_MATRIX_* / UAT_HOST / UAT_USER / UAT_HOME /
+#              SSH_KEY_FINGERPRINT_UAT should migrate to an org context
+#              (e.g. binflow-uat) so forks and future projects never
+#              inherit them and rotation happens in one place. Registered,
+#              not executed: context creation is an org-admin UI action,
+#              and referencing a missing context would break every run.
 
 version: 2.1
 
@@ -35,23 +111,60 @@ commands:
 jobs:
   build:
     executor: go
+    # T-473: 2-way split of the go-test leg (header SPLIT). Everything
+    # except the test line runs on both shards — deliberately: guarding the
+    # console/docs legs to shard 0 would leave shard 1 testing the
+    # placeholder-embed tree (not the real-SPA tree today's tests run
+    # against), i.e. a semantics change. Both shards persist an identical
+    # bin/; the workspace merge is a harmless last-write-wins between
+    # identical files.
+    parallelism: 2
     steps:
       - checkout_full
+      # T-473: module cache — path fixed (v1's /go/pkg/mod never existed in
+      # cimg images, so every prior save stored nothing). Exact key first,
+      # prefix fallback second.
       - restore_cache:
           keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
+            - go-mod-v2-{{ checksum "go.sum" }}
+            - go-mod-v2-
       - run:
           name: Download Go modules
           command: go mod download
       - save_cache:
-          key: go-mod-v1-{{ checksum "go.sum" }}
-          paths: ["/go/pkg/mod"]
+          key: go-mod-v2-{{ checksum "go.sum" }}
+          paths: ["/home/circleci/go/pkg/mod"]
+      # T-473: Go build-object cache — keyed on go.sum so a dependency bump
+      # invalidates it wholesale while ordinary source churn still hits
+      # every unchanged package's objects.
+      - restore_cache:
+          keys:
+            - go-build-v1-{{ checksum "go.sum" }}
+            - go-build-v1-
+      # T-473: npm tarball caches for make console / make docs — `npm ci`
+      # deletes node_modules before installing, so the download cache is
+      # the one that pays.
+      - restore_cache:
+          keys:
+            - npm-web-v1-{{ checksum "web/package-lock.json" }}
+      - restore_cache:
+          keys:
+            - npm-docs-v1-{{ checksum "docs-site/package-lock.json" }}
       - run:
           name: Build console + docs + server (embedded)
           command: |
             make console
             make docs
             make build
+      - save_cache:
+          key: npm-web-v1-{{ checksum "web/package-lock.json" }}
+          paths: ["/home/circleci/.npm"]
+      - save_cache:
+          key: npm-docs-v1-{{ checksum "docs-site/package-lock.json" }}
+          paths: ["/home/circleci/.npm"]
+      - save_cache:
+          key: go-build-v1-{{ checksum "go.sum" }}
+          paths: ["/home/circleci/.cache/go-build"]
       - run:
           name: Vet + lint + fast tests
           command: |
@@ -60,7 +173,23 @@ jobs:
             # `make console` populated it two steps earlier.
             make vet
             make lint
-            go test ./internal/... ./cmd/... -count=1 -short
+            # T-473: the test leg is now split-aware + junit-reporting. The
+            # package SET is identical to the previous
+            #   go test ./internal/... ./cmd/... -count=1 -short
+            # — the split only partitions it across shards (a single-node
+            # run degrades to the full list, so parallelism: 1 stays valid).
+            # gotestsum is a pure wrapper: same flags, same exit code, plus
+            # the junit file that store_test_results feeds to Insights and
+            # the flaky detector (classname = package, matching
+            # --timings-type=classname on the next split).
+            go install gotest.tools/gotestsum@v1.13.0
+            mkdir -p /tmp/test-results
+            PKGS="$(go list ./internal/... ./cmd/... \
+              | circleci tests split --split-by=timings --timings-type=classname)"
+            echo "shard ${CIRCLE_NODE_INDEX:-0}/${CIRCLE_NODE_TOTAL:-1}: ${PKGS}"
+            gotestsum --format testname \
+              --junitfile /tmp/test-results/junit.xml \
+              -- -count=1 -short ${PKGS}
       - run:
           # T-325: parity with the Jenkins chain's stamp step — bare
           # `make build` leaves version=dev/dev (Q4/T-127), and the deploy
@@ -77,6 +206,12 @@ jobs:
       - persist_to_workspace:
           root: .
           paths: [bin/]
+      # T-473: test metadata for Insights (duration trends, failure rates,
+      # flaky detection) + the raw junit as a human-readable artifact.
+      - store_test_results:
+          path: /tmp/test-results
+      - store_artifacts:
+          path: /tmp/test-results
 
   deploy_uat:
     executor: go
@@ -121,13 +256,26 @@ jobs:
     executor: go
     environment:
       BASE: http://127.0.0.1:8080
+      # T-473: where the e2e junit reporter writes (relative to web/, the
+      # npx cwd). Consumed by store_test_results below.
+      PLAYWRIGHT_JUNIT_OUTPUT_NAME: reports/junit-e2e.xml
     steps:
       - checkout_full
       - attach_workspace:
           at: .
+      # T-473: web-deps-v1 (node_modules) retired — `npm ci` deletes
+      # node_modules before installing, so restoring it was pure upload/
+      # extract overhead. Replaced by the npm tarball cache + a Playwright
+      # browser cache keyed on the same lockfile (browsers track the
+      # @playwright/test version the lockfile pins). `--with-deps` apt legs
+      # are never cached — the install step stays exactly as it was and is
+      # idempotent; a cache hit only skips the chromium download.
       - restore_cache:
           keys:
-            - web-deps-v1-{{ checksum "web/package-lock.json" }}
+            - npm-web-v1-{{ checksum "web/package-lock.json" }}
+      - restore_cache:
+          keys:
+            - pw-browsers-v1-{{ checksum "web/package-lock.json" }}
       # The runner only needs web/node_modules for the Playwright runner
       # itself; the SPA under test is already embedded in the workspace
       # binary (build ran make console + make docs).
@@ -135,8 +283,11 @@ jobs:
           name: Console deps (Playwright runner)
           command: cd web && npm ci
       - save_cache:
-          key: web-deps-v1-{{ checksum "web/package-lock.json" }}
-          paths: [ "~/project/web/node_modules" ]
+          key: npm-web-v1-{{ checksum "web/package-lock.json" }}
+          paths: ["/home/circleci/.npm"]
+      - save_cache:
+          key: pw-browsers-v1-{{ checksum "web/package-lock.json" }}
+          paths: ["/home/circleci/.cache/ms-playwright"]
       - run:
           name: Install Playwright browser (chromium)
           command: cd web && npx playwright install --with-deps chromium
@@ -170,11 +321,35 @@ jobs:
       - run:
           name: Playwright (all three projects, workers=2)
           no_output_timeout: 30m
-          command: cd web && npx playwright test --workers=2
+          # T-473: --reporter=list,junit (the CLI's documented comma form —
+          # verified against the installed playwright's program.js) replaces
+          # the config's CI 'github' reporter, which renders nothing on
+          # CircleCI (no GitHub context). list keeps the per-test lines in
+          # the job log; junit lands at PLAYWRIGHT_JUNIT_OUTPUT_NAME for
+          # store_test_results. Same specs, same retries (config CI=2 stays
+          # active), same workers=2 pin — T-471's posture is untouched.
+          command: |
+            cd web
+            mkdir -p reports test-results
+            npx playwright test --workers=2 --reporter=list,junit
       - run:
           name: Server log on failure
           when: on_fail
           command: tail -200 "$HOME/server.log" || true
+      # T-473: traces land in web/test-results (config trace:
+      # retain-on-failure) — empty on green runs; store_artifacts tolerates
+      # that with a warning. reports/ holds the junit (redundant with
+      # store_test_results on purpose: artifacts survive longer and are
+      # human-browsable). The server log is stored unconditionally — small,
+      # and the full file beats the on_fail tail-200 for deep dives.
+      - store_test_results:
+          path: web/reports
+      - store_artifacts:
+          path: web/test-results
+      - store_artifacts:
+          path: web/reports
+      - store_artifacts:
+          path: /home/circleci/server.log
 
   # T-469 (user directive #10, issued twice): after every UAT deploy, run a
   # push+pull roundtrip for EVERY package protocol against the live UAT with
@@ -196,6 +371,13 @@ jobs:
   protocol_matrix:
     machine:
       image: ubuntu-2204:current
+      # T-473: docker layer caching — the docker leg builds a real image
+      # (leg_docker: fixture Dockerfile + appended CMD), so cached base
+      # layers skip the re-pull/re-build on every main deploy and nightly
+      # run. Purge handle if a bad layer sticks: `circleci dlc`.
+      # (arm.medium for this job: NOT applicable — see header ARM; the
+      # toolchain installs pin linux-amd64 tarballs.)
+      docker_layer_caching: true
     steps:
       - checkout_full
       - run:
@@ -289,6 +471,50 @@ jobs:
           when: always
           command: bash ci/protocol-matrix.sh --report
 
+  # T-473 nightly leg 1: the full-tree -race suite — literally the `make
+  # test` recipe (CGO_ENABLED=1 -race -count=1 -timeout 20m over the
+  # Makefile's PKG set, web/ excluded as the console's node domain),
+  # wrapped in gotestsum for junit and split 4 ways across the quiet
+  # window. Race depth was previously a local/dev-box-only gate; the
+  # main-push build job keeps its -short fast tests by design (unchanged).
+  # Runs ONLY on the nightly schedule — see the `nightly` workflow.
+  race_full:
+    executor: go
+    parallelism: 4
+    steps:
+      - checkout_full
+      - restore_cache:
+          keys:
+            - go-mod-v2-{{ checksum "go.sum" }}
+            - go-mod-v2-
+      - run:
+          name: Download Go modules
+          command: go mod download
+      - restore_cache:
+          keys:
+            - go-build-v1-{{ checksum "go.sum" }}
+            - go-build-v1-
+      - run:
+          name: Full-tree race suite (split 4, junit)
+          # gcc 13.3 ships in cimg/go (docker-run verified) — the race
+          # detector's cgo requirement is met without extra installs.
+          command: |
+            go install gotest.tools/gotestsum@v1.13.0
+            mkdir -p /tmp/test-results
+            PKGS="$(go list ./... | grep -v '/binflow/web/' \
+              | circleci tests split --split-by=timings --timings-type=classname)"
+            echo "shard ${CIRCLE_NODE_INDEX:-0}/${CIRCLE_NODE_TOTAL:-1}: ${PKGS}"
+            CGO_ENABLED=1 gotestsum --format testname \
+              --junitfile /tmp/test-results/junit.xml \
+              -- -race -count=1 -timeout 20m ${PKGS}
+      - store_test_results:
+          path: /tmp/test-results
+      - store_artifacts:
+          path: /tmp/test-results
+      - save_cache:
+          key: go-build-v1-{{ checksum "go.sum" }}
+          paths: ["/home/circleci/.cache/go-build"]
+
 workflows:
   version: 2
   uat:
@@ -316,3 +542,44 @@ workflows:
           filters:
             branches:
               only: [main]
+
+  # T-473: nightly window — full race depth + the protocol matrix against
+  # the STANDING UAT instance (no deploy_uat first: this is the drift face
+  # — disk growth, GC, long-lived-process state — complementary to the
+  # main-push matrix that gates a fresh deploy). Config-based schedules
+  # always run the default branch's config, so this lands when develop
+  # merges to main. Kept as a separately-named workflow so Insights splits
+  # nightly from main-push runs of protocol_matrix.
+  nightly:
+    triggers:
+      - schedule:
+          cron: "17 3 * * *"
+          filters:
+            branches:
+              only: [main]
+    jobs:
+      - race_full
+      - protocol_matrix
+
+  # T-473 approval-gate placeholder (registered form, not active — no
+  # external-publish job exists today; goreleaser release faces stay
+  # conductor+user actions per the Makefile Q1/DoD 7 note). When one lands,
+  # it must sit behind a manual hold shaped exactly like this:
+  #
+  #   - hold_publish:
+  #       type: approval
+  #       requires: [build]
+  #       filters:
+  #         branches:
+  #           only: [main]
+  #   - publish_release:
+  #       requires: [hold_publish]
+  #       context: [binflow-release]
+  #
+  # T-473 context/secrets hygiene (registered, needs org-admin UI action —
+  # a `context:` reference to a missing context fails every run, so this is
+  # NOT wired here): UAT_MATRIX_BASE/USER/PASSWORD, UAT_HOST/USER/HOME and
+  # SSH_KEY_FINGERPRINT_UAT belong in an org context (e.g. binflow-uat)
+  # attached to deploy_uat/protocol_matrix, so forks and future projects
+  # never inherit them and rotation happens in one place. The new CircleCI
+  # CLI exposes `circleci context` management for exactly this.
