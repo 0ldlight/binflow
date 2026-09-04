@@ -182,16 +182,58 @@ export function parseReferencedTargets(message: string): string[] {
     .filter((s) => s !== '')
 }
 
-// ---- permission targets（E-24 / SE-07；M7 动作集扩 manage，T-217） ----
+// ---- permission targets（E-24 / SE-07；M7 动作集扩 manage，T-217； ----
+// ---- T-455 五列动词域：annotate 独立位 + write→deploy-cache 双层词表） ----
 
-/** 动作集四值：r/w/d + m（manage = 仓库级 admin 派生位，ADR-0026 决策 3）。
- *  wire 全词形（read/write/delete/manage）；GET 回显按本数组序（r/w/d/m）。 */
-export type PermAction = 'read' | 'write' | 'delete' | 'manage'
-export const PERM_ACTIONS: PermAction[] = ['read', 'write', 'delete', 'manage']
+/**
+ * 动作集五值（T-455，parity B-1.6 翻正——Q7）：UI 矩阵列序 =
+ * read / annotate / write / delete / manage（7.161.20 活体列序对位：
+ * Repositories 资源型 Read / Annotate / Deploy/Cache / Delete/Overwrite /
+ * Manage；BinFlow 列头用正名单词形 + tooltip 注 7.161 标签，探针证据
+ * reports/agents/t455-probe/）。
+ *
+ * wire 双层（T-444 / ADR-0044 K68.2）：GET 回显**正名单单形**
+ * read / deploy-cache / annotate / delete / manage；PUT 收五词 + `write`
+ * 别名（= deploy-cache，**不附带 annotate**——拆分语义，零提权）。本类型的
+ * 'write' 是 FE 展示/勾选域词：水合归一（deploy-cache→write）与保存序列化
+ * （write→deploy-cache）各自单点收口在 normalizePermActions / wireActions。
+ * annotate = 属性写位（properties PUT/DELETE 门），不隐含内容写；write =
+ * 部署位，不携带 annotate——两列独立勾选（活体联动形态在 0 仓参照实例不可
+ * 观测，矩阵门在资源型+行选定之后——登记不伪造；BinFlow 语义独立位列）。
+ */
+export type PermAction = 'read' | 'annotate' | 'write' | 'delete' | 'manage'
+export const PERM_ACTIONS: PermAction[] = ['read', 'annotate', 'write', 'delete', 'manage']
+
+/** wire 动作词（GET 回显正名单 + PUT 收词超集含 write 别名）。
+ *  GET 侧 principals 值的诚实类型（'deploy-cache' 不在 PermAction 里）。 */
+export type WireAction = 'read' | 'write' | 'deploy-cache' | 'annotate' | 'delete' | 'manage'
+
+/** wire 回显正名单序（GET echo 按此序；wireActions 输出同序，往返稳定） */
+const WIRE_ACTION_ORDER: readonly WireAction[] = ['read', 'deploy-cache', 'annotate', 'delete', 'manage']
+
+/** wire → UI 词归一：'deploy-cache' → 'write'（'write' 别名同收），闭集外
+ *  丢弃、去重、保序。T-444 兼容窗的展示面收口点——编辑器水合与授权汇总
+ *  （grantsOf*）都过这里，勾选渲染不再直接 includes('write') 漏 deploy-cache。 */
+export function normalizePermActions(raw: readonly string[]): PermAction[] {
+  const out: PermAction[] = []
+  for (const w of raw) {
+    const a: PermAction | null =
+      w === 'write' || w === 'deploy-cache' ? 'write' : (PERM_ACTIONS as readonly string[]).includes(w) ? (w as PermAction) : null
+    if (a !== null && !out.includes(a)) out.push(a)
+  }
+  return out
+}
+
+/** UI → wire 词序列化：'write' → 正名单 'deploy-cache'（别名收词两形等效，
+ *  发正名单形与 GET 回显同形——diff/快照比较稳定）；正名单序输出。 */
+export function wireActions(actions: readonly PermAction[]): WireAction[] {
+  const set = new Set(actions)
+  return WIRE_ACTION_ORDER.filter((w) => (w === 'deploy-cache' ? set.has('write') : set.has(w as PermAction)))
+}
 
 export interface PermPrincipals {
-  users: Record<string, PermAction[]>
-  groups: Record<string, PermAction[]>
+  users: Record<string, WireAction[]>
+  groups: Record<string, WireAction[]>
 }
 
 export interface PermissionTarget {
@@ -261,30 +303,32 @@ export function validateUserName(name: string): string | null {
 
 // ---- 主体授权汇总（T-237；console-m8 §6.9[5]/§6.10 组权限矩阵）----
 // 只读汇总：把 permission targets 列表折叠成「某主体在每个 target 上的
-// 四动作视图」。对用户 = 直接行 + 经所属组行（Artifactory User Permissions
-// Tab 的 Applied To 语义）；对组 = 该组的行。纯前端计算，零新端点。
+// 五动作视图」（T-455 起含 annotate）。对用户 = 直接行 + 经所属组行
+// （Artifactory User Permissions Tab 的 Applied To 语义）；对组 = 该组的行。
+// 纯前端计算，零新端点。
 
 export interface PrincipalGrantRow {
   /** permission target 名 */
   target: string
   /** 授权途径：'direct'（主体直接在 principals 上）或组名（经该组） */
   sources: string[]
-  /** 各途径动作的并集（r/w/d/m 序） */
+  /** 各途径动作的并集（UI 五词域，r/a/w/d/m 序——归一见 normalizePermActions） */
   actions: PermAction[]
 }
 
-/** 组的授权行（§6.10 编辑态组权限矩阵；manage 徽章数据源同此） */
+/** 组的授权行（§6.10 编辑态组权限矩阵；manage 徽章数据源同此）。wire 词
+ *  （deploy-cache/write）经 normalizePermActions 归一为 UI 五词域。 */
 export function grantsOfGroup(targets: PermissionTarget[], group: string): PrincipalGrantRow[] {
   const rows: PrincipalGrantRow[] = []
   for (const t of targets) {
     const actions = t.principals.groups[group]
     if (!actions || actions.length === 0) continue
-    rows.push({ target: t.name, sources: ['direct'], actions })
+    rows.push({ target: t.name, sources: ['direct'], actions: normalizePermActions(actions) })
   }
   return rows
 }
 
-/** 用户的授权行：直接 + 经组（Artifactory Applied To 形态） */
+/** 用户的授权行：直接 + 经组（Artifactory Applied To 形态）；并集在 UI 词域 */
 export function grantsOfUser(
   targets: PermissionTarget[],
   user: string,
@@ -297,13 +341,13 @@ export function grantsOfUser(
     const direct = t.principals.users[user]
     if (direct && direct.length > 0) {
       sources.push('direct')
-      for (const a of direct) actions.add(a)
+      for (const a of normalizePermActions(direct)) actions.add(a)
     }
     for (const g of userGroups) {
       const via = t.principals.groups[g]
       if (via && via.length > 0) {
         sources.push(g)
-        for (const a of via) actions.add(a)
+        for (const a of normalizePermActions(via)) actions.add(a)
       }
     }
     if (sources.length === 0) continue

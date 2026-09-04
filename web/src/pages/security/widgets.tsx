@@ -19,8 +19,8 @@ import type { PermAction, PrincipalGrantRow } from './api'
 
 // 用户/组页共用小件（T-237，area 目录内助手——与 TransferBox 同批）：
 //   SortTh / useTableSort  C1 列头排序（§4.7：点击循环 asc → desc → none）
-//   PermSummaryTable       只读权限矩阵（§6.9[5]/§6.10：r/w/d/m 四列，manage
-//                          头带「不隐含读写删」说明——§7.2）
+//   PermSummaryTable       只读权限矩阵（§6.9[5]/§6.10：T-455 起 r/a/w/d/m
+//                          五列，manage 头带「不隐含读写删」说明——§7.2）
 //   useUserDelete          删用户强确认（T-257，E4 消费面——列表行与编辑页
 //                          危险区共用；RepoDeleteConfirm 同款 holder 闭包缝）
 
@@ -98,8 +98,9 @@ export function applySort<T>(rows: readonly T[], sort: SortState<string>, valueO
   })
 }
 
-/** 只读权限矩阵（§6.9[5]）：Permission Name │ 应用途径 │ r/w/d/m。
- *  行 = target；来源 = 直接 + 经组（用户视角）或直接（组视角）。 */
+/** 只读权限矩阵（§6.9[5]）：Permission Name │ 应用途径 │ r/a/w/d/m
+ *  （T-455 五列——write 列含 deploy-cache 别名归一，见 api.ts）。行 =
+ *  target；来源 = 直接 + 经组（用户视角）或直接（组视角）。 */
 export function PermSummaryTable({
   rows,
   rowTestidPrefix,
@@ -119,7 +120,23 @@ export function PermSummaryTable({
           <TableCell component="th" scope="col">Permission Name</TableCell>
           <TableCell component="th" scope="col">应用途径</TableCell>
           {PERM_ACTIONS.map((a) => (
-            <TableCell key={a} component="th" scope="col" className="th-action" title={a === 'manage' ? 'manage = 仓库配置派生权（不隐含读写删）' : undefined}>
+            <TableCell
+              key={a}
+              component="th"
+              scope="col"
+              className="th-action"
+              title={
+                a === 'manage'
+                  ? 'manage = 仓库配置派生权（不隐含读写删）'
+                  : a === 'annotate'
+                    ? 'annotate = 属性写位（7.161 标签 Annotate；不隐含内容写）'
+                    : a === 'write'
+                      ? 'write = 部署位（7.161 标签 Deploy/Cache；wire 正名 deploy-cache；不携带 annotate）'
+                      : a === 'delete'
+                        ? 'delete = 删除/覆盖（7.161 标签 Delete/Overwrite）'
+                        : undefined
+              }
+            >
               {a}
             </TableCell>
           ))}

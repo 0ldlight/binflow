@@ -172,7 +172,9 @@ test('W33 three-step flow: group -> user membership -> target matrix, tester + d
   expect(t!.includePatterns).toEqual(['qa/**'])
   expect(t!.excludePatterns).toEqual(['qa/tmp/**'])
   expect(t!.principals.users[user]).toEqual(['read'])
-  expect([...t!.principals.groups[group]].sort()).toEqual(['read', 'write'])
+  // T-444 起动词拆分：write（部署）wire 正名 deploy-cache——GET 回显正名单
+  // 单形（PUT 仍收 write 别名）；T-455 断言翻新（预登记红点的兑现面）
+  expect([...t!.principals.groups[group]].sort()).toEqual(['deploy-cache', 'read'])
 })
 
 test('W33b: group grant effective for a second session; UI removal is immediate (no re-login)', async ({ page, browser }) => {

@@ -19,7 +19,9 @@ export interface DiffLine {
   value: string
 }
 
-const ACTION_ORDER: Record<PermAction, number> = { read: 0, write: 1, delete: 2, manage: 3 }
+// T-455：动词域五化（annotate 独立位）——排序只求稳定全序，UI 列序见
+// api.ts PERM_ACTIONS（read/annotate/write/delete/manage）。
+const ACTION_ORDER: Record<PermAction, number> = { read: 0, annotate: 1, write: 2, delete: 3, manage: 4 }
 const sortActions = (a: PermAction[]) => [...a].sort((x, y) => ACTION_ORDER[x] - ACTION_ORDER[y])
 const sameActions = (a: PermAction[], b: PermAction[]) =>
   sortActions(a).join(',') === sortActions(b).join(',')

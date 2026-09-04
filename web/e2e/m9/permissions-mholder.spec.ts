@@ -197,7 +197,8 @@ test.describe.serial('m-holder permissions reachability (T-259)', () => {
       (x) => x.name === 't-in',
     )
     expect(tin?.repos).toEqual([r00, r01])
-    expect([...(tin?.principals.users.u9 ?? [])].sort()).toEqual(['manage', 'write'])
+    // T-444 拆分：u9 勾的 write 位 → GET 回显 deploy-cache（正名单形）
+    expect([...(tin?.principals.users.u9 ?? [])].sort()).toEqual(['deploy-cache', 'manage'])
     expect(tin?.principals.users.u10).toEqual(['read'])
 
     // Converge t-in back to the seed body (u9's own POST — coverage-in 2xx)

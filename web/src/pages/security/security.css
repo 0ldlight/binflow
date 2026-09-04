@@ -431,6 +431,14 @@
 /* .modal.perm-res-modal 宽度行已随 T-344 批 D 退役：ResourceDialog 换
  * MUI Dialog，720px 由 paper slotProps sx 承载。step/body 的负 margin
  * 原是补偿 .modal 手作 padding——DialogContent 自带 20px padding，收直。 */
+/* 可点步头排（T-455，对位 7.161 活体 Add Repositories 弹窗两步头）：
+   布局类自持，视觉态（当前步色/字重）走 MUI Button 的 color prop。 */
+.perm-res-steps {
+  display: flex;
+  gap: var(--bf-sp-2);
+  margin: 0 0 var(--bf-sp-1);
+}
+
 .perm-res-step {
   margin: 0 0 var(--bf-sp-2);
   font-size: var(--bf-fs-aux);

@@ -297,6 +297,14 @@ const STOP = new Set([
   // 简称（a11y-sweep 即 e2e/m8/a11y-sweep.spec.ts 的 +2 路由翻新），
   // 均非 testid 锚
   't453-route-forms', 't453-probe', 'a11y-sweep',
+  // v1.41（T-455 行文假阳性）：矩阵五列批的标识符引用——wire 正名单动词
+  // （deploy-cache——§10.5 T-455 批块的词域描述；wire 词非 testid 锚：
+  // UI 勾选域词是 write，cell 锚保持冻结族形态）、本票新 spec 文件名段
+  // （t455-perm-five-columns）、活体探针证据目录名（t455-probe 即
+  // reports/agents/t455-probe/ 的 7.161.20 权限编辑形态取证）、翻新 spec
+  // 简称（permissions-mholder 即 e2e/m9/permissions-mholder.spec.ts——
+  // v1.39 users-groups 同款先例），均非锚
+  'deploy-cache', 't455-perm-five-columns', 't455-probe', 'permissions-mholder',
 ])
 const docFams = new Set()
 for (const t of docTokens) {
