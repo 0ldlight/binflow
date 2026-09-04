@@ -68,6 +68,11 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Pin dotnet 8 (the docs/user/integrations/nuget.md anchor)
         if: matrix.leg == 'nuget'
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          echo "removed system dotnet; remaining:"; command -v dotnet || echo "(none in PATH yet)"
+      - name: Install dotnet 8 (the docs anchor)
+        if: matrix.leg == 'nuget'
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
