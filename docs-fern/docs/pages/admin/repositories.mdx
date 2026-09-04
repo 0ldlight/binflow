@@ -1,0 +1,134 @@
+# 仓库管理（local / remote / virtual）
+
+三种仓型各司其职，概念与 Artifactory 一一对应（术语不变）：
+
+| 仓型 | rclass | 职责 | 可写 |
+|---|---|---|---|
+| 本地仓 | `local` | 团队自有制品的落盘地 | 是 |
+| **remote 仓** | `remote` | 上游代理缓存（pull-through）：首次回源、此后命中本地缓存，上游故障不传染 | 否（405，只读代理） |
+| **virtual 仓** | `virtual` | 把 local 与 remote 成员缝成单一访问入口 | 默认否（405）；显式配置写路由后可写 |
+
+建仓统一走管理面 API：`PUT /binflow/api/repositories/{key}`（admin 凭据，重复 PUT 为更新、成员变更即时生效）。建仓/删仓仅全量 admin；编辑仓配置与配额对覆盖仓的 manage 持有者开放（见[权限](/admin/permissions)）。
+
+## remote 仓字段表
+
+```bash
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/maven-remote-central \
+  -H 'Content-Type: application/json' \
+  -d '{"rclass":"remote","packageType":"maven","url":"https://repo.maven.apache.org/maven2"}' \
+  -o /dev/null -w '%{http_code}\n'        # 200
+```
+
+| 字段 | 必填 | 默认 | 说明 |
+|---|---|---|---|
+| `url` | 是 | — | 上游 base URL，仅 `http`/`https`（`file://`/`ftp://` 建仓即 400）；请求路径直接拼接 |
+| `username` / `password` | 否 | 空 | 上游 Basic 认证；password 加密落库（见[凭据小节](#上游凭据与-binflow_remote_credentials_key)），GET 永不回显 |
+| `retrievalCachePeriodSecs` | 否 | **7200** | 缓存命中期：期内 GET 不回源 |
+| `missedRetrievalCachePeriodSecs` | 否 | **1800** | 404 负缓存期（防穿透）。**显式 `0` = 回落默认 1800 而非禁用**。接受 `missRetrievalCachePeriodSecs`（无 ed）为输入别名——回显恒用 canonical 拼写 |
+| `socketTimeoutMillis` | 否 | **15000** | 上游连接/读/响应头超时（毫秒，canonical 拼写；`socketTimeoutMs` 仍接受为输入别名；显式 `0` = 缺席） |
+| `socketTimeoutSecs` | 否 | **15** | legacy 字段：`socketTimeoutMillis` 非零时以 ms 为准；回显恒附派生秒值 |
+| `metadataRetrievalTimeoutSecs` | 否 | **60** | 并发拉取同一 metadata 路径时等待者的等锁上限，超时回发旧缓存副本 |
+| `unusedArtifactsCleanupPeriodHours` | 否 | **0**（关） | 未使用缓存制品的清理周期（小时）——cleanup 引擎按窗口删除「窗口内无下载事件且未再落地」的缓存 node（见[治理 · cleanup](/admin/governance)） |
+| `enableTokenAuthentication` | 否 | **false** | `true` 时拉取侧对上游发 `Authorization: Bearer <password>`（无密码 = 匿名维持） |
+| `contentSynchronisation` | 否 | `{"enabled":false,…}` | 拉取侧内容同步对象：`enabled` / `propertiesEnabled`（内容节点落地后从上游附着属性，best-effort）/ `statisticsEnabled` / `sourceOrigin`（后两子字段接受回显暂无行为） |
+| `assumedOfflinePeriodSecs` | 否 | **300** | 上游故障静默期：期内零上游流量，期后自动恢复探测 |
+| `hardFail` | 否 | **false** | `true` 时上游错误向上抛 **502**（默认 404 + 有缓存服务缓存） |
+| `allowPrivateUpstream` | 否 | **false** | SSRF 私网放行开关，仅 admin 可设、写审计日志 |
+| `priorityResolution` | 否 | `false` | 作为 virtual 成员时的优先解析标记 |
+| `chartsBaseUrl` | 否 | 空（回退仓 URL） | **仅 `packageType=helm`**：content 类回源的分体基址（见 [Helm 接入](/integrations/helm)）；其它包型携带 → 400 |
+
+`packageType` 合法值：`generic` / `docker` / `maven` / `npm` / `pypi`（community）；`go` / `nuget` / `cargo` / `conan` / `helm` / `rpm` / `debian` / `helmoci`（pro）。**docker 支持 local + remote 两态；`rclass=virtual + packageType=docker` 建仓 400**（文案：`repository type not supported: virtual docker repositories are not supported (docker serves local and remote; ...)`）。
+
+回显形态：上游 `url` 与参数在 `configuration` 对象内，**`password` 字段不出现在响应里**。
+
+## virtual 仓字段表
+
+```bash
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/maven-virtual \
+  -H 'Content-Type: application/json' \
+  -d '{"rclass":"virtual","packageType":"maven",
+       "repositories":["maven-local","maven-remote-x","maven-remote-central"],
+       "defaultDeploymentRepo":"maven-local"}' \
+  -o /dev/null -w '%{http_code}\n'        # 200
+```
+
+| 字段 | 必填 | 说明 |
+|---|---|---|
+| `repositories` | 是 | 成员 repo key 数组（非空；成员不存在 → 400；成员为 virtual → 400，嵌套 virtual 不做） |
+| `defaultDeploymentRepo` | 否 | 写路由目标：必须是成员中的 **local** 仓（指向非 local 成员 → 400）；别名 `defaultDeploymentRepoRef` / `deploymentRepository` 亦接受；未配置 → 一切写操作 405 |
+| 成员的 `priorityResolution` | 否 | 标记在成员仓自己的配置上：优先桶整体前置于声明序 |
+
+解析顺序（两桶序）：`priorityResolution: true` 的成员（桶内按声明序）→ 其余成员（桶内按声明序）；下载类解析**首命中即停**。响应头 `X-Binflow-Resolved-From: <成员key>` 标明来源——「拿到旧副本」排障先看它。成员增删/改序/改标记**即时生效**。
+
+## remote 请求流与缓存语义
+
+`GET/HEAD /binflow/<remote>/<path>` 六步：
+
+1. checksum 后缀（`.sha1` 等）**不回源** → 404 `Checksums are not downloadable.`（checksum 经响应头提供）。
+2. 查**负缓存**：期内已知 miss → 直接 404，零上游流量。
+3. 查**本地缓存**：命中且未过 `retrievalCachePeriodSecs` → 直接服务，零上游流量。
+4. 过期或缺失 → 回源：上游 200 流式落盘；上游 404 写负缓存，若本地有过期副本仍回发过期副本。
+5. 上游 5xx/超时/连接失败 → 仓标记 **assumed-offline**（静默 `assumedOfflinePeriodSecs`）：有缓存（含过期）→ 服务缓存并附 `X-Binflow-Upstream-Error` 头；无缓存 → 404；`hardFail: true` 仓 → 502。静默期后自动恢复。
+6. 上游 401/403（凭据错误）→ 视为资源不存在：404 + message 附上游状态摘要。
+
+可观测头：`X-Binflow-Cache: HIT \| MISS \| STALE \| REVALIDATED`、`X-Binflow-Resolved-From`、`X-Binflow-Upstream-Error`。其它：PUT/POST → 405 + `Allow: GET`；缓冲型响应上限 64MB；重定向逐跳跟随且每跳重过 SSRF 校验（上限 5 跳）；大文件代理全程流式。
+
+## docker remote 仓
+
+走根级 `/v2` 栈：`docker pull <host>/<remote仓key>/<镜像名>:<tag>` 首拉回源、此后命中本地缓存——与 maven/npm/pypi remote 同一套引擎语义。**community 档即可用**（docker 槽在地板档）。`url` 形态见 [Docker 接入 · remote 仓](/integrations/docker)。
+
+## 缓存管理与强刷手法
+
+- **强刷单个路径**：`DELETE /binflow/<remote>/<path>` → 204（仅删本地缓存，不触达上游），下次 GET 重新回源。这是唯一的强刷手法——**没有** `?refresh=true` 参数。未缓存路径 DELETE → 404（幂等）。
+- **整仓清空**：删仓带 `?deleteContent=true`，或按路径逐个 DELETE。
+- 缓存跨重启保留：重启实例（含换密钥重启）后已缓存内容直接 HIT。
+
+## 上游凭据与 `BINFLOW_REMOTE_CREDENTIALS_KEY`
+
+上游 password 以 **AES-256-GCM** 加密落元数据库（密文形 `enc:v1:<base64>`，明文永不落盘/入 YAML/入日志）。主密钥仅经环境变量注入：
+
+```bash
+openssl rand -base64 32        # 生成（base64 的 32 字节随机密钥）
+BINFLOW_REMOTE_CREDENTIALS_KEY=<值>   # 部署时注入（compose env / K8s Secret / systemd EnvironmentFile）
+```
+
+| 场景 | 行为 |
+|---|---|
+| 带钥启动 + 建带 password 的仓 | 密文 `enc:v1:` 落库 |
+| **无钥启动且库中已有加密凭据** | **启动 fail-fast**，日志点名修复动作（配好 env 重启即恢复） |
+| 无钥运行时建带 password 的仓 | password 被丢弃并记 WARN——请勿在此状态下录入凭据 |
+| 存量明文（升级场景） | 设钥后首次启动由迁移一次性加密 |
+| 密钥轮换 | 不做（换钥 = 重录各仓凭据） |
+
+## SSRF 防护与 `allowPrivateUpstream` 放行
+
+**默认拒绝（无需配置）**。全部出站请求逐目标过 SSRF 校验链，命中以下类别一律 400（`Cannot fetch '<repo>/<path>': upstream target refused — private or suppressed upstream (...)`）：回环、RFC1918 私网与 IPv6 ULA、链路本地（**含云 metadata 服务 169.254.169.254**）、未指定/保留/组播地址、非 http(s) scheme、重定向到上述目标（每跳重过链）。防 DNS rebinding：校验通过的 IP 钉死用于实际拨号。
+
+**放行内网上游**（场景：上游是内网 Nexus/Artifactory）：admin 建仓/改仓时设 `"allowPrivateUpstream": true`。注意放行后该仓可触达部署网络内任意私网目标（含同网段云 metadata 服务），属高权限操作——审计留痕，定期复核豁免仓清单，无用即收回（改回 `false` 即时生效）。
+
+## 上游兼容性速查
+
+| 上游 | remote 代理 |
+|---|---|
+| Maven Central（`https://repo.maven.apache.org/maven2`） | **可用**（全链含传递依赖） |
+| pypi.org | **可用**（302 逐跳过链后跟随） |
+| registry.npmjs.org | **不可用**——packument 布局不兼容；布局兼容上游（内网 Nexus/Artifactory）可用 |
+| docker registry 上游（`packageType=docker`） | BinFlow 上游可用（digest 全等、二拉零回源、降级 STALE） |
+| 内网私网上游 | 可用，需 `allowPrivateUpstream: true` |
+
+## 常见报错码对照
+
+| 码 | message（节选） | 场景 | 处置 |
+|---|---|---|---|
+| 405 | `Remote repository '<key>' is a read-only proxy cache; ...`（+`Allow: GET`） | 对 remote 仓 PUT/POST | 写操作走 local 仓或 virtual 写路由 |
+| 405 | `No local repository was configured as local deployment repository for the (<key>) virtual repository.` | virtual 未配写路由 | 配 `defaultDeploymentRepo` |
+| 404 | `Checksums are not downloadable.` | remote 仓 checksum 旁车请求 | 用响应头 `X-Checksum-*` |
+| 404 | `... upstream <host> is assumed offline (no cached copy; retry later).` | 上游故障且无缓存 | 等静默期自动恢复 |
+| 502 | `Upstream '<host>' failed ... (hardFail enabled)` | 同上但 `hardFail: true` | 同上 |
+| 404 | `... (upstream answered 401 ...; credentials refused or insufficient)` | 上游凭据错误 | 核对仓配置的 username/password |
+| 400 | `... upstream target refused — private or suppressed upstream (...)` | SSRF 防护拒绝 | 内网上游配 `allowPrivateUpstream` |
+| 400 | `repository type not supported: virtual docker repositories are not supported ...` | docker virtual 建仓 | docker 走 local + remote 两态 |
+
+## 下一步
+
+- 各协议客户端配置：[接入指南](/integrations/docker) · [治理](/admin/governance) · [FAQ](/faq)

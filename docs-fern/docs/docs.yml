@@ -1,0 +1,101 @@
+# BinFlow 用户文档导航树（Fern）
+# 页面文件位于 docs/pages/，路由以本文件 path 值为准（页面间互链使用绝对路径）。
+navigation:
+  - tab: 文档
+    layout:
+      - page: BinFlow 简介
+        path: /
+        icon: home
+      - section: 快速开始
+        contents:
+          - page: 五分钟快速开始
+            path: /getting-started/quickstart
+            icon: rocket
+      - section: 安装部署
+        contents:
+          - page: 单二进制安装
+            path: /install/binary
+          - page: Docker 运行
+            path: /install/docker
+          - page: docker-compose 部署
+            path: /install/compose
+          - page: Helm Chart（Kubernetes）
+            path: /install/helm
+          - page: 原生 Kubernetes 清单
+            path: /install/kubernetes
+          - page: systemd 服务（裸机）
+            path: /install/systemd
+          - page: 离线安装（air-gapped）
+            path: /install/offline
+          - page: 升级
+            path: /install/upgrade
+      - section: 客户端接入
+        contents:
+          - page: Docker / OCI 镜像
+            path: /integrations/docker
+          - page: Generic（任意文件）
+            path: /integrations/generic
+          - page: Maven
+            path: /integrations/maven
+          - page: npm
+            path: /integrations/npm
+          - page: PyPI
+            path: /integrations/pypi
+          - page: Go Modules
+            path: /integrations/go
+          - page: NuGet
+            path: /integrations/nuget
+          - page: Cargo（Rust）
+            path: /integrations/cargo
+          - page: Conan（C/C++）
+            path: /integrations/conan
+          - page: Helm Chart 仓库
+            path: /integrations/helm
+          - page: RPM（Yum/DNF）
+            path: /integrations/rpm
+          - page: Debian（apt）
+            path: /integrations/debian
+      - section: 管理指南
+        contents:
+          - page: Web 控制台
+            path: /admin/console
+          - page: 仓库管理（local / remote / virtual）
+            path: /admin/repositories
+          - page: 用户、组与权限
+            path: /admin/permissions
+          - page: Token 与二次认证（step-up）
+            path: /admin/tokens
+          - page: 治理（审计 / GC / 配额 / 复制）
+            path: /admin/governance
+          - page: 备份与恢复
+            path: /admin/backup
+          - page: 存储后端（磁盘 / S3 / 双写）
+            path: /admin/storage
+          - page: 认证（LDAP / OIDC / SAML）
+            path: /admin/auth
+          - page: License 与 Add-ons
+            path: /admin/license
+          - page: 制品操作与回收站
+            path: /admin/operations
+          - page: Webhooks
+            path: /admin/webhooks
+          - page: 监控指标（Prometheus）
+            path: /admin/monitoring
+      - section: 搜索与属性
+        contents:
+          - page: 属性系统
+            path: /search/properties
+          - page: AQL 搜索
+            path: /search/aql
+      - section: 工具与迁移
+        contents:
+          - page: bf CLI
+            path: /tools/bf-cli
+          - page: 从 Artifactory 迁移（bf-migrate）
+            path: /tools/migrate-artifactory
+      - page: API 参考
+        path: /api-reference
+        icon: square-terminal
+      - page: FAQ 与故障排查
+        path: /faq
+        icon: circle-help

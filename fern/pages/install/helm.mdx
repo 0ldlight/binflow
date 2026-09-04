@@ -1,0 +1,114 @@
+# Helm Chart（Kubernetes）
+
+`charts/binflow/` 提供标准 Helm Chart：单副本部署、PVC 持久化、可选 Ingress、镜像拉取密钥、资源限制与 HPA（单副本约束）。
+
+## 前置要求
+
+- Kubernetes >= 1.28，Helm >= 3.12，kubectl 已配置上下文
+
+## 安装步骤
+
+```bash
+# 本地 chart 目录（开发/评估推荐）
+helm install binflow ./charts/binflow --set admin.password=my-secret-password
+
+# 或 OCI 仓库（发布后）
+helm install binflow oci://ghcr.io/lzwzzy/charts/binflow --version 1.0.0
+```
+
+默认密码为 `password`（values.yaml 占位值），**生产环境必须覆盖**。
+
+```bash
+# 等待就绪
+kubectl wait --for=condition=available --timeout=60s deployment/binflow
+
+# 获取管理员密码
+export BINFLOW_ADMIN_PASSWORD=$(kubectl get secret binflow-secret \
+  -o jsonpath="{.data.BINFLOW_ADMIN_PASSWORD}" | base64 -d)
+
+# 端口转发并验证
+kubectl port-forward svc/binflow 8080:8080 &
+curl -s http://127.0.0.1:8080/readyz    # ok
+```
+
+## 自定义 values
+
+`my-values.yaml` 常用段：
+
+```yaml
+admin:
+  password: "strong-password-here"
+
+image:
+  repository: ghcr.io/lzwzzy/binflow
+  tag: "v1.0.0-alpine"          # 或 v1.0.0-distroless（无 shell，最小攻击面）
+  pullPolicy: IfNotPresent
+
+persistence:
+  enabled: true
+  size: 50Gi                    # 默认 20Gi RWO；也可 existingClaim 复用已有 PVC
+  storageClass: "standard"
+
+service:
+  type: ClusterIP               # ClusterIP / NodePort / LoadBalancer
+  port: 8080
+
+ingress:
+  enabled: true
+  className: nginx
+  hosts:
+    - host: binflow.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: binflow-tls
+      hosts:
+        - binflow.example.com
+
+resources:
+  limits: { cpu: 2000m, memory: 1Gi }
+  requests: { cpu: 100m, memory: 256Mi }
+```
+
+```bash
+helm install binflow ./charts/binflow -f my-values.yaml
+helm upgrade binflow ./charts/binflow -f my-values.yaml
+```
+
+## 关键配置说明
+
+- **存储**：SQLite WAL 要求独占写入——多副本共享 PVC 被明确禁止，values.schema.json 强制 `replicaCount <= 1`。
+- **安全上下文**：Pod 以非 root 运行（distroless uid 65532）；`securityContext`（runAsNonRoot / readOnlyRootFilesystem 等）可在 values 自定义。
+- **Ingress 路径要求**：`/readyz`、`/healthz` 无前缀；`/v2/`（docker）根级直通；`/binflow/` 为管理 API + 内容路径。建议注解 `nginx.ingress.kubernetes.io/proxy-body-size: "0"`（制品上传不限）。
+
+## Chart 结构
+
+```
+charts/binflow/
+├── Chart.yaml / values.yaml / values.schema.json
+└── templates/
+    ├── deployment.yaml   # 单副本，Recreate 策略
+    ├── service.yaml / pvc.yaml / secret.yaml / configmap.yaml
+    ├── ingress.yaml / hpa.yaml / serviceaccount.yaml / NOTES.txt
+```
+
+## 卸载与数据卷
+
+```bash
+helm uninstall binflow
+```
+
+**PVC 有意幸存**：chart 自建的 PVC 带 `helm.sh/resource-policy: keep` 注解（恒注入，无配置项可关闭）——`helm uninstall` 只删工作负载，数据卷保留；同 namespace 重装同名 release 会复用幸存 PVC（PVC 名 = `<release>-binflow`）。彻底删除数据须手动清卷：
+
+```bash
+kubectl delete pvc --namespace <ns> binflow-binflow
+# 或按标签
+kubectl delete pvc -l app.kubernetes.io/instance=binflow
+```
+
+`persistence.existingClaim` 复用外部 PVC 的部署不适用本条（chart 不管那个卷的死活）。
+
+## 下一步
+
+- [原生 Kubernetes 清单](/install/kubernetes) · [离线安装](/install/offline) · [备份与恢复](/admin/backup)

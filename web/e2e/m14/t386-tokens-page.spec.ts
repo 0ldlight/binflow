@@ -147,7 +147,7 @@ test('tokens: admin mint chain — one-time plaintext, ledger row, close+reload 
   )
   await expect(page.locator(`[data-testid="token-status-${tokenId}"]`)).toHaveText('有效')
   await expect(row).toContainText('admin') // 主体 = 签发会话
-  await expect(page.locator('[data-testid="tokens-count"]')).toContainText('1 条会话台账')
+  await expect(page.locator('[data-testid="tokens-count"]')).toContainText('显示 1 – 1 / 共 1 项（会话台账')
 
   // Bearer 对账：铸出的令牌真的活着、主体真是 admin
   const alive = await whoamiVia(page, token)
@@ -218,7 +218,7 @@ test('tokens: revoke via danger confirm flips the row and kills the credential s
   const dead = await whoamiVia(page, minted.token)
   expect(dead.status).toBe(401)
   await expect(page.locator('[data-testid="toast"]').filter({ hasText: `#${minted.tokenId} 已吊销` })).toBeVisible()
-  await expect(page.locator('[data-testid="tokens-count"]')).toContainText('含已吊销 1')
+  await expect(page.locator('[data-testid="tokens-count"]')).toContainText('会话台账 · 含已吊销 1')
 })
 
 // ---- ③ 按 token_id 吊销（台账外历史令牌）+ 签发错误内联 ------------------------

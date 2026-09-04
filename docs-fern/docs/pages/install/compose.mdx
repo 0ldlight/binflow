@@ -1,0 +1,88 @@
+# docker-compose 部署
+
+`deploy/compose/docker-compose.yml` 提供开箱即用的编排定义：alpine/distroless 变体、可选 nginx 反代 profile、命名卷持久化。从零到 `/readyz` 200 目标 15 分钟内（含镜像构建）。
+
+## 前置要求
+
+- Docker >= 24.0（含 `docker compose` 插件）
+- 从仓库根目录执行
+
+## 安装步骤
+
+### 1. 准备环境变量
+
+```bash
+cp deploy/compose/.env.example deploy/compose/.env
+# 编辑 .env，至少修改 BINFLOW_ADMIN_PASSWORD
+```
+
+`.env` 已 gitignore；`.env.example` 是跟踪的模板，所有配置项带注释。
+
+### 2. 启动
+
+```bash
+docker compose -f deploy/compose/docker-compose.yml up -d --build
+```
+
+首次运行构建镜像（console 构建 + 文档站构建 + Go 编译），后续启动使用缓存。
+
+### 3. 验证
+
+```bash
+docker compose -f deploy/compose/docker-compose.yml ps
+# binflow-ga  STATUS 显示 "(healthy)"（内置 HEALTHCHECK 每 10s 检查 /readyz）
+curl -s http://127.0.0.1:8080/readyz
+# ok
+```
+
+## 可选：nginx TLS 反代
+
+```bash
+docker compose -f deploy/compose/docker-compose.yml --profile nginx up -d --build
+```
+
+nginx 在 443 做 TLS 终止并转发 `/v2/` 与 `/binflow/` 到 BinFlow（**无 rewrite——路径原样直通**，docker token 协商依赖这一点）。端口经 `.env` 的 `NGINX_BIND_ADDR` / `NGINX_BIND_PORT` 调整。
+
+## 配置速查
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `BINFLOW_ADMIN_PASSWORD` | **必填**（无默认） | 管理员初始密码，空值 compose 拒绝启动 |
+| `BINFLOW_IMAGE_VARIANT` | alpine | 镜像变体：alpine 或 distroless |
+| `BINFLOW_VER` | v1.0.0 | 版本标签 |
+| `BINFLOW_BIND_ADDR` | 127.0.0.1 | 宿主机绑定地址 |
+| `BINFLOW_BIND_PORT` | 8080 | 宿主机绑定端口 |
+| `BINFLOW_SECURITY_ANONYMOUS_ACCESS` | true | 匿名读取 |
+| `BINFLOW_AUTH__TOKEN_DEFAULT_TTL_HOURS` | 720 | Token 有效期（小时） |
+| `BINFLOW_LOGGING__FORMAT` / `BINFLOW_LOGGING__LEVEL` | console / info | 日志格式与级别 |
+| `BINFLOW_SERVER__GRACEFUL_TIMEOUT_SECONDS` | 30 | 优雅关闭超时 |
+| `BINFLOW_STORAGE__SESSION_TTL_HOURS` | 24 | 上传会话 TTL |
+| `BINFLOW_STORAGE__GC_GRACE_HOURS` | 24 | GC 宽限期 |
+| `BINFLOW_AUDIT__ENABLED` | true | 审计日志 |
+| `BINFLOW_CONSOLE__SESSION_TTL_HOURS` | 24 | 控制台会话 TTL |
+
+## 数据持久化与日志
+
+命名卷 `binflow-data` 挂载到 `/var/lib/binflow`。`down` 保留数据卷；`down -v` 销毁（谨慎）。
+
+```bash
+docker compose -f deploy/compose/docker-compose.yml logs -f   # 实时日志（json-file 驱动，10MB×3 轮转）
+```
+
+## 安全说明
+
+- 默认绑定 `127.0.0.1:8080` 仅本机可访问；对外暴露需自行保证网络可信或前置 TLS。
+- `BINFLOW_ADMIN_PASSWORD` 使用 `:?` 强制语法——未设置或为空时 compose 拒绝启动。
+- 容器以非 root 用户运行（alpine uid 10001，distroless nonroot）。
+
+## 卸载
+
+```bash
+docker compose -f deploy/compose/docker-compose.yml down       # 保留数据卷
+docker compose -f deploy/compose/docker-compose.yml down -v    # 连数据卷（谨慎）
+docker rmi binflow:v1.0.0-alpine binflow:v1.0.0-distroless
+```
+
+## 下一步
+
+- [Docker 运行](/install/docker) · [Helm Chart](/install/helm) · [离线安装](/install/offline) · [Generic 接入](/integrations/generic)

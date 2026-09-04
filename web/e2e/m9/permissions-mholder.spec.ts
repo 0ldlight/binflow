@@ -113,10 +113,10 @@ test.describe.serial('m-holder permissions reachability (T-259)', () => {
     await expect(page.locator('[data-testid="perm-row-t-out"]')).toHaveCount(0)
     await expect(page.locator('[data-testid="perms-page"]')).not.toContainText('t-out')
 
-    // m-holder posture: the manage note renders, the count line is
+    // m-holder posture: the manage note renders, the pager range note is
     // coverage-scoped, the create entry stays admin-only (L4).
     await expect(page.locator('[data-testid="perms-manage-note"]')).toBeVisible()
-    await expect(page.locator('[data-testid="perms-count"]')).toHaveText('管理范围内的权限 target： 1')
+    await expect(page.locator('[data-testid="perms-count"]')).toContainText('显示 1 – 1 / 共 1 项（管理范围内的权限 target）')
     await expect(page.locator('[data-testid="perms-create"]')).toHaveCount(0)
 
     // Wire contrast (frozen branch): u9's no-filter GET stays 403 — the page

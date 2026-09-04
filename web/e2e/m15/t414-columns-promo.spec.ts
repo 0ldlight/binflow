@@ -188,9 +188,11 @@ test('admin: groups column selector — hide persists across reload; reset; keys
   await closeColumnsMenu(page, '[data-testid="groups-columns-menu"]', '[data-testid="groups-columns"]')
 })
 
-// ---- 3. search 页：列选 + 持久（URL 承载查询态）+ 复位（①②③④） ---------------
+// ---- 3. search 页：列选（T-449 断言反转②——默认档 + 持久 + 恢复默认） ---------
 
-test('admin: search column selector — hide sha256 persists across reload; reset', async ({ page }) => {
+test('admin: search column selector — size/sha256 opt-in by default, persists; reset restores the default set', async ({
+  page,
+}) => {
   // 备料：独立仓 + 唯一文件（auxiliary.spec seedSearchFixture 同款）
   const marker = `t414s${Date.now().toString(36)}`
   const repo = `${marker}-local`
@@ -211,39 +213,44 @@ test('admin: search column selector — hide sha256 persists across reload; rese
   await page.goto(`/binflow/ui/search?q=${marker}`)
   await expect(page.locator('[data-testid="search-result-0"]')).toBeVisible({ timeout: 10_000 })
 
-  // 五列闭集：仓库/路径 / 语义/大小/修改时间/sha256（④；表无独立锚——以页根
-  // 限定表头，不新增锚）
+  // T-449 断言反转②默认档：选择列（固定）+ 制品/路径/仓库/修改时间 = 5 表头；
+  // 大小/sha256 不默认在场（表无独立锚——以页根限定表头，不新增锚）
   const th = page.locator('[data-testid="search-page"] table thead th')
   await expect(th).toHaveCount(5)
 
-  // 弃「sha256」→ 表头 + 行单元格 -1 + 持久（URL 承 q，reload 结果回归）；
-  // 五列项逐名断言（④ 列集闭包）
-  const SEARCH_ITEMS = [
-    '[data-testid="search-columns-item-repo"]',
-    '[data-testid="search-columns-item-path"]',
-    '[data-testid="search-columns-item-size"]',
-    '[data-testid="search-columns-item-modified"]',
-    '[data-testid="search-columns-item-sha256"]',
-  ] as const
-  await openColumnsMenu(page, '[data-testid="search-columns"]', '[data-testid="search-columns-menu"]', SEARCH_ITEMS)
-  await page.click('[data-testid="search-columns-item-sha256"]')
-  await expect(th).toHaveCount(4)
-  await expect(page.locator('[data-testid="search-result-0"] td')).toHaveCount(4)
-  expect(await page.evaluate(() => localStorage.getItem('binflow-console-cols-search'))).toContain('sha256')
+  // 开菜单：六列闭集（制品 name 为 T-449 新增项）+ 默认勾选态分流
+  //（选择器全字面量——对账器口径，t387 先例同款纪律）
+  const t = page.locator('[data-testid="search-columns"]')
+  await expect(t).toHaveAttribute('aria-haspopup', 'menu')
+  await expect(t).toContainText('列 4/6')
+  await t.click()
+  const m = page.locator('[data-testid="search-columns-menu"]')
+  await expect(m).toBeVisible()
+  await expect(m.locator('[role="menuitemcheckbox"]')).toHaveCount(6)
+  await expect(page.locator('[data-testid="search-columns-item-name"]')).toHaveAttribute('aria-checked', 'true')
+  await expect(page.locator('[data-testid="search-columns-item-path"]')).toHaveAttribute('aria-checked', 'true')
+  await expect(page.locator('[data-testid="search-columns-item-repo"]')).toHaveAttribute('aria-checked', 'true')
+  await expect(page.locator('[data-testid="search-columns-item-modified"]')).toHaveAttribute('aria-checked', 'true')
+  await expect(page.locator('[data-testid="search-columns-item-size"]')).toHaveAttribute('aria-checked', 'false')
+  await expect(page.locator('[data-testid="search-columns-item-sha256"]')).toHaveAttribute('aria-checked', 'false')
+
+  // 勾入「大小」→ 表头 + 行单元格 6 + 持久（URL 承 q，reload 结果回归；
+  // 存储面 = 隐藏集——size 出集仍留 sha256）
+  await page.click('[data-testid="search-columns-item-size"]')
+  await expect(m).toBeVisible()
+  await expect(th).toHaveCount(6)
+  await expect(page.locator('[data-testid="search-result-0"] td')).toHaveCount(6)
+  expect(await page.evaluate(() => localStorage.getItem('binflow-console-cols-search'))).toBe('["sha256"]')
   await page.reload()
   await expect(page.locator('[data-testid="search-result-0"]')).toBeVisible({ timeout: 10_000 })
-  await expect(th).toHaveCount(4)
+  await expect(th).toHaveCount(6)
 
-  // 勾回 + 复位（全选列 = 清空隐藏集；复位项在全显态 aria-disabled——先弃
-  // 「大小」再复位，Playwright 对 aria-disabled 拒发 click，t387 先例同款）
+  // 「恢复默认列」（T-449：复位 = 默认列集 ≠ 全选——大小/sha256 收回；
+  // 存储落默认隐藏集而非空数组）
   await page.click('[data-testid="search-columns"]')
-  await page.click('[data-testid="search-columns-item-sha256"]')
-  await expect(th).toHaveCount(5)
-  await page.click('[data-testid="search-columns-item-size"]')
-  await expect(th).toHaveCount(4)
   await page.click('[data-testid="search-columns-reset"]')
   await expect(th).toHaveCount(5)
-  expect(await page.evaluate(() => localStorage.getItem('binflow-console-cols-search'))).toBe('[]')
+  expect(await page.evaluate(() => localStorage.getItem('binflow-console-cols-search'))).toBe('["size","sha256"]')
   await closeColumnsMenu(page, '[data-testid="search-columns-menu"]', '[data-testid="search-columns"]')
 })
 

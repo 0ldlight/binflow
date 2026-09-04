@@ -193,6 +193,119 @@ jobs:
           when: on_fail
           command: tail -200 "$HOME/server.log" || true
 
+  # T-469 (user directive #10, issued twice): after every UAT deploy, run a
+  # push+pull roundtrip for EVERY package protocol against the live UAT with
+  # the real client toolchains. The matrix itself lives in ONE script —
+  # ci/protocol-matrix.sh — shared verbatim with the GitHub Actions face
+  # (.github/workflows/protocol-matrix.yml); this job only installs the
+  # toolchains, trusts the plain-HTTP UAT registry on the docker daemon, and
+  # invokes per-leg steps (when: always — one red leg never masks the rest).
+  #
+  # Machine executor on purpose: the docker leg needs a daemon whose
+  # insecure-registries we can configure (docker-executor jobs get a managed
+  # remote daemon with no daemon.json access), and the JVM/.NET/conan
+  # toolchains install natively on the VM.
+  #
+  # Project secrets (Settings > Environment Variables; none are defaults):
+  #   UAT_MATRIX_BASE       http://52.79.109.153:8080 (falls back to this)
+  #   UAT_MATRIX_USER       admin (falls back)
+  #   UAT_MATRIX_PASSWORD   REQUIRED — the UAT admin password ($:? guard)
+  protocol_matrix:
+    machine:
+      image: ubuntu-2204:current
+    steps:
+      - checkout_full
+      - run:
+          name: Matrix env into BASH_ENV (every later step sources it)
+          # (printf lines, not a heredoc: the config processor requires
+          # escaping bare '<<' in v2.1+ — simpler to avoid it entirely)
+          command: |
+            mkdir -p "$HOME/project/ci/.matrix-work"
+            printf '%s\n' \
+              'export BINFLOW_BASE="${UAT_MATRIX_BASE:-http://52.79.109.153:8080}"' \
+              'export BINFLOW_USER="${UAT_MATRIX_USER:-admin}"' \
+              'export BINFLOW_PASSWORD="${UAT_MATRIX_PASSWORD:?UAT_MATRIX_PASSWORD secret missing in CircleCI project env}"' \
+              'export BINFLOW_MATRIX_WORK="$HOME/project/ci/.matrix-work"' \
+              'export BINFLOW_MATRIX_REPORT="$HOME/project/ci/.matrix-work/report.log"' \
+              'export PATH="$HOME/.dotnet:$HOME/.local/bin:$PATH"' \
+              >> "$BASH_ENV"
+            . "$BASH_ENV"
+      - run:
+          name: Client toolchains (mvn 3.9 / JDK17 / node22 / go1.26 / helm4 / dotnet8 / conan2 / build+twine)
+          command: |
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq openjdk-17-jdk-headless python3-venv python3-pip \
+              cmake g++ unzip zip jq >/dev/null
+            # maven 3.9.9 — the docs/user/integrations/maven.md anchor.
+            curl -fsSL https://archive.apache.org/dist/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.tar.gz \
+              | sudo tar -xz -C /opt
+            sudo ln -sf /opt/apache-maven-3.9.9/bin/mvn /usr/local/bin/mvn
+            # node 22 (npm leg; apt's is too old for the fixture chain)
+            curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - >/dev/null
+            sudo apt-get install -y -qq nodejs >/dev/null
+            # go — same line as go.mod's directive
+            curl -fsSL "https://go.dev/dl/go1.26.6.linux-amd64.tar.gz" | sudo tar -xz -C /usr/local
+            # helm 4.2.4 — the docs/user/integrations/helm-charts.md anchor
+            curl -fsSL https://get.helm.sh/helm-v4.2.4-linux-amd64.tar.gz | tar -xz
+            sudo install -m 0755 linux-amd64/helm /usr/local/bin/helm
+            # dotnet SDK 8 — the docs/user/integrations/nuget.md anchor
+            curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
+            bash /tmp/dotnet-install.sh --channel 8.0 --install-dir "$HOME/.dotnet" >/dev/null
+            # conan 2 + pypi build/twine — the docs/user/integrations anchors
+            pip3 install --quiet --user conan build twine
+      - run:
+          name: Docker daemon — trust the plain-HTTP UAT registry
+          command: |
+            REG="$(printf '%s' "${UAT_MATRIX_BASE:-http://52.79.109.153:8080}" | sed -e 's|^https\{0,1\}://||')"
+            sudo mkdir -p /etc/docker
+            printf '{"insecure-registries":["%s"]}\n' "$REG" | sudo tee /etc/docker/daemon.json >/dev/null
+            sudo systemctl restart docker
+            docker info | grep -A3 'Insecure Registries'
+      - run:
+          name: matrix leg — generic
+          when: always
+          command: bash ci/protocol-matrix.sh --strict-tools --leg generic
+      - run:
+          name: matrix leg — maven
+          when: always
+          command: bash ci/protocol-matrix.sh --strict-tools --leg maven
+      - run:
+          name: matrix leg — gradle
+          when: always
+          command: bash ci/protocol-matrix.sh --strict-tools --leg gradle
+      - run:
+          name: matrix leg — npm
+          when: always
+          command: bash ci/protocol-matrix.sh --strict-tools --leg npm
+      - run:
+          name: matrix leg — pypi
+          when: always
+          command: bash ci/protocol-matrix.sh --strict-tools --leg pypi
+      - run:
+          name: matrix leg — docker
+          when: always
+          command: bash ci/protocol-matrix.sh --strict-tools --leg docker
+      - run:
+          name: matrix leg — nuget
+          when: always
+          command: bash ci/protocol-matrix.sh --strict-tools --leg nuget
+      - run:
+          name: matrix leg — go
+          when: always
+          command: bash ci/protocol-matrix.sh --strict-tools --leg go
+      - run:
+          name: matrix leg — helm
+          when: always
+          command: bash ci/protocol-matrix.sh --strict-tools --leg helm
+      - run:
+          name: matrix leg — conan
+          when: always
+          command: bash ci/protocol-matrix.sh --strict-tools --leg conan
+      - run:
+          name: Matrix report
+          when: always
+          command: bash ci/protocol-matrix.sh --report
+
 workflows:
   version: 2
   uat:
@@ -203,6 +316,15 @@ workflows:
               only: [main]
       - deploy_uat:
           requires: [build]
+          filters:
+            branches:
+              only: [main]
+      # T-469: every successful UAT deploy is followed by the full protocol
+      # push/pull matrix against the instance it just shipped (user
+      # directive #10). deploy_uat's own smoke (version stamp + docs face)
+      # stays the deploy gate; this job is the protocol-depth gate.
+      - protocol_matrix:
+          requires: [deploy_uat]
           filters:
             branches:
               only: [main]

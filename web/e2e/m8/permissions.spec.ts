@@ -76,10 +76,10 @@ test('admin: two-step resource dialog full chain, four-action matrix, tester, ma
     ).status,
   ).toBe(201)
 
-  // —— 列表形态：列头排序 + 计数行 + axe ——
+  // —— 列表形态：列头排序 + 分页行（T-451 页码控件）+ axe ——
   await page.goto('/binflow/ui/admin/security/permissions')
   await expect(page.locator('[data-testid="perms-table"]')).toBeVisible()
-  await expect(page.locator('[data-testid="perms-count"]')).toContainText('权限 target 总数')
+  await expect(page.locator('[data-testid="perms-count"]')).toContainText(/共 \d+ 项/)
   await expect(page.locator('[data-testid="perms-sort-name"]')).toHaveAttribute('aria-sort', 'ascending')
   await page.click('[data-testid="perms-sort-name"]')
   await expect(page.locator('[data-testid="perms-sort-name"]')).toHaveAttribute('aria-sort', 'descending')

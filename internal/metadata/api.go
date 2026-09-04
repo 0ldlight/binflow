@@ -62,6 +62,10 @@ var ErrWebSessionNotFound = errors.New("metadata: web session not found")
 // as such rather than erroring on the READ side).
 var ErrScheduleNotFound = errors.New("metadata: schedule not found")
 
+// ErrBackupNotFound is returned by BackupStore Get/Delete for missing
+// backups rows.
+var ErrBackupNotFound = errors.New("metadata: backup not found")
+
 // ErrUploadSessionNotFound is returned by UploadSessionStore methods for
 // missing upload_sessions rows.
 var ErrUploadSessionNotFound = errors.New("metadata: upload session not found")
@@ -493,6 +497,7 @@ type Store interface {
 	AuthConfigs() AuthConfigStore
 	GpgKeypairs() GpgKeypairStore
 	Schedules() ScheduleStore
+	Backups() BackupStore
 	// IsReferenced reports whether any node row or docker ref row currently
 	// points at sha256 ([M9] ADR-0031 mechanism A): the single-point Live
 	// oracle behind the GC sweep's pre-delete recheck. It spans two sub-stores
@@ -677,6 +682,15 @@ type AuditStore interface {
 	// indexes (actor,time)/(action,time) or the 001 (repo_key,time)/time
 	// indexes — never a full table scan.
 	Query(ctx context.Context, q AuditQuery) ([]*AuditEvent, error)
+	// LastActionTimes is the per-actor aggregation face (FR-146.3, M16):
+	// for every actor with at least one event of the named action it
+	// returns the RFC3339 time of their most recent such event, from ONE
+	// GROUP BY query — the users-list projection derives every row's
+	// lastLoggedIn with a single statement instead of a per-user walk
+	// (the N+1 shape the MembershipsByUser widening killed for groups).
+	// The 004 idx_audit_action(action,time) index serves the filter. An
+	// empty log returns an empty map, never nil.
+	LastActionTimes(ctx context.Context, action string) (map[string]string, error)
 }
 
 // DockerStore is the registry index behind the docker adapter /v2 surface
@@ -1034,4 +1048,37 @@ type ScheduleStore interface {
 	// (RFC3339 UTC text; '' never matches), ordered by next_run_at — the
 	// tick query's only call, served by idx_schedules_due.
 	ListDue(ctx context.Context, now string) ([]*Schedule, error)
+}
+
+// Backup is one row of backups (022, M16 T-450 / ADR-0044 decisions 2 and
+// 5): the PAYLOAD half of a scheduled backup configuration. The cron half
+// lives in the schedules ledger under domain='backup' with the same key —
+// this row is what the export carrier reads at fire time (the enabled bit
+// and the server path the artifacts land under). Artifactory descriptor
+// fields without a BinFlow carrier (repository subsets, incremental,
+// retention rotation, zip archival, mail-on-error) are deliberately absent.
+type Backup struct {
+	Key       string // equals the schedules row key under domain='backup'
+	Enabled   bool
+	ExportDir string // server path; one timestamped subdirectory per fire
+	CreatedAt string
+	CreatedBy string
+	UpdatedAt string
+	UpdatedBy string
+}
+
+// BackupStore is the backup payload persistence seam (022, M16 T-450):
+// the same dumb-ledger contract as ScheduleStore — the store validates
+// nothing beyond the schema, the REST face owns key legality and the
+// cron/next-run law.
+type BackupStore interface {
+	// Put upserts by key: an existing row keeps its created_at/created_by,
+	// every other column is replaced.
+	Put(ctx context.Context, b *Backup) error
+	// Get returns the row or wraps ErrBackupNotFound.
+	Get(ctx context.Context, key string) (*Backup, error)
+	// Delete removes the row. Wraps ErrBackupNotFound when absent.
+	Delete(ctx context.Context, key string) error
+	// List returns every row ordered by key.
+	List(ctx context.Context) ([]*Backup, error)
 }

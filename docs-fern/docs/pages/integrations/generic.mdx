@@ -1,0 +1,134 @@
+# Generic（任意文件）接入
+
+Generic 仓库是最灵活的存储接口——接受任意文件，不做布局校验、不解析元数据。用 curl 即可上传下载，路径即地址。
+
+## URL 形态
+
+Generic 走内容路径（无 API 前缀）：`$BASE/binflow/<repoKey>/<任意路径>`
+
+```bash
+export BASE=http://localhost:8080
+export ADMIN_PW=<你的管理员口令>
+```
+
+## 接入步骤
+
+### 1. 创建仓库
+
+```bash
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/generic-local \
+  -H 'Content-Type: application/json' \
+  -d '{"rclass":"local","packageType":"generic"}' \
+  -o /dev/null -w '%{http_code}\n'        # 200
+```
+
+### 2. 上传（curl PUT）
+
+```bash
+echo "Hello BinFlow" > hello.txt
+curl -su admin:$ADMIN_PW -X PUT "$BASE/binflow/generic-local/hello.txt" \
+  -T hello.txt -o /dev/null -w '%{http_code}\n'      # 201
+
+# 带 checksum 声明（不符则 409）
+SHA256=$(shasum -a 256 hello.txt | awk '{print $1}')
+curl -su admin:$ADMIN_PW -X PUT "$BASE/binflow/generic-local/hello.txt" \
+  -H "X-Checksum-Sha256: $SHA256" -T hello.txt \
+  -o /dev/null -w '%{http_code}\n'                   # 201
+```
+
+### 3. 下载与校验和验证
+
+```bash
+curl -s "$BASE/binflow/generic-local/hello.txt"      # Hello BinFlow
+
+# 服务端实测摘要 vs 本地摘要
+curl -sI "$BASE/binflow/generic-local/hello.txt" | grep -i x-checksum
+# X-Checksum-Sha256 / X-Checksum-Sha1 / X-Checksum-Md5（裸 hex）
+shasum -a 256 hello.txt
+```
+
+### 4. ETag 条件请求与 Range 下载
+
+```bash
+ETAG=$(curl -sI "$BASE/binflow/generic-local/hello.txt" | grep -i etag | awk '{print $2}' | tr -d '\r"')
+curl -sI -H "If-None-Match: $ETAG" "$BASE/binflow/generic-local/hello.txt"
+# HTTP/1.1 304 Not Modified
+
+# 部分下载（前 100 字节）→ 206 Partial Content
+curl -s -H "Range: bytes=0-99" "$BASE/binflow/generic-local/random.dat" -o first100.bin
+```
+
+### 5. Checksum 部署（按 sha256 寻址）
+
+存储引擎以 sha256 为内容地址，支持直接按 checksum 上传下载：
+
+```bash
+SHA256=$(shasum -a 256 hello.txt | awk '{print $1}')
+curl -su admin:$ADMIN_PW -X PUT "$BASE/binflow/generic-local/$SHA256" \
+  -H "X-Checksum-Deploy: 1" -T hello.txt \
+  -o /dev/null -w '%{http_code}\n'                   # 201
+curl -s "$BASE/binflow/generic-local/$SHA256"
+```
+
+`X-Checksum-Deploy: 1` 表示请求路径中的文件名就是内容的 sha256，服务端按内容寻址存取。
+
+### 6. 目录结构
+
+任意路径层级可用（如 `releases/v1.0.0/binflow-server-linux-amd64`）；BinFlow 为每个中间目录生成文件夹节点，控制台可浏览。
+
+## 匿名与凭据
+
+| 场景 | 行为 |
+|---|---|
+| 匿名 GET/HEAD（默认 `anonymous_access: true`） | 200——下载免凭据 |
+| 匿名 PUT / DELETE | **401** `authentication required` |
+| 全局关匿名 | GET 也需凭据：`curl -u admin:$ADMIN_PW` |
+
+## 响应头参考
+
+| 响应头 | 说明 |
+|---|---|
+| `X-Checksum-Sha256` / `-Sha1` / `-Md5` | 内容摘要（裸 hex） |
+| `ETag` | sha256 值（可做 `If-None-Match` 304） |
+| `Accept-Ranges: bytes` | Range 请求支持 |
+| `Last-Modified` | 上传时间 |
+
+## 脚本集成示例（发布）
+
+```bash
+#!/usr/bin/env bash
+# publish.sh — 将构建产物上传到 BinFlow generic 仓库
+set -euo pipefail
+BASE="${BINFLOW_BASE:-http://localhost:8080}"
+REPO="${BINFLOW_REPO:-generic-local}"
+USER="${BINFLOW_USER:-admin}"
+PASS="${BINFLOW_PASS:?set BINFLOW_PASS}"
+VERSION="${1:?usage: $0 <version>}"
+
+for f in dist/*; do
+  name="$(basename "$f")"
+  sha256=$(shasum -a 256 "$f" | awk '{print $1}')
+  code=$(curl -su "$USER:$PASS" -X PUT \
+    "$BASE/binflow/$REPO/releases/$VERSION/$name" \
+    -H "X-Checksum-Sha256: $sha256" -T "$f" \
+    -o /dev/null -w '%{http_code}')
+  [ "$code" = "201" ] || { echo "FAIL: $name → HTTP $code" >&2; exit 1; }
+done
+echo "All artifacts published to $VERSION"
+```
+
+下载脚本同理：GET 落盘后用 `X-Checksum-Sha256` 头与本地 `shasum -a 256` 对账，不符即删除退出。
+
+## 常见报错对照
+
+| 症状 | 原因 | 处置 |
+|---|---|---|
+| PUT 401 `authentication required` | 匿名上传或凭据错误 | 加 `-u admin:$ADMIN_PW` |
+| PUT 409 `Checksum error` | 声明 checksum 与内容不符 | 核对文件；或迁移仓配 `server-generated-checksums` |
+| PUT 400 `file already exists` | 同名路径已存在（默认不允许覆盖） | 换路径；或先删除旧文件（需 delete 权限） |
+| GET 404 | 路径错误或文件不存在 | 核对 repoKey 与路径 |
+| Range 416 | Range 超出文件边界 | 检查 `Content-Length` |
+
+## 下一步
+
+- [Maven](/integrations/maven) · [npm](/integrations/npm) · [PyPI](/integrations/pypi) · [Docker](/integrations/docker) · [仓库管理](/admin/repositories)

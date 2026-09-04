@@ -26,6 +26,7 @@ import { useToast } from '../../app/ToastContext'
 import { useConfirm } from '../../components/ConfirmDialog'
 import { CopyButton } from '../../components/CopyButton'
 import { EmptyState } from '../../components/EmptyState'
+import { Pager, useClientPager } from '../../components/Pager'
 import { ApiError, apiJSON, apiText, canAdminWrite, errText, isReadOnlyAdmin } from '../../lib/api'
 import { monoInputSx } from '../../lib/muiAtoms'
 
@@ -160,6 +161,10 @@ export default function TokensPage() {
 
   // 会话台账 + 创建 modal（明文只活在 modal 态——关闭即卸载丢弃）
   const [rows, setRows] = useState<TokenRow[]>([])
+  // T-451（E2 翻案）：客户端页窗（会话台账行集——吊销翻态不改行数，
+  // 字符串键口径下不丢页位）
+  const pager = useClientPager(rows.length, `ledger|${rows.length}`)
+  const pageRows = pager.slice(rows)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [busyId, setBusyId] = useState<number | null>(null)
   const [revokeIdInput, setRevokeIdInput] = useState('')
@@ -286,7 +291,7 @@ export default function TokensPage() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {rows.map((row) => (
+              {pageRows.map((row) => (
                 <TableRow key={row.tokenId} data-testid={`token-row-${row.tokenId}`} hover>
                   <TableCell className="mono" lang="en">
                     #{row.tokenId}
@@ -337,9 +342,19 @@ export default function TokensPage() {
         </Paper>
       )}
       {rows.length > 0 && (
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }} data-testid="tokens-count">
-          {rows.length} 条会话台账（含已吊销 {rows.filter((r) => r.revoked).length}）
-        </Typography>
+        <Box sx={{ mt: 1 }} data-testid="tokens-count">
+          <Pager
+            page={pager.page}
+            pageCount={pager.pageCount}
+            onPageChange={pager.setPage}
+            from={pager.from}
+            to={pager.to}
+            total={rows.length}
+            note={`（会话台账 · 含已吊销 ${rows.filter((r) => r.revoked).length}）`}
+            pageSize={pager.size}
+            onPageSizeChange={pager.setSize}
+          />
+        </Box>
       )}
 
       {adminWrite && (

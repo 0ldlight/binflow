@@ -1,0 +1,94 @@
+# 备份与恢复
+
+备份恢复只有 CLI（**有意不做 REST**：`/api/export/**`、`/api/import/**` 一律 404——import 是覆盖元数据的高危操作，走带外通道）。export **在线**执行（服务运行中），import **停机**执行且目标必须为空。
+
+## export（在线备份）
+
+```bash
+binflow-server export -c binflow.yaml --output /backup/binflow-20260821
+# export: mode=online output=/backup/binflow-20260821 blobs=30 bytes=423091501 ...
+```
+
+执行流程（顺序是硬规则）：
+
+1. 获取 data 目录维护锁（与 GC/import 三方互斥）；
+2. **先 SQLite 在线一致性快照**（VACUUM INTO，不阻塞服务写入）；
+3. **后拷贝 `blobs/` 目录**（**保留 mtime**——GC 宽限期以 blob mtime 为基准，mtime 不保真会把整份备份当「新写入」重置宽限时钟）；
+4. 写 `manifest.json`。
+
+先 DB 后 blobs 的窗口含义：快照之后新上传的 blob 可能出现在产物里但不在 manifest 引用集（多余文件无害，恢复后由常规 GC 收敛）；顺序不可换（反过来会出现悬空引用）。
+
+产物形态（目录，非压缩包）：
+
+```
+/backup/binflow-20260821/        ← 目录权限 0700
+├── metadata.db                  ← 元数据快照（0600）
+├── manifest.json                ← 0600
+└── blobs/<2hex>/<sha256>...     ← mtime 保真的 blob 副本
+```
+
+> **保管告警**：产物**未加密**且包含用户口令哈希与 remote 仓上游凭据密文——拿到整份产物等于拿到全部账号体系。转存 NAS/对象存储时保持最小权限或先行加密。
+
+`export.run` 落**源实例**审计（本次 export 的事件不在本份备份内）。
+
+## import（停机恢复）
+
+```bash
+# 前置：目标实例停机 + data 目录为空（非空 → fail-fast 退出码 1）
+rm -rf /var/lib/binflow/data && mkdir -p /var/lib/binflow/data
+binflow-server import -c binflow.yaml --input /backup/binflow-20260821 --verify full
+```
+
+| `--verify` | 校验强度 |
+|---|---|
+| `spot`（缺省） | manifest 对账 + metadata.db 哈希 + 全部 blob size + sha256 抽验前 100 个 |
+| `full` | 上述 + 全量重哈希每一个 blob（首次恢复到新机器建议 full） |
+
+行为要点：
+
+- **仅空实例**：非空 → 退出码 1（`import restores into an empty directory only; move the existing data away first`）。恢复的正确心智是**重建**，不是合并。
+- **无半恢复**：任何校验失败 → 退出码非 0，目标目录清回空。
+- **跨版本**：快照 schema ≤ 当前二进制即可（恢复后首启自动跑迁移）；高于则拒绝。
+- **全保真**：制品 sha256 逐位一致；users/groups/permissions/tokens/审计历史/配额随行；blob mtime 保真。
+- **`web_sessions` 不入备份**：恢复后所有用户**重新登录**（属预期）。
+
+### 恢复链上的主密钥
+
+备份**包含 remote 仓上游凭据密文**。恢复实例若配置过带密码的 remote 仓，必须在启动环境提供同一主密钥 `BINFLOW_REMOTE_CREDENTIALS_KEY`——无钥启动 **fail-fast 退出码 2**（日志点名修复动作）。密钥生成见 [仓库管理](/admin/repositories)。
+
+## 停机强一致（可选）
+
+在线 export 的一致性由「快照先行 + 窗口内多余 blob 允许」保证，适合常规备份。需要精确定格（如升级前）可**停 serve 后执行 export**——窗口闭死；代价是备份期间不可用。两种方式产物与 import 流程完全相同。
+
+## 灾难恢复流程与验证
+
+1. 准备新实例 `binflow.yaml`（指向新 data 目录）；2. 停机清空目录；3. `binflow-server import --input /backup/${date} --verify full`；4. 启动；5. 验证：
+
+| 检查项 | 验证命令 | 预期 |
+|---|---|---|
+| 服务 | `curl $BASE/binflow/api/system/ping` | 200 |
+| 仓库列表 | `curl -su admin:$PW $BASE/binflow/api/repositories` | 全部恢复 |
+| 制品抽样 | `curl -s $BASE/binflow/<repo>/<path> \| shasum -a 256` | 与备份前一致 |
+| 用户登录 | 会话端点登录任一迁移用户 | 200（会话需重登） |
+| 审计历史 | `curl -su admin:$PW "$BASE/binflow/api/v1/audit?limit=5"` | events 非空 |
+| 配额状态 | `GET /api/v1/storage/usage/<repo>` | usedBytes 一致 |
+
+## 运维建议
+
+- **周期备份**：cron 低峰 export（锁与 GC 互斥，409/退出码非 0 时下轮重试）；产物按日期分目录。
+- **恢复演练**：备份的价值取决于可恢复性——定期在空目录 `import --verify full` 并抽查 sha256 与登录链。
+- **与 GC 排程**：export 与 GC 不要同刻触发；窗口重叠把 GC 排在 export 之后。
+- 吞吐参考：在线 export 约 380~830 MiB/s（400MB 级实例、本地盘）。
+
+## 常见报错对照
+
+| 症状 | 原因 | 处置 |
+|---|---|---|
+| import 退出码 1 + `data dir ... is not empty` | 目标非空 | 清空/换新目录（重建语义） |
+| import 退出码非 0 + 点名缺失 sha | 备份缺被引用 blob | 用完整备份重试；来源不可信时 `--verify full` |
+| 启动退出码 2 + `set BINFLOW_REMOTE_CREDENTIALS_KEY` | 恢复链无主密钥 | 注入 env 重启 |
+| export 退出码非 0 + `data directory is locked` | GC/import 正持锁 | 等待后重试 |
+
+## 下一步
+
+- [治理（GC 与维护锁）](/admin/governance) · [升级](/install/upgrade) · [存储后端](/admin/storage)

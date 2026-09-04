@@ -85,8 +85,8 @@ func TestReplicationsUpdateFace(t *testing.T) {
 		"target_username": "repl", "enabled": false,
 		"max_bandwidth_bytes_per_sec": float64(1234), "max_items_per_push": float64(7),
 	}
-	if len(stopped) != len(want)+2 { // + created_at, updated_at
-		t.Fatalf("put stop keys = %v (%d), want exactly %v plus the two timestamps", stopped, len(stopped), want)
+	if len(stopped) != len(want)+4 { // + created_at, updated_at, cron_exp, next_schedule_sync (T-450's cron arm)
+		t.Fatalf("put stop keys = %v (%d), want exactly %v plus the timestamps and the cron projection", stopped, len(stopped), want)
 	}
 	for k, v := range want {
 		got, ok := stopped[k]
@@ -215,8 +215,11 @@ func TestReplicationsUpdateValidation(t *testing.T) {
 		{"non-numeric id is a 400", "/binflow/api/v1/replications/abc", "admin", "password", `{"enabled":false}`, http.StatusBadRequest, "id must be a positive integer"},
 		{"zero id is a 400", "/binflow/api/v1/replications/0", "admin", "password", `{"enabled":false}`, http.StatusBadRequest, "id must be a positive integer"},
 		{"negative id is a 400", "/binflow/api/v1/replications/-1", "admin", "password", `{"enabled":false}`, http.StatusBadRequest, "id must be a positive integer"},
-		{"absent enabled is a 400", "/binflow/api/v1/replications/%s", "admin", "password", `{"name":"x"}`, http.StatusBadRequest, "enabled is required"},
-		{"null enabled is a 400", "/binflow/api/v1/replications/%s", "admin", "password", `{"enabled":null}`, http.StatusBadRequest, "enabled is required"},
+		// T-450 widened the face's editable arms to enabled OR cron_exp; the
+		// empty-edit refusal message names both now (deliberate contract
+		// change, this table's "随表刻意变更" program).
+		{"absent enabled is a 400", "/binflow/api/v1/replications/%s", "admin", "password", `{"name":"x"}`, http.StatusBadRequest, "enabled or cron_exp is required"},
+		{"null enabled is a 400", "/binflow/api/v1/replications/%s", "admin", "password", `{"enabled":null}`, http.StatusBadRequest, "enabled or cron_exp is required"},
 		{"string enabled is a 400", "/binflow/api/v1/replications/%s", "admin", "password", `{"enabled":"yes"}`, http.StatusBadRequest, "not valid JSON"},
 		{"empty body is a 400", "/binflow/api/v1/replications/%s", "admin", "password", "", http.StatusBadRequest, "not valid JSON"},
 		{"malformed body is a 400", "/binflow/api/v1/replications/%s", "admin", "password", `{{{`, http.StatusBadRequest, "not valid JSON"},

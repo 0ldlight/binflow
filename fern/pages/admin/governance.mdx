@@ -1,0 +1,239 @@
+# 治理（审计 / GC / 配额 / 复制）
+
+治理四件事：**审计**（谁在何时动了什么）、**GC**（回收无引用 blob）、**配额**（仓库容量上限）、**路径模式**（仓库接纳哪些路径）；另有**复制**（push replication）与**搜索**入口。前三者有控制台页面（见[控制台](/admin/console)）；本文以 REST/CLI 为主面（脚本可完全等效）。
+
+## 审计
+
+`GET /api/v1/audit`（admin / readonly_admin）：
+
+```bash
+curl -su admin:$ADMIN_PW "$BASE/binflow/api/v1/audit?action=gc.run&limit=2"
+# {"events":[{id,time,actor,action,repo,path,detail},...],"nextCursor":"..."}
+```
+
+| 参数 | 说明 |
+|---|---|
+| `repo` / `actor` / `action` | 等值过滤 |
+| `since` / `until` | 时间窗，RFC3339，**闭开区间** `[since, until)` |
+| `limit` | 默认 100、上限 1000（超限 400） |
+| `cursor` | keyset 游标（取上一页 `nextCursor`）；结果**倒序**（最新在前） |
+
+动作词表（可作 `action=` 过滤值）：
+
+| 族 | 动作 |
+|---|---|
+| 制品 | `deploy`、`download`、`delete`、`artifact.copy`、`artifact.move` |
+| 仓库 | `repo.create`、`repo.update`、`repo.delete` |
+| 安全 | `group.create/update/delete/member`、`permission.create/update/delete`、`password.change`、`user.role.change`、`user.delete` |
+| 治理 | `gc.run`、`quota.exceeded`、`export.run`、`import.run`、`cleanup.run`、`trash.restore`、`trash.retention` |
+| 会话 / token | `login.success`、`login.failed`、`token.issue`、`token.revoke` |
+| 复制 | `replication.push`、`replication.push.failed`、`replication.config.create/update/delete/test`、`replication.run`、`replication.block.update` |
+| webhook | `webhook.subscription.create/update/delete/test`、`webhook.dead_letter` |
+| license / 认证 / 存储 | `license.install/delete/invalid/addon.denied`、`auth.config.*`、`storage.replay.*` |
+
+**脱敏红线**：口令字面量、token 明文、`Authorization` 头在审计里零出现。**只追加**：审计无写面（PUT/DELETE/POST 一律 404），归档留存走数据库备份。
+
+## 搜索
+
+```bash
+# 名称子串（大小写不敏感；缺 name → 400）
+curl -su admin:$ADMIN_PW "$BASE/binflow/api/search/artifact?name=w.bin"
+# checksum 精确反查（sha256/sha1/md5 至少一个；跨仓去重可见）
+SHA=$(shasum -a 256 w.bin | cut -d' ' -f1)
+curl -su admin:$ADMIN_PW "$BASE/binflow/api/search/checksum?sha256=$SHA"
+```
+
+搜索面六端点：上述两端点 + AQL（`POST /api/search/aql`）+ 老搜索三端点（`GET /api/search/gavc|prop|pattern`）——语言见 [AQL 搜索](/search/aql)。结果按调用者权限过滤；未命中一律 200 空数组；上限 1,000 行（截断置 `X-Binflow-Search-Truncated` 头）。仍 404（有意不做）：`/api/search/props|users|artifactory|badge`（`prop` 为官方单数拼写）。
+
+## GC（垃圾回收）
+
+GC 回收**无引用**的 blob（删除制品后，同内容仍被其它路径引用的 blob 幸存——去重语义）。**先 dry-run 看报告，再显式 apply**：
+
+```bash
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/system/gc \
+  -H 'Content-Type: application/json' -d '{"apply":false,"graceHours":0}'
+# {"candidateCount":1,"candidateBytes":24,"deletedCount":0}
+
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/system/gc \
+  -H 'Content-Type: application/json' -d '{"apply":true,"graceHours":0}'
+# {"candidateCount":1,"candidateBytes":24,"deletedCount":1}
+```
+
+| 面 | 行为 |
+|---|---|
+| 门 | admin only（readonly_admin 403 **含 dry-run**） |
+| `graceHours` 缺省 | 用配置 `storage.gc_grace_hours`（默认 24h）——刚删的孤儿在宽限期内不算候选（基准 = blob mtime） |
+| `graceHours: 0` | 无宽限（REST 显式 0 = 立即可回收；CLI `--grace-hours 0` 仍是「用配置值」——两面有意不同） |
+| 越界 | 负值或 >876000 → 400 |
+| 并发安全 | `--apply` 每次物理删除前即时复核引用，可与 CI 并行推送同时运行 |
+| 状态查询端点 | **无**——上次运行经审计查 `GET /api/v1/audit?action=gc.run` |
+| 审计 | 每次成功运行（含 dry-run）落 `gc.run` |
+
+**互斥锁（409 的含义）**：GC、export、import 共用 data 目录级文件锁（`<data_dir>/.maintenance.lock`）。锁被他人持有时 POST gc → **409**（message 含持锁进程信息）。409 不代表数据问题——等当前操作完成后重试。
+
+CLI 兜底（超长库 / 排障；dry-run 缺省）：
+
+```bash
+binflow-server gc -c binflow.yaml                          # dry-run，grace 取配置
+binflow-server gc -c binflow.yaml --apply --grace-hours 1  # apply，grace 1 小时
+```
+
+## 路径模式与配额（仅 local 仓）
+
+| 字段 | 默认 | 说明 |
+|---|---|---|
+| `includesPattern` | `**/*` | 接纳的路径模式；不匹配的上传 → **409**（message 含双 pattern） |
+| `excludesPattern` | 空 | 排除模式；**excludes 优先**——命中即拒 |
+| `quotaBytes` | `0`（不限） | 仓库逻辑字节上限（nodes.size 之和）；负值 → 400 |
+
+```bash
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/tiny \
+  -H 'Content-Type: application/json' \
+  -d '{"rclass":"local","packageType":"generic","quotaBytes":1024}' -o /dev/null
+# 超限上传 →
+# 413: Repository 'tiny' quota exceeded: used 800 of 1024 bytes; the write to 'b.bin' needs 800 more bytes.
+```
+
+配额语义要点：
+
+- **原子拒绝**：被拒路径 GET 404、usage 不变、无索引残留。
+- **幂等重传豁免**：已入库内容的同路径同内容重传（delta=0）在恰好顶满时也放行 201。
+- 读/删不受限：超限后 GET 200、DELETE 204；删后 used 回落。
+- 秒传与 docker cross-repo mount 同过配额门；remote pull-through 落盘不计量。
+- 每次拒绝落 `quota.exceeded` 审计 + WARN 日志；用量查询 `GET /api/v1/storage/usage/{repo}`（单仓）与 `GET /api/v1/storage/usage`（批量 bare array，`?repos=` 点名、`?include=counts` 附计数）。
+- 五协议客户端表现：docker `exit 1` + `denied:`；npm `E413`；mvn `status code: 413`；twine `HTTPError: 413`。
+
+下载侧：命中 excludes 的路径与普通 miss **逐字相同**的 404（不泄露「存在但被拦」）。
+
+## 复制（push replication）
+
+push 复制把 **local 仓**新落的制品推送到**目标实例**（另一个 BinFlow，或任何兼容其上传面的服务）。
+
+- **触发是事件驱动 + 手动全量**：制品落库即入队（无用户级 cron）；1 分钟兜底 sweep；补漏/建仓后对账走 Replicate Now。
+- **推送面按源仓包型选择**：generic/maven 走通用 REST 面、docker 走 `/v2`、npm 走 publish/dist-tag 面、pypi 走 multipart——从不直接触碰目标存储。
+- **目标冲突语义**：目标已有同 sha256 路径 = 幂等成功（零传输）；不同 sha256 = 终态 failed（first-write-wins）——典型如目标 maven 仓自算的 `maven-metadata.xml` 与源副本必然不同 sha，Replicate Now 后状态面有一条 failed 属预期。
+- **重试**：瞬时失败指数退避共 6 次尝试（1s/2s/4s/8s/16s 间隔）。
+
+### 配置 CRUD
+
+```bash
+# 建配置（201 回显配置行——凭据字段永不回显；enabled 缺省 true）
+# target_url = 目标实例裸 origin（引擎自行拼 /binflow/<target_repo>/<path>，不要带 /binflow 后缀）
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/replications \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"push-prod","source_repo":"repl-local","target_url":"http://target.example:8080",
+       "target_repo":"mirror","target_username":"ci","target_password":"<目标口令>"}'
+
+# 列表（bare array；readonly_admin 可读）
+curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/replications
+
+# 启停（按数值 id 寻址；body 仅 enabled 必填，其余字段解析但忽略）
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/v1/replications/1 \
+  -H 'Content-Type: application/json' -d '{"enabled":false}'     # 200 回显更新后配置行
+
+# 删除（按 name 寻址；任务台账级联清空）
+curl -su admin:$ADMIN_PW -X DELETE $BASE/binflow/api/v1/replications/push-prod \
+  -o /dev/null -w '%{http_code}\n'                                # 204
+```
+
+| 项 | 语义 |
+|---|---|
+| 门 | 读 = system:read（admin / readonly_admin）；写 = system:write 且**仅全量 admin** |
+| `name` | 1..64 位 `[A-Za-z0-9._-]`、字母数字开头；重名 → 409 |
+| `source_repo` | 必须已存在（建仓先行）——未知 → 400 |
+| `target_url` / `target_repo` | 绝对 http(s) URL + 目标仓名，均必填；`target_url` 填**裸 origin** |
+| `target_password` | **只写**：以实例主钥密封（enc:v1），任何响应不回显；实例未设主钥时携带口令 → 400 |
+| `max_items_per_push` | 节流上限，缺省 1000 |
+| `enabled` | 缺省 true。**停用语义**：停 → 新制品即时不入队、在途任务跑完自身结论；恢复 → 积压由下一趟 sweep 排空（≤1 分钟）——**全程无需重启** |
+| 审计 | 操作面 `replication.config.*`；引擎面 `replication.push` / `replication.push.failed` |
+
+字段级更新（改名/换目标）暂无端点——编辑 = 删除 + 重建两步。
+
+### Replicate Now（手动全量同步）
+
+对单条配置种一趟全量对账任务：
+
+```bash
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/replications/1/run
+# 200 {"info":"The replication tasks was successfully scheduled to run","id":1,"name":"push-b",
+#      "scheduled":5,"capped":false}
+```
+
+行为：**排程即返回不等复制**；`scheduled` = 本次种入任务数（空源仓 = 0 空跑）；`capped` = 受 `max_items_per_push` 截断（再点取下一段）；重复触发**不去重**（目标侧 sha256 幂等收敛，勿在 CI 高频轮询）；停用配置 → 409；push 被封 → 409；审计 `replication.run`。
+
+### Test 连接
+
+保存前后都可测：对 `{target_url}/binflow/api/storage/{target_repo}` 发只读 GET，**零状态写入、不看封锁态**：
+
+```bash
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/replications/1/test    # 已存配置
+# 200 {"ok":true,"status_code":200,"message":"Push replication target url '...' tested successfully"}
+
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/replications/test \
+  -H 'Content-Type: application/json' \
+  -d '{"target_url":"http://target:8080","target_repo":"mirror","target_username":"admin","target_password":"wrong"}'
+# 400 {"ok":false,"status_code":401,"message":"Connection failed: Target replication URL returned error 401: {...}"}
+```
+
+响应为 **ok 判定体**：通过 200 / 失败**同形 400**（内联原因）。`{id}/test` 可选 body 逐字段覆盖（改了 URL/用户名没给密码 → 按匿名探测——旧密文绝不外发）。拒绝族：自实例目标 → `Cannot replicate to the same instance: ...`；`-cache` 结尾目标 → `Replication to remote cache repositories are not allowed.`。
+
+### 全局封锁 blockPush / blockPull
+
+**应急刹车**：一键停全实例的 push 复制与 remote 回源，无论各配置 enabled 与否：
+
+```bash
+curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/system/replications
+# {"blockPullReplications":false,"blockPushReplications":false}
+
+curl -su admin:$ADMIN_PW -X POST "$BASE/binflow/api/v1/system/replications/block?push=true"
+# Successfully blocked all replications, no replication will be triggered.
+curl -su admin:$ADMIN_PW -X POST "$BASE/binflow/api/v1/system/replications/unblock?push=true"
+# Successfully unblocked all replications.
+```
+
+query `push`/`pull` 选方向（缺省 = 该方向动作；非 `"true"` 串 = 本次不动）。写入即持久（重启保持）；**不拦配置面**（CRUD/启停/列表封锁期照常）；幂等。pull 生效面：remote 仓零上游接触——新鲜缓存照常 HIT、过期副本降级 STALE、miss 404 点名封锁（不写 assumed-offline 窗，解除即恢复）。`binflow.yaml` 的 `replication.block_push` / `block_pull` 只在首启无行时种子落库，此后以 REST 为准。
+
+### 观测面
+
+```bash
+curl -su admin:$ADMIN_PW "$BASE/binflow/api/v1/replication/status?limit=50"
+# {"targets":[{...,"pending":0,"in_progress":1,"succeeded":0,"failed":0,"skipped":0,...}],
+#  "events":[{...,"status":"in_progress","attempts":3,...}]}   —— limit 1..500，缺省 50
+```
+
+## cleanup（remote 缓存清理引擎）
+
+```bash
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/system/cleanup \
+  -H 'Content-Type: application/json' -d '{"apply":false}'    # dry-run 默认，同步回 CleanupReport
+curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/system/cleanup   # 状态面（cron 节奏/累计计数/上次报告）
+```
+
+引擎三腿（单把维护锁，与 GC/export/import 互斥）：过期上传会话扫掠 → policy 删除（窗口内无下载事件的 remote 缓存 FILE node；在用判定含 virtual 仓聚合下载）→ GCSweep。策略源：remote 仓配置 `unusedArtifactsCleanupPeriodHours`；cron 每小时 apply 一轮。`audit.enabled=false` 时 policy 腿拒绝运行（无下载痕迹就没有诚实的「未用」，宁可不删）。
+
+## 删除用户（级联语义）
+
+```bash
+curl -su admin:$ADMIN_PW -X DELETE $BASE/binflow/api/security/users/victim
+# The user: 'victim' has been removed successfully.   （200 纯文本）
+
+curl -su admin:$ADMIN_PW -X DELETE $BASE/binflow/api/security/users/victim
+# User not found                                      （404——重复删除 = 确定性 404，有意非幂等）
+```
+
+四道护栏（检查序固定，前一道为 404 文本体）：
+
+| 护栏 | 文案 |
+|---|---|
+| 目标不存在 | 404 `User not found` |
+| 内置 `admin` | 400 `Cannot delete the built-in admin user.` |
+| 最后一个 admin | 400 `Cannot delete user '<name>'. There must be at least one user configured with admin privileges.` |
+| 自删 | 400 `Cannot delete the current authenticated user.`（离场走禁用） |
+
+**级联（同事务，不可恢复）**：剥全部 permission target 授权行 → 删用户行 → 组员清空、**全部 token 与 web session 即时吊销**；审计历史保留并新增 `user.delete`（护栏拒绝不落审计）。
+
+运营注意：「最后一个 admin 不可删」的清点在删除事务之外——两个 admin 并发互删存在同时通过的竞窗。删除 admin 的变更窗口应串行化；零 admin 后 `BINFLOW_ADMIN_PASSWORD` 重种无效（种子只在 `admin` 行不存在时插入），恢复路径为停机对元数据库做带外手术（先备份）或从 export 恢复。
+
+## 下一步
+
+- [备份与恢复](/admin/backup)（与 GC 的锁互斥） · [制品操作与回收站](/admin/operations) · [监控指标](/admin/monitoring)

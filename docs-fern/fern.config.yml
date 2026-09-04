@@ -1,0 +1,10 @@
+# BinFlow 用户文档 — Fern 源码树
+#
+# 本地预览（需 Node >= 18）：
+#   cd docs-fern && npx @fern-api/fern-cli docs dev
+# 构建（发布前置校验）：
+#   cd docs-fern && npx @fern-api/fern-cli docs build
+#
+# 发布到 Fern 平台需要账号，由维护者另行执行；本目录交付的是完整可构建源码。
+organization: binflow
+docs: binflow

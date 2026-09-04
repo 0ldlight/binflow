@@ -122,28 +122,43 @@ type gcRunDetail struct {
 	DeletedCount   int   `json:"deletedCount"`
 }
 
-// handleSystemGC serves POST /binflow/api/v1/system/gc. The route gate
-// already demanded an authenticated admin; the handler re-checks because it
-// writes the actor into the audit trail and must not depend on route edits
-// staying careful.
-func (s *Server) handleSystemGC(w http.ResponseWriter, r *http.Request) {
-	p := principalFrom(r.Context())
-	if p == nil || !p.Admin {
-		writeError(w, http.StatusForbidden, "gc requires an administrator account")
-		return
-	}
-	if s.deps.GC == nil {
-		writeError(w, http.StatusServiceUnavailable, "gc is not available on this instance")
-		return
-	}
+// GCRunRequest is one gc pass request for the shared kernel: the REST
+// body's semantic half plus the actor the gc.run audit row names (the
+// principal for the REST face, "scheduler" for a cron-triggered pass —
+// ADR-0044 decision 8 point 5 keeps the carrier identical, only the actor
+// differs).
+type GCRunRequest struct {
+	Actor      string
+	Apply      bool
+	GraceHours *int
+	// RemoteAddr rides the gc.run audit row's merged detail on the REST
+	// face (the connection's address); a scheduled pass leaves it empty.
+	RemoteAddr string
+}
 
-	var body gcRequestBody
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
-	if err := dec.Decode(&body); err != nil && !errors.Is(err, io.EOF) {
-		// EOF alone is an empty body: the dry-run default posture, same
-		// reading the repo PUT family gives a missing body.
-		writeError(w, http.StatusBadRequest, "request body is not valid gc request JSON: "+err.Error())
-		return
+// GCRunResult is one completed pass's counters (the gcResponse body's
+// kernel half).
+type GCRunResult struct {
+	CandidateCount int
+	CandidateBytes int64
+	DeletedCount   int
+}
+
+// errGCGraceRange marks an explicit graceHours outside [0, maxGCHours]: the
+// handler maps it onto the same 400 the inline check used to answer.
+var errGCGraceRange = errors.New("graceHours out of range")
+
+// RunGC executes ONE full gc pass — the single carrier the REST face
+// (POST /api/v1/system/gc) and the cron scheduler's maintenance/gc slot
+// share (M16 T-450, ADR-0044 decisions 7① and 8⑤): the same grace
+// resolution, the same data-directory maintenance lock (409-class
+// contention on ErrDataLockHeld), the same dry-then-apply two-pass shape,
+// the same blobs-ledger teardown and the same gc.run audit word. The caller
+// owns the actor; everything else is byte-identical between the manual and
+// the scheduled trigger.
+func (s *Server) RunGC(ctx context.Context, req GCRunRequest) (*GCRunResult, error) {
+	if s.deps.GC == nil {
+		return nil, errors.New("gc is not available on this instance")
 	}
 
 	// Grace resolution (PRD FR-30): absent graceHours uses
@@ -154,13 +169,12 @@ func (s *Server) handleSystemGC(w http.ResponseWriter, r *http.Request) {
 	// W24 orphan recipe (upload, delete the node, ask with
 	// graceHours:0) depends on exactly this reading.
 	grace := s.deps.Config.Storage.GCGrace
-	if body.GraceHours != nil {
-		if *body.GraceHours < 0 || *body.GraceHours > maxGCHours {
-			writeError(w, http.StatusBadRequest, fmt.Sprintf(
-				"graceHours must be between 0 and %d, got %d", maxGCHours, *body.GraceHours))
-			return
+	if req.GraceHours != nil {
+		if *req.GraceHours < 0 || *req.GraceHours > maxGCHours {
+			return nil, fmt.Errorf("%w: must be between 0 and %d, got %d",
+				errGCGraceRange, maxGCHours, *req.GraceHours)
 		}
-		grace = gcGraceFromHours(*body.GraceHours)
+		grace = gcGraceFromHours(*req.GraceHours)
 	}
 
 	// Data-directory maintenance lock — the SAME primitive the gc and
@@ -171,29 +185,24 @@ func (s *Server) handleSystemGC(w http.ResponseWriter, r *http.Request) {
 	// for an unbounded export.
 	lock, err := storage.AcquireDataLock(s.deps.DataDir, storage.DataLockOpGC)
 	if err != nil {
-		if errors.Is(err, storage.ErrDataLockHeld) {
-			writeError(w, http.StatusConflict, s.gcLockRefusedMessage(err))
-			return
-		}
-		s.log.ErrorContext(r.Context(), "httpapi: gc data lock acquisition failed", "error", err.Error())
-		writeError(w, http.StatusInternalServerError, "gc: acquiring the data directory lock failed")
-		return
+		return nil, err
 	}
 	defer func() { _ = lock.Release() }()
 
-	// The run executes detached from the connection's lifetime (T-94 review
-	// N1): a client hang-up, a proxy timeout or a drain overrun would cancel
-	// r.Context() mid-sweep, and an apply canceled between deletions leaves
-	// the already-swept blobs behind as permanent phantom blobs-ledger rows
-	// (the sweep only looks at disk — a row without a file has no
-	// self-healing path) with no gc.run row for the partially-effective
-	// deletion. WithoutCancel keeps every value (principal et al.) and drops
-	// only the cancellation: one HTTP connection's lifespan must not bound a
-	// maintenance run that already holds the data-directory lock. If the
-	// client is gone the response write fails silently, which is the honest
-	// outcome — the run itself completed and was audited. The storage.GCSweep
-	// kernel is untouched.
-	sweepCtx := context.WithoutCancel(r.Context())
+	// The run executes detached from the caller's lifetime (T-94 review
+	// N1): a client hang-up, a proxy timeout or a scheduler shutdown
+	// would cancel ctx mid-sweep, and an apply canceled between
+	// deletions leaves the already-swept blobs behind as permanent
+	// phantom blobs-ledger rows (the sweep only looks at disk — a row
+	// without a file has no self-healing path) with no gc.run row for
+	// the partially-effective deletion. WithoutCancel keeps every value
+	// and drops only the cancellation: one connection's — or one
+	// scheduler loop's — lifespan must not bound a maintenance run that
+	// already holds the data-directory lock. If the caller is gone the
+	// response write fails silently, which is the honest outcome — the
+	// run itself completed and was audited. The storage.GCSweep kernel
+	// is untouched.
+	sweepCtx := context.WithoutCancel(ctx)
 	marker := gcMarker{ctx: sweepCtx, md: s.deps.Metadata}
 
 	// Pass 1 is always the dry pass: it yields the candidate list (and,
@@ -204,8 +213,7 @@ func (s *Server) handleSystemGC(w http.ResponseWriter, r *http.Request) {
 	candidates, err := s.deps.GC.GCSweep(sweepCtx, marker, grace, false)
 	if err != nil {
 		s.log.ErrorContext(sweepCtx, "httpapi: gc sweep failed", "error", err.Error())
-		writeError(w, http.StatusInternalServerError, "gc: "+err.Error())
-		return
+		return nil, errors.New("gc: " + err.Error())
 	}
 	// Candidate sizing is engine-aware (T-201, T-173 D-1): an S3-backed
 	// instance sizes the candidates from the engine's bucket listing — the
@@ -226,12 +234,11 @@ func (s *Server) handleSystemGC(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var deleted []string
-	if body.Apply {
+	if req.Apply {
 		deleted, err = s.deps.GC.GCSweep(sweepCtx, marker, grace, true)
 		if err != nil {
 			s.log.ErrorContext(sweepCtx, "httpapi: gc apply pass failed", "error", err.Error())
-			writeError(w, http.StatusInternalServerError, "gc: "+err.Error())
-			return
+			return nil, errors.New("gc: " + err.Error())
 		}
 		// A real deletion removes the blobs-ledger row with it (the same
 		// teardown the CLI run performs): the ledger is the "ever
@@ -245,42 +252,90 @@ func (s *Server) handleSystemGC(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	resp := gcResponse{
+	res := &GCRunResult{
 		CandidateCount: len(candidates),
 		CandidateBytes: candidateBytes,
 		DeletedCount:   len(deleted),
 	}
 
 	detail, derr := json.Marshal(gcRunDetail{
-		Apply:          body.Apply,
-		GraceHours:     body.GraceHours,
-		CandidateCount: resp.CandidateCount,
-		CandidateBytes: resp.CandidateBytes,
-		DeletedCount:   resp.DeletedCount,
+		Apply:          req.Apply,
+		GraceHours:     req.GraceHours,
+		CandidateCount: res.CandidateCount,
+		CandidateBytes: res.CandidateBytes,
+		DeletedCount:   res.DeletedCount,
 	})
 	if derr != nil {
 		s.log.WarnContext(sweepCtx, "httpapi: gc audit detail marshal failed", "error", derr.Error())
 		detail = []byte("{}")
 	}
 	s.audit.Record(sweepCtx, audit.Event{
-		Actor:      p.Name,
+		Actor:      req.Actor,
 		Action:     audit.ActionGCRun,
-		RemoteAddr: r.RemoteAddr,
+		RemoteAddr: req.RemoteAddr,
 		Detail:     string(detail),
 	})
 	mode := "dry-run"
-	if body.Apply {
+	if req.Apply {
 		mode = "apply"
 	}
 	s.log.InfoContext(sweepCtx, "httpapi: gc run complete",
 		"mode", mode,
 		"grace", grace.String(),
-		"candidates", resp.CandidateCount,
-		"candidate_bytes", resp.CandidateBytes,
-		"deleted", resp.DeletedCount,
+		"candidates", res.CandidateCount,
+		"candidate_bytes", res.CandidateBytes,
+		"deleted", res.DeletedCount,
 		"elapsed", time.Since(started).Round(time.Millisecond).String(),
 	)
+	return res, nil
+}
 
+// handleSystemGC serves POST /binflow/api/v1/system/gc: the REST face over
+// the shared RunGC kernel. The route gate already demanded an authenticated
+// admin; the handler re-checks because it writes the actor into the audit
+// trail and must not depend on route edits staying careful.
+func (s *Server) handleSystemGC(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r.Context())
+	if p == nil || !p.Admin {
+		writeError(w, http.StatusForbidden, "gc requires an administrator account")
+		return
+	}
+	if s.deps.GC == nil {
+		writeError(w, http.StatusServiceUnavailable, "gc is not available on this instance")
+		return
+	}
+
+	var body gcRequestBody
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
+	if err := dec.Decode(&body); err != nil && !errors.Is(err, io.EOF) {
+		// EOF alone is an empty body: the dry-run default posture, same
+		// reading the repo PUT family gives a missing body.
+		writeError(w, http.StatusBadRequest, "request body is not valid gc request JSON: "+err.Error())
+		return
+	}
+
+	res, err := s.RunGC(r.Context(), GCRunRequest{
+		Actor:      p.Name,
+		Apply:      body.Apply,
+		GraceHours: body.GraceHours,
+		RemoteAddr: r.RemoteAddr,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, errGCGraceRange):
+			writeError(w, http.StatusBadRequest, err.Error())
+		case errors.Is(err, storage.ErrDataLockHeld):
+			writeError(w, http.StatusConflict, s.gcLockRefusedMessage(err))
+		default:
+			writeError(w, http.StatusInternalServerError, err.Error())
+		}
+		return
+	}
+	resp := gcResponse{
+		CandidateCount: res.CandidateCount,
+		CandidateBytes: res.CandidateBytes,
+		DeletedCount:   res.DeletedCount,
+	}
 	b, err := json.MarshalIndent(resp, "", "  ")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "render gc response: "+err.Error())

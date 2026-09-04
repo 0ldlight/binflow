@@ -1,0 +1,171 @@
+# FAQ 与故障排查
+
+## 状态码信封解读
+
+所有非 2xx 的制品域响应为统一信封：`{"errors":[{"status":413,"message":"..."}]}`。用户管理/组/token 域为**纯文本**错误体，docker `/v2` 面为 spec 信封（`{"errors":[{"code":"DENIED",...}]}`）——三种格式并存是 Artifactory 兼容面，客户端按域名解析即可。
+
+### 401（未认证）
+
+| 场景 | 表现 | 处置 |
+|---|---|---|
+| 控制台会话过期 | `GET /api/v1/session` 401；toast「登录已过期」 | 重新登录；会话有绝对寿命，**活跃也不能续命** |
+| 登录口令错误 | `invalid credentials`——用户不存在与口令错**文案相同** | 核对凭据；连续失败落 `login.failed` 审计 |
+| 匿名写操作 | `authentication required` | 配置客户端凭据（settings.xml / `_auth` / `.pypirc` / `docker login`） |
+| docker 面未认证 | 401 + `Www-Authenticate: Bearer realm=".../v2/token"`——**协议正常流程**，客户端自动协商 | 无需干预 |
+| 已吊销/过期凭据重放 | 401（失效凭据**绝不降级匿名**） | 换有效凭据 |
+
+### 403（已认证但无权限 / CSRF）
+
+| 场景 | 表现 | 处置 |
+|---|---|---|
+| 无 write 权限的路径上传 | `permission denied` | 找 admin 加 permission target；组授权即时生效 |
+| 覆盖已有制品但无 delete 权限 | 403——覆盖 = 对旧文件的删除 | 加 delete 权限。**npm 例外**：发布新版本/dist-tag 仅需 write |
+| 控制台会话 + 跨站 Origin 写请求 | 403（CSRF 防线） | 同源操作即可；curl/CI 不受影响 |
+| 非 admin 访问管理面 | 403 | 管理面恒为 admin/readonly_admin；**组授予不能提权** |
+| npm 同版本重复 publish | 403 `Cannot modify pre-existing version '<v>' ...` | 升版本或先 unpublish |
+
+### 404（不存在 / 有意不做的面）
+
+| 场景 | 表现 | 处置 |
+|---|---|---|
+| 制品路径不存在 | 404 标准 miss 文案 | 核对路径；**命中仓库 `excludesPattern` 的下载与普通 miss 文案逐字相同**——先查仓配置再怀疑网络 |
+| 未实现的端点族 | 404：`/api/search/props\|users\|artifactory\|badge`、`/api/v2/security/permissions/**`、`/api/export/**`、`/api/import/**`、`/api/system/storage/prune/**` | 有意不做（见下方不兼容清单），不是路由故障 |
+| `?permissions` 于 virtual/remote 仓 | 400 `only supported on local repositories` | 该视图仅 local 仓 |
+
+### 409（冲突 / 治理拒绝）
+
+| 场景 | 表现 | 处置 |
+|---|---|---|
+| 路径不匹配仓库模式 | message 含双 pattern（includes/excludes） | 改路径或改模式（excludes 优先） |
+| 删除被引用的组 | `Cannot delete group '<g>': it is referenced by ...` | 先删/改列出的 target |
+| GC 与 export/import 撞车 | `gc rejected: export in progress ...` | 等当前维护操作完成重试——**不是数据问题** |
+| 客户端 checksum 不符 | `Checksum error ... received '<x>' but actual is '<y>'` | 重传一致构件；或仓配 `server-generated-checksums` |
+| maven 仓关 SNAPSHOT/Release | `handling of snapshots is disabled (handleSnapshots=false)` | 改仓配置或换仓 |
+
+### 413（配额超限）
+
+message 含 used/quota 双值（`Repository '<repo>' quota exceeded: used 800 of 1024 bytes; ...`）。被拒写**原子**——路径不留半截文件，**同内容重传不受误伤**；删除后 used 即回落。五协议客户端表现：docker `exit 1` + `denied:`；npm `E413`；mvn `status code: 413`；twine `HTTPError: 413`。
+
+## 常见问题
+
+### readonly_admin 能写某个仓吗？给他授 write 的组也不行？
+
+**不能**。readonly_admin 的内容面与仓库域求值**不查 permission targets**——「全域只读短路」是角色层的结构性设计。把它加进带 write 的组不会让他能写：组合结果是**静默无效**，不是报错。需要写能力的用户应使用 `user` 角色 + permission target。见 [权限](/admin/permissions)。
+
+### S3 后端重启后，docker 上传 URL 为什么一律 404？
+
+跨重启续传目前**仅本地 filestore 后端**。S3 的分块上传状态由 S3 multipart 服务端持有，重启后旧 upload URL 恒 **404 `BLOB_UPLOAD_UNKNOWN`**，客户端从头重传。已 commit 的层与制品不受影响。filestore 的续传链见 [Docker 接入](/integrations/docker)。
+
+### token 铸造报 401 step_up_required / step_up_invalid，怎么排查？
+
+四步（详见 [Token 指南](/admin/tokens)）：① 开关 `auth.token_step_up` 开了吗（默认 false）？② 报错只可能来自 web session 臂——Basic/Bearer/docker 臂全豁免，CI 里的 401 与 step-up 无关。③ `step_up_required` = 所欠凭据缺失（或交了错腿）；`step_up_invalid` = 口令错 / grant 过期（默认 300s）/ **grant 已用过**（单次消费）/ 服务重启。④ 文案含 `expires in larger than 0 and smaller than 31536000` 的 401 是 TTL 护栏，与 step-up 无关。
+
+### 删除用户的脚本第二次跑同一条 DELETE，404 是失败吗？
+
+**不是失败，是终态**。删除成功 200 后同一请求再发得确定性 404（`User not found`）——调用方应把第二次 404 读作「已删除」，不要重试。护栏（内置 admin / 最后一个 admin / 自删，全 400）与级联语义见[治理](/admin/governance)。
+
+### 给 CI 账号配 npm 发布权，要授 delete 吗？
+
+**不用**。发布新版本（任意多版本 + dist-tag 移动）仅需 `write`（与 npmjs.org 语义对齐）；仅 `npm deprecate` 或改写已发布版本数据才需要 `delete`；同版本重发无条件 403（版本不可变）。复制引擎目标凭据同口径。见 [npm 接入](/integrations/npm)。
+
+### 无 license（或过期）时，pro 功能会怎么样？
+
+**不装 license = community 地板，一切照常**：五核心包型与属性系统恒解锁。pro 槽位（go/nuget/cargo/conan/helm/rpm/debian/helmoci + repo-operations/trashcan/webhook）锁定，三种拒绝形态：建仓/改仓 **400** `package type 'go' is not available (license tier 'community' < 'pro')`；写动词 **403** + 头 `X-Binflow-License-Required: <addon>`；**读恒 200**——降级不劫持数据。过期即降级、无宽限期；装新 license 即刻恢复。注意区分：403 但**不带**该头、文案点名 `addons.disabled` 的是**配置熔断**（装 license 救不了，删条目重启才恢复）。见 [License](/admin/license)。
+
+### 属性（properties）和矩阵参数（matrix parameters）的区别？
+
+同一存储的两个**入口**，不是两套数据：矩阵参数 = 部署时语法糖（PUT 路径尾 `;k=v` 一次完成上传+打标）；`?properties` = 事后 REST 管理族（GET 过滤 / PUT 合并 / DELETE 删键）。典型分工：CI 部署即打标 → 发布脚本 `atomic=true` 核对 → QA 回写结论。见 [属性系统](/search/properties)。
+
+### S3 后端和本地 filestore 的 MPU 差异？
+
+分块上传 REST 面（`/api/v1/uploads`）**数据端点只在纯 S3 后端存在**：S3 栈全族可用（BinFlow 中继，客户端无需 S3 凭据；跨重启续传支持）；filestore/双写实例数据端点恒 **501 纯文本**（`GET config` 探测恒 200 回 `{"supported": false}`）。普通上传是单体 PUT，两后端无差异——MPU 是大文件的可选通道。
+
+### trash 保留期能改吗？删错了怎么救？
+
+pro 档（槽 `trashcan`）local 仓删除先捕获进内置仓 `auto-trashcan`，**保留期默认 14 天**，小时级 cron 清到期条目；`trashcan.retention_days` 可配（重启生效，`GET /api/v1/system/settings` 回显核对）。恢复走 `POST /api/trash/restore/{path}?to=…`。要点：捕获失败会**中止删除**（宁可留活）；GC/cleanup 不会误收 can 里的内容；community 实例**不捕获**（硬删）。见[制品操作](/admin/operations)。
+
+### dual-write（filestore+s3）实例上 S3 挂了，上传下载会怎样？
+
+**不断服（fail-open）**：窗内 PUT 本地优先落盘成功 + 内容入持久重放队列（重启幸存），GET 回退读磁盘（disk 恒为超集）；S3 恢复后自动排空 + 对账。三个边界：治理面（GC/Delete）在窗内仍诚实失败；带外直读 S3 桶会看到旧集合（桶是引擎私有物）；切 `mode: completed` 时 replay-queue 非空会拒启。观察窗：`binflow_replay_*` 指标族。见[存储后端](/admin/storage)。
+
+### webhook 建好了，事件没到接收端，怎么排查？
+
+按链路走（见 [Webhooks](/admin/webhooks)）：① `enabled` **默认 false**；license 失效时事件静默不入箱。② 事件型有触发源吗——66 型里只有 9 型会触发。③ criteria 匹配吗（空选择不命中；exclude 优先；copy/move 按源仓匹配）。④ 目标可达吗（SSRF 默认拒私网；接收端 4xx 是终态不重试）。⑤ 看排障环 `GET /event/api/v1/troubleshooting`（失败必录；进程内重启失史）。⑥ 看指标 `binflow_webhook_enqueue_failures_total`（真丢失面）。⑦ 投递是 at-least-once——接收端必须幂等去重。
+
+### webhook 死信还能重放吗？
+
+事件本体不丢行（outbox 转 `dead` 可查），但**没有 REST 重放端点**。恢复路径：修正接收端后重新触发源事件（如同路径重新 PUT）。避免死信：接收端快速返回 2xx（超时按发送失败计，同样烧尝试次数）。
+
+### remote 仓到底有没有命中缓存？怎么证明没回源？
+
+三件套看响应头 + 一处看计数：`X-Binflow-Cache`（MISS → HIT → STALE）；`X-Binflow-Upstream`（`_external` 折叠路径的实际来源）；`X-BinFlow-Resolved-From`（virtual 命中的成员仓）。最硬证据是上游访问计数：上游是另一台 BinFlow 时 `grep '"msg":"access"' <log>`——二次拉取计数**冻结**即零回源。两个「看不到」是口径而非故障：remote 的 tags/list 只见已缓存 tag；404 + 无 STALE 说明负缓存或确无副本。docker remote 同口径（docker 客户端不显示响应头，用 curl 对 `/v2` 路径看）。
+
+### `helm uninstall` 之后 PVC 还在，是没卸干净吗？
+
+是**有意幸存**：chart 自建 PVC 带 `helm.sh/resource-policy: keep` 注解，卸载只删工作负载、保留数据卷——防误删。同 namespace 重装同名 release 会复用幸存 PVC。彻底删除须手动 `kubectl delete pvc`（见 [Helm 安装 · 卸载](/install/helm)）。
+
+### Artifactory 的 AQL 查询搬过来，哪些能用哪些 400？
+
+BinFlow 实现 **items 域只读子集**：`items.find()` + 全部比较/通配/逻辑操作符 + `.include().sort().offset().limit()` 链 + virtual key 透明展开均可用；envelope 与语法错文案与 Artifactory 逐字一致。**400 点名拒绝**：build/statistics 系域、`stat.*`/`modified_by`/`original_*` 字段、写动词、`.transitive`。迁移改写四类：相对时间加空格（`"1d"` → `"1 d"`）；build 系查询改道；大结果集加分页（硬上限 1,000）；配凭据（AQL 永不允许匿名）。见 [AQL](/search/aql)。
+
+## 有意不兼容清单（汇总）
+
+从 Artifactory 迁移时的差异点（各域细节见对应指南）：
+
+| 不做项 | 表现 |
+|---|---|
+| 组的 admin 位 | 组只能授 read/write/delete/manage；admin 组成员的非 admin 用户对管理面仍 403 |
+| `/api/v2/security/permissions/**` | 404——权限面是 `/api/v1/permissions` |
+| 搜索族残项（`props` 复数/users/artifactory/badge） | 404（AQL 与 gavc/prop/pattern 已交付） |
+| REST export/import | 404——备份恢复仅 CLI |
+| 异步 GC 作业 / GC 状态端点 | 同步执行、无状态端点（上次运行查审计 `gc.run`） |
+| SAML 运行时登录 | 配置面已交付（字段可存可测），SP 断言消费未交付 |
+| 审计 CSV 导出 / token 列表 UI 查询 | 不渲染（token 台账按 token_id 吊销走审计对账） |
+| npmjs.org 真上游代理 | packument 布局不兼容——remote 适用于布局兼容上游 |
+| 洞察报表、漏洞扫描（Xray）、Pipelines 等独立产品 | 不做（Non-goal） |
+
+## 从 Artifactory 迁移
+
+概念一一对应，术语不变：
+
+| Artifactory | BinFlow | 说明 |
+|---|---|---|
+| local / remote / virtual 仓 | 同名 rclass 三型 | 语义一致；建仓走 `PUT /api/repositories/{key}`（重复 PUT 为更新） |
+| repo key / node / checksum | 同名 | checksum 族 sha256/sha1/md5 |
+| deployment / resolution | 上传 / 解析 | UI 与文档保留 deployment 原词 |
+| permission target、include/exclude patterns | 同名同构 | principals 支持 groups；`?permissions` 视图同形 |
+| groups / users / access tokens | 同名 | 组删除 409 保护同款；用户删除三护栏 + 级联撤权、**重复删除 404**（Artifactory 视为成功——幂等 vs 有意非幂等） |
+| 管理面 admin 布尔 | `adminRole` 三值角色 | `readonly_admin` 为 BinFlow 自有（实例级只读管理员） |
+| System YAML / GC / backup | `binflow.yaml` / `POST /api/v1/system/gc` / export·import CLI | GC 语义（mark-sweep + grace）同构 |
+| AQL / 老搜索族 | 同路径同信封 | 子集边界见 [AQL](/search/aql) |
+
+**三步走**：① 概念对齐（仓库/权限/checksum 去重一一对应）；② URL 映射：`/artifactory/api/...` → `/binflow/api/...`；`/artifactory/<repo>/<path>` → `/binflow/<repo>/<path>`；docker 端 `/v2/` 地址不变；③ 差异复核（上方清单 + 各指南「有意不兼容」小节）。批量搬迁走 [bf-migrate](/tools/migrate-artifactory)；控制台操作路径对照见 [Web 控制台](/admin/console)。
+
+迁移高频四问：
+
+1. **「我的 404 为什么在 Artifactory 是 200？」**——先查仓库的 `excludesPattern`（拦截下载与 miss 同文案）与 remote 仓负缓存/assumed-offline（`X-Binflow-Cache` / `X-Binflow-Upstream-Error` 头）。
+2. **「docker push 为什么报错别的协议都好？」**——docker 固定根级 `/v2`，前置反代必须原样直通（不能 rewrite 进 `/binflow`）；明文 HTTP 需配 insecure-registries。
+3. **「脚本 401 但浏览器正常？」**——浏览器是会话 cookie，脚本用 Basic/token；确认没把控制台 cookie 混进 CI。
+4. **「控制台旧路径失效了？」**——旧路由已不再重定向（404 页），按[控制台 · 旧路径对照表](/admin/console)更新书签。
+
+## 性能、存储与备份
+
+- **高 QPS 请用 Access Token**：口令哈希是 argon2id（memory-hard）——每请求 Basic 认证付出约 64MB 瞬态内存工作集；100 并发 Basic GET 可让 RSS 显著抬升（事后回落，非泄漏）。CI、脚本、监控探针一律用 Bearer token（免 argon2 + 免 CSRF）。签发是 admin-only（可指名替 CI 账号签发）。
+- **存储**：相同内容的 blob 只存一份（跨仓跨路径去重）；删除制品后 blob 可能仍被引用——孤儿 blob 由 GC 回收；用量 `GET /api/v1/storage/usage/{repo}`。
+- **备份**：`binflow-server export -c binflow.yaml --output /backup/date`（在线）/ `binflow-server import -c binflow.yaml --input /backup/date --verify full`（停机恢复）。export 与 GC 互斥，排程错开。
+
+## 排障信息收集
+
+复现问题时附上这三样，基本可以定位大多数故障：
+
+```bash
+curl -s $BASE/binflow/api/system/version                        # 版本/修订
+curl -su admin:$ADMIN_PW "$BASE/binflow/api/v1/audit?limit=20"  # 最近审计（谁在何时动了什么）
+curl -s -D - -o /dev/null $BASE/binflow/<repo>/<path>           # 完整响应头（缓存/来源/校验和头都在）
+```
+
+服务端日志为结构化 JSON（level/msg/字段），无堆栈噪音；升级与已知边界见各指南「有意不兼容」小节。
+
+## 下一步
+
+- [五分钟快速开始](/getting-started/quickstart) · [API 参考](/api-reference) · [bf-migrate 迁移指南](/tools/migrate-artifactory)

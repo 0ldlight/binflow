@@ -214,6 +214,12 @@ type Server struct {
 	// T-93). nil on metadata-less unit stacks — the endpoint answers 503
 	// rather than panicking there.
 	auditLog audit.Logger
+	// lastLogin is the last-login derivation facet of the same logger
+	// (FR-146.3, M16): audit's concrete logger derives per-user most
+	// recent login.success times in one GROUP BY. nil on metadata-less
+	// unit stacks — the users list then renders lastLoggedIn absent, the
+	// pre-M16 body (the session/permView discovery precedent).
+	lastLogin lastLoginSource
 	// permView is the effective-permission facet of Deps.Authz (GET
 	// /api/storage/**?permissions, T-97/SE-08); nil when the injected
 	// authorizer is not the full auth.Service (unit fakes) — the endpoint
@@ -254,7 +260,13 @@ type Server struct {
 	// Members resolver of aql.md §7-1) and the endpoint (the virtual_repos
 	// projection of §7-3); nil exactly when aql is.
 	aqlVirtual *virtualIndex
-	srv        *http.Server
+	// qrl is the DB-query rate plane (M16 T-452, aql.md §14.4): the
+	// process-wide limiter the admin REST face configures and the engine's
+	// execution segment consults. Always assembled — the factory state is
+	// disabled, a pure bypass, so wiring it costs nothing; the engine takes
+	// it only when the engine itself assembles.
+	qrl *search.QueryRateLimiter
+	srv *http.Server
 }
 
 // New assembles the server. deps.Console may be nil (a bare console
@@ -358,9 +370,19 @@ func New(deps Deps, log *slog.Logger) *Server {
 		lg := audit.New(deps.Metadata, deps.Config.Audit.Enabled)
 		s.audit = audit.BestEffort(lg)
 		s.auditLog = lg
+		// Last-login facet discovery (FR-146.3): the concrete logger
+		// carries the derivation; a bare Logger fake stays facet-less and
+		// the users list renders lastLoggedIn absent instead of panicking.
+		if ll, ok := lg.(lastLoginSource); ok {
+			s.lastLogin = ll
+		}
 	} else {
 		s.audit = noopRecorder{}
 	}
+	// The QRL instance (M16 T-452): always assembled in the factory state
+	// (disabled — a pure bypass), shared by the admin REST face and the
+	// engine below.
+	s.qrl = search.NewQueryRateLimiter(nil)
 	// The AQL engine (M15 T-415, FR-133.3 / ADR-0043 §24.1: httpapi is the
 	// sole assembly point of search x repo x metadata — the session/permView
 	// facet precedent, so cmd's Deps wiring stays untouched). Requires the
@@ -374,6 +396,7 @@ func New(deps Deps, log *slog.Logger) *Server {
 				Nodes:   q,
 				ACL:     deps.ReposSvc,
 				Virtual: s.aqlVirtual,
+				QRL:     s.qrl,
 			})
 		}
 	}

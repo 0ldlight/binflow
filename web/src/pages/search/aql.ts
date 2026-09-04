@@ -83,6 +83,34 @@ export function semanticOf(path: string): string | null {
   return null
 }
 
+// ---- T-449（FR-144.6 断言反转②）共享件 ---------------------------------------
+//
+// 结果表三件套归一到本支持库（两模式同一张网格——「列框架收敛」）：
+
+/** ISO 时间 → `dd-MM-yy HH:mm:ss +ZZZZ`（Artifactory 结果表对位——
+ *  parity B-3.15：浏览器本地时区 + 显式偏移后缀，如 `02-09-26 08:37:57
+ *  +0800`；不可解析值如实返回 null 由调用方呈现 —）。 */
+export function formatStamp(iso: string | null | undefined): string | null {
+  if (!iso) return null
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return null
+  const p2 = (n: number) => String(n).padStart(2, '0')
+  const off = -d.getTimezoneOffset()
+  const sign = off >= 0 ? '+' : '-'
+  const abs = Math.abs(off)
+  const zone = `${sign}${p2(Math.floor(abs / 60))}${p2(abs % 60)}`
+  return `${p2(d.getDate())}-${p2(d.getMonth() + 1)}-${String(d.getFullYear()).slice(2)} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())} ${zone}`
+}
+
+/** 结果行 → 跨仓树深链（K67-3 路径段规范形：文件 = 路径末段，?focus=
+ *  退役——T-434 兼容重定向维持一轮，本函数是发射端翻新后的唯一拼法，
+ *  两模式共用；缺 repo 或 name 的投影行返回 null = 不给注定 404 的链接）。 */
+export function treeUrl(repo: string | null | undefined, dir: string, name: string | null | undefined): string | null {
+  if (!repo || !name) return null
+  const segs = [...dir.split('/'), name].filter((s) => s !== '')
+  return `/artifacts/${[repo, ...segs].map((s) => encodeURIComponent(s)).join('/')}`
+}
+
 // ---- 尾缀链重写（分页/排序交互的载体） --------------------------------------
 
 /** 合法尾缀链段（链序即数组序，aql.md §2.5）。find 不在其中——

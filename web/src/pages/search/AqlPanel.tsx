@@ -1,24 +1,16 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
 
 import Alert from '@mui/material/Alert'
 import AlertTitle from '@mui/material/AlertTitle'
 import Button from '@mui/material/Button'
 import MuiSkeleton from '@mui/material/Skeleton'
-import Table from '@mui/material/Table'
-import TableBody from '@mui/material/TableBody'
-import TableCell from '@mui/material/TableCell'
-import TableHead from '@mui/material/TableHead'
-import TableRow from '@mui/material/TableRow'
-import TableSortLabel from '@mui/material/TableSortLabel'
 import TextField from '@mui/material/TextField'
 
-import { CopyButton } from '../../components/CopyButton'
 import { EmptyState } from '../../components/EmptyState'
+import { Pager, PAGER_SIZE_OPTIONS } from '../../components/Pager'
 import type { ApiError } from '../../lib/api'
 import type { ColumnDef, ColumnPrefs } from '../../lib/columnPrefs'
-import { formatBytes } from '../../lib/format'
 import { monoInputSx } from '../../lib/muiAtoms'
 import { useAsync } from '../../lib/useAsync'
 
@@ -31,42 +23,44 @@ import {
   withTailClause,
   type AQLRow,
 } from './aql'
+import { ResultsTable } from './ResultsTable'
+import type { ResultRow } from './ResultsTable'
 
-// AQL 模式面板（T-419，FR-135.1——M15-SPLIT §1.2 AC1/AC2）：
+// AQL 模式面板（T-419，FR-135.1；T-449 起结果网格归一 ResultsTable）：
 //
 // - 编辑器 = mono textarea，⌘/Ctrl+Enter 或「执行」提交；查询文本是唯一
 //   事实源——分页/排序交互 = 重写文本中的尾缀链段后重放（用户看得见
 //   查询变了什么，无影子状态）。
-// - 结果表复用既有列框架与列选器（T-414 交付面：同 COLUMNS 闭集 + 同
-//   per-page 偏好键）；行锚沿 search-result-<i> 既有族。AQL 行是投影
-//   （include 决定字段集）——缺省字段如实呈现 —，不伪造。
-// - 语法错内联呈现（AC1）：400 E-01 文案由统一层透传（ApiError.message
+// - **AQL 编辑器共存形态（T-449 / B-2.13 票内设计）**：AQL 模式的查询面
+//   = 本编辑器（服务端查询）；顶栏驻留输入保持全局基本检索入口（在 AQL
+//   模式 Enter = 切回基本模式跑 ?q=）；网格内快滤窄化已取回行——两层
+//   正交，编辑器重放不清快滤（快滤是呈现面偏好非查询段）。
+// - 结果表 = 共享 ResultsTable（T-449 列框架收敛：选择列 + Artifact 链接
+//   |Path|Repository|Modified 默认，大小/sha256 列选器可选项；行体 inert
+//   仅 name 深链）。AQL 行是投影（include 决定字段集）——缺省字段如实
+//   呈现 —，不伪造。
+// - 语法错内联呈现（T-419 AC1）：400 E-01 文案由统一层透传（ApiError.message
 //   = errors[0].message 逐字），Alert 就地展开 + 状态相关提示；408/429
 //   同一承载（文案同源，提示分流）。
-// - range 消费（AC1 分页语义）：start_pos/limit 回显 + 流式语义注记
-//   （total = 本页行数，非全量计数——aql.md §3.2）；「还有下一页」的
-//   判定只吃两个诚实信号——截断通告（notification）或本页满窗。
+// - range 消费：start_pos/limit 回显 + 流式语义注记（total = 本页行数，
+//   非全量计数——aql.md §3.2）；「还有下一页」的判定只吃两个诚实信号
+//   ——截断通告（notification）或本页满窗。T-451 起翻页 = 共享 Pager
+//   （页码/首末页/每页行数——E2 翻案 §11.2 形态锚）；offset/limit 仍由
+//   尾缀链重写承载（查询文本是唯一事实源，语义 C 注：呈现对齐语义自有）。
 
 /** 列 id → AQL 排序字段（表头排序注入的段值；字段须在查询输出集内，
  *  否则服务端 400「Only the result fields are allowed…」——内联呈现）。 */
 const SORT_FIELD: Record<string, string> = {
-  repo: 'repo',
+  name: 'name',
   path: 'path',
-  size: 'size',
+  repo: 'repo',
   modified: 'modified',
+  size: 'size',
   sha256: 'sha256',
 }
 
 const PLACEHOLDER =
   'items.find({"repo":"libs-release-local"}).include("*").sort({"$desc":["modified"]}).limit(50)'
-
-/** AQL path（父目录，'' = 仓根）+ name → 展示全路径（basic 模式同形） */
-function displayPath(r: AQLRow): string {
-  const p = r.path ?? ''
-  const n = r.name ?? ''
-  if (p && n) return `${p}/${n}`
-  return n || p
-}
 
 /** 语义副行：maven 语义 > property 投影 > virtual 成员关系 > type */
 function rowSub(r: AQLRow, full: string): ReactNode {
@@ -96,6 +90,22 @@ function rowSub(r: AQLRow, full: string): ReactNode {
   return null
 }
 
+/** AQL 投影行 → 网格行（缺 repo/name 的行 name 列如实 — 且无深链） */
+function toRow(r: AQLRow, i: number): ResultRow {
+  const dir = r.path ?? ''
+  const name = r.name ?? ''
+  return {
+    key: `${r.repo ?? ''}/${dir}${dir ? '/' : ''}${name}/${i}`,
+    repo: r.repo ?? '',
+    dir,
+    name,
+    size: typeof r.size === 'number' ? r.size : null,
+    modified: r.modified ?? r.updated ?? null,
+    sha256: r.sha256 ?? null,
+    sub: rowSub(r, dir && name ? `${dir}/${name}` : name || dir),
+  }
+}
+
 function errorHeadline(err: ApiError): string {
   if (err.status === 400) return '查询被拒绝（HTTP 400）'
   if (err.status === 408) return '查询超时（HTTP 408）'
@@ -119,10 +129,9 @@ export function AqlPanel({
 }: {
   columns: ColumnDef[]
   cols: ColumnPrefs
-  /** 工具尾行右侧（列选器——T-414 交付面由 SearchPage 注入共用一份壳） */
+  /** 工具行右槽（列选器——SearchPage 注入共用一份壳） */
   toolbar: ReactNode
 }) {
-  const navigate = useNavigate()
   const [text, setText] = useState('')
   // null = 尚未提交（引导态）；每次提交换新字符串（同串重提交用 reload 路径）
   const [submitted, setSubmitted] = useState<string | null>(null)
@@ -136,7 +145,7 @@ export function AqlPanel({
     return runAQL(submitted, ctrl.signal)
   }, [submitted])
 
-  const rows = res.data?.results ?? []
+  const rows = useMemo(() => (res.data?.results ?? []).map(toRow), [res.data])
   const range = res.data?.range
   const notRun = submitted === null
   const sort = sortState(text.trim())
@@ -155,20 +164,28 @@ export function AqlPanel({
     run(withTailClause(text.trim(), 'offset', String(offset)))
   }
 
-  const gotoNode = (r: AQLRow) => {
-    if (!r.repo || !r.name) return // 投影缺 repo/name 的行不给注定 404 的深链
-    const segs = (r.path ?? '').split('/').filter((s) => s !== '')
-    const enc = segs.map((s) => encodeURIComponent(s)).join('/')
-    const dirPart = enc ? `/${enc}` : ''
-    navigate(`/artifacts/${encodeURIComponent(r.repo)}${dirPart}?focus=${encodeURIComponent(r.name)}`)
-  }
-
-  const pageSize = range?.limit ?? rows.length
+  // 页窗语义（T-451 / E2 翻案）：页大小 = 查询声明的 .limit()，未声明 =
+  // 引擎上限 1000；页码 N → .offset((N-1)×size) 重写查询文本重放（查询
+  // 文本是唯一事实源，无影子状态）。页数 = 前沿 + 1（total 是流式语义
+  // = 本页行数非全量计数——末页未知，页码逐页揭示）。
+  const pageSize = range?.limit ?? AQL_RESULT_CAP
+  const page = range ? Math.floor(range.start_pos / pageSize) + 1 : 1
   const hasMore = range
     ? range.notification !== undefined ||
       (range.limit !== undefined ? rows.length === range.limit : rows.length >= AQL_RESULT_CAP)
     : false
+  const pageCount = hasMore ? page + 1 : page
+  const pageFrom = range && rows.length > 0 ? range.start_pos + 1 : 0
+  const pageTo2 = range ? range.start_pos + rows.length : 0
+  // 档位 = 冻结档 ∪ 当前查询声明的 limit（手写非档值〔如 .limit(2)〕如实
+  // 在场——选择器不得对当前值显示空白）
+  const sizeOptions = useMemo(
+    () => [...new Set([...PAGER_SIZE_OPTIONS, pageSize])].sort((a, b) => a - b),
+    [pageSize],
+  )
   const failed = res.status === 'error' || res.status === 'forbidden' ? res.error : null
+  // 结果网格在场 = 已执行且命中（列选器随网格工具行；否则尾行承载）
+  const gridOn = !notRun && !failed && res.status === 'ok' && rows.length > 0 && Boolean(range)
 
   return (
     <>
@@ -220,9 +237,11 @@ export function AqlPanel({
             {' '}
             .sort()/.offset()/.limit()
           </span>{' '}
-          尾缀承载——表头与翻页钮会改写查询文本。
+          尾缀承载——表头排序与分页控件（页码/每页行数）会改写查询文本。
         </p>
-        {toolbar}
+        {/* 列选器：结果网格不在场时由尾行承载（偏好预设定案，T-414——
+            同一份壳，网格在场时改驻网格工具行，同一时刻仅一处） */}
+        {!gridOn && toolbar}
       </div>
 
       {failed && (
@@ -269,121 +288,40 @@ export function AqlPanel({
           hint="未命中的仓 key / 属性条件也回 200 空集——检查仓 key、路径条件与属性键值；结果按你的权限过滤。"
         />
       ) : (
-        <>
-          <Table>
-            <TableHead>
-              <TableRow>
-                {columns
-                  .filter((c) => cols.isVisible(c.id))
-                  .map((c) => {
-                    const field = SORT_FIELD[c.id]
-                    const active = sort?.field === field
-                    return (
-                      <TableCell
-                        key={c.id}
-                        component="th"
-                        scope="col"
-                        aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined}
-                      >
-                        <TableSortLabel
-                          active={active}
-                          direction={active ? sort.dir : undefined}
-                          onClick={() => onSort(field)}
-                          data-testid={`search-aql-sort-${c.id}`}
-                          title="点击注入/切换 .sort() 子句（字段须在查询输出集内——include('*') 时恒可用）"
-                        >
-                          {c.label}
-                        </TableSortLabel>
-                      </TableCell>
-                    )
-                  })}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {rows.map((r, i) => {
-                const full = displayPath(r)
-                const sub = rowSub(r, full)
-                const modified = r.modified ?? r.updated
-                return (
-                  <TableRow
-                    key={`${r.repo ?? ''}/${full}/${i}`}
-                    data-testid={`search-result-${i}`}
-                    hover
-                    tabIndex={0}
-                    onClick={() => gotoNode(r)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') gotoNode(r)
-                    }}
-                  >
-                    {cols.isVisible('repo') && (
-                      <TableCell className="mono" lang="en">
-                        {r.repo ?? '—'}
-                      </TableCell>
-                    )}
-                    {cols.isVisible('path') && (
-                      <TableCell sx={{ whiteSpace: 'normal', wordBreak: 'break-all' }}>
-                        <div className="mono row-link" lang="en">
-                          {full || '—'}
-                        </div>
-                        {sub && <div className="search-result-sub">{sub}</div>}
-                      </TableCell>
-                    )}
-                    {cols.isVisible('size') && (
-                      <TableCell className="mono">
-                        {typeof r.size === 'number' ? formatBytes(r.size) : '—'}
-                      </TableCell>
-                    )}
-                    {cols.isVisible('modified') && (
-                      <TableCell className="mono">
-                        {modified ? modified.replace('T', ' ').slice(0, 19) : '—'}
-                      </TableCell>
-                    )}
-                    {cols.isVisible('sha256') && (
-                      <TableCell className="mono" title={r.sha256 ?? ''}>
-                        {r.sha256 ? (
-                          <>
-                            {`${r.sha256.slice(0, 10)}…`}
-                            <CopyButton value={r.sha256} label={`sha256 ${full}`} />
-                          </>
-                        ) : (
-                          '—'
-                        )}
-                      </TableCell>
-                    )}
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-          <div className="search-footer" data-testid="search-aql-range">
-            <span>
-              range：start_pos {range.start_pos} · 本页 {rows.length} 行 · total {range.total}
-              （流式语义 = 本页行数，非全量计数）
-              {range.limit !== undefined ? ` · limit ${range.limit}` : ''}
-            </span>
-            <span className="aql-pager">
-              <Button
-                variant="outlined"
-                size="small"
-                data-testid="search-aql-prev"
-                disabled={range.start_pos === 0}
-                onClick={() => pageTo(Math.max(0, range.start_pos - pageSize))}
-              >
-                上一页
-              </Button>
-              <Button
-                variant="outlined"
-                size="small"
-                data-testid="search-aql-next"
-                disabled={!hasMore}
-                title={hasMore ? undefined : '本页未满窗且无截断标记——已到结果末尾'}
-                onClick={() => pageTo(range.start_pos + rows.length)}
-              >
-                下一页
-              </Button>
-            </span>
-          </div>
-        </>
+        <ResultsTable
+          rows={rows}
+          columns={columns}
+          cols={cols}
+          toolbarRight={toolbar}
+          sort={sort}
+          sortFieldOf={(id) => SORT_FIELD[id]}
+          onSort={onSort}
+          footer={
+            <div className="search-footer" data-testid="search-aql-range">
+              <span>
+                range：start_pos {range.start_pos} · 本页 {rows.length} 行 · total {range.total}
+                （流式语义 = 本页行数，非全量计数）
+                {range.limit !== undefined ? ` · limit ${range.limit}` : ''}
+              </span>
+              <Pager
+                page={page}
+                pageCount={pageCount}
+                onPageChange={(p) => pageTo((p - 1) * pageSize)}
+                from={pageFrom}
+                to={pageTo2}
+                total={null}
+                lastUnknown
+                pageSize={pageSize}
+                sizeOptions={sizeOptions}
+                onPageSizeChange={(n) => {
+                  // 换页大小 = 重写 .limit() 并回第 1 页（清 .offset——
+                  // 旧 offset 在新页大小下指向错位窗口）
+                  run(withTailClause(withTailClause(text.trim(), 'limit', String(n)), 'offset', null))
+                }}
+              />
+            </div>
+          }
+        />
       )}
     </>
   )

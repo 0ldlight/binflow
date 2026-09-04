@@ -1,0 +1,103 @@
+# npm 接入
+
+把 BinFlow 当作私有 npm registry：`.npmrc` 一处配置，`npm publish` 发内部包、`npm install` 装内部与上游包——scoped 包、dist-tag、unpublish 开箱可用。
+
+## registry URL 形态
+
+npm 域挂在 `/binflow/api/npm/` 前缀下（与 docker 的根级 `/v2` 不同）：
+
+```
+$BASE/binflow/api/npm/<repoKey>/    ← 尾部斜杠不能省
+```
+
+tarball 的内容路径 `/binflow/<repoKey>/<name>/-/<name>-<version>.tgz` 是同一文件的第二入口（curl 直取可用）。
+
+### 尾斜杠配对：registry 行与凭据行（高频踩坑）
+
+npm 按「registry URL 字符串」匹配 `.npmrc` 里的凭据行：
+
+| registry 行 | 凭据行 | 结果 |
+|---|---|---|
+| `…/npm-local/`（带斜杠） | `//…/npm-local/:_auth=…`（带斜杠） | 正常 |
+| `…/npm-local`（无斜杠） | 带斜杠 | **ENEEDAUTH** |
+| `…/npm-local/`（带斜杠） | `//…/npm-local:_auth`（无斜杠） | **ENEEDAUTH** |
+| 两侧一致无斜杠 | 无斜杠 | **仍然 ENEEDAUTH**——凭据键匹配不接受无斜杠形态 |
+
+要点：**两条都必须逐字带尾斜杠**；匿名拉包不受影响（实例默认开匿名读时，CI 表现为「install 好的、publish 突然 need auth」，第一反应往往查服务端，实际是 `.npmrc` 斜杠形态）。`_authToken` 形态同坑。registry 换仓时两行的主机+路径段要同步改。
+
+## 接入步骤
+
+### 1. 创建仓库
+
+```bash
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/npm-local \
+  -H 'Content-Type: application/json' \
+  -d '{"rclass":"local","packageType":"npm"}' \
+  -o /dev/null -w '%{http_code}\n'        # 200
+```
+
+### 2. 写 `.npmrc`（即拷即用）
+
+项目根目录（或用户级 `~/.npmrc`）。凭据行必须按 registry 限定：
+
+```ini
+registry=http://localhost:8080/binflow/api/npm/npm-local/
+//localhost:8080/binflow/api/npm/npm-local/:_auth=<base64 of admin:口令>
+always-auth=true
+```
+
+`_auth` 生成：`printf 'admin:%s' "$ADMIN_PW" | base64`。
+
+> npm 10 实测：项目级 `.npmrc` 里写裸 `_auth=` 会被直接拒绝（`'_auth' must be renamed to '//<host>/<path>/:_auth'`）。只读场景（匿名读默认开）可只写 `registry=` 一行。
+
+### 3. 发布与安装
+
+```bash
+cd my-pkg && npm publish          # + demo-pkg@1.0.0；服务端 201
+npm whoami                        # admin
+npm publish --access public       # scoped 包：+ @acme/util@1.0.0
+npm install demo-pkg && npm install @acme/util
+```
+
+`dist.tarball` 一律重写为指回 BinFlow 的 URL（上游原地址不回显）；`dist.shasum`/`dist.integrity` 由服务端实测生成——`npm install` 的锁文件校验三方一致。
+
+### 4. dist-tag / unpublish / login
+
+```bash
+npm dist-tag add demo-pkg@1.0.0 beta
+npm dist-tag ls && npm dist-tag rm demo-pkg beta
+npm unpublish demo-pkg@1.0.1 --force    # 版本从 packument 移除，dist-tags 引用联动清理
+```
+
+交互式登录（npm ≥ 9 用 legacy 形态）：`npm login --auth-type=legacy --registry=<registry URL>` 三步输入用户名/口令后即 `Logged in`——服务端在该路径族豁免写认证门、验证 body 凭据后铸 token，并把 `.npmrc` 凭据行改写为 `_authToken` 形态；重复 login 是幂等再铸（恒 201）。默认 web 形态的 `npm login` 服务端不提供 web 端点，npm 客户端自动回落 couch 链，同样可用。注意：登录端点不查仓库权限（认证面非制品写）；无读权限账号 `npm whoami` 会 403，属正常。
+
+## 发布权限语义（CI 授权最短答案）
+
+| 操作 | 所需权限 |
+|---|---|
+| 发布新版本（含包的第二及以后版本）、`dist-tag add/rm` | **仅 `write`**（与 npmjs.org 语义对齐） |
+| 改既有版本数据：`npm deprecate`、篡改 manifest、删除版本 | **需 `delete`**（无则 403） |
+| 重发同版本（tarball 已存在） | **无条件 403**（有 delete 也拒）——`Cannot modify pre-existing version '<v>'`，版本不可变 |
+
+**给 CI 发布仓配权：`read` + `write` 即可**；仅当流程需要 deprecate 或改写已发布元数据时才补 `delete`。复制引擎对目标仓同口径——目标凭据 `read` + `write` 即可承载镜像同步，无需 `delete`。
+
+## remote / virtual 仓
+
+- **remote 仓**：registry 指向 `$BASE/binflow/api/npm/npm-remote/`，packument 与 tarball 经 BinFlow 回源缓存，二次安装零上游流量。
+- **virtual 仓**：registry 指向 `$BASE/binflow/api/npm/npm-virtual/`，本地包与上游包一次装齐。
+- **重要边界**：`registry.npmjs.org` 的 packument 不在 `<name>/packument.json` 布局路径上，**npmjs 真上游暂不可代理**（`npm install lodash` → 404）。remote 仓适用于布局兼容的上游（内网 Nexus/Artifactory 等）。
+
+## 常见报错对照
+
+| 症状 | 原因 | 处置 |
+|---|---|---|
+| `npm error need auth ...`（install 却正常） | registry 行或凭据行缺尾斜杠 / 两行指向不同仓 | 两行都逐字带尾斜杠 |
+| `_auth must be renamed ...` | 项目级 `.npmrc` 用裸 `_auth` | 改 `//<host>/<路径>/:_auth` 限定形态 |
+| publish E403 `Cannot modify pre-existing version` | 同版本已发布（不允许覆盖） | 升版本；或先 unpublish |
+| publish E400 `Conflict between integrity from metadata and tarball` | packument integrity 与 tarball 内容不符（强制校验） | 重新 `npm pack` 生成一致元数据 |
+| install 404 / 装到公网同名包 | 当前目录没有 `.npmrc`，registry 缺省走 npmjs | 每个项目目录放 `.npmrc`（或写用户级） |
+| dist-tag 操作 404 | 包名或 tag 不存在 | 核对 `npm dist-tag ls` |
+
+## 下一步
+
+- [仓库管理（remote/virtual）](/admin/repositories) · [Maven](/integrations/maven) · [PyPI](/integrations/pypi)

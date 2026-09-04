@@ -1,0 +1,337 @@
+# API 参考
+
+BinFlow 的 API 分为四个面：
+
+1. **制品内容路径**（无 `/api` 前缀）：`/binflow/<repoKey>/<path>`——上传、下载、删除制品，各协议客户端走这里。
+2. **管理面 API**（`/binflow/api/*`）：仓库 CRUD、用户/组/权限、审计、GC、Token、搜索、系统信息。BinFlow 自有端点以 `/api/v1` 前缀标记。
+3. **Docker Registry 平面**（`/v2/*`）——根级独立路由，见 [Docker 接入](/integrations/docker)。
+4. **Webhook 事件面**（`/binflow/event/api/v1/*`）——见 [Webhooks](/admin/webhooks)。
+
+认证与错误格式见本页后半；各域行为细节见对应指南。
+
+## 通用制品域
+
+| 方法 | 路径 | 语义 |
+|---|---|---|
+| PUT | `/binflow/{repoKey}/{path}` | 上传文件（body 为内容），checksum 头支持；**matrix 参数（`;k=v` 尾随成对序列剥离为部署属性）**——非成对 `;` 维持文件名字面 |
+| PUT | `/binflow/{repoKey}/{path}/` | 创建目录（尾斜杠） |
+| PUT | `/binflow/{repoKey}/{path}.sha1\|.md5\|.sha256` | 上传校验和旁车文件 |
+| GET | `/binflow/{repoKey}/{path}` | 下载文件（Range / If-None-Match / ETag） |
+| HEAD | `/binflow/{repoKey}/{path}` | 文件元信息（响应头同 GET 无 body） |
+| DELETE | `/binflow/{repoKey}/{path}` | 删除文件或目录树 |
+| GET | `/binflow/api/storage/{repoKey}/{path}` | 取 FileInfo / FolderInfo JSON |
+| GET | `…?properties=K1,K2*` | 取属性（key 过滤 + 尾 `*` 通配；无命中 = 200 `{"properties":{}}`——自有裁定，非 404；node 不存在 = 404） |
+| PUT | `…?properties=k=v1,v2[&recursive=1]` | 写属性——**merge 语义**：同名键值集整体替换、异名键保留；node 须存在（404） |
+| DELETE | `…?properties=k1,k2[&recursive=1]` | 删属性（幂等；`properties=*` 全删） |
+| GET | `…?stats` | 取下载统计 |
+| GET | `…?lastModified` | 取目录最新修改时间 |
+| GET | `…?permissions` | 取有效权限视图（admin only，仅 local 仓；virtual/remote → 400） |
+| GET | `/binflow/api/storage/{repoKey}?list` | 流式文件清单（仅认证用户） |
+
+属性语义全解见 [属性系统](/search/properties)。
+
+## Docker 域（独立 /v2 路由）
+
+| 方法 | 路径 | 语义 |
+|---|---|---|
+| GET | `/v2/` | API 版本检查（401 挑战，不随匿名开关变化） |
+| GET | `/v2/_catalog` | 仓库目录 |
+| GET | `/v2/{name}/tags/list` | 标签列表（空标签集返回 `"tags":null`） |
+| GET / PUT / DELETE | `/v2/{name}/manifests/{ref}` | manifest 取/传/删（删除 by-digest 仅） |
+| POST | `/v2/{name}/blobs/uploads/` | 启动 blob 上传会话 |
+| GET | `/v2/{name}/blobs/uploads/{uuid}` | 上传状态查询（**204 + `Range: 0-<offset-1>`** 权威断点；跨重启存活） |
+| PATCH | `/v2/{name}/blobs/uploads/{uuid}` | 上传分片（`Content-Range` 起点错位 → 416 空 body + 权威 `Range`） |
+| PUT | `/v2/{name}/blobs/uploads/{uuid}` | 完成上传（`?digest=sha256:...`） |
+| GET / HEAD | `/v2/{name}/blobs/{digest}` | blob 下载 / 存在检测 |
+| DELETE | `/v2/{name}/blobs/{digest}` | **405 UNSUPPORTED**——blob 删除仅 GC |
+| GET/POST | `/v2/token` | Docker 认证 token 端点（distribution token 协议） |
+| GET | `/v2/{name}/referrers/` | **404**——OCI referrers API 不做 |
+
+## Maven / npm / PyPI 域
+
+| 方法 | 路径 | 语义 |
+|---|---|---|
+| PUT / GET | `/binflow/{repoKey}/{GAV路径}` | Maven 部署/解析（layout 严格校验；含 `maven-metadata.xml`） |
+| GET | `/binflow/{repoKey}/{GAV路径}.sha1\|.md5\|.sha256` | 取校验和 |
+| GET / PUT / DELETE | `/binflow/api/npm/{repoKey}/-/${pkg}[?rev=...]` | packument 取/发布（十步链）/unpublish |
+| GET | `/binflow/{repoKey}/{name}/-/{name}-{v}.tgz` | tarball 直取（PUT 此面 → **405**） |
+| PUT | `/binflow/api/npm/{repoKey}/-/user/org.couchdb.user:{name}[/-rev/{rev}]` | **login（couch 用户文档族）**——npm `login --auth-type=legacy` 的落点：凭据在 body，该路径族对 npm 仓**豁免写认证门**，验证后铸 token（**201 幂等再铸**）；错口令 401。仅 `packageType=npm` 仓适用 |
+| POST | `/binflow/api/npm/{repoKey}/-/v1/login` | **401**——web 登录端点不提供；npm ≥ 9 客户端自动回落 couch 链 |
+| GET | `/binflow/api/npm/{repoKey}/-/whoami` | 当前用户（需认证；无该仓读权限 403） |
+| GET | `/binflow/api/npm/{repoKey}/-/ping` | 连通性探测（免认证，`200 {}`） |
+| GET | `/binflow/api/pypi/{repoKey}/simple/` · `/simple/{pkg}/` | 包列表 / 单包索引页（PEP 503/629，Accept 驱动 JSON） |
+| POST | `/binflow/api/pypi/{repoKey}/` | 上传（multipart `:action=file_upload`） |
+| GET | `/binflow/api/pypi/{repoKey}/packages/{name}/{ver}/{file}` | 下载构件 |
+
+## 安全域（users / groups / token / permissions）
+
+| 方法 | 路径 | 语义 |
+|---|---|---|
+| GET | `/binflow/api/security/users` | 用户列表（条目含 `email`/`adminRole`/`enabled`/`groups`，恒渲染空组 `[]`） |
+| GET | `/binflow/api/security/users/{name}` | 用户详情（无口令字段；恒回显 `adminRole` 与 `enabled`） |
+| PUT | `/binflow/api/security/users/{name}` | 创建或替换用户（create-or-replace，两态 201；body 可含 `adminRole`，仅 admin 可写） |
+| POST | `/binflow/api/security/users/{name}` | 部分更新（email/password/admin/groups/adminRole/enabled——`enabled` 为指针语义） |
+| DELETE | `/binflow/api/security/users/{name}` | **删除用户**：护栏 400（内置 admin / 最后一个 admin / 自删）、同事务级联（剥授权 + 吊销全部 token 与会话）、200 纯文本；**重复删除确定性 404** |
+| PUT | `/binflow/api/security/password` | 当前用户改密 |
+| POST | `/binflow/api/security/users/authorization/changePassword` | 别名改密端点 |
+| GET / PUT / POST / DELETE | `/binflow/api/security/groups[/{name}]` | 组 CRUD（创建 201 / 更新 200；`?includeUsers=true` 附 `userNames`；删除被引用 → 409） |
+| POST | `/binflow/api/security/token` | 签发 Access Token（admin 为任意用户签发；非 admin 限本人；可选 `step_up_password`/`step_up_grant`） |
+| POST | `/binflow/api/security/token/revoke` | 吊销 Token（admin only） |
+| POST | `/binflow/api/v1/permissions` | 创建/替换 Permission Target（create-or-replace；动作集 r/w/d/manage） |
+| GET | `/binflow/api/v1/permissions[?filter=manage]` | 列表（`filter=manage` = manage 持有者可达的覆盖集内子集；未知值 400） |
+| DELETE | `/binflow/api/v1/permissions/{name}` | 删除（204 无 body） |
+
+## 搜索域
+
+| 方法 | 路径 | 参数 | 语义 |
+|---|---|---|---|
+| GET | `/binflow/api/search/artifact` | `name=`（必填，大小写不敏感子串）、`repos=a,b` | 按名称子串搜索（权限过滤） |
+| GET | `/binflow/api/search/checksum` | `sha1=/md5=/sha256=`（至少一）、`repos=` | 按 checksum 精确搜索 |
+| POST | `/binflow/api/search/aql` | body = AQL 文本（`text/plain`）；`?compact=true`；`?query=` 空体回退 | **AQL 查询**（items 域子集，见 [AQL 指南](/search/aql)） |
+| GET | `/binflow/api/search/gavc` | `g=/a=/v=/c=`（至少一）、`repos=` | Maven 坐标检索（布局路径形态匹配） |
+| GET | `/binflow/api/search/prop` | `props=k[=v]` 或任意 `?k=v`（`repos` 保留） | 按属性检索（键无值 = 键存在性） |
+| GET | `/binflow/api/search/pattern` | `pattern=<repo-glob>:<path-glob>` | 按路径模式检索（`*`/`?` SQL 语义，跨段） |
+| GET | `/binflow/api/search/props\|users\|artifactory\|badge` | — | **404** 有意不做（`prop` 是官方单数拼写，复数 404） |
+
+搜索结果 envelope `{"results":[FileInfo…]}`（含 `uri`/`downloadUri`）、按调用者权限过滤、未命中一律 200 `results:[]`、上限 1,000 行 + `X-Binflow-Search-Truncated` 截断头。
+
+## 仓库管理域
+
+| 方法 | 路径 | 语义 |
+|---|---|---|
+| GET | `/binflow/api/repositories[?type=&packageType=]` | 仓库列表/过滤（admin / readonly_admin） |
+| GET | `/binflow/api/repositories/{key}` | 单仓配置（manage 持有者对覆盖仓亦可读） |
+| PUT | `/binflow/api/repositories/{key}` | 建仓 / 替换既有仓（替换臂与配额字段对 manage 持有者开放；**建仓臂仅 admin**）。接受 `rclass=remote + packageType=docker`；`virtual + docker` → 400 `repository type not supported: virtual docker repositories are not supported (docker serves local and remote; PRD Q4 keeps virtual docker unserved)` |
+| POST | `/binflow/api/repositories/{key}` | 改仓（含 quotaBytes；manage 持有者同上） |
+| DELETE | `/binflow/api/repositories/{key}[?deleteContent]` | 删仓（admin only） |
+
+remote/virtual 建仓字段表见 [仓库管理](/admin/repositories)。
+
+## 系统与会话端点
+
+| 方法 | 路径 | 语义 |
+|---|---|---|
+| GET | `/binflow/api/system/ping` · `/api/system/version` | 存活 / 版本（免认证） |
+| GET | `/binflow/api/v1/health` | 健康面板（admin / readonly_admin） |
+| GET | `/binflow/api/v1/storage/stats` | 全实例存储统计 |
+| GET | `/binflow/api/v1/storage/usage/{repo}` | 单仓配额用量（admin / readonly_admin / 该仓 read **或** manage 授权者） |
+| GET | `/binflow/api/v1/storage/usage` | **批量用量**：bare array（行形 `{"repo","usedBytes","quotaBytes"}`）；按调用者可见集过滤；`?repos=` 点名（未知名静默缺失）、`?include=counts` 附 `nodeCount`/`updatedAt`（未知 include 值 400） |
+| GET | `/binflow/api/v1/audit` | 审计日志查询（见下文参数） |
+| POST | `/binflow/api/v1/system/gc` | 触发 GC（同步；dry-run/apply；admin only） |
+| GET/POST | `/binflow/api/v1/system/cleanup` | unused-cleanup 引擎状态面 / 手动触发（body `{"apply":bool,"repo":string?}`，dry-run 默认；admin only） |
+| GET | `/binflow/api/v1/system/settings` | 运行旋钮回显（folder_download 六字段 + trashcan.retention_days 的解析值；只读） |
+| POST / GET / DELETE | `/binflow/api/v1/session` | 控制台登录 / whoami（回显 `adminRole` 与 `source`）/ 登出 |
+
+## license / addons / keypair / 认证配置域
+
+| 方法 | 路径 | 语义 |
+|---|---|---|
+| GET / POST / DELETE | `/binflow/api/system/license` | 状态查询（body 永不含文档原文）/ 安装（body = 文档原文；成功 201；验签拒 400 `LICENSE_EXPIRED`/`LICENSE_INVALID`）/ 卸载（幂等 200 纯文本 `License removed successfully.`）。复数 `/licenses` → 404 有意不做 |
+| GET | `/binflow/api/v1/addons` | 槽位清单实时求值（bare array：id/kind/minTier/enabled/reason/displayName；**无写面**） |
+| GET/PUT/POST …/test | `/binflow/api/v1/admin/security/{ldap,oauth,saml/config}` | 认证三段配置（保存即生效；secret 哨兵语义见[认证](/admin/auth)） |
+| GET / PUT / POST | `…/saml/config/key/public[/regenerate]` · `…/saml/key` | SAML SP 证书三端点 |
+| POST / PUT / GET / DELETE | `/binflow/api/security/keypair[/{pairName}]` | keypair 导入/更新/列表/单查/删除（被仓引用 → 400 点名清单） |
+| POST | `/binflow/api/security/keypair/verify` | 校验（body 全量材料或仅 `{"pairName":…}` 校验存量） |
+| GET | `/binflow/api/security/keypair/public/repositories/{repoKey}` | 该仓关联 keypair 的 armored 公钥 |
+| POST | `/binflow/api/v1/admin/security/keypair/generate` | **服务端生成**（重名 409） |
+| POST / DELETE | `/binflow/api/v2/repositories/{repoKey}/keyPairs[/{keyName}]` | 仓关联/解除（仅 local `debian`/`rpm` 仓接受） |
+
+## uploads 域（MPU；数据端点仅纯 S3 后端）
+
+| 方法 | 路径 | 语义 |
+|---|---|---|
+| POST | `/binflow/api/v1/uploads/create?repoKey=&repoPath=&partSizeMB=` | 开会话（QueryParam 非 JSON；**200 `{"token": ...}`**） |
+| GET | `/binflow/api/v1/uploads/config` | 能力探测：**200 `{"supported": bool}`**（S3 栈 true / filestore false——探测端点不回 501） |
+| POST | `/binflow/api/v1/uploads/urlPart?partNumber=N` | 第 n 片上传 URL（Bearer 会话 token；URL 自带 `?token=` 能力） |
+| PUT | `/binflow/api/v1/uploads/part/{id}/{n}?token=` | 传片（可乱序到达；服务端中继进 S3 multipart） |
+| POST | `/binflow/api/v1/uploads/status` | 异步进度：`{status, error, progress, checksumToken}`；status ∈ PARTS/PROCESSING/FINISHED/NON_RETRYABLE_ERROR |
+| POST | `/binflow/api/v1/uploads/complete?sha1=` | 提交组装（sha1 40 hex 必填）→ **202 受理**异步 |
+| POST | `/binflow/api/v1/uploads/abort` | 弃置会话 → 204 |
+
+流程：create 拿 token → urlPart/PUT 分片 → `complete?sha1=` 202 → 轮询 status 至 FINISHED 拿 `checksumToken` → 客户端凭它做零传输 `X-Checksum-Deploy` PUT 落节点。会话跨重启存活。filestore/双写实例的数据端点恒 **501 纯文本**（非 404）。
+
+## reindex 管理族（四包型）
+
+| 端点 | 语义 |
+|---|---|
+| `POST /binflow/api/conan/reindex[?repoKey=]` · `POST /api/conan/{repoKey}/reindex` | conan 修订索引重建（仅 local；同步） |
+| `POST /binflow/api/helm/{repoKey}/reindex` · `…/reindex/{path}` | helm index.yaml 重算（异步全仓 / 同步部分） |
+| `POST /binflow/api/deb/reindex/{repoKey}?async=0\|1` | debian 索引重算（virtual/remote 类 400） |
+| `POST /binflow/api/yum/{repoKey}?path=&async=0\|1` | rpm repodata 重算；virtual 仓触发聚合重合并；auto-async 仓同步请求 409 |
+
+## 制品操作域（pro 槽 `repo-operations`）
+
+| 方法 | 路径 | 语义 |
+|---|---|---|
+| POST | `/binflow/api/copy/{srcRepo}[/{srcPath}]?to=/{targetRepo}[/{targetPath}]` | 树级复制（零拷贝）；`dry=1` 干跑；响应 `messages[]`，状态 = 最后一条 error 的码 |
+| POST | `/binflow/api/move/{srcRepo}[/{srcPath}]?to=…` | 树级搬移（copy + 源删除） |
+| GET | `/binflow/api/archive/download/{repo}[/{path}]?archiveType=zip\|tar\|tar.gz\|tgz` | 目录/整仓流式打包；`includeChecksumFiles=true` 附 checksum 条目；默认关（`folder_download.enabled=false`） |
+| GET | `/binflow/{repo}/{archive}!/{entry}` | 归档内成员直读（非 GET 405） |
+| PUT | `/binflow/{repo}/{path}` + `X-Explode-Archive[: true]` | 解包部署：白名单 zip/tar/tar.gz/tgz；成功 **201 空体** + `X-Binflow-Exploded-Files: <n>`；归档原件不落库 |
+
+`/api/flat/copy|move` 不实现（404）。行为细节见 [制品操作](/admin/operations)。
+
+## trash 域（pro 槽 `trashcan`；门 = 仅全量 admin）
+
+| 方法 | 路径 | 语义 |
+|---|---|---|
+| POST | `/binflow/api/trash/restore/{path}?to=&transaction-size=` | 恢复（`to` 覆盖 > 五元组 > 路径首段；剥 `trash.*` 标记、原属性保留） |
+| POST | `/binflow/api/trash/empty` | 清空；回 `{"removed","files","folders","bytes"}` |
+| DELETE | `/binflow/api/trash/clean/{path}` | 单条（子树）永久清除 |
+
+浏览骑既有 `GET /api/storage/auto-trashcan[...][?properties|?list]`。语义见 [制品操作 · 回收站](/admin/operations)。
+
+## replication 域（写动词仅全量 admin）
+
+| 方法 | 路径 | 语义 |
+|---|---|---|
+| GET / POST | `/binflow/api/v1/replications` | 配置列表（bare array；凭据永不回显）/ 建配置（201；重名 409、未知源仓 400） |
+| PUT | `/binflow/api/v1/replications/{id}` | **启停**：`{id}` = 数值 id（DELETE 按 name——两种寻址并存）；body `{"enabled":true\|false}` 必填，其余字段解析但忽略；200 回显更新后配置行 |
+| DELETE | `/binflow/api/v1/replications/{name}` | 按名删除（任务台账级联清空）；204；再删 404 |
+| POST | `/binflow/api/v1/replications/{id}/run` | **Replicate Now**：全量同步触发；200 `{"info":"The replication tasks was successfully scheduled to run","id","name","scheduled","capped"}`——排程即返回；停用配置 / push 被封 → 409 |
+| POST | `/binflow/api/v1/replications/{id}/test` · `/test` | 目标连通探测（已存配置 / 无 id 草稿面 body 必填）；**ok 判定体**：通过 200 / 失败同形 400 |
+| GET | `/binflow/api/v1/system/replications` | 全局封锁态 `{"blockPullReplications":bool,"blockPushReplications":bool}` |
+| POST | `/binflow/api/v1/system/replications/{block,unblock}` | 应急刹车（query `push`/`pull`；响应 text/plain 官方文案） |
+| GET | `/binflow/api/v1/replication/status` | 复制面板载荷（targets[] + events[]，`?limit=` 1..500 缺省 50） |
+
+字段校验与引擎行为见 [治理 · 复制](/admin/governance)。注意 `target_url` 填目标实例**裸 origin**（不带 `/binflow` 后缀）。
+
+## 已保留 / 未实现路径
+
+| 路径 | 状态 |
+|---|---|
+| `/binflow/api/v2/**`（除 keypair 仓关联端点） | 404——Artifactory v2 权限 API 不实现（用 `/api/v1/permissions`） |
+| `/binflow/api/export/**` · `/api/import/**` | 404——备份恢复仅 CLI |
+| `/binflow/api/system/storage/prune/**` | 404——空间回收走 GC |
+| `/binflow/v2/**` | 404——docker 端点不走 `/binflow` 前缀 |
+
+## 三种认证方式
+
+### Basic 认证
+
+curl、CI 脚本、客户端凭据配置（settings.xml、`.pypirc`、npm `_auth`）。REST 层要求凭据始终在请求中——**不存在「先访问后挑战」**（一次性失败直接 401）：
+
+```bash
+curl -su admin:<口令> $BASE/binflow/api/system/ping
+```
+
+口令哈希为 **argon2id**（memory-hard），高并发场景请用 Token。
+
+### Token 认证（Bearer）
+
+高 QPS、CI/CD、无浏览器场景。Token 校验不触发 argon2 计算：
+
+```bash
+TOKEN=$(curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/security/token \
+  -d 'grant_type=client_credentials&username=ci-bot' | jq -r '.access_token')
+# 200: {"access_token":"<64hex>","token_id":"<id>","expires_in":2592000,"scope":"api:*"}
+curl -s -H "Authorization: Bearer $TOKEN" $BASE/binflow/api/v1/storage/stats
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/security/token/revoke \
+  -d "token_id=<token_id>"
+```
+
+| 属性 | 值 |
+|---|---|
+| token 形态 | 64 位 hex（256-bit）；默认 TTL 2592000 秒（30 天），`auth__token_default_ttl_hours` 可调 |
+| 签发 | admin 为任意用户；非 admin 限本人；可选 step-up 二次认证（见 [Token 指南](/admin/tokens)） |
+| 吊销 | admin only；docker token 同表——吊销对 docker token 即时生效 |
+
+### 会话 Cookie（浏览器端）
+
+服务端签发 `binflow_session`（HttpOnly; Path=/binflow; SameSite=Lax）；TTL 默认 24 小时，**活跃不能续期**（绝对 TTL 封顶）：
+
+```bash
+curl -s -c jar.txt -X POST $BASE/binflow/api/v1/session \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"admin","password":"<口令>"}'    # 200 {"username":"admin","admin":true}
+curl -s -b jar.txt $BASE/binflow/api/v1/session    # whoami
+```
+
+**CSRF 防护**：会话 cookie 认证的非 GET/HEAD 写请求携带非同源 `Origin` 头 → **403**；Basic/Token 免疫。
+
+## 错误响应：三种格式
+
+### 1. errors[] 信封（主要格式）
+
+```json
+{"errors":[{"status":404,"message":"Unable to find the requested resource 'generic-local/missing.jar'."}]}
+{"errors":[{"status":413,"message":"Repository 'tiny' quota exceeded: used 800 of 934 bytes; the write to 'b.bin' needs 800 more bytes."}]}
+{"errors":[{"status":409,"message":"Checksum error for 'maven-local/com/example/demo/1.0.0/demo-1.0.0.jar': received 'abc123' but actual is 'def456'."}]}
+{"errors":[{"status":400,"message":"Repository key must be at least 2 characters: 'x'"}]}
+{"errors":[{"status":403,"message":"permission denied"}]}
+{"errors":[{"status":401,"message":"invalid credentials"}]}   ← 附 WWW-Authenticate: Basic realm="BinFlow"
+```
+
+### 2. 纯文本错误（用户/组管理域）
+
+```text
+Unable to find group by name 'nonexistent-group'.
+Unable to create group: name must match [a-z][a-z0-9._-]* but it starts with uppercase 'X'.
+Please provide a valid user email.
+conflicting 'admin' and 'adminRole' fields: admin=false is incompatible with adminRole="admin" (admin=true is equivalent to adminRole=admin)
+Cannot delete group 'devs': it is referenced by permission target(s): devs-rw, jane-rd. Remove the group from those targets first.
+User not found                                    ← DELETE users 族
+```
+
+### 3. OAuth 风格错误（Token 端点与 docker 域）
+
+```json
+{"error":"invalid_request","error_description":"missing grant_type parameter"}
+{"error":"access_denied","error_description":"token not found"}
+{"error":"invalid_client","error_description":"authentication failed"}
+{"error":"step_up_required","error_description":"step-up authentication required to mint a token"}
+{"error":"step_up_invalid","error_description":"step-up credential rejected, expired, or already used"}
+{"errors":[{"code":"UNAUTHORIZED","message":"authentication required","detail":null}]}   ← docker /v2 面
+```
+
+## 请求/响应头参考
+
+### 请求头
+
+| 头 | 场景 | 说明 |
+|---|---|---|
+| `Authorization: Basic / Bearer` | 全部管理面 + 内容路径 | 认证 |
+| `X-Checksum-Sha1/-Sha256/-Md5` · `X-Checksum` | PUT 上传 | 客户端声明校验和 |
+| `X-Checksum-Deploy: true` | PUT 上传 | checksum-only 部署（不传 body） |
+| `Expect: 100-continue` | PUT 上传 | 去重加速：先查 blob 是否存在 |
+| `X-Explode-Archive[: true]` / `X-Explode-Archive-Atomic` | PUT 上传 | 解包部署 |
+
+### 响应头
+
+| 头 | 场景 | 说明 |
+|---|---|---|
+| `X-Checksum-Sha1/-Sha256/-Md5` | GET 下载 | 服务端实测校验和（有值才发） |
+| `ETag: <sha1>` | GET 下载 | 不包围引号；条件请求 `If-None-Match` |
+| `Last-Modified` / `Accept-Ranges: bytes` | GET 下载 | RFC1123 / Range 支持 |
+| `X-Artifactory-Filename` | GET 下载 | URL-encoded 文件名 |
+| `Location` | PUT 成功 | 新资源 URL |
+| `X-Binflow-License-Required: <addon>` | 门控写拒绝 | license 门控标记 |
+| `X-Binflow-Cache` / `X-Binflow-Resolved-From` / `X-Binflow-Upstream-Error` | remote/virtual 读 | 缓存状态 / 解析成员 / 上游故障 |
+| `X-Binflow-Search-Truncated: true` | 搜索截断 | 结果超 1,000 行 |
+
+## 审计日志查询参数
+
+`GET /binflow/api/v1/audit`：
+
+| 参数 | 说明 |
+|---|---|
+| `repo` / `actor` / `action` | 等值过滤（action 词表见[治理](/admin/governance)） |
+| `since` / `until` | RFC3339；闭开区间 `[since, until)` |
+| `limit` | 默认 100，上限 1000（超限 400） |
+| `cursor` | 游标分页（`nextCursor` 回传）；结果按时间倒序 |
+
+## GC 触发参数
+
+`POST /binflow/api/v1/system/gc`（admin only）：
+
+| 字段 | 类型 | 默认 | 说明 |
+|---|---|---|---|
+| `apply` | bool | false | false=dry-run；true=实际执行 |
+| `graceHours` | number | 配置值（默认 24） | 宽限期；0=无宽限；负值或 >876000 → 400 |
+
+响应：dry-run `{"candidateCount":5,"candidateBytes":204800,"deletedCount":0}`；apply 的 `deletedCount` 为实际删除数。
+
+## 下一步
+
+- 各协议接入：[Docker](/integrations/docker) · [Maven](/integrations/maven) · [npm](/integrations/npm) · [PyPI](/integrations/pypi) · [Go](/integrations/go) · [NuGet](/integrations/nuget) · [Cargo](/integrations/cargo) · [Conan](/integrations/conan) · [Helm](/integrations/helm) · [RPM](/integrations/rpm) · [Debian](/integrations/debian)
+- [AQL 搜索](/search/aql) · [属性系统](/search/properties) · 管理操作见[管理指南](/admin/console) · [FAQ](/faq)

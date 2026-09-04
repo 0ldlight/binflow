@@ -79,9 +79,205 @@ type metadataSnapshotter interface {
 	VacuumInto(ctx context.Context, dst string) error
 }
 
+// exportSummary is what one completed export reports — the CLI's report
+// line and the backup runner's log share it.
+type exportSummary struct {
+	Output        string
+	BlobCount     int
+	TotalBytes    int64
+	FilesCopied   int
+	BytesCopied   int64
+	SnapshotBytes int64
+	SchemaVersion int
+	Duration      time.Duration
+}
+
+// exportSnapshot runs ONE online export of cfg into out — the single
+// carrier the export CLI and the cron scheduler's backup domain share (M16
+// T-450, ADR-0044 decisions 5 and 8⑤: one kernel, two entries; the lock,
+// the snapshot-first order, the manifest boundary and the export.run audit
+// row are identical whichever door called). out must not exist, or exist
+// empty; the kernel prepares and cleans up after itself.
+func exportSnapshot(ctx context.Context, cfg *config.Config, logger *slog.Logger, out string) (*exportSummary, error) {
+	if err := prepareBackupDir(out); err != nil {
+		return nil, fmt.Errorf("export: %w", err)
+	}
+	// A failure after this point must not leave a directory that looks like
+	// a backup: drop the artifacts this run created before returning.
+	completed := false
+	defer func() {
+		if !completed {
+			cleanupBackupDir(out)
+		}
+	}()
+
+	// Mutual exclusion with GC (ADR-0015 erratum 3; the primitive is
+	// storage.AcquireDataLock, landed here ahead of T-94's REST face —
+	// both faces must hold the same lock).
+	lock, err := storage.AcquireDataLock(cfg.Storage.DataDir, storage.DataLockOpExport)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = lock.Release() }()
+
+	if err := checkDirDisjoint(cfg.Storage.DataDir, out); err != nil {
+		return nil, fmt.Errorf("export: %w", err)
+	}
+
+	md, err := metadata.Open(ctx, metadata.Options{
+		Driver:        cfg.Metadata.Driver,
+		DSN:           sqlitePath(cfg),
+		AdminPassword: cfg.AdminPassword,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("export: opening metadata: %w", err)
+	}
+	defer func() { _ = md.Close() }()
+
+	snap, ok := md.(metadataSnapshotter)
+	if !ok {
+		return nil, fmt.Errorf("export: metadata store %T has no snapshot face (SQLite only in M4)", md)
+	}
+
+	started := time.Now()
+
+	// Step 1 — DB snapshot FIRST (the ADR-0015 hard order).
+	snapPath := filepath.Join(out, exportDBName)
+	if err := snap.VacuumInto(ctx, snapPath); err != nil {
+		return nil, fmt.Errorf("export: %w", err)
+	}
+	// VACUUM INTO creates the file under the umask (0644 typically); the
+	// artifact is secret-grade (NFR-S22), so pin it to 0600 like the
+	// manifest regardless of how the operator's umask falls.
+	if err := os.Chmod(snapPath, 0o600); err != nil {
+		return nil, fmt.Errorf("export: chmod %s 0600: %w", snapPath, err)
+	}
+	// web_sessions never ride a backup (architecture 11.19); purge them from
+	// the artifact before it is hashed.
+	if err := metadata.PurgeTransientFromSnapshot(ctx, snapPath); err != nil {
+		return nil, fmt.Errorf("export: %w", err)
+	}
+	// The manifest boundary is the SNAPSHOT's own live set — not the live
+	// store's, which keeps moving.
+	live, err := metadata.SnapshotChecksums(ctx, snapPath)
+	if err != nil {
+		return nil, fmt.Errorf("export: %w", err)
+	}
+	schemaVersion, err := metadata.SnapshotSchemaVersion(ctx, snapPath)
+	if err != nil {
+		return nil, fmt.Errorf("export: %w", err)
+	}
+
+	// Step 2 — copy blobs (mtime preserved; surplus window blobs allowed).
+	//
+	// Engine-aware since T-201 (T-173 D-2): an S3-backed instance streams
+	// each referenced blob OUT of the storage engine — the data directory
+	// carries no blobs/ tree to walk, so the previous unconditional
+	// CopyBlobsTree made every S3 export die at the manifest boundary
+	// ("dangling reference") after copying nothing. Dual-write stacks keep
+	// the tree copy: while a migration runs, the disk half still carries
+	// every blob.
+	var files int
+	var copied int64
+	if engineBackedBlobStore(cfg) {
+		st, oerr := openStorageEngine(ctx, cfg, logger, md)
+		if oerr != nil {
+			return nil, fmt.Errorf("export: %w", oerr)
+		}
+		defer func() { _ = st.Close() }()
+		files, copied, err = exportBlobsFromEngine(ctx, st, live, out)
+	} else {
+		files, copied, err = storage.CopyBlobsTree(cfg.Storage.DataDir, out)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("export: %w", err)
+	}
+
+	// Step 3 — manifest. Every referenced blob must be present in the copy
+	// (W28b: a reference the artifact cannot satisfy means the SOURCE has a
+	// dangling reference — refuse rather than ship a broken backup).
+	manifest := &storage.Manifest{
+		FormatVersion:  storage.BackupFormatVersion,
+		CreatedAt:      metadata.Now(),
+		BinflowVersion: version,
+		Metadata:       storage.ManifestMetadata{File: exportDBName},
+		GraceNote:      storage.ManifestGraceNote,
+	}
+	manifest.Blobs = make([]storage.ManifestBlob, 0, len(live))
+	for sha := range live {
+		p, err := storage.BlobPath(out, sha)
+		if err != nil {
+			return nil, fmt.Errorf("export: %w", err)
+		}
+		info, err := os.Stat(p)
+		if err != nil {
+			return nil, fmt.Errorf("export: snapshot references blob %s but the filestore under %s does not carry it (dangling reference in the source instance): %w", sha, cfg.Storage.DataDir, err)
+		}
+		manifest.Blobs = append(manifest.Blobs, storage.ManifestBlob{
+			Sha256: sha,
+			Size:   info.Size(),
+			MTime:  info.ModTime().UTC().Format(time.RFC3339Nano),
+		})
+	}
+	storage.SortManifestBlobs(manifest)
+	manifest.BlobCount = len(manifest.Blobs)
+	metaSum, metaSize, err := storage.HashFile(snapPath)
+	if err != nil {
+		return nil, fmt.Errorf("export: %w", err)
+	}
+	manifest.Metadata.Sha256 = metaSum
+	for _, b := range manifest.Blobs {
+		manifest.TotalBytes += b.Size
+	}
+	if err := storage.WriteManifest(manifest, storage.ManifestPath(out)); err != nil {
+		return nil, fmt.Errorf("export: %w", err)
+	}
+
+	// NFR-S22: the artifact carries password hashes and enc:v1: credential
+	// ciphertext — it is secret-grade and stored as such.
+	if err := os.Chmod(out, 0o700); err != nil { //nolint:gosec // G302: 0700 on a directory is the NFR-S22 artifact posture, not a slip
+		return nil, fmt.Errorf("export: chmod %s 0700: %w", out, err)
+	}
+
+	// audit export.run on the LIVE store (the snapshot is already sealed;
+	// the event belongs to the source instance's own history).
+	elapsed := time.Since(started)
+	detail, _ := json.Marshal(struct {
+		Output     string `json:"output"`
+		BlobCount  int    `json:"blobCount"`
+		TotalBytes int64  `json:"totalBytes"`
+		DurationMs int64  `json:"durationMs"`
+	}{out, manifest.BlobCount, manifest.TotalBytes, elapsed.Milliseconds()})
+	audit.BestEffort(audit.New(md, cfg.Audit.Enabled)).Record(ctx, audit.Event{
+		Actor: cliAuditActor, Action: audit.ActionExportRun, Detail: string(detail),
+	})
+
+	summary := &exportSummary{
+		Output: out, BlobCount: manifest.BlobCount, TotalBytes: manifest.TotalBytes,
+		FilesCopied: files, BytesCopied: copied, SnapshotBytes: metaSize,
+		SchemaVersion: schemaVersion, Duration: elapsed,
+	}
+
+	logger.Info("export complete",
+		"output", out,
+		"blob_count", manifest.BlobCount,
+		"referenced_bytes", manifest.TotalBytes,
+		"files_copied", files,
+		"bytes_copied", copied,
+		"snapshot_bytes", metaSize,
+		"schema_version", schemaVersion,
+		"throughput", throughput(copied, elapsed),
+		"duration", elapsed.String(),
+	)
+	completed = true
+	return summary, nil
+}
+
 // runExport implements the export subcommand (GE-07, W28/W28b). Online by
 // design: the serving process keeps running; only GC is excluded (data
-// lock), because a concurrent sweep would delete blobs mid-copy.
+// lock), because a concurrent sweep would delete blobs mid-copy. The pass
+// itself is exportSnapshot — the same kernel the cron-scheduled backup
+// domain fires (M16 T-450, ADR-0044 decision 5's one-carrier-two-entries).
 func runExport(args []string, stderr io.Writer) error {
 	fs := flag.NewFlagSet("export", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -116,174 +312,12 @@ func runExport(args []string, stderr io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("export: resolving --output %s: %w", *output, err)
 	}
-	if err := prepareBackupDir(out); err != nil {
-		return fmt.Errorf("export: %w", err)
-	}
-	// A failure after this point must not leave a directory that looks like
-	// a backup: drop the artifacts this run created before returning.
-	completed := false
-	defer func() {
-		if !completed {
-			cleanupBackupDir(out)
-		}
-	}()
-
-	// Mutual exclusion with GC (ADR-0015 erratum 3; the primitive is
-	// storage.AcquireDataLock, landed here ahead of T-94's REST face —
-	// both faces must hold the same lock).
-	lock, err := storage.AcquireDataLock(cfg.Storage.DataDir, storage.DataLockOpExport)
+	summary, err := exportSnapshot(ctx, cfg, logger, out)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = lock.Release() }()
-
-	if err := checkDirDisjoint(cfg.Storage.DataDir, out); err != nil {
-		return fmt.Errorf("export: %w", err)
-	}
-
-	md, err := metadata.Open(ctx, metadata.Options{
-		Driver:        cfg.Metadata.Driver,
-		DSN:           sqlitePath(cfg),
-		AdminPassword: cfg.AdminPassword,
-	})
-	if err != nil {
-		return fmt.Errorf("export: opening metadata: %w", err)
-	}
-	defer func() { _ = md.Close() }()
-
-	snap, ok := md.(metadataSnapshotter)
-	if !ok {
-		return fmt.Errorf("export: metadata store %T has no snapshot face (SQLite only in M4)", md)
-	}
-
-	started := time.Now()
-
-	// Step 1 — DB snapshot FIRST (the ADR-0015 hard order).
-	snapPath := filepath.Join(out, exportDBName)
-	if err := snap.VacuumInto(ctx, snapPath); err != nil {
-		return fmt.Errorf("export: %w", err)
-	}
-	// VACUUM INTO creates the file under the umask (0644 typically); the
-	// artifact is secret-grade (NFR-S22), so pin it to 0600 like the
-	// manifest regardless of how the operator's umask falls.
-	if err := os.Chmod(snapPath, 0o600); err != nil {
-		return fmt.Errorf("export: chmod %s 0600: %w", snapPath, err)
-	}
-	// web_sessions never ride a backup (architecture 11.19); purge them from
-	// the artifact before it is hashed.
-	if err := metadata.PurgeTransientFromSnapshot(ctx, snapPath); err != nil {
-		return fmt.Errorf("export: %w", err)
-	}
-	// The manifest boundary is the SNAPSHOT's own live set — not the live
-	// store's, which keeps moving.
-	live, err := metadata.SnapshotChecksums(ctx, snapPath)
-	if err != nil {
-		return fmt.Errorf("export: %w", err)
-	}
-	schemaVersion, err := metadata.SnapshotSchemaVersion(ctx, snapPath)
-	if err != nil {
-		return fmt.Errorf("export: %w", err)
-	}
-
-	// Step 2 — copy blobs (mtime preserved; surplus window blobs allowed).
-	//
-	// Engine-aware since T-201 (T-173 D-2): an S3-backed instance streams
-	// each referenced blob OUT of the storage engine — the data directory
-	// carries no blobs/ tree to walk, so the previous unconditional
-	// CopyBlobsTree made every S3 export die at the manifest boundary
-	// ("dangling reference") after copying nothing. Dual-write stacks keep
-	// the tree copy: while a migration runs, the disk half still carries
-	// every blob.
-	var files int
-	var copied int64
-	if engineBackedBlobStore(cfg) {
-		st, oerr := openStorageEngine(ctx, cfg, logger, md)
-		if oerr != nil {
-			return fmt.Errorf("export: %w", oerr)
-		}
-		defer func() { _ = st.Close() }()
-		files, copied, err = exportBlobsFromEngine(ctx, st, live, out)
-	} else {
-		files, copied, err = storage.CopyBlobsTree(cfg.Storage.DataDir, out)
-	}
-	if err != nil {
-		return fmt.Errorf("export: %w", err)
-	}
-
-	// Step 3 — manifest. Every referenced blob must be present in the copy
-	// (W28b: a reference the artifact cannot satisfy means the SOURCE has a
-	// dangling reference — refuse rather than ship a broken backup).
-	manifest := &storage.Manifest{
-		FormatVersion:  storage.BackupFormatVersion,
-		CreatedAt:      metadata.Now(),
-		BinflowVersion: version,
-		Metadata:       storage.ManifestMetadata{File: exportDBName},
-		GraceNote:      storage.ManifestGraceNote,
-	}
-	manifest.Blobs = make([]storage.ManifestBlob, 0, len(live))
-	for sha := range live {
-		p, err := storage.BlobPath(out, sha)
-		if err != nil {
-			return fmt.Errorf("export: %w", err)
-		}
-		info, err := os.Stat(p)
-		if err != nil {
-			return fmt.Errorf("export: snapshot references blob %s but the filestore under %s does not carry it (dangling reference in the source instance): %w", sha, cfg.Storage.DataDir, err)
-		}
-		manifest.Blobs = append(manifest.Blobs, storage.ManifestBlob{
-			Sha256: sha,
-			Size:   info.Size(),
-			MTime:  info.ModTime().UTC().Format(time.RFC3339Nano),
-		})
-	}
-	storage.SortManifestBlobs(manifest)
-	manifest.BlobCount = len(manifest.Blobs)
-	metaSum, metaSize, err := storage.HashFile(snapPath)
-	if err != nil {
-		return fmt.Errorf("export: %w", err)
-	}
-	manifest.Metadata.Sha256 = metaSum
-	for _, b := range manifest.Blobs {
-		manifest.TotalBytes += b.Size
-	}
-	if err := storage.WriteManifest(manifest, storage.ManifestPath(out)); err != nil {
-		return fmt.Errorf("export: %w", err)
-	}
-
-	// NFR-S22: the artifact carries password hashes and enc:v1: credential
-	// ciphertext — it is secret-grade and stored as such.
-	if err := os.Chmod(out, 0o700); err != nil { //nolint:gosec // G302: 0700 on a directory is the NFR-S22 artifact posture, not a slip
-		return fmt.Errorf("export: chmod %s 0700: %w", out, err)
-	}
-
-	// audit export.run on the LIVE store (the snapshot is already sealed;
-	// the event belongs to the source instance's own history).
-	elapsed := time.Since(started)
-	detail, _ := json.Marshal(struct {
-		Output     string `json:"output"`
-		BlobCount  int    `json:"blobCount"`
-		TotalBytes int64  `json:"totalBytes"`
-		DurationMs int64  `json:"durationMs"`
-	}{out, manifest.BlobCount, manifest.TotalBytes, elapsed.Milliseconds()})
-	audit.BestEffort(audit.New(md, cfg.Audit.Enabled)).Record(ctx, audit.Event{
-		Actor: cliAuditActor, Action: audit.ActionExportRun, Detail: string(detail),
-	})
-
-	logger.Info("export complete",
-		"output", out,
-		"blob_count", manifest.BlobCount,
-		"referenced_bytes", manifest.TotalBytes,
-		"files_copied", files,
-		"bytes_copied", copied,
-		"snapshot_bytes", metaSize,
-		"schema_version", schemaVersion,
-		"throughput", throughput(copied, elapsed),
-		"duration", elapsed.String(),
-	)
 	writeCLIReport(stderr, "export: mode=online output=%s blobs=%d bytes=%d throughput=%s\n",
-		out, manifest.BlobCount, manifest.TotalBytes, throughput(copied, elapsed))
-
-	completed = true
+		summary.Output, summary.BlobCount, summary.TotalBytes, throughput(summary.BytesCopied, summary.Duration))
 	return nil
 }
 

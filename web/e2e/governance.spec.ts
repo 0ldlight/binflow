@@ -76,7 +76,7 @@ function watchServerErrors(page: import('@playwright/test').Page): string[] {
  *  触发：MigrationPanel 只挂在 GCPage）。 */
 const MIGRATION_501 = /^501 \S+\/binflow\/api\/v1\/storage\/migration$/
 
-test('audit: filters, keyset load-more, path client-filter, REST parity', async ({ page }) => {
+test('audit: filters, keyset page-window pager, path client-filter, REST parity', async ({ page }) => {
   // 负载余量（T-172 D-2 同族的 e2e 面）：105 次造数 PUT + 多段过滤/分页
   // 腿在并行负载下逼近默认 30s——本机两连超时（31.0s，造数腿独占 ~20s），
   // 加倍消化调度抖动；断言本体不变（T-159 曾记同点位顺序性 flake）
@@ -119,7 +119,8 @@ test('audit: filters, keyset load-more, path client-filter, REST parity', async 
     )
     .toBeGreaterThanOrEqual(106) // 105 deploy + repo.create
 
-  // UI：repo 过滤（350ms 防抖）→ 首屏 100 行 + 「加载更多」。
+  // UI：repo 过滤（350ms 防抖）→ 第 1 页窗 100 行 + 页码控件（T-451：
+  // 「加载更多」翻案为页码——keyset 游标页窗映射，末页未知如实呈现）。
   // 防抖窗口内未过滤首页也是 100 行（造数后最新事件本就属于本仓），
   // 先等防抖落地，再以「无本仓外行」钉死过滤态，消除同数歧义。
   await page.fill('[data-testid="audit-filter-repo"]', key)
@@ -130,12 +131,19 @@ test('audit: filters, keyset load-more, path client-filter, REST parity', async 
   await expect(
     page.locator(`[data-testid="audit-table"] tbody tr:not(:has-text("${key}/"))`),
   ).toHaveCount(0)
-  await expect(page.locator('[data-testid="audit-more"]')).toBeVisible()
+  await expect(page.locator('[data-testid="audit-pager"]')).toBeVisible()
+  await expect(page.locator('[data-testid="pager-range"]')).toContainText('显示 1 – 100（末页未知）')
+  await expect(page.locator('[data-testid="audit-count"]')).toContainText('本页 100 条')
+  // 边界态（§11.2 冻结形态）：首页 first/prev 禁置；next/last 在场
+  await expect(page.locator('[data-testid="pager-first"]')).toBeDisabled()
+  await expect(page.locator('[data-testid="pager-prev"]')).toBeDisabled()
+  await expect(page.locator('[data-testid="pager-next"]')).toBeEnabled()
+  await expect(page.locator('[data-testid="pager-last"]')).toBeEnabled()
 
-  // B1 回归腿（review 修复的晚到响应竞态）：拦截带 cursor 的第 2 页请求
+  // B1 回归腿（晚到响应竞态，窗口化改版）：拦截带 cursor 的第 2 页请求
   // 挂起，期间切换过滤（action=deploy）→ 防抖首页重拉落地后放行旧第 2 页
-  // ——守卫必须丢弃：列表不得被旧过滤页污染、nextCursor 不得被旧游标覆写
-  // （判据 = 后续「加载更多」在新过滤下正确续页到 105，而非旧链的 106）。
+  // ——alive 守卫必须丢弃：窗口不得被旧过滤页污染（判据 = 新过滤第 1 页
+  // 仍 100 行 deploy，而非旧过滤的第 2 页 6 行）。
   let releaseP2: (() => void) | null = null
   await page.route('**/api/v1/audit*', async (route) => {
     const url = new URL(route.request().url())
@@ -146,41 +154,71 @@ test('audit: filters, keyset load-more, path client-filter, REST parity', async 
     }
     await route.continue()
   })
-  await page.click('[data-testid="audit-more"]') // 第 2 页在飞（挂起，未出浏览器）
+  await page.click('[data-testid="pager-next"]') // 第 2 页在飞（挂起，未出浏览器）
   await page.selectOption('[data-testid="audit-filter-action"]', 'deploy') // 350ms 防抖后首页重拉
   await page.waitForTimeout(700) // 新过滤首页（100 行 deploy）已落地
   expect(releaseP2).toBeTruthy()
-  // TS CFA 不追踪路由闭包内的赋值（142 行原收窄为 null → TS2349）：
+  // TS CFA 不追踪路由闭包内的赋值（原收窄为 null → TS2349）：
   // 断言后经持有者别名放行，语义不变（review B2 修法①）
   const release2 = releaseP2 as (() => void) | null
   release2?.() // 放行旧过滤的第 2 页
   await page.waitForTimeout(400)
   await expect(page.locator('[data-testid="audit-table"] tbody tr')).toHaveCount(100) // 未被旧页污染
   await page.unroute('**/api/v1/audit*') // 先撤拦截——后续合法的带 cursor 请求不得再被挂起
-  // 新过滤下正确续页：deploy 105 条 → 第 2 页 +5（若游标被旧链覆写会到 106）
+
+  // 新过滤下 keyset 页窗推进：deploy 105 条 → 第 2 页 = 余量 5 行
+  //（若游标链被旧过滤污染会呈现 6 行——旧链含 repo.create）
   const restDeploy = JSON.parse(
     (await api(page, 'GET', `/api/v1/audit?repo=${key}&action=deploy&limit=1000`)).text,
   ).events.length as number
   expect(restDeploy).toBe(105)
-  await page.click('[data-testid="audit-more"]')
-  await expect(page.locator('[data-testid="audit-table"] tbody tr')).toHaveCount(restDeploy)
+  await page.click('[data-testid="pager-next"]')
+  await expect(page.locator('[data-testid="audit-table"] tbody tr')).toHaveCount(restDeploy - 100, {
+    timeout: 10_000,
+  })
+  // 末页边界：next/last 禁置（游标耗尽）、prev/first 复活
+  await expect(page.locator('[data-testid="pager-next"]')).toBeDisabled()
+  await expect(page.locator('[data-testid="pager-last"]')).toBeDisabled()
+  await expect(page.locator('[data-testid="pager-prev"]')).toBeEnabled()
+  await expect(page.locator('[data-testid="pager-first"]')).toBeEnabled()
 
-  // 回全量（repo-only）并核对 keyset 末页终止
+  // 回全量（repo-only）并核对 keyset 末页终止：106 条 → 第 2 页 6 行
   await page.selectOption('[data-testid="audit-filter-action"]', '')
   await page.waitForTimeout(700)
-  while ((await page.locator('[data-testid="audit-more"]').count()) > 0) {
-    await page.click('[data-testid="audit-more"]')
-  }
-  await expect(page.locator('[data-testid="audit-table"] tbody tr')).toHaveCount(total)
-  await expect(page.locator('[data-testid="audit-more"]')).toHaveCount(0) // 末页游标为空
-  await expect(page.locator('[data-testid="audit-count"]')).toContainText(`已加载 ${total} 条`)
+  await expect(page.locator('[data-testid="audit-table"] tbody tr')).toHaveCount(100, {
+    timeout: 10_000,
+  })
+  // 深翻页（AC2 keyset 页窗断言）：末页钮推进前沿一跳 → 第 2 页恰为
+  // total - 100 行，且首行 = 第 101 新事件（file-4.bin——105 deploy 逆序）
+  await page.click('[data-testid="pager-last"]')
+  await expect(page.locator('[data-testid="audit-table"] tbody tr')).toHaveCount(total - 100, {
+    timeout: 10_000,
+  })
+  await expect(page.locator('[data-testid="audit-table"] tbody tr').first()).toContainText('file-4.bin')
+  await expect(page.locator('[data-testid="pager-next"]')).toBeDisabled()
+  // 页码直跳回第 1 页（已确证页直跳——缓存游标取窗）
+  await page.click('[data-testid="pager-page-1"]')
+  await expect(page.locator('[data-testid="audit-table"] tbody tr')).toHaveCount(100, {
+    timeout: 10_000,
+  })
+  await expect(page.locator('[data-testid="pager-first"]')).toBeDisabled()
+  await expect(page.locator('[data-testid="audit-count"]')).toContainText('本页 100 条')
 
-  // path 过滤：仅已加载集（客户端子串，§6.3 兜底）——上一段已回全量
+  // 每页行数：换档 20 → 回第 1 页、窗口 20 行、range 行同步
+  await page.selectOption('[data-testid="pager-size"]', '20')
+  await expect(page.locator('[data-testid="audit-table"] tbody tr')).toHaveCount(20, {
+    timeout: 10_000,
+  })
+  await expect(page.locator('[data-testid="pager-range"]')).toContainText('显示 1 – 20（末页未知）')
+  await expect(page.locator('[data-testid="audit-count"]')).toContainText('本页 20 条')
+  await page.selectOption('[data-testid="pager-size"]', '100') // 复位档位供后续腿
+
+  // path 过滤：仅本页窗口（客户端子串，§6.3 兜底——T-451 起窗口化）
   await page.fill('[data-testid="audit-filter-path"]', 'file-1')
   const filtered = await page.locator('[data-testid="audit-table"] tbody tr').count()
   expect(filtered).toBeGreaterThan(0)
-  expect(filtered).toBeLessThan(total) // file-1* 子串（file-1、file-10..19、file-100..105）
-  await expect(page.locator('[data-testid="audit-count"]')).toContainText('路径过滤仅作用于已加载集')
+  expect(filtered).toBeLessThan(100) // file-1* 子串在本页窗内的命中（file-1、file-10..19）
+  await expect(page.locator('[data-testid="audit-count"]')).toContainText('路径过滤命中')
 
   // 时间窗：until 设在过去 → 当前过滤下为空（含「清除过滤」出口）
   await page.fill('[data-testid="audit-filter-until"]', '2000-01-01T00:00')

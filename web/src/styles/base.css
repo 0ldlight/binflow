@@ -135,6 +135,16 @@ a:hover {
   outline-offset: -2px;
 }
 
+/* 空历史占位（T-449 / parity B-3.16——对位 Artifactory 恒渲染的
+ * "No recent searches yet"；含子串无匹配态） */
+.topbar-search-recent .search-recent-empty {
+  margin: var(--bf-sp-1) 0 0;
+  padding: var(--bf-sp-1) var(--bf-sp-2);
+  min-height: 28px;
+  color: var(--bf-text-muted);
+  font-size: var(--bf-fs-aux);
+}
+
 /* ---------- 卡片与网格 ---------- */
 
 /* 卡片 = 三阶最亮层；shadow-1 锚定（§5.2：暗色下弱影 + 边框补偿）。

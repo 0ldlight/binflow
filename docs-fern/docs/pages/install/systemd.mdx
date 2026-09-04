@@ -1,0 +1,94 @@
+# systemd 服务（裸机）
+
+BinFlow 为 Linux 裸机部署提供标准 systemd service unit 与安装/卸载脚本：非 root `binflow` 用户运行，`NoNewPrivileges`、`ProtectSystem` 等安全加固。
+
+## 安装脚本（推荐）
+
+`contrib/systemd/install.sh` 幂等安装：校验和验证 → 系统用户创建 → 目录布局 → 二进制安装 → 配置安装 → systemd unit 注册 → 服务启动。
+
+前置：Linux（amd64/arm64）with systemd >= 250；root/sudo 权限。
+
+```bash
+sudo bash contrib/systemd/install.sh                        # 最新版
+sudo bash contrib/systemd/install.sh --version v1.0.0       # 指定版本
+sudo bash contrib/systemd/install.sh --base-url https://releases.example.com/artifacts
+sudo bash contrib/systemd/install.sh --dry-run --version v1.0.0   # 干跑预览
+```
+
+安装产物：`binflow` 系统用户、`/etc/binflow`（配置）、`/var/lib/binflow`（数据）、`/usr/local/bin/binflow-server`、unit 注册并 `enable --now`。
+
+### 配置管理
+
+```bash
+sudo vim /etc/binflow/binflow.yaml    # 已存在则安装脚本跳过（幂等）
+```
+
+环境变量覆盖（可选）：创建 `/etc/binflow/env`，unit 以 `EnvironmentFile=-/etc/binflow/env` 加载：
+
+```ini
+BINFLOW_ADMIN_PASSWORD=my-secret
+BINFLOW_LOGGING__LEVEL=debug
+```
+
+## 手动安装
+
+```bash
+# 用户与目录
+sudo useradd -r -s /usr/sbin/nologin -M -d /var/lib/binflow binflow
+sudo mkdir -p /etc/binflow /var/lib/binflow
+sudo chown -R binflow:binflow /etc/binflow /var/lib/binflow
+
+# 二进制（下载校验见单二进制安装篇）
+sudo cp ./binflow-server /usr/local/bin/binflow-server
+sudo chmod 755 /usr/local/bin/binflow-server
+
+# 配置（参考模板在源码 dist/config.yaml）
+# systemd unit
+sudo cp contrib/systemd/binflow.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now binflow
+```
+
+## 服务管理
+
+```bash
+sudo systemctl start|stop|restart binflow
+sudo systemctl status binflow
+sudo journalctl -u binflow -f                     # 实时日志
+sudo journalctl -u binflow --since "5 minutes ago"
+curl -s http://127.0.0.1:8080/readyz              # ok
+```
+
+## 安全加固
+
+| 加固 | 说明 |
+|---|---|
+| `User=binflow` / `Group=binflow` | 非 root 运行 |
+| `NoNewPrivileges=yes` | 禁止 setuid/capability 提权 |
+| `ProtectSystem=strict` + `ReadWritePaths=/var/lib/binflow` | 仅数据目录可写（`/etc/binflow` 只读） |
+| `ProtectHome=yes` / `PrivateTmp=yes` / `PrivateDevices=yes` | 隔离 /home、/tmp、/dev |
+| `RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX` | 仅网络套接字 |
+| `CapabilityBoundingSet=` / `SystemCallFilter=@system-service` | 零额外能力 + 系统调用过滤 |
+| `LimitNOFILE=65536` | 文件描述符限制 |
+
+## 卸载
+
+```bash
+sudo bash contrib/systemd/install.sh --uninstall             # 保留数据 + 配置
+sudo bash contrib/systemd/install.sh --uninstall --purge     # 清除所有数据（谨慎）
+```
+
+手动卸载：`systemctl stop/disable` → 删 unit 与二进制 →（确认无依赖后）`userdel binflow` → `rm -rf /var/lib/binflow /etc/binflow`（谨慎）。
+
+## 目录布局
+
+| 路径 | 说明 |
+|---|---|
+| `/usr/local/bin/binflow-server` | 二进制 |
+| `/etc/binflow/binflow.yaml` | 配置文件 |
+| `/etc/binflow/env` | 环境变量文件（可选） |
+| `/var/lib/binflow` | 数据目录（blobs + SQLite + sessions） |
+
+## 下一步
+
+- [单二进制安装](/install/binary) · [docker-compose 部署](/install/compose) · [备份与恢复](/admin/backup)

@@ -1,0 +1,170 @@
+# Webhooks（出站事件通知）
+
+BinFlow 里发生的制品事件可以**主动 POST 到你的 HTTP 端点**——触发 CI、通知聊天机器人、同步内部台账，不必轮询。一条订阅 = 「哪类事件 × 什么范围 × 投到哪里（含签名密钥）」。pro 功能槽 `webhook`。
+
+## 事件域与触发覆盖
+
+事件型闭集 13 域 66 型（与 Artifactory 官方目录对齐），其中 **9 型有真实触发源**，其余可订阅、校验通过、但永不触发（对应本体——build-info、release bundle、Xray 等不在产品范围；控制台表单灰显标注）：
+
+| 域 | event_type | 触发点 |
+|---|---|---|
+| artifact | `deployed` / `deleted` | 制品部署（PUT 落地）/ 删除 |
+| artifact | `moved` / `copied` | `/api/move`、`/api/copy` 逐文件（**按源仓库匹配**） |
+| artifact | `cached` | remote 仓回源落缓存（仅 MISS 臂） |
+| artifact_property | `added` / `deleted` | 属性 PUT/DELETE（逐键发） |
+| docker | `pushed` / `deleted` | 新 tag push（manifest 层；layer 不发）/ manifest 按 digest 删除 |
+
+## 订阅模型（wire schema）
+
+```json
+{
+  "key": "deployed-notify",
+  "description": "可选说明",
+  "enabled": true,
+  "event_filter": {
+    "domain": "artifact",
+    "event_types": ["deployed"],
+    "criteria": { "anyLocal": true, "includePatterns": ["**/*.jar"] }
+  },
+  "handlers": [{
+    "handler_type": "webhook",
+    "url": "http://receiver.example.com/hook",
+    "secret": "<secret 明文，仅写请求出现>",
+    "use_secret_for_signing": true
+  }],
+  "debug": false
+}
+```
+
+| 字段 | 约束 |
+|---|---|
+| `key` | `^[A-Za-z][A-Za-z0-9_-]+$`，≤500；**创建后不可改** |
+| `enabled` | **默认 false**——建完订阅不会投递，显式置 true 才生效 |
+| `event_filter.domain` / `event_types` | 闭集；未知值 400 |
+| `event_filter.criteria` | **strict 解析**：未知键 400 |
+| `handlers` | **恰好 1 个** |
+| `debug` | true = 成功投递也记录排障数据（默认只记失败） |
+
+**criteria**：`anyLocal` / `anyRemote`（对未来新建的仓同样生效）/ `repoKeys`（与 any* 并集）/ `includePatterns` / `excludePatterns`（Ant 通配；**exclude 优先**）。**空选择不命中任何事件**——订阅必须声明范围。
+
+**handler 两型**：`"webhook"`（`url` http/https ≤2048、拒绝 userinfo/fragment；`secret` write-only；`use_secret_for_signing` 默认 false；`custom_http_headers` ≤50 个）与 `"custom-webhook"`（加 `method` 默认 POST、`payload` Go 模板 ≤50KB、`secrets` 命名注入）。
+
+**secret 三态**（PUT 更新时）：省略 = 保持；新明文 = 轮换（对在途投递即时生效）；`""` = 擦除。回显恒掩码 `********`，**回传掩码会被拒绝**。
+
+## 订阅 CRUD：七端点
+
+基座 `/binflow/event/api/v1`（注意**不在** `/binflow/api` 下）。写 = admin；读 = admin / readonly_admin。
+
+| 方法 | 路径 | 成功 | 说明 |
+|---|---|---|---|
+| GET | `/subscriptions` | 200 bare array | 列表 |
+| POST | `/subscriptions` | **201** | 创建（回显 SubscriptionView） |
+| GET | `/subscriptions/{key}` | 200 / 404 | 单查 |
+| PUT | `/subscriptions/{key}` | **204 无体** | 全量更新 |
+| DELETE | `/subscriptions/{key}` | **204** | 删除（级联删投递行；再删 404） |
+| POST | `/subscriptions/test` | 200 | **试发草稿**（吃完整订阅体，同步单发、不入箱不重试） |
+| GET | `/troubleshooting` | 200 | 排障记录（见下） |
+
+```bash
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/event/api/v1/subscriptions \
+  -H 'Content-Type: application/json' -d '{
+  "key": "deployed-notify", "enabled": true,
+  "event_filter": {"domain": "artifact", "event_types": ["deployed"],
+    "criteria": {"anyLocal": true, "includePatterns": ["**/*.jar"]}},
+  "handlers": [{"handler_type": "webhook", "url": "http://receiver:9000/hook",
+    "secret": "s3cr3t-hmac-key", "use_secret_for_signing": true}]
+}' -o /dev/null -w '%{http_code}\n'          # 201
+```
+
+**试发**：`POST …/subscriptions/test`（完整订阅体）——**失败也是 200，看 body 的 `ok`**：
+
+```json
+{"message":"Test successful","ok":true,"attempt":{"status_code":200,"elapsed_millis":1}}
+```
+
+## 事件信封（接收端看到什么）
+
+单次 HTTP POST，body 是 JSON 对象（七字段全集）：`domain` / `event_type` / `data`（repo_key/path/name/sha256/size 等）/ `subscription_key` / `jpd_origin`（实例 base_url）/ `source` / `userContext`（`{id, isToken, realm}`——触发者）。
+
+注意：**artifact 域载荷无时间戳字段**（官方同形）——接收端以到达时刻为准。
+
+## 签名与接收端义务
+
+| `use_secret_for_signing` | `X-JFrog-Event-Auth` 头的值 |
+|---|---|
+| `false`（默认） | secret 明文直传（可信网络内直接比对） |
+| `true` | **HMAC-SHA256(secret, body) 的 hex 摘要**（公网接收端验签） |
+
+**接收端三件事：验签（对原始字节）、去重（at-least-once，不保证顺序）、快速返回 2xx**（30s 超时内完成；重活异步化）：
+
+```python
+import hashlib, hmac, http.server, json
+
+SECRET = b"s3cr3t-hmac-key"
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    def do_POST(self):
+        body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+        want = hmac.new(SECRET, body, hashlib.sha256).hexdigest()
+        got = self.headers.get("X-JFrog-Event-Auth", "")
+        if not hmac.compare_digest(got, want):
+            self.send_response(401)          # 验签失败：拒绝
+            self.send_header("Content-Length", "0"); self.end_headers(); return
+        env = json.loads(body)
+        # 幂等义务：以 (subscription_key, data.sha256, event_type) 之类稳定键去重
+        handle_event(env)
+        self.send_response(200)              # 2xx = 送达；4xx 终态，≥500 触发重试
+        self.send_header("Content-Length", "0"); self.end_headers()
+
+    def log_message(self, *a): pass
+
+http.server.HTTPServer(("0.0.0.0", 9000), Handler).serve_forever()
+```
+
+## 投递语义：重试、死信与可观测
+
+**引擎常量**（不可配置）：
+
+| 参数 | 值 |
+|---|---|
+| 尝试上限 | **5（首试计入）** |
+| 重试间隔 | **固定 10s** |
+| 单次尝试超时 | **30s**（超时计为发送失败，占用一次尝试） |
+| 重试条件 | **仅「发送失败」或「HTTP ≥ 500」**——**4xx 一步终态**；3xx 不跟随同判终态 |
+| 限流 / 并发上限 | 1000 次/s 均值 + 10000 突发 / 50000（超限新事件**入箱前被拒**——丢弃语义，指标可查） |
+
+**死信**：重试耗尽的事件不丢行（outbox 行转 `dead` 可查），但**当前没有 REST 重放端点**。恢复办法：修正接收端后**重新触发源事件**（如同一路径重新 PUT）。避免死信的实操：接收端快速返回 2xx——超时按发送失败计，同样烧尝试次数。
+
+**排障环** `GET /event/api/v1/troubleshooting?subscription=<key>`：**失败必录**（`debug:true` 成功也录）；记录含 `request{url,payload,retries_attempted}` / `response{status,body}`；环容量 10000 条、进程内存储**重启失史**；记录里的签名头已脱敏。
+
+**指标**（`/metrics`，前缀 `binflow_webhook_`）：`deliveries_total` / `retries_total` / `dead_letter_total` / `queue_depth`（积压）/ `enqueue_failures_total`（**事件丢失面——告警盯它**）。
+
+**disable / delete 边界**：`enabled=false` 后新事件不入箱，但已入箱的快照行仍会投出（停止投递的机制是删除）。
+
+## SSRF 边界
+
+订阅目标是 REST 动态写入的——**私网目标默认全拒**（loopback / RFC1918 / 链路本地 / IPv6 ULA；试发报 `target rejected: ... loopback ...`）。接收端与 BinFlow 同机/同私网时显式放行（**默认 false，重启生效**）：
+
+```yaml
+webhook:
+  allow_private_target: true    # env: BINFLOW_WEBHOOK__ALLOW_PRIVATE_TARGET
+```
+
+另：订阅携带 secret 时，实例必须配置主钥 `BINFLOW_REMOTE_CREDENTIALS_KEY`（secret enc:v1 密封落库）。
+
+## 常见报错对照
+
+| 症状 | 原因 | 处置 |
+|---|---|---|
+| 建订阅 403 + `X-Binflow-License-Required: webhook` | community 档 | 装 pro license |
+| 建订阅 400（key/域/事件型/criteria） | 约束不满足 | 对照上文约束；criteria 只收声明的维度 |
+| 带 secret 的写 400 | 实例未配主钥 | 配 `BINFLOW_REMOTE_CREDENTIALS_KEY` 后重启 |
+| 事件不投递、也无报错 | `enabled` 忘置 true（**默认 false**）；license 失效；criteria 空选择 | 核对回显 enabled/criteria 与 license 档位 |
+| test 通、真实事件不到 | criteria 不匹配该路径；或事件型属休眠型 | 用 test 验连通；对照 9 型触发表 |
+| 试发 `target rejected: … loopback …` | SSRF 默认拒私网 | 公网目标，或 `webhook.allow_private_target: true` |
+| 接收端总收到重复 | at-least-once 语义 | 按稳定键去重 |
+| 验签不过 | 验的是重新序列化的 JSON 而非原始字节 | 对原始请求字节验签 |
+
+## 下一步
+
+- [监控指标](/admin/monitoring) · [License 与 Add-ons](/admin/license) · [制品操作](/admin/operations)
