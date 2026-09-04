@@ -56,14 +56,21 @@ jobs:
         uses: actions/checkout@v4
 
       # ubuntu-latest already carries: JDK+mvn 3.9, gradle, node, python3,
-      # go, docker, cmake, g++. What it lacks: helm, conan, twine/build.
-      - name: Client toolchains (helm + conan/build/twine)
+      # go, docker, cmake, g++. What it lacks: helm, conan, twine/build —
+      # and its preinstalled dotnet (SDK 10) swallows restore failures
+      # (MSB4181), so pin the docs anchor (dotnet 8) ahead of it.
+      - name: Client toolchains (helm + conan/build/twine + dotnet 8)
         run: |
           curl -fsSL https://get.helm.sh/helm-v4.2.4-linux-amd64.tar.gz | tar -xz
           sudo install -m 0755 linux-amd64/helm /usr/local/bin/helm
           python3 -m pip install --quiet --user conan build twine \
             || python3 -m pip install --quiet --user --break-system-packages conan build twine
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Pin dotnet 8 (the docs/user/integrations/nuget.md anchor)
+        if: matrix.leg == 'nuget'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
 
       # The docker leg needs the daemon to trust the plain-HTTP UAT
       # registry (same step the CircleCI machine job runs).

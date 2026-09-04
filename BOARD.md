@@ -1838,3 +1838,28 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **T-471 → doing 2026-09-04 18:3x（T-455 收口解锁即派）**：devops-engineer 在途。CI-only retries + timeout 档位；本地严格面不变；不碰 spec 本体。
 
+**T-458 腿① → done 2026-09-04 18:5x（`c6d8219`，14 文件 +575/−78）——票两腿制：腿② 候 T-459/T-461~T-464 合入另派**：docs/user 八文件（console 树深链/表单三段/详情族/统一搜索/预埋节；aql statistics+usage 专节〔90 天未下载可复跑示例〕；api-reference 五动词行；groups-permissions 动作动词专节〔wire 四规则+三段 curl 实录+零提权回填〕；properties 写门 annotate）+ fern/pages 五页镜像。**17 条新增 curl 断言终态复放 17/17 PASS**（净实例 18095 + 迁移账本 v23 实证；UAT 探针残留清零）。docker-virtual 四处陈旧 400 文档翻正。零票号零里程碑号（grep 核验）。日志 reports/agents/T-458.md。**Fern 重发布挂 conductor**（本报告轮执行）。
+
+**T-471 → done 2026-09-04 18:5x（`1887311`）——工程票**：playwright.config 三处——`retries: CI ? 2 : 0`（漂移对应「两轮失败集轮换」非确定性尾延迟；真坏 selector 三连败仍红）/ `expect.timeout: CI ? 10s : 5s`（straggler 全死在 locator 等待）/ actionTimeout 不设 + workers 维持（评估理由入注释）。本地严格面逐项未变（env 门控双态活体验证）。tsc/eslint 0。真验证 = 下次 main e2e run（T-471 AC：绿 ×2 连续）。日志 reports/agents/T-471.md。
+
+**用户指令 intake ⑮（2026-09-04 18:4x）：「关注 circleci 和 githubaction 的报错，调整后要重跑，复测」——CI 复测循环开启**。CircleCI 首查（c4da02e commit status）：build ✅ / deploy_uat ✅ / **protocol_matrix ❌**（T-469 十协议矩阵首真跑红）/ **ci/circleci: e2e ❌**。本地复现定谳：**pypi 腿根因 = pip ≥25 对 plain-HTTP 索引硬性忽略未信任主机**（本地 venv 复放 WARNING 实证）→ `--trusted-host`（从实际 index URL 派生，dockerized 模式安全）修复后 **pypi PASS**；generic/npm/go 亦本地 PASS（npm 先前红系复现 shell 缺 nvm 的 docker-fallback 形态，非缺陷）；docker 本地红 = 本机 Docker Desktop 未配 insecure-registry（CI 侧 config.yml:244 已写 daemon.json——非缺陷）。GH e2e rerun（旧配置）仍红——正是 T-471 目标面。**PR #91 已合（main `47f8385`）：携 e2e retries 新配置 + pypi 修复 + T-444/T-455/T-458/T-471 全量——双 CI 复测中，裁定挂下轮。**
+
+**用户指令 intake ⑯（2026-09-04 19:0x）：「尽可能使用fern的能力，比如api文档的能力」——立票 T-472（tech-writer）：OpenAPI 3.1 spec 衍生（api-reference.md 主源 + router.go 核对）+ docs.yml API tab + CLI 验证。无既有 OpenAPI 资产（grep 零命中）——spec 全新建。**
+
+**用户指令 intake ⑰（2026-09-04 19:0x）：「把circleci的devops相关能力都用起来」——立票 T-473（devops-engineer）**。
+
+**配额窗⑯（19:12 击落 T-457/T-472/T-473）→ 20:56 复活续跑（零损失）**。
+
+**复测①裁定（main 47f8385，2026-09-04 21:0x 定谳）**：
+- **GH 矩阵首跑 7/10 绿**（generic/maven/gradle/npm/**pypi(修复生效)**/docker/go ✅）——**红三腿：helm ❌ / nuget ❌ / conan ❌**（全系本地 community 档 SKIP 从未执行的首跑坑）：① **helm = 产品缺陷**——PUT 内容面 500，活体复现铁证 `spool request body: open /tmp/binflow-helm-*.tgz: read-only file system`（UAT 只读根文件系统 vs spool 落 /tmp——**立票 T-474** dev-registry-adapter 在途：spool 改存储同卷 staging + 错误面收敛 + read-only 模拟测试）；② **nuget = runner 预装 dotnet SDK 10 遮蔽锚定版 8**（MSB4181 吞错）→ GH workflow `setup-dotnet@v4` 钉 8.0.x（`5999b39`）；③ **conan = conan 2 新版废 `--template`** → 手写最小 recipe（同 nuget consumer 无模板姿态）（`5999b39`）。
+- **GH ci ❌ = npm audit 端点瞬断**（外部 registry 抖动——c4da02e 同门绿，非内容）。
+- **GH e2e（带 T-471 retries 首验）：3 硬红/2 flaky/337 绿**——retries 吸收 2 腿 ✅；**t443:118 / t449:134 / t451:35 三 spec 三连败 = CI 环境确定性失败**（本地全绿；疑 TZ=UTC/viewport 环境敏感）——**立票 T-475（dev-frontend，候 T-457 收口 FE lane 空出后派）**。
+- GH release-dryrun ❌ = goproxy GOAWAY 再现（网络抖家族）。
+- CircleCI protocol_matrix ❌ = 同 helm/nuget/conan 三腿（同脚本单源）；ci/circleci: e2e ❌ 待查（低优先——GH 面已覆盖诊断）。
+
+**T-473 → done 2026-09-04 21:1x（配额窗⑯复活后收口，`616f1d2`）——intake ⑰ 兑现（CircleCI 能力全开）**：九项裁定——**缓存三面落地**（Go mod/web deps/Playwright browsers + **修两处存量缓存静默空转**：cimg/go 无 /go/pkg/mod 死路径、npm ci 下 node_modules 缓存无效）；**build parallelism 2 + tests split（包计时分裂）+ junit store_test_results**（Insights flaky 检测开——喂 T-471）；e2e junit+artifacts（shard 不做——T-471 体位不动）；**DLC 开**（docker 腿真构建）；**nightly 03:17 UTC**（race_full 拆 4 分片 + 常驻 UAT 漂移面，与 main-push 管线分离）；arm.medium 不落（非加法+matrix 钉 amd64）；orbs 三否（镜像+步骤已锚定，orb=漂移）；approval gate 预留注释；org context 迁移登记（UI 动作）。`circleci config process/validate` EXIT 0 + gotestsum junit 本机实跑合法。遗留：分片时长数据候 Insights 出分回访；arm.medium 与 context 迁移两张跟进票（日志 §6）。日志 reports/agents/T-473.md。
+
+**T-474 → doing 2026-09-04 21:1x（P1 热修：helm spool 读-only 根因）**：dev-registry-adapter 在途。spool 落位存储同卷 staging（接口驱动——Service 加显式方法或 storage StagingDir()）+ 5xx 文案收敛 + read-only TMPDIR 对照测试 + 净实例 PUT 全链路。**T-475 → todo（e2e CI 环境确定性：t443/t449/t451 三 spec——TZ/viewport 嫌疑，候 FE lane 空出）**。
+
+**Fern 重发布避让（21:2x）**：T-472 在途重构 fern/（空 API definition stub 已落树——CLI 切 API 项目模式拒 tab+layout 导航形）——T-458 镜像页发布顺延候 T-472 收口统一执行。
+

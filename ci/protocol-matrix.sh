@@ -627,11 +627,39 @@ leg_conan() {
   WORKDIR="$WORK/conan"; mkdir -p "$WORKDIR"; cd "$WORKDIR" || return 1
   command -v conan >/dev/null 2>&1 || { tool_unavailable conan; return $?; }
   command -v cmake >/dev/null 2>&1 || { tool_unavailable cmake; return $?; }
-  # No conan recipe in project-examples — `conan new` (client-side scaffold),
-  # the docs/user/integrations/conan.md recipe (cmake template).
+  # No conan recipe in project-examples — hand-written minimal recipe
+  # (same posture as the nuget consumer's "no template dependency"):
+  # `conan new --template` died with current conan 2 (unrecognized
+  # argument), and scaffolds drift across conan versions anyway. The
+  # shape follows docs/user/integrations/conan.md (cmake template).
   export CONAN_HOME="$PWD/conan-home"
-  rm -rf "$CONAN_HOME"; mkdir -p "$CONAN_HOME" proj
-  ( cd proj && conan new "matrix/$VER" --template cmake ) || return 1
+  rm -rf "$CONAN_HOME"; mkdir -p "$CONAN_HOME" proj/src
+  cat > proj/conanfile.py <<PYEOF
+from conan import ConanFile
+from conan.tools.cmake import CMake, cmake_layout
+
+class MatrixConan(ConanFile):
+    name = "matrix"
+    version = "$VER"
+    settings = "os", "compiler", "build_type", "arch"
+    generators = "CMakeDeps", "CMakeToolchain"
+    exports_sources = "CMakeLists.txt", "src/*"
+
+    def layout(self):
+        cmake_layout(self)
+
+    def build(self):
+        cmake = CMake(self)
+        cmake.configure()
+        cmake.build()
+PYEOF
+  cat > proj/CMakeLists.txt <<'EOF'
+cmake_minimum_required(VERSION 3.15)
+project(matrix CXX)
+add_executable(matrix src/main.cpp)
+install(TARGETS matrix RUNTIME DESTINATION bin)
+EOF
+  printf '#include <iostream>\nint main() { std::cout << "matrix-ok\\n"; }\n' > proj/src/main.cpp
   ( cd proj && conan create . ) || return 1
   conan remote add bf-matrix "$(client_base conan)/binflow/uat-matrix-conan-local" || return 1
   conan remote login bf-matrix "$BINFLOW_USER" -p "$BINFLOW_PASSWORD" || return 1
