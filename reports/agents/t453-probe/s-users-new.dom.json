@@ -1,0 +1,108 @@
+{
+  "title": "Admin - JFrog",
+  "labels": [
+    "Don't show me again",
+    "User Name",
+    "Email Address",
+    "Platform Administrator",
+    "Manage Resources",
+    "Platform Auditor",
+    "Manage Webhook",
+    "Can Update Profile",
+    "Disable UI Access",
+    "Disable Internal Password Login",
+    "Password",
+    "Retype Password"
+  ],
+  "buttons": [
+    {
+      "text": "Get Started",
+      "disabled": false,
+      "cls": "el-p-button el-p-button--primary el-p-button--large"
+    },
+    {
+      "text": "platform",
+      "disabled": false,
+      "cls": "toggle-menu-button"
+    },
+    {
+      "text": "administration",
+      "disabled": true,
+      "cls": "toggle-menu-button active"
+    },
+    {
+      "text": "A",
+      "disabled": false,
+      "cls": "el-p-button el-p-button--transparent el-p-button--large navbar-action-button"
+    },
+    {
+      "text": "Reset Google MFA Enrollment",
+      "disabled": true,
+      "cls": "el-button el-button--secondary is-disabled"
+    },
+    {
+      "text": "Cancel",
+      "disabled": false,
+      "cls": "el-button el-button--transparent"
+    },
+    {
+      "text": "Reset",
+      "disabled": true,
+      "cls": "el-button el-button--transparent is-disabled"
+    },
+    {
+      "text": "Save",
+      "disabled": true,
+      "cls": "el-button el-button--primary is-disabled"
+    }
+  ],
+  "checks": [
+    {
+      "label": "Don't show me again",
+      "checked": false,
+      "disabled": false
+    },
+    {
+      "label": "Platform Administrator",
+      "checked": false,
+      "disabled": false
+    },
+    {
+      "label": "Manage Resources",
+      "checked": false,
+      "disabled": false
+    },
+    {
+      "label": "Platform Auditor",
+      "checked": false,
+      "disabled": false
+    },
+    {
+      "label": "Manage Webhook",
+      "checked": false,
+      "disabled": false
+    },
+    {
+      "label": "Can Update Profile",
+      "checked": true,
+      "disabled": false
+    },
+    {
+      "label": "Disable UI Access",
+      "checked": false,
+      "disabled": false
+    },
+    {
+      "label": "Disable Internal Password Login",
+      "checked": false,
+      "disabled": false
+    },
+    {
+      "label": "Press Space to toggle row selection (checked)",
+      "checked": true,
+      "disabled": false
+    }
+  ],
+  "hasSteps": true,
+  "bodySnippet": "Skip to main content\nWELCOME TO\nTHE JFROG PLATFORM!\nUniversal End-to-End DevOps Platform For Continuous Software Releases\nGet Started\nDon't show me again\nPlatform\nAdministration\nA\nAll Projects\nAll Projects Overview\nStages & Lifecycle\nRepositories\nUser Management\nUsers\nGroups\nGlobal Roles\nPermissions\nAccess Tokens\nProxies\nAuthentication\nSecurity\nGeneral Management\nMonitoring\nTopology\nSupport Zone\nArtifactory Settings\nJFrog Platform\nEnterprise Plus trial license 7.161.20 rev 86120900 Licensed to TEST JFrog Ltd.\n© Copyright 2026 JFrog Ltd\nAdd new user\nUser Settings\nUser Name\nEmail Address\nRoles\nPlatform Administrator\nManage Resources \nPlatform Auditor \nManage Webhook \nOptions\nCan Update Profile\nDisable UI Access\nDisable Internal Password Login \nPassword\nPassword\nRetype Password\nMulti-factor Authentication Status\nReset Google MFA Enrollment\nRelated Groups\nAllSelected (1)\n \nGroup Name\n\nreaders\n\nUser Permissions\nRepositoriesBuildsRelease Bundles\n \nPermission Name\nApplied To\nRepositories\nRead\nDeploy/Cache\nDelete\nAnnotate\nManage\nAnything\nreaders\n1 | ANY\nShowing 1 - 1 from 1 items\n1\nCancel\nReset\nSave"
+}

@@ -1,0 +1,91 @@
+{
+  "title": "Admin - JFrog",
+  "labels": [
+    "Don't show me again",
+    "Group Name",
+    "Description",
+    "External ID",
+    "Platform Administrator",
+    "Manage Resources",
+    "Manage Webhook",
+    "Automatically Join New Users to this Group",
+    "admin",
+    "anonymous"
+  ],
+  "buttons": [
+    {
+      "text": "Get Started",
+      "disabled": false,
+      "cls": "el-p-button el-p-button--primary el-p-button--large"
+    },
+    {
+      "text": "platform",
+      "disabled": false,
+      "cls": "toggle-menu-button"
+    },
+    {
+      "text": "administration",
+      "disabled": true,
+      "cls": "toggle-menu-button active"
+    },
+    {
+      "text": "A",
+      "disabled": false,
+      "cls": "el-p-button el-p-button--transparent el-p-button--large navbar-action-button"
+    },
+    {
+      "text": "Cancel",
+      "disabled": false,
+      "cls": "el-button el-button--transparent"
+    },
+    {
+      "text": "Reset",
+      "disabled": true,
+      "cls": "el-button el-button--transparent is-disabled"
+    },
+    {
+      "text": "Save",
+      "disabled": true,
+      "cls": "el-button el-button--primary is-disabled"
+    }
+  ],
+  "checks": [
+    {
+      "label": "Don't show me again",
+      "checked": false,
+      "disabled": false
+    },
+    {
+      "label": "Platform Administrator",
+      "checked": false,
+      "disabled": false
+    },
+    {
+      "label": "Manage Resources",
+      "checked": false,
+      "disabled": false
+    },
+    {
+      "label": "Manage Webhook",
+      "checked": false,
+      "disabled": false
+    },
+    {
+      "label": "Automatically Join New Users to this Group",
+      "checked": false,
+      "disabled": false
+    },
+    {
+      "label": "admin",
+      "checked": false,
+      "disabled": false
+    },
+    {
+      "label": "anonymous",
+      "checked": false,
+      "disabled": false
+    }
+  ],
+  "hasSteps": true,
+  "bodySnippet": "Skip to main content\nWELCOME TO\nTHE JFROG PLATFORM!\nUniversal End-to-End DevOps Platform For Continuous Software Releases\nGet Started\nDon't show me again\nPlatform\nAdministration\nA\nAll Projects\nAll Projects Overview\nStages & Lifecycle\nRepositories\nUser Management\nUsers\nGroups\nGlobal Roles\nPermissions\nAccess Tokens\nProxies\nAuthentication\nSecurity\nGeneral Management\nMonitoring\nTopology\nSupport Zone\nArtifactory Settings\nJFrog Platform\nEnterprise Plus trial license 7.161.20 rev 86120900 Licensed to TEST JFrog Ltd.\n© Copyright 2026 JFrog Ltd\nAdd new group\nGroup Settings\nGroup Name\nDescription\nExternal ID\nRoles\nPlatform Administrator\nManage Resources \nManage Webhook \nOptions\nAutomatically Join New Users to this Group\nUsers\nMoving item(s): 0\n\n2 Available Users\n\nName\n\nadmin\n\nanonymous\n\n0 Selected Users\n\nNo Items Selected\n\nCancel\nReset\nSave"
+}

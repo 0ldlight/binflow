@@ -1,43 +1,39 @@
 import { useMemo, useState } from 'react'
-import type { ComponentPropsWithoutRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
-import Alert from '@mui/material/Alert'
 import Button from '@mui/material/Button'
-import Checkbox from '@mui/material/Checkbox'
 import Chip from '@mui/material/Chip'
 import Divider from '@mui/material/Divider'
-import FormControlLabel from '@mui/material/FormControlLabel'
 import Menu from '@mui/material/Menu'
 import MenuItem from '@mui/material/MenuItem'
-import Select from '@mui/material/Select'
 import Table from '@mui/material/Table'
 import TableBody from '@mui/material/TableBody'
 import TableCell from '@mui/material/TableCell'
 import TableHead from '@mui/material/TableHead'
 import TableRow from '@mui/material/TableRow'
-import TextField from '@mui/material/TextField'
 
 import { useAuth } from '../../app/AuthContext'
-import { useToast } from '../../app/ToastContext'
 import { CopyButton } from '../../components/CopyButton'
 import { EmptyState } from '../../components/EmptyState'
 import { ErrorCard } from '../../components/ErrorCard'
 import { Pager, useClientPager } from '../../components/Pager'
 import { Skeleton } from '../../components/Skeleton'
-import { ADMIN_ROLES, ApiError, canAdminWrite, errText, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
+import { canAdminWrite, isReadOnlyAdmin, normalizeAdminRole } from '../../lib/api'
+import type { AdminRole } from '../../lib/api'
 import { useColumnPrefs } from '../../lib/columnPrefs'
 import type { ColumnDef } from '../../lib/columnPrefs'
-import type { AdminRole } from '../../lib/api'
 import { onTableRowKeys } from '../../lib/keys'
 import { useAsync } from '../../lib/useAsync'
 import './security.css'
-import { TransferBox } from './TransferBox'
 import { SortTh, StatusLabel, applySort, useTableSort, useUserDelete } from './widgets'
-import { createUser, listGroups, listUsers, validateUserName } from './api'
+import { listUsers } from './api'
 import type { UserListItem } from './api'
 
-// 用户列表 + 新建（console-m8 §6.9，T-237 重排；T-257 数据源换 E2 加宽）。
+// 用户列表（console-m8 §6.9，T-237 重排；T-257 数据源换 E2 加宽）。
+//
+// T-453（FR-145.1，断言反转④——Q5 出口①路由化）：创建迁整页路由表单
+// /admin/security/users/new（对位 7.161.20 /ui/admin/management/users/new），
+// 列表内联展开卡退役——「＋ 新建用户」= 导航入口（users-create 锚保持）。
 //
 // 列集：Name │ Email │ Groups（计数 | 明细，Artifactory "1 | readers" 形态）
 // │ Role（三值 badge）│ **Status**（E2 enabled 真值——禁用徽章形态；T-237
@@ -93,235 +89,6 @@ function RoleLabel({ role }: { role: AdminRole }) {
   return <Chip size="small" className="badge neutral" label="user" lang="en" />
 }
 
-interface CreateState {
-  name: string
-  email: string
-  password: string
-  role: AdminRole
-  enabled: boolean
-  groups: string[]
-}
-
-const CREATE_INITIAL: CreateState = { name: '', email: '', password: '', role: 'user', enabled: true, groups: [] }
-
-function CreateUserForm({ onDone, onCancel }: { onDone: () => void; onCancel: () => void }) {
-  const toast = useToast()
-  // 组清单随表单挂载取数（非页面级）：老流（W33d）是先开页再带外建组、
-  // 后开表单——页面级缓存会拿到建组前的陈旧列表。
-  const groups = useAsync(listGroups, [])
-  const [f, setF] = useState<CreateState>(CREATE_INITIAL)
-  const [touched, setTouched] = useState<{ name: boolean; email: boolean; password: boolean }>({
-    name: false,
-    email: false,
-    password: false,
-  })
-  const [submitting, setSubmitting] = useState(false)
-  const [serverError, setServerError] = useState<ApiError | null>(null)
-
-  // blur 触发校验（§4.7：必填空给「请填写此字段」语义）；必填未满足时
-  // 主按钮禁用（reverse §4.6 新建用户 Save 置灰形态）。用户名规则非空即校。
-  const nameErr = touched.name || f.name.trim() !== '' ? validateUserName(f.name.trim()) : null
-  const emailErr = touched.email && f.email.trim() === '' ? '请填写此字段' : null
-  const passErr = touched.password && f.password === '' ? '请填写此字段' : null
-  const canSubmit =
-    f.name.trim() !== '' && validateUserName(f.name.trim()) === null && f.email.trim() !== '' && f.password !== '' && !submitting
-
-  const submit = async () => {
-    setServerError(null)
-    setSubmitting(true)
-    try {
-      await createUser(f.name.trim(), {
-        name: f.name.trim(),
-        email: f.email.trim(),
-        password: f.password,
-        // 角色走一致对（admin 布尔 = adminRole===admin——服务端对校验要求，
-        // resolveCreateRole 的对一致性，非「混发」：编辑臂才只走 adminRole）
-        admin: f.role === 'admin',
-        adminRole: f.role,
-        enabled: f.enabled,
-        groups: f.groups,
-      })
-      toast.success(`用户 ${f.name.trim()} 已创建`)
-      onDone()
-    } catch (err) {
-      // 服务端 400 文案原样行内（email/口令缺失、混合大小写、未知组）
-      setServerError(err instanceof ApiError ? err : new ApiError(0, errText(err)))
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  return (
-    <section className="card inline-form" data-testid="user-form" aria-label="新建用户">
-      <h3>新建用户</h3>
-      {/* T-384 节锚（v1.20 批）：创建表单四节——M3 表单结构 parity 断言载体 */}
-      <div className="form-section" data-testid="user-form-section-settings">
-        <h4>用户设置</h4>
-        <div className="field">
-          <label htmlFor="uf-name">用户名 *</label>
-          <TextField
-            id="uf-name"
-            size="small"
-            value={f.name}
-            onBlur={() => setTouched((p) => ({ ...p, name: true }))}
-            onChange={(e) => setF((p) => ({ ...p, name: e.target.value }))}
-            placeholder="bob"
-            error={!!nameErr}
-            sx={{ width: 320 }}
-            slotProps={{ htmlInput: { className: 'mono-input', 'data-testid': 'user-form-name', lang: 'en' } }}
-          />
-          {nameErr ? (
-            <p className="field-error" role="alert">
-              {nameErr}
-            </p>
-          ) : (
-            <p className="field-hint">全小写；服务端终裁（保留名拒绝）。</p>
-          )}
-        </div>
-        <div className="field">
-          <label htmlFor="uf-email">Email *</label>
-          <TextField
-            id="uf-email"
-            size="small"
-            type="email"
-            value={f.email}
-            onBlur={() => setTouched((p) => ({ ...p, email: true }))}
-            onChange={(e) => setF((p) => ({ ...p, email: e.target.value }))}
-            placeholder="bob@example.com"
-            error={!!emailErr}
-            sx={{ width: 320 }}
-            slotProps={{ htmlInput: { 'data-testid': 'user-form-email' } }}
-          />
-          {emailErr && (
-            <p className="field-error" role="alert">
-              {emailErr}
-            </p>
-          )}
-        </div>
-        <div className="field" style={{ maxWidth: 480 }}>
-          <label htmlFor="uf-role">角色（三值闭集，M7 FR-66）</label>
-          <TextField
-            id="uf-role"
-            select
-            size="small"
-            value={f.role}
-            onChange={(e) => setF((p) => ({ ...p, role: e.target.value as AdminRole }))}
-            sx={{ width: 320 }}
-            slotProps={{
-              select: {
-                native: true,
-                inputProps: { 'data-testid': 'user-form-role' } as ComponentPropsWithoutRef<'select'>,
-              } as ComponentPropsWithoutRef<typeof Select>,
-            }}
-          >
-            {ADMIN_ROLES.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </TextField>
-          <p className="field-hint">user=按 permission target 授权；readonly_admin=管理面只读；admin=管理面全权。</p>
-        </div>
-      </div>
-      <div className="form-section" data-testid="user-form-section-options">
-        <h4>选项</h4>
-        <FormControlLabel
-          className="check-row"
-          control={
-            <Checkbox
-              size="small"
-              checked={f.enabled}
-              onChange={(e) => setF((p) => ({ ...p, enabled: e.target.checked }))}
-              slotProps={{ input: { 'data-testid': 'user-form-enabled' } as ComponentPropsWithoutRef<'input'> }}
-            />
-          }
-          label="启用（取消勾选 = 禁用账号——禁用后登录与写面全部拒绝）"
-        />
-      </div>
-      <div className="form-section" data-testid="user-form-section-password">
-        <h4>口令</h4>
-        <div className="field">
-          <label htmlFor="uf-pass">初始口令 *</label>
-          <TextField
-            id="uf-pass"
-            size="small"
-            type="password"
-            autoComplete="new-password"
-            value={f.password}
-            onBlur={() => setTouched((p) => ({ ...p, password: true }))}
-            onChange={(e) => setF((p) => ({ ...p, password: e.target.value }))}
-            error={!!passErr}
-            sx={{ width: 320 }}
-            slotProps={{ htmlInput: { 'data-testid': 'user-form-password' } }}
-          />
-          {passErr && (
-            <p className="field-error" role="alert">
-              {passErr}
-            </p>
-          )}
-        </div>
-      </div>
-      <div className="form-section" data-testid="user-form-section-groups">
-        <h4>相关组</h4>
-        <p className="field-hint">勾选即加入（右列）；保存后即时生效——移出组即失去该组授权，无需重登。</p>
-        {groups.status === 'loading' && <Skeleton lines={2} />}
-        {groups.status === 'ok' && (
-          <div data-testid="user-form-groups">
-            <TransferBox
-              items={(groups.data ?? []).map((g) => ({ name: g.name, note: g.description || undefined }))}
-              selected={f.groups}
-              onToggle={(name, next) =>
-                setF((p) => ({ ...p, groups: next ? [...p.groups, name] : p.groups.filter((x) => x !== name) }))
-              }
-              availableLabel="可选组"
-              selectedLabel="已选组"
-              itemTestid={(name) => `user-form-group-${name}`}
-            />
-          </div>
-        )}
-        {groups.status === 'ok' && (groups.data ?? []).length === 0 && (
-          <p className="field-hint">实例还没有组——先到「组」页创建。</p>
-        )}
-        {groups.status !== 'loading' && groups.status !== 'ok' && (
-          <p className="field-hint">组列表不可用（{groups.error?.message}）；可先建用户，稍后在编辑页入组。</p>
-        )}
-      </div>
-      {serverError && (
-        <Alert severity="error" data-testid="user-form-error">
-          <div className="headline">创建失败（HTTP {serverError.status || '网络'}）</div>
-          <div className="raw" lang="en">
-            {serverError.message}
-          </div>
-        </Alert>
-      )}
-      <div className="form-actions">
-        {/* 页脚三联（T-384 复役 v1.9 退役锚）：Cancel 最左 / Reset / Save 右——
-            parity V6 实测页脚形态的断言载体 */}
-        <Button variant="outlined" size="small" onClick={onCancel} data-testid="user-form-cancel">
-          取消
-        </Button>
-        <Button
-          variant="outlined"
-          size="small"
-          onClick={() => setF(CREATE_INITIAL)}
-          data-testid="user-form-reset"
-        >
-          重置
-        </Button>
-        <Button
-          variant="contained"
-          size="small"
-          disabled={!canSubmit}
-          onClick={() => void submit()}
-          data-testid="user-form-submit"
-        >
-          {submitting ? '创建中…' : '创建用户'}
-        </Button>
-      </div>
-    </section>
-  )
-}
-
 export default function UsersPage() {
   const { session } = useAuth()
   const navigate = useNavigate()
@@ -329,7 +96,6 @@ export default function UsersPage() {
   const readOnly = isReadOnlyAdmin(session)
   // 单请求（E2 加宽列表）——行模型 = 列表项本体，无逐用户详情扇出
   const state = useAsync(listUsers, [])
-  const [creating, setCreating] = useState(false)
   // T-414（FR-135.2）：列显隐偏好（per-page localStorage，T-387 共享层）。
   // 列集随视角收窄：非 admin 无操作列（列不在场则菜单项与偏好 id 同步剔除
   // ——readHidden 按当页列集清洗，未列入不在场列的隐藏项自动失效）。
@@ -366,8 +132,13 @@ export default function UsersPage() {
       <div className="page-header">
         <h2>用户</h2>
         {admin && (
-          <Button variant="contained" size="small" onClick={() => setCreating((v) => !v)} data-testid="users-create">
-            {creating ? '收起表单' : '＋ 新建用户'}
+          <Button
+            variant="contained"
+            size="small"
+            onClick={() => navigate('/admin/security/users/new')}
+            data-testid="users-create"
+          >
+            ＋ 新建用户
           </Button>
         )}
       </div>
@@ -376,16 +147,6 @@ export default function UsersPage() {
         <p className="admin-note" data-testid="users-readonly-note">
           ⓘ 只读管理员（readonly_admin）视角：用户与角色只读；创建/编辑是管理面写操作（服务端 403 兜底）。
         </p>
-      )}
-
-      {creating && admin && (
-        <CreateUserForm
-          onDone={() => {
-            setCreating(false)
-            state.reload()
-          }}
-          onCancel={() => setCreating(false)}
-        />
       )}
 
       {/* T-414（FR-135.2）：工具栏尾 = 列选器（T-387 L1 形态复用——MUI Menu +

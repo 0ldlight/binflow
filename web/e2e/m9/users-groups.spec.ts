@@ -127,16 +127,21 @@ test('N01: groups page — members from the E2 projection, editor seeds from E5,
   await expect(page.locator('[data-testid="group-members-m9-g01"]')).toHaveText('2')
   await expect(page.locator('[data-testid="group-members-m9-g01"]')).toHaveAttribute('title', 'u1, u11')
 
-  // E5 view: opening the editor adds EXACTLY one includeUsers read; the
-  // selected column = server userNames, the user list is NOT re-fetched.
+  // E5 view: T-453 routes the editor to /groups/:name/edit (its own document).
+  // The editor page's data plane = ONE E5 includeUsers read + ONE E2 users read
+  // (transfer candidates + membership-apply snapshot) + targets — still
+  // user-count independent, zero per-user fanout; the groups LIST is not
+  // re-read (the editor rides its own document, not the list's fetches).
   await page.click('[data-testid="group-edit-m9-g01"]')
+  await expect(page).toHaveURL(/\/admin\/security\/groups\/m9-g01\/edit$/)
   await expect(page.locator('[data-testid="group-form-members"]')).toBeVisible()
   await expect(page.locator('[data-testid="group-form-members"] [data-testid="transfer-selected"]')).toContainText('u1')
   await expect(page.locator('[data-testid="group-form-members"] [data-testid="transfer-selected"]')).toContainText('u11')
   const afterEditor = api.data()
   expect(afterEditor.filter((p) => p === '/binflow/api/security/groups/m9-g01?includeUsers=true')).toHaveLength(1)
-  expect(afterEditor.filter((p) => p === '/binflow/api/security/users')).toHaveLength(1) // still the single E2 read
+  expect(afterEditor.filter((p) => p === '/binflow/api/security/users')).toHaveLength(2) // one E2 read per document: list + editor
   expect(afterEditor.filter((p) => p === '/binflow/api/security/groups')).toHaveLength(1) // list, not re-read
+  expect(api.userFanout()).toEqual([])
 
   // cross-view: E2 count (2) === E5 selected roster size === seed plan
   const selectedCount = await page

@@ -61,8 +61,10 @@ test('a11y sweep: all console routes in both themes (serious/critical = 0)', asy
     { url: `/admin/repositories/${key}/edit`, settle: '[data-testid="repo-form-page"]' },
     // 管理模式：用户与权限
     { url: '/admin/security/users', settle: '[data-testid="users-page"]' },
+    { url: '/admin/security/users/new', settle: '[data-testid="user-create-page"]' }, // T-453 路由表单
     { url: '/admin/security/users/m8-e2e-user', settle: '[data-testid="user-form"]' },
     { url: '/admin/security/groups', settle: '[data-testid="groups-page"]' },
+    { url: '/admin/security/groups/new', settle: '[data-testid="group-form-page"]' }, // T-453 路由表单
     { url: '/admin/security/permissions', settle: '[data-testid="perms-page"]' },
     { url: '/admin/security/permissions/new', settle: '[data-testid="perm-editor-page"]' },
     { url: '/admin/security/tokens', settle: '[data-testid="tokens-page"]' }, // T-386 真身
