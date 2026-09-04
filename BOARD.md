@@ -1804,7 +1804,9 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **T-451 → done 2026-09-04 07:5x——M16 17/35（B8 票①：分页控件 ×9 统一——E2 翻案兑现）**：**Pager.tsx 共享控件**（页码/每页行数档位冻结 [20/50/100/200/1000]/首末页禁置 + useClientPager）+ **八列表面迁移**（ResultsTable/AqlPanel/审计 keyset 页窗/仓库/users/groups/permissions/tokens）+ 制品树增量加载按 L4 分治维持（豁免锚注记）。**契约漂移①**：7.161 管理列表实为 ag-grid「to/of」形态无页码序列——按 7.84 冻结锚实现，版本线分歧留痕候 ux 裁（翻转点已备）。锚册 **v1.39**（9 名 + 四退役）+ parity **v1.10**（E2/L4/B-3.3 翻已落 + §11.2 档位冻结）。四门绿 + 新 spec 4/4 + m16 目录 38P×2 + a11y 双主题 0 + SPA +4,863B。**环境事件披露**：brew simdutf 升级断链系统 node@22（全程 nvm v24 绕行——其他 agent 同法）。日志 reports/agents/T-451.md。
 
-**T-452 → done 2026-09-04 09:1x——M16 18/35（B8 票②：AQL 副线收尾）**：**QRL 全量**（`v1/system/query_rate_limiter` 三态 REST + admin 门 + K63 门读数一致——K72）+ **UI 搜索族四端点**（artifactsearch/stashResults/packagesSearch/syntax-search——wire 照锚；Smart Searches 保存面 pro 档不做）+ **dates/creation 双端点**（K65：404 `No results found.` 逐字空集族 + uri 瘦行 + epoch-ms）+ ACL 同源探针 + **§5.7 全景表 M16 行逐条对账**（search_family_panorama_test）。conductor spot：build 0 + 定向 15.1s 绿。日志 reports/agents/T-452.md。**B8 齐落——批次③ 闭合。**
+**T-452 → done 2026-09-04 09:1x——M16 18/35（B8 票②：AQL 副线收尾）**：**QRL 全量**（`v1/system/query_rate_limiter` 三态 REST + admin 门 + K63 门读数一致——K72）+ **UI 搜索族四端点**（artifactsearch/stashResults/packagesSearch/syntax-search——wire 照锚；Smart Searches 保存面 pro 档不做）+ **dates/creation 双端点**（K65：404 `No results found.` 逐字空集族 + uri 瘦行 + epoch-ms）+ ACL 同源探针 + **§5.7 全景表 M16 行逐条对账**（search_family_panorama_test）。conductor spot：build 0 + 定向 15.1s 绿。日志 reports/agents/T-452.md。**B8 齐落——批次③ 闭合。**终轮补记（`4bbb5c6`）：全量 race 完整 exit 0 零 FAIL + 遗留五条登记（migration 023/cmd 挂点/V-m 对拍/LOW_PRIORITY 桶/QRL audit 词）。
+
+**T-454 → done 2026-09-04 11:3x（配额窗⑭复活后收口）——M16 19/35（B9 票②：Last Login 派生）**：audit 登录族事件 → users 列表 **lastLoggedIn 投影**（**单 GROUP BY 聚合禁 N+1**——整列表一查；无登录史 null；默认序不破坏）；area 外延三文件（metadata 存储腿）自报在案。conductor spot：build 0。日志 reports/agents/T-454.md。
 
 **用户指令 intake ⑬（2026-09-04 02:3x）：「后续代码只提交到 git@github.com:0ldlight/binflow.git」——push 循环已去掉 vm 远端**（配置保留零使用）。
 
