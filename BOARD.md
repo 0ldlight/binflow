@@ -1808,6 +1808,8 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **T-454 → done 2026-09-04 11:3x（配额窗⑭复活后收口）——M16 19/35（B9 票②：Last Login 派生）**：audit 登录族事件 → users 列表 **lastLoggedIn 投影**（**单 GROUP BY 聚合禁 N+1**——整列表一查；无登录史 null；默认序不破坏）；area 外延三文件（metadata 存储腿）自报在案。conductor spot：build 0。日志 reports/agents/T-454.md。
 
+**T-453 → done 2026-09-04 12:2x（配额窗⑭复活后收口）——M16 20/35（B9 票①：用户/组路由表单化——断言反转④）**：**/admin/security/users/new 与 /groups/new（+ :name/edit）整页表单**（四节 + **Retype 密码域**〔7.161 活体一手实证——T-384 缺位定案翻案〕+ **能力位三旗预留位**〔BE 未承接——恒禁用零提交 + hint 承两臂语义 + API 漂移钉 tripwire：BE 落地日翻红即转正触发器〕+ Reset/Save 初始禁置 + readonly 深链防御）+ **列表内联展开卡删尽**（断言反转④兑现；锚保导航入口零改名）+ GroupFormPage 两态路由（成员矩阵随迁）。锚册 **v1.40**（9 名零改名）+ parity **v1.11**（E5/M3/B-2.15 翻已落——E5 矛盾闭环）。四门绿 + 新 spec 3/3 + m16 目录 39P + 回归全绿 + SPA +3,803B。活体取证 t453-probe/（7.161 只读零写）。日志 reports/agents/T-453.md。
+
 **用户指令 intake ⑬（2026-09-04 02:3x）：「后续代码只提交到 git@github.com:0ldlight/binflow.git」——push 循环已去掉 vm 远端**（配置保留零使用）。
 
 **全树 race 补证判无效（conductor 2026-09-01 14:3x）**：与两 agent 测试套件同机并发跑——22 包红全部 620-660s 超时形态 + db/sql 竞争 panic + storage fail-open 窗口 = **共租负载签名**（T-414 日志同款 load 450-630），非产品缺陷。T-412 的 AC3 证据改挂 **T-421 中期 QA 串行全树 race**（届时 lane 空净）。**D-413-2 [P3·登记]**：唯一真信号 = T-413 `TestEngineMixedLoad` 在慢机下 K63 并发门 429 介入而测试只容忍 busy gate 拒绝——测试健壮性收窄（门注入调低或混合负载容忍 429），归 T-421 复验时顺腿修或转 T-433。**教训入册：全树 race/性能类验证必须 lane 空净时串行跑（派单纪律）。**

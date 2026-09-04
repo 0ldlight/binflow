@@ -291,6 +291,12 @@ const STOP = new Set([
   // e2e/m8/users-groups.spec.ts 的翻新引用）、参照实例网格技术名
   // （ag-grid——7.161.20 管理列表分页形态复核留痕），均非 testid 锚
   't451-pager-unification', 'users-groups', 'ag-grid',
+  // v1.40（T-453 行文假阳性）：路由表单化批的标识符引用——本票新 spec
+  // 文件名段（t453-route-forms）、活体探针证据目录名（t453-probe 即
+  // reports/agents/t453-probe/ 的 7.161.20 表单形态取证）、翻新 spec
+  // 简称（a11y-sweep 即 e2e/m8/a11y-sweep.spec.ts 的 +2 路由翻新），
+  // 均非 testid 锚
+  't453-route-forms', 't453-probe', 'a11y-sweep',
 ])
 const docFams = new Set()
 for (const t of docTokens) {

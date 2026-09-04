@@ -46,7 +46,12 @@ const SearchPage = lazy(() => import('./pages/search/SearchPage'))
 // 安全组（T-101 形态原样；页面重排归 T-237/T-241）
 const UsersPage = lazy(() => import('./pages/security/UsersPage'))
 const UserDetailPage = lazy(() => import('./pages/security/UserDetailPage'))
+// T-453（FR-145.1，断言反转④——Q5 出口①路由化）：用户/组创建迁整页路由
+// 表单（/users/new、/groups/new 深链，7.161.20 同构），列表内联展开卡退役；
+// 组编辑同场路由化（/groups/:name/edit——内联卡创建/编辑同卡，一并退役）
+const UserCreatePage = lazy(() => import('./pages/security/UserCreatePage'))
 const GroupsPage = lazy(() => import('./pages/security/GroupsPage'))
+const GroupFormPage = lazy(() => import('./pages/security/GroupFormPage'))
 const PermissionsPage = lazy(() => import('./pages/security/PermissionsPage'))
 const PermissionEditorPage = lazy(() => import('./pages/security/PermissionEditorPage'))
 // Access Tokens 真身（M14 T-386，FR-125.1）：签发（一次性明文 + step-up 链）
@@ -174,8 +179,17 @@ createRoot(document.getElementById('root')!).render(
 
                     {/* —— 管理模式：用户与权限 —— */}
                     <Route path="admin/security/users" element={<UsersPage />} />
+                    {/* T-453（FR-145.1，断言反转④）：创建 = 整页路由表单——
+                        /users/new 深链（7.161.20 实测 /ui/admin/management/
+                        users/new 同构）；静态段深于 :name 段，React Router
+                        按 specificity 排序静态优先，「new」永不落入 :name。 */}
+                    <Route path="admin/security/users/new" element={<UserCreatePage />} />
                     <Route path="admin/security/users/:name" element={<UserDetailPage />} />
                     <Route path="admin/security/groups" element={<GroupsPage />} />
+                    {/* T-453：组创建/编辑同场路由化（7.161 /groups/new 同构；
+                        编辑 = :name/edit——组内联卡创建/编辑同卡一并退役） */}
+                    <Route path="admin/security/groups/new" element={<GroupFormPage mode="create" />} />
+                    <Route path="admin/security/groups/:name/edit" element={<GroupFormPage mode="edit" />} />
                     <Route path="admin/security/permissions" element={<PermissionsPage />} />
                     <Route
                       path="admin/security/permissions/new"

@@ -84,12 +84,14 @@ test('W33 three-step flow: group -> user membership -> target matrix, tester + d
   await expect(page.locator('[data-testid="toast"]').filter({ hasText: `组 ${group} 已创建` })).toBeVisible({ timeout: 8000 })
   await expect(page.locator(`[data-testid="group-row-${group}"]`)).toBeVisible()
 
-  // 第二步：建用户入组
+  // 第二步：建用户入组（T-453：/users/new 路由整页表单 + 口令双录）
   await page.goto('/binflow/ui/admin/security/users')
   await page.click('[data-testid="users-create"]')
+  await expect(page).toHaveURL(/\/admin\/security\/users\/new$/)
   await page.fill('[data-testid="user-form-name"]', user)
   await page.fill('[data-testid="user-form-email"]', `${user}@example.com`)
   await page.fill('[data-testid="user-form-password"]', 'w33-probe-pw')
+  await page.fill('[data-testid="user-form-password2"]', 'w33-probe-pw')
   await page.check(`[data-testid="user-form-group-${group}"]`)
   await page.click('[data-testid="user-form-submit"]')
   await expect(page.locator('[data-testid="toast"]').filter({ hasText: `用户 ${user} 已创建` })).toBeVisible({ timeout: 8000 })
@@ -358,6 +360,7 @@ test('users: edit roundtrip, reset-password entry, server 400 inline, 404s, non-
   await page.fill('[data-testid="user-form-name"]', user)
   await page.fill('[data-testid="user-form-email"]', `${user}@example.com`)
   await page.fill('[data-testid="user-form-password"]', 'd-probe-pw')
+  await page.fill('[data-testid="user-form-password2"]', 'd-probe-pw')
   await page.check(`[data-testid="user-form-group-${group}"]`)
   await api(page, 'DELETE', `/api/security/groups/${group}`)
   await page.click('[data-testid="user-form-submit"]')
