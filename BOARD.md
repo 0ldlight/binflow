@@ -1820,3 +1820,11 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **T-455 → doing 2026-09-04 17:0x（B10 票①：FE④-b 权限编辑两步弹窗 + 矩阵五列 ← T-444 done）**：dev-frontend 在途。两块：A 消费新 wire（四处 e2e echo 翻新 + write/annotate 勾选联动照 7.161 活体）+ B 主体两步弹窗与五列（read/annotate/write/delete/manage）。7.161 活体取证优先、锚册冲突登记不伪造。
 
+**T-456 → done 2026-09-04 17:2x（配额窗⑮复活后收口，`67587b9`）——M16 22/35（QA 中期：L36~L48 逐批复核）**：**一行状态 PASS（1 缺陷登记 + 2 在途标注）**。已落 20/35 面全绿：L36 八型真实客户端矩阵 **8/8**（go/nuget/cargo/conan/helm/helmoci/rpm/deb 独立复验）+ 字段域 tripwire as-built；L37/L38/L42 全绿（统计单源三面同值 / QRL 三态 / UI 搜索族+dates 逐字臂 + ACL 三面零泄漏）；**L41 ON 态被 D-T456-1 阻断**；L48 引擎腿全过（next-run 对拍 / 调度全量 sha256 三路一致 / 零重复投递 B 恒 4 / Replicate Now 幂等 / audit scheduler 行）；**race 三红全定谳负载噪音**（净机 solo：metadata 141s / repo 816s / httpapi 733s 全 ok 零 DATA RACE——Docker VM 582% CPU 窃取实证入档 O-1）；回归窗 139P/0F 双形态 + 断言反转①~④现值兑现/⑤在途 + E1/E6 零倒退 + 锚册门 PASS；t226 关键页只读对照一致（Release Bundle/Federated=M17 stay-out 不伪造）。报告 reports/agents/T-456.md。
+
+**D-T456-1 [P1·登记]**：`listRemoteFolderItems` httpapi 传输层丢字段——可选档 PUT 静默吞 + 类型门 400 不可达 → **L41 ON 态 FE 消费被阻断**。QA 建议并入 **T-461**（FR-147.3 FE 远端浏览树消费——届时携 BE 支撑腿：internal/httpapi 传输层修复）。T-461 派单时必带本缺陷。
+
+**T-458 → doing 2026-09-04 17:3x（B11 票：文档票腿①——tech-writer）**：deps 满足（T-440/T-443/T-445 done）。腿① 四面：树深链工具带 / 表单三段 8 包型 / 详情字段族+usage 可复跑示例 / 权限动词 annotate 增量 + i18n·cron 预埋骨架。**双树同步**：docs/user/ 主源 + fern/pages/ 镜像（conductor 统一重发布）。腿② 候 T-459/T-461~T-464 合入另派。
+
+**CI 事件追加（conductor 17:3x）**：c4da02e 上 e2e job 仍红 + release-dryrun 首红（前三轮全绿）+ ci job 在跑。**e2e 复绿假说受创**——依赖事件与 e2e 红的关系须重审（日志候 run 完结取证：`gh run view --job` 取 e2e 失败清单；另查 ci job 自 ≥09-02 06:33 PR #64/65 起的连红根因——sqlite 1.57 假说候证）。UAT 已回滚基线 ✅（uat.c4da02e）。
+
