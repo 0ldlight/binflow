@@ -682,6 +682,15 @@ type AuditStore interface {
 	// indexes (actor,time)/(action,time) or the 001 (repo_key,time)/time
 	// indexes — never a full table scan.
 	Query(ctx context.Context, q AuditQuery) ([]*AuditEvent, error)
+	// LastActionTimes is the per-actor aggregation face (FR-146.3, M16):
+	// for every actor with at least one event of the named action it
+	// returns the RFC3339 time of their most recent such event, from ONE
+	// GROUP BY query — the users-list projection derives every row's
+	// lastLoggedIn with a single statement instead of a per-user walk
+	// (the N+1 shape the MembershipsByUser widening killed for groups).
+	// The 004 idx_audit_action(action,time) index serves the filter. An
+	// empty log returns an empty map, never nil.
+	LastActionTimes(ctx context.Context, action string) (map[string]string, error)
 }
 
 // DockerStore is the registry index behind the docker adapter /v2 surface

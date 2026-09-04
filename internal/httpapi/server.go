@@ -214,6 +214,12 @@ type Server struct {
 	// T-93). nil on metadata-less unit stacks — the endpoint answers 503
 	// rather than panicking there.
 	auditLog audit.Logger
+	// lastLogin is the last-login derivation facet of the same logger
+	// (FR-146.3, M16): audit's concrete logger derives per-user most
+	// recent login.success times in one GROUP BY. nil on metadata-less
+	// unit stacks — the users list then renders lastLoggedIn absent, the
+	// pre-M16 body (the session/permView discovery precedent).
+	lastLogin lastLoginSource
 	// permView is the effective-permission facet of Deps.Authz (GET
 	// /api/storage/**?permissions, T-97/SE-08); nil when the injected
 	// authorizer is not the full auth.Service (unit fakes) — the endpoint
@@ -364,6 +370,12 @@ func New(deps Deps, log *slog.Logger) *Server {
 		lg := audit.New(deps.Metadata, deps.Config.Audit.Enabled)
 		s.audit = audit.BestEffort(lg)
 		s.auditLog = lg
+		// Last-login facet discovery (FR-146.3): the concrete logger
+		// carries the derivation; a bare Logger fake stays facet-less and
+		// the users list renders lastLoggedIn absent instead of panicking.
+		if ll, ok := lg.(lastLoginSource); ok {
+			s.lastLogin = ll
+		}
 	} else {
 		s.audit = noopRecorder{}
 	}

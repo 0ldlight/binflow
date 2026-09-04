@@ -15,6 +15,7 @@ package audit
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"strconv"
 
@@ -35,10 +36,13 @@ type Logger interface {
 // store is the consumer-side slice of metadata.AuditStore. The legacy List
 // seam was retired when T-93 moved the query plane onto the
 // full-parameter keyset Query; metadata keeps serving List for its own
-// compatibility, this package no longer consumes it.
+// compatibility, this package no longer consumes it. LastActionTimes is the
+// FR-146.3 aggregation seam (M16): one GROUP BY statement behind the
+// LastLogins derivation.
 type store interface {
 	Append(ctx context.Context, e *metadata.AuditEvent) error
 	Query(ctx context.Context, q metadata.AuditQuery) ([]*metadata.AuditEvent, error)
+	LastActionTimes(ctx context.Context, action string) (map[string]string, error)
 }
 
 // logger implements Logger over the metadata audit store.
@@ -163,6 +167,27 @@ func (l *logger) Query(ctx context.Context, f Filter) (*Page, error) {
 		page.NextCursor = cursorOf(page.Events[limit-1])
 	}
 	return page, nil
+}
+
+// LastLogins derives every user's most recent successful login from the
+// audit log (FR-146.3, M16): the login.success rows this very package's
+// Append records (the console session and OIDC callback planes) collapse
+// into one actor -> RFC3339 UTC time entry each, via a single GROUP BY
+// query on the store. The derivation runs at QUERY time, deliberately not
+// materialized: no schema change, no write-path coupling, and the
+// append-only log stays the single source of truth — a re-derivation can
+// never disagree with the stored trail (the ruling M16-SPLIT T-454 AC1
+// asks to pin). Users without a login history simply have no map entry.
+// The method lives on the concrete logger (not the Logger interface): the
+// httpapi users-list projection discovers it as a facet, the
+// session/permView/stepUp discovery precedent — bare Logger fakes stay
+// untouched and their stacks render the field absent.
+func (l *logger) LastLogins(ctx context.Context) (map[string]string, error) {
+	times, err := l.st.LastActionTimes(ctx, ActionLoginOK)
+	if err != nil {
+		return nil, fmt.Errorf("audit: derive last logins: %w", err)
+	}
+	return times, nil
 }
 
 // BestEffort returns a Recorder around any Logger, so callers depending on

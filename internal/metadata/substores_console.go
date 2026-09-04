@@ -457,3 +457,32 @@ func scanAuditEvents(rows *sql.Rows, label string) ([]*AuditEvent, error) {
 	}
 	return out, nil
 }
+
+// LastActionTimes is the per-actor aggregation face (FR-146.3, M16): for
+// every actor with at least one event of the named action, the RFC3339
+// time of their most recent such event — ONE GROUP BY statement (the
+// SQL stays inside the SQLite/Postgres common subset, ADR-0007). The
+// audit log is append-only, so MAX(time) never decreases between calls;
+// stale actors (users deleted after their last login) stay in the map and
+// are simply never looked up by the consumers. The 004
+// idx_audit_action(action,time) index serves the equality filter.
+func (s *auditStore) LastActionTimes(ctx context.Context, action string) (map[string]string, error) {
+	const stmt = `SELECT actor, MAX(time) FROM audit_events WHERE action = ? GROUP BY actor`
+	rows, err := s.db.QueryContext(ctx, stmt, action)
+	if err != nil {
+		return nil, wrapExec("audit last action times", action, err)
+	}
+	defer func() { _ = rows.Close() }()
+	out := make(map[string]string)
+	for rows.Next() {
+		var actor, last string
+		if err := rows.Scan(&actor, &last); err != nil {
+			return nil, wrapExec("audit last action times scan", action, err)
+		}
+		out[actor] = last
+	}
+	if err := rows.Err(); err != nil {
+		return nil, wrapExec("audit last action times rows", action, err)
+	}
+	return out, nil
+}

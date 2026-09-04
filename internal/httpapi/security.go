@@ -542,6 +542,17 @@ func parseID(v string) (int64, error) {
 
 // ---- users (E-19) ----
 
+// lastLoginSource is the last-login facet of the audit logger (FR-146.3,
+// M16): the concrete audit.New logger derives every user's most recent
+// login.success time in one GROUP BY query. Discovered by assertion in New
+// (the session/permView/stepUp precedent) so bare audit.Logger fakes stay
+// untouched; a facet-less stack renders the projection field absent.
+type lastLoginSource interface {
+	// LastLogins maps username -> RFC3339 UTC time of the most recent
+	// successful login; users without a login history have no entry.
+	LastLogins(ctx context.Context) (map[string]string, error)
+}
+
 // userListItem is one GET /api/security/users entry. Artifactory's list is
 // the thin three-field echo {name, uri, realm} (auth-model.md 1.2, high
 // confidence) plus BinFlow's superset source field (T-185). M9 (T-251/E2,
@@ -549,16 +560,24 @@ func parseID(v string) (int64, error) {
 // rendered) and the groups membership set (empty = [], never null) — a
 // BinFlow-owned superset in the T-185 source precedent's family: the users
 // page derives its Groups column and the group-member census from this one
-// request (the N+1 fan-out FR-78 exists to kill). Never a password field.
+// request (the N+1 fan-out FR-78 exists to kill). M16 (FR-146.3) adds the
+// lastLoggedIn projection the same additive way: the audit log's
+// login.success rows derived per user at query time (single GROUP BY, no
+// per-user walk), RFC3339 UTC like every time in the list family, and
+// ABSENT when the user has no login history (omitempty — the reserved
+// userDetail.lastLoggedIn spelling, so a Never-login row renders no key at
+// all and pre-M16 consumers see a byte-compatible superset). Never a
+// password field.
 type userListItem struct {
-	Name      string   `json:"name"`
-	URI       string   `json:"uri"`
-	Realm     string   `json:"realm"`
-	Source    string   `json:"source"`
-	Email     string   `json:"email"`
-	AdminRole string   `json:"adminRole"`
-	Enabled   bool     `json:"enabled"`
-	Groups    []string `json:"groups"`
+	Name         string   `json:"name"`
+	URI          string   `json:"uri"`
+	Realm        string   `json:"realm"`
+	Source       string   `json:"source"`
+	Email        string   `json:"email"`
+	AdminRole    string   `json:"adminRole"`
+	Enabled      bool     `json:"enabled"`
+	Groups       []string `json:"groups"`
+	LastLoggedIn string   `json:"lastLoggedIn,omitempty"`
 }
 
 // userDetail is the single-user body: the observable account facts, never a
@@ -666,10 +685,15 @@ func resolveCreateRole(adminRole string, admin bool) (auth.Role, string) {
 
 // handleUserList serves GET /api/security/users (admin): the widened
 // entries of every account (E2). The membership sets come from ONE
-// aggregated query (GroupStore.MembershipsByUser) — the whole list costs two
-// queries regardless of user count, which is the point of the widening: the
-// users page's Groups column and the group-member census fan out from this
-// single request instead of one GET per user.
+// aggregated query (GroupStore.MembershipsByUser) and the lastLoggedIn
+// projection from ONE more (audit's LastLogins GROUP BY, FR-146.3) — the
+// whole list costs three queries regardless of user count, which is the
+// point of the widening: the users page's Groups column, the group-member
+// census and the Last Login column fan out from this single request
+// instead of one GET per user. Ordering stays Users().List's (username
+// ASC): the projection is additive and re-sorts nothing — a
+// sort-by-lastLoggedIn arm is deliberately out of scope (registered in the
+// T-454 report).
 func (s *Server) handleUserList(w http.ResponseWriter, r *http.Request) {
 	users, err := s.deps.Metadata.Users().List(r.Context())
 	if err != nil {
@@ -681,6 +705,20 @@ func (s *Server) handleUserList(w http.ResponseWriter, r *http.Request) {
 		writePlainError(w, http.StatusInternalServerError, "resolve user groups: "+err.Error())
 		return
 	}
+	// FR-146.3: derive per-user most recent login in ONE query. nil facet
+	// (metadata-less unit stack) keeps the pre-M16 body, field absent. The
+	// lookup is read-only on a nil map, so an empty derivation needs no
+	// special case. Failing closed here matches the memberships arm: a
+	// half-derived column (every row "never logged in" because one query
+	// failed) would mislead the security review the column exists for.
+	var lastLogins map[string]string
+	if s.lastLogin != nil {
+		lastLogins, err = s.lastLogin.LastLogins(r.Context())
+		if err != nil {
+			writePlainError(w, http.StatusInternalServerError, "derive last logins: "+err.Error())
+			return
+		}
+	}
 	items := make([]userListItem, 0, len(users))
 	for _, u := range users {
 		groups := memberships[u.Username]
@@ -688,14 +726,15 @@ func (s *Server) handleUserList(w http.ResponseWriter, r *http.Request) {
 			groups = []string{} // E2 pins empty as [], never null
 		}
 		items = append(items, userListItem{
-			Name:      u.Username,
-			URI:       requestBase(r) + "/binflow/api/security/users/" + u.Username,
-			Realm:     providerRealm(u.Provider),
-			Source:    providerSource(u.Provider),
-			Email:     u.Email,
-			AdminRole: string(roleFromStored(u.Role)),
-			Enabled:   u.Enabled,
-			Groups:    groups,
+			Name:         u.Username,
+			URI:          requestBase(r) + "/binflow/api/security/users/" + u.Username,
+			Realm:        providerRealm(u.Provider),
+			Source:       providerSource(u.Provider),
+			Email:        u.Email,
+			AdminRole:    string(roleFromStored(u.Role)),
+			Enabled:      u.Enabled,
+			Groups:       groups,
+			LastLoggedIn: lastLogins[u.Username],
 		})
 	}
 	writeJSONBody(w, http.StatusOK, items)

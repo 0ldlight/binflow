@@ -53,12 +53,15 @@ test('admin: create user with transfer membership, edit partitions, role dropdow
   await expectA11yClean(page, testInfo, { include: '[data-testid="users-page"]' })
 
   // —— 新建：分区表单 + 双列穿梭 + 必填门 ——
+  // T-453（断言反转④）：入口 = 导航到 /users/new 整页路由表单（内联卡退役）
   await page.click('[data-testid="users-create"]')
+  await expect(page).toHaveURL(/\/admin\/security\/users\/new$/)
   await expect(page.locator('[data-testid="user-form"]')).toBeVisible()
   await expect(page.locator('[data-testid="user-form-submit"]')).toBeDisabled() // 必填未满足置灰（reverse §4.6）
   await page.fill('[data-testid="user-form-name"]', user)
   await page.fill('[data-testid="user-form-email"]', `${user}@example.com`)
   await page.fill('[data-testid="user-form-password"]', 't237-pw-1')
+  await page.fill('[data-testid="user-form-password2"]', 't237-pw-1') // Retype（T-453：7.161 创建表单实测在场）
   await expect(page.locator('[data-testid="user-form-submit"]')).toBeEnabled()
   // 穿梭：勾选 = 移入「已选组」列（checkbox 锚沿用 T-101 冻结形态）
   await page.check(`[data-testid="user-form-group-${group}"]`)
@@ -143,10 +146,12 @@ test('admin: groups editor — membership transfer writes per-user, matrix + man
   }
 
   // 组页列表形态 + 新建（成员穿梭在创建态即生效）
+  // T-453（断言反转④）：入口 = 导航到 /groups/new 整页路由表单（内联卡退役）
   await page.goto('/binflow/ui/admin/security/groups')
   await expect(page.locator('[data-testid="groups-table"]')).toBeVisible()
   await expect(page.locator('[data-testid="groups-count"]')).toContainText(/共 \d+ 项/)
   await page.click('[data-testid="groups-create"]')
+  await expect(page).toHaveURL(/\/admin\/security\/groups\/new$/)
   await page.fill('[data-testid="group-form-name"]', group)
   await page.fill('[data-testid="group-form-description"]', 't237 members')
   await page.check(`[data-testid="group-form-member-${userA}"]`)
@@ -175,7 +180,9 @@ test('admin: groups editor — membership transfer writes per-user, matrix + man
   ).toBe(201)
   await page.reload()
   await expect(page.locator(`[data-testid="group-manage-badge-${group}"]`)).toBeVisible()
+  // T-453：编辑 = 导航到 /groups/:name/edit 路由页（内联卡退役）
   await page.click(`[data-testid="group-edit-${group}"]`)
+  await expect(page).toHaveURL(new RegExp(`/admin/security/groups/${group}/edit$`))
   await expect(page.locator('[data-testid="group-perm-matrix"]')).toBeVisible()
   await expect(page.locator('[data-testid="group-perm-matrix"] th', { hasText: 'manage' })).toHaveCount(1)
 
