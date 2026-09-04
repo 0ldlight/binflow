@@ -33,9 +33,9 @@
 - **属性系统** — M10
   - [属性系统用法](properties.md)（矩阵参数 `;k=v` 部署打标、?properties 三动词、控制台 Properties 页签、CI 打标场景；community 地板恒解锁）
 - **搜索** — M15
-  - [AQL 搜索指南](aql.md)（`POST /api/search/aql`：items 域子集、操作符与尾缀链、未支持域/字段 400 点名、virtual 仓展开、1,000 行截断与资源门、**Artifactory AQL 迁移对照表**）
+  - [AQL 搜索指南](aql.md)（`POST /api/search/aql`：items 域子集、`stat.*` 下载统计字段族、操作符与尾缀链、未支持域/字段 400 点名、virtual 仓展开、1,000 行截断与资源门；**`GET /api/search/usage`「N 天未下载」闲置制品检索**；**Artifactory AQL 迁移对照表**）
 - **Web 控制台** — M8（新信息架构；M9 增补 Set Me Up OIDC 臂与用户删除面）
-  - [控制台使用指南](console.md)（双模式导航、跨仓制品树、Set Me Up 与 Deploy 对话框、管理域五分组、旧路径迁移对照、角色可见性、浏览器兼容）
+  - [控制台使用指南](console.md)（双模式导航、跨仓制品树与树头工具带、详情字段族与下载统计、Set Me Up 与 Deploy 对话框、三段式建仓表单与包型矩阵、用户/组路由表单、统一分页控件、管理域五分组、旧路径迁移对照、角色可见性、浏览器兼容）
   - [Artifactory → BinFlow 操作路径对照表](artifactory-path-map.md)（建仓/建用户/删用户/配权限/找制品/Set Me Up/GC/备份等逐任务路径对照；无对应面如实登记）
 - **管理指南**（`admin/`）
   - [remote / virtual 仓库管理](admin/remote-virtual.md)（建仓字段表、缓存/负缓存/assumed-offline、强刷、SSRF 放行指引、凭据密钥部署、M3 不兼容清单与报错码汇总；**M14：docker remote 仓型专节**——community 档、Bearer 上游舞步、降级 STALE、dind 调试注记）— M3+M14

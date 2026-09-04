@@ -48,7 +48,7 @@ curl -su admin:$ADMIN_PW -X PUT \
 
 ## `?properties` 三动词
 
-挂在既有 `/api/storage/{repo}/{path}` 路由上；**读**走制品读门（匿名与否随全局开关），**写**要求该路径的 `w`（属性是元数据不是内容——不要求 `d`）。
+挂在既有 `/api/storage/{repo}/{path}` 路由上；**读**走制品读门（匿名与否随全局开关），**写**要求该路径的 **`annotate`** 动词（属性是元数据不是内容——`deploy-cache` 不再覆盖属性写，也不要求 `delete`；动词语义与迁移注意见[用户组与权限管理](admin/groups-permissions.md#动作动词read--deploy-cache--annotate--delete--manage)）。
 
 ### GET：读取与过滤
 
@@ -97,17 +97,18 @@ curl -su admin:$ADMIN_PW -X DELETE \
   "$BASE/binflow/api/storage/generic-local/app/app.bin?properties=*"          # 全删
 ```
 
-- 与 PUT 同门（路径 `w`）、同 `recursive=1`、node 须存在。
+- 与 PUT 同门（路径 `annotate`）、同 `recursive=1`、node 须存在。
 - 空参数 → 400 `Unspecified properties to delete.`。
 
 ## 控制台 Properties 页签
 
-制品详情（制品树点开任一节点）→ **Properties** 页签：键 → 多值集合的表格，值以逗号分隔呈现/编辑。
+制品详情（制品树点开目录/文件节点）→ **Properties** 页签（页签进 URL 段——`/artifacts/properties/<repo>/<path>` 深链直达）：
 
-- 行内编辑（**键不可改**——PUT 按 key 合并，改键 = 删旧键 + 新增行两步，向用户如实呈现）；新增行待填；删除为轻交互（无确认弹窗）。
-- 保存语义页签内常驻说明：PUT = 该键值集整体替换、其他键保留。
-- 校验与服务端同口径（键闭集/值限制/上限），非法即时反馈、保存钮禁用。
-- readonly_admin 预收敛禁用；普通用户保留写入口，无权限时服务端 403 行内呈现。
+- **常显表单**：Property / Value 两个输入框 + `Add Property` 钮常驻（空态也在场）。**同名键 Add = 该键值集整体替换**（PUT 合并律的 UI 形态——「改值」就是同键重 Add），兄弟键保留；空态有引导文案。
+- **网格搜索**：键/值子串过滤（大小写不敏感）+ 无匹配提示块 + 清除复位；计数行「属性 · N 个键（匹配 M）」。
+- **删除走危险确认**：行内删除钮弹出红色确认对话框（可拒绝）。
+- 校验与服务端同口径（键闭集/值限制/上限），非法即时反馈、Add 钮禁用——零坏请求出浏览器。
+- 写门 = `annotate`（与 REST 同门）：readonly_admin 预收敛禁用（输入 + Add + 删除全禁）；普通用户保留写入口，无权限时服务端 403 行内呈现。
 
 ## CI 打标场景（PRD 场景 E）
 
@@ -146,7 +147,7 @@ curl -s -H "Authorization: Bearer $REL_TOKEN" -X PUT \
 | PUT 400 `... property key "..." must match [A-Za-z][A-Za-z0-9_.-]{0,63}` | 键字符集/长度越界 | 键字母开头，只用字母数字 `_.-` |
 | PUT/DELETE 404 | node 不存在（属性族不能建文件） | 先部署制品 |
 | PUT 400 `Unspecified properties to set.` / DELETE 400 `Unspecified properties to delete.` | 空/无可解析参数 | 检查 query 拼写 |
-| 写 403 `permission denied: writing properties requires write access on the item` | 有读无写 | 给 principal 授该路径 `w`（不需要 `d`） |
+| 写 403 `permission denied: writing properties requires annotate access on the item`（实测） | 有读、或只有 `deploy-cache` 而无 `annotate` | 给 principal 授该路径 `annotate`（不需要 `delete`） |
 | GET 404 `Property '...' was not found ...` | `atomic=true` 且字面键缺失 | 预期行为（门禁语义）；去掉 atomic 或补键 |
 | 矩阵参数没生效（文件名带 `;k=v` 落盘） | 序列里有非成对分段（如 `;v1.2`） | 每段都必须 `k=v` 形态，否则整段按字面处理 |
 | 上传接口拒绝矩阵参数（MPU 面） | `/api/v1/uploads` 平面不收矩阵参数 | 属性走内容 PUT 或 `?properties` 族 |

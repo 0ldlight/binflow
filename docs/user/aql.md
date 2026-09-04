@@ -5,7 +5,7 @@ sidebar_position: 61
 
 # AQL 搜索指南（Artifactory Query Language 子集）
 
-> 适用版本：M15（语言内核 T-409/T-411、引擎 T-413、REST 端点 T-415）。行为逐项核对 `internal/search`（parser/fields/engine）与 `internal/httpapi/search_aql.go`；本文 curl 命令于 HEAD 构建的双 scratch 实例实测（2026-09-02），输出摘录原样。
+> 适用版本：M15（语言内核 T-409/T-411、引擎 T-413、REST 端点 T-415）。行为逐项核对 `internal/search`（parser/fields/engine）与 `internal/httpapi/search_aql.go`；本文 curl 命令于 HEAD 构建的双 scratch 实例实测（2026-09-02），输出摘录原样；statistics 域与 usage 端点两节于当前 HEAD 构建的 scratch 实例（127.0.0.1:18095，admin 凭据）实测（2026-09-04），输出原样摘录。
 > BinFlow 实现 AQL 的 **items 域只读查询子集**——子集边界与 Artifactory 的差异逐条见文末[迁移对照表](#从-artifactory-aql-迁移对照表)；老搜索端点（gavc/prop/pattern）见 [API 参考 · SR 搜索域](api-reference.md#sr-搜索域)。
 
 AQL 是 Artifactory 的制品查询语言：一段查询文本描述「查什么、输出哪些字段、怎么排序翻页」，服务端返回流式 JSON。BinFlow 以 `items.find(...)` 为唯一入口，覆盖日常的「按仓库/路径/属性/checksum/时间窗找制品」场景。
@@ -98,8 +98,9 @@ curl -su $AU -X POST $BASE/binflow/api/search/aql --data-binary 'properties.find
 
 | 域（Artifactory） | BinFlow | 拒绝文案提示 |
 |---|---|---|
-| `items` | **支持**（唯一入口） | — |
-| `properties` / `statistics` | 400 | 属性走 items 的 `@key` 条件；统计未存储 |
+| `items` | **支持**（唯一入口；`stat.*` 统计字段嵌于 items 查询，见[statistics 域字段](#statistics-域下载统计字段)） | — |
+| `properties` | 400 | 属性走 items 的 `@key` 条件 |
+| `statistics` | 400（入口域） | 统计走 items 的 `{"stat.<field>": value}` 条件（实测文案逐字给出该提示） |
 | `builds` / `modules` / `dependencies` / `artifacts` / `build.properties` / `build.promotions` | 400 | build-info 域未实现 |
 | `releases` / `release_artifacts` | 400 | release-bundle 域未实现 |
 | `item.infos` | 400 | 内部域不暴露 |
@@ -118,6 +119,7 @@ items 域条件与输出字段（`include` 可用即条件可用）：
 | `sha256` / `actual_sha1` / `actual_md5` | string | checksum（BinFlow 单值存储，无 original/actual 分离） |
 | `virtual_repos` | — | **仅 include**：该制品被哪些 virtual 仓包含（数组输出；不能作条件或排序键） |
 | `@<key>` / `property.key` / `property.value` | string | 属性域字段，嵌于 items 查询（`{"@stage":"prod"}` 等价 `{"property.key":"stage","property.value":"prod"}` 的短形；`{"@*":"v"}` 任意键、`{"@k":"*"}` 键存在性） |
+| `stat.downloads` / `stat.downloaded` / `stat.downloaded_by` | int / date / string | **统计域字段**，嵌于 items 查询——条件 / include / sort 全能力（见[下文专节](#statistics-域下载统计字段)） |
 
 **已登记但不支持**（引用即 400，message 点名字段与原因——宁可拒绝也不伪空集）：
 
@@ -125,7 +127,7 @@ items 域条件与输出字段（`include` 可用即条件可用）：
 |---|---|
 | `modified_by` | `AQL field not supported yet: modified_by (no storage source in BinFlow yet)` |
 | `original_sha1` / `original_md5` | `... BinFlow does not store separate original checksums` |
-| `stat.downloads` 等 stat 族 | `... (statistics data is not stored yet)`（M16 计划） |
+| `stat.id` / `stat.remote_id` | `... (internal field, not exposed)`（实测） |
 | `id` / `repo_path_checksum` | 内部字段不暴露 |
 
 ### 操作符
@@ -183,6 +185,120 @@ curl -su $AU -X POST $BASE/binflow/api/search/aql \
 
 不存在的 repo key（含拼错的 virtual 名）→ **200 空集**（无存在性校验）。
 
+## statistics 域（下载统计字段）
+
+`stat.*` 字段族嵌于 `items.find` 使用（`statistics.find(...)` 入口域仍是 400——文案会指路 `{"stat.<field>": value}`）。三个实数据字段，**条件 / include / sort 全能力**：
+
+| 字段 | 类型 | 数据源 |
+|---|---|---|
+| `stat.downloads` | int | 累计下载计数（整数比较） |
+| `stat.downloaded` | date | 最后下载时间（date 归一比较） |
+| `stat.downloaded_by` | string | 最后下载者（**非 admin 调用者脱敏为 `unknown`**，与 `created_by` 同规则） |
+
+**恒零 stub 五字段**：`stat.remote_downloaded` / `stat.remote_downloads` / `stat.remote_downloaded_by` / `stat.remote_origin` / `stat.remote_path`——smart remote 回拉维度，BinFlow 无该拓扑，**可查可投影但恒 null/0**（不可 sort——常量无序）。注意与 [`?stats` 面](api-reference.md) 的 `remoteDownloadCount` 同名不同义：后者是 BinFlow 自有的 remote 服务点指标，两者并存。
+
+**null 字面量**：statistics 域字段接受 `null` 值条件，**仅 `$eq` / `$ne`**（顺序比较符配 null 无注册语义，拒绝并点名）——`{"stat.downloaded":{"$eq":null}}` 即「从未下载」。
+
+```bash
+# 投影：include 点名 stat 字段 → 行内渲染嵌套 "stats" 块（恰好被点名的字段、echo 序）
+curl -su $AU -X POST $BASE/binflow/api/search/aql \
+  --data-binary 'items.find({"repo":"generic-local","type":"file"})
+                 .include("repo","path","name","stat.downloads","stat.downloaded","stat.downloaded_by")'
+# 200 —— 从未下载的行 downloaded/downloaded_by 渲染 null（实测原样）：
+# {
+# "results" : [ {
+#   "repo" : "generic-local",
+#   "path" : "acme",
+#   "name" : "app.bin",
+#   "stats" : [ {
+#     "downloads" : 3,
+#     "downloaded" : "2026-09-04T09:51:36.000Z",
+#     "downloaded_by" : "admin"
+#   } ]
+# },{
+#   "repo" : "generic-local",
+#   "path" : "acme",
+#   "name" : "legacy-installer.bin",
+#   "stats" : [ {
+#     "downloads" : 0,
+#     "downloaded" : null,
+#     "downloaded_by" : null
+#   } ]
+# } ],
+# "range" : { "start_pos" : 0, "end_pos" : 2, "total" : 2 }
+# }
+
+# 条件 + 排序（下载数降序）
+curl -su $AU -X POST $BASE/binflow/api/search/aql \
+  --data-binary 'items.find({"repo":"generic-local","stat.downloads":{"$gte":3}}).include("name","stat.downloads")'
+curl -su $AU -X POST $BASE/binflow/api/search/aql \
+  --data-binary 'items.find({"repo":"generic-local"}).include("name","stat.downloads")
+                 .sort({"$desc":["stat.downloads"]})'
+
+# null 字面量：从未下载的制品（实测原样）
+curl -su $AU -X POST $BASE/binflow/api/search/aql \
+  --data-binary 'items.find({"repo":"generic-local","stat.downloaded":{"$eq":null}}).include("name","stat.downloaded")'
+# {
+# "results" : [ {
+#   "name" : "legacy-installer.bin",
+#   "stats" : [ {
+#     "downloaded" : null
+#   } ]
+# } ],
+# "range" : { "start_pos" : 0, "end_pos" : 1, "total" : 1 }
+# }
+```
+
+**计数口径**（与 `?stats` 面单源——同一 nodes 计数列，无第二通道）：内容面 GET 递增；存储 API 的节点读取（控制台打开详情、`?properties` 读写）同样递增；`?stats` 探针自身不计。把 `downloads` 读作「被访问次数」更安全——人工浏览也会增计数。
+
+## usage 端点：`GET /api/search/usage`
+
+「找闲置制品」的专用面——statistics 域单源的 REST 便捷端点（内部走同一引擎模板，同 ACL / 同并发门 / 同 1,000 行截断）。典型用途：清理策略与保留策略的数据面。
+
+| 项 | 值 |
+|---|---|
+| 方法/路径 | `GET /binflow/api/search/usage`（**GET 专用**——POST 404） |
+| `notUsedSince` | **必填**，epoch **毫秒**——最后下载严格早于它（从未下载 = 恒命中） |
+| `createdBefore` | 可选 epoch 毫秒；**缺省回退 notUsedSince 的值**——即默认只统计「切点之前就已存在」的制品（新上传未下载的制品不算闲置，见下例） |
+| `repos` | 可选 CSV 仓库收窄 |
+| 命中语义 | `(downloaded < T OR 从未下载) AND created < createdBefore`，**严格小于** |
+| 行形态 | 恰五字段 `{uri, downloadCount, lastDownloaded, remoteDownloadCount, remoteLastDownloaded}`；`uri` = storage API 路径；结果按 `lastDownloaded` 升序 |
+| 空集 / 缺参 | **404 `No results found.`**（缺参同空集 404——兼容怪癖，非 400） |
+| 非数字 / 负 epoch | 400 `Usage search requires a non-negative 'notUsedSince' epoch-milliseconds value.` |
+| 匿名 | 401 challenge（AQL 同款） |
+| 截断 | 超 1,000 行置 `X-Binflow-Search-Truncated: true` |
+
+```bash
+# 「90 天未下载」：切点 = 当前时间减 90 天，转 epoch 毫秒
+CUTOFF=$(python3 -c "import time; print(int((time.time()-90*86400)*1000))")
+curl -su $AU "$BASE/binflow/api/search/usage?notUsedSince=$CUTOFF"
+# 200 —— 只回 legacy-installer.bin（120 天前上传、从未下载）。
+# 当天上传的 app.bin 不命中：它既有下载记录，且 created 晚于切点——
+# createdBefore 缺省 = notUsedSince，当天上传的制品即便零下载也不判闲置：
+# {
+#   "results" : [ {
+#     "uri" : "http://127.0.0.1:18095/binflow/api/storage/generic-local/acme/legacy-installer.bin",
+#     "downloadCount" : 0,
+#     "lastDownloaded" : "1970-01-01T00:00:00.000Z",
+#     "remoteDownloadCount" : 0,
+#     "remoteLastDownloaded" : "1970-01-01T00:00:00.000Z"
+#   } ]
+# }
+
+# createdBefore 显式放宽：把「早于切点创建」改为「早于现在」——新上传但零下载的制品也计入
+NOW=$(python3 -c "import time; print(int(time.time()*1000))")
+curl -su $AU "$BASE/binflow/api/search/usage?notUsedSince=$CUTOFF&createdBefore=$NOW"
+
+# 未命中 / 缺参 → 404（不是 200 空数组）
+curl -su $AU "$BASE/binflow/api/search/usage" -w '%{http_code}\n' -o /dev/null    # 404
+```
+
+三个如实呈现的怪癖：
+
+- **never 行的 `lastDownloaded` 是 epoch-0 字面**（`1970-01-01T00:00:00.000Z`）而非 null——`remoteLastDownloaded` 对所有行恒为该值（无 smart remote 拓扑，恒零维度不造数据）。
+- **usage 面的 `remoteDownloadCount` 恒 0**，即使 `?stats` 面显示非零（同名不同义，见上节）。
+- **缺参 404**——自动化脚本请把 404 同时当「无闲置」与「参数没带上」两种情况排查。
+
 ## 响应 envelope 与截断
 
 - 流式形态：前导 `\n{\n"results" : [ `，行间 `},{`，空集 `"results" : [  ]`（两空格）；日期回显 ISO8601 毫秒 UTC。`?compact=true` 只压行体与 range，外层包裹不变。
@@ -194,7 +310,7 @@ curl -su $AU -X POST $BASE/binflow/api/search/aql \
 ## 权限与脱敏
 
 - **行级过滤**：结果按调用者 read 权限过滤——不限 repo 的查询也只回可读行（admin 全见）。
-- **身份脱敏**：非 admin 调用者看到的 `created_by` 等身份字段值为字面量 `unknown`（admin 调用回显真名）。
+- **身份脱敏**：非 admin 调用者看到的 `created_by` / `stat.downloaded_by` 等身份字段值为字面量 `unknown`（admin 调用回显真名）。
 - **匿名两臂**：闭环实例匿名 → 401 `Authentication is required`（带 Basic challenge）；开匿名实例匿名 → 403 `Only non-anonymous users are allowed to access AQL queries`。
 
 ## 资源门与限流
@@ -213,7 +329,9 @@ curl -su $AU -X POST $BASE/binflow/api/search/aql \
 | Artifactory 行为 | BinFlow 现状（M15） | 迁移动作 |
 |---|---|---|
 | `builds.find()` / `modules` / `dependencies` / `releases` 等 build 系域 | 400 点名拒绝（build-info 未实现） | build 系查询改走外部 CI 记录；或等 build-info 域立项 |
-| `stat.downloads` 统计字段 | 400（统计未存储，M16 计划） | 下载统计改用 usage 端点/指标（M16 前） |
+| `stat.downloads` 统计字段 | **支持**（条件/include/sort；`stat.id` 仍 400） | 无——`stat.*` 族查询可直接迁入；`statistics.find(...)` 入口域写法须改为 items 嵌字段 |
+| `stat.remote_downloads` 等 smart remote 统计 | 可查可投影但**恒 0/null**（无 smart remote 拓扑，不造数据；不可 sort） | 脚本里依赖 remote 维度的分支删掉 |
+| usage 端点 `GET /api/search/usage` | 支持（`notUsedSince`/`createdBefore`/`repos`；空集 404 `No results found.`） | Artifactory 脚本可直接迁移；注意 never 行 lastDownloaded 为 epoch-0 字面 |
 | `items.find(...).include("modified_by")` | 400（无存储源） | 脚本删掉该字段 |
 | `original_sha1` / `original_md5` 双值 checksum | 400（单值存储） | 改用 `sha256` / `actual_sha1` / `actual_md5` |
 | `items.delete()` / `properties.update()` AQL 写动作 | 400（AQL 只读） | 删除走 `DELETE /binflow/{repo}/{path}`；属性走 `?properties` 三动词（[属性系统](properties.md)） |

@@ -37,7 +37,9 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/maven-remote-cent
 | `priorityResolution` | 否 | `false` | 作为 virtual 成员时的优先解析标记 |
 | `chartsBaseUrl` | 否 | 空（回退仓 URL） | **仅 `packageType=helm`**：content 类回源的分体基址（见 [Helm 接入](/integrations/helm)）；其它包型携带 → 400 |
 
-`packageType` 合法值：`generic` / `docker` / `maven` / `npm` / `pypi`（community）；`go` / `nuget` / `cargo` / `conan` / `helm` / `rpm` / `debian` / `helmoci`（pro）。**docker 支持 local + remote 两态；`rclass=virtual + packageType=docker` 建仓 400**（文案：`repository type not supported: virtual docker repositories are not supported (docker serves local and remote; ...)`）。
+`packageType` 合法值：五核心 `generic` / `docker` / `maven` / `npm` / `pypi`（community 地板，**三仓型全组合可建**——`rclass × packageType` 组合门已全量退役，docker 的 virtual 聚合同样开闸，实测建仓 200）；进阶八型 `go` / `nuget` / `cargo` / `conan` / `helm` / `helmoci` / `rpm` / `debian`（**license ≥ pro**——低档位建仓 400 `package type not available on this instance: package type '<t>' is not available (license tier 'community' < 'pro')`，实测文案；各型语义见对应[接入指南](/integrations/docker)）。
+
+**控制台建仓表单**：`+ 添加仓库` 下拉三预选按仓型直达分路由 → 924px 包类型网格（13 型磁贴全量呈现、进阶型带档位徽章、档位门由服务端终裁）→ **三段步进表单** Basic（常规/来源/成员）→ Advanced（策略/治理/高级，预留位恒禁用 + 提交体零携带）→ Replications（仅编辑态 local 仓，`?section=replications` 深链直达）。编辑页 **dirty-gating**（无变更 Save 禁置）；remote 仓**「测试连接」**钮——草稿 diff 探测（改 URL/用户名未填密码 = 匿名探测，密封密钥绝不发往改动后的候选主机），判定内联、零副作用。
 
 回显形态：上游 `url` 与参数在 `configuration` 对象内，**`password` 字段不出现在响应里**。
 
@@ -127,7 +129,7 @@ BINFLOW_REMOTE_CREDENTIALS_KEY=<值>   # 部署时注入（compose env / K8s Sec
 | 502 | `Upstream '<host>' failed ... (hardFail enabled)` | 同上但 `hardFail: true` | 同上 |
 | 404 | `... (upstream answered 401 ...; credentials refused or insufficient)` | 上游凭据错误 | 核对仓配置的 username/password |
 | 400 | `... upstream target refused — private or suppressed upstream (...)` | SSRF 防护拒绝 | 内网上游配 `allowPrivateUpstream` |
-| 400 | `repository type not supported: virtual docker repositories are not supported ...` | docker virtual 建仓 | docker 走 local + remote 两态 |
+| 400 | `package type not available on this instance: package type '<t>' is not available (license tier 'community' < 'pro')` | community 档建进阶包型仓（实测文案——license 档位是建仓面唯一剩余门） | 安装 license 或改用五核心包型 |
 
 ## 下一步
 

@@ -36,7 +36,7 @@ BinFlow 的 API 分为两个面：
 | PUT | `/binflow/api/storage/{repoKey}/{path}?properties=k=v1,v2[&recursive=1]` | 写属性——**merge 语义**：同名键值集整体替换、异名键保留；node 须存在（404） | M10 |
 | GET | `/binflow/api/storage/{repoKey}/{path}` | 取 FileInfo / FolderInfo JSON | M1 |
 | GET | `/binflow/api/storage/{repoKey}/{path}?properties=K1,K2*` | 取属性（key 过滤 + 尾 `*` 通配；无命中 = 200 `{"properties":{}}`——BinFlow 自有裁定，非 Artifactory 的 404；node 不存在 = 404） | M10 |
-| GET | `/binflow/api/storage/{repoKey}/{path}?stats` | 取下载统计 | M1 |
+| GET | `/binflow/api/storage/{repoKey}/{path}?stats` | 取下载统计：`{uri, downloadCount, lastDownloaded, lastDownloadedBy, remoteDownloadCount}`——计数对全档可见（item-info 读门）；`lastDownloadedBy` 仅 admin / readonly_admin 回带（低档位 omitempty，从不伪造）；`?stats` 探针自身不计入计数（内容面 GET 与存储面节点读取计入） | M1 |
 | GET | `/binflow/api/storage/{repoKey}/{path}?lastModified` | 取目录最新修改时间 | M1 |
 | GET | `/binflow/api/storage/{repoKey}/{path}?permissions` | 取有效权限视图（admin only，仅 local 仓） | M4 |
 | GET | `/binflow/api/storage/{repoKey}?list` | 流式文件清单（仅认证用户） | M1 |
@@ -111,8 +111,8 @@ BinFlow 的 API 分为两个面：
 | DELETE | `/binflow/api/security/groups/{name}` | 删组（被 target 引用 → 409） | M4 |
 | POST | `/binflow/api/security/token` | 签发 Access Token（admin 为任意用户签发；非 admin 限本人——M6 起；M7 起实例可开 step-up 二次认证，见 [step-up 指南](admin/token-step-up.md)） | M1 |
 | POST | `/binflow/api/security/token/revoke` | 吊销 Token（admin only） | M1 |
-| POST | `/binflow/api/v1/permissions` | 创建 Permission Target（create-or-replace；M7 起动作集含 `manage`，manage 持有者可编辑覆盖集内的 target） | M1 |
-| GET | `/binflow/api/v1/permissions` | 列出 Permission Targets（M7 起 principals 回显 `manage` 位；**M9 增 `?filter=manage`**：manage 持有者可达的覆盖集内 target 子集——admin/readonly_admin 带参与无参响应逐字节一致；未知 filter 值 400） | M4 |
+| POST | `/binflow/api/v1/permissions` | 创建 Permission Target（create-or-replace；动作集**五值闭集** `read / deploy-cache / annotate / delete / manage`——`write` 仍被接受为 `deploy-cache` 的兼容别名〔**不附带 annotate**〕，GET 回显恒正名单形；`annotate` 单独控制属性写门，见[用户组与权限管理](admin/groups-permissions.md#动作动词read--deploy-cache--annotate--delete--manage)；manage 持有者可编辑覆盖集内的 target） | M1 |
+| GET | `/binflow/api/v1/permissions` | 列出 Permission Targets（principals 回显动作**正名单单形**：`read, deploy-cache, annotate, delete, manage`——`write` 别名收词不回显；M7 起 principals 回显 `manage` 位；**M9 增 `?filter=manage`**：manage 持有者可达的覆盖集内 target 子集——admin/readonly_admin 带参与无参响应逐字节一致；未知 filter 值 400） | M4 |
 | DELETE | `/binflow/api/v1/permissions/{name}` | 删除 Permission Target（**204** 无 body；被删 target 的 repo 集取自存量行，manage 覆盖越界 → 403） | M1 |
 
 ### SR: 搜索域
@@ -121,7 +121,8 @@ BinFlow 的 API 分为两个面：
 |---|---|---|---|---|
 | GET | `/binflow/api/search/artifact` | `name=`（必填，**大小写不敏感子串**——M15 K64 校准）、`repos=a,b` | 按名称子串搜索（SQL LIKE，权限过滤） | M4/M15 |
 | GET | `/binflow/api/search/checksum` | `sha1=/md5=/sha256=`（至少一）、`repos=a,b` | 按 checksum 精确搜索 | M1 |
-| POST | `/binflow/api/search/aql` | body = AQL 文本（`text/plain`）；`?compact=true`；`?query=` 空体回退 | **AQL 查询**（items 域子集，完整语言/错误/迁移对照见 [AQL 搜索指南](aql.md)） | M15 |
+| POST | `/binflow/api/search/aql` | body = AQL 文本（`text/plain`）；`?compact=true`；`?query=` 空体回退 | **AQL 查询**（items 域子集 + `stat.*` 统计字段族，完整语言/错误/迁移对照见 [AQL 搜索指南](aql.md)） | M15 |
+| GET | `/binflow/api/search/usage` | `notUsedSince=`（必填 epoch 毫秒）、`createdBefore=`（缺省回退 notUsedSince）、`repos=a,b` | **闲置制品检索**（「N 天未下载」清理策略数据面；行五字段 `{uri, downloadCount, lastDownloaded, remoteDownloadCount, remoteLastDownloaded}`；空集与缺参均 **404 `No results found.`**——语义与实测示例见 [AQL 搜索指南 · usage 端点](aql.md#usage-端点get--apisearchusage)） | — |
 | GET | `/binflow/api/search/gavc` | `g=/a=/v=/c=`（至少一）、`repos=a,b` | Maven 坐标检索（布局路径形态匹配） | M15 |
 | GET | `/binflow/api/search/prop` | `props=k[=v]` 或任意 `?k=v` 参数（`repos` 保留） | 按属性检索（键无值 = 键存在性） | M15 |
 | GET | `/binflow/api/search/pattern` | `pattern=<repo-glob>:<path-glob>` | 按路径模式检索（`*`/`?` SQL 语义，跨段） | M15 |
@@ -138,7 +139,7 @@ BinFlow 的 API 分为两个面：
 | POST | `/binflow/api/repositories/{key}` | 改仓（更新配置，含 quotaBytes 配额写；M7 起 manage 持有者同上） | M1 |
 | DELETE | `/binflow/api/repositories/{key}` | 删仓（含可选 `?deleteContent`；admin only，不下放） | M1 |
 
-> **M14 建仓形态变化（T-392）**：`PUT` 接受 `rclass=remote + packageType=docker`（community 档——不新增 license 槽），协议面语义见 [remote/virtual 管理指南 · docker remote 仓](admin/remote-virtual.md#docker-remote-仓m14fr-129)；`rclass=virtual + packageType=docker` 维持矩阵中唯一 valid-but-unserved 组合，**400** `repository type not supported: virtual docker repositories are not supported (docker serves local and remote; PRD Q4 keeps virtual docker unserved)`（live 实测文案逐字）。
+> **建仓形态变化**：`PUT` 接受 `rclass=remote + packageType=docker`（community 档——不新增 license 槽），协议面语义见 [remote/virtual 管理指南 · docker remote 仓](admin/remote-virtual.md#docker-remote-仓m14fr-129)；`rclass=virtual + packageType=docker` 亦已开闸（聚合读面按成员仓并集服务，实测建仓 200）——**rclass × packageType 组合门已全量退役**，建仓面唯一剩余门是 license 档位（进阶包型在低档位 400 `package type not available on this instance: ...`，实测文案）。
 
 ### 系统端点
 

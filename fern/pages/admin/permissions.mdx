@@ -6,9 +6,9 @@
 |---|---|---|
 | **角色**（users 行，闭集三值） | `adminRole` | 管理面（仓库/用户/组/权限/审计/GC/复制/配额）能看什么、能改什么 |
 | **permission target 的 `manage` 动作** | target principals | 仓库级管理员——谁能管某个仓的配置与权限下放 |
-| **permission target 的 `read/write/delete`** | target principals | 内容面——谁能读写删哪个仓的哪些路径 |
+| **permission target 的 `read / deploy-cache / annotate / delete`** | target principals | 内容与元数据面——谁能读写删哪个仓的哪些路径 |
 
-模型与 Artifactory 一致（术语不变）：permission target = `{name, repos[], includePatterns[], excludePatterns[], principals{users, groups}}`，动作 `read / write / delete / manage`；**excludes 优先**；admin 隐式拥有全部权限（不进矩阵）。
+模型与 Artifactory 一致（术语不变）：permission target = `{name, repos[], includePatterns[], excludePatterns[], principals{users, groups}}`，动作 `read / deploy-cache / annotate / delete / manage`；**excludes 优先**；admin 隐式拥有全部权限（不进矩阵）。
 
 ## 三步授权流（组 → 用户入组 → target）
 
@@ -45,6 +45,42 @@ curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/security/users/jane \
 # 此刻起 jane 对 devs/** 的写立即 403
 ```
 
+## 动作动词：read / deploy-cache / annotate / delete / manage
+
+`write` 拆分为两个正交位：**`deploy-cache`** 管内容字节面（部署/上传），**`annotate`** 管元数据面（属性写）。一位不隐含另一位：
+
+| 动词 | 控制什么 | 不控制什么 |
+|---|---|---|
+| `read` | 内容读（下载/解析） | — |
+| `deploy-cache` | 内容写（部署/上传/覆盖） | **属性写**——无 annotate 时 `?properties` PUT/DELETE 403 |
+| `annotate` | 属性写（`?properties` PUT/DELETE 同门；include/exclude patterns 生效） | 内容字节面——纯 annotate 持有者不能部署/删除制品 |
+| `delete` | 内容删 | — |
+| `manage` | 仓库级管理员派生位（见[下文](#仓库级管理员manage-动词)） | 不是数据面权限；**m 不隐含 a**；docker token scope 词表不收 |
+
+wire 规则（全部实测）：
+
+- **写入收词**：五个正词 + `write` 别名收一轮（= `deploy-cache`，**不附带 annotate**）；未知词 400 `unknown permission action "..." (supported: read, deploy-cache, annotate, delete, manage; write is accepted as a deploy-cache alias)`。
+- **GET 回显**：恒正名单单形，序固定 `read, deploy-cache, annotate, delete, manage`（与提交序无关）。
+- **`?permissions` 视图字母集**：`r/w/d/m/a`——annotate 渲染 `a`、deploy-cache 仍渲染 `w`。
+- **属性写 403 文案**：`permission denied: writing properties requires annotate access on the item`。
+
+```bash
+# write 别名收词、回显正名单（实测）
+curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/permissions \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"legacy-w","repos":["generic-local"],
+       "principals":{"users":{"annie":["read","write"]}}}' -o /dev/null -w '%{http_code}\n'   # 201
+# GET 回显：{"users":{"annie":["read","deploy-cache"]},"groups":{}} —— 别名收词、无 annotate
+
+# deploy-cache 无 annotate → 属性写 403、内容写 201；annotate 无 deploy-cache → 属性写 204、内容写 403（实测）
+curl -su annie:<口令> -X PUT "$BASE/binflow/api/storage/generic-local/legacy/old.bin?properties=env=dev" \
+  -o /dev/null -w '%{http_code}\n'   # 403 requires annotate access
+curl -su annie:<口令> -X PUT $BASE/binflow/generic-local/legacy/old.bin --data-binary @old.bin \
+  -o /dev/null -w '%{http_code}\n'   # 201
+```
+
+**存量授权的迁移语义（零提权等价）**：升级到动词拆分版本时，存量 `write` 行**自动回填 `annotate`**——既有「write 覆盖属性写」的行为原样保持，迁移可回滚（can_write 全程不动）。分界：**升级前已存在的** write 授权带 annotate；**升级后新建的** `write` 别名授权不带——新脚本要属性写就显式写 `annotate`。readonly_admin 对全部写位（含 annotate）结构性恒拒（角色短路，加进带 annotate 的组同样静默无效）。
+
 ## 组管理 API（admin only）
 
 错误体为用户管理族**纯文本**（非 JSON 信封）。组名规则 `[a-z][a-z0-9._-]*`；保留字 `anonymous` / `_system_` → 400。
@@ -69,6 +105,8 @@ curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/security/users/jane \
 | 改密 | `PUT /api/security/password`（自己）；`POST users/{name}` 带 `password`（admin 改他人） | — |
 
 **人员离场的既定路径是禁用**（`{"enabled":false}`，可逆可审计），不是删除。
+
+**控制台对应操作**：用户与组的创建/编辑均为**路由整页表单**（列表内联卡已退役）——用户创建 `/admin/security/users/new`（**Retype Password 双录**，不一致挡提交）、组创建 `/admin/security/groups/new`、组编辑 `/admin/security/groups/:name/edit`；页脚 `Cancel` | `Reset` | `Save`，Reset/Save 初始禁置（dirty 门 + 必填门）。用户表单的 Can Update Profile / Disable UI Access / Disable Internal Password 三开关为恒禁用预留位（服务端尚未承接，提交体零携带）。权限编辑器为单页分区形态 + 两步资源对话框 + 模式测试器 + 保存前 diff；动作矩阵随动词域五值化呈现更新中。
 
 ## 角色三值模型（adminRole）
 
@@ -120,16 +158,16 @@ curl -su admin:$ADMIN_PW -X POST $BASE/binflow/api/v1/permissions \
 | `GET /api/v1/permissions?filter=manage`（自己可编辑的 target 子集，字段与全量一致；未知 filter 值 400） | — |
 | 读配额用量 `GET /api/v1/storage/usage/{repo}` 与批量端点 | — |
 
-**`manage` 不是数据面权限**：不隐含 read/write/delete——制品读写仍需显式授予。manage 永不进入 docker token 的 scope 词表。
+**`manage` 不是数据面权限**：不隐含 read/deploy-cache/annotate/delete——制品读写仍需显式授予。manage 永不进入 docker token 的 scope 词表。
 
 ## 有效权限视图：?permissions
 
 ```bash
-curl -su admin:$ADMIN_PW "$BASE/binflow/api/storage/generic-local/devs/w.bin?permissions"
-# {"uri":"...","principals":{"users":{},"groups":{"devs":["r","w"]}}}
+curl -su admin:$ADMIN_PW "$BASE/binflow/api/storage/generic-local/acme/app.bin?permissions"
+# {"principals":{"users":{"annie":["r","w"],"archie":["r","a"]},"groups":{}}}   （实测）
 ```
 
-key = 主体名，value = 权限字母集（r/w/d/m）。admin only，仅 local 仓（virtual/remote → 400）；无任何权限的主体不出现。
+key = 主体名，value = 权限字母集（`r/w/d/m/a`——manage 渲染 `m`、annotate 渲染 `a`、deploy-cache 仍渲染 `w`）。admin only，仅 local 仓（virtual/remote → 400）；无任何权限的主体不出现。
 
 ## OIDC / LDAP 的组映射
 
@@ -156,6 +194,8 @@ key = 主体名，value = 权限字母集（r/w/d/m）。admin only，仅 local 
 | 症状 | 原因 | 处置 |
 |---|---|---|
 | 400 `Unable to find group by name 'nope'.` | 写入引用了不存在的组 | 先建组再入组（三步流顺序） |
+| 400 `unknown permission action "..." (supported: read, deploy-cache, annotate, delete, manage; ...)` | 动作词拼错 | 用五正词或 `write` 别名 |
+| 403 `permission denied: writing properties requires annotate access on the item` | 有 deploy-cache 无 annotate 就想写属性 | 给 principal 追加 `annotate`（不需要 `delete`） |
 | 409 `Cannot delete group 'devs': it is referenced by ...` | 组仍被 target 引用 | 先删/改引用方 target |
 | 400 `conflicting 'admin' and 'adminRole' fields: ...` | 两写法矛盾 | 二选一（`admin=true` 等价 `adminRole=admin`） |
 | 400 `unknown adminRole "..."` | 值拼错（如 kebab 形） | 值用 snake 形三闭集 |
