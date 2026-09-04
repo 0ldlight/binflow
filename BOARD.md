@@ -1832,3 +1832,9 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **T-471 → todo（2026-09-04 17:5x 立票，P2，票外工程票）：CI e2e 稳定性**——playwright.config CI 侧 retries（`process.env.CI ? 2 : 0`）+ expect/action timeout 档位 + 必要时 workers 收敛。role: devops-engineer ｜ area: web/playwright.config.ts + .github/workflows/ci.yml ｜ dep: **候 T-455 收口**（避免在途 FE 票 e2e 被配置变更扰动）。AC：c4da02e 同树重跑 e2e job 绿 ×2 连续；本地 retries 仍 0（严格面不变）。
 
+**T-455 → done 2026-09-04 18:2x（`18001ac`）——M16 23/35（B10 票①：FE④-b 权限编辑两步弹窗 + 矩阵五列——断言反转⑤ FE 面兑现）**：**PermAction 五词域**（api.ts normalize/wire 双点收口 + grantsOf* 归一）+ PermissionEditorPage **水合归一/保存正名单序列化 + 五列矩阵 + 两步对话框**（可点步头 perm-res-step-{1,2}）+ widgets/targetdiff/security.css 随迁 + **T-444 预登记四处 GET-echo 断言翻新**（security/m8×2/m9 → deploy-cache）+ 新四腿 spec。锚册 **v1.41** + parity **B-1.6/B-2.16 as-built**。四门绿（tsc 0 / eslint 触碰面净 / ledger A1A2 双零 / e2e 18P+4P+m8 4P+a11y 双主题 sweep exit 0）+ SPA gzip +0.51KB。**契约漂移登记**：Any Local/Any Remote 预置桶需 BE 通配桶语义先承接（FE 不伪造候裁）；**7.161 编辑形态实为三步向导路由页**（BinFlow 编辑器本体 stay-out §9A-S1 差异留痕）。write↔annotate 勾选联动在零参照实例不可观测——按独立位列实现（T-444 零提权语义下 UI 联动=越权，裁定留痕）。活体取证 t455-probe/（5 截图）。日志 reports/agents/T-455.md。
+
+**T-457 → doing 2026-09-04 18:3x（B12：FE profile 自助 token/SSH + ? 帮助下拉 + About 版本弹窗 ← T-455 done 解锁）**：dev-frontend 在途。identity token 一次性明文+curl 即时断言 / SSH key 增删（B-1.8 补齐）/ ? 下拉四项 / About 弹窗（侧栏 vdev 升格）。端口纪律 18098+。
+
+**T-471 → doing 2026-09-04 18:3x（T-455 收口解锁即派）**：devops-engineer 在途。CI-only retries + timeout 档位；本地严格面不变；不碰 spec 本体。
+
