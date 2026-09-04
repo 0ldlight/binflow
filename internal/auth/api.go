@@ -76,11 +76,22 @@ const DeployScopeChecksumDeploy = "checksum-deploy"
 // target on its repos list only — includes/excludes never apply — and implies
 // none of r/w/d. It never appears in the docker scope vocabulary (invariant 3,
 // architecture 3.4a: pull/push/delete are the whole word set of /v2/token).
+//
+// ActionAnnotate (M16 T-444, ADR-0044 K68 / architecture section 25.6) is the
+// property-write action: the M10 ?properties family's two mutating verbs
+// (PUT/DELETE) gate on it — the read verb keeps the item-info `r` gate
+// unchanged. It is a PATH-plane action like r/w/d (includes/excludes apply)
+// and opens no content-byte face (uploads/landings stay `w`, the
+// overwrite-check family stays `d` — "properties are metadata, not content").
+// Carrying m implies no annotate (the no-privilege-chain invariant), and
+// annotate never appears in the docker scope vocabulary either (ADR-0026
+// decision 5's rule, K68 point 6: /v2 has no property plane).
 const (
-	ActionRead   = "r"
-	ActionWrite  = "w"
-	ActionDelete = "d"
-	ActionManage = "m"
+	ActionRead     = "r"
+	ActionWrite    = "w"
+	ActionDelete   = "d"
+	ActionManage   = "m"
+	ActionAnnotate = "a"
 )
 
 // Sentinel errors. Authenticate/Verify failures are distinguishable for

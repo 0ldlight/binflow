@@ -113,11 +113,13 @@ func TestT217ManageWireRoundTrip(t *testing.T) {
 	t217Setup(t, h)
 
 	// The echo (hook 2, the principals view): the granted manage bit reads
-	// back in the r/w/d/m order.
+	// back in the r/w/d/m order. T-444 (ADR-0044 K68): the body spelled the
+	// write alias, the echo renders canonical deploy-cache — the alias arm
+	// is receive-only.
 	tb := t217Target(t, h, "t-app")
 	if got := tb.Principals.Groups["app-admins"]; len(got) != 4 ||
-		got[0] != "read" || got[1] != "write" || got[2] != "delete" || got[3] != "manage" {
-		t.Fatalf("t-app app-admins actions = %v, want [read write delete manage]", got)
+		got[0] != "read" || got[1] != "deploy-cache" || got[2] != "delete" || got[3] != "manage" {
+		t.Fatalf("t-app app-admins actions = %v, want [read deploy-cache delete manage]", got)
 	}
 
 	// V07: carol (app-admins, r/w/d/m on app-local) replaces t-app adding

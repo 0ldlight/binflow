@@ -28,8 +28,8 @@ import (
 //
 //	GET    …?properties=k1,k2*[&atomic=true]  read gate (content plane,
 //	                                          anonymous follows the flag)
-//	PUT    …?properties=k=v[,v2…][&recursive=1]  required + write on path
-//	DELETE …?properties=k1,k2*|*[&recursive=1]  required + write on path
+//	PUT    …?properties=k=v[,v2…][&recursive=1]  required + annotate on path
+//	DELETE …?properties=k1,k2*|*[&recursive=1]  required + annotate on path
 //
 // Multi-value and multi-key share ONE comma grammar on the raw query
 // value: segments split on RAW commas; a segment containing '=' opens a
@@ -40,9 +40,12 @@ import (
 // semantics section 15.3.3 pins for tech-writer documentation.
 //
 // Permissions: reads ride the item-info gate (the service's own read ACL,
-// storageNode); writes demand the path's `w` through the SAME Authorizer
-// the content plane consults — properties are metadata, not content, so
-// the overwrite family's `d` demand never applies (section 15.3.3).
+// storageNode); writes demand the path's `a` (annotate) through the SAME
+// Authorizer the content plane consults — the M16 verb split (T-444 /
+// ADR-0044 K68): the property-write face is the annotate action, no longer
+// the write action's shadow. Properties are metadata, not content, so the
+// overwrite family's `d` demand never applies (section 15.3.3), and
+// annotate opens no upload face either.
 
 // propsAuditWrite and propsAuditDelete are the audit actions of the
 // property write family (section 15.3.3: "props.write/props.delete").
@@ -297,7 +300,7 @@ type propsTarget struct {
 // folder row itself carries properties per section 15.3.2). The node walk
 // rides the metadata prefix listing directly: the caller already passed
 // the write gate on the addressed path, and the path-matcher semantics of
-// `w` make the subtree the same grant's domain.
+// `a` make the subtree the same grant's domain.
 func (s *Server) propsTargets(r *http.Request, node *metadata.Node, recursive bool) ([]propsTarget, error) {
 	if !recursive || !isFolderPath(node.Path) {
 		return []propsTarget{{repo: node.RepoKey, path: node.Path}}, nil
@@ -318,20 +321,25 @@ func (s *Server) propsTargets(r *http.Request, node *metadata.Node, recursive bo
 	return out, nil
 }
 
-// allowPropsWrite is the write gate of both mutating verbs: the content
-// plane's `w` on the addressed path, through the same Authorizer every
-// other content decision consults. No `d` demand — properties are
-// metadata, and the section 15.3.3 table deliberately decouples the
-// property write from the overwrite-check family.
+// allowPropsWrite is the write gate of both mutating verbs: the `a`
+// (annotate) action on the addressed path, through the same Authorizer
+// every other content decision consults. M16 (T-444, ADR-0044 K68 /
+// architecture section 25.6) flipped this single point from `w` to `a` —
+// the property-write face is its own permission now, backfilled onto every
+// pre-split write grant by migration 023 (zero-privilege equivalence).
+// Still no `d` demand — properties are metadata, and the section 15.3.3
+// table deliberately decouples the property write from the overwrite-check
+// family — and no content-byte face either: uploads keep gating on `w`
+// elsewhere.
 func (s *Server) allowPropsWrite(r *http.Request, p *auth.Principal, repoKey, path string) bool {
-	return s.deps.Authz.Can(r.Context(), p, repoKey, path, auth.ActionWrite)
+	return s.deps.Authz.Can(r.Context(), p, repoKey, path, auth.ActionAnnotate)
 }
 
 // writePropsForbidden renders the properties family's 403 (an
-// authenticated caller without `w`; the route already answered the
+// authenticated caller without `a`; the route already answered the
 // anonymous 401 challenge).
 func writePropsForbidden(w http.ResponseWriter) {
-	writeError(w, http.StatusForbidden, "permission denied: writing properties requires write access on the item")
+	writeError(w, http.StatusForbidden, "permission denied: writing properties requires annotate access on the item")
 }
 
 // writePropsStoreError maps a property store failure: busy-class answers

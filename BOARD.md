@@ -1813,3 +1813,28 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 **用户指令 intake ⑬（2026-09-04 02:3x）：「后续代码只提交到 git@github.com:0ldlight/binflow.git」——push 循环已去掉 vm 远端**（配置保留零使用）。
 
 **全树 race 补证判无效（conductor 2026-09-01 14:3x）**：与两 agent 测试套件同机并发跑——22 包红全部 620-660s 超时形态 + db/sql 竞争 panic + storage fail-open 窗口 = **共租负载签名**（T-414 日志同款 load 450-630），非产品缺陷。T-412 的 AC3 证据改挂 **T-421 中期 QA 串行全树 race**（届时 lane 空净）。**D-413-2 [P3·登记]**：唯一真信号 = T-413 `TestEngineMixedLoad` 在慢机下 K63 并发门 429 介入而测试只容忍 busy gate 拒绝——测试健壮性收窄（门注入调低或混合负载容忍 429），归 T-421 复验时顺腿修或转 T-433。**教训入册：全树 race/性能类验证必须 lane 空净时串行跑（派单纪律）。**
+
+**T-444 → done 2026-09-04 16:5x（配额窗⑮复活后收口，`388411a`）——M16 21/35（B4 lane-2 补位票：Annotate 动词迁移——断言反转⑤）**：**动词闭集 +`a`**（auth 五文件）+ properties 写门单点翻转 ActionAnnotate + 403 文案 + **wire 五词翻新**（write 别名收词：PUT 收别名、GET 回显正名单）+ ?permissions 视图字母 +a + **迁移 023**（sqlite/postgres 双库 + 迁移器事务边界 guard——第一轮 ROLLBACK 关键词违规已修）+ store 四 SQL 点 + PermissionPrincipal.CanAnnotate + **dry-run 公共 API**（AnnotateMappingDryRun 全行映射表 + AnnotateBackfillVerify 双向集合断言）。3 新测试文件（行为命名）+ 6 既有文件断言反转⑤。26 文件 +1,232/−82；四门全绿（全量 race GOTEST-EXIT=0，37 包 ok——击落后重验取证）。**预登记 FE 面**：四处 e2e GET-echo 断言将红（security:175 / m8-permissions:170,437 / m9-permissions-mholder:200）→ **T-455 消费**；write 列勾选漂移展示面同归 T-455。两处低置信登记：① 字母 `a` vs rest-api.md 勘误行 `n`（按 ADR-0044 定案 a 实现——reverse-engineer 勘误候选）；② migration 011 墙钟阈值满载 flake（单独跑 0.17s/6x 余量——QA 登记在案）。遗留：M17 别名移除评估；dry-run 无 CLI 挂点（cmd/ 非 area——5 行小票可接）。日志 reports/agents/T-444.md。
+
+**P0 事件处置（conductor 2026-09-04 16:5x，用户裁定「回退 main + 改道 develop」）：dependabot 直升 main 打破 UAT 基线 → PR #82 回退落地**。事实链：dependabot 14 提交于 09-01~09-02 **绕过 develop 直落 main**（MUI 7.3.11→9.4.0 跨两代 + vite 7→8 + @types/node 26 + docs-site react 19 + sqlite 1.57）→ main CI e2e 自 PR #76（09-03 18:35）连红 5 轮（element(s) not found——大版本 DOM 漂移签名）→ **UAT 部署坏基线 uat.9d99182** → develop/main 基线分叉。处置：**PR #82（`c4da02e`）**= web/docs-site/go.mod 六文件恢复 develop 逐字基线 + **dependabot.yml 全四组 target-branch: develop**（改道镜像进 develop `2cc3e25`）+ 关闭被取代 PR #71~#74/#81（TS 7/eslint 10/plugin-react 6 大版本升级候 m16-done 后立正式票）。Fern 无辜自证：#79 diff 仅 1 行 custom-domain（binflow.org 保留）、#80 空、#81 重复已关。**main CI 复绿验证 + UAT 回滚部署验证挂下轮**。**教训入册：dependabot 默认打 default-branch——凡仓库 default=main 且 main=部署源，target-branch 必须显式指 develop。**
+
+**T-455 → doing 2026-09-04 17:0x（B10 票①：FE④-b 权限编辑两步弹窗 + 矩阵五列 ← T-444 done）**：dev-frontend 在途。两块：A 消费新 wire（四处 e2e echo 翻新 + write/annotate 勾选联动照 7.161 活体）+ B 主体两步弹窗与五列（read/annotate/write/delete/manage）。7.161 活体取证优先、锚册冲突登记不伪造。
+
+**T-456 → done 2026-09-04 17:2x（配额窗⑮复活后收口，`67587b9`）——M16 22/35（QA 中期：L36~L48 逐批复核）**：**一行状态 PASS（1 缺陷登记 + 2 在途标注）**。已落 20/35 面全绿：L36 八型真实客户端矩阵 **8/8**（go/nuget/cargo/conan/helm/helmoci/rpm/deb 独立复验）+ 字段域 tripwire as-built；L37/L38/L42 全绿（统计单源三面同值 / QRL 三态 / UI 搜索族+dates 逐字臂 + ACL 三面零泄漏）；**L41 ON 态被 D-T456-1 阻断**；L48 引擎腿全过（next-run 对拍 / 调度全量 sha256 三路一致 / 零重复投递 B 恒 4 / Replicate Now 幂等 / audit scheduler 行）；**race 三红全定谳负载噪音**（净机 solo：metadata 141s / repo 816s / httpapi 733s 全 ok 零 DATA RACE——Docker VM 582% CPU 窃取实证入档 O-1）；回归窗 139P/0F 双形态 + 断言反转①~④现值兑现/⑤在途 + E1/E6 零倒退 + 锚册门 PASS；t226 关键页只读对照一致（Release Bundle/Federated=M17 stay-out 不伪造）。报告 reports/agents/T-456.md。
+
+**D-T456-1 [P1·登记]**：`listRemoteFolderItems` httpapi 传输层丢字段——可选档 PUT 静默吞 + 类型门 400 不可达 → **L41 ON 态 FE 消费被阻断**。QA 建议并入 **T-461**（FR-147.3 FE 远端浏览树消费——届时携 BE 支撑腿：internal/httpapi 传输层修复）。T-461 派单时必带本缺陷。
+
+**T-458 → doing 2026-09-04 17:3x（B11 票：文档票腿①——tech-writer）**：deps 满足（T-440/T-443/T-445 done）。腿① 四面：树深链工具带 / 表单三段 8 包型 / 详情字段族+usage 可复跑示例 / 权限动词 annotate 增量 + i18n·cron 预埋骨架。**双树同步**：docs/user/ 主源 + fern/pages/ 镜像（conductor 统一重发布）。腿② 候 T-459/T-461~T-464 合入另派。
+
+**CI 事件追加（conductor 17:3x）**：c4da02e 上 e2e job 仍红 + release-dryrun 首红（前三轮全绿）+ ci job 在跑。**e2e 复绿假说受创**——依赖事件与 e2e 红的关系须重审（日志候 run 完结取证：`gh run view --job` 取 e2e 失败清单；另查 ci job 自 ≥09-02 06:33 PR #64/65 起的连红根因——sqlite 1.57 假说候证）。UAT 已回滚基线 ✅（uat.c4da02e）。
+
+**CI 事件定谳（conductor 17:5x，run 33855887617 完结）**：三 job 分诊完毕——**ci ✅ SUCCESS**（回退奏效：lint/Test/GC stress/typecheck 全绿——dependabot 载荷坐实 ci 连红根因）；**release-dryrun ❌ = goproxy.cn GOAWAY 网络抖**（六平台快照下载 genproto 断流——重跑即绿类，非代码）；**e2e ❌ 4F/334P（23.2m）= flake 家族**（失败集两轮漂移、全部 element(s) not found、334 绿证 MUI 7 SPA 健康——CI 慢机超时形态；本地四门同 spec 全绿在案）。`gh run rerun --failed` 已发取判别信号。
+
+**T-471 → todo（2026-09-04 17:5x 立票，P2，票外工程票）：CI e2e 稳定性**——playwright.config CI 侧 retries（`process.env.CI ? 2 : 0`）+ expect/action timeout 档位 + 必要时 workers 收敛。role: devops-engineer ｜ area: web/playwright.config.ts + .github/workflows/ci.yml ｜ dep: **候 T-455 收口**（避免在途 FE 票 e2e 被配置变更扰动）。AC：c4da02e 同树重跑 e2e job 绿 ×2 连续；本地 retries 仍 0（严格面不变）。
+
+**T-455 → done 2026-09-04 18:2x（`18001ac`）——M16 23/35（B10 票①：FE④-b 权限编辑两步弹窗 + 矩阵五列——断言反转⑤ FE 面兑现）**：**PermAction 五词域**（api.ts normalize/wire 双点收口 + grantsOf* 归一）+ PermissionEditorPage **水合归一/保存正名单序列化 + 五列矩阵 + 两步对话框**（可点步头 perm-res-step-{1,2}）+ widgets/targetdiff/security.css 随迁 + **T-444 预登记四处 GET-echo 断言翻新**（security/m8×2/m9 → deploy-cache）+ 新四腿 spec。锚册 **v1.41** + parity **B-1.6/B-2.16 as-built**。四门绿（tsc 0 / eslint 触碰面净 / ledger A1A2 双零 / e2e 18P+4P+m8 4P+a11y 双主题 sweep exit 0）+ SPA gzip +0.51KB。**契约漂移登记**：Any Local/Any Remote 预置桶需 BE 通配桶语义先承接（FE 不伪造候裁）；**7.161 编辑形态实为三步向导路由页**（BinFlow 编辑器本体 stay-out §9A-S1 差异留痕）。write↔annotate 勾选联动在零参照实例不可观测——按独立位列实现（T-444 零提权语义下 UI 联动=越权，裁定留痕）。活体取证 t455-probe/（5 截图）。日志 reports/agents/T-455.md。
+
+**T-457 → doing 2026-09-04 18:3x（B12：FE profile 自助 token/SSH + ? 帮助下拉 + About 版本弹窗 ← T-455 done 解锁）**：dev-frontend 在途。identity token 一次性明文+curl 即时断言 / SSH key 增删（B-1.8 补齐）/ ? 下拉四项 / About 弹窗（侧栏 vdev 升格）。端口纪律 18098+。
+
+**T-471 → doing 2026-09-04 18:3x（T-455 收口解锁即派）**：devops-engineer 在途。CI-only retries + timeout 档位；本地严格面不变；不碰 spec 本体。
+

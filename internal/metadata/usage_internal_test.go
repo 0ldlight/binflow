@@ -94,6 +94,8 @@ func TestUsageBackfillMigration(t *testing.T) {
 		`ALTER TABLE nodes DROP COLUMN last_downloaded_at`,
 		`ALTER TABLE nodes DROP COLUMN last_downloaded_by`,
 		`ALTER TABLE nodes DROP COLUMN remote_download_count`,
+		// 023 (T-444): the annotate bit, same duplicate-column rule.
+		`ALTER TABLE permission_principals DROP COLUMN can_annotate`,
 	} {
 		if _, err := db.Exec(stmt); err != nil {
 			t.Fatalf("rewind (%q): %v", stmt, err)

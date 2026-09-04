@@ -13,8 +13,9 @@ import (
 //   - nil principal: the anonymous rule (read-only, only when the flag is on)
 //     — ADR-0009, unchanged;
 //   - admin role: bypass everything (the pre-M7 is_admin behavior);
-//   - readonly_admin role: globally read-only — r is always granted, w/d/m
-//     always denied, and permission targets are NEVER consulted for this role
+//   - readonly_admin role: globally read-only — r is always granted, w/d/m/a
+//     always denied (a = annotate, M16 ADR-0044 K68: the property-write face
+//     is a write face), and permission targets are NEVER consulted for this role
 //     (the short-circuit is the security invariant itself: a target row
 //     carrying w for a group the readonly admin belongs to has no effect —
 //     "combination is ineffective, not illegal", T-214 ruling ①);
@@ -144,7 +145,11 @@ func targetListsRepo(t Target, repoKey string) (bool, error) {
 }
 
 // rowAllows reports whether the principal row grants the action. m consults
-// only can_manage — carrying m implies none of r/w/d, and vice versa.
+// only can_manage — carrying m implies none of r/w/d, and vice versa. a
+// (annotate, M16 T-444 / ADR-0044 K68) consults only can_annotate: w no
+// longer implies the property-write face (the split), and neither does m
+// (the no-privilege-chain invariant — m is configuration power, not a
+// content-plane grant).
 func rowAllows(row PermissionRow, action string) bool {
 	switch action {
 	case ActionRead:
@@ -155,6 +160,8 @@ func rowAllows(row PermissionRow, action string) bool {
 		return row.CanDelete
 	case ActionManage:
 		return row.CanManage
+	case ActionAnnotate:
+		return row.CanAnnotate
 	default:
 		return false
 	}

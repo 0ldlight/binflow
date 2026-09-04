@@ -30,7 +30,7 @@ import { ApiError, errText, getRepositories, isReadOnlyAdmin, normalizeAdminRole
 import { monoInputSx } from '../../lib/muiAtoms'
 import { useAsync } from '../../lib/useAsync'
 import './security.css'
-import { PERM_ACTIONS, deletePermissionTarget, listGroups, listPermissionTargets, listPermissionTargetsManaged, listUsers, savePermissionTarget } from './api'
+import { PERM_ACTIONS, deletePermissionTarget, listGroups, listPermissionTargets, listPermissionTargetsManaged, listUsers, normalizePermActions, savePermissionTarget, wireActions } from './api'
 import type { PermAction } from './api'
 import { evaluatePath } from './pathmatch'
 import { buildTargetDiff, sameSnapshot } from './targetdiff'
@@ -42,9 +42,13 @@ import { TransferBox } from './TransferBox'
 //   [2] 路径模式（只读摘要 + 模式测试器——灵魂件：逐条命中明细 + exclude
 //       优先最终判定；判定向量与 internal/auth pathmatch 同源，本地求值
 //       零端点）——pattern 的编辑面在两步资源对话框第 2 步
-//   [3] 用户区块 / [4] 组区块：各自展开矩阵形态，动作四列
-//       read/write/delete/manage（manage 为 M7 扩展第 4 列，§7.2——矩阵头
-//       tooltip 说明其不隐含读写删；wire 全词形，回显按 r/w/d/m 序）
+//   [3] 用户区块 / [4] 组区块：各自展开矩阵形态，动作五列（T-455，parity
+//       B-1.6 翻正）read/annotate/write/delete/manage——列序对位 7.161.20
+//       活体（Read/Annotate/Deploy-Cache/Delete-Overwrite/Manage）；列头
+//       tooltip 说明语义边界（manage 不隐含读写删 §7.2；write 不携带
+//       annotate；annotate = 属性写独立位）。wire 词双层（T-444）：GET 回显
+//       正名单 read/deploy-cache/annotate/delete/manage，PUT 另收 write 别名
+//       ——水合归一/保存序列化收口在 api.ts 两函数，见 normalizePermActions
 //   [5] 保存 = 变更摘要 diff 确认（§4.9[4] BinFlow 保留）→ POST create-or-replace
 // 两步资源对话框（§3.3 C6 / §4.5，对齐 reverse §3.8「Edit Repositories」）：
 //   ① 选择仓库（双列穿梭；Any Local/Any Remote 通配桶不建——BinFlow 契约
@@ -296,6 +300,27 @@ function ResourceDialog({
     >
       <DialogTitle>{step === 1 ? (create ? '添加仓库' : '编辑仓库') : '设置模式（可选）'}</DialogTitle>
       <DialogContent>
+        {/* 可点步头（T-455，对位 7.161.20 活体 Add Repositories 弹窗：两个步
+            头常驻可点、「2 Set Patterns (Optional)」标可选——探针证据
+            reports/agents/t455-probe/）。非当前步可直跳（活体同形）；footer
+            的 下一步/上一步 链保留（锚 perm-res-next 冻结）。 */}
+        <div className="perm-res-steps" role="list" aria-label="两步流程">
+          {([1, 2] as const).map((n) => (
+            <Button
+              key={n}
+              role="listitem"
+              variant="text"
+              size="small"
+              color={step === n ? 'primary' : 'inherit'}
+              aria-current={step === n ? 'step' : undefined}
+              data-testid={`perm-res-step-${n}`}
+              onClick={() => setStep(n)}
+              sx={{ justifyContent: 'flex-start', fontWeight: step === n ? 600 : 400, minWidth: 0 }}
+            >
+              {`${n} ${n === 1 ? '选择仓库' : '设置模式（可选）'}`}
+            </Button>
+          ))}
+        </div>
         <p className="perm-res-step" data-testid="perm-res-step">
           第 {step} 步，共 2 步
           {step === 1 ? ' · 选择此 target 适用的仓库（pattern 与主体在仓库范围内生效）' : ' · 模式作用于所选仓库内的制品路径（repo 相对路径；** 跨段 / * 段内）'}
@@ -446,7 +471,10 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
   const [addGroup, setAddGroup] = useState('')
   const [resOpen, setResOpen] = useState(false)
 
-  // 编辑态：从列表过滤（无单查端点）；404 / loading / 403 分支
+  // 编辑态：从列表过滤（无单查端点）；404 / loading / 403 分支。
+  // T-444 兼容窗收口（T-455）：GET 回显正名单含 'deploy-cache'——水合过
+  // normalizePermActions 归一为 UI 词域（write 列勾选如实亮起），wire 原词
+  // 不再原样持有；保存侧 wireActions 反向序列化，GET→PUT→GET 往返稳定。
   useEffect(() => {
     if (mode !== 'edit' || targets.status !== 'ok') return
     const t = (targets.data ?? []).find((x) => x.name === routeName)
@@ -456,8 +484,8 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
       repos: [...t.repos],
       includes: t.includePatterns.length > 0 ? [...t.includePatterns] : [],
       excludes: [...t.excludePatterns],
-      users: Object.fromEntries(Object.entries(t.principals.users).map(([k, v]) => [k, [...v]])),
-      groups: Object.fromEntries(Object.entries(t.principals.groups).map(([k, v]) => [k, [...v]])),
+      users: Object.fromEntries(Object.entries(t.principals.users).map(([k, v]) => [k, normalizePermActions(v)])),
+      groups: Object.fromEntries(Object.entries(t.principals.groups).map(([k, v]) => [k, normalizePermActions(v)])),
     }
     setF(next)
     setBaseline(snapshotOf(next))
@@ -649,9 +677,19 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
     setServerError(null)
     setSubmitting(true)
     try {
-      // 无动作的主体行不提交（空 r/w/d/m ≡ 未授权；撤销全部动作 = 移除主体）
-      const users = Object.fromEntries(Object.entries(f.users).filter(([, a]) => a.length > 0))
-      const groups = Object.fromEntries(Object.entries(f.groups).filter(([, a]) => a.length > 0))
+      // 无动作的主体行不提交（空 r/a/w/d/m ≡ 未授权；撤销全部动作 = 移除主体）；
+      // 动作词经 wireActions 序列化为正名单形（write → deploy-cache——与 GET
+      // 回显同形，PUT 的 write 别名只是收词兼容，不再由 FE 发出）
+      const users = Object.fromEntries(
+        Object.entries(f.users)
+          .filter(([, a]) => a.length > 0)
+          .map(([k, a]) => [k, wireActions(a)]),
+      )
+      const groups = Object.fromEntries(
+        Object.entries(f.groups)
+          .filter(([, a]) => a.length > 0)
+          .map(([k, a]) => [k, wireActions(a)]),
+      )
       await savePermissionTarget({
         name: f.name.trim(),
         repos: f.repos,
@@ -692,7 +730,12 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
     }
   }
 
-  /** 主体 × 动作矩阵表（§6.11 [3]/[4]：用户表锚 perm-matrix，组表锚 perm-matrix-groups） */
+  /** 主体 × 动作矩阵表（§6.11 [3]/[4]：用户表锚 perm-matrix，组表锚
+   * perm-matrix-groups）。T-455 五列（parity B-1.6 翻正——Q7）：read /
+   * annotate / write / delete / manage，列序对位 7.161.20 活体 Repositories
+   * 资源型矩阵（Read / Annotate / Deploy/Cache / Delete/Overwrite / Manage
+   * ——探针证据 reports/agents/t455-probe/）；列头词用 BinFlow wire 正名单
+   * 词形，7.161 标签进 title。 */
   const renderMatrixTable = (kind: 'users' | 'groups') => {
     const cellKind: 'user' | 'group' = kind === 'users' ? 'user' : 'group'
     const names = Object.keys(f[kind]).sort()
@@ -702,8 +745,9 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
           <TableRow>
             <TableCell component="th" scope="col">主体</TableCell>
             <TableCell component="th" scope="col">read</TableCell>
-            <TableCell component="th" scope="col">write</TableCell>
-            <TableCell component="th" scope="col">delete</TableCell>
+            <TableCell component="th" scope="col" title="annotate = 属性写位（7.161 标签 Annotate）：properties 的 PUT/DELETE 门；不隐含内容写（write 是独立列）">annotate</TableCell>
+            <TableCell component="th" scope="col" title="write = 部署位（7.161 标签 Deploy/Cache；wire 正名 deploy-cache，PUT 仍收 write 别名）；不携带 annotate——属性写需另勾 annotate 列">write</TableCell>
+            <TableCell component="th" scope="col" title="delete = 删除/覆盖（7.161 标签 Delete/Overwrite）">delete</TableCell>
             <TableCell component="th" scope="col" title="manage = 仓库级 admin 派生位（只判 repos[]，pattern 不参与）；不隐含读写删">manage</TableCell>
           </TableRow>
         </TableHead>
@@ -751,7 +795,7 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
           })}
           {names.length === 0 && (
             <TableRow>
-              <TableCell colSpan={5} className="text-muted">
+              <TableCell colSpan={6} className="text-muted">
                 {kind === 'users'
                   ? '还没有用户主体——从下方添加。'
                   : '还没有组主体——从下方添加。授权 = 用户自身行 ∪ 所属组行的动作并集。'}
@@ -1101,9 +1145,11 @@ export default function PermissionEditorPage({ mode }: { mode: 'create' | 'edit'
           <p className="field-hint">组列表不可用（{groupsState.error?.message ?? '未知错误'}）——可刷新重试。</p>
         )}
         <p className="admin-note">
-          ⓘ admin 隐式拥有全部权限，不列入矩阵；无动作的主体不会提交（空 r/w/d/m ≡ 未授权）。manage =
+          ⓘ admin 隐式拥有全部权限，不列入矩阵；无动作的主体不会提交（空 r/a/w/d/m ≡ 未授权）。manage =
           仓库级 admin（可编辑其 manage 覆盖集内的 target、读写该仓配置族；不含建/删仓与安全面）——manage
           持有者（控制台或 API）编辑 target 时，服务端要求其引用的全部仓库（含替换前的存量，T-217 B1）落在覆盖集内，超出即 403。
+          write 与 annotate 是两个独立位：write 只开内容部署（wire 正名 deploy-cache），属性写（properties）
+          由 annotate 位单独授予——两者互不隐含（T-444 拆分语义，勾选互不联动）。
         </p>
       </section>
 

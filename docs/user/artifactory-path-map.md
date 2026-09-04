@@ -27,14 +27,14 @@ M8 起 BinFlow 控制台与 Artifactory **同一动作在同样的位置、走�
 
 | 任务 | Artifactory 路径 | BinFlow 路径 | 备注 |
 |---|---|---|---|
-| 建仓 | Administration → Repositories → Repositories →「+」→ 包类型选择 → 表单 | 管理 → 仓库 → `+ 添加仓库` → 包类型网格（五项）→ 分区表单（`/admin/repositories/new`） | 同为进页先选包类型再填表单；Tab Local/Remote/Virtual 列表同构 |
+| 建仓 | Administration → Repositories → Repositories →「+」→ 包类型选择 → 表单 | 管理 → 仓库 → `+ 添加仓库` 下拉三预选（Local/Remote/Virtual）→ 分路由建仓页 → 包类型网格（13 型磁贴，进阶型带档位徽章）→ **三段步进表单**（Basic/Advanced/Replications，`/admin/repositories/{local\|remote\|virtual}/new`） | 同为进页先选包类型再填表单；Tab Local/Remote/Virtual 列表同构；BinFlow 步进条对位 Artifactory 的 Step 分段 |
 | 找仓库 / 看仓库详情 | Repositories 列表行点击 | 仓库列表行点击（`/admin/repositories/:key`） | BinFlow 详情页含接入命令块与统计卡 |
 | 编辑仓库 | 列表行 → Edit | 列表行 → 编辑页（`/admin/repositories/:key/edit`） | BinFlow 编辑态锁定 rclass/包类型 |
 | 删仓 | 列表行垃圾桶 → Delete 对话框 | 列表行删除图标 / 详情页危险区（`/admin/repositories/:key`） | BinFlow 更强确认：非空仓须勾选「同时删除内容」+ **输入 repo key** |
-| 建用户 | User Management → Users → New User | 管理 → 用户与权限 → 用户 → `+ 新建用户`（`/admin/security/users`） | 编辑表单同构（设置/选项/口令/相关组穿梭/权限矩阵）；BinFlow 角色下拉三值（Artifactory 无对应面，见 FAQ） |
+| 建用户 | User Management → Users → New User | 管理 → 用户与权限 → 用户 → `+ 新建用户`（路由整页表单 `/admin/security/users/new`，**Retype Password 双录**） | 编辑表单同构（设置/选项/口令/相关组穿梭/权限矩阵）；页脚 Cancel\|Reset\|Save 同构；BinFlow 角色下拉三值（Artifactory 无对应面，见 FAQ） |
 | 删用户 | User Management → Users → 行 Delete（对话框确认） | 用户列表行删除 / 编辑页危险区（M9 起；**输入用户名强确认**） | 两侧均不可逆；关键差异：BinFlow 三护栏 400（内置 admin / 最后一个 admin / 自删——Artifactory REST 面这些守卫在逆向规格中低置信/不可见）、级联吊销 token/会话；**重复删除 BinFlow 404、Artifactory 视为成功**（幂等 vs 有意非幂等，见[治理指南](admin/governance.md#删除用户m9-起)）；禁用（`enabled:false`）是离场的可逆路径 |
 | 建组 | User Management → Groups → New Group | 组 → `+ 新建组`（`/admin/security/groups`） | BinFlow 组无 admin 位（防组内自提权） |
-| 配权限 | User Management → Permissions → Create Permission → Edit Repositories（两步） | 权限 → `+ 新建权限` → 分区编辑器 → `编辑仓库…` 两步对话框（`/admin/security/permissions`） | 动作列：Artifactory 五列（含 Annotate），BinFlow 四列 `read/write/delete/manage`；BinFlow 增模式测试器与保存前 diff |
+| 配权限 | User Management → Permissions → Create Permission → Edit Repositories（两步） | 权限 → `+ 新建权限` → 分区编辑器 → `编辑仓库…` 两步对话框（`/admin/security/permissions`） | 动作词两侧同为五值：Artifactory `read/deploy-cache/annotate/delete/manage`，BinFlow REST 面同集（`write` 收为 deploy-cache 别名；控制台矩阵五列化呈现更新中）；BinFlow 增模式测试器与保存前 diff |
 | 找制品 | Artifactory → Artifacts 树（`/ui/repos/tree/...`）或顶栏搜索 | 应用 → 制品 树（`/artifacts/<repo>/<path>`）或顶栏搜索（`/search`） | 同为 URL 即状态、深链自动展开、树懒加载、`Filter repositories` 过滤 |
 | 树上操作制品 | 树右键（Delete/Download 等） | 树右键或 `Shift+F10`：文件=复制路径/下载/删除；目录=复制路径/删除/刷新；仓库=复制仓库路径/刷新/在仓库管理中打开 | BinFlow 无 Move/Copy、无收藏/星标、无 Trash Can（删除即永久） |
 | Set Me Up（客户端接入） | 选中仓库 → 页头 `Set Me Up`；或用户菜单 Quick Repository Creation → Set Me Up | 树页头 `Set Me Up` / 仓库列表行 / 仓库详情页头 → 包类型网格 → 配置/部署 Tab | BinFlow 同含「生成令牌」（24h token，非 admin 走 step-up 内联重验）；指令内容与接入文档同源 |
@@ -66,8 +66,8 @@ M8 起 BinFlow 控制台与 Artifactory **同一动作在同样的位置、走�
 | General → Mail Server / Webhooks / Manage Integrations、Proxies | 无对应功能面，不建 |
 | Monitoring → System Logs（日志查看器） | 无端点，不建；日志在服务端结构化 JSON 输出 |
 | Property Sets / Maven Indexer / Keys / Certificates / Config Descriptor | 无对应，不建 |
-| 树的 Trash Can（回收站）/ My Favorites / 跨路径 Move·Copy | 无端点/无回收站模型，不建——删除即永久 |
-| AQL / 搜索族（props/users/pattern/badge） | 仅名称子串 + checksum 精确（见 [FAQ 不兼容清单](faq.md#m4-有意不兼容清单里程碑级汇总)） |
+| 树的 Trash Can（回收站）/ My Favorites / 跨路径 Move·Copy | 回收站已有（治理页，pro 槽）；树内 **My Favorites 收藏过滤已有**（树头工具带，浏览器本地）；跨路径 Move/Copy 走 REST（[制品操作族](admin/artifact-operations.md)），树内不建入口 |
+| AQL / 搜索族 | **AQL 已有**（items 域子集 + `stat.*` 统计字段 + usage 端点，见 [AQL 搜索指南](aql.md)）；老搜索三端点（gavc/prop/pattern）已有；`props`/`users`/`badge` 拼写 404 有意不做 |
 
 ## BinFlow 有而 Artifactory OSS 无对应的面（自有增强）
 

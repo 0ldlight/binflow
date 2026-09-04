@@ -1,0 +1,49 @@
+T-455 Artifactory 7.161.20 (:8082) Permissions module — read-only probe evidence
+2026-09-04, chromium via web/node_modules/playwright, zero writes (dialogs opened,
+nothing saved; admin login only)
+
+[E1] Permission create = route page with a 3-step wizard (probe11/13)
+  url: /ui/admin/management/permissions/create
+  stepper buttons (data-cy): panel-Resources / panel-Users / panel-Groups
+  panel-Users aria-label: "Step 2 of 3: Users"
+  page sections: Name (placeholder "Enter a unique name") / Resources / Users /
+    Groups; footer buttons: Cancel | Create (edit route: Cancel | Save)
+  resource-type entries: Add Repositories / Add Builds / Add Release Bundles
+    (div.cursor--pointer blocks, not <button>)
+
+[E2] Users panel matrix columns (probe13/19, verbatim checkbox labels)
+  Selected Users Repositories:  Read / Annotate / Deploy/Cache /
+    Delete/Overwrite / Manage          <- five columns (target form for BinFlow)
+  Selected Users Builds:       Read / Annotate / Deploy / Delete / Manage
+  Selected Users Release Bundles: Read / Annotate / Create / Promote/Distribute /
+    Delete / Manage
+  gate: all matrix checkboxes disabled until resource type selected
+    ("Resource type not selected" caption) AND a principal row added;
+    this instance has 0 repositories ("0 Available Repositories"), so the
+    enabled-matrix state (write<->annotate linkage form) was NOT observable.
+    Registered as unverified — no fabrication. BinFlow implements independent
+    columns, consistent with T-444 zero-escalation split (write does not carry
+    annotate; auto-linkage would escalate).
+
+[E3] Add Repositories = two-step dialog (probe16, verbatim innerText)
+  title: "Add Repositories"
+  subtitle: "Set a repository permission target to define what a user has
+    access to view in the repository resource. Learn more."
+  step headers (both rendered as clickable buttons):
+    "1 Select Repositories — Select all the repositories to which you wish to
+      apply the permissions."
+    "2 Set Patterns (Optional) — Setting patterns applies to the artifacts
+      inside the selected repositories."
+  body: dual-column transfer ("N Available Repositories" / "N Selected
+    Repositories", "Moving item(s): N"), footer: Cancel | OK
+  Any Local / Any Remote preset buckets NOT observable on this instance
+    (0 repositories — nothing listed at all, not even the wildcard buckets).
+
+[E4] Edit form (probe20)
+  route: /ui/admin/management/permissions/edit/readers renders the same
+    wizard ("Edit Permission", footer Cancel | Save).
+  list page row carries rowActionsListButton (kebab) actions; columns:
+    Permission Name / Users / Groups / Any Remote / Anything.
+
+probe scripts: /tmp/t455-af-probe*.mjs (session-scratch, not committed)
+screenshots: see *.png + *.url.txt sidecars in this directory

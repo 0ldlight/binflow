@@ -191,7 +191,11 @@ type PermissionTarget struct {
 // read/write/delete booleans; write covers upload but not delete. CanManage
 // (011 widening, M7 ADR-0026) is the repo-scoped admin bit: it matches on the
 // target's repos list only — includes/excludes never apply to it, and it
-// implies none of r/w/d.
+// implies none of r/w/d. CanAnnotate (023 widening, M16 T-444 / ADR-0044
+// K68) is the property-write bit — the ?properties family's PUT/DELETE gate;
+// a path-plane action like r/w/d, implying and implied by none of them
+// (migration 023 backfilled it onto every can_write row, so pre-split
+// grants keep the property-write face they had).
 type PermissionPrincipal struct {
 	ID            int64
 	TargetName    string
@@ -201,6 +205,7 @@ type PermissionPrincipal struct {
 	CanWrite      bool
 	CanDelete     bool
 	CanManage     bool
+	CanAnnotate   bool
 }
 
 // AuditEvent is one append-only audit record (architecture section 3.5).

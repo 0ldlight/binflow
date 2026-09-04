@@ -218,7 +218,7 @@ func TestT254NoFilterFrozenBytes(t *testing.T) {
 		`      "groups": {`,
 		`        "m9-g01h": [`,
 		`          "read",`,
-		`          "write",`,
+		`          "deploy-cache",`,
 		`          "delete",`,
 		`          "manage"`,
 		`        ]`,

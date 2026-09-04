@@ -41,11 +41,20 @@ curl -s -b jar.txt -X DELETE $BASE/binflow/api/v1/session -o /dev/null -w '%{htt
 
 **全部仓库出现在一棵树上**，仓库是顶层节点，左侧树 + 右侧详情面板联动。
 
-- 懒加载一层；**URL 即状态**（`/artifacts/<repo>/<path…>` 深链可直接分享，打开自动展开祖先定位）。
-- 右键菜单（`Shift+F10` 键盘可达）：文件 = 复制路径/下载/删除；文件夹 = 复制路径/删除/刷新；仓库 = 复制仓库路径/刷新/在仓库管理中打开。
+- **文件是树叶子**：目录与文件同树呈现（目录在前）——点文件叶子直接出文件详情。
+- 懒加载一层；**选择 ≠ 展开**（单击只选中，展开由箭头/键盘/深链祖先链驱动）。
+- **URL 即状态**：`/artifacts/[<页签>/]<repo>/<path…>`——页签段 `general`（省略）/`properties`/`permissions`，文件 = 路径末段；深链可直接分享，打开自动展开祖先定位；旧 `?focus=` 形自动折入路径段规范形。
+- **树头工具带**（不随树滚动）：过滤仓库 · 包类型 facet 复选组（选项集 = 实有型）· Local/Remote/Virtual 复选 · Sort-by（名称/包类型/仓库类型）· Compacted 紧凑档单选 · My Favorites（localStorage 持久；标记入口 = 仓库右键「收藏」）。
+- 右键菜单（`Shift+F10` 键盘可达）：文件 = 复制路径/下载/删除；文件夹 = 复制路径/删除/刷新；仓库 = 复制仓库路径/刷新/在仓库管理中打开/收藏。
 - **仓型面**：local 直列内容；**remote 仓只列已缓存制品**（浏览永不回源）；virtual 仓聚合浏览可用（children = 成员仓并集；virtual 不经手删除）。
-- 详情面板：路径 mono + 拷贝按钮；文件 Checksums 块（sha256/sha1/md5）；docker manifest digest 带 tag 徽标；权限过滤自然生效。
-- 树内不做跨路径 Move/Copy（REST 面可用，见[制品操作](/admin/operations)）；**删除先入回收站**（pro 槽，community 档为硬删）。
+- 当前层 children 表支持过滤与「只看文件」，大目录增量「加载更多」；**行内操作列已收敛**——删除走详情面板与右键菜单（均过危险确认）。
+- 详情面板（页签序 常规 → 有效权限 → 属性，页签进 URL 段）：
+  - **File URL**（仓库/目录/文件三形态）：内容面绝对 URL + 复制钮。
+  - **文件字段序**：Name → Repository Path → File URL → 部署者 → 大小 → Created → 修改时间 → **下载族**（Downloads / Last Downloaded By / Last Downloaded / Remote Downloads——数据源 `?stats`；从未下载或档位省略显示「—」；打开详情本身计入计数）。
+  - **下载形态**：单图标钮（原生落盘）+ 伴随菜单——`下载并校验`、mimeType、Checksums 区（sha256/sha1/md5 + 上传时一致徽标）都收进菜单（常规页不再平铺）；docker manifest digest 带 tag 徽标。
+  - **仓库字段族**：Name → Package Type → Repository Path → File URL → Repository Layout（`—` 预留位）→ Description → Created（`—`）→ Artifact Count / Size。
+  - **属性页签**：常显 Property/Value 表单 + Add（同名键 = 值集整体替换）+ 网格搜索（键/值子串过滤）+ 删除危险确认——见[属性系统](/search/properties)。
+- 权限过滤自然生效；树内不做跨路径 Move/Copy（REST 面可用，见[制品操作](/admin/operations)）；**删除先入回收站**（pro 槽，community 档为硬删）。
 
 ## Set Me Up：客户端接入向导
 
@@ -62,11 +71,11 @@ curl -s -b jar.txt -X DELETE $BASE/binflow/api/v1/session -o /dev/null -w '%{htt
 
 ## 管理模式各域速览
 
-- **仓库**：三 Tab 列表 + 建仓向导（key 规则 `[a-z][a-z0-9-]{1,62}`，保留字 `api`/`v2`/`docs`/`console`/`ui`/`assets` 建仓即 400）+ 详情页（接入命令/统计/配额/Replications）+ 编辑页。删除两段强确认：非空仓必须勾选「同时删除内容」+ **输入 repo key 确认**。
-- **用户与权限**：用户列表（单请求数据源，Status 徽章真值即服务端 `enabled`）；删除用户**输入用户名强确认**（级联不可恢复、重复删除 404 非幂等——REST 语义见[治理](/admin/governance)）；组编辑器；权限 target 编辑器（两步资源对话框 + 四动作矩阵 + **模式测试器** + 保存前 diff）；Access Tokens 页（生成/一次性明文/吊销——服务端只存指纹，无令牌清单端点）。
-- **治理**：审计日志（过滤 + 游标分页）、维护 GC（dry-run 面板 + 输入实例名确认 apply）、配额（水位条 80% 黄/100% 红）、复制（目标表 + 全局封锁卡）、Webhooks（订阅 CRUD + 试发 + 投递记录抽屉）、备份/恢复（CLI 引导卡——高危带外操作，不做进度 UI）、回收站。
+- **仓库**：三 Tab 列表（**Replications 列覆盖 local 与 remote 两 Tab**，push-only 口径；virtual 无此列）+ 建仓向导（`+ 添加仓库` 下拉三预选 → 分路由 `/admin/repositories/{local|remote|virtual}/new`；**924px 包类型网格**——13 型磁贴全量呈现、8 个进阶型带 `pro` 徽章、**档位门由服务端终裁**〔community 档提交进阶型 = 400 行内回显〕；**三段步进表单** Basic → Advanced → Replications——第三段仅编辑态 local 仓、`?section=replications` 深链直达；key 规则 `[a-z][a-z0-9-]{1,62}`，保留字 `api`/`v2`/`docs`/`console`/`ui`/`assets` 建仓即 400）+ 详情页（接入命令/统计/配额/Replications）+ 编辑页（**dirty-gating**：无变更 Save 禁置；remote 仓**「测试连接」**——草稿 diff 探测，密封密钥绝不发往改动后的候选主机，判定内联 + 零副作用）。删除两段强确认：非空仓必须勾选「同时删除内容」+ **输入 repo key 确认**。
+- **用户与权限**：用户列表（单请求数据源，Status 徽章真值即服务端 `enabled`）；**创建/编辑为路由整页表单**（`/admin/security/users/new` 深 **Retype Password 双录**；组 `/admin/security/groups/new` 与 `/:name/edit`；页脚 Cancel|Reset|Save 双初始禁置）；能力位三旗（Can Update Profile / Disable UI Access / Disable Internal Password）为恒禁用预留位（服务端未承接，提交体零携带）；删除用户**输入用户名强确认**（级联不可恢复、重复删除 404 非幂等——REST 语义见[治理](/admin/governance)）；权限 target 编辑器（两步资源对话框 + 动作矩阵 + **模式测试器** + 保存前 diff——动作动词五值闭集见[权限](/admin/permissions)）；Access Tokens 页（生成/一次性明文/吊销——服务端只存指纹，无令牌清单端点）。
+- **治理**：审计日志（过滤 + **keyset 游标链页窗**——统一分页控件，列表不再累积）、维护 GC（dry-run 面板 + 输入实例名确认 apply）、配额（水位条 80% 黄/100% 红）、复制（目标表 + 全局封锁卡）、Webhooks（订阅 CRUD + 试发 + 投递记录抽屉）、备份/恢复（CLI 引导卡——高危带外操作，不做进度 UI）、回收站。
 - **监控与常规**：存储（汇总卡 + 逐仓用量表）；系统信息（版本/健康卡）；编辑档案 `/profile`（改密 + token 说明）。
-- **搜索**：双模式——基本（名称子串）与 AQL（mono 编辑器，⌘/Ctrl+Enter 执行，语法错逐字内联）——语言见 [AQL](/search/aql)。
+- **搜索**：双模式——基本（名称子串）与 AQL（mono 编辑器，⌘/Ctrl+Enter 执行，语法错逐字内联）——语言见 [AQL](/search/aql)。**统一结果网格**：选择列 + 制品（name 链接）/路径/仓库/修改时间默认列（大小/sha256 为列选器可选项）；查询面 = 顶栏驻留输入；网格快滤三域子串窄化；日期 `dd-MM-yy HH:mm:ss +ZZZZ`。**统一分页控件**：页码序列 + 首末四钮 + 每页行数档 [20,50,100,200,1000]（缺省 100）；AQL 模式页码改写 `.offset()`、档位改写 `.limit()`（查询文本是唯一事实源）。
 
 ## 角色可见性
 
@@ -87,7 +96,7 @@ curl -s -b jar.txt -X DELETE $BASE/binflow/api/v1/session -o /dev/null -w '%{htt
 |---|---|
 | `/repositories*` | `/admin/repositories/...`（列表默认 local Tab） |
 | `/repositories/:key/settings` | `/admin/repositories/:key/edit` |
-| `/repositories/:key/tree/<path…>` | `/artifacts/:key/<path…>`（`?focus=` 参数原样可用） |
+| `/repositories/:key/tree/<path…>` | `/artifacts/:key/<path…>`（文件深链 = 路径末段；旧 `?focus=` 形自动折入路径段规范形） |
 | `/settings` | `/admin/general/settings`（改密在 `/profile`） |
 | `/security/users*` · `/security/groups*` · `/security/permissions*` · `/security/tokens` | `/admin/security/…` 同名尾段 |
 | `/audit` | `/admin/governance/audit` |
@@ -116,6 +125,13 @@ curl -s -b jar.txt -X DELETE $BASE/binflow/api/v1/session -o /dev/null -w '%{htt
 ## 浏览器兼容
 
 Chromium 系（Chrome/Edge）为主支持（全量回归）；WebKit（Safari 内核）与 Firefox 支持登录/制品树/上传链。生产环境推荐 Chromium 系浏览器。
+
+## 多语言与计划任务（预埋）
+
+以下能力**尚未定案落地**，为预留文档位，不构成当前版本承诺：
+
+- **控制台界面语言**：当前为中文单语；多语言切换（含英文界面）在规划中。
+- **计划任务（cron 调度）**：备份 / 维护 / 复制三域的 cron 计划任务在规划中——现状为事件驱动复制 + export/import 带外备份（无 cron 计划面），仓库表单的 `cron`/`sync` 字段为恒禁用预留位；调度域落地后预留位转正、管理域将新增计划任务页。
 
 ## 下一步
 

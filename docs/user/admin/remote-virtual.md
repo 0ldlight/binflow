@@ -55,7 +55,7 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/maven-remote-cent
 > ③ 消费优先级：新列值 > canonical JSON > legacy `socketTimeoutSecs` > 产品默认——升级既有仓
 > 零回填零行为变化。
 
-`packageType` 合法值：五核心 `generic` / `maven` / `npm` / `pypi`（+ `go`，M10 起）；M11 追加 `conan` / `helm` / `rpm` / `debian`（pro 档——三类仓型齐备，见各接入指南）与 **`cargo` remote/virtual 仓型**（pro 档，T-316/T-318 交付；上游语法前提与虚仓索引归并语义见 [Cargo 接入](../integrations/cargo.md)）；**M13 追加 `helmoci` remote/virtual 仓型**（pro 档——OCI 代理与聚合读面，`url` 指向上游 distribution 根含 `/v2`，语义见 [Helm Chart 仓库接入](../integrations/helm-charts.md#helmoci-仓型oci-形态m13local--remote--virtual)）；**M14 追加 `docker` remote 仓型**（**community 档**——docker 槽本就在地板档，remote 自动受缝不新增 license 槽，FR-129/T-392；语义见[下文专节](#docker-remote-仓m14fr-129)与 [Docker 接入](../docker-registry.md#remote-仓pull-through-代理上游m14)）。**virtual + docker → 400 维持**（PRD Q4 聚合半边未交付；文案见[常见报错码对照](#常见报错码对照跨域汇总v12-定案码)）。
+`packageType` 合法值：五核心 `generic` / `docker` / `maven` / `npm` / `pypi`（community 地板，**三仓型全组合可建**——`rclass × packageType` 组合门已全量退役，docker 的 virtual 聚合同样开闸，实测建仓 200）；进阶八型 `go` / `nuget` / `cargo` / `conan` / `helm` / `helmoci` / `rpm` / `debian`（**license ≥ pro**——低档位建仓 400 `package type not available on this instance: ...`，实测文案）：`conan` / `helm` / `rpm` / `debian` 三类仓型齐备（见各接入指南）、`cargo` 与 `helmoci` 含 remote/virtual 仓型（语义见 [Cargo 接入](../integrations/cargo.md) 与 [Helm Chart 仓库接入](../integrations/helm-charts.md)）、`go` 见 [Go Modules 接入](../integrations/golang.md)、`nuget` 见 [NuGet 接入](../integrations/nuget.md)；`docker` remote 仓型同样在 community 档（语义见[下文专节](#docker-remote-仓m14fr-129)与 [Docker 接入](../docker-registry.md#remote-仓pull-through-代理上游m14)）。
 
 回显形态（`GET .../repositories/{key}`）：上游 `url` 与参数在 `configuration` 对象内，**`password` 字段不出现在响应里**（传过也不回显）。
 
@@ -219,7 +219,7 @@ M3 起 BinFlow 从「纯内网服务」变为**出网客户端**（架构规范 
 
 | 不做项 | 表现 | 归属 |
 |---|---|---|
-| docker 类型的 virtual 仓（聚合） | 建仓 **400** `…are not supported (docker serves local and remote; PRD Q4 keeps virtual docker unserved)`——**remote 仓型 M14 已开**（FR-129/T-392，见[专节](#docker-remote-仓m14fr-129)），仅聚合半边未交付 | PRD Q4 |
+| ~~docker 类型的 virtual 仓（聚合）~~ | **已交付**——docker 三仓型全开（local 自 M2 / remote 见[专节](#docker-remote-仓m14fr-129) / virtual 聚合读面按成员并集服务，实测建仓 200）；rclass × packageType 组合门已全量退役，建仓面唯一剩余门是 license 档位 | done |
 | ~~docker 类型的 remote 仓~~ | **M14 已交付**（本行原为「M3 建仓 400、替代 `skopeo copy`」——T-392 开放矩阵后作废留痕） | M14 done |
 | Gradle/Ivy/sbt/conan/go module 等其它生态 | `packageType` 仅 generic/docker/maven/npm/pypi，其余 400（Gradle 走 maven 仓可用，P2 观察） | M4+/M6+ |
 | Maven 索引（indexer） | `/binflow/<repo>/.index/**` 404 | M4+ |
@@ -247,7 +247,7 @@ M3 起 BinFlow 从「纯内网服务」变为**出网客户端**（架构规范 
 | 502 | `Upstream '<host>' failed for '<repo>/<path>' (hardFail enabled): ...` | 同上，但仓配了 `hardFail: true` | 同上 |
 | 404 | `... (upstream answered 401 ...; credentials refused or insufficient)` | 上游凭据错误（401/403 视为 unfound） | 核对仓配置的 username/password |
 | 400 | `Cannot fetch '<repo>/<path>': upstream target refused — private or suppressed upstream (...)` | SSRF 防护拒绝私网/环回目标 | 内网上游配 `allowPrivateUpstream`（见上）；公网上游检查 url/网络 |
-| 400 | `repository type not supported: virtual docker repositories are not supported (docker serves local and remote; PRD Q4 keeps virtual docker unserved)` | docker virtual 建仓（M14 起矩阵中唯一 valid-but-unserved 组合——remote 已开） | docker 走 local + remote 两态；聚合暂不做 |
+| 400 | `package type not available on this instance: package type '<t>' is not available (license tier 'community' < 'pro')` | community 档建进阶包型仓（`go`/`nuget`/`cargo`/`conan`/`helm`/`helmoci`/`rpm`/`debian`——实测文案，license 档位是建仓面唯一剩余门） | 安装 license（见 [License 与 Add-ons 管理](license.md)）或改用五核心包型 |
 | 400 | `file '<f>' already exists in repository '<repo>'; overwriting is not allowed (...)` | PyPI 同 filename 重复上传 | 升版本重构建 |
 | 400 | `unknown action '<action>'` | PyPI 上传 `:action` 非 `file_upload` | 用 twine |
 | 401 | `authentication required` | 匿名写操作（publish/upload/deploy） | 配置客户端凭据（settings.xml / `_auth` / `.pypirc`） |

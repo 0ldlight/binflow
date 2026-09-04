@@ -1,0 +1,1 @@
+http://localhost:8082/ui/admin/management/permissions/create

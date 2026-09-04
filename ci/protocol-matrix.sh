@@ -436,8 +436,15 @@ leg_pypi() {
       -u "$BINFLOW_USER" -p "$BINFLOW_PASSWORD" dist/* ) || return 1
   log "twine upload done (jfrog-python-example==$VER)"
   python3 -m venv venv-cons || return 1
+  # Plain-HTTP index: pip >= 25 hard-ignores untrusted hosts (older pips
+  # warn) — --trusted-host derived from the ACTUAL index URL so the
+  # --docker-clients host-swapped base stays correct.
+  local PYPI_INDEX PYPI_HOST
+  PYPI_INDEX="$(client_base python3)/binflow/api/pypi/uat-matrix-pypi-local/simple"
+  PYPI_HOST="$(printf '%s' "$PYPI_INDEX" | sed 's|^https\{0,1\}://||; s|[/:].*$||')"
   ./venv-cons/bin/pip install -q --no-deps \
-    --index-url "$(client_base python3)/binflow/api/pypi/uat-matrix-pypi-local/simple" \
+    --trusted-host "$PYPI_HOST" \
+    --index-url "$PYPI_INDEX" \
     "jfrog-python-example==$VER" || return 1
   ./venv-cons/bin/python -c 'import pythonExample' \
     || { echo "installed package not importable"; return 1; }

@@ -162,12 +162,13 @@ test('admin: two-step resource dialog full chain, four-action matrix, tester, ma
   await expect(page.locator(`[data-testid="perm-row-${target}"]`)).toBeVisible()
   await expect(page.locator(`[data-testid="perm-manage-badge-${target}"]`)).toBeVisible()
 
-  // API 对账：四动作 wire 往返（manage 全词形，回显 r/w/d/m 序）
+  // API 对账：五动作 wire 往返（T-444 拆分后 write 的 GET 正名单形 =
+  // deploy-cache；回显序 read, deploy-cache, annotate, delete, manage）
   const t = await findTarget(page, target)
   expect(t.repos).toEqual([repo])
   expect(t.includePatterns).toEqual(['qa/**'])
   expect(t.excludePatterns).toEqual(['qa/tmp/**'])
-  expect(t.principals.users[user]).toEqual(['read', 'write'])
+  expect(t.principals.users[user]).toEqual(['read', 'deploy-cache'])
   expect([...t.principals.groups[group]].sort()).toEqual(['delete', 'manage', 'read'])
 })
 
@@ -431,10 +432,10 @@ test('keyboard: dialog Enter/Space/Esc cycle, matrix Space toggle, Enter on Save
   await page.keyboard.press('Enter')
   await expect(page.locator('[data-testid="toast"]').filter({ hasText: `permission target ${target} 已保存` })).toBeVisible({ timeout: 8000 })
 
-  // API 对账
+  // API 对账（T-455：write 勾选位 → wire 回显 deploy-cache，正名单序）
   const t = await findTarget(page, target)
   expect([...t.repos].sort()).toEqual([repoA, repoB].sort())
-  expect(t.principals.users[user]).toEqual(['read', 'write'])
+  expect(t.principals.users[user]).toEqual(['read', 'deploy-cache'])
   expect(t.includePatterns).toContain('kb/**')
 })
 
