@@ -254,7 +254,13 @@ type Server struct {
 	// Members resolver of aql.md §7-1) and the endpoint (the virtual_repos
 	// projection of §7-3); nil exactly when aql is.
 	aqlVirtual *virtualIndex
-	srv        *http.Server
+	// qrl is the DB-query rate plane (M16 T-452, aql.md §14.4): the
+	// process-wide limiter the admin REST face configures and the engine's
+	// execution segment consults. Always assembled — the factory state is
+	// disabled, a pure bypass, so wiring it costs nothing; the engine takes
+	// it only when the engine itself assembles.
+	qrl *search.QueryRateLimiter
+	srv *http.Server
 }
 
 // New assembles the server. deps.Console may be nil (a bare console
@@ -361,6 +367,10 @@ func New(deps Deps, log *slog.Logger) *Server {
 	} else {
 		s.audit = noopRecorder{}
 	}
+	// The QRL instance (M16 T-452): always assembled in the factory state
+	// (disabled — a pure bypass), shared by the admin REST face and the
+	// engine below.
+	s.qrl = search.NewQueryRateLimiter(nil)
 	// The AQL engine (M15 T-415, FR-133.3 / ADR-0043 §24.1: httpapi is the
 	// sole assembly point of search x repo x metadata — the session/permView
 	// facet precedent, so cmd's Deps wiring stays untouched). Requires the
@@ -374,6 +384,7 @@ func New(deps Deps, log *slog.Logger) *Server {
 				Nodes:   q,
 				ACL:     deps.ReposSvc,
 				Virtual: s.aqlVirtual,
+				QRL:     s.qrl,
 			})
 		}
 	}

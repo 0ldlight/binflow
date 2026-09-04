@@ -24,6 +24,7 @@ import (
 	"github.com/lzwzzy/binflow/internal/license"
 	"github.com/lzwzzy/binflow/internal/metrics"
 	"github.com/lzwzzy/binflow/internal/replication"
+	"github.com/lzwzzy/binflow/internal/search"
 )
 
 // Metric family names (ADR-0022 naming rule binflow_<subsystem>_<metric>_<unit>;
@@ -75,6 +76,19 @@ const (
 	metricSearchQueries    = "binflow_search_queries_total"
 	metricSearchDuration   = "binflow_search_query_duration_seconds"
 	metricSearchRejections = "binflow_search_rejections_total"
+	// The QRL family (M16 T-452, FR-148.2 / aql.md §14.4 — Artifactory's
+	// jfrt_qrl provider mapped onto the BinFlow naming rule): the tri-state
+	// as a gauge ordinal plus the sampled-window counters, one series per
+	// bucket type. The anchor's 60s sampling job maps onto scrape-time
+	// sampling (the cleanup/replay gauge precedent: the engine owns the
+	// counters, /metrics samples-and-resets them; a 60s scrape cadence IS
+	// the anchor's 60s window).
+	metricQRLMode           = "binflow_qrl_mode"
+	metricQRLQueries        = "binflow_qrl_window_queries"
+	metricQRLPermits        = "binflow_qrl_window_permits"
+	metricQRLSlowdown       = "binflow_qrl_slowed_down_millis"
+	metricQRLSlowdownByTime = "binflow_qrl_slowed_down_by_time_millis"
+	metricQRLCharged        = "binflow_qrl_charged_query_time_millis"
 )
 
 // metricsContentType is the Prometheus text exposition format version 0.0.4
@@ -127,6 +141,14 @@ type instrumentation struct {
 	searchQueries *metrics.Counter
 	searchDur     *metrics.Histogram
 	searchRej     *metrics.Counter
+	// qrl* are the query rate limiter's sampled-window gauges (M16 T-452),
+	// refreshed at scrape time from the shared limiter (s.qrl).
+	qrlMode           *metrics.Gauge
+	qrlQueries        *metrics.Gauge
+	qrlPermits        *metrics.Gauge
+	qrlSlowdown       *metrics.Gauge
+	qrlSlowdownByTime *metrics.Gauge
+	qrlCharged        *metrics.Gauge
 }
 
 // newInstrumentation registers the four families on reg and pre-seeds the
@@ -196,6 +218,30 @@ func newInstrumentation(deps Deps) *instrumentation {
 	ins.searchQueries.Add(0, "plane", "legacy")
 	ins.searchRej.Add(0, "reason", "concurrency")
 	ins.searchRej.Add(0, "reason", "timeout")
+
+	// The QRL family (M16 T-452): the mode gauge seeded at the disabled
+	// ordinal, the window counters pre-seeded per bucket type so the
+	// exposition shows the family before the first enabled window.
+	ins.qrlMode = mustGauge(reg, metricQRLMode,
+		"Query rate limiter tri-state as an ordinal: 0=disabled (factory), 1=enabled, 2=simulation.")
+	ins.qrlQueries = mustGauge(reg, metricQRLQueries,
+		"Query rate limiter sampled-window query attempts, by bucket type (reset each sample).")
+	ins.qrlPermits = mustGauge(reg, metricQRLPermits,
+		"Query rate limiter sampled-window permits granted, by bucket type (reset each sample).")
+	ins.qrlSlowdown = mustGauge(reg, metricQRLSlowdown,
+		"Query rate limiter sampled-window throttle delay from permit starvation, in milliseconds, by bucket type.")
+	ins.qrlSlowdownByTime = mustGauge(reg, metricQRLSlowdownByTime,
+		"Query rate limiter sampled-window throttle delay from the charged-time quota, in milliseconds, by bucket type.")
+	ins.qrlCharged = mustGauge(reg, metricQRLCharged,
+		"Query rate limiter sampled-window charged query time, in milliseconds, by bucket type.")
+	ins.qrlMode.Set(0)
+	for _, t := range []string{search.QRLTypeDefault, search.QRLTypeLowPriority} {
+		ins.qrlQueries.Set(0, "type", t)
+		ins.qrlPermits.Set(0, "type", t)
+		ins.qrlSlowdown.Set(0, "type", t)
+		ins.qrlSlowdownByTime.Set(0, "type", t)
+		ins.qrlCharged.Set(0, "type", t)
+	}
 
 	if deps.Replication != nil {
 		ins.replTasks = mustGauge(reg, metricReplicationTasks,
@@ -400,7 +446,75 @@ func (s *Server) refreshMetricsSnapshots(ctx context.Context) {
 		ins.replayGone.Set(float64(rs.SourceGone))
 		ins.replayReadFB.Set(float64(rs.ReadFallbackTotal))
 	}
+	s.refreshQRLMetrics()
 	s.refreshLicenseMetrics(ctx)
+}
+
+// refreshQRLMetrics samples the query rate limiter (M16 T-452, aql.md
+// §14.4): the mode gauge always; when the limiter is ACTIVE the window
+// counters are sampled-and-reset (the anchor's metrics job — one sampling
+// per scrape, the disabled state samples nothing per the anchor's
+// "仅 enabled 态调度"). A window with throttle delay also emits the INFO
+// line with the anchor's verbatim copy, placeholders filled.
+func (s *Server) refreshQRLMetrics() {
+	ins := s.metrics
+	mode := s.qrl.Mode()
+	ins.qrlMode.Set(float64(qrlModeOrdinal(mode)))
+	if mode == search.QRLModeDisabled {
+		return
+	}
+	sample := s.qrl.Sample()
+	for _, b := range sample.Buckets {
+		ins.qrlQueries.Set(float64(b.TotalQueries), "type", b.RLType)
+		ins.qrlPermits.Set(float64(b.TotalPermits), "type", b.RLType)
+		ins.qrlSlowdown.Set(float64(b.SlowedDownMillis), "type", b.RLType)
+		ins.qrlSlowdownByTime.Set(float64(b.SlowedDownByTimeMillis), "type", b.RLType)
+		ins.qrlCharged.Set(float64(b.ChargedQueryTime), "type", b.RLType)
+		if slowed := b.SlowedDownMillis + b.SlowedDownByTimeMillis; slowed > 0 {
+			pct := 0.0
+			if sample.WindowMillis > 0 {
+				pct = float64(slowed) / float64(sample.WindowMillis) * 100
+			}
+			s.log.Info("Artifactory database queries have reached the set limit ("+
+				strconv.FormatInt(bucketPermits(s.qrl.Settings(), b.RLType), 10)+" per "+
+				strconv.FormatInt(bucketFrame(s.qrl.Settings(), b.RLType), 10)+" ms). "+
+				"Throttling has been applied ("+strconv.FormatFloat(pct, 'f', 0, 64)+
+				"% of the time) to protect system health.",
+				"rl_type", b.RLType)
+		}
+	}
+}
+
+// qrlModeOrdinal maps the tri-state onto the gauge ordinal.
+func qrlModeOrdinal(m search.QRLMode) int {
+	switch m {
+	case search.QRLModeEnabled:
+		return 1
+	case search.QRLModeSimulation:
+		return 2
+	default:
+		return 0
+	}
+}
+
+// bucketPermits reads one bucket type's permit setting (0 when absent).
+func bucketPermits(settings []search.QRLSetting, rlType string) int64 {
+	for _, s := range settings {
+		if s.RLType == rlType {
+			return s.PermitsPerTimeFrame
+		}
+	}
+	return 0
+}
+
+// bucketFrame reads one bucket type's frame setting (0 when absent).
+func bucketFrame(settings []search.QRLSetting, rlType string) int64 {
+	for _, s := range settings {
+		if s.RLType == rlType {
+			return s.TimeFrameMillis
+		}
+	}
+	return 0
 }
 
 // refreshLicenseMetrics pulls the entitlement gauges (M10 T-283): the

@@ -504,6 +504,22 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	case rest == "v1/system/schedules" && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleSystemSchedulesGET)
 
+	// ---- /api/v1/system/query_rate_limiter (M16 T-452, FR-148.2 / aql.md
+	// §14.4; K72's admin REST over the DB-query rate plane) ----
+	// The limiter's three operations: GET reads the effective settings,
+	// POST is the merge-write (the tri-state's BinFlow carrier — the
+	// optional "mode" field, see system_qrl.go), DELETE restores the
+	// factory state. Gates ride the v1-system-plane capability family
+	// (system:read / system:write — the license/settings posture; a plain
+	// user meets 403 on all three). Every other spelling falls to the
+	// E-26 404.
+	case rest == "v1/system/query_rate_limiter/config" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleQRLConfigGet)
+	case rest == "v1/system/query_rate_limiter/config" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleQRLConfigPost)
+	case rest == "v1/system/query_rate_limiter/config" && r.Method == http.MethodDelete:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemWrite}, s.handleQRLConfigDelete)
+
 	// ---- /api/v1/system/replications (M15 T-422, FR-138.3; the global
 	// blockPush/blockPull emergency brake — replication.md §9.1-B, the
 	// A-layer three-endpoint form per §9.6's landing ruling) ----
@@ -1015,6 +1031,67 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 		s.enforce(w, r, routeAuth{}, s.handleSearchPattern)
 	case rest == "search/usage" && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{}, s.handleSearchUsage)
+	case rest == "search/creation" && r.Method == http.MethodGet:
+		// M16 T-452 (FR-148.3 / aql.md §14.3): the K65 carry-over pair's
+		// first door — the 404-empty family, epoch-milliseconds range. The
+		// anonymous arm is the handler's 401 (the usage posture), so the
+		// route gate stays open like the family's.
+		s.enforce(w, r, routeAuth{}, s.handleSearchCreation)
+	case rest == "search/dates" && r.Method == http.MethodGet:
+		// M16 T-452: the pair's second door (dateFields CSV over the closed
+		// four-name set).
+		s.enforce(w, r, routeAuth{}, s.handleSearchDates)
+
+	// ---- /api/{artifactsearch,stashResults,packagesSearch,syntax-search}
+	// (M16 T-452, FR-148.3 / aql.md §14.5 — the UI search family, re-homed
+	// onto the api tree: the SAML key family precedent; BinFlow has no
+	// ui/api REST segment) ----
+	// Family gate: @RolesAllowed(admin, user) → any non-anonymous principal
+	// (a 401 challenge for anonymous, never a capability door). The read
+	// doors reuse the legacy kernels' own ACL weave; stashResults ships in
+	// the anchor's factory-off posture (every operation the verbatim 404
+	// copy); deleteArtifact is deliberately unrouted (the anchor's own
+	// read-only registration — the E-26 404 answers it).
+	case rest == "artifactsearch/quick" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true}, s.handleUIArtifactSearchQuick)
+	case rest == "artifactsearch/gavc" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true}, s.handleUIArtifactSearchGavc)
+	case rest == "artifactsearch/checksum" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true}, s.handleUIArtifactSearchChecksum)
+	case rest == "artifactsearch/trash" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true}, s.handleUIArtifactSearchTrash)
+	case rest == "artifactsearch/pkg/tonative" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true}, s.handleUIArtifactSearchToNative)
+	case strings.HasPrefix(rest, "artifactsearch/pkg/"):
+		key, tail := splitAPIName(rest, "artifactsearch/pkg/")
+		if key != "" && tail == "" {
+			switch r.Method {
+			case http.MethodGet:
+				s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+					s.handleUIArtifactSearchPkgGet(w, r, key)
+				})
+			case http.MethodPost:
+				s.enforce(w, r, routeAuth{required: true}, func(w http.ResponseWriter, r *http.Request) {
+					s.handleUIArtifactSearchPkgPost(w, r, key)
+				})
+			default:
+				notImplemented(w, "/binflow/api/"+rest)
+			}
+			return
+		}
+		notImplemented(w, "/binflow/api/"+rest)
+	case (rest == "stashResults" || strings.HasPrefix(rest, "stashResults/")) &&
+		(r.Method == http.MethodPost || r.Method == http.MethodGet || r.Method == http.MethodDelete):
+		// The factory-off family: all ten operations answer the verbatim
+		// 404 copy (aql.md §14.5 — the Smart Searches pro-tier ruling
+		// BinFlow ships with; the E-26 envelope carries the message).
+		s.enforce(w, r, routeAuth{required: true}, handleUIStashDisabled)
+	case rest == "packagesSearch/leadFile" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true}, s.handleUIPackagesLeadFile)
+	case rest == "packagesSearch/artifacts" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true}, s.handleUIPackagesArtifacts)
+	case rest == "syntax-search" && r.Method == http.MethodPost:
+		s.enforce(w, r, routeAuth{required: true}, s.handleUISyntaxSearch)
 
 	// ---- /api/security (E-16..E-19) ----
 	case rest == "security/password" && r.Method == http.MethodPut:

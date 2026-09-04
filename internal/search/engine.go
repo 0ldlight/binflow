@@ -95,6 +95,12 @@ type EngineOptions struct {
 	// (PlanOptions.Virtual semantics); nil passes every repo value through
 	// literally.
 	Virtual VirtualResolver
+	// QRL is the DB-query rate plane (M16 T-452, aql.md §14.4): a DELAY
+	// throttle that rides AFTER the K63 admission gate and never rejects —
+	// orthogonal by construction. nil disables the plane entirely (the
+	// factory-disabled limiter is itself a no-op, so wiring the shared
+	// instance is free).
+	QRL *QueryRateLimiter
 	// Now is the clock $last/$before resolve against; nil means time.Now.
 	Now func() time.Time
 }
@@ -105,6 +111,7 @@ type Engine struct {
 	nodes   metadata.NodeQueryer
 	acl     ACL
 	virtual VirtualResolver
+	qrl     *QueryRateLimiter
 	nowFn   func() time.Time
 	gate    *gate
 	// timeout is the per-query deadline; the field exists so tests can
@@ -121,6 +128,7 @@ func NewEngine(opt EngineOptions) *Engine {
 		nodes:   opt.Nodes,
 		acl:     opt.ACL,
 		virtual: opt.Virtual,
+		qrl:     opt.QRL,
 		gate:    newGate(maxConcurrent),
 		timeout: queryTimeout,
 	}
@@ -185,11 +193,15 @@ func (e *Engine) Run(ctx context.Context, p *repo.Principal, query string) (*Res
 	return e.runAST(ctx, p, ast)
 }
 
-// runAST is the shared execution segment behind Run and RunUsage: the
-// non-blocking gate, the deadline and the bounded segment. Both entrances
-// are the SAME query plane — one concurrency ceiling, one timeout, one row
-// cap (K63 zero-exemption posture: a fixed-template caller buys no relief
-// a hand-written query does not get).
+// runAST is the shared execution segment behind Run, RunUsage and the
+// dates/creation templates: the non-blocking gate, the QRL delay plane, the
+// deadline and the bounded segment. Every entrance is the SAME query plane
+// — one concurrency ceiling, one timeout, one row cap (K63 zero-exemption
+// posture: a fixed-template caller buys no relief a hand-written query does
+// not get). The QRL slot sits strictly AFTER the K63 gate (a 429 rejection
+// never occupies rate budget) and strictly INSIDE the deadline (a throttled
+// wait is bounded by the same 10s ceiling — the anchor's "delay, never
+// reject" posture, aql.md §14.4).
 func (e *Engine) runAST(ctx context.Context, p *repo.Principal, ast *Query) (*Result, error) {
 	if !e.gate.tryAcquire() {
 		return nil, ErrResourceBusy
@@ -199,8 +211,24 @@ func (e *Engine) runAST(ctx context.Context, p *repo.Principal, ast *Query) (*Re
 	qctx, cancel := context.WithTimeout(ctx, e.timeout)
 	defer cancel()
 
+	if e.qrl != nil {
+		if err := e.qrl.Acquire(qctx, QRLTypeDefault); err != nil {
+			// A throttle wait that exhausted the deadline is the SAME 408
+			// timeout family an execution overrun is (the K63 deadline
+			// bounds the whole segment, wait included); a canceled caller
+			// context keeps its own error.
+			if qctx.Err() == context.DeadlineExceeded {
+				return nil, fmt.Errorf("%w: %v", ErrQueryTimeout, err) //nolint:errorlint // cause rendered, not wrapped — the family rule above
+			}
+			return nil, err
+		}
+	}
+
 	start := e.nowFn()
 	res, err := e.execute(qctx, p, ast)
+	if e.qrl != nil {
+		e.qrl.Charge(QRLTypeDefault, e.nowFn().Sub(start))
+	}
 	if err != nil {
 		// The deadline ruling: a failure inside the bounded segment with
 		// the deadline elapsed is the timeout family (408), whatever the
