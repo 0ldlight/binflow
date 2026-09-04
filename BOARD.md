@@ -1892,4 +1892,6 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - 终验三修 + PR #95（`f08863f`）：go PATH / gradle unzip / pip PEP668——**七腿绿 + e2e ✅ + GH ci 三 job 全绿（连续第二绿 run）**；四腿（go/gradle/pypi/conan）CircleCI 面红**复原**。免日志诊断穷尽清单：本地单腿✅/本地五腿并发✅/ubuntu:22.04 同构容器全链✅/GH 面 10/10×2✅ ⇒ **machine executor 环境特异，唯日志可定谳**（爆发限流假说已被本地并发实验削弱；PEP668 对 machine 镜像 pip 22 不成立）。报告 iteration-1392（双文合并制）。
 - **循环恢复派发**（07:1x）：**D-T456-1**（dev-go-core：listRemoteFolderItems 传输层丢字段——PUT 静默吞+类型门 400 不可达）+ **T-461 → doing**（dev-frontend：FE 远端浏览树消费可选档双态——off 态与骨架先行，on 态端到端候 BE 腿合入复验）。双 lane 区互斥（internal/httpapi vs web/src/pages/artifacts）。
 
+**D-T456-1 → done 2026-09-05 07:4x（`6da7b23b`，3 文件 +344）——T-461 on 态前置解锁**：根因 = T-448 只落 service 层、httpapi `repoConfig` struct 漏字段（PUT 体经 typed decode 该键静默丢弃——既不落库且 mistyped 400 不可达）。修：`ListRemoteFolderItems *bool`（指针保显式 false 往返）+ configJSON remote 臂 setBool 收集 + GET 经 canonical 恒回显（零改动）。17 subtests（batch-1 往返/翻转保持/类型门/值域门）+ httpapi 全包回归 123s ok + repo T448 交叉 sanity。四门绿。FE 契约注记：读 GET configuration.listRemoteFolderItems（布尔恒在场）；写须全量 remote config（full-replace PUT 语义——flag-only 更新吃 url-required 400 系既有语义非本票引入）。日志 reports/agents/D-T456-1.md。
+
 
