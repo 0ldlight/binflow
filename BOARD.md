@@ -1861,5 +1861,9 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **T-474 → doing 2026-09-04 21:1x（P1 热修：helm spool 读-only 根因）**：dev-registry-adapter 在途。spool 落位存储同卷 staging（接口驱动——Service 加显式方法或 storage StagingDir()）+ 5xx 文案收敛 + read-only TMPDIR 对照测试 + 净实例 PUT 全链路。**T-475 → todo（e2e CI 环境确定性：t443/t449/t451 三 spec——TZ/viewport 嫌疑，候 FE lane 空出）**。
 
+**会话交接事件（2026-09-04 21:2x，conductor 续任）**：旧会话 context 耗尽亡故（transcript 不可达——SendMessage 复活失败实证）。临终史对齐：1376/1377 报告 + `5999b39`（conan/nuget 脚本修）+ T-473 收编 `616f1d2` 全数入册。处置：T-457/T-472 依盘上半成品重派 finisher（不重做）；**T-474 全新重派**（read phase 被亡故带走零足迹）——派单追加三疑点（部署二进制装配链/router 路由链/staging 卷）与同病面（deb/rpm/cargo/nuget 的 CreateTemp("")）。**GH ci job 红定谳（conductor 21:3x，`21b6f68`）**：audit step 死因 = node 20 的 npm 10 走**已退役 quick-audit 端点**（400 Invalid package tree）——非真漏洞（web 锁树双 registry 皆 0 漏洞；日志「29 漏洞」系 docs-site Docusaurus 树混入grep，非本 step）→ ci.yml 三 pin 升 **node 24**（项目真实工具链）。复测 2 触发：T-474 收编后 develop→main（helm 腿/audit/e2e 三面一次验）。
+
+**双会话划界终笔（2026-09-04 21:5x，dev-center-1e ↔ 「提交代码到 binflow 仓库」协议成立）**：亡故会话生双续任——dev-center-1e（20:56 起 /loop 20m，cron ca10187d，复活三 agent 34m/34m/24m）与 peer（20:2x 起，重派 finisher 三票）撞车。**裁定：三票归 dev-center-1e（进度深），peer 停重派转只读简报**（>1h 无心跳可接管——已入 memory `conductor-loop-ownership`）。**交错披露已下发三 agent**：T-474 双设计归一（peer 的「507+路径披露」vs 复活侧 staging 卷——以 staging 卷为主轴吸收 507 语义 + main.go:487 装配链三疑点 + 四门全重验）；T-457 验收 finisher 遗产（其死前已达新 spec 6/6 绿——ProfilePage/AppShell/t457 spec/t134/t146 有其笔迹，t134/t146 可能系 CI 环境敏感断言修复——同族修法供 T-475 复用）；T-472 复核 finisher 微调（docs.yml/openapi/ 手改 vs 生成器再生 diff）。**教训入册：同机双 conductor 会话（cron 各持一份 /loop）= 工作树双写险——凡起续任会话，先 ListAgents 查 peer 再动手；报告文件双写以 git log 異 author 检出。** dc1e67d 误覆写 peer 的 1378 报告已修复（双文合并制立——见 iteration-1378.md）。
+
 **Fern 重发布避让（21:2x）**：T-472 在途重构 fern/（空 API definition stub 已落树——CLI 切 API 项目模式拒 tab+layout 导航形）——T-458 镜像页发布顺延候 T-472 收口统一执行。
 

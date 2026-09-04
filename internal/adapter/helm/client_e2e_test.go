@@ -25,6 +25,7 @@ package helm
 // full gated run.
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"os"
@@ -237,6 +238,67 @@ func readFile(t *testing.T, path string) []byte {
 		t.Fatalf("read %s: %v", path, err)
 	}
 	return b
+}
+
+// TestHelmClientUploadUnderReadOnlyServerTemp is T-474's client-facing
+// pin: the incident's exact topology — the SERVER process facing a
+// read-only OS temp dir (UAT's read-only-rootfs container; the pre-fix
+// classic PUT answered 500 there) while the CLIENT runs on a normal host.
+// The chart PUT (the curl-deployment shape) and the consume chain the CI
+// leg_helm matrix drives — repo add → update → pull, bytes identical —
+// must both sail: the spool stages on the storage volume's staging dir,
+// never the OS temp dir. Gated like the T-309 matrix.
+func TestHelmClientUploadUnderReadOnlyServerTemp(t *testing.T) {
+	if os.Getenv("BINFLOW_T309_CLIENT_E2E") != "1" {
+		t.Skip("set BINFLOW_T309_CLIENT_E2E=1 (with helm on PATH) to run the real-client matrix")
+	}
+	if _, err := exec.LookPath("helm"); err != nil {
+		t.Fatalf("helm unavailable on PATH: %v", err)
+	}
+
+	// Stack and client scratch FIRST: their t.TempDir roots must resolve
+	// against the REAL OS temp; only then is the server's view poisoned.
+	s := newStack(t) // SpoolDir = <dataDir>/staging, the cmd posture
+	s.seedRepo(t, "helm-local", repo.TypeLocal, "{}")
+	work := t.TempDir()
+	t.Setenv("TMPDIR", mustReadOnlyDir(t))
+
+	chart := fixtureChart(t, "mychart", defaultChartYAML("mychart", "1.0.99"), nil)
+	status, body, _ := s.put("/binflow/helm-local/mychart-1.0.99.tgz", chart, nil)
+	if status != http.StatusCreated {
+		t.Fatalf("T-474 chart PUT under a read-only server OS temp = (%d, %s), want 201 (the incident answered 500)", status, body)
+	}
+
+	// The client rides a CLEAN temp dir (the CI runner's own posture —
+	// the incident was server-side): later entries win in exec env, so
+	// TMPDIR is restored for the helm subprocess.
+	run := func(dir string, args ...string) string {
+		t.Helper()
+		cmd := exec.Command("helm", args...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(),
+			"HELM_CONFIG_HOME="+filepath.Join(work, "helm"),
+			"HELM_CACHE_HOME="+filepath.Join(work, "helm"),
+			"HELM_DATA_HOME="+filepath.Join(work, "helm"),
+			"TMPDIR="+work)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("helm %s: %v\n%s", strings.Join(args, " "), err, out)
+		}
+		return string(out)
+	}
+	run(work, "repo", "add", "bf-t474", s.srv.URL+"/binflow/helm-local")
+	out := run(work, "repo", "update", "bf-t474")
+	t.Logf("T-474 helm repo update: %s", oneLine(out))
+	pullDir := filepath.Join(work, "pull")
+	if err := os.MkdirAll(pullDir, 0o750); err != nil {
+		t.Fatalf("mk pull dir: %v", err)
+	}
+	run(pullDir, "pull", "bf-t474/mychart", "--version", "1.0.99")
+	pulled := readFile(t, filepath.Join(pullDir, "mychart-1.0.99.tgz"))
+	if !bytes.Equal(pulled, chart) {
+		t.Fatalf("T-474 pulled bytes differ: sha256 %s vs %s", sha256Hex(pulled), sha256Hex(chart))
+	}
 }
 
 // oneLine flattens command output for the log.

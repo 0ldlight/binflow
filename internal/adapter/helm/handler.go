@@ -66,6 +66,17 @@ type Options struct {
 	// repository-config seat for it exists yet, so this is the plug point
 	// tests (and a future config key) set.
 	ExternalPatterns []string
+	// SpoolDir roots the chart-upload spool files (T-474): the PUT chain
+	// reads the body twice (chart parse, then the landing read), so the
+	// bytes stage to disk first. Hardened deployments — read-only rootfs,
+	// the kubernetes norm — mount no writable /tmp, which made the classic
+	// PUT answer a bare 500 there; the cmd assembly therefore passes
+	// <storage data_dir>/staging, the SAME volume the blob store writes
+	// on (writable wherever the server can boot, S3 mode included: the
+	// metadata db lives in that root too). "" falls back to the OS temp
+	// dir — the bare test-harness posture; the fallback (like every
+	// staging refusal) is never silent, see adapter.StagingDir.
+	SpoolDir string
 	// Now overrides the clock (tests).
 	Now func() time.Time
 }
@@ -148,6 +159,22 @@ const msgExternalLocal = "external dependency downloads (_external/_transitive) 
 // reconciliation — the virtual aggregate and the remote's cached upstream
 // copy are equally server-owned).
 const msgIndexServerGenerated = "'%s' is server-generated (the chart index); direct writes are not permitted (upload charts with PUT <chart>.tgz)"
+
+// msgSpoolUnavailable is the chart-PUT staging refusal (T-474): the body
+// could not be staged — an unwritable or full staging root, the read-only
+// /tmp incident's own failure mode. 507 Insufficient Storage: a recoverable
+// deployment condition, not a server bug. The %s carries the ATTEMPTED
+// ROOT (the operator's own configuration — the one actionable fact an
+// operator reading the client output can act on); the os-error internals
+// and the temp file name stay out of the face and ride the server log
+// (the pre-fix leak was exactly that noise).
+const msgSpoolUnavailable = "chart upload cannot be staged: the upload staging area (%s) is unavailable (see the server log)"
+
+// msgSpoolReopenFailed is the unexpected-failure refusal when the just-
+// staged chart cannot be re-opened for the landing read. Genuinely a 500
+// (not a deployment condition); fixed wording — the staged file's name
+// never reaches the face, the cause rides the server log.
+const msgSpoolReopenFailed = "chart upload could not re-read its staged bytes (see the server log)"
 
 // ServeHTTP dispatches on the parsed wire target and the repository
 // CLASS. Error bodies are PLAIN
@@ -348,9 +375,16 @@ func (h *Handler) serveUploadChart(ctx context.Context, w http.ResponseWriter, r
 		target = h.virtualWriteTarget(ctx, repoKey)
 	}
 
-	spoolPath, err := spoolBody(r.Body)
+	spoolPath, err := h.spoolBody(r.Body)
 	if err != nil {
-		writeText(w, http.StatusInternalServerError, fmt.Sprintf("spool request body: %v", err))
+		// 507 Insufficient Storage (T-474): an unwritable or full staging
+		// root is a recoverable deployment condition, not a server bug.
+		// The body names the ATTEMPTED ROOT (the operator's own config —
+		// the actionable fact); the os-error internals and the temp file
+		// name stay out of the face and ride the server log.
+		slog.ErrorContext(ctx, "helm: chart upload spool failed",
+			slog.String("repo", repoKey), slog.String("path", rel), slog.String("error", err.Error()))
+		writeText(w, http.StatusInsufficientStorage, fmt.Sprintf(msgSpoolUnavailable, h.stagingLabel()))
 		return
 	}
 	defer func() { _ = os.Remove(spoolPath) }()
@@ -382,9 +416,11 @@ func (h *Handler) serveUploadChart(ctx context.Context, w http.ResponseWriter, r
 		writeText(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	f, err := os.Open(spoolPath) //nolint:gosec // G304: our own os.CreateTemp path, never client input
+	f, err := os.Open(spoolPath) //nolint:gosec // G304: our own staged spool path, never client input
 	if err != nil {
-		writeText(w, http.StatusInternalServerError, fmt.Sprintf("reopen spool: %v", err))
+		slog.ErrorContext(ctx, "helm: chart upload spool reopen failed",
+			slog.String("repo", repoKey), slog.String("path", rel), slog.String("error", err.Error()))
+		writeText(w, http.StatusInternalServerError, msgSpoolReopenFailed)
 		return
 	}
 	node, err := h.svc.PutWithOptions(ctx, p, repoKey, rel, f, expect,
@@ -484,21 +520,46 @@ func (h *Handler) parseSpooledChart(spoolPath string) (*chartArchive, error) {
 	return parseChartArchive(f)
 }
 
-// spoolBody drains the request body into a temp file (charts reach tens
-// of megabytes; the parse and the landing both re-read it).
-func spoolBody(body io.Reader) (string, error) {
-	f, err := os.CreateTemp("", "binflow-helm-*.tgz")
+// spoolBody drains the request body into a staging file under the
+// handler's configured spool dir (see spoolBody below for the semantics).
+func (h *Handler) spoolBody(body io.Reader) (string, error) {
+	return spoolBody(h.opts.SpoolDir, body)
+}
+
+// stagingLabel renders the attempted staging root for the refusal face:
+// the configured root quoted verbatim, or the OS-temp fallback named
+// honestly. This is the face's only disclosure — the root is the
+// operator's own configuration and the one actionable fact; the raw os
+// error and the temp file name never reach the client.
+func (h *Handler) stagingLabel() string {
+	if h.opts.SpoolDir != "" {
+		return fmt.Sprintf("%q", h.opts.SpoolDir)
+	}
+	return "the OS temp directory"
+}
+
+// spoolBody stages body as one temp file under dir (charts reach tens of
+// megabytes; the parse and the landing both re-read it). The staging root
+// is the shared adapter primitive (adapter.StagingDir/StageFile, T-474):
+// the production posture is the storage-volume root the cmd assembly
+// passes (<storage data_dir>/staging — hardened read-only-rootfs
+// containers mount no writable /tmp), dir "" keeps the OS-temp fallback
+// for the bare test harness. Every failure wraps
+// adapter.ErrStagingUnavailable — the handler's 507 family — and names
+// the root it attempted.
+func spoolBody(dir string, body io.Reader) (string, error) {
+	f, err := adapter.StageFile(dir, "binflow-helm-*.tgz")
 	if err != nil {
 		return "", err
 	}
 	if _, err := io.Copy(f, body); err != nil {
 		_ = f.Close()
 		_ = os.Remove(f.Name())
-		return "", err
+		return "", fmt.Errorf("%w: staging the request body: %w", adapter.ErrStagingUnavailable, err)
 	}
 	if err := f.Close(); err != nil {
 		_ = os.Remove(f.Name())
-		return "", err
+		return "", fmt.Errorf("%w: closing the staged body: %w", adapter.ErrStagingUnavailable, err)
 	}
 	return f.Name(), nil
 }

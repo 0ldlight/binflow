@@ -479,8 +479,12 @@ func newAssembledServer(cfg *config.Config, stack *stack, logger *slog.Logger) *
 	// reindex management family live in the router (ADR-0034's two
 	// clauses); the NodeProps seam carries the chart.* facts; the
 	// addons.Helm() slot carries the pro-tier gating (T-282/T-283).
+	// Options.SpoolDir (T-474) stages chart uploads under the storage data
+	// root's staging/ — the same volume blobs land on; hardened (read-only
+	// rootfs) containers mount no writable /tmp, which the OS-temp spool
+	// of the pre-fix code assumed.
 	helmHandler := helm.Register(stack.svc, stack.md.Repos(), stack.md.Blobs(), stack.md.NodeProps(), stack.md.Remote(),
-		helm.Options{BaseURL: cfg.Server.BaseURL})
+		helm.Options{BaseURL: cfg.Server.BaseURL, SpoolDir: filepath.Join(cfg.Storage.DataDir, "staging")})
 	// helmoci (M12/T-342, FR-109/HL-3): the registry-v2 Helm face. The
 	// protocol surface IS the docker /v2 plane built above — repositories
 	// with package_type=helmoci route to it through the plane's family
