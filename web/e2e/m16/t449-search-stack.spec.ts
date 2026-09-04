@@ -59,11 +59,31 @@ async function seedFixture(files: Array<{ dir: string; name: string; bytes: numb
   return repo
 }
 
-/** 顶栏驻留查询：填词 + Enter → /search?q=（T-449 起查询面唯一入口） */
+/** 顶栏驻留查询：填词 + Enter → /search?q=（T-449 起查询面唯一入口）。
+ *  T-475 确定性：登录落地链（/login → / → index 重定向 /artifacts）上有
+ *  两处竞速源——① 顶栏受控草稿锚在 location.key（驻留回显语义），导航
+ *  换 key 即把已填词回滚为空；② Suspense 边界在 AppShell 之上（main.tsx
+ *  懒加载布局），路由切换的 chunk 装载会整体重挂 AppShell——草稿状态随
+ *  重挂清零。慢 runner 把窗口拉宽后 fill/Enter 踩进去 = Enter 提交空词 →
+ *  裸 /search（无 ?q，CI 三连败形态）。三层钉死：等落地页**内容**就位
+ *  （URL 先于重挂变化，waitForURL 不够）；受控值 poll 钉住（被回滚即重填
+ *  自愈）；提交后核对 URL，空词分支（裸 /search）= 竞速踩中，整个重试。 */
 async function topbarQuery(page: import('@playwright/test').Page, term: string) {
-  await page.fill('[data-testid="topbar-search"]', term)
-  await page.press('[data-testid="topbar-search"]', 'Enter')
-  await expect(page).toHaveURL(new RegExp(`/binflow/ui/search\\?q=${term}$`))
+  const target = new RegExp(`/binflow/ui/search\\?q=${term}$`)
+  const input = page.locator('[data-testid="topbar-search"]')
+  await page.waitForSelector('[data-testid="tree-page"]') // 落地页内容（最终挂载帧）
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await page.fill('[data-testid="topbar-search"]', term)
+    await expect
+      .poll(async () => {
+        if ((await input.inputValue()) !== term) await page.fill('[data-testid="topbar-search"]', term)
+        return input.inputValue()
+      })
+      .toBe(term)
+    await page.press('[data-testid="topbar-search"]', 'Enter')
+    if (await page.waitForURL(target, { timeout: 3_000 }).then(() => true, () => false)) return
+  }
+  await expect(page).toHaveURL(target) // 三轮竞速重试后仍空词分支——带 URL 上下文响亮失败
 }
 
 // ---- 1. 列集归一 + 列选器默认态 + 日期格式（①⑤ B-2.11/B-3.15） ---------------

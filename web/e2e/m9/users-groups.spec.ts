@@ -79,8 +79,14 @@ test('N01: users page — single E2 request, zero per-user fanout, Status truth 
 }, testInfo) => {
   await loginAs(page, 'admin')
 
-  const api = trackApiGets(page)
+  // T-475：先落定登录落地页再挂计数器（usage-fanout coldLoadRepos 同款
+  // 纪律）——落地页自身的数据请求（/api/repositories + /api/v1/storage/
+  // stats，随 goto 被取消）在慢 runner 上晚于计数器挂载才发出，会以
+  // canceled straggler 泄入预算（5 > 3）。计数器只量一次冷重载。
   await page.goto('/binflow/ui/admin/security/users')
+  await expect(page.locator('[data-testid="users-table"]')).toBeVisible()
+  const api = trackApiGets(page)
+  await page.reload()
   await expect(page.locator('[data-testid="users-table"]')).toBeVisible()
   await expect(page.locator('[data-testid="user-row-u20"]')).toBeVisible() // all 20 seeded rows rendered
 
@@ -110,8 +116,12 @@ test('N01: users page — single E2 request, zero per-user fanout, Status truth 
 test('N01: groups page — members from the E2 projection, editor seeds from E5, two views agree', async ({ page }) => {
   await loginAs(page, 'admin')
 
-  const api = trackApiGets(page)
+  // T-475：同 users 腿——先落定再挂计数器，预算只量冷重载（本腿零冗余
+  // 预算：3 数据 GET 恰满，2 个落地 straggler 即 5 > 3 假红）。
   await page.goto('/binflow/ui/admin/security/groups')
+  await expect(page.locator('[data-testid="groups-table"]')).toBeVisible()
+  const api = trackApiGets(page)
+  await page.reload()
   await expect(page.locator('[data-testid="groups-table"]')).toBeVisible()
   await expect(page.locator('[data-testid="group-row-m9-g10"]')).toBeVisible()
 

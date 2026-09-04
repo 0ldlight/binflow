@@ -134,6 +134,11 @@ test('columns: redundant type column collapsed; Replications on local+remote tab
 
   await loginAs(page, 'admin')
   await page.goto('/binflow/ui/admin/repositories/local')
+  // T-475：列表自 T-451 起有客户端页窗（默认 100/页）；套件累积态下
+  // （种子 + 并行夹具 >100 local 仓）新仓 key 排序落在页窗之外——行断言
+  // 前先用 key 过滤（过滤集 = 恒 1 行，任意总数下都在第 1 页）。Remote/
+  // Virtual Tab 同理（keyQuery 组件态跨 Tab 存留，需逐 Tab 重填）。
+  await page.fill('[data-testid="repos-filter-key"]', local)
   await expect(page.locator(`[data-testid="repos-row-${local}"]`)).toBeVisible({ timeout: 30_000 })
 
   // 类型列收敛（Q9）：7 列闭集、无「类型」表头；列选菜单项同步退役；
@@ -163,6 +168,7 @@ test('columns: redundant type column collapsed; Replications on local+remote tab
   // Remote Tab：Replications 列**新增**（T-443/B-3.9）——表头带 push-only
   // 口径注记（ADR-0021/R10：无 pull 复制，呈现以该仓为源的 push 配置）
   await page.click('[data-testid="repos-tab-remote"]')
+  await page.fill('[data-testid="repos-filter-key"]', remote) // T-475：同 local Tab 的页窗确定性
   await expect(page.locator(`[data-testid="repos-row-${remote}"]`)).toBeVisible({ timeout: 30_000 })
   const thRemote = page.locator('[data-testid="repos-table"] thead th')
   const replHead = thRemote.filter({ hasText: 'Replications' })
@@ -172,6 +178,7 @@ test('columns: redundant type column collapsed; Replications on local+remote tab
 
   // Virtual Tab：无 Replications 列（push 源聚合仓无对位语义）
   await page.click('[data-testid="repos-tab-virtual"]')
+  await page.fill('[data-testid="repos-filter-key"]', virtual) // T-475：同上
   await expect(page.locator(`[data-testid="repos-row-${virtual}"]`)).toBeVisible({ timeout: 30_000 })
   await expect(page.locator('[data-testid="repos-table"] thead th').filter({ hasText: 'Replications' })).toHaveCount(0)
 

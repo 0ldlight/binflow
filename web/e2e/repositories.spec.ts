@@ -98,8 +98,12 @@ test('local generic full lifecycle: create with governance -> list -> edit round
   expect(createdJson.configuration.includesPattern).toBe('**/*')
   expect(createdJson.configuration.excludesPattern).toBe('tmp/**')
 
-  // 列表：行可见 + 过滤（T-240：local 仓行在 local Tab 子路由）
+  // 列表：行可见 + 过滤（T-240：local 仓行在 local Tab 子路由）。
+  // T-475：列表自 T-451 起有客户端页窗（默认 100/页）；套件累积态下
+  // （种子 + 并行夹具 >100 local 仓）新 key 落在页窗之外——行断言前先
+  // 过滤（过滤集 = 恒 1 行，任意总数下都在第 1 页；下方过滤腿本就要填）。
   await page.goto('/binflow/ui/admin/repositories/local')
+  await page.fill('[data-testid="repos-filter-key"]', key)
   await expect(page.locator(`[data-testid="repos-row-${key}"]`)).toBeVisible()
 
   // review B1：行内拷贝不触发行导航（隔离层），且剪贴板拿到完整 key

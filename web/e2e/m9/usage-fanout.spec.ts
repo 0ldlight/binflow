@@ -155,6 +155,13 @@ test('admin: used column hydrates from ONE usage batch — whole-page cap <= 3, 
   )
   expectSingleShotFanout(t)
 
+  // T-475：排序/行序断言钉住页窗 = 档位上限 1000——列表自 T-451 起有客户端
+  // 页窗（默认 100/页），套件累积态下（种子 + 并行夹具的 t*/遗留 key）
+  // 默认序把 m9 行推出第 1 页（>100 键在前）、desc 序让 t* 遗留独占第 1 页
+  // （零 m9 行）——全量行序断言必须在完整窗口上做。页大小是纯客户端态
+  // （本 spec 自己的论题），不触发任何请求、不影响下方 re-fire 计数。
+  await page.selectOption('[data-testid="repos-pager"] [data-testid="pager-size"]', '1000')
+
   // Every seeded row hydrated non-"—" (50 rows on the seed fixture).
   const cells = await usageCells(page)
   expect(cells.length, 'all 50 seeded rows carry a used-cell anchor').toBeGreaterThanOrEqual(50)
