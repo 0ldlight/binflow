@@ -1883,3 +1883,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **矩阵复测③裁定 + ④在跑（22:3x~22:5x）**：③（`992c6a7`）**9/10——conan ✅ 转绿**（双缓存 detect 生效）+ helm ✅（GH runner 全链路）；**nuget 真根因露面**（rm 修生效、SDK 8.0.424 上场后）：**14 位时间戳超 NuGet Int32 patch 上限**（`'1.0.20260904142122' is not a valid version string`——SDK 10 的 MSB4181 系同一错误被吞）→ ④修：leg 内 `NVER=1.0.$(date +%s)`（epoch 秒 2038 前合法，他腿保持全局戳）（`2eca84f`）+ conan recipe 补 package()（空包 WARN——peer 材料采纳）（`2d03244`）。④ = run 33884189963 在跑——**唯一余红即 nuget，裁定挂下轮。**
 
+
+**T-476 → done 2026-09-05 02:4x（`91741483`，24 文件 +1,521/−73）——T-474 同族收口（nuget/cargo/deb/rpm 四面 spool 迁移共享 staging）**：Options.SpoolDir cmd 四处装配（`<data_dir>/staging` 同卷根）+ StageFile 原语 + StagingLabel 有界披露共用 + 507 面 + nuget fd 泄漏顺修 + **cargo CG-2 刻例**（staging 拒绝 507+errors envelope / 读侧 200+warnings 契约逐字——cargo 读 200-warnings 为成功，静默失能=全损故刻例外）。**事故拓扑验证**：TMPDIR=0444 铁证 curl ×4 协议 201 字节一致。四门绿 + deb 124s 零回归。**T-477 候立**：internal/repo/archive.go:1082 X-Explode-Archive 同族（服务层域）；migrate CLI 低危登记。日志 reports/agents/T-476.md。
+
+**终局合 main（2026-09-05 02:4x，`f98bb6b9`）——复测收官管线起飞**：T-476 二进制 + 矩阵全修 + node 24 + 30m 墙钟齐上。裁定挂下轮（矩阵 10/10 + ci 绿 = 闭合；e2e 三硬红候 T-475）。
