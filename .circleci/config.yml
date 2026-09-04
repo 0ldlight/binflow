@@ -402,7 +402,7 @@ jobs:
               'export BINFLOW_PASSWORD="${UAT_MATRIX_PASSWORD:?UAT_MATRIX_PASSWORD secret missing in CircleCI project env}"' \
               'export BINFLOW_MATRIX_WORK="$HOME/project/ci/.matrix-work"' \
               'export BINFLOW_MATRIX_REPORT="$HOME/project/ci/.matrix-work/report.log"' \
-              'export PATH="$HOME/.dotnet:$HOME/.local/bin:$PATH"' \
+              'export PATH="/usr/local/go/bin:$HOME/.dotnet:$HOME/.local/bin:$PATH"' \
               >> "$BASH_ENV"
             . "$BASH_ENV"
       - run:
@@ -417,7 +417,10 @@ jobs:
               generic) echo "no toolchain needed (curl ships in the image)" ;;
               maven|gradle)
                 sudo apt-get update -qq
-                sudo apt-get install -y -qq openjdk-17-jdk-headless >/dev/null
+                # unzip/zip: the gradle wrapper unpacks the distribution it
+                # downloads — the old monolithic install carried them, the
+                # split lost them (gradle leg red on first split run).
+                sudo apt-get install -y -qq openjdk-17-jdk-headless unzip zip >/dev/null
                 if [ "$LEG" = maven ]; then
                   curl -fsSL https://archive.apache.org/dist/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.tar.gz \
                     | sudo tar -xz -C /opt
@@ -429,7 +432,8 @@ jobs:
               pypi)
                 sudo apt-get update -qq
                 sudo apt-get install -y -qq python3-venv python3-pip >/dev/null
-                pip3 install --quiet --user build twine ;;
+                pip3 install --quiet --user build twine \
+                  || pip3 install --quiet --user --break-system-packages build twine ;;
               docker)
                 REG="$(printf '%s' "${UAT_MATRIX_BASE:-http://52.79.109.153:8080}" | sed -e 's|^https\{0,1\}://||')"
                 sudo mkdir -p /etc/docker
@@ -447,7 +451,8 @@ jobs:
               conan)
                 sudo apt-get update -qq
                 sudo apt-get install -y -qq cmake g++ python3-venv python3-pip >/dev/null
-                pip3 install --quiet --user conan ;;
+                pip3 install --quiet --user conan \
+                  || pip3 install --quiet --user --break-system-packages conan ;;
               *) echo "unknown leg: $LEG" >&2; exit 2 ;;
             esac
       - run:
