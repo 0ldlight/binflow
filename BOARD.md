@@ -1869,5 +1869,13 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **复测②起飞（2026-09-04 22:0x，main `d38186c` = develop 直推合并〔OAuth workflow-scope 拦 PR merge → 临时 worktree 造 merge commit + SSH 推 main；PR #93 自动转 merged〕）**：四修一次验——helm spool（T-474）/ node 24 audit 门（peer `21b6f68`）/ nuget dotnet 8 + conan recipe（`5999b39`）/ pypi trusted-host + e2e retries（既有）。GH 矩阵 dispatch run=33881555687（可读日志面）。**peer 侧并行盯 commit status（只读简报制）**。裁定挂下轮。
 
+**T-457 → done 2026-09-04 22:1x（`455a519`，29 文件 +1,934/−59）——M16 24/35（B12：profile 自助 + 帮助下拉 + About）**：**token 卡升格自助签发真身**（弹窗族 15 锚 + step-up 两臂 + 一次性明文〔Bearer 与 curl -u Basic 双臂真发 API 验证 + 关闭/刷新不可再取 + 吊销收尾〕+ 即用 curl 样例）+ SSH 缺位卡（诚实缺位）+ **? 帮助下拉四项**（PRD 定案集——7.161.20 活体实为三项 JFrog 变体，差异留痕 parity B-2.17）+ **About 版本弹窗**（侧栏 vdev 升格入口）+ t134/t146 语义翻新（DC-02/G19b-1——链接断言→下拉项断言）。锚册 **v1.42**（+6 STOP 假阳性同步）。四门绿（tsc 0 / 触碰面 lint 净 / 新 spec 6/6 + 回归批 30+22 绿〔定稿二进制〕/ a11y 双主题 / SPA +3,898B ≤10KB）。**契约漂移三条登记**：ssh_keys 端点 BE 全域缺位（console-ux §9-R11——FE 零伪造，落地后补增删表）；令牌清单端点缺位（§9-R6 延续——A7 联动）；帮助菜单四项集 vs 活体三项（PRD 定案优先）。活体取证 t457-probe/（7.161.20 只读）。日志 reports/agents/T-457.md。**注**：t134/t146 系语义改写非 T-475 CI 敏感族（T-457 报告自证——先前 finisher 笔迹假说不成立）。
+
+**复测②裁定 + 复测③筹备（2026-09-04 22:1x~22:2x）**：
+- **helm 腿 = 部署竞态，修复在线实证绿**（peer 手动 PUT chart 到 UAT 得 **201**——T-474 修复在 uat.d38186c 生效；GH 矩阵腿跑在 deploy 完成前数秒 → 重跑即绿类）。
+- **nuget pin 未生效**（setup-dotnet 装了 8 但 /usr/share/dotnet host shim 赢了 PATH）→ 双修：workflow step `sudo rm -rf /usr/share/dotnet` 后再 setup-dotnet（peer 保底方案，`f926a4f`）+ leg 工作区 global.json 钉 8.0.*（项目侧，`1b86ef3`）。
+- **conan = 缺 default profile**（fresh CONAN_HOME 无 profiles → `conan profile detect --force` 引导，`1b86ef3`）。
+- GH 矩阵已在 develop@1b86ef3 重派（run 33882745210——验 conan+helm 两腿；nuget rm 修在其后，下轮 dispatch 验）。CircleCI protocol_matrix（main 旧腿脚本）在跑——helm 应绿，conan/nuget 红属预期（修未到 main）。**复测③ = develop 矩阵 10/10 后一次合 main。**
+
 **Fern 重发布避让（21:2x）**：T-472 在途重构 fern/（空 API definition stub 已落树——CLI 切 API 项目模式拒 tab+layout 导航形）——T-458 镜像页发布顺延候 T-472 收口统一执行。
 
