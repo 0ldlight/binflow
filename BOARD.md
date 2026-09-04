@@ -1828,3 +1828,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **CI 事件追加（conductor 17:3x）**：c4da02e 上 e2e job 仍红 + release-dryrun 首红（前三轮全绿）+ ci job 在跑。**e2e 复绿假说受创**——依赖事件与 e2e 红的关系须重审（日志候 run 完结取证：`gh run view --job` 取 e2e 失败清单；另查 ci job 自 ≥09-02 06:33 PR #64/65 起的连红根因——sqlite 1.57 假说候证）。UAT 已回滚基线 ✅（uat.c4da02e）。
 
+**CI 事件定谳（conductor 17:5x，run 33855887617 完结）**：三 job 分诊完毕——**ci ✅ SUCCESS**（回退奏效：lint/Test/GC stress/typecheck 全绿——dependabot 载荷坐实 ci 连红根因）；**release-dryrun ❌ = goproxy.cn GOAWAY 网络抖**（六平台快照下载 genproto 断流——重跑即绿类，非代码）；**e2e ❌ 4F/334P（23.2m）= flake 家族**（失败集两轮漂移、全部 element(s) not found、334 绿证 MUI 7 SPA 健康——CI 慢机超时形态；本地四门同 spec 全绿在案）。`gh run rerun --failed` 已发取判别信号。
+
+**T-471 → todo（2026-09-04 17:5x 立票，P2，票外工程票）：CI e2e 稳定性**——playwright.config CI 侧 retries（`process.env.CI ? 2 : 0`）+ expect/action timeout 档位 + 必要时 workers 收敛。role: devops-engineer ｜ area: web/playwright.config.ts + .github/workflows/ci.yml ｜ dep: **候 T-455 收口**（避免在途 FE 票 e2e 被配置变更扰动）。AC：c4da02e 同树重跑 e2e job 绿 ×2 连续；本地 retries 仍 0（严格面不变）。
+
