@@ -1804,6 +1804,8 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 
 **T-451 → done 2026-09-04 07:5x——M16 17/35（B8 票①：分页控件 ×9 统一——E2 翻案兑现）**：**Pager.tsx 共享控件**（页码/每页行数档位冻结 [20/50/100/200/1000]/首末页禁置 + useClientPager）+ **八列表面迁移**（ResultsTable/AqlPanel/审计 keyset 页窗/仓库/users/groups/permissions/tokens）+ 制品树增量加载按 L4 分治维持（豁免锚注记）。**契约漂移①**：7.161 管理列表实为 ag-grid「to/of」形态无页码序列——按 7.84 冻结锚实现，版本线分歧留痕候 ux 裁（翻转点已备）。锚册 **v1.39**（9 名 + 四退役）+ parity **v1.10**（E2/L4/B-3.3 翻已落 + §11.2 档位冻结）。四门绿 + 新 spec 4/4 + m16 目录 38P×2 + a11y 双主题 0 + SPA +4,863B。**环境事件披露**：brew simdutf 升级断链系统 node@22（全程 nvm v24 绕行——其他 agent 同法）。日志 reports/agents/T-451.md。
 
+**T-452 → done 2026-09-04 09:1x——M16 18/35（B8 票②：AQL 副线收尾）**：**QRL 全量**（`v1/system/query_rate_limiter` 三态 REST + admin 门 + K63 门读数一致——K72）+ **UI 搜索族四端点**（artifactsearch/stashResults/packagesSearch/syntax-search——wire 照锚；Smart Searches 保存面 pro 档不做）+ **dates/creation 双端点**（K65：404 `No results found.` 逐字空集族 + uri 瘦行 + epoch-ms）+ ACL 同源探针 + **§5.7 全景表 M16 行逐条对账**（search_family_panorama_test）。conductor spot：build 0 + 定向 15.1s 绿。日志 reports/agents/T-452.md。**B8 齐落——批次③ 闭合。**
+
 **用户指令 intake ⑬（2026-09-04 02:3x）：「后续代码只提交到 git@github.com:0ldlight/binflow.git」——push 循环已去掉 vm 远端**（配置保留零使用）。
 
 **全树 race 补证判无效（conductor 2026-09-01 14:3x）**：与两 agent 测试套件同机并发跑——22 包红全部 620-660s 超时形态 + db/sql 竞争 panic + storage fail-open 窗口 = **共租负载签名**（T-414 日志同款 load 450-630），非产品缺陷。T-412 的 AC3 证据改挂 **T-421 中期 QA 串行全树 race**（届时 lane 空净）。**D-413-2 [P3·登记]**：唯一真信号 = T-413 `TestEngineMixedLoad` 在慢机下 K63 并发门 429 介入而测试只容忍 busy gate 拒绝——测试健壮性收窄（门注入调低或混合负载容忍 429），归 T-421 复验时顺腿修或转 T-433。**教训入册：全树 race/性能类验证必须 lane 空净时串行跑（派单纪律）。**
