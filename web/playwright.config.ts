@@ -31,6 +31,31 @@ export default defineConfig({
   // (a11y-sweep/helpers) and keyboard keeps an explicit 180s. A real hang now
   // costs 3 minutes in one worker, not a false red under load.
   timeout: 180_000,
+  // CI flake absorption (T-471). Drift evidence: main-branch e2e runs on the
+  // SAME tree (c4da02e, run 33855887617 et al) produced rotating singleton
+  // "element(s) not found" stragglers — t443-list-entry-dirty,
+  // repositories.spec:58, t451-pager-unification, two m9 legs — 334 passed
+  // around a 1~4-test failure set that DIFFERED round to round, while all
+  // four local gates run the same specs green. That is slow-shared-runner
+  // tail latency, not a regression: absorb it in CI, never locally. Local
+  // stays 0 (Playwright's default, written out on purpose) — "serial rerun
+  // green = pass" is the local protocol (web/README.md) and a local red must
+  // stay loud. CI gets 2: a genuinely broken selector still reds (three
+  // consecutive misses), and flaky outcomes remain visible as the github
+  // reporter's flaky annotation instead of a silent pass.
+  retries: process.env.CI ? 2 : 0,
+  // Same family, same evidence (T-471): every observed straggler died on a
+  // LOCATOR wait far inside the 180s test budget — expect's 5s default is
+  // the tightest gate on a cold colocated runner (binflow server + 2
+  // chromium workers on a 4-vCPU box). CI doubles it to 10s; local keeps
+  // the 5s default, written out rather than inherited so the strict local
+  // face stays visible. Not raised higher: a real regression should
+  // surface at 3 x 10s per leg, not hide behind a generous poll. (No
+  // actionTimeout anywhere: Playwright's default 0 = actions defer to the
+  // 180s test budget, which is not the binding constraint here.)
+  expect: {
+    timeout: process.env.CI ? 10_000 : 5_000,
+  },
   fullyParallel: true,
   // Restored default concurrency, pinned at the AC floor (FR-80-AC2 ">=4
   // workers", T-268). The bare `npx playwright test` needs no --workers flag;
@@ -40,7 +65,17 @@ export default defineConfig({
   // cpu/2 assumes; axe-core runs in-page, and 8 chromium workers on 8 physical
   // cores pushed the 52-scan sweep past 8 minutes — evidence rounds in
   // reports/agents/T-268.md). 4 workers = every axe leg inside budget with
-  // 3 consecutive green rounds.
+  // 3 consecutive green rounds. CI posture (T-471 evaluation, kept as is):
+  // ci.yml's e2e step pins --workers=2 on its CLI (flag wins over this
+  // line), which equals Playwright's cpu/2 heuristic on the 4-vCPU
+  // ubuntu-latest runner while that box also hosts the app under test —
+  // not oversubscribed. Lowering to 1 was considered and rejected: it
+  // would roughly double the suite's wall time against the job's 45m
+  // budget, and the T-471 failure shape (singleton 5s expect stragglers
+  // with 334 green under the same parallelism) is tail latency, not
+  // steady starvation — retries + the CI expect bump above are the right
+  // absorbers. Raise CI workers only per the ci.yml note (3 consecutive
+  // green main runs).
   workers: 4,
   // Fail-fast BASE ownership probe (T-266 registered leftover, landed T-268):
   // verifies $BASE is a live BinFlow instance BEFORE any worker starts, so a
