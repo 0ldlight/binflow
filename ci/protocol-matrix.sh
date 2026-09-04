@@ -659,6 +659,10 @@ class MatrixConan(ConanFile):
         cmake = CMake(self)
         cmake.configure()
         cmake.build()
+
+    def package(self):
+        cmake = CMake(self)
+        cmake.install()
 PYEOF
   cat > proj/CMakeLists.txt <<'EOF'
 cmake_minimum_required(VERSION 3.15)
