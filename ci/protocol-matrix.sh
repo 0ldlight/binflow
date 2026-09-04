@@ -668,8 +668,9 @@ install(TARGETS matrix RUNTIME DESTINATION bin)
 EOF
   printf '#include <iostream>\nint main() { std::cout << "matrix-ok\\n"; }\n' > proj/src/main.cpp
   # Fresh CONAN_HOME ships no profiles — conan 2 demands a build profile
-  # before `create`; detect one from the toolchain (GH run tripped on this).
-  conan profile detect --force >/dev/null 2>&1 || conan profile detect >/dev/null
+  # before `create`. No output swallowing: a detect failure must fail the
+  # leg with its real cause, not resurface as create's generic complaint.
+  conan profile detect --force
   ( cd proj && conan create . ) || return 1
   conan remote add bf-matrix "$(client_base conan)/binflow/uat-matrix-conan-local" || return 1
   conan remote login bf-matrix "$BINFLOW_USER" -p "$BINFLOW_PASSWORD" || return 1
@@ -679,6 +680,9 @@ EOF
   # (--build=never: a binary miss is a failure, not a local rebuild).
   export CONAN_HOME="$PWD/conan-home2"
   rm -rf "$CONAN_HOME"; mkdir -p "$CONAN_HOME"
+  # The second cache needs its own default profile (host+build resolution
+  # runs client-side in `conan install` too).
+  conan profile detect --force
   conan remote add bf-matrix "$(client_base conan)/binflow/uat-matrix-conan-local" || return 1
   conan remote login bf-matrix "$BINFLOW_USER" -p "$BINFLOW_PASSWORD" || return 1
   conan install --requires="matrix/$VER" -r bf-matrix --build=never || return 1
