@@ -96,3 +96,18 @@ export const REMOTE_TEST_OK_NOTE = '上游可达且凭据被接受'
 export const REMOTE_TEST_FAIL_NOTE = '探测未通过'
 export const REMOTE_TEST_STATUS_PREFIX = '上游应答 HTTP '
 export const REMOTE_TEST_UNREACHED_NOTE = '未触达上游——连接层失败（DNS/拒绝/超时）'
+
+// T-461（FR-147）新增文案——remote 远端浏览可选档（listRemoteFolderItems）
+// ---------------------------------------------------------------------------
+
+/** 批 1 支持远端枚举的包型（engine BrowseSupported 同集——helm classic
+ *  index.yaml 全树 + debian/rpm 元数据臂；true 于其它包型服务端按名 400，
+ *  表单只对批 1 型呈现控件——Artifactory 官方开放面 deb/generic/maven/
+ *  Opkg/rpm 与 BinFlow 引擎面不同，generic/maven 不建不伪造）。 */
+export const REMOTE_BROWSE_PKG_TYPES: readonly string[] = ['helm', 'debian', 'rpm']
+
+/** 可选档标签（Artifactory 官方 UI 名 "List Remote Folder Items" /
+ *  "List Remote Artifacts" 两种拼写并用——remote-browsing.md §1）。 */
+export const LIST_REMOTE_FOLDER_ITEMS_LABEL = '列出远端目录条目（listRemoteFolderItems）'
+export const LIST_REMOTE_FOLDER_ITEMS_HINT =
+  '开启后目录浏览合并上游未缓存条目进树（按 metadata TTL 缓存枚举；点击未缓存条目会回源拉取）。默认关闭——树仅展示已缓存内容。'

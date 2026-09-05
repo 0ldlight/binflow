@@ -110,6 +110,11 @@ export interface RepoConfigBody {
   password?: string // 仅创建/更换时携带；GET 永不回显（NFR-S14）
   allowPrivateUpstream?: boolean
   hardFail?: boolean
+  /** 远端浏览可选档（M16 T-461 / FR-147，remote 臂——wire 走 D-T456-1
+   *  修复后的 transport 指针字段）：默认 false（off = 仅缓存行 diff=0）；
+   *  批 1 = helm/debian/rpm（true 于其它包型服务端按名 400——表单只对
+   *  批 1 型呈现控件）。显式 false 恒提交（flip-off 过 round trip）。 */
+  listRemoteFolderItems?: boolean
   retrievalCachePeriodSecs?: number
   missedRetrievalCachePeriodSecs?: number
   socketTimeoutSecs?: number

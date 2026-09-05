@@ -313,6 +313,25 @@ const STOP = new Set([
   // （t457-probe 即 reports/agents/t457-probe/ 的 7.161.20 取证），均非锚
   'step-up', 'link-in-text-block', 't134-g32', 't146-docs',
   't457-profile-help-about', 't457-probe',
+  // v1.43（T-459 行文假阳性）：监控组/导航分组批的标识符引用——aria 属性
+  // 名（aria-pressed——批次语义描述非锚）/ CSS 类钩子（cmd-block——日志
+  // 面板复用的命令块容器类，§10.3 行文旧词复现）/ 调度投影字段名
+  // （next-run、last-run——status-sched 行族的列语义描述非锚）/ 路由段名
+  // （system-info——/admin/monitoring/system-info 的 URL 段，锚是 settings
+  // 冻结族）/ 翻新 spec 简称（governance-monitoring 即 e2e/m8/governance-
+  // monitoring.spec.ts）/ 本票新 spec 文件名段（t459-monitoring-nav）/
+  // 活体探针证据目录名（t459-probe 即 reports/agents/t459-probe/），均非锚
+  'aria-pressed', 'cmd-block', 'next-run', 'last-run', 'system-info',
+  'governance-monitoring', 't459-monitoring-nav', 't459-probe',
+  // v1.44（T-461 行文假阳性）：远端浏览批的标识符引用——wire/机制术语
+  // （display-only——派生行语义、item-info——元数据面 GET 简称、
+  // pull-through——回源链机制名、remote-browsing——docs/reverse/
+  // remote-browsing.md 规格文件名段、repo-semantics——同左规格文件名段）
+  // + CSS 类钩子（warn-box——tree-remote-note 载体类名，§10 行文旧词）
+  // + 本票新 spec 文件名段（remote-browse-tree 即 e2e/m16/
+  // remote-browse-tree.spec.ts），均非 testid 锚
+  'display-only', 'item-info', 'pull-through', 'remote-browsing',
+  'repo-semantics', 'warn-box', 'remote-browse-tree',
 ])
 const docFams = new Set()
 for (const t of docTokens) {

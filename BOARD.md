@@ -1887,3 +1887,15 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 **T-476 → done 2026-09-05 02:4x（`91741483`，24 文件 +1,521/−73）——T-474 同族收口（nuget/cargo/deb/rpm 四面 spool 迁移共享 staging）**：Options.SpoolDir cmd 四处装配（`<data_dir>/staging` 同卷根）+ StageFile 原语 + StagingLabel 有界披露共用 + 507 面 + nuget fd 泄漏顺修 + **cargo CG-2 刻例**（staging 拒绝 507+errors envelope / 读侧 200+warnings 契约逐字——cargo 读 200-warnings 为成功，静默失能=全损故刻例外）。**事故拓扑验证**：TMPDIR=0444 铁证 curl ×4 协议 201 字节一致。四门绿 + deb 124s 零回归。**T-477 候立**：internal/repo/archive.go:1082 X-Explode-Archive 同族（服务层域）；migrate CLI 低危登记。日志 reports/agents/T-476.md。
 
 **终局合 main（2026-09-05 02:4x，`f98bb6b9`）——复测收官管线起飞**：T-476 二进制 + 矩阵全修 + node 24 + 30m 墙钟齐上。裁定挂下轮（矩阵 10/10 + ci 绿 = 闭合；e2e 三硬红候 T-475）。
+
+**接管升级（conductor 续任侧 2026-09-05 05:0x~07:1x，dev-center-1e 静默 >4h 超其最长配额窗）**：
+- 终验三修 + PR #95（`f08863f`）：go PATH / gradle unzip / pip PEP668——**七腿绿 + e2e ✅ + GH ci 三 job 全绿（连续第二绿 run）**；四腿（go/gradle/pypi/conan）CircleCI 面红**复原**。免日志诊断穷尽清单：本地单腿✅/本地五腿并发✅/ubuntu:22.04 同构容器全链✅/GH 面 10/10×2✅ ⇒ **machine executor 环境特异，唯日志可定谳**（爆发限流假说已被本地并发实验削弱；PEP668 对 machine 镜像 pip 22 不成立）。报告 iteration-1392（双文合并制）。
+- **循环恢复派发**（07:1x）：**D-T456-1**（dev-go-core：listRemoteFolderItems 传输层丢字段——PUT 静默吞+类型门 400 不可达）+ **T-461 → doing**（dev-frontend：FE 远端浏览树消费可选档双态——off 态与骨架先行，on 态端到端候 BE 腿合入复验）。双 lane 区互斥（internal/httpapi vs web/src/pages/artifacts）。
+
+**D-T456-1 → done 2026-09-05 07:4x（`6da7b23b`，3 文件 +344）——T-461 on 态前置解锁**：根因 = T-448 只落 service 层、httpapi `repoConfig` struct 漏字段（PUT 体经 typed decode 该键静默丢弃——既不落库且 mistyped 400 不可达）。修：`ListRemoteFolderItems *bool`（指针保显式 false 往返）+ configJSON remote 臂 setBool 收集 + GET 经 canonical 恒回显（零改动）。17 subtests（batch-1 往返/翻转保持/类型门/值域门）+ httpapi 全包回归 123s ok + repo T448 交叉 sanity。四门绿。FE 契约注记：读 GET configuration.listRemoteFolderItems（布尔恒在场）；写须全量 remote config（full-replace PUT 语义——flag-only 更新吃 url-required 400 系既有语义非本票引入）。日志 reports/agents/D-T456-1.md。
+
+**T-461 → done 2026-09-05 08:2x（`09d3311d`，14 文件 +1,102/−26）——M16 26/35（FR-147.3 FE 远端浏览树消费：可选档双态——FR-147 全栈闭合）**：Advanced 步复选（批 1 型门 + 指针提交）+ repo 详情回显 + 树双态（off 默认 diff=0 / on 未缓存远端目录〔helm 全树 + deb/rpm 元数据臂〕+ 点击回源 + ?stats 计数联动 + virtual §8.5 成员行）+ 上游停机降级（远端层错误态 + 缓存行可用）。六腿 spec 6/6 ×5 连跑（scratch 18098）+ 回归面全绿 + SPA +906B。锚册 **v1.44**（6 名）+ parity **v1.13**（B-3.20）。**on 态端到端实证通**（D-T456-1 修在树生效）。**契约漂移登记**：① 降级 note 无 wire 面——httpapi 三处 List 调用点丢 RemoteDegraded（FE 按假定字段 remoteDegraded 消费、缺席零渲染；BE spot 三行+一字段即点亮 → **D-T461-1 立票**）；② ?list 派生行 size:0/零时 mtime 占位（FE 按 sha2 缺席判别 '—'）。**收编注记**：预暂存改名 admin→monitoring/SystemInfoPage.tsx（T-459 在途足迹，100% 相似度纯移动）被吸附入本提交——内容零变化、归 T-459 面记账。遗留：NodeDetail useAsync 重复发射 item GET → 纯浏览多计下载数（跨票怪癖小票候选）；枚举快照 TTL 600s 非 wire 可调（降级臂以换 url 失效签名达成）。日志 reports/agents/T-461.md。
+
+**D-T461-1 → doing 2026-09-05 08:3x（P2 小票：RemoteDegraded 上 wire）**：dev-go-core 在途。httpapi 三处 List 调用点补 RemoteDegraded 透出（字段名回写对齐 FE 假定形 remoteDegraded）+ storage.go 一字段；30min 量级。
+
+

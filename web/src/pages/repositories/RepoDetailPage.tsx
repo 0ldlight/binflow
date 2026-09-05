@@ -471,6 +471,16 @@ export default function RepoDetailPage() {
                     {cfgNum(cfg, 'socketTimeoutSecs') ?? 15}s / {cfgNum(cfg, 'assumedOfflinePeriodSecs') ?? 300}s
                   </span>
                 </div>
+                {/* T-461（FR-147 AC1）：远端浏览可选档回显（编辑表单同源字段
+                    listRemoteFolderItems——GET configuration 投影） */}
+                <div className="kv">
+                  <span className="k">远端浏览</span>
+                  <span data-testid="repo-remote-browse">
+                    {cfgBool(cfg, 'listRemoteFolderItems')
+                      ? '开启（listRemoteFolderItems——树含上游未缓存条目，点击回源拉取）'
+                      : '关闭（仅浏览已缓存内容）'}
+                  </span>
+                </div>
               </section>
             )}
 

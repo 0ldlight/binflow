@@ -52,6 +52,18 @@ export const STATS_HINTS = {
 export const EMPTY_VALUE = '—'
 
 /**
+ * 远端派生行文案（M16 T-461 / FR-147——listRemoteFolderItems on 的上游
+ * 枚举 display-only 行消费面）。点击派生行 = item-info GET 触发回源
+ * pull-through：成功则落地成缓存行（详情自纠为真实值），失败即降级面
+ * （上游停机——已缓存内容仍可浏览，remote-browsing.md §4-1）。
+ */
+export const REMOTE_COPY = {
+  /** 派生行回源失败的详情面板错误文案（降级呈现腿） */
+  fetchFailed: (status: number | string) =>
+    `远端条目拉取失败（HTTP ${status}）：上游不可达或超时，或该路径已不在上游索引中——已缓存内容仍可浏览，稍后重试或刷新。`,
+} as const
+
+/**
  * 属性页签文案（M16 T-447 / FR-144.4，B-2.9 翻正——Artifactory 属性编辑
  * 解剖：常显 Property/Value 输入 + Add + 网格搜索；7.161.20 活体实证
  * placeholder 逐字 = "Property name" / "Property value"）。
