@@ -1,0 +1,47 @@
+# deploy/caddy/uat.Caddyfile — TLS termination for the BinFlow UAT instance
+# (T-478, user directive #19: UAT listens on 443, HTTPS + ACME domain).
+#
+# Shipped by deploy/ci/uat-proxy.sh, which substitutes {{DOMAIN}} (e.g.
+# uat.binflow.org) on the server, then runs `caddy validate` and reloads.
+# The server-side copy lives at /etc/caddy/caddyfiles/binflow-uat.caddyfile
+# and is imported by /etc/caddy/Caddyfile (owned by the same script).
+#
+# Why Caddy and not nginx+certbot or in-process TLS — verdict in
+# reports/agents/T-478.md: automatic ACME (HTTP-01 + TLS-ALPN-01) with
+# renewal handled by the daemon, zero cert scripts/timers; BinFlow keeps
+# serving plain HTTP on 127.0.0.1:8080 (product unchanged — the same
+# proxy-termination posture as deploy/nginx/ssl.conf.template, T-168).
+#
+# Operational prerequisites (see the T-478 report checklist):
+#   - DNS A record {{DOMAIN}} -> 52.79.109.153
+#   - ports 80 AND 443 reachable (AWS security group + ufw; uat-proxy.sh
+#     only manages the ufw side)
+
+{{DOMAIN}} {
+	# ACME: automatic for the site address above. Let's Encrypt by default,
+	# HTTP-01 (needs :80) and TLS-ALPN-01 (needs :443) both in play; failed
+	# issuances (e.g. DNS not propagated yet) retry with backoff — the proxy
+	# layer can be provisioned BEFORE the DNS record exists, harmless.
+	#
+	# Caddy's automatic HTTP->HTTPS redirect site on :80 needs no config here.
+
+	reverse_proxy 127.0.0.1:8080 {
+		# Streaming posture for artifact traffic: flush every write
+		# immediately (docker layers, raw downloads, SSE tails) instead of
+		# buffering. Uploads stream too — Caddy has NO default request-body
+		# cap, so large pushes pass through (the nginx template spells this
+		# as client_max_body_size 0; here it is the default behavior).
+		flush_interval -1
+	}
+
+	header {
+		# The UAT domain is https-only by design; commit browsers for a year.
+		# The direct http://IP:8080 face (transition fallback) is a different
+		# origin and unaffected.
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		# X-Frame-Options deliberately NOT set here: frame policy belongs to
+		# the application (CSP frame-ancestors), and a blanket DENY at the
+		# proxy can only break legitimate embeds.
+	}
+}

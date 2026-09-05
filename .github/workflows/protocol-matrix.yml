@@ -17,7 +17,9 @@
 # Secrets (Settings > Secrets and variables > Actions):
 #   UAT_MATRIX_PASSWORD  REQUIRED — the UAT admin password
 # Optional repo variables (Settings > Secrets and variables > Variables):
-#   UAT_MATRIX_BASE      default http://52.79.109.153:8080
+#   UAT_MATRIX_BASE      default https://uat.binflow.org (T-478 — https via
+#                        the caddy TLS proxy; transition fallback env:
+#                        http://52.79.109.153:8080 until DNS/cert are live)
 #   UAT_MATRIX_USER      default admin
 #
 # Fan-out: one runner per leg (fail-fast off) — a red leg never masks the
@@ -38,7 +40,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  BINFLOW_BASE: ${{ vars.UAT_MATRIX_BASE || 'http://52.79.109.153:8080' }}
+  BINFLOW_BASE: ${{ vars.UAT_MATRIX_BASE || 'https://uat.binflow.org' }}
   BINFLOW_USER: ${{ vars.UAT_MATRIX_USER || 'admin' }}
   BINFLOW_PASSWORD: ${{ secrets.UAT_MATRIX_PASSWORD }}
 
@@ -77,15 +79,25 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      # The docker leg needs the daemon to trust the plain-HTTP UAT
-      # registry (same step the CircleCI machine job runs).
-      - name: Docker daemon — trust the plain-HTTP UAT registry
+      # The docker leg needs the daemon to trust the UAT registry only when
+      # it is plain HTTP (T-478: an https registry must stay on verified
+      # TLS — same conditional the CircleCI leg job runs).
+      - name: Docker daemon — trust the UAT registry (plain-HTTP bases only)
         if: matrix.leg == 'docker'
         run: |
-          REG="$(printf '%s' "$BINFLOW_BASE" | sed -e 's|^https\{0,1\}://||')"
-          sudo mkdir -p /etc/docker
-          printf '{"insecure-registries":["%s"]}\n' "$REG" | sudo tee /etc/docker/daemon.json >/dev/null
-          sudo systemctl restart docker
+          if printf '%s' "$BINFLOW_BASE" | grep -q '^https://'; then
+            echo "https UAT base — no insecure-registries needed (public CA chain)"
+            if [ -f /etc/docker/daemon.json ]; then
+              sudo rm -f /etc/docker/daemon.json
+              sudo systemctl restart docker
+              echo "removed stale insecure-registries daemon.json"
+            fi
+          else
+            REG="$(printf '%s' "$BINFLOW_BASE" | sed -e 's|^https\{0,1\}://||')"
+            sudo mkdir -p /etc/docker
+            printf '{"insecure-registries":["%s"]}\n' "$REG" | sudo tee /etc/docker/daemon.json >/dev/null
+            sudo systemctl restart docker
+          fi
           docker info | grep -A3 'Insecure Registries'
 
       - name: Run leg — ${{ matrix.leg }}

@@ -13,7 +13,8 @@
 #   - Project linked to github.com/lzwzzy/binflow
 #   - SSH key for the UAT host uploaded; its fingerprint in $UAT_SSH_FP
 #   - $UAT_HOST (default 52.79.109.153), $UAT_USER (default ubuntu),
-#     $UAT_HOME (default /opt/binflow-uat)
+#     $UAT_HOME (default /opt/binflow-uat), $UAT_DOMAIN (default
+#     uat.binflow.org; "off" disables the T-478 TLS proxy layer)
 #
 # T-473 (2026-09-04) — DevOps capability sweep (user directive: "把 circleci
 # 的 devops 相关能力都用起来"). Every change below is additive to the
@@ -224,6 +225,20 @@ jobs:
             # MD5 fingerprint of the UAT deploy key (uploaded in Project
             # Settings > SSH Keys; derived from ~/.ssh/binflow-uat.pem):
             - "$SSH_KEY_FINGERPRINT_UAT"
+      # T-478 (user directive #19): TLS proxy layer FIRST — idempotent
+      # (installed=no-op, config unchanged=no reload), and if caddy/apt go
+      # sideways the job aborts BEFORE the binary swap, so the standing
+      # instance is never the casualty of a proxy problem. UAT_DOMAIN
+      # "off"/"none"/"" disables the layer (transition kill switch);
+      # default uat.binflow.org. Requires DNS A record + AWS SG 80/443
+      # (user actions; checklist in reports/agents/T-478.md).
+      - run:
+          name: TLS proxy layer (caddy, idempotent, off-switchable)
+          command: |
+            bash deploy/ci/uat-proxy.sh \
+              "${UAT_HOST:-52.79.109.153}" \
+              "${UAT_USER:-ubuntu}" \
+              "${UAT_DOMAIN:-uat.binflow.org}"
       - run:
           name: Ship binary + systemd unit + smoke to UAT
           command: |
@@ -356,7 +371,8 @@ jobs:
   # the real client toolchains. The matrix itself lives in ONE script —
   # ci/protocol-matrix.sh — shared verbatim with the GitHub Actions face
   # (.github/workflows/protocol-matrix.yml); this job only installs the
-  # toolchains, trusts the plain-HTTP UAT registry on the docker daemon, and
+  # toolchains, trusts the UAT registry on the docker daemon when (and only
+  # when — T-478) the base is plain HTTP, and
   # invokes per-leg steps (when: always — one red leg never masks the rest).
   #
   # Machine executor on purpose: the docker leg needs a daemon whose
@@ -365,7 +381,10 @@ jobs:
   # toolchains install natively on the VM.
   #
   # Project secrets (Settings > Environment Variables; none are defaults):
-  #   UAT_MATRIX_BASE       http://52.79.109.153:8080 (falls back to this)
+  #   UAT_MATRIX_BASE       https://uat.binflow.org (falls back to this;
+  #                         T-478 — https via the caddy TLS proxy. Transition
+  #                         fallback: set the env to http://52.79.109.153:8080
+  #                         until DNS/cert are live)
   #   UAT_MATRIX_USER       admin (falls back)
   #   UAT_MATRIX_PASSWORD   REQUIRED — the UAT admin password ($:? guard)
   # T-469 -> intake 18: the protocol matrix as TEN PARALLEL JOBS (one per
@@ -397,7 +416,7 @@ jobs:
           command: |
             mkdir -p "$HOME/project/ci/.matrix-work"
             printf '%s\n' \
-              'export BINFLOW_BASE="${UAT_MATRIX_BASE:-http://52.79.109.153:8080}"' \
+              'export BINFLOW_BASE="${UAT_MATRIX_BASE:-https://uat.binflow.org}"' \
               'export BINFLOW_USER="${UAT_MATRIX_USER:-admin}"' \
               'export BINFLOW_PASSWORD="${UAT_MATRIX_PASSWORD:?UAT_MATRIX_PASSWORD secret missing in CircleCI project env}"' \
               'export BINFLOW_MATRIX_WORK="$HOME/project/ci/.matrix-work"' \
@@ -450,10 +469,22 @@ jobs:
                 pip3 install --quiet --user build twine \
                   || pip3 install --quiet --user --break-system-packages build twine ;;
               docker)
-                REG="$(printf '%s' "${UAT_MATRIX_BASE:-http://52.79.109.153:8080}" | sed -e 's|^https\{0,1\}://||')"
-                sudo mkdir -p /etc/docker
-                printf '{"insecure-registries":["%s"]}\n' "$REG" | sudo tee /etc/docker/daemon.json >/dev/null
-                sudo systemctl restart docker
+                # T-478: insecure-registries ONLY for a plain-HTTP base —
+                # an https registry must stay on verified TLS, so the
+                # daemon.json rewrite is conditional on the scheme now.
+                if printf '%s' "${UAT_MATRIX_BASE:-https://uat.binflow.org}" | grep -q '^https://'; then
+                  echo "https UAT base — no insecure-registries needed (public CA chain)"
+                  if [ -f /etc/docker/daemon.json ]; then
+                    sudo rm -f /etc/docker/daemon.json
+                    sudo systemctl restart docker
+                    echo "removed stale insecure-registries daemon.json"
+                  fi
+                else
+                  REG="$(printf '%s' "${UAT_MATRIX_BASE:-https://uat.binflow.org}" | sed -e 's|^https\{0,1\}://||')"
+                  sudo mkdir -p /etc/docker
+                  printf '{"insecure-registries":["%s"]}\n' "$REG" | sudo tee /etc/docker/daemon.json >/dev/null
+                  sudo systemctl restart docker
+                fi
                 docker info | grep -A3 'Insecure Registries' ;;
               nuget)
                 curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
