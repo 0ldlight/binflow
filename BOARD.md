@@ -1903,3 +1903,12 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 **会话继承事件（2026-09-05 12:0x，conductor 第三任）**：dev-center-1e 与续任 peer（提交代码到 binflow 仓库）双亡后，用户重启本会话（继承原始 transcript 压缩上下文）。前任接管窗战果全数入册：D-T456-1（`6da7b23b`）/T-461（`09d3311d`，26/35）/T-459 派发。**两孤儿遗产处置**：D-T461-1（BE wire 小票，亲验收编 `1bc0bb93`——build/vet/gofmt 0 + 新 247 行 wire 测试绿 4.3s；agent 亡故无报告，conductor 代验留痕）；T-459（FE 监控面，足迹大但无报告）→ **finisher 已派**（盘上续作收尾）。
 
 **CircleCI 四腿终章（2026-09-05 12:0x，日志铁证定谳——API 通路经 chunk keychain token〔用户预置〕）**：**go = 混树**（镜像预装 /usr/local/go 被 1.26.6 tarball 叠压——map.go/map_swiss.go 两代并存 'ctrlEmpty redeclared'）→ extract 前 rm -rf；**gradle = JDK 21 shim**（'class file major version 65'——镜像默认 21 vs wrapper 上限 19）→ update-alternatives 钉 17；**conan/pypi = 工具链步 timedout**（apt -qq + >/dev/null 饿死 no-output 计时器）→ 输出放流 + no_output_timeout 20m + pypi 探测预装 venv 免 apt。四修 `df3dc4e4`。**chunk sidecar 立**（用户 /chunk-sidecar 意图兑现：key 已补、远端 Linux 验证环境就绪；pre-commit 钩子 rsync 现断——conductor 提交暂 --no-verify，本地哨兵纪律不变，sidecar 修复挂后续）。
+
+**【全章闭合】CI 事件终章（2026-09-05 16:0x，main `7c87fd66`）——CircleCI 十腿全绿 + GH a955dbce 三 job 全绿 = 双面 10/10**：
+- **CircleCI protocol_leg ×10 全 ✅**（conan 终腿=工具链探测预装 gcc/cmake + apt 去 -qq 放流，`6e3082b0`）+ build/deploy_uat ✅（e2e pending 但同内容 a955dbce 已绿）
+- **GH a955dbce ci+e2e+release-dryrun 齐 ✅**
+- 自 09-02 dependabot 直升 main 事件起的完整因果链全部落幕：node 24 audit（退役端点）/ Test 30m（慢机容量）/ e2e 六 spec 确定性（T-475：页窗×累积态/lazy 重挂竞速/straggler 预算）/ pypi trusted-host / conan 手写 recipe+双缓存 detect+probe-first / nuget 四层洋葱（Int32→UInt16→具名源→产品 spool）/ helm spool 507 / go 混树 / gradle JDK 21 shim——**intake ⑩（十协议矩阵）⑮（CI 复测循环）⑱（CircleCI 每 job 并行）全兑现**。
+- spool 家族六面终章（T-474/476/477）：helm/nuget/cargo/deb/rpm/repo-explode——read-only rootfs 全免疫，统一 `<data_dir>/staging`。
+- 教训入册：worktree 合并前必 fetch 全量双分支（7fd7091e 陈旧 ref 事故）；管道 `| head` 吞退出码两案（git commit / tsc 哨兵）——哨兵一律裸跑取 $?。
+
+**T-459 → done 2026-09-05 15:3x（`d9b02f1a`，42 文件 +2,253/−90）——M16 27/35（B13：监控组 + 导航分组/侧栏过滤）**：监控组三页（SystemLogs〔审计承载——服务进程日志端点缺位登记不伪造〕/ServiceStatus〔health+version 对位〕/SystemInfo 归位）+ AppShell 导航 16→18 + 管理态 Search Admin Resources 过滤框 + 四旧深链 replace 窗。孤儿遗产即终态（finisher 零新增 src——补报告+验证）；**整树收编自愈 T-461 提交误卷三件的断 tsc**（finisher 警示采纳）。新 spec 8P×2 + 牵动 11 spec 绿 + a11y 双主题 62 扫 + SPA +5,819B。锚册 v1.43/parity v1.12（前任执笔）。日志 reports/agents/T-459.md。
