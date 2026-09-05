@@ -3,8 +3,8 @@
 | 项 | 值 |
 |---|---|
 | 文档 | `docs/design/console-ux.md` |
-| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账）/ T-291（v1.11：Properties 页签锚册——MUI 首票）/ T-307（v1.12：认证配置页组锚册——admin/security/auth 域）/ T-344（v1.14：密度档修订——MUI small 档，mui-native-visual §7 登记）/ T-352+T-353（v1.15：回收站页锚册 trash-* 族 + 建仓表单策略键生成器扩容）/ T-366（v1.16：Webhook 订阅管理页锚册 wh-* 族）/ T-372（v1.17：树尾常驻回收站入口锚 tree-trash-node——console-m8 §4.3 推翻条款兑现）/ T-382（v1.18：Set Me Up 抽屉化锚册——smu-* 零改名 + Resolve 批 + smu-close/smu-done 复役）/ T-383（v1.19：建仓形态核验锚册——form-section-* 六节族，M1 两段式断言钉死）/ T-384（v1.20：用户/组创建形态核验锚册——user-form-section-*/group-form-section-* 节锚 + 页脚四锚复役，M3 非 modal 断言钉死）/ T-389（v1.21：品牌位锚册——brand-sidebar-mark / brand-login-lockup，候选 1 logo 转正接线）/ T-387（v1.22：L1 列选器 + 刷新锚册——repos-columns-* / audit-columns-* / 两页 refresh）/ T-386（v1.23：Access Tokens 页真身锚册——tokens-* 族 28 名 + placeholder-page 退役）/ T-388（v1.24：F2 空态插画槽 empty-art + N2 侧栏图标槽 nav-icon——一级条目档位）/ T-404（v1.25：复制 CRUD 内嵌表单锚册——repl-* 配置面族 + form-section-replications 第七节 + 仓 Tab 指针升级 + Replications 列/Run）/ T-406（v1.26：制品浏览 remote/virtual 热修锚——tree-empty-virtual + remote 空态文案分支）/ T-414（v1.27：L1 列选器三页推广锚册——{users\|groups\|search}-columns-* 28 名 + member-pop 对比度清账）/ T-416（v1.28：virtual FE 树消费断言反转②——tree-empty-virtual 语义翻转 + RepoBranch virtual 动态展开恢复 + 删除入口预收敛）/ T-419（v1.29：搜索页 AQL 模式锚册——search-mode 族 + search-aql-* 15 名，smu/search 既有锚零改名）/ T-422（v1.30：复制包 B 首批锚册增量——repl-test/repl-test-result 表单 Test 两锚 + 全局封锁卡 repl-global-block/repl-block-push/repl-block-pull 三锚〔FR-138.2/138.3，parity §6A R8〕，repl-* 既有锚零改名）/ T-434（v1.31：制品树栈对齐锚册——tree-leaf-* 文件叶子 + 树头工具带 tree-toolband 族 + URL 模型段化〔页签段/文件路径段/?focus= 退役〕+ select≠expand，断言反转①留痕，tree-* 既有锚零改名）/ T-437（v1.32：版本史补记——v1.30 行归位〔T-434 遗留 + ux 复核盖章〕+ M16 翻案联动预登记〔E2 分页/E6 双语条款回写挂起 → T-451/T-464 票内；零锚变更〕）/ T-439（v1.33：表单三段步进锚册——form-step-* 三枚 + 预留位族 9 名 + form-force-auth 实字段 + form-reset 退役〔B-3.11/Q9〕）/ T-441（v1.34：pkg-grid 尺寸档断言翻转③〔440→924 居中〕+ 八型门控三件套退役登记——零新锚零改名）/ T-443（v1.35：入口分路由锚册——repos-create-{menu,三预选} + form-rclass-note + form-test 族三枚；form-rclass 族与 repos-columns-item-type 退役〔B-3.8 翻正 / Q9 列收敛〕）/ T-445（v1.36：详情字段族锚册——node-file-url 三形态 + node-downloads 统计族〔消费 T-438 ?stats〕+ node-repo-* 仓视图族；页签序统一〔权限在属性前〕零锚改名）/ T-447（v1.37：属性编辑解剖锚册——node-props-search 族 + node-download-menu 伴随菜单族；node-props 旗标表单/行内编辑族退役〔B-2.9 翻正〕+ 下载形态单图标钮〔B-2.12/Q9〕）/ T-449（v1.38：搜索栈锚册——结果网格 search-grid 与快滤族 + 选择列与批量拷贝族 + search-result-link-<i> + topbar-search-recent-empty；topbar-search-recent-clear 复役；页内查询表单与 recentSearches 下拉族退役〔B-2.13 翻正〕+ 列集归一〔B-2.11 断言反转②——search-columns-item-name 新增、大小/sha256 默认隐藏〕）/ T-451（v1.39：分页控件 ×9 统一锚册——pager 控件族 {range,size,size-\<n\>,first,prev,next,last,page-\<n\>} + audit-pager；「加载更多」族盘点 9 面〔8 迁移 + tree-load-more 分治豁免〕；search-more/search-aql-prev/search-aql-next/audit-more 退役；§6 条款回写〔E2 翻案 Q4 出口①〕）/ T-453（v1.40：用户/组路由表单化 + 能力位三旗锚册——/users/new、/groups/new、/groups/:name/edit 三路由页根 2 + 只读注记 2 + 预留位族 4 + 候裁附注 1 = 9 名新增；user-form-*/group-form-* 既有族载体迁移零改名、零退役；断言反转④〔Q5 出口①〕） |
-| 状态 | v1.40（2026-09-04，T-453——用户/组路由表单化锚册〔断言反转④：Q5 出口①路由化〕；/users/new、/groups/new、/groups/:name/edit 三路由落锚：页根 2 + 只读注记 2 + 能力位三旗预留位族 4 + 候裁附注 1 = **9 名新增**，user-form-*/group-form-* 既有族载体迁移零改名，零退役锚；此前 v1.39 T-451 分页控件 ×9 统一） |
+| 票据 | T-87（v1.0：信息架构与线框）/ T-116（v1.1：权限可见性定案 + testid 清单）/ T-118（v1.2：testid 清单回写转正）/ T-123（v1.3：§9 R10 例改道）/ T-235（v1.4：M8 路由重排锚保全映射 + 壳新锚）/ T-244（v1.7：锚册回写——T-238 存储批 + T-242 对话框批 + 散锚入册 + 显式退役 + 死锚登记）/ T-267（v1.9：锚家族口径统一 + 死锚全量退役 + `--ledger` 对账）/ T-291（v1.11：Properties 页签锚册——MUI 首票）/ T-307（v1.12：认证配置页组锚册——admin/security/auth 域）/ T-344（v1.14：密度档修订——MUI small 档，mui-native-visual §7 登记）/ T-352+T-353（v1.15：回收站页锚册 trash-* 族 + 建仓表单策略键生成器扩容）/ T-366（v1.16：Webhook 订阅管理页锚册 wh-* 族）/ T-372（v1.17：树尾常驻回收站入口锚 tree-trash-node——console-m8 §4.3 推翻条款兑现）/ T-382（v1.18：Set Me Up 抽屉化锚册——smu-* 零改名 + Resolve 批 + smu-close/smu-done 复役）/ T-383（v1.19：建仓形态核验锚册——form-section-* 六节族，M1 两段式断言钉死）/ T-384（v1.20：用户/组创建形态核验锚册——user-form-section-*/group-form-section-* 节锚 + 页脚四锚复役，M3 非 modal 断言钉死）/ T-389（v1.21：品牌位锚册——brand-sidebar-mark / brand-login-lockup，候选 1 logo 转正接线）/ T-387（v1.22：L1 列选器 + 刷新锚册——repos-columns-* / audit-columns-* / 两页 refresh）/ T-386（v1.23：Access Tokens 页真身锚册——tokens-* 族 28 名 + placeholder-page 退役）/ T-388（v1.24：F2 空态插画槽 empty-art + N2 侧栏图标槽 nav-icon——一级条目档位）/ T-404（v1.25：复制 CRUD 内嵌表单锚册——repl-* 配置面族 + form-section-replications 第七节 + 仓 Tab 指针升级 + Replications 列/Run）/ T-406（v1.26：制品浏览 remote/virtual 热修锚——tree-empty-virtual + remote 空态文案分支）/ T-414（v1.27：L1 列选器三页推广锚册——{users\|groups\|search}-columns-* 28 名 + member-pop 对比度清账）/ T-416（v1.28：virtual FE 树消费断言反转②——tree-empty-virtual 语义翻转 + RepoBranch virtual 动态展开恢复 + 删除入口预收敛）/ T-419（v1.29：搜索页 AQL 模式锚册——search-mode 族 + search-aql-* 15 名，smu/search 既有锚零改名）/ T-422（v1.30：复制包 B 首批锚册增量——repl-test/repl-test-result 表单 Test 两锚 + 全局封锁卡 repl-global-block/repl-block-push/repl-block-pull 三锚〔FR-138.2/138.3，parity §6A R8〕，repl-* 既有锚零改名）/ T-434（v1.31：制品树栈对齐锚册——tree-leaf-* 文件叶子 + 树头工具带 tree-toolband 族 + URL 模型段化〔页签段/文件路径段/?focus= 退役〕+ select≠expand，断言反转①留痕，tree-* 既有锚零改名）/ T-437（v1.32：版本史补记——v1.30 行归位〔T-434 遗留 + ux 复核盖章〕+ M16 翻案联动预登记〔E2 分页/E6 双语条款回写挂起 → T-451/T-464 票内；零锚变更〕）/ T-439（v1.33：表单三段步进锚册——form-step-* 三枚 + 预留位族 9 名 + form-force-auth 实字段 + form-reset 退役〔B-3.11/Q9〕）/ T-441（v1.34：pkg-grid 尺寸档断言翻转③〔440→924 居中〕+ 八型门控三件套退役登记——零新锚零改名）/ T-443（v1.35：入口分路由锚册——repos-create-{menu,三预选} + form-rclass-note + form-test 族三枚；form-rclass 族与 repos-columns-item-type 退役〔B-3.8 翻正 / Q9 列收敛〕）/ T-445（v1.36：详情字段族锚册——node-file-url 三形态 + node-downloads 统计族〔消费 T-438 ?stats〕+ node-repo-* 仓视图族；页签序统一〔权限在属性前〕零锚改名）/ T-447（v1.37：属性编辑解剖锚册——node-props-search 族 + node-download-menu 伴随菜单族；node-props 旗标表单/行内编辑族退役〔B-2.9 翻正〕+ 下载形态单图标钮〔B-2.12/Q9〕）/ T-449（v1.38：搜索栈锚册——结果网格 search-grid 与快滤族 + 选择列与批量拷贝族 + search-result-link-<i> + topbar-search-recent-empty；topbar-search-recent-clear 复役；页内查询表单与 recentSearches 下拉族退役〔B-2.13 翻正〕+ 列集归一〔B-2.11 断言反转②——search-columns-item-name 新增、大小/sha256 默认隐藏〕）/ T-451（v1.39：分页控件 ×9 统一锚册——pager 控件族 {range,size,size-\<n\>,first,prev,next,last,page-\<n\>} + audit-pager；「加载更多」族盘点 9 面〔8 迁移 + tree-load-more 分治豁免〕；search-more/search-aql-prev/search-aql-next/audit-more 退役；§6 条款回写〔E2 翻案 Q4 出口①〕）/ T-453（v1.40：用户/组路由表单化 + 能力位三旗锚册——/users/new、/groups/new、/groups/:name/edit 三路由页根 2 + 只读注记 2 + 预留位族 4 + 候裁附注 1 = 9 名新增；user-form-*/group-form-* 既有族载体迁移零改名、零退役；断言反转④〔Q5 出口①〕） / T-459（v1.43：监控组三页 + 导航分组/侧栏过滤锚册——status-* / logs-* 两族 + admin-filter；导航 16→18 条目重排 + 五路由迁址〔锚迁址零改名〕）/ T-461（v1.44：远端浏览树消费锚册——form-list-remote-folder-items 可选档 + repo-remote-browse 回显 + tree-remote-note 双态注记 + tree-remote-degraded 降级横幅 + tree-row-uncached 派生行标记 + node-remote-error 回源错误；listRemoteFolderItems on/off 双态 + 未缓存回源 + §8.5 virtual 扩面消费） |
+| 状态 | v1.44（2026-09-05，T-461——远端浏览树消费锚册〔FR-147.3：listRemoteFolderItems 可选档 on/off 双态 + 未缓存路径回源 + 降级呈现；表单可选档/详情回显/树双态注记/降级横幅/派生行标记/回源错误 **6 名新增**，tree-* 与 form-* 既有族零改名，零退役；D-T456-1 wire 腿端到端实证〕；此前 v1.43 T-459 监控组三页 + 导航分组/侧栏过滤） |
 | 维护者 | ux-designer |
 | 上游依据 | PRODUCT.md（Web 控制台/治理/Non-goals）、ROADMAP.md M4 节、docs/prd/milestone-1/2/3/4.md（端点矩阵与已定案行为）、docs/user/docker-registry.md（用户面口径）、docs/design/architecture.md §7（路由/console 挂载点）、internal/httpapi/router.go（路由门事实——§3.6.2 矩阵逐一核对）、reports/agents/T-98.md · T-99.md（漂移登记与 testid 素材）、reports/agents/T-98-review.md（N1 收敛建议）、BOARD.md（T-85 PRD / T-97 存在性不泄露裁决） |
 | 下游消费者 | T-86（架构：console 包/session/前端工程结构）、tech-lead（M4 拆票）、前端 dev（页面组票）、qa-engineer（控制台验收） |
@@ -15,6 +15,8 @@
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| v1.44 | 2026-09-05 | T-461 FE 远端浏览树消费（M16 批次④ B13，FR-147.3——listRemoteFolderItems 可选档 on/off 双态 + 未缓存路径回源 + 降级呈现；T-442 引擎/T-448 接线消费面 + **D-T456-1 wire 腿端到端**〔PUT→GET echo 实证通〕）：① **T-461 批 6 名锚入册**（表单可选档 `form-list-remote-folder-items`〔Advanced 步 remote × 批 1 型〔helm/debian/rpm〕才呈现——引擎 BrowseSupported 同集，generic/maven 的 HTML 目录抓取明确不做〔remote-browsing.md §6〕不建禁用占位；off 默认 diff=0；显式 false 恒提交——flip-off 过 round trip〕+ 详情回显 `repo-remote-browse`〔repo-remote-card 上游节 kv 行〕+ 树双态注记 `tree-remote-note`〔原无锚 warn-box 升锚——off「已缓存内容」/on「树含上游未缓存条目」双态文案〕+ 降级横幅 `tree-remote-degraded`〔远端层错误态——wire note 字段 remoteDegraded 缺席零渲染，在途时自然点亮〕+ 派生行标记 `tree-row-uncached`〔children 表 display-only 行 Chip「远端」——wire 判别 = ?list 元数据在场而 sha2 缺席〔落库文件恒带 blob digest〕；size/mtime/sha256 列呈现 '—'〕+ 详情回源错误 `node-remote-error`〔派生行点击 pull-through 失败的远端专属文案〕——明细见 §10.5 T-461 批块）；② **树消费双态**：off = 仅缓存行零回归；on = helm index 全树臂 + deb/rpm 元数据臂〔BE listing 并入 display-only 行——T-442 引擎〕+ 点击未缓存路径触发回源〔item-info GET 即 pull-through〕+ ?stats 计数联动〔T-438 单源——断言增长不绝对值：NodeDetail useAsync 随父渲染重复发射 item GET 的既有怪癖票内登记〕+ virtual 含 remote 成员行〔repo-semantics §8.5 扩面消费〕；③ **上游停机降级**：listing 不整树塌〔缓存行可用〕+ 已渲染派生行点击 → node-remote-error + wire note 消费〔route 注入契约形验证——T-448 §5-2 缝的 FE 侧定案；httpapi 渲染腿在途，字段名 remoteDegraded 假定登记候 BE 对齐〕；④ e2e 新面 `web/e2e/m16/remote-browse-tree.spec.ts`（六腿：可选档开关+详情/编辑回显+flip-off+批 1 型门 / off 态 diff=0 / on 态 helm 全树+未缓存点击回源+计数联动 / rpm·deb 元数据臂+virtual §8.5 / 降级双臂〔同 url 杀上游——枚举快照 TTL 续命，点击失败面；换 url 死端口——快照签名失效，派生臂消失缓存行在〕+ note 注入 / axe 双主题〔树页开档+横幅在场+表单 Advanced 步〕——pro license 自铸安装·**租约计数文件协调并行 worker·末位卸载还原实例态**〔community 假设的既有腿不受污染〕）；⑤ 服务端 diff=0（纯 FE 票） |
+| v1.43 | 2026-09-05 | T-459 监控组三页 + 导航分组/侧栏过滤（M16 批次④ B12，FR-145.5/.6b——parity B-1.11 + B-2.18 翻正承载）：① **T-459 批 24 名锚入册**（服务状态族 `status-page`/`status-overall`/`status-badge`/`status-version`/`status-url`/`status-nodes`/`status-uptime-gap`/`status-refresh`/`status-sys` + 行族 `status-sys-<name>`/`status-sched-<i>` + 调度卡 `status-schedules`〔消费 GET /api/v1/system/schedules——T-450 台账，cron 编辑面归 T-462〕；系统日志族 `logs-{page,source,pause,refresh,countdown,limit,filter,download,updated-at,pane,lines,filter-empty}` + 行族 `logs-line-<i>`；导航过滤 `admin-filter`/`admin-filter-empty`——明细见 §10.5 T-459 批块）；② **导航分组重排**（B-2.18）：监控组扩为服务节点组六页〔存储/服务状态/系统日志/系统信息/维护（GC）/备份恢复〕+ Webhooks 归常规组 + 治理组收四页——管理侧栏 16→18 条目；③ **五路由迁址**：system-info〔自 general/settings〕/ gc、backup〔自 governance/〕/ webhooks〔→ general/〕+ 四旧深链 replace 折入一轮；④ **System Logs 载体定案**（零新端点）：日志源 = 审计跟踪〔GET /api/v1/audit〕——服务进程日志无 REST 端点〔契约漂移登记 + BE 建议票〕，7.161 三选择器如实降为单源说明行；尾随 = 7s 倒计时 + Pause/Refresh now〔7.161 三件套对位〕；下载 = 当前窗口 Blob 导出〔BinFlow 无 Support Zone 如实换形〕；⑤ 认证组子项形态：7.161 Authentication 六子项中 HTTP SSO/Crowd·JIRA/SCIM 三域不存在（FR-92 闭集）——单页三页签维持缺位登记；⑥ e2e 新面 t459-monitoring-nav（六腿）+ 既有 spec 路由翻新 ×8；⑦ 服务端 diff=0（纯 FE 票） |
 | v1.0 | 2026-08-20 | T-87 初版：IA（导航树 + 18 路由 + 五协议×三仓型矩阵）、11 页线框（登录/仪表盘/仓库列表/建仓/仓库详情/制品树/上传/搜索/权限编辑器/审计/治理）、交互四态（通用原则 + 骨架屏策略 + 每页矩阵）、大目录策略、设计 token（暗色优先）、可达性、API 需求清单 R1~R10 |
 | v1.1 | 2026-08-21 | T-116 权限可见性漂移集中定案：① §3.3 按路由门事实修订角色可见性——健康、仓库列表、Tokens 三处 v1.0 设想与实现的漂移定案，**均维持实现（admin-only）**，理由与放宽前置条件见 §3.6.1；② 新增 §3.6 权限可见性矩阵（403 收敛四层主姿态 + 端点×门矩阵 + 页面×角色呈现矩阵 + admin 硬编码裁定，收敛 T-98 review N1）；③ §3.1 治理分组补「审计日志」条目（v1.0 导航漏列而 §3.2 已有路由；`GET /api/v1/audit` 为 admin 门，归治理组）；④ §5.1 的 403 分流改挂 §3.6.3 分层规则（消除「403 一律无权限卡」与卡片级隐藏的矛盾）；⑤ 新增 §10 data-testid 命名清单（T-98/T-99 已落锚全量核对自源码 + 命名规则 + T-100~T-102 预定锚——T-104 断言锚源）；⑥ 修订记录自文末移至 §0 |
 | v1.2 | 2026-08-21 | T-118 §10 testid 清单回写（T-104 断言锚冻结的前置）：① §10.3 预定锚**转正为已落地清单**——T-100~T-102 全部落码，逐一对码核对（差异注记随各组）；② `perm-matrix-cell-<principal>-<action>` 细化为 `perm-matrix-cell-{user|group}-<principal>-<action>`（防用户/组同名碰撞，T-101 遗留 2 定案），类段防碰撞原则升入 §10.1 命名规则；③ 搜索页 `search-filter-{package|type}` **删除**（实现仅 repo 过滤；R2 类型化过滤落地时回填）；④ 未落/裁剪锚（token 族 / `audit-export` / `copy-<field>`）新设 §10.4 承载，T-104 不得断言；⑤ grep 补记两处三票日志未列锚（`search-results` 结果表容器、`perm-pattern-{include|exclude}-<i>` chip 本体）；锚总量 **242 落点 / 27 文件**（`grep -rn "data-testid" web/src/`，动态族计一名约 230 锚） |
@@ -1133,12 +1135,9 @@ M8 路由表（console-m8 §1.4）重排后，§10.2/§10.3 的 **242 锚零改�
 | `/admin/repositories/:key[/edit]` | `repo-detail-page` 族（Replications Tab = T-404 批 `repo-repl-*` 指针升级，见下）/ `repo-form-page` + T-404 批 `form-section-replications`（编辑态 × local 的复制节）+ `?section=replications` 深链 | 原 `/repositories/:key[/settings]` |
 | `/admin/security/{users\|groups\|permissions\|tokens}[/:name\|/new]` | `users-*` `user-*` `groups-*` `perm-*` 族 + T-414 批 `users-columns-*` / `groups-columns-*`（L1 列选器推广，见下）/ T-386 批 `tokens-*` 族（见下——占位页锚已退役） | 原 `/security/*` |
 | `/admin/security/auth/{ldap\|oauth\|saml}` | `authcfg-page` 族（T-307 批，v1.12 入册——见下） | M11 新增：「用户与权限」分组第五页（认证配置三 Tab；索引 `/admin/security/auth` 重定向 ldap） |
-| `/admin/governance/{audit\|gc\|quotas\|replication\|backup}` | `audit-*` 族 + T-387 批 `audit-columns-*` / `audit-refresh`（L1 列选/刷新，见下） + `gc-*` `quota-*` `repl-*` `backup-*` 族 | 原 `/audit` `/governance/*` |
-| `/admin/governance/trash` | `trash-*` 族（T-352 批，v1.15 入册——见下）+ 树尾入口 `tree-trash-node`（T-372 批，v1.17——见下） | M12 新增：治理分组第六页（回收站管理） |
-| `/admin/governance/webhooks` | `wh-*` 族（T-366 批，v1.16 入册——见下） | M13 新增：治理分组第七页（Webhook 订阅管理 + 投递排障） |
-| `/admin/monitoring/storage` | `storage-page` 族（T-238 批，v1.7 入册——D-1 收口） | 新路由；原行 `placeholder-page（新页归 T-238）` 已过时 |
-| `/admin/general/settings` | `settings` + `settings-instance` + `settings-health`（T-238 `SystemInfoPage` 承接；改密已迁 `/profile`——T-239） | 原 `/settings` |
-| `/admin/general/license` | `license-page` 族 + `addons-*` 矩阵族（T-288 批，v1.10 入册——见下） | M10 新增：「常规」分组第二页（license 状态 + addons 矩阵；导航项与页头同文案） |
+| `/admin/governance/{audit\|quotas\|replication\|trash}` | `audit-*` 族 + T-387 批 `audit-columns-*` / `audit-refresh`（L1 列选/刷新，见下） + `quota-*` `repl-*` `trash-*` 族 | 原 `/audit` `/governance/*`；**T-459 重排**：gc/backup 迁 `/admin/monitoring/*`（服务节点组挂靠——旧深链 replace 折入一轮） |
+| `/admin/monitoring/{storage\|status\|logs\|system-info\|gc\|backup}` | `storage-page` 族（T-238 批，v1.7 入册）+ **T-459 批** `status-page` 族 + `logs-page` 族（见下）+ `gc-*` / `backup-*` 族（锚零改名随路由迁址）+ `settings` 族（`settings` / `settings-instance` / `settings-health`——T-238 冻结锚随 SystemInfoPage 归位，零改名） | **T-459（FR-145.5 / B-1.11）：监控组扩为服务节点组六页**——存储 + 服务状态 + 系统日志 + 系统信息〔自 `/admin/general/settings` 归位〕+ 维护（GC）与备份恢复〔自治理组迁入〕 |
+| `/admin/general/{webhooks\|license}` | `wh-*` 族（T-366 批，v1.16 入册——见下）+ `license-page` 族 + `addons-*` 矩阵族（T-288 批，v1.10 入册——见下） | **T-459（B-2.18）：Webhooks 归常规组**（自 `/admin/governance/webhooks` 迁址，旧深链 replace 折入一轮）；系统信息已归监控组；license 行沿 M10 原文 |
 
 **T-235 壳新锚（10 枚，先入本清单再落码流程兑现）**：
 
@@ -1545,6 +1544,124 @@ token_id 吊销仍在 Access Tokens 页）；② 台账不进 Profile：服务�
 §9-R11 登记（FE 摆不出没有的端点——profile-ssh-gap 如实缺位）；
 ⑤ axe 注记：说明文字内行内链接带下划线（link-in-text-block——LoginPage
 同款先例，MuiLink underline）。
+
+**T-459 批监控组三页 + 导航分组/侧栏过滤锚册（24 名新增 + 0 退役，M16 批次④
+B12，FR-145.5/.6b——parity B-1.11 + B-2.18 翻正；7.161.20 活体探针
+2026-09-05〔reports/agents/t459-probe/——Monitoring 组 Storage/Service
+Status/Log Analytics/Federation Status/System Logs/Artifactory Logs +
+System Logs Viewer 三选择器·7s 倒计时·Pause/Refresh now + 管理态顶栏
+340px「Search Admin Resources」框（A1-5：位置=顶栏，活体无可观测过滤
+效果——过滤语义按 7.84 经典行为承载，差异留痕 parity 册 B-2.18〕；v1.43；
+消费 spec = web/e2e/m16/t459-monitoring-nav.spec.ts〔本票新增〕+ m8
+shell/governance-monitoring/a11y-sweep + security/auth-shell/governance/
+storage_migration + m13 两 spec 路由翻新）：**
+
+```
+服务状态页（/admin/monitoring/status——零新端点：health + version +
+  schedules 三现役读面；Uptime 无端点如实缺位）：
+  status-page（页根）
+  status-overall（总体卡：徽标 + 版本 + URL + 节点 + Uptime 缺位行）
+  status-badge（总体状态值——mono，ok/error 与 /api/v1/health 同源）
+  status-version（产品 + 版本 + 修订截断——与 /api/system/version 对账）
+  status-url（实例 URL = 浏览器在看的真实地址 origin + /binflow）
+  status-nodes（节点行——单节点〔单二进制〕，不伪造 HA 节点表）
+  status-uptime-gap（Uptime 缺位注记——无查询端点不伪造）
+  status-refresh（手动刷新钮——两读面一起重取）
+  status-sys（子系统卡根）
+  status-sys-<name>（子系统行族——storage/metadata/registry 三成员；
+    状态点 + wire 值 + 失败 detail）
+  status-schedules（调度服务卡根——GET /api/v1/system/schedules 投影，
+    T-450 台账；cron 编辑面归 T-462）
+  status-sched-<i>（调度行族——key/域/cron/next-run/last-run+结果）
+系统日志页（/admin/monitoring/logs——日志源 = 审计跟踪 GET /api/v1/audit；
+  服务进程日志无 REST 端点〔契约漂移登记〕——7.161 三选择器如实降为
+  单源说明行）：
+  logs-page（页根）
+  logs-source（单源说明行——诚实降形，不伪造源选择器）
+  logs-pause（暂停/继续尾随——aria-pressed；403 深链自动停拍）
+  logs-refresh（立即刷新——手动重取，停拍不挡）
+  logs-countdown（尾随倒计时行——7s 对位 7.161「Refreshing Logs in
+    N seconds」；暂停态文案「已暂停尾随」）
+  logs-limit（窗口行数选择器——100/200/500/1000 档〔audit limit 上限〕）
+  logs-filter（文本过滤——客户端子串，仅当前窗口〔边界 hint 明示〕）
+  logs-download（下载当前窗口——Blob 落盘 .log；7.161 走 Support Zone，
+    BinFlow 无对位服务如实换形）
+  logs-updated-at（视图更新于——对位 7.161「View Last Updated」）
+  logs-pane（日志面板根——cmd-block 形态，pre 可聚焦）
+  logs-lines（pre 本体——mono 行集）
+  logs-line-<i>（日志行族——time/action/actor/target + detail JSON）
+  logs-filter-empty（过滤无匹配空态——含清除过滤）
+导航（管理模式顶栏 + 侧栏——B-2.18）：
+  admin-filter（Search Admin Resources 过滤输入——管理模式顶栏〔7.161
+    活体位置 A1-5 勘误〕；制品搜索在管理模式让位单框；Esc 清词；
+    ⌘K/「/」随模式指向当前框）
+  admin-filter-empty（侧栏无匹配注记——整侧栏条目全被滤掉时）
+```
+
+路由/形态留痕（T-459，dev-frontend 回写）：① **导航分组重排**（B-2.18）
+——监控组扩为服务节点组六页〔存储/服务状态/系统日志/系统信息/维护（GC）/
+备份恢复——后三者为归位迁址，T-462 cron 消费面同场挂靠〕+ Webhooks 归
+常规组 + 治理组收为四页；管理侧栏 16→18 条目（shell spec 计数断言同步）。
+② **路由迁移**：system-info（自 general/settings）/ gc、backup（自
+governance/）/ webhooks（自 governance/→general/）五路由迁址 + 四旧深链
+replace 折入一轮（T-434 ?focus= 同款纪律；仓内 emitter 与 spec 随票翻新）。
+③ 认证组子项形态：7.161 Authentication 组六子项〔LDAP/SAML SSO/OAuth
+SSO/HTTP SSO/Crowd·JIRA/SCIM——探针实据〕中 HTTP SSO/Crowd·JIRA/SCIM
+三域 BinFlow 不存在（FR-92 闭集 = LDAP/OAuth/SAML）——单页三页签维持，
+缺位登记不伪造。④ SystemInfoPage 健康卡保留（settings-health-* 冻结锚
+不拆——运行面主承载移 status 页，本卡为实例信息的健康摘要）。⑤ 服务端
+diff=0（纯 FE 票——三新面全部消费现役端点）。
+
+**T-461 批远端浏览树消费锚册（6 名新增 + 0 退役，M16 批次④ B13，
+FR-147.3——listRemoteFolderItems 可选档 on/off 双态 + 未缓存路径回源 +
+降级呈现；消费链 = T-442 枚举引擎 / T-448 service 接线 + §8.5 扩面 /
+D-T456-1 transport 修复〔wire 腿端到端实证〕；形态依据 = remote-browsing.md
+〔§1 字段语义 + §4 降级 + §5 扩面〕+ §7 R-a「开档呈现形态 = BinFlow
+e2e 定案」——本票即定案载体；7.161 活体不可达〔Pro 建仓门，§取证注〕；
+v1.44；消费 spec = web/e2e/m16/remote-browse-tree.spec.ts〔本票新增〕）：**
+
+```
+表单可选档（Advanced 步 remote × 批 1 型 helm/debian/rpm 才呈现——
+  引擎 BrowseSupported 同集；generic/maven 的 HTML 目录抓取 BinFlow
+  明确不做〔remote-browsing.md §6〕，不建禁用占位不伪造「将支持」）：
+  form-list-remote-folder-items（复选——「列出远端目录条目
+    （listRemoteFolderItems）」；off 默认 = diff=0；显式 false 恒提交，
+    flip-off 过 round trip〔POINTER 语义，forceConanAuthentication 同款〕；
+    hint 含 metadata TTL 缓存与点击回源语义）
+仓库详情（repo-remote-card 上游节）：
+  repo-remote-browse（kv 行「远端浏览」——开启〔树含上游未缓存条目，
+    点击回源拉取〕/关闭〔仅浏览已缓存内容〕双态回显；编辑表单同源字段）
+制品树（跨仓树 remote 仓消费面）：
+  tree-remote-note（仓头双态注记 warn-box——原 T-406 期无锚文案升锚：
+    off「remote 仓浏览的是已缓存内容…」/on「远端浏览已开启：树包含
+    上游未缓存的目录与条目…点击未缓存条目会回源拉取并落地缓存」；
+    403〔普通 user 深链〕时按 off 口径呈现——行为仍由服务端单源决定）
+  tree-remote-degraded（远端层错误态横幅——children 表上方；仅当
+    FolderInfo 携带 remoteDegraded note 时渲染〔T-448 §5-2 缝：listing
+    不整树塌，note = 错误层注记；httpapi 渲染腿在途——字段缺席零渲染，
+    字段名 remoteDegraded 假定登记候 BE 对齐〕；文案「已缓存条目仍可用」）
+  tree-row-uncached（children 表派生行 Chip「远端」——display-only 行
+    标记 + title 点击回源语义；wire 判别 = ?list 元数据在场而 sha2 缺席
+    〔落库文件恒带 blob digest——browseDisplayNode 注〕；根层无 ?list
+    合并不标记〔误标比漏标差〕；派生行 size/mtime/sha256 列呈现 '—'）
+节点详情（派生行点击消费面）：
+  node-remote-error（详情面板远端错误文案——item-info GET 即回源
+    pull-through，失败 = 降级面：远端专属文案替代通用「详情加载失败」；
+    普通行通用文案零回归）
+```
+
+路由/形态留痕（T-461，dev-frontend 回写）：① **树消费双态**——off 仅
+缓存行（既有断言零回归）；on = helm index.yaml 全树臂 + deb dists/pool
++ rpm repodata/RPMS 元数据臂〔BE listing 并入 display-only 行，FE 零新
+请求面〕+ 点击未缓存路径触发回源〔item-info GET 即 pull-through，落地后
+行自纠真实值〕+ ?stats 计数联动〔T-438 单源〕+ virtual 含 remote 成员行
+〔repo-semantics §8.5 扩面消费〕。② **降级双臂**——同 url 杀上游：枚举
+快照按 metadata TTL 续命〔600s DDL 默认，非 wire 可调〕派生行在场而点击
+失败；换 url〔browseSignature 失效〕：派生臂消失缓存行在。③ e2e 夹具 =
+spec 内自建 node http 上游（三臂语料 + bind(0) 临时端口 + closeAll
+Connections 真死）；pro license 自铸安装〔bin/bf 开发钥〕+ 租约计数文件
+协调并行 worker + 末位卸载还原实例态〔community 假设的既有腿不受污染〕。
+④ 服务端 diff=0（纯 FE 票——wire 消费面全为 T-442/T-448/D-T456-1 已落）。
 
 **T-239 应用模式辅助页新锚（17 枚，先入本清单再落码流程兑现；§10.5 表
 `/search` `/profile` 行的承载锚随之改写）**：

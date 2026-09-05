@@ -42,6 +42,9 @@ export interface ItemInfo {
   checksums?: { sha1?: string; md5?: string; sha256?: string }
   originalChecksums?: { sha1?: string; md5?: string; sha256?: string }
   children?: { uri: string; folder: boolean }[]
+  /** 远端枚举层降级注记（T-461 消费 / T-448 §5-2 缝：repo.RemoteDegraded
+   *  经 FolderInfo 体的投影——httpapi 渲染腿在途，缺席 = 无注记） */
+  remoteDegraded?: string
 }
 
 /** 右表/左树的一行：folder 无 size/mtime（合并来源是文件清单） */
@@ -55,6 +58,23 @@ export interface ChildNode {
   sha256: string
   /** Docker tags for this manifest digest (T-134 G32a: via ?docker_tags enrichment) */
   tags?: string[]
+  /** 远端派生行（M16 T-461 / FR-147）：listRemoteFolderItems on 的 remote
+   *  仓（或其 virtual 成员）上游枚举出的 display-only 行——零落库、无
+   *  digest（wire 判别 = ?list 元数据在场而 sha2 缺席：落库文件恒带 blob
+   *  digest，见 internal/repo/browse.go browseDisplayNode 注）；点击触发
+   *  回源 pull-through。根目录层无 ?list 合并（BE 400 拒绝 root list），
+   *  无法判别——不标记（误标比漏标差）。 */
+  remote?: boolean
+}
+
+/** listFolder 的双返回：children 行 + 远端枚举层的降级注记（M16 T-461） */
+export interface FolderListing {
+  nodes: ChildNode[]
+  /** 远端层错误态注记（remote-browsing.md §4-1）：非空 = 上游不可达/
+   *  静默期，nodes 是缓存行（不整树塌）。wire 面 = FolderInfo 体的可选
+   *  字段 remoteDegraded——T-448 §5-2 预留缝（httpapi 渲染腿在途，
+   *  字段缺席 = 无注记，零行为影响；BE 腿合入后自然点亮）。 */
+  remoteDegraded: string
 }
 
 /** DockerTagsMap: digest hex → tag names (T-134 G32a: ?docker_tags response field) */
@@ -123,6 +143,16 @@ export async function listChildren(
   signal?: AbortSignal,
   isDockerRepo?: boolean,
 ): Promise<ChildNode[]> {
+  return (await listFolder(repoKey, dir, signal, isDockerRepo)).nodes
+}
+
+/** listChildren 的完整形态（T-461）：附带远端枚举层的降级注记 */
+export async function listFolder(
+  repoKey: string,
+  dir: string,
+  signal?: AbortSignal,
+  isDockerRepo?: boolean,
+): Promise<FolderListing> {
   // docker repo tree 需要 tag 数据：image 级 + manifests 级均附加 ?docker_tags
   const qs = isDockerRepo && dir !== '' ? '?docker_tags=1' : ''
   const folder = await apiJSON<ItemInfo & { dockerTags?: DockerTagsMap }>(
@@ -145,13 +175,18 @@ export async function listChildren(
   const nodes: ChildNode[] = kids.map((k) => {
     const name = k.uri.replace(/^\//, '')
     const meta = !k.folder ? byName.get(name) : undefined
+    // 远端派生行判别（T-461）：元数据在场（?list 伺服到该行）而 sha2 缺席
+    // ——落库文件恒带 blob digest，两者同时成立只可能是 display-only 行。
+    // 派生行的 size=0/mtime=epoch 是占位非事实，呈现归 '—'。
+    const remote = meta !== undefined && !meta.sha2
     return {
       name,
       path: dir === '' ? name : `${dir}/${name}`,
       folder: k.folder,
-      size: meta ? meta.size : null,
-      lastModified: meta ? meta.lastModified : '',
+      size: remote ? null : meta ? meta.size : null,
+      lastModified: remote ? '' : meta ? meta.lastModified : '',
       sha256: meta?.sha2 ?? '',
+      remote: remote || undefined,
       // Docker manifest digest row: the child name IS the sha256 hex digest.
       // Match against the dockerTags map by child name or sha2 from ?list.
       tags: Object.prototype.hasOwnProperty.call(dockerTags, name)
@@ -162,7 +197,7 @@ export async function listChildren(
     }
   })
   sortChildren(nodes)
-  return nodes
+  return { nodes, remoteDegraded: folder.remoteDegraded ?? '' }
 }
 
 function sortChildren(nodes: ChildNode[]): void {

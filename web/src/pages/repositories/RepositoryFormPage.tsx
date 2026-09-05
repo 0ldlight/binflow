@@ -60,7 +60,10 @@ import {
   FORCE_CONAN_AUTH_HINT,
   FORCE_CONAN_AUTH_LABEL,
   FORM_STEPS,
+  LIST_REMOTE_FOLDER_ITEMS_HINT,
+  LIST_REMOTE_FOLDER_ITEMS_LABEL,
   RCLASS_ROUTE_NOTE,
+  REMOTE_BROWSE_PKG_TYPES,
   REMOTE_TEST_CREATE_HINT,
   REMOTE_TEST_FAIL_NOTE,
   REMOTE_TEST_HINT,
@@ -221,6 +224,9 @@ interface FormState {
   socketTimeoutSecs: string
   assumedOfflinePeriodSecs: string
   hardFail: boolean
+  /** T-461（FR-147）：远端浏览可选档（remote 臂——wire 字段
+   *  listRemoteFolderItems，默认 false；批 1 型才呈现控件） */
+  listRemoteFolderItems: boolean
   priorityResolution: boolean
   members: string[]
   defaultDeploymentRepo: string
@@ -253,6 +259,7 @@ const CREATE_INITIAL: FormState = {
   allowPrivateUpstream: false,
   ...REMOTE_TTL_DEFAULTS,
   hardFail: false,
+  listRemoteFolderItems: false,
   priorityResolution: false,
   members: [],
   defaultDeploymentRepo: '',
@@ -290,6 +297,9 @@ function prefillFromDetail(d: {
     f.username = cfgStr(cfg, 'username')
     f.allowPrivateUpstream = cfgBool(cfg, 'allowPrivateUpstream')
     f.hardFail = cfgBool(cfg, 'hardFail')
+    // T-461：远端浏览可选档回显（wire = D-T456-1 修复后的 transport 指针
+    // 字段；GET 回显经 configuration.map——缺省 = false 默认档）
+    f.listRemoteFolderItems = cfgBool(cfg, 'listRemoteFolderItems')
     f.priorityResolution = cfgBool(cfg, 'priorityResolution')
     f.retrievalCachePeriodSecs = String(cfgNum(cfg, 'retrievalCachePeriodSecs') ?? 7200)
     f.missedRetrievalCachePeriodSecs = String(cfgNum(cfg, 'missedRetrievalCachePeriodSecs') ?? 1800)
@@ -333,6 +343,10 @@ function buildBody(f: FormState, mode: 'create' | 'edit'): RepoConfigBody {
     if (f.password !== '') body.password = f.password
     body.allowPrivateUpstream = f.allowPrivateUpstream
     body.hardFail = f.hardFail
+    // T-461：显式 false 恒提交（POINTER 语义——flip-off 必须过 round trip，
+    // 否则开档就关不回）；非批 1 型不呈现控件、维持 CREATE_INITIAL 的
+    // false 默认值（wire 与服务端产品默认一致，零漂移）。
+    body.listRemoteFolderItems = f.listRemoteFolderItems
     body.priorityResolution = f.priorityResolution
     const nums: [keyof RepoConfigBody, string][] = [
       ['retrievalCachePeriodSecs', f.retrievalCachePeriodSecs],
@@ -1408,6 +1422,30 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                 }
                 label="hardFail（上游故障时直接失败，不降级）"
               />
+              {/* T-461（FR-147 AC1）：远端浏览可选档——默认 off（diff=0）。
+                  控件仅批 1 型（helm/debian/rpm）呈现：引擎枚举面如此
+                  （true 于其它包型服务端按名 400）；Artifactory 官方开放
+                  deb/generic/maven/Opkg/rpm 五型——generic/maven 的 HTML
+                  目录抓取 BinFlow 明确不做（remote-browsing.md §6），不建
+                  禁用占位不伪造「即将支持」。 */}
+              {REMOTE_BROWSE_PKG_TYPES.includes(f.packageType) && (
+                <>
+                  <FormControlLabel
+                    className="check-row"
+                    disabled={locked}
+                    control={
+                      <Checkbox
+                        size="small"
+                        checked={f.listRemoteFolderItems}
+                        onChange={(e) => set('listRemoteFolderItems', e.target.checked)}
+                        slotProps={{ input: { 'data-testid': 'form-list-remote-folder-items' } as ComponentPropsWithoutRef<'input'> }}
+                      />
+                    }
+                    label={LIST_REMOTE_FOLDER_ITEMS_LABEL}
+                  />
+                  <p className="field-hint">{LIST_REMOTE_FOLDER_ITEMS_HINT}</p>
+                </>
+              )}
             </>
           )}
           <FormControlLabel

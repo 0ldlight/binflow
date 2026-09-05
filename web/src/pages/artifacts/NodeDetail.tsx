@@ -20,7 +20,7 @@ import { Skeleton } from '../../components/Skeleton'
 import { formatBytes } from '../../lib/format'
 import { getRepoDetail } from '../../lib/repos'
 import { useAsync } from '../../lib/useAsync'
-import { DOWNLOAD_COPY, EMPTY_VALUE, NO_SOURCE_HINTS, REPO_FIELD_LABELS, STATS_HINTS, STATS_LABELS } from './detailCopy'
+import { DOWNLOAD_COPY, EMPTY_VALUE, NO_SOURCE_HINTS, REPO_FIELD_LABELS, REMOTE_COPY, STATS_HINTS, STATS_LABELS } from './detailCopy'
 import { contentFileURL, getItem, getItemPermissions, getNodeStats, getRepoUsageCounts } from './lib'
 import type { ChildNode, ItemInfo } from './lib'
 import PropertiesTab from './PropertiesTab'
@@ -501,6 +501,16 @@ function NodeGeneral({
 
   if (itemStatus === 'loading') return <Skeleton lines={4} />
   if (itemStatus !== 'ok' || !item) {
+    // T-461（FR-147 AC3）：远端派生行的 item-info GET 即回源 pull-through
+    // ——失败 = 降级面（上游停机/路径已不在上游），给远端专属文案；普通
+    // 行维持既有通用文案（零回归）。
+    if (node.remote) {
+      return (
+        <p className="text-2" data-testid="node-remote-error">
+          {REMOTE_COPY.fetchFailed(itemError?.status ?? 0)}
+        </p>
+      )
+    }
     return <p className="text-2">详情加载失败（HTTP {itemError?.status ?? 0}）——列表数据仍然有效。</p>
   }
   return (

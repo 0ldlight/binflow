@@ -33,7 +33,7 @@ import { ApiError, getRepositories, getStorageStats, isReadOnlyAdmin } from '../
 import type { RepoListItem } from '../../lib/api'
 import { formatBytes } from '../../lib/format'
 import { cellBtnSx, monoInputSx } from '../../lib/muiAtoms'
-import { cfgStrList, getRepoDetail } from '../../lib/repos'
+import { cfgBool, cfgStrList, getRepoDetail } from '../../lib/repos'
 import type { PackageType } from '../../lib/repos'
 import { useAsync } from '../../lib/useAsync'
 import { clientCommands } from '../repositories/commands'
@@ -49,7 +49,7 @@ import {
   ancestorDirs,
   deleteNode,
   downloadArtifact,
-  listChildren,
+  listFolder,
   mkdir,
   saveBlob,
   validateNameSegment,
@@ -160,7 +160,7 @@ function compareRepos(a: RepoListItem, b: RepoListItem, sort: TreeSort): number 
 
 type DirStatus =
   | { status: 'loading' }
-  | { status: 'ok'; nodes: ChildNode[] }
+  | { status: 'ok'; nodes: ChildNode[]; remoteDegraded?: string }
   | { status: 'forbidden'; error: ApiError }
   | { status: 'error'; error: ApiError }
 
@@ -276,10 +276,18 @@ export default function ArtifactsBrowser() {
   // remote 仓列表 = 缓存落地行（T-406 服务端同票放开，维持）。
   const isVirtual = repoMeta ? repoMeta.rclass === 'virtual' : false
   const virtualMembers = repoMeta ? cfgStrList(repoMeta.configuration, 'repositories') : []
+  // T-461（FR-147）：remote 仓的远端浏览可选档（listRemoteFolderItems——
+  // 默认 false，off = 仅缓存行 diff=0）。on 时 BE 在 listing 里并入上游
+  // 枚举的 display-only 行（helm index 全树 / deb·rpm 元数据臂——T-442
+  // 引擎），virtual 成员的远端行同样并入（§8.5 扩面——T-448）；FE 消费 =
+  // 行标记 + 文案 + 点击回源（元数据面 GET 即 pull-through）。403（普通
+  // user 深链）时未知——按 off 口径呈现（行为仍由服务端单源决定）。
+  const remoteBrowseOn =
+    repoMeta !== null && repoMeta.rclass === 'remote' && cfgBool(repoMeta.configuration, 'listRemoteFolderItems')
 
   // ---- 目录加载（缓存 + 去重；键含 repo 维度——跨仓切换不复用脏缓存） ----
   const [dirState, setDirState] = useState<Record<string, DirStatus>>({})
-  const cacheRef = useRef(new Map<string, ChildNode[]>())
+  const cacheRef = useRef(new Map<string, { nodes: ChildNode[]; remoteDegraded: string }>())
   const inflightRef = useRef(new Set<string>())
   const [tick, setTick] = useState(0)
   /** 手动/深链展开的目录（跨仓复合键） */
@@ -317,7 +325,10 @@ export default function ArtifactsBrowser() {
       if (!force && (cacheRef.current.has(key) || inflightRef.current.has(key))) {
         const cached = cacheRef.current.get(key)
         if (cached) {
-          setDirState((s) => ({ ...s, [key]: { status: 'ok', nodes: cached } }))
+          setDirState((s) => ({
+            ...s,
+            [key]: { status: 'ok', nodes: cached.nodes, remoteDegraded: cached.remoteDegraded || undefined },
+          }))
         }
         return
       }
@@ -325,11 +336,11 @@ export default function ArtifactsBrowser() {
       inflightRef.current.add(key)
       setDirState((s) => ({ ...s, [key]: { status: 'loading' } }))
       // T-134 G32a: docker repo tree passes isDockerRepo for ?docker_tags enrichment
-      listChildren(repo, d, undefined, repo === repoKey && isDockerRepo)
-        .then((nodes) => {
-          cacheRef.current.set(key, nodes)
+      listFolder(repo, d, undefined, repo === repoKey && isDockerRepo)
+        .then(({ nodes, remoteDegraded }) => {
+          cacheRef.current.set(key, { nodes, remoteDegraded })
           inflightRef.current.delete(key)
-          setDirState((s) => ({ ...s, [key]: { status: 'ok', nodes } }))
+          setDirState((s) => ({ ...s, [key]: { status: 'ok', nodes, remoteDegraded: remoteDegraded || undefined } }))
         })
         .catch((err: unknown) => {
           inflightRef.current.delete(key)
@@ -823,7 +834,11 @@ export default function ArtifactsBrowser() {
             </div>
           )}
           {repoMeta && rclass === 'remote' && (
-            <div className="warn-box">remote 仓浏览的是已缓存内容；首次访问的路径需经客户端拉取后才会出现在树上。</div>
+            <div className="warn-box" data-testid="tree-remote-note">
+              {remoteBrowseOn
+                ? '远端浏览已开启（listRemoteFolderItems）：树包含上游未缓存的目录与条目（按 metadata TTL 缓存枚举）；点击未缓存条目会回源拉取并落地缓存。'
+                : 'remote 仓浏览的是已缓存内容；首次访问的路径需经客户端拉取后才会出现在树上（可在仓库配置开启远端浏览 listRemoteFolderItems）。'}
+            </div>
           )}
 
           {deleteError && (
@@ -1021,6 +1036,17 @@ export default function ArtifactsBrowser() {
                     </span>
                   </div>
 
+                  {/* T-461（FR-147 AC3）：远端枚举层错误态——上游不可达/静默期
+                      时 listing 仍 200（缓存行不整树塌，§4-1），note 经 FolderInfo
+                      可选字段 remoteDegraded 上 wire（T-448 §5-2 缝——渲染腿在途
+                      时字段缺席，本横幅不渲染，零行为影响）。 */}
+                  {cur?.status === 'ok' && cur.remoteDegraded && (
+                    <div className="warn-box" data-testid="tree-remote-degraded" title={cur.remoteDegraded}>
+                      ⚠ 远端枚举不可用（上游故障或 assumed-offline 静默期）——已缓存条目仍可用；未缓存条目暂不可见。
+                      <span className="mono" lang="en" style={{ fontSize: 'var(--bf-fs-aux, 12px)' }}> {cur.remoteDegraded}</span>
+                    </div>
+                  )}
+
                   {curUncertain || cur?.status === 'loading' || !cur ? (
                     <TableSkeleton />
                   ) : cur.status === 'forbidden' ? (
@@ -1071,7 +1097,9 @@ export default function ArtifactsBrowser() {
                             uploadable
                               ? '上传第一个制品，或创建子目录组织布局。'
                               : rclass === 'remote'
-                                ? '远程仓库：仅展示已缓存的制品（浏览不回源）。'
+                                ? remoteBrowseOn
+                                  ? '远程仓库：缓存与远端枚举在此层均无条目。'
+                                  : '远程仓库：仅展示已缓存的制品（浏览不回源）。'
                                 : '此仓库尚无内容。'
                           }
                           testid="tree-empty-dir"
@@ -1185,6 +1213,20 @@ export default function ArtifactsBrowser() {
                                 <span className={n.folder ? 'row-link mono' : 'mono'} lang="en">
                                   {n.name}
                                 </span>
+                                {/* T-461：远端派生行标记——display-only（无 digest/
+                                    size/mtime，列呈现 '—'），点击即回源（元数据面
+                                    GET 触发 pull-through，成功后落地成缓存行） */}
+                                {n.remote && (
+                                  <Chip
+                                    size="small"
+                                    variant="outlined"
+                                    color="info"
+                                    label="远端"
+                                    data-testid="tree-row-uncached"
+                                    title="上游枚举的未缓存条目——点击将回源拉取（成功后落地缓存）"
+                                    sx={{ ml: 0.75, verticalAlign: 'middle' }}
+                                  />
+                                )}
                               </TableCell>
                               {isDockerRepo ? (
                                 <TableCell>
