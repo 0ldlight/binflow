@@ -14,6 +14,9 @@ import { ApiError } from '../../lib/api'
 import type { AuditEvent } from '../../lib/api'
 import { monoInputSx } from '../../lib/muiAtoms'
 import { getAuditEventsPage } from '../../lib/governance.ts'
+import { tr } from '../../i18n'
+
+const tt = tr('monitoring')
 
 // 系统日志查看器（T-459 / FR-145.5——监控组三页之三；7.161.20 活体形态 =
 // /ui/admin/monitoring/system_logs「System Logs Viewer」：服务/节点/日志
@@ -138,20 +141,14 @@ export default function SystemLogsPage() {
   return (
     <div data-testid="logs-page">
       <div className="page-header">
-        <h2>系统日志</h2>
-        <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>
-          系统日志查看器（尾随刷新 / 过滤 / 下载）
-        </span>
+        <h2>{tt('系统日志')}</h2>
+        <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>{tt('系统日志查看器（尾随刷新 / 过滤 / 下载）')}        </span>
       </div>
 
       {/* 源说明行（7.161 三选择器的单源如实降形——不伪造选择器） */}
-      <p className="field-hint" data-testid="logs-source" style={{ margin: '0 0 var(--bf-sp-2)' }}>
-        日志源：<span className="mono" lang="en">审计跟踪（GET /api/v1/audit，append-only，最新在前）</span>
-        ——服务进程日志（slog 文件）暂无 REST 端点，未列入可选源（契约缺口已登记）。服务端精过滤
-        （仓库 / 操作者 / 动作 / 时间窗）在审计日志页。
-      </p>
+      <p className="field-hint" data-testid="logs-source" style={{ margin: '0 0 var(--bf-sp-2)' }}>{tt('日志源：')}<span className="mono" lang="en">{tt('审计跟踪（GET /api/v1/audit，append-only，最新在前）')}</span>{tt('——服务进程日志（slog 文件）暂无 REST 端点，未列入可选源（契约缺口已登记）。服务端精过滤 （仓库 / 操作者 / 动作 / 时间窗）在审计日志页。')}      </p>
 
-      <div className="filter-bar" role="toolbar" aria-label="系统日志工具栏">
+      <div className="filter-bar" role="toolbar" aria-label={tt('系统日志工具栏')}>
         <Button
           variant="outlined"
           size="small"
@@ -162,13 +159,11 @@ export default function SystemLogsPage() {
           data-testid="logs-pause"
           aria-pressed={paused}
         >
-          {paused ? '继续' : '暂停'}
+          {paused ? tt('继续') : tt('暂停')}
         </Button>
-        <Button variant="outlined" size="small" onClick={doRefreshNow} data-testid="logs-refresh">
-          立即刷新
-        </Button>
+        <Button variant="outlined" size="small" onClick={doRefreshNow} data-testid="logs-refresh">{tt('立即刷新')}        </Button>
         <span className="text-2" data-testid="logs-countdown" style={{ fontSize: 'var(--bf-fs-aux)' }}>
-          {paused ? '已暂停尾随' : `${countdown} 秒后自动刷新`}
+          {paused ? tt('已暂停尾随') : tt('{countdown} 秒后自动刷新', { countdown: countdown })}
         </span>
         <TextField
           select
@@ -176,44 +171,38 @@ export default function SystemLogsPage() {
           value={limit}
           onChange={(e) => setLimit(Number(e.target.value))}
           sx={{ width: 140 }}
-          label="窗口行数"
+          label={tt('窗口行数')}
           slotProps={{
             select: {
               native: true,
               inputProps: {
-                'aria-label': '日志窗口行数',
+                'aria-label': tt('日志窗口行数'),
                 'data-testid': 'logs-limit',
               } as ComponentPropsWithoutRef<'select'>,
             } as ComponentPropsWithoutRef<typeof Select>,
           }}
         >
           {LIMITS.map((n) => (
-            <option key={n} value={n}>
-              最近 {n} 行
-            </option>
+            <option key={n} value={n}>{tt('最近')} {n} {tt('行')}            </option>
           ))}
         </TextField>
         <TextField
           type="search"
           size="small"
-          placeholder="过滤日志行（仅当前窗口）"
+          placeholder={tt('过滤日志行（仅当前窗口）')}
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           sx={{ ...monoInputSx, width: 240 }}
           slotProps={{
             htmlInput: {
-              'aria-label': '过滤日志行（仅当前窗口）',
+              'aria-label': tt('过滤日志行（仅当前窗口）'),
               'data-testid': 'logs-filter',
               className: 'mono',
             },
           }}
         />
-        <Button variant="outlined" size="small" onClick={doDownload} data-testid="logs-download">
-          下载当前窗口
-        </Button>
-        <span className="count" data-testid="logs-updated-at">
-          视图更新于：
-          <span className="mono" lang="en">
+        <Button variant="outlined" size="small" onClick={doDownload} data-testid="logs-download">{tt('下载当前窗口')}        </Button>
+        <span className="count" data-testid="logs-updated-at">{tt('视图更新于：')}          <span className="mono" lang="en">
             {fetchedAt ? fetchedAt.toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC') : '—'}
           </span>
         </span>
@@ -222,8 +211,8 @@ export default function SystemLogsPage() {
       {phase === 'loading' && <Skeleton lines={8} />}
       {phase === 'forbidden' && error && (
         <EmptyState
-          message="无权限查看系统日志"
-          hint="日志源（审计查询面）为管理员视图（GET /api/v1/audit 仅 admin / readonly_admin）。"
+          message={tt('无权限查看系统日志')}
+          hint={tt('日志源（审计查询面）为管理员视图（GET /api/v1/audit 仅 admin / readonly_admin）。')}
         />
       )}
       {phase === 'error' && error && <ErrorCard error={error} onRetry={doRefreshNow} />}
@@ -237,11 +226,11 @@ export default function SystemLogsPage() {
         >
           <header>
             <span>
-              {shown.length} 行{q ? `（窗口 ${lines.length} 行，过滤命中 ${shown.length}）` : `（最近 ${lines.length} 行）`}
+              {shown.length} {tt('行')}{q ? tt('（窗口 {v1} 行，过滤命中 {v2}）', { v1: lines.length, v2: shown.length }) : tt('（最近 {v1} 行）', { v1: lines.length })}
             </span>
             <span>
               {shown.length > 0 && (
-                <CopyButton value={shown.join('\n')} label="当前窗口日志" />
+                <CopyButton value={shown.join('\n')} label={tt('当前窗口日志')} />
               )}
             </span>
           </header>
@@ -249,20 +238,18 @@ export default function SystemLogsPage() {
             <div style={{ padding: 'var(--bf-sp-3)' }}>
               <EmptyState
                 illustration
-                message="暂无日志行"
-                hint="实例的登录、建仓、上传等操作会记录在审计跟踪里——发生操作后回到本页或等待自动刷新。"
+                message={tt('暂无日志行')}
+                hint={tt('实例的登录、建仓、上传等操作会记录在审计跟踪里——发生操作后回到本页或等待自动刷新。')}
               />
             </div>
           ) : shown.length === 0 ? (
             <div style={{ padding: 'var(--bf-sp-3)' }}>
               <EmptyState
                 illustration
-                message="当前窗口内无匹配行"
-                hint={`「${filter.trim()}」未命中最近 ${lines.length} 行——过滤只作用于已加载窗口；更大范围的精过滤走审计日志页。`}
+                message={tt('当前窗口内无匹配行')}
+                hint={tt('「{v1}」未命中最近 {v2} 行——过滤只作用于已加载窗口；更大范围的精过滤走审计日志页。', { v1: filter.trim(), v2: lines.length })}
                 action={
-                  <Button variant="outlined" size="small" onClick={() => setFilter('')}>
-                    清除过滤
-                  </Button>
+                  <Button variant="outlined" size="small" onClick={() => setFilter('')}>{tt('清除过滤')}                  </Button>
                 }
                 testid="logs-filter-empty"
               />

@@ -5,6 +5,9 @@ import Dialog from '@mui/material/Dialog'
 import DialogActions from '@mui/material/DialogActions'
 import DialogContent from '@mui/material/DialogContent'
 import DialogTitle from '@mui/material/DialogTitle'
+import { tr } from '../i18n'
+
+const tt = tr('console')
 
 // 危险确认对话框（console-ux §3.5）：居中 modal，焦点圈进对话框、Tab
 // 循环、Esc 关闭（= 取消）。后续票的删除仓 / GC apply / 删 manifest 都
@@ -145,7 +148,7 @@ function ConfirmDialog({
           data-testid="confirm-cancel"
           onClick={() => onSettle(false)}
         >
-          {opts.cancelLabel ?? '取消'}
+          {opts.cancelLabel ?? tt('取消')}
         </Button>
         <Button
           variant="contained"
@@ -155,7 +158,7 @@ function ConfirmDialog({
           disabled={opts.confirmDisabled ? opts.confirmDisabled() : false}
           onClick={() => onSettle(true)}
         >
-          {opts.confirmLabel ?? '确认'}
+          {opts.confirmLabel ?? tt('确认')}
         </Button>
       </DialogActions>
     </Dialog>

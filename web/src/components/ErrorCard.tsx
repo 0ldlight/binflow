@@ -7,6 +7,9 @@ import Collapse from '@mui/material/Collapse'
 import Link from '@mui/material/Link'
 
 import type { ApiError } from '../lib/api'
+import { tr } from '../i18n'
+
+const t = tr('console')
 
 // 错误卡（console-ux §5.1）：一句人话 + 原始 message 折叠区（mono）+ 重试。
 // T-344 批 B：div.error-card 手作卡 → MUI Alert severity=error + Collapse
@@ -17,10 +20,10 @@ export function ErrorCard({ error, onRetry }: { error: ApiError; onRetry?: () =>
   const [rawOpen, setRawOpen] = useState(false)
   const headline =
     error.status >= 500 || error.status === 0
-      ? '服务暂不可用'
+      ? t('服务暂不可用')
       : error.status === 404
-        ? '资源不存在'
-        : `请求失败（HTTP ${error.status}）`
+        ? t('资源不存在')
+        : t('请求失败（HTTP {v1}）', { v1: error.status })
   return (
     <Alert severity="error" data-testid="error-card" sx={{ alignItems: 'flex-start' }}>
       <AlertTitle>{headline}</AlertTitle>
@@ -33,9 +36,7 @@ export function ErrorCard({ error, onRetry }: { error: ApiError; onRetry?: () =>
             underline="hover"
             onClick={() => setRawOpen((v) => !v)}
             aria-expanded={rawOpen}
-          >
-            原始响应
-          </Link>
+          >{t('原始响应')}          </Link>
           <Collapse in={rawOpen} timeout="auto" unmountOnExit>
             <Box
               component="pre"
@@ -60,9 +61,7 @@ export function ErrorCard({ error, onRetry }: { error: ApiError; onRetry?: () =>
         </>
       )}
       {onRetry && (
-        <Button size="small" variant="outlined" color="error" onClick={onRetry} sx={{ mt: 1 }}>
-          重试
-        </Button>
+        <Button size="small" variant="outlined" color="error" onClick={onRetry} sx={{ mt: 1 }}>{t('重试')}        </Button>
       )}
     </Alert>
   )

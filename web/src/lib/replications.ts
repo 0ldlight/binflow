@@ -48,6 +48,9 @@
 //   行内呈现）。
 
 import { ApiError, apiJSON, apiText } from './api'
+import { tr } from '../i18n'
+
+const t = tr('console')
 
 /** 配置行（GET/POST/PUT 响应体——replicationConfigResponse，凭据密码无
  *  字段）。cron_exp/next_schedule_sync 是 021 台账行的投影（T-450）：
@@ -221,10 +224,10 @@ export function setReplicationBlock(blocking: boolean, push: boolean, pull: bool
  * 路径的单一段。返回 null = 合法，否则为行内错误文案。
  */
 export function validateReplicationName(name: string): string | null {
-  if (name === '') return '配置名未填'
-  if (name.length > 64) return '配置名最长 64 字符'
-  if (!/^[A-Za-z0-9]/.test(name)) return '配置名须以字母或数字开头'
-  if (!/^[A-Za-z0-9._-]+$/.test(name)) return '配置名仅允许字母/数字/./_/-（无空格与路径段）'
+  if (name === '') return t('配置名未填')
+  if (name.length > 64) return t('配置名最长 64 字符')
+  if (!/^[A-Za-z0-9]/.test(name)) return t('配置名须以字母或数字开头')
+  if (!/^[A-Za-z0-9._-]+$/.test(name)) return t('配置名仅允许字母/数字/./_/-（无空格与路径段）')
   return null
 }
 
@@ -235,15 +238,15 @@ export function validateReplicationName(name: string): string | null {
  */
 export function validateReplicationTargetURL(raw: string): string | null {
   const v = raw.trim()
-  if (v === '') return '目标 URL 未填'
+  if (v === '') return t('目标 URL 未填')
   try {
     const u = new URL(v)
     if ((u.protocol !== 'http:' && u.protocol !== 'https:') || u.host === '') {
-      return '目标 URL 须为带主机的绝对 http/https 地址'
+      return t('目标 URL 须为带主机的绝对 http/https 地址')
     }
     return null
   } catch {
-    return '目标 URL 须为带主机的绝对 http/https 地址'
+    return t('目标 URL 须为带主机的绝对 http/https 地址')
   }
 }
 

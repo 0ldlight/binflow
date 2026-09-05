@@ -32,6 +32,9 @@ import type { AddonRow, LicenseStatus } from '../../lib/addons'
 import { useAsync } from '../../lib/useAsync'
 
 import './license.css'
+import { tr } from '../../i18n'
+
+const t = tr('admin')
 
 /** 档位徽章的 MUI Chip color（tier-pro→info / tier-enterprise→warning /
  *  community = default——mui-native-visual §3.2 映射；tierBadgeClass 类名
@@ -71,8 +74,8 @@ function expiryBlock(st: LicenseStatus): ReactNode {
   if (!st.licensed || st.perpetual) {
     return (
       <div className="kv">
-        <span className="k">有效期</span>
-        <span>{st.licensed ? '永久（perpetual）' : '—'}</span>
+        <span className="k">{t('有效期')}</span>
+        <span>{st.licensed ? t('永久（perpetual）') : '—'}</span>
       </div>
     )
   }
@@ -80,19 +83,19 @@ function expiryBlock(st: LicenseStatus): ReactNode {
   return (
     <>
       <div className="kv">
-        <span className="k">有效期至</span>
+        <span className="k">{t('有效期至')}</span>
         <span className="mono" lang="en">
           {st.expiresAt || '—'}
         </span>
       </div>
       <div className="kv">
-        <span className="k">倒计时</span>
+        <span className="k">{t('倒计时')}</span>
         <span>
           {d === null
             ? '—'
             : d >= 0
-              ? `剩 ${d} 天`
-              : `已过期 ${-d} 天（D6 无宽限：已降级 community，读不劫持）`}
+              ? t('剩 {d} 天', { d: d })
+              : t('已过期 {v1} 天（D6 无宽限：已降级 community，读不劫持）', { v1: -d })}
         </span>
       </div>
     </>
@@ -116,7 +119,7 @@ function LicenseCard({ rev, onChanged }: { rev: number; onChanged: () => void })
     setBusy(true)
     try {
       const st = await installLicense(doc)
-      toast.success(`License 已装载（${normalizeTier(st.tier)} 档，即刻生效）`)
+      toast.success(t('License 已装载（{v1} 档，即刻生效）', { v1: normalizeTier(st.tier) }))
       setDoc('')
       onChanged()
     } catch (err) {
@@ -132,16 +135,10 @@ function LicenseCard({ rev, onChanged }: { rev: number; onChanged: () => void })
     const holder = { typed: '' }
     const body: ReactNode = (
       <>
-        <p>
-          将卸载当前 license（<b className="mono" lang="en">{normalizeTier(st.tier)}</b> 档
-          {st.licensee ? `，被授权方 ${st.licensee}` : ''}）。卸载后实例降回{' '}
-          <b>community 地板</b>：门控槽位（含其包型仓的建仓/写入）即刻关闭，既有制品读不受影响
-          （降级不劫持数据）。
-        </p>
+        <p>{t('将卸载当前 license（')}<b className="mono" lang="en">{normalizeTier(st.tier)}</b> {t('档')}          {st.licensee ? t('，被授权方 {v1}', { v1: st.licensee }) : ''}{t('）。卸载后实例降回')}{' '}
+          <b>{t('community 地板')}</b>{t('：门控槽位（含其包型仓的建仓/写入）即刻关闭，既有制品读不受影响 （降级不劫持数据）。')}        </p>
         <div className="field" style={{ maxWidth: 'none', marginBottom: 0 }}>
-          <label htmlFor="lic-uninstall-confirm">
-            输入 <b className="mono" lang="en">UNINSTALL</b> 以确认：
-          </label>
+          <label htmlFor="lic-uninstall-confirm">{t('输入')} <b className="mono" lang="en">UNINSTALL</b> {t('以确认：')}          </label>
           <input
             id="lic-uninstall-confirm"
             className="confirm-input"
@@ -155,10 +152,10 @@ function LicenseCard({ rev, onChanged }: { rev: number; onChanged: () => void })
       </>
     )
     const ok = await confirm({
-      title: '卸载 license',
+      title: t('卸载 license'),
       body,
       danger: true,
-      confirmLabel: '卸载 license',
+      confirmLabel: t('卸载 license'),
       confirmDisabled: () => holder.typed !== 'UNINSTALL',
     })
     if (!ok) return
@@ -168,7 +165,7 @@ function LicenseCard({ rev, onChanged }: { rev: number; onChanged: () => void })
       toast.success(text) // 服务端文案原样（"License removed successfully."）
       onChanged()
     } catch (err) {
-      toast.error(`卸载失败：${errText(err)}`)
+      toast.error(t('卸载失败：{v1}', { v1: errText(err) }))
     } finally {
       setBusy(false)
     }
@@ -182,7 +179,7 @@ function LicenseCard({ rev, onChanged }: { rev: number; onChanged: () => void })
       {state.status === 'ok' && state.data && (
         <>
           <div className="kv">
-            <span className="k">当前档位</span>
+            <span className="k">{t('当前档位')}</span>
             <span>
               <Chip
                 size="small"
@@ -194,14 +191,14 @@ function LicenseCard({ rev, onChanged }: { rev: number; onChanged: () => void })
                 lang="en"
               />
               <span className="text-2" style={{ marginLeft: 8 }}>
-                {state.data.licensed ? '已授权' : '未安装 license'}
+                {state.data.licensed ? t('已授权') : t('未安装 license')}
               </span>
             </span>
           </div>
           {state.data.licensed && (
             <>
               <div className="kv">
-                <span className="k">被授权方</span>
+                <span className="k">{t('被授权方')}</span>
                 <span className="mono" lang="en" data-testid="license-licensee">
                   {state.data.licensee || '—'}
                 </span>
@@ -213,7 +210,7 @@ function LicenseCard({ rev, onChanged }: { rev: number; onChanged: () => void })
                 </span>
               </div>
               <div className="kv">
-                <span className="k">签发时间</span>
+                <span className="k">{t('签发时间')}</span>
                 <span className="mono" lang="en">
                   {state.data.issuedAt || '—'}
                 </span>
@@ -222,23 +219,17 @@ function LicenseCard({ rev, onChanged }: { rev: number; onChanged: () => void })
           )}
           {expiryBlock(state.data)}
           {!state.data.licensed && (
-            <p className="field-hint" data-testid="license-floor">
-              未安装 license：实例按 <b>community 地板</b>运行——五核心包型与基础能力恒解锁，
-              门控槽位呈锁定态。下方矩阵即全槽位实时求值（与门控执行同源）。
-            </p>
+            <p className="field-hint" data-testid="license-floor">{t('未安装 license：实例按')} <b>{t('community 地板')}</b>{t('运行——五核心包型与基础能力恒解锁， 门控槽位呈锁定态。下方矩阵即全槽位实时求值（与门控执行同源）。')}            </p>
           )}
 
           {readOnly && (
-            <p className="license-note" data-testid="license-readonly-note">
-              ⓘ 只读管理员视角：license 安装/卸载是管理面写操作（system:write，仅全量
-              admin）；本页只读呈现，服务端 403 兜底。
-            </p>
+            <p className="license-note" data-testid="license-readonly-note">{t('ⓘ 只读管理员视角：license 安装/卸载是管理面写操作（system:write，仅全量 admin）；本页只读呈现，服务端 403 兜底。')}            </p>
           )}
 
           {admin && (
             <div className="license-install-block">
               <div className="field" style={{ marginBottom: 0 }}>
-                <label htmlFor="license-doc">安装 license 文档</label>
+                <label htmlFor="license-doc">{t('安装 license 文档')}</label>
                 <TextField
                   id="license-doc"
                   size="small"
@@ -246,7 +237,7 @@ function LicenseCard({ rev, onChanged }: { rev: number; onChanged: () => void })
                   minRows={5}
                   value={doc}
                   onChange={(e) => setDoc(e.target.value)}
-                  placeholder="粘贴 license 文档全文（.lic）——验签失败会被原样拒绝，当前 license 不受影响"
+                  placeholder={t('粘贴 license 文档全文（.lic）——验签失败会被原样拒绝，当前 license 不受影响')}
                   sx={{ width: '100%', maxWidth: 720 }}
                   slotProps={{
                     htmlInput: {
@@ -257,13 +248,11 @@ function LicenseCard({ rev, onChanged }: { rev: number; onChanged: () => void })
                     },
                   }}
                 />
-                <p className="field-hint">
-                  装载即刻生效（进程内原子切换，无撕裂）；GET 永不回显文档原文（NFR-S52）。
-                </p>
+                <p className="field-hint">{t('装载即刻生效（进程内原子切换，无撕裂）；GET 永不回显文档原文（NFR-S52）。')}                </p>
               </div>
               {installError && (
                 <Alert severity="error" data-testid="license-install-error">
-                  <div className="headline">装载被拒（HTTP {installError.status || '网络'}）</div>
+                  <div className="headline">{t('装载被拒（HTTP')} {installError.status || t('网络')}{t('）')}</div>
                   <div className="raw" lang="en">
                     {installError.message}
                   </div>
@@ -277,7 +266,7 @@ function LicenseCard({ rev, onChanged }: { rev: number; onChanged: () => void })
                   data-testid="license-install"
                   onClick={() => void doInstall()}
                 >
-                  {busy ? '处理中…' : '装载 license'}
+                  {busy ? t('处理中…') : t('装载 license')}
                 </Button>
                 {state.data.licensed && (
                   <Button
@@ -288,9 +277,7 @@ function LicenseCard({ rev, onChanged }: { rev: number; onChanged: () => void })
                     disabled={busy}
                     data-testid="license-uninstall"
                     onClick={() => void doUninstall(state.data!)}
-                  >
-                    卸载 license
-                  </Button>
+                  >{t('卸载 license')}                  </Button>
                 )}
               </div>
             </div>
@@ -334,7 +321,7 @@ function AddonTableRow({ row }: { row: AddonRow }) {
       </TableCell>
       <TableCell data-testid={`addons-tier-${row.id}`}>
         {tier === 'community' ? (
-          <span className="text-2" title="community 地板：无 license 也解锁">
+          <span className="text-2" title={t('community 地板：无 license 也解锁')}>
             —
           </span>
         ) : (
@@ -344,22 +331,15 @@ function AddonTableRow({ row }: { row: AddonRow }) {
       <TableCell data-testid={`addons-state-${row.id}`}>
         {row.enabled ? (
           <>
-            <span className="status-dot ok" aria-hidden="true" />
-            已解锁
-          </>
+            <span className="status-dot ok" aria-hidden="true" />{t('已解锁')}          </>
         ) : disabledCfg ? (
           <>
-            <Chip size="small" variant="outlined" color="warning" className="badge warning" label="⊘ 已禁用" />
-            <span className="text-2" style={{ marginLeft: 6 }} title={row.reason ?? ''}>
-              配置熔断（addons.disabled）
-            </span>
+            <Chip size="small" variant="outlined" color="warning" className="badge warning" label={t('⊘ 已禁用')} />
+            <span className="text-2" style={{ marginLeft: 6 }} title={row.reason ?? ''}>{t('配置熔断（addons.disabled）')}            </span>
           </>
         ) : (
           <>
-            <span aria-hidden="true">⊘</span> 锁定
-            <span className="text-2" style={{ marginLeft: 6 }} title={row.reason ?? ''}>
-              需要 {tier} 档
-            </span>
+            <span aria-hidden="true">⊘</span> {t('锁定')}            <span className="text-2" style={{ marginLeft: 6 }} title={row.reason ?? ''}>{t('需要')} {tier} {t('档')}            </span>
           </>
         )}
       </TableCell>
@@ -381,8 +361,8 @@ export default function LicenseAddonsPage() {
           <h2>License &amp; Add-ons</h2>
         </div>
         <EmptyState
-          message="无权限访问 License &amp; Add-ons"
-          hint="license 与 addon 状态属于管理面（system:read，需 admin / readonly_admin）。"
+          message={t('无权限访问 License &amp; Add-ons')}
+          hint={t('license 与 addon 状态属于管理面（system:read，需 admin / readonly_admin）。')}
         />
       </div>
     )
@@ -393,9 +373,7 @@ export default function LicenseAddonsPage() {
     <div data-testid="license-page">
       <div className="page-header">
         <h2>License &amp; Add-ons</h2>
-        <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>
-          档位 × addon 解锁矩阵（实时求值，与门控执行同源）
-        </span>
+        <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>{t('档位 × addon 解锁矩阵（实时求值，与门控执行同源）')}        </span>
       </div>
 
       <LicenseCard rev={rev} onChanged={bump} />
@@ -405,12 +383,12 @@ export default function LicenseAddonsPage() {
         {addons.status === 'loading' && <Skeleton lines={6} />}
         {addons.status === 'error' && addons.error && <ErrorCard error={addons.error} onRetry={addons.reload} />}
         {addons.status === 'forbidden' && (
-          <EmptyState message="无权限读取 addon 清单" hint="GET /api/v1/addons 需要管理面读权限。" />
+          <EmptyState message={t('无权限读取 addon 清单')} hint={t('GET /api/v1/addons 需要管理面读权限。')} />
         )}
         {addons.status === 'ok' && rows.length === 0 && (
           <EmptyState
-            message="此实例未装配 addon 注册表"
-            hint="GET /api/v1/addons 为空数组——该组装形态的自我描述（pre-M10 单元栈），非错误。"
+            message={t('此实例未装配 addon 注册表')}
+            hint={t('GET /api/v1/addons 为空数组——该组装形态的自我描述（pre-M10 单元栈），非错误。')}
           />
         )}
         {addons.status === 'ok' && rows.length > 0 && (
@@ -419,10 +397,10 @@ export default function LicenseAddonsPage() {
               <TableHead>
                 <TableRow>
                   <TableCell component="th" scope="col">ID</TableCell>
-                  <TableCell component="th" scope="col">名称</TableCell>
-                  <TableCell component="th" scope="col">类型</TableCell>
-                  <TableCell component="th" scope="col">最低档位</TableCell>
-                  <TableCell component="th" scope="col">状态</TableCell>
+                  <TableCell component="th" scope="col">{t('名称')}</TableCell>
+                  <TableCell component="th" scope="col">{t('类型')}</TableCell>
+                  <TableCell component="th" scope="col">{t('最低档位')}</TableCell>
+                  <TableCell component="th" scope="col">{t('状态')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -431,10 +409,7 @@ export default function LicenseAddonsPage() {
                 ))}
               </TableBody>
             </Table>
-            <p className="field-hint" style={{ marginBottom: 0 }}>
-              Enabled 由 license 档位与 addons.disabled 配置决定，不可手动切换；锁定槽位在装对应档位
-              license 后即刻解锁。
-            </p>
+            <p className="field-hint" style={{ marginBottom: 0 }}>{t('Enabled 由 license 档位与 addons.disabled 配置决定，不可手动切换；锁定槽位在装对应档位 license 后即刻解锁。')}            </p>
           </>
         )}
       </section>

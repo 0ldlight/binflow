@@ -13,6 +13,9 @@
 
 import { ApiError, apiJSON, apiText } from './api'
 import type { RepoListItem } from './api'
+import { tr } from '../i18n'
+
+const t = tr('console')
 
 export type RClass = 'local' | 'remote' | 'virtual'
 // M10 T-288：联合扩入门控包型（go/nuget/cargo——license 档位解锁，建仓合法
@@ -58,10 +61,10 @@ export const RESERVED_REPO_KEYS = ['api', 'v2', 'docs', 'console', 'ui', 'assets
  */
 export function validateRepoKey(key: string): string | null {
   if (key === '') return null // 空值不报错（必填在步骤门控拦）
-  if (key.length < 2 || key.length > 63) return '长度需为 2~63 个字符'
-  if (!/^[a-z]/.test(key)) return '必须以小写字母开头'
-  if (!/^[a-z0-9-]*$/.test(key.slice(1))) return '只允许小写字母、数字与连字符（-）'
-  if (RESERVED_REPO_KEYS.includes(key)) return `「${key}」是路由保留段，不能用作仓库 key`
+  if (key.length < 2 || key.length > 63) return t('长度需为 2~63 个字符')
+  if (!/^[a-z]/.test(key)) return t('必须以小写字母开头')
+  if (!/^[a-z0-9-]*$/.test(key.slice(1))) return t('只允许小写字母、数字与连字符（-）')
+  if (RESERVED_REPO_KEYS.includes(key)) return t('「{key}」是路由保留段，不能用作仓库 key', { key: key })
   return null
 }
 
@@ -72,10 +75,10 @@ export function validateUpstreamURL(url: string): string | null {
   try {
     u = new URL(url)
   } catch {
-    return 'URL 格式无效'
+    return t('URL 格式无效')
   }
-  if (u.protocol !== 'http:' && u.protocol !== 'https:') return 'scheme 必须是 http 或 https'
-  if (!u.host) return '缺少 host'
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return t('scheme 必须是 http 或 https')
+  if (!u.host) return t('缺少 host')
   return null
 }
 

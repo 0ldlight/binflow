@@ -6,12 +6,13 @@
   "description": "BinFlow web console (vite + React + TS, ADR-0014 decision 4). Built by `make console` and embedded into the single binary via internal/console/dist.",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/assert-tokens.mjs && vite build && node scripts/relink-assets.mjs && node scripts/wire-brand-assets.mjs",
+    "build": "node scripts/assert-tokens.mjs && node scripts/assert-i18n.mjs && vite build && node scripts/relink-assets.mjs && node scripts/wire-brand-assets.mjs",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint .",
+    "lint": "eslint . && node scripts/assert-i18n.mjs",
     "assert:tokens": "node scripts/assert-tokens.mjs",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "assert:i18n": "node scripts/assert-i18n.mjs"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

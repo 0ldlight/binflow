@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import IconButton from '@mui/material/IconButton'
 import Tooltip from '@mui/material/Tooltip'
+import { tr } from '../i18n'
+
+const t = tr('console')
 
 // 一键拷贝（P2：一切标识符可复制；mono 值 = 拷贝候选）。拷贝的是
 // 完整值——展示可以截断，拷贝不许截断（console-ux §7.3）。
@@ -33,11 +36,11 @@ export function CopyButton({ value, label }: { value: string; label: string }) {
   }
 
   return (
-    <Tooltip title={done ? '已复制' : `复制 ${label}`}>
+    <Tooltip title={done ? t('已复制') : t('复制 {label}', { label: label })}>
       <IconButton
         className="copy-btn"
         size="small"
-        aria-label={`复制 ${label}`}
+        aria-label={t('复制 {label}', { label: label })}
         color={done ? 'success' : 'default'}
         onClick={() => void copy()}
       >

@@ -20,6 +20,9 @@ import type { HealthInfo, RepoListItem, StorageStats, AuditPage, AuditEvent } fr
 import { dedupRatio, formatAuditTime, formatBytes, formatCount } from '../lib/format'
 import { useAsync } from '../lib/useAsync'
 import { useVersion } from '../lib/useVersion'
+import { tr } from '../i18n'
+
+const tt = tr('console')
 
 // 仪表盘（console-m8 §6.2——应用模式数据面；reverse 未深走 Dashboard，
 // 无对齐负担，保留 BinFlow 五卡形态）：健康 / 存储 stats / 仓库计数 /
@@ -92,9 +95,7 @@ function HealthCard() {
       data-testid="dashboard-health-card"
       sx={anyDown ? { border: '1px solid', borderColor: overallOk ? 'warning.main' : 'error.main' } : undefined}
     >
-      <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
-        健康
-      </Typography>
+      <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>{tt('健康')}      </Typography>
       {state.status === 'loading' && <Skeleton lines={4} />}
       {state.status === 'error' && state.error && <ErrorCard error={state.error} onRetry={state.reload} />}
       {state.status === 'ok' && state.data && (
@@ -117,7 +118,7 @@ function StorageCard() {
   const d = state.data
   const ratio = d ? dedupRatio(d.logical_bytes, d.physical_bytes) : 0
   return (
-    <Card title="存储" testid="dashboard-storage-card" state={state}>
+    <Card title={tt('存储')} testid="dashboard-storage-card" state={state}>
       {d && (
         <>
           <div className="kv">
@@ -125,15 +126,15 @@ function StorageCard() {
             <span className="mono">{formatCount(d.blobs)}</span>
           </div>
           <div className="kv">
-            <span className="k">逻辑容量</span>
+            <span className="k">{tt('逻辑容量')}</span>
             <span className="mono">{formatBytes(d.logical_bytes)}</span>
           </div>
           <div className="kv">
-            <span className="k">物理占用</span>
+            <span className="k">{tt('物理占用')}</span>
             <span className="mono">{formatBytes(d.physical_bytes)}</span>
           </div>
           <div className="kv">
-            <span className="k">去重率</span>
+            <span className="k">{tt('去重率')}</span>
             <span className="mono">{(ratio * 100).toFixed(0)}%</span>
           </div>
         </>
@@ -150,18 +151,16 @@ function ReposCard() {
   const remotes = repos.filter((r) => r.type === 'remote')
   const canCreate = canAdminWrite(session)
   return (
-    <Card title="仓库" testid="dashboard-repos-card" state={state}>
+    <Card title={tt('仓库')} testid="dashboard-repos-card" state={state}>
       {repos.length === 0 ? (
         <EmptyState
-          message="还没有仓库"
+          message={tt('还没有仓库')}
           action={
             canCreate ? (
-              <Button component={Link} variant="contained" to="/admin/repositories/new">
-                创建第一个仓库
-              </Button>
+              <Button component={Link} variant="contained" to="/admin/repositories/new">{tt('创建第一个仓库')}              </Button>
             ) : undefined
           }
-          hint="建议从 local + generic 起步（任意文件）；协议仓选型见 docs/user 接入文档"
+          hint={tt('建议从 local + generic 起步（任意文件）；协议仓选型见 docs/user 接入文档')}
         />
       ) : (
         <>
@@ -179,16 +178,13 @@ function ReposCard() {
           </div>
           {remotes.length > 0 && (
             <div className="water-mark">
-              {remotes.length} 个 remote 仓，上游状态 <span className="mono">—</span>（统计端点未开放，ux R9 兜底）
-            </div>
+              {remotes.length} {tt('个 remote 仓，上游状态')} <span className="mono">—</span>{tt('（统计端点未开放，ux R9 兜底）')}            </div>
           )}
           {/* 快捷入口（§6.2 线框 [3]）：建仓直达——仅全量 admin（L4 写入口
               预收敛；readonly_admin 不渲染，服务端 403 兜底） */}
           {canCreate && (
             <p style={{ margin: 'var(--bf-sp-3) 0 0' }}>
-              <Link to="/admin/repositories/new" data-testid="dashboard-repos-create">
-                建仓 →
-              </Link>
+              <Link to="/admin/repositories/new" data-testid="dashboard-repos-create">{tt('建仓 →')}              </Link>
             </p>
           )}
         </>
@@ -215,32 +211,28 @@ function AuditCard() {
   return (
     <Paper component="section" className="card" elevation={1} data-testid="dashboard-audit-card">
       <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', mb: 1.5 }}>
-        <Typography variant="subtitle2" component="h3">
-          最近审计（最新 8 条）
-        </Typography>
+        <Typography variant="subtitle2" component="h3">{tt('最近审计（最新 8 条）')}        </Typography>
         {state.status === 'ok' && (
           <Link
             to="/admin/governance/audit"
             style={{ fontSize: 12, lineHeight: '20px' }}
             data-testid="dashboard-audit-all"
-          >
-            查看全部 →
-          </Link>
+          >{tt('查看全部 →')}          </Link>
         )}
       </Box>
       {state.status === 'loading' && <Skeleton lines={6} />}
       {state.status === 'error' && state.error && <ErrorCard error={state.error} onRetry={state.reload} />}
       {state.status === 'ok' &&
         (events.length === 0 ? (
-          <EmptyState message="暂无审计事件" hint="登录、建仓、上传等操作会记录在这里" />
+          <EmptyState message={tt('暂无审计事件')} hint={tt('登录、建仓、上传等操作会记录在这里')} />
         ) : (
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell component="th" scope="col">时间</TableCell>
-                <TableCell component="th" scope="col">操作者</TableCell>
-                <TableCell component="th" scope="col">动作</TableCell>
-                <TableCell component="th" scope="col">对象</TableCell>
+                <TableCell component="th" scope="col">{tt('时间')}</TableCell>
+                <TableCell component="th" scope="col">{tt('操作者')}</TableCell>
+                <TableCell component="th" scope="col">{tt('动作')}</TableCell>
+                <TableCell component="th" scope="col">{tt('对象')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -287,26 +279,24 @@ function InstanceCard() {
   const { session } = useAuth()
   return (
     <Paper component="section" className="card" elevation={1} data-testid="dashboard-instance-card">
-      <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
-        实例
-      </Typography>
+      <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>{tt('实例')}      </Typography>
       <div className="kv">
-        <span className="k">产品</span>
+        <span className="k">{tt('产品')}</span>
         <span className="mono" lang="en">
           {version?.product ?? '—'}
         </span>
       </div>
       <div className="kv">
-        <span className="k">版本</span>
+        <span className="k">{tt('版本')}</span>
         <span className="mono" lang="en">
           {version ? `v${version.version}` : '—'}
         </span>
       </div>
       <div className="kv">
-        <span className="k">当前用户</span>
+        <span className="k">{tt('当前用户')}</span>
         <span>
           {session?.username}
-          {session?.admin ? '（admin）' : isReadOnlyAdmin(session) ? '（readonly_admin）' : ''}
+          {session?.admin ? tt('（admin）') : isReadOnlyAdmin(session) ? tt('（readonly_admin）') : ''}
         </span>
       </div>
     </Paper>
@@ -321,21 +311,15 @@ export default function DashboardPage() {
   return (
     <div data-testid="dashboard">
       <div className="page-header">
-        <h2>仪表盘</h2>
+        <h2>{tt('仪表盘')}</h2>
       </div>
       {/* 收敛说明（§3.6.4 姿态不变；M7 readonly 横幅语义融入新形态）。
           .card.section 类名留 DOM——auxiliary.spec 的类组合钩子。 */}
       {!admin && !readOnly && (
-        <Paper component="div" className="card section" elevation={1} sx={{ maxWidth: 640 }}>
-          以 <b>{session?.username}</b>（非 admin）身份登录：健康、存储、仓库与审计面板为管理员视图，
-          已按「无权限即隐藏」收敛；可用操作见右上角用户菜单「编辑档案」（修改口令）与全局搜索。
-        </Paper>
+        <Paper component="div" className="card section" elevation={1} sx={{ maxWidth: 640 }}>{tt('以')} <b>{session?.username}</b>{tt('（非 admin）身份登录：健康、存储、仓库与审计面板为管理员视图， 已按「无权限即隐藏」收敛；可用操作见右上角用户菜单「编辑档案」（修改口令）与全局搜索。')}        </Paper>
       )}
       {readOnly && (
-        <Paper component="div" className="card section" elevation={1} sx={{ maxWidth: 640 }} data-testid="dashboard-readonly-note">
-          以 <b>{session?.username}</b>（readonly_admin）身份登录：管理面全量只读——健康、存储、仓库与审计
-          面板可见；配置变更（建仓 / 用户与权限 / GC / 复制）需 admin，提交会被服务端 403 拒绝。
-        </Paper>
+        <Paper component="div" className="card section" elevation={1} sx={{ maxWidth: 640 }} data-testid="dashboard-readonly-note">{tt('以')} <b>{session?.username}</b>{tt('（readonly_admin）身份登录：管理面全量只读——健康、存储、仓库与审计 面板可见；配置变更（建仓 / 用户与权限 / GC / 复制）需 admin，提交会被服务端 403 拒绝。')}        </Paper>
       )}
       <div className="card-grid">
         <InstanceCard />

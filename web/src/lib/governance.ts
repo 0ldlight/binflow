@@ -13,6 +13,9 @@
 
 import { apiJSON } from './api'
 import type { AuditPage } from './api'
+import { tr } from '../i18n'
+
+const tt = tr('console')
 
 /** 服务端过滤面（path 过滤不在此列——它不进 REST 查询） */
 export interface AuditFilters {
@@ -295,10 +298,10 @@ export function deleteBackup(key: string): Promise<void> {
  * 的单段 + 台账行键）。null = 合法，否则为行内错误文案。
  */
 export function validateBackupKey(key: string): string | null {
-  if (key === '') return 'Backup Key 未填'
-  if (key.length > 64) return 'Backup Key 最长 64 字符'
-  if (!/^[A-Za-z0-9]/.test(key)) return 'Backup Key 须以字母或数字开头'
-  if (!/^[A-Za-z0-9._-]+$/.test(key)) return 'Backup Key 仅允许字母/数字/./_/-（无空格与路径段）'
+  if (key === '') return tt('Backup Key 未填')
+  if (key.length > 64) return tt('Backup Key 最长 64 字符')
+  if (!/^[A-Za-z0-9]/.test(key)) return tt('Backup Key 须以字母或数字开头')
+  if (!/^[A-Za-z0-9._-]+$/.test(key)) return tt('Backup Key 仅允许字母/数字/./_/-（无空格与路径段）')
   return null
 }
 
@@ -308,8 +311,8 @@ export function validateBackupKey(key: string): string | null {
  * （本门只拒绝永不可能合法的形态）。
  */
 export function validateExportPath(path: string): string | null {
-  if (path === '') return '服务器路径未填'
-  if (!path.startsWith('/')) return '须为服务器绝对路径（以 / 开头）'
-  if (path.includes('..')) return '路径不得包含 .. 段'
+  if (path === '') return tt('服务器路径未填')
+  if (!path.startsWith('/')) return tt('须为服务器绝对路径（以 / 开头）')
+  if (path.includes('..')) return tt('路径不得包含 .. 段')
   return null
 }

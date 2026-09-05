@@ -19,6 +19,12 @@ assets on the shared `/binflow/assets/**` mount.
 - `src/` — the SPA. `main.tsx` holds the router (`basename=/binflow/ui`, must
   equal vite's `base`); every screen is `React.lazy` (the route-chunk seam:
   later tickets add screens without touching the build shape).
+- `src/i18n/` — the i18n core (T-463): zh-as-key (msgid = zh copy), zero-dep
+  translator (`const t = tr('domain')` per module), `initI18n()` bootstrap
+  gate in `main.tsx`, and the en catalogs (`locales/en/*.ts`, lazy chunk —
+  zh users fetch nothing) plus zh key manifests (`manifests/zh/*.json`).
+  Copy NEVER hardcodes CJK in components: `node scripts/assert-i18n.mjs`
+  (wired into `npm run build` and `npm run lint`) fails the gate otherwise.
 - `scripts/relink-assets.mjs` — runs after `vite build`; rewrites the emitted
   `/binflow/ui/assets/` references onto `/binflow/assets/` (the shared mount
   keeps the ui segment pure: every in-segment path is the shell, so the

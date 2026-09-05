@@ -1,3 +1,7 @@
+import { tr } from '../../i18n'
+
+const tt = tr('repositories')
+
 // deb/rpm/helm 索引引擎策略键的字段册（M12 T-353，FR-113.2/113.5 FE 腿）。
 //
 // REST 透传已就位（T-327R 的 deb/rpm 六+四键 + T-329 D-E 的 helm 强制布局
@@ -42,45 +46,45 @@ export interface PolicyFieldDef {
 const DEB: PolicyFieldDef[] = [
   {
     wire: 'byHash',
-    label: 'byHash（by-hash 索引策略）',
+    label: tt('byHash（by-hash 索引策略）'),
     kind: 'select',
     options: ['NONE', 'SHA256', 'ALL'],
-    hint: '值域闭集 NONE / SHA256 / ALL（K45 定案，T-346 起服务端 400 终裁）；缺省 NONE。',
+    hint: tt('值域闭集 NONE / SHA256 / ALL（K45 定案，T-346 起服务端 400 终裁）；缺省 NONE。'),
   },
   {
     wire: 'optionalIndexCompressionFormats',
-    label: 'optionalIndexCompressionFormats（附加索引压缩格式）',
+    label: tt('optionalIndexCompressionFormats（附加索引压缩格式）'),
     kind: 'text',
     placeholder: 'xz, lzma',
-    hint: '逗号分隔；空 = 不生成附加压缩索引。',
+    hint: tt('逗号分隔；空 = 不生成附加压缩索引。'),
   },
   {
     wire: 'debianDefaultArchitectures',
-    label: 'debianDefaultArchitectures（强制架构族）',
+    label: tt('debianDefaultArchitectures（强制架构族）'),
     kind: 'text',
     placeholder: 'i386,amd64',
-    hint: 'Release 强制声明的架构族（TL-4）；空 = 产品默认 i386,amd64，"none" 显式退出。',
+    hint: tt('Release 强制声明的架构族（TL-4）；空 = 产品默认 i386,amd64，"none" 显式退出。'),
   },
   {
     wire: 'historyCycles',
-    label: 'historyCycles（by-hash 世代保留数）',
+    label: tt('historyCycles（by-hash 世代保留数）'),
     kind: 'number',
     dflt: 3,
-    hint: 'by-hash 索引保留的世代数；非负整数，默认 3。',
+    hint: tt('by-hash 索引保留的世代数；非负整数，默认 3。'),
   },
   {
     wire: 'origin',
-    label: 'origin（Release Origin）',
+    label: tt('origin（Release Origin）'),
     kind: 'text',
-    placeholder: '（默认 = 仓库 key）',
-    hint: 'Release 文件的 Origin 字段；空 = 仓库 key。',
+    placeholder: tt('（默认 = 仓库 key）'),
+    hint: tt('Release 文件的 Origin 字段；空 = 仓库 key。'),
   },
   {
     wire: 'label',
-    label: 'label（Release Label）',
+    label: tt('label（Release Label）'),
     kind: 'text',
-    placeholder: '（默认 = 仓库 key）',
-    hint: 'Release 文件的 Label 字段；空 = 仓库 key。',
+    placeholder: tt('（默认 = 仓库 key）'),
+    hint: tt('Release 文件的 Label 字段；空 = 仓库 key。'),
   },
 ]
 
@@ -88,29 +92,29 @@ const DEB: PolicyFieldDef[] = [
 const RPM: PolicyFieldDef[] = [
   {
     wire: 'calculateYumMetadata',
-    label: 'calculateYumMetadata（RP-2 显式开启）',
+    label: tt('calculateYumMetadata（RP-2 显式开启）'),
     kind: 'check',
-    hint: '产品默认 false：yum 元数据按需/显式生成——勾选后部署即计算 repodata。',
+    hint: tt('产品默认 false：yum 元数据按需/显式生成——勾选后部署即计算 repodata。'),
   },
   {
     wire: 'yumRootDepth',
-    label: 'yumRootDepth（repodata 根深度）',
+    label: tt('yumRootDepth（repodata 根深度）'),
     kind: 'number',
     dflt: 0,
-    hint: 'repodata 生成起算的目录深度；非负整数，默认 0 = 仓库根。',
+    hint: tt('repodata 生成起算的目录深度；非负整数，默认 0 = 仓库根。'),
   },
   {
     wire: 'enableFileListsIndexing',
-    label: 'enableFileListsIndexing（filelists 索引）',
+    label: tt('enableFileListsIndexing（filelists 索引）'),
     kind: 'check',
-    hint: '产品默认 false；开启后 repodata 含 filelists 索引（体积换按文件检索）。',
+    hint: tt('产品默认 false；开启后 repodata 含 filelists 索引（体积换按文件检索）。'),
   },
   {
     wire: 'yumGroupFileNames',
-    label: 'yumGroupFileNames（comps 组文件清单）',
+    label: tt('yumGroupFileNames（comps 组文件清单）'),
     kind: 'text',
     placeholder: 'comps.xml',
-    hint: '逗号分隔的 comps 组文件名；默认 comps.xml。',
+    hint: tt('逗号分隔的 comps 组文件名；默认 comps.xml。'),
   },
 ]
 
@@ -118,15 +122,15 @@ const RPM: PolicyFieldDef[] = [
 const HELM: PolicyFieldDef[] = [
   {
     wire: 'forceMetadataNameVersion',
-    label: 'Enforce Chart Name and Version（forceMetadataNameVersion）',
+    label: tt('Enforce Chart Name and Version（forceMetadataNameVersion）'),
     kind: 'check',
-    hint: '产品默认 false：强制上传路径与 Chart 元数据的 name/version 一致，否则拒绝。',
+    hint: tt('产品默认 false：强制上传路径与 Chart 元数据的 name/version 一致，否则拒绝。'),
   },
   {
     wire: 'forceNonDuplicateChart',
-    label: 'Prevent Duplicate Chart Paths（forceNonDuplicateChart）',
+    label: tt('Prevent Duplicate Chart Paths（forceNonDuplicateChart）'),
     kind: 'check',
-    hint: '产品默认 false：禁止同路径重复上传同版本 Chart。',
+    hint: tt('产品默认 false：禁止同路径重复上传同版本 Chart。'),
   },
 ]
 

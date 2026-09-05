@@ -6,6 +6,9 @@ import { useToast } from '../../app/ToastContext'
 import { useConfirm } from '../../components/ConfirmDialog'
 import { ApiError, errText } from '../../lib/api'
 import { deleteRepo } from '../../lib/repos'
+import { tr } from '../../i18n'
+
+const t = tr('repositories')
 
 // 删仓强确认（console-m8 §4.6 仓库行 / C9 危险确认，T-240 自列表行与
 // 详情危险区共用）：
@@ -39,14 +42,10 @@ export function useRepoDelete({ onDeleted }: { onDeleted?: (key: string) => void
     const body: ReactNode = (
       <>
         {reason && (
-          <div className="server-reason" data-testid="repo-delete-reason" lang="en">
-            HTTP 400：{reason}
+          <div className="server-reason" data-testid="repo-delete-reason" lang="en">{t('HTTP 400：')}{reason}
           </div>
         )}
-        <p>
-          将永久删除仓库 <b className="mono" lang="en">{repo.key}</b>（{repo.rclass} / {repo.packageType}）
-          及其全部制品。制品不可变，删除<b>没有撤销</b>。
-        </p>
+        <p>{t('将永久删除仓库')} <b className="mono" lang="en">{repo.key}</b>{t('（')}{repo.rclass} / {repo.packageType}{t('） 及其全部制品。制品不可变，删除')}<b>{t('没有撤销')}</b>{t('。')}        </p>
         <label className="check-row">
           <input
             type="checkbox"
@@ -55,13 +54,9 @@ export function useRepoDelete({ onDeleted }: { onDeleted?: (key: string) => void
               holder.deleteContent = e.target.checked
             }}
             data-testid="repo-delete-content"
-          />
-          同时删除内容（deleteContent）——非空仓必须勾选
-        </label>
+          />{t('同时删除内容（deleteContent）——非空仓必须勾选')}        </label>
         <div className="field" style={{ maxWidth: 'none', marginBottom: 0 }}>
-          <label htmlFor={`del-confirm-${repo.key}`}>
-            输入仓库 key <b className="mono" lang="en">{repo.key}</b> 以确认：
-          </label>
+          <label htmlFor={`del-confirm-${repo.key}`}>{t('输入仓库 key')} <b className="mono" lang="en">{repo.key}</b> {t('以确认：')}          </label>
           <input
             id={`del-confirm-${repo.key}`}
             className="confirm-input"
@@ -76,10 +71,10 @@ export function useRepoDelete({ onDeleted }: { onDeleted?: (key: string) => void
       </>
     )
     const ok = await confirm({
-      title: '删除仓库',
+      title: t('删除仓库'),
       body,
       danger: true,
-      confirmLabel: deleting ? '删除中…' : '删除仓库',
+      confirmLabel: deleting ? t('删除中…') : t('删除仓库'),
       confirmDisabled: () => holder.typed !== repo.key,
     })
     if (!ok) return
@@ -98,7 +93,7 @@ export function useRepoDelete({ onDeleted }: { onDeleted?: (key: string) => void
         await openDialog(repo, apiErr.message, true)
         return
       }
-      toast.error(`删除失败：${apiErr.message}`)
+      toast.error(t('删除失败：{v1}', { v1: apiErr.message }))
     } finally {
       setDeleting(false)
     }

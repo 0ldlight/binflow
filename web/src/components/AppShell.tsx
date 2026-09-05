@@ -40,6 +40,9 @@ import { abandonStepUp, useStepUp } from '../lib/stepUpGrant'
 import type { PendingMint } from '../lib/stepUpGrant'
 import { useVersion } from '../lib/useVersion'
 import { errText, isReadOnlyAdmin } from '../lib/api'
+import { tr } from '../i18n'
+
+const tt = tr('console')
 
 // 双模式壳（console-m8 §1/§2，T-235——Artifactory 对齐 IA 重排；T-344 批 A
 // MUI 原生壳重构，mui-native-visual §4.1）：
@@ -89,10 +92,10 @@ interface NavGroup {
 /** 应用模式侧栏（console-m8 §1.3 全图：应用分组 2 条目） */
 const APP_NAV: NavGroup[] = [
   {
-    title: '应用',
+    title: tt('应用'),
     entries: [
-      { label: '仪表盘', to: '/dashboard', icon: 'dashboard', end: true },
-      { label: '制品', to: '/artifacts', icon: 'account_tree' },
+      { label: tt('仪表盘'), to: '/dashboard', icon: 'dashboard', end: true },
+      { label: tt('制品'), to: '/artifacts', icon: 'account_tree' },
     ],
   },
 ]
@@ -110,48 +113,48 @@ const APP_NAV: NavGroup[] = [
  * 分组标签不配（V5 实测档位：仅一级条目、子项/父级标签裸文本） */
 const ADMIN_NAV: NavGroup[] = [
   {
-    title: '仓库',
-    entries: [{ label: '仓库', to: '/admin/repositories', icon: 'inventory_2' }],
+    title: tt('仓库'),
+    entries: [{ label: tt('仓库'), to: '/admin/repositories', icon: 'inventory_2' }],
   },
   {
-    title: '用户与权限',
+    title: tt('用户与权限'),
     entries: [
-      { label: '用户', to: '/admin/security/users', icon: 'person' },
-      { label: '组', to: '/admin/security/groups', icon: 'group' },
-      { label: '权限', to: '/admin/security/permissions', icon: 'lock' },
+      { label: tt('用户'), to: '/admin/security/users', icon: 'person' },
+      { label: tt('组'), to: '/admin/security/groups', icon: 'group' },
+      { label: tt('权限'), to: '/admin/security/permissions', icon: 'lock' },
       { label: 'Access Tokens', to: '/admin/security/tokens', icon: 'vpn_key' },
       // M11 T-307：认证配置（FR-92——LDAP/OAuth/SAML 三协议；readonly_admin
       // 只读可见，普通 user 不入管理面）
-      { label: '认证配置', to: '/admin/security/auth/ldap', icon: 'shield' },
+      { label: tt('认证配置'), to: '/admin/security/auth/ldap', icon: 'shield' },
     ],
   },
   {
-    title: '治理',
+    title: tt('治理'),
     entries: [
-      { label: '审计日志', to: '/admin/governance/audit', icon: 'history' },
-      { label: '配额', to: '/admin/governance/quotas', icon: 'pie_chart' },
-      { label: '复制', to: '/admin/governance/replication', icon: 'sync' },
+      { label: tt('审计日志'), to: '/admin/governance/audit', icon: 'history' },
+      { label: tt('配额'), to: '/admin/governance/quotas', icon: 'pie_chart' },
+      { label: tt('复制'), to: '/admin/governance/replication', icon: 'sync' },
       // M12 T-352：回收站（FR-106——浏览/恢复/清空；trashcan 槽门控态呈现）
-      { label: '回收站', to: '/admin/governance/trash', icon: 'delete' },
+      { label: tt('回收站'), to: '/admin/governance/trash', icon: 'delete' },
     ],
   },
   {
-    title: '监控',
+    title: tt('监控'),
     entries: [
-      { label: '存储', to: '/admin/monitoring/storage', icon: 'storage' },
+      { label: tt('存储'), to: '/admin/monitoring/storage', icon: 'storage' },
       // T-459（FR-145.5）：监控组三页 + 归位两页——服务状态（health/schedules
       // 只读运行面）/ 系统日志（审计跟踪尾随查看器）/ 系统信息（自常规组
       // 归位，路由 /admin/monitoring/system-info）/ 维护（GC）与备份恢复
       // （自治理组迁入——服务级页挂服务节点组，T-462 的 cron 消费面同场）
-      { label: '服务状态', to: '/admin/monitoring/status', icon: 'pulse' },
-      { label: '系统日志', to: '/admin/monitoring/logs', icon: 'article' },
-      { label: '系统信息', to: '/admin/monitoring/system-info', icon: 'info' },
-      { label: '维护（GC）', to: '/admin/monitoring/gc', icon: 'delete_sweep' },
-      { label: '备份 / 恢复', to: '/admin/monitoring/backup', icon: 'backup' },
+      { label: tt('服务状态'), to: '/admin/monitoring/status', icon: 'pulse' },
+      { label: tt('系统日志'), to: '/admin/monitoring/logs', icon: 'article' },
+      { label: tt('系统信息'), to: '/admin/monitoring/system-info', icon: 'info' },
+      { label: tt('维护（GC）'), to: '/admin/monitoring/gc', icon: 'delete_sweep' },
+      { label: tt('备份 / 恢复'), to: '/admin/monitoring/backup', icon: 'backup' },
     ],
   },
   {
-    title: '常规',
+    title: tt('常规'),
     entries: [
       // M13 T-366：Webhook 订阅（FR-115.5）；T-459 归常规组（B-2.18——
       // 7.161 管理导航不再单列 Webhooks 条目，BinFlow 保留页面归常规组）
@@ -187,57 +190,57 @@ function adminCrumbs(pathname: string): Crumb[] {
       .slice('/admin/repositories'.length)
       .split('/')
       .filter((s) => s !== '')
-    const crumbs: Crumb[] = [{ label: '仓库', to: '/admin/repositories/local' }]
+    const crumbs: Crumb[] = [{ label: tt('仓库'), to: '/admin/repositories/local' }]
     if (rest.length === 0 || ['local', 'remote', 'virtual'].includes(rest[0])) return crumbs
-    if (rest[0] === 'new') return [...crumbs, { label: '新建仓库' }]
+    if (rest[0] === 'new') return [...crumbs, { label: tt('新建仓库') }]
     crumbs.push({ label: safeDecode(rest[0]) })
-    if (rest[1] === 'edit') crumbs.push({ label: '编辑' })
+    if (rest[1] === 'edit') crumbs.push({ label: tt('编辑') })
     return crumbs
   }
   const sec: Record<string, string> = {
-    users: '用户',
-    groups: '组',
-    permissions: '权限',
+    users: tt('用户'),
+    groups: tt('组'),
+    permissions: tt('权限'),
     tokens: 'Access Tokens',
-    auth: '认证配置',
+    auth: tt('认证配置'),
   }
   if (pathname.startsWith('/admin/security/')) {
     const rest = pathname.slice('/admin/security/'.length).split('/')
     const label = sec[rest[0]] ?? ''
     const crumbs: Crumb[] = [
-      { label: '用户与权限', to: '/admin/security/users' },
+      { label: tt('用户与权限'), to: '/admin/security/users' },
       { label, to: `/admin/security/${rest[0]}` },
     ]
     // 认证配置三协议段显名（ldap/oauth/saml → Tab 名；T-307）
     const proto: Record<string, string> = { ldap: 'LDAP', oauth: 'OAuth (OIDC)', saml: 'SAML SSO' }
     if (rest[0] === 'auth' && proto[rest[1]]) crumbs.push({ label: proto[rest[1]] })
     else if (rest[1] && rest[1] !== 'new') crumbs.push({ label: safeDecode(rest[1]) })
-    else if (rest[1] === 'new') crumbs.push({ label: '新建' })
+    else if (rest[1] === 'new') crumbs.push({ label: tt('新建') })
     return crumbs
   }
   const gov: Record<string, string> = {
-    audit: '审计日志',
-    quotas: '配额',
-    replication: '复制',
-    trash: '回收站',
+    audit: tt('审计日志'),
+    quotas: tt('配额'),
+    replication: tt('复制'),
+    trash: tt('回收站'),
   }
   if (pathname.startsWith('/admin/governance/')) {
     const seg = pathname.slice('/admin/governance/'.length)
-    return [{ label: '治理', to: '/admin/governance/audit' }, { label: gov[seg] ?? seg }]
+    return [{ label: tt('治理'), to: '/admin/governance/audit' }, { label: gov[seg] ?? seg }]
   }
   if (pathname.startsWith('/admin/monitoring/')) {
     // T-459：监控组扩为六页（存储/服务状态/系统日志/系统信息 + 归位的
     // 维护与备份）——段名 → 条目名镜像 ADMIN_NAV
     const mon: Record<string, string> = {
-      storage: '存储',
-      status: '服务状态',
-      logs: '系统日志',
-      'system-info': '系统信息',
-      gc: '维护（GC）',
-      backup: '备份 / 恢复',
+      storage: tt('存储'),
+      status: tt('服务状态'),
+      logs: tt('系统日志'),
+      'system-info': tt('系统信息'),
+      gc: tt('维护（GC）'),
+      backup: tt('备份 / 恢复'),
     }
     const seg = pathname.slice('/admin/monitoring/'.length).split('/')[0]
-    return [{ label: '监控', to: '/admin/monitoring/storage' }, { label: mon[seg] ?? seg }]
+    return [{ label: tt('监控'), to: '/admin/monitoring/storage' }, { label: mon[seg] ?? seg }]
   }
   if (pathname.startsWith('/admin/general/')) {
     // T-459：常规分组两页（Webhooks / License & Add-ons——系统信息已归
@@ -247,18 +250,18 @@ function adminCrumbs(pathname: string): Crumb[] {
       license: 'License & Add-ons',
     }
     const seg = pathname.slice('/admin/general/'.length).split('/')[0]
-    return [{ label: '常规', to: '/admin/general/webhooks' }, { label: gen[seg] ?? seg }]
+    return [{ label: tt('常规'), to: '/admin/general/webhooks' }, { label: gen[seg] ?? seg }]
   }
-  if (pathname === '/admin') return [{ label: '管理' }]
-  return [{ label: '管理' }]
+  if (pathname === '/admin') return [{ label: tt('管理') }]
+  return [{ label: tt('管理') }]
 }
 
 /** 应用模式顶栏标题（无层级，直接页面名） */
 function appTitle(pathname: string): string {
-  if (pathname.startsWith('/artifacts')) return '制品'
-  if (pathname.startsWith('/dashboard')) return '仪表盘'
-  if (pathname.startsWith('/search')) return '搜索制品'
-  if (pathname.startsWith('/profile')) return '编辑档案'
+  if (pathname.startsWith('/artifacts')) return tt('制品')
+  if (pathname.startsWith('/dashboard')) return tt('仪表盘')
+  if (pathname.startsWith('/search')) return tt('搜索制品')
+  if (pathname.startsWith('/profile')) return tt('编辑档案')
   return 'BinFlow'
 }
 
@@ -486,25 +489,23 @@ export default function AppShell() {
   const doLogout = async () => {
     setMenuOpen(false)
     const ok = await confirm({
-      title: '登出',
-      body: '将结束当前会话并返回登录页；会话在服务端吊销，浏览器回退无法恢复。',
-      confirmLabel: '登出',
+      title: tt('登出'),
+      body: tt('将结束当前会话并返回登录页；会话在服务端吊销，浏览器回退无法恢复。'),
+      confirmLabel: tt('登出'),
     })
     if (!ok) return
     try {
       await logout()
-      toast.success('已登出')
+      toast.success(tt('已登出'))
     } catch (err) {
-      toast.error(`登出失败：${errText(err)}`)
+      toast.error(tt('登出失败：{v1}', { v1: errText(err) }))
     }
   }
 
   if (status === 'checking') {
     return (
       <div className="boot-screen">
-        <CircularProgress size={18} aria-label="会话验证中" sx={{ mr: 'var(--bf-sp-2)' }} />
-        正在验证会话…
-      </div>
+        <CircularProgress size={18} aria-label={tt('会话验证中')} sx={{ mr: 'var(--bf-sp-2)' }} />{tt('正在验证会话…')}      </div>
     )
   }
 
@@ -551,7 +552,7 @@ export default function AppShell() {
           },
         }}
       >
-        <nav className="app-nav" aria-label="主导航" data-testid="app-nav" style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+        <nav className="app-nav" aria-label={tt('主导航')} data-testid="app-nav" style={{ display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
           {/* 品牌位（FR-126 / T-389）：mark 24px + 产品名。侧栏两主题恒为
               深底 → 固定 mark-dark 变体（BrandMark 单点引用）；app-nav-brand
               结构与 .name 类钩不动，占位字形退役为 mark（grep 面零品牌残留）。 */}
@@ -592,9 +593,7 @@ export default function AppShell() {
                 variant="caption"
                 data-testid="admin-filter-empty"
                 sx={{ display: 'block', padding: 'var(--bf-sp-2) var(--bf-sp-3)', color: 'var(--bf-sidebar-text-2)' }}
-              >
-                「{adminFilter.trim()}」无匹配管理资源
-              </Typography>
+              >{tt('「')}{adminFilter.trim()}{tt('」无匹配管理资源')}              </Typography>
             )}
           </List>
           <Box className="app-nav-footer" sx={{ display: 'flex', flexDirection: 'column', borderTop: '1px solid var(--bf-sidebar-border)', padding: 'var(--bf-sp-2)' }}>
@@ -607,12 +606,12 @@ export default function AppShell() {
                 className="nav-item nav-mode-switch"
                 data-testid="nav-mode-switch"
                 aria-current={mode === 'admin' ? 'true' : undefined}
-                title={mode === 'admin' ? '返回应用模式' : '进入管理模式（/admin）'}
+                title={mode === 'admin' ? tt('返回应用模式') : tt('进入管理模式（/admin）')}
                 onClick={() => navigate(mode === 'admin' ? APP_HOME : ADMIN_HOME)}
                 sx={(t) => ({ ...navItemSx(t), marginBottom: 'var(--bf-sp-2)' })}
               >
                 <span aria-hidden="true">{mode === 'admin' ? '↩' : '⚙'}</span>
-                {mode === 'admin' ? '返回应用' : '管理'}
+                {mode === 'admin' ? tt('返回应用') : tt('管理')}
               </ListItemButton>
             )}
             {/* 许可行（§1.1）：版本来自 /api/system/version（nav-version 锚不变）。
@@ -623,7 +622,7 @@ export default function AppShell() {
               type="button"
               className="app-nav-license"
               data-testid="nav-about"
-              title="关于 BinFlow（版本 / 构建信息）"
+              title={tt('关于 BinFlow（版本 / 构建信息）')}
               onClick={() => setAboutOpen(true)}
               sx={(t) => ({
                 ...navItemSx(t),
@@ -635,8 +634,7 @@ export default function AppShell() {
               })}
             >
               <Typography variant="caption" sx={{ textAlign: 'left' }}>
-                BinFlow <span data-testid="nav-version" lang="en">{version ? `v${version.version}` : '—'}</span> · 单二进制制品仓库
-              </Typography>
+                BinFlow <span data-testid="nav-version" lang="en">{version ? `v${version.version}` : '—'}</span> {tt('· 单二进制制品仓库')}              </Typography>
             </ListItemButton>
           </Box>
         </nav>
@@ -662,7 +660,7 @@ export default function AppShell() {
               <Breadcrumbs
                 data-testid="topbar-breadcrumb"
                 className="topbar-breadcrumb"
-                aria-label="位置"
+                aria-label={tt('位置')}
                 separator={<span aria-hidden="true">/</span>}
                 sx={{ minWidth: 0, '& .MuiBreadcrumbs-li': { whiteSpace: 'nowrap' } }}
               >
@@ -725,7 +723,7 @@ export default function AppShell() {
                   slotProps={{
                     input: {
                       'data-testid': 'admin-filter',
-                      'aria-label': '搜索管理资源（过滤管理侧栏条目）',
+                      'aria-label': tt('搜索管理资源（过滤管理侧栏条目）'),
                       autoComplete: 'off',
                     } as ComponentPropsWithoutRef<'input'>,
                   }}
@@ -768,13 +766,13 @@ export default function AppShell() {
               <InputBase
                 inputRef={topbarSearchRef}
                 type="search"
-                placeholder="搜索制品…"
+                placeholder={tt('搜索制品…')}
                 slotProps={{
                   // data-testid 落 input 本体（topbar-search 锚）；MUI v7 的
                   // slot 类型不容 data-* 属性，按 input 元素 props 断言放行
                   input: {
                     'data-testid': 'topbar-search',
-                    'aria-label': '搜索制品',
+                    'aria-label': tt('搜索制品'),
                     autoComplete: 'off',
                   } as ComponentPropsWithoutRef<'input'>,
                 }}
@@ -795,7 +793,7 @@ export default function AppShell() {
               {recentOpen && (
                 <div className="topbar-search-recent" data-testid="topbar-search-recent">
                   <div className="search-recent-head">
-                    <span>最近搜索</span>
+                    <span>{tt('最近搜索')}</span>
                     {recent.length > 0 && (
                       <button
                         type="button"
@@ -803,13 +801,11 @@ export default function AppShell() {
                         data-testid="topbar-search-recent-clear"
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={clearTopbarRecent}
-                      >
-                        清除历史
-                      </button>
+                      >{tt('清除历史')}                      </button>
                     )}
                   </div>
                   {recentList.length > 0 ? (
-                    <ul className="search-recent-list" aria-label="最近搜索">
+                    <ul className="search-recent-list" aria-label={tt('最近搜索')}>
                       {recentList.map((q, i) => (
                         <li key={q}>
                           <button
@@ -829,7 +825,7 @@ export default function AppShell() {
                     // 空历史占位恒渲染（T-449 / B-3.16——对位 Artifactory
                     // "No recent searches yet"；含子串无匹配态）
                     <p className="search-recent-empty" data-testid="topbar-search-recent-empty">
-                      {recent.length === 0 ? '暂无最近搜索' : `「${searchTerm.trim()}」无匹配历史`}
+                      {recent.length === 0 ? tt('暂无最近搜索') : tt('「{v1}」无匹配历史', { v1: searchTerm.trim() })}
                     </p>
                   )}
                 </div>
@@ -845,13 +841,12 @@ export default function AppShell() {
                 ref={helpToggleRef}
                 aria-haspopup="menu"
                 aria-expanded={helpOpen}
-                title="帮助"
+                title={tt('帮助')}
                 data-testid="topbar-help"
                 onClick={() => setHelpOpen((v) => !v)}
                 sx={{ minWidth: 0, padding: '0 var(--bf-sp-2)' }}
               >
-                <span aria-hidden="true">?</span> 帮助
-              </Button>
+                <span aria-hidden="true">?</span> {tt('帮助')}              </Button>
               <Menu
                 open={helpOpen}
                 onClose={() => setHelpOpen(false)}
@@ -871,9 +866,7 @@ export default function AppShell() {
                 </MenuItem>
                 {/* 无对应服务：7.161 活体此项是外链（JFrog Academy）——BinFlow
                     无培训站点，外链无处可指；禁用 + 行内注记 = 诚实占位 */}
-                <MenuItem disabled data-testid="help-training">
-                  Online Training（暂无对应服务）
-                </MenuItem>
+                <MenuItem disabled data-testid="help-training">{tt('Online Training（暂无对应服务）')}                </MenuItem>
                 <MenuItem
                   component="a"
                   href="/binflow/docs/install/upgrade"
@@ -893,8 +886,8 @@ export default function AppShell() {
             {/* 主题切换：title 原生 tooltip、aria-label、字形与
                 ThemeContext 翻转链路零变化；皮肤交 MUI 默认 */}
             <IconButton
-              aria-label={theme === 'dark' ? '切换亮色主题' : '切换暗色主题'}
-              title={theme === 'dark' ? '切换亮色主题' : '切换暗色主题'}
+              aria-label={theme === 'dark' ? tt('切换亮色主题') : tt('切换暗色主题')}
+              title={theme === 'dark' ? tt('切换亮色主题') : tt('切换暗色主题')}
               data-testid="topbar-theme-toggle"
               onClick={() => void toggle()}
             >
@@ -926,10 +919,10 @@ export default function AppShell() {
                   <Chip
                     size="small"
                     color="default"
-                    label="只读"
+                    label={tt('只读')}
                     component="span"
                     data-testid="session-readonly-badge"
-                    title="readonly_admin：管理面只读（服务端 403 兜底）"
+                    title={tt('readonly_admin：管理面只读（服务端 403 兜底）')}
                   />
                 )}
                 <span aria-hidden="true">▾</span>
@@ -943,9 +936,7 @@ export default function AppShell() {
               >
                 {admin && !readOnlyAdmin && (
                   <>
-                    <div className="menu-label" role="presentation">
-                      快速建仓
-                    </div>
+                    <div className="menu-label" role="presentation">{tt('快速建仓')}                    </div>
                     <MenuItem
                       data-testid="quick-set-me-up"
                       onClick={() => {
@@ -955,47 +946,29 @@ export default function AppShell() {
                     >
                       Set Me Up
                     </MenuItem>
-                    <MenuItem component={Link} to="/admin/repositories/new?rclass=local" onClick={() => setMenuOpen(false)}>
-                      新建 Local 仓库
-                    </MenuItem>
+                    <MenuItem component={Link} to="/admin/repositories/new?rclass=local" onClick={() => setMenuOpen(false)}>{tt('新建 Local 仓库')}                    </MenuItem>
                     <MenuItem
                       component={Link}
                       data-testid="quick-new-repo-remote"
                       to="/admin/repositories/new?rclass=remote"
                       onClick={() => setMenuOpen(false)}
-                    >
-                      新建 Remote 仓库
-                    </MenuItem>
-                    <MenuItem component={Link} to="/admin/repositories/new?rclass=virtual" onClick={() => setMenuOpen(false)}>
-                      新建 Virtual 仓库
-                    </MenuItem>
-                    <div className="menu-label" role="presentation">
-                      新建
-                    </div>
-                    <MenuItem component={Link} data-testid="quick-new-user" to="/admin/security/users" onClick={() => setMenuOpen(false)}>
-                      新建用户
-                    </MenuItem>
-                    <MenuItem component={Link} to="/admin/security/groups" onClick={() => setMenuOpen(false)}>
-                      新建组
-                    </MenuItem>
+                    >{tt('新建 Remote 仓库')}                    </MenuItem>
+                    <MenuItem component={Link} to="/admin/repositories/new?rclass=virtual" onClick={() => setMenuOpen(false)}>{tt('新建 Virtual 仓库')}                    </MenuItem>
+                    <div className="menu-label" role="presentation">{tt('新建')}                    </div>
+                    <MenuItem component={Link} data-testid="quick-new-user" to="/admin/security/users" onClick={() => setMenuOpen(false)}>{tt('新建用户')}                    </MenuItem>
+                    <MenuItem component={Link} to="/admin/security/groups" onClick={() => setMenuOpen(false)}>{tt('新建组')}                    </MenuItem>
                     <MenuItem
                       component={Link}
                       data-testid="quick-new-perm"
                       to="/admin/security/permissions/new"
                       onClick={() => setMenuOpen(false)}
-                    >
-                      新建权限
-                    </MenuItem>
+                    >{tt('新建权限')}                    </MenuItem>
                     <Divider component="div" role="presentation" sx={{ my: 'var(--bf-sp-1)' }} />
                   </>
                 )}
-                <MenuItem component={Link} data-testid="menu-edit-profile" to="/profile" onClick={() => setMenuOpen(false)}>
-                  编辑档案
-                </MenuItem>
-                <MenuItem onClick={() => void toggle()}>{theme === 'dark' ? '切换亮色主题' : '切换暗色主题'}</MenuItem>
-                <MenuItem data-testid="logout-button" color="error" onClick={() => void doLogout()}>
-                  登出
-                </MenuItem>
+                <MenuItem component={Link} data-testid="menu-edit-profile" to="/profile" onClick={() => setMenuOpen(false)}>{tt('编辑档案')}                </MenuItem>
+                <MenuItem onClick={() => void toggle()}>{theme === 'dark' ? tt('切换亮色主题') : tt('切换暗色主题')}</MenuItem>
+                <MenuItem data-testid="logout-button" color="error" onClick={() => void doLogout()}>{tt('登出')}                </MenuItem>
               </Menu>
             </div>
           </Toolbar>
@@ -1040,42 +1013,29 @@ export default function AppShell() {
               <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
                 BinFlow
               </Typography>
-              <Typography variant="caption" color="text.secondary">
-                单二进制云原生制品仓库
-              </Typography>
+              <Typography variant="caption" color="text.secondary">{tt('单二进制云原生制品仓库')}              </Typography>
             </Box>
           </Box>
           <Divider />
           <Stack spacing={0.5}>
-            <Typography variant="body2">
-              版本：
-              <span className="mono" lang="en" data-testid="about-version">
+            <Typography variant="body2">{tt('版本：')}              <span className="mono" lang="en" data-testid="about-version">
                 {version ? `v${version.version}` : '—'}
               </span>
             </Typography>
-            <Typography variant="body2">
-              构建：
-              <span className="mono" lang="en" data-testid="about-revision">
+            <Typography variant="body2">{tt('构建：')}              <span className="mono" lang="en" data-testid="about-revision">
                 {version ? version.revision : '—'}
               </span>
             </Typography>
-            <Typography variant="body2">
-              产品标识：
-              <span className="mono" lang="en" data-testid="about-product">
+            <Typography variant="body2">{tt('产品标识：')}              <span className="mono" lang="en" data-testid="about-product">
                 {version ? version.product : '—'}
               </span>
             </Typography>
           </Stack>
-          <Typography variant="caption" color="text.secondary">
-            版本与构建信息来自 GET /api/system/version（开放端点）；License 详情见管理面
-            「Administration → License &amp; Add-ons」。
-          </Typography>
+          <Typography variant="caption" color="text.secondary">{tt('版本与构建信息来自 GET /api/system/version（开放端点）；License 详情见管理面 「Administration → License &amp; Add-ons」。')}          </Typography>
         </DialogContent>
         <DialogActions>
           <Box sx={{ flexGrow: 1 }} />
-          <Button variant="contained" data-testid="about-close" onClick={() => setAboutOpen(false)}>
-            关闭
-          </Button>
+          <Button variant="contained" data-testid="about-close" onClick={() => setAboutOpen(false)}>{tt('关闭')}          </Button>
         </DialogActions>
       </Dialog>
     </Box>

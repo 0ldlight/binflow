@@ -32,6 +32,9 @@ import {
 } from '../../lib/governance'
 import type { BackupConfig } from '../../lib/governance'
 import { useAsync } from '../../lib/useAsync'
+import { tr } from '../../i18n'
+
+const t = tr('governance')
 
 // 备份 / 恢复（T-102 AC③ ux R5 兜底形态 → T-462 / FR-145.7 翻正承载：
 // M15 Q5 推翻——B-1.10「定时 CRUD / import-export 页」落地）。两卡：
@@ -61,22 +64,22 @@ interface CmdBlock {
 
 const BLOCKS: CmdBlock[] = [
   {
-    title: '导出（在线 export）',
+    title: t('导出（在线 export）'),
     text: [
-      '# 在线执行：持有 data 目录维护锁（与 GC 互斥），SQLite 快照先行，blobs 拷贝保 mtime',
+      t('# 在线执行：持有 data 目录维护锁（与 GC 互斥），SQLite 快照先行，blobs 拷贝保 mtime'),
       'binflow-server export -c /etc/binflow/config.yaml \\',
       '  --output /backup/binflow-$(date +%F)',
     ].join('\n'),
-    note: '产物目录含口令哈希与 enc:v1: 密文——权限 0700 保管（NFR-S22）；--tar 打包为 P2 债务。',
+    note: t('产物目录含口令哈希与 enc:v1: 密文——权限 0700 保管（NFR-S22）；--tar 打包为 P2 债务。'),
   },
   {
-    title: '恢复（停机 import）',
+    title: t('恢复（停机 import）'),
     text: [
-      '# 一律停机执行；目标 data dir 必须为空（非空 fail-fast，无半恢复）',
+      t('# 一律停机执行；目标 data dir 必须为空（非空 fail-fast，无半恢复）'),
       'binflow-server import -c /etc/binflow/config.yaml \\',
       '  --input /backup/binflow-2026-08-21 --verify full',
     ].join('\n'),
-    note: '--verify spot（默认，size 全验 + sha256 抽验前 100）/ full（全量重哈希）；恢复后 web_sessions 不回带（需重登），remote 凭据依赖 BINFLOW_REMOTE_CREDENTIALS_KEY（ADR-0012 恢复链）。',
+    note: t('--verify spot（默认，size 全验 + sha256 抽验前 100）/ full（全量重哈希）；恢复后 web_sessions 不回带（需重登），remote 凭据依赖 BINFLOW_REMOTE_CREDENTIALS_KEY（ADR-0012 恢复链）。'),
   },
 ]
 
@@ -106,7 +109,7 @@ export default function BackupPage() {
   return (
     <div data-testid="backup-page">
       <div className="page-header">
-        <h2>备份 / 恢复</h2>
+        <h2>{t('备份 / 恢复')}</h2>
       </div>
       <BackupCrudCard />
       <ImportExportCard />
@@ -167,8 +170,8 @@ function BackupCrudCard() {
       })
       toast.success(
         saved.cronExp
-          ? `备份 ${saved.backupKey} 已保存（下次：${saved.nextScheduleBackup || '表达式推算'}）`
-          : `备份 ${saved.backupKey} 已保存（未调度——表达式为空）`,
+          ? t('备份 {v1} 已保存（下次：{v2}）', { v1: saved.backupKey, v2: saved.nextScheduleBackup || t('表达式推算') })
+          : t('备份 {v1} 已保存（未调度——表达式为空）', { v1: saved.backupKey }),
       )
       setEditor(null)
       list.reload()
@@ -185,15 +188,9 @@ function BackupCrudCard() {
     const holder = { typed: '' }
     const body: ReactNode = (
       <>
-        <p>
-          将删除备份配置 <b className="mono" lang="en">{b.backupKey}</b>
-          （定时与 payload 配置一并移除，调度即刻停止）。已写出的历史备份目录不受影响；
-          此操作没有撤销。
-        </p>
+        <p>{t('将删除备份配置')} <b className="mono" lang="en">{b.backupKey}</b>{t('（定时与 payload 配置一并移除，调度即刻停止）。已写出的历史备份目录不受影响； 此操作没有撤销。')}        </p>
         <div className="field" style={{ maxWidth: 'none', marginBottom: 0 }}>
-          <label htmlFor="backup-del-confirm">
-            输入备份 key <b className="mono" lang="en">{b.backupKey}</b> 以确认：
-          </label>
+          <label htmlFor="backup-del-confirm">{t('输入备份 key')} <b className="mono" lang="en">{b.backupKey}</b> {t('以确认：')}          </label>
           <input
             id="backup-del-confirm"
             className="confirm-input"
@@ -208,21 +205,21 @@ function BackupCrudCard() {
       </>
     )
     const ok = await confirm({
-      title: '删除备份配置',
+      title: t('删除备份配置'),
       body,
       danger: true,
-      confirmLabel: '删除配置',
+      confirmLabel: t('删除配置'),
       confirmDisabled: () => holder.typed.trim() !== b.backupKey,
     })
     if (!ok) return
     setBusyKey(b.backupKey)
     try {
       await deleteBackup(b.backupKey)
-      toast.success(`备份配置 ${b.backupKey} 已删除`)
+      toast.success(t('备份配置 {v1} 已删除', { v1: b.backupKey }))
       if (editor?.base?.backupKey === b.backupKey) setEditor(null)
       list.reload()
     } catch (err) {
-      toast.error(`删除失败：${errText(err)}`)
+      toast.error(t('删除失败：{v1}', { v1: errText(err) }))
     } finally {
       setBusyKey('')
     }
@@ -230,33 +227,24 @@ function BackupCrudCard() {
 
   return (
     <section className="card section" data-testid="backup-crud">
-      <Typography variant="subtitle2" component="h3" sx={{ mb: 0.5 }}>
-        定时备份
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-        cron 到点由服务端执行全实例导出（与 CLI export 同载体，产物落{' '}
-        <span className="mono" lang="en">&lt;server path&gt;/&lt;key&gt;-&lt;时间戳&gt;</span>）；
-        与 GC / 手动 export 共用 data 目录维护锁。
-      </Typography>
+      <Typography variant="subtitle2" component="h3" sx={{ mb: 0.5 }}>{t('定时备份')}      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>{t('cron 到点由服务端执行全实例导出（与 CLI export 同载体，产物落')}{' '}
+        <span className="mono" lang="en">{t('&lt;server path&gt;/&lt;key&gt;-&lt;时间戳&gt;')}</span>{t('）； 与 GC / 手动 export 共用 data 目录维护锁。')}      </Typography>
 
       {list.status === 'loading' && <Skeleton lines={4} />}
       {list.status === 'error' && list.error && <ErrorCard error={list.error} onRetry={list.reload} />}
       {list.status === 'forbidden' && list.error && (
-        <p className="field-hint" data-testid="backup-denied">
-          无权限读取备份配置（GET /api/v1/system/backups 需 system:read）。
-        </p>
+        <p className="field-hint" data-testid="backup-denied">{t('无权限读取备份配置（GET /api/v1/system/backups 需 system:read）。')}        </p>
       )}
 
       {list.status === 'ok' && backups.length === 0 && !editor && (
         <div data-testid="backup-empty">
           <EmptyState
-            message="未配置定时备份"
-            hint="新建一条备份配置（key + cron + 服务器路径）后，服务端按点到点导出全实例快照；一次性导出 / 恢复走下方 CLI。"
+            message={t('未配置定时备份')}
+            hint={t('新建一条备份配置（key + cron + 服务器路径）后，服务端按点到点导出全实例快照；一次性导出 / 恢复走下方 CLI。')}
             action={
               adminWrite ? (
-                <Button variant="contained" size="small" onClick={startCreate} data-testid="backup-new">
-                  ＋ New Backup
-                </Button>
+                <Button variant="contained" size="small" onClick={startCreate} data-testid="backup-new">{t('＋ New Backup')}                </Button>
               ) : undefined
             }
           />
@@ -269,13 +257,13 @@ function BackupCrudCard() {
             <TableHead>
               <TableRow>
                 <TableCell component="th" scope="col">Key</TableCell>
-                <TableCell component="th" scope="col">cron 表达式</TableCell>
-                <TableCell component="th" scope="col">下次备份</TableCell>
-                <TableCell component="th" scope="col">启用</TableCell>
-                <TableCell component="th" scope="col">上次运行 / 结果</TableCell>
-                <TableCell component="th" scope="col">导出路径</TableCell>
+                <TableCell component="th" scope="col">{t('cron 表达式')}</TableCell>
+                <TableCell component="th" scope="col">{t('下次备份')}</TableCell>
+                <TableCell component="th" scope="col">{t('启用')}</TableCell>
+                <TableCell component="th" scope="col">{t('上次运行 / 结果')}</TableCell>
+                <TableCell component="th" scope="col">{t('导出路径')}</TableCell>
                 {adminWrite && (
-                  <TableCell component="th" scope="col" align="right">操作</TableCell>
+                  <TableCell component="th" scope="col" align="right">{t('操作')}</TableCell>
                 )}
               </TableRow>
             </TableHead>
@@ -283,7 +271,7 @@ function BackupCrudCard() {
               {backups.map((b) => (
                 <TableRow key={b.backupKey} data-testid={`backup-row-${b.backupKey}`} hover>
                   <TableCell className="mono" lang="en">{b.backupKey}</TableCell>
-                  <TableCell className="mono" lang="en">{b.cronExp || <span className="text-muted">未调度</span>}</TableCell>
+                  <TableCell className="mono" lang="en">{b.cronExp || <span className="text-muted">{t('未调度')}</span>}</TableCell>
                   <TableCell>
                     {b.cronExp === '' ? (
                       <span className="text-muted">—</span>
@@ -292,28 +280,28 @@ function BackupCrudCard() {
                         {fmtUTC(b.nextScheduleBackup)}
                       </span>
                     ) : (
-                      <Chip size="small" variant="outlined" label="已停用" />
+                      <Chip size="small" variant="outlined" label={t('已停用')} />
                     )}
                   </TableCell>
                   <TableCell>
                     {b.enabled ? (
-                      <Chip size="small" variant="outlined" color="success" label="启用" />
+                      <Chip size="small" variant="outlined" color="success" label={t('启用')} />
                     ) : (
-                      <Chip size="small" variant="outlined" label="停用" />
+                      <Chip size="small" variant="outlined" label={t('停用')} />
                     )}
                   </TableCell>
                   <TableCell>
                     {b.lastRun ? (
                       <span className="mono" lang="en" title={b.lastError || undefined}>
                         {fmtUTC(b.lastRun)}
-                        {b.lastStatus ? `（${b.lastStatus}${b.lastStatus !== 'ok' && b.lastError ? `：${b.lastError}` : ''}）` : ''}
+                        {b.lastStatus ? t('（{v1}{v2}）', { v1: b.lastStatus, v2: b.lastStatus !== 'ok' && b.lastError ? t('：{v1}', { v1: b.lastError }) : '' }) : ''}
                       </span>
                     ) : (
-                      <span className="text-muted">未运行</span>
+                      <span className="text-muted">{t('未运行')}</span>
                     )}
                   </TableCell>
                   <TableCell className="mono" lang="en" sx={{ maxWidth: 220, whiteSpace: 'normal', wordBreak: 'break-all' }}>
-                    {b.exportPath} <CopyButton value={b.exportPath} label={`导出路径 ${b.backupKey}`} />
+                    {b.exportPath} <CopyButton value={b.exportPath} label={t('导出路径 {v1}', { v1: b.backupKey })} />
                   </TableCell>
                   {adminWrite && (
                     <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
@@ -323,9 +311,7 @@ function BackupCrudCard() {
                         disabled={busyKey !== ''}
                         onClick={() => startEdit(b)}
                         data-testid={`backup-edit-${b.backupKey}`}
-                      >
-                        编辑
-                      </Button>{' '}
+                      >{t('编辑')}                      </Button>{' '}
                       <Button
                         variant="text"
                         color="inherit"
@@ -333,10 +319,8 @@ function BackupCrudCard() {
                         disabled={busyKey !== ''}
                         onClick={() => void doDelete(b)}
                         data-testid={`backup-delete-${b.backupKey}`}
-                        aria-label={`删除备份配置 ${b.backupKey}`}
-                      >
-                        删除
-                      </Button>
+                        aria-label={t('删除备份配置 {v1}', { v1: b.backupKey })}
+                      >{t('删除')}                      </Button>
                     </TableCell>
                   )}
                 </TableRow>
@@ -344,24 +328,19 @@ function BackupCrudCard() {
             </TableBody>
           </Table>
           {adminWrite && !editor && (
-            <Button variant="outlined" size="small" onClick={startCreate} data-testid="backup-new" sx={{ mt: 1.5 }}>
-              ＋ New Backup
-            </Button>
+            <Button variant="outlined" size="small" onClick={startCreate} data-testid="backup-new" sx={{ mt: 1.5 }}>{t('＋ New Backup')}            </Button>
           )}
         </>
       )}
 
       {readOnly && (
-        <p className="admin-note" data-testid="backup-readonly-note">
-          只读管理员（readonly_admin）：备份配置读写为 system:write 面，编辑入口不呈现——
-          服务端 403 兜底。
-        </p>
+        <p className="admin-note" data-testid="backup-readonly-note">{t('只读管理员（readonly_admin）：备份配置读写为 system:write 面，编辑入口不呈现—— 服务端 403 兜底。')}        </p>
       )}
 
       {editor && (
         <div className="repl-form" data-testid="backup-form">
           <Typography variant="subtitle2" component="h4" sx={{ mt: 2, mb: 1 }}>
-            {editor.base ? `编辑备份 ${editor.base.backupKey}` : 'New Backup'}
+            {editor.base ? t('编辑备份 {v1}', { v1: editor.base.backupKey }) : 'New Backup'}
           </Typography>
 
           {!editor.base && (
@@ -381,7 +360,7 @@ function BackupCrudCard() {
               {keyErr ? (
                 <p className="field-error" data-testid="backup-form-key-error" role="alert">{keyErr}</p>
               ) : (
-                <p className="field-hint">1~64 字符，字母/数字/./_/-，首字符字母数字（与复制配置名同规则）。</p>
+                <p className="field-hint">{t('1~64 字符，字母/数字/./_/-，首字符字母数字（与复制配置名同规则）。')}</p>
               )}
             </div>
           )}
@@ -393,7 +372,7 @@ function BackupCrudCard() {
           )}
 
           <div className="field">
-            <label htmlFor="backup-cron">Cron Expression（Quartz 六/七域；留空 = 保存但不调度）</label>
+            <label htmlFor="backup-cron">{t('Cron Expression（Quartz 六/七域；留空 = 保存但不调度）')}</label>
             <TextField
               id="backup-cron"
               size="small"
@@ -404,14 +383,11 @@ function BackupCrudCard() {
               sx={{ width: 300 }}
               slotProps={{ htmlInput: { className: 'mono', 'data-testid': 'backup-form-cron', lang: 'en' } }}
             />
-            <p className="field-hint">
-              表达式合法性由服务端校验（<span className="mono" lang="en">Invalid cronExp …</span> 点名原因）；
-              例：<span className="mono" lang="en">0 0 2 ? * MON-FRI</span>（工作日 2:00）/ <span className="mono" lang="en">0 0 2 ? * SAT</span>（周六 2:00）。
-            </p>
+            <p className="field-hint">{t('表达式合法性由服务端校验（')}<span className="mono" lang="en">Invalid cronExp …</span> {t('点名原因）； 例：')}<span className="mono" lang="en">0 0 2 ? * MON-FRI</span>{t('（工作日 2:00）/')} <span className="mono" lang="en">0 0 2 ? * SAT</span>{t('（周六 2:00）。')}            </p>
           </div>
 
           <div className="field">
-            <label htmlFor="backup-next">Next Backup Time（可选——首跑时刻，须晚于当前）</label>
+            <label htmlFor="backup-next">{t('Next Backup Time（可选——首跑时刻，须晚于当前）')}</label>
             <TextField
               id="backup-next"
               size="small"
@@ -423,13 +399,11 @@ function BackupCrudCard() {
               sx={{ width: 260 }}
               slotProps={{ htmlInput: { 'data-testid': 'backup-form-next' } }}
             />
-            <p className="field-hint">
-              留空 = 由表达式推算下次运行；显式时刻按浏览器本地时区转 UTC 提交（过去时刻被 400 拒绝）。
-            </p>
+            <p className="field-hint">{t('留空 = 由表达式推算下次运行；显式时刻按浏览器本地时区转 UTC 提交（过去时刻被 400 拒绝）。')}            </p>
           </div>
 
           <div className="field">
-            <label htmlFor="backup-path">Server Path For Backup *（服务器绝对路径）</label>
+            <label htmlFor="backup-path">{t('Server Path For Backup *（服务器绝对路径）')}</label>
             <TextField
               id="backup-path"
               size="small"
@@ -444,10 +418,7 @@ function BackupCrudCard() {
             {pathErr ? (
               <p className="field-error" role="alert">{pathErr}</p>
             ) : (
-              <p className="field-hint">
-                备份产物落地 <span className="mono" lang="en">&lt;path&gt;/&lt;key&gt;-&lt;时间戳&gt;</span> 子目录
-                （须绝对路径、不含 ..；与 data 目录的边界在 fire 时校验）。
-              </p>
+              <p className="field-hint">{t('备份产物落地')} <span className="mono" lang="en">{t('&lt;path&gt;/&lt;key&gt;-&lt;时间戳&gt;')}</span> {t('子目录 （须绝对路径、不含 ..；与 data 目录的边界在 fire 时校验）。')}              </p>
             )}
           </div>
 
@@ -466,14 +437,10 @@ function BackupCrudCard() {
                 }}
               />
             }
-            label="启用（Enabled）——停用 = 配置保留、不再调度"
+            label={t('启用（Enabled）——停用 = 配置保留、不再调度')}
           />
 
-          <p className="field-hint" data-testid="backup-form-gap">
-            Artifactory 表单的其余字段（仓子集〔BinFlow 导出恒为全实例快照〕/ 邮件告警 /
-            Exclude New Repositories / Incremental / Retention / Zip 归档）在 BinFlow 无后端载体
-            ——缺位不伪造。
-          </p>
+          <p className="field-hint" data-testid="backup-form-gap">{t('Artifactory 表单的其余字段（仓子集〔BinFlow 导出恒为全实例快照〕/ 邮件告警 / Exclude New Repositories / Incremental / Retention / Zip 归档）在 BinFlow 无后端载体 ——缺位不伪造。')}          </p>
 
           {formError && (
             <Alert severity="error" data-testid="backup-form-error" role="alert" sx={{ mt: 2 }}>
@@ -493,9 +460,7 @@ function BackupCrudCard() {
                 setFormError(null)
               }}
               data-testid="backup-form-cancel"
-            >
-              取消
-            </Button>
+            >{t('取消')}            </Button>
             <Button
               variant="contained"
               size="small"
@@ -503,7 +468,7 @@ function BackupCrudCard() {
               onClick={() => void doSave()}
               data-testid="backup-form-save"
             >
-              {saving ? '保存中…' : editor.base ? '保存' : '创建备份'}
+              {saving ? t('保存中…') : editor.base ? t('保存') : t('创建备份')}
             </Button>
           </div>
         </div>
@@ -520,12 +485,8 @@ function BackupCrudCard() {
 function ImportExportCard() {
   return (
     <section className="card section" data-testid="backup-cli">
-      <h3>导入 / 导出（CLI）</h3>
-      <p className="text-2">
-        浏览器面不提供交互式 export / import（<span className="mono" lang="en">/api/export/**</span> 维持 404——
-        ADR-0015 勘误②；import 停机高危，CLI-only）。上面的定时备份是服务端自动导出的配置面；
-        一次性导出与恢复走 CLI：
-      </p>
+      <h3>{t('导入 / 导出（CLI）')}</h3>
+      <p className="text-2">{t('浏览器面不提供交互式 export / import（')}<span className="mono" lang="en">/api/export/**</span> {t('维持 404—— ADR-0015 勘误②；import 停机高危，CLI-only）。上面的定时备份是服务端自动导出的配置面； 一次性导出与恢复走 CLI：')}      </p>
       {BLOCKS.map((b) => (
         <div className="cmd-block" key={b.title}>
           <header>
@@ -537,10 +498,7 @@ function ImportExportCard() {
           {b.note && <div className="note">{b.note}</div>}
         </div>
       ))}
-      <p className="field-hint" style={{ marginBottom: 0 }}>
-        完整手册（mtime 保管告警、恢复链、停机强一致可选项）见 docs/user 备份恢复篇；
-        export.run / import.run / backup.schedule.set 记录经审计日志查询。
-      </p>
+      <p className="field-hint" style={{ marginBottom: 0 }}>{t('完整手册（mtime 保管告警、恢复链、停机强一致可选项）见 docs/user 备份恢复篇； export.run / import.run / backup.schedule.set 记录经审计日志查询。')}      </p>
     </section>
   )
 }

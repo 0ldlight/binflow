@@ -23,6 +23,9 @@
 import { ApiError, apiJSON } from '../../lib/api'
 
 import { streamSha256 } from './sha256'
+import { tr } from '../../i18n'
+
+const t = tr('artifacts')
 
 const CONTENT_ROOT = '/binflow'
 
@@ -345,8 +348,8 @@ export function putArtifact(opts: {
       if (!message) message = xhr.responseText.trim() || `HTTP ${xhr.status}`
       reject(new ApiError(xhr.status, message, xhr.responseText))
     }
-    xhr.onerror = () => reject(new ApiError(0, '网络错误（上传中断）'))
-    xhr.onabort = () => reject(new ApiError(0, '已取消'))
+    xhr.onerror = () => reject(new ApiError(0, t('网络错误（上传中断）')))
+    xhr.onabort = () => reject(new ApiError(0, t('已取消')))
     xhr.send(file)
   })
 }
@@ -422,12 +425,12 @@ export function saveBlob(blob: Blob, filename: string): void {
 
 /** 目录/文件名段校验（与 adapter validateRelPath 同口径的前端预检） */
 export function validateNameSegment(name: string): string | null {
-  if (name === '') return '名称不能为空'
-  if (name.includes('/')) return '名称不能包含 /'
-  if (name.includes('\\')) return '名称不能包含反斜杠'
-  if (name === '.' || name === '..') return '不能以 . 或 .. 命名'
+  if (name === '') return t('名称不能为空')
+  if (name.includes('/')) return t('名称不能包含 /')
+  if (name.includes('\\')) return t('名称不能包含反斜杠')
+  if (name === '.' || name === '..') return t('不能以 . 或 .. 命名')
   // eslint-disable-next-line no-control-regex -- 与服务端 isControlByte 同口径
-  if (/[\x00-\x1f\x7f]/.test(name)) return '名称不能包含控制字符'
+  if (/[\x00-\x1f\x7f]/.test(name)) return t('名称不能包含控制字符')
   return null
 }
 

@@ -88,6 +88,9 @@ import {
 } from './formCopy'
 
 import './repositories.css'
+import { tr } from '../../i18n'
+
+const t = tr('repositories')
 
 // 建仓/编辑表单（console-m8 §4.4/§6.7，T-240 重排）：进页弹包类型网格
 // （必选；T-441 起宽 924px 居中档 + 八门控型开禁——见 PackageTypeGrid 注）
@@ -174,15 +177,15 @@ const RCLASS_LABEL: Record<RClass, string> = { local: 'Local', remote: 'Remote',
  *  复制槽位清单。图标不在元数据里——PkgIcon 按 id 解析，T-390 起几何
  *  字符图标族（五核心 + 门控通用星形）退役） */
 const PKG_ITEMS: { id: PackageType; label: string; desc: string }[] = [
-  { id: 'generic', label: 'Generic', desc: '任意文件（curl 上传 / 下载）' },
-  { id: 'docker', label: 'Docker', desc: 'OCI 镜像（docker push / pull）' },
-  { id: 'maven', label: 'Maven', desc: 'JVM 构件（mvn deploy / 解析）' },
-  { id: 'npm', label: 'npm', desc: 'Node 包（npm publish / install）' },
-  { id: 'pypi', label: 'PyPI', desc: 'Python 包（twine / pip）' },
+  { id: 'generic', label: 'Generic', desc: t('任意文件（curl 上传 / 下载）') },
+  { id: 'docker', label: 'Docker', desc: t('OCI 镜像（docker push / pull）') },
+  { id: 'maven', label: 'Maven', desc: t('JVM 构件（mvn deploy / 解析）') },
+  { id: 'npm', label: 'npm', desc: t('Node 包（npm publish / install）') },
+  { id: 'pypi', label: 'PyPI', desc: t('Python 包（twine / pip）') },
 ]
 
 /** 策略键分组标题（T-353 字段册的呈现面） */
-const POLICY_GROUP_TITLE = { debian: 'Deb 索引策略', rpm: 'RPM 索引策略', helm: 'Helm 强制布局' } as const
+const POLICY_GROUP_TITLE = { debian: t('Deb 索引策略'), rpm: t('RPM 索引策略'), helm: t('Helm 强制布局') } as const
 
 /** 建仓面的包型可选集（M10 T-288）：五核心静态项 + addons API 的门控槽位。
  *  加载中/请求失败 = 仅五核心（community 地板恒合法；门控型缺席不误放，
@@ -436,23 +439,23 @@ function buildTestBody(f: FormState, baseline: FormState | null): RepoTestOverri
  *  行内呈现。 */
 function formValid(f: FormState, mode: 'create' | 'edit'): { ok: boolean; reason?: string } {
   if (mode === 'create') {
-    if (f.key.trim() === '') return { ok: false, reason: 'Repository key 未填' }
-    if (validateRepoKey(f.key.trim())) return { ok: false, reason: 'Repository key 不合规' }
+    if (f.key.trim() === '') return { ok: false, reason: t('Repository key 未填') }
+    if (validateRepoKey(f.key.trim())) return { ok: false, reason: t('Repository key 不合规') }
   }
   if (f.rclass === 'remote') {
-    if (f.url.trim() === '') return { ok: false, reason: '上游 URL 未填（remote 必填）' }
-    if (validateUpstreamURL(f.url.trim())) return { ok: false, reason: '上游 URL 不合规' }
+    if (f.url.trim() === '') return { ok: false, reason: t('上游 URL 未填（remote 必填）') }
+    if (validateUpstreamURL(f.url.trim())) return { ok: false, reason: t('上游 URL 不合规') }
   }
   if (f.rclass === 'virtual' && f.members.length === 0) {
-    return { ok: false, reason: 'virtual 仓至少需要一个成员' }
+    return { ok: false, reason: t('virtual 仓至少需要一个成员') }
   }
   if (f.rclass === 'local' && !isNonNegInt(f.quotaBytes)) {
-    return { ok: false, reason: 'quotaBytes 需为非负整数（字节）' }
+    return { ok: false, reason: t('quotaBytes 需为非负整数（字节）') }
   }
   if (f.rclass === 'local') {
     const pkg = policyPkg(f.packageType)
     if (pkg && !policyNumberValid(pkg, f.policy)) {
-      return { ok: false, reason: '策略键的数值字段需为非负整数（historyCycles / yumRootDepth）' }
+      return { ok: false, reason: t('策略键的数值字段需为非负整数（historyCycles / yumRootDepth）') }
     }
   }
   if (f.rclass === 'remote') {
@@ -462,7 +465,7 @@ function formValid(f: FormState, mode: 'create' | 'edit'): { ok: boolean; reason
       f.socketTimeoutSecs,
       f.assumedOfflinePeriodSecs,
     ]) {
-      if (!isNonNegInt(v)) return { ok: false, reason: 'TTL/超时字段需为非负整数（秒）' }
+      if (!isNonNegInt(v)) return { ok: false, reason: t('TTL/超时字段需为非负整数（秒）') }
     }
   }
   return { ok: true }
@@ -518,15 +521,13 @@ function PackageTypeGrid({
       onClose={(_, reason) => {
         if (reason === 'escapeKeyDown' || reason === 'backdropClick') onCancel()
       }}
-      aria-label="选择包类型"
+      aria-label={t('选择包类型')}
       slotProps={{ paper: paperProps }}
     >
-      <DialogTitle>选择包类型</DialogTitle>
+      <DialogTitle>{t('选择包类型')}</DialogTitle>
       <DialogContent>
-        <p className="text-2">
-          新建 <b>{RCLASS_LABEL[rclass]}</b> 仓库的第一步——包类型决定协议路由与客户端接入命令，创建后不可更改。
-        </p>
-        <div className="pkg-grid-items" role="radiogroup" aria-label="包类型">
+        <p className="text-2">{t('新建')} <b>{RCLASS_LABEL[rclass]}</b> {t('仓库的第一步——包类型决定协议路由与客户端接入命令，创建后不可更改。')}        </p>
+        <div className="pkg-grid-items" role="radiogroup" aria-label={t('包类型')}>
           {choices.map((c) => {
             const badgeTier = c.opt && c.opt.minTier !== 'community' ? c.opt.minTier : null
             return (
@@ -567,9 +568,7 @@ function PackageTypeGrid({
         </div>
       </DialogContent>
       <DialogActions>
-        <Button variant="outlined" size="small" data-testid="pkg-grid-cancel" onClick={onCancel}>
-          取消
-        </Button>
+        <Button variant="outlined" size="small" data-testid="pkg-grid-cancel" onClick={onCancel}>{t('取消')}        </Button>
       </DialogActions>
     </Dialog>
   )
@@ -635,19 +634,19 @@ function ReservedBasicFields() {
       </Typography>
       <ReservedTextField
         id="f-repo-layout"
-        label="Repository Layout（repoLayoutRef）"
+        label={t('Repository Layout（repoLayoutRef）')}
         hint={RESERVED_REPO_LAYOUT_HINT}
         anchor="form-repo-layout"
       />
       <ReservedTextField
         id="f-environments"
-        label="环境段（Environments / Stage）"
+        label={t('环境段（Environments / Stage）')}
         hint={RESERVED_ENVIRONMENTS_HINT}
         anchor="form-environments"
       />
       <ReservedTextField
         id="f-internal-description"
-        label="内部描述（Internal Description / notes）"
+        label={t('内部描述（Internal Description / notes）')}
         hint={RESERVED_INTERNAL_DESCRIPTION_HINT}
         anchor="form-internal-description"
         multiline
@@ -752,14 +751,14 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
     return (
       <div data-testid="repo-form-page">
         <div className="page-header">
-          <h2>新建仓库</h2>
+          <h2>{t('新建仓库')}</h2>
         </div>
         <EmptyState
-          message="无权限"
+          message={t('无权限')}
           hint={
             readOnly
-              ? '只读管理员（readonly_admin）为只读呈现态：创建仓库是管理面写操作（repo:write，仅全量 admin；服务端 403 兜底）。'
-              : `创建仓库是管理员操作（repo:write）；当前用户 ${session?.username} 不是 admin。`
+              ? t('只读管理员（readonly_admin）为只读呈现态：创建仓库是管理面写操作（repo:write，仅全量 admin；服务端 403 兜底）。')
+              : t('创建仓库是管理员操作（repo:write）；当前用户 {v1} 不是 admin。', { v1: session?.username })
           }
         />
       </div>
@@ -779,11 +778,9 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
         <div data-testid="repo-form-page">
           {detail.error.status === 404 ? (
             <EmptyState
-              message={`仓库 ${routeKey} 不存在`}
+              message={t('仓库 {routeKey} 不存在', { routeKey: routeKey })}
               action={
-                <Button component={Link} to="/admin/repositories/local" variant="outlined" size="small">
-                  ← 返回仓库列表
-                </Button>
+                <Button component={Link} to="/admin/repositories/local" variant="outlined" size="small">{t('← 返回仓库列表')}                </Button>
               }
             />
           ) : (
@@ -797,16 +794,14 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
       return (
         <div data-testid="repo-form-page">
           <EmptyState
-            message="无权限管理此仓库"
+            message={t('无权限管理此仓库')}
             hint={
               role === 'user'
-                ? `单仓配置管理需要该仓的 manage 动作（permission target 授权）；${detail.error.message}`
+                ? t('单仓配置管理需要该仓的 manage 动作（permission target 授权）；{v1}', { v1: detail.error.message })
                 : detail.error.message
             }
             action={
-              <Button component={Link} to="/admin/repositories/local" variant="outlined" size="small">
-                ← 返回仓库列表
-              </Button>
+              <Button component={Link} to="/admin/repositories/local" variant="outlined" size="small">{t('← 返回仓库列表')}              </Button>
             }
           />
         </div>
@@ -899,19 +894,16 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
             .repo-form-section 手作族随本批退役。
             T-383：六节 Paper 加 form-section-* 锚（v1.19 入册）——M1 建仓
             形态对齐核验的「六节结构」断言钉死用；纯锚位，零逻辑。 */}
-        <Paper component="section" aria-label="常规设置" data-testid="form-section-general" sx={{ p: 2, pb: 1.5, mb: 2 }}>
-          <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
-            常规设置
-          </Typography>
+        <Paper component="section" aria-label={t('常规设置')} data-testid="form-section-general" sx={{ p: 2, pb: 1.5, mb: 2 }}>
+          <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>{t('常规设置')}          </Typography>
           {/* T-443（FR-143.4，B-3.8）：仓型单选组退役——rclass 由入口分路由
               预选（/admin/repositories/<rclass>/new，本组件 rclass prop），
               表单内不再有仓型控件（Artifactory 7.161.20 同构：入口下拉选定、
               表单内无 rclass 控件；form-rclass-* 三锚退役入册 §10.6）。
               常规节以一行说明承载仓型语境（非交互件）。 */}
-          <p className="field-note" data-testid="form-rclass-note">
-            仓型：<b>{RCLASS_LABEL[f.rclass]}</b>——{RCLASS_ROUTE_NOTE}
+          <p className="field-note" data-testid="form-rclass-note">{t('仓型：')}<b>{RCLASS_LABEL[f.rclass]}</b>——{RCLASS_ROUTE_NOTE}
           </p>
-          <div className="radio-row" role="radiogroup" aria-label="包类型">
+          <div className="radio-row" role="radiogroup" aria-label={t('包类型')}>
             {pkgChoices.map((c) => {
               const badgeTier = c.opt && c.opt.minTier !== 'community' ? c.opt.minTier : null
               return (
@@ -953,7 +945,7 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
           </div>
           {/* T-443：rclass 半句随控件移除归 form-rclass-note——本注记收窄为包型 */}
           {mode === 'edit' && (
-            <p className="field-note">包类型不可修改（变更会静默改变全部协议路由决策）。</p>
+            <p className="field-note">{t('包类型不可修改（变更会静默改变全部协议路由决策）。')}</p>
           )}
           {mode === 'create' && (
             <div className="field">
@@ -973,11 +965,9 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                   {keyErr}
                 </p>
               ) : f.key.trim() !== '' ? (
-                <Box component="p" className="field-hint" sx={{ color: 'success.main' }} data-testid="form-key-ok">
-                  ✓ 可用
-                </Box>
+                <Box component="p" className="field-hint" sx={{ color: 'success.main' }} data-testid="form-key-ok">{t('✓ 可用')}                </Box>
               ) : (
-                <p className="field-hint">规则 [a-z][a-z0-9-]{'{1,62}'}，共 2~63 字符；服务端终裁。</p>
+                <p className="field-hint">{t('规则 [a-z][a-z0-9-]')}{'{1,62}'}{t('，共 2~63 字符；服务端终裁。')}</p>
               )}
             </div>
           )}
@@ -990,14 +980,14 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
             </div>
           )}
           <div className="field">
-            <label htmlFor="f-desc">描述</label>
+            <label htmlFor="f-desc">{t('描述')}</label>
             <TextField
               id="f-desc"
               multiline
               minRows={2}
               value={f.description}
               onChange={(e) => set('description', e.target.value)}
-              placeholder="用途、负责人、团队…"
+              placeholder={t('用途、负责人、团队…')}
               disabled={locked}
               slotProps={{ htmlInput: { 'data-testid': 'form-description' } }}
             />
@@ -1011,12 +1001,10 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
         </Paper>
 
         {f.rclass === 'remote' && (
-          <Paper component="section" aria-label="来源" data-testid="form-section-source" sx={{ p: 2, pb: 1.5, mb: 2 }}>
-            <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
-              来源（Remote）
-            </Typography>
+          <Paper component="section" aria-label={t('来源')} data-testid="form-section-source" sx={{ p: 2, pb: 1.5, mb: 2 }}>
+            <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>{t('来源（Remote）')}            </Typography>
             <div className="field">
-              <label htmlFor="f-url">上游 URL *</label>
+              <label htmlFor="f-url">{t('上游 URL *')}</label>
               <TextField
                 id="f-url"
                 size="small"
@@ -1032,11 +1020,11 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                   {urlErr}
                 </p>
               ) : (
-                <p className="field-hint">http/https 上游基址；私网地址合法（SSRF 链按请求校验）。</p>
+                <p className="field-hint">{t('http/https 上游基址；私网地址合法（SSRF 链按请求校验）。')}</p>
               )}
             </div>
             <div className="field">
-              <label htmlFor="f-user">用户名（上游认证，可选）</label>
+              <label htmlFor="f-user">{t('用户名（上游认证，可选）')}</label>
               <TextField
                 id="f-user"
                 size="small"
@@ -1047,7 +1035,7 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
               />
             </div>
             <div className="field">
-              <label htmlFor="f-pass">密码（上游认证，可选）</label>
+              <label htmlFor="f-pass">{t('密码（上游认证，可选）')}</label>
               <TextField
                 id="f-pass"
                 size="small"
@@ -1055,14 +1043,11 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                 autoComplete="new-password"
                 value={f.password}
                 onChange={(e) => set('password', e.target.value)}
-                placeholder="永不回显"
+                placeholder={t('永不回显')}
                 disabled={locked}
                 slotProps={{ htmlInput: { 'data-testid': 'form-password' } }}
               />
-              <p className="field-hint">
-                密码不回显（NFR-S14）。注意：保存为<b>全量替换</b>语义——留空保存会
-                <b>清除</b>已存凭据；需要保留请重新输入。
-              </p>
+              <p className="field-hint">{t('密码不回显（NFR-S14）。注意：保存为')}<b>{t('全量替换')}</b>{t('语义——留空保存会')}                <b>{t('清除')}</b>{t('已存凭据；需要保留请重新输入。')}              </p>
             </div>
             {/* T-443（FR-143.5，B-3.6）：Test 连接——Artifactory 7.161.20 实测
                 落 Basic 步凭据组旁。编辑态在场（T-442 端点按已存 key 寻址——
@@ -1079,7 +1064,7 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                   onClick={() => void doTest()}
                   data-testid="form-test"
                 >
-                  {testing ? '测试中…' : REMOTE_TEST_LABEL}
+                  {testing ? t('测试中…') : REMOTE_TEST_LABEL}
                 </Button>
                 <p className="field-hint">{REMOTE_TEST_HINT}</p>
                 {testResult && (
@@ -1093,8 +1078,8 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                     <div>
                       {testResult.ok ? REMOTE_TEST_OK_NOTE : REMOTE_TEST_FAIL_NOTE}
                       {testResult.status_code > 0
-                        ? `（${REMOTE_TEST_STATUS_PREFIX}${testResult.status_code}）`
-                        : `（${REMOTE_TEST_UNREACHED_NOTE}）`}
+                        ? t('（{REMOTE_TEST_STATUS_PREFIX}{v1}）', { REMOTE_TEST_STATUS_PREFIX: REMOTE_TEST_STATUS_PREFIX, v1: testResult.status_code })
+                        : t('（{REMOTE_TEST_UNREACHED_NOTE}）', { REMOTE_TEST_UNREACHED_NOTE: REMOTE_TEST_UNREACHED_NOTE })}
                     </div>
                   </Alert>
                 )}
@@ -1114,26 +1099,22 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                   onChange={(e) => set('allowPrivateUpstream', e.target.checked)}
                 />
               }
-              label="允许私网上游（allowPrivateUpstream）"
+              label={t('允许私网上游（allowPrivateUpstream）')}
             />
             {f.allowPrivateUpstream && (
-              <div className="warn-box">
-                ⚠ 已放行私网上游：SSRF 防线对该仓放宽，变更会记录审计（NFR-S14）。
-              </div>
+              <div className="warn-box">{t('⚠ 已放行私网上游：SSRF 防线对该仓放宽，变更会记录审计（NFR-S14）。')}              </div>
             )}
           </Paper>
         )}
 
         {f.rclass === 'virtual' && (
-          <Paper component="section" aria-label="成员" data-testid="form-section-members" sx={{ p: 2, pb: 1.5, mb: 2 }}>
-            <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
-              成员（Virtual）
-            </Typography>
+          <Paper component="section" aria-label={t('成员')} data-testid="form-section-members" sx={{ p: 2, pb: 1.5, mb: 2 }}>
+            <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>{t('成员（Virtual）')}            </Typography>
             <div className="field">
-              <label>成员（可多选，↑↓ 调整解析顺序）</label>
+              <label>{t('成员（可多选，↑↓ 调整解析顺序）')}</label>
               {candidates.status === 'loading' && <Skeleton lines={3} />}
               {candidates.status !== 'loading' && memberOptions.length === 0 && (
-                <p className="field-hint">没有可用的 local/remote 仓可作为成员——先创建成员仓库。</p>
+                <p className="field-hint">{t('没有可用的 local/remote 仓可作为成员——先创建成员仓库。')}</p>
               )}
               {memberOptions.length > 0 && (
                 <div className="member-pick">
@@ -1166,7 +1147,7 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                           </span>{' '}
                           <Chip component="span" size="small" className="badge neutral" label={o.type} sx={{ mx: 0.5 }} />
                           {cfgBool(o.configuration, 'priorityResolution') && (
-                            <Chip component="span" size="small" variant="outlined" color="warning" className="badge warning" label="优先解析" sx={{ mx: 0.5 }} />
+                            <Chip component="span" size="small" variant="outlined" color="warning" className="badge warning" label={t('优先解析')} sx={{ mx: 0.5 }} />
                           )}
                         </>
                       }
@@ -1177,7 +1158,7 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
             </div>
             {f.members.length > 0 && (
               <div className="field">
-                <label>已选成员（按解析顺序）</label>
+                <label>{t('已选成员（按解析顺序）')}</label>
                 <div className="chip-list" data-testid="form-member-order">
                   {f.members.map((m, i) => (
                     <div key={m} className="chip-item">
@@ -1188,7 +1169,7 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                       <span className="chip-btns">
                         <IconButton
                           size="small"
-                          aria-label={`上移 ${m}`}
+                          aria-label={t('上移 {m}', { m: m })}
                           disabled={i === 0 || locked}
                           onClick={() => moveMember(i, -1)}
                           data-testid={`member-up-${i}`}
@@ -1197,7 +1178,7 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                         </IconButton>
                         <IconButton
                           size="small"
-                          aria-label={`下移 ${m}`}
+                          aria-label={t('下移 {m}', { m: m })}
                           disabled={i === f.members.length - 1 || locked}
                           onClick={() => moveMember(i, 1)}
                         >
@@ -1210,7 +1191,7 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
               </div>
             )}
             <div className="field">
-              <label htmlFor="f-deploy">默认部署仓库（可选，仅 local 成员）</label>
+              <label htmlFor="f-deploy">{t('默认部署仓库（可选，仅 local 成员）')}</label>
               {/* native select（真实 <select>/<option>）：selectOption/toHaveValue
                   锚链路零变化；MUI 只承载外形（OutlinedInput 包裹 + 箭头） */}
               <TextField
@@ -1233,7 +1214,7 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                   } as ComponentPropsWithoutRef<typeof Select>,
                 }}
               >
-                <option value="">（未配置——写操作将返回 405）</option>
+                <option value="">{t('（未配置——写操作将返回 405）')}</option>
                 {localMembers.map((m) => (
                   <option key={m} value={m}>
                     {m}
@@ -1241,7 +1222,7 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                 ))}
               </TextField>
               {f.defaultDeploymentRepo && (
-                <p className="field-hint">经此 virtual 仓的部署将写入 {f.defaultDeploymentRepo}。</p>
+                <p className="field-hint">{t('经此 virtual 仓的部署将写入')} {f.defaultDeploymentRepo}{t('。')}</p>
               )}
             </div>
           </Paper>
@@ -1252,10 +1233,8 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
     return (
       <>
         {f.rclass === 'local' && f.packageType === 'maven' && (
-          <Paper component="section" aria-label="Maven 策略" data-testid="form-section-policy" sx={{ p: 2, pb: 1.5, mb: 2 }}>
-            <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
-              Maven 策略
-            </Typography>
+          <Paper component="section" aria-label={t('Maven 策略')} data-testid="form-section-policy" sx={{ p: 2, pb: 1.5, mb: 2 }}>
+            <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>{t('Maven 策略')}            </Typography>
             <FormControlLabel
               className="check-row"
               disabled={locked}
@@ -1266,7 +1245,7 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                   onChange={(e) => set('handleReleases', e.target.checked)}
                 />
               }
-              label="接受 release 部署（handleReleases）"
+              label={t('接受 release 部署（handleReleases）')}
             />
             <FormControlLabel
               className="check-row"
@@ -1278,10 +1257,10 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                   onChange={(e) => set('handleSnapshots', e.target.checked)}
                 />
               }
-              label="接受 SNAPSHOT 部署（handleSnapshots）"
+              label={t('接受 SNAPSHOT 部署（handleSnapshots）')}
             />
             <div className="field">
-              <label htmlFor="f-checksum">checksum 策略</label>
+              <label htmlFor="f-checksum">{t('checksum 策略')}</label>
               <TextField
                 id="f-checksum"
                 select
@@ -1292,12 +1271,12 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                 sx={{ width: 420 }}
                 slotProps={{ select: { native: true } as ComponentPropsWithoutRef<typeof Select> }}
               >
-                <option value="client-checksums">client-checksums（客户端声明严格校验，默认）</option>
-                <option value="server-generated-checksums">server-generated-checksums（服务端实测覆盖）</option>
+                <option value="client-checksums">{t('client-checksums（客户端声明严格校验，默认）')}</option>
+                <option value="server-generated-checksums">{t('server-generated-checksums（服务端实测覆盖）')}</option>
               </TextField>
             </div>
             <div className="field">
-              <label htmlFor="f-snapshot">SNAPSHOT 行为</label>
+              <label htmlFor="f-snapshot">{t('SNAPSHOT 行为')}</label>
               <TextField
                 id="f-snapshot"
                 select
@@ -1308,9 +1287,9 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                 sx={{ width: 420 }}
                 slotProps={{ select: { native: true } as ComponentPropsWithoutRef<typeof Select> }}
               >
-                <option value="deployer">deployer（按上传名存储，默认）</option>
+                <option value="deployer">{t('deployer（按上传名存储，默认）')}</option>
                 <option value="non-unique">non-unique</option>
-                <option value="unique">unique（unique 改写为 P2，行为同 deployer）</option>
+                <option value="unique">{t('unique（unique 改写为 P2，行为同 deployer）')}</option>
               </TextField>
             </div>
             {/* T-439 / FR-143.2：maven 域预留位两枚（Artifactory 7.161 中与
@@ -1318,7 +1297,7 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                 与 Suppress POM Consistency Checks——后端均无承接） */}
             <ReservedTextField
               id="f-max-unique-snapshots"
-              label="Max Unique Snapshots（maxUniqueSnapshots）"
+              label={t('Max Unique Snapshots（maxUniqueSnapshots）')}
               hint={RESERVED_MAX_UNIQUE_SNAPSHOTS_HINT}
               anchor="form-max-unique-snapshots"
             />
@@ -1331,12 +1310,10 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
         )}
 
         {f.rclass === 'local' && (
-          <Paper component="section" aria-label="治理" data-testid="form-section-governance" sx={{ p: 2, pb: 1.5, mb: 2 }}>
-            <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
-              治理（governance）
-            </Typography>
+          <Paper component="section" aria-label={t('治理')} data-testid="form-section-governance" sx={{ p: 2, pb: 1.5, mb: 2 }}>
+            <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>{t('治理（governance）')}            </Typography>
             <div className="field">
-              <label htmlFor="f-quota">配额 quotaBytes（字节）</label>
+              <label htmlFor="f-quota">{t('配额 quotaBytes（字节）')}</label>
               <TextField
                 id="f-quota"
                 size="small"
@@ -1346,7 +1323,7 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                 disabled={locked}
                 slotProps={{ htmlInput: { className: 'mono-input', 'data-testid': 'form-quota', inputMode: 'numeric' } }}
               />
-              <p className="field-hint">正整数；0 = 不限（默认）。超限写入收到 413（message 含 used/quota）。</p>
+              <p className="field-hint">{t('正整数；0 = 不限（默认）。超限写入收到 413（message 含 used/quota）。')}</p>
             </div>
             <div className="field">
               <label htmlFor="f-includes">includesPattern</label>
@@ -1359,7 +1336,7 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                 disabled={locked}
                 slotProps={{ htmlInput: { className: 'mono-input', 'data-testid': 'form-includes', lang: 'en' } }}
               />
-              <p className="field-hint">逗号分隔多值；留空 / **/* = 匹配全部路径（保存为全量替换）。</p>
+              <p className="field-hint">{t('逗号分隔多值；留空 / **/* = 匹配全部路径（保存为全量替换）。')}</p>
             </div>
             <div className="field">
               <label htmlFor="f-excludes">excludesPattern</label>
@@ -1368,33 +1345,26 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                 size="small"
                 value={f.excludesPattern}
                 onChange={(e) => set('excludesPattern', e.target.value)}
-                placeholder="（无）"
+                placeholder={t('（无）')}
                 disabled={locked}
                 slotProps={{ htmlInput: { className: 'mono-input', 'data-testid': 'form-excludes', lang: 'en' } }}
               />
-              <p className="field-hint">
-                exclude 优先于 include；留空 = 无排除。不匹配 includes 或命中 excludes 的上传收到 409（message 含双
-                pattern）。
-              </p>
+              <p className="field-hint">{t('exclude 优先于 include；留空 = 无排除。不匹配 includes 或命中 excludes 的上传收到 409（message 含双 pattern）。')}              </p>
             </div>
           </Paper>
         )}
 
-        <Paper component="section" aria-label="高级" data-testid="form-section-advanced" sx={{ p: 2, pb: 1.5, mb: 2 }}>
-          <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
-            高级
-          </Typography>
+        <Paper component="section" aria-label={t('高级')} data-testid="form-section-advanced" sx={{ p: 2, pb: 1.5, mb: 2 }}>
+          <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>{t('高级')}          </Typography>
           {f.rclass === 'remote' && (
             <>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: -1, mb: 1.5 }}>
-                缓存与超时（秒）——产品默认 7200 / 1800 / 15 / 300。
-              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: -1, mb: 1.5 }}>{t('缓存与超时（秒）——产品默认 7200 / 1800 / 15 / 300。')}              </Typography>
               {(
                 [
-                  ['retrievalCachePeriodSecs', '命中缓存 TTL'],
-                  ['missedRetrievalCachePeriodSecs', '未命中负缓存 TTL'],
-                  ['socketTimeoutSecs', 'socket 超时'],
-                  ['assumedOfflinePeriodSecs', 'assumed-offline 静默期'],
+                  ['retrievalCachePeriodSecs', t('命中缓存 TTL')],
+                  ['missedRetrievalCachePeriodSecs', t('未命中负缓存 TTL')],
+                  ['socketTimeoutSecs', t('socket 超时')],
+                  ['assumedOfflinePeriodSecs', t('assumed-offline 静默期')],
                 ] as const
               ).map(([k, label]) => (
                 <div className="field" key={k}>
@@ -1420,7 +1390,7 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                     onChange={(e) => set('hardFail', e.target.checked)}
                   />
                 }
-                label="hardFail（上游故障时直接失败，不降级）"
+                label={t('hardFail（上游故障时直接失败，不降级）')}
               />
               {/* T-461（FR-147 AC1）：远端浏览可选档——默认 off（diff=0）。
                   控件仅批 1 型（helm/debian/rpm）呈现：引擎枚举面如此
@@ -1458,7 +1428,7 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
                 onChange={(e) => set('priorityResolution', e.target.checked)}
               />
             }
-            label="优先解析（priorityResolution：作为 virtual 成员时优先桶标记）"
+            label={t('优先解析（priorityResolution：作为 virtual 成员时优先桶标记）')}
           />
 
           {/* T-439 / FR-143.2 实字段（B-3.12 Force Auth 的后端承接面）：
@@ -1495,9 +1465,8 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
           {policyDef && (
             <>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 2, mb: 1.5 }}>
-                {POLICY_GROUP_TITLE[policyDef]}——索引引擎策略键（仅{' '}
-                {f.packageType} 仓；值域/默认值由服务端终裁）
-              </Typography>
+                {POLICY_GROUP_TITLE[policyDef]}{t('——索引引擎策略键（仅')}{' '}
+                {f.packageType} {t('仓；值域/默认值由服务端终裁）')}              </Typography>
               {POLICY_FIELDS[policyDef].map((fd) => {
                 const anchor = `form-${fd.wire}`
                 if (fd.kind === 'check') {
@@ -1592,11 +1561,11 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
         ] as [string, ReactNode][])
       : []),
     ...(f.rclass === 'virtual'
-      ? ([['成员', `${f.members.length} 个`]] as [string, ReactNode][])
+      ? ([[t('成员'), t('{v1} 个', { v1: f.members.length })]] as [string, ReactNode][])
       : []),
     ...(f.rclass === 'local'
       ? ([
-          ['quotaBytes', <span className="mono">{f.quotaBytes || '0'}{f.quotaBytes === '0' ? '（不限）' : ''}</span>],
+          ['quotaBytes', <span className="mono">{f.quotaBytes || '0'}{f.quotaBytes === '0' ? t('（不限）') : ''}</span>],
           ['patterns', <span className="mono" lang="en">{f.includesPattern || '**/*'} ; {f.excludesPattern || '(none)'}</span>],
         ] as [string, ReactNode][])
       : []),
@@ -1605,14 +1574,11 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
   return (
     <div data-testid="repo-form-page">
       <div className="page-header">
-        <h2>{mode === 'create' ? `新建 ${RCLASS_LABEL[f.rclass]} 仓库` : `编辑 ${routeKey}`}</h2>
+        <h2>{mode === 'create' ? t('新建 {v1} 仓库', { v1: RCLASS_LABEL[f.rclass] }) : t('编辑 {routeKey}', { routeKey: routeKey })}</h2>
       </div>
 
       {locked && (
-        <p className="page-note" data-testid="repo-form-readonly-note">
-          ⓘ 只读管理员（readonly_admin）视角：仓库配置只读——保存走单仓管理面写（CanManageRepo
-          write），服务端 403 兜底。
-        </p>
+        <p className="page-note" data-testid="repo-form-readonly-note">{t('ⓘ 只读管理员（readonly_admin）视角：仓库配置只读——保存走单仓管理面写（CanManageRepo write），服务端 403 兜底。')}        </p>
       )}
 
       <div className="form-layout">
@@ -1625,7 +1591,7 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
           <Tabs
             value={activeStep}
             onChange={(_, v: FormStep) => setStep(v)}
-            aria-label="仓库表单分区步进"
+            aria-label={t('仓库表单分区步进')}
             variant="fullWidth"
             sx={{ mb: 2, minHeight: 36 }}
           >
@@ -1661,9 +1627,7 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
               role="alert"
               sx={{ mt: 'var(--bf-sp-4)' }}
             >
-              <div>
-                保存失败（HTTP {serverError.status || '网络'}）
-              </div>
+              <div>{t('保存失败（HTTP')} {serverError.status || t('网络')}{t('）')}              </div>
               <div className="mono" lang="en" style={{ fontSize: 'var(--bf-fs-aux)' }}>
                 {serverError.message}
               </div>
@@ -1677,28 +1641,26 @@ export default function RepositoryFormPage({ mode, rclass }: { mode: 'create' | 
               variant="outlined"
               size="small"
               onClick={() => navigate(mode === 'create' ? `/admin/repositories/${f.rclass}` : `/admin/repositories/${routeKey}`)}
-            >
-              取消
-            </Button>
+            >{t('取消')}            </Button>
             <Button
               variant="contained"
               size="small"
               disabled={!canSubmit}
               title={
                 locked
-                  ? '只读管理员不可写（服务端 403 兜底）'
+                  ? t('只读管理员不可写（服务端 403 兜底）')
                   : gate.reason ?? (mode === 'edit' && !dirty ? SAVE_CLEAN_HINT : undefined)
               }
               onClick={() => void doSubmit()}
               data-testid="form-submit"
             >
-              {submitting ? '保存中…' : mode === 'create' ? `创建 ${RCLASS_LABEL[f.rclass]} 仓库` : '保存'}
+              {submitting ? t('保存中…') : mode === 'create' ? t('创建 {v1} 仓库', { v1: RCLASS_LABEL[f.rclass] }) : t('保存')}
             </Button>
           </div>
         </section>
 
         <aside className="card summary-box">
-          <h3>摘要（实时）</h3>
+          <h3>{t('摘要（实时）')}</h3>
           {summaryRows.map(([k, v]) => (
             <div className="kv" key={k}>
               <span className="k">{k}</span>

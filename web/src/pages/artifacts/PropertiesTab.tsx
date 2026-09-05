@@ -21,6 +21,9 @@ import { Skeleton } from '../../components/Skeleton'
 import { ApiError, deleteNodeProperties, errText, getNodeProperties, putNodeProperties } from '../../lib/api'
 import { PROPS_COPY } from './detailCopy'
 import { useAsync } from '../../lib/useAsync'
+import { tr } from '../../i18n'
+
+const t = tr('artifacts')
 
 // 制品详情 · Properties 页签（T-291 M10 首发；T-447 / FR-144.4 解剖翻正）。
 //
@@ -56,7 +59,7 @@ const MAX_VALUE_BYTES = 1024
 const MONO = { fontFamily: 'var(--bf-mono)' } as const
 
 function validateKey(key: string): string | null {
-  if (!KEY_RE.test(key)) return '键须匹配 [A-Za-z][A-Za-z0-9_.-]{0,63}（字母开头，≤64 字符）'
+  if (!KEY_RE.test(key)) return t('键须匹配 [A-Za-z][A-Za-z0-9_.-]{0,63}（字母开头，≤64 字符）')
   return null
 }
 
@@ -66,13 +69,13 @@ function parseValues(text: string): { values: string[]; error: string | null } {
     .split(',')
     .map((v) => v.trim())
     .filter((v) => v !== '')
-  if (values.length === 0) return { values, error: '至少一个非空值（服务端拒绝空值）' }
-  if (values.length > MAX_VALUES) return { values, error: `单键最多 ${MAX_VALUES} 个值` }
+  if (values.length === 0) return { values, error: t('至少一个非空值（服务端拒绝空值）') }
+  if (values.length > MAX_VALUES) return { values, error: t('单键最多 {MAX_VALUES} 个值', { MAX_VALUES: MAX_VALUES }) }
   const seen = new Set<string>()
   for (const v of values) {
-    if (v.length > MAX_VALUE_BYTES) return { values, error: `值超过 ${MAX_VALUE_BYTES} 字节：${v.slice(0, 24)}…` }
-    if (CTRL_RE.test(v)) return { values, error: '值不能包含控制字符' }
-    if (seen.has(v)) return { values, error: `重复值：${v}（存储模型是值集合）` }
+    if (v.length > MAX_VALUE_BYTES) return { values, error: t('值超过 {MAX_VALUE_BYTES} 字节：{v1}…', { MAX_VALUE_BYTES: MAX_VALUE_BYTES, v1: v.slice(0, 24) }) }
+    if (CTRL_RE.test(v)) return { values, error: t('值不能包含控制字符') }
+    if (seen.has(v)) return { values, error: t('重复值：{v}（存储模型是值集合）', { v: v }) }
     seen.add(v)
   }
   return { values, error: null }
@@ -114,7 +117,7 @@ export default function PropertiesTab({
     trimmedKey === ''
       ? null
       : validateKey(trimmedKey)
-  const keyCountError = trimmedKey !== '' && !keyExists && rows.length >= MAX_KEYS ? `节点最多 ${MAX_KEYS} 个属性键` : null
+  const keyCountError = trimmedKey !== '' && !keyExists && rows.length >= MAX_KEYS ? t('节点最多 {MAX_KEYS} 个属性键', { MAX_KEYS: MAX_KEYS }) : null
   const { error: valuesError } = parseValues(valuesText)
   const keyMissing = trimmedKey === ''
   const invalid = !!keyError || !!keyCountError || !!valuesError || keyMissing
@@ -136,7 +139,7 @@ export default function PropertiesTab({
       // PUT 单键 = 同名键值集整体替换、他键保留（§11.40）——常显表单下
       // 的「改值」即同键重 Add（replaceHint 语义可见）
       await putNodeProperties(repoKey, path, { [trimmedKey]: values })
-      toast.success(keyExists ? `已替换属性 ${trimmedKey} 的值集` : `已添加属性 ${trimmedKey}`)
+      toast.success(keyExists ? t('已替换属性 {trimmedKey} 的值集', { trimmedKey: trimmedKey }) : t('已添加属性 {trimmedKey}', { trimmedKey: trimmedKey }))
       setNewKey('')
       setValuesText('')
       propsQ.reload()
@@ -154,7 +157,7 @@ export default function PropertiesTab({
     const ok = await confirm({
       title: PROPS_COPY.deleteTitle,
       danger: true,
-      confirmLabel: '删除',
+      confirmLabel: t('删除'),
       body: (
         <p>
           {PROPS_COPY.deleteLead} <b className="mono" lang="en">{key}</b> {PROPS_COPY.deleteTrail}
@@ -166,7 +169,7 @@ export default function PropertiesTab({
     setOpError(null)
     try {
       await deleteNodeProperties(repoKey, path, [key])
-      toast.success(`已删除属性 ${key}`)
+      toast.success(t('已删除属性 {key}', { key: key }))
       propsQ.reload()
     } catch (err) {
       const status = err instanceof ApiError ? err.status : 0
@@ -188,7 +191,7 @@ export default function PropertiesTab({
     }
   }
 
-  const readonlyTitle = '只读管理员不可写（服务端 403 兜底）'
+  const readonlyTitle = t('只读管理员不可写（服务端 403 兜底）')
   const searchEmpty = search.trim() !== '' && filtered.length === 0
 
   // ---- 四态 ----
@@ -200,12 +203,9 @@ export default function PropertiesTab({
           severity="error"
           data-testid="node-props-error"
           action={
-            <Button color="inherit" size="small" onClick={propsQ.reload}>
-              重试
-            </Button>
+            <Button color="inherit" size="small" onClick={propsQ.reload}>{t('重试')}            </Button>
           }
-        >
-          属性加载失败（HTTP {propsQ.error?.status ?? 0}）——{propsQ.error?.message ?? '网络错误'}
+        >{t('属性加载失败（HTTP')} {propsQ.error?.status ?? 0}{t('）——')}{propsQ.error?.message ?? t('网络错误')}
         </Alert>
       </div>
     )
@@ -239,7 +239,7 @@ export default function PropertiesTab({
           onKeyDown={onFieldKeys}
           disabled={!canWrite || busy}
           error={!!valuesError}
-          helperText={valuesError ?? '多值以逗号分隔，如 v1, v2'}
+          helperText={valuesError ?? t('多值以逗号分隔，如 v1, v2')}
           slotProps={{
             htmlInput: {
               // 后缀 = 已敲键或 new（家族 node-props-values-input-<key>）——
@@ -256,7 +256,7 @@ export default function PropertiesTab({
             !canWrite
               ? readonlyTitle
               : rows.length >= MAX_KEYS
-                ? `节点最多 ${MAX_KEYS} 个属性键`
+                ? t('节点最多 {MAX_KEYS} 个属性键', { MAX_KEYS: MAX_KEYS })
                 : PROPS_COPY.replaceHint
           }
         >
@@ -276,8 +276,7 @@ export default function PropertiesTab({
       </Stack>
 
       <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 0.5 }}>
-        <Typography variant="body2" color="text.secondary">
-          属性 · {rows.length} 个键{search.trim() !== '' ? `（匹配 ${filtered.length}）` : ''}
+        <Typography variant="body2" color="text.secondary">{t('属性 ·')} {rows.length} {t('个键')}{search.trim() !== '' ? t('（匹配 {v1}）', { v1: filtered.length }) : ''}
         </Typography>
         {/* 网格搜索（B-2.9 解剖要素——键/值子串过滤；清空恢复全量） */}
         <TextField
@@ -291,7 +290,7 @@ export default function PropertiesTab({
             input: {
               endAdornment: search !== '' && (
                 <InputAdornment position="end">
-                  <IconButton size="small" aria-label="清除属性搜索" onClick={() => setSearch('')}>
+                  <IconButton size="small" aria-label={t('清除属性搜索')} onClick={() => setSearch('')}>
                     <span aria-hidden="true">✕</span>
                   </IconButton>
                 </InputAdornment>
@@ -303,26 +302,20 @@ export default function PropertiesTab({
 
       {rows.length === 0 ? (
         <Box data-testid="node-props-empty" sx={{ py: 3, textAlign: 'center' }}>
-          <Typography color="text.secondary">此节点尚无属性</Typography>
-          <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-            部署时以矩阵参数（PUT …;key=value）附带，或用上方表单添加；属性用于检索与治理。
-          </Typography>
+          <Typography color="text.secondary">{t('此节点尚无属性')}</Typography>
+          <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>{t('部署时以矩阵参数（PUT …;key=value）附带，或用上方表单添加；属性用于检索与治理。')}          </Typography>
         </Box>
       ) : searchEmpty ? (
         <Box sx={{ py: 3, textAlign: 'center' }}>
-          <Typography color="text.secondary" data-testid="node-props-search-empty">
-            没有匹配「{search.trim()}」的属性
-          </Typography>
+          <Typography color="text.secondary" data-testid="node-props-search-empty">{t('没有匹配「')}{search.trim()}{t('」的属性')}          </Typography>
         </Box>
       ) : (
-        <Table size="small" data-testid="node-props-table" aria-label="制品属性">
+        <Table size="small" data-testid="node-props-table" aria-label={t('制品属性')}>
           <TableHead>
             <TableRow>
-              <TableCell sx={{ width: '34%' }}>键</TableCell>
-              <TableCell>值（多值以逗号分隔）</TableCell>
-              <TableCell sx={{ width: 72 }} align="right">
-                操作
-              </TableCell>
+              <TableCell sx={{ width: '34%' }}>{t('键')}</TableCell>
+              <TableCell>{t('值（多值以逗号分隔）')}</TableCell>
+              <TableCell sx={{ width: 72 }} align="right">{t('操作')}              </TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -337,13 +330,13 @@ export default function PropertiesTab({
                     title={
                       !canWrite
                         ? readonlyTitle
-                        : '删除该属性（DELETE 单键——过危险确认，E1 统一）'
+                        : t('删除该属性（DELETE 单键——过危险确认，E1 统一）')
                     }
                   >
                     <span>
                       <IconButton
                         size="small"
-                        aria-label={`删除属性 ${key}`}
+                        aria-label={t('删除属性 {key}', { key: key })}
                         data-testid={`node-props-delete-${key}`}
                         disabled={!canWrite || busy}
                         onClick={() => void remove(key)}
@@ -366,11 +359,10 @@ export default function PropertiesTab({
           data-testid="node-props-error"
           onClose={() => setOpError(null)}
         >
-          <div>
-            属性写入失败（HTTP {opError.status}）：<span lang="en">{opError.message}</span>
+          <div>{t('属性写入失败（HTTP')} {opError.status}{t('）：')}<span lang="en">{opError.message}</span>
           </div>
           {opError.status === 403 && (
-            <div>当前会话没有该路径的写权限（write 动作）——权限按 permission target 的路径 pattern 授予，请联系管理员。</div>
+            <div>{t('当前会话没有该路径的写权限（write 动作）——权限按 permission target 的路径 pattern 授予，请联系管理员。')}</div>
           )}
         </Alert>
       )}

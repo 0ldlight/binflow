@@ -4,6 +4,9 @@ import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Link from '@mui/material/Link'
 import Snackbar from '@mui/material/Snackbar'
+import { tr } from '../i18n'
+
+const tt = tr('console')
 
 // toast（console-ux §3.5）：右下角堆叠；成功 5s 自动消失、错误常驻至
 // 手动关闭；可带一个动作链接。aria-live 播报，无需焦点抢占。
@@ -87,7 +90,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               severity={t.kind}
               role={t.kind === 'error' ? 'alert' : 'status'}
               onClose={() => dismiss(t.id)}
-              closeText="关闭通知"
+              closeText={tt('关闭通知')}
               sx={{ alignItems: 'flex-start' }}
               action={
                 t.action ? (

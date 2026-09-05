@@ -19,6 +19,9 @@ import { formatBytes } from '../../lib/format'
 import { monoInputSx } from '../../lib/muiAtoms'
 
 import { formatStamp, treeUrl } from './aql'
+import { tr } from '../../i18n'
+
+const t = tr('search')
 
 /** 批量复制选中行路径（CopyButton 同款降级：非安全上下文回退 execCommand） */
 async function copySelection(rows: ResultRow[]): Promise<void> {
@@ -173,7 +176,7 @@ export function ResultsTable({
             direction={hit ? hit.dir : undefined}
             onClick={() => onSort(field)}
             data-testid={`search-aql-sort-${c.id}`}
-            title="点击注入/切换 .sort() 子句（字段须在查询输出集内——include('*') 时恒可用）"
+            title={t('点击注入/切换 .sort() 子句（字段须在查询输出集内——include(\'*\') 时恒可用）')}
           >
             {c.label}
           </TableSortLabel>
@@ -190,32 +193,31 @@ export function ResultsTable({
         <TextField
           type="search"
           size="small"
-          placeholder="快滤结果（名称/路径/仓库）"
+          placeholder={t('快滤结果（名称/路径/仓库）')}
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
           sx={{ ...monoInputSx, width: 240 }}
           slotProps={{
             htmlInput: {
               'data-testid': 'search-quick-filter',
-              'aria-label': '快滤当前结果',
+              'aria-label': t('快滤当前结果'),
               className: 'mono',
             },
           }}
         />
         {needle !== '' && !noMatch && (
-          <span className="text-2 search-filter-count" data-testid="search-quick-count">
-            快滤命中 {filtered.length} / {rows.length}
+          <span className="text-2 search-filter-count" data-testid="search-quick-count">{t('快滤命中')} {filtered.length} / {rows.length}
           </span>
         )}
         {selectedRows.length > 0 && (
           <span className="search-selection">
-            <span className="text-2">已选 {selectedRows.length} 项</span>
+            <span className="text-2">{t('已选')} {selectedRows.length} {t('项')}</span>
             <Button
               variant="outlined"
               size="small"
               data-testid="search-selection-copy"
               color={copied ? 'success' : undefined}
-              title="复制全部选中行的 repo 路径（每行一条）"
+              title={t('复制全部选中行的 repo 路径（每行一条）')}
               onClick={() => {
                 void copySelection(selectedRows).then(() => {
                   setCopied(true)
@@ -223,7 +225,7 @@ export function ResultsTable({
                 })
               }}
             >
-              {copied ? '已复制 ✓' : `复制路径（${selectedRows.length}）`}
+              {copied ? t('已复制 ✓') : t('复制路径（{v1}）', { v1: selectedRows.length })}
             </Button>
           </span>
         )}
@@ -233,9 +235,7 @@ export function ResultsTable({
       </div>
 
       {noMatch ? (
-        <p className="text-2 search-nomatch" data-testid="search-quick-filter-empty">
-          快滤「{filter.trim()}」无匹配行——清空快滤恢复 {rows.length} 项结果。
-        </p>
+        <p className="text-2 search-nomatch" data-testid="search-quick-filter-empty">{t('快滤「')}{filter.trim()}{t('」无匹配行——清空快滤恢复')} {rows.length} {t('项结果。')}        </p>
       ) : (
         <Table>
           <TableHead>
@@ -249,7 +249,7 @@ export function ResultsTable({
                   data-testid="search-select-all"
                   slotProps={{
                     input: {
-                      'aria-label': '全选当前显示的行',
+                      'aria-label': t('全选当前显示的行'),
                       // MUI 半选态给原生 input 打 aria-checked="mixed"——
                       // ARIA-in-HTML 对 input[type=checkbox] 禁该值（应用 DOM
                       // indeterminate 本身，MUI 已带 data-indeterminate）；
@@ -273,7 +273,7 @@ export function ResultsTable({
                       checked={selected.has(r.key)}
                       onChange={() => toggleRow(r.key)}
                       data-testid={`search-row-select-${i}`}
-                      slotProps={{ input: { 'aria-label': `选择 ${r.name}` } }}
+                      slotProps={{ input: { 'aria-label': t('选择 {v1}', { v1: r.name }) } }}
                     />
                   </TableCell>
                   {cols.isVisible('name') && (
@@ -284,7 +284,7 @@ export function ResultsTable({
                           className="mono row-link"
                           lang="en"
                           data-testid={`search-result-link-${i}`}
-                          title="在跨仓树中定位（路径段深链）"
+                          title={t('在跨仓树中定位（路径段深链）')}
                         >
                           {r.name}
                         </Link>
@@ -344,7 +344,7 @@ export function ResultsTable({
             from={pager.from}
             to={pager.to}
             total={filtered.length}
-            note={needle !== '' ? `（快滤自 ${rows.length}）` : undefined}
+            note={needle !== '' ? t('（快滤自 {v1}）', { v1: rows.length }) : undefined}
             pageSize={pager.size}
             onPageSizeChange={pager.setSize}
           />

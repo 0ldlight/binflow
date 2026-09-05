@@ -21,6 +21,9 @@ import './security.css'
 import { listPermissionTargets, listPermissionTargetsManaged } from './api'
 import type { PermissionTarget } from './api'
 import { SortTh, applySort, useTableSort } from './widgets'
+import { tr } from '../../i18n'
+
+const tt = tr('security')
 
 // 权限 target 列表（T-241 重排，console-m8 §6.11 / reverse §3.8）：
 // 基准表格形态——「New Permission」入口（页头主按钮，L4 仅 admin 渲染）+
@@ -88,7 +91,7 @@ export default function PermissionsPage() {
   return (
     <div data-testid="perms-page">
       <div className="page-header">
-        <h2>权限</h2>
+        <h2>{tt('权限')}</h2>
         {admin && (
           <Button
             variant="contained"
@@ -96,16 +99,12 @@ export default function PermissionsPage() {
             component={Link}
             to="/admin/security/permissions/new"
             data-testid="perms-create"
-          >
-            ＋ 新建权限
-          </Button>
+          >{tt('＋ 新建权限')}          </Button>
         )}
       </div>
 
       {readOnly && (
-        <p className="admin-note" data-testid="perms-readonly-note">
-          ⓘ 只读管理员（readonly_admin）视角：授权矩阵只读；创建/编辑 target 是管理面写操作（服务端 403 兜底）。
-        </p>
+        <p className="admin-note" data-testid="perms-readonly-note">{tt('ⓘ 只读管理员（readonly_admin）视角：授权矩阵只读；创建/编辑 target 是管理面写操作（服务端 403 兜底）。')}        </p>
       )}
 
       {state.status === 'loading' && <Skeleton lines={5} />}
@@ -115,53 +114,49 @@ export default function PermissionsPage() {
           // 覆盖集空的「m-holder」（wire：filter=manage 403，与无 filter 同形
           // ——零新增可区分面）——L2 收敛保留（表格零渲染），文案为友好空态
           <EmptyState
-            message="无管理范围内的权限目标"
-            hint="manage 覆盖集由携带 manage 的 permission target 授予——当前会话覆盖集为空（服务端 403），无可在控制台维护的 target。若你刚获授权，请刷新本页。"
+            message={tt('无管理范围内的权限目标')}
+            hint={tt('manage 覆盖集由携带 manage 的 permission target 授予——当前会话覆盖集为空（服务端 403），无可在控制台维护的 target。若你刚获授权，请刷新本页。')}
           />
         ) : (
           <EmptyState
-            message="无权限访问权限管理"
-            hint="permission target 列表是 security:read 管理面读端点（admin / readonly_admin）。"
+            message={tt('无权限访问权限管理')}
+            hint={tt('permission target 列表是 security:read 管理面读端点（admin / readonly_admin）。')}
           />
         ))}
       {mHolder && state.status === 'ok' && sorted.length > 0 && (
-        <p className="admin-note" data-testid="perms-manage-note">
-          ⓘ 当前会话以 manage 持有者身份查看：仅列出引用仓库全部落在 manage 覆盖集内的 target（部分覆盖的由服务端隐藏）；编辑/删除由服务端按覆盖集终裁（越界 403）。
-        </p>
+        <p className="admin-note" data-testid="perms-manage-note">{tt('ⓘ 当前会话以 manage 持有者身份查看：仅列出引用仓库全部落在 manage 覆盖集内的 target（部分覆盖的由服务端隐藏）；编辑/删除由服务端按覆盖集终裁（越界 403）。')}        </p>
       )}
       {state.status === 'ok' &&
         (sorted.length === 0 ? (
           admin ? (
             <EmptyState
               illustration
-              message="还没有 permission target"
-              hint="target = 仓库 × 路径 pattern × 主体（用户/组）× 动作（read/write/delete/manage）；授权并集、即时生效。"
+              message={tt('还没有 permission target')}
+              hint={tt('target = 仓库 × 路径 pattern × 主体（用户/组）× 动作（read/write/delete/manage）；授权并集、即时生效。')}
               action={
-                <Button variant="contained" size="small" component={Link} to="/admin/security/permissions/new">
-                  创建第一个 target
-                </Button>
+                <Button variant="contained" size="small" component={Link} to="/admin/security/permissions/new">{tt('创建第一个 target')}                </Button>
               }
             />
           ) : mHolder ? (
             // 200 空数组分支：构造上不可达（覆盖集非空 ⟹ 授 manage 的 target
             // 自身已全落入覆盖集），纯防御呈现——与 403 空集同文案族
             <EmptyState
-              message="无管理范围内的权限目标"
-              hint="manage 持有者可管理的 target 需满足：其引用的全部仓库都落在你的 manage 覆盖集内（覆盖集由携带 manage 的 permission target 授予）。若你刚获授 manage，请刷新本页。"
+              message={tt('无管理范围内的权限目标')}
+              hint={tt('manage 持有者可管理的 target 需满足：其引用的全部仓库都落在你的 manage 覆盖集内（覆盖集由携带 manage 的 permission target 授予）。若你刚获授 manage，请刷新本页。')}
             />
           ) : (
-            <EmptyState illustration message="还没有 permission target" />
+            <EmptyState illustration message={tt('还没有 permission target')} />
           )
         ) : (
           <>
             <Table data-testid="perms-table">
               <TableHead>
                 <TableRow>
-                  <SortTh label="权限名" sortKey="name" sort={sort} onToggle={toggle} testid="perms-sort-name" />
-                  <SortTh label="仓库数" sortKey="repos" sort={sort} onToggle={toggle} />
+                  <SortTh label={tt('权限名')} sortKey="name" sort={sort} onToggle={toggle} testid="perms-sort-name" />
+                  <SortTh label={tt('仓库数')} sortKey="repos" sort={sort} onToggle={toggle} />
                   <SortTh label="patterns" sortKey="patterns" sort={sort} onToggle={toggle} />
-                  <SortTh label="用户数" sortKey="users" sort={sort} onToggle={toggle} />
-                  <SortTh label="组数" sortKey="groups" sort={sort} onToggle={toggle} />
+                  <SortTh label={tt('用户数')} sortKey="users" sort={sort} onToggle={toggle} />
+                  <SortTh label={tt('组数')} sortKey="groups" sort={sort} onToggle={toggle} />
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -197,7 +192,7 @@ export default function PermissionsPage() {
                             sx={{ fontFamily: 'var(--bf-mono)' }}
                             lang="en"
                             data-testid={`perm-manage-badge-${t.name}`}
-                            title="该 target 的某主体行携带 manage（仓库配置派生权；不隐含读写删）"
+                            title={tt('该 target 的某主体行携带 manage（仓库配置派生权；不隐含读写删）')}
                           />
                         )}
                         <CopyButton value={t.name} label={`target ${t.name}`} />
@@ -211,7 +206,7 @@ export default function PermissionsPage() {
                     <TableCell>
                       <span
                         className="mono"
-                        title={`include: ${t.includePatterns.join(', ') || '（空 = 全部）'}\nexclude: ${t.excludePatterns.join(', ') || '（无）'}`}
+                        title={`include: ${t.includePatterns.join(', ') || tt('（空 = 全部）')}\nexclude: ${t.excludePatterns.join(', ') || tt('（无）')}`}
                       >
                         +{t.includePatterns.length} / −{t.excludePatterns.length}
                       </span>
@@ -234,7 +229,7 @@ export default function PermissionsPage() {
                 from={pager.from}
                 to={pager.to}
                 total={sorted.length}
-                note={mHolder ? '（管理范围内的权限 target）' : undefined}
+                note={mHolder ? tt('（管理范围内的权限 target）') : undefined}
                 pageSize={pager.size}
                 onPageSizeChange={pager.setSize}
               />

@@ -28,6 +28,9 @@ import './security.css'
 import { SortTh, StatusLabel, applySort, useTableSort, useUserDelete } from './widgets'
 import { listUsers } from './api'
 import type { UserListItem } from './api'
+import { tr } from '../../i18n'
+
+const t = tr('security')
 
 // 用户列表（console-m8 §6.9，T-237 重排；T-257 数据源换 E2 加宽）。
 //
@@ -61,12 +64,12 @@ type UserSortKey = 'name' | 'email' | 'groups' | 'role' | 'status'
  * 操作列仅 admin 在场（L4 写面预收敛）——非 admin 视图该列不存在，菜单项
  * 同步不呈现（不伪造空控制）。 */
 const COLUMNS: ColumnDef[] = [
-  { id: 'name', label: '用户名', anchor: 'users-columns-item-name' },
+  { id: 'name', label: t('用户名'), anchor: 'users-columns-item-name' },
   { id: 'email', label: 'Email', anchor: 'users-columns-item-email' },
-  { id: 'groups', label: '组', anchor: 'users-columns-item-groups' },
-  { id: 'role', label: '角色', anchor: 'users-columns-item-role' },
+  { id: 'groups', label: t('组'), anchor: 'users-columns-item-groups' },
+  { id: 'role', label: t('角色'), anchor: 'users-columns-item-role' },
   { id: 'status', label: 'Status', anchor: 'users-columns-item-status' },
-  { id: 'actions', label: '操作', anchor: 'users-columns-item-actions' },
+  { id: 'actions', label: t('操作'), anchor: 'users-columns-item-actions' },
 ]
 const COLUMN_IDS = COLUMNS.map((c) => c.id)
 const COLS_KEY = 'binflow-console-cols-users'
@@ -130,23 +133,19 @@ export default function UsersPage() {
   return (
     <div data-testid="users-page">
       <div className="page-header">
-        <h2>用户</h2>
+        <h2>{t('用户')}</h2>
         {admin && (
           <Button
             variant="contained"
             size="small"
             onClick={() => navigate('/admin/security/users/new')}
             data-testid="users-create"
-          >
-            ＋ 新建用户
-          </Button>
+          >{t('＋ 新建用户')}          </Button>
         )}
       </div>
 
       {readOnly && (
-        <p className="admin-note" data-testid="users-readonly-note">
-          ⓘ 只读管理员（readonly_admin）视角：用户与角色只读；创建/编辑是管理面写操作（服务端 403 兜底）。
-        </p>
+        <p className="admin-note" data-testid="users-readonly-note">{t('ⓘ 只读管理员（readonly_admin）视角：用户与角色只读；创建/编辑是管理面写操作（服务端 403 兜底）。')}        </p>
       )}
 
       {/* T-414（FR-135.2）：工具栏尾 = 列选器（T-387 L1 形态复用——MUI Menu +
@@ -162,10 +161,10 @@ export default function UsersPage() {
             aria-haspopup="menu"
             aria-expanded={colsOpen}
             data-testid="users-columns"
-            title="自定义显示列（偏好保存在本浏览器）"
+            title={t('自定义显示列（偏好保存在本浏览器）')}
             onClick={(e) => setColsAnchor(e.currentTarget)}
           >
-            <span aria-hidden="true">▤</span> 列 {cols.visibleCount}/{pageColumns.length}
+            <span aria-hidden="true">▤</span> {t('列')} {cols.visibleCount}/{pageColumns.length}
           </Button>
           <Menu
             open={colsOpen}
@@ -185,7 +184,7 @@ export default function UsersPage() {
                   role="menuitemcheckbox"
                   aria-checked={visible}
                   aria-disabled={last || undefined}
-                  title={last ? '至少保留一列' : undefined}
+                  title={last ? t('至少保留一列') : undefined}
                   data-testid={c.anchor}
                   onClick={() => {
                     if (!last) cols.toggle(c.id)
@@ -201,12 +200,10 @@ export default function UsersPage() {
             <Divider component="li" />
             <MenuItem
               aria-disabled={cols.visibleCount === pageColumns.length || undefined}
-              title={cols.visibleCount === pageColumns.length ? '全部列已在场' : '显示全部列'}
+              title={cols.visibleCount === pageColumns.length ? t('全部列已在场') : t('显示全部列')}
               data-testid="users-columns-reset"
               onClick={() => cols.reset()}
-            >
-              全选列
-            </MenuItem>
+            >{t('全选列')}            </MenuItem>
           </Menu>
         </span>
       </div>
@@ -215,16 +212,16 @@ export default function UsersPage() {
       {state.status === 'error' && state.error && <ErrorCard error={state.error} onRetry={state.reload} />}
       {state.status === 'forbidden' && state.error && (
         <EmptyState
-          message="无权限访问用户管理"
-          hint="用户与组管理是管理员功能（管理面需 admin）。制品访问请使用搜索或仓库直链。"
+          message={t('无权限访问用户管理')}
+          hint={t('用户与组管理是管理员功能（管理面需 admin）。制品访问请使用搜索或仓库直链。')}
         />
       )}
       {state.status === 'ok' &&
         (rows.length === 0 ? (
           admin ? (
-            <EmptyState illustration message="还没有用户" hint="点击「新建用户」建立第一个账号；CI 与脚本建议使用 API Token。" />
+            <EmptyState illustration message={t('还没有用户')} hint={t('点击「新建用户」建立第一个账号；CI 与脚本建议使用 API Token。')} />
           ) : (
-            <EmptyState illustration message="还没有用户" />
+            <EmptyState illustration message={t('还没有用户')} />
           )
         ) : (
           <>
@@ -232,15 +229,15 @@ export default function UsersPage() {
               <TableHead>
                 <TableRow>
                   {cols.isVisible('name') && (
-                    <SortTh label="用户名" sortKey="name" sort={sort} onToggle={toggle} testid="users-sort-name" />
+                    <SortTh label={t('用户名')} sortKey="name" sort={sort} onToggle={toggle} testid="users-sort-name" />
                   )}
                   {cols.isVisible('email') && <SortTh label="Email" sortKey="email" sort={sort} onToggle={toggle} />}
-                  {cols.isVisible('groups') && <SortTh label="组" sortKey="groups" sort={sort} onToggle={toggle} />}
-                  {cols.isVisible('role') && <SortTh label="角色" sortKey="role" sort={sort} onToggle={toggle} />}
+                  {cols.isVisible('groups') && <SortTh label={t('组')} sortKey="groups" sort={sort} onToggle={toggle} />}
+                  {cols.isVisible('role') && <SortTh label={t('角色')} sortKey="role" sort={sort} onToggle={toggle} />}
                   {cols.isVisible('status') && (
                     <SortTh label="Status" sortKey="status" sort={sort} onToggle={toggle} testid="users-sort-status" />
                   )}
-                  {admin && cols.isVisible('actions') && <TableCell component="th" scope="col">操作</TableCell>}
+                  {admin && cols.isVisible('actions') && <TableCell component="th" scope="col">{t('操作')}</TableCell>}
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -248,7 +245,7 @@ export default function UsersPage() {
                   // 自删/内置 admin：UI 预禁用（服务端 400 终裁；title 述因）
                   const self = session?.username === r.name
                   const builtin = r.name === 'admin'
-                  const deleteBlocked = self ? '不能删除当前登录用户（服务端 400 护栏）' : builtin ? '不能删除内置 admin 用户（服务端 400 护栏）' : undefined
+                  const deleteBlocked = self ? t('不能删除当前登录用户（服务端 400 护栏）') : builtin ? t('不能删除内置 admin 用户（服务端 400 护栏）') : undefined
                   return (
                     <TableRow
                       key={r.name}
@@ -264,7 +261,7 @@ export default function UsersPage() {
                           <Link className="row-link mono" to={`/admin/security/users/${encodeURIComponent(r.name)}`} lang="en">
                             {r.name}
                           </Link>{' '}
-                          <CopyButton value={r.name} label={`用户名 ${r.name}`} />
+                          <CopyButton value={r.name} label={t('用户名 {v1}', { v1: r.name })} />
                         </TableCell>
                       )}
                       {cols.isVisible('email') && (
@@ -311,9 +308,7 @@ export default function UsersPage() {
                             title={deleteBlocked}
                             onClick={() => void deleteUser(r.name)}
                             data-testid={`user-delete-${r.name}`}
-                          >
-                            删除
-                          </Button>
+                          >{t('删除')}                          </Button>
                         </TableCell>
                       )}
                     </TableRow>

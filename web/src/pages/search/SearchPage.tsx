@@ -22,6 +22,9 @@ import { ResultsTable } from './ResultsTable'
 import type { ResultRow } from './ResultsTable'
 
 import './search.css'
+import { tr } from '../../i18n'
+
+const t = tr('search')
 
 // 搜索页（console-m8 §6.4 / reverse §3.3——T-449 / FR-144.6 搜索栈翻新，
 // parity B-2.11/13/14 + B-3.14/15/16 归一承载）：
@@ -59,11 +62,11 @@ const PAGE = 100
  *  大小/sha256 为列选器可选项（defaultHidden——lib/columnPrefs T-449 语义）。
  *  label 与表头一致；anchor = 菜单项锚（T-414 族扩 name）。 */
 const COLUMNS: ColumnDef[] = [
-  { id: 'name', label: '制品', anchor: 'search-columns-item-name' },
-  { id: 'path', label: '路径', anchor: 'search-columns-item-path' },
-  { id: 'repo', label: '仓库', anchor: 'search-columns-item-repo' },
-  { id: 'modified', label: '修改时间', anchor: 'search-columns-item-modified' },
-  { id: 'size', label: '大小', anchor: 'search-columns-item-size' },
+  { id: 'name', label: t('制品'), anchor: 'search-columns-item-name' },
+  { id: 'path', label: t('路径'), anchor: 'search-columns-item-path' },
+  { id: 'repo', label: t('仓库'), anchor: 'search-columns-item-repo' },
+  { id: 'modified', label: t('修改时间'), anchor: 'search-columns-item-modified' },
+  { id: 'size', label: t('大小'), anchor: 'search-columns-item-size' },
   { id: 'sha256', label: 'sha256', anchor: 'search-columns-item-sha256' },
 ]
 const COLUMN_IDS = COLUMNS.map((c) => c.id)
@@ -120,10 +123,10 @@ function ColumnsMenu({ cols }: { cols: ColumnPrefs }) {
         aria-haspopup="menu"
         aria-expanded={colsOpen}
         data-testid="search-columns"
-        title="自定义显示列（偏好保存在本浏览器）"
+        title={t('自定义显示列（偏好保存在本浏览器）')}
         onClick={(e) => setColsAnchor(e.currentTarget)}
       >
-        <span aria-hidden="true">▤</span> 列 {cols.visibleCount}/{COLUMNS.length}
+        <span aria-hidden="true">▤</span> {t('列')} {cols.visibleCount}/{COLUMNS.length}
       </Button>
       <Menu
         open={colsOpen}
@@ -143,7 +146,7 @@ function ColumnsMenu({ cols }: { cols: ColumnPrefs }) {
               role="menuitemcheckbox"
               aria-checked={visible}
               aria-disabled={last || undefined}
-              title={last ? '至少保留一列' : undefined}
+              title={last ? t('至少保留一列') : undefined}
               data-testid={c.anchor}
               onClick={() => {
                 if (!last) cols.toggle(c.id)
@@ -159,12 +162,10 @@ function ColumnsMenu({ cols }: { cols: ColumnPrefs }) {
         <Divider component="li" />
         <MenuItem
           aria-disabled={atDefault || undefined}
-          title={atDefault ? '已是默认列集' : '恢复默认列（大小/sha256 收回）'}
+          title={atDefault ? t('已是默认列集') : t('恢复默认列（大小/sha256 收回）')}
           data-testid="search-columns-reset"
           onClick={() => cols.reset()}
-        >
-          恢复默认列
-        </MenuItem>
+        >{t('恢复默认列')}        </MenuItem>
       </Menu>
     </span>
   )
@@ -203,7 +204,7 @@ export default function SearchPage() {
 
   return (
     <div data-testid="search-page">
-      <h2 className="search-headline">搜索制品</h2>
+      <h2 className="search-headline">{t('搜索制品')}</h2>
       {/* T-419（FR-135.1）：模式切换——基本（顶栏驻留查询 + 结果网格）↔
           AQL 编辑器；切模式不丢 AQL 侧已写查询（组件卸载/重挂的 T-419
           行为维持：编辑器文本不跨切换保留，深链 ?mode=aql 是重入通道） */}
@@ -214,7 +215,7 @@ export default function SearchPage() {
         onChange={(_, v) => {
           if (v !== null) switchMode(v)
         }}
-        aria-label="搜索模式"
+        aria-label={t('搜索模式')}
         data-testid="search-mode"
         sx={{
           mb: 2,
@@ -223,9 +224,7 @@ export default function SearchPage() {
           '& .MuiToggleButton-root:not(.Mui-selected)': { color: 'text.primary' },
         }}
       >
-        <ToggleButton value="basic" data-testid="search-mode-basic">
-          基本
-        </ToggleButton>
+        <ToggleButton value="basic" data-testid="search-mode-basic">{t('基本')}        </ToggleButton>
         <ToggleButton value="aql" data-testid="search-mode-aql">
           AQL
         </ToggleButton>
@@ -236,15 +235,10 @@ export default function SearchPage() {
       ) : (
         <>
           {q !== '' && results.status === 'ok' && (
-            <p className="search-count" data-testid="search-count">
-              搜索结果 – {count} 项
-            </p>
+            <p className="search-count" data-testid="search-count">{t('搜索结果 –')} {count} {t('项')}            </p>
           )}
           {q === '' && (
-            <p className="text-2 search-sub">
-              查询在顶栏驻留：上方搜索框输入名称/路径子串并 Enter（⌘K 或 / 可从任意页跳入），结果在此呈现并按你的路径
-              ACL 过滤。checksum 反查（sha256/sha1/md5）暂未接入 UI——见 CLI 文档。
-            </p>
+            <p className="text-2 search-sub">{t('查询在顶栏驻留：上方搜索框输入名称/路径子串并 Enter（⌘K 或 / 可从任意页跳入），结果在此呈现并按你的路径 ACL 过滤。checksum 反查（sha256/sha1/md5）暂未接入 UI——见 CLI 文档。')}            </p>
           )}
 
           {/* 列选器：结果网格不在场时由独立工具行承载（列选是结果表的
@@ -261,8 +255,8 @@ export default function SearchPage() {
           {q === '' ? (
             <EmptyState
               illustration
-              message="在顶栏输入关键词开始搜索"
-              hint="顶栏搜索框（⌘K）输入子串（如 libcore、acme/app、1.0.3）后回车——空关键词不发起查询；网格内快滤可再窄化已取回的结果。"
+              message={t('在顶栏输入关键词开始搜索')}
+              hint={t('顶栏搜索框（⌘K）输入子串（如 libcore、acme/app、1.0.3）后回车——空关键词不发起查询；网格内快滤可再窄化已取回的结果。')}
             />
           ) : results.status === 'loading' ? (
             <div data-testid="skeleton" aria-hidden="true" style={{ paddingTop: 8 }}>
@@ -275,8 +269,8 @@ export default function SearchPage() {
           ) : count === 0 ? (
             <EmptyState
               illustration
-              message={`没有匹配「${q}」的制品`}
-              hint="检查拼写或换更短的子串；结果按你的权限过滤。"
+              message={t('没有匹配「{q}」的制品', { q: q })}
+              hint={t('检查拼写或换更短的子串；结果按你的权限过滤。')}
             />
           ) : (
             <ResultsTable

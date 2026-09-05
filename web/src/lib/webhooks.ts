@@ -19,6 +19,9 @@
 //   拷贝——服务端校验终裁，FE 表仅驱动下拉分组与 wired/dormant 标注）。
 
 import { ApiError } from './api'
+import { tr } from '../i18n'
+
+const tt = tr('console')
 
 /** 事件面根（E-26 前缀 + 官方段名逐字） */
 const EVENT_ROOT = '/binflow/event/api/v1'
@@ -189,19 +192,19 @@ export const EVENT_DOMAINS = [
 
 /** 域展示名（UI 分组标签；en 原词保留，console-ux §1.2） */
 export const DOMAIN_LABELS: Record<string, string> = {
-  artifact: 'artifact（制品部署/删除/移动/复制/缓存）',
-  artifact_property: 'artifact_property（属性增删）',
-  docker: 'docker（tag push/删除）',
-  build: 'build（Build-info，M14+）',
-  release_bundle: 'release_bundle（RBv1，不建）',
+  artifact: tt('artifact（制品部署/删除/移动/复制/缓存）'),
+  artifact_property: tt('artifact_property（属性增删）'),
+  docker: tt('docker（tag push/删除）'),
+  build: tt('build（Build-info，M14+）'),
+  release_bundle: tt('release_bundle（RBv1，不建）'),
   release_bundle_v2: 'release_bundle_v2',
   release_bundle_v2_promotion: 'release_bundle_v2_promotion',
-  distribution: 'distribution（Distribution 外部产品）',
-  destination: 'destination（Edge 节点，不建）',
-  curation: 'curation（Curation 外部产品）',
-  user: 'user（账户锁定）',
-  xray_scan_status: 'xray_scan_status（Xray，Non-goal）',
-  app_trust: 'app_trust（AppTrust 外部产品）',
+  distribution: tt('distribution（Distribution 外部产品）'),
+  destination: tt('destination（Edge 节点，不建）'),
+  curation: tt('curation（Curation 外部产品）'),
+  user: tt('user（账户锁定）'),
+  xray_scan_status: tt('xray_scan_status（Xray，Non-goal）'),
+  app_trust: tt('app_trust（AppTrust 外部产品）'),
 }
 
 /**

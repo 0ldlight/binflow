@@ -25,6 +25,9 @@ import {
 } from './aql'
 import { ResultsTable } from './ResultsTable'
 import type { ResultRow } from './ResultsTable'
+import { tr } from '../../i18n'
+
+const tt = tr('search')
 
 // AQL 模式面板（T-419，FR-135.1；T-449 起结果网格归一 ResultsTable）：
 //
@@ -107,18 +110,18 @@ function toRow(r: AQLRow, i: number): ResultRow {
 }
 
 function errorHeadline(err: ApiError): string {
-  if (err.status === 400) return '查询被拒绝（HTTP 400）'
-  if (err.status === 408) return '查询超时（HTTP 408）'
-  if (err.status === 429) return '并发已满（HTTP 429）'
-  if (err.status >= 500 || err.status === 0) return '服务暂不可用'
-  return `请求失败（HTTP ${err.status}）`
+  if (err.status === 400) return tt('查询被拒绝（HTTP 400）')
+  if (err.status === 408) return tt('查询超时（HTTP 408）')
+  if (err.status === 429) return tt('并发已满（HTTP 429）')
+  if (err.status >= 500 || err.status === 0) return tt('服务暂不可用')
+  return tt('请求失败（HTTP {v1}）', { v1: err.status })
 }
 
 function errorHint(err: ApiError): string | null {
   if (err.status === 400)
-    return '文案为服务端逐字回显——检查字段/操作符/域（BinFlow 子集：items + property 域，$not 与 builds/statistics 等域不支持）与链序 include→sort→offset→limit。'
-  if (err.status === 408) return '查询超过执行上限（10s）——收窄条件或加 .limit()。'
-  if (err.status === 429) return '并发查询已达上限（4），稍后重试（服务端随 429 下发 Retry-After）。'
+    return tt('文案为服务端逐字回显——检查字段/操作符/域（BinFlow 子集：items + property 域，$not 与 builds/statistics 等域不支持）与链序 include→sort→offset→limit。')
+  if (err.status === 408) return tt('查询超过执行上限（10s）——收窄条件或加 .limit()。')
+  if (err.status === 429) return tt('并发查询已达上限（4），稍后重试（服务端随 429 下发 Retry-After）。')
   return null
 }
 
@@ -207,7 +210,7 @@ export function AqlPanel({
           slotProps={{
             htmlInput: {
               'data-testid': 'search-aql-input',
-              'aria-label': 'AQL 查询',
+              'aria-label': tt('AQL 查询'),
               className: 'mono',
               spellCheck: false,
               lang: 'en',
@@ -217,28 +220,21 @@ export function AqlPanel({
         <Button
           variant="contained"
           data-testid="search-aql-run"
-          title="执行查询（⌘/Ctrl+Enter）"
+          title={tt('执行查询（⌘/Ctrl+Enter）')}
           disabled={text.trim() === ''}
           onClick={() => run(text)}
           sx={{ alignSelf: 'flex-start', mt: '2px' }}
-        >
-          执行
-        </Button>
+        >{tt('执行')}        </Button>
       </div>
       <div className="aql-tail">
-        <p className="text-2 search-sub">
-          BinFlow AQL 子集：items 域 + property 域（{'{'}
+        <p className="text-2 search-sub">{tt('BinFlow AQL 子集：items 域 + property 域（')}{'{'}
           <span className="mono" lang="en">
             &quot;@key&quot;:&quot;value&quot;
           </span>
-          {'}'}）；操作符 $eq/$ne/$gt/$gte/$lt/$lte/$match/$nmatch/$and/$or/$msp/$last/$before。
-          未支持域（builds/statistics…）与语法错 → 400 逐字文案。分页/排序由查询的
-          <span className="mono" lang="en">
+          {'}'}{tt('）；操作符 $eq/$ne/$gt/$gte/$lt/$lte/$match/$nmatch/$and/$or/$msp/$last/$before。 未支持域（builds/statistics…）与语法错 → 400 逐字文案。分页/排序由查询的')}          <span className="mono" lang="en">
             {' '}
             .sort()/.offset()/.limit()
-          </span>{' '}
-          尾缀承载——表头排序与分页控件（页码/每页行数）会改写查询文本。
-        </p>
+          </span>{' '}{tt('尾缀承载——表头排序与分页控件（页码/每页行数）会改写查询文本。')}        </p>
         {/* 列选器：结果网格不在场时由尾行承载（偏好预设定案，T-414——
             同一份壳，网格在场时改驻网格工具行，同一时刻仅一处） */}
         {!gridOn && toolbar}
@@ -259,21 +255,19 @@ export function AqlPanel({
       {range?.notification && (
         <Alert severity="warning" data-testid="search-aql-notification" sx={{ mb: 1.5 }}>
           <span lang="en">{range.notification}</span>
-          <div className="text-2">已按结果上限截断——用 .offset()/.limit() 分页继续取全量。</div>
+          <div className="text-2">{tt('已按结果上限截断——用 .offset()/.limit() 分页继续取全量。')}</div>
         </Alert>
       )}
 
       {!notRun && res.status === 'ok' && (
-        <p className="search-count" data-testid="search-count">
-          AQL 结果 – {rows.length} 行
-        </p>
+        <p className="search-count" data-testid="search-count">{tt('AQL 结果 –')} {rows.length} {tt('行')}        </p>
       )}
 
       {notRun ? (
         <EmptyState
           illustration
-          message="输入 AQL 查询并执行"
-          hint={`如 items.find({"repo":"<repo-key>"}).include("*").limit(10)——未命中的仓 key 也回 200 空集（无存在性泄漏）。`}
+          message={tt('输入 AQL 查询并执行')}
+          hint={tt('如 items.find({"repo":"<repo-key>"}).include("*").limit(10)——未命中的仓 key 也回 200 空集（无存在性泄漏）。')}
         />
       ) : res.status === 'loading' ? (
         <div data-testid="skeleton" aria-hidden="true" style={{ paddingTop: 8 }}>
@@ -284,8 +278,8 @@ export function AqlPanel({
       ) : failed ? null : rows.length === 0 || !range ? (
         <EmptyState
           illustration
-          message="查询命中 0 行"
-          hint="未命中的仓 key / 属性条件也回 200 空集——检查仓 key、路径条件与属性键值；结果按你的权限过滤。"
+          message={tt('查询命中 0 行')}
+          hint={tt('未命中的仓 key / 属性条件也回 200 空集——检查仓 key、路径条件与属性键值；结果按你的权限过滤。')}
         />
       ) : (
         <ResultsTable
@@ -298,10 +292,7 @@ export function AqlPanel({
           onSort={onSort}
           footer={
             <div className="search-footer" data-testid="search-aql-range">
-              <span>
-                range：start_pos {range.start_pos} · 本页 {rows.length} 行 · total {range.total}
-                （流式语义 = 本页行数，非全量计数）
-                {range.limit !== undefined ? ` · limit ${range.limit}` : ''}
+              <span>{tt('range：start_pos')} {range.start_pos} {tt('· 本页')} {rows.length} {tt('行 · total')} {range.total}{tt('（流式语义 = 本页行数，非全量计数）')}                {range.limit !== undefined ? ` · limit ${range.limit}` : ''}
               </span>
               <Pager
                 page={page}

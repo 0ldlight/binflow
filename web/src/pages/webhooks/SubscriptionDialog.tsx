@@ -33,6 +33,9 @@ import {
   updateSubscription,
 } from '../../lib/webhooks'
 import type { CriteriaForm, SubscriptionRequest, TestOutcome, WebhookSubscription } from '../../lib/webhooks'
+import { tr } from '../../i18n'
+
+const tt = tr('webhooks')
 
 // 新建/编辑订阅对话框（M13 T-366；交互形态 = console-artifactory-parity
 // M3/M4：居中 Dialog、动作右下 Cancel 左主按钮右、Esc/遮罩关闭）。
@@ -138,8 +141,8 @@ export default function SubscriptionDialog({
 
   const domainTypes = useMemo(() => typesOfDomain(draft.domain), [draft.domain])
   const managedCriteria = CRITERIA_MANAGED_DOMAINS.includes(draft.domain)
-  const keyError = draft.key === '' ? '' : KEY_RE.test(draft.key) ? '' : 'key 须字母开头，仅字母/数字/下划线/连字符'
-  const urlError = draft.url === '' ? '' : /^https?:\/\/.+/.test(draft.url) ? '' : 'URL 须为 http(s)://…'
+  const keyError = draft.key === '' ? '' : KEY_RE.test(draft.key) ? '' : tt('key 须字母开头，仅字母/数字/下划线/连字符')
+  const urlError = draft.url === '' ? '' : /^https?:\/\/.+/.test(draft.url) ? '' : tt('URL 须为 http(s)://…')
   const emptyScope = managedCriteria && criteriaEmptyScope(draft.criteria)
 
   const canSubmit =
@@ -194,12 +197,12 @@ export default function SubscriptionDialog({
       const body = buildBody()
       if (created) await createSubscription(body)
       else await updateSubscription(draft.key, body)
-      toast.success(created ? `订阅 ${draft.key} 已创建` : `订阅 ${draft.key} 已保存`)
+      toast.success(created ? tt('订阅 {v1} 已创建', { v1: draft.key }) : tt('订阅 {v1} 已保存', { v1: draft.key }))
       onSaved(created)
     } catch (err) {
       const msg =
         err instanceof ApiError && err.status === 403
-          ? `写入被拒（403）：${err.message}——webhook 为 pro+ 档特性，当前实例未解锁`
+          ? tt('写入被拒（403）：{v1}——webhook 为 pro+ 档特性，当前实例未解锁', { v1: err.message })
           : errText(err)
       setFormError(msg)
       toast.error(msg)
@@ -218,27 +221,25 @@ export default function SubscriptionDialog({
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth data-testid="wh-dialog">
       <DialogTitle>
-        {editing ? `编辑订阅 ${editing.key}` : '新建 Webhook 订阅'}
+        {editing ? tt('编辑订阅 {v1}', { v1: editing.key }) : tt('新建 Webhook 订阅')}
         {readOnly && (
-          <Typography variant="caption" component="div" color="text.secondary">
-            只读管理员：服务端拒绝写操作（403 兜底）
-          </Typography>
+          <Typography variant="caption" component="div" color="text.secondary">{tt('只读管理员：服务端拒绝写操作（403 兜底）')}          </Typography>
         )}
       </DialogTitle>
       <DialogContent dividers sx={{ display: 'grid', gap: 2, pt: 1 }}>
         <Box sx={{ display: 'grid', gridTemplateColumns: { sm: '1fr 2fr' }, gap: 2 }}>
           <TextField
-            label="key（创建后不可改）"
+            label={tt('key（创建后不可改）')}
             value={draft.key}
             onChange={(e) => setDraft((d) => ({ ...d, key: e.target.value }))}
             error={keyError !== ''}
-            helperText={keyError || '字母开头，仅字母/数字/下划线/连字符'}
+            helperText={keyError || tt('字母开头，仅字母/数字/下划线/连字符')}
             disabled={!!editing || readOnly}
             slotProps={{ htmlInput: { 'data-testid': 'wh-form-key', lang: 'en' } }}
             sx={monoInputSx}
           />
           <TextField
-            label="描述"
+            label={tt('描述')}
             value={draft.description}
             onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
             disabled={readOnly}
@@ -256,7 +257,7 @@ export default function SubscriptionDialog({
                 slotProps={{ input: { 'data-testid': 'wh-form-enabled' } as ComponentPropsWithoutRef<'input'> }}
               />
             }
-            label="启用（enabled）——官方默认建后禁用"
+            label={tt('启用（enabled）——官方默认建后禁用')}
           />
           <FormControlLabel
             control={
@@ -267,15 +268,15 @@ export default function SubscriptionDialog({
                 slotProps={{ input: { 'data-testid': 'wh-form-debug' } as ComponentPropsWithoutRef<'input'> }}
               />
             }
-            label="debug 排障记录（成功投递也入记录环）"
+            label={tt('debug 排障记录（成功投递也入记录环）')}
           />
         </Box>
 
         <Divider />
-        <Typography variant="subtitle2">事件（event_filter——单域，域内多选）</Typography>
+        <Typography variant="subtitle2">{tt('事件（event_filter——单域，域内多选）')}</Typography>
         <Box sx={{ display: 'grid', gridTemplateColumns: { sm: '1fr 1fr' }, gap: 2, alignItems: 'center' }}>
           <TextField
-            label="事件域（13 域闭集）"
+            label={tt('事件域（13 域闭集）')}
             select
             size="small"
             value={draft.domain}
@@ -295,10 +296,8 @@ export default function SubscriptionDialog({
             ))}
           </TextField>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Chip size="small" variant="outlined" color={draft.types.length > 0 ? 'success' : 'default'} label={`已选 ${draft.types.length}`} />
-            <Typography variant="caption" color="text.secondary">
-              已接线（wired）= BinFlow 有触发源；休眠（dormant）= 可订阅、校验通过、永不触发
-            </Typography>
+            <Chip size="small" variant="outlined" color={draft.types.length > 0 ? 'success' : 'default'} label={tt('已选 {v1}', { v1: draft.types.length })} />
+            <Typography variant="caption" color="text.secondary">{tt('已接线（wired）= BinFlow 有触发源；休眠（dormant）= 可订阅、校验通过、永不触发')}            </Typography>
           </Box>
         </Box>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, maxHeight: 168, overflowY: 'auto', border: 1, borderColor: 'divider', p: 1 }}>
@@ -318,9 +317,7 @@ export default function SubscriptionDialog({
                 <span lang="en">
                   {t.name}
                   {t.source === 'dormant' && (
-                    <Typography component="span" variant="caption" color="text.disabled" sx={{ ml: 0.5 }}>
-                      （休眠）
-                    </Typography>
+                    <Typography component="span" variant="caption" color="text.disabled" sx={{ ml: 0.5 }}>{tt('（休眠）')}                    </Typography>
                   )}
                 </span>
               }
@@ -332,7 +329,7 @@ export default function SubscriptionDialog({
         {managedCriteria ? (
           <>
             <Divider />
-            <Typography variant="subtitle2">过滤条件（criteria——仓库范围 + Ant 路径通配）</Typography>
+            <Typography variant="subtitle2">{tt('过滤条件（criteria——仓库范围 + Ant 路径通配）')}</Typography>
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
               <FormControlLabel
                 control={
@@ -343,7 +340,7 @@ export default function SubscriptionDialog({
                     slotProps={{ input: { 'data-testid': 'wh-form-any-local' } as ComponentPropsWithoutRef<'input'> }}
                   />
                 }
-                label="任意 local 仓（anyLocal，含未来新建）"
+                label={tt('任意 local 仓（anyLocal，含未来新建）')}
               />
               <FormControlLabel
                 control={
@@ -354,17 +351,15 @@ export default function SubscriptionDialog({
                     slotProps={{ input: { 'data-testid': 'wh-form-any-remote' } as ComponentPropsWithoutRef<'input'> }}
                   />
                 }
-                label="任意 remote 仓（anyRemote）"
+                label={tt('任意 remote 仓（anyRemote）')}
               />
             </Box>
             {emptyScope && (
-              <Alert severity="warning" data-testid="wh-form-scope-warn">
-                未选择任何仓库范围（anyLocal/anyRemote/repoKeys 全空）——订阅合法但**不会命中任何事件**（空选择不匹配）。
-              </Alert>
+              <Alert severity="warning" data-testid="wh-form-scope-warn">{tt('未选择任何仓库范围（anyLocal/anyRemote/repoKeys 全空）——订阅合法但**不会命中任何事件**（空选择不匹配）。')}              </Alert>
             )}
             <Box sx={{ display: 'grid', gridTemplateColumns: { sm: '1fr 1fr 1fr' }, gap: 2 }}>
               <TextField
-                label="仓库（repoKeys，逗号分隔）"
+                label={tt('仓库（repoKeys，逗号分隔）')}
                 value={draft.criteria.repoKeys}
                 onChange={(e) => setDraft((d) => ({ ...d, criteria: { ...d.criteria, repoKeys: e.target.value } }))}
                 disabled={readOnly}
@@ -372,7 +367,7 @@ export default function SubscriptionDialog({
                 sx={monoInputSx}
               />
               <TextField
-                label="include 路径 pattern（Ant，逗号分隔）"
+                label={tt('include 路径 pattern（Ant，逗号分隔）')}
                 value={draft.criteria.includePatterns}
                 onChange={(e) => setDraft((d) => ({ ...d, criteria: { ...d.criteria, includePatterns: e.target.value } }))}
                 disabled={readOnly}
@@ -380,7 +375,7 @@ export default function SubscriptionDialog({
                 sx={monoInputSx}
               />
               <TextField
-                label="exclude 路径 pattern（优先命中即排除）"
+                label={tt('exclude 路径 pattern（优先命中即排除）')}
                 value={draft.criteria.excludePatterns}
                 onChange={(e) => setDraft((d) => ({ ...d, criteria: { ...d.criteria, excludePatterns: e.target.value } }))}
                 disabled={readOnly}
@@ -390,33 +385,31 @@ export default function SubscriptionDialog({
             </Box>
           </>
         ) : (
-          <Alert severity="info" data-testid="wh-form-criteria-note">
-            该域的 criteria 维度（build/RB/distribution 等）不在控制台最小面内——REST 全量面可配；已有配置原样保留。
-          </Alert>
+          <Alert severity="info" data-testid="wh-form-criteria-note">{tt('该域的 criteria 维度（build/RB/distribution 等）不在控制台最小面内——REST 全量面可配；已有配置原样保留。')}          </Alert>
         )}
 
         <Divider />
-        <Typography variant="subtitle2">投递目标（handler——每订阅恰一个）</Typography>
+        <Typography variant="subtitle2">{tt('投递目标（handler——每订阅恰一个）')}</Typography>
         <TextField
-          label="接收器 URL（http/https）"
+          label={tt('接收器 URL（http/https）')}
           value={draft.url}
           onChange={(e) => setDraft((d) => ({ ...d, url: e.target.value }))}
           error={urlError !== ''}
-          helperText={urlError || '事件以 POST JSON 投递；3xx 不跟随、4xx 不重试、≥500/发送失败按固定 10s 重试至多 5 次'}
+          helperText={urlError || tt('事件以 POST JSON 投递；3xx 不跟随、4xx 不重试、≥500/发送失败按固定 10s 重试至多 5 次')}
           disabled={readOnly}
           slotProps={{ htmlInput: { 'data-testid': 'wh-form-url', lang: 'en' } }}
           sx={monoInputSx}
         />
         <Box sx={{ display: 'grid', gridTemplateColumns: { sm: '2fr 1fr' }, gap: 2, alignItems: 'start' }}>
           <TextField
-            label="secret（write-only）"
+            label={tt('secret（write-only）')}
             type="password"
             value={secret}
             onChange={(e) => {
               setSecret(e.target.value)
               if (e.target.value !== '') setSecretClear(false)
             }}
-            placeholder={draft.hasSecret ? '已设置——留空保持不变' : '未设置'}
+            placeholder={draft.hasSecret ? tt('已设置——留空保持不变') : tt('未设置')}
             disabled={readOnly}
             slotProps={{ htmlInput: { 'data-testid': 'wh-form-secret', autoComplete: 'new-password' } }}
           />
@@ -432,7 +425,7 @@ export default function SubscriptionDialog({
                 slotProps={{ input: { 'data-testid': 'wh-form-secret-clear' } as ComponentPropsWithoutRef<'input'> }}
               />
             }
-            label="清除已存 secret"
+            label={tt('清除已存 secret')}
           />
         </Box>
         <FormControlLabel
@@ -444,7 +437,7 @@ export default function SubscriptionDialog({
               slotProps={{ input: { 'data-testid': 'wh-form-sign' } as ComponentPropsWithoutRef<'input'> }}
             />
           }
-          label="use_secret_for_signing（true = 对载荷 HMAC-SHA256 签名置 X-JFrog-Event-Auth；false = secret 明文直传该头）"
+          label={tt('use_secret_for_signing（true = 对载荷 HMAC-SHA256 签名置 X-JFrog-Event-Auth；false = secret 明文直传该头）')}
         />
 
         {formError !== '' && (
@@ -458,10 +451,9 @@ export default function SubscriptionDialog({
             data-testid="wh-test-result"
           >
             <div>
-              {testResult.message ?? '（无回执）'}（<span lang="en">HTTP {testResult.attempt?.status_code ?? '—'}</span>
-              {testResult.attempt?.status_code === 0 ? '（无响应）' : ''}，耗时{' '}
-              <span className="mono" lang="en">{testResult.attempt?.elapsed_millis ?? '—'}ms</span>）
-            </div>
+              {testResult.message ?? tt('（无回执）')}{tt('（')}<span lang="en">HTTP {testResult.attempt?.status_code ?? '—'}</span>
+              {testResult.attempt?.status_code === 0 ? tt('（无响应）') : ''}{tt('，耗时')}{' '}
+              <span className="mono" lang="en">{testResult.attempt?.elapsed_millis ?? '—'}ms</span>{tt('）')}            </div>
           </Alert>
         )}
       </DialogContent>
@@ -472,19 +464,17 @@ export default function SubscriptionDialog({
           disabled={readOnly || testing || !KEY_RE.test(draft.key) || draft.types.length === 0 || !/^https?:\/\/.+/.test(draft.url)}
           data-testid="wh-form-test"
         >
-          {testing ? '发送中…' : '发送测试'}
+          {testing ? tt('发送中…') : tt('发送测试')}
         </Button>
         <Box sx={{ flexGrow: 1 }} />
-        <Button onClick={onClose} data-testid="wh-form-cancel">
-          取消
-        </Button>
+        <Button onClick={onClose} data-testid="wh-form-cancel">{tt('取消')}        </Button>
         <Button
           variant="contained"
           disabled={!canSubmit}
           onClick={() => void doSave(!editing)}
           data-testid="wh-form-submit"
         >
-          {submitting ? '保存中…' : editing ? '保存' : '创建'}
+          {submitting ? tt('保存中…') : editing ? tt('保存') : tt('创建')}
         </Button>
       </DialogActions>
     </Dialog>

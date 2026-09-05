@@ -5,6 +5,9 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { deleteSession, getWhoami, postSession, setUnauthorizedListener } from '../lib/api'
 import type { Whoami } from '../lib/api'
 import { useToast } from './ToastContext'
+import { tr } from '../i18n'
+
+const t = tr('console')
 
 // 会话状态（FR-23 / ADR-0014）：
 //
@@ -71,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       statusRef.current = 'anonymous'
       setSession(null)
       setStatus('anonymous')
-      toast.error('登录已过期，请重新登录')
+      toast.error(t('登录已过期，请重新登录'))
       const target = pathnameRef.current
       const safe = target.startsWith('/') && !target.startsWith('//') ? target : '/'
       navigate(`/login?return=${encodeURIComponent(safe)}`, { replace: true })

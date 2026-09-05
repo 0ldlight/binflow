@@ -13,6 +13,9 @@ import Typography from '@mui/material/Typography'
 import { useAuth } from '../app/AuthContext'
 import { BrandLockup } from '../components/BrandLogo'
 import { ApiError, errText } from '../lib/api'
+import { tr } from '../i18n'
+
+const t = tr('console')
 
 // 登录页（console-ux §4.1 / FR-23 W09；T-158 增 SSO）：独立布局（无侧
 // 导航壳）；用户名 + 口令；行内 401 错误（文案不泄露存在性——服务端本来
@@ -119,9 +122,9 @@ export default function LoginPage() {
     } catch (err) {
       // 401 统一呈现（不区分本地/LDAP/用户不存在/口令错误）；其他错误如实给 message
       if (err instanceof ApiError && err.status === 401) {
-        setError('用户名或密码错误')
+        setError(t('用户名或密码错误'))
       } else {
-        setError(`登录失败：${errText(err)}`)
+        setError(t('登录失败：{v1}', { v1: errText(err) }))
       }
       setSubmitting(false)
     }
@@ -144,9 +147,9 @@ export default function LoginPage() {
     if (avail === 'absent') {
       // 端点已消失：SSO 被关闭，收敛回密码表单
       setSso('off')
-      setSsoError('SSO 登录未启用，请使用用户名密码登录')
+      setSsoError(t('SSO 登录未启用，请使用用户名密码登录'))
     } else {
-      setSsoError('SSO 登录暂不可用（服务异常），请稍后重试或使用用户名密码登录')
+      setSsoError(t('SSO 登录暂不可用（服务异常），请稍后重试或使用用户名密码登录'))
     }
   }
 
@@ -173,9 +176,7 @@ export default function LoginPage() {
         <Typography variant="h5" component="h1" sx={{ lineHeight: 1 }}>
           <BrandLockup height={48} testid="brand-login-lockup" />
         </Typography>
-        <Typography color="text.secondary" sx={{ mt: 'var(--bf-sp-2)' }}>
-          制品仓库控制台
-        </Typography>
+        <Typography color="text.secondary" sx={{ mt: 'var(--bf-sp-2)' }}>{t('制品仓库控制台')}        </Typography>
       </Stack>
       {/* 表单本体保持原生 <form>（Enter 隐式提交链路零变化）；卡片面 =
           Paper elevation 3（§4.3 登录页目标态） */}
@@ -187,7 +188,7 @@ export default function LoginPage() {
       >
         <Stack sx={{ gap: 'var(--bf-sp-3)' }}>
           <TextField
-            label="用户名"
+            label={t('用户名')}
             size="small"
             fullWidth
             name="username"
@@ -198,7 +199,7 @@ export default function LoginPage() {
             slotProps={{ htmlInput: { className: 'mono', 'data-testid': 'login-username', spellCheck: false } }}
           />
           <TextField
-            label="密码"
+            label={t('密码')}
             size="small"
             fullWidth
             name="password"
@@ -214,13 +215,11 @@ export default function LoginPage() {
             </Alert>
           )}
           <Button type="submit" variant="contained" size="medium" fullWidth data-testid="login-submit" disabled={!canSubmit}>
-            {submitting ? '登录中…' : '登录'}
+            {submitting ? t('登录中…') : t('登录')}
           </Button>
           {sso === 'on' && (
             <>
-              <Divider className="login-divider" aria-hidden="true">
-                或
-              </Divider>
+              <Divider className="login-divider" aria-hidden="true">{t('或')}              </Divider>
               <Button
                 type="button"
                 variant="outlined"
@@ -230,7 +229,7 @@ export default function LoginPage() {
                 disabled={ssoBusy}
                 onClick={() => void onSSO()}
               >
-                {ssoBusy ? '正在跳转…' : '使用 SSO 登录'}
+                {ssoBusy ? t('正在跳转…') : t('使用 SSO 登录')}
               </Button>
             </>
           )}
@@ -243,17 +242,13 @@ export default function LoginPage() {
       </Paper>
       {/* 常驻说明 + 文档链接（console-m8 §6.1 [6]）。链接带下划线：弱化色
           说明文字中的链接需非色彩信号区分（axe link-in-text-block） */}
-      <Typography component="p" variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>
-        管理面需认证。CI 与脚本请使用 API Token。
-        <a
+      <Typography component="p" variant="body2" color="text.secondary" sx={{ textAlign: 'center' }}>{t('管理面需认证。CI 与脚本请使用 API Token。')}        <a
           href="/binflow/docs/api-reference"
           target="_blank"
           rel="noopener noreferrer"
           data-testid="login-docs"
           style={{ marginLeft: 8, textDecoration: 'underline', textUnderlineOffset: 2 }}
-        >
-          查看文档
-        </a>
+        >{t('查看文档')}        </a>
       </Typography>
     </Stack>
   )

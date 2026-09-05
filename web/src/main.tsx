@@ -14,6 +14,9 @@ import './styles/tokens.css'
 import './styles/base.css'
 import './styles/pages.css'
 import './styles/governance.css'
+import { initI18n, tr } from './i18n'
+
+const t = tr('console')
 
 // OIDC step-up 回跳 fragment 消费（T-260 / architecture §14.3-2）：必须在
 // React 树渲染前同步完成——grant 提取入内存 + history.replaceState 抹除
@@ -90,9 +93,7 @@ const AppShell = lazy(() => import('./components/AppShell'))
 function RouteFallback() {
   return (
     <div className="route-fallback">
-      <CircularProgress size={18} aria-label="页面加载中" sx={{ mr: 'var(--bf-sp-2)' }} />
-      加载中…
-    </div>
+      <CircularProgress size={18} aria-label={t('页面加载中')} sx={{ mr: 'var(--bf-sp-2)' }} />{t('加载中…')}    </div>
   )
 }
 
@@ -106,7 +107,11 @@ function RepoCreateCompat() {
   return <Navigate to={`/admin/repositories/${target}/new`} replace />
 }
 
-createRoot(document.getElementById('root')!).render(
+// i18n 引导闸（T-463，FR-149.1）：渲染前就位——同步 <html lang>；en
+// locale 时懒载 en 目录包（zh 零开销零请求）。门后渲染保证模块级 t()
+// 求值点（formCopy 等常量模块）在目录包注册完成之后执行。
+initI18n().then(() => {
+  createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ThemeProvider>
       {/* MUI 主题桥（T-291 首票）：palette 对齐 tokens.css、深浅色跟随
@@ -273,4 +278,5 @@ createRoot(document.getElementById('root')!).render(
       </MuiProvider>
     </ThemeProvider>
   </StrictMode>,
-)
+  )
+})

@@ -24,6 +24,9 @@ import { DOWNLOAD_COPY, EMPTY_VALUE, NO_SOURCE_HINTS, REPO_FIELD_LABELS, REMOTE_
 import { contentFileURL, getItem, getItemPermissions, getNodeStats, getRepoUsageCounts } from './lib'
 import type { ChildNode, ItemInfo } from './lib'
 import PropertiesTab from './PropertiesTab'
+import { tr } from '../../i18n'
+
+const tt = tr('artifacts')
 
 // 详情面板（console-m8 §3.3 C4 / §6.3[2]——跨仓树右联）：
 //
@@ -128,7 +131,7 @@ export default function NodeDetail({
   const isFile = target.kind === 'node' && !target.node.folder
 
   return (
-    <section className="card section node-detail" data-testid="node-detail" aria-label="节点详情">
+    <section className="card section node-detail" data-testid="node-detail" aria-label={tt('节点详情')}>
       <header className="node-detail-head">
         <h3>
           {target.kind === 'repo' ? (
@@ -166,13 +169,9 @@ export default function NodeDetail({
              
               data-testid="delete-node-button"
               onClick={() => onDelete(target.node)}
-            >
-              删除
-            </Button>
+            >{tt('删除')}            </Button>
           )}
-          <Button variant="outlined" size="small" onClick={onClose}>
-            关闭
-          </Button>
+          <Button variant="outlined" size="small" onClick={onClose}>{tt('关闭')}          </Button>
         </div>
       </header>
 
@@ -189,12 +188,12 @@ export default function NodeDetail({
         value={activeTab}
         onChange={(_e, id: DetailTab) => onTabChange(id)}
         selectionFollowsFocus
-        aria-label="详情视图"
+        aria-label={tt('详情视图')}
         sx={{ borderBottom: 1, borderColor: 'divider', mb: 'var(--bf-sp-3)' }}
       >
-        <Tab value="general" label="常规" data-testid="node-tab-general" />
-        {admin && <Tab value="perms" label="有效权限" data-testid="node-tab-perms" />}
-        {target.kind === 'node' && <Tab value="props" label="属性" data-testid="node-tab-props" />}
+        <Tab value="general" label={tt('常规')} data-testid="node-tab-general" />
+        {admin && <Tab value="perms" label={tt('有效权限')} data-testid="node-tab-perms" />}
+        {target.kind === 'node' && <Tab value="props" label={tt('属性')} data-testid="node-tab-props" />}
       </Tabs>
 
       {activeTab === 'general' ? (
@@ -331,7 +330,7 @@ function FileDownloadActions({
               {DOWNLOAD_COPY.checksumsHeader}
             </Typography>
             {!item ? (
-              <Typography variant="body2" color="text.secondary">元数据加载中…</Typography>
+              <Typography variant="body2" color="text.secondary">{tt('元数据加载中…')}</Typography>
             ) : (
               <>
                 <div className="kv">
@@ -353,9 +352,8 @@ function FileDownloadActions({
                         {orig && (
                           <span
                             className={`checksum-badge ${orig === v ? 'ok-badge' : 'warning'}`}
-                            title="客户端上传时提供的 checksum 与服务端实际值比对"
-                          >
-                            上传时提供：{orig === v ? '一致 ✓' : '不一致'}
+                            title={tt('客户端上传时提供的 checksum 与服务端实际值比对')}
+                          >{tt('上传时提供：')}{orig === v ? tt('一致 ✓') : tt('不一致')}
                           </span>
                         )}
                       </span>
@@ -389,24 +387,22 @@ function RepoGeneral({ repoKey }: { repoKey: string }) {
   if (meta.status === 'loading') return <Skeleton lines={4} />
   if (meta.status === 'forbidden') {
     return (
-      <p className="text-2">
-        仓库元数据为管理员视图（HTTP 403）——树按 generic 语义呈现；上传/删除权限由内容面按路径 ACL 判定。
-      </p>
+      <p className="text-2">{tt('仓库元数据为管理员视图（HTTP 403）——树按 generic 语义呈现；上传/删除权限由内容面按路径 ACL 判定。')}      </p>
     )
   }
   if (meta.status === 'error' || !meta.data) {
-    return <p className="text-2">详情加载失败（HTTP {meta.error?.status ?? 0}）。</p>
+    return <p className="text-2">{tt('详情加载失败（HTTP')} {meta.error?.status ?? 0}{tt('）。')}</p>
   }
   const m = meta.data
   return (
     <div className="node-detail-grid">
       <div>
         <div className="kv">
-          <span className="k">名称</span>
+          <span className="k">{tt('名称')}</span>
           <span className="mono" lang="en">{m.key}</span>
         </div>
         <div className="kv">
-          <span className="k">包类型</span>
+          <span className="k">{tt('包类型')}</span>
           <span>
             <Chip size="small" className="badge neutral" label={m.packageType} />{' '}
             <Chip size="small" className="badge neutral" label={m.rclass} />
@@ -415,7 +411,7 @@ function RepoGeneral({ repoKey }: { repoKey: string }) {
         <div className="kv">
           <span className="k">Repository Path</span>
           <span className="mono" style={{ wordBreak: 'break-all' }} lang="en">
-            {m.key}/ <CopyButton value={`${m.key}/`} label="仓库路径" />
+            {m.key}/ <CopyButton value={`${m.key}/`} label={tt('仓库路径')} />
           </span>
         </div>
         {m.url && (
@@ -454,10 +450,10 @@ function RepoGeneral({ repoKey }: { repoKey: string }) {
               </span>
             </div>
             <div className="kv">
-              <span className="k">大小</span>
+              <span className="k">{tt('大小')}</span>
               <span className="mono">{formatBytes(usage.data.usedBytes)}</span>
               {usage.data.quotaBytes > 0 && (
-                <span className="text-2"> / 配额 {formatBytes(usage.data.quotaBytes)}</span>
+                <span className="text-2"> {tt('/ 配额')} {formatBytes(usage.data.quotaBytes)}</span>
               )}
             </div>
           </>
@@ -511,19 +507,19 @@ function NodeGeneral({
         </p>
       )
     }
-    return <p className="text-2">详情加载失败（HTTP {itemError?.status ?? 0}）——列表数据仍然有效。</p>
+    return <p className="text-2">{tt('详情加载失败（HTTP')} {itemError?.status ?? 0}{tt('）——列表数据仍然有效。')}</p>
   }
   return (
     <div className="node-detail-grid">
       <div>
         <div className="kv">
-          <span className="k">名称</span>
+          <span className="k">{tt('名称')}</span>
           <span className="mono" lang="en">{node.name}</span>
         </div>
         <div className="kv">
           <span className="k">Repository Path</span>
           <span className="mono" style={{ wordBreak: 'break-all' }} lang="en">
-            {repoKey}/{nodeRef} <CopyButton value={`${repoKey}/${nodeRef}`} label="制品路径" />
+            {repoKey}/{nodeRef} <CopyButton value={`${repoKey}/${nodeRef}`} label={tt('制品路径')} />
           </span>
         </div>
         <div className="kv">
@@ -533,12 +529,12 @@ function NodeGeneral({
           </span>
         </div>
         <div className="kv">
-          <span className="k">部署者</span>
+          <span className="k">{tt('部署者')}</span>
           <span lang="en">{item.createdBy || EMPTY_VALUE}</span>
         </div>
         {!node.folder && (
           <div className="kv">
-            <span className="k">大小</span>
+            <span className="k">{tt('大小')}</span>
             <span className="mono">{item.size}</span>
           </div>
         )}
@@ -548,7 +544,7 @@ function NodeGeneral({
         </div>
         {item.lastModified && (
           <div className="kv">
-            <span className="k">修改时间</span>
+            <span className="k">{tt('修改时间')}</span>
             <span className="mono">{item.lastModified}</span>
           </div>
         )}
@@ -564,16 +560,16 @@ function NodeGeneral({
           // Size 口径 = 直系文件已知大小合计，folder 无 size 契约不虚构）
           <>
             <div className="kv">
-              <span className="k">子项（Artifact Count）</span>
+              <span className="k">{tt('子项（Artifact Count）')}</span>
               <span className="mono">
                 {childrenNodes
-                  ? `目录 ${childrenNodes.filter((n) => n.folder).length} · 文件 ${childrenNodes.filter((n) => !n.folder).length}`
-                  : `${item.children?.length ?? 0} 项`}
+                  ? tt('目录 {v1} · 文件 {v2}', { v1: childrenNodes.filter((n) => n.folder).length, v2: childrenNodes.filter((n) => !n.folder).length })
+                  : tt('{v1} 项', { v1: item.children?.length ?? 0 })}
               </span>
             </div>
             {childrenNodes && childrenNodes.some((n) => !n.folder && n.size !== null) && (
               <div className="kv">
-                <span className="k">Size（直系文件合计）</span>
+                <span className="k">{tt('Size（直系文件合计）')}</span>
                 <span className="mono">
                   {formatBytes(childrenNodes.reduce((acc, n) => acc + (!n.folder && n.size !== null ? n.size : 0), 0))}
                 </span>
@@ -584,8 +580,8 @@ function NodeGeneral({
         {/* ---- BinFlow 自有增强（parity 族之后；mimeType/Checksums 块已随
               Q9 终裁收进下载伴随菜单〔T-447〕——General 页不再平铺）---- */}
         <div className="kv">
-          <span className="k">类型</span>
-          <span>{node.folder ? '目录' : '文件'}</span>
+          <span className="k">{tt('类型')}</span>
+          <span>{node.folder ? tt('目录') : tt('文件')}</span>
         </div>
         {/* docker 特化：manifest digest 行的 tag 徽标（T-134 G32a） */}
         {!node.folder && node.tags && node.tags.length > 0 && (
@@ -671,18 +667,11 @@ function PermsTab({ target }: { target: DetailTarget }) {
     <div className="node-perms" data-testid="node-perms">
       {perms.status === 'loading' && <Skeleton lines={2} />}
       {perms.status === 'error' && (
-        <p className="text-2" title={perms.error?.message}>
-          权限视图不可用（HTTP {perms.error?.status}）
-        </p>
+        <p className="text-2" title={perms.error?.message}>{tt('权限视图不可用（HTTP')} {perms.error?.status}{tt('）')}        </p>
       )}
       {perms.status === 'ok' && perms.data && <PrincipalList view={perms.data} />}
-      <p className="field-hint">
-        该视图与服务端授权判定同源；授权编辑见{' '}
-        <Link to="/admin/security/permissions" target="_blank">
-          权限 target
-        </Link>
-        。
-      </p>
+      <p className="field-hint">{tt('该视图与服务端授权判定同源；授权编辑见')}{' '}
+        <Link to="/admin/security/permissions" target="_blank">{tt('权限 target')}        </Link>{tt('。')}      </p>
     </div>
   )
 }
@@ -695,7 +684,7 @@ function PrincipalList({
   const users = Object.entries(view.principals.users ?? {})
   const groups = Object.entries(view.principals.groups ?? {})
   if (users.length === 0 && groups.length === 0) {
-    return <p className="text-2">没有 permission target 覆盖此路径（admin 隐式全权）。</p>
+    return <p className="text-2">{tt('没有 permission target 覆盖此路径（admin 隐式全权）。')}</p>
   }
   return (
     <div className="perm-chips">

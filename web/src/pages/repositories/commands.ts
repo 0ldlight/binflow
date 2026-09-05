@@ -8,6 +8,9 @@
 // ——与后端 requestBase 的 scheme://host 口径一致）。
 
 import type { PackageType } from '../../lib/repos'
+import { tr } from '../../i18n'
+
+const t = tr('repositories')
 
 export interface CommandBlock {
   title: string
@@ -42,19 +45,19 @@ export interface ClientCreds {
 export function placeholderCreds(username: string): ClientCreds {
   return {
     username: username || '<USERNAME>',
-    secret: '<TOKEN 或口令>',
-    npmAuth: '<base64 of 用户名:令牌>',
+    secret: t('<TOKEN 或口令>'),
+    npmAuth: t('<base64 of 用户名:令牌>'),
   }
 }
 
 /** 包类型网格（console-m8 C7 五项闭集；图标不在元数据里——SetMeUp 药丸
  *  的 PkgIcon 按 id 解析，T-390 起五枚几何字符图标退役） */
 export const CLIENT_PKG_META: { id: PackageType; label: string; desc: string }[] = [
-  { id: 'generic', label: 'Generic', desc: '任意文件（curl / CI 脚本直传）' },
-  { id: 'docker', label: 'Docker', desc: 'OCI 镜像（docker login / push）' },
-  { id: 'maven', label: 'Maven', desc: 'JVM 构件（settings.xml + mvn deploy）' },
-  { id: 'npm', label: 'npm', desc: 'Node 包（.npmrc + npm publish）' },
-  { id: 'pypi', label: 'PyPI', desc: 'Python 包（pip.conf / twine）' },
+  { id: 'generic', label: 'Generic', desc: t('任意文件（curl / CI 脚本直传）') },
+  { id: 'docker', label: 'Docker', desc: t('OCI 镜像（docker login / push）') },
+  { id: 'maven', label: 'Maven', desc: t('JVM 构件（settings.xml + mvn deploy）') },
+  { id: 'npm', label: 'npm', desc: t('Node 包（.npmrc + npm publish）') },
+  { id: 'pypi', label: 'PyPI', desc: t('Python 包（pip.conf / twine）') },
 ]
 
 /** 门控包型回退块（M10 T-288）：命令块内容与 docs/user 同源（文件头注），
@@ -63,9 +66,9 @@ export const CLIENT_PKG_META: { id: PackageType; label: string; desc: string }[]
 function gatedPkgBlock(packageType: PackageType, repoKey: string): CommandBlock[] {
   return [
     {
-      title: '客户端接入',
+      title: t('客户端接入'),
       lang: 'bash',
-      text: [`# ${packageType} 仓库 ${repoKey}：接入命令暂未收入控制台，见帮助文档（docs/user）。`].join('\n'),
+      text: [t('# {packageType} 仓库 {repoKey}：接入命令暂未收入控制台，见帮助文档（docs/user）。', { packageType: packageType, repoKey: repoKey })].join('\n'),
     },
   ]
 }
@@ -88,16 +91,16 @@ export function smuConfigureCommands(packageType: PackageType, repoKey: string, 
     case 'docker':
       return [
         {
-          title: 'Docker 登录',
+          title: t('Docker 登录'),
           lang: 'bash',
           text: [`echo "${creds.secret}" | docker login ${origin} -u ${creds.username} --password-stdin`].join('\n'),
-          note: '登录一次后 push/pull 自动完成 Bearer 协商；明文 HTTP 需配置 insecure-registries（见 docs/user/docker-registry.md）。',
+          note: t('登录一次后 push/pull 自动完成 Bearer 协商；明文 HTTP 需配置 insecure-registries（见 docs/user/docker-registry.md）。'),
         },
       ]
     case 'maven':
       return [
         {
-          title: 'settings.xml（服务器定义）',
+          title: t('settings.xml（服务器定义）'),
           lang: 'xml',
           text: [
             `<!-- ~/.m2/settings.xml -->`,
@@ -111,13 +114,13 @@ export function smuConfigureCommands(packageType: PackageType, repoKey: string, 
             `  </servers>`,
             `</settings>`,
           ].join('\n'),
-          note: '放置位置：${user.home}/.m2/settings.xml / ${maven.home}/conf/settings.xml / 自定义 -s settings.xml。',
+          note: t('放置位置：${user.home}/.m2/settings.xml / ${maven.home}/conf/settings.xml / 自定义 -s settings.xml。'),
         },
       ]
     case 'npm':
       return [
         {
-          title: '.npmrc（项目根目录）',
+          title: t('.npmrc（项目根目录）'),
           lang: 'ini',
           text: [
             `registry=${origin}/binflow/api/npm/${repoKey}/`,
@@ -125,8 +128,8 @@ export function smuConfigureCommands(packageType: PackageType, repoKey: string, 
             `always-auth=true`,
           ].join('\n'),
           note: creds.npmAuth.startsWith('<')
-            ? '_auth 生成：printf \'%s:%s\' "<用户名>" "<令牌>" | base64；裸 _auth 会被 npm 10 拒绝，凭据行必须带 //host/路径/ 前缀。'
-            : '凭据行必须带 //host/路径/ 前缀（npm 10 实测坑，npm.md §2）。',
+            ? t('_auth 生成：printf \'%s:%s\' "<用户名>" "<令牌>" | base64；裸 _auth 会被 npm 10 拒绝，凭据行必须带 //host/路径/ 前缀。')
+            : t('凭据行必须带 //host/路径/ 前缀（npm 10 实测坑，npm.md §2）。'),
         },
       ]
     case 'pypi':
@@ -146,29 +149,29 @@ export function smuResolveCommands(packageType: PackageType, repoKey: string): C
     case 'generic':
       return [
         {
-          title: '下载与校验（curl）',
+          title: t('下载与校验（curl）'),
           lang: 'bash',
           text: [
-            `# 下载与校验（响应头携带服务端实测 sha256；匿名读默认开）`,
+            t('# 下载与校验（响应头携带服务端实测 sha256；匿名读默认开）'),
             `curl -sI ${origin}/binflow/${repoKey}/acme/app.tar.gz | grep -i x-checksum-sha256`,
             `curl -O ${origin}/binflow/${repoKey}/acme/app.tar.gz`,
           ].join('\n'),
-          note: '需要认证的读路径加 -u <用户名>:<令牌>。',
+          note: t('需要认证的读路径加 -u <用户名>:<令牌>。'),
         },
       ]
     case 'docker':
       return [
         {
-          title: '拉取镜像',
+          title: t('拉取镜像'),
           lang: 'bash',
           text: [`docker pull ${origin}/${repoKey}/acme/app:v1`].join('\n'),
-          note: '镜像名首段是仓库 key（单段 name 404）；登录见「配置」Tab。',
+          note: t('镜像名首段是仓库 key（单段 name 404）；登录见「配置」Tab。'),
         },
       ]
     case 'maven':
       return [
         {
-          title: '解析：pom <repositories>',
+          title: t('解析：pom <repositories>'),
           lang: 'xml',
           text: [
             `<repositories>`,
@@ -178,30 +181,30 @@ export function smuResolveCommands(packageType: PackageType, repoKey: string): C
             `  </repository>`,
             `</repositories>`,
           ].join('\n'),
-          note: '团队统一出口建议 settings.xml <mirror> 收口到 virtual 仓（见 docs/user/integrations/maven.md §4）。',
+          note: t('团队统一出口建议 settings.xml <mirror> 收口到 virtual 仓（见 docs/user/integrations/maven.md §4）。'),
         },
       ]
     case 'npm':
       return [
         {
-          title: '安装与验证',
+          title: t('安装与验证'),
           lang: 'bash',
           text: [
-            `# registry 已在 Configure 侧的 .npmrc 指向本仓（配置不跨目录继承）`,
+            t('# registry 已在 Configure 侧的 .npmrc 指向本仓（配置不跨目录继承）'),
             `npm install demo-pkg`,
             `npm cache clean --force && rm -rf node_modules package-lock.json`,
             `npm install demo-pkg && node -e 'console.log(require("demo-pkg"))'`,
           ].join('\n'),
-          note: 'consumer 目录也需要 .npmrc（registry 配置不继承，缺省走公网——npm.md §4 实测坑）。',
+          note: t('consumer 目录也需要 .npmrc（registry 配置不继承，缺省走公网——npm.md §4 实测坑）。'),
         },
       ]
     case 'pypi':
       return [
         {
-          title: '安装侧：pip.conf',
+          title: t('安装侧：pip.conf'),
           lang: 'ini',
           text: [`[global]`, `index-url = ${origin}/binflow/api/pypi/${repoKey}/simple`].join('\n'),
-          note: '一次性用法：pip install --index-url <index-url> <包名>。',
+          note: t('一次性用法：pip install --index-url <index-url> <包名>。'),
         },
       ]
     default:
@@ -216,40 +219,40 @@ export function smuDeployCommands(packageType: PackageType, repoKey: string, cre
     case 'generic':
       return [
         {
-          title: '上传（curl PUT）',
+          title: t('上传（curl PUT）'),
           lang: 'bash',
           text: [
-            `# 上传（deploy 需认证；同路径重传 = 覆盖）`,
+            t('# 上传（deploy 需认证；同路径重传 = 覆盖）'),
             `curl -T app.tar.gz ${origin}/binflow/${repoKey}/acme/app.tar.gz -u ${creds.username}:${creds.secret}`,
           ].join('\n'),
-          note: '携带 X-Checksum-Sha256 请求头可做客户端校验与秒传；控制台内上传走「部署 Deploy」对话框。',
+          note: t('携带 X-Checksum-Sha256 请求头可做客户端校验与秒传；控制台内上传走「部署 Deploy」对话框。'),
         },
       ]
     case 'docker':
       return [
         {
-          title: '构建与推送',
+          title: t('构建与推送'),
           lang: 'bash',
           text: [
             `docker build -t ${origin}/${repoKey}/acme/app:v1 .`,
             `docker push ${origin}/${repoKey}/acme/app:v1`,
           ].join('\n'),
-          note: '登录见「配置」Tab；docker 是三步会话协议，不走浏览器上传。',
+          note: t('登录见「配置」Tab；docker 是三步会话协议，不走浏览器上传。'),
         },
       ]
     case 'maven':
       return [
         {
-          title: '发布命令（id 与 settings.xml 一致）',
+          title: t('发布命令（id 与 settings.xml 一致）'),
           lang: 'bash',
           text: `mvn -B -DskipTests deploy -DaltDeploymentRepository=binflow::default::${origin}/binflow/${repoKey}`,
-          note: '服务器 id「binflow」必须与 Configure Tab 的 settings.xml <id> 一致。',
+          note: t('服务器 id「binflow」必须与 Configure Tab 的 settings.xml <id> 一致。'),
         },
       ]
     case 'npm':
       return [
         {
-          title: '发布与验证',
+          title: t('发布与验证'),
           lang: 'bash',
           text: [`cd my-pkg && npm publish`, `npm whoami        # ${creds.username}`, `npm view demo-pkg version`].join('\n'),
         },
@@ -257,7 +260,7 @@ export function smuDeployCommands(packageType: PackageType, repoKey: string, cre
     case 'pypi':
       return [
         {
-          title: '发布侧：.pypirc + twine',
+          title: t('发布侧：.pypirc + twine'),
           lang: 'ini',
           text: [
             `# ~/.pypirc`,
@@ -270,7 +273,7 @@ export function smuDeployCommands(packageType: PackageType, repoKey: string, cre
             `username = ${creds.username}`,
             `password = ${creds.secret}`,
           ].join('\n'),
-          note: '上传：pip wheel . -w dist/（或 python -m build）→ twine upload --repository binflow dist/*。',
+          note: t('上传：pip wheel . -w dist/（或 python -m build）→ twine upload --repository binflow dist/*。'),
         },
       ]
     default:
@@ -284,23 +287,23 @@ export function clientCommands(packageType: PackageType, repoKey: string): Comma
     case 'generic':
       return [
         {
-          title: '上传 / 下载（curl）',
+          title: t('上传 / 下载（curl）'),
           lang: 'bash',
           text: [
-            `# 上传（deploy 需认证；匿名读默认开）`,
+            t('# 上传（deploy 需认证；匿名读默认开）'),
             `curl -T app.tar.gz ${origin}/binflow/${repoKey}/acme/app.tar.gz -u admin`,
             ``,
-            `# 下载与校验（响应头携带服务端实测 sha256）`,
+            t('# 下载与校验（响应头携带服务端实测 sha256）'),
             `curl -sI ${origin}/binflow/${repoKey}/acme/app.tar.gz | grep -i x-checksum-sha256`,
             `curl -O ${origin}/binflow/${repoKey}/acme/app.tar.gz`,
           ].join('\n'),
-          note: '同路径重传 = 覆盖；携带 X-Checksum-Sha256 请求头可做客户端校验与秒传。',
+          note: t('同路径重传 = 覆盖；携带 X-Checksum-Sha256 请求头可做客户端校验与秒传。'),
         },
       ]
     case 'docker':
       return [
         {
-          title: 'Docker 登录与推送',
+          title: t('Docker 登录与推送'),
           lang: 'bash',
           text: [
             `echo "$ADMIN_PW" | docker login ${origin} -u admin --password-stdin`,
@@ -308,13 +311,13 @@ export function clientCommands(packageType: PackageType, repoKey: string): Comma
             `docker push ${origin}/${repoKey}/acme/app:v1`,
             `docker pull ${origin}/${repoKey}/acme/app:v1`,
           ].join('\n'),
-          note: '镜像名首段是仓库 key（单段 name 404）；明文 HTTP 需配置 insecure-registries（见 docs/user/docker-registry.md）。',
+          note: t('镜像名首段是仓库 key（单段 name 404）；明文 HTTP 需配置 insecure-registries（见 docs/user/docker-registry.md）。'),
         },
       ]
     case 'maven':
       return [
         {
-          title: '发布：settings.xml + altDeploymentRepository',
+          title: t('发布：settings.xml + altDeploymentRepository'),
           lang: 'xml',
           text: [
             `<!-- ~/.m2/settings.xml -->`,
@@ -330,12 +333,12 @@ export function clientCommands(packageType: PackageType, repoKey: string): Comma
           ].join('\n'),
         },
         {
-          title: '发布命令（id 与首段一致）',
+          title: t('发布命令（id 与首段一致）'),
           lang: 'bash',
           text: `mvn -B -DskipTests deploy -DaltDeploymentRepository=binflow::default::${origin}/binflow/${repoKey}`,
         },
         {
-          title: '解析：pom <repositories>',
+          title: t('解析：pom <repositories>'),
           lang: 'xml',
           text: [
             `<repositories>`,
@@ -345,23 +348,23 @@ export function clientCommands(packageType: PackageType, repoKey: string): Comma
             `  </repository>`,
             `</repositories>`,
           ].join('\n'),
-          note: '团队统一出口建议 settings.xml <mirror> 收口到 virtual 仓（见 docs/user/integrations/maven.md §4）。',
+          note: t('团队统一出口建议 settings.xml <mirror> 收口到 virtual 仓（见 docs/user/integrations/maven.md §4）。'),
         },
       ]
     case 'npm':
       return [
         {
-          title: '.npmrc（项目根目录）',
+          title: t('.npmrc（项目根目录）'),
           lang: 'ini',
           text: [
             `registry=${origin}/binflow/api/npm/${repoKey}/`,
-            `${npmAuthLine(origin, repoKey)}:_auth=<base64 of admin:口令>`,
+            t('{v1}:_auth=<base64 of admin:口令>', { v1: npmAuthLine(origin, repoKey) }),
             `always-auth=true`,
           ].join('\n'),
-          note: '_auth 生成：printf \'admin:%s\' "$ADMIN_PW" | base64；裸 _auth 会被 npm 10 拒绝，凭据行必须带 //host/路径/ 前缀。',
+          note: t('_auth 生成：printf \'admin:%s\' "$ADMIN_PW" | base64；裸 _auth 会被 npm 10 拒绝，凭据行必须带 //host/路径/ 前缀。'),
         },
         {
-          title: '发布与验证',
+          title: t('发布与验证'),
           lang: 'bash',
           text: [`cd my-pkg && npm publish`, `npm whoami        # admin`, `npm view demo-pkg version`].join('\n'),
         },
@@ -369,13 +372,13 @@ export function clientCommands(packageType: PackageType, repoKey: string): Comma
     case 'pypi':
       return [
         {
-          title: '安装侧：pip.conf',
+          title: t('安装侧：pip.conf'),
           lang: 'ini',
           text: [`[global]`, `index-url = ${origin}/binflow/api/pypi/${repoKey}/simple`].join('\n'),
-          note: '一次性用法：pip install --index-url <index-url> <包名>。',
+          note: t('一次性用法：pip install --index-url <index-url> <包名>。'),
         },
         {
-          title: '发布侧：.pypirc + twine',
+          title: t('发布侧：.pypirc + twine'),
           lang: 'ini',
           text: [
             `[distutils]`,
@@ -385,13 +388,13 @@ export function clientCommands(packageType: PackageType, repoKey: string): Comma
             `[binflow]`,
             `repository = ${origin}/binflow/api/pypi/${repoKey}`,
             `username = admin`,
-            `password = <你的管理员口令>`,
+            t('password = <你的管理员口令>'),
           ].join('\n'),
         },
         {
-          title: '上传命令',
+          title: t('上传命令'),
           lang: 'bash',
-          text: [`pip wheel . -w dist/    # 或 python -m build`, `twine upload --repository binflow dist/*`].join('\n'),
+          text: [t('pip wheel . -w dist/    # 或 python -m build'), `twine upload --repository binflow dist/*`].join('\n'),
         },
       ]
     default:
