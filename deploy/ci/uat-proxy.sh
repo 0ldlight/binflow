@@ -48,12 +48,19 @@ case "${DOMAIN}" in
 esac
 
 # Offer EXACTLY the injected deploy key (uat-deploy.sh semantics — see the
-# MaxAuthTries note there).
-DEPLOY_KEY="$(ls "${HOME}/.ssh/id_rsa_"* 2>/dev/null | head -1 || true)"
-KEY_OPTS=(-o IdentitiesOnly=yes)
-if [ -n "${DEPLOY_KEY}" ]; then
-    KEY_OPTS+=(-i "${DEPLOY_KEY}")
+# MaxAuthTries note there). Same wide pattern: any id_<type>_<name> (the
+# B64 path materializes id_ed25519_uat; add_ssh_keys writes
+# id_<type>_<fingerprint>), .pub excluded, and NO soft fallback — an
+# ssh without -i offers the wrong keys and dies on publickey (the
+# e01d59d2 first run).
+DEPLOY_KEY="$(ls "${HOME}/.ssh/id_"*_* 2>/dev/null | grep -v '\.pub$' | head -1 || true)"
+if [ -z "${DEPLOY_KEY}" ]; then
+    echo "ERROR: no UAT deploy key found in ~/.ssh/ (uat-proxy)." >&2
+    echo "  The 'Install UAT SSH deploy key' step must run before this one." >&2
+    ls -la "${HOME}/.ssh/" 2>/dev/null >&2 || echo "  (no ~/.ssh)" >&2
+    exit 1
 fi
+KEY_OPTS=(-o IdentitiesOnly=yes -i "${DEPLOY_KEY}")
 SSH="ssh -o StrictHostKeyChecking=accept-new ${KEY_OPTS[*]} ${USER_}@${HOST}"
 
 echo "== UAT TLS proxy ${USER_}@${HOST} domain=${DOMAIN}"
