@@ -1912,3 +1912,5 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - 教训入册：worktree 合并前必 fetch 全量双分支（7fd7091e 陈旧 ref 事故）；管道 `| head` 吞退出码两案（git commit / tsc 哨兵）——哨兵一律裸跑取 $?。
 
 **T-459 → done 2026-09-05 15:3x（`d9b02f1a`，42 文件 +2,253/−90）——M16 27/35（B13：监控组 + 导航分组/侧栏过滤）**：监控组三页（SystemLogs〔审计承载——服务进程日志端点缺位登记不伪造〕/ServiceStatus〔health+version 对位〕/SystemInfo 归位）+ AppShell 导航 16→18 + 管理态 Search Admin Resources 过滤框 + 四旧深链 replace 窗。孤儿遗产即终态（finisher 零新增 src——补报告+验证）；**整树收编自愈 T-461 提交误卷三件的断 tsc**（finisher 警示采纳）。新 spec 8P×2 + 牵动 11 spec 绿 + a11y 双主题 62 扫 + SPA +5,819B。锚册 v1.43/parity v1.12（前任执笔）。日志 reports/agents/T-459.md。
+
+**chunk 集成面处置（2026-09-05 16:2x）**：`chunk init` 生成的 Stop 钩子（每轮 Stop 跑 sidecar validate，3×4min 重试）在 sidecar 未配置工具链时纯失败烧时——**已摘除**（`.claude/settings.json` Stop 置空；commit 前钩子暂留未动）。CircleCI API 取证能力（keychain token）不受影响。**后续票候选**：sidecar 正规 setup（node+go 工具链 + 仓形命令调优〔npm ci 在 web/ 非 root、make test 300s 不容 race 全量〕+ 快照固化）——兑现用户 /chunk-sidecar 意图后可复挂 Stop 钩子。
