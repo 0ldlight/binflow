@@ -26,6 +26,7 @@ curl -su admin:$ADMIN_PW "$BASE/binflow/api/v1/audit?action=gc.run&limit=2"
 | 仓库 | `repo.create`、`repo.update`、`repo.delete` |
 | 安全 | `group.create/update/delete/member`、`permission.create/update/delete`、`password.change`、`user.role.change`、`user.delete` |
 | 治理 | `gc.run`、`quota.exceeded`、`export.run`、`import.run`、`cleanup.run`、`trash.restore`、`trash.retention` |
+| 调度 | 三域 `maintenance.schedule.set` / `backup.schedule.set` / `replication.schedule.set`（布防/清除）+ 各域 `.schedule.run` / `.schedule.fail`（fire 成败，actor=scheduler）——见[计划任务](/admin/cron-scheduling) |
 | 会话 / token | `login.success`、`login.failed`、`token.issue`、`token.revoke` |
 | 复制 | `replication.push`、`replication.push.failed`、`replication.config.create/update/delete/test`、`replication.run`、`replication.block.update` |
 | webhook | `webhook.subscription.create/update/delete/test`、`webhook.dead_letter` |
@@ -78,6 +79,8 @@ binflow-server gc -c binflow.yaml                          # dry-run，grace 取
 binflow-server gc -c binflow.yaml --apply --grace-hours 1  # apply，grace 1 小时
 ```
 
+**到点自动执行**：GC 与两族缓存清理可挂 cron 调度（维护三槽 `GET/PUT /api/v1/system/maintenance`）——fire 走与 REST 同一的 GC 内核，与手动面并存；表达式子集与三槽语义见 **[计划任务指南 · 维护域](/admin/cron-scheduling#维护域gc-与缓存清理的三槽)**。
+
 ## 路径模式与配额（仅 local 仓）
 
 | 字段 | 默认 | 说明 |
@@ -109,7 +112,7 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/tiny \
 
 push 复制把 **local 仓**新落的制品推送到**目标实例**（另一个 BinFlow，或任何兼容其上传面的服务）。
 
-- **触发是事件驱动 + 手动全量**：制品落库即入队（无用户级 cron）；1 分钟兜底 sweep；补漏/建仓后对账走 Replicate Now。
+- **触发是三轨并存**：**事件轨**（落库即推，增量唯一引擎）+ **调度轨**（配置挂 `cron_exp` 到点全量对账——cron 双轨）+ **手动全量**（Replicate Now）；1 分钟兜底 sweep。调度轨语义见[计划任务指南 · 复制域](/admin/cron-scheduling#复制域cron-双轨)。
 - **推送面按源仓包型选择**：generic/maven 走通用 REST 面、docker 走 `/v2`、npm 走 publish/dist-tag 面、pypi 走 multipart——从不直接触碰目标存储。
 - **目标冲突语义**：目标已有同 sha256 路径 = 幂等成功（零传输）；不同 sha256 = 终态 failed（first-write-wins）——典型如目标 maven 仓自算的 `maven-metadata.xml` 与源副本必然不同 sha，Replicate Now 后状态面有一条 failed 属预期。
 - **重试**：瞬时失败指数退避共 6 次尝试（1s/2s/4s/8s/16s 间隔）。
@@ -144,10 +147,11 @@ curl -su admin:$ADMIN_PW -X DELETE $BASE/binflow/api/v1/replications/push-prod \
 | `target_url` / `target_repo` | 绝对 http(s) URL + 目标仓名，均必填；`target_url` 填**裸 origin** |
 | `target_password` | **只写**：以实例主钥密封（enc:v1），任何响应不回显；实例未设主钥时携带口令 → 400 |
 | `max_items_per_push` | 节流上限，缺省 1000 |
-| `enabled` | 缺省 true。**停用语义**：停 → 新制品即时不入队、在途任务跑完自身结论；恢复 → 积压由下一趟 sweep 排空（≤1 分钟）——**全程无需重启** |
-| 审计 | 操作面 `replication.config.*`；引擎面 `replication.push` / `replication.push.failed` |
+| `enabled` | 缺省 true。**停用语义**：停 → 新制品即时不入队、在途任务跑完自身结论；恢复 → 积压由下一趟 sweep 排空（≤1 分钟）——**全程无需重启**。**cron 双轨起**：停用同时 park 调度（`cron_exp` 保留、`next_schedule_sync` 清空）；一个开关两轨全停 |
+| `cron_exp` | **调度字段（可选）**：create 携带或 `PUT {id}` 补挂；空串 = 清除（纯事件轨）；坏表达式 400 点名；fire = Replicate Now 同载体（目标侧 sha256 幂等）——完整语义见[计划任务 · 复制域](/admin/cron-scheduling#复制域cron-双轨) |
+| 审计 | 操作面 `replication.config.*` + `replication.schedule.set`；引擎面 `replication.push` / `replication.push.failed` / `replication.schedule.run` |
 
-字段级更新（改名/换目标）暂无端点——编辑 = 删除 + 重建两步。
+字段级更新面 = `enabled` / `cron_exp` 两字段（`PUT {id}`）；改名/换目标等仍无端点——编辑 = 删除 + 重建两步。
 
 ### Replicate Now（手动全量同步）
 
@@ -236,4 +240,4 @@ curl -su admin:$ADMIN_PW -X DELETE $BASE/binflow/api/security/users/victim
 
 ## 下一步
 
-- [备份与恢复](/admin/backup)（与 GC 的锁互斥） · [制品操作与回收站](/admin/operations) · [监控指标](/admin/monitoring)
+- [计划任务（cron 调度）](/admin/cron-scheduling)（维护三槽 / 定时备份 / 复制调度） · [备份与恢复](/admin/backup)（与 GC 的锁互斥） · [制品操作与回收站](/admin/operations) · [监控指标](/admin/monitoring)

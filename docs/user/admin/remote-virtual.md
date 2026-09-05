@@ -5,8 +5,8 @@ sidebar_position: 40
 
 # remote / virtual 仓库管理
 
-> 适用版本：M3（pull-through 代理缓存 + 聚合解析；PRD milestone-3 v1.2、ADR-0012/0013）+ **M10 增补**（smart remote 生效字段子集：`socketTimeoutMs`〔含 xsd 别名〕/`metadataRetrievalTimeoutSecs`）+ **M11 增补**（`enableTokenAuthentication`/`contentSynchronisation` 接受且生效〔L25 反转，T-317〕；`unusedArtifactsCleanupPeriodHours` 清理引擎生效〔T-324〕；conan/helm/rpm/debian 三类仓型——T-312/313/314/315；**cargo remote/virtual 仓型**——T-316/T-318，见 [Cargo 接入](../integrations/cargo.md)）+ **M14 增补**（**docker remote 仓型**——FR-129/T-392，community 档自动受缝；**docker virtual 维持拒绝**〔PRD Q4 聚合半边未交付〕，见[下文专节](#docker-remote-仓m14fr-129)）。
-> 本文命令在 M3 QA 基线（commit `0f86229`，T-75/T-76 验收产物）上复验：建仓字段回显、缓存 MISS→HIT 冻结、DELETE 强刷、凭据加密落盘、无钥 fail-fast、virtual 收口与写路由均按预期（复跑记录见 `reports/agents/T-77.md`）。
+> 适用版本：M3（pull-through 代理缓存 + 聚合解析；PRD milestone-3 v1.2、ADR-0012/0013）+ **M10 增补**（smart remote 生效字段子集：`socketTimeoutMs`〔含 xsd 别名〕/`metadataRetrievalTimeoutSecs`）+ **M11 增补**（`enableTokenAuthentication`/`contentSynchronisation` 接受且生效〔L25 反转，T-317〕；`unusedArtifactsCleanupPeriodHours` 清理引擎生效〔T-324〕；conan/helm/rpm/debian 三类仓型——T-312/313/314/315；**cargo remote/virtual 仓型**——T-316/T-318，见 [Cargo 接入](../integrations/cargo.md)）+ **M14 增补**（**docker remote 仓型**——FR-129/T-392，community 档自动受缝）+ **近期增补**（**远端浏览可选档 `listRemoteFolderItems`**——helm/debian/rpm 三型，见[下文专节](#远端浏览可选档listremotefolderitems)）。
+> 本文命令在 M3 QA 基线（commit `0f86229`，T-75/T-76 验收产物）上复验：建仓字段回显、缓存 MISS→HIT 冻结、DELETE 强刷、凭据加密落盘、无钥 fail-fast、virtual 收口与写路由均按预期（复跑记录见 `reports/agents/T-77.md`）。远端浏览可选档的 wire 事实（PUT/GET 回显、批 1 型门与类型门 400、`remoteDegraded` 注记）在 HEAD 构建的本地 scratch 实例（2026-09-06）curl 实测。
 
 三种仓型各司其职，概念与 Artifactory 一一对应（术语不变）：
 
@@ -46,6 +46,7 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/maven-remote-cent
 | `allowPrivateUpstream` | 否 | **false** | SSRF 私网放行开关，仅 admin 可设、写审计日志（见[SSRF 小节](#ssrf-防护与-allowprivateupstream-放行指引)） |
 | `priorityResolution` | 否 | `false` | 作为 virtual 成员时的优先解析标记（见下文） |
 | `chartsBaseUrl` | 否 | 空（回退仓 URL） | **M13，仅 `packageType=helm` 的 remote**：content 类回源（tgz/`.prov`/`_external` 折叠路径）的分体基址——metadata（index.yaml）恒走仓 URL；绝对 http(s) URL、`""` = 清除；**其它包型携带 → 400 点名字段**；异 host 时无凭据出站。用法见 [Helm Chart 仓库接入](../integrations/helm-charts.md#chartsbaseurl分体回源基址m13) |
+| `listRemoteFolderItems` | 否 | **false** | **远端浏览可选档**，仅 `helm` / `debian` / `rpm` 三型 remote（详见[下文专节](#远端浏览可选档listremotefolderitems)）：`true` 时浏览面列出未缓存的远端目录条目；其它包型携带 `true` → 400 点名批 1 集。**指针语义**：显式 `false` 与缺省可区分——flip-off 更新存活（实测 round trip）；回显恒在场（布尔，无 omitempty） |
 
 > **smart remote 字段注意（T-290/T-317/T-346）**：① `enableTokenAuthentication` / `contentSynchronisation`
 > 自 **M11 起接受且生效**（上表；M10 期的按名 400 已退役）；**其余**未知字段维持
@@ -124,6 +125,40 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/docker-remote \
 > **SSRF**：上游 URL 命中私网/环回（如本机演练 `192.168.x.x`、内网 registry）建仓后拉取会被 [SSRF 防护](#ssrf-防护与-allowprivateupstream-放行指引)拒绝（404 message 带 `ssrf-guard` 摘要）——内网上游由 admin 配 `allowPrivateUpstream: true` 放行（本机双实例演练即用此通道实测）。另注：客户端在 dind 里访问宿主实例用 `host.docker.internal`，但**那是容器视角的名字**——remote 仓的 `url` 是 BinFlow 服务端发起的请求，须填服务端可达的地址。
 >
 > **dind 调试注记（客户端侧）**：dind 29.x 默认 containerd snapshotter 对 plain-HTTP registry 的 blob 取数会走 https 回退（不遵守 `--insecure-registry`）→ 拉取超时且 BinFlow 侧零到达。启动 dind 加 `--feature containerd-snapshotter=false` 回经典 overlay2（`docker run -d --privileged docker:dind --insecure-registry <host:port> --feature containerd-snapshotter=false`；详见仓库内 `web/e2e/README.md`）。macOS Docker Desktop 另有 dind↔宿主大包 PMTU 黑洞的环境症（~MB 级响应停摆），解法为 dind 内 `iptables -t mangle -A OUTPUT/-A INPUT -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1300` 后再开新连接（T-392 环境注记）。
+
+## 远端浏览可选档（listRemoteFolderItems）
+
+remote 仓默认**只列已缓存制品**（上文第 3 步的缓存语义不变）；`listRemoteFolderItems: true` 后，**浏览面**（控制台制品树与存储 API 的 FolderInfo）额外呈现**未缓存的远端目录与文件**——面向「先看上游有什么、再点拿什么」的浏览工作流。**包管理器协议面（helm repo/deb apt/rpm dnf 的解析与拉取）行为零变化**——可选档只影响浏览。
+
+**适用面**：`helm` / `debian` / `rpm` 三型 remote（枚举引擎按各自索引元数据派生目录树——helm 的 index.yaml、deb 的 dists、rpm 的 repodata）。generic / maven 等类型**不做 HTML 目录抓取**（明确的取舍——上游目录页 HTML 无稳定结构，不建不伪造「将支持」）：携带 `true` → 400，实测文案：
+
+```
+invalid repository config: remote generic repository config: listRemoteFolderItems
+true is not accepted (remote folder enumeration exists for the batch-1 types: helm, debian, rpm)
+```
+
+```bash
+# 开档（PUT；显式 false = 关档——flip-off 过 round trip，缺省即 false）
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/helm-remote \
+  -H 'Content-Type: application/json' \
+  -d '{"rclass":"remote","packageType":"helm","url":"https://charts.example.com",
+       "listRemoteFolderItems":true}'                          # 200
+curl -su admin:$ADMIN_PW $BASE/binflow/api/repositories/helm-remote
+# configuration.listRemoteFolderItems: true（布尔恒在场，永为 canonical 拼写）
+```
+
+开档后的行为要点：
+
+| 面 | 行为 |
+|---|---|
+| 树形态 | FolderInfo children 并入**派生行**（与缓存行同形：`uri` + `folder` 两字段）；枚举快照带 TTL（服务端常量），上游索引变更在快照过期后反映；改仓 `url` 即弃旧快照 |
+| 派生行的元数据占位 | 派生文件行的 `size` / `lastModified` 为占位值（`0` / epoch-0）、无 sha2——**非事实值**；控制台相应列显示 `—`，点击条目回源后自纠为真实值并落地为缓存行 |
+| 点击未缓存条目 | item-info GET 即 pull-through 回源（真实 size/digest），`?stats` 下载计数联动（与内容下载同一单源） |
+| **上游降级不塌树** | 已缓存条目始终可列可用；远端层故障（上游不可达 / assumed-offline 静默窗）时 FolderInfo 附**可选 `remoteDegraded` 字段**（错误注记原文），控制台据此给降级横幅——实测两形：`remote enumeration unavailable: upstream 'index.yaml': connection failed`（不可达）/ SSRF 拒绝形态（注记含 ssrf-guard 摘要）。健康、关档与 local 树**恒缺省该字段**（`omitempty`）；文件级 body 恒不带（注记是目录级事实）；`?list` 平铺面镜像同一注记 |
+| 关档（默认） | 浏览面仅缓存行——与历史版本行为一致；枚举快照失效即回到纯缓存视图 |
+| virtual 扩面 | 含开档 remote 成员的 virtual 仓同样呈现该成员的派生行（聚合语义不变，越权仓零泄漏） |
+
+控制台对应：建仓/编辑表单 Advanced 步复选「列出远端目录条目」+ 仓库详情回显行 + 树内「远端」Chip / 降级横幅——见[控制台指南](../console.md#制品树浏览器artifacts)。
 
 ## 缓存管理与强刷手法
 

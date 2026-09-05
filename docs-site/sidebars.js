@@ -14,6 +14,9 @@
 const sidebars = {
   main: [
     { type: 'doc', id: 'README', label: '文档中心首页' },
+    // User-visible changes announcement (whats-new): sits above the matrix so
+    // returning readers see the reversal ledger first.
+    'whats-new',
 
     // --- 客户端接入 (docker + the four protocol guides) ---
     {
@@ -59,6 +62,9 @@ const sidebars = {
         'admin/remote-virtual',
         'admin/groups-permissions',
         'admin/governance',
+        // Cron scheduling domain (maintenance slots / scheduled backups /
+        // replication cron dual-track) — sits between governance and backup.
+        'admin/cron-scheduling',
         'admin/backup-restore',
         'admin/rbac-roles', // M7 (T-223): roles + manage delegation guide.
         'admin/token-step-up', // M7 (T-225): token-mint step-up guide.

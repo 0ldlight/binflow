@@ -5,7 +5,7 @@ sidebar_position: 42
 
 # 治理：审计、GC 与配额
 
-> 适用版本：M4（治理面；PRD milestone-4 v1.2 FR-29/30/31/24、ADR-0015 勘误后）；**M9 增补**：用户删除闭环（DELETE 三护栏/级联/确定性 404，T-251/T-257）与 last-admin 竞窗运营提醒（T-273 候选背景）；**M14 增补**：复制配置启停端点与控制台配置面（T-404/T-405，见下文[复制](#复制push-replication)节）。
+> 适用版本：M4（治理面；PRD milestone-4 v1.2 FR-29/30/31/24、ADR-0015 勘误后）；**M9 增补**：用户删除闭环（DELETE 三护栏/级联/确定性 404，T-251/T-257）与 last-admin 竞窗运营提醒（T-273 候选背景）；**M14 增补**：复制配置启停端点与控制台配置面（T-404/T-405，见下文[复制](#复制push-replication)节）；**近期增补**：复制 `cron_exp` 调度字段（cron 双轨）与维护三槽调度——完整调度语义（表达式子集/定时备份/审计词）见 **[计划任务（cron 调度）与定时备份](cron-scheduling.md)**，本文只保留治理域关联面。
 > 本文全部命令在本机 scratch 实例（commit `7593d8e`）上复跑：审计过滤/词表、GC dry-run→apply 与互斥 409、pattern 409 双态、配额 413 与幂等重传豁免均按预期（蓝本 T-103 W22~W27/W12a，报告见 `reports/agents/T-103-qa.md` §2.2/§2.5~§2.7）。M9 用户删除链（成功/四护栏/重复删 404/token 即时 401/user.delete 审计/级联组员清空）在 HEAD 构建的 scratch 实例（2026-08-25）上 curl 复验全过。复制节命令（CRUD 全臂 + 启停引擎语义）在 HEAD 构建的 scratch 实例（2026-09-01，T-398）上 curl 复验全过。
 
 治理四件事：**审计**（谁在何时动了什么）、**GC**（回收无引用 blob）、**配额**（仓库容量上限）、**路径模式**（仓库接纳哪些路径）。前三个都有控制台页面；本文以 REST/CLI 为主面（脚本可完全等效），页面走查见[控制台指南](../console.md)。
@@ -40,6 +40,7 @@ M4 审计动作全集（可作 `action=` 过滤值；M7 增补 `user.role.change
 | 仓库 | `repo.create`、`repo.update`、`repo.delete` |
 | 安全 | `group.create`、`group.update`、`group.delete`、`group.member`（成员集变更）、`permission.create`、`permission.update`、`permission.delete`、`password.change`、`user.role.change`（M7：角色分配/升降，detail 含 user/old/new）、`user.delete`（M9：仅成功删除记录，detail 含 user） |
 | 治理 | `gc.run`、`quota.exceeded`、`export.run`、`import.run` |
+| 调度 | 三域 `maintenance.schedule.set` / `backup.schedule.set` / `replication.schedule.set`（布防/清除，detail 含 key/cronExp/next_run 或 `action: cleared/deleted`）+ 各域 `.schedule.run` / `.schedule.fail`（fire 成败，actor=scheduler——维护域 fire 另落载体 `gc.run`/`cleanup.run`，备份域另落 `export.run`；见[计划任务指南](cron-scheduling.md)） |
 | 会话 | `login.success`、`login.failed` |
 | token | `token.issue`、`token.revoke`（detail 含指纹/subject/TTL；step-up 路径的 `token.issue` 另含 `step_up` 维度，见 [step-up 指南](token-step-up.md#审计)） |
 | webhook（M13） | `webhook.subscription.create` / `.update` / `.delete` / `.test`（detail 含 key/enabled）、`webhook.dead_letter`（投递放弃——detail 含 subscription/attempts/error/status_code，URL 照录） |
@@ -115,6 +116,8 @@ binflow-server gc -c binflow.yaml                    # dry-run，grace 取配置
 binflow-server gc -c binflow.yaml --apply --grace-hours 1   # apply，grace 1 小时
 ```
 
+**到点自动执行**：GC 与两族缓存清理可挂 cron 调度（维护三槽 `gc` / `cleanup-unused-cache` / `cleanup-virtual`，`GET/PUT /api/v1/system/maintenance`）——fire 走与 REST 同一的 GC 内核（apply + 配置宽限），与手动面并存。表达式子集与三槽语义见 **[计划任务指南 · 维护域](cron-scheduling.md#维护域gc-与缓存清理的三槽)**。
+
 ## 仓库治理字段：路径模式与配额（仅 local 仓）
 
 建仓/改仓时三个治理字段（remote / virtual 仓不适用——这两型不落自有内容）：
@@ -179,7 +182,7 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/tiny/b.bin --data-binary @800b.bin
 
 push 复制把 **local 仓**新落的制品推送到**目标实例**（另一个 BinFlow，或任何兼容其上传面的服务）：
 
-- **触发是事件驱动 + 手动全量**：制品落库即入队（无用户级 cron）；另有 **1 分钟兜底 sweep**（进程崩溃遗留任务的恢复 + 退避耗尽任务 5 分钟后的复活重试）；补漏/建仓后对账走 **Replicate Now**（见下文）。
+- **触发是三轨并存**：**事件轨**（制品落库即入队）+ **调度轨**（配置挂 `cron_exp` 后到点全量对账——cron 双轨，见[计划任务指南 · 复制域](cron-scheduling.md#复制域cron-双轨)）+ **手动全量**（Replicate Now，见下文）；另有 **1 分钟兜底 sweep**（进程崩溃遗留任务的恢复 + 退避耗尽任务 5 分钟后的复活重试）。事件轨仍是**增量唯一引擎**——调度与手动只触发全量类对账，同制品零重复字节传输。
 - **推送面按源仓包型选择**：generic/maven 走通用 REST 面、docker 走 `/v2` registry 面、npm 走 publish/dist-tag 面、pypi 走 multipart 上传面——从不直接触碰目标存储。
 - **目标冲突语义**：目标已有同 sha256 路径 = 幂等成功（零传输）；不同 sha256 = 终态 failed（first-write-wins，目标侧不动）——典型如目标 maven 仓自己生成的 `maven-metadata.xml` 与源副本必然不同 sha，Replicate Now 后状态面会有一条 failed（属预期）。
 - **重试**：瞬时失败指数退避共 6 次尝试（1s/2s/4s/8s/16s 间隔）。
@@ -315,11 +318,11 @@ curl -su admin:$ADMIN_PW "$BASE/binflow/api/v1/replication/status?limit=50"
 #   "status":"in_progress","attempts":3,…}]}        —— limit 1..500，缺省 50
 ```
 
-控制台入口两处：治理 → 复制（`/admin/governance/replication`：目标表 + 最近事件 10s 轮询；**M15 起页头新增全局封锁卡**——两方向独立 Switch，即上文 block/unblock 三端点）与**仓库编辑页 Replications 节**（M14，仅 local 仓编辑态：配置列表 + 新建/编辑表单〔**M15 起表单带「测试连接」按钮**，即 Test 面〕+ 行内启停开关即上表 `PUT` + 输入 name 强确认删除；表单中 cron/事件开关/路径前缀/sync 三开关为 Artifactory 概念的**预留位，恒禁用**——BinFlow 引擎为事件驱动 + 1 分钟 sweep，无用户级 cron）。仓库列表 local Tab 的 `Replications` 列显示每仓配置计数；**M15 起 ▶ Run 动作 = 真触发**（对本仓逐启用配置 POST run，toast 回报排程数 + 「查看任务」深链复制页；全部停用则按钮禁用——见上文 Replicate Now）。
+控制台入口两处：治理 → 复制（`/admin/governance/replication`：目标表〔含**「调度」列**——cron 表达式与下次同步时刻〕+ 最近事件 10s 轮询；**页头全局封锁卡**——两方向独立 Switch，即上文 block/unblock 三端点）与**仓库编辑页 Replications 节**（仅 local 仓编辑态：配置列表 + 新建/编辑表单〔表单带「测试连接」按钮，即 Test 面〕+ 行内启停开关即上表 `PUT` + 输入 name 强确认删除；表单的 **`cron` 字段为真字段**——写入即上节 `cron_exp` 调度轨〔编辑回显 + 双轨 hint〕；事件开关/路径前缀/sync 开关仍为 Artifactory 概念的**预留位，恒禁用**——BinFlow 事件轨即落库即推，无按开关启停的语义）。仓库列表 local Tab 的 `Replications` 列显示每仓配置计数；**▶ Run 动作 = 真触发**（对本仓逐启用配置 POST run，toast 回报排程数 + 「查看任务」深链复制页；全部停用则按钮禁用——见上文 Replicate Now）。
 
 ## 控制台对应页面
 
-M8 起治理域位于管理模式「治理」分组：审计日志 `/admin/governance/audit`（过滤 + 游标加载更多）、维护（GC）`/admin/governance/gc`（stats + dry-run 面板 + 输入实例名确认 apply）、配额 `/admin/governance/quotas`（每仓水位条 80% 黄/100% 红 + 行内编辑）、复制 `/admin/governance/replication`、备份/恢复 `/admin/governance/backup`——均消费与本文相同的 REST 面，脚本与界面行为可互证（页面测试即 API 测试）。页面走查见[控制台指南](../console.md#管理模式各域)；M7 及以前的 `/governance/*`、`/audit` 旧路径已随 M9 移除重定向窗口而失效——请改用上述新路径（对照表见[控制台指南 · 旧路径 → 新路径](../console.md#旧路径--新路径m9-起不再重定向)）。
+M8 起治理域位于管理模式「治理」分组：审计日志 `/admin/governance/audit`（过滤 + 游标页窗）、配额 `/admin/governance/quotas`（每仓水位条 80% 黄/100% 红 + 行内编辑）、复制 `/admin/governance/replication`（目标表含「调度」列）、回收站 `/admin/governance/trash`——均消费与本文相同的 REST 面，脚本与界面行为可互证（页面测试即 API 测试）。**维护（GC）与备份/恢复两页已迁入「监控」分组**（`/admin/monitoring/gc`、`/admin/monitoring/backup`——GC 页含计划任务三槽卡，备份页含定时备份卡；旧 `/admin/governance/*` 深链打开时自动折入新址）。页面走查见[控制台指南](../console.md#管理模式各域)；M7 及以前的 `/governance/*`、`/audit` 旧路径已随 M9 移除重定向窗口而失效——请改用上述新路径（对照表见[控制台指南 · 旧路径 → 新路径](../console.md#旧路径--新路径m9-起不再重定向)）。
 
 ## 用户管理
 

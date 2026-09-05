@@ -6,6 +6,7 @@ sidebar_position: 70
 # API 参考
 
 > 适用版本：M1~M14（端点引入里程碑标注于各表；M7 增补：用户角色字段 `adminRole`、permission target 动作 `manage`、docker 上传状态腿跨重启、token 铸造 step-up 可选门；**M9 增补**：usage 批量端点、users 列表加宽/enabled 回显/DELETE、groups `?includeUsers`、permissions `?filter=manage`——速览见[下文](#m9-增补速览)；**M11 增补**：认证配置面（含 SAML SP 证书三端点，T-331）、GPG keypair 族、cleanup 引擎、四包型 reindex 族、smart remote 两字段生效、MPU 面整体翻转（ADR-0039）与 cargo remote/virtual 仓型——见[M11 增补速览](#m11-增补速览t-328)；**M12 增补**：制品操作族（copy/move + 归档族）与 trash REST 族（NuGet v2 全路由/v3 代理属协议接入面，见 [NuGet 接入](integrations/nuget.md)）——见[M12 增补速览](#m12-增补速览t-347a)；**M13 增补**：webhook 订阅七端点族（`/event/api/v1`）+ `GET /api/v1/system/settings` 旋钮回显 + remote 仓 `chartsBaseUrl` 字段——见[M13 增补速览](#m13-增补速览t-375)；**M14 增补**：`rclass=remote + packageType=docker` 建仓开闸（T-392，见[Sr 仓库管理域](#sr-仓库管理域)表后注记）、npm login 端点族（T-394，见[NE: npm 域](#ne-npm-域)）与 replication 配置族补册（含新增 `PUT` 启停端点，T-405——见[M14 增补速览](#m14-增补速览t-397t-398)）；**M15 增补**：AQL 端点 + 老搜索三端点（gavc/prop/pattern，见[SR 搜索域](#sr-搜索域)）与复制包 B（Replicate Now · Test 连接 · 全局封锁，见[M15 增补速览](#m15-增补速览t-426)；语言细节见 [AQL 搜索指南](aql.md)）。Artifactory 兼容端点基于 REST 逆向规格 `docs/reverse/rest-api.md`（置信度高）。
+> **近期增补（cron 调度域）**：维护三槽（`GET/PUT /api/v1/system/maintenance`）、定时备份 CRUD（`/api/v1/system/backups` 五面）、调度只读投影（`GET /api/v1/system/schedules`）与复制配置 `cron_exp` 字段——端点行已就地收入下表，完整语义（表达式子集、校验族、审计词）见 **[计划任务（cron 调度）与定时备份](admin/cron-scheduling.md)**。
 > **M10 增补（T-293 部分回写，2026-08-26）**：`?properties` 族反转为 **GET/PUT/DELETE 三动词**（POST 增量动词不做——其余动词落 404 冻结姿态；原 M5 期表格把属性动词标为 M4/M1 系陈旧勘误）；上传路径 matrix 参数 M10 生效。M10 其余新端点（license/addons/uploads、Go/NuGet/Cargo 接入面）已随 T-296 补齐——速览见[下文](#m10-新增端点速览t-296)。
 > BinFlow 自有端点以 `/api/v1` 前缀标记。
 
@@ -122,7 +123,7 @@ BinFlow 的 API 分为两个面：
 | GET | `/binflow/api/search/artifact` | `name=`（必填，**大小写不敏感子串**——M15 K64 校准）、`repos=a,b` | 按名称子串搜索（SQL LIKE，权限过滤） | M4/M15 |
 | GET | `/binflow/api/search/checksum` | `sha1=/md5=/sha256=`（至少一）、`repos=a,b` | 按 checksum 精确搜索 | M1 |
 | POST | `/binflow/api/search/aql` | body = AQL 文本（`text/plain`）；`?compact=true`；`?query=` 空体回退 | **AQL 查询**（items 域子集 + `stat.*` 统计字段族，完整语言/错误/迁移对照见 [AQL 搜索指南](aql.md)） | M15 |
-| GET | `/binflow/api/search/usage` | `notUsedSince=`（必填 epoch 毫秒）、`createdBefore=`（缺省回退 notUsedSince）、`repos=a,b` | **闲置制品检索**（「N 天未下载」清理策略数据面；行五字段 `{uri, downloadCount, lastDownloaded, remoteDownloadCount, remoteLastDownloaded}`；空集与缺参均 **404 `No results found.`**——语义与实测示例见 [AQL 搜索指南 · usage 端点](aql.md#usage-端点get--apisearchusage)） | — |
+| GET | `/binflow/api/search/usage` | `notUsedSince=`（必填 epoch 毫秒）、`createdBefore=`（缺省回退 notUsedSince）、`repos=a,b` | **闲置制品检索**（「N 天未下载」清理策略数据面；行五字段 `{uri, downloadCount, lastDownloaded, remoteDownloadCount, remoteLastDownloaded}`；空集与缺参均 **404 `No results found.`**——语义与实测示例见 [AQL 搜索指南 · usage 端点](aql.md#usage-端点get-apisearchusage)） | — |
 | GET | `/binflow/api/search/gavc` | `g=/a=/v=/c=`（至少一）、`repos=a,b` | Maven 坐标检索（布局路径形态匹配） | M15 |
 | GET | `/binflow/api/search/prop` | `props=k[=v]` 或任意 `?k=v` 参数（`repos` 保留） | 按属性检索（键无值 = 键存在性） | M15 |
 | GET | `/binflow/api/search/pattern` | `pattern=<repo-glob>:<path-glob>` | 按路径模式检索（`*`/`?` SQL 语义，跨段） | M15 |
@@ -139,7 +140,7 @@ BinFlow 的 API 分为两个面：
 | POST | `/binflow/api/repositories/{key}` | 改仓（更新配置，含 quotaBytes 配额写；M7 起 manage 持有者同上） | M1 |
 | DELETE | `/binflow/api/repositories/{key}` | 删仓（含可选 `?deleteContent`；admin only，不下放） | M1 |
 
-> **建仓形态变化**：`PUT` 接受 `rclass=remote + packageType=docker`（community 档——不新增 license 槽），协议面语义见 [remote/virtual 管理指南 · docker remote 仓](admin/remote-virtual.md#docker-remote-仓m14fr-129)；`rclass=virtual + packageType=docker` 亦已开闸（聚合读面按成员仓并集服务，实测建仓 200）——**rclass × packageType 组合门已全量退役**，建仓面唯一剩余门是 license 档位（进阶包型在低档位 400 `package type not available on this instance: ...`，实测文案）。
+> **建仓形态变化**：`PUT` 接受 `rclass=remote + packageType=docker`（community 档——不新增 license 槽），协议面语义见 [remote/virtual 管理指南 · docker remote 仓](admin/remote-virtual.md#docker-remote-仓m14fr-129)；`rclass=virtual + packageType=docker` 亦已开闸（聚合读面按成员仓并集服务，实测建仓 200）——**rclass × packageType 组合门已全量退役**，建仓面剩余门是 license 档位（进阶包型在低档位 400 `package type not available on this instance: ...`，实测文案）与**远端浏览批 1 型门**（remote 仓 body 的 `listRemoteFolderItems: true` 仅 helm/debian/rpm 接受，其它包型 400 点名批 1 集——见[远端浏览可选档](admin/remote-virtual.md#远端浏览可选档listremotefolderitems)）。
 
 ### 系统端点
 
@@ -153,6 +154,9 @@ BinFlow 的 API 分为两个面：
 | GET | `/binflow/api/v1/storage/usage` | **批量用量**（M9：bare array，行形与单仓同构；按调用者可见集过滤；`?repos=` 点名、`?include=counts` 附 `nodeCount`/`updatedAt`——见[M9 增补速览](#m9-增补速览)） | M9 |
 | GET | `/binflow/api/v1/audit` | 审计日志查询（admin / readonly_admin） | M4 |
 | POST | `/binflow/api/v1/system/gc` | 触发 GC（admin only；readonly_admin 403 **含 dry-run**） | M4 |
+| GET/PUT | `/binflow/api/v1/system/maintenance` | **cron 维护三槽**（`gc`/`cleanup-unused-cache`/`cleanup-virtual`：GET 三槽投影；PUT 逐槽布防，空 cronExp=清除、enabled=false 停用形；表达式校验全域唯一，坏表达式 400 点名——见[计划任务指南](admin/cron-scheduling.md)） | — |
+| PUT/GET/DELETE | `/binflow/api/v1/system/backups`（+ `/{key}`） | **定时备份 CRUD**（官方单 PUT 形 body 带 `backupKey`；`exportPath` 服务器绝对路径门、`nextBackupTime` 首跑时刻可写位〔过去 400〕、空 cronExp=合法不调度；DELETE 双行联动删） | — |
+| GET | `/binflow/api/v1/system/schedules` | 三域调度行只读投影（`?domain=` 闭集过滤，非法域 400 实测 `domain must be one of maintenance, backup, replication (or omitted for every domain)`） | — |
 
 ### 会话端点
 
@@ -439,7 +443,7 @@ M14 的 docker remote 建仓与 npm login 族已随 T-397 落入各自域表（[
 |---|---|---|---|
 | GET | `/binflow/api/v1/replications` | system:read（readonly_admin 可读） | 配置列表（bare array；凭据字段永不回显） |
 | POST | `/binflow/api/v1/replications` | system:write（仅 admin） | 建配置；**201** 回显配置行；`enabled` 缺省 true；重名 409、未知源仓 400 点名 key |
-| **PUT** | `/binflow/api/v1/replications/{id}` | system:write（仅 admin） | **M14（T-405）启停**：`{id}` = 列表行首的**数值 id**（不可变键；DELETE 按 name——两种寻址并存）；body `{"enabled":true\|false}` 必填，**其余字段解析但忽略**（整行 round-trip 不被拒）；**200** 回显更新后配置行（GET 投影同形，`updated_at` 刷新，sealed 凭据原样保留）。错误：匿名 401 / 非 admin 403 / 未知 id 404 `replication config not found: <id>` / 非数字 id 400 / 缺 enabled 400 |
+| **PUT** | `/binflow/api/v1/replications/{id}` | system:write（仅 admin） | **M14（T-405）启停**：`{id}` = 列表行首的**数值 id**（不可变键；DELETE 按 name——两种寻址并存）；body `{"enabled":true\|false}` 必填，**其余字段解析但忽略**（整行 round-trip 不被拒）；**200** 回显更新后配置行（GET 投影同形，`updated_at` 刷新，sealed 凭据原样保留）。**cron 调度域起 PUT 扩臂**：`enabled` **或** `cron_exp` 至少其一（空 body 400 `enabled or cron_exp is required; no other field is editable on this face`）；`cron_exp` 空串 = 清除调度（纯事件轨）、`enabled:false` = 停用形（cron 保留、`next_schedule_sync` 清空、事件轨同停）——语义与实测见[计划任务指南 · 复制域](admin/cron-scheduling.md#复制域cron-双轨)。错误：匿名 401 / 非 admin 403 / 未知 id 404 `replication config not found: <id>` / 非数字 id 400 / 缺 enabled 400 |
 | DELETE | `/binflow/api/v1/replications/{name}` | system:write（仅 admin） | 按名删除（任务台账级联清空）；**204** 无体；再删 404 |
 | GET | `/binflow/api/v1/replication/status` | system:read | 复制面板载荷：`targets[]`（每配置任务计数行）+ `events[]`（跨配置最近任务合并，`?limit=` 1..500 缺省 50） |
 
@@ -556,9 +560,12 @@ BinFlow 在 Artifactory 兼容端点之外增加了一批自有端点（以 `/ap
 | `/binflow/api/v1/audit` | GET | 审计日志查询（admin / readonly_admin） |
 | `/binflow/api/v1/system/gc` | POST | 触发 GC（同步执行，dry-run/apply；admin only） |
 | `/binflow/api/v1/system/cleanup` | POST/GET | unused-cleanup 引擎手动触发（dry-run 默认）与状态面（M11） |
+| `/binflow/api/v1/system/maintenance` | GET/PUT | **cron 调度 · 维护三槽**（`gc` / `cleanup-unused-cache` / `cleanup-virtual`；读 system:read、写仅 admin）——表达式子集与语义见[计划任务指南](admin/cron-scheduling.md) |
+| `/binflow/api/v1/system/backups`（+ `/{key}`） | PUT/GET/DELETE | **cron 调度 · 定时备份 CRUD**（backupKey/cronExp/exportPath 绝对路径门/nextBackupTime 首跑时刻）——见[计划任务指南](admin/cron-scheduling.md#定时备份到点-export) |
+| `/binflow/api/v1/system/schedules` | GET | 三域调度行只读投影（`?domain=` 值域 = maintenance / backup / replication 闭集，非法域 400；控制台服务状态页数据源） |
 | `/binflow/api/v1/system/settings` | GET | 运行旋钮回显（folder_download 六字段 + trashcan.retention_days 的解析值；M13） |
 | `/binflow/api/v1/session` | POST/GET/DELETE | 控制台会话管理（whoami/登录回显 `adminRole` 与 `source`） |
-| `/binflow/api/v1/replications` | GET/POST/PUT/DELETE | push 复制配置 CRUD（GET/POST/DELETE 自 M6；**PUT 启停 = M14**，按数值 id、DELETE 按 name）——见[M14 增补速览](#m14-增补速览t-397t-398) |
+| `/binflow/api/v1/replications` | GET/POST/PUT/DELETE | push 复制配置 CRUD（GET/POST/DELETE 自 M6；**PUT 启停 = M14**，按数值 id、DELETE 按 name；**`cron_exp` 调度字段**——create/PUT 携带，park/清空语义与回显 `next_schedule_sync` 见[计划任务指南 · 复制域](admin/cron-scheduling.md#复制域cron-双轨)）——见[M14 增补速览](#m14-增补速览t-397t-398) |
 | `/binflow/api/v1/replications/{id}/run` · `/{id}/test` · `/test` | POST | **M15 复制包 B**：全量同步触发（Replicate Now）与目标连通探测（已存配置 / 无 id 草稿）——见[M15 增补速览](#m15-增补速览t-426) |
 | `/binflow/api/v1/system/replications` | GET/POST | **M15 全局封锁**：blockPush/blockPull 应急刹车三端点（GET 态 + block/unblock，官方键形与文案） |
 | `/binflow/api/v1/replication/status` | GET | 复制面板载荷（targets 任务计数 + events 最近任务合并；readonly_admin 可读） |

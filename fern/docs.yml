@@ -18,6 +18,9 @@ navigation:
       - page: BinFlow 简介
         path: pages/index.mdx
         icon: home
+      - page: 用户可见变化公告
+        path: pages/whats-new.mdx
+        icon: bell
       - section: 快速开始
         contents:
           - page: 五分钟快速开始
@@ -79,6 +82,8 @@ navigation:
             path: pages/admin/tokens.mdx
           - page: 治理（审计 / GC / 配额 / 复制）
             path: pages/admin/governance.mdx
+          - page: 计划任务（cron 调度）
+            path: pages/admin/cron-scheduling.mdx
           - page: 备份与恢复
             path: pages/admin/backup.mdx
           - page: 存储后端（磁盘 / S3 / 双写）

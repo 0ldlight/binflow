@@ -36,6 +36,7 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/maven-remote-cent
 | `allowPrivateUpstream` | 否 | **false** | SSRF 私网放行开关，仅 admin 可设、写审计日志 |
 | `priorityResolution` | 否 | `false` | 作为 virtual 成员时的优先解析标记 |
 | `chartsBaseUrl` | 否 | 空（回退仓 URL） | **仅 `packageType=helm`**：content 类回源的分体基址（见 [Helm 接入](/integrations/helm)）；其它包型携带 → 400 |
+| `listRemoteFolderItems` | 否 | **false** | **远端浏览可选档**（仅 helm/debian/rpm，见[下节](#远端浏览可选档listremotefolderitems)）；其它包型携带 `true` → 400 点名批 1 集；显式 `false` 与缺省可区分（flip-off 过 round trip），回显恒在场 |
 
 `packageType` 合法值：五核心 `generic` / `docker` / `maven` / `npm` / `pypi`（community 地板，**三仓型全组合可建**——`rclass × packageType` 组合门已全量退役，docker 的 virtual 聚合同样开闸，实测建仓 200）；进阶八型 `go` / `nuget` / `cargo` / `conan` / `helm` / `helmoci` / `rpm` / `debian`（**license ≥ pro**——低档位建仓 400 `package type not available on this instance: package type '<t>' is not available (license tier 'community' < 'pro')`，实测文案；各型语义见对应[接入指南](/integrations/docker)）。
 
@@ -78,6 +79,21 @@ curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/maven-virtual \
 ## docker remote 仓
 
 走根级 `/v2` 栈：`docker pull <host>/<remote仓key>/<镜像名>:<tag>` 首拉回源、此后命中本地缓存——与 maven/npm/pypi remote 同一套引擎语义。**community 档即可用**（docker 槽在地板档）。`url` 形态见 [Docker 接入 · remote 仓](/integrations/docker)。
+
+## 远端浏览可选档（listRemoteFolderItems）
+
+remote 仓默认**只列已缓存制品**；`listRemoteFolderItems: true` 后**浏览面**（控制台制品树与 FolderInfo）额外呈现**未缓存的远端目录与文件**。包管理器协议面（helm/apt/dnf 解析与拉取）行为零变化。
+
+- **适用面**：`helm` / `debian` / `rpm` 三型 remote（枚举引擎按各自索引元数据——index.yaml / dists / repodata——派生目录树）。generic / maven 等**不做 HTML 目录抓取**：携带 `true` → 400 `listRemoteFolderItems true is not accepted (remote folder enumeration exists for the batch-1 types: helm, debian, rpm)`（实测文案）。
+- **树形态**：FolderInfo children 并入派生行（与缓存行同形）；枚举快照带 TTL，改仓 `url` 即弃旧快照；派生文件行的 size/mtime 为占位值、无 sha2（控制台显示 `—`），点击回源后自纠为真实值并落地缓存（`?stats` 计数联动）。
+- **上游降级不塌树**：已缓存条目始终可列；远端层故障时 FolderInfo 附可选 `remoteDegraded` 字段（错误注记原文，如 `remote enumeration unavailable: upstream 'index.yaml': connection failed`——实测），控制台给降级横幅；健康/关档/local 树恒缺省该字段；`?list` 平铺面镜像同一注记；virtual 含开档 remote 成员同样呈现派生行。
+
+```bash
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/repositories/helm-remote \
+  -H 'Content-Type: application/json' \
+  -d '{"rclass":"remote","packageType":"helm","url":"https://charts.example.com",
+       "listRemoteFolderItems":true}'                          # 200；显式 false = 关档
+```
 
 ## 缓存管理与强刷手法
 
