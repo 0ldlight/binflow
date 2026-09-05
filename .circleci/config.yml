@@ -447,8 +447,11 @@ jobs:
                 BASE=http://52.79.109.153:8080
               fi
             fi
+            # (double-quoted on purpose: ${BASE} expands HERE, where it
+            #  is set — a backslash-escaped form would write a literal
+            #  ${BASE} into BASH_ENV and source to an empty base)
             printf '%s\n' \
-              "export BINFLOW_BASE=\"\${BASE}\"" \
+              "export BINFLOW_BASE=\"${BASE}\"" \
               'export BINFLOW_USER="${UAT_MATRIX_USER:-admin}"' \
               'export BINFLOW_PASSWORD="${UAT_MATRIX_PASSWORD:?UAT_MATRIX_PASSWORD secret missing in CircleCI project env}"' \
               'export BINFLOW_MATRIX_WORK="$HOME/project/ci/.matrix-work"' \
