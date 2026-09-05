@@ -8,6 +8,9 @@ import { getHealth, isReadOnlyAdmin } from '../../lib/api'
 import type { HealthInfo, SubsystemStatus } from '../../lib/api'
 import { useAsync } from '../../lib/useAsync'
 import { useVersion } from '../../lib/useVersion'
+import { tr } from '../../i18n'
+
+const t = tr('monitoring')
 
 // 系统信息页（console-m8 §6.19 / §1.2「General → Settings 重塑」，T-238——
 // /admin/general/settings 落真身；原设置页的改密块归 /profile，T-239 拆分；
@@ -49,15 +52,13 @@ function HealthSection() {
   if (health.status === 'forbidden') return null
   return (
     <Paper component="section" className="card section" elevation={1} data-testid="settings-health">
-      <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
-        健康
-      </Typography>
+      <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>{t('健康')}      </Typography>
       {health.status === 'loading' && <Skeleton lines={4} />}
       {health.status === 'error' && health.error && <ErrorCard error={health.error} onRetry={health.reload} />}
       {health.status === 'ok' && health.data && (
         <>
           <div className="kv">
-            <span className="k">总体</span>
+            <span className="k">{t('总体')}</span>
             <span>
               <span className={`status-dot ${health.data.status === 'ok' ? 'ok' : 'err'}`} aria-hidden="true" />{' '}
               <span className="mono" lang="en">
@@ -81,50 +82,43 @@ export default function SystemInfoPage() {
   return (
     <div data-testid="settings">
       <div className="page-header">
-        <h2>系统信息</h2>
-        <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>
-          只读展示（配置面经实例 YAML 管理，无控制台写端点）
-        </span>
+        <h2>{t('系统信息')}</h2>
+        <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>{t('只读展示（配置面经实例 YAML 管理，无控制台写端点）')}        </span>
       </div>
 
       <Paper component="section" className="card section" elevation={1} data-testid="settings-instance">
-        <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
-          实例信息
-        </Typography>
+        <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>{t('实例信息')}        </Typography>
         <div className="kv">
-          <span className="k">产品</span>
+          <span className="k">{t('产品')}</span>
           <span className="mono" lang="en">
             {version?.product ?? '—'}
           </span>
         </div>
         <div className="kv">
-          <span className="k">版本</span>
+          <span className="k">{t('版本')}</span>
           <span className="mono" lang="en" data-testid="settings-version">
             {version ? `v${version.version}` : '—'}
           </span>
         </div>
         <div className="kv">
-          <span className="k">修订</span>
+          <span className="k">{t('修订')}</span>
           <span className="mono" lang="en">
             {version?.revision || '—'}
           </span>
         </div>
         <div className="kv">
-          <span className="k">发行（许可）</span>
-          <span data-testid="settings-license">单二进制制品仓库 · 自包含发行</span>
+          <span className="k">{t('发行（许可）')}</span>
+          <span data-testid="settings-license">{t('单二进制制品仓库 · 自包含发行')}</span>
         </div>
         <div className="kv">
-          <span className="k">当前用户</span>
+          <span className="k">{t('当前用户')}</span>
           <span>
             {session?.username}
             {/* admin 布尔是角色镜像：readonly_admin 为 false——先判只读再判 admin */}
-            {session && isReadOnlyAdmin(session) ? '（readonly_admin）' : session?.admin ? '（admin）' : ''}
+            {session && isReadOnlyAdmin(session) ? t('（readonly_admin）') : session?.admin ? t('（admin）') : ''}
           </span>
         </div>
-        <p className="field-hint" style={{ marginBottom: 0 }}>
-          Server Name / Base URL / 匿名读开关 / 数据目录 / 日志级别无查询端点（契约冻结），
-          不展示、不伪造；控制台不含配置写入口（Logo / Custom Message 不建）。
-        </p>
+        <p className="field-hint" style={{ marginBottom: 0 }}>{t('Server Name / Base URL / 匿名读开关 / 数据目录 / 日志级别无查询端点（契约冻结）， 不展示、不伪造；控制台不含配置写入口（Logo / Custom Message 不建）。')}        </p>
       </Paper>
 
       <HealthSection />

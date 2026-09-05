@@ -37,6 +37,9 @@ import {
 import type { FieldDef, FormState, SectionDef } from './sections'
 
 import './authconfig.css'
+import { tr } from '../../../i18n'
+
+const tt = tr('admin')
 
 // Admin > Security 认证配置页组（T-307，M11 FR-92 FE 腿；三协议 Tab =
 // 子路由 /admin/security/auth/{ldap|oauth|saml}——repos 三 Tab 同款形态）。
@@ -76,7 +79,7 @@ function FieldControl({
   secretSet: boolean
   onChange: (v: string | boolean) => void
 }) {
-  const readonlyTitle = '只读管理员不可写（服务端 403 兜底）'
+  const readonlyTitle = tt('只读管理员不可写（服务端 403 兜底）')
 
   // secret：值恒空；已设置（GET 哨兵）→ placeholder「留空保持不变」+ 提示行
   if (field.kind === 'secret') {
@@ -90,7 +93,7 @@ function FieldControl({
           margin="none"
           disabled={disabled}
           autoComplete="new-password"
-          placeholder={secretSet ? '留空保持不变' : '未设置——输入以设置'}
+          placeholder={secretSet ? tt('留空保持不变') : tt('未设置——输入以设置')}
           value={String(value ?? '')}
           onChange={(e) => onChange(e.target.value)}
           slotProps={{ htmlInput: { id: field.anchor, 'data-testid': field.anchor, className: MONO_INPUT, lang: 'en', spellCheck: false } }}
@@ -98,12 +101,10 @@ function FieldControl({
         <p className="authcfg-secret-set" data-testid={field.setAnchor ?? `${field.anchor}-set`}>
           {secretSet ? (
             <>
-              <span aria-hidden="true">🔒</span> 已设置——服务端永不回显明文；保存时留空 = 保持不变，重新输入 = 替换。
-            </>
+              <span aria-hidden="true">🔒</span> {tt('已设置——服务端永不回显明文；保存时留空 = 保持不变，重新输入 = 替换。')}            </>
           ) : (
             <>
-              <span aria-hidden="true">○</span> 未设置。
-            </>
+              <span aria-hidden="true">○</span> {tt('未设置。')}            </>
           )}
         </p>
       </div>
@@ -196,8 +197,7 @@ function TestReportBox({ report }: { report: AuthTestReport | { errorStatus: num
   if ('errorStatus' in report) {
     return (
       <Alert severity="error" sx={{ mt: 1 }} data-testid="authcfg-test-report" role="status">
-        <div>
-          探测请求失败（HTTP {report.errorStatus}）：<span lang="en">{report.errorText}</span>
+        <div>{tt('探测请求失败（HTTP')} {report.errorStatus}{tt('）：')}<span lang="en">{report.errorText}</span>
         </div>
       </Alert>
     )
@@ -217,7 +217,7 @@ function TestReportBox({ report }: { report: AuthTestReport | { errorStatus: num
               category: <span className="mono" lang="en">{report.category}</span>
             </span>
           )}
-          {!report.ok && <span>（消息原文照服务端信封——未翻译，便于排障比对）</span>}
+          {!report.ok && <span>{tt('（消息原文照服务端信封——未翻译，便于排障比对）')}</span>}
         </div>
       )}
     </Alert>
@@ -299,21 +299,13 @@ function SamlCertCard({ canWrite }: { canWrite: boolean }) {
 
   const regenerate = async () => {
     const ok = await confirm({
-      title: missing ? '生成 SP 加密证书' : '重新生成 SP 加密证书',
+      title: missing ? tt('生成 SP 加密证书') : tt('重新生成 SP 加密证书'),
       body: missing ? (
-        <>
-          将生成全新的服务提供方（SP）加密密钥对并立即生效。生成后须把公钥证书导入 IdP，加密断言（Use
-          Encrypted Assertion）才能完成解密。
-        </>
+        <>{tt('将生成全新的服务提供方（SP）加密密钥对并立即生效。生成后须把公钥证书导入 IdP，加密断言（Use Encrypted Assertion）才能完成解密。')}        </>
       ) : (
-        <>
-          重新生成将创建<b>全新密钥对</b>——<b>旧公钥证书即刻失效</b>：已导入旧证书的 IdP
-          在重新导入新证书前，无法完成加密断言的解密，期间 SAML 加密登录会失败。
-          <br />
-          新证书生成后即可下载导入；此操作不可撤销。
-        </>
+        <>{tt('重新生成将创建')}<b>{tt('全新密钥对')}</b>——<b>{tt('旧公钥证书即刻失效')}</b>{tt('：已导入旧证书的 IdP 在重新导入新证书前，无法完成加密断言的解密，期间 SAML 加密登录会失败。')}          <br />{tt('新证书生成后即可下载导入；此操作不可撤销。')}        </>
       ),
-      confirmLabel: missing ? '生成证书' : '重新生成',
+      confirmLabel: missing ? tt('生成证书') : tt('重新生成'),
       danger: !missing, // 替换在用证书是破坏性操作；首生成不是
     })
     if (!ok) return
@@ -324,27 +316,23 @@ function SamlCertCard({ canWrite }: { canWrite: boolean }) {
       setMissing(false)
       toast.success(
         missing
-          ? 'SAML SP 加密证书已生成——下载公钥证书导入 IdP 后即可使用加密断言'
-          : 'SAML SP 证书已重新生成——旧证书即刻失效，请把新证书导入 IdP',
+          ? tt('SAML SP 加密证书已生成——下载公钥证书导入 IdP 后即可使用加密断言')
+          : tt('SAML SP 证书已重新生成——旧证书即刻失效，请把新证书导入 IdP'),
       )
     } catch (err) {
       const e = err instanceof ApiError ? err : new ApiError(0, errText(err))
-      toast.error(`证书${missing ? '生成' : '重生成'}失败（HTTP ${e.status || '网络'}）：${e.message}`)
+      toast.error(tt('证书{v1}失败（HTTP {v2}）：{v3}', { v1: missing ? tt('生成') : tt('重生成'), v2: e.status || tt('网络'), v3: e.message }))
     } finally {
       setBusy(null)
     }
   }
 
-  const readonlyTitle = '只读管理员不可写（服务端 403 兜底）；公钥证书可下载'
+  const readonlyTitle = tt('只读管理员不可写（服务端 403 兜底）；公钥证书可下载')
 
   return (
     <Paper className="authcfg-group" sx={{ p: 2, mb: 2 }}>
-      <Typography variant="subtitle2" component="h3" sx={{ mb: 0.5 }}>
-        SP 加密证书（服务提供方公钥）
-      </Typography>
-      <Typography className="authcfg-group-hint" variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-        Use Encrypted Assertion 需要 IdP 持有本服务的公钥证书（勾选保存时若未生成，服务端会自动生成一份）。私钥由服务端密封保存、永不外发——这里只有公钥面。
-      </Typography>
+      <Typography variant="subtitle2" component="h3" sx={{ mb: 0.5 }}>{tt('SP 加密证书（服务提供方公钥）')}      </Typography>
+      <Typography className="authcfg-group-hint" variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>{tt('Use Encrypted Assertion 需要 IdP 持有本服务的公钥证书（勾选保存时若未生成，服务端会自动生成一份）。私钥由服务端密封保存、永不外发——这里只有公钥面。')}      </Typography>
       {/* 四态：loading 只出骨架（禁用态按钮的 MUI 灰对比度不达标——
           控件待数据到达再上，与 SectionPanel 的 Skeleton 先行同语言）；
           错误出错误卡 + 重试；数据态分「未生成/已生成」两呈现 */}
@@ -354,20 +342,18 @@ function SamlCertCard({ canWrite }: { canWrite: boolean }) {
         <>
           {missing && (
             <p className="authcfg-cert-status">
-              <span aria-hidden="true">○</span> 未生成——服务端尚无 SP 加密密钥对；可立即生成，或留待保存加密断言配置时自动生成。
-            </p>
+              <span aria-hidden="true">○</span> {tt('未生成——服务端尚无 SP 加密密钥对；可立即生成，或留待保存加密断言配置时自动生成。')}            </p>
           )}
           {cert && (
             <p className="authcfg-cert-status">
-              <span aria-hidden="true">🔒</span> 已生成——指纹（SHA-256）：
-            </p>
+              <span aria-hidden="true">🔒</span> {tt('已生成——指纹（SHA-256）：')}            </p>
           )}
           {fingerprint && (
             <div className="authcfg-cert-fp">
               <span className="mono" lang="en">
                 {fingerprint}
               </span>
-              <CopyButton value={fingerprint} label="证书指纹" />
+              <CopyButton value={fingerprint} label={tt('证书指纹')} />
             </div>
           )}
           <div className="authcfg-cert-actions">
@@ -379,11 +365,9 @@ function SamlCertCard({ canWrite }: { canWrite: boolean }) {
                 disabled={busy !== null}
                 data-testid="authcfg-saml-spkey-download"
                 onClick={() => downloadPem(cert)}
-              >
-                下载公钥证书（PEM）
-              </Button>
+              >{tt('下载公钥证书（PEM）')}              </Button>
             )}
-            <Tooltip title={canWrite ? '创建全新密钥对——旧证书即刻失效（有确认）' : readonlyTitle} enterDelay={600}>
+            <Tooltip title={canWrite ? tt('创建全新密钥对——旧证书即刻失效（有确认）') : readonlyTitle} enterDelay={600}>
               <span>
                 <Button
                   size="small"
@@ -393,7 +377,7 @@ function SamlCertCard({ canWrite }: { canWrite: boolean }) {
                   data-testid="authcfg-saml-spkey-regenerate"
                   onClick={() => void regenerate()}
                 >
-                  {busy === 'rotate' ? '生成中…' : missing ? '生成证书' : '重新生成证书'}
+                  {busy === 'rotate' ? tt('生成中…') : missing ? tt('生成证书') : tt('重新生成证书')}
                 </Button>
               </span>
             </Tooltip>
@@ -446,7 +430,7 @@ function SectionPanel({ def, canWrite }: { def: SectionDef; canWrite: boolean })
     setSaveError(null)
     try {
       const echo = await putAuthSection<unknown>(def.id, buildPayload(def, form))
-      toast.success(`${def.tab} 配置已保存——即刻生效（无需重启）`)
+      toast.success(tt('{v1} 配置已保存——即刻生效（无需重启）', { v1: def.tab }))
       setForm(initForm(def, echo))
       setBaseline(initForm(def, echo))
       const set: Record<string, boolean> = {}
@@ -492,16 +476,14 @@ function SectionPanel({ def, canWrite }: { def: SectionDef; canWrite: boolean })
       {q.status === 'error' && q.error && <ErrorCard error={q.error} onRetry={q.reload} />}
       {q.status === 'forbidden' && (
         <EmptyState
-          message="无权限读取认证配置"
-          hint="认证配置属于管理面（security:read，需 admin / readonly_admin）。"
+          message={tt('无权限读取认证配置')}
+          hint={tt('认证配置属于管理面（security:read，需 admin / readonly_admin）。')}
         />
       )}
       {q.status === 'ok' && (
         <>
           {neverSaved && def.id === 'saml' && (
-            <Alert severity="info" sx={{ mb: 2 }} data-testid="authcfg-saml-empty">
-              本协议尚未保存过配置——GET 返回空对象（<span className="mono" lang="en">{'{}'}</span>，§3.2 锚定空态）。下方表单为默认值，填写后保存即创建。
-            </Alert>
+            <Alert severity="info" sx={{ mb: 2 }} data-testid="authcfg-saml-empty">{tt('本协议尚未保存过配置——GET 返回空对象（')}<span className="mono" lang="en">{'{}'}</span>{tt('，§3.2 锚定空态）。下方表单为默认值，填写后保存即创建。')}            </Alert>
           )}
           {def.groups.map((g) => (
             <Paper className="authcfg-group" key={g.title} sx={{ p: 2, mb: 2 }}>
@@ -534,12 +516,8 @@ function SectionPanel({ def, canWrite }: { def: SectionDef; canWrite: boolean })
 
           {/* 测试连接（POST …/test 双形态：候选 = 当前表单值；存量 = 空体探已保存配置） */}
           <Paper className="authcfg-group" data-testid="authcfg-test" sx={{ p: 2, mb: 2 }}>
-            <Typography variant="subtitle2" component="h3" sx={{ mb: 0.5 }}>
-              测试连接
-            </Typography>
-            <Typography className="authcfg-group-hint" variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-              候选探测提交当前表单值（不落库）；存量探测直接探测已保存配置。LDAP 可附测试账号做真实用户绑定（§1.6——两半须齐备）。
-            </Typography>
+            <Typography variant="subtitle2" component="h3" sx={{ mb: 0.5 }}>{tt('测试连接')}            </Typography>
+            <Typography className="authcfg-group-hint" variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>{tt('候选探测提交当前表单值（不落库）；存量探测直接探测已保存配置。LDAP 可附测试账号做真实用户绑定（§1.6——两半须齐备）。')}            </Typography>
             <div className="authcfg-test-actions">
               {def.testCreds && (
                 <>
@@ -551,7 +529,7 @@ function SectionPanel({ def, canWrite }: { def: SectionDef; canWrite: boolean })
                     value={testUser}
                     onChange={(e) => setTestUser(e.target.value)}
                     sx={{ width: 200 }}
-                    slotProps={{ htmlInput: { 'data-testid': 'authcfg-test-username', 'aria-label': '测试用户名（testUsername）', className: MONO_INPUT, lang: 'en', autoComplete: 'off', spellCheck: false } }}
+                    slotProps={{ htmlInput: { 'data-testid': 'authcfg-test-username', 'aria-label': tt('测试用户名（testUsername）'), className: MONO_INPUT, lang: 'en', autoComplete: 'off', spellCheck: false } }}
                   />
                   <TextField
                     size="small"
@@ -562,11 +540,11 @@ function SectionPanel({ def, canWrite }: { def: SectionDef; canWrite: boolean })
                     value={testPass}
                     onChange={(e) => setTestPass(e.target.value)}
                     sx={{ width: 200 }}
-                    slotProps={{ htmlInput: { 'data-testid': 'authcfg-test-password', 'aria-label': '测试口令（testPassword）', className: MONO_INPUT, lang: 'en', autoComplete: 'new-password', spellCheck: false } }}
+                    slotProps={{ htmlInput: { 'data-testid': 'authcfg-test-password', 'aria-label': tt('测试口令（testPassword）'), className: MONO_INPUT, lang: 'en', autoComplete: 'new-password', spellCheck: false } }}
                   />
                 </>
               )}
-              <Tooltip title={credsIncomplete ? '测试账号两半须齐备（testUsername / testPassword）——只填一半会被服务端拒绝' : '用当前表单值探测（不落库）'}>
+              <Tooltip title={credsIncomplete ? tt('测试账号两半须齐备（testUsername / testPassword）——只填一半会被服务端拒绝') : tt('用当前表单值探测（不落库）')}>
                 <span>
                   <Button
                     size="small"
@@ -575,11 +553,11 @@ function SectionPanel({ def, canWrite }: { def: SectionDef; canWrite: boolean })
                     data-testid="authcfg-test-run"
                     onClick={() => void runTest('run')}
                   >
-                    {testing === 'run' ? '探测中…' : '测试连接（当前表单）'}
+                    {testing === 'run' ? tt('探测中…') : tt('测试连接（当前表单）')}
                   </Button>
                 </span>
               </Tooltip>
-              <Tooltip title="探测已保存的配置（空请求体）">
+              <Tooltip title={tt('探测已保存的配置（空请求体）')}>
                 <span>
                   <Button
                     size="small"
@@ -588,14 +566,12 @@ function SectionPanel({ def, canWrite }: { def: SectionDef; canWrite: boolean })
                     data-testid="authcfg-test-stored"
                     onClick={() => void runTest('stored')}
                   >
-                    {testing === 'stored' ? '探测中…' : '测试已保存配置'}
+                    {testing === 'stored' ? tt('探测中…') : tt('测试已保存配置')}
                   </Button>
                 </span>
               </Tooltip>
               {credsIncomplete && (
-                <Typography variant="caption" color="text.secondary">
-                  测试账号两半须齐备（testUsername / testPassword）——只填一半会被服务端拒绝。
-                </Typography>
+                <Typography variant="caption" color="text.secondary">{tt('测试账号两半须齐备（testUsername / testPassword）——只填一半会被服务端拒绝。')}                </Typography>
               )}
             </div>
             {report && <TestReportBox report={report} />}
@@ -608,13 +584,11 @@ function SectionPanel({ def, canWrite }: { def: SectionDef; canWrite: boolean })
               data-testid="authcfg-error"
               onClose={() => setSaveError(null)}
             >
-              <div>
-                保存被拒（HTTP {saveError.status || '网络'}）：
-              </div>
+              <div>{tt('保存被拒（HTTP')} {saveError.status || tt('网络')}{tt('）：')}              </div>
               <div className="mono" lang="en">
                 {saveError.message}
               </div>
-              <div>拒绝不改动在用配置（verify-then-replace）——修正后重试。</div>
+              <div>{tt('拒绝不改动在用配置（verify-then-replace）——修正后重试。')}</div>
             </Alert>
           )}
 
@@ -628,16 +602,14 @@ function SectionPanel({ def, canWrite }: { def: SectionDef; canWrite: boolean })
               data-testid="authcfg-save"
               onClick={() => void save()}
             >
-              {busy ? '保存中…' : '保存配置'}
+              {busy ? tt('保存中…') : tt('保存配置')}
             </Button>
             <Button
               variant="outlined"
               disabled={!canWrite || !dirty || busy}
               data-testid="authcfg-reset"
               onClick={() => setForm(baseline)}
-            >
-              还原
-            </Button>
+            >{tt('还原')}            </Button>
           </Box>
         </>
       )}
@@ -662,22 +634,16 @@ export default function AuthConfigPage() {
   return (
     <div data-testid="authcfg-page">
       <div className="page-header">
-        <h2>认证配置</h2>
+        <h2>{tt('认证配置')}</h2>
         <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>
           {def.head}
         </span>
       </div>
 
-      <p className="page-note" data-testid="authcfg-note-effect">
-        ⓘ 保存即生效：配置在保存后的<b>下一个认证请求</b>起生效，无需重启（服务端热更新；已建立的会话不受影响）。
-        敏感字段（密码/secret）服务端永不回显明文——留空保存 = 保持不变。
-      </p>
+      <p className="page-note" data-testid="authcfg-note-effect">{tt('ⓘ 保存即生效：配置在保存后的')}<b>{tt('下一个认证请求')}</b>{tt('起生效，无需重启（服务端热更新；已建立的会话不受影响）。 敏感字段（密码/secret）服务端永不回显明文——留空保存 = 保持不变。')}      </p>
 
       {readOnly && (
-        <p className="page-note" data-testid="authcfg-readonly-note">
-          ⓘ 只读管理员视角：认证配置只读呈现（security:read）；保存与测试连接是管理面写操作（security:write，仅全量
-          admin）——控件已禁用，服务端 403 兜底。
-        </p>
+        <p className="page-note" data-testid="authcfg-readonly-note">{tt('ⓘ 只读管理员视角：认证配置只读呈现（security:read）；保存与测试连接是管理面写操作（security:write，仅全量 admin）——控件已禁用，服务端 403 兜底。')}        </p>
       )}
 
       {/* T-344 批 C：Tab 条换 MUI Tabs（锚 authcfg-tab-* 落 Tab 根 <a>，

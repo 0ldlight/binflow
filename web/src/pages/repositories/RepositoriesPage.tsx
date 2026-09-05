@@ -46,6 +46,9 @@ import { useAsync } from '../../lib/useAsync'
 import './repositories.css'
 import { useRepoDelete } from './RepoDeleteConfirm'
 import { REPO_CREATE_ENTRY } from './formCopy'
+import { tr } from '../../i18n'
+
+const tt = tr('repositories')
 
 // 仓库管理列表（console-m8 §6.6 / reverse §3.4，T-240 重排）：
 //
@@ -116,12 +119,12 @@ const TABS: { id: RClass; label: string }[] = [
  * label 与表头一致；anchor = 菜单项锚（anchor-audit 的 anchor: 属性形态）。 */
 const COLUMNS: ColumnDef[] = [
   { id: 'key', label: 'Repository Key', anchor: 'repos-columns-item-key' },
-  { id: 'package', label: '包类型', anchor: 'repos-columns-item-package' },
+  { id: 'package', label: tt('包类型'), anchor: 'repos-columns-item-package' },
   { id: 'replications', label: 'Replications', anchor: 'repos-columns-item-replications' },
-  { id: 'upstream', label: '上游 / 成员', anchor: 'repos-columns-item-upstream' },
-  { id: 'usage', label: '已用', anchor: 'repos-columns-item-usage' },
-  { id: 'description', label: '描述', anchor: 'repos-columns-item-description' },
-  { id: 'actions', label: '操作', anchor: 'repos-columns-item-actions' },
+  { id: 'upstream', label: tt('上游 / 成员'), anchor: 'repos-columns-item-upstream' },
+  { id: 'usage', label: tt('已用'), anchor: 'repos-columns-item-usage' },
+  { id: 'description', label: tt('描述'), anchor: 'repos-columns-item-description' },
+  { id: 'actions', label: tt('操作'), anchor: 'repos-columns-item-actions' },
 ]
 const COLUMN_IDS = COLUMNS.map((c) => c.id)
 const COLS_KEY = 'binflow-console-cols-repos'
@@ -224,8 +227,8 @@ function UsageCell({ repoKey, rclass, usage }: { repoKey: string; rclass: string
         size="small"
         sx={cellBtnSx}
         data-testid={testid}
-        title={`${usage.error?.message ?? '用量不可用'}（点击重试）`}
-        aria-label={`仓库 ${repoKey} 用量加载失败，点击重试`}
+        title={tt('{v1}（点击重试）', { v1: usage.error?.message ?? tt('用量不可用') })}
+        aria-label={tt('仓库 {repoKey} 用量加载失败，点击重试', { repoKey: repoKey })}
         onClick={(e) => {
           // 行点击是导航——重试不得冒泡（CopyButton 隔离层同款）
           e.stopPropagation()
@@ -248,7 +251,7 @@ function UsageCell({ repoKey, rclass, usage }: { repoKey: string; rclass: string
     <span
       className="mono"
       data-testid={testid}
-      title={row.nodeCount !== undefined ? `${formatCount(row.nodeCount)} 个文件` : undefined}
+      title={row.nodeCount !== undefined ? tt('{v1} 个文件', { v1: formatCount(row.nodeCount) }) : undefined}
     >
       {formatBytes(row.usedBytes)}
     </span>
@@ -271,7 +274,7 @@ function UpstreamCell({ repo }: { repo: RepoListItem }) {
     // review B1：details 点击不得冒泡到 tr 的行导航——否则浮层刚开即被换页
     return (
       <details className="member-pop" onClick={(e) => e.stopPropagation()}>
-        <summary>{members.length} 成员</summary>
+        <summary>{members.length} {tt('成员')}</summary>
         <div className="pop">
           <ol className="mono">
             {members.map((m) => (
@@ -280,9 +283,7 @@ function UpstreamCell({ repo }: { repo: RepoListItem }) {
               </li>
             ))}
           </ol>
-          <div className="text-muted" style={{ fontSize: 11, marginTop: 4 }}>
-            按声明序（优先解析成员在前由其自身配置标记）
-          </div>
+          <div className="text-muted" style={{ fontSize: 11, marginTop: 4 }}>{tt('按声明序（优先解析成员在前由其自身配置标记）')}          </div>
         </div>
       </details>
     )
@@ -332,7 +333,7 @@ function ReplicationsCell({
       <span
         className="text-muted"
         data-testid={testid}
-        title={state === 'error' ? `复制配置不可用（${error ?? '加载失败'}）` : state === 'forbidden' ? '复制配置为管理面（system:read）' : undefined}
+        title={state === 'error' ? tt('复制配置不可用（{v1}）', { v1: error ?? tt('加载失败') }) : state === 'forbidden' ? tt('复制配置为管理面（system:read）') : undefined}
       >
         —
       </span>
@@ -340,7 +341,7 @@ function ReplicationsCell({
   }
   if (configs.length === 0) {
     return (
-      <span data-testid={testid} title="未配置复制（No Replication Configured）">
+      <span data-testid={testid} title={tt('未配置复制（No Replication Configured）')}>
         0
       </span>
     )
@@ -348,17 +349,17 @@ function ReplicationsCell({
   const enabledConfigs = configs.filter((c) => c.enabled)
   const tip =
     (enabledConfigs.length > 0
-      ? `Run Replication——对本仓 ${enabledConfigs.length} 条启用配置各触发一次全量同步（异步执行，任务状态见全局复制页）；`
-      : `已配置 ${configs.length} 条复制（全部停用）——启用后才能触发；`) +
-    `共 ${configs.length} 条（${enabledConfigs.length} 启用）` +
-    (canRun ? '' : '；只读管理员不可触发')
+      ? tt('Run Replication——对本仓 {v1} 条启用配置各触发一次全量同步（异步执行，任务状态见全局复制页）；', { v1: enabledConfigs.length })
+      : tt('已配置 {v1} 条复制（全部停用）——启用后才能触发；', { v1: configs.length })) +
+    tt('共 {v1} 条（{v2} 启用）', { v1: configs.length, v2: enabledConfigs.length }) +
+    (canRun ? '' : tt('；只读管理员不可触发'))
   return (
     <Tooltip title={tip} arrow>
       {/* span 隔离层：禁用态 IconButton 不冒泡行点击（键盘路径同 CopyButton 先例） */}
       <span onClick={(e) => e.stopPropagation()}>
         <IconButton
           size="small"
-          aria-label={`复制 ${repoKey}：${configs.length} 条配置（${enabledConfigs.length} 启用）`}
+          aria-label={tt('复制 {repoKey}：{v1} 条配置（{v2} 启用）', { repoKey: repoKey, v1: configs.length, v2: enabledConfigs.length })}
           data-testid={`repos-repl-run-${repoKey}`}
           disabled={!canRun || enabledConfigs.length === 0}
           onClick={(e) => {
@@ -482,15 +483,15 @@ export default function RepositoriesPage() {
         total += res.scheduled
       }
     } catch (err) {
-      toast.error(`复制触发失败（${repoKey}）：${errText(err)}`)
+      toast.error(tt('复制触发失败（{repoKey}）：{v1}', { repoKey: repoKey, v1: errText(err) }))
       return
     }
-    const names = enabled.map((c) => c.name).join('、')
+    const names = enabled.map((c) => c.name).join(tt('、'))
     toast.success(
       total > 0
-        ? `已触发 ${repoKey} 的全量同步：排程 ${formatCount(total)} 项任务（${names}）`
-        : `已触发 ${repoKey} 的全量同步：源仓当前无制品，本次为空跑（${names}）`,
-      { label: '查看任务', onClick: () => navigate('/admin/governance/replication') },
+        ? tt('已触发 {repoKey} 的全量同步：排程 {v1} 项任务（{names}）', { repoKey: repoKey, v1: formatCount(total), names: names })
+        : tt('已触发 {repoKey} 的全量同步：源仓当前无制品，本次为空跑（{names}）', { repoKey: repoKey, names: names }),
+      { label: tt('查看任务'), onClick: () => navigate('/admin/governance/replication') },
     )
   }
 
@@ -526,10 +527,10 @@ export default function RepositoriesPage() {
   return (
     <div data-testid="repos-page">
       <div className="page-header">
-        <h2>仓库</h2>
+        <h2>{tt('仓库')}</h2>
         <div className="repos-head-actions">
           <span className="repos-head-count" data-testid="repos-count">
-            {state.status === 'ok' ? `${rows.length} 个仓库` : '…'}
+            {state.status === 'ok' ? tt('{v1} 个仓库', { v1: rows.length }) : '…'}
           </span>
           {admin && (
             <>
@@ -540,12 +541,10 @@ export default function RepositoriesPage() {
                 size="small"
                 aria-haspopup="menu"
                 aria-expanded={createOpen}
-                title="新建仓库——选择仓型后进入对应建仓表单"
+                title={tt('新建仓库——选择仓型后进入对应建仓表单')}
                 onClick={(e) => setCreateAnchor(e.currentTarget)}
                 data-testid="repos-create"
-              >
-                ＋ 新建仓库
-              </Button>
+              >{tt('＋ 新建仓库')}              </Button>
               <Menu
                 open={createOpen}
                 onClose={() => setCreateAnchor(null)}
@@ -576,9 +575,7 @@ export default function RepositoriesPage() {
       </div>
 
       {readOnly && (
-        <p className="page-note" data-testid="repos-readonly-note">
-          ⓘ 只读管理员（readonly_admin）视角：仓库清单与配置只读；创建/删除仓库与浏览器部署（Deploy）等写操作已禁用——服务端一律 403 兜底。
-        </p>
+        <p className="page-note" data-testid="repos-readonly-note">{tt('ⓘ 只读管理员（readonly_admin）视角：仓库清单与配置只读；创建/删除仓库与浏览器部署（Deploy）等写操作已禁用——服务端一律 403 兜底。')}        </p>
       )}
 
       {/* T-344 批 C：Tab 条换 MUI Tabs（锚 repos-tab-* 落 Tab 根 <a>，
@@ -605,13 +602,13 @@ export default function RepositoriesPage() {
       <div className="filter-bar">
         <TextField
           type="search"
-          placeholder={`搜索 ${TYPE_LABEL[tab]} 仓 key…`}
+          placeholder={tt('搜索 {v1} 仓 key…', { v1: TYPE_LABEL[tab] })}
           value={keyQuery}
           onChange={(e) => setKeyQuery(e.target.value)}
           size="small"
           sx={{ width: 260 }}
           slotProps={{
-            htmlInput: { 'data-testid': 'repos-filter-key', 'aria-label': '搜索仓库 key', className: 'mono' },
+            htmlInput: { 'data-testid': 'repos-filter-key', 'aria-label': tt('搜索仓库 key'), className: 'mono' },
           }}
         />
         {/* T-387（L1）：工具栏尾 = 列选器 + 刷新（parity L1「列选择器 + 刷新
@@ -626,10 +623,10 @@ export default function RepositoriesPage() {
             aria-haspopup="menu"
             aria-expanded={colsOpen}
             data-testid="repos-columns"
-            title="自定义显示列（偏好保存在本浏览器）"
+            title={tt('自定义显示列（偏好保存在本浏览器）')}
             onClick={(e) => setColsAnchor(e.currentTarget)}
           >
-            <span aria-hidden="true">▤</span> 列 {cols.visibleCount}/{COLUMNS.length}
+            <span aria-hidden="true">▤</span> {tt('列')} {cols.visibleCount}/{COLUMNS.length}
           </Button>
           <Menu
             open={colsOpen}
@@ -649,7 +646,7 @@ export default function RepositoriesPage() {
                   role="menuitemcheckbox"
                   aria-checked={visible}
                   aria-disabled={last || undefined}
-                  title={last ? '至少保留一列' : undefined}
+                  title={last ? tt('至少保留一列') : undefined}
                   data-testid={c.anchor}
                   onClick={() => {
                     if (!last) cols.toggle(c.id)
@@ -665,20 +662,18 @@ export default function RepositoriesPage() {
             <Divider component="li" />
             <MenuItem
               aria-disabled={cols.visibleCount === COLUMNS.length || undefined}
-              title={cols.visibleCount === COLUMNS.length ? '全部列已在场' : '显示全部列'}
+              title={cols.visibleCount === COLUMNS.length ? tt('全部列已在场') : tt('显示全部列')}
               data-testid="repos-columns-reset"
               onClick={() => cols.reset()}
-            >
-              全选列
-            </MenuItem>
+            >{tt('全选列')}            </MenuItem>
           </Menu>
           <IconButton
             size="small"
-            aria-label="刷新仓库列表"
+            aria-label={tt('刷新仓库列表')}
             data-testid="repos-refresh"
             disabled={state.status === 'loading'}
             onClick={reload}
-            title="重新拉取仓库清单与用量"
+            title={tt('重新拉取仓库清单与用量')}
           >
             {state.status === 'loading' ? (
               <CircularProgress size={16} aria-hidden="true" />
@@ -693,8 +688,8 @@ export default function RepositoriesPage() {
       {state.status === 'error' && state.error && <ErrorCard error={state.error} onRetry={state.reload} />}
       {state.status === 'forbidden' && state.error && (
         <EmptyState
-          message="无权限查看仓库列表"
-          hint="仓库清单是管理面读端点（admin 与只读管理员可见）。制品访问请使用制品浏览、搜索或仓库直链。"
+          message={tt('无权限查看仓库列表')}
+          hint={tt('仓库清单是管理面读端点（admin 与只读管理员可见）。制品访问请使用制品浏览、搜索或仓库直链。')}
         />
       )}
       {state.status === 'ok' &&
@@ -702,7 +697,7 @@ export default function RepositoriesPage() {
           q !== '' ? (
             <EmptyState
               illustration
-              message={`无匹配的仓库（「${keyQuery}」）`}
+              message={tt('无匹配的仓库（「{keyQuery}」）', { keyQuery: keyQuery })}
               action={
                 <Button
                   variant="outlined"
@@ -710,36 +705,32 @@ export default function RepositoriesPage() {
                   onClick={() => {
                     setKeyQuery('')
                   }}
-                >
-                  清除过滤
-                </Button>
+                >{tt('清除过滤')}                </Button>
               }
               testid="repos-empty-filtered"
             />
           ) : admin ? (
             <EmptyState
               illustration
-              message={`还没有 ${TYPE_LABEL[tab]} 仓库`}
+              message={tt('还没有 {v1} 仓库', { v1: TYPE_LABEL[tab] })}
               action={
                 <Button
                   component={Link}
                   to={`/admin/repositories/${tab}/new`}
                   variant="contained"
                   size="small"
-                >
-                  创建第一个{TYPE_LABEL[tab]}仓库
-                </Button>
+                >{tt('创建第一个')}{TYPE_LABEL[tab]}{tt('仓库')}                </Button>
               }
               hint={
                 tab === 'local'
-                  ? '建议从 generic 起步（适配任意文件；协议仓按客户端接入文档选型）'
+                  ? tt('建议从 generic 起步（适配任意文件；协议仓按客户端接入文档选型）')
                   : tab === 'remote'
-                    ? 'Remote 仓代理上游（如 repo1.maven.org），制品按需缓存'
-                    : 'Virtual 仓聚合多个 local/remote 成员，统一团队出口'
+                    ? tt('Remote 仓代理上游（如 repo1.maven.org），制品按需缓存')
+                    : tt('Virtual 仓聚合多个 local/remote 成员，统一团队出口')
               }
             />
           ) : (
-            <EmptyState illustration message={`还没有 ${TYPE_LABEL[tab]} 仓库`} hint="仓库由管理员创建" />
+            <EmptyState illustration message={tt('还没有 {v1} 仓库', { v1: TYPE_LABEL[tab] })} hint={tt('仓库由管理员创建')} />
           )
         ) : (
           <>
@@ -750,7 +741,7 @@ export default function RepositoriesPage() {
                     <SortTh label="Repository Key" active={sortKey === 'key'} dir={sortDir} onToggle={() => toggleSort('key')} testid="repos-sort-key" />
                   )}
                   {cols.isVisible('package') && (
-                    <SortTh label="包类型" active={sortKey === 'package'} dir={sortDir} onToggle={() => toggleSort('package')} />
+                    <SortTh label={tt('包类型')} active={sortKey === 'package'} dir={sortDir} onToggle={() => toggleSort('package')} />
                   )}
                   {/* T-443：类型列收敛（Q9/B-3.9）——三 Tab 子路由即类型，
                       冗余列退役；Project 列缺位登记不伪造（见 COLUMNS 注） */}
@@ -761,20 +752,18 @@ export default function RepositoriesPage() {
                       sx={{ whiteSpace: 'nowrap' }}
                       title={
                         tab === 'remote'
-                          ? 'push 复制配置（以该仓为源）——BinFlow 无 pull 复制（remote 缓存是另一能力域，ADR-0021/parity R10）'
-                          : 'push 复制配置（以该仓为源）'
+                          ? tt('push 复制配置（以该仓为源）——BinFlow 无 pull 复制（remote 缓存是另一能力域，ADR-0021/parity R10）')
+                          : tt('push 复制配置（以该仓为源）')
                       }
                     >
                       Replications
                     </TableCell>
                   )}
-                  {cols.isVisible('upstream') && <TableCell component="th" scope="col">上游 / 成员</TableCell>}
-                  {cols.isVisible('usage') && <TableCell component="th" scope="col">已用</TableCell>}
-                  {cols.isVisible('description') && <TableCell component="th" scope="col">描述</TableCell>}
+                  {cols.isVisible('upstream') && <TableCell component="th" scope="col">{tt('上游 / 成员')}</TableCell>}
+                  {cols.isVisible('usage') && <TableCell component="th" scope="col">{tt('已用')}</TableCell>}
+                  {cols.isVisible('description') && <TableCell component="th" scope="col">{tt('描述')}</TableCell>}
                   {cols.isVisible('actions') && (
-                    <TableCell component="th" scope="col">
-                      操作
-                    </TableCell>
+                    <TableCell component="th" scope="col">{tt('操作')}                    </TableCell>
                   )}
                 </TableRow>
               </TableHead>
@@ -801,7 +790,7 @@ export default function RepositoriesPage() {
                         </Link>{' '}
                         {/* review B1：拷贝按钮包隔离层（点击/键盘触发都不触发行导航） */}
                         <span onClick={(e) => e.stopPropagation()}>
-                          <CopyButton value={repo.key} label={`仓库 key ${repo.key}`} />
+                          <CopyButton value={repo.key} label={tt('仓库 key {v1}', { v1: repo.key })} />
                         </span>
                       </TableCell>
                     )}
@@ -852,7 +841,7 @@ export default function RepositoriesPage() {
                           size="small"
                           sx={cellBtnSx}
                           data-testid={`repos-setmeup-${repo.key}`}
-                          title={`Set Me Up：${repo.key} 的客户端接入向导`}
+                          title={tt('Set Me Up：{v1} 的客户端接入向导', { v1: repo.key })}
                           onClick={() => setSmuKey(repo.key)}
                         >
                           Set Me Up
@@ -866,13 +855,11 @@ export default function RepositoriesPage() {
                             disabled={readOnly}
                             title={
                               readOnly
-                                ? '只读管理员不可写（服务端 403 兜底）'
-                                : `部署到 ${repo.key}（浏览器上传）`
+                                ? tt('只读管理员不可写（服务端 403 兜底）')
+                                : tt('部署到 {v1}（浏览器上传）', { v1: repo.key })
                             }
                             onClick={() => setDeployKey(repo.key)}
-                          >
-                            部署
-                          </Button>
+                          >{tt('部署')}                          </Button>
                         )}{' '}
                         {admin && (
                           <Button
@@ -881,15 +868,13 @@ export default function RepositoriesPage() {
                             size="small"
                             sx={cellBtnSx}
                             data-testid={`repos-delete-${repo.key}`}
-                            aria-label={`删除仓库 ${repo.key}`}
-                            title={`删除仓库 ${repo.key}`}
+                            aria-label={tt('删除仓库 {v1}', { v1: repo.key })}
+                            title={tt('删除仓库 {v1}', { v1: repo.key })}
                             onClick={(e) => {
                               e.stopPropagation()
                               requestDelete({ key: repo.key, rclass: repo.type, packageType: repo.packageType })
                             }}
-                          >
-                            删除
-                          </Button>
+                          >{tt('删除')}                          </Button>
                         )}
                       </TableCell>
                     )}
@@ -905,7 +890,7 @@ export default function RepositoriesPage() {
                 from={pager.from}
                 to={pager.to}
                 total={sorted.length}
-                note={q !== '' ? `（按「${keyQuery}」过滤）` : undefined}
+                note={q !== '' ? tt('（按「{keyQuery}」过滤）', { keyQuery: keyQuery }) : undefined}
                 pageSize={pager.size}
                 onPageSizeChange={pager.setSize}
               />

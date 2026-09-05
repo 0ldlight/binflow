@@ -14,8 +14,9 @@ import { m8Client, seedRepos } from '../m8/support/seed'
 //
 // 断言面（AC1/AC2）：
 //   ① 创建臂：空态 → 内嵌表单 → POST 落库（API 对账）+ **payload 净度**
-//      （预留字段族零提交——cronExp/pathPrefix/sync 三开关不在 body，R3
-//      勘误的「不伪造语义」网络层实证）+ 预留位控件恒禁用。
+//      （预留字段零提交——pathPrefix/sync 三开关不在 body，R3「不伪造
+//      语义」网络层实证；cron_exp 于 T-462 转正随体——空 = 纯事件轨）
+//      + 预留位控件恒禁用。
 //   ② 编辑臂：重建语义（DELETE+POST——REST 无字段级 PUT 的票内定案）：
 //      恰一条 DELETE + 一条 POST、名称不变、字段更新、无重复行。
 //   ③ 删除臂：E1 输入 name 档（错名不动 / 对名放行）+ 取消腿 + API 对账。
@@ -101,11 +102,12 @@ test('admin: inline create — form posts the wire set only (reserved fields nev
 
   const form = page.locator('[data-testid="repl-form"]')
   await expect(form).toBeVisible()
-  // 预留位组（R3 勘误）：在场 + 恒禁用 + 「预留位」如实标注
+  // 预留位组（R3）：在场 + 恒禁用 + 「预留位」如实标注。cronExp 已于
+  // T-462 转正出组（M15 Q5 推翻——Q1 终裁 / FR-150.4）：真输入、随体提交
   const reserved = page.locator('[data-testid="repl-form-reserved"]')
   await expect(reserved).toBeVisible()
   await expect(reserved).toContainText('预留位')
-  await expect(page.locator('[data-testid="repl-form-cron"]')).toBeDisabled()
+  await expect(page.locator('[data-testid="repl-form-cron"]')).toBeEnabled()
   await expect(page.locator('[data-testid="repl-form-event"]')).toBeDisabled()
   await expect(page.locator('[data-testid="repl-form-prefix"]')).toBeDisabled()
   await expect(page.locator('[data-testid="repl-form-syncDeletes"]')).toBeDisabled()
@@ -127,7 +129,9 @@ test('admin: inline create — form posts the wire set only (reserved fields nev
   await expect(page.locator('[data-testid="repl-form-enabled"]')).toBeChecked()
   await expect(page.locator('[data-testid="repl-form-submit"]')).toBeEnabled()
 
-  // payload 净度（网络层对账）：POST body 键集 = wire 闭集——预留字段零提交
+  // payload 净度（网络层对账）：POST body 键集 = wire 闭集——预留字段
+  // （event/prefix/sync 三开关）零提交；cron_exp 随体（T-462 转正，空 =
+  // 纯事件轨）
   const posted = page.waitForRequest(
     (r) => r.method() === 'POST' && r.url().includes('/api/v1/replications'),
   )
@@ -136,6 +140,7 @@ test('admin: inline create — form posts the wire set only (reserved fields nev
   const body = JSON.parse(req.postData() ?? '{}') as Record<string, unknown>
   expect(Object.keys(body).sort()).toEqual(
     [
+      'cron_exp',
       'enabled',
       'max_bandwidth_bytes_per_sec',
       'max_items_per_push',
@@ -150,6 +155,7 @@ test('admin: inline create — form posts the wire set only (reserved fields nev
   expect(body.source_repo).toBe(key)
   expect(body.enabled).toBe(true)
   expect(body.target_username).toBe('uploader')
+  expect(body.cron_exp).toBe('')
 
   // 行到达 + API 对账
   await expect(page.locator(`[data-testid="repl-row-${name}"]`)).toBeVisible()

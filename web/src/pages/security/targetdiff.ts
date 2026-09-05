@@ -2,6 +2,9 @@
 // 权限是安全面，逐条列出将发生的授予/撤销再提交）。
 
 import type { PermAction } from './api'
+import { tr } from '../../i18n'
+
+const t = tr('security')
 
 export interface TargetSnapshot {
   repos: string[]
@@ -41,19 +44,19 @@ function diffPrincipals(
   for (const name of names) {
     const before = sortActions(prev[name] ?? [])
     const after = sortActions(next[name] ?? [])
-    for (const a of after) if (!before.includes(a)) out.push({ sign: '+', text: `授予${kind}`, value: `${name} ${a}` })
-    for (const a of before) if (!after.includes(a)) out.push({ sign: '-', text: `撤销${kind}`, value: `${name} ${a}` })
+    for (const a of after) if (!before.includes(a)) out.push({ sign: '+', text: t('授予{kind}', { kind: kind }), value: `${name} ${a}` })
+    for (const a of before) if (!after.includes(a)) out.push({ sign: '-', text: t('撤销{kind}', { kind: kind }), value: `${name} ${a}` })
   }
 }
 
 /** 原 → 新 的逐条变更（顺序：仓库 → include → exclude → 用户 → 组） */
 export function buildTargetDiff(prev: TargetSnapshot, next: TargetSnapshot): DiffLine[] {
   const out: DiffLine[] = []
-  diffList(prev.repos, next.repos, '添加仓库', '移除仓库', out)
-  diffList(prev.includes, next.includes, '添加 include', '移除 include', out)
-  diffList(prev.excludes, next.excludes, '添加 exclude', '移除 exclude', out)
-  diffPrincipals(prev.users, next.users, '用户', out)
-  diffPrincipals(prev.groups, next.groups, '组', out)
+  diffList(prev.repos, next.repos, t('添加仓库'), t('移除仓库'), out)
+  diffList(prev.includes, next.includes, t('添加 include'), t('移除 include'), out)
+  diffList(prev.excludes, next.excludes, t('添加 exclude'), t('移除 exclude'), out)
+  diffPrincipals(prev.users, next.users, t('用户'), out)
+  diffPrincipals(prev.groups, next.groups, t('组'), out)
   return out
 }
 

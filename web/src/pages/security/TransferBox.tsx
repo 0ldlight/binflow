@@ -2,6 +2,9 @@ import type { ComponentPropsWithoutRef, ReactNode } from 'react'
 
 import Checkbox from '@mui/material/Checkbox'
 import FormControlLabel from '@mui/material/FormControlLabel'
+import { tr } from '../../i18n'
+
+const t = tr('security')
 
 // 双列穿梭（console-m8 §3.3 C5，对齐 reverse §4.11 Available/Selected 形态）：
 // 左「可选」右「已选」，各带计数；空侧显示「未选择项」（No Items Selected
@@ -29,8 +32,8 @@ export function TransferBox({
   selected,
   onToggle,
   disabled = false,
-  availableLabel = '可选',
-  selectedLabel = '已选',
+  availableLabel = t('可选'),
+  selectedLabel = t('已选'),
   itemTestid,
   renderNote,
 }: {
@@ -83,8 +86,8 @@ export function TransferBox({
           <span className="transfer-count">{available.length}</span>
         </div>
         {/* tabIndex：可滚动区键盘可达（axe scrollable-region-focusable） */}
-        <div className="transfer-list" tabIndex={0} role="group" aria-label={`${availableLabel}（${available.length}）`}>
-          {available.length === 0 ? <p className="transfer-empty">（无可选项）</p> : available.map((i) => row(i, false))}
+        <div className="transfer-list" tabIndex={0} role="group" aria-label={t('{availableLabel}（{v1}）', { availableLabel: availableLabel, v1: available.length })}>
+          {available.length === 0 ? <p className="transfer-empty">{t('（无可选项）')}</p> : available.map((i) => row(i, false))}
         </div>
       </div>
       <div className="transfer-col" data-testid="transfer-selected">
@@ -92,8 +95,8 @@ export function TransferBox({
           <span>{selectedLabel}</span>
           <span className="transfer-count">{chosen.length}</span>
         </div>
-        <div className="transfer-list" tabIndex={0} role="group" aria-label={`${selectedLabel}（${chosen.length}）`}>
-          {chosen.length === 0 ? <p className="transfer-empty">未选择项</p> : chosen.map((i) => row(i, true))}
+        <div className="transfer-list" tabIndex={0} role="group" aria-label={t('{selectedLabel}（{v1}）', { selectedLabel: selectedLabel, v1: chosen.length })}>
+          {chosen.length === 0 ? <p className="transfer-empty">{t('未选择项')}</p> : chosen.map((i) => row(i, true))}
         </div>
       </div>
     </div>

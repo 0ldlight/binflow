@@ -25,6 +25,9 @@ import { TransferBox } from './TransferBox'
 import { PermSummaryTable, StatusLabel, useUserDelete } from './widgets'
 import { getUser, grantsOfUser, listGroups, listPermissionTargets, updateUser } from './api'
 import type { UserDetail, UserUpdateBody } from './api'
+import { tr } from '../../i18n'
+
+const t = tr('security')
 
 // 用户编辑器（console-m8 §6.9 编辑态，T-237 重排；T-257 数据源换 E3/E4）：
 // 分区形态 = 用户设置 / 选项（状态）/ 口令 / 相关组（双列穿梭）/ 用户权限
@@ -46,9 +49,9 @@ import type { UserDetail, UserUpdateBody } from './api'
 // UI 无绕过——服务端是唯一守门）。
 
 const ROLE_LABEL: Record<AdminRole, string> = {
-  user: 'user —— 内容面按 permission target 授权',
-  readonly_admin: 'readonly_admin —— 管理面全量只读',
-  admin: 'admin —— 管理面全权',
+  user: t('user —— 内容面按 permission target 授权'),
+  readonly_admin: t('readonly_admin —— 管理面全量只读'),
+  admin: t('admin —— 管理面全权'),
 }
 
 interface EditState {
@@ -106,11 +109,9 @@ export default function UserDetailPage() {
       <div data-testid="user-detail-page">
         {detail.error.status === 404 ? (
           <EmptyState
-            message={`用户 ${name} 不存在`}
+            message={t('用户 {name} 不存在', { name: name })}
             action={
-              <Button variant="outlined" size="small" component={Link} to="/admin/security/users">
-                ← 返回用户列表
-              </Button>
+              <Button variant="outlined" size="small" component={Link} to="/admin/security/users">{t('← 返回用户列表')}              </Button>
             }
           />
         ) : (
@@ -122,7 +123,7 @@ export default function UserDetailPage() {
   if (detail.status === 'forbidden' && detail.error) {
     return (
       <div data-testid="user-detail-page">
-        <EmptyState message="无权限访问用户管理" hint={detail.error.message} />
+        <EmptyState message={t('无权限访问用户管理')} hint={detail.error.message} />
       </div>
     )
   }
@@ -133,9 +134,9 @@ export default function UserDetailPage() {
   const self = session?.username === name
   const builtin = name === 'admin'
   const deleteBlocked = self
-    ? '不能删除当前登录用户（服务端 400 护栏）'
+    ? t('不能删除当前登录用户（服务端 400 护栏）')
     : builtin
-      ? '不能删除内置 admin 用户（服务端 400 护栏）'
+      ? t('不能删除内置 admin 用户（服务端 400 护栏）')
       : undefined
   const groupsEqual = (a: readonly string[], b: readonly string[]) =>
     JSON.stringify([...a].sort()) === JSON.stringify([...b].sort())
@@ -163,7 +164,7 @@ export default function UserDetailPage() {
       if (!groupsEqual(f.groups, d.groups)) body.groups = f.groups
       if (f.password !== '') body.password = f.password
       await updateUser(d.name, body)
-      toast.success(`用户 ${d.name} 已更新`)
+      toast.success(t('用户 {v1} 已更新', { v1: d.name }))
       setF((p) => (p ? { ...p, password: '', password2: '' } : p))
       detail.reload()
     } catch (err) {
@@ -178,32 +179,26 @@ export default function UserDetailPage() {
   return (
     <div data-testid="user-detail-page">
       <div className="page-header">
-        <h2>
-          编辑用户 · <span className="mono" lang="en">{name}</span>
+        <h2>{t('编辑用户 ·')} <span className="mono" lang="en">{name}</span>
         </h2>
-        <Button variant="outlined" size="small" component={Link} to="/admin/security/users">
-          ← 返回列表
-        </Button>
+        <Button variant="outlined" size="small" component={Link} to="/admin/security/users">{t('← 返回列表')}        </Button>
       </div>
 
-      <section className="card inline-form" data-testid="user-form" aria-label="编辑用户">
-        <h3>用户设置</h3>
+      <section className="card inline-form" data-testid="user-form" aria-label={t('编辑用户')}>
+        <h3>{t('用户设置')}</h3>
         {f && (
           <>
             {readOnly && (
-              <p className="admin-note" data-testid="user-form-readonly-note">
-                ⓘ 只读管理员（readonly_admin）视角：用户编辑是管理面写操作，本页为只读呈现
-                （服务端 403 兜底，UI 不代持判定）。
-              </p>
+              <p className="admin-note" data-testid="user-form-readonly-note">{t('ⓘ 只读管理员（readonly_admin）视角：用户编辑是管理面写操作，本页为只读呈现 （服务端 403 兜底，UI 不代持判定）。')}              </p>
             )}
             <div className="form-section">
               <div className="field">
-                <label htmlFor="ud-name">用户名（不可变）</label>
+                <label htmlFor="ud-name">{t('用户名（不可变）')}</label>
                 <div>
                   <span className="mono" lang="en">
                     {name}
                   </span>{' '}
-                  <CopyButton value={name} label={`用户名 ${name}`} />
+                  <CopyButton value={name} label={t('用户名 {name}', { name: name })} />
                 </div>
               </div>
               <div className="field">
@@ -218,10 +213,10 @@ export default function UserDetailPage() {
                   sx={{ width: 320 }}
                   slotProps={{ htmlInput: { 'data-testid': 'user-form-email' } }}
                 />
-                {f.email.trim() === '' && <p className="field-error">email 不能为空（服务端 400）</p>}
+                {f.email.trim() === '' && <p className="field-error">{t('email 不能为空（服务端 400）')}</p>}
               </div>
               <div className="field" style={{ maxWidth: 480 }}>
-                <label htmlFor="ud-role">角色（三值闭集——wire 值即选项值）</label>
+                <label htmlFor="ud-role">{t('角色（三值闭集——wire 值即选项值）')}</label>
                 <TextField
                   id="ud-role"
                   select
@@ -243,14 +238,11 @@ export default function UserDetailPage() {
                     </option>
                   ))}
                 </TextField>
-                <p className="field-hint">
-                  角色变更即时生效并落 <span className="mono" lang="en">user.role.change</span> 审计；只读管理员对
-                  permission target 短路（组合无效而非非法）。
-                </p>
+                <p className="field-hint">{t('角色变更即时生效并落')} <span className="mono" lang="en">user.role.change</span> {t('审计；只读管理员对 permission target 短路（组合无效而非非法）。')}                </p>
               </div>
             </div>
             <div className="form-section">
-              <h4>选项</h4>
+              <h4>{t('选项')}</h4>
               <FormControlLabel
                 className="check-row"
                 control={
@@ -262,20 +254,20 @@ export default function UserDetailPage() {
                     slotProps={{ input: { 'data-testid': 'user-form-enabled' } as ComponentPropsWithoutRef<'input'> }}
                   />
                 }
-                label="启用（取消勾选 = 禁用账号——登录与写面全部拒绝）"
+                label={t('启用（取消勾选 = 禁用账号——登录与写面全部拒绝）')}
               />
-              <p className="field-hint">勾选态 = 服务端 enabled 回显（E3，DB 行事实）；保存总是携带该位写入。</p>
+              <p className="field-hint">{t('勾选态 = 服务端 enabled 回显（E3，DB 行事实）；保存总是携带该位写入。')}</p>
             </div>
             <div className="form-section">
-              <h4>口令</h4>
+              <h4>{t('口令')}</h4>
               <div className="field">
-                <label htmlFor="ud-pass">重置口令（可选——留空不改动；无需旧口令）</label>
+                <label htmlFor="ud-pass">{t('重置口令（可选——留空不改动；无需旧口令）')}</label>
                 <TextField
                   id="ud-pass"
                   size="small"
                   type="password"
                   autoComplete="new-password"
-                  placeholder="（不改动）"
+                  placeholder={t('（不改动）')}
                   value={f.password}
                   disabled={readOnly}
                   onChange={(e) => setF((p) => (p ? { ...p, password: e.target.value } : p))}
@@ -284,13 +276,13 @@ export default function UserDetailPage() {
                 />
               </div>
               <div className="field">
-                <label htmlFor="ud-pass2">确认口令</label>
+                <label htmlFor="ud-pass2">{t('确认口令')}</label>
                 <TextField
                   id="ud-pass2"
                   size="small"
                   type="password"
                   autoComplete="new-password"
-                  placeholder="（再输入一次）"
+                  placeholder={t('（再输入一次）')}
                   value={f.password2}
                   disabled={readOnly}
                   onChange={(e) => setF((p) => (p ? { ...p, password2: e.target.value } : p))}
@@ -299,15 +291,13 @@ export default function UserDetailPage() {
                   slotProps={{ htmlInput: { 'data-testid': 'user-form-password2' } }}
                 />
                 {passMismatch && (
-                  <p className="field-error" role="alert">
-                    两次输入的口令不一致
-                  </p>
+                  <p className="field-error" role="alert">{t('两次输入的口令不一致')}                  </p>
                 )}
               </div>
             </div>
             <div className="form-section">
-              <h4>相关组</h4>
-              <p className="field-hint">勾选即加入（右列）；保存后即时生效——移出组即失去该组授权，无需重登。</p>
+              <h4>{t('相关组')}</h4>
+              <p className="field-hint">{t('勾选即加入（右列）；保存后即时生效——移出组即失去该组授权，无需重登。')}</p>
               {groups.status === 'loading' && <Skeleton lines={2} />}
               {groups.status === 'ok' && (
                 <div data-testid="user-form-groups">
@@ -320,46 +310,42 @@ export default function UserDetailPage() {
                         p ? { ...p, groups: next ? [...p.groups, g] : p.groups.filter((x) => x !== g) } : p,
                       )
                     }
-                    availableLabel="可选组"
-                    selectedLabel="已选组"
+                    availableLabel={t('可选组')}
+                    selectedLabel={t('已选组')}
                     itemTestid={(g) => `user-form-group-${g}`}
                   />
                 </div>
               )}
               {groups.status !== 'loading' && groups.status !== 'ok' && (
-                <p className="field-hint">组列表不可用（{groups.error?.message}）。</p>
+                <p className="field-hint">{t('组列表不可用（')}{groups.error?.message}{t('）。')}</p>
               )}
             </div>
             {serverError && (
               <Alert severity="error" data-testid="user-form-error">
-                <div className="headline">保存失败（HTTP {serverError.status || '网络'}）</div>
+                <div className="headline">{t('保存失败（HTTP')} {serverError.status || t('网络')}{t('）')}</div>
                 <div className="raw" lang="en">
                   {serverError.message}
                 </div>
               </Alert>
             )}
             <div className="form-actions">
-              <Button variant="outlined" size="small" component={Link} to="/admin/security/users">
-                取消
-              </Button>
+              <Button variant="outlined" size="small" component={Link} to="/admin/security/users">{t('取消')}              </Button>
               <Button
                 variant="outlined"
                 size="small"
                
                 disabled={!dirty || submitting}
                 onClick={() => d && setF(editFromDetail(d))}
-              >
-                重置
-              </Button>
+              >{t('重置')}              </Button>
               <Button
                 variant="contained"
                 size="small"
                 disabled={!dirty || f.email.trim() === '' || passMismatch || submitting || readOnly}
-                title={readOnly ? '只读管理员：用户编辑是管理面写操作（服务端 403）' : undefined}
+                title={readOnly ? t('只读管理员：用户编辑是管理面写操作（服务端 403）') : undefined}
                 onClick={() => void submit()}
                 data-testid="user-form-submit"
               >
-                {submitting ? '保存中…' : '保存'}
+                {submitting ? t('保存中…') : t('保存')}
               </Button>
             </div>
           </>
@@ -367,23 +353,23 @@ export default function UserDetailPage() {
       </section>
 
       <section className="card" data-testid="user-perms">
-        <h3>用户权限矩阵</h3>
-        <p className="field-hint">只读汇总（来源 = 各 permission target 的直接行与经组行）——变更入口在权限编辑器。</p>
+        <h3>{t('用户权限矩阵')}</h3>
+        <p className="field-hint">{t('只读汇总（来源 = 各 permission target 的直接行与经组行）——变更入口在权限编辑器。')}</p>
         {targets.status === 'loading' && <Skeleton lines={3} />}
         {targets.status === 'ok' && (
           <PermSummaryTable
             rows={permRows ?? []}
             rowTestidPrefix="user-perm"
-            emptyHint="该用户未获得任何 permission target 授权（直接与经组均为空）。"
+            emptyHint={t('该用户未获得任何 permission target 授权（直接与经组均为空）。')}
           />
         )}
         {targets.status !== 'loading' && targets.status !== 'ok' && (
-          <p className="field-hint">权限汇总不可用（{targets.error?.message}）。</p>
+          <p className="field-hint">{t('权限汇总不可用（')}{targets.error?.message}{t('）。')}</p>
         )}
       </section>
 
       <section className="card" data-testid="user-facts">
-        <h3>账户信息</h3>
+        <h3>{t('账户信息')}</h3>
         <div className="kv">
           <span className="k">realm</span>
           <span className="mono" lang="en">
@@ -391,7 +377,7 @@ export default function UserDetailPage() {
           </span>
         </div>
         <div className="kv">
-          <span className="k">角色</span>
+          <span className="k">{t('角色')}</span>
           <span className="mono" lang="en" data-testid="user-facts-role">
             {baseRole ?? '—'}
           </span>
@@ -401,8 +387,8 @@ export default function UserDetailPage() {
           <span>{d ? <StatusLabel enabled={d.enabled} /> : '—'}</span>
         </div>
         <div className="kv">
-          <span className="k">最近登录</span>
-          <span>{d?.lastLoggedIn ? <span className="mono" lang="en">{d.lastLoggedIn}</span> : '—（尚未登录）'}</span>
+          <span className="k">{t('最近登录')}</span>
+          <span>{d?.lastLoggedIn ? <span className="mono" lang="en">{d.lastLoggedIn}</span> : t('—（尚未登录）')}</span>
         </div>
         <div className="kv">
           <span className="k">API URI</span>
@@ -419,13 +405,8 @@ export default function UserDetailPage() {
             sx={{ mt: 'var(--bf-sp-4)', p: 'var(--bf-sp-3) var(--bf-sp-4)', borderColor: 'error.main' }}
             data-testid="user-danger-zone"
           >
-            <Typography className="dz-head" variant="subtitle2" component="div" color="error" sx={{ mb: 0.5 }}>
-              危险区
-            </Typography>
-            <Typography className="dz-note" variant="body2" color="text.secondary" sx={{ mb: 1, maxWidth: '72ch' }}>
-              删除不可恢复（组员/授权/token/会话同事务级联；审计保留）。人员离场的可逆路径是
-              <b>禁用</b>（选项区）——删除仅用于账号彻底清退。
-            </Typography>
+            <Typography className="dz-head" variant="subtitle2" component="div" color="error" sx={{ mb: 0.5 }}>{t('危险区')}            </Typography>
+            <Typography className="dz-note" variant="body2" color="text.secondary" sx={{ mb: 1, maxWidth: '72ch' }}>{t('删除不可恢复（组员/授权/token/会话同事务级联；审计保留）。人员离场的可逆路径是')}              <b>{t('禁用')}</b>{t('（选项区）——删除仅用于账号彻底清退。')}            </Typography>
             {deleteBlocked ? (
               <Button
                 variant="outlined"
@@ -435,9 +416,7 @@ export default function UserDetailPage() {
                 disabled
                 title={deleteBlocked}
                 data-testid="user-delete"
-              >
-                删除用户
-              </Button>
+              >{t('删除用户')}              </Button>
             ) : (
               <Button
                 variant="outlined"
@@ -446,9 +425,7 @@ export default function UserDetailPage() {
                
                 onClick={() => void deleteUser(name)}
                 data-testid="user-delete"
-              >
-                删除用户
-              </Button>
+              >{t('删除用户')}              </Button>
             )}
           </Paper>
         )}

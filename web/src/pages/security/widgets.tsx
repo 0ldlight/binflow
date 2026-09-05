@@ -16,6 +16,9 @@ import { ApiError, errText } from '../../lib/api'
 import { deleteUser } from './api'
 import { PERM_ACTIONS } from './api'
 import type { PermAction, PrincipalGrantRow } from './api'
+import { tr } from '../../i18n'
+
+const t = tr('security')
 
 // 用户/组页共用小件（T-237，area 目录内助手——与 TransferBox 同批）：
 //   SortTh / useTableSort  C1 列头排序（§4.7：点击循环 asc → desc → none）
@@ -118,7 +121,7 @@ export function PermSummaryTable({
       <TableHead>
         <TableRow>
           <TableCell component="th" scope="col">Permission Name</TableCell>
-          <TableCell component="th" scope="col">应用途径</TableCell>
+          <TableCell component="th" scope="col">{t('应用途径')}</TableCell>
           {PERM_ACTIONS.map((a) => (
             <TableCell
               key={a}
@@ -127,13 +130,13 @@ export function PermSummaryTable({
               className="th-action"
               title={
                 a === 'manage'
-                  ? 'manage = 仓库配置派生权（不隐含读写删）'
+                  ? t('manage = 仓库配置派生权（不隐含读写删）')
                   : a === 'annotate'
-                    ? 'annotate = 属性写位（7.161 标签 Annotate；不隐含内容写）'
+                    ? t('annotate = 属性写位（7.161 标签 Annotate；不隐含内容写）')
                     : a === 'write'
-                      ? 'write = 部署位（7.161 标签 Deploy/Cache；wire 正名 deploy-cache；不携带 annotate）'
+                      ? t('write = 部署位（7.161 标签 Deploy/Cache；wire 正名 deploy-cache；不携带 annotate）')
                       : a === 'delete'
-                        ? 'delete = 删除/覆盖（7.161 标签 Delete/Overwrite）'
+                        ? t('delete = 删除/覆盖（7.161 标签 Delete/Overwrite）')
                         : undefined
               }
             >
@@ -154,7 +157,7 @@ export function PermSummaryTable({
               <span className="sec-chips">
                 {r.sources.map((s) =>
                   s === 'direct' ? (
-                    <Chip key="direct" size="small" className="badge neutral" label="直接" />
+                    <Chip key="direct" size="small" className="badge neutral" label={t('直接')} />
                   ) : (
                     <Chip
                       key={s}
@@ -171,11 +174,11 @@ export function PermSummaryTable({
             {PERM_ACTIONS.map((a) => (
               <TableCell key={a} className="td-mark">
                 {r.actions.includes(a as PermAction) ? (
-                  <span className="mark-on" aria-label={`${a} 已授予`}>
+                  <span className="mark-on" aria-label={t('{a} 已授予', { a: a })}>
                     ✓
                   </span>
                 ) : (
-                  <span className="mark-off" aria-label={`${a} 未授予`}>
+                  <span className="mark-off" aria-label={t('{a} 未授予', { a: a })}>
                     —
                   </span>
                 )}
@@ -197,9 +200,9 @@ export function PermSummaryTable({
 export function StatusLabel({ enabled, name }: { enabled: boolean; name?: string }) {
   const testid = name ? { 'data-testid': `user-status-${name}` } : {}
   return enabled ? (
-    <Chip size="small" variant="outlined" color="success" className="status-pill status-on" label="启用" {...testid} />
+    <Chip size="small" variant="outlined" color="success" className="status-pill status-on" label={t('启用')} {...testid} />
   ) : (
-    <Chip size="small" variant="outlined" color="error" className="status-pill status-off" label="禁用" {...testid} />
+    <Chip size="small" variant="outlined" color="error" className="status-pill status-off" label={t('禁用')} {...testid} />
   )
 }
 
@@ -228,17 +231,10 @@ export function useUserDelete({ onDeleted }: UserDeleteHooks = {}) {
     const holder = { typed: '' }
     const body: ReactNode = (
       <>
-        <p>
-          确定要移除用户 <b className="mono" lang="en">{name}</b> 吗？此操作<b>不可恢复</b>。
-        </p>
-        <p className="text-muted" style={{ fontSize: 12 }}>
-          同一事务内级联：组员关系、permission target 中的直接授权、全部 API token 与活跃会话
-          （持有其 token 的请求随即 401）。审计历史保留。重复删除会被服务端拒绝（404，有意非幂等）。
-        </p>
+        <p>{t('确定要移除用户')} <b className="mono" lang="en">{name}</b> {t('吗？此操作')}<b>{t('不可恢复')}</b>{t('。')}        </p>
+        <p className="text-muted" style={{ fontSize: 12 }}>{t('同一事务内级联：组员关系、permission target 中的直接授权、全部 API token 与活跃会话 （持有其 token 的请求随即 401）。审计历史保留。重复删除会被服务端拒绝（404，有意非幂等）。')}        </p>
         <div className="field" style={{ maxWidth: 'none', marginBottom: 0 }}>
-          <label htmlFor={`del-user-confirm-${name}`}>
-            输入用户名 <b className="mono" lang="en">{name}</b> 以确认：
-          </label>
+          <label htmlFor={`del-user-confirm-${name}`}>{t('输入用户名')} <b className="mono" lang="en">{name}</b> {t('以确认：')}          </label>
           <input
             id={`del-user-confirm-${name}`}
             className="confirm-input"
@@ -253,10 +249,10 @@ export function useUserDelete({ onDeleted }: UserDeleteHooks = {}) {
       </>
     )
     const ok = await confirm({
-      title: '删除用户',
+      title: t('删除用户'),
       body,
       danger: true,
-      confirmLabel: '删除用户',
+      confirmLabel: t('删除用户'),
       confirmDisabled: () => holder.typed !== name,
     })
     if (!ok) return
@@ -268,7 +264,7 @@ export function useUserDelete({ onDeleted }: UserDeleteHooks = {}) {
     } catch (err) {
       // 如实呈现：400 护栏（内置/last-admin/自删）与 404（已被他人删）的
       // 服务端原文即最终事实——不重试不美化
-      toast.error(`删除失败：${errText(err)}`)
+      toast.error(t('删除失败：{v1}', { v1: errText(err) }))
       if (err instanceof ApiError && err.status === 404) onDeleted?.(name)
     } finally {
       setDeleting(false)

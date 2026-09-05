@@ -54,6 +54,9 @@ import {
   saveBlob,
   validateNameSegment,
 } from './lib'
+import { tr } from '../../i18n'
+
+const tt = tr('artifacts')
 
 // 跨仓制品浏览器（console-m8 §6.3 / FR-72，T-236——Artifactory 树浏览器
 // 对齐面；自 repositories/tree/TreePage 迁址重构）：
@@ -542,12 +545,12 @@ export default function ArtifactsBrowser() {
         saveBlob(blob, node.name)
         const match = expectedSha ? expectedSha === sha256 : undefined
         setDownload({ path: node.path, phase: 'done', sha: sha256, match })
-        if (match === false) toast.error(`下载完成，但 sha256 与服务端不一致（${node.name}）`)
-        else toast.success(`下载完成${match ? '：sha256 与服务端一致' : ''}`)
+        if (match === false) toast.error(tt('下载完成，但 sha256 与服务端不一致（{v1}）', { v1: node.name }))
+        else toast.success(tt('下载完成{v1}', { v1: match ? tt('：sha256 与服务端一致') : '' }))
       } catch (err) {
         setDownload(null)
         const apiErr = err instanceof ApiError ? err : new ApiError(0, String(err))
-        toast.error(`下载失败（HTTP ${apiErr.status}）：${apiErr.message}`)
+        toast.error(tt('下载失败（HTTP {v1}）：{v2}', { v1: apiErr.status, v2: apiErr.message }))
       }
     },
     [toast],
@@ -557,14 +560,12 @@ export default function ArtifactsBrowser() {
     async (repo: string, node: ChildNode) => {
       const isCache = repoMeta?.rclass === 'remote'
       const ok = await confirm({
-        title: node.folder ? '删除目录' : isCache ? '删除缓存' : '删除制品',
+        title: node.folder ? tt('删除目录') : isCache ? tt('删除缓存') : tt('删除制品'),
         danger: true,
-        confirmLabel: '删除',
+        confirmLabel: tt('删除'),
         body: (
-          <p>
-            将永久删除 <b className="mono" lang="en">{repo}/{node.path}</b>
-            {node.folder ? '（目录及其全部内容）' : ''}。制品不可变，删除没有撤销。
-            {isCache ? ' 这是 remote 缓存——删除后下次请求将重新回源。' : ''}
+          <p>{tt('将永久删除')} <b className="mono" lang="en">{repo}/{node.path}</b>
+            {node.folder ? tt('（目录及其全部内容）') : ''}{tt('。制品不可变，删除没有撤销。')}            {isCache ? tt(' 这是 remote 缓存——删除后下次请求将重新回源。') : ''}
           </p>
         ),
       })
@@ -581,7 +582,7 @@ export default function ArtifactsBrowser() {
       }
       try {
         await deleteNode(repo, node.path, node.folder)
-        toast.success(`已删除 ${node.path}`)
+        toast.success(tt('已删除 {v1}', { v1: node.path }))
         setDeleteError(null)
         if (wasSelected) backToParent()
         refresh()
@@ -589,7 +590,7 @@ export default function ArtifactsBrowser() {
         const apiErr = err instanceof ApiError ? err : new ApiError(0, String(err))
         if (apiErr.status === 404) {
           // E-14 幂等：路径已不存在 = 目标状态已达成
-          toast.success(`已删除 ${node.path}（此前已不存在——删除幂等）`)
+          toast.success(tt('已删除 {v1}（此前已不存在——删除幂等）', { v1: node.path }))
           if (wasSelected) backToParent()
           refresh()
           return
@@ -605,18 +606,15 @@ export default function ArtifactsBrowser() {
   const doMkdir = async () => {
     const holder = { name: '' }
     const ok = await confirm({
-      title: '新建目录',
+      title: tt('新建目录'),
       body: (
         <>
-          <p>
-            在 <b className="mono" lang="en">{dir === '' ? `${repoKey}/（根）` : `${repoKey}/${dir}/`}</b> 下创建目录
-            （尾斜杠 PUT，E-15 mkdir 语义）。
-          </p>
+          <p>{tt('在')} <b className="mono" lang="en">{dir === '' ? tt('{repoKey}/（根）', { repoKey: repoKey }) : `${repoKey}/${dir}/`}</b> {tt('下创建目录 （尾斜杠 PUT，E-15 mkdir 语义）。')}          </p>
           <div className="field" style={{ marginBottom: 0 }}>
             <input
               className="confirm-input mono"
               autoComplete="off"
-              placeholder="目录名"
+              placeholder={tt('目录名')}
               data-testid="tree-mkdir-input"
               onChange={(e) => {
                 holder.name = e.target.value
@@ -632,12 +630,12 @@ export default function ArtifactsBrowser() {
     const target = dir === '' ? `${name}/` : `${dir}/${name}/`
     try {
       await mkdir(repoKey, target)
-      toast.success(`已创建目录 ${target}`)
+      toast.success(tt('已创建目录 {target}', { target: target }))
       refresh()
       setExpanded((prev) => new Set(prev).add(ck(repoKey, target.replace(/\/$/, ''))))
     } catch (err) {
       const apiErr = err instanceof ApiError ? err : new ApiError(0, String(err))
-      toast.error(`创建目录失败（HTTP ${apiErr.status}）：${apiErr.message}`)
+      toast.error(tt('创建目录失败（HTTP {v1}）：{v2}', { v1: apiErr.status, v2: apiErr.message }))
     }
   }
 
@@ -706,7 +704,7 @@ export default function ArtifactsBrowser() {
             size="small"
             sx={cellBtnSx}
             data-testid="tree-setmeup"
-            title="客户端接入向导（按包类型生成接入命令与令牌）"
+            title={tt('客户端接入向导（按包类型生成接入命令与令牌）')}
             onClick={() => setSmuOpen(true)}
           >
             Set Me Up
@@ -716,28 +714,22 @@ export default function ArtifactsBrowser() {
             size="small"
             data-testid="tree-deploy"
             disabled={readOnly}
-            title={readOnly ? '只读管理员不可写（服务端 403 兜底）' : '浏览器上传（local Generic / Maven 仓）'}
+            title={readOnly ? tt('只读管理员不可写（服务端 403 兜底）') : tt('浏览器上传（local Generic / Maven 仓）')}
             onClick={() => setDeployOpen(true)}
-          >
-            ⬆ 部署 Deploy
-          </Button>
+          >{tt('⬆ 部署 Deploy')}          </Button>
           {admin && (
-            <Button variant="outlined" size="small" sx={cellBtnSx} component={Link} to="/admin/repositories/local">
-              管理仓库 →
-            </Button>
+            <Button variant="outlined" size="small" sx={cellBtnSx} component={Link} to="/admin/repositories/local">{tt('管理仓库 →')}            </Button>
           )}
         </div>
       </div>
 
       {emptyInstance ? (
         <section className="card section">
-          <h3>这个实例还没有仓库</h3>
-          <p className="text-2">创建第一个仓库后，全部制品会以跨仓树的形式展示在这里。</p>
+          <h3>{tt('这个实例还没有仓库')}</h3>
+          <p className="text-2">{tt('创建第一个仓库后，全部制品会以跨仓树的形式展示在这里。')}</p>
           <p>
             {admin && (
-              <Button variant="contained" size="small" component={Link} to="/admin/repositories/new">
-                创建仓库
-              </Button>
+              <Button variant="contained" size="small" component={Link} to="/admin/repositories/new">{tt('创建仓库')}              </Button>
             )}{' '}
             <Button
               variant="outlined"
@@ -747,17 +739,13 @@ export default function ArtifactsBrowser() {
                 localStorage.setItem('bf-skip-onboarding', '1')
                 setOnboardSkipped(true)
               }}
-            >
-              跳过
-            </Button>
+            >{tt('跳过')}            </Button>
           </p>
         </section>
       ) : (
         <>
           {readOnly && (
-            <p className="browser-readonly-note" data-testid="tree-readonly-note">
-              当前会话是只读管理员（readonly_admin）：浏览面全量可见，上传/删除等写操作已禁用——服务端对写面一律 403 兜底。
-            </p>
+            <p className="browser-readonly-note" data-testid="tree-readonly-note">{tt('当前会话是只读管理员（readonly_admin）：浏览面全量可见，上传/删除等写操作已禁用——服务端对写面一律 403 兜底。')}            </p>
           )}
 
           <div className="tree-breadcrumb" data-testid="tree-breadcrumb">
@@ -775,15 +763,13 @@ export default function ArtifactsBrowser() {
                       </button>
                     </span>
                   ))}
-                <CopyButton value={dir === '' ? `${repoKey}/` : `${repoKey}/${dir}/`} label="当前路径" />
+                <CopyButton value={dir === '' ? `${repoKey}/` : `${repoKey}/${dir}/`} label={tt('当前路径')} />
               </>
             ) : (
-              <span className="text-2">在左侧选择仓库开始浏览</span>
+              <span className="text-2">{tt('在左侧选择仓库开始浏览')}</span>
             )}
             <span className="spacer" />
-            <Button variant="outlined" size="small" sx={cellBtnSx} onClick={refresh} title="重新加载当前视图">
-              ↻ 刷新
-            </Button>
+            <Button variant="outlined" size="small" sx={cellBtnSx} onClick={refresh} title={tt('重新加载当前视图')}>{tt('↻ 刷新')}            </Button>
             {mkdirable && (
               <Button
                 variant="outlined"
@@ -791,29 +777,23 @@ export default function ArtifactsBrowser() {
                 sx={cellBtnSx}
                 data-testid="tree-mkdir"
                 disabled={readOnly}
-                title={readOnly ? '只读管理员不可写（服务端 403 兜底）' : undefined}
+                title={readOnly ? tt('只读管理员不可写（服务端 403 兜底）') : undefined}
                 onClick={() => void doMkdir()}
-              >
-                + 目录
-              </Button>
+              >{tt('+ 目录')}              </Button>
             )}
           </div>
 
           {meta.status === 'forbidden' && (
-            <div className="warn-box">
-              仓库元数据为管理员视图（HTTP 403）——树按 generic 语义呈现；上传/删除权限由内容面按路径 ACL 判定，操作被拒时原因会在此原样呈现。
-            </div>
+            <div className="warn-box">{tt('仓库元数据为管理员视图（HTTP 403）——树按 generic 语义呈现；上传/删除权限由内容面按路径 ACL 判定，操作被拒时原因会在此原样呈现。')}            </div>
           )}
 
           {commands.length > 0 && (
             <section className="card section" data-testid="tree-commands">
-              <h3>此协议不走浏览器上传</h3>
+              <h3>{tt('此协议不走浏览器上传')}</h3>
               <p className="text-2">
                 {packageType === 'docker'
-                  ? 'docker 是 POST/PATCH/PUT 三步会话协议——经 docker 客户端推送；登录经 /v2/token（registry 面，与控制台会话无关）。'
-                  : `${packageType} 的发布协议是 multipart/packument 形态——请用对应客户端发布。`}
-                以下命令与仓库详情页同源：
-              </p>
+                  ? tt('docker 是 POST/PATCH/PUT 三步会话协议——经 docker 客户端推送；登录经 /v2/token（registry 面，与控制台会话无关）。')
+                  : tt('{packageType} 的发布协议是 multipart/packument 形态——请用对应客户端发布。', { packageType: packageType })}{tt('以下命令与仓库详情页同源：')}              </p>
               {commands.map((c) => (
                 <div className="cmd-block" key={c.title}>
                   <header>
@@ -829,15 +809,13 @@ export default function ArtifactsBrowser() {
           )}
 
           {repoMeta && rclass === 'virtual' && (
-            <div className="warn-box">
-              virtual 仓是聚合视图：浏览合并各成员；上传/删除不经 virtual（删除走成员仓本身——BinFlow 有意不兼容，RE-08）。
-            </div>
+            <div className="warn-box">{tt('virtual 仓是聚合视图：浏览合并各成员；上传/删除不经 virtual（删除走成员仓本身——BinFlow 有意不兼容，RE-08）。')}            </div>
           )}
           {repoMeta && rclass === 'remote' && (
             <div className="warn-box" data-testid="tree-remote-note">
               {remoteBrowseOn
-                ? '远端浏览已开启（listRemoteFolderItems）：树包含上游未缓存的目录与条目（按 metadata TTL 缓存枚举）；点击未缓存条目会回源拉取并落地缓存。'
-                : 'remote 仓浏览的是已缓存内容；首次访问的路径需经客户端拉取后才会出现在树上（可在仓库配置开启远端浏览 listRemoteFolderItems）。'}
+                ? tt('远端浏览已开启（listRemoteFolderItems）：树包含上游未缓存的目录与条目（按 metadata TTL 缓存枚举）；点击未缓存条目会回源拉取并落地缓存。')
+                : tt('remote 仓浏览的是已缓存内容；首次访问的路径需经客户端拉取后才会出现在树上（可在仓库配置开启远端浏览 listRemoteFolderItems）。')}
             </div>
           )}
 
@@ -847,30 +825,19 @@ export default function ArtifactsBrowser() {
               data-testid="delete-error"
               sx={{ mt: 2, '& .MuiAlert-message': { width: '100%' } }}
             >
-              <div className="headline">
-                删除 <span className="mono" lang="en">{deleteError.path}</span> 失败（HTTP {deleteError.err.status}）
-              </div>
+              <div className="headline">{tt('删除')} <span className="mono" lang="en">{deleteError.path}</span> {tt('失败（HTTP')} {deleteError.err.status}{tt('）')}              </div>
               <div className="raw" lang="en">{deleteError.err.message}</div>
               {deleteError.err.status === 403 && (
-                <div>
-                  当前会话没有对该路径的 delete 权限（read-only）。权限模型按 permission target 的路径 pattern 授予——
-                  {admin ? (
-                    <>
-                      需要管理员在{' '}
-                      <Link to="/admin/security/permissions" target="_blank">
-                        权限 target
-                      </Link>{' '}
-                      里给该路径加 delete 动作。
-                    </>
+                <div>{tt('当前会话没有对该路径的 delete 权限（read-only）。权限模型按 permission target 的路径 pattern 授予——')}                  {admin ? (
+                    <>{tt('需要管理员在')}{' '}
+                      <Link to="/admin/security/permissions" target="_blank">{tt('权限 target')}                      </Link>{' '}{tt('里给该路径加 delete 动作。')}                    </>
                   ) : (
-                    <>请联系管理员为你的账号授予该路径的 delete 动作。</>
+                    <>{tt('请联系管理员为你的账号授予该路径的 delete 动作。')}</>
                   )}
                 </div>
               )}
               <div style={{ marginTop: 8 }}>
-                <Button variant="outlined" size="small" sx={cellBtnSx} onClick={() => setDeleteError(null)}>
-                  知道了
-                </Button>
+                <Button variant="outlined" size="small" sx={cellBtnSx} onClick={() => setDeleteError(null)}>{tt('知道了')}                </Button>
               </div>
             </Alert>
           )}
@@ -878,7 +845,7 @@ export default function ArtifactsBrowser() {
           <div className="tree-layout browser-layout">
             {/* 左树：树头工具带（T-434 / FR-142.4）+ 仓库顶层 + 懒展开子树
                 （reverse §3.2/§4.3）。工具带在滚动区外常驻（带不随树滚走）。 */}
-            <nav className={`tree-pane browser-tree${compacted ? ' compacted' : ''}`} aria-label="制品树" data-testid="browser-tree">
+            <nav className={`tree-pane browser-tree${compacted ? ' compacted' : ''}`} aria-label={tt('制品树')} data-testid="browser-tree">
               <TreeToolband
                 repoFilter={repoFilter}
                 onRepoFilter={setRepoFilter}
@@ -913,27 +880,25 @@ export default function ArtifactsBrowser() {
                 facetAnchor={facetAnchor}
                 onFacetAnchor={setFacetAnchor}
               />
-              <div className="browser-tree-scroll" role="tree" aria-label="跨仓制品树">
+              <div className="browser-tree-scroll" role="tree" aria-label={tt('跨仓制品树')}>
                 {reposQuery.status === 'loading' && <TreeSkeleton />}
                 {reposQuery.status === 'error' && reposQuery.error && (
                   <ErrorCard error={reposQuery.error} onRetry={reposQuery.reload} />
                 )}
                 {reposQuery.status === 'forbidden' && !repoKey && (
                   <EmptyState
-                    message="无权限列出仓库"
-                    hint="仓库清单是管理员/只读管理员视图（HTTP 403）。可以用搜索定位制品，或用已知仓库 key 的链接直达。"
+                    message={tt('无权限列出仓库')}
+                    hint={tt('仓库清单是管理员/只读管理员视图（HTTP 403）。可以用搜索定位制品，或用已知仓库 key 的链接直达。')}
                     testid="tree-root-denied"
                     action={
-                      <Button variant="outlined" size="small" sx={cellBtnSx} component={Link} to="/search">
-                        去搜索
-                      </Button>
+                      <Button variant="outlined" size="small" sx={cellBtnSx} component={Link} to="/search">{tt('去搜索')}                      </Button>
                     }
                   />
                 )}
                 {(reposQuery.status === 'ok' || reposQuery.status === 'forbidden') &&
                   (filteredRepos.length === 0 ? (
                     <div className="tree-empty-level">
-                      {repoFilter ? `没有匹配「${repoFilter}」的仓库（仅过滤已加载集）` : '（无仓库）'}
+                      {repoFilter ? tt('没有匹配「{repoFilter}」的仓库（仅过滤已加载集）', { repoFilter: repoFilter }) : tt('（无仓库）')}
                     </div>
                   ) : (
                     filteredRepos.map((r) => (
@@ -997,14 +962,9 @@ export default function ArtifactsBrowser() {
                 />
               ) : (
                 <section className="card section node-detail">
-                  <h3>制品浏览器</h3>
-                  <p className="text-2">
-                    左侧是全部仓库的树：单击选中（此处联动详情），展开箭头（或 → 键）展开下一层——目录与文件都出现在树里。
-                    选中路径与页签都会进入 URL——可以直接分享或收藏深链，打开时自动展开定位。
-                  </p>
-                  <p className="text-2">
-                    右键（或 <kbd>Shift+F10</kbd>）打开操作菜单：复制路径 / 下载 / 删除 / 刷新。
-                  </p>
+                  <h3>{tt('制品浏览器')}</h3>
+                  <p className="text-2">{tt('左侧是全部仓库的树：单击选中（此处联动详情），展开箭头（或 → 键）展开下一层——目录与文件都出现在树里。 选中路径与页签都会进入 URL——可以直接分享或收藏深链，打开时自动展开定位。')}                  </p>
+                  <p className="text-2">{tt('右键（或')} <kbd>Shift+F10</kbd>{tt('）打开操作菜单：复制路径 / 下载 / 删除 / 刷新。')}                  </p>
                 </section>
               )}
 
@@ -1014,11 +974,11 @@ export default function ArtifactsBrowser() {
                     <TextField
                       type="search"
                       size="small"
-                      placeholder="过滤当前层（仅已加载集）…"
+                      placeholder={tt('过滤当前层（仅已加载集）…')}
                       value={filter}
                       onChange={(e) => setFilter(e.target.value)}
                       sx={{ ...monoInputSx, width: 240 }}
-                      slotProps={{ htmlInput: { 'data-testid': 'tree-filter', 'aria-label': '过滤当前层', className: 'mono' } }}
+                      slotProps={{ htmlInput: { 'data-testid': 'tree-filter', 'aria-label': tt('过滤当前层'), className: 'mono' } }}
                     />
                     <FormControlLabel
                       className="check-row"
@@ -1029,10 +989,10 @@ export default function ArtifactsBrowser() {
                           onChange={(e) => setFilesOnly(e.target.checked)}
                         />
                       }
-                      label="只看文件"
+                      label={tt('只看文件')}
                     />
                     <span className="count">
-                      {total > 0 && <>共 {total} 项 · 已显示 {Math.min(visible, rows.length)}</>}
+                      {total > 0 && <>{tt('共')} {total} {tt('项 · 已显示')} {Math.min(visible, rows.length)}</>}
                     </span>
                   </div>
 
@@ -1041,9 +1001,7 @@ export default function ArtifactsBrowser() {
                       可选字段 remoteDegraded 上 wire（T-448 §5-2 缝——渲染腿在途
                       时字段缺席，本横幅不渲染，零行为影响）。 */}
                   {cur?.status === 'ok' && cur.remoteDegraded && (
-                    <div className="warn-box" data-testid="tree-remote-degraded" title={cur.remoteDegraded}>
-                      ⚠ 远端枚举不可用（上游故障或 assumed-offline 静默期）——已缓存条目仍可用；未缓存条目暂不可见。
-                      <span className="mono" lang="en" style={{ fontSize: 'var(--bf-fs-aux, 12px)' }}> {cur.remoteDegraded}</span>
+                    <div className="warn-box" data-testid="tree-remote-degraded" title={cur.remoteDegraded}>{tt('⚠ 远端枚举不可用（上游故障或 assumed-offline 静默期）——已缓存条目仍可用；未缓存条目暂不可见。')}                      <span className="mono" lang="en" style={{ fontSize: 'var(--bf-fs-aux, 12px)' }}> {cur.remoteDegraded}</span>
                     </div>
                   )}
 
@@ -1051,22 +1009,18 @@ export default function ArtifactsBrowser() {
                     <TableSkeleton />
                   ) : cur.status === 'forbidden' ? (
                     <EmptyState
-                      message="无权限浏览此目录"
-                      hint={`内容面按路径 ACL 判定（${cur.error.message}）。可回到有权限的层级，或用搜索定位制品。`}
+                      message={tt('无权限浏览此目录')}
+                      hint={tt('内容面按路径 ACL 判定（{v1}）。可回到有权限的层级，或用搜索定位制品。', { v1: cur.error.message })}
                       action={
-                        <Button variant="outlined" size="small" sx={cellBtnSx} component={Link} to="/search">
-                          去搜索
-                        </Button>
+                        <Button variant="outlined" size="small" sx={cellBtnSx} component={Link} to="/search">{tt('去搜索')}                        </Button>
                       }
                     />
                   ) : cur.status === 'error' && cur.error.status === 404 ? (
                     <EmptyState
-                      message="路径不存在"
-                      hint="节点可能已被删除，或链接里的路径有误。"
+                      message={tt('路径不存在')}
+                      hint={tt('节点可能已被删除，或链接里的路径有误。')}
                       action={
-                        <Button variant="outlined" size="small" sx={cellBtnSx} onClick={() => goTo(repoKey, '')}>
-                          ← 回仓库根
-                        </Button>
+                        <Button variant="outlined" size="small" sx={cellBtnSx} onClick={() => goTo(repoKey, '')}>{tt('← 回仓库根')}                        </Button>
                       }
                     />
                   ) : cur.status === 'error' && cur.error ? (
@@ -1080,27 +1034,27 @@ export default function ArtifactsBrowser() {
                         // 清单读自 configuration.repositories 规范回显）。锚
                         // tree-empty-virtual 保留、语义随票翻转（锚册 v1.28）。
                         <EmptyState
-                          message={dir === '' ? '虚拟仓库：暂无聚合内容' : '此路径在成员仓库中无内容'}
+                          message={dir === '' ? tt('虚拟仓库：暂无聚合内容') : tt('此路径在成员仓库中无内容')}
                           hint={
                             dir === ''
                               ? virtualMembers.length
-                                ? `成员 ${virtualMembers.join('、')} 当前均无内容——成员仓库有制品后会聚合到这里（若成员已被删除，请在仓库管理中更新成员列表）。`
-                                : '未配置成员仓库——在仓库管理中配置成员后，成员内容会聚合到这里。'
-                              : '虚拟仓库按成员并集浏览，此路径下没有任何成员的内容。'
+                                ? tt('成员 {v1} 当前均无内容——成员仓库有制品后会聚合到这里（若成员已被删除，请在仓库管理中更新成员列表）。', { v1: virtualMembers.join(tt('、')) })
+                                : tt('未配置成员仓库——在仓库管理中配置成员后，成员内容会聚合到这里。')
+                              : tt('虚拟仓库按成员并集浏览，此路径下没有任何成员的内容。')
                           }
                           testid="tree-empty-virtual"
                         />
                       ) : (
                         <EmptyState
-                          message="此目录为空"
+                          message={tt('此目录为空')}
                           hint={
                             uploadable
-                              ? '上传第一个制品，或创建子目录组织布局。'
+                              ? tt('上传第一个制品，或创建子目录组织布局。')
                               : rclass === 'remote'
                                 ? remoteBrowseOn
-                                  ? '远程仓库：缓存与远端枚举在此层均无条目。'
-                                  : '远程仓库：仅展示已缓存的制品（浏览不回源）。'
-                                : '此仓库尚无内容。'
+                                  ? tt('远程仓库：缓存与远端枚举在此层均无条目。')
+                                  : tt('远程仓库：仅展示已缓存的制品（浏览不回源）。')
+                                : tt('此仓库尚无内容。')
                           }
                           testid="tree-empty-dir"
                           action={
@@ -1111,9 +1065,7 @@ export default function ArtifactsBrowser() {
                                 onClick={() => {
                                   setDeployOpen(true)
                                 }}
-                              >
-                                上传第一个制品
-                              </Button>
+                              >{tt('上传第一个制品')}                              </Button>
                             ) : undefined
                           }
                         />
@@ -1122,11 +1074,11 @@ export default function ArtifactsBrowser() {
                       // QA-3 / §3.1 空态：过滤后为空 ≠ 这一层没有内容——标准
                       // 文案 + 清除过滤（连「只看文件」一并复位，保证非空回呈现）
                       <EmptyState
-                        message={`无匹配「${filter}」的条目`}
+                        message={tt('无匹配「{filter}」的条目', { filter: filter })}
                         hint={
                           filesOnly
-                            ? '过滤只作用于当前层已加载的条目，且「只看文件」正在一并收窄范围。'
-                            : '过滤只作用于当前层已加载的条目。'
+                            ? tt('过滤只作用于当前层已加载的条目，且「只看文件」正在一并收窄范围。')
+                            : tt('过滤只作用于当前层已加载的条目。')
                         }
                         action={
                           <Button
@@ -1138,17 +1090,15 @@ export default function ArtifactsBrowser() {
                               setFilter('')
                               setFilesOnly(false)
                             }}
-                          >
-                            清除过滤
-                          </Button>
+                          >{tt('清除过滤')}                          </Button>
                         }
                       />
                     ) : (
                       // 仅「只看文件」收窄出的空（无过滤词）：按实际谓词呈现，
                       // 不误报「无匹配」
                       <EmptyState
-                        message="当前层没有文件（只有目录）"
-                        hint="「只看文件」正在收窄列表。"
+                        message={tt('当前层没有文件（只有目录）')}
+                        hint={tt('「只看文件」正在收窄列表。')}
                         action={
                           <Button
                             variant="outlined"
@@ -1156,19 +1106,15 @@ export default function ArtifactsBrowser() {
                             sx={cellBtnSx}
                             data-testid="tree-filter-clear"
                             onClick={() => setFilesOnly(false)}
-                          >
-                            清除「只看文件」
-                          </Button>
+                          >{tt('清除「只看文件」')}                          </Button>
                         }
                       />
                     )
                   ) : (
                     <>
                       {total > BIG_DIR && (
-                        <div className="warn-box">
-                          目录过大（{total} 项）：本页为客户端分页（children 契约暂无游标）。建议改用{' '}
-                          <Link to="/search">搜索</Link> 定位制品。
-                        </div>
+                        <div className="warn-box">{tt('目录过大（')}{total} {tt('项）：本页为客户端分页（children 契约暂无游标）。建议改用')}{' '}
+                          <Link to="/search">{tt('搜索')}</Link> {tt('定位制品。')}                        </div>
                       )}
                       {/* children 表（T-434 / FR-142.1 收窄）：文件主路径走树叶子
                           与本表行选中；原操作列（详情/下载/删除）退役——下载在
@@ -1177,11 +1123,11 @@ export default function ArtifactsBrowser() {
                       <Table className="tree-table" data-testid="tree-list">
                         <TableHead>
                           <TableRow>
-                            <TableCell component="th" scope="col">名称</TableCell>
-                            {isDockerRepo ? <TableCell component="th" scope="col">标签</TableCell> : <TableCell component="th" scope="col">类型</TableCell>}
-                            <TableCell component="th" scope="col">大小</TableCell>
-                            <TableCell component="th" scope="col">修改时间</TableCell>
-                            <TableCell component="th" scope="col">{isDockerRepo ? '摘要' : 'sha256'}</TableCell>
+                            <TableCell component="th" scope="col">{tt('名称')}</TableCell>
+                            {isDockerRepo ? <TableCell component="th" scope="col">{tt('标签')}</TableCell> : <TableCell component="th" scope="col">{tt('类型')}</TableCell>}
+                            <TableCell component="th" scope="col">{tt('大小')}</TableCell>
+                            <TableCell component="th" scope="col">{tt('修改时间')}</TableCell>
+                            <TableCell component="th" scope="col">{isDockerRepo ? tt('摘要') : 'sha256'}</TableCell>
                           </TableRow>
                         </TableHead>
                         <TableBody>
@@ -1221,9 +1167,9 @@ export default function ArtifactsBrowser() {
                                     size="small"
                                     variant="outlined"
                                     color="info"
-                                    label="远端"
+                                    label={tt('远端')}
                                     data-testid="tree-row-uncached"
-                                    title="上游枚举的未缓存条目——点击将回源拉取（成功后落地缓存）"
+                                    title={tt('上游枚举的未缓存条目——点击将回源拉取（成功后落地缓存）')}
                                     sx={{ ml: 0.75, verticalAlign: 'middle' }}
                                   />
                                 )}
@@ -1246,7 +1192,7 @@ export default function ArtifactsBrowser() {
                                       : '—'}
                                 </TableCell>
                               ) : (
-                                <TableCell>{n.folder ? '目录' : '文件'}</TableCell>
+                                <TableCell>{n.folder ? tt('目录') : tt('文件')}</TableCell>
                               )}
                               <TableCell className="mono">{n.folder ? '—' : n.size !== null ? formatBytes(n.size) : '—'}</TableCell>
                               <TableCell className="mono">{n.lastModified ? n.lastModified.replace('T', ' ').slice(0, 19) : '—'}</TableCell>
@@ -1265,9 +1211,7 @@ export default function ArtifactsBrowser() {
                             sx={cellBtnSx}
                             data-testid="tree-load-more"
                             onClick={() => setVisible((v) => v + PAGE)}
-                          >
-                            加载更多（{Math.min(visible, rows.length)}/{rows.length}）
-                          </Button>
+                          >{tt('加载更多（')}{Math.min(visible, rows.length)}/{rows.length}{tt('）')}                          </Button>
                         </div>
                       )}
                     </>
@@ -1279,8 +1223,7 @@ export default function ArtifactsBrowser() {
 
           {/* 页脚标语行（§6.3[6]，对齐 Artifactory "Happily serving" 行） */}
           {stats.status === 'ok' && stats.data && (
-            <p className="browser-footer">
-              已服务 {stats.data.blobs.toLocaleString()} 个 blob · 逻辑容量 {formatBytes(stats.data.logical_bytes)}
+            <p className="browser-footer">{tt('已服务')} {stats.data.blobs.toLocaleString()} {tt('个 blob · 逻辑容量')} {formatBytes(stats.data.logical_bytes)}
             </p>
           )}
         </>
@@ -1303,8 +1246,8 @@ export default function ArtifactsBrowser() {
           onClose={() => setMenu(null)}
           onCopyPath={(value) => {
             void navigator.clipboard.writeText(value).then(
-              () => toast.success(`已复制 ${value}`),
-              () => toast.error('剪贴板不可用'),
+              () => toast.success(tt('已复制 {value}', { value: value })),
+              () => toast.error(tt('剪贴板不可用')),
             )
           }}
           onDownload={(repo, node) => void doDownload(repo, node, node.sha256)}
@@ -1404,12 +1347,12 @@ function TreeToolband({
         <TextField
           type="search"
           size="small"
-          placeholder="过滤仓库…"
+          placeholder={tt('过滤仓库…')}
           value={repoFilter}
           onChange={(e) => onRepoFilter(e.target.value)}
           disabled={reposStatus !== 'ok'}
           sx={{ width: 152 }}
-          slotProps={{ htmlInput: { 'data-testid': 'tree-repo-filter', 'aria-label': '过滤仓库（仅已加载集）' } }}
+          slotProps={{ htmlInput: { 'data-testid': 'tree-repo-filter', 'aria-label': tt('过滤仓库（仅已加载集）') } }}
         />
         {repoFilter && (
           <Button
@@ -1418,9 +1361,7 @@ function TreeToolband({
             sx={cellBtnSx}
             data-testid="tree-repo-filter-clear"
             onClick={() => onRepoFilter('')}
-          >
-            清除
-          </Button>
+          >{tt('清除')}          </Button>
         )}
         <Button
           variant="outlined"
@@ -1428,10 +1369,10 @@ function TreeToolband({
           sx={cellBtnSx}
           data-testid="tree-favorites"
           aria-pressed={favOnly}
-          title="只看收藏的仓库（收藏经仓库右键菜单标记，浏览器本地持久）"
+          title={tt('只看收藏的仓库（收藏经仓库右键菜单标记，浏览器本地持久）')}
           onClick={() => onFavOnly(!favOnly)}
         >
-          {favOnly ? '★' : '☆'} My Favorites{favCount > 0 ? `（${favCount}）` : ''}
+          {favOnly ? '★' : '☆'} My Favorites{favCount > 0 ? tt('（{favCount}）', { favCount: favCount }) : ''}
         </Button>
       </div>
       <div className="toolband-row">
@@ -1440,11 +1381,10 @@ function TreeToolband({
           size="small"
           sx={cellBtnSx}
           aria-haspopup="dialog"
-          title="按包类型过滤仓库树（复选组，空 = 不过滤）"
+          title={tt('按包类型过滤仓库树（复选组，空 = 不过滤）')}
           data-testid="tree-facet-pkg"
           onClick={(e) => onFacetAnchor(e.currentTarget)}
-        >
-          包类型{pkgFacets.size > 0 ? `（${pkgFacets.size}）` : ''} ▾
+        >{tt('包类型')}{pkgFacets.size > 0 ? tt('（{v1}）', { v1: pkgFacets.size }) : ''} ▾
         </Button>
         {RCLASS_FACETS.map((rc) => (
           <FormControlLabel
@@ -1459,7 +1399,7 @@ function TreeToolband({
               />
             }
             label={<span lang="en">{rc.label}</span>}
-            title={`仓库类型 ${rc.label} 过滤（空选 = 不过滤）`}
+            title={tt('仓库类型 {v1} 过滤（空选 = 不过滤）', { v1: rc.label })}
           />
         ))}
       </div>
@@ -1467,7 +1407,7 @@ function TreeToolband({
         <TextField
           select
           size="small"
-          label="排序"
+          label={tt('排序')}
           value={sortBy}
           onChange={(e) => onSort(e.target.value as TreeSort)}
           sx={{ width: 128 }}
@@ -1475,20 +1415,20 @@ function TreeToolband({
             select: {
               native: true,
               inputProps: {
-                'aria-label': '树排序（Sort by）',
+                'aria-label': tt('树排序（Sort by）'),
                 'data-testid': 'tree-sort-by',
               } as ComponentPropsWithoutRef<'select'>,
             } as ComponentPropsWithoutRef<typeof Select>,
           }}
         >
-          <option value="name">名称</option>
-          <option value="pkg">包类型</option>
-          <option value="rclass">仓库类型</option>
+          <option value="name">{tt('名称')}</option>
+          <option value="pkg">{tt('包类型')}</option>
+          <option value="rclass">{tt('仓库类型')}</option>
         </TextField>
         {/* Tree View 单选：Compacted（紧凑行高）/ Non-Compacted（标准） */}
         <RadioGroup
           row
-          aria-label="树视图密度（Tree View）"
+          aria-label={tt('树视图密度（Tree View）')}
           value={compacted ? '1' : '0'}
           onChange={(e) => onCompacted(e.target.value === '1')}
           sx={{ gap: 0.5 }}
@@ -1496,12 +1436,12 @@ function TreeToolband({
           <FormControlLabel
             value="1"
             control={<Radio size="small" slotProps={{ input: { 'data-testid': 'tree-view-compacted' } as ComponentPropsWithoutRef<'input'> }} />}
-            label={<span title="紧凑行高（Compacted）">紧凑</span>}
+            label={<span title={tt('紧凑行高（Compacted）')}>{tt('紧凑')}</span>}
           />
           <FormControlLabel
             value="0"
             control={<Radio size="small" slotProps={{ input: { 'data-testid': 'tree-view-normal' } as ComponentPropsWithoutRef<'input'> }} />}
-            label={<span title="标准行高（Non-Compacted）">标准</span>}
+            label={<span title={tt('标准行高（Non-Compacted）')}>{tt('标准')}</span>}
           />
         </RadioGroup>
       </div>
@@ -1519,7 +1459,7 @@ function TreeToolband({
       >
         <div className="toolband-facet-title" lang="en">Filter by Package Type</div>
         {pkgTypes.length === 0 ? (
-          <p className="text-2" style={{ margin: 0 }}>（已加载集中没有带包类型的仓库）</p>
+          <p className="text-2" style={{ margin: 0 }}>{tt('（已加载集中没有带包类型的仓库）')}</p>
         ) : (
           pkgTypes.map((t) => (
             <FormControlLabel
@@ -1538,9 +1478,7 @@ function TreeToolband({
           ))
         )}
         {pkgFacets.size > 0 && (
-          <Button variant="outlined" size="small" sx={cellBtnSx} data-testid="tree-facet-pkg-clear" onClick={onClearPkg}>
-            清除（{pkgFacets.size}）
-          </Button>
+          <Button variant="outlined" size="small" sx={cellBtnSx} data-testid="tree-facet-pkg-clear" onClick={onClearPkg}>{tt('清除（')}{pkgFacets.size}{tt('）')}          </Button>
         )}
       </Popover>
     </div>
@@ -1598,7 +1536,7 @@ function RepoBranch({
         <span
           role="button"
           tabIndex={-1}
-          aria-label={isOpen ? `收起 ${repo.key}` : `展开 ${repo.key}`}
+          aria-label={isOpen ? tt('收起 {v1}', { v1: repo.key }) : tt('展开 {v1}', { v1: repo.key })}
           className="twisty"
           onClick={(e) => {
             e.stopPropagation()
@@ -1607,7 +1545,7 @@ function RepoBranch({
         >
           {isOpen ? '▾' : '▸'}
         </span>
-        <span aria-hidden="true" className="ico" title={`${repo.type || '仓库'} · ${repo.packageType || '未知包类型'}`}>
+        <span aria-hidden="true" className="ico" title={`${repo.type || tt('仓库')} · ${repo.packageType || tt('未知包类型')}`}>
           {RC_ICON[repo.type] ?? '▣'}
           <PkgIcon id={repo.packageType || 'generic'} variant="mono" size={14} className="tree-pkg" />
         </span>
@@ -1621,13 +1559,9 @@ function RepoBranch({
             ))}
           </div>
         ) : st.status === 'forbidden' ? (
-          <div className="tree-denied" title={st.error.message}>
-            ⃠ 无权限
-          </div>
+          <div className="tree-denied" title={st.error.message}>{tt('⃠ 无权限')}          </div>
         ) : st.status === 'error' ? (
-          <div className="tree-denied" title={st.error.message}>
-            加载失败（HTTP {st.error.status}）
-          </div>
+          <div className="tree-denied" title={st.error.message}>{tt('加载失败（HTTP')} {st.error.status}{tt('）')}          </div>
         ) : (
           <TreeLevel
             repoKey={repo.key}
@@ -1680,13 +1614,13 @@ function TrashTreeNode({ onOpen }: { onOpen: () => void }) {
       role="treeitem"
       aria-level={1}
       tabIndex={0}
-      title="回收站（local 仓删除捕获——恢复 / 永久清除 / 清空，管理页）"
+      title={tt('回收站（local 仓删除捕获——恢复 / 永久清除 / 清空，管理页）')}
       onClick={onOpen}
       onKeyDown={onKeys}
     >
       <span aria-hidden="true" className="twisty" />
       <span aria-hidden="true" className="ico">🗑</span>
-      <span>回收站</span>
+      <span>{tt('回收站')}</span>
     </div>
   )
 }
@@ -1731,23 +1665,19 @@ function TreeLevel({
   }
   if (st.status === 'forbidden') {
     return (
-      <div className="tree-denied" title={st.error.message}>
-        ⃠ 无权限
-      </div>
+      <div className="tree-denied" title={st.error.message}>{tt('⃠ 无权限')}      </div>
     )
   }
   if (st.status === 'error') {
     return (
-      <div className="tree-denied" title={st.error.message}>
-        加载失败（HTTP {st.error.status}）
-      </div>
+      <div className="tree-denied" title={st.error.message}>{tt('加载失败（HTTP')} {st.error.status}{tt('）')}      </div>
     )
   }
   // T-434 / FR-142.1（断言反转①）：filter n.folder 退役——文件与目录都进
   // 树；「（空）」只在真空目录渲染（仅含文件的目录现在有叶子行可见，
   // 误导性空占位症状连带消除）。
   if (st.nodes.length === 0) {
-    return <div className="tree-empty-level">（空）</div>
+    return <div className="tree-empty-level">{tt('（空）')}</div>
   }
   const capped = st.nodes.slice(0, TREE_LEVEL_CAP)
   return (
@@ -1807,7 +1737,7 @@ function TreeLevel({
               <span
                 role="button"
                 tabIndex={-1}
-                aria-label={isOpen ? `收起 ${n.name}` : `展开 ${n.name}`}
+                aria-label={isOpen ? tt('收起 {v1}', { v1: n.name }) : tt('展开 {v1}', { v1: n.name })}
                 className="twisty"
                 onClick={(e) => {
                   e.stopPropagation()
@@ -1838,9 +1768,7 @@ function TreeLevel({
         )
       })}
       {st.nodes.length > capped.length && (
-        <div className="tree-empty-level">
-          … 其余 {st.nodes.length - capped.length} 项未渲染（单层上限 {TREE_LEVEL_CAP}）
-        </div>
+        <div className="tree-empty-level">{tt('… 其余')} {st.nodes.length - capped.length} {tt('项未渲染（单层上限')} {TREE_LEVEL_CAP}{tt('）')}        </div>
       )}
     </>
   )
@@ -1947,46 +1875,46 @@ function TreeContextMenu({
   onOpenAdmin: (repo: string) => void
 }) {
   const t = menu.target
-  const readonlyTitle = '只读管理员不可删（服务端 403 兜底）'
+  const readonlyTitle = tt('只读管理员不可删（服务端 403 兜底）')
   // 与详情面板删除钮同一语义（行内删除钮已随 children 表收窄退役——
   // Q2 出口①：删除收敛进详情与右键，两者都过危险确认，E1 不倒退）：
   // virtual 不给注定 405 的入口
-  const virtualDeleteTitle = 'virtual 仓不经手删除（RE-08，服务端 405）——请到持有该制品的成员仓删除'
+  const virtualDeleteTitle = tt('virtual 仓不经手删除（RE-08，服务端 405）——请到持有该制品的成员仓删除')
   const deleteBlocked = readOnly || targetVirtual
   const deleteTitle = readOnly ? readonlyTitle : targetVirtual ? virtualDeleteTitle : undefined
   const items: MenuItem[] =
     t.kind === 'repo'
       ? [
-          { id: 'copy-repo-path', label: '复制仓库路径', run: () => { onCopyPath(`${t.repoKey}/`); onClose() } },
+          { id: 'copy-repo-path', label: tt('复制仓库路径'), run: () => { onCopyPath(`${t.repoKey}/`); onClose() } },
           {
             id: 'favorite',
-            label: targetFavorite ? '取消收藏（My Favorites）' : '加入收藏（My Favorites）',
-            title: '收藏是前端态（localStorage 持久）；树头 My Favorites 可只看收藏仓库',
+            label: targetFavorite ? tt('取消收藏（My Favorites）') : tt('加入收藏（My Favorites）'),
+            title: tt('收藏是前端态（localStorage 持久）；树头 My Favorites 可只看收藏仓库'),
             run: () => { onToggleFavorite(t.repoKey); onClose() },
           },
-          { id: 'refresh', label: '刷新', run: () => onRefresh(t.repoKey) },
+          { id: 'refresh', label: tt('刷新'), run: () => onRefresh(t.repoKey) },
           ...(canSeeAdmin
-            ? [{ id: 'open-admin', label: '在仓库管理中打开', run: () => onOpenAdmin(t.repoKey) }]
+            ? [{ id: 'open-admin', label: tt('在仓库管理中打开'), run: () => onOpenAdmin(t.repoKey) }]
             : []),
         ]
       : t.node.folder
         ? [
-            { id: 'copy-path', label: '复制路径', run: () => { onCopyPath(`${t.repoKey}/${t.node.path}/`); onClose() } },
+            { id: 'copy-path', label: tt('复制路径'), run: () => { onCopyPath(`${t.repoKey}/${t.node.path}/`); onClose() } },
             {
               id: 'delete',
-              label: '删除',
+              label: tt('删除'),
               disabled: deleteBlocked,
               title: deleteTitle,
               run: () => { onClose(); onDelete(t.repoKey, t.node) },
             },
-            { id: 'refresh', label: '刷新', run: () => onRefresh(t.repoKey) },
+            { id: 'refresh', label: tt('刷新'), run: () => onRefresh(t.repoKey) },
           ]
         : [
-            { id: 'copy-path', label: '复制路径', run: () => { onCopyPath(`${t.repoKey}/${t.node.path}`); onClose() } },
-            { id: 'download', label: '下载', run: () => { onClose(); onDownload(t.repoKey, t.node) } },
+            { id: 'copy-path', label: tt('复制路径'), run: () => { onCopyPath(`${t.repoKey}/${t.node.path}`); onClose() } },
+            { id: 'download', label: tt('下载'), run: () => { onClose(); onDownload(t.repoKey, t.node) } },
             {
               id: 'delete',
-              label: repoRclass === 'remote' ? '删除缓存' : '删除',
+              label: repoRclass === 'remote' ? tt('删除缓存') : tt('删除'),
               disabled: deleteBlocked,
               title: deleteTitle,
               run: () => { onClose(); onDelete(t.repoKey, t.node) },
@@ -2000,7 +1928,7 @@ function TreeContextMenu({
       anchorReference="anchorPosition"
       anchorPosition={{ left: menu.x, top: menu.y }}
       slotProps={{
-        list: { 'aria-label': '操作菜单' } as ComponentPropsWithoutRef<'ul'>,
+        list: { 'aria-label': tt('操作菜单') } as ComponentPropsWithoutRef<'ul'>,
         paper: {
           sx: {
             border: '1px solid var(--bf-border)',

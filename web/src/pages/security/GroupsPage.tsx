@@ -36,6 +36,9 @@ import {
   parseReferencedTargets,
 } from './api'
 import type { GroupListItem } from './api'
+import { tr } from '../../i18n'
+
+const tt = tr('security')
 
 // 组列表（console-m8 §6.10，T-237 重排；T-257 数据源换 E2/E5 单源）：
 // Name〔描述副行〕│ 权限数〔+ manage 徽章〕│ 成员数。
@@ -67,10 +70,10 @@ import type { GroupListItem } from './api'
  * 与表头一致；anchor = 菜单项锚（anchor-audit 的 anchor: 属性形态）。操作列
  * 仅 admin 在场——非 admin 视图列与菜单项同步剔除（UsersPage 同款）。 */
 const COLUMNS: ColumnDef[] = [
-  { id: 'name', label: '组名', anchor: 'groups-columns-item-name' },
-  { id: 'perms', label: '权限数', anchor: 'groups-columns-item-perms' },
-  { id: 'members', label: '成员数', anchor: 'groups-columns-item-members' },
-  { id: 'actions', label: '操作', anchor: 'groups-columns-item-actions' },
+  { id: 'name', label: tt('组名'), anchor: 'groups-columns-item-name' },
+  { id: 'perms', label: tt('权限数'), anchor: 'groups-columns-item-perms' },
+  { id: 'members', label: tt('成员数'), anchor: 'groups-columns-item-members' },
+  { id: 'actions', label: tt('操作'), anchor: 'groups-columns-item-actions' },
 ]
 const COLUMN_IDS = COLUMNS.map((c) => c.id)
 const COLS_KEY = 'binflow-console-cols-groups'
@@ -168,23 +171,19 @@ export default function GroupsPage() {
   const doDelete = async (name: string, description: string) => {
     const memberCount = membership ? (membership.groupMembers[name] ?? []).length : null
     const ok = await confirm({
-      title: `删除组 ${name}`,
+      title: tt('删除组 {name}', { name: name }),
       body: (
         <div>
-          <p>确定要移除该组吗？此操作不可撤销。</p>
-          {memberCount !== null && memberCount > 0 && <p>将解除 {memberCount} 个成员的关联。</p>}
+          <p>{tt('确定要移除该组吗？此操作不可撤销。')}</p>
+          {memberCount !== null && memberCount > 0 && <p>{tt('将解除')} {memberCount} {tt('个成员的关联。')}</p>}
           <p className="text-muted" style={{ fontSize: 12 }}>
             {description && (
-              <>
-                描述：{description}。
-                <br />
+              <>{tt('描述：')}{description}{tt('。')}                <br />
               </>
-            )}
-            若该组被 permission target 引用，服务端会拒绝（409）并列出引用的 target 名。
-          </p>
+            )}{tt('若该组被 permission target 引用，服务端会拒绝（409）并列出引用的 target 名。')}          </p>
         </div>
       ),
-      confirmLabel: '删除',
+      confirmLabel: tt('删除'),
       danger: true,
     })
     if (!ok) return
@@ -199,30 +198,26 @@ export default function GroupsPage() {
         setConflict({ group: name, message: err.message, targets: parseReferencedTargets(err.message) })
         return
       }
-      toast.error(`删除失败：${errText(err)}`)
+      toast.error(tt('删除失败：{v1}', { v1: errText(err) }))
     }
   }
 
   return (
     <div data-testid="groups-page">
       <div className="page-header">
-        <h2>组</h2>
+        <h2>{tt('组')}</h2>
         {admin && (
           <Button
             variant="contained"
             size="small"
             onClick={() => navigate('/admin/security/groups/new')}
             data-testid="groups-create"
-          >
-            ＋ 新建组
-          </Button>
+          >{tt('＋ 新建组')}          </Button>
         )}
       </div>
 
       {readOnly && (
-        <p className="admin-note" data-testid="groups-readonly-note">
-          ⓘ 只读管理员（readonly_admin）视角：组只读；创建/编辑/删除是管理面写操作（服务端 403 兜底）。
-        </p>
+        <p className="admin-note" data-testid="groups-readonly-note">{tt('ⓘ 只读管理员（readonly_admin）视角：组只读；创建/编辑/删除是管理面写操作（服务端 403 兜底）。')}        </p>
       )}
 
       {conflict && (
@@ -231,12 +226,12 @@ export default function GroupsPage() {
           data-testid="group-delete-reason"
           sx={{ mb: 2, '& .MuiAlert-message': { width: '100%' } }}
         >
-          <div>无法删除组 <span className="mono" lang="en">{conflict.group}</span>——它正被 permission target 引用</div>
+          <div>{tt('无法删除组')} <span className="mono" lang="en">{conflict.group}</span>{tt('——它正被 permission target 引用')}</div>
           <div className="mono" lang="en" style={{ fontSize: 'var(--bf-fs-aux)', overflowWrap: 'anywhere' }}>
             {conflict.message}
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginTop: 4 }}>
-            {conflict.targets.length > 0 && <span className="text-2">解除引用（编辑后移除该组主体）：</span>}
+            {conflict.targets.length > 0 && <span className="text-2">{tt('解除引用（编辑后移除该组主体）：')}</span>}
             {conflict.targets.map((t) => (
               <Button
                 key={t}
@@ -250,9 +245,7 @@ export default function GroupsPage() {
                 </span>
               </Button>
             ))}
-            <Button variant="outlined" size="small" onClick={() => setConflict(null)}>
-              稍后再试
-            </Button>
+            <Button variant="outlined" size="small" onClick={() => setConflict(null)}>{tt('稍后再试')}            </Button>
           </div>
         </Alert>
       )}
@@ -268,10 +261,10 @@ export default function GroupsPage() {
             aria-haspopup="menu"
             aria-expanded={colsOpen}
             data-testid="groups-columns"
-            title="自定义显示列（偏好保存在本浏览器）"
+            title={tt('自定义显示列（偏好保存在本浏览器）')}
             onClick={(e) => setColsAnchor(e.currentTarget)}
           >
-            <span aria-hidden="true">▤</span> 列 {cols.visibleCount}/{pageColumns.length}
+            <span aria-hidden="true">▤</span> {tt('列')} {cols.visibleCount}/{pageColumns.length}
           </Button>
           <Menu
             open={colsOpen}
@@ -291,7 +284,7 @@ export default function GroupsPage() {
                   role="menuitemcheckbox"
                   aria-checked={visible}
                   aria-disabled={last || undefined}
-                  title={last ? '至少保留一列' : undefined}
+                  title={last ? tt('至少保留一列') : undefined}
                   data-testid={c.anchor}
                   onClick={() => {
                     if (!last) cols.toggle(c.id)
@@ -307,12 +300,10 @@ export default function GroupsPage() {
             <Divider component="li" />
             <MenuItem
               aria-disabled={cols.visibleCount === pageColumns.length || undefined}
-              title={cols.visibleCount === pageColumns.length ? '全部列已在场' : '显示全部列'}
+              title={cols.visibleCount === pageColumns.length ? tt('全部列已在场') : tt('显示全部列')}
               data-testid="groups-columns-reset"
               onClick={() => cols.reset()}
-            >
-              全选列
-            </MenuItem>
+            >{tt('全选列')}            </MenuItem>
           </Menu>
         </span>
       </div>
@@ -321,8 +312,8 @@ export default function GroupsPage() {
       {state.status === 'error' && state.error && <ErrorCard error={state.error} onRetry={state.reload} />}
       {state.status === 'forbidden' && state.error && (
         <EmptyState
-          message="无权限访问组管理"
-          hint="用户与组管理是管理员功能（管理面需 admin）。"
+          message={tt('无权限访问组管理')}
+          hint={tt('用户与组管理是管理员功能（管理面需 admin）。')}
         />
       )}
       {state.status === 'ok' &&
@@ -330,11 +321,11 @@ export default function GroupsPage() {
           admin ? (
             <EmptyState
               illustration
-              message="还没有组"
-              hint="组的授权经 permission target 生效（组行 × read/write/delete/manage 并集）。"
+              message={tt('还没有组')}
+              hint={tt('组的授权经 permission target 生效（组行 × read/write/delete/manage 并集）。')}
             />
           ) : (
-            <EmptyState illustration message="还没有组" />
+            <EmptyState illustration message={tt('还没有组')} />
           )
         ) : (
           <>
@@ -342,13 +333,13 @@ export default function GroupsPage() {
               <TableHead>
                 <TableRow>
                   {cols.isVisible('name') && (
-                    <SortTh label="组名" sortKey="name" sort={sort} onToggle={toggle} testid="groups-sort-name" />
+                    <SortTh label={tt('组名')} sortKey="name" sort={sort} onToggle={toggle} testid="groups-sort-name" />
                   )}
-                  {cols.isVisible('perms') && <SortTh label="权限数" sortKey="perms" sort={sort} onToggle={toggle} />}
+                  {cols.isVisible('perms') && <SortTh label={tt('权限数')} sortKey="perms" sort={sort} onToggle={toggle} />}
                   {cols.isVisible('members') && (
-                    <SortTh label="成员数" sortKey="members" sort={sort} onToggle={toggle} />
+                    <SortTh label={tt('成员数')} sortKey="members" sort={sort} onToggle={toggle} />
                   )}
-                  {admin && cols.isVisible('actions') && <TableCell component="th" scope="col">操作</TableCell>}
+                  {admin && cols.isVisible('actions') && <TableCell component="th" scope="col">{tt('操作')}</TableCell>}
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -361,7 +352,7 @@ export default function GroupsPage() {
                             <span className="mono" lang="en">
                               {r.group.name}
                             </span>{' '}
-                            <CopyButton value={r.group.name} label={`组名 ${r.group.name}`} />
+                            <CopyButton value={r.group.name} label={tt('组名 {v1}', { v1: r.group.name })} />
                           </span>
                           {r.group.description && (
                             <span className="text-muted" style={{ fontSize: 11 }}>
@@ -388,7 +379,7 @@ export default function GroupsPage() {
                                 sx={{ fontFamily: 'var(--bf-mono)' }}
                                 lang="en"
                                 data-testid={`group-manage-badge-${r.group.name}`}
-                                title="组在至少一个 permission target 上持有 manage（仓库配置派生权）——BinFlow 无 Artifactory 组级 adminPrivileges 字段（有意不跟进，rbac-model §5）"
+                                title={tt('组在至少一个 permission target 上持有 manage（仓库配置派生权）——BinFlow 无 Artifactory 组级 adminPrivileges 字段（有意不跟进，rbac-model §5）')}
                               />
                             )}
                           </span>
@@ -416,18 +407,14 @@ export default function GroupsPage() {
                               navigate(`/admin/security/groups/${encodeURIComponent(r.group.name)}/edit`)
                             }
                             data-testid={`group-edit-${r.group.name}`}
-                          >
-                            编辑
-                          </Button>
+                          >{tt('编辑')}                          </Button>
                           <Button
                             variant="outlined"
                             color="error"
                             size="small"
                             onClick={() => void doDelete(r.group.name, r.group.description)}
                             data-testid={`group-delete-${r.group.name}`}
-                          >
-                            删除
-                          </Button>
+                          >{tt('删除')}                          </Button>
                         </span>
                       </TableCell>
                     )}

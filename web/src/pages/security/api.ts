@@ -28,6 +28,9 @@
 
 import { apiJSON, apiText } from '../../lib/api'
 import type { AdminRole } from '../../lib/api'
+import { tr } from '../../i18n'
+
+const tt = tr('security')
 
 // ---- users（E-19 / SE-05/06） ----
 
@@ -283,21 +286,21 @@ export function deletePermissionTarget(name: string): Promise<void> {
  * 返回错误文案；null = 通过。
  */
 export function validateGroupName(name: string): string | null {
-  if (name === '') return '组名不能为空'
-  if (name === 'anonymous' || name === '_system_') return `「${name}」是保留名`
-  if (name.length > 64) return '组名最长 64 个字符'
+  if (name === '') return tt('组名不能为空')
+  if (name === 'anonymous' || name === '_system_') return tt('「{name}」是保留名', { name: name })
+  if (name.length > 64) return tt('组名最长 64 个字符')
   if (!/^[a-z][a-z0-9._-]*$/.test(name)) {
-    return '组名需以小写字母开头，其后为小写字母 / 数字 / 点 / 下划线 / 连字符'
+    return tt('组名需以小写字母开头，其后为小写字母 / 数字 / 点 / 下划线 / 连字符')
   }
   return null
 }
 
 /** 用户名规则（服务端：全小写 + 非保留 + 非空；email/口令必填在提交链校验） */
 export function validateUserName(name: string): string | null {
-  if (name === '') return '用户名不能为空'
-  if (name === '_system_') return `「${name}」是保留名`
-  if (name !== name.toLowerCase()) return '用户名必须全小写（服务端拒绝混合大小写拼写）'
-  if (/\s/.test(name)) return '用户名不能包含空白字符'
+  if (name === '') return tt('用户名不能为空')
+  if (name === '_system_') return tt('「{name}」是保留名', { name: name })
+  if (name !== name.toLowerCase()) return tt('用户名必须全小写（服务端拒绝混合大小写拼写）')
+  if (/\s/.test(name)) return tt('用户名不能包含空白字符')
   return null
 }
 

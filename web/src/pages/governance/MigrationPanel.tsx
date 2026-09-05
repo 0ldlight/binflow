@@ -12,6 +12,9 @@ import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import { ApiError, apiJSON, errText, isReadOnlyAdmin } from '../../lib/api'
 import { formatAuditTime, formatCount } from '../../lib/format'
+import { tr } from '../../i18n'
+
+const tt = tr('governance')
 
 // 存储迁移面板（T-160 进度呈现 + T-177 启动入口）：
 // 磁盘 filestore → S3 后台迁移的进度与触发。
@@ -120,9 +123,9 @@ function useMigrationStatus(): {
 }
 
 function statusLabel(d: MigrationStatus): { label: string; dot: string } {
-  if (d.running) return { label: '迁移中', dot: 'warn' }
-  if (d.done) return d.failed > 0 ? { label: '已完成（有失败）', dot: 'err' } : { label: '已完成', dot: 'ok' }
-  return { label: '未开始', dot: 'warn' }
+  if (d.running) return { label: tt('迁移中'), dot: 'warn' }
+  if (d.done) return d.failed > 0 ? { label: tt('已完成（有失败）'), dot: 'err' } : { label: tt('已完成'), dot: 'ok' }
+  return { label: tt('未开始'), dot: 'warn' }
 }
 
 function MigrationBody({ data: d, staleError }: { data: MigrationStatus; staleError?: string }) {
@@ -138,19 +141,19 @@ function MigrationBody({ data: d, staleError }: { data: MigrationStatus; staleEr
   return (
     <>
       <div className="kv">
-        <span className="k">状态</span>
+        <span className="k">{tt('状态')}</span>
         <span data-testid="migration-status">
           <span className={`status-dot ${st.dot}`} aria-hidden="true" />
           {st.label}
         </span>
       </div>
       <div className="kv">
-        <span className="k">进度</span>
+        <span className="k">{tt('进度')}</span>
         <div className="water-line" style={{ flex: 1 }}>
           <div
             className={`water-bar${failedDone ? ' full' : ''}`}
             role="progressbar"
-            aria-label="迁移进度"
+            aria-label={tt('迁移进度')}
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={Math.round(pct)}
@@ -165,25 +168,25 @@ function MigrationBody({ data: d, staleError }: { data: MigrationStatus; staleEr
         </div>
       </div>
       <div className="kv">
-        <span className="k">待迁移 blob（盘点时）</span>
+        <span className="k">{tt('待迁移 blob（盘点时）')}</span>
         <span className="mono" data-testid="migration-total" lang="en">
           {formatCount(d.total)}
         </span>
       </div>
       <div className="kv">
-        <span className="k">已迁移</span>
+        <span className="k">{tt('已迁移')}</span>
         <span className="mono" data-testid="migration-migrated" lang="en">
           {formatCount(d.migrated)}
         </span>
       </div>
       <div className="kv">
-        <span className="k">已跳过（S3 已存在）</span>
+        <span className="k">{tt('已跳过（S3 已存在）')}</span>
         <span className="mono" data-testid="migration-skipped" lang="en">
           {formatCount(d.skipped)}
         </span>
       </div>
       <div className="kv">
-        <span className="k">失败</span>
+        <span className="k">{tt('失败')}</span>
         <Box
           component="span"
           className="mono"
@@ -196,7 +199,7 @@ function MigrationBody({ data: d, staleError }: { data: MigrationStatus; staleEr
       </div>
       {d.error && (
         <div className="kv">
-          <span className="k">错误</span>
+          <span className="k">{tt('错误')}</span>
           <Box
             component="span"
             className="mono"
@@ -209,26 +212,21 @@ function MigrationBody({ data: d, staleError }: { data: MigrationStatus; staleEr
         </div>
       )}
       <div className="kv">
-        <span className="k">开始时间</span>
+        <span className="k">{tt('开始时间')}</span>
         <span className="mono" data-testid="migration-started" lang="en">
           {d.started_at ? formatAuditTime(d.started_at) : '—'}
         </span>
       </div>
       <div className="kv">
-        <span className="k">结束时间</span>
+        <span className="k">{tt('结束时间')}</span>
         <span className="mono" data-testid="migration-finished" lang="en">
           {d.finished_at ? formatAuditTime(d.finished_at) : '—'}
         </span>
       </div>
       {staleError && (
-        <p className="field-error" data-testid="migration-stale" role="alert">
-          上次刷新失败：{staleError}（每 {MIGRATION_POLL_MS / 1000} 秒自动重试，以上为最后一次成功数据）
-        </p>
+        <p className="field-error" data-testid="migration-stale" role="alert">{tt('上次刷新失败：')}{staleError}{tt('（每')} {MIGRATION_POLL_MS / 1000} {tt('秒自动重试，以上为最后一次成功数据）')}        </p>
       )}
-      <p className="field-hint" style={{ marginBottom: 0 }}>
-        每 {MIGRATION_POLL_MS / 1000} 秒自动刷新（GET /api/v1/storage/migration）；进度 =（已迁移 + 失败）/
-        待迁移数——已跳过是盘点时 S3 已有的 blob，不在待迁移基数内（幂等重跑不重复拷贝）。
-      </p>
+      <p className="field-hint" style={{ marginBottom: 0 }}>{tt('每')} {MIGRATION_POLL_MS / 1000} {tt('秒自动刷新（GET /api/v1/storage/migration）；进度 =（已迁移 + 失败）/ 待迁移数——已跳过是盘点时 S3 已有的 blob，不在待迁移基数内（幂等重跑不重复拷贝）。')}      </p>
     </>
   )
 }
@@ -258,30 +256,19 @@ export default function MigrationPanel() {
     const holder = { typed: '' }
     const body: ReactNode = (
       <>
-        <p>
-          将触发<b>后台迁移</b>：先盘点（本地盘有、S3 还没有的 blob 构成待迁移集），再逐个流式拷贝到
-          S3；S3 已有的直接跳过，不重复拷贝（幂等，可安全重跑）。
-        </p>
+        <p>{tt('将触发')}<b>{tt('后台迁移')}</b>{tt('：先盘点（本地盘有、S3 还没有的 blob 构成待迁移集），再逐个流式拷贝到 S3；S3 已有的直接跳过，不重复拷贝（幂等，可安全重跑）。')}        </p>
         <ul style={{ margin: '8px 0', paddingLeft: 20 }}>
           <li>
-            <b>双写期间写入放大</b>：实例处于双写装配，迁移期间每个上传同时落本地盘与
-            S3——写入流量与 S3 请求约为两份。
-          </li>
+            <b>{tt('双写期间写入放大')}</b>{tt('：实例处于双写装配，迁移期间每个上传同时落本地盘与 S3——写入流量与 S3 请求约为两份。')}          </li>
           <li>
-            <b>中断可恢复</b>：迁移可安全中断或重启后端——重启后重新盘点、只补缺失部分，已拷贝的不会重拷。
-          </li>
+            <b>{tt('中断可恢复')}</b>{tt('：迁移可安全中断或重启后端——重启后重新盘点、只补缺失部分，已拷贝的不会重拷。')}          </li>
           <li>
-            <b>完成前不要关闭后端</b>或改动 storage.migration 配置；状态到达「已完成」后由运维置
-            completed 切换为 S3 单写。
-          </li>
+            <b>{tt('完成前不要关闭后端')}</b>{tt('或改动 storage.migration 配置；状态到达「已完成」后由运维置 completed 切换为 S3 单写。')}          </li>
           <li>
-            <b>后台执行</b>：启动请求立即返回（202），不阻塞——进度在本面板每 5 秒自动刷新。
-          </li>
+            <b>{tt('后台执行')}</b>{tt('：启动请求立即返回（202），不阻塞——进度在本面板每 5 秒自动刷新。')}          </li>
         </ul>
         <div className="field" style={{ maxWidth: 'none', marginBottom: 0, marginTop: 12 }}>
-          <label htmlFor="migration-confirm">
-            输入 <b className="mono" lang="en">YES</b> 以确认：
-          </label>
+          <label htmlFor="migration-confirm">{tt('输入')} <b className="mono" lang="en">YES</b> {tt('以确认：')}          </label>
           <input
             id="migration-confirm"
             className="confirm-input"
@@ -296,10 +283,10 @@ export default function MigrationPanel() {
       </>
     )
     const ok = await confirm({
-      title: '启动存储迁移（本地 → S3）',
+      title: tt('启动存储迁移（本地 → S3）'),
       body,
       danger: true,
-      confirmLabel: '启动迁移',
+      confirmLabel: tt('启动迁移'),
       confirmDisabled: () => holder.typed.trim().toUpperCase() !== 'YES',
     })
     if (!ok) return
@@ -309,7 +296,7 @@ export default function MigrationPanel() {
       // 202 + 状态体（已在运行中时幂等返回当前状态，同为 202）
       const data = await apiJSON<MigrationStatus>('/v1/storage/migration/start', { method: 'POST' })
       merge(data)
-      toast.success('存储迁移已启动——后台执行，进度每 5 秒自动刷新')
+      toast.success(tt('存储迁移已启动——后台执行，进度每 5 秒自动刷新'))
     } catch (err) {
       setStartError({ status: err instanceof ApiError ? err.status : 0, message: errText(err) })
     } finally {
@@ -319,13 +306,10 @@ export default function MigrationPanel() {
 
   return (
     <section className="card section" data-testid="migration-panel">
-      <h3>存储迁移（本地 → S3）</h3>
+      <h3>{tt('存储迁移（本地 → S3）')}</h3>
       {phase.kind === 'loading' && <Skeleton lines={4} />}
       {phase.kind === 'unconfigured' && (
-        <p className="field-hint" data-testid="migration-unconfigured" style={{ marginBottom: 0 }}>
-          本实例未配置 S3 迁移（storage.migration 未启用，端点返回 501）——当前仅使用本地
-          filestore；启用后本面板自动呈现迁移进度。
-        </p>
+        <p className="field-hint" data-testid="migration-unconfigured" style={{ marginBottom: 0 }}>{tt('本实例未配置 S3 迁移（storage.migration 未启用，端点返回 501）——当前仅使用本地 filestore；启用后本面板自动呈现迁移进度。')}        </p>
       )}
       {phase.kind === 'error' && phase.stale === null && (
         <ErrorCard error={new ApiError(0, phase.message)} onRetry={retry} />
@@ -341,18 +325,14 @@ export default function MigrationPanel() {
             disabled={starting || readOnly}
             onClick={() => void doStart()}
             data-testid="migration-start"
-            title={readOnly ? '只读管理员：迁移启动是 system:write（服务端 403 兜底）' : undefined}
+            title={readOnly ? tt('只读管理员：迁移启动是 system:write（服务端 403 兜底）') : undefined}
           >
-            {starting ? '启动中…' : '启动迁移'}
+            {starting ? tt('启动中…') : tt('启动迁移')}
           </Button>
           {readOnly ? (
-            <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>
-              只读管理员：启动迁移为管理面写操作（system:write），入口已禁用——服务端 403 兜底。
-            </span>
+            <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>{tt('只读管理员：启动迁移为管理面写操作（system:write），入口已禁用——服务端 403 兜底。')}            </span>
           ) : (
-            <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>
-              危险操作——需二次确认（输入 YES）
-            </span>
+            <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>{tt('危险操作——需二次确认（输入 YES）')}            </span>
           )}
         </div>
       )}
@@ -361,14 +341,11 @@ export default function MigrationPanel() {
           <div className="headline">
             <span aria-hidden="true">✗</span>
             {startError.status === 409
-              ? '迁移启动被拒（HTTP 409）'
-              : `迁移启动失败（HTTP ${startError.status}）`}
+              ? tt('迁移启动被拒（HTTP 409）')
+              : tt('迁移启动失败（HTTP {v1}）', { v1: startError.status })}
           </div>
           {startError.status === 409 && (
-            <div className="text-2">
-              服务端拒绝了本次启动——实例可能已不在双写装配状态；检查 storage.migration
-              配置后重试，或直接查看上方状态。
-            </div>
+            <div className="text-2">{tt('服务端拒绝了本次启动——实例可能已不在双写装配状态；检查 storage.migration 配置后重试，或直接查看上方状态。')}            </div>
           )}
           <pre lang="en">{startError.message}</pre>
         </Alert>

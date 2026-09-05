@@ -18,6 +18,9 @@ import { dedupRatio, formatBytes, formatCount } from '../../lib/format'
 import { getRepoUsage } from '../../lib/repos'
 import type { RepoUsage } from '../../lib/repos'
 import { useAsync } from '../../lib/useAsync'
+import { tr } from '../../i18n'
+
+const tt = tr('monitoring')
 
 // 存储概要（console-m8 §6.18 / FR-73 治理面，T-238——/admin/monitoring/storage
 // 落真身；Artifactory Storage Summary 形态对齐，数据面 = BinFlow 现役端点）：
@@ -124,17 +127,13 @@ export default function StorageSummaryPage() {
   return (
     <div data-testid="storage-page">
       <div className="page-header">
-        <h2>存储</h2>
-        <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>
-          实例存储汇总与仓库维度用量
-        </span>
+        <h2>{tt('存储')}</h2>
+        <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>{tt('实例存储汇总与仓库维度用量')}        </span>
       </div>
 
       {/* 刷新行（reverse §3.11：last refreshed on + Refresh） */}
       <div className="storage-refresh-row">
-        <span className="text-2" data-testid="storage-refreshed-at">
-          数据最近刷新于：
-          <span className="mono" lang="en">
+        <span className="text-2" data-testid="storage-refreshed-at">{tt('数据最近刷新于：')}          <span className="mono" lang="en">
             {fetchedAt ? fetchedAt.toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC') : '—'}
           </span>
         </span>
@@ -145,9 +144,9 @@ export default function StorageSummaryPage() {
           onClick={doRefresh}
           data-testid="storage-refresh"
           disabled={usage.status === 'loading'}
-          title={usage.status === 'loading' ? '正在拉取仓库用量' : '重新拉取汇总与逐仓用量'}
+          title={usage.status === 'loading' ? tt('正在拉取仓库用量') : tt('重新拉取汇总与逐仓用量')}
         >
-          {usage.status === 'loading' ? '刷新中…' : '刷新'}
+          {usage.status === 'loading' ? tt('刷新中…') : tt('刷新')}
         </Button>
       </div>
 
@@ -155,8 +154,8 @@ export default function StorageSummaryPage() {
       {repos.status === 'error' && repos.error && <ErrorCard error={repos.error} onRetry={doRefresh} />}
       {repos.status === 'forbidden' && repos.error && (
         <EmptyState
-          message="无权限查看存储概要"
-          hint="存储统计、仓库列表与用量端点为管理员视图（GET /api/v1/storage/stats、GET /api/repositories 仅 admin / readonly_admin）。"
+          message={tt('无权限查看存储概要')}
+          hint={tt('存储统计、仓库列表与用量端点为管理员视图（GET /api/v1/storage/stats、GET /api/repositories 仅 admin / readonly_admin）。')}
         />
       )}
 
@@ -166,25 +165,25 @@ export default function StorageSummaryPage() {
           {stats.status === 'ok' && stats.data && (
             <section className="card section" data-testid="storage-summary">
               <div className="kv">
-                <span className="k">blob 计数</span>
+                <span className="k">{tt('blob 计数')}</span>
                 <span className="mono" lang="en">
                   {formatCount(stats.data.blobs)}
                 </span>
               </div>
               <div className="kv">
-                <span className="k">逻辑容量</span>
+                <span className="k">{tt('逻辑容量')}</span>
                 <span className="mono" lang="en">
                   {formatBytes(stats.data.logical_bytes)}
                 </span>
               </div>
               <div className="kv">
-                <span className="k">物理占用</span>
+                <span className="k">{tt('物理占用')}</span>
                 <span className="mono" lang="en">
                   {formatBytes(stats.data.physical_bytes)}
                 </span>
               </div>
               <div className="kv">
-                <span className="k">去重率（优化率）</span>
+                <span className="k">{tt('去重率（优化率）')}</span>
                 <span className="mono" lang="en">
                   {(dedupRatio(stats.data.logical_bytes, stats.data.physical_bytes) * 100).toFixed(0)}%
                 </span>
@@ -198,25 +197,21 @@ export default function StorageSummaryPage() {
           )}
           {stats.status === 'error' && stats.error && (
             <section className="card section" data-testid="storage-summary">
-              <h3>汇总</h3>
+              <h3>{tt('汇总')}</h3>
               <ErrorCard error={stats.error} onRetry={doRefresh} />
             </section>
           )}
 
           {usage.status === 'loading' && usage.total > 0 && (
-            <p className="field-hint">
-              正在拉取仓库用量（<span className="mono" lang="en">{usage.done}/{usage.total}</span>，串行）…
-            </p>
+            <p className="field-hint">{tt('正在拉取仓库用量（')}<span className="mono" lang="en">{usage.done}/{usage.total}</span>{tt('，串行）…')}            </p>
           )}
 
           {list.length === 0 ? (
             <EmptyState
-              message="还没有仓库"
-              hint="存储概要按仓库聚合用量——创建第一个仓库并上传制品后，这里会呈现汇总与逐仓明细。"
+              message={tt('还没有仓库')}
+              hint={tt('存储概要按仓库聚合用量——创建第一个仓库并上传制品后，这里会呈现汇总与逐仓明细。')}
               action={
-                <Button variant="contained" size="small" component={Link} to="/admin/repositories/new">
-                  创建第一个仓库
-                </Button>
+                <Button variant="contained" size="small" component={Link} to="/admin/repositories/new">{tt('创建第一个仓库')}                </Button>
               }
             />
           ) : (
@@ -224,12 +219,12 @@ export default function StorageSummaryPage() {
               <Table data-testid="storage-table">
                 <TableHead>
                   <TableRow>
-                    <TableCell component="th" scope="col">仓库</TableCell>
-                    <TableCell component="th" scope="col">仓型</TableCell>
-                    <TableCell component="th" scope="col">包类型</TableCell>
-                    <TableCell component="th" scope="col">占比</TableCell>
-                    <TableCell component="th" scope="col">制品大小</TableCell>
-                    <TableCell component="th" scope="col">配额</TableCell>
+                    <TableCell component="th" scope="col">{tt('仓库')}</TableCell>
+                    <TableCell component="th" scope="col">{tt('仓型')}</TableCell>
+                    <TableCell component="th" scope="col">{tt('包类型')}</TableCell>
+                    <TableCell component="th" scope="col">{tt('占比')}</TableCell>
+                    <TableCell component="th" scope="col">{tt('制品大小')}</TableCell>
+                    <TableCell component="th" scope="col">{tt('配额')}</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -263,7 +258,7 @@ export default function StorageSummaryPage() {
                           <Link className="row-link mono" to={repoLink(r.key)} lang="en">
                             {r.key}
                           </Link>{' '}
-                          <CopyButton value={r.key} label={`仓库 key ${r.key}`} />
+                          <CopyButton value={r.key} label={tt('仓库 key {v1}', { v1: r.key })} />
                         </TableCell>
                         <TableCell>
                           <Chip size="small" className="badge neutral" label={r.type} lang="en" />
@@ -274,7 +269,7 @@ export default function StorageSummaryPage() {
                         </TableCell>
                         <TableCell className="mono" lang="en">
                           {virtual ? (
-                            <span className="text-muted" title="聚合视图，无自身内容">
+                            <span className="text-muted" title={tt('聚合视图，无自身内容')}>
                               —
                             </span>
                           ) : u ? (
@@ -282,7 +277,7 @@ export default function StorageSummaryPage() {
                           ) : (
                             <span
                               className="text-muted"
-                              title={usage.failed.includes(r.key) ? '用量拉取失败' : '用量加载中'}
+                              title={usage.failed.includes(r.key) ? tt('用量拉取失败') : tt('用量加载中')}
                             >
                               —
                             </span>
@@ -292,7 +287,7 @@ export default function StorageSummaryPage() {
                           {virtual ? (
                             <span className="text-muted">—</span>
                           ) : u ? (
-                            u.quotaBytes > 0 ? formatBytes(u.quotaBytes) : '不限'
+                            u.quotaBytes > 0 ? formatBytes(u.quotaBytes) : tt('不限')
                           ) : (
                             <span className="text-muted">—</span>
                           )}
@@ -306,21 +301,13 @@ export default function StorageSummaryPage() {
           )}
 
           {partial && usage.status === 'ok' && (
-            <p className="field-hint">
-              部分数据
-              {usage.failed.length > 0 && (
-                <>
-                  ：<span className="mono" lang="en">{usage.failed.length}</span> 个仓库用量拉取失败（行内 —）
-                </>
+            <p className="field-hint">{tt('部分数据')}              {usage.failed.length > 0 && (
+                <>{tt('：')}<span className="mono" lang="en">{usage.failed.length}</span> {tt('个仓库用量拉取失败（行内 —）')}                </>
               )}
-              {measured.length > 50 && <>：仓库数较多（{measured.length}），用量串行拉取，以上为当前快照</>}
+              {measured.length > 50 && <>{tt('：仓库数较多（')}{measured.length}{tt('），用量串行拉取，以上为当前快照')}</>}
             </p>
           )}
-          <p className="field-hint" style={{ marginTop: 12 }}>
-            表内合计来自逐仓 <span className="mono" lang="en">repo_usage</span> 计量（与节点写入同事务）；
-            汇总卡来自实例 blob 面（stats）。文件 / 目录 / 条目计数列不在 REST 契约
-            （usage 仅 usedBytes / quotaBytes），不渲染、不伪造。
-          </p>
+          <p className="field-hint" style={{ marginTop: 12 }}>{tt('表内合计来自逐仓')} <span className="mono" lang="en">repo_usage</span> {tt('计量（与节点写入同事务）； 汇总卡来自实例 blob 面（stats）。文件 / 目录 / 条目计数列不在 REST 契约 （usage 仅 usedBytes / quotaBytes），不渲染、不伪造。')}          </p>
         </>
       )}
     </div>

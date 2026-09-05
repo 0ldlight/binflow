@@ -36,6 +36,9 @@ import {
 import type { SubscriptionRequest, TestOutcome, WebhookSubscription } from '../../lib/webhooks'
 import SubscriptionDialog from './SubscriptionDialog'
 import SubscriptionDrawer from './SubscriptionDrawer'
+import { tr } from '../../i18n'
+
+const tt = tr('webhooks')
 
 // Webhook 订阅管理页（M13 T-366，FR-115.5——治理分组「Webhooks」）。最小面：
 //
@@ -136,12 +139,12 @@ export default function WebhooksPage() {
       const body = putBodyOf(sub, sub.enabled)
       const outcome = await testSubscription(body)
       setLastTest({ key: sub.key, outcome })
-      if (outcome.ok) toast.success(`试发成功（${sub.key}）：${outcome.message}`)
-      else toast.error(`试发失败（${sub.key}）：${outcome.message}`)
+      if (outcome.ok) toast.success(tt('试发成功（{v1}）：{v2}', { v1: sub.key, v2: outcome.message }))
+      else toast.error(tt('试发失败（{v1}）：{v2}', { v1: sub.key, v2: outcome.message }))
     } catch (err) {
       const msg =
         err instanceof ApiError && err.status === 403
-          ? `试发被拒（403）：${err.message}——webhook 为 pro+ 档特性`
+          ? tt('试发被拒（403）：{v1}——webhook 为 pro+ 档特性', { v1: err.message })
           : errText(err)
       toast.error(msg)
     } finally {
@@ -154,12 +157,12 @@ export default function WebhooksPage() {
     setBusyKey(sub.key)
     try {
       await updateSubscription(sub.key, putBodyOf(sub, enabled))
-      toast.success(`订阅 ${sub.key} 已${enabled ? '启用' : '停用'}`)
+      toast.success(tt('订阅 {v1} 已{v2}', { v1: sub.key, v2: enabled ? tt('启用') : tt('停用') }))
       await reload()
     } catch (err) {
       const msg =
         err instanceof ApiError && err.status === 403
-          ? `写入被拒（403）：${err.message}——webhook 为 pro+ 档特性`
+          ? tt('写入被拒（403）：{v1}——webhook 为 pro+ 档特性', { v1: err.message })
           : errText(err)
       toast.error(msg)
     } finally {
@@ -169,20 +172,20 @@ export default function WebhooksPage() {
 
   const doDelete = async (sub: WebhookSubscription) => {
     const ok = await confirm({
-      title: `删除订阅 ${sub.key}`,
-      body: '删除后该订阅的全部投递记录一并级联清除；接收器不会再收到任何事件。此操作不可撤销。',
-      confirmLabel: '删除',
+      title: tt('删除订阅 {v1}', { v1: sub.key }),
+      body: tt('删除后该订阅的全部投递记录一并级联清除；接收器不会再收到任何事件。此操作不可撤销。'),
+      confirmLabel: tt('删除'),
       danger: true,
     })
     if (!ok) return
     setBusyKey(sub.key)
     try {
       await deleteSubscription(sub.key)
-      toast.success(`订阅 ${sub.key} 已删除`)
+      toast.success(tt('订阅 {v1} 已删除', { v1: sub.key }))
       if (drawerSub?.key === sub.key) setDrawerSub(null)
       await reload()
     } catch (err) {
-      toast.error(`删除失败：${errText(err)}`)
+      toast.error(tt('删除失败：{v1}', { v1: errText(err) }))
     } finally {
       setBusyKey('')
     }
@@ -192,9 +195,7 @@ export default function WebhooksPage() {
     <div data-testid="wh-page">
       <div className="page-header">
         <h2>Webhooks</h2>
-        <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>
-          统一事件订阅（/binflow/event/api/v1——13 域 66 事件型；outbox 投递，失败重试固定 10s×4）
-        </span>
+        <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>{tt('统一事件订阅（/binflow/event/api/v1——13 域 66 事件型；outbox 投递，失败重试固定 10s×4）')}        </span>
       </div>
       <Box sx={{ display: 'flex', gap: 1, mb: 1, alignItems: 'center' }}>
         <Box sx={{ flexGrow: 1 }} />
@@ -203,9 +204,7 @@ export default function WebhooksPage() {
           onClick={() => void reload()}
           data-testid="wh-refresh"
           sx={{ minWidth: 0 }}
-        >
-          刷新
-        </Button>
+        >{tt('刷新')}        </Button>
         {adminWrite && (
           <Button
             variant="contained"
@@ -214,40 +213,31 @@ export default function WebhooksPage() {
               setDialogOpen(true)
             }}
             data-testid="wh-create"
-          >
-            新建订阅
-          </Button>
+          >{tt('新建订阅')}          </Button>
         )}
       </Box>
 
       {readOnly && (
-        <Alert severity="info" data-testid="wh-readonly-note" sx={{ mb: 1 }}>
-          只读管理员：订阅面只读呈现（写动作禁用；服务端以 403 兜底）。
-        </Alert>
+        <Alert severity="info" data-testid="wh-readonly-note" sx={{ mb: 1 }}>{tt('只读管理员：订阅面只读呈现（写动作禁用；服务端以 403 兜底）。')}        </Alert>
       )}
       {slotLocked && (
-        <Alert severity="warning" data-testid="wh-locked-note" sx={{ mb: 1 }}>
-          webhook 功能槽未解锁（{slotRow?.minTier ?? 'pro'}+ 档特性）——读面可见，写操作（新建/编辑/删除/试发）将被服务端以 403 拒绝。
-        </Alert>
+        <Alert severity="warning" data-testid="wh-locked-note" sx={{ mb: 1 }}>{tt('webhook 功能槽未解锁（')}{slotRow?.minTier ?? 'pro'}{tt('+ 档特性）——读面可见，写操作（新建/编辑/删除/试发）将被服务端以 403 拒绝。')}        </Alert>
       )}
       {lastTest && (
         <Alert
           severity={lastTest.outcome.ok ? 'success' : 'error'}
           data-testid="wh-test-last"
           sx={{ mb: 1 }}
-        >
-          试发 {lastTest.key}：<span lang="en">{lastTest.outcome.message ?? '（无回执）'}</span>（
-          <span lang="en">HTTP {lastTest.outcome.attempt?.status_code ?? '—'}</span>
-          {lastTest.outcome.attempt?.status_code === 0 ? '（无响应）' : ''}，耗时{' '}
-          <span className="mono" lang="en">{lastTest.outcome.attempt?.elapsed_millis ?? '—'}ms</span>）
-        </Alert>
+        >{tt('试发')} {lastTest.key}{tt('：')}<span lang="en">{lastTest.outcome.message ?? tt('（无回执）')}</span>{tt('（')}          <span lang="en">HTTP {lastTest.outcome.attempt?.status_code ?? '—'}</span>
+          {lastTest.outcome.attempt?.status_code === 0 ? tt('（无响应）') : ''}{tt('，耗时')}{' '}
+          <span className="mono" lang="en">{lastTest.outcome.attempt?.elapsed_millis ?? '—'}ms</span>{tt('）')}        </Alert>
       )}
 
       {phase.kind === 'loading' && <Skeleton lines={6} />}
       {phase.kind === 'forbidden' && (
         <EmptyState
-          message="无权限查看 Webhook 订阅"
-          hint="订阅面为管理员视图（GET /event/api/v1/subscriptions 仅 admin / readonly_admin）。"
+          message={tt('无权限查看 Webhook 订阅')}
+          hint={tt('订阅面为管理员视图（GET /event/api/v1/subscriptions 仅 admin / readonly_admin）。')}
         />
       )}
       {phase.kind === 'error' && (
@@ -256,8 +246,8 @@ export default function WebhooksPage() {
       {phase.kind === 'ok' && subs.length === 0 && (
         <EmptyState
           illustration
-          message="暂无 Webhook 订阅"
-          hint="订阅一个事件域与接收器 URL，制品部署/删除等事件会以签名 JSON 信封 POST 到接收器（试发不入箱）。"
+          message={tt('暂无 Webhook 订阅')}
+          hint={tt('订阅一个事件域与接收器 URL，制品部署/删除等事件会以签名 JSON 信封 POST 到接收器（试发不入箱）。')}
           testid="wh-empty"
           action={
             adminWrite ? (
@@ -268,9 +258,7 @@ export default function WebhooksPage() {
                   setDialogOpen(true)
                 }}
                 data-testid="wh-empty-create"
-              >
-                新建第一个订阅
-              </Button>
+              >{tt('新建第一个订阅')}              </Button>
             ) : undefined
           }
         />
@@ -280,11 +268,11 @@ export default function WebhooksPage() {
           <Table size="small" data-testid="wh-table">
             <TableHead>
               <TableRow>
-                <TableCell component="th" scope="col">启用</TableCell>
+                <TableCell component="th" scope="col">{tt('启用')}</TableCell>
                 <TableCell component="th" scope="col">key</TableCell>
-                <TableCell component="th" scope="col">事件域 / 类型</TableCell>
-                <TableCell component="th" scope="col">接收器 URL</TableCell>
-                <TableCell component="th" scope="col" align="right">操作</TableCell>
+                <TableCell component="th" scope="col">{tt('事件域 / 类型')}</TableCell>
+                <TableCell component="th" scope="col">{tt('接收器 URL')}</TableCell>
+                <TableCell component="th" scope="col" align="right">{tt('操作')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -299,7 +287,7 @@ export default function WebhooksPage() {
                       slotProps={
                         {
                           input: {
-                            'aria-label': `启用订阅 ${sub.key}`,
+                            'aria-label': tt('启用订阅 {v1}', { v1: sub.key }),
                             'data-testid': `wh-toggle-${sub.key}`,
                           },
                         } as { input: ComponentPropsWithoutRef<'input'> }
@@ -331,12 +319,12 @@ export default function WebhooksPage() {
                   </TableCell>
                   <TableCell className="mono" lang="en" sx={{ maxWidth: 280, whiteSpace: 'normal', wordBreak: 'break-all' }}>
                     {sub.handlers[0]?.url ?? '—'}{' '}
-                    {sub.handlers[0]?.url && <CopyButton value={sub.handlers[0].url} label={`接收器 URL ${sub.key}`} />}
+                    {sub.handlers[0]?.url && <CopyButton value={sub.handlers[0].url} label={tt('接收器 URL {v1}', { v1: sub.key })} />}
                   </TableCell>
                   <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                    <Tooltip title="订阅详情 + 最近投递记录">
+                    <Tooltip title={tt('订阅详情 + 最近投递记录')}>
                       <IconButton
-                        aria-label={`详情 ${sub.key}`}
+                        aria-label={tt('详情 {v1}', { v1: sub.key })}
                         onClick={() => setDrawerSub(sub)}
                         data-testid={`wh-open-${sub.key}`}
                         size="small"
@@ -344,9 +332,9 @@ export default function WebhooksPage() {
                         ☰
                       </IconButton>
                     </Tooltip>
-                    <Tooltip title="试发（test——同步单发，不入箱）">
+                    <Tooltip title={tt('试发（test——同步单发，不入箱）')}>
                       <IconButton
-                        aria-label={`试发 ${sub.key}`}
+                        aria-label={tt('试发 {v1}', { v1: sub.key })}
                         disabled={readOnly || busyKey === sub.key}
                         onClick={() => void doTest(sub)}
                         data-testid={`wh-test-${sub.key}`}
@@ -355,9 +343,9 @@ export default function WebhooksPage() {
                         ➤
                       </IconButton>
                     </Tooltip>
-                    <Tooltip title="编辑">
+                    <Tooltip title={tt('编辑')}>
                       <IconButton
-                        aria-label={`编辑 ${sub.key}`}
+                        aria-label={tt('编辑 {v1}', { v1: sub.key })}
                         disabled={readOnly}
                         onClick={() => {
                           setEditing(sub)
@@ -369,9 +357,9 @@ export default function WebhooksPage() {
                         ✎
                       </IconButton>
                     </Tooltip>
-                    <Tooltip title="删除（级联投递行）">
+                    <Tooltip title={tt('删除（级联投递行）')}>
                       <IconButton
-                        aria-label={`删除 ${sub.key}`}
+                        aria-label={tt('删除 {v1}', { v1: sub.key })}
                         disabled={readOnly}
                         onClick={() => void doDelete(sub)}
                         data-testid={`wh-delete-${sub.key}`}
@@ -390,8 +378,7 @@ export default function WebhooksPage() {
       )}
       {phase.kind === 'ok' && (
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }} data-testid="wh-count">
-          {subs.length} 个订阅
-        </Typography>
+          {subs.length} {tt('个订阅')}        </Typography>
       )}
 
       <SubscriptionDialog

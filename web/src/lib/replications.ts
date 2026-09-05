@@ -28,25 +28,33 @@
 //                                      §9.2-B-1），text/plain 四变体文案
 //                                      （§9.2-B-3）；封锁不影响配置面本身。
 //
-// 语义注记（R3/R4 勘误，parity v1.2 §6A）：
-// - BinFlow 复制引擎 = 事件驱动（上传 hook 入队）+ 固定间隔 sweep 兜底，
-//   **无用户级 cron**——Artifactory 的 cronExp/enableEventReplication/
-//   pathPrefix/syncDeletes/syncProperties/syncStatistics 六字段在本引擎
-//   无对位（wire 与存储层均无）；表单以「预留位（当前无效）」呈现且
-//   **绝不进 payload**（不伪造语义）。
+// 语义注记（R3/R4，parity §6A——**M16 Q1 终裁翻案后现值**，T-450/T-462）：
+// - cron 双轨：**cronExp 已转正为真字段**（M15 Q5 终裁被 Q1 推翻——FR-150
+//   / ADR-0044 / parity R4 翻案标注）：create/PUT 携 cron_exp 落 021 台账
+//   （domain=replication），到点触发全量对账（TriggerFullSync）；**事件
+//   轨仍是增量唯一引擎**（上传 hook 入队）——同制品不双推（L48）。空 =
+//   纯事件轨（无台账行——单态）；回显 cron_exp + next_schedule_sync
+//   （'' = 未排/停用）。启停翻转镜像台账行（停 = park、启 = 重臂）。
+// - 仍预留缺位（不伪造）：enableEventReplication（BinFlow 事件轨恒真无
+//   开关）/ pathPrefix / sync 三开关——引擎无对位，恒禁用、零提交。
 // - BinFlow 超集字段：max_bandwidth_bytes_per_sec（带宽节流）/
 //   max_items_per_push（单次批量上限）——Artifactory 无，保留呈现。
-// - 编辑语义：REST 无字段级 PUT（T-405 只裁启停）——字段修改的唯一可
-//   跑通路径 = 删除 + 重建（DELETE+POST），配置 id 变化、未决任务级联
-//   清空；表单内明示后果（调用方 repl-recreate-note）。
+// - 编辑语义：PUT /{id} 只裁启停与 cron_exp（T-450 扩臂）——其余字段修改
+//   的唯一可跑通路径 = 删除 + 重建（DELETE+POST），配置 id 变化、未决
+//   任务级联清空、台账行联动删；表单内明示后果（repl-recreate-note）。
 // - target_password 只写不读：POST 明文进、服务端 ADR-0012 封存、响应
 //   无该字段；空密码 = 匿名目标（跳过 cipher）。密码需要实例配置
 //   BINFLOW_REMOTE_CREDENTIALS_KEY，未配时带密码的创建 400（文案原样
 //   行内呈现）。
 
 import { ApiError, apiJSON, apiText } from './api'
+import { tr } from '../i18n'
 
-/** 配置行（GET/POST/PUT 响应体——replicationConfigResponse，凭据密码无字段） */
+const t = tr('console')
+
+/** 配置行（GET/POST/PUT 响应体——replicationConfigResponse，凭据密码无
+ *  字段）。cron_exp/next_schedule_sync 是 021 台账行的投影（T-450）：
+ *  cron_exp '' = 纯事件轨（未调度）；next_schedule_sync '' = 未排/停用。 */
 export interface ReplicationConfig {
   id: number
   name: string
@@ -57,12 +65,15 @@ export interface ReplicationConfig {
   max_bandwidth_bytes_per_sec: number
   max_items_per_push: number
   enabled: boolean
+  cron_exp: string
+  next_schedule_sync: string
   created_at: string
   updated_at: string
 }
 
-/** 创建体（replicationConfigBody）。enabled 显式传——服务端缺省 true，
- *  表单永远带用户所见值（flip-off 必须过 round trip）。 */
+/** 创建体（replicationConfigBody）。enabled/cron_exp 显式传——服务端
+ *  enabled 缺省 true、cron_exp 缺省无台账行；表单永远带用户所见值
+ *  （flip-off 必须过 round trip——空 cron_exp 即清除）。 */
 export interface ReplicationConfigBody {
   name: string
   source_repo: string
@@ -73,6 +84,8 @@ export interface ReplicationConfigBody {
   max_bandwidth_bytes_per_sec: number
   max_items_per_push: number
   enabled: boolean
+  /** 定时全量同步表达式（Quartz 六/七域）；'' = 仅事件轨 */
+  cron_exp: string
 }
 
 /** 全量配置列表（CapSystemRead：admin / readonly_admin；普通 user 403） */
@@ -92,8 +105,9 @@ export function deleteReplicationConfig(name: string): Promise<void> {
 
 /**
  * 启停翻转（T-405 联合腿）：PUT /v1/replications/{id}，body {enabled}。
- * 响应假定 = 更新后的配置行（与 POST 同形）——T-405 落地前该动词在真实
- * 实例 404，调用方按 ApiError 呈现并保持行内原值（不乐观更新）。
+ * 响应 = 更新后的配置行（与 POST 同形）。T-450 起 enabled 翻转镜像台账
+ * 行（停 = park〔next 清空〕、启 = 自 now 重臂）——一个开关同时停事件轨
+ * 与调度轨。
  */
 export function putReplicationEnabled(id: number, enabled: boolean): Promise<ReplicationConfig> {
   return apiJSON<ReplicationConfig>(`/v1/replications/${id}`, { method: 'PUT', body: { enabled } })
@@ -210,10 +224,10 @@ export function setReplicationBlock(blocking: boolean, push: boolean, pull: bool
  * 路径的单一段。返回 null = 合法，否则为行内错误文案。
  */
 export function validateReplicationName(name: string): string | null {
-  if (name === '') return '配置名未填'
-  if (name.length > 64) return '配置名最长 64 字符'
-  if (!/^[A-Za-z0-9]/.test(name)) return '配置名须以字母或数字开头'
-  if (!/^[A-Za-z0-9._-]+$/.test(name)) return '配置名仅允许字母/数字/./_/-（无空格与路径段）'
+  if (name === '') return t('配置名未填')
+  if (name.length > 64) return t('配置名最长 64 字符')
+  if (!/^[A-Za-z0-9]/.test(name)) return t('配置名须以字母或数字开头')
+  if (!/^[A-Za-z0-9._-]+$/.test(name)) return t('配置名仅允许字母/数字/./_/-（无空格与路径段）')
   return null
 }
 
@@ -224,15 +238,15 @@ export function validateReplicationName(name: string): string | null {
  */
 export function validateReplicationTargetURL(raw: string): string | null {
   const v = raw.trim()
-  if (v === '') return '目标 URL 未填'
+  if (v === '') return t('目标 URL 未填')
   try {
     const u = new URL(v)
     if ((u.protocol !== 'http:' && u.protocol !== 'https:') || u.host === '') {
-      return '目标 URL 须为带主机的绝对 http/https 地址'
+      return t('目标 URL 须为带主机的绝对 http/https 地址')
     }
     return null
   } catch {
-    return '目标 URL 须为带主机的绝对 http/https 地址'
+    return t('目标 URL 须为带主机的绝对 http/https 地址')
   }
 }
 

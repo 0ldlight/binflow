@@ -1,3 +1,7 @@
+import { tr } from '../../i18n'
+
+const t = tr('artifacts')
+
 // 详情字段族文案常量（M16 T-445 / FR-144.1~.3——「新文案集中常量」纪律：
 // 本票新增的详情字段标签与无源提示集中在此；既有标签〔名称/类型/大小/
 // 部署者/Created/修改时间/子项〕维持原位不churn，多出字段的去留候 Q9）。
@@ -36,15 +40,15 @@ export const REPO_FIELD_LABELS = {
  *   待 BE 承接。
  */
 export const NO_SOURCE_HINTS = {
-  repoLayout: '预留位：BinFlow 布局由协议固定（maven 即 maven-2 形），repoLayoutRef 无引擎承接（K70）——无值不伪造',
-  repoCreated: '仓库创建时间暂无 API 面（后端 CreatedAt 未投影）——登记待后端承接',
+  repoLayout: t('预留位：BinFlow 布局由协议固定（maven 即 maven-2 形），repoLayoutRef 无引擎承接（K70）——无值不伪造'),
+  repoCreated: t('仓库创建时间暂无 API 面（后端 CreatedAt 未投影）——登记待后端承接'),
 } as const
 
 /** 下载统计四态文案（loading/error 的占位与错误提示） */
 export const STATS_HINTS = {
   loading: '…',
   /** 统计面失败（?stats 与 item-info 同门，item 成功而 stats 失败属异常面） */
-  unavailable: (status: number) => `下载统计不可用（HTTP ${status}）`,
+  unavailable: (status: number) => t('下载统计不可用（HTTP {status}）', { status: status }),
 } as const
 
 /** 值缺席的统一占位：无源字段（K70/无 wire 面）/ 从未下载 / 非档位省略
@@ -60,7 +64,7 @@ export const EMPTY_VALUE = '—'
 export const REMOTE_COPY = {
   /** 派生行回源失败的详情面板错误文案（降级呈现腿） */
   fetchFailed: (status: number | string) =>
-    `远端条目拉取失败（HTTP ${status}）：上游不可达或超时，或该路径已不在上游索引中——已缓存内容仍可浏览，稍后重试或刷新。`,
+    t('远端条目拉取失败（HTTP {status}）：上游不可达或超时，或该路径已不在上游索引中——已缓存内容仍可浏览，稍后重试或刷新。', { status: status }),
 } as const
 
 /**
@@ -74,18 +78,18 @@ export const PROPS_COPY = {
   /** 常显值输入 placeholder（7.161.20 活体同文；多值逗号分隔） */
   valuePlaceholder: 'Property value',
   /** Add 提交钮（B-2.9 解剖要素；同名键 = 整体替换其值集〔§11.40〕） */
-  addLabel: 'Add 属性',
+  addLabel: t('Add 属性'),
   /** 网格搜索（B-2.9 解剖要素——键/值子串过滤既有网格） */
-  searchLabel: '搜索属性',
-  searchPlaceholder: '搜索键或值',
+  searchLabel: t('搜索属性'),
+  searchPlaceholder: t('搜索键或值'),
   /** 同名键替换语义的可见性提示（Add 表单的 helper 文案） */
-  replaceHint: '同名键 = 整体替换其值集（其他键保留）',
+  replaceHint: t('同名键 = 整体替换其值集（其他键保留）'),
   /** 行内删除的危险确认（E1 统一——Q2 出口①：删除走确认，轻交互退役） */
-  deleteTitle: '删除属性',
-  deleteLead: '将删除属性',
-  deleteTrail: '（该节点的这一个键及其全部值）。属性删除没有撤销，需要时可在上方重新添加。',
+  deleteTitle: t('删除属性'),
+  deleteLead: t('将删除属性'),
+  deleteTrail: t('（该节点的这一个键及其全部值）。属性删除没有撤销，需要时可在上方重新添加。'),
   /** 表尾常驻说明（保存/删除语义与服务端口径——T-291 起维持） */
-  footnote: 'Add = PUT（该键值集整体替换，其他键保留）；删除 = DELETE 该键（危险确认）。与服务端规则同口径：键 [A-Za-z][A-Za-z0-9_.-]{0,63}，值 ≤1KiB、无控制字符，单键 ≤32 值，节点 ≤64 键。',
+  footnote: t('Add = PUT（该键值集整体替换，其他键保留）；删除 = DELETE 该键（危险确认）。与服务端规则同口径：键 [A-Za-z][A-Za-z0-9_.-]{0,63}，值 ≤1KiB、无控制字符，单键 ≤32 值，节点 ≤64 键。'),
 } as const
 
 /**
@@ -94,18 +98,18 @@ export const PROPS_COPY = {
  */
 export const DOWNLOAD_COPY = {
   /** 单图标钮（直接下载——浏览器原生落盘，Artifactory 单 24px 图标对位） */
-  iconLabel: '下载',
-  iconTitle: '下载（浏览器直接落盘）',
+  iconLabel: t('下载'),
+  iconTitle: t('下载（浏览器直接落盘）'),
   /** 伴随菜单触发（校验能力 + checksum/mimeType 的家——Q9「收进伴随形态」） */
-  menuLabel: '下载与校验',
+  menuLabel: t('下载与校验'),
   /** 伴随菜单内的校验动作（sha256 对账——原「下载并校验」按钮能力） */
-  verifyLabel: '下载并校验（sha256 对账）',
-  verifyBusy: '正在下载并计算 sha256（大文件稍慢）…',
-  verifyOk: '✓ 下载落盘 sha256 与服务端一致',
-  verifyBad: '✗ 不一致！下载内容与服务端登记的 checksum 不匹配',
+  verifyLabel: t('下载并校验（sha256 对账）'),
+  verifyBusy: t('正在下载并计算 sha256（大文件稍慢）…'),
+  verifyOk: t('✓ 下载落盘 sha256 与服务端一致'),
+  verifyBad: t('✗ 不一致！下载内容与服务端登记的 checksum 不匹配'),
   /** checksum/mimeType 区（Q9：mimeType 与校验徽标块自 General 页收进伴随） */
   checksumsHeader: 'Checksums',
   mimeTypeLabel: 'mimeType',
   /** 大文件指引（校验是浏览器内存路径——Blob 落盘的固有成本提示） */
-  verifyHint: '大文件建议直接下载（校验经浏览器内存路径）',
+  verifyHint: t('大文件建议直接下载（校验经浏览器内存路径）'),
 } as const

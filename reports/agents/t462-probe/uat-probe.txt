@@ -1,0 +1,167 @@
+=== GET system/maintenance ===
+{
+  "slots": [
+    {
+      "key": "gc",
+      "cronExp": "",
+      "enabled": false,
+      "nextRun": "",
+      "lastRun": "",
+      "lastStatus": "",
+      "lastError": ""
+    },
+    {
+      "key": "cleanup-unused-cache",
+      "cronExp": "",
+      "enabled": false,
+      "nextRun": "",
+      "lastRun": "",
+      "lastStatus": "",
+      "lastError": ""
+    },
+    {
+      "key": "cleanup-virtual",
+      "cronExp": "",
+      "enabled": false,
+      "nextRun": "",
+      "lastRun": "",
+      "lastStatus": "",
+      "lastError": ""
+    }
+  ]
+}
+[HTTP 200]
+=== GET system/backups ===
+{
+  "backups": []
+}
+[HTTP 200]
+=== GET system/schedules ===
+{
+  "schedules": []
+}
+[HTTP 200]
+=== PUT maintenance gc cron ===
+{
+  "slots": [
+    {
+      "key": "gc",
+      "cronExp": "0 0/30 * * * ?",
+      "enabled": true,
+      "nextRun": "2026-09-05T07:30:00Z",
+      "lastRun": "",
+      "lastStatus": "",
+      "lastError": ""
+    },
+    {
+      "key": "cleanup-unused-cache",
+      "cronExp": "",
+      "enabled": false,
+      "nextRun": "",
+      "lastRun": "",
+      "lastStatus": "",
+      "lastError": ""
+    },
+    {
+      "key": "cleanup-virtual",
+      "cronExp": "",
+      "enabled": false,
+      "nextRun": "",
+      "lastRun": "",
+      "lastStatus": "",
+      "lastError": ""
+    }
+  ]
+}
+[HTTP 200]
+=== PUT maintenance bad cron ===
+{
+  "errors": [
+    {
+      "status": 400,
+      "message": "Invalid cronExp not-a-cron for gc: scheduler: invalid cron expression: got 1 fields, want 6 or 7 (a 5-field Unix cron is not a Quartz expression)"
+    }
+  ]
+}
+
+[HTTP 400]
+=== PUT backup create ===
+{
+  "backupKey": "t462-probe",
+  "enabled": true,
+  "exportPath": "/tmp/t462-probe",
+  "cronExp": "0 0 2 * * ?",
+  "nextScheduleBackup": "2026-09-06T02:00:00Z",
+  "lastRun": "",
+  "lastStatus": "",
+  "lastError": "",
+  "createdAt": "2026-09-05T07:17:01Z",
+  "updatedAt": "2026-09-05T07:17:01Z"
+}
+[HTTP 200]
+=== GET backups ===
+{
+  "backups": [
+    {
+      "backupKey": "t462-probe",
+      "enabled": true,
+      "exportPath": "/tmp/t462-probe",
+      "cronExp": "0 0 2 * * ?",
+      "nextScheduleBackup": "2026-09-06T02:00:00Z",
+      "lastRun": "",
+      "lastStatus": "",
+      "lastError": "",
+      "createdAt": "2026-09-05T07:17:01Z",
+      "updatedAt": "2026-09-05T07:17:01Z"
+    }
+  ]
+}
+[HTTP 200]
+=== PUT backup bad path ===
+{
+  "errors": [
+    {
+      "status": 400,
+      "message": "exportPath must be an absolute server path (starting with '/')"
+    }
+  ]
+}
+
+[HTTP 400]
+=== GET replications ===
+[]
+[HTTP 200]
+=== POST repl with cron (enabled=false) ===
+{
+  "errors": [
+    {
+      "status": 400,
+      "message": "replication config references an unknown repository \"maven-local\""
+    }
+  ]
+}
+
+[HTTP 400]
+repo=generic-local
+{
+  "id": 1,
+  "name": "t462-probe",
+  "source_repo": "generic-local",
+  "target_url": "http://127.0.0.1:1/",
+  "target_repo": "generic-local",
+  "target_username": "",
+  "max_bandwidth_bytes_per_sec": 0,
+  "max_items_per_push": 1000,
+  "enabled": false,
+  "cron_exp": "0 0/15 * * * ?",
+  "next_schedule_sync": "",
+  "created_at": "2026-09-05T07:17:28Z",
+  "updated_at": "2026-09-05T07:17:28Z"
+}
+[HTTP 201]
+=== cleanup: PUT maintenance gc clear ===
+[HTTP 200]
+=== cleanup: DELETE backup ===
+[HTTP 204]
+=== cleanup: DELETE repl config ===
+[HTTP 204]

@@ -8,6 +8,9 @@ import TextField from '@mui/material/TextField'
 import type { ComponentPropsWithoutRef } from 'react'
 
 import './pager.css'
+import { tr } from '../i18n'
+
+const t = tr('console')
 
 // T-451（FR-144.7 / LC-98，E2 翻案 ×9）共享分页控件：
 //
@@ -77,12 +80,12 @@ export function Pager({
   return (
     <div className="pager">
       <span className="pager-range" data-testid="pager-range">
-        {total === null ? `显示 ${from} – ${to}（末页未知）` : `显示 ${from} – ${to} / 共 ${total} 项`}
+        {total === null ? t('显示 {from} – {to}（末页未知）', { from: from, to: to }) : t('显示 {from} – {to} / 共 {total} 项', { from: from, to: to, total: total })}
         {note}
       </span>
       {pageSize !== undefined && onPageSizeChange !== undefined && (
         <label className="pager-size">
-          <span aria-hidden="true">每页</span>
+          <span aria-hidden="true">{t('每页')}</span>
           <TextField
             select
             size="small"
@@ -98,7 +101,7 @@ export function Pager({
                 native: true,
                 inputProps: {
                   'data-testid': 'pager-size',
-                  'aria-label': '每页行数',
+                  'aria-label': t('每页行数'),
                 } as ComponentPropsWithoutRef<'select'>,
               } as ComponentPropsWithoutRef<typeof Select>,
             }}
@@ -109,7 +112,7 @@ export function Pager({
               </option>
             ))}
           </TextField>
-          <span aria-hidden="true">行</span>
+          <span aria-hidden="true">{t('行')}</span>
         </label>
       )}
       <MuiPagination
@@ -124,7 +127,7 @@ export function Pager({
         size="small"
         siblingCount={1}
         boundaryCount={1}
-        aria-label="分页"
+        aria-label={t('分页')}
         renderItem={(item) => {
           // 锚族赋值形态（对账器口径：data-testid/testid 赋值面的引号字面
           // 量——锚册 §10.5 T-451 批；省略项〔ellipsis〕不挂锚）
@@ -140,7 +143,7 @@ export function Pager({
               data-testid={testid}
               title={
                 item.type === 'last' && lastUnknown
-                  ? '流式末页未知——逐页推进（呈现对齐、语义自有 C 注）'
+                  ? t('流式末页未知——逐页推进（呈现对齐、语义自有 C 注）')
                   : undefined
               }
             />

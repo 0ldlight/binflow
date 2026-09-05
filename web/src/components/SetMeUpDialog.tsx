@@ -39,6 +39,9 @@ import {
 import type { ClientCreds, CommandBlock } from '../pages/repositories/commands'
 
 import './dialogs.css'
+import { tr } from '../i18n'
+
+const t = tr('console')
 
 // Set Me Up 客户端接入向导（T-242，console-m8 §4.1 / reverse §4.1——Artifactory
 // 「Set Up A Client」操作流的自有皮肤对齐面）：
@@ -352,21 +355,19 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
     if (list.status === 'forbidden' && (!needFallback || fallback.status !== 'ok')) {
       return (
         <EmptyState
-          message="无权限列出仓库"
-          hint="仓库清单是管理面读端点（admin 与只读管理员可见）。请从具体仓库的详情页或制品树打开 Set Me Up。"
+          message={t('无权限列出仓库')}
+          hint={t('仓库清单是管理面读端点（admin 与只读管理员可见）。请从具体仓库的详情页或制品树打开 Set Me Up。')}
         />
       )
     }
     if (repos.length === 0) {
       return (
         <EmptyState
-          message="这个实例还没有仓库"
-          hint="Set Me Up 按已有仓库的包类型生成接入指引——先创建仓库。"
+          message={t('这个实例还没有仓库')}
+          hint={t('Set Me Up 按已有仓库的包类型生成接入指引——先创建仓库。')}
           action={
             admin ? (
-              <Button component={Link} to="/admin/repositories/new" variant="contained" size="medium">
-                创建仓库
-              </Button>
+              <Button component={Link} to="/admin/repositories/new" variant="contained" size="medium">{t('创建仓库')}              </Button>
             ) : undefined
           }
         />
@@ -376,7 +377,7 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
       <div
         className="smu-grid-items"
         role="radiogroup"
-        aria-label="包类型"
+        aria-label={t('包类型')}
         data-testid="smu-grid"
         onKeyDown={(e) => {
           // radiogroup 方向键（§8/§9 键盘清单）：←↑→↓ 在网格项间移动焦点
@@ -443,7 +444,7 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
       <DialogTitle id="smu-dialog-title" sx={{ pb: 0.5, pr: 0, minWidth: 0 }}>
         {title}
       </DialogTitle>
-      <IconButton aria-label="关闭" data-testid="smu-close" onClick={onClose} sx={{ mt: 1, mr: 1 }}>
+      <IconButton aria-label={t('关闭')} data-testid="smu-close" onClick={onClose} sx={{ mt: 1, mr: 1 }}>
         ✕
       </IconButton>
     </Box>
@@ -459,21 +460,19 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
     >
       {showGrid || !pkg ? (
         <>
-          {header('选择客户端类型')}
+          {header(t('选择客户端类型'))}
           <DialogContent>
-            <p className="text-2">选择包类型，了解如何向 BinFlow 解析与部署制品。</p>
+            <p className="text-2">{t('选择包类型，了解如何向 BinFlow 解析与部署制品。')}</p>
             {resolving ? <Skeleton lines={3} /> : renderGrid()}
           </DialogContent>
           <DialogActions>
-            <Button onClick={onClose}>关闭</Button>
+            <Button onClick={onClose}>{t('关闭')}</Button>
           </DialogActions>
         </>
       ) : (
         <>
           {header(
-            <>
-              配置 {pkgMeta?.label ?? pkg} 客户端
-              {repoKey && (
+            <>{t('配置')} {pkgMeta?.label ?? pkg} {t('客户端')}              {repoKey && (
                 <span className="mono" lang="en" style={{ marginLeft: 8, fontSize: 'var(--bf-fs-body)' }}>
                   {repoKey}
                 </span>
@@ -482,7 +481,7 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
           )}
           <DialogContent>
             <div className="field">
-              <label htmlFor="smu-repo">仓库</label>
+              <label htmlFor="smu-repo">{t('仓库')}</label>
               <select
                 id="smu-repo"
                 data-testid="smu-repo"
@@ -492,41 +491,35 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
                 {pkgRepos.map((r) => (
                   <option key={r.key} value={r.key}>
                     {r.key}
-                    {r.type !== 'local' ? `（${r.type}）` : ''}
+                    {r.type !== 'local' ? t('（{v1}）', { v1: r.type }) : ''}
                   </option>
                 ))}
               </select>
-              <div className="field-hint">下拉只列 {pkgMeta?.label ?? pkg} 类型的仓库。</div>
+              <div className="field-hint">{t('下拉只列')} {pkgMeta?.label ?? pkg} {t('类型的仓库。')}</div>
             </div>
 
-            <div className="smu-tabs" role="tablist" aria-label="接入指引" ref={tabRef} onKeyDown={onTabKeys}>
+            <div className="smu-tabs" role="tablist" aria-label={t('接入指引')} ref={tabRef} onKeyDown={onTabKeys}>
               <button
                 type="button"
                 role="tab"
                 aria-selected={tab === 'configure'}
                 data-testid="smu-tab-configure"
                 onClick={() => setTab('configure')}
-              >
-                配置 Configure
-              </button>
+              >{t('配置 Configure')}              </button>
               <button
                 type="button"
                 role="tab"
                 aria-selected={tab === 'deploy'}
                 data-testid="smu-tab-deploy"
                 onClick={() => setTab('deploy')}
-              >
-                部署 Deploy
-              </button>
+              >{t('部署 Deploy')}              </button>
               <button
                 type="button"
                 role="tab"
                 aria-selected={tab === 'resolve'}
                 data-testid="smu-tab-resolve"
                 onClick={() => setTab('resolve')}
-              >
-                解析 Resolve
-              </button>
+              >{t('解析 Resolve')}              </button>
             </div>
 
             {tab === 'configure' ? (
@@ -552,8 +545,8 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
                   // 替代命令块，不发明命令（P3 同源纪律）
                   <p className="field-hint">
                     {pkg === 'pypi'
-                      ? 'pip 无需登录步骤——解析配置（pip.conf）在「解析 Resolve」Tab，发布凭据（.pypirc）在「部署 Deploy」Tab。'
-                      : 'curl 无需预配置——匿名读默认开；解析/上传命令见另两 Tab，需要认证的路径在命令中加 -u <用户名>:<令牌>。'}
+                      ? t('pip 无需登录步骤——解析配置（pip.conf）在「解析 Resolve」Tab，发布凭据（.pypirc）在「部署 Deploy」Tab。')
+                      : t('curl 无需预配置——匿名读默认开；解析/上传命令见另两 Tab，需要认证的路径在命令中加 -u <用户名>:<令牌>。')}
                   </p>
                 )}
                 {configureBlocks.map((c) => (
@@ -582,12 +575,8 @@ export default function SetMeUpDialog({ preselectedRepo, resume, onClose }: SetM
               data-testid="smu-back"
               onClick={() => setShowGrid(true)}
               sx={{ px: 0, minWidth: 0 }}
-            >
-              ← 选择不同的包类型
-            </Button>
-            <Button variant="contained" size="medium" data-testid="smu-done" onClick={onClose}>
-              完成
-            </Button>
+            >{t('← 选择不同的包类型')}            </Button>
+            <Button variant="contained" size="medium" data-testid="smu-done" onClick={onClose}>{t('完成')}            </Button>
           </DialogActions>
         </>
       )}
@@ -681,24 +670,20 @@ function TokenArea({
       {mint.phase === 'done' ? (
         <div className="smu-token-panel" data-testid="smu-token-panel">
           <div>
-            <b>令牌已生成</b>（以 <span className="mono" lang="en">{username}</span> 身份自铸）
-          </div>
+            <b>{t('令牌已生成')}</b>{t('（以')} <span className="mono" lang="en">{username}</span> {t('身份自铸）')}          </div>
           <div className="token-line">
             <code data-testid="smu-token" lang="en">
               {mint.token}
             </code>
             <CopyButton value={mint.token} label="API Token" />
           </div>
-          <div className="field-hint">
-            关闭抽屉后不可再查看（服务端只存指纹）。有效期 24 小时（token_id{' '}
-            <span className="mono" lang="en">{mint.tokenId}</span>
-            ）——CI 与脚本请使用此令牌，不要用控制台口令。
-          </div>
+          <div className="field-hint">{t('关闭抽屉后不可再查看（服务端只存指纹）。有效期 24 小时（token_id')}{' '}
+            <span className="mono" lang="en">{mint.tokenId}</span>{t('）——CI 与脚本请使用此令牌，不要用控制台口令。')}          </div>
         </div>
       ) : mint.phase === 'need-password' ? (
         <div className="smu-stepup" data-testid="smu-stepup">
           <div className="field" style={{ marginBottom: 8 }}>
-            <label htmlFor="smu-password">服务端要求二次口令（step-up）——输入当前账号口令后继续铸币</label>
+            <label htmlFor="smu-password">{t('服务端要求二次口令（step-up）——输入当前账号口令后继续铸币')}</label>
             <input
               id="smu-password"
               ref={passwordRef}
@@ -721,7 +706,7 @@ function TokenArea({
             </p>
           )}
           <details>
-            <summary className="field-hint">服务端原文</summary>
+            <summary className="field-hint">{t('服务端原文')}</summary>
             <pre className="smu-error-raw" lang="en">
               {mint.raw ?? ''}
             </pre>
@@ -734,27 +719,24 @@ function TokenArea({
               disabled={mint.submitting || password === ''}
               onClick={onSubmitPassword}
             >
-              {mint.submitting ? '验证中…' : '验证并生成令牌'}
+              {mint.submitting ? t('验证中…') : t('验证并生成令牌')}
             </Button>
           </div>
         </div>
       ) : mint.phase === 'need-reauth' ? (
         // OIDC 腿（T-260 / FR-81）：无本地口令——重认证引导，替代口令框
         <div className="smu-stepup" data-testid="smu-oidc-stepup">
-          <p className="field-hint" style={{ marginBottom: 8 }}>
-            服务端要求重新认证（step-up）：SSO 会话铸造令牌需到身份提供方重新登录一次。点击后将跳转登录页
-            （强制重新输入 IdP 凭据），完成后自动返回此处继续铸币——本抽屉的上下文会被记住。
-          </p>
+          <p className="field-hint" style={{ marginBottom: 8 }}>{t('服务端要求重新认证（step-up）：SSO 会话铸造令牌需到身份提供方重新登录一次。点击后将跳转登录页 （强制重新输入 IdP 凭据），完成后自动返回此处继续铸币——本抽屉的上下文会被记住。')}          </p>
           {mint.error && (
             <p className="smu-error-inline" role="alert" data-testid="smu-reauth-error" lang="en">
               {mint.error}
             </p>
           )}
           {mint.error && (
-            <p className="field-hint">重认证凭证已失效（过期、已使用或身份不符）——需重新走一次登录，不会以旧凭证重试。</p>
+            <p className="field-hint">{t('重认证凭证已失效（过期、已使用或身份不符）——需重新走一次登录，不会以旧凭证重试。')}</p>
           )}
           <details>
-            <summary className="field-hint">服务端原文</summary>
+            <summary className="field-hint">{t('服务端原文')}</summary>
             <pre className="smu-error-raw" lang="en">
               {mint.raw ?? ''}
             </pre>
@@ -767,7 +749,7 @@ function TokenArea({
               disabled={mint.busy}
               onClick={onReauth}
             >
-              {mint.busy ? '等待重认证完成…' : '重新认证并继续'}
+              {mint.busy ? t('等待重认证完成…') : t('重新认证并继续')}
             </Button>
           </div>
         </div>
@@ -775,9 +757,7 @@ function TokenArea({
         <>
           {resuming && mint.phase === 'minting' && (
             // 回跳续铸 in-flight（§14.3-2）：grant 已到手、mint 自动重发中
-            <p className="field-hint" style={{ marginBottom: 8 }} role="status">
-              重认证完成——正在自动续铸令牌…（重认证凭证约 {mmss(ttlLeft)} 内有效）
-            </p>
+            <p className="field-hint" style={{ marginBottom: 8 }} role="status">{t('重认证完成——正在自动续铸令牌…（重认证凭证约')} {mmss(ttlLeft)} {t('内有效）')}            </p>
           )}
           <div style={{ marginBottom: 8 }}>
             <Button
@@ -787,23 +767,20 @@ function TokenArea({
               disabled={mint.phase === 'minting'}
               onClick={onGenerate}
             >
-              {mint.phase === 'minting' ? '生成中…' : '生成令牌并创建指引'}
+              {mint.phase === 'minting' ? t('生成中…') : t('生成令牌并创建指引')}
             </Button>
           </div>
           <p className="field-hint">
             {admin
-              ? `以 ${username}（管理员会话）自铸 24 小时令牌——管理员臂免二次口令（ADR-0027 决策 1）。`
+              ? t('以 {username}（管理员会话）自铸 24 小时令牌——管理员臂免二次口令（ADR-0027 决策 1）。', { username: username })
               : oidcLeg
-                ? `以 ${username}（SSO 会话）自铸 24 小时令牌（仅本人、TTL 有上限）；实例开启 step-up 时需到 IdP 重新认证。`
-                : `以 ${username} 身份自铸 24 小时令牌（仅本人、TTL 有上限）；实例开启 step-up 时需口令重验。`}
+                ? t('以 {username}（SSO 会话）自铸 24 小时令牌（仅本人、TTL 有上限）；实例开启 step-up 时需到 IdP 重新认证。', { username: username })
+                : t('以 {username} 身份自铸 24 小时令牌（仅本人、TTL 有上限）；实例开启 step-up 时需口令重验。', { username: username })}
             {pending && (
-              <span className="field-hint" data-testid="smu-pending-hint" style={{ display: 'block' }}>
-                有一笔铸造正在等待重认证完成…（{pendingAgeMin} 分钟前发起；若已在登录页取消，直接重新生成即可再次发起）
-              </span>
+              <span className="field-hint" data-testid="smu-pending-hint" style={{ display: 'block' }}>{t('有一笔铸造正在等待重认证完成…（')}{pendingAgeMin} {t('分钟前发起；若已在登录页取消，直接重新生成即可再次发起）')}              </span>
             )}
             {mint.phase === 'error' && (
-              <span className="smu-error-inline" role="alert" style={{ display: 'block' }}>
-                铸币失败（HTTP {mint.status}）：{mint.message}
+              <span className="smu-error-inline" role="alert" style={{ display: 'block' }}>{t('铸币失败（HTTP')} {mint.status}{t('）：')}{mint.message}
               </span>
             )}
           </p>

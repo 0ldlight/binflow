@@ -26,6 +26,9 @@ import { formatBytes } from '../../lib/format'
 import { buildLocalQuotaBody, cfgNum, getRepoDetail, getRepoUsage, updateRepo } from '../../lib/repos'
 import type { RepoUsage } from '../../lib/repos'
 import { useAsync } from '../../lib/useAsync'
+import { tr } from '../../i18n'
+
+const tt = tr('governance')
 
 // 配额页（console-ux §4.11 配额行 / §5.3；T-102 AC③）：
 // - 每仓一行：key（mono 链接）/ 类型 / 已用 / 配额 / 水位条（≥80% 黄、
@@ -41,9 +44,7 @@ function WaterBar({ usage }: { usage: RepoUsage }) {
   const quota = usage.quotaBytes
   if (quota <= 0) {
     return (
-      <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>
-        不限（quotaBytes 0）
-      </span>
+      <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>{tt('不限（quotaBytes 0）')}      </span>
     )
   }
   const pct = Math.min(100, (usage.usedBytes / quota) * 100)
@@ -58,11 +59,11 @@ function WaterBar({ usage }: { usage: RepoUsage }) {
         variant="determinate"
         value={Math.max(usage.usedBytes > 0 ? 2 : 0, Math.round(pct))}
         color={cls === 'full' ? 'error' : cls === 'warn' ? 'warning' : 'primary'}
-        aria-label={`${usage.repo} 配额水位`}
+        aria-label={tt('{v1} 配额水位', { v1: usage.repo })}
         sx={{ flex: 1, borderRadius: 'var(--bf-r-sm)' }}
       />
       <span className={`pct${cls ? ` ${cls}` : ''}`}>
-        {pct.toFixed(0)}%{usage.usedBytes >= quota ? ' 满' : pct >= 80 ? ' 高' : ''}
+        {pct.toFixed(0)}%{usage.usedBytes >= quota ? tt(' 满') : pct >= 80 ? tt(' 高') : ''}
       </span>
     </div>
   )
@@ -97,7 +98,7 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
   const save = async (): Promise<void> => {
     const t = draft.trim()
     if (!/^\d+$/.test(t) || Number(t) > Number.MAX_SAFE_INTEGER) {
-      setEditErr('需为非负整数（字节）；0 = 不限')
+      setEditErr(tt('需为非负整数（字节）；0 = 不限'))
       return
     }
     setSaving(true)
@@ -123,20 +124,20 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
         <Link className="row-link mono" to={`/admin/repositories/${repo.key}`} lang="en">
           {repo.key}
         </Link>{' '}
-        <CopyButton value={repo.key} label={`仓库 key ${repo.key}`} />
+        <CopyButton value={repo.key} label={tt('仓库 key {v1}', { v1: repo.key })} />
       </TableCell>
       <TableCell>
         <Chip size="small" className="badge neutral" label={repo.type} lang="en" />
       </TableCell>
       <TableCell>
         {repo.type === 'virtual' ? (
-          <span className="text-muted">—（聚合视图，无自身内容）</span>
+          <span className="text-muted">{tt('—（聚合视图，无自身内容）')}</span>
         ) : usage.status === 'loading' ? (
-          <MuiSkeleton sx={{ display: 'inline-block', width: 48, height: 10, verticalAlign: 'middle' }} role="progressbar" aria-label="用量加载中" />
+          <MuiSkeleton sx={{ display: 'inline-block', width: 48, height: 10, verticalAlign: 'middle' }} role="progressbar" aria-label={tt('用量加载中')} />
         ) : usage.status === 'ok' && u ? (
           <span className="mono">{formatBytes(u.usedBytes)}</span>
         ) : (
-          <span className="text-muted" title={usage.error?.message ?? '用量不可用'}>
+          <span className="text-muted" title={usage.error?.message ?? tt('用量不可用')}>
             —
           </span>
         )}
@@ -153,7 +154,7 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
               sx={{ ...monoInputSx, width: 140, display: 'inline-flex' }}
               slotProps={{
                 htmlInput: {
-                  'aria-label': `${repo.key} 的新配额（字节）`,
+                  'aria-label': tt('{v1} 的新配额（字节）', { v1: repo.key }),
                   'data-testid': `quota-input-${repo.key}`,
                   lang: 'en',
                   className: 'mono',
@@ -161,13 +162,13 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
               }}
             />{' '}
             <span className="text-muted" style={{ fontSize: 'var(--bf-fs-aux)' }}>
-              {/^\d+$/.test(draft.trim()) && Number(draft) > 0 ? `≈ ${formatBytes(Number(draft))}` : '0 = 不限'}
+              {/^\d+$/.test(draft.trim()) && Number(draft) > 0 ? `≈ ${formatBytes(Number(draft))}` : tt('0 = 不限')}
             </span>
           </>
         ) : local ? (
-          <span className="mono">{u ? (u.quotaBytes > 0 ? formatBytes(u.quotaBytes) : '0（不限）') : '—'}</span>
+          <span className="mono">{u ? (u.quotaBytes > 0 ? formatBytes(u.quotaBytes) : tt('0（不限）')) : '—'}</span>
         ) : (
-          <span className="text-muted">—（仅 local 仓支持）</span>
+          <span className="text-muted">{tt('—（仅 local 仓支持）')}</span>
         )}
       </TableCell>
       <TableCell className="quota-bar-cell">
@@ -184,7 +185,7 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
               onClick={() => void save()}
               data-testid={`quota-save-${repo.key}`}
             >
-              {saving ? '保存中…' : '保存'}
+              {saving ? tt('保存中…') : tt('保存')}
             </Button>{' '}
             <Button
               variant="outlined"
@@ -192,9 +193,7 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
              
               disabled={saving}
               onClick={() => setEditing(false)}
-            >
-              取消
-            </Button>
+            >{tt('取消')}            </Button>
             {editErr && (
               <div className="field-error" role="alert">
                 {editErr}
@@ -211,16 +210,12 @@ function QuotaRow({ repo, onChanged }: { repo: RepoListItem; onChanged: () => vo
                   size="small"
                  
                   disabled={readOnly}
-                  title={readOnly ? '只读管理员：配额写是管理面写操作（服务端 403 兜底）' : undefined}
+                  title={readOnly ? tt('只读管理员：配额写是管理面写操作（服务端 403 兜底）') : undefined}
                   onClick={startEdit}
                   data-testid={`quota-edit-${repo.key}`}
-                >
-                  编辑上限
-                </Button>
+                >{tt('编辑上限')}                </Button>
               )}{' '}
-            <Link className="text-2" to={`/admin/repositories/${repo.key}/edit`} style={{ fontSize: 'var(--bf-fs-aux)' }}>
-              仓库设置 →
-            </Link>
+            <Link className="text-2" to={`/admin/repositories/${repo.key}/edit`} style={{ fontSize: 'var(--bf-fs-aux)' }}>{tt('仓库设置 →')}            </Link>
           </>
         )}
       </TableCell>
@@ -240,47 +235,40 @@ export default function QuotasPage() {
   return (
     <div data-testid="quotas-page">
       <div className="page-header">
-        <h2>配额</h2>
-        <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>
-          水位 ≥80% 黄 · ≥100% 红（此后写入 413）
-        </span>
+        <h2>{tt('配额')}</h2>
+        <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>{tt('水位 ≥80% 黄 · ≥100% 红（此后写入 413）')}        </span>
       </div>
       {readOnly && (
-        <p className="admin-note" data-testid="quotas-readonly-note">
-          只读管理员（readonly_admin）：配额读写面可见，行内编辑已禁用——
-          配额写是管理面写操作（repoManage write），提交会被服务端 403 拒绝。
-        </p>
+        <p className="admin-note" data-testid="quotas-readonly-note">{tt('只读管理员（readonly_admin）：配额读写面可见，行内编辑已禁用—— 配额写是管理面写操作（repoManage write），提交会被服务端 403 拒绝。')}        </p>
       )}
 
       {repos.status === 'loading' && <Skeleton lines={8} />}
       {repos.status === 'error' && repos.error && <ErrorCard error={repos.error} onRetry={repos.reload} />}
       {repos.status === 'forbidden' && repos.error && (
         <EmptyState
-          message="无权限查看配额"
-          hint="仓库列表与用量端点为管理员视图（GET /api/repositories 仅 admin）。"
+          message={tt('无权限查看配额')}
+          hint={tt('仓库列表与用量端点为管理员视图（GET /api/repositories 仅 admin）。')}
         />
       )}
       {repos.status === 'ok' &&
         (list.length === 0 ? (
           <EmptyState
-            message="还没有仓库"
-            hint="配额在创建 local 仓库时或仓库设置页配置（quotaBytes，0 = 不限）"
+            message={tt('还没有仓库')}
+            hint={tt('配额在创建 local 仓库时或仓库设置页配置（quotaBytes，0 = 不限）')}
             action={
-              <Button variant="contained" size="small" component={Link} to="/admin/repositories/new">
-                创建第一个仓库
-              </Button>
+              <Button variant="contained" size="small" component={Link} to="/admin/repositories/new">{tt('创建第一个仓库')}              </Button>
             }
           />
         ) : (
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell component="th" scope="col">仓库</TableCell>
-                <TableCell component="th" scope="col">类型</TableCell>
-                <TableCell component="th" scope="col">已用</TableCell>
-                <TableCell component="th" scope="col">配额</TableCell>
-                <TableCell component="th" scope="col">水位</TableCell>
-                <TableCell component="th" scope="col">操作</TableCell>
+                <TableCell component="th" scope="col">{tt('仓库')}</TableCell>
+                <TableCell component="th" scope="col">{tt('类型')}</TableCell>
+                <TableCell component="th" scope="col">{tt('已用')}</TableCell>
+                <TableCell component="th" scope="col">{tt('配额')}</TableCell>
+                <TableCell component="th" scope="col">{tt('水位')}</TableCell>
+                <TableCell component="th" scope="col">{tt('操作')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -290,10 +278,7 @@ export default function QuotasPage() {
             </TableBody>
           </Table>
         ))}
-      <p className="field-hint" style={{ marginTop: 12 }}>
-        计量为 repo_usage.logical_bytes（与节点写入同事务）；quotaBytes 仅 local 仓生效，
-        超限写入原子拒绝（413 + quota.exceeded 审计）。
-      </p>
+      <p className="field-hint" style={{ marginTop: 12 }}>{tt('计量为 repo_usage.logical_bytes（与节点写入同事务）；quotaBytes 仅 local 仓生效， 超限写入原子拒绝（413 + quota.exceeded 审计）。')}      </p>
     </div>
   )
 }

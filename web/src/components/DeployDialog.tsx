@@ -34,6 +34,9 @@ import { mavenTarget } from '../lib/maven'
 import type { GavForm } from '../lib/maven'
 
 import './dialogs.css'
+import { tr } from '../i18n'
+
+const t = tr('console')
 
 // Deploy 对话框（T-242，console-m8 §4.2 / reverse §4.2——Artifactory Deploy
 // 操作流的自有皮肤对齐面）。字段序：目标仓库（下拉）→ 包类型（只读回显）→
@@ -197,7 +200,7 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
             sha = await blobSha256(row.file)
             patch(row.id, { localSha: sha, phase: 'queued' })
           } catch {
-            patch(row.id, { phase: 'error', error: new ApiError(0, '本地 sha256 计算失败') })
+            patch(row.id, { phase: 'error', error: new ApiError(0, t('本地 sha256 计算失败')) })
             continue
           }
           if (closedRef.current) break
@@ -307,8 +310,8 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
 
   const dropHint =
     mode === 'generic'
-      ? '拖拽文件到此处，或点击选择（部署模式决定单文件替换还是多文件追加）'
-      : '选择构件文件（文件名按 GAV 坐标重命名为 layout 名）'
+      ? t('拖拽文件到此处，或点击选择（部署模式决定单文件替换还是多文件追加）')
+      : t('选择构件文件（文件名按 GAV 坐标重命名为 layout 名）')
 
   // paper slotProps 以变量承载（data-* 的字面量过剩属性检查绕行，同
   // ConfirmDialog 注记）；720px 宽版 modal（原 .deploy-modal 规则随本批
@@ -328,7 +331,7 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
       aria-labelledby="deploy-dialog-title"
       slotProps={{ paper: paperProps }}
     >
-      <DialogTitle id="deploy-dialog-title">部署 Deploy</DialogTitle>
+      <DialogTitle id="deploy-dialog-title">{t('部署 Deploy')}</DialogTitle>
       <DialogContent>
           {list.status === 'loading' || (needFallback && fallback.status === 'loading') ? (
             <Skeleton lines={3} />
@@ -336,13 +339,11 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
             <ErrorCard error={list.error} onRetry={list.reload} />
           ) : candidates.length === 0 ? (
             <EmptyState
-              message="没有可经浏览器上传的仓库"
-              hint="浏览器上传面向 local 的 Generic / Maven 仓；docker / npm / pypi 协议请用对应客户端发布（仓库详情页有接入命令）。"
+              message={t('没有可经浏览器上传的仓库')}
+              hint={t('浏览器上传面向 local 的 Generic / Maven 仓；docker / npm / pypi 协议请用对应客户端发布（仓库详情页有接入命令）。')}
               action={
                 admin ? (
-                  <Button component={Link} to="/admin/repositories/new" variant="contained" size="medium">
-                    创建 Generic 仓库
-                  </Button>
+                  <Button component={Link} to="/admin/repositories/new" variant="contained" size="medium">{t('创建 Generic 仓库')}                  </Button>
                 ) : undefined
               }
             />
@@ -350,7 +351,7 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
             <>
               <div className="deploy-field-grid">
                 <div className="field">
-                  <label htmlFor="deploy-repo">目标仓库</label>
+                  <label htmlFor="deploy-repo">{t('目标仓库')}</label>
                   <select
                     id="deploy-repo"
                     data-testid="deploy-repo"
@@ -364,24 +365,19 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                     ))}
                   </select>
                   {degradedCandidate && (
-                    <div className="field-hint">
-                      仓库元数据为管理员视图（HTTP 403）——按 Generic 语义直传；实际协议与
-                      写权限由服务端终裁（被拒原因会在此原样呈现）。
-                    </div>
+                    <div className="field-hint">{t('仓库元数据为管理员视图（HTTP 403）——按 Generic 语义直传；实际协议与 写权限由服务端终裁（被拒原因会在此原样呈现）。')}                    </div>
                   )}
                 </div>
                 <div className="field">
-                  <label>包类型（只读）</label>
+                  <label>{t('包类型（只读）')}</label>
                   <div>
                     <Chip label={packageType === 'maven' ? 'Maven' : 'Generic'} color="default" />{' '}
-                    <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>
-                      local 仓 · PUT 直传
-                    </span>
+                    <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>{t('local 仓 · PUT 直传')}                    </span>
                   </div>
                 </div>
                 <div className="field">
-                  <label>部署模式</label>
-                  <div role="radiogroup" aria-label="部署模式" style={{ display: 'flex', gap: 12 }}>
+                  <label>{t('部署模式')}</label>
+                  <div role="radiogroup" aria-label={t('部署模式')} style={{ display: 'flex', gap: 12 }}>
                     <label className="check-row">
                       <input
                         type="radio"
@@ -389,9 +385,7 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                         value="single"
                         checked={deployMode === 'single'}
                         onChange={() => setDeployMode('single')}
-                      />
-                      单个部署
-                    </label>
+                      />{t('单个部署')}                    </label>
                     <label className="check-row">
                       <input
                         type="radio"
@@ -399,30 +393,27 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                         value="multi"
                         checked={deployMode === 'multi'}
                         onChange={() => setDeployMode('multi')}
-                      />
-                      多个部署
-                    </label>
+                      />{t('多个部署')}                    </label>
                   </div>
                 </div>
               </div>
 
               {mode === 'generic' ? (
                 <div className="field" style={{ marginTop: 12 }}>
-                  <label htmlFor="deploy-target">目标路径（repo 相对目录，可修改）</label>
+                  <label htmlFor="deploy-target">{t('目标路径（repo 相对目录，可修改）')}</label>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <input
                       id="deploy-target"
                       className="mono-input"
                       data-testid="deploy-target"
                       value={target}
-                      placeholder="例如 acme/release/（空 = 仓库根）"
+                      placeholder={t('例如 acme/release/（空 = 仓库根）')}
                       onChange={(e) => setTarget(e.target.value)}
                       spellCheck={false}
                     />
-                    <CopyButton value={normalizeDir(target)} label="目标路径" />
+                    <CopyButton value={normalizeDir(target)} label={t('目标路径')} />
                   </div>
-                  <div className="field-hint deploy-echo" lang="en">
-                    请求编码回显：{repoKey}/{encodedPath(normalizeDir(target), rows[0]?.fileName ?? '<文件名>')}
+                  <div className="field-hint deploy-echo" lang="en">{t('请求编码回显：')}{repoKey}/{encodedPath(normalizeDir(target), rows[0]?.fileName ?? t('<文件名>'))}
                   </div>
                 </div>
               ) : (
@@ -433,7 +424,7 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                         ['groupId', 'groupId', 'com.acme'],
                         ['artifactId', 'artifactId', 'demo-app'],
                         ['version', 'version', '1.0.0'],
-                        ['classifier', 'classifier（可选）', 'sources'],
+                        ['classifier', t('classifier（可选）'), 'sources'],
                         ['packaging', 'packaging', 'jar'],
                       ] as const
                     ).map(([field, label, ph]) => (
@@ -452,7 +443,7 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                     ))}
                   </div>
                   <div className="field-hint deploy-echo" data-testid="deploy-maven-preview" lang="en">
-                    {maven.error ? `✗ ${maven.error}` : gav.groupId === '' ? '填写坐标后生成 layout 路径' : `${maven.dir}/${maven.file}`}
+                    {maven.error ? `✗ ${maven.error}` : gav.groupId === '' ? t('填写坐标后生成 layout 路径') : `${maven.dir}/${maven.file}`}
                   </div>
                 </div>
               )}
@@ -462,7 +453,7 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                 data-testid="deploy-drop"
                 role="button"
                 tabIndex={0}
-                aria-label="拖拽文件到此处，或按回车选择文件"
+                aria-label={t('拖拽文件到此处，或按回车选择文件')}
                 onDragOver={(e) => {
                   e.preventDefault()
                   setDragOver(true)
@@ -497,11 +488,11 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                   <TableHead>
                     <TableRow>
                       <TableCell sx={{ width: 24 }}>#</TableCell>
-                      <TableCell>文件（目标路径 / 编码回显）</TableCell>
-                      <TableCell>大小</TableCell>
-                      <TableCell>sha256 / 进度</TableCell>
-                      <TableCell>状态</TableCell>
-                      <TableCell>操作</TableCell>
+                      <TableCell>{t('文件（目标路径 / 编码回显）')}</TableCell>
+                      <TableCell>{t('大小')}</TableCell>
+                      <TableCell>{t('sha256 / 进度')}</TableCell>
+                      <TableCell>{t('状态')}</TableCell>
+                      <TableCell>{t('操作')}</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -519,7 +510,7 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                         <TableCell className="mono">{formatBytes(r.file.size)}</TableCell>
                         <TableCell sx={{ minWidth: 180 }}>
                           {r.phase === 'hashing' ? (
-                            <span className="text-2">正在计算本地 sha256…</span>
+                            <span className="text-2">{t('正在计算本地 sha256…')}</span>
                           ) : r.localSha ? (
                             <span className="mono" lang="en" title={r.localSha}>
                               {r.localSha.slice(0, 12)}…
@@ -532,7 +523,7 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                               <LinearProgress
                                 variant="determinate"
                                 value={r.total > 0 ? Math.min(100, (r.loaded / r.total) * 100) : 0}
-                                aria-label={`上传进度 ${r.fileName}`}
+                                aria-label={t('上传进度 {v1}', { v1: r.fileName })}
                                 sx={{ flex: 1 }}
                               />
                               <Typography variant="caption" className="text-2">
@@ -544,10 +535,10 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                         <TableCell>
                           {r.phase === 'done' ? (
                             <Stack direction="row" spacing={0.5} alignItems="center" useFlexGap sx={{ flexWrap: 'wrap' }}>
-                              <Chip label="上传完成 201" color="success" />
+                              <Chip label={t('上传完成 201')} color="success" />
                               {r.localSha && r.serverSha && (
                                 <Chip
-                                  label={r.localSha === r.serverSha ? '✓ checksum 一致' : '✗ 不一致'}
+                                  label={r.localSha === r.serverSha ? t('✓ checksum 一致') : t('✗ 不一致')}
                                   color={r.localSha === r.serverSha ? 'success' : 'error'}
                                   data-testid={`deploy-verify-${r.fileName}`}
                                 />
@@ -557,15 +548,13 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                             <DeployError err={r.error} admin={admin} />
                           ) : (
                             <span className="text-2">
-                              {r.phase === 'hashing' ? '哈希中' : r.phase === 'queued' ? '待部署' : '上传中'}
+                              {r.phase === 'hashing' ? t('哈希中') : r.phase === 'queued' ? t('待部署') : t('上传中')}
                             </span>
                           )}
                         </TableCell>
                         <TableCell>
                           {r.phase === 'error' && (
-                            <Button sx={cellBtnSx} onClick={() => retry(r)}>
-                              重试
-                            </Button>
+                            <Button sx={cellBtnSx} onClick={() => retry(r)}>{t('重试')}                            </Button>
                           )}
                         </TableCell>
                       </TableRow>
@@ -579,25 +568,19 @@ export default function DeployDialog({ preselectedRepo, preselectedDir, onClose,
                   type="checkbox"
                   checked={sendChecksum}
                   onChange={(e) => setSendChecksum(e.target.checked)}
-                />
-                计算并附带 X-Checksum-Sha256（推荐：服务端校验，不一致 409）
-              </label>
+                />{t('计算并附带 X-Checksum-Sha256（推荐：服务端校验，不一致 409）')}              </label>
             </>
           )}
       </DialogContent>
       <DialogActions>
-        <Button data-testid="deploy-close" onClick={close}>
-          关闭
-        </Button>
+        <Button data-testid="deploy-close" onClick={close}>{t('关闭')}        </Button>
         <Button
           variant="contained"
           size="medium"
           data-testid="deploy-submit"
           disabled={!canDeploy}
           onClick={startDeploy}
-        >
-          部署
-        </Button>
+        >{t('部署')}        </Button>
       </DialogActions>
     </Dialog>
   )
@@ -617,16 +600,12 @@ function DeployError({ err, admin }: { err: ApiError; admin: boolean }) {
         {errText(err)}
       </span>
       {err.status === 403 && (
-        <span className="field-hint">
-          当前会话对该路径没有所需权限（写入需 write；覆盖已有文件还需对旧文件的 delete）。
-          {admin && ' 可在权限 target 里为该路径加 write 动作。'}
+        <span className="field-hint">{t('当前会话对该路径没有所需权限（写入需 write；覆盖已有文件还需对旧文件的 delete）。')}          {admin && t(' 可在权限 target 里为该路径加 write 动作。')}
         </span>
       )}
-      {err.status === 413 && <span className="field-hint">仓库配额已满——服务端已原子拒绝，未落任何残留。</span>}
+      {err.status === 413 && <span className="field-hint">{t('仓库配额已满——服务端已原子拒绝，未落任何残留。')}</span>}
       {err.status === 409 && (
-        <span className="field-hint">
-          409：路径被 include/exclude pattern 拒绝，或声明的 checksum 与实际内容不一致（message 含 received/actual 双值）。
-        </span>
+        <span className="field-hint">{t('409：路径被 include/exclude pattern 拒绝，或声明的 checksum 与实际内容不一致（message 含 received/actual 双值）。')}        </span>
       )}
     </div>
   )

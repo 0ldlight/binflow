@@ -19,6 +19,9 @@ import { useAsync } from '../../lib/useAsync'
 import './security.css'
 import { TransferBox } from './TransferBox'
 import { createUser, listGroups, validateUserName } from './api'
+import { tr } from '../../i18n'
+
+const t = tr('security')
 
 // 用户创建路由页（T-453 / FR-145.1，断言反转④——Q5 出口①路由化）：
 // /admin/security/users/new 深链整页表单，对位 Artifactory 7.161.20 实测
@@ -45,20 +48,20 @@ import { createUser, listGroups, validateUserName } from './api'
 // readonly_admin：L4 深链防御——只读呈现（控件禁用 + 注记；服务端 403 兜底）。
 
 /** 预留位组题头（能力位三旗——BE 未承接域的如实呈现） */
-const RESERVED_CAP_TITLE = '能力位（Can Update Profile / Disable UI Access / Disable Internal Password）——预留位'
-const CAP_PROFILE_LABEL = 'Can Update Profile（可更新档案）'
+const RESERVED_CAP_TITLE = t('能力位（Can Update Profile / Disable UI Access / Disable Internal Password）——预留位')
+const CAP_PROFILE_LABEL = t('Can Update Profile（可更新档案）')
 const CAP_PROFILE_HINT =
-  '预留位——后端创建/更新端点未承接该域（GET 回显恒 true、零行为联动），恒禁用、零提交；Artifactory 语义 = 取消勾选后用户不能自助修改档案。承接落地时解禁（漂移钉见 t453 spec）。'
-const CAP_DISABLE_UI_LABEL = 'Disable UI Access（禁用 UI 访问）'
+  t('预留位——后端创建/更新端点未承接该域（GET 回显恒 true、零行为联动），恒禁用、零提交；Artifactory 语义 = 取消勾选后用户不能自助修改档案。承接落地时解禁（漂移钉见 t453 spec）。')
+const CAP_DISABLE_UI_LABEL = t('Disable UI Access（禁用 UI 访问）')
 const CAP_DISABLE_UI_HINT =
-  '预留位——同上未承接。语义（登录被拒臂）：勾选后该用户 UI 登录被拒，API / Token 面不受影响。'
-const CAP_DISABLE_PW_LABEL = 'Disable Internal Password Login（禁用内部口令登录）'
+  t('预留位——同上未承接。语义（登录被拒臂）：勾选后该用户 UI 登录被拒，API / Token 面不受影响。')
+const CAP_DISABLE_PW_LABEL = t('Disable Internal Password Login（禁用内部口令登录）')
 const CAP_DISABLE_PW_HINT =
-  '预留位——同上未承接。语义（密码改道臂）：勾选后内部口令登录停用，认证走外部 IdP（LDAP/OIDC）。'
+  t('预留位——同上未承接。语义（密码改道臂）：勾选后内部口令登录停用，认证走外部 IdP（LDAP/OIDC）。')
 
 /** 管理位候裁臂附注（双布尔 vs 枚举——ADR-0026 暂行维持枚举） */
 const ROLE_PARITY_NOTE =
-  '候裁臂：Artifactory 7.161 此处为 Administer Platform + Manage Resources 双布尔（另有 Platform Auditor / Manage Webhook）；BinFlow 按 ADR-0026 暂行维持三值枚举（readonly_admin 无双布尔对位），差异登记候裁——双布尔不建不伪造。'
+  t('候裁臂：Artifactory 7.161 此处为 Administer Platform + Manage Resources 双布尔（另有 Platform Auditor / Manage Webhook）；BinFlow 按 ADR-0026 暂行维持三值枚举（readonly_admin 无双布尔对位），差异登记候裁——双布尔不建不伪造。')
 
 interface CreateState {
   name: string
@@ -155,8 +158,8 @@ export default function UserCreatePage() {
   // blur 触发校验（§4.7：必填空给「请填写此字段」语义）；必填未满足时
   // Save 置灰（7.161 活体：Save 初始 disabled）。Retype 不一致同置灰。
   const nameErr = touched.name || f.name.trim() !== '' ? validateUserName(f.name.trim()) : null
-  const emailErr = touched.email && f.email.trim() === '' ? '请填写此字段' : null
-  const passErr = touched.password && f.password === '' ? '请填写此字段' : null
+  const emailErr = touched.email && f.email.trim() === '' ? t('请填写此字段') : null
+  const passErr = touched.password && f.password === '' ? t('请填写此字段') : null
   const passMismatch = f.password !== f.password2
   const canSubmit =
     f.name.trim() !== '' &&
@@ -183,7 +186,7 @@ export default function UserCreatePage() {
         enabled: f.enabled,
         groups: f.groups,
       })
-      toast.success(`用户 ${f.name.trim()} 已创建`)
+      toast.success(t('用户 {v1} 已创建', { v1: f.name.trim() }))
       // 创建-列表-编辑闭环：保存后回列表（7.161 同姿）
       navigate('/admin/security/users')
     } catch (err) {
@@ -197,26 +200,21 @@ export default function UserCreatePage() {
   return (
     <div data-testid="user-create-page">
       <div className="page-header">
-        <h2>新建用户</h2>
-        <Button variant="outlined" size="small" component={Link} to="/admin/security/users">
-          ← 返回列表
-        </Button>
+        <h2>{t('新建用户')}</h2>
+        <Button variant="outlined" size="small" component={Link} to="/admin/security/users">{t('← 返回列表')}        </Button>
       </div>
 
       {readOnly && (
-        <p className="admin-note" data-testid="user-create-readonly-note">
-          ⓘ 只读管理员（readonly_admin）视角：用户创建是管理面写操作，本页为只读呈现
-          （服务端 403 兜底，UI 不代持判定）。
-        </p>
+        <p className="admin-note" data-testid="user-create-readonly-note">{t('ⓘ 只读管理员（readonly_admin）视角：用户创建是管理面写操作，本页为只读呈现 （服务端 403 兜底，UI 不代持判定）。')}        </p>
       )}
 
-      <section className="card inline-form" data-testid="user-form" aria-label="新建用户">
+      <section className="card inline-form" data-testid="user-form" aria-label={t('新建用户')}>
         {/* T-384 节锚（v1.20 批）随路由化迁本页：创建表单四节——M3 表单结构
             parity 断言载体（载体迁移零改名） */}
         <div className="form-section" data-testid="user-form-section-settings">
-          <h4>用户设置</h4>
+          <h4>{t('用户设置')}</h4>
           <div className="field">
-            <label htmlFor="uf-name">用户名 *</label>
+            <label htmlFor="uf-name">{t('用户名 *')}</label>
             <TextField
               id="uf-name"
               size="small"
@@ -234,7 +232,7 @@ export default function UserCreatePage() {
                 {nameErr}
               </p>
             ) : (
-              <p className="field-hint">全小写；服务端终裁（保留名拒绝）。</p>
+              <p className="field-hint">{t('全小写；服务端终裁（保留名拒绝）。')}</p>
             )}
           </div>
           <div className="field">
@@ -259,7 +257,7 @@ export default function UserCreatePage() {
             )}
           </div>
           <div className="field" style={{ maxWidth: 480 }}>
-            <label htmlFor="uf-role">角色（三值闭集，M7 FR-66）</label>
+            <label htmlFor="uf-role">{t('角色（三值闭集，M7 FR-66）')}</label>
             <TextField
               id="uf-role"
               select
@@ -281,14 +279,14 @@ export default function UserCreatePage() {
                 </option>
               ))}
             </TextField>
-            <p className="field-hint">user=按 permission target 授权；readonly_admin=管理面只读；admin=管理面全权。</p>
+            <p className="field-hint">{t('user=按 permission target 授权；readonly_admin=管理面只读；admin=管理面全权。')}</p>
             <p className="field-hint" data-testid="user-form-role-parity-note">
               {ROLE_PARITY_NOTE}
             </p>
           </div>
         </div>
         <div className="form-section" data-testid="user-form-section-options">
-          <h4>选项</h4>
+          <h4>{t('选项')}</h4>
           <FormControlLabel
             className="check-row"
             control={
@@ -300,15 +298,15 @@ export default function UserCreatePage() {
                 slotProps={{ input: { 'data-testid': 'user-form-enabled' } as ComponentPropsWithoutRef<'input'> }}
               />
             }
-            label="启用（取消勾选 = 禁用账号——禁用后登录与写面全部拒绝）"
+            label={t('启用（取消勾选 = 禁用账号——禁用后登录与写面全部拒绝）')}
           />
           {/* T-453 / FR-145.3：能力位三旗预留位组（BE 未承接——恒禁用 + 零提交） */}
           <ReservedCapChecks />
         </div>
         <div className="form-section" data-testid="user-form-section-password">
-          <h4>口令</h4>
+          <h4>{t('口令')}</h4>
           <div className="field">
-            <label htmlFor="uf-pass">初始口令 *</label>
+            <label htmlFor="uf-pass">{t('初始口令 *')}</label>
             <TextField
               id="uf-pass"
               size="small"
@@ -329,13 +327,13 @@ export default function UserCreatePage() {
             )}
           </div>
           <div className="field">
-            <label htmlFor="uf-pass2">确认口令 *</label>
+            <label htmlFor="uf-pass2">{t('确认口令 *')}</label>
             <TextField
               id="uf-pass2"
               size="small"
               type="password"
               autoComplete="new-password"
-              placeholder="（再输入一次）"
+              placeholder={t('（再输入一次）')}
               value={f.password2}
               disabled={readOnly}
               onChange={(e) => setF((p) => ({ ...p, password2: e.target.value }))}
@@ -344,15 +342,13 @@ export default function UserCreatePage() {
               slotProps={{ htmlInput: { 'data-testid': 'user-form-password2' } }}
             />
             {passMismatch && (
-              <p className="field-error" role="alert">
-                两次输入的口令不一致
-              </p>
+              <p className="field-error" role="alert">{t('两次输入的口令不一致')}              </p>
             )}
           </div>
         </div>
         <div className="form-section" data-testid="user-form-section-groups">
-          <h4>相关组</h4>
-          <p className="field-hint">勾选即加入（右列）；保存后即时生效——移出组即失去该组授权，无需重登。</p>
+          <h4>{t('相关组')}</h4>
+          <p className="field-hint">{t('勾选即加入（右列）；保存后即时生效——移出组即失去该组授权，无需重登。')}</p>
           {groups.status === 'loading' && <Skeleton lines={2} />}
           {groups.status === 'ok' && (
             <div data-testid="user-form-groups">
@@ -363,22 +359,22 @@ export default function UserCreatePage() {
                 onToggle={(name, next) =>
                   setF((p) => ({ ...p, groups: next ? [...p.groups, name] : p.groups.filter((x) => x !== name) }))
                 }
-                availableLabel="可选组"
-                selectedLabel="已选组"
+                availableLabel={t('可选组')}
+                selectedLabel={t('已选组')}
                 itemTestid={(name) => `user-form-group-${name}`}
               />
             </div>
           )}
           {groups.status === 'ok' && (groups.data ?? []).length === 0 && (
-            <p className="field-hint">实例还没有组——先到「组」页创建。</p>
+            <p className="field-hint">{t('实例还没有组——先到「组」页创建。')}</p>
           )}
           {groups.status !== 'loading' && groups.status !== 'ok' && (
-            <p className="field-hint">组列表不可用（{groups.error?.message}）；可先建用户，稍后在编辑页入组。</p>
+            <p className="field-hint">{t('组列表不可用（')}{groups.error?.message}{t('）；可先建用户，稍后在编辑页入组。')}</p>
           )}
         </div>
         {serverError && (
           <Alert severity="error" data-testid="user-form-error">
-            <div className="headline">创建失败（HTTP {serverError.status || '网络'}）</div>
+            <div className="headline">{t('创建失败（HTTP')} {serverError.status || t('网络')}{t('）')}</div>
             <div className="raw" lang="en">
               {serverError.message}
             </div>
@@ -394,27 +390,23 @@ export default function UserCreatePage() {
             component={Link}
             to="/admin/security/users"
             data-testid="user-form-cancel"
-          >
-            取消
-          </Button>
+          >{t('取消')}          </Button>
           <Button
             variant="outlined"
             size="small"
             disabled={!dirty || submitting}
             data-testid="user-form-reset"
             onClick={() => setF(CREATE_INITIAL)}
-          >
-            重置
-          </Button>
+          >{t('重置')}          </Button>
           <Button
             variant="contained"
             size="small"
             disabled={!canSubmit}
-            title={readOnly ? '只读管理员：用户创建是管理面写操作（服务端 403）' : undefined}
+            title={readOnly ? t('只读管理员：用户创建是管理面写操作（服务端 403）') : undefined}
             onClick={() => void submit()}
             data-testid="user-form-submit"
           >
-            {submitting ? '创建中…' : '创建用户'}
+            {submitting ? t('创建中…') : t('创建用户')}
           </Button>
         </div>
       </section>

@@ -15,6 +15,9 @@ import { getHealth, getSchedules } from '../../lib/api'
 import type { HealthInfo, SubsystemStatus } from '../../lib/api'
 import { useAsync } from '../../lib/useAsync'
 import { useVersion } from '../../lib/useVersion'
+import { tr } from '../../i18n'
+
+const t = tr('monitoring')
 
 // 服务状态页（T-459 / FR-145.5——监控组三页之二；7.161.20 活体形态 =
 // /ui/admin/monitoring/service-status：总体 Online 徽标 + 服务卡〔URL +
@@ -38,14 +41,14 @@ import { useVersion } from '../../lib/useVersion'
 // - 四态：loading 骨架 / health 403 → L2 无权限卡（管理面语义）/
 //   error 错误卡 + 重试 / ok。readonly_admin 读面全通。
 //
-// T-462 挂靠预告：调度表是只读投影；cron 字段的编辑面归 T-462（GC/备份
-// 消费票），本页不改写。
+// T-462 落地注记：调度表仍是只读投影；cron 字段的编辑面在维护（GC）页
+// 与备份页（本页不改写——读面姿态不变）。
 
 /** 调度域中文名（wire 域值不翻译进排障列，标签给中文语境） */
 const DOMAIN_LABEL: Record<string, string> = {
-  maintenance: '维护',
-  backup: '备份',
-  replication: '复制',
+  maintenance: t('维护'),
+  backup: t('备份'),
+  replication: t('复制'),
 }
 
 /** RFC3339 UTC 串 → 人类可读（秒精度保留——next-run 排障要精确到秒） */
@@ -89,17 +92,15 @@ export default function ServiceStatusPage() {
   return (
     <div data-testid="status-page">
       <div className="page-header">
-        <h2>服务状态</h2>
-        <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>
-          实例健康、子系统与调度服务运行面（只读）
-        </span>
+        <h2>{t('服务状态')}</h2>
+        <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>{t('实例健康、子系统与调度服务运行面（只读）')}        </span>
       </div>
 
       {health.status === 'loading' && <Skeleton lines={6} />}
       {health.status === 'forbidden' && health.error && (
         <EmptyState
-          message="无权限查看服务状态"
-          hint="健康端点为管理员视图（GET /api/v1/health 仅 admin / readonly_admin——system:read）。"
+          message={t('无权限查看服务状态')}
+          hint={t('健康端点为管理员视图（GET /api/v1/health 仅 admin / readonly_admin——system:read）。')}
         />
       )}
       {health.status === 'error' && health.error && <ErrorCard error={health.error} onRetry={health.reload} />}
@@ -109,7 +110,7 @@ export default function ServiceStatusPage() {
           {/* 总体卡（7.161 对位：Online 徽标 + 服务卡） */}
           <Paper component="section" className="card section" elevation={1} data-testid="status-overall">
             <div className="kv">
-              <span className="k">总体状态</span>
+              <span className="k">{t('总体状态')}</span>
               <span>
                 <span className={`status-dot ${ok ? 'ok' : 'err'}`} aria-hidden="true" />{' '}
                 <span className="mono" lang="en" data-testid="status-badge">
@@ -118,45 +119,38 @@ export default function ServiceStatusPage() {
               </span>
             </div>
             <div className="kv">
-              <span className="k">产品 / 版本</span>
+              <span className="k">{t('产品 / 版本')}</span>
               <span className="mono" lang="en" data-testid="status-version">
                 {version ? `${version.product} v${version.version}` : '—'}
                 {version?.revision ? ` (${version.revision.slice(0, 12)})` : ''}
               </span>
             </div>
             <div className="kv">
-              <span className="k">实例 URL</span>
+              <span className="k">{t('实例 URL')}</span>
               <span className="mono" lang="en" data-testid="status-url">
                 {instanceUrl}
               </span>
             </div>
             <div className="kv">
-              <span className="k">节点</span>
-              <span data-testid="status-nodes">单节点（单二进制部署）</span>
+              <span className="k">{t('节点')}</span>
+              <span data-testid="status-nodes">{t('单节点（单二进制部署）')}</span>
             </div>
             <div className="kv">
-              <span className="k">运行时长</span>
-              <span className="text-2" data-testid="status-uptime-gap">
-                无查询端点，不呈现
-              </span>
+              <span className="k">{t('运行时长')}</span>
+              <span className="text-2" data-testid="status-uptime-gap">{t('无查询端点，不呈现')}              </span>
             </div>
-            <p className="field-hint" style={{ marginBottom: 0 }}>
-              运行时长（Uptime）无 REST 端点（health / version 均不含进程启动时间）——如实缺位不伪造；
-              指标抓取走根级 <span className="mono" lang="en">/metrics</span>（Prometheus 面，控制台不消费）。
-            </p>
+            <p className="field-hint" style={{ marginBottom: 0 }}>{t('运行时长（Uptime）无 REST 端点（health / version 均不含进程启动时间）——如实缺位不伪造； 指标抓取走根级')} <span className="mono" lang="en">/metrics</span>{t('（Prometheus 面，控制台不消费）。')}            </p>
           </Paper>
 
           {/* 子系统表（storage / metadata / registry——health 子卡） */}
           <Paper component="section" className="card section" elevation={1} data-testid="status-sys">
-            <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
-              子系统
-            </Typography>
+            <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>{t('子系统')}            </Typography>
             <Table>
               <TableHead>
                 <TableRow>
-                  <TableCell component="th" scope="col">子系统</TableCell>
-                  <TableCell component="th" scope="col">状态</TableCell>
-                  <TableCell component="th" scope="col">详情</TableCell>
+                  <TableCell component="th" scope="col">{t('子系统')}</TableCell>
+                  <TableCell component="th" scope="col">{t('状态')}</TableCell>
+                  <TableCell component="th" scope="col">{t('详情')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -169,28 +163,26 @@ export default function ServiceStatusPage() {
 
           {/* 调度服务（T-450 台账只读投影；cron 编辑面归 T-462） */}
           <Paper component="section" className="card section" elevation={1} data-testid="status-schedules">
-            <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>
-              调度服务
-            </Typography>
+            <Typography variant="subtitle2" component="h3" sx={{ mb: 1.5 }}>{t('调度服务')}            </Typography>
             {schedules.status === 'loading' && <Skeleton lines={3} />}
             {schedules.status === 'error' && schedules.error && (
               <ErrorCard error={schedules.error} onRetry={schedules.reload} />
             )}
             {schedules.status === 'ok' && (schedules.data?.schedules.length ?? 0) === 0 && (
               <EmptyState
-                message="未配置定时任务"
-                hint="GC / 清理 / 备份等 cron 调度在配置落库后出现在这里（GET /api/v1/system/schedules）。"
+                message={t('未配置定时任务')}
+                hint={t('GC / 清理 / 备份等 cron 调度在配置落库后出现在这里（GET /api/v1/system/schedules）。')}
               />
             )}
             {schedules.status === 'ok' && (schedules.data?.schedules.length ?? 0) > 0 && (
               <Table>
                 <TableHead>
                   <TableRow>
-                    <TableCell component="th" scope="col">任务</TableCell>
-                    <TableCell component="th" scope="col">域</TableCell>
+                    <TableCell component="th" scope="col">{t('任务')}</TableCell>
+                    <TableCell component="th" scope="col">{t('域')}</TableCell>
                     <TableCell component="th" scope="col">cron</TableCell>
-                    <TableCell component="th" scope="col">下次运行</TableCell>
-                    <TableCell component="th" scope="col">上次运行 / 结果</TableCell>
+                    <TableCell component="th" scope="col">{t('下次运行')}</TableCell>
+                    <TableCell component="th" scope="col">{t('上次运行 / 结果')}</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -209,7 +201,7 @@ export default function ServiceStatusPage() {
                             {fmtRFC3339(s.nextRun)}
                           </span>
                         ) : (
-                          <Chip size="small" className="badge neutral" label="已停用" />
+                          <Chip size="small" className="badge neutral" label={t('已停用')} />
                         )}
                       </TableCell>
                       <TableCell>
@@ -219,14 +211,12 @@ export default function ServiceStatusPage() {
                               {fmtRFC3339(s.lastRun)}
                             </span>{' '}
                             {s.lastStatus && (
-                              <span className="text-2" lang="en" title={s.lastError || undefined}>
-                                （{s.lastStatus}
-                                {s.lastError ? `：${s.lastError}` : ''}）
-                              </span>
+                              <span className="text-2" lang="en" title={s.lastError || undefined}>{t('（')}{s.lastStatus}
+                                {s.lastError ? t('：{v1}', { v1: s.lastError }) : ''}{t('）')}                              </span>
                             )}
                           </>
                         ) : (
-                          <span className="text-muted">未运行</span>
+                          <span className="text-muted">{t('未运行')}</span>
                         )}
                       </TableCell>
                     </TableRow>
@@ -234,16 +224,11 @@ export default function ServiceStatusPage() {
                 </TableBody>
               </Table>
             )}
-            <p className="field-hint" style={{ marginBottom: 0 }}>
-              调度台账为只读投影（cron 配置在维护 / 备份页编辑——T-462 承载）；「上次运行」时间与结果来自
-              台账行，未跑过的任务如实标注。
-            </p>
+            <p className="field-hint" style={{ marginBottom: 0 }}>{t('调度台账为只读投影（cron 配置在维护 / 备份页编辑）；「上次运行」时间与结果来自 台账行，未跑过的任务如实标注。')}            </p>
           </Paper>
 
           <p style={{ marginTop: 'var(--bf-sp-2)' }}>
-            <Button variant="outlined" size="small" onClick={doRefresh} data-testid="status-refresh">
-              刷新
-            </Button>
+            <Button variant="outlined" size="small" onClick={doRefresh} data-testid="status-refresh">{t('刷新')}            </Button>
           </p>
         </>
       )}

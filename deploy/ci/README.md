@@ -33,7 +33,11 @@ macOS main（release 合并）──▶ CircleCI workflow `uat`（仅 main 过�
                       build: console + docs + server + vet/lint/-short
                              + 版本注入 uat.<sha>（T-325 与 Jenkins 对齐）
                               ▼
-                      deploy_uat: uat-deploy.sh → ubuntu@52.79.109.153
+                      deploy_uat: uat-proxy.sh + uat-deploy.sh → ubuntu@52.79.109.153
+                        ├─ uat-proxy.sh（T-478 TLS 反代层，幂等，先于换装）：
+                        │    caddy 安装 → /etc/caddy 配置渲染 → validate →
+                        │    reload/enable --now → ufw 80,443 → 探针
+                        │    （8080 直连面必须仍绿；DNS 已解析则 https 严格门）
                         ├─ scp 分阶换装（.new → 备份×5 → install 原子替换）
                         ├─ healthz 探针 60s 有界 + 失败自动回滚复探
                         └─ 烟测：healthz + 版本断言（uat.<sha>）
@@ -55,6 +59,7 @@ macOS main（release 合并）──▶ CircleCI workflow `uat`（仅 main 过�
 | `binflow-deploy.groovy` | Jenkins job `binflow-deploy` 的 Pipeline 全文（作业内联） |
 | `deploy-vm.sh` | VM 宿主侧部署引擎（status / deploy / rollback 三模式） |
 | `uat-deploy.sh` | CircleCI 侧 UAT 部署脚本（scp 分阶换装/5 备份/60s 探针/自动回滚/版本+docs 烟测） |
+| `uat-proxy.sh` | UAT TLS 反代层脚本（T-478：caddy 安装/配置渲染/validate/reload，幂等，`UAT_DOMAIN=off` 可停用） |
 
 ## main → CircleCI → UAT（52.79.109.153）链
 
@@ -65,7 +70,9 @@ macOS main（release 合并）──▶ CircleCI workflow `uat`（仅 main 过�
   CircleCI Project Settings > SSH Keys 上传同钥，MD5 指纹填入 config.yml
   `add_ssh_keys.fingerprints`（`add_ssh_keys` 不支持 env 插值）。
 - 环境变量（Project Settings）：`UAT_HOST`（默认 52.79.109.153）、
-  `UAT_USER`（默认 ubuntu）、`UAT_HOME`（默认 /opt/binflow-uat）。
+  `UAT_USER`（默认 ubuntu）、`UAT_HOME`（默认 /opt/binflow-uat）、
+  `UAT_DOMAIN`（默认 uat.binflow.org；`off`/`none`/空 = 停用 TLS 反代层，
+  过渡期开关——T-478）。
 - 烟测门（T-325 起）：healthz + `/binflow/api/system/version` 断言含
   `uat.<sha>`（证明换装真发生）+ `/binflow/docs/` 200（docs 面）。
 
@@ -161,6 +168,10 @@ ubuntu ALL=(root) NOPASSWD: /usr/bin/bash
 （收紧替代：把远程主体改成逐条 sudo 白名单命令——功能等价，改动归
 release-engineer 票。）
 
+T-478 注：`uat-proxy.sh` 远程腿同样是 `sudo bash -s` 整段执行（apt/
+install/systemctl caddy/ufw/curl 都在其中）——上面这行授权已覆盖，
+**无需新增 sudoers 条目**。
+
 ### 5) 验证预置
 
 ```bash
@@ -170,6 +181,40 @@ systemctl cat binflow-uat  # 单元内容回显
 
 首次由 CircleCI 部署（或手动 `bash deploy/ci/uat-deploy.sh <host> <user>
 <home> <label>`，需本机 ~/.ssh/binflow-uat.pem）放置二进制并 start。
+
+### 6) TLS 反代层（T-478，uat-proxy.sh 自动管理，此处仅口径）
+
+UAT 的 https 面（443）由 **caddy** 终结 TLS，反代 `127.0.0.1:8080`；
+BinFlow 自身保持 plain HTTP 不变（与 `deploy/nginx/ssl.conf.template`
+T-168 的"反代终结"姿态一致——进程内无 TLS 面，方案裁定见
+`reports/agents/T-478.md`）。ACME 证书（Let's Encrypt，HTTP-01 + TLS-ALPN-01）
+由 caddy 自动签发续期，无 certbot、无续期定时器。
+
+- 部署脚本：`deploy/ci/uat-proxy.sh`（deploy_uat job 每次先跑，幂等：
+  已装跳过安装、配置未变不 reload、变更先 `caddy validate` 再 reload）。
+- 服务器侧落位：`/etc/caddy/Caddyfile`（被脚本接管，只含
+  `import /etc/caddy/caddyfiles/*.caddyfile`；dist 原件留
+  `/etc/caddy/Caddyfile.dist`）、
+  `/etc/caddy/caddyfiles/binflow-uat.caddyfile`（自
+  `deploy/caddy/uat.Caddyfile` 渲染 `{{DOMAIN}}`）。
+- 域名：CircleCI env `UAT_DOMAIN`（默认 `uat.binflow.org`）。
+- 停用：`UAT_DOMAIN=off`（或 `none`/空）——退回纯 8080 直连形态。
+- **前置项（用户操作，脚本管不到）**：
+  1. DNS A 记录 `uat.binflow.org → 52.79.109.153`（binflow.org 的 DNS
+     控制台）；
+  2. AWS 安全组放行 80 **和** 443 入站（80 是 HTTP-01 验证 + 308 跳转）；
+  3. ufw（若 active）脚本自动放行 `80,443/tcp`。
+- DNS 未就绪时脚本**不失败**：caddy 对 ACME 失败带退避重试，A 记录生效后
+  `sudo systemctl restart caddy` 立即补签；DNS 已解析后脚本的 https 探针
+  （`https://$DOMAIN/healthz`）转为严格门——失败即 job 红。
+- 手动验证（服务器上）：
+
+```bash
+systemctl status caddy --no-pager
+caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+curl -fsS https://uat.binflow.org/healthz        # 200 = 全链路（DNS+SG+cert+proxy+backend）
+curl -sI http://uat.binflow.org/healthz          # 308 -> https
+```
 
 ## 数据纪律（UAT）
 

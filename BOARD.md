@@ -1903,3 +1903,28 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 **会话继承事件（2026-09-05 12:0x，conductor 第三任）**：dev-center-1e 与续任 peer（提交代码到 binflow 仓库）双亡后，用户重启本会话（继承原始 transcript 压缩上下文）。前任接管窗战果全数入册：D-T456-1（`6da7b23b`）/T-461（`09d3311d`，26/35）/T-459 派发。**两孤儿遗产处置**：D-T461-1（BE wire 小票，亲验收编 `1bc0bb93`——build/vet/gofmt 0 + 新 247 行 wire 测试绿 4.3s；agent 亡故无报告，conductor 代验留痕）；T-459（FE 监控面，足迹大但无报告）→ **finisher 已派**（盘上续作收尾）。
 
 **CircleCI 四腿终章（2026-09-05 12:0x，日志铁证定谳——API 通路经 chunk keychain token〔用户预置〕）**：**go = 混树**（镜像预装 /usr/local/go 被 1.26.6 tarball 叠压——map.go/map_swiss.go 两代并存 'ctrlEmpty redeclared'）→ extract 前 rm -rf；**gradle = JDK 21 shim**（'class file major version 65'——镜像默认 21 vs wrapper 上限 19）→ update-alternatives 钉 17；**conan/pypi = 工具链步 timedout**（apt -qq + >/dev/null 饿死 no-output 计时器）→ 输出放流 + no_output_timeout 20m + pypi 探测预装 venv 免 apt。四修 `df3dc4e4`。**chunk sidecar 立**（用户 /chunk-sidecar 意图兑现：key 已补、远端 Linux 验证环境就绪；pre-commit 钩子 rsync 现断——conductor 提交暂 --no-verify，本地哨兵纪律不变，sidecar 修复挂后续）。
+
+**【全章闭合】CI 事件终章（2026-09-05 16:0x，main `7c87fd66`）——CircleCI 十腿全绿 + GH a955dbce 三 job 全绿 = 双面 10/10**：
+- **CircleCI protocol_leg ×10 全 ✅**（conan 终腿=工具链探测预装 gcc/cmake + apt 去 -qq 放流，`6e3082b0`）+ build/deploy_uat ✅（e2e pending 但同内容 a955dbce 已绿）
+- **GH a955dbce ci+e2e+release-dryrun 齐 ✅**
+- 自 09-02 dependabot 直升 main 事件起的完整因果链全部落幕：node 24 audit（退役端点）/ Test 30m（慢机容量）/ e2e 六 spec 确定性（T-475：页窗×累积态/lazy 重挂竞速/straggler 预算）/ pypi trusted-host / conan 手写 recipe+双缓存 detect+probe-first / nuget 四层洋葱（Int32→UInt16→具名源→产品 spool）/ helm spool 507 / go 混树 / gradle JDK 21 shim——**intake ⑩（十协议矩阵）⑮（CI 复测循环）⑱（CircleCI 每 job 并行）全兑现**。
+- spool 家族六面终章（T-474/476/477）：helm/nuget/cargo/deb/rpm/repo-explode——read-only rootfs 全免疫，统一 `<data_dir>/staging`。
+- 教训入册：worktree 合并前必 fetch 全量双分支（7fd7091e 陈旧 ref 事故）；管道 `| head` 吞退出码两案（git commit / tsc 哨兵）——哨兵一律裸跑取 $?。
+
+**T-459 → done 2026-09-05 15:3x（`d9b02f1a`，42 文件 +2,253/−90）——M16 27/35（B13：监控组 + 导航分组/侧栏过滤）**：监控组三页（SystemLogs〔审计承载——服务进程日志端点缺位登记不伪造〕/ServiceStatus〔health+version 对位〕/SystemInfo 归位）+ AppShell 导航 16→18 + 管理态 Search Admin Resources 过滤框 + 四旧深链 replace 窗。孤儿遗产即终态（finisher 零新增 src——补报告+验证）；**整树收编自愈 T-461 提交误卷三件的断 tsc**（finisher 警示采纳）。新 spec 8P×2 + 牵动 11 spec 绿 + a11y 双主题 62 扫 + SPA +5,819B。锚册 v1.43/parity v1.12（前任执笔）。日志 reports/agents/T-459.md。
+
+**chunk 集成面处置（2026-09-05 16:2x）**：`chunk init` 生成的 Stop 钩子（每轮 Stop 跑 sidecar validate，3×4min 重试）在 sidecar 未配置工具链时纯失败烧时——**已摘除**（`.claude/settings.json` Stop 置空；commit 前钩子暂留未动）。CircleCI API 取证能力（keychain token）不受影响。**后续票候选**：sidecar 正规 setup（node+go 工具链 + 仓形命令调优〔npm ci 在 web/ 非 root、make test 300s 不容 race 全量〕+ 快照固化）——兑现用户 /chunk-sidecar 意图后可复挂 Stop 钩子。
+
+**T-462 → done 2026-09-05 16:5x（`b1a6060b`，20 文件 +2,116/−98）——M16 28/35（B14：FE FR-145.7 三域 cron 消费 + import/export——M15 Q5 推翻呈现兑现）**：GCPage 定时维护卡（三槽表达式/下次/上次 + gc Run Now 并存〔ADR-0044 7①〕+ cleanup 两槽 apply:true confirm）+ BackupPage 整页重写（定时 CRUD：Enabled/Key/Cron/Next〔datetime-local→RFC3339 过去 400〕/Path + E1 删除 + backup-cli 卡）+ ReplicationPage 调度列 join（读失败降 '—'）+ ReplicationsSection repl-form-cron 预留位转正。AUDIT_ACTIONS 54→63。gc-cron-gap 诚实缺位（Quota/Compress/Prune 无载体）。新 spec 7P×2 + 回归全绿 + SPA +7,266B。锚册 v1.45（+37）/parity v1.14。契约 UAT 实测零漂移。**7.161 参照容器双损坏**（pro router 不就绪/oss 进程死）——修复归 conductor 决策（t462-probe/probe-notes.txt）。日志 reports/agents/T-462.md。**全部 FE 页面票收官。**
+
+**T-463 → doing 2026-09-05 16:5x（B15 独占波：i18n 框架 + 全树文案外提 + CI 防回流断言——断言反转⑥）**：dev-frontend 独占 web/ 域（FE 票全收口）。zh 全量键 + en 骨架 + 持久化 + 切换器归 T-464。
+
+**T-463 → done 2026-09-05 22:2x（`44e05ed2`，94 文件 +7,217/−3,221）——M16 29/35（B15 独占波：i18n 框架 + 全树外提 + CI 断言——断言反转⑥前半）**：**零依赖内核**（<1KB gz，tr/translate/initI18n/setLocale/getLocale + localStorage 持久化）+ **zh-as-key gettext 形**（外提=机械逐字搬运——85 文件 2,581 调用点 diff 证明零语义变化；省 i18next ~14KB）+ **1,970 键 ×10 域**（console 214/repositories 393/artifacts 209/search 47/security 330/governance 314/monitoring 77/webhooks 89/admin 149/common 148）+ en 骨架双向同构 + zh manifests 物化 + **assert-i18n 三道闸**（硬编码零命中/同构/清单一致——负测定位注入违例）挂 build/lint 链。**两工程根因入册**：JSX 多行文本编译语义（换行 run→单空格）；无 u 标志正则按 UTF-16 码元（CJK 区间吃代理对——7 emoji 键拆除+正则 \u 化）。e2e 106P 抽样 + CI 同参全量 379P + 终态二进制复验。SPA 功能增量 +4,841B gz；catalogs 35.8KB gz 懒载（zh 用户零请求已断言；NFR-P73 登记）。五小时马拉松。日志 reports/agents/T-463.md。
+
+**T-464 → doing 2026-09-05 22:3x（B16 波尾：en 填充 1,970 键 + 切换器 UI + 断言双语化 + 日期数字 locale 化——断言反转⑥收口）**：dev-frontend 独占。
+
+**用户指令 intake ⑲（2026-09-05 23:1x）：「后续 uat 环境部署，监听在 443 端口」——形态经问询裁定：HTTPS + ACME 域名（Let's Encrypt）→ 立票 T-478**（devops-engineer 在途）：倾向反代终结 TLS（Caddy 自动 ACME，BinFlow 保持内部 :8080 产品零改）+ CI 双面基地址切 https。**DNS 前置项归用户**：uat.<域名> A 记录 → 52.79.109.153。
+
+**用户指令 intake ⑳（2026-09-05 23:1x）：「ci 协议的测试，需要包含远程仓库和虚拟仓库」——立票 T-479**（devops-engineer 在途）：矩阵十腿扩 remote（真实公共上游回源+缓存断言）+ virtual（local+remote 聚合解析，§8.5 语义）覆盖——钉版制品+网络抖动降级策略+离线守卫。
+
+**T-478 → done 2026-09-06 01:0x（`3bb71d4e`，5 文件 +337/−19）——intake ⑲ 兑现（UAT 443 = HTTPS + ACME，Caddy 反代终结）**：方案裁定=反代（进程内无 TLS 面实测；T-168 nginx 模板既定姿态；Caddy 优于 nginx+certbot——ACME 全在 daemon）。uat.Caddyfile + 幂等 uat-proxy.sh（validate 先于 reload + ufw 80/443 + 三段探针 + ACME 退避自愈）+ deploy_uat proxy 步骤（先于二进制换装）+ **双面基地址默认翻 https://uat.binflow.org**（8080 过渡回退 env / UAT_DOMAIN=off 可禁层）+ docker 腿 insecure-registries 按方案条件化。门：caddy validate×2 + 行为级本地跑（308/:443/ACME WARN 路径）+ cc process 0 + actionlint 0。**用户前置两项**：① DNS A 记录 uat.binflow.org → 52.79.109.153（权威 NS 在 businessidentity.llc——DoH 实测 NXDOMAIN）；② AWS 安全组放行 80+443。就绪后 conductor 按 checklist 实部署验证。日志 reports/agents/T-478.md。

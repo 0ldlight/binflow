@@ -295,11 +295,12 @@ test('a11y: deb policy form is clean in both themes', async ({ page }, testInfo)
 })
 
 // ---------------------------------------------------------------------------
-// ⑦ 审计动作选择器: T-346 后全量词表镜像(internal/audit Actions() = 54 枚,
-//    逐枚对照 = 选项计数 + 新词表抽查; 选择器与断言源 GE-02)
+// ⑦ 审计动作选择器: 全量词表镜像(internal/audit Actions()——T-346 54 枚 +
+//    T-446/T-450 调度三域九词 = 63 枚, 逐枚对照 = 选项计数 + 新词表抽查;
+//    选择器与断言源 GE-02)
 // ---------------------------------------------------------------------------
 
-test('audit action picker carries the full T-346 vocabulary (54 actions)', async ({ page }) => {
+test('audit action picker carries the full vocabulary (54 T-346 + 9 scheduler actions)', async ({ page }) => {
   await installMocks(page)
   await page.route('**/binflow/api/v1/audit**', (route) =>
     route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ events: [], nextCursor: '' }) }),
@@ -308,9 +309,10 @@ test('audit action picker carries the full T-346 vocabulary (54 actions)', async
 
   const select = page.locator('[data-testid="audit-filter-action"]')
   await expect(select).toBeVisible()
-  // 54 动作 + 1 个「动作：全部」占位
-  await expect(select.locator('option')).toHaveCount(55)
+  // 63 动作 + 1 个「动作：全部」占位
+  await expect(select.locator('option')).toHaveCount(64)
   // 新词表抽查: T-346 的各族 + 补漏的 cleanup.run(值原样 mono, 不翻译)
+  // + T-446/T-450 调度三域 set/run/fail 九词
   for (const action of [
     'cleanup.run',
     'props.write',
@@ -324,6 +326,15 @@ test('audit action picker carries the full T-346 vocabulary (54 actions)', async
     'trash.clean',
     'trash.retention',
     'storage.replay.drained',
+    'maintenance.schedule.set',
+    'maintenance.schedule.run',
+    'maintenance.schedule.fail',
+    'backup.schedule.set',
+    'backup.schedule.run',
+    'backup.schedule.fail',
+    'replication.schedule.set',
+    'replication.schedule.run',
+    'replication.schedule.fail',
   ]) {
     await expect(select.locator(`option[value="${action}"]`)).toHaveCount(1)
   }
