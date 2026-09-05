@@ -47,6 +47,18 @@ case "${DOMAIN}" in
     *) echo "UAT_DOMAIN '${DOMAIN}' does not look like a FQDN — refusing"; exit 2 ;;
 esac
 
+# Transition guard (the e01d59d2 lesson): deploying the TLS layer before
+# the DNS A record exists strands the pipeline — ACME cannot even attempt
+# a challenge and the https probes have nothing to resolve. NXDOMAIN
+# skips the layer with a loud warning (plain :8080 keeps serving; the
+# next deploy after DNS lands enables TLS), instead of failing the job.
+if ! getent hosts "${DOMAIN}" >/dev/null 2>&1; then
+    echo "WARN: ${DOMAIN} does not resolve yet (no DNS A record?) —" >&2
+    echo "      skipping the TLS proxy layer this run; plain HTTP :8080 stands." >&2
+    echo "      Add the A record -> ${HOST} and the next deploy enables https." >&2
+    exit 0
+fi
+
 # Offer EXACTLY the injected deploy key (uat-deploy.sh semantics — see the
 # MaxAuthTries note there). Same wide pattern: any id_<type>_<name> (the
 # B64 path materializes id_ed25519_uat; add_ssh_keys writes
