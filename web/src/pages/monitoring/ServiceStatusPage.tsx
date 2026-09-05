@@ -38,8 +38,8 @@ import { useVersion } from '../../lib/useVersion'
 // - 四态：loading 骨架 / health 403 → L2 无权限卡（管理面语义）/
 //   error 错误卡 + 重试 / ok。readonly_admin 读面全通。
 //
-// T-462 挂靠预告：调度表是只读投影；cron 字段的编辑面归 T-462（GC/备份
-// 消费票），本页不改写。
+// T-462 落地注记：调度表仍是只读投影；cron 字段的编辑面在维护（GC）页
+// 与备份页（本页不改写——读面姿态不变）。
 
 /** 调度域中文名（wire 域值不翻译进排障列，标签给中文语境） */
 const DOMAIN_LABEL: Record<string, string> = {
@@ -235,7 +235,7 @@ export default function ServiceStatusPage() {
               </Table>
             )}
             <p className="field-hint" style={{ marginBottom: 0 }}>
-              调度台账为只读投影（cron 配置在维护 / 备份页编辑——T-462 承载）；「上次运行」时间与结果来自
+              调度台账为只读投影（cron 配置在维护 / 备份页编辑）；「上次运行」时间与结果来自
               台账行，未跑过的任务如实标注。
             </p>
           </Paper>

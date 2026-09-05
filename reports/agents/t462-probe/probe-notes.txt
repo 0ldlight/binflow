@@ -1,0 +1,33 @@
+T-462 取证注记（2026-09-05）
+============================
+
+[A] UAT wire 实测（52.79.109.153:8080，admin/password）——uat-probe.txt
+    三面 GET/PUT/DELETE 全走查，wire 形状与 internal/httpapi 源码一致：
+    - GET /api/v1/system/maintenance → {slots:[{key,cronExp,enabled,nextRun,
+      lastRun,lastStatus,lastError}×3]}；PUT 单槽臂 {gc:{cronExp}} 回投影；
+      坏表达式 400 = errors[] "Invalid cronExp not-a-cron for gc: scheduler:
+      invalid cron expression: got 1 fields, want 6 or 7 ..."
+    - GET/PUT/DELETE /api/v1/system/backups → {backups:[{backupKey,enabled,
+      exportPath,cronExp,nextScheduleBackup,lastRun,lastStatus,lastError,
+      createdAt,updatedAt}]}；PUT 创建回显 nextScheduleBackup（表达式推算）；
+      相对路径 400 "exportPath must be an absolute server path..."
+    - POST /api/v1/replications 带 cron_exp → 201 回显 cron_exp +
+      next_schedule_sync（enabled=false 时 next=''——park 态实证）
+    探测产物（maintenance gc 槽 / t462-probe 备份 / t462-probe 复制配置）
+    全数清除，三面复核归零（schedules/backups/replications 均空）。
+
+[B] Artifactory 7.161 活体取证——降级（af-probe.mjs 未产出）
+    票面指定参照基线 :8082（admin/JFrog@2026，7.161.20）。实测：
+    - Docker Desktop 未起 → 启动后发现两个候选容器均异常：
+      `artifactory`（pro:7.161.20）内部 router(8046) 永不就绪、多 sidecar
+      FATAL（曾 OOM-killed，exit 137——重启一轮同症）；`t226-artifactory-784`
+      （oss:7.84.10）容器 running 但应用进程死（日志停在 2026-09-02）。
+    - 修复第三方容器超出本票边界（且涉数据面风险，安全底线）——降级。
+    - 环境复原：两容器停回原状（stopped），Docker Desktop 退出。
+    形态基线改用注册锚（clean-room 权威）：docs/reverse/console-ui.md
+    §3.9（维护面三区块 Cron/Next Run/Run Now + Quota + Compress/Prune）/
+    §3.10（备份列表列集 + New Backup 表单 Backup Settings 字段族）/
+    §3.16（import/export 三卡）+ cron-scheduling.md（表达式子集/出厂默认）
+    + ADR-0044 决策 7①②（Run Now=手动面并存 / upsert-by-key）。
+    BinFlow 侧差异按「无载体缺位不伪造」纪律呈现（详见锚册 v1.45
+    T-462 批块 + parity v1.14）。

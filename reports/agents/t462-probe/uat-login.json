@@ -1,0 +1,7 @@
+{
+  "username": "admin",
+  "admin": true,
+  "adminRole": "admin",
+  "source": "local",
+  "groups": []
+}

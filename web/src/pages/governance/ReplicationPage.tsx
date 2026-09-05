@@ -20,11 +20,15 @@ import { formatAuditTime, formatCount } from '../../lib/format'
 import { useAuth } from '../../app/AuthContext'
 import {
   getReplicationGlobalBlock,
+  listReplicationConfigs,
   setReplicationBlock,
 } from '../../lib/replications'
+import { useAsync } from '../../lib/useAsync'
 
 // 复制面板（T-159）：push 复制状态 + 事件列表（治理组「复制」页）。
-// GET /api/v1/replication/status（admin），每 10s 轮询（AC②）。
+// GET /api/v1/replication/status（admin），每 10s 轮询（AC②）。T-462 增
+// 「调度」列：GET /api/v1/replications 的 cron_exp/next_schedule_sync
+// 投影按 id join（status 面不携 cron——读配置面；读失败降 '—'）。
 //
 // 契约假设（端点属 T-162 遗留的桥接票，尚不存在——形状按
 // internal/replication/model.go 的真实 Go 类型推定，桥接票以本文件为准对齐）：
@@ -272,7 +276,17 @@ function GlobalBlockCard() {
   )
 }
 
-function ReplicationBody({ data, staleError }: { data: ReplicationStatus; staleError?: string }) {
+function ReplicationBody({
+  data,
+  staleError,
+  cronOf,
+}: {
+  data: ReplicationStatus
+  staleError?: string
+  /** id → 配置行的 cron 投影（GET /v1/replications 回显；null = 该行无
+   *  配置回读（列表失败/行已删）——调度列如实降 '—'） */
+  cronOf: Map<number, { cron_exp: string; next_schedule_sync: string; enabled: boolean }> | null
+}) {
   // replication_id → 源仓库（事件行只带 id，制品路径补全用）
   const repoOf = new Map(data.targets.map((t) => [t.id, t.source_repo]))
 
@@ -294,6 +308,7 @@ function ReplicationBody({ data, staleError }: { data: ReplicationStatus; staleE
                 <TableCell component="th" scope="col">目标</TableCell>
                 <TableCell component="th" scope="col">URL</TableCell>
                 <TableCell component="th" scope="col">仓库（源 → 目标）</TableCell>
+                <TableCell component="th" scope="col">调度</TableCell>
                 <TableCell component="th" scope="col" lang="en">
                   pending
                 </TableCell>
@@ -306,6 +321,7 @@ function ReplicationBody({ data, staleError }: { data: ReplicationStatus; staleE
             <TableBody>
               {data.targets.map((t, i) => {
                 const st = targetState(t)
+                const cron = cronOf?.get(t.id) ?? null
                 return (
                   <TableRow key={t.id} data-testid={`repl-target-${i}`} hover>
                     <TableCell>
@@ -317,6 +333,25 @@ function ReplicationBody({ data, staleError }: { data: ReplicationStatus; staleE
                     </TableCell>
                     <TableCell className="mono" lang="en">
                       {t.source_repo} → {t.target_repo}
+                    </TableCell>
+                    <TableCell data-testid={`repl-sched-${i}`}>
+                      {cron === null ? (
+                        <span className="text-muted">—</span>
+                      ) : cron.cron_exp ? (
+                        <>
+                          <span className="mono" lang="en">{cron.cron_exp}</span>
+                          <br />
+                          <span className="text-2" title={cron.next_schedule_sync}>
+                            {cron.enabled && cron.next_schedule_sync
+                              ? `下次 ${cron.next_schedule_sync.replace('T', ' ').replace(/(\.\d+)?Z$/, ' UTC')}`
+                              : cron.enabled
+                                ? '未排'
+                                : '已停用'}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-muted">事件驱动</span>
+                      )}
                     </TableCell>
                     <TableCell className="mono" lang="en">
                       {formatCount(t.pending)}
@@ -350,7 +385,9 @@ function ReplicationBody({ data, staleError }: { data: ReplicationStatus; staleE
         )}
         <p className="field-hint" style={{ marginBottom: 0 }}>
           每 {REPLICATION_POLL_MS / 1000} 秒自动刷新（GET /api/v1/replication/status）；复制为单向
-          push——源上传后异步推送，失败按 1s→16s 指数退避重试（最多 6 次后终态）。
+          push——源上传后异步推送，失败按 1s→16s 指数退避重试（最多 6 次后终态）。「调度」列自
+          配置面（GET /api/v1/replications）join：cron 到点触发全量对账，事件轨照常承载增量（同制品
+          不双推）；表达式在仓库编辑页 Replications 节配置。
         </p>
       </section>
 
@@ -422,6 +459,19 @@ function ReplicationBody({ data, staleError }: { data: ReplicationStatus; staleE
 
 export default function ReplicationPage() {
   const { phase, retry } = useReplicationStatus()
+  // 配置面（GET /v1/replications）：targets 的 cron/next-sync 投影 join 源
+  //（T-462——status 面不携 cron 字段，读配置面回显）。读失败 = 调度列降
+  // '—'（状态面主数据不受牵连——cron 是投影不是状态）。
+  const configs = useAsync(listReplicationConfigs, [])
+  const cronOf =
+    configs.status === 'ok' && configs.data
+      ? new Map(
+          configs.data.map((c) => [
+            c.id,
+            { cron_exp: c.cron_exp, next_schedule_sync: c.next_schedule_sync, enabled: c.enabled },
+          ]),
+        )
+      : null
 
   const okData = phase.kind === 'ok' ? phase.data : phase.kind === 'error' ? phase.stale : null
 
@@ -430,7 +480,7 @@ export default function ReplicationPage() {
       <div className="page-header">
         <h2>复制</h2>
         <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>
-          单向 push：源仓库 → 目标实例（ADR-0021）
+          单向 push：源仓库 → 目标实例（ADR-0021）——事件轨 + 可选定时全量双轨
         </span>
       </div>
 
@@ -457,7 +507,13 @@ export default function ReplicationPage() {
       {/* T-422：全局封锁双开关——独立于状态面的只读/降级态（封锁面自身
           可用即呈现；与状态面 403/404/501 分开收敛） */}
       {phase.kind !== 'forbidden' && <GlobalBlockCard />}
-      {okData && <ReplicationBody data={okData} staleError={phase.kind === 'error' ? phase.message : undefined} />}
+      {okData && (
+        <ReplicationBody
+          data={okData}
+          staleError={phase.kind === 'error' ? phase.message : undefined}
+          cronOf={cronOf}
+        />
+      )}
     </div>
   )
 }

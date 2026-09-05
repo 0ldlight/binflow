@@ -175,8 +175,9 @@ test('renders target list and event list with counts, badges and copy anchors', 
   await expect(row0).toContainText('1,204')
   // URL 拷贝锚（P2：mono 标识可复制；aria-label = CopyButton 的「复制 」前缀 + 对象描述）
   await expect(row0.locator(`button[aria-label="复制 目标 URL dr-site"]`)).toBeVisible()
-  // 上次成功时间已渲染（非空；不做精确断言防本地时区 flake）
-  await expect(row0.locator('td').nth(8)).not.toHaveText('—')
+  // 上次成功时间已渲染（非空；不做精确断言防本地时区 flake）。列序
+  // 注记：T-462 在仓库列后插「调度」列——上次成功自 td[8] 移至 td[9]
+  await expect(row0.locator('td').nth(9)).not.toHaveText('—')
 
   // 目标 1：已停用分支 + 从未成功 →「—」
   const row1 = targets.locator('[data-testid="repl-target-1"]')
@@ -184,7 +185,7 @@ test('renders target list and event list with counts, badges and copy anchors', 
   await expect(row1).toContainText('edge.internal:8080')
   await expect(row1).toContainText('docker-local → docker-edge')
   await expect(row1).toContainText('3')
-  await expect(row1.locator('td').nth(8)).toHaveText('—')
+  await expect(row1.locator('td').nth(9)).toHaveText('—')
 
   // 目标 2：失败优先于排队 →「异常（2 失败）」
   await expect(targets.locator('[data-testid="repl-target-2"]')).toContainText('异常（2 失败）')

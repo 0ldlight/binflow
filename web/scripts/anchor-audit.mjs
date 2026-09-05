@@ -332,6 +332,17 @@ const STOP = new Set([
   // remote-browse-tree.spec.ts），均非 testid 锚
   'display-only', 'item-info', 'pull-through', 'remote-browsing',
   'repo-semantics', 'warn-box', 'remote-browse-tree',
+  // v1.45（T-462 行文假阳性）：cron 消费批的标识符引用——wire 槽键裸名
+  // （cleanup-unused-cache / cleanup-virtual——gc-cron-row-<slot> 族段值，
+  // 族内实名经 <slot> 展开在册）、退役表族名的散文引用（backup-cmd——
+  // 「维持退役不复活」句）、Artifactory 出厂预置名（backup-daily——
+  // 有意差异注记）、规格文件名段（console-ui——docs/reverse/console-ui.md）
+  // + 机制/形态术语（datetime-local——input type、dry-run——手动面姿态、
+  // virtual-only——无载体注记）+ 本票 spec/evidence 文件名段
+  // （t462-cron-backups / repo-policy-keys / t462-probe），均非 testid 锚
+  'backup-cmd', 'backup-daily', 'cleanup-unused-cache', 'cleanup-virtual',
+  'console-ui', 'datetime-local', 'dry-run', 'virtual-only',
+  't462-cron-backups', 'repo-policy-keys', 't462-probe',
 ])
 const docFams = new Set()
 for (const t of docTokens) {

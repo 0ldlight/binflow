@@ -1,10 +1,17 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import Alert from '@mui/material/Alert'
 import Button from '@mui/material/Button'
+import Chip from '@mui/material/Chip'
+import Table from '@mui/material/Table'
+import TableBody from '@mui/material/TableBody'
+import TableCell from '@mui/material/TableCell'
+import TableHead from '@mui/material/TableHead'
+import TableRow from '@mui/material/TableRow'
 import TextField from '@mui/material/TextField'
+import Typography from '@mui/material/Typography'
 
 import { useAuth } from '../../app/AuthContext'
 import { useToast } from '../../app/ToastContext'
@@ -14,12 +21,23 @@ import { ErrorCard } from '../../components/ErrorCard'
 import { Skeleton } from '../../components/Skeleton'
 import { ApiError, canAdminWrite, errText, getStorageStats, isReadOnlyAdmin } from '../../lib/api'
 import { dedupRatio, formatBytes, formatCount } from '../../lib/format'
-import { GC_MAX_GRACE_HOURS, runGC } from '../../lib/governance'
-import type { GCRunResult } from '../../lib/governance'
+import {
+  GC_MAX_GRACE_HOURS,
+  MAINTENANCE_SLOTS,
+  getMaintenance,
+  putMaintenance,
+  runCleanupNow,
+  runGC,
+} from '../../lib/governance'
+import type { GCRunResult, MaintenanceSlot, MaintenanceSlotKey } from '../../lib/governance'
 import { useAsync } from '../../lib/useAsync'
 import MigrationPanel from './MigrationPanel'
 
-// 维护（GC）（console-m8 §6.14 归位 /admin/governance/gc；T-102 语义原样）：
+// 维护（GC）（console-m8 §6.14 归位 /admin/governance/gc；T-102 语义原样；
+// T-459 迁址 /admin/monitoring/gc——服务节点组挂靠）：
+// - 定时维护卡（T-462 / FR-145.7）：三 cron 槽（gc / cleanup 两族）+
+//   Cleanup Run Now——GET/PUT /api/v1/system/maintenance +
+//   POST /api/v1/system/cleanup（细节见 MaintenanceCronCard 头注）。
 // - 概况卡与仪表盘同源（GET /api/v1/storage/stats，system:read——
 //   readonly_admin 读面全通）。
 // - dry-run 是默认姿态（ADR-0015 勘误①）：POST {} 即试运行；apply 必须
@@ -52,6 +70,292 @@ function graceLabel(hours: number | null): string {
   return `${hours} 小时`
 }
 
+/** RFC3339 UTC 串 → 人类可读（秒精度——next-run 排障要精确到秒；
+ *  与 ServiceStatusPage 同形，页面级小函数不抽公共层） */
+function fmtUTC(v: string): string {
+  return v ? v.replace('T', ' ').replace(/(\.\d+)?Z$/, ' UTC') : '—'
+}
+
+/** 三槽中文语境标签（wire key 原样进 PUT——标签只作呈现） */
+const SLOT_LABEL: Record<MaintenanceSlotKey, string> = {
+  gc: '垃圾回收（Garbage Collection）',
+  'cleanup-unused-cache': '清理未使用缓存（Cleanup Unused Cached Artifacts）',
+  'cleanup-virtual': '清理虚拟仓（Cleanup Virtual Repositories）',
+}
+
+/** 定时维护卡（T-462 / FR-145.7——维护面 cron 三槽消费）：7.161 维护页
+ *  三区块（GC / Cleanup 两族——各带 Cron Expression + Next Run Time +
+ *  Run Now）的 BinFlow 承载，GET/PUT /api/v1/system/maintenance。
+ *
+ * - 每槽一行：表达式输入（Quartz 六/七域）+ 保存 / 清除 + 下次 / 上次
+ *  运行。空表达式保存 = 拒（用「清除」取消调度——单态：无行 = 不调度）。
+ * - 「Run Now」= 既有手动面（ADR-0044 决策 7①「并存维持」）：GC 槽的
+ *  手动执行就是本页危险区的 dry-run/apply（锚点滚动，不另设入口）；
+ *  两 cleanup 槽 = POST /api/v1/system/cleanup {apply:true}（T-324 手动
+ *  面，Trigger=manual 与调度 fire 同载体）。BinFlow 两 cleanup 槽 fire
+ *  时同走 CleanupEngine 全量 pass（无 virtual-only 载体——ADR-0044 决策
+ *  8① 的 C 层差异，行内如实注记）。
+ * - Quota 百分比 / Compress 内部库 / Prune 无 BinFlow 后端载体——缺位
+ *  不伪造（gc-cron-gap 一句注记，7.161 §3.9 区块 2/5 的对应面）。
+ * - 门：GET system:read（readonly_admin 可读）；PUT/Run Now system:write
+ *  ——readonly_admin 输入与按钮禁用 + 注记，服务端 403 兜底。
+ * - 400 族（Invalid cronExp …）按行内错误呈现（服务端点名原因原样）。 */
+function MaintenanceCronCard({
+  readOnly,
+  adminWrite,
+  onGotoDangerZone,
+}: {
+  readOnly: boolean
+  adminWrite: boolean
+  onGotoDangerZone: () => void
+}) {
+  const toast = useToast()
+  const confirm = useConfirm()
+  const view = useAsync(getMaintenance, [])
+  const [drafts, setDrafts] = useState<Record<string, string>>({})
+  const [savingKey, setSavingKey] = useState<MaintenanceSlotKey | ''>('')
+  const [rowErrors, setRowErrors] = useState<Record<string, string>>({})
+
+  const slotOf = (key: string): MaintenanceSlot | undefined =>
+    view.data?.slots.find((s) => s.key === key)
+
+  const draftFor = (s: MaintenanceSlot): string => drafts[s.key] ?? s.cronExp
+
+  const setDraft = (key: string, v: string) => setDrafts((d) => ({ ...d, [key]: v }))
+
+  const saveSlot = async (key: MaintenanceSlotKey): Promise<void> => {
+    const expr = (drafts[key] ?? slotOf(key)?.cronExp ?? '').trim()
+    if (expr === '') return
+    setSavingKey(key)
+    setRowErrors((e) => ({ ...e, [key]: '' }))
+    try {
+      await putMaintenance({ [key]: { cronExp: expr } })
+      toast.success(`已保存定时任务（${SLOT_LABEL[key]}）`)
+      setDrafts((d) => {
+        const next = { ...d }
+        delete next[key]
+        return next
+      })
+      view.reload()
+    } catch (err) {
+      // 400 = Invalid cronExp …（服务端点名原因）；403/503/5xx 原样行内
+      setRowErrors((e) => ({ ...e, [key]: errText(err) }))
+    } finally {
+      setSavingKey('')
+    }
+  }
+
+  const clearSlot = async (key: MaintenanceSlotKey): Promise<void> => {
+    setSavingKey(key)
+    setRowErrors((e) => ({ ...e, [key]: '' }))
+    try {
+      await putMaintenance({ [key]: { cronExp: '' } })
+      toast.success(`已清除定时任务（${SLOT_LABEL[key]}）——不再调度`)
+      setDrafts((d) => {
+        const next = { ...d }
+        delete next[key]
+        return next
+      })
+      view.reload()
+    } catch (err) {
+      setRowErrors((e) => ({ ...e, [key]: errText(err) }))
+    } finally {
+      setSavingKey('')
+    }
+  }
+
+  const runCleanupSlot = async (key: MaintenanceSlotKey): Promise<void> => {
+    const ok = await confirm({
+      title: `立即清理（${SLOT_LABEL[key]}）`,
+      body: (
+        <>
+          <p>
+            对全实例执行一次清理全量 pass（<span className="mono" lang="en">POST /api/v1/system/cleanup</span>，
+            <span className="mono" lang="en">apply=true</span>）：按各 remote 仓的未使用策略回收过期缓存、
+            清扫过期上传会话、并以引擎 grace 窗口执行 GC 腿。与 GC / export 共用 data 目录维护锁，
+            运行中被其它维护操作拒绝（409）。
+          </p>
+          <p className="field-hint" style={{ marginBottom: 0 }}>
+            两族清理槽在 BinFlow 同走一个全量 pass（无 virtual-only 载体——本按钮与另一槽等价；
+            差异登记见 parity 册）。
+          </p>
+        </>
+      ),
+      danger: true,
+      confirmLabel: '立即清理',
+    })
+    if (!ok) return
+    setSavingKey(key)
+    setRowErrors((e) => ({ ...e, [key]: '' }))
+    try {
+      const rep = await runCleanupNow()
+      if (rep.ok) {
+        toast.success(
+          `清理完成：回收 ${formatCount(rep.objectsCleaned)} 项 / ${formatBytes(rep.bytesReclaimed)}` +
+            `（grace 内暂缓 ${formatCount(rep.gracePending)} 项）`,
+        )
+      } else {
+        toast.error(`清理未完成：${rep.error || '引擎未报告原因'}`)
+      }
+      // 手动面不写台账行（lastRun 仍属调度 fire）——只刷新表达式列
+      view.reload()
+    } catch (err) {
+      setRowErrors((e) => ({ ...e, [key]: errText(err) }))
+    } finally {
+      setSavingKey('')
+    }
+  }
+
+  return (
+    <section className="card section" data-testid="gc-cron">
+      <Typography variant="subtitle2" component="h3" sx={{ mb: 0.5 }}>
+        定时维护（cron）
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+        三类维护作业的定时表达式（Quartz 六/七域，如 <span className="mono" lang="en">0 0 /4 * * ?</span>）。
+        到点由服务端调度器执行全量 pass；手动执行与定时并存（下方危险区 / 各行「立即清理」）。
+      </Typography>
+
+      {view.status === 'loading' && <Skeleton lines={4} />}
+      {view.status === 'error' && view.error && <ErrorCard error={view.error} onRetry={view.reload} />}
+      {/* 403 不设独立降级注记：本卡仅对 admin/readonly_admin 渲染（两者
+          GET system:read 均通）——普通 user 的页面级 L2 收敛由上方 stats
+          无权限卡承载，非 admin 不入本面（§3.6.3） */}
+
+      {view.status === 'ok' && view.data && (
+        <Table size="small" data-testid="gc-cron-table">
+          <TableHead>
+            <TableRow>
+              <TableCell component="th" scope="col">作业</TableCell>
+              <TableCell component="th" scope="col">cron 表达式</TableCell>
+              <TableCell component="th" scope="col">下次运行</TableCell>
+              <TableCell component="th" scope="col">上次运行 / 结果</TableCell>
+              <TableCell component="th" scope="col" align="right">操作</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {MAINTENANCE_SLOTS.map((key) => {
+              const slot = slotOf(key)
+              if (!slot) return null
+              const draft = draftFor(slot)
+              const scheduled = slot.cronExp !== ''
+              const dirty = draft !== slot.cronExp
+              const err = rowErrors[key]
+              return (
+                <TableRow key={key} data-testid={`gc-cron-row-${key}`} hover>
+                  <TableCell>{SLOT_LABEL[key]}</TableCell>
+                  <TableCell>
+                    <TextField
+                      size="small"
+                      value={draft}
+                      disabled={!adminWrite || savingKey !== ''}
+                      onChange={(e) => setDraft(key, e.target.value)}
+                      placeholder="0 0 /4 * * ?"
+                      sx={{ width: 190 }}
+                      slotProps={{ htmlInput: { className: 'mono', 'data-testid': `gc-cron-input-${key}`, lang: 'en' } }}
+                    />
+                    {err && (
+                      <p className="field-error" role="alert" style={{ maxWidth: 340, whiteSpace: 'normal' }}>
+                        {err}
+                      </p>
+                    )}
+                    {!scheduled && !dirty && <span className="text-muted">未调度</span>}
+                  </TableCell>
+                  <TableCell>
+                    {scheduled ? (
+                      slot.enabled ? (
+                        <span className="mono" lang="en" title={slot.nextRun} data-testid={`gc-cron-next-${key}`}>
+                          {fmtUTC(slot.nextRun)}
+                        </span>
+                      ) : (
+                        <Chip size="small" className="badge neutral" label="已停用" />
+                      )
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {slot.lastRun ? (
+                      <span
+                        className="mono"
+                        lang="en"
+                        title={slot.lastError || undefined}
+                        data-testid={`gc-cron-last-${key}`}
+                      >
+                        {fmtUTC(slot.lastRun)}
+                        {slot.lastStatus ? `（${slot.lastStatus}${slot.lastStatus !== 'ok' && slot.lastError ? `：${slot.lastError}` : ''}）` : ''}
+                      </span>
+                    ) : (
+                      <span className="text-muted">未运行</span>
+                    )}
+                  </TableCell>
+                  <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                    {key === 'gc' ? (
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        onClick={onGotoDangerZone}
+                        data-testid="gc-cron-run-gc"
+                        title="GC 手动执行走本页危险区的 dry-run / apply（并存维持）"
+                      >
+                        手动执行 ↓
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        disabled={!adminWrite || savingKey !== ''}
+                        onClick={() => void runCleanupSlot(key)}
+                        data-testid={`gc-cron-run-${key}`}
+                        title={readOnly ? '只读管理员：手动清理是 system:write（服务端 403 兜底）' : undefined}
+                      >
+                        立即清理
+                      </Button>
+                    )}{' '}
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      disabled={!adminWrite || savingKey !== '' || draft.trim() === '' || !dirty}
+                      onClick={() => void saveSlot(key)}
+                      data-testid={`gc-cron-save-${key}`}
+                      title={readOnly ? '只读管理员：定时配置是 system:write（服务端 403 兜底）' : undefined}
+                    >
+                      保存
+                    </Button>{' '}
+                    <Button
+                      variant="text"
+                      color="inherit"
+                      size="small"
+                      disabled={!adminWrite || savingKey !== '' || !scheduled}
+                      onClick={() => void clearSlot(key)}
+                      data-testid={`gc-cron-clear-${key}`}
+                      title="清空表达式 = 取消调度（单态：无行 = 不调度）"
+                    >
+                      清除
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              )
+            })}
+          </TableBody>
+        </Table>
+      )}
+
+      {readOnly && (
+        <p className="admin-note" data-testid="gc-cron-readonly-note">
+          只读管理员（readonly_admin）：定时维护配置与手动清理均为 system:write，入口已禁用——
+          直接提交会被服务端 403 拒绝。
+        </p>
+      )}
+      <p className="field-hint" data-testid="gc-cron-gap" style={{ marginBottom: 0 }}>
+        7.161 维护页的 Quota 百分比、Compress 内部库、Prune 未引用数据三项在 BinFlow 无后端载体——
+        如实缺位不呈现（ quota 阈值走存储配额页）。全量调度台账见{' '}
+        <Link to="/admin/monitoring/status">服务状态</Link> 页（只读投影）。
+      </p>
+    </section>
+  )
+}
+
 export default function GCPage() {
   const { session } = useAuth()
   // 写面判定（M7 §7.3）：admin 布尔是角色镜像，readonly_admin 为 false——
@@ -63,6 +367,8 @@ export default function GCPage() {
   const navigate = useNavigate()
 
   const stats = useAsync(getStorageStats, [])
+  // 危险区锚点：定时卡「手动执行 ↓」的滚动目标（GC 的 Run Now 就是危险区）
+  const dangerRef = useRef<HTMLDivElement | null>(null)
 
   const [graceInput, setGraceInput] = useState('')
   const grace = parseGrace(graceInput)
@@ -164,7 +470,7 @@ export default function GCPage() {
       <div className="page-header">
         <h2>维护</h2>
         <span className="text-2" style={{ fontSize: 'var(--bf-fs-aux)' }}>
-          垃圾回收（GC）与存储迁移（console-m8 §6.14 分块骨架）
+          垃圾回收（GC）定时与手动维护、存储迁移（FR-145.7 / console-m8 §6.14）
         </span>
       </div>
 
@@ -206,12 +512,24 @@ export default function GCPage() {
         )}
       </section>
 
+      {/* 定时维护卡（T-462 / FR-145.7）：三 cron 槽 + 手动面并存；与 stats
+          同门收敛（adminWrite || readOnly 才渲染——普通 user 直链只见无权限卡） */}
+      {(adminWrite || readOnly) && (
+        <MaintenanceCronCard
+          readOnly={readOnly}
+          adminWrite={adminWrite}
+          onGotoDangerZone={() =>
+            dangerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
+        />
+      )}
+
       {/* 存储迁移面板（T-160）：只读进度 + 5s 轮询；自身收敛 403 隐藏 /
           501 未配置降级，与非 admin 的 stats 无权限卡互不干扰 */}
       <MigrationPanel />
 
       {(adminWrite || readOnly) && (
-        <div className="danger-zone" data-testid="gc-danger-zone">
+        <div className="danger-zone" ref={dangerRef} data-testid="gc-danger-zone">
           <h3>危险区：垃圾回收</h3>
           <p>
             回收未被任何节点引用且超过 grace 窗口的 blob（grace 基准 = blob mtime）。

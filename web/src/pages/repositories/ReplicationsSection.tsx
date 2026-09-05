@@ -46,12 +46,13 @@ import { useAsync } from '../../lib/useAsync'
 //   + 新建/编辑**内嵌表单**（字段族见下）+ E1 删除确认（输入 name 档）
 //   + 行内启停开关（PUT /v1/replications/{id}——T-405 并行票的联合腿，
 //   合并前真实实例 404：失败 toast + 行内保持原值，不乐观更新）。
-// - 字段族两档（R3 双源勘误的票内定案，不伪造语义）：
+// - 字段族两档（R3——M16 Q1 终裁后的现值，T-462 承载）：
 //   · BinFlow 实字段：name/源仓（锁定）/目标 URL/目标仓/凭据/带宽节流/
-//     批量上限/enabled——全量进 payload；
-//   · Artifactory 对齐**预留位**（cronExp/enableEventReplication/pathPrefix/
-//     sync 三开关）：引擎无对位（事件驱动 + ≤1min sweep，无用户级 cron）
-//     ——如实标注「预留位（当前无效）」、控件恒禁用、**绝不进 payload**。
+//     批量上限/enabled/**cron_exp（定时全量同步——T-450 起真字段）**——
+//     全量进 payload；
+//   · Artifactory 对齐**预留位**（enableEventReplication/pathPrefix/sync
+//     三开关）：引擎无对位——如实标注「预留位（当前无效）」、控件恒禁用、
+//     **绝不进 payload**（不伪造语义）。
 // - 编辑语义（REST 无字段级 PUT 的票内定案）：保存 = **删除 + 重建**
 //   （DELETE+POST）——配置 id 变化、未决任务级联清空；表单内 repl-
 //   recreate-note 明示后果，仅启停走行内开关（T-405）。
@@ -76,6 +77,7 @@ interface ReplFormState {
   password: string
   bandwidth: string
   items: string
+  cron: string
   enabled: boolean
 }
 
@@ -87,6 +89,7 @@ const CREATE_FORM: ReplFormState = {
   password: '',
   bandwidth: '',
   items: '',
+  cron: '',
   enabled: true,
 }
 
@@ -102,6 +105,8 @@ function editForm(c: ReplicationConfig): ReplFormState {
     password: '',
     bandwidth: c.max_bandwidth_bytes_per_sec > 0 ? String(c.max_bandwidth_bytes_per_sec) : '',
     items: c.max_items_per_push > 0 ? String(c.max_items_per_push) : '',
+    // cron 回显台账表达式（清空提交 = 新配置纯事件轨——旧台账行随删除联动清）
+    cron: c.cron_exp,
     enabled: c.enabled,
   }
 }
@@ -115,27 +120,14 @@ function numOrZero(v: string): number {
   return /^\d+$/.test(t) ? Number(t) : 0
 }
 
-/** 预留位组（R3 缺口的如实呈现）：恒禁用、零提交——视觉对齐 Artifactory
- *  字段族，语义上不发明引擎不存在的行为。 */
+/** 预留位组（R3 缺口的如实呈现——cronExp 已于 T-462 转正出组）：恒禁用、
+ *  零提交——视觉对齐 Artifactory 字段族，语义上不发明引擎不存在的行为。 */
 function ReservedFields() {
   return (
     <div className="field" data-testid="repl-form-reserved">
       <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
         Artifactory 对齐字段（预留位——当前无效，不提交、不存储）
       </Typography>
-      <div className="field">
-        <label htmlFor="repl-cron">cronExp（cron 表达式）</label>
-        <TextField
-          id="repl-cron"
-          size="small"
-          disabled
-          placeholder="（预留位）"
-          slotProps={{ htmlInput: { 'data-testid': 'repl-form-cron', lang: 'en' } }}
-        />
-        <p className="field-hint">
-          预留位：BinFlow 引擎为事件驱动 + ≤1 分钟 sweep（R4 勘误——无用户级 cron；表达式不提交）。
-        </p>
-      </div>
       <FormControlLabel
         className="check-row"
         disabled
@@ -238,6 +230,9 @@ export default function ReplicationsSection({
     target_password: f.password,
     max_bandwidth_bytes_per_sec: numOrZero(f.bandwidth),
     max_items_per_push: numOrZero(f.items),
+    // T-462：cron_exp 转正——显式随体（空 = 纯事件轨；服务端校验合法性，
+    // Invalid cronExp 点名原因行内呈现）
+    cron_exp: f.cron.trim(),
     enabled: f.enabled,
   })
 
@@ -460,6 +455,7 @@ export default function ReplicationsSection({
                 <TableCell component="th" scope="col">名称</TableCell>
                 <TableCell component="th" scope="col">目标（实例 / 仓）</TableCell>
                 <TableCell component="th" scope="col">凭据</TableCell>
+                <TableCell component="th" scope="col">调度</TableCell>
                 <TableCell component="th" scope="col">节流 / 批量</TableCell>
                 {canWrite && (
                   <TableCell component="th" scope="col" align="right">
@@ -495,6 +491,23 @@ export default function ReplicationsSection({
                     <br />→ {c.target_repo}
                   </TableCell>
                   <TableCell>{c.target_username || <span className="text-muted">匿名</span>}</TableCell>
+                  <TableCell data-testid={`repl-row-sched-${c.name}`}>
+                    {c.cron_exp ? (
+                      <>
+                        <span className="mono" lang="en">{c.cron_exp}</span>
+                        <br />
+                        <span className="text-2" title={c.next_schedule_sync}>
+                          {c.enabled && c.next_schedule_sync
+                            ? `下次 ${c.next_schedule_sync.replace('T', ' ').replace(/(\.\d+)?Z$/, ' UTC')}`
+                            : c.enabled
+                              ? '未排'
+                              : '已停用'}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-muted">事件驱动</span>
+                    )}
+                  </TableCell>
                   <TableCell className="mono" lang="en">
                     {c.max_bandwidth_bytes_per_sec > 0 ? `${formatBytes(c.max_bandwidth_bytes_per_sec)}/s` : '—'} /{' '}
                     {formatCount(c.max_items_per_push)}
@@ -693,6 +706,36 @@ export default function ReplicationsSection({
             }
             label="启用（enabled）——停用配置保留但不再推送"
           />
+
+          {/* T-462（FR-150.4 / M15 Q5 推翻）：cronExp 转正——定时全量同步
+              表达式（021 台账 domain=replication）。空 = 仅事件轨；调度只
+              触发全量对账，增量仍走事件轨（同制品不双推）。合法性服务端
+              校验（Invalid cronExp 点名原因行内呈现）。 */}
+          <div className="field">
+            <label htmlFor="repl-cron">cronExp（定时全量同步，可选——Quartz 六/七域）</label>
+            <TextField
+              id="repl-cron"
+              size="small"
+              value={f.cron}
+              disabled={saving}
+              onChange={(e) => setEditor({ ...editor, form: { ...f, cron: e.target.value } })}
+              placeholder="0 0 /12 * * ?"
+              sx={{ width: 300 }}
+              slotProps={{ htmlInput: { className: 'mono-input', 'data-testid': 'repl-form-cron', lang: 'en' } }}
+            />
+            <p className="field-hint" data-testid="repl-form-cron-hint">
+              空 = 仅事件轨（上传即推送）；填表达式 = 另按点到点全量对账（与 Replicate Now 同载体，
+              同制品不双推）。启停开关同时停/启两条轨。
+            </p>
+            {editor.base && editor.base.cron_exp && (
+              <div className="kv" style={{ marginBottom: 0 }}>
+                <span className="k">下次定时同步</span>
+                <span className="mono" lang="en">
+                  {editor.base.next_schedule_sync || '—（停用或不可达）'}
+                </span>
+              </div>
+            )}
+          </div>
 
           <ReservedFields />
 
