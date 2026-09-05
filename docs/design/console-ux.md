@@ -15,6 +15,7 @@
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| v1.46 | 2026-09-05 | T-464 FE en 双资源包填充 + 语言切换器 + 断言双语化（M16 批次④ B15 尾票，FR-149.2/.3/.4——**E6 翻案收口 / 断言反转⑥归一**；消费 T-463 零依赖内核与 zh-as-key 骨架）：① **T-464 批 3 名锚入册**（语言切换器族 `nav-locale`〔侧栏脚注 ToggleButtonGroup 根〕+ `nav-locale-zh` / `nav-locale-en`〔档位钮——母语名恒定〕——明细见 §10.5 T-464 批块）；② **en 全量填充**：1,971 键 × 10 域（console 215 / repositories 393 / artifacts 209 / search 47 / security 330 / governance 314 / monitoring 77 / webhooks 89 / admin 149 / common 148）逐义对译落 `locales/en/*.ts`——术语对齐 Artifactory 两包保真（repo key / node / checksum / Deploy / Set Me Up / permission target / readonly_admin / Trash Can / cron / Quartz 等英文术语原样）；新键 `语言`（切换器 aria-label——调用点 2581→2583 / 键 1970→1971 随刻意变更）；**i18n-allow 豁免首例 1 处**（LOCALE_LABEL_ZH = 「中文」母语名——语言自称不随 locale 翻译，对位 Artifactory 语言下拉 native label；硬编码闸行尾豁免口，非锚名）；③ **切换器位置票内定案 = 侧栏脚注**（册面无 ux 终裁——PRD FR-149.1 候选「侧栏脚或 Profile」；7.161 活体参照不可用〔容器损坏〕按册定案：与模式切换/版本行同属「全局+常驻+个人偏好」控件层 / 全站生效一步可达〔Profile 需一次导航且 BinFlow Profile 页无编辑态表单可挂〕 / 应用与管理两侧栏同脚注常驻）；④ **FR-149.4 locale 化格式**：formatStamp〔B-3.15 结果表〕en 变体 = `MMM d, yyyy h:mm:ss AM/PM +ZZZZ`（同款本地时区+显式偏移，12 小时制）；formatAuditTime en 变体 = 当日 `h:mm:ss AM/PM` / 跨天 `MMM d, yyyy h:mm:ss AM/PM`；formatCount 与 TokensPage mintedAt 显式随 locale（zh-CN/en-US 三位分组同形零回归）；ISO 形助手（trash 时间 / webhook 投递时间 / 监控刷新行）维持 locale 中立——mono 场景 ISO 为 Artifactory 亦用形态，票内登记不再扩面；⑤ e2e 新面 `web/e2e/m16/t464-i18n-bilingual.spec.ts`（en 抽样腿 ≥6 页〔树/表单/详情/搜索/安全/监控〕文案翻转 + 术语保真反断言〔repo key 等两包原样〕+ 切换往返 reload 持久化 + axe 双 locale serious=0 + en 日期格式正则〔FR-144.6 en 变体〕——zh 全量 spec 零翻新维持断言反转⑥）；⑥ 服务端 diff=0（纯 FE 票） |
 | v1.45 | 2026-09-05 | T-462 FE GC/备份 cron 消费面 + import/export 管理页（M16 批次④ B14，FR-145.7——**M15 Q5 推翻的呈现承载**，parity B-1.9 + B-1.10 翻正；契约 = T-450 三消费面 REST〔维护三槽 / 备份 CRUD 五面 / replications cron_exp——wire UAT 实测 reports/agents/t462-probe/〕）：① **T-462 批 37 名锚入册**（维护面三槽族 `gc-cron`〔卡根〕+ `gc-cron-table` + 行族 `gc-cron-row-<slot>`〔slot ∈ gc|cleanup-unused-cache|cleanup-virtual——wire 键〕+ 输入/保存/清除/下次/上次族 `gc-cron-{input,save,clear,next,last}-<slot>` + 立即清理族 `gc-cron-run-<slot>`〔仅两 cleanup 槽直发；gc 槽的 `gc-cron-run-gc` 为滚向危险区入口——Run Now=既有手动面并存，ADR-0044 决策 7①〕+ 只读/无权/缺位注记 `gc-cron-readonly-note`/`gc-cron-denied`/`gc-cron-gap`〔Quota 百分比 / Compress / Prune 无 BinFlow 后端载体——如实缺位〕；备份族 `backup-crud`/`backup-table`/`backup-new`/`backup-empty`/`backup-denied`/`backup-readonly-note` + 行族 `backup-row-<key>` + 编辑/删除族 `backup-{edit,delete}-<key>` + `backup-delete-confirm-key` + 表单族 `backup-form`/`backup-form-{key,key-error,cron,next,path,enabled,gap,error,save,cancel}` + `backup-cli`〔import/export 管理卡根——ADR-0015 勘误②边界维持：CLI 引导块〕；复制域 `repl-sched-<i>`〔治理复制页 targets 调度列——GET /v1/replications cron 投影按 id join，status 面不携 cron〕+ `repl-row-sched-<name>`〔仓编辑节列表调度列〕——明细见 §10.5 T-462 批块）；② **repl-form-cron 预留位转正**（M15 Q5 推翻 / Q1 终裁——FR-150.4：cron_exp 真输入、随体提交〔空 = 纯事件轨〕、编辑态预填 + 下次同步回显；锚名零改，ReservedFields 组收四名〔event/prefix/sync×3——cronExp 出组〕；t404 spec payload 键集 9→10 随刻意变更）；③ **形态定案**：维护面 = 三槽行表〔表达式输入 + 保存/清除 + next/last 呈现 + Run Now=既有手动面并存——GC 槽手动执行即危险区 dry-run/apply，cleanup 两槽 POST /system/cleanup {apply:true}〕；备份面 = §3.10 列〔Key/cron/Next Schedule Backup/Enabled/上次运行/路径/Actions——Repositories 列无载体缺位：BinFlow 导出恒全实例快照〕+ New Backup 表单〔软缝⑦四字段 + exportPath；Advanced/Repositories 双列无载体缺位〕+ CLI 卡同页；④ **audit picker 镜像同步**：调度三域 set/run/fail 九词入 AUDIT_ACTIONS（54→63 枚——repo-policy-keys spec 计数随刻意变更 55→64）；⑤ e2e 新面 `web/e2e/m16/t462-cron-backups.spec.ts`（五腿：维护槽全链〔API 对账 + 坏表达式 400 行内〕+ cleanup Run Now 网络对账 / 备份 CRUD + 显式 nextBackupTime 时区换算 + 过去 400 + E1 删除 / readonly 双页禁用 / 复制调度列 join + 表单预填 / axe 双主题〔表单开态〕）+ t404 · repo-policy-keys 两既有 spec 随刻意变更；⑥ 服务端 diff=0（纯 FE 票——全部消费 T-450 已落端点） |
 | v1.44 | 2026-09-05 | T-461 FE 远端浏览树消费（M16 批次④ B13，FR-147.3——listRemoteFolderItems 可选档 on/off 双态 + 未缓存路径回源 + 降级呈现；T-442 引擎/T-448 接线消费面 + **D-T456-1 wire 腿端到端**〔PUT→GET echo 实证通〕）：① **T-461 批 6 名锚入册**（表单可选档 `form-list-remote-folder-items`〔Advanced 步 remote × 批 1 型〔helm/debian/rpm〕才呈现——引擎 BrowseSupported 同集，generic/maven 的 HTML 目录抓取明确不做〔remote-browsing.md §6〕不建禁用占位；off 默认 diff=0；显式 false 恒提交——flip-off 过 round trip〕+ 详情回显 `repo-remote-browse`〔repo-remote-card 上游节 kv 行〕+ 树双态注记 `tree-remote-note`〔原无锚 warn-box 升锚——off「已缓存内容」/on「树含上游未缓存条目」双态文案〕+ 降级横幅 `tree-remote-degraded`〔远端层错误态——wire note 字段 remoteDegraded 缺席零渲染，在途时自然点亮〕+ 派生行标记 `tree-row-uncached`〔children 表 display-only 行 Chip「远端」——wire 判别 = ?list 元数据在场而 sha2 缺席〔落库文件恒带 blob digest〕；size/mtime/sha256 列呈现 '—'〕+ 详情回源错误 `node-remote-error`〔派生行点击 pull-through 失败的远端专属文案〕——明细见 §10.5 T-461 批块）；② **树消费双态**：off = 仅缓存行零回归；on = helm index 全树臂 + deb/rpm 元数据臂〔BE listing 并入 display-only 行——T-442 引擎〕+ 点击未缓存路径触发回源〔item-info GET 即 pull-through〕+ ?stats 计数联动〔T-438 单源——断言增长不绝对值：NodeDetail useAsync 随父渲染重复发射 item GET 的既有怪癖票内登记〕+ virtual 含 remote 成员行〔repo-semantics §8.5 扩面消费〕；③ **上游停机降级**：listing 不整树塌〔缓存行可用〕+ 已渲染派生行点击 → node-remote-error + wire note 消费〔route 注入契约形验证——T-448 §5-2 缝的 FE 侧定案；httpapi 渲染腿在途，字段名 remoteDegraded 假定登记候 BE 对齐〕；④ e2e 新面 `web/e2e/m16/remote-browse-tree.spec.ts`（六腿：可选档开关+详情/编辑回显+flip-off+批 1 型门 / off 态 diff=0 / on 态 helm 全树+未缓存点击回源+计数联动 / rpm·deb 元数据臂+virtual §8.5 / 降级双臂〔同 url 杀上游——枚举快照 TTL 续命，点击失败面；换 url 死端口——快照签名失效，派生臂消失缓存行在〕+ note 注入 / axe 双主题〔树页开档+横幅在场+表单 Advanced 步〕——pro license 自铸安装·**租约计数文件协调并行 worker·末位卸载还原实例态**〔community 假设的既有腿不受污染〕）；⑤ 服务端 diff=0（纯 FE 票） |
 | v1.43 | 2026-09-05 | T-459 监控组三页 + 导航分组/侧栏过滤（M16 批次④ B12，FR-145.5/.6b——parity B-1.11 + B-2.18 翻正承载）：① **T-459 批 24 名锚入册**（服务状态族 `status-page`/`status-overall`/`status-badge`/`status-version`/`status-url`/`status-nodes`/`status-uptime-gap`/`status-refresh`/`status-sys` + 行族 `status-sys-<name>`/`status-sched-<i>` + 调度卡 `status-schedules`〔消费 GET /api/v1/system/schedules——T-450 台账，cron 编辑面归 T-462〕；系统日志族 `logs-{page,source,pause,refresh,countdown,limit,filter,download,updated-at,pane,lines,filter-empty}` + 行族 `logs-line-<i>`；导航过滤 `admin-filter`/`admin-filter-empty`——明细见 §10.5 T-459 批块）；② **导航分组重排**（B-2.18）：监控组扩为服务节点组六页〔存储/服务状态/系统日志/系统信息/维护（GC）/备份恢复〕+ Webhooks 归常规组 + 治理组收四页——管理侧栏 16→18 条目；③ **五路由迁址**：system-info〔自 general/settings〕/ gc、backup〔自 governance/〕/ webhooks〔→ general/〕+ 四旧深链 replace 折入一轮；④ **System Logs 载体定案**（零新端点）：日志源 = 审计跟踪〔GET /api/v1/audit〕——服务进程日志无 REST 端点〔契约漂移登记 + BE 建议票〕，7.161 三选择器如实降为单源说明行；尾随 = 7s 倒计时 + Pause/Refresh now〔7.161 三件套对位〕；下载 = 当前窗口 Blob 导出〔BinFlow 无 Support Zone 如实换形〕；⑤ 认证组子项形态：7.161 Authentication 六子项中 HTTP SSO/Crowd·JIRA/SCIM 三域不存在（FR-92 闭集）——单页三页签维持缺位登记；⑥ e2e 新面 t459-monitoring-nav（六腿）+ 既有 spec 路由翻新 ×8；⑦ 服务端 diff=0（纯 FE 票） |
@@ -1756,6 +1757,32 @@ runCleanupNow 的 Toast 汇总（objectsCleaned/bytesReclaimed/gracePending）
 fire，Trigger 区分）。④ audit picker 同步九词（AUDIT_ACTIONS 54→63 枚
 ——internal/audit Actions() 镜像纪律，repo-policy-keys spec 计数断言随
 刻意变更 55→64）。⑤ 服务端 diff=0（纯 FE 票）。
+
+**T-464 批 i18n 语言切换器锚册（3 名新增 + 0 退役，M16 批次④ B15 尾票，
+FR-149.2/.3/.4——E6 翻案收口 / 断言反转⑥归一；载体 = AppShell 侧栏脚注
+（模式切换 nav-mode-switch 与版本行 nav-about 之间，应用/管理两侧栏同
+脚注常驻）；切换机制 = T-463 setLocale（localStorage 持久化 + 整页
+reload）；v1.46；消费 spec = web/e2e/m16/ 下 t464-i18n-bilingual 腿
+〔本票新增〕）：**
+
+```
+侧栏脚注语言切换器（T-463 setLocale 机制的 UI 真身）：
+  nav-locale（ToggleButtonGroup 根——exclusive 二档；aria-label「语言」
+    〔console 域新键，调用点/键计数随刻意变更 +2/+1〕）
+  nav-locale-zh（中文档位——选中态 = getLocale()；label 母语名恒定
+    「中文」〔i18n-allow 豁免首例：LOCALE_LABEL_ZH——语言自称不随 locale
+    翻译，对位 Artifactory 语言下拉 native label〕）
+  nav-locale-en（English 档位——同上，label "English" 无 CJK 天然免闸）
+```
+
+位置票内定案留痕（T-464，dev-frontend 执笔）：PRD FR-149.1 候选 =
+「侧栏脚或 Profile（位置归 ux 定）」——锚册无 ux 终裁行、7.161 活体参照
+不可用（容器损坏），按册定案取**侧栏脚**：① 与模式切换/版本行同属
+「全局 + 常驻 + 个人偏好」控件层（主题切换在顶栏有图标位，语言作为
+持久偏好挂常驻脚注层级一致）；② 全站生效一步可达——Profile 需一次导航，
+且 BinFlow Profile 页无编辑态表单可挂（Artifactory 7.x 语言在 Profile
+编辑态，BinFlow 无对位形态，不为单一控件翻修整页）；③ 应用与管理两侧栏
+同脚注渲染，任一模式可达。候 ux 复核翻案时锚随载体迁址（锚名零改）。
 
 **T-239 应用模式辅助页新锚（17 枚，先入本清单再落码流程兑现；§10.5 表
 `/search` `/profile` 行的承载锚随之改写）**：
