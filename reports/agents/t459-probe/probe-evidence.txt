@@ -1,0 +1,87 @@
+[s1-system-logs] url=http://localhost:8082/ui/admin/monitoring/system_logs
+[s1-system-logs] text head:
+Skip to main content
+Platform
+Administration
+A
+All Projects
+All Projects Overview
+Stages & Lifecycle
+Repositories
+User Management
+Proxies
+Authentication
+Security
+General Management
+Monitoring
+Storage
+Service Status
+Log Analytics
+Federation Status
+System Logs
+Artifactory Logs
+Topology
+Support Zone
+Artifactory Settings
+JFrog Platform
+Enterprise Plus trial license 7.161.20 rev 86120900 Licensed to TEST JFrog Ltd.
+© Copyright 2026 JFrog Ltd
+System Logs Viewer
+Select JFrog Service
+Artifactory
+Select Node
+2054644c2318
+Select Log File
+console.log
+
+Refreshing Logs in 7 seconds
+
+ Pause
+
+ Refresh now
+
+File Last Modified: 05-09-26 07:32:58 +0800
+
+View Last Updated: 05-09-26 07:32:58 +0800
+
+You can download log files directly from the  Support Zone
+----
+[E1] system logs controls: [{"tag":"button","cy":"toggleMenuButton-platform","label":"platform","cls":"toggle-menu-button"},{"tag":"button","cy":"toggleMenuButton-administration","label":"administration","cls":"toggle-menu-button active"},{"tag":"input","cy":null,"label":"Search Admin Resources","cls":"el-p-input__inner"},{"tag":"div","cy":"help-menu-button","label":"","cls":"el-p-tooltip__trigger"},{"tag":"button","cy":"jf-navbar-action-button","label":"Get Help and Learn","cls":"el-p-button el-p-button--transparent el-p-button--large navb"},{"tag":"div","cy":null,"label":"A","cls":"el-dropdown-link el-p-tooltip__trigger"},{"tag":"button","cy":"jf-navbar-action-button","label":"User Menu","cls":"el-p-button el-p-button--transparent el-p-button--large navb"},{"tag":"div","cy":null,"label":"Projects selector","cls":"el-p-tooltip__trigger"},{"tag":"button","cy":"toggleSideFrame","label":"Hide navigation menu","cls":"vsm--toggle-btn vsm--toggle-btn_slot"},{"tag":"input","cy":null,"label":"","cls":"el-p-select__input is-large"},{"tag":"input","cy":null,"label":"","cls":"el-p-select__input is-large"},{"tag":"input","cy":null,"label":"","cls":"el-p-select__input is-large"}]
+[E1] system logs api calls: ["GET http://localhost:8082/ui/admin/monitoring/system_logs","GET http://localhost:8082/ui/api/v1/ui/auth/current","GET http://localhost:8082/ui/api/v1/ui/webapp/rtui/js/manifest.esm.js?v=7.161.12","GET http://localhost:8082/ui/api/v1/ui/webapp/packages/js/manifest.esm.js?v=7.161.12","GET http://localhost:8082/ui/api/v1/ui/webapp/releasebundles/js/manifest.esm.js?v=7.161.12","GET http://localhost:8082/ui/api/v1/ui/webapp/rbv1received/js/manifest.esm.js?v=7.161.12","GET http://localhost:8082/ui/api/v1/ui/webapp/buildinfomfe/js/manifest.esm.js?v=7.161.12","GET http://localhost:8082/ui/api/v1/distribution/webapp-vue3/js/manifest.esm.js","GET http://localhost:8082/ui/api/v1/mc/webapp/vue3/manifest.js","GET http://localhost:8082/ui/api/v1/catalog/webapp-vue3/js/manifest.esm.js","GET http://localhost:8082/ui/api/v1/xray/webapp-vue3/js/manifest.esm.js","GET http://localhost:8082/ui/api/v1/ui/webapp/retention-vue3/js/manifest.esm.js","GET http://localhost:8082/ui/api/v1/runtime/webapp-vue3/js/manifest.esm.js","GET http://localhost:8082/ui/api/v1/event/webapp/vue3/manifest.js?v=7.705.29","GET http://localhost:8082/ui/api/v1/access/webapp/vue3/manifest.js?v=7.191.14","GET http://localhost:8082/ui/api/v1/worker/webapp/vue3/manifest.js","GET http://localhost:8082/ui/api/v1/evidence/webapp/manifest.esm.js?v=7.1225.4","GET http://localhost:8082/ui/api/v1/apptrust/webapp-vue3/manifest.js","GET http://localhost:8082/ui/api/v1/evaluation/webapp/manifest.js","GET http://localhost:8082/ui/api/v1/compliance/webapp/manifest.js","GET http://localhost:8082/ui/api/v1/unifiedpolicy/webapp-vue3/js/manifest.esm.js","GET http://localhost:8082/ui/api/v1/onemodel/webapp/manifest.js?v=1.419.71","GET http://localhost:8082/ui/api/v1/wingman/webapp/js/manifest.esm.js","GET http://localhost:8082/ui/api/v1/pfed/webapp/manifest.esm.js","GET http://localhost:8082/ui/api/v1/bridge-server/webapp/manifest.js"]
+[s2-service-status] url=http://localhost:8082/ui/admin/monitoring/service-status
+[s2-service-status] text head:
+Skip to main content
+Platform
+Administration
+A
+All Projects
+All Projects Overview
+Stages & Lifecycle
+Repositories
+User Management
+Proxies
+Authentication
+Security
+General Management
+Monitoring
+Storage
+Service Status
+Log Analytics
+Federation Status
+System Logs
+Artifactory Logs
+Topology
+Support Zone
+Artifactory Settings
+JFrog Platform
+Enterprise Plus trial license 7.161.20 rev 86120900 Licensed to TEST JFrog Ltd.
+© Copyright 2026 JFrog Ltd
+Online
+Artifactory
+URL192.168.1.149:8082/artifactory
+1 Node
+----
+[E2] service status headings: ["SEARCH PACKAGES","Learning Center","What is the JFrog Platform","Docker - Configure, Deploy, Resolve","Maven - Configure, Deploy, Resolve","npm - Configure, Deploy, Resolve","All Projects Overview","Stages & Lifecycle","Repositories","User Management","Proxies","Authentication","Security","General Management","Monitoring","Storage","Service Status","Log Analytics","Federation Status","System Logs","Artifactory Logs","Topology","Support Zone","Artifactory Settings","artifactoryURL192.168.1.149:8082/artifactory1 Node","2054644c2318 URL192.168.1.149:8082/artifactoryVersion 7.161.20Uptime2 days, 6 hours","Getting Started Guide","Customize Columns"]
+[E3] admin-mode search inputs: {"total":15,"adminHits":[{"placeholder":"Search Admin Resources","aria":null,"x":1156,"y":48,"w":340,"visible":true}]}
+[E3] filter effect: links 56 -> 56; visible: ["All Projects Overview","Stages & Lifecycle","Repositories","User Management","Proxies","Authentication","Security","General Management","Monitoring","Storage","Service Status","Log Analytics","Federation Status","System Logs","Artifactory Logs","Topology","Support Zone","Artifactory Settings","© Copyright 2026 JFrog Ltd"]
+[E4] sidebar groups sample: ["All Projects Overview","Stages & Lifecycle","Repositories","User ManagementUsersGroupsGlobal RolesPermissionsAccess Tokens","Users","Groups","Global Roles","Permissions","Access Tokens","Proxies","AuthenticationLDAPSAML SSOOAuth SSOHTTP SSOCrowd / JIRASCIM","LDAP","SAML SSO","OAuth SSO","HTTP SSO","Crowd / JIRA","SCIM","SecurityGeneralCertificatesKeys ManagementVault","General","Certificates"]

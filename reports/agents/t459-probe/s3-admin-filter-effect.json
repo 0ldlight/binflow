@@ -1,0 +1,25 @@
+{
+ "linksBefore": 56,
+ "linksAfter": 56,
+ "visibleLabels": [
+  "All Projects Overview",
+  "Stages & Lifecycle",
+  "Repositories",
+  "User Management",
+  "Proxies",
+  "Authentication",
+  "Security",
+  "General Management",
+  "Monitoring",
+  "Storage",
+  "Service Status",
+  "Log Analytics",
+  "Federation Status",
+  "System Logs",
+  "Artifactory Logs",
+  "Topology",
+  "Support Zone",
+  "Artifactory Settings",
+  "© Copyright 2026 JFrog Ltd"
+ ]
+}

@@ -5,7 +5,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
 // T-366 fill (M13 FR-115.5 FE 腿, L09-FE 段): the webhook subscription
-// console page (/admin/governance/webhooks — 治理分组第七页). Full-mock
+// console page (/admin/general/webhooks — 常规分组，T-459 自治理组迁入). Full-mock
 // probe off dist/ (trash-can.spec.ts 的同款基座): the shared harness runs a
 // community instance where the webhook slot locks every write verb at the
 // server, so the CRUD/test surface only ever runs against mocks here; the
@@ -27,7 +27,7 @@ test.beforeEach(() => {
   test.skip(!existsSync(join(DIST, 'index.html')), 'console not built — run `npm run build` first')
 })
 
-const PAGE = '/binflow/ui/admin/governance/webhooks'
+const PAGE = '/binflow/ui/admin/general/webhooks' // T-459 归常规组（旧 governance 深链经路由表 replace 折入）
 
 /** 订阅回显 fixture（model.go SubscriptionView 逐字字段名） */
 function subView(over: Record<string, unknown> = {}): Record<string, unknown> {

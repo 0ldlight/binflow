@@ -36,7 +36,7 @@ test('a11y sweep: login page in both themes', async ({ page }, testInfo) => {
 })
 
 test('a11y sweep: all console routes in both themes (serious/critical = 0)', async ({ page }, testInfo) => {
-  test.setTimeout(600_000) // 56 面（28 路由 × 双主题——T-352 增回收站 / T-366 增 Webhooks）导航+axe；串行态 ~3m，默认并发（T-268）实测 5.1m（超 300s）~8.2m（超 480s，机上有并行验证负载），抬到 10m
+  test.setTimeout(600_000) // 62 面（31 路由 × 双主题——T-352 回收站 / T-366 Webhooks / T-453 两路由表单 / T-459 监控组三新页）导航+axe；串行态 ~3m，默认并发（T-268）实测 5.1m（超 300s）~8.2m（超 480s，机上有并行验证负载），抬到 10m
   const key = uniq('a11y')
   const client = m8Client()
   await seedRepos(client, [{ key }])
@@ -70,17 +70,19 @@ test('a11y sweep: all console routes in both themes (serious/critical = 0)', asy
     { url: '/admin/security/tokens', settle: '[data-testid="tokens-page"]' }, // T-386 真身
     // 管理模式：治理（GC = QA-2 面：field-hint 链接）
     { url: '/admin/governance/audit', settle: '[data-testid="audit-page"]' },
-    { url: '/admin/governance/gc', settle: '[data-testid="gc-page"]' },
+    { url: '/admin/monitoring/gc', settle: '[data-testid="gc-page"]' },
     { url: '/admin/governance/quotas', settle: '[data-testid="quotas-page"]' },
     { url: '/admin/governance/replication', settle: '[data-testid="repl-page"]' },
-    { url: '/admin/governance/backup', settle: '[data-testid="backup-page"]' },
+    { url: '/admin/monitoring/backup', settle: '[data-testid="backup-page"]' },
     // 回收站（M12 T-352；community 真栈 = trashcan 槽锁定卡形态）
     { url: '/admin/governance/trash', settle: '[data-testid="trash-page"]' },
     // Webhook 订阅（M13 T-366；community 真栈 = 读面开放 + 槽锁定提示形态）
-    { url: '/admin/governance/webhooks', settle: '[data-testid="wh-page"]' },
-    // 管理模式：监控 / 常规
+    { url: '/admin/general/webhooks', settle: '[data-testid="wh-page"]' },
+    // 管理模式：监控 / 常规（T-459：监控组扩为服务节点组六页 + 系统信息归位）
     { url: '/admin/monitoring/storage', settle: '[data-testid="storage-page"]' },
-    { url: '/admin/general/settings', settle: '[data-testid="settings"]' },
+    { url: '/admin/monitoring/status', settle: '[data-testid="status-page"]' }, // T-459 服务状态
+    { url: '/admin/monitoring/logs', settle: '[data-testid="logs-page"]' }, // T-459 系统日志
+    { url: '/admin/monitoring/system-info', settle: '[data-testid="settings"]' },
     // 404（保留导航壳）
     { url: '/no-such-route-for-a11y', settle: '[data-testid="not-found"]' },
   ]
@@ -95,7 +97,7 @@ test('a11y sweep: all console routes in both themes (serious/critical = 0)', asy
       scans++
     }
   }
-  // 口径自证：28 路由 × 2 主题（登录页另有独立腿；T-352 回收站 / T-366 Webhooks）
+  // 口径自证：31 路由 × 2 主题（登录页另有独立腿；T-352 回收站 / T-366 Webhooks / T-459 监控组三新页）
   expect(scans).toBe(routes.length * 2)
 })
 
@@ -118,7 +120,7 @@ test('a11y fix-forward proof: QA-1 pre keyboard-reachable, QA-2 hint link underl
   await expect(pre).toBeFocused()
 
   // QA-2：GC 页 field-hint 内「审计日志」链接恒下划线（不再仅靠颜色区分）
-  await page.goto('/binflow/ui/admin/governance/gc')
+  await page.goto('/binflow/ui/admin/monitoring/gc')
   const link = page.locator('[data-testid="gc-page"] .field-hint a').first()
   await expect(link).toBeVisible()
   const line = await link.evaluate((el) => getComputedStyle(el).textDecorationLine)

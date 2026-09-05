@@ -233,6 +233,32 @@ export function getStorageStats(): Promise<StorageStats> {
   return apiJSON<StorageStats>('/v1/storage/stats')
 }
 
+// ---- 调度台账（M16 T-450 / FR-150.3，T-459 起为 Service Status 页消费面） ----
+
+/** GET /api/v1/system/schedules 的行投影（internal/httpapi system_schedules.go
+ *  scheduleStatus——camelCase）。nextRun/lastRun 为 RFC3339 串（空 = 未排 /
+ *  未跑）；enabled = 行启用且表达式非空。domain 闭集 = maintenance / backup /
+ *  replication。 */
+export interface ScheduleStatus {
+  domain: string
+  key: string
+  cronExp: string
+  enabled: boolean
+  nextRun: string
+  lastRun: string
+  lastStatus: string
+  lastError: string
+}
+
+export interface SchedulesView {
+  schedules: ScheduleStatus[]
+}
+
+/** 读调度台账全量投影（?domain= 窄化归调用方；system:read） */
+export function getSchedules(): Promise<SchedulesView> {
+  return apiJSON<SchedulesView>('/v1/system/schedules')
+}
+
 export function getRepositories(): Promise<RepoListItem[]> {
   return apiJSON<RepoListItem[]>('/repositories')
 }

@@ -378,14 +378,20 @@ test('axe: profile page, help menu, and About dialog clean in both themes', asyn
     // Profile 页（改密 + Identity Token + SSH 缺位卡）
     await expectA11yClean(page, testInfo, { include: '[data-testid="profile-page"]' })
 
-    // 帮助菜单展开态（含禁用占位项）
+    // 帮助菜单展开态（含禁用占位项）。
+    // T-459 复核注记：可见 ≠ 过场结束——axe 的 color-contrast 对半透明色按
+    // 实际像素采样，菜单/弹窗进出场动画未完时采样即假性炸裂（共租负载下
+    // 3/3 复现：菜单退场项与 about-close 先后中招；settle 后净绿）。两处
+    // 全页扫描前统一 settle 400ms，同款处置见 t447-props-download axe 腿。
     await page.click('[data-testid="topbar-help"]')
     await expect(page.locator('[data-testid="help-training"]')).toBeVisible()
+    await page.waitForTimeout(400)
     await expectA11yClean(page, testInfo)
 
     // About 弹窗态（版本块 + 关闭钮）
     await page.click('[data-testid="help-about"]')
     await expect(page.locator('[data-testid="about-dialog"]')).toBeVisible()
+    await page.waitForTimeout(400)
     await expectA11yClean(page, testInfo)
     await page.keyboard.press('Escape')
     await expect(page.locator('[data-testid="about-dialog"]')).toHaveCount(0)

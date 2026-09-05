@@ -240,7 +240,7 @@ test('audit: filters, keyset page-window pager, path client-filter, REST parity'
 test('gc: dry-run -> typed confirm apply -> zero candidates after, gc.run audited', async ({ page }) => {
   const errors = watchServerErrors(page)
   const key = uniq('t102g')
-  await page.goto('/binflow/ui/admin/governance/gc')
+  await page.goto('/binflow/ui/admin/monitoring/gc')
   await login(page)
 
   // 造孤儿：上传后删节点（blob 留存）。默认 grace 24h 内不是候选——
@@ -402,7 +402,7 @@ test('non-admin: governance nav hidden (L1), deep links show no-access card (L2)
   // L2：直链渲染页面壳 + 单张无权限卡（不留空白壳）
   await expect(p2.locator('[data-testid="audit-page"] [data-testid="empty-state"]')).toBeVisible()
   await expect(p2.locator('[data-testid="audit-page"]')).toContainText('无权限查看审计日志')
-  await p2.goto('/binflow/ui/admin/governance/gc')
+  await p2.goto('/binflow/ui/admin/monitoring/gc')
   await expect(p2.locator('[data-testid="gc-page"]')).toContainText('无权限查看存储概况')
   // L4：写入口（危险区）不渲染
   await expect(p2.locator('[data-testid="gc-danger-zone"]')).toHaveCount(0)
