@@ -1078,10 +1078,14 @@ func (s *service) ExplodeArchive(ctx context.Context, p *Principal, req ExplodeR
 	}
 	parent := strings.TrimSuffix(permParent, "/")
 
-	// Stage the upload (§4.2's temp file; cleaned on every exit path).
-	tmp, err := os.CreateTemp("", "to_extract_*")
+	// Stage the upload (§4.2's temp file; cleaned on every exit path) on
+	// the storage volume's staging root (T-477, the T-474/476 spool
+	// family: read-only-rootfs deployments mount no writable /tmp, where
+	// the pre-fix OS-temp spool died as an opaque 500; the refusal here
+	// is the 507 face naming the attempted root).
+	tmp, err := s.stageUpload(ctx, "to_extract_*")
 	if err != nil {
-		return nil, fmt.Errorf("explode staging: %w", err)
+		return nil, err
 	}
 	tmpName := tmp.Name()
 	defer os.Remove(tmpName) //nolint:errcheck // best-effort cleanup of our own staging file

@@ -1096,6 +1096,11 @@ func openStack(ctx context.Context, cfg *config.Config, logger *slog.Logger) (*s
 		})
 	}
 	svc := repo.New(st, md, authSvc, auditLog)
+	// T-477 (the T-474/476 spool family's service-layer arm): the archive
+	// family's exploded-upload spool stages under the storage data root's
+	// staging/ — the same volume blobs land on and the same root every
+	// adapter Options.SpoolDir shares; read-only rootfs mounts no /tmp.
+	repo.ConfigureStaging(svc, filepath.Join(cfg.Storage.DataDir, "staging"))
 
 	// Push replication (T-180, ADR-0021): the store opens its own pooled
 	// connection to the metadata database (the 009 tables; metadata.Open
