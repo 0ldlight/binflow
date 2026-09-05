@@ -1926,3 +1926,5 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 **用户指令 intake ⑲（2026-09-05 23:1x）：「后续 uat 环境部署，监听在 443 端口」——形态经问询裁定：HTTPS + ACME 域名（Let's Encrypt）→ 立票 T-478**（devops-engineer 在途）：倾向反代终结 TLS（Caddy 自动 ACME，BinFlow 保持内部 :8080 产品零改）+ CI 双面基地址切 https。**DNS 前置项归用户**：uat.<域名> A 记录 → 52.79.109.153。
 
 **用户指令 intake ⑳（2026-09-05 23:1x）：「ci 协议的测试，需要包含远程仓库和虚拟仓库」——立票 T-479**（devops-engineer 在途）：矩阵十腿扩 remote（真实公共上游回源+缓存断言）+ virtual（local+remote 聚合解析，§8.5 语义）覆盖——钉版制品+网络抖动降级策略+离线守卫。
+
+**T-478 → done 2026-09-06 01:0x（`3bb71d4e`，5 文件 +337/−19）——intake ⑲ 兑现（UAT 443 = HTTPS + ACME，Caddy 反代终结）**：方案裁定=反代（进程内无 TLS 面实测；T-168 nginx 模板既定姿态；Caddy 优于 nginx+certbot——ACME 全在 daemon）。uat.Caddyfile + 幂等 uat-proxy.sh（validate 先于 reload + ufw 80/443 + 三段探针 + ACME 退避自愈）+ deploy_uat proxy 步骤（先于二进制换装）+ **双面基地址默认翻 https://uat.binflow.org**（8080 过渡回退 env / UAT_DOMAIN=off 可禁层）+ docker 腿 insecure-registries 按方案条件化。门：caddy validate×2 + 行为级本地跑（308/:443/ACME WARN 路径）+ cc process 0 + actionlint 0。**用户前置两项**：① DNS A 记录 uat.binflow.org → 52.79.109.153（权威 NS 在 businessidentity.llc——DoH 实测 NXDOMAIN）；② AWS 安全组放行 80+443。就绪后 conductor 按 checklist 实部署验证。日志 reports/agents/T-478.md。
