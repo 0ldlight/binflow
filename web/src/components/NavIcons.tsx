@@ -1,6 +1,6 @@
 // 侧栏一级条目图标槽（FR-125.4 / T-388——parity console-artifactory-parity
 // §2 N2，V5 活体核验档位：**仅一级条目配图标、子项裸文本**；BinFlow 侧栏
-// 全部条目均为一级，故 2 应用域 + 16 管理域逐条接线，分组标签不配）。
+// 全部条目均为一级，故 2 应用域 + 18 管理域逐条接线，分组标签不配）。
 //
 // [定案留痕] 图标源 = 通用 Material 图标（Material Design icons，Apache-2.0）
 //   的 path 几何，按本仓 mono 纪律裸 SVG 内联——不走 @mui/icons-material
@@ -37,6 +37,8 @@ export type NavIconName =
   | 'storage'
   | 'info'
   | 'card_membership'
+  | 'pulse'
+  | 'article'
 
 /** Material 图标 path 几何（24×24 viewBox；Apache-2.0，逐枚 16px 槽校型） */
 const PATHS: Record<NavIconName, string> = {
@@ -72,6 +74,14 @@ const PATHS: Record<NavIconName, string> = {
     'M11 17h2v-6h-2v6zm1-15C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-11h2V7h-2v2z',
   card_membership:
     'M20 2H4c-1.11 0-2 .89-2 2v11c0 1.11.89 2 2 2h4v5l4-2 4 2v-5h4c1.11 0 2-.89 2-2V4c0-1.11-.89-2-2-2zm0 13H4v-2h16v2zm0-5H4V4h16v6z',
+  // T-459 监控组新页（服务状态/系统日志）两枚。article = Material「文章」
+  // 标准几何（Apache-2.0）；pulse 无现成 Material 单 path 可逐字对照——
+  // 本仓自绘的方波心电折线（轴对齐厚描边，同 16px 槽/monocolor 纪律），
+  // 非复刻任何第三方资产。
+  article:
+    'M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z',
+  pulse:
+    'M2 12 H5 V5 H7 V17 H9 V12 H12 V9 H14 V12 H22 V14 H14 V11 H12 V14 H9 V19 H7 V7 H5 V14 H2 Z',
 }
 
 /**

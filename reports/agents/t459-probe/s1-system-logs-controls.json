@@ -1,0 +1,74 @@
+[
+ {
+  "tag": "button",
+  "cy": "toggleMenuButton-platform",
+  "label": "platform",
+  "cls": "toggle-menu-button"
+ },
+ {
+  "tag": "button",
+  "cy": "toggleMenuButton-administration",
+  "label": "administration",
+  "cls": "toggle-menu-button active"
+ },
+ {
+  "tag": "input",
+  "cy": null,
+  "label": "Search Admin Resources",
+  "cls": "el-p-input__inner"
+ },
+ {
+  "tag": "div",
+  "cy": "help-menu-button",
+  "label": "",
+  "cls": "el-p-tooltip__trigger"
+ },
+ {
+  "tag": "button",
+  "cy": "jf-navbar-action-button",
+  "label": "Get Help and Learn",
+  "cls": "el-p-button el-p-button--transparent el-p-button--large navb"
+ },
+ {
+  "tag": "div",
+  "cy": null,
+  "label": "A",
+  "cls": "el-dropdown-link el-p-tooltip__trigger"
+ },
+ {
+  "tag": "button",
+  "cy": "jf-navbar-action-button",
+  "label": "User Menu",
+  "cls": "el-p-button el-p-button--transparent el-p-button--large navb"
+ },
+ {
+  "tag": "div",
+  "cy": null,
+  "label": "Projects selector",
+  "cls": "el-p-tooltip__trigger"
+ },
+ {
+  "tag": "button",
+  "cy": "toggleSideFrame",
+  "label": "Hide navigation menu",
+  "cls": "vsm--toggle-btn vsm--toggle-btn_slot"
+ },
+ {
+  "tag": "input",
+  "cy": null,
+  "label": "",
+  "cls": "el-p-select__input is-large"
+ },
+ {
+  "tag": "input",
+  "cy": null,
+  "label": "",
+  "cls": "el-p-select__input is-large"
+ },
+ {
+  "tag": "input",
+  "cy": null,
+  "label": "",
+  "cls": "el-p-select__input is-large"
+ }
+]

@@ -89,6 +89,14 @@ type artifactResult struct {
 // migrateOneArtifact copies one artifact: download to a temp file while
 // hashing, verify the digests the listing promised, then upload through
 // the target's plain-file face.
+//
+// The spool lands in the OS temp directory. T-477's ruling (the T-474/476
+// read-only-rootfs family survey): this is the OPERATIONS CLI, run by an
+// operator in their own shell against a server they control — not the
+// hardened server runtime, so the in-process staging root the server
+// carries does not apply. Operators on constrained hosts point TMPDIR at
+// a writable volume (Go's os.CreateTemp("") honors it); documenting that
+// replaces a --spool-dir flag here, registered in the T-477 report.
 func migrateOneArtifact(ctx context.Context, rd *Reader, wr *Writer, repo string, f SourceFile) artifactResult {
 	res := artifactResult{Path: f.Path}
 	if err := validateArtifactPath(f.Path); err != nil {

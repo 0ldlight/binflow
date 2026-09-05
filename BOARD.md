@@ -1899,3 +1899,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 **D-T461-1 → doing 2026-09-05 08:3x（P2 小票：RemoteDegraded 上 wire）**：dev-go-core 在途。httpapi 三处 List 调用点补 RemoteDegraded 透出（字段名回写对齐 FE 假定形 remoteDegraded）+ storage.go 一字段；30min 量级。
 
 
+
+**会话继承事件（2026-09-05 12:0x，conductor 第三任）**：dev-center-1e 与续任 peer（提交代码到 binflow 仓库）双亡后，用户重启本会话（继承原始 transcript 压缩上下文）。前任接管窗战果全数入册：D-T456-1（`6da7b23b`）/T-461（`09d3311d`，26/35）/T-459 派发。**两孤儿遗产处置**：D-T461-1（BE wire 小票，亲验收编 `1bc0bb93`——build/vet/gofmt 0 + 新 247 行 wire 测试绿 4.3s；agent 亡故无报告，conductor 代验留痕）；T-459（FE 监控面，足迹大但无报告）→ **finisher 已派**（盘上续作收尾）。
+
+**CircleCI 四腿终章（2026-09-05 12:0x，日志铁证定谳——API 通路经 chunk keychain token〔用户预置〕）**：**go = 混树**（镜像预装 /usr/local/go 被 1.26.6 tarball 叠压——map.go/map_swiss.go 两代并存 'ctrlEmpty redeclared'）→ extract 前 rm -rf；**gradle = JDK 21 shim**（'class file major version 65'——镜像默认 21 vs wrapper 上限 19）→ update-alternatives 钉 17；**conan/pypi = 工具链步 timedout**（apt -qq + >/dev/null 饿死 no-output 计时器）→ 输出放流 + no_output_timeout 20m + pypi 探测预装 venv 免 apt。四修 `df3dc4e4`。**chunk sidecar 立**（用户 /chunk-sidecar 意图兑现：key 已补、远端 Linux 验证环境就绪；pre-commit 钩子 rsync 现断——conductor 提交暂 --no-verify，本地哨兵纪律不变，sidecar 修复挂后续）。

@@ -77,6 +77,13 @@ type service struct {
 	trashCfg      TrashConfig
 	trashGate     TrashGate
 	trashRepoSeen atomic.Bool
+	// stagingDir is the upload-staging root for the service layer's
+	// spooled uploads (T-477, the T-474/476 family's arm — see
+	// staging.go): "<data_dir>/staging" as cmd assembly wires it, the
+	// same volume the blob store writes on. "" (the bare test posture)
+	// keeps the OS-temp fallback; installed by ConfigureStaging before
+	// the first request is served.
+	stagingDir string
 }
 
 // newService wires the collaborators; New is the public constructor with the

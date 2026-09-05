@@ -97,9 +97,15 @@ const APP_NAV: NavGroup[] = [
   },
 ]
 
-/** 管理模式侧栏（console-m8 §1.3 全图：五分组；M10 T-288 License & Add-ons、
- * M11 T-307 认证配置、M12 T-352 回收站、M13 T-366 Webhooks 增补后 = 16 条目；
- * 分组标题是标签不是折叠项——沿 console-ux §3.1 纪律）。
+/** 管理模式侧栏（console-m8 §1.3 全图：五分组；**T-459（FR-145.6b /
+ * parity B-2.18）7.161 形态重排**：Webhooks 归常规组 / 维护·备份归
+ * 服务节点组〔监控〕/ 系统信息自常规组归位服务节点组 + 监控组扩三页
+ * （存储/服务状态/系统日志）——18 条目；分组标题是标签不是折叠项——
+ * 沿 console-ux §3.1 纪律。认证组子项形态（7.161 Authentication 组的
+ * LDAP/SAML SSO/OAuth SSO/HTTP SSO/Crowd·JIRA/SCIM 六子项——探针
+ * reports/agents/t459-probe/）中 HTTP SSO/Crowd·JIRA/SCIM 三域在 BinFlow
+ * 不存在（FR-92 闭集 = LDAP/OAuth/SAML）——单页三页签维持，缺位登记
+ * 不伪造）。
  * T-388 N2/V5：一级条目逐条接 16px mono 图标（Material 通用符号，随文字色）；
  * 分组标签不配（V5 实测档位：仅一级条目、子项/父级标签裸文本） */
 const ADMIN_NAV: NavGroup[] = [
@@ -123,25 +129,33 @@ const ADMIN_NAV: NavGroup[] = [
     title: '治理',
     entries: [
       { label: '审计日志', to: '/admin/governance/audit', icon: 'history' },
-      { label: '维护（GC）', to: '/admin/governance/gc', icon: 'delete_sweep' },
       { label: '配额', to: '/admin/governance/quotas', icon: 'pie_chart' },
       { label: '复制', to: '/admin/governance/replication', icon: 'sync' },
-      { label: '备份 / 恢复', to: '/admin/governance/backup', icon: 'backup' },
       // M12 T-352：回收站（FR-106——浏览/恢复/清空；trashcan 槽门控态呈现）
       { label: '回收站', to: '/admin/governance/trash', icon: 'delete' },
-      // M13 T-366：Webhook 订阅（FR-115.5——订阅 CRUD/test + 投递排障记录；
-      // readonly_admin 只读可见，读写入口页内按角色收敛）
-      { label: 'Webhooks', to: '/admin/governance/webhooks', icon: 'bolt' },
     ],
   },
   {
     title: '监控',
-    entries: [{ label: '存储', to: '/admin/monitoring/storage', icon: 'storage' }],
+    entries: [
+      { label: '存储', to: '/admin/monitoring/storage', icon: 'storage' },
+      // T-459（FR-145.5）：监控组三页 + 归位两页——服务状态（health/schedules
+      // 只读运行面）/ 系统日志（审计跟踪尾随查看器）/ 系统信息（自常规组
+      // 归位，路由 /admin/monitoring/system-info）/ 维护（GC）与备份恢复
+      // （自治理组迁入——服务级页挂服务节点组，T-462 的 cron 消费面同场）
+      { label: '服务状态', to: '/admin/monitoring/status', icon: 'pulse' },
+      { label: '系统日志', to: '/admin/monitoring/logs', icon: 'article' },
+      { label: '系统信息', to: '/admin/monitoring/system-info', icon: 'info' },
+      { label: '维护（GC）', to: '/admin/monitoring/gc', icon: 'delete_sweep' },
+      { label: '备份 / 恢复', to: '/admin/monitoring/backup', icon: 'backup' },
+    ],
   },
   {
     title: '常规',
     entries: [
-      { label: '系统信息', to: '/admin/general/settings', icon: 'info' },
+      // M13 T-366：Webhook 订阅（FR-115.5）；T-459 归常规组（B-2.18——
+      // 7.161 管理导航不再单列 Webhooks 条目，BinFlow 保留页面归常规组）
+      { label: 'Webhooks', to: '/admin/general/webhooks', icon: 'bolt' },
       // M10 T-288：License & Add-ons（FR-86-AC5——readonly_admin 只读可见，
       // 写入口页内按角色收敛；普通 user 不入管理面）
       { label: 'License & Add-ons', to: '/admin/general/license', icon: 'card_membership' },
@@ -203,25 +217,37 @@ function adminCrumbs(pathname: string): Crumb[] {
   }
   const gov: Record<string, string> = {
     audit: '审计日志',
-    gc: '维护（GC）',
     quotas: '配额',
     replication: '复制',
-    backup: '备份 / 恢复',
     trash: '回收站',
-    webhooks: 'Webhooks',
   }
   if (pathname.startsWith('/admin/governance/')) {
     const seg = pathname.slice('/admin/governance/'.length)
     return [{ label: '治理', to: '/admin/governance/audit' }, { label: gov[seg] ?? seg }]
   }
   if (pathname.startsWith('/admin/monitoring/')) {
-    return [{ label: '监控', to: '/admin/monitoring/storage' }, { label: '存储' }]
+    // T-459：监控组扩为六页（存储/服务状态/系统日志/系统信息 + 归位的
+    // 维护与备份）——段名 → 条目名镜像 ADMIN_NAV
+    const mon: Record<string, string> = {
+      storage: '存储',
+      status: '服务状态',
+      logs: '系统日志',
+      'system-info': '系统信息',
+      gc: '维护（GC）',
+      backup: '备份 / 恢复',
+    }
+    const seg = pathname.slice('/admin/monitoring/'.length).split('/')[0]
+    return [{ label: '监控', to: '/admin/monitoring/storage' }, { label: mon[seg] ?? seg }]
   }
   if (pathname.startsWith('/admin/general/')) {
-    // M10 T-288：常规分组两页（系统信息 / License & Add-ons）
+    // T-459：常规分组两页（Webhooks / License & Add-ons——系统信息已归
+    // 监控组；旧 settings 深链经路由表 replace 折入新址）
+    const gen: Record<string, string> = {
+      webhooks: 'Webhooks',
+      license: 'License & Add-ons',
+    }
     const seg = pathname.slice('/admin/general/'.length).split('/')[0]
-    const label = seg === 'license' ? 'License & Add-ons' : '系统信息'
-    return [{ label: '常规', to: '/admin/general/settings' }, { label }]
+    return [{ label: '常规', to: '/admin/general/webhooks' }, { label: gen[seg] ?? seg }]
   }
   if (pathname === '/admin') return [{ label: '管理' }]
   return [{ label: '管理' }]
@@ -390,26 +416,50 @@ export default function AppShell() {
   const inAdminArea = location.pathname.startsWith('/admin')
   const mode: 'app' | 'admin' = inAdminArea && canSeeAdmin ? 'admin' : 'app'
 
+  // ---- 侧栏 Search Admin Resources 过滤框（T-459 / FR-145.6b——parity
+  // B-2.18）--------------------------------------------------------------
+  // 7.161.20 活体形态（探针 reports/agents/t459-probe/ s3-*）：管理模式
+  // **顶栏**出现占位 "Search Admin Resources" 的 340px 过滤框（A1-5：位置
+  // = 顶栏非侧栏——B-2.18 原始审计词「侧栏过滤」按活体勘误落顶栏；本实例
+  // 活体上输入/Enter 均无可观测过滤效果，过滤语义按 7.84 经典行为〔过滤
+  // 管理侧栏〕承载——差异留痕 parity 册 B-2.18 行）。客户端子串匹配条目
+  // 文案（含英文术语——case-insensitive）；整组空则分组标签一并隐藏；
+  // 全空给 admin-filter-empty 注记。管理模式下顶栏制品搜索位让位（7.161
+  // 同为管理态单框），⌘K / 「/」聚焦随模式指向当前框。
+  const [adminFilter, setAdminFilter] = useState('')
+  const adminFilterRef = useRef<HTMLInputElement>(null)
+  const adminMode = mode === 'admin'
+  const adminQ = adminFilter.trim().toLowerCase()
+  const adminGroups: NavGroup[] = adminQ
+    ? ADMIN_NAV.map((g) => ({
+        ...g,
+        entries: g.entries.filter((e) => e.label.toLowerCase().includes(adminQ)),
+      })).filter((g) => g.entries.length > 0)
+    : ADMIN_NAV
+
   // 全局搜索快捷键（console-m8 §3.4）：⌘K / Ctrl+K / 「/」（输入框内
   // 不劫持）；modal（危险确认框等）打开时让位（review N2）。T-265 起顶栏
   // 是真输入框——快捷键聚焦它（⌘K 附带全选，便于直接覆写），Enter 即提交。
+  // T-459：管理模式顶栏是管理资源过滤框——快捷键随模式指向当前框
+  // （adminMode 变化时重挂监听，避免闭包陈旧）。
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (document.querySelector('[role="dialog"], .modal-backdrop')) return
       const el = e.target as HTMLElement | null
       const inField = !!el?.closest('input, textarea, select, [contenteditable="true"]')
+      const target = adminMode ? adminFilterRef : topbarSearchRef
       if ((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
-        topbarSearchRef.current?.focus()
-        topbarSearchRef.current?.select()
+        target.current?.focus()
+        target.current?.select()
       } else if (e.key === '/' && !inField) {
         e.preventDefault()
-        topbarSearchRef.current?.focus()
+        target.current?.focus()
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [adminMode])
 
   // 用户菜单（MUI Menu 原生）：Esc 关闭 / 点击外部（backdrop）关闭 / ↑↓
   // 循环由 Menu+MenuList 承载；焦点语义按 MUI 惯例——开菜单即聚焦首项、
@@ -464,7 +514,7 @@ export default function AppShell() {
     return <Navigate to={`/login?return=${encodeURIComponent(safe)}`} replace />
   }
 
-  const groups = mode === 'admin' ? ADMIN_NAV : APP_NAV
+  const groups = mode === 'admin' ? adminGroups : APP_NAV
   const crumbs = mode === 'admin' || inAdminArea ? adminCrumbs(location.pathname) : null
 
   // 侧栏条目共通形态：ListItemButton 承载 NavLink（DOM = <a class="nav-item
@@ -535,6 +585,17 @@ export default function AppShell() {
                 ))}
               </div>
             ))}
+            {/* T-459：管理资源过滤无匹配注记（整侧栏条目全被滤掉时——
+                如实反馈而非空白侧栏；Esc 清词走输入框） */}
+            {adminMode && adminQ && adminGroups.length === 0 && (
+              <Typography
+                variant="caption"
+                data-testid="admin-filter-empty"
+                sx={{ display: 'block', padding: 'var(--bf-sp-2) var(--bf-sp-3)', color: 'var(--bf-sidebar-text-2)' }}
+              >
+                「{adminFilter.trim()}」无匹配管理资源
+              </Typography>
+            )}
           </List>
           <Box className="app-nav-footer" sx={{ display: 'flex', flexDirection: 'column', borderTop: '1px solid var(--bf-sidebar-border)', padding: 'var(--bf-sp-2)' }}>
             {/* 模式切换（§1.1）：侧栏底部常驻项；admin / readonly_admin 可见。
@@ -633,6 +694,56 @@ export default function AppShell() {
                 focus+select）零变化。输入框不加 aria-expanded /
                 aria-autocomplete：role=searchbox 不容这两个属性（axe
                 aria-allowed-attr），完整 combobox 模式随搜索页归后续票统一 */}
+            {adminMode ? (
+              /* 管理资源过滤框（T-459 / B-2.18——7.161 管理态顶栏单框形态；
+                  过滤语义 = 管理侧栏条目客户端子串；Esc 清词。制品搜索在
+                  管理模式让位（7.161 同为单框），回应用模式即恢复） */
+              <Paper
+                component="div"
+                role="search"
+                elevation={0}
+                className="search-entry"
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 'var(--bf-sp-2)',
+                  minWidth: 220,
+                  maxWidth: 360,
+                  padding: '0 var(--bf-sp-3)',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  color: 'text.secondary',
+                  '&:hover': { borderColor: 'text.disabled' },
+                  '&:focus-within': { borderColor: 'primary.main' },
+                }}
+              >
+                <span aria-hidden="true">⌕</span>
+                <InputBase
+                  inputRef={adminFilterRef}
+                  type="search"
+                  placeholder="Search Admin Resources…"
+                  slotProps={{
+                    input: {
+                      'data-testid': 'admin-filter',
+                      'aria-label': '搜索管理资源（过滤管理侧栏条目）',
+                      autoComplete: 'off',
+                    } as ComponentPropsWithoutRef<'input'>,
+                  }}
+                  value={adminFilter}
+                  onChange={(e) => setAdminFilter(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      // 与制品搜索同款两段 Esc：先清词（preventDefault 阻断
+                      // input[type=search] 原生清空的 onChange 重入）
+                      e.preventDefault()
+                      setAdminFilter('')
+                    }
+                  }}
+                  sx={{ flex: 1, minWidth: 0 }}
+                />
+                <kbd aria-hidden="true">⌘K</kbd>
+              </Paper>
+            ) : (
             <Paper
               component="div"
               role="search"
@@ -724,6 +835,7 @@ export default function AppShell() {
                 </div>
               )}
             </Paper>
+            )}
             {/* 帮助下拉（T-457 / B-2.17 翻正）：topbar-help 锚语义翻新零改名
                 （链接 → 下拉触发钮——aria-haspopup/expanded，四项见上方注释） */}
             <div>

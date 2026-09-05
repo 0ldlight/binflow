@@ -10,19 +10,22 @@ import { useAsync } from '../../lib/useAsync'
 import { useVersion } from '../../lib/useVersion'
 
 // 系统信息页（console-m8 §6.19 / §1.2「General → Settings 重塑」，T-238——
-// /admin/general/settings 落真身；原设置页的改密块归 /profile，T-239 拆分）：
+// /admin/general/settings 落真身；原设置页的改密块归 /profile，T-239 拆分；
+// **T-459（FR-145.5 / parity B-1.11）归位服务节点组**：路由迁
+// /admin/monitoring/system-info——监控组三页 Logs/Status/Info 之一；旧
+// /admin/general/settings 深链经路由表一次性 replace 折入，锚零改名）：
 //
 // - 实例信息：版本 / 修订 / 产品（GET /api/system/version 开放端点）+
 //   发行（许可）行——BinFlow 无许可证端点，静态产品定位（与侧栏许可行
 //   同源文案），不伪造许可数据。
-// - 健康卡（Monitoring → Service Status 的重塑承载，§1.2）：/api/v1/health
-//   子系统行（storage / metadata / registry），403 驱动 L3 隐藏
-//  （settings-health 锚沿 T-98 冻结口径，非 admin 不渲染）。
+// - 健康卡：/api/v1/health 子系统行（storage / metadata / registry），403
+//   驱动 L3 隐藏（settings-health 锚沿 T-98 冻结口径，非 admin 不渲染）。
+//   T-459 起运行面主承载移 Service Status 页（/admin/monitoring/status），
+//   本卡保留为实例信息的健康摘要（锚冻结，不拆）。
 // - 契约冻结注记：Server Name / Base URL / 匿名读开关 / 数据目录 / 日志
 //   级别无查询端点（M4 缺口未补）——不展示、不伪造；Logo / Custom Message
 //   写入口不建（§1.2）。
-// - 页根锚 = settings（console-ux §10.5：/admin/general/settings 的既有锚，
-//   组件实现替换不改锚名）。
+// - 页根锚 = settings（console-ux §10.5 冻结锚，路由迁移不改锚名）。
 // T-344 批 D：残面换装——.card → Paper（类名留 DOM，:not shim 排除旧配方）、
 // h3 → Typography subtitle2；kv 行族是布局 utility，原样保留。
 

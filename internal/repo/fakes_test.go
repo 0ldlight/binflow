@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -98,6 +99,11 @@ func newEnvOpt(t TB, dataDir, dbDir string, mdOverride metadata.Store, mount fun
 	az := &policyAuthz{}
 	au := &auditLog{}
 	svc := newServiceWithClock(eng, md, az, au, clk.Now)
+	// Mirror the cmd assembly's staging posture (T-477, the T-474/476
+	// family): the upload spool roots under <data_dir>/staging, so every
+	// existing test runs in the production wiring; the bare OS-temp
+	// fallback stays reachable by resetting it with ConfigureStaging(svc, "").
+	repo.ConfigureStaging(svc, filepath.Join(dataDir, "staging"))
 	t.Cleanup(func() {
 		_ = eng.Close()
 		if ownsMD {

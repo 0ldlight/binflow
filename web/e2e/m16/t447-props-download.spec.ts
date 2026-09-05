@@ -303,10 +303,15 @@ test('axe: properties tab and download companion menu clean in both themes', asy
     await expect(page.locator('[data-testid="node-props-table"]')).toBeVisible()
     await expectA11yClean(page, testInfo, { include: '[data-testid="tree-page"]' })
 
-    // 伴随菜单展开态（Popover 焦点圈进 + 校验动作 + checksums 区）
+    // 伴随菜单展开态（Popover 焦点圈进 + 校验动作 + checksums 区）。
+    // T-459 复核注记：可见 ≠ 过场结束——axe 的 color-contrast 对半透明色按
+    // 实际像素采样，Popover 进场动画未完时采样即假性炸裂（共租负载下 3/3
+    // 复现；settle 后净绿）。全页扫描前统一 settle 400ms，同款处置见
+    // t457-profile-help-about axe 腿。
     await page.click('[data-testid="node-tab-general"]')
     await page.click('[data-testid="node-download-menu"]')
     await expect(page.locator('[data-testid="node-download-checksums"]')).toBeVisible()
+    await page.waitForTimeout(400)
     await expectA11yClean(page, testInfo)
     await page.keyboard.press('Escape')
     await expect(page.locator('[data-testid="node-download-panel"]')).toBeHidden()

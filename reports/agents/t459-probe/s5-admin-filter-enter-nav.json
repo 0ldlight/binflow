@@ -1,0 +1,226 @@
+[
+ {
+  "text": "All Projects Overview",
+  "hidden": false
+ },
+ {
+  "text": "Stages & Lifecycle",
+  "hidden": false
+ },
+ {
+  "text": "Repositories",
+  "hidden": false
+ },
+ {
+  "text": "User Management",
+  "hidden": false
+ },
+ {
+  "text": "Users",
+  "hidden": true
+ },
+ {
+  "text": "Groups",
+  "hidden": true
+ },
+ {
+  "text": "Global Roles",
+  "hidden": true
+ },
+ {
+  "text": "Permissions",
+  "hidden": true
+ },
+ {
+  "text": "Access Tokens",
+  "hidden": true
+ },
+ {
+  "text": "Proxies",
+  "hidden": false
+ },
+ {
+  "text": "Authentication",
+  "hidden": false
+ },
+ {
+  "text": "LDAP",
+  "hidden": true
+ },
+ {
+  "text": "SAML SSO",
+  "hidden": true
+ },
+ {
+  "text": "OAuth SSO",
+  "hidden": true
+ },
+ {
+  "text": "HTTP SSO",
+  "hidden": true
+ },
+ {
+  "text": "Crowd / JIRA",
+  "hidden": true
+ },
+ {
+  "text": "SCIM",
+  "hidden": true
+ },
+ {
+  "text": "Security",
+  "hidden": false
+ },
+ {
+  "text": "General",
+  "hidden": true
+ },
+ {
+  "text": "Certificates",
+  "hidden": true
+ },
+ {
+  "text": "Keys Management",
+  "hidden": true
+ },
+ {
+  "text": "Vault",
+  "hidden": true
+ },
+ {
+  "text": "General Management",
+  "hidden": false
+ },
+ {
+  "text": "Settings",
+  "hidden": true
+ },
+ {
+  "text": "Mail Server",
+  "hidden": true
+ },
+ {
+  "text": "Manage Integrations",
+  "hidden": true
+ },
+ {
+  "text": "Licenses",
+  "hidden": true
+ },
+ {
+  "text": "Webhooks",
+  "hidden": true
+ },
+ {
+  "text": "Monitoring",
+  "hidden": false
+ },
+ {
+  "text": "Storage",
+  "hidden": false
+ },
+ {
+  "text": "Service Status",
+  "hidden": false
+ },
+ {
+  "text": "Log Analytics",
+  "hidden": false
+ },
+ {
+  "text": "Federation Status",
+  "hidden": false
+ },
+ {
+  "text": "System Logs",
+  "hidden": false
+ },
+ {
+  "text": "Artifactory Logs",
+  "hidden": false
+ },
+ {
+  "text": "Topology",
+  "hidden": false
+ },
+ {
+  "text": "Topology Overview",
+  "hidden": true
+ },
+ {
+  "text": "Support Zone",
+  "hidden": false
+ },
+ {
+  "text": "Artifactory Settings",
+  "hidden": false
+ },
+ {
+  "text": "General Settings",
+  "hidden": true
+ },
+ {
+  "text": "Artifactory Security",
+  "hidden": true
+ },
+ {
+  "text": "Packages Settings",
+  "hidden": true
+ },
+ {
+  "text": "HTTP Settings",
+  "hidden": true
+ },
+ {
+  "text": "Repository Imp/Exp",
+  "hidden": true
+ },
+ {
+  "text": "System Imp/Exp",
+  "hidden": true
+ },
+ {
+  "text": "Repositories Layouts",
+  "hidden": true
+ },
+ {
+  "text": "Migration Tool",
+  "hidden": true
+ },
+ {
+  "text": "Property Sets",
+  "hidden": true
+ },
+ {
+  "text": "Maven Indexer",
+  "hidden": true
+ },
+ {
+  "text": "Config Descriptor",
+  "hidden": true
+ },
+ {
+  "text": "Security Descriptor",
+  "hidden": true
+ },
+ {
+  "text": "Maintenance",
+  "hidden": true
+ },
+ {
+  "text": "Backups",
+  "hidden": true
+ },
+ {
+  "text": "Retention Policies",
+  "hidden": true
+ },
+ {
+  "text": "User Plugins",
+  "hidden": true
+ },
+ {
+  "text": "© Copyright 2026 JFrog Ltd",
+  "hidden": false
+ }
+]

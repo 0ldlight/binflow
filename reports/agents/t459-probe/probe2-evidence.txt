@@ -1,0 +1,61 @@
+[E5] after Enter url=http://localhost:8082/ui/admin/monitoring/storage-summary
+[E5] body head:
+Skip to main content
+Platform
+Administration
+A
+All Projects
+All Projects Overview
+Stages & Lifecycle
+Repositories
+User Management
+Proxies
+Authentication
+Security
+General Management
+Monitoring
+Storage
+Service Status
+Log Analytics
+Federation Status
+System Logs
+Artifactory Logs
+Topology
+Support Zone
+Artifactory Settings
+JFrog Platform
+Enterprise Plus trial license 7.161.20 rev 86120900 Licensed to TEST JFrog Ltd.
+© Copyright 2026 JFrog Ltd
+All Projects
+Monitoring
+Storage
+The data was last refreshed on:05-09-26 06:40:00 +0800
+Refresh
+
+Binaries
+
+Binaries Size: 878 bytes
+Binaries Count: 3
+Artifacts Size: 648 bytes
+Artifacts Count:  1
+Optimization:  135.49%
+Items Count:  7
+
+Storage
+
+File System 
+Directory: /opt/jfrog/artifactory/var/data/artifactory/filestore
+Used: 344.2 GB / 931.5 GB (37.0%)
+Repositories (6)
+ 
+Repository Key
+Repository Type
+Package Type
+Percentage
+Artifacts Size
+Files
+Folders
+
+----
+[E5] nav after enter: ["All Projects Overview","Stages & Lifecycle","Repositories","User Management","Proxies","Authentication","Security","General Management","Monitoring","Storage","Service Status","Log Analytics","Federation Status","System Logs","Artifactory Logs","Topology","Support Zone","Artifactory Settings","© Copyright 2026 JFrog Ltd"]
+[E6] system logs anatomy: {"textareas":[],"buttons":["Get Started"]}

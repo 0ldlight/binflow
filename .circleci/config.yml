@@ -427,6 +427,11 @@ jobs:
           # Selective install: exactly what THIS protocol's client needs
           # (docs anchors: maven 3.9.9, node 22, go 1.26.6, helm 4.2.4,
           # dotnet 8, conan 2 via pip; gradle's wrapper needs only JDK17).
+          # Keep output FLOWING on apt installs: -qq plus >/dev/null
+          # starves the 10-minute no-output timer and kills healthy
+          # installs (the conan/pypi legs died exactly that way on
+          # f08863f); no_output_timeout below is the second belt.
+          no_output_timeout: 20m
           command: |
             set -eu
             LEG="<< parameters.leg >>"
@@ -437,7 +442,13 @@ jobs:
                 # unzip/zip: the gradle wrapper unpacks the distribution it
                 # downloads — the old monolithic install carried them, the
                 # split lost them (gradle leg red on first split run).
-                sudo apt-get install -y -qq openjdk-17-jdk-headless unzip zip >/dev/null
+                sudo apt-get install -y -qq openjdk-17-jdk-headless unzip zip
+                # The image's default java is JDK 21 (class file 65); the
+                # fixture's gradle wrapper tops out at 19 — pin the
+                # alternatives to the apt-installed 17 (f08863f: "Unsupported
+                # class file major version 65").
+                sudo update-alternatives --set java /usr/lib/jvm/java-17-openjdk-amd64/bin/java
+                sudo update-alternatives --set javac /usr/lib/jvm/java-17-openjdk-amd64/bin/javac
                 if [ "$LEG" = maven ]; then
                   curl -fsSL https://archive.apache.org/dist/maven/maven-3/3.9.9/binaries/apache-maven-3.9.9-bin.tar.gz \
                     | sudo tar -xz -C /opt
@@ -445,10 +456,14 @@ jobs:
                 fi ;;
               npm)
                 curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash - >/dev/null
-                sudo apt-get install -y -qq nodejs >/dev/null ;;
+                sudo apt-get install -y -qq nodejs ;;
               pypi)
-                sudo apt-get update -qq
-                sudo apt-get install -y -qq python3-venv python3-pip >/dev/null
+                # venv usually preinstalls (the GH face installs nothing
+                # apt-side for this leg); only apt when the probe fails —
+                # the apt path is the timeout-prone one.
+                python3 -m venv /tmp/venvprobe >/dev/null 2>&1 \
+                  || sudo apt-get install -y python3-venv python3-pip
+                rm -rf /tmp/venvprobe
                 pip3 install --quiet --user build twine \
                   || pip3 install --quiet --user --break-system-packages build twine ;;
               docker)
@@ -461,13 +476,18 @@ jobs:
                 curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
                 bash /tmp/dotnet-install.sh --channel 8.0 --install-dir "$HOME/.dotnet" >/dev/null ;;
               go)
+                # The image pre-ships /usr/local/go; extracting 1.26.6 over
+                # it leaves a MIXED tree (old map.go beside new
+                # map_swiss.go — "ctrlEmpty redeclared" at leg time on
+                # f08863f). Clear it first.
+                sudo rm -rf /usr/local/go
                 curl -fsSL "https://go.dev/dl/go1.26.6.linux-amd64.tar.gz" | sudo tar -xz -C /usr/local ;;
               helm)
                 curl -fsSL https://get.helm.sh/helm-v4.2.4-linux-amd64.tar.gz | tar -xz
                 sudo install -m 0755 linux-amd64/helm /usr/local/bin/helm ;;
               conan)
                 sudo apt-get update -qq
-                sudo apt-get install -y -qq cmake g++ python3-venv python3-pip >/dev/null
+                sudo apt-get install -y -qq cmake g++ python3-venv python3-pip
                 pip3 install --quiet --user conan \
                   || pip3 install --quiet --user --break-system-packages conan ;;
               *) echo "unknown leg: $LEG" >&2; exit 2 ;;

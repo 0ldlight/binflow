@@ -1,0 +1,45 @@
+Skip to main content
+Platform
+Administration
+A
+All Projects
+All Projects Overview
+Stages & Lifecycle
+Repositories
+User Management
+Proxies
+Authentication
+Security
+General Management
+Monitoring
+Storage
+Service Status
+Log Analytics
+Federation Status
+System Logs
+Artifactory Logs
+Topology
+Support Zone
+Artifactory Settings
+JFrog Platform
+Enterprise Plus trial license 7.161.20 rev 86120900 Licensed to TEST JFrog Ltd.
+© Copyright 2026 JFrog Ltd
+System Logs Viewer
+Select JFrog Service
+Artifactory
+Select Node
+2054644c2318
+Select Log File
+console.log
+
+Refreshing Logs in 7 seconds
+
+ Pause
+
+ Refresh now
+
+File Last Modified: 05-09-26 07:32:58 +0800
+
+View Last Updated: 05-09-26 07:32:58 +0800
+
+You can download log files directly from the  Support Zone

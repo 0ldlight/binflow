@@ -270,7 +270,7 @@ test('consumer UI: create signed subscription via the console dialog', async ({ 
   await page.click('[data-testid="login-submit"]')
   await expect(page.locator('[data-testid="app-nav"]')).toBeVisible()
 
-  await page.goto(`${state.base}/binflow/ui/admin/governance/webhooks`)
+  await page.goto(`${state.base}/binflow/ui/admin/general/webhooks`)
   await expect(page.locator('[data-testid="wh-page"]')).toBeVisible()
   await expect(page.locator('[data-testid="wh-empty"]')).toBeVisible()
 
@@ -450,7 +450,7 @@ test('consumer DRAWER: console drawer renders the dead subscription record chain
   await page.click('[data-testid="login-submit"]')
   await expect(page.locator('[data-testid="app-nav"]')).toBeVisible()
 
-  await page.goto(`${state.base}/binflow/ui/admin/governance/webhooks`)
+  await page.goto(`${state.base}/binflow/ui/admin/general/webhooks`)
   await expect(page.locator('[data-testid="wh-row-deadleg"]')).toBeVisible()
   await page.click('[data-testid="wh-open-deadleg"]')
   await expect(page.locator('[data-testid="wh-drawer"]')).toBeVisible()

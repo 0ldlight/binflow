@@ -4,9 +4,9 @@ import { expectA11yClean } from './support/a11y'
 import { loginAs, provisionRoles } from './support/roles'
 import { m8Client, sessionApi } from './support/seed'
 
-// T-238（FR-73 治理面 / console-m8 §6.13~§6.19 / UI-15~20）：治理五页归位
+// T-238（FR-73 治理面 / console-m8 §6.13~§6.19 / UI-15~20）：治理五页归位（T-459 后治理组四页 + 迁址两页）
 // （/admin/governance/*）+ 存储概要新页（/admin/monitoring/storage）+ 系统
-// 信息页（/admin/general/settings）的交互断言——三角色腿 + 只读重放 403。
+// 信息页（T-459 归位 /admin/monitoring/system-info）的交互断言——三角色腿 + 只读重放 403。
 //
 // 断言口径 = ADR-0029 决策 3（交互断言制；锚 = data-testid，不随路由改名）。
 // 锚源：console-ux §10.2/§10.3 治理组冻结锚（gc-*/quota-*/repl-*/backup-*/
@@ -55,13 +55,14 @@ test('admin: governance 5 pages + storage summary + system info; storage table A
 
   await loginAs(page, 'admin')
 
-  // —— 治理五页归位：/admin/governance/* 逐页锚到达（§1.3 导航树）——
+  // —— 治理四页归位：/admin/governance/* 逐页锚到达（§1.3 导航树；T-459
+  //    重排后 gc/backup 迁 /admin/monitoring/*，webhooks 迁 /admin/general/*）——
   const govPages: [string, string][] = [
     ['/admin/governance/audit', 'audit-page'],
-    ['/admin/governance/gc', 'gc-page'],
     ['/admin/governance/quotas', 'quotas-page'],
     ['/admin/governance/replication', 'repl-page'],
-    ['/admin/governance/backup', 'backup-page'],
+    ['/admin/monitoring/gc', 'gc-page'],
+    ['/admin/monitoring/backup', 'backup-page'],
   ]
   for (const [path, anchor] of govPages) {
     await page.goto(`/binflow/ui${path}`)
@@ -120,7 +121,7 @@ test('admin: governance 5 pages + storage summary + system info; storage table A
   await expectA11yClean(page, testInfo, { include: '[data-testid="storage-page"]' })
 
   // —— 系统信息（§6.19）：实例信息 + 健康子系统行 + 版本对账 ——
-  await page.goto('/binflow/ui/admin/general/settings')
+  await page.goto('/binflow/ui/admin/monitoring/system-info')
   await expect(page.locator('[data-testid="settings"]')).toBeVisible()
   await expect(page.locator('[data-testid="settings-instance"]')).toBeVisible()
   await expect(page.locator('[data-testid="settings-license"]')).toBeVisible()
@@ -155,7 +156,7 @@ test('readonly_admin: governance read faces visible, write entries disabled + no
   await loginAs(page, 'readonly_admin')
 
   // 维护（GC）页：读面到达（stats system:read）；写面禁用 + 注记（M7 §7.3）
-  await page.goto('/binflow/ui/admin/governance/gc')
+  await page.goto('/binflow/ui/admin/monitoring/gc')
   await expect(page.locator('[data-testid="gc-page"]')).toBeVisible()
   await expect(page.locator('[data-testid="gc-stats"]')).toBeVisible()
   await expect(page.locator('[data-testid="gc-readonly-note"]')).toBeVisible()
@@ -177,7 +178,7 @@ test('readonly_admin: governance read faces visible, write entries disabled + no
   await expect(page.locator('[data-testid="storage-page"]')).toBeVisible()
   await expect(page.locator('[data-testid="storage-summary"]')).toBeVisible()
   await expect(page.locator(`[data-testid="storage-row-${repo}"]`)).toBeVisible({ timeout: 30_000 })
-  await page.goto('/binflow/ui/admin/general/settings')
+  await page.goto('/binflow/ui/admin/monitoring/system-info')
   await expect(page.locator('[data-testid="settings-health"]')).toBeVisible()
 
   // 服务端兜底：同一会话直接重放治理面写请求——403（UI 只是呈现层）
@@ -209,12 +210,12 @@ test('user: /admin/** deep links converge L2 (storage/governance) and L3 (health
   await expect(page.locator('[data-testid="storage-summary"]')).toHaveCount(0)
 
   // 维护（GC）：stats 403 → L2 无权限卡；危险区（写入口）不渲染（L4）
-  await page.goto('/binflow/ui/admin/governance/gc')
+  await page.goto('/binflow/ui/admin/monitoring/gc')
   await expect(page.locator('[data-testid="gc-page"]')).toContainText('无权限查看存储概况')
   await expect(page.locator('[data-testid="gc-danger-zone"]')).toHaveCount(0)
 
   // 系统信息：实例卡（开放端点）可见；健康行 403 驱动 L3 隐藏
-  await page.goto('/binflow/ui/admin/general/settings')
+  await page.goto('/binflow/ui/admin/monitoring/system-info')
   await expect(page.locator('[data-testid="settings-instance"]')).toBeVisible()
   await expect(page.locator('[data-testid="settings-health"]')).toHaveCount(0)
 })

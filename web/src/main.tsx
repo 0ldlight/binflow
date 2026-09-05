@@ -71,8 +71,13 @@ const TrashPage = lazy(() => import('./pages/governance/TrashPage'))
 const WebhooksPage = lazy(() => import('./pages/webhooks/WebhooksPage'))
 // 存储概要（T-238 落真身；§6.18：stats + 逐仓 usage 现役端点编排）
 const StorageSummaryPage = lazy(() => import('./pages/monitoring/StorageSummaryPage'))
-// 系统信息（T-238 落真身；§6.19——只读展示，改密块归 /profile 的 T-239 拆分）
-const SystemInfoPage = lazy(() => import('./pages/admin/SystemInfoPage'))
+// 系统信息（T-238 落真身；§6.19——只读展示，改密块归 /profile 的 T-239 拆分；
+// T-459 归位监控组（FR-145.5）：路由 /admin/monitoring/system-info）
+const SystemInfoPage = lazy(() => import('./pages/monitoring/SystemInfoPage'))
+// T-459（FR-145.5 / parity B-1.11）：监控组三页——服务状态（health +
+// schedules 只读运行面）+ 系统日志（审计跟踪尾随查看器：尾随刷新/过滤/下载）
+const ServiceStatusPage = lazy(() => import('./pages/monitoring/ServiceStatusPage'))
+const SystemLogsPage = lazy(() => import('./pages/monitoring/SystemLogsPage'))
 // License & Add-ons（M10 T-288，FR-84 FE 腿 / FR-86-AC5：license 装卸 + 档位
 // × addon 解锁矩阵 + 建仓门控的可见性面）
 const LicenseAddonsPage = lazy(() => import('./pages/admin/LicenseAddonsPage'))
@@ -209,23 +214,51 @@ createRoot(document.getElementById('root')!).render(
                     />
                     <Route path="admin/security/auth/:proto" element={<AuthConfigPage />} />
 
-                    {/* —— 管理模式：治理 —— */}
+                    {/* —— 管理模式：治理（T-459 重排：维护·备份迁监控组 /
+                         Webhooks 迁常规组——旧深链经下方兼容映射折入） —— */}
                     <Route path="admin/governance/audit" element={<AuditPage />} />
-                    <Route path="admin/governance/gc" element={<GCPage />} />
                     <Route path="admin/governance/quotas" element={<QuotasPage />} />
                     <Route path="admin/governance/replication" element={<ReplicationPage />} />
-                    <Route path="admin/governance/backup" element={<BackupPage />} />
                     {/* 回收站（T-352）：trashcan 槽门控态 + 浏览/恢复/清空 */}
                     <Route path="admin/governance/trash" element={<TrashPage />} />
-                    {/* Webhook 订阅（T-366）：治理分组第七页——事件订阅 + 投递排障 */}
-                    <Route path="admin/governance/webhooks" element={<WebhooksPage />} />
 
-                    {/* —— 管理模式：监控 / 常规（T-238 落真身：存储概要 +
-                         系统信息；占位/设置页挂载让位，路由结构不变。
-                         T-288 增 License & Add-ons 页）—— */}
+                    {/* —— 管理模式：监控（T-459 扩为服务节点组六页：存储 +
+                         服务状态 + 系统日志 + 系统信息〔自常规组归位〕 +
+                         维护〔GC〕/ 备份恢复〔自治理组迁入——服务级页挂
+                         服务节点组，T-462 的 cron 消费面同场〕）—— */}
                     <Route path="admin/monitoring/storage" element={<StorageSummaryPage />} />
-                    <Route path="admin/general/settings" element={<SystemInfoPage />} />
+                    <Route path="admin/monitoring/status" element={<ServiceStatusPage />} />
+                    <Route path="admin/monitoring/logs" element={<SystemLogsPage />} />
+                    <Route path="admin/monitoring/system-info" element={<SystemInfoPage />} />
+                    <Route path="admin/monitoring/gc" element={<GCPage />} />
+                    <Route path="admin/monitoring/backup" element={<BackupPage />} />
+
+                    {/* —— 管理模式：常规（T-459：Webhooks 自治理组迁入；
+                         系统信息已归监控组）—— */}
+                    <Route path="admin/general/webhooks" element={<WebhooksPage />} />
                     <Route path="admin/general/license" element={<LicenseAddonsPage />} />
+
+                    {/* T-459 路由迁移兼容窗（一轮——旧深链 replace 折入新址，
+                         T-434 ?focus= 同款纪律；仓内 emitter 已随票翻新）：
+                         general/settings → monitoring/system-info；
+                         governance/{gc,backup} → monitoring/{gc,backup}；
+                         governance/webhooks → general/webhooks */}
+                    <Route
+                      path="admin/general/settings"
+                      element={<Navigate to="/admin/monitoring/system-info" replace />}
+                    />
+                    <Route
+                      path="admin/governance/gc"
+                      element={<Navigate to="/admin/monitoring/gc" replace />}
+                    />
+                    <Route
+                      path="admin/governance/backup"
+                      element={<Navigate to="/admin/monitoring/backup" replace />}
+                    />
+                    <Route
+                      path="admin/governance/webhooks"
+                      element={<Navigate to="/admin/general/webhooks" replace />}
+                    />
 
                     {/* 未匹配 → 404 页（T-263 起旧路由兼容窗口不再兜底：
                          M7 及以前的旧路径同样落这里） */}

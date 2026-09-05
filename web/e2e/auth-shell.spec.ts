@@ -108,7 +108,7 @@ test('logout revokes the session server-side and re-entry requires login', async
   await expect(page).toHaveURL(/\/login/)
 
   // 会话已吊销：回退受保护路由再次被守卫拦下
-  await page.goto('/binflow/ui/admin/general/settings')
+  await page.goto('/binflow/ui/admin/monitoring/system-info')
   await expect(page).toHaveURL(/\/login\?return=/)
 })
 
@@ -116,7 +116,7 @@ test('settings password change surfaces server plain-text wording inline', async
   // B3：改密错误分支——服务端纯文本层文案（错旧口令 = 400 非信封）
   // 必须行内原样呈现，不进 toast、不触发 401 全局处理。
   // M8 归位（T-238/T-239）：改密块自 /settings 迁 /profile（console-m8
-  // §1.4；/settings 旧路由让位 /admin/general/settings 系统信息页）
+  // §1.4；/settings 旧路由让位系统信息页〔T-459 归位 /admin/monitoring/system-info〕）
   await page.goto('/binflow/ui/profile')
   await login(page) // 守卫先拦到 /login?return=%2Fprofile，登录后回档案页
   await page.waitForSelector('[data-testid="password-old"]')

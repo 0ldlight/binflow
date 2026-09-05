@@ -400,12 +400,12 @@ test('users: edit roundtrip, reset-password entry, server 400 inline, 404s, non-
   await p2.goto(`${origin}/binflow/ui/admin/security/users`)
   await expect(p2.locator('[data-testid="users-page"] [data-testid="empty-state"]')).toBeVisible()
   await expect(p2.locator('[data-testid="users-page"] [data-testid="empty-state"]')).toContainText('无权限')
-  await p2.goto(`${origin}/binflow/ui/admin/general/settings`)
+  await p2.goto(`${origin}/binflow/ui/admin/monitoring/system-info`)
   await expect(p2.locator('[data-testid="settings-health"]')).toHaveCount(0) // 403 驱动隐藏（v1.1 N1）
   await ctx.close()
 
   // admin 的 settings-health 锚在（同一 403 驱动姿态的可见面）
-  await page.goto('/binflow/ui/admin/general/settings')
+  await page.goto('/binflow/ui/admin/monitoring/system-info')
   await expect(page.locator('[data-testid="settings-health"]')).toBeVisible()
 
   // 404 分支
