@@ -57,6 +57,16 @@ type fileInfoBody struct {
 	// pre-M10 wire form stays byte-identical for property-less nodes (the
 	// M9-frozen assertions must keep passing untouched).
 	Properties map[string][]string `json:"properties,omitempty"`
+	// RemoteDegraded is the remote-browse layer's error-state note on the
+	// FolderInfo face (M16 T-461's wire leg over T-448's §5-2 seam,
+	// remote-browsing.md §4-1): non-empty only when an ENGAGED layer (a
+	// listRemoteFolderItems remote repository, or such a member of a virtual)
+	// met an upstream fault or sits inside the assumed-offline silence — the
+	// cached children stay and the note says why the remote layer went quiet.
+	// Omitted on every healthy, flag-off or local tree, and always empty on
+	// FILE bodies (the note is a listing-level fact; the console renders its
+	// absence as no annotation at all).
+	RemoteDegraded string `json:"remoteDegraded,omitempty"`
 }
 
 // checksumTriple is the sha1/md5/sha256 digest object (fields omitted when
@@ -416,15 +426,46 @@ func (s *Server) storageNode(r *http.Request, p *auth.Principal, repoKey, relPat
 	return node, err
 }
 
+// remoteBrowseViewer is the note-carrying listing seam's consumer face
+// (consumer-side interface, the copyMoveRunner precedent — asserted off
+// Deps.ReposSvc so the big repo.Service interface and the hand-written
+// adapter fakes that implement it method by method stay untouched): the
+// concrete service's RemoteBrowsePlane SPI segment (T-448), the exact walk
+// List performs plus the remote-browse layer's degradation note.
+type remoteBrowseViewer interface {
+	ListWithRemote(ctx context.Context, p *repo.Principal, repoKey, prefix string) (*repo.RemoteBrowseListing, error)
+}
+
+// listWithNote is the storage faces' listing call: through the note-carrying
+// seam when the assembly offers it, plain List otherwise (a service without
+// the seam can by construction never engage the remote-browse layer, so "" is
+// the honest note there). One resolution channel — ListWithRemote IS List's
+// walk (repo.Service's own comment) — so the rows, the ordering and the gate
+// answers never diverge between the two arms; only the note rides along.
+func (s *Server) listWithNote(ctx context.Context, p *auth.Principal, repoKey, prefix string) ([]*metadata.Node, string, error) {
+	if svc, ok := s.deps.ReposSvc.(remoteBrowseViewer); ok {
+		listing, err := svc.ListWithRemote(ctx, p, repoKey, prefix)
+		if err != nil {
+			return nil, "", err
+		}
+		return listing.Nodes, listing.RemoteDegraded, nil
+	}
+	nodes, err := s.deps.ReposSvc.List(ctx, p, repoKey, prefix)
+	if err != nil {
+		return nil, "", err
+	}
+	return nodes, "", nil
+}
+
 // serveRootFolder renders FolderInfo for the repository root: children are
 // the direct first segments under "" (the root itself has no node row).
 func (s *Server) serveRootFolder(w http.ResponseWriter, r *http.Request, p *auth.Principal, repoKey string) {
-	nodes, err := s.deps.ReposSvc.List(r.Context(), p, repoKey, "")
+	nodes, degraded, err := s.listWithNote(r.Context(), p, repoKey, "")
 	if err != nil {
 		s.writeStorageError(w, err)
 		return
 	}
-	s.writeFolderInfoBody(w, r, repoKey, "/", nil, childInfos(nodes, ""), nil)
+	s.writeFolderInfoBody(w, r, repoKey, "/", nil, childInfos(nodes, ""), nil, degraded)
 }
 
 // fileInfoOf builds the FileInfo wire shape (E-09 field set) of one file
@@ -498,7 +539,7 @@ func mimeOrDefault(m string) string {
 // set on a docker repo, the response includes dockerTags.
 func (s *Server) writeFolderInfo(w http.ResponseWriter, r *http.Request, repoKey string, node *metadata.Node) {
 	dir := strings.TrimSuffix(node.Path, "/")
-	nodes, err := s.deps.ReposSvc.List(r.Context(), principalFrom(r.Context()), repoKey, dir)
+	nodes, degraded, err := s.listWithNote(r.Context(), principalFrom(r.Context()), repoKey, dir)
 	if err != nil {
 		s.writeStorageError(w, err)
 		return
@@ -509,13 +550,16 @@ func (s *Server) writeFolderInfo(w http.ResponseWriter, r *http.Request, repoKey
 		// The storage API path uses "/" + node.Path.
 		dockerTags = s.dockerTagsForFolder(r, repoKey, node.Path)
 	}
-	s.writeFolderInfoBody(w, r, repoKey, "/"+node.Path, node, childInfos(nodes, dir), dockerTags)
+	s.writeFolderInfoBody(w, r, repoKey, "/"+node.Path, node, childInfos(nodes, dir), dockerTags, degraded)
 }
 
 // writeFolderInfoBody emits the FolderInfo shape. node is nil for the
 // repository root (no row exists there); timestamps degrade to zero time.
 // dockerTags is an optional digest→tag[] map for docker tree rendering.
-func (s *Server) writeFolderInfoBody(w http.ResponseWriter, r *http.Request, repoKey, displayPath string, node *metadata.Node, children []folderChild, dockerTags map[string][]string) {
+// remoteDegraded is the remote-browse layer's error-state note, rendered as
+// the optional remoteDegraded field when the listing's remote layer went
+// quiet ("" — the field omits — on every healthy/flag-off/local tree).
+func (s *Server) writeFolderInfoBody(w http.ResponseWriter, r *http.Request, repoKey, displayPath string, node *metadata.Node, children []folderChild, dockerTags map[string][]string, remoteDegraded string) {
 	stamp := ""
 	created := ""
 	createdBy := ""
@@ -543,6 +587,7 @@ func (s *Server) writeFolderInfoBody(w http.ResponseWriter, r *http.Request, rep
 	if len(dockerTags) > 0 {
 		body.DockerTags = dockerTags
 	}
+	body.RemoteDegraded = remoteDegraded
 	if node != nil {
 		// Folder rows are property carriers like files (section 15.3.2);
 		// the repository root (node == nil) has no node row and no echo.
@@ -629,6 +674,11 @@ type listResponse struct {
 	URI     string     `json:"uri"`
 	Created string     `json:"created"`
 	Files   []listFile `json:"files"`
+	// RemoteDegraded mirrors the FolderInfo note on the flat listing face —
+	// same seam (listWithNote), same value, so the two faces can never
+	// disagree about a tree (the one-resolution-channel discipline of
+	// RemoteBrowsePlane). Omitted on healthy/flag-off/local trees.
+	RemoteDegraded string `json:"remoteDegraded,omitempty"`
 }
 
 // handleStorageList serves GET /api/storage/{repo}/{path}?list (E-10). The
@@ -659,7 +709,7 @@ func (s *Server) handleStorageList(w http.ResponseWriter, r *http.Request, repoK
 	}
 
 	dir := strings.TrimSuffix(node.Path, "/")
-	nodes, err := s.deps.ReposSvc.List(r.Context(), p, repoKey, dir)
+	nodes, degraded, err := s.listWithNote(r.Context(), p, repoKey, dir)
 	if err != nil {
 		s.writeStorageError(w, err)
 		return
@@ -678,9 +728,10 @@ func (s *Server) handleStorageList(w http.ResponseWriter, r *http.Request, repoK
 
 	prefix := dir + "/"
 	resp := listResponse{
-		URI:     storageURI(requestBase(r), repoKey, node.Path),
-		Created: isoMillisUTC(node.CreatedAt),
-		Files:   []listFile{},
+		URI:            storageURI(requestBase(r), repoKey, node.Path),
+		Created:        isoMillisUTC(node.CreatedAt),
+		Files:          []listFile{},
+		RemoteDegraded: degraded,
 	}
 	for _, n := range nodes {
 		rel := strings.TrimPrefix(n.Path, prefix)
