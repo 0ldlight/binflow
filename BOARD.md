@@ -1932,3 +1932,5 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 **用户指令 intake ㉑（2026-09-06 02:0x）：「精简 README 的内容，不要提到迭代的内容」——立票 T-480**（tech-writer 在途）：双语对（README.md 649 行 + README.zh-CN.md）去迭代化（M-号/演进叙事零残留）+ 门厅化（快速开始/能力矩阵/链接指向 Fern 文档站）+ 目标 ≤200 行/份。
 
 **develop 对齐事件（2026-09-06 02:0x）**：远端现 main→develop 合并 `cfae1868`（来源 CI 侧对齐——含 dependabot actions v7 系保留于 main 的链），本地 `c24b7f97` 合并对齐后上行完成。
+
+**T-479 → done 2026-09-06 02:2x（`003452bd`，+1,054/−6）——intake ⑳ 兑现（矩阵十腿增 remote+virtual 面）**：753→1,537 行——每腿 remote 段（真实公共上游钉版拉取：MISS→HIT 缓存冻结 + sha256/digest 对账）+ virtual 段（local+remote 聚合 §8.5 Resolved-From + helm _external 折叠 + C5 405 逐字）。离线守卫三态（lax SKIP/strict FAIL/可达放行）。**5 腿活体验证绿**（npm/pypi/go/helm/generic）；余 5 腿引擎级断言设计期活体过（候 CI 首跑实证）。CI 双面零 config 变更（单源自流）。**文档漂移两条登记**：docker-registry.md「virtual 暂不做」过时（活体 200+聚合证伪）；golang.md virtual "members" 笔误（canonical=repositories，实测 400）。同票携 T-478 env 注释与报告补收。日志 reports/agents/T-479.md。
