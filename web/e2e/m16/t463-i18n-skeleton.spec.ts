@@ -5,9 +5,9 @@ import { expect, test } from '@playwright/test'
 //
 //  1. zh 默认locale：渲染文案与外提前一致（zh-as-key——键即文案），且
 //     <html lang> 同步 zh-CN；零 [i18n] 运行时告警（AC2）。
-//  2. en 持久化引导（localStorage binflow-console-locale=en）：骨架态
-//     回落 zh 文案（键集同构、值待 T-464 填充），lang=en，目录包懒载
-//     chunk 被请求（initI18n 闸生效）。
+//  2. en 持久化引导（localStorage binflow-console-locale=en）：en 目录包
+//     值真渲染（T-464 填充后；骨架期回落断言已随填充翻新），lang=en，
+//     目录包懒载 chunk 被请求（initI18n 闸生效）。
 //  3. 持久化机制双向：写键 + reload 后仍按 en 引导（setLocale 的持久化
 //     半边——切换器 UI 归 T-464，此处直接落 localStorage 模拟）。
 //
@@ -35,15 +35,16 @@ test('zh default: extracted copy renders verbatim, lang synced, no i18n warnings
   expect(warnings, '默认 zh 引导不得出现 [i18n] 运行时告警').toEqual([])
 })
 
-test('en persisted boot: skeleton falls back to zh copy, lang=en, catalog chunk fetched', async ({ page }) => {
+test('en persisted boot: catalog values render, lang=en, catalog chunk fetched', async ({ page }) => {
   await page.addInitScript((k) => localStorage.setItem(k, 'en'), LOCALE_KEY)
   const catalogRequests: string[] = []
   page.on('request', (r) => {
     if (/\/assets\/catalogs-[^/]+\.js/.test(r.url())) catalogRequests.push(r.url())
   })
   await page.goto('/binflow/ui/login')
-  // 骨架态（en 值全空）回落 zh 键文案——永不空渲染
-  await expect(page.getByText('制品仓库控制台')).toBeVisible()
+  // T-464 填充后：en 值真渲染（骨架期的「回落 zh 键文案」断言随填充翻新——
+  // 目录包缺键时的回落语义仍由内核保证，此处断言当前填充态）
+  await expect(page.getByText('Artifact Repository Console')).toBeVisible()
   await expect(page.locator('html')).toHaveAttribute('lang', 'en')
   // initI18n 闸：en 引导确实懒载了目录包 chunk（zh 用户零请求）
   expect(catalogRequests.length).toBeGreaterThan(0)

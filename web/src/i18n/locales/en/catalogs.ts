@@ -1,6 +1,6 @@
 // T-463 生成：en 目录包索引（initI18n 懒载入口——仅 en locale 引导时
-// 动态 import 本模块，zh 用户零额外字节）。各域包 = 键集同构骨架，
-// 值待 T-464 填充（空串 = 未填 → 运行时回落 zh 键文案）。
+// 动态 import 本模块，zh 用户零额外字节）。值 = T-464 填充态（再生成
+// 走逐键保值——scripts/t463/regen-catalogs.mjs）。
 import './console'
 import './repositories'
 import './artifacts'

@@ -343,6 +343,10 @@ const STOP = new Set([
   'backup-cmd', 'backup-daily', 'cleanup-unused-cache', 'cleanup-virtual',
   'console-ui', 'datetime-local', 'dry-run', 'virtual-only',
   't462-cron-backups', 'repo-policy-keys', 't462-probe',
+  // v1.46（T-464 行文假阳性）：i18n 批的标识符引用——assert-i18n 的行尾
+  // 豁免口标记（i18n-allow——硬编码闸机制名非锚）/ 本票新 spec 文件名段
+  // （t464-i18n-bilingual），均非 testid 锚
+  'i18n-allow', 't464-i18n-bilingual',
 ])
 const docFams = new Set()
 for (const t of docTokens) {

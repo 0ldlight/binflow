@@ -225,9 +225,28 @@ jobs:
             # MD5 fingerprint of the UAT deploy key (uploaded in Project
             # Settings > SSH Keys; derived from ~/.ssh/binflow-uat.pem):
             - "$SSH_KEY_FINGERPRINT_UAT"
-      # T-478 (user directive #19): TLS proxy layer FIRST — idempotent
-      # (installed=no-op, config unchanged=no reload), and if caddy/apt go
-      # sideways the job aborts BEFORE the binary swap, so the standing
+      # The B64 deploy key must materialize BEFORE the first step that
+      # ssh's — the TLS proxy step ssh's too (first run on e01d59d2 died
+      # on publickey exactly because this step came after it).
+      - run:
+          name: Install UAT SSH deploy key
+          command: |
+            # Primary path: UAT_SSH_KEY_B64 holds the base64-encoded private
+            # key (set as a CircleCI project env var — easier than the SSH
+            # Keys UI which requires a pre-uploaded fingerprint).
+            # Fallback: add_ssh_keys picks up any key uploaded via the UI.
+            # The deploy scripts discover whichever file lands in ~/.ssh/.
+            if [ -n "${UAT_SSH_KEY_B64:-}" ]; then
+              mkdir -p ~/.ssh && chmod 700 ~/.ssh
+              printf '%s' "${UAT_SSH_KEY_B64}" | base64 -d > ~/.ssh/id_ed25519_uat
+              chmod 600 ~/.ssh/id_ed25519_uat
+              echo "UAT deploy key written from UAT_SSH_KEY_B64."
+            else
+              echo "UAT_SSH_KEY_B64 not set; relying on add_ssh_keys project key."
+            fi
+      # T-478 (user directive #19): TLS proxy layer before the binary swap —
+      # idempotent (installed=no-op, config unchanged=no reload), and if
+      # caddy/apt go sideways the job aborts BEFORE the swap, so the standing
       # instance is never the casualty of a proxy problem. UAT_DOMAIN
       # "off"/"none"/"" disables the layer (transition kill switch);
       # default uat.binflow.org. Requires DNS A record + AWS SG 80/443
@@ -239,22 +258,6 @@ jobs:
               "${UAT_HOST:-52.79.109.153}" \
               "${UAT_USER:-ubuntu}" \
               "${UAT_DOMAIN:-uat.binflow.org}"
-      - run:
-          name: Install UAT SSH deploy key
-          command: |
-            # Primary path: UAT_SSH_KEY_B64 holds the base64-encoded private
-            # key (set as a CircleCI project env var — easier than the SSH
-            # Keys UI which requires a pre-uploaded fingerprint).
-            # Fallback: add_ssh_keys picks up any key uploaded via the UI.
-            # The deploy script discovers whichever file lands in ~/.ssh/.
-            if [ -n "${UAT_SSH_KEY_B64:-}" ]; then
-              mkdir -p ~/.ssh && chmod 700 ~/.ssh
-              printf '%s' "${UAT_SSH_KEY_B64}" | base64 -d > ~/.ssh/id_ed25519_uat
-              chmod 600 ~/.ssh/id_ed25519_uat
-              echo "UAT deploy key written from UAT_SSH_KEY_B64."
-            else
-              echo "UAT_SSH_KEY_B64 not set; relying on add_ssh_keys project key."
-            fi
       - run:
           name: Ship binary + systemd unit + smoke to UAT
           command: |

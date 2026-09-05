@@ -1,4 +1,5 @@
 import { apiJSON } from '../../lib/api'
+import { getLocale } from '../../i18n'
 
 // AQL 模式支持库（T-419，FR-135.1——M15-SPLIT §1.2 AC2）：
 //
@@ -87,9 +88,13 @@ export function semanticOf(path: string): string | null {
 //
 // 结果表三件套归一到本支持库（两模式同一张网格——「列框架收敛」）：
 
-/** ISO 时间 → `dd-MM-yy HH:mm:ss +ZZZZ`（Artifactory 结果表对位——
- *  parity B-3.15：浏览器本地时区 + 显式偏移后缀，如 `02-09-26 08:37:57
- *  +0800`；不可解析值如实返回 null 由调用方呈现 —）。 */
+/** ISO 时间 → 结果表时间列。zh = `dd-MM-yy HH:mm:ss +ZZZZ`（Artifactory
+ *  结果表对位——parity B-3.15：浏览器本地时区 + 显式偏移后缀，如
+ *  `02-09-26 08:37:57 +0800`）；en = T-464（FR-149.4）en 变体
+ *  `MMM d, yyyy h:mm:ss AM/PM +ZZZZ`（同款本地时区 + 显式偏移，12 小时
+ *  制——Artifactory en 形态）。不可解析值如实返回 null 由调用方呈现 —。 */
+const MON_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const
+
 export function formatStamp(iso: string | null | undefined): string | null {
   if (!iso) return null
   const d = new Date(iso)
@@ -99,6 +104,11 @@ export function formatStamp(iso: string | null | undefined): string | null {
   const sign = off >= 0 ? '+' : '-'
   const abs = Math.abs(off)
   const zone = `${sign}${p2(Math.floor(abs / 60))}${p2(abs % 60)}`
+  if (getLocale() === 'en') {
+    const h12 = d.getHours() % 12 || 12
+    const ampm = d.getHours() < 12 ? 'AM' : 'PM'
+    return `${MON_EN[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()} ${h12}:${p2(d.getMinutes())}:${p2(d.getSeconds())} ${ampm} ${zone}`
+  }
   return `${p2(d.getDate())}-${p2(d.getMonth() + 1)}-${String(d.getFullYear()).slice(2)} ${p2(d.getHours())}:${p2(d.getMinutes())}:${p2(d.getSeconds())} ${zone}`
 }
 

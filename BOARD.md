@@ -1928,3 +1928,9 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 **用户指令 intake ⑳（2026-09-05 23:1x）：「ci 协议的测试，需要包含远程仓库和虚拟仓库」——立票 T-479**（devops-engineer 在途）：矩阵十腿扩 remote（真实公共上游回源+缓存断言）+ virtual（local+remote 聚合解析，§8.5 语义）覆盖——钉版制品+网络抖动降级策略+离线守卫。
 
 **T-478 → done 2026-09-06 01:0x（`3bb71d4e`，5 文件 +337/−19）——intake ⑲ 兑现（UAT 443 = HTTPS + ACME，Caddy 反代终结）**：方案裁定=反代（进程内无 TLS 面实测；T-168 nginx 模板既定姿态；Caddy 优于 nginx+certbot——ACME 全在 daemon）。uat.Caddyfile + 幂等 uat-proxy.sh（validate 先于 reload + ufw 80/443 + 三段探针 + ACME 退避自愈）+ deploy_uat proxy 步骤（先于二进制换装）+ **双面基地址默认翻 https://uat.binflow.org**（8080 过渡回退 env / UAT_DOMAIN=off 可禁层）+ docker 腿 insecure-registries 按方案条件化。门：caddy validate×2 + 行为级本地跑（308/:443/ACME WARN 路径）+ cc process 0 + actionlint 0。**用户前置两项**：① DNS A 记录 uat.binflow.org → 52.79.109.153（权威 NS 在 businessidentity.llc——DoH 实测 NXDOMAIN）；② AWS 安全组放行 80+443。就绪后 conductor 按 checklist 实部署验证。日志 reports/agents/T-478.md。
+
+**用户指令 intake ㉑（2026-09-06 02:0x）：「精简 README 的内容，不要提到迭代的内容」——立票 T-480**（tech-writer 在途）：双语对（README.md 649 行 + README.zh-CN.md）去迭代化（M-号/演进叙事零残留）+ 门厅化（快速开始/能力矩阵/链接指向 Fern 文档站）+ 目标 ≤200 行/份。
+
+**develop 对齐事件（2026-09-06 02:0x）**：远端现 main→develop 合并 `cfae1868`（来源 CI 侧对齐——含 dependabot actions v7 系保留于 main 的链），本地 `c24b7f97` 合并对齐后上行完成。
+
+**T-479 → done 2026-09-06 02:2x（`003452bd`，+1,054/−6）——intake ⑳ 兑现（矩阵十腿增 remote+virtual 面）**：753→1,537 行——每腿 remote 段（真实公共上游钉版拉取：MISS→HIT 缓存冻结 + sha256/digest 对账）+ virtual 段（local+remote 聚合 §8.5 Resolved-From + helm _external 折叠 + C5 405 逐字）。离线守卫三态（lax SKIP/strict FAIL/可达放行）。**5 腿活体验证绿**（npm/pypi/go/helm/generic）；余 5 腿引擎级断言设计期活体过（候 CI 首跑实证）。CI 双面零 config 变更（单源自流）。**文档漂移两条登记**：docker-registry.md「virtual 暂不做」过时（活体 200+聚合证伪）；golang.md virtual "members" 笔误（canonical=repositories，实测 400）。同票携 T-478 env 注释与报告补收。日志 reports/agents/T-479.md。

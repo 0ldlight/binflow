@@ -24,6 +24,8 @@ import Menu from '@mui/material/Menu'
 import MenuItem from '@mui/material/MenuItem'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
+import ToggleButton from '@mui/material/ToggleButton'
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup'
 import Toolbar from '@mui/material/Toolbar'
 import Typography from '@mui/material/Typography'
 import type { Theme } from '@mui/material/styles'
@@ -40,9 +42,15 @@ import { abandonStepUp, useStepUp } from '../lib/stepUpGrant'
 import type { PendingMint } from '../lib/stepUpGrant'
 import { useVersion } from '../lib/useVersion'
 import { errText, isReadOnlyAdmin } from '../lib/api'
-import { tr } from '../i18n'
+import { tr, getLocale, setLocale } from '../i18n'
+import type { Locale } from '../i18n'
 
 const tt = tr('console')
+
+// 语言名走母语名（endonym）：zh 态显示「中文」、en 态仍显示「中文」——
+// 语言名不随 locale 翻译（切换器上看到目标语言的自称是通行做法，对位
+// Artifactory Profile 语言下拉的 native label）。故豁免硬编码闸（行尾）。
+const LOCALE_LABEL_ZH = '中文' // i18n-allow
 
 // 双模式壳（console-m8 §1/§2，T-235——Artifactory 对齐 IA 重排；T-344 批 A
 // MUI 原生壳重构，mui-native-visual §4.1）：
@@ -614,6 +622,42 @@ export default function AppShell() {
                 {mode === 'admin' ? tt('返回应用') : tt('管理')}
               </ListItemButton>
             )}
+            {/* T-464（FR-149.1/.2）：语言切换器——位置票内定案 = 侧栏脚。
+                册面候选 = 侧栏脚或 Profile（PRD FR-149.1「位置归 ux 定」，
+                锚册无 ux 终裁；7.161 活体参照不可用——容器损坏）。取侧栏脚：
+                ① 与模式切换/版本行同属「全局 + 常驻 + 个人偏好」控件层；
+                ② 全站生效一步可达（Profile 需一次导航，BinFlow Profile 页
+                  无编辑态表单可挂）；③ 两侧栏（应用/管理）同脚注常驻。
+                切换 = setLocale（持久化 + 整页 reload，T-463 定案 3——
+                模块级 t() 求值点按新 locale 重新求值）；当前 locale =
+                选中态 + aria-pressed（ToggleButton 原生）。 */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 'var(--bf-sp-2)', marginBottom: 'var(--bf-sp-2)' }}>
+              <Typography variant="caption" sx={{ color: 'var(--bf-sidebar-text-2)' }}>{tt('语言')}</Typography>
+              <ToggleButtonGroup
+                size="small"
+                exclusive
+                data-testid="nav-locale"
+                aria-label={tt('语言')}
+                value={getLocale()}
+                onChange={(_e, v) => {
+                  if (v) setLocale(v as Locale)
+                }}
+                sx={{
+                  marginLeft: 'auto',
+                  '& .MuiToggleButton-root': {
+                    padding: '1px 10px',
+                    fontSize: 'var(--bf-fs-aux)',
+                    lineHeight: 1.6,
+                    color: 'var(--bf-sidebar-text)',
+                    borderColor: 'var(--bf-sidebar-border)',
+                    '&.Mui-selected': { color: 'var(--bf-sidebar-active, inherit)' },
+                  },
+                }}
+              >
+                <ToggleButton value="zh" data-testid="nav-locale-zh">{LOCALE_LABEL_ZH}</ToggleButton>
+                <ToggleButton value="en" data-testid="nav-locale-en">English</ToggleButton>
+              </ToggleButtonGroup>
+            </Box>
             {/* 许可行（§1.1）：版本来自 /api/system/version（nav-version 锚不变）。
                 T-457：脚注升格为 About 版本弹窗入口（B-2.17——vdev 行可点，
                 开 About 弹窗；文案与版本呈现零变化） */}

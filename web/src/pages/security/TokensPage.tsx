@@ -29,7 +29,7 @@ import { EmptyState } from '../../components/EmptyState'
 import { Pager, useClientPager } from '../../components/Pager'
 import { ApiError, apiJSON, apiText, canAdminWrite, errText, isReadOnlyAdmin } from '../../lib/api'
 import { monoInputSx } from '../../lib/muiAtoms'
-import { tr } from '../../i18n'
+import { tr, getLocale } from '../../i18n'
 
 const t = tr('security')
 
@@ -296,7 +296,7 @@ export default function TokensPage() {
                   <TableCell>
                     {humanTtl(row.expiresIn)}
                     <Typography component="div" variant="caption" color="text.secondary">
-                      {new Date(row.mintedAt).toLocaleTimeString()}
+                      {new Date(row.mintedAt).toLocaleTimeString(getLocale() === 'en' ? 'en-US' : 'zh-CN')}
                     </Typography>
                   </TableCell>
                   <TableCell>
