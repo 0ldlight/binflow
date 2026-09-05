@@ -434,8 +434,21 @@ jobs:
           # sanctioned form, shell heredocs are not)
           command: |
             mkdir -p "$HOME/project/ci/.matrix-work"
+            # Transition probe (the 5c36c80e lesson): the https default
+            # strands every leg while DNS is still NXDOMAIN — probe it, and
+            # fall back to the plain-HTTP IP form until it answers. An
+            # explicit UAT_MATRIX_BASE skips the probe entirely.
+            BASE="${UAT_MATRIX_BASE:-}"
+            if [ -z "$BASE" ]; then
+              if curl -fsS -m 8 https://uat.binflow.org/healthz >/dev/null 2>&1; then
+                BASE=https://uat.binflow.org
+              else
+                echo "WARN: https://uat.binflow.org unreachable (DNS/TLS not live) — legs run against the plain-HTTP transition base"
+                BASE=http://52.79.109.153:8080
+              fi
+            fi
             printf '%s\n' \
-              'export BINFLOW_BASE="${UAT_MATRIX_BASE:-https://uat.binflow.org}"' \
+              "export BINFLOW_BASE=\"\${BASE}\"" \
               'export BINFLOW_USER="${UAT_MATRIX_USER:-admin}"' \
               'export BINFLOW_PASSWORD="${UAT_MATRIX_PASSWORD:?UAT_MATRIX_PASSWORD secret missing in CircleCI project env}"' \
               'export BINFLOW_MATRIX_WORK="$HOME/project/ci/.matrix-work"' \

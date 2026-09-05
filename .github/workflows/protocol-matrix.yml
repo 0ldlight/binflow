@@ -57,6 +57,23 @@ jobs:
       - name: Check out
         uses: actions/checkout@v4
 
+      # Transition probe (the 5c36c80e lesson, GH face): the https default
+      # strands every leg while DNS is still NXDOMAIN — probe and fall back
+      # to the plain-HTTP IP form until it answers. An explicit
+      # UAT_MATRIX_BASE variable skips the probe entirely.
+      - name: Base URL transition probe
+        run: |
+          if [ -n "${{ vars.UAT_MATRIX_BASE }}" ]; then
+            echo "UAT_MATRIX_BASE set explicitly — probe skipped"
+            exit 0
+          fi
+          if curl -fsS -m 8 https://uat.binflow.org/healthz >/dev/null 2>&1; then
+            echo "BINFLOW_BASE=https://uat.binflow.org" >> "$GITHUB_ENV"
+          else
+            echo "WARN: https://uat.binflow.org unreachable (DNS/TLS not live) — legs run against the plain-HTTP transition base"
+            echo "BINFLOW_BASE=http://52.79.109.153:8080" >> "$GITHUB_ENV"
+          fi
+
       # ubuntu-latest already carries: JDK+mvn 3.9, gradle, node, python3,
       # go, docker, cmake, g++. What it lacks: helm, conan, twine/build —
       # and its preinstalled dotnet (SDK 10) swallows restore failures
