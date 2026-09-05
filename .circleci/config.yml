@@ -486,8 +486,14 @@ jobs:
                 curl -fsSL https://get.helm.sh/helm-v4.2.4-linux-amd64.tar.gz | tar -xz
                 sudo install -m 0755 linux-amd64/helm /usr/local/bin/helm ;;
               conan)
-                sudo apt-get update -qq
-                sudo apt-get install -y -qq cmake g++ python3-venv python3-pip
+                # The image usually carries gcc/cmake (the GH face installs
+                # neither); apt only when the probe fails — and NEVER -qq on
+                # the install: a quiet apt on a slow mirror starves even the
+                # 20m no-output timer (conan leg timed out twice this way).
+                if ! command -v gcc >/dev/null 2>&1 || ! command -v cmake >/dev/null 2>&1; then
+                  sudo apt-get update -qq
+                  sudo apt-get install -y g++ cmake python3-venv python3-pip
+                fi
                 pip3 install --quiet --user conan \
                   || pip3 install --quiet --user --break-system-packages conan ;;
               *) echo "unknown leg: $LEG" >&2; exit 2 ;;
