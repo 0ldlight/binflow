@@ -1922,3 +1922,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 **T-463 → done 2026-09-05 22:2x（`44e05ed2`，94 文件 +7,217/−3,221）——M16 29/35（B15 独占波：i18n 框架 + 全树外提 + CI 断言——断言反转⑥前半）**：**零依赖内核**（<1KB gz，tr/translate/initI18n/setLocale/getLocale + localStorage 持久化）+ **zh-as-key gettext 形**（外提=机械逐字搬运——85 文件 2,581 调用点 diff 证明零语义变化；省 i18next ~14KB）+ **1,970 键 ×10 域**（console 214/repositories 393/artifacts 209/search 47/security 330/governance 314/monitoring 77/webhooks 89/admin 149/common 148）+ en 骨架双向同构 + zh manifests 物化 + **assert-i18n 三道闸**（硬编码零命中/同构/清单一致——负测定位注入违例）挂 build/lint 链。**两工程根因入册**：JSX 多行文本编译语义（换行 run→单空格）；无 u 标志正则按 UTF-16 码元（CJK 区间吃代理对——7 emoji 键拆除+正则 \u 化）。e2e 106P 抽样 + CI 同参全量 379P + 终态二进制复验。SPA 功能增量 +4,841B gz；catalogs 35.8KB gz 懒载（zh 用户零请求已断言；NFR-P73 登记）。五小时马拉松。日志 reports/agents/T-463.md。
 
 **T-464 → doing 2026-09-05 22:3x（B16 波尾：en 填充 1,970 键 + 切换器 UI + 断言双语化 + 日期数字 locale 化——断言反转⑥收口）**：dev-frontend 独占。
+
+**用户指令 intake ⑲（2026-09-05 23:1x）：「后续 uat 环境部署，监听在 443 端口」——形态经问询裁定：HTTPS + ACME 域名（Let's Encrypt）→ 立票 T-478**（devops-engineer 在途）：倾向反代终结 TLS（Caddy 自动 ACME，BinFlow 保持内部 :8080 产品零改）+ CI 双面基地址切 https。**DNS 前置项归用户**：uat.<域名> A 记录 → 52.79.109.153。
+
+**用户指令 intake ⑳（2026-09-05 23:1x）：「ci 协议的测试，需要包含远程仓库和虚拟仓库」——立票 T-479**（devops-engineer 在途）：矩阵十腿扩 remote（真实公共上游回源+缓存断言）+ virtual（local+remote 聚合解析，§8.5 语义）覆盖——钉版制品+网络抖动降级策略+离线守卫。
