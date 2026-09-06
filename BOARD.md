@@ -1995,3 +1995,5 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 **T-490 → done 2026-09-06 21:2x（`bcb1378a`，12 文件 +971/−14）——M17 4/35（W1 票①：configJSON 四域 round-trip + Stage 域 + K73 落定）**：local 臂 configJSON 转发 B-1.5 四域（maxUniqueSnapshots K71 指针化——显式 0 可往返）+ Stage 六键 verbatim（environments/stages 双拼写全收、分歧 400、canonical=environments）；**K73=出口②钉协议默认**（ADR-0003 勘误行 + PRD 回填）。**blackedOut 五落点写门**（refuseBlackedOut 404 规格逐字文案 + ErrBlackedOut 哨兵——Put 族四点+explode，§2 步序置 pattern/权限门前）。四门 0 + 定向绿（repo 16.9s/httpapi 33.7s）+ race 超时两包 solo 收口绿（661.8s/1015.2s——并行竞争归因在案）。**T-439 漂移钉按设计翻红**（T-519 升级触发器）。遗留四条登记（读侧 blackout/remote-virtual 臂/复制落仓连带拒/活体对拍候窗口）。日志 reports/agents/T-490.md。
 
 **W2 开波（2026-09-06 21:3x，双 lane）**：**T-491 → doing**（dev-go-core：通配桶三预置 BE 语义——零提权探针矩阵）；**T-492 → doing**（dev-frontend：B-3.2 初始态 + Last Login 列 + 列选器——双 locale 键化同票）。
+
+**用户指令 intake ㉓（2026-09-06 22:2x）：「所有 agent 在开始干活前可以尽可能使用我安装的各种 skill 和 mcp 等插件」——常设派单条款**：此后所有 Agent 派单提示追加「开工前先盘点可用 skill/MCP 插件（boostgraph 代码探索优先于 grep/读文件、context7 查库文档等），能提效则用」。当前 W2 双票在途不受溯及。
