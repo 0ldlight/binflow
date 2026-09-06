@@ -1985,3 +1985,5 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 **W0 齐 → W1 开波（2026-09-06 17:0x，双 lane + 回填腿）**：**T-490 → doing**（dev-go-core：configJSON 四域 round-trip + Stage 域 + K73 落定——T-439 tripwire 转绿）；**T-503 → doing**（reverse-engineer：REST 差距矩阵——158 ops × 全量面四态 + 首程三带冻结，跨切程锚）；**T-489 回填腿**（软缝 E1~E8 → 两 ADR 修订段）。
 
 **T-489 回填腿 → done 2026-09-06 17:1x（`b2034f8c`，+70/−12）——软缝全闭（E1~E8 落两 ADR 勘误节）**：ADR-0041 勘误体例（原行保留作废-替换标注）。ADR-0045 四修正+三增补（PUT /api/build 无路径〔PRD FR-152 AC1 与 T-508 骨架作废〕/POST append 合并键 module id/批删参数族/minimumBuildDate/唯一性四元/properties 随迁 a(targetRepo)/覆盖臂 d）；ADR-0046 四修正（/api/release/* 真锚/冲突三态 409 逐字/Enterprise+ 真身——pro 裁减维持双翻转点）。机制轴零翻动；十+八软缝清单全闭。下游联动五条留痕（T-507/508/509/513 派单附注 + L50/L51 命令行）。
+
+**T-503 → done 2026-09-06 18:2x（`07f870e1`，+503 行）——M17 3/35（W1 票②：全量 REST 跨切程差距矩阵——活体 registry 立）**：官方三索引 653 条目 × Fern 158 ops（直接对位 119/别名变体 19/纯超集 20）——14 域四态 + 每域 P0 修复优先排序；**三带行集冻结 v1**（13+14+13，差异修复行全前置，A 层+置信度：高 137/中 58/低 0）；backlog 八批（M18+ 载体，B-18a↔T-519 Federation 衔接）。**关键定调**：官方已迁 users/tokens 主面至 Access API——Artifactory 路径族=A 层对位、Access 面登记缺位；license 腿 ⛔（Q9）。T-488 零重复（18 指针行）。解锁 T-504/505/506。日志 reports/agents/T-503.md。
