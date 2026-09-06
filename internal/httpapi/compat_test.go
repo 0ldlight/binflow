@@ -145,8 +145,11 @@ func TestRepositoriesCRUD(t *testing.T) {
 			}
 		}
 		for _, it := range items {
-			if it.PackageType != "generic" || it.URL == "" {
-				t.Fatalf("entry %+v missing packageType/url", it)
+			// T-493 (FR-157①): url is the CONTEXT url — the /binflow
+			// prefix is part of it (rest-api.md section 2's
+			// <contextUrl>/<key>; the M1 as-built omitted the segment).
+			if it.PackageType != "generic" || it.URL != h.srv.URL+"/binflow/"+it.Key {
+				t.Fatalf("entry %+v: url = %q, want %q", it, it.URL, h.srv.URL+"/binflow/"+it.Key)
 			}
 		}
 		if items[0].Type != "local" || items[2].Type != "remote" || items[3].Type != "virtual" {

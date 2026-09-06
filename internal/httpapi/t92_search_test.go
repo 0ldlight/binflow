@@ -110,7 +110,10 @@ func TestSearchArtifactW14(t *testing.T) {
 	if got.Repo != "generic-local" || got.Path != "/acme/artifact.bin" {
 		t.Fatalf("hit = %s%s, want generic-local/acme/artifact.bin", got.Repo, got.Path)
 	}
-	if got.URI != h.srv.URL+"/binflow/api/storage/generic-local/acme/artifact.bin" || got.DownloadURI != got.URI {
+	// T-493 (FR-157②): uri addresses the metadata view, downloadUri the
+	// DIRECT content plane (rest-api.md section 3) — the two fields split.
+	if got.URI != h.srv.URL+"/binflow/api/storage/generic-local/acme/artifact.bin" ||
+		got.DownloadURI != h.srv.URL+"/binflow/generic-local/acme/artifact.bin" {
 		t.Fatalf("uri/downloadUri = %q / %q", got.URI, got.DownloadURI)
 	}
 	if got.Size != "14" { // len("artifact-bytes")

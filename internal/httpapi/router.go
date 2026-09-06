@@ -504,6 +504,19 @@ func (s *Server) dispatchAPI(w http.ResponseWriter, r *http.Request, rest string
 	case rest == "v1/system/schedules" && r.Method == http.MethodGet:
 		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleSystemSchedulesGET)
 
+	// ---- /api/v1/system/logs (M17 T-493, FR-157③ / rest-compat-matrix D06
+	// row 13) ----
+	// The System Logs process-log tail: the service's own log stream, last
+	// ?limit= lines (1..1000, default 200) optionally ?filter=-narrowed
+	// (substring before the window cut), with ?download=1 serving the same
+	// window as a text/plain attachment (system_logs.go). The gate is
+	// system:read — the audit read's posture (readonly_admin may read the
+	// process log, a plain user 403s; anonymous meets the 401 challenge).
+	// BinFlow-native C-layer spelling (the settings/schedules precedent);
+	// every other verb on the path falls to the E-26 404.
+	case rest == "v1/system/logs" && r.Method == http.MethodGet:
+		s.enforce(w, r, routeAuth{required: true, manage: auth.CapSystemRead}, s.handleSystemLogsGet)
+
 	// ---- /api/v1/system/query_rate_limiter (M16 T-452, FR-148.2 / aql.md
 	// §14.4; K72's admin REST over the DB-query rate plane) ----
 	// The limiter's three operations: GET reads the effective settings,

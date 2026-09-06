@@ -460,13 +460,19 @@ func (s *Server) handleRepoList(w http.ResponseWriter, r *http.Request) {
 // repoListItemOf projects one metadata row onto the wire shape. Remote and
 // virtual entries carry their (masked, canonical) configuration like the
 // single-repo GET does; local rows keep the bare M1 shape.
+//
+// The url field is <contextUrl>/<key> (rest-api.md section 2, high
+// confidence): the context URL carries the product prefix, the same base
+// storageURI/downloadURI build on. M1 as-built omitted the /binflow segment
+// (the T-445-registered drift ①); the M17 errata (T-493, FR-157①) restores
+// the prefixed form family-wide.
 func (s *Server) repoListItemOf(r *http.Request, row *metadata.Repo) repoListItem {
 	item := repoListItem{
 		Key:         row.RepoKey,
 		Description: row.Description,
 		Type:        row.Type,
 		PackageType: row.PackageType,
-		URL:         requestBase(r) + "/" + row.RepoKey,
+		URL:         contextURL(r) + "/" + row.RepoKey,
 	}
 	if row.Config != "" && row.Config != "{}" {
 		var m map[string]any
@@ -488,6 +494,15 @@ func requestBase(r *http.Request) string {
 	return scheme + "://" + r.Host
 }
 
+// contextURL is requestBase plus the product prefix: <scheme://host>/binflow,
+// Artifactory's <contextUrl> equivalent (rest-api.md sections 0/1.2 — the
+// context path is part of every addressed URL the product hands out). The
+// single definition the repo-url family (T-493, FR-157①) and the
+// storageURI/downloadURI pair share.
+func contextURL(r *http.Request) string {
+	return requestBase(r) + prefix
+}
+
 // handleRepoGet serves GET /api/repositories/{key} (E-05): the full config
 // body; unknown key -> 404 with the spec's plain wording wrapped in the
 // envelope (BinFlow keeps the envelope for the repository plane, E-01).
@@ -504,13 +519,16 @@ func (s *Server) handleRepoGet(w http.ResponseWriter, r *http.Request, key strin
 // remote/virtual rows echo their canonical config under "configuration" —
 // the service already handed back the masked form (NFR-S14: no password
 // ever crosses this boundary); local rows keep the M1 shape ({} is omitted).
+// The url field rides contextURL like the list entry's (T-493, FR-157① —
+// the baseUrl family aligns on the prefixed context URL; a remote row's
+// UPSTREAM url is a different field and lives inside "configuration").
 func (s *Server) repoConfigOf(r *http.Request, row *metadata.Repo) repoConfig {
 	cfg := repoConfig{
 		Key:         row.RepoKey,
 		RClass:      row.Type,
 		PackageType: row.PackageType,
 		Description: row.Description,
-		URL:         requestBase(r) + "/" + row.RepoKey,
+		URL:         contextURL(r) + "/" + row.RepoKey,
 	}
 	if row.Config != "" && row.Config != "{}" {
 		var m map[string]any

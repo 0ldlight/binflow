@@ -480,7 +480,7 @@ func (s *Server) fileInfoOf(ctx context.Context, base, repoKey string, node *met
 	}
 	return fileInfoBody{
 		URI:          storageURI(base, repoKey, node.Path),
-		DownloadURI:  storageURI(base, repoKey, node.Path),
+		DownloadURI:  downloadURI(base, repoKey, node.Path),
 		Repo:         repoKey,
 		Path:         "/" + node.Path,
 		Created:      isoMillisUTC(node.CreatedAt),
@@ -632,13 +632,27 @@ func firstSegment(rel string) (head string, isFolder bool) {
 	return rel, false
 }
 
-// storageURI builds the uri/downloadUri fields: <base>/binflow/api/storage/<repo>/<path>.
+// storageURI builds the uri field: <base>/binflow/api/storage/<repo>/<path>.
 // The repo key appears exactly ONCE in the resulting URI (G33a: URI base family
 // unification — prior to T-140, some callers prepended "api/storage/" to relPath
 // which caused a wrong path shape; the family now shares the single definition).
 // A trailing slash on relPath is preserved (folder addressing).
 func storageURI(base, repoKey, relPath string) string {
 	return base + "/binflow/api/storage/" + repoKey + "/" + relPath
+}
+
+// downloadURI builds the downloadUri field: <base>/binflow/<repo>/<path> —
+// the DIRECT content-plane address (rest-api.md section 3's FileInfo carries
+// uri and downloadUri as distinct fields; downloadUri is the downloadable
+// URI, the address a GET downloads from, not the metadata view). The M1
+// as-built (T-92) pointed both fields at the api/storage form; the M17
+// errata (T-493, FR-157② / LC-107) restores the download semantics on the
+// single definition the FileInfo body and the E-09 search envelope share —
+// the generic/maven adapters' upload-201 bodies already spoke this form.
+// Folder bodies keep omitting downloadUri (the as-built; Artifactory's
+// folder example carries none either).
+func downloadURI(base, repoKey, relPath string) string {
+	return base + "/binflow/" + repoKey + "/" + relPath
 }
 
 // digestTripleOf resolves the node's three digests (sha256 from the node,

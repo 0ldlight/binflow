@@ -157,6 +157,75 @@ func TestStoragePropertiesLegacySemicolon(t *testing.T) {
 	}
 }
 
+// TestStoragePropertiesRESTSemicolonIsContent pins the T-447 contract note
+// as frozen wire behavior (T-493, FR-157④ — "REST 只认逗号配对"): the ';'
+// matrix grammar belongs to the PATH plane (deploy-time properties, the
+// fixtures above); on the REST ?properties arm a semicolon never opens a
+// pair. Two spellings, two honest answers:
+//
+//   - an ENCODED semicolon (%3B) inside a value is VALUE CONTENT — one
+//     value, stored and read back byte-for-byte, never split;
+//   - a RAW semicolon in the raw query value drops the whole properties
+//     pair out of Go's query parsing (net/url refuses ';' as a separator),
+//     so the properties arm never engages: GET falls to the plain item
+//     body, PUT/DELETE meet the family's unknown-spelling E-26 404. The
+//     raw ';' thus cannot act as a pair separator by construction.
+//
+// The wire form is unchanged by the M17 errata family; only the
+// documentation face moves (T-518).
+func TestStoragePropertiesRESTSemicolonIsContent(t *testing.T) {
+	h := newHarness(t)
+	seedRepo(t, h, "generic-local")
+	putContent(t, h, "/binflow/generic-local/rest-sem/app.bin", "app")
+	const base = "/binflow/api/storage/generic-local/rest-sem/app.bin"
+
+	// Encoded semicolon: content, not a separator.
+	if st := doProps(t, h, http.MethodPut, base+"?properties=k=v1%3Bv2", adminUser, adminPass); st != http.StatusNoContent {
+		t.Fatalf("encoded-semicolon PUT status = %d, want 204", st)
+	}
+	_, props := getProps(t, h, base+"?properties", adminUser, adminPass)
+	if len(props) != 1 || len(props["k"]) != 1 || props["k"][0] != "v1;v2" {
+		t.Fatalf("props = %#v, want exactly {k: [v1;v2]} — semicolon preserved as one literal value", props)
+	}
+
+	// Contrast arm: the COMMA is the REST pairing — same body, two values.
+	if st := doProps(t, h, http.MethodPut, base+"?properties=k=a,b", adminUser, adminPass); st != http.StatusNoContent {
+		t.Fatalf("comma-valued PUT status = %d, want 204", st)
+	}
+	_, props = getProps(t, h, base+"?properties", adminUser, adminPass)
+	if len(props["k"]) != 2 || props["k"][0] != "a" || props["k"][1] != "b" {
+		t.Fatalf("props = %#v, want k split on the comma into [a b]", props)
+	}
+
+	// A semicolon never OPENS a pair: the second key below materializes
+	// because of the COMMA, and k's value keeps the semicolon as content.
+	if st := doProps(t, h, http.MethodPut, base+"?properties=k=v1%3Bv2,k2=x", adminUser, adminPass); st != http.StatusNoContent {
+		t.Fatalf("mixed PUT status = %d, want 204", st)
+	}
+	_, props = getProps(t, h, base+"?properties", adminUser, adminPass)
+	if len(props) != 2 || len(props["k"]) != 1 || props["k"][0] != "v1;v2" || props["k2"][0] != "x" {
+		t.Fatalf("props = %#v, want {k: [v1;v2], k2: [x]} — the comma opened k2, the semicolon stayed content", props)
+	}
+
+	// RAW semicolon arm: the pair vanishes from the parsed query, the
+	// properties arm never engages. PUT answers the family's unknown-
+	// spelling 404; GET answers the PLAIN item body — which carries its own
+	// detail properties echo, so the discriminator is the view's absence:
+	// the plain body has repo/path/created, the properties view does not.
+	if st := doProps(t, h, http.MethodPut, base+"?properties=k=v1;v2", adminUser, adminPass); st != http.StatusNotFound {
+		t.Fatalf("raw-semicolon PUT status = %d, want the E-26 404", st)
+	}
+	resp := h.do(http.MethodGet, base+"?properties=k=v1;v2", adminUser, adminPass, nil, nil)
+	body := mustGet(t, resp)
+	drain(resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("raw-semicolon GET status = %d, want the plain item body's 200", resp.StatusCode)
+	}
+	if !strings.Contains(body, `"repo"`) {
+		t.Fatalf("raw-semicolon GET answered the properties view (no repo field): %s", body)
+	}
+}
+
 func TestStoragePropertiesRESTFamily(t *testing.T) {
 	h := newHarness(t)
 	seedRepo(t, h, "generic-local")

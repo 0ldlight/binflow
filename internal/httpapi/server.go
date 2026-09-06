@@ -182,6 +182,14 @@ type Deps struct {
 	// metadata database, gate from the license manager, cipher from the
 	// instance master key).
 	Webhooks WebhookPlane
+	// ServiceLog is the System Logs reading seam behind
+	// GET /api/v1/system/logs (M17 T-493, FR-157③). Nil self-assembles in
+	// New: a console.LogRing is created and the incoming logger wrapped so
+	// the process stream feeds it (system_logs.go's assembleServiceLog —
+	// the qrl precedent, cmd's wiring untouched). Tests may inject their
+	// own ring; a future cmd-side wiring can widen the capture past
+	// assembly-time boot lines by handing the ring to newLogger instead.
+	ServiceLog SystemLogTail
 	// Addons is the assembled addon registry (M10 T-282, ADR-0033): the
 	// compile-time literal slice cmd builds. Nil keeps GET /api/v1/addons
 	// at an honest empty array and the repo-create plane on repo.Service's
@@ -266,7 +274,11 @@ type Server struct {
 	// disabled, a pure bypass, so wiring it costs nothing; the engine takes
 	// it only when the engine itself assembles.
 	qrl *search.QueryRateLimiter
-	srv *http.Server
+	// serviceLog is the System Logs tail (M17 T-493, FR-157③): the ring
+	// the process stream feeds (New wraps s.log with the fan-out when
+	// Deps.ServiceLog is nil). Never nil — self-assembled like qrl.
+	serviceLog SystemLogTail
+	srv        *http.Server
 }
 
 // New assembles the server. deps.Console may be nil (a bare console
@@ -324,6 +336,11 @@ func New(deps Deps, log *slog.Logger) *Server {
 		}
 	}
 	s := &Server{deps: deps, log: log, adapters: adapters, mgmt: mgmt, uploads: newMPURegistry()}
+	// The System Logs tail (M17 T-493, FR-157③) attaches BEFORE anything
+	// else could log through s.log: the wrap fans every subsequent record
+	// into the ring (assembleServiceLog's Deps seam note), so the first
+	// request's access line is already inside the capture window.
+	s.log, s.serviceLog = assembleServiceLog(log, deps.ServiceLog)
 	// Instrumentation (T-163) attaches before route() runs below — the
 	// mounted /metrics handler and the base chain both read s.metrics.
 	if deps.Metrics != nil {
