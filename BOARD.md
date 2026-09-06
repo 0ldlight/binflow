@@ -1952,3 +1952,20 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 **T-465 → doing 2026-09-06 11:4x（35 票收官笔：两 P2 顺修 + goreleaser 六平台烟测 + chart 联动 + 部署三面抽检 + m16-done 收口清单成文）**：release-engineer 在途。**收口后即裁 m16-done**（tag + UAT 随里程碑 PR——CircleCI 平台恢复后复跑补证）。
 
 **用户指令 intake ㉒（2026-09-06 11:4x）：「binflow 访问地址提取为变量，由 CI 平台的环境变量传入」——已落地（`9d841da6`）**：部署步本就读 `UAT_HOST`；矩阵面残留运行时字面量全数并入同模式——过渡探测 https 目标派生 `UAT_DOMAIN`、回落派生 `UAT_HOST`（双面）；docker 腿 insecure-registries 臂随 `UAT_MATRIX_BASE`/`UAT_DOMAIN`。存余字面量仅注释与 `${VAR:-default}` 文档形（env 模式本体，平台级可覆写）。
+
+**T-465 → done 2026-09-06 13:0x（`049182a8`，+162/−4）——M16 35/35 全收官（终票：release 烟测 + 收口清单）**：D-T466-2 尾随空格修（client_base 成员测试复活——pre/post 演示定谳）+ D-T466-1 npm virtual 降级路径（ssrf SKIP 时 local-member 聚合如实记录；CI strict 恒双成员）；**两修同场一脚验证**（--docker-clients npm+maven EXIT 0——T-466 同姿态红位转绿 + 容器内 CBASE 生效实证）。goreleaser 六平台快照 EXIT 0（18 零 CGO 二进制，F1 门 112.72/120MB）+ release-verify 6/6 + sha256 对账；chart 维持 1.5.0（M15 后零提交零新面）；部署矩阵三面烟测（4 镜像 arch×变体/compose 真部署逐字节/k8s kubeconform 4/4/systemd 优雅排水）。**m16-done 收口清单成文**（报告 §5）。日志 reports/agents/T-465.md。
+
+---
+
+# 【里程碑】M16 = m16-done（2026-09-06 13:0x 裁定，conductor）
+
+**35/35 全 done + T-466 P0 终验 PASS with notes + 收口清单就绪**。战果总账：
+- **全前端 Artifactory 对齐**（intake ⑤⑧⑭）：树栈/表单/详情/搜索/安全面/监控组/帮助/i18n 双语——B 矩阵 49 行零无主（31 落/8 部分滚/豁免登记/stay-out）
+- **断言反转①~⑦全兑现**（七终裁 Q 表 13/13 闭环）
+- **FR-147/148/149/150 全栈闭合**（远端浏览/AQL 副线收尾/i18n 双语/cron 调度域）
+- **CI 三章**（intake ⑩⑮⑱）：十协议矩阵双面 10/10 + remote/virtual 覆盖 + 每 job 并行 + node24/30m/retries 确定性
+- **spool 家族六面终章**（T-474/476/477——read-only rootfs 全免疫）
+- **UAT 443/ACME 落地**（T-478——候 DNS/SG 两用户前置即活）+ **访问地址全 env 化**（intake ㉒）
+- **文档双树**（T-458 两腿 + T-470/T-472 Fern 迁移 + API tab + binflow.org 主站 + T-480 README 门厅化）
+- NFR 全门（11.4MB/126ms/502.6KB/race 37/37/e2e 385/385）
+- **挂账**：CircleCI 平台事故期（恢复后按 T-465 §5 清单 re-run 补证）；DNS+SG 两用户前置；M17 预立项窗开（ROADMAP 备稿段启用 + PM 立项流程）
