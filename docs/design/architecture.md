@@ -3086,15 +3086,26 @@ path 位 = build_name：target includes/excludes Ant 模式对 build 名生效�
 buildRepo = 逻辑键（缺省 artifactory-build-info——软缝②；不要求仓行存在、不自动建仓）。
 ```
 
-**表族主键/外键骨架**（列集字面照 build-info.md 冻结——ADR-0045 决策 2 全文含索引）：
-builds(build_name, build_number) / build_modules(+module_id——Module ID 字段，T-512 消费) /
+**表族主键/外键骨架**（列集字面照 build-info.md §3 冻结——ADR-0045 决策 2 全文含索引；Errata ④㋓：
+唯一性**四元** name+number+started+repo——同名同号不同 started 是不同 run，`?started=` 消歧，PK 建议扩
+含 started 复合唯一键，定形归 T-507）：
+builds(build_name, build_number, started) / build_modules(+module_id——Module ID 字段，T-512 消费) /
 build_artifacts(+repo_key, path → **FK nodes(repo_key, path)**——build↔制品/镜像工件关联) /
 build_dependencies(+seq, sha1, md5——不要求 nodes 可解析) / build_promotions(append-only 历史，现势 = 最新行) /
 build_properties(name, value)。migration 024 起（sqlite 先行，编号先到先得）。
 
-**REST 子集对位表**（门/形态骨架——ADR-0045 决策 6 全表）：上传 PUT / append（合并不覆盖）/ 单查 / 列表·最新 /
-批删 / promote / retention 七族；rename/diff/docker promote 独立端点/projectKey 过滤不进 M17（远期行）。
-错误面 = E-01 单形。promote 参数族（dryRun/failFast/failsOnMissingArtifacts/ciUser/properties）字面照规格票。
+**REST 子集对位表**（门/形态骨架——ADR-0045 决策 6 全表 + **Errata 2026-09-06 字面定案**）：上传
+`PUT /api/build`（name/number 在 body）/ append `POST /api/build/append/{name}/{number}`（BuildModule 数组、
+204、合并键 = module id）/ 单查（`?started=` 消歧——唯一性四元 name+number+started+repo）/ 列表两跳 +
+最新 = started 排序取首 / 批删（`?buildNumbers=&artifacts=&deleteAll=` 无 dateRange + POST /build/delete
+body 形态）/ promote / retention（`minimumBuildDate` ISO 时间戳非天数、async 缺省 true、设定≠立即删）七族；
+rename/diff/docker promote 独立端点/projectKey 过滤不进 M17（远期行）。错误面 = E-01 单形（append 404
+`Build-Info not found` 等逐字文案已冻结）。promote 门维持 w(targetRepo) ∧ r(buildRepo)——properties 随迁臂
+增判 a(targetRepo)（官方 docker promote 权限链三证）；上传覆盖臂增判 d（官方权限注记）。
+
+**档位注记（Errata ④）**：community 地板维持，依据改立「BinFlow 自有超集实现裁量」——Artifactory 侧证据
+指向 JCR/Pro 门控（openapi.yaml 随 OSS 代码库发行 ≠ 端点 OSS 档可用）；Builds 页 OSS 内容行为未实证
+（build-info.md §9 待验证 #1，活体恢复补腿）。
 
 **织入面**：webhook = eventtypes 三行 dormant→wired + Emit facet（T-510，envelope schema 零变化）；
 AQL = search 单向 import BuildSearcher（T-511——builds/modules/dependencies 三入口翻转，
@@ -3112,11 +3123,17 @@ internal/addons/slots.go                 # 第 20 槽：ID=release-bundle, Kind=
 
 import 禁令同 §26.1 增补一条：**禁止 import repo**（bundle 记录不触内容面——与 build 域分界的结构性保证；
 两新包互不 import）。门 = CapSystemWrite（创建/删除）+ CapSystemRead ∨ **Any Distribution 伪键通道**
-（Can(p, <通配桶值>, bundle_name, r)——桶值进 Can 的 repoKey 位，拼写与 Any Local/Remote 三预置同族同场，
-T-491 票内小评终裁）。三缝门控照 ADR-0032/0041 惯例（REST 403+头 / service 首行 gate func / addons.disabled
-熔断暂停不丢）。模型：bundles(bundle_name, bundle_version, state 闭集) + bundle_items(节点时点快照——sha256
-固化，清单不可变，重复版本冲突 4xx)。AQL releases/release_artifacts 入口维持 400（最小面子集注记）。
-v2 signing/Distribution 不做（Q2 出口②翻转面 = §11.52）。
+（Can(p, <通配桶值>, bundle_name, r)——桶值进 Can 的 repoKey 位；字面已锚：内部常量 `ANY DISTRIBUTION` /
+UI `Any Distribution`，终裁归 T-491 小评；ANY 家族回退链不含 bundle 域——授权须点名通配桶）。三缝门控照
+ADR-0032/0041 惯例（REST 403+头 / service 首行 gate func / addons.disabled 熔断暂停不丢）。模型（Errata
+2026-09-06 字面定案）：bundles(bundle_name ≤255, bundle_version ≤255, state 闭集子集 **COMPLETE/INPROGRESS**
+起步——Artifactory 全集 FAILED/INPROGRESS/COMPLETE/CLOSE_INPROGRESS，signature 占位列〔无签名语义 C 层
+留痕〕，type 恒 SOURCE) + bundle_items(节点时点快照——sha256 固化，清单不可变)。**冲突三态 202/200/409**
+（新建/同〔签名缺席 = 内容摘要等价〕续传/冲突或已完结——409 体 `{"status":409,"message":"Bundle already
+exists"}` 逐字）。端点族对位 `/api/release/*` 源侧族（创建 POST /api/release/bundle 显式清单子集 + 查询族
+/release/bundles…——T-513 照 release-bundle.md §1）；Distribution 侧 /api/v1/distribution/* 面外。
+AQL releases/release_artifacts 入口维持 400（最小面子集注记）。v2 signing/Distribution 不做（Q2 出口②
+翻转面 = §11.52）；档位真身 Enterprise+（MinTier=pro 系 BinFlow 裁减——翻转点两处登记于 ADR-0046 Errata ③）。
 
 ### 26.3 insights 域（internal/insights——ADR-0046 K75 会签详规）
 
@@ -3157,9 +3174,9 @@ audit 三词 insights.schedule.{set,run,fail}。
 
 | 域 | 槽位 | 依据 |
 |---|---|---|
-| build-info（REST/数据面/Builds 页） | **无槽**（community 地板——类比 AQL） | inv-2 §103 OSS openapi 在案 + inv-4 D1~D5；T-488 活体核验若翻案 → ADR-0045 勘误 + 预留 ID build-info 建槽 |
+| build-info（REST/数据面/Builds 页） | **无槽**（community 地板——类比 AQL） | **BinFlow 自有超集实现裁量（不翻案）**——Artifactory 侧证据指向 JCR/Pro 门（代码库在场 ≠ OSS 档可用，build-info.md §6）；Builds 页内容行为未实证（待验证 #1） |
 | AQL build 系入口 | 随 AQL 核心域无槽（超 OSS 档对位——子集注记） | aql.md v14（OSS 活体 400 系引擎档位差异） |
-| release-bundle | **第 20 槽，MinTier=pro（暂行）** | Artifactory RBv1/RBv2 商业档行为模式对位；T-488 核验勘误 / Q2 出口② 升 enterprise |
+| release-bundle | **第 20 槽，MinTier=pro（暂行）** | 官方明文 **Enterprise+**（release-bundle.md §6）——pro 系 BinFlow 自有裁减；翻转点两处（裁定对齐真身 / Q2 出口②） |
 
 §10 对齐表增两行（build-info 域收录 A 子集注记 / release-bundle 最小面 A 子集注记 + insights C 层自有）由
 本节承载（PM/收口笔对账引用此处，不再另表）。
