@@ -2,7 +2,7 @@
 
 > 由 product-manager 维护；tech-lead 据此把当前里程碑分解为 ticket。
 
-## 当前里程碑：M16（控制台 full-parity 收口大程——PRD **v1.1 裁定回填版**〔2026-09-02：v1.0 立项稿 + 七项终裁落章——用户四项 **Q1 引入 cron 调度域〔推翻 M15 Q5 终裁，BOARD 留痕〕/ Q3 双语可切换〔E6 翻案〕/ Q4 页码控件 / Q6 产品域进〔两程结构——M17 预立项段承载〕** + conductor 三项 Q2 E1 收紧不倒退 / Q5 路由化 / Q7 Annotate 加；两程结构：M16 = 交互 parity 主轴四批次〔树栈 P0〕+ i18n〔FR-149〕+ cron 调度域〔FR-150，ADR-0044 占位〕+ Annotate + 远端浏览 + AQL 副线，M17 预立项段 = 产品域扩张〕；**M15 收尾中**——T-423 busy 在途 + T-429 release → T-430 终验 → `m15-done` 收口窗待开〔Q1 AQL 分阶段终裁 + 未纳入项启用 + tag〕；立项稿与收尾并行纯文档零冲突）
+## 当前里程碑：M17（产品域扩张专程——Q6 两程终裁之后程；PRD **v1.0 立项骨架稿**〔2026-09-06 PM 起草，m16-done 收口窗同日开启：**两层结构** = 主轴候裁层（产品域四主目——Build-info / Release Bundle / 洞察报表 / Federation·Lifecycles，候 **M17-Q0 PRODUCT.md 修订 + M17-Q1 定容终裁**后拆票）+ 确定层（「M16 未纳入项」滚程收纳——无翻案面可先行）；**Xray 维持唯一不做**（intake ⑤）；用户裁定清单 M17-Q0~Q12〕；**M16 已 `m16-done`**〔2026-09-06 13:0x——35/35 票全落 + T-466 P0 终验 PASS with notes + T-465 收口清单；挂账三项与滚程五项见 BOARD 总账〕；立项稿与收口窗并行纯文档零冲突）
 
 ### M0 — 团队启动（已完成）
 - [x] 产品愿景 PRODUCT.md（BinFlow）
@@ -246,7 +246,7 @@
   - 引擎/运维：大仓 limit 化全枚举缝（T-420——T-423 同族）；TestEngineMixedLoad 慢机 429 介入测试健壮性（D-413-2——归 T-421 复验顺腿修或转 T-433）；真门并发饱和不可确定性（T-415——stub 同口径）；审计实例 18091 未复活待查 + :8099/:8174 跨票残留实例 hazard（环境项）；t381 事故残留清理（conductor 决定项维持——REST 删被 OSS license 门挡）；37 条 eslint ratchet warnings 清单（T-432① 底稿——清理候选票）；T-432 段二（vite 8 Rolldown + plugin-react 6）与 MUI v7→v9（触全页面，最后位）排队独立票面。
 - **沿 M14 候选池续滚（intake ⑤ 翻案语境逐条重标）**：**HA 本体**（PRODUCT.md「明确不做」——**翻案候选**：须 PRODUCT.md 修订解禁 + 单列专程 + 用户确认）；**Xray 集成面（intake ⑤ 明示排除——唯一维持不做）**；Build-info 域（AQL build 系入口前置——**翻案候选**）；制品 license 识别（AQL license 搜索前置——**翻案候选**）；Go 深化（sumdb 代理 + external 重定向）/ Terraform / GitLFS / 冷存储分层 / AI-ML 包型扩展 / license 公钥 config 覆盖（T-293 终裁③——走新 ADR）——均候 M16 立项稿与全量审计产出对账后逐条定去留。
 
-### M16 — 控制台 full-parity 收口大程：制品树栈（P0）+ 仓库表单栈 + 详情/搜索栈 + 安全/shell 栈 + i18n 双语 + cron 调度域 + 远端浏览可选档 + AQL 高级面副线（PRD v1.1 裁定回填版——2026-09-02 v1.0 立项 + 同日七项终裁落章〔用户四项 Q1/Q3/Q4/Q6 + conductor 三项 Q2/Q5/Q7〕；两程结构之前程，产品域扩张落 M17 预立项段；**v1.2 收口笔 2026-09-06**〔T-460：Q8~Q12 归位 + K67~73 回填 + B 47 项四态核对零无主 + 勘误五条 + 未纳入项备稿——详 PRD §7 v1.2 收口总账〕）
+### M16 — 控制台 full-parity 收口大程：制品树栈（P0）+ 仓库表单栈 + 详情/搜索栈 + 安全/shell 栈 + i18n 双语 + cron 调度域 + 远端浏览可选档 + AQL 高级面副线（**`m16-done` 2026-09-06**——35/35 票全落 + T-466 P0 终验 PASS with notes + T-465 收口清单，挂账三项与滚程五项见 BOARD 总账；PRD v1.1 裁定回填版——2026-09-02 v1.0 立项 + 同日七项终裁落章〔用户四项 Q1/Q3/Q4/Q6 + conductor 三项 Q2/Q5/Q7〕；两程结构之前程，产品域扩张落 M17 预立项段；**v1.2 收口笔 2026-09-06**〔T-460：Q8~Q12 归位 + K67~73 回填 + B 47 项四态核对零无主 + 勘误五条 + 未纳入项备稿——详 PRD §7 v1.2 收口总账〕）
 需求基线：docs/prd/milestone-16.md（PRD v1.1：FR-141~FR-150 十条需求〔**新增 FR-149 i18n 双语可切换〔Q3〕/ FR-150 cron 调度域〔Q1——ADR-0044 占位〕**〕；契约矩阵 LC-80~LC-98 估 19 条〔**A 17 / C 2 / 待裁 0**——v1.1 归位 LC-88 Annotate〔Q7 加〕/ LC-91 cron〔Q1 引入〕+ 新增 LC-97 i18n〔C〕/ LC-98 页码控件〔A〕〕；L35~L48；K67~K72；**§0 范围定界置于最前——v1.1 两程结构终裁落章**：M16 = 控制台交互 parity 收口〔B 偏差 47 项 + A2/A4/A5/A6/A7 部分翻案 + i18n + cron 域〕，A1 产品域扩张已裁「全部进」但落 M17 预立项段〔须 PRODUCT.md 修订 + ADR 群，候 M16 收口后 PM 正式立项〕）
 来源链：用户指令 intake ⑤（2026-09-02 00:1x 三指令：① 制品树展示仍与 Artifactory 严重偏离〔第三次 UI 加码〕② 完全检查整个前端对齐 Artifactory 所有内容 ③ 除 Xray 外不做清单全面翻案——冲突处列冲突点交用户确认）+ **M16 全量审计 workflow 产出** reports/m16-parity-audit-material.md（2026-09-02 10:0x 收官——A 翻案 8 域 66 项〔xray_tied 已剔〕/ B 活体偏差 47 项〔logic 11 · visual 17 · minor 19，t226 逐页带代码行锚〕/ C 冲突 13 项 / D 骨架建议）+ ROADMAP「M15 未纳入项」（T-427 备稿〔M16 吸收预期〕标注——双源对账勿重复立项）+ M15 Q4/Q6 终裁承接（远端浏览出口 C 批 1 / docker virtual 开禁）
 - [ ] conductor 审定 PRD（v1.0→**v1.1 已裁定回填**——必答七项 + Q13 全部落章，「待裁」零滞留）；**ADR-0044（cron 调度域）立项 + Annotate 迁移会签**（architect 前置）
@@ -264,21 +264,30 @@
 - [ ] 条件小票池：NuGet symbol 六承转正〔Q10〕/ docker virtual 开禁（T-431 滚入首票）/ E7 toast 锚位（候用户信号）/ L1 列选器推广 + Users Last Login 列（A6 部分翻案）/ license 公钥 config 覆盖 ADR / t381 残留〔Q12 conductor〕——未触发 BOARD 留痕非 DoD 缺口
 - [ ] 「M15 未纳入项」对账：双源对账（本段 vs 审计产出——勿重复立项；cron 双轨行已随 Q1 终裁推翻——本段该行历史留痕不改）；收口时建「M16 未纳入项」段（DoD#7 字面；备稿沿 T-395/T-427 先例收口窗启用——滚程项与 **M17 预立项段**对账定去向）
 
-### M17 — 产品域扩张预立项段（Q6 终裁两程结构之后程；2026-09-02 conductor 指令立段，**候 M16 收口后 PM 正式立项**）
+### M17 — 产品域扩张专程（Q6 两程终裁之后程）：Build-info 域主程 + Release Bundle 最小面 + 洞察报表（主轴候裁层）+ 「M16 未纳入项」滚程收纳（确定层）（PRD v1.0 立项骨架稿——2026-09-06 PM 起草，候 conductor 审定 + 用户裁定清单 M17-Q0~Q12 终裁）
+需求基线：docs/prd/milestone-17.md（PRD v1.0 骨架：FR-151~FR-161 十一条〔前置锚 1 + 主轴候裁层 4 + 确定层 6〕；契约矩阵 LC-99~LC-114 估 16 条〔A 12 / C 2 / 候裁 2〕；L49~L63 验收线骨架；K74~K76 候校准；**用户裁定清单 Q0~Q12——必答前置 Q0（PRODUCT.md「明确不做」修订稿终裁）+ Q1（四主目定容与分期）**；**主轴候裁层在 Q0/Q1 终裁前不拆票**，确定层可先行）
+来源链：M16 PRD §0.2/§0.3（Q6/Q13 两程结构终裁——产品域四主目用户已裁「全部进」M17，须 PRODUCT.md 修订 + ADR 群）+ **ROADMAP M17 预立项段**（conductor 2026-09-02 立段——主目/随域联动/追加候补/维持不做/容量注五要素全量吸收：主目→FR-152~155，随域联动→各 FR 腿，追加候补→Q3/Q4，维持不做→§2.2，容量注→FR-159/161 + Q6/Q7）+ ROADMAP「M16 未纳入项」（T-460 备稿，m16-done 收口窗启用——双源对账）+ BOARD m16-done 总账（挂账三项 + **滚程五项**：BE round-trip 缺口 / B-3.2 / NuGet symbol 七承 / webhook 触发源〔M16 Q11 承接〕 / build-info dormant→wired）+ ROADMAP「M15 未纳入项」续滚工程债八项 + reports/m16-parity-audit-material.md A1 域清单（xray_tied 已剔）
+- [ ] conductor 审定 PRD v1.0（组织 Q0~Q12 终裁——**Q0 PRODUCT.md 修订稿 / Q1 定容分期必答前置**；ADR-0045〔Build-info 域〕+ ADR-0046〔Release Bundle 域〕占位——主轴拆票前 Accepted；洞察聚合层架构会签）
+- [ ] 前置产物 FR-151：PRODUCT.md「明确不做」五条修订稿（PM 拟稿候 Q0 终裁——含 LDAP/SAML/OIDC 行已被 M6/M11 事实推翻的滞后修正）+ build-info.md / release-bundle.md 规格票（**官方文档为唯一行为基准——webhook.md/aql.md 先例**；t226/7.161 活体核验腿 + 档位核验）+ 7.161 参照容器修复（Q10——conductor 决策项移入，牵 M17 活体参照基线）+ ADR 群
+- [ ] FR-152 Build-info 域主程（P0 候定第一顺位——候 Q0/Q1）：build 数据模型（builds/modules/dependencies/promotions）+ REST 全链（PUT /api/build + 段 append + 查询 + promotion + retention + docker promote——端点子集归规格票锚定）+ webhook build 域事件 **dormant→wired**（滚程五项之一兑现——schema 零变化）+ AQL build/module/dependency 域随域 + `/api/search/buildArtifacts·dependency` 随域 + FE Builds 页（搜索范围页签 Builds 缺位解除）+ Module ID 字段解锁（M16 stay-out 解除）
+- [ ] FR-153 Release Bundle 最小面（候 Q2 深度裁定）：bundle 数据模型 + 创建/查询端点族（形态归规格票）+ **Any Distribution 预置解锁**（M16 B-2.16 缺位登记解除——与 FR-156 通配桶同场）；分发面深度（v2 signing / Distribution 服务对接）候裁留痕——越单仓产品边界风险类 Xray 集成面
+- [ ] FR-154 洞察报表/趋势分析（候 Q0——PRODUCT.md 第四行解禁）：聚合快照层（时序数据模型归架构会签）+ dashboard 图表族（下载趋势/存储增长/Top 仓——**dep M16 per-node 统计基建单源**，零第二计数通道；既有 dashboard 去重率口径不变）
+- [ ] FR-155 Federation/Lifecycles/Repository Path Map（候 Q1/Q8——**PM 倾向滚 M18 单列专程**：镜像联邦系引擎级架构决策 + 容量超带；裁进则最小面承载 + Cleanup-Retention 策略引擎作 Lifecycles 消费面评估）
+- [ ] FR-156 BE 表单域承接与权限域收口（确定层 P1——滚程五项之一）：configJSON 四域 round-trip（maxUniqueSnapshots/repoLayoutRef/blackedOut/archiveBrowsingEnabled——M16 T-439 漂移钉 tripwire 转正）+ 行为联动 + Stage〔原 Environments〕域承接 + K73 repoLayoutRef 布局引擎接线落定 + B-2.16 Any Local/Any Remote 通配桶 BE 语义 + B-1.7 双布尔 vs 三值枚举（ADR-0026 闭集增补评审候裁腿 M17-Q11）+ B-3.2 初始态首仓库自动选中（M16 翻正未落滚程承接）+ Users Last Login FE 列（T-468 条件票收编）
+- [ ] FR-157 契约漂移勘误族（确定层 P1）：GET /api/repositories `url` 缺 /binflow 前缀（M1 既有）/ FileInfo.downloadUri 下载语义 / **System Logs 服务进程日志端点缺位（BE 端点票——T-458 文档「如实注记」解除）** / ?properties 分号矩阵语法注记 / NodeDetail useAsync 重复发射纯浏览多计下载
+- [ ] FR-158 cron/i18n 遗留（确定层 P2）：gc-cron-gap 三载体（Quota 百分比 / Compress Internal Database / Prune Unreferenced Data）+ 远端枚举快照 TTL wire 可调 + 语言切换器位置 ux 复核 + faq 两问
+- [ ] FR-159 webhook 域二程 + Replay/outbox 行级 REST 并轨（确定层 P1——滚程五项之一，候 M17-Q5 终裁〔M16 Q11 承接〕）：dormant→wired 翻转与触发源裁剪出口（ADR-0041 决策 7）+ Replay/死信重放行级 REST 面（机制已备翻转面小）
+- [ ] FR-160 工程债与续滚收尾包（确定层 P2）：M15 续滚工程债八项（aql.md V-a~V-h 活体 / 相对时间 `"1d"` 空格冲突 / compact 非空行体 / 429 Retry-After 上 UI / virtual echo config blob / 大仓 limit 化全枚举缝 / 37 条 eslint ratchet / vite 8 + MUI 段二）+ Annotate write 别名移除评估（K68 登记）+ dry-run CLI 挂点 + QRL 三遗留（audit 词 / LOW_PRIORITY 桶 / V-m 对拍）+ migration 011 flake + X-Explode staging 同族迁移 + migrate CLI 低危 + 文档漂移四条（m16-done 尾波文档票可能已顺带清偿——票内核对增删）
+- [ ] FR-161 virtual 成员同型全包型推广（候 M17-Q6 容量裁定——13 包型 × 三 rclass 全量回归矩阵，复用 M16 十协议矩阵基建）
+- [ ] QA：L49~L63 + 真实客户端矩阵（Build-info REST + jf CLI 条件腿 + docker promote 真实 push/pull + 十协议复跑）+ 断言反转与缺位解除归位审计（System Logs 注记 / Module ID / Any Distribution / Builds 页签四缺位解除）+ M1~M16 P0 双形态全量回归；tech-writer（Build-info/Release Bundle/洞察报表指南 + 缺位解除用户可见公告 + cron/i18n 增量）；release 烟测 + UAT 随里程碑 PR
+- [ ] 条件票池（不占 FR 行）：NuGet symbol server **七承**（用户点名即翻）/ E7 toast 锚位（候用户信号）/ Tokens 字段集补核验（候商业版/云活体源）/ license 公钥 config 覆盖 ADR（候立项）/ B-2.8 有效权限 AG 网格（候用户信号）——未触发 BOARD 留痕非 DoD 缺口
+- [ ] 「M16 未纳入项」对账：双源对账已随立项稿完成首轮（产品域项归 M17 候裁层、滚程项归确定层/条件池——勿重复立项）；收口时建「M17 未纳入项」段（备稿沿 T-395/T-427/T-460 先例收口窗启用；M18+ 候选第一顺位 = Q1/Q8 裁出态〔Federation/Lifecycles 或其残余〕）
 
-> **前置门槛（未发生即不启动）**：PRODUCT.md「明确不做」修订解禁（用户动作）+ ADR 群 + M16 收口（`m16-done`）。本段为预立项登记——不派票、不占 M16 容量；M17 立项稿（PM）据此起草，范围定容时与「M16 未纳入项」双源对账。
+### M16 未纳入项（滚入 M17+ 候选池；T-460 起草 2026-09-06，**已启用——m16-done 收口窗 PM 启用笔 2026-09-06**；DoD#7 对账）
 
-- **主目（conductor 两程结构指令列定）**：Builds / Build-info 域（PUT/append/查询/promotion/retention + docker promote）、Release Bundle 域、洞察报表 / 趋势分析图表、Federation / Lifecycles（含 Release Lifecycle 细分面）。
-- **随域联动解锁面**：AQL 六域（build/module/dependency/promotion/releasebundle/sensitive）、`/api/search/license·dependency·buildArtifacts`、D3 依赖树、Module ID 字段、Any Distribution 预置、Repository Path Map 管理面。
-- **追加候补（A1 同族、本轮未点名——M17 立项稿定容）**：HA 高可用本体、Artifactory 全量 REST 兼容（高频子集承诺退让边界）。
-- **维持不做**：Xray 集成面（intake ⑤ 明示唯一排除——Q6 终裁不改变）。
-- **容量注**：Replay+outbox 行级 REST / virtual 同型全包型推广 / Go·Terraform·GitLFS·AI-ML 包型域 / Cleanup-冷存储等 M16 让位滚程项，M17 立项时与产品域主目统一排程对账。
-
-### M16 未纳入项（滚入 M17+ 候选池；T-460 起草 2026-09-06，**备稿——m16-done 收口窗启用**；DoD#7 对账）
-
-> **状态：备稿（PM 预备文本——沿 T-395/T-427 先例）**，以 2026-09-06 票据状态为基线起草（M16 31/35 + 收口笔在途；T-465 release / T-466 终验未跑，票外工程票 T-469~T-480 系在册），conductor 终验后启用并按届时 as-built 修订勾稽——在途票遗留以届时报告为准增删。
+> **状态：已启用（m16-done 收口窗启用笔，PM 2026-09-06——沿 T-395/T-427 先例）**。as-built 勾稽：M16 **35/35 全 done**（T-466 P0 终验 PASS with notes + T-465 收口清单成文——`m16-done` 2026-09-06 13:0x conductor 裁定，BOARD 总账在档）；起草基线（31/35 + 收口笔在途）之后新增落定：**B-3.2 conductor 未裁插空 → M17 FR-156 承接**；挂账三项（CircleCI 平台事故期 re-run 补证 / DNS+SG 两用户前置 / M17 预立项窗开——**第三项随 M17 立项兑现**）；票外工程票 T-469~T-480 系多数已落（CI 三章 / spool 家族六面 / 文档双树 Fern 迁移 / UAT 443·env 化——见 m16-done 总账），残余候票项已并入 M17 FR-160 / M17-Q10 / 条件池（文档漂移四条可能已顺带清偿——FR-160 票内核对增删）。
 >
-> **M17 衔接核对（T-460，2026-09-06）**：PRODUCT.md「明确不做（第一版）」五条**原样未修订**（HA / Xray / LDAP·SAML·OIDC / 洞察报表 / 全量 REST）——**M17 前置门槛（修订解禁）未发生，M17 维持预立项段不启动、不派票**；本段与 M17 预立项段双源对账——产品域项归 M17 段（本段不重复），本段承载 parity 残留 / 契约漂移 / 条件票 / 滚程项 / 工程遗留。
+> **M17 衔接（启用笔更新）**：**M17 已正式立项**（PM 2026-09-06 立项骨架稿 `docs/prd/milestone-17.md`——预立项段转正为 M17 章，五要素并入其来源链）；双源对账完成：产品域项归 **M17 主轴候裁层**（FR-152~155——Build-info / Release Bundle / 洞察报表 / Federation·Lifecycles），本段 parity 残留 / 契约漂移 / 条件票 / 工程遗留归 **M17 确定层与条件池**（FR-156~161）。**PRODUCT.md 修订门槛仍在**（五条原样未修订——M17 章 Q0 承载修订稿候裁；主轴候裁层在 Q0/Q1 终裁前不拆票）。
 
 - **B 偏差收口残留（parity 面——T-460 四态核对终态，49 行详表 reports/agents/T-460.md）**：
   - **B-3.2 初始态**（首仓库自动选中 + item view）——**翻正未落滚程**（FR-142.5 登记、批次①③ 均未承载；FE lane 收官无票位）——M17+ FE 小票候选；conductor 亦可裁 m16-done 前插空单票；

@@ -1969,3 +1969,23 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **文档双树**（T-458 两腿 + T-470/T-472 Fern 迁移 + API tab + binflow.org 主站 + T-480 README 门厅化）
 - NFR 全门（11.4MB/126ms/502.6KB/race 37/37/e2e 385/385）
 - **挂账**：CircleCI 平台事故期（恢复后按 T-465 §5 清单 re-run 补证）；DNS+SG 两用户前置；M17 预立项窗开（ROADMAP 备稿段启用 + PM 立项流程）
+
+**M17 立项双裁（2026-09-06 13:5x，用户 AskUserQuestion）**：**Q1 = 三域进 RB 滚（推荐案采纳）**——Build-info P0 + Release Bundle 最小面 + 洞察报表进 M17；Federation/Lifecycles 滚 M18 单列专程；票估 32~40。**Q0 = 候用户逐条审**（PRODUCT.md 五条修订建议表——PRD §0 为底稿；Xray 维持不做）——Q0 文本裁定前主轴派单以 Q1 裁定为准（范围已用户亲裁），PRODUCT.md 改写候审。M17 立项稿 `f9695706`（FR-151~161 + LC-99~114 + Q0~Q12 清单）。
+
+**用户终裁 Q0（2026-09-06 14:0x）：「除了 2 不做，剩下的都做」——PRODUCT.md 五条排除项除 Xray 外全数解禁**。两条超 PM 倾向翻案落定：**#1 HA/Federation 进产品路线**（复制已实现补账 + Federation/HA M18+ 候排程——与 Q1 裁定衔接）；**#5 Artifactory 全量 REST 兼容进产品范围**（分程分批交付、/api/v1 并行保留——Q4 终裁随之关闭为「进」；Q3 HA 亦闭）。#3 LDAP/SAML/OIDC 滞后补账（M6/M11 已实现）；#4 洞察报表 M17（FR-154）。PRODUCT.md 已改写（唯一排除=Xray + 范围演进记录段）。**M17 立项边界全清——拆票解锁**（主轴三域 + 确定层六 FR + 全量 REST 兼容作为跨切程入 M17+ 排程）。
+
+**M17-SPLIT 收编（2026-09-06 14:5x，`15fefc13`，426 行）——35 票 T-488~T-522（P0×8/P1×18/P2×9），波次 W0~W17**：前置锚 2 + 确定层先行批 9（滚程五项收口）+ 主轴三域 10（Build-info 六票串行链=关键路径）+ **全量 REST 跨切程首程 4 票**（T-503 差距清单矩阵——158 ops × 全量面四态对账 + 三带票）+ Federation/HA M18 预留（T-519 registry 段）。断言反转①~⑥归属 + 五收口票齐备。移交六项（REST 跨切 PM 增补 FR-162+ / Q2Q5Q6 W0 同裁窗 / 洞察快照归属 / promote FE 入口 / 保留段核对 / vite8 回退口径）。
+
+**M17 W0 开波（2026-09-06 15:0x，双 lane 前置锚并行）**：**T-488 → doing**（reverse-engineer：build-info.md + release-bundle.md 两规格 + aql build 域增量——Q10 活体探活先行，坏则降级 t226 单源）；**T-489 → doing**（architect：ADR-0045/0046 + 洞察聚合会签 K75 + B-1.7 评审腿——与 T-488 软协作对齐）。
+
+**T-489 → done 2026-09-06 15:4x（`4414a3e1`，+344/−1）——M17 1/35（W0 锚②：ADR-0045/0046 Accepted + 洞察会签 + B-1.7 评审）**：ADR-0045 五轴（**ACL=仓库级 allow() 同源 K74 关闭**；promote 门 w(target)∧r(build)；六表族 DDL+nodes FK；REST 七族子集〔rename/diff/docker 独立端点不进 M17〕；import 禁令式织入）+ ADR-0046 七轴（bundle 最小面 + **第 20 槽 release-bundle〔MinTier=pro 暂行带翻转点〕** + Any Distribution 伪键通道；**K75 会签**=internal/insights 定名 + scheduler 第 4 域扩列 + boot 默认行 + 四指标族白名单 + K69 对账面；storageinfo 预裁不合体）+ **B-1.7 维持三值枚举 + tripwire 登记**。架构 §26 新章 + 包树三新包。**软缝协议**（T-488 规格未落盘先行——两 ADR 内嵌对齐清单 10+8 项 + 勘误回填路径 + 效力序；Accepted 期差异表候 T-488 对拍）。两暂行值翻转点在册。日志 reports/agents/T-489.md。
+
+**T-488 → done 2026-09-06 16:5x（`b76a9316`，5 文件 +479/−1）——M17 2/35（W0 锚①：两规格 + AQL build 域增量）**：30 端点/12 流程/13 模型规则，置信度逐条（高 48/中 20/低 19 零静默升格）+ 17 条候活体验证。**Q10 双降级定谳**：两容器均不可修复（pro router 不起/oss pg 配置级坏）——t226 单源亦落空，实际基线=**三书面源**（产品内嵌 OpenAPI 996 行 + 反编译 + 官方 docs 实取）。**对拍出 ADR 勘误 E1~E8**（ADR-0045 三处骨架字面/ADR-0046 端点锚+冲突三态+Enterprise+）——T-489 agent 已复活回填中。日志 reports/agents/T-488.md。
+
+**W0 齐 → W1 开波（2026-09-06 17:0x，双 lane + 回填腿）**：**T-490 → doing**（dev-go-core：configJSON 四域 round-trip + Stage 域 + K73 落定——T-439 tripwire 转绿）；**T-503 → doing**（reverse-engineer：REST 差距矩阵——158 ops × 全量面四态 + 首程三带冻结，跨切程锚）；**T-489 回填腿**（软缝 E1~E8 → 两 ADR 修订段）。
+
+**T-489 回填腿 → done 2026-09-06 17:1x（`b2034f8c`，+70/−12）——软缝全闭（E1~E8 落两 ADR 勘误节）**：ADR-0041 勘误体例（原行保留作废-替换标注）。ADR-0045 四修正+三增补（PUT /api/build 无路径〔PRD FR-152 AC1 与 T-508 骨架作废〕/POST append 合并键 module id/批删参数族/minimumBuildDate/唯一性四元/properties 随迁 a(targetRepo)/覆盖臂 d）；ADR-0046 四修正（/api/release/* 真锚/冲突三态 409 逐字/Enterprise+ 真身——pro 裁减维持双翻转点）。机制轴零翻动；十+八软缝清单全闭。下游联动五条留痕（T-507/508/509/513 派单附注 + L50/L51 命令行）。
+
+**T-503 → done 2026-09-06 18:2x（`07f870e1`，+503 行）——M17 3/35（W1 票②：全量 REST 跨切程差距矩阵——活体 registry 立）**：官方三索引 653 条目 × Fern 158 ops（直接对位 119/别名变体 19/纯超集 20）——14 域四态 + 每域 P0 修复优先排序；**三带行集冻结 v1**（13+14+13，差异修复行全前置，A 层+置信度：高 137/中 58/低 0）；backlog 八批（M18+ 载体，B-18a↔T-519 Federation 衔接）。**关键定调**：官方已迁 users/tokens 主面至 Access API——Artifactory 路径族=A 层对位、Access 面登记缺位；license 腿 ⛔（Q9）。T-488 零重复（18 指针行）。解锁 T-504/505/506。日志 reports/agents/T-503.md。
+
+**T-478 切换完成（2026-09-06 18:5x——用户 DNS 落地 + conductor 手动执行远程腿）**：用户通报「uat.binflow.org 已通」→ DoH 实证 A 记录 → 52.79.109.153。CircleCI 平台事故挡部署步 → **conductor 经 ~/.ssh/binflow-uat.pem 直连手动执行 uat-proxy.sh 远程腿**（caddy 安装/配置渲染/validate/enable/ufw/探针）：ACME 首试背压冲刷后签发成功——**https://uat.binflow.org/healthz 200 + 认证 API 应答（uat.9c5c194）+ http→308 跳转**，本机 TUN 代理旁路外部实证。**SG 80/443 实为已开**（ACME 得以完成自证）。CI 双面过渡探测将自升 https（自设计）。T-465 收口清单的「平台恢复后复跑」项现含 https 面全链验证。

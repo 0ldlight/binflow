@@ -442,3 +442,88 @@ BinFlow 基座（architecture §15.3 + migrations 001/013）：`nodes(repo_key, 
 - 反编译：`aql/model/AqlPhysicalFieldEnum.java`（statistics 十字段 + defaultResultField 旗标）、`rest/resource/search/types/{UsageSinceResource,CreatedInRangeResource,AnyDateInRangeResource,GenericSearchResource}.java`、`api/rest/search/{result/LastDownloadRestResult,common/RestDateFieldName}.java`、`search/{SearchServiceImpl,stats/LastDownloadedItemsSearcherUtils}.java`、`rest/resource/system/{QueryRateLimiterResource,RateLimiterResource}.java`、`throttling/qrl/**`（type/{Enabled,Simulation,Disabled}QueryRateLimiter + QueryRateLimiterFactory + service/QueryRateLimiterServiceImpl + metrics/{QueryRateLimiterMetricsJob,QueryRateLimiterMetricProvider}）、`throtlling/{common/model/RateLimiterConfig,qrl/model/QueryRateLimiterMetrics,qrl/enums/QueryRateLimiterType}`、`common/ConstantValues.java`（qrl* / search* / limit.search.results.in.dates.range 键）、`ui/rest/resource/artifacts/search/{ArtifactSearch,StashSearchResults,SyntaxSearch,SearchResults}Resource.java`、`addon/search/packages/rest/PackagesSearchResource.java`
 - 既有活体证据（T-407 会话 2026-09-01 引用）：`reports/agents/t407-evidence/v16-stats-fields.txt`（stats 嵌套输出）、`v8m-usage-epoch-hit.txt`（五字段行逐字节）、`v8n-usage-empty-404.txt`、`v8k-creation-epoch-hit.txt`、`v8l-creation-empty-404.txt`、`v8o-dates-empty-404.txt`
 - t226 状态（2026-09-03）：不可达（TUN 路由断），零接触零残留（未建立任何会话）——保留态无从扰动；恢复链待环境修复后按 T-381 §0 执行。
+
+---
+
+# M17 增量段（Build-info 域前置锚，T-488，2026-09-06）
+
+> **定位**：builds / modules / dependencies 三入口字段集（T-511 实现面；§2.1 表 build 系行的展开）+ build 系 include/sort 联动 + `artifacts(build)` / `build.promotions` 入口处置注记（M17 面外维持 400——翻转点留痕）+ `/api/search/buildArtifacts`·`dependency` wire 锚（§8.2 两行的展开）。主文档 §0~§13 为 M15 冻结面、§14 为 M16 增量段，本段不改动其条文。
+>
+> **取证状态（如实登记）**：活体腿连续第二轮降级——t226 本轮直接探活三度失败（容器恢复链执行后 access→PG 连接拒绝持续，修复尝试与终态见 `reports/agents/T-488.md` §0），**本段零新增活体**。字段集以「反编译字段枚举（`AqlPhysicalFieldEnum` 逐字）+ 官方 aql-entities-fields-reference 字段表」双源锚定（高）；include/sort 联动以官方语法页 + 反编译 parser 元素双源（高）；既有 t226 活体证据（T-407 会话 2026-09-01）仅覆盖「build 系入口 OSS 400」臂（§2.1 已冻结），本段直接引用。**零静默升格**。
+
+## 15.1 三入口字段集（§2.1 build 系行展开；置信度：高——反编译枚举 + 官方字段表双源互证，逐字段对拍一致）
+
+| 入口域 | 字段 | 类型 | 默认输出 | 语义 |
+|---|---|---|---|---|
+| `builds` | `url` | String | ✔ | CI server URL |
+| `builds` | `name` | String | ✔ | build 名 |
+| `builds` | `number` | String | ✔ | build 号（字符串，非整数） |
+| `builds` | `started` | Date | ✔ | 开始时间（**immutable**——promotion/replication 不改，官方明示） |
+| `builds` | `repo` | String | ✔ | build-info 仓 key（缺省 `artifactory-build-info`） |
+| `builds` | `created` | Date | ✔ | 入库时间 |
+| `builds` | `created_by` | String | ✔ | 上传者 |
+| `builds` | `modified` | Date | ✔ | 最后修改时间 |
+| `builds` | `modified_by` | String | ✔ | 最后修改者 |
+| `builds` | ◆`id` | long | ✘ | 内部 id（反编译补官方，§2.2 同款 ◆ 标记） |
+| `modules` | `name` | String | ✔ | 模块 id |
+| `modules` | ◆`id` | long | ✘ | 内部 id |
+| `dependencies` | `name` | String | ✔ | 依赖 id（GAV 等） |
+| `dependencies` | `scope` | String | ✔ | 依赖 scope |
+| `dependencies` | `type` | String | ✔ | 依赖类型 |
+| `dependencies` | `sha1` | String | ✘ | — |
+| `dependencies` | `md5` | String | ✘ | — |
+| `dependencies` | ◆`id` | long | ✘ | 内部 id |
+
+**域模型对应**（build-info.md §3.2 表族直投影）：`builds` 行 = `builds` 表；`modules` = `build_modules`；`dependencies` = `build_dependencies`（`dependency_scopes` 列串行化）。默认输出语义：builds 域**九字段全默认**（官方 query-output 页例证子集 url/name/number/created/created_by——例证不完整，全集以枚举 defaultResultField 旗标为准，高）。
+
+## 15.2 build 系 include/sort 联动（置信度：高——官方语法/输出页 + 反编译 parser 元素双源）
+
+- **跨域路径必须从主域全路径书写**（官方规则）：`builds.find()` 内 → `module.dependency.item.*`（例：`builds.find({"module.dependency.item.@license":{"$nmatch":"Apache-*"}})`）、`module.artifact.item.*`（例：`builds.find({"module.artifact.item.name":"artifactory.war"})`）、`@key` 直挂 build 属性（例：`builds.find({"@os":{"$match":"linux*"}})`）。
+- **items 入口反向穿越**（官方例证，高）：`items.find({"artifact.module.build.name":{"$eq":"X"},"artifact.module.build.number":{"$eq":"N"}})`——制品经 module↔build 关联反查 build 维度（BinFlow T-511 的 items→build 关联投影锚）。
+- **include 抑制语义**（官方）：未在 include 中点名的嵌套域字段不回显（module/artifact 域字段默认抑制）；include 任一主域字段即覆盖主域默认集；只 include property/stat 类时主域默认仍回显（§14 前同款规则，build 域同适用）。嵌套写法用点路径（`"module.artifact.item.name"` 形态）。
+- **sort/offset/limit**：build 域字段可入 `sort({"$asc|$desc":[…})`（官方通用规则，无 build 专属限制）；`.delete()` 恒 items-only、`.update()` 恒 properties-only（build/module properties 明确排除于 update 域——官方）。
+- **权限**（官方，高）：**build 域查询须 admin**（scoped token 可解锁）——比 item 域严。BinFlow 对位 = BuildScope 服务端可见集 + 行级复核（ADR-0045 点 8，BinFlow 无 admin-only 强门——非 admin 用户经 build 权限可见集过滤，§6 行级过滤口径同源）。
+- **版本面**：build/promotion 域自 6.0.0/7.0.0 可用（官方域可用性表）。
+
+## 15.3 面外入口处置注记（M17 维持 400——翻转点留痕）
+
+| 入口 | M17 处置 | 翻转点 |
+|---|---|---|
+| `builds` / `modules` / `dependencies` | **T-511 落地开**（§2.1「远期 dep」行随 build-info 域立项翻转——FR-152） | T-511（本段字段集即其冻结输入） |
+| `artifacts(build)`（`build_artifacts` 表域：name/type 默认 + sha1/md5/id） | **维持 400**（unsupportedDomains 闭集行不撤）——artifact 数据面已在 build_artifacts 关联表，但查询入口 M17 不开 | M18+ 评估（ADR-0045 点 8 注记：promotion 数据面已备、查询面 M17 不开——artifact 入口同姿态） |
+| `build.promotions`（六字段：created/created_by/status/repo/comment/user，全默认输出） | **维持 400**（同上） | M18+ 翻转点在册（ADR-0045 点 8 明示） |
+| `build.properties` / `module.properties`（key/value + id） | **维持 400**（同上；properties 数据面 build_props/module_props 已备） | 同 `artifacts(build)` 批次 |
+| `releases` / `release_artifacts` | **维持 400**（ADR-0046 点 2：最小面不开查询入口） | 出口②/Q2 终裁联动 |
+
+## 15.4 `/api/search/buildArtifacts`·`dependency` wire 锚（§8.2 两行的展开）
+
+**`POST /api/search/buildArtifacts`**（RolesAllowed user/admin；Consumes `application/vnd.org.jfrog.artifactory.build.BuildArtifactsRequest+json` 与裸 json）：
+- body：`{buildName*, buildNumber XOR buildStatus}`（二者互斥）。
+- 逐字错误文案（反编译，中置信——文案单源；OSS 400 Pro 门为 t226 活体高）：
+  - 缺名 → 400 `Cannot search without build name.`
+  - 号/状态双缺 → 400 `Cannot search without build number or build status.`
+  - 双给 → 400 `Cannot search with both build number and build status parameters, please omit build number if your are looking for latest build by status or omit build status to search for specific build version.`（含产品原文拼写「your」——BinFlow 复刻与否归 T-511 文案裁定，默认照抄保 parity）
+- 命中 → 200 `{"results":[{"downloadUri":"…"}]}`（**downloadUri 键**——与 artifact 搜索的 uri 键不同，BinFlow 不得混用）；空 → 404 `Could not find any build artifacts for build '<name>'[ number '<n>'| status '<s>']`（NotFoundException）。
+
+**`GET /api/search/dependency?sha1=&sha256=&buildRepo=&project=`**（user/admin）：
+- 按 checksum 反查依赖该制品的 build；`buildRepo` 缺省走 preferred-build-info 仓解析（缺省 `artifactory-build-info`）。
+- 命中 → 200 `{"results":[{"uri":"…"}]}`（uri 键——指向 build 信息形态）；非法参数 → 400 BadRequestException 信封。
+
+两端点的 OSS 档姿态：**400 Pro 门**（§8.2 t226 活体 2026-09-01 已冻结——GET 405/POST 400 文案同族）；BinFlow 无许可门按官方全集对齐（§8.2 档位口径），随 T-511 开放。
+
+## 15.5 增量段待验证清单（零静默升格）
+
+| # | 条目 | 现置信度 | 验证路径 |
+|---|---|---|---|
+| V-p | builds 域默认输出全集（九字段）的活体回显（官方例证仅五字段子集） | 高（枚举）/中（活体） | 活体恢复后 `builds.find({"name":{"$match":"*"}})` 观测默认回显列 |
+| V-q | build 域 admin-only 门的非 admin 实弹（403 形态/文案） | 高（官方声明）/低（形态） | 活体恢复后非 admin token 探针 |
+| V-r | `buildsNumbers` 排序保证（§1 build-info.md 待验证 #4 同源） | 中 | 活体恢复后多 run 语料观测 |
+| V-s | buildArtifacts 搜索 body 是否收 `transitive` 等额外字段（请求模型在外部库未反编译） | 低 | 活体恢复后 body 探针（错误臂可测：非法字段观察 400 容忍度） |
+| V-t | `artifacts(build)` 入口在 pro 档（7.161）的独立可用性（与 builds 入口是否同门） | 中（枚举在场）/—（未活体） | pro 基线修复后探针 |
+
+## 15.6 增量段取证锚点（2026-09-06 会话）
+
+- 反编译：`aql/model/AqlDomainEnum.java`（13 入口域与 subDomains 签名）、`aql/model/AqlPhysicalFieldEnum.java`（builds/modules/dependencies/artifacts/buildPromotions/buildProperties/moduleProperties 字段 + defaultResultField 旗标 + ID_FIELDS 闭集）、`storage/db/aql/parser/elements/high/level/domain/build/{BuildDomainsElement,BuildPhysicalFieldsElement,BuildLogicalFieldsElement}.java`（build 域 fork 结构：本域字段 + build.properties/build.promotions/modules 三子域）、`rest/resource/search/types/{BuildArtifactsSearchResource,DependencySearchResource}.java`（逐字文案）、`api/rest/search/result/DependencyBuilds.java`、`postgresql/postgresql.sql`（builds 表族 DDL——字段集对照）。
+- 官方（docs.jfrog.com/artifactory/docs，2026-09-06 实取）：`aql-entities-fields-reference.md`（build/module/dependency/artifact/promotion/release 字段表）、`artifactory-query-language.md`（域可用性 6.0.0/7.0.0 + admin 门 + 附着域清单）、`aql-syntax.md`（跨域全路径规则 + delete/update 域限制）、`aql-query-output.md`（include 抑制 + build 默认回显例）、`aql-examples.md`（`artifact.module.build.*` / `module.dependency.item.*` / `@os` 三例）。
+- 既有活体证据（T-407 会话 2026-09-01 转引）：build 系入口 OSS 400 parse error（§2.1 `v14` 锚）+ 两搜索端点 400 Pro 门（§8.2）。
+- 本轮活体：零（双基线损坏——t226 三度探活失败 + pro 7.161 两度；详见 `reports/agents/T-488.md` §0。**容器终态 = 全部复原 stopped，零残留**）。
