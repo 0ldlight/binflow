@@ -1934,3 +1934,38 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 **develop 对齐事件（2026-09-06 02:0x）**：远端现 main→develop 合并 `cfae1868`（来源 CI 侧对齐——含 dependabot actions v7 系保留于 main 的链），本地 `c24b7f97` 合并对齐后上行完成。
 
 **T-479 → done 2026-09-06 02:2x（`003452bd`，+1,054/−6）——intake ⑳ 兑现（矩阵十腿增 remote+virtual 面）**：753→1,537 行——每腿 remote 段（真实公共上游钉版拉取：MISS→HIT 缓存冻结 + sha256/digest 对账）+ virtual 段（local+remote 聚合 §8.5 Resolved-From + helm _external 折叠 + C5 405 逐字）。离线守卫三态（lax SKIP/strict FAIL/可达放行）。**5 腿活体验证绿**（npm/pypi/go/helm/generic）；余 5 腿引擎级断言设计期活体过（候 CI 首跑实证）。CI 双面零 config 变更（单源自流）。**文档漂移两条登记**：docker-registry.md「virtual 暂不做」过时（活体 200+聚合证伪）；golang.md virtual "members" 笔误（canonical=repositories，实测 400）。同票携 T-478 env 注释与报告补收。日志 reports/agents/T-479.md。
+
+**T-464 → done 2026-09-06 05:0x（`34827840`，23 文件 +2,590/−2,015）——M16 30/35（B16 波尾：en 双包 + 切换器 + 断言双语化——断言反转⑥收口，FR-149 全栈闭合）**：en 1,971 键全填（Artifactory 术语对齐）+ 侧栏脚切换器（ToggleButtonGroup zh/en + aria-pressed）+ formatAuditTime/formatCount locale 化 + formatStamp en 变体 + TokensPage mintedAt 随 locale + t464 双语 spec 五腿（往返持久化/7 页抽样/日期正则/术语保真/axe 双 locale）+ regen-catalogs 保值化。assert-i18n 同构闸过（2,583 点/1,971 键）；zh 回归抽样 78P；catalogs chunk 35.8→73.0KB gz（投影内），zh 用户零字节不变。日志 reports/agents/T-464.md。
+
+**T-480 → done 2026-09-06 05:0x（`82da959e`，649→200/194 行 −69%/−70%）——intake ㉑ 兑现（README 门厅化）**：六大里程碑叙事段/五 M-号章/内部流程链接表/curl 长廊/make 全表/213 链接矩阵全数退位 Fern 站；grep 双语零迭代残留自证；51 相对链接核验；快速开始真机实跑全链。**事实纠偏两处**：13 包型（非 12——slots.go+Fern 口径）；docker virtual 三仓型齐备（validate 矩阵+活体 200 证伪旧文「未交付」）。遗留：docker-registry.md/fern docker.mdx 旧口径翻新（他域登记）。日志 reports/agents/T-480.md。
+
+**CircleCI 事件三连修（2026-09-06 03:5x~05:3x，用户指令「circleci 报错解决一下」）**：① deploy_uat publickey 拒 = **键安装步序在 proxy 后 + proxy 键 pattern 窄**（id_rsa_* 漏 ed25519_uat）→ 步序前移 + 宽 pattern + 硬失败指引（`2ce0e7ae`）→ **deploy_uat ✅ 实证绿**；② 十腿全灭 HTTP 000 = **基地址默认已翻 https 而 DNS 未就绪**（守卫只盖了 proxy 步）→ 双面动态探测回落 8080（`f5de8590`）；③ 回落轮 FATAL BASE 未设 = **自伤一处**（printf 转义误留——BASH_ENV 写入字面 ${BASE}）→ 一字符修（`8de042fb`，合 main f43d67bb）。**当前阻断 = CircleCI 平台事故**（build "Task information unavailable"×2 连 infrastructure fail——runner 分配故障，非代码）——下轮重试。**TLS 443 就绪仍候用户两项**：DNS A 记录 + AWS SG 80/443。
+
+**T-458 腿② → done 2026-09-06 06:5x（`297cd303`，20 文件 +855/−75）——T-458 两腿齐 → M16 31/35（文档票全闭合）**：新增 whats-new.md（用户可见变化公告——E 系翻案+cron 推翻+i18n 双语逐一明示，零票号零里程碑号 grep 自证）+ admin/cron-scheduling.md（Quartz 六域/维护三槽/定时备份/复制双轨/报错对照）双树镜像 + 导航/侧栏配准。console.md 导航 18 条目图 + 监控组指南（System Logs 审计承载如实+端点缺位注记）+ 远端浏览可选档 + 预埋节转正 + 有意不兼容表 cron 行翻转；**七处「无用户级 cron」陈旧句两树翻正**；api-reference +3 行 + 腿①断链修复。全部 API 示例 scratch 实例逐条实测（pro 探针自铸 2 天 license 测毕还原 community）；make docs 本机过（终轮零 WARNING）；fern slug/锚点对账零新断链。**conductor Fern 重发布**：自定义域 binflow.org 成主站 + 旧域并行——whats-new 页 200 实证（中文 slug）。遗留：System Logs 进程日志端点缺口（文档如实注记）；切换器位置候 ux 复核；faq 两问候选未入。日志 reports/agents/T-458-leg2.md。
+
+**T-460 → done 2026-09-06 07:2x（`0d6e8efb`，3 文件 +167/−13）——M16 32/35（PM 终裁收口笔）**：PRD v1.2——**Q 表 13/13 闭环**（Q8 as-built 裁①；Q9 九倾向全兑现；**Q10 条件窗关闭**〔NuGet symbol 滚 M17+，零触发信号，用户点名即翻〕；Q11 裁点未至滚 M17+〔与 build-info dormant→wired 联动〕；Q12 移交）；**B49 行终态零无主**（31 落/8 部分/1 滚/4 豁免登记/2 stay-out/3 去重——B-2.8 豁免·差异登记 + B-3.2 滚程留插空窗）；K67~K73 回填（K73 新行纠 K70 误挂）；勘误五条。ROADMAP M16 未纳入项备稿（m16-done 窗启用）+ M17 门槛核对（PRODUCT 五条未修订——预立项维持不启动）。**移交 conductor 六项**（B-3.2 插空/t381 处置/Q10 不转正报备/7.161 容器修复/T-466 输入告知/T-437 两命令门代跑——末项已注入 T-466 派单）。日志 reports/agents/T-460.md。
+
+**T-466 → doing 2026-09-06 07:3x（P0 终验——里程碑收官门）**：qa-engineer 在途。DoD 八条证据 + L44 审计核对 + 净窗全量回归（四门+e2e CI 同参+双 locale a11y）+ 十协议 local 矩阵（净实例）+ T-437 两命令门代跑 + 契约缺位清点。
+
+**T-466 → done 2026-09-06 11:3x（`d4342230`）——P0 终验 PASS with notes，m16-done 可裁**：DoD 8/8 证据齐（L44 审计 49=49 零无主对账 / 断言反转七归属全 M16 / FE 变更面 20 提交零无主 / 16 纯 FE 票服务端 diff=0）；race 37/37 solo 绿（首跑超时系参数失误 solo 定谳）+ e2e 385/385 有效 + 十协议 local 10/10（licensed 净实例真客户端）+ remote/virtual 6 绿（npm ssrf 设计内 SKIP + 三面本网污染 CI a955dbce 承载）+ a11y 双主题双 locale 0 + NFR 全门过（11.4MB/126ms/502.6KB）。**缺陷两枚 P2 移交 T-465 顺腿**（D-T466-1 npm virtual 降级路径缺 / D-T466-2 DOCKERIZED_TOOLS 空格）。20 项缺位表全登记零遗漏。日志 reports/agents/T-466.md。
+
+**T-465 → doing 2026-09-06 11:4x（35 票收官笔：两 P2 顺修 + goreleaser 六平台烟测 + chart 联动 + 部署三面抽检 + m16-done 收口清单成文）**：release-engineer 在途。**收口后即裁 m16-done**（tag + UAT 随里程碑 PR——CircleCI 平台恢复后复跑补证）。
+
+**用户指令 intake ㉒（2026-09-06 11:4x）：「binflow 访问地址提取为变量，由 CI 平台的环境变量传入」——已落地（`9d841da6`）**：部署步本就读 `UAT_HOST`；矩阵面残留运行时字面量全数并入同模式——过渡探测 https 目标派生 `UAT_DOMAIN`、回落派生 `UAT_HOST`（双面）；docker 腿 insecure-registries 臂随 `UAT_MATRIX_BASE`/`UAT_DOMAIN`。存余字面量仅注释与 `${VAR:-default}` 文档形（env 模式本体，平台级可覆写）。
+
+**T-465 → done 2026-09-06 13:0x（`049182a8`，+162/−4）——M16 35/35 全收官（终票：release 烟测 + 收口清单）**：D-T466-2 尾随空格修（client_base 成员测试复活——pre/post 演示定谳）+ D-T466-1 npm virtual 降级路径（ssrf SKIP 时 local-member 聚合如实记录；CI strict 恒双成员）；**两修同场一脚验证**（--docker-clients npm+maven EXIT 0——T-466 同姿态红位转绿 + 容器内 CBASE 生效实证）。goreleaser 六平台快照 EXIT 0（18 零 CGO 二进制，F1 门 112.72/120MB）+ release-verify 6/6 + sha256 对账；chart 维持 1.5.0（M15 后零提交零新面）；部署矩阵三面烟测（4 镜像 arch×变体/compose 真部署逐字节/k8s kubeconform 4/4/systemd 优雅排水）。**m16-done 收口清单成文**（报告 §5）。日志 reports/agents/T-465.md。
+
+---
+
+# 【里程碑】M16 = m16-done（2026-09-06 13:0x 裁定，conductor）
+
+**35/35 全 done + T-466 P0 终验 PASS with notes + 收口清单就绪**。战果总账：
+- **全前端 Artifactory 对齐**（intake ⑤⑧⑭）：树栈/表单/详情/搜索/安全面/监控组/帮助/i18n 双语——B 矩阵 49 行零无主（31 落/8 部分滚/豁免登记/stay-out）
+- **断言反转①~⑦全兑现**（七终裁 Q 表 13/13 闭环）
+- **FR-147/148/149/150 全栈闭合**（远端浏览/AQL 副线收尾/i18n 双语/cron 调度域）
+- **CI 三章**（intake ⑩⑮⑱）：十协议矩阵双面 10/10 + remote/virtual 覆盖 + 每 job 并行 + node24/30m/retries 确定性
+- **spool 家族六面终章**（T-474/476/477——read-only rootfs 全免疫）
+- **UAT 443/ACME 落地**（T-478——候 DNS/SG 两用户前置即活）+ **访问地址全 env 化**（intake ㉒）
+- **文档双树**（T-458 两腿 + T-470/T-472 Fern 迁移 + API tab + binflow.org 主站 + T-480 README 门厅化）
+- NFR 全门（11.4MB/126ms/502.6KB/race 37/37/e2e 385/385）
+- **挂账**：CircleCI 平台事故期（恢复后按 T-465 §5 清单 re-run 补证）；DNS+SG 两用户前置；M17 预立项窗开（ROADMAP 备稿段启用 + PM 立项流程）

@@ -67,11 +67,12 @@ jobs:
             echo "UAT_MATRIX_BASE set explicitly — probe skipped"
             exit 0
           fi
-          if curl -fsS -m 8 https://uat.binflow.org/healthz >/dev/null 2>&1; then
-            echo "BINFLOW_BASE=https://uat.binflow.org" >> "$GITHUB_ENV"
+          DOMAIN="${UAT_DOMAIN:-uat.binflow.org}"
+          if curl -fsS -m 8 "https://${DOMAIN}/healthz" >/dev/null 2>&1; then
+            echo "BINFLOW_BASE=https://${DOMAIN}" >> "$GITHUB_ENV"
           else
-            echo "WARN: https://uat.binflow.org unreachable (DNS/TLS not live) — legs run against the plain-HTTP transition base"
-            echo "BINFLOW_BASE=http://52.79.109.153:8080" >> "$GITHUB_ENV"
+            echo "WARN: https://${DOMAIN} unreachable (DNS/TLS not live) — legs run against the plain-HTTP transition base"
+            echo "BINFLOW_BASE=http://${{ vars.UAT_HOST || '52.79.109.153' }}:8080" >> "$GITHUB_ENV"
           fi
 
       # ubuntu-latest already carries: JDK+mvn 3.9, gradle, node, python3,

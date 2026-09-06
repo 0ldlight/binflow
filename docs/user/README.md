@@ -4,6 +4,7 @@
 
 ## 导航
 
+- **[用户可见变化公告](whats-new.md)** — 最近一轮交付的用户可见变化与翻案清单（界面双语 / 计划任务 / 监控面重组 / 远端浏览可选档 / 交互形态对齐）
 - **快速开始**（两条最快路径，完整步骤见下方「安装指南」）
   - [5 分钟上手（单二进制）](install/binary.md) — 下载 → `serve` → `/readyz` 200
   - [5 分钟上手（Docker）](install/docker.md) — `docker run` → `/readyz` 200
@@ -35,13 +36,14 @@
 - **搜索** — M15
   - [AQL 搜索指南](aql.md)（`POST /api/search/aql`：items 域子集、`stat.*` 下载统计字段族、操作符与尾缀链、未支持域/字段 400 点名、virtual 仓展开、1,000 行截断与资源门；**`GET /api/search/usage`「N 天未下载」闲置制品检索**；**Artifactory AQL 迁移对照表**）
 - **Web 控制台** — M8（新信息架构；M9 增补 Set Me Up OIDC 臂与用户删除面）
-  - [控制台使用指南](console.md)（双模式导航、跨仓制品树与树头工具带、详情字段族与下载统计、Set Me Up 与 Deploy 对话框、三段式建仓表单与包型矩阵、用户/组路由表单、统一分页控件、管理域五分组、旧路径迁移对照、角色可见性、浏览器兼容）
+  - [控制台使用指南](console.md)（双模式导航、跨仓制品树与树头工具带、远端浏览可选档的树形态、详情字段族与下载统计、Set Me Up 与 Deploy 对话框、三段式建仓表单与包型矩阵、用户/组路由表单、统一分页控件、管理域五分组〔监控组六页〕、**界面双语切换**、旧路径迁移对照、角色可见性、浏览器兼容）
   - [Artifactory → BinFlow 操作路径对照表](artifactory-path-map.md)（建仓/建用户/删用户/配权限/找制品/Set Me Up/GC/备份等逐任务路径对照；无对应面如实登记）
 - **管理指南**（`admin/`）
-  - [remote / virtual 仓库管理](admin/remote-virtual.md)（建仓字段表、缓存/负缓存/assumed-offline、强刷、SSRF 放行指引、凭据密钥部署、M3 不兼容清单与报错码汇总；**M14：docker remote 仓型专节**——community 档、Bearer 上游舞步、降级 STALE、dind 调试注记）— M3+M14
+  - [remote / virtual 仓库管理](admin/remote-virtual.md)（建仓字段表、缓存/负缓存/assumed-offline、强刷、SSRF 放行指引、凭据密钥部署、M3 不兼容清单与报错码汇总；**docker remote 仓型专节**；**远端浏览可选档 `listRemoteFolderItems`**〔helm/debian/rpm 三型，树形态与降级语义〕）— M3+M14
   - [用户组与权限管理](admin/groups-permissions.md)（三步授权流、并集与即时生效、组 CRUD 与 409 保护、`?permissions` 视图、组无 admin 位）— M4
-  - [治理：审计、GC 与配额](admin/governance.md)（审计查询与词表、GC dry-run→apply 与互斥 409、quotaBytes 413 语义、includes/excludes 409/404 双值码、用户删除闭环与 last-admin 风险〔M9〕、复制配置 CRUD 与启停〔M14〕）— M4
-  - [备份与恢复手册](admin/backup-restore.md)（export/import CLI、产物 0700 保管告警、`--verify spot/full`、无钥 fail-fast 恢复链、停机强一致可选）— M4
+  - [治理：审计、GC 与配额](admin/governance.md)（审计查询与词表〔含调度三域九词〕、GC dry-run→apply 与互斥 409、quotaBytes 413 语义、includes/excludes 409/404 双值码、用户删除闭环与 last-admin 风险〔M9〕、复制配置 CRUD 与启停〔M14〕+ **cron 双轨**）— M4
+  - [计划任务（cron 调度）与定时备份](admin/cron-scheduling.md)（Quartz 六域表达式子集、维护三槽、定时备份 CRUD、复制调度双轨、只读投影、审计词、常见报错对照）
+  - [备份与恢复手册](admin/backup-restore.md)（export/import CLI、**实例内定时备份**、产物 0700 保管告警、`--verify spot/full`、无钥 fail-fast 恢复链、停机强一致可选）— M4
   - [RBAC 角色与仓库级管理员](admin/rbac-roles.md)（角色三值模型与能力矩阵、adminRole wire、manage 派生与覆盖集、`?filter=manage` 可达性〔M9〕、user.role.change 审计、IdP readonly 组映射）— M7
   - [Token 铸造二次认证 step-up](admin/token-step-up.md)（`auth.token_step_up` 开关与 TTL 域、作用域与豁免臂、本地/LDAP 口令腿与 OIDC mint grant 腿〔M9 起控制台自动续铸〕、审计维度）— M7
   - [License 与 Add-ons 管理](admin/license.md)（三档语义、安装/查询/卸载、17 槽位 × 档位矩阵、addons.disabled 熔断、`bf license` 离线签发工具）— M10（M11 增补四包型槽位；M12 增补操作族/回收站槽）
@@ -58,7 +60,7 @@
   - [bf CLI 使用指南](guides/bf-cli.md)（四子命令、~/.bf/config.yaml 多 profile、密钥 env 引用制）
   - [从 Artifactory 迁移（bf-migrate）](guides/migrate-artifactory.md)（三阶段、--dry-run/--resume、口令与 token 不可导出策略）
   - [Prometheus 指标参考](metrics/prometheus-reference.md)（/metrics 端点、四类指标族、path 基数防护、PromQL 示例）
-- **API 参考**（`api-reference.md`）：Artifactory 兼容子集 + `/api/v1`（M9 六端点速览：usage 批量 / users 加宽与 enabled / DELETE users / groups includeUsers / permissions filter=manage；M10 license/addons/uploads；M11 增补速览：认证配置面 / keypair 族 / cleanup / 四包型 reindex / smart remote 两字段生效；M12 增补速览：copy/move + 归档族（archive-download / `archive!/` / explode）+ trash REST 族；M13 增补速览：webhook 订阅七端点族 + `GET /api/v1/system/settings` 旋钮回显 + remote `chartsBaseUrl` 字段；**M15 增补速览**：AQL + 老搜索三端点（gavc/prop/pattern）+ 复制包 B〔Replicate Now · Test 连接 · 全局封锁〕）
+- **API 参考**（`api-reference.md`）：Artifactory 兼容子集 + `/api/v1`（M9 六端点速览：usage 批量 / users 加宽与 enabled / DELETE users / groups includeUsers / permissions filter=manage；M10 license/addons/uploads；M11 增补速览：认证配置面 / keypair 族 / cleanup / 四包型 reindex / smart remote 两字段生效；M12 增补速览：copy/move + 归档族（archive-download / `archive!/` / explode）+ trash REST 族；M13 增补速览：webhook 订阅七端点族 + `GET /api/v1/system/settings` 旋钮回显 + remote `chartsBaseUrl` 字段；**M15 增补速览**：AQL + 老搜索三端点（gavc/prop/pattern）+ 复制包 B〔Replicate Now · Test 连接 · 全局封锁〕；**近期增补**：cron 调度四面——维护三槽 / 定时备份 CRUD / 调度投影 / 复制 `cron_exp`，就地收入系统端点表）
 - [FAQ 与故障排查](faq.md)（401/403/404/409/413 信封解读、高 QPS 用 Token、M4 不兼容清单、Artifactory 迁移对照表、M9 增补两问、M10 增补三问〔license 降级 / 属性两入口 / MPU 后端差异〕、M11 增补四问〔四包型 tier / 降级数据安全 / remote·virtual 差异 / 存储与认证新面〕、M12 增补三问〔trash 保留期 / 操作族 license 门控 / dual-write fail-open 语义〕、M13 增补三问〔webhook 事件丢失排查 / 死信重放 / remote 缓存命中观测〕、**M15 增补两问〔AQL 子集边界 / AQL 迁移差异改写〕**）
 
 ## 从 Artifactory 迁移

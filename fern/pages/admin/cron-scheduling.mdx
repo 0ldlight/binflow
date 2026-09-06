@@ -1,0 +1,132 @@
+# 计划任务（cron 调度）与定时备份
+
+计划任务让三类**全量类操作**按 cron 表达式到点自动执行——与既有事件驱动轨、手动面并存：
+
+| 调度域 | 承载的操作 | 配置面 |
+|---|---|---|
+| **maintenance（维护）** | GC 全量回收、unused-cache / virtual 缓存清理 | `GET/PUT /api/v1/system/maintenance`（三槽） |
+| **backup（定时备份）** | 实例快照 export（与 CLI export 同一内核） | `/api/v1/system/backups` CRUD |
+| **replication（复制）** | 单条 push 配置的全量同步（Replicate Now 的到点形态） | 复制配置的 `cron_exp` 字段 |
+
+三条基线：调度只触发全量类任务（事件轨仍是增量唯一引擎，同制品零重复字节传输）；「Run Now」手动面全部保留；触发撞维护锁如实记失败不静默跳过。
+
+## cron 表达式（Quartz 六域子集）
+
+**6 或 7 域**（空格分隔，秒开头）——**不是** Unix cron 的 5 域（5 域直接 400）：
+
+| # | 域 | 合法值 | 收录特殊字符 |
+|---|---|---|---|
+| 1 | Seconds | 0–59 | `, - * /` |
+| 2 | Minutes | 0–59 | `, - * /` |
+| 3 | Hours | 0–23 | `, - * /` |
+| 4 | Day of month | 1–31 | `, - * / ? L`（`L` = 月末） |
+| 5 | Month | 1–12 或 JAN–DEC | `, - * /` |
+| 6 | Day of week | 1–7 或 SUN–SAT（1=SUN；`nL` = 最后周 n） | `, - * / ? L` |
+| 7 | Year（可选） | 1970–2099 | `, - * /` |
+
+两个「日」域必须恰有一个为 `?`。**拒收**（message 点名形态，实测）：5 域 Unix 形态、`W`、`#`、`LW`、`L-<offset>`、混合名-数区间、dow 数字 0。next-run 严格晚于当前时刻，错过不补跑。
+
+```bash
+# 常用形态（全部实测通过）：
+"0 0 /4 * * ?"        # 每 4 小时（裸 /N 步进）
+"0 12 5 * * ?"        # 每日 05:12
+"0 0 2 ? * MON-FRI"   # 周一至周五 02:00
+"0 0 3 L * ?"         # 每月最后一天 03:00
+```
+
+## 维护域：GC 与缓存清理的三槽
+
+三槽闭集（`gc` / `cleanup-unused-cache` / `cleanup-virtual`），**零预置**，空 `cronExp` = 不调度的单态：
+
+```bash
+export BASE=http://localhost:8080 ADMIN_PW=<管理员口令>
+
+# 读三槽（首配前全空）
+curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/system/maintenance
+# {"slots":[{"key":"gc","cronExp":"","enabled":false,"nextRun":"",...},...]}
+
+# 逐槽布防（全 arm 先验后写；空 cronExp=清除；enabled=false=停用形）
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/v1/system/maintenance \
+  -H 'Content-Type: application/json' \
+  -d '{"gc":{"cronExp":"0 0 /4 * * ?","enabled":true},
+       "cleanup-unused-cache":{"cronExp":"0 12 5 * * ?","enabled":true}}'   # 200 + 三槽投影
+```
+
+- 坏表达式 400 `Invalid cronExp <expr> for <slot>: <点名原因>`（如 5 域 `got 5 fields, want 6 or 7 (a 5-field Unix cron is not a Quartz expression)`）。
+- `enabled:false` = 停用形（表达式保留、`nextRun` 清空）；恢复按 now 重臂。
+- fire 与手动面并存：GC 的 dry-run/apply、`POST /system/cleanup` 不受影响；维护域 fire 另落载体审计（`gc.run`/`cleanup.run`，actor=scheduler）。
+- 审计：布防/清除落 `maintenance.schedule.set`。
+- 控制台：**监控 → 维护（GC）** 页「计划任务」卡（三槽行表 + gc 手动执行入口 + cleanup 立即清理）。
+
+## 定时备份：到点 export
+
+```bash
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/v1/system/backups \
+  -H 'Content-Type: application/json' \
+  -d '{"backupKey":"nightly","cronExp":"0 0 2 ? * MON-FRI",
+       "exportPath":"/backup/binflow","enabled":true}'
+# 200 {"backupKey":"nightly","cronExp":"0 0 2 ? * MON-FRI",
+#      "nextScheduleBackup":"2026-09-07T02:00:00Z",...}
+
+curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/system/backups            # 列表
+curl -su admin:$ADMIN_PW -X DELETE $BASE/binflow/api/v1/system/backups/nightly -o /dev/null -w '%{http_code}\n'   # 204
+```
+
+| 字段 | 语义 |
+|---|---|
+| `cronExp` | 空串合法（条目保留、不调度） |
+| `exportPath` | **服务器绝对路径**（相对/`..` → 400 `exportPath must be an absolute server path (starting with '/')`） |
+| `nextBackupTime` | 可选**首跑时刻**（过去 400 `... is not in the future`）；不给则按表达式推算；编辑态不回填 |
+| `enabled` | 停用形（park） |
+
+fire 在 `<exportPath>/<backupKey>-<时间戳>` 子目录产出完整 export 产物（与 [CLI export](/admin/backup) 同内核：锁、快照先行序、`0700` 全一致）；撞维护锁记失败下轮再试；**import 恢复仍是停机 CLI**；实例**零预置**备份条目。审计 `backup.schedule.set` + fire 双层（`backup.schedule.run` + 载体 `export.run`）。控制台：**监控 → 备份 / 恢复** 页「定时备份」卡。
+
+## 复制域：cron 双轨
+
+复制配置新增可选调度轨——事件轨 + 调度轨并存，一个 `enabled` 开关两轨全停：
+
+```bash
+# 建配置带 cron / 已存配置补挂（PUT 至少 enabled 或 cron_exp 其一）
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/v1/replications/1 \
+  -H 'Content-Type: application/json' -d '{"cron_exp":"0 30 1 * * ?"}'
+# 200 {...,"cron_exp":"0 30 1 * * ?","next_schedule_sync":"2026-09-06T01:30:00Z"}
+```
+
+| 面 | 行为（实测） |
+|---|---|
+| `cron_exp` 空串 | 清除调度（纯事件轨）；创建不带该字段 = 无调度行 |
+| `enabled:false` | **park**：表达式保留、`next_schedule_sync` 清空、事件轨同停；恢复后调度按 now 重臂 |
+| fire 语义 | Replicate Now 同载体（全量对账）；目标侧 sha256 幂等——与事件轨/手动交叠零重复字节传输 |
+| push 全局封锁 | fire 为 skip 非失败（封锁对两轨同生效） |
+| 空 body PUT | 400 `enabled or cron_exp is required; no other field is editable on this face` |
+| 审计 | `replication.schedule.set`（set/cleared）+ `replication.schedule.run`（actor=scheduler） |
+
+控制台：治理 → 复制页 targets 表**「调度」列**；仓库编辑页 Replications 节表单 `cron` 字段（真字段，编辑回显 + 双轨 hint）。
+
+## 只读投影：全部计划一页看
+
+```bash
+curl -su admin:$ADMIN_PW $BASE/binflow/api/v1/system/schedules
+# {"schedules":[{"domain":"backup","key":"nightly","cronExp":"0 0 2 ? * MON-FRI",
+#   "enabled":true,"nextRun":"2026-09-07T02:00:00Z","lastRun":"","lastStatus":"","lastError":""},...]}
+curl -su admin:$ADMIN_PW "$BASE/binflow/api/v1/system/schedules?domain=backup"   # 单域过滤
+curl -su admin:$ADMIN_PW "$BASE/binflow/api/v1/system/schedules?domain=bogus"
+# 400 "domain must be one of maintenance, backup, replication (or omitted for every domain)"
+```
+
+控制台「服务状态」页的调度节同源。fire 后 `lastRun`/`lastStatus`/`lastError` 回写（`ok`/`failed` 二值）。
+
+## 常见报错对照
+
+| 症状 | 原因 | 处置 |
+|---|---|---|
+| 400 `Invalid cronExp ... got 5 fields` | Unix 5 域形态 | 改 Quartz 6 域（秒开头） |
+| 400 `... nW (nearest weekday) is not supported` | `W`/`#`/`LW`/`L-n` 未收录 | 用 `L`/`nL` 或改具体日 |
+| 400 `exportPath must be an absolute server path` | 相对路径 / 含 `..` | 填服务器绝对路径 |
+| 400 `nextBackupTime ... is not in the future` | 首跑时刻已过 | 选未来时刻或省略 |
+| `lastStatus: failed` + lastError 点名锁 | fire 撞维护锁 | 与手动维护错峰 |
+| `next_schedule_sync` 恒空 | 配置停用（park）或 cron 已清 | `PUT {"enabled":true}` 重臂 |
+
+## 下一步
+
+- [备份与恢复](/admin/backup)（产物与恢复链） · [治理](/admin/governance)（GC 手动面与维护锁） · [监控指标](/admin/monitoring)

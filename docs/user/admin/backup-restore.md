@@ -86,11 +86,27 @@ set BINFLOW_REMOTE_CREDENTIALS_KEY (base64 of exactly 32 bytes) and restart
 
 在线 export 的一致性由「快照先行 + 窗口内多余 blob 允许」保证，适合常规备份。若业务上有更严格诉求（例如升级前定格），可**停 serve 后执行 export**——窗口闭死，产物与停机时刻完全一致；代价是备份期间实例不可用。两种方式产物形态与 import 流程完全相同。
 
+## 定时备份（实例内调度，免外部 crontab）
+
+除本机 crontab 调 CLI 外，实例可直接配置**到点自动 export**——fire 走与 CLI export 完全相同的内核（维护锁、快照先行序、产物形态、`0700` 权限全部一致），每次触发在 `<exportPath>/<backupKey>-<时间戳>` 子目录产出一份完整产物：
+
+```bash
+# 创建定时备份（REST；或控制台 监控 → 备份/恢复 页的「定时备份」卡）
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/v1/system/backups \
+  -H 'Content-Type: application/json' \
+  -d '{"backupKey":"nightly","cronExp":"0 0 2 ? * MON-FRI",
+       "exportPath":"/backup/binflow","enabled":true}'
+# 200 {"backupKey":"nightly","cronExp":"0 0 2 ? * MON-FRI",
+#      "nextScheduleBackup":"2026-09-07T02:00:00Z",...}
+```
+
+要点：`exportPath` 必须是**服务器上的绝对路径**（相对路径/`..` → 400）；`nextBackupTime` 可选指定首跑时刻（过去时间 400）；**import 恢复仍是停机 CLI 操作**（本调度只管备份侧）；触发撞上维护锁（手动 GC/export 在跑）记一次失败、下轮再试——排程与 GC 错峰。完整字段表、表达式子集与审计词见 **[计划任务指南 · 定时备份](cron-scheduling.md#定时备份到点-export)**。
+
 ## 运维建议
 
-- **周期备份**：cron 低峰执行 export（锁与 GC 互斥，409/退出码非 0 时下轮重试即可）；产物按日期分目录保留多份。
+- **周期备份**：两条路任选——**实例内定时备份**（见上节，免外部 crontab）或主机 crontab 低峰执行 export（锁与 GC 互斥，409/退出码非 0 时下轮重试即可）；产物按日期分目录保留多份。
 - **恢复演练**：备份的价值取决于可恢复性——定期在空目录上 `import --verify full` 并抽查制品 sha256 与登录链。
-- **与 GC 的排程**：export 与 GC 不要同刻触发（互斥会拒绝后到者）；若 cron 窗口重叠，把 GC 排在 export 之后。
+- **与 GC 的排程**：export 与 GC 不要同刻触发（互斥会拒绝后到者）；若 cron 窗口重叠，把 GC 排在 export 之后（两域都可用[计划任务](cron-scheduling.md)配置时，直接在表达式上错峰——如备份 02:00、GC `0 0 /4 * * ?` 对齐 04:00 起）。
 - 吞吐参考（QA 记录，不设门）：在线 export 约 380~830 MiB/s（400MB 级实例、本地盘）。
 
 ## 常见报错对照
@@ -141,7 +157,7 @@ set BINFLOW_REMOTE_CREDENTIALS_KEY (base64 of exactly 32 bytes) and restart
 
 | 频率 | 说明 |
 |---|---|
-| 每日 | 低峰时段 cron 执行 export（锁与 GC 互斥，409/退出码非 0 时下轮重试） |
+| 每日 | 低峰时段执行 export（实例内[定时备份](#定时备份实例内调度免外部-crontab)或主机 cron；锁与 GC 互斥，失败下轮重试） |
 | 每周 | 保留 7 天分日备份，`--verify full` 全量校验 |
 | 每版 | 升级前停服 `export`（强一致快照），升级完成验证后再开服 |
 | 异地 | 产物目录 `0700`，转存 NAS/对象存储时保持最小权限或先行加密 |
@@ -173,6 +189,7 @@ binflow-server serve -c recovery.yaml &
 
 ## 下一步
 
+- 定时备份的完整配置面与表达式子集：[计划任务（cron 调度）](cron-scheduling.md)
 - 维护锁与 GC 的完整语义：[治理指南](governance.md#gc垃圾回收)
 - remote 凭据加密与密钥部署：[remote/virtual 管理](remote-virtual.md)
 - 恢复后重登/会话语义：[Web 控制台使用指南](../console.md#登录与会话)

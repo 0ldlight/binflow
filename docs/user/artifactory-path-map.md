@@ -43,15 +43,15 @@ M8 起 BinFlow 控制台与 Artifactory **同一动作在同样的位置、走�
 | 删制品 | 树右键 Delete | 树右键 → 删除（强确认，「制品不可变，删除没有撤销」） | — |
 | 签发 Access Token | User Management → Access Tokens → Generate Token | Set Me Up 对话框「生成令牌」（本人 24h token）；或 REST `POST /api/security/token`（admin 可代铸） | BinFlow token 列表/吊销管理页为占位（吊销输入 token_id 或走 REST） |
 | 吊销 Token | Access Tokens 列表 → Revoke | Access Tokens 占位页输入 token_id 吊销；或 REST `POST /api/security/token/revoke` | — |
-| GC / 空间回收 | SERVICES → Advanced → Maintenance（GC cron + 配额百分比） | 管理 → 治理 → 维护（GC）（`/admin/governance/gc`）：dry-run → apply（输入实例名确认） | **语义差异**：BinFlow GC 是手动 dry-run/apply，无 cron 计划；配额独立成页且为 per-repo 字节模型 |
+| GC / 空间回收 | SERVICES → Advanced → Maintenance（GC cron + 配额百分比） | 管理 → 监控 → 维护（GC）（`/admin/monitoring/gc`）：dry-run → apply（输入实例名确认）+ **计划任务三槽卡**（cron 到点执行） | cron 调度已落地（[计划任务指南](admin/cron-scheduling.md)）；配额独立成页且为 per-repo 字节模型；Artifactory 的配额百分比/Compress/Prune 槽位无对位载体（页面如实缺位注记） |
 | 配额 | Maintenance 内 `Enable Quota Control` 两个百分比 | 治理 → 配额（`/admin/governance/quotas`）：每仓水位条 + 行内编辑上限 | BinFlow per-repo `quotaBytes`（超出 413），比 OSS 两字段更强 |
 | 审计 | （OSS 无此页；企业版 Audit Log） | 治理 → 审计日志（`/admin/governance/audit`）：过滤 + 游标分页 | BinFlow 自有页——OSS 7.84 无对应路由 |
-| 备份 | SERVICES → Artifactory → Backups（cron 计划列表 + 表单） | 治理 → 备份 / 恢复（`/admin/governance/backup`）：导出/导入双卡 | **语义差异**：BinFlow 备份是 export/import 任务（含 CLI），无 cron 计划备份 |
-| 恢复 / 导入 | SERVICES → Import & Export | 备份 / 恢复 页导入卡；完整链见[备份与恢复手册](admin/backup-restore.md) | — |
+| 备份 | SERVICES → Artifactory → Backups（cron 计划列表 + 表单） | 监控 → 备份 / 恢复（`/admin/monitoring/backup`）：**定时备份卡**（cron 计划列表 + 表单）+ CLI 引导卡 | cron 计划备份已对齐（[计划任务指南](admin/cron-scheduling.md#定时备份到点-export)）；实例零预置条目（Artifactory 出厂带 backup-daily/weekly）；产物形态与恢复链见[备份与恢复手册](admin/backup-restore.md) |
+| 恢复 / 导入 | SERVICES → Import & Export | 备份 / 恢复 页 CLI 引导卡（import 是**停机带外 CLI**，有意不做 UI）；完整链见[备份与恢复手册](admin/backup-restore.md) | **语义差异**：恢复走带外通道，无 UI 进度面 |
 | 看存储占用 | Monitoring → Storage Summary | 管理 → 监控 → 存储（`/admin/monitoring/storage`）：刷新行 + 汇总卡 + 逐仓表 | 同构（TOTAL 首行/列序对齐） |
-| 看系统信息 | General → Settings | 管理 → 常规 → 系统信息（`/admin/general/settings`） | BinFlow 只读展示（写面在 `binflow.yaml`）；Artifactory 的 Logo/Custom Base URL 编辑不建 |
+| 看系统信息 | General → Settings | 管理 → 监控 → 系统信息（`/admin/monitoring/system-info`） | BinFlow 只读展示（写面在 `binflow.yaml`）；Artifactory 的 Logo/Custom Base URL 编辑不建 |
 | 改自己的口令 | 用户菜单 → Edit Profile | 应用 → 编辑档案（`/profile`） | — |
-| 复制（Replication） | 仓库编辑 Replications Tab（OSS 为降级提示）/ 全局复制页（许可功能） | 治理 → 复制（`/admin/governance/replication`，全局观测）+ 仓库编辑页 Replications 节（M14：local 仓配置 CRUD + 启停） | BinFlow 复制配置自 M6 起 REST 全量可用（无 license 门）；Artifactory 的 cron/sync 字段族在 BinFlow 为预留位恒禁用（事件驱动引擎） |
+| 复制（Replication） | 仓库编辑 Replications Tab（OSS 为降级提示）/ 全局复制页（许可功能） | 治理 → 复制（`/admin/governance/replication`，全局观测 + **调度列**）+ 仓库编辑页 Replications 节（local 仓配置 CRUD + 启停 + **`cron` 调度字段**） | BinFlow 复制配置自 M6 起 REST 全量可用（无 license 门）；`cron` 已为真字段（**cron 双轨**——事件轨不变，见[计划任务指南](admin/cron-scheduling.md#复制域cron-双轨)）；sync 等其余字段仍为预留位 |
 | 用户菜单快捷动作 | Quick Repository Creation / New User·Group·Permission | 用户菜单同构（快速建仓子菜单〔新建 Local/Remote/Virtual 仓〕、新建用户/组/权限） | 非 admin 菜单按可见性裁剪；子菜单里的 `Set Me Up` 项暂为占位链接——Set Me Up 入口以树页/仓库列表行/详情页头为准 |
 
 ## Artifactory 有而 BinFlow 不建的面（如实登记）

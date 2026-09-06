@@ -206,7 +206,13 @@ setup_client() { # setup_client <fn> <host-tool> <host-prefix> <docker-prefix>
   if [ "$DOCKER_CLIENTS" = 1 ] && command -v docker >/dev/null 2>&1; then
     log "client '$tool' not on host — docker fallback: $dockerp ..."
     eval "$fn() { $dockerp \"\$@\"; }"
-    DOCKERIZED_TOOLS="$DOCKERIZED_TOOLS $tool"
+    # D-T466-2: the trailing space is load-bearing — client_base matches
+    # " $tool " with a separator on BOTH sides, so appending without it
+    # left a single dockerized tool as "  mvn" (no tail) and the pattern
+    # never matched: the containerized client kept dialing BINFLOW_BASE
+    # (its own 127.0.0.1 loopback) instead of the CBASE host swap. The
+    # gradle leg's manual append below always had the tail.
+    DOCKERIZED_TOOLS="$DOCKERIZED_TOOLS $tool "
     return 0
   fi
   return 1
@@ -861,8 +867,22 @@ EOF
   # ---- T-479 virtual segment ----
   if [ "$NET_OK" = 1 ]; then
     cd "$WORKDIR" || return 1
-    ensure_virtual uat-matrix-npm-virtual npm \
-      "uat-matrix-npm-local,uat-matrix-npm-remote" || return 1
+    # D-T466-1 degradation: uat-matrix-npm-remote only exists when the
+    # remote segment built it (host_is_public passed). On a loopback
+    # instance the self-synthesized upstream is ssrf-guarded by design →
+    # npm/remote SKIP above → the member repo was never created, and a
+    # virtual referencing an unbuilt member is (correctly) rejected with
+    # HTTP 400 "member does not exist". Aggregate the LOCAL member alone
+    # then — the NPM_UP_OK gates below skip the remote-member assertions
+    # and the record line names the degradation. The strict-tools CI face
+    # (public UAT) always takes the two-member branch.
+    if [ "$NPM_UP_OK" = 1 ]; then
+      ensure_virtual uat-matrix-npm-virtual npm \
+        "uat-matrix-npm-local,uat-matrix-npm-remote" || return 1
+    else
+      ensure_virtual uat-matrix-npm-virtual npm \
+        "uat-matrix-npm-local" || return 1
+    fi
     local hv="$WORK/hdr-npmv.$$"
     hdr_get "$hv" "$BINFLOW_BASE$NPM_REG_PATH/uat-matrix-npm-virtual/npm-example" || return 1
     [ "$(resolved_from "$hv")" = "uat-matrix-npm-local" ] \
@@ -893,7 +913,13 @@ EOF
     fi
     [ -f consumer-v/node_modules/npm-example/helloworld.js ] \
       || { echo "local-member package missing via virtual"; return 1; }
-    record npm/virtual PASS "aggregated install local+remote members (§8.5 form)"
+    # D-T466-1: record the form that actually ran — the degraded
+    # local-member aggregation says so instead of claiming both members.
+    if [ "$NPM_UP_OK" = 1 ]; then
+      record npm/virtual PASS "aggregated install local+remote members (§8.5 form)"
+    else
+      record npm/virtual PASS "local-member aggregation only — remote-member assertions skipped (npm/remote SKIP: ssrf-guarded self-upstream)"
+    fi
   fi
 }
 

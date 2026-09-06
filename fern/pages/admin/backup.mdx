@@ -60,6 +60,21 @@ binflow-server import -c binflow.yaml --input /backup/binflow-20260821 --verify 
 
 在线 export 的一致性由「快照先行 + 窗口内多余 blob 允许」保证，适合常规备份。需要精确定格（如升级前）可**停 serve 后执行 export**——窗口闭死；代价是备份期间不可用。两种方式产物与 import 流程完全相同。
 
+## 定时备份（实例内调度，免外部 crontab）
+
+实例可直接配置**到点自动 export**——fire 走与 CLI export 相同的内核（锁、快照先行序、产物 `0700`、mtime 保真全部一致），每次触发在 `<exportPath>/<backupKey>-<时间戳>` 子目录产出一份完整产物：
+
+```bash
+curl -su admin:$ADMIN_PW -X PUT $BASE/binflow/api/v1/system/backups \
+  -H 'Content-Type: application/json' \
+  -d '{"backupKey":"nightly","cronExp":"0 0 2 ? * MON-FRI",
+       "exportPath":"/backup/binflow","enabled":true}'
+# 200 {"backupKey":"nightly","cronExp":"0 0 2 ? * MON-FRI",
+#      "nextScheduleBackup":"2026-09-07T02:00:00Z",...}
+```
+
+要点：`exportPath` 必须是服务器绝对路径（相对路径/`..` → 400）；`nextBackupTime` 可选指定首跑时刻（过去 400）；**import 恢复仍是停机 CLI**（调度只管备份侧）；触发撞维护锁记一次失败、下轮再试。控制台在 监控 → 备份/恢复 页。完整字段表与表达式子集见 **[计划任务指南 · 定时备份](/admin/cron-scheduling#定时备份到点-export)**。
+
 ## 灾难恢复流程与验证
 
 1. 准备新实例 `binflow.yaml`（指向新 data 目录）；2. 停机清空目录；3. `binflow-server import --input /backup/${date} --verify full`；4. 启动；5. 验证：
@@ -75,9 +90,9 @@ binflow-server import -c binflow.yaml --input /backup/binflow-20260821 --verify 
 
 ## 运维建议
 
-- **周期备份**：cron 低峰 export（锁与 GC 互斥，409/退出码非 0 时下轮重试）；产物按日期分目录。
+- **周期备份**：实例内[定时备份](#定时备份实例内调度免外部-crontab)或主机 cron 低峰 export（锁与 GC 互斥，失败下轮重试）；产物按日期分目录。
 - **恢复演练**：备份的价值取决于可恢复性——定期在空目录 `import --verify full` 并抽查 sha256 与登录链。
-- **与 GC 排程**：export 与 GC 不要同刻触发；窗口重叠把 GC 排在 export 之后。
+- **与 GC 排程**：export 与 GC 不要同刻触发；两域都用[计划任务](/admin/cron-scheduling)配置时直接在表达式上错峰。
 - 吞吐参考：在线 export 约 380~830 MiB/s（400MB 级实例、本地盘）。
 
 ## 常见报错对照
@@ -91,4 +106,4 @@ binflow-server import -c binflow.yaml --input /backup/binflow-20260821 --verify 
 
 ## 下一步
 
-- [治理（GC 与维护锁）](/admin/governance) · [升级](/install/upgrade) · [存储后端](/admin/storage)
+- [计划任务（cron 调度）](/admin/cron-scheduling) · [治理（GC 与维护锁）](/admin/governance) · [升级](/install/upgrade) · [存储后端](/admin/storage)

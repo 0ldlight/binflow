@@ -35,7 +35,7 @@ curl -s -b jar.txt -X DELETE $BASE/binflow/api/v1/session -o /dev/null -w '%{htt
 
 模式切换在侧栏底部；管理页带面包屑；顶栏全局搜索（`⌘K` / `Ctrl+K` / `/`）。
 
-管理模式五分组：**仓库**（Local/Remote/Virtual 三 Tab）· **用户与权限**（用户 / 组 / 权限 / Access Tokens）· **治理**（审计日志 / 维护 GC / 配额 / 复制 / 备份恢复 / 回收站 / Webhooks）· **监控**（存储）· **常规**（系统信息、License）。
+管理模式五分组（侧栏脚注含**界面语言切换器**，见下文）：**仓库**（Local/Remote/Virtual 三 Tab）· **用户与权限**（用户 / 组 / 权限 / Access Tokens / 认证配置）· **治理**（审计日志 / 配额 / 复制 / 回收站）· **监控**（服务节点组六页：存储 / 服务状态 / 系统日志 / 系统信息 / 维护 GC / 备份恢复）· **常规**（Webhooks、License）。
 
 ## 制品树浏览器（/artifacts）
 
@@ -46,7 +46,7 @@ curl -s -b jar.txt -X DELETE $BASE/binflow/api/v1/session -o /dev/null -w '%{htt
 - **URL 即状态**：`/artifacts/[<页签>/]<repo>/<path…>`——页签段 `general`（省略）/`properties`/`permissions`，文件 = 路径末段；深链可直接分享，打开自动展开祖先定位；旧 `?focus=` 形自动折入路径段规范形。
 - **树头工具带**（不随树滚动）：过滤仓库 · 包类型 facet 复选组（选项集 = 实有型）· Local/Remote/Virtual 复选 · Sort-by（名称/包类型/仓库类型）· Compacted 紧凑档单选 · My Favorites（localStorage 持久；标记入口 = 仓库右键「收藏」）。
 - 右键菜单（`Shift+F10` 键盘可达）：文件 = 复制路径/下载/删除；文件夹 = 复制路径/删除/刷新；仓库 = 复制仓库路径/刷新/在仓库管理中打开/收藏。
-- **仓型面**：local 直列内容；**remote 仓只列已缓存制品**（浏览永不回源）；virtual 仓聚合浏览可用（children = 成员仓并集；virtual 不经手删除）。
+- **仓型面**：local 直列内容；remote 仓默认**只列已缓存制品**——Helm/Debian/RPM 三型 remote 可开启**远端浏览可选档**（`listRemoteFolderItems`，见[仓库管理](/admin/repositories)）：树展开含未缓存远端目录（「远端」标记 + `—` 占位元数据），点击回源落地；上游降级不塌树（降级横幅 + 已缓存条目可用）；virtual 仓聚合浏览可用（children = 成员仓并集，含开档 remote 成员的派生行；virtual 不经手删除）。
 - 当前层 children 表支持过滤与「只看文件」，大目录增量「加载更多」；**行内操作列已收敛**——删除走详情面板与右键菜单（均过危险确认）。
 - 详情面板（页签序 常规 → 有效权限 → 属性，页签进 URL 段）：
   - **File URL**（仓库/目录/文件三形态）：内容面绝对 URL + 复制钮。
@@ -73,8 +73,9 @@ curl -s -b jar.txt -X DELETE $BASE/binflow/api/v1/session -o /dev/null -w '%{htt
 
 - **仓库**：三 Tab 列表（**Replications 列覆盖 local 与 remote 两 Tab**，push-only 口径；virtual 无此列）+ 建仓向导（`+ 添加仓库` 下拉三预选 → 分路由 `/admin/repositories/{local|remote|virtual}/new`；**924px 包类型网格**——13 型磁贴全量呈现、8 个进阶型带 `pro` 徽章、**档位门由服务端终裁**〔community 档提交进阶型 = 400 行内回显〕；**三段步进表单** Basic → Advanced → Replications——第三段仅编辑态 local 仓、`?section=replications` 深链直达；key 规则 `[a-z][a-z0-9-]{1,62}`，保留字 `api`/`v2`/`docs`/`console`/`ui`/`assets` 建仓即 400）+ 详情页（接入命令/统计/配额/Replications）+ 编辑页（**dirty-gating**：无变更 Save 禁置；remote 仓**「测试连接」**——草稿 diff 探测，密封密钥绝不发往改动后的候选主机，判定内联 + 零副作用）。删除两段强确认：非空仓必须勾选「同时删除内容」+ **输入 repo key 确认**。
 - **用户与权限**：用户列表（单请求数据源，Status 徽章真值即服务端 `enabled`）；**创建/编辑为路由整页表单**（`/admin/security/users/new` 深 **Retype Password 双录**；组 `/admin/security/groups/new` 与 `/:name/edit`；页脚 Cancel|Reset|Save 双初始禁置）；能力位三旗（Can Update Profile / Disable UI Access / Disable Internal Password）为恒禁用预留位（服务端未承接，提交体零携带）；删除用户**输入用户名强确认**（级联不可恢复、重复删除 404 非幂等——REST 语义见[治理](/admin/governance)）；权限 target 编辑器（两步资源对话框 + 动作矩阵 + **模式测试器** + 保存前 diff——动作动词五值闭集见[权限](/admin/permissions)）；Access Tokens 页（生成/一次性明文/吊销——服务端只存指纹，无令牌清单端点）。
-- **治理**：审计日志（过滤 + **keyset 游标链页窗**——统一分页控件，列表不再累积）、维护 GC（dry-run 面板 + 输入实例名确认 apply）、配额（水位条 80% 黄/100% 红）、复制（目标表 + 全局封锁卡）、Webhooks（订阅 CRUD + 试发 + 投递记录抽屉）、备份/恢复（CLI 引导卡——高危带外操作，不做进度 UI）、回收站。
-- **监控与常规**：存储（汇总卡 + 逐仓用量表）；系统信息（版本/健康卡）；编辑档案 `/profile`（改密 + token 说明）。
+- **治理**：审计日志（过滤 + **keyset 游标链页窗**——统一分页控件，列表不再累积）、配额（水位条 80% 黄/100% 红）、复制（目标表**含「调度」列** + 全局封锁卡）、回收站。
+- **监控（服务节点组六页）**：存储（汇总卡 + 逐仓用量表）；**服务状态**（总体徽标 + 存储元数据/镜像仓库三子系统行 + 版本 + **计划任务调度节**——`GET /api/v1/system/schedules`；Uptime 无端点如实缺位）；**系统日志**（7s 尾随刷新 + 子串过滤 + 窗口导出 `.log`——**日志源为审计跟踪**：服务进程日志无在线端点，走部署层日志面，此为如实换形）；系统信息（版本/健康卡，自常规组归位）；维护 GC（自治理组迁入：**计划任务三槽卡** + 危险区 dry-run/apply）；备份/恢复（自治理组迁入：**定时备份卡** + CLI 引导卡——import 恢复仍是带外 CLI）。
+- **常规**：Webhooks（订阅 CRUD + 试发 + 投递记录抽屉，自治理组迁入）；License & Add-ons；编辑档案 `/profile`（改密 + Identity Token 自助生成 + token 说明）。cron 调度的三域配置面见 **[计划任务（cron 调度）](/admin/cron-scheduling)**。
 - **搜索**：双模式——基本（名称子串）与 AQL（mono 编辑器，⌘/Ctrl+Enter 执行，语法错逐字内联）——语言见 [AQL](/search/aql)。**统一结果网格**：选择列 + 制品（name 链接）/路径/仓库/修改时间默认列（大小/sha256 为列选器可选项）；查询面 = 顶栏驻留输入；网格快滤三域子串窄化；日期 `dd-MM-yy HH:mm:ss +ZZZZ`。**统一分页控件**：页码序列 + 首末四钮 + 每页行数档 [20,50,100,200,1000]（缺省 100）；AQL 模式页码改写 `.offset()`、档位改写 `.limit()`（查询文本是唯一事实源）。
 
 ## 角色可见性
@@ -97,10 +98,12 @@ curl -s -b jar.txt -X DELETE $BASE/binflow/api/v1/session -o /dev/null -w '%{htt
 | `/repositories*` | `/admin/repositories/...`（列表默认 local Tab） |
 | `/repositories/:key/settings` | `/admin/repositories/:key/edit` |
 | `/repositories/:key/tree/<path…>` | `/artifacts/:key/<path…>`（文件深链 = 路径末段；旧 `?focus=` 形自动折入路径段规范形） |
-| `/settings` | `/admin/general/settings`（改密在 `/profile`） |
+| `/settings` | `/admin/monitoring/system-info`（系统信息归位监控组；改密在 `/profile`） |
 | `/security/users*` · `/security/groups*` · `/security/permissions*` · `/security/tokens` | `/admin/security/…` 同名尾段 |
 | `/audit` | `/admin/governance/audit` |
-| `/governance/{gc,quotas,replication,backup}` | `/admin/governance/…` 同名尾段 |
+| `/governance/{gc,quotas,replication,backup}` | `/admin/governance/…` 同名尾段（GC 与备份后迁监控组，见下注） |
+
+> 近期迁址的四条旧深链（系统信息、维护 GC、备份恢复、Webhooks）打开时**一次性 replace 折入新址**，不落 404：`/admin/general/settings` → `/admin/monitoring/system-info`；`/admin/governance/{gc,backup}` → `/admin/monitoring/{gc,backup}`；`/admin/governance/webhooks` → `/admin/general/webhooks`。
 
 首页 `/` 不受影响：登录落点仍是 `/artifacts`。
 
@@ -117,22 +120,27 @@ curl -s -b jar.txt -X DELETE $BASE/binflow/api/v1/session -o /dev/null -w '%{htt
 | UI 上传（Deploy） | 树页头 Deploy | 同位置（仅 local Generic/Maven） |
 | GC / 配额 | SERVICES → Advanced → Maintenance | 治理 → 维护（GC）/ 配额（per-repo 字节模型，比 OSS 两字段更强） |
 | 审计 | （OSS 无此页） | 治理 → 审计日志（自有页） |
-| 备份 | SERVICES → Backups（cron 计划） | 治理 → 备份/恢复（export/import CLI，无 cron 计划——**语义差异**） |
-| 复制 | Replications Tab / 全局复制页（许可功能） | 治理 → 复制 + 仓库编辑页 Replications 节（无 license 门；cron/sync 字段为预留位恒禁用——事件驱动引擎） |
+| 备份 | SERVICES → Backups（cron 计划） | 监控 → 备份/恢复（**定时备份卡**——到点 export 同 cron 语义；恢复走 import CLI 带外） |
+| 复制 | Replications Tab / 全局复制页（许可功能） | 治理 → 复制（含**调度列**）+ 仓库编辑页 Replications 节（无 license 门；`cron` 字段为真字段——**cron 双轨**，事件轨不变；sync 等其余字段为预留位） |
 
-**Artifactory 有而 BinFlow 不建的面**：Xray / Pipelines / Distribution / Builds / Projects（JFrog 独立产品）、Packages 聚合页、Authentication Providers 的 UI 配置（OIDC/LDAP 走配置文件与运行态 REST，见[认证](/admin/auth)）、自定义仓库 Layouts、Mail Server、System Logs 查看器。**BinFlow 自有增强**：审计日志页、per-repo 配额水位条、全局复制配置页、`readonly_admin` 实例级只读管理员、Set Me Up 内 step-up 重验、权限模式测试器。
+**Artifactory 有而 BinFlow 不建的面**：Xray / Pipelines / Distribution / Builds / Projects（JFrog 独立产品）、Packages 聚合页、Authentication Providers 的 UI 配置（OIDC/LDAP 走配置文件与运行态 REST，见[认证](/admin/auth)）、自定义仓库 Layouts、Mail Server。**BinFlow 自有增强**：审计日志页（也是 System Logs 页的日志源）、per-repo 配额水位条、全局复制配置页、`readonly_admin` 实例级只读管理员、Set Me Up 内 step-up 重验、权限模式测试器、界面双语切换。
 
 ## 浏览器兼容
 
 Chromium 系（Chrome/Edge）为主支持（全量回归）；WebKit（Safari 内核）与 Firefox 支持登录/制品树/上传链。生产环境推荐 Chromium 系浏览器。
 
-## 多语言与计划任务（预埋）
+## 界面语言（中英双语切换）
 
-以下能力**尚未定案落地**，为预留文档位，不构成当前版本承诺：
+- **切换器**在侧栏底部脚注（「语言」caption + `中文` / `English` 两档单选；应用与管理两侧栏同脚注常驻），点选即生效。
+- 切换 = **localStorage 持久化 + 整页重载**；默认中文不变；不可用时回落中文；词条缺失回落中文原文（永不空渲染）。
+- **英文为全量覆盖**（全部页面域与对话框）；语言名走母语名（`中文` 两态恒显）。
+- **术语两包保真**：repo key / node / checksum / Deploy / Set Me Up / cron 等英文术语两语言下原样。
+- **日期与数字随语言**：英文 `MMM d, yyyy h:mm:ss AM/PM` 12 小时形态 / 中文 `dd-MM-yy HH:mm:ss` 24 小时形态维持。
 
-- **控制台界面语言**：当前为中文单语；多语言切换（含英文界面）在规划中。
-- **计划任务（cron 调度）**：备份 / 维护 / 复制三域的 cron 计划任务在规划中——现状为事件驱动复制 + export/import 带外备份（无 cron 计划面），仓库表单的 `cron`/`sync` 字段为恒禁用预留位；调度域落地后预留位转正、管理域将新增计划任务页。
+## 计划任务（cron 调度）
+
+GC / 缓存清理（维护三槽）、定时备份与复制调度（cron 双轨）均已落地——控制台消费面见上文监控组各页；表达式子集与 REST 全语义见 **[计划任务（cron 调度）与定时备份](/admin/cron-scheduling)**。逐项变化的翻案说明见 **[用户可见变化公告](/whats-new)**。
 
 ## 下一步
 
-- [用户、组与权限](/admin/permissions) · [治理](/admin/governance) · [Artifactory 迁移指南](/tools/migrate-artifactory)
+- [用户、组与权限](/admin/permissions) · [治理](/admin/governance) · [计划任务](/admin/cron-scheduling) · [Artifactory 迁移指南](/tools/migrate-artifactory)

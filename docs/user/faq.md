@@ -286,7 +286,7 @@ BinFlow 实现 AQL 的 **items 域只读子集**：`items.find()` + 全部比较
 | `/api/v2/security/permissions/**`（Artifactory v2 权限 API） | 404——BinFlow 权限面是 `/api/v1/permissions` | M4 |
 | Artifactory 搜索族残项（props 复数拼写/users/artifactory/badge） | 404——AQL 与 gavc/prop/pattern 已于 M15 交付（见 [AQL 搜索指南](aql.md)），`creation/dates/usage` 族登记 M16 | M4 起；M15 收窄 |
 | `/api/system/storage/prune/**` | 404——空间回收走 GC | M4 |
-| REST export/import | 404——备份恢复仅 CLI | M4 定案（高危操作带外） |
+| REST export/import | 404——备份/恢复的**数据面**仅 CLI（M4 定案，高危操作带外）；**定时备份的调度配置**是另一回事——REST 配置面已交付（[计划任务指南](admin/cron-scheduling.md#定时备份到点-export)），fire 走同一 CLI 内核 | M4 定案（带外）；调度面已交付 |
 | 异步 GC 作业 / GC 状态端点 | 同步执行、无 `GET /api/v1/system/gc`（上次运行查审计 `gc.run`） | M4；异步框架 M6+ |
 | 审计 CSV 导出 / token 列表 UI / `--tar` 备份单文件 | 控制台不渲染；CLI 显式报未实现 | M4 P2 债务 |
 | SAML 运行时登录、洞察报表、漏洞扫描 | SAML 的**配置面** M11 已交付（三 Tab 之一，字段可存可测——见[认证配置](admin/auth-config.md)），但 SP 断言消费（真正登录）不在 M11 交付面；OIDC/LDAP 登录 M6 已交付（见[专题指南](guides/oidc-config.md)/[LDAP](guides/ldap-config.md)） | 报表/扫描 Non-goal；SAML 运行时随票 |
@@ -305,6 +305,7 @@ BinFlow 实现 AQL 的 **items 域只读子集**：`items.find()` + 全部比较
 | （无内置实例级只读管理员；管理面 admin 为布尔） | `adminRole` 三值角色（`user`/`readonly_admin`/`admin`） | M7 起；`admin=true ⇔ adminRole=admin` 两写法等价。readonly_admin 为 BinFlow 自有（Artifactory 近似能力 = target 只授 read，无管理面只读） |
 | `binflow_session` 控制台会话 | （本产品新增） | server-side session + CSRF Origin 校验；Artifactory 无对应面 |
 | System YAML / storage GC / backup | `binflow.yaml` / `POST /api/v1/system/gc` / `export`/`import` CLI | GC 语义（mark-sweep + grace=mtime）同构 |
+| Backups / Maintenance / 复制的 cron 计划 | **计划任务域**（维护三槽 / 定时备份 / 复制 `cron_exp`，见[计划任务指南](admin/cron-scheduling.md)） | 表达式同为 Quartz 六域子集（秒开头；`W`/`#` BinFlow 拒收）；备份 fire 与 CLI export 同内核；**实例零预置**（Artifactory 出厂带 backup-daily/weekly） |
 | AQL（`POST /api/search/aql`） | 同路径同信封（M15） | items 域只读子集；build/stat 域、写动词、`.transitive` 400 点名——逐条差异见 [AQL 指南 · 迁移对照表](aql.md#从-artifactory-aql-迁移对照表) |
 | 老搜索族（gavc/prop/pattern） | 同路径（M15） | `prop` 单数拼写；未命中一律 200 空数组；行 = FileInfo 超集（非 Artifactory 瘦 uri 行） |
 

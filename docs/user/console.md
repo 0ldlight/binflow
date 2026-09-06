@@ -5,7 +5,7 @@ sidebar_position: 30
 
 # Web 控制台使用指南
 
-> 适用版本：M8（新信息架构：双模式壳 / 跨仓制品树 / 管理域五分组 / Set Me Up 与 Deploy 对话框族；设计规格 `docs/design/console-m8.md`）；**M9 增补**：Set Me Up 的 OIDC 重认证腿（T-260）、用户/组页的 Status 真值与删除面（T-257）、旧路径重定向窗口全量移除（T-263，见[旧路径 → 新路径](#旧路径--新路径m9-起不再重定向)）；**M15 增补**：搜索页 AQL 模式（T-419）、virtual 仓聚合浏览（T-416）、复制 ▶ Replicate Now 与 Test 连接/全局封锁（T-420/T-422）。
+> 适用版本：M8（新信息架构：双模式壳 / 跨仓制品树 / 管理域五分组 / Set Me Up 与 Deploy 对话框族；设计规格 `docs/design/console-m8.md`）；**M9 增补**：Set Me Up 的 OIDC 重认证腿（T-260）、用户/组页的 Status 真值与删除面（T-257）、旧路径重定向窗口全量移除（T-263，见[旧路径 → 新路径](#旧路径--新路径m9-起不再重定向)）；**M15 增补**：搜索页 AQL 模式（T-419）、virtual 仓聚合浏览（T-416）、复制 ▶ Replicate Now 与 Test 连接/全局封锁（T-420/T-422）；**近期增补**：监控组扩为服务节点组六页（服务状态/系统日志新页 + 三页归位迁址）、remote 仓**远端浏览可选档**、GC/备份/复制的**计划任务（cron）消费面**、**界面双语切换**——逐项变化与翻案说明见[用户可见变化公告](whats-new.md)。
 > 本篇全部 UI 路径与对话框行为在 HEAD（`89b27ce` 构建，含内嵌控制台）的 scratch 实例（127.0.0.1:18091，七仓种子覆盖全部五种包类型）上以 Playwright 走查验证（11/11 通过：双模式导航、树深链、对话框族、管理域路由、10 条旧路径重定向〔M8 兼容窗口；M9 起已移除，见下节〕）；登录/会话/CSRF 段沿用 M4 QA 基线（T-103/T-105，报告 `reports/agents/T-103-qa.md` / `T-105-qa.md`），M8 未改动服务端会话语义。浏览器矩阵依据 T-104 与 T-120 修复后的跨引擎复核。M9 增补面在 HEAD 构建的自起 scratch/armed 栈（2026-08-25）复验：shell 旧路径 19 条 404 断言、users-groups 6 腿、oidc-stepup 4 腿全绿。
 
 M4 起单二进制自带 Web 控制台（go:embed，零外部依赖、断网可用）。**M8 起控制台的信息架构与操作流对齐 Artifactory**（同一个动作在同样的位置、走同样的步骤——从 Artifactory 迁移的用户零学习成本；逐任务的操作路径对照见 [Artifactory → BinFlow 操作路径对照表](artifactory-path-map.md)）。控制台仍是**管理面**——CI 与脚本继续走 REST/token，两者同一 API、同一权限模型。
@@ -25,7 +25,7 @@ curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' $BASE/binflow/
 # 301 http://localhost:8080/binflow/ui/
 ```
 
-登录（用户名 + 口令，无「记住我」——本地用户模型无邮件通道，改密入口在登录后的[编辑档案页](#监控与常规) `/profile`）：
+登录（用户名 + 口令，无「记住我」——本地用户模型无邮件通道，改密入口在登录后的[编辑档案页](#监控服务节点组与常规) `/profile`）：
 
 - 错误凭据：行内红字「用户名或密码错误」；服务端 401 文案对「口令错」与「用户不存在」**完全相同**（不泄露用户存在性），并落 `login.failed` 审计。
 - 成功：服务端签发会话 cookie，**登录落点是制品树 `/artifacts`**；会话过期重登后回跳 `return` 参数指定的原路由。
@@ -78,7 +78,7 @@ curl -s -b jar.txt -X PUT $BASE/binflow/generic-local/a/f.txt \
 - **全局搜索**：顶栏搜索框（placeholder「搜索制品」），`⌘K` / `Ctrl+K` / `/`（非输入态）快捷键直达；Enter 进 `/search`。聚焦展开**最近搜索下拉**（localStorage 最近 8 条、去重置顶）——空历史给「暂无最近搜索」占位（恒渲染下拉本体），子串无匹配给无匹配提示；`清除` 清空历史（零历史不渲染清除钮）。Esc 两段：先收下拉、再清输入。
 - **空实例引导**：仓库数为 0 时制品页内嵌引导卡「创建仓库」+「跳过」（跳过状态存浏览器 localStorage，不设独立路由）。
 
-管理模式五分组 12 条目全图：
+管理模式五分组 18 条目全图（监控组已扩为**服务节点组六页**——服务状态/系统日志为新页，系统信息自常规组、维护与备份自治理组归位迁址）：
 
 ```
 仓库
@@ -87,19 +87,23 @@ curl -s -b jar.txt -X PUT $BASE/binflow/generic-local/a/f.txt \
 ├ 用户                /admin/security/users
 ├ 组                  /admin/security/groups
 ├ 权限                /admin/security/permissions
-└ Access Tokens       /admin/security/tokens（M14 真身页，见下文）
+├ Access Tokens       /admin/security/tokens（M14 真身页，见下文）
+└ 认证配置            /admin/security/auth/ldap（单页三页签）
 治理
 ├ 审计日志            /admin/governance/audit
-├ 维护（GC）          /admin/governance/gc
 ├ 配额                /admin/governance/quotas
 ├ 复制                /admin/governance/replication
-├ 备份 / 恢复         /admin/governance/backup
-├ 回收站              /admin/governance/trash（M12）
-└ Webhooks            /admin/governance/webhooks（M13）
-监控
-└ 存储                /admin/monitoring/storage
+└ 回收站              /admin/governance/trash（M12）
+监控（服务节点组）
+├ 存储                /admin/monitoring/storage
+├ 服务状态            /admin/monitoring/status
+├ 系统日志            /admin/monitoring/logs
+├ 系统信息            /admin/monitoring/system-info
+├ 维护（GC）          /admin/monitoring/gc
+└ 备份 / 恢复         /admin/monitoring/backup
 常规
-└ 系统信息            /admin/general/settings
+├ Webhooks            /admin/general/webhooks（M13）
+└ License & Add-ons   /admin/general/license
 ```
 
 ## 制品树浏览器（`/artifacts`）
@@ -131,7 +135,7 @@ curl -s -b jar.txt -X PUT $BASE/binflow/generic-local/a/f.txt \
   - 文件夹：复制路径 / 删除 / 刷新
   - 仓库：复制仓库路径 / 刷新 / 在仓库管理中打开 / 收藏（My Favorites 标记位）
 - 当前层 children 表（名称/类型/大小/修改时间/操作者）支持「过滤当前层」与「只看文件」；大目录客户端增量「加载更多」（统一分页控件的分治豁免面——大树滚动场景保持增量形态），超过 2000 条提示改用[搜索](#搜索与仪表盘)。**行内操作列已收敛**：children 表不再有详情/下载/删除三钮——删除走详情面板与右键菜单（均过危险确认）。
-- **仓型面（M14/M15）**：local 仓直列内容；**remote 仓只列已缓存制品**（浏览永不回源——空目录提示「远程仓库：仅展示已缓存的制品」，与 Artifactory 的 remote-cache FolderInfo 同口径；回源拉取走包管理器协议面）；**virtual 仓聚合浏览 M15 起可用**（children = 成员仓并集，树动态展开/深链与 local 同形；成员全空时空态卡点名成员清单；virtual 仓不经手删除——删除入口按服务端 405 预收敛不渲染）。
+- **仓型面（M14/M15）**：local 仓直列内容；remote 仓默认**只列已缓存制品**（空目录提示「远程仓库：仅展示已缓存的制品」）——但 **Helm / Debian / RPM 三类 remote 仓可开启「远端浏览可选档」**（建仓表单 Advanced 步 `listRemoteFolderItems` 复选，默认关；详见[remote / virtual 管理 · 远端浏览可选档](admin/remote-virtual.md#远端浏览可选档listremotefolderitems)）：开启后树展开含**未缓存的远端目录与文件**（「远端」Chip 标记，大小/时间列显示 `—` 占位），点击未缓存条目触发回源拉取并落地缓存（刷新后脱离「远端」标记；`?stats` 下载计数联动）；**上游降级不塌树**——已缓存条目始终可用，远端层故障时 children 表上方给降级横幅（`tree-remote-degraded`，REST 面 = `FolderInfo` 可选 `remoteDegraded` 字段），点击已渲染的远端条目遇上游故障给远端专属错误文案（缓存仍可用）；virtual 仓聚合浏览 M15 起可用（children = 成员仓并集，树动态展开/深链与 local 同形；成员全空时空态卡点名成员清单；virtual 仓不经手删除——删除入口按服务端 405 预收敛不渲染；**含开档 remote 成员的 virtual 同样呈现远端派生行**）。
 - **跨路径 Move/Copy 不做树内入口**（REST 面自 M12 起可用——[制品操作族](admin/artifact-operations.md)）；**删除先入回收站**（pro 槽 `trashcan`，社区档为硬删——治理页 [回收站](#治理admingovernance) 可浏览/恢复）。
 
 详情面板（Tab 式，渲染序 `常规` → `有效权限`（admin 渲染）→ `属性`；页签进 URL 段，非默认页签深链直达）：
@@ -176,11 +180,11 @@ curl -s -b jar.txt -X PUT $BASE/binflow/generic-local/a/f.txt \
 - **三 Tab 列表**：`/admin/repositories/{local|remote|virtual}` 子路由；「N 个仓库」计数 + 右上 `+ 添加仓库` 下拉（**Create a Repository 三预选**：Local / Remote / Virtual，每项 = 型名 + 一句描述——按型直达建仓分路由）；列头排序（key / 包类型）+ 行尾删除入口；每行 Set Me Up / Deploy 快捷钮。**Replications 列覆盖 local 与 remote 两 Tab**（每仓复制配置计数；表头注记 push-only 口径——无 pull 复制，remote 页签如实呈现以该仓为源的 push 配置；virtual Tab 无此列）。local Tab **▶ Run = 真触发 Replicate Now**（对本仓逐启用配置 POST run，toast 回报排程数〔0 = 空跑如实说明〕+「查看任务」深链复制页；全部停用则按钮禁用——REST 语义见[治理指南 · Replicate Now](admin/governance.md#replicate-now手动全量同步m15t-420)）。
 - **建仓向导（分路由 + 三段步进）**：入口 `+ 添加仓库` → 三预选直达 `/admin/repositories/{local|remote|virtual}/new`（仓型由路由预选——表单内不再有仓型单选；旧 `/new?rclass=` 深链兼容映射一跳，既有跨页入口零改动）。进页弹**包类型网格**（924px 居中，13 型磁贴全量呈现——五核心型 + 八进阶型〔带 `pro` 档位徽章〕；磁贴恒可选，**档位门由服务端终裁**：community 档提交进阶型 → 400 行内回显 `package type not available on this instance...`，表单页不跳走）→ **三段步进表单**：
   - `Basic`：常规（key / 描述 / 包型锁定回显）+ 来源（remote 的上游 URL 与凭据）或成员（virtual 成员清单）；
-  - `Advanced`：策略（包型专属策略键）/ 治理（local 的配额与 patterns）/ 高级（预留位族——Repository Layout / Environments / Blacked Out 等恒禁用 + 如实标注，**提交体零携带**）；
+  - `Advanced`：策略（包型专属策略键）/ 治理（local 的配额与 patterns）/ 高级（预留位族——Repository Layout / Environments / Blacked Out 等恒禁用 + 如实标注，**提交体零携带**）；remote 仓的 Helm/Debian/RPM 三型另有**「列出远端目录条目（listRemoteFolderItems）」复选**（默认关；hint 说明 TTL 缓存与点击回源语义——语义详表见[远端浏览可选档](admin/remote-virtual.md#远端浏览可选档listremotefolderitems)；其它包型不呈现该控件，服务端对携带 `true` 的其它包型按名 400）；
   - `Replications`：仅**编辑态 local 仓**有第三段（建仓态两段——仓尚不存在，复制配置源仓必 400）；`?section=replications` 深链直落第三步；
   - 页脚 `Cancel` + `Create`（无重置钮）；非活跃步整步卸载。
   - key 规则 `[a-z][a-z0-9-]{1,62}` 前端预检、服务端终裁（400 行内回显）。**保留字 `api` / `v2` / `docs` / `console` / `ui` / `assets` 建仓即 400**。
-- **仓库详情** `/admin/repositories/:key`：概要 / 接入命令（与接入文档同源）/ 统计（配额水位条）/ 配置（配额行内编辑 + patterns；**manage 持有者**亦可编辑本仓配置——见 [RBAC 指南](admin/rbac-roles.md)）/ Replications（M14：本仓复制配置摘要卡 + 深链编辑节 + 全局复制页入口）Tab + 危险区（删仓仅全量 admin 可见）。
+- **仓库详情** `/admin/repositories/:key`：概要（remote 仓含**远端浏览开关态回显行**——开启/关闭 + 语义注记）/ 接入命令（与接入文档同源）/ 统计（配额水位条）/ 配置（配额行内编辑 + patterns；**manage 持有者**亦可编辑本仓配置——见 [RBAC 指南](admin/rbac-roles.md)）/ Replications（M14：本仓复制配置摘要卡 + 深链编辑节 + 全局复制页入口）Tab + 危险区（删仓仅全量 admin 可见）。
 - **编辑** `/admin/repositories/:key/edit`：rclass/包类型锁定，其余字段同建仓表单（三段步进同形）。**dirty-gating**：进入时 Save 禁置，表单与打开时回显**逐字段深度比对**——有实质变更才解禁（改回原值重新禁置；密码字段输入即视为变更）；干净态点不动、零写请求。**remote 仓「测试连接」钮**（仅编辑态在场——探测端点按已存仓 key 寻址，建仓态给说明行不给死按钮）：草稿探测按表单与已存配置的 diff 决定凭据形态——**带了密码 = 用表单明文凭据探测**；只改了 URL/用户名没填密码 = 按匿名探测（已存密封密钥**绝不**静默发往改动后的候选主机）；零改动 = 探已存配置。判定内联呈现（绿/红 + 上游状态码；连接层失败 = 「未触达上游」）；探测零副作用（不写任何配置）。**编辑态 local 仓另有 Replications 节**（push 复制配置：列表 + 新建/编辑表单 + 行内启停开关 + 输入 name 强确认删除；表单带「测试连接」按钮——创建态测草稿、编辑态未改动时探已存配置；Artifactory 的 cron/sync 等字段为预留位恒禁用——如实标注引擎尚不支持）；编辑保存 = 删除 + 重建（未决任务级联清空、目标口令不回显需重输——留空即匿名目标）。remote/virtual 仓不适用（push 源是 local）。REST 语义见[治理指南 · 复制](admin/governance.md#复制push-replication)。
 - **删除**：两段强确认——非空仓必须勾选 `同时删除内容` + **输入 repo key 确认**（不勾选直接删非空仓会被服务端 400 拒绝）。
 - 治理字段（仅 local 仓）：`quotaBytes` 与 `includesPattern` / `excludesPattern`（详见[治理指南](admin/governance.md)）。
@@ -197,18 +201,21 @@ curl -s -b jar.txt -X PUT $BASE/binflow/generic-local/a/f.txt \
 ### 治理（`/admin/governance/*`）
 
 - **审计日志**（`/admin/governance/audit`）：时间窗/操作者/仓库/动作/路径过滤 + **keyset 游标链页窗**（统一分页控件：前沿逐页推进、向后直跳已缓存页；「加载更多」增量追加形态已退役——列表不再累积，path 过滤口径 = 本页窗口）；动作值原样 mono 显示（不翻译）。词表见[治理指南](admin/governance.md#审计)。
-- **维护（GC）**（`/admin/governance/gc`）：GC 状态 + dry-run 结果面板 + apply **输入实例名二次确认**；存储迁移进度面板同页。
 - **配额**（`/admin/governance/quotas`）：每仓 used/quota 水位条（80% 黄 / 100% 红）+ 行内编辑上限。
-- **复制**（`/admin/governance/replication`）：复制目标表 + 最近事件（10s 轮询）；**M15 起页头新增全局封锁卡**（blockPush/blockPull 两方向独立 Switch——「无论配置如何都不触发」的应急刹车，与 `binflow.yaml`/REST 三面同源；readonly_admin 只读呈现）。M14 起配置 CRUD 另入[仓库编辑页 Replications 节](#仓库adminrepositories)，本页保持全局观测视角；REST 与引擎语义见[治理指南 · 复制](admin/governance.md#复制push-replication)。
-- **Webhooks**（`/admin/governance/webhooks`，M13）：订阅列表（行内启停/试发/编辑/删除）+ 新建/编辑对话框（13 域分组事件型选择，休眠型灰显如实标注）+ 详情抽屉（最近投递记录——状态/耗时/重试计数/载荷快照）。写动词 pro 槽 `webhook`；readonly_admin 只读臂（无新建钮、写动作禁用）。REST 语义与接收端配方见 [Webhook 使用指南](admin/webhooks.md)。
-- **备份 / 恢复**（`/admin/governance/backup`）：CLI 引导卡（export/import 命令与警示，一键复制）——备份恢复是**高危带外操作**，不做进度 UI；完整链见[备份与恢复手册](admin/backup-restore.md)。
+- **复制**（`/admin/governance/replication`）：复制目标表（含**「调度」列**——每配置的 cron 表达式与下次同步时刻）+ 最近事件（10s 轮询）；**页头全局封锁卡**（blockPush/blockPull 两方向独立 Switch——「无论配置如何都不触发」的应急刹车，与 `binflow.yaml`/REST 三面同源；readonly_admin 只读呈现）。配置 CRUD（含 `cron` 调度字段）另入[仓库编辑页 Replications 节](#仓库adminrepositories)，本页保持全局观测视角；REST 与引擎语义见[治理指南 · 复制](admin/governance.md#复制push-replication)与[计划任务指南 · 复制域](admin/cron-scheduling.md#复制域cron-双轨)。
 - **回收站**（`/admin/governance/trash`，M12）：`auto-trashcan` 内置仓的浏览/恢复/清空面（槽 `trashcan` 门控态呈现）。捕获/保留期语义见 [Trash can 管理](admin/trash-can.md)。
 
-### 监控与常规
+### 监控（服务节点组）与常规
 
 - **存储**（`/admin/monitoring/storage`，M8 新页）：刷新行 + 汇总卡（blob/制品大小与计数、优化率）+ 逐仓用量表（TOTAL 首行）。
-- **系统信息**（`/admin/general/settings`）：实例信息（版本/修订/产品，开放端点）+ 健康卡（`/api/v1/health` 子系统状态，承载 Artifactory Service Status 的语义）。匿名读开关、数据目录、日志级别等**无查询端点，页面不展示**——配置以 `binflow.yaml` 为准。
-- **编辑档案**（`/profile`，应用模式）：修改口令 + API Token 使用说明。M7 版设置页已拆分为系统信息（管理域）与编辑档案（应用域）两页。
+- **服务状态**（`/admin/monitoring/status`）：总体状态徽标 + 三子系统行（存储 / 元数据 / 镜像仓库，数据源 `GET /api/v1/health`）+ 版本信息（与侧栏版本行同源端点）+ **计划任务调度节**（三域全部调度行的下次运行时刻，数据源 `GET /api/v1/system/schedules`）。实例 URL 按 `window.location.origin + /binflow` 呈现（事实源即浏览器地址）。**Uptime 不呈现**——服务端无进程启动时间端点，如实缺位不伪造；根级 `/metrics` 为 Prometheus 抓取面，控制台不消费。
+- **系统日志**（`/admin/monitoring/logs`）：**尾随刷新**（7 秒倒计时，Pause/继续 + 立即刷新）+ 窗口内客户端子串过滤（hint 明示边界——服务端精过滤在审计页）+ 下载（当前窗口导出 `.log`）+ 每页行数换档。**日志源 = 审计跟踪**（`GET /api/v1/audit`，按时间倒序取最近事件）——BinFlow 当前**没有服务进程日志的在线尾随/下载端点**（日志文件走部署层日志面），以审计承载是如实的形态对位而非等价物；需要 Service/Node/LogFile 级选择器的读者请按「审计日志页 + 部署层日志」组合使用。
+- **系统信息**（`/admin/monitoring/system-info`，自常规组归位）：实例信息（版本/修订/产品，开放端点）+ 健康卡（子系统状态摘要——运行面主承载已移服务状态页）。匿名读开关、数据目录、日志级别等**无查询端点，页面不展示**——配置以 `binflow.yaml` 为准。
+- **维护（GC）**（`/admin/monitoring/gc`，自治理组迁入）：**计划任务卡**（三槽行表：表达式编辑 / 保存 / 清除 / 下次 / 上次——REST 语义见[计划任务指南 · 维护域](admin/cron-scheduling.md#维护域gc-与缓存清理的三槽)；gc 槽「手动执行 ↓」滚向危险区、两个 cleanup 槽带「立即清理」）+ 存储概况与迁移进度面板 + 危险区（dry-run 结果面板 + apply **输入实例名二次确认**）。Quota 百分比 / Compress / Prune 等槽位**无后端载体，页面给缺位注记不伪造**。
+- **备份 / 恢复**（`/admin/monitoring/backup`，自治理组迁入）：**定时备份卡**（列表：Key / cron / 下次备份 / 启用 / 上次运行 / 路径；New Backup 表单——key 预检、服务端权威的 cron 校验、绝对路径门、可选首跑时刻、E1 输入 key 强确认删除；REST 语义见[计划任务指南 · 定时备份](admin/cron-scheduling.md#定时备份到点-export)）+ CLI 引导卡（export/import 命令与警示，一键复制）。**import 恢复仍是高危带外 CLI 操作，不做进度 UI**；完整链见[备份与恢复手册](admin/backup-restore.md)。
+- **Webhooks**（`/admin/general/webhooks`，M13，自治理组迁入常规组）：订阅列表（行内启停/试发/编辑/删除）+ 新建/编辑对话框（13 域分组事件型选择，休眠型灰显如实标注）+ 详情抽屉（最近投递记录——状态/耗时/重试计数/载荷快照）。写动词 pro 槽 `webhook`；readonly_admin 只读臂（无新建钮、写动作禁用）。REST 语义与接收端配方见 [Webhook 使用指南](admin/webhooks.md)。
+- **License & Add-ons**（`/admin/general/license`）：见 [License 与 Add-ons 管理](admin/license.md)。
+- **编辑档案**（`/profile`，应用模式）：修改口令 + Identity Token 自助生成 + API Token 使用说明。M7 版设置页已拆分为系统信息（管理域）与编辑档案（应用域）两页。
 
 ### 搜索与仪表盘
 
@@ -244,10 +251,12 @@ M8 路由重排曾为 M7 及以前的控制台路径提供**自动客户端重�
 | `/repositories/:key` | `/admin/repositories/:key` |
 | `/repositories/:key/settings` | `/admin/repositories/:key/edit` |
 | `/repositories/:key/tree/<path…>` | `/artifacts/:key/<path…>`（文件深链 = 路径末段；旧 `?focus=` 形打开时自动折入路径段规范形） |
-| `/settings` | `/admin/general/settings`（改密块在 `/profile`） |
+| `/settings` | `/admin/monitoring/system-info`（系统信息归位监控组；改密块在 `/profile`） |
 | `/security/users*`、`/security/groups*`、`/security/permissions*`、`/security/tokens` | `/admin/security/…` 同名尾段 |
 | `/audit` | `/admin/governance/audit` |
-| `/governance/gc` / `/governance/quotas` / `/governance/replication` / `/governance/backup` | `/admin/governance/…` 同名尾段 |
+| `/governance/gc` / `/governance/quotas` / `/governance/replication` / `/governance/backup` | `/admin/governance/…` 同名尾段（GC 与备份后迁监控组，见下注） |
+
+> **近期迁址的四条旧深链仍自动折入**（打开时一次性 `replace` 到新址，不落 404——与上表的「直落 404」不同窗）：`/admin/general/settings` → `/admin/monitoring/system-info`；`/admin/governance/gc` → `/admin/monitoring/gc`；`/admin/governance/backup` → `/admin/monitoring/backup`；`/admin/governance/webhooks` → `/admin/general/webhooks`。书签与内部 wiki 建议尽早改到新址。
 
 > 首页 `/` 不受影响：登录后的落点仍是 `/artifacts`——这不是兼容窗口，是控制台的固定首页语义。
 
@@ -261,12 +270,20 @@ M8 路由重排曾为 M7 及以前的控制台路径提供**自动客户端重�
 
 已知边界：三引擎均为 QA 抽查口径（登录/树/上传三链），非全量矩阵；Chromium 是唯一全量回归引擎，生产环境推荐 Chromium 系浏览器。
 
-## 多语言与计划任务（预埋）
+## 界面语言（中英双语切换）
 
-以下能力**尚未定案落地**，本节为预留文档位，不构成当前版本承诺：
+控制台内置**中英双语资源包**，默认中文：
 
-- **控制台界面语言**：当前界面为中文单语。多语言切换（含英文界面）在规划中——落地后本节将改写为语言切换入口、覆盖范围与回退行为说明。
-- **计划任务（cron 调度）**：备份 / 维护 / 复制三域的 cron 计划任务能力在规划中。现状：复制为事件驱动引擎（无 cron 计划面）、备份是 export/import 带外任务（无 UI 进度面）、仓库表单中的 `cron` / `sync` 等字段为恒禁用预留位——调度域落地后管理域将新增计划任务页，预留位字段届时转正。
+- **切换器**在侧栏底部脚注（模式切换与版本行之间，「语言」caption + `中文` / `English` 两档单选）——应用与管理两侧栏同脚注常驻，任一模式可达；当前语言呈选中态。
+- 点选即 `setLocale`：**选择持久化在浏览器 `localStorage`（键 `binflow-console-locale`）+ 整页重载**后按新语言渲染（模块级文案求值点按新语言重算——与 Artifactory 的切换姿态一致）；不可用时回落中文。
+- **英文为全量覆盖**：控制台全部页面域（仪表盘/制品/搜索/仓库/安全/治理/监控/Webhooks/Profile 等）与全部对话框/表单文案；语言名走母语名（`中文` 两态恒显，语言自称不随界面语言翻译）。
+- **术语两包保真**：repo key / node / checksum / Deploy / Set Me Up / cron / readonly_admin 等英文术语在两种语言下原样。
+- **日期与数字随语言**：英文界面下结果表 `modified` 与审计时间列为 `MMM d, yyyy h:mm:ss AM/PM` 12 小时形态（中文维持 `dd-MM-yy HH:mm:ss` 24 小时形态）；数字千位分组随语言取义。
+- 回退行为：词条缺失时回落中文原文（永不空渲染）。
+
+## 计划任务（cron 调度）
+
+GC / 缓存清理（维护三槽）、**定时备份**与**复制调度**（cron 双轨）均已落地，控制台消费面见上文[监控（服务节点组）与常规](#监控服务节点组与常规)各页；表达式子集、REST 全语义与审计词见专篇 **[计划任务（cron 调度）与定时备份](admin/cron-scheduling.md)**。
 
 ## 有意不兼容与已知边界（M8 控制台）
 
@@ -275,7 +292,7 @@ M8 路由重排曾为 M7 及以前的控制台路径提供**自动客户端重�
 | Access Tokens 令牌清单 | 服务端只存指纹、**无令牌清单端点**（R6 未落地）——控制台台账是会话内存态（刷新即空，明文只展示一次）；历史令牌吊销走按 token_id 出口 + 审计日志指纹对账 |
 | Packages 卡片落地页 / Builds / Xray / Pipelines / Distribution | 不建——JFrog 独立产品（Non-goal），制品树是最近似落点 |
 | Authentication Providers（SAML/Crowd 等）配置页 | 不建（产品 Non-goal）；OIDC/LDAP 走 `binflow.yaml`（见[专题指南](guides/oidc-config.md)） |
-| 仓库 Layouts / Proxies / Mail Server / cron 计划备份 | 不建——BinFlow 无对应功能面；备份是 export/import 任务（见[备份手册](admin/backup-restore.md)） |
+| ~~cron 计划备份~~ | **已交付**——监控 → 备份 / 恢复页的「定时备份」卡（到点 export，无需外部 crontab）；恢复仍走 import CLI（见[计划任务指南](admin/cron-scheduling.md#定时备份到点-export)与[备份手册](admin/backup-restore.md)）。仓库 Layouts / Proxies / Mail Server 仍不建——无对应功能面 |
 | 跨路径 Move/Copy 的树内入口 | 不建 UI——copy/move 走 REST（[制品操作族](admin/artifact-operations.md)，M12 起）；回收站 UI 在治理页（M12 起）。树内收藏（My Favorites）已有——仓库级、浏览器本地 |
 | 审计 CSV 导出 / 搜索 checksum 反查 UI | P2 债务：按钮不渲染 / 页面引导走 REST |
 | token 签发/吊销落审计 | `token.issue` / `token.revoke` 均落审计（detail 含指纹与 TTL；step-up 路径另含 `step_up` 维度，见[step-up 指南](admin/token-step-up.md#审计)） |
@@ -283,6 +300,8 @@ M8 路由重排曾为 M7 及以前的控制台路径提供**自动客户端重�
 
 ## 下一步
 
+- 本轮交付的用户可见变化与翻案清单：[用户可见变化公告](whats-new.md)
+- 计划任务（cron 调度）与定时备份：[专篇指南](admin/cron-scheduling.md)
 - 从 Artifactory 迁移的逐任务操作路径：[Artifactory → BinFlow 操作路径对照表](artifactory-path-map.md)；真实源实例迁移实录与差异清单：[附录 V28](admin/real-env-appendix.md)
 - 授权三步流与组语义：[用户组与权限管理](admin/groups-permissions.md)；角色模型：[RBAC 角色与仓库级管理员](admin/rbac-roles.md)
 - 审计 / GC / 配额：[治理指南](admin/governance.md)；备份恢复：[备份与恢复手册](admin/backup-restore.md)

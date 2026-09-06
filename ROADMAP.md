@@ -246,7 +246,7 @@
   - 引擎/运维：大仓 limit 化全枚举缝（T-420——T-423 同族）；TestEngineMixedLoad 慢机 429 介入测试健壮性（D-413-2——归 T-421 复验顺腿修或转 T-433）；真门并发饱和不可确定性（T-415——stub 同口径）；审计实例 18091 未复活待查 + :8099/:8174 跨票残留实例 hazard（环境项）；t381 事故残留清理（conductor 决定项维持——REST 删被 OSS license 门挡）；37 条 eslint ratchet warnings 清单（T-432① 底稿——清理候选票）；T-432 段二（vite 8 Rolldown + plugin-react 6）与 MUI v7→v9（触全页面，最后位）排队独立票面。
 - **沿 M14 候选池续滚（intake ⑤ 翻案语境逐条重标）**：**HA 本体**（PRODUCT.md「明确不做」——**翻案候选**：须 PRODUCT.md 修订解禁 + 单列专程 + 用户确认）；**Xray 集成面（intake ⑤ 明示排除——唯一维持不做）**；Build-info 域（AQL build 系入口前置——**翻案候选**）；制品 license 识别（AQL license 搜索前置——**翻案候选**）；Go 深化（sumdb 代理 + external 重定向）/ Terraform / GitLFS / 冷存储分层 / AI-ML 包型扩展 / license 公钥 config 覆盖（T-293 终裁③——走新 ADR）——均候 M16 立项稿与全量审计产出对账后逐条定去留。
 
-### M16 — 控制台 full-parity 收口大程：制品树栈（P0）+ 仓库表单栈 + 详情/搜索栈 + 安全/shell 栈 + i18n 双语 + cron 调度域 + 远端浏览可选档 + AQL 高级面副线（PRD v1.1 裁定回填版——2026-09-02 v1.0 立项 + 同日七项终裁落章〔用户四项 Q1/Q3/Q4/Q6 + conductor 三项 Q2/Q5/Q7〕；两程结构之前程，产品域扩张落 M17 预立项段）
+### M16 — 控制台 full-parity 收口大程：制品树栈（P0）+ 仓库表单栈 + 详情/搜索栈 + 安全/shell 栈 + i18n 双语 + cron 调度域 + 远端浏览可选档 + AQL 高级面副线（PRD v1.1 裁定回填版——2026-09-02 v1.0 立项 + 同日七项终裁落章〔用户四项 Q1/Q3/Q4/Q6 + conductor 三项 Q2/Q5/Q7〕；两程结构之前程，产品域扩张落 M17 预立项段；**v1.2 收口笔 2026-09-06**〔T-460：Q8~Q12 归位 + K67~73 回填 + B 47 项四态核对零无主 + 勘误五条 + 未纳入项备稿——详 PRD §7 v1.2 收口总账〕）
 需求基线：docs/prd/milestone-16.md（PRD v1.1：FR-141~FR-150 十条需求〔**新增 FR-149 i18n 双语可切换〔Q3〕/ FR-150 cron 调度域〔Q1——ADR-0044 占位〕**〕；契约矩阵 LC-80~LC-98 估 19 条〔**A 17 / C 2 / 待裁 0**——v1.1 归位 LC-88 Annotate〔Q7 加〕/ LC-91 cron〔Q1 引入〕+ 新增 LC-97 i18n〔C〕/ LC-98 页码控件〔A〕〕；L35~L48；K67~K72；**§0 范围定界置于最前——v1.1 两程结构终裁落章**：M16 = 控制台交互 parity 收口〔B 偏差 47 项 + A2/A4/A5/A6/A7 部分翻案 + i18n + cron 域〕，A1 产品域扩张已裁「全部进」但落 M17 预立项段〔须 PRODUCT.md 修订 + ADR 群，候 M16 收口后 PM 正式立项〕）
 来源链：用户指令 intake ⑤（2026-09-02 00:1x 三指令：① 制品树展示仍与 Artifactory 严重偏离〔第三次 UI 加码〕② 完全检查整个前端对齐 Artifactory 所有内容 ③ 除 Xray 外不做清单全面翻案——冲突处列冲突点交用户确认）+ **M16 全量审计 workflow 产出** reports/m16-parity-audit-material.md（2026-09-02 10:0x 收官——A 翻案 8 域 66 项〔xray_tied 已剔〕/ B 活体偏差 47 项〔logic 11 · visual 17 · minor 19，t226 逐页带代码行锚〕/ C 冲突 13 项 / D 骨架建议）+ ROADMAP「M15 未纳入项」（T-427 备稿〔M16 吸收预期〕标注——双源对账勿重复立项）+ M15 Q4/Q6 终裁承接（远端浏览出口 C 批 1 / docker virtual 开禁）
 - [ ] conductor 审定 PRD（v1.0→**v1.1 已裁定回填**——必答七项 + Q13 全部落章，「待裁」零滞留）；**ADR-0044（cron 调度域）立项 + Annotate 迁移会签**（architect 前置）
@@ -273,6 +273,27 @@
 - **追加候补（A1 同族、本轮未点名——M17 立项稿定容）**：HA 高可用本体、Artifactory 全量 REST 兼容（高频子集承诺退让边界）。
 - **维持不做**：Xray 集成面（intake ⑤ 明示唯一排除——Q6 终裁不改变）。
 - **容量注**：Replay+outbox 行级 REST / virtual 同型全包型推广 / Go·Terraform·GitLFS·AI-ML 包型域 / Cleanup-冷存储等 M16 让位滚程项，M17 立项时与产品域主目统一排程对账。
+
+### M16 未纳入项（滚入 M17+ 候选池；T-460 起草 2026-09-06，**备稿——m16-done 收口窗启用**；DoD#7 对账）
+
+> **状态：备稿（PM 预备文本——沿 T-395/T-427 先例）**，以 2026-09-06 票据状态为基线起草（M16 31/35 + 收口笔在途；T-465 release / T-466 终验未跑，票外工程票 T-469~T-480 系在册），conductor 终验后启用并按届时 as-built 修订勾稽——在途票遗留以届时报告为准增删。
+>
+> **M17 衔接核对（T-460，2026-09-06）**：PRODUCT.md「明确不做（第一版）」五条**原样未修订**（HA / Xray / LDAP·SAML·OIDC / 洞察报表 / 全量 REST）——**M17 前置门槛（修订解禁）未发生，M17 维持预立项段不启动、不派票**；本段与 M17 预立项段双源对账——产品域项归 M17 段（本段不重复），本段承载 parity 残留 / 契约漂移 / 条件票 / 滚程项 / 工程遗留。
+
+- **B 偏差收口残留（parity 面——T-460 四态核对终态，49 行详表 reports/agents/T-460.md）**：
+  - **B-3.2 初始态**（首仓库自动选中 + item view）——**翻正未落滚程**（FR-142.5 登记、批次①③ 均未承载；FE lane 收官无票位）——M17+ FE 小票候选；conductor 亦可裁 m16-done 前插空单票；
+  - **B-2.8 有效权限渲染重载体**（分段开关 + AG 网格 + 列选）——**豁免·差异登记**（chip 列表维持；授予 target 可见性增补并入候选；候用户信号——权限对齐面已由五列矩阵承载）；
+  - **B-1.5 / B-3.12 BE 表单域承接票**——configJSON 四域（maxUniqueSnapshots / repoLayoutRef / blackedOut / archiveBrowsingEnabled）转发 round-trip + 行为联动 + Stage〔原 Environments，7.161 更名〕域承接（FE 预留位 + API 漂移钉 tripwire 已备）；repoLayoutRef 布局引擎接线评估 = K73（PRD §5.6）；
+  - **B-2.16 Any Local / Any Remote 预置桶**——BE 通配桶语义承接票 or 与 Any Distribution 同口径缺位登记终裁（FE 不伪造候裁在案）；
+  - **B-1.7 双布尔 vs 三值枚举**（Administer Platform / Manage Resources）——ADR-0026 闭集增补评审候裁（FE 预留位 + tripwire 已备——BE 落地日翻红即转正触发器）；
+  - **B-3.18 FE 列（Users Last Login）/ B-3.19 列集差异**——T-468 条件票未触发滚程（BE 投影已备；columnPrefs 共享层就绪）。
+- **契约漂移登记族（BE 勘误候选——各票报告在档）**：GET /api/repositories `url` 缺 /binflow 前缀（M1 既有）；FileInfo.downloadUri 系 api/storage URI 非下载语义；System Logs 服务进程日志端点缺位（审计承载现行——BE 端点建议票）；7.161 ag-grid 翻页形态分歧（7.84 冻结锚维持——候 ux 复核）；帮助菜单四项 vs 7.161 活体三项（PRD 定案维持留痕）；?properties 分号矩阵语法注记（REST 只认逗号配对）；NodeDetail useAsync 重复发射致纯浏览多计下载（跨票怪癖小票）。
+- **cron / i18n 域遗留**：gc-cron-gap（Quota 百分比 / Compress Internal Database / Prune Unreferenced Data 无后端载体——诚实缺位）；枚举快照 TTL 600s 非 wire 可调；语言切换器位置候 ux 复核 + faq 两问候选。
+- **条件票与不占号 slot（未触发——BOARD 留痕非 DoD 缺口）**：**NuGet symbol server 七承**（Q10 终裁〔T-460〕条件窗关闭不转正——BOARD 全程零触发信号 + lane 收官；**用户点名即翻**）；L1 列选器推广 + Users Last Login 列（T-468）；E7 toast 锚位（候用户信号）；license 公钥 config 覆盖 ADR（候立项）；**t381 事故残留（Q12——conductor 决定）**：随 T-465 release 票处置或继续登记（VM 取证快照 15MB + 空仓，REST 删除被 OSS license 门挡）。
+- **Q11 webhook 触发源裁剪（ADR-0041 决策 7 翻转路径）**：M16 无 webhook 域票（触发源织入面零变化）——裁点未至，维持现行态（36 型注册 wired/dormant 如实标注）滚 **M17+ webhook 域二程评估票**；与 build-info 域落地联动（dormant→wired 翻转路径在案——schema 零变化）。
+- **工程/基建票外系收尾残留（T-469~T-480 系——非 35 票内但在册）**：X-Explode-Archive staging 同族迁移（T-477 候立——internal/repo/archive.go:1082）；migrate CLI 低危登记（T-476）；Annotate dry-run CLI 挂点（cmd/ 5 行小票）+ M17 write 别名移除评估（T-444 遗留）；migration 011 墙钟阈值满载 flake（T-444）；QRL audit 词 / LOW_PRIORITY 桶 / V-m 对拍（T-452 遗留三条）；文件深链多一请求优化窗（K67 附注③——非热路径）；文档漂移四条（docker-registry.md「virtual 暂不做」旧口径 / golang.md virtual "members" 笔误 / nuget dotnet 9+ `allowInsecureConnections` 补文 / fern docker.mdx 旧口径）；7.161 参照容器双损坏（pro router 不就绪 / oss 进程死——修复归 conductor 决策，牵 M17 活体参照基线）；sidecar 正规 setup（chunk 集成面——兑现后可复挂 Stop 钩子）；CircleCI arm.medium 与 org context 迁移两跟进票（T-473）；TLS 443 就绪候用户两项（DNS A 记录 + AWS SG 80/443——T-478）。
+- **滚程项维持（M16 PRD §2.2 判定不变——翻案语境不覆盖物理不可行与容量让位）**：Replay + outbox 行级 REST 面 / virtual 成员同型全包型推广 / Go·Terraform·GitLFS·AI-ML 包型域 / Cleanup-Retention 策略引擎与冷存储分层 / deb bz2（ruled-out 维持）/ Smart Searches 保存面（pro 档不对齐）/ 协议物理不可行面（npm/pypi 根 / goproxy / cargo / conan 根树 + docker tags 远端浏览首采被否 + generic/maven HTML 抓取族）/ by-digest 拉取强刷（TTL 统一 as-built）/ Tokens 字段集补核验（候商业版/云活体源）。
+- **M15 未纳入项对账注（双源勿重复立项）**：M16 已吸收——AQL 高级面（statistics/usage + QRL + UI 搜索族 + dates/creation）/ 远端浏览批 1（可选档全栈）/ docker virtual 开禁（T-431 m15-done 前已执行）；未吸收续滚（沿 M15 段在册）——aql.md V-a~V-h 待验证八项 / 相对时间 `"1d"` 空格冲突 / compact 非空行体 / 429 Retry-After 不上 UI / virtual echo 原始 config blob / 大仓 limit 化全枚举缝 / 37 条 eslint ratchet / T-432 段二（vite 8 + MUI v7→v9）等。
 
 ### M11 未纳入项（滚入 M12+ 候选池；2026-08-28 T-329 终验归档后由 M11 PRD §2.2/§4.8 + 用户三项裁决〔07:5x〕+ 票级遗留登记处置；DoD#7 对账）
 
