@@ -1946,3 +1946,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 **T-460 → done 2026-09-06 07:2x（`0d6e8efb`，3 文件 +167/−13）——M16 32/35（PM 终裁收口笔）**：PRD v1.2——**Q 表 13/13 闭环**（Q8 as-built 裁①；Q9 九倾向全兑现；**Q10 条件窗关闭**〔NuGet symbol 滚 M17+，零触发信号，用户点名即翻〕；Q11 裁点未至滚 M17+〔与 build-info dormant→wired 联动〕；Q12 移交）；**B49 行终态零无主**（31 落/8 部分/1 滚/4 豁免登记/2 stay-out/3 去重——B-2.8 豁免·差异登记 + B-3.2 滚程留插空窗）；K67~K73 回填（K73 新行纠 K70 误挂）；勘误五条。ROADMAP M16 未纳入项备稿（m16-done 窗启用）+ M17 门槛核对（PRODUCT 五条未修订——预立项维持不启动）。**移交 conductor 六项**（B-3.2 插空/t381 处置/Q10 不转正报备/7.161 容器修复/T-466 输入告知/T-437 两命令门代跑——末项已注入 T-466 派单）。日志 reports/agents/T-460.md。
 
 **T-466 → doing 2026-09-06 07:3x（P0 终验——里程碑收官门）**：qa-engineer 在途。DoD 八条证据 + L44 审计核对 + 净窗全量回归（四门+e2e CI 同参+双 locale a11y）+ 十协议 local 矩阵（净实例）+ T-437 两命令门代跑 + 契约缺位清点。
+
+**T-466 → done 2026-09-06 11:3x（`d4342230`）——P0 终验 PASS with notes，m16-done 可裁**：DoD 8/8 证据齐（L44 审计 49=49 零无主对账 / 断言反转七归属全 M16 / FE 变更面 20 提交零无主 / 16 纯 FE 票服务端 diff=0）；race 37/37 solo 绿（首跑超时系参数失误 solo 定谳）+ e2e 385/385 有效 + 十协议 local 10/10（licensed 净实例真客户端）+ remote/virtual 6 绿（npm ssrf 设计内 SKIP + 三面本网污染 CI a955dbce 承载）+ a11y 双主题双 locale 0 + NFR 全门过（11.4MB/126ms/502.6KB）。**缺陷两枚 P2 移交 T-465 顺腿**（D-T466-1 npm virtual 降级路径缺 / D-T466-2 DOCKERIZED_TOOLS 空格）。20 项缺位表全登记零遗漏。日志 reports/agents/T-466.md。
+
+**T-465 → doing 2026-09-06 11:4x（35 票收官笔：两 P2 顺修 + goreleaser 六平台烟测 + chart 联动 + 部署三面抽检 + m16-done 收口清单成文）**：release-engineer 在途。**收口后即裁 m16-done**（tag + UAT 随里程碑 PR——CircleCI 平台恢复后复跑补证）。
