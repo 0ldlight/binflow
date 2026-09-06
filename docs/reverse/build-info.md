@@ -39,6 +39,7 @@ Base：`/artifactory/api`。认证：Basic / Bearer JWT 双收。产品媒体类
 | POST | `/build/delete` | —（body 承载） | 200 text/plain（同 DELETE 族文案） | 400/401/403 | 批删（6.13+）：body `{project, buildName, buildNumbers[], deleteArtifacts, deleteAll}`；**支持 build 号含特殊字符**（官方明示——这是该端点独立存在的理由） | 高 |
 | POST | `/build/rename/{buildName}` | `?to=<new>`（必填）`&project=` | 200 text/plain：`Build renaming of 'x' to 'y' was successfully started.` | 400/401/403/404 | **Requires Artifactory Pro**；异步语义（文案「was successfully started」） | 高 |
 | POST | `/build/retention/{buildName}` | `?async=`（缺省 true） | 200 | 400/401/403/404 | 设保留参数，body 见 §2.5；**不立即删**（官方明文） | 高 |
+| POST | `/archive/buildArtifacts` | body（见 §2.7） | 200 二进制档（zip→`application/zip`、tar→`application/x-tar`、tar.gz/tgz→`application/x-gzip`） | 400/401/403 | build 制品打包归档（2.6.5+）；**Requires Artifactory Pro**（官方）；M17 面外登记 | 高 |
 | POST | `/docker/{repoKey}/v2/promote` | —（body 承载） | 200 text/plain `Promotion ended successfully` / 部分 206 | 400/401/403/404 | Docker 镜像晋升，语义见 §2.6；另有 legacy `POST /docker/{repoKey}/v1/promote` 与 `DELETE /docker/{repoKey}/v2/delete` 同族 | 高 |
 
 **M17 面内/面外切分**（对齐 ADR-0045 点 6）：M17 七族 = 上传/append/查询单/列表族/批删/promote/retention；**面外登记** = rename、diff（查询参数）、docker promote 独立端点、projectKey 过滤族（BinFlow 无 projects 域，参数面不承接）。
@@ -48,12 +49,12 @@ Base：`/artifactory/api`。认证：Basic / Bearer JWT 双收。产品媒体类
 ### 2.1 查询族（单·列表·最新）
 
 - 列表两跳：`GET /build`（名清单+lastStarted）→ `GET /build/{name}`（号清单+started）→ `GET /build/{name}/{number}`（详情）。URI 回显为**相对路径形态**（`/<buildName>`、`/<number>`），非绝对 URL（官方例证）。
-- 「最新」语义：无专用端点；`lastStarted`/`buildsNumbers` 的 started 时间戳即排序依据。builds 唯一性 = (name, number, started, repo) 四元（§3 builds 表 UNIQUE 索引）——**同名同号不同 started 是不同 run**，`started` 查询参数即消歧键。
+- 「最新」语义：查询/归档 body 的 `buildNumber` 支持 **`LATEST` 哨兵值**（官方 archive 端点明示；归档/搜索族通用语义——软缝⑦补强：最新语义有 body 级哨兵形态，GET 族则仍无专用端点）；`lastStarted`/`buildsNumbers` 的 started 时间戳即排序依据。builds 唯一性 = (name, number, started, repo) 四元（§3 builds 表 UNIQUE 索引）——**同名同号不同 started 是不同 run**，`started` 查询参数即消歧键。
 - `diff` 参数（GET 单详情）触发 Builds Diff 输出（对比形态官方未展开——低，待活体）。
 
 ### 2.2 PUT 上传与 append 段合并
 
-- **PUT 全量上传**：body = 完整 build info JSON（§3 字段集）。重复上传同名同号 = 覆盖（需 delete 权；官方权限注记）。modules 的 artifacts 携 sha1/md5 方可与仓内制品关联（官方明示「correct SHA1 and MD5 to be properly linked」）；无 checksum 的 artifact 行只入记录不建关联。
+- **PUT 全量上传**：body = 完整 build info JSON（§3 字段集）。重复上传同名同号 = 覆盖（需 delete 权；官方权限注记）。modules 的 artifacts 携 sha1/md5 方可与仓内制品关联（官方明示「correct SHA1 and MD5 to be properly linked」）；无 checksum 的 artifact 行只入记录不建关联。制品↔build 的关联标记 = 属性三键 `build.name` / `build.number` / `build.timestamp`（官方 OSS 源 `BuildConstants` 常量——「modules must have build.name and build.number properties」官方注记的机制本体；高）。
 - **append 段合并**（POST，数组 body）：
   1. 父 build (name, number[, started, buildRepo, project]) 必须已存在——不存在 404 `Build-Info not found`（逐字）。
   2. 数组逐模块并入：**module 按 `id` 合并**（同 id = 同模块追加 artifacts/dependencies；ADR-0045 软缝④的合并键）；不传则新增模块。
@@ -70,6 +71,7 @@ PUT 进 build-info 类型仓（含缺省 `artifactory-build-info`）的 `.json` 
 - 重复 PUT 同一 build JSON（覆盖文件）→ 先删 DB 既有记录再重建（override 语义）；系统属性可强制按 DB 存在性 override。
 - 删除 buildinfo 仓里的 build JSON 文件 → 级联删除对应 build DB 记录（解析失败时按路径坐标回退删除）。
 - buildinfo 仓内 **copy/move 全拒**（400 `Copy and Move operations are not allowed within the Build Info repository`）；从 buildinfo 仓 copy/move 出去也拒；copy/move 进 buildinfo 仓仅当目标路径 == build 坐标推导路径（否则 400 bad-path 文案）。
+- buildinfo 仓族：缺省 `artifactory-build-info`；项目域 buildinfo 仓 = **`<projectKey>-build-info`** 后缀约定（官方 OSS 源 `BuildConstants.BUILD_INFO_REPO_KEY_SUFFIX`；高）；包型字面 `buildinfo`。
 - BinFlow 对位注记：ADR-0045 载体轴 A（build 记录不进 storage/nodes）——本节为 Artifactory 形态记录，BinFlow 不承接文件面直传（REST 面 `PUT /api/build` 为唯一入口）。
 
 ### 2.4 Promotion 状态机
@@ -107,6 +109,10 @@ body：`targetRepo`*、`dockerRepository`*、`targetDockerRepository`（缺省�
 - 输入消毒：全部参数过非法字符剥离。
 - **M17 处置**：独立端点不进 M17（ADR-0045 点 6）——镜像晋升经 build promote 的 targetRepo 直达 docker 仓（T-509 腿）；本节为远期翻案锚。
 
+### 2.7 Build Artifacts 归档（`POST /api/archive/buildArtifacts`；M17 面外）
+
+body = `BuildArtifactsRequest` 全字段（官方 schema，高）：`buildName`*、`buildNumber`*（支持 `LATEST` 哨兵）、`archiveType`*（tar/zip/tar.gz/tgz）、`buildStatus`（可选，按最新状态过滤）、`repos[]`（限定仓）、`mappings[]`（`input` 正则 + `output` 支持正则组 token 的路径重映射）。同一 schema 亦服务 `/api/search/buildArtifacts`（去 archiveType）——aql.md §15.4 的 body 字段集由此补全。BinFlow M17 面外（归档装配族远期行）。
+
 ## 3. 数据模型字段集（表族）
 
 ### 3.1 wire JSON 字段集（build info；置信度：高——一手 OpenAPI schema + 官方参考页）
@@ -133,7 +139,7 @@ module_props(     prop_id PK, module_id FK, prop_key, prop_value )
 build_release_bundles( build_rb_id PK, build_id FK ON DELETE CASCADE, bundle_repository, bundle_name, bundle_version )
 ```
 
-要点：① build↔bundle 有专门关联表（§联动）；② module/dependency 名入 `*_name_id` 列（名字规范化存储）；③ AQL builds 域字段 = 本表族的直投影（aql.md §15 字段集与此一一对应）；④ buildinfo 仓里的 build JSON 文件布局 = `<buildName>/<buildNumber>/…json`（**低**——路径推导在外部库 `generateBuildJsonRepoPath`，未反编译；唯一键四元与 webhook `build_repo` 示例旁证）。
+要点：① build↔bundle 有专门关联表（§联动）；② module/dependency 名入 `*_name_id` 列（名字规范化存储）；③ AQL builds 域字段 = 本表族的直投影（aql.md §15 字段集与此一一对应）；④ buildinfo 仓里的 build JSON 文件布局 = **`<buildName>/<buildNumber>-<startedMillis>.json`**（官方 OSS 源 `BuildInfoUtils` 逐字：路径正则 `^(.*)\/(.*)-([\d]*)\.json$`，started 由 ISO8601 转 epoch-ms；buildName/buildNumber 各自做**路径元素级编码**——斜杠恒编码，保障单段路径元素；置信度：高——官方源码补齐本规格原「低」项）。
 
 ## 4. 老搜索两入口 wire 锚（详表归 aql.md §15.4）
 
@@ -176,7 +182,7 @@ build_release_bundles( build_rb_id PK, build_id FK ON DELETE CASCADE, bundle_rep
 
 1. Builds 页在 OSS 档的**页面内容行为**（空态/升级提示/加载即 403）——nav 在场已证，内容未实证（本轮活体双损坏）。
 2. promotion body 六「required」字段的**运行时强制度**（官方 schema required vs 产品缺省容忍）。
-3. buildinfo 仓 build JSON 文件路径布局字面（`<name>/<number>/…json` 的第三段命名——`generateBuildJsonRepoPath` 在外部库未反编译）。
+3. ~~buildinfo 仓 build JSON 文件路径布局字面~~ **已解**（成稿后官方 OSS 源可达：`<name>/<number>-<millis>.json`，§3.2 ④——低→高，零静默升格的反向闭环）。
 4. `GET /build/{name}` 回显 buildsNumbers 的**排序保证**（是否 started 倒序——「最新=取首」依赖此）。
 5. builds diff（`?diff=` 参数）的响应形态（官方未展开）。
 6. 上传/promotion/retention 的**逐字错误文案**（REST 实现类不在反编译集合内；§1 表错误码位是官方 schema 级别）。
@@ -189,4 +195,5 @@ build_release_bundles( build_rb_id PK, build_id FK ON DELETE CASCADE, bundle_rep
 - 官方指南页：`docs/artifactory/docs/build-integration.md`（CLI append 语义/引用模块形态）、`docs/aql-entities-fields-reference.md`（字段表）、`docs/aql-examples.md`（跨域路径例）。
 - 反编译：`org/artifactory/build/*`（ReleaseStatus/PromotionConfig/BuildId/DetailedBuildRunImpl）、`rest/resource/build/BuildRestConstants.java`、`repo/interceptor/BuildInfoInterceptor.java`、`rest/resource/search/types/{BuildArtifactsSearchResource,DependencySearchResource}.java`、`batch2-protocol addon/docker/rest/DockerResourceBase.java + rest/v2/promotion/DockerV2Promoter.java`、`security/{PermissionTarget,permissions/PermissionTargetModel,AuthorizationServiceBase,LegacyAuthorizationServiceImpl}.java`、`common/ConstantValues.java`（build.* 键族）、`postgresql/postgresql.sql`（builds 表族 DDL）。
 - 既有活体证据引用：t226 OSS 7.84.10（T-407 会话 2026-09-01）经 aql.md §2.1/§8.2 与 console-ui.md §1.1/§3.8 转引。
+- 官方 OSS 源码（用户提供的 jfrog-artifactory 7.161.16 发行源码树，按绝对路径只读——非 reverse-src）：`build-handler/build-handler-acl/src/main/java/com/jfrog/build/acl/util/{BuildInfoUtils,BuildConstants}.java`（JSON 布局/属性三键/`-build-info` 后缀/`release-bundles-v2` 缺省常量）+ `encode/BuildRepoPathEncoder.java`（路径元素编码）；`web/rest/src/main/resources/rest/resource/build/openapi.yaml` 与反编译副本 **diff 逐字节一致**（一手规格完整性核验）。build REST 实现类（BuildResource.java）在 OSS 树内亦未检索到（resources 侧仅 openapi 描述符——实现疑在未开源模块），§9 #6 待验证维持。
 - 本轮活体：**零**（pro 7.161 与 t226 双损坏，修复尝试与终态见 reports/agents/T-488.md §0——容器均复原为 stopped 原状）。
