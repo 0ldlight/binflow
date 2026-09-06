@@ -1,4 +1,4 @@
-# BinFlow 架构设计（M1 定稿；M2~M6 增量已并入，M7 增量标注 [M7]，M8 控制台对齐约束见 §13 [M8]，M9 服务端解冻约束见 §14 [M9]，M10 license/addon/属性基座见 §15 [M10]；M11 增量未新增章节号——票据级 as-built + ADR 承载；M12 操作域/MPU/remote 字段/可观测回写见 §15.4 与 §23 [M12]；M13/M14 增量未新增章节号——ADR-0040~0042 承载；M15 搜索域 AQL 引擎见 §24 [M15]）
+# BinFlow 架构设计（M1 定稿；M2~M6 增量已并入，M7 增量标注 [M7]，M8 控制台对齐约束见 §13 [M8]，M9 服务端解冻约束见 §14 [M9]，M10 license/addon/属性基座见 §15 [M10]；M11 增量未新增章节号——票据级 as-built + ADR 承载；M12 操作域/MPU/remote 字段/可观测回写见 §15.4 与 §23 [M12]；M13/M14 增量未新增章节号——ADR-0040~0042 承载；M15 搜索域 AQL 引擎见 §24 [M15]；M16 调度域见 §25 [M16]；M17 产品域三新包（build/bundle/insights）见 §26 [M17]）
 
 > architect 维护。本文件在 ADR-0001~0033 基线上给出可并行开发的实现蓝图：包边界 = 并行开发 area 边界。
 > 标注 **[M2+]** / **[M3+]** / **[M6+]** / **[M7]** 的内容当期不实现，只保证接口缝存在；标注「待逆向规格确认」的行为以 `docs/reverse/` 规格为准，规格冲突时先回 ADR。
@@ -80,6 +80,10 @@ binflow/                       # Go module: github.com/lzwzzy/binflow（ADR-0008
 │   ├── replication/           # [M6+] 复制/联邦：pusher/scheduler/status（ADR-0021）
 │   ├── metrics/               # [M6+] Prometheus 指标暴露（stdlib expvar 实现，ADR-0022）
 │   ├── migrate/               # [M6+] Artifactory 迁移工具（bf migrate 可复用，ADR-0024）
+│   ├── scheduler/             # [M16] cron 调度域：台账 + Runner 注册面（ADR-0044，§25）
+│   ├── build/                 # [M17] Build-info 域：builds 表族 + promote + Emit/search 织入（ADR-0045，§26.1）
+│   ├── bundle/                # [M17] Release Bundle 记录域：最小面 + release-bundle 槽（ADR-0046，§26.2）
+│   └── insights/              # [M17] 洞察聚合快照域：scheduler 第 4 域 + 四指标族（ADR-0046 K75，§26.3）
 │   ├── adapter/               # 协议 SPI：Handler 挂载 + layout
 │   │   └── generic/           # M1 唯一实现
 │   ├── auth/                  # Principal / Authorizer / TokenRegistry / IdentityProvider（OIDC/LDAP M6+）
@@ -1689,6 +1693,12 @@ logging:
 
 50. **[M16] cron 子集的 W/# 不收边界**（ADR-0044 决策 3）：`W`（最近工作日）/`#`（第 n 周几）两 Quartz 形态不收（400 点名拒绝）——三消费面仓内锚（console-ui §3.9/§3.10、replication.md）零用例；需求出现时翻转 = `cron.go` 词法一臂 + `next.go` 计算一臂（单点扩展，schema/台账零变化）。年域仅收 `*` 同族（具体年域不支持）。
 
+51. **[M17] build 数据不进 storage/nodes 内容面**（ADR-0045 决策 2/轴 2-A）：build JSON payload 归档在 metadata 表族（payload 列/伴表，T-507 定形），不落 blobs/——备份语义随 metadata.db 完整（export 含 db 即含 build 数据），但 blobs/ 目录与 GC/配额/复制面与 build 域零交互（有意：build 是记录非制品）。若未来要求 build payload 走存储层去重/复制（如大清单场景），须新勘误评估 blob-backed 形态。
+
+52. **[M17] Release Bundle v2 signing / Distribution 对接不做**（ADR-0046 决策 2——Q2 出口②翻转面）：最小面 = 本地版本化记录 + 查询 + Any Distribution 预置；签名链/跨实例分发/release_bundle_v2 三域事件/distributed 状态机均缺位——翻转条件 = 用户明示推翻 Q2 + Distribution 服务可行性评估票 + ADR-0046 增补（MinTier 届时升 enterprise）。webhook release_bundle 域倾向 created 单型 wired、余维持 dormant（软缝⑤，随 T-488/T-513 对拍）。
+
+53. **[M17] insights 时序快照与 storageinfo 现值快照两载体并行**（ADR-0046 决策 9④）：不共享存储载体（时序日快照 vs on-demand 现值缓存 + 冷缓存 503 两语义）；唯二共享 = 底层事实源（nodes 四列/repo_usage/blobs）与 scheduler 基建。若 T-505（storageinfo）实现期发现聚合查询可复用 insights 的只读查询面，合体窗口票内核定——本 ADR 预裁倾向不合（现值端点复用时序表会引入清缓存语义耦合）。
+
 ## 12. 待逆向规格确认清单（阻塞点挂 docs/reverse/）
 
 | # | 问题 | 规格文件 | 影响面 |
@@ -3032,3 +3042,132 @@ metrics：`binflow_scheduler_{fires,failures}_total{domain}` + 启动 INFO 台�
 - cron 子集 W/# 不收、年域仅 `*`（§11.50）：翻转 = cron.go/next.go 单点扩展。
 - Artifactory OSS 预置 backup-daily/weekly 不预置（零静默写盘纪律——§10 有意差异行）：用户显式建，
   文档面（tech-writer T-458）须写明「无预置调度」。
+
+---
+
+## 26. [M17] 产品域增量——build / bundle / insights 三新包（ADR-0045/0046 展开）
+
+> 承载：FR-152（Build-info 六票 T-507~T-512）/ FR-153（Release Bundle T-513/T-514）/ FR-154（洞察 T-515/T-516）。
+> 决策记录在 ADR-0045/0046（本节是其执行规范——接口精确到签名、DDL 精确到主键/外键、口径精确到断言形态）。
+> 字面契约（REST 端点路径与方法/build·bundle wire 字段集/错误文案/状态机字面/档位核验结论）以 T-488 两规格
+> （docs/reverse/build-info.md / release-bundle.md）冻结为准——ADR-0045/0046 软缝清单（各 10/8 项）。
+
+### 26.1 build 域（internal/build——ADR-0045）
+
+**包边界与 import 禁令**（review 依据，import 图即审计证据）：
+
+```
+internal/build/               # [M17]（六票 area：T-507 模型/store → T-508 service+REST → T-509 promote
+├── model.go                  #         → T-510 emit 接线 → [T-511 经 search 消费] → T-512 FE）
+├── store.go                  # BuildStore 消费面（metadata sub-store 缝）
+├── service.go                # 上传/append/查询/retention 编排 + ACL 镜像（T-508）
+├── promote.go                # promotion 编排 + repo CopyOrMove/docker 面消费（T-509）
+└── emit.go                   # Emit facet 定义（func 类型——cmd 装配 webhook.Bus.Emit，T-510 接线）
+internal/metadata/substores_builds.go    # BuildStore 缝（webhook store/ScheduleStore 先例——T-507）
+internal/httpapi/build.go                # 新 router 文件（dispatchAPI 显式路由族——T-508）
+```
+
+允许 import：metadata（BuildStore 面）/ repo（公开 Service：CopyOrMove + 节点查找 + CanRead 投影）/
+auth（Authorizer + Principal）/ audit（facet）/ config（只读）。
+**禁止 import**：webhook、search、httpapi、scheduler、bundle、insights、license、replication。
+
+**ACL 求值（allow() 仓库级同源——K74 定案）**：
+
+```
+build.allow(ctx, p, buildRepo, buildName, action)   // 与 repo/service.go:218 逐字同构的镜像：
+  p != nil && p.Admin → true                        // admin 短路
+  az == nil → false                                  // nil fail-closed
+  → az.Can(ctx, p, buildRepo, buildName, action)    // 同一装配注入的 auth.Service——同源由构造保证
+
+动作映射：上传/append = w(buildRepo)；查询/列表 = r（服务端过滤可见集——列表零泄漏）；
+        删除/retention = d(buildRepo)；promote = w(targetRepo, "") ∧ r(buildRepo, buildName)
+path 位 = build_name：target includes/excludes Ant 模式对 build 名生效（按名模式授权零新面）；
+        无模式 target = 整 build_repo 域。readonly_admin：r 恒放行、w/d 硬拒（角色短路，ADR-0026 决策 1）。
+buildRepo = 逻辑键（缺省 artifactory-build-info——软缝②；不要求仓行存在、不自动建仓）。
+```
+
+**表族主键/外键骨架**（列集字面照 build-info.md 冻结——ADR-0045 决策 2 全文含索引）：
+builds(build_name, build_number) / build_modules(+module_id——Module ID 字段，T-512 消费) /
+build_artifacts(+repo_key, path → **FK nodes(repo_key, path)**——build↔制品/镜像工件关联) /
+build_dependencies(+seq, sha1, md5——不要求 nodes 可解析) / build_promotions(append-only 历史，现势 = 最新行) /
+build_properties(name, value)。migration 024 起（sqlite 先行，编号先到先得）。
+
+**REST 子集对位表**（门/形态骨架——ADR-0045 决策 6 全表）：上传 PUT / append（合并不覆盖）/ 单查 / 列表·最新 /
+批删 / promote / retention 七族；rename/diff/docker promote 独立端点/projectKey 过滤不进 M17（远期行）。
+错误面 = E-01 单形。promote 参数族（dryRun/failFast/failsOnMissingArtifacts/ciUser/properties）字面照规格票。
+
+**织入面**：webhook = eventtypes 三行 dormant→wired + Emit facet（T-510，envelope schema 零变化）；
+AQL = search 单向 import BuildSearcher（T-511——builds/modules/dependencies 三入口翻转，
+promotion/releasebundle/sensitive 维持 400 诚实拒绝；BuildScope 服务端可见集 + 行级复核——aql.md §6 锚）。
+
+### 26.2 bundle 域（internal/bundle——ADR-0046）
+
+```
+internal/bundle/              # [M17]（T-513 纯新包 + T-514 FE）
+├── model.go / store.go / service.go
+internal/metadata/substores_bundles.go   # BundleStore 缝
+internal/httpapi/bundle.go               # 新 router 文件
+internal/addons/slots.go                 # 第 20 槽：ID=release-bundle, Kind=KindFeature, MinTier=pro（暂行）
+```
+
+import 禁令同 §26.1 增补一条：**禁止 import repo**（bundle 记录不触内容面——与 build 域分界的结构性保证；
+两新包互不 import）。门 = CapSystemWrite（创建/删除）+ CapSystemRead ∨ **Any Distribution 伪键通道**
+（Can(p, <通配桶值>, bundle_name, r)——桶值进 Can 的 repoKey 位，拼写与 Any Local/Remote 三预置同族同场，
+T-491 票内小评终裁）。三缝门控照 ADR-0032/0041 惯例（REST 403+头 / service 首行 gate func / addons.disabled
+熔断暂停不丢）。模型：bundles(bundle_name, bundle_version, state 闭集) + bundle_items(节点时点快照——sha256
+固化，清单不可变，重复版本冲突 4xx)。AQL releases/release_artifacts 入口维持 400（最小面子集注记）。
+v2 signing/Distribution 不做（Q2 出口②翻转面 = §11.52）。
+
+### 26.3 insights 域（internal/insights——ADR-0046 K75 会签详规）
+
+```
+internal/insights/            # [M17]（T-515 快照层+查询面 + T-516 FE 图表）
+├── snapshot.go               # RunOnce 快照载体（幂等：同日重跑 = 当日行重算 upsert）
+├── model.go / store.go / query.go
+internal/metadata/substores_insights.go # InsightsStore 缝
+internal/httpapi/insights.go             # 新 router 文件（与 build 面零共享文件——W5 并行注记）
+```
+
+依赖方向：**scheduler → insights**（Runner 注册消费导出的 RunOnce 载体——ADR-0044 点 1 惯例；
+insights 禁止 import scheduler/httpapi/webhook/search/build/bundle/license/replication）。
+
+**触发与台账**：scheduler 域闭集 +1 = `'insights'`（schedules CHECK 扩列重建式迁移——021 注释既定路径）；
+cmd 装配 `Register("insights", runner)`；boot 物化默认行（key=daily-snapshot, cron `0 0 2 * * ?`, enabled=1，
+启动 INFO 一行——可见可改可删，「无行 = 不调度」单态保持；ADR-0044 决策 2 备域不预置维持）；
+ADR-0044 决策 8-① 全量类任务闭集扩列 +1（勘误留痕由 ADR-0046 决策 6③ 承载）；Kick 等价加速；
+audit 三词 insights.schedule.{set,run,fail}。
+
+**四指标族与数据源白名单**（单源契约——零第二计数通道）：
+
+| 指标族 | 源（白名单闭集） |
+|---|---|
+| download_trend | nodes.download_count 累计计数器日差分（K69 四列） |
+| storage_growth | repo_usage 既有聚合（dedup 后字节）——禁 nodes.size 裸和（共享 blob 双计） |
+| top_repos | per-repo 快照行窗口排序 |
+| top_artifacts | nodes.download_count + 节点身份，每日 Top 100 物化 |
+
+表族：insights_repo_snapshots(snapshot_date, repo_key) + insights_top_items(snapshot_date, rank)——
+全局趋势 = per-repo 行聚合（无 '*' 汇总行）；保留窗不自动清（裁剪缝留 maintenance 家族）。
+**对账断言**（T-515 AC3）：夹具下载 N 次 → 快照 downloads_delta == ?stats downloads == FileInfo 口径；
+今日活性值 = 最后快照 + 现值计数器差值拼接（现值唯一源 = K69 四列）。查询 REST = /api/v1/insights/*（C 层自有），
+门 = CapSystemRead；手动重算 = CapSystemWrite（Kick 等价）。NFR-P81：万节点 P95 ≤800ms + 在线路径零阻塞
+（快照只读业务表断言）。
+
+### 26.4 档位与对齐表增量（ADR-0033 联动）
+
+| 域 | 槽位 | 依据 |
+|---|---|---|
+| build-info（REST/数据面/Builds 页） | **无槽**（community 地板——类比 AQL） | inv-2 §103 OSS openapi 在案 + inv-4 D1~D5；T-488 活体核验若翻案 → ADR-0045 勘误 + 预留 ID build-info 建槽 |
+| AQL build 系入口 | 随 AQL 核心域无槽（超 OSS 档对位——子集注记） | aql.md v14（OSS 活体 400 系引擎档位差异） |
+| release-bundle | **第 20 槽，MinTier=pro（暂行）** | Artifactory RBv1/RBv2 商业档行为模式对位；T-488 核验勘误 / Q2 出口② 升 enterprise |
+
+§10 对齐表增两行（build-info 域收录 A 子集注记 / release-bundle 最小面 A 子集注记 + insights C 层自有）由
+本节承载（PM/收口笔对账引用此处，不再另表）。
+
+### 26.5 已知妥协（M17 增量——并录 §11.51/52/53）
+
+- build payload 不进 storage/nodes（§11.51）：记录非制品——blob-backed 形态留勘误评估。
+- RBv2 signing/Distribution 缺位（§11.52）：Q2 出口②翻转面三条件（用户推翻 + 可行性票 + ADR 增补）。
+- insights 与 storageinfo 两快照载体并行（§11.53）：时序 vs 现值；合体窗口留 T-505 票内核定（预裁倾向不合）。
+- B-1.7 维持三值枚举 + tripwire（ADR-0046 决策 10）：wire 承接 adminPlatform/manageResources 字段族即翻红，
+  转正 = PM FR + 新 ADR + 零提权等价迁移——实现票内禁止顺手承接。
