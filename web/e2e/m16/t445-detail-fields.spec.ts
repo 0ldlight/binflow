@@ -47,19 +47,24 @@ async function login(page: Page, user = ADMIN, pw = ADMIN_PW) {
   await expect(page.locator('[data-testid="app-nav"]')).toBeVisible()
 }
 
-/** 同源 fetch（携带 session cookie）；返回 {status, json, text} */
+/** 同源 fetch（携带 session cookie）；返回 {status, json, text}。noStore =
+ *  下载腿专用（T-494 注）：内容面 GET 带 Etag/Last-Modified 无 Cache-Control，
+ *  同 URL 重复 fetch 走条件请求（304 不落服务端 Get 落点 = 不计数）——
+ *  T-494 起浏览零计数贡献，>=3 断言只靠真实 GET，必须 no-store。 */
 async function api(
   page: Page,
   method: string,
   path: string,
   body?: unknown,
+  noStore = false,
 ): Promise<{ status: number; json: unknown; text: string }> {
   const r = await page.evaluate(
-    async ({ method, path, body }) => {
+    async ({ method, path, body, noStore }) => {
       const res = await fetch(`/binflow${path}`, {
         method,
         headers: body !== undefined ? { 'Content-Type': 'application/json' } : undefined,
         body: body !== undefined ? JSON.stringify(body) : undefined,
+        cache: noStore ? 'no-store' : undefined,
       })
       const text = await res.text()
       let json: unknown = null
@@ -70,7 +75,7 @@ async function api(
       }
       return { status: res.status, json, text }
     },
-    { method, path, body },
+    { method, path, body, noStore },
   )
   return r
 }
@@ -144,9 +149,9 @@ test('file detail: File URL copy button, downloads family end-to-end via ?stats 
   await api(page, 'PUT', `/api/repositories/${key}`, { rclass: 'local', packageType: 'generic' })
   await api(page, 'PUT', `/${key}/docs/guide.md`, 'payload-t445')
 
-  // 内容面 3 次 GET（AC 口径：curl 下载 3 次）
+  // 内容面 3 次 GET（AC 口径：curl 下载 3 次；no-store——见 api 注的 304 形态）
   for (let i = 0; i < 3; i++) {
-    expect((await api(page, 'GET', `/${key}/docs/guide.md`)).status).toBe(200)
+    expect((await api(page, 'GET', `/${key}/docs/guide.md`, undefined, true)).status).toBe(200)
   }
 
   await page.goto(`/binflow/ui/artifacts/${key}/docs/guide.md`)
