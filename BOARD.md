@@ -1969,3 +1969,5 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **文档双树**（T-458 两腿 + T-470/T-472 Fern 迁移 + API tab + binflow.org 主站 + T-480 README 门厅化）
 - NFR 全门（11.4MB/126ms/502.6KB/race 37/37/e2e 385/385）
 - **挂账**：CircleCI 平台事故期（恢复后按 T-465 §5 清单 re-run 补证）；DNS+SG 两用户前置；M17 预立项窗开（ROADMAP 备稿段启用 + PM 立项流程）
+
+**M17 立项双裁（2026-09-06 13:5x，用户 AskUserQuestion）**：**Q1 = 三域进 RB 滚（推荐案采纳）**——Build-info P0 + Release Bundle 最小面 + 洞察报表进 M17；Federation/Lifecycles 滚 M18 单列专程；票估 32~40。**Q0 = 候用户逐条审**（PRODUCT.md 五条修订建议表——PRD §0 为底稿；Xray 维持不做）——Q0 文本裁定前主轴派单以 Q1 裁定为准（范围已用户亲裁），PRODUCT.md 改写候审。M17 立项稿 `f9695706`（FR-151~161 + LC-99~114 + Q0~Q12 清单）。
