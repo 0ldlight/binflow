@@ -53,6 +53,16 @@ import (
 // canManageAllRepos below also rides, so the read and write faces of the
 // coverage can never disagree. The parameterless GET is frozen byte for
 // byte (route, gate, error body and list rendering).
+//
+// T-491 (M17, FR-156.2 / M16 B-2.16): repos[] accepts the three preset
+// wildcard buckets (auth.BucketAnyLocal / BucketAnyRemote /
+// BucketAnyDistribution — the reference product's internal constants; the
+// console renders them "Any Local" / "Any Remote" / "Any Distribution").
+// The buckets name repository populations, so the existence check skips
+// them while every other spelling still demands a repository row; the
+// GET echo round-trips whatever was stored, verbatim as before. The
+// evaluation semantics live in auth (wildcard.go) — this file only admits
+// the spellings onto the wire.
 
 // permissionBody is the wire shape of one permission target.
 type permissionBody struct {
@@ -178,6 +188,18 @@ func (s *Server) handlePermissionCreate(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	for _, repo := range body.Repos {
+		// T-491 (FR-156.2 / M16 B-2.16): the three preset wildcard buckets
+		// are legal repos[] entries — they name a repository POPULATION
+		// (every local / every remote repository, or the bundle-domain
+		// pseudo-key channel of ADR-0046 point 3), so no repository row can
+		// back them and the existence check must skip them. Everything else
+		// still demands a real row; a literal outside the closed bucket set
+		// (including the reference's fourth family member "ANY", which
+		// BinFlow does not implement — wildcard.go's spec-pending note)
+		// keeps the unknown-repository 400.
+		if auth.IsWildcardBucket(repo) {
+			continue
+		}
 		if _, err := s.deps.Repos.Get(r.Context(), repo); err != nil {
 			writePlainError(w, http.StatusBadRequest, fmt.Sprintf("permission target references an unknown repository %q", repo))
 			return
