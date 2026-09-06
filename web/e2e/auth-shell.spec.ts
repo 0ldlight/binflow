@@ -47,7 +47,9 @@ test('login lands on shell; dashboard cards arrive; theme toggles; 404 keeps she
   // M8 IA 重排（T-235）：登录落点 = /artifacts（console-m8 §1.1）；
   // T-236 起跨仓树真身承载（tree-page 锚——§10.5 表已回写）；
   // Access Tokens（T-386 落真身：占位页锚退役，tokens-page 族承载——§10.5）
-  await expect(page).toHaveURL(/\/binflow\/ui\/artifacts$/)
+  // T-492（B-3.2）：登录落点随即自动选中首仓库——URL 前缀断言（/artifacts
+  // 或 /artifacts/<repo>，普通用户 403 边界 = 无选中根态）
+  await expect(page).toHaveURL(/\/binflow\/ui\/artifacts(\/|$)/)
   await expect(page.locator('[data-testid="tree-page"]')).toBeVisible()
   await page.goto('/binflow/ui/admin/security/tokens')
   await expect(page.locator('[data-testid="tokens-page"]')).toBeVisible()

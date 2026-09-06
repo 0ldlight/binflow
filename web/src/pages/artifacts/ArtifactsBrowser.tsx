@@ -691,6 +691,36 @@ export default function ArtifactsBrowser() {
     return [...out].sort((a, b) => compareRepos(a, b, sortBy))
   }, [repoNodes, repoFilter, pkgFacets, rclassFacets, favOnly, favorites, sortBy])
 
+  // ---- B-3.2 初始态（T-492 / FR-156.4）：进入即首仓库自动选中 ---------------
+  // parity §12 B-3.2 翻正（Artifactory 同形）：跨仓根 + 仓库清单就绪 → 首仓库
+  // （当前 Sort-by 序第一行）自动选中，右侧 item view 即刻呈现——原「无选中 +
+  // 静态引导卡」初始态退役（引导卡保留为边界态/回根态）。边界与让位：
+  // - 空实例（0 仓）：不选——空实例引导卡（emptyInstance 分支）承载；
+  // - 普通用户清单 403：不选（status !== 'ok'）——L2 无权限卡承载，URL 原地；
+  // - 用户已在树头接管（过滤词 / 包型·rclass facet / My Favorites 在场）：
+  //   让位不选——过滤中的首行不是「实例首仓库」，且选中会连带清掉过滤词
+  //   （跨仓复位语义）与用户意图相抵；
+  // - legacy 规范形重定向在途（目标 ≠ 当前路径）：先等重定向落定（其目标
+  //   必含仓）；同路径的 ?focus= 残参（无承载面）不阻塞——选中导航顺带清掉；
+  // - 曾选中过仓库后回到跨仓根（SPA 内导航回根）：不重复自动选中——根态是
+  //   用户主动回到的跨仓视图（工具带过滤语境），hadSelection 钉一次即让位；
+  //   全新挂载（登录落点 / 模块进入 / 深链前的 /artifacts）则正常自动选中。
+  // URL 形态 = replace 规范化（不占历史栈——回退回到进入前的位置）。
+  const hadSelectionRef = useRef(false)
+  useEffect(() => {
+    if (repoKey !== '') {
+      hadSelectionRef.current = true
+      return
+    }
+    if (hadSelectionRef.current) return
+    if (legacyTarget !== null && location.pathname !== legacyTarget) return
+    if (reposQuery.status !== 'ok') return
+    if (repoFilter.trim() !== '' || pkgFacets.size > 0 || rclassFacets.size > 0 || favOnly) return
+    const first = filteredRepos[0]?.key
+    if (!first) return
+    navigate(buildTreeUrl(tab, first, []), { replace: true })
+  }, [repoKey, legacyTarget, location.pathname, reposQuery.status, repoFilter, pkgFacets, rclassFacets, favOnly, filteredRepos, tab, navigate])
+
   // ---- 渲染 ----
   const emptyInstance = reposQuery.status === 'ok' && repos.length === 0 && !repoKey && !onboardSkipped
 

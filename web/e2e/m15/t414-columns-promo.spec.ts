@@ -16,8 +16,9 @@ import { m8Client } from '../m8/support/seed'
 //      （per-page localStorage 键 binflow-console-cols-{users,groups,search}，
 //      三键互不染）。
 //   ③ 至少一列守卫 + 全选复位（存储回 []）。
-//   ④ 「无端点列不伪造」：users 六列 / groups 四列（admin 视角，含操作列）/
-//      search 五列 = 既有真实列闭集。
+//   ④ 「无端点列不伪造」：users 七列（T-492 增 Last Login——T-454 投影上
+//      wire 后入集）/ groups 四列（admin 视角，含操作列）/ search 五列
+//      = 既有真实列闭集。
 //   ⑤ member-pop（AC2）：T-391 配方在身（computed color ≠ 裸 accent——
 //      回归腿，配方退役即红）+ 行 hover 态 axe 双主题 serious=0。
 //   ⑥ 三页列选菜单开态 axe 双主题 serious=0。
@@ -83,17 +84,19 @@ test('admin: users column selector — open/close, hide/show, guard, reset, per-
   // 内置 admin 用户恒在场——行锚不依赖夹具
   await expect(page.locator('[data-testid="user-row-admin"]')).toBeVisible()
 
-  // 默认全显（admin 视角六列闭集：用户名/Email/组/角色/Status/操作——④）
+  // 默认全显（admin 视角七列闭集：用户名/Email/组/角色/Status/最近登录/
+  // 操作——④；T-492 增最近登录列）
   const th = page.locator('[data-testid="users-table"] thead th')
-  await expect(th).toHaveCount(6)
+  await expect(th).toHaveCount(7)
 
-  // 开（①）+ 全勾（六列项逐名断言——字面量锚全消费）
+  // 开（①）+ 全勾（七列项逐名断言——字面量锚全消费）
   const USERS_ITEMS = [
     '[data-testid="users-columns-item-name"]',
     '[data-testid="users-columns-item-email"]',
     '[data-testid="users-columns-item-groups"]',
     '[data-testid="users-columns-item-role"]',
     '[data-testid="users-columns-item-status"]',
+    '[data-testid="users-columns-item-lastlogin"]',
     '[data-testid="users-columns-item-actions"]',
   ] as const
   const menu = await openColumnsMenu(page, '[data-testid="users-columns"]', '[data-testid="users-columns-menu"]', USERS_ITEMS)
@@ -101,10 +104,10 @@ test('admin: users column selector — open/close, hide/show, guard, reset, per-
   // 弃「Email」（②）：表头 + 行单元格同步 -1；菜单保持开
   await page.click('[data-testid="users-columns-item-email"]')
   await expect(menu).toBeVisible()
-  await expect(th).toHaveCount(5)
+  await expect(th).toHaveCount(6)
   await expect(th.filter({ hasText: 'Email' })).toHaveCount(0)
-  await expect(page.locator('[data-testid="user-row-admin"] td')).toHaveCount(5)
-  await expect(page.locator('[data-testid="users-columns"]')).toContainText('列 5/6')
+  await expect(page.locator('[data-testid="user-row-admin"] td')).toHaveCount(6)
+  await expect(page.locator('[data-testid="users-columns"]')).toContainText('列 6/7')
 
   // 持久（②）：localStorage 落盘 + reload 保持；groups/search 键不被染
   expect(await page.evaluate(() => localStorage.getItem('binflow-console-cols-users'))).toContain('email')
@@ -112,13 +115,13 @@ test('admin: users column selector — open/close, hide/show, guard, reset, per-
   expect(await page.evaluate(() => localStorage.getItem('binflow-console-cols-search'))).toBeNull()
   await page.reload()
   await expect(page.locator('[data-testid="users-table"]')).toBeVisible()
-  await expect(th).toHaveCount(5)
+  await expect(th).toHaveCount(6)
 
   // 勾回（②另一腿）
   await page.click('[data-testid="users-columns"]')
   await page.click('[data-testid="users-columns-item-email"]')
   await expect(page.locator('[data-testid="users-columns-item-email"]')).toHaveAttribute('aria-checked', 'true')
-  await expect(th).toHaveCount(6)
+  await expect(th).toHaveCount(7)
 
   // 至少一列守卫（③）：弃到只剩用户名 → 该项 aria-disabled 且点击被拒
   for (const sel of USERS_ITEMS.slice(1)) {
@@ -132,9 +135,9 @@ test('admin: users column selector — open/close, hide/show, guard, reset, per-
   await expect(th).toHaveCount(1)
   await expect(page.locator('[data-testid="user-row-admin"] td')).toHaveCount(1)
 
-  // 全选复位（③）：表头回 6 + 存储回空数组
+  // 全选复位（③）：表头回 7 + 存储回空数组
   await page.click('[data-testid="users-columns-reset"]')
-  await expect(th).toHaveCount(6)
+  await expect(th).toHaveCount(7)
   expect(await page.evaluate(() => localStorage.getItem('binflow-console-cols-users'))).toBe('[]')
 
   // 关（①另一腿）：Esc + 回焦

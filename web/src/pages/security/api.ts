@@ -47,6 +47,11 @@ export interface UserListItem {
   enabled: boolean
   /** 成员集，空 = [] 恒非 null（groups 页成员计数的客户端推导源，K19） */
   groups: string[]
+  /** T-454（FR-146.3）投影：audit login.success 的每用户最近登录时间
+   *  （RFC3339 UTC，查询时单条 GROUP BY 派生——无逐用户扇出）。omitempty：
+   *  从未登录过的用户**整键缺席**（与 userDetail.lastLoggedIn 同拼写）——
+   *  列表消费（UsersPage 最近登录列）按缺席 = 从未登录呈现，不伪造。 */
+  lastLoggedIn?: string
 }
 
 export interface UserDetail {

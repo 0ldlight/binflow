@@ -267,9 +267,10 @@ test('404: keeps the shell, echoes the attempted path, links home', async ({ pag
   await expect(page.locator('[data-testid="app-nav"]')).toBeVisible()
   // 深链状态回显：触发 404 的原始路径
   await expect(page.locator('[data-testid="not-found-path"]')).toHaveText('/definitely-not-a-route')
-  // 回主页 = 应用模式首页（/artifacts，§1.1）
+  // 回主页 = 应用模式首页（/artifacts，§1.1）；T-492（B-3.2）：落点随即
+  // 自动选中首仓库——前缀断言（/artifacts 或 /artifacts/<repo>）
   await page.click('[data-testid="not-found-home"]')
-  await expect(page).toHaveURL(/\/binflow\/ui\/artifacts$/)
+  await expect(page).toHaveURL(/\/binflow\/ui\/artifacts(\/|$)/)
   await expect(page.locator('[data-testid="tree-page"]')).toBeVisible()
 })
 

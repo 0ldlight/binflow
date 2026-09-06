@@ -290,7 +290,7 @@ registerEn('security', {
   "组设置": "Group settings",
   "组数": "Groups",
   "组在至少一个 permission target 上持有 manage（仓库配置派生权）——BinFlow 无 Artifactory 组级 adminPrivileges 字段（有意不跟进，rbac-model §5）": "The group holds manage on at least one permission target (the repository-configuration derived right) — BinFlow has no Artifactory group-level adminPrivileges field (a deliberate divergence, rbac-model §5)",
-  "最近登录": "Last login",
+  "最近登录": "Last Login",
   "admin —— 管理面全权": "admin — full rights on the admin plane",
   "annotate = 属性写位（7.161 标签 Annotate；不隐含内容写）": "annotate = the property-write bit (labeled Annotate in 7.161; implies no content writes)",
   "annotate = 属性写位（7.161 标签 Annotate）：properties 的 PUT/DELETE 门；不隐含内容写（write 是独立列）": "annotate = the property-write bit (labeled Annotate in 7.161): the gate for property PUT/DELETE; implies no content writes (write is a separate column)",

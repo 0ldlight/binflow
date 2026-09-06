@@ -61,8 +61,9 @@ test('admin: app-mode sidebar (2 entries) -> admin mode (5 groups / 18 entries) 
   await page.fill('[data-testid="login-password"]', roleFixturesFromEnv().admin.password)
   await page.click('[data-testid="login-submit"]')
 
-  // 登录落点 = /artifacts（console-m8 §1.1；T-236 起跨仓树真身承载）
-  await expect(page).toHaveURL(/\/binflow\/ui\/artifacts$/)
+  // 登录落点 = /artifacts（console-m8 §1.1；T-236 起跨仓树真身承载）；
+  // T-492（B-3.2）：落点随即自动选中首仓库——前缀断言（/artifacts/<repo>）
+  await expect(page).toHaveURL(/\/binflow\/ui\/artifacts(\/|$)/)
   const nav = page.locator('[data-testid="app-nav"]')
   await expect(nav.locator('.nav-group-label', { hasText: '应用' })).toBeVisible()
   // 2 条目 + 模式切换项（button.nav-item）
@@ -110,7 +111,8 @@ test('admin: app-mode sidebar (2 entries) -> admin mode (5 groups / 18 entries) 
   await expect(page.locator('[data-testid="nav-mode-switch"]')).toHaveAttribute('aria-current', 'true')
   await page.focus('[data-testid="nav-mode-switch"]')
   await page.keyboard.press('Enter')
-  await expect(page).toHaveURL(/\/binflow\/ui\/artifacts$/)
+  // T-492（B-3.2）：应用模式落点自动选中首仓库——前缀断言
+  await expect(page).toHaveURL(/\/binflow\/ui\/artifacts(\/|$)/)
   await expect(page.locator('[data-testid="nav-mode-switch"]')).not.toHaveAttribute('aria-current', 'true')
 })
 
@@ -213,9 +215,10 @@ test('legacy routes: all console-m8 §1.4 paths land NotFound (redirect window r
   expect(LEGACY_PATHS).toHaveLength(19)
   await loginAs(page, 'admin')
 
-  // 首页 index 落点不受移除影响（§1.1 登录落点，非兼容窗口）
+  // 首页 index 落点不受移除影响（§1.1 登录落点，非兼容窗口）；T-492（B-3.2）：
+  // /artifacts 落点随即自动选中首仓库——前缀断言
   await page.goto('/binflow/ui/')
-  await expect(page).toHaveURL(/\/binflow\/ui\/artifacts$/)
+  await expect(page).toHaveURL(/\/binflow\/ui\/artifacts(\/|$)/)
   await expect(page.locator('[data-testid="tree-page"]')).toBeVisible()
 
   for (const from of LEGACY_PATHS) {
@@ -239,8 +242,9 @@ test('legacy routes: all console-m8 §1.4 paths land NotFound (redirect window r
     `/repositories/${REPO}/tree`,
   )
 
-  // 404 页深链回主页（T-239 已备：主行动回应用模式首页 /artifacts）
+  // 404 页深链回主页（T-239 已备：主行动回应用模式首页 /artifacts）；T-492
+  // （B-3.2）：落点随即自动选中首仓库——前缀断言
   await page.click('[data-testid="not-found-home"]')
-  await expect(page).toHaveURL(/\/binflow\/ui\/artifacts$/)
+  await expect(page).toHaveURL(/\/binflow\/ui\/artifacts(\/|$)/)
   await expect(page.locator('[data-testid="tree-page"]')).toBeVisible()
 })
