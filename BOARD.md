@@ -1983,3 +1983,5 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 **T-488 → done 2026-09-06 16:5x（`b76a9316`，5 文件 +479/−1）——M17 2/35（W0 锚①：两规格 + AQL build 域增量）**：30 端点/12 流程/13 模型规则，置信度逐条（高 48/中 20/低 19 零静默升格）+ 17 条候活体验证。**Q10 双降级定谳**：两容器均不可修复（pro router 不起/oss pg 配置级坏）——t226 单源亦落空，实际基线=**三书面源**（产品内嵌 OpenAPI 996 行 + 反编译 + 官方 docs 实取）。**对拍出 ADR 勘误 E1~E8**（ADR-0045 三处骨架字面/ADR-0046 端点锚+冲突三态+Enterprise+）——T-489 agent 已复活回填中。日志 reports/agents/T-488.md。
 
 **W0 齐 → W1 开波（2026-09-06 17:0x，双 lane + 回填腿）**：**T-490 → doing**（dev-go-core：configJSON 四域 round-trip + Stage 域 + K73 落定——T-439 tripwire 转绿）；**T-503 → doing**（reverse-engineer：REST 差距矩阵——158 ops × 全量面四态 + 首程三带冻结，跨切程锚）；**T-489 回填腿**（软缝 E1~E8 → 两 ADR 修订段）。
+
+**T-489 回填腿 → done 2026-09-06 17:1x（`b2034f8c`，+70/−12）——软缝全闭（E1~E8 落两 ADR 勘误节）**：ADR-0041 勘误体例（原行保留作废-替换标注）。ADR-0045 四修正+三增补（PUT /api/build 无路径〔PRD FR-152 AC1 与 T-508 骨架作废〕/POST append 合并键 module id/批删参数族/minimumBuildDate/唯一性四元/properties 随迁 a(targetRepo)/覆盖臂 d）；ADR-0046 四修正（/api/release/* 真锚/冲突三态 409 逐字/Enterprise+ 真身——pro 裁减维持双翻转点）。机制轴零翻动；十+八软缝清单全闭。下游联动五条留痕（T-507/508/509/513 派单附注 + L50/L51 命令行）。
