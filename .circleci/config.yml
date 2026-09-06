@@ -439,12 +439,13 @@ jobs:
             # fall back to the plain-HTTP IP form until it answers. An
             # explicit UAT_MATRIX_BASE skips the probe entirely.
             BASE="${UAT_MATRIX_BASE:-}"
+            DOMAIN="${UAT_DOMAIN:-uat.binflow.org}"
             if [ -z "$BASE" ]; then
-              if curl -fsS -m 8 https://uat.binflow.org/healthz >/dev/null 2>&1; then
-                BASE=https://uat.binflow.org
+              if curl -fsS -m 8 "https://${DOMAIN}/healthz" >/dev/null 2>&1; then
+                BASE="https://${DOMAIN}"
               else
-                echo "WARN: https://uat.binflow.org unreachable (DNS/TLS not live) — legs run against the plain-HTTP transition base"
-                BASE=http://52.79.109.153:8080
+                echo "WARN: https://${DOMAIN} unreachable (DNS/TLS not live) — legs run against the plain-HTTP transition base"
+                BASE="http://${UAT_HOST:-52.79.109.153}:8080"
               fi
             fi
             # (double-quoted on purpose: ${BASE} expands HERE, where it
@@ -507,7 +508,7 @@ jobs:
                 # T-478: insecure-registries ONLY for a plain-HTTP base —
                 # an https registry must stay on verified TLS, so the
                 # daemon.json rewrite is conditional on the scheme now.
-                if printf '%s' "${UAT_MATRIX_BASE:-https://uat.binflow.org}" | grep -q '^https://'; then
+                if printf '%s' "${UAT_MATRIX_BASE:-https://${UAT_DOMAIN:-uat.binflow.org}}" | grep -q '^https://'; then
                   echo "https UAT base — no insecure-registries needed (public CA chain)"
                   if [ -f /etc/docker/daemon.json ]; then
                     sudo rm -f /etc/docker/daemon.json
@@ -515,7 +516,7 @@ jobs:
                     echo "removed stale insecure-registries daemon.json"
                   fi
                 else
-                  REG="$(printf '%s' "${UAT_MATRIX_BASE:-https://uat.binflow.org}" | sed -e 's|^https\{0,1\}://||')"
+                  REG="$(printf '%s' "${UAT_MATRIX_BASE:-https://${UAT_DOMAIN:-uat.binflow.org}}" | sed -e 's|^https\{0,1\}://||')"
                   sudo mkdir -p /etc/docker
                   printf '{"insecure-registries":["%s"]}\n' "$REG" | sudo tee /etc/docker/daemon.json >/dev/null
                   sudo systemctl restart docker
