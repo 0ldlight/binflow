@@ -1950,3 +1950,5 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 **T-466 → done 2026-09-06 11:3x（`d4342230`）——P0 终验 PASS with notes，m16-done 可裁**：DoD 8/8 证据齐（L44 审计 49=49 零无主对账 / 断言反转七归属全 M16 / FE 变更面 20 提交零无主 / 16 纯 FE 票服务端 diff=0）；race 37/37 solo 绿（首跑超时系参数失误 solo 定谳）+ e2e 385/385 有效 + 十协议 local 10/10（licensed 净实例真客户端）+ remote/virtual 6 绿（npm ssrf 设计内 SKIP + 三面本网污染 CI a955dbce 承载）+ a11y 双主题双 locale 0 + NFR 全门过（11.4MB/126ms/502.6KB）。**缺陷两枚 P2 移交 T-465 顺腿**（D-T466-1 npm virtual 降级路径缺 / D-T466-2 DOCKERIZED_TOOLS 空格）。20 项缺位表全登记零遗漏。日志 reports/agents/T-466.md。
 
 **T-465 → doing 2026-09-06 11:4x（35 票收官笔：两 P2 顺修 + goreleaser 六平台烟测 + chart 联动 + 部署三面抽检 + m16-done 收口清单成文）**：release-engineer 在途。**收口后即裁 m16-done**（tag + UAT 随里程碑 PR——CircleCI 平台恢复后复跑补证）。
+
+**用户指令 intake ㉒（2026-09-06 11:4x）：「binflow 访问地址提取为变量，由 CI 平台的环境变量传入」——已落地（`9d841da6`）**：部署步本就读 `UAT_HOST`；矩阵面残留运行时字面量全数并入同模式——过渡探测 https 目标派生 `UAT_DOMAIN`、回落派生 `UAT_HOST`（双面）；docker 腿 insecure-registries 臂随 `UAT_MATRIX_BASE`/`UAT_DOMAIN`。存余字面量仅注释与 `${VAR:-default}` 文档形（env 模式本体，平台级可覆写）。
