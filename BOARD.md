@@ -1997,3 +1997,5 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 **W2 开波（2026-09-06 21:3x，双 lane）**：**T-491 → doing**（dev-go-core：通配桶三预置 BE 语义——零提权探针矩阵）；**T-492 → doing**（dev-frontend：B-3.2 初始态 + Last Login 列 + 列选器——双 locale 键化同票）。
 
 **用户指令 intake ㉓（2026-09-06 22:2x）：「所有 agent 在开始干活前可以尽可能使用我安装的各种 skill 和 mcp 等插件」——常设派单条款**：此后所有 Agent 派单提示追加「开工前先盘点可用 skill/MCP 插件（boostgraph 代码探索优先于 grep/读文件、context7 查库文档等），能提效则用」。当前 W2 双票在途不受溯及。
+
+**T-492 → done 2026-09-07 00:0x（`776df819`，13 文件 +496/−33）——M17 5/35（W2 票②：B-3.2 初始态 + Last Login 列 + 列选器——确定层滚程②收口）**：跨仓根+清单就绪即首仓自动选中（URL replace 规范化 + 五边界臂：空实例/403/过滤词让位/legacy 等待/回根不重选）+ Users Last Login 列（T-454 投影消费，Status 后 Artifactory 列序）+ columnPrefs 持久 + 前端排序键。七处落点 URL 断言 $→前缀（行为翻转正当）+ 三腿根态重建。四门 + assert-i18n 闸过（2586/1971）+ SPA +414B；新 spec 6 腿 ×4 连绿 + 八批回归全绿（批内 4 红全定谳非本票）。**parity 册 B-3.18 措辞漂移登记**（realm 实渲染——列决策不变措辞候回写）。遗留：锚册 +2/parity 回写归 conductor；users 网格搜索框缺位登记。日志 reports/agents/T-492.md。
