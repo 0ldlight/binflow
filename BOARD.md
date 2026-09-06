@@ -1979,3 +1979,7 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 **M17 W0 开波（2026-09-06 15:0x，双 lane 前置锚并行）**：**T-488 → doing**（reverse-engineer：build-info.md + release-bundle.md 两规格 + aql build 域增量——Q10 活体探活先行，坏则降级 t226 单源）；**T-489 → doing**（architect：ADR-0045/0046 + 洞察聚合会签 K75 + B-1.7 评审腿——与 T-488 软协作对齐）。
 
 **T-489 → done 2026-09-06 15:4x（`4414a3e1`，+344/−1）——M17 1/35（W0 锚②：ADR-0045/0046 Accepted + 洞察会签 + B-1.7 评审）**：ADR-0045 五轴（**ACL=仓库级 allow() 同源 K74 关闭**；promote 门 w(target)∧r(build)；六表族 DDL+nodes FK；REST 七族子集〔rename/diff/docker 独立端点不进 M17〕；import 禁令式织入）+ ADR-0046 七轴（bundle 最小面 + **第 20 槽 release-bundle〔MinTier=pro 暂行带翻转点〕** + Any Distribution 伪键通道；**K75 会签**=internal/insights 定名 + scheduler 第 4 域扩列 + boot 默认行 + 四指标族白名单 + K69 对账面；storageinfo 预裁不合体）+ **B-1.7 维持三值枚举 + tripwire 登记**。架构 §26 新章 + 包树三新包。**软缝协议**（T-488 规格未落盘先行——两 ADR 内嵌对齐清单 10+8 项 + 勘误回填路径 + 效力序；Accepted 期差异表候 T-488 对拍）。两暂行值翻转点在册。日志 reports/agents/T-489.md。
+
+**T-488 → done 2026-09-06 16:5x（`b76a9316`，5 文件 +479/−1）——M17 2/35（W0 锚①：两规格 + AQL build 域增量）**：30 端点/12 流程/13 模型规则，置信度逐条（高 48/中 20/低 19 零静默升格）+ 17 条候活体验证。**Q10 双降级定谳**：两容器均不可修复（pro router 不起/oss pg 配置级坏）——t226 单源亦落空，实际基线=**三书面源**（产品内嵌 OpenAPI 996 行 + 反编译 + 官方 docs 实取）。**对拍出 ADR 勘误 E1~E8**（ADR-0045 三处骨架字面/ADR-0046 端点锚+冲突三态+Enterprise+）——T-489 agent 已复活回填中。日志 reports/agents/T-488.md。
+
+**W0 齐 → W1 开波（2026-09-06 17:0x，双 lane + 回填腿）**：**T-490 → doing**（dev-go-core：configJSON 四域 round-trip + Stage 域 + K73 落定——T-439 tripwire 转绿）；**T-503 → doing**（reverse-engineer：REST 差距矩阵——158 ops × 全量面四态 + 首程三带冻结，跨切程锚）；**T-489 回填腿**（软缝 E1~E8 → 两 ADR 修订段）。
