@@ -604,6 +604,26 @@ func validateLocalConfig(config string) error {
 		// is refused at CONFIG time with the field named, never discovered
 		// when the adapter's tolerant probe reads it as false.
 		ForceConanAuthentication *bool `json:"forceConanAuthentication"`
+		// T-490 (FR-156.1): blackedOut is the blackout mark the WRITE plane
+		// reads (refuseBlackedOut, rest-api.md section 1.2 step 6). A
+		// boolean when present — the same decode-time typing so a mistyped
+		// mark is refused at CONFIG time with the field named, never
+		// discovered as a silently-false read inside the gate.
+		BlackedOut *bool `json:"blackedOut"`
+		// T-490 (FR-156.1): the Stage domain — Artifactory's repository
+		// environment tags (7.84 audit name Environments, 7.161 UI name
+		// Stage). WIRE KEY RULING: `environments` is the canonical spelling
+		// (the official JFrog REST reference's documented field); `stages`
+		// is the 7.161-era alias (docs/reverse/webhook.md carries a
+		// same-era `stages` wire key on the app-trust face, while
+		// release-bundle v2 promotion keeps `selectedEnvironments` — both
+		// spellings live in the 7.161 product). The local blob stores
+		// whichever spelling(s) arrived (the passthrough posture — the echo
+		// is verbatim, so round-trip is consistent per key); the ONE
+		// cross-cutting rule is the alias-disagreement refusal, the same
+		// resolveRemoteAlias posture every other dual spelling gets.
+		Environments []string `json:"environments"`
+		Stages       []string `json:"stages"`
 	}
 	if err := json.Unmarshal([]byte(config), &probe); err != nil {
 		return fmt.Errorf("%w: local repository config: %w", ErrInvalidRepoConfig, err)
@@ -616,5 +636,48 @@ func validateLocalConfig(config string) error {
 		return fmt.Errorf("%w: byHash %q is not a legal by-hash policy: must be one of ALL, SHA256, NONE (debian.md section 5)",
 			ErrInvalidRepoConfig, *probe.ByHash)
 	}
+	if err := validateStageNames(probe.Environments, probe.Stages); err != nil {
+		return err
+	}
 	return nil
+}
+
+// validateStageNames holds the Stage domain's cross-cutting rules (T-490,
+// FR-156.1): two spellings of one knob never disagree, and a stage name is
+// a non-empty token (an empty entry is garbage no UI can produce and no
+// echo should preserve). The nil-vs-empty split follows the passthrough
+// posture: nil = the key was absent, an explicit empty array is a legal
+// clear.
+func validateStageNames(environments, stages []string) error {
+	if len(environments) > 0 && len(stages) > 0 && !strSlicesEqual(environments, stages) {
+		return fmt.Errorf(
+			"%w: local repository config: environments and stages are two spellings of one knob and disagree (%v vs %v)",
+			ErrInvalidRepoConfig, environments, stages)
+	}
+	for _, name := range environments {
+		if strings.TrimSpace(name) == "" {
+			return fmt.Errorf("%w: local repository config: environments/stages entries must be non-empty stage names",
+				ErrInvalidRepoConfig)
+		}
+	}
+	for _, name := range stages {
+		if strings.TrimSpace(name) == "" {
+			return fmt.Errorf("%w: local repository config: environments/stages entries must be non-empty stage names",
+				ErrInvalidRepoConfig)
+		}
+	}
+	return nil
+}
+
+// strSlicesEqual compares two string slices for element-wise equality.
+func strSlicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

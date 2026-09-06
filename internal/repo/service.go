@@ -560,6 +560,14 @@ func (s *service) PutWithOptions(ctx context.Context, p *Principal, repoKey, pat
 		return nil, err
 	}
 
+	// blackedOut (FR-156.1/T-490): assertValidPath's first arm — before the
+	// pattern gate and the permission pair, per repo-semantics section 2's
+	// step order. The mark read here is the TARGET repository's (a routed
+	// virtual write is the member's write).
+	if err := refuseBlackedOut(row, path); err != nil {
+		return nil, err
+	}
+
 	// Governance pattern gate (T-95/W12a, FR-24-AC4): runs on the TARGET
 	// repository (a routed virtual write is the member's write — the same
 	// repository the quota meters) and before the body is drained, so a
@@ -742,6 +750,12 @@ func (s *service) PutFromBlob(ctx context.Context, p *Principal, repoKey, path s
 	if err != nil {
 		return nil, err
 	}
+	// blackedOut (FR-156.1/T-490): the checksum-deploy ("秒传") is a write
+	// like any other — the blackout arm runs before the pattern gate and the
+	// permission pair (repo-semantics section 2's step order).
+	if err := refuseBlackedOut(repoRow, path); err != nil {
+		return nil, err
+	}
 	// Governance gates (T-95): the pattern refusal before anything is
 	// opened; the quota pre-check below runs once the size is known (the
 	// filestore probe), so a refused checksum-deploy writes nothing at all —
@@ -877,6 +891,14 @@ func (s *service) PutLandedBlob(ctx context.Context, p *Principal, repoKey, path
 	// target member.
 	repoKey, repoRow, err := s.resolveWriteRepo(ctx, repoKey)
 	if err != nil {
+		return nil, err
+	}
+	// blackedOut (FR-156.1/T-490): the docker layer/config finalize is a
+	// push in flight — a blacked-out repository refuses it before the
+	// pattern gate and the permission pair (repo-semantics section 2's step
+	// order), so the registry surface keeps zero residue of the refused
+	// push.
+	if err := refuseBlackedOut(repoRow, path); err != nil {
 		return nil, err
 	}
 	// Governance gates (T-95): pattern refusal up front; the quota pre-check
@@ -1615,6 +1637,16 @@ func (s *service) PutManifest(ctx context.Context, p *Principal, repoKey, image,
 
 	permPath := dockerPermPath(image)
 	nodePath := dockerImageManifestPath(image, digest)
+
+	// blackedOut (FR-156.1/T-490): the manifest push is the docker write
+	// face — the blackout arm runs on the repository's own mark, before the
+	// pattern gate and the write permission (repo-semantics section 2's
+	// step order). The /v2 plane renders the StatusError verbatim (the
+	// writeVerbatimStatusError seam), status and message exactly as the
+	// content plane answers.
+	if err := refuseBlackedOut(dockerRow, nodePath); err != nil {
+		return nil, err
+	}
 
 	// Governance gates (T-95): the pattern refusal on the manifest's LAYOUT
 	// path (docker patterns are P2-observation ground — no W assertion

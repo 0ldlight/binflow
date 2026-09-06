@@ -44,22 +44,53 @@ type repoListItem struct {
 // validation, defaults, canonicalization and credential masking all live in
 // repo.Service.
 type repoConfig struct {
-	Key                     string `json:"key"`
-	RClass                  string `json:"rclass"`
-	PackageType             string `json:"packageType"`
-	Description             string `json:"description"`
-	URL                     string `json:"url"`
-	Notes                   string `json:"notes,omitempty"`
-	IncludesPattern         string `json:"includesPattern,omitempty"`
-	ExcludesPattern         string `json:"excludesPattern,omitempty"`
-	RepoLayoutRef           string `json:"repoLayoutRef,omitempty"`
-	BlackedOut              *bool  `json:"blackedOut,omitempty"`
+	Key             string `json:"key"`
+	RClass          string `json:"rclass"`
+	PackageType     string `json:"packageType"`
+	Description     string `json:"description"`
+	URL             string `json:"url"`
+	Notes           string `json:"notes,omitempty"`
+	IncludesPattern string `json:"includesPattern,omitempty"`
+	ExcludesPattern string `json:"excludesPattern,omitempty"`
+
+	// ---- T-490 (FR-156.1): the B-1.5 configJSON four-domain family plus
+	// the Stage domain, finally FORWARDED (the M16 T-439 decode-only drift
+	// closes) ----
+	//
+	// repoLayoutRef/blackedOut/maxUniqueSnapshots/archiveBrowsingEnabled
+	// were decoded here since M1 but silently dropped by every configJSON
+	// arm — PUT answered 200 and GET echoed nothing (the T-439 tripwire's
+	// pinned drift). They now ride the LOCAL arm verbatim (the maven policy
+	// family's passthrough posture): blackedOut gains its write-plane
+	// behavior (repo.refuseBlackedOut — the 404 of rest-api.md section 1.2
+	// step 6), repoLayoutRef stays presentation-only (K73's pin ruling:
+	// layout parsing is protocol-adapter-fixed; the stored value documents,
+	// it does not switch — ADR-0003 erratum, PRD K73 backfill), and
+	// maxUniqueSnapshots/archiveBrowsingEnabled are round-trip seats (the
+	// snapshot cleanup engine and the archive-content gate are future
+	// tickets' seams, registered in the T-490 report).
+	//
+	// maxUniqueSnapshots is a POINTER (K71's wire posture): the product
+	// default IS 0 (rest-api.md section 2), so an explicit 0 must survive
+	// the round trip instead of collapsing into "absent" like the old
+	// omitempty int did.
+	//
+	// The Stage domain (7.84 Environments → 7.161 Stage) carries TWO wire
+	// spellings: environments (canonical, the official REST reference's
+	// documented key) and stages (the 7.161-era alias). Both ride verbatim;
+	// repo.Service owns the one cross-cutting rule — the two spellings may
+	// not disagree (validateLocalConfig).
+	RepoLayoutRef          string   `json:"repoLayoutRef,omitempty"`
+	BlackedOut             *bool    `json:"blackedOut,omitempty"`
+	MaxUniqueSnapshots     *int     `json:"maxUniqueSnapshots,omitempty"`
+	ArchiveBrowsingEnabled *bool    `json:"archiveBrowsingEnabled,omitempty"`
+	Environments           []string `json:"environments,omitempty"`
+	Stages                 []string `json:"stages,omitempty"`
+
 	HandleReleases          *bool  `json:"handleReleases,omitempty"`
 	HandleSnapshots         *bool  `json:"handleSnapshots,omitempty"`
 	SnapshotVersionBehavior string `json:"snapshotVersionBehavior,omitempty"`
-	MaxUniqueSnapshots      int    `json:"maxUniqueSnapshots,omitempty"`
 	ChecksumPolicyType      string `json:"checksumPolicyType,omitempty"`
-	ArchiveBrowsingEnabled  *bool  `json:"archiveBrowsingEnabled,omitempty"`
 
 	// ---- M3 remote transport (FR-15; repo-semantics section 7.1 spellings) ----
 
@@ -219,6 +250,15 @@ func setBool(m map[string]any, key string, v *bool) {
 	}
 }
 
+// setInt collects one int-pointer transport field into the config map
+// (T-490's maxUniqueSnapshots posture: an explicit 0 is a value, not an
+// absence — the product default round-trips).
+func setInt(m map[string]any, key string, v *int) {
+	if v != nil {
+		m[key] = *v
+	}
+}
+
 // setRawJSON collects one raw-JSON transport field into the config map (the
 // smart remote pair rides verbatim so repo.Service sees the exact shape).
 func setRawJSON(m map[string]any, key string, v *json.RawMessage) {
@@ -291,6 +331,20 @@ func (c repoConfig) configJSON(rclass string) (string, error) {
 		// ignored, the caller-owned blob posture), read by exactly the
 		// adapter whose repository it is.
 		setBool(m, "priorityResolution", c.PriorityResolution)
+		// T-490 (FR-156.1): the B-1.5 four-domain family plus the Stage
+		// domain ride the same verbatim passthrough — the drift T-439 pinned
+		// (decode-only, configJSON dropped all four) closes here. blackedOut
+		// is consumed by the write plane (repo.refuseBlackedOut);
+		// repoLayoutRef is the K73 presentation seat; maxUniqueSnapshots and
+		// archiveBrowsingEnabled are stored round-trip seats; environments
+		// and stages are the Stage domain's two spellings (the disagreement
+		// rule is repo.Service's — validateLocalConfig).
+		setStr(m, "repoLayoutRef", c.RepoLayoutRef)
+		setBool(m, "blackedOut", c.BlackedOut)
+		setInt(m, "maxUniqueSnapshots", c.MaxUniqueSnapshots)
+		setBool(m, "archiveBrowsingEnabled", c.ArchiveBrowsingEnabled)
+		setStrSlice(m, "environments", c.Environments)
+		setStrSlice(m, "stages", c.Stages)
 		setBool(m, "handleReleases", c.HandleReleases)
 		setBool(m, "handleSnapshots", c.HandleSnapshots)
 		setStr(m, "snapshotVersionBehavior", c.SnapshotVersionBehavior)
