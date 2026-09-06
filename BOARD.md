@@ -1971,3 +1971,5 @@ conductor 界定（可推翻）：**场景 = BinFlow 作为 Jenkins 流水线的
 - **挂账**：CircleCI 平台事故期（恢复后按 T-465 §5 清单 re-run 补证）；DNS+SG 两用户前置；M17 预立项窗开（ROADMAP 备稿段启用 + PM 立项流程）
 
 **M17 立项双裁（2026-09-06 13:5x，用户 AskUserQuestion）**：**Q1 = 三域进 RB 滚（推荐案采纳）**——Build-info P0 + Release Bundle 最小面 + 洞察报表进 M17；Federation/Lifecycles 滚 M18 单列专程；票估 32~40。**Q0 = 候用户逐条审**（PRODUCT.md 五条修订建议表——PRD §0 为底稿；Xray 维持不做）——Q0 文本裁定前主轴派单以 Q1 裁定为准（范围已用户亲裁），PRODUCT.md 改写候审。M17 立项稿 `f9695706`（FR-151~161 + LC-99~114 + Q0~Q12 清单）。
+
+**用户终裁 Q0（2026-09-06 14:0x）：「除了 2 不做，剩下的都做」——PRODUCT.md 五条排除项除 Xray 外全数解禁**。两条超 PM 倾向翻案落定：**#1 HA/Federation 进产品路线**（复制已实现补账 + Federation/HA M18+ 候排程——与 Q1 裁定衔接）；**#5 Artifactory 全量 REST 兼容进产品范围**（分程分批交付、/api/v1 并行保留——Q4 终裁随之关闭为「进」；Q3 HA 亦闭）。#3 LDAP/SAML/OIDC 滞后补账（M6/M11 已实现）；#4 洞察报表 M17（FR-154）。PRODUCT.md 已改写（唯一排除=Xray + 范围演进记录段）。**M17 立项边界全清——拆票解锁**（主轴三域 + 确定层六 FR + 全量 REST 兼容作为跨切程入 M17+ 排程）。
