@@ -60,6 +60,15 @@ var ErrWebSessionNotFound = errors.New("metadata: web session not found")
 // runs (the four-tuple lookup found no row).
 var ErrBuildNotFound = errors.New("metadata: build not found")
 
+// ErrBundleNotFound is returned by BundleStore reads for missing bundles
+// (the (name, version) pair has no row).
+var ErrBundleNotFound = errors.New("metadata: bundle not found")
+
+// ErrBundleExists is returned by BundleStore's InsertBundle when the pair
+// (bundle_name, bundle_version) already carries a row — the UNIQUE-key fact
+// the release-bundle conflict tri-state evaluates (ADR-0046 Errata ② E6).
+var ErrBundleExists = errors.New("metadata: bundle already exists")
+
 // ErrScheduleNotFound is returned by ScheduleStore Get/Delete for missing
 // schedules rows (the "no row = not scheduled" single-state semantics of
 // ADR-0044 decision 2: absence is the unscheduled state, callers render it
@@ -508,6 +517,7 @@ type Store interface {
 	Schedules() ScheduleStore
 	Backups() BackupStore
 	Builds() BuildStore
+	Bundles() BundleStore
 	// IsReferenced reports whether any node row or docker ref row currently
 	// points at sha256 ([M9] ADR-0031 mechanism A): the single-point Live
 	// oracle behind the GC sweep's pre-delete recheck. It spans two sub-stores
@@ -1273,4 +1283,88 @@ type BuildStore interface {
 	// ListPromotions returns the run's history ordered by promoted_at DESC
 	// (then id DESC for determinism) — the current status is row one.
 	ListPromotions(ctx context.Context, name, number, started, repo string) ([]*BuildPromotion, error)
+}
+
+// BundleStore is the release-bundle record persistence seam (025, M17
+// T-513 / ADR-0046 decision 1): the same dumb-ledger contract as
+// BuildStore — the store validates nothing beyond the schema (the state
+// CHECK and the pair/uniqueness keys), name/version legality and the
+// conflict tri-state's interpretation live in the domain service. Rows
+// round-trip as text/ints; the manifest segment is written whole.
+type BundleStore interface {
+	// InsertBundle writes a NEW bundle row with its whole manifest
+	// segment in one transaction. A row already sitting at
+	// (bundle_name, bundle_version) answers ErrBundleExists (the
+	// UNIQUE-key fact; the caller evaluates the tri-state) — there is
+	// deliberately no upsert: the manifest is immutable.
+	InsertBundle(ctx context.Context, b *Bundle, items []*BundleItem) error
+	// GetBundle returns the pair's row or wraps ErrBundleNotFound.
+	GetBundle(ctx context.Context, name, version string) (*Bundle, error)
+	// ListBundleNames returns one row per bundle name — version count
+	// and newest created_at — ordered by name.
+	ListBundleNames(ctx context.Context) ([]*BundleName, error)
+	// ListBundleVersions returns every version of one name ordered by
+	// created_at DESC (then version DESC for determinism).
+	ListBundleVersions(ctx context.Context, name string) ([]*BundleVersion, error)
+	// ReplaceItems atomically replaces the manifest segment and sets the
+	// row's state/updated_* in the same transaction (the resume arm's
+	// one write: the identity set is unchanged — same digest — only
+	// snapshots and the derived state move). The parent row must exist:
+	// a missing pair answers ErrBundleNotFound.
+	ReplaceItems(ctx context.Context, name, version, state string, items []*BundleItem, updatedBy, updatedAt string) error
+	// ListItems returns the manifest segment ordered by (repo_key, path)
+	// — pending rows (sha256 '') included, they are the INPROGRESS face.
+	ListItems(ctx context.Context, name, version string) ([]*BundleItem, error)
+}
+
+// Bundle is one row of bundles (025, M17 T-513 / ADR-0046): the versioned
+// release RECORD — name, version, state and the signature placeholder.
+// State values are the domain's closed set (COMPLETE/INPROGRESS); Signature
+// carries the content digest (no signing chain exists in the minimal face —
+// the digest IS the "same signature" comparison of the conflict tri-state);
+// Description is the ADR skeleton's zero-cost BinFlow-native column (no M17
+// wire face writes it). The type dimension (SOURCE/TARGET) is a code
+// constant of the domain, not a column: the single instance keeps SOURCE
+// records only (architecture §26.2).
+type Bundle struct {
+	Name        string // bundle_name
+	Version     string // bundle_version, free-form (no SemVer enforcement)
+	State       string // COMPLETE | INPROGRESS
+	Signature   string // "sha256:<hex>" content digest of the item-identity set
+	Description string
+	CreatedBy   string
+	CreatedAt   string
+	UpdatedBy   string
+	UpdatedAt   string
+}
+
+// BundleName is one row of the names projection: the name's version count
+// and newest created_at — the GET /api/release/bundles face's source.
+type BundleName struct {
+	Name        string
+	Versions    int
+	LastCreated string
+}
+
+// BundleVersion is one row of the versions projection: every version of
+// one name, newest first.
+type BundleVersion struct {
+	Version string
+	State   string
+	Created string
+}
+
+// BundleItem is one row of bundle_items: the manifest line as a NODES
+// TIME-POINT SNAPSHOT. RepoKey/Path are the identity (the digest's input);
+// Sha256/Size are frozen at resolution time (”/0 = PENDING — the artifact
+// is not on this instance yet, the bundle's INPROGRESS face); the snapshot
+// never re-resolves once set (a bundle is a release-moment record).
+type BundleItem struct {
+	ID      string // uuid minted by the writer
+	RepoKey string
+	Path    string
+	Sha256  string
+	Size    int64
+	AddedAt string
+	AddedBy string
 }
